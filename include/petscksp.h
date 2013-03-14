@@ -57,6 +57,7 @@ typedef const char* KSPType;
 #define KSPQCG        "qcg"
 #define KSPBICG       "bicg"
 #define KSPMINRES     "minres"
+#define KSPMINRESQLP  "minresqlp"
 #define KSPSYMMLQ     "symmlq"
 #define KSPLCD        "lcd"
 #define KSPPYTHON     "python"

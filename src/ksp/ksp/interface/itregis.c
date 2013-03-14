@@ -27,6 +27,7 @@ PETSC_EXTERN PetscErrorCode KSPCreate_QCG(KSP);
 PETSC_EXTERN PetscErrorCode KSPCreate_BiCG(KSP);
 PETSC_EXTERN PetscErrorCode KSPCreate_FGMRES(KSP);
 PETSC_EXTERN PetscErrorCode KSPCreate_MINRES(KSP);
+PETSC_EXTERN PetscErrorCode KSPCreate_MINRESQLP(KSP);
 PETSC_EXTERN PetscErrorCode KSPCreate_SYMMLQ(KSP);
 PETSC_EXTERN PetscErrorCode KSPCreate_LGMRES(KSP);
 PETSC_EXTERN PetscErrorCode KSPCreate_LCD(KSP);
@@ -90,6 +91,7 @@ PetscErrorCode  KSPRegisterAll(const char path[])
   ierr = KSPRegisterDynamic(KSPBICG,       path,"KSPCreate_BiCG",      KSPCreate_BiCG);CHKERRQ(ierr);
   ierr = KSPRegisterDynamic(KSPFGMRES,     path,"KSPCreate_FGMRES",    KSPCreate_FGMRES);CHKERRQ(ierr);
   ierr = KSPRegisterDynamic(KSPMINRES,     path,"KSPCreate_MINRES",    KSPCreate_MINRES);CHKERRQ(ierr);
+  ierr = KSPRegisterDynamic(KSPMINRESQLP,  path,"KSPCreate_MINRESQLP", KSPCreate_MINRESQLP);CHKERRQ(ierr);
   ierr = KSPRegisterDynamic(KSPSYMMLQ,     path,"KSPCreate_SYMMLQ",    KSPCreate_SYMMLQ);CHKERRQ(ierr);
   ierr = KSPRegisterDynamic(KSPLGMRES,     path,"KSPCreate_LGMRES",    KSPCreate_LGMRES);CHKERRQ(ierr);
   ierr = KSPRegisterDynamic(KSPLCD,        path,"KSPCreate_LCD",       KSPCreate_LCD);CHKERRQ(ierr);
