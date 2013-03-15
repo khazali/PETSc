@@ -683,7 +683,7 @@ PetscErrorCode countIterations(KSP ksp)
   /* nb of iterations of sub-system 1 */
   ierr = KSPGetIterationNumber(subksp[1],&its);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD," iterations sub-system 1   = %d\n", its);CHKERRQ(ierr);
-
+  ierr = PetscFree(subksp);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
