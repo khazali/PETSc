@@ -16,7 +16,9 @@ static char help[] = "Poiseuille flow problem. Viscous, laminar flow in a 2D cha
 /* Discretized with the cell-centered finite-volume method on a                */
 /* Cartesian grid with co-located variables. Variables ordered as              */
 /* [u1...uN v1...vN p1...pN]^T. Matrix [A00 A01; A10, A11] solved with         */
-/* PCFIELDSPLIT.                                                               */
+/* PCFIELDSPLIT. Lower factorization is used to mimick the Semi-Implicit       */
+/* Method for Pressure Linked Equations (SIMPLE) used as preconditioner        */
+/* instead of solver.                                                          */
 /*                                                                             */
 /* Disclaimer: does not contain the pressure-weighed interpolation             */
 /* method needed to suppress spurious pressure modes in real-life              */
@@ -24,27 +26,29 @@ static char help[] = "Poiseuille flow problem. Viscous, laminar flow in a 2D cha
 /*                                                                             */
 /* usage:                                                                      */
 /*                                                                             */
-/* mpiexec -n 2 ./stokes -nx 32 -ny 48                                         */
+/* mpiexec -n 2 ./ex70 -nx 32 -ny 48 -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_fact_type lower -fieldsplit_1_pc_type none
 /*                                                                             */
-/*   Runs with PETSc defaults on 32x48 grid, no PC for the Schur               */
-/*   complement because A11 is zero.                                           */
+/*   Runs with PCFIELDSPLIT on 32x48 grid, no PC for the Schur                 */
+/*   complement because A11 is zero. FGMRES is needed because                  */
+/*   PCFIELDSPLIT is a variable preconditioner.                                */
 /*                                                                             */
-/* mpiexec -n 2 ./stokes -nx 32 -ny 48 -fieldsplit_1_user_pc                   */
+/* mpiexec -n 2 ./ex70 -nx 32 -ny 48 -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_fact_type lower -user_pc
 /*                                                                             */
 /*   Same as above but with user defined PC for the true Schur                 */
 /*   complement. PC based on the SIMPLE-type approximation (inverse of         */
 /*   A00 approximated by inverse of its diagonal).                             */
 /*                                                                             */
-/* mpiexec -n 2 ./stokes -nx 32 -ny 48 -fieldsplit_1_user_ksp                  */
+/* mpiexec -n 2 ./ex70 -nx 32 -ny 48 -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_fact_type lower -user_ksp
 /*                                                                             */
 /*   Replace the true Schur complement with a user defined Schur               */
 /*   complement based on the SIMPLE-type approximation. Same matrix is         */
 /*   used as PC.                                                               */
 /*                                                                             */
-/* mpiexec -n 2 ./stokes -nx 32 -ny 48 -fieldsplit_1_user_ksp -fieldsplit_1_ksp_rtol 0.01 -fieldsplit_0_ksp_rtol 0.01 */
+/* mpiexec -n 2 ./ex70 -nx 32 -ny 48 -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_fact_type lower -fieldsplit_0_ksp_type gmres -fieldsplit_0_pc_type bjacobi -fieldsplit_1_pc_type jacobi -fieldsplit_1_inner_ksp_type preonly -fieldsplit_1_inner_pc_type jacobi -fieldsplit_1_upper_ksp_type preonly -fieldsplit_1_upper_pc_type jacobi
 /*                                                                             */
-/*   SIMPLE-type approximations are crude, there's no benefit in               */
-/*   solving the subsystems in the preconditioner very accurately.             */
+/*   Out-of-the-box SIMPLE-type preconditioning. The major advantage           */
+/*   is that the user neither needs to provide the approximation of            */
+/*   the Schur complement, nor the corresponding preconditioner.               */
 /*                                                                             */
 /*---------------------------------------------------------------------------- */
 
@@ -658,6 +662,31 @@ PetscErrorCode StokesCalcError(Stokes *s)
   PetscFunctionReturn(0);
 }
 
+PetscErrorCode countIterations(KSP ksp)
+{
+  PetscErrorCode ierr;
+  PetscInt       n=1,its;
+  KSP            *subksp;
+  PC             pc;
+
+  PetscFunctionBeginUser;
+  /* nb of iterations of coupled system */
+  ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
+  ierr = KSPGetIterationNumber(ksp,&its);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD," iterations coupled system = %d\n", its);CHKERRQ(ierr);
+  /* TODO: this should somehow become the total of all sub-system
+     solver, not just the total of the last fgmres iteration*/
+  /* nb of iterations of sub-system 0 */
+  ierr = PCFieldSplitGetSubKSP(pc,&n,&subksp);CHKERRQ(ierr);
+  ierr = KSPGetIterationNumber(subksp[0],&its);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD," iterations sub-system 0   = %d\n", its);CHKERRQ(ierr);
+  /* nb of iterations of sub-system 1 */
+  ierr = KSPGetIterationNumber(subksp[1],&its);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD," iterations sub-system 1   = %d\n", its);CHKERRQ(ierr);
+
+  PetscFunctionReturn(0);
+}
+
 int main(int argc, char **argv)
 {
   Stokes         s;
@@ -684,6 +713,7 @@ int main(int argc, char **argv)
   ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
   ierr = StokesSetupPC(&s, ksp);CHKERRQ(ierr);
   ierr = KSPSolve(ksp, s.b, s.x);CHKERRQ(ierr);
+  ierr = countIterations(ksp);CHKERRQ(ierr);
 
   /* don't trust, verify! */
   ierr = StokesCalcResidual(&s);CHKERRQ(ierr);
