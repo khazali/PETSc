@@ -1,56 +1,56 @@
 static char help[] = "Poiseuille flow problem. Viscous, laminar flow in a 2D channel with parabolic velocity\n\
                       profile and linear pressure drop, exact solution of the 2D Stokes\n";
 
-/*---------------------------------------------------------------------------- */
-/* M A R I T I M E  R E S E A R C H  I N S T I T U T E  N E T H E R L A N D S  */
-/*---------------------------------------------------------------------------- */
-/* author : Christiaan M. Klaij                                                */
-/*---------------------------------------------------------------------------- */
-/*                                                                             */
-/* Poiseuille flow problem.                                                    */
-/*                                                                             */
-/* Viscous, laminar flow in a 2D channel with parabolic velocity               */
-/* profile and linear pressure drop, exact solution of the 2D Stokes           */
-/* equations.                                                                  */
-/*                                                                             */
-/* Discretized with the cell-centered finite-volume method on a                */
-/* Cartesian grid with co-located variables. Variables ordered as              */
-/* [u1...uN v1...vN p1...pN]^T. Matrix [A00 A01; A10, A11] solved with         */
-/* PCFIELDSPLIT. Lower factorization is used to mimick the Semi-Implicit       */
-/* Method for Pressure Linked Equations (SIMPLE) used as preconditioner        */
-/* instead of solver.                                                          */
-/*                                                                             */
-/* Disclaimer: does not contain the pressure-weighed interpolation             */
-/* method needed to suppress spurious pressure modes in real-life              */
-/* problems.                                                                   */
-/*                                                                             */
-/* usage:                                                                      */
-/*                                                                             */
-/* mpiexec -n 2 ./ex70 -nx 32 -ny 48 -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_fact_type lower -fieldsplit_1_pc_type none
-/*                                                                             */
-/*   Runs with PCFIELDSPLIT on 32x48 grid, no PC for the Schur                 */
-/*   complement because A11 is zero. FGMRES is needed because                  */
-/*   PCFIELDSPLIT is a variable preconditioner.                                */
-/*                                                                             */
-/* mpiexec -n 2 ./ex70 -nx 32 -ny 48 -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_fact_type lower -user_pc
-/*                                                                             */
-/*   Same as above but with user defined PC for the true Schur                 */
-/*   complement. PC based on the SIMPLE-type approximation (inverse of         */
-/*   A00 approximated by inverse of its diagonal).                             */
-/*                                                                             */
-/* mpiexec -n 2 ./ex70 -nx 32 -ny 48 -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_fact_type lower -user_ksp
-/*                                                                             */
-/*   Replace the true Schur complement with a user defined Schur               */
-/*   complement based on the SIMPLE-type approximation. Same matrix is         */
-/*   used as PC.                                                               */
-/*                                                                             */
-/* mpiexec -n 2 ./ex70 -nx 32 -ny 48 -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_fact_type lower -fieldsplit_0_ksp_type gmres -fieldsplit_0_pc_type bjacobi -fieldsplit_1_pc_type jacobi -fieldsplit_1_inner_ksp_type preonly -fieldsplit_1_inner_pc_type jacobi -fieldsplit_1_upper_ksp_type preonly -fieldsplit_1_upper_pc_type jacobi
-/*                                                                             */
-/*   Out-of-the-box SIMPLE-type preconditioning. The major advantage           */
-/*   is that the user neither needs to provide the approximation of            */
-/*   the Schur complement, nor the corresponding preconditioner.               */
-/*                                                                             */
-/*---------------------------------------------------------------------------- */
+/*----------------------------------------------------------------------------
+ * M A R I T I M E  R E S E A R C H  I N S T I T U T E  N E T H E R L A N D S
+ *----------------------------------------------------------------------------
+ * author : Christiaan M. Klaij
+ *----------------------------------------------------------------------------
+ *
+ * Poiseuille flow problem.
+ *
+ * Viscous, laminar flow in a 2D channel with parabolic velocity
+ * profile and linear pressure drop, exact solution of the 2D Stokes
+ * equations.
+ *
+ * Discretized with the cell-centered finite-volume method on a
+ * Cartesian grid with co-located variables. Variables ordered as
+ * [u1...uN v1...vN p1...pN]^T. Matrix [A00 A01; A10, A11] solved with
+ * PCFIELDSPLIT. Lower factorization is used to mimick the Semi-Implicit
+ * Method for Pressure Linked Equations (SIMPLE) used as preconditioner
+ * instead of solver.
+ *
+ * Disclaimer: does not contain the pressure-weighed interpolation
+ * method needed to suppress spurious pressure modes in real-life
+ * problems.
+ *
+ * usage:
+ *
+ * mpiexec -n 2 ./ex70 -nx 32 -ny 48 -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_fact_type lower -fieldsplit_1_pc_type none
+ *
+ *   Runs with PCFIELDSPLIT on 32x48 grid, no PC for the Schur
+ *   complement because A11 is zero. FGMRES is needed because
+ *   PCFIELDSPLIT is a variable preconditioner.
+ *
+ * mpiexec -n 2 ./ex70 -nx 32 -ny 48 -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_fact_type lower -user_pc
+ *
+ *   Same as above but with user defined PC for the true Schur
+ *   complement. PC based on the SIMPLE-type approximation (inverse of
+ *   A00 approximated by inverse of its diagonal).
+ *
+ * mpiexec -n 2 ./ex70 -nx 32 -ny 48 -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_fact_type lower -user_ksp
+ *
+ *   Replace the true Schur complement with a user defined Schur
+ *   complement based on the SIMPLE-type approximation. Same matrix is
+ *   used as PC.
+ *
+ * mpiexec -n 2 ./ex70 -nx 32 -ny 48 -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_fact_type lower -fieldsplit_0_ksp_type gmres -fieldsplit_0_pc_type bjacobi -fieldsplit_1_pc_type jacobi -fieldsplit_1_inner_ksp_type preonly -fieldsplit_1_inner_pc_type jacobi -fieldsplit_1_upper_ksp_type preonly -fieldsplit_1_upper_pc_type jacobi
+ *
+ *   Out-of-the-box SIMPLE-type preconditioning. The major advantage
+ *   is that the user neither needs to provide the approximation of
+ *   the Schur complement, nor the corresponding preconditioner.
+ *
+ *---------------------------------------------------------------------------- */
 
 #include <petscksp.h>
 
