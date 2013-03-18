@@ -267,6 +267,70 @@ static PetscErrorCode IFunction(TS ts,PetscReal time,Vec U,Vec Udot,Vec F,void *
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "IJacobian"
+/*
+ * This problem is currently linear, but we communicate vector entries as though it was nonlinear.
+ */
+static PetscErrorCode IJacobian(TS ts,PetscReal time,Vec U,Vec Udot,PetscReal a,Mat *Amat,Mat *Pmat,MatStructure *mstructure,void *ctx)
+{
+  User              user = (User)ctx;
+  DM                dm;
+  Vec               locU;
+  PetscErrorCode    ierr;
+  PetscSection      section;
+  PetscInt          c,cStart,cEnd;
+
+  PetscFunctionBeginUser;
+  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+  ierr = DMGetLocalVector(dm,&locU);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalBegin(dm,U,INSERT_VALUES,locU);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalEnd(dm,U,INSERT_VALUES,locU);CHKERRQ(ierr);
+
+  ierr = MatZeroEntries(*Pmat);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(dm,0,&cStart,&cEnd);CHKERRQ(ierr);
+  ierr = DMGetDefaultSection(dm,&section);CHKERRQ(ierr);
+  for (c=cStart; c<cEnd; c++) {
+    PetscScalar     *cu;
+    PetscInt        csize,cellset,q,i,j,d;
+    const PetscReal *Weight,*Basis,*Deriv;
+    PetscReal       Kheat,HeatSource;
+    PetscScalar     qu[NUM_QUADRATURE_POINTS_0],qdu[NUM_QUADRATURE_POINTS_0][DIM];
+    PetscScalar     K[NUM_BASIS_FUNCTIONS_0][NUM_BASIS_FUNCTIONS_0];
+
+    ierr = UserSetupElem(dm,c,&Weight,&Basis,&Deriv);CHKERRQ(ierr);
+    ierr = DMPlexGetLabelValue(dm,"Cell Sets",c,&cellset);CHKERRQ(ierr);
+    ierr = DMPlexVecGetClosure(dm,section,locU,c,&csize,&cu);CHKERRQ(ierr);
+    if (csize != NUM_BASIS_FUNCTIONS_0) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_SUP,"Not implemented for dim %D csize %D",DIM,csize);CHKERRQ(ierr);
+
+    Mult(NUM_QUADRATURE_POINTS_0,NUM_BASIS_FUNCTIONS_0,Basis,cu,qu);
+    Mult(NUM_QUADRATURE_POINTS_0*DIM,NUM_BASIS_FUNCTIONS_0,Deriv,cu,&qdu[0][0]);
+
+    ierr = UserGetCoefficients(user,cellset,&Kheat,&HeatSource);CHKERRQ(ierr);
+    ierr = PetscMemzero(K,sizeof(K));CHKERRQ(ierr);
+    for (q=0; q<NUM_QUADRATURE_POINTS_0; q++) {
+      for (i=0; i<NUM_BASIS_FUNCTIONS_0; i++) {
+        for (j=0; j<NUM_BASIS_FUNCTIONS_0; j++) {
+          K[i][j] += Basis[q*NUM_BASIS_FUNCTIONS_0+i] * Weight[q] * a * Basis[q*NUM_BASIS_FUNCTIONS_0+j];
+          for (d=0; d<DIM; d++) K[i][j] += Deriv[(q*DIM+d)*NUM_BASIS_FUNCTIONS_0+i] * Weight[q] * Kheat * Deriv[(q*DIM+d)*NUM_BASIS_FUNCTIONS_0+j];
+        }
+      }
+    }
+    ierr = DMPlexVecRestoreClosure(dm,section,locU,c,&csize,&cu);CHKERRQ(ierr);
+    ierr = DMPlexMatSetClosure(dm,NULL,NULL,*Pmat,c,&K[0][0],ADD_VALUES);CHKERRQ(ierr);
+  }
+  ierr = DMRestoreLocalVector(dm,&locU);CHKERRQ(ierr);
+
+  ierr = MatAssemblyBegin(*Pmat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(*Pmat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  if (*Pmat != *Amat) {
+    ierr = MatAssemblyBegin(*Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(*Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  }
+  *mstructure = SAME_NONZERO_PATTERN;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "OutputVTK"
 static PetscErrorCode OutputVTK(DM dm,const char *filename,PetscViewer *viewer)
 {
@@ -367,6 +431,7 @@ int main(int argc,char **argv)
   ierr = TSSetDM(ts,dm);CHKERRQ(ierr);
   ierr = TSMonitorSet(ts,MonitorVTK,user,NULL);CHKERRQ(ierr);
   ierr = TSSetIFunction(ts,NULL,IFunction,user);CHKERRQ(ierr);
+  ierr = TSSetIJacobian(ts,NULL,NULL,IJacobian,user);CHKERRQ(ierr);
   ierr = TSSetDuration(ts,1000,1.0);CHKERRQ(ierr);
   dt = 0.1;
   ierr = TSSetInitialTimeStep(ts,0.0,dt);CHKERRQ(ierr);
