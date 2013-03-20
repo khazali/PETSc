@@ -56,10 +56,10 @@ PetscLogDouble petsc_gather_ct       = 0.0;  /* The number of gathers and gather
 PetscLogDouble petsc_scatter_ct      = 0.0;  /* The number of scatters and scattervs */
 
 /* Logging functions */
-PetscErrorCode (*PetscLogPHC)(PetscObject) = NULL;
-PetscErrorCode (*PetscLogPHD)(PetscObject) = NULL;
-PetscErrorCode (*PetscLogPLB)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
-PetscErrorCode (*PetscLogPLE)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
+PETSC_EXTERN_C_DEFINE PetscErrorCode (*PetscLogPHC)(PetscObject) = NULL;
+PETSC_EXTERN_C_DEFINE PetscErrorCode (*PetscLogPHD)(PetscObject) = NULL;
+PETSC_EXTERN_C_DEFINE PetscErrorCode (*PetscLogPLB)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
+PETSC_EXTERN_C_DEFINE PetscErrorCode (*PetscLogPLE)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
 
 /* Tracing event logging variables */
 FILE             *petsc_tracefile            = NULL;

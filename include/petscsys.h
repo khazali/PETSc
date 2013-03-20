@@ -63,10 +63,12 @@
 #if defined(__cplusplus)
 #define PETSC_EXTERN extern "C" PETSC_VISIBILITY_PUBLIC
 #define PETSC_EXTERN_TYPEDEF extern "C"
+#define PETSC_EXTERN_C_DEFINE extern "C" /* at definition of function pointer data */
 #define PETSC_INTERN extern "C" PETSC_VISIBILITY_INTERNAL
 #else
 #define PETSC_EXTERN extern PETSC_VISIBILITY_PUBLIC
 #define PETSC_EXTERN_TYPEDEF
+#define PETSC_EXTERN_C_DEFINE
 #define PETSC_INTERN extern PETSC_VISIBILITY_INTERNAL
 #endif
 

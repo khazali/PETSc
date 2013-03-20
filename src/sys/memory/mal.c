@@ -89,8 +89,8 @@ PetscErrorCode  PetscFreeDefault(void *ptr,int line,char *func,char *file,char *
   return 0;
 }
 
-PetscErrorCode (*PetscTrMalloc)(size_t,int,const char[],const char[],const char[],void**) = PetscMallocAlign;
-PetscErrorCode (*PetscTrFree)(void*,int,const char[],const char[],const char[])           = PetscFreeAlign;
+PETSC_EXTERN_C_DEFINE PetscErrorCode (*PetscTrMalloc)(size_t,int,const char[],const char[],const char[],void**) = PetscMallocAlign;
+PETSC_EXTERN_C_DEFINE PetscErrorCode (*PetscTrFree)(void*,int,const char[],const char[],const char[])           = PetscFreeAlign;
 
 PetscBool petscsetmallocvisited = PETSC_FALSE;
 

@@ -74,12 +74,12 @@ MPI_Datatype MPIU_ENUM;
 /*
        Function that is called to display all error messages
 */
-PetscErrorCode (*PetscErrorPrintf)(const char [],...)          = PetscErrorPrintfDefault;
-PetscErrorCode (*PetscHelpPrintf)(MPI_Comm,const char [],...)  = PetscHelpPrintfDefault;
+PETSC_EXTERN_C_DEFINE PetscErrorCode (*PetscErrorPrintf)(const char [],...)          = PetscErrorPrintfDefault;
+PETSC_EXTERN_C_DEFINE PetscErrorCode (*PetscHelpPrintf)(MPI_Comm,const char [],...)  = PetscHelpPrintfDefault;
 #if defined(PETSC_HAVE_MATLAB_ENGINE)
-PetscErrorCode (*PetscVFPrintf)(FILE*,const char[],va_list)    = PetscVFPrintf_Matlab;
+PETSC_EXTERN_C_DEFINE PetscErrorCode (*PetscVFPrintf)(FILE*,const char[],va_list)    = PetscVFPrintf_Matlab;
 #else
-PetscErrorCode (*PetscVFPrintf)(FILE*,const char[],va_list)    = PetscVFPrintfDefault;
+PETSC_EXTERN_C_DEFINE PetscErrorCode (*PetscVFPrintf)(FILE*,const char[],va_list)    = PetscVFPrintfDefault;
 #endif
 /*
   This is needed to turn on/off cusp synchronization

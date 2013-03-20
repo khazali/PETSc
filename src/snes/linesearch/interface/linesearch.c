@@ -703,7 +703,7 @@ PetscErrorCode SNESLineSearchSetFromOptions(SNESLineSearch linesearch)
                               "none",linesearch->precheck_picard_angle,&linesearch->precheck_picard_angle,NULL);CHKERRQ(ierr);
       ierr = SNESLineSearchSetPreCheck(linesearch,SNESLineSearchPreCheckPicard,&linesearch->precheck_picard_angle);CHKERRQ(ierr);
     } else {
-      ierr = SNESLineSearchSetPreCheck(linesearch,NULL,NULL);CHKERRQ(ierr);
+      ierr = SNESLineSearchSetPreCheck(linesearch,(PetscErrorCode (*)(SNESLineSearch,Vec,Vec,PetscBool*,void*))NULL,NULL);CHKERRQ(ierr);
     }
   }
   ierr = PetscOptionsInt("-snes_linesearch_order","Order of approximation used in the line search","SNESLineSearchSetOrder",linesearch->order,&linesearch->order,0);CHKERRQ(ierr);
