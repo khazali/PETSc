@@ -79,12 +79,12 @@ xyt_ADT XYT_new(void)
 }
 
 /**************************************xyt.c***********************************/
-PetscInt XYT_factor(xyt_ADT xyt_handle,     /* prev. allocated xyt  handle */
-                    PetscInt *local2global, /* global column mapping       */
-                    PetscInt n,             /* local num rows              */
-                    PetscInt m,             /* local num cols              */
-                    PetscErrorCode (*matvec)(void*,PetscScalar*,PetscScalar*), /* b_loc=A_local.x_loc         */
-                    void *grid_data)        /* grid data for matvec        */
+PETSC_INTERN PetscInt XYT_factor(xyt_ADT xyt_handle,     /* prev. allocated xyt  handle */
+                                 PetscInt *local2global, /* global column mapping       */
+                                 PetscInt n,             /* local num rows              */
+                                 PetscInt m,             /* local num cols              */
+                                 PetscErrorCode (*matvec)(void*,PetscScalar*,PetscScalar*), /* b_loc=A_local.x_loc         */
+                                 void *grid_data)        /* grid data for matvec        */
 {
 
   PCTFS_comm_init();
