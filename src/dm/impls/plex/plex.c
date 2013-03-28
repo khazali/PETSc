@@ -1416,7 +1416,7 @@ PetscErrorCode DMPlexSymmetrize(DM dm)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexSetDepth_Private"
-PetscErrorCode DMPlexSetDepth_Private(DM dm, PetscInt p, PetscInt *depth)
+static PetscErrorCode DMPlexSetDepth_Private(DM dm, PetscInt p, PetscInt *depth)
 {
   PetscInt       d;
   PetscErrorCode ierr;
@@ -5581,7 +5581,7 @@ PetscErrorCode DMPlexGetRefinementLimit(DM dm, PetscReal *refinementLimit)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexGetCellRefiner_Private"
-PetscErrorCode DMPlexGetCellRefiner_Private(DM dm, CellRefiner *cellRefiner)
+static PetscErrorCode DMPlexGetCellRefiner_Private(DM dm, CellRefiner *cellRefiner)
 {
   PetscInt       dim, cStart, coneSize, cMax;
   PetscErrorCode ierr;
@@ -6395,7 +6395,7 @@ PETSC_STATIC_INLINE void insert(PetscScalar *x, PetscScalar y) {*x  = y;}
 
 #undef __FUNCT__
 #define __FUNCT__ "updatePoint_private"
-PetscErrorCode updatePoint_private(PetscSection section, PetscInt point, PetscInt dof, void (*fuse)(PetscScalar*, PetscScalar), PetscBool setBC, PetscInt orientation, const PetscScalar values[], PetscScalar array[])
+static PetscErrorCode updatePoint_private(PetscSection section, PetscInt point, PetscInt dof, void (*fuse)(PetscScalar*, PetscScalar), PetscBool setBC, PetscInt orientation, const PetscScalar values[], PetscScalar array[])
 {
   PetscInt        cdof;   /* The number of constraints on this point */
   const PetscInt *cdofs; /* The indices of the constrained dofs on this point */
@@ -6436,7 +6436,7 @@ PetscErrorCode updatePoint_private(PetscSection section, PetscInt point, PetscIn
 
 #undef __FUNCT__
 #define __FUNCT__ "updatePointFields_private"
-PetscErrorCode updatePointFields_private(PetscSection section, PetscInt point, PetscInt foffs[], void (*fuse)(PetscScalar*, PetscScalar), PetscBool setBC, PetscInt orientation, const PetscScalar values[], PetscScalar array[])
+static PetscErrorCode updatePointFields_private(PetscSection section, PetscInt point, PetscInt foffs[], void (*fuse)(PetscScalar*, PetscScalar), PetscBool setBC, PetscInt orientation, const PetscScalar values[], PetscScalar array[])
 {
   PetscScalar   *a;
   PetscInt       numFields, off, foff, f;
@@ -6640,7 +6640,7 @@ PetscErrorCode DMPlexPrintMatSetValues(PetscViewer viewer, Mat A, PetscInt point
 #undef __FUNCT__
 #define __FUNCT__ "indicesPoint_private"
 /* . off - The global offset of this point */
-PetscErrorCode indicesPoint_private(PetscSection section, PetscInt point, PetscInt off, PetscInt *loff, PetscBool setBC, PetscInt orientation, PetscInt indices[])
+static PetscErrorCode indicesPoint_private(PetscSection section, PetscInt point, PetscInt off, PetscInt *loff, PetscBool setBC, PetscInt orientation, PetscInt indices[])
 {
   PetscInt        dof;    /* The number of unknowns on this point */
   PetscInt        cdof;   /* The number of constraints on this point */
@@ -6688,7 +6688,7 @@ PetscErrorCode indicesPoint_private(PetscSection section, PetscInt point, PetscI
 #undef __FUNCT__
 #define __FUNCT__ "indicesPointFields_private"
 /* . off - The global offset of this point */
-PetscErrorCode indicesPointFields_private(PetscSection section, PetscInt point, PetscInt off, PetscInt foffs[], PetscBool setBC, PetscInt orientation, PetscInt indices[])
+static PetscErrorCode indicesPointFields_private(PetscSection section, PetscInt point, PetscInt off, PetscInt foffs[], PetscBool setBC, PetscInt orientation, PetscInt indices[])
 {
   PetscInt       numFields, foff, f;
   PetscErrorCode ierr;
@@ -6894,7 +6894,7 @@ PetscErrorCode DMPlexSetVTKCellHeight(DM dm, PetscInt cellHeight)
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexCreateNumbering_Private"
 /* We can easily have a form that takes an IS instead */
-PetscErrorCode DMPlexCreateNumbering_Private(DM dm, PetscInt pStart, PetscInt pEnd, PetscSF sf, IS *numbering)
+static PetscErrorCode DMPlexCreateNumbering_Private(DM dm, PetscInt pStart, PetscInt pEnd, PetscSF sf, IS *numbering)
 {
   PetscSection   section, globalSection;
   PetscInt      *numbers, p;
