@@ -156,7 +156,7 @@ PetscErrorCode  SNESShellSetContext(SNES snes,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESSolve_Shell"
-PetscErrorCode SNESSolve_Shell(SNES snes)
+static PetscErrorCode SNESSolve_Shell(SNES snes)
 {
   SNES_Shell     *shell = (SNES_Shell*) snes->data;
   PetscErrorCode ierr;
@@ -170,7 +170,7 @@ PetscErrorCode SNESSolve_Shell(SNES snes)
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESShellSetSolve_Shell"
-PetscErrorCode  SNESShellSetSolve_Shell(SNES snes,PetscErrorCode (*solve)(SNES,Vec))
+static PetscErrorCode SNESShellSetSolve_Shell(SNES snes,PetscErrorCode (*solve)(SNES,Vec))
 {
   SNES_Shell *shell = (SNES_Shell*)snes->data;
 

@@ -680,7 +680,7 @@ PetscErrorCode  MatMFFDSetPeriod_MFFD(Mat mat,PetscInt period)
 
 #undef __FUNCT__
 #define __FUNCT__ "MatMFFDSetFunction_MFFD"
-PetscErrorCode  MatMFFDSetFunction_MFFD(Mat mat,PetscErrorCode (*func)(void*,Vec,Vec),void *funcctx)
+static PetscErrorCode MatMFFDSetFunction_MFFD(Mat mat,PetscErrorCode (*func)(void*,Vec,Vec),void *funcctx)
 {
   MatMFFD ctx = (MatMFFD)mat->data;
 

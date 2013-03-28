@@ -88,7 +88,7 @@ static PetscErrorCode PetscViewerFlush_VTK(PetscViewer viewer)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscViewerFileSetName_VTK"
-PetscErrorCode  PetscViewerFileSetName_VTK(PetscViewer viewer,const char name[])
+static PetscErrorCode PetscViewerFileSetName_VTK(PetscViewer viewer,const char name[])
 {
   PetscViewer_VTK *vtk = (PetscViewer_VTK*)viewer->data;
   PetscErrorCode  ierr;
@@ -118,7 +118,7 @@ PetscErrorCode  PetscViewerFileSetName_VTK(PetscViewer viewer,const char name[])
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscViewerFileSetMode_VTK"
-PetscErrorCode  PetscViewerFileSetMode_VTK(PetscViewer viewer,PetscFileMode type)
+static PetscErrorCode PetscViewerFileSetMode_VTK(PetscViewer viewer,PetscFileMode type)
 {
   PetscViewer_VTK *vtk = (PetscViewer_VTK*)viewer->data;
 
@@ -130,7 +130,7 @@ PetscErrorCode  PetscViewerFileSetMode_VTK(PetscViewer viewer,PetscFileMode type
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscViewerVTKAddField_VTK"
-PetscErrorCode  PetscViewerVTKAddField_VTK(PetscViewer viewer,PetscObject dm,PetscErrorCode (*PetscViewerVTKWriteFunction)(PetscObject,PetscViewer),PetscViewerVTKFieldType fieldtype,PetscObject vec)
+static PetscErrorCode PetscViewerVTKAddField_VTK(PetscViewer viewer,PetscObject dm,PetscErrorCode (*PetscViewerVTKWriteFunction)(PetscObject,PetscViewer),PetscViewerVTKFieldType fieldtype,PetscObject vec)
 {
   PetscViewer_VTK          *vtk = (PetscViewer_VTK*)viewer->data;
   PetscViewerVTKObjectLink link, tail = vtk->link;

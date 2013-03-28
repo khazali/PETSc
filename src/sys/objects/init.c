@@ -224,8 +224,8 @@ extern PetscErrorCode PetscSetUseTrMalloc_Private(void);
 extern PetscBool      petscsetmallocvisited;
 static char           emacsmachinename[256];
 
-PetscErrorCode (*PetscExternalVersionFunction)(MPI_Comm) = 0;
-PetscErrorCode (*PetscExternalHelpFunction)(MPI_Comm)    = 0;
+static PetscErrorCode (*PetscExternalVersionFunction)(MPI_Comm) = 0;
+static PetscErrorCode (*PetscExternalHelpFunction)(MPI_Comm)    = 0;
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscSetHelpVersionFunctions"

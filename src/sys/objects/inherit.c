@@ -8,11 +8,11 @@
 PetscObject *PetscObjects      = 0;
 PetscInt    PetscObjectsCounts = 0, PetscObjectsMaxCounts = 0;
 
-extern PetscErrorCode PetscObjectGetComm_Petsc(PetscObject,MPI_Comm*);
-extern PetscErrorCode PetscObjectCompose_Petsc(PetscObject,const char[],PetscObject);
-extern PetscErrorCode PetscObjectQuery_Petsc(PetscObject,const char[],PetscObject*);
-extern PetscErrorCode PetscObjectComposeFunction_Petsc(PetscObject,const char[],void (*)(void));
-extern PetscErrorCode PetscObjectQueryFunction_Petsc(PetscObject,const char[],void (**)(void));
+static PetscErrorCode PetscObjectGetComm_Petsc(PetscObject,MPI_Comm*);
+static PetscErrorCode PetscObjectCompose_Petsc(PetscObject,const char[],PetscObject);
+static PetscErrorCode PetscObjectQuery_Petsc(PetscObject,const char[],PetscObject*);
+static PetscErrorCode PetscObjectComposeFunction_Petsc(PetscObject,const char[],void (*)(void));
+static PetscErrorCode PetscObjectQueryFunction_Petsc(PetscObject,const char[],void (**)(void));
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscHeaderCreate_Private"
@@ -603,7 +603,7 @@ PetscErrorCode  PetscObjectDereference(PetscObject obj)
 */
 #undef __FUNCT__
 #define __FUNCT__ "PetscObjectGetComm_Petsc"
-PetscErrorCode PetscObjectGetComm_Petsc(PetscObject obj,MPI_Comm *comm)
+static PetscErrorCode PetscObjectGetComm_Petsc(PetscObject obj,MPI_Comm *comm)
 {
   PetscFunctionBegin;
   PetscValidHeader(obj,1);
@@ -625,7 +625,7 @@ PetscErrorCode PetscObjectRemoveReference(PetscObject obj,const char name[])
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscObjectCompose_Petsc"
-PetscErrorCode PetscObjectCompose_Petsc(PetscObject obj,const char name[],PetscObject ptr)
+static PetscErrorCode PetscObjectCompose_Petsc(PetscObject obj,const char name[],PetscObject ptr)
 {
   PetscErrorCode ierr;
   char           *tname;
@@ -642,7 +642,7 @@ PetscErrorCode PetscObjectCompose_Petsc(PetscObject obj,const char name[],PetscO
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscObjectQuery_Petsc"
-PetscErrorCode PetscObjectQuery_Petsc(PetscObject obj,const char name[],PetscObject *ptr)
+static PetscErrorCode PetscObjectQuery_Petsc(PetscObject obj,const char name[],PetscObject *ptr)
 {
   PetscErrorCode ierr;
 
@@ -654,7 +654,7 @@ PetscErrorCode PetscObjectQuery_Petsc(PetscObject obj,const char name[],PetscObj
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscObjectComposeFunction_Petsc"
-PetscErrorCode PetscObjectComposeFunction_Petsc(PetscObject obj,const char name[],void (*ptr)(void))
+static PetscErrorCode PetscObjectComposeFunction_Petsc(PetscObject obj,const char name[],void (*ptr)(void))
 {
   PetscErrorCode ierr;
 
@@ -666,7 +666,7 @@ PetscErrorCode PetscObjectComposeFunction_Petsc(PetscObject obj,const char name[
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscObjectQueryFunction_Petsc"
-PetscErrorCode PetscObjectQueryFunction_Petsc(PetscObject obj,const char name[],void (**ptr)(void))
+static PetscErrorCode PetscObjectQueryFunction_Petsc(PetscObject obj,const char name[],void (**ptr)(void))
 {
   PetscErrorCode ierr;
 
