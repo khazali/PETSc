@@ -4,8 +4,6 @@
 */
 #include <petsc-private/tsimpl.h>                /*I   "petscts.h"   I*/
 
-typedef PetscErrorCode (*TSAlphaAdaptFunction)(TS,PetscReal,Vec,Vec,PetscReal*,PetscBool*,void*);
-
 typedef struct {
   Vec       X0,Xa,X1;
   Vec       V0,Va,V1;
@@ -16,7 +14,7 @@ typedef struct {
   PetscReal stage_time;
   PetscReal shift;
 
-  TSAlphaAdaptFunction adapt;
+  PetscErrorCode       (*adapt)(TS,PetscReal,Vec,Vec,PetscReal*,PetscBool*,void*);
   void                 *adaptctx;
   PetscReal            rtol;
   PetscReal            atol;
@@ -292,7 +290,7 @@ PetscErrorCode  TSAlphaGetParams_Alpha(TS ts,PetscReal *alpha_m,PetscReal *alpha
 
 #undef __FUNCT__
 #define __FUNCT__ "TSAlphaSetAdapt_Alpha"
-PetscErrorCode  TSAlphaSetAdapt_Alpha(TS ts,TSAlphaAdaptFunction adapt,void *ctx)
+static PetscErrorCode TSAlphaSetAdapt_Alpha(TS ts,PetscErrorCode (*adapt)(TS,PetscReal,Vec,Vec,PetscReal*,PetscBool*,void*),void *ctx)
 {
   TS_Alpha *th = (TS_Alpha*)ts->data;
 
@@ -385,13 +383,13 @@ $            PetscReal *next_dt,PetscBool *accepted,void *ctx);
   Level: intermediate
 
 @*/
-PetscErrorCode  TSAlphaSetAdapt(TS ts,TSAlphaAdaptFunction adapt,void *ctx)
+PETSC_EXTERN PetscErrorCode TSAlphaSetAdapt(TS ts,PetscErrorCode (*adapt)(TS,PetscReal,Vec,Vec,PetscReal*,PetscBool*,void*),void *ctx)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  ierr = PetscTryMethod(ts,"TSAlphaSetAdapt_C",(TS,TSAlphaAdaptFunction,void*),(ts,adapt,ctx));CHKERRQ(ierr);
+  ierr = PetscTryMethod(ts,"TSAlphaSetAdapt_C",(TS,PetscErrorCode (*)(TS,PetscReal,Vec,Vec,PetscReal*,PetscBool*,void*),void*),(ts,adapt,ctx));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
