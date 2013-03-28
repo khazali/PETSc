@@ -236,7 +236,7 @@ $     -draw_type my_draw_type
 
 .seealso: PetscDrawRegisterAll(), PetscDrawRegisterDestroy()
 @*/
-PetscErrorCode  PetscDrawRegister(const char *sname,PetscErrorCode (*function)(PetscDraw))
+PETSC_EXTERN PetscErrorCode PetscDrawRegister(const char *sname,PetscErrorCode (*function)(PetscDraw))
 {
   PetscErrorCode ierr;
 

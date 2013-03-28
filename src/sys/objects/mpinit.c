@@ -146,7 +146,7 @@ $
 .seealso: PetscFinalize(), PetscInitializeFortran(), PetscGetArgs(), PetscHMPIFinalize(), PetscInitialize(), PetscHMPISpawn(), PetscHMPIRun()
 
 @*/
-PetscErrorCode  PetscHMPIMerge(PetscMPIInt nodesize,PetscErrorCode (*func)(void*),void *ctx)
+PETSC_EXTERN PetscErrorCode PetscHMPIMerge(PetscMPIInt nodesize,PetscErrorCode (*func)(void*),void *ctx)
 {
   PetscErrorCode ierr;
   PetscMPIInt    size,rank,*ranks,i;
@@ -393,7 +393,7 @@ PetscErrorCode  PetscHMPIFree(MPI_Comm comm,void *ptr)
 .seealso: PetscHMPIMerge(), PetscHMPIMalloc(), PetscHMPIFree(), PetscHMPIRunCtx()
 
 @*/
-PetscErrorCode  PetscHMPIRun(MPI_Comm comm,PetscErrorCode (*f)(MPI_Comm,void*),void *ptr)
+PETSC_EXTERN PetscErrorCode PetscHMPIRun(MPI_Comm comm,PetscErrorCode (*f)(MPI_Comm,void*),void *ptr)
 {
   PetscErrorCode ierr;
   PetscInt       command = 2,i;
@@ -434,7 +434,7 @@ PetscErrorCode  PetscHMPIRun(MPI_Comm comm,PetscErrorCode (*f)(MPI_Comm,void*),v
 .seealso: PetscHMPIMerge(), PetscHMPIMalloc(), PetscHMPIFree(), PetscHMPIRun()
 
 @*/
-PetscErrorCode  PetscHMPIRunCtx(MPI_Comm comm,PetscErrorCode (*f)(MPI_Comm,void*,void*),void *ptr)
+PETSC_EXTERN PetscErrorCode PetscHMPIRunCtx(MPI_Comm comm,PetscErrorCode (*f)(MPI_Comm,void*,void*),void *ptr)
 {
   PetscErrorCode ierr;
   PetscInt       command = 4,i;

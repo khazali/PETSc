@@ -41,7 +41,7 @@ M*/
 
 .seealso: SNESGetObjective(), SNESComputeObjective(), SNESSetFunction(), SNESSetJacobian(), SNESObjectiveFunction
 @*/
-PetscErrorCode  SNESSetObjective(SNES snes,PetscErrorCode (*SNESObjectiveFunction)(SNES,Vec,PetscReal*,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode SNESSetObjective(SNES snes,PetscErrorCode (*SNESObjectiveFunction)(SNES,Vec,PetscReal*,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -73,7 +73,7 @@ PetscErrorCode  SNESSetObjective(SNES snes,PetscErrorCode (*SNESObjectiveFunctio
 
 .seealso: SNESSetObjective(), SNESGetSolution()
 @*/
-PetscErrorCode SNESGetObjective(SNES snes,PetscErrorCode (**SNESObjectiveFunction)(SNES,Vec,PetscReal*,void*),void **ctx)
+PETSC_EXTERN PetscErrorCode SNESGetObjective(SNES snes,PetscErrorCode (**SNESObjectiveFunction)(SNES,Vec,PetscReal*,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DM             dm;

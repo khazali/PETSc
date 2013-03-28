@@ -125,7 +125,7 @@ PetscErrorCode  VecGetType(Vec vec, VecType *type)
 
 .seealso: VecRegisterAll(), VecRegisterDestroy()
 @*/
-PetscErrorCode  VecRegister(const char sname[], PetscErrorCode (*function)(Vec))
+PETSC_EXTERN PetscErrorCode VecRegister(const char sname[], PetscErrorCode (*function)(Vec))
 {
   PetscErrorCode ierr;
 

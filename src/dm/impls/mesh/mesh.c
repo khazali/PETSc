@@ -757,7 +757,7 @@ PetscErrorCode  DMLocalToGlobalEnd_Mesh(DM dm, Vec l, InsertMode mode, Vec g)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMMeshGetLocalFunction"
-PetscErrorCode DMMeshGetLocalFunction(DM dm, PetscErrorCode (**lf)(DM, Vec, Vec, void*))
+PETSC_EXTERN PetscErrorCode DMMeshGetLocalFunction(DM dm, PetscErrorCode (**lf)(DM, Vec, Vec, void*))
 {
   DM_Mesh *mesh = (DM_Mesh*) dm->data;
 
@@ -769,7 +769,7 @@ PetscErrorCode DMMeshGetLocalFunction(DM dm, PetscErrorCode (**lf)(DM, Vec, Vec,
 
 #undef __FUNCT__
 #define __FUNCT__ "DMMeshSetLocalFunction"
-PetscErrorCode DMMeshSetLocalFunction(DM dm, PetscErrorCode (*lf)(DM, Vec, Vec, void*))
+PETSC_EXTERN PetscErrorCode DMMeshSetLocalFunction(DM dm, PetscErrorCode (*lf)(DM, Vec, Vec, void*))
 {
   DM_Mesh *mesh = (DM_Mesh*) dm->data;
 
@@ -781,7 +781,7 @@ PetscErrorCode DMMeshSetLocalFunction(DM dm, PetscErrorCode (*lf)(DM, Vec, Vec, 
 
 #undef __FUNCT__
 #define __FUNCT__ "DMMeshGetLocalJacobian"
-PetscErrorCode DMMeshGetLocalJacobian(DM dm, PetscErrorCode (**lj)(DM, Vec, Mat, void*))
+PETSC_EXTERN PetscErrorCode DMMeshGetLocalJacobian(DM dm, PetscErrorCode (**lj)(DM, Vec, Mat, void*))
 {
   DM_Mesh *mesh = (DM_Mesh*) dm->data;
 
@@ -793,7 +793,7 @@ PetscErrorCode DMMeshGetLocalJacobian(DM dm, PetscErrorCode (**lj)(DM, Vec, Mat,
 
 #undef __FUNCT__
 #define __FUNCT__ "DMMeshSetLocalJacobian"
-PetscErrorCode DMMeshSetLocalJacobian(DM dm, PetscErrorCode (*lj)(DM, Vec, Mat, void*))
+PETSC_EXTERN PetscErrorCode DMMeshSetLocalJacobian(DM dm, PetscErrorCode (*lj)(DM, Vec, Mat, void*))
 {
   DM_Mesh *mesh = (DM_Mesh*) dm->data;
 

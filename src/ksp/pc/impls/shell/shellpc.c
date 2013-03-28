@@ -386,7 +386,7 @@ static PetscErrorCode  PCShellGetName_Shell(PC pc,const char *name[])
 
 .seealso: PCShellSetApply(), PCShellSetContext()
 @*/
-PetscErrorCode  PCShellSetDestroy(PC pc,PetscErrorCode (*destroy)(PC))
+PETSC_EXTERN PetscErrorCode PCShellSetDestroy(PC pc,PetscErrorCode (*destroy)(PC))
 {
   PetscErrorCode ierr;
 
@@ -424,7 +424,7 @@ PetscErrorCode  PCShellSetDestroy(PC pc,PetscErrorCode (*destroy)(PC))
 
 .seealso: PCShellSetApplyRichardson(), PCShellSetApply(), PCShellSetContext()
 @*/
-PetscErrorCode  PCShellSetSetUp(PC pc,PetscErrorCode (*setup)(PC))
+PETSC_EXTERN PetscErrorCode PCShellSetSetUp(PC pc,PetscErrorCode (*setup)(PC))
 {
   PetscErrorCode ierr;
 
@@ -462,7 +462,7 @@ PetscErrorCode  PCShellSetSetUp(PC pc,PetscErrorCode (*setup)(PC))
 
 .seealso: PCShellSetApplyRichardson(), PCShellSetSetUp(), PCShellSetApplyTranspose()
 @*/
-PetscErrorCode  PCShellSetView(PC pc,PetscErrorCode (*view)(PC,PetscViewer))
+PETSC_EXTERN PetscErrorCode PCShellSetView(PC pc,PetscErrorCode (*view)(PC,PetscViewer))
 {
   PetscErrorCode ierr;
 
@@ -502,7 +502,7 @@ PetscErrorCode  PCShellSetView(PC pc,PetscErrorCode (*view)(PC,PetscViewer))
 
 .seealso: PCShellSetApplyRichardson(), PCShellSetSetUp(), PCShellSetApplyTranspose(), PCShellSetContext(), PCShellSetApplyBA()
 @*/
-PetscErrorCode  PCShellSetApply(PC pc,PetscErrorCode (*apply)(PC,Vec,Vec))
+PETSC_EXTERN PetscErrorCode PCShellSetApply(PC pc,PetscErrorCode (*apply)(PC,Vec,Vec))
 {
   PetscErrorCode ierr;
 
@@ -540,7 +540,7 @@ PetscErrorCode  PCShellSetApply(PC pc,PetscErrorCode (*apply)(PC,Vec,Vec))
 
 .seealso: PCShellSetApplyRichardson(), PCShellSetSetUp(), PCShellSetApplyTranspose(), PCShellSetContext(), PCShellSetApply()
 @*/
-PetscErrorCode  PCShellSetApplyBA(PC pc,PetscErrorCode (*applyBA)(PC,PCSide,Vec,Vec,Vec))
+PETSC_EXTERN PetscErrorCode PCShellSetApplyBA(PC pc,PetscErrorCode (*applyBA)(PC,PCSide,Vec,Vec,Vec))
 {
   PetscErrorCode ierr;
 
@@ -581,7 +581,7 @@ PetscErrorCode  PCShellSetApplyBA(PC pc,PetscErrorCode (*applyBA)(PC,PCSide,Vec,
 
 .seealso: PCShellSetApplyRichardson(), PCShellSetSetUp(), PCShellSetApply(), PCSetContext(), PCShellSetApplyBA()
 @*/
-PetscErrorCode  PCShellSetApplyTranspose(PC pc,PetscErrorCode (*applytranspose)(PC,Vec,Vec))
+PETSC_EXTERN PetscErrorCode PCShellSetApplyTranspose(PC pc,PetscErrorCode (*applytranspose)(PC,Vec,Vec))
 {
   PetscErrorCode ierr;
 
@@ -621,7 +621,7 @@ PetscErrorCode  PCShellSetApplyTranspose(PC pc,PetscErrorCode (*applytranspose)(
 
 .seealso: PCShellSetApplyRichardson(), PCShellSetSetUp(), PCShellSetApplyTranspose(), PCShellSetPostSolve(), PCShellSetContext()
 @*/
-PetscErrorCode  PCShellSetPreSolve(PC pc,PetscErrorCode (*presolve)(PC,KSP,Vec,Vec))
+PETSC_EXTERN PetscErrorCode PCShellSetPreSolve(PC pc,PetscErrorCode (*presolve)(PC,KSP,Vec,Vec))
 {
   PetscErrorCode ierr;
 
@@ -661,7 +661,7 @@ PetscErrorCode  PCShellSetPreSolve(PC pc,PetscErrorCode (*presolve)(PC,KSP,Vec,V
 
 .seealso: PCShellSetApplyRichardson(), PCShellSetSetUp(), PCShellSetApplyTranspose(), PCShellSetPreSolve(), PCShellSetContext()
 @*/
-PetscErrorCode  PCShellSetPostSolve(PC pc,PetscErrorCode (*postsolve)(PC,KSP,Vec,Vec))
+PETSC_EXTERN PetscErrorCode PCShellSetPostSolve(PC pc,PetscErrorCode (*postsolve)(PC,KSP,Vec,Vec))
 {
   PetscErrorCode ierr;
 
@@ -764,7 +764,7 @@ PetscErrorCode  PCShellGetName(PC pc,const char *name[])
 
 .seealso: PCShellSetApply(), PCShellSetContext()
 @*/
-PetscErrorCode  PCShellSetApplyRichardson(PC pc,PetscErrorCode (*apply)(PC,Vec,Vec,Vec,PetscReal,PetscReal,PetscReal,PetscInt,PetscBool,PetscInt*,PCRichardsonConvergedReason*))
+PETSC_EXTERN PetscErrorCode PCShellSetApplyRichardson(PC pc,PetscErrorCode (*apply)(PC,Vec,Vec,Vec,PetscReal,PetscReal,PetscReal,PetscInt,PetscBool,PetscInt*,PCRichardsonConvergedReason*))
 {
   PetscErrorCode ierr;
 

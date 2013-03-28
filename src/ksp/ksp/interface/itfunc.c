@@ -1523,7 +1523,7 @@ $     monitor (KSP ksp, int it, PetscReal rnorm, void *mctx)
 
 .seealso: KSPMonitorDefault(), KSPMonitorLGResidualNormCreate(), KSPMonitorCancel()
 @*/
-PetscErrorCode  KSPMonitorSet(KSP ksp,PetscErrorCode (*monitor)(KSP,PetscInt,PetscReal,void*),void *mctx,PetscErrorCode (*monitordestroy)(void**))
+PETSC_EXTERN PetscErrorCode KSPMonitorSet(KSP ksp,PetscErrorCode (*monitor)(KSP,PetscInt,PetscReal,void*),void *mctx,PetscErrorCode (*monitordestroy)(void**))
 {
   PetscInt       i;
   PetscErrorCode ierr;
@@ -1746,7 +1746,7 @@ $     converge (KSP ksp, int it, PetscReal rnorm, KSPConvergedReason *reason,voi
 
 .seealso: KSPDefaultConverged(), KSPGetConvergenceContext(), KSPSetTolerances()
 @*/
-PetscErrorCode  KSPSetConvergenceTest(KSP ksp,PetscErrorCode (*converge)(KSP,PetscInt,PetscReal,KSPConvergedReason*,void*),void *cctx,PetscErrorCode (*destroy)(void*))
+PETSC_EXTERN PetscErrorCode KSPSetConvergenceTest(KSP ksp,PetscErrorCode (*converge)(KSP,PetscInt,PetscReal,KSPConvergedReason*,void*),void *cctx,PetscErrorCode (*destroy)(void*))
 {
   PetscErrorCode ierr;
 
@@ -2067,7 +2067,7 @@ $  func(KSP ksp,Mat *A,Mat *B,MatStructure *mstruct,void *ctx)
 
 .seealso: KSPSetOperators()
 @*/
-PetscErrorCode KSPSetComputeOperators(KSP ksp,PetscErrorCode (*func)(KSP,Mat,Mat,MatStructure*,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode KSPSetComputeOperators(KSP ksp,PetscErrorCode (*func)(KSP,Mat,Mat,MatStructure*,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -2103,7 +2103,7 @@ $  func(KSP ksp,Vec b,void *ctx)
 
 .seealso: KSPSolve()
 @*/
-PetscErrorCode KSPSetComputeRHS(KSP ksp,PetscErrorCode (*func)(KSP,Vec,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode KSPSetComputeRHS(KSP ksp,PetscErrorCode (*func)(KSP,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -2138,7 +2138,7 @@ $  func(KSP ksp,Vec x,void *ctx)
 
 .seealso: KSPSolve()
 @*/
-PetscErrorCode KSPSetComputeInitialGuess(KSP ksp,PetscErrorCode (*func)(KSP,Vec,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode KSPSetComputeInitialGuess(KSP ksp,PetscErrorCode (*func)(KSP,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DM             dm;

@@ -268,7 +268,7 @@ $     -viewer_type my_viewer_type
 
 .seealso: PetscViewerRegisterAll(), PetscViewerRegisterDestroy()
  @*/
-PetscErrorCode  PetscViewerRegister(const char *sname,PetscErrorCode (*function)(PetscViewer))
+PETSC_EXTERN PetscErrorCode PetscViewerRegister(const char *sname,PetscErrorCode (*function)(PetscViewer))
 {
   PetscErrorCode ierr;
 

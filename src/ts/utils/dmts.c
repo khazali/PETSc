@@ -497,7 +497,7 @@ PetscErrorCode DMTSSetSolutionFunction(DM dm,TSSolutionFunction func,void *ctx)
 
 .seealso: DMTSSetContext(), TSSetFunction(), DMTSSetJacobian(), TSSetForcingFunction(), DMTSGetForcingFunction()
 @*/
-PetscErrorCode DMTSSetForcingFunction(DM dm,PetscErrorCode (*TSForcingFunction)(TS,PetscReal,Vec,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMTSSetForcingFunction(DM dm,PetscErrorCode (*TSForcingFunction)(TS,PetscReal,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMTS           tsdm;
@@ -534,7 +534,7 @@ PetscErrorCode DMTSSetForcingFunction(DM dm,PetscErrorCode (*TSForcingFunction)(
 
 .seealso: DMTSSetContext(), TSSetFunction(), DMTSSetJacobian(), TSSetForcingFunction(), DMTSGetForcingFunction()
 @*/
-PetscErrorCode DMTSGetForcingFunction(DM dm,PetscErrorCode (**TSForcingFunction)(TS,PetscReal,Vec,void*),void **ctx)
+PETSC_EXTERN PetscErrorCode DMTSGetForcingFunction(DM dm,PetscErrorCode (**TSForcingFunction)(TS,PetscReal,Vec,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DMTS           tsdm;
@@ -739,7 +739,7 @@ PetscErrorCode DMTSGetRHSJacobian(DM dm,TSRHSJacobian *func,void **ctx)
 
 .seealso: DMTSSetContext(), TSSetFunction(), DMTSSetJacobian()
 @*/
-PetscErrorCode DMTSSetIFunctionSerialize(DM dm,PetscErrorCode (*view)(void*,PetscViewer),PetscErrorCode (*load)(void**,PetscViewer))
+PETSC_EXTERN PetscErrorCode DMTSSetIFunctionSerialize(DM dm,PetscErrorCode (*view)(void*,PetscViewer),PetscErrorCode (*load)(void**,PetscViewer))
 {
   PetscErrorCode ierr;
   DMTS           tsdm;
@@ -768,7 +768,7 @@ PetscErrorCode DMTSSetIFunctionSerialize(DM dm,PetscErrorCode (*view)(void*,Pets
 
 .seealso: DMTSSetContext(), TSSetFunction(), DMTSSetJacobian()
 @*/
-PetscErrorCode DMTSSetIJacobianSerialize(DM dm,PetscErrorCode (*view)(void*,PetscViewer),PetscErrorCode (*load)(void**,PetscViewer))
+PETSC_EXTERN PetscErrorCode DMTSSetIJacobianSerialize(DM dm,PetscErrorCode (*view)(void*,PetscViewer),PetscErrorCode (*load)(void**,PetscViewer))
 {
   PetscErrorCode ierr;
   DMTS           tsdm;

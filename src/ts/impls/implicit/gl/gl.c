@@ -1309,7 +1309,7 @@ $     -ts_gl_type my_scheme
 
 .seealso: TSGLRegisterAll()
 @*/
-PetscErrorCode  TSGLRegister(const char sname[],PetscErrorCode (*function)(TS))
+PETSC_EXTERN PetscErrorCode TSGLRegister(const char sname[],PetscErrorCode (*function)(TS))
 {
   PetscErrorCode ierr;
 

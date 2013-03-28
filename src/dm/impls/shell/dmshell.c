@@ -211,7 +211,7 @@ PetscErrorCode DMShellSetMatrix(DM dm,Mat J)
 
 .seealso: DMCreateMatrix(), DMShellSetMatrix()
 @*/
-PetscErrorCode DMShellSetCreateMatrix(DM dm,PetscErrorCode (*func)(DM,MatType,Mat*))
+PETSC_EXTERN PetscErrorCode DMShellSetCreateMatrix(DM dm,PetscErrorCode (*func)(DM,MatType,Mat*))
 {
 
   PetscFunctionBegin;
@@ -267,7 +267,7 @@ PetscErrorCode DMShellSetGlobalVector(DM dm,Vec X)
 
 .seealso: DMShellSetGlobalVector(), DMShellSetCreateMatrix()
 @*/
-PetscErrorCode DMShellSetCreateGlobalVector(DM dm,PetscErrorCode (*func)(DM,Vec*))
+PETSC_EXTERN PetscErrorCode DMShellSetCreateGlobalVector(DM dm,PetscErrorCode (*func)(DM,Vec*))
 {
 
   PetscFunctionBegin;
@@ -323,7 +323,7 @@ PetscErrorCode DMShellSetLocalVector(DM dm,Vec X)
 
 .seealso: DMShellSetLocalVector(), DMShellSetCreateMatrix()
 @*/
-PetscErrorCode DMShellSetCreateLocalVector(DM dm,PetscErrorCode (*func)(DM,Vec*))
+PETSC_EXTERN PetscErrorCode DMShellSetCreateLocalVector(DM dm,PetscErrorCode (*func)(DM,Vec*))
 {
 
   PetscFunctionBegin;
@@ -351,7 +351,7 @@ PetscErrorCode DMShellSetCreateLocalVector(DM dm,PetscErrorCode (*func)(DM,Vec*)
 
 .seealso: DMShellSetLocalToGlobal(), DMGlobalToLocalBeginDefaultShell(), DMGlobalToLocalEndDefaultShell()
 @*/
-PetscErrorCode DMShellSetGlobalToLocal(DM dm,PetscErrorCode (*begin)(DM,Vec,InsertMode,Vec),PetscErrorCode (*end)(DM,Vec,InsertMode,Vec)) {
+PETSC_EXTERN PetscErrorCode DMShellSetGlobalToLocal(DM dm,PetscErrorCode (*begin)(DM,Vec,InsertMode,Vec),PetscErrorCode (*end)(DM,Vec,InsertMode,Vec)) {
   PetscFunctionBegin;
   dm->ops->globaltolocalbegin = begin;
   dm->ops->globaltolocalend = end;
@@ -374,7 +374,7 @@ PetscErrorCode DMShellSetGlobalToLocal(DM dm,PetscErrorCode (*begin)(DM,Vec,Inse
 
 .seealso: DMShellSetGlobalToLocal()
 @*/
-PetscErrorCode DMShellSetLocalToGlobal(DM dm,PetscErrorCode (*begin)(DM,Vec,InsertMode,Vec),PetscErrorCode (*end)(DM,Vec,InsertMode,Vec)) {
+PETSC_EXTERN PetscErrorCode DMShellSetLocalToGlobal(DM dm,PetscErrorCode (*begin)(DM,Vec,InsertMode,Vec),PetscErrorCode (*end)(DM,Vec,InsertMode,Vec)) {
   PetscFunctionBegin;
   dm->ops->localtoglobalbegin = begin;
   dm->ops->localtoglobalend = end;

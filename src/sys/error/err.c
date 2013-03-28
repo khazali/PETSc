@@ -123,7 +123,7 @@ $    int handler(MPI_Comm comm,int line,char *func,char *file,char *dir,PetscErr
 .seealso: PetscPopErrorHandler(), PetscAttachDebuggerErrorHandler(), PetscAbortErrorHandler(), PetscTraceBackErrorHandler(), PetscPushSignalHandler()
 
 @*/
-PetscErrorCode  PetscPushErrorHandler(PetscErrorCode (*handler)(MPI_Comm comm,int,const char*,const char*,const char*,PetscErrorCode,PetscErrorType,const char*,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode PetscPushErrorHandler(PetscErrorCode (*handler)(MPI_Comm comm,int,const char*,const char*,const char*,PetscErrorCode,PetscErrorType,const char*,void*),void *ctx)
 {
   EH             neweh;
   PetscErrorCode ierr;

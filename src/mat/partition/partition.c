@@ -113,7 +113,7 @@ $     -mat_partitioning_type my_part
 
 .seealso: MatPartitioningRegisterDestroy(), MatPartitioningRegisterAll()
 @*/
-PetscErrorCode  MatPartitioningRegister(const char sname[],PetscErrorCode (*function)(MatPartitioning))
+PETSC_EXTERN PetscErrorCode MatPartitioningRegister(const char sname[],PetscErrorCode (*function)(MatPartitioning))
 {
   PetscErrorCode ierr;
 

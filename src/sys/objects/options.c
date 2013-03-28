@@ -2295,7 +2295,7 @@ $     monitor (const char name[], const char value[], void *mctx)
 
 .seealso: PetscOptionsMonitorDefault(), PetscOptionsMonitorCancel()
 @*/
-PetscErrorCode  PetscOptionsMonitorSet(PetscErrorCode (*monitor)(const char name[], const char value[], void*),void *mctx,PetscErrorCode (*monitordestroy)(void**))
+PETSC_EXTERN PetscErrorCode PetscOptionsMonitorSet(PetscErrorCode (*monitor)(const char name[], const char value[], void*),void *mctx,PetscErrorCode (*monitordestroy)(void**))
 {
   PetscFunctionBegin;
   if (options->numbermonitors >= MAXOPTIONSMONITORS) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Too many PetscOptions monitors set");

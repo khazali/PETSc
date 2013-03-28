@@ -243,7 +243,7 @@ static PetscErrorCode (*PetscExternalHelpFunction)(MPI_Comm)    = 0;
    Concepts: package help message
 
 @*/
-PetscErrorCode  PetscSetHelpVersionFunctions(PetscErrorCode (*help)(MPI_Comm),PetscErrorCode (*version)(MPI_Comm))
+PETSC_EXTERN PetscErrorCode PetscSetHelpVersionFunctions(PetscErrorCode (*help)(MPI_Comm),PetscErrorCode (*version)(MPI_Comm))
 {
   PetscFunctionBegin;
   PetscExternalHelpFunction    = help;

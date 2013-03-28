@@ -16,7 +16,7 @@
    Level: advanced
 
 @*/
-PetscErrorCode SNESVIRSAUGSetComputeVariableBounds(SNES snes, PetscErrorCode (*compute)(SNES,Vec,Vec))
+PETSC_EXTERN PetscErrorCode SNESVIRSAUGSetComputeVariableBounds(SNES snes, PetscErrorCode (*compute)(SNES,Vec,Vec))
 {
   PetscErrorCode ierr;
   SNES_VIRSAUG   *vi;
@@ -1384,7 +1384,7 @@ PetscErrorCode SNESSolveVI_RS(SNES snes)
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESVIRSAUGSetRedundancyCheck"
-PetscErrorCode SNESVIRSAUGSetRedundancyCheck(SNES snes,PetscErrorCode (*func)(SNES,IS,IS*,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode SNESVIRSAUGSetRedundancyCheck(SNES snes,PetscErrorCode (*func)(SNES,IS,IS*,void*),void *ctx)
 {
   SNES_VIRSAUG *vi = (SNES_VIRSAUG*)snes->data;
 

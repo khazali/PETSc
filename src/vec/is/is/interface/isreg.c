@@ -164,7 +164,7 @@ PetscErrorCode  ISGetType(IS is, ISType *type)
 
   Level: advanced
 @*/
-PetscErrorCode  ISRegister(const char sname[], PetscErrorCode (*function)(IS))
+PETSC_EXTERN PetscErrorCode ISRegister(const char sname[], PetscErrorCode (*function)(IS))
 {
   PetscErrorCode ierr;
 

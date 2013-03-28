@@ -658,7 +658,7 @@ PetscErrorCode  KSPGetOperatorsSet(KSP ksp,PetscBool  *mat,PetscBool  *pmat)
 
 .seealso: KSPSetUp(), KSPSolve(), KSPDestroy(), KSP, KSPSetPostSolve()
 @*/
-PetscErrorCode  KSPSetPreSolve(KSP ksp,PetscErrorCode (*presolve)(KSP,Vec,Vec,void*),void *prectx)
+PETSC_EXTERN PetscErrorCode KSPSetPreSolve(KSP ksp,PetscErrorCode (*presolve)(KSP,Vec,Vec,void*),void *prectx)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ksp,KSP_CLASSID,1);
@@ -685,7 +685,7 @@ PetscErrorCode  KSPSetPreSolve(KSP ksp,PetscErrorCode (*presolve)(KSP,Vec,Vec,vo
 
 .seealso: KSPSetUp(), KSPSolve(), KSPDestroy(), KSP, KSPSetPreSolve()
 @*/
-PetscErrorCode  KSPSetPostSolve(KSP ksp,PetscErrorCode (*postsolve)(KSP,Vec,Vec,void*),void *postctx)
+PETSC_EXTERN PetscErrorCode KSPSetPostSolve(KSP ksp,PetscErrorCode (*postsolve)(KSP,Vec,Vec,void*),void *postctx)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ksp,KSP_CLASSID,1);
@@ -923,7 +923,7 @@ $     -ksp_type my_solver
 .seealso: KSPRegisterAll(), KSPRegisterDestroy()
 
 @*/
-PetscErrorCode  KSPRegister(const char sname[],PetscErrorCode (*function)(KSP))
+PETSC_EXTERN PetscErrorCode KSPRegister(const char sname[],PetscErrorCode (*function)(KSP))
 {
   PetscErrorCode ierr;
 

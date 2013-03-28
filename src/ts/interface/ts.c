@@ -798,7 +798,7 @@ $     func (TS ts,PetscReal t,Vec u,Vec F,void *ctx);
 
 .seealso: TSSetRHSJacobian(), TSSetIJacobian()
 @*/
-PetscErrorCode  TSSetRHSFunction(TS ts,Vec r,PetscErrorCode (*f)(TS,PetscReal,Vec,Vec,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode TSSetRHSFunction(TS ts,Vec r,PetscErrorCode (*f)(TS,PetscReal,Vec,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
   SNES           snes;
@@ -854,7 +854,7 @@ $     func (TS ts,PetscReal t,Vec u,void *ctx);
 
 .seealso: TSSetRHSJacobian(), TSSetIJacobian(), TSComputeSolutionFunction(), TSSetForcingFunction()
 @*/
-PetscErrorCode  TSSetSolutionFunction(TS ts,PetscErrorCode (*f)(TS,PetscReal,Vec,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode TSSetSolutionFunction(TS ts,PetscErrorCode (*f)(TS,PetscReal,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -898,7 +898,7 @@ $     func (TS ts,PetscReal t,Vec u,void *ctx);
 
 .seealso: TSSetRHSJacobian(), TSSetIJacobian(), TSComputeSolutionFunction(), TSSetSolutionFunction()
 @*/
-PetscErrorCode  TSSetForcingFunction(TS ts,PetscErrorCode (*f)(TS,PetscReal,Vec,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode TSSetForcingFunction(TS ts,PetscErrorCode (*f)(TS,PetscReal,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -2083,7 +2083,7 @@ PetscErrorCode  TSSetSolution(TS ts,Vec u)
 .keywords: TS, timestep
 .seealso: TSSetPreStage(), TSSetPostStep(), TSStep()
 @*/
-PetscErrorCode  TSSetPreStep(TS ts, PetscErrorCode (*func)(TS))
+PETSC_EXTERN PetscErrorCode TSSetPreStep(TS ts, PetscErrorCode (*func)(TS))
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts, TS_CLASSID,1);
@@ -2147,7 +2147,7 @@ PetscErrorCode  TSPreStep(TS ts)
 .keywords: TS, timestep
 .seealso: TSSetPreStep(), TSSetPostStep(), TSGetApplicationContext()
 @*/
-PetscErrorCode  TSSetPreStage(TS ts, PetscErrorCode (*func)(TS,PetscReal))
+PETSC_EXTERN PetscErrorCode TSSetPreStage(TS ts, PetscErrorCode (*func)(TS,PetscReal))
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts, TS_CLASSID,1);
@@ -2206,7 +2206,7 @@ $ func (TS ts);
 .keywords: TS, timestep
 .seealso: TSSetPreStep(), TSSetPreStage(), TSGetTimeStep(), TSGetTimeStepNumber(), TSGetTime()
 @*/
-PetscErrorCode  TSSetPostStep(TS ts, PetscErrorCode (*func)(TS))
+PETSC_EXTERN PetscErrorCode TSSetPostStep(TS ts, PetscErrorCode (*func)(TS))
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts, TS_CLASSID,1);
@@ -2284,7 +2284,7 @@ $    int monitor(TS ts,PetscInt steps,PetscReal time,Vec u,void *mctx)
 
 .seealso: TSMonitorDefault(), TSMonitorCancel()
 @*/
-PetscErrorCode  TSMonitorSet(TS ts,PetscErrorCode (*monitor)(TS,PetscInt,PetscReal,Vec,void*),void *mctx,PetscErrorCode (*mdestroy)(void**))
+PETSC_EXTERN PetscErrorCode TSMonitorSet(TS ts,PetscErrorCode (*monitor)(TS,PetscInt,PetscReal,Vec,void*),void *mctx,PetscErrorCode (*mdestroy)(void**))
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);

@@ -198,7 +198,7 @@ $     -snes_mf_type my_h
 
 .seealso: MatMFFDRegisterAll(), MatMFFDRegisterDestroy()
  @*/
-PetscErrorCode  MatMFFDRegister(const char sname[],PetscErrorCode (*function)(MatMFFD))
+PETSC_EXTERN PetscErrorCode MatMFFDRegister(const char sname[],PetscErrorCode (*function)(MatMFFD))
 {
   PetscErrorCode ierr;
 
@@ -921,7 +921,7 @@ PetscErrorCode  MatMFFDGetH(Mat mat,PetscScalar *h)
 .seealso: MatCreateSNESMF(),MatMFFDGetH(), MatCreateMFFD(), MATMFFD,
           MatMFFDSetHHistory(), MatMFFDResetHHistory(), SNESetFunction()
 @*/
-PetscErrorCode  MatMFFDSetFunction(Mat mat,PetscErrorCode (*func)(void*,Vec,Vec),void *funcctx)
+PETSC_EXTERN PetscErrorCode MatMFFDSetFunction(Mat mat,PetscErrorCode (*func)(void*,Vec,Vec),void *funcctx)
 {
   PetscErrorCode ierr;
 
@@ -953,7 +953,7 @@ PetscErrorCode  MatMFFDSetFunction(Mat mat,PetscErrorCode (*func)(void*,Vec,Vec)
 .seealso: MatCreateSNESMF(),MatMFFDGetH(), MatMFFDSetHHistory(), MatMFFDResetHHistory(), SNESetFunction()
 
 @*/
-PetscErrorCode  MatMFFDSetFunctioni(Mat mat,PetscErrorCode (*funci)(void*,PetscInt,Vec,PetscScalar*))
+PETSC_EXTERN PetscErrorCode MatMFFDSetFunctioni(Mat mat,PetscErrorCode (*funci)(void*,PetscInt,Vec,PetscScalar*))
 {
   PetscErrorCode ierr;
 
@@ -987,7 +987,7 @@ PetscErrorCode  MatMFFDSetFunctioni(Mat mat,PetscErrorCode (*funci)(void*,PetscI
 .seealso: MatCreateSNESMF(),MatMFFDGetH(), MatCreateMFFD(), MATMFFD
           MatMFFDSetHHistory(), MatMFFDResetHHistory(), SNESetFunction()
 @*/
-PetscErrorCode  MatMFFDSetFunctioniBase(Mat mat,PetscErrorCode (*func)(void*,Vec))
+PETSC_EXTERN PetscErrorCode MatMFFDSetFunctioniBase(Mat mat,PetscErrorCode (*func)(void*,Vec))
 {
   PetscErrorCode ierr;
 
@@ -1228,7 +1228,7 @@ PetscErrorCode  MatMFFDSetBase(Mat J,Vec U,Vec F)
 
 .seealso:  MatMFFDSetCheckPositivity()
 @*/
-PetscErrorCode  MatMFFDSetCheckh(Mat J,PetscErrorCode (*fun)(void*,Vec,Vec,PetscScalar*),void *ctx)
+PETSC_EXTERN PetscErrorCode MatMFFDSetCheckh(Mat J,PetscErrorCode (*fun)(void*,Vec,Vec,PetscScalar*),void *ctx)
 {
   PetscErrorCode ierr;
 

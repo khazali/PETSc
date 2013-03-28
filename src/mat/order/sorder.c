@@ -118,7 +118,7 @@ $     -pc_factor_mat_ordering_type my_order
 
 .seealso: MatOrderingRegisterDestroy(), MatOrderingRegisterAll()
 @*/
-PetscErrorCode  MatOrderingRegister(const char sname[],PetscErrorCode (*function)(Mat,MatOrderingType,IS*,IS*))
+PETSC_EXTERN PetscErrorCode MatOrderingRegister(const char sname[],PetscErrorCode (*function)(Mat,MatOrderingType,IS*,IS*))
 {
   PetscErrorCode ierr;
 

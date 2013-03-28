@@ -967,7 +967,7 @@ $     func (PC pc,PetscInt nsub,IS *row,IS *col,Mat *submat,void *ctx);
 
 .seealso: PCModifySubMatrices(), PCASMGetSubMatrices()
 @*/
-PetscErrorCode  PCSetModifySubMatrices(PC pc,PetscErrorCode (*func)(PC,PetscInt,const IS[],const IS[],Mat[],void*),void *ctx)
+PETSC_EXTERN PetscErrorCode PCSetModifySubMatrices(PC pc,PetscErrorCode (*func)(PC,PetscInt,const IS[],const IS[],Mat[],void*),void *ctx)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(pc,PC_CLASSID,1);
@@ -1743,7 +1743,7 @@ $     -pc_type my_solver
 
 .seealso: PCRegisterAll(), PCRegisterDestroy()
 @*/
-PetscErrorCode  PCRegister(const char sname[],PetscErrorCode (*function)(PC))
+PETSC_EXTERN PetscErrorCode PCRegister(const char sname[],PetscErrorCode (*function)(PC))
 {
   PetscErrorCode ierr;
 

@@ -408,7 +408,7 @@ static PetscErrorCode TSView_Pseudo(TS ts,PetscViewer viewer)
 
 .seealso: TSPseudoVerifyTimeStepDefault(), TSPseudoVerifyTimeStep()
 @*/
-PetscErrorCode  TSPseudoSetVerifyTimeStep(TS ts,PetscErrorCode (*dt)(TS,Vec,void*,PetscReal*,PetscBool*),void *ctx)
+PETSC_EXTERN PetscErrorCode TSPseudoSetVerifyTimeStep(TS ts,PetscErrorCode (*dt)(TS,Vec,void*,PetscReal*,PetscBool*),void *ctx)
 {
   PetscErrorCode ierr;
 
@@ -547,7 +547,7 @@ PetscErrorCode  TSPseudoIncrementDtFromInitialDt(TS ts)
 
 .seealso: TSPseudoTimeStepDefault(), TSPseudoComputeTimeStep()
 @*/
-PetscErrorCode  TSPseudoSetTimeStep(TS ts,PetscErrorCode (*dt)(TS,PetscReal*,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode TSPseudoSetTimeStep(TS ts,PetscErrorCode (*dt)(TS,PetscReal*,void*),void *ctx)
 {
   PetscErrorCode ierr;
 

@@ -37,7 +37,7 @@ M*/
 
 .seealso: PetscViewerVTKOpen(), DMDAVTKWriteAll(), PetscViewerVTKWriteFunction
 @*/
-PetscErrorCode PetscViewerVTKAddField(PetscViewer viewer,PetscObject dm,PetscErrorCode (*PetscViewerVTKWriteFunction)(PetscObject,PetscViewer),PetscViewerVTKFieldType fieldtype,PetscObject vec)
+PETSC_EXTERN PetscErrorCode PetscViewerVTKAddField(PetscViewer viewer,PetscObject dm,PetscErrorCode (*PetscViewerVTKWriteFunction)(PetscObject,PetscViewer),PetscViewerVTKFieldType fieldtype,PetscObject vec)
 {
   PetscErrorCode ierr;
 

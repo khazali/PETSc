@@ -20,7 +20,7 @@
         this routine
 
 @*/
-PetscErrorCode  DMCompositeSetCoupling(DM dm,PetscErrorCode (*FormCoupleLocations)(DM,Mat,PetscInt*,PetscInt*,PetscInt,PetscInt,PetscInt,PetscInt))
+PETSC_EXTERN PetscErrorCode DMCompositeSetCoupling(DM dm,PetscErrorCode (*FormCoupleLocations)(DM,Mat,PetscInt*,PetscInt*,PetscInt,PetscInt,PetscInt,PetscInt))
 {
   DM_Composite *com = (DM_Composite*)dm->data;
 

@@ -83,7 +83,7 @@ PetscErrorCode  PCMGGetCoarseSolve(PC pc,KSP *ksp)
 
 .seealso: PCMGResidual_Default()
 @*/
-PetscErrorCode  PCMGSetResidual(PC pc,PetscInt l,PetscErrorCode (*residual)(Mat,Vec,Vec,Vec),Mat mat)
+PETSC_EXTERN PetscErrorCode PCMGSetResidual(PC pc,PetscInt l,PetscErrorCode (*residual)(Mat,Vec,Vec,Vec),Mat mat)
 {
   PC_MG          *mg        = (PC_MG*)pc->data;
   PC_MG_Levels   **mglevels = mg->levels;

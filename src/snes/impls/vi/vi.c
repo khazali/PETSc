@@ -15,7 +15,7 @@
 .seealso:   SNESVISetVariableBounds()
 
 @*/
-PetscErrorCode SNESVISetComputeVariableBounds(SNES snes, PetscErrorCode (*compute)(SNES,Vec,Vec))
+PETSC_EXTERN PetscErrorCode SNESVISetComputeVariableBounds(SNES snes, PetscErrorCode (*compute)(SNES,Vec,Vec))
 {
   PetscErrorCode ierr,(*f)(SNES,PetscErrorCode (*)(SNES,Vec,Vec));
 

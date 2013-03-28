@@ -119,7 +119,7 @@ PetscErrorCode  PetscRandomGetType(PetscRandom rnd, PetscRandomType *type)
 
 .seealso: PetscRandomRegisterAll(), PetscRandomRegisterDestroy(), PetscRandomRegister()
 @*/
-PetscErrorCode  PetscRandomRegister(const char sname[], PetscErrorCode (*function)(PetscRandom))
+PETSC_EXTERN PetscErrorCode PetscRandomRegister(const char sname[], PetscErrorCode (*function)(PetscRandom))
 {
   PetscErrorCode ierr;
 

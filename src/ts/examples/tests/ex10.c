@@ -33,7 +33,7 @@ PetscErrorCode TSDAESimpleCreate(MPI_Comm comm,TSDAESimple *tsdae)
 
 #undef __FUNCT__
 #define __FUNCT__ "TSDAESimpleSetRHSFunction"
-PetscErrorCode TSDAESimpleSetRHSFunction(TSDAESimple tsdae,Vec U,PetscErrorCode (*f)(PetscReal,Vec,Vec,Vec,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode TSDAESimpleSetRHSFunction(TSDAESimple tsdae,Vec U,PetscErrorCode (*f)(PetscReal,Vec,Vec,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
 
@@ -47,7 +47,7 @@ PetscErrorCode TSDAESimpleSetRHSFunction(TSDAESimple tsdae,Vec U,PetscErrorCode 
 
 #undef __FUNCT__
 #define __FUNCT__ "TSDAESimpleSetIFunction"
-PetscErrorCode TSDAESimpleSetIFunction(TSDAESimple tsdae,Vec V,PetscErrorCode (*F)(PetscReal,Vec,Vec,Vec,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode TSDAESimpleSetIFunction(TSDAESimple tsdae,Vec V,PetscErrorCode (*F)(PetscReal,Vec,Vec,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
 

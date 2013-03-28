@@ -29,7 +29,7 @@ typedef struct {PetscErrorCode (*solve)(SNES,Vec);void *ctx;} SNES_Shell;
 
 .seealso: SNESSHELL, SNESShellSetContext(), SNESShellGetContext()
 @*/
-PetscErrorCode  SNESShellSetSolve(SNES snes,PetscErrorCode (*solve)(SNES,Vec))
+PETSC_EXTERN PetscErrorCode SNESShellSetSolve(SNES snes,PetscErrorCode (*solve)(SNES,Vec))
 {
   PetscErrorCode ierr;
 

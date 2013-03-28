@@ -257,7 +257,7 @@ static PetscErrorCode  KSPGCRSetModifyPC_GCR(KSP ksp,KSPGCRModifyPCFunction func
  .seealso: KSPGCRModifyPCNoChange()
 
  @*/
-PetscErrorCode  KSPGCRSetModifyPC(KSP ksp,PetscErrorCode (*function)(KSP,PetscInt,PetscReal,void*),void *data,PetscErrorCode (*destroy)(void*))
+PETSC_EXTERN PetscErrorCode KSPGCRSetModifyPC(KSP ksp,PetscErrorCode (*function)(KSP,PetscInt,PetscReal,void*),void *data,PetscErrorCode (*destroy)(void*))
 {
   PetscErrorCode ierr;
 

@@ -1012,7 +1012,7 @@ PetscErrorCode DMRestoreWorkArray(DM dm,PetscInt count,PetscDataType dtype,void 
 
 #undef __FUNCT__
 #define __FUNCT__ "DMSetNullSpaceConstructor"
-PetscErrorCode DMSetNullSpaceConstructor(DM dm, PetscInt field, PetscErrorCode (*nullsp)(DM dm, PetscInt field, MatNullSpace *nullSpace))
+PETSC_EXTERN PetscErrorCode DMSetNullSpaceConstructor(DM dm, PetscInt field, PetscErrorCode (*nullsp)(DM dm, PetscInt field, MatNullSpace *nullSpace))
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
@@ -1448,7 +1448,7 @@ $    interphook(DM coarse,Mat interp,DM fine,void *ctx)
 
 .seealso: DMCoarsenHookAdd(), SNESFASGetInterpolation(), SNESFASGetInjection(), PetscObjectCompose(), PetscContainerCreate()
 @*/
-PetscErrorCode DMRefineHookAdd(DM coarse,PetscErrorCode (*refinehook)(DM,DM,void*),PetscErrorCode (*interphook)(DM,Mat,DM,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMRefineHookAdd(DM coarse,PetscErrorCode (*refinehook)(DM,DM,void*),PetscErrorCode (*interphook)(DM,Mat,DM,void*),void *ctx)
 {
   PetscErrorCode   ierr;
   DMRefineHookLink link,*p;
@@ -1562,7 +1562,7 @@ $    beginhook(DM fine,VecScatter out,VecScatter in,DM coarse,void *ctx)
 
 .seealso: DMRefineHookAdd(), SNESFASGetInterpolation(), SNESFASGetInjection(), PetscObjectCompose(), PetscContainerCreate()
 @*/
-PetscErrorCode DMGlobalToLocalHookAdd(DM dm,PetscErrorCode (*beginhook)(DM,Vec,InsertMode,Vec,void*),PetscErrorCode (*endhook)(DM,Vec,InsertMode,Vec,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMGlobalToLocalHookAdd(DM dm,PetscErrorCode (*beginhook)(DM,Vec,InsertMode,Vec,void*),PetscErrorCode (*endhook)(DM,Vec,InsertMode,Vec,void*),void *ctx)
 {
   PetscErrorCode          ierr;
   DMGlobalToLocalHookLink link,*p;
@@ -1870,7 +1870,7 @@ $    restricthook(DM fine,Mat mrestrict,Vec rscale,Mat inject,DM coarse,void *ct
 
 .seealso: DMRefineHookAdd(), SNESFASGetInterpolation(), SNESFASGetInjection(), PetscObjectCompose(), PetscContainerCreate()
 @*/
-PetscErrorCode DMCoarsenHookAdd(DM fine,PetscErrorCode (*coarsenhook)(DM,DM,void*),PetscErrorCode (*restricthook)(DM,Mat,Vec,Mat,DM,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMCoarsenHookAdd(DM fine,PetscErrorCode (*coarsenhook)(DM,DM,void*),PetscErrorCode (*restricthook)(DM,Mat,Vec,Mat,DM,void*),void *ctx)
 {
   PetscErrorCode    ierr;
   DMCoarsenHookLink link,*p;
@@ -1951,7 +1951,7 @@ $    restricthook(DM fine,VecScatter out,VecScatter in,DM coarse,void *ctx)
 
 .seealso: DMRefineHookAdd(), SNESFASGetInterpolation(), SNESFASGetInjection(), PetscObjectCompose(), PetscContainerCreate()
 @*/
-PetscErrorCode DMSubDomainHookAdd(DM global,PetscErrorCode (*ddhook)(DM,DM,void*),PetscErrorCode (*restricthook)(DM,VecScatter,VecScatter,DM,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMSubDomainHookAdd(DM global,PetscErrorCode (*ddhook)(DM,DM,void*),PetscErrorCode (*restricthook)(DM,VecScatter,VecScatter,DM,void*),void *ctx)
 {
   PetscErrorCode      ierr;
   DMSubDomainHookLink link,*p;
@@ -2156,7 +2156,7 @@ PetscErrorCode  DMCreateAggregates(DM dmc, DM dmf, Mat *rest)
 .seealso DMView(), DMCreateGlobalVector(), DMCreateInterpolation(), DMCreateColoring(), DMCreateMatrix(), DMGetApplicationContext()
 
 @*/
-PetscErrorCode  DMSetApplicationContextDestroy(DM dm,PetscErrorCode (*destroy)(void**))
+PETSC_EXTERN PetscErrorCode DMSetApplicationContextDestroy(DM dm,PetscErrorCode (*destroy)(void**))
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
@@ -2231,7 +2231,7 @@ PetscErrorCode  DMGetApplicationContext(DM dm,void *ctx)
          DMSetJacobian()
 
 @*/
-PetscErrorCode  DMSetVariableBounds(DM dm,PetscErrorCode (*f)(DM,Vec,Vec))
+PETSC_EXTERN PetscErrorCode DMSetVariableBounds(DM dm,PetscErrorCode (*f)(DM,Vec,Vec))
 {
   PetscFunctionBegin;
   dm->ops->computevariablebounds = f;
@@ -2568,7 +2568,7 @@ foundconv:
 .seealso: DMRegisterAll(), DMRegisterDestroy()
 
 @*/
-PetscErrorCode  DMRegister(const char sname[],PetscErrorCode (*function)(DM))
+PETSC_EXTERN PetscErrorCode DMRegister(const char sname[],PetscErrorCode (*function)(DM))
 {
   PetscErrorCode ierr;
 

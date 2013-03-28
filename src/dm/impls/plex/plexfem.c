@@ -213,7 +213,7 @@ PetscErrorCode DMPlexSetFEMIntegration(DM dm,
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexProjectFunctionLocal"
-PetscErrorCode DMPlexProjectFunctionLocal(DM dm, PetscInt numComp, PetscScalar (**funcs)(const PetscReal []), InsertMode mode, Vec localX)
+PETSC_EXTERN PetscErrorCode DMPlexProjectFunctionLocal(DM dm, PetscInt numComp, PetscScalar (**funcs)(const PetscReal []), InsertMode mode, Vec localX)
 {
   Vec            coordinates;
   PetscSection   section, cSection;
@@ -325,7 +325,7 @@ PetscErrorCode DMPlexProjectFunctionLocal(DM dm, PetscInt numComp, PetscScalar (
 
 .seealso: DMPlexComputeL2Diff()
 @*/
-PetscErrorCode DMPlexProjectFunction(DM dm, PetscInt numComp, PetscScalar (**funcs)(const PetscReal []), InsertMode mode, Vec X)
+PETSC_EXTERN PetscErrorCode DMPlexProjectFunction(DM dm, PetscInt numComp, PetscScalar (**funcs)(const PetscReal []), InsertMode mode, Vec X)
 {
   Vec            localX;
   PetscErrorCode ierr;
@@ -357,7 +357,7 @@ PetscErrorCode DMPlexProjectFunction(DM dm, PetscInt numComp, PetscScalar (**fun
 
 .seealso: DMPlexProjectFunction()
 @*/
-PetscErrorCode DMPlexComputeL2Diff(DM dm, PetscQuadrature quad[], PetscScalar (**funcs)(const PetscReal []), Vec X, PetscReal *diff)
+PETSC_EXTERN PetscErrorCode DMPlexComputeL2Diff(DM dm, PetscQuadrature quad[], PetscScalar (**funcs)(const PetscReal []), Vec X, PetscReal *diff)
 {
   const PetscInt debug = 0;
   PetscSection   section;

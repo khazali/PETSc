@@ -402,7 +402,7 @@ $     -mat_coloring_type my_color
 
 .seealso: MatColoringRegisterDestroy(), MatColoringRegisterAll()
 @*/
-PetscErrorCode  MatColoringRegister(const char sname[],PetscErrorCode (*function)(Mat,MatColoringType,ISColoring*))
+PETSC_EXTERN PetscErrorCode MatColoringRegister(const char sname[],PetscErrorCode (*function)(Mat,MatColoringType,ISColoring*))
 {
   PetscErrorCode ierr;
 

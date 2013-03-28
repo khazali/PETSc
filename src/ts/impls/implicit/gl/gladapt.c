@@ -52,7 +52,7 @@ $     -ts_adapt_type my_scheme
 
 .seealso: TSGLAdaptRegisterAll()
 @*/
-PetscErrorCode  TSGLAdaptRegister(const char sname[],PetscErrorCode (*function)(TSGLAdapt))
+PETSC_EXTERN PetscErrorCode TSGLAdaptRegister(const char sname[],PetscErrorCode (*function)(TSGLAdapt))
 {
   PetscErrorCode ierr;
 

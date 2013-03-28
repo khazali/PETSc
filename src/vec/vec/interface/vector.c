@@ -1082,7 +1082,7 @@ PetscErrorCode  VecReciprocal(Vec vec)
 
 #undef __FUNCT__
 #define __FUNCT__ "VecSetOperation"
-PetscErrorCode  VecSetOperation(Vec vec,VecOperation op, void (*f)(void))
+PETSC_EXTERN PetscErrorCode VecSetOperation(Vec vec,VecOperation op, void (*f)(void))
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(vec,VEC_CLASSID,1);

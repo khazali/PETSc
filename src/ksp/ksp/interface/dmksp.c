@@ -232,7 +232,7 @@ PetscErrorCode DMCopyDMKSP(DM dmsrc,DM dmdest)
 
 .seealso: DMKSPSetContext(), DMKSPGetComputeOperators(), KSPSetOperators()
 @*/
-PetscErrorCode DMKSPSetComputeOperators(DM dm,PetscErrorCode (*func)(KSP,Mat,Mat,MatStructure*,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMKSPSetComputeOperators(DM dm,PetscErrorCode (*func)(KSP,Mat,Mat,MatStructure*,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMKSP          kdm;
@@ -263,7 +263,7 @@ PetscErrorCode DMKSPSetComputeOperators(DM dm,PetscErrorCode (*func)(KSP,Mat,Mat
 
 .seealso: DMKSPSetContext(), KSPSetComputeOperators(), DMKSPSetComputeOperators()
 @*/
-PetscErrorCode DMKSPGetComputeOperators(DM dm,PetscErrorCode (**func)(KSP,Mat,Mat,MatStructure*,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMKSPGetComputeOperators(DM dm,PetscErrorCode (**func)(KSP,Mat,Mat,MatStructure*,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMKSP          kdm;
@@ -297,7 +297,7 @@ PetscErrorCode DMKSPGetComputeOperators(DM dm,PetscErrorCode (**func)(KSP,Mat,Ma
 
 .seealso: DMKSPSetContext(), DMKSPGetComputeRHS(), KSPSetRHS()
 @*/
-PetscErrorCode DMKSPSetComputeRHS(DM dm,PetscErrorCode (*func)(KSP,Vec,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMKSPSetComputeRHS(DM dm,PetscErrorCode (*func)(KSP,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMKSP          kdm;
@@ -330,7 +330,7 @@ PetscErrorCode DMKSPSetComputeRHS(DM dm,PetscErrorCode (*func)(KSP,Vec,void*),vo
 
 .seealso: DMKSPSetContext(), DMKSPGetComputeRHS(), KSPSetRHS()
 @*/
-PetscErrorCode DMKSPSetComputeInitialGuess(DM dm,PetscErrorCode (*func)(KSP,Vec,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMKSPSetComputeInitialGuess(DM dm,PetscErrorCode (*func)(KSP,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMKSP          kdm;
@@ -361,7 +361,7 @@ PetscErrorCode DMKSPSetComputeInitialGuess(DM dm,PetscErrorCode (*func)(KSP,Vec,
 
 .seealso: DMKSPSetContext(), KSPSetComputeRHS(), DMKSPSetComputeRHS()
 @*/
-PetscErrorCode DMKSPGetComputeRHS(DM dm,PetscErrorCode (**func)(KSP,Vec,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMKSPGetComputeRHS(DM dm,PetscErrorCode (**func)(KSP,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMKSP          kdm;
@@ -392,7 +392,7 @@ PetscErrorCode DMKSPGetComputeRHS(DM dm,PetscErrorCode (**func)(KSP,Vec,void*),v
 
 .seealso: DMKSPSetContext(), KSPSetComputeRHS(), DMKSPSetComputeRHS()
 @*/
-PetscErrorCode DMKSPGetComputeInitialGuess(DM dm,PetscErrorCode (**func)(KSP,Vec,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMKSPGetComputeInitialGuess(DM dm,PetscErrorCode (**func)(KSP,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMKSP          kdm;

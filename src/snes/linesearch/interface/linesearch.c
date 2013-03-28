@@ -188,7 +188,7 @@ M*/
 
 .seealso: SNESLineSearchSetPostCheck()
 @*/
-PetscErrorCode  SNESLineSearchSetPreCheck(SNESLineSearch linesearch, PetscErrorCode (*SNESLineSearchPreCheckFunction)(SNESLineSearch,Vec,Vec,PetscBool*,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode SNESLineSearchSetPreCheck(SNESLineSearch linesearch, PetscErrorCode (*SNESLineSearchPreCheckFunction)(SNESLineSearch,Vec,Vec,PetscBool*,void*),void *ctx)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(linesearch,SNESLINESEARCH_CLASSID,1);
@@ -216,7 +216,7 @@ PetscErrorCode  SNESLineSearchSetPreCheck(SNESLineSearch linesearch, PetscErrorC
 
 .seealso: SNESLineSearchGetPostCheck(), SNESLineSearchSetPreCheck()
 @*/
-PetscErrorCode  SNESLineSearchGetPreCheck(SNESLineSearch linesearch, PetscErrorCode (**SNESLineSearchPreCheckFunction)(SNESLineSearch,Vec,Vec,PetscBool*,void*),void **ctx)
+PETSC_EXTERN PetscErrorCode SNESLineSearchGetPreCheck(SNESLineSearch linesearch, PetscErrorCode (**SNESLineSearchPreCheckFunction)(SNESLineSearch,Vec,Vec,PetscBool*,void*),void **ctx)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(linesearch,SNESLINESEARCH_CLASSID,1);
@@ -263,7 +263,7 @@ M*/
 
 .seealso: SNESLineSearchSetPreCheck()
 @*/
-PetscErrorCode  SNESLineSearchSetPostCheck(SNESLineSearch linesearch, PetscErrorCode (*SNESLineSearchPostCheckFunction)(SNESLineSearch,Vec,Vec,Vec,PetscBool*,PetscBool*,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode SNESLineSearchSetPostCheck(SNESLineSearch linesearch, PetscErrorCode (*SNESLineSearchPostCheckFunction)(SNESLineSearch,Vec,Vec,Vec,PetscBool*,PetscBool*,void*),void *ctx)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(linesearch,SNESLINESEARCH_CLASSID,1);
@@ -291,7 +291,7 @@ PetscErrorCode  SNESLineSearchSetPostCheck(SNESLineSearch linesearch, PetscError
 
 .seealso: SNESLineSearchGetPreCheck(), SNESLineSearchSetPostCheck()
 @*/
-PetscErrorCode  SNESLineSearchGetPostCheck(SNESLineSearch linesearch, PetscErrorCode (**SNESLineSearchPostCheckFunction)(SNESLineSearch,Vec,Vec,Vec,PetscBool*,PetscBool*,void*),void **ctx)
+PETSC_EXTERN PetscErrorCode SNESLineSearchGetPostCheck(SNESLineSearch linesearch, PetscErrorCode (**SNESLineSearchPostCheckFunction)(SNESLineSearch,Vec,Vec,Vec,PetscBool*,PetscBool*,void*),void **ctx)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(linesearch,SNESLINESEARCH_CLASSID,1);
@@ -1629,7 +1629,7 @@ extern PetscErrorCode SNESLineSearchGetVIFunctions(SNESLineSearch linesearch, SN
 
   Level: advanced
 @*/
-PetscErrorCode  SNESLineSearchRegister(const char sname[],PetscErrorCode (*function)(SNESLineSearch))
+PETSC_EXTERN PetscErrorCode SNESLineSearchRegister(const char sname[],PetscErrorCode (*function)(SNESLineSearch))
 {
   PetscErrorCode ierr;
 

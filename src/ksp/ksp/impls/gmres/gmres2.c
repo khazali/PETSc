@@ -38,7 +38,7 @@ $    i.e. the size of Krylov space minus one
 .seealso: KSPGMRESSetRestart(), KSPGMRESSetPreAllocateVectors(), KSPGMRESSetCGSRefinementType(), KSPGMRESSetOrthogonalization(),
           KSPGMRESModifiedGramSchmidtOrthogonalization(), KSPGMRESClassicalGramSchmidtOrthogonalization(), KSPGMRESGetCGSRefinementType()
 @*/
-PetscErrorCode  KSPGMRESSetOrthogonalization(KSP ksp,PetscErrorCode (*fcn)(KSP,PetscInt))
+PETSC_EXTERN PetscErrorCode KSPGMRESSetOrthogonalization(KSP ksp,PetscErrorCode (*fcn)(KSP,PetscInt))
 {
   PetscErrorCode ierr;
 
@@ -87,7 +87,7 @@ $    i.e. the size of Krylov space minus one
 .seealso: KSPGMRESSetRestart(), KSPGMRESSetPreAllocateVectors(), KSPGMRESSetCGSRefinementType(), KSPGMRESSetOrthogonalization(),
           KSPGMRESModifiedGramSchmidtOrthogonalization(), KSPGMRESClassicalGramSchmidtOrthogonalization(), KSPGMRESGetCGSRefinementType()
 @*/
-PetscErrorCode  KSPGMRESGetOrthogonalization(KSP ksp,PetscErrorCode (**fcn)(KSP,PetscInt))
+PETSC_EXTERN PetscErrorCode KSPGMRESGetOrthogonalization(KSP ksp,PetscErrorCode (**fcn)(KSP,PetscInt))
 {
   PetscErrorCode ierr;
 

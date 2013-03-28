@@ -63,7 +63,7 @@ $     -snes_type my_solver
 
 .seealso: PetscSFRegisterAll(), PetscSFRegisterDestroy()
 @*/
-PetscErrorCode  PetscSFRegister(const char sname[],PetscErrorCode (*function)(PetscSF))
+PETSC_EXTERN PetscErrorCode PetscSFRegister(const char sname[],PetscErrorCode (*function)(PetscSF))
 {
   PetscErrorCode ierr;
 

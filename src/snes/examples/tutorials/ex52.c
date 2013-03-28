@@ -214,7 +214,7 @@ PetscErrorCode SetupSection(DM dm, AppCtx *user)
   Output Parameter:
 . X - vector
 */
-PetscErrorCode FormInitialGuess(Vec X, void (*guessFunc)(const PetscReal [], PetscScalar []), InsertMode mode, AppCtx *user)
+PETSC_EXTERN PetscErrorCode FormInitialGuess(Vec X, void (*guessFunc)(const PetscReal [], PetscScalar []), InsertMode mode, AppCtx *user)
 {
   Vec            localX, coordinates;
   PetscSection   section, cSection;

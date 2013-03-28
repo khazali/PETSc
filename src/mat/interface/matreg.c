@@ -163,7 +163,7 @@ $     -mat_type my_mat
 
   Level: advanced
 @*/
-PetscErrorCode  MatRegister(const char sname[],PetscErrorCode (*function)(Mat))
+PETSC_EXTERN PetscErrorCode MatRegister(const char sname[],PetscErrorCode (*function)(Mat))
 {
   PetscErrorCode ierr;
 

@@ -671,7 +671,7 @@ PetscErrorCode  DMDAGetRefinementFactor(DM da, PetscInt *refine_x, PetscInt *ref
 
 .seealso: DMCreateMatrix(), DMDASetBlockFills()
 @*/
-PetscErrorCode  DMDASetGetMatrix(DM da,PetscErrorCode (*f)(DM, MatType,Mat*))
+PETSC_EXTERN PetscErrorCode DMDASetGetMatrix(DM da,PetscErrorCode (*f)(DM, MatType,Mat*))
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(da,DM_CLASSID,1);

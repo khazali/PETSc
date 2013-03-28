@@ -20,8 +20,8 @@ static PetscErrorCode PetscObjectQueryFunction_Petsc(PetscObject,const char[],vo
    PetscHeaderCreate_Private - Creates a base PETSc object header and fills
    in the default values.  Called by the macro PetscHeaderCreate().
 */
-PetscErrorCode  PetscHeaderCreate_Private(PetscObject h,PetscClassId classid,const char class_name[],const char descr[],const char mansec[],
-                                          MPI_Comm comm,PetscErrorCode (*des)(PetscObject*),PetscErrorCode (*vie)(PetscObject,PetscViewer))
+PETSC_EXTERN PetscErrorCode PetscHeaderCreate_Private(PetscObject h,PetscClassId classid,const char class_name[],const char descr[],const char mansec[],
+                                                      MPI_Comm comm,PetscErrorCode (*des)(PetscObject*),PetscErrorCode (*vie)(PetscObject,PetscViewer))
 {
   static PetscInt idcnt = 1;
   PetscErrorCode  ierr;
@@ -198,7 +198,7 @@ PetscErrorCode PetscObjectCopyFortranFunctionPointers(PetscObject src,PetscObjec
 
 .seealso: PetscObjectGetFortranCallback()
 @*/
-PetscErrorCode PetscObjectSetFortranCallback(PetscObject obj,PetscFortranCallbackType cbtype,PetscFortranCallbackId *cid,void (*func)(void),void *ctx)
+PETSC_EXTERN PetscErrorCode PetscObjectSetFortranCallback(PetscObject obj,PetscFortranCallbackType cbtype,PetscFortranCallbackId *cid,void (*func)(void),void *ctx)
 {
   PetscErrorCode ierr;
   const char     *subtype = NULL;
@@ -242,7 +242,7 @@ PetscErrorCode PetscObjectSetFortranCallback(PetscObject obj,PetscFortranCallbac
 
 .seealso: PetscObjectSetFortranCallback()
 @*/
-PetscErrorCode PetscObjectGetFortranCallback(PetscObject obj,PetscFortranCallbackType cbtype,PetscFortranCallbackId cid,void (**func)(void),void **ctx)
+PETSC_EXTERN PetscErrorCode PetscObjectGetFortranCallback(PetscObject obj,PetscFortranCallbackType cbtype,PetscFortranCallbackId cid,void (**func)(void),void **ctx)
 {
   PetscFortranCallback *cb;
 
@@ -440,7 +440,7 @@ char *PetscObjectsGetObjectMatlab(const char* name,PetscObject *obj)
 .seealso: KSPSetFromOptions(), PCSetFromOptions(), SNESSetFromOptions(), PetscObjectProcessOptionsHandlers(), PetscObjectDestroyOptionsHandlers()
 
 @*/
-PetscErrorCode  PetscObjectAddOptionsHandler(PetscObject obj,PetscErrorCode (*handle)(PetscObject,void*),PetscErrorCode (*destroy)(PetscObject,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode PetscObjectAddOptionsHandler(PetscObject obj,PetscErrorCode (*handle)(PetscObject,void*),PetscErrorCode (*destroy)(PetscObject,void*),void *ctx)
 {
   PetscFunctionBegin;
   PetscValidHeader(obj,1);
@@ -820,7 +820,7 @@ M*/
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscObjectComposeFunction_Private"
-PetscErrorCode  PetscObjectComposeFunction_Private(PetscObject obj,const char name[],void (*fptr)(void))
+PETSC_EXTERN PetscErrorCode PetscObjectComposeFunction_Private(PetscObject obj,const char name[],void (*fptr)(void))
 {
   PetscErrorCode ierr;
 
@@ -856,7 +856,7 @@ PetscErrorCode  PetscObjectComposeFunction_Private(PetscObject obj,const char na
 
 .seealso: PetscObjectComposeFunction()
 @*/
-PetscErrorCode  PetscObjectQueryFunction(PetscObject obj,const char name[],void (**ptr)(void))
+PETSC_EXTERN PetscErrorCode PetscObjectQueryFunction(PetscObject obj,const char name[],void (**ptr)(void))
 {
   PetscErrorCode ierr;
 
@@ -968,7 +968,7 @@ PetscErrorCode  PetscContainerDestroy(PetscContainer *obj)
 
 .seealso: PetscContainerDestroy()
 @*/
-PetscErrorCode  PetscContainerSetUserDestroy(PetscContainer obj, PetscErrorCode (*des)(void*))
+PETSC_EXTERN PetscErrorCode PetscContainerSetUserDestroy(PetscContainer obj, PetscErrorCode (*des)(void*))
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(obj,PETSC_CONTAINER_CLASSID,1);

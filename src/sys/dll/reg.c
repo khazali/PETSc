@@ -161,7 +161,7 @@ static PetscFunctionList dlallhead = 0;
 .seealso: PetscFunctionListDestroy(), SNESRegister(), KSPRegister(),
           PCRegister(), TSRegister(), PetscFunctionList
 @*/
-PetscErrorCode  PetscFunctionListAdd(PetscFunctionList *fl,const char name[],void (*fnc)(void))
+PETSC_EXTERN PetscErrorCode PetscFunctionListAdd(PetscFunctionList *fl,const char name[],void (*fnc)(void))
 {
   PetscFunctionList entry,ne;
   PetscErrorCode    ierr;
@@ -290,7 +290,7 @@ PetscErrorCode  PetscFunctionListDestroyAll(void)
 
 .seealso: PetscFunctionListAddDynamic(), PetscFunctionList
 @*/
-PetscErrorCode  PetscFunctionListFind(PetscFunctionList fl,const char name[],void (**r)(void))
+PETSC_EXTERN PetscErrorCode PetscFunctionListFind(PetscFunctionList fl,const char name[],void (**r)(void))
 {
   PetscFunctionList entry = fl;
   PetscErrorCode    ierr;

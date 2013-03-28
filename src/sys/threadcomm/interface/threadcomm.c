@@ -581,7 +581,7 @@ PetscErrorCode  PetscThreadCommRegisterDestroy(void)
 
   Level: advanced
 @*/
-PetscErrorCode  PetscThreadCommRegister(const char sname[],PetscErrorCode (*function)(PetscThreadComm))
+PETSC_EXTERN PetscErrorCode PetscThreadCommRegister(const char sname[],PetscErrorCode (*function)(PetscThreadComm))
 {
   PetscErrorCode ierr;
 
@@ -721,7 +721,7 @@ PetscErrorCode PetscThreadCommGetInts(MPI_Comm comm,PetscInt **val1, PetscInt **
 
 .seealso: PetscThreadCommCreate(), PetscThreadCommGNThreads()
 @*/
-PetscErrorCode PetscThreadCommRunKernel(MPI_Comm comm,PetscErrorCode (*func)(PetscInt,...),PetscInt nargs,...)
+PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel(MPI_Comm comm,PetscErrorCode (*func)(PetscInt,...),PetscInt nargs,...)
 {
   PetscErrorCode        ierr;
   va_list               argptr;
@@ -823,7 +823,7 @@ static PetscErrorCode PetscThreadCommRunKernel0_Private(PetscThreadComm tcomm,Pe
 
 .seealso: PetscThreadCommCreate(), PetscThreadCommGNThreads()
 @*/
-PetscErrorCode PetscThreadCommRunKernel0(MPI_Comm comm,PetscErrorCode (*func)(PetscInt,...))
+PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel0(MPI_Comm comm,PetscErrorCode (*func)(PetscInt,...))
 {
   PetscErrorCode        ierr;
   PetscThreadComm       tcomm=0;
@@ -862,7 +862,7 @@ PetscErrorCode PetscThreadCommRunKernel0(MPI_Comm comm,PetscErrorCode (*func)(Pe
 
 .seealso: PetscThreadCommCreate(), PetscThreadCommGNThreads()
 @*/
-PetscErrorCode PetscThreadCommRunKernel1(MPI_Comm comm,PetscErrorCode (*func)(PetscInt,...),void *in1)
+PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel1(MPI_Comm comm,PetscErrorCode (*func)(PetscInt,...),void *in1)
 {
   PetscErrorCode        ierr;
   PetscInt              i;
@@ -930,7 +930,7 @@ PetscErrorCode PetscThreadCommRunKernel1(MPI_Comm comm,PetscErrorCode (*func)(Pe
 
 .seealso: PetscThreadCommCreate(), PetscThreadCommGNThreads()
 @*/
-PetscErrorCode PetscThreadCommRunKernel2(MPI_Comm comm,PetscErrorCode (*func)(PetscInt,...),void *in1,void *in2)
+PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel2(MPI_Comm comm,PetscErrorCode (*func)(PetscInt,...),void *in1,void *in2)
 {
   PetscErrorCode        ierr;
   PetscInt              i;
@@ -1000,7 +1000,7 @@ PetscErrorCode PetscThreadCommRunKernel2(MPI_Comm comm,PetscErrorCode (*func)(Pe
 
 .seealso: PetscThreadCommCreate(), PetscThreadCommGNThreads()
 @*/
-PetscErrorCode PetscThreadCommRunKernel3(MPI_Comm comm,PetscErrorCode (*func)(PetscInt,...),void *in1,void *in2,void *in3)
+PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel3(MPI_Comm comm,PetscErrorCode (*func)(PetscInt,...),void *in1,void *in2,void *in3)
 {
   PetscErrorCode        ierr;
   PetscInt              i;
@@ -1072,7 +1072,7 @@ PetscErrorCode PetscThreadCommRunKernel3(MPI_Comm comm,PetscErrorCode (*func)(Pe
 
 .seealso: PetscThreadCommCreate(), PetscThreadCommGNThreads()
 @*/
-PetscErrorCode PetscThreadCommRunKernel4(MPI_Comm comm,PetscErrorCode (*func)(PetscInt,...),void *in1,void *in2,void *in3,void *in4)
+PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel4(MPI_Comm comm,PetscErrorCode (*func)(PetscInt,...),void *in1,void *in2,void *in3,void *in4)
 {
   PetscErrorCode        ierr;
   PetscInt              i;
@@ -1147,7 +1147,7 @@ PetscErrorCode PetscThreadCommRunKernel4(MPI_Comm comm,PetscErrorCode (*func)(Pe
 
 .seealso: PetscThreadCommCreate(), PetscThreadCommGNThreads()
 @*/
-PetscErrorCode PetscThreadCommRunKernel6(MPI_Comm comm,PetscErrorCode (*func)(PetscInt,...),void *in1,void *in2,void *in3,void *in4,void *in5,void *in6)
+PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel6(MPI_Comm comm,PetscErrorCode (*func)(PetscInt,...),void *in1,void *in2,void *in3,void *in4,void *in5,void *in6)
 {
   PetscErrorCode        ierr;
   PetscInt              i;

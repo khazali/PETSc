@@ -185,7 +185,7 @@ PetscErrorCode  PetscSignalHandlerDefault(int sig,void *ptr)
 .seealso: PetscPopSignalHandler(), PetscSignalHandlerDefault(), PetscPushErrorHandler()
 
 @*/
-PetscErrorCode  PetscPushSignalHandler(PetscErrorCode (*routine)(int,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode PetscPushSignalHandler(PetscErrorCode (*routine)(int,void*),void *ctx)
 {
   struct  SH     *newsh;
   PetscErrorCode ierr;

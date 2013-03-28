@@ -40,7 +40,7 @@ $     -ts_adapt_type my_scheme
 
 .seealso: TSAdaptRegisterAll()
 @*/
-PetscErrorCode  TSAdaptRegister(const char sname[],PetscErrorCode (*function)(TSAdapt))
+PETSC_EXTERN PetscErrorCode TSAdaptRegister(const char sname[],PetscErrorCode (*function)(TSAdapt))
 {
   PetscErrorCode ierr;
 
@@ -312,7 +312,7 @@ $  PetscErrorCode func(TSAdapt adapt,TS ts,PetscBool *accept)
 
 .seealso: TSAdaptChoose()
 @*/
-PetscErrorCode TSAdaptSetCheckStage(TSAdapt adapt,PetscErrorCode (*func)(TSAdapt,TS,PetscBool*))
+PETSC_EXTERN PetscErrorCode TSAdaptSetCheckStage(TSAdapt adapt,PetscErrorCode (*func)(TSAdapt,TS,PetscBool*))
 {
 
   PetscFunctionBegin;

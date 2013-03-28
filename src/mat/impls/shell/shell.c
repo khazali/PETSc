@@ -756,7 +756,7 @@ $       MatMult(Mat,Vec,Vec) -> usermult(Mat,Vec,Vec)
 
 .seealso: MatCreateShell(), MatShellGetContext(), MatShellGetOperation(), MatShellSetContext()
 @*/
-PetscErrorCode  MatShellSetOperation(Mat mat,MatOperation op,void (*f)(void))
+PETSC_EXTERN PetscErrorCode MatShellSetOperation(Mat mat,MatOperation op,void (*f)(void))
 {
   PetscErrorCode ierr;
   PetscBool      flg;
@@ -824,7 +824,7 @@ $       MatMult(Mat,Vec,Vec) -> usermult(Mat,Vec,Vec)
 
 .seealso: MatCreateShell(), MatShellGetContext(), MatShellSetOperation(), MatShellSetContext()
 @*/
-PetscErrorCode  MatShellGetOperation(Mat mat,MatOperation op,void(**f)(void))
+PETSC_EXTERN PetscErrorCode MatShellGetOperation(Mat mat,MatOperation op,void(**f)(void))
 {
   PetscErrorCode ierr;
   PetscBool      flg;

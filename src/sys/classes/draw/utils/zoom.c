@@ -32,7 +32,7 @@ static void PetscXIOHandler(Display *dpy)
 
 .seealso:
 @*/
-PetscErrorCode  PetscDrawZoom(PetscDraw draw,PetscErrorCode (*func)(PetscDraw,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode PetscDrawZoom(PetscDraw draw,PetscErrorCode (*func)(PetscDraw,void*),void *ctx)
 {
   PetscErrorCode  ierr;
   PetscDrawButton button;

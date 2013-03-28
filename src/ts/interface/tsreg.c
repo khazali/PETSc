@@ -133,7 +133,7 @@ PetscErrorCode  TSGetType(TS ts, TSType *type)
 
 .seealso: TSRegisterAll(), TSRegisterDestroy()
 @*/
-PetscErrorCode  TSRegister(const char sname[], PetscErrorCode (*function)(TS))
+PETSC_EXTERN PetscErrorCode TSRegister(const char sname[], PetscErrorCode (*function)(TS))
 {
   PetscErrorCode ierr;
 

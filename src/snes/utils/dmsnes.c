@@ -330,7 +330,7 @@ PetscErrorCode DMCopyDMSNES(DM dmsrc,DM dmdest)
 
 .seealso: DMSNESSetContext(), SNESSetFunction(), DMSNESSetJacobian(), SNESFunction
 @*/
-PetscErrorCode DMSNESSetFunction(DM dm,PetscErrorCode (*SNESFunction)(SNES,Vec,Vec,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMSNESSetFunction(DM dm,PetscErrorCode (*SNESFunction)(SNES,Vec,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -367,7 +367,7 @@ PetscErrorCode DMSNESSetFunction(DM dm,PetscErrorCode (*SNESFunction)(SNES,Vec,V
 
 .seealso: DMSNESSetContext(), DMSNESSetFunction(), SNESSetFunction(), SNESFunction
 @*/
-PetscErrorCode DMSNESGetFunction(DM dm,PetscErrorCode (**SNESFunction)(SNES,Vec,Vec,void*),void **ctx)
+PETSC_EXTERN PetscErrorCode DMSNESGetFunction(DM dm,PetscErrorCode (**SNESFunction)(SNES,Vec,Vec,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -396,7 +396,7 @@ PetscErrorCode DMSNESGetFunction(DM dm,PetscErrorCode (**SNESFunction)(SNES,Vec,
 
 .seealso: DMSNESSetContext(), SNESGetObjective(), DMSNESSetFunction()
 @*/
-PetscErrorCode DMSNESSetObjective(DM dm,PetscErrorCode (*SNESObjectiveFunction)(SNES,Vec,PetscReal*,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMSNESSetObjective(DM dm,PetscErrorCode (*SNESObjectiveFunction)(SNES,Vec,PetscReal*,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -433,7 +433,7 @@ PetscErrorCode DMSNESSetObjective(DM dm,PetscErrorCode (*SNESObjectiveFunction)(
 
 .seealso: DMSNESSetContext(), DMSNESSetObjective(), SNESSetFunction()
 @*/
-PetscErrorCode DMSNESGetObjective(DM dm,PetscErrorCode (**SNESObjectiveFunction)(SNES,Vec,PetscReal*,void*),void **ctx)
+PETSC_EXTERN PetscErrorCode DMSNESGetObjective(DM dm,PetscErrorCode (**SNESObjectiveFunction)(SNES,Vec,PetscReal*,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -467,7 +467,7 @@ PetscErrorCode DMSNESGetObjective(DM dm,PetscErrorCode (**SNESObjectiveFunction)
 
 .seealso: DMSNESSetContext(), SNESSetFunction(), DMSNESSetJacobian(), DMSNESSetFunction(), SNESGSFunction
 @*/
-PetscErrorCode DMSNESSetGS(DM dm,PetscErrorCode (*SNESGSFunction)(SNES,Vec,Vec,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMSNESSetGS(DM dm,PetscErrorCode (*SNESGSFunction)(SNES,Vec,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -505,7 +505,7 @@ PetscErrorCode DMSNESSetGS(DM dm,PetscErrorCode (*SNESGSFunction)(SNES,Vec,Vec,v
 
 .seealso: DMSNESSetContext(), SNESGetGS(), DMSNESGetJacobian(), DMSNESGetFunction(), SNESGSFunction
 @*/
-PetscErrorCode DMSNESGetGS(DM dm,PetscErrorCode (**SNESGSFunction)(SNES,Vec,Vec,void*),void **ctx)
+PETSC_EXTERN PetscErrorCode DMSNESGetGS(DM dm,PetscErrorCode (**SNESGSFunction)(SNES,Vec,Vec,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -539,7 +539,7 @@ PetscErrorCode DMSNESGetGS(DM dm,PetscErrorCode (**SNESGSFunction)(SNES,Vec,Vec,
 
 .seealso: DMSNESSetContext(), SNESSetFunction(), DMSNESGetJacobian(), SNESSetJacobian(), SNESJacobianFunction
 @*/
-PetscErrorCode DMSNESSetJacobian(DM dm,PetscErrorCode (*SNESJacobianFunction)(SNES,Vec,Mat*,Mat*,MatStructure*,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMSNESSetJacobian(DM dm,PetscErrorCode (*SNESJacobianFunction)(SNES,Vec,Mat*,Mat*,MatStructure*,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -577,7 +577,7 @@ PetscErrorCode DMSNESSetJacobian(DM dm,PetscErrorCode (*SNESJacobianFunction)(SN
 
 .seealso: DMSNESSetContext(), SNESSetFunction(), DMSNESSetJacobian(), SNESJacobianFunction
 @*/
-PetscErrorCode DMSNESGetJacobian(DM dm,PetscErrorCode (**SNESJacobianFunction)(SNES,Vec,Mat*,Mat*,MatStructure*,void*),void **ctx)
+PETSC_EXTERN PetscErrorCode DMSNESGetJacobian(DM dm,PetscErrorCode (**SNESJacobianFunction)(SNES,Vec,Mat*,Mat*,MatStructure*,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -607,7 +607,7 @@ PetscErrorCode DMSNESGetJacobian(DM dm,PetscErrorCode (**SNESJacobianFunction)(S
 
 .seealso: SNESSetPicard(), DMSNESSetFunction(), DMSNESSetJacobian()
 @*/
-PetscErrorCode DMSNESSetPicard(DM dm,PetscErrorCode (*SNESFunction)(SNES,Vec,Vec,void*),PetscErrorCode (*SNESJacobianFunction)(SNES,Vec,Mat*,Mat*,MatStructure*,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode DMSNESSetPicard(DM dm,PetscErrorCode (*SNESFunction)(SNES,Vec,Vec,void*),PetscErrorCode (*SNESJacobianFunction)(SNES,Vec,Mat*,Mat*,MatStructure*,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -640,7 +640,7 @@ PetscErrorCode DMSNESSetPicard(DM dm,PetscErrorCode (*SNESFunction)(SNES,Vec,Vec
 
 .seealso: DMSNESSetContext(), SNESSetFunction(), DMSNESSetJacobian()
 @*/
-PetscErrorCode DMSNESGetPicard(DM dm,PetscErrorCode (**SNESFunction)(SNES,Vec,Vec,void*),PetscErrorCode (**SNESJacobianFunction)(SNES,Vec,Mat*,Mat*,MatStructure*,void*),void **ctx)
+PETSC_EXTERN PetscErrorCode DMSNESGetPicard(DM dm,PetscErrorCode (**SNESFunction)(SNES,Vec,Vec,void*),PetscErrorCode (**SNESJacobianFunction)(SNES,Vec,Mat*,Mat*,MatStructure*,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;

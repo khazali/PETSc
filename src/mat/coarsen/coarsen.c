@@ -34,7 +34,7 @@ $     -mat_coarsen_type my_agg
 
 .seealso: MatCoarsenRegisterDestroy(), MatCoarsenRegisterAll()
 @*/
-PetscErrorCode  MatCoarsenRegister(const char sname[],PetscErrorCode (*function)(MatCoarsen))
+PETSC_EXTERN PetscErrorCode MatCoarsenRegister(const char sname[],PetscErrorCode (*function)(MatCoarsen))
 {
   PetscErrorCode ierr;
 

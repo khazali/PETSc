@@ -630,7 +630,7 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESVISetRedundancyCheck"
-PetscErrorCode SNESVISetRedundancyCheck(SNES snes,PetscErrorCode (*func)(SNES,IS,IS*,void*),void *ctx)
+PETSC_EXTERN PetscErrorCode SNESVISetRedundancyCheck(SNES snes,PetscErrorCode (*func)(SNES,IS,IS*,void*),void *ctx)
 {
   SNES_VINEWTONRSLS *vi = (SNES_VINEWTONRSLS*)snes->data;
 

@@ -91,7 +91,7 @@ PetscErrorCode  AOGetType(AO ao, AOType *type)
 
   Level: advanced
 @*/
-PetscErrorCode  AORegister(const char sname[], PetscErrorCode (*function)(AO))
+PETSC_EXTERN PetscErrorCode AORegister(const char sname[], PetscErrorCode (*function)(AO))
 {
   PetscErrorCode ierr;
 

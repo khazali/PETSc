@@ -113,7 +113,7 @@ PetscBool petscsetmallocvisited = PETSC_FALSE;
    Concepts: memory^allocation
 
 @*/
-PetscErrorCode  PetscMallocSet(PetscErrorCode (*imalloc)(size_t,int,const char[],const char[],const char[],void**),
+PETSC_EXTERN PetscErrorCode PetscMallocSet(PetscErrorCode (*imalloc)(size_t,int,const char[],const char[],const char[],void**),
                                               PetscErrorCode (*ifree)(void*,int,const char[],const char[],const char[]))
 {
   PetscFunctionBegin;

@@ -277,7 +277,7 @@ static PetscErrorCode ((*PetscRegisterFinalize_Functions[MAXREGFIN])(void));
 
 .seealso: PetscRegisterFinalizeAll()
 @*/
-PetscErrorCode  PetscRegisterFinalize(PetscErrorCode (*f)(void))
+PETSC_EXTERN PetscErrorCode PetscRegisterFinalize(PetscErrorCode (*f)(void))
 {
   PetscInt i;
 

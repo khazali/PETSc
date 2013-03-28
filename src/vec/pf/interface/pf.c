@@ -28,7 +28,7 @@ PetscBool         PFRegisterAllCalled = PETSC_FALSE;
 
 .seealso: PFCreate(), PFDestroy(), PFSetType(), PFApply(), PFApplyVec()
 @*/
-PetscErrorCode  PFSet(PF pf,PetscErrorCode (*apply)(void*,PetscInt,const PetscScalar*,PetscScalar*),PetscErrorCode (*applyvec)(void*,Vec,Vec),PetscErrorCode (*view)(void*,PetscViewer),PetscErrorCode (*destroy)(void*),void*ctx)
+PETSC_EXTERN PetscErrorCode PFSet(PF pf,PetscErrorCode (*apply)(void*,PetscInt,const PetscScalar*,PetscScalar*),PetscErrorCode (*applyvec)(void*,Vec,Vec),PetscErrorCode (*view)(void*,PetscViewer),PetscErrorCode (*destroy)(void*),void*ctx)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(pf,PF_CLASSID,1);
@@ -328,7 +328,7 @@ $     -pf_type my_function
 
 .seealso: PFRegisterAll(), PFRegisterDestroy(), PFRegister()
 @*/
-PetscErrorCode  PFRegister(const char sname[],PetscErrorCode (*function)(PF,void*))
+PETSC_EXTERN PetscErrorCode PFRegister(const char sname[],PetscErrorCode (*function)(PF,void*))
 {
   PetscErrorCode ierr;
 
