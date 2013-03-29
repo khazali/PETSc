@@ -274,10 +274,12 @@ PetscErrorCode  PetscFunctionListDestroyAll(void)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscFunctionListFind"
-/*@C
+/*MC
     PetscFunctionListFind - Given a name registered to a function
+
+    Synopsis:
+    #include "petscsys.h"
+    PetscErrorCode PetscFunctionListFind(PetscFunctionList fl,const char name[],void (**r)(void))
 
     Input Parameters:
 +   fl   - pointer to list
@@ -289,7 +291,10 @@ PetscErrorCode  PetscFunctionListDestroyAll(void)
     Level: developer
 
 .seealso: PetscFunctionListAddDynamic(), PetscFunctionList
-@*/
+M*/
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscFunctionListFind_Private"
 PETSC_EXTERN PetscErrorCode PetscFunctionListFind_Private(PetscFunctionList fl,const char name[],void (**r)(void))
 {
   PetscFunctionList entry = fl;
