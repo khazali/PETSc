@@ -3,8 +3,8 @@
 
 const char *const SNESFASTypes[] = {"MULTIPLICATIVE","ADDITIVE","SNESFASType","SNES_FAS",0};
 
+PETSC_EXTERN extern PetscErrorCode SNESSetUp_FAS(SNES snes);
 extern PetscErrorCode SNESDestroy_FAS(SNES snes);
-extern PetscErrorCode SNESSetUp_FAS(SNES snes);
 extern PetscErrorCode SNESSetFromOptions_FAS(SNES snes);
 extern PetscErrorCode SNESView_FAS(SNES snes, PetscViewer viewer);
 extern PetscErrorCode SNESSolve_FAS(SNES snes);
@@ -131,7 +131,7 @@ PetscErrorCode SNESDestroy_FAS(SNES snes)
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESSetUp_FAS"
-PetscErrorCode SNESSetUp_FAS(SNES snes)
+PETSC_EXTERN PetscErrorCode SNESSetUp_FAS(SNES snes)
 {
   SNES_FAS       *fas = (SNES_FAS*) snes->data;
   PetscErrorCode ierr;

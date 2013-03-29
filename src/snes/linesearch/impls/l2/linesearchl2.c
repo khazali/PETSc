@@ -3,7 +3,7 @@
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESLineSearchApply_L2"
-static PetscErrorCode  SNESLineSearchApply_L2(SNESLineSearch linesearch)
+PETSC_INTERN PetscErrorCode  SNESLineSearchApply_L2(SNESLineSearch linesearch)
 {
 
   PetscBool      changed_y, changed_w;

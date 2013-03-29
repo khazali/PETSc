@@ -8,7 +8,7 @@ typedef struct {
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESSolve_Test"
-PetscErrorCode SNESSolve_Test(SNES snes)
+PETSC_INTERN PetscErrorCode SNESSolve_Test(SNES snes)
 {
   Mat            A = snes->jacobian,B;
   Vec            x = snes->vec_sol,f = snes->vec_func,f1 = snes->vec_sol_update;
@@ -215,7 +215,7 @@ PETSC_EXTERN PetscErrorCode SNESCreate_Test(SNES snes)
 .seealso:  SNESCreate(), SNES, SNESSetType(), SNESNEWTONLS, SNESNEWTONTR, SNESSolve()
 
 @*/
-PetscErrorCode SNESUpdateCheckJacobian(SNES snes,PetscInt it)
+PETSC_EXTERN PetscErrorCode SNESUpdateCheckJacobian(SNES snes,PetscInt it)
 {
   Mat            A = snes->jacobian,B;
   Vec            x = snes->vec_sol,f = snes->vec_func,f1 = snes->vec_sol_update;

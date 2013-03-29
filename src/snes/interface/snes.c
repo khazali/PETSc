@@ -489,7 +489,7 @@ static PetscErrorCode DMCoarsenHook_SNESVecSol(DM dm,DM dmc,void *ctx)
 #define __FUNCT__ "KSPComputeOperators_SNES"
 /* This may be called to rediscretize the operator on levels of linear multigrid. The DM shuffle is so the user can
  * safely call SNESGetDM() in their residual evaluation routine. */
-static PetscErrorCode KSPComputeOperators_SNES(KSP ksp,Mat A,Mat B,MatStructure *mstruct,void *ctx)
+PETSC_INTERN PetscErrorCode KSPComputeOperators_SNES(KSP ksp,Mat A,Mat B,MatStructure *mstruct,void *ctx)
 {
   SNES           snes = (SNES)ctx;
   PetscErrorCode ierr;
@@ -2086,7 +2086,7 @@ PetscErrorCode  SNESComputeGS(SNES snes,Vec b,Vec x)
 
 .seealso:  SNESSetJacobian(), KSPSetOperators(), MatStructure, SNESSetLagPreconditioner(), SNESSetLagJacobian()
 @*/
-PetscErrorCode  SNESComputeJacobian(SNES snes,Vec X,Mat *A,Mat *B,MatStructure *flg)
+PETSC_EXTERN PetscErrorCode  SNESComputeJacobian(SNES snes,Vec X,Mat *A,Mat *B,MatStructure *flg)
 {
   PetscErrorCode ierr;
   PetscBool      flag;
@@ -2467,7 +2467,7 @@ PETSC_EXTERN PetscErrorCode SNESGetJacobian(SNES snes,Mat *Amat,Mat *Pmat,PetscE
 
 .seealso: SNESCreate(), SNESSolve(), SNESDestroy()
 @*/
-PetscErrorCode  SNESSetUp(SNES snes)
+PETSC_EXTERN PetscErrorCode  SNESSetUp(SNES snes)
 {
   PetscErrorCode ierr;
   DM             dm;

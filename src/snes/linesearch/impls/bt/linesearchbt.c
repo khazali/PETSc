@@ -58,7 +58,7 @@ PetscErrorCode SNESLineSearchBTGetAlpha(SNESLineSearch linesearch, PetscReal *al
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESLineSearchApply_BT"
-static PetscErrorCode  SNESLineSearchApply_BT(SNESLineSearch linesearch)
+PETSC_INTERN PetscErrorCode  SNESLineSearchApply_BT(SNESLineSearch linesearch)
 {
   PetscBool         changed_y,changed_w;
   PetscErrorCode    ierr;

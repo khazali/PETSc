@@ -506,7 +506,7 @@ PetscErrorCode TSComputeSolutionFunction(TS ts,PetscReal t,Vec U)
 
 .seealso: TSSetSolutionFunction(), TSSetRHSFunction(), TSComputeIFunction()
 @*/
-PetscErrorCode TSComputeForcingFunction(TS ts,PetscReal t,Vec U)
+PETSC_EXTERN PetscErrorCode TSComputeForcingFunction(TS ts,PetscReal t,Vec U)
 {
   PetscErrorCode     ierr, (*forcing)(TS,PetscReal,Vec,void*);
   void               *ctx;
@@ -1700,7 +1700,7 @@ PetscErrorCode  TSGetProblemType(TS ts, TSProblemType *type)
 
 .seealso: TSCreate(), TSStep(), TSDestroy()
 @*/
-PetscErrorCode  TSSetUp(TS ts)
+PETSC_EXTERN PetscErrorCode  TSSetUp(TS ts)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -1891,7 +1891,7 @@ PetscErrorCode  TSGetSNES(TS ts,SNES *snes)
 
 .keywords: timestep, set, SNES
 @*/
-PetscErrorCode TSSetSNES(TS ts,SNES snes)
+PETSC_EXTERN PetscErrorCode TSSetSNES(TS ts,SNES snes)
 {
   PetscErrorCode ierr;
   PetscErrorCode (*func)(SNES,Vec,Mat*,Mat*,MatStructure*,void*);

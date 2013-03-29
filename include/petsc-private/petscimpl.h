@@ -34,7 +34,7 @@
       queryfunction()   - Requests a registered function that has been attached to a PETSc object.
 */
 
-typedef struct {
+PETSC_EXTERN_TYPEDEF typedef struct {
    PetscErrorCode (*getcomm)(PetscObject,MPI_Comm *);
    PetscErrorCode (*view)(PetscObject,PetscViewer);
    PetscErrorCode (*destroy)(PetscObject*);
