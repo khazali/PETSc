@@ -1326,7 +1326,8 @@ PETSC_EXTERN PetscErrorCode PetscMemoryShowUsage(PetscViewer,const char[]);
 PETSC_EXTERN PetscErrorCode PetscObjectPrintClassNamePrefixType(PetscObject,PetscViewer,const char[]);
 PETSC_EXTERN PetscErrorCode PetscObjectView(PetscObject,PetscViewer);
 
-PETSC_EXTERN PetscErrorCode PetscObjectQueryFunction(PetscObject,const char[],void (**)(void));
+PETSC_EXTERN PetscErrorCode PetscObjectQueryFunction_Private(PetscObject,const char[],void (**)(void));
+#define PetscObjectQueryFunction(a,b,d) PetscObjectQueryFunction_Private(a,b,(PetscVoidFunction*)(d))
 PETSC_EXTERN PetscErrorCode PetscObjectSetOptionsPrefix(PetscObject,const char[]);
 PETSC_EXTERN PetscErrorCode PetscObjectAppendOptionsPrefix(PetscObject,const char[]);
 PETSC_EXTERN PetscErrorCode PetscObjectPrependOptionsPrefix(PetscObject,const char[]);
@@ -1400,7 +1401,8 @@ PETSC_EXTERN PetscErrorCode PetscObjectListDuplicate(PetscObjectList,PetscObject
 */
 PETSC_EXTERN PetscErrorCode PetscFunctionListAdd(PetscFunctionList*,const char[],void (*)(void));
 PETSC_EXTERN PetscErrorCode PetscFunctionListDestroy(PetscFunctionList*);
-PETSC_EXTERN PetscErrorCode PetscFunctionListFind(PetscFunctionList,const char[],void (**)(void));
+PETSC_EXTERN PetscErrorCode PetscFunctionListFind_Private(PetscFunctionList,const char[],void (**)(void));
+#define PetscFunctionListFind(a,b,d) PetscFunctionListFind_Private(a,b,(PetscVoidFunction*)(d))
 PETSC_EXTERN PetscErrorCode PetscFunctionListPrintTypes(MPI_Comm,FILE*,const char[],const char[],const char[],const char[],PetscFunctionList,const char[]);
 PETSC_EXTERN PetscErrorCode PetscFunctionListDuplicate(PetscFunctionList,PetscFunctionList *);
 PETSC_EXTERN PetscErrorCode PetscFunctionListView(PetscFunctionList,PetscViewer);

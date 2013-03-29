@@ -856,7 +856,7 @@ PETSC_EXTERN PetscErrorCode PetscObjectComposeFunction_Private(PetscObject obj,c
 
 .seealso: PetscObjectComposeFunction()
 @*/
-PETSC_EXTERN PetscErrorCode PetscObjectQueryFunction(PetscObject obj,const char name[],void (**ptr)(void))
+PETSC_EXTERN PetscErrorCode PetscObjectQueryFunction_Private(PetscObject obj,const char name[],void (**ptr)(void))
 {
   PetscErrorCode ierr;
 

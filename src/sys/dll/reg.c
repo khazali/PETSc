@@ -290,7 +290,7 @@ PetscErrorCode  PetscFunctionListDestroyAll(void)
 
 .seealso: PetscFunctionListAddDynamic(), PetscFunctionList
 @*/
-PETSC_EXTERN PetscErrorCode PetscFunctionListFind(PetscFunctionList fl,const char name[],void (**r)(void))
+PETSC_EXTERN PetscErrorCode PetscFunctionListFind_Private(PetscFunctionList fl,const char name[],void (**r)(void))
 {
   PetscFunctionList entry = fl;
   PetscErrorCode    ierr;
