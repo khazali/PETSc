@@ -82,6 +82,10 @@ PETSC_EXTERN PetscErrorCode KSPRegisterAll(void);
 PETSC_EXTERN PetscErrorCode KSPRegister(const char[],PetscErrorCode (*)(KSP));
 PETSC_EXTERN PetscErrorCode KSPMatRegisterAll(void);
 
+PETSC_EXTERN PetscFunctionList KSPPluginList;
+PETSC_EXTERN PetscErrorCode KSPPluginRegister(const char[],PetscErrorCode (*)(KSP));
+PETSC_EXTERN PetscErrorCode KSPActivatePlugin(KSP,const char[]);
+
 PETSC_EXTERN PetscErrorCode KSPGetType(KSP,KSPType *);
 PETSC_EXTERN PetscErrorCode KSPSetPCSide(KSP,PCSide);
 PETSC_EXTERN PetscErrorCode KSPGetPCSide(KSP,PCSide*);

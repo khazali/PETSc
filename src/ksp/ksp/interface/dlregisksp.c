@@ -11,6 +11,9 @@ const char *const        PCPARMSGlobalTypes[] = {"RAS","SCHUR","BJ","PCPARMSGlob
 const char *const        PCPARMSLocalTypes[]  = {"ILU0","ILUK","ILUT","ARMS","PCPARMSLocalType","PC_PARMS_",0};
 
 static PetscBool PCPackageInitialized = PETSC_FALSE;
+
+PetscFunctionList KSPPluginList = NULL;
+
 #undef __FUNCT__
 #define __FUNCT__ "PCFinalizePackage"
 /*@C
@@ -122,6 +125,7 @@ PetscErrorCode  KSPFinalizePackage(void)
 
   PetscFunctionBegin;
   ierr = PetscFunctionListDestroy(&KSPList);CHKERRQ(ierr);
+  ierr = PetscFunctionListDestroy(&KSPPluginList);CHKERRQ(ierr);
   KSPPackageInitialized = PETSC_FALSE;
   KSPRegisterAllCalled  = PETSC_FALSE;
   PetscFunctionReturn(0);
@@ -177,6 +181,33 @@ PetscErrorCode  KSPInitializePackage(void)
     }
   }
   ierr = PetscRegisterFinalize(KSPFinalizePackage);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "KSPPluginRegister"
+/*@C
+   KSPPluginRegister - registers a plugin by name
+
+   Not Collective, but hook must be available on all ranks sharing KSP
+
+   Input Arguments:
++  name - string identifying plugin
+-  activate - function to activate plugin for a specific KSP
+
+   Prototype for activate:
+$  PetscErrorCode activate(KSP);
+
+   Level: advanced
+
+.seealso: KSPActivatePlugin(), KSPSetFromOptions(), KSPMonitorSet(), KSPSetPreSolve(), KSPSetPostSolve(), PetscObjectAddOptionsHandler()
+@*/
+PetscErrorCode KSPPluginRegister(const char name[],PetscErrorCode (*activate)(KSP))
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscFunctionListAdd(&KSPPluginList,name,activate);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

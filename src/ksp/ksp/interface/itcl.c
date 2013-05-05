@@ -253,6 +253,35 @@ PetscErrorCode  KSPGetFischerGuess(KSP ksp,KSPFischerGuess *guess)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "KSPActivatePlugin"
+/*@
+   KSPActivatePlugin - activate plugin for KSP
+
+   Collective
+
+   Input Arguments:
++  ksp - solver to activate plugin for
+-  plugin - name of plugin
+
+   Options Database Keys:
+.  -ksp_plugin - name of plugin
+
+   Level: advanced
+
+.seealso: KSPPluginRegister(), KSPSetFromOptions(), KSPSetOptionsPrefix()
+@*/
+PetscErrorCode KSPActivatePlugin(KSP ksp,const char *plugin)
+{
+  PetscErrorCode ierr,(*activate)(KSP);
+
+  PetscFunctionBegin;
+  ierr = PetscFunctionListFind(KSPPluginList,plugin,&activate);CHKERRQ(ierr);
+  if (!activate) SETERRQ1(((PetscObject)ksp)->comm,PETSC_ERR_ARG_UNKNOWN_TYPE,"Could not find KSP plugin '%s'",plugin);
+  ierr = (*activate)(ksp);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "KSPGetOptionsPrefix"
 /*@C
    KSPGetOptionsPrefix - Gets the prefix used for searching for all
@@ -343,10 +372,10 @@ PetscErrorCode  KSPSetFromOptions(KSP ksp)
   PetscErrorCode ierr;
   PetscInt       indx;
   const char     *convtests[] = {"default","skip"};
-  char           type[256], monfilename[PETSC_MAX_PATH_LEN];
+  char           type[256], monfilename[PETSC_MAX_PATH_LEN],*plugins[256];
   PetscViewer    monviewer;
   PetscBool      flg,flag;
-  PetscInt       model[2]={0,0},nmax;
+  PetscInt       model[2]={0,0},i,nmax;
   KSPNormType    normtype;
   PCSide         pcside;
   void           *ctx;
@@ -614,6 +643,16 @@ PetscErrorCode  KSPSetFromOptions(KSP ksp)
   if (ksp->ops->setfromoptions) {
     ierr = (*ksp->ops->setfromoptions)(ksp);CHKERRQ(ierr);
   }
+
+  nmax = sizeof(plugins)/sizeof(plugins[0]);
+  ierr = PetscOptionsStringArray("-ksp_plugin","list of plugin names to activate","KSPActivatePlugin",plugins,&nmax,&flg);CHKERRQ(ierr);
+  if (flg) {
+    for (i=0; i<nmax; i++) {
+      ierr = KSPActivatePlugin(ksp,plugins[i]);CHKERRQ(ierr);
+      ierr = PetscFree(plugins[i]);CHKERRQ(ierr);
+    }
+  }
+
   /* actually check in setup this is just here so goes into help message */
   ierr = PetscOptionsName("-ksp_view","View linear solver parameters","KSPView",&flg);CHKERRQ(ierr);
 
