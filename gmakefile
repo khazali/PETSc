@@ -8,7 +8,10 @@ OBJDIR := $(PETSC_ARCH)/obj
 MODDIR := $(PETSC_ARCH)/include
 LIBDIR := $(abspath $(PETSC_ARCH)/lib)
 
+vpath %.test.c $(PETSC_ARCH)/src       # Find generated source files
+
 pkgs := sys vec mat dm ksp snes ts
+langs := c cu cxx F
 
 libpetsc_shared := $(LIBDIR)/libpetsc.$(SL_LINKER_SUFFIX)
 libpetsc_static := $(LIBDIR)/libpetsc.$(AR_LIB_SUFFIX)
@@ -56,9 +59,9 @@ else
   cc_name := CC
 endif
 
-PETSC_COMPILE.c = $(call quiet,$(cc_name)) -c $(PCC_FLAGS) $(CFLAGS) $(CCPPFLAGS) $(C_DEPFLAGS)
-PETSC_COMPILE.cxx = $(call quiet,CXX) -c $(PCC_FLAGS) $(CFLAGS) $(CCPPFLAGS) $(CXX_DEPFLAGS)
-PETSC_COMPILE.cu = $(call quiet,CUDAC) -c $(CUDAC_FLAGS) --compiler-options="$(PCC_FLAGS) $(CXXFLAGS) $(CCPPFLAGS)"
+PETSC_COMPILE.c = $(call quiet,$(cc_name)) -c $(PCC_FLAGS) $(CFLAGS) $(CCPPFLAGS) $(C_DEPFLAGS) $(flags.c)
+PETSC_COMPILE.cxx = $(call quiet,CXX) -c $(PCC_FLAGS) $(CFLAGS) $(CCPPFLAGS) $(CXX_DEPFLAGS) $(flags.cxx)
+PETSC_COMPILE.cu = $(call quiet,CUDAC) -c $(CUDAC_FLAGS) --compiler-options="$(PCC_FLAGS) $(CXXFLAGS) $(CCPPFLAGS) $(flags.cu)"
 PETSC_GENDEPS.cu = $(call quiet,CUDAC,.dep) --generate-dependencies $(CUDAC_FLAGS) --compiler-options="$(PCC_FLAGS) $(CXXFLAGS) $(CCPPFLAGS)"
 PETSC_COMPILE.F = $(call quiet,FC) -c $(FC_FLAGS) $(FFLAGS) $(FCPPFLAGS) $(FC_DEPFLAGS)
 
@@ -131,6 +134,30 @@ ifneq ($(DSYMUTIL),true)
 	$(call quiet,DSYMUTIL) $@
 endif
 
+### Testing ###
+# Object files produced by generated tests
+test.o := $(foreach pkg,$(pkgs),$(OBJDIR)/$(pkg).test.o)
+
+# Phony target to build all the tests
+build-test : $(generated) $(test.o:%.test.o=%.test)
+
+# Generated test main files.  Use order-only dependency on examples so
+# that we get an error sooner when a file is deleted.
+GEN = conf/testmaingen.py
+$(PETSC_ARCH)/src/%.test.c : conf/testmaingen.py $(generated) | $$(@D)/.DIR
+	$(call quiet,GEN) --output $@ $(examples-$(pkg).c)
+
+# Test executables are created using pattern rules so we mark the intermediate
+# object files .SECONDARY so they are not automatically deleted.
+.SECONDARY: $(examples.o) $(test.o)
+
+# Compile test executables.  Depending on libpetscall is excessive for
+# separate libraries; it would be sufficient to depend on only the
+# present package level.
+$(OBJDIR)/%.test : $(OBJDIR)/%.test.o $$(obj) $(libpetscall) | $(LIBDIR)
+	$(call quiet,CLINKER) -o $@ $< $(obj) $(lib)
+
+### Normal build rules ###
 $(OBJDIR)/%.o : %.c | $$(@D)/.DIR
 	$(PETSC_COMPILE.c) $(abspath $<) -o $@
 
@@ -169,16 +196,19 @@ $(OBJDIR)/src/ts/f90-mod/petsctsmod.o     : $(OBJDIR)/src/snes/f90-mod/petscsnes
 .SUFFIXES: # Clear .SUFFIXES because we don't use implicit rules
 .DELETE_ON_ERROR:               # Delete likely-corrupt target file if rule fails
 
-.PHONY: clean all print
+.PHONY: clean clean-test all build-test print
 
 clean:
 	rm -rf $(OBJDIR) $(LIBDIR)/libpetsc* $(MODDIR)/petsc*.mod $(MPIUNI_MOD) $(generated)
+
+clean-test:
+	$(call quiet,RM) -r $(examples.o) $(OBJDIR)/*.test* $(PETSC_ARCH)/src
 
 # make print VAR=the-variable
 print:
 	@echo $($(VAR))
 
-allobj.d := $(srcs.o:%.o=%.d)
+allobj.d := $(srcs.o:%.o=%.d) $(examples.o:%.o=%.d)
 # Tell make that allobj.d are all up to date.  Without this, the include
 # below has quadratic complexity, taking more than one second for a
 # do-nothing build of PETSc (much worse for larger projects)

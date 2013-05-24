@@ -89,6 +89,7 @@ class Petsc(object):
                 self.conf[key] = val
         self.conf.update(parse_makefile(self.arch_path('conf', 'petscvariables')))
         self.have_fortran = int(self.conf.get('PETSC_HAVE_FORTRAN', '0'))
+        self.test_runs = self.conf['TEST_RUNS'].split()
 
     def inconf(self, key, val):
         if key in ['package', 'function', 'define']:
@@ -111,10 +112,26 @@ class Petsc(object):
             source[lang] = [f for f in makevars.get('SOURCE'+sourcelang,'').split() if f.endswith(lang)]
         return source
 
+    def get_examples(self, makevars):
+        """Return dict {lang: list_of_examples}"""
+        test_targets = []
+        for var in makevars:
+            if not var.startswith('TESTEXAMPLES_'):
+                continue
+            if var[len('TESTEXAMPLES_'):] in self.test_runs:
+                for t in makevars[var].split():
+                    base, ext = os.path.splitext(t)
+                    if ext == '.PETSc':
+                        test_targets.append(base)
+        ex = dict()
+        for lang, exlang in LANGS.items():
+            ex[lang] = [f for f in makevars.get('EXAMPLES'+exlang,'').split()
+                        if f.endswith(lang) and os.path.splitext(f)[0] in test_targets]
+        return ex
+
     def gen_pkg(self, pkg):
-        pkgsrcs = dict()
-        for lang in LANGS:
-            pkgsrcs[lang] = []
+        pkgsrcs = dict([(l,[]) for l in LANGS])
+        pkgexamples = dict([(l,[]) for l in LANGS])
         for root, dirs, files in os.walk(os.path.join(self.petsc_dir, 'src', pkg)):
             makefile = os.path.join(root,'makefile')
             if not os.path.exists(makefile):
@@ -138,9 +155,13 @@ class Petsc(object):
             for lang, s in source.items():
                 pkgsrcs[lang] += map(mkrel, s)
                 allsource += s
+            examples = self.get_examples(makevars)
+            for lang, s in examples.items():
+                pkgexamples[lang] += map(mkrel, s)
+                allsource += s
             self.mistakes.compareSourceLists(root, allsource, files) # Diagnostic output about unused source files
             self.gendeps.append(self.relpath(root, 'makefile'))
-        return pkgsrcs
+        return pkgsrcs, pkgexamples
 
     def gen_gnumake(self, fd):
         def write(stem, srcs):
@@ -148,9 +169,50 @@ class Petsc(object):
             for lang in LANGS:
                 fd.write('%(stem)s.%(lang)s := %(srcs)s\n' % dict(stem=stem, lang=lang, srcs=' '.join(srcs[lang])))
                 fd.write('%(stem)s += $(%(stem)s.%(lang)s)\n' % dict(stem=stem, lang=lang))
+        def write_target_vars(pkg, exsources):
+            from testmaingen import mangle
+            def fortranprogram(lang):
+                if lang == 'F':
+                    return '-Dprogram=subroutine'
+                return ''
+            fd.write('# Target-local flags to be able to link into one %s.test executable\n' % pkg)
+            for lang in LANGS:
+                for s in exsources[lang]:
+                    fd.write('%(objpath)s : flags.%(lang)s := -Dmain=%(mangle)s %(fortranprogram)s\n'
+                             % dict(objpath=os.path.join(r'$(OBJDIR)', os.path.splitext(s)[0] + '.o'), lang=lang, mangle=mangle(s), fortranprogram=fortranprogram(lang)))
         for pkg in PKGS:
-            srcs = self.gen_pkg(pkg)
+            srcs, examples = self.gen_pkg(pkg)
             write('srcs-' + pkg, srcs)
+            write('examples-' + pkg, examples)
+            write_target_vars(pkg, examples)
+
+        fd.write('\n')
+        fd.write('# Convenience translations for object files\n')
+        fd.write('concatlang = $(foreach lang, $(langs), $($(1)-$(2).$(lang):%.$(lang)=$(OBJDIR)/%.o))\n')
+        for pkg in PKGS:
+            fd.write('srcs-%(pkg)s.o := $(call concatlang,srcs,%(pkg)s)\n'
+                     'examples-%(pkg)s.o := $(call concatlang,examples,%(pkg)s)\n'
+                     %dict(pkg=pkg))
+        fd.write('srcs.o := $(foreach pkg, $(pkgs), $(call concatlang,srcs,$(pkg)))\n')
+        fd.write('examples.o := $(foreach pkg, $(pkgs), $(call concatlang,examples,$(pkg)))\n')
+        fd.write('\n')
+        fd.write('# Target-local variables for with-single-library=0\n')
+        fd.write('libpkg = $(foreach pkg, $1, $(LIBDIR)/libpetsc$(pkg).so)\n')
+        for pidx, pkg in enumerate(PKGS):
+            fd.write('$(call libpkg,%(pkg)s) : obj := $(call concatlang,srcs,%(pkg)s)\n'
+                     '$(call libpkg,%(pkg)s) : libdep := $(call libpkg, %(dep)s)\n'
+                     '$(LIBDIR)/libpetsc%(pkg)s.$(AR_LIB_SUFFIX) : $(call concatlang,srcs,%(pkg)s)\n'
+                     % dict(pkg=pkg, dep=' '.join(PKGS[:pidx])))
+        fd.write('\n')
+        fd.write('# Target-local variables for tests\n')
+        for pkg in PKGS:
+            fd.write('$(PETSC_ARCH)/src/%(pkg)s.test.c : pkg := %(pkg)s\n'
+                     '$(OBJDIR)/%(pkg)s.test : pkg := %(pkg)s\n'
+                     '$(OBJDIR)/%(pkg)s.test : lib := $(PETSC_%(PKG)s_LIB)\n'
+                     '$(OBJDIR)/%(pkg)s.test : obj := $(examples-%(pkg)s.o)\n'
+                     % dict(pkg=pkg, PKG=pkg.upper()))
+        fd.write('\n')
+
         return self.gendeps
 
     def gen_ninja(self, fd):
