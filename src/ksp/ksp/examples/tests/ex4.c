@@ -6,7 +6,7 @@ static char help[] = "Bilinear elements on the unit square for the Laplacian. In
 
 #undef __FUNCT__
 #define __FUNCT__ "FormatElementStiffness"
-int FormElementStiffness(PetscReal H,PetscScalar *Ke)
+static int FormElementStiffness(PetscReal H,PetscScalar *Ke)
 {
   Ke[0]  = H/6.0;    Ke[1]  = -.125*H; Ke[2]  = H/12.0;   Ke[3]  = -.125*H;
   Ke[4]  = -.125*H;  Ke[5]  = H/6.0;   Ke[6]  = -.125*H;  Ke[7]  = H/12.0;
@@ -16,7 +16,7 @@ int FormElementStiffness(PetscReal H,PetscScalar *Ke)
 }
 #undef __FUNCT__
 #define __FUNCT__ "FormElementRhs"
-int FormElementRhs(PetscReal x,PetscReal y,PetscReal H,PetscScalar *r)
+static int FormElementRhs(PetscReal x,PetscReal y,PetscReal H,PetscScalar *r)
 {
   r[0] = 0.; r[1] = 0.; r[2] = 0.; r[3] = 0.0;
   return 0;

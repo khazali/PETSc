@@ -30,9 +30,9 @@ typedef struct {
   PetscScalar hx2,hy2;   /* 1/(m+1)*(m+1) and 1/(n+1)*(n+1) */
 } UserCtx;
 
-extern PetscErrorCode UserInitializeLinearSolver(PetscInt,PetscInt,UserCtx*);
-extern PetscErrorCode UserFinalizeLinearSolver(UserCtx*);
-extern PetscErrorCode UserDoLinearSolver(PetscScalar*,UserCtx *userctx,PetscScalar *b,PetscScalar *x);
+static PetscErrorCode UserInitializeLinearSolver(PetscInt,PetscInt,UserCtx*);
+static PetscErrorCode UserFinalizeLinearSolver(UserCtx*);
+static PetscErrorCode UserDoLinearSolver(PetscScalar*,UserCtx *userctx,PetscScalar *b,PetscScalar *x);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -138,7 +138,7 @@ int main(int argc,char **args)
 /* ------------------------------------------------------------------------*/
 #undef __FUNCT__
 #define __FUNCT__ "UserInitializedLinearSolve"
-PetscErrorCode UserInitializeLinearSolver(PetscInt m,PetscInt n,UserCtx *userctx)
+static PetscErrorCode UserInitializeLinearSolver(PetscInt m,PetscInt n,UserCtx *userctx)
 {
   PetscErrorCode ierr;
   PetscInt       N;
@@ -185,7 +185,7 @@ PetscErrorCode UserInitializeLinearSolver(PetscInt m,PetscInt n,UserCtx *userctx
    style by columns. userb is a standard one-dimensional array.
 */
 /* ------------------------------------------------------------------------*/
-PetscErrorCode UserDoLinearSolver(PetscScalar *rho,UserCtx *userctx,PetscScalar *userb,PetscScalar *userx)
+static PetscErrorCode UserDoLinearSolver(PetscScalar *rho,UserCtx *userctx,PetscScalar *userb,PetscScalar *userx)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,Ii,J,m = userctx->m,n = userctx->n;
@@ -298,7 +298,7 @@ PetscErrorCode UserDoLinearSolver(PetscScalar *rho,UserCtx *userctx,PetscScalar 
 /* ------------------------------------------------------------------------*/
 #undef __FUNCT__
 #define __FUNCT__ "UserFinalizeLinearSolve"
-PetscErrorCode UserFinalizeLinearSolver(UserCtx *userctx)
+static PetscErrorCode UserFinalizeLinearSolver(UserCtx *userctx)
 {
   PetscErrorCode ierr;
   /*

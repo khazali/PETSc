@@ -256,7 +256,7 @@ __global__ void integrateLaplacianJacobianQuadrature()
 // Calculate a conforming thread grid for N kernels
 #undef __FUNCT__
 #define __FUNCT__ "calculateGrid"
-PetscErrorCode calculateGrid(const int N, const int blockSize, unsigned int& x, unsigned int& y, unsigned int& z)
+static PetscErrorCode calculateGrid(const int N, const int blockSize, unsigned int& x, unsigned int& y, unsigned int& z)
 {
   PetscFunctionBegin;
   z = 1;

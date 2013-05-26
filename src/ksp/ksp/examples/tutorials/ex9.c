@@ -24,8 +24,8 @@ T*/
 /*
    Declare user-defined routines
 */
-extern PetscErrorCode CheckError(Vec,Vec,Vec,PetscInt,PetscReal,PetscLogEvent);
-extern PetscErrorCode MyKSPMonitor(KSP,PetscInt,PetscReal,void*);
+static PetscErrorCode CheckError(Vec,Vec,Vec,PetscInt,PetscReal,PetscLogEvent);
+static PetscErrorCode MyKSPMonitor(KSP,PetscInt,PetscReal,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -392,7 +392,7 @@ int main(int argc,char **args)
     the event (the vectors u,x,b).  Such information is optional;
     we could instead just use 0 instead for all objects.
 */
-PetscErrorCode CheckError(Vec u,Vec x,Vec b,PetscInt its,PetscReal tol,PetscLogEvent CHECK_ERROR)
+static PetscErrorCode CheckError(Vec u,Vec x,Vec b,PetscInt its,PetscReal tol,PetscLogEvent CHECK_ERROR)
 {
   PetscScalar    none = -1.0;
   PetscReal      norm;
@@ -425,7 +425,7 @@ PetscErrorCode CheckError(Vec u,Vec x,Vec b,PetscInt its,PetscReal tol,PetscLogE
      rnorm - 2-norm (preconditioned) residual value (may be estimated)
      dummy - optional user-defined monitor context (unused here)
 */
-PetscErrorCode MyKSPMonitor(KSP ksp,PetscInt n,PetscReal rnorm,void *dummy)
+static PetscErrorCode MyKSPMonitor(KSP ksp,PetscInt n,PetscReal rnorm,void *dummy)
 {
   Vec            x;
   PetscErrorCode ierr;

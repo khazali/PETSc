@@ -9,8 +9,8 @@ typedef struct {
 /*
    User-defined routines
 */
-extern PetscErrorCode FormJacobian1(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-extern PetscErrorCode FormFunction1(SNES,Vec,Vec,void*);
+static PetscErrorCode FormJacobian1(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode FormFunction1(SNES,Vec,Vec,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -70,7 +70,7 @@ int main(int argc,char **argv)
    Output Parameter:
 .  f - function vector
  */
-PetscErrorCode FormFunction1(SNES snes,Vec x,Vec f,void *ctx)
+static PetscErrorCode FormFunction1(SNES snes,Vec x,Vec f,void *ctx)
 {
   PetscErrorCode ierr;
   AppCtx         *user = (AppCtx*)ctx;
@@ -95,7 +95,7 @@ PetscErrorCode FormFunction1(SNES snes,Vec x,Vec f,void *ctx)
 .  B - optionally different preconditioning matrix
 .  flag - flag indicating matrix structure
 */
-PetscErrorCode FormJacobian1(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,void *ctx)
+static PetscErrorCode FormJacobian1(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,void *ctx)
 {
   PetscErrorCode ierr;
   AppCtx         *user = (AppCtx*)ctx;

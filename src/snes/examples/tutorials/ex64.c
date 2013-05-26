@@ -30,17 +30,17 @@ typedef struct {
   PetscBool   lumpedmass;
 } AppCtx;
 
-PetscErrorCode GetParams(AppCtx*);
-PetscErrorCode SetVariableBounds(DM,Vec,Vec);
-PetscErrorCode SetUpMatrices(AppCtx*);
-PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
-PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-PetscErrorCode SetInitialGuess(Vec,AppCtx*);
-PetscErrorCode Update_q(AppCtx*);
-PetscErrorCode Update_u(Vec,AppCtx*);
-PetscErrorCode DPsi(AppCtx*);
-PetscErrorCode Llog(Vec,Vec);
-PetscErrorCode CheckRedundancy(SNES,IS,IS*,DM);
+static PetscErrorCode GetParams(AppCtx*);
+static PetscErrorCode SetVariableBounds(DM,Vec,Vec);
+static PetscErrorCode SetUpMatrices(AppCtx*);
+static PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
+static PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode SetInitialGuess(Vec,AppCtx*);
+static PetscErrorCode Update_q(AppCtx*);
+static PetscErrorCode Update_u(Vec,AppCtx*);
+static PetscErrorCode DPsi(AppCtx*);
+static PetscErrorCode Llog(Vec,Vec);
+static PetscErrorCode CheckRedundancy(SNES,IS,IS*,DM);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -209,7 +209,7 @@ int main(int argc, char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "Update_u"
-PetscErrorCode Update_u(Vec X,AppCtx *user)
+static PetscErrorCode Update_u(Vec X,AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscInt       i,n;
@@ -238,7 +238,7 @@ PetscErrorCode Update_u(Vec X,AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "Update_q"
-PetscErrorCode Update_q(AppCtx *user)
+static PetscErrorCode Update_q(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscScalar    *q_p, *w1, *w2;
@@ -271,7 +271,7 @@ PetscErrorCode Update_q(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "DPsi"
-PetscErrorCode DPsi(AppCtx *user)
+static PetscErrorCode DPsi(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscScalar    Evf=user->Evf,A=user->A,B=user->B,cv0=user->cv0;
@@ -315,7 +315,7 @@ PetscErrorCode DPsi(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "Llog"
-PetscErrorCode Llog(Vec X, Vec Y)
+static PetscErrorCode Llog(Vec X, Vec Y)
 {
   PetscErrorCode ierr;
   PetscScalar    *x,*y;
@@ -334,7 +334,7 @@ PetscErrorCode Llog(Vec X, Vec Y)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetInitialGuess"
-PetscErrorCode SetInitialGuess(Vec X,AppCtx *user)
+static PetscErrorCode SetInitialGuess(Vec X,AppCtx *user)
 {
   PetscErrorCode ierr;
 
@@ -439,7 +439,7 @@ PetscErrorCode SetInitialGuess(Vec X,AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormFunction"
-PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ctx)
+static PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ctx)
 {
   PetscErrorCode ierr;
   AppCtx         *user=(AppCtx*)ctx;
@@ -451,7 +451,7 @@ PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormJacobian"
-PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flg,void *ctx)
+static PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flg,void *ctx)
 {
   PetscErrorCode ierr;
   AppCtx         *user=(AppCtx*)ctx;
@@ -465,7 +465,7 @@ PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flg,void
 }
 #undef __FUNCT__
 #define __FUNCT__ "SetVariableBounds"
-PetscErrorCode SetVariableBounds(DM da,Vec xl,Vec xu)
+static PetscErrorCode SetVariableBounds(DM da,Vec xl,Vec xu)
 {
   PetscErrorCode ierr;
   PetscScalar    **l,**u;
@@ -495,7 +495,7 @@ PetscErrorCode SetVariableBounds(DM da,Vec xl,Vec xu)
 
 #undef __FUNCT__
 #define __FUNCT__ "GetParams"
-PetscErrorCode GetParams(AppCtx *user)
+static PetscErrorCode GetParams(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscBool      flg;
@@ -531,7 +531,7 @@ PetscErrorCode GetParams(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetUpMatrices"
-PetscErrorCode SetUpMatrices(AppCtx *user)
+static PetscErrorCode SetUpMatrices(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscInt       nele,nen,i,n;
@@ -618,7 +618,7 @@ PetscErrorCode SetUpMatrices(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "CheckRedundancy"
-PetscErrorCode CheckRedundancy(SNES snes, IS act, IS *outact, DM da)
+static PetscErrorCode CheckRedundancy(SNES snes, IS act, IS *outact, DM da)
 {
   PetscErrorCode ierr;
   PetscScalar    **uin,**uout;

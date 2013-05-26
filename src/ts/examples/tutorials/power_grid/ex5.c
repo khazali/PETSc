@@ -74,7 +74,7 @@ PetscReal         tmax = 20.0;
 /* Saves the solution at each time to a matrix */
 #undef __FUNCT__
 #define __FUNCT__ "SaveSolution"
-PetscErrorCode SaveSolution(TS ts)
+static PetscErrorCode SaveSolution(TS ts)
 {
   PetscErrorCode ierr;
   AppCtx         *user;
@@ -102,7 +102,7 @@ PetscErrorCode SaveSolution(TS ts)
 #undef __FUNCT__
 #define __FUNCT__ "WindSpeeds"
 /* Computes the wind speed using Weibull distribution */
-PetscErrorCode WindSpeeds(AppCtx *user)
+static PetscErrorCode WindSpeeds(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscScalar    *x,*t,avg_dev,sum;
@@ -148,7 +148,7 @@ PetscErrorCode WindSpeeds(AppCtx *user)
 #undef __FUNCT__
 #define __FUNCT__ "SetWindTurbineParams"
 /* Sets the parameters for wind turbine */
-PetscErrorCode SetWindTurbineParams(AppCtx *user)
+static PetscErrorCode SetWindTurbineParams(AppCtx *user)
 {
   PetscFunctionBegin;
   user->Rt  = 35;
@@ -162,7 +162,7 @@ PetscErrorCode SetWindTurbineParams(AppCtx *user)
 #undef __FUNCT__
 #define __FUNCT__ "SetInductionGeneratorParams"
 /* Sets the parameters for induction generator */
-PetscErrorCode SetInductionGeneratorParams(AppCtx *user)
+static PetscErrorCode SetInductionGeneratorParams(AppCtx *user)
 {
   PetscFunctionBegin;
   user->np = 4;
@@ -180,7 +180,7 @@ PetscErrorCode SetInductionGeneratorParams(AppCtx *user)
 #undef __FUNCT__
 #define __FUNCT__ "GetWindPower"
 /* Computes the power extracted from wind */
-PetscErrorCode GetWindPower(PetscScalar wm,PetscScalar vw,PetscScalar *Pw,AppCtx *user)
+static PetscErrorCode GetWindPower(PetscScalar wm,PetscScalar vw,PetscScalar *Pw,AppCtx *user)
 {
   PetscScalar temp,lambda,lambda_i,cp;
 

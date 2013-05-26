@@ -5,7 +5,7 @@ static char help[] = "Tests DMCreateInterpolation() for nonuniform DMDA coordina
 
 #undef __FUNCT__
 #define __FUNCT__ "SetCoordinates1d"
-PetscErrorCode SetCoordinates1d(DM da)
+static PetscErrorCode SetCoordinates1d(DM da)
 {
   PetscErrorCode ierr;
   PetscInt       i,start,m;
@@ -33,7 +33,7 @@ PetscErrorCode SetCoordinates1d(DM da)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetCoordinates2d"
-PetscErrorCode SetCoordinates2d(DM da)
+static PetscErrorCode SetCoordinates2d(DM da)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,mstart,m,nstart,n;
@@ -66,7 +66,7 @@ PetscErrorCode SetCoordinates2d(DM da)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetCoordinates3d"
-PetscErrorCode SetCoordinates3d(DM da)
+static PetscErrorCode SetCoordinates3d(DM da)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,mstart,m,nstart,n,pstart,p,k;

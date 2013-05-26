@@ -27,7 +27,7 @@ static PetscErrorCode GetISs(Vec vecs[],IS is[])
 
 #undef __FUNCT__
 #define __FUNCT__ "test_view"
-PetscErrorCode test_view(void)
+static PetscErrorCode test_view(void)
 {
   Vec            X, a,b;
   Vec            c,d,e,f;
@@ -103,7 +103,7 @@ PetscErrorCode test_view(void)
 #if 0
 #undef __FUNCT__
 #define __FUNCT__ "test_vec_ops"
-PetscErrorCode test_vec_ops(void)
+static PetscErrorCode test_vec_ops(void)
 {
   Vec            X, a,b;
   Vec            c,d,e,f;
@@ -166,7 +166,7 @@ PetscErrorCode test_vec_ops(void)
 
 #undef __FUNCT__
 #define __FUNCT__ "gen_test_vector"
-PetscErrorCode gen_test_vector(MPI_Comm comm, PetscInt length, PetscInt start_value, PetscInt stride, Vec *_v)
+static PetscErrorCode gen_test_vector(MPI_Comm comm, PetscInt length, PetscInt start_value, PetscInt stride, Vec *_v)
 {
   int            nproc;
   Vec            v;
@@ -203,7 +203,7 @@ Y = aX + y = ([4,9,14,19], (25,30,35,40,45])
 */
 #undef __FUNCT__
 #define __FUNCT__ "test_axpy_dot_max"
-PetscErrorCode test_axpy_dot_max(void)
+static PetscErrorCode test_axpy_dot_max(void)
 {
   Vec            x1,y1, x2,y2;
   Vec            tmp_buf[2];

@@ -21,14 +21,14 @@ T*/
 
 #undef __FUNCT__
 #define __FUNCT__ "PadMatrix"
-PetscErrorCode PadMatrix(Mat A,Vec v,PetscScalar c,Mat *B)
+static PetscErrorCode PadMatrix(Mat A,Vec v,PetscScalar c,Mat *B)
 {
   PetscErrorCode ierr;
   PetscInt       n    = A->rmap->n,i,*cnt,*indices;
   Mat_SeqAIJ     *aij = (Mat_SeqAIJ*)A->data;
   PetscScalar    *vv;
 
-  PetscFunctionBegin;
+  PetscFunctionBeginUser;
   ierr = VecGetArray(v,&vv);CHKERRQ(ierr);
   ierr = PetscMalloc1(n,&indices);CHKERRQ(ierr);
   for (i=0; i<n; i++) indices[i] = i;

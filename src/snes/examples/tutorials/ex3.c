@@ -39,14 +39,14 @@ T*/
    whether they define __FUNCT__ in application codes; this macro merely
    provides the added traceback detail of the application routine names.
 */
-PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
-PetscErrorCode FormInitialGuess(Vec);
-PetscErrorCode Monitor(SNES,PetscInt,PetscReal,void*);
-PetscErrorCode PreCheck(SNESLineSearch,Vec,Vec,PetscBool*,void*);
-PetscErrorCode PostCheck(SNESLineSearch,Vec,Vec,Vec,PetscBool*,PetscBool*,void*);
-PetscErrorCode PostSetSubKSP(SNESLineSearch,Vec,Vec,Vec,PetscBool*,PetscBool*,void*);
-PetscErrorCode MatrixFreePreconditioner(PC,Vec,Vec);
+static PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
+static PetscErrorCode FormInitialGuess(Vec);
+static PetscErrorCode Monitor(SNES,PetscInt,PetscReal,void*);
+static PetscErrorCode PreCheck(SNESLineSearch,Vec,Vec,PetscBool*,void*);
+static PetscErrorCode PostCheck(SNESLineSearch,Vec,Vec,Vec,PetscBool*,PetscBool*,void*);
+static PetscErrorCode PostSetSubKSP(SNESLineSearch,Vec,Vec,Vec,PetscBool*,PetscBool*,void*);
+static PetscErrorCode MatrixFreePreconditioner(PC,Vec,Vec);
 
 /*
    User-defined application context
@@ -317,7 +317,7 @@ int main(int argc,char **argv)
    Input/Output Parameter:
 .  x - the solution vector
 */
-PetscErrorCode FormInitialGuess(Vec x)
+static PetscErrorCode FormInitialGuess(Vec x)
 {
   PetscErrorCode ierr;
   PetscScalar    pfive = .50;
@@ -344,7 +344,7 @@ PetscErrorCode FormInitialGuess(Vec x)
    The user-defined context can contain any application-specific
    data needed for the function evaluation.
 */
-PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
+static PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
 {
   ApplicationCtx *user = (ApplicationCtx*) ctx;
   DM             da    = user->da;
@@ -427,7 +427,7 @@ PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
 .  B - optionally different preconditioning matrix
 .  flag - flag indicating matrix structure
 */
-PetscErrorCode FormJacobian(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,void *ctx)
+static PetscErrorCode FormJacobian(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,void *ctx)
 {
   ApplicationCtx *user = (ApplicationCtx*) ctx;
   PetscScalar    *xx,d,A[3];
@@ -512,7 +512,7 @@ PetscErrorCode FormJacobian(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,v
    See the manpage for PetscViewerDrawOpen() for useful runtime options,
    such as -nox to deactivate all x-window output.
  */
-PetscErrorCode Monitor(SNES snes,PetscInt its,PetscReal fnorm,void *ctx)
+static PetscErrorCode Monitor(SNES snes,PetscInt its,PetscReal fnorm,void *ctx)
 {
   PetscErrorCode ierr;
   MonitorCtx     *monP = (MonitorCtx*) ctx;
@@ -541,7 +541,7 @@ PetscErrorCode Monitor(SNES snes,PetscInt its,PetscReal fnorm,void *ctx)
    y         - proposed step (search direction and length) (possibly changed)
    changed_y - tells if the step has changed or not
  */
-PetscErrorCode PreCheck(SNESLineSearch linesearch,Vec xcurrent,Vec y, PetscBool *changed_y, void * ctx)
+static PetscErrorCode PreCheck(SNESLineSearch linesearch,Vec xcurrent,Vec y, PetscBool *changed_y, void * ctx)
 {
   PetscFunctionBeginUser;
   *changed_y = PETSC_FALSE;
@@ -568,7 +568,7 @@ PetscErrorCode PreCheck(SNESLineSearch linesearch,Vec xcurrent,Vec y, PetscBool 
    x    - current iterate (possibly modified)
 
  */
-PetscErrorCode PostCheck(SNESLineSearch linesearch,Vec xcurrent,Vec y,Vec x,PetscBool  *changed_y,PetscBool  *changed_x, void * ctx)
+static PetscErrorCode PostCheck(SNESLineSearch linesearch,Vec xcurrent,Vec y,Vec x,PetscBool  *changed_y,PetscBool  *changed_x, void * ctx)
 {
   PetscErrorCode ierr;
   PetscInt       i,iter,xs,xm;
@@ -644,7 +644,7 @@ PetscErrorCode PostCheck(SNESLineSearch linesearch,Vec xcurrent,Vec y,Vec x,Pets
    x    - current iterate (possibly modified)
 
  */
-PetscErrorCode PostSetSubKSP(SNESLineSearch linesearch,Vec xcurrent,Vec y,Vec x,PetscBool  *changed_y,PetscBool  *changed_x, void * ctx)
+static PetscErrorCode PostSetSubKSP(SNESLineSearch linesearch,Vec xcurrent,Vec y,Vec x,PetscBool  *changed_y,PetscBool  *changed_x, void * ctx)
 {
   PetscErrorCode ierr;
   SetSubKSPCtx   *check;
@@ -690,7 +690,7 @@ PetscErrorCode PostSetSubKSP(SNESLineSearch linesearch,Vec xcurrent,Vec y,Vec x,
    Output Parameter:
 .  y - preconditioned vector
 */
-PetscErrorCode MatrixFreePreconditioner(PC pc,Vec x,Vec y)
+static PetscErrorCode MatrixFreePreconditioner(PC pc,Vec x,Vec y)
 {
   PetscErrorCode ierr;
   ierr = VecCopy(x,y);CHKERRQ(ierr);

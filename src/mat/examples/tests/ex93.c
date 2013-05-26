@@ -2,7 +2,7 @@ static char help[] = "Test MatMatMult() and MatPtAP() for AIJ matrices.\n\n";
 
 #include <petscmat.h>
 
-extern PetscErrorCode testPTAPRectangular(void);
+static PetscErrorCode testPTAPRectangular(void);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -121,7 +121,7 @@ int main(int argc,char **argv)
 #define PETSc_CHKERRQ CHKERRQ
 #undef __FUNCT__
 #define __FUNCT__ "testPTAPRectangular"
-PetscErrorCode testPTAPRectangular(void)
+static PetscErrorCode testPTAPRectangular(void)
 {
 
   const int      rows = 3;

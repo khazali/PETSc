@@ -43,8 +43,8 @@ typedef struct {
   PetscViewer fu_viewer,flambda_viewer;
 } UserCtx;
 
-extern PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
-extern PetscErrorCode Monitor(SNES,PetscInt,PetscReal,void*);
+static PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
+static PetscErrorCode Monitor(SNES,PetscInt,PetscReal,void*);
 
 
 #undef __FUNCT__
@@ -106,7 +106,7 @@ int main(int argc,char **argv)
       Evaluates FU = Gradiant(L(w,u,lambda))
 
 */
-PetscErrorCode FormFunction(SNES snes,Vec U,Vec FU,void *dummy)
+static PetscErrorCode FormFunction(SNES snes,Vec U,Vec FU,void *dummy)
 {
   UserCtx        *user = (UserCtx*)dummy;
   PetscErrorCode ierr;
@@ -166,7 +166,7 @@ PetscErrorCode FormFunction(SNES snes,Vec U,Vec FU,void *dummy)
 
 #undef __FUNCT__
 #define __FUNCT__ "Monitor"
-PetscErrorCode Monitor(SNES snes,PetscInt its,PetscReal rnorm,void *dummy)
+static PetscErrorCode Monitor(SNES snes,PetscInt its,PetscReal rnorm,void *dummy)
 {
   UserCtx        *user = (UserCtx*)dummy;
   PetscErrorCode ierr;

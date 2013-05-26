@@ -20,7 +20,7 @@ typedef struct {
   PetscScalar Y;
 } Field;
 
-PetscErrorCode FAGetLocalCorners(FA fa,PetscInt j,PetscInt *x,PetscInt *y,PetscInt *m,PetscInt *n)
+static PetscErrorCode FAGetLocalCorners(FA fa,PetscInt j,PetscInt *x,PetscInt *y,PetscInt *m,PetscInt *n)
 {
   PetscFunctionBeginUser;
   if (fa->comm[j]) {
@@ -34,7 +34,7 @@ PetscErrorCode FAGetLocalCorners(FA fa,PetscInt j,PetscInt *x,PetscInt *y,PetscI
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode FAGetGlobalCorners(FA fa,PetscInt j,PetscInt *x,PetscInt *y,PetscInt *m,PetscInt *n)
+static PetscErrorCode FAGetGlobalCorners(FA fa,PetscInt j,PetscInt *x,PetscInt *y,PetscInt *m,PetscInt *n)
 {
   PetscFunctionBeginUser;
   if (fa->comm[j]) {
@@ -48,7 +48,7 @@ PetscErrorCode FAGetGlobalCorners(FA fa,PetscInt j,PetscInt *x,PetscInt *y,Petsc
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode FAGetLocalArray(FA fa,Vec v,PetscInt j,Field ***f)
+static PetscErrorCode FAGetLocalArray(FA fa,Vec v,PetscInt j,Field ***f)
 {
   PetscErrorCode ierr;
   PetscScalar    *va;
@@ -68,7 +68,7 @@ PetscErrorCode FAGetLocalArray(FA fa,Vec v,PetscInt j,Field ***f)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode FARestoreLocalArray(FA fa,Vec v,PetscInt j,Field ***f)
+static PetscErrorCode FARestoreLocalArray(FA fa,Vec v,PetscInt j,Field ***f)
 {
   PetscErrorCode ierr;
   void           *dummy;
@@ -81,7 +81,7 @@ PetscErrorCode FARestoreLocalArray(FA fa,Vec v,PetscInt j,Field ***f)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode FAGetGlobalArray(FA fa,Vec v,PetscInt j,Field ***f)
+static PetscErrorCode FAGetGlobalArray(FA fa,Vec v,PetscInt j,Field ***f)
 {
   PetscErrorCode ierr;
   PetscScalar    *va;
@@ -101,7 +101,7 @@ PetscErrorCode FAGetGlobalArray(FA fa,Vec v,PetscInt j,Field ***f)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode FARestoreGlobalArray(FA fa,Vec v,PetscInt j,Field ***f)
+static PetscErrorCode FARestoreGlobalArray(FA fa,Vec v,PetscInt j,Field ***f)
 {
   PetscErrorCode ierr;
   void           *dummy;
@@ -114,7 +114,7 @@ PetscErrorCode FARestoreGlobalArray(FA fa,Vec v,PetscInt j,Field ***f)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode FAGetGlobalVector(FA fa,Vec *v)
+static PetscErrorCode FAGetGlobalVector(FA fa,Vec *v)
 {
   PetscErrorCode ierr;
 
@@ -123,7 +123,7 @@ PetscErrorCode FAGetGlobalVector(FA fa,Vec *v)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode FAGetLocalVector(FA fa,Vec *v)
+static PetscErrorCode FAGetLocalVector(FA fa,Vec *v)
 {
   PetscErrorCode ierr;
 
@@ -132,7 +132,7 @@ PetscErrorCode FAGetLocalVector(FA fa,Vec *v)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode FAGlobalToLocal(FA fa,Vec g,Vec l)
+static PetscErrorCode FAGlobalToLocal(FA fa,Vec g,Vec l)
 {
   PetscErrorCode ierr;
 
@@ -142,7 +142,7 @@ PetscErrorCode FAGlobalToLocal(FA fa,Vec g,Vec l)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode FADestroy(FA *fa)
+static PetscErrorCode FADestroy(FA *fa)
 {
   PetscErrorCode ierr;
 
@@ -154,7 +154,7 @@ PetscErrorCode FADestroy(FA *fa)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode FACreate(FA *infa)
+static PetscErrorCode FACreate(FA *infa)
 {
   FA             fa;
   PetscMPIInt    rank;
@@ -528,7 +528,7 @@ typedef struct {
   PetscScalar *xy[3];
 } ZoomCtx;
 
-PetscErrorCode DrawPatch(PetscDraw draw,void *ctx)
+static PetscErrorCode DrawPatch(PetscDraw draw,void *ctx)
 {
   ZoomCtx        *zctx = (ZoomCtx*)ctx;
   PetscErrorCode ierr;
@@ -559,7 +559,7 @@ PetscErrorCode DrawPatch(PetscDraw draw,void *ctx)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode DrawFA(FA fa,Vec v)
+static PetscErrorCode DrawFA(FA fa,Vec v)
 {
   PetscErrorCode ierr;
   PetscScalar    *va;
@@ -614,7 +614,7 @@ PetscErrorCode DrawFA(FA fa,Vec v)
 
 /* crude mappings from rectangular arrays to the true geometry. These are ONLY for testing!
    they will not be used the actual code */
-PetscErrorCode FAMapRegion3(FA fa,Vec g)
+static PetscErrorCode FAMapRegion3(FA fa,Vec g)
 {
   PetscErrorCode ierr;
   PetscReal      R = 1.0,Rscale,Ascale;
@@ -637,7 +637,7 @@ PetscErrorCode FAMapRegion3(FA fa,Vec g)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode FAMapRegion2(FA fa,Vec g)
+static PetscErrorCode FAMapRegion2(FA fa,Vec g)
 {
   PetscErrorCode ierr;
   PetscReal      R = 1.0,Rscale,Ascale;
@@ -660,7 +660,7 @@ PetscErrorCode FAMapRegion2(FA fa,Vec g)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode FAMapRegion1(FA fa,Vec g)
+static PetscErrorCode FAMapRegion1(FA fa,Vec g)
 {
   PetscErrorCode ierr;
   PetscReal      R = 1.0,Rscale,Ascale1,Ascale3;
@@ -696,7 +696,7 @@ PetscErrorCode FAMapRegion1(FA fa,Vec g)
 }
 
 /* Simple test to check that the ghost points are properly updated */
-PetscErrorCode FATest(FA fa)
+static PetscErrorCode FATest(FA fa)
 {
   PetscErrorCode ierr;
   Vec            l,g;

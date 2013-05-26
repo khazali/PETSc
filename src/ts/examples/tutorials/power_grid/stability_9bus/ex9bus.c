@@ -125,7 +125,7 @@ typedef struct {
 /* Converts from machine frame (dq) to network (phase a real,imag) reference frame */
 #undef __FUNCT__
 #define __FUNCT__ "dq2ri"
-PetscErrorCode dq2ri(PetscScalar Fd,PetscScalar Fq,PetscScalar delta,PetscScalar *Fr, PetscScalar *Fi)
+static PetscErrorCode dq2ri(PetscScalar Fd,PetscScalar Fq,PetscScalar delta,PetscScalar *Fr, PetscScalar *Fi)
 {
   PetscFunctionBegin;
   *Fr =  Fd*sin(delta) + Fq*cos(delta);
@@ -136,7 +136,7 @@ PetscErrorCode dq2ri(PetscScalar Fd,PetscScalar Fq,PetscScalar delta,PetscScalar
 /* Converts from network frame ([phase a real,imag) to machine (dq) reference frame */
 #undef __FUNCT__
 #define __FUNCT__ "ri2dq"
-PetscErrorCode ri2dq(PetscScalar Fr,PetscScalar Fi,PetscScalar delta,PetscScalar *Fd, PetscScalar *Fq)
+static PetscErrorCode ri2dq(PetscScalar Fr,PetscScalar Fi,PetscScalar delta,PetscScalar *Fd, PetscScalar *Fq)
 {
   PetscFunctionBegin;
   *Fd =  Fr*sin(delta) - Fi*cos(delta);
@@ -147,7 +147,7 @@ PetscErrorCode ri2dq(PetscScalar Fr,PetscScalar Fi,PetscScalar delta,PetscScalar
 /* Saves the solution at each time to a matrix */
 #undef __FUNCT__
 #define __FUNCT__ "SaveSolution"
-PetscErrorCode SaveSolution(TS ts)
+static PetscErrorCode SaveSolution(TS ts)
 {
   PetscErrorCode ierr;
   Userctx        *user;
@@ -173,7 +173,7 @@ PetscErrorCode SaveSolution(TS ts)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetInitialGuess"
-PetscErrorCode SetInitialGuess(Vec X,Userctx *user)
+static PetscErrorCode SetInitialGuess(Vec X,Userctx *user)
 {
   PetscErrorCode ierr;
   Vec            Xgen,Xnet;
@@ -260,7 +260,7 @@ PetscErrorCode SetInitialGuess(Vec X,Userctx *user)
 /* Computes F = [f(x,y);g(x,y)] */
 #undef __FUNCT__
 #define __FUNCT__ "ResidualFunction"
-PetscErrorCode ResidualFunction(SNES snes,Vec X, Vec F, Userctx *user)
+static PetscErrorCode ResidualFunction(SNES snes,Vec X, Vec F, Userctx *user)
 {
   PetscErrorCode ierr;
   Vec            Xgen,Xnet,Fgen,Fnet;
@@ -384,7 +384,7 @@ PetscErrorCode ResidualFunction(SNES snes,Vec X, Vec F, Userctx *user)
  */
 #undef __FUNCT__
 #define __FUNCT__ "IFunction"
-PetscErrorCode IFunction(TS ts,PetscReal t, Vec X, Vec Xdot, Vec F, Userctx *user)
+static PetscErrorCode IFunction(TS ts,PetscReal t, Vec X, Vec Xdot, Vec F, Userctx *user)
 {
   PetscErrorCode ierr;
   SNES           snes;
@@ -419,7 +419,7 @@ PetscErrorCode IFunction(TS ts,PetscReal t, Vec X, Vec Xdot, Vec F, Userctx *use
 */
 #undef __FUNCT__
 #define __FUNCT__ "AlgFunction"
-PetscErrorCode AlgFunction(SNES snes, Vec X, Vec F, void *ctx)
+static PetscErrorCode AlgFunction(SNES snes, Vec X, Vec F, void *ctx)
 {
   PetscErrorCode ierr;
   Userctx        *user=(Userctx*)ctx;
@@ -444,7 +444,7 @@ PetscErrorCode AlgFunction(SNES snes, Vec X, Vec F, void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "PreallocateJacobian"
-PetscErrorCode PreallocateJacobian(Mat J, Userctx *user)
+static PetscErrorCode PreallocateJacobian(Mat J, Userctx *user)
 {
   PetscErrorCode ierr;
   PetscInt       *d_nnz;
@@ -496,7 +496,7 @@ PetscErrorCode PreallocateJacobian(Mat J, Userctx *user)
 */
 #undef __FUNCT__
 #define __FUNCT__ "ResidualJacobian"
-PetscErrorCode ResidualJacobian(SNES snes,Vec X,Mat *A,Mat *B,MatStructure *flag,void *ctx)
+static PetscErrorCode ResidualJacobian(SNES snes,Vec X,Mat *A,Mat *B,MatStructure *flag,void *ctx)
 {
   PetscErrorCode ierr;
   Userctx        *user=(Userctx*)ctx;
@@ -737,7 +737,7 @@ PetscErrorCode ResidualJacobian(SNES snes,Vec X,Mat *A,Mat *B,MatStructure *flag
 */
 #undef __FUNCT__
 #define __FUNCT__ "AlgJacobian"
-PetscErrorCode AlgJacobian(SNES snes,Vec X,Mat *A,Mat *B,MatStructure *flg,void *ctx)
+static PetscErrorCode AlgJacobian(SNES snes,Vec X,Mat *A,Mat *B,MatStructure *flg,void *ctx)
 {
   PetscErrorCode ierr;
   Userctx        *user=(Userctx*)ctx;
@@ -756,7 +756,7 @@ PetscErrorCode AlgJacobian(SNES snes,Vec X,Mat *A,Mat *B,MatStructure *flg,void 
 
 #undef __FUNCT__
 #define __FUNCT__ "IJacobian"
-PetscErrorCode IJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat *A,Mat *B,MatStructure *flag,Userctx *user)
+static PetscErrorCode IJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat *A,Mat *B,MatStructure *flag,Userctx *user)
 {
   PetscErrorCode ierr;
   SNES           snes;

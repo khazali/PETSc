@@ -3,7 +3,7 @@ static char help[] = "Test LAPACK routine DSTEBZ() and DTEIN().  \n\n";
 #include <petscmat.h>
 #include <petscblaslapack.h>
 
-extern PetscErrorCode CkEigenSolutions(PetscInt,Mat,PetscInt,PetscInt,PetscScalar*,Vec*,PetscReal*);
+static PetscErrorCode CkEigenSolutions(PetscInt,Mat,PetscInt,PetscInt,PetscScalar*,Vec*,PetscReal*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -137,7 +137,7 @@ int main(int argc,char **args)
 #undef DEBUG_CkEigenSolutions
 #undef __FUNCT__
 #define __FUNCT__ "CkEigenSolutions"
-PetscErrorCode CkEigenSolutions(PetscInt cklvl,Mat A,PetscInt il,PetscInt iu,PetscScalar *eval,Vec *evec,PetscReal *tols)
+static PetscErrorCode CkEigenSolutions(PetscInt cklvl,Mat A,PetscInt il,PetscInt iu,PetscScalar *eval,Vec *evec,PetscReal *tols)
 {
   PetscInt    ierr,i,j,nev;
   Vec         vt1,vt2;  /* tmp vectors */

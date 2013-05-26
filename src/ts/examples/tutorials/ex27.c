@@ -66,15 +66,15 @@ typedef struct {
   PetscReal length[DIM];
 } AppCtx;
 
-extern PetscErrorCode FormInitialGuess(DM da,AppCtx *ctx,Vec X);
-extern PetscErrorCode FormIFunctionLocal(DMDALocalInfo*,PetscReal,Field**,Field**,Field**,AppCtx*);
-extern PetscErrorCode FormIFunction(TS,PetscReal,Vec,Vec,Vec,void*);
-extern PetscErrorCode ReactingFlowPostCheck(SNESLineSearch,Vec,Vec,Vec,PetscBool*,PetscBool*,void*);
+static PetscErrorCode FormInitialGuess(DM da,AppCtx *ctx,Vec X);
+static PetscErrorCode FormIFunctionLocal(DMDALocalInfo*,PetscReal,Field**,Field**,Field**,AppCtx*);
+static PetscErrorCode FormIFunction(TS,PetscReal,Vec,Vec,Vec,void*);
+static PetscErrorCode ReactingFlowPostCheck(SNESLineSearch,Vec,Vec,Vec,PetscBool*,PetscBool*,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "SetFromOptions"
 
-PetscErrorCode SetFromOptions(AppCtx * ctx)
+static PetscErrorCode SetFromOptions(AppCtx * ctx)
 {
   PetscErrorCode ierr;
   PetscInt       i,j;
@@ -171,7 +171,7 @@ int main(int argc,char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormInitialGuess"
-PetscErrorCode FormInitialGuess(DM da,AppCtx *ctx,Vec X)
+static PetscErrorCode FormInitialGuess(DM da,AppCtx *ctx,Vec X)
 {
   PetscInt       i,j,l,Mx,My,xs,ys,xm,ym;
   PetscErrorCode ierr;
@@ -202,7 +202,7 @@ PetscErrorCode FormInitialGuess(DM da,AppCtx *ctx,Vec X)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormIFunctionLocal"
-PetscErrorCode FormIFunctionLocal(DMDALocalInfo *info,PetscScalar ptime,Field **x,Field **xt,Field **f,AppCtx *ctx)
+static PetscErrorCode FormIFunctionLocal(DMDALocalInfo *info,PetscScalar ptime,Field **x,Field **xt,Field **f,AppCtx *ctx)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,l,m;
@@ -302,7 +302,7 @@ PetscErrorCode FormIFunctionLocal(DMDALocalInfo *info,PetscScalar ptime,Field **
 #undef __FUNCT__
 #define __FUNCT__ "ReactingFlowPostCheck"
 
-PetscErrorCode ReactingFlowPostCheck(SNESLineSearch linesearch, Vec X, Vec Y, Vec W, PetscBool *changed_y, PetscBool *changed_w, void *vctx)
+static PetscErrorCode ReactingFlowPostCheck(SNESLineSearch linesearch, Vec X, Vec Y, Vec W, PetscBool *changed_y, PetscBool *changed_w, void *vctx)
 {
   PetscFunctionBeginUser;
   PetscInt       i,j,l,Mx,My,xs,ys,xm,ym;
@@ -338,7 +338,7 @@ PetscErrorCode ReactingFlowPostCheck(SNESLineSearch linesearch, Vec X, Vec Y, Ve
 
 #undef __FUNCT__
 #define __FUNCT__ "FormIFunction"
-PetscErrorCode FormIFunction(TS ts,PetscReal ptime,Vec X,Vec Xdot,Vec F,void *user)
+static PetscErrorCode FormIFunction(TS ts,PetscReal ptime,Vec X,Vec Xdot,Vec F,void *user)
 {
   DMDALocalInfo  info;
   Field          **u,**udot,**fu;

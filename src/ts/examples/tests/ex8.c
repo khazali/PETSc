@@ -16,7 +16,7 @@ static char help[] = "Solves DAE with integrator only on non-algebraic terms \n"
    f(U,V) = U + V
 
 */
-PetscErrorCode f(PetscReal t,Vec UV,Vec F)
+static PetscErrorCode f(PetscReal t,Vec UV,Vec F)
 {
   PetscErrorCode    ierr;
   const PetscScalar *u,*v;
@@ -41,7 +41,7 @@ PetscErrorCode f(PetscReal t,Vec UV,Vec F)
    F(U,V) = U - V
 
 */
-PetscErrorCode F(PetscReal t,Vec UV,Vec F)
+static PetscErrorCode F(PetscReal t,Vec UV,Vec F)
 {
   PetscErrorCode    ierr;
   const PetscScalar *u,*v;
@@ -67,8 +67,8 @@ typedef struct {
   PetscErrorCode (*F)(PetscReal,Vec,Vec);
 } AppCtx;
 
-extern PetscErrorCode TSFunctionRHS(TS,PetscReal,Vec,Vec,void*);
-extern PetscErrorCode TSFunctionI(TS,PetscReal,Vec,Vec,Vec,void*);
+static PetscErrorCode TSFunctionRHS(TS,PetscReal,Vec,Vec,void*);
+static PetscErrorCode TSFunctionI(TS,PetscReal,Vec,Vec,Vec,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -108,7 +108,7 @@ int main(int argc,char **argv)
 
 
 */
-PetscErrorCode TSFunctionRHS(TS ts,PetscReal t,Vec UV,Vec F,void *actx)
+static PetscErrorCode TSFunctionRHS(TS ts,PetscReal t,Vec UV,Vec F,void *actx)
 {
   AppCtx         *ctx = (AppCtx*)actx;
   PetscErrorCode ierr;
@@ -125,7 +125,7 @@ PetscErrorCode TSFunctionRHS(TS ts,PetscReal t,Vec UV,Vec F,void *actx)
    Defines the nonlinear function that is passed to the time-integrator
 
 */
-PetscErrorCode TSFunctionI(TS ts,PetscReal t,Vec UV,Vec UVdot,Vec F,void *actx)
+static PetscErrorCode TSFunctionI(TS ts,PetscReal t,Vec UV,Vec UVdot,Vec F,void *actx)
 {
   AppCtx         *ctx = (AppCtx*)actx;
   PetscErrorCode ierr;

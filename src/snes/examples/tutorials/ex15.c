@@ -91,10 +91,10 @@ struct _n_PreCheck {
   Vec         Ylast;
   PetscViewer monitor;
 };
-PetscErrorCode PreCheckCreate(MPI_Comm,PreCheck*);
-PetscErrorCode PreCheckDestroy(PreCheck*);
-PetscErrorCode PreCheckFunction(SNESLineSearch,Vec,Vec,PetscBool*,void*);
-PetscErrorCode PreCheckSetFromOptions(PreCheck);
+static PetscErrorCode PreCheckCreate(MPI_Comm,PreCheck*);
+static PetscErrorCode PreCheckDestroy(PreCheck*);
+static PetscErrorCode PreCheckFunction(SNESLineSearch,Vec,Vec,PetscBool*,void*);
+static PetscErrorCode PreCheckSetFromOptions(PreCheck);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -679,7 +679,7 @@ static PetscErrorCode FormJacobianLocal(DMDALocalInfo *info,PetscScalar **x,Mat 
  ***********************************************************/
 #undef __FUNCT__
 #define __FUNCT__ "PreCheckSetFromOptions"
-PetscErrorCode PreCheckSetFromOptions(PreCheck precheck)
+static PetscErrorCode PreCheckSetFromOptions(PreCheck precheck)
 {
   PetscErrorCode ierr;
   PetscBool      flg;
@@ -701,7 +701,7 @@ PetscErrorCode PreCheckSetFromOptions(PreCheck precheck)
 /*
   Compare the direction of the current and previous step, modify the current step accordingly
 */
-PetscErrorCode PreCheckFunction(SNESLineSearch linesearch,Vec X,Vec Y,PetscBool *changed, void *ctx)
+static PetscErrorCode PreCheckFunction(SNESLineSearch linesearch,Vec X,Vec Y,PetscBool *changed, void *ctx)
 {
   PetscErrorCode ierr;
   PreCheck       precheck;
@@ -752,7 +752,7 @@ PetscErrorCode PreCheckFunction(SNESLineSearch linesearch,Vec X,Vec Y,PetscBool 
 
 #undef __FUNCT__
 #define __FUNCT__ "PreCheckDestroy"
-PetscErrorCode PreCheckDestroy(PreCheck *precheck)
+static PetscErrorCode PreCheckDestroy(PreCheck *precheck)
 {
   PetscErrorCode ierr;
 
@@ -766,7 +766,7 @@ PetscErrorCode PreCheckDestroy(PreCheck *precheck)
 
 #undef __FUNCT__
 #define __FUNCT__ "PreCheckCreate"
-PetscErrorCode PreCheckCreate(MPI_Comm comm,PreCheck *precheck)
+static PetscErrorCode PreCheckCreate(MPI_Comm comm,PreCheck *precheck)
 {
   PetscErrorCode ierr;
 
@@ -785,7 +785,7 @@ PetscErrorCode PreCheckCreate(MPI_Comm comm,PreCheck *precheck)
       Applies some sweeps on nonlinear Gauss-Seidel on each process
 
  */
-PetscErrorCode NonlinearGS(SNES snes,Vec X, Vec B, void *ctx)
+static PetscErrorCode NonlinearGS(SNES snes,Vec X, Vec B, void *ctx)
 {
   PetscInt       i,j,k,xs,ys,xm,ym,its,tot_its,sweeps,l,m;
   PetscErrorCode ierr;

@@ -36,7 +36,7 @@ typedef struct {
 /*
    User-defined routines
 */
-extern PetscErrorCode IFunction(TS,PetscReal,Vec,Vec,Vec,void*),InitialConditions(DM,Vec);
+static PetscErrorCode IFunction(TS,PetscReal,Vec,Vec,Vec,void*),InitialConditions(DM,Vec);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -133,7 +133,7 @@ int main(int argc,char **argv)
    Output Parameter:
 .  F - function vector
  */
-PetscErrorCode IFunction(TS ts,PetscReal ftime,Vec U,Vec Udot,Vec F,void *ptr)
+static PetscErrorCode IFunction(TS ts,PetscReal ftime,Vec U,Vec Udot,Vec F,void *ptr)
 {
   AppCtx         *appctx = (AppCtx*)ptr;
   DM             da;
@@ -218,7 +218,7 @@ PetscErrorCode IFunction(TS ts,PetscReal ftime,Vec U,Vec Udot,Vec F,void *ptr)
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "InitialConditions"
-PetscErrorCode InitialConditions(DM da,Vec U)
+static PetscErrorCode InitialConditions(DM da,Vec U)
 {
   PetscErrorCode ierr;
   PetscInt       i,xs,xm,Mx;

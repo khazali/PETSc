@@ -61,26 +61,26 @@ typedef struct {
   IS        isg[2];  /* index sets of split "0" and "1" */
 } Stokes;
 
-PetscErrorCode StokesSetupMatBlock00(Stokes *s);  /* setup the block Q */
-PetscErrorCode StokesSetupMatBlock01(Stokes *s);  /* setup the block G */
-PetscErrorCode StokesSetupMatBlock10(Stokes *s);  /* setup the block D (equal to the transpose of G) */
-PetscErrorCode StokesSetupMatBlock11(Stokes *s);  /* setup the block C (equal to zero) */
+static PetscErrorCode StokesSetupMatBlock00(Stokes *s);  /* setup the block Q */
+static PetscErrorCode StokesSetupMatBlock01(Stokes *s);  /* setup the block G */
+static PetscErrorCode StokesSetupMatBlock10(Stokes *s);  /* setup the block D (equal to the transpose of G) */
+static PetscErrorCode StokesSetupMatBlock11(Stokes *s);  /* setup the block C (equal to zero) */
 
-PetscErrorCode StokesGetPosition(Stokes *s, PetscInt row, PetscInt *i, PetscInt *j); /* row number j*nx+i corresponds to position (i,j) in grid */
+static PetscErrorCode StokesGetPosition(Stokes *s, PetscInt row, PetscInt *i, PetscInt *j); /* row number j*nx+i corresponds to position (i,j) in grid */
 
-PetscErrorCode StokesStencilLaplacian(Stokes *s, PetscInt i, PetscInt j, PetscInt *size, PetscInt *cols, PetscScalar *vals);  /* stencil of the Laplacian operator */
-PetscErrorCode StokesStencilGradientX(Stokes *s, PetscInt i, PetscInt j, PetscInt *size, PetscInt *cols, PetscScalar *vals);  /* stencil of the Gradient operator (x-component) */
-PetscErrorCode StokesStencilGradientY(Stokes *s, PetscInt i, PetscInt j, PetscInt *size, PetscInt *cols, PetscScalar *vals);  /* stencil of the Gradient operator (y-component) */
+static PetscErrorCode StokesStencilLaplacian(Stokes *s, PetscInt i, PetscInt j, PetscInt *size, PetscInt *cols, PetscScalar *vals);  /* stencil of the Laplacian operator */
+static PetscErrorCode StokesStencilGradientX(Stokes *s, PetscInt i, PetscInt j, PetscInt *size, PetscInt *cols, PetscScalar *vals);  /* stencil of the Gradient operator (x-component) */
+static PetscErrorCode StokesStencilGradientY(Stokes *s, PetscInt i, PetscInt j, PetscInt *size, PetscInt *cols, PetscScalar *vals);  /* stencil of the Gradient operator (y-component) */
 
-PetscErrorCode StokesRhs(Stokes *s);                                               /* rhs vector */
-PetscErrorCode StokesRhsMomX(Stokes *s, PetscInt i, PetscInt j, PetscScalar *val);   /* right hand side of velocity (x-component) */
-PetscErrorCode StokesRhsMomY(Stokes *s, PetscInt i, PetscInt j, PetscScalar *val);   /* right hand side of velocity (y-component) */
-PetscErrorCode StokesRhsMass(Stokes *s, PetscInt i, PetscInt j, PetscScalar *val);   /* right hand side of pressure */
+static PetscErrorCode StokesRhs(Stokes *s);                                               /* rhs vector */
+static PetscErrorCode StokesRhsMomX(Stokes *s, PetscInt i, PetscInt j, PetscScalar *val);   /* right hand side of velocity (x-component) */
+static PetscErrorCode StokesRhsMomY(Stokes *s, PetscInt i, PetscInt j, PetscScalar *val);   /* right hand side of velocity (y-component) */
+static PetscErrorCode StokesRhsMass(Stokes *s, PetscInt i, PetscInt j, PetscScalar *val);   /* right hand side of pressure */
 
-PetscErrorCode StokesSetupApproxSchur(Stokes *s);  /* approximation of the Schur complement */
+static PetscErrorCode StokesSetupApproxSchur(Stokes *s);  /* approximation of the Schur complement */
 
-PetscErrorCode StokesExactSolution(Stokes *s); /* exact solution vector */
-PetscErrorCode StokesWriteSolution(Stokes *s); /* write solution to file */
+static PetscErrorCode StokesExactSolution(Stokes *s); /* exact solution vector */
+static PetscErrorCode StokesWriteSolution(Stokes *s); /* write solution to file */
 
 /* exact solution for the velocity (x-component, y-component is zero) */
 PetscScalar StokesExactVelocityX(const PetscScalar y)
@@ -94,7 +94,7 @@ PetscScalar StokesExactPressure(const PetscScalar x)
   return 8.0*(2.0-x);
 }
 
-PetscErrorCode StokesSetupPC(Stokes *s, KSP ksp)
+static PetscErrorCode StokesSetupPC(Stokes *s, KSP ksp)
 {
   KSP            *subksp;
   PC             pc;
@@ -117,7 +117,7 @@ PetscErrorCode StokesSetupPC(Stokes *s, KSP ksp)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesWriteSolution(Stokes *s)
+static PetscErrorCode StokesWriteSolution(Stokes *s)
 {
   PetscMPIInt    size;
   PetscInt       n,i,j;
@@ -145,7 +145,7 @@ PetscErrorCode StokesWriteSolution(Stokes *s)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesSetupIndexSets(Stokes *s)
+static PetscErrorCode StokesSetupIndexSets(Stokes *s)
 {
   PetscErrorCode ierr;
 
@@ -157,7 +157,7 @@ PetscErrorCode StokesSetupIndexSets(Stokes *s)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesSetupVectors(Stokes *s)
+static PetscErrorCode StokesSetupVectors(Stokes *s)
 {
   PetscErrorCode ierr;
 
@@ -181,7 +181,7 @@ PetscErrorCode StokesSetupVectors(Stokes *s)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesGetPosition(Stokes *s, PetscInt row, PetscInt *i, PetscInt *j)
+static PetscErrorCode StokesGetPosition(Stokes *s, PetscInt row, PetscInt *i, PetscInt *j)
 {
   PetscInt n;
 
@@ -193,7 +193,7 @@ PetscErrorCode StokesGetPosition(Stokes *s, PetscInt row, PetscInt *i, PetscInt 
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesExactSolution(Stokes *s)
+static PetscErrorCode StokesExactSolution(Stokes *s)
 {
   PetscInt       row, start, end, i, j;
   PetscScalar    val;
@@ -227,7 +227,7 @@ PetscErrorCode StokesExactSolution(Stokes *s)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesRhs(Stokes *s)
+static PetscErrorCode StokesRhs(Stokes *s)
 {
   PetscInt       row, start, end, i, j;
   PetscScalar    val;
@@ -261,7 +261,7 @@ PetscErrorCode StokesRhs(Stokes *s)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesSetupMatBlock00(Stokes *s)
+static PetscErrorCode StokesSetupMatBlock00(Stokes *s)
 {
   PetscInt       row, start, end, size, i, j;
   PetscInt       cols[5];
@@ -293,7 +293,7 @@ PetscErrorCode StokesSetupMatBlock00(Stokes *s)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesSetupMatBlock01(Stokes *s)
+static PetscErrorCode StokesSetupMatBlock01(Stokes *s)
 {
   PetscInt       row, start, end, size, i, j;
   PetscInt       cols[5];
@@ -328,7 +328,7 @@ PetscErrorCode StokesSetupMatBlock01(Stokes *s)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesSetupMatBlock10(Stokes *s)
+static PetscErrorCode StokesSetupMatBlock10(Stokes *s)
 {
   PetscErrorCode ierr;
 
@@ -340,7 +340,7 @@ PetscErrorCode StokesSetupMatBlock10(Stokes *s)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesSetupMatBlock11(Stokes *s)
+static PetscErrorCode StokesSetupMatBlock11(Stokes *s)
 {
   PetscErrorCode ierr;
 
@@ -356,7 +356,7 @@ PetscErrorCode StokesSetupMatBlock11(Stokes *s)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesSetupApproxSchur(Stokes *s)
+static PetscErrorCode StokesSetupApproxSchur(Stokes *s)
 {
   Vec            diag;
   PetscErrorCode ierr;
@@ -386,7 +386,7 @@ PetscErrorCode StokesSetupApproxSchur(Stokes *s)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesSetupMatrix(Stokes *s)
+static PetscErrorCode StokesSetupMatrix(Stokes *s)
 {
   PetscErrorCode ierr;
 
@@ -400,7 +400,7 @@ PetscErrorCode StokesSetupMatrix(Stokes *s)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesStencilLaplacian(Stokes *s, PetscInt i, PetscInt j, PetscInt *size, PetscInt *cols, PetscScalar *vals)
+static PetscErrorCode StokesStencilLaplacian(Stokes *s, PetscInt i, PetscInt j, PetscInt *size, PetscInt *cols, PetscScalar *vals)
 {
   PetscInt    p =j*s->nx+i, w=p-1, e=p+1, s2=p-s->nx, n=p+s->nx;
   PetscScalar ae=s->hy/s->hx, aeb=0;
@@ -464,7 +464,7 @@ PetscErrorCode StokesStencilLaplacian(Stokes *s, PetscInt i, PetscInt j, PetscIn
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesStencilGradientX(Stokes *s, PetscInt i, PetscInt j, PetscInt *size, PetscInt *cols, PetscScalar *vals)
+static PetscErrorCode StokesStencilGradientX(Stokes *s, PetscInt i, PetscInt j, PetscInt *size, PetscInt *cols, PetscScalar *vals)
 {
   PetscInt    p =j*s->nx+i, w=p-1, e=p+1;
   PetscScalar ae= s->hy/2, aeb=s->hy;
@@ -514,7 +514,7 @@ PetscErrorCode StokesStencilGradientX(Stokes *s, PetscInt i, PetscInt j, PetscIn
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesStencilGradientY(Stokes *s, PetscInt i, PetscInt j, PetscInt *size, PetscInt *cols, PetscScalar *vals)
+static PetscErrorCode StokesStencilGradientY(Stokes *s, PetscInt i, PetscInt j, PetscInt *size, PetscInt *cols, PetscScalar *vals)
 {
   PetscInt    p =j*s->nx+i, s2=p-s->nx, n=p+s->nx;
   PetscScalar as=-s->hx/2, asb=0;
@@ -564,7 +564,7 @@ PetscErrorCode StokesStencilGradientY(Stokes *s, PetscInt i, PetscInt j, PetscIn
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesRhsMomX(Stokes *s, PetscInt i, PetscInt j, PetscScalar *val)
+static PetscErrorCode StokesRhsMomX(Stokes *s, PetscInt i, PetscInt j, PetscScalar *val)
 {
   PetscScalar y   = j*s->hy+s->hy/2;
   PetscScalar awb = s->hy/(s->hx/2);
@@ -578,14 +578,14 @@ PetscErrorCode StokesRhsMomX(Stokes *s, PetscInt i, PetscInt j, PetscScalar *val
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesRhsMomY(Stokes *s, PetscInt i, PetscInt j, PetscScalar *val)
+static PetscErrorCode StokesRhsMomY(Stokes *s, PetscInt i, PetscInt j, PetscScalar *val)
 {
   PetscFunctionBeginUser;
   *val = 0.0;
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesRhsMass(Stokes *s, PetscInt i, PetscInt j, PetscScalar *val)
+static PetscErrorCode StokesRhsMass(Stokes *s, PetscInt i, PetscInt j, PetscScalar *val)
 {
   PetscScalar y   = j*s->hy+s->hy/2;
   PetscScalar aeb = s->hy;
@@ -599,7 +599,7 @@ PetscErrorCode StokesRhsMass(Stokes *s, PetscInt i, PetscInt j, PetscScalar *val
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesCalcResidual(Stokes *s)
+static PetscErrorCode StokesCalcResidual(Stokes *s)
 {
   PetscReal      val;
   Vec            b0, b1;
@@ -629,7 +629,7 @@ PetscErrorCode StokesCalcResidual(Stokes *s)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode StokesCalcError(Stokes *s)
+static PetscErrorCode StokesCalcError(Stokes *s)
 {
   PetscScalar    val, scale = PetscSqrtScalar(s->nx*s->ny);
   Vec            y0, y1;

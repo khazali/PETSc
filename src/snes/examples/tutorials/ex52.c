@@ -4,7 +4,7 @@ static const char help[] = "Testbed for FEM operations on the GPU.\n\n";
 #include<petscsnes.h>
 
 #define NUM_FIELDS 1
-PetscInt spatialDim = 0;
+static PetscInt spatialDim = 0;
 
 typedef enum {LAPLACIAN = 0, ELASTICITY} OpType;
 
@@ -38,24 +38,24 @@ typedef struct {
   void (**exactFuncs)(const PetscReal x[], PetscScalar *u);
 } AppCtx;
 
-void quadratic_2d(const PetscReal x[], PetscScalar u[])
+static void quadratic_2d(const PetscReal x[], PetscScalar u[])
 {
   u[0] = x[0]*x[0] + x[1]*x[1];
 };
 
-void quadratic_2d_elas(const PetscReal x[], PetscScalar u[])
+static void quadratic_2d_elas(const PetscReal x[], PetscScalar u[])
 {
   u[0] = x[0]*x[0] + x[1]*x[1];
   u[1] = x[0]*x[0] + x[1]*x[1];
 };
 
-void f0_lap(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f0[])
+static void f0_lap(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f0[])
 {
   f0[0] = 4.0;
 }
 
 /* gradU[comp*dim+d] = {u_x, u_y} or {u_x, u_y, u_z} */
-void f1_lap(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f1[])
+static void f1_lap(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f1[])
 {
   PetscInt d;
   for (d = 0; d < spatialDim; ++d) {f1[d] = a[0]*gradU[d];}
@@ -63,13 +63,13 @@ void f1_lap(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar 
 
 /* < \nabla v, \nabla u + {\nabla u}^T >
    This just gives \nabla u, give the perdiagonal for the transpose */
-void g3_lap(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g3[])
+static void g3_lap(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g3[])
 {
   PetscInt d;
   for (d = 0; d < spatialDim; ++d) {g3[d*spatialDim+d] = 1.0;}
 }
 
-void f0_elas(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f0[])
+static void f0_elas(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f0[])
 {
   const PetscInt Ncomp = spatialDim;
   PetscInt       comp;
@@ -79,7 +79,7 @@ void f0_elas(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar
 
 /* gradU[comp*dim+d] = {u_x, u_y, v_x, v_y} or {u_x, u_y, u_z, v_x, v_y, v_z, w_x, w_y, w_z}
    u[Ncomp]          = {p} */
-void f1_elas(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f1[])
+static void f1_elas(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f1[])
 {
   const PetscInt dim   = spatialDim;
   const PetscInt Ncomp = spatialDim;
@@ -95,7 +95,7 @@ void f1_elas(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar
 
 /* < \nabla v, \nabla u + {\nabla u}^T >
    This just gives \nabla u, give the perdiagonal for the transpose */
-void g3_elas(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g3[])
+static void g3_elas(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g3[])
 {
   const PetscInt dim   = spatialDim;
   const PetscInt Ncomp = spatialDim;
@@ -110,7 +110,7 @@ void g3_elas(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar
 
 #undef __FUNCT__
 #define __FUNCT__ "ProcessOptions"
-PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
+static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   const char     *opTypes[2] = {"laplacian", "elasticity"};
   PetscInt       op;
@@ -167,7 +167,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 
 #undef __FUNCT__
 #define __FUNCT__ "CreateMesh"
-PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
+static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 {
   PetscInt       dim               = user->dim;
   PetscBool      interpolate       = user->interpolate;
@@ -221,7 +221,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupElement"
-PetscErrorCode SetupElement(DM dm, AppCtx *user)
+static PetscErrorCode SetupElement(DM dm, AppCtx *user)
 {
   const PetscInt  dim = user->dim;
   PetscFE         fem;
@@ -265,7 +265,7 @@ PetscErrorCode SetupElement(DM dm, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupMaterialElement"
-PetscErrorCode SetupMaterialElement(DM dm, AppCtx *user)
+static PetscErrorCode SetupMaterialElement(DM dm, AppCtx *user)
 {
   const PetscInt  dim = user->dim;
   const char     *prefix = "mat_";
@@ -313,7 +313,7 @@ PetscErrorCode SetupMaterialElement(DM dm, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "DestroyElement"
-PetscErrorCode DestroyElement(AppCtx *user)
+static PetscErrorCode DestroyElement(AppCtx *user)
 {
   PetscErrorCode ierr;
 
@@ -325,7 +325,7 @@ PetscErrorCode DestroyElement(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupSection"
-PetscErrorCode SetupSection(DM dm, AppCtx *user)
+static PetscErrorCode SetupSection(DM dm, AppCtx *user)
 {
   PetscSection    section;
   PetscInt        dim   = user->dim;
@@ -345,7 +345,7 @@ PetscErrorCode SetupSection(DM dm, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupMaterial"
-PetscErrorCode SetupMaterial(DM dm, DM dmAux, AppCtx *user)
+static PetscErrorCode SetupMaterial(DM dm, DM dmAux, AppCtx *user)
 {
   Vec            epsilon;
   PetscErrorCode ierr;

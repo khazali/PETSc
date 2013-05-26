@@ -105,20 +105,20 @@ typedef struct { /* application context */
 } AppCtx;
 
 /* Callback functions (static interface) */
-extern PetscErrorCode FormFunctionLocal(DMDALocalInfo*,Field**,Field**,void*);
+static PetscErrorCode FormFunctionLocal(DMDALocalInfo*,Field**,Field**,void*);
 
 /* Main routines */
-extern PetscErrorCode SetParams(Parameter*, GridInfo*);
-extern PetscErrorCode ReportParams(Parameter*, GridInfo*);
-extern PetscErrorCode Initialize(DM);
-extern PetscErrorCode UpdateSolution(SNES,AppCtx*, PetscInt*);
-extern PetscErrorCode DoOutput(SNES,PetscInt);
+static PetscErrorCode SetParams(Parameter*, GridInfo*);
+static PetscErrorCode ReportParams(Parameter*, GridInfo*);
+static PetscErrorCode Initialize(DM);
+static PetscErrorCode UpdateSolution(SNES,AppCtx*, PetscInt*);
+static PetscErrorCode DoOutput(SNES,PetscInt);
 
 /* Post-processing & misc */
-extern PetscErrorCode ViscosityField(DM,Vec,Vec);
-extern PetscErrorCode StressField(DM);
-extern PetscErrorCode SNESConverged_Interactive(SNES, PetscInt, PetscReal, PetscReal, PetscReal, SNESConvergedReason*, void*);
-extern PetscErrorCode InteractiveHandler(int, void*);
+static PetscErrorCode ViscosityField(DM,Vec,Vec);
+static PetscErrorCode StressField(DM);
+static PetscErrorCode SNESConverged_Interactive(SNES, PetscInt, PetscReal, PetscReal, PetscReal, SNESConvergedReason*, void*);
+static PetscErrorCode InteractiveHandler(int, void*);
 extern PetscBool  OptionsHasName(const char pre[],const char name[]);
 
 /*-----------------------------------------------------------------------*/
@@ -215,7 +215,7 @@ int main(int argc,char **argv)
 #undef __FUNCT__
 #define __FUNCT__ "UpdateSolution"
 /*  manages solve: adaptive continuation method  */
-PetscErrorCode UpdateSolution(SNES snes, AppCtx *user, PetscInt *nits)
+static PetscErrorCode UpdateSolution(SNES snes, AppCtx *user, PetscInt *nits)
 {
   KSP                 ksp;
   PC                  pc;
@@ -808,7 +808,7 @@ PETSC_STATIC_INLINE PetscScalar ZNormalStress(Field **x, PetscInt i, PetscInt j,
 #define __FUNCT__ "SetParams"
 /* initializes the problem parameters and checks for
    command line changes */
-PetscErrorCode SetParams(Parameter *param, GridInfo *grid)
+static PetscErrorCode SetParams(Parameter *param, GridInfo *grid)
 /*---------------------------------------------------------------------*/
 {
   PetscErrorCode ierr, ierr_out=0;
@@ -948,7 +948,7 @@ PetscErrorCode SetParams(Parameter *param, GridInfo *grid)
 #undef __FUNCT__
 #define __FUNCT__ "ReportParams"
 /*  prints a report of the problem parameters to stdout */
-PetscErrorCode ReportParams(Parameter *param, GridInfo *grid)
+static PetscErrorCode ReportParams(Parameter *param, GridInfo *grid)
 /*---------------------------------------------------------------------*/
 {
   PetscErrorCode ierr, ierr_out=0;
@@ -1024,7 +1024,7 @@ PetscErrorCode ReportParams(Parameter *param, GridInfo *grid)
 #define __FUNCT__ "Initialize"
 /*  generates an inital guess using the analytic solution for isoviscous
     corner flow */
-PetscErrorCode Initialize(DM da)
+static PetscErrorCode Initialize(DM da)
 /* ------------------------------------------------------------------- */
 {
   AppCtx         *user;
@@ -1071,7 +1071,7 @@ PetscErrorCode Initialize(DM da)
 #undef __FUNCT__
 #define __FUNCT__ "DoOutput"
 /*  controls output to a file */
-PetscErrorCode DoOutput(SNES snes, PetscInt its)
+static PetscErrorCode DoOutput(SNES snes, PetscInt its)
 /*---------------------------------------------------------------------*/
 {
   AppCtx         *user;
@@ -1162,7 +1162,7 @@ PetscErrorCode DoOutput(SNES snes, PetscInt its)
 #undef __FUNCT__
 #define __FUNCT__ "ViscosityField"
 /* Compute both the second invariant of the strain rate tensor and the viscosity, at both cell centers and cell corners */
-PetscErrorCode ViscosityField(DM da, Vec X, Vec V)
+static PetscErrorCode ViscosityField(DM da, Vec X, Vec V)
 /* ------------------------------------------------------------------- */
 {
   AppCtx         *user;
@@ -1223,7 +1223,7 @@ PetscErrorCode ViscosityField(DM da, Vec X, Vec V)
 #undef __FUNCT__
 #define __FUNCT__ "StressField"
 /* post-processing: compute stress everywhere */
-PetscErrorCode StressField(DM da)
+static PetscErrorCode StressField(DM da)
 /* ------------------------------------------------------------------- */
 {
   AppCtx         *user;
@@ -1326,7 +1326,7 @@ PetscBool  OptionsHasName(const char pre[],const char name[])
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "SNESConverged_Interactive"
-PetscErrorCode SNESConverged_Interactive(SNES snes, PetscInt it,PetscReal xnorm, PetscReal snorm, PetscReal fnorm, SNESConvergedReason *reason, void *ctx)
+static PetscErrorCode SNESConverged_Interactive(SNES snes, PetscInt it,PetscReal xnorm, PetscReal snorm, PetscReal fnorm, SNESConvergedReason *reason, void *ctx)
 /* ------------------------------------------------------------------- */
 {
   AppCtx         *user  = (AppCtx*) ctx;
@@ -1364,7 +1364,7 @@ PetscErrorCode SNESConverged_Interactive(SNES snes, PetscInt it,PetscReal xnorm,
 #include <signal.h>
 #undef __FUNCT__
 #define __FUNCT__ "InteractiveHandler"
-PetscErrorCode InteractiveHandler(int signum, void *ctx)
+static PetscErrorCode InteractiveHandler(int signum, void *ctx)
 /* ------------------------------------------------------------------- */
 {
   AppCtx    *user  = (AppCtx*) ctx;
@@ -1389,7 +1389,7 @@ PetscErrorCode InteractiveHandler(int signum, void *ctx)
 #define __FUNCT__ "FormFunctionLocal"
 /*  main call-back function that computes the processor-local piece
     of the residual */
-PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,Field **x,Field **f,void *ptr)
+static PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,Field **x,Field **f,void *ptr)
 /*---------------------------------------------------------------------*/
 {
   AppCtx      *user  = (AppCtx*)ptr;

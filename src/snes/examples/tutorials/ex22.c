@@ -43,9 +43,9 @@ typedef struct {
   PetscViewer fu_lambda_viewer;
 } UserCtx;
 
-extern PetscErrorCode ComputeFunction(SNES,Vec,Vec,void*);
-extern PetscErrorCode ComputeJacobian_MF(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-extern PetscErrorCode Monitor(SNES,PetscInt,PetscReal,void*);
+static PetscErrorCode ComputeFunction(SNES,Vec,Vec,void*);
+static PetscErrorCode ComputeJacobian_MF(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode Monitor(SNES,PetscInt,PetscReal,void*);
 
 /*
     Uses full multigrid preconditioner with GMRES (with no preconditioner inside the GMRES) as the
@@ -68,7 +68,7 @@ char common_options[] = "-ksp_type fgmres\
 char matrix_free_options[] = "-mat_mffd_compute_normu no \
                               -mat_mffd_type wp";
 
-extern PetscErrorCode DMCreateMatrix_MF(DM,Mat*);
+static PetscErrorCode DMCreateMatrix_MF(DM,Mat*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -145,7 +145,7 @@ typedef struct {
    DMCompositeScatter()) BUT the global, nonghosted version of FU (via DMCompositeGetAccess()).
 
 */
-PetscErrorCode ComputeFunction(SNES snes,Vec U,Vec FU,void *ctx)
+static PetscErrorCode ComputeFunction(SNES snes,Vec U,Vec FU,void *ctx)
 {
   PetscErrorCode ierr;
   PetscInt       xs,xm,i,N;
@@ -206,7 +206,7 @@ PetscErrorCode ComputeFunction(SNES snes,Vec U,Vec FU,void *ctx)
 /*
     Computes the exact solution
 */
-PetscErrorCode u_solution(void *dummy,PetscInt n,const PetscScalar *x,PetscScalar *u)
+static PetscErrorCode u_solution(void *dummy,PetscInt n,const PetscScalar *x,PetscScalar *u)
 {
   PetscInt i;
 
@@ -217,7 +217,7 @@ PetscErrorCode u_solution(void *dummy,PetscInt n,const PetscScalar *x,PetscScala
 
 #undef __FUNCT__
 #define __FUNCT__ "ExactSolution"
-PetscErrorCode ExactSolution(DM packer,Vec U)
+static PetscErrorCode ExactSolution(DM packer,Vec U)
 {
   PF             pf;
   Vec            x,u_global;
@@ -246,7 +246,7 @@ PetscErrorCode ExactSolution(DM packer,Vec U)
 
 #undef __FUNCT__
 #define __FUNCT__ "Monitor"
-PetscErrorCode Monitor(SNES snes,PetscInt its,PetscReal rnorm,void *dummy)
+static PetscErrorCode Monitor(SNES snes,PetscInt its,PetscReal rnorm,void *dummy)
 {
   UserCtx        *user;
   PetscErrorCode ierr;
@@ -287,7 +287,7 @@ PetscErrorCode Monitor(SNES snes,PetscInt its,PetscReal rnorm,void *dummy)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMCreateMatrix_MF"
-PetscErrorCode DMCreateMatrix_MF(DM packer,Mat *A)
+static PetscErrorCode DMCreateMatrix_MF(DM packer,Mat *A)
 {
   PetscErrorCode ierr;
   Vec            t;
@@ -304,7 +304,7 @@ PetscErrorCode DMCreateMatrix_MF(DM packer,Mat *A)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeJacobian_MF"
-PetscErrorCode ComputeJacobian_MF(SNES snes,Vec x,Mat *A,Mat *B,MatStructure *str,void *ctx)
+static PetscErrorCode ComputeJacobian_MF(SNES snes,Vec x,Mat *A,Mat *B,MatStructure *str,void *ctx)
 {
   PetscErrorCode ierr;
 

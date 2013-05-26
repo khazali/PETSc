@@ -9,7 +9,7 @@ struct _n_CCmplx {
   double imag;
 };
 
-CCmplx CCmplxPow(CCmplx a,double n)
+static CCmplx CCmplxPow(CCmplx a,double n)
 {
   CCmplx b;
   double r,theta;
@@ -19,14 +19,14 @@ CCmplx CCmplxPow(CCmplx a,double n)
   b.imag = pow(r,n) * sin(n*theta);
   return b;
 }
-CCmplx CCmplxExp(CCmplx a)
+static CCmplx CCmplxExp(CCmplx a)
 {
   CCmplx b;
   b.real = exp(a.real) * cos(a.imag);
   b.imag = exp(a.real) * sin(a.imag);
   return b;
 }
-CCmplx CCmplxSqrt(CCmplx a)
+static CCmplx CCmplxSqrt(CCmplx a)
 {
   CCmplx b;
   double r,theta;
@@ -36,25 +36,25 @@ CCmplx CCmplxSqrt(CCmplx a)
   b.imag = sqrt(r) * sin(0.5*theta);
   return b;
 }
-CCmplx CCmplxAdd(CCmplx a,CCmplx c)
+static CCmplx CCmplxAdd(CCmplx a,CCmplx c)
 {
   CCmplx b;
   b.real = a.real +c.real;
   b.imag = a.imag +c.imag;
   return b;
 }
-PetscScalar CCmplxRe(CCmplx a)
+static PetscScalar CCmplxRe(CCmplx a)
 {
   return (PetscScalar)a.real;
 }
-PetscScalar CCmplxIm(CCmplx a)
+static PetscScalar CCmplxIm(CCmplx a)
 {
   return (PetscScalar)a.imag;
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "DAApplyConformalMapping"
-PetscErrorCode DAApplyConformalMapping(DM da,PetscInt idx)
+static PetscErrorCode DAApplyConformalMapping(DM da,PetscInt idx)
 {
   PetscErrorCode ierr;
   PetscInt       i,n;
@@ -199,7 +199,7 @@ PetscErrorCode DAApplyConformalMapping(DM da,PetscInt idx)
 
 #undef __FUNCT__
 #define __FUNCT__ "DAApplyTrilinearMapping"
-PetscErrorCode DAApplyTrilinearMapping(DM da)
+PETSC_UNUSED static PetscErrorCode DAApplyTrilinearMapping(DM da)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,k;
@@ -257,7 +257,7 @@ PetscErrorCode DAApplyTrilinearMapping(DM da)
 
 #undef __FUNCT__
 #define __FUNCT__ "DADefineXLinearField2D"
-PetscErrorCode DADefineXLinearField2D(DM da,Vec field)
+static PetscErrorCode DADefineXLinearField2D(DM da,Vec field)
 {
   PetscErrorCode ierr;
   PetscInt       i,j;
@@ -289,7 +289,7 @@ PetscErrorCode DADefineXLinearField2D(DM da,Vec field)
 
 #undef __FUNCT__
 #define __FUNCT__ "DADefineXLinearField3D"
-PetscErrorCode DADefineXLinearField3D(DM da,Vec field)
+static PetscErrorCode DADefineXLinearField3D(DM da,Vec field)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,k;
@@ -330,7 +330,7 @@ PetscErrorCode DADefineXLinearField3D(DM da,Vec field)
 
 #undef __FUNCT__
 #define __FUNCT__ "da_test_RefineCoords1D"
-PetscErrorCode da_test_RefineCoords1D(PetscInt mx)
+static PetscErrorCode da_test_RefineCoords1D(PetscInt mx)
 {
   PetscErrorCode ierr;
   DM             dac,daf;
@@ -421,7 +421,7 @@ PetscErrorCode da_test_RefineCoords1D(PetscInt mx)
 
 #undef __FUNCT__
 #define __FUNCT__ "da_test_RefineCoords2D"
-PetscErrorCode da_test_RefineCoords2D(PetscInt mx,PetscInt my)
+static PetscErrorCode da_test_RefineCoords2D(PetscInt mx,PetscInt my)
 {
   PetscErrorCode ierr;
   DM             dac,daf;
@@ -521,7 +521,7 @@ PetscErrorCode da_test_RefineCoords2D(PetscInt mx,PetscInt my)
 
 #undef __FUNCT__
 #define __FUNCT__ "da_test_RefineCoords3D"
-PetscErrorCode da_test_RefineCoords3D(PetscInt mx,PetscInt my,PetscInt mz)
+static PetscErrorCode da_test_RefineCoords3D(PetscInt mx,PetscInt my,PetscInt mz)
 {
   PetscErrorCode ierr;
   DM             dac,daf;

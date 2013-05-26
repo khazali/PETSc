@@ -6,7 +6,7 @@ static char help[] = "Demonstrates use of PetscDrawZoom()\n";
 
 #undef __FUNCT__
 #define __FUNCT__ "zoomfunction"
-PetscErrorCode zoomfunction(PetscDraw draw,void *dummy)
+static PetscErrorCode zoomfunction(PetscDraw draw,void *dummy)
 {
   PetscErrorCode ierr;
   int            i;

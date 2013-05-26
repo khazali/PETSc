@@ -207,7 +207,7 @@ typedef struct {
 
 #undef __FUNCT__
 #define __FUNCT__ "RiemannListAdd"
-PetscErrorCode RiemannListAdd(PetscFunctionList *flist,const char *name,RiemannFunction rsolve)
+static PetscErrorCode RiemannListAdd(PetscFunctionList *flist,const char *name,RiemannFunction rsolve)
 {
   PetscErrorCode ierr;
 
@@ -218,7 +218,7 @@ PetscErrorCode RiemannListAdd(PetscFunctionList *flist,const char *name,RiemannF
 
 #undef __FUNCT__
 #define __FUNCT__ "RiemannListFind"
-PetscErrorCode RiemannListFind(PetscFunctionList flist,const char *name,RiemannFunction *rsolve)
+static PetscErrorCode RiemannListFind(PetscFunctionList flist,const char *name,RiemannFunction *rsolve)
 {
   PetscErrorCode ierr;
 
@@ -230,7 +230,7 @@ PetscErrorCode RiemannListFind(PetscFunctionList flist,const char *name,RiemannF
 
 #undef __FUNCT__
 #define __FUNCT__ "ReconstructListAdd"
-PetscErrorCode ReconstructListAdd(PetscFunctionList *flist,const char *name,ReconstructFunction r)
+static PetscErrorCode ReconstructListAdd(PetscFunctionList *flist,const char *name,ReconstructFunction r)
 {
   PetscErrorCode ierr;
 
@@ -241,7 +241,7 @@ PetscErrorCode ReconstructListAdd(PetscFunctionList *flist,const char *name,Reco
 
 #undef __FUNCT__
 #define __FUNCT__ "ReconstructListFind"
-PetscErrorCode ReconstructListFind(PetscFunctionList flist,const char *name,ReconstructFunction *r)
+static PetscErrorCode ReconstructListFind(PetscFunctionList flist,const char *name,ReconstructFunction *r)
 {
   PetscErrorCode ierr;
 

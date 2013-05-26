@@ -8,8 +8,8 @@
 */
 #include <petscsnes.h>
 
-extern PetscErrorCode FormFunctionSub(SNES,Vec,Vec,void*);
-extern PetscErrorCode FormJacobianSub(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode FormFunctionSub(SNES,Vec,Vec,void*);
+static PetscErrorCode FormJacobianSub(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
 
 
 typedef struct {
@@ -21,7 +21,7 @@ typedef struct {
 
 #undef __FUNCT__
 #define __FUNCT__ "FormFunctionSub"
-PetscErrorCode FormFunctionSub(SNES snes,Vec x,Vec f,void *ictx)
+static PetscErrorCode FormFunctionSub(SNES snes,Vec x,Vec f,void *ictx)
 {
   PetscErrorCode ierr;
   SubCtx         *ctx = (SubCtx*) ictx;
@@ -37,7 +37,7 @@ PetscErrorCode FormFunctionSub(SNES snes,Vec x,Vec f,void *ictx)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormJacobianSub"
-PetscErrorCode FormJacobianSub(SNES snes,Vec x,Mat *A, Mat *B, MatStructure *str,void *ictx)
+static PetscErrorCode FormJacobianSub(SNES snes,Vec x,Mat *A, Mat *B, MatStructure *str,void *ictx)
 {
   PetscErrorCode ierr;
   SubCtx         *ctx = (SubCtx*) ictx;
@@ -66,7 +66,7 @@ PetscErrorCode FormJacobianSub(SNES snes,Vec x,Mat *A, Mat *B, MatStructure *str
 
 #undef __FUNCT__
 #define __FUNCT__ "SolveSubproblem"
-PetscErrorCode SolveSubproblem(SNES snes)
+static PetscErrorCode SolveSubproblem(SNES snes)
 {
   PetscErrorCode ierr;
   Vec            residual,solution;
@@ -137,12 +137,12 @@ PetscErrorCode SolveSubproblem(SNES snes)
 }
 
 
-extern PetscErrorCode SNESMonitorRange_Private(SNES,PetscInt,PetscReal*);
+static PetscErrorCode SNESMonitorRange_Private(SNES,PetscInt,PetscReal*);
 static PetscInt       CountGood = 0;
 
 #undef __FUNCT__
 #define __FUNCT__ "MonitorRange"
-PetscErrorCode  MonitorRange(SNES snes,PetscInt it,PetscReal rnorm,void *dummy)
+static PetscErrorCode MonitorRange(SNES snes,PetscInt it,PetscReal rnorm,void *dummy)
 {
   PetscErrorCode ierr;
   PetscReal      perc;

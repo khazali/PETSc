@@ -31,11 +31,11 @@ typedef struct{
     Vec         xold, b_xold;       /* X^{n-1}, b(U^{n-1}) */
 }AppCtx;
 
-PetscErrorCode ComputeMobility(DM,Vec,Vec);
-PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
-PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-PetscErrorCode SetInitialConditions(DM,Vec);
-PetscErrorCode GetParams(AppCtx*);
+static PetscErrorCode ComputeMobility(DM,Vec,Vec);
+static PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
+static PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode SetInitialConditions(DM,Vec);
+static PetscErrorCode GetParams(AppCtx*);
 
 
 
@@ -99,7 +99,7 @@ int main(int argc, char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeMobility"
-PetscErrorCode ComputeMobility(DM da,Vec X,Vec bX)
+static PetscErrorCode ComputeMobility(DM da,Vec X,Vec bX)
 {
     PetscErrorCode ierr;
     Field          *x,*bx;
@@ -127,7 +127,7 @@ PetscErrorCode ComputeMobility(DM da,Vec X,Vec bX)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetInitialConditions"
-PetscErrorCode SetInitialConditions(DM da,Vec Y)
+static PetscErrorCode SetInitialConditions(DM da,Vec Y)
 {
     PetscErrorCode ierr;
     PetscInt       i,xs,xm,Mx;
@@ -166,7 +166,7 @@ PetscErrorCode SetInitialConditions(DM da,Vec Y)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormFunction"
-PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void* ctx)
+static PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void* ctx)
 {
     PetscErrorCode ierr;
     DM             da;
@@ -273,7 +273,7 @@ PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void* ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormJacobian"
-PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flg,void *ctx)
+static PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flg,void *ctx)
 {
     PetscErrorCode ierr;
     DM             da;
@@ -396,7 +396,7 @@ PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flg,void
 
 #undef __FUNCT__
 #define __FUNCT__ "GetParams"
-PetscErrorCode GetParams(AppCtx* user)
+static PetscErrorCode GetParams(AppCtx* user)
 {
     PetscErrorCode ierr;
     PetscBool      flg;

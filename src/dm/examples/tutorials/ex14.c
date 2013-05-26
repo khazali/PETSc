@@ -13,7 +13,7 @@ Use the options
 
 #undef __FUNCT__
 #define __FUNCT__ "FillLocalSubdomain"
-PetscErrorCode FillLocalSubdomain(DM da, Vec gvec)
+static PetscErrorCode FillLocalSubdomain(DM da, Vec gvec)
 {
   DMDALocalInfo  info;
   PetscMPIInt    rank;

@@ -12,11 +12,11 @@ diagonal data structure.  Input arguments are:\n\
    PLEASE DO NOT BASE ANY OF YOUR CODES ON CODE LIKE THIS, THERE ARE MUCH
    BETTER WAYS TO DO THIS. */
 
-extern PetscErrorCode GetElasticityMatrix(PetscInt,Mat*);
-extern PetscErrorCode Elastic20Stiff(PetscReal**);
-extern PetscErrorCode AddElement(Mat,PetscInt,PetscInt,PetscReal**,PetscInt,PetscInt);
-extern PetscErrorCode paulsetup20(void);
-extern PetscErrorCode paulintegrate20(PetscReal K[60][60]);
+static PetscErrorCode GetElasticityMatrix(PetscInt,Mat*);
+static PetscErrorCode Elastic20Stiff(PetscReal**);
+static PetscErrorCode AddElement(Mat,PetscInt,PetscInt,PetscReal**,PetscInt,PetscInt);
+static PetscErrorCode paulsetup20(void);
+static PetscErrorCode paulintegrate20(PetscReal K[60][60]);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -88,7 +88,7 @@ int main(int argc,char **args)
 /*
   GetElasticityMatrix - Forms 3D linear elasticity matrix.
  */
-PetscErrorCode GetElasticityMatrix(PetscInt m,Mat *newmat)
+static PetscErrorCode GetElasticityMatrix(PetscInt m,Mat *newmat)
 {
   PetscInt       i,j,k,i1,i2,j_1,j2,k1,k2,h1,h2,shiftx,shifty,shiftz;
   PetscInt       ict,nz,base,r1,r2,N,*rowkeep,nstart;
@@ -180,7 +180,7 @@ PetscErrorCode GetElasticityMatrix(PetscInt m,Mat *newmat)
 /* -------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "AddElment"
-PetscErrorCode AddElement(Mat mat,PetscInt r1,PetscInt r2,PetscReal **K,PetscInt h1,PetscInt h2)
+static PetscErrorCode AddElement(Mat mat,PetscInt r1,PetscInt r2,PetscReal **K,PetscInt h1,PetscInt h2)
 {
   PetscScalar    val;
   PetscInt       l1,l2,row,col;
@@ -227,7 +227,7 @@ PetscInt  rmap[20] = {0,1,2,3,5,6,7,8,9,11,15,17,18,19,20,21,23,24,25,26};
 /*
   Elastic20Stiff - Forms 20 node elastic stiffness for element.
  */
-PetscErrorCode Elastic20Stiff(PetscReal **Ke)
+static PetscErrorCode Elastic20Stiff(PetscReal **Ke)
 {
   PetscReal K[60][60],x,y,z,dx,dy,dz,m,v;
   PetscInt  i,j,k,l,Ii,J;
@@ -300,7 +300,7 @@ PetscErrorCode Elastic20Stiff(PetscReal **Ke)
 /*
   paulsetup20 - Sets up data structure for forming local elastic stiffness.
  */
-PetscErrorCode paulsetup20(void)
+static PetscErrorCode paulsetup20(void)
 {
   PetscInt  i,j,k,cnt;
   PetscReal x[4],w[4];
@@ -412,7 +412,7 @@ PetscErrorCode paulsetup20(void)
 /*
    paulintegrate20 - Does actual numerical integration on 20 node element.
  */
-PetscErrorCode paulintegrate20(PetscReal K[60][60])
+static PetscErrorCode paulintegrate20(PetscReal K[60][60])
 {
   PetscReal det_jac,jac[3][3],inv_jac[3][3];
   PetscReal B[6][60],B_temp[6][60],C[6][6];

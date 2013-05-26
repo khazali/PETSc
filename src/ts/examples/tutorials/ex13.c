@@ -22,9 +22,9 @@ typedef struct {
   PetscReal c;
 } AppCtx;
 
-extern PetscErrorCode RHSFunction(TS,PetscReal,Vec,Vec,void*);
-extern PetscErrorCode RHSJacobian(TS,PetscReal,Vec,Mat*,Mat*,MatStructure*,void*);
-extern PetscErrorCode FormInitialSolution(DM,Vec,void*);
+static PetscErrorCode RHSFunction(TS,PetscReal,Vec,Vec,void*);
+static PetscErrorCode RHSJacobian(TS,PetscReal,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode FormInitialSolution(DM,Vec,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -116,7 +116,7 @@ int main(int argc,char **argv)
    Output Parameter:
 .  F - function vector
  */
-PetscErrorCode RHSFunction(TS ts,PetscReal ftime,Vec U,Vec F,void *ptr)
+static PetscErrorCode RHSFunction(TS ts,PetscReal ftime,Vec U,Vec F,void *ptr)
 {
   /* PETSC_UNUSED AppCtx *user=(AppCtx*)ptr; */
   DM             da;
@@ -191,7 +191,7 @@ PetscErrorCode RHSFunction(TS ts,PetscReal ftime,Vec U,Vec F,void *ptr)
    Jpre - optionally different preconditioning matrix
    str - flag indicating matrix structure
 */
-PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec U,Mat *J,Mat *Jpre,MatStructure *str,void *ctx)
+static PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec U,Mat *J,Mat *Jpre,MatStructure *str,void *ctx)
 {
   PetscErrorCode ierr;
   DM             da;
@@ -234,7 +234,7 @@ PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec U,Mat *J,Mat *Jpre,MatStructure
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormInitialSolution"
-PetscErrorCode FormInitialSolution(DM da,Vec U,void* ptr)
+static PetscErrorCode FormInitialSolution(DM da,Vec U,void* ptr)
 {
   AppCtx         *user=(AppCtx*)ptr;
   PetscReal      c=user->c;

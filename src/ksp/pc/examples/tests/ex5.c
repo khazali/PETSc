@@ -14,16 +14,16 @@ This example also demonstrates matrix-free methods\n\n";
 */
 #include <petscksp.h>
 
-PetscErrorCode  residual(Mat,Vec,Vec,Vec);
-PetscErrorCode  gauss_seidel(PC,Vec,Vec,Vec,PetscReal,PetscReal,PetscReal,PetscInt,PetscBool,PetscInt*,PCRichardsonConvergedReason*);
-PetscErrorCode  jacobi(PC,Vec,Vec,Vec,PetscReal,PetscReal,PetscReal,PetscInt,PetscBool,PetscInt*,PCRichardsonConvergedReason*);
-PetscErrorCode  interpolate(Mat,Vec,Vec,Vec);
-PetscErrorCode  restrct(Mat,Vec,Vec);
-PetscErrorCode  Create1dLaplacian(PetscInt,Mat*);
-PetscErrorCode  CalculateRhs(Vec);
-PetscErrorCode  CalculateError(Vec,Vec,Vec,PetscReal*);
-PetscErrorCode  CalculateSolution(PetscInt,Vec*);
-PetscErrorCode  amult(Mat,Vec,Vec);
+static PetscErrorCode residual(Mat,Vec,Vec,Vec);
+static PetscErrorCode gauss_seidel(PC,Vec,Vec,Vec,PetscReal,PetscReal,PetscReal,PetscInt,PetscBool,PetscInt*,PCRichardsonConvergedReason*);
+static PetscErrorCode jacobi(PC,Vec,Vec,Vec,PetscReal,PetscReal,PetscReal,PetscInt,PetscBool,PetscInt*,PCRichardsonConvergedReason*);
+static PetscErrorCode interpolate(Mat,Vec,Vec,Vec);
+static PetscErrorCode restrct(Mat,Vec,Vec);
+static PetscErrorCode Create1dLaplacian(PetscInt,Mat*);
+static PetscErrorCode CalculateRhs(Vec);
+static PetscErrorCode CalculateError(Vec,Vec,Vec,PetscReal*);
+static PetscErrorCode CalculateSolution(PetscInt,Vec*);
+static PetscErrorCode amult(Mat,Vec,Vec);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -176,7 +176,7 @@ int main(int Argc,char **Args)
 /* --------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "residual"
-PetscErrorCode residual(Mat mat,Vec bb,Vec xx,Vec rr)
+static PetscErrorCode residual(Mat mat,Vec bb,Vec xx,Vec rr)
 {
   PetscInt       i,n1;
   PetscErrorCode ierr;
@@ -198,7 +198,7 @@ PetscErrorCode residual(Mat mat,Vec bb,Vec xx,Vec rr)
 }
 #undef __FUNCT__
 #define __FUNCT__ "amult"
-PetscErrorCode amult(Mat mat,Vec xx,Vec yy)
+static PetscErrorCode amult(Mat mat,Vec xx,Vec yy)
 {
   PetscInt       i,n1;
   PetscErrorCode ierr;
@@ -219,7 +219,7 @@ PetscErrorCode amult(Mat mat,Vec xx,Vec yy)
 /* --------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "gauss_seidel"
-PetscErrorCode gauss_seidel(PC pc,Vec bb,Vec xx,Vec w,PetscReal rtol,PetscReal abstol,PetscReal dtol,PetscInt m,PetscBool guesszero,PetscInt *its,PCRichardsonConvergedReason *reason)
+static PetscErrorCode gauss_seidel(PC pc,Vec bb,Vec xx,Vec w,PetscReal rtol,PetscReal abstol,PetscReal dtol,PetscInt m,PetscBool guesszero,PetscInt *its,PCRichardsonConvergedReason *reason)
 {
   PetscInt       i,n1;
   PetscErrorCode ierr;
@@ -245,7 +245,7 @@ PetscErrorCode gauss_seidel(PC pc,Vec bb,Vec xx,Vec w,PetscReal rtol,PetscReal a
 /* --------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "jacobi"
-PetscErrorCode jacobi(PC pc,Vec bb,Vec xx,Vec w,PetscReal rtol,PetscReal abstol,PetscReal dtol,PetscInt m,PetscBool guesszero,PetscInt *its,PCRichardsonConvergedReason *reason)
+static PetscErrorCode jacobi(PC pc,Vec bb,Vec xx,Vec w,PetscReal rtol,PetscReal abstol,PetscReal dtol,PetscInt m,PetscBool guesszero,PetscInt *its,PCRichardsonConvergedReason *reason)
 {
   PetscInt       i,n,n1;
   PetscErrorCode ierr;
@@ -276,7 +276,7 @@ PetscErrorCode jacobi(PC pc,Vec bb,Vec xx,Vec w,PetscReal rtol,PetscReal abstol,
 /* --------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "interpolate"
-PetscErrorCode interpolate(Mat mat,Vec xx,Vec yy,Vec zz)
+static PetscErrorCode interpolate(Mat mat,Vec xx,Vec yy,Vec zz)
 {
   PetscInt       i,n,N,i2;
   PetscErrorCode ierr;
@@ -300,7 +300,7 @@ PetscErrorCode interpolate(Mat mat,Vec xx,Vec yy,Vec zz)
 /* --------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "restrct"
-PetscErrorCode restrct(Mat mat,Vec rr,Vec bb)
+static PetscErrorCode restrct(Mat mat,Vec rr,Vec bb)
 {
   PetscInt       i,n,N,i2;
   PetscErrorCode ierr;
@@ -323,7 +323,7 @@ PetscErrorCode restrct(Mat mat,Vec rr,Vec bb)
 /* --------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "Create1dLaplacian"
-PetscErrorCode Create1dLaplacian(PetscInt n,Mat *mat)
+static PetscErrorCode Create1dLaplacian(PetscInt n,Mat *mat)
 {
   PetscScalar    mone = -1.0,two = 2.0;
   PetscInt       i,idx;
@@ -347,7 +347,7 @@ PetscErrorCode Create1dLaplacian(PetscInt n,Mat *mat)
 /* --------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "CalculateRhs"
-PetscErrorCode CalculateRhs(Vec u)
+static PetscErrorCode CalculateRhs(Vec u)
 {
   PetscErrorCode ierr;
   PetscInt       i,n;
@@ -366,7 +366,7 @@ PetscErrorCode CalculateRhs(Vec u)
 /* --------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "CalculateSolution"
-PetscErrorCode CalculateSolution(PetscInt n,Vec *solution)
+static PetscErrorCode CalculateSolution(PetscInt n,Vec *solution)
 {
   PetscErrorCode ierr;
   PetscInt       i;
@@ -385,7 +385,7 @@ PetscErrorCode CalculateSolution(PetscInt n,Vec *solution)
 /* --------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "CalculateError"
-PetscErrorCode CalculateError(Vec solution,Vec u,Vec r,PetscReal *e)
+static PetscErrorCode CalculateError(Vec solution,Vec u,Vec r,PetscReal *e)
 {
   PetscErrorCode ierr;
 

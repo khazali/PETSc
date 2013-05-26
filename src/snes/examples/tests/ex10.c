@@ -36,10 +36,10 @@ typedef struct {
 
 /* -------- User-defined Routines --------- */
 
-extern PetscErrorCode MSA_BoundaryConditions(AppCtx*);
-extern PetscErrorCode MSA_InitialPoint(AppCtx*, Vec);
-extern PetscErrorCode FormGradient(SNES, Vec, Vec, void*);
-extern PetscErrorCode FormJacobian(SNES, Vec, Mat*, Mat*, MatStructure*,void*);
+static PetscErrorCode MSA_BoundaryConditions(AppCtx*);
+static PetscErrorCode MSA_InitialPoint(AppCtx*, Vec);
+static PetscErrorCode FormGradient(SNES, Vec, Vec, void*);
+static PetscErrorCode FormJacobian(SNES, Vec, Mat*, Mat*, MatStructure*,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -261,7 +261,7 @@ int FormGradient(SNES snes, Vec X, Vec G, void *ptr)
 .  tH    - Jacobian matrix
 
 */
-PetscErrorCode FormJacobian(SNES snes, Vec X, Mat *tH, Mat *tHPre, MatStructure *flag, void *ptr)
+static PetscErrorCode FormJacobian(SNES snes, Vec X, Mat *tH, Mat *tHPre, MatStructure *flag, void *ptr)
 {
   AppCtx         *user = (AppCtx*) ptr;
   Mat            H     = *tH;
@@ -410,7 +410,7 @@ PetscErrorCode FormJacobian(SNES snes, Vec X, Mat *tH, Mat *tHPre, MatStructure 
    Output Parameter:
 .  user - user-defined application context
 */
-PetscErrorCode MSA_BoundaryConditions(AppCtx * user)
+static PetscErrorCode MSA_BoundaryConditions(AppCtx * user)
 {
   PetscErrorCode info;
   PetscInt       i,j,k,limit=0,maxits=5;
@@ -493,7 +493,7 @@ PetscErrorCode MSA_BoundaryConditions(AppCtx * user)
    Output Parameters:
 .  X - newly computed initial guess
 */
-PetscErrorCode MSA_InitialPoint(AppCtx * user, Vec X)
+static PetscErrorCode MSA_InitialPoint(AppCtx * user, Vec X)
 {
   PetscErrorCode info;
   PetscInt       start=-1,i,j;

@@ -52,8 +52,8 @@ puts it into the Sieve ordering.
 #include "ex72.h"
 
 #define NUM_FIELDS 2 /* C89 Sucks Sucks Sucks Sucks: Cannot use static const values for array sizes */
-const PetscInt numFields     = 2;
-const PetscInt numComponents = NUM_BASIS_COMPONENTS_0+NUM_BASIS_COMPONENTS_1;
+static const PetscInt numFields     = 2;
+static const PetscInt numComponents = NUM_BASIS_COMPONENTS_0+NUM_BASIS_COMPONENTS_1;
 
 typedef enum {NEUMANN, DIRICHLET} BCType;
 typedef enum {RUN_FULL, RUN_TEST} RunType;
@@ -88,7 +88,7 @@ typedef struct {
   BCType        bcType;            /* The type of boundary conditions */
 } AppCtx;
 
-PetscScalar zero(const PetscReal coords[])
+static PetscScalar zero(const PetscReal coords[])
 {
   return 0.0;
 }
@@ -106,22 +106,22 @@ PetscScalar zero(const PetscReal coords[])
     -\Delta u + \nabla p + f = <-4, -4> + <1, 1> + <3, 3> = 0
     \nabla \cdot u           = 2x - 2x                    = 0
 */
-PetscScalar quadratic_u_2d(const PetscReal x[])
+static PetscScalar quadratic_u_2d(const PetscReal x[])
 {
   return x[0]*x[0] + x[1]*x[1];
 };
 
-PetscScalar quadratic_v_2d(const PetscReal x[])
+static PetscScalar quadratic_v_2d(const PetscReal x[])
 {
   return 2.0*x[0]*x[0] - 2.0*x[0]*x[1];
 };
 
-PetscScalar linear_p_2d(const PetscReal x[])
+static PetscScalar linear_p_2d(const PetscReal x[])
 {
   return x[0] + x[1] - 1.0;
 };
 
-void f0_u(PetscScalar u[], const PetscScalar gradU[], PetscScalar f0[])
+static void f0_u(PetscScalar u[], const PetscScalar gradU[], PetscScalar f0[])
 {
   const PetscInt Ncomp = NUM_BASIS_COMPONENTS_0;
   PetscInt       comp;
@@ -131,7 +131,7 @@ void f0_u(PetscScalar u[], const PetscScalar gradU[], PetscScalar f0[])
 
 /* gradU[comp*dim+d] = {u_x, u_y, v_x, v_y} or {u_x, u_y, u_z, v_x, v_y, v_z, w_x, w_y, w_z}
    u[Ncomp]          = {p} */
-void f1_u(PetscScalar u[], const PetscScalar gradU[], PetscScalar f1[])
+static void f1_u(PetscScalar u[], const PetscScalar gradU[], PetscScalar f1[])
 {
   const PetscInt dim   = SPATIAL_DIM_0;
   const PetscInt Ncomp = NUM_BASIS_COMPONENTS_0;
@@ -147,7 +147,7 @@ void f1_u(PetscScalar u[], const PetscScalar gradU[], PetscScalar f1[])
 }
 
 /* gradU[comp*dim+d] = {u_x, u_y, v_x, v_y} or {u_x, u_y, u_z, v_x, v_y, v_z, w_x, w_y, w_z} */
-void f0_p(PetscScalar u[], const PetscScalar gradU[], PetscScalar f0[])
+static void f0_p(PetscScalar u[], const PetscScalar gradU[], PetscScalar f0[])
 {
   const PetscInt dim = SPATIAL_DIM_0;
   PetscInt       d;
@@ -156,7 +156,7 @@ void f0_p(PetscScalar u[], const PetscScalar gradU[], PetscScalar f0[])
   for (d = 0; d < dim; ++d) f0[0] += gradU[d*dim+d];
 }
 
-void f1_p(PetscScalar u[], const PetscScalar gradU[], PetscScalar f1[])
+static void f1_p(PetscScalar u[], const PetscScalar gradU[], PetscScalar f1[])
 {
   const PetscInt dim = SPATIAL_DIM_0;
   PetscInt       d;
@@ -166,7 +166,7 @@ void f1_p(PetscScalar u[], const PetscScalar gradU[], PetscScalar f1[])
 
 /* < q, \nabla\cdot v >
    NcompI = 1, NcompJ = dim */
-void g1_pu(PetscScalar u[], const PetscScalar gradU[], PetscScalar g1[])
+static void g1_pu(PetscScalar u[], const PetscScalar gradU[], PetscScalar g1[])
 {
   const PetscInt dim = SPATIAL_DIM_0;
   PetscInt       d;
@@ -178,7 +178,7 @@ void g1_pu(PetscScalar u[], const PetscScalar gradU[], PetscScalar g1[])
 
 /* -< \nabla\cdot v, p >
     NcompI = dim, NcompJ = 1 */
-void g2_up(PetscScalar u[], const PetscScalar gradU[], PetscScalar g2[])
+static void g2_up(PetscScalar u[], const PetscScalar gradU[], PetscScalar g2[])
 {
   const PetscInt dim = SPATIAL_DIM_0;
   PetscInt       d;
@@ -190,7 +190,7 @@ void g2_up(PetscScalar u[], const PetscScalar gradU[], PetscScalar g2[])
 
 /* < \nabla v, \nabla u + {\nabla u}^T >
    This just gives \nabla u, give the perdiagonal for the transpose */
-void g3_uu(PetscScalar u[], const PetscScalar gradU[], PetscScalar g3[])
+static void g3_uu(PetscScalar u[], const PetscScalar gradU[], PetscScalar g3[])
 {
   const PetscInt dim   = SPATIAL_DIM_0;
   const PetscInt Ncomp = NUM_BASIS_COMPONENTS_0;
@@ -217,29 +217,29 @@ void g3_uu(PetscScalar u[], const PetscScalar gradU[], PetscScalar g3[])
     -\Delta u + \nabla p + f = <-4, -4, -4> + <1, 1, 1> + <3, 3, 3> = 0
     \nabla \cdot u           = 2x + 2y - 2(x + y)                   = 0
 */
-PetscScalar quadratic_u_3d(const PetscReal x[])
+static PetscScalar quadratic_u_3d(const PetscReal x[])
 {
   return x[0]*x[0] + x[1]*x[1];
 };
 
-PetscScalar quadratic_v_3d(const PetscReal x[])
+static PetscScalar quadratic_v_3d(const PetscReal x[])
 {
   return x[1]*x[1] + x[2]*x[2];
 };
 
-PetscScalar quadratic_w_3d(const PetscReal x[])
+static PetscScalar quadratic_w_3d(const PetscReal x[])
 {
   return x[0]*x[0] + x[1]*x[1] - 2.0*(x[0] + x[1])*x[2];
 };
 
-PetscScalar linear_p_3d(const PetscReal x[])
+static PetscScalar linear_p_3d(const PetscReal x[])
 {
   return x[0] + x[1] + x[2] - 1.5;
 };
 
 #undef __FUNCT__
 #define __FUNCT__ "ProcessOptions"
-PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
+static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   const char     *bcTypes[2]  = {"neumann", "dirichlet"};
   const char     *runTypes[2] = {"full", "test"};
@@ -301,7 +301,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 
 #undef __FUNCT__
 #define __FUNCT__ "CreateMesh"
-PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
+static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 {
   PetscInt       dim             = user->dim;
   PetscReal      refinementLimit = user->refinementLimit;
@@ -333,7 +333,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupQuadrature"
-PetscErrorCode SetupQuadrature(AppCtx *user)
+static PetscErrorCode SetupQuadrature(AppCtx *user)
 {
   PetscFunctionBeginUser;
   user->q[0].numQuadPoints = NUM_QUADRATURE_POINTS_0;
@@ -359,7 +359,7 @@ PetscErrorCode SetupQuadrature(AppCtx *user)
   There is a problem here with uninterpolated meshes. The index in numDof[] is not dimension in this case,
   but sieve depth.
 */
-PetscErrorCode SetupSection(DM dm, AppCtx *user)
+static PetscErrorCode SetupSection(DM dm, AppCtx *user)
 {
   PetscSection   section;
   PetscInt       dim                 = user->dim;
@@ -399,7 +399,7 @@ PetscErrorCode SetupSection(DM dm, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupExactSolution"
-PetscErrorCode SetupExactSolution(AppCtx *user)
+static PetscErrorCode SetupExactSolution(AppCtx *user)
 {
   PetscFunctionBeginUser;
   user->f0Funcs[0] = f0_u;
@@ -442,7 +442,7 @@ PetscErrorCode SetupExactSolution(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeError"
-PetscErrorCode ComputeError(Vec X, PetscReal *error, AppCtx *user)
+static PetscErrorCode ComputeError(Vec X, PetscReal *error, AppCtx *user)
 {
   PetscScalar    (**exactFuncs)(const PetscReal []) = user->exactFuncs;
   const PetscInt debug = user->debug;
@@ -526,7 +526,7 @@ PetscErrorCode ComputeError(Vec X, PetscReal *error, AppCtx *user)
   Output Parameter:
 . X - vector
 */
-PetscErrorCode DMComputeVertexFunction(DM dm, InsertMode mode, Vec X, PetscInt numComp, PetscScalar (**funcs)(const PetscReal []), AppCtx *user)
+static PetscErrorCode DMComputeVertexFunction(DM dm, InsertMode mode, Vec X, PetscInt numComp, PetscScalar (**funcs)(const PetscReal []), AppCtx *user)
 {
   Vec            localX, coordinates;
   PetscSection   section, cSection;
@@ -593,7 +593,7 @@ PetscErrorCode DMComputeVertexFunction(DM dm, InsertMode mode, Vec X, PetscInt n
 
 #undef __FUNCT__
 #define __FUNCT__ "CreatePressureNullSpace"
-PetscErrorCode CreatePressureNullSpace(DM dm, AppCtx *user, MatNullSpace *nullSpace)
+static PetscErrorCode CreatePressureNullSpace(DM dm, AppCtx *user, MatNullSpace *nullSpace)
 {
   Vec            pressure, localP;
   PetscErrorCode ierr;
@@ -636,7 +636,7 @@ PetscErrorCode CreatePressureNullSpace(DM dm, AppCtx *user, MatNullSpace *nullSp
 
 #undef __FUNCT__
 #define __FUNCT__ "IntegrateResidualBatchCPU"
-PetscErrorCode IntegrateResidualBatchCPU(PetscInt Ne, PetscInt numFields, PetscInt field, const PetscScalar coefficients[], const PetscReal jacobianInverses[], const PetscReal jacobianDeterminants[], PetscQuadrature quad[], void (*f0_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar f0[]), void (*f1_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar f1[]), PetscScalar elemVec[], AppCtx *user)
+static PetscErrorCode IntegrateResidualBatchCPU(PetscInt Ne, PetscInt numFields, PetscInt field, const PetscScalar coefficients[], const PetscReal jacobianInverses[], const PetscReal jacobianDeterminants[], PetscQuadrature quad[], void (*f0_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar f0[]), void (*f1_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar f1[]), PetscScalar elemVec[], AppCtx *user)
 {
   const PetscInt debug   = user->debug;
   const PetscInt dim     = SPATIAL_DIM_0;
@@ -793,7 +793,7 @@ PetscErrorCode IntegrateResidualBatchCPU(PetscInt Ne, PetscInt numFields, PetscI
 
 .seealso: FormJacobianLocal()
 */
-PetscErrorCode FormFunctionLocal(DM dm, Vec X, Vec F, AppCtx *user)
+static PetscErrorCode FormFunctionLocal(DM dm, Vec X, Vec F, AppCtx *user)
 {
   const PetscInt debug = user->debug;
   const PetscInt dim   = user->dim;
@@ -885,7 +885,7 @@ Loop over batch of elements (e):
                       + \nabla\psi^{fc}_f(q) \cdot g2_{fc,gc,df}(u, \nabla u) \phi^{gc}_g(q)
                       + \nabla\psi^{fc}_f(q) \cdot g3_{fc,gc,df,dg}(u, \nabla u) \nabla\phi^{gc}_g(q)
 */
-PetscErrorCode IntegrateJacobianActionBatchCPU(PetscInt Ne, PetscInt numFields, PetscInt fieldI, const PetscScalar coefficients[], const PetscScalar argCoefficients[], const PetscReal jacobianInverses[], const PetscReal jacobianDeterminants[], PetscQuadrature quad[], void (**g0_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g0[]), void (**g1_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g1[]), void (**g2_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g0[]), void (**g3_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g1[]), PetscScalar elemVec[], AppCtx *user)
+static PetscErrorCode IntegrateJacobianActionBatchCPU(PetscInt Ne, PetscInt numFields, PetscInt fieldI, const PetscScalar coefficients[], const PetscScalar argCoefficients[], const PetscReal jacobianInverses[], const PetscReal jacobianDeterminants[], PetscQuadrature quad[], void (**g0_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g0[]), void (**g1_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g1[]), void (**g2_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g0[]), void (**g3_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g1[]), PetscScalar elemVec[], AppCtx *user)
 {
   const PetscReal *basisI    = quad[fieldI].basis;
   const PetscReal *basisDerI = quad[fieldI].basisDer;
@@ -1084,7 +1084,7 @@ PetscErrorCode IntegrateJacobianActionBatchCPU(PetscInt Ne, PetscInt numFields, 
 
 .seealso: FormJacobianLocal()
 */
-PetscErrorCode FormJacobianActionLocal(DM dm, Mat Jac, Vec X, Vec F, AppCtx *user)
+static PetscErrorCode FormJacobianActionLocal(DM dm, Mat Jac, Vec X, Vec F, AppCtx *user)
 {
   const PetscInt debug = user->debug;
   const PetscInt dim   = user->dim;
@@ -1156,7 +1156,7 @@ PetscErrorCode FormJacobianActionLocal(DM dm, Mat Jac, Vec X, Vec F, AppCtx *use
 
 #undef __FUNCT__
 #define __FUNCT__ "FormJacobianAction"
-PetscErrorCode FormJacobianAction(Mat J, Vec X,  Vec Y)
+static PetscErrorCode FormJacobianAction(Mat J, Vec X,  Vec Y)
 {
   JacActionCtx   *ctx;
   DM             dm;
@@ -1229,7 +1229,7 @@ Loop over batch of elements (e):
                       + \nabla\psi^{fc}_f(q) \cdot g2_{fc,gc,df}(u, \nabla u) \phi^{gc}_g(q)
                       + \nabla\psi^{fc}_f(q) \cdot g3_{fc,gc,df,dg}(u, \nabla u) \nabla\phi^{gc}_g(q)
 */
-PetscErrorCode IntegrateJacobianBatchCPU(PetscInt Ne, PetscInt numFields, PetscInt fieldI, PetscInt fieldJ, const PetscScalar coefficients[], const PetscReal jacobianInverses[], const PetscReal jacobianDeterminants[], PetscQuadrature quad[], void (*g0_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g0[]), void (*g1_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g1[]), void (*g2_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g0[]), void (*g3_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g1[]), PetscScalar elemMat[], AppCtx *user)
+static PetscErrorCode IntegrateJacobianBatchCPU(PetscInt Ne, PetscInt numFields, PetscInt fieldI, PetscInt fieldJ, const PetscScalar coefficients[], const PetscReal jacobianInverses[], const PetscReal jacobianDeterminants[], PetscQuadrature quad[], void (*g0_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g0[]), void (*g1_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g1[]), void (*g2_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g0[]), void (*g3_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar g1[]), PetscScalar elemMat[], AppCtx *user)
 {
   const PetscReal *basisI    = quad[fieldI].basis;
   const PetscReal *basisDerI = quad[fieldI].basisDer;
@@ -1421,7 +1421,7 @@ PetscErrorCode IntegrateJacobianBatchCPU(PetscInt Ne, PetscInt numFields, PetscI
 
 .seealso: FormFunctionLocal()
 */
-PetscErrorCode FormJacobianLocal(DM dm, Vec X, Mat Jac, Mat JacP, MatStructure *str,AppCtx *user)
+static PetscErrorCode FormJacobianLocal(DM dm, Vec X, Mat Jac, Mat JacP, MatStructure *str,AppCtx *user)
 {
   const PetscInt debug = user->debug;
   const PetscInt dim   = user->dim;

@@ -5,7 +5,7 @@ static char help[] = "Demonstrates PETSc error handlers.\n";
 
 #undef __FUNCT__
 #define __FUNCT__ "CreateError"
-int CreateError(int n)
+static int CreateError(int n)
 {
   PetscErrorCode ierr;
   if (!n) SETERRQ(PETSC_COMM_SELF,1,"Error Created");

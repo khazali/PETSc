@@ -9,7 +9,7 @@ typedef struct {
   DM L1,L2;
 } Load;
 
-PetscErrorCode LoadCreate(PetscInt n1, PetscInt n2, Load *load)
+static PetscErrorCode LoadCreate(PetscInt n1, PetscInt n2, Load *load)
 {
   PetscErrorCode ierr;
 

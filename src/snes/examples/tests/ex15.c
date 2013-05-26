@@ -23,9 +23,9 @@ typedef struct {
 
 /* User-defined routines */
 static PetscReal p(PetscReal xi,PetscReal ecc);
-PetscErrorCode FormGradient(SNES,Vec,Vec,void*);
-PetscErrorCode FormHessian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-PetscErrorCode ComputeB(AppCtx*);
+static PetscErrorCode FormGradient(SNES,Vec,Vec,void*);
+static PetscErrorCode FormHessian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode ComputeB(AppCtx*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -132,7 +132,7 @@ static PetscReal p(PetscReal xi, PetscReal ecc)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeB"
-PetscErrorCode ComputeB(AppCtx *user)
+static PetscErrorCode ComputeB(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscInt       i,j;
@@ -168,7 +168,7 @@ PetscErrorCode ComputeB(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormGradient"
-PetscErrorCode FormGradient(SNES snes, Vec X, Vec G,void *ctx)
+static PetscErrorCode FormGradient(SNES snes, Vec X, Vec G,void *ctx)
 {
   AppCtx         *user=(AppCtx*)ctx;
   PetscErrorCode ierr;
@@ -272,7 +272,7 @@ PetscErrorCode FormGradient(SNES snes, Vec X, Vec G,void *ctx)
    Notice that the objective function in this problem is quadratic (therefore a constant
    hessian).  If using a nonquadratic solver, then you might want to reconsider this function
 */
-PetscErrorCode FormHessian(SNES snes,Vec X,Mat *H, Mat *Hpre, MatStructure *flg, void *ptr)
+static PetscErrorCode FormHessian(SNES snes,Vec X,Mat *H, Mat *Hpre, MatStructure *flg, void *ptr)
 {
   AppCtx         *user=(AppCtx*)ptr;
   PetscErrorCode ierr;

@@ -6,9 +6,9 @@ static char help[] = "Solves 1D wave equation using multigrid.\n\n";
 #include <petscksp.h>
 
 
-extern PetscErrorCode ComputeMatrix(KSP,Mat,Mat,MatStructure*,void*);
-extern PetscErrorCode ComputeRHS(KSP,Vec,void*);
-extern PetscErrorCode ComputeInitialSolution(DM,Vec);
+static PetscErrorCode ComputeMatrix(KSP,Mat,Mat,MatStructure*,void*);
+static PetscErrorCode ComputeRHS(KSP,Vec,void*);
+static PetscErrorCode ComputeInitialSolution(DM,Vec);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -47,7 +47,7 @@ int main(int argc,char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeInitialSolution"
-PetscErrorCode ComputeInitialSolution(DM da,Vec x)
+static PetscErrorCode ComputeInitialSolution(DM da,Vec x)
 {
   PetscErrorCode ierr;
   PetscInt       mx,col[2],xs,xm,i;
@@ -70,7 +70,7 @@ PetscErrorCode ComputeInitialSolution(DM da,Vec x)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeRHS"
-PetscErrorCode ComputeRHS(KSP ksp,Vec b,void *ctx)
+static PetscErrorCode ComputeRHS(KSP ksp,Vec b,void *ctx)
 {
   PetscErrorCode ierr;
   PetscInt       mx;
@@ -90,7 +90,7 @@ PetscErrorCode ComputeRHS(KSP ksp,Vec b,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeMatrix"
-PetscErrorCode ComputeMatrix(KSP ksp,Mat J,Mat jac,MatStructure *str,void *ctx)
+static PetscErrorCode ComputeMatrix(KSP ksp,Mat J,Mat jac,MatStructure *str,void *ctx)
 {
   PetscErrorCode ierr;
   PetscInt       i,mx,xm,xs;

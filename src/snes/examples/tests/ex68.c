@@ -18,7 +18,7 @@ Test 2:
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeFunctionLinear"
-PetscErrorCode ComputeFunctionLinear(SNES snes, Vec x, Vec f, void *ctx)
+static PetscErrorCode ComputeFunctionLinear(SNES snes, Vec x, Vec f, void *ctx)
 {
   Mat            A = (Mat) ctx;
   PetscErrorCode ierr;
@@ -30,7 +30,7 @@ PetscErrorCode ComputeFunctionLinear(SNES snes, Vec x, Vec f, void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeJacobianLinear"
-PetscErrorCode ComputeJacobianLinear(SNES snes, Vec x, Mat *A, Mat *J, MatStructure *flag, void *ctx)
+static PetscErrorCode ComputeJacobianLinear(SNES snes, Vec x, Mat *A, Mat *J, MatStructure *flag, void *ctx)
 {
   PetscFunctionBeginUser;
   PetscFunctionReturn(0);
@@ -38,7 +38,7 @@ PetscErrorCode ComputeJacobianLinear(SNES snes, Vec x, Mat *A, Mat *J, MatStruct
 
 #undef __FUNCT__
 #define __FUNCT__ "ConstructProblem1"
-PetscErrorCode ConstructProblem1(Mat A, Vec b)
+static PetscErrorCode ConstructProblem1(Mat A, Vec b)
 {
   PetscInt       rStart, rEnd, row;
   PetscErrorCode ierr;
@@ -58,7 +58,7 @@ PetscErrorCode ConstructProblem1(Mat A, Vec b)
 
 #undef __FUNCT__
 #define __FUNCT__ "CheckProblem1"
-PetscErrorCode CheckProblem1(Mat A, Vec b, Vec u)
+static PetscErrorCode CheckProblem1(Mat A, Vec b, Vec u)
 {
   Vec            errorVec;
   PetscReal      norm, error;
@@ -76,7 +76,7 @@ PetscErrorCode CheckProblem1(Mat A, Vec b, Vec u)
 
 #undef __FUNCT__
 #define __FUNCT__ "ConstructProblem2"
-PetscErrorCode ConstructProblem2(Mat A, Vec b)
+static PetscErrorCode ConstructProblem2(Mat A, Vec b)
 {
   PetscInt       N = 10, constraintSize = 4;
   PetscInt       row;
@@ -109,7 +109,7 @@ PetscErrorCode ConstructProblem2(Mat A, Vec b)
 
 #undef __FUNCT__
 #define __FUNCT__ "CheckProblem2"
-PetscErrorCode CheckProblem2(Mat A, Vec b, Vec u)
+static PetscErrorCode CheckProblem2(Mat A, Vec b, Vec u)
 {
   PetscInt       N = 10, constraintSize = 4, r;
   PetscReal      norm, error;

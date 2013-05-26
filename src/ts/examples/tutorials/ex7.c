@@ -19,9 +19,9 @@ static char help[] = "Nonlinear, time-dependent PDE in 2d.\n";
 /*
    User-defined routines
 */
-extern PetscErrorCode FormFunction(TS,PetscReal,Vec,Vec,void*),FormInitialSolution(DM,Vec);
-extern PetscErrorCode MyTSMonitor(TS,PetscInt,PetscReal,Vec,void*);
-extern PetscErrorCode MySNESMonitor(SNES,PetscInt,PetscReal,void*);
+static PetscErrorCode FormFunction(TS,PetscReal,Vec,Vec,void*),FormInitialSolution(DM,Vec);
+static PetscErrorCode MyTSMonitor(TS,PetscInt,PetscReal,Vec,void*);
+static PetscErrorCode MySNESMonitor(SNES,PetscInt,PetscReal,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -125,7 +125,7 @@ int main(int argc,char **argv)
    Output Parameter:
 .  F - function vector
  */
-PetscErrorCode FormFunction(TS ts,PetscReal ftime,Vec X,Vec F,void *ptr)
+static PetscErrorCode FormFunction(TS ts,PetscReal ftime,Vec X,Vec F,void *ptr)
 {
   DM             da;
   PetscErrorCode ierr;
@@ -194,7 +194,7 @@ PetscErrorCode FormFunction(TS ts,PetscReal ftime,Vec X,Vec F,void *ptr)
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormInitialSolution"
-PetscErrorCode FormInitialSolution(DM da,Vec U)
+static PetscErrorCode FormInitialSolution(DM da,Vec U)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,xs,ys,xm,ym,Mx,My;
@@ -240,7 +240,7 @@ PetscErrorCode FormInitialSolution(DM da,Vec U)
 
 #undef __FUNCT__
 #define __FUNCT__ "MyTSMonitor"
-PetscErrorCode MyTSMonitor(TS ts,PetscInt step,PetscReal ptime,Vec v,void *ctx)
+static PetscErrorCode MyTSMonitor(TS ts,PetscInt step,PetscReal ptime,Vec v,void *ctx)
 {
   PetscErrorCode ierr;
   PetscReal      norm;
@@ -264,7 +264,7 @@ PetscErrorCode MyTSMonitor(TS ts,PetscInt step,PetscReal ptime,Vec v,void *ctx)
      ctx - optional user-defined context for private data for the
          monitor routine, as set by SNESMonitorSet()
  */
-PetscErrorCode MySNESMonitor(SNES snes,PetscInt its,PetscReal fnorm,void *ctx)
+static PetscErrorCode MySNESMonitor(SNES snes,PetscInt its,PetscReal fnorm,void *ctx)
 {
   PetscErrorCode ierr;
 

@@ -24,10 +24,10 @@ T*/
 /*
    User-defined routines
 */
-extern PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-extern PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
-extern PetscErrorCode FormInitialGuess(Vec);
-extern PetscErrorCode Monitor(SNES,PetscInt,PetscReal,void*);
+static PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
+static PetscErrorCode FormInitialGuess(Vec);
+static PetscErrorCode Monitor(SNES,PetscInt,PetscReal,void*);
 
 /*
    User-defined context for monitoring
@@ -194,7 +194,7 @@ int main(int argc,char **argv)
    Input/Output Parameter:
 .  x - the solution vector
 */
-PetscErrorCode FormInitialGuess(Vec x)
+static PetscErrorCode FormInitialGuess(Vec x)
 {
   PetscErrorCode ierr;
   PetscScalar    pfive = .50;
@@ -222,7 +222,7 @@ PetscErrorCode FormInitialGuess(Vec x)
    a vector containing the right-hand-side of the discretized PDE.
  */
 
-PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
+static PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
 {
   Vec               g = (Vec)ctx;
   const PetscScalar *xx,*gg;
@@ -275,7 +275,7 @@ PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
 .  flag - flag indicating matrix structure
 */
 
-PetscErrorCode FormJacobian(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,void *dummy)
+static PetscErrorCode FormJacobian(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,void *dummy)
 {
   const PetscScalar *xx;
   PetscScalar       A[3],d;
@@ -349,7 +349,7 @@ PetscErrorCode FormJacobian(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,v
    See the manpage for PetscViewerDrawOpen() for useful runtime options,
    such as -nox to deactivate all x-window output.
  */
-PetscErrorCode Monitor(SNES snes,PetscInt its,PetscReal fnorm,void *ctx)
+static PetscErrorCode Monitor(SNES snes,PetscInt its,PetscReal fnorm,void *ctx)
 {
   PetscErrorCode ierr;
   MonitorCtx     *monP = (MonitorCtx*) ctx;

@@ -60,10 +60,10 @@ T*/
 /*
    User-defined routines
 */
-extern PetscErrorCode FormMatrix(DM,Mat);
-extern PetscErrorCode MyComputeFunction(SNES,Vec,Vec,void*);
-extern PetscErrorCode MyComputeJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-extern PetscErrorCode NonlinearGS(SNES,Vec);
+static PetscErrorCode FormMatrix(DM,Mat);
+static PetscErrorCode MyComputeFunction(SNES,Vec,Vec,void*);
+static PetscErrorCode MyComputeJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode NonlinearGS(SNES,Vec);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -145,7 +145,7 @@ int main(int argc,char **argv)
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "MyComputeFunction"
-PetscErrorCode MyComputeFunction(SNES snes,Vec x,Vec F,void *ctx)
+static PetscErrorCode MyComputeFunction(SNES snes,Vec x,Vec F,void *ctx)
 {
   PetscErrorCode ierr;
   Mat            J;
@@ -168,7 +168,7 @@ PetscErrorCode MyComputeFunction(SNES snes,Vec x,Vec F,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "MyComputeJacobian"
-PetscErrorCode MyComputeJacobian(SNES snes,Vec x,Mat *J,Mat *Jp,MatStructure *str,void *ctx)
+static PetscErrorCode MyComputeJacobian(SNES snes,Vec x,Mat *J,Mat *Jp,MatStructure *str,void *ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -182,7 +182,7 @@ PetscErrorCode MyComputeJacobian(SNES snes,Vec x,Mat *J,Mat *Jp,MatStructure *st
 
 #undef __FUNCT__
 #define __FUNCT__ "FormMatrix"
-PetscErrorCode FormMatrix(DM da,Mat jac)
+static PetscErrorCode FormMatrix(DM da,Mat jac)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,nrows = 0;
@@ -255,7 +255,7 @@ PetscErrorCode FormMatrix(DM da,Mat jac)
       Applies some sweeps on nonlinear Gauss-Seidel on each process
 
  */
-PetscErrorCode NonlinearGS(SNES snes,Vec X)
+static PetscErrorCode NonlinearGS(SNES snes,Vec X)
 {
   PetscInt       i,j,Mx,My,xs,ys,xm,ym,its,l;
   PetscErrorCode ierr;

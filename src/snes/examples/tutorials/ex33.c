@@ -31,7 +31,7 @@ typedef struct {
    Output Parameter:
    Kappa - vector
  */
-PetscErrorCode FormPermeability(DM da, Vec Kappa, AppCtx *user)
+static PetscErrorCode FormPermeability(DM da, Vec Kappa, AppCtx *user)
 {
   DM             cda;
   Vec            c;
@@ -65,7 +65,7 @@ PetscErrorCode FormPermeability(DM da, Vec Kappa, AppCtx *user)
 /*
    FormFunctionLocal - Evaluates nonlinear residual, F(x) on local process patch
 */
-PetscErrorCode FormFunctionLocal(DMDALocalInfo *info, Field *u, Field *f, AppCtx *user)
+static PetscErrorCode FormFunctionLocal(DMDALocalInfo *info, Field *u, Field *f, AppCtx *user)
 {
   Vec            L;
   PetscReal      phi        = user->phi;

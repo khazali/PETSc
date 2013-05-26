@@ -63,14 +63,14 @@ typedef struct {
 /*
    User-defined routines
 */
-extern PetscErrorCode FormInitialGuess(DM,AppCtx*,Vec);
-extern PetscErrorCode FormFunctionLocal(DMDALocalInfo*,PetscScalar**,PetscScalar**,AppCtx*);
-extern PetscErrorCode FormJacobianLocal(DMDALocalInfo*,PetscScalar**,Mat,Mat,MatStructure*,AppCtx*);
-extern PetscErrorCode FormObjectiveLocal(DMDALocalInfo*,PetscScalar**,PetscReal*,AppCtx*);
+static PetscErrorCode FormInitialGuess(DM,AppCtx*,Vec);
+static PetscErrorCode FormFunctionLocal(DMDALocalInfo*,PetscScalar**,PetscScalar**,AppCtx*);
+static PetscErrorCode FormJacobianLocal(DMDALocalInfo*,PetscScalar**,Mat,Mat,MatStructure*,AppCtx*);
+static PetscErrorCode FormObjectiveLocal(DMDALocalInfo*,PetscScalar**,PetscReal*,AppCtx*);
 #if defined(PETSC_HAVE_MATLAB_ENGINE)
-extern PetscErrorCode FormFunctionMatlab(SNES,Vec,Vec,void*);
+static PetscErrorCode FormFunctionMatlab(SNES,Vec,Vec,void*);
 #endif
-extern PetscErrorCode NonlinearGS(SNES,Vec,Vec,void*);
+static PetscErrorCode NonlinearGS(SNES,Vec,Vec,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -186,7 +186,7 @@ int main(int argc,char **argv)
    Output Parameter:
    X - vector
  */
-PetscErrorCode FormInitialGuess(DM da,AppCtx *user,Vec X)
+static PetscErrorCode FormInitialGuess(DM da,AppCtx *user,Vec X)
 {
   PetscInt       i,j,Mx,My,xs,ys,xm,ym;
   PetscErrorCode ierr;
@@ -247,7 +247,7 @@ PetscErrorCode FormInitialGuess(DM da,AppCtx *user,Vec X)
 
 
  */
-PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,PetscScalar **x,PetscScalar **f,AppCtx *user)
+static PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,PetscScalar **x,PetscScalar **f,AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscInt       i,j;
@@ -298,7 +298,7 @@ PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,PetscScalar **x,PetscScalar
 
 
  */
-PetscErrorCode FormObjectiveLocal(DMDALocalInfo *info,PetscScalar **x,PetscReal *obj,AppCtx *user)
+static PetscErrorCode FormObjectiveLocal(DMDALocalInfo *info,PetscScalar **x,PetscReal *obj,AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscInt       i,j;
@@ -353,7 +353,7 @@ PetscErrorCode FormObjectiveLocal(DMDALocalInfo *info,PetscScalar **x,PetscReal 
 /*
    FormJacobianLocal - Evaluates Jacobian matrix on local process patch
 */
-PetscErrorCode FormJacobianLocal(DMDALocalInfo *info,PetscScalar **x,Mat jacpre,Mat jac,MatStructure *flg,AppCtx *user)
+static PetscErrorCode FormJacobianLocal(DMDALocalInfo *info,PetscScalar **x,Mat jacpre,Mat jac,MatStructure *flg,AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,k;
@@ -435,7 +435,7 @@ PetscErrorCode FormJacobianLocal(DMDALocalInfo *info,PetscScalar **x,Mat jacpre,
 #if defined(PETSC_HAVE_MATLAB_ENGINE)
 #undef __FUNCT__
 #define __FUNCT__ "FormFunctionMatlab"
-PetscErrorCode FormFunctionMatlab(SNES snes,Vec X,Vec F,void *ptr)
+static PetscErrorCode FormFunctionMatlab(SNES snes,Vec X,Vec F,void *ptr)
 {
   AppCtx         *user = (AppCtx*)ptr;
   PetscErrorCode ierr;
@@ -488,7 +488,7 @@ PetscErrorCode FormFunctionMatlab(SNES snes,Vec X,Vec F,void *ptr)
       Applies some sweeps on nonlinear Gauss-Seidel on each process
 
  */
-PetscErrorCode NonlinearGS(SNES snes,Vec X, Vec B, void *ctx)
+static PetscErrorCode NonlinearGS(SNES snes,Vec X, Vec B, void *ctx)
 {
   PetscInt       i,j,k,Mx,My,xs,ys,xm,ym,its,tot_its,sweeps,l;
   PetscErrorCode ierr;

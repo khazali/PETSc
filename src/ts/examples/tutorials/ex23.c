@@ -27,14 +27,14 @@ typedef struct {
   PetscInt    implicit; /* Evaluate theta_c*Mo*u impliicitly or explicitly */
 } AppCtx;
 
-PetscErrorCode GetParams(AppCtx*);
-PetscErrorCode SetVariableBounds(DM,Vec,Vec);
-PetscErrorCode SetUpMatrices(AppCtx*);
-PetscErrorCode FormIFunction(TS,PetscReal,Vec,Vec,Vec,void*);
-PetscErrorCode FormIJacobian(TS,PetscReal,Vec,Vec,PetscReal,Mat*,Mat*,MatStructure*,void*);
-PetscErrorCode SetInitialGuess(Vec,AppCtx*);
-PetscErrorCode Update_q(TS);
-PetscErrorCode Monitor(TS,PetscInt,PetscReal,Vec,void*);
+static PetscErrorCode GetParams(AppCtx*);
+static PetscErrorCode SetVariableBounds(DM,Vec,Vec);
+static PetscErrorCode SetUpMatrices(AppCtx*);
+static PetscErrorCode FormIFunction(TS,PetscReal,Vec,Vec,Vec,void*);
+static PetscErrorCode FormIJacobian(TS,PetscReal,Vec,Vec,PetscReal,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode SetInitialGuess(Vec,AppCtx*);
+static PetscErrorCode Update_q(TS);
+static PetscErrorCode Monitor(TS,PetscInt,PetscReal,Vec,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -133,7 +133,7 @@ int main(int argc, char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "Update_q"
-PetscErrorCode Update_q(TS ts)
+static PetscErrorCode Update_q(TS ts)
 {
   PetscErrorCode ierr;
   AppCtx         *user;
@@ -160,7 +160,7 @@ PetscErrorCode Update_q(TS ts)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetInitialGuess"
-PetscErrorCode SetInitialGuess(Vec X,AppCtx *user)
+static PetscErrorCode SetInitialGuess(Vec X,AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscScalar    *x;
@@ -226,7 +226,7 @@ static void ShapefunctionsT3(PetscScalar *phi,PetscScalar phider[][2],PetscScala
 
 #undef __FUNCT__
 #define __FUNCT__ "FormIFunction"
-PetscErrorCode FormIFunction(TS ts,PetscReal t, Vec X,Vec Xdot,Vec F,void *ctx)
+static PetscErrorCode FormIFunction(TS ts,PetscReal t, Vec X,Vec Xdot,Vec F,void *ctx)
 {
   PetscErrorCode ierr;
   AppCtx         *user=(AppCtx*)ctx;
@@ -242,7 +242,7 @@ PetscErrorCode FormIFunction(TS ts,PetscReal t, Vec X,Vec Xdot,Vec F,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormIJacobian"
-PetscErrorCode FormIJacobian(TS ts, PetscReal t, Vec X, Vec Xdot, PetscReal a, Mat *J,Mat *B,MatStructure *flg,void *ctx)
+static PetscErrorCode FormIJacobian(TS ts, PetscReal t, Vec X, Vec Xdot, PetscReal a, Mat *J,Mat *B,MatStructure *flg,void *ctx)
 {
   PetscErrorCode   ierr;
   AppCtx           *user  =(AppCtx*)ctx;
@@ -266,7 +266,7 @@ PetscErrorCode FormIJacobian(TS ts, PetscReal t, Vec X, Vec Xdot, PetscReal a, M
 
 #undef __FUNCT__
 #define __FUNCT__ "SetVariableBounds"
-PetscErrorCode SetVariableBounds(DM da,Vec xl,Vec xu)
+static PetscErrorCode SetVariableBounds(DM da,Vec xl,Vec xu)
 {
   PetscErrorCode ierr;
   PetscScalar    ***l,***u;
@@ -295,7 +295,7 @@ PetscErrorCode SetVariableBounds(DM da,Vec xl,Vec xu)
 
 #undef __FUNCT__
 #define __FUNCT__ "GetParams"
-PetscErrorCode GetParams(AppCtx *user)
+static PetscErrorCode GetParams(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscBool      flg;
@@ -322,7 +322,7 @@ PetscErrorCode GetParams(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetUpMatrices"
-PetscErrorCode SetUpMatrices(AppCtx *user)
+static PetscErrorCode SetUpMatrices(AppCtx *user)
 {
   PetscErrorCode    ierr;
   PetscInt          nele,nen,i;
@@ -446,7 +446,7 @@ PetscErrorCode SetUpMatrices(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "Monitor"
-PetscErrorCode Monitor(TS ts,PetscInt steps,PetscReal time,Vec x,void *mctx)
+static PetscErrorCode Monitor(TS ts,PetscInt steps,PetscReal time,Vec x,void *mctx)
 {
   PetscErrorCode ierr;
 

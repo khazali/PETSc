@@ -124,7 +124,7 @@ void g3_uu(PetscScalar u[], const PetscScalar gradU[], PetscScalar g3[])
 
 #undef __FUNCT__
 #define __FUNCT__ "VecChop"
-PetscErrorCode VecChop(Vec v, PetscReal tol)
+static PetscErrorCode VecChop(Vec v, PetscReal tol)
 {
   PetscScalar    *a;
   PetscInt       n, i;
@@ -142,7 +142,7 @@ PetscErrorCode VecChop(Vec v, PetscReal tol)
 
 #undef __FUNCT__
 #define __FUNCT__ "ProcessOptions"
-PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
+static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   PetscErrorCode ierr;
 
@@ -179,7 +179,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 
 #undef __FUNCT__
 #define __FUNCT__ "CreateMesh"
-PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
+static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 {
   PetscInt       dim = user->dim;
   PetscErrorCode ierr;
@@ -204,7 +204,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupQuadrature"
-PetscErrorCode SetupQuadrature(AppCtx *user)
+static PetscErrorCode SetupQuadrature(AppCtx *user)
 {
   PetscFunctionBeginUser;
   user->q[0].numQuadPoints = NUM_QUADRATURE_POINTS_0;
@@ -227,7 +227,7 @@ PetscErrorCode SetupQuadrature(AppCtx *user)
 #undef __FUNCT__
 #define __FUNCT__ "SetupSection"
 /* This is now Q_1-P_0 */
-PetscErrorCode SetupSection(DM dm, AppCtx *user)
+static PetscErrorCode SetupSection(DM dm, AppCtx *user)
 {
   PetscInt       dim             = user->dim;
   PetscInt       numComp[2]      = {dim, 1};
@@ -249,7 +249,7 @@ PetscErrorCode SetupSection(DM dm, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupExactSolution"
-PetscErrorCode SetupExactSolution(AppCtx *user)
+static PetscErrorCode SetupExactSolution(AppCtx *user)
 {
   PetscFunctionBeginUser;
   user->f0Funcs[0] = f0_u;
@@ -277,7 +277,7 @@ PetscErrorCode SetupExactSolution(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "IntegrateResidualBatchCPU"
-PetscErrorCode IntegrateResidualBatchCPU(PetscInt Ne, PetscInt numFields, PetscInt field, const PetscScalar coefficients[], const PetscReal jacobianInverses[], const PetscReal jacobianDeterminants[], PetscQuadrature quad[], void (*f0_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar f0[]), void (*f1_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar f1[]), PetscScalar elemVec[], AppCtx *user)
+static PetscErrorCode IntegrateResidualBatchCPU(PetscInt Ne, PetscInt numFields, PetscInt field, const PetscScalar coefficients[], const PetscReal jacobianInverses[], const PetscReal jacobianDeterminants[], PetscQuadrature quad[], void (*f0_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar f0[]), void (*f1_func)(PetscScalar u[], const PetscScalar gradU[], PetscScalar f1[]), PetscScalar elemVec[], AppCtx *user)
 {
   const PetscInt debug   = user->debug;
   const PetscInt dim     = SPATIAL_DIM_0;
@@ -434,7 +434,7 @@ PetscErrorCode IntegrateResidualBatchCPU(PetscInt Ne, PetscInt numFields, PetscI
 
 .seealso: FormJacobianLocal()
 */
-PetscErrorCode FormFunctionLocal(DM dm, Vec X, Vec F, AppCtx *user)
+static PetscErrorCode FormFunctionLocal(DM dm, Vec X, Vec F, AppCtx *user)
 {
   const PetscInt debug = user->debug;
   const PetscInt dim   = user->dim;
@@ -533,7 +533,7 @@ PetscErrorCode FormFunctionLocal(DM dm, Vec X, Vec F, AppCtx *user)
 
 .seealso: FormFunctionLocal()
 */
-PetscErrorCode FormJacobianLocal(DM dm, Vec X, Mat Jac, Mat JacP, MatStructure *str,AppCtx *user)
+static PetscErrorCode FormJacobianLocal(DM dm, Vec X, Mat Jac, Mat JacP, MatStructure *str,AppCtx *user)
 {
   PetscErrorCode ierr;
 

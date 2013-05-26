@@ -25,8 +25,8 @@ typedef struct {
 /*
    User-defined routines
 */
-extern PetscErrorCode FormFunctionLocal(DMDALocalInfo*,PetscScalar**,PetscScalar**,AppCtx*);
-extern PetscErrorCode FormJacobianLocal(DMDALocalInfo*,PetscScalar**,Mat,AppCtx*);
+static PetscErrorCode FormFunctionLocal(DMDALocalInfo*,PetscScalar**,PetscScalar**,AppCtx*);
+static PetscErrorCode FormJacobianLocal(DMDALocalInfo*,PetscScalar**,Mat,AppCtx*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -100,14 +100,14 @@ int main(int argc,char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "funcU"
-PetscScalar funcU(DMDACoor2d *coords)
+static PetscScalar funcU(DMDACoor2d *coords)
 {
   return coords->x + coords->y;
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "funcA"
-PetscScalar funcA(PetscScalar z, AppCtx *user)
+static PetscScalar funcA(PetscScalar z, AppCtx *user)
 {
   PetscScalar v = 1.0;
   PetscInt    i;
@@ -118,7 +118,7 @@ PetscScalar funcA(PetscScalar z, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "funcADer"
-PetscScalar funcADer(PetscScalar z, AppCtx *user)
+static PetscScalar funcADer(PetscScalar z, AppCtx *user)
 {
   PetscScalar v = 1.0;
   PetscInt    i;
@@ -132,7 +132,7 @@ PetscScalar funcADer(PetscScalar z, AppCtx *user)
 /*
    FormFunctionLocal - Evaluates nonlinear function, F(x).
 */
-PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,PetscScalar **x,PetscScalar **f,AppCtx *user)
+static PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,PetscScalar **x,PetscScalar **f,AppCtx *user)
 {
   DM             coordDA;
   Vec            coordinates;
@@ -179,7 +179,7 @@ PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,PetscScalar **x,PetscScalar
 /*
    FormJacobianLocal - Evaluates Jacobian matrix.
 */
-PetscErrorCode FormJacobianLocal(DMDALocalInfo *info,PetscScalar **x,Mat jac,AppCtx *user)
+PETSC_UNUSED static PetscErrorCode FormJacobianLocal(DMDALocalInfo *info,PetscScalar **x,Mat jac,AppCtx *user)
 {
   MatStencil     col[5], row;
   PetscScalar    D, K, A, v[5], hx, hy, hxdhy, hydhx, ux, uy;

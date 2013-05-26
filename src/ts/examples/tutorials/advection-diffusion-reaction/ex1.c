@@ -76,7 +76,7 @@ typedef struct {
 
 #undef __FUNCT__
 #define __FUNCT__ "IFunctionView"
-PetscErrorCode IFunctionView(AppCtx *ctx,PetscViewer v)
+static PetscErrorCode IFunctionView(AppCtx *ctx,PetscViewer v)
 {
   PetscErrorCode ierr;
 
@@ -87,7 +87,7 @@ PetscErrorCode IFunctionView(AppCtx *ctx,PetscViewer v)
 
 #undef __FUNCT__
 #define __FUNCT__ "IFunctionLoad"
-PetscErrorCode IFunctionLoad(AppCtx **ctx,PetscViewer v)
+static PetscErrorCode IFunctionLoad(AppCtx **ctx,PetscViewer v)
 {
   PetscErrorCode ierr;
 
@@ -102,7 +102,7 @@ PetscErrorCode IFunctionLoad(AppCtx **ctx,PetscViewer v)
 /*
      Defines the ODE passed to the ODE solver
 */
-PetscErrorCode IFunction(TS ts,PetscReal t,Vec U,Vec Udot,Vec F,AppCtx *ctx)
+static PetscErrorCode IFunction(TS ts,PetscReal t,Vec U,Vec Udot,Vec F,AppCtx *ctx)
 {
   PetscErrorCode ierr;
   PetscScalar    *u,*udot,*f;
@@ -126,7 +126,7 @@ PetscErrorCode IFunction(TS ts,PetscReal t,Vec U,Vec Udot,Vec F,AppCtx *ctx)
 /*
      Defines the Jacobian of the ODE passed to the ODE solver. See TSSetIJacobian() for the meaning of a and the Jacobian.
 */
-PetscErrorCode IJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal a,Mat *A,Mat *B,MatStructure *flag,AppCtx *ctx)
+static PetscErrorCode IJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal a,Mat *A,Mat *B,MatStructure *flag,AppCtx *ctx)
 {
   PetscErrorCode ierr;
   PetscInt       rowcol[] = {0,1,2};

@@ -21,9 +21,9 @@ static char help[] = "Solves 3D Laplacian using multigrid.\n\n";
 #include <petscksp.h>
 #include <petscdmda.h>
 
-extern PetscErrorCode ComputeMatrix(KSP,Mat,Mat,MatStructure*,void*);
-extern PetscErrorCode ComputeRHS(KSP,Vec,void*);
-extern PetscErrorCode ComputeInitialGuess(KSP,Vec,void*);
+static PetscErrorCode ComputeMatrix(KSP,Mat,Mat,MatStructure*,void*);
+static PetscErrorCode ComputeRHS(KSP,Vec,void*);
+static PetscErrorCode ComputeInitialGuess(KSP,Vec,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -67,7 +67,7 @@ int main(int argc,char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeRHS"
-PetscErrorCode ComputeRHS(KSP ksp,Vec b,void *ctx)
+static PetscErrorCode ComputeRHS(KSP ksp,Vec b,void *ctx)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,k,mx,my,mz,xm,ym,zm,xs,ys,zs;
@@ -100,7 +100,7 @@ PetscErrorCode ComputeRHS(KSP ksp,Vec b,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeInitialGuess"
-PetscErrorCode ComputeInitialGuess(KSP ksp,Vec b,void *ctx)
+static PetscErrorCode ComputeInitialGuess(KSP ksp,Vec b,void *ctx)
 {
   PetscErrorCode ierr;
 
@@ -111,7 +111,7 @@ PetscErrorCode ComputeInitialGuess(KSP ksp,Vec b,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeMatrix"
-PetscErrorCode ComputeMatrix(KSP ksp,Mat jac,Mat B,MatStructure *stflg,void *ctx)
+static PetscErrorCode ComputeMatrix(KSP ksp,Mat jac,Mat B,MatStructure *stflg,void *ctx)
 {
   DM             da;
   PetscErrorCode ierr;

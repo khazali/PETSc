@@ -67,21 +67,21 @@ typedef struct {
   PetscViewer graphicsfile;  /* output of solution at each times step */
 } AppCtx;
 
-PetscErrorCode GetParams(AppCtx*);
-PetscErrorCode SetRandomVectors(AppCtx*,PetscReal);
-PetscErrorCode SetVariableBounds(DM,Vec,Vec);
-PetscErrorCode SetUpMatrices(AppCtx*);
-PetscErrorCode UpdateMatrices(AppCtx*);
-PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
-PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-PetscErrorCode SetInitialGuess(Vec,AppCtx*);
-PetscErrorCode Update_q(AppCtx*);
-PetscErrorCode Update_u(Vec,AppCtx*);
-PetscErrorCode DPsi(AppCtx*);
-PetscErrorCode LaplacianFiniteDifference(AppCtx*);
-PetscErrorCode Llog(Vec,Vec);
-PetscErrorCode Phi(AppCtx*);
-PetscErrorCode Phi_read(AppCtx*);
+static PetscErrorCode GetParams(AppCtx*);
+static PetscErrorCode SetRandomVectors(AppCtx*,PetscReal);
+static PetscErrorCode SetVariableBounds(DM,Vec,Vec);
+static PetscErrorCode SetUpMatrices(AppCtx*);
+static PetscErrorCode UpdateMatrices(AppCtx*);
+static PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
+static PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode SetInitialGuess(Vec,AppCtx*);
+static PetscErrorCode Update_q(AppCtx*);
+static PetscErrorCode Update_u(Vec,AppCtx*);
+static PetscErrorCode DPsi(AppCtx*);
+static PetscErrorCode LaplacianFiniteDifference(AppCtx*);
+static PetscErrorCode Llog(Vec,Vec);
+static PetscErrorCode Phi(AppCtx*);
+static PetscErrorCode Phi_read(AppCtx*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -337,7 +337,7 @@ int main(int argc, char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "Update_u"
-PetscErrorCode Update_u(Vec X,AppCtx *user)
+static PetscErrorCode Update_u(Vec X,AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscInt       i,n;
@@ -371,7 +371,7 @@ PetscErrorCode Update_u(Vec X,AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "Update_q"
-PetscErrorCode Update_q(AppCtx *user)
+static PetscErrorCode Update_q(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscScalar    *q_p,*w1,*w2,max1;
@@ -450,7 +450,7 @@ PetscErrorCode Update_q(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "DPsi"
-PetscErrorCode DPsi(AppCtx *user)
+static PetscErrorCode DPsi(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscScalar    Evf=user->Evf,Eif=user->Eif,kBT=user->kBT,A=user->A;
@@ -502,7 +502,7 @@ PetscErrorCode DPsi(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "Llog"
-PetscErrorCode Llog(Vec X, Vec Y)
+static PetscErrorCode Llog(Vec X, Vec Y)
 {
   PetscErrorCode ierr;
   PetscScalar    *x,*y;
@@ -522,7 +522,7 @@ PetscErrorCode Llog(Vec X, Vec Y)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetInitialGuess"
-PetscErrorCode SetInitialGuess(Vec X,AppCtx *user)
+static PetscErrorCode SetInitialGuess(Vec X,AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscInt       n,i,Mda,Nda;
@@ -647,7 +647,7 @@ typedef struct {
 
 #undef __FUNCT__
 #define __FUNCT__ "SetRandomVectors"
-PetscErrorCode SetRandomVectors(AppCtx *user,PetscReal t)
+static PetscErrorCode SetRandomVectors(AppCtx *user,PetscReal t)
 {
   PetscErrorCode      ierr;
   static RandomValues *randomvalues = 0;
@@ -703,7 +703,7 @@ PetscErrorCode SetRandomVectors(AppCtx *user,PetscReal t)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormFunction"
-PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ctx)
+static PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ctx)
 {
   PetscErrorCode ierr;
   AppCtx         *user=(AppCtx*)ctx;
@@ -715,7 +715,7 @@ PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormJacobian"
-PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flg,void *ctx)
+static PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flg,void *ctx)
 {
   PetscErrorCode ierr;
   AppCtx         *user=(AppCtx*)ctx;
@@ -730,7 +730,7 @@ PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flg,void
 
 #undef __FUNCT__
 #define __FUNCT__ "SetVariableBounds"
-PetscErrorCode SetVariableBounds(DM da,Vec xl,Vec xu)
+static PetscErrorCode SetVariableBounds(DM da,Vec xl,Vec xu)
 {
   PetscErrorCode ierr;
   PetscScalar    ***l,***u;
@@ -766,7 +766,7 @@ PetscErrorCode SetVariableBounds(DM da,Vec xl,Vec xu)
 
 #undef __FUNCT__
 #define __FUNCT__ "GetParams"
-PetscErrorCode GetParams(AppCtx *user)
+static PetscErrorCode GetParams(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscBool      flg,graphicsfile = PETSC_FALSE;
@@ -857,7 +857,7 @@ PetscErrorCode GetParams(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetUpMatrices"
-PetscErrorCode SetUpMatrices(AppCtx *user)
+static PetscErrorCode SetUpMatrices(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscInt       nele,nen,i,n;
@@ -1036,7 +1036,7 @@ PetscErrorCode SetUpMatrices(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "UpdateMatrices"
-PetscErrorCode UpdateMatrices(AppCtx *user)
+static PetscErrorCode UpdateMatrices(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscInt       i,n,Mda,Nda,nele,nen;
@@ -1190,7 +1190,7 @@ PetscErrorCode UpdateMatrices(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "Phi"
-PetscErrorCode Phi(AppCtx *user)
+static PetscErrorCode Phi(AppCtx *user)
 {
   PetscErrorCode    ierr;
   PetscScalar       xmid, xqu, lambda, h,x[3],y[3];
@@ -1332,7 +1332,7 @@ PetscErrorCode Phi(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "Phi_read"
-PetscErrorCode Phi_read(AppCtx *user)
+static PetscErrorCode Phi_read(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscReal      *values;

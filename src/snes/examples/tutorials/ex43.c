@@ -15,8 +15,8 @@ static char help[] = "Newton's method to solve a many-variable system that comes
 #include "ex43-44.h"
 
 
-extern PetscErrorCode FormJacobian1(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-extern PetscErrorCode FormFunction1(SNES,Vec,Vec,void*);
+static PetscErrorCode FormJacobian1(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode FormFunction1(SNES,Vec,Vec,void*);
 
 typedef struct {
   PetscInt n,p;
@@ -135,7 +135,7 @@ int main(int argc,char **argv)
    Output Parameter:
 .  f - function vector
  */
-PetscErrorCode FormFunction1(SNES snes,Vec x,Vec f,void *ictx)
+static PetscErrorCode FormFunction1(SNES snes,Vec x,Vec f,void *ictx)
 {
   PetscErrorCode ierr;
   PetscScalar    *xx,*ff;
@@ -183,7 +183,7 @@ PetscErrorCode FormFunction1(SNES snes,Vec x,Vec f,void *ictx)
 .  B - optionally different preconditioning matrix
 .  flag - flag indicating matrix structure
 */
-PetscErrorCode FormJacobian1(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,void *ictx)
+static PetscErrorCode FormJacobian1(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,void *ictx)
 {
   PetscScalar    *xx;
   PetscErrorCode ierr;

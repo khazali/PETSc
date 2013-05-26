@@ -25,10 +25,10 @@ static char help[] = "Solves 2D Poisson equation using multigrid.\n\n";
 #include <petscsys.h>
 #include <petscvec.h>
 
-extern PetscErrorCode ComputeJacobian(KSP,Mat,Mat,MatStructure*,void*);
-extern PetscErrorCode ComputeRHS(KSP,Vec,void*);
-extern PetscErrorCode ComputeTrueSolution(DM, Vec);
-extern PetscErrorCode VecView_VTK(Vec, const char [], const char []);
+static PetscErrorCode ComputeJacobian(KSP,Mat,Mat,MatStructure*,void*);
+static PetscErrorCode ComputeRHS(KSP,Vec,void*);
+static PetscErrorCode ComputeTrueSolution(DM, Vec);
+static PetscErrorCode VecView_VTK(Vec, const char [], const char []);
 
 typedef enum {DIRICHLET, NEUMANN} BCType;
 
@@ -72,7 +72,7 @@ int main(int argc,char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeRHS"
-PetscErrorCode ComputeRHS(KSP ksp,Vec b,void *ctx)
+static PetscErrorCode ComputeRHS(KSP ksp,Vec b,void *ctx)
 {
   UserContext    *user = (UserContext*)ctx;
   PetscErrorCode ierr;
@@ -115,7 +115,7 @@ PetscErrorCode ComputeRHS(KSP ksp,Vec b,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeJacobian"
-PetscErrorCode ComputeJacobian(KSP ksp,Mat J, Mat jac,MatStructure *str,void *ctx)
+static PetscErrorCode ComputeJacobian(KSP ksp,Mat J, Mat jac,MatStructure *str,void *ctx)
 {
   UserContext    *user = (UserContext*)ctx;
   PetscErrorCode ierr;

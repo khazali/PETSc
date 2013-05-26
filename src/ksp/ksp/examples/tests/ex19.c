@@ -44,7 +44,7 @@ typedef struct {
 #define COARSE_LEVEL 0
 #define FINE_LEVEL   1
 
-extern int FormJacobian_Grid(AppCtx*,GridCtx*,Mat*);
+static PetscErrorCode FormJacobian_Grid(AppCtx*,GridCtx*,Mat*);
 
 /*
       Mm_ratio - ration of grid lines between fine and coarse grids.
@@ -177,7 +177,7 @@ int main(int argc,char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormJacobian_Grid"
-int FormJacobian_Grid(AppCtx *user,GridCtx *grid,Mat *J)
+static PetscErrorCode FormJacobian_Grid(AppCtx *user,GridCtx *grid,Mat *J)
 {
   Mat            jac = *J;
   PetscErrorCode ierr;
@@ -185,6 +185,7 @@ int FormJacobian_Grid(AppCtx *user,GridCtx *grid,Mat *J)
   PetscInt       nloc,*ltog,grow;
   PetscScalar    two = 2.0,one = 1.0,v[5],hx,hy,hxdhy,hydhx,value;
 
+  PetscFunctionBeginUser;
   mx    = grid->mx;               my = grid->my;
   hx    = one/(PetscReal)(mx-1);  hy = one/(PetscReal)(my-1);
   hxdhy = hx/hy;               hydhx = hy/hx;
@@ -219,5 +220,5 @@ int FormJacobian_Grid(AppCtx *user,GridCtx *grid,Mat *J)
   ierr = MatAssemblyBegin(jac,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(jac,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
-  return 0;
+  PetscFunctionReturn(0);
 }

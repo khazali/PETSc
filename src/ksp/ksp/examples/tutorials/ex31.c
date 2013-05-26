@@ -57,12 +57,12 @@ typedef struct {
   PetscScalar     dt;      /* The timestep \Delta t */
 } UserContext;
 
-extern PetscErrorCode CreateStructures(DM,UserContext*);
-extern PetscErrorCode DestroyStructures(DM,UserContext*);
-extern PetscErrorCode ComputePredictor(DM,UserContext*);
-extern PetscErrorCode ComputeMatrix(KSP,Mat,Mat,MatStructure*,void*);
-extern PetscErrorCode ComputeRHS(KSP,Vec,void*);
-extern PetscErrorCode ComputeCorrector(DM,Vec,Vec);
+static PetscErrorCode CreateStructures(DM,UserContext*);
+static PetscErrorCode DestroyStructures(DM,UserContext*);
+static PetscErrorCode ComputePredictor(DM,UserContext*);
+static PetscErrorCode ComputeMatrix(KSP,Mat,Mat,MatStructure*,void*);
+static PetscErrorCode ComputeRHS(KSP,Vec,void*);
+static PetscErrorCode ComputeCorrector(DM,Vec,Vec);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -110,7 +110,7 @@ int main(int argc,char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "CreateStructures"
-PetscErrorCode CreateStructures(DM da, UserContext *user)
+static PetscErrorCode CreateStructures(DM da, UserContext *user)
 {
   const PetscInt *necon;
   PetscInt       ne,nc;
@@ -148,7 +148,7 @@ PetscErrorCode CreateStructures(DM da, UserContext *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "DestroyStructures"
-PetscErrorCode DestroyStructures(DM da, UserContext   *user)
+static PetscErrorCode DestroyStructures(DM da, UserContext   *user)
 {
   PetscErrorCode ierr;
 
@@ -181,7 +181,7 @@ PetscErrorCode DestroyStructures(DM da, UserContext   *user)
 #undef __FUNCT__
 #define __FUNCT__ "CalculateElementVelocity"
 /* Average the velocity (u,v) at time t^n over each element for time n+\phi */
-PetscErrorCode CalculateElementVelocity(DM da, UserContext *user)
+static PetscErrorCode CalculateElementVelocity(DM da, UserContext *user)
 {
   PetscScalar    *u_n,   *v_n;
   PetscScalar    *u_phi, *v_phi;
@@ -231,7 +231,7 @@ and the x and y components of the convective fluxes F are
 
    f^n = {\rho u  \rho u^2  \rho uv}^n      g^n = {\rho v  \rho uv  \rho v^2}^n
 */
-PetscErrorCode TaylorGalerkinStepI(DM da, UserContext *user)
+static PetscErrorCode TaylorGalerkinStepI(DM da, UserContext *user)
 {
   PetscScalar    phi_dt = user->phi*user->dt;
   PetscScalar    *u_n,     *v_n;
@@ -324,7 +324,7 @@ The element stiffness matrix for the identity in linear elements is
   12 \1 1 2/
 
   no matter what the shape of the triangle. */
-PetscErrorCode TaylorGalerkinStepIIMomentum(DM da, UserContext *user)
+static PetscErrorCode TaylorGalerkinStepIIMomentum(DM da, UserContext *user)
 {
   MPI_Comm       comm;
   KSP            ksp;
@@ -453,7 +453,7 @@ The element stiffness matrix for the identity in linear elements is
   12 \1 1 2/
 
   no matter what the shape of the triangle. */
-PetscErrorCode TaylorGalerkinStepIIMassEnergy(DM da, UserContext *user)
+static PetscErrorCode TaylorGalerkinStepIIMassEnergy(DM da, UserContext *user)
 {
   MPI_Comm       comm;
   Mat            mat;
@@ -599,7 +599,7 @@ PetscErrorCode TaylorGalerkinStepIIMassEnergy(DM da, UserContext *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputePredictor"
-PetscErrorCode ComputePredictor(DM da, UserContext *user)
+static PetscErrorCode ComputePredictor(DM da, UserContext *user)
 {
   Vec            uOldLocal, uLocal,uOld;
   PetscScalar    *pOld;
@@ -653,7 +653,7 @@ PetscErrorCode ComputePredictor(DM da, UserContext *user)
       |       \   |
   (i,   j)----(i+1, j)
 */
-PetscErrorCode ComputeRHS(KSP ksp, Vec b, void *ctx)
+static PetscErrorCode ComputeRHS(KSP ksp, Vec b, void *ctx)
 {
   UserContext    *user = (UserContext*)ctx;
   PetscScalar    phi   = user->phi;
@@ -718,7 +718,7 @@ no matter what the shape of the triangle. The Laplacian stiffness matrix is
 
 where A is the area of the triangle, and (x_i, y_i) is its i'th vertex.
 */
-PetscErrorCode ComputeMatrix(KSP ksp, Mat J, Mat jac, MatStructure *flag,void *ctx)
+static PetscErrorCode ComputeMatrix(KSP ksp, Mat J, Mat jac, MatStructure *flag,void *ctx)
 {
   UserContext *user = (UserContext*)ctx;
   /* not being used!
@@ -766,7 +766,7 @@ PetscErrorCode ComputeMatrix(KSP ksp, Mat J, Mat jac, MatStructure *flag,void *c
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeCorrector"
-PetscErrorCode ComputeCorrector(DM da, Vec uOld, Vec u)
+static PetscErrorCode ComputeCorrector(DM da, Vec uOld, Vec u)
 {
   Vec            uOldLocal, uLocal;
   PetscScalar    *cOld;

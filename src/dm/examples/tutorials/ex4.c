@@ -16,7 +16,7 @@ T*/
 
 #undef __FUNCT__
 #define __FUNCT__ "myfunction"
-PetscErrorCode myfunction(void *ctx,PetscInt n,const PetscScalar *xy,PetscScalar *u)
+static PetscErrorCode myfunction(void *ctx,PetscInt n,const PetscScalar *xy,PetscScalar *u)
 {
   PetscInt i;
 

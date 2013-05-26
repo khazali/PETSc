@@ -41,11 +41,11 @@ typedef struct {
   DM          da;
 } AppCtx;
 
-PetscErrorCode Parameter_settings(AppCtx*);
-PetscErrorCode ini_bou(Vec,AppCtx*);
-PetscErrorCode IFunction(TS,PetscReal,Vec,Vec,Vec,void*);
-PetscErrorCode IJacobian(TS,PetscReal,Vec,Vec,PetscReal,Mat*,Mat*,MatStructure*,void*);
-PetscErrorCode PostStep(TS);
+static PetscErrorCode Parameter_settings(AppCtx*);
+static PetscErrorCode ini_bou(Vec,AppCtx*);
+static PetscErrorCode IFunction(TS,PetscReal,Vec,Vec,Vec,void*);
+static PetscErrorCode IJacobian(TS,PetscReal,Vec,Vec,PetscReal,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode PostStep(TS);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -104,7 +104,7 @@ int main(int argc, char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "PostStep"
-PetscErrorCode PostStep(TS ts)
+static PetscErrorCode PostStep(TS ts)
 {
   PetscErrorCode ierr;
   Vec            X;
@@ -122,7 +122,7 @@ PetscErrorCode PostStep(TS ts)
 
 #undef __FUNCT__
 #define __FUNCT__ "ini_bou"
-PetscErrorCode ini_bou(Vec X,AppCtx* user)
+static PetscErrorCode ini_bou(Vec X,AppCtx* user)
 {
   PetscErrorCode ierr;
   DM             cda;
@@ -163,7 +163,7 @@ PetscErrorCode ini_bou(Vec X,AppCtx* user)
 /* First advection term */
 #undef __FUNCT__
 #define __FUNCT__ "adv1"
-PetscErrorCode adv1(PetscScalar **p,PetscScalar y,PetscInt i,PetscInt j,PetscInt M,PetscScalar *p1,AppCtx *user)
+static PetscErrorCode adv1(PetscScalar **p,PetscScalar y,PetscInt i,PetscInt j,PetscInt M,PetscScalar *p1,AppCtx *user)
 {
   PetscScalar f;
   /*  PetscScalar v1,v2,v3,v4,v5,s1,s2,s3; */
@@ -189,7 +189,7 @@ PetscErrorCode adv1(PetscScalar **p,PetscScalar y,PetscInt i,PetscInt j,PetscInt
 /* Second advection term */
 #undef __FUNCT__
 #define __FUNCT__ "adv2"
-PetscErrorCode adv2(PetscScalar **p,PetscScalar x,PetscInt i,PetscInt j,PetscInt N,PetscScalar *p2,AppCtx *user)
+static PetscErrorCode adv2(PetscScalar **p,PetscScalar x,PetscInt i,PetscInt j,PetscInt N,PetscScalar *p2,AppCtx *user)
 {
   PetscScalar f;
   /*  PetscScalar v1,v2,v3,v4,v5,s1,s2,s3; */
@@ -215,7 +215,7 @@ PetscErrorCode adv2(PetscScalar **p,PetscScalar x,PetscInt i,PetscInt j,PetscInt
 /* Diffusion term */
 #undef __FUNCT__
 #define __FUNCT__ "diffuse"
-PetscErrorCode diffuse(PetscScalar **p,PetscInt i,PetscInt j,PetscReal t,PetscScalar *p_diff,AppCtx * user)
+static PetscErrorCode diffuse(PetscScalar **p,PetscInt i,PetscInt j,PetscReal t,PetscScalar *p_diff,AppCtx * user)
 {
   PetscFunctionBeginUser;
 
@@ -225,7 +225,7 @@ PetscErrorCode diffuse(PetscScalar **p,PetscInt i,PetscInt j,PetscReal t,PetscSc
 
 #undef __FUNCT__
 #define __FUNCT__ "BoundaryConditions"
-PetscErrorCode BoundaryConditions(PetscScalar **p,DMDACoor2d **coors,PetscInt i,PetscInt j,PetscInt M, PetscInt N,PetscScalar **f,AppCtx *user)
+static PetscErrorCode BoundaryConditions(PetscScalar **p,DMDACoor2d **coors,PetscInt i,PetscInt j,PetscInt M, PetscInt N,PetscScalar **f,AppCtx *user)
 {
   PetscScalar fwc,fthetac;
   PetscScalar w=coors[j][i].y,theta=coors[j][i].x;
@@ -259,7 +259,7 @@ PetscErrorCode BoundaryConditions(PetscScalar **p,DMDACoor2d **coors,PetscInt i,
 
 #undef __FUNCT__
 #define __FUNCT__ "IFunction"
-PetscErrorCode IFunction(TS ts,PetscReal t,Vec X,Vec Xdot,Vec F,void *ctx)
+static PetscErrorCode IFunction(TS ts,PetscReal t,Vec X,Vec Xdot,Vec F,void *ctx)
 {
   PetscErrorCode ierr;
   AppCtx         *user=(AppCtx*)ctx;
@@ -316,7 +316,7 @@ PetscErrorCode IFunction(TS ts,PetscReal t,Vec X,Vec Xdot,Vec F,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "IJacobian"
-PetscErrorCode IJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat *J,Mat *Jpre,MatStructure *flg,void *ctx)
+static PetscErrorCode IJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat *J,Mat *Jpre,MatStructure *flg,void *ctx)
 {
   PetscErrorCode ierr;
   AppCtx         *user=(AppCtx*)ctx;
@@ -415,7 +415,7 @@ PetscErrorCode IJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat *J,Mat
 
 #undef __FUNCT__
 #define __FUNCT__ "Parameter_settings"
-PetscErrorCode Parameter_settings(AppCtx *user)
+static PetscErrorCode Parameter_settings(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscBool      flg;

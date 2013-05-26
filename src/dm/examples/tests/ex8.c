@@ -15,7 +15,7 @@ static char help[] = "Demonstrates generating a slice from a DMDA Vector.\n\n";
   For multiple degrees of freedom per node use ISCreateBlock()
   instead of ISCreateGeneral().
 */
-PetscErrorCode GenerateSliceScatter(DM da,VecScatter *scatter,Vec *vslice)
+static PetscErrorCode GenerateSliceScatter(DM da,VecScatter *scatter,Vec *vslice)
 {
   AO             ao;
   PetscInt       M,N,P,nslice,*sliceindices,count,i,j;

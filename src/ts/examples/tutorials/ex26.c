@@ -77,7 +77,7 @@ typedef struct {
   PetscScalar u,v,omega,temp;
 } Field;
 
-PetscErrorCode FormIFunctionLocal(DMDALocalInfo*,PetscReal,Field**,Field**,Field**,void*);
+static PetscErrorCode FormIFunctionLocal(DMDALocalInfo*,PetscReal,Field**,Field**,Field**,void*);
 
 typedef struct {
   PassiveReal lidvelocity,prandtl,grashof;   /* physical parameters */
@@ -85,7 +85,7 @@ typedef struct {
   PetscReal   cfl_initial;                   /* CFL for first time step */
 } AppCtx;
 
-PetscErrorCode FormInitialSolution(TS,Vec,AppCtx*);
+static PetscErrorCode FormInitialSolution(TS,Vec,AppCtx*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -189,7 +189,7 @@ int main(int argc,char **argv)
    Output Parameter:
    X - vector
  */
-PetscErrorCode FormInitialSolution(TS ts,Vec X,AppCtx *user)
+static PetscErrorCode FormInitialSolution(TS ts,Vec X,AppCtx *user)
 {
   DM             da;
   PetscInt       i,j,mx,xs,ys,xm,ym;
@@ -240,7 +240,7 @@ PetscErrorCode FormInitialSolution(TS ts,Vec X,AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormIFunctionLocal"
-PetscErrorCode FormIFunctionLocal(DMDALocalInfo *info,PetscReal ptime,Field **x,Field **xdot,Field **f,void *ptr)
+static PetscErrorCode FormIFunctionLocal(DMDALocalInfo *info,PetscReal ptime,Field **x,Field **xdot,Field **f,void *ptr)
 {
   AppCtx         *user = (AppCtx*)ptr;
   PetscErrorCode ierr;

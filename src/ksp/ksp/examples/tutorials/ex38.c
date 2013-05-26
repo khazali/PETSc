@@ -7,8 +7,8 @@ static char help[] = "Tests the aSA multigrid code.\n"
 #include <petscksp.h>
 #include <petscpcasa.h>
 
-PetscErrorCode  Create1dLaplacian(PetscInt,Mat*);
-PetscErrorCode  CalculateRhs(Vec);
+static PetscErrorCode Create1dLaplacian(PetscInt,Mat*);
+static PetscErrorCode CalculateRhs(Vec);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -65,7 +65,7 @@ int main(int Argc,char **Args)
 /* --------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "Create1dLaplacian"
-PetscErrorCode Create1dLaplacian(PetscInt n,Mat *mat)
+static PetscErrorCode Create1dLaplacian(PetscInt n,Mat *mat)
 {
   PetscScalar    mone = -1.0,two = 2.0;
   PetscInt       i,j,loc_start,loc_end;
@@ -87,7 +87,7 @@ PetscErrorCode Create1dLaplacian(PetscInt n,Mat *mat)
 /* --------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "CalculateRhs"
-PetscErrorCode CalculateRhs(Vec u)
+static PetscErrorCode CalculateRhs(Vec u)
 {
   PetscErrorCode ierr;
   PetscInt       i,n,loc_start,loc_end;

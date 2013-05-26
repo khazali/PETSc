@@ -63,10 +63,10 @@ typedef struct {
   PetscScalar dissociationScale;
 } AppCtx;
 
-extern PetscErrorCode IFunction(TS,PetscReal,Vec,Vec,Vec,void*);
-extern PetscErrorCode InitialConditions(DM,Vec);
-extern PetscErrorCode MyMonitorSetUp(TS);
-extern PetscErrorCode GetDfill(PetscInt*,void*);
+static PetscErrorCode IFunction(TS,PetscReal,Vec,Vec,Vec,void*);
+static PetscErrorCode InitialConditions(DM,Vec);
+static PetscErrorCode MyMonitorSetUp(TS);
+static PetscErrorCode GetDfill(PetscInt*,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -173,7 +173,7 @@ int main(int argc,char **argv)
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "InitialConditions"
-PetscErrorCode InitialConditions(DM da,Vec C)
+static PetscErrorCode InitialConditions(DM da,Vec C)
 {
   PetscErrorCode ierr;
   PetscInt       i,I,He,V,xs,xm,Mx,cnt = 0;
@@ -252,7 +252,7 @@ PetscErrorCode InitialConditions(DM da,Vec C)
    Output Parameter:
 .  F - function values
  */
-PetscErrorCode IFunction(TS ts,PetscReal ftime,Vec C,Vec Cdot,Vec F,void *ptr)
+static PetscErrorCode IFunction(TS ts,PetscReal ftime,Vec C,Vec Cdot,Vec F,void *ptr)
 {
   AppCtx         *ctx = (AppCtx*) ptr;
   DM             da;
@@ -502,7 +502,7 @@ PetscErrorCode IFunction(TS ts,PetscReal ftime,Vec C,Vec Cdot,Vec F,void *ptr)
 #undef __FUNCT__
 #define __FUNCT__ "GetDfill"
 
-PetscErrorCode GetDfill(PetscInt *dfill, void *ptr) 
+static PetscErrorCode GetDfill(PetscInt *dfill, void *ptr) 
 {
   AppCtx         *ctx = (AppCtx*) ptr;
   PetscInt       He,he,V,v,I,i,dof = 3*N+N*N,reactants[3],row,col1,col2,j;
@@ -728,7 +728,7 @@ typedef struct {
 /*
    Display He and V as a function of space and cluster size for each time step
 */
-PetscErrorCode MyMonitorMonitor(TS ts,PetscInt timestep,PetscReal time,Vec solution, void *ictx)
+static PetscErrorCode MyMonitorMonitor(TS ts,PetscInt timestep,PetscReal time,Vec solution, void *ictx)
 {
   MyMonitorCtx   *ctx = (MyMonitorCtx*)ictx;
   PetscErrorCode ierr;
@@ -745,7 +745,7 @@ PetscErrorCode MyMonitorMonitor(TS ts,PetscInt timestep,PetscReal time,Vec solut
 /*
    Frees all data structures associated with the monitor
 */
-PetscErrorCode MyMonitorDestroy(void **ictx)
+static PetscErrorCode MyMonitorDestroy(void **ictx)
 {
   MyMonitorCtx   **ctx = (MyMonitorCtx**)ictx;
   PetscErrorCode ierr;
@@ -764,7 +764,7 @@ PetscErrorCode MyMonitorDestroy(void **ictx)
 /*
    Sets up a monitor that will display He as a function of space and cluster size for each time step
 */
-PetscErrorCode MyMonitorSetUp(TS ts)
+static PetscErrorCode MyMonitorSetUp(TS ts)
 {
   DM             da;
   PetscErrorCode ierr;

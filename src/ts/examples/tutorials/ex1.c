@@ -46,7 +46,7 @@ typedef struct {
 /*
    User-defined routines
 */
-extern PetscErrorCode  FormJacobian(TS,PetscReal,Vec,Mat*,Mat*,MatStructure*,void*), FormFunction(TS,PetscReal,Vec,Vec,void*), FormInitialGuess(Vec,AppCtx*);
+static PetscErrorCode FormJacobian(TS,PetscReal,Vec,Mat*,Mat*,MatStructure*,void*), FormFunction(TS,PetscReal,Vec,Vec,void*), FormInitialGuess(Vec,AppCtx*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -188,7 +188,7 @@ int main(int argc,char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormInitialGuess"
-PetscErrorCode FormInitialGuess(Vec X,AppCtx *user)
+static PetscErrorCode FormInitialGuess(Vec X,AppCtx *user)
 {
   PetscInt       i,j,row,mx,my;
   PetscErrorCode ierr;
@@ -223,7 +223,7 @@ PetscErrorCode FormInitialGuess(Vec X,AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormFunction"
-PetscErrorCode FormFunction(TS ts,PetscReal t,Vec X,Vec F,void *ptr)
+static PetscErrorCode FormFunction(TS ts,PetscReal t,Vec X,Vec F,void *ptr)
 {
   AppCtx         *user = (AppCtx*)ptr;
   PetscErrorCode ierr;
@@ -277,7 +277,7 @@ PetscErrorCode FormFunction(TS ts,PetscReal t,Vec X,Vec F,void *ptr)
    J with a finite difference approximation, using our analytic Jacobian B for
    the preconditioner.
 */
-PetscErrorCode FormJacobian(TS ts,PetscReal t,Vec X,Mat *J,Mat *B,MatStructure *flag,void *ptr)
+static PetscErrorCode FormJacobian(TS ts,PetscReal t,Vec X,Mat *J,Mat *B,MatStructure *flag,void *ptr)
 {
   AppCtx         *user = (AppCtx*)ptr;
   PetscInt       i,j,row,mx,my,col[5];

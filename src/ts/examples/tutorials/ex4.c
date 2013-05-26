@@ -80,11 +80,11 @@ typedef struct {
 /*
    User-defined routines
 */
-extern PetscErrorCode InitialConditions(Vec,AppCtx*);
-extern PetscErrorCode RHSMatrixHeat(TS,PetscReal,Vec,Mat*,Mat*,MatStructure*,void*);
-extern PetscErrorCode RHSFunctionHeat(TS,PetscReal,Vec,Vec,void*);
-extern PetscErrorCode Monitor(TS,PetscInt,PetscReal,Vec,void*);
-extern PetscErrorCode ExactSolution(PetscReal,Vec,AppCtx*);
+static PetscErrorCode InitialConditions(Vec,AppCtx*);
+static PetscErrorCode RHSMatrixHeat(TS,PetscReal,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode RHSFunctionHeat(TS,PetscReal,Vec,Vec,void*);
+static PetscErrorCode Monitor(TS,PetscInt,PetscReal,Vec,void*);
+static PetscErrorCode ExactSolution(PetscReal,Vec,AppCtx*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -294,7 +294,7 @@ int main(int argc,char **argv)
    Output Parameter:
    u - vector with solution at initial time (global)
 */
-PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
+static PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
 {
   PetscScalar    *u_localptr,h = appctx->h;
   PetscInt       i,mybase,myend;
@@ -353,7 +353,7 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
    Output Parameter:
    solution - vector with the newly computed exact solution
 */
-PetscErrorCode ExactSolution(PetscReal t,Vec solution,AppCtx *appctx)
+static PetscErrorCode ExactSolution(PetscReal t,Vec solution,AppCtx *appctx)
 {
   PetscScalar    *s_localptr,h = appctx->h,ex1,ex2,sc1,sc2;
   PetscInt       i,mybase,myend;
@@ -403,7 +403,7 @@ PetscErrorCode ExactSolution(PetscReal t,Vec solution,AppCtx *appctx)
             information about the problem size, workspace and the exact
             solution.
 */
-PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec u,void *ctx)
+static PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec u,void *ctx)
 {
   AppCtx         *appctx = (AppCtx*) ctx;   /* user-defined application context */
   PetscErrorCode ierr;
@@ -493,7 +493,7 @@ PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec u,void *ctx)
    - Note that MatSetValues() uses 0-based row and column numbers
      in Fortran as well as in C.
 */
-PetscErrorCode RHSMatrixHeat(TS ts,PetscReal t,Vec X,Mat *AA,Mat *BB,MatStructure *str,void *ctx)
+static PetscErrorCode RHSMatrixHeat(TS ts,PetscReal t,Vec X,Mat *AA,Mat *BB,MatStructure *str,void *ctx)
 {
   Mat            A       = *AA;              /* Jacobian matrix */
   AppCtx         *appctx = (AppCtx*)ctx;     /* user-defined application context */
@@ -575,7 +575,7 @@ PetscErrorCode RHSMatrixHeat(TS ts,PetscReal t,Vec X,Mat *AA,Mat *BB,MatStructur
 
 #undef __FUNCT__
 #define __FUNCT__ "RHSFunctionHeat"
-PetscErrorCode RHSFunctionHeat(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
+static PetscErrorCode RHSFunctionHeat(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
 {
   PetscErrorCode ierr;
   Mat            A;

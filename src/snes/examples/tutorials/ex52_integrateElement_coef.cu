@@ -258,7 +258,7 @@ __global__ void integrateElementCoefQuadrature(int N_cb, realType *coefficients,
 // Calculate a conforming thread grid for N kernels
 #undef __FUNCT__
 #define __FUNCT__ "calculateGridCoef"
-PetscErrorCode calculateGridCoef(const int N, const int blockSize, unsigned int& x, unsigned int& y, unsigned int& z)
+static PetscErrorCode calculateGridCoef(const int N, const int blockSize, unsigned int& x, unsigned int& y, unsigned int& z)
 {
   PetscFunctionBegin;
   z = 1;

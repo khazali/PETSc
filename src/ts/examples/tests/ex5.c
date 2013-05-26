@@ -132,16 +132,16 @@ extern PetscScalar fahr_to_cel(PetscScalar);                        /* converts 
 extern PetscScalar cel_to_fahr(PetscScalar);                        /* converts Celsius to Fahrenheit */
 extern PetscScalar calcmixingr(PetscScalar, PetscScalar);           /* calculates mixing ratio */
 extern PetscScalar cloud(PetscScalar);                              /* cloud radiative parameterization */
-extern PetscErrorCode FormInitialSolution(DM,Vec,void*);            /* Specifies initial conditions for the system of equations (PETSc defined function) */
-extern PetscErrorCode RhsFunc(TS,PetscReal,Vec,Vec,void*);          /* Specifies the user defined functions                     (PETSc defined function) */
-extern PetscErrorCode Monitor(TS,PetscInt,PetscReal,Vec,void*);     /* Specifies output and visualization tools                 (PETSc defined function) */
+static PetscErrorCode FormInitialSolution(DM,Vec,void*);            /* Specifies initial conditions for the system of equations (PETSc defined function) */
+static PetscErrorCode RhsFunc(TS,PetscReal,Vec,Vec,void*);          /* Specifies the user defined functions                     (PETSc defined function) */
+static PetscErrorCode Monitor(TS,PetscInt,PetscReal,Vec,void*);     /* Specifies output and visualization tools                 (PETSc defined function) */
 extern void readinput(struct in *put);                              /* reads input from text file */
-extern PetscErrorCode calcfluxs(PetscScalar, PetscScalar, PetscScalar, PetscScalar, PetscScalar, PetscScalar*); /* calculates upward IR from surface */
-extern PetscErrorCode calcfluxa(PetscScalar, PetscScalar, PetscScalar, PetscScalar*);                           /* calculates downward IR from atmosphere */
-extern PetscErrorCode sensibleflux(PetscScalar, PetscScalar, PetscScalar, PetscScalar*);                        /* calculates sensible heat flux */
-extern PetscErrorCode potential_temperature(PetscScalar, PetscScalar, PetscScalar, PetscScalar, PetscScalar*);  /* calculates potential temperature */
-extern PetscErrorCode latentflux(PetscScalar, PetscScalar, PetscScalar, PetscScalar, PetscScalar*);             /* calculates latent heat flux */
-extern PetscErrorCode calc_gflux(PetscScalar, PetscScalar, PetscScalar*);                                       /* calculates flux between top soil layer and underlying earth */
+static PetscErrorCode calcfluxs(PetscScalar, PetscScalar, PetscScalar, PetscScalar, PetscScalar, PetscScalar*); /* calculates upward IR from surface */
+static PetscErrorCode calcfluxa(PetscScalar, PetscScalar, PetscScalar, PetscScalar*);                           /* calculates downward IR from atmosphere */
+static PetscErrorCode sensibleflux(PetscScalar, PetscScalar, PetscScalar, PetscScalar*);                        /* calculates sensible heat flux */
+static PetscErrorCode potential_temperature(PetscScalar, PetscScalar, PetscScalar, PetscScalar, PetscScalar*);  /* calculates potential temperature */
+static PetscErrorCode latentflux(PetscScalar, PetscScalar, PetscScalar, PetscScalar, PetscScalar*);             /* calculates latent heat flux */
+static PetscErrorCode calc_gflux(PetscScalar, PetscScalar, PetscScalar*);                                       /* calculates flux between top soil layer and underlying earth */
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -334,7 +334,7 @@ int main(int argc,char **argv)
 /*****************************************************************************/
 #undef __FUNCT__
 #define __FUNCT__ "calcfluxs"
-PetscErrorCode calcfluxs(PetscScalar sfctemp, PetscScalar airtemp, PetscScalar emma, PetscScalar fract, PetscScalar cloudTemp, PetscScalar *flux)
+static PetscErrorCode calcfluxs(PetscScalar sfctemp, PetscScalar airtemp, PetscScalar emma, PetscScalar fract, PetscScalar cloudTemp, PetscScalar *flux)
 {
   PetscFunctionBeginUser;
   *flux = SIG*((EMMSFC*emma*pow(airtemp,4)) + (EMMSFC*fract*(1 - emma)*pow(cloudTemp,4)) - (EMMSFC*pow(sfctemp,4)));   /* calculates flux using Stefan-Boltzmann relation */
@@ -343,7 +343,7 @@ PetscErrorCode calcfluxs(PetscScalar sfctemp, PetscScalar airtemp, PetscScalar e
 
 #undef __FUNCT__
 #define __FUNCT__ "calcfluxa"
-PetscErrorCode calcfluxa(PetscScalar sfctemp, PetscScalar airtemp, PetscScalar emma, PetscScalar *flux)   /* this function is not currently called upon */
+static PetscErrorCode calcfluxa(PetscScalar sfctemp, PetscScalar airtemp, PetscScalar emma, PetscScalar *flux)   /* this function is not currently called upon */
 {
   PetscScalar emm = 0.001;
 
@@ -353,7 +353,7 @@ PetscErrorCode calcfluxa(PetscScalar sfctemp, PetscScalar airtemp, PetscScalar e
 }
 #undef __FUNCT__
 #define __FUNCT__ "sensibleflux"
-PetscErrorCode sensibleflux(PetscScalar sfctemp, PetscScalar airtemp, PetscScalar wind, PetscScalar *sheat)
+static PetscErrorCode sensibleflux(PetscScalar sfctemp, PetscScalar airtemp, PetscScalar wind, PetscScalar *sheat)
 {
   PetscScalar density = 1;    /* air density */
   PetscScalar Cp      = 1005; /* heat capicity for dry air */
@@ -367,7 +367,7 @@ PetscErrorCode sensibleflux(PetscScalar sfctemp, PetscScalar airtemp, PetscScala
 
 #undef __FUNCT__
 #define __FUNCT__ "latentflux"
-PetscErrorCode latentflux(PetscScalar sfctemp, PetscScalar dewtemp, PetscScalar wind, PetscScalar pressure1, PetscScalar *latentheat)
+static PetscErrorCode latentflux(PetscScalar sfctemp, PetscScalar dewtemp, PetscScalar wind, PetscScalar pressure1, PetscScalar *latentheat)
 {
   PetscScalar density = 1;   /* density of dry air */
   PetscScalar q;             /* actual specific humitity */
@@ -394,7 +394,7 @@ PetscErrorCode latentflux(PetscScalar sfctemp, PetscScalar dewtemp, PetscScalar 
 
 #undef __FUNCT__
 #define __FUNCT__ "potential_temperature"
-PetscErrorCode potential_temperature(PetscScalar temp, PetscScalar pressure1, PetscScalar pressure2, PetscScalar sfctemp, PetscScalar *pottemp)
+static PetscErrorCode potential_temperature(PetscScalar temp, PetscScalar pressure1, PetscScalar pressure2, PetscScalar sfctemp, PetscScalar *pottemp)
 {
   PetscScalar kdry;     /* poisson constant for dry atmosphere */
   PetscScalar kmoist;   /* poisson constant for moist atmosphere */
@@ -434,7 +434,7 @@ extern PetscScalar calc_q(PetscScalar rv)
 
 #undef __FUNCT__
 #define __FUNCT__ "calc_gflux"
-PetscErrorCode calc_gflux(PetscScalar sfctemp, PetscScalar deep_grnd_temp, PetscScalar* Gflux)
+static PetscErrorCode calc_gflux(PetscScalar sfctemp, PetscScalar deep_grnd_temp, PetscScalar* Gflux)
 {
   PetscScalar k;                       /* thermal conductivity parameter */
   PetscScalar n                = 0.38; /* value of soil porosity */
@@ -533,7 +533,7 @@ void readinput(struct in *put)
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormInitialSolution"
-PetscErrorCode FormInitialSolution(DM da,Vec Xglobal,void *ctx)
+static PetscErrorCode FormInitialSolution(DM da,Vec Xglobal,void *ctx)
 {
   PetscErrorCode ierr;
   AppCtx         *user = (AppCtx*)ctx;       /* user-defined application context */
@@ -607,7 +607,7 @@ PetscErrorCode FormInitialSolution(DM da,Vec Xglobal,void *ctx)
    Output Parameter:
 .  F - rhs function vector
  */
-PetscErrorCode RhsFunc(TS ts,PetscReal t,Vec Xglobal,Vec F,void *ctx)
+static PetscErrorCode RhsFunc(TS ts,PetscReal t,Vec Xglobal,Vec F,void *ctx)
 {
   AppCtx         *user = (AppCtx*)ctx;       /* user-defined application context */
   DM             da    = user->da;
@@ -731,7 +731,7 @@ PetscErrorCode RhsFunc(TS ts,PetscReal t,Vec Xglobal,Vec F,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "Monitor"
-PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec T,void *ctx)
+static PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec T,void *ctx)
 {
   PetscErrorCode ierr;
   PetscScalar    *array;

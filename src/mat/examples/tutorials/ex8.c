@@ -22,7 +22,7 @@ static PetscErrorCode MatScaleUserImpl_SeqAIJ(Mat inA,PetscScalar alpha)
 
 /* This routine implments MatScaleUserImpl() functionality for MatType
    SeqAIJ. MatScale_MPIAIJ() code duplicated here */
-extern PetscErrorCode MatScaleUserImpl(Mat,PetscScalar);
+static PetscErrorCode MatScaleUserImpl(Mat,PetscScalar);
 #include <../src/mat/impls/aij/mpi/mpiaij.h>
 static PetscErrorCode MatScaleUserImpl_MPIAIJ(Mat A,PetscScalar aa)
 {
@@ -40,7 +40,7 @@ static PetscErrorCode MatScaleUserImpl_MPIAIJ(Mat A,PetscScalar aa)
 /* This routine registers MatScaleUserImpl_SeqAIJ() and
    MatScaleUserImpl_MPIAIJ() as methods providing MatScaleUserImpl()
    functionality for SeqAIJ and MPIAIJ matrix-types */
-PetscErrorCode RegisterMatScaleUserImpl(Mat mat)
+static PetscErrorCode RegisterMatScaleUserImpl(Mat mat)
 {
   PetscErrorCode ierr;
   PetscMPIInt    size;
@@ -64,7 +64,7 @@ PetscErrorCode RegisterMatScaleUserImpl(Mat mat)
    routine. i.e if MatType is SeqAIJ, MatScaleUserImpl_SeqAIJ() gets
    called, and if MatType is MPIAIJ, MatScaleUserImpl_MPIAIJ() gets
    called */
-PetscErrorCode MatScaleUserImpl(Mat mat,PetscScalar a)
+static PetscErrorCode MatScaleUserImpl(Mat mat,PetscScalar a)
 {
   PetscErrorCode ierr,(*f)(Mat,PetscScalar);
 

@@ -103,7 +103,7 @@ static PetscErrorCode IJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal a,Mat
 
 #undef __FUNCT__
 #define __FUNCT__ "PostStep"
-PetscErrorCode PostStep(TS ts)
+static PetscErrorCode PostStep(TS ts)
 {
   PetscErrorCode ierr;
   Vec            X;

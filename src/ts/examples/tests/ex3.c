@@ -33,13 +33,13 @@ typedef struct {
 } AppCtx;
 
 extern PetscScalar exact(PetscScalar,PetscReal);
-extern PetscErrorCode Monitor(TS,PetscInt,PetscReal,Vec,void*);
-extern PetscErrorCode Petsc_KSPSolve(AppCtx*);
+static PetscErrorCode Monitor(TS,PetscInt,PetscReal,Vec,void*);
+static PetscErrorCode Petsc_KSPSolve(AppCtx*);
 extern PetscScalar bspl(PetscScalar*,PetscScalar,PetscInt,PetscInt,PetscInt[][2],PetscInt);
 extern void femBg(PetscScalar[][3],PetscScalar*,PetscInt,PetscScalar*,PetscReal);
 extern void femA(AppCtx*,PetscInt,PetscScalar*);
 extern void rhs(AppCtx*,PetscScalar*, PetscInt, PetscScalar*,PetscReal);
-extern PetscErrorCode RHSfunction(TS,PetscReal,Vec,Vec,void*);
+static PetscErrorCode RHSfunction(TS,PetscReal,Vec,Vec,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -224,7 +224,7 @@ PetscScalar exact(PetscScalar z,PetscReal t)
             information about the problem size, workspace and the exact
             solution.
 */
-PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec u,void *ctx)
+static PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec u,void *ctx)
 {
   AppCtx         *appctx = (AppCtx*)ctx;
   PetscErrorCode ierr;
@@ -269,7 +269,7 @@ PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec u,void *ctx)
 %%      Function to solve a linear system using KSP                                           %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
-PetscErrorCode Petsc_KSPSolve(AppCtx *obj)
+static PetscErrorCode Petsc_KSPSolve(AppCtx *obj)
 {
   PetscErrorCode ierr;
   KSP            ksp;
@@ -548,7 +548,7 @@ void rhs(AppCtx *obj,PetscScalar *y, PetscInt nz, PetscScalar *z, PetscReal t)
       to the problem ydot=f(y,t)=inv(A)*(By+g)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
-PetscErrorCode RHSfunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
+static PetscErrorCode RHSfunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
 {
   PetscErrorCode ierr;
   AppCtx         *obj = (AppCtx*)ctx;

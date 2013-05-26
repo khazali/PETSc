@@ -29,7 +29,7 @@ typedef struct {
   Vec         initialsolution;
 } AppCtx;
 
-PetscScalar k1(AppCtx *ctx,PetscReal t)
+static PetscScalar k1(AppCtx *ctx,PetscReal t)
 {
   PetscReal th    = t/3600.0;
   PetscReal barth = th - 24.0*floor(th/24.0);

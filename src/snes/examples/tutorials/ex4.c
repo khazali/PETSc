@@ -62,10 +62,10 @@ static PetscScalar quadWeights[4] = {0.25, 0.25, 0.25, 0.25};
 /*
    User-defined routines
 */
-extern PetscErrorCode FormInitialGuess(SNES,Vec,void*);
-extern PetscErrorCode FormFunctionLocal(DMDALocalInfo*,PetscScalar**,PetscScalar**,AppCtx*);
-extern PetscErrorCode FormJacobianLocal(DMDALocalInfo*,PetscScalar**,Mat,Mat,MatStructure*,AppCtx*);
-extern PetscErrorCode PrintVector(DM, Vec);
+static PetscErrorCode FormInitialGuess(SNES,Vec,void*);
+static PetscErrorCode FormFunctionLocal(DMDALocalInfo*,PetscScalar**,PetscScalar**,AppCtx*);
+static PetscErrorCode FormJacobianLocal(DMDALocalInfo*,PetscScalar**,Mat,Mat,MatStructure*,AppCtx*);
+static PetscErrorCode PrintVector(DM, Vec);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -151,7 +151,7 @@ int main(int argc,char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "PrintVector"
-PetscErrorCode PrintVector(DM da, Vec U)
+static PetscErrorCode PrintVector(DM da, Vec U)
 {
   PetscScalar    **u;
   PetscInt       i,j,xs,ys,xm,ym;
@@ -172,7 +172,7 @@ PetscErrorCode PrintVector(DM da, Vec U)
 
 #undef __FUNCT__
 #define __FUNCT__ "ExactSolution"
-PetscErrorCode ExactSolution(PetscReal x, PetscReal y, PetscScalar *u)
+static PetscErrorCode ExactSolution(PetscReal x, PetscReal y, PetscScalar *u)
 {
   PetscFunctionBeginUser;
   *u = x*x;
@@ -190,7 +190,7 @@ PetscErrorCode ExactSolution(PetscReal x, PetscReal y, PetscScalar *u)
    Output Parameter:
    X - vector
 */
-PetscErrorCode FormInitialGuess(SNES snes,Vec X,void *ctx)
+static PetscErrorCode FormInitialGuess(SNES snes,Vec X,void *ctx)
 {
   AppCtx         *user;
   PetscInt       i,j,Mx,My,xs,ys,xm,ym;
@@ -249,7 +249,7 @@ PetscErrorCode FormInitialGuess(SNES snes,Vec X,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "constantResidual"
-PetscErrorCode constantResidual(PetscReal lambda, int i, int j, PetscReal hx, PetscReal hy, PetscScalar r[])
+static PetscErrorCode constantResidual(PetscReal lambda, int i, int j, PetscReal hx, PetscReal hy, PetscScalar r[])
 {
   PetscScalar rLocal[4] = {0.0, 0.0, 0.0};
   PetscScalar phi[4]    = {0.0, 0.0, 0.0, 0.0};
@@ -277,7 +277,7 @@ PetscErrorCode constantResidual(PetscReal lambda, int i, int j, PetscReal hx, Pe
 
 #undef __FUNCT__
 #define __FUNCT__ "nonlinearResidual"
-PetscErrorCode nonlinearResidual(PetscReal lambda, PetscScalar u[], PetscScalar r[])
+static PetscErrorCode nonlinearResidual(PetscReal lambda, PetscScalar u[], PetscScalar r[])
 {
   PetscFunctionBeginUser;
   r[0] += lambda*(48.0*u[0]*u[0]*u[0] + 12.0*u[1]*u[1]*u[1] + 9.0*u[0]*u[0]*(4.0*u[1] + u[2] + 4.0*u[3]) + u[1]*u[1]*(9.0*u[2] + 6.0*u[3]) + u[1]*(6.0*u[2]*u[2] + 8.0*u[2]*u[3] + 6.0*u[3]*u[3])
@@ -296,7 +296,7 @@ PetscErrorCode nonlinearResidual(PetscReal lambda, PetscScalar u[], PetscScalar 
 
 #undef __FUNCT__
 #define __FUNCT__ "nonlinearResidualBratu"
-PetscErrorCode nonlinearResidualBratu(PetscReal lambda, PetscScalar u[], PetscScalar r[])
+PETSC_UNUSED static PetscErrorCode nonlinearResidualBratu(PetscReal lambda, PetscScalar u[], PetscScalar r[])
 {
   PetscScalar rLocal[4] = {0.0, 0.0, 0.0, 0.0};
   PetscScalar phi[4]    = {0.0, 0.0, 0.0, 0.0};
@@ -324,7 +324,7 @@ PetscErrorCode nonlinearResidualBratu(PetscReal lambda, PetscScalar u[], PetscSc
 
 #undef __FUNCT__
 #define __FUNCT__ "nonlinearJacobian"
-PetscErrorCode nonlinearJacobian(PetscScalar lambda, PetscScalar u[], PetscScalar J[])
+static PetscErrorCode nonlinearJacobian(PetscScalar lambda, PetscScalar u[], PetscScalar J[])
 {
   PetscFunctionBeginUser;
   J[0]  = lambda*(72.0*u[0]*u[0] + 12.0*u[1]*u[1] + 9.0*u[0]*(4.0*u[1] + u[2] + 4.0*u[3]) + u[1]*(6.0*u[2] + 9.0*u[3]) + 2.0*(u[2]*u[2] + 3.0*u[2]*u[3] + 6.0*u[3]*u[3]))/600.0;
@@ -355,7 +355,7 @@ PetscErrorCode nonlinearJacobian(PetscScalar lambda, PetscScalar u[], PetscScala
    FormFunctionLocal - Evaluates nonlinear function, F(x).
 
  */
-PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,PetscScalar **x,PetscScalar **f,AppCtx *user)
+static PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,PetscScalar **x,PetscScalar **f,AppCtx *user)
 {
   PetscScalar    uLocal[4];
   PetscScalar    rLocal[4];
@@ -437,7 +437,7 @@ PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,PetscScalar **x,PetscScalar
 /*
    FormJacobianLocal - Evaluates Jacobian matrix.
 */
-PetscErrorCode FormJacobianLocal(DMDALocalInfo *info,PetscScalar **x,Mat A,Mat jac,MatStructure *str,AppCtx *user)
+static PetscErrorCode FormJacobianLocal(DMDALocalInfo *info,PetscScalar **x,Mat A,Mat jac,MatStructure *str,AppCtx *user)
 {
   PetscScalar    JLocal[16], ELocal[16], uLocal[4];
   MatStencil     rows[4], cols[4], ident;

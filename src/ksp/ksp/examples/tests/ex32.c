@@ -13,8 +13,8 @@ static char help[] = "Solves 3D Laplacian using wirebasket based multigrid.\n\n"
 #include <petscdmda.h>
 #include <petscksp.h>
 
-extern PetscErrorCode ComputeMatrix(DM,Mat);
-extern PetscErrorCode ComputeRHS(DM,Vec);
+static PetscErrorCode ComputeMatrix(DM,Mat);
+static PetscErrorCode ComputeRHS(DM,Vec);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -113,7 +113,7 @@ int main(int argc,char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeRHS"
-PetscErrorCode ComputeRHS(DM da,Vec b)
+static PetscErrorCode ComputeRHS(DM da,Vec b)
 {
   PetscErrorCode ierr;
   PetscInt       mx,my,mz;
@@ -128,7 +128,7 @@ PetscErrorCode ComputeRHS(DM da,Vec b)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeMatrix"
-PetscErrorCode ComputeMatrix(DM da,Mat B)
+static PetscErrorCode ComputeMatrix(DM da,Mat B)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,k,mx,my,mz,xm,ym,zm,xs,ys,zs,dof,k1,k2,k3;

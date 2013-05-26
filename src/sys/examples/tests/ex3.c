@@ -5,7 +5,7 @@ static char help[] = "Tests catching of floating point exceptions.\n\n";
 
 #undef __FUNCT__
 #define __FUNCT__ "CreateError"
-int CreateError(PetscReal x)
+static int CreateError(PetscReal x)
 {
   PetscErrorCode ierr;
 

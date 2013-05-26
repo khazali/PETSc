@@ -28,10 +28,10 @@ typedef struct {
 } SampleShellPC;
 
 /* Declare routines for user-provided preconditioner */
-extern PetscErrorCode SampleShellPCCreate(SampleShellPC**);
-extern PetscErrorCode SampleShellPCSetUp(PC,Mat,Vec);
-extern PetscErrorCode SampleShellPCApply(PC,Vec x,Vec y);
-extern PetscErrorCode SampleShellPCDestroy(PC);
+static PetscErrorCode SampleShellPCCreate(SampleShellPC**);
+static PetscErrorCode SampleShellPCSetUp(PC,Mat,Vec);
+static PetscErrorCode SampleShellPCApply(PC,Vec x,Vec y);
+static PetscErrorCode SampleShellPCDestroy(PC);
 
 /*
    User-defined routines.  Note that immediately before each routine below,
@@ -237,15 +237,17 @@ int main(int argc,char **args)
    Output Parameter:
 .  shell - user-defined preconditioner context
 */
-PetscErrorCode SampleShellPCCreate(SampleShellPC **shell)
+static PetscErrorCode SampleShellPCCreate(SampleShellPC **shell)
 {
   SampleShellPC  *newctx;
   PetscErrorCode ierr;
 
-  ierr         = PetscNew(&newctx);CHKERRQ(ierr);
+  PetscFunctionBeginUser;
+  *shell = NULL;
+  ierr = PetscNew(&newctx);CHKERRQ(ierr);
   newctx->diag = 0;
-  *shell       = newctx;
-  return 0;
+  *shell = newctx;
+  PetscFunctionReturn(0);
 }
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
@@ -268,7 +270,7 @@ PetscErrorCode SampleShellPCCreate(SampleShellPC **shell)
    of the diagonal of the preconditioner matrix; this vector is then
    used within the routine SampleShellPCApply().
 */
-PetscErrorCode SampleShellPCSetUp(PC pc,Mat pmat,Vec x)
+static PetscErrorCode SampleShellPCSetUp(PC pc,Mat pmat,Vec x)
 {
   SampleShellPC  *shell;
   Vec            diag;
@@ -301,7 +303,7 @@ PetscErrorCode SampleShellPCSetUp(PC pc,Mat pmat,Vec x)
    example of working with a PCSHELL.  Note that the Jacobi method
    is already provided within PETSc.
 */
-PetscErrorCode SampleShellPCApply(PC pc,Vec x,Vec y)
+static PetscErrorCode SampleShellPCApply(PC pc,Vec x,Vec y)
 {
   SampleShellPC  *shell;
   PetscErrorCode ierr;
@@ -321,7 +323,7 @@ PetscErrorCode SampleShellPCApply(PC pc,Vec x,Vec y)
    Input Parameter:
 .  shell - user-defined preconditioner context
 */
-PetscErrorCode SampleShellPCDestroy(PC pc)
+static PetscErrorCode SampleShellPCDestroy(PC pc)
 {
   SampleShellPC  *shell;
   PetscErrorCode ierr;

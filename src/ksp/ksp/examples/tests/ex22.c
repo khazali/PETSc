@@ -4,7 +4,7 @@ static const char help[] = "Test MatNest solving a linear system\n\n";
 
 #undef __FUNCT__
 #define __FUNCT__ "test_solve"
-PetscErrorCode test_solve(void)
+static PetscErrorCode test_solve(void)
 {
   Mat            A11, A12,A21,A22, A, tmp[2][2];
   KSP            ksp;
@@ -121,7 +121,7 @@ PetscErrorCode test_solve(void)
 
 #undef __FUNCT__
 #define __FUNCT__ "test_solve_matgetvecs"
-PetscErrorCode test_solve_matgetvecs(void)
+static PetscErrorCode test_solve_matgetvecs(void)
 {
   Mat            A11, A12,A21, A;
   KSP            ksp;

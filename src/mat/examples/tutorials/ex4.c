@@ -10,7 +10,7 @@ static char help[] = "Reads U and V matrices from a file and performs y = V*U'*x
      petscis.h     - index sets            petscviewer.h - viewers
 */
 #include <petscmat.h>
-extern PetscErrorCode LowRankUpdate(Mat,Mat,Vec,Vec,Vec,Vec,PetscInt);
+static PetscErrorCode LowRankUpdate(Mat,Mat,Vec,Vec,Vec,Vec,PetscInt);
 
 
 #undef __FUNCT__
@@ -102,7 +102,7 @@ int main(int argc,char **args)
 
      Note: this routine directly access the Vec and Mat data-structures
 */
-PetscErrorCode LowRankUpdate(Mat U,Mat V,Vec x,Vec y,Vec work1,Vec work2,PetscInt nwork)
+static PetscErrorCode LowRankUpdate(Mat U,Mat V,Vec x,Vec y,Vec work1,Vec work2,PetscInt nwork)
 {
   Mat            Ulocal = ((Mat_MPIDense*)U->data)->A;
   Mat            Vlocal = ((Mat_MPIDense*)V->data)->A;

@@ -26,9 +26,9 @@ typedef struct {
   PetscScalar u;
 } Field;
 
-extern PetscErrorCode FormInitialGuess(DM da,void *ctx,Vec X);
-extern PetscErrorCode FormDiffusionCoefficient(DM da,void *ctx,Vec X);
-extern PetscErrorCode FormIFunctionLocal(DMDALocalInfo*,PetscReal,Field**,Field**,Field**,void*);
+static PetscErrorCode FormInitialGuess(DM da,void *ctx,Vec X);
+static PetscErrorCode FormDiffusionCoefficient(DM da,void *ctx,Vec X);
+static PetscErrorCode FormIFunctionLocal(DMDALocalInfo*,PetscReal,Field**,Field**,Field**,void*);
 
 /* hooks */
 
@@ -175,7 +175,7 @@ int main(int argc,char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormInitialGuess"
-PetscErrorCode FormInitialGuess(DM da,void *ctx,Vec X)
+static PetscErrorCode FormInitialGuess(DM da,void *ctx,Vec X)
 {
   PetscInt       i,j,Mx,My,xs,ys,xm,ym;
   PetscErrorCode ierr;
@@ -204,7 +204,7 @@ PetscErrorCode FormInitialGuess(DM da,void *ctx,Vec X)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormDiffusionCoefficient"
-PetscErrorCode FormDiffusionCoefficient(DM da,void *ctx,Vec X)
+static PetscErrorCode FormDiffusionCoefficient(DM da,void *ctx,Vec X)
 {
   PetscInt       i,j,Mx,My,xs,ys,xm,ym;
   PetscErrorCode ierr;
@@ -240,7 +240,7 @@ PetscErrorCode FormDiffusionCoefficient(DM da,void *ctx,Vec X)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormIFunctionLocal"
-PetscErrorCode FormIFunctionLocal(DMDALocalInfo *info,PetscScalar ptime,Field **x,Field **xt,Field **f,void *ctx)
+static PetscErrorCode FormIFunctionLocal(DMDALocalInfo *info,PetscScalar ptime,Field **x,Field **xt,Field **f,void *ctx)
 {
   PetscErrorCode ierr;
   PetscInt       i,j;

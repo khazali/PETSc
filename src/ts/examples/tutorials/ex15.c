@@ -37,9 +37,9 @@ typedef struct {
   PetscBool viewJacobian;
 } AppCtx;
 
-extern PetscErrorCode FormIFunction(TS,PetscReal,Vec,Vec,Vec,void*);
-extern PetscErrorCode FormIJacobian(TS,PetscReal,Vec,Vec,PetscReal,Mat*,Mat*,MatStructure*,void*);
-extern PetscErrorCode FormInitialSolution(Vec,void*);
+static PetscErrorCode FormIFunction(TS,PetscReal,Vec,Vec,Vec,void*);
+static PetscErrorCode FormIJacobian(TS,PetscReal,Vec,Vec,PetscReal,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode FormInitialSolution(Vec,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -155,7 +155,7 @@ int main(int argc,char **argv)
 */
 #undef __FUNCT__
 #define __FUNCT__ "FormIFunction"
-PetscErrorCode FormIFunction(TS ts,PetscReal t,Vec U,Vec Udot,Vec F,void *ctx)
+static PetscErrorCode FormIFunction(TS ts,PetscReal t,Vec U,Vec Udot,Vec F,void *ctx)
 {
   PetscErrorCode ierr;
   AppCtx         *user=(AppCtx*)ctx;
@@ -248,7 +248,7 @@ PetscErrorCode FormIFunction(TS ts,PetscReal t,Vec U,Vec Udot,Vec F,void *ctx)
 */
 #undef __FUNCT__
 #define __FUNCT__ "FormIJacobian"
-PetscErrorCode FormIJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal a,Mat *J,Mat *Jpre,MatStructure *str,void *ctx)
+static PetscErrorCode FormIJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal a,Mat *J,Mat *Jpre,MatStructure *str,void *ctx)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,Mx,My,xs,ys,xm,ym,nc;
@@ -310,7 +310,7 @@ PetscErrorCode FormIJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal a,Mat *J
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormInitialSolution"
-PetscErrorCode FormInitialSolution(Vec U,void *ptr)
+static PetscErrorCode FormInitialSolution(Vec U,void *ptr)
 {
   AppCtx         *user=(AppCtx*)ptr;
   DM             da   =user->da;

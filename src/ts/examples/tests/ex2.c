@@ -17,10 +17,10 @@ static char help[] = "Solves a nonlinear ODE. \n\n";
 #include <petscts.h>
 #include <petscpc.h>
 
-extern PetscErrorCode RHSFunction(TS,PetscReal,Vec,Vec,void*);
-extern PetscErrorCode RHSJacobian(TS,PetscReal,Vec,Mat*,Mat*,MatStructure*,void*);
-extern PetscErrorCode Monitor(TS,PetscInt,PetscReal,Vec,void*);
-extern PetscErrorCode Initial(Vec,void*);
+static PetscErrorCode RHSFunction(TS,PetscReal,Vec,Vec,void*);
+static PetscErrorCode RHSJacobian(TS,PetscReal,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode Monitor(TS,PetscInt,PetscReal,Vec,void*);
+static PetscErrorCode Initial(Vec,void*);
 
 extern PetscReal solx(PetscReal);
 extern PetscReal soly(PetscReal);
@@ -93,7 +93,7 @@ int main(int argc,char **argv)
 #undef __FUNCT__
 #define __FUNCT__ "Initial"
 /* this test problem has initial values (1,1,1).                      */
-PetscErrorCode Initial(Vec global,void *ctx)
+static PetscErrorCode Initial(Vec global,void *ctx)
 {
   PetscScalar    *localptr;
   PetscInt       i,mybase,myend,locsize;
@@ -115,7 +115,7 @@ PetscErrorCode Initial(Vec global,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "Monitor"
-PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec global,void *ctx)
+static PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec global,void *ctx)
 {
   VecScatter     scatter;
   IS             from,to;
@@ -157,7 +157,7 @@ PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec global,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "RHSFunction"
-PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
+static PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
 {
   PetscScalar    *inptr,*outptr;
   PetscInt       i,n,*idx;
@@ -214,7 +214,7 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
 
 #undef __FUNCT__
 #define __FUNCT__ "RHSJacobian"
-PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec x,Mat *AA,Mat *BB,MatStructure *str,void *ctx)
+static PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec x,Mat *AA,Mat *BB,MatStructure *str,void *ctx)
 {
   Mat            A = *AA;
   PetscScalar    v[3],*tmp;

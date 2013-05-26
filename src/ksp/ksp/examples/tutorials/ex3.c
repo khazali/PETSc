@@ -21,8 +21,8 @@ T*/
 #include <petscksp.h>
 
 /* Declare user-defined routines */
-extern PetscErrorCode FormElementStiffness(PetscReal,PetscScalar*);
-extern PetscErrorCode FormElementRhs(PetscReal,PetscReal,PetscReal,PetscScalar*);
+static PetscErrorCode FormElementStiffness(PetscReal,PetscScalar*);
+static PetscErrorCode FormElementRhs(PetscReal,PetscReal,PetscReal,PetscScalar*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -192,7 +192,7 @@ int main(int argc,char **args)
 #undef __FUNCT__
 #define __FUNCT__ "FormElementStiffness"
 /* element stiffness for Laplacian */
-PetscErrorCode FormElementStiffness(PetscReal H,PetscScalar *Ke)
+static PetscErrorCode FormElementStiffness(PetscReal H,PetscScalar *Ke)
 {
   PetscFunctionBeginUser;
   Ke[0]  = H/6.0;    Ke[1]  = -.125*H; Ke[2]  = H/12.0;   Ke[3]  = -.125*H;
@@ -204,7 +204,7 @@ PetscErrorCode FormElementStiffness(PetscReal H,PetscScalar *Ke)
 /* --------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormElementRhs"
-PetscErrorCode FormElementRhs(PetscReal x,PetscReal y,PetscReal H,PetscScalar *r)
+static PetscErrorCode FormElementRhs(PetscReal x,PetscReal y,PetscReal H,PetscScalar *r)
 {
   PetscFunctionBeginUser;
   r[0] = 0.; r[1] = 0.; r[2] = 0.; r[3] = 0.0;

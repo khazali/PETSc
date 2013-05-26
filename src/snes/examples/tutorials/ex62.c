@@ -51,7 +51,7 @@ For tensor product meshes, see SNES ex67, ex72
 #include <petscsnes.h>
 
 #define NUM_FIELDS 2
-PetscInt spatialDim = 0;
+static PetscInt spatialDim = 0;
 
 typedef enum {NEUMANN, DIRICHLET} BCType;
 typedef enum {RUN_FULL, RUN_TEST} RunType;
@@ -88,15 +88,15 @@ typedef struct {
   BCType bcType;
 } AppCtx;
 
-void zero_1d(const PetscReal coords[], PetscScalar *u)
+static void zero_1d(const PetscReal coords[], PetscScalar *u)
 {
   u[0] = 0.0;
 }
-void zero_2d(const PetscReal coords[], PetscScalar *u)
+static void zero_2d(const PetscReal coords[], PetscScalar *u)
 {
   u[0] = 0.0; u[1] = 0.0;
 }
-void zero_3d(const PetscReal coords[], PetscScalar *u)
+static void zero_3d(const PetscReal coords[], PetscScalar *u)
 {
   u[0] = 0.0; u[1] = 0.0; u[2] = 0.0;
 }
@@ -114,18 +114,18 @@ void zero_3d(const PetscReal coords[], PetscScalar *u)
     -\Delta u + \nabla p + f = <-4, -4> + <1, 1> + <3, 3> = 0
     \nabla \cdot u           = 2x - 2x                    = 0
 */
-void quadratic_u_2d(const PetscReal x[], PetscScalar *u)
+static void quadratic_u_2d(const PetscReal x[], PetscScalar *u)
 {
   u[0] = x[0]*x[0] + x[1]*x[1];
   u[1] = 2.0*x[0]*x[0] - 2.0*x[0]*x[1];
 }
 
-void linear_p_2d(const PetscReal x[], PetscScalar *p)
+static void linear_p_2d(const PetscReal x[], PetscScalar *p)
 {
   *p = x[0] + x[1] - 1.0;
 }
 
-void f0_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f0[])
+static void f0_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f0[])
 {
   const PetscInt Ncomp = spatialDim;
   PetscInt       comp;
@@ -135,7 +135,7 @@ void f0_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[
 
 /* gradU[comp*dim+d] = {u_x, u_y, v_x, v_y} or {u_x, u_y, u_z, v_x, v_y, v_z, w_x, w_y, w_z}
    u[Ncomp]          = {p} */
-void f1_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f1[])
+static void f1_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f1[])
 {
   const PetscInt dim   = spatialDim;
   const PetscInt Ncomp = spatialDim;
@@ -151,7 +151,7 @@ void f1_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[
 }
 
 /* gradU[comp*dim+d] = {u_x, u_y, v_x, v_y} or {u_x, u_y, u_z, v_x, v_y, v_z, w_x, w_y, w_z} */
-void f0_p(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f0[])
+static void f0_p(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f0[])
 {
   const PetscInt dim = spatialDim;
   PetscInt       d;
@@ -160,7 +160,7 @@ void f0_p(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[
   for (d = 0; d < dim; ++d) f0[0] += gradU[d*dim+d];
 }
 
-void f1_p(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f1[])
+static void f1_p(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f1[])
 {
   const PetscInt dim = spatialDim;
   PetscInt       d;
@@ -170,7 +170,7 @@ void f1_p(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[
 
 /* < q, \nabla\cdot v >
    NcompI = 1, NcompJ = dim */
-void g1_pu(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g1[])
+static void g1_pu(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g1[])
 {
   const PetscInt dim = spatialDim;
   PetscInt       d;
@@ -180,7 +180,7 @@ void g1_pu(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a
 
 /* -< \nabla\cdot v, p >
     NcompI = dim, NcompJ = 1 */
-void g2_up(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g2[])
+static void g2_up(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g2[])
 {
   const PetscInt dim = spatialDim;
   PetscInt       d;
@@ -190,7 +190,7 @@ void g2_up(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a
 
 /* < \nabla v, \nabla u + {\nabla u}^T >
    This just gives \nabla u, give the perdiagonal for the transpose */
-void g3_uu(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g3[])
+static void g3_uu(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g3[])
 {
   const PetscInt dim   = spatialDim;
   const PetscInt Ncomp = spatialDim;
@@ -217,21 +217,21 @@ void g3_uu(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a
     -\Delta u + \nabla p + f = <-4, -4, -4> + <1, 1, 1> + <3, 3, 3> = 0
     \nabla \cdot u           = 2x + 2y - 2(x + y)                   = 0
 */
-void quadratic_u_3d(const PetscReal x[], PetscScalar *u)
+static void quadratic_u_3d(const PetscReal x[], PetscScalar *u)
 {
   u[0] = x[0]*x[0] + x[1]*x[1];
   u[1] = x[1]*x[1] + x[2]*x[2];
   u[2] = x[0]*x[0] + x[1]*x[1] - 2.0*(x[0] + x[1])*x[2];
 }
 
-void linear_p_3d(const PetscReal x[], PetscScalar *p)
+static void linear_p_3d(const PetscReal x[], PetscScalar *p)
 {
   *p = x[0] + x[1] + x[2] - 1.5;
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "ProcessOptions"
-PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
+static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   const char    *bcTypes[2]  = {"neumann", "dirichlet"};
   const char    *runTypes[2] = {"full", "test"};
@@ -291,7 +291,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMVecViewLocal"
-PetscErrorCode DMVecViewLocal(DM dm, Vec v, PetscViewer viewer)
+static PetscErrorCode DMVecViewLocal(DM dm, Vec v, PetscViewer viewer)
 {
   Vec            lv;
   PetscInt       p;
@@ -315,7 +315,7 @@ PetscErrorCode DMVecViewLocal(DM dm, Vec v, PetscViewer viewer)
 
 #undef __FUNCT__
 #define __FUNCT__ "CreateMesh"
-PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
+static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 {
   DMLabel        label;
   PetscInt       dim             = user->dim;
@@ -354,7 +354,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupElement"
-PetscErrorCode SetupElement(DM dm, AppCtx *user)
+static PetscErrorCode SetupElement(DM dm, AppCtx *user)
 {
   const PetscInt  dim = user->dim, numFields = 2;
   const char     *prefix[2] = {"vel_", "pres_"};
@@ -412,7 +412,7 @@ PetscErrorCode SetupElement(DM dm, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "DestroyElement"
-PetscErrorCode DestroyElement(AppCtx *user)
+static PetscErrorCode DestroyElement(AppCtx *user)
 {
   PetscInt       numFields = 2, f;
   PetscErrorCode ierr;
@@ -430,7 +430,7 @@ PetscErrorCode DestroyElement(AppCtx *user)
   There is a problem here with uninterpolated meshes. The index in numDof[] is not dimension in this case,
   but sieve depth.
 */
-PetscErrorCode SetupSection(DM dm, AppCtx *user)
+static PetscErrorCode SetupSection(DM dm, AppCtx *user)
 {
   PetscSection    section;
   const PetscInt  numFields           = NUM_FIELDS;
@@ -478,7 +478,7 @@ PetscErrorCode SetupSection(DM dm, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupExactSolution"
-PetscErrorCode SetupExactSolution(DM dm, AppCtx *user)
+static PetscErrorCode SetupExactSolution(DM dm, AppCtx *user)
 {
   PetscFEM *fem = &user->fem;
 
@@ -524,7 +524,7 @@ PetscErrorCode SetupExactSolution(DM dm, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "CreatePressureNullSpace"
-PetscErrorCode CreatePressureNullSpace(DM dm, AppCtx *user, MatNullSpace *nullSpace)
+static PetscErrorCode CreatePressureNullSpace(DM dm, AppCtx *user, MatNullSpace *nullSpace)
 {
   Vec            vec, localVec;
   PetscErrorCode ierr;
@@ -593,7 +593,7 @@ PetscErrorCode CreatePressureNullSpace(DM dm, AppCtx *user, MatNullSpace *nullSp
 
 .seealso: FormJacobianActionLocal()
 */
-PetscErrorCode FormJacobianAction(Mat J, Vec X,  Vec Y)
+static PetscErrorCode FormJacobianAction(Mat J, Vec X,  Vec Y)
 {
   JacActionCtx   *ctx;
   DM             dm;

@@ -381,7 +381,7 @@ void linear_p_3d(const PetscReal x[], PetscScalar *p)
 
 #undef __FUNCT__
 #define __FUNCT__ "ProcessOptions"
-PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
+static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   const char     *bcTypes[2]      = {"dirichlet", "freeslip"};
   const char     *forcingTypes[3] = {"constant", "linear", "cubic"};
@@ -448,7 +448,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMVecViewLocal"
-PetscErrorCode DMVecViewLocal(DM dm, Vec v, PetscViewer viewer)
+static PetscErrorCode DMVecViewLocal(DM dm, Vec v, PetscViewer viewer)
 {
   Vec            lv;
   PetscInt       p;
@@ -472,7 +472,7 @@ PetscErrorCode DMVecViewLocal(DM dm, Vec v, PetscViewer viewer)
 
 #undef __FUNCT__
 #define __FUNCT__ "CreateMesh"
-PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
+static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 {
   PetscInt       dim             = user->dim;
   PetscBool      interpolate     = user->interpolate;
@@ -509,7 +509,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
 #undef __FUNCT__
 #define __FUNCT__ "PointOnBoundary_2D"
-PetscErrorCode PointOnBoundary_2D(const PetscScalar coords[], PetscBool onBd[])
+static PetscErrorCode PointOnBoundary_2D(const PetscScalar coords[], PetscBool onBd[])
 {
   const PetscInt  corner = 0, bottom = 1, right = 2, top = 3, left = 4;
   const PetscReal eps    = 1.0e-10;
@@ -525,7 +525,7 @@ PetscErrorCode PointOnBoundary_2D(const PetscScalar coords[], PetscBool onBd[])
 
 #undef __FUNCT__
 #define __FUNCT__ "CreateBoundaryPointIS_Square"
-PetscErrorCode CreateBoundaryPointIS_Square(DM dm, PetscInt *numBoundaries, PetscInt **numBoundaryConstraints, IS **boundaryPoints, IS **constraintIndices)
+static PetscErrorCode CreateBoundaryPointIS_Square(DM dm, PetscInt *numBoundaries, PetscInt **numBoundaryConstraints, IS **boundaryPoints, IS **constraintIndices)
 {
   MPI_Comm       comm;
   PetscSection   coordSection;
@@ -672,7 +672,7 @@ PetscErrorCode CreateBoundaryPointIS_Square(DM dm, PetscInt *numBoundaries, Pets
 
 #undef __FUNCT__
 #define __FUNCT__ "CreateBoundaryPointIS_Cube"
-PetscErrorCode CreateBoundaryPointIS_Cube(DM dm, PetscInt *numBoundaries, PetscInt **numBoundaryConstraints, IS **boundaryPoints, IS **constraintIndices)
+static PetscErrorCode CreateBoundaryPointIS_Cube(DM dm, PetscInt *numBoundaries, PetscInt **numBoundaryConstraints, IS **boundaryPoints, IS **constraintIndices)
 {
   PetscFunctionBeginUser;
   SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_SUP, "Just lazy");
@@ -682,7 +682,7 @@ PetscErrorCode CreateBoundaryPointIS_Cube(DM dm, PetscInt *numBoundaries, PetscI
 #undef __FUNCT__
 #define __FUNCT__ "CreateBoundaryPointIS"
 /* This will only work for the square/cube, but I think the interface is robust */
-PetscErrorCode CreateBoundaryPointIS(DM dm, PetscInt *numBoundaries, PetscInt **numBoundaryConstraints, IS **boundaryPoints, IS **constraintIndices)
+static PetscErrorCode CreateBoundaryPointIS(DM dm, PetscInt *numBoundaries, PetscInt **numBoundaryConstraints, IS **boundaryPoints, IS **constraintIndices)
 {
   PetscInt       dim;
   PetscErrorCode ierr;
@@ -704,7 +704,7 @@ PetscErrorCode CreateBoundaryPointIS(DM dm, PetscInt *numBoundaries, PetscInt **
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupQuadrature"
-PetscErrorCode SetupQuadrature(AppCtx *user)
+static PetscErrorCode SetupQuadrature(AppCtx *user)
 {
   PetscFunctionBeginUser;
   user->fem.quad[0].numQuadPoints = NUM_QUADRATURE_POINTS_0;
@@ -737,7 +737,7 @@ PetscErrorCode SetupQuadrature(AppCtx *user)
   There is a problem here with uninterpolated meshes. The index in numDof[] is not dimension in this case,
   but sieve depth.
 */
-PetscErrorCode SetupSection(DM dm, AppCtx *user)
+static PetscErrorCode SetupSection(DM dm, AppCtx *user)
 {
   PetscSection   section;
   const PetscInt numFields           = NUM_FIELDS;
@@ -813,7 +813,7 @@ PetscErrorCode SetupSection(DM dm, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupExactSolution"
-PetscErrorCode SetupExactSolution(DM dm, AppCtx *user)
+static PetscErrorCode SetupExactSolution(DM dm, AppCtx *user)
 {
   PetscFEM       *fem = &user->fem;
   PetscErrorCode ierr;
@@ -973,7 +973,7 @@ PetscErrorCode SetupExactSolution(DM dm, AppCtx *user)
 /*
   . field - The field whose diagonal block (of the Jacobian) has this null space
 */
-PetscErrorCode CreateNullSpaces(DM dm, PetscInt field, MatNullSpace *nullSpace)
+static PetscErrorCode CreateNullSpaces(DM dm, PetscInt field, MatNullSpace *nullSpace)
 {
   AppCtx         *user;
   Vec            nullVec, localNullVec;
@@ -1031,7 +1031,7 @@ PetscErrorCode CreateNullSpaces(DM dm, PetscInt field, MatNullSpace *nullSpace)
 
 .seealso: FormJacobianActionLocal()
 */
-PetscErrorCode FormJacobianAction(Mat J, Vec X,  Vec Y)
+static PetscErrorCode FormJacobianAction(Mat J, Vec X,  Vec Y)
 {
   JacActionCtx   *ctx;
   DM             dm;

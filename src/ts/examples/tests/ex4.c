@@ -28,11 +28,11 @@ typedef struct
   PetscReal tfinal;
 } Data;
 
-extern PetscErrorCode Monitor(TS,PetscInt,PetscReal,Vec,void*);
-extern PetscErrorCode Initial(Vec,void*);
-extern PetscErrorCode RHSFunction(TS,PetscReal,Vec,Vec,void*);
-extern PetscErrorCode RHSJacobian(TS,PetscReal,Vec,Mat*,Mat*,MatStructure*,void*);
-extern PetscErrorCode PostStep(TS);
+static PetscErrorCode Monitor(TS,PetscInt,PetscReal,Vec,void*);
+static PetscErrorCode Initial(Vec,void*);
+static PetscErrorCode RHSFunction(TS,PetscReal,Vec,Vec,void*);
+static PetscErrorCode RHSJacobian(TS,PetscReal,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode PostStep(TS);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -210,7 +210,7 @@ int main(int argc,char **argv)
 
 /* -------------------------------------------------------------------*/
 /* the initial function */
-PetscReal f_ini(PetscReal x,PetscReal y)
+static PetscReal f_ini(PetscReal x,PetscReal y)
 {
   PetscReal f;
 
@@ -220,7 +220,7 @@ PetscReal f_ini(PetscReal x,PetscReal y)
 
 #undef __FUNCT__
 #define __FUNCT__ "Initial"
-PetscErrorCode Initial(Vec global,void *ctx)
+static PetscErrorCode Initial(Vec global,void *ctx)
 {
   Data           *data = (Data*)ctx;
   PetscInt       m,row,col;
@@ -256,7 +256,7 @@ PetscErrorCode Initial(Vec global,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "Monitor"
-PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec global,void *ctx)
+static PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec global,void *ctx)
 {
   VecScatter     scatter;
   IS             from,to;
@@ -307,7 +307,7 @@ PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec global,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "RHSJacobian"
-PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec x,Mat *AA,Mat *BB,MatStructure *flag,void *ptr)
+static PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec x,Mat *AA,Mat *BB,MatStructure *flag,void *ptr)
 {
   Data           *data = (Data*)ptr;
   Mat            A     = *AA;
@@ -397,7 +397,7 @@ PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec x,Mat *AA,Mat *BB,MatStructure 
 /* globalout = -a*(u_x+u_y) + epsilon*(u_xx+u_yy) */
 #undef __FUNCT__
 #define __FUNCT__ "RHSFunction"
-PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
+static PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
 {
   Data           *data = (Data*)ctx;
   PetscInt       m,n,mn;
@@ -497,7 +497,7 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
 
 #undef __FUNCT__
 #define __FUNCT__ "PostStep"
-PetscErrorCode PostStep(TS ts)
+static PetscErrorCode PostStep(TS ts)
 {
   PetscErrorCode ierr;
   PetscReal      t;

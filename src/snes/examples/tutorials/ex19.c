@@ -78,15 +78,15 @@ typedef struct {
   PetscScalar u,v,omega,temp;
 } Field;
 
-PetscErrorCode FormFunctionLocal(DMDALocalInfo*,Field**,Field**,void*);
+static PetscErrorCode FormFunctionLocal(DMDALocalInfo*,Field**,Field**,void*);
 
 typedef struct {
   PassiveReal lidvelocity,prandtl,grashof;  /* physical parameters */
   PetscBool   draw_contours;                /* flag - 1 indicates drawing contours */
 } AppCtx;
 
-extern PetscErrorCode FormInitialGuess(AppCtx*,DM,Vec);
-extern PetscErrorCode NonlinearGS(SNES,Vec,Vec,void*);
+static PetscErrorCode FormInitialGuess(AppCtx*,DM,Vec);
+static PetscErrorCode NonlinearGS(SNES,Vec,Vec,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -192,7 +192,7 @@ int main(int argc,char **argv)
    Output Parameter:
    X - vector
 */
-PetscErrorCode FormInitialGuess(AppCtx *user,DM da,Vec X)
+static PetscErrorCode FormInitialGuess(AppCtx *user,DM da,Vec X)
 {
   PetscInt       i,j,mx,xs,ys,xm,ym;
   PetscErrorCode ierr;
@@ -242,7 +242,7 @@ PetscErrorCode FormInitialGuess(AppCtx *user,DM da,Vec X)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormFunctionLocal"
-PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,Field **x,Field **f,void *ptr)
+static PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,Field **x,Field **f,void *ptr)
 {
   AppCtx         *user = (AppCtx*)ptr;
   PetscErrorCode ierr;
@@ -373,7 +373,7 @@ PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,Field **x,Field **f,void *p
 
 #undef __FUNCT__
 #define __FUNCT__ "NonlinearGS"
-PetscErrorCode NonlinearGS(SNES snes, Vec X, Vec B, void *ctx)
+static PetscErrorCode NonlinearGS(SNES snes, Vec X, Vec B, void *ctx)
 {
   DMDALocalInfo  info;
   Field          **x,**b;

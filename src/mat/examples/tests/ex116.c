@@ -10,7 +10,7 @@ e.g. ./ex116 -f /home/petsc/datafiles/matrices/small  \n\n";
 #include <petscmat.h>
 #include <petscblaslapack.h>
 
-extern PetscErrorCode CkEigenSolutions(PetscInt,Mat,PetscInt,PetscInt,PetscReal*,Vec*,PetscReal*);
+static PetscErrorCode CkEigenSolutions(PetscInt,Mat,PetscInt,PetscInt,PetscReal*,Vec*,PetscReal*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -197,7 +197,7 @@ PetscInt main(PetscInt argc,char **args)
 #undef DEBUG_CkEigenSolutions
 #undef __FUNCT__
 #define __FUNCT__ "CkEigenSolutions"
-PetscErrorCode CkEigenSolutions(PetscInt cklvl,Mat A,PetscInt il,PetscInt iu,PetscReal *eval,Vec *evec,PetscReal *tols)
+static PetscErrorCode CkEigenSolutions(PetscInt cklvl,Mat A,PetscInt il,PetscInt iu,PetscReal *eval,Vec *evec,PetscReal *tols)
 {
   PetscInt  ierr,i,j,nev;
   Vec       vt1,vt2;    /* tmp vectors */

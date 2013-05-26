@@ -7,7 +7,7 @@ static char help[] = "Tests DMDA with variable multiple degrees of freedom per n
 
 #include <petscdmda.h>
 
-PetscErrorCode doit(DM da,Vec global)
+static PetscErrorCode doit(DM da,Vec global)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,k,M,N,dof;

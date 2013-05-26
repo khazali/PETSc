@@ -19,10 +19,10 @@ T*/
 /*
    User-defined routines
 */
-extern PetscErrorCode FormJacobian1(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-extern PetscErrorCode FormFunction1(SNES,Vec,Vec,void*);
-extern PetscErrorCode FormJacobian2(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-extern PetscErrorCode FormFunction2(SNES,Vec,Vec,void*);
+static PetscErrorCode FormJacobian1(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode FormFunction1(SNES,Vec,Vec,void*);
+static PetscErrorCode FormJacobian2(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode FormFunction2(SNES,Vec,Vec,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -157,7 +157,7 @@ int main(int argc,char **argv)
    Output Parameter:
 .  f - function vector
  */
-PetscErrorCode FormFunction1(SNES snes,Vec x,Vec f,void *ctx)
+static PetscErrorCode FormFunction1(SNES snes,Vec x,Vec f,void *ctx)
 {
   PetscErrorCode    ierr;
   const PetscScalar *xx;
@@ -198,7 +198,7 @@ PetscErrorCode FormFunction1(SNES snes,Vec x,Vec f,void *ctx)
 .  B - optionally different preconditioning matrix
 .  flag - flag indicating matrix structure
 */
-PetscErrorCode FormJacobian1(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,void *dummy)
+static PetscErrorCode FormJacobian1(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,void *dummy)
 {
   const PetscScalar *xx;
   PetscScalar       A[4];
@@ -240,7 +240,7 @@ PetscErrorCode FormJacobian1(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormFunction2"
-PetscErrorCode FormFunction2(SNES snes,Vec x,Vec f,void *dummy)
+static PetscErrorCode FormFunction2(SNES snes,Vec x,Vec f,void *dummy)
 {
   PetscErrorCode    ierr;
   const PetscScalar *xx;
@@ -272,7 +272,7 @@ PetscErrorCode FormFunction2(SNES snes,Vec x,Vec f,void *dummy)
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormJacobian2"
-PetscErrorCode FormJacobian2(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,void *dummy)
+static PetscErrorCode FormJacobian2(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,void *dummy)
 {
   const PetscScalar *xx;
   PetscScalar       A[4];

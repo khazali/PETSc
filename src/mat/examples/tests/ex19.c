@@ -9,7 +9,7 @@ This example uses bilinear elements on the unit square.  Input arguments are:\n\
 
 #undef __FUNCT__
 #define __FUNCT__ "FormElementStiffness"
-int FormElementStiffness(PetscReal H,PetscScalar *Ke)
+static PetscErrorCode FormElementStiffness(PetscReal H,PetscScalar *Ke)
 {
   PetscFunctionBegin;
   Ke[0]  = H/6.0;    Ke[1]  = -.125*H; Ke[2]  = H/12.0;   Ke[3]  = -.125*H;

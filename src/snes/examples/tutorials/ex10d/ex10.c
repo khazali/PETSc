@@ -75,9 +75,9 @@ typedef struct {
 /*
   User-defined routines
 */
-PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
-PetscErrorCode FormInitialGuess(AppCtx*,Vec);
+static PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
+static PetscErrorCode FormInitialGuess(AppCtx*,Vec);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -520,7 +520,7 @@ int main(int argc,char **argv)
    Output Parameter:
    X - vector
  */
-PetscErrorCode FormInitialGuess(AppCtx *user,Vec X)
+static PetscErrorCode FormInitialGuess(AppCtx *user,Vec X)
 {
   PetscInt    i,Nvlocal,ierr;
   PetscInt    *gloInd;
@@ -573,7 +573,7 @@ PetscErrorCode FormInitialGuess(AppCtx *user,Vec X)
    Output Parameter:
 .  F - function vector
  */
-PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ptr)
+static PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ptr)
 {
   AppCtx         *user = (AppCtx*)ptr;
   PetscErrorCode ierr;
@@ -655,7 +655,7 @@ PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ptr)
 .  flag - flag indicating matrix structure
 
 */
-PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flag,void *ptr)
+static PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flag,void *ptr)
 {
   AppCtx      *user = (AppCtx*)ptr;
   Mat         jac   = *B;

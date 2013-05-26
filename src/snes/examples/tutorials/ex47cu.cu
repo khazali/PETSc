@@ -13,7 +13,7 @@ static char help[] = "Solves -Laplacian u - exp(u) = 0,  0 < x < 1 using GPU\n\n
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 
-extern PetscErrorCode ComputeFunction(SNES,Vec,Vec,void*), ComputeJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode ComputeFunction(SNES,Vec,Vec,void*), ComputeJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
 PetscBool useCUSP = PETSC_FALSE;
 
 int main(int argc,char **argv)
@@ -72,7 +72,7 @@ struct ApplyStencil
   }
 };
 
-PetscErrorCode ComputeFunction(SNES snes,Vec x,Vec f,void *ctx)
+static PetscErrorCode ComputeFunction(SNES snes,Vec x,Vec f,void *ctx)
 {
   PetscInt       i,Mx,xs,xm,xstartshift,xendshift,fstart,lsize;
   PetscScalar    *xx,*ff,hx;
@@ -146,7 +146,7 @@ PetscErrorCode ComputeFunction(SNES snes,Vec x,Vec f,void *ctx)
   return 0;
 
 }
-PetscErrorCode ComputeJacobian(SNES snes,Vec x,Mat *J,Mat *B,MatStructure *flag,void *ctx)
+static PetscErrorCode ComputeJacobian(SNES snes,Vec x,Mat *J,Mat *B,MatStructure *flag,void *ctx)
 {
   DM             da = (DM) ctx;
   PetscInt       i,Mx,xm,xs;

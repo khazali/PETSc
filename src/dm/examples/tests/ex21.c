@@ -6,7 +6,7 @@ static const char help[] = "Test DMCreateInjection() for mapping coordinates in 
 
 #undef __FUNCT__
 #define __FUNCT__ "test1_DAInjection3d"
-PetscErrorCode test1_DAInjection3d(PetscInt mx, PetscInt my, PetscInt mz)
+static PetscErrorCode test1_DAInjection3d(PetscInt mx, PetscInt my, PetscInt mz)
 {
   PetscErrorCode   ierr;
   DM               dac,daf;

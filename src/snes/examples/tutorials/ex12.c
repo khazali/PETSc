@@ -9,7 +9,7 @@ domain, using a parallel unstructured mesh (DMPLEX) to discretize it.\n\n\n";
 #endif
 
 #define NUM_FIELDS 1
-PetscInt spatialDim = 0;
+static PetscInt spatialDim = 0;
 
 typedef enum {NEUMANN, DIRICHLET, NONE} BCType;
 typedef enum {RUN_FULL, RUN_TEST, RUN_PERF} RunType;
@@ -48,7 +48,7 @@ typedef struct {
   CoeffType variableCoefficient;
 } AppCtx;
 
-void zero(const PetscReal coords[], PetscScalar *u)
+static void zero(const PetscReal coords[], PetscScalar *u)
 {
   *u = 0.0;
 }
@@ -74,28 +74,28 @@ void zero(const PetscReal coords[], PetscScalar *u)
 
     \nabla u \cdot  \hat n|_\Gamma = {2 x, 2 y} \cdot \hat n = 2 (x + y)
 */
-void quadratic_u_2d(const PetscReal x[], PetscScalar *u)
+static void quadratic_u_2d(const PetscReal x[], PetscScalar *u)
 {
   *u = x[0]*x[0] + x[1]*x[1];
 }
 
-void f0_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f0[])
+static void f0_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f0[])
 {
   f0[0] = 4.0;
 }
 
-void f0_bd_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], const PetscReal n[], PetscScalar f0[])
+static void f0_bd_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], const PetscReal n[], PetscScalar f0[])
 {
   PetscInt  d;
   for (d = 0, f0[0] = 0.0; d < spatialDim; ++d) f0[0] += -n[d]*2.0*x[d];
 }
 
-void f0_bd_zero(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], const PetscReal n[], PetscScalar f0[])
+static void f0_bd_zero(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], const PetscReal n[], PetscScalar f0[])
 {
   f0[0] = 0.0;
 }
 
-void f1_bd_zero(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], const PetscReal n[], PetscScalar f1[])
+static void f1_bd_zero(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], const PetscReal n[], PetscScalar f1[])
 {
   const PetscInt Ncomp = spatialDim;
   PetscInt       comp;
@@ -104,7 +104,7 @@ void f1_bd_zero(const PetscScalar u[], const PetscScalar gradU[], const PetscSca
 }
 
 /* gradU[comp*dim+d] = {u_x, u_y} or {u_x, u_y, u_z} */
-void f1_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f1[])
+static void f1_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f1[])
 {
   PetscInt d;
 
@@ -113,7 +113,7 @@ void f1_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[
 
 /* < \nabla v, \nabla u + {\nabla u}^T >
    This just gives \nabla u, give the perdiagonal for the transpose */
-void g3_uu(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g3[])
+static void g3_uu(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g3[])
 {
   PetscInt d;
 
@@ -131,7 +131,7 @@ void g3_uu(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a
 
     -\div \nu \grad u + f = -6 (x + y) + 6 (x + y) = 0
 */
-void nu_2d(const PetscReal x[], PetscScalar *u)
+static void nu_2d(const PetscReal x[], PetscScalar *u)
 {
   *u = x[0] + x[1];
 }
@@ -142,13 +142,13 @@ void f0_analytic_u(const PetscScalar u[], const PetscScalar gradU[], const Petsc
 }
 
 /* gradU[comp*dim+d] = {u_x, u_y} or {u_x, u_y, u_z} */
-void f1_analytic_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f1[])
+static void f1_analytic_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f1[])
 {
   PetscInt d;
 
   for (d = 0; d < spatialDim; ++d) f1[d] = (x[0] + x[1])*gradU[d];
 }
-void f1_field_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f1[])
+static void f1_field_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f1[])
 {
   PetscInt d;
 
@@ -157,13 +157,13 @@ void f1_field_u(const PetscScalar u[], const PetscScalar gradU[], const PetscSca
 
 /* < \nabla v, \nabla u + {\nabla u}^T >
    This just gives \nabla u, give the perdiagonal for the transpose */
-void g3_analytic_uu(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g3[])
+static void g3_analytic_uu(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g3[])
 {
   PetscInt d;
 
   for (d = 0; d < spatialDim; ++d) g3[d*spatialDim+d] = x[0] + x[1];
 }
-void g3_field_uu(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g3[])
+static void g3_field_uu(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g3[])
 {
   PetscInt d;
 
@@ -193,14 +193,14 @@ void g3_field_uu(const PetscScalar u[], const PetscScalar gradU[], const PetscSc
 
     \nabla u \cdot  \hat n|_\Gamma = {2 x, 2 y, 2z} \cdot \hat n = 2 (x + y + z)
 */
-void quadratic_u_3d(const PetscReal x[], PetscScalar *u)
+static void quadratic_u_3d(const PetscReal x[], PetscScalar *u)
 {
   *u = x[0]*x[0] + x[1]*x[1] + x[2]*x[2];
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "ProcessOptions"
-PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
+static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   const char    *bcTypes[3]  = {"neumann", "dirichlet", "none"};
   const char    *runTypes[3] = {"full", "test", "perf"};
@@ -268,7 +268,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 
 #undef __FUNCT__
 #define __FUNCT__ "CreateMesh"
-PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
+static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 {
   PetscInt       dim             = user->dim;
   const char    *filename        = user->filename;
@@ -334,7 +334,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupElement"
-PetscErrorCode SetupElement(DM dm, AppCtx *user)
+static PetscErrorCode SetupElement(DM dm, AppCtx *user)
 {
   const PetscInt  dim = user->dim;
   PetscFE         fem;
@@ -378,7 +378,7 @@ PetscErrorCode SetupElement(DM dm, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupMaterialElement"
-PetscErrorCode SetupMaterialElement(DM dm, AppCtx *user)
+static PetscErrorCode SetupMaterialElement(DM dm, AppCtx *user)
 {
   const PetscInt  dim = user->dim;
   const char     *prefix = "mat_";
@@ -429,7 +429,7 @@ PetscErrorCode SetupMaterialElement(DM dm, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupBdElement"
-PetscErrorCode SetupBdElement(DM dm, AppCtx *user)
+static PetscErrorCode SetupBdElement(DM dm, AppCtx *user)
 {
   const PetscInt  dim    = user->dim-1;
   const char     *prefix = "bd_";
@@ -478,7 +478,7 @@ PetscErrorCode SetupBdElement(DM dm, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "DestroyElement"
-PetscErrorCode DestroyElement(AppCtx *user)
+static PetscErrorCode DestroyElement(AppCtx *user)
 {
   PetscErrorCode ierr;
 
@@ -491,7 +491,7 @@ PetscErrorCode DestroyElement(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupExactSolution"
-PetscErrorCode SetupExactSolution(DM dm, AppCtx *user)
+static PetscErrorCode SetupExactSolution(DM dm, AppCtx *user)
 {
   PetscFEM *fem = &user->fem;
 
@@ -542,7 +542,7 @@ PetscErrorCode SetupExactSolution(DM dm, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupSection"
-PetscErrorCode SetupSection(DM dm, AppCtx *user)
+static PetscErrorCode SetupSection(DM dm, AppCtx *user)
 {
   PetscSection    section;
   DMLabel         label;
@@ -578,7 +578,7 @@ PetscErrorCode SetupSection(DM dm, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupMaterialSection"
-PetscErrorCode SetupMaterialSection(DM dm, AppCtx *user)
+static PetscErrorCode SetupMaterialSection(DM dm, AppCtx *user)
 {
   PetscSection    section;
   PetscInt        dim   = user->dim;
@@ -599,7 +599,7 @@ PetscErrorCode SetupMaterialSection(DM dm, AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupMaterial"
-PetscErrorCode SetupMaterial(DM dm, DM dmAux, AppCtx *user)
+static PetscErrorCode SetupMaterial(DM dm, DM dmAux, AppCtx *user)
 {
   void (*matFuncs[1])(const PetscReal x[], PetscScalar *u) = {nu_2d};
   Vec            nu;

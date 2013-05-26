@@ -63,9 +63,9 @@ typedef struct {
 #define COARSE_LEVEL 0
 #define FINE_LEVEL   1
 
-extern PetscErrorCode FormFunction(SNES,Vec,Vec,void*), FormInitialGuess1(AppCtx*,Vec);
-extern PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-extern PetscErrorCode FormInterpolation(AppCtx*);
+static PetscErrorCode FormFunction(SNES,Vec,Vec,void*), FormInitialGuess1(AppCtx*,Vec);
+static PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode FormInterpolation(AppCtx*);
 
 /*
       Mm_ratio - ration of grid lines between fine and coarse grids.
@@ -227,7 +227,7 @@ int main(int argc, char **argv)
 } /* --------------------  Form initial approximation ----------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormInitialGuess1"
-PetscErrorCode FormInitialGuess1(AppCtx *user,Vec X)
+static PetscErrorCode FormInitialGuess1(AppCtx *user,Vec X)
 {
   PetscInt       i, j, row, mx, my, xs, ys, xm, ym, Xm, Ym, Xs, Ys;
   PetscErrorCode ierr;
@@ -270,7 +270,7 @@ PetscErrorCode FormInitialGuess1(AppCtx *user,Vec X)
 /* --------------------  Evaluate Function F(x) --------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormFunction"
-PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ptr)
+static PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ptr)
 {
   AppCtx         *user = (AppCtx*) ptr;
   PetscInt       i, j, row, mx, my, xs, ys, xm, ym, Xs, Ys, Xm, Ym;
@@ -323,7 +323,7 @@ PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ptr)
 */
 #undef __FUNCT__
 #define __FUNCT__ "FormJacobian_Grid"
-PetscErrorCode FormJacobian_Grid(AppCtx *user,GridCtx *grid,Vec X, Mat *J,Mat *B)
+static PetscErrorCode FormJacobian_Grid(AppCtx *user,GridCtx *grid,Vec X, Mat *J,Mat *B)
 {
   Mat            jac = *J;
   PetscErrorCode ierr;
@@ -383,7 +383,7 @@ PetscErrorCode FormJacobian_Grid(AppCtx *user,GridCtx *grid,Vec X, Mat *J,Mat *B
 */
 #undef __FUNCT__
 #define __FUNCT__ "FormJacobian_Coarse"
-PetscErrorCode FormJacobian_Coarse(AppCtx *user,GridCtx *grid,Vec X, Mat *J,Mat *B)
+static PetscErrorCode FormJacobian_Coarse(AppCtx *user,GridCtx *grid,Vec X, Mat *J,Mat *B)
 {
   Mat            jac = *J;
   PetscErrorCode ierr;
@@ -427,7 +427,7 @@ PetscErrorCode FormJacobian_Coarse(AppCtx *user,GridCtx *grid,Vec X, Mat *J,Mat 
 /* --------------------  Evaluate Jacobian F'(x) --------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormJacobian"
-PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flag,void *ptr)
+static PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flag,void *ptr)
 {
   AppCtx         *user = (AppCtx*) ptr;
   PetscErrorCode ierr;
@@ -475,7 +475,7 @@ PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flag,voi
       Forms the interpolation (and restriction) operator from
 coarse grid to fine.
 */
-PetscErrorCode FormInterpolation(AppCtx *user)
+static PetscErrorCode FormInterpolation(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,i_start,m_fine,j_start,m,n,*idx;

@@ -17,7 +17,7 @@ PetscErrorCode FormElementStiffness(PetscReal H,PetscScalar *Ke)
 }
 #undef __FUNCT__
 #define __FUNCT__ "FormElementRhs"
-PetscErrorCode FormElementRhs(PetscReal x,PetscReal y,PetscReal H,PetscScalar *r)
+static PetscErrorCode FormElementRhs(PetscReal x,PetscReal y,PetscReal H,PetscScalar *r)
 {
   r[0] = 0.; r[1] = 0.; r[2] = 0.; r[3] = 0.0;
   return 0;

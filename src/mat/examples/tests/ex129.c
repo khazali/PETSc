@@ -14,9 +14,9 @@ Example usage: ./ex129 -mat_type aij -dof 2\n\n";
 
 #include <petscdmda.h>
 
-extern PetscErrorCode ComputeMatrix(DM,Mat);
-extern PetscErrorCode ComputeRHS(DM,Vec);
-extern PetscErrorCode ComputeRHSMatrix(PetscInt,PetscInt,Mat*);
+static PetscErrorCode ComputeMatrix(DM,Mat);
+static PetscErrorCode ComputeRHS(DM,Vec);
+static PetscErrorCode ComputeRHSMatrix(PetscInt,PetscInt,Mat*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -168,7 +168,7 @@ int main(int argc,char **args)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeRHS"
-PetscErrorCode ComputeRHS(DM da,Vec b)
+static PetscErrorCode ComputeRHS(DM da,Vec b)
 {
   PetscErrorCode ierr;
   PetscInt       mx,my,mz;
@@ -183,7 +183,7 @@ PetscErrorCode ComputeRHS(DM da,Vec b)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeRHSMatrix"
-PetscErrorCode ComputeRHSMatrix(PetscInt m,PetscInt nrhs,Mat *C)
+static PetscErrorCode ComputeRHSMatrix(PetscInt m,PetscInt nrhs,Mat *C)
 {
   PetscErrorCode ierr;
   PetscRandom    rand;
@@ -222,7 +222,7 @@ PetscErrorCode ComputeRHSMatrix(PetscInt m,PetscInt nrhs,Mat *C)
 
 #undef __FUNCT__
 #define __FUNCT__ "ComputeMatrix"
-PetscErrorCode ComputeMatrix(DM da,Mat B)
+static PetscErrorCode ComputeMatrix(DM da,Mat B)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,k,mx,my,mz,xm,ym,zm,xs,ys,zs,dof,k1,k2,k3;

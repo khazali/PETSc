@@ -13,7 +13,7 @@ e.g. ./ex99 -f0 $D/small -fA $D/Eigdftb/dftb_bin/diamond_xxs_A -fB $D/Eigdftb/df
 #include <../src/mat/impls/sbaij/seq/sbaij.h>
 #include <petscblaslapack.h>
 
-extern PetscErrorCode CkEigenSolutions(PetscInt*,Mat*,PetscReal*,Vec*,PetscInt*,PetscInt*,PetscReal*);
+static PetscErrorCode CkEigenSolutions(PetscInt*,Mat*,PetscReal*,Vec*,PetscInt*,PetscInt*,PetscReal*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -241,7 +241,7 @@ PetscInt main(PetscInt argc,char **args)
 #undef DEBUG_CkEigenSolutions
 #undef __FUNCT__
 #define __FUNCT__ "CkEigenSolutions"
-PetscErrorCode CkEigenSolutions(PetscInt *fcklvl,Mat *mats,PetscReal *eval,Vec *evec,PetscInt *ievbd_loc,PetscInt *offset,PetscReal *tols)
+static PetscErrorCode CkEigenSolutions(PetscInt *fcklvl,Mat *mats,PetscReal *eval,Vec *evec,PetscInt *ievbd_loc,PetscInt *offset,PetscReal *tols)
 {
   PetscInt  ierr,cklvl=*fcklvl,nev_loc,i,j;
   Mat       A=mats[0], B=mats[1];

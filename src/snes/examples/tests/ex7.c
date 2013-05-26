@@ -4,10 +4,10 @@ static char help[] = "Solves u`` + u^{2} = f with Newton-like methods. Using\n\
 
 #include <petscsnes.h>
 
-extern PetscErrorCode   FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-extern PetscErrorCode   FormFunction(SNES,Vec,Vec,void*);
-extern PetscErrorCode   FormInitialGuess(SNES,Vec);
-extern PetscErrorCode   Monitor(SNES,PetscInt,PetscReal,void*);
+static PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
+static PetscErrorCode FormInitialGuess(SNES,Vec);
+static PetscErrorCode Monitor(SNES,PetscInt,PetscReal,void*);
 
 typedef struct {
   PetscViewer viewer;
@@ -96,7 +96,7 @@ int main(int argc,char **argv)
 }
 /* --------------------  Evaluate Function F(x) --------------------- */
 
-PetscErrorCode  FormFunction(SNES snes,Vec x,Vec f,void *dummy)
+static PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *dummy)
 {
   PetscScalar    *xx,*ff,*FF,d;
   PetscInt       i,n;
@@ -119,7 +119,7 @@ PetscErrorCode  FormFunction(SNES snes,Vec x,Vec f,void *dummy)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormInitialGuess"
-PetscErrorCode  FormInitialGuess(SNES snes,Vec x)
+static PetscErrorCode FormInitialGuess(SNES snes,Vec x)
 {
   PetscErrorCode ierr;
   PetscScalar    pfive = .50;
@@ -134,7 +134,7 @@ PetscErrorCode  FormInitialGuess(SNES snes,Vec x)
     also EXACTLY the Jacobian. In general, it would be some lower
     order, simplified apprioximation */
 
-PetscErrorCode  FormJacobian(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,void *dummy)
+static PetscErrorCode FormJacobian(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,void *dummy)
 {
   PetscScalar    *xx,A[3],d;
   PetscInt       i,n,j[3],iter;
@@ -178,7 +178,7 @@ PetscErrorCode  FormJacobian(SNES snes,Vec x,Mat *jac,Mat *B,MatStructure *flag,
 
 #undef __FUNCT__
 #define __FUNCT__ "Monitor"
-PetscErrorCode  Monitor(SNES snes,PetscInt its,PetscReal fnorm,void *dummy)
+static PetscErrorCode Monitor(SNES snes,PetscInt its,PetscReal fnorm,void *dummy)
 {
   PetscErrorCode ierr;
   MonitorCtx     *monP = (MonitorCtx*) dummy;

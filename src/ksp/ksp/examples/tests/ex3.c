@@ -8,7 +8,7 @@ differently from the way it is assembled.  Input arguments are:\n\
 
 #undef __FUNCT__
 #define __FUNCT__ "FormElementStiffness"
-int FormElementStiffness(PetscReal H,PetscScalar *Ke)
+static int FormElementStiffness(PetscReal H,PetscScalar *Ke)
 {
   PetscFunctionBeginUser;
   Ke[0]  = H/6.0;    Ke[1]  = -.125*H; Ke[2]  = H/12.0;   Ke[3]  = -.125*H;
@@ -19,7 +19,7 @@ int FormElementStiffness(PetscReal H,PetscScalar *Ke)
 }
 #undef __FUNCT__
 #define __FUNCT__ "FormElementRhs"
-int FormElementRhs(PetscReal x,PetscReal y,PetscReal H,PetscScalar *r)
+static int FormElementRhs(PetscReal x,PetscReal y,PetscReal H,PetscScalar *r)
 {
   PetscFunctionBeginUser;
   r[0] = 0.; r[1] = 0.; r[2] = 0.; r[3] = 0.0;

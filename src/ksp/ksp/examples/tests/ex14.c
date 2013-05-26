@@ -74,8 +74,8 @@ typedef struct {
 /*
    User-defined routines
 */
-extern PetscErrorCode ComputeFunction(AppCtx*,Vec,Vec),FormInitialGuess(AppCtx*,Vec);
-extern PetscErrorCode ComputeJacobian(AppCtx*,Vec,Mat,MatStructure*);
+static PetscErrorCode ComputeFunction(AppCtx*,Vec,Vec),FormInitialGuess(AppCtx*,Vec);
+static PetscErrorCode ComputeJacobian(AppCtx*,Vec,Mat,MatStructure*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -298,7 +298,7 @@ int main(int argc,char **argv)
    Output Parameter:
    X - vector
  */
-PetscErrorCode FormInitialGuess(AppCtx *user,Vec X)
+static PetscErrorCode FormInitialGuess(AppCtx *user,Vec X)
 {
   PetscInt    i,j,row,mx,my,ierr,xs,ys,xm,ym,gxm,gym,gxs,gys;
   PetscReal   one = 1.0,lambda,temp1,temp,hx,hy;
@@ -368,7 +368,7 @@ PetscErrorCode FormInitialGuess(AppCtx *user,Vec X)
    Output Parameter:
 .  F - function vector
  */
-PetscErrorCode ComputeFunction(AppCtx *user,Vec X,Vec F)
+static PetscErrorCode ComputeFunction(AppCtx *user,Vec X,Vec F)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,row,mx,my,xs,ys,xm,ym,gxs,gys,gxm,gym;
@@ -454,7 +454,7 @@ PetscErrorCode ComputeFunction(AppCtx *user,Vec X,Vec F)
    We cannot work directly with the global numbers for the original
    uniprocessor grid!
 */
-PetscErrorCode ComputeJacobian(AppCtx *user,Vec X,Mat jac,MatStructure *flag)
+static PetscErrorCode ComputeJacobian(AppCtx *user,Vec X,Mat jac,MatStructure *flag)
 {
   PetscErrorCode ierr;
   Vec            localX = user->localX;   /* local vector */

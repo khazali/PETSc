@@ -48,12 +48,12 @@ typedef struct {
 
 /* -------- User-defined Routines --------- */
 
-extern PetscErrorCode FormBoundaryConditions(SNES,AppCtx**);
-extern PetscErrorCode DestroyBoundaryConditions(AppCtx**);
-extern PetscErrorCode ComputeInitialGuess(SNES, Vec,void*);
-extern PetscErrorCode FormGradient(SNES, Vec, Vec, void*);
-extern PetscErrorCode FormJacobian(SNES, Vec, Mat*, Mat*, MatStructure*,void*);
-extern PetscErrorCode FormBounds(SNES,Vec,Vec);
+static PetscErrorCode FormBoundaryConditions(SNES,AppCtx**);
+static PetscErrorCode DestroyBoundaryConditions(AppCtx**);
+static PetscErrorCode ComputeInitialGuess(SNES, Vec,void*);
+static PetscErrorCode FormGradient(SNES, Vec, Vec, void*);
+static PetscErrorCode FormJacobian(SNES, Vec, Mat*, Mat*, MatStructure*,void*);
+static PetscErrorCode FormBounds(SNES,Vec,Vec);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -122,7 +122,7 @@ int main(int argc, char **argv)
 .   xl - lower bounds
 .   xu - upper bounds
 */
-PetscErrorCode FormBounds(SNES snes, Vec xl, Vec xu)
+static PetscErrorCode FormBounds(SNES snes, Vec xl, Vec xu)
 {
   PetscErrorCode ierr;
   AppCtx         *ctx;
@@ -148,7 +148,7 @@ PetscErrorCode FormBounds(SNES snes, Vec xl, Vec xu)
     Output Parameters:
 .   G - vector containing the newly evaluated gradient
 */
-PetscErrorCode FormGradient(SNES snes, Vec X, Vec G, void *ptr)
+static PetscErrorCode FormGradient(SNES snes, Vec X, Vec G, void *ptr)
 {
   AppCtx      *user;
   int         ierr;
@@ -277,7 +277,7 @@ PetscErrorCode FormGradient(SNES snes, Vec X, Vec G, void *ptr)
 .  tH    - Jacobian matrix
 
 */
-PetscErrorCode FormJacobian(SNES snes, Vec X, Mat *tH, Mat *tHPre, MatStructure *flag, void *ptr)
+static PetscErrorCode FormJacobian(SNES snes, Vec X, Mat *tH, Mat *tHPre, MatStructure *flag, void *ptr)
 {
   AppCtx         *user;
   Mat            H = *tH;
@@ -455,7 +455,7 @@ PetscErrorCode FormJacobian(SNES snes, Vec X, Mat *tH, Mat *tHPre, MatStructure 
    Output Parameter:
 .  user - user-defined application context
 */
-PetscErrorCode FormBoundaryConditions(SNES snes,AppCtx **ouser)
+static PetscErrorCode FormBoundaryConditions(SNES snes,AppCtx **ouser)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,k,limit=0,maxits=5;
@@ -540,7 +540,7 @@ PetscErrorCode FormBoundaryConditions(SNES snes,AppCtx **ouser)
 
 #undef __FUNCT__
 #define __FUNCT__ "DestroyBoundaryConditions"
-PetscErrorCode DestroyBoundaryConditions(AppCtx **ouser)
+static PetscErrorCode DestroyBoundaryConditions(AppCtx **ouser)
 {
   PetscErrorCode ierr;
   AppCtx         *user = *ouser;
@@ -568,7 +568,7 @@ PetscErrorCode DestroyBoundaryConditions(AppCtx **ouser)
    Output Parameters:
 .  X - newly computed initial guess
 */
-PetscErrorCode ComputeInitialGuess(SNES snes, Vec X,void *dummy)
+static PetscErrorCode ComputeInitialGuess(SNES snes, Vec X,void *dummy)
 {
   PetscErrorCode ierr;
   PetscInt       i,j,mx,my;

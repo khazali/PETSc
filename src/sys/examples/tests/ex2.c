@@ -5,7 +5,7 @@ static char help[] = "Tests the signal handler.\n";
 
 #undef __FUNCT__
 #define __FUNCT__ "CreateError"
-int CreateError(int n)
+static int CreateError(int n)
 {
   PetscErrorCode ierr;
   PetscReal      *x = 0;

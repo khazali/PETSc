@@ -54,9 +54,9 @@ static PetscErrorCode FormRHSFunction(TS,PetscReal,Vec,Vec,void*);
 static PetscErrorCode FormIFunction(TS,PetscReal,Vec,Vec,Vec,void*);
 static PetscErrorCode FormIJacobian(TS,PetscReal,Vec,Vec,PetscReal,Mat*,Mat*,MatStructure*,void*);
 
-PetscErrorCode create_app_data(_User& user);
-PetscErrorCode destroy_app_data(_User& user);
-PetscErrorCode create_matrix(_User &user, DM &dm, Mat *J);
+static PetscErrorCode create_app_data(_User& user);
+static PetscErrorCode destroy_app_data(_User& user);
+static PetscErrorCode create_matrix(_User &user, DM &dm, Mat *J);
 
 /****************
  *              *
@@ -297,7 +297,7 @@ static PetscErrorCode FormRHSFunction(TS ts,PetscReal t,Vec X,Vec F,void *ptr)
 */
 #undef __FUNCT__
 #define __FUNCT__ "FormIJacobian"
-PetscErrorCode FormIJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat *J,Mat *Jpre,MatStructure *str,void *ptr)
+static PetscErrorCode FormIJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat *J,Mat *Jpre,MatStructure *str,void *ptr)
 {
   User            user = (User)ptr;
   PetscErrorCode  ierr;
@@ -352,7 +352,7 @@ PetscErrorCode FormIJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat *J
 
 #undef __FUNCT__
 #define __FUNCT__ "initialize_moab_mesh"
-PetscErrorCode initialize_moab_mesh(moab::ParallelComm* pcomm,int npts,int nghost,moab::Tag &unknowns_tag,PetscInt &unknowns_tag_size,moab::Tag &id_tag)
+static PetscErrorCode initialize_moab_mesh(moab::ParallelComm* pcomm,int npts,int nghost,moab::Tag &unknowns_tag,PetscInt &unknowns_tag_size,moab::Tag &id_tag)
 {
   moab::ErrorCode merr;
   PetscInt num_procs;
@@ -465,7 +465,7 @@ PetscErrorCode initialize_moab_mesh(moab::ParallelComm* pcomm,int npts,int nghos
 
 #undef __FUNCT__
 #define __FUNCT__ "create_app_data"
-PetscErrorCode create_app_data(_User& user)
+static PetscErrorCode create_app_data(_User& user)
 {
   PetscErrorCode ierr;
   moab::ErrorCode merr;
@@ -534,7 +534,7 @@ PetscErrorCode create_app_data(_User& user)
 
 #undef __FUNCT__
 #define __FUNCT__ "create_matrix"
-PetscErrorCode create_matrix(_User &user, DM &dm, Mat *J)
+static PetscErrorCode create_matrix(_User &user, DM &dm, Mat *J)
 {
   PetscErrorCode ierr;
   moab::ErrorCode merr;
@@ -566,7 +566,7 @@ PetscErrorCode create_matrix(_User &user, DM &dm, Mat *J)
 
 #undef __FUNCT__
 #define __FUNCT__ "destroy_app_data"
-PetscErrorCode destroy_app_data(_User& user)
+static PetscErrorCode destroy_app_data(_User& user)
 {
   PetscFunctionBegin;
 

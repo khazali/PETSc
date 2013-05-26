@@ -52,7 +52,7 @@ Evolve the Cahn-Hillard equations: logarithmic +  double obstacle (never shrinks
 #include <petscts.h>
 #include <petscdraw.h>
 
-extern PetscErrorCode FormFunction(TS,PetscReal,Vec,Vec,void*),FormInitialSolution(DM,Vec),MyMonitor(TS,PetscInt,PetscReal,Vec,void*),MyDestroy(void**),FormJacobian(TS,PetscReal,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode FormFunction(TS,PetscReal,Vec,Vec,void*),FormInitialSolution(DM,Vec),MyMonitor(TS,PetscInt,PetscReal,Vec,void*),MyDestroy(void**),FormJacobian(TS,PetscReal,Vec,Mat*,Mat*,MatStructure*,void*);
 typedef struct {PetscBool cahnhillard;PetscBool degenerate;PetscReal kappa;PetscInt energy;PetscReal tol;PetscReal theta,theta_c;PetscInt truncation;PetscBool netforce; PetscDrawViewPorts *ports;} UserCtx;
 
 #undef __FUNCT__
@@ -228,7 +228,7 @@ int main(int argc,char **argv)
    Output Parameter:
 .  F - function vector
  */
-PetscErrorCode FormFunction(TS ts,PetscReal ftime,Vec X,Vec F,void *ptr)
+static PetscErrorCode FormFunction(TS ts,PetscReal ftime,Vec X,Vec F,void *ptr)
 {
   DM             da;
   PetscErrorCode ierr;
@@ -338,7 +338,7 @@ PetscErrorCode FormFunction(TS ts,PetscReal ftime,Vec X,Vec F,void *ptr)
    FormJacobian - Evaluates nonlinear function's Jacobian
 
 */
-PetscErrorCode FormJacobian(TS ts,PetscReal ftime,Vec X,Mat *A,Mat *B,MatStructure *str,void *ptr)
+static PetscErrorCode FormJacobian(TS ts,PetscReal ftime,Vec X,Mat *A,Mat *B,MatStructure *str,void *ptr)
 {
   DM             da;
   PetscErrorCode ierr;
@@ -428,7 +428,7 @@ PetscErrorCode FormJacobian(TS ts,PetscReal ftime,Vec X,Mat *A,Mat *B,MatStructu
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormInitialSolution"
-PetscErrorCode FormInitialSolution(DM da,Vec U)
+static PetscErrorCode FormInitialSolution(DM da,Vec U)
 {
   PetscErrorCode    ierr;
   PetscInt          i,xs,xm,Mx,N,scale;
@@ -495,7 +495,7 @@ PetscErrorCode FormInitialSolution(DM da,Vec U)
 /*
     This routine is not parallel
 */
-PetscErrorCode  MyMonitor(TS ts,PetscInt step,PetscReal time,Vec U,void *ptr)
+static PetscErrorCode MyMonitor(TS ts,PetscInt step,PetscReal time,Vec U,void *ptr)
 {
   UserCtx        *ctx = (UserCtx*)ptr;
   PetscDrawLG    lg;
@@ -765,7 +765,7 @@ PetscErrorCode  MyMonitor(TS ts,PetscInt step,PetscReal time,Vec U,void *ptr)
 
 #undef __FUNCT__
 #define __FUNCT__ "MyDestroy"
-PetscErrorCode  MyDestroy(void **ptr)
+static PetscErrorCode MyDestroy(void **ptr)
 {
   UserCtx        *ctx = *(UserCtx**)ptr;
   PetscErrorCode ierr;

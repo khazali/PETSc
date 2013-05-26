@@ -1,7 +1,7 @@
 
 static char help[] = "Each process opens the file and reads its part. Not scalable do not copy\n";
 
-#define USE_FAST_MAT_SET_VALUES
+/* #define USE_FAST_MAT_SET_VALUES */
 
 #include <petscsys.h>
 #include <petscviewer.h>
@@ -23,7 +23,7 @@ static char help[] = "Each process opens the file and reads its part. Not scalab
 */
 #undef __FUNCT__
 #define __FUNCT__ "Mat_Parallel_Load"
-int Mat_Parallel_Load(MPI_Comm comm,const char *name,Mat *newmat)
+static PetscErrorCode Mat_Parallel_Load(MPI_Comm comm,const char *name,Mat *newmat)
 {
   Mat            A;
   PetscScalar    *vals;
@@ -36,7 +36,7 @@ int Mat_Parallel_Load(MPI_Comm comm,const char *name,Mat *newmat)
   int            fd1,fd2;
   PetscViewer    viewer1,viewer2;
 
-  PetscFunctionBegin;
+  PetscFunctionBeginUser;
   ierr = MPI_Comm_size(comm,&size);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
 

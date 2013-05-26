@@ -759,7 +759,7 @@ static PetscErrorCode PhysicsCreate_Euler(Model mod,Physics phys)
 
 #undef __FUNCT__
 #define __FUNCT__ "ConstructCellBoundary"
-PetscErrorCode ConstructCellBoundary(DM dm, User user)
+static PetscErrorCode ConstructCellBoundary(DM dm, User user)
 {
   const char     *name   = "Cell Sets";
   const char     *bdname = "split faces";
@@ -838,7 +838,7 @@ PetscErrorCode ConstructCellBoundary(DM dm, User user)
 - Add duplicate vertices and decouple the face cones
 - Disconnect faces from cells across the rotation gap
 */
-PetscErrorCode SplitFaces(DM *dmSplit, const char labelName[], User user)
+static PetscErrorCode SplitFaces(DM *dmSplit, const char labelName[], User user)
 {
   DM             dm = *dmSplit, sdm;
   PetscSF        sfPoint, gsfPoint;
@@ -1241,7 +1241,7 @@ static PetscErrorCode BuildLeastSquares(DM dm,PetscInt cEndInterior,DM dmFace,Pe
 #undef __FUNCT__
 #define __FUNCT__ "ConstructGeometry"
 /* Set up face data and cell data */
-PetscErrorCode ConstructGeometry(DM dm, Vec *facegeom, Vec *cellgeom, User user)
+static PetscErrorCode ConstructGeometry(DM dm, Vec *facegeom, Vec *cellgeom, User user)
 {
   DM             dmFace, dmCell;
   DMLabel        ghostLabel;
@@ -1393,7 +1393,7 @@ PetscErrorCode ConstructGeometry(DM dm, Vec *facegeom, Vec *cellgeom, User user)
 
 #undef __FUNCT__
 #define __FUNCT__ "CreatePartitionVec"
-PetscErrorCode CreatePartitionVec(DM dm, DM *dmCell, Vec *partition)
+static PetscErrorCode CreatePartitionVec(DM dm, DM *dmCell, Vec *partition)
 {
   PetscSF        sfPoint;
   PetscSection   coordSection;
@@ -1437,7 +1437,7 @@ PetscErrorCode CreatePartitionVec(DM dm, DM *dmCell, Vec *partition)
 
 #undef __FUNCT__
 #define __FUNCT__ "CreateMassMatrix"
-PetscErrorCode CreateMassMatrix(DM dm, Vec *massMatrix, User user)
+static PetscErrorCode CreateMassMatrix(DM dm, Vec *massMatrix, User user)
 {
   DM                dmMass, dmFace, dmCell, dmCoord;
   PetscSection      coordSection;
@@ -1513,7 +1513,7 @@ PetscErrorCode CreateMassMatrix(DM dm, Vec *massMatrix, User user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetUpLocalSpace"
-PetscErrorCode SetUpLocalSpace(DM dm, User user)
+static PetscErrorCode SetUpLocalSpace(DM dm, User user)
 {
   PetscSection   stateSection;
   Physics        phys;
@@ -1562,7 +1562,7 @@ PetscErrorCode SetUpLocalSpace(DM dm, User user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetUpBoundaries"
-PetscErrorCode SetUpBoundaries(DM dm, User user)
+static PetscErrorCode SetUpBoundaries(DM dm, User user)
 {
   Model          mod = user->model;
   PetscErrorCode ierr;
@@ -1750,7 +1750,7 @@ static PetscErrorCode FunctionalLinkDestroy(FunctionalLink *link)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetInitialCondition"
-PetscErrorCode SetInitialCondition(DM dm, Vec X, User user)
+static PetscErrorCode SetInitialCondition(DM dm, Vec X, User user)
 {
   DM                dmCell;
   Model             mod = user->model;

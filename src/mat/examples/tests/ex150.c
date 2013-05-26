@@ -4,8 +4,8 @@ static char help[]="This program illustrates the use of PETSc-fftw interface for
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
-extern PetscErrorCode InputTransformFFT(Mat,Vec,Vec);
-extern PetscErrorCode OutputTransformFFT(Mat,Vec,Vec);
+static PetscErrorCode InputTransformFFT(Mat,Vec,Vec);
+static PetscErrorCode OutputTransformFFT(Mat,Vec,Vec);
 PetscInt main(PetscInt argc,char **args)
 {
   PetscErrorCode ierr;

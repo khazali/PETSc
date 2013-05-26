@@ -26,13 +26,13 @@ typedef struct {
   PetscBool   tsmonitor;
 } AppCtx;
 
-PetscErrorCode GetParams(AppCtx*);
-PetscErrorCode SetVariableBounds(DM,Vec,Vec);
-PetscErrorCode SetUpMatrices(AppCtx*);
-PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
-PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
-PetscErrorCode SetInitialGuess(Vec,AppCtx*);
-PetscErrorCode Update_q(Vec,Vec,Mat,AppCtx*);
+static PetscErrorCode GetParams(AppCtx*);
+static PetscErrorCode SetVariableBounds(DM,Vec,Vec);
+static PetscErrorCode SetUpMatrices(AppCtx*);
+static PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
+static PetscErrorCode FormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+static PetscErrorCode SetInitialGuess(Vec,AppCtx*);
+static PetscErrorCode Update_q(Vec,Vec,Mat,AppCtx*);
 PetscLogEvent event_update_q;
 
 #undef __FUNCT__
@@ -123,7 +123,7 @@ int main(int argc, char **argv)
 
 #undef __FUNCT__
 #define __FUNCT__ "Update_q"
-PetscErrorCode Update_q(Vec q,Vec u,Mat M_0,AppCtx *user)
+static PetscErrorCode Update_q(Vec q,Vec u,Mat M_0,AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscScalar    *q_arr,*w_arr;
@@ -145,7 +145,7 @@ PetscErrorCode Update_q(Vec q,Vec u,Mat M_0,AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetInitialGuess"
-PetscErrorCode SetInitialGuess(Vec X,AppCtx *user)
+static PetscErrorCode SetInitialGuess(Vec X,AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscScalar    *x,*u;
@@ -175,7 +175,7 @@ PetscErrorCode SetInitialGuess(Vec X,AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormFunction"
-PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ctx)
+static PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ctx)
 {
   PetscErrorCode ierr;
   AppCtx         *user=(AppCtx*)ctx;
@@ -187,7 +187,7 @@ PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormJacobian"
-PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flg,void *ctx)
+static PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flg,void *ctx)
 {
   PetscErrorCode   ierr;
   AppCtx           *user  =(AppCtx*)ctx;
@@ -207,7 +207,7 @@ PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flg,void
 }
 #undef __FUNCT__
 #define __FUNCT__ "SetVariableBounds"
-PetscErrorCode SetVariableBounds(DM da,Vec xl,Vec xu)
+static PetscErrorCode SetVariableBounds(DM da,Vec xl,Vec xu)
 {
   PetscErrorCode ierr;
   PetscScalar    ***l,***u;
@@ -236,7 +236,7 @@ PetscErrorCode SetVariableBounds(DM da,Vec xl,Vec xu)
 
 #undef __FUNCT__
 #define __FUNCT__ "GetParams"
-PetscErrorCode GetParams(AppCtx *user)
+static PetscErrorCode GetParams(AppCtx *user)
 {
   PetscErrorCode ierr;
   PetscBool      flg;
@@ -302,7 +302,7 @@ static void ShapefunctionsT3(PetscScalar *phi,PetscScalar phider[][2],PetscScala
 
 #undef __FUNCT__
 #define __FUNCT__ "SetUpMatrices"
-PetscErrorCode SetUpMatrices(AppCtx *user)
+static PetscErrorCode SetUpMatrices(AppCtx *user)
 {
   PetscErrorCode    ierr;
   PetscInt          nele,nen,i;
