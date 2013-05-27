@@ -35,6 +35,10 @@ def mangle(sourcefile):
         return main
     stem, ext = os.path.splitext(sourcefile)
     main = 'main_' + stem.replace(os.path.sep, '_').replace('-','_') # '/' and '-' are allowed in paths
+    # Shorten names to try to stay within 31 characters
+    main = main.replace('_src_','_') # Redundant because all the examples are under src
+    main = main.replace('_examples_tests_', '_t_')
+    main = main.replace('_examples_tutorials_', '_u_')
     return fmangle(main, ext)
 
 def gen_main(f, sources):
