@@ -207,9 +207,9 @@ class Petsc(object):
         fd.write('# Target-local variables for tests\n')
         for pkg in PKGS:
             fd.write('$(PETSC_ARCH)/src/%(pkg)s.test.c : pkg := %(pkg)s\n'
-                     '$(OBJDIR)/%(pkg)s.test : pkg := %(pkg)s\n'
-                     '$(OBJDIR)/%(pkg)s.test : lib := $(PETSC_%(PKG)s_LIB)\n'
-                     '$(OBJDIR)/%(pkg)s.test : obj := $(examples-%(pkg)s.o)\n'
+                     '$(BINDIR)/%(pkg)s.test : pkg := %(pkg)s\n'
+                     '$(BINDIR)/%(pkg)s.test : lib := $(PETSC_%(PKG)s_LIB)\n'
+                     '$(BINDIR)/%(pkg)s.test : obj := $(examples-%(pkg)s.o)\n'
                      % dict(pkg=pkg, PKG=pkg.upper()))
         fd.write('\n')
 

@@ -6,6 +6,7 @@ include ./conf/variables
 
 OBJDIR := $(PETSC_ARCH)/obj
 MODDIR := $(PETSC_ARCH)/include
+BINDIR := $(PETSC_ARCH)/bin
 LIBDIR := $(abspath $(PETSC_ARCH)/lib)
 
 vpath %.test.c $(PETSC_ARCH)/src       # Find generated source files
@@ -137,9 +138,10 @@ endif
 ### Testing ###
 # Object files produced by generated tests
 test.o := $(foreach pkg,$(pkgs),$(OBJDIR)/$(pkg).test.o)
+test-bin := $(foreach pkg,$(pkgs),$(BINDIR)/$(pkg).test)
 
 # Phony target to build all the tests
-build-test : $(generated) $(test.o:%.test.o=%.test)
+build-test : $(generated) $(test-bin)
 
 # Generated test main files.  Use order-only dependency on examples so
 # that we get an error sooner when a file is deleted.
@@ -154,7 +156,7 @@ $(PETSC_ARCH)/src/%.test.c : conf/testmaingen.py $(generated) | $$(@D)/.DIR
 # Compile test executables.  Depending on libpetscall is excessive for
 # separate libraries; it would be sufficient to depend on only the
 # present package level.
-$(OBJDIR)/%.test : $(OBJDIR)/%.test.o $$(obj) $(libpetscall) | $(LIBDIR)
+$(BINDIR)/%.test : $(OBJDIR)/%.test.o $$(obj) $(libpetscall) | $(LIBDIR)
 	$(call quiet,CLINKER) -o $@ $< $(obj) $(lib)
 
 ### Normal build rules ###
@@ -202,7 +204,7 @@ clean:
 	rm -rf $(OBJDIR) $(LIBDIR)/libpetsc* $(MODDIR)/petsc*.mod $(MPIUNI_MOD) $(generated)
 
 clean-test:
-	$(call quiet,RM) -r $(examples.o) $(OBJDIR)/*.test* $(PETSC_ARCH)/src
+	$(call quiet,RM) -r $(examples.o) $(OBJDIR)/*.test* $(test-bin) $(PETSC_ARCH)/src
 
 # make print VAR=the-variable
 print:
