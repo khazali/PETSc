@@ -5,7 +5,7 @@ CPPFLAGS        =
 FPPFLAGS        =
 LOCDIR          = src/dm/examples/tests/
 EXAMPLESC       = ex1.c ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c ex9.c ex10.c\
-                  ex11.c ex12.c ex12.m ex13.c ex14.c ex15.c ex16.c ex17.c ex18.c ex19.c \
+                  ex11.c ex12.c ex12.m ex13.c ex14.c ex15.c ex16.c ex17.c ex18.c ex19.c ex20.c \
 	          ex21.c ex22.c ex23.c ex24.c ex25.c ex26.c ex27.c ex28.c ex30.c \
 	          ex31.c ex32.c ex34.c ex36.c ex37.c ex38.c ex39.c ex40.c ex41.c \
 	          ex42.c
@@ -225,6 +225,11 @@ runex16_2:
 	  ${DIFF} output/ex16_2.out ex16_2.tmp || echo ${PWD} "\n Possible problem with with ex16_2, diffs above \n========================================="; \
 	  ${RM} -f ex16_2.tmp
 
+runex20:
+	-@${MPIEXEC} -n 3 ./ex20 -Mx 10 -My 5 > ex20_1.tmp 2>&1; \
+	   ${DIFF} output/ex20_1.out ex20_1.tmp || printf "${PWD}\nPossible problem with ex96, diffs above \n=========================================\n"; \
+	   ${RM} -f ex20_1.tmp
+
 runex21:
 	-@for procs in '-da_processors_x 10' '-da_processors_y 10' '-da_processors_z 10' ''; do \
             ${MPIEXEC} -n 10 ./ex21 -mx 30 -my 30 -mz 30 -periodic 0 $procs ;\
@@ -348,6 +353,7 @@ runex42:
 
 
 TESTEXAMPLES_C		  = ex1.PETSc runex1 ex1.rm ex4.PETSc runex4 ex4.rm ex15.PETSc ex15.rm ex16.PETSc ex16.rm \
+                            ex20.PETSc runex20 ex20.rm \
                             ex21.PETSc runex21 ex21.rm ex24.PETSc runex24 ex24.rm ex25.PETSc \
                             runex25 ex25.rm ex30.PETSc runex30 runex30_2 runex30_3 ex30.rm ex31.PETSc runex31 ex31.rm ex32.PETSc runex32 ex32.rm \
                             ex34.PETSc runex34 ex34.rm ex36.PETSc runex36_1d runex36_2d runex36_2dp1 runex36_2dp2 runex36_3d runex36_3dp1 ex36.rm
