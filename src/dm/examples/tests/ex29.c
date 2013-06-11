@@ -10,7 +10,7 @@
 */
 
 static char help[] = "This example is for testing different MatSolve routines :MatSolve(), MatSolveAdd(), MatSolveTranspose(), MatSolveTransposeAdd(), and MatMatSolve().\n\
-Example usage: ./ex129 -mat_type aij -dof 2\n\n";
+Example usage: ./ex29 -mat_type aij -dof 2\n\n";
 
 #include <petscdmda.h>
 

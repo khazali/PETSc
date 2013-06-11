@@ -6,7 +6,7 @@ FPPFLAGS        =
 LOCDIR          = src/dm/examples/tests/
 EXAMPLESC       = ex1.c ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c ex9.c ex10.c\
                   ex11.c ex12.c ex12.m ex13.c ex14.c ex15.c ex16.c ex17.c ex18.c ex19.c ex20.c \
-	          ex21.c ex22.c ex23.c ex24.c ex25.c ex26.c ex27.c ex28.c ex30.c \
+	          ex21.c ex22.c ex23.c ex24.c ex25.c ex26.c ex27.c ex28.c ex29.c ex30.c \
 	          ex31.c ex32.c ex34.c ex36.c ex37.c ex38.c ex39.c ex40.c ex41.c \
 	          ex42.c
 EXAMPLESF       =
@@ -289,6 +289,17 @@ runex25:
 	   if (${DIFF} output/ex25_1.out ex25_1.tmp) then true; \
 	   else echo ${PWD} ; echo "Possible problem with with ex25_1 6 processes, diffs above \n========================================="; fi; ${RM} -f ex25_1.tmp
 
+runex29:
+	-@${MPIEXEC} -n 1 ./ex29 -mat_type aij -dof 1 > ex29.tmp 2>&1; \
+	   if (${DIFF} output/ex29.out ex29.tmp) then true; \
+	   else echo ${PWD} ; echo "Possible problem with ex29, diffs above \n========================================="; fi; \
+	   ${RM} -f ex29.tmp
+runex29_2:
+	-@${MPIEXEC} -n 1 ./ex29 -mat_type aij -dof 1 -inplacelu > ex29.tmp 2>&1; \
+	   if (${DIFF} output/ex29.out ex29.tmp) then true; \
+	   else echo ${PWD} ; echo "Possible problem with ex29_2, diffs above \n========================================="; fi; \
+	   ${RM} -f ex29.tmp
+
 runex30:
 	-@${MPIEXEC} -n 2 ./ex30 -bs 2 -block 0 -sliced_mat_type baij -alpha 10 -u0 0.1 > ex30_1.tmp; \
 	   ${DIFF} output/ex30_1.out ex30_1.tmp || echo ${PWD} "\n Possible problem with with ex30_1, diffs above \n========================================="; \
@@ -355,7 +366,8 @@ runex42:
 TESTEXAMPLES_C		  = ex1.PETSc runex1 ex1.rm ex4.PETSc runex4 ex4.rm ex15.PETSc ex15.rm ex16.PETSc ex16.rm \
                             ex20.PETSc runex20 ex20.rm \
                             ex21.PETSc runex21 ex21.rm ex24.PETSc runex24 ex24.rm ex25.PETSc \
-                            runex25 ex25.rm ex30.PETSc runex30 runex30_2 runex30_3 ex30.rm ex31.PETSc runex31 ex31.rm ex32.PETSc runex32 ex32.rm \
+                            runex25 ex25.rm ex29.PETSc runex29 runex29_2 ex29.rm \
+                            ex30.PETSc runex30 runex30_2 runex30_3 ex30.rm ex31.PETSc runex31 ex31.rm ex32.PETSc runex32 ex32.rm \
                             ex34.PETSc runex34 ex34.rm ex36.PETSc runex36_1d runex36_2d runex36_2dp1 runex36_2dp2 runex36_3d runex36_3dp1 ex36.rm
 TESTEXAMPLES_C_X	  = ex2.PETSc runex2 ex2.rm ex3.PETSc runex3 ex3.rm ex5.PETSc runex5 ex5.rm ex6.PETSc runex6 \
                             ex6.rm ex7.PETSc ex7.rm  ex11.PETSc ex11.rm ex14.PETSc runex14 ex14.rm \
