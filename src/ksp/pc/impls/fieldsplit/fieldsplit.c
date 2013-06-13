@@ -978,14 +978,16 @@ static PetscErrorCode PCReset_FieldSplit(PC pc)
 
   PetscFunctionBegin;
   while (ilink) {
-    ierr  = KSPReset(ilink->ksp);CHKERRQ(ierr);
+    ierr  = KSPDestroy(&ilink->ksp);CHKERRQ(ierr);
     ierr  = VecDestroy(&ilink->x);CHKERRQ(ierr);
     ierr  = VecDestroy(&ilink->y);CHKERRQ(ierr);
     ierr  = VecDestroy(&ilink->z);CHKERRQ(ierr);
     ierr  = VecScatterDestroy(&ilink->sctx);CHKERRQ(ierr);
     ierr  = ISDestroy(&ilink->is);CHKERRQ(ierr);
     ierr  = ISDestroy(&ilink->is_col);CHKERRQ(ierr);
+    ierr  = PetscFree(ilink->splitname);CHKERRQ(ierr);
     next  = ilink->next;
+    ierr  = PetscFree(ilink);CHKERRQ(ierr);
     ilink = next;
   }
   ierr = PetscFree2(jac->x,jac->y);CHKERRQ(ierr);
@@ -996,6 +998,8 @@ static PetscErrorCode PCReset_FieldSplit(PC pc)
   }
   if (jac->pmat) {ierr = MatDestroyMatrices(jac->nsplits,&jac->pmat);CHKERRQ(ierr);}
   if (jac->Afield) {ierr = MatDestroyMatrices(jac->nsplits,&jac->Afield);CHKERRQ(ierr);}
+  if (jac->x) {ierr = VecDestroyVecs(jac->nsplits,&jac->x);CHKERRQ(ierr);}
+  if (jac->y) {ierr = VecDestroyVecs(jac->nsplits,&jac->y);CHKERRQ(ierr);}
   ierr       = VecDestroy(&jac->w1);CHKERRQ(ierr);
   ierr       = VecDestroy(&jac->w2);CHKERRQ(ierr);
   ierr       = MatDestroy(&jac->schur);CHKERRQ(ierr);
@@ -1004,7 +1008,12 @@ static PetscErrorCode PCReset_FieldSplit(PC pc)
   ierr       = KSPDestroy(&jac->kspupper);CHKERRQ(ierr);
   ierr       = MatDestroy(&jac->B);CHKERRQ(ierr);
   ierr       = MatDestroy(&jac->C);CHKERRQ(ierr);
+  jac->head = NULL;
+  jac->nsplits = 0;
   jac->reset = PETSC_TRUE;
+  jac->issetup = PETSC_FALSE;
+  jac->splitdefined = PETSC_FALSE;
+  jac->suboptionsset = PETSC_FALSE;
   PetscFunctionReturn(0);
 }
 
