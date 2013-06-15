@@ -330,7 +330,9 @@ struct _p_Mat {
   PetscViewerFormat      viewformatonassembly;
   PetscBool              checksymmetryonassembly,checknullspaceonassembly;
   PetscReal              checksymmetrytol;
-  };
+  PetscInt      neig_estimates_alloc;
+  PetscReal     *eig_estimates;
+};
 
 PETSC_INTERN PetscErrorCode MatAXPY_Basic(Mat,PetscScalar,Mat,MatStructure);
 PETSC_INTERN PetscErrorCode MatAXPY_BasicWithPreallocation(Mat,Mat,PetscScalar,Mat,MatStructure);

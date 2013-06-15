@@ -859,6 +859,8 @@ M*/
 #define MatPreallocateFinalize(dnz,onz) 0;_4_ierr = PetscFree2(dnz,onz);CHKERRQ(_4_ierr);}
 
 
+PETSC_EXTERN PetscErrorCode MatSetEigenvalueEstimates(Mat,PetscInt,const PetscReal*,const PetscReal*);
+PETSC_EXTERN PetscErrorCode MatGetEigenvalueEstimates(Mat,PetscInt*,const PetscReal**,const PetscReal**);
 
 /* Routines unique to particular data structures */
 PETSC_EXTERN PetscErrorCode MatShellGetContext(Mat,void *);

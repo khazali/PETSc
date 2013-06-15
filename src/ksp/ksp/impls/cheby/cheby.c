@@ -354,11 +354,14 @@ static PetscErrorCode KSPChebyshevComputeExtremeEigenvalues_Private(KSP kspest,P
   PetscErrorCode ierr;
   PetscInt       n,neig;
   PetscReal      *re,*im,min,max;
+  Mat            Amat;
 
   PetscFunctionBegin;
   ierr = KSPGetIterationNumber(kspest,&n);CHKERRQ(ierr);
   ierr = PetscMalloc2(n,PetscReal,&re,n,PetscReal,&im);CHKERRQ(ierr);
   ierr = KSPComputeEigenvalues(kspest,n,re,im,&neig);CHKERRQ(ierr);
+  ierr = KSPGetOperators(kspest,&Amat,NULL,NULL);CHKERRQ(ierr);
+  ierr = MatSetEigenvalueEstimates(Amat,neig,re,im);CHKERRQ(ierr);
   min  = PETSC_MAX_REAL;
   max  = PETSC_MIN_REAL;
   for (n=0; n<neig; n++) {
@@ -389,31 +392,45 @@ PetscErrorCode KSPSolve_Chebyshev(KSP ksp)
   PetscFunctionBegin;
   ierr = PCGetDiagonalScale(ksp->pc,&diagonalscale);CHKERRQ(ierr);
   if (diagonalscale) SETERRQ1(PetscObjectComm((PetscObject)ksp),PETSC_ERR_SUP,"Krylov method %s does not support diagonal scaling",((PetscObject)ksp)->type_name);
+  ierr = PCGetOperators(ksp->pc,&Amat,&Pmat,&pflag);CHKERRQ(ierr);
 
   if (cheb->kspest && !cheb->estimate_current) {
+    PetscInt neig;
+    const PetscReal *re;
     PetscReal max,min;
-    Vec       X,B;
-    
-    if (hybrid && purification) {
-      X = ksp->vec_sol;
-    } else {
-      X = ksp->work[0];
-    }
 
-    if (cheb->random) {
-      B    = ksp->work[1];
-      ierr = VecSetRandom(B,cheb->random);CHKERRQ(ierr);
+    ierr = MatGetEigenvalueEstimates(Amat,&neig,&re,NULL);CHKERRQ(ierr);
+    if (neig) {
+      min  = PETSC_MAX_REAL;
+      max  = PETSC_MIN_REAL;
+      for (i=0; i<neig; i++) {
+        min = PetscMin(min,re[i]);
+        max = PetscMax(max,re[i]);
+      }
     } else {
-      B = ksp->vec_rhs;
+      Vec       X,B;
+
+      if (hybrid && purification) {
+        X = ksp->vec_sol;
+      } else {
+        X = ksp->work[0];
+      }
+
+      if (cheb->random) {
+        B    = ksp->work[1];
+        ierr = VecSetRandom(B,cheb->random);CHKERRQ(ierr);
+      } else {
+        B = ksp->vec_rhs;
+      }
+      ierr = KSPSolve(cheb->kspest,B,X);CHKERRQ(ierr);
+      if (hybrid) {
+        cheb->its = 0; /* initialize Chebyshev iteration associated to kspest */
+        ierr      = KSPSetInitialGuessNonzero(cheb->kspest,PETSC_TRUE);CHKERRQ(ierr);
+      } else if (ksp->guess_zero) {
+        ierr = VecZeroEntries(X);CHKERRQ(ierr);
+      }
+      ierr = KSPChebyshevComputeExtremeEigenvalues_Private(cheb->kspest,&min,&max);CHKERRQ(ierr);
     }
-    ierr = KSPSolve(cheb->kspest,B,X);CHKERRQ(ierr);
-    if (hybrid) {
-      cheb->its = 0; /* initialize Chebyshev iteration associated to kspest */
-      ierr      = KSPSetInitialGuessNonzero(cheb->kspest,PETSC_TRUE);CHKERRQ(ierr); 
-    } else if (ksp->guess_zero) {
-      ierr = VecZeroEntries(X);CHKERRQ(ierr);
-    }
-    ierr = KSPChebyshevComputeExtremeEigenvalues_Private(cheb->kspest,&min,&max);CHKERRQ(ierr);
 
     cheb->emin = cheb->tform[0]*min + cheb->tform[1]*max;
     cheb->emax = cheb->tform[2]*min + cheb->tform[3]*max;
@@ -422,7 +439,6 @@ PetscErrorCode KSPSolve_Chebyshev(KSP ksp)
   }
 
   ksp->its = 0;
-  ierr     = PCGetOperators(ksp->pc,&Amat,&Pmat,&pflag);CHKERRQ(ierr);
   maxit    = ksp->max_it;
 
   /* These three point to the three active solutions, we

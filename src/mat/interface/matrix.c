@@ -1022,6 +1022,7 @@ PetscErrorCode  MatDestroy(Mat *A)
   if ((*A)->ops->destroy) {
     ierr = (*(*A)->ops->destroy)(*A);CHKERRQ(ierr);
   }
+  ierr = PetscFree((*A)->eig_estimates);CHKERRQ(ierr);
   ierr = MatNullSpaceDestroy(&(*A)->nullsp);CHKERRQ(ierr);
   ierr = MatNullSpaceDestroy(&(*A)->nearnullsp);CHKERRQ(ierr);
   ierr = PetscLayoutDestroy(&(*A)->rmap);CHKERRQ(ierr);
@@ -9467,5 +9468,99 @@ PetscErrorCode  MatTransposeColoringCreate(Mat mat,ISColoring iscoloring,MatTran
 
   *color = c;
   ierr   = PetscLogEventEnd(MAT_TransposeColoringCreate,mat,0,0,0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatGetEigenvalueEstimateKey"
+static PetscErrorCode MatGetEigenvalueEstimateKey(Mat A,PetscInt *key)
+{
+  static PetscInt _key = -1;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (_key == -1) {
+    ierr = PetscObjectComposedDataRegister(&_key);CHKERRQ(ierr);
+  }
+  *key = _key;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatSetEigenvalueEstimates"
+/*@
+   MatSetEigenvalueEstimates - set estimated eigenvalues to be used by various analysis components
+
+   Logically Collective
+
+   Input Arguments:
++  A - the matrix
+.  n - number of eigenvalue estimates
+.  re - real parts of n eigenvalue estimates
+-  im - imaginary parts of n eigenvalue estimates (or NULL)
+
+   Level: developer
+
+.seealso: MatGetEigenvalueEstimate(), KSPChebyshevSetEigenvalues()
+@*/
+PetscErrorCode MatSetEigenvalueEstimates(Mat A,PetscInt n,const PetscReal *re,const PetscReal *im)
+{
+  PetscErrorCode ierr;
+  PetscInt key;
+
+  PetscFunctionBegin;
+  if (n > A->neig_estimates_alloc) {
+    ierr = PetscFree(A->eig_estimates);CHKERRQ(ierr);
+    ierr = PetscMalloc(n*2*sizeof(PetscReal),&A->eig_estimates);CHKERRQ(ierr);
+    A->neig_estimates_alloc = n;
+  }
+  ierr = PetscMemcpy(A->eig_estimates,re,n*sizeof(PetscReal));CHKERRQ(ierr);
+  if (im) {
+    ierr = PetscMemcpy(A->eig_estimates+n,im,n*sizeof(PetscReal));CHKERRQ(ierr);
+  } else {
+    ierr = PetscMemzero(A->eig_estimates+n,n*sizeof(PetscReal));CHKERRQ(ierr);
+  }
+  ierr = MatGetEigenvalueEstimateKey(A,&key);CHKERRQ(ierr);
+  ierr = PetscObjectComposedDataSetInt((PetscObject)A,key,n);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatGetEigenvalueEstimates"
+/*@
+   MatGetEigenvalueEstimates - get estimated eigenvalues to be used by various analysis components
+
+   Logically Collective
+
+   Input Arguments:
+.  A - the matrix
+
+   Output Arguments:
++  n - number of eigenvalue estimates (zero if none)
+.  re - real parts of eigenvalue estimates
+-  im - imaginary parts of eigenvalue estimates
+
+   Level: developer
+
+.seealso: MatSetEigenvalueEstimates(), KSPChebyshevGetEigenvalues()
+@*/
+PetscErrorCode MatGetEigenvalueEstimates(Mat A,PetscInt *n,const PetscReal **re,const PetscReal **im)
+{
+  PetscErrorCode ierr;
+  PetscInt key,neig;
+  PetscBool flg;
+
+  PetscFunctionBegin;
+  ierr = MatGetEigenvalueEstimateKey(A,&key);CHKERRQ(ierr);
+  ierr = PetscObjectComposedDataGetInt((PetscObject)A,key,neig,flg);CHKERRQ(ierr);
+  if (flg) {
+    *n = neig;;
+    *re = A->eig_estimates;
+    if (im) *im = A->eig_estimates + neig;
+  } else {
+    *n = 0;
+    *re = NULL;
+    if (im) *im = NULL;
+  }
   PetscFunctionReturn(0);
 }
