@@ -153,7 +153,7 @@ static PetscErrorCode FormRHSFunction(TS ts, PetscReal t, Vec X, Vec F, void* ct
 
   for (i=info.xs; i<info.xs+info.xm; i++) {
     PetscReal tL, tR;
-    if(i == 0){
+    if(!i){
       tL = x[i][0] - x[i][2];
       tR = x[i+1][0]  - x[i+1][2] - x[i][0]   - x[i][2];
     } else if ( i== info.mx-1 ){
