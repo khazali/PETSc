@@ -45,7 +45,7 @@ Problem Data
 typedef struct _User *User;
 struct _User
 {
-  PetscReal omega2;
+  PetscReal omega, omega2;
 };
 
 /*
@@ -77,7 +77,8 @@ int main(int argc, char* argv[])
   ierr = PetscInitialize(&argc, &argv, (char*) 0,help);CHKERRQ(ierr);
 
   /* Set parameters */
-  user.omega2 = 50;
+  user.omega = 50;
+  user.omega2 = user.omega * user.omega;
 
   /*  Create DMDA to manage our system,  a 1d grid with 4dof at each  of l points */
   ierr = DMDACreate1d(PETSC_COMM_WORLD, DMDA_BOUNDARY_NONE, l, 4, 1, NULL, &da);CHKERRQ(ierr);
@@ -290,7 +291,7 @@ static PetscErrorCode FormInitialSolution(TS ts,Vec X,void *ctx)
     if(i==0){
       x[i][0] = 1; 
       x[i][1] = 1;
-      x[i][2] = 1/user->omega2;
+      x[i][2] = 1/user->omega;
       x[i][3] = 1;
     }else{
       x[i][0] = 0; 
