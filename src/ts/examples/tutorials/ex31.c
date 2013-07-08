@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
   Mat J;
   TS ts;
   struct _User user;
-  const int l = 3; /* The number of stiff/weak spring pairs */
+  const int m = 3; /* The number of stiff/weak spring pairs */
   PetscReal timestep = 0.01, maxtime = 20.0, ftime;
   PetscInt  steps;
   TSConvergedReason reason;
@@ -80,8 +80,8 @@ int main(int argc, char* argv[])
   user.omega = 50;
   user.omega2 = user.omega * user.omega;
 
-  /*  Create DMDA to manage our system,  a 1d grid with 4dof at each  of l points */
-  ierr = DMDACreate1d(PETSC_COMM_WORLD, DMDA_BOUNDARY_NONE, l, 4, 1, NULL, &da);CHKERRQ(ierr);
+  /*  Create DMDA to manage our system,  a 1d grid with 4dof at each  of m points */
+  ierr = DMDACreate1d(PETSC_COMM_WORLD, DMDA_BOUNDARY_NONE, m, 4, 1, NULL, &da);CHKERRQ(ierr);
 
   /* Create Global Vector */ 
   ierr = DMCreateGlobalVector(da, &X);CHKERRQ(ierr);
@@ -158,17 +158,17 @@ static PetscErrorCode FormRHSFunction(TS ts, PetscReal t, Vec X, Vec F, void* ct
       tR = x[i+1][0]  - x[i+1][2] - x[i][0]   - x[i][2];
     } else if ( i== info.mx-1 ){
       tL = x[i][0]    - x[i][2]   - x[i-1][0] - x[i-1][2];
-      tR = x[i][0] + x[i][2];
+      tR = -x[i][0] - x[i][2];
     } else {
       tL = x[i][0]    - x[i][2]   - x[i-1][0] - x[i-1][2];
       tR = x[i+1][0]  - x[i+1][2] - x[i][0]   - x[i][2];
     }
   
     PetscReal flocL = tL*tL*tL, flocR = tR*tR*tR;     
-    f[i][0] = - flocL + flocR;
-    f[i][1] = 0;
-    f[i][2] = flocL + flocR;
-    f[i][3] = 0;
+    f[i][0] = 0;
+    f[i][1] = - flocL + flocR; 
+    f[i][2] = 0;
+    f[i][3] = flocL + flocR; 
   }
 
   /* Restore vectors */
