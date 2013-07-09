@@ -3,8 +3,10 @@ static const char help[] = "Solve a Fermi-Pasta-Ulam problem, a Hamiltonian syst
 /*
 Use TS tools to solve the Fermi-Pasta-Ulam problem:
 
-Consider a colinear series of 2l unit point masses, connected in series by springs which are alternately 'stiff' or 'weak'.
-The dynamics of this system (with 2l DOF) involve two timescales, corresponding to the two types of spring.
+Consider a colinear series of 2m unit point masses, connected in series by springs which are alternately 'stiff' or 'weak',
+between two fixed boundaries.
+The dynamics of this system (with 2m DOF) involve rapid oscillations, and exhibit interesting energy exhange on O(\omega^{-1})
+timescales.
 
 The 'stiff' (fast) springs are linear with spring constant \omega^2, and the 'weak' (slow) springs produce force
 proportional to the cube of their length. All springs are of rest length 0 and we take the the first and last point mass
@@ -23,14 +25,13 @@ The system is Hamiltonian and from Hamiltonian's equations (or a Lagrangian and 
 one obtains an ODE system with a linear LHS and a nonlinear RHS which does not involve the 'fast' scale \omega^2.
 
 The initial conditions provided place energy in one of three stiff springs, and integrators can be compared based
-on how well they produce the slow energy exchange between the three oscillators.
+on how well they capture the slow energy exchange between the three oscillators.
 
 References:
-   Stern and Grinspun 2009, "Implicit-Explicit Variational Integration of Highly Oscillatory Problems"
-   Machlachlan and O'Neal 2007, "Comparison of Integrators for the Fermi-Pasta-Ulam Problem"
-   Hairer and Lubich 2006, "Geometric Numerical Intergration" 
-   Hairer and Lubich 2000, "Long-Time Energy Conservation of Numerical Methods for Oscillatory Differential Equations"
-   Stern and McLachlan 2013, "Modified Trigonometric Integrators"
+   Machlachlan and O'Neal, "Comparison of Integrators for the Fermi-Pasta-Ulam Problem" 2007
+   Hairer, Lubich and Wanner, "Geometric Numerical Integration, 2nd ed." 2006
+
+Accepts an option -omega
 
 */
 
@@ -70,15 +71,17 @@ int main(int argc, char* argv[])
   TS ts;
   struct _User user;
   const int m = 3; /* The number of stiff/weak spring pairs */
-  PetscReal timestep = 0.01, maxtime = 20.0, ftime;
+  PetscReal timestep = 0.1, maxtime = 20.0, ftime, omega;
   PetscInt  steps;
   TSConvergedReason reason;
 
   ierr = PetscInitialize(&argc, &argv, (char*) 0,help);CHKERRQ(ierr);
 
+  ierr = PetscOptionsGetReal(NULL,"-omega",&omega,NULL);CHKERRQ(ierr);
+
   /* Set parameters */
-  user.omega = 50;
-  user.omega2 = user.omega * user.omega;
+  user.omega  = omega;
+  user.omega2 = omega * omega;
 
   /*  Create DMDA to manage our system,  a 1d grid with 4dof at each  of m points */
   ierr = DMDACreate1d(PETSC_COMM_WORLD, DMDA_BOUNDARY_NONE, m, 4, 1, NULL, &da);CHKERRQ(ierr);
@@ -86,10 +89,10 @@ int main(int argc, char* argv[])
   /* Create Global Vector */ 
   ierr = DMCreateGlobalVector(da, &X);CHKERRQ(ierr);
 
-  /* Create TS */
+  /* Set up TS */
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
   ierr = TSSetDM(ts,da);CHKERRQ(ierr);
-  ierr = TSSetType(ts,TSARKIMEX);
+  ierr = TSSetType(ts,TSTHETA);
   ierr = TSSetRHSFunction(ts,NULL,FormRHSFunction,&user);CHKERRQ(ierr);
   ierr = TSSetIFunction(ts,NULL,FormIFunction,&user);CHKERRQ(ierr);
   ierr = DMCreateMatrix(da,MATAIJ,&J);CHKERRQ(ierr);
@@ -154,11 +157,11 @@ static PetscErrorCode FormRHSFunction(TS ts, PetscReal t, Vec X, Vec F, void* ct
   for (i=info.xs; i<info.xs+info.xm; i++) {
     PetscReal tL, tR;
     if(!i){
-      tL = x[i][0] - x[i][2];
+      tL = x[i][0]    - x[i][2];
       tR = x[i+1][0]  - x[i+1][2] - x[i][0]   - x[i][2];
-    } else if ( i== info.mx-1 ){
-      tL = x[i][0]    - x[i][2]   - x[i-1][0] - x[i-1][2];
-      tR = -x[i][0] - x[i][2];
+    } else if (i==info.mx-1){
+      tL =   x[i][0]   - x[i][2]  - x[i-1][0] - x[i-1][2];
+      tR =                        - x[i][0]   - x[i][2];
     } else {
       tL = x[i][0]    - x[i][2]   - x[i-1][0] - x[i-1][2];
       tR = x[i+1][0]  - x[i+1][2] - x[i][0]   - x[i][2];
@@ -168,7 +171,7 @@ static PetscErrorCode FormRHSFunction(TS ts, PetscReal t, Vec X, Vec F, void* ct
     f[i][0] = 0;
     f[i][1] = - flocL + flocR; 
     f[i][2] = 0;
-    f[i][3] = flocL + flocR; 
+    f[i][3] =   flocL + flocR; 
   }
 
   /* Restore vectors */
@@ -176,7 +179,6 @@ static PetscErrorCode FormRHSFunction(TS ts, PetscReal t, Vec X, Vec F, void* ct
   ierr = DMDAVecRestoreArray(da,F,&f);CHKERRQ(ierr);
   ierr = DMRestoreLocalVector(da,&Xloc);CHKERRQ(ierr);
   PetscFunctionReturn(0);
-
 }
 
 /*  
@@ -205,9 +207,9 @@ static PetscErrorCode FormIFunction(TS ts,PetscReal t,Vec X,Vec Xdot,Vec F,void 
   /* Compute function over the locally owned part of the grid */
   for (i=info.xs; i<info.xs+info.xm; i++) {
     f[i][0] = xdot[i][0] - x[i][1]; 
-    f[i][1] = xdot[i][1] + user->omega2 * x[i][0]; // + slow nonlin terms (in RHS)
+    f[i][1] = xdot[i][1]; 
     f[i][2] = xdot[i][2] - x[i][3];
-    f[i][3] = xdot[i][3] + user->omega2 * x[i][2]; // + slow nonlin terms (in RHS)
+    f[i][3] = xdot[i][3] + user->omega2 * x[i][2]; 
   }
 
   /* Restore vectors */
@@ -245,8 +247,8 @@ static PetscErrorCode FormIJacobian(TS ts,PetscReal t,Vec X,Vec Xdot, PetscReal 
 
     PetscScalar     v[4][4];
 
-    v[0][0] = a ;           v[0][1] =  -1; v[0][2] = 0;            v[0][3] =  0;
-    v[1][0] = user->omega2; v[1][1] =   a; v[1][2] = 0;            v[1][3] =  0;
+    v[0][0] = a;            v[0][1] =  -1; v[0][2] = 0;            v[0][3] =  0;
+    v[1][0] = 0;            v[1][1] =   a; v[1][2] = 0;            v[1][3] =  0;
     v[2][0] = 0;            v[2][1] =   0; v[2][2] = a;            v[2][3] = -1;
     v[3][0] = 0;            v[3][1] =   0; v[3][2] = user->omega2; v[3][3] =  a;
     ierr    = MatSetValuesBlocked(*Jpre,1,&i,1,&i,&v[0][0],INSERT_VALUES);CHKERRQ(ierr);
@@ -263,7 +265,6 @@ static PetscErrorCode FormIJacobian(TS ts,PetscReal t,Vec X,Vec Xdot, PetscReal 
     ierr = MatAssemblyEnd(*J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
-
 }
 
 /*
