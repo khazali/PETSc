@@ -71,8 +71,8 @@ int main(int argc, char* argv[])
   TS ts;
   struct _User user;
   const int m = 3; /* The number of stiff/weak spring pairs */
-  PetscReal timestep = 0.1, maxtime = 20.0, ftime, omega;
-  PetscInt  steps;
+  PetscReal timestep = 0.03, maxtime, ftime, omega = 50;
+  PetscInt  maxsteps = 100000, steps;
   TSConvergedReason reason;
 
   ierr = PetscInitialize(&argc, &argv, (char*) 0,help);CHKERRQ(ierr);
@@ -82,6 +82,7 @@ int main(int argc, char* argv[])
   /* Set parameters */
   user.omega  = omega;
   user.omega2 = omega * omega;
+  maxtime = 4*omega;
 
   /*  Create DMDA to manage our system,  a 1d grid with 4dof at each  of m points */
   ierr = DMDACreate1d(PETSC_COMM_WORLD, DMDA_BOUNDARY_NONE, m, 4, 1, NULL, &da);CHKERRQ(ierr);
@@ -97,7 +98,7 @@ int main(int argc, char* argv[])
   ierr = TSSetIFunction(ts,NULL,FormIFunction,&user);CHKERRQ(ierr);
   ierr = DMCreateMatrix(da,MATAIJ,&J);CHKERRQ(ierr);
   ierr = TSSetIJacobian(ts,J,J,FormIJacobian,&user);CHKERRQ(ierr);
-  ierr = TSSetDuration(ts, maxtime/timestep + 1, maxtime);CHKERRQ(ierr);
+  ierr = TSSetDuration(ts, maxsteps, maxtime);CHKERRQ(ierr);
   ierr = TSSetInitialTimeStep(ts, 0, timestep);CHKERRQ(ierr);
 
   /* Set Initial Conditions */
