@@ -6,6 +6,8 @@ static const char help[] = "Demonstrate the interface to solve DAE systems with 
 
    q''(t) + q(t) = \epsilon f(q) 
   
+   where \epsilon << 1
+
    As a first order system, we  have
 
    q'(t) = p(t)
@@ -15,6 +17,10 @@ static const char help[] = "Demonstrate the interface to solve DAE systems with 
 
    X' = [q; p]' =  [p(t); 0] + [0; -q(t)] + [0 ; \epsilon f(q)]
 
+                   -- P ---   ----------- Q -------------------
+                   ------- Fast --------   ------ Slow --------  
+
+  Different potential integration schemes would split the same RHS differently.                  
 */
 
 #include <petscts.h>
@@ -23,6 +29,9 @@ static const char help[] = "Demonstrate the interface to solve DAE systems with 
 static PetscErrorCode FormRHSFunctionPFast(TS,PetscReal,Vec,Vec,void*);
 static PetscErrorCode FormRHSFunctionQFast(TS,PetscReal,Vec,Vec,void*);
 static PetscErrorCode FormRHSFunctionPSlow(TS,PetscReal,Vec,Vec,void*);
+
+// RHS Jacobian Functions ...
+
 static PetscErrorCode FormInitialSolution(TS,Vec,void*);
 
 /* User context */
@@ -46,6 +55,7 @@ int main(int argc, char* argv[])
   PetscReal dt = 0.1, maxtime = 1.0, ftime;
   PetscInt maxsteps = 1000, steps;
   TSConvergedReason reason;
+  PetscInt fastSet[2] = {0,1}, slowSet = 2, pSet = 0, qSet = {1,2};
 
   ierr = PetscInitialize(&argc, &argv, (char*) 0,help);CHKERRQ(ierr);
   ierr = MPI_Comm_size(PETSC_COMM_WORLD,&size);
@@ -56,27 +66,37 @@ int main(int argc, char* argv[])
 
   /* Create TS */
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
-  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr); // Should create a DM for us to use (or you might create one yourself, for example a DMDA)
+  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr); //creates a DM (or you might create one yourself, for example of type DMDA)
 
-  /* Set Initial Conditions */
+  /* Set Initial Conditions and time Parameters*/
   ierr = VecCreateSeq(PETSC_COMM_WORLD,2,&X);CHKERRQ(ierr);  
   ierr = FormInitialSolution(ts,X,&user);
   ierr = TSSetSolution(ts,X);CHKERRQ(ierr);
-
-  /* Set RHS Functions */
-
-  // TEMP - change to TSDMXX to confirm that works..
-  //ierr = TSSetRHSFunction(ts,X,FormRHSFunctionQFast,&user);CHKERRQ(ierr); 
-  ierr = DMTSSetRHSFunction(dm,FormRHSFunctionQFast,&user);CHKERRQ(ierr); 
-  // TSSetRHSFunction does error checking and creates a vector if X isn't provided, but also registers a function with the SNES object associated with the TS, which we may also have to do ourselves
-
-  //// ................. 
-
-  // Set RHSJacobians ? 
-
-  /* Set other TS Parameters */
   ierr = TSSetInitialTimeStep(ts,0.0,dt);CHKERRQ(ierr);
   ierr = TSSetDuration(ts,maxsteps,maxtime);
+
+  /* Set RHS Functions amd Jacobians*/
+
+  ierr = DMTSSetRHSFunction(dm,FormRHSFunctionPFast,&user);CHKERRQ(ierr); // This should by default set part 0
+  // TSSetRHSFunction does error checking and creates a vector if X isn't provided, but also registers a function with the SNES object associated with the TS, which we may also have to do ourselves to use an implicit method
+
+  /* --- TO IMPLEMENT ---
+  ierr = DMTSSetPartCount(dm,3);CHKERRQ(ierr); //this would be the laziest way..
+
+  //ierr = DMTSSetRHSFunctionPart(dm,0,FormRHSFunctionPFast,&user);CHKERRQ(ierr); // already set
+  ierr = DMTSSetRHSFunctionPart(dm,1,FormRHSFunctionQFast,&user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSFunctionPart(dm,2,FormRHSFunctionQSlow,&user);CHKERRQ(ierr);
+
+  // Set RHSJacobians ...
+*/
+
+  /* Register Partitions */
+  /* --- TO IMPLEMENT ---
+  ierr = DMTSRegisterPartition(dm,"fast",2,fastSet);CHKERRQ(ierr);
+  ierr = DMTSRegisterPartition(dm,"slow",1,&slowSet);CHKERRQ(ierr);
+  ierr = DMTSRegisterPartition(dm,"hamiltonianP",1,&pSet);CHKERRQ(ierr);
+  ierr = DMTSRegisterPartition(dm,"hamiltonianQ",2,qSet);CHKERRQ(ierr);
+*/
 
   /* Set from options */
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
@@ -87,7 +107,6 @@ int main(int argc, char* argv[])
   ierr = TSGetTimeStepNumber(ts,&steps);CHKERRQ(ierr);
   ierr = TSGetConvergedReason(ts,&reason);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"%s at time %G after %D steps\n",TSConvergedReasons[reason],ftime,steps);CHKERRQ(ierr);
-
 
   /* Clean Up */
   ierr = VecDestroy(&X);CHKERRQ(ierr);
@@ -102,7 +121,6 @@ int main(int argc, char* argv[])
 #define __FUNCT__ "FormInitialSolution"
 static PetscErrorCode FormInitialSolution(TS ts,Vec X,void *ctx)
 { 
-  User           *user = (User*)ctx;
   PetscScalar    *x;
   PetscErrorCode ierr;
 
