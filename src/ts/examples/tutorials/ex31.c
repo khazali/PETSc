@@ -115,9 +115,6 @@ int main(int argc, char* argv[])
   ierr = TSGetConvergedReason(ts,&reason);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"%s at time %G after %D steps\n",TSConvergedReasons[reason],ftime,steps);CHKERRQ(ierr);
 
-  /* View */
-  ierr = TSView(ts, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
- 
   /* Clean Up */
   ierr = MatDestroy(&J);CHKERRQ(ierr);
   ierr = VecDestroy(&X);CHKERRQ(ierr);
