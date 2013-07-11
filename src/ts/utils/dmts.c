@@ -412,6 +412,25 @@ PetscErrorCode DMTSSetRHSFunction(DM dm,TSRHSFunction func,void *ctx)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "DMTSSetRHSPartitionFunction"
+/*@C
+   DMTSSetRHSpartitionFunction 
+   
+ @*/
+PetscErrorCode DMTSSetRHSPartitionFunction(DM dm,TSPartitionType type, PetscInt slot, TSRHSFunction func,void *ctx)
+{
+  PetscErrorCode ierr;
+  DMTS           tsdm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = DMGetDMTSWrite(dm,&tsdm);CHKERRQ(ierr);
+  if (func) tsdm->rhsfunctions[type][slot] = func;
+  if (ctx)  tsdm->rhsfunctionctxs[type][slot] = ctx;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "DMTSGetSolutionFunction"
 /*@C
    DMTSGetSolutionFunction - gets the TS solution evaluation function
@@ -580,6 +599,35 @@ PetscErrorCode DMTSGetRHSFunction(DM dm,TSRHSFunction *func,void **ctx)
   if (func) *func = tsdm->ops->rhsfunction;
   if (ctx)  *ctx = tsdm->rhsfunctionctx;
   PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMTSRegisterRHSPartition"
+/*@C
+  DMTSRegisterRHSPartition
+  
+  // ...
+
+*/
+PetscErrorCode DMTSRegisterRHSPartition(DM dm, TSPartitionType type)
+{
+  
+  // Note: it should be possible to not even need this function, jsut creating the partition's data when the first call the try and   add to it is made, but we'll leave that for later
+
+  DMTS dmts;
+  PetscErrorCode ierr;
+  PetscInt m;
+  // ..
+
+  PetscFunctionBegin;
+  ierr = DMGetDMTS(dm,&dmts);CHKERRQ(ierr);
+  // With the current temporary hack, there is actually no need ot register anything, since the pointer arrays are fixed size.
+  
+
+  // ..
+
+  PetscFunctionReturn(0);
+
 }
 
 #undef __FUNCT__
@@ -780,3 +828,4 @@ PetscErrorCode DMTSSetIJacobianSerialize(DM dm,PetscErrorCode (*view)(void*,Pets
   tsdm->ops->ijacobianload = load;
   PetscFunctionReturn(0);
 }
+

@@ -162,6 +162,30 @@ E*/
 typedef enum {TS_EXACTFINALTIME_STEPOVER=0,TS_EXACTFINALTIME_INTERPOLATE=1,TS_EXACTFINALTIME_MATCHSTEP=2} TSExactFinalTimeOption;
 PETSC_EXTERN const char *const TSExactFinalTimeOptions[];
 
+/*E
+  
+    TSPartitionType
+
+    // ... 
+
+  E*/
+typedef enum {NONE, SYMPLECTIC, EXPONENTIAL} TSPartitionType;
+
+/*E
+
+TSExponentialPartitionSlot
+// ..
+
+ E*/
+typedef enum {EXPONENTIAL_FAST,EXPONENTIAL_SLOW} TSExponentialPartitionSlot;
+
+/*E
+
+TSSymplecticPartitionSlot
+// ..
+
+ E*/
+typedef enum {SYMPLECTIC_P,SYMPLECTIC_Q} TSSymplecticPartitionSlot;
 
 /* Logging support */
 PETSC_EXTERN PetscClassId TS_CLASSID;
@@ -290,7 +314,9 @@ PETSC_EXTERN PetscErrorCode TSComputeLinearStability(TS,PetscReal,PetscReal,Pets
 PETSC_EXTERN PetscErrorCode TSVISetVariableBounds(TS,Vec,Vec);
 
 PETSC_EXTERN PetscErrorCode DMTSSetRHSFunction(DM,TSRHSFunction,void*);
+PETSC_EXTERN PetscErrorCode DMTSSetRHSPartitionFunction(DM,TSPartitionType,PetscInt,TSRHSFunction,void*); //temp
 PETSC_EXTERN PetscErrorCode DMTSGetRHSFunction(DM,TSRHSFunction*,void**);
+PETSC_EXTERN PetscErrorCode DMTSRegisterRHSPartition(DM,TSPartitionType);
 PETSC_EXTERN PetscErrorCode DMTSSetRHSJacobian(DM,TSRHSJacobian,void*);
 PETSC_EXTERN PetscErrorCode DMTSGetRHSJacobian(DM,TSRHSJacobian*,void**);
 PETSC_EXTERN PetscErrorCode DMTSSetIFunction(DM,TSIFunction,void*);
@@ -604,5 +630,8 @@ PETSC_EXTERN PetscErrorCode TSGetDM(TS,DM*);
 
 PETSC_EXTERN PetscErrorCode SNESTSFormFunction(SNES,Vec,Vec,void*);
 PETSC_EXTERN PetscErrorCode SNESTSFormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+
+
+
 
 #endif

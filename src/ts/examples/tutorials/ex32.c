@@ -26,9 +26,11 @@ static const char help[] = "Demonstrate the interface to solve DAE systems with 
 #include <petscts.h>
 
 /* User-defined Functions */
-static PetscErrorCode FormRHSFunctionPFast(TS,PetscReal,Vec,Vec,void*);
-static PetscErrorCode FormRHSFunctionQFast(TS,PetscReal,Vec,Vec,void*);
-static PetscErrorCode FormRHSFunctionPSlow(TS,PetscReal,Vec,Vec,void*);
+static PetscErrorCode FormRHSFunction(TS,PetscReal,Vec,Vec,void*);
+static PetscErrorCode FormRHSFunctionP(TS,PetscReal,Vec,Vec,void*);
+static PetscErrorCode FormRHSFunctionQ(TS,PetscReal,Vec,Vec,void*);
+static PetscErrorCode FormRHSFunctionSlow(TS,PetscReal,Vec,Vec,void*);
+static PetscErrorCode FormRHSFunctionFast(TS,PetscReal,Vec,Vec,void*);
 
 // RHS Jacobian Functions ...
 
@@ -40,7 +42,9 @@ typedef struct
   PetscReal epsilon;
 } User;
 
-/* Main function */
+/* 
+   Main function 
+*/
 #undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc, char* argv[])
@@ -55,7 +59,6 @@ int main(int argc, char* argv[])
   PetscReal dt = 0.1, maxtime = 1.0, ftime;
   PetscInt maxsteps = 1000, steps;
   TSConvergedReason reason;
-  PetscInt fastSet[2] = {0,1}, slowSet = 2, pSet = 0, qSet = {1,2};
 
   ierr = PetscInitialize(&argc, &argv, (char*) 0,help);CHKERRQ(ierr);
   ierr = MPI_Comm_size(PETSC_COMM_WORLD,&size);
@@ -77,26 +80,24 @@ int main(int argc, char* argv[])
 
   /* Set RHS Functions amd Jacobians*/
 
-  ierr = DMTSSetRHSFunction(dm,FormRHSFunctionPFast,&user);CHKERRQ(ierr); // This should by default set part 0
+  ierr = DMTSSetRHSFunction(dm,FormRHSFunction,&user);CHKERRQ(ierr); 
+//  ierr = DMTSSetRHSFunction(dm,NULL,0,FormRHSFunction,&user);CHKERRQ(ierr); // <-- new interface  
   // TSSetRHSFunction does error checking and creates a vector if X isn't provided, but also registers a function with the SNES object associated with the TS, which we may also have to do ourselves to use an implicit method
 
-  /* --- TO IMPLEMENT ---
-  ierr = DMTSSetPartCount(dm,3);CHKERRQ(ierr); //this would be the laziest way..
-
-  //ierr = DMTSSetRHSFunctionPart(dm,0,FormRHSFunctionPFast,&user);CHKERRQ(ierr); // already set
-  ierr = DMTSSetRHSFunctionPart(dm,1,FormRHSFunctionQFast,&user);CHKERRQ(ierr);
-  ierr = DMTSSetRHSFunctionPart(dm,2,FormRHSFunctionQSlow,&user);CHKERRQ(ierr);
-
-  // Set RHSJacobians ...
-*/
-
   /* Register Partitions */
-  /* --- TO IMPLEMENT ---
-  ierr = DMTSRegisterPartition(dm,"fast",2,fastSet);CHKERRQ(ierr);
-  ierr = DMTSRegisterPartition(dm,"slow",1,&slowSet);CHKERRQ(ierr);
-  ierr = DMTSRegisterPartition(dm,"hamiltonianP",1,&pSet);CHKERRQ(ierr);
-  ierr = DMTSRegisterPartition(dm,"hamiltonianQ",2,qSet);CHKERRQ(ierr);
-*/
+  /* --- TO IMPLEMENT --- */
+ 
+  // Note: another option is to include an object TSRHSPartition which holds data about a partition (a name and a size)
+
+  // temp - to avoid breaking anything, temporarily using a new DMTSSetRHSPartitionFunction 
+
+  ierr = DMTSRegisterRHSPartition(dm,SYMPLECTIC);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionFunction(dm,SYMPLECTIC,SYMPLECTIC_P,FormRHSFunctionP,&user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionFunction(dm,SYMPLECTIC,SYMPLECTIC_Q,FormRHSFunctionQ,&user);CHKERRQ(ierr);
+    
+  ierr = DMTSRegisterRHSPartition(dm,EXPONENTIAL);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionFunction(dm,EXPONENTIAL,EXPONENTIAL_FAST,FormRHSFunctionFast,&user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionFunction(dm,EXPONENTIAL,EXPONENTIAL_SLOW,FormRHSFunctionSlow,&user);CHKERRQ(ierr);
 
   /* Set from options */
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
@@ -116,7 +117,9 @@ int main(int argc, char* argv[])
   return EXIT_SUCCESS;
 }
  
-/* Initial Conditions */
+/* 
+Initial Conditions 
+*/
 #undef __FUNCT__
 #define __FUNCT__ "FormInitialSolution"
 static PetscErrorCode FormInitialSolution(TS ts,Vec X,void *ctx)
@@ -132,15 +135,35 @@ static PetscErrorCode FormInitialSolution(TS ts,Vec X,void *ctx)
   PetscFunctionReturn(0);
 }
 
-
-/*
-RHS function for 'fast P' terms
+/* 
+RHS function (complete) 
 */
 #undef __FUNCT__
-#define __FUNCT__ "FormRHSFunctionPFast"
-static PetscErrorCode FormRHSFunctionPFast(TS ts, PetscReal t, Vec X, Vec F, void* ctx)
+#define __FUNCT__ "FormRHSFunction"
+static PetscErrorCode FormRHSFunction(TS ts, PetscReal t, Vec X, Vec F, void* ctx)
 {
+  User           *user = (User*) ctx;
+  PetscScalar *x, *f;
+  PetscErrorCode ierr;
 
+  PetscFunctionBeginUser;
+  ierr = VecGetArray(X,&x);CHKERRQ(ierr);
+  ierr = VecGetArray(F,&f);CHKERRQ(ierr);
+  f[0] = x[1];
+  f[1] = -x[0] -(user->epsilon * x[0] * x[0]);
+  ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
+  ierr = VecRestoreArray(F,&f);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*
+RHS function for ' P' terms
+*/
+#undef __FUNCT__
+#define __FUNCT__ "FormRHSFunctionP"
+static PetscErrorCode FormRHSFunctionP(TS ts, PetscReal t, Vec X, Vec F, void* ctx)
+{
+  User           *user = (User*) ctx;
   PetscScalar *x, *f;
   PetscErrorCode ierr;
 
@@ -148,20 +171,19 @@ static PetscErrorCode FormRHSFunctionPFast(TS ts, PetscReal t, Vec X, Vec F, voi
   ierr = VecGetArray(X,&x);CHKERRQ(ierr);
   ierr = VecGetArray(F,&f);CHKERRQ(ierr);
   f[0] = 0;
-  f[1] = -x[0];
+  f[1] = -x[0] -(user->epsilon * x[0] * x[0]);
   ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
   ierr = VecRestoreArray(F,&f);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 /*
-RHS function for 'fast Q' terms
+RHS function for 'Q' terms
 */
 #undef __FUNCT__
-#define __FUNCT__ "FormRHSFunctionQFast"
-static PetscErrorCode FormRHSFunctionQFast(TS ts, PetscReal t, Vec X, Vec F, void* ctx)
+#define __FUNCT__ "FormRHSFunctionQ"
+static PetscErrorCode FormRHSFunctionQ(TS ts, PetscReal t, Vec X, Vec F, void* ctx)
 {
-
   PetscScalar *x, *f;
   PetscErrorCode ierr;
 
@@ -175,13 +197,32 @@ static PetscErrorCode FormRHSFunctionQFast(TS ts, PetscReal t, Vec X, Vec F, voi
   PetscFunctionReturn(0);
 }
 
-
 /*
-RHS function for 'slow P' terms
+RHS function for 'fast' terms
 */
 #undef __FUNCT__
-#define __FUNCT__ "FormRHSFunctionPSlow"
-static PetscErrorCode FormRHSFunctionPSlow(TS ts, PetscReal t, Vec X, Vec F, void* ctx)
+#define __FUNCT__ "FormRHSFunctionFast"
+static PetscErrorCode FormRHSFunctionFast(TS ts, PetscReal t, Vec X, Vec F, void* ctx)
+{
+  PetscScalar *x, *f;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecGetArray(X,&x);CHKERRQ(ierr);
+  ierr = VecGetArray(F,&f);CHKERRQ(ierr);
+  f[0] =  x[1];
+  f[1] = -x[0];
+  ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
+  ierr = VecRestoreArray(F,&f);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*
+RHS function for 'slow' terms
+*/
+#undef __FUNCT__
+#define __FUNCT__ "FormRHSFunctionSlow"
+static PetscErrorCode FormRHSFunctionSlow(TS ts, PetscReal t, Vec X, Vec F, void* ctx)
 {
 
   User           *user = (User*) ctx;
