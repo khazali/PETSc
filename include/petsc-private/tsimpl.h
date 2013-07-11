@@ -152,8 +152,8 @@ struct _p_TSAdapt {
 typedef struct _p_DMTS *DMTS;
 typedef struct _DMTSOps *DMTSOps;
 struct _DMTSOps {
-  TSRHSFunction rhsfunction; // Move to _p_DMTS and/or merge with the array structure there?
-  TSRHSJacobian rhsjacobian; // Move to _p_DMTS and/or merge with the array structure there?
+  //TSRHSFunction rhsfunction; // Move to _p_DMTS and/or merge with the array structure there?
+  //TSRHSJacobian rhsjacobian; // Move to _p_DMTS and/or merge with the array structure there?
 
   TSIFunction ifunction;
   PetscErrorCode (*ifunctionview)(void*,PetscViewer);
@@ -182,8 +182,8 @@ struct _p_DMTS {
   void *rhsfunctionctxs[3][2]; //also  temp (redundant, shouldn't be fixed size)
   void *rhsjacobianctxs[3][2]; //also temp (redundant, shouldn't be fixed size)
 
-  void *rhsfunctionctx;
-  void *rhsjacobianctx;
+  //void *rhsfunctionctx;
+  //void *rhsjacobianctx;
 
   void *ifunctionctx;
   void *ijacobianctx;

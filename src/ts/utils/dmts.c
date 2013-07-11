@@ -172,16 +172,20 @@ PetscErrorCode DMTSCopy(DMTS kdm,DMTS nkdm)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(kdm,DMTS_CLASSID,1);
   PetscValidHeaderSpecific(nkdm,DMTS_CLASSID,2);
-  nkdm->ops->rhsfunction = kdm->ops->rhsfunction;
-  nkdm->ops->rhsjacobian = kdm->ops->rhsjacobian;
   nkdm->ops->ifunction   = kdm->ops->ifunction;
   nkdm->ops->ijacobian   = kdm->ops->ijacobian;
   nkdm->ops->solution    = kdm->ops->solution;
   nkdm->ops->destroy     = kdm->ops->destroy;
   nkdm->ops->duplicate   = kdm->ops->duplicate;
 
-  nkdm->rhsfunctionctx = kdm->rhsfunctionctx;
-  nkdm->rhsjacobianctx = kdm->rhsjacobianctx;
+  //!! we need to copy ALL the partition functions, jacobians, and ctxs
+  // (this just copies the first from each of these arrays)
+  nkdm->rhsfunctions[0][0]    = kdm->rhsfunctions[0][0];
+  nkdm->rhsjacobians[0][0]    = kdm->rhsjacobians[0][0];
+  nkdm->rhsfunctionctxs[0][0] = kdm->rhsfunctionctxs[0][0];
+  nkdm->rhsjacobianctxs[0][0] = kdm->rhsjacobianctxs[0][0];
+  // temp until we come up with a better data structure
+    
   nkdm->ifunctionctx   = kdm->ifunctionctx;
   nkdm->ijacobianctx   = kdm->ijacobianctx;
   nkdm->solutionctx    = kdm->solutionctx;
@@ -400,14 +404,11 @@ PetscErrorCode DMTSGetIFunction(DM dm,TSIFunction *func,void **ctx)
 @*/
 PetscErrorCode DMTSSetRHSFunction(DM dm,TSRHSFunction func,void *ctx)
 {
+    
   PetscErrorCode ierr;
-  DMTS           tsdm;
 
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  ierr = DMGetDMTSWrite(dm,&tsdm);CHKERRQ(ierr);
-  if (func) tsdm->ops->rhsfunction = func;
-  if (ctx)  tsdm->rhsfunctionctx = ctx;
+  ierr = DMTSSetRHSPartitionFunction(dm,0,0,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -415,6 +416,8 @@ PetscErrorCode DMTSSetRHSFunction(DM dm,TSRHSFunction func,void *ctx)
 #define __FUNCT__ "DMTSSetRHSPartitionFunction"
 /*@C
    DMTSSetRHSpartitionFunction 
+ 
+ // ...
    
  @*/
 PetscErrorCode DMTSSetRHSPartitionFunction(DM dm,TSPartitionType type, PetscInt slot, TSRHSFunction func,void *ctx)
@@ -591,14 +594,31 @@ PetscErrorCode DMTSGetForcingFunction(DM dm,PetscErrorCode (**TSForcingFunction)
 PetscErrorCode DMTSGetRHSFunction(DM dm,TSRHSFunction *func,void **ctx)
 {
   PetscErrorCode ierr;
-  DMTS           tsdm;
-
+     
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  ierr = DMGetDMTS(dm,&tsdm);CHKERRQ(ierr);
-  if (func) *func = tsdm->ops->rhsfunction;
-  if (ctx)  *ctx = tsdm->rhsfunctionctx;
+  ierr = DMTSGetRHSPartitionFunction(dm,0,0,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMTSGetRHSPartitionFunction"
+/*@C
+ DMTSGetRHSPartitionFunction 
+ 
+ //..
+ 
+ @*/
+PetscErrorCode DMTSGetRHSPartitionFunction(DM dm,TSPartitionType type, PetscInt slot,TSRHSFunction *func,void **ctx)
+{
+    PetscErrorCode ierr;
+    DMTS           tsdm;
+    
+    PetscFunctionBegin;
+    PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+    ierr = DMGetDMTS(dm,&tsdm);CHKERRQ(ierr);
+    if (func) *func = tsdm->rhsfunctions[type][slot];
+    if (ctx)  *ctx = tsdm->rhsfunctionctxs[type][slot];
+    PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
@@ -611,23 +631,9 @@ PetscErrorCode DMTSGetRHSFunction(DM dm,TSRHSFunction *func,void **ctx)
 */
 PetscErrorCode DMTSRegisterRHSPartition(DM dm, TSPartitionType type)
 {
-  
-  // Note: it should be possible to not even need this function, jsut creating the partition's data when the first call the try and   add to it is made, but we'll leave that for later
-
-  DMTS dmts;
-  PetscErrorCode ierr;
-  PetscInt m;
-  // ..
-
   PetscFunctionBegin;
-  ierr = DMGetDMTS(dm,&dmts);CHKERRQ(ierr);
-  // With the current temporary hack, there is actually no need ot register anything, since the pointer arrays are fixed size.
-  
-
-  // ..
-
+  // With the current temporary hack, there is actually no need to register anything, since the pointer arrays are fixed size.
   PetscFunctionReturn(0);
-
 }
 
 #undef __FUNCT__
@@ -724,15 +730,30 @@ PetscErrorCode DMTSGetIJacobian(DM dm,TSIJacobian *func,void **ctx)
 @*/
 PetscErrorCode DMTSSetRHSJacobian(DM dm,TSRHSJacobian func,void *ctx)
 {
+    
   PetscErrorCode ierr;
-  DMTS           tsdm;
 
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  ierr = DMGetDMTSWrite(dm,&tsdm);CHKERRQ(ierr);
-  if (func) tsdm->ops->rhsjacobian = func;
-  if (ctx)  tsdm->rhsjacobianctx = ctx;
+  ierr = DMTSSetRHSPartitionJacobian(dm,0,0,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMTSSetRHSPartitionJacobian"
+/*@C
+ DMTSSetRHSPartitionJacobian 
+ @*/
+PetscErrorCode DMTSSetRHSPartitionJacobian(DM dm,TSPartitionType type, PetscInt slot, TSRHSJacobian func,void *ctx)
+{
+    PetscErrorCode ierr;
+    DMTS           tsdm;
+    
+    PetscFunctionBegin;
+    PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+    ierr = DMGetDMTSWrite(dm,&tsdm);CHKERRQ(ierr);
+    if (func) tsdm->rhsjacobians[type][slot] = func;
+    if (ctx)  tsdm->rhsjacobianctxs[type][slot] = ctx;
+    PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
@@ -761,14 +782,46 @@ PetscErrorCode DMTSSetRHSJacobian(DM dm,TSRHSJacobian func,void *ctx)
 PetscErrorCode DMTSGetRHSJacobian(DM dm,TSRHSJacobian *func,void **ctx)
 {
   PetscErrorCode ierr;
-  DMTS           tsdm;
 
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  ierr = DMGetDMTS(dm,&tsdm);CHKERRQ(ierr);
-  if (func) *func = tsdm->ops->rhsjacobian;
-  if (ctx)  *ctx = tsdm->rhsjacobianctx;
+  ierr = DMTSGetRHSPartitionJacobian(dm,0,0,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMTSGetRHSPartitionJacobian"
+/*@C
+ DMTSGetRHSJacobian - get TS Jacobian evaluation function
+ 
+ Not Collective
+ 
+ Input Argument:
+ .  dm - DM to be used with TS
+ 
+ Output Arguments:
+ +  func - Jacobian evaluation function, see TSSetRHSJacobian() for calling sequence
+ -  ctx - context for residual evaluation
+ 
+ Level: advanced
+ 
+ Note:
+ TSGetJacobian() is normally used, but it calls this function internally because the user context is actually
+ associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
+ not. If DM took a more central role at some later date, this could become the primary method of setting the Jacobian.
+ 
+ .seealso: DMTSSetContext(), TSSetFunction(), DMTSSetJacobian()
+ @*/
+PetscErrorCode DMTSGetRHSPartitionJacobian(DM dm,TSPartitionType type, PetscInt slot, TSRHSJacobian *func,void **ctx)
+{
+    PetscErrorCode ierr;
+    DMTS           tsdm;
+    
+    PetscFunctionBegin;
+    PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+    ierr = DMGetDMTS(dm,&tsdm);CHKERRQ(ierr);
+    if (func) *func = tsdm->rhsjacobians[type][slot];
+    if (ctx)  *ctx = tsdm->rhsjacobianctxs[type][slot];
+    PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
