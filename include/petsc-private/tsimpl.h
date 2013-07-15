@@ -1,4 +1,3 @@
-
 #ifndef __TSIMPL_H
 #define __TSIMPL_H
 
@@ -152,9 +151,6 @@ struct _p_TSAdapt {
 typedef struct _p_DMTS *DMTS;
 typedef struct _DMTSOps *DMTSOps;
 struct _DMTSOps {
-  //TSRHSFunction rhsfunction; // Move to _p_DMTS and/or merge with the array structure there?
-  //TSRHSJacobian rhsjacobian; // Move to _p_DMTS and/or merge with the array structure there?
-
   TSIFunction ifunction;
   PetscErrorCode (*ifunctionview)(void*,PetscViewer);
   PetscErrorCode (*ifunctionload)(void**,PetscViewer);
@@ -166,25 +162,33 @@ struct _DMTSOps {
   TSSolutionFunction solution;
   PetscErrorCode (*forcing)(TS,PetscReal,Vec,void*);
 
-  PetscErrorCode (*destroy)(DMTS);
-  PetscErrorCode (*duplicate)(DMTS,DMTS);
+  PetscErrorCode (*destroy)(DMTS); 
+  PetscErrorCode (*duplicate)(DMTS,DMTS); 
+};
+
+typedef struct _DMTSPartitionSlotLink *DMTSPartitionSlotLink;
+struct _DMTSPartitionSlotLink {
+  TSPartitionSlotType type;
+  void* ptr;
+  DMTSPartitionSlotLink next;
+};
+
+typedef struct _DMTSPartitionLink *DMTSPartitionLink;
+struct _DMTSPartitionLink {
+  TSPartitionType type;
+  DMTSPartitionSlotLink data;
+  DMTSPartitionLink next;
 };
 
 struct _p_DMTS {
   PETSCHEADER(struct _DMTSOps);
- 
-  // Potentially move rhsfunction out of _DMTSOPs, since it's confusing to have functions in both places
 
-  // Temp - sizes need to at least be adjustable, and a lightwight linked list structure should be used..
-  TSRHSFunction rhsfunctions[3][2]; 
-  TSRHSJacobian rhsjacobians[3][2];
-
-  void *rhsfunctionctxs[3][2]; //also  temp (redundant, shouldn't be fixed size)
-  void *rhsjacobianctxs[3][2]; //also temp (redundant, shouldn't be fixed size)
-
-  //void *rhsfunctionctx;
-  //void *rhsjacobianctx;
-
+  DMTSPartitionLink rhsfunctionlink;
+  DMTSPartitionLink rhsjacobianlink;
+  
+  DMTSPartitionLink rhsfunctionctxlink;
+  DMTSPartitionLink rhsjacobianctxlink;
+  
   void *ifunctionctx;
   void *ijacobianctx;
 
@@ -208,7 +212,6 @@ PETSC_EXTERN PetscErrorCode DMGetDMTSWrite(DM,DMTS*);
 PETSC_EXTERN PetscErrorCode DMCopyDMTS(DM,DM);
 PETSC_EXTERN PetscErrorCode DMTSView(DMTS,PetscViewer);
 PETSC_EXTERN PetscErrorCode DMTSLoad(DMTS,PetscViewer);
-
 
 PETSC_EXTERN PetscLogEvent TS_Step, TS_PseudoComputeTimeStep, TS_FunctionEval, TS_JacobianEval;
 

@@ -164,30 +164,27 @@ PETSC_EXTERN const char *const TSExactFinalTimeOptions[];
 
 /*E
   
-    TSPartitionType
+    TSPartitionType - allowable paritionings of the righthand side of a first order ODE
 
-    // ... 
+    Level: beginner
 
-  E*/
+    Integrators that rely on a partitioning of the RHS function refer to these names
+    
+.seealso: TSPartitionSlotType
+
+E*/
 typedef enum {NONE, SYMPLECTIC, EXPONENTIAL} TSPartitionType; // perhaps change to TSRHSPartitionType
 
 /*E
 
- TSExponentialPartitionSlot
- 
-// ..
+ TSPartitionSlotType - allowable slot names for partitioned ODE right-hand sides
 
- E*/
-typedef enum {EXPONENTIAL_FAST,EXPONENTIAL_SLOW} TSExponentialPartitionSlot;
+ Integrators that rely on a partitioning of the RHS refer to these names for the part ('slots') of a partitioning of the right-hand side.
 
-/*E
+.seealso: TSPartitionType
 
- TSSymplecticPartitionSlot
- 
-// ..
-
- E*/
-typedef enum {SYMPLECTIC_P,SYMPLECTIC_Q} TSSymplecticPartitionSlot;
+E*/
+typedef enum {DEFAULT,EXPONENTIAL_FAST,EXPONENTIAL_SLOW,SYMPLECTIC_P,SYMPLECTIC_Q} TSPartitionSlotType;
 
 /* Logging support */
 PETSC_EXTERN PetscClassId TS_CLASSID;
@@ -316,14 +313,14 @@ PETSC_EXTERN PetscErrorCode TSComputeLinearStability(TS,PetscReal,PetscReal,Pets
 PETSC_EXTERN PetscErrorCode TSVISetVariableBounds(TS,Vec,Vec);
 
 PETSC_EXTERN PetscErrorCode DMTSSetRHSFunction(DM,TSRHSFunction,void*);
-PETSC_EXTERN PetscErrorCode DMTSSetRHSPartitionFunction(DM,TSPartitionType,PetscInt,TSRHSFunction,void*);
+PETSC_EXTERN PetscErrorCode DMTSSetRHSPartitionFunction(DM,TSPartitionType,TSPartitionSlotType,TSRHSFunction,void*);
 PETSC_EXTERN PetscErrorCode DMTSGetRHSFunction(DM,TSRHSFunction*,void**);
-PETSC_EXTERN PetscErrorCode DMTSGetRHSPartitionFunction(DM,TSPartitionType,PetscInt,TSRHSFunction*,void**);
-PETSC_EXTERN PetscErrorCode DMTSRegisterRHSPartition(DM,TSPartitionType);
+PETSC_EXTERN PetscErrorCode DMTSGetRHSPartitionFunction(DM,TSPartitionType,TSPartitionSlotType,TSRHSFunction*,void**);
+//PETSC_EXTERN PetscErrorCode DMTSRegisterRHSPartition(DM,TSPartitionType); // currently unused
 PETSC_EXTERN PetscErrorCode DMTSSetRHSJacobian(DM,TSRHSJacobian,void*);
-PETSC_EXTERN PetscErrorCode DMTSSetRHSPartitionJacobian(DM,TSPartitionType,PetscInt,TSRHSJacobian,void*);
+PETSC_EXTERN PetscErrorCode DMTSSetRHSPartitionJacobian(DM,TSPartitionType,TSPartitionSlotType,TSRHSJacobian,void*);
 PETSC_EXTERN PetscErrorCode DMTSGetRHSJacobian(DM,TSRHSJacobian*,void**);
-PETSC_EXTERN PetscErrorCode DMTSGetRHSPartitionJacobian(DM,TSPartitionType,PetscInt,TSRHSJacobian*,void**);
+PETSC_EXTERN PetscErrorCode DMTSGetRHSPartitionJacobian(DM,TSPartitionType,TSPartitionSlotType,TSRHSJacobian*,void**); // by style guide, all these void** types should be void*
 PETSC_EXTERN PetscErrorCode DMTSSetIFunction(DM,TSIFunction,void*);
 PETSC_EXTERN PetscErrorCode DMTSGetIFunction(DM,TSIFunction*,void**);
 PETSC_EXTERN PetscErrorCode DMTSSetIJacobian(DM,TSIJacobian,void*);

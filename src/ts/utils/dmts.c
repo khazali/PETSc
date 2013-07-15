@@ -1,6 +1,120 @@
 #include <petsc-private/tsimpl.h>     /*I "petscts.h" I*/
 #include <petsc-private/dmimpl.h>
 
+// Functions for working with linked lists of Partition/Slot indexed pointers
+//?  where should these go?
+static PetscErrorCode DMTSPartitionDataGet(DMTSPartitionLink start, TSPartitionType type, TSPartitionSlotType slot, void **ptr)
+{
+  DMTSPartitionLink       lnk;
+  DMTSPartitionSlotLink   lnk2;  
+  PetscBool               success = PETSC_FALSE;
+
+  PetscFunctionBegin;  
+  for(lnk = start; lnk && !success; lnk = lnk->next)
+  {
+    if(lnk->type == type){
+      for(lnk2 = lnk->data; lnk2 && !success; lnk2 = lnk2->next){
+        if(lnk2->type == slot){
+          *ptr = lnk2->ptr;
+          success = PETSC_TRUE;
+        }
+      }
+    }
+  }  
+  /* If the linked list doesn't have the appropriate entry, return a null pointer */ 
+  if(!success){
+    *ptr = NULL; 
+  }
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode DMTSPartitionDataSet(DMTSPartitionLink *start, TSPartitionType type, TSPartitionSlotType slot, void *ptr)
+{
+  PetscErrorCode          ierr;
+  PetscBool               found = PETSC_FALSE, found2 = PETSC_FALSE;
+  DMTSPartitionLink       lnk;
+  DMTSPartitionSlotLink   lnk2; 
+
+  PetscFunctionBegin;
+  for(lnk = *start; lnk; lnk = lnk->next){
+      if(lnk->type == type){
+        found = PETSC_TRUE; 
+        for(lnk2 = lnk->data; lnk2; lnk2 = lnk2->next){
+          if(lnk2->type == slot){
+            found2 = PETSC_TRUE;
+            break; 
+          }
+        }
+        break;
+      }
+  }
+  if (!found){
+    ierr = PetscMalloc(sizeof(struct _DMTSPartitionLink),&lnk);CHKERRQ(ierr);
+    lnk->type = type;
+    lnk->next = *start;
+    *start = lnk;
+  } 
+  if(!found2){ 
+    ierr = PetscMalloc(sizeof(struct _DMTSPartitionSlotLink),&lnk2);CHKERRQ(ierr);
+    lnk2->next = lnk->data;
+    lnk->data = lnk2;
+    lnk2->type = slot;
+  }
+  lnk2->ptr = ptr;
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode DMTSPartitionDataDestroy(DMTSPartitionLink start)
+{
+    DMTSPartitionLink      lnk,  tmp;
+    DMTSPartitionSlotLink  lnk2, tmp2;
+    
+    PetscFunctionBegin;
+    lnk = start;
+    while(lnk){
+      lnk2 = lnk->data;
+      while(lnk2){
+        tmp2 = lnk2;
+        lnk2 = lnk2->next;
+        PetscFree(tmp2);
+      }
+      tmp = lnk;
+      lnk = lnk->next;  
+      PetscFree(tmp);
+    }
+    PetscFunctionReturn(0);
+}
+
+//!! Completely untested
+static PetscErrorCode DMTSPartitionDataCopy(DMTSPartitionLink startSource, DMTSPartitionLink *startSink)
+{
+  PetscErrorCode          ierr;
+  DMTSPartitionLink       lnk, newlnk, tmp;
+  DMTSPartitionSlotLink   lnk2, newlnk2, tmp2;
+
+  PetscFunctionBegin;
+  DMTSPartitionDataDestroy(*startSink);
+  newlnk = NULL;
+  for(lnk = startSource; lnk; lnk=lnk->next)
+  {
+    tmp = newlnk;
+    ierr = PetscMalloc(sizeof(struct _DMTSPartitionLink),&newlnk);
+    newlnk->next = tmp;
+    newlnk->type = lnk->type;
+    newlnk2 = NULL;
+    for(lnk2 = lnk->data; lnk2; lnk2=lnk2->next){
+      tmp2 = newlnk2;
+      ierr = PetscMalloc(sizeof(struct _DMTSPartitionSlotLink),&newlnk2);CHKERRQ(ierr);
+      newlnk2->next = tmp2;
+      newlnk2->ptr  = lnk2->ptr;
+      newlnk2->type = lnk2->type;
+    }
+    newlnk->data = newlnk2;
+  }
+  *startSink = newlnk;
+  PetscFunctionReturn(0);
+}
+
 #undef __FUNCT__
 #define __FUNCT__ "DMTSDestroy"
 static PetscErrorCode DMTSDestroy(DMTS *kdm)
@@ -11,6 +125,13 @@ static PetscErrorCode DMTSDestroy(DMTS *kdm)
   if (!*kdm) PetscFunctionReturn(0);
   PetscValidHeaderSpecific((*kdm),DMTS_CLASSID,1);
   if (--((PetscObject)(*kdm))->refct > 0) {*kdm = 0; PetscFunctionReturn(0);}
+
+  // Destroy the linked lists (not sure if this should go into ops->destroy or not)
+  ierr = DMTSPartitionDataDestroy((*kdm)->rhsfunctionlink);CHKERRQ(ierr);
+  ierr = DMTSPartitionDataDestroy((*kdm)->rhsjacobianlink);CHKERRQ(ierr);
+  ierr = DMTSPartitionDataDestroy((*kdm)->rhsfunctionctxlink);CHKERRQ(ierr);
+  ierr = DMTSPartitionDataDestroy((*kdm)->rhsjacobianctxlink);CHKERRQ(ierr);
+
   if ((*kdm)->ops->destroy) {ierr = ((*kdm)->ops->destroy)(*kdm);CHKERRQ(ierr);}
   ierr = PetscHeaderDestroy(kdm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -178,13 +299,11 @@ PetscErrorCode DMTSCopy(DMTS kdm,DMTS nkdm)
   nkdm->ops->destroy     = kdm->ops->destroy;
   nkdm->ops->duplicate   = kdm->ops->duplicate;
 
-  //!! we need to copy ALL the partition functions, jacobians, and ctxs
-  // (this just copies the first from each of these arrays)
-  nkdm->rhsfunctions[0][0]    = kdm->rhsfunctions[0][0];
-  nkdm->rhsjacobians[0][0]    = kdm->rhsjacobians[0][0];
-  nkdm->rhsfunctionctxs[0][0] = kdm->rhsfunctionctxs[0][0];
-  nkdm->rhsjacobianctxs[0][0] = kdm->rhsjacobianctxs[0][0];
-  // temp until we come up with a better data structure
+  //? Should this go into ops->duplicate ?
+  DMTSPartitionDataCopy(kdm->rhsfunctionlink,nkdm->rhsfunctionlink);
+  DMTSPartitionDataCopy(kdm->rhsjacobianlink,nkdm->rhsjacobianlink);
+  DMTSPartitionDataCopy(kdm->rhsfunctionctxlink,nkdm->rhsfunctionctxlink);
+  DMTSPartitionDataCopy(kdm->rhsjacobianctxlink,nkdm->rhsjacobianctxlink);
     
   nkdm->ifunctionctx   = kdm->ifunctionctx;
   nkdm->ijacobianctx   = kdm->ijacobianctx;
@@ -404,11 +523,10 @@ PetscErrorCode DMTSGetIFunction(DM dm,TSIFunction *func,void **ctx)
 @*/
 PetscErrorCode DMTSSetRHSFunction(DM dm,TSRHSFunction func,void *ctx)
 {
-    
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = DMTSSetRHSPartitionFunction(dm,0,0,func,ctx);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionFunction(dm,NONE,DEFAULT,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -420,16 +538,24 @@ PetscErrorCode DMTSSetRHSFunction(DM dm,TSRHSFunction func,void *ctx)
  // ...
    
  @*/
-PetscErrorCode DMTSSetRHSPartitionFunction(DM dm,TSPartitionType type, PetscInt slot, TSRHSFunction func,void *ctx)
+PetscErrorCode DMTSSetRHSPartitionFunction(DM dm,TSPartitionType type, TSPartitionSlotType slot, TSRHSFunction func,void *ctx)
 {
-  PetscErrorCode ierr;
-  DMTS           tsdm;
+  PetscErrorCode        ierr;
+  DMTS                  dmts;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  ierr = DMGetDMTSWrite(dm,&tsdm);CHKERRQ(ierr);
-  if (func) tsdm->rhsfunctions[type][slot] = func;
-  if (ctx)  tsdm->rhsfunctionctxs[type][slot] = ctx;
+  ierr = DMGetDMTSWrite(dm,&dmts);CHKERRQ(ierr);
+  //if (func) tsdm->rhsfunctions[type][slot] = func; //!!
+  //if (ctx)  tsdm->rhsfunctionctxs[type][slot] = ctx; //!!
+
+  if(func){
+    ierr = DMTSPartitionDataSet(&(dmts->rhsfunctionlink),type,slot,func);CHKERRQ(ierr);
+  }
+  if(ctx){
+    ierr = DMTSPartitionDataSet(&(dmts->rhsfunctionctxlink),type,slot,ctx);CHKERRQ(ierr);
+  }
+
   PetscFunctionReturn(0);
 }
 
@@ -596,7 +722,7 @@ PetscErrorCode DMTSGetRHSFunction(DM dm,TSRHSFunction *func,void **ctx)
   PetscErrorCode ierr;
      
   PetscFunctionBegin;
-  ierr = DMTSGetRHSPartitionFunction(dm,0,0,func,ctx);CHKERRQ(ierr);
+  ierr = DMTSGetRHSPartitionFunction(dm,NONE,DEFAULT,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -608,32 +734,23 @@ PetscErrorCode DMTSGetRHSFunction(DM dm,TSRHSFunction *func,void **ctx)
  //..
  
  @*/
-PetscErrorCode DMTSGetRHSPartitionFunction(DM dm,TSPartitionType type, PetscInt slot,TSRHSFunction *func,void **ctx)
+PetscErrorCode DMTSGetRHSPartitionFunction(DM dm,TSPartitionType type, TSPartitionSlotType slot,TSRHSFunction *func,void **ctx)
 {
     PetscErrorCode ierr;
-    DMTS           tsdm;
+    DMTS           dmts;
     
     PetscFunctionBegin;
     PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-    ierr = DMGetDMTS(dm,&tsdm);CHKERRQ(ierr);
-    if (func) *func = tsdm->rhsfunctions[type][slot];
-    if (ctx)  *ctx = tsdm->rhsfunctionctxs[type][slot];
+    ierr = DMGetDMTS(dm,&dmts);CHKERRQ(ierr);
+    //if (func) *func = tsdm->rhsfunctions[type][slot]; //!!
+    //if (ctx)  *ctx = tsdm->rhsfunctionctxs[type][slot]; //!!
+    if (func) {
+      ierr = DMTSPartitionDataGet(dmts->rhsfunctionlink,type,slot,(void**)func);CHKERRQ(ierr);
+    }
+    if (ctx) {
+      ierr = DMTSPartitionDataGet(dmts->rhsfunctionctxlink,type,slot,ctx);CHKERRQ(ierr);
+    }
     PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "DMTSRegisterRHSPartition"
-/*@C
-  DMTSRegisterRHSPartition
-  
-  // ...
-
-*/
-PetscErrorCode DMTSRegisterRHSPartition(DM dm, TSPartitionType type)
-{
-  PetscFunctionBegin;
-  // With the current temporary hack, there is actually no need to register anything, since the pointer arrays are fixed size.
-  PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
@@ -706,7 +823,6 @@ PetscErrorCode DMTSGetIJacobian(DM dm,TSIJacobian *func,void **ctx)
   PetscFunctionReturn(0);
 }
 
-
 #undef __FUNCT__
 #define __FUNCT__ "DMTSSetRHSJacobian"
 /*@C
@@ -726,15 +842,14 @@ PetscErrorCode DMTSGetIJacobian(DM dm,TSIJacobian *func,void **ctx)
    associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
    not. If DM took a more central role at some later date, this could become the primary method of setting the Jacobian.
 
-.seealso: DMTSSetContext(), TSSetFunction(), DMTSGetJacobian(), TSSetJacobian()
+.seealso: DMTSSetContext(), TSSetFunction(), DMTSGetJacobian(), TSSetRHSJacobian()
 @*/
 PetscErrorCode DMTSSetRHSJacobian(DM dm,TSRHSJacobian func,void *ctx)
 {
-    
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = DMTSSetRHSPartitionJacobian(dm,0,0,func,ctx);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionJacobian(dm,NONE,DEFAULT,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -743,16 +858,21 @@ PetscErrorCode DMTSSetRHSJacobian(DM dm,TSRHSJacobian func,void *ctx)
 /*@C
  DMTSSetRHSPartitionJacobian 
  @*/
-PetscErrorCode DMTSSetRHSPartitionJacobian(DM dm,TSPartitionType type, PetscInt slot, TSRHSJacobian func,void *ctx)
+PetscErrorCode DMTSSetRHSPartitionJacobian(DM dm,TSPartitionType type, TSPartitionSlotType slot, TSRHSJacobian func,void *ctx)
 {
     PetscErrorCode ierr;
-    DMTS           tsdm;
+    DMTS           dmts;
     
     PetscFunctionBegin;
     PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-    ierr = DMGetDMTSWrite(dm,&tsdm);CHKERRQ(ierr);
-    if (func) tsdm->rhsjacobians[type][slot] = func;
-    if (ctx)  tsdm->rhsjacobianctxs[type][slot] = ctx;
+    ierr = DMGetDMTSWrite(dm,&dmts);CHKERRQ(ierr);
+    if (func){
+      DMTSPartitionDataSet(&(dmts->rhsjacobianlink),type,slot,func);
+    }
+    if (ctx){
+      DMTSPartitionDataSet(&(dmts->rhsjacobianctxlink),type,slot,ctx);
+    }
+    
     PetscFunctionReturn(0);
 }
 
@@ -783,8 +903,10 @@ PetscErrorCode DMTSGetRHSJacobian(DM dm,TSRHSJacobian *func,void **ctx)
 {
   PetscErrorCode ierr;
 
+  //!! Todo is to remove this  and related functions and replace the calls in TSRHSGet/SetXXX to call the Partition function, thus avoiding a stack frame
+
   PetscFunctionBegin;
-  ierr = DMTSGetRHSPartitionJacobian(dm,0,0,func,ctx);CHKERRQ(ierr);
+  ierr = DMTSGetRHSPartitionJacobian(dm,NONE,DEFAULT,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -811,16 +933,20 @@ PetscErrorCode DMTSGetRHSJacobian(DM dm,TSRHSJacobian *func,void **ctx)
  
  .seealso: DMTSSetContext(), TSSetFunction(), DMTSSetJacobian()
  @*/
-PetscErrorCode DMTSGetRHSPartitionJacobian(DM dm,TSPartitionType type, PetscInt slot, TSRHSJacobian *func,void **ctx)
+PetscErrorCode DMTSGetRHSPartitionJacobian(DM dm,TSPartitionType type, TSPartitionSlotType slot, TSRHSJacobian *func,void **ctx)
 {
     PetscErrorCode ierr;
-    DMTS           tsdm;
+    DMTS           dmts;
     
     PetscFunctionBegin;
     PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-    ierr = DMGetDMTS(dm,&tsdm);CHKERRQ(ierr);
-    if (func) *func = tsdm->rhsjacobians[type][slot];
-    if (ctx)  *ctx = tsdm->rhsjacobianctxs[type][slot];
+    ierr = DMGetDMTS(dm,&dmts);CHKERRQ(ierr);
+     if (func) {
+      ierr = DMTSPartitionDataGet(dmts->rhsjacobianlink,type,slot,(void**)func);CHKERRQ(ierr);
+    }
+    if (ctx) {
+      ierr = DMTSPartitionDataGet(dmts->rhsjacobianctxlink,type,slot,ctx);CHKERRQ(ierr);
+    }
     PetscFunctionReturn(0);
 }
 
@@ -881,4 +1007,3 @@ PetscErrorCode DMTSSetIJacobianSerialize(DM dm,PetscErrorCode (*view)(void*,Pets
   tsdm->ops->ijacobianload = load;
   PetscFunctionReturn(0);
 }
-
