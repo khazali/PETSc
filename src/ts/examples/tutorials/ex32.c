@@ -4,7 +4,7 @@ static const char help[] = "Demonstrate the interface to solve DAE systems with 
 
    q''(t) + q(t) = \epsilon f(q) 
   
-   where \epsilon << 1
+   where \epsilon may or may not be small
 
    As a first order system, we  have
 
@@ -20,7 +20,10 @@ static const char help[] = "Demonstrate the interface to solve DAE systems with 
                    -- P ---   ----------- Q -------------------
                    ------- Fast --------   ------ Slow --------  
 
-  Different potential integration schemes would split the same RHS differently.                  
+  Different potential integration schemes would split the same RHS differently,
+  perhaps based on the value of \epsilon
+
+  Accepts an extra option -epsilon
 */
 
 #include <petscts.h>
@@ -60,16 +63,19 @@ int main(int argc, char* argv[])
   TS ts;
   DM dm;
   User user;
-  PetscReal dt = 0.1, maxtime = 1.0, ftime;
+  PetscScalar epsilon = 1;
+  PetscReal dt = 0.1, maxtime = 50, ftime;
   PetscInt maxsteps = 1000, steps;
   TSConvergedReason reason;
 
   ierr = PetscInitialize(&argc, &argv, (char*) 0,help);CHKERRQ(ierr);
   ierr = MPI_Comm_size(PETSC_COMM_WORLD,&size);
   if (size != 1) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_SUP,"This is a uniprocessor example only");
-  
+ 
+  ierr = PetscOptionsGetScalar(NULL,"-epsilon",&epsilon,NULL);CHKERRQ(ierr);
+
   /* User Parameters */
-  user.epsilon = 0.01;
+  user.epsilon = epsilon;
 
   /* Create TS */
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
@@ -97,10 +103,8 @@ int main(int argc, char* argv[])
   ierr = DMTSSetRHSPartitionFunction(dm,EXPONENTIAL,EXPONENTIAL_FAST,FormRHSFunctionFast,&user);CHKERRQ(ierr);
   ierr = DMTSSetRHSPartitionFunction(dm,EXPONENTIAL,EXPONENTIAL_SLOW,FormRHSFunctionSlow,&user);CHKERRQ(ierr);
 
-  // Jacobian Functions ...
   // TSSetRHSJacobian does error checking and some matrix wrangling
   //  it also sets something in snes, which may be essential for implicit methods..
-  //ierr = DMTSSetRHSJacobian(dm,FormJacobian,&user);CHKERRQ(ierr);
   
   ierr = TSSetRHSJacobian(ts, J, J, FormJacobian, &user);CHKERRQ(ierr); 
   ierr = DMTSSetRHSPartitionJacobian(dm, SYMPLECTIC,SYMPLECTIC_Q, FormJacobianQ, &user);CHKERRQ(ierr);
@@ -109,6 +113,9 @@ int main(int argc, char* argv[])
   ierr = DMTSSetRHSPartitionJacobian(dm, EXPONENTIAL,EXPONENTIAL, FormJacobianSlow, &user);CHKERRQ(ierr);
     
   // Note that this still seems shaky - it relies on all the FormJacobian functions being very interchangeable, since the setup that happens in TSSetRHSJacobian only happens once. Also, not sure if that registers the wrong function with the SNES object!
+
+  /* Set TS Type  */
+  ierr = TSSetType(ts,TSSYMPEULER);CHKERRQ(ierr);
 
   /* Set from options */
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);

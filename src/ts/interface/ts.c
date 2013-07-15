@@ -68,7 +68,7 @@ struct _n_TSMonitorDrawCtx {
 .  ts - the TS context obtained from TSCreate()
 
    Options Database Keys:
-+  -ts_type <type> - TSEULER, TSBEULER, TSSUNDIALS, TSPSEUDO, TSCN, TSRK, TSTHETA, TSGL, TSSSP
++  -ts_type <type> - TSEULER, TSBEULER, TSSUNDIALS, TSPSEUDO, TSCN, TSRK, TSTHETA, TSGL, TSSSP, TSEIMEX, TSARKIMEX, TSSYMPEULER
 .  -ts_max_steps maxsteps - maximum number of time-steps to take
 .  -ts_final_time time - maximum time to compute to
 .  -ts_dt dt - initial time step
@@ -421,6 +421,43 @@ PetscErrorCode  TSComputeRHSJacobian(TS ts,PetscReal t,Vec U,Mat *A,Mat *B,MatSt
 PetscErrorCode TSComputeRHSFunction(TS ts,PetscReal t,Vec U,Vec y)
 {
   PetscErrorCode ierr;
+
+  //!! Todo is change to just using the partition function, since there's no point in having this extra stack frame
+  PetscFunctionBegin;
+  ierr = TSComputeRHSPartitionFunction(ts,NONE,DEFAULT,t,U,y);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "TSComputeRHSPartitionFunction"
+/*@
+   TSComputeRHSPartitionFunction - Evaluates the right-hand-side function for a given partition and 'slot'
+
+   Collective on TS and Vec
+
+   Input Parameters:
++  ts - the TS context
+.  type - the partition type
+.  slot - the partition slot type
+.  t - current time
+-  U - state vector
+
+   Output Parameter:
+.  y - right hand side
+
+   Note:
+   Most users should not need to explicitly call this routine, as it
+   is used internally within the nonlinear solvers.
+
+   Level: developer
+
+.keywords: TS, compute
+
+.seealso: TSSetRHSFunction(), TSComputeIFunction(), TSComputeRHSFunction()
+@*/
+PetscErrorCode TSComputeRHSPartitionFunction(TS ts,TSPartitionType type, TSPartitionSlotType slot, PetscReal t,Vec U,Vec y)
+{
+  PetscErrorCode ierr;
   TSRHSFunction  rhsfunction;
   TSIFunction    ifunction;
   void           *ctx;
@@ -428,10 +465,10 @@ PetscErrorCode TSComputeRHSFunction(TS ts,PetscReal t,Vec U,Vec y)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  PetscValidHeaderSpecific(U,VEC_CLASSID,3);
-  PetscValidHeaderSpecific(y,VEC_CLASSID,4);
+  PetscValidHeaderSpecific(U,VEC_CLASSID,5);
+  PetscValidHeaderSpecific(y,VEC_CLASSID,6);
   ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
-  ierr = DMTSGetRHSFunction(dm,&rhsfunction,&ctx);CHKERRQ(ierr);
+  ierr = DMTSGetRHSPartitionFunction(dm,type,slot,&rhsfunction,&ctx);CHKERRQ(ierr);
   ierr = DMTSGetIFunction(dm,&ifunction,NULL);CHKERRQ(ierr);
 
   if (!rhsfunction && !ifunction) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Must call TSSetRHSFunction() and / or TSSetIFunction()");
@@ -448,7 +485,6 @@ PetscErrorCode TSComputeRHSFunction(TS ts,PetscReal t,Vec U,Vec y)
   ierr = PetscLogEventEnd(TS_FunctionEval,ts,U,y,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-
 #undef __FUNCT__
 #define __FUNCT__ "TSComputeSolutionFunction"
 /*@
