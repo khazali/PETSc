@@ -50,6 +50,7 @@ static PetscErrorCode DMTSPartitionDataSet(DMTSPartitionLink *start, TSPartition
   }
   if (!found){
     ierr = PetscMalloc(sizeof(struct _DMTSPartitionLink),&lnk);CHKERRQ(ierr);
+    lnk->data = NULL;
     lnk->type = type;
     lnk->next = *start;
     *start = lnk;
