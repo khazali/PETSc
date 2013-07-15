@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
 
   /* Create Vector and Matrix for Solution and Jacobian */
   ierr = VecCreateSeq(PETSC_COMM_WORLD,2,&X);CHKERRQ(ierr);  
-
+  ierr = MatCreateSeqAIJ(PETSC_COMM_WORLD,2,2,2,NULL,&J);CHKERRQ(ierr);
 
   /* Set Initial Conditions and time Parameters*/
   ierr = FormInitialSolution(ts,X,&user);
@@ -102,12 +102,13 @@ int main(int argc, char* argv[])
   //  it also sets something in snes, which may be essential for implicit methods..
   //ierr = DMTSSetRHSJacobian(dm,FormJacobian,&user);CHKERRQ(ierr);
   
-  
-  //ierr = TSSetRHSJacobian(ts, J, J, FormJacobian, &user);CHKERRQ(ierr);
-  // ...
-
-  // Note that this is still shaky - it relies on all the FormJacobian functions being very interchangeable, since the setup that happens in TSSetRHSJacobian only happens once. Also, not sure if that registers the wrong function with the SNES object!
-  // ..
+  ierr = TSSetRHSJacobian(ts, J, J, FormJacobian, &user);CHKERRQ(ierr); 
+  ierr = DMTSSetRHSPartitionJacobian(dm, SYMPLECTIC,SYMPLECTIC_Q, FormJacobianQ, &user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionJacobian(dm, SYMPLECTIC,SYMPLECTIC_P, FormJacobianP, &user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionJacobian(dm, EXPONENTIAL,EXPONENTIAL, FormJacobianFast, &user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionJacobian(dm, EXPONENTIAL,EXPONENTIAL, FormJacobianSlow, &user);CHKERRQ(ierr);
+    
+  // Note that this still seems shaky - it relies on all the FormJacobian functions being very interchangeable, since the setup that happens in TSSetRHSJacobian only happens once. Also, not sure if that registers the wrong function with the SNES object!
 
   /* Set from options */
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
@@ -121,6 +122,7 @@ int main(int argc, char* argv[])
 
   /* Clean Up */
   ierr = VecDestroy(&X);CHKERRQ(ierr);
+  ierr = MatDestroy(&J);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
   ierr = PetscFinalize();
     
@@ -167,7 +169,7 @@ static PetscErrorCode FormRHSFunction(TS ts, PetscReal t, Vec X, Vec F, void* ct
 }
 
 /*
-RHS function for ' P' terms
+RHS function for 'P' terms
 */
 #undef __FUNCT__
 #define __FUNCT__ "FormRHSFunctionP"
@@ -251,11 +253,13 @@ static PetscErrorCode FormRHSFunctionSlow(TS ts, PetscReal t, Vec X, Vec F, void
 /*
 RHS Jacobian (full)
 */
+#undef __FUNCT__
+#define __FUNCT__ "FormJacobian"
 PetscErrorCode FormJacobian(TS ts,PetscReal t,Vec X,Mat *J,Mat *B,MatStructure *flag,void *ctx)
 {
   User              *user = (User*)ctx;
   PetscErrorCode    ierr;
-  PetscScalar       *v, *x;
+  PetscScalar       v[4], *x;
   PetscInt          idxm[2] = {0,1};
 
   PetscFunctionBeginUser;
@@ -277,21 +281,108 @@ PetscErrorCode FormJacobian(TS ts,PetscReal t,Vec X,Mat *J,Mat *B,MatStructure *
 /*
 RHS Jacobian (fast)
 */
-// ..
+#undef __FUNCT__
+#define __FUNCT__ "FormJacobianFast"
+PetscErrorCode FormJacobianFast(TS ts,PetscReal t,Vec X,Mat *J,Mat *B,MatStructure *flag,void *ctx)
+{
+  PetscErrorCode    ierr;
+  PetscScalar       v[4];
+  PetscInt          idxm[2] = {0,1};
+
+  PetscFunctionBeginUser;
+  v[0] = 0;    v[1] = 1;
+  v[2] = -1;   v[3] = 0;
+  ierr = MatSetValues(*B,2,idxm,2,idxm,v,INSERT_VALUES);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(*B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(*B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  if (*J != *B) {
+    ierr = MatAssemblyBegin(*J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(*J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  }
+  *flag = SAME_NONZERO_PATTERN;
+  PetscFunctionReturn(0);
+}
 
 /*
 RHS Jacobian (slow)
 */
-// ..
+#undef __FUNCT__
+#define __FUNCT__ "FormJacobianSlow"
+PetscErrorCode FormJacobianSlow(TS ts,PetscReal t,Vec X,Mat *J,Mat *B,MatStructure *flag,void *ctx)
+{
+  User              *user = (User*)ctx;
+  PetscErrorCode    ierr;
+  PetscScalar       v[4], *x;
+  PetscInt          idxm[2] = {0,1};
+
+  PetscFunctionBeginUser;
+  ierr = VecGetArray(X,&x);CHKERRQ(ierr);
+  v[0] = 0;                                   v[1] = 0;
+  v[2] =  -(user->epsilon * x[0] * x[0]);     v[3] = 0;
+  ierr = MatSetValues(*B,2,idxm,2,idxm,v,INSERT_VALUES);CHKERRQ(ierr);
+  ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(*B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(*B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  if (*J != *B) {
+    ierr = MatAssemblyBegin(*J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(*J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  }
+  *flag = SAME_NONZERO_PATTERN;
+  PetscFunctionReturn(0);
+}
 
 /*
-   RHS Jacobian (P)
-   */
-//..
+RHS Jacobian (P)
+*/
+#undef __FUNCT__
+#define __FUNCT__ "FormJacobianP"
+PetscErrorCode FormJacobianP(TS ts,PetscReal t,Vec X,Mat *J,Mat *B,MatStructure *flag,void *ctx)
+{
+  User              *user = (User*)ctx;
+  PetscErrorCode    ierr;
+  PetscScalar       v[4], *x;
+  PetscInt          idxm[2] = {0,1};
+
+  PetscFunctionBeginUser;
+  ierr = VecGetArray(X,&x);CHKERRQ(ierr);
+  v[0] = 0;                                   v[1] = 0;
+  v[2] = -1 -(user->epsilon * x[0] * x[0]);   v[3] = 0;
+  ierr = MatSetValues(*B,2,idxm,2,idxm,v,INSERT_VALUES);CHKERRQ(ierr);
+  ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(*B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(*B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  if (*J != *B) {
+    ierr = MatAssemblyBegin(*J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(*J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  }
+  *flag = SAME_NONZERO_PATTERN;
+  PetscFunctionReturn(0);
+}
 
 /*
 RHS Jacobian (Q)
-   */
-// ..
+*/
+#undef __FUNCT__
+#define __FUNCT__ "FormJacobianQ"
+PetscErrorCode FormJacobianQ(TS ts,PetscReal t,Vec X,Mat *J,Mat *B,MatStructure *flag,void *ctx)
+{
+  User              *user = (User*)ctx;
+  PetscErrorCode    ierr;
+  PetscScalar       v[4], *x;
+  PetscInt          idxm[2] = {0,1};
 
-
+  PetscFunctionBeginUser;
+  ierr = VecGetArray(X,&x);CHKERRQ(ierr);
+  v[0] = 0;   v[1] = 1;
+  v[2] = 0;   v[3] = 0;
+  ierr = MatSetValues(*B,2,idxm,2,idxm,v,INSERT_VALUES);CHKERRQ(ierr);
+  ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(*B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(*B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  if (*J != *B) {
+    ierr = MatAssemblyBegin(*J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(*J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  }
+  *flag = SAME_NONZERO_PATTERN;
+  PetscFunctionReturn(0);
+}
