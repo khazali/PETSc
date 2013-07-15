@@ -27,7 +27,7 @@ static PetscErrorCode TSStep_SympEuler(TS ts)
   // Explicit Step in P
   //..
   // DEBUG - take both explicit steps for now
-  // (This works for the mechanical Lagrangian type problems - the trick is to reproduce 
+  // (This works for separable mechanical Lagrangian type problems - the trick is to reproduce 
   //    the speed and simplicity for that system when we can, and deal with the actual implicit solve when we need to)
   //
   ierr = TSPreStep(ts);CHKERRQ(ierr);

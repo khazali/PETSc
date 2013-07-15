@@ -95,6 +95,8 @@ int main(int argc, char* argv[])
   ierr = DMTSSetRHSFunction(dm,FormRHSFunction,&user);CHKERRQ(ierr); 
 //  ierr = DMTSSetRHSFunction(dm,NONE,DEFAULT,FormRHSFunction,&user);CHKERRQ(ierr); // <-- new interface  
   // TSSetRHSFunction does error checking and creates a vector if X isn't provided, but also registers a function with the SNES object associated with the TS, which we may also have to do ourselves to use an implicit method
+  // Indeed, while this example works with euler and beuler methods, there are problems with the matrix for the imex methods, for an unknown reason..
+
 
   /* Register Partitioned RHS Functions and Jacobians */
   ierr = DMTSSetRHSPartitionFunction(dm,SYMPLECTIC,SYMPLECTIC_P,FormRHSFunctionP,&user);CHKERRQ(ierr);
