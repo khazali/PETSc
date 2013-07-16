@@ -425,7 +425,7 @@ runex30_2:
 	   ${RM} -f ex30_2.tmp
 
 runex31:
-	-@${MPIEXEC} -n 1 ./ex31 -ts_final_time 10 > ex31.tmp 2>&1;     \
+	-@${MPIEXEC} -n 1 ./ex31 -ts_monitor_lg_solution -ts_final_time 10 > ex31.tmp 2>&1;     \
     ${DIFF} output/ex31.out ex31.tmp || printf "${PWD}\nPossible problem with ex31, diffs above \n========================================\n"; \
     ${RM} -f ex31.tmp
 
