@@ -18,6 +18,10 @@ static PetscErrorCode TSStep_SympEuler(TS ts)
   // ..
   PetscFunctionBegin;
 
+  // Note -  there are currently no checks anywhere to ensure that you have actually set 
+  //  the required RHS functions - rather the behavior is that if they don't exist, nothing happens.
+  //  This might not be a good choice.
+
   // Note - there are two variants on symplectic euler ( which of p or q is treated as implicit)
   //   Here we choose one arbitrarily, but later when we construct a proper subpackage we can
   //   have two different integrators (of course, practically speaking, the user could just switch which variables are called P and which are called Q)
@@ -30,6 +34,10 @@ static PetscErrorCode TSStep_SympEuler(TS ts)
   // (This works for separable mechanical Lagrangian type problems - the trick is to reproduce 
   //    the speed and simplicity for that system when we can, and deal with the actual implicit solve when we need to)
   //
+
+  //? If the user specified an IFunction, this isn't going to pick it up I don't think. 
+  //  I'm not certain if the euler method respects it either.
+
   ierr = TSPreStep(ts);CHKERRQ(ierr);
   ierr = TSPreStage(ts,ts->ptime);CHKERRQ(ierr);
   ierr = TSComputeRHSPartitionFunction(ts,SYMPLECTIC,SYMPLECTIC_P,ts->ptime,sol,update);CHKERRQ(ierr);
