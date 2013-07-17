@@ -375,7 +375,7 @@ RHS Jacobian (Q)
 #define __FUNCT__ "FormJacobianQ"
 PetscErrorCode FormJacobianQ(TS ts,PetscReal t,Vec X,Mat *J,Mat *B,MatStructure *flag,void *ctx)
 {
-  User              *user = (User*)ctx;
+  //User              *user = (User*)ctx;
   PetscErrorCode    ierr;
   PetscScalar       v[4], *x;
   PetscInt          idxm[2] = {0,1};

@@ -7,7 +7,7 @@ LOCDIR          = src/ts/examples/tutorials/
 EXAMPLESC       = ex1.c ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c \
                 ex9.c ex10.c ex12.c ex13.c ex14.c ex15.c ex16.c ex17.c \
                 ex19.c ex20.c ex21.c ex22.c ex23.c ex24.c ex25.c ex26.c \
-                ex28.c ex30.cxx ex31.c
+                ex28.c ex30.cxx ex31.c ex32.c
 EXAMPLESF       = ex1f.F ex2f.F ex22f.F # ex22f_mf.F90
 EXAMPLESFH      = ex2f.h
 MANSEC          = TS
@@ -442,8 +442,8 @@ TESTEXAMPLES_C		  = ex1.PETSc runex1 runex1_2 ex1.rm ex2.PETSc runex2 ex2.rm ex3
                             ex12.PETSc ex12.rm ex13.PETSc runex13 runex13_2 runex13_3 ex13.rm\
                             ex15.PETSc runex15 runex15_2 runex15_3 runex15_4 runex15_5 ex15.rm \
                             ex17.PETSc runex17 runex17_2 ex17.rm ex22.PETSc ex22.rm \
-                            ex31.PETSc runex31 \
-                            ex31.PETSx runex32
+                            ex31.PETSc runex31 ex31.rm \
+                            ex32.PETSc runex32 ex32.rm
 TESTEXAMPLES_C_NOCOMPLEX  = ex9.PETSc runex9 runex9_2 runex9_3 ex9.rm
 TESTEXAMPLES_C_X	  =
 TESTEXAMPLES_FORTRAN	  = ex1f.PETSc runex1f ex1f.rm ex2f.PETSc runex2f ex2f.rm ex22f.PETSc ex22f.rm # ex22f_mf.PETSc ex22f_mf.rm
