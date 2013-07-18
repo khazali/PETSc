@@ -50,7 +50,7 @@ static PetscErrorCode TSStep_SympEuler(TS ts)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT_5
+#undef __FUNCT__
 #define __FUNCT__ "TSSetUp_SympEuler"
 static PetscErrorCode TSSetUp_SympEuler(TS ts)
 {
