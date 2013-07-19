@@ -303,7 +303,6 @@ PetscErrorCode  TSSetFromOptions(TS ts)
 }
 
 #undef __FUNCT__
-#undef __FUNCT__
 #define __FUNCT__ "TSComputeRHSJacobian"
 /*@
    TSComputeRHSJacobian - Computes the Jacobian matrix that has been
@@ -337,6 +336,20 @@ PetscErrorCode  TSSetFromOptions(TS ts)
 PetscErrorCode  TSComputeRHSJacobian(TS ts,PetscReal t,Vec U,Mat *A,Mat *B,MatStructure *flg)
 {
   PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = TSComputeRHSPartitionJacobian(ts,NONE,DEFAULT,t,U,A,B,flg);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "TSComputeRHSPartitionJacobian"
+/*@
+ //..
+@*/
+PetscErrorCode  TSComputeRHSPartitionJacobian(TS ts,TSPartitionType type, TSPartitionSlotType slot, PetscReal t,Vec U,Mat *A,Mat *B,MatStructure *flg)
+{
+  PetscErrorCode ierr;
   PetscInt       Ustate;
   DM             dm;
   DMTS           tsdm;
@@ -344,13 +357,16 @@ PetscErrorCode  TSComputeRHSJacobian(TS ts,PetscReal t,Vec U,Mat *A,Mat *B,MatSt
   void           *ctx;
   TSIJacobian    ijacobianfunc;
 
+  // Note that we only store information about one partition, when it comes to implict solve,
+  ///  so calling this multiple times for multiple solves is not allowed
+
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  PetscValidHeaderSpecific(U,VEC_CLASSID,3);
-  PetscCheckSameComm(ts,1,U,3);
+  PetscValidHeaderSpecific(U,VEC_CLASSID,5);
+  PetscCheckSameComm(ts,1,U,5);
   ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
   ierr = DMGetDMTS(dm,&tsdm);CHKERRQ(ierr);
-  ierr = DMTSGetRHSJacobian(dm,&rhsjacobianfunc,&ctx);CHKERRQ(ierr);
+  ierr = DMTSGetRHSPartitionJacobian(dm,type,slot,&rhsjacobianfunc,&ctx);CHKERRQ(ierr);
   ierr = DMTSGetIJacobian(dm,&ijacobianfunc,NULL);CHKERRQ(ierr);
   ierr = PetscObjectStateQuery((PetscObject)U,&Ustate);CHKERRQ(ierr);
   if (ts->rhsjacobian.time == t && (ts->problem_type == TS_LINEAR || (ts->rhsjacobian.X == U && ts->rhsjacobian.Xstate == Ustate))) {
@@ -647,6 +663,20 @@ static PetscErrorCode TSGetRHSMats_Private(TS ts,Mat *Arhs,Mat *Brhs)
 PetscErrorCode TSComputeIFunction(TS ts,PetscReal t,Vec U,Vec Udot,Vec Y,PetscBool imex)
 {
   PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = TSComputeIPartitionFunction(ts,NONE,DEFAULT,t,U,Udot,Y,imex);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "TSComputeIPartitionFunction"
+/*@
+//..
+@*/
+PetscErrorCode TSComputeIPartitionFunction(TS ts,TSPartitionType type, TSPartitionSlotType slot, PetscReal t,Vec U,Vec Udot,Vec Y,PetscBool imex)
+{
+  PetscErrorCode ierr;
   TSIFunction    ifunction;
   TSRHSFunction  rhsfunction;
   void           *ctx;
@@ -655,14 +685,14 @@ PetscErrorCode TSComputeIFunction(TS ts,PetscReal t,Vec U,Vec Udot,Vec Y,PetscBo
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidHeaderSpecific(U,VEC_CLASSID,3);
-  PetscValidHeaderSpecific(Udot,VEC_CLASSID,4);
-  PetscValidHeaderSpecific(Y,VEC_CLASSID,5);
+  PetscValidHeaderSpecific(Udot,VEC_CLASSID,6);
+  PetscValidHeaderSpecific(Y,VEC_CLASSID,7);
 
   ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
   ierr = DMTSGetIFunction(dm,&ifunction,&ctx);CHKERRQ(ierr);
-  ierr = DMTSGetRHSFunction(dm,&rhsfunction,NULL);CHKERRQ(ierr);
+  ierr = DMTSGetRHSPartitionFunction(dm,type,slot,&rhsfunction,NULL);CHKERRQ(ierr);
 
-  if (!rhsfunction && !ifunction) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Must call TSSetRHSFunction() and / or TSSetIFunction()");
+  if (!rhsfunction && !ifunction) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Must call TSSetRHSPartitionFunction() and / or TSSetIFunction()");
 
   ierr = PetscLogEventBegin(TS_FunctionEval,ts,U,Udot,Y);CHKERRQ(ierr);
   if (ifunction) {
@@ -678,17 +708,16 @@ PetscErrorCode TSComputeIFunction(TS ts,PetscReal t,Vec U,Vec Udot,Vec Y,PetscBo
     if (ifunction) {
       Vec Frhs;
       ierr = TSGetRHSVec_Private(ts,&Frhs);CHKERRQ(ierr);
-      ierr = TSComputeRHSFunction(ts,t,U,Frhs);CHKERRQ(ierr);
+      ierr = TSComputeRHSPartitionFunction(ts,type,slot,t,U,Frhs);CHKERRQ(ierr);
       ierr = VecAXPY(Y,-1,Frhs);CHKERRQ(ierr);
     } else {
-      ierr = TSComputeRHSFunction(ts,t,U,Y);CHKERRQ(ierr);
+      ierr = TSComputeRHSPartitionFunction(ts,type,slot,t,U,Y);CHKERRQ(ierr);
       ierr = VecAYPX(Y,-1,Udot);CHKERRQ(ierr);
     }
   }
   ierr = PetscLogEventEnd(TS_FunctionEval,ts,U,Udot,Y);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-
 #undef __FUNCT__
 #define __FUNCT__ "TSComputeIJacobian"
 /*@
@@ -775,6 +804,93 @@ PetscErrorCode TSComputeIJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal shi
     if (rhsjacobian) {
       ierr = TSGetRHSMats_Private(ts,&Arhs,&Brhs);CHKERRQ(ierr);
       ierr = TSComputeRHSJacobian(ts,t,U,&Arhs,&Brhs,&flg2);CHKERRQ(ierr);
+    }
+    if (Arhs == *A) {           /* No IJacobian, so we only have the RHS matrix */
+      ts->rhsjacobian.scale = -1;
+      ts->rhsjacobian.shift = shift;
+      ierr = MatScale(*A,-1);CHKERRQ(ierr);
+      ierr = MatShift(*A,shift);CHKERRQ(ierr);
+      if (*A != *B) {
+        ierr = MatScale(*B,-1);CHKERRQ(ierr);
+        ierr = MatShift(*B,shift);CHKERRQ(ierr);
+      }
+    } else if (Arhs) {          /* Both IJacobian and RHSJacobian */
+      MatStructure axpy = DIFFERENT_NONZERO_PATTERN;
+      if (!ijacobian) {         /* No IJacobian provided, but we have a separate RHS matrix */
+        ierr = MatZeroEntries(*A);CHKERRQ(ierr);
+        ierr = MatShift(*A,shift);CHKERRQ(ierr);
+        if (*A != *B) {
+          ierr = MatZeroEntries(*B);CHKERRQ(ierr);
+          ierr = MatShift(*B,shift);CHKERRQ(ierr);
+        }
+      }
+      ierr = MatAXPY(*A,-1,Arhs,axpy);CHKERRQ(ierr);
+      if (*A != *B) {
+        ierr = MatAXPY(*B,-1,Brhs,axpy);CHKERRQ(ierr);
+      }
+      *flg = PetscMin(*flg,flg2);
+    }
+  }
+
+  ierr = PetscLogEventEnd(TS_JacobianEval,ts,U,*A,*B);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+#undef __FUNCT__
+#define __FUNCT__ "TSComputeIPartitionJacobian"
+/*@
+ //.
+@*/
+PetscErrorCode TSComputeIPartitionJacobian(TS ts,TSPartitionType type, TSPartitionSlotType slot, PetscReal t,Vec U,Vec Udot,PetscReal shift,Mat *A,Mat *B,MatStructure *flg,PetscBool imex)
+{
+  PetscErrorCode ierr;
+  TSIJacobian    ijacobian;
+  TSRHSJacobian  rhsjacobian;
+  DM             dm;
+  void           *ctx;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(ts,TS_CLASSID,1);
+  PetscValidHeaderSpecific(U,VEC_CLASSID,5);
+  PetscValidHeaderSpecific(Udot,VEC_CLASSID,6);
+  PetscValidPointer(A,8);
+  PetscValidHeaderSpecific(*A,MAT_CLASSID,8);
+  PetscValidPointer(B,8);
+  PetscValidHeaderSpecific(*B,MAT_CLASSID,9);
+  PetscValidPointer(flg,10);
+
+  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+  ierr = DMTSGetIJacobian(dm,&ijacobian,&ctx);CHKERRQ(ierr);
+  ierr = DMTSGetRHSPartitionJacobian(dm,type,slot,&rhsjacobian,NULL);CHKERRQ(ierr);
+
+  if (!rhsjacobian && !ijacobian) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Must call TSSetRHSJacobian() and / or TSSetIJacobian()");
+
+  *flg = SAME_NONZERO_PATTERN;  /* In case we're solving a linear problem in which case it wouldn't get initialized below. */
+  ierr = PetscLogEventBegin(TS_JacobianEval,ts,U,*A,*B);CHKERRQ(ierr);
+  if (ijacobian) {
+    *flg = DIFFERENT_NONZERO_PATTERN;
+    PetscStackPush("TS user implicit Jacobian");
+    ierr = (*ijacobian)(ts,t,U,Udot,shift,A,B,flg,ctx);CHKERRQ(ierr);
+    PetscStackPop;
+    /* make sure user returned a correct Jacobian and preconditioner */
+    PetscValidHeaderSpecific(*A,MAT_CLASSID,4);
+    PetscValidHeaderSpecific(*B,MAT_CLASSID,5);
+  }
+  if (imex) {
+    if (!ijacobian) {  /* system was written as Udot = G(t,U) */
+      ierr = MatZeroEntries(*A);CHKERRQ(ierr);
+      ierr = MatShift(*A,shift);CHKERRQ(ierr);
+      if (*A != *B) {
+        ierr = MatZeroEntries(*B);CHKERRQ(ierr);
+        ierr = MatShift(*B,shift);CHKERRQ(ierr);
+      }
+      *flg = SAME_PRECONDITIONER;
+    }
+  } else {
+    Mat Arhs = NULL,Brhs = NULL;
+    MatStructure flg2;
+    if (rhsjacobian) {
+      ierr = TSGetRHSMats_Private(ts,&Arhs,&Brhs);CHKERRQ(ierr);
+      ierr = TSComputeRHSPartitionJacobian(ts,type,slot,t,U,&Arhs,&Brhs,&flg2);CHKERRQ(ierr);
     }
     if (Arhs == *A) {           /* No IJacobian, so we only have the RHS matrix */
       ts->rhsjacobian.scale = -1;

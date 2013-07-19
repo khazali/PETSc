@@ -115,6 +115,7 @@ static PetscErrorCode TSInterpolate_SympEuler(TS ts,PetscReal t,Vec X)
   PetscFunctionReturn(0);
 }
 
+/*
 #undef __FUNCT__
 #define __FUNCT__ "TSComputeLinearStability_SympEuler"
 PetscErrorCode TSComputeLinearStability_SympEuler(TS ts,PetscReal xr,PetscReal xi,PetscReal *yr,PetscReal *yi)
@@ -125,6 +126,7 @@ PetscErrorCode TSComputeLinearStability_SympEuler(TS ts,PetscReal xr,PetscReal x
   *yi = xi;
   PetscFunctionReturn(0);
 }
+*/
 /* ------------------------------------------------------------ */
 
 /*MC
@@ -150,7 +152,9 @@ PETSC_EXTERN PetscErrorCode TSCreate_SympEuler(TS ts)
   ts->ops->setfromoptions  = TSSetFromOptions_SympEuler;
   ts->ops->view            = TSView_SympEuler;
   ts->ops->interpolate     = TSInterpolate_SympEuler;
-  ts->ops->linearstability = TSComputeLinearStability_SympEuler;
+  //ts->ops->linearstability = TSComputeLinearStability_SympEuler;
+    
+    // add ts->ops->snesfunction and ts->ops->snesjacobian to our own functions, which call special TSComputeIPartitionFunction routines to solve the right system..
 
   ierr = PetscNewLog(ts,TS_SympEuler,&sympeuler);CHKERRQ(ierr);
   ts->data = (void*)sympeuler;

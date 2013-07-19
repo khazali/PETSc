@@ -308,8 +308,11 @@ PETSC_EXTERN PetscErrorCode TSPythonSetType(TS,const char[]);
 PETSC_EXTERN PetscErrorCode TSComputeRHSFunction(TS,PetscReal,Vec,Vec);
 PETSC_EXTERN PetscErrorCode TSComputeRHSPartitionFunction(TS,TSPartitionType,TSPartitionSlotType,PetscReal,Vec,Vec);
 PETSC_EXTERN PetscErrorCode TSComputeRHSJacobian(TS,PetscReal,Vec,Mat*,Mat*,MatStructure*);
+PETSC_EXTERN PetscErrorCode TSComputeRHSPartitionJacobian(TS,TSPartitionType,TSPartitionSlotType,PetscReal,Vec,Mat*,Mat*,MatStructure*);
 PETSC_EXTERN PetscErrorCode TSComputeIFunction(TS,PetscReal,Vec,Vec,Vec,PetscBool);
+PETSC_EXTERN PetscErrorCode TSComputeIPartitionFunction(TS,TSPartitionType,TSPartitionSlotType,PetscReal,Vec,Vec,Vec,PetscBool);
 PETSC_EXTERN PetscErrorCode TSComputeIJacobian(TS,PetscReal,Vec,Vec,PetscReal,Mat*,Mat*,MatStructure*,PetscBool);
+PETSC_EXTERN PetscErrorCode TSComputeIPartitionJacobian(TS,TSPartitionType,TSPartitionSlotType,PetscReal,Vec,Vec,PetscReal,Mat*,Mat*,MatStructure*,PetscBool);
 PETSC_EXTERN PetscErrorCode TSComputeLinearStability(TS,PetscReal,PetscReal,PetscReal*,PetscReal*);
 
 PETSC_EXTERN PetscErrorCode TSVISetVariableBounds(TS,Vec,Vec);
