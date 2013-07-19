@@ -7,7 +7,7 @@ LOCDIR          = src/ts/examples/tutorials/
 EXAMPLESC       = ex1.c ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c \
                 ex9.c ex10.c ex12.c ex13.c ex14.c ex15.c ex16.c ex17.c \
                 ex19.c ex20.c ex21.c ex22.c ex23.c ex24.c ex25.c ex26.c \
-                ex28.c ex30.cxx ex31.c ex32.c
+                ex28.c ex30.cxx ex31.c ex32.c ex33.c
 EXAMPLESF       = ex1f.F ex2f.F ex22f.F # ex22f_mf.F90
 EXAMPLESFH      = ex2f.h
 MANSEC          = TS
@@ -160,6 +160,9 @@ ex32: ex32.o chkopts
 	-${CLINKER} -o ex32 ex32.o ${PETSC_TS_LIB}
 	${RM} ex32.o
 
+ex33: ex33.o chkopts
+	-${CLINKER} -o ex33 ex33.o ${PETSC_TS_LIB}
+	${RM} ex33.o
 #---------------------------------------------------------------------------------
 runex1:
 	-@${MPIEXEC} -n 1 ./ex1 -ksp_gmres_cgs_refinement_type refine_always -snes_type newtonls -ts_monitor_pseudo > ex1_1.tmp 2>&1;	  \
@@ -434,6 +437,11 @@ runex32:
     ${DIFF} output/ex32.out ex32.tmp || printf "${PWD}\nPossible problem with ex32, diffs above \n========================================\n"; \
     ${RM} -f ex32.tmp
 
+runex33:
+	-@${MPIEXEC} -n 1 ./ex33 -ts_monitor_lg_solution > ex33.tmp 2>&1;     \
+    ${DIFF} output/ex33.out ex33.tmp || printf "${PWD}\nPossible problem with ex33, diffs above \n========================================\n"; \
+    ${RM} -f ex33.tmp
+
 TESTEXAMPLES_C		  = ex1.PETSc runex1 runex1_2 ex1.rm ex2.PETSc runex2 ex2.rm ex3.PETSc runex3 runex3_2 ex3.rm \
                             ex4.PETSc runex4 runex4_2 runex4_3 runex4_4 ex4.rm ex5.PETSc ex5.rm \
                             ex6.PETSc runex6 ex6.rm ex7.PETSc runex7 runex7_2 runex7_3 ex7.rm \
@@ -443,7 +451,8 @@ TESTEXAMPLES_C		  = ex1.PETSc runex1 runex1_2 ex1.rm ex2.PETSc runex2 ex2.rm ex3
                             ex15.PETSc runex15 runex15_2 runex15_3 runex15_4 runex15_5 ex15.rm \
                             ex17.PETSc runex17 runex17_2 ex17.rm ex22.PETSc ex22.rm \
                             ex31.PETSc runex31 ex31.rm \
-                            ex32.PETSc runex32 ex32.rm
+                            ex32.PETSc runex32 ex32.rm \
+                            ex33.PETSc runex33 ex33.rm
 TESTEXAMPLES_C_NOCOMPLEX  = ex9.PETSc runex9 runex9_2 runex9_3 ex9.rm
 TESTEXAMPLES_C_X	  =
 TESTEXAMPLES_FORTRAN	  = ex1f.PETSc runex1f ex1f.rm ex2f.PETSc runex2f ex2f.rm ex22f.PETSc ex22f.rm # ex22f_mf.PETSc ex22f_mf.rm
