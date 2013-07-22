@@ -14,8 +14,8 @@ proportional to the cube of their length. All springs are of rest length 0 and w
 
 To isolate the fast quadratic potential, a change of variables is employed. If q_j is the position of the jth mass, consider 
 
-x_{i,0} = (q_{2i} + q_{2i-1})/sqrt{2}
-x_{i,1} = (q_{2i} - q_{2i-1})/sqrt{2}
+x_{i,0} = (q_{2i} + q_{2i-1})/sqrt{2}   [scaled midpoint of the ith stiff spring]
+x_{i,1} = (q_{2i} - q_{2i-1})/sqrt{2}   [scaled length of the ith stiff spring]
 
 y are the conjugate momenta (change the q's to p's and x's to y's in the equations above).
 
@@ -24,15 +24,17 @@ These variables are ordered x_{i,0} y_{i,0} x_{i,1} y_{i,1} at each of l nodes c
 The system is Hamiltonian and from Hamiltonian's equations (or a Lagrangian and the Euler-Lagrange Equations)
 one obtains an ODE system with a linear LHS and a nonlinear RHS which does not involve the 'fast' scale \omega^2.
 
-The initial conditions provided place energy in one of three stiff springs, and integrators can be compared based
-on how well they capture the slow energy exchange between the three oscillators.
+The initial conditions provided place energy in the first stiff springs, and integrators can be compared based
+on how well they capture the slow energy exchange between the  oscillators.
 
 References:
    Machlachlan and O'Neal, "Comparison of Integrators for the Fermi-Pasta-Ulam Problem" 2007
    Hairer, Lubich and Wanner, "Geometric Numerical Integration, 2nd ed." 2006
 
-Accepts an option -omega
-
+Accepts special options
+     -omega         the characteristic frequency of the stiff springs
+     -numsprings    the number of stiff springs
+     -saveascii     save an ascii file of the state, suitable for analysis of various (almost) conserved quantities
 */
 
 #include <petscdmda.h>
@@ -46,7 +48,9 @@ Problem Data
 typedef struct _User *User;
 struct _User
 {
-  PetscReal omega, omega2;
+  MPI_Comm    comm;  
+  PetscReal   omega, omega2;
+  PetscViewer viewer;
 };
 
 /*
@@ -56,6 +60,7 @@ static PetscErrorCode FormRHSFunction(TS,PetscReal,Vec,Vec,void*);
 static PetscErrorCode FormIFunction(TS,PetscReal,Vec,Vec,Vec,void*);
 static PetscErrorCode FormIJacobian(TS,PetscReal,Vec,Vec,PetscReal,Mat*,Mat*,MatStructure*,void*);
 static PetscErrorCode FormInitialSolution(TS,Vec,void*);
+static PetscErrorCode Monitor(TS,PetscInt,PetscReal,Vec,void*);
 
 /*
 Main function
@@ -65,24 +70,28 @@ Main function
 int main(int argc, char* argv[])
 {
   PetscErrorCode ierr;
-  Vec X;
-  DM da;
-  Mat J;
-  TS ts;
-  struct _User user;
-  const int m = 3; /* The number of stiff/weak spring pairs */
-  PetscReal timestep = 0.03, maxtime, ftime, omega = 50;
-  PetscInt  maxsteps = 100000, steps;
-  TSConvergedReason reason;
+  Vec                 X;
+  DM                  da;
+  Mat                 J;
+  TS                  ts;
+  struct _User        user;
+  PetscInt            m = 3; /* The number of stiff/weak spring pairs */
+  PetscReal           timestep = 0.03,maxtime,ftime,omega = 50;
+  PetscInt            maxsteps = 100000,steps;
+  PetscBool           useViewer = PETSC_FALSE;
+  TSConvergedReason   reason;
 
   ierr = PetscInitialize(&argc, &argv, (char*) 0,help);CHKERRQ(ierr);
 
   ierr = PetscOptionsGetReal(NULL,"-omega",&omega,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(NULL,"-numsprings",&m,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL,"-saveascii",&useViewer,NULL);CHKERRQ(ierr);
 
   /* Set parameters */
-  user.omega  = omega;
-  user.omega2 = omega * omega;
-  maxtime = 4*omega;
+  user.comm =     PETSC_COMM_WORLD;
+  user.omega  =   omega;
+  user.omega2 =   omega * omega;
+  maxtime =       4*omega;
 
   /*  Create DMDA to manage our system,  a 1d grid with 4dof at each  of m points */
   ierr = DMDACreate1d(PETSC_COMM_WORLD, DMDA_BOUNDARY_NONE, m, 4, 1, NULL, &da);CHKERRQ(ierr);
@@ -105,7 +114,15 @@ int main(int argc, char* argv[])
   ierr = FormInitialSolution(ts, X, &user);CHKERRQ(ierr);
   ierr = TSSetSolution(ts,X);CHKERRQ(ierr);
 
-  /* Get runtime TS options */
+  /* Viewer */
+  if(useViewer){
+    ierr = PetscViewerASCIIOpen(user.comm,"ex31_output.txt",&user.viewer);CHKERRQ(ierr);
+    ierr = PetscViewerSetFormat(user.viewer,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr); 
+    ierr = PetscViewerASCIISynchronizedAllow(user.viewer,PETSC_TRUE);CHKERRQ(ierr); // untested! May need PetscViewerFlush.
+    ierr = TSMonitorSet(ts,Monitor,&user,NULL);CHKERRQ(ierr);
+  }
+  
+/* Get runtime TS options */
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
 
   /* Solve */
@@ -113,9 +130,12 @@ int main(int argc, char* argv[])
   ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
   ierr = TSGetTimeStepNumber(ts,&steps);CHKERRQ(ierr);
   ierr = TSGetConvergedReason(ts,&reason);CHKERRQ(ierr);
+  
+  /* Print */
   ierr = PetscPrintf(PETSC_COMM_WORLD,"%s at time %G after %D steps\n",TSConvergedReasons[reason],ftime,steps);CHKERRQ(ierr);
 
   /* Clean Up */
+  if(useViewer) {ierr = PetscViewerDestroy(&user.viewer);CHKERRQ(ierr);}
   ierr = MatDestroy(&J);CHKERRQ(ierr);
   ierr = VecDestroy(&X);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
@@ -301,5 +321,36 @@ static PetscErrorCode FormInitialSolution(TS ts,Vec X,void *ctx)
   } 
 
   ierr = DMDAVecRestoreArray(da,X,&x);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "Monitor"
+static PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec u,void *ctx)
+{
+  User            user = (User)ctx;
+  PetscErrorCode  ierr;
+  Field           *uarr;
+  DMDALocalInfo   info;
+  DM              da;
+  PetscInt        i,j;
+  PetscMPIInt     rank,size;
+
+  PetscFunctionBeginUser;
+  ierr = TSGetDM(ts,&da);
+  ierr = DMDAGetLocalInfo(da,&info);CHKERRQ(ierr);
+  ierr = DMDAVecGetArray(da,u,&uarr);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(user->comm,&rank);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(user->comm,&size);CHKERRQ(ierr);
+  for (i=info.xs; i<info.xs+info.xm; i++) {
+    for(j=0;j<info.dof;++j){
+      ierr = PetscViewerASCIISynchronizedPrintf(user->viewer," %15.15g ",uarr[i][j]);CHKERRQ(ierr);
+    }
+  }
+  if(rank==size-1){
+    ierr = PetscViewerASCIISynchronizedPrintf(user->viewer,"\n");CHKERRQ(ierr);
+  }
+  ierr = PetscViewerFlush(user->viewer);CHKERRQ(ierr);
+  ierr = DMDAVecRestoreArray(da,u,&uarr);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

@@ -432,6 +432,11 @@ runex31:
     ${DIFF} output/ex31.out ex31.tmp || printf "${PWD}\nPossible problem with ex31, diffs above \n========================================\n"; \
     ${RM} -f ex31.tmp
 
+runex31_2:
+	-@${MPIEXEC} -n 3 ./ex31 -ts_final_time 10 -numsprings 6 > ex31_2.tmp 2>&1;     \
+    ${DIFF} output/ex31_2.out ex31_2.tmp || printf "${PWD}\nPossible problem with ex31_2, diffs above \n========================================\n"; \
+    ${RM} -f ex31_2.tmp
+
 runex32:
 	-@${MPIEXEC} -n 1 ./ex32 -ts_monitor_lg_solution > ex32.tmp 2>&1;     \
     ${DIFF} output/ex32.out ex32.tmp || printf "${PWD}\nPossible problem with ex32, diffs above \n========================================\n"; \
@@ -450,7 +455,7 @@ TESTEXAMPLES_C		  = ex1.PETSc runex1 runex1_2 ex1.rm ex2.PETSc runex2 ex2.rm ex3
                             ex12.PETSc ex12.rm ex13.PETSc runex13 runex13_2 runex13_3 ex13.rm\
                             ex15.PETSc runex15 runex15_2 runex15_3 runex15_4 runex15_5 ex15.rm \
                             ex17.PETSc runex17 runex17_2 ex17.rm ex22.PETSc ex22.rm \
-                            ex31.PETSc runex31 ex31.rm \
+                            ex31.PETSc runex31 runex31_2 ex31.rm \
                             ex32.PETSc runex32 ex32.rm \
                             ex33.PETSc runex33 ex33.rm
 TESTEXAMPLES_C_NOCOMPLEX  = ex9.PETSc runex9 runex9_2 runex9_3 ex9.rm
