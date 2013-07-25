@@ -432,8 +432,6 @@ PetscErrorCode DMTSSetRHSPartitionFunction(DM dm,TSPartitionType type, TSPartiti
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   ierr = DMGetDMTSWrite(dm,&dmts);CHKERRQ(ierr);
-  //if (func) tsdm->rhsfunctions[type][slot] = func; //!!
-  //if (ctx)  tsdm->rhsfunctionctxs[type][slot] = ctx; //!!
 
   if(func){
     ierr = DMTSPartitionDataSet(&(dmts->rhsfunctionlink),type,slot,func);CHKERRQ(ierr);

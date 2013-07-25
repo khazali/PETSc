@@ -40,6 +40,7 @@ typedef const char* TSType;
 #define TSROSW            "rosw"
 #define TSEIMEX           "eimex"
 #define TSSYMPEULER       "sympeuler"
+#define TSMULTI           "multi"
 /*E
     TSProblemType - Determines the type of problem this TS object is to be used to solve
 
@@ -174,7 +175,7 @@ PETSC_EXTERN const char *const TSExactFinalTimeOptions[];
 .seealso: TSPartitionSlotType
 
 E*/
-typedef enum {NONE, SYMPLECTIC, EXPONENTIAL} TSPartitionType; // perhaps change to TSRHSPartitionType
+typedef enum {NONE, SYMPLECTIC, EXPONENTIAL, MULTI} TSPartitionType; // perhaps change to TSRHSPartitionType
 
 /*E
 
@@ -185,7 +186,12 @@ typedef enum {NONE, SYMPLECTIC, EXPONENTIAL} TSPartitionType; // perhaps change 
 .seealso: TSPartitionType
 
 E*/
-typedef enum {DEFAULT,EXPONENTIAL_FAST,EXPONENTIAL_SLOW,SYMPLECTIC_P,SYMPLECTIC_Q} TSPartitionSlotType;
+typedef enum {
+                DEFAULT,
+                EXPONENTIAL_FAST,EXPONENTIAL_SLOW,
+                SYMPLECTIC_P,SYMPLECTIC_Q,
+                MULTI_FULL,MULTI_SLOW
+            } TSPartitionSlotType;
 
 /* Logging support */
 PETSC_EXTERN PetscClassId TS_CLASSID;
