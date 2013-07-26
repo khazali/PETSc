@@ -95,17 +95,17 @@ int main(int argc, char* argv[])
   ierr = DMTSSetRHSFunction(dm,FormRHSFunction,&user);CHKERRQ(ierr); 
 
   /* Register Partitioned RHS Functions and Jacobians */
-  ierr = DMTSSetRHSPartitionFunction(dm,SYMPLECTIC,SYMPLECTIC_P,FormRHSFunctionP,&user);CHKERRQ(ierr);
-  ierr = DMTSSetRHSPartitionFunction(dm,SYMPLECTIC,SYMPLECTIC_Q,FormRHSFunctionQ,&user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionFunction(dm,TS_SYMP_PARTITION,TS_SYMP_P_SLOT,FormRHSFunctionP,&user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionFunction(dm,TS_SYMP_PARTITION,TS_SYMP_Q_SLOT,FormRHSFunctionQ,&user);CHKERRQ(ierr);
     
-  ierr = DMTSSetRHSPartitionFunction(dm,EXPONENTIAL,EXPONENTIAL_FAST,FormRHSFunctionFast,&user);CHKERRQ(ierr);
-  ierr = DMTSSetRHSPartitionFunction(dm,EXPONENTIAL,EXPONENTIAL_SLOW,FormRHSFunctionSlow,&user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionFunction(dm,TS_EXP_PARTITION,TS_EXP_FAST_SLOT,FormRHSFunctionFast,&user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionFunction(dm,TS_EXP_PARTITION,TS_EXP_SLOW_SLOT,FormRHSFunctionSlow,&user);CHKERRQ(ierr);
   
   ierr = TSSetRHSJacobian(ts, J, J, FormJacobian, &user);CHKERRQ(ierr); 
-  ierr = DMTSSetRHSPartitionJacobian(dm, SYMPLECTIC,SYMPLECTIC_Q, FormJacobianQ, &user);CHKERRQ(ierr);
-  ierr = DMTSSetRHSPartitionJacobian(dm, SYMPLECTIC,SYMPLECTIC_P, FormJacobianP, &user);CHKERRQ(ierr);
-  ierr = DMTSSetRHSPartitionJacobian(dm, EXPONENTIAL,EXPONENTIAL, FormJacobianFast, &user);CHKERRQ(ierr);
-  ierr = DMTSSetRHSPartitionJacobian(dm, EXPONENTIAL,EXPONENTIAL, FormJacobianSlow, &user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionJacobian(dm,TS_SYMP_PARTITION,TS_SYMP_Q_SLOT, FormJacobianQ, &user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionJacobian(dm,TS_SYMP_PARTITION,TS_SYMP_P_SLOT, FormJacobianP, &user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionJacobian(dm,TS_EXP_PARTITION,TS_EXP_FAST_SLOT, FormJacobianFast, &user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionJacobian(dm,TS_EXP_PARTITION,TS_EXP_SLOW_SLOT, FormJacobianSlow, &user);CHKERRQ(ierr);
     
   /* Set TS Type  */
   ierr = TSSetType(ts,TSSYMPEULER);CHKERRQ(ierr);

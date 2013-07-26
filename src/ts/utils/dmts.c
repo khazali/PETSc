@@ -13,10 +13,10 @@ static PetscErrorCode DMTSDestroy(DMTS *kdm)
   if (--((PetscObject)(*kdm))->refct > 0) {*kdm = 0; PetscFunctionReturn(0);}
 
   /* Destroy the linked lists (could go  into ops->destroy */
-  ierr = DMTSPartitionDataDestroy((*kdm)->rhsfunctionlink);CHKERRQ(ierr);
-  ierr = DMTSPartitionDataDestroy((*kdm)->rhsjacobianlink);CHKERRQ(ierr);
-  ierr = DMTSPartitionDataDestroy((*kdm)->rhsfunctionctxlink);CHKERRQ(ierr);
-  ierr = DMTSPartitionDataDestroy((*kdm)->rhsjacobianctxlink);CHKERRQ(ierr);
+  ierr = DMTSRHSPartitionDataDestroy((*kdm)->rhsfunctionlink);CHKERRQ(ierr);
+  ierr = DMTSRHSPartitionDataDestroy((*kdm)->rhsjacobianlink);CHKERRQ(ierr);
+  ierr = DMTSRHSPartitionDataDestroy((*kdm)->rhsfunctionctxlink);CHKERRQ(ierr);
+  ierr = DMTSRHSPartitionDataDestroy((*kdm)->rhsjacobianctxlink);CHKERRQ(ierr);
 
   if ((*kdm)->ops->destroy) {ierr = ((*kdm)->ops->destroy)(*kdm);CHKERRQ(ierr);}
   ierr = PetscHeaderDestroy(kdm);CHKERRQ(ierr);
@@ -185,10 +185,10 @@ PetscErrorCode DMTSCopy(DMTS kdm,DMTS nkdm)
   nkdm->ops->destroy     = kdm->ops->destroy;
   nkdm->ops->duplicate   = kdm->ops->duplicate;
 
-  DMTSPartitionDataCopy(kdm->rhsfunctionlink,nkdm->rhsfunctionlink);
-  DMTSPartitionDataCopy(kdm->rhsjacobianlink,nkdm->rhsjacobianlink);
-  DMTSPartitionDataCopy(kdm->rhsfunctionctxlink,nkdm->rhsfunctionctxlink);
-  DMTSPartitionDataCopy(kdm->rhsjacobianctxlink,nkdm->rhsjacobianctxlink);
+  DMTSRHSPartitionDataCopy(kdm->rhsfunctionlink,nkdm->rhsfunctionlink);
+  DMTSRHSPartitionDataCopy(kdm->rhsjacobianlink,nkdm->rhsjacobianlink);
+  DMTSRHSPartitionDataCopy(kdm->rhsfunctionctxlink,nkdm->rhsfunctionctxlink);
+  DMTSRHSPartitionDataCopy(kdm->rhsjacobianctxlink,nkdm->rhsjacobianctxlink);
     
   nkdm->ifunctionctx   = kdm->ifunctionctx;
   nkdm->ijacobianctx   = kdm->ijacobianctx;
@@ -411,7 +411,7 @@ PetscErrorCode DMTSSetRHSFunction(DM dm,TSRHSFunction func,void *ctx)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = DMTSSetRHSPartitionFunction(dm,NONE,DEFAULT,func,ctx);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionFunction(dm,TS_NO_PARTITION,TS_DEFAULT_SLOT,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -434,7 +434,7 @@ PetscErrorCode DMTSSetRHSFunction(DM dm,TSRHSFunction func,void *ctx)
  
  .seealso: DMTSSetContext(), TSSetFunction(), DMTSSetJacobian(), TSSetRHSFunction()
  @*/
-PetscErrorCode DMTSSetRHSPartitionFunction(DM dm,TSPartitionType type, TSPartitionSlotType slot, TSRHSFunction func,void *ctx)
+PetscErrorCode DMTSSetRHSPartitionFunction(DM dm,TSRHSPartitionType type, TSRHSPartitionSlotType slot, TSRHSFunction func,void *ctx)
 {
   PetscErrorCode        ierr;
   DMTS                  dmts;
@@ -444,10 +444,10 @@ PetscErrorCode DMTSSetRHSPartitionFunction(DM dm,TSPartitionType type, TSPartiti
   ierr = DMGetDMTSWrite(dm,&dmts);CHKERRQ(ierr);
 
   if(func){
-    ierr = DMTSPartitionDataSet(&(dmts->rhsfunctionlink),type,slot,func);CHKERRQ(ierr);
+    ierr = DMTSRHSPartitionDataSet(&(dmts->rhsfunctionlink),type,slot,func);CHKERRQ(ierr);
   }
   if(ctx){
-    ierr = DMTSPartitionDataSet(&(dmts->rhsfunctionctxlink),type,slot,ctx);CHKERRQ(ierr);
+    ierr = DMTSRHSPartitionDataSet(&(dmts->rhsfunctionctxlink),type,slot,ctx);CHKERRQ(ierr);
   }
 
   PetscFunctionReturn(0);
@@ -616,7 +616,7 @@ PetscErrorCode DMTSGetRHSFunction(DM dm,TSRHSFunction *func,void **ctx)
   PetscErrorCode ierr;
      
   PetscFunctionBegin;
-  ierr = DMTSGetRHSPartitionFunction(dm,NONE,DEFAULT,func,ctx);CHKERRQ(ierr);
+  ierr = DMTSGetRHSPartitionFunction(dm,TS_NO_PARTITION,TS_DEFAULT_SLOT,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -645,7 +645,7 @@ PetscErrorCode DMTSGetRHSFunction(DM dm,TSRHSFunction *func,void **ctx)
  .seealso: DMTSSetContext(), DMTSSetFunction(), TSSetFunction(), DMTSSetRHSPartitionFunction()
 
  @*/
-PetscErrorCode DMTSGetRHSPartitionFunction(DM dm,TSPartitionType type, TSPartitionSlotType slot,TSRHSFunction *func,void **ctx)
+PetscErrorCode DMTSGetRHSPartitionFunction(DM dm,TSRHSPartitionType type, TSRHSPartitionSlotType slot,TSRHSFunction *func,void **ctx)
 {
     PetscErrorCode ierr;
     DMTS           dmts;
@@ -654,10 +654,10 @@ PetscErrorCode DMTSGetRHSPartitionFunction(DM dm,TSPartitionType type, TSPartiti
     PetscValidHeaderSpecific(dm,DM_CLASSID,1);
     ierr = DMGetDMTS(dm,&dmts);CHKERRQ(ierr);
     if (func) {
-      ierr = DMTSPartitionDataGet(dmts->rhsfunctionlink,type,slot,(void**)func);CHKERRQ(ierr);
+      ierr = DMTSRHSPartitionDataGet(dmts->rhsfunctionlink,type,slot,(void**)func);CHKERRQ(ierr);
     }
     if (ctx) {
-      ierr = DMTSPartitionDataGet(dmts->rhsfunctionctxlink,type,slot,ctx);CHKERRQ(ierr);
+      ierr = DMTSRHSPartitionDataGet(dmts->rhsfunctionctxlink,type,slot,ctx);CHKERRQ(ierr);
     }
     PetscFunctionReturn(0);
 }
@@ -758,7 +758,7 @@ PetscErrorCode DMTSSetRHSJacobian(DM dm,TSRHSJacobian func,void *ctx)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = DMTSSetRHSPartitionJacobian(dm,NONE,DEFAULT,func,ctx);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionJacobian(dm,TS_NO_PARTITION,TS_DEFAULT_SLOT,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -767,7 +767,7 @@ PetscErrorCode DMTSSetRHSJacobian(DM dm,TSRHSJacobian func,void *ctx)
 /*@C
  DMTSSetRHSPartitionJacobian 
  @*/
-PetscErrorCode DMTSSetRHSPartitionJacobian(DM dm,TSPartitionType type, TSPartitionSlotType slot, TSRHSJacobian func,void *ctx)
+PetscErrorCode DMTSSetRHSPartitionJacobian(DM dm,TSRHSPartitionType type, TSRHSPartitionSlotType slot, TSRHSJacobian func,void *ctx)
 {
     PetscErrorCode ierr;
     DMTS           dmts;
@@ -776,10 +776,10 @@ PetscErrorCode DMTSSetRHSPartitionJacobian(DM dm,TSPartitionType type, TSPartiti
     PetscValidHeaderSpecific(dm,DM_CLASSID,1);
     ierr = DMGetDMTSWrite(dm,&dmts);CHKERRQ(ierr);
     if (func){
-      DMTSPartitionDataSet(&(dmts->rhsjacobianlink),type,slot,func);
+      DMTSRHSPartitionDataSet(&(dmts->rhsjacobianlink),type,slot,func);
     }
     if (ctx){
-      DMTSPartitionDataSet(&(dmts->rhsjacobianctxlink),type,slot,ctx);
+      DMTSRHSPartitionDataSet(&(dmts->rhsjacobianctxlink),type,slot,ctx);
     }
     
     PetscFunctionReturn(0);
@@ -814,7 +814,7 @@ PetscErrorCode DMTSGetRHSJacobian(DM dm,TSRHSJacobian *func,void **ctx)
 
   /* This function is probably unnecessary, and can be removed */
   PetscFunctionBegin;
-  ierr = DMTSGetRHSPartitionJacobian(dm,NONE,DEFAULT,func,ctx);CHKERRQ(ierr);
+  ierr = DMTSGetRHSPartitionJacobian(dm,TS_NO_PARTITION,TS_DEFAULT_SLOT,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -841,7 +841,7 @@ PetscErrorCode DMTSGetRHSJacobian(DM dm,TSRHSJacobian *func,void **ctx)
  
  .seealso: DMTSSetContext(), TSSetFunction(), DMTSSetJacobian()
  @*/
-PetscErrorCode DMTSGetRHSPartitionJacobian(DM dm,TSPartitionType type, TSPartitionSlotType slot, TSRHSJacobian *func,void **ctx)
+PetscErrorCode DMTSGetRHSPartitionJacobian(DM dm,TSRHSPartitionType type, TSRHSPartitionSlotType slot, TSRHSJacobian *func,void **ctx)
 {
     PetscErrorCode ierr;
     DMTS           dmts;
@@ -850,10 +850,10 @@ PetscErrorCode DMTSGetRHSPartitionJacobian(DM dm,TSPartitionType type, TSPartiti
     PetscValidHeaderSpecific(dm,DM_CLASSID,1);
     ierr = DMGetDMTS(dm,&dmts);CHKERRQ(ierr);
      if (func) {
-      ierr = DMTSPartitionDataGet(dmts->rhsjacobianlink,type,slot,(void**)func);CHKERRQ(ierr);
+      ierr = DMTSRHSPartitionDataGet(dmts->rhsjacobianlink,type,slot,(void**)func);CHKERRQ(ierr);
     }
     if (ctx) {
-      ierr = DMTSPartitionDataGet(dmts->rhsjacobianctxlink,type,slot,ctx);CHKERRQ(ierr);
+      ierr = DMTSRHSPartitionDataGet(dmts->rhsjacobianctxlink,type,slot,ctx);CHKERRQ(ierr);
     }
     PetscFunctionReturn(0);
 }

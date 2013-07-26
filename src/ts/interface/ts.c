@@ -338,7 +338,7 @@ PetscErrorCode  TSComputeRHSJacobian(TS ts,PetscReal t,Vec U,Mat *A,Mat *B,MatSt
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = TSComputeRHSPartitionJacobian(ts,NONE,DEFAULT,t,U,A,B,flg);CHKERRQ(ierr);
+  ierr = TSComputeRHSPartitionJacobian(ts,TS_NO_PARTITION,TS_DEFAULT_SLOT,t,U,A,B,flg);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -376,7 +376,7 @@ PetscErrorCode  TSComputeRHSJacobian(TS ts,PetscReal t,Vec U,Mat *A,Mat *B,MatSt
  .seealso:  TSSetRHSParitionJacobian(), KSPSetOperators()
 
 @*/
-PetscErrorCode  TSComputeRHSPartitionJacobian(TS ts,TSPartitionType type, TSPartitionSlotType slot, PetscReal t,Vec U,Mat *A,Mat *B,MatStructure *flg)
+PetscErrorCode  TSComputeRHSPartitionJacobian(TS ts,TSRHSPartitionType type, TSRHSPartitionSlotType slot, PetscReal t,Vec U,Mat *A,Mat *B,MatStructure *flg)
 {
   PetscErrorCode ierr;
   PetscInt       Ustate;
@@ -469,7 +469,7 @@ PetscErrorCode TSComputeRHSFunction(TS ts,PetscReal t,Vec U,Vec y)
 
   /* We pass immediately to the default partition function */
   PetscFunctionBegin;
-  ierr = TSComputeRHSPartitionFunction(ts,NONE,DEFAULT,t,U,y);CHKERRQ(ierr);
+  ierr = TSComputeRHSPartitionFunction(ts,TS_NO_PARTITION,TS_DEFAULT_SLOT,t,U,y);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -500,7 +500,7 @@ PetscErrorCode TSComputeRHSFunction(TS ts,PetscReal t,Vec U,Vec y)
 
 .seealso: TSSetRHSFunction(), TSComputeIFunction(), TSComputeRHSFunction()
 @*/
-PetscErrorCode TSComputeRHSPartitionFunction(TS ts,TSPartitionType type, TSPartitionSlotType slot, PetscReal t,Vec U,Vec y)
+PetscErrorCode TSComputeRHSPartitionFunction(TS ts,TSRHSPartitionType type, TSRHSPartitionSlotType slot, PetscReal t,Vec U,Vec y)
 {
   PetscErrorCode ierr;
   TSRHSFunction  rhsfunction;
@@ -694,7 +694,7 @@ PetscErrorCode TSComputeIFunction(TS ts,PetscReal t,Vec U,Vec Udot,Vec Y,PetscBo
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = TSComputeIPartitionFunction(ts,NONE,DEFAULT,t,U,Udot,Y,imex);CHKERRQ(ierr);
+  ierr = TSComputeIPartitionFunction(ts,TS_NO_PARTITION,TS_DEFAULT_SLOT,t,U,Udot,Y,imex);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -735,7 +735,7 @@ PetscErrorCode TSComputeIFunction(TS ts,PetscReal t,Vec U,Vec Udot,Vec Y,PetscBo
  .seealso: TSSetIFunction(), TSComputeRHSPartitionFunction()
 
 @*/
-PetscErrorCode TSComputeIPartitionFunction(TS ts,TSPartitionType type, TSPartitionSlotType slot, PetscReal t,Vec U,Vec Udot,Vec Y,PetscBool imex)
+PetscErrorCode TSComputeIPartitionFunction(TS ts,TSRHSPartitionType type, TSRHSPartitionSlotType slot, PetscReal t,Vec U,Vec Udot,Vec Y,PetscBool imex)
 {
   PetscErrorCode ierr;
   TSIFunction    ifunction;
@@ -819,7 +819,7 @@ PetscErrorCode TSComputeIJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal shi
   /* Here, again, once we're happy with the interface this function will become unneccessary */
   PetscErrorCode ierr;
   PetscFunctionBegin;
-  ierr = TSComputeIPartitionJacobian(ts,NONE,DEFAULT,t,U,Udot,shift,A,B,flg,imex);
+  ierr = TSComputeIPartitionJacobian(ts,TS_NO_PARTITION,TS_DEFAULT_SLOT,t,U,Udot,shift,A,B,flg,imex);
   PetscFunctionReturn(0);
 }
 #undef __FUNCT__
@@ -860,7 +860,7 @@ PetscErrorCode TSComputeIJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal shi
  .seealso:  TSSetIJacobian()
 
 @*/
-PetscErrorCode TSComputeIPartitionJacobian(TS ts,TSPartitionType type, TSPartitionSlotType slot, PetscReal t,Vec U,Vec Udot,PetscReal shift,Mat *A,Mat *B,MatStructure *flg,PetscBool imex)
+PetscErrorCode TSComputeIPartitionJacobian(TS ts,TSRHSPartitionType type, TSRHSPartitionSlotType slot, PetscReal t,Vec U,Vec Udot,PetscReal shift,Mat *A,Mat *B,MatStructure *flg,PetscBool imex)
 {
   PetscErrorCode ierr;
   TSIJacobian    ijacobian;

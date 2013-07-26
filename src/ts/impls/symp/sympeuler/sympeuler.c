@@ -48,7 +48,7 @@ static PetscErrorCode TSStep_SympEuler(TS ts)
   
   /* Explicit Step in Q */
   /* If the user specified a nontrivial IFunction, this implicit step isn't going to pick it up */
-  ierr = TSComputeRHSPartitionFunction(ts,SYMPLECTIC,SYMPLECTIC_Q,ts->ptime,sol,update);CHKERRQ(ierr);
+  ierr = TSComputeRHSPartitionFunction(ts,TS_SYMP_PARTITION,TS_SYMP_Q_SLOT,ts->ptime,sol,update);CHKERRQ(ierr);
   ierr = VecAXPY(sol,ts->time_step,update);CHKERRQ(ierr);
   ts->ptime += ts->time_step;
   ts->steps++;
@@ -75,7 +75,7 @@ static PetscErrorCode SNESTSFormFunction_SympEuler(SNES snes,Vec x,Vec y,TS ts)
   ts->dm = dm;
 
   /* Note that the P step being implicit is hard-coded. This can/should change at some point to allow both sympeuler variants */
-  ierr   = TSComputeIPartitionFunction(ts,SYMPLECTIC,SYMPLECTIC_P,sympeuler->stage_time,x,Xdot,y,PETSC_FALSE);CHKERRQ(ierr);
+  ierr   = TSComputeIPartitionFunction(ts,TS_SYMP_PARTITION,TS_SYMP_P_SLOT,sympeuler->stage_time,x,Xdot,y,PETSC_FALSE);CHKERRQ(ierr);
   ts->dm = dmsave;
   PetscFunctionReturn(0);
 }
@@ -98,7 +98,7 @@ static PetscErrorCode SNESTSFormJacobian_SympEuler(SNES snes,Vec x,Mat *A,Mat *B
   ts->dm = dm;
 
   /* Note that the P step being implicit is hard-coded. This can/should change at some point to allow both sympeuler variants */
-  ierr   = TSComputeIPartitionJacobian(ts,SYMPLECTIC,SYMPLECTIC_P,sympeuler->stage_time,x,Xdot,shift,A,B,str,PETSC_FALSE);CHKERRQ(ierr);
+  ierr   = TSComputeIPartitionJacobian(ts,TS_SYMP_PARTITION,TS_SYMP_P_SLOT,sympeuler->stage_time,x,Xdot,shift,A,B,str,PETSC_FALSE);CHKERRQ(ierr);
   ts->dm = dmsave;
   PetscFunctionReturn(0);
 }

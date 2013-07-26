@@ -4,11 +4,11 @@
  Functions for working with linked lists of Partition/Slot indexed pointers
 */
 #undef __FUNCT__
-#define __FUNCT__ "DMTSPartitionDataGet"
-PetscErrorCode DMTSPartitionDataGet(DMTSPartitionLink start, TSPartitionType type, TSPartitionSlotType slot, void **ptr)
+#define __FUNCT__ "DMTSRHSPartitionDataGet"
+PetscErrorCode DMTSRHSPartitionDataGet(DMTSRHSPartitionLink start, TSRHSPartitionType type, TSRHSPartitionSlotType slot, void **ptr)
 {
-  DMTSPartitionLink       lnk;
-  DMTSPartitionSlotLink   lnk2;  
+  DMTSRHSPartitionLink       lnk;
+  DMTSRHSPartitionSlotLink   lnk2;  
   PetscBool               success = PETSC_FALSE;
 
   PetscFunctionBegin;  
@@ -31,13 +31,13 @@ PetscErrorCode DMTSPartitionDataGet(DMTSPartitionLink start, TSPartitionType typ
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMTSPartitionDataSet"
-PetscErrorCode DMTSPartitionDataSet(DMTSPartitionLink *start, TSPartitionType type, TSPartitionSlotType slot, void *ptr)
+#define __FUNCT__ "DMTSRHSPartitionDataSet"
+PetscErrorCode DMTSRHSPartitionDataSet(DMTSRHSPartitionLink *start, TSRHSPartitionType type, TSRHSPartitionSlotType slot, void *ptr)
 {
   PetscErrorCode          ierr;
   PetscBool               found = PETSC_FALSE, found2 = PETSC_FALSE;
-  DMTSPartitionLink       lnk;
-  DMTSPartitionSlotLink   lnk2; 
+  DMTSRHSPartitionLink       lnk;
+  DMTSRHSPartitionSlotLink   lnk2; 
 
   PetscFunctionBegin;
   for(lnk = *start; lnk; lnk = lnk->next){
@@ -53,14 +53,14 @@ PetscErrorCode DMTSPartitionDataSet(DMTSPartitionLink *start, TSPartitionType ty
       }
   }
   if (!found){
-    ierr = PetscMalloc(sizeof(struct _DMTSPartitionLink),&lnk);CHKERRQ(ierr);
+    ierr = PetscMalloc(sizeof(struct _DMTSRHSPartitionLink),&lnk);CHKERRQ(ierr);
     lnk->data = NULL;
     lnk->type = type;
     lnk->next = *start;
     *start = lnk;
   } 
   if(!found2){ 
-    ierr = PetscMalloc(sizeof(struct _DMTSPartitionSlotLink),&lnk2);CHKERRQ(ierr);
+    ierr = PetscMalloc(sizeof(struct _DMTSRHSPartitionSlotLink),&lnk2);CHKERRQ(ierr);
     lnk2->next = lnk->data;
     lnk->data = lnk2;
     lnk2->type = slot;
@@ -70,11 +70,11 @@ PetscErrorCode DMTSPartitionDataSet(DMTSPartitionLink *start, TSPartitionType ty
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMTSPartitionDataDestroy"
-PetscErrorCode DMTSPartitionDataDestroy(DMTSPartitionLink start)
+#define __FUNCT__ "DMTSRHSPartitionDataDestroy"
+PetscErrorCode DMTSRHSPartitionDataDestroy(DMTSRHSPartitionLink start)
 {
-    DMTSPartitionLink      lnk,  tmp;
-    DMTSPartitionSlotLink  lnk2, tmp2;
+    DMTSRHSPartitionLink      lnk,  tmp;
+    DMTSRHSPartitionSlotLink  lnk2, tmp2;
     
     PetscFunctionBegin;
     lnk = start;
@@ -93,27 +93,27 @@ PetscErrorCode DMTSPartitionDataDestroy(DMTSPartitionLink start)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMTSPartitionDataCopy"
+#define __FUNCT__ "DMTSRHSPartitionDataCopy"
 /* !! Completely untested !! */
-PetscErrorCode DMTSPartitionDataCopy(DMTSPartitionLink startSource, DMTSPartitionLink *startSink)
+PetscErrorCode DMTSRHSPartitionDataCopy(DMTSRHSPartitionLink startSource, DMTSRHSPartitionLink *startSink)
 {
   PetscErrorCode          ierr;
-  DMTSPartitionLink       lnk, newlnk, tmp;
-  DMTSPartitionSlotLink   lnk2, newlnk2, tmp2;
+  DMTSRHSPartitionLink       lnk, newlnk, tmp;
+  DMTSRHSPartitionSlotLink   lnk2, newlnk2, tmp2;
 
   PetscFunctionBegin;
-  DMTSPartitionDataDestroy(*startSink);
+  DMTSRHSPartitionDataDestroy(*startSink);
   newlnk = NULL;
   for(lnk = startSource; lnk; lnk=lnk->next)
   {
     tmp = newlnk;
-    ierr = PetscMalloc(sizeof(struct _DMTSPartitionLink),&newlnk);
+    ierr = PetscMalloc(sizeof(struct _DMTSRHSPartitionLink),&newlnk);
     newlnk->next = tmp;
     newlnk->type = lnk->type;
     newlnk2 = NULL;
     for(lnk2 = lnk->data; lnk2; lnk2=lnk2->next){
       tmp2 = newlnk2;
-      ierr = PetscMalloc(sizeof(struct _DMTSPartitionSlotLink),&newlnk2);CHKERRQ(ierr);
+      ierr = PetscMalloc(sizeof(struct _DMTSRHSPartitionSlotLink),&newlnk2);CHKERRQ(ierr);
       newlnk2->next = tmp2;
       newlnk2->ptr  = lnk2->ptr;
       newlnk2->type = lnk2->type;

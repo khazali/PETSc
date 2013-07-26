@@ -148,8 +148,8 @@ int main(int argc, char *argv[])
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
   ierr = TSSetType(ts,TSMULTI);CHKERRQ(ierr); 
   ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
-  ierr = DMTSSetRHSPartitionFunction(dm,MULTI,MULTI_SLOW,FormRHSFunctionXYSlow,&user);CHKERRQ(ierr);  
-  ierr = DMTSSetRHSPartitionFunction(dm,MULTI,MULTI_FULL,FormRHSFunctionXYTotal,&user);CHKERRQ(ierr);  
+  ierr = DMTSSetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_SLOW_SLOT,FormRHSFunctionXYSlow,&user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_FULL_SLOT,FormRHSFunctionXYTotal,&user);CHKERRQ(ierr);
   ierr = TSSetDuration(ts,maxSteps,T);CHKERRQ(ierr);
   ierr = TSSetTimeStep(ts,0.1);CHKERRQ(ierr);
   if(useMonitor){

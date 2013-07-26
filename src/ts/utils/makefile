@@ -3,7 +3,7 @@ ALL: lib
 
 CFLAGS   =
 FFLAGS   =
-SOURCEC  = dmts.c dmdats.c tspartition.c
+SOURCEC  = dmts.c dmdats.c tsrhspartition.c
 SOURCEF  =
 SOURCEH  =
 LIBBASE  = libpetscts

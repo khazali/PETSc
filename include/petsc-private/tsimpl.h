@@ -148,25 +148,25 @@ struct _p_TSAdapt {
   PetscViewer monitor;
 };
 
-typedef struct _DMTSPartitionSlotLink *DMTSPartitionSlotLink;
-struct _DMTSPartitionSlotLink {
-  TSPartitionSlotType type;
+typedef struct _DMTSRHSPartitionSlotLink *DMTSRHSPartitionSlotLink;
+struct _DMTSRHSPartitionSlotLink {
+  TSRHSPartitionSlotType type;
   void* ptr;
-  DMTSPartitionSlotLink next;
+  DMTSRHSPartitionSlotLink next;
 };
 
-typedef struct _DMTSPartitionLink *DMTSPartitionLink;
-struct _DMTSPartitionLink {
-  TSPartitionType type;
-  DMTSPartitionSlotLink data;
-  DMTSPartitionLink next;
+typedef struct _DMTSRHSPartitionLink *DMTSRHSPartitionLink;
+struct _DMTSRHSPartitionLink {
+  TSRHSPartitionType type;
+  DMTSRHSPartitionSlotLink data;
+  DMTSRHSPartitionLink next;
 };
 
 
-PetscErrorCode DMTSPartitionDataGet(DMTSPartitionLink, TSPartitionType,TSPartitionSlotType,void**);
-PetscErrorCode DMTSPartitionDataSet(DMTSPartitionLink*,TSPartitionType,TSPartitionSlotType,void*);
-PetscErrorCode DMTSPartitionDataDestroy(DMTSPartitionLink);
-PetscErrorCode DMTSPartitionDataCopy(DMTSPartitionLink,DMTSPartitionLink*);
+PetscErrorCode DMTSRHSPartitionDataGet(DMTSRHSPartitionLink, TSRHSPartitionType,TSRHSPartitionSlotType,void**);
+PetscErrorCode DMTSRHSPartitionDataSet(DMTSRHSPartitionLink*,TSRHSPartitionType,TSRHSPartitionSlotType,void*);
+PetscErrorCode DMTSRHSPartitionDataDestroy(DMTSRHSPartitionLink);
+PetscErrorCode DMTSRHSPartitionDataCopy(DMTSRHSPartitionLink,DMTSRHSPartitionLink*);
 
 typedef struct _p_DMTS *DMTS;
 typedef struct _DMTSOps *DMTSOps;
@@ -189,11 +189,11 @@ struct _DMTSOps {
 struct _p_DMTS {
   PETSCHEADER(struct _DMTSOps);
 
-  DMTSPartitionLink rhsfunctionlink;
-  DMTSPartitionLink rhsjacobianlink;
+  DMTSRHSPartitionLink rhsfunctionlink;
+  DMTSRHSPartitionLink rhsjacobianlink;
   
-  DMTSPartitionLink rhsfunctionctxlink;
-  DMTSPartitionLink rhsjacobianctxlink;
+  DMTSRHSPartitionLink rhsfunctionctxlink;
+  DMTSRHSPartitionLink rhsjacobianctxlink;
   
   void *ifunctionctx;
   void *ijacobianctx;

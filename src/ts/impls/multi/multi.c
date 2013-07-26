@@ -77,9 +77,9 @@ static PetscErrorCode TSSetUp_Multi(TS ts)
     we will probaly have to pass this off to a method to be defined by registered subclasses, so here we'd call 
     multi->ops->setCoarseRHSFunction() etc., perhaps */
     ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
-    ierr = DMTSGetRHSPartitionFunction(dm,MULTI,MULTI_SLOW,&rhsFuncSlow,&ctx);CHKERRQ(ierr); /*<<< once we have a real package, this should be changed to TSMULTI_FLAVOR_SLOW */
+    ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_SLOW_SLOT,&rhsFuncSlow,&ctx);CHKERRQ(ierr); /*<<< once we have a real package, this should be changed to TSMULTI_FLAVOR_SLOW */
     ierr = TSSetRHSFunction(multi->tsCoarse,NULL,rhsFuncSlow,ctx);CHKERRQ(ierr);
-    ierr = DMTSGetRHSPartitionFunction(dm,MULTI,MULTI_FULL,&rhsFuncFull,&ctx);CHKERRQ(ierr);
+    ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_FULL_SLOT,&rhsFuncFull,&ctx);CHKERRQ(ierr);
     ierr = TSSetRHSFunction(multi->tsFine,NULL,rhsFuncFull,ctx);CHKERRQ(ierr);
 
     /*<<< Another type-dependent operation: set the PreStep function to take a fine step: */
