@@ -94,7 +94,7 @@ PetscErrorCode DMTSPartitionDataDestroy(DMTSPartitionLink start)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMTSPartitionDataCopy"
-//!! Completely untested
+/* !! Completely untested !! */
 PetscErrorCode DMTSPartitionDataCopy(DMTSPartitionLink startSource, DMTSPartitionLink *startSink)
 {
   PetscErrorCode          ierr;

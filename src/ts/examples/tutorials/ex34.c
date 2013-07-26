@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
   ierr = PetscOptionsGetReal(NULL,"-epsilon",&epsilon,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetReal(NULL,"-ts_final_time",&T,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetBool(NULL,"-monitor",&useMonitor,NULL);CHKERRQ(ierr);
-  // Other options only affect the true TS, not our hand-coded demo
+  /* Other options only affect the true TS, not the hand-coded loops */
 
   user.epsilon = epsilon;
 
@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
   ierr = TSSetRHSFunction(ts,NULL,FormRHSFunctionXYImex,&user);CHKERRQ(ierr);  
   ierr = TSSetDuration(ts,maxSteps,T);CHKERRQ(ierr);
 
-  ierr = TSSetMaxSNESFailures(ts,-1); //unlimited
+  ierr = TSSetMaxSNESFailures(ts,-1); /* unlimited failures */
   if(useMonitor){
     ierr = TSMonitorSet(ts,Monitor,&user,NULL);CHKERRQ(ierr);
   }
@@ -358,11 +358,11 @@ static PetscErrorCode FLAVOR_FE_loop(Vec X, PetscReal T, TSRHSFunction fast, TSR
         ierr = monitor(ts_dummy,i,t,X,user);CHKERRQ(ierr);
       }
       
-      //Stiff step
+      /* Stiff step */
       ierr = FLAVOR_FE_Step(t,tau,X,PETSC_TRUE,fast,slow,user);CHKERRQ(ierr);
       t += tau;
 
-      //Coarse Step
+      /* Coarse Step */
       ierr = FLAVOR_FE_Step(t,deltaMinusTau,X,PETSC_FALSE,NULL,slow,user);CHKERRQ(ierr);
       t += deltaMinusTau;
       ++i;

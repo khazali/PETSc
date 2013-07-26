@@ -12,7 +12,7 @@ static PetscErrorCode DMTSDestroy(DMTS *kdm)
   PetscValidHeaderSpecific((*kdm),DMTS_CLASSID,1);
   if (--((PetscObject)(*kdm))->refct > 0) {*kdm = 0; PetscFunctionReturn(0);}
 
-  // Destroy the linked lists (not sure if this should go into ops->destroy or not)
+  /* Destroy the linked lists (could go  into ops->destroy */
   ierr = DMTSPartitionDataDestroy((*kdm)->rhsfunctionlink);CHKERRQ(ierr);
   ierr = DMTSPartitionDataDestroy((*kdm)->rhsjacobianlink);CHKERRQ(ierr);
   ierr = DMTSPartitionDataDestroy((*kdm)->rhsfunctionctxlink);CHKERRQ(ierr);
@@ -185,7 +185,6 @@ PetscErrorCode DMTSCopy(DMTS kdm,DMTS nkdm)
   nkdm->ops->destroy     = kdm->ops->destroy;
   nkdm->ops->duplicate   = kdm->ops->duplicate;
 
-  //? Should this go into ops->duplicate ?
   DMTSPartitionDataCopy(kdm->rhsfunctionlink,nkdm->rhsfunctionlink);
   DMTSPartitionDataCopy(kdm->rhsjacobianlink,nkdm->rhsjacobianlink);
   DMTSPartitionDataCopy(kdm->rhsfunctionctxlink,nkdm->rhsfunctionctxlink);
@@ -419,10 +418,21 @@ PetscErrorCode DMTSSetRHSFunction(DM dm,TSRHSFunction func,void *ctx)
 #undef __FUNCT__
 #define __FUNCT__ "DMTSSetRHSPartitionFunction"
 /*@C
-   DMTSSetRHSpartitionFunction 
+ DMTSSetRHSFunction - set TS explicit residual evaluation function for single partition and slot
  
- // ...
-   
+ Not Collective
+ 
+ Input Arguments:
+ +  dm - DM to be used with TS
+ .  type - RHS partition type
+ .  slot - RHS partition slot
+ .  func - RHS function evaluation function, see TSSetRHSFunction() for calling sequence
+ -  ctx - context for residual evaluation
+ 
+ Level: advanced
+ 
+ 
+ .seealso: DMTSSetContext(), TSSetFunction(), DMTSSetJacobian(), TSSetRHSFunction()
  @*/
 PetscErrorCode DMTSSetRHSPartitionFunction(DM dm,TSPartitionType type, TSPartitionSlotType slot, TSRHSFunction func,void *ctx)
 {
@@ -613,10 +623,27 @@ PetscErrorCode DMTSGetRHSFunction(DM dm,TSRHSFunction *func,void **ctx)
 #undef __FUNCT__
 #define __FUNCT__ "DMTSGetRHSPartitionFunction"
 /*@C
- DMTSGetRHSPartitionFunction 
+ DMTSGetRHSPartitionFunction - get TS explicit residual evaluation function
  
- //..
+ Not Collective
  
+ Input Argument:
+ .  dm - DM to be used with TS
+ .  type - RHS Partition type
+ .  slot - RHS Partition slot
+ 
+ Output Arguments:
+ +  func - residual evaluation function, see TSSetRHSFunction() for calling sequence
+ -  ctx - context for residual evaluation
+ 
+ Level: advanced
+ 
+ Note:
+ TSGetFunction() is normally used, but it calls this function internally because the user context is actually
+ associated with the DM.
+ 
+ .seealso: DMTSSetContext(), DMTSSetFunction(), TSSetFunction(), DMTSSetRHSPartitionFunction()
+
  @*/
 PetscErrorCode DMTSGetRHSPartitionFunction(DM dm,TSPartitionType type, TSPartitionSlotType slot,TSRHSFunction *func,void **ctx)
 {
@@ -626,8 +653,6 @@ PetscErrorCode DMTSGetRHSPartitionFunction(DM dm,TSPartitionType type, TSPartiti
     PetscFunctionBegin;
     PetscValidHeaderSpecific(dm,DM_CLASSID,1);
     ierr = DMGetDMTS(dm,&dmts);CHKERRQ(ierr);
-    //if (func) *func = tsdm->rhsfunctions[type][slot]; //!!
-    //if (ctx)  *ctx = tsdm->rhsfunctionctxs[type][slot]; //!!
     if (func) {
       ierr = DMTSPartitionDataGet(dmts->rhsfunctionlink,type,slot,(void**)func);CHKERRQ(ierr);
     }
@@ -787,8 +812,7 @@ PetscErrorCode DMTSGetRHSJacobian(DM dm,TSRHSJacobian *func,void **ctx)
 {
   PetscErrorCode ierr;
 
-  //!! Todo is to remove this  and related functions and replace the calls in TSRHSGet/SetXXX to call the Partition function, thus avoiding a stack frame
-
+  /* This function is probably unnecessary, and can be removed */
   PetscFunctionBegin;
   ierr = DMTSGetRHSPartitionJacobian(dm,NONE,DEFAULT,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);

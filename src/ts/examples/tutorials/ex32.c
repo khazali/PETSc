@@ -79,8 +79,8 @@ int main(int argc, char* argv[])
 
   /* Create TS */
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
-  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr); //creates a DM (or you might create one yourself, for example of type DMDA)
-
+  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+    
   /* Create Vector and Matrix for Solution and Jacobian */
   ierr = VecCreateSeq(PETSC_COMM_WORLD,2,&X);CHKERRQ(ierr);  
   ierr = MatCreateSeqAIJ(PETSC_COMM_WORLD,2,2,2,NULL,&J);CHKERRQ(ierr);
@@ -93,10 +93,6 @@ int main(int argc, char* argv[])
 
   /* Set RHS Functions amd Jacobians*/
   ierr = DMTSSetRHSFunction(dm,FormRHSFunction,&user);CHKERRQ(ierr); 
-//  ierr = DMTSSetRHSFunction(dm,NONE,DEFAULT,FormRHSFunction,&user);CHKERRQ(ierr); // <-- new interface  
-  // TSSetRHSFunction does error checking and creates a vector if X isn't provided, but also registers a function with the SNES object associated with the TS, which we may also have to do ourselves to use an implicit method
-  // Indeed, while this example works with euler and beuler methods, there are problems with the matrix for the imex methods, for an unknown reason..
-
 
   /* Register Partitioned RHS Functions and Jacobians */
   ierr = DMTSSetRHSPartitionFunction(dm,SYMPLECTIC,SYMPLECTIC_P,FormRHSFunctionP,&user);CHKERRQ(ierr);
@@ -104,9 +100,6 @@ int main(int argc, char* argv[])
     
   ierr = DMTSSetRHSPartitionFunction(dm,EXPONENTIAL,EXPONENTIAL_FAST,FormRHSFunctionFast,&user);CHKERRQ(ierr);
   ierr = DMTSSetRHSPartitionFunction(dm,EXPONENTIAL,EXPONENTIAL_SLOW,FormRHSFunctionSlow,&user);CHKERRQ(ierr);
-
-  // TSSetRHSJacobian does error checking and some matrix wrangling
-  //  it also sets something in snes, which may be essential for implicit methods..
   
   ierr = TSSetRHSJacobian(ts, J, J, FormJacobian, &user);CHKERRQ(ierr); 
   ierr = DMTSSetRHSPartitionJacobian(dm, SYMPLECTIC,SYMPLECTIC_Q, FormJacobianQ, &user);CHKERRQ(ierr);
@@ -114,8 +107,6 @@ int main(int argc, char* argv[])
   ierr = DMTSSetRHSPartitionJacobian(dm, EXPONENTIAL,EXPONENTIAL, FormJacobianFast, &user);CHKERRQ(ierr);
   ierr = DMTSSetRHSPartitionJacobian(dm, EXPONENTIAL,EXPONENTIAL, FormJacobianSlow, &user);CHKERRQ(ierr);
     
-  // Note that this still seems shaky - it relies on all the FormJacobian functions being very interchangeable, since the setup that happens in TSSetRHSJacobian only happens once. Also, not sure if that registers the wrong function with the SNES object!
-
   /* Set TS Type  */
   ierr = TSSetType(ts,TSSYMPEULER);CHKERRQ(ierr);
 
@@ -375,7 +366,6 @@ RHS Jacobian (Q)
 #define __FUNCT__ "FormJacobianQ"
 PetscErrorCode FormJacobianQ(TS ts,PetscReal t,Vec X,Mat *J,Mat *B,MatStructure *flag,void *ctx)
 {
-  //User              *user = (User*)ctx;
   PetscErrorCode    ierr;
   PetscScalar       v[4], *x;
   PetscInt          idxm[2] = {0,1};

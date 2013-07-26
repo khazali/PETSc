@@ -16,44 +16,38 @@ static PetscErrorCode TSStep_SympEuler(TS ts)
 
   PetscErrorCode ierr;
   TS_SympEuler       *sympeuler = (TS_SympEuler*)ts->data;
-  Vec                 sol = ts->vec_sol,update = sympeuler->update; // todo just use on of the other vectors for update
+  Vec                 sol = ts->vec_sol,update = sympeuler->update; /*could use on of the other vectors for update */
   PetscInt            its,lits;
   SNESConvergedReason snesreason;
 
   PetscFunctionBegin;
 
-  // Note -  there are currently no checks anywhere to ensure that you have actually set 
-  //  the required RHS functions - rather the behavior is that if they don't exist, nothing happens.
-  //  This might not be a good choice.
+  /* Note -  there are currently no checks anywhere to ensure that you have actually set
+    the required RHS functions - rather, the behavior is that if they don't exist, nothing happens.
+    This might not be a good choice. */
 
-  // Note - there are two variants on symplectic euler ( which of p or q is treated as implicit)
-  // Here, we integrate explicitly in Q, but later on we could add an option to use the other slot's RHSfunction
-  // (Practically speaking, the user can of course just switch the meanings of P and Q, but that is a bad interface)
+  /* Note - there are two variants on symplectic euler ( which of p or q is treated as implicit)
+   Here, we integrate explicitly in Q, but later on we could add an option to use the other slot's RHSfunction
+   (Practically speaking, the user can of course just switch the meanings of P and Q, but that is a bad interface) */
   
   ierr = TSPreStep(ts);CHKERRQ(ierr);
   ierr = TSPreStage(ts,ts->ptime);CHKERRQ(ierr);
 
-  sympeuler->stage_time = ts->ptime + ts->time_step; // full time step (no adaptation)
+  sympeuler->stage_time = ts->ptime + ts->time_step; /* full time step (no adaptation) */
 
-  // Implicit Step in P
-  // Note that for separable systems, this can (and should) just be another euler step. This can hopefully
-  //   be dealt with at the level of assigning an RHSFunction to a special value (as we can with linear or constant functions)
+  /*  Implicit Step in P */
+  /* Note that for separable systems, this can (and should) just be another euler step. This can hopefully
+     be dealt with at the level of assigning an RHSFunction to a special value (as we can with linear or constant functions) */
   /* Note that this choice is hard-coded below in SNESTSFormFunction_SympEuler and SNESTSFormJacobian_SympEuler */
   ierr = VecCopy(sol,sympeuler->X0);CHKERRQ(ierr);
-  ierr = SNESSolve(ts->snes,NULL,sol);CHKERRQ(ierr); // Solve F(u,udot,t)==0 
+  ierr = SNESSolve(ts->snes,NULL,sol);CHKERRQ(ierr);
   ierr = SNESGetIterationNumber(ts->snes,&its);CHKERRQ(ierr);
   ierr = SNESGetLinearSolveIterations(ts->snes,&lits);CHKERRQ(ierr);
   ierr = SNESGetConvergedReason(ts->snes,&snesreason);CHKERRQ(ierr);
   ts->snes_its += its; ts->ksp_its += lits;
-  //..
-  // Explicit Step in Q
-
-  //? If the user specified a nontrivial IFunction, this implicit step isn't going to pick it up I don't think. 
-  //  I'm not certain if the euler method respects it either.
-
-  // DEBUG - take both explicit steps for now
-  //ierr = TSComputeRHSPartitionFunction(ts,SYMPLECTIC,SYMPLECTIC_P,ts->ptime,sol,update);CHKERRQ(ierr);
-  //ierr = VecAXPY(sol,ts->time_step,update);CHKERRQ(ierr);
+  
+  /* Explicit Step in Q */
+  /* If the user specified a nontrivial IFunction, this implicit step isn't going to pick it up */
   ierr = TSComputeRHSPartitionFunction(ts,SYMPLECTIC,SYMPLECTIC_Q,ts->ptime,sol,update);CHKERRQ(ierr);
   ierr = VecAXPY(sol,ts->time_step,update);CHKERRQ(ierr);
   ts->ptime += ts->time_step;
@@ -68,20 +62,19 @@ static PetscErrorCode SNESTSFormFunction_SympEuler(SNES snes,Vec x,Vec y,TS ts)
 {
   TS_SympEuler    *sympeuler = (TS_SympEuler*)ts->data;
   PetscErrorCode  ierr;
-  DM              dm,dmsave; // just copying blindly wrt these
+  DM              dm,dmsave; 
   Vec             X0 = sympeuler->X0,Xdot = sympeuler->Xdot;  
   PetscReal       shift = 1./(ts->time_step);
 
   PetscFunctionBegin;
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
-  ierr = VecAXPBYPCZ(Xdot,-shift,shift,0,X0,x);CHKERRQ(ierr); // Xdot = shift(x-X0)
+  ierr = VecAXPBYPCZ(Xdot,-shift,shift,0,X0,x);CHKERRQ(ierr);
 
   /* DM monkey-business allows user code to call TSGetDM() inside of functions evaluated on levels of FAS */
   dmsave = ts->dm;
   ts->dm = dm;
 
   /* Note that the P step being implicit is hard-coded. This can/should change at some point to allow both sympeuler variants */
-
   ierr   = TSComputeIPartitionFunction(ts,SYMPLECTIC,SYMPLECTIC_P,sympeuler->stage_time,x,Xdot,y,PETSC_FALSE);CHKERRQ(ierr);
   ts->dm = dmsave;
   PetscFunctionReturn(0);
@@ -101,7 +94,6 @@ static PetscErrorCode SNESTSFormJacobian_SympEuler(SNES snes,Vec x,Mat *A,Mat *B
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
 
   /* th->Xdot has already been computed in SNESTSFormFunction_Theta (SNES guarantees this) */
-
   dmsave = ts->dm;
   ts->dm = dm;
 

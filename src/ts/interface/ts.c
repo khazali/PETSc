@@ -345,7 +345,36 @@ PetscErrorCode  TSComputeRHSJacobian(TS ts,PetscReal t,Vec U,Mat *A,Mat *B,MatSt
 #undef __FUNCT__
 #define __FUNCT__ "TSComputeRHSPartitionJacobian"
 /*@
- //..
+ TSComputeRHSPartitionJacobian - Computes the Jacobian matrix that has been
+ set with TSSetRHSPartitionJacobian().
+ 
+ Collective on TS and Vec
+ 
+ Input Parameters:
+ +  ts - the TS context
+ .  type - the partition type
+ .  slot - the slot within the partition
+ .  t - current timestep
+ -  U - input vector
+ 
+ Output Parameters:
+ +  A - Jacobian matrix
+ .  B - optional preconditioning matrix
+ -  flag - flag indicating matrix structure
+ 
+ Notes:
+ Most users should not need to explicitly call this routine, as it
+ is used internally within the nonlinear solvers.
+ 
+ See KSPSetOperators() for important information about setting the
+ flag parameter.
+ 
+ Level: developer
+ 
+ .keywords: SNES, compute, Jacobian, matrix, partition
+ 
+ .seealso:  TSSetRHSParitionJacobian(), KSPSetOperators()
+
 @*/
 PetscErrorCode  TSComputeRHSPartitionJacobian(TS ts,TSPartitionType type, TSPartitionSlotType slot, PetscReal t,Vec U,Mat *A,Mat *B,MatStructure *flg)
 {
@@ -357,8 +386,8 @@ PetscErrorCode  TSComputeRHSPartitionJacobian(TS ts,TSPartitionType type, TSPart
   void           *ctx;
   TSIJacobian    ijacobianfunc;
 
-  // Note that we only store information about one partition, when it comes to implict solve,
-  ///  so calling this multiple times for multiple solves is not allowed
+  /* Note that we only store information about one partition, when it comes to implict solve, 
+   so attempting to perform multple implicit solves per step is currently non allowed */
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
@@ -438,7 +467,7 @@ PetscErrorCode TSComputeRHSFunction(TS ts,PetscReal t,Vec U,Vec y)
 {
   PetscErrorCode ierr;
 
-  //!! Todo is change to just using the partition function, since there's no point in having this extra stack frame
+  /* We pass immediately to the default partition function */
   PetscFunctionBegin;
   ierr = TSComputeRHSPartitionFunction(ts,NONE,DEFAULT,t,U,y);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -672,7 +701,39 @@ PetscErrorCode TSComputeIFunction(TS ts,PetscReal t,Vec U,Vec Udot,Vec Y,PetscBo
 #undef __FUNCT__
 #define __FUNCT__ "TSComputeIPartitionFunction"
 /*@
-//..
+ TSComputeIPartitionFunction - Evaluates the DAE residual written in implicit form F(t,U,Udot)=0
+ 
+ Collective on TS and Vec
+ 
+ Input Parameters:
+ +  ts - the TS context
+ .  type - the partition type
+ .  slot - the partition slot type
+ .  t - current time
+ .  U - state vector
+ .  Udot - time derivative of state vector
+ -  imex - flag indicates if the method is IMEX so that the RHSFunction should be kept separate
+ 
+ Output Parameter:
+ .  Y - right hand side
+ 
+ Note:
+ Most users should not need to explicitly call this routine, as it
+ is used internally within the nonlinear solvers.
+ 
+ If the user did did not write their equations in implicit form, this
+ function recasts them in implicit form.
+ 
+ The meaning of the word 'Partition' here refers to partitions of the RHS,
+ that is which terms on the righthand side are subtracted from the provided
+ IFunction.
+ 
+ Level: developer
+ 
+ .keywords: TS, compute, partition
+ 
+ .seealso: TSSetIFunction(), TSComputeRHSPartitionFunction()
+
 @*/
 PetscErrorCode TSComputeIPartitionFunction(TS ts,TSPartitionType type, TSPartitionSlotType slot, PetscReal t,Vec U,Vec Udot,Vec Y,PetscBool imex)
 {
@@ -755,90 +816,49 @@ PetscErrorCode TSComputeIPartitionFunction(TS ts,TSPartitionType type, TSPartiti
 @*/
 PetscErrorCode TSComputeIJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal shift,Mat *A,Mat *B,MatStructure *flg,PetscBool imex)
 {
+  /* Here, again, once we're happy with the interface this function will become unneccessary */
   PetscErrorCode ierr;
-  TSIJacobian    ijacobian;
-  TSRHSJacobian  rhsjacobian;
-  DM             dm;
-  void           *ctx;
-
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  PetscValidHeaderSpecific(U,VEC_CLASSID,3);
-  PetscValidHeaderSpecific(Udot,VEC_CLASSID,4);
-  PetscValidPointer(A,6);
-  PetscValidHeaderSpecific(*A,MAT_CLASSID,6);
-  PetscValidPointer(B,7);
-  PetscValidHeaderSpecific(*B,MAT_CLASSID,7);
-  PetscValidPointer(flg,8);
-
-  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
-  ierr = DMTSGetIJacobian(dm,&ijacobian,&ctx);CHKERRQ(ierr);
-  ierr = DMTSGetRHSJacobian(dm,&rhsjacobian,NULL);CHKERRQ(ierr);
-
-  if (!rhsjacobian && !ijacobian) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Must call TSSetRHSJacobian() and / or TSSetIJacobian()");
-
-  *flg = SAME_NONZERO_PATTERN;  /* In case we're solving a linear problem in which case it wouldn't get initialized below. */
-  ierr = PetscLogEventBegin(TS_JacobianEval,ts,U,*A,*B);CHKERRQ(ierr);
-  if (ijacobian) {
-    *flg = DIFFERENT_NONZERO_PATTERN;
-    PetscStackPush("TS user implicit Jacobian");
-    ierr = (*ijacobian)(ts,t,U,Udot,shift,A,B,flg,ctx);CHKERRQ(ierr);
-    PetscStackPop;
-    /* make sure user returned a correct Jacobian and preconditioner */
-    PetscValidHeaderSpecific(*A,MAT_CLASSID,4);
-    PetscValidHeaderSpecific(*B,MAT_CLASSID,5);
-  }
-  if (imex) {
-    if (!ijacobian) {  /* system was written as Udot = G(t,U) */
-      ierr = MatZeroEntries(*A);CHKERRQ(ierr);
-      ierr = MatShift(*A,shift);CHKERRQ(ierr);
-      if (*A != *B) {
-        ierr = MatZeroEntries(*B);CHKERRQ(ierr);
-        ierr = MatShift(*B,shift);CHKERRQ(ierr);
-      }
-      *flg = SAME_PRECONDITIONER;
-    }
-  } else {
-    Mat Arhs = NULL,Brhs = NULL;
-    MatStructure flg2;
-    if (rhsjacobian) {
-      ierr = TSGetRHSMats_Private(ts,&Arhs,&Brhs);CHKERRQ(ierr);
-      ierr = TSComputeRHSJacobian(ts,t,U,&Arhs,&Brhs,&flg2);CHKERRQ(ierr);
-    }
-    if (Arhs == *A) {           /* No IJacobian, so we only have the RHS matrix */
-      ts->rhsjacobian.scale = -1;
-      ts->rhsjacobian.shift = shift;
-      ierr = MatScale(*A,-1);CHKERRQ(ierr);
-      ierr = MatShift(*A,shift);CHKERRQ(ierr);
-      if (*A != *B) {
-        ierr = MatScale(*B,-1);CHKERRQ(ierr);
-        ierr = MatShift(*B,shift);CHKERRQ(ierr);
-      }
-    } else if (Arhs) {          /* Both IJacobian and RHSJacobian */
-      MatStructure axpy = DIFFERENT_NONZERO_PATTERN;
-      if (!ijacobian) {         /* No IJacobian provided, but we have a separate RHS matrix */
-        ierr = MatZeroEntries(*A);CHKERRQ(ierr);
-        ierr = MatShift(*A,shift);CHKERRQ(ierr);
-        if (*A != *B) {
-          ierr = MatZeroEntries(*B);CHKERRQ(ierr);
-          ierr = MatShift(*B,shift);CHKERRQ(ierr);
-        }
-      }
-      ierr = MatAXPY(*A,-1,Arhs,axpy);CHKERRQ(ierr);
-      if (*A != *B) {
-        ierr = MatAXPY(*B,-1,Brhs,axpy);CHKERRQ(ierr);
-      }
-      *flg = PetscMin(*flg,flg2);
-    }
-  }
-
-  ierr = PetscLogEventEnd(TS_JacobianEval,ts,U,*A,*B);CHKERRQ(ierr);
+  ierr = TSComputeIPartitionJacobian(ts,NONE,DEFAULT,t,U,Udot,shift,A,B,flg,imex);
   PetscFunctionReturn(0);
 }
 #undef __FUNCT__
 #define __FUNCT__ "TSComputeIPartitionJacobian"
 /*@
- //.
+ TSComputeIPartitionJacobian - Evaluates the Jacobian of the DAE, including RHS terms from a single partition slot
+ 
+ Collective on TS and Vec
+ 
+ Input
+ Input Parameters:
+ +  ts - the TS context
+ .  type - the partition type
+ .  slot - the partition slot type
+ .  t - current timestep
+ .  U - state vector
+ .  Udot - time derivative of state vector
+ .  shift - shift to apply, see note below
+ -  imex - flag indicates if the method is IMEX so that the RHSJacobian should be kept separate
+ 
+ Output Parameters:
+ +  A - Jacobian matrix
+ .  B - optional preconditioning matrix
+ -  flag - flag indicating matrix structure
+ 
+ Notes:
+ If F(t,U,Udot)=0 is the DAE, the required Jacobian is
+ 
+ dF/dU + shift*dF/dUdot
+ 
+ Most users should not need to explicitly call this routine, as it
+ is used internally within the nonlinear solvers.
+ 
+ Level: developer
+ 
+ .keywords: TS, compute, Jacobian, matrix
+ 
+ .seealso:  TSSetIJacobian()
+
 @*/
 PetscErrorCode TSComputeIPartitionJacobian(TS ts,TSPartitionType type, TSPartitionSlotType slot, PetscReal t,Vec U,Vec Udot,PetscReal shift,Mat *A,Mat *B,MatStructure *flg,PetscBool imex)
 {

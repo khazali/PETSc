@@ -175,7 +175,7 @@ PETSC_EXTERN const char *const TSExactFinalTimeOptions[];
 .seealso: TSPartitionSlotType
 
 E*/
-typedef enum {NONE, SYMPLECTIC, EXPONENTIAL, MULTI} TSPartitionType; // perhaps change to TSRHSPartitionType
+typedef enum {NONE, SYMPLECTIC, EXPONENTIAL, MULTI} TSPartitionType; /* perhaps change to TSRHSPartitionType */
 
 /*E
 
@@ -327,11 +327,10 @@ PETSC_EXTERN PetscErrorCode DMTSSetRHSFunction(DM,TSRHSFunction,void*);
 PETSC_EXTERN PetscErrorCode DMTSSetRHSPartitionFunction(DM,TSPartitionType,TSPartitionSlotType,TSRHSFunction,void*);
 PETSC_EXTERN PetscErrorCode DMTSGetRHSFunction(DM,TSRHSFunction*,void**);
 PETSC_EXTERN PetscErrorCode DMTSGetRHSPartitionFunction(DM,TSPartitionType,TSPartitionSlotType,TSRHSFunction*,void**);
-//PETSC_EXTERN PetscErrorCode DMTSRegisterRHSPartition(DM,TSPartitionType); // currently unused
 PETSC_EXTERN PetscErrorCode DMTSSetRHSJacobian(DM,TSRHSJacobian,void*);
 PETSC_EXTERN PetscErrorCode DMTSSetRHSPartitionJacobian(DM,TSPartitionType,TSPartitionSlotType,TSRHSJacobian,void*);
 PETSC_EXTERN PetscErrorCode DMTSGetRHSJacobian(DM,TSRHSJacobian*,void**);
-PETSC_EXTERN PetscErrorCode DMTSGetRHSPartitionJacobian(DM,TSPartitionType,TSPartitionSlotType,TSRHSJacobian*,void**); // by style guide, all these void** types should be void*
+PETSC_EXTERN PetscErrorCode DMTSGetRHSPartitionJacobian(DM,TSPartitionType,TSPartitionSlotType,TSRHSJacobian*,void**);
 PETSC_EXTERN PetscErrorCode DMTSSetIFunction(DM,TSIFunction,void*);
 PETSC_EXTERN PetscErrorCode DMTSGetIFunction(DM,TSIFunction*,void**);
 PETSC_EXTERN PetscErrorCode DMTSSetIJacobian(DM,TSIJacobian,void*);
@@ -602,6 +601,23 @@ PETSC_EXTERN PetscErrorCode TSRosWFinalizePackage(void);
 PETSC_EXTERN PetscErrorCode TSRosWInitializePackage(void);
 PETSC_EXTERN PetscErrorCode TSRosWRegisterDestroy(void);
 PETSC_EXTERN PetscErrorCode TSRosWRegisterAll(void);
+
+/*J
+    TSMultiType - String with the name of a multiscale method
+ 
+    Level: beginner
+ 
+J*/
+typedef const char* TSMultiType;
+#define TSMULTIFLAVOR   "flavor"
+#define TSMULTIHMM      "hmm"
+PETSC_EXTERN PetscErrorCode TSMultiGetType(TS ts,TSMultiType*);
+PETSC_EXTERN PetscErrorCode TSMultiSetType(TS ts,TSMultiType);
+/* .. */
+PETSC_EXTERN PetscErrorCode TSMultiFinalizePackage(void);
+PETSC_EXTERN PetscErrorCode TSMultiInitializePackage(void);
+PETSC_EXTERN PetscErrorCode TSMultiRegisterDestroy(void);
+PETSC_EXTERN PetscErrorCode TSMultiRegisterAll(void);
 
 /*
        PETSc interface to Sundials

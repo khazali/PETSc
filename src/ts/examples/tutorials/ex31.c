@@ -118,7 +118,7 @@ int main(int argc, char* argv[])
   if(useViewer){
     ierr = PetscViewerASCIIOpen(user.comm,"ex31_output.txt",&user.viewer);CHKERRQ(ierr);
     ierr = PetscViewerSetFormat(user.viewer,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr); 
-    ierr = PetscViewerASCIISynchronizedAllow(user.viewer,PETSC_TRUE);CHKERRQ(ierr); // untested! May need PetscViewerFlush.
+    ierr = PetscViewerASCIISynchronizedAllow(user.viewer,PETSC_TRUE);CHKERRQ(ierr);
     ierr = TSMonitorSet(ts,Monitor,&user,NULL);CHKERRQ(ierr);
   }
   

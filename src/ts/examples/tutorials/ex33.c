@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
 
   /* Create TS */
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
-  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr); //creates a DM (or you might create one yourself, for example of type DMDA)
+  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
 
   /* Create Vector and Matrix for Solution and Jacobian */
   ierr = VecCreateSeq(PETSC_COMM_WORLD,4,&X);CHKERRQ(ierr);  
