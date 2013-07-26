@@ -609,15 +609,12 @@ PETSC_EXTERN PetscErrorCode TSRosWRegisterAll(void);
  
 J*/
 typedef const char* TSMultiType;
-#define TSMULTIFLAVOR   "flavor"
-#define TSMULTIHMM      "hmm"
+#define TSMULTIFLAVORFE   "flavorfe"
 PETSC_EXTERN PetscErrorCode TSMultiGetType(TS ts,TSMultiType*);
 PETSC_EXTERN PetscErrorCode TSMultiSetType(TS ts,TSMultiType);
-/* .. */
 PETSC_EXTERN PetscErrorCode TSMultiFinalizePackage(void);
 PETSC_EXTERN PetscErrorCode TSMultiInitializePackage(void);
-PETSC_EXTERN PetscErrorCode TSMultiRegisterDestroy(void);
-PETSC_EXTERN PetscErrorCode TSMultiRegisterAll(void);
+
 
 /*
        PETSc interface to Sundials

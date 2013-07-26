@@ -4,22 +4,207 @@
 #include <petsc-private/tsimpl.h>                /*I   "petscts.h"   I*/
 
 typedef struct {
-    TS tsCoarse, tsFine;
-    TSType TSCOARSE, TSFINE;
+    TSMultiType     type_name;
+    TS              tsCoarse, tsFine;
+    
+    struct{
+        PetscErrorCode (*precoarse)(TS ts);
+        PetscErrorCode (*setup)(TS ts);
+    } ops;
+    
+    void            *implData;
 } TS_Multi;
 
-/*<<< This is a function that later will be registered by a more specific solver  (something like FLAVOR_FE) */
-#undef __FUNCT__
-#define __FUNCT__ "TakeFineStep"
-static PetscErrorCode TakeFineStep(TS ts)
-{
-  PetscErrorCode ierr;
-  TS_Multi       *multi = (TS_Multi*)ts->data; 
+/* -------------------------------------------------------------------------- */
+/* Methods and data for TSMULTIFLAVORFE (move to a new file once there are more solver types) */
 
-  PetscFunctionBegin;
-  ierr = TSStep(multi->tsFine);
-  PetscFunctionReturn(0);
+typedef struct _TS_MultiFLAVORFE *TS_MultiFLAVORFE;
+struct _TS_MultiFLAVORFE
+{
+    PetscReal epsilon; /* we may consider making this a universal parameter of TSMULTI solvers */
+};
+
+/*<<< This is a function that later will be registered by a more specific solver  (namely TSMULTIFLAVORFE) */
+#undef __FUNCT__
+#define __FUNCT__ "TakeFineStep_MultiFLAVORFE"
+static PetscErrorCode TakeFineStep_MultiFLAVORFE(TS ts)
+{
+    PetscErrorCode ierr;
+    TS_Multi       *multi = (TS_Multi*)ts->data;
+    
+    PetscFunctionBegin;
+    ierr = TSStep(multi->tsFine);
+    PetscFunctionReturn(0);
 }
+
+#undef __FUNCT__
+#define __FUNCT__ "SetUp_MultiFLAVORFE"
+static PetscErrorCode SetUp_MultiFLAVORFE(TS ts)
+{
+    PetscErrorCode ierr;
+    TS_Multi       *multi = (TS_Multi*)ts->data;
+    TSRHSFunction  rhsFuncSlow, rhsFuncFull;
+    void           *ctx;
+    DM             dm;
+    
+    PetscFunctionBegin;
+    ierr = TSSetType(multi->tsCoarse,TSEULER);CHKERRQ(ierr);
+    ierr = TSSetType(multi->tsFine,TSEULER);CHKERRQ(ierr);
+    
+    /* Here, we can simple use one vector for both timesteppers*/
+    ierr = TSSetSolution(multi->tsCoarse,ts->vec_sol);CHKERRQ(ierr);
+    ierr = TSSetSolution(multi->tsFine,ts->vec_sol);CHKERRQ(ierr);
+    
+    ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+    ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_SLOW_SLOT,&rhsFuncSlow,&ctx);CHKERRQ(ierr); /*<<< once we have a real package, this should be changed to TS_MULTI_FLAVOR_SLOW_SLOT */
+    ierr = TSSetRHSFunction(multi->tsCoarse,NULL,rhsFuncSlow,ctx);CHKERRQ(ierr);
+    ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_FULL_SLOT,&rhsFuncFull,&ctx);CHKERRQ(ierr);
+    ierr = TSSetRHSFunction(multi->tsFine,NULL,rhsFuncFull,ctx);CHKERRQ(ierr);
+    
+    /* Time steps
+     This is all hard coded to test. Really what needs to happen is the TS_Multi (or TS_Multi_FLAVOR) object should
+     contain enough information to allow the user to pick a good meso or macro timestep based on the stiffness parameter
+     (and this stiffness parameter itself might be something the solver knows about) */
+    ierr = TSSetTimeStep(multi->tsCoarse, ts->time_step * 0.995);CHKERRQ(ierr);
+    ierr = TSSetTimeStep(multi->tsFine,   ts->time_step * 0.005);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
+}
+
+/* -------------------------------------------------------------------------- */
+
+PetscFunctionList TSMultiList_precoarse = 0;
+PetscFunctionList TSMultiList_setup = 0;
+static TSMultiType TSMultiDefault = TSMULTIFLAVORFE;
+static PetscBool  TSMultiPackageInitialized;
+
+#undef __FUNCT__
+#define __FUNCT__ "TSMultiInitializePackage"
+/*@C
+ TSMultiInitializePackage - This function initializes everything in the TSMulti package. It is called
+ from PetscDLLibraryRegister() when using dynamic libraries, and on the first call to TSCreate_Multi()
+ when using static libraries.
+ 
+ Level: developer
+ 
+ .keywords: TS, TSMulti, initialize, package
+ .seealso: PetscInitialize()
+ @*/
+PetscErrorCode TSMultiInitializePackage(void)
+{
+    PetscErrorCode ierr;
+    
+    PetscFunctionBegin;
+    if (TSMultiPackageInitialized) PetscFunctionReturn(0);
+    TSMultiPackageInitialized = PETSC_TRUE;
+    ierr = PetscFunctionListAdd(&TSMultiList_precoarse,TSMULTIFLAVORFE, TakeFineStep_MultiFLAVORFE);CHKERRQ(ierr);
+    ierr = PetscFunctionListAdd(&TSMultiList_setup,TSMULTIFLAVORFE, SetUp_MultiFLAVORFE);CHKERRQ(ierr);
+    ierr = PetscRegisterFinalize(TSMultiFinalizePackage);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "TSMultiFinalizePackage"
+/*@C
+ TSMultiFinalizePackage - This function destroys everything in the TSMulti package. It is
+ called from PetscFinalize().
+ 
+ Level: developer
+ 
+ .keywords: Petsc, destroy, package
+ .seealso: PetscFinalize()
+ @*/
+PetscErrorCode TSMultiFinalizePackage(void)
+{
+    PetscErrorCode ierr;
+    
+    PetscFunctionBegin;
+    TSMultiPackageInitialized = PETSC_FALSE;
+    ierr = PetscFunctionListDestroy(&TSMultiList_precoarse);CHKERRQ(ierr);
+    ierr = PetscFunctionListDestroy(&TSMultiList_setup);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
+}
+#undef __FUNCT__
+#define __FUNCT__ "TSMultiSetType"
+/*@C
+ TSMultiSetType - set the multiscale time integration scheme to use
+ 
+ Logically Collective
+ 
+ Input Arguments:
+ ts - time stepping object
+ type - type of scheme to use
+ 
+ Level: beginner
+ 
+ .seealso: TSMULTI, TSMultiGetType()
+ @*/
+PetscErrorCode TSMultiSetType(TS ts,TSMultiType type)
+{
+    PetscErrorCode ierr;
+    
+    PetscFunctionBegin;
+    PetscValidHeaderSpecific(ts,TS_CLASSID,1);
+    ierr = PetscTryMethod(ts,"TSMultiSetType_C",(TS,TSMultiType),(ts,type));CHKERRQ(ierr);
+    PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "TSMultiGetType"
+/*@C
+ TSMultiGetType - get the Multi time integration scheme
+ 
+ Logically Collective
+ 
+ Input Argument:
+ ts - time stepping object
+ 
+ Output Argument:
+ type - type of scheme being used
+ 
+ Level: beginner
+ 
+ .seealso: TSMULTI, TSMultiSettype()
+ @*/
+PetscErrorCode TSMultiGetType(TS ts,TSMultiType *type)
+{
+    PetscErrorCode ierr;
+    
+    PetscFunctionBegin;
+    PetscValidHeaderSpecific(ts,TS_CLASSID,1);
+    ierr = PetscTryMethod(ts,"TSMultiGetType_C",(TS,TSMultiType*),(ts,type));CHKERRQ(ierr);
+    PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "TSMultiSetType_Multi"
+PETSC_EXTERN PetscErrorCode TSMultiSetType_Multi(TS ts,TSMultiType type)
+{
+    PetscErrorCode ierr, (*precoarse)(TS), (*setup)(TS);
+    TS_Multi             *multi = (TS_Multi*)ts->data;
+    
+    PetscFunctionBegin;
+    ierr = PetscFunctionListFind(TSMultiList_precoarse,type,&precoarse);CHKERRQ(ierr);
+    if (!precoarse) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_UNKNOWN_TYPE,"Unknown TSMultiType %s given",type);
+    ierr = PetscFunctionListFind(TSMultiList_setup,type,&setup);CHKERRQ(ierr);
+    if (!setup) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_UNKNOWN_TYPE,"Unknown TSMultiType %s given",type);
+    multi->ops.precoarse = precoarse;
+    multi->ops.setup = setup;
+    ierr = PetscFree(multi->type_name);CHKERRQ(ierr);
+    ierr = PetscStrallocpy(type,&multi->type_name);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
+}
+#undef __FUNCT__
+#define __FUNCT__ "TSMultiGetType_Multi"
+PetscErrorCode TSMultiGetType_Multi(TS ts,TSMultiType *type)
+{
+    TS_Multi *multi = (TS_Multi*)ts->data;
+    
+    PetscFunctionBegin;
+    *type = multi->type_name;
+    PetscFunctionReturn(0);
+}
+
+/* --------------------------------------------------------------------------- */
 
 #undef __FUNCT__
 #define __FUNCT__ "TSStep_Multi"
@@ -32,8 +217,8 @@ static PetscErrorCode TSStep_Multi(TS ts)
     ierr = TSPreStep(ts);CHKERRQ(ierr);
     ierr = TSPreStage(ts,ts->ptime); CHKERRQ(ierr); 
 
-    /*<<< integrator-specific pre-coarse-step behavior. Here we take a fine step for the FLAVOR FE method*/
-    ierr = TakeFineStep(ts);CHKERRQ(ierr);
+    /* integrator-specific pre-coarse-step behavior */
+    ierr = multi->ops.precoarse(ts);CHKERRQ(ierr);
 
     /*  Take a step with the coarse solver. 
         Various functions registered with tsCoarse (PreStep, PostStep, PreStagIFunctions, RHSFunctions) can also
@@ -54,45 +239,14 @@ static PetscErrorCode TSSetUp_Multi(TS ts)
 {
     PetscErrorCode ierr;
     TS_Multi       *multi = (TS_Multi*)ts->data;
-    TSRHSFunction  rhsFuncSlow, rhsFuncFull;
-    void           *ctx;
-    DM             dm; 
     
     PetscFunctionBegin;
-    ierr = TSSetType(multi->tsCoarse,multi->TSCOARSE);CHKERRQ(ierr);
-    ierr = TSSetType(multi->tsFine,multi->TSFINE);CHKERRQ(ierr);
 
     /* pass in the TS_Multi* pointer as the coarse solver's user context */
     ierr = TSSetApplicationContext(multi->tsCoarse, multi);CHKERRQ(ierr);
 
-    /*<<< Here, we  set the coarse solver's vec_sol to the same vector as this solver's.
-      This probably makes sense for the coarse solver, and in some cases (FLAVORS) it makes sense for the fine scale
-      solver as well. For HMM we need to retain the state between coarse steps so the fine solver would need its own storage.*/
-   ierr = TSSetSolution(multi->tsCoarse,ts->vec_sol);CHKERRQ(ierr);
-
-   /*<<< we do the same for the fine solver. This should work for FLAVOR_FE, but in general the fine solver will
-    want its own storage to work with */
-   ierr = TSSetSolution(multi->tsFine,ts->vec_sol);CHKERRQ(ierr);
-
-    /*<<<  Set the RHS and IFunctions for the coarse and fine solvers
-    This is temporary - since the way this happens depends very heavily on teh type of solver,
-    we will probaly have to pass this off to a method to be defined by registered subclasses, so here we'd call 
-    multi->ops->setCoarseRHSFunction() etc., perhaps */
-    ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
-    ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_SLOW_SLOT,&rhsFuncSlow,&ctx);CHKERRQ(ierr); /*<<< once we have a real package, this should be changed to TS_MULTI_FLAVOR_SLOW_SLOT */
-    ierr = TSSetRHSFunction(multi->tsCoarse,NULL,rhsFuncSlow,ctx);CHKERRQ(ierr);
-    ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_FULL_SLOT,&rhsFuncFull,&ctx);CHKERRQ(ierr);
-    ierr = TSSetRHSFunction(multi->tsFine,NULL,rhsFuncFull,ctx);CHKERRQ(ierr);
-
-    /*<<< Set More parameters for the coarse and fine solvers. Again, this behavior depends on the type of solver
-    so will have to be defined by an op which can be set */
-
-    /*<<< Time steps
-    <<< This is all hard coded to test. Really what needs to happen is the TS_Multi (or TS_Multi_FLAVOR) object should 
-    contain enough information to allow the user to pick a good meso or macro timestep based on the stiffness parameter
-    (and this stiffness parameter itself might be something the solver knows about) */
-    ierr = TSSetTimeStep(multi->tsCoarse, ts->time_step * 0.995);CHKERRQ(ierr);
-    ierr = TSSetTimeStep(multi->tsFine,   ts->time_step * 0.005);CHKERRQ(ierr);
+    /* integrator-specific setup */
+    ierr =  multi->ops.setup(ts); CHKERRQ(ierr);
 
     ierr = TSSetUp(multi->tsCoarse);CHKERRQ(ierr);
     ierr = TSSetUp(multi->tsFine);CHKERRQ(ierr);
@@ -122,10 +276,15 @@ static PetscErrorCode TSDestroy_Multi(TS ts)
     
     PetscFunctionBegin;
     ierr = TSReset_Multi(ts);CHKERRQ(ierr);
-    ierr = PetscFree(ts->data);CHKERRQ(ierr);
+
+    ierr = PetscObjectComposeFunction((PetscObject)ts,"TSMultiGetType_C",NULL);CHKERRQ(ierr);
+    ierr = PetscObjectComposeFunction((PetscObject)ts,"TSMultiSetType_C",NULL);CHKERRQ(ierr);
     
     ierr = TSDestroy(&multi->tsCoarse);CHKERRQ(ierr);
     ierr = TSDestroy(&multi->tsFine);CHKERRQ(ierr);
+    
+    PetscFree(multi->type_name);
+    ierr = PetscFree(ts->data);CHKERRQ(ierr);
     
     PetscFunctionReturn(0);
 }
@@ -164,6 +323,9 @@ PETSC_EXTERN PetscErrorCode TSCreate_Multi(TS ts)
     MPI_Comm        comm;
     
     PetscFunctionBegin;
+#if !defined(PETSC_USE_DYNAMIC_LIBRARIES)
+    ierr = TSMultiInitializePackage();CHKERRQ(ierr);
+#endif
     ts->ops->setup           = TSSetUp_Multi;
     ts->ops->step            = TSStep_Multi;
     ts->ops->reset           = TSReset_Multi;
@@ -172,9 +334,11 @@ PETSC_EXTERN PetscErrorCode TSCreate_Multi(TS ts)
     
     ierr = PetscNewLog(ts,TS_Multi,&multi);CHKERRQ(ierr);
     ts->data = multi;
-   
-    multi->TSCOARSE = TSEULER; /*<<< default - other solvers will want to change this */
-    multi->TSFINE   = TSEULER; /*<<< default */
+    
+    ierr = PetscObjectComposeFunction((PetscObject)ts,"TSMultiGetType_C",TSMultiGetType_Multi);CHKERRQ(ierr);
+    ierr = PetscObjectComposeFunction((PetscObject)ts,"TSMultiSetType_C",TSMultiSetType_Multi);CHKERRQ(ierr);
+    
+    ierr = TSMultiSetType(ts,TSMultiDefault);CHKERRQ(ierr);
     
     ierr = PetscObjectGetComm((PetscObject)ts,&comm);CHKERRQ(ierr);
     ierr = TSCreate(comm,&multi->tsCoarse);CHKERRQ(ierr);
