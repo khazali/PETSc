@@ -14,11 +14,10 @@ typedef struct {
 static PetscErrorCode TakeFineStep(TS ts)
 {
   PetscErrorCode ierr;
-  TS_Multi       *multi = (TS_Multi*)ts->user; 
+  TS_Multi       *multi = (TS_Multi*)ts->data; 
 
   PetscFunctionBegin;
   ierr = TSStep(multi->tsFine);
-
   PetscFunctionReturn(0);
 }
 
@@ -33,10 +32,13 @@ static PetscErrorCode TSStep_Multi(TS ts)
     ierr = TSPreStep(ts);CHKERRQ(ierr);
     ierr = TSPreStage(ts,ts->ptime); CHKERRQ(ierr); 
 
+    /*<<< integrator-specific pre-coarse-step behavior. Here we take a fine step for the FLAVOR FE method*/
+    ierr = TakeFineStep(ts);CHKERRQ(ierr);
+
     /*  Take a step with the coarse solver. 
-        Various functions registered with tsCoarse (PreStep, PostStep, PreStagIFunctions, RHSFunctions) will invoke tsFine. 
-        To do this, note that we put a pointer to this solver's ts->data in multi->tsCoarse->user */
-    ierr = TSStep(multi->tsCoarse);
+        Various functions registered with tsCoarse (PreStep, PostStep, PreStagIFunctions, RHSFunctions) can also
+         invoke tsFine. To do this, note that we put a pointer to this solver's ts->data in multi->tsCoarse->user */
+    ierr = TSStep(multi->tsCoarse);CHKERRQ(ierr);
   
     /*  TSMULTI counts coarse solver steps, and accumulates time based on coarse solver steps automatically here. 
         Time can also be accumulated in an appropriate way after calls are made to the fine solver, for instance
@@ -77,15 +79,12 @@ static PetscErrorCode TSSetUp_Multi(TS ts)
     we will probaly have to pass this off to a method to be defined by registered subclasses, so here we'd call 
     multi->ops->setCoarseRHSFunction() etc., perhaps */
     ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
-    ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_SLOW_SLOT,&rhsFuncSlow,&ctx);CHKERRQ(ierr); /*<<< once we have a real package, this should be changed to TSMULTI_FLAVOR_SLOW */
+    ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_SLOW_SLOT,&rhsFuncSlow,&ctx);CHKERRQ(ierr); /*<<< once we have a real package, this should be changed to TS_MULTI_FLAVOR_SLOW_SLOT */
     ierr = TSSetRHSFunction(multi->tsCoarse,NULL,rhsFuncSlow,ctx);CHKERRQ(ierr);
     ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_FULL_SLOT,&rhsFuncFull,&ctx);CHKERRQ(ierr);
     ierr = TSSetRHSFunction(multi->tsFine,NULL,rhsFuncFull,ctx);CHKERRQ(ierr);
 
-    /*<<< Another type-dependent operation: set the PreStep function to take a fine step: */
-    ierr = TSSetPreStep(multi->tsCoarse,TakeFineStep);CHKERRQ(ierr);
-
-    /*<<< Set More parameters for the coarse and fine solvers. Again, this behavior depends on the type of solverm
+    /*<<< Set More parameters for the coarse and fine solvers. Again, this behavior depends on the type of solver
     so will have to be defined by an op which can be set */
 
     /*<<< Time steps
