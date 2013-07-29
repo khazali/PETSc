@@ -25,8 +25,8 @@ static PetscErrorCode FormRHSFunctionXYImex(TS,PetscReal,Vec,Vec,void*);
 static PetscErrorCode FormIFunctionXYImex(TS,PetscReal,Vec,Vec,Vec,void*);
 static PetscErrorCode FormIJacobianXYImex(TS,PetscReal,Vec,Vec,PetscReal,Mat*,Mat*,MatStructure*,void*);
 /* static PetscErrorCode FormRHSFunctionRTHFast(TS,PetscReal,Vec,Vec,void*);
-static PetscErrorCode FormRHSFunctionRTHSlow(TS,PetscReal,Vec,Vec,void*); */
-static PetscErrorCode FormRHSFunctionXYFast(TS,PetscReal,Vec,Vec,void*);
+static PetscErrorCode FormRHSFunctionRTHSlow(TS,PetscReal,Vec,Vec,void*); 
+static PetscErrorCode FormRHSFunctionXYFast(TS,PetscReal,Vec,Vec,void*); */
 static PetscErrorCode FormRHSFunctionXYSlow(TS,PetscReal,Vec,Vec,void*);
 static PetscErrorCode FormRHSFunctionXYTotal(TS,PetscReal,Vec,Vec,void*);
 static PetscErrorCode FLAVOR_FE_Step(PetscReal,PetscReal,Vec,PetscBool,TSRHSFunction,TSRHSFunction,void*);
@@ -172,7 +172,6 @@ int main(int argc, char *argv[])
   }
   ierr = VecDestroy(&X);CHKERRQ(ierr);
 
-
   PetscFinalize();
   return EXIT_SUCCESS;
 }
@@ -197,7 +196,7 @@ static PetscErrorCode FormRHSFunctionXYImex(TS ts,PetscReal t,Vec X,Vec F,void *
   ierr = VecRestoreArray(F,&f);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-
+/*
 #undef __FUNCT__
 #define __FUNCT__ "FormRHSFunctionXYFast"
 static PetscErrorCode FormRHSFunctionXYFast(TS ts,PetscReal t,Vec X,Vec F,void *ctx)
@@ -215,6 +214,8 @@ static PetscErrorCode FormRHSFunctionXYFast(TS ts,PetscReal t,Vec X,Vec F,void *
   ierr = VecRestoreArray(F,&f);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+*/
+
 #undef __FUNCT__
 #define __FUNCT__ "FormRHSFunctionXYSlow"
 static PetscErrorCode FormRHSFunctionXYSlow(TS ts,PetscReal t,Vec X,Vec F,void *ctx)
@@ -444,7 +445,6 @@ static PetscErrorCode FormInitialSolutionRTH(TS ts,Vec X,void *ctx)
   ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-
 /*
 Monitor
 */
@@ -458,7 +458,8 @@ static PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec u,void *ctx
 
   PetscFunctionBeginUser;
   ierr = VecGetArray(u,&uarr);CHKERRQ(ierr);
-  ierr = PetscViewerASCIIPrintf(user->viewer,"%15.15g %15.15g %15.15g\n",time, uarr[0],uarr[1]);CHKERRQ(ierr);
+  ierr = PetscViewerASCIIPrintf(user->viewer,"%15.15g %15.15g %15.15g\n",
+                                time, uarr[0],uarr[1]);CHKERRQ(ierr);
   ierr = VecRestoreArray(u,&uarr);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

@@ -190,7 +190,7 @@ typedef enum {
                 TS_DEFAULT_SLOT,
                 TS_EXP_FAST_SLOT,TS_EXP_SLOW_SLOT,
                 TS_SYMP_P_SLOT,TS_SYMP_Q_SLOT,
-                TS_MULTI_FULL_SLOT,TS_MULTI_SLOW_SLOT
+                TS_MULTI_FULL_SLOT,TS_MULTI_SLOW_SLOT,TS_MULTI_FAST_SLOT
             } TSRHSPartitionSlotType;
 
 /* Logging support */
@@ -610,6 +610,7 @@ PETSC_EXTERN PetscErrorCode TSRosWRegisterAll(void);
 J*/
 typedef const char* TSMultiType;
 #define TSMULTIFLAVORFE   "flavorfe"
+#define TSMULTIBFHMMFE    "bfhmmfe"
 PETSC_EXTERN PetscErrorCode TSMultiGetType(TS ts,TSMultiType*);
 PETSC_EXTERN PetscErrorCode TSMultiSetType(TS ts,TSMultiType);
 PETSC_EXTERN PetscErrorCode TSMultiGetEpsilon(TS ts,PetscReal*);

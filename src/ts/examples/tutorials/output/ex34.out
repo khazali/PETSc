@@ -1,3 +1,8 @@
+epsilon 0.001, steps 10051, ftime 100.007
+Vec Object: 1 MPI processes
+  type: seq
+0.791781
+2.04064
 epsilon 0.001, steps 16, ftime 122.92
 Vec Object: 1 MPI processes
   type: seq
@@ -6,10 +11,5 @@ Vec Object: 1 MPI processes
 epsilon 0.001, steps 10000, ftime 100
 Vec Object: 1 MPI processes
   type: seq
-0.792822
-2.04097
-epsilon 0.001, steps 1006, ftime 100.097
-Vec Object: 1 MPI processes
-  type: seq
-0.791536
-2.04056
+0.791802
+2.04065

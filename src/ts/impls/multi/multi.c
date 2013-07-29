@@ -3,17 +3,18 @@
  */
 #include <petsc-private/tsimpl.h>                /*I   "petscts.h"   I*/
 
+/* Once there are more solvers, this can be changed to only include data being used by a given solver */
 typedef struct {
     TSMultiType     type_name;
-    TS              tsCoarse, tsFine;
-    PetscReal       epsilon; /* A small parameter which characterizes the fine scale */
-    
+    TS              ts, tsCoarse, tsFine;
+    PetscReal       epsilon; /* A small parameter which characterizes the fine scale compared to an O(1) coarse scale */
+
     struct{
         PetscErrorCode (*precoarse)(TS ts);
         PetscErrorCode (*setup)(TS ts);
     } ops;
     
-    void            *implData;
+    Vec W; /* A work vector (not always used)  */ 
 } TS_Multi;
 
 PetscFunctionList TSMultiList_precoarse = 0;
@@ -22,14 +23,7 @@ static TSMultiType TSMultiDefault = TSMULTIFLAVORFE;
 static PetscBool  TSMultiPackageInitialized;
 
 /* -------------------------------------------------------------------------- */
-/* Methods and data for TSMULTIFLAVORFE */
-
-typedef struct _TS_MultiFLAVORFE *TS_MultiFLAVORFE;
-struct _TS_MultiFLAVORFE
-{
-  // (empty)
-};
-
+/* Methods for TSMULTIFLAVORFE */
 
 #undef __FUNCT__
 #define __FUNCT__ "TakeFineStep_MultiFLAVORFE"
@@ -75,6 +69,101 @@ static PetscErrorCode SetUp_MultiFLAVORFE(TS ts)
 }
 
 /* -------------------------------------------------------------------------- */
+/* Methods for BFHMMMFE */
+#undef __FUNCT__
+#define __FUNCT__ "Precoarse_MultiBFHMMFE"
+static PetscErrorCode Precoarse_MultiBFHMMFE(TS ts)
+{
+  PetscErrorCode ierr;
+  TS_Multi       *multi = (TS_Multi*)ts->data;
+  TS             tsFine = multi->tsFine, tsCoarse = multi->tsCoarse;
+  Vec            S = ts->vec_sol;
+  DM             dm;
+  void           *rhsctx;
+  TSRHSFunction  rhsfunc;
+  
+  PetscFunctionBegin;
+
+  /* Store state in the work vector, to start the upcoming second fine solve*/
+  ierr = VecCopy(S,multi->W);CHKERRQ(ierr);
+
+  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+  ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_FAST_SLOT,&rhsfunc,&rhsctx);CHKERRQ(ierr);
+  ierr = TSSetRHSFunction(tsFine,NULL,rhsfunc,rhsctx);CHKERRQ(ierr);
+  ierr = TSSetTime(tsFine,0);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(tsFine,0);CHKERRQ(ierr);
+
+  ierr = TSSolve(tsFine,S);CHKERRQ(ierr);
+  
+  ierr = VecScale(S,1.-(tsCoarse->time_step/tsFine->max_time));
+
+  PetscFunctionReturn(0);
+}
+#undef __FUNCT__
+#define __FUNCT__ "FormRHSFunction_BFHMMFE"
+static PetscErrorCode FormRHSFunction_BFHMMFE(TS tsCoarse, PetscReal t, Vec X, Vec F, void* ctx)
+{
+  PetscErrorCode ierr;  
+  TS_Multi       *multi;
+  DM             dm;
+  void           *rhsctx;
+  TSRHSFunction  rhsfunc;
+  TS             tsFine;
+
+  PetscFunctionBegin;  
+
+  ierr = TSGetApplicationContext(tsCoarse,&multi);CHKERRQ(ierr);
+  tsFine = multi->tsFine;
+  
+  ierr = TSGetDM(multi->ts,&dm);CHKERRQ(ierr); /*  We store a reference back to the main TS object in TS_Multi  */ 
+  ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_FULL_SLOT,&rhsfunc,&rhsctx);CHKERRQ(ierr);
+  ierr = TSSetRHSFunction(tsFine,NULL,rhsfunc,rhsctx);CHKERRQ(ierr);
+  ierr = TSSetTime(tsFine,0);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(tsFine,0);CHKERRQ(ierr);
+
+  ierr = TSSolve(tsFine,multi->W);CHKERRQ(ierr);
+
+  /* Scale and copy to F*/
+ ierr = VecAXPBY(F,1./tsFine->max_time,0,multi->W);CHKERRQ(ierr); 
+
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SetUp_MultiBFHMMFE"
+static PetscErrorCode SetUp_MultiBFHMMFE(TS ts)
+{
+  PetscErrorCode ierr;
+  TS_Multi       *multi = (TS_Multi*)ts->data;
+  TS             tsCoarse = multi->tsCoarse,tsFine = multi->tsFine;
+
+  PetscFunctionBegin;
+  ierr = TSSetType(tsCoarse,TSEULER);CHKERRQ(ierr);
+  ierr = TSSetType(tsFine,TSSSP);CHKERRQ(ierr); 
+  /* [More sophisticated inner solvers can be chosen at will, and in the future should be user-settable]
+  ierr = TSSSPSetNumStages(tsFine,25);CHKERRQ(ierr);    
+  ierr = TSSSPSetType(tsFine,TSSSPRKS3);CHKERRQ(ierr);
+ */
+  /* Use this TS's work vec_sol for the coarse solver */
+  ierr = TSSetSolution(tsCoarse,ts->vec_sol);CHKERRQ(ierr);
+  
+  ierr = TSSetRHSFunction(tsCoarse,NULL,FormRHSFunction_BFHMMFE,NULL);CHKERRQ(ierr);
+
+  ierr = TSSetTimeStep(tsCoarse,ts->time_step);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(tsFine,multi->epsilon/10.);CHKERRQ(ierr); /* fine time step is epsilon/N for some moderately large N, arbitrarily */
+
+  /* Set the fine TS to solve at an exact final time */
+  ierr = TSSetExactFinalTime(tsFine,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr); 
+
+  /* Fine scale solve time is 15 \epsilon, arbitrarily  (this is "delta") */
+  ierr = TSSetDuration(tsFine,PETSC_MAX_INT,multi->epsilon * 15);CHKERRQ(ierr);
+
+  ierr = VecDuplicate(ts->vec_sol,&multi->W);CHKERRQ(ierr);
+  
+  PetscFunctionReturn(0);
+}
+
+/* -------------------------------------------------------------------------- */
 
 #undef __FUNCT__
 #define __FUNCT__ "TSMultiInitializePackage"
@@ -97,6 +186,8 @@ PetscErrorCode TSMultiInitializePackage(void)
     TSMultiPackageInitialized = PETSC_TRUE;
     ierr = PetscFunctionListAdd(&TSMultiList_precoarse,TSMULTIFLAVORFE, TakeFineStep_MultiFLAVORFE);CHKERRQ(ierr);
     ierr = PetscFunctionListAdd(&TSMultiList_setup,TSMULTIFLAVORFE, SetUp_MultiFLAVORFE);CHKERRQ(ierr);
+    ierr = PetscFunctionListAdd(&TSMultiList_precoarse,TSMULTIBFHMMFE, Precoarse_MultiBFHMMFE);CHKERRQ(ierr);
+    ierr = PetscFunctionListAdd(&TSMultiList_setup,TSMULTIBFHMMFE, SetUp_MultiBFHMMFE);CHKERRQ(ierr);
     ierr = PetscRegisterFinalize(TSMultiFinalizePackage);CHKERRQ(ierr);
     PetscFunctionReturn(0);
 }
@@ -240,8 +331,9 @@ static PetscErrorCode TSStep_Multi(TS ts)
     ierr = TSPreStage(ts,ts->ptime); CHKERRQ(ierr); 
 
     /* integrator-specific pre-coarse-step behavior */
-    ierr = multi->ops.precoarse(ts);CHKERRQ(ierr);
-
+    if(multi->ops.precoarse){
+      ierr = multi->ops.precoarse(ts);CHKERRQ(ierr);
+    }
     /*  Take a step with the coarse solver. 
         Various functions registered with tsCoarse (PreStep, PostStep, PreStagIFunctions, RHSFunctions) can also
          invoke tsFine. To do this, note that we put a pointer to this solver's ts->data in multi->tsCoarse->user */
@@ -269,9 +361,6 @@ static PetscErrorCode TSSetUp_Multi(TS ts)
 
     /* integrator-specific setup */
     ierr =  multi->ops.setup(ts); CHKERRQ(ierr);
-
-    ierr = TSSetUp(multi->tsCoarse);CHKERRQ(ierr);
-    ierr = TSSetUp(multi->tsFine);CHKERRQ(ierr);
 
     PetscFunctionReturn(0);
 }
@@ -304,7 +393,9 @@ static PetscErrorCode TSDestroy_Multi(TS ts)
     
     ierr = TSDestroy(&multi->tsCoarse);CHKERRQ(ierr);
     ierr = TSDestroy(&multi->tsFine);CHKERRQ(ierr);
-    
+   
+    ierr = VecDestroy(&multi->W);CHKERRQ(ierr); 
+
     PetscFree(multi->type_name);
     ierr = PetscFree(ts->data);CHKERRQ(ierr);
     
@@ -317,19 +408,27 @@ static PetscErrorCode TSDestroy_Multi(TS ts)
 static PetscErrorCode TSSetFromOptions_Multi(TS ts)
 {
     PetscFunctionBegin;
-    
-    /*<<< How options passed in should be propagated to the coarse and fine solvers might depend
-    on which type of multiscale method we're using, and TSMULTI has its own options
+    char           tname[256];
+    TS_Multi       *multi       = (TS_Multi*)ts->data;
+    PetscErrorCode ierr;
+    PetscBool      flg;
 
-    We will never expose the internal TS objects to the user. If they want to tweak
-    beyond the provided flavors of TSMULTI (and the options they accept), we should provide the user
-    with the ability to register new timesteppers in a TSMULTI package (and potential subpackages like TSFLAVOR, TSHMM) */
-    
+    PetscFunctionBegin;
+    ierr = PetscOptionsHead("Multiscale ODE solver options");CHKERRQ(ierr);
+    {
+      ierr = PetscOptionsList("-ts_multi_type","Type of Multiscale method","TSMultiSetType",TSMultiList_precoarse,tname,tname,sizeof(tname),&flg);CHKERRQ(ierr); 
+      if (flg) {
+        ierr = TSMultiSetType(ts,tname);CHKERRQ(ierr);
+      }
+    }
+    ierr = PetscOptionsTail();CHKERRQ(ierr);
     PetscFunctionReturn(0);
 }
 
 /*MC
  TSMULTI- Multiscale ODE Solver
+
+  Provides implementations of integrators useful for problems with well-separated 'slow' and 'fast' scales, where only slow observables need be computed accurately, allowing for homegenization on the fast scale.
  
  Level: beginner
  
@@ -356,6 +455,7 @@ PETSC_EXTERN PetscErrorCode TSCreate_Multi(TS ts)
     
     ierr = PetscNewLog(ts,TS_Multi,&multi);CHKERRQ(ierr);
     ts->data = multi;
+    multi->ts = ts;
     
     ierr = PetscObjectComposeFunction((PetscObject)ts,"TSMultiGetType_C",TSMultiGetType_Multi);CHKERRQ(ierr);
     ierr = PetscObjectComposeFunction((PetscObject)ts,"TSMultiSetType_C",TSMultiSetType_Multi);CHKERRQ(ierr);
