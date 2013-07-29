@@ -6,6 +6,7 @@
 typedef struct {
     TSMultiType     type_name;
     TS              tsCoarse, tsFine;
+    PetscReal       epsilon; /* A small parameter which characterizes the fine scale */
     
     struct{
         PetscErrorCode (*precoarse)(TS ts);
@@ -15,16 +16,21 @@ typedef struct {
     void            *implData;
 } TS_Multi;
 
+PetscFunctionList TSMultiList_precoarse = 0;
+PetscFunctionList TSMultiList_setup = 0;
+static TSMultiType TSMultiDefault = TSMULTIFLAVORFE;
+static PetscBool  TSMultiPackageInitialized;
+
 /* -------------------------------------------------------------------------- */
-/* Methods and data for TSMULTIFLAVORFE (move to a new file once there are more solver types) */
+/* Methods and data for TSMULTIFLAVORFE */
 
 typedef struct _TS_MultiFLAVORFE *TS_MultiFLAVORFE;
 struct _TS_MultiFLAVORFE
 {
-    PetscReal epsilon; /* we may consider making this a universal parameter of TSMULTI solvers */
+  // (empty)
 };
 
-/*<<< This is a function that later will be registered by a more specific solver  (namely TSMULTIFLAVORFE) */
+
 #undef __FUNCT__
 #define __FUNCT__ "TakeFineStep_MultiFLAVORFE"
 static PetscErrorCode TakeFineStep_MultiFLAVORFE(TS ts)
@@ -51,31 +57,24 @@ static PetscErrorCode SetUp_MultiFLAVORFE(TS ts)
     ierr = TSSetType(multi->tsCoarse,TSEULER);CHKERRQ(ierr);
     ierr = TSSetType(multi->tsFine,TSEULER);CHKERRQ(ierr);
     
-    /* Here, we can simple use one vector for both timesteppers*/
+    /* Here, we can simply use one vector for both timesteppers*/
     ierr = TSSetSolution(multi->tsCoarse,ts->vec_sol);CHKERRQ(ierr);
     ierr = TSSetSolution(multi->tsFine,ts->vec_sol);CHKERRQ(ierr);
     
     ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
-    ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_SLOW_SLOT,&rhsFuncSlow,&ctx);CHKERRQ(ierr); /*<<< once we have a real package, this should be changed to TS_MULTI_FLAVOR_SLOW_SLOT */
+    ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_SLOW_SLOT,&rhsFuncSlow,&ctx);CHKERRQ(ierr); 
     ierr = TSSetRHSFunction(multi->tsCoarse,NULL,rhsFuncSlow,ctx);CHKERRQ(ierr);
     ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_FULL_SLOT,&rhsFuncFull,&ctx);CHKERRQ(ierr);
     ierr = TSSetRHSFunction(multi->tsFine,NULL,rhsFuncFull,ctx);CHKERRQ(ierr);
     
-    /* Time steps
-     This is all hard coded to test. Really what needs to happen is the TS_Multi (or TS_Multi_FLAVOR) object should
-     contain enough information to allow the user to pick a good meso or macro timestep based on the stiffness parameter
-     (and this stiffness parameter itself might be something the solver knows about) */
-    ierr = TSSetTimeStep(multi->tsCoarse, ts->time_step * 0.995);CHKERRQ(ierr);
-    ierr = TSSetTimeStep(multi->tsFine,   ts->time_step * 0.005);CHKERRQ(ierr);
+    /* Time steps */
+    /* For now, we use 'meso' steps which are 1/20 of the timestep set by the TS (under the assumption that those are 'macro'. Micro time steps are epsilon/20 */
+    ierr = TSSetTimeStep(multi->tsCoarse, (ts->time_step * 0.05) - (multi->epsilon*0.05));CHKERRQ(ierr); 
+    ierr = TSSetTimeStep(multi->tsFine,   multi->epsilon * 0.05);CHKERRQ(ierr);
     PetscFunctionReturn(0);
 }
 
 /* -------------------------------------------------------------------------- */
-
-PetscFunctionList TSMultiList_precoarse = 0;
-PetscFunctionList TSMultiList_setup = 0;
-static TSMultiType TSMultiDefault = TSMULTIFLAVORFE;
-static PetscBool  TSMultiPackageInitialized;
 
 #undef __FUNCT__
 #define __FUNCT__ "TSMultiInitializePackage"
@@ -202,6 +201,29 @@ PetscErrorCode TSMultiGetType_Multi(TS ts,TSMultiType *type)
     PetscFunctionBegin;
     *type = multi->type_name;
     PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "TSMultiSetEpsilon"
+PetscErrorCode TSMultiSetEpsilon(TS ts,PetscReal epsilon)
+{
+  TS_Multi            *multi = (TS_Multi*)ts->data;
+  
+  PetscFunctionBegin;
+  multi->epsilon = epsilon;
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
+#define __FUNCT__ "TSMultiGetEpsilon"
+PetscErrorCode TSMultiGetEpsilon(TS ts,PetscReal *epsilon)
+{
+  TS_Multi            *multi = (TS_Multi*)ts->data;
+  
+  PetscFunctionBegin;
+  *epsilon = multi->epsilon;
+  PetscFunctionReturn(0);
 }
 
 /* --------------------------------------------------------------------------- */

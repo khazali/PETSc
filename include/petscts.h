@@ -612,6 +612,8 @@ typedef const char* TSMultiType;
 #define TSMULTIFLAVORFE   "flavorfe"
 PETSC_EXTERN PetscErrorCode TSMultiGetType(TS ts,TSMultiType*);
 PETSC_EXTERN PetscErrorCode TSMultiSetType(TS ts,TSMultiType);
+PETSC_EXTERN PetscErrorCode TSMultiGetEpsilon(TS ts,PetscReal*);
+PETSC_EXTERN PetscErrorCode TSMultiSetEpsilon(TS ts,PetscReal);
 PETSC_EXTERN PetscErrorCode TSMultiFinalizePackage(void);
 PETSC_EXTERN PetscErrorCode TSMultiInitializePackage(void);
 

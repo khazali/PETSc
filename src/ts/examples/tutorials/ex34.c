@@ -24,8 +24,8 @@ Accepts special arguments
 static PetscErrorCode FormRHSFunctionXYImex(TS,PetscReal,Vec,Vec,void*);
 static PetscErrorCode FormIFunctionXYImex(TS,PetscReal,Vec,Vec,Vec,void*);
 static PetscErrorCode FormIJacobianXYImex(TS,PetscReal,Vec,Vec,PetscReal,Mat*,Mat*,MatStructure*,void*);
-static PetscErrorCode FormRHSFunctionRTHFast(TS,PetscReal,Vec,Vec,void*);
-static PetscErrorCode FormRHSFunctionRTHSlow(TS,PetscReal,Vec,Vec,void*);
+/* static PetscErrorCode FormRHSFunctionRTHFast(TS,PetscReal,Vec,Vec,void*);
+static PetscErrorCode FormRHSFunctionRTHSlow(TS,PetscReal,Vec,Vec,void*); */
 static PetscErrorCode FormRHSFunctionXYFast(TS,PetscReal,Vec,Vec,void*);
 static PetscErrorCode FormRHSFunctionXYSlow(TS,PetscReal,Vec,Vec,void*);
 static PetscErrorCode FormRHSFunctionXYTotal(TS,PetscReal,Vec,Vec,void*);
@@ -72,8 +72,40 @@ int main(int argc, char *argv[])
   /* Other options only affect the true TS, not the hand-coded loops */
 
   user.epsilon = epsilon;
+  /* ==== TSMULTI === */
+  if(useMonitor){
+    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"ex34_output_MULTI.txt",&user.viewer);CHKERRQ(ierr);
+    ierr = PetscViewerSetFormat(user.viewer,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr); 
+  }
+  ierr = VecCreateSeq(PETSC_COMM_WORLD,2,&X);CHKERRQ(ierr); 
+  ierr = FormInitialSolutionXY(ts,X,&user);CHKERRQ(ierr);
+  ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
 
-  /*  ===== First, we use an IMEX solver to compute a 'reference' solution ==== */
+  ierr = TSSetType(ts,TSMULTI);CHKERRQ(ierr); 
+  ierr = TSMultiSetType(ts,TSMULTIFLAVORFE);CHKERRQ(ierr); 
+  ierr = TSMultiSetEpsilon(ts,user.epsilon);
+  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_SLOW_SLOT,FormRHSFunctionXYSlow,&user);CHKERRQ(ierr);
+  ierr = DMTSSetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_FULL_SLOT,FormRHSFunctionXYTotal,&user);CHKERRQ(ierr);
+  ierr = TSSetDuration(ts,maxSteps,T);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,0.2); /* this is the 'macro' step, currently 20 'meso' steps */
+  if(useMonitor){
+    ierr = TSMonitorSet(ts,Monitor,&user,NULL);CHKERRQ(ierr);
+  }
+  ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
+  ierr = TSSolve(ts,X);CHKERRQ(ierr);
+  ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
+  ierr = TSGetTimeStepNumber(ts,&steps);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"epsilon %G, steps %D, ftime %G\n",user.epsilon,steps,ftime);CHKERRQ(ierr);
+  ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  ierr = TSDestroy(&ts);CHKERRQ(ierr);
+  if(useMonitor){
+    ierr = PetscViewerDestroy(&user.viewer);CHKERRQ(ierr);
+  }
+  ierr = VecDestroy(&X);CHKERRQ(ierr);
+  ierr = TSDestroy(&ts);CHKERRQ(ierr);
+
+  /*  ===== An IMEX solver to compute a 'reference' solution ==== */
   if(useMonitor){
     ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"ex34_output_imex.txt",&user.viewer);CHKERRQ(ierr);
     ierr = PetscViewerSetFormat(user.viewer,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr); 
@@ -108,7 +140,8 @@ int main(int argc, char *argv[])
   ierr = MatDestroy(&A);CHKERRQ(ierr);
   ierr = VecDestroy(&X);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
-  /* ===== Next, a hand-coded simple FLAVOR loop in the 'hidden' r,\theta formulation =====  */
+  /* ===== A hand-coded simple FLAVOR loop in the 'hidden' r,\theta formulation =====  */
+  /*
   if(useMonitor){
     ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"ex34_output_flavor_rth.txt",&user.viewer);CHKERRQ(ierr);
     ierr = PetscViewerSetFormat(user.viewer,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr); 
@@ -122,15 +155,16 @@ int main(int argc, char *argv[])
     ierr = PetscViewerDestroy(&user.viewer);CHKERRQ(ierr);
   }
   ierr = VecDestroy(&X);CHKERRQ(ierr);
+*/
 
-  /* ===== Next, a hand-coded simple FLAVOR loop with the XY system to test =====  */
+  /* ===== A hand-coded simple FLAVOR loop with the XY system to test =====  */
   if(useMonitor){
     ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"ex34_output_flavor_xy.txt",&user.viewer);CHKERRQ(ierr);
     ierr = PetscViewerSetFormat(user.viewer,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr); 
   }
   ierr = VecCreateSeq(PETSC_COMM_WORLD,2,&X);CHKERRQ(ierr);
   ierr = FormInitialSolutionXY(ts_dummy,X,&user);CHKERRQ(ierr);
-  ierr = FLAVOR_FE_loop(X,T,FormRHSFunctionXYFast,FormRHSFunctionXYSlow,&steps,&ftime,useMonitor,Monitor,&user);CHKERRQ(ierr);
+  ierr = FLAVOR_FE_loop(X,T,FormRHSFunctionXYTotal,FormRHSFunctionXYSlow,&steps,&ftime,useMonitor,Monitor,&user);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"epsilon %G, steps %D, ftime %G\n",user.epsilon,steps,ftime);CHKERRQ(ierr);
   ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   if(useMonitor){
@@ -138,35 +172,6 @@ int main(int argc, char *argv[])
   }
   ierr = VecDestroy(&X);CHKERRQ(ierr);
 
-  /* ==== Finally, try TSMULTI === */
-  if(useMonitor){
-    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"ex34_output_MULTI.txt",&user.viewer);CHKERRQ(ierr);
-    ierr = PetscViewerSetFormat(user.viewer,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr); 
-  }
-  ierr = VecCreateSeq(PETSC_COMM_WORLD,2,&X);CHKERRQ(ierr); 
-  ierr = FormInitialSolutionXY(ts,X,&user);CHKERRQ(ierr);
-  ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
-  ierr = TSSetType(ts,TSMULTI);CHKERRQ(ierr); 
-  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
-  ierr = DMTSSetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_SLOW_SLOT,FormRHSFunctionXYSlow,&user);CHKERRQ(ierr);
-  ierr = DMTSSetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_FULL_SLOT,FormRHSFunctionXYTotal,&user);CHKERRQ(ierr);
-  ierr = TSSetDuration(ts,maxSteps,T);CHKERRQ(ierr);
-  ierr = TSSetTimeStep(ts,0.1);CHKERRQ(ierr);
-  if(useMonitor){
-    ierr = TSMonitorSet(ts,Monitor,&user,NULL);CHKERRQ(ierr);
-  }
-  ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
-  ierr = TSSolve(ts,X);CHKERRQ(ierr);
-  ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts,&steps);CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"epsilon %G, steps %D, ftime %G\n",user.epsilon,steps,ftime);CHKERRQ(ierr);
-  ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-  ierr = TSDestroy(&ts);CHKERRQ(ierr);
-  if(useMonitor){
-    ierr = PetscViewerDestroy(&user.viewer);CHKERRQ(ierr);
-  }
-  ierr = VecDestroy(&X);CHKERRQ(ierr);
-  ierr = TSDestroy(&ts);CHKERRQ(ierr);
 
   PetscFinalize();
   return EXIT_SUCCESS;
@@ -299,6 +304,7 @@ Fast RHS Function (in terms of r \theta)
 */
 #undef __FUNCT__
 #define __FUNCT__ "FormRHSFunctionRTHFast"
+/*
 static PetscErrorCode FormRHSFunctionRTHFast(TS ts, PetscReal t, Vec X, Vec F, void* ctx)
 {
   User             user = (User) ctx; 
@@ -315,10 +321,12 @@ static PetscErrorCode FormRHSFunctionRTHFast(TS ts, PetscReal t, Vec X, Vec F, v
   ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+*/
 
 /* 
-Slow RHS Functon (in terms of r \theta)
+Slow RHS Function (in terms of r \theta)
 */
+/*
 #undef __FUNCT__
 #define __FUNCT__ "FormRHSFunctionRTHSlow"
 static PetscErrorCode FormRHSFunctionRTHSlow(TS ts, PetscReal t, Vec X, Vec F, void* ctx)
@@ -337,6 +345,7 @@ static PetscErrorCode FormRHSFunctionRTHSlow(TS ts, PetscReal t, Vec X, Vec F, v
   ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+*/
 
 #undef __FUNCT__
 #define __FUNCT__ "FLAVOR_FE_loop"
@@ -350,7 +359,7 @@ static PetscErrorCode FLAVOR_FE_loop(Vec X, PetscReal T, TSRHSFunction fast, TSR
 
   PetscFunctionBeginUser;
   tau = 0.05*user->epsilon;
-  deltaMinusTau = 10*user->epsilon-tau;
+  deltaMinusTau = 0.01-tau;
 
   i = 0; t = 0;
   while(t<T){

@@ -107,7 +107,7 @@ PetscErrorCode DMTSRHSPartitionDataCopy(DMTSRHSPartitionLink startSource, DMTSRH
   for(lnk = startSource; lnk; lnk=lnk->next)
   {
     tmp = newlnk;
-    ierr = PetscMalloc(sizeof(struct _DMTSRHSPartitionLink),&newlnk);
+    ierr = PetscMalloc(sizeof(struct _DMTSRHSPartitionLink),&newlnk);CHKERRQ(ierr);
     newlnk->next = tmp;
     newlnk->type = lnk->type;
     newlnk2 = NULL;
