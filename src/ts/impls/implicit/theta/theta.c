@@ -277,7 +277,7 @@ static PetscErrorCode SNESTSFormFunction_Theta(SNES snes,Vec x,Vec y,TS ts)
   ierr = VecAXPBYPCZ(Xdot,-shift,shift,0,X0,x);CHKERRQ(ierr);
   /* When using the endpoint variant, this is actually 1/Theta * Xdot - (1-Theta)/Theta*Xdot0*/
   if (th->endpoint) {
-    ierr = VecAXPY(Xdot,1.0,th->affine);CHKERRQ(ierr);
+    ierr = VecAXPY(Xdot,-1.0,th->affine);CHKERRQ(ierr);
   }
   /* DM monkey-business allows user code to call TSGetDM() inside of functions evaluated on levels of FAS */
   dmsave = ts->dm;
