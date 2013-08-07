@@ -180,7 +180,7 @@ static PetscErrorCode TSStep_Theta(TS ts)
     } else {
       ierr = VecCopy(ts->vec_sol,th->X);CHKERRQ(ierr);
     }
-    ierr = SNESSolve(ts->snes,th->affine,th->X);CHKERRQ(ierr);
+    ierr = SNESSolve(ts->snes,NULL,th->X);CHKERRQ(ierr);
     ierr = SNESGetIterationNumber(ts->snes,&its);CHKERRQ(ierr);
     ierr = SNESGetLinearSolveIterations(ts->snes,&lits);CHKERRQ(ierr);
     ierr = SNESGetConvergedReason(ts->snes,&snesreason);CHKERRQ(ierr);
@@ -273,10 +273,12 @@ static PetscErrorCode SNESTSFormFunction_Theta(SNES snes,Vec x,Vec y,TS ts)
 
   PetscFunctionBegin;
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
-  /* When using the endpoint variant, this is actually 1/Theta * Xdot */
   ierr = TSThetaGetX0AndXdot(ts,dm,&X0,&Xdot);CHKERRQ(ierr);
   ierr = VecAXPBYPCZ(Xdot,-shift,shift,0,X0,x);CHKERRQ(ierr);
-
+  /* When using the endpoint variant, this is actually 1/Theta * Xdot - (1-Theta)/Theta*Xdot0*/
+  if (th->endpoint) {
+    ierr = VecAXPY(Xdot,1.0,th->affine);CHKERRQ(ierr);
+  }
   /* DM monkey-business allows user code to call TSGetDM() inside of functions evaluated on levels of FAS */
   dmsave = ts->dm;
   ts->dm = dm;
