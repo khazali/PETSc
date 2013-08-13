@@ -485,7 +485,7 @@ PetscErrorCode SNESFASDownSmooth_Private(SNES snes, Vec B, Vec X, Vec F, PetscRe
   PetscFunctionBegin;
   ierr = SNESFASCycleGetSmootherDown(snes, &smoothd);CHKERRQ(ierr);
   ierr = SNESSetInitialFunction(smoothd, F);CHKERRQ(ierr);
-  ierr = SNESSetInitialFunctionNorm(smoothd, *fnorm);CHKERRQ(ierr);
+  if (fnorm) ierr = SNESSetInitialFunctionNorm(smoothd, *fnorm);CHKERRQ(ierr);
   if (fas->eventsmoothsolve) {ierr = PetscLogEventBegin(fas->eventsmoothsolve,0,0,0,0);CHKERRQ(ierr);}
   ierr = SNESSolve(smoothd, B, X);CHKERRQ(ierr);
   if (fas->eventsmoothsolve) {ierr = PetscLogEventEnd(fas->eventsmoothsolve,0,0,0,0);CHKERRQ(ierr);}
@@ -497,7 +497,7 @@ PetscErrorCode SNESFASDownSmooth_Private(SNES snes, Vec B, Vec X, Vec F, PetscRe
   }
   ierr = SNESGetFunction(smoothd, &FPC, NULL, NULL);CHKERRQ(ierr);
   ierr = VecCopy(FPC, F);CHKERRQ(ierr);
-  ierr = SNESGetFunctionNorm(smoothd, fnorm);CHKERRQ(ierr);
+  if (fnorm) ierr = SNESGetFunctionNorm(smoothd, fnorm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -528,7 +528,7 @@ PetscErrorCode SNESFASUpSmooth_Private(SNES snes, Vec B, Vec X, Vec F, PetscReal
   }
   ierr = SNESGetFunction(smoothu, &FPC, NULL, NULL);CHKERRQ(ierr);
   ierr = VecCopy(FPC, F);CHKERRQ(ierr);
-  ierr = SNESGetFunctionNorm(smoothu, fnorm);CHKERRQ(ierr);
+  if (fnorm) ierr = SNESGetFunctionNorm(smoothu, fnorm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -669,6 +669,29 @@ PetscErrorCode SNESFASCoarseCorrection(SNES snes, Vec X, Vec F, Vec X_new)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "SNESFASRecursiveRestrict_Private"
+PetscErrorCode SNESFASRecursiveRestrict_Private(SNES snes,Vec X,Vec F)
+{
+  Vec            B_c,Xo_c;
+  SNES           next;
+  PetscErrorCode ierr;
+  Mat            restrct;
+
+  PetscFunctionBegin;
+  /* set all the levels to have the restricted function of the first level as their RHS */
+  ierr = SNESFASCycleGetCorrection(snes,&next);CHKERRQ(ierr);
+  if (next) {
+    ierr = SNESFASCycleGetRestriction(snes, &restrct);CHKERRQ(ierr);
+    B_c  = next->vec_rhs;
+    Xo_c = next->work[0];
+    ierr = SNESFASRestrict(snes,X,Xo_c);CHKERRQ(ierr);
+    ierr = MatRestrict(restrct,F,B_c);CHKERRQ(ierr);
+    ierr = SNESFASRecursiveRestrict_Private(next,Xo_c,B_c);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "SNESFASCycle_Additive"
 /*
 
@@ -683,9 +706,9 @@ x = x + nu*(xhat - x);
 With the coarse RHS (defect correction) as below.
 
  */
-PetscErrorCode SNESFASCycle_Additive(SNES snes, Vec X)
+PetscErrorCode SNESFASCycle_Additive(SNES snes, Vec X, Vec F, Vec B)
 {
-  Vec                 F, B, Xhat;
+  Vec                 Xhat;
   Vec                 X_c, Xo_c, F_c, B_c;
   PetscErrorCode      ierr;
   SNESConvergedReason reason;
@@ -693,48 +716,43 @@ PetscErrorCode SNESFASCycle_Additive(SNES snes, Vec X)
   PetscBool           lssuccess;
   SNES                next;
   Mat                 restrct, interpolate;
-  SNES_FAS            *fas = (SNES_FAS*)snes->data,*fasc;
+  SNES_FAS            *fasc;
+  PetscBool           isFine;
 
   PetscFunctionBegin;
-  ierr = SNESFASCycleGetCorrection(snes, &next);CHKERRQ(ierr);
-  F    = snes->vec_func;
-  B    = snes->vec_rhs;
+  ierr = SNESFASCycleIsFine(snes,&isFine);CHKERRQ(ierr);
+  if (isFine) {
+    ierr = SNESFASRecursiveRestrict_Private(snes,X,F);CHKERRQ(ierr);
+  }
+  ierr = SNESFASCycleGetCorrection(snes,&next);CHKERRQ(ierr);
   Xhat = snes->work[1];
-  ierr = VecCopy(X, Xhat);CHKERRQ(ierr);
+  ierr = VecCopy(X,Xhat);CHKERRQ(ierr);
   /* recurse first */
   if (next) {
     fasc = (SNES_FAS*)next->data;
-    ierr = SNESFASCycleGetRestriction(snes, &restrct);CHKERRQ(ierr);
-    ierr = SNESFASCycleGetInterpolation(snes, &interpolate);CHKERRQ(ierr);
-    if (fas->eventresidual) {ierr = PetscLogEventBegin(fas->eventresidual,0,0,0,0);CHKERRQ(ierr);}
-    ierr = SNESComputeFunction(snes, Xhat, F);CHKERRQ(ierr);
-    if (fas->eventresidual) {ierr = PetscLogEventEnd(fas->eventresidual,0,0,0,0);CHKERRQ(ierr);}
-    ierr = VecNorm(F, NORM_2, &fnorm);CHKERRQ(ierr);
+    ierr = SNESFASCycleGetRestriction(snes,&restrct);CHKERRQ(ierr);
+    ierr = SNESFASCycleGetInterpolation(snes,&interpolate);CHKERRQ(ierr);
     X_c  = next->vec_sol;
     Xo_c = next->work[0];
     F_c  = next->vec_func;
     B_c  = next->vec_rhs;
 
-    ierr = SNESFASRestrict(snes,Xhat,Xo_c);CHKERRQ(ierr);
-    /* restrict the defect */
-    ierr = MatRestrict(restrct, F, B_c);CHKERRQ(ierr);
-
     /* solve the coarse problem corresponding to F^c(x^c) = b^c = Rb + F^c(Rx) - RF(x) */
     if (fasc->eventresidual) {ierr = PetscLogEventBegin(fasc->eventresidual,0,0,0,0);CHKERRQ(ierr);}
-    ierr = SNESComputeFunction(next, Xo_c, F_c);CHKERRQ(ierr);
+    ierr = SNESComputeFunction(next,Xo_c,F_c);CHKERRQ(ierr);
     if (fasc->eventresidual) {ierr = PetscLogEventEnd(fasc->eventresidual,0,0,0,0);CHKERRQ(ierr);}
-    ierr = VecCopy(B_c, X_c);CHKERRQ(ierr);
-    ierr = VecCopy(F_c, B_c);CHKERRQ(ierr);
-    ierr = VecCopy(X_c, F_c);CHKERRQ(ierr);
+    ierr = VecCopy(B_c,X_c);CHKERRQ(ierr);
+    ierr = VecCopy(F_c,B_c);CHKERRQ(ierr);
+    ierr = VecCopy(X_c,F_c);CHKERRQ(ierr);
     /* set initial guess of the coarse problem to the projected fine solution */
-    ierr = VecCopy(Xo_c, X_c);CHKERRQ(ierr);
+    ierr = VecCopy(Xo_c,X_c);CHKERRQ(ierr);
 
     /* recurse */
-    ierr = SNESSetInitialFunction(next, F_c);CHKERRQ(ierr);
-    ierr = SNESSolve(next, B_c, X_c);CHKERRQ(ierr);
+    ierr = SNESSetInitialFunction(next,F_c);CHKERRQ(ierr);
+    ierr = SNESSolve(next,B_c,X_c);CHKERRQ(ierr);
 
     /* smooth on this level */
-    ierr = SNESFASDownSmooth_Private(snes, B, X, F, &fnorm);CHKERRQ(ierr);
+    ierr = SNESFASDownSmooth_Private(snes,B,X,F,&fnorm);CHKERRQ(ierr);
 
     ierr = SNESGetConvergedReason(next,&reason);CHKERRQ(ierr);
     if (reason < 0 && reason != SNES_DIVERGED_MAX_IT) {
@@ -743,21 +761,21 @@ PetscErrorCode SNESFASCycle_Additive(SNES snes, Vec X)
     }
 
     /* correct as x <- x + I(x^c - Rx)*/
-    ierr = VecAYPX(X_c, -1.0, Xo_c);CHKERRQ(ierr);
-    ierr = MatInterpolate(interpolate, X_c, Xhat);CHKERRQ(ierr);
+    ierr = VecAYPX(X_c,-1.0,Xo_c);CHKERRQ(ierr);
+    ierr = MatInterpolate(interpolate,X_c,Xhat);CHKERRQ(ierr);
 
     /* additive correction of the coarse direction*/
-    ierr = SNESLineSearchApply(snes->linesearch, X, F, &fnorm, Xhat);CHKERRQ(ierr);
-    ierr = SNESLineSearchGetSuccess(snes->linesearch, &lssuccess);CHKERRQ(ierr);
+    ierr = SNESLineSearchApply(snes->linesearch,X,F,&fnorm,Xhat);CHKERRQ(ierr);
+    ierr = SNESLineSearchGetSuccess(snes->linesearch,&lssuccess);CHKERRQ(ierr);
     if (!lssuccess) {
       if (++snes->numFailures >= snes->maxFailures) {
         snes->reason = SNES_DIVERGED_LINE_SEARCH;
         PetscFunctionReturn(0);
       }
     }
-    ierr = SNESLineSearchGetNorms(snes->linesearch, &xnorm, &snes->norm, &ynorm);CHKERRQ(ierr);
+    ierr = SNESLineSearchGetNorms(snes->linesearch,&xnorm,&snes->norm,&ynorm);CHKERRQ(ierr);
   } else {
-    ierr = SNESFASDownSmooth_Private(snes, B, X, F, &snes->norm);CHKERRQ(ierr);
+    ierr = SNESFASDownSmooth_Private(snes,B,X,F,&snes->norm);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -778,16 +796,13 @@ correction:
 x = x + I(x^c - Rx)
 
  */
-PetscErrorCode SNESFASCycle_Multiplicative(SNES snes, Vec X)
+PetscErrorCode SNESFASCycle_Multiplicative(SNES snes, Vec X, Vec F, Vec B)
 {
 
   PetscErrorCode ierr;
-  Vec            F,B;
   SNES_FAS       *fas = (SNES_FAS*)snes->data;
 
   PetscFunctionBegin;
-  F = snes->vec_func;
-  B = snes->vec_rhs;
   /* pre-smooth -- just update using the pre-smoother */
   ierr = SNESFASDownSmooth_Private(snes, B, X, F, &snes->norm);CHKERRQ(ierr);
   if (fas->level != 0) {
@@ -804,7 +819,7 @@ PetscErrorCode SNESSolve_FAS(SNES snes)
 {
   PetscErrorCode ierr;
   PetscInt       i, maxits;
-  Vec            X, F;
+  Vec            X,F,B;
   PetscReal      fnorm;
   SNES_FAS       *fas = (SNES_FAS*)snes->data,*ffas;
   DM             dm;
@@ -815,6 +830,7 @@ PetscErrorCode SNESSolve_FAS(SNES snes)
   snes->reason = SNES_CONVERGED_ITERATING;
   X            = snes->vec_sol;
   F            = snes->vec_func;
+  B            = snes->vec_rhs;
 
   ierr = SNESFASCycleIsFine(snes, &isFine);CHKERRQ(ierr);
   /*norm setup */
@@ -874,9 +890,9 @@ PetscErrorCode SNESSolve_FAS(SNES snes)
       ierr = (*snes->ops->update)(snes, snes->iter);CHKERRQ(ierr);
     }
     if (fas->fastype == SNES_FAS_MULTIPLICATIVE) {
-      ierr = SNESFASCycle_Multiplicative(snes, X);CHKERRQ(ierr);
+      ierr = SNESFASCycle_Multiplicative(snes,X,F,B);CHKERRQ(ierr);
     } else {
-      ierr = SNESFASCycle_Additive(snes, X);CHKERRQ(ierr);
+      ierr = SNESFASCycle_Additive(snes,X,F,B);CHKERRQ(ierr);
     }
 
     /* check for FAS cycle divergence */
