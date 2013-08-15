@@ -2,6 +2,126 @@
 #include <petsc-private/dmimpl.h>
 
 #undef __FUNCT__
+#define __FUNCT__ "DMTSRHSPartitionDataGet"
+static PetscErrorCode DMTSRHSPartitionDataGet(DMTSRHSPartitionLink start, TSRHSPartitionType type, TSRHSPartitionSlotType slot, void **ptr)
+{
+  DMTSRHSPartitionLink       lnk;
+  DMTSRHSPartitionSlotLink   lnk2;  
+  PetscBool                  success = PETSC_FALSE;
+
+  PetscFunctionBegin;  
+  for(lnk = start; lnk && !success; lnk = lnk->next)
+  {
+    if(lnk->type == type){
+      for(lnk2 = lnk->data; lnk2 && !success; lnk2 = lnk2->next){
+        if(lnk2->type == slot){
+          *ptr = lnk2->ptr;
+          success = PETSC_TRUE;
+        }
+      }
+    }
+  }  
+  /* If the linked list doesn't have the appropriate entry, return a null pointer */ 
+  if(!success){
+    *ptr = NULL; 
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMTSRHSPartitionDataSet"
+static PetscErrorCode DMTSRHSPartitionDataSet(DMTSRHSPartitionLink *start, TSRHSPartitionType type, TSRHSPartitionSlotType slot, void *ptr)
+{
+  PetscErrorCode             ierr;
+  PetscBool                  found = PETSC_FALSE, found2 = PETSC_FALSE;
+  DMTSRHSPartitionLink       lnk;
+  DMTSRHSPartitionSlotLink   lnk2; 
+
+  PetscFunctionBegin;
+  for(lnk = *start; lnk; lnk = lnk->next){
+      if(lnk->type == type){
+        found = PETSC_TRUE; 
+        for(lnk2 = lnk->data; lnk2; lnk2 = lnk2->next){
+          if(lnk2->type == slot){
+            found2 = PETSC_TRUE;
+            break; 
+          }
+        }
+        break;
+      }
+  }
+  if (!found){
+    ierr = PetscMalloc(sizeof(struct _DMTSRHSPartitionLink),&lnk);CHKERRQ(ierr);
+    lnk->data = NULL;
+    lnk->type = type;
+    lnk->next = *start;
+    *start = lnk;
+  } 
+  if(!found2){ 
+    ierr = PetscMalloc(sizeof(struct _DMTSRHSPartitionSlotLink),&lnk2);CHKERRQ(ierr);
+    lnk2->next = lnk->data;
+    lnk->data = lnk2;
+    lnk2->type = slot;
+  }
+  lnk2->ptr = ptr;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMTSRHSPartitionDataDestroy"
+static PetscErrorCode DMTSRHSPartitionDataDestroy(DMTSRHSPartitionLink start)
+{
+    DMTSRHSPartitionLink      lnk,  tmp;
+    DMTSRHSPartitionSlotLink  lnk2, tmp2;
+    
+    PetscFunctionBegin;
+    lnk = start;
+    while(lnk){
+      lnk2 = lnk->data;
+      while(lnk2){
+        tmp2 = lnk2;
+        lnk2 = lnk2->next;
+        PetscFree(tmp2);
+      }
+      tmp = lnk;
+      lnk = lnk->next;  
+      PetscFree(tmp);
+    }
+    PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMTSRHSPartitionDataCopy"
+static PetscErrorCode DMTSRHSPartitionDataCopy(DMTSRHSPartitionLink startSource, DMTSRHSPartitionLink *startSink)
+{
+  PetscErrorCode             ierr;
+  DMTSRHSPartitionLink       lnk, newlnk, tmp;
+  DMTSRHSPartitionSlotLink   lnk2, newlnk2, tmp2;
+
+  PetscFunctionBegin;
+  DMTSRHSPartitionDataDestroy(*startSink);
+  newlnk = NULL;
+  for(lnk = startSource; lnk; lnk=lnk->next)
+  {
+    tmp = newlnk;
+    ierr = PetscMalloc(sizeof(struct _DMTSRHSPartitionLink),&newlnk);
+    newlnk->next = tmp;
+    newlnk->type = lnk->type;
+    newlnk2 = NULL;
+    for(lnk2 = lnk->data; lnk2; lnk2=lnk2->next){
+      tmp2 = newlnk2;
+      ierr = PetscMalloc(sizeof(struct _DMTSRHSPartitionSlotLink),&newlnk2);CHKERRQ(ierr);
+      newlnk2->next = tmp2;
+      newlnk2->ptr  = lnk2->ptr;
+      newlnk2->type = lnk2->type;
+    }
+    newlnk->data = newlnk2;
+  }
+  *startSink = newlnk;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "DMTSDestroy"
 static PetscErrorCode DMTSDestroy(DMTS *kdm)
 {
@@ -11,6 +131,13 @@ static PetscErrorCode DMTSDestroy(DMTS *kdm)
   if (!*kdm) PetscFunctionReturn(0);
   PetscValidHeaderSpecific((*kdm),DMTS_CLASSID,1);
   if (--((PetscObject)(*kdm))->refct > 0) {*kdm = 0; PetscFunctionReturn(0);}
+
+  /* Destroy the linked lists (could go  into ops->destroy */
+  ierr = DMTSRHSPartitionDataDestroy((*kdm)->rhsfunctionlink);CHKERRQ(ierr);
+  ierr = DMTSRHSPartitionDataDestroy((*kdm)->rhsjacobianlink);CHKERRQ(ierr);
+  ierr = DMTSRHSPartitionDataDestroy((*kdm)->rhsfunctionctxlink);CHKERRQ(ierr);
+  ierr = DMTSRHSPartitionDataDestroy((*kdm)->rhsjacobianctxlink);CHKERRQ(ierr);
+
   if ((*kdm)->ops->destroy) {ierr = ((*kdm)->ops->destroy)(*kdm);CHKERRQ(ierr);}
   ierr = PetscHeaderDestroy(kdm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -172,16 +299,17 @@ PetscErrorCode DMTSCopy(DMTS kdm,DMTS nkdm)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(kdm,DMTS_CLASSID,1);
   PetscValidHeaderSpecific(nkdm,DMTS_CLASSID,2);
-  nkdm->ops->rhsfunction = kdm->ops->rhsfunction;
-  nkdm->ops->rhsjacobian = kdm->ops->rhsjacobian;
   nkdm->ops->ifunction   = kdm->ops->ifunction;
   nkdm->ops->ijacobian   = kdm->ops->ijacobian;
   nkdm->ops->solution    = kdm->ops->solution;
   nkdm->ops->destroy     = kdm->ops->destroy;
   nkdm->ops->duplicate   = kdm->ops->duplicate;
 
-  nkdm->rhsfunctionctx = kdm->rhsfunctionctx;
-  nkdm->rhsjacobianctx = kdm->rhsjacobianctx;
+  DMTSRHSPartitionDataCopy(kdm->rhsfunctionlink,&nkdm->rhsfunctionlink);
+  DMTSRHSPartitionDataCopy(kdm->rhsjacobianlink,&nkdm->rhsjacobianlink);
+  DMTSRHSPartitionDataCopy(kdm->rhsfunctionctxlink,&nkdm->rhsfunctionctxlink);
+  DMTSRHSPartitionDataCopy(kdm->rhsjacobianctxlink,&nkdm->rhsjacobianctxlink);
+    
   nkdm->ifunctionctx   = kdm->ifunctionctx;
   nkdm->ijacobianctx   = kdm->ijacobianctx;
   nkdm->solutionctx    = kdm->solutionctx;
@@ -401,13 +529,45 @@ PetscErrorCode DMTSGetIFunction(DM dm,TSIFunction *func,void **ctx)
 PetscErrorCode DMTSSetRHSFunction(DM dm,TSRHSFunction func,void *ctx)
 {
   PetscErrorCode ierr;
-  DMTS           tsdm;
+
+  PetscFunctionBegin;
+  ierr = DMTSSetRHSPartitionFunction(dm,TS_NO_PARTITION,TS_DEFAULT_SLOT,func,ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMTSSetRHSPartitionFunction"
+/*@C
+ DMTSSetRHSFunction - set TS explicit residual evaluation function for single partition and slot
+ 
+ Not Collective
+ 
+ Input Arguments:
+ +  dm - DM to be used with TS
+ .  type - RHS partition type
+ .  slot - RHS partition slot
+ .  func - RHS function evaluation function, see TSSetRHSFunction() for calling sequence
+ -  ctx - context for residual evaluation
+ 
+ Level: advanced
+ 
+ 
+ .seealso: DMTSSetContext(), TSSetFunction(), DMTSSetJacobian(), TSSetRHSFunction(), DMTSSetRHSPartitionFunction()
+ @*/
+PetscErrorCode DMTSSetRHSPartitionFunction(DM dm,TSRHSPartitionType type, TSRHSPartitionSlotType slot, TSRHSFunction func,void *ctx)
+{
+  PetscErrorCode        ierr;
+  DMTS                  dmts;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  ierr = DMGetDMTSWrite(dm,&tsdm);CHKERRQ(ierr);
-  if (func) tsdm->ops->rhsfunction = func;
-  if (ctx)  tsdm->rhsfunctionctx = ctx;
+  ierr = DMGetDMTSWrite(dm,&dmts);CHKERRQ(ierr);
+  if(func){
+    ierr = DMTSRHSPartitionDataSet(&(dmts->rhsfunctionlink),type,slot,func);CHKERRQ(ierr);
+  }
+  if(ctx){
+    ierr = DMTSRHSPartitionDataSet(&(dmts->rhsfunctionctxlink),type,slot,ctx);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -567,19 +727,57 @@ PetscErrorCode DMTSGetForcingFunction(DM dm,PetscErrorCode (**TSForcingFunction)
    TSGetFunction() is normally used, but it calls this function internally because the user context is actually
    associated with the DM.
 
-.seealso: DMTSSetContext(), DMTSSetFunction(), TSSetFunction()
+.seealso: DMTSSetContext(), DMTSSetFunction(), TSSetFunction(), DMTSGetRHSPartitionFunction()
 @*/
 PetscErrorCode DMTSGetRHSFunction(DM dm,TSRHSFunction *func,void **ctx)
 {
   PetscErrorCode ierr;
-  DMTS           tsdm;
-
+     
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  ierr = DMGetDMTS(dm,&tsdm);CHKERRQ(ierr);
-  if (func) *func = tsdm->ops->rhsfunction;
-  if (ctx)  *ctx = tsdm->rhsfunctionctx;
+  ierr = DMTSGetRHSPartitionFunction(dm,TS_NO_PARTITION,TS_DEFAULT_SLOT,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMTSGetRHSPartitionFunction"
+/*@C
+ DMTSGetRHSPartitionFunction - get TS explicit residual evaluation function
+ 
+ Not Collective
+ 
+ Input Argument:
+ .  dm - DM to be used with TS
+ .  type - RHS Partition type
+ .  slot - RHS Partition slot
+ 
+ Output Arguments:
+ +  func - residual evaluation function, see TSSetRHSFunction() for calling sequence
+ -  ctx - context for residual evaluation
+ 
+ Level: advanced
+ 
+ Note:
+ TSGetFunction() is normally used, but it calls this function internally because the user context is actually
+ associated with the DM.
+ 
+ .seealso: DMTSSetContext(), DMTSSetFunction(), TSSetFunction(), DMTSSetRHSPartitionFunction(), DMTSGetRHSFunction()
+
+ @*/
+PetscErrorCode DMTSGetRHSPartitionFunction(DM dm,TSRHSPartitionType type, TSRHSPartitionSlotType slot,TSRHSFunction *func,void **ctx)
+{
+    PetscErrorCode ierr;
+    DMTS           dmts;
+    
+    PetscFunctionBegin;
+    PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+    ierr = DMGetDMTS(dm,&dmts);CHKERRQ(ierr);
+    if (func) {
+      ierr = DMTSRHSPartitionDataGet(dmts->rhsfunctionlink,type,slot,(void**)func);CHKERRQ(ierr);
+    }
+    if (ctx) {
+      ierr = DMTSRHSPartitionDataGet(dmts->rhsfunctionctxlink,type,slot,ctx);CHKERRQ(ierr);
+    }
+    PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
@@ -652,7 +850,6 @@ PetscErrorCode DMTSGetIJacobian(DM dm,TSIJacobian *func,void **ctx)
   PetscFunctionReturn(0);
 }
 
-
 #undef __FUNCT__
 #define __FUNCT__ "DMTSSetRHSJacobian"
 /*@C
@@ -672,19 +869,51 @@ PetscErrorCode DMTSGetIJacobian(DM dm,TSIJacobian *func,void **ctx)
    associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
    not. If DM took a more central role at some later date, this could become the primary method of setting the Jacobian.
 
-.seealso: DMTSSetContext(), TSSetFunction(), DMTSGetJacobian(), TSSetJacobian()
+.seealso: DMTSSetContext(), TSSetFunction(), DMTSGetJacobian(), TSSetRHSJacobian(), DMTSSetRHSPartitionJacobian()
 @*/
 PetscErrorCode DMTSSetRHSJacobian(DM dm,TSRHSJacobian func,void *ctx)
 {
   PetscErrorCode ierr;
-  DMTS           tsdm;
 
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  ierr = DMGetDMTSWrite(dm,&tsdm);CHKERRQ(ierr);
-  if (func) tsdm->ops->rhsjacobian = func;
-  if (ctx)  tsdm->rhsjacobianctx = ctx;
+  ierr = DMTSSetRHSPartitionJacobian(dm,TS_NO_PARTITION,TS_DEFAULT_SLOT,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMTSSetRHSPartitionJacobian"
+/*@C
+ DMTSSetRHSPartitionJacobian - set TS Jacobian evaluation function for a single partition and slot
+ 
+    Not Collective
+
+   Input Argument:
++  dm - DM to be used with TS
+.  type - RHS Partition type
+.  slot - RHS Partition slot
+.  func - Jacobian evaluation function, see TSSetRHSJacobian() for calling sequence
+-  ctx - context for residual evaluation
+
+   Level: advanced
+	
+.seealso: DMTSSetContext(), TSSetFunction(), DMTSGetRHSPartitionJacobian(), TSSetRHSJacobian(), DMTSSetRHSPartitionJacobian()
+@*/
+PetscErrorCode DMTSSetRHSPartitionJacobian(DM dm,TSRHSPartitionType type, TSRHSPartitionSlotType slot, TSRHSJacobian func,void *ctx)
+{
+    PetscErrorCode ierr;
+    DMTS           dmts;
+    
+    PetscFunctionBegin;
+    PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+    ierr = DMGetDMTSWrite(dm,&dmts);CHKERRQ(ierr);
+    if (func){
+      DMTSRHSPartitionDataSet(&(dmts->rhsjacobianlink),type,slot,func);
+    }
+    if (ctx){
+      DMTSRHSPartitionDataSet(&(dmts->rhsjacobianctxlink),type,slot,ctx);
+    }
+    
+    PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
@@ -713,14 +942,48 @@ PetscErrorCode DMTSSetRHSJacobian(DM dm,TSRHSJacobian func,void *ctx)
 PetscErrorCode DMTSGetRHSJacobian(DM dm,TSRHSJacobian *func,void **ctx)
 {
   PetscErrorCode ierr;
-  DMTS           tsdm;
 
+  /* This function is probably unnecessary, and can be removed */
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  ierr = DMGetDMTS(dm,&tsdm);CHKERRQ(ierr);
-  if (func) *func = tsdm->ops->rhsjacobian;
-  if (ctx)  *ctx = tsdm->rhsjacobianctx;
+  ierr = DMTSGetRHSPartitionJacobian(dm,TS_NO_PARTITION,TS_DEFAULT_SLOT,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMTSGetRHSPartitionJacobian"
+/*@C
+ DMTSGetRHSJacobian - get TS Jacobian evaluation function for a single partition and slot
+ 
+ Not Collective
+ 
+ Input Argument:
+ .  dm - DM to be used with TS
+.  type - RHS Partition type
+ .  slot - RHS Partition slot
+ 
+ Output Arguments:
+ +  func - Jacobian evaluation function, see TSSetRHSJacobian() for calling sequence
+ -  ctx - context for residual evaluation
+ 
+ Level: advanced
+ 
+ .seealso: DMTSSetContext(), TSSetFunction(), DMTSSetJacobian(), DMTSSetRHSPartitionJacobian()
+ @*/
+PetscErrorCode DMTSGetRHSPartitionJacobian(DM dm,TSRHSPartitionType type, TSRHSPartitionSlotType slot, TSRHSJacobian *func,void **ctx)
+{
+    PetscErrorCode ierr;
+    DMTS           dmts;
+    
+    PetscFunctionBegin;
+    PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+    ierr = DMGetDMTS(dm,&dmts);CHKERRQ(ierr);
+     if (func) {
+      ierr = DMTSRHSPartitionDataGet(dmts->rhsjacobianlink,type,slot,(void**)func);CHKERRQ(ierr);
+    }
+    if (ctx) {
+      ierr = DMTSRHSPartitionDataGet(dmts->rhsjacobianctxlink,type,slot,ctx);CHKERRQ(ierr);
+    }
+    PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__

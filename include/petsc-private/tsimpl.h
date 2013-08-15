@@ -1,4 +1,3 @@
-
 #ifndef __TSIMPL_H
 #define __TSIMPL_H
 
@@ -149,12 +148,23 @@ struct _p_TSAdapt {
   PetscViewer monitor;
 };
 
+typedef struct _DMTSRHSPartitionSlotLink *DMTSRHSPartitionSlotLink;
+struct _DMTSRHSPartitionSlotLink {
+  TSRHSPartitionSlotType type;
+  void* ptr;
+  DMTSRHSPartitionSlotLink next;
+};
+
+typedef struct _DMTSRHSPartitionLink *DMTSRHSPartitionLink;
+struct _DMTSRHSPartitionLink {
+  TSRHSPartitionType type;
+  DMTSRHSPartitionSlotLink data;
+  DMTSRHSPartitionLink next;
+};
+
 typedef struct _p_DMTS *DMTS;
 typedef struct _DMTSOps *DMTSOps;
 struct _DMTSOps {
-  TSRHSFunction rhsfunction;
-  TSRHSJacobian rhsjacobian;
-
   TSIFunction ifunction;
   PetscErrorCode (*ifunctionview)(void*,PetscViewer);
   PetscErrorCode (*ifunctionload)(void**,PetscViewer);
@@ -166,15 +176,19 @@ struct _DMTSOps {
   TSSolutionFunction solution;
   PetscErrorCode (*forcing)(TS,PetscReal,Vec,void*);
 
-  PetscErrorCode (*destroy)(DMTS);
-  PetscErrorCode (*duplicate)(DMTS,DMTS);
+  PetscErrorCode (*destroy)(DMTS); 
+  PetscErrorCode (*duplicate)(DMTS,DMTS); 
 };
 
 struct _p_DMTS {
   PETSCHEADER(struct _DMTSOps);
-  void *rhsfunctionctx;
-  void *rhsjacobianctx;
 
+  DMTSRHSPartitionLink rhsfunctionlink;
+  DMTSRHSPartitionLink rhsjacobianlink;
+  
+  DMTSRHSPartitionLink rhsfunctionctxlink;
+  DMTSRHSPartitionLink rhsjacobianctxlink;
+  
   void *ifunctionctx;
   void *ijacobianctx;
 
@@ -198,7 +212,6 @@ PETSC_EXTERN PetscErrorCode DMGetDMTSWrite(DM,DMTS*);
 PETSC_EXTERN PetscErrorCode DMCopyDMTS(DM,DM);
 PETSC_EXTERN PetscErrorCode DMTSView(DMTS,PetscViewer);
 PETSC_EXTERN PetscErrorCode DMTSLoad(DMTS,PetscViewer);
-
 
 PETSC_EXTERN PetscLogEvent TS_Step, TS_PseudoComputeTimeStep, TS_FunctionEval, TS_JacobianEval;
 

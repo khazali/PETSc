@@ -162,6 +162,32 @@ E*/
 typedef enum {TS_EXACTFINALTIME_STEPOVER=0,TS_EXACTFINALTIME_INTERPOLATE=1,TS_EXACTFINALTIME_MATCHSTEP=2} TSExactFinalTimeOption;
 PETSC_EXTERN const char *const TSExactFinalTimeOptions[];
 
+/*E
+  
+    TSRHSPartitionType - allowable partitionings of the righthand side of a first order ODE
+
+    Level: beginner
+
+    Integrators that rely on an additive  partitioning of the RHS function refer to these names
+    
+.seealso: TSRHSPartitionSlotType
+
+E*/
+typedef enum {TS_NO_PARTITION, TS_SYMP_PARTITION} TSRHSPartitionType;
+
+/*E
+
+ TSRHSPartitionSlotType - allowable slot names for partitioned ODE right-hand sides
+
+ Integrators that rely on am additive  partitioning of the RHS refer to these names for the part ('slots') of a partitioning of the right-hand side.
+
+.seealso: TSRHSPartitionType
+
+E*/
+typedef enum {
+                TS_DEFAULT_SLOT,
+                TS_SYMP_P_SLOT,TS_SYMP_Q_SLOT
+            } TSRHSPartitionSlotType;
 
 /* Logging support */
 PETSC_EXTERN PetscClassId TS_CLASSID;
@@ -282,17 +308,25 @@ PETSC_EXTERN PetscErrorCode TSPseudoIncrementDtFromInitialDt(TS);
 PETSC_EXTERN PetscErrorCode TSPythonSetType(TS,const char[]);
 
 PETSC_EXTERN PetscErrorCode TSComputeRHSFunction(TS,PetscReal,Vec,Vec);
+PETSC_EXTERN PetscErrorCode TSComputeRHSPartitionFunction(TS,TSRHSPartitionType,TSRHSPartitionSlotType,PetscReal,Vec,Vec);
 PETSC_EXTERN PetscErrorCode TSComputeRHSJacobian(TS,PetscReal,Vec,Mat*,Mat*,MatStructure*);
+PETSC_EXTERN PetscErrorCode TSComputeRHSPartitionJacobian(TS,TSRHSPartitionType,TSRHSPartitionSlotType,PetscReal,Vec,Mat*,Mat*,MatStructure*);
 PETSC_EXTERN PetscErrorCode TSComputeIFunction(TS,PetscReal,Vec,Vec,Vec,PetscBool);
+PETSC_EXTERN PetscErrorCode TSComputeIPartitionFunction(TS,TSRHSPartitionType,TSRHSPartitionSlotType,PetscReal,Vec,Vec,Vec,PetscBool);
 PETSC_EXTERN PetscErrorCode TSComputeIJacobian(TS,PetscReal,Vec,Vec,PetscReal,Mat*,Mat*,MatStructure*,PetscBool);
+PETSC_EXTERN PetscErrorCode TSComputeIPartitionJacobian(TS,TSRHSPartitionType,TSRHSPartitionSlotType,PetscReal,Vec,Vec,PetscReal,Mat*,Mat*,MatStructure*,PetscBool);
 PETSC_EXTERN PetscErrorCode TSComputeLinearStability(TS,PetscReal,PetscReal,PetscReal*,PetscReal*);
 
 PETSC_EXTERN PetscErrorCode TSVISetVariableBounds(TS,Vec,Vec);
 
 PETSC_EXTERN PetscErrorCode DMTSSetRHSFunction(DM,TSRHSFunction,void*);
+PETSC_EXTERN PetscErrorCode DMTSSetRHSPartitionFunction(DM,TSRHSPartitionType,TSRHSPartitionSlotType,TSRHSFunction,void*);
 PETSC_EXTERN PetscErrorCode DMTSGetRHSFunction(DM,TSRHSFunction*,void**);
+PETSC_EXTERN PetscErrorCode DMTSGetRHSPartitionFunction(DM,TSRHSPartitionType,TSRHSPartitionSlotType,TSRHSFunction*,void**);
 PETSC_EXTERN PetscErrorCode DMTSSetRHSJacobian(DM,TSRHSJacobian,void*);
+PETSC_EXTERN PetscErrorCode DMTSSetRHSPartitionJacobian(DM,TSRHSPartitionType,TSRHSPartitionSlotType,TSRHSJacobian,void*);
 PETSC_EXTERN PetscErrorCode DMTSGetRHSJacobian(DM,TSRHSJacobian*,void**);
+PETSC_EXTERN PetscErrorCode DMTSGetRHSPartitionJacobian(DM,TSRHSPartitionType,TSRHSPartitionSlotType,TSRHSJacobian*,void**);
 PETSC_EXTERN PetscErrorCode DMTSSetIFunction(DM,TSIFunction,void*);
 PETSC_EXTERN PetscErrorCode DMTSGetIFunction(DM,TSIFunction*,void**);
 PETSC_EXTERN PetscErrorCode DMTSSetIJacobian(DM,TSIJacobian,void*);
@@ -604,5 +638,8 @@ PETSC_EXTERN PetscErrorCode TSGetDM(TS,DM*);
 
 PETSC_EXTERN PetscErrorCode SNESTSFormFunction(SNES,Vec,Vec,void*);
 PETSC_EXTERN PetscErrorCode SNESTSFormJacobian(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
+
+
+
 
 #endif
