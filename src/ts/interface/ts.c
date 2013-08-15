@@ -68,7 +68,7 @@ struct _n_TSMonitorDrawCtx {
 .  ts - the TS context obtained from TSCreate()
 
    Options Database Keys:
-+  -ts_type <type> - TSEULER, TSBEULER, TSSUNDIALS, TSPSEUDO, TSCN, TSRK, TSTHETA, TSGL, TSSSP
++  -ts_type <type> - TSEULER, TSBEULER, TSSUNDIALS, TSPSEUDO, TSCN, TSRK, TSTHETA, TSGL, TSSSP, TSEIMEX, TSARKIMEX, TSSYMPEULER
 .  -ts_max_steps maxsteps - maximum number of time-steps to take
 .  -ts_final_time time - maximum time to compute to
 .  -ts_dt dt - initial time step

@@ -1,12 +1,11 @@
 
 ALL: lib
 
-DIRS     = explicit implicit pseudo python arkimex rosw eimex symp
-LOCDIR   = src/ts/impls/
 MANSEC   = TS
+LOCDIR   = src/ts/impls/symp/
+DIRS     = sympeuler
 
 include ${PETSC_DIR}/conf/variables
 include ${PETSC_DIR}/conf/rules
 include ${PETSC_DIR}/conf/test
-
 
