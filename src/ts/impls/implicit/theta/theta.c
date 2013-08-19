@@ -173,7 +173,7 @@ static PetscErrorCode TSStep_Theta(TS ts)
       ierr = VecZeroEntries(th->Xdot);CHKERRQ(ierr);
       if (!th->affine) {ierr = VecDuplicate(ts->vec_sol,&th->affine);CHKERRQ(ierr);}
       ierr = TSComputeIFunction(ts,ts->ptime,ts->vec_sol,th->Xdot,th->affine,PETSC_FALSE);CHKERRQ(ierr);
-      ierr = VecScale(th->affine,(th->Theta-1.)/th->Theta);CHKERRQ(ierr);
+      ierr = VecScale(th->affine,(1.0-th->Theta)/th->Theta);CHKERRQ(ierr);
     }
     if (th->extrapolate) {
       ierr = VecWAXPY(th->X,1./shift,th->Xdot,ts->vec_sol);CHKERRQ(ierr);
