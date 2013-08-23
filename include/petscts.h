@@ -31,6 +31,7 @@ typedef const char* TSType;
 #define TSCN              "cn"
 #define TSSUNDIALS        "sundials"
 #define TSRK              "rk"
+#define TSIRK             "irk"
 #define TSPYTHON          "python"
 #define TSTHETA           "theta"
 #define TSALPHA           "alpha"
@@ -554,6 +555,29 @@ PETSC_EXTERN PetscErrorCode TSARKIMEXFinalizePackage(void);
 PETSC_EXTERN PetscErrorCode TSARKIMEXInitializePackage(void);
 PETSC_EXTERN PetscErrorCode TSARKIMEXRegisterDestroy(void);
 PETSC_EXTERN PetscErrorCode TSARKIMEXRegisterAll(void);
+
+/*J
+    TSIRKType - String with the name of an Implicit Runge-Kutta method.
+
+   Level: beginner
+
+.seealso: TSIRKSetType(), TS, TSIRK, TSIRKRegister()
+J*/
+typedef const char* TSIRKType;
+#define TSIRKGAUSS12      "gauss12"
+#define TSIRKGAUSS24      "gauss24"
+#define TSIRKRADAU11      "radau11"
+#define TSIRKRADAU23      "radau23"
+#define TSIRKLOBATTO22    "lobatto22"
+#define TSIRKLOBATTO34    "lobatto34"
+PETSC_EXTERN PetscErrorCode TSIRKGetType(TS ts,TSIRKType*);
+PETSC_EXTERN PetscErrorCode TSIRKSetType(TS ts,TSIRKType);
+PETSC_EXTERN PetscErrorCode TSIRKSetFullyImplicit(TS,PetscBool);
+PETSC_EXTERN PetscErrorCode TSIRKRegister(TSIRKType,PetscInt,PetscInt,const PetscReal[],const PetscReal[],const PetscReal[],const PetscReal[],PetscInt,const PetscReal[]);
+PETSC_EXTERN PetscErrorCode TSIRKFinalizePackage(void);
+PETSC_EXTERN PetscErrorCode TSIRKInitializePackage(void);
+PETSC_EXTERN PetscErrorCode TSIRKRegisterDestroy(void);
+PETSC_EXTERN PetscErrorCode TSIRKRegisterAll(void);
 
 /*J
     TSRosWType - String with the name of a Rosenbrock-W method.

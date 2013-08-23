@@ -1,12 +1,16 @@
 
 ALL: lib
 
-DIRS     = explicit implicit pseudo python arkimex irk rosw eimex
-LOCDIR   = src/ts/impls/
+CFLAGS   =
+FFLAGS   =
+SOURCEC  = irk.c
+SOURCEF  =
+SOURCEH  =
+LIBBASE  = libpetscts
 MANSEC   = TS
+LOCDIR   = src/ts/impls/irk/
 
 include ${PETSC_DIR}/conf/variables
 include ${PETSC_DIR}/conf/rules
 include ${PETSC_DIR}/conf/test
-
 

@@ -26,6 +26,7 @@
 #define TSCN              'cn'
 #define TSSUNDIALS        'sundials'
 #define TSRK              'rk'
+#define TSIRK             'irk'
 #define TSPYTHON          'python'
 #define TSTHETA           'theta'
 #define TSALPHA           'alpha'
@@ -73,6 +74,14 @@
 #define TSARKIMEXARS443 'ars443'
 #define TSARKIMEX4      '4'
 #define TSARKIMEX5      '5'
+
+#define TSIRKType character*(80)
+#define TSIRKGAUSS12      'gauss12'
+#define TSIRKGAUSS24      'gauss24'
+#define TSIRKRADAU11      'radau11'
+#define TSIRKRADAU23      'radau23'
+#define TSIRKLOBATTO22    'lobatto22'
+#define TSIRKLOBATTO34    'lobatto34'
 
 #define TSROSWType character*(80)
 #define TSROSW2M          '2m'
