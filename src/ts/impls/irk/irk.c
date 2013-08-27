@@ -21,9 +21,6 @@ struct _IRKTableau {
   char      *name;
   PetscInt  order;                /* Classical approximation order of the method */
   PetscInt  s;                    /* Number of stages */
-  PetscBool stiffly_accurate;     /* The implicit part is stiffly accurate*/
-  PetscBool FSAL_implicit;        /* The implicit part is FSAL*/
-  PetscBool explicit_first_stage; /* The implicit part has an explicit first stage*/
   PetscInt  pinterp;              /* Interpolation order */
   PetscReal *A,*b,*c;             /* Non-stiff tableau */
   PetscReal *bembed;              /* Embedded formula of order one less (order-1) */
@@ -42,7 +39,6 @@ typedef struct {
   Vec          *Y;               /* States computed during the step */
   Vec          *Y_prev;          /* States computed during the previous time step */
   Vec          *Ydot_prev;       /* Time derivatives for the previous time step*/
-  Vec          Ydot0;            /* Holds the slope from the previous step in FSAL case */
   Vec          Ydot;             /* Work vector holding Ydot during residual evaluation */
   Vec          Work;             /* Generic work vector */
   Vec          Z;                /* Ydot = shift(Y-Z) */
@@ -258,12 +254,6 @@ PetscErrorCode TSIRKRegister(TSIRKType name,PetscInt order,PetscInt s,
   else for (i=0; i<s; i++) t->b[i] = A[(s-1)*s+i];
   if (c)  { ierr = PetscMemcpy(t->c,c,s*sizeof(c[0]));CHKERRQ(ierr); }
   else for (i=0; i<s; i++) for (j=0,t->c[i]=0; j<s; j++) t->c[i] += A[i*s+j];
-  t->stiffly_accurate = PETSC_TRUE;
-  for (i=0; i<s; i++) if (t->A[(s-1)*s+i] != t->b[i]) t->stiffly_accurate = PETSC_FALSE;
-  t->explicit_first_stage = PETSC_TRUE;
-  for (i=0; i<s; i++) if (t->A[i] != 0.0) t->explicit_first_stage = PETSC_FALSE;   /* XXX */
-  /*def of FSAL can be made more precise*/
-  t->FSAL_implicit = (PetscBool)(t->explicit_first_stage && t->stiffly_accurate);
   if (bembed) {
     ierr = PetscMalloc(s,PetscReal,&t->bembed);CHKERRQ(ierr);
     ierr = PetscMemcpy(t->bembed,bembed,s*sizeof(bembed[0]));CHKERRQ(ierr);
@@ -282,15 +272,15 @@ PetscErrorCode TSIRKRegister(TSIRKType name,PetscInt order,PetscInt s,
 /*
  The step completion formula is
 
- x1 = x0 - h b^T YdotI 
+ x1 = x0 - h b^T Ydot 
 
  This function can be called before or after ts->vec_sol has been updated.
  Suppose we have a completion formula (bt,b) and an embedded formula (bet,be) of different order.
  We can write
 
- x1e = x0 - h be^T YdotI
-     = x1 + h b^T YdotI - h be^T YdotI 
-     = x1 - h (be - b)^T YdotI
+ x1e = x0 - h be^T Ydot
+     = x1 + h b^T Ydot - h be^T Ydot
+     = x1 - h (be - b)^T Ydot
 
  so we can evaluate the method with different order even after the step has been optimistically completed.
 */
@@ -316,20 +306,20 @@ static PetscErrorCode TSEvaluateStep_IRK(TS ts,PetscInt order,Vec X,PetscBool *d
     if (irk->status == TS_STEP_INCOMPLETE) {
       ierr = VecCopy(ts->vec_sol,X);CHKERRQ(ierr);
       for (j=0; j<s; j++) w[j] = h*tab->b[j];
-      ierr = VecMAXPY(X,s,w,irk->YdotI);CHKERRQ(ierr);
+      ierr = VecMAXPY(X,s,w,irk->Ydot);CHKERRQ(ierr);
     } else {ierr = VecCopy(ts->vec_sol,X);CHKERRQ(ierr);}
     if (done) *done = PETSC_TRUE;
     PetscFunctionReturn(0);
   } else if (order == tab->order-1) {
     if (!tab->bembed) goto unavailable;
-    if (irk->status == TS_STEP_INCOMPLETE) { /* Complete with the embedded method (bet,be) */
+    if (irk->status == TS_STEP_INCOMPLETE) { /* Complete with the embedded method (be) */
       ierr = VecCopy(ts->vec_sol,X);CHKERRQ(ierr);
       for (j=0; j<s; j++) w[j] = h*tab->bembed[j];
-      ierr = VecMAXPY(X,s,w,irk->YdotI);CHKERRQ(ierr);
-    } else {                    /* Rollback and re-complete using (bet-be,be-b) */
+      ierr = VecMAXPY(X,s,w,irk->Ydot);CHKERRQ(ierr);
+    } else {                    /* Rollback and re-complete using (be-b) */
       ierr = VecCopy(ts->vec_sol,X);CHKERRQ(ierr);
       for (j=0; j<s; j++) w[j] = h*(tab->bembed[j] - tab->b[j]);
-      ierr = VecMAXPY(X,tab->s,w,irk->YdotI);CHKERRQ(ierr);
+      ierr = VecMAXPY(X,tab->s,w,irk->Ydot);CHKERRQ(ierr);
     }
     if (done) *done = PETSC_TRUE;
     PetscFunctionReturn(0);
@@ -349,7 +339,7 @@ static PetscErrorCode TSStep_IRK(TS ts)
   const PetscInt  s    = tab->s;
   const PetscReal *A   = tab->A,*b = tab->b,*c = tab->c;
   PetscScalar     *w   = irk->work;
-  Vec             *Y   = irk->Y,*Ydot = irk->Ydot,Ydot0 = irk->Ydot0,W = irk->Work,Z = irk->Z;
+  Vec             *Y   = irk->Y,*Ydot = irk->Ydot,W = irk->Work,Z = irk->Z;
   PetscBool       init_guess_extrp = irk->init_guess_extrp;
   TSAdapt         adapt;
   SNES            snes;
@@ -360,53 +350,6 @@ static PetscErrorCode TSStep_IRK(TS ts)
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
-  if (ts->equation_type >= TS_EQ_IMPLICIT && tab->explicit_first_stage) {
-    PetscReal valid_time;
-    PetscBool isvalid;
-    ierr = PetscObjectComposedDataGetReal((PetscObject)ts->vec_sol,
-                                          explicit_stage_time_id,
-                                          valid_time,
-                                          isvalid);
-    CHKERRQ(ierr);
-    if (!isvalid || valid_time != ts->ptime) {
-      TS        ts_start;
-      SNES      snes_start;
-      DM        dm;
-      PetscReal atol;
-      Vec       vatol;
-      PetscReal rtol;
-      Vec       vrtol;
-
-      ierr = TSCreate(PetscObjectComm((PetscObject)ts),&ts_start);CHKERRQ(ierr);
-      ierr = TSGetSNES(ts,&snes_start);CHKERRQ(ierr);
-      ierr = TSSetSNES(ts_start,snes_start);CHKERRQ(ierr);
-      ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
-      ierr = TSSetDM(ts_start,dm);CHKERRQ(ierr);
-
-      ts_start->adapt=ts->adapt;
-      PetscObjectReference((PetscObject)ts_start->adapt);
-
-      ierr = TSSetSolution(ts_start,ts->vec_sol);CHKERRQ(ierr);
-      ierr = TSSetTime(ts_start,ts->ptime);CHKERRQ(ierr);
-      ierr = TSSetDuration(ts_start,1,ts->ptime+ts->time_step);CHKERRQ(ierr);
-      ierr = TSSetTimeStep(ts_start,ts->time_step);CHKERRQ(ierr);
-      ierr = TSSetType(ts_start,TSIRK);CHKERRQ(ierr);
-      ierr = TSIRKSetType(ts_start,TSIRKGAUSS12);CHKERRQ(ierr);
-      ierr = TSSetEquationType(ts_start,ts->equation_type);CHKERRQ(ierr);
-      ierr = TSGetTolerances(ts,&atol,&vatol,&rtol,&vrtol);CHKERRQ(ierr);
-      ierr = TSSetTolerances(ts_start,atol,vatol,rtol,vrtol);CHKERRQ(ierr);
-      ierr = TSSolve(ts_start,ts->vec_sol);CHKERRQ(ierr);
-      ierr = TSGetTime(ts_start,&ts->ptime);CHKERRQ(ierr);
-
-      ts->time_step = ts_start->time_step;
-      ts->steps++;
-      ierr = VecCopy(((TS_IRK*)ts_start->data)->Ydot0,Ydot0);CHKERRQ(ierr);
-      ts_start->snes=NULL;
-      ierr = TSSetSNES(ts,snes_start);CHKERRQ(ierr);
-      ierr = SNESDestroy(&snes_start);CHKERRQ(ierr);
-      ierr = TSDestroy(&ts_start);CHKERRQ(ierr);
-    }
-  }
 
   ierr           = TSGetSNES(ts,&snes);CHKERRQ(ierr);
   next_time_step = ts->time_step;
@@ -421,7 +364,7 @@ static PetscErrorCode TSStep_IRK(TS ts)
     for (i=0; i<s; i++) {
       irk->stage_time = t + h*c[i];
       ierr            = TSPreStage(ts,irk->stage_time);CHKERRQ(ierr);
-/* XXX */     if (At[i*s+i] == 0) {           /* This stage is explicit */
+      if (At[i*s+i] == 0) {           /* This stage is explicit */
         ierr = VecCopy(ts->vec_sol,Y[i]);CHKERRQ(ierr);
         for (j=0; j<i; j++) w[j] = h*A[i*s+j];
         ierr = VecMAXPY(Y[i],i,w,Ydot);CHKERRQ(ierr);
@@ -436,7 +379,7 @@ static PetscErrorCode TSStep_IRK(TS ts)
         /* Ydot = shift*(Y-Z) */
         ierr = VecCopy(ts->vec_sol,Z);CHKERRQ(ierr);
         for (j=0; j<i; j++) w[j] = h*At[i*s+j];
-        ierr = VecMAXPY(Z,i,w,YdotI);CHKERRQ(ierr);
+        ierr = VecMAXPY(Z,i,w,Ydot);CHKERRQ(ierr);
 
         if (init_guess_extrp && ts->steps) {
           /* Initial guess extrapolated from previous time step stage values */
@@ -457,14 +400,14 @@ static PetscErrorCode TSStep_IRK(TS ts)
       ierr = TSPostStage(ts,irk->stage_time,i,Y); CHKERRQ(ierr);
       if (ts->equation_type>=TS_EQ_IMPLICIT) {
         if (i==0 && tab->explicit_first_stage) {
-          ierr = VecCopy(Ydot0,YdotI[0]);CHKERRQ(ierr);
+          ierr = VecCopy(Ydot0,Ydot[0]);CHKERRQ(ierr);
         } else {
-          ierr = VecAXPBYPCZ(YdotI[i],-irk->scoeff/h,irk->scoeff/h,0,Z,Y[i]);CHKERRQ(ierr); /* Ydot = shift*(X-Z) */
+          ierr = VecAXPBYPCZ(Ydot[i],-irk->scoeff/h,irk->scoeff/h,0,Z,Y[i]);CHKERRQ(ierr); /* Ydot = shift*(X-Z) */
         }
       } else {
         ierr = VecZeroEntries(Ydot);CHKERRQ(ierr);
-        ierr = TSComputeIFunction(ts,t+h*ct[i],Y[i],Ydot,YdotI[i],irk->imex);CHKERRQ(ierr);
-        ierr = VecScale(YdotI[i], -1.0);CHKERRQ(ierr);
+        ierr = TSComputeIFunction(ts,t+h*ct[i],Y[i],Ydot,Ydot[i],irk->imex);CHKERRQ(ierr);
+        ierr = VecScale(Ydot[i], -1.0);CHKERRQ(ierr);
         if (irk->imex) {
           ierr = TSComputeRHSFunction(ts,t+h*c[i],Y[i],YdotRHS[i]);CHKERRQ(ierr);
         } else {
@@ -485,13 +428,7 @@ static PetscErrorCode TSStep_IRK(TS ts)
       ts->ptime    += ts->time_step;
       ts->time_step = next_time_step;
       ts->steps++;
-      if (ts->equation_type>=TS_EQ_IMPLICIT) { /* save the initial slope for the next step*/
-        ierr = VecCopy(YdotI[s-1],Ydot0);CHKERRQ(ierr);
-      }
       irk->status = TS_STEP_COMPLETE;
-      if (tab->explicit_first_stage) {
-        ierr = PetscObjectComposedDataSetReal((PetscObject)ts->vec_sol,explicit_stage_time_id,ts->ptime);CHKERRQ(ierr);
-      }
       /* Save the Y, Ydot for extrapolation initial guess */
       if (irk->init_guess_extrp) {
         for (i = 0; i<s; i++) {
@@ -541,7 +478,6 @@ static PetscErrorCode TSInterpolate_IRK(TS ts,PetscReal itime,Vec X)
   ierr = PetscMalloc(s,PetscScalar,&b);CHKERRQ(ierr);
   for (i=0; i<s; i++) b[i] = 0;
   for (j=0,tt=t; j<pinterp; j++,tt*=t) for (i=0; i<s; i++) b[i]  += h * B[i*pinterp+j] * tt;
-  if (irk->tableau->A[0*s+0] != 0.0) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"First stage not explicit so starting stage not saved");
   ierr = VecCopy(irk->Y[0],X);CHKERRQ(ierr);
   ierr = VecMAXPY(X,s,b,irk->Ydot);CHKERRQ(ierr);
   ierr = PetscFree(b);CHKERRQ(ierr);
@@ -567,7 +503,6 @@ static PetscErrorCode TSExtrapolate_IRK(TS ts,PetscReal c,Vec X)
   ierr = PetscMalloc(s,PetscScalar,&b);CHKERRQ(ierr);
   for (i=0; i<s; i++) b[i] = 0;
   for (j=0,tt=t; j<pinterp; j++,tt*=t) for (i=0; i<s; i++) b[i]  += h * B[i*pinterp+j] * tt;
-  if (irk->tableau->A[0*s+0] != 0.0) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"First stage not explicit so starting stage not saved");
   ierr = VecCopy(irk->Y_prev[0],X);CHKERRQ(ierr);
   ierr = VecMAXPY(X,s,b,irk->Ydot_prev);CHKERRQ(ierr);
   ierr = PetscFree(b);CHKERRQ(ierr);
@@ -593,7 +528,6 @@ static PetscErrorCode TSReset_IRK(TS ts)
     ierr = VecDestroyVecs(s,&irk->Ydot_prev);CHKERRQ(ierr);
   }
   ierr = VecDestroy(&irk->Work);CHKERRQ(ierr);
-  ierr = VecDestroy(&irk->Ydot0);CHKERRQ(ierr);
   ierr = VecDestroy(&irk->Z);CHKERRQ(ierr);
   ierr = PetscFree(irk->work);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -688,7 +622,7 @@ static PetscErrorCode SNESTSFormFunction_IRK(SNES snes,Vec X,Vec F,TS ts)
 #define __FUNCT__ "SNESTSFormJacobian_IRK"
 static PetscErrorCode SNESTSFormJacobian_IRK(SNES snes,Vec X,Mat *A,Mat *B,MatStructure *str,TS ts)
 {
-  TS_IRK     *irk = (TS_IRK*)ts->data;
+  TS_IRK         *irk = (TS_IRK*)ts->data;
   DM             dm,dmsave;
   Vec            Ydot;
   PetscReal      shift = irk->scoeff / ts->time_step;
@@ -784,7 +718,6 @@ static PetscErrorCode TSSetUp_IRK(TS ts)
     ierr = VecDuplicateVecs(ts->vec_sol,s,&irk->Ydot_prev);CHKERRQ(ierr);
   }
   ierr = VecDuplicate(ts->vec_sol,&irk->Work);CHKERRQ(ierr);
-  ierr = VecDuplicate(ts->vec_sol,&irk->Ydot0);CHKERRQ(ierr);
   ierr = VecDuplicate(ts->vec_sol,&irk->Z);CHKERRQ(ierr);
   ierr = PetscMalloc(s*sizeof(irk->work[0]),&irk->work);CHKERRQ(ierr);
   ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
@@ -864,11 +797,8 @@ static PetscErrorCode TSView_IRK(TS ts,PetscViewer viewer)
     char          buf[512];
     ierr = TSIRKGetType(ts,&irktype);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  IRK %s\n",irktype);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIPrintf(viewer,"Stiffly accurate: %s\n",tab->stiffly_accurate ? "yes" : "no");CHKERRQ(ierr);
-    ierr = PetscViewerASCIIPrintf(viewer,"Explicit first stage: %s\n",tab->explicit_first_stage ? "yes" : "no");CHKERRQ(ierr);
-    ierr = PetscViewerASCIIPrintf(viewer,"FSAL property: %s\n",tab->FSAL_implicit ? "yes" : "no");CHKERRQ(ierr);
-    ierr = PetscFormatRealArray(buf,sizeof(buf),"% 8.6f",tab->s,tab->c);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  Abscissa     c = %s\n",buf);CHKERRQ(ierr);
+    ierr = PetscFormatRealArray(buf,sizeof(buf),"% 8.6f",tab->s,tab->c);CHKERRQ(ierr);
   }
   ierr = TSGetAdapt(ts,&adapt);CHKERRQ(ierr);
   ierr = TSAdaptView(adapt,viewer);CHKERRQ(ierr);
@@ -989,15 +919,8 @@ PetscErrorCode  TSIRKSetType_IRK(TS ts,TSIRKType irktype)
 /*MC
       TSIRK - ODE and DAE solver using implicit Runge-Kutta schemes
 
-  XXX
-  These methods are intended for problems with well-separated time scales, especially when a slow scale is strongly
-  nonlinear such that it is expensive to solve with a fully implicit method. The user should provide the stiff part
-  of the equation using TSSetIFunction() and the non-stiff part with TSSetRHSFunction().
-
   Notes:
   The default is TSIRKGAUSS12, it can be changed with TSIRKSetType() or -ts_irk_type
-
-  Methods with an explicit stage can only be used with ODE in which the stiff part G(t,X,Xdot) has the form Xdot + Ghat(t,X).
 
   Level: beginner
 
@@ -1009,8 +932,8 @@ M*/
 #define __FUNCT__ "TSCreate_IRK"
 PETSC_EXTERN PetscErrorCode TSCreate_IRK(TS ts)
 {
-  TS_IRK     *th;
-  PetscErrorCode ierr;
+  TS_IRK          *th;
+  PetscErrorCode  ierr;
 
   PetscFunctionBegin;
 #if !defined(PETSC_USE_DYNAMIC_LIBRARIES)
