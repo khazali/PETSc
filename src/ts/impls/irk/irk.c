@@ -50,7 +50,7 @@ typedef struct {
 } TS_IRK;
 
 /*MC
-     TSIRKGAUSS12 - Second order, 1-stage Gauss method.
+     TSIRKGAUSS12 - Second order, 1-stage Gauss method (implicit midpoint).
 
      Level: advanced
 
@@ -64,7 +64,7 @@ M*/
 .seealso: TSIRK
 M*/
 /*MC
-     TSIRKRADAU11 - First order, 1-stage Radau method.
+     TSIRKRADAU11 - First order, 1-stage Radau method (backward Euler).
 
      Level: advanced
 
@@ -78,7 +78,7 @@ M*/
 .seealso: TSIRK
 M*/
 /*MC
-     TSIRKLOBATTO22 - Second order, 2-stage Lobatto method.
+     TSIRKLOBATTO22 - Second order, 2-stage Lobatto method (trapezoidal method).
 
      Level: advanced
 
@@ -115,15 +115,41 @@ PetscErrorCode TSIRKRegisterAll(void)
 
   {
     const PetscReal
-      A[3][3] = {{0.0,0.0,0.0},
-                 {0.0,0.0,0.0},
-                 {0.0,0.5,0.0}},
-      At[3][3] = {{1.0,0.0,0.0},
-                  {0.0,0.5,0.0},
-                  {0.0,0.5,0.5}},
-      b[3]       = {0.0,0.5,0.5},
-      bembedt[3] = {1.0,0.0,0.0};
-    ierr = TSIRKRegister(TSIRKGAUSS12,2,3,&At[0][0],b,NULL,&A[0][0],b,NULL,bembedt,bembedt,1,b,NULL);CHKERRQ(ierr);
+      A[1][1] = {{0.5}},
+      b[1]    =  {1.0};
+    ierr = TSIRKRegister(TSIRKGAUSS12,2,1,&A[0][0],b,NULL,NULL,1,b);CHKERRQ(ierr);
+  }
+  {
+    const PetscReal
+      A[2][2] = {{0.25, (3.0-2.0*1.7320508075688772)/12.0},
+                {(3.0+2.0*1.7320508075688772)/12.0, 0.25}},
+      b[2]    =  {0.5, 0.5};
+    ierr = TSIRKRegister(TSIRKGAUSS24,4,2,&A[0][0],b,NULL,NULL,2,b);CHKERRQ(ierr);
+  }
+  {
+    const PetscReal
+      A[1][1] = {{1.0}},
+      b[1]    =  {1.0};
+    ierr = TSIRKRegister(TSIRKRADAU11,1,1,&A[0][0],b,NULL,NULL,1,b);CHKERRQ(ierr);
+  }
+  {
+    const PetscReal
+      A[2][2] = {{5.0/12.0, -1.0/12.0},
+                 {0.75, 0.25}},
+    ierr = TSIRKRegister(TSIRKRADAU23,3,2,&A[0][0],NULL,NULL,NULL,2,NULL);CHKERRQ(ierr);
+  }
+  {
+    const PetscReal
+      A[2][2] = {{0.0, 0.0},
+                 {0.5, 0.5}},
+    ierr = TSIRKRegister(TSIRKLOBATTO22,2,2,&A[0][0],NULL,NULL,NULL,2,NULL);CHKERRQ(ierr);
+  }
+  {
+    const PetscReal
+      A[3][3] = {{0.0     , 0.0    ,  0.0     },
+                 {5.0/24.0, 1.0/3.0, -1.0/24.0},
+                 {1.0/6.0 , 2.0/3.0,  1.0/6.0 }},
+    ierr = TSIRKRegister(TSIRKLOBATTO34,4,3,&A[0][0],NULL,NULL,NULL,3,NULL);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -261,7 +287,7 @@ PetscErrorCode TSIRKRegister(TSIRKType name,PetscInt order,PetscInt s,
 
   t->pinterp     = pinterp;
   ierr           = PetscMalloc(s*pinterp,PetscReal,&t->binterp);CHKERRQ(ierr);
-  ierr           = PetscMemcpy(t->binterp,binterp,s*pinterp*sizeof(binterp[0]));CHKERRQ(ierr);
+  ierr           = PetscMemcpy(t->binterp,(binterp ? binterp : t->b),s*pinterp*sizeof(binterp[0]));CHKERRQ(ierr);
   link->next     = IRKTableauList;
   IRKTableauList = link;
   PetscFunctionReturn(0);
