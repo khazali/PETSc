@@ -4,7 +4,7 @@ FFLAGS	        =
 CPPFLAGS        =
 FPPFLAGS        =
 LOCDIR          = src/ts/examples/tutorials/advection-diffusion-reaction/
-EXAMPLESC       = ex1.c ex2.c ex3.c ex4.c ex5.c ex7.c ex10.c
+EXAMPLESC       = ex1.c ex2.c ex3.c ex4.c ex5.c ex7.c ex10.c ex11.c ex12.c
 EXAMPLESF       =
 EXAMPLESFH      =
 MANSEC          = TS
@@ -40,6 +40,14 @@ ex7: ex7.o  chkopts
 ex10: ex10.o  chkopts
 	-${CLINKER} -o ex10 ex10.o  ${PETSC_TS_LIB}
 	${RM} ex10.o
+
+ex11: ex11.o  chkopts
+	-${CLINKER} -o ex11 ex11.o  ${PETSC_TS_LIB}
+	${RM} ex11.o
+
+ex12: ex12.o  chkopts
+	-${CLINKER} -o ex12 ex12.o  ${PETSC_TS_LIB}
+	${RM} ex12.o
 
 #---------------------------------------------------------------------------------
 runex1:
@@ -138,9 +146,20 @@ runex10_4:
 	   ${DIFF} output/ex10_4.out ex10_4.tmp || echo  ${PWD} "\nPossible problem with ex10_4, diffs above \n========================================="; \
 	   ${RM} -f ex10_4.tmp
 
+runex11:
+	-@${MPIEXEC} -n 1 ./ex11 > ex11.tmp 2>&1; \
+	   ${DIFF} output/ex11.out ex11.tmp || echo  ${PWD} "\nPossible problem with ex11, diffs above \n========================================="; \
+	   ${RM} -f ex11.tmp
+
+runex12:
+	-@${MPIEXEC} -n 1 ./ex12 > ex12.tmp 2>&1; \
+	   ${DIFF} output/ex12.out ex12.tmp || echo  ${PWD} "\nPossible problem with ex12, diffs above \n========================================="; \
+	   ${RM} -f ex12.tmp
 
 TESTEXAMPLES_C		  = ex1.PETSc ex1.rm ex2.PETSc ex2.rm ex3.PETSc ex3.rm \
-                            ex4.PETSc ex4.rm ex5.PETSc ex5.rm
+                            ex4.PETSc ex4.rm ex5.PETSc ex5.rm \
+                            ex11.PETSc ex11.rm \
+                            ex12.PETSc ex12.rm
 TESTEXAMPLES_C_X	  =
 TESTEXAMPLES_FORTRAN	  =
 TESTEXAMPLES_C_X_MPIUNI   =
