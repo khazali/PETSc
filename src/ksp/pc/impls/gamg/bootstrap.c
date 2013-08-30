@@ -2,9 +2,111 @@
 #include <petsc-private/kspimpl.h>
 
 typedef struct {
-  PetscReal dummy; /* empty struct; save for later */
+  PetscInt nv;   /* number of test vectors to use in the construction of the prolongator */
 } PC_GAMG_Bootstrap;
 
+typedef struct {
+  PetscInt  nv;      /* the number of vectors in the space */
+  Vec       *v;      /* the subspace */
+} BootstrapTestSpace;
+
+#undef __FUNCT__
+#define __FUNCT__ "PCGAMGBootstrapTestSpaceCreate"
+PetscErrorCode PCGAMGBootstrapTestSpaceCreate(BootstrapTestSpace **bsts,Mat G,PetscInt n)
+{
+  BootstrapTestSpace *ts;
+  PetscErrorCode ierr;
+  Vec            v;
+
+  PetscFunctionBegin;
+  ierr = PetscMalloc(sizeof(BootstrapTestSpace),&ts);CHKERRQ(ierr);
+  ierr = MatGetVecs(G,&v,NULL);CHKERRQ(ierr);
+  ierr = VecDuplicateVecs(v,n,&ts->v);CHKERRQ(ierr);
+  ierr = VecDestroy(&v);CHKERRQ(ierr);
+  ts->nv = n;
+  *bsts = ts;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PCGAMGBootstrapTestSpaceDestroy"
+PetscErrorCode PCGAMGBootstrapTestSpaceDestroy(BootstrapTestSpace *bsts)
+{
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  PetscPrintf(PETSC_COMM_WORLD,"destroying test space\n");
+  ierr = VecDestroyVecs(bsts->nv,&bsts->v);CHKERRQ(ierr);
+  ierr = PetscFree(bsts);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PCGAMGBootstrapCreateTestSpace_Private"
+PetscErrorCode PCGAMGBootstrapCreateTestSpace_Private(Mat G,PetscInt nv,Vec **v) {
+  PetscErrorCode     ierr;
+  PetscContainer     c;
+  BootstrapTestSpace *bsts;
+
+  PetscFunctionBegin;
+  PetscPrintf(PETSC_COMM_WORLD,"creating test space\n");
+  ierr = PetscContainerCreate(PetscObjectComm((PetscObject)G),&c);CHKERRQ(ierr);
+  ierr = PCGAMGBootstrapTestSpaceCreate(&bsts,G,nv);CHKERRQ(ierr);
+  ierr = PetscContainerSetPointer(c,bsts);CHKERRQ(ierr);
+  ierr = PetscContainerSetUserDestroy(c,(PetscErrorCode (*)(void *))PCGAMGBootstrapTestSpaceDestroy);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject)G,"BootstrapTestSpace",(PetscObject)c);CHKERRQ(ierr);
+  ierr = PetscContainerDestroy(&c);CHKERRQ(ierr);
+  *v = bsts->v;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PCGAMGBootstrapGetTestSpace_Private"
+PetscErrorCode PCGAMGBootstrapGetTestSpace_Private(Mat G,PetscInt *nv,Vec **v)
+{
+  PetscErrorCode     ierr;
+  PetscContainer     c;
+  BootstrapTestSpace *bsts;
+
+  PetscFunctionBegin;
+  ierr = PetscObjectQuery((PetscObject)G,"BootstrapTestSpace",(PetscObject *)&c);
+  if (c) {
+    ierr = PetscContainerGetPointer(c,(void**)&bsts);CHKERRQ(ierr);
+    if (nv) *nv = bsts->nv;
+    if (v) *v = bsts->v;
+  } else {
+    if (nv) *nv = 0;
+    if (v) *v  = NULL;
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PCGAMGSetupLevel_Bootstrap"
+PetscErrorCode PCGAMGSetupLevel_Bootstrap(PC pc,Mat Gf,Mat P, Mat Gc)
+{
+  PetscErrorCode ierr;
+  PC_MG             *mg          = (PC_MG*)pc->data;
+  PC_GAMG           *pc_gamg     = (PC_GAMG*)mg->innerctx;
+  PC_GAMG_Bootstrap *pc_gamg_bs  = (PC_GAMG_Bootstrap*)pc_gamg->subctx;
+  Vec               *vf;
+  Vec               *vc;
+  PetscInt          nv = pc_gamg_bs->nv,i;
+
+  PetscFunctionBegin;
+  ierr = PCGAMGBootstrapGetTestSpace_Private(Gf,NULL,&vf);CHKERRQ(ierr);
+  if (!vf) {
+    ierr = PCGAMGBootstrapCreateTestSpace_Private(Gf,nv,&vf);CHKERRQ(ierr);
+    for (i=0;i<nv;i++) {
+      ierr = VecSetRandom(vf[i],NULL);CHKERRQ(ierr);
+    }
+  }
+  ierr = PCGAMGBootstrapCreateTestSpace_Private(Gc,nv,&vc);CHKERRQ(ierr);
+  for (i=0;i<nv;i++) {
+    ierr = MatRestrict(P,vf[i],vc[i]);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
 
 #undef __FUNCT__
 #define __FUNCT__ "PCGAMGBootstrapCreateGhostVector_Private"
@@ -280,7 +382,7 @@ PetscErrorCode PCGAMGProlongator_Bootstrap(PC pc, const Mat A, const Mat G, Pets
       ierr = MatSetValues(*P,1,&row_f,1,&row_c,&pij,INSERT_VALUES);CHKERRQ(ierr);
     } else {
       PetscInt ntotal=0;
-      /* local strong connections */
+      /* local connections */
       ierr = MatGetRow(lG,i,&ncols,&rcol,&rval);CHKERRQ(ierr);
       for (k = 0; k < ncols; k++) {
         if (lcid[rcol[k]] >= 0) {
@@ -289,7 +391,7 @@ PetscErrorCode PCGAMGProlongator_Bootstrap(PC pc, const Mat A, const Mat G, Pets
       }
       ierr = MatRestoreRow(lG,i,&ncols,&rcol,&rval);CHKERRQ(ierr);
 
-      /* ghosted strong connections */
+      /* ghosted connections */
       if (gG) {
         ierr = MatGetRow(gG,i,&ncols,&rcol,&rval);CHKERRQ(ierr);
         for (k = 0; k < ncols; k++) {
@@ -400,6 +502,7 @@ PetscErrorCode  PCCreateGAMG_Bootstrap(PC pc)
 
   /* create sub context for SA */
   ierr = PetscNewLog(pc, PC_GAMG_Bootstrap, &pc_gamg_bootstrap);CHKERRQ(ierr);
+  pc_gamg_bootstrap->nv = 10; 
   pc_gamg->subctx = pc_gamg_bootstrap;
   pc->ops->setfromoptions = PCGAMGSetFromOptions_Bootstrap;
   /* reset does not do anything; setup not virtual */
@@ -410,6 +513,7 @@ PetscErrorCode  PCCreateGAMG_Bootstrap(PC pc)
   pc_gamg->ops->coarsen     = PCGAMGCoarsen_Bootstrap;
   pc_gamg->ops->prolongator = PCGAMGProlongator_Bootstrap;
   pc_gamg->ops->optprol     = NULL;
+  pc_gamg->ops->setuplevel  = PCGAMGSetupLevel_Bootstrap;
 
   pc_gamg->ops->createdefaultdata = PCGAMGSetData_Bootstrap;
   PetscFunctionReturn(0);

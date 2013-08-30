@@ -630,6 +630,11 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
     ierr = createLevel(pc, Aarr[level], bs, (PetscBool)(level==pc_gamg->Nlevels-2),
                        &Parr[level1], &Aarr[level1], &nactivepe);CHKERRQ(ierr);
 
+  /* method-specific setup of the new level */
+    if (pc_gamg->ops->setuplevel) {
+      ierr = pc_gamg->ops->setuplevel(pc,Aarr[level],Parr[level1],Aarr[level1]);CHKERRQ(ierr);
+    }
+
 #if defined PETSC_GAMG_USE_LOG
     ierr = PetscLogEventEnd(petsc_gamg_setup_events[SET2],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -1496,6 +1501,7 @@ PetscErrorCode PCGAMGInitializePackage(void)
   ierr = PetscFunctionListAdd(&GAMGList,PCGAMGGEO,PCCreateGAMG_GEO);CHKERRQ(ierr);
   ierr = PetscFunctionListAdd(&GAMGList,PCGAMGAGG,PCCreateGAMG_AGG);CHKERRQ(ierr);
   ierr = PetscFunctionListAdd(&GAMGList,PCGAMGCLASSICAL,PCCreateGAMG_Classical);CHKERRQ(ierr);
+  ierr = PetscFunctionListAdd(&GAMGList,PCGAMGBOOTSTRAP,PCCreateGAMG_Bootstrap);CHKERRQ(ierr);
   ierr = PetscRegisterFinalize(PCGAMGFinalizePackage);CHKERRQ(ierr);
 
   /* general events */
