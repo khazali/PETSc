@@ -40,6 +40,7 @@ typedef const char* TSType;
 #define TSROSW            "rosw"
 #define TSEIMEX           "eimex"
 #define TSMULTI           "multi"
+#define TSNAIVEHEUN       "naiveheun"
 /*E
     TSProblemType - Determines the type of problem this TS object is to be used to solve
 
@@ -631,7 +632,8 @@ PETSC_EXTERN PetscErrorCode TSRosWRegisterAll(void);
  
 J*/
 typedef const char* TSMultiType;
-#define TSMULTIFHMMFE   "fhmmfe"
+#define TSMULTIFHMMFE    "fhmmfe"
+#define TSMULTIFHMMHEUN  "fhmmheun"
 PETSC_EXTERN PetscErrorCode TSMultiGetType(TS,TSMultiType*);
 PETSC_EXTERN PetscErrorCode TSMultiSetType(TS,TSMultiType);
 PETSC_EXTERN PetscErrorCode TSMultiGetWindow(TS,PetscReal*);

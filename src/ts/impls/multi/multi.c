@@ -12,10 +12,181 @@ typedef struct {
         PetscErrorCode (*precoarse)(TS ts);
         PetscErrorCode (*setup)(TS ts);
     } ops;
-   
-    PetscInt nwork; 
-    Vec *W; /* work vectors  */ 
+    
+    PetscInt nwork;
+    Vec *W; /* work vectors */ 
+    Vec B; /* Basepoint to advance */
+    PetscReal tRef; /* A Reference time used by filter functions */
 } TS_Multi;
+
+/* Methods for FHMMHEUN */
+#undef __FUNCT__
+#define __FUNCT__ "Precoarse_MultiFHMMHEUN"
+static PetscErrorCode Precoarse_MultiFHMMHEUN(TS ts)
+{
+  PetscFunctionBegin;
+  /* Empty. The precoarse function is mainly intended for FLAVORs, which alternate integrators instead of nesting them */
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define  __FUNCT__ "ComputeFilter"
+static PetscErrorCode ComputeFilter(PetscReal t, PetscReal *value)
+{
+  PetscFunctionBegin;
+  
+  /* This is a polynomial function with 5 vanishing derivatives at {0,1}, unit integral over its support
+     of [0,1], and vanishing 'first moment' (symmetric around 1/2). Future improvements can replace this
+     with a variable order function (or a non-analytic C^\infty type function) */
+  PetscReal fac = t*(1-t);
+  *value = 2772 * fac * fac * fac * fac * fac;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "FormRHSFunctionFullFiltered"
+PetscErrorCode FormRHSFunctionFullFiltered(TS tsFine, PetscReal t, Vec X, Vec F, void *ctx)
+{
+  PetscErrorCode  ierr;
+  TS_Multi        *multi;
+  PetscReal       filt, relTime;
+  TSRHSFunction   rhsfuncfast, rhsfuncslow;
+  Vec             Ffast;
+  void            *rhsctxfast, *rhsctxslow; 
+  DM              dm;
+  TS              ts;
+
+  /* Note here and elsewhere that we do not set the corresponding Jacobian functions - this will be required before general inner solvers can be chosen by the user */
+
+  PetscFunctionBegin;
+  ierr = TSGetApplicationContext(tsFine,&multi);CHKERRQ(ierr);
+  ts = multi->ts;
+  relTime = (t - multi->tRef)/multi->window; /* expects tRef to be set to the correct value */
+  ierr = VecDuplicate(F,&Ffast);CHKERRQ(ierr);
+  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+  ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_SLOW_SLOT,&rhsfuncslow,&rhsctxslow);CHKERRQ(ierr);
+  rhsfuncslow(tsFine,t,X,F,rhsctxslow); CHKERRQ(ierr);
+  ierr = ComputeFilter(relTime,&filt);CHKERRQ(ierr); /* Note that we expect to only integrate filtered quantities over periods of length multi->window */
+  ierr = VecScale(F,filt);CHKERRQ(ierr);
+  ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_FAST_SLOT,&rhsfuncfast,&rhsctxfast);CHKERRQ(ierr);
+  rhsfuncfast(tsFine,t,X,Ffast,rhsctxfast);CHKERRQ(ierr);
+  ierr = VecAXPY(F,1.0,Ffast);
+  ierr = VecDestroy(&Ffast);CHKERRQ(ierr); 
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "FormRHSFunction_FHMMHEUN"
+static PetscErrorCode FormRHSFunction_FHMMHEUN(TS tsCoarse, PetscReal t, Vec X, Vec F, void* ctx)
+{
+  PetscErrorCode ierr;
+  PetscReal      d, window;
+  TS_Multi       *multi;
+  TS             tsFine, ts;
+  DM             dm;
+  TSRHSFunction  rhsfuncfast;
+  void           *rhsctxfast;
+
+  PetscFunctionBegin;
+  ierr = TSGetApplicationContext(tsCoarse,&multi);CHKERRQ(ierr);
+  tsFine = multi->tsFine;
+  ts = multi->ts;
+  window = multi->window; /* This does not yet adapt the window */
+
+  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+  ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_FAST_SLOT,&rhsfuncfast,&rhsctxfast);CHKERRQ(ierr);
+
+  /* Copy X to F and W[1] */
+  ierr = VecCopy(X,F);CHKERRQ(ierr);
+  ierr = VecCopy(X,multi->W[1]);CHKERRQ(ierr);
+  
+  /* Advance W[1] by 2window, unperturbed ("fast")*/
+  ierr = TSSetRHSFunction(tsFine,NULL,rhsfuncfast,rhsctxfast);CHKERRQ(ierr);
+  ierr = TSSetTime(tsFine,t);CHKERRQ(ierr);
+  ierr = TSSetDuration(tsFine,-1,t + 2*window);CHKERRQ(ierr); 
+  ierr = TSSolve(tsFine,multi->W[1]);CHKERRQ(ierr); 
+
+  /* Advance F by window, full filtered system */
+  ierr = TSSetRHSFunction(tsFine,NULL,FormRHSFunctionFullFiltered,NULL);CHKERRQ(ierr);
+  ierr = TSSetTime(tsFine,t);CHKERRQ(ierr);
+  ierr = TSSetDuration(tsFine,-1,t + window);CHKERRQ(ierr);
+  multi->tRef = t;
+  ierr = TSSolve(tsFine,F);CHKERRQ(ierr); 
+  
+  ierr = VecCopy(F,multi->W[0]);CHKERRQ(ierr);
+
+  /* Advance W[0] by window, unperturbed, from time t + window */
+  ierr = TSSetRHSFunction(tsFine,NULL,rhsfuncfast,rhsctxfast);CHKERRQ(ierr);
+  ierr = TSSetTime(tsFine,t + window);CHKERRQ(ierr); 
+  ierr = TSSetDuration(tsFine,-1,t + 2*window);CHKERRQ(ierr);
+  ierr = TSSolve(tsFine,multi->W[0]);CHKERRQ(ierr); 
+
+  /* Advance F by Delta, full filtered system, from time t + window */
+  ierr = TSSetRHSFunction(tsFine,NULL,FormRHSFunctionFullFiltered,NULL);CHKERRQ(ierr);
+  ierr = TSSetTime(tsFine,t + multi->window);CHKERRQ(ierr); 
+  ierr = TSSetDuration(tsFine,-1,t + 2*window);CHKERRQ(ierr);
+  multi->tRef = t + window;
+  ierr = TSSolve(tsFine,F);CHKERRQ(ierr); 
+
+  /* Forward 2nd order accurate finite difference */
+  d = 2.0*window;
+  ierr = VecAXPBYPCZ(F,-3.0/d,4.0/d,-1.0/d,multi->W[1],multi->W[0]);CHKERRQ(ierr);
+
+  /* Advance basepoint clock. The basepoint may or may not be the same as X */
+  ierr = TSSetRHSFunction(tsFine,NULL,rhsfuncfast,rhsctxfast);CHKERRQ(ierr);
+  ierr = TSSetTime(tsFine,t);CHKERRQ(ierr);
+  ierr = TSSetDuration(tsFine,-1,t + 2*window);CHKERRQ(ierr);
+  ierr = TSSolve(tsFine,multi->B);CHKERRQ(ierr); 
+
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SetUp_MultiFHMMHEUN"
+static PetscErrorCode SetUp_MultiFHMMHEUN(TS ts)
+{
+  PetscErrorCode ierr;
+  TS_Multi       *multi = (TS_Multi*)ts->data;
+  TS             tsCoarse = multi->tsCoarse,tsFine = multi->tsFine;
+  TSAdapt        adapt;
+
+  PetscFunctionBegin; 
+  /* We use a very naive (new) coarse TS without any timestep adaptivity. Hopefully exisiting TS's (TSSSP, TSRK) can be used in the future, but steps must be taken to ensure
+      that they respect the 'basepoint updating' required for this method (and higher order versions) */
+  ierr = TSSetType(tsCoarse,TSNAIVEHEUN);CHKERRQ(ierr);
+
+  ierr = TSSetType(tsFine,TSRK);CHKERRQ(ierr); /* to be made user-settable. In particular, exponential integrators could be very effective for oscillatory finescales */ 
+  ierr = TSSetType(tsFine,TSRK);CHKERRQ(ierr);
+  ierr = TSRKSetType(tsFine,TSRK5F);CHKERRQ(ierr); /*or TSRK3BS perhaps */
+  ierr = TSGetAdapt(tsFine,&adapt);CHKERRQ(ierr);
+  ierr = TSAdaptSetType(adapt,TSADAPTBASIC);CHKERRQ(ierr);
+
+  /* Use this TS's vec_sol for the coarse solver */
+  ierr = TSSetSolution(tsCoarse,ts->vec_sol);CHKERRQ(ierr);
+  
+  ierr = TSSetRHSFunction(tsCoarse,NULL,FormRHSFunction_FHMMHEUN,NULL);CHKERRQ(ierr);
+  
+  /*  Set tolerances for fine solver (temporary - todo is to get them from the main TS)*/
+  ierr = TSSetTolerances(tsFine,1e-8,NULL,1e-8,NULL);CHKERRQ(ierr);
+
+  ierr = TSSetTimeStep(tsCoarse,ts->time_step);CHKERRQ(ierr);
+
+  ierr = TSSetTimeStep(tsFine,multi->window/150.);CHKERRQ(ierr); 
+
+  /* Set the fine TS to solve at an exact final time */
+  ierr = TSSetExactFinalTime(tsFine,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr); 
+
+  ierr = TSSetDuration(tsFine,PETSC_MAX_INT,PETSC_DEFAULT);CHKERRQ(ierr); /* solve times are set before each TSSolve call */
+
+  /* Create work vectors */
+  multi->nwork = 2;
+  ierr = VecDuplicateVecs(ts->vec_sol,multi->nwork,&multi->W);CHKERRQ(ierr); /* Note that number of works vecs is hard coded here. Later, this will depend on the order of approximate required when computing F_HMM */
+
+  /* Set basepoint */
+  multi->B = ts->vec_sol; /* The assumption here is that this gets dealt with properly by the coarse integrator, which is the case for our hand-coded one but needs to be determined in general, as the 'moving base point' machinery here seems very fragile */
+
+  PetscFunctionReturn(0);
+}
 
 /* Methods for FHMMMFE */
 #undef __FUNCT__
@@ -107,7 +278,6 @@ static PetscErrorCode SetUp_MultiFHMMFE(TS ts)
   ierr = TSSetDuration(tsFine,PETSC_MAX_INT,PETSC_DEFAULT);CHKERRQ(ierr); /* no step limits */
   multi->nwork = 1;
   ierr = VecDuplicateVecs(ts->vec_sol,multi->nwork,&multi->W);CHKERRQ(ierr);
-
   PetscFunctionReturn(0);
 }
 
@@ -137,6 +307,8 @@ PetscErrorCode TSMultiInitializePackage(void)
     TSMultiPackageInitialized = PETSC_TRUE;
     ierr = PetscFunctionListAdd(&TSMultiList_precoarse,TSMULTIFHMMFE, Precoarse_MultiFHMMFE);CHKERRQ(ierr);
     ierr = PetscFunctionListAdd(&TSMultiList_setup,TSMULTIFHMMFE, SetUp_MultiFHMMFE);CHKERRQ(ierr);
+    ierr = PetscFunctionListAdd(&TSMultiList_precoarse,TSMULTIFHMMHEUN, Precoarse_MultiFHMMHEUN);CHKERRQ(ierr);
+    ierr = PetscFunctionListAdd(&TSMultiList_setup,TSMULTIFHMMHEUN, SetUp_MultiFHMMHEUN);CHKERRQ(ierr);
     ierr = PetscRegisterFinalize(TSMultiFinalizePackage);CHKERRQ(ierr);
     PetscFunctionReturn(0);
 }
@@ -317,7 +489,7 @@ static PetscErrorCode TSStep_Multi(TS ts)
       ierr = multi->ops.precoarse(ts);CHKERRQ(ierr);
     }
     /*  Take a step with the coarse solver. 
-        Various functions registered with tsCoarse (PreStep, PostStep, PreStagIFunctions, RHSFunctions) can also
+        Various functions registered with tsCoarse (PreStep, PostStep, PreStage, IFunctions, RHSFunctions) can also
          invoke tsFine. To do this, note that we put a pointer to this solver's ts->data in multi->tsCoarse->user */
     ierr = TSStep(multi->tsCoarse);CHKERRQ(ierr);
   
@@ -338,8 +510,15 @@ static PetscErrorCode TSSetUp_Multi(TS ts)
     
     PetscFunctionBegin;
 
-    /* pass in the TS_Multi* pointer as the coarse solver's user context */
+    /* pass in the TS_Multi* pointer as the sub-solvers' user contexts*/
     ierr = TSSetApplicationContext(multi->tsCoarse, multi);CHKERRQ(ierr);
+    ierr = TSSetApplicationContext(multi->tsFine,   multi);CHKERRQ(ierr);
+
+    /* todo - pass tolerances and other settings (since user may set them) */
+
+    if(!multi->window){
+    SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Must call TSMultiSetWindow before TSSetUp");  
+    }
 
     /* integrator-specific setup */
     ierr =  multi->ops.setup(ts); CHKERRQ(ierr);
