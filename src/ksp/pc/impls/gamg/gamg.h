@@ -10,7 +10,8 @@ struct _PCGAMGOps {
   PetscErrorCode (*coarsen)(PC, Mat*, PetscCoarsenData**);
   PetscErrorCode (*prolongator)(PC, const Mat, const Mat, PetscCoarsenData*, Mat*);
   PetscErrorCode (*optprol)(PC, const Mat, Mat*);
-  PetscErrorCode (*setuplevel)(PC,Mat,Mat,Mat); /* method-specific data projection (Bootstrap) */
+  PetscErrorCode (*setuplevel)(PC,Mat,Mat,Mat); /* method-specific data projection */
+  PetscErrorCode (*bootstrap)(PC,PetscInt,Mat*,Mat*);    /* pre-solve improvement stage */
   PetscErrorCode (*createdefaultdata)(PC, Mat); /* for data methods that have a default (SA) */
   PetscErrorCode (*setfromoptions)(PC);
   PetscErrorCode (*destroy)(PC);
