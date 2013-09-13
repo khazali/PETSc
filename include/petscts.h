@@ -39,6 +39,7 @@ typedef const char* TSType;
 #define TSARKIMEX         "arkimex"
 #define TSROSW            "rosw"
 #define TSEIMEX           "eimex"
+#define TSMULTI           "multi"
 /*E
     TSProblemType - Determines the type of problem this TS object is to be used to solve
 
@@ -173,7 +174,7 @@ PETSC_EXTERN const char *const TSExactFinalTimeOptions[];
 .seealso: TSRHSPartitionSlotType
 
 E*/
-typedef enum {TS_NO_PARTITION, TS_SYMP_PARTITION} TSRHSPartitionType;
+typedef enum {TS_NO_PARTITION, TS_SYMP_PARTITION, TS_MULTI_PARTITION} TSRHSPartitionType;
 
 /*E
 
@@ -186,7 +187,8 @@ typedef enum {TS_NO_PARTITION, TS_SYMP_PARTITION} TSRHSPartitionType;
 E*/
 typedef enum {
                 TS_DEFAULT_SLOT,
-                TS_SYMP_P_SLOT,TS_SYMP_Q_SLOT
+                TS_SYMP_P_SLOT,TS_SYMP_Q_SLOT,
+                TS_MULTI_FULL_SLOT, TS_MULTI_SLOW_SLOT, TS_MULTI_FAST_SLOT
             } TSRHSPartitionSlotType;
 
 /* Logging support */
@@ -597,6 +599,22 @@ PETSC_EXTERN PetscErrorCode TSRosWFinalizePackage(void);
 PETSC_EXTERN PetscErrorCode TSRosWInitializePackage(void);
 PETSC_EXTERN PetscErrorCode TSRosWRegisterDestroy(void);
 PETSC_EXTERN PetscErrorCode TSRosWRegisterAll(void);
+
+/*J
+    TSMultiType - String with the name of a multiscale method
+ 
+    Level: beginner
+ 
+J*/
+typedef const char* TSMultiType;
+#define TSMULTIFHMMFE   "fhmmfe"
+PETSC_EXTERN PetscErrorCode TSMultiGetType(TS,TSMultiType*);
+PETSC_EXTERN PetscErrorCode TSMultiSetType(TS,TSMultiType);
+PETSC_EXTERN PetscErrorCode TSMultiGetWindow(TS,PetscReal*);
+PETSC_EXTERN PetscErrorCode TSMultiSetWindow(TS,PetscReal);
+PETSC_EXTERN PetscErrorCode TSMultiFinalizePackage(void);
+PETSC_EXTERN PetscErrorCode TSMultiInitializePackage(void);
+
 
 /*
        PETSc interface to Sundials
