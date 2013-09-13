@@ -700,7 +700,7 @@ static PetscErrorCode TSLoad_RK(TS ts,PetscViewer viewer)
 
   Level: intermediate
 
-.seealso: TSRKGetType(), TSRK, TSRK2, TSRK3, TSRKPRSSP2, TSRK4, TSRK5
+.seealso: TSRKGetType(), TSRK, TSRK2, TSRK3, TSRK3BS, TSRKPRSSP2, TSRK4, TSRK5, TSRK5F
 @*/
 PetscErrorCode TSRKSetType(TS ts,TSRKType rktype)
 {

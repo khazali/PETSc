@@ -3,6 +3,7 @@
  */
 #include <petsc-private/tsimpl.h>                /*I   "petscts.h"   I*/
 
+/* Once there are more solvers, this can be changed to only include data being used by a given solver */
 typedef struct {
     char            *type_name;
     TS              ts, tsCoarse, tsFine;
@@ -11,9 +12,104 @@ typedef struct {
         PetscErrorCode (*precoarse)(TS ts);
         PetscErrorCode (*setup)(TS ts);
     } ops;
-    
-    void            *implData;
+   
+    PetscInt nwork; 
+    Vec *W; /* work vectors  */ 
 } TS_Multi;
+
+/* Methods for FHMMMFE */
+#undef __FUNCT__
+#define __FUNCT__ "Precoarse_MultiFHMMFE"
+static PetscErrorCode Precoarse_MultiFHMMFE(TS ts)
+{
+  PetscErrorCode ierr;
+  TS_Multi       *multi = (TS_Multi*)ts->data;
+  TS             tsFine = multi->tsFine, tsCoarse = multi->tsCoarse;
+  Vec            S = ts->vec_sol;
+  DM             dm;
+  void           *rhsctx;
+  TSRHSFunction  rhsfunc;
+
+  PetscFunctionBegin;
+
+  /* Store state in the work vector, to start the upcoming second fine solve*/
+  ierr = VecCopy(S,multi->W[0]);CHKERRQ(ierr);
+
+  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+  ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_FAST_SLOT,&rhsfunc,&rhsctx);CHKERRQ(ierr);
+  ierr = TSSetRHSFunction(tsFine,NULL,rhsfunc,rhsctx);CHKERRQ(ierr);
+  ierr = TSSetTime(tsFine,ts->ptime);CHKERRQ(ierr); 
+  ierr = TSSetDuration(tsFine,-1,ts->ptime + multi->window);CHKERRQ(ierr);
+  ierr = TSSolve(tsFine,S);CHKERRQ(ierr);
+
+  ierr = VecScale(S,1.-(tsCoarse->time_step/multi->window));
+
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "FormRHSFunction_FHMMFE"
+static PetscErrorCode FormRHSFunction_FHMMFE(TS tsCoarse, PetscReal t, Vec X, Vec F, void* ctx)
+{
+  PetscErrorCode ierr;  
+  TS_Multi       *multi;
+  DM             dm;
+  void           *rhsctx;
+  TSRHSFunction  rhsfunc;
+  TS             tsFine, ts;
+
+  PetscFunctionBegin;  
+
+  ierr = TSGetApplicationContext(tsCoarse,&multi);CHKERRQ(ierr);
+  tsFine = multi->tsFine;
+  ts = multi->ts;
+  
+  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+  ierr = DMTSGetRHSPartitionFunction(dm,TS_MULTI_PARTITION,TS_MULTI_FULL_SLOT,&rhsfunc,&rhsctx);CHKERRQ(ierr);
+  ierr = TSSetRHSFunction(tsFine,NULL,rhsfunc,rhsctx);CHKERRQ(ierr);
+  ierr = TSSetTime(tsFine,ts->ptime);CHKERRQ(ierr);
+  ierr = TSSetDuration(tsFine,-1,ts->ptime + multi->window);CHKERRQ(ierr);
+  ierr = TSSolve(tsFine,multi->W[0]);CHKERRQ(ierr);
+
+  /* Scale and copy to F*/
+ ierr = VecAXPBY(F,1./multi->window,0,multi->W[0]);CHKERRQ(ierr); 
+
+  PetscFunctionReturn(0);
+}
+#undef __FUNCT__
+#define __FUNCT__ "SetUp_MultiFHMMFE"
+static PetscErrorCode SetUp_MultiFHMMFE(TS ts)
+{
+  PetscErrorCode ierr;
+  TS_Multi       *multi = (TS_Multi*)ts->data;
+  TS             tsCoarse = multi->tsCoarse,tsFine = multi->tsFine;
+  TSAdapt        adapt;
+
+  PetscFunctionBegin;
+  ierr = TSSetType(tsCoarse,TSEULER);CHKERRQ(ierr);
+
+  /* Todo is to make this inner solver user-settable. Note that
+   the integrator must support adaptivity to allow our 'matchstep' setting below. TSSSP for example does not currently do this. Here, this is fairly innoccuous since it has the effect of lengthening the 'window' slightly, but it can be catastrophic for higher order solvers */
+  ierr = TSSetType(tsFine,TSRK);CHKERRQ(ierr);
+  ierr = TSRKSetType(tsFine,TSRK5F);CHKERRQ(ierr); /*or TSRK3BS perhaps */
+  ierr = TSGetAdapt(tsFine,&adapt);CHKERRQ(ierr);
+  ierr = TSAdaptSetType(adapt,TSADAPTBASIC);CHKERRQ(ierr);
+
+  /* Use this TS's work vec_sol for the coarse solver */
+  ierr = TSSetSolution(tsCoarse,ts->vec_sol);CHKERRQ(ierr);
+  ierr = TSSetRHSFunction(tsCoarse,NULL,FormRHSFunction_FHMMFE,NULL);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(tsCoarse,ts->time_step);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(tsFine,multi->window/150.);CHKERRQ(ierr); /* fine time step is set arbitrarily (it should be adaptive) */
+
+  /* Set the fine TS to solve at an exact final time */
+  ierr = TSSetExactFinalTime(tsFine,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr); 
+
+  ierr = TSSetDuration(tsFine,PETSC_MAX_INT,PETSC_DEFAULT);CHKERRQ(ierr); /* no step limits */
+  multi->nwork = 1;
+  ierr = VecDuplicateVecs(ts->vec_sol,multi->nwork,&multi->W);CHKERRQ(ierr);
+
+  PetscFunctionReturn(0);
+}
 
 PetscFunctionList TSMultiList_precoarse = 0;
 PetscFunctionList TSMultiList_setup = 0;
@@ -23,8 +119,8 @@ static PetscBool  TSMultiPackageInitialized;
 #undef __FUNCT__
 #define __FUNCT__ "TSMultiInitializePackage"
 /*@C
- TSMultiInitializePackage - This function initializes everything in the TSMulti package. It is called
- from PetscDLLibraryRegister() when using dynamic libraries, and on the first call to TSCreate_Multi()
+TSMultiInitializePackage - This function initializes everything in the TSMulti package. It is called
+from PetscDLLibraryRegister() when using dynamic libraries, and on the first call to TSCreate_Multi()
  when using static libraries.
  
  Level: developer
@@ -39,6 +135,8 @@ PetscErrorCode TSMultiInitializePackage(void)
     PetscFunctionBegin;
     if (TSMultiPackageInitialized) PetscFunctionReturn(0);
     TSMultiPackageInitialized = PETSC_TRUE;
+    ierr = PetscFunctionListAdd(&TSMultiList_precoarse,TSMULTIFHMMFE, Precoarse_MultiFHMMFE);CHKERRQ(ierr);
+    ierr = PetscFunctionListAdd(&TSMultiList_setup,TSMULTIFHMMFE, SetUp_MultiFHMMFE);CHKERRQ(ierr);
     ierr = PetscRegisterFinalize(TSMultiFinalizePackage);CHKERRQ(ierr);
     PetscFunctionReturn(0);
 }
@@ -277,6 +375,8 @@ static PetscErrorCode TSDestroy_Multi(TS ts)
     
     ierr = TSDestroy(&multi->tsCoarse);CHKERRQ(ierr);
     ierr = TSDestroy(&multi->tsFine);CHKERRQ(ierr);
+   
+    ierr = VecDestroyVecs(multi->nwork,&multi->W);CHKERRQ(ierr); 
 
     PetscFree(multi->type_name);
     ierr = PetscFree(ts->data);CHKERRQ(ierr);
