@@ -665,6 +665,11 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
 #endif
   } /* levels */
 
+  /* hierarchy improvement phase */
+  if (pc_gamg->ops->bootstrap) {
+    ierr = pc_gamg->ops->bootstrap(pc,level+1,Aarr,Parr);CHKERRQ(ierr);
+  }
+
   if (pc_gamg->data) {
     ierr          = PetscFree(pc_gamg->data);CHKERRQ(ierr);
     pc_gamg->data = NULL;
@@ -674,11 +679,6 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
   pc_gamg->Nlevels = level + 1;
   fine_level       = level;
   ierr             = PCMGSetLevels(pc,pc_gamg->Nlevels,NULL);CHKERRQ(ierr);
-
-  /* hierarchy improvement phase */
-  if (pc_gamg->ops->bootstrap) {
-    ierr = pc_gamg->ops->bootstrap(pc,pc_gamg->Nlevels,Aarr,Parr);CHKERRQ(ierr);
-  }
 
   /* simple setup */
   if (!PETSC_TRUE) {

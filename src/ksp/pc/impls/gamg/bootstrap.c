@@ -15,11 +15,6 @@ typedef struct {
   Vec       *v;      /* the subspace */
 } BootstrapTestSpace;
 
-/* the boostrap prolong info lives on the prolongator and maps the coarse indices to a fine unknown */
-typedef struct {
-  PetscInt *idxmap;
-} BootstrapProlongInfo;
-
 #undef __FUNCT__
 #define __FUNCT__ "PCGAMGBootstrapTestSpaceCreate"
 PetscErrorCode PCGAMGBootstrapTestSpaceCreate(BootstrapTestSpace **bsts,Mat G,PetscInt n)
@@ -89,82 +84,6 @@ PetscErrorCode PCGAMGBootstrapGetTestSpace_Private(Mat G,PetscInt *nv,Vec **v)
   if (v) *v = bsts->v;
   PetscFunctionReturn(0);
 }
-
-/* prolong info functions */
-#undef __FUNCT__
-#define __FUNCT__ "PCGAMGBootstrapProlongInfoCreate"
-PetscErrorCode PCGAMGBootstrapProlongInfoCreate(BootstrapProlongInfo **bspi,PetscInt *idxmap)
-{
-  BootstrapProlongInfo *pi;
-  PetscErrorCode       ierr;
-
-  PetscFunctionBegin;
-  ierr = PetscMalloc(sizeof(BootstrapTestSpace),&pi);CHKERRQ(ierr);
-  pi->idxmap=idxmap;
-  *bspi = pi;
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "PCGAMGBootstrapProlongInfoDestroy"
-PetscErrorCode PCGAMGBootstrapProlongInfoDestroy(BootstrapProlongInfo *bspi)
-{
-  PetscErrorCode     ierr;
-
-  PetscFunctionBegin;
-  ierr = PetscFree(bspi->idxmap);CHKERRQ(ierr);
-  ierr = PetscFree(bspi);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-
-#undef __FUNCT__
-#define __FUNCT__ "PCGAMGBootstrapProlongInfoInitialize_Private"
-PetscErrorCode PCGAMGBootstrapProlongInfoInitialize_Private(Mat P,PetscInt *idxmap) {
-  PetscErrorCode     ierr;
-  PetscContainer     c;
-  BootstrapProlongInfo *bspi;
-
-  PetscFunctionBegin;
-  ierr = PetscContainerCreate(PetscObjectComm((PetscObject)P),&c);CHKERRQ(ierr);
-  ierr = PCGAMGBootstrapProlongInfoCreate(&bspi,idxmap);CHKERRQ(ierr);
-  ierr = PetscContainerSetPointer(c,bspi);CHKERRQ(ierr);
-  ierr = PetscContainerSetUserDestroy(c,(PetscErrorCode (*)(void *))PCGAMGBootstrapProlongInfoDestroy);CHKERRQ(ierr);
-  ierr = PetscObjectCompose((PetscObject)P,"BootstrapProlongInfo",(PetscObject)c);CHKERRQ(ierr);
-  ierr = PetscContainerDestroy(&c);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "PCGAMGBootstrapProlongInfoCopy_Private"
-PetscErrorCode PCGAMGBootstrapProlongInfoCopy_Private(Mat P,Mat Pnew) {
-  PetscErrorCode     ierr;
-  PetscContainer     c;
-
-  PetscFunctionBegin;
-  ierr = PetscObjectQuery((PetscObject)P,"BootstrapProlongInfo",(PetscObject *)&c);CHKERRQ(ierr);
-  ierr = PetscObjectCompose((PetscObject)Pnew,"BootstrapProlongInfo",(PetscObject)c);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "PCGAMGBootstrapGetProlongInfo_Private"
-PetscErrorCode PCGAMGBootstrapGetProlongInfo_Private(Mat G,BootstrapProlongInfo **bspi)
-{
-  PetscErrorCode       ierr;
-  PetscContainer       c;
-  PetscFunctionBegin;
-  ierr = PetscObjectQuery((PetscObject)G,"BootstrapProlongInfo",(PetscObject *)&c);CHKERRQ(ierr);
-  if (!c) {
-    if (bspi)  *bspi = NULL;
-    PetscFunctionReturn(0);
-  }
-  if (bspi) {ierr = PetscContainerGetPointer(c,(void**)bspi);CHKERRQ(ierr);}
-  PetscFunctionReturn(0);
-}
-
-/* -- */
-
 
 #undef __FUNCT__
 #define __FUNCT__ "PCGAMGSetupLevel_Bootstrap"
@@ -345,10 +264,9 @@ PetscErrorCode PCGAMGOptprol_Bootstrap(PC pc,const Mat A,Mat *aP)
   PetscBLASInt      nls,mls,nrhs,lda,ldb,lwork,info,rank;
   PetscScalar       *work;
   PetscReal         *s,rcond;
-  PetscInt          *idxmap;
-  IS                is;
+  PetscInt          *cmap,*fmap;
+  IS                fis,cis;
   VecScatter        inj;
-  BootstrapProlongInfo *bspi;
 #if defined(PETSC_USE_COMPLEX)
   PetscReal         *rwork;
 #endif
@@ -359,16 +277,29 @@ PetscErrorCode PCGAMGOptprol_Bootstrap(PC pc,const Mat A,Mat *aP)
   ierr = PCGAMGBootstrapGraphSplitting_Private(P,&lP,&gP);CHKERRQ(ierr);
   ierr = MatDuplicate(P,MAT_SHARE_NONZERO_PATTERN,&Pnew);CHKERRQ(ierr);
 
-  /* build the scatter injection into the coarse space */
   ierr = MatGetVecs(P,&wc,&wf);CHKERRQ(ierr);
   ierr = VecGetLocalSize(wc,&cn);CHKERRQ(ierr);
+  ierr = VecGetLocalSize(wf,&rn);CHKERRQ(ierr);
   ierr = VecGetOwnershipRange(wc,&cs,&ce);CHKERRQ(ierr);
-  ierr = PCGAMGBootstrapGetProlongInfo_Private(P,&bspi);CHKERRQ(ierr);
-  idxmap=bspi->idxmap;
-  ierr = ISCreateGeneral(comm,cn,idxmap,PETSC_USE_POINTER,&is);CHKERRQ(ierr);
-  ierr = VecScatterCreate(wf,is,wc,NULL,&inj);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(A,&rs,&re);CHKERRQ(ierr);
-  rn = (re - rs);
+
+  /* build the scatter injection into the coarse space */
+  ierr = PetscMalloc(rn*sizeof(PetscInt),&cmap);CHKERRQ(ierr);
+  ierr = PetscMalloc(rn*sizeof(PetscInt),&fmap);CHKERRQ(ierr);
+  j=0;
+  for (i=rs;i<re;i++) {
+    ierr = MatGetRow(P,i,&ncols,&icols,NULL);CHKERRQ(ierr);
+    if (ncols == 1) {
+      fmap[j] = i;
+      cmap[j] = icols[0];
+      j++;
+    }
+    ierr = MatRestoreRow(P,i,&ncols,&icols,NULL);CHKERRQ(ierr);
+  }
+
+  ierr = ISCreateGeneral(comm,j,fmap,PETSC_OWN_POINTER,&fis);CHKERRQ(ierr);
+  ierr = ISCreateGeneral(comm,j,cmap,PETSC_OWN_POINTER,&cis);CHKERRQ(ierr);
+  ierr = VecScatterCreate(wf,fis,wc,cis,&inj);CHKERRQ(ierr);
   /* scatter to the ghost vector */
   ierr = PCGAMGBootstrapGetTestSpace_Private(A,NULL,&vs);
 
@@ -525,8 +456,6 @@ PetscErrorCode PCGAMGOptprol_Bootstrap(PC pc,const Mat A,Mat *aP)
   ierr = PetscFree(rwork);CHKERRQ(ierr);
 #endif
 
-  ierr = PCGAMGBootstrapProlongInfoCopy_Private(P,Pnew);CHKERRQ(ierr);
-
   ierr = MatAssemblyBegin(Pnew, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(Pnew, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
@@ -559,7 +488,8 @@ PetscErrorCode PCGAMGOptprol_Bootstrap(PC pc,const Mat A,Mat *aP)
   ierr = MatDestroy(&P);CHKERRQ(ierr);
   *aP = Pnew;
   ierr = VecScatterDestroy(&inj);CHKERRQ(ierr);
-  ierr = ISDestroy(&is);CHKERRQ(ierr);
+  ierr = ISDestroy(&fis);CHKERRQ(ierr);
+  ierr = ISDestroy(&cis);CHKERRQ(ierr);
   ierr = PetscFree(wts);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -613,9 +543,13 @@ PetscErrorCode PCGAMGBootstrap_Bootstrap(PC pc,PetscInt nlevels,Mat *A,Mat *P)
     for (i=0;i<nlevels;i++) {
       if (i != nlevels-1) {
         ierr = PCGAMGOptprol_Bootstrap(pc,A[i],&P[i+1]);CHKERRQ(ierr);
-        ierr = MatPtAP(A[i],P[i+1],MAT_REUSE_MATRIX,2.0,&A[i+1]);CHKERRQ(ierr);
+        ierr = MatDestroy(&A[i+1]);CHKERRQ(ierr);
+        ierr = MatPtAP(A[i],P[i+1],MAT_INITIAL_MATRIX,2.0,&A[i+1]);CHKERRQ(ierr);
         ierr = PCGAMGBootstrapGetTestSpace_Private(A[i],NULL,&vs);
         ierr = PCGAMGBootstrapGetTestSpace_Private(A[i+1],NULL,&cvs);
+        if (!cvs) {
+          ierr = PCGAMGBootstrapCreateTestSpace_Private(A[i+1],nv,&cvs);CHKERRQ(ierr);
+        }
         for (j=0;j<nv;j++) {
           ierr = MatRestrict(P[i+1],vs[j],cvs[j]);CHKERRQ(ierr);
         }
@@ -665,7 +599,6 @@ PetscErrorCode PCGAMGProlongator_Bootstrap(PC pc, const Mat A, const Mat G, Pets
   PetscInt          cmax=0,ncolstotal,idx;
   PetscScalar       *pvals;
   PetscInt          *pcols;
-  PetscInt          *idxmap;
   PetscInt          bs;
   PetscInt          a_n,a_m,g_n,g_m;
   Vec               *vs;
@@ -702,7 +635,6 @@ PetscErrorCode PCGAMGProlongator_Bootstrap(PC pc, const Mat A, const Mat G, Pets
    /* create the coarse vector */
   ierr = VecCreateMPI(comm,cn,PETSC_DECIDE,&C);CHKERRQ(ierr);
   ierr = VecGetOwnershipRange(C,&cs,&ce);CHKERRQ(ierr);
-  ierr = PetscMalloc(cn*sizeof(PetscInt),&idxmap);CHKERRQ(ierr);
 
   /* construct a global vector indicating the global indices of the coarse unknowns */
   cn = 0;
@@ -710,7 +642,6 @@ PetscErrorCode PCGAMGProlongator_Bootstrap(PC pc, const Mat A, const Mat G, Pets
     ierr = PetscCDEmptyAt(agg_lists,i/bs,&iscoarse); CHKERRQ(ierr);
     if (!iscoarse) {
       lcid[i] = cs+cn;
-      idxmap[cn] = fs+i;
       cn++;
     } else {
       lcid[i] = -1;
@@ -728,8 +659,8 @@ PetscErrorCode PCGAMGProlongator_Bootstrap(PC pc, const Mat A, const Mat G, Pets
   ierr = PCGAMGBootstrapGraphSplitting_Private(A,&lA,&gA);CHKERRQ(ierr);
 
   /* scatter to the ghost vector */
-  ierr = PCGAMGBootstrapCreateGhostVector_Private(G,&gF,NULL);CHKERRQ(ierr);
-  ierr = PCGAMGBootstrapGhost_Private(G,F,gF);CHKERRQ(ierr);
+  ierr = PCGAMGBootstrapCreateGhostVector_Private(A,&gF,NULL);CHKERRQ(ierr);
+  ierr = PCGAMGBootstrapGhost_Private(A,F,gF);CHKERRQ(ierr);
 
   if (gG) {
     ierr = VecGetSize(gF,&gn);CHKERRQ(ierr);
@@ -856,7 +787,6 @@ PetscErrorCode PCGAMGProlongator_Bootstrap(PC pc, const Mat A, const Mat G, Pets
   }
   ierr = MatAssemblyBegin(*P, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(*P, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = PCGAMGBootstrapProlongInfoInitialize_Private(*P,idxmap);CHKERRQ(ierr);
 
   /* set or reset the test space */
   ierr = PCGAMGBootstrapGetTestSpace_Private(A,&nv,&vs);
