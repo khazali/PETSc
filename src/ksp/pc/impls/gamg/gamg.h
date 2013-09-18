@@ -10,7 +10,6 @@ struct _PCGAMGOps {
   PetscErrorCode (*coarsen)(PC, Mat*, PetscCoarsenData**);
   PetscErrorCode (*prolongator)(PC, const Mat, const Mat, PetscCoarsenData*, Mat*);
   PetscErrorCode (*optprol)(PC, const Mat, Mat*);
-  PetscErrorCode (*setuplevel)(PC,Mat,Mat,Mat); /* method-specific data projection */
   PetscErrorCode (*bootstrap)(PC,PetscInt,Mat*,Mat*);    /* pre-solve improvement stage */
   PetscErrorCode (*createdefaultdata)(PC, Mat); /* for data methods that have a default (SA) */
   PetscErrorCode (*setfromoptions)(PC);
@@ -43,6 +42,10 @@ typedef struct gamg_TAG {
   struct _PCGAMGOps *ops;
   char *gamg_type_name;
 
+  PetscBool bootstrap;
+  PetscInt  bs_nv;
+  PetscInt  bs_sweeps;
+
   void *subctx;
 } PC_GAMG;
 
@@ -53,7 +56,6 @@ PetscErrorCode PCReset_MG(PC);
 PetscErrorCode  PCCreateGAMG_GEO(PC pc);
 PetscErrorCode  PCCreateGAMG_AGG(PC pc);
 PetscErrorCode  PCCreateGAMG_Classical(PC pc);
-PetscErrorCode  PCCreateGAMG_Bootstrap(PC pc);
 
 PetscErrorCode PCSetFromOptions_GAMG(PC pc);
 PetscErrorCode PCDestroy_GAMG(PC pc);

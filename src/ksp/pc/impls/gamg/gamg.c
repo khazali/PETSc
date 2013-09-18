@@ -630,11 +630,6 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
     ierr = createLevel(pc, Aarr[level], bs, (PetscBool)(level==pc_gamg->Nlevels-2),
                        &Parr[level1], &Aarr[level1], &nactivepe);CHKERRQ(ierr);
 
-  /* method-specific setup of the new level */
-    if (pc_gamg->ops->setuplevel) {
-      ierr = pc_gamg->ops->setuplevel(pc,Aarr[level],Parr[level1],Aarr[level1]);CHKERRQ(ierr);
-    }
-
 #if defined PETSC_GAMG_USE_LOG
     ierr = PetscLogEventEnd(petsc_gamg_setup_events[SET2],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -666,7 +661,7 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
   } /* levels */
 
   /* hierarchy improvement phase */
-  if (pc_gamg->ops->bootstrap) {
+  if (pc_gamg->ops->bootstrap && pc_gamg->bootstrap) {
     ierr = pc_gamg->ops->bootstrap(pc,level+1,Aarr,Parr);CHKERRQ(ierr);
   }
 
@@ -1350,7 +1345,27 @@ PetscErrorCode PCSetFromOptions_GAMG(PC pc)
                            pc_gamg->Nlevels,
                            &pc_gamg->Nlevels,
                            &flag);CHKERRQ(ierr);
-
+    /* -pc_gamg_bootstrap */
+    ierr = PetscOptionsBool("-pc_gamg_bootstrap",
+                            "Bootstrap post-setup phase",
+                            "",
+                            pc_gamg->bootstrap,
+                            &pc_gamg->bootstrap,
+                            NULL);CHKERRQ(ierr);
+    /* -pc_gamg_bootstrap_n */
+    ierr = PetscOptionsInt("-pc_gamg_bootstrap_n",
+                           "Number of bootstrap vectors",
+                           "",
+                           pc_gamg->bs_nv,
+                           &pc_gamg->bs_nv,
+                           NULL);CHKERRQ(ierr);
+    /* -pc_gamg_bootstrap_sweeps */
+    ierr = PetscOptionsInt("-pc_gamg_bootstrap_sweeps",
+                           "Bootstrap sweeps",
+                           "",
+                           pc_gamg->bs_sweeps,
+                           &pc_gamg->bs_sweeps,
+                           NULL);CHKERRQ(ierr);
     /* set options for subtype */
     if (pc_gamg->ops->setfromoptions) {ierr = (*pc_gamg->ops->setfromoptions)(pc);CHKERRQ(ierr);}
   }
@@ -1432,6 +1447,9 @@ PETSC_EXTERN PetscErrorCode PCCreate_GAMG(PC pc)
   pc_gamg->repart           = PETSC_FALSE;
   pc_gamg->reuse_prol       = PETSC_FALSE;
   pc_gamg->use_aggs_in_gasm = PETSC_FALSE;
+  pc_gamg->bootstrap        = PETSC_FALSE;
+  pc_gamg->bs_nv            = 0;
+  pc_gamg->bs_sweeps        = 1;
   pc_gamg->min_eq_proc      = 50;
   pc_gamg->coarse_eq_limit  = 800;
   pc_gamg->threshold        = 0.;
@@ -1506,7 +1524,6 @@ PetscErrorCode PCGAMGInitializePackage(void)
   ierr = PetscFunctionListAdd(&GAMGList,PCGAMGGEO,PCCreateGAMG_GEO);CHKERRQ(ierr);
   ierr = PetscFunctionListAdd(&GAMGList,PCGAMGAGG,PCCreateGAMG_AGG);CHKERRQ(ierr);
   ierr = PetscFunctionListAdd(&GAMGList,PCGAMGCLASSICAL,PCCreateGAMG_Classical);CHKERRQ(ierr);
-  ierr = PetscFunctionListAdd(&GAMGList,PCGAMGBOOTSTRAP,PCCreateGAMG_Bootstrap);CHKERRQ(ierr);
   ierr = PetscRegisterFinalize(PCGAMGFinalizePackage);CHKERRQ(ierr);
 
   /* general events */

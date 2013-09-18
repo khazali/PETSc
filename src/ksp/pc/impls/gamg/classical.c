@@ -1,10 +1,10 @@
 #include <../src/ksp/pc/impls/gamg/gamg.h>        /*I "petscpc.h" I*/
 #include <petsc-private/kspimpl.h>
+#include <petscblaslapack.h>
 
 typedef struct {
-  PetscReal dummy; /* empty struct; save for later */
+  PetscReal dummy;
 } PC_GAMG_Classical;
-
 
 #undef __FUNCT__
 #define __FUNCT__ "PCGAMGClassicalCreateGhostVector_Private"
@@ -546,7 +546,11 @@ PetscErrorCode PCGAMGDestroy_Classical(PC pc)
 #define __FUNCT__ "PCGAMGSetFromOptions_Classical"
 PetscErrorCode PCGAMGSetFromOptions_Classical(PC pc)
 {
+  PetscErrorCode    ierr;
+
   PetscFunctionBegin;
+  ierr = PetscOptionsHead("GAMG Classical options");CHKERRQ(ierr);
+  ierr = PetscOptionsTail();CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -566,6 +570,414 @@ PetscErrorCode PCGAMGSetData_Classical(PC pc, Mat A)
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "PCGAMGClassicalInjection"
+PetscErrorCode PCGAMGClassicalInjection(PC pc,Mat P,VecScatter *inj)
+{
+  PetscErrorCode    ierr;
+  PetscInt          ncols,i,j,fe,fs,fn;
+  const PetscInt    *icols;
+  const PetscScalar *vcols;
+  PetscInt          *fmap,*cmap;
+  IS                fis,cis;
+  Vec               wf,wc;
+  MPI_Comm          comm;
+
+  PetscFunctionBegin;
+  comm = PetscObjectComm((PetscObject)pc);
+  ierr = MatGetVecs(P,&wc,&wf);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRange(wf,&fs,&fe);CHKERRQ(ierr);
+  fn = fe-fs;
+  /* build the scatter injection into the coarse space */
+  ierr = PetscMalloc(fn*sizeof(PetscInt),&cmap);CHKERRQ(ierr);
+  ierr = PetscMalloc(fn*sizeof(PetscInt),&fmap);CHKERRQ(ierr);
+  j=0;
+  for (i=0;i<fn;i++) fmap[i]=-1;
+  for (i=0;i<fn;i++) cmap[i]=-1;
+  for (i=fs;i<fe;i++) {
+    ierr = MatGetRow(P,i,&ncols,&icols,&vcols);CHKERRQ(ierr);
+    if (ncols == 1) {
+      if (vcols[0] == 1.) {
+        fmap[j] = i;
+        cmap[j] = icols[0];
+        j++;
+      }
+    }
+    ierr = MatRestoreRow(P,i,&ncols,&icols,&vcols);CHKERRQ(ierr);
+  }
+
+  ierr = ISCreateGeneral(comm,j,fmap,PETSC_OWN_POINTER,&fis);CHKERRQ(ierr);
+  ierr = ISCreateGeneral(comm,j,cmap,PETSC_OWN_POINTER,&cis);CHKERRQ(ierr);
+  ierr = VecScatterCreate(wf,fis,wc,cis,inj);CHKERRQ(ierr);
+  ierr = ISDestroy(&fis);CHKERRQ(ierr);
+  ierr = ISDestroy(&cis);CHKERRQ(ierr);
+  ierr = VecDestroy(&wf);CHKERRQ(ierr);
+  ierr = VecDestroy(&wc);CHKERRQ(ierr);
+
+  PetscFunctionReturn(0);
+
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PCGAMGClassicalBootstrapProlongator"
+PetscErrorCode PCGAMGClassicalBootstrapProlongator(PC pc,const Mat A,Mat *aP,PetscInt nv,Vec *vs)
+{
+  PetscErrorCode    ierr;
+  Mat               P=*aP;
+  Mat               Pnew;
+  Mat               lP,gP;
+  PetscInt          rs,re,rn;                  /* fine (row) ownership range*/
+  PetscInt          i,j,k,l,iidx;              /* indices! */
+  Vec               cgv,*cvs,*cgvs;        /* vec of off-diagonal fine size */
+  const PetscScalar *vcols,*gvcols;
+  const PetscInt    *icols,*gicols;
+  PetscScalar       *wvcols;
+  PetscInt          *wicols;
+  PC_MG             *mg          = (PC_MG*)pc->data;
+  PC_GAMG           *pc_gamg     = (PC_GAMG*)mg->innerctx;
+  PetscInt          ncols,gncols,ncolstotal,ncolsloc;
+  PetscScalar       *a,*b;
+  PetscScalar       *wts;
+  Vec               wf,wc;                    /* fine and coarse work vectors */
+  PetscInt          cn,cs,ce;
+  PetscInt          *gidx;
+  PetscScalar       *vsarray,*cvsarray,*cgvsarray;
+  PetscScalar       denom;
+  PetscInt          sz,ncolsmax=0;
+  PetscBLASInt      nls,mls,nrhs,lda,ldb,lwork,info,rank;
+  PetscScalar       *work;
+  PetscReal         *s,rcond;
+  VecScatter        inj;
+#if defined(PETSC_USE_COMPLEX)
+  PetscReal         *rwork;
+#endif
+
+  PetscFunctionBegin;
+  /* split the prolongator into two */
+  ierr = PCGAMGClassicalGraphSplitting_Private(P,&lP,&gP);CHKERRQ(ierr);
+  ierr = MatDuplicate(P,MAT_SHARE_NONZERO_PATTERN,&Pnew);CHKERRQ(ierr);
+
+  ierr = MatGetVecs(P,&wc,&wf);CHKERRQ(ierr);
+  ierr = VecGetLocalSize(wc,&cn);CHKERRQ(ierr);
+  ierr = VecGetLocalSize(wf,&rn);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRange(wc,&cs,&ce);CHKERRQ(ierr);
+  ierr = MatGetOwnershipRange(A,&rs,&re);CHKERRQ(ierr);
+
+  ierr = PCGAMGClassicalInjection(pc,P,&inj);CHKERRQ(ierr);
+
+  ierr = PetscMalloc(sizeof(PetscScalar)*nv,&wts);CHKERRQ(ierr);
+  ierr = VecDuplicateVecs(wc,nv,&cvs);CHKERRQ(ierr);
+  if (gP) {
+    ierr = PCGAMGClassicalCreateGhostVector_Private(P,&cgv,&gidx);CHKERRQ(ierr);
+  }
+  if (gP) {
+    ierr = VecDuplicateVecs(cgv,nv,&cgvs);CHKERRQ(ierr);
+  }
+
+  /* find the biggest column and allocate */
+  for (i=rs;i<re;i++) {
+    ierr = MatGetRow(P,i,&ncols,NULL,NULL);CHKERRQ(ierr);
+    if (ncols > ncolsmax) ncolsmax=ncols;
+    ierr = MatRestoreRow(P,i,&ncols,NULL,NULL);CHKERRQ(ierr);
+  }
+  ierr = PetscMalloc6(ncolsmax*ncolsmax,PetscScalar,&a,
+                      ncolsmax,PetscScalar,&b,
+                      12*ncolsmax,PetscScalar,&work,
+                      ncolsmax,PetscScalar,&s,
+                      ncolsmax,PetscScalar,&wvcols,
+                      ncolsmax,PetscScalar,&wicols);CHKERRQ(ierr);
+#if defined(PETSC_USE_COMPLEX)
+  ierr = PetscMalloc(ncolsmax*sizeof(PetscScalar),&rwork);CHKERRQ(ierr);
+#endif
+
+  /* construct the weights by the interpolation Rayleigh quotient <Av,v>^-1<Pv,Pv> */
+  for (j=0;j<nv;j++) {
+    ierr = MatMult(A,vs[j],wf);CHKERRQ(ierr);
+    ierr = MatRestrict(P,vs[j],wc);CHKERRQ(ierr);
+    ierr = VecScatterBegin(inj,vs[j],cvs[j],INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr = VecScatterEnd(inj,vs[j],cvs[j],INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr = VecDotBegin(wf,vs[j],&wts[j]);CHKERRQ(ierr);
+    ierr = VecDotBegin(wc,wc,&denom);CHKERRQ(ierr);
+    ierr = VecDotEnd(wf,vs[j],&wts[j]);CHKERRQ(ierr);
+    ierr = VecDotEnd(wc,wc,&denom);CHKERRQ(ierr);
+    if (PetscRealPart(wts[j]) > 0.) {
+      wts[j] = denom / PetscRealPart(wts[j]);
+    } else { /* nullspace */
+      wts[j] = 1.;
+    }
+    ierr = VecGetSize(vs[j],&sz);CHKERRQ(ierr);
+    if (gP) {
+      ierr = PCGAMGClassicalGhost_Private(P,cvs[j],cgvs[j]);CHKERRQ(ierr);
+    }
+  }
+
+  /* sanity check -- see how good the initial projection is */
+  for (i=0;i<nv;i++) {
+    PetscReal vsnrm,dnrm;
+    ierr = MatMult(P,cvs[i],wf);CHKERRQ(ierr);
+    ierr = VecAXPY(wf,-1.,vs[i]);CHKERRQ(ierr);
+    /* have to zero singleton rows */
+    for (j=rs;j<re;j++) {
+      ierr = MatGetRow(P,j,&ncols,&icols,&vcols);CHKERRQ(ierr);
+      if (ncols == 0) {
+        ierr = VecSetValue(wf,j,0.,INSERT_VALUES);CHKERRQ(ierr);
+      }
+      ierr = MatRestoreRow(P,j,&ncols,&icols,&vcols);CHKERRQ(ierr);
+    }
+    ierr = VecNorm(vs[i],NORM_2,&vsnrm);CHKERRQ(ierr);
+    ierr = VecNorm(wf,NORM_2,&dnrm);CHKERRQ(ierr);
+    if (pc_gamg->verbose) {
+      ierr = PetscPrintf(PETSC_COMM_WORLD,"Vector %d; Norm: %f Rel. error: %f\n",i,vsnrm,dnrm/vsnrm);CHKERRQ(ierr);
+    }
+  }
+
+  for (i=0;i<rn;i++) {
+    iidx=i+rs;
+    /* set up the least squares minimization problem */
+    ierr = MatGetRow(lP,i,&ncols,&icols,&vcols);CHKERRQ(ierr);
+    ncolsloc = ncols;
+    ncolstotal = ncols;
+    ierr = MatRestoreRow(lP,i,&ncols,&icols,&vcols);CHKERRQ(ierr);
+    if (gP) {
+      ierr = MatGetRow(gP,i,&ncols,&icols,&vcols);CHKERRQ(ierr);
+      ncolstotal += ncols;
+      ierr = MatRestoreRow(gP,i,&ncols,&icols,&vcols);CHKERRQ(ierr);
+    }
+    if (ncolstotal > 1) {
+      for (j=0;j<ncolsmax;j++) {
+        b[j] = 0.;
+        for (k=0;k<ncolsmax;k++) {
+          a[k+ncolsmax*j] = 0.;
+        }
+      }
+      ierr = MatGetRow(lP,i,&ncols,&icols,&vcols);CHKERRQ(ierr);
+      if (gP) {
+        ierr = MatGetRow(gP,i,&gncols,&gicols,&gvcols);CHKERRQ(ierr);
+      }
+      for (l=0;l<nv;l++) {
+        ierr = VecGetArray(vs[l],&vsarray);CHKERRQ(ierr);
+        ierr = VecGetArray(cvs[l],&cvsarray);CHKERRQ(ierr);
+        if (gP) {
+          ierr = VecGetArray(cgvs[l],&cgvsarray);CHKERRQ(ierr);
+        }
+        /* addition for on-processor entries */
+        for (j=0;j<ncols;j++) {
+          b[j] += cvsarray[icols[j]]*vsarray[i];
+          for (k=0;k<ncols;k++) {
+            a[k+j*ncolstotal] += cvsarray[icols[j]]*cvsarray[icols[k]];
+          }
+          if (gP) {
+            for (k=0;k<gncols;k++) {
+              a[k+ncolsloc+j*ncolstotal] += cvsarray[icols[j]]*cgvsarray[gicols[k]]*wts[l];
+            }
+          }
+        }
+        /* addition for off-processor entries */
+        if (gP) {
+          for (j=0;j<gncols;j++) {
+            b[j+ncolsloc] += cgvsarray[gicols[j]]*wts[l]*vsarray[i];
+            for (k=0;k<ncols;k++) {
+              a[k+(j+ncolsloc)*ncolstotal] += cgvsarray[gicols[j]]*cvsarray[icols[k]]*wts[l];
+            }
+            for (k=0;k<gncols;k++) {
+              a[k+ncolsloc+(j+ncolsloc)*ncolstotal] += cgvsarray[gicols[j]]*cgvsarray[gicols[k]]*wts[l];
+            }
+          }
+        }
+        ierr = VecRestoreArray(vs[l],&vsarray);CHKERRQ(ierr);
+        ierr = VecRestoreArray(cvs[l],&cvsarray);CHKERRQ(ierr);
+        if (gP) {
+          ierr = VecRestoreArray(cgvs[l],&cgvsarray);CHKERRQ(ierr);
+        }
+      }
+      ierr = MatRestoreRow(lP,i,&ncols,&icols,&vcols);CHKERRQ(ierr);
+      if (gP) {
+        ierr = MatRestoreRow(gP,i,&gncols,&gicols,&gvcols);CHKERRQ(ierr);
+      }
+      nls=ncolstotal;mls=ncolstotal;nrhs=1;lda=ncolstotal;ldb=ncolstotal;lwork=12*ncolsmax;info=0;
+      /* solve the problem */
+#if defined(PETSC_MISSING_LAPACK_GELSS)
+      SETERRQ(PetscObjectComm((PetscObject)pc),PETSC_ERR_SUP,"LS solve in PCGAMGBootstrap requires the LAPACK GELSS routine.");
+#else
+      rcond         = -1.;
+      ierr          = PetscFPTrapPush(PETSC_FP_TRAP_OFF);CHKERRQ(ierr);
+#if defined(PETSC_USE_COMPLEX)
+      PetscStackCallBLAS("LAPACKgelss",LAPACKgelss_(&nls,&mls,&nrhs,a,&lda,b,&ldb,s,&rcond,&rank,work,&lwork,rwork,&info));
+#else
+      PetscStackCallBLAS("LAPACKgelss",LAPACKgelss_(&nls,&mls,&nrhs,a,&lda,b,&ldb,s,&rcond,&rank,work,&lwork,&info));
+#endif
+      ierr = PetscFPTrapPop();CHKERRQ(ierr);
+      if (info < 0) SETERRQ(PetscObjectComm((PetscObject)pc),PETSC_ERR_LIB,"Bad argument to GELSS");
+      if (info > 0) SETERRQ(PetscObjectComm((PetscObject)pc),PETSC_ERR_LIB,"SVD failed to converge");
+#endif
+      /* set the row to be the solution */
+      ierr = MatGetRow(lP,i,&ncols,&icols,&vcols);CHKERRQ(ierr);
+      for (j=0;j<ncols;j++) {
+        wvcols[j] = b[j];
+        wicols[j] = icols[j]+cs;
+      }
+      ierr = MatRestoreRow(lP,i,&ncols,&icols,&vcols);CHKERRQ(ierr);
+      if (gP) {
+        ierr = MatGetRow(gP,i,&gncols,&gicols,&gvcols);CHKERRQ(ierr);
+        for (j=0;j<gncols;j++) {
+          wvcols[j+ncolsloc] = b[j+ncolsloc];
+          wicols[j+ncolsloc] = gidx[gicols[j]];
+        }
+        ierr = MatRestoreRow(gP,i,&gncols,&gicols,&gvcols);CHKERRQ(ierr);
+      }
+      ierr = MatSetValues(Pnew,1,&iidx,ncolstotal,wicols,wvcols,INSERT_VALUES);CHKERRQ(ierr);
+    } else {
+      ierr = MatGetRow(P,iidx,&ncols,&icols,&vcols);CHKERRQ(ierr);
+      ierr = MatSetValues(Pnew,1,&iidx,ncols,icols,vcols,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = MatRestoreRow(P,iidx,&ncols,&icols,&vcols);CHKERRQ(ierr);
+    }
+  }
+  ierr = PetscFree6(a,b,work,s,wvcols,wicols);CHKERRQ(ierr);
+#if defined(PETSC_USE_COMPLEX)
+  ierr = PetscFree(rwork);CHKERRQ(ierr);
+#endif
+
+  ierr = MatAssemblyBegin(Pnew, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(Pnew, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+
+  /* sanity check -- see how good the projection is */
+  for (i=0;i<nv;i++) {
+    PetscReal vsnrm,dnrm;
+    ierr = MatMult(Pnew,cvs[i],wf);CHKERRQ(ierr);
+    ierr = VecAXPY(wf,-1.,vs[i]);CHKERRQ(ierr);
+    /* have to zero singleton rows */
+    for (j=rs;j<re;j++) {
+      ierr = MatGetRow(Pnew,j,&ncols,&icols,&vcols);CHKERRQ(ierr);
+      if (ncols == 0) {
+        ierr = VecSetValue(wf,j,0.,INSERT_VALUES);CHKERRQ(ierr);
+      }
+      ierr = MatRestoreRow(Pnew,j,&ncols,&icols,&vcols);CHKERRQ(ierr);
+    }
+    ierr = VecNorm(vs[i],NORM_2,&vsnrm);CHKERRQ(ierr);
+    ierr = VecNorm(wf,NORM_2,&dnrm);CHKERRQ(ierr);
+    if (pc_gamg->verbose) {
+      ierr = PetscPrintf(PETSC_COMM_WORLD,"Vector %d; Norm: %f Rel. error: %f\n",i,vsnrm,dnrm/vsnrm);CHKERRQ(ierr);
+    }
+  }
+
+  ierr = VecDestroy(&wf);CHKERRQ(ierr);
+  ierr = VecDestroy(&wc);CHKERRQ(ierr);
+  ierr = VecDestroyVecs(nv,&cvs);CHKERRQ(ierr);
+  if (gP) {
+    ierr = VecDestroy(&cgv);CHKERRQ(ierr);
+    ierr = VecDestroyVecs(nv,&cgvs);CHKERRQ(ierr);
+  }
+  ierr = MatDestroy(&P);CHKERRQ(ierr);
+  *aP = Pnew;
+  ierr = VecScatterDestroy(&inj);CHKERRQ(ierr);
+  ierr = PetscFree(wts);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PCGAMGBootstrap_Classical"
+PetscErrorCode PCGAMGBootstrap_Classical(PC pc,PetscInt nlevels,Mat *A,Mat *P)
+{
+  PC_MG             *mg       = (PC_MG*)pc->data;
+  PC_GAMG           *pc_gamg  = (PC_GAMG*)mg->innerctx;
+  KSP               bootksp;
+  PC                bootpc;
+  MPI_Comm          comm;
+  PetscErrorCode    ierr;
+  PetscInt          i,j,k,nv=pc_gamg->bs_nv;
+  KSP               smooth;
+  Vec               w,v;
+  const char        *prefix;
+  Vec               **vs;
+  PetscRandom       rand;
+  PetscInt          rs,re,ncols,ncolsmax;
+
+  PetscFunctionBegin;
+
+  /* set up the bootstrap test space at each level */
+
+  comm = PetscObjectComm((PetscObject)pc);
+  if (nv < 1) {
+    /* decide nv adaptively as 2 times the widest row */
+    ncolsmax=0;
+    ierr = MatGetOwnershipRange(A[0],&rs,&re);CHKERRQ(ierr);
+    for (i=rs;i<re;i++) {
+      ierr = MatGetRow(A[0],i,&ncols,NULL,NULL);CHKERRQ(ierr);
+      if (ncols > ncolsmax) ncolsmax=ncols;
+      ierr = MatRestoreRow(A[0],i,&ncols,NULL,NULL);CHKERRQ(ierr);
+    }
+    nv = 2*ncolsmax;
+  }
+
+  ierr = PetscMalloc(sizeof(Vec*)*nlevels,&vs);CHKERRQ(ierr);
+  for (i=0;i<nlevels;i++) {
+    ierr = MatGetVecs(A[i],NULL,&v);CHKERRQ(ierr);
+    ierr = VecDuplicateVecs(v,nv,&vs[i]);CHKERRQ(ierr);
+    ierr = VecDestroy(&v);CHKERRQ(ierr);
+  }
+
+  ierr = MatGetVecs(A[0],NULL,&w);CHKERRQ(ierr);
+  ierr = PCGetOptionsPrefix(pc,&prefix);CHKERRQ(ierr);
+  ierr = KSPCreate(comm,&bootksp);CHKERRQ(ierr);
+  ierr = KSPSetOptionsPrefix(bootksp,"boot_");CHKERRQ(ierr);
+  ierr = KSPAppendOptionsPrefix(bootksp,prefix);CHKERRQ(ierr);
+  ierr = KSPSetType(bootksp,KSPGMRES);CHKERRQ(ierr);
+  ierr = KSPSetInitialGuessNonzero(bootksp,PETSC_TRUE);CHKERRQ(ierr);
+  ierr = KSPSetTolerances(bootksp,bootksp->rtol,bootksp->abstol,bootksp->divtol,1);CHKERRQ(ierr);
+  ierr = KSPSetOperators(bootksp,pc->mat,pc->pmat,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  ierr = KSPGetPC(bootksp,&bootpc);CHKERRQ(ierr);
+  ierr = PCSetType(bootpc,PCMG);CHKERRQ(ierr);
+  ierr = PCMGSetLevels(bootpc,nlevels,NULL);CHKERRQ(ierr);
+  for (i=0;i<nlevels;i++) {
+    j = nlevels-i-1;
+    if (j) {ierr = PCMGSetInterpolation(bootpc,j,P[i+1]);CHKERRQ(ierr);}
+    ierr = PCMGGetSmoother(bootpc,j,&smooth);CHKERRQ(ierr);
+    ierr = KSPSetOperators(smooth,A[i],A[i],SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  }
+  ierr = KSPSetFromOptions(bootksp);CHKERRQ(ierr);
+  ierr = PetscRandomCreate(comm,&rand);CHKERRQ(ierr);
+  ierr = PetscRandomSetType(rand,PETSCRAND48);CHKERRQ(ierr);
+  ierr = VecSet(w,0.);CHKERRQ(ierr);
+  for(k=0;k<pc_gamg->bs_sweeps;k++) {
+    /* create random coarse vectors */
+    for (i=0;i<nv;i++) {
+      ierr = VecSetRandom(vs[nlevels-1][i],rand);CHKERRQ(ierr);
+    }
+    /* restrict to be fine vectors */
+    for (i=nlevels-1;i>0;i--) {
+      for(j=0;j<nv;j++) {
+        ierr = MatInterpolate(P[i],vs[i][j],vs[i-1][j]);CHKERRQ(ierr);
+      }
+    }
+
+    /* smooth the space */
+    for (i=0;i<nv;i++) {
+      ierr = KSPSolve(bootksp,w,vs[0][i]);CHKERRQ(ierr);
+    }
+
+    /* optimize the prolongators,then project the spaces up */
+    for (i=0;i<nlevels;i++) {
+      if (i != nlevels-1) {
+        ierr = PCGAMGClassicalBootstrapProlongator(pc,A[i],&P[i+1],nv,vs[i]);CHKERRQ(ierr);
+        ierr = MatDestroy(&A[i+1]);CHKERRQ(ierr);
+        ierr = MatPtAP(A[i],P[i+1],MAT_INITIAL_MATRIX,2.0,&A[i+1]);CHKERRQ(ierr);
+        for (j=0;j<nv;j++) {
+          ierr = MatRestrict(P[i+1],vs[i][j],vs[i+1][j]);CHKERRQ(ierr);
+        }
+      }
+    }
+  }
+  for (i=0;i<nlevels;i++) {
+    ierr = VecDestroyVecs(nv,&vs[i]);CHKERRQ(ierr);
+  }
+  ierr = PetscFree(vs);CHKERRQ(ierr);
+  ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
+  ierr = KSPDestroy(&bootksp);CHKERRQ(ierr);
+  ierr = VecDestroy(&w);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+
+}
+
 /* -------------------------------------------------------------------------- */
 /*
    PCCreateGAMG_Classical
@@ -578,7 +990,7 @@ PetscErrorCode  PCCreateGAMG_Classical(PC pc)
   PetscErrorCode ierr;
   PC_MG             *mg      = (PC_MG*)pc->data;
   PC_GAMG           *pc_gamg = (PC_GAMG*)mg->innerctx;
-  PC_GAMG_Classical *pc_gamg_classical;
+  PC_GAMG_Classical *cls;
 
   PetscFunctionBegin;
   if (pc_gamg->subctx) {
@@ -587,17 +999,17 @@ PetscErrorCode  PCCreateGAMG_Classical(PC pc)
   }
 
   /* create sub context for SA */
-  ierr = PetscNewLog(pc, PC_GAMG_Classical, &pc_gamg_classical);CHKERRQ(ierr);
-  pc_gamg->subctx = pc_gamg_classical;
-  pc->ops->setfromoptions = PCGAMGSetFromOptions_Classical;
-  /* reset does not do anything; setup not virtual */
+  ierr = PetscNewLog(pc, PC_GAMG_Classical, &cls);CHKERRQ(ierr);
+  pc_gamg->subctx = cls;
 
   /* set internal function pointers */
+  pc_gamg->ops->setfromoptions = PCGAMGSetFromOptions_Classical;
   pc_gamg->ops->destroy     = PCGAMGDestroy_Classical;
   pc_gamg->ops->graph       = PCGAMGGraph_Classical;
   pc_gamg->ops->coarsen     = PCGAMGCoarsen_Classical;
   pc_gamg->ops->prolongator = PCGAMGProlongator_Classical;
   pc_gamg->ops->optprol     = NULL;
+  pc_gamg->ops->bootstrap   = PCGAMGBootstrap_Classical;
 
   pc_gamg->ops->createdefaultdata = PCGAMGSetData_Classical;
   PetscFunctionReturn(0);
