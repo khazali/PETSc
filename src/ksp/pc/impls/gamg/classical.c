@@ -711,21 +711,21 @@ PetscErrorCode PCGAMGClassicalBootstrapProlongator(PC pc,const Mat A,Mat *aP,Pet
   }
 
   /* sanity check -- see how good the initial projection is */
-  for (i=0;i<nv;i++) {
-    PetscReal vsnrm,dnrm;
-    ierr = MatMult(P,cvs[i],wf);CHKERRQ(ierr);
-    ierr = VecAXPY(wf,-1.,vs[i]);CHKERRQ(ierr);
-    /* have to zero singleton rows */
-    for (j=rs;j<re;j++) {
-      ierr = MatGetRow(P,j,&ncols,&icols,&vcols);CHKERRQ(ierr);
-      if (ncols == 0) {
-        ierr = VecSetValue(wf,j,0.,INSERT_VALUES);CHKERRQ(ierr);
+  if (pc_gamg->verbose) {
+    for (i=0;i<nv;i++) {
+      PetscReal vsnrm,dnrm;
+      ierr = MatMult(P,cvs[i],wf);CHKERRQ(ierr);
+      ierr = VecAXPY(wf,-1.,vs[i]);CHKERRQ(ierr);
+      /* have to zero singleton rows */
+      for (j=rs;j<re;j++) {
+        ierr = MatGetRow(P,j,&ncols,&icols,&vcols);CHKERRQ(ierr);
+        if (ncols == 0) {
+          ierr = VecSetValue(wf,j,0.,INSERT_VALUES);CHKERRQ(ierr);
+        }
+        ierr = MatRestoreRow(P,j,&ncols,&icols,&vcols);CHKERRQ(ierr);
       }
-      ierr = MatRestoreRow(P,j,&ncols,&icols,&vcols);CHKERRQ(ierr);
-    }
-    ierr = VecNorm(vs[i],NORM_2,&vsnrm);CHKERRQ(ierr);
-    ierr = VecNorm(wf,NORM_2,&dnrm);CHKERRQ(ierr);
-    if (pc_gamg->verbose) {
+      ierr = VecNorm(vs[i],NORM_2,&vsnrm);CHKERRQ(ierr);
+      ierr = VecNorm(wf,NORM_2,&dnrm);CHKERRQ(ierr);
       ierr = PetscPrintf(PETSC_COMM_WORLD,"Vector %d; Norm: %f Rel. error: %f\n",i,vsnrm,dnrm/vsnrm);CHKERRQ(ierr);
     }
   }
@@ -767,7 +767,7 @@ PetscErrorCode PCGAMGClassicalBootstrapProlongator(PC pc,const Mat A,Mat *aP,Pet
           }
           if (gP) {
             for (k=0;k<gncols;k++) {
-              a[k+ncolsloc+j*ncolstotal] += wts[l]*cvsarray[icols[j]]*cgvsarray[gicols[k]]*wts[l];
+              a[k+ncolsloc+j*ncolstotal] += wts[l]*cvsarray[icols[j]]*cgvsarray[gicols[k]];
             }
           }
         }
@@ -840,27 +840,24 @@ PetscErrorCode PCGAMGClassicalBootstrapProlongator(PC pc,const Mat A,Mat *aP,Pet
   ierr = MatAssemblyEnd(Pnew, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
   /* sanity check -- see how good the projection is */
-  for (i=0;i<nv;i++) {
-    PetscReal vsnrm,dnrm;
-    ierr = MatMult(Pnew,cvs[i],wf);CHKERRQ(ierr);
-    ierr = VecAXPY(wf,-1.,vs[i]);CHKERRQ(ierr);
-    /* have to zero singleton rows */
-    for (j=rs;j<re;j++) {
-      ierr = MatGetRow(Pnew,j,&ncols,&icols,&vcols);CHKERRQ(ierr);
-      if (ncols == 0) {
-        ierr = VecSetValue(wf,j,0.,INSERT_VALUES);CHKERRQ(ierr);
+  if (pc_gamg->verbose) {
+    for (i=0;i<nv;i++) {
+      PetscReal vsnrm,dnrm;
+      ierr = MatMult(Pnew,cvs[i],wf);CHKERRQ(ierr);
+      ierr = VecAXPY(wf,-1.,vs[i]);CHKERRQ(ierr);
+      /* have to zero singleton rows */
+      for (j=rs;j<re;j++) {
+        ierr = MatGetRow(Pnew,j,&ncols,&icols,&vcols);CHKERRQ(ierr);
+        if (ncols == 0) {
+          ierr = VecSetValue(wf,j,0.,INSERT_VALUES);CHKERRQ(ierr);
+        }
+        ierr = MatRestoreRow(Pnew,j,&ncols,&icols,&vcols);CHKERRQ(ierr);
       }
-      ierr = MatRestoreRow(Pnew,j,&ncols,&icols,&vcols);CHKERRQ(ierr);
-    }
-    ierr = VecNorm(vs[i],NORM_2,&vsnrm);CHKERRQ(ierr);
-    ierr = VecNorm(wf,NORM_2,&dnrm);CHKERRQ(ierr);
-    if (pc_gamg->verbose) {
+      ierr = VecNorm(vs[i],NORM_2,&vsnrm);CHKERRQ(ierr);
+      ierr = VecNorm(wf,NORM_2,&dnrm);CHKERRQ(ierr);
       ierr = PetscPrintf(PETSC_COMM_WORLD,"Vector %d; Norm: %f Rel. error: %f\n",i,vsnrm,dnrm/vsnrm);CHKERRQ(ierr);
     }
   }
-
-  ierr = MatView(Pnew,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-
   ierr = VecDestroy(&wf);CHKERRQ(ierr);
   ierr = VecDestroy(&wc);CHKERRQ(ierr);
   ierr = VecDestroyVecs(nv,&cvs);CHKERRQ(ierr);
@@ -984,6 +981,7 @@ PetscErrorCode  PCCreateGAMG_Classical(PC pc)
   /* create sub context for SA */
   ierr = PetscNewLog(pc, PC_GAMG_Classical, &cls);CHKERRQ(ierr);
   pc_gamg->subctx = cls;
+  pc_gamg->threshold = 0.05;
 
   /* set internal function pointers */
   pc_gamg->ops->setfromoptions = PCGAMGSetFromOptions_Classical;
