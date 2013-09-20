@@ -6,7 +6,8 @@ FPPFLAGS        =
 LOCDIR          = src/ts/examples/tutorials/
 EXAMPLESC       = ex1.c ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c \
                 ex9.c ex10.c ex12.c ex13.c ex14.c ex15.c ex16.c ex17.c \
-                ex19.c ex20.c ex21.c ex22.c ex23.c ex24.c ex25.c ex26.c ex28.c ex30.cxx
+                ex19.c ex20.c ex21.c ex22.c ex23.c ex24.c ex25.c ex26.c ex28.c ex30.cxx \
+                ex35.c
 EXAMPLESF       = ex1f.F ex2f.F ex22f.F # ex22f_mf.F90
 EXAMPLESFH      = ex2f.h
 MANSEC          = TS
@@ -423,6 +424,11 @@ runex35:
     ${DIFF} output/ex35.out ex35.tmp || printf "${PWD}\nPossible problem with ex35, diffs above \n========================================\n"; \
     ${RM} -f ex35.tmp
 
+runex35_2:
+	-@${MPIEXEC} -n 1 ./ex35 -ts_monitor_lg_solution -ts_multi_type fhmmheun -ts_dt 0.25 -ts_final_time 7 > ex35_2.tmp 2>&1;     \
+    ${DIFF} output/ex35_2.out ex35_2.tmp || printf "${PWD}\nPossible problem with ex35_2, diffs above \n========================================\n"; \
+    ${RM} -f ex35_2.tmp
+
 TESTEXAMPLES_C		  = ex1.PETSc runex1 runex1_2 ex1.rm ex2.PETSc runex2 ex2.rm ex3.PETSc runex3 runex3_2 ex3.rm \
                             ex4.PETSc runex4 runex4_2 runex4_3 runex4_4 ex4.rm ex5.PETSc ex5.rm \
                             ex6.PETSc runex6 ex6.rm ex7.PETSc runex7 runex7_2 runex7_3 ex7.rm \
@@ -431,7 +437,7 @@ TESTEXAMPLES_C		  = ex1.PETSc runex1 runex1_2 ex1.rm ex2.PETSc runex2 ex2.rm ex3
                             ex12.PETSc ex12.rm ex13.PETSc runex13 runex13_2 runex13_3 ex13.rm\
                             ex15.PETSc runex15 runex15_2 runex15_3 runex15_4 runex15_5 ex15.rm \
                             ex17.PETSc runex17 runex17_2 ex17.rm ex22.PETSc ex22.rm \
-                            ex35.PETSc runex35 ex35.rm
+                            ex35.PETSc runex35 runex35_2 ex35.rm
 TESTEXAMPLES_C_NOCOMPLEX  = ex9.PETSc runex9 runex9_2 runex9_3 ex9.rm
 TESTEXAMPLES_C_X	  =
 TESTEXAMPLES_FORTRAN	  = ex1f.PETSc runex1f ex1f.rm ex2f.PETSc runex2f ex2f.rm ex22f.PETSc ex22f.rm # ex22f_mf.PETSc ex22f_mf.rm

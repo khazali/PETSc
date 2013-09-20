@@ -1,0 +1,7 @@
+epsilon 0.0001, steps 28, ftime 7
+Vec Object: 1 MPI processes
+  type: seq
+0.287861
+-0.956871
+0.846477
+-0.544915
