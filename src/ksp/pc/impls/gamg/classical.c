@@ -888,6 +888,10 @@ PetscErrorCode PCGAMGBootstrap_Classical(PC pc,PetscInt nlevels,Mat *A,Mat *P)
   Vec               **vs;
   PetscRandom       rand;
   PetscInt          rs,re,ncols,ncolsmax;
+  MatNullSpace      nullspace,nearspace;
+  PetscInt          nnull,nnear,nconstant;
+  PetscBool         constant;
+  const Vec         *vnull,*vnear;
 
   PetscFunctionBegin;
 
@@ -906,6 +910,22 @@ PetscErrorCode PCGAMGBootstrap_Classical(PC pc,PetscInt nlevels,Mat *A,Mat *P)
     nv = 2*ncolsmax;
   }
 
+  ierr = MatGetNullSpace(A[0],&nullspace);CHKERRQ(ierr);
+  ierr = MatGetNearNullSpace(A[0],&nearspace);CHKERRQ(ierr);
+  nnull=0;
+  nnear=0;
+  nconstant=1;
+  if (nullspace) {
+    ierr = MatNullSpaceGetVecs(nullspace,&constant,&nnull,&vnull);CHKERRQ(ierr);
+  }
+  if (nearspace) {
+    ierr = MatNullSpaceGetVecs(nearspace,NULL,&nnear,&vnear);CHKERRQ(ierr);
+  }
+  if (constant) {
+    nconstant=1;
+  }
+  if (nnull+nnear+nconstant > nv) nv = nnull+nnear+nconstant;
+
   ierr = PetscMalloc(sizeof(Vec*)*nlevels,&vs);CHKERRQ(ierr);
   for (i=0;i<nlevels;i++) {
     ierr = MatGetVecs(A[i],NULL,&v);CHKERRQ(ierr);
@@ -915,7 +935,16 @@ PetscErrorCode PCGAMGBootstrap_Classical(PC pc,PetscInt nlevels,Mat *A,Mat *P)
 
   ierr = PetscRandomCreate(comm,&rand);CHKERRQ(ierr);
   ierr = PetscRandomSetType(rand,PETSCRAND48);CHKERRQ(ierr);
-  for (i=0;i<nv;i++) {
+  for (i=0;i<nnull;i++) {
+    ierr = VecCopy(vnull[i],vs[0][i]);CHKERRQ(ierr);
+  }
+  for(i=nnull;i<nnull+nnear;i++) {
+    ierr = VecCopy(vnear[i+nnull],vs[0][i]);CHKERRQ(ierr);
+  }
+  for (i=nnull+nnear;i<nnull+nnear+nconstant;i++) {
+    ierr = VecSet(vs[0][i],1.);CHKERRQ(ierr);
+  }
+  for (i=nnull+nnear+nconstant;i<nv;i++) {
     ierr = VecSetRandom(vs[0][i],rand);CHKERRQ(ierr);
   }
   for(k=0;k<pc_gamg->bs_sweeps;k++) {
@@ -935,7 +964,7 @@ PetscErrorCode PCGAMGBootstrap_Classical(PC pc,PetscInt nlevels,Mat *A,Mat *P)
         ierr = KSPSetFromOptions(bootksp);CHKERRQ(ierr);
         ierr = VecSet(w,0.);CHKERRQ(ierr);
         for (j=0;j<nv;j++) {
-          ierr = KSPSolve(bootksp,w,vs[i][j]);CHKERRQ(ierr);
+          if (j >= nnull+nnear+nconstant || i != 0) {ierr = KSPSolve(bootksp,w,vs[i][j]);CHKERRQ(ierr);}
         }
         ierr = VecDestroy(&w);CHKERRQ(ierr);
         ierr = KSPDestroy(&bootksp);CHKERRQ(ierr);
