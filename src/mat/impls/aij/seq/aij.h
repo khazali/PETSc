@@ -113,6 +113,7 @@ PETSC_INTERN PetscErrorCode MatDuplicate_SeqAIJ_Inode(Mat,MatDuplicateOption,Mat
 PETSC_INTERN PetscErrorCode MatDuplicateNoCreate_SeqAIJ(Mat,Mat,MatDuplicateOption,PetscBool);
 PETSC_INTERN PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode_inplace(Mat,Mat,const MatFactorInfo*);
 PETSC_INTERN PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat,Mat,const MatFactorInfo*);
+PETSC_INTERN PetscErrorCode MatResidual_SeqAIJ(Mat mat,Vec bb,Vec xx,Vec rr);
 
 typedef struct {
   SEQAIJHEADER(MatScalar);
@@ -133,6 +134,9 @@ typedef struct {
   Mat_RARt          *rart;               /* used by MatRARt() */
   Mat_MatMatTransMult *abt;              /* used by MatMatTransposeMult() */
   Mat_Redundant       *redundant;        /* used by MatGetRedundantMatrix() */
+  PetscInt               vecx_id; /* like pointer to a vec that we last saw - residual */
+  PetscInt               vecx_state; /* state of vec - residual */
+  PetscInt               state; /* current state of cache - residual */
 } Mat_SeqAIJ;
 
 /*

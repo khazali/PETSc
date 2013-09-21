@@ -1585,6 +1585,123 @@ PetscErrorCode  MatInvertDiagonal_SeqAIJ(Mat A,PetscScalar omega,PetscScalar fsh
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "MatResidual_SeqAIJ"
+/*@C
+   MatResidual_SeqAIJ - Default routine to calculate the residual.
+
+   Collective on Mat and Vec
+
+   Input Parameters:
++  mat - the matrix
+.  b   - the right-hand-side
+-  x   - the approximate solution
+
+   Output Parameter:
+.  r - location to store the residual
+
+   Level: developer
+
+.keywords: MG, default, multigrid, residual
+
+.seealso: PCMGSetResidual()
+@*/
+PetscErrorCode MatResidual_SeqAIJ(Mat mat,Vec bb,Vec xx,Vec rr)
+{
+  PetscErrorCode ierr;
+  PetscInt matst,vecst,vecid;
+  Mat_SeqAIJ *a = (Mat_SeqAIJ*)mat->data;
+
+  PetscFunctionBegin;
+  ierr = PetscObjectStateQuery((PetscObject)mat, &matst);CHKERRQ(ierr);
+  ierr = PetscObjectStateQuery((PetscObject)xx, &vecst);CHKERRQ(ierr);
+  ierr = PetscObjectGetId((PetscObject)xx,&vecid);CHKERRQ(ierr);
+
+  if (a->vecx_state != vecst || a->vecx_id != vecid || a->state != matst) {
+    ierr = MatMult(mat,xx,rr);CHKERRQ(ierr);
+    ierr = VecAYPX(rr,-1.0,bb);CHKERRQ(ierr);
+  }
+  else {
+PetscPrintf(PetscObjectComm((PetscObject)mat),"MatResidual: doing SOR residual n=%d, vecst=%d\n",mat->rmap->n,vecst);
+    PetscPrintf(PetscObjectComm((PetscObject)mat),"*");
+    if (PETSC_TRUE) {
+      ierr = MatMult(mat,xx,rr);CHKERRQ(ierr);
+      ierr = VecAYPX(rr,-1.0,bb);CHKERRQ(ierr);
+    } else {
+      Mat_SeqAIJ        *a = (Mat_SeqAIJ*)mat->data;
+      PetscScalar       *r;
+      const PetscScalar *x;
+      const PetscScalar *b;
+      const MatScalar   *aa;
+      PetscErrorCode    ierr;
+      PetscInt          m=mat->rmap->n;
+      const PetscInt    *aj,*ii;
+      PetscInt          n,i,nonzerorow=0,*diag;
+      PetscScalar       sum,*nux;
+      PetscBool         usecprow=a->compressedrow.use;
+
+#if defined(PETSC_HAVE_PRAGMA_DISJOINT)
+#pragma disjoint(*x,*y,*aa,*r)
+#endif
+      PetscFunctionBegin;
+      ierr = VecGetArrayRead(xx,&x);CHKERRQ(ierr);
+      ierr = VecGetArray(rr,&r);CHKERRQ(ierr);
+      ierr = VecGetArrayRead(bb,&b);CHKERRQ(ierr);
+      nux   = a->ssor_work;
+      diag = a->diag;
+      aj   = a->j;
+      aa   = a->a;
+      ii   = a->i;
+      if (usecprow) { /* use compressed row format */
+        /* const PetscInt ridx=NULL; */
+        SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Compressed row not implemented for SOR residual");
+        /* m    = a->compressedrow.nrows; */
+        /* ii   = a->compressedrow.i; */
+        /* for (i=0,ridx=a->compressedrow.rindex; i<m; i++,ridx++) { */
+        /*   /\* n           = ii[i+1] - ii[i]; *\/ */
+        /*   n   = diag[i] - ii[i] + 1; /\* lower + diag *\/ */
+        /*   aj          = a->j + ii[i]; */
+        /*   aa          = a->a + ii[i]; */
+        /*   sum         = nux[*ridx]; */
+        /*   nonzerorow += (n>0); */
+        /*   PetscSparseDenseMinusDot(sum,x,aa,aj,n); */
+        /*   r[*ridx] = b[*ridx] + sum; */
+        /* } */
+      } else { /* do not use compressed row format */
+#if defined(PETSC_USE_FORTRAN_KERNEL_MULTAIJ)
+        fortranmultaij_(&m,x,ii,aj,aa,y);
+#error
+#else
+#if defined(PETSC_THREADCOMM_ACTIVE)
+        ierr = PetscThreadCommRunKernel(PetscObjectComm((PetscObject)A),(PetscThreadKernel)MatMult_SeqAIJ_Kernel,3,A,xx,yy);CHKERRQ(ierr);
+#error
+#else
+        for (i=0; i<m; i++) {
+          /* n           = ii[i+1] - ii[i]; */
+          n   = diag[i] - ii[i] + 1; /* lower + diag */
+          aj          = a->j + ii[i];
+          aa          = a->a + ii[i];
+          sum         = nux[i];
+          nonzerorow += (n>0);
+          PetscSparseDenseMinusDot(sum,x,aa,aj,n);
+          r[i] = b[i] + sum;
+        }
+#endif
+#endif
+      }
+      ierr = PetscLogFlops(2.0*a->nz - nonzerorow);CHKERRQ(ierr);
+      ierr = VecRestoreArrayRead(xx,&x);CHKERRQ(ierr);
+      ierr = VecRestoreArray(rr,&r);CHKERRQ(ierr);
+      ierr = VecRestoreArrayRead(bb,&b);CHKERRQ(ierr);
+
+      a->vecx_state = vecst;
+      a->vecx_id = vecid;
+      a->state = matst;
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
 #include <../src/mat/impls/aij/seq/ftn-kernels/frelax.h>
 #undef __FUNCT__
 #define __FUNCT__ "MatSOR_SeqAIJ"
@@ -3550,6 +3667,7 @@ PetscErrorCode  MatCreateSeqAIJ(MPI_Comm comm,PetscInt m,PetscInt n,PetscInt nz,
   ierr = MatSetSizes(*A,m,n,m,n);CHKERRQ(ierr);
   ierr = MatSetType(*A,MATSEQAIJ);CHKERRQ(ierr);
   ierr = MatSeqAIJSetPreallocation_SeqAIJ(*A,nz,nnz);CHKERRQ(ierr);
+  (*A)->ops->residual = MatResidual_SeqAIJ;
   PetscFunctionReturn(0);
 }
 
