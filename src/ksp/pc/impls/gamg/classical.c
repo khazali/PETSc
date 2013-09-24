@@ -230,6 +230,7 @@ PetscErrorCode PCGAMGClassicalGhost_Private(Mat G,Vec v,Vec gv)
   PetscFunctionReturn(0);
 }
 
+
 #undef __FUNCT__
 #define __FUNCT__ "PCGAMGProlongator_Classical"
 PetscErrorCode PCGAMGProlongator_Classical(PC pc, const Mat A, const Mat G, PetscCoarsenData *agg_lists,Mat *P)
@@ -335,7 +336,6 @@ PetscErrorCode PCGAMGProlongator_Classical(PC pc, const Mat A, const Mat G, Pets
 
   for (i=0;i<fn;i++) {
     /* on */
-    ierr = MatGetRow(lG,i,&ncols,&icols,&vcols);CHKERRQ(ierr);
     ncolstotal = ncols;
     lsparse[i] = 0;
     gsparse[i] = 0;
@@ -343,6 +343,7 @@ PetscErrorCode PCGAMGProlongator_Classical(PC pc, const Mat A, const Mat G, Pets
       lsparse[i] = 1;
       gsparse[i] = 0;
     } else {
+      ierr = MatGetRow(lG,i,&ncols,&icols,&vcols);CHKERRQ(ierr);
       for (j = 0;j < ncols;j++) {
         col = icols[j];
         if (lcid[col] >= 0 && vcols[j] != 0.) {
@@ -428,9 +429,9 @@ PetscErrorCode PCGAMGProlongator_Classical(PC pc, const Mat A, const Mat G, Pets
       for (k = 0; k < ncols; k++) {
         if (rcol[k] != i) {
           if (PetscRealPart(rval[k]) > 0) {
-            a_pos += rval[k];
+            a_pos += PetscRealPart(rval[k]);
           } else {
-            a_neg += rval[k];
+            a_neg += PetscRealPart(rval[k]);
           }
           ntotal++;
         } else diag = rval[k];
@@ -438,7 +439,7 @@ PetscErrorCode PCGAMGProlongator_Classical(PC pc, const Mat A, const Mat G, Pets
       ierr = MatRestoreRow(lA,i,&ncols,&rcol,&rval);CHKERRQ(ierr);
 
       /* ghosted all connections */
-      if (gA) {
+      if (gG) {
         ierr = MatGetRow(gA,i,&ncols,&rcol,&rval);CHKERRQ(ierr);
         for (k = 0; k < ncols; k++) {
           if (PetscRealPart(rval[k]) > 0.) {
@@ -578,6 +579,7 @@ PetscErrorCode PCGAMGClassicalInjection(PC pc,Mat P,VecScatter *inj)
   const PetscInt    *icols;
   const PetscScalar *vcols;
   PetscInt          *fmap,*cmap;
+  PetscScalar       *fval;
   IS                fis,cis;
   Vec               wf,wc;
   MPI_Comm          comm;
@@ -589,16 +591,19 @@ PetscErrorCode PCGAMGClassicalInjection(PC pc,Mat P,VecScatter *inj)
   fn = fe-fs;
   /* build the scatter injection into the coarse space */
   ierr = PetscMalloc(fn*sizeof(PetscInt),&cmap);CHKERRQ(ierr);
+  ierr = PetscMalloc(fn*sizeof(PetscScalar),&fval);CHKERRQ(ierr);
   ierr = PetscMalloc(fn*sizeof(PetscInt),&fmap);CHKERRQ(ierr);
   j=0;
   for (i=0;i<fn;i++) fmap[i]=-1;
   for (i=0;i<fn;i++) cmap[i]=-1;
+  for (i=0;i<fn;i++) fval[i]=-1.;
   for (i=fs;i<fe;i++) {
     ierr = MatGetRow(P,i,&ncols,&icols,&vcols);CHKERRQ(ierr);
     if (ncols == 1) {
-      if (vcols[0] == 1.) {
+      if (vcols[0] > fval[i]) {
         fmap[j] = i;
         cmap[j] = icols[0];
+        fval[i] = vcols[0];
         j++;
       }
     }
@@ -608,6 +613,7 @@ PetscErrorCode PCGAMGClassicalInjection(PC pc,Mat P,VecScatter *inj)
   ierr = ISCreateGeneral(comm,j,fmap,PETSC_OWN_POINTER,&fis);CHKERRQ(ierr);
   ierr = ISCreateGeneral(comm,j,cmap,PETSC_OWN_POINTER,&cis);CHKERRQ(ierr);
   ierr = VecScatterCreate(wf,fis,wc,cis,inj);CHKERRQ(ierr);
+  ierr = PetscFree(fval);CHKERRQ(ierr);
   ierr = ISDestroy(&fis);CHKERRQ(ierr);
   ierr = ISDestroy(&cis);CHKERRQ(ierr);
   ierr = VecDestroy(&wf);CHKERRQ(ierr);
@@ -724,8 +730,10 @@ PetscErrorCode PCGAMGClassicalBootstrapProlongator(PC pc,const Mat A,Mat *aP,Pet
         }
         ierr = MatRestoreRow(P,j,&ncols,&icols,&vcols);CHKERRQ(ierr);
       }
-      ierr = VecNorm(vs[i],NORM_2,&vsnrm);CHKERRQ(ierr);
-      ierr = VecNorm(wf,NORM_2,&dnrm);CHKERRQ(ierr);
+      ierr = VecNormBegin(vs[i],NORM_2,&vsnrm);CHKERRQ(ierr);
+      ierr = VecNormBegin(wf,NORM_2,&dnrm);CHKERRQ(ierr);
+      ierr = VecNormEnd(vs[i],NORM_2,&vsnrm);CHKERRQ(ierr);
+      ierr = VecNormEnd(wf,NORM_2,&dnrm);CHKERRQ(ierr);
       ierr = PetscPrintf(PETSC_COMM_WORLD,"Vector %d; Norm: %f Rel. error: %f\n",i,vsnrm,dnrm/vsnrm);CHKERRQ(ierr);
     }
   }
@@ -853,9 +861,11 @@ PetscErrorCode PCGAMGClassicalBootstrapProlongator(PC pc,const Mat A,Mat *aP,Pet
         }
         ierr = MatRestoreRow(Pnew,j,&ncols,&icols,&vcols);CHKERRQ(ierr);
       }
-      ierr = VecNorm(vs[i],NORM_2,&vsnrm);CHKERRQ(ierr);
-      ierr = VecNorm(wf,NORM_2,&dnrm);CHKERRQ(ierr);
-      ierr = PetscPrintf(PETSC_COMM_WORLD,"Vector %d; Norm: %f Rel. error: %f\n",i,vsnrm,dnrm/vsnrm);CHKERRQ(ierr);
+      ierr = VecNormBegin(wf,NORM_2,&dnrm);CHKERRQ(ierr);
+      ierr = VecNormBegin(vs[i],NORM_2,&vsnrm);CHKERRQ(ierr);
+      ierr = VecNormEnd(wf,NORM_2,&dnrm);CHKERRQ(ierr);
+      ierr = VecNormEnd(vs[i],NORM_2,&vsnrm);CHKERRQ(ierr);
+      ierr = PetscPrintf(PetscObjectComm((PetscObject)vs[i]),"Vector %d; Norm: %f Rel. error: %f\n",i,vsnrm,dnrm/vsnrm);CHKERRQ(ierr);
     }
   }
   ierr = VecDestroy(&wf);CHKERRQ(ierr);
@@ -952,7 +962,7 @@ PetscErrorCode PCGAMGBootstrap_Classical(PC pc,PetscInt nlevels,Mat *A,Mat *P)
     for (i=0;i<nlevels;i++) {
       if (i != nlevels-1) {
         ierr = MatGetVecs(A[i],NULL,&w);CHKERRQ(ierr);
-        ierr = KSPCreate(comm,&bootksp);CHKERRQ(ierr);
+        ierr = KSPCreate(PetscObjectComm((PetscObject)A[i]),&bootksp);CHKERRQ(ierr);
         ierr = KSPSetOptionsPrefix(bootksp,"boot_");CHKERRQ(ierr);
         ierr = KSPAppendOptionsPrefix(bootksp,prefix);CHKERRQ(ierr);
         ierr = KSPSetType(bootksp,KSPGMRES);CHKERRQ(ierr);
