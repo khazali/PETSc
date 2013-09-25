@@ -3,7 +3,8 @@
 #include <petscblaslapack.h>
 
 typedef struct {
-  PetscReal dummy;
+  PetscReal p_threshold;
+  
 } PC_GAMG_Classical;
 
 #undef __FUNCT__
@@ -172,6 +173,94 @@ PetscErrorCode PCGAMGGraph_Classical(PC pc,const Mat A,Mat *G)
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "PCGAMGThresholdProlongator_Classical"
+PetscErrorCode PCGAMGThresholdProlongator_Classical(PC pc,Mat *Pmat) {
+  PC_MG             *mg      = (PC_MG*)pc->data;
+  PC_GAMG           *pc_gamg = (PC_GAMG*)mg->innerctx;
+  PC_GAMG_Classical *cls     = (PC_GAMG_Classical*)pc_gamg->subctx;
+  PetscInt          ncols,maxncols=0,*newcols;
+  const PetscInt    *cols;
+  PetscInt          rs,re,r,c,cs,ce,idx;
+  PetscInt          *non,*noff;
+  const PetscScalar *vals;
+  PetscScalar       *newvals;
+  PetscReal         maxval;
+  PetscBool         rebuild = PETSC_FALSE;
+  Mat               P,Pnew;
+  MatType           mtype;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBegin;
+  P=*Pmat;
+  /* detect if we need to do anything */
+  if (cls->p_threshold <= 0.) PetscFunctionReturn(0);
+  ierr = MatGetOwnershipRange(P,&rs,&re);CHKERRQ(ierr);
+  ierr = MatGetOwnershipRangeColumn(P,&cs,&ce);CHKERRQ(ierr);
+  ierr = PetscMalloc(sizeof(PetscInt)*(re-rs),&non);CHKERRQ(ierr);
+  ierr = PetscMalloc(sizeof(PetscInt)*(re-rs),&noff);CHKERRQ(ierr);
+  for(r=0;r<re-rs;r++) {
+    non[r] = 0.;
+    noff[r] = 0.;
+  }
+  for(r=rs;r<re;r++) {
+    ierr = MatGetRow(P,r,&ncols,&cols,&vals);CHKERRQ(ierr);
+    maxval=0.;
+    if (ncols > maxncols) maxncols = ncols;
+    for (c=0;c<ncols;c++) {
+      if (maxval < PetscAbsScalar(vals[c])) maxval = PetscAbsScalar(vals[c]);
+    }
+    for (c=0;c<ncols;c++) {
+      if (PetscAbsScalar(vals[c])>cls->p_threshold*maxval) {
+        if (cols[c] >= cs && cols[c] < ce) {
+          non[r-rs]++;
+        } else {
+          noff[r-rs]++;
+        }
+      } else {
+        rebuild = PETSC_TRUE;
+      }
+    }
+    ierr = MatRestoreRow(P,r,&ncols,&cols,&vals);CHKERRQ(ierr);
+  }
+  if (rebuild) {
+    ierr = PetscMalloc(sizeof(PetscInt)*maxncols,&newcols);CHKERRQ(ierr);
+    ierr = PetscMalloc(sizeof(PetscScalar)*maxncols,&newvals);CHKERRQ(ierr);
+    ierr = MatCreate(PetscObjectComm((PetscObject)P),&Pnew); CHKERRQ(ierr);
+    ierr = MatGetType(P,&mtype);CHKERRQ(ierr);
+    ierr = MatSetType(Pnew,mtype);CHKERRQ(ierr);
+    ierr = MatSetSizes(Pnew,re-rs,ce-cs,PETSC_DETERMINE,PETSC_DETERMINE);CHKERRQ(ierr);
+    ierr = MatMPIAIJSetPreallocation(Pnew,0,non,0,noff);CHKERRQ(ierr);
+    ierr = MatSeqAIJSetPreallocation(Pnew,0,non);CHKERRQ(ierr);
+
+    for(r=rs;r<re;r++) {
+      idx=0;
+      ierr = MatGetRow(P,r,&ncols,&cols,&vals);CHKERRQ(ierr);
+      maxval=0.;
+      for (c=0;c<ncols;c++) {
+        if (maxval < PetscAbsScalar(vals[c])) maxval = PetscAbsScalar(vals[c]);
+      }
+      for (c=0;c<ncols;c++) {
+        if (PetscAbsScalar(vals[c])>cls->p_threshold*maxval) {
+          newcols[idx] = cols[c];
+          newvals[idx] = vals[c];
+          idx++;
+        }
+      }
+      ierr = MatRestoreRow(P,r,&ncols,&cols,&vals);CHKERRQ(ierr);
+      ierr = MatSetValues(Pnew,1,&r,idx,newcols,newvals,INSERT_VALUES);CHKERRQ(ierr);
+    }
+    ierr = MatAssemblyBegin(Pnew,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(Pnew,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    *Pmat=Pnew;
+    ierr = PetscFree(newcols);CHKERRQ(ierr);
+    ierr = PetscFree(newvals);CHKERRQ(ierr);
+    ierr = MatDestroy(&P);CHKERRQ(ierr);
+  }
+  ierr = PetscFree(non);CHKERRQ(ierr);
+  ierr = PetscFree(noff);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
 
 #undef __FUNCT__
 #define __FUNCT__ "PCGAMGCoarsen_Classical"
@@ -269,7 +358,6 @@ PetscErrorCode PCGAMGProlongator_Classical(PC pc, const Mat A, const Mat G, Pets
   comm = ((PetscObject)pc)->comm;
   ierr = MatGetOwnershipRange(A,&fs,&fe); CHKERRQ(ierr);
   fn = (fe - fs);
-
   ierr = MatGetVecs(A,&F,NULL);CHKERRQ(ierr);
 
   /* get the number of local unknowns and the indices of the local unknowns */
@@ -518,6 +606,7 @@ PetscErrorCode PCGAMGProlongator_Classical(PC pc, const Mat A, const Mat G, Pets
 
   ierr = MatAssemblyBegin(*P, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(*P, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = PCGAMGThresholdProlongator_Classical(pc,P);CHKERRQ(ierr);
 
   ierr = PetscFree(lsparse);CHKERRQ(ierr);
   ierr = PetscFree(gsparse);CHKERRQ(ierr);
@@ -546,10 +635,14 @@ PetscErrorCode PCGAMGDestroy_Classical(PC pc)
 #define __FUNCT__ "PCGAMGSetFromOptions_Classical"
 PetscErrorCode PCGAMGSetFromOptions_Classical(PC pc)
 {
+  PC_MG             *mg      = (PC_MG*)pc->data;
+  PC_GAMG           *pc_gamg = (PC_GAMG*)mg->innerctx;
+  PC_GAMG_Classical *cls     = (PC_GAMG_Classical*)pc_gamg->subctx;
   PetscErrorCode    ierr;
 
   PetscFunctionBegin;
   ierr = PetscOptionsHead("GAMG Classical options");CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-pc_gamg_classical_p_threshold","Threshold for entries in the prolongator","",cls->p_threshold,&cls->p_threshold,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsTail();CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -600,16 +693,15 @@ PetscErrorCode PCGAMGClassicalInjection(PC pc,Mat P,VecScatter *inj)
   for (i=fs;i<fe;i++) {
     ierr = MatGetRow(P,i,&ncols,&icols,&vcols);CHKERRQ(ierr);
     if (ncols == 1) {
-      if (vcols[0] > fval[i]) {
+      if (PetscRealPart(vcols[0]) > PetscRealPart(fval[i-fs])) {
         fmap[j] = i;
         cmap[j] = icols[0];
-        fval[i] = vcols[0];
+        fval[i-fs] = vcols[0];
         j++;
       }
     }
     ierr = MatRestoreRow(P,i,&ncols,&icols,&vcols);CHKERRQ(ierr);
   }
-
   ierr = ISCreateGeneral(comm,j,fmap,PETSC_OWN_POINTER,&fis);CHKERRQ(ierr);
   ierr = ISCreateGeneral(comm,j,cmap,PETSC_OWN_POINTER,&cis);CHKERRQ(ierr);
   ierr = VecScatterCreate(wf,fis,wc,cis,inj);CHKERRQ(ierr);
@@ -618,9 +710,7 @@ PetscErrorCode PCGAMGClassicalInjection(PC pc,Mat P,VecScatter *inj)
   ierr = ISDestroy(&cis);CHKERRQ(ierr);
   ierr = VecDestroy(&wf);CHKERRQ(ierr);
   ierr = VecDestroy(&wc);CHKERRQ(ierr);
-
   PetscFunctionReturn(0);
-
 }
 
 #undef __FUNCT__
@@ -1020,7 +1110,8 @@ PetscErrorCode  PCCreateGAMG_Classical(PC pc)
   /* create sub context for SA */
   ierr = PetscNewLog(pc, PC_GAMG_Classical, &cls);CHKERRQ(ierr);
   pc_gamg->subctx = cls;
-  pc_gamg->threshold = 0.05;
+  pc_gamg->threshold = 0.25;
+  cls->p_threshold = 0.2;
 
   /* set internal function pointers */
   pc_gamg->ops->setfromoptions = PCGAMGSetFromOptions_Classical;
