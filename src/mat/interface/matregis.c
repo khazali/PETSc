@@ -3,6 +3,7 @@
 
 PETSC_EXTERN PetscErrorCode MatCreate_MFFD(Mat);
 PETSC_EXTERN PetscErrorCode MatCreate_MAIJ(Mat);
+PETSC_EXTERN PetscErrorCode MatCreate_TAIJ(Mat);
 PETSC_EXTERN PetscErrorCode MatCreate_IS(Mat);
 
 PETSC_EXTERN PetscErrorCode MatCreate_SeqAIJ(Mat);
@@ -89,6 +90,10 @@ PetscErrorCode  MatRegisterAll(void)
   ierr = MatRegister(MATMPIMAIJ,        MatCreate_MAIJ);CHKERRQ(ierr);
   ierr = MatRegister(MATSEQMAIJ,        MatCreate_MAIJ);CHKERRQ(ierr);
   ierr = MatRegister(MATMAIJ,           MatCreate_MAIJ);CHKERRQ(ierr);
+
+  ierr = MatRegister(MATMPITAIJ,        MatCreate_TAIJ);CHKERRQ(ierr);
+  ierr = MatRegister(MATSEQTAIJ,        MatCreate_TAIJ);CHKERRQ(ierr);
+  ierr = MatRegister(MATTAIJ,           MatCreate_TAIJ);CHKERRQ(ierr);
 
   ierr = MatRegister(MATIS,             MatCreate_IS);CHKERRQ(ierr);
   ierr = MatRegister(MATSHELL,          MatCreate_Shell);CHKERRQ(ierr);
