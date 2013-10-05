@@ -29,6 +29,9 @@ typedef const char* MatType;
 #define MATMAIJ            "maij"
 #define MATSEQMAIJ         "seqmaij"
 #define MATMPIMAIJ         "mpimaij"
+#define MATKAIJ            "kaij"
+#define MATSEQKAIJ         "seqkaij"
+#define MATMPIKAIJ         "mpikaij"
 #define MATIS              "is"
 #define MATAIJ             "aij"
 #define MATSEQAIJ          "seqaij"
@@ -1593,6 +1596,11 @@ PETSC_EXTERN PetscErrorCode MatSeqBAIJInvertBlockDiagonal(Mat);
 PETSC_EXTERN PetscErrorCode MatCreateMAIJ(Mat,PetscInt,Mat*);
 PETSC_EXTERN PetscErrorCode MatMAIJRedimension(Mat,PetscInt,Mat*);
 PETSC_EXTERN PetscErrorCode MatMAIJGetAIJ(Mat,Mat*);
+
+PETSC_EXTERN PetscErrorCode MatCreateKAIJ(Mat,PetscInt,PetscInt,const PetscScalar[],const PetscScalar[],Mat*);
+PETSC_EXTERN PetscErrorCode MatKAIJGetAIJ(Mat,Mat*);
+PETSC_EXTERN PetscErrorCode MatKAIJGetS(Mat,const PetscScalar**);
+PETSC_EXTERN PetscErrorCode MatKAIJGetT(Mat,const PetscScalar**);
 
 PETSC_EXTERN PetscErrorCode MatComputeExplicitOperator(Mat,Mat*);
 
