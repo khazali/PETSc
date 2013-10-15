@@ -20,7 +20,7 @@ EXAMPLESF	 = ex1f.F ex5f.F ex5f90.F ex5f90t.F ex5fs.F ex40f90.F90
 EXAMPLESCH	 = ex43-44.h
 EXAMPLESFH       = ex5f.h
 EXAMPLESMATLAB   = ex5m.m  ex61genm.m ex61m.m
-DIRS		 = ex10d
+DIRS		 = ex10d circuit
 
 include ${PETSC_DIR}/conf/variables
 include ${PETSC_DIR}/conf/rules
@@ -429,6 +429,13 @@ runex5_5_qn:
 	   if (${DIFF} output/ex5_5_qn.out ex5_5_qn.tmp) then true; \
 	   else  echo  ${PWD} "\nPossible problem with with ex5_5_qn, diffs above \n========================================="; fi; \
 	   ${RM} -f ex5_5_qn.tmp
+
+runex5_5_broyden:
+	-@${CSD_BASIC_COMMAND_LINE} -snes_type qn -snes_qn_type broyden -snes_qn_m ${N_RESTART} \
+        > ex5_5_broyden.tmp 2>&1; \
+	   if (${DIFF} output/ex5_5_broyden.out ex5_5_broyden.tmp) then true; \
+	   else  echo  ${PWD} "\nPossible problem with with ex5_5_broyden, diffs above \n========================================="; fi; \
+	   ${RM} -f ex5_5_broyden.tmp
 
 runex5_5_ls:
 	-@${CSD_BASIC_COMMAND_LINE} -snes_type newtonls \
@@ -1026,12 +1033,13 @@ runex73f90t:
 TESTEXAMPLES_C		       = ex1.PETSc runex1 runex1_2 ex1.rm ex2.PETSc runex2  runex2_3 ex2.rm ex3.PETSc runex3 \
                                  runex3_2 runex3_3 runex3_4 ex3.rm ex4.PETSc runex4 ex4.rm ex5.PETSc runex5 runex5_2 runex5_3 runex5_4 \
                                  runex5_5_ngmres runex5_5_ngmres_nrichardson runex5_5_ncg runex5_5_nrichardson \
-                                 runex5_5_ngmres_ngs runex5_5_qn runex5_5_ls \
+                                 runex5_5_ngmres_ngs runex5_5_qn runex5_5_broyden runex5_5_ls \
                                  runex5_5_fas runex5_5_ngmres_fas runex5_5_fas_additive \
                                  runex5_5_nasm runex5_5_newton_asm_dmda runex5_5_newton_gasm_dmda \
                                  runex5_6 ex5.rm ex7.PETSc runex7 ex7.rm\
                                  ex14.PETSc runex14 runex14_2 runex14_3 ex14.rm \
-                                 ex15.PETSc runex15 runex15_3 runex15_lag_jac runex15_lag_pc ex15.rm ex18.PETSc runex18 ex18.rm \
+                                 ex15.PETSc runex15 runex15_3 runex15_4 runex15_lag_jac runex15_lag_pc ex15.rm \
+                                 ex18.PETSc runex18 ex18.rm \
                                  ex19.PETSc runex19 runex19_5 \
                                  runex19_6 runex19_fieldsplit_2 runex19_fieldsplit_3 runex19_fieldsplit_4 \
                                  runex19_composite_fieldsplit runex19_composite_fieldsplit_bjacobi runex19_composite_fieldsplit_bjacobi_2\

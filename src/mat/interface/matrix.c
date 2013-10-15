@@ -482,6 +482,10 @@ PetscErrorCode  MatConjugate(Mat mat)
    Notes:
    This routine should be called after you have finished examining the entries.
 
+   This routine zeros out ncols, cols, and vals. This is to prevent accidental
+   us of the array after it has been restored. If you pass NULL, it will
+   not zero the pointers.  Use of cols or vals after MatRestoreRow is invalid.
+
    Fortran Notes:
    The calling sequence from Fortran is
 .vb
@@ -6949,15 +6953,20 @@ PetscErrorCode MatGetRowIJ(Mat mat,PetscInt shift,PetscBool symmetric,PetscBool 
 .   shift - 1 or zero indicating we want the indices starting at 0 or 1
 .   symmetric - PETSC_TRUE or PETSC_FALSE indicating the matrix data structure should be
                 symmetrized
--   inodecompressed - PETSC_TRUE or PETSC_FALSE indicating if the nonzero structure of the
+.   inodecompressed - PETSC_TRUE or PETSC_FALSE indicating if the nonzero structure of the
                  inodes or the nonzero elements is wanted. For BAIJ matrices the compressed version is
                  always used.
+.   n - number of columns in the (possibly compressed) matrix
+.   ia - the column pointers
+-   ja - the row indices
 
     Output Parameters:
-+   n - number of columns in the (possibly compressed) matrix
-.   ia - the column pointers
-.   ja - the row indices
--   done - PETSC_TRUE or PETSC_FALSE, indicating whether the values have been returned
+.   done - PETSC_TRUE or PETSC_FALSE, indicating whether the values have been returned
+
+    Note:
+    This routine zeros out n, ia, and ja. This is to prevent accidental
+    us of the array after it has been restored. If you pass NULL, it will
+    not zero the pointers.  Use of ia or ja after MatRestoreColumnIJ() is invalid.
 
     Level: developer
 
@@ -6996,15 +7005,20 @@ PetscErrorCode MatGetColumnIJ(Mat mat,PetscInt shift,PetscBool symmetric,PetscBo
 .   shift - 1 or zero indicating we want the indices starting at 0 or 1
 .   symmetric - PETSC_TRUE or PETSC_FALSE indicating the matrix data structure should be
                 symmetrized
--   inodecompressed -  PETSC_TRUE or PETSC_FALSE indicating if the nonzero structure of the
+.   inodecompressed -  PETSC_TRUE or PETSC_FALSE indicating if the nonzero structure of the
                  inodes or the nonzero elements is wanted. For BAIJ matrices the compressed version is
                  always used.
+.   n - size of (possibly compressed) matrix
+.   ia - the row pointers
+-   ja - the column indices
 
     Output Parameters:
-+   n - size of (possibly compressed) matrix
-.   ia - the row pointers
-.   ja - the column indices
--   done - PETSC_TRUE or PETSC_FALSE indicated that the values have been returned
+.   done - PETSC_TRUE or PETSC_FALSE indicated that the values have been returned
+
+    Note:
+    This routine zeros out n, ia, and ja. This is to prevent accidental
+    us of the array after it has been restored. If you pass NULL, it will
+    not zero the pointers.  Use of ia or ja after MatRestoreRowIJ() is invalid.
 
     Level: developer
 
@@ -9173,7 +9187,7 @@ PetscErrorCode  MatMatMatMult(Mat A,Mat B,Mat C,MatReuse scall,PetscReal fill,Ma
    Input Parameters:
 +  mat - the matrix
 .  nsubcomm - the number of subcommunicators (= number of redundant parallel or sequential matrices)
-.  subcomm - MPI communicator split from the communicator where mat resides in (or MPI_COMM_NULL if nsubcomm is used)
+.  subcomm - MPI communicator split from the communicator where mat resides in (or MPI_COMM_NULL if psubcomm is used)
 -  reuse - either MAT_INITIAL_MATRIX or MAT_REUSE_MATRIX
 
    Output Parameter:
@@ -9195,6 +9209,7 @@ PetscErrorCode  MatMatMatMult(Mat A,Mat B,Mat C,MatReuse scall,PetscReal fill,Ma
 
 .seealso: MatDestroy()
 @*/
+
 PetscErrorCode  MatGetRedundantMatrix(Mat mat,PetscInt nsubcomm,MPI_Comm subcomm,MatReuse reuse,Mat *matredundant)
 {
   PetscErrorCode ierr;

@@ -571,7 +571,12 @@ static PetscErrorCode TSGetRHSMats_Private(TS ts,Mat *Arhs,Mat *Brhs)
   }
   if (Brhs) {
     if (!ts->Brhs) {
-      ierr = MatDuplicate(B,MAT_DO_NOT_COPY_VALUES,&ts->Brhs);CHKERRQ(ierr);
+      if (A != B) {
+        ierr = MatDuplicate(B,MAT_DO_NOT_COPY_VALUES,&ts->Brhs);CHKERRQ(ierr);
+      } else {
+        ts->Brhs = ts->Arhs;
+        ierr = PetscObjectReference((PetscObject)ts->Arhs);CHKERRQ(ierr);
+      }
     }
     *Brhs = ts->Brhs;
   }
@@ -1829,6 +1834,7 @@ PetscErrorCode  TSReset(TS ts)
   ierr = VecDestroy(&ts->vatol);CHKERRQ(ierr);
   ierr = VecDestroy(&ts->vrtol);CHKERRQ(ierr);
   ierr = VecDestroyVecs(ts->nwork,&ts->work);CHKERRQ(ierr);
+  ierr = ISDestroy(&ts->is_diff);CHKERRQ(ierr);
 
   ts->setupcalled = PETSC_FALSE;
   PetscFunctionReturn(0);
@@ -1867,6 +1873,9 @@ PetscErrorCode  TSDestroy(TS *ts)
   if ((*ts)->ops->destroy) {ierr = (*(*ts)->ops->destroy)((*ts));CHKERRQ(ierr);}
 
   ierr = TSAdaptDestroy(&(*ts)->adapt);CHKERRQ(ierr);
+  if ((*ts)->event) {
+    ierr = TSEventMonitorDestroy(&(*ts)->event);CHKERRQ(ierr);
+  }
   ierr = SNESDestroy(&(*ts)->snes);CHKERRQ(ierr);
   ierr = DMDestroy(&(*ts)->dm);CHKERRQ(ierr);
   ierr = TSMonitorCancel((*ts));CHKERRQ(ierr);
@@ -2493,7 +2502,6 @@ PetscErrorCode TSInterpolate(TS ts,PetscReal t,Vec U)
 @*/
 PetscErrorCode  TSStep(TS ts)
 {
-  PetscReal      ptime_prev;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -2501,13 +2509,13 @@ PetscErrorCode  TSStep(TS ts)
   ierr = TSSetUp(ts);CHKERRQ(ierr);
 
   ts->reason = TS_CONVERGED_ITERATING;
-  ptime_prev = ts->ptime;
+  ts->ptime_prev = ts->ptime;
 
   ierr = PetscLogEventBegin(TS_Step,ts,0,0,0);CHKERRQ(ierr);
   ierr = (*ts->ops->step)(ts);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(TS_Step,ts,0,0,0);CHKERRQ(ierr);
 
-  ts->time_step_prev = ts->ptime - ptime_prev;
+  ts->time_step_prev = ts->ptime - ts->ptime_prev;
 
   if (ts->reason < 0) {
     if (ts->errorifstepfailed) {
@@ -2631,6 +2639,9 @@ PetscErrorCode TSSolve(TS ts,Vec u)
       ierr = TSMonitor(ts,ts->steps,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
       ierr = TSStep(ts);CHKERRQ(ierr);
       ierr = TSPostStep(ts);CHKERRQ(ierr);
+      if (ts->event) {
+	ierr = TSEventMonitor(ts);CHKERRQ(ierr);
+      }
     }
     if (ts->exact_final_time == TS_EXACTFINALTIME_INTERPOLATE && ts->ptime > ts->max_time) {
       ierr = TSInterpolate(ts,ts->max_time,u);CHKERRQ(ierr);
@@ -4170,15 +4181,46 @@ PetscErrorCode TSGetTolerances(TS ts,PetscReal *atol,Vec *vatol,PetscReal *rtol,
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "TSErrorNormWRMS"
+#define __FUNCT__ "TSSetDifferentialEquationsIS"
 /*@
-   TSErrorNormWRMS - compute a weighted norm of the difference between a vector and the current state
+   TSSetDifferentialEquationsIS - Sets an IS containing locations of differential equations in a DAE
+
+   Not Collective
+
+   Input Arguments:
++  ts - time stepping context
+-  is_diff - Index set for differential equations
+
+   Level: advanced
+
+@*/
+PetscErrorCode TSSetDifferentialEquationsIS(TS ts, IS is_diff)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(ts,TS_CLASSID,1);
+  PetscValidHeaderSpecific(is_diff,IS_CLASSID,2);
+  PetscCheckSameComm(ts,1,is_diff,2);
+  ierr = PetscObjectReference((PetscObject)is_diff);CHKERRQ(ierr);
+  ierr = ISDestroy(&ts->is_diff);CHKERRQ(ierr);
+  ts->is_diff = is_diff;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "TSErrorWeightedNorm"
+/*@
+   TSErrorWeightedNorm - compute a weighted norm of the difference between a vector and the current state
 
    Collective on TS
 
    Input Arguments:
 +  ts - time stepping context
 -  Y - state vector to be compared to ts->vec_sol
+
+   Options Database Keys:
+.  -ts_adapt_wnormtype <wnormtype> - 2, INFINITY
 
    Output Arguments:
 .  norm - weighted norm, a value of 1.0 is considered small
@@ -4187,13 +4229,15 @@ PetscErrorCode TSGetTolerances(TS ts,PetscReal *atol,Vec *vatol,PetscReal *rtol,
 
 .seealso: TSSetTolerances()
 @*/
-PetscErrorCode TSErrorNormWRMS(TS ts,Vec Y,PetscReal *norm)
+PetscErrorCode TSErrorWeightedNorm(TS ts,Vec Y,PetscReal *norm)
 {
   PetscErrorCode    ierr;
-  PetscInt          i,n,N;
+  PetscInt          i,n,N,rstart;
   const PetscScalar *u,*y;
   Vec               U;
   PetscReal         sum,gsum;
+  PetscReal         max,gmax;
+  PetscReal         tol;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
@@ -4205,15 +4249,17 @@ PetscErrorCode TSErrorNormWRMS(TS ts,Vec Y,PetscReal *norm)
 
   ierr = VecGetSize(U,&N);CHKERRQ(ierr);
   ierr = VecGetLocalSize(U,&n);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRange(U,&rstart,NULL);CHKERRQ(ierr);
   ierr = VecGetArrayRead(U,&u);CHKERRQ(ierr);
   ierr = VecGetArrayRead(Y,&y);CHKERRQ(ierr);
   sum  = 0.;
+  max  = 0.;
   if (ts->vatol && ts->vrtol) {
     const PetscScalar *atol,*rtol;
     ierr = VecGetArrayRead(ts->vatol,&atol);CHKERRQ(ierr);
     ierr = VecGetArrayRead(ts->vrtol,&rtol);CHKERRQ(ierr);
     for (i=0; i<n; i++) {
-      PetscReal tol = PetscRealPart(atol[i]) + PetscRealPart(rtol[i]) * PetscMax(PetscAbsScalar(u[i]),PetscAbsScalar(y[i]));
+      tol = PetscRealPart(atol[i]) + PetscRealPart(rtol[i]) * PetscMax(PetscAbsScalar(u[i]),PetscAbsScalar(y[i]));
       sum += PetscSqr(PetscAbsScalar(y[i] - u[i]) / tol);
     }
     ierr = VecRestoreArrayRead(ts->vatol,&atol);CHKERRQ(ierr);
@@ -4222,7 +4268,7 @@ PetscErrorCode TSErrorNormWRMS(TS ts,Vec Y,PetscReal *norm)
     const PetscScalar *atol;
     ierr = VecGetArrayRead(ts->vatol,&atol);CHKERRQ(ierr);
     for (i=0; i<n; i++) {
-      PetscReal tol = PetscRealPart(atol[i]) + ts->rtol * PetscMax(PetscAbsScalar(u[i]),PetscAbsScalar(y[i]));
+      tol = PetscRealPart(atol[i]) + ts->rtol * PetscMax(PetscAbsScalar(u[i]),PetscAbsScalar(y[i]));
       sum += PetscSqr(PetscAbsScalar(y[i] - u[i]) / tol);
     }
     ierr = VecRestoreArrayRead(ts->vatol,&atol);CHKERRQ(ierr);
@@ -4230,21 +4276,54 @@ PetscErrorCode TSErrorNormWRMS(TS ts,Vec Y,PetscReal *norm)
     const PetscScalar *rtol;
     ierr = VecGetArrayRead(ts->vrtol,&rtol);CHKERRQ(ierr);
     for (i=0; i<n; i++) {
-      PetscReal tol = ts->atol + PetscRealPart(rtol[i]) * PetscMax(PetscAbsScalar(u[i]),PetscAbsScalar(y[i]));
+      tol = ts->atol + PetscRealPart(rtol[i]) * PetscMax(PetscAbsScalar(u[i]),PetscAbsScalar(y[i]));
       sum += PetscSqr(PetscAbsScalar(y[i] - u[i]) / tol);
     }
     ierr = VecRestoreArrayRead(ts->vrtol,&rtol);CHKERRQ(ierr);
   } else {                      /* scalar atol, scalar rtol */
-    for (i=0; i<n; i++) {
-      PetscReal tol = ts->atol + ts->rtol * PetscMax(PetscAbsScalar(u[i]),PetscAbsScalar(y[i]));
-      sum += PetscSqr(PetscAbsScalar(y[i] - u[i]) / tol);
+    if (ts->is_diff) {
+      const PetscInt *idx;
+      PetscInt k;
+      ierr = ISGetIndices(ts->is_diff,&idx);CHKERRQ(ierr);
+      ierr = ISGetLocalSize(ts->is_diff,&n);CHKERRQ(ierr);
+      if (ts->adapt->wnormtype == NORM_2) {
+	for (i=0; i<n; i++) {
+	  k = idx[i] - rstart;
+	  tol = ts->atol + ts->rtol * PetscMax(PetscAbsScalar(u[k]),PetscAbsScalar(y[k]));
+	  sum += PetscSqr(PetscAbsScalar(y[k] - u[k]) / tol);
+	}
+      } else {
+	for (i=0; i<n; i++) {
+	  k = idx[i] - rstart;
+	  tol = ts->atol + ts->rtol * PetscMax(PetscAbsScalar(u[k]),PetscAbsScalar(y[k]));
+	  max = PetscMax(max,PetscAbsScalar(y[k] - u[k]) / tol);
+	}
+      }
+    } else {
+      if (ts->adapt->wnormtype == NORM_2) {
+	for (i=0; i<n; i++) {
+	  tol = ts->atol + ts->rtol * PetscMax(PetscAbsScalar(u[i]),PetscAbsScalar(y[i]));
+	  sum += PetscSqr(PetscAbsScalar(y[i] - u[i]) / tol);
+	}
+      } else {
+	for (i=0; i<n; i++) {
+	  tol = ts->atol + ts->rtol * PetscMax(PetscAbsScalar(u[i]),PetscAbsScalar(y[i]));
+	  max = PetscMax(max,PetscAbsScalar(y[i] - u[i]) / tol);
+	}
+      }	
     }
   }
   ierr = VecRestoreArrayRead(U,&u);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(Y,&y);CHKERRQ(ierr);
 
-  ierr  = MPI_Allreduce(&sum,&gsum,1,MPIU_REAL,MPIU_SUM,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
-  *norm = PetscSqrtReal(gsum / N);
+  if (ts->adapt->wnormtype == NORM_2) {
+    ierr  = MPI_Allreduce(&sum,&gsum,1,MPIU_REAL,MPIU_SUM,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
+    *norm = PetscSqrtReal(gsum / N);
+  } else {
+    ierr = MPI_Allreduce(&max,&gmax,1,MPIU_REAL,MPIU_MAX,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
+    *norm = gmax;
+  }
+
   if (PetscIsInfOrNanScalar(*norm)) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_FP,"Infinite or not-a-number generated in norm");
   PetscFunctionReturn(0);
 }
@@ -4853,3 +4932,34 @@ PetscErrorCode TSComputeLinearStability(TS ts,PetscReal xr,PetscReal xi,PetscRea
   ierr = (*ts->ops->linearstability)(ts,xr,xi,yr,yi);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+
+#undef __FUNCT__
+#define __FUNCT__ "TSRollBack"
+/*@
+   TSRollBack - Rolls back one time step
+
+   Collective on TS
+
+   Input Parameter:
+.  ts - the TS context obtained from TSCreate()
+
+   Level: advanced
+
+.keywords: TS, timestep, rollback
+
+.seealso: TSCreate(), TSSetUp(), TSDestroy(), TSSolve(), TSSetPreStep(), TSSetPreStage(), TSInterpolate()
+@*/
+PetscErrorCode  TSRollBack(TS ts)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(ts, TS_CLASSID,1);
+
+  if (!ts->ops->rollback) SETERRQ1(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"TSRollBack not implemented for type '%s'",((PetscObject)ts)->type_name);
+  ierr = (*ts->ops->rollback)(ts);CHKERRQ(ierr);
+  ts->time_step = ts->ptime - ts->ptime_prev;
+  ts->ptime = ts->ptime_prev;
+  PetscFunctionReturn(0);
+}
+

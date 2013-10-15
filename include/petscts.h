@@ -39,6 +39,9 @@ typedef const char* TSType;
 #define TSARKIMEX         "arkimex"
 #define TSROSW            "rosw"
 #define TSEIMEX           "eimex"
+#define TSDAESIMPLERED    "daesimplered"
+#define TSDAESIMPLEFULL   "daesimplefull"
+
 /*E
     TSProblemType - Determines the type of problem this TS object is to be used to solve
 
@@ -95,6 +98,7 @@ typedef enum {
   TS_CONVERGED_TIME           = 1,
   TS_CONVERGED_ITS            = 2,
   TS_CONVERGED_USER           = 3,
+  TS_CONVERGED_EVENT          = 4,
   TS_DIVERGED_NONLINEAR_SOLVE = -1,
   TS_DIVERGED_STEP_REJECTED   = -2
 } TSConvergedReason;
@@ -124,6 +128,14 @@ M*/
 M*/
 /*MC
    TS_CONVERGED_USER - user requested termination
+
+   Level: beginner
+
+.seealso: TSSolve(), TSGetConvergedReason(), TSSetConvergedReason(), TSSetDuration()
+M*/
+
+/*MC
+   TS_CONVERGED_EVENT - user requested termination on event detection
 
    Level: beginner
 
@@ -220,6 +232,7 @@ PETSC_EXTERN PetscErrorCode TSSetMaxStepRejections(TS,PetscInt);
 PETSC_EXTERN PetscErrorCode TSGetSNESFailures(TS,PetscInt*);
 PETSC_EXTERN PetscErrorCode TSSetMaxSNESFailures(TS,PetscInt);
 PETSC_EXTERN PetscErrorCode TSSetErrorIfStepFails(TS,PetscBool);
+PETSC_EXTERN PetscErrorCode TSRollBack(TS);
 
 PETSC_EXTERN PetscErrorCode TSSetInitialTimeStep(TS,PetscReal,PetscReal);
 PETSC_EXTERN PetscErrorCode TSGetTimeStep(TS,PetscReal*);
@@ -227,6 +240,9 @@ PETSC_EXTERN PetscErrorCode TSGetTime(TS,PetscReal*);
 PETSC_EXTERN PetscErrorCode TSSetTime(TS,PetscReal);
 PETSC_EXTERN PetscErrorCode TSGetTimeStepNumber(TS,PetscInt*);
 PETSC_EXTERN PetscErrorCode TSSetTimeStep(TS,PetscReal);
+
+PETSC_EXTERN PetscErrorCode TSDAESimpleSetRHSFunction(TS,Vec,PetscErrorCode (*)(PetscReal,Vec,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode TSDAESimpleSetIFunction(TS,Vec,PetscErrorCode (*)(PetscReal,Vec,Vec,Vec,void*),void*);
 
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSRHSFunction)(TS,PetscReal,Vec,Vec,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSRHSJacobian)(TS,PetscReal,Vec,Mat*,Mat*,MatStructure*,void*);
@@ -264,7 +280,8 @@ PETSC_EXTERN PetscErrorCode TSSetRetainStages(TS,PetscBool);
 PETSC_EXTERN PetscErrorCode TSInterpolate(TS,PetscReal,Vec);
 PETSC_EXTERN PetscErrorCode TSSetTolerances(TS,PetscReal,Vec,PetscReal,Vec);
 PETSC_EXTERN PetscErrorCode TSGetTolerances(TS,PetscReal*,Vec*,PetscReal*,Vec*);
-PETSC_EXTERN PetscErrorCode TSErrorNormWRMS(TS,Vec,PetscReal*);
+PETSC_EXTERN PetscErrorCode TSSetDifferentialEquationsIS(TS,IS);
+PETSC_EXTERN PetscErrorCode TSErrorWeightedNorm(TS,Vec,PetscReal*);
 PETSC_EXTERN PetscErrorCode TSSetCFLTimeLocal(TS,PetscReal);
 PETSC_EXTERN PetscErrorCode TSGetCFLTime(TS,PetscReal*);
 
@@ -304,6 +321,11 @@ PETSC_EXTERN PetscErrorCode DMTSGetForcingFunction(DM,PetscErrorCode (**TSForcin
 
 PETSC_EXTERN PetscErrorCode DMTSSetIFunctionSerialize(DM,PetscErrorCode (*)(void*,PetscViewer),PetscErrorCode (*)(void**,PetscViewer));
 PETSC_EXTERN PetscErrorCode DMTSSetIJacobianSerialize(DM,PetscErrorCode (*)(void*,PetscViewer),PetscErrorCode (*)(void**,PetscViewer));
+
+PETSC_EXTERN PetscErrorCode DMTSSetDAESimpleRHSFunction(DM,PetscErrorCode (*)(PetscReal,Vec,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode DMTSSetDAESimpleIFunction(DM,PetscErrorCode (*)(PetscReal,Vec,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode DMTSGetDAESimpleRHSFunction(DM,PetscErrorCode (**)(PetscReal,Vec,Vec,Vec,void*),void**);
+PETSC_EXTERN PetscErrorCode DMTSGetDAESimpleIFunction(DM,PetscErrorCode (**)(PetscReal,Vec,Vec,Vec,void*),void**);
 
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*DMDATSRHSFunctionLocal)(DMDALocalInfo*,PetscReal,void*,void*,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*DMDATSRHSJacobianLocal)(DMDALocalInfo*,PetscReal,void*,Mat,Mat,MatStructure*,void*);
@@ -358,6 +380,7 @@ PETSC_EXTERN PetscErrorCode TSMonitorSPEigCtxCreate(MPI_Comm,const char[],const 
 PETSC_EXTERN PetscErrorCode TSMonitorSPEigCtxDestroy(TSMonitorSPEigCtx*);
 PETSC_EXTERN PetscErrorCode TSMonitorSPEig(TS,PetscInt,PetscReal,Vec,void *);
 
+PETSC_EXTERN PetscErrorCode TSSetEventMonitor(TS,PetscInt,PetscInt*,PetscBool*,PetscErrorCode (*)(TS,PetscReal,Vec,PetscScalar*,void*),PetscErrorCode (*)(TS,PetscInt,PetscInt[],PetscReal,Vec,void*),void*);
 /*J
    TSSSPType - string with the name of TSSSP scheme.
 

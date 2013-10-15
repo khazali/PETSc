@@ -401,7 +401,7 @@ PetscErrorCode DMPlexComputeResidualFEM(DM dm, Vec X, Vec F, void *user)
     ierr = PetscMalloc7(numPoints*cellDof,PetscScalar,&u,numPoints*dim,PetscReal,&v0,numPoints*dim,PetscReal,&n,numPoints*dim*dim,PetscReal,&J,numPoints*dim*dim,PetscReal,&invJ,numPoints,PetscReal,&detJ,numPoints*cellDof,PetscScalar,&elemVec);CHKERRQ(ierr);
     for (p = 0; p < numPoints; ++p) {
       const PetscInt point = points[p];
-      PetscScalar   *x;
+      PetscScalar   *x     = NULL;
       PetscInt       i;
 
       /* TODO: Add normal determination here */

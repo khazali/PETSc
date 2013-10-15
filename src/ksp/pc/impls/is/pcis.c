@@ -133,13 +133,13 @@ PetscErrorCode  PCISSetUp(PC pc)
   PC_IS          *pcis  = (PC_IS*)(pc->data);
   Mat_IS         *matis;
   PetscErrorCode ierr;
-  PetscBool      flg;
+  PetscBool      flg,issbaij;
   Vec            counter;
 
   PetscFunctionBegin;
-  ierr = PetscObjectTypeCompare((PetscObject)pc->mat,MATIS,&flg);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject)pc->pmat,MATIS,&flg);CHKERRQ(ierr);
   if (!flg) SETERRQ(PetscObjectComm((PetscObject)pc),PETSC_ERR_ARG_WRONG,"Preconditioner type of Neumann Neumman requires matrix of type MATIS");
-  matis = (Mat_IS*)pc->mat->data;
+  matis = (Mat_IS*)pc->pmat->data;
 
   pcis->pure_neumann = matis->pure_neumann;
 
@@ -203,10 +203,18 @@ PetscErrorCode  PCISSetUp(PC pc)
   */
 
   ierr = MatGetSubMatrix(matis->A,pcis->is_I_local,pcis->is_I_local,MAT_INITIAL_MATRIX,&pcis->A_II);CHKERRQ(ierr);
-  ierr = MatGetSubMatrix(matis->A,pcis->is_I_local,pcis->is_B_local,MAT_INITIAL_MATRIX,&pcis->A_IB);CHKERRQ(ierr);
-  ierr = MatGetSubMatrix(matis->A,pcis->is_B_local,pcis->is_I_local,MAT_INITIAL_MATRIX,&pcis->A_BI);CHKERRQ(ierr);
   ierr = MatGetSubMatrix(matis->A,pcis->is_B_local,pcis->is_B_local,MAT_INITIAL_MATRIX,&pcis->A_BB);CHKERRQ(ierr);
-
+  ierr = PetscObjectTypeCompare((PetscObject)matis->A,MATSEQSBAIJ,&issbaij);CHKERRQ(ierr);
+  if (!issbaij) {
+    ierr = MatGetSubMatrix(matis->A,pcis->is_I_local,pcis->is_B_local,MAT_INITIAL_MATRIX,&pcis->A_IB);CHKERRQ(ierr);
+    ierr = MatGetSubMatrix(matis->A,pcis->is_B_local,pcis->is_I_local,MAT_INITIAL_MATRIX,&pcis->A_BI);CHKERRQ(ierr);
+  } else {
+    Mat newmat;
+    ierr = MatConvert(matis->A,MATSEQBAIJ,MAT_INITIAL_MATRIX,&newmat);CHKERRQ(ierr);
+    ierr = MatGetSubMatrix(newmat,pcis->is_I_local,pcis->is_B_local,MAT_INITIAL_MATRIX,&pcis->A_IB);CHKERRQ(ierr);
+    ierr = MatGetSubMatrix(newmat,pcis->is_B_local,pcis->is_I_local,MAT_INITIAL_MATRIX,&pcis->A_BI);CHKERRQ(ierr);
+    ierr = MatDestroy(&newmat);CHKERRQ(ierr);
+  }
   /*
     Creating work vectors and arrays
   */
@@ -215,6 +223,7 @@ PetscErrorCode  PCISSetUp(PC pc)
   ierr = VecCreateSeq(PETSC_COMM_SELF,pcis->n-pcis->n_B,&pcis->vec1_D);CHKERRQ(ierr);
   ierr = VecDuplicate(pcis->vec1_D,&pcis->vec2_D);CHKERRQ(ierr);
   ierr = VecDuplicate(pcis->vec1_D,&pcis->vec3_D);CHKERRQ(ierr);
+  ierr = VecDuplicate(pcis->vec1_D,&pcis->vec4_D);CHKERRQ(ierr);
   ierr = VecCreateSeq(PETSC_COMM_SELF,pcis->n_B,&pcis->vec1_B);CHKERRQ(ierr);
   ierr = VecDuplicate(pcis->vec1_B,&pcis->vec2_B);CHKERRQ(ierr);
   ierr = VecDuplicate(pcis->vec1_B,&pcis->vec3_B);CHKERRQ(ierr);
@@ -359,6 +368,7 @@ PetscErrorCode  PCISDestroy(PC pc)
   ierr = VecDestroy(&pcis->vec1_D);CHKERRQ(ierr);
   ierr = VecDestroy(&pcis->vec2_D);CHKERRQ(ierr);
   ierr = VecDestroy(&pcis->vec3_D);CHKERRQ(ierr);
+  ierr = VecDestroy(&pcis->vec4_D);CHKERRQ(ierr);
   ierr = VecDestroy(&pcis->vec1_B);CHKERRQ(ierr);
   ierr = VecDestroy(&pcis->vec2_B);CHKERRQ(ierr);
   ierr = VecDestroy(&pcis->vec3_B);CHKERRQ(ierr);
