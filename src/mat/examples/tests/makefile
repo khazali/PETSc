@@ -21,7 +21,8 @@ EXAMPLESC	 = ex1.c ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c ex9.c \
                 ex129.c ex130.c ex131.c ex132.c ex133.c ex134.c ex135.c \
                 ex136.c ex137.c ex138.c ex139.c ex140.c ex141.c ex142.c \
                 ex143.c ex144.c ex145.c ex146.c ex147.c ex148.c ex149.c \
-                ex150.c ex151.c ex152.c ex153.c ex155.c ex157.c ex158.c ex159.c ex164.c
+                ex150.c ex151.c ex152.c ex153.c ex155.c ex157.c ex158.c ex159.c ex164.c \
+                ex171.c
 EXAMPLESF	 = ex16f90.F ex36f.F ex58f.F ex63f.F ex67f.F ex79f.F ex85f.F ex105f.F ex120f.F ex126f.F
 
 include ${PETSC_DIR}/conf/variables
@@ -664,6 +665,11 @@ ex167: ex167.o chkopts
 ex168: ex168.o chkopts
 	-${CLINKER} -o ex168 ex168.o ${PETSC_MAT_LIB}
 	${RM} ex168.o
+
+ex171: ex171.o chkopts
+	-${CLINKER} -o ex171 ex171.o ${PETSC_MAT_LIB}
+	${RM} ex171.o
+
 #-----------------------------------------------------------------------------
 NPROCS    = 1 3
 MATSHAPES = A B
@@ -1867,6 +1873,21 @@ runex164:
 	   ${DIFF} output/ex164_1.out ex164.tmp || echo ${PWD} "\nPossible problem with ex164, diffs above \n========================================="; \
 	   ${RM} -f ex164.tmp
 
+# See http://www.mcs.anl.gov/petsc/documentation/faq.html#datafiles for how to obtain the datafiles used below
+NPROCS    = 1
+DOF       = 1 2 3
+runex171:
+	-@touch ex171.tmp;\
+	for np in ${NPROCS}; do \
+	  for dof in ${DOF}; do \
+	    ${MPIEXEC} -n $$np ./ex171 -f ${DATAFILESPATH}/matrices/arco1 -dof $$dof -viewer_binary_skip_info > ex171.tmp 2>&1; \
+	    if (${DIFF} output/ex171.out ex171.tmp) then true; \
+            else echo ${PWD} ; echo "Possible problem with ex171 with:";\
+	    echo ${MPIEXEC} -n $$np ./ex171 -f ${DATAFILESPATH}/matrices/arco1 -dof $$dof -viewer_binary_skip_info; fi; \
+	  done; \
+	done; \
+	${RM} -f ex171.tmp
+
 TESTEXAMPLES_C		       = ex1.PETSc runex1 ex1.rm ex3.PETSc runex3 ex3.rm ex4.PETSc ex4.rm  ex5.PETSc runex5 runex5_2 ex5.rm \
                                  ex6.PETSc runex6 ex6.rm ex8.PETSc runex8 ex8.rm ex9.PETSc runex9 runex9_2 runex9_3 ex9.rm ex10.PETSc \
                                  runex10 ex10.rm ex11.PETSc runex11 runex11_2 runex11_3 runex11_4 ex11.rm ex14.PETSc \
@@ -1920,7 +1941,7 @@ TESTEXAMPLES_DATAFILESPATH     = ex40.PETSc runex40 ex40.rm ex42.PETSc runex42 \
                                  runex94_2_mattransposematmult_nonscalable runex94_2_mattransposematmult_matmatmult ex94.rm \
                                  ex136.PETSc runex136 runex136_2 runex136_3 \
                                  runex136_4 runex136_5 runex136_6 ex136.rm  ex140.PETSc runex140 runex140_2 runex140_3 runex140_4 ex140.rm \
-                                 ex100.PETSc runex100 ex100.rm ex125.PETSc runex125 ex125.rm \
+                                 ex100.PETSc runex100 ex100.rm ex125.PETSc runex125 ex125.rm ex171.PETSc runex171 ex171.rm\
                                  ex163.PETSc runex163 runex163_2 ex163.rm
 TESTEXAMPLES_FORTRAN_NOCOMPLEX = ex67f.PETSc runex67f ex67f.rm ex79f.PETSc runex79f ex79f.rm
 TESTEXAMPLES_F90	       = ex16f90.PETSc runex16f90 ex16f90.rm
