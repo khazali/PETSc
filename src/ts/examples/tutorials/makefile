@@ -151,9 +151,9 @@ ex30: ex30.o chkopts
 	-${CLINKER} -o ex30 ex30.o ${PETSC_TS_LIB}
 	${RM} ex30.o
 
-ex31: ex31.o  chkopts
-	-${CLINKER} -o ex31 ex31.o  ${PETSC_TS_LIB}
-#	${RM} ex31.o
+ex32: ex32.o chkopts
+	-${CLINKER} -o ex32 ex32.o  ${PETSC_TS_LIB}
+	${RM} ex32.o
 
 #---------------------------------------------------------------------------------
 runex1:
@@ -423,8 +423,8 @@ runex30_2:
 	   ${DIFF} output/ex30_2.out ex30_2.tmp || printf "${PWD}\nPossible problem with ex30_2, diffs above \n=========================================\n"; \
 	   ${RM} -f ex30_2.tmp
 
-runex31:
-	-@${MPIEXEC} -n 1 ./ex31 -nrefine 1
+runex32:
+	-@${MPIEXEC} -n 1 ./ex32 -nrefine 1 -f ${PETSC_DIR}/share/petsc/datafiles/meshes/square-4x4.exo -ksp_type cg -pc_type gamg -mg_levels_pc_type sor -mg_levels_ksp_type richardson -mg_levels_ksp_max_it 1 -ksp_monitor -ts_monitor -snes_monitor
 
 TESTEXAMPLES_C		  = ex1.PETSc runex1 runex1_2 ex1.rm ex2.PETSc runex2 ex2.rm ex3.PETSc runex3 runex3_2 ex3.rm \
                             ex4.PETSc runex4 runex4_2 runex4_3 runex4_4 ex4.rm ex5.PETSc ex5.rm \
