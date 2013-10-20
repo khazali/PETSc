@@ -72,10 +72,12 @@ PetscErrorCode  SNESComputeJacobianDefaultColor(SNES snes,Vec x1,Mat *J,Mat *B,M
   }
 
   /* F is only usable if there is no RHS on the SNES and the full solution corresponds to x1 */
-  /* ierr = VecEqual(x1,snes->vec_sol,&solvec);CHKERRQ(ierr); */
-  /* if (!snes->vec_rhs && solvec) { */
-  /*   ierr = MatFDColoringSetF(color,F);CHKERRQ(ierr); */
-  /* } */
+  if (snes->vec_sol) {
+    ierr = VecEqual(x1,snes->vec_sol,&solvec);CHKERRQ(ierr);
+    if (!snes->vec_rhs && solvec) {
+      ierr = MatFDColoringSetF(color,F);CHKERRQ(ierr);
+    }
+  }
   ierr = MatFDColoringApply(*B,color,x1,flag,snes);CHKERRQ(ierr);
   if (*J != *B) {
     ierr = MatAssemblyBegin(*J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);

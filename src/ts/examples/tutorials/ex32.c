@@ -1,4 +1,4 @@
-static char help[] = "Second Order Finite Volume Example of Laplacian.\n";
+static char help[] = "Second Order Finite Volume Example of Laplacian div \alpha grad u = f.\n";
 /*F
 
   Multigrid Poisson solver:
