@@ -1088,7 +1088,13 @@ int main(int argc, char **argv)
     /* Refine mesh using ... */
     ierr = DMRefine(dm, comm, &refinedMesh);CHKERRQ(ierr);
     if (refinedMesh) {
+      DMLabel  faceSets;
+      PetscInt fStart, fEnd;
+
       ierr = DMDestroy(&dm);CHKERRQ(ierr);
+      ierr = DMPlexGetHeightStratum(refinedMesh, 1, &fStart, &fEnd);CHKERRQ(ierr);
+      ierr = DMPlexGetLabel(refinedMesh, "Face Sets", &faceSets);CHKERRQ(ierr);
+      if (faceSets) {ierr = DMLabelFilter(faceSets, fStart, fEnd);CHKERRQ(ierr);}
       dm  = refinedMesh;
     }
     /* Distribute mesh over processes */
