@@ -185,13 +185,13 @@ static PetscErrorCode PhysicsSource_Lap_x4_x2(Model mod,PetscReal time,const Pet
   PetscFunctionReturn(0);
 }
 #undef __FUNCT__
-#define __FUNCT__ "PhysicsAlpha_one"
-static PetscErrorCode PhysicsAlpha_one(Model mod,PetscReal time,const PetscReal *x,PetscScalar *alpha,void *ctx)
+#define __FUNCT__ "PhysicsAlpha_n1"
+static PetscErrorCode PhysicsAlpha_n1(Model mod,PetscReal time,const PetscReal *x,PetscScalar *alpha,void *ctx)
 {
   /* Physics        phys    = (Physics)ctx; */
   /* Physics_Lap *lap = (Physics_Lap*)phys->data; */
   PetscFunctionBeginUser;
-  alpha[0] = 1.0;
+  alpha[0] = -1.0;
   PetscFunctionReturn(0);
 }
 #undef __FUNCT__
@@ -205,8 +205,8 @@ static PetscErrorCode PhysicsFunctional_Error(Model mod,PetscReal time,const Pet
 
   PetscFunctionBeginUser;
   ierr = (*mod->solution)(mod,time,x,yexact,phys);CHKERRQ(ierr);
-  f[lap->functional.Error] = PetscAbsScalar(u[0]-yexact[0]);
-  //PetscPrintf(PETSC_COMM_WORLD," ******************* %s (%e,%e) u=%e exact=%e\n",__FUNCT__,x[0],x[1],u[0],yexact[0]);
+  /* f[lap->functional.Error] = PetscAbsScalar(u[0]-yexact[0]); */
+  f[lap->functional.Error] = PetscRealPart(u[0]-yexact[0]); /* lets do real error for plotting */
   PetscFunctionReturn(0);
 }
 
@@ -229,7 +229,7 @@ static PetscErrorCode PhysicsCreate_Lap(Model mod,Physics phys)
     /* Initial/transient solution with default boundary conditions */
     ierr = ModelSolutionSetDefault(mod,PhysicsSolution_Lap_x4_x2,phys);CHKERRQ(ierr);
     ierr = ModelSourceSetDefault(mod,PhysicsSource_Lap_x4_x2,phys);CHKERRQ(ierr);
-    ierr = ModelAlphaSetDefault(mod,PhysicsAlpha_one,phys);CHKERRQ(ierr);
+    ierr = ModelAlphaSetDefault(mod,PhysicsAlpha_n1,phys);CHKERRQ(ierr);
     /* Register "canned" functionals */
     ierr = ModelFunctionalRegister(mod,"error",&lap->functional.Error,PhysicsFunctional_Error,phys);CHKERRQ(ierr);
   }
@@ -299,6 +299,7 @@ PetscErrorCode ConstructGeometry(DM dm, Vec *facegeom, Vec *cellgeom, User user)
   ierr = PetscSectionCreate(PetscObjectComm((PetscObject)dm), &sectionFace);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm, 1, &fStart, &fEnd);CHKERRQ(ierr);
   ierr = PetscSectionSetChart(sectionFace, fStart, fEnd);CHKERRQ(ierr);
+printf("fStart=%d fEnd=%d\n",fStart,fEnd);
   for (f = fStart; f < fEnd; ++f) {
     ierr = PetscSectionSetDof(sectionFace, f, sizeof(FaceGeom)/sizeof(PetscScalar));CHKERRQ(ierr);
   }
@@ -674,27 +675,24 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
   PetscViewer    viewer;
   char           filename[PETSC_MAX_PATH_LEN],*ftable = NULL;
   PetscReal      xnorm;
-  Vec            R,F;
+  Vec            E=0;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
   ierr = PetscObjectSetName((PetscObject) X, "solution");CHKERRQ(ierr);
   ierr = VecGetDM(X,&dm);CHKERRQ(ierr);
   ierr = VecNorm(X,NORM_INFINITY,&xnorm);CHKERRQ(ierr);
-  ierr = VecDuplicate(X,&R);CHKERRQ(ierr);
-  ierr = VecDuplicate(X,&F);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) R, "error");CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) F, "rhs");CHKERRQ(ierr);
+  ierr = VecDuplicate(X,&E);CHKERRQ(ierr);
   if (stepnum >= 0) {           /* No summary for final time */
     Model             mod = user->model;
     PetscInt          c,cStart,cEnd,fcount,i;
     size_t            ftableused,ftablealloc;
     const PetscScalar *cellgeom_v,*x_v;
-    PetscScalar       *func_v,*b_v;
+    PetscScalar       *func_v;
     DM                dmCell;
-    PetscReal         *fmin,*fmax,*fintegral;
+    PetscReal         *fmin,*fmax,*fintegral,*ftmp;
     fcount = mod->maxComputed+1;
-    ierr   = PetscMalloc3(fcount,PetscReal,&fmin,fcount,PetscReal,&fmax,fcount,PetscReal,&fintegral);CHKERRQ(ierr);
+    ierr   = PetscMalloc4(fcount,PetscReal,&fmin,fcount,PetscReal,&fmax,fcount,PetscReal,&fintegral,fcount,PetscReal,&ftmp);CHKERRQ(ierr);
     for (i=0; i<fcount; i++) {
       fmin[i]      = PETSC_MAX_REAL;
       fmax[i]      = PETSC_MIN_REAL;
@@ -704,23 +702,21 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
     ierr = VecGetDM(user->cellgeom,&dmCell);CHKERRQ(ierr);
     ierr = VecGetArrayRead(user->cellgeom,&cellgeom_v);CHKERRQ(ierr);
     ierr = VecGetArrayRead(X,&x_v);CHKERRQ(ierr);
-    ierr = VecGetArray(R,&func_v);CHKERRQ(ierr);
-    ierr = VecGetArray(F,&b_v);CHKERRQ(ierr);
+    ierr = VecGetArray(E,&func_v);CHKERRQ(ierr);
     for (c=cStart; c<user->cEndInterior; c++) {
       const CellGeom    *cg;
       const PetscScalar *cx;
-      PetscScalar *cfunc,*cb;
+      PetscScalar *cfunc;
       ierr = DMPlexPointLocalRead(dmCell,c,cellgeom_v,&cg);CHKERRQ(ierr);
       ierr = DMPlexPointGlobalRead(dm,c,x_v,&cx);CHKERRQ(ierr);
       ierr = DMPlexPointGlobalRef(dm,c,func_v,&cfunc);CHKERRQ(ierr);
-      ierr = DMPlexPointGlobalRef(dm,c,b_v,&cb);CHKERRQ(ierr);
       if (!cx) continue;        /* not a global cell */
       for (i=0; i<mod->numCall; i++) {
         FunctionalLink flink = mod->functionalCall[i];
-        ierr = (*flink->func)(mod,time,cg->centroid,cx,&cfunc[i],flink->ctx);CHKERRQ(ierr);
+        ierr = (*flink->func)(mod,time,cg->centroid,cx,&ftmp[i],flink->ctx);CHKERRQ(ierr);
+        *cfunc = ftmp[i]; /* save last functional */
+        if (i==mod->numCall-1) ftmp[i] = PetscAbs(ftmp[i]); /* allready a real, this assumes we want an abs - error */
       }
-      ierr = (*mod->source)(mod,time,cg->centroid,cb,mod->physics);CHKERRQ(ierr);
-      /* printf("MonitorVTK: %d) (%e %e) u=%e error=%e\n",c,cg->centroid[0],cg->centroid[1],cx[0],cfunc[0]); */
       for (i=0; i<fcount; i++) {
         fmin[i]       = PetscMin(fmin[i],cfunc[i]);
         fmax[i]       = PetscMax(fmax[i],cfunc[i]);
@@ -729,8 +725,7 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
     }
     ierr = VecRestoreArrayRead(user->cellgeom,&cellgeom_v);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(X,&x_v);CHKERRQ(ierr);
-    ierr = VecRestoreArray(R,&func_v);CHKERRQ(ierr);
-    ierr = VecRestoreArray(F,&b_v);CHKERRQ(ierr);
+    ierr = VecRestoreArray(E,&func_v);CHKERRQ(ierr);
     ierr = MPI_Allreduce(MPI_IN_PLACE,fmin,fcount,MPIU_REAL,MPI_MIN,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
     ierr = MPI_Allreduce(MPI_IN_PLACE,fmax,fcount,MPIU_REAL,MPI_MAX,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
     ierr = MPI_Allreduce(MPI_IN_PLACE,fintegral,fcount,MPIU_REAL,MPI_SUM,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
@@ -767,17 +762,18 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
       ftableused += countused;
       ftable[ftableused] = 0;
     }
-    ierr = PetscFree3(fmin,fmax,fintegral);CHKERRQ(ierr);
+    ierr = PetscFree4(fmin,fmax,fintegral,ftmp);CHKERRQ(ierr);
 
     ierr = PetscPrintf(PetscObjectComm((PetscObject)ts),"% 3D  time %8.4G  |x| %8.4G  %s\n",stepnum,time,xnorm,ftable ? ftable : "");CHKERRQ(ierr);
     ierr = PetscFree(ftable);CHKERRQ(ierr);
   }
   if (user->vtkInterval < 1) {
-    ierr = VecDestroy(&R);CHKERRQ(ierr);
-    ierr = VecDestroy(&F);CHKERRQ(ierr);
+    ierr = VecDestroy(&E);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
   if ((stepnum == -1) ^ (stepnum % user->vtkInterval == 0)) {
+    Model             mod = user->model;
+    FunctionalLink flink = mod->functionalCall[mod->numCall-1];
     if (stepnum == -1) {        /* Final time is not multiple of normal time interval, write it anyway */
       ierr = TSGetTimeStepNumber(ts,&stepnum);CHKERRQ(ierr);
     }
@@ -785,17 +781,13 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
     ierr = OutputVTK(dm,filename,&viewer);CHKERRQ(ierr);
     ierr = VecView(X,viewer);CHKERRQ(ierr);
     ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-    ierr = PetscSNPrintf(filename,sizeof filename,"ex32-%03D-error.vtu",stepnum);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject) E, flink->name);CHKERRQ(ierr);
+    ierr = PetscSNPrintf(filename,sizeof filename,"ex32-%03D-%s.vtu",stepnum,flink->name);CHKERRQ(ierr);
     ierr = OutputVTK(dm,filename,&viewer);CHKERRQ(ierr);
-    ierr = VecView(R,viewer);CHKERRQ(ierr);
-    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-    ierr = PetscSNPrintf(filename,sizeof filename,"ex32-%03D-rhs.vtu",stepnum);CHKERRQ(ierr);
-    ierr = OutputVTK(dm,filename,&viewer);CHKERRQ(ierr);
-    ierr = VecView(F,viewer);CHKERRQ(ierr);
+    ierr = VecView(E,viewer);CHKERRQ(ierr);
     ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
   }
-  ierr = VecDestroy(&R);CHKERRQ(ierr);
-  ierr = VecDestroy(&F);CHKERRQ(ierr);
+  ierr = VecDestroy(&E);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -858,13 +850,18 @@ static PetscErrorCode ApplyBC(DM dm, PetscReal time, Vec locX, User user)
   PetscErrorCode    ierr;
 
   PetscFunctionBeginUser;
+/* VecView(user->facegeom,PETSC_VIEWER_STDOUT_WORLD); */
+ierr = VecGetLocalSize(user->facegeom, &numFS);CHKERRQ(ierr);
+printf("ApplyBC facegeom VecGetLocalSize=%d\ndmFace:\n",numFS/4);
   ierr = VecGetDM(user->facegeom,&dmFace);CHKERRQ(ierr);
+DMView(dmFace,PETSC_VIEWER_STDOUT_WORLD);
   ierr = DMPlexGetLabelIdIS(dm, name, &idIS);CHKERRQ(ierr);
   if (!idIS) PetscFunctionReturn(0);
   ierr = ISGetLocalSize(idIS, &numFS);CHKERRQ(ierr);
   ierr = ISGetIndices(idIS, &ids);CHKERRQ(ierr);
   ierr = VecGetArrayRead(user->facegeom, &facegeom);CHKERRQ(ierr);
   ierr = VecGetArray(locX, &x);CHKERRQ(ierr);
+printf("ApplyBC numFS=%d\n",numFS);
   for (fs = 0; fs < numFS; ++fs) {
     BoundaryFunction bcFunc;
     void             *bcCtx;
@@ -874,13 +871,14 @@ static PetscErrorCode ApplyBC(DM dm, PetscReal time, Vec locX, User user)
     ierr = ModelBoundaryFind(mod,ids[fs],&bcFunc,&bcCtx);CHKERRQ(ierr);
     ierr = DMPlexGetStratumIS(dm, name, ids[fs], &faceIS);CHKERRQ(ierr);
     ierr = ISGetLocalSize(faceIS, &numFaces);CHKERRQ(ierr);
+printf("\tApplyBC numFaces=%d\n",numFaces);
     ierr = ISGetIndices(faceIS, &faces);CHKERRQ(ierr);
     for (f = 0; f < numFaces; ++f) {
       const PetscInt    face = faces[f], *cells;
       const PetscScalar *xI;
       PetscScalar       *xG;
       const FaceGeom    *fg;
-
+printf("\t\tApplyBC %d) face=%d\n",f,face);
       ierr = DMPlexPointLocalRead(dmFace, face, facegeom, &fg);CHKERRQ(ierr);
       ierr = DMPlexGetSupport(dm, face, &cells);CHKERRQ(ierr);
       ierr = DMPlexPointLocalRead(dm, cells[0], x, &xI);CHKERRQ(ierr);
@@ -937,9 +935,9 @@ static PetscErrorCode ApplyLaplacianLocal(DM dm,DM dmFace,DM dmCell,PetscReal ti
     WaxpyD(-1,cgL->centroid,cgR->centroid,v); /* dx vector */
     dx = Norm2D(v);
     area = Norm2D(fg->normal);
-    flux = alpha*area*(xR[0]-xL[0])/dx;
-    if (fL) fL[0] -= flux / cgL->volume;
-    if (fR) fR[0] += flux / cgR->volume;
+    flux = alpha*(xR[0]-xL[0])/dx;
+    if (fL) fL[0] -= area*flux / cgL->volume;
+    if (fR) fR[0] += area*flux / cgR->volume;
   }
   ierr = VecRestoreArrayRead(user->facegeom,&facegeom);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(user->cellgeom,&cellgeom);CHKERRQ(ierr);
@@ -1014,6 +1012,7 @@ PetscErrorCode RHSFunctionLap(TS ts,PetscReal t,Vec globalin,Vec globalout,void 
   }
   ierr = VecRestoreArrayRead(user->cellgeom, &cgeom_v);CHKERRQ(ierr);
   ierr = VecRestoreArray(globalout, &x_v);CHKERRQ(ierr);
+  VecScale(globalout, -1.); /* why is this needed to get SNES residual correct? */
   PetscFunctionReturn(0);
 }
 

@@ -454,7 +454,7 @@ runex31:
 	   ${DIFF} output/ex31_1.out ex31_1.tmp || echo  ${PWD} "\nPossible problem with ex20_1, diffs above \n=========================================";  \
 	   ${RM} -f ex31_1.tmp
 runex32:
-	-@${MPIEXEC} -n 1 ./ex32 -nrefine 0 -f ${PETSC_DIR}/share/petsc/datafiles/meshes/square-4x4.exo -ksp_type cg -pc_type gamg -pc_gamg_agg_nsmooths 1 -mg_levels_pc_type sor -mg_levels_ksp_type richardson -mg_levels_ksp_max_it 1 -ksp_monitor -ts_monitor -snes_monitor
+	-@${MPIEXEC} -n 1 ./ex32 -nrefine 1 -f ${PETSC_DIR}/share/petsc/datafiles/meshes/square-4x4.exo -ksp_type cg -pc_type gamg -pc_gamg_agg_nsmooths 1 -mg_levels_pc_type sor -mg_levels_ksp_type richardson -mg_levels_ksp_max_it 1 -ksp_monitor -ts_monitor -snes_monitor
 
 
 
