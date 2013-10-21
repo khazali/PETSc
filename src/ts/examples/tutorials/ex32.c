@@ -299,7 +299,7 @@ PetscErrorCode ConstructGeometry(DM dm, Vec *facegeom, Vec *cellgeom, User user)
   ierr = PetscSectionCreate(PetscObjectComm((PetscObject)dm), &sectionFace);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm, 1, &fStart, &fEnd);CHKERRQ(ierr);
   ierr = PetscSectionSetChart(sectionFace, fStart, fEnd);CHKERRQ(ierr);
-printf("fStart=%d fEnd=%d\n",fStart,fEnd);
+
   for (f = fStart; f < fEnd; ++f) {
     ierr = PetscSectionSetDof(sectionFace, f, sizeof(FaceGeom)/sizeof(PetscScalar));CHKERRQ(ierr);
   }
@@ -425,14 +425,14 @@ PetscErrorCode SetUpLocalSpace(DM dm, User user)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetUpBoundaries"
-PetscErrorCode SetUpBoundaries(DM dm, User user)
+PetscErrorCode SetUpBoundaries(MPI_Comm comm, User user)
 {
   Model          mod = user->model;
   PetscErrorCode ierr;
   BoundaryLink   b;
 
   PetscFunctionBeginUser;
-  ierr = PetscOptionsBegin(PetscObjectComm((PetscObject)dm),NULL,"Boundary condition options","");CHKERRQ(ierr);
+  ierr = PetscOptionsBegin(comm,NULL,"Boundary condition options","");CHKERRQ(ierr);
   for (b = mod->boundary; b; b=b->next) {
     char      optname[512];
     PetscInt  ids[512],len = 512;
@@ -666,6 +666,8 @@ static PetscErrorCode OutputVTK(DM dm, const char *filename, PetscViewer *viewer
   PetscFunctionReturn(0);
 }
 
+static PetscReal s_error_inf, s_error_2;
+
 #undef __FUNCT__
 #define __FUNCT__ "MonitorVTK"
 static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,void *ctx)
@@ -718,9 +720,9 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
         if (i==mod->numCall-1) ftmp[i] = PetscAbs(ftmp[i]); /* allready a real, this assumes we want an abs - error */
       }
       for (i=0; i<fcount; i++) {
-        fmin[i]       = PetscMin(fmin[i],cfunc[i]);
-        fmax[i]       = PetscMax(fmax[i],cfunc[i]);
-        fintegral[i] += cg->volume * cfunc[i];
+        fmin[i]       = PetscMin(fmin[i],ftmp[i]);
+        fmax[i]       = PetscMax(fmax[i],ftmp[i]);
+        fintegral[i] += cg->volume * ftmp[i];
       }
     }
     ierr = VecRestoreArrayRead(user->cellgeom,&cellgeom_v);CHKERRQ(ierr);
@@ -729,7 +731,7 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
     ierr = MPI_Allreduce(MPI_IN_PLACE,fmin,fcount,MPIU_REAL,MPI_MIN,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
     ierr = MPI_Allreduce(MPI_IN_PLACE,fmax,fcount,MPIU_REAL,MPI_MAX,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
     ierr = MPI_Allreduce(MPI_IN_PLACE,fintegral,fcount,MPIU_REAL,MPI_SUM,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
-
+    s_error_inf = fmax[0]; s_error_2 = fintegral[0]; /* keep for convergence test */
     ftablealloc = fcount * 100;
     ftableused  = 0;
     ierr        = PetscMalloc(ftablealloc,&ftable);CHKERRQ(ierr);
@@ -850,18 +852,13 @@ static PetscErrorCode ApplyBC(DM dm, PetscReal time, Vec locX, User user)
   PetscErrorCode    ierr;
 
   PetscFunctionBeginUser;
-/* VecView(user->facegeom,PETSC_VIEWER_STDOUT_WORLD); */
-ierr = VecGetLocalSize(user->facegeom, &numFS);CHKERRQ(ierr);
-printf("ApplyBC facegeom VecGetLocalSize=%d\ndmFace:\n",numFS/4);
   ierr = VecGetDM(user->facegeom,&dmFace);CHKERRQ(ierr);
-DMView(dmFace,PETSC_VIEWER_STDOUT_WORLD);
   ierr = DMPlexGetLabelIdIS(dm, name, &idIS);CHKERRQ(ierr);
   if (!idIS) PetscFunctionReturn(0);
   ierr = ISGetLocalSize(idIS, &numFS);CHKERRQ(ierr);
   ierr = ISGetIndices(idIS, &ids);CHKERRQ(ierr);
   ierr = VecGetArrayRead(user->facegeom, &facegeom);CHKERRQ(ierr);
   ierr = VecGetArray(locX, &x);CHKERRQ(ierr);
-printf("ApplyBC numFS=%d\n",numFS);
   for (fs = 0; fs < numFS; ++fs) {
     BoundaryFunction bcFunc;
     void             *bcCtx;
@@ -871,14 +868,12 @@ printf("ApplyBC numFS=%d\n",numFS);
     ierr = ModelBoundaryFind(mod,ids[fs],&bcFunc,&bcCtx);CHKERRQ(ierr);
     ierr = DMPlexGetStratumIS(dm, name, ids[fs], &faceIS);CHKERRQ(ierr);
     ierr = ISGetLocalSize(faceIS, &numFaces);CHKERRQ(ierr);
-printf("\tApplyBC numFaces=%d\n",numFaces);
     ierr = ISGetIndices(faceIS, &faces);CHKERRQ(ierr);
     for (f = 0; f < numFaces; ++f) {
       const PetscInt    face = faces[f], *cells;
       const PetscScalar *xI;
       PetscScalar       *xG;
       const FaceGeom    *fg;
-printf("\t\tApplyBC %d) face=%d\n",f,face);
       ierr = DMPlexPointLocalRead(dmFace, face, facegeom, &fg);CHKERRQ(ierr);
       ierr = DMPlexGetSupport(dm, face, &cells);CHKERRQ(ierr);
       ierr = DMPlexPointLocalRead(dm, cells[0], x, &xI);CHKERRQ(ierr);
@@ -1025,8 +1020,8 @@ int main(int argc, char **argv)
   Model             mod;
   Physics           phys;
   DM                dm, dmDist;
-  PetscReal         ftime,dt;
-  PetscInt          dim, overlap, nsteps, nrefine,i;
+  PetscReal         ftime,dt,err_inf[100],err_2[100];
+  PetscInt          dim, overlap, nsteps, nrefine,i,ilev;
   int               CPU_word_size = 0, IO_word_size = 0, exoid;
   float             version;
   TS                ts;
@@ -1060,7 +1055,6 @@ int main(int argc, char **argv)
     vtkCellGeom = PETSC_FALSE;
     nrefine=0;
     ierr = PetscOptionsInt("-nrefine","Number of refinment steps","",nrefine,&nrefine,NULL);CHKERRQ(ierr);
-
     ierr = PetscOptionsBool("-ufv_vtk_cellgeom","Write cell geometry (for debugging)","",vtkCellGeom,&vtkCellGeom,NULL);CHKERRQ(ierr);
     ierr = PetscMemzero(phys,sizeof(struct _n_Physics));CHKERRQ(ierr);
     ierr = PhysicsCreate_Lap(mod,phys);CHKERRQ(ierr);
@@ -1072,134 +1066,141 @@ int main(int argc, char **argv)
   }
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
+  ierr = SetUpBoundaries(comm, user);CHKERRQ(ierr);
+
   /* create base mesh */
-  if (!rank) {
-    exoid = ex_open(filename, EX_READ, &CPU_word_size, &IO_word_size, &version);
-    if (exoid <= 0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"ex_open(\"%s\",...) did not return a valid file ID",filename);
-  } else exoid = -1;                 /* Not used */
-  ierr = DMPlexCreateExodus(comm, exoid, PETSC_TRUE, &dm);CHKERRQ(ierr);
-  if (!rank) {ierr = ex_close(exoid);CHKERRQ(ierr);}
+  for (ilev=0;ilev<=nrefine;ilev++) {
+    if (!rank) {
+      exoid = ex_open(filename, EX_READ, &CPU_word_size, &IO_word_size, &version);
+      if (exoid <= 0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"ex_open(\"%s\",...) did not return a valid file ID",filename);
+    } else exoid = -1;                 /* Not used */
+    ierr = DMPlexCreateExodus(comm, exoid, PETSC_TRUE, &dm);CHKERRQ(ierr);
+    if (!rank) {ierr = ex_close(exoid);CHKERRQ(ierr);}
 
-  /* refine mesh */
-  /* ierr = DMPlexSetRefinementUniform(dm, PETSC_TRUE); */
-  for (i=0;i<nrefine;i++) {
-    DM refinedMesh     = NULL;
-    /* DM distributedMesh = NULL; */
-    /* Refine mesh using ... */
-    ierr = DMRefine(dm, comm, &refinedMesh);CHKERRQ(ierr);
-    if (refinedMesh) {
-      DMLabel  faceSets;
-      PetscInt fStart, fEnd;
-
-      ierr = DMDestroy(&dm);CHKERRQ(ierr);
-      ierr = DMPlexGetHeightStratum(refinedMesh, 1, &fStart, &fEnd);CHKERRQ(ierr);
-      ierr = DMPlexGetLabel(refinedMesh, "Face Sets", &faceSets);CHKERRQ(ierr);
-      if (faceSets) {ierr = DMLabelFilter(faceSets, fStart, fEnd);CHKERRQ(ierr);}
-      dm  = refinedMesh;
+    /* refine mesh */
+    /* ierr = DMPlexSetRefinementUniform(dm, PETSC_TRUE); */
+    for (i=0;i<ilev;i++) {
+      DM refinedMesh     = NULL;
+      /* Refine mesh using ... */
+      ierr = DMRefine(dm, comm, &refinedMesh);CHKERRQ(ierr);
+      if (refinedMesh) {
+        DMLabel  faceSets;
+        PetscInt fStart, fEnd;
+        ierr = DMDestroy(&dm);CHKERRQ(ierr);
+        ierr = DMPlexGetHeightStratum(refinedMesh, 1, &fStart, &fEnd);CHKERRQ(ierr);
+        ierr = DMPlexGetLabel(refinedMesh, "Face Sets", &faceSets);CHKERRQ(ierr);
+        if (faceSets) {ierr = DMLabelFilter(faceSets, fStart, fEnd);CHKERRQ(ierr);}
+        dm  = refinedMesh;
+      }
     }
-    /* Distribute mesh over processes */
-    /* ierr = DMPlexDistribute(dm, partitioner, 0, &distributedMesh);CHKERRQ(ierr); */
-    /* if (distributedMesh) { */
-    /*   ierr = DMDestroy(dm);CHKERRQ(ierr); */
-    /*   dm  = distributedMesh; */
-    /* } */
-  }
 
-  /* Distribute mesh */
-  ierr = DMPlexDistribute(dm, "chaco", overlap, NULL, &dmDist);CHKERRQ(ierr);
-  if (dmDist) {
+    /* Distribute mesh */
+    ierr = DMPlexDistribute(dm, "chaco", overlap, NULL, &dmDist);CHKERRQ(ierr);
+    if (dmDist) {
+      ierr = DMDestroy(&dm);CHKERRQ(ierr);
+      dm   = dmDist;
+    }
+    ierr = DMSetFromOptions(dm);CHKERRQ(ierr);
+
+    {
+      DM gdm;
+      ierr = DMPlexGetHeightStratum(dm, 0, NULL, &user->cEndInterior);CHKERRQ(ierr);
+      ierr = DMPlexConstructGhostCells(dm, NULL, &user->numGhostCells, &gdm);CHKERRQ(ierr);
+      ierr = DMDestroy(&dm);CHKERRQ(ierr);
+      dm   = gdm;
+    }
+    ierr = ConstructGeometry(dm, &user->facegeom, &user->cellgeom, user);CHKERRQ(ierr);
+    if (0) {ierr = VecView(user->cellgeom, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);}
+    ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
+    ierr = DMPlexSetPreallocationCenterDimension(dm, 0);CHKERRQ(ierr);
+
+    /* Set up DM with section describing local vector and configure local vector. */
+    ierr = SetUpLocalSpace(dm, user);CHKERRQ(ierr);
+
+    ierr = DMCreateGlobalVector(dm, &X);CHKERRQ(ierr);
+    ierr = SetInitialCondition(dm, X, user);CHKERRQ(ierr);
+
+    if (vtkCellGeom) {
+      DM  dmCell;
+      Vec partition;
+
+      ierr = OutputVTK(dm, "ex32-cellgeom.vtk", &viewer);CHKERRQ(ierr);
+      ierr = VecView(user->cellgeom, viewer);CHKERRQ(ierr);
+      ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+      ierr = CreatePartitionVec(dm, &dmCell, &partition);CHKERRQ(ierr);
+      ierr = OutputVTK(dmCell, "ex32-partition.vtk", &viewer);CHKERRQ(ierr);
+      ierr = VecView(partition, viewer);CHKERRQ(ierr);
+      ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+      ierr = VecDestroy(&partition);CHKERRQ(ierr);
+      ierr = DMDestroy(&dmCell);CHKERRQ(ierr);
+    }
+
+    ierr = DMCreateMatrix(dm, &A);CHKERRQ(ierr);
+    { /* finite difference Jacobian A */
+      SNES snes;
+      MatStructure flag;
+
+      ierr = SNESCreate(comm, &snes);CHKERRQ(ierr);
+      ierr = SNESSetDM(snes,dm);CHKERRQ(ierr);
+      ierr = SNESSetFunction(snes,NULL,ComputeFunctionLap,user);CHKERRQ(ierr);
+      ierr = SNESSetJacobian(snes,A,A,SNESComputeJacobianDefaultColor,0);CHKERRQ(ierr);
+
+      ierr = SNESComputeJacobian(snes,X,&A,&A,&flag);CHKERRQ(ierr);
+      /* ierr = MatView(A,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
+      ierr = SNESDestroy(&snes);CHKERRQ(ierr);
+    }
+
+    /* create TS */
+    ierr = TSCreate(comm, &ts);CHKERRQ(ierr);
+    ierr = TSSetProblemType(ts,TS_LINEAR);CHKERRQ(ierr);
+    ierr = TSSetType(ts, TSBEULER);CHKERRQ(ierr);
+    ierr = TSSetDM(ts, dm);CHKERRQ(ierr);
+    ierr = TSMonitorSet(ts,MonitorVTK,user,NULL);CHKERRQ(ierr);
+    ierr = TSSetRHSJacobian(ts,A,A,TSComputeRHSJacobianConstant,&user);CHKERRQ(ierr);
+    ierr = TSSetRHSFunction(ts,NULL,RHSFunctionLap,user);CHKERRQ(ierr);
+    ierr = TSSetDuration(ts,1,2.0);CHKERRQ(ierr);
+    dt   = 1.e300;
+    ierr = TSSetInitialTimeStep(ts,0.0,dt);CHKERRQ(ierr);
+    ierr = TSSetSolution(ts,X);CHKERRQ(ierr);
+    ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
+
+    /* solve */
+    ierr = TSSolve(ts,X);CHKERRQ(ierr);
+    ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
+    ierr = TSGetTimeStepNumber(ts,&nsteps);CHKERRQ(ierr);
+    ierr = TSGetConvergedReason(ts,&reason);CHKERRQ(ierr);
+    PetscPrintf(PETSC_COMM_WORLD,"%s at time %G after %D steps. Errors: |e|_inf=%e |e|_2=%e\n",TSConvergedReasons[reason],ftime,nsteps,s_error_inf,s_error_2);
+    /* clean up */
+    ierr = TSDestroy(&ts);CHKERRQ(ierr);
     ierr = DMDestroy(&dm);CHKERRQ(ierr);
-    dm   = dmDist;
+    ierr = VecDestroy(&user->cellgeom);CHKERRQ(ierr);
+    ierr = VecDestroy(&user->facegeom);CHKERRQ(ierr);
+    ierr = VecDestroy(&X);CHKERRQ(ierr);
+    ierr = MatDestroy(&A);CHKERRQ(ierr);
+
+    err_inf[ilev] = s_error_inf;
+    err_2[ilev] = s_error_2;
   }
-  ierr = DMSetFromOptions(dm);CHKERRQ(ierr);
-PetscPrintf(comm,"%s DMView\n",__FUNCT__);
-DMView(dm,PETSC_VIEWER_STDOUT_WORLD);
-  {
-    DM gdm;
-    ierr = DMPlexGetHeightStratum(dm, 0, NULL, &user->cEndInterior);CHKERRQ(ierr);
-    ierr = DMPlexConstructGhostCells(dm, NULL, &user->numGhostCells, &gdm);CHKERRQ(ierr);
-PetscPrintf(comm,"%s added %D ghost cells, cEndInterior=%d\n",__FUNCT__,user->numGhostCells,user->cEndInterior);
-    ierr = DMDestroy(&dm);CHKERRQ(ierr);
-    dm   = gdm;
-  }
-  ierr = ConstructGeometry(dm, &user->facegeom, &user->cellgeom, user);CHKERRQ(ierr);
-  if (0) {ierr = VecView(user->cellgeom, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);}
-  ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
-  ierr = DMPlexSetPreallocationCenterDimension(dm, 0);CHKERRQ(ierr);
-
-  /* Set up DM with section describing local vector and configure local vector. */
-  ierr = SetUpLocalSpace(dm, user);CHKERRQ(ierr);
-  ierr = SetUpBoundaries(dm, user);CHKERRQ(ierr);
-
-  ierr = DMCreateGlobalVector(dm, &X);CHKERRQ(ierr);
-  ierr = SetInitialCondition(dm, X, user);CHKERRQ(ierr);
-
-  if (vtkCellGeom) {
-    DM  dmCell;
-    Vec partition;
-
-    ierr = OutputVTK(dm, "ex32-cellgeom.vtk", &viewer);CHKERRQ(ierr);
-    ierr = VecView(user->cellgeom, viewer);CHKERRQ(ierr);
-    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-    ierr = CreatePartitionVec(dm, &dmCell, &partition);CHKERRQ(ierr);
-    ierr = OutputVTK(dmCell, "ex32-partition.vtk", &viewer);CHKERRQ(ierr);
-    ierr = VecView(partition, viewer);CHKERRQ(ierr);
-    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-    ierr = VecDestroy(&partition);CHKERRQ(ierr);
-    ierr = DMDestroy(&dmCell);CHKERRQ(ierr);
-  }
-
-  ierr = DMCreateMatrix(dm, &A);CHKERRQ(ierr);
-  { /* finite difference Jacobian A */
-    SNES snes;
-    MatStructure flag;
-
-    ierr = SNESCreate(comm, &snes);CHKERRQ(ierr);
-    ierr = SNESSetDM(snes,dm);CHKERRQ(ierr);
-    ierr = SNESSetFunction(snes,NULL,ComputeFunctionLap,user);CHKERRQ(ierr);
-    ierr = SNESSetJacobian(snes,A,A,SNESComputeJacobianDefaultColor,0);CHKERRQ(ierr);
-
-    ierr = SNESComputeJacobian(snes,X,&A,&A,&flag);CHKERRQ(ierr);
-    /* ierr = MatView(A,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
-    ierr = SNESDestroy(&snes);CHKERRQ(ierr);
-  }
-
-  /* create TS */
-  ierr = TSCreate(comm, &ts);CHKERRQ(ierr);
-  ierr = TSSetProblemType(ts,TS_LINEAR);CHKERRQ(ierr);
-  ierr = TSSetType(ts, TSBEULER);CHKERRQ(ierr);
-  ierr = TSSetDM(ts, dm);CHKERRQ(ierr);
-  ierr = TSMonitorSet(ts,MonitorVTK,user,NULL);CHKERRQ(ierr);
-  ierr = TSSetRHSJacobian(ts,A,A,TSComputeRHSJacobianConstant,&user);CHKERRQ(ierr);
-  ierr = TSSetRHSFunction(ts,NULL,RHSFunctionLap,user);CHKERRQ(ierr);
-  ierr = TSSetDuration(ts,1,2.0);CHKERRQ(ierr);
-  dt   = 1.e300;
-  ierr = TSSetInitialTimeStep(ts,0.0,dt);CHKERRQ(ierr);
-  ierr = TSSetSolution(ts,X);CHKERRQ(ierr);
-  ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
-
-  /* solve */
-  ierr = TSSolve(ts,X);CHKERRQ(ierr);
-  ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts,&nsteps);CHKERRQ(ierr);
-  ierr = TSGetConvergedReason(ts,&reason);CHKERRQ(ierr);
-  PetscPrintf(PETSC_COMM_WORLD,"%s at time %G after %D steps\n",TSConvergedReasons[reason],ftime,nsteps);
-
-  /* clean up */
-  ierr = TSDestroy(&ts);CHKERRQ(ierr);
-  ierr = VecDestroy(&user->cellgeom);CHKERRQ(ierr);
-  ierr = VecDestroy(&user->facegeom);CHKERRQ(ierr);
-  ierr = BoundaryLinkDestroy(&user->model->boundary);CHKERRQ(ierr);
   ierr = FunctionalLinkDestroy(&user->model->functionalRegistry);CHKERRQ(ierr);
+  ierr = BoundaryLinkDestroy(&user->model->boundary);CHKERRQ(ierr);
   ierr = PetscFree(user->model->functionalMonitored);CHKERRQ(ierr);
   ierr = PetscFree(user->model->functionalCall);CHKERRQ(ierr);
   ierr = PetscFree(user->model->physics->data);CHKERRQ(ierr);
   ierr = PetscFree(user->model->physics);CHKERRQ(ierr);
   ierr = PetscFree(user->model);CHKERRQ(ierr);
   ierr = PetscFree(user);CHKERRQ(ierr);
-  ierr = VecDestroy(&X);CHKERRQ(ierr);
-  ierr = MatDestroy(&A);CHKERRQ(ierr);
-  ierr = DMDestroy(&dm);CHKERRQ(ierr);
+
+  /* print out convergence rates */
+  PetscPrintf(PETSC_COMM_WORLD,"%s Errors: |e|_inf |e|_2\n",__FUNCT__);
+  for (ilev=1;ilev<=nrefine;ilev++) {
+    const PetscReal log2r = 1.0/log(2.0);
+    PetscReal ratio = err_inf[ilev-1]/err_inf[ilev];
+    const PetscReal convergeRate_Inf = log(ratio)*log2r;
+    ratio = err_2[ilev-1]/err_2[ilev];
+    const PetscReal convergeRate_2 = log(ratio)*log2r;
+    PetscPrintf(PETSC_COMM_WORLD,"\t%e %e\n",convergeRate_Inf,convergeRate_2);
+  }
+
   ierr = PetscFinalize();
   return(0);
-}
+  }
