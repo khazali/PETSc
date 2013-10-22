@@ -464,6 +464,7 @@ regressionParameters = {'src/sys/comm/examples/tests/ex1':    [{'numProcs': 2},
                                                                 {'numProcs': 1, 'args': '-ufv_vtk_interval 0 -f %(meshes)s/squaremotor-30.exo -ufv_split_faces'},
                                                                 # 3D 7
                                                                 {'numProcs': 1, 'args': '-ufv_vtk_interval 0 -f %(meshes)s/blockcylinder-50.exo -bc_inflow 100,101,200 -bc_outflow 201'}],
+                        'src/ts/examples/tutorials/ex32':      [{'numProcs': 1, 'args': '-nrefine 2 -f ${PETSC_DIR}/share/petsc/datafiles/meshes/square-4x4.exo -ksp_type cg -pc_type gamg -pc_gamg_agg_nsmooths 1 -mg_levels_pc_type sor -mg_levels_ksp_type richardson -mg_levels_ksp_max_it 1'}],
                         }
 
 def noCheckCommand(command, status, output, error):
