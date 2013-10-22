@@ -731,7 +731,7 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
     ierr = MPI_Allreduce(MPI_IN_PLACE,fmin,fcount,MPIU_REAL,MPI_MIN,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
     ierr = MPI_Allreduce(MPI_IN_PLACE,fmax,fcount,MPIU_REAL,MPI_MAX,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
     ierr = MPI_Allreduce(MPI_IN_PLACE,fintegral,fcount,MPIU_REAL,MPI_SUM,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
-    s_error_inf = fmax[0]; s_error_2 = fintegral[0]; /* keep for convergence test */
+    if (fcount) {s_error_inf = fmax[0]; s_error_2 = fintegral[0];} /* keep for convergence test */
     ftablealloc = fcount * 100;
     ftableused  = 0;
     ierr        = PetscMalloc(ftablealloc,&ftable);CHKERRQ(ierr);
@@ -773,9 +773,9 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
     ierr = VecDestroy(&E);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
-  if ((stepnum == -1) ^ (stepnum % user->vtkInterval == 0)) {
-    Model             mod = user->model;
-    FunctionalLink flink = mod->functionalCall[mod->numCall-1];
+  if (user->model->functionalCall && ((stepnum == -1) ^ (stepnum % user->vtkInterval == 0))) {
+    Model          mod   = user->model;
+    FunctionalLink flink = mod->functionalCall[mod->numCall];
     if (stepnum == -1) {        /* Final time is not multiple of normal time interval, write it anyway */
       ierr = TSGetTimeStepNumber(ts,&stepnum);CHKERRQ(ierr);
     }
