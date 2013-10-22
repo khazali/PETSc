@@ -96,10 +96,12 @@ struct _n_User {
   Vec            cellgeom, facegeom;
   PetscInt       vtkInterval;   /* For monitor */
   Model          model;
+  PetscReal      errorInf[32], error2[32];
+  PetscInt       N[32],ilev;
 };
 
 typedef struct {
-  PetscScalar normal[DIM];              /* Area-scaled normals -- used??? */
+  PetscScalar normal[DIM];              /* Area-scaled normals */
   PetscScalar centroid[DIM];            /* Location of centroid (quadrature point) */
 } FaceGeom;
 
@@ -646,8 +648,7 @@ PetscErrorCode SetInitialCondition(DM dm, Vec X, User user)
   for (c = cStart; c < cEndInterior; ++c) {
     PetscScalar    *xc;
     ierr = DMPlexPointGlobalRef(dm,c,x,&xc);CHKERRQ(ierr);
-    if (xc) *xc = 0.;
-    else printf("SetInitialCondition: xc==0 ???????\n");
+    if (xc) *xc = 0.; /* process ghost */
   }
   ierr = VecRestoreArray(X, &x);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -665,8 +666,6 @@ static PetscErrorCode OutputVTK(DM dm, const char *filename, PetscViewer *viewer
   ierr = PetscViewerFileSetName(*viewer, filename);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-
-static PetscReal s_error_inf, s_error_2;
 
 #undef __FUNCT__
 #define __FUNCT__ "MonitorVTK"
@@ -731,7 +730,7 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
     ierr = MPI_Allreduce(MPI_IN_PLACE,fmin,fcount,MPIU_REAL,MPI_MIN,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
     ierr = MPI_Allreduce(MPI_IN_PLACE,fmax,fcount,MPIU_REAL,MPI_MAX,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
     ierr = MPI_Allreduce(MPI_IN_PLACE,fintegral,fcount,MPIU_REAL,MPI_SUM,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
-    if (fcount) {s_error_inf = fmax[0]; s_error_2 = fintegral[0];} /* keep for convergence test */
+    if (fcount) { user->errorInf[user->ilev] = fmax[mod->numCall-1]; user->error2[user->ilev] = fintegral[mod->numCall-1]; } /* keep for convergence test */
     ftablealloc = fcount * 100;
     ftableused  = 0;
     ierr        = PetscMalloc(ftablealloc,&ftable);CHKERRQ(ierr);
@@ -775,7 +774,7 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
   }
   if (user->model->functionalCall && ((stepnum == -1) ^ (stepnum % user->vtkInterval == 0))) {
     Model          mod   = user->model;
-    FunctionalLink flink = mod->functionalCall[mod->numCall];
+    FunctionalLink flink = mod->functionalCall[mod->numCall-1];
     if (stepnum == -1) {        /* Final time is not multiple of normal time interval, write it anyway */
       ierr = TSGetTimeStepNumber(ts,&stepnum);CHKERRQ(ierr);
     }
@@ -1003,7 +1002,6 @@ PetscErrorCode RHSFunctionLap(TS ts,PetscReal t,Vec globalin,Vec globalout,void 
     ierr = (*mod->source)(mod,t,cg->centroid,source,mod->physics);CHKERRQ(ierr);
     ierr = DMPlexPointGlobalRef(dm,c,x_v,&xc);CHKERRQ(ierr);
     if (xc) *xc -= source[0];
-    else printf("RHSFunctionLap: !xc ???????\n");
   }
   ierr = VecRestoreArrayRead(user->cellgeom, &cgeom_v);CHKERRQ(ierr);
   ierr = VecRestoreArray(globalout, &x_v);CHKERRQ(ierr);
@@ -1020,7 +1018,7 @@ int main(int argc, char **argv)
   Model             mod;
   Physics           phys;
   DM                dm, dmDist;
-  PetscReal         ftime,dt,err_inf[100],err_2[100];
+  PetscReal         ftime,dt;
   PetscInt          dim, overlap, nsteps, nrefine,i,ilev;
   int               CPU_word_size = 0, IO_word_size = 0, exoid;
   float             version;
@@ -1055,6 +1053,7 @@ int main(int argc, char **argv)
     vtkCellGeom = PETSC_FALSE;
     nrefine=0;
     ierr = PetscOptionsInt("-nrefine","Number of refinment steps","",nrefine,&nrefine,NULL);CHKERRQ(ierr);
+    if (nrefine>=32) nrefine = 31;
     ierr = PetscOptionsBool("-ufv_vtk_cellgeom","Write cell geometry (for debugging)","",vtkCellGeom,&vtkCellGeom,NULL);CHKERRQ(ierr);
     ierr = PetscMemzero(phys,sizeof(struct _n_Physics));CHKERRQ(ierr);
     ierr = PhysicsCreate_Lap(mod,phys);CHKERRQ(ierr);
@@ -1068,8 +1067,10 @@ int main(int argc, char **argv)
 
   ierr = SetUpBoundaries(comm, user);CHKERRQ(ierr);
 
-  /* create base mesh */
+  /* outer congerance loop */
   for (ilev=0;ilev<=nrefine;ilev++) {
+    user->ilev = ilev;
+    /* create base mesh */
     if (!rank) {
       exoid = ex_open(filename, EX_READ, &CPU_word_size, &IO_word_size, &version);
       if (exoid <= 0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"ex_open(\"%s\",...) did not return a valid file ID",filename);
@@ -1095,7 +1096,7 @@ int main(int argc, char **argv)
     }
 
     /* Distribute mesh */
-    ierr = DMPlexDistribute(dm, "chaco", overlap, NULL, &dmDist);CHKERRQ(ierr);
+    ierr = DMPlexDistribute(dm, "metis", overlap, NULL, &dmDist);CHKERRQ(ierr);
     if (dmDist) {
       ierr = DMDestroy(&dm);CHKERRQ(ierr);
       dm   = dmDist;
@@ -1109,6 +1110,7 @@ int main(int argc, char **argv)
       ierr = DMDestroy(&dm);CHKERRQ(ierr);
       dm   = gdm;
     }
+DMView(dm,PETSC_VIEWER_STDOUT_WORLD);
     ierr = ConstructGeometry(dm, &user->facegeom, &user->cellgeom, user);CHKERRQ(ierr);
     if (0) {ierr = VecView(user->cellgeom, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);}
     ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
@@ -1149,6 +1151,7 @@ int main(int argc, char **argv)
       /* ierr = MatView(A,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
       ierr = SNESDestroy(&snes);CHKERRQ(ierr);
     }
+    ierr = MatGetSize(A, &user->N[ilev], NULL);CHKERRQ(ierr);
 
     /* create TS */
     ierr = TSCreate(comm, &ts);CHKERRQ(ierr);
@@ -1159,7 +1162,7 @@ int main(int argc, char **argv)
     ierr = TSSetRHSJacobian(ts,A,A,TSComputeRHSJacobianConstant,&user);CHKERRQ(ierr);
     ierr = TSSetRHSFunction(ts,NULL,RHSFunctionLap,user);CHKERRQ(ierr);
     ierr = TSSetDuration(ts,1,2.0);CHKERRQ(ierr);
-    dt   = 1.e300;
+    dt   = 1.e20;
     ierr = TSSetInitialTimeStep(ts,0.0,dt);CHKERRQ(ierr);
     ierr = TSSetSolution(ts,X);CHKERRQ(ierr);
     ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
@@ -1169,7 +1172,8 @@ int main(int argc, char **argv)
     ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
     ierr = TSGetTimeStepNumber(ts,&nsteps);CHKERRQ(ierr);
     ierr = TSGetConvergedReason(ts,&reason);CHKERRQ(ierr);
-    PetscPrintf(PETSC_COMM_WORLD,"%s at time %G after %D steps. Errors: |e|_inf=%e |e|_2=%e\n",TSConvergedReasons[reason],ftime,nsteps,s_error_inf,s_error_2);
+    PetscPrintf(PETSC_COMM_WORLD,"%s at time %G after %D steps. Errors: |e|_inf=%e |e|_2=%e, N=%d\n",TSConvergedReasons[reason],ftime,nsteps,user->errorInf[ilev],user->error2[ilev],user->N[ilev]);
+
     /* clean up */
     ierr = TSDestroy(&ts);CHKERRQ(ierr);
     ierr = DMDestroy(&dm);CHKERRQ(ierr);
@@ -1177,10 +1181,21 @@ int main(int argc, char **argv)
     ierr = VecDestroy(&user->facegeom);CHKERRQ(ierr);
     ierr = VecDestroy(&X);CHKERRQ(ierr);
     ierr = MatDestroy(&A);CHKERRQ(ierr);
-
-    err_inf[ilev] = s_error_inf;
-    err_2[ilev] = s_error_2;
   }
+
+  /* print out convergence rates */
+  if (nrefine>0) {
+    PetscPrintf(PETSC_COMM_WORLD,"\tN | Convergance rates |e|_inf\t\t|e|_2\n");
+    for (ilev=1;ilev<=nrefine;ilev++) {
+      const PetscReal log2r = 1.0/log(2.0);
+      PetscReal ratio = user->errorInf[ilev-1]/user->errorInf[ilev];
+      const PetscReal convergeRate_Inf = log(ratio)*log2r;
+      ratio = user->error2[ilev-1]/user->error2[ilev];
+      const PetscReal convergeRate_2 = log(ratio)*log2r;
+      PetscPrintf(PETSC_COMM_WORLD,"\t%d\t\t\t%e\t%e\n",user->N[ilev],convergeRate_Inf,convergeRate_2);
+    }
+  }
+
   ierr = FunctionalLinkDestroy(&user->model->functionalRegistry);CHKERRQ(ierr);
   ierr = BoundaryLinkDestroy(&user->model->boundary);CHKERRQ(ierr);
   ierr = PetscFree(user->model->functionalMonitored);CHKERRQ(ierr);
@@ -1189,17 +1204,6 @@ int main(int argc, char **argv)
   ierr = PetscFree(user->model->physics);CHKERRQ(ierr);
   ierr = PetscFree(user->model);CHKERRQ(ierr);
   ierr = PetscFree(user);CHKERRQ(ierr);
-
-  /* print out convergence rates */
-  PetscPrintf(PETSC_COMM_WORLD,"%s Errors: |e|_inf |e|_2\n",__FUNCT__);
-  for (ilev=1;ilev<=nrefine;ilev++) {
-    const PetscReal log2r = 1.0/log(2.0);
-    PetscReal ratio = err_inf[ilev-1]/err_inf[ilev];
-    const PetscReal convergeRate_Inf = log(ratio)*log2r;
-    ratio = err_2[ilev-1]/err_2[ilev];
-    const PetscReal convergeRate_2 = log(ratio)*log2r;
-    PetscPrintf(PETSC_COMM_WORLD,"\t%e %e\n",convergeRate_Inf,convergeRate_2);
-  }
 
   ierr = PetscFinalize();
   return(0);
