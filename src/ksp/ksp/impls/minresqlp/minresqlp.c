@@ -111,13 +111,13 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
 
     /* Arnorm = norm(A*r) */
     ierr = MatMult(Amat,R,WOOLD);CHKERRQ(ierr);
-    ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr); 
-  } else { 
+    ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr);
+  } else {
     ierr = VecCopy(B,R);CHKERRQ(ierr);             /*     r <- b (x is 0) */
 
     /* Arnorm = norm(A*B) */
     ierr = MatMult(Amat,B,WOOLD);CHKERRQ(ierr);
-    ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr); 
+    ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr);
   }
 
   ierr = KSP_PCApply(ksp,R,Z);CHKERRQ(ierr);       /*     z  <- B*r       */
@@ -130,7 +130,7 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
   }
 
   dp   = PetscAbsScalar(dp);
-  dp   = PetscSqrtScalar(dp); 
+  dp   = PetscSqrtScalar(dp);
   beta = dp;                                      /*  beta <- sqrt(r'*z)  */
   eta  = beta;
 
@@ -144,7 +144,7 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
 
   KSPLogResidualHistory(ksp,np);
   ierr = KSPMonitor(ksp,0,np);CHKERRQ(ierr);
-  ksp->rnorm = np; 
+  ksp->rnorm = np;
   ierr = (*ksp->converged)(ksp,0,np,&ksp->reason,ksp->cnvP);CHKERRQ(ierr);  /* test for convergence */
   if (ksp->reason) PetscFunctionReturn(0);
 
@@ -164,9 +164,9 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
 
     betaold = beta;
 
-    ierr = VecDot(R,Z,&dp);CHKERRQ(ierr); 
-     
-    printf("\n%d-th  Arnorm %g, dp %g\n",ksp->its,Arnorm, dp); 
+    ierr = VecDot(R,Z,&dp);CHKERRQ(ierr);
+
+    printf("\n%d-th  Arnorm %g, dp %g\n",ksp->its,Arnorm, dp);
     ierr = VecDot(R,Z,&dp);CHKERRQ(ierr);
     if ( PetscRealPart(dp) < minres->haptol) {
       ierr = PetscInfo2(ksp,"Detected indefinite operator %G tolerance %G\n",PetscRealPart(dp),minres->haptol);CHKERRQ(ierr);
@@ -192,7 +192,7 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
     /*    Update    */
     ierr = VecCopy(WOLD,WOOLD);CHKERRQ(ierr);     /*  w_oold <- w_old      */
     ierr = VecCopy(W,WOLD);CHKERRQ(ierr);         /*  w_old  <- w          */
-     
+
     ierr = VecCopy(U,W);CHKERRQ(ierr);            /*  w      <- u          */
     mrho2 = - rho2;
     ierr = VecAXPY(W,mrho2,WOLD);CHKERRQ(ierr);   /*  w <- w - rho2 w_old  */
@@ -202,7 +202,7 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
     ierr = VecScale(W,irho1);CHKERRQ(ierr);       /*  w <- w / rho1        */
 
     ceta = c * eta;
-    ierr = VecAXPY(X,ceta,W);CHKERRQ(ierr);       /*  x <- x + ceta w     */ 
+    ierr = VecAXPY(X,ceta,W);CHKERRQ(ierr);       /*  x <- x + ceta w     */
     eta = - s * eta;
 
     ierr = VecCopy(V,VOLD);CHKERRQ(ierr);
@@ -212,11 +212,11 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
     ibeta = 1.0 / beta;
     ierr = VecScale(V,ibeta);CHKERRQ(ierr);       /*  v <- r / beta       */
     ierr = VecScale(U,ibeta);CHKERRQ(ierr);       /*  u <- z / beta       */
-     
+
     np = ksp->rnorm * PetscAbsScalar(s);
     root = PetscSqrtReal(rho0*rho0 + (c*beta)*(c*beta)); /* norm([rho0  c*beta]); -- 2-norm , minresqlp */
-    Arnorm = ksp->rnorm * root;   
-    minres->Arnorm = Arnorm; 
+    Arnorm = ksp->rnorm * root;
+    minres->Arnorm = Arnorm;
     if (Arnorm < 1.e-6) { /* minresqlp  -------------- */
       ierr = PetscInfo2(ksp,"Detected happy breakdown %G tolerance %G. It is a least-squares solution.\n",Arnorm,minres->haptol);CHKERRQ(ierr);
       /* printf("Arnorm %g < minres->haptol 1.e-6, exit \n",Arnorm); */
@@ -250,9 +250,9 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
           be positive definite for this method.
           Supports only left preconditioning. ???
 
-   References: C. C. Paige and M. A. Saunders (1975). Solution of sparse indefinite systems of linear equations, SIAM J. Numerical Analysis 12, 617-629. 
-               S.-C. T. Choi (2006). Iterative Methods for Singular Linear Equations and Least-Squares Problems, PhD thesis, ICME, Stanford University. 
-               S.-C. T. Choi, C. C. Paige and M. A. Saunders (2011).  MINRES-QLP: A Krylov Subspace Method for Indefinite or Singular Symmetric Systems. SIAM J. Scientific Computing 33, Number 4, 1810-1836. 
+   References: C. C. Paige and M. A. Saunders (1975). Solution of sparse indefinite systems of linear equations, SIAM J. Numerical Analysis 12, 617-629.
+               S.-C. T. Choi (2006). Iterative Methods for Singular Linear Equations and Least-Squares Problems, PhD thesis, ICME, Stanford University.
+               S.-C. T. Choi, C. C. Paige and M. A. Saunders (2011).  MINRES-QLP: A Krylov Subspace Method for Indefinite or Singular Symmetric Systems. SIAM J. Scientific Computing 33, Number 4, 1810-1836.
                S.-C. T. Choi and M. A. Saunders (2013). ALGORITHM: MINRES-QLP for Singular Symmetric and Hermitian Linear Equations and Least-Squares Problems. ACM Transactions on Mathematical Software.  To appear.
 
    Contributed by: Robert Scheichl: maprs@maths.bath.ac.uk ???
@@ -285,8 +285,8 @@ PetscErrorCode  KSPCreate_MINRESQLP(KSP ksp)
   ksp->ops->solve                = KSPSolve_MINRESQLP;
   ksp->ops->destroy              = KSPDestroyDefault;
   ksp->ops->setfromoptions       = KSPSetFromOptions_MINRESQLP;
-  ksp->ops->buildsolution        = KSPBuildSolutionDefault; 
-  ksp->ops->buildresidual        = KSPBuildResidualDefault; 
+  ksp->ops->buildsolution        = KSPBuildSolutionDefault;
+  ksp->ops->buildresidual        = KSPBuildResidualDefault;
   PetscFunctionReturn(0);
 }
 EXTERN_C_END
