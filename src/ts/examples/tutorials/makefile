@@ -156,9 +156,9 @@ ex31: ex31.o chkopts
 	-${CLINKER} -o ex31 ex31.o ${PETSC_TS_LIB}
 	${RM} ex31.o
 
-ex32: ex32.o chkopts
-	-${CLINKER} -o ex32 ex32.o  ${PETSC_TS_LIB}
-#	${RM} ex32.o
+ex33: ex33.o chkopts
+	-${CLINKER} -o ex33 ex33.o  ${PETSC_TS_LIB}
+	${RM} ex33.o
 
 #---------------------------------------------------------------------------------
 runex1:
@@ -451,11 +451,11 @@ runex31:
 	-@${MPIEXEC} -n 1 ./ex31 > ex31_1.tmp 2>&1; \
 	   ${DIFF} output/ex31_1.out ex31_1.tmp || echo  ${PWD} "\nPossible problem with ex20_1, diffs above \n=========================================";  \
 	   ${RM} -f ex31_1.tmp
-runex32:
-	-@${MPIEXEC} -n 1 ./ex32 -nrefine 2 -f ${PETSC_DIR}/share/petsc/datafiles/meshes/square-4x4.exo -ksp_type cg -pc_type gamg -pc_gamg_agg_nsmooths 1 -mg_levels_pc_type sor -mg_levels_ksp_type richardson -mg_levels_ksp_max_it 1 -ksp_rtol 1.e-3 # -ksp_monitor -ts_monitor -snes_monitor -ksp_norm_type unpreconditioned
 
-runex32:
-	-@${MPIEXEC} -n 1 ./ex32 -nrefine 3 -f ${PETSC_DIR}/share/petsc/datafiles/meshes/square-4x4.exo -ksp_type cg -pc_type gamg -pc_gamg_agg_nsmooths 1 -mg_levels_pc_type sor -mg_levels_ksp_type richardson -mg_levels_ksp_max_it 1 -monitor error
+runex33:
+	-@${MPIEXEC} -n 1 ./ex33 -nrefine 2 -f ${PETSC_DIR}/share/petsc/datafiles/meshes/square-4x4.exo -ksp_type cg -pc_type gamg -pc_gamg_agg_nsmooths 1 -mg_levels_pc_type sor -mg_levels_ksp_type richardson -mg_levels_ksp_max_it 1 -monitor error > ex33_1.tmp 2>&1; \
+	   ${DIFF} output/ex33_1.out ex33_1.tmp || printf "${PWD}\nPossible problem with ex33_1, diffs above \n=========================================\n"; \
+	   ${RM} -f ex33_1.tmp
 
 TESTEXAMPLES_C		  = ex1.PETSc runex1 runex1_2 ex1.rm ex2.PETSc runex2 ex2.rm ex3.PETSc runex3 runex3_2 ex3.rm \
                             ex4.PETSc runex4 runex4_2 runex4_3 runex4_4 ex4.rm ex5.PETSc ex5.rm \
