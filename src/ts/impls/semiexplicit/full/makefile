@@ -9,7 +9,7 @@ SOURCEH  =
 LIBBASE  = libpetscts
 MANSEC   = TS
 DIRS     = 
-LOCDIR   = src/ts/impls/semiexplicit/full
+LOCDIR   = src/ts/impls/semiexplicit/full/
 
 include ${PETSC_DIR}/conf/variables
 include ${PETSC_DIR}/conf/rules
