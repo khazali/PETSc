@@ -1092,7 +1092,7 @@ PetscErrorCode  MatSetValues(Mat mat,PetscInt m,const PetscInt idxm[],PetscInt n
   PetscInt i,j;
 #endif
 
-  PetscFunctionBegin;
+  PetscFunctionBeginHot;
   PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
   PetscValidType(mat,1);
   if (!m || !n) PetscFunctionReturn(0); /* no values to insert */
@@ -1229,7 +1229,7 @@ PetscErrorCode  MatSetValuesRow(Mat mat,PetscInt row,const PetscScalar v[])
 {
   PetscErrorCode ierr;
 
-  PetscFunctionBegin;
+  PetscFunctionBeginHot;
   PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
   PetscValidType(mat,1);
   MatCheckPreallocated(mat,1);
@@ -1627,7 +1627,7 @@ PetscErrorCode  MatSetValuesBlocked(Mat mat,PetscInt m,const PetscInt idxm[],Pet
 {
   PetscErrorCode ierr;
 
-  PetscFunctionBegin;
+  PetscFunctionBeginHot;
   PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
   PetscValidType(mat,1);
   if (!m || !n) PetscFunctionReturn(0); /* no values to insert */
@@ -1981,7 +1981,7 @@ PetscErrorCode  MatSetValuesLocal(Mat mat,PetscInt nrow,const PetscInt irow[],Pe
 {
   PetscErrorCode ierr;
 
-  PetscFunctionBegin;
+  PetscFunctionBeginHot;
   PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
   PetscValidType(mat,1);
   MatCheckPreallocated(mat,1);
@@ -2074,7 +2074,7 @@ PetscErrorCode  MatSetValuesBlockedLocal(Mat mat,PetscInt nrow,const PetscInt ir
 {
   PetscErrorCode ierr;
 
-  PetscFunctionBegin;
+  PetscFunctionBeginHot;
   PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
   PetscValidType(mat,1);
   MatCheckPreallocated(mat,1);
