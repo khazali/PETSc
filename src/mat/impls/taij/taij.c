@@ -216,9 +216,11 @@ PETSC_EXTERN PetscErrorCode MatCreate_TAIJ(Mat A)
 }
 
 /* --------------------------------------------------------------------------------------*/
+
 #undef __FUNCT__
-#define __FUNCT__ "MatMult_SeqTAIJ_N"
-PetscErrorCode MatMult_SeqTAIJ_N(Mat A,Vec xx,Vec yy)
+#define __FUNCT__ "TAIJMultAdd_Seq"
+/* zz = yy + Axx */
+PetscErrorCode TAIJMultAdd_Seq(Mat A,Vec *xx,Vec *yy,Vec *zz)
 {
   Mat_SeqTAIJ       *b = (Mat_SeqTAIJ*)A->data;
   Mat_SeqAIJ        *a = (Mat_SeqAIJ*)b->AIJ->data;
@@ -230,8 +232,15 @@ PetscErrorCode MatMult_SeqTAIJ_N(Mat A,Vec xx,Vec yy)
   PetscInt          n,i,jrow,j,dof = b->dof,k;
 
   PetscFunctionBegin;
-  ierr = VecGetArrayRead(xx,&x);CHKERRQ(ierr);
-  ierr = VecGetArray(yy,&y);CHKERRQ(ierr);
+
+  if (!yy) {
+    ierr = VecSet(*zz,0.0);CHKERRQ(ierr); 
+  } else {
+    ierr = VecCopy(*yy,*zz);CHKERRQ(ierr);
+  }
+
+  ierr = VecGetArrayRead(*xx,&x);CHKERRQ(ierr);
+  ierr = VecGetArray(*zz,&y);CHKERRQ(ierr);
   idx  = a->j;
   v    = a->a;
   ii   = a->i;
@@ -241,57 +250,6 @@ PetscErrorCode MatMult_SeqTAIJ_N(Mat A,Vec xx,Vec yy)
     n    = ii[i+1] - jrow;
     sums = y + dof*i;
     bx   = x + dof*i;
-    for (j=0,k=0; k<dof; k++) {
-      sums[k] = s[k+j*dof]*bx[j];
-    }
-    for (j=1; j<dof; j++) {
-      for (k=0; k<dof; k++) {
-        sums[k] += s[k+j*dof]*bx[j];
-      }
-    }
-    for (j=0; j<n; j++) {
-      for (k=0; k<dof; k++) {
-        sums[k] += v[jrow+j]*x[dof*idx[jrow+j]+k];
-      }
-    }
-  }
-
-  ierr = PetscLogFlops((2.0*dof*dof-dof)*m+2*dof*a->nz);CHKERRQ(ierr);
-  ierr = VecRestoreArrayRead(xx,&x);CHKERRQ(ierr);
-  ierr = VecRestoreArray(yy,&y);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "MatMultAdd_SeqTAIJ_N"
-PetscErrorCode MatMultAdd_SeqTAIJ_N(Mat A,Vec xx,Vec yy,Vec zz)
-{
-  Mat_SeqTAIJ       *b = (Mat_SeqTAIJ*)A->data;
-  Mat_SeqAIJ        *a = (Mat_SeqAIJ*)b->AIJ->data;
-  const PetscScalar *s = b->S;
-  const PetscScalar *x,*y,*v,*bx,*by;
-  PetscScalar       *z,*sums;
-  PetscErrorCode    ierr;
-  const PetscInt    m = b->AIJ->rmap->n,*idx,*ii;
-  PetscInt          n,i,jrow,j,dof = b->dof,k;
-
-  PetscFunctionBegin;
-  ierr = VecGetArrayRead(xx,&x);CHKERRQ(ierr);
-  ierr = VecGetArrayRead(yy,&y);CHKERRQ(ierr);
-  ierr = VecGetArray(zz,&z);CHKERRQ(ierr);
-  idx  = a->j;
-  v    = a->a;
-  ii   = a->i;
-
-  for (i=0; i<m; i++) {
-    jrow = ii[i];
-    n    = ii[i+1] - jrow;
-    sums = z + dof*i;
-    bx   = x + dof*i;
-    by   = y + dof*i;
-    for (k=0; k<dof; k++) {
-      sums[k] = by[k];
-    }
     for (j=0; j<dof; j++) {
       for (k=0; k<dof; k++) {
         sums[k] += s[k+j*dof]*bx[j];
@@ -304,10 +262,29 @@ PetscErrorCode MatMultAdd_SeqTAIJ_N(Mat A,Vec xx,Vec yy,Vec zz)
     }
   }
 
-  ierr = PetscLogFlops(2.0*dof*dof*m+2*dof*a->nz);CHKERRQ(ierr);
-  ierr = VecRestoreArrayRead(xx,&x);CHKERRQ(ierr);
-  ierr = VecRestoreArrayRead(yy,&y);CHKERRQ(ierr);
-  ierr = VecRestoreArray(zz,&z);CHKERRQ(ierr);
+  ierr = PetscLogFlops((2.0*dof*dof-dof)*m+2*dof*a->nz);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(*xx,&x);CHKERRQ(ierr);
+  ierr = VecRestoreArray(*zz,&y);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatMult_SeqTAIJ_N"
+PetscErrorCode MatMult_SeqTAIJ_N(Mat A,Vec xx,Vec yy)
+{
+  PetscErrorCode ierr;
+  PetscFunctionBegin;
+  ierr = TAIJMultAdd_Seq(A,&xx,PETSC_NULL,&yy);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatMultAdd_SeqTAIJ_N"
+PetscErrorCode MatMultAdd_SeqTAIJ_N(Mat A,Vec xx,Vec yy,Vec zz)
+{
+  PetscErrorCode ierr;
+  PetscFunctionBegin;
+  ierr = TAIJMultAdd_Seq(A,&xx,&yy,&zz);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -356,19 +333,35 @@ PetscErrorCode MatInvertBlockDiagonal_SeqTAIJ_N(Mat A,const PetscScalar **values
 }
 
 /*===================================================================================*/
+
 #undef __FUNCT__
-#define __FUNCT__ "MatMult_MPITAIJ_dof"
-PetscErrorCode MatMult_MPITAIJ_dof(Mat A,Vec xx,Vec yy)
+#define __FUNCT__ "TAIJMultAdd_MPI"
+PetscErrorCode TAIJMultAdd_MPI(Mat A,Vec *xx,Vec *yy,Vec *zz)
 {
   Mat_MPITAIJ    *b = (Mat_MPITAIJ*)A->data;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (!yy) {
+    ierr = VecSet(*zz,0.0);CHKERRQ(ierr);
+  } else {
+    ierr = VecCopy(*yy,*zz);CHKERRQ(ierr);
+  }
   /* start the scatter */
-  ierr = VecScatterBegin(b->ctx,xx,b->w,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
-  ierr = (*b->AIJ->ops->mult)(b->AIJ,xx,yy);CHKERRQ(ierr);
-  ierr = VecScatterEnd(b->ctx,xx,b->w,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
-  ierr = (*b->OAIJ->ops->multadd)(b->OAIJ,b->w,yy,yy);CHKERRQ(ierr);
+  ierr = VecScatterBegin(b->ctx,*xx,b->w,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = (*b->AIJ->ops->multadd)(b->AIJ,*xx,*zz,*zz);CHKERRQ(ierr);
+  ierr = VecScatterEnd(b->ctx,*xx,b->w,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = (*b->OAIJ->ops->multadd)(b->OAIJ,b->w,*zz,*zz);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatMult_MPITAIJ_dof"
+PetscErrorCode MatMult_MPITAIJ_dof(Mat A,Vec xx,Vec yy)
+{
+  PetscErrorCode ierr;
+  PetscFunctionBegin;
+  ierr = TAIJMultAdd_MPI(A,&xx,PETSC_NULL,&yy);
   PetscFunctionReturn(0);
 }
 
@@ -376,16 +369,9 @@ PetscErrorCode MatMult_MPITAIJ_dof(Mat A,Vec xx,Vec yy)
 #define __FUNCT__ "MatMultAdd_MPITAIJ_dof"
 PetscErrorCode MatMultAdd_MPITAIJ_dof(Mat A,Vec xx,Vec yy, Vec zz)
 {
-  Mat_MPITAIJ    *b = (Mat_MPITAIJ*)A->data;
   PetscErrorCode ierr;
-
   PetscFunctionBegin;
-  /* start the scatter */
-  ierr = VecScatterBegin(b->ctx,xx,b->w,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
-  ierr = (*b->AIJ->ops->mult)(b->AIJ,xx,zz);CHKERRQ(ierr);
-  ierr = VecScatterEnd(b->ctx,xx,b->w,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
-  ierr = (*b->OAIJ->ops->multadd)(b->OAIJ,b->w,zz,zz);CHKERRQ(ierr);
-  ierr = VecAXPY(zz,1.0,yy);
+  ierr = TAIJMultAdd_MPI(A,&xx,&yy,&zz);
   PetscFunctionReturn(0);
 }
 
