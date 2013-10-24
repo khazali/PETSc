@@ -88,8 +88,8 @@ int main(int argc, char **argv)
   UserContext       ctxt;
   PetscInt          nstages,is,ie,matis,matie,*ix,*ix2;
   PetscInt          n,i,s,t;
-  PetscScalar       *A,*b;
-  PetscReal         dx,dx2,*zvals,err;
+  PetscScalar       *A,*b,*zvals;
+  PetscReal         dx,dx2,err;
   Mat               J,TA;
   KSP               ksp;
 
@@ -154,10 +154,10 @@ int main(int argc, char **argv)
   ierr = MatSetType(J,MATAIJ);CHKERRQ(ierr);
   ierr = MatSetSizes(J,PETSC_DECIDE,PETSC_DECIDE,ctxt.imax,ctxt.imax);CHKERRQ(ierr);
   ierr = MatSetUp(J);CHKERRQ(ierr);
-  PetscReal values[3] = {-ctxt.a*1.0/dx2,ctxt.a*2.0/dx2,-ctxt.a*1.0/dx2};
-  PetscInt  col[3];
   ierr = MatGetOwnershipRange(J,&matis,&matie);CHKERRQ(ierr);
   for (i=matis; i<matie; i++) {
+    PetscScalar values[3] = {-ctxt.a*1.0/dx2,ctxt.a*2.0/dx2,-ctxt.a*1.0/dx2};
+    PetscInt    col[3];
     /* periodic boundaries */
     if (i == 0) {
       col[0] = ctxt.imax-1;
@@ -193,7 +193,7 @@ int main(int argc, char **argv)
 
   ierr = VecGetOwnershipRange(u,&is,&ie);CHKERRQ(ierr);
   PetscMalloc3(nstages,PetscInt,&ix,
-               nstages,PetscReal,&zvals,
+               nstages,PetscScalar,&zvals,
                ie-is,PetscInt,&ix2);CHKERRQ(ierr);
 
   /* iterate in time */
@@ -243,8 +243,8 @@ int main(int argc, char **argv)
   /* Calculate error in final solution */
   ierr = VecAYPX(uex,-1.0,u);
   ierr = VecNorm(uex,NORM_2,&err);
-  err  = PetscSqrtScalar(err*err/((PetscReal)ctxt.imax));
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"L2 norm of the numerical error = %1.16E\n",err);CHKERRQ(ierr);
+  err  = PetscSqrtReal(err*err/((PetscReal)ctxt.imax));
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"L2 norm of the numerical error = %G\n",err);CHKERRQ(ierr);
 
   /* Free up memory */
   ierr = KSPDestroy(&ksp);      CHKERRQ(ierr);
