@@ -300,7 +300,7 @@ PetscErrorCode MatInvertBlockDiagonal_SeqTAIJ_N(Mat A,const PetscScalar **values
   const PetscScalar *v  = a->a;
   const PetscInt    dof = b->dof,dof2=dof*dof,m = b->AIJ->rmap->n,*idx = a->j,*ii = a->i;
   PetscErrorCode    ierr;
-  PetscInt          i,j,n,*v_pivots,jrow;
+  PetscInt          i,j,*v_pivots;
   PetscScalar       *diag,aval,*v_work;
 
   PetscFunctionBegin;
@@ -319,9 +319,7 @@ PetscErrorCode MatInvertBlockDiagonal_SeqTAIJ_N(Mat A,const PetscScalar **values
   for (i=0; i<m; i++) {
     ierr = PetscMemcpy(diag,s,dof2*sizeof(PetscScalar));CHKERRQ(ierr);
     aval = 0;
-    jrow = ii[i];
-    n    = ii[i+1]-jrow;
-    for (j=0; j<n; j++) if (idx[j] == i) aval = v[jrow+j];
+    for (j=ii[i]; j<ii[i+1]; j++) if (idx[j] == i) aval = v[j];
     for (j=0; j<dof; j++) diag[j+dof*j] += aval;
     ierr = PetscKernel_A_gets_inverse_A(dof,diag,v_pivots,v_work);CHKERRQ(ierr);
     diag += dof2;

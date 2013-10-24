@@ -1124,6 +1124,11 @@ runex58_sbaij:
 	${DIFF} output/ex58.out ex58.tmp || echo ${PWD} "\nPossible problem with with ex58_sbaij, diffs above \n========================================="; \
 	${RM} -f ex58.tmp
 
+runex60:
+	-@${MPIEXEC} -n 1 ./ex60 -dt .125 -niter 5 -imax 40 -ksp_monitor_short -pc_type pbjacobi -ksp_atol 1e-6 > ex60_1.tmp 2>&1;         \
+	${DIFF} output/ex60_1.out ex60_1.tmp || printf "${PWD}\nPossible problem with with ex60_1, diffs above \n=========================================\n"; \
+	${RM} -f ex60_1.tmp
+
 TESTEXAMPLES_C		       = ex1.PETSc runex1 runex1_2 runex1_3 ex1.rm ex2.PETSc runex2 runex2_2 runex2_3 \
                                  runex2_4 runex2_bjacobi runex2_bjacobi_2 runex2_bjacobi_3 runex2_specest_1 runex2_specest_2 \
                                  runex2_chebyest_1 runex2_chebyest_2 runex2_chebyest_3 runex2_chebyest_4 runex2_fbcgs runex2_fbcgs_2 ex2.rm \
@@ -1138,7 +1143,8 @@ TESTEXAMPLES_C		       = ex1.PETSc runex1 runex1_2 runex1_3 ex1.rm ex2.PETSc run
                                  ex43.PETSc runex43 runex43_2 runex43_3 runex43_bjacobi runex43_bjacobi_baij ex43.rm \
                                  ex45.PETSc runex45 runex45_2 ex45.rm \
                                  ex49.PETSc runex49 runex49_2 runex49_3 ex49.rm ex53.PETSc runex53 ex53.rm ex55.PETSc runex55_SA runex55_Classical ex55.rm\
-                                 ex58.PETSc runex58 runex58_baij runex58_sbaij ex58.rm
+                                 ex58.PETSc runex58 runex58_baij runex58_sbaij ex58.rm \
+                                 ex60.PETSc runex60 ex60.rm
 TESTEXAMPLES_C_X	       = ex2.PETSc runex2_5 ex2.rm ex5.PETSc runex5_5 ex5.rm ex8.PETSc ex8.rm ex28.PETSc runex28 ex28.rm
 TESTEXAMPLES_FORTRAN	       = ex1f.PETSc runex1f ex1f.rm ex2f.PETSc runex2f ex2f.rm ex6f.PETSc ex6f.rm \
                                  ex14f.PETSc runex14f ex14f.rm ex15f.PETSc runex15f ex15f.rm ex22f.PETSc runex22f \
