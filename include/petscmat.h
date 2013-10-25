@@ -923,6 +923,7 @@ typedef const char* MatOrderingType;
 #define MATORDERINGQMD         "qmd"
 #define MATORDERINGROWLENGTH   "rowlength"
 #define MATORDERINGWBM         "wbm"
+#define MATORDERINGSPECTRAL    "spectral"
 #define MATORDERINGAMD         "amd"            /* only works if UMFPACK is installed with PETSc */
 
 PETSC_EXTERN PetscErrorCode MatGetOrdering(Mat,MatOrderingType,IS*,IS*);
