@@ -8,10 +8,10 @@ static char help[] = "Tests vatious routines in MatTAIJ format.\n";
 int main(int argc,char **args)
 {
   Mat            A,B,TA;
-  PetscScalar    *S;
+  PetscScalar    *S,*T;
   PetscViewer    fd;
   char           file[PETSC_MAX_PATH_LEN];
-  PetscInt       m,n,M,N,dof=1,i;
+  PetscInt       m,n,M,N,p=1,q=1,i,j;
   PetscMPIInt    rank,size;
   PetscErrorCode ierr;
   PetscBool      flg;
@@ -32,33 +32,24 @@ int main(int argc,char **args)
   ierr = MatLoad(A,fd);CHKERRQ(ierr);
   ierr = PetscViewerDestroy(&fd);CHKERRQ(ierr);
 
-  /* Get dof, then create the shift S */
-  ierr = PetscOptionsGetInt(NULL,"-dof",&dof,NULL);CHKERRQ(ierr);
-  ierr = PetscMalloc(dof*dof*sizeof(PetscScalar),&S);CHKERRQ(ierr);
-  for (i=0; i<dof*dof; i++) S[i] = 0;
-  if (dof == 1) {
-    S[0] = 1.0;
-  } else if (dof == 2) {
-    S[0] = 5.0/12.0;
-    S[1] = 3.0/4.0;
-    S[2] = -1.0/12.0;
-    S[3] = 1.0/4.0;
-  } else if (dof == 3) {
-    S[0] = (88.0-7.0*PetscSqrtScalar(6.0))/360.0;
-    S[1] = (296.0+169.0*PetscSqrtScalar(6.0))/1800.0;
-    S[2] = (16.0-PetscSqrtScalar(6.0))/36.0;
-    S[3] = (296.0+169.0*PetscSqrtScalar(6.0))/1800.0;
-    S[4] = (88.0+7.0*PetscSqrtScalar(6.0))/360;
-    S[5] = (16.0+PetscSqrtScalar(6.0))/36.0;
-    S[6] = (-2.0+3.0*PetscSqrtScalar(6.0))/225.0;
-    S[7] = (-2.0-3.0*PetscSqrtScalar(6.0))/225.0;
-    S[8] = 1.0/9.0;
-  } else {
-    SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_CONV_FAILED,"Error: This example is not set up for dof > 3");
+  /* Get dof, then create S and T */
+  ierr = PetscOptionsGetInt(NULL,"-p",&p,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(NULL,"-q",&q,NULL);CHKERRQ(ierr);
+  ierr = PetscMalloc2(p*q,PetscScalar,&S,p*q,PetscScalar,&T);CHKERRQ(ierr);
+  for (i=0; i<p*q; i++) S[i] = 0;
+
+  for (i=0; i<p; i++) {
+    for (j = 0; j<q; j++) {
+      /* set some random non-zero values */
+      S[i+p*j] = ((PetscReal) (i*j)) / ((PetscReal) (p+q));
+      T[i+p*j] = ((PetscReal) ((p-i)+j)) / ((PetscReal) (p*q));
+    }
   }
 
+  /* Test TAIJ when both S & T are not NULL */
+
   /* create taij matrix TA */
-  ierr = MatCreateTAIJ(A,dof,S,&TA);CHKERRQ(ierr);
+  ierr = MatCreateTAIJ(A,p,q,S,T,&TA);CHKERRQ(ierr);
   ierr = MatGetLocalSize(A,&m,&n);CHKERRQ(ierr);
   ierr = MatGetSize(A,&M,&N);CHKERRQ(ierr);
 
@@ -70,15 +61,64 @@ int main(int argc,char **args)
 
   /* Test MatMult() */
   ierr = MatMultEqual(TA,B,10,&flg);CHKERRQ(ierr);
-  if (!flg) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_CONV_FAILED,"Error: MatMult() for TAIJ matrix");
+  if (!flg) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_CONV_FAILED,"Error in Test 1: MatMult() for TAIJ matrix");
   /* Test MatMultAdd() */
   ierr = MatMultAddEqual(TA,B,10,&flg);CHKERRQ(ierr);
-  if (!flg) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_CONV_FAILED,"Error: MatMultAdd() for TAIJ matrix");
+  if (!flg) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_CONV_FAILED,"Error in Test 1: MatMultAdd() for TAIJ matrix");
 
-  ierr = PetscFree(S);CHKERRQ(ierr);
   ierr = MatDestroy(&TA);CHKERRQ(ierr);
-  ierr = MatDestroy(&A);CHKERRQ(ierr);
   ierr = MatDestroy(&B);CHKERRQ(ierr);
+
+  /* Test TAIJ when S is NULL */
+
+  /* create taij matrix TA */
+  ierr = MatCreateTAIJ(A,p,q,NULL,T,&TA);CHKERRQ(ierr);
+  ierr = MatGetLocalSize(A,&m,&n);CHKERRQ(ierr);
+  ierr = MatGetSize(A,&M,&N);CHKERRQ(ierr);
+
+  if (size == 1) {
+    ierr = MatConvert(TA,MATSEQAIJ,MAT_INITIAL_MATRIX,&B);CHKERRQ(ierr);
+  } else {
+    ierr = MatConvert(TA,MATMPIAIJ,MAT_INITIAL_MATRIX,&B);CHKERRQ(ierr);
+  }
+
+  /* Test MatMult() */
+  ierr = MatMultEqual(TA,B,10,&flg);CHKERRQ(ierr);
+  if (!flg) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_CONV_FAILED,"Error in Test 2: MatMult() for TAIJ matrix");
+  /* Test MatMultAdd() */
+  ierr = MatMultAddEqual(TA,B,10,&flg);CHKERRQ(ierr);
+  if (!flg) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_CONV_FAILED,"Error in Test 2: MatMultAdd() for TAIJ matrix");
+
+  ierr = MatDestroy(&TA);CHKERRQ(ierr);
+  ierr = MatDestroy(&B);CHKERRQ(ierr);
+  
+  /* Test TAIJ when T is NULL */
+
+  /* create taij matrix TA */
+  ierr = MatCreateTAIJ(A,p,q,S,NULL,&TA);CHKERRQ(ierr);
+  ierr = MatGetLocalSize(A,&m,&n);CHKERRQ(ierr);
+  ierr = MatGetSize(A,&M,&N);CHKERRQ(ierr);
+
+  if (size == 1) {
+    ierr = MatConvert(TA,MATSEQAIJ,MAT_INITIAL_MATRIX,&B);CHKERRQ(ierr);
+  } else {
+    ierr = MatConvert(TA,MATMPIAIJ,MAT_INITIAL_MATRIX,&B);CHKERRQ(ierr);
+  }
+
+  /* Test MatMult() */
+  ierr = MatMultEqual(TA,B,10,&flg);CHKERRQ(ierr);
+  if (!flg) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_CONV_FAILED,"Error in Test 3: MatMult() for TAIJ matrix");
+  /* Test MatMultAdd() */
+  ierr = MatMultAddEqual(TA,B,10,&flg);CHKERRQ(ierr);
+  if (!flg) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_CONV_FAILED,"Error in Test 3: MatMultAdd() for TAIJ matrix");
+
+  ierr = MatDestroy(&TA);CHKERRQ(ierr);
+  ierr = MatDestroy(&B);CHKERRQ(ierr);
+
+  /* Done with all tests */
+
+  ierr = PetscFree2(S,T);CHKERRQ(ierr);
+  ierr = MatDestroy(&A);CHKERRQ(ierr);
   ierr = PetscFinalize();
 #endif
   return 0;

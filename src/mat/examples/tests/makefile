@@ -1875,15 +1875,18 @@ runex164:
 
 # See http://www.mcs.anl.gov/petsc/documentation/faq.html#datafiles for how to obtain the datafiles used below
 NPROCS    = 1
-DOF       = 1 2 3
+P         = 2 3 4
+Q         = 2 3 4 7
 runex171:
 	-@touch ex171.tmp;\
 	for np in ${NPROCS}; do \
-	  for dof in ${DOF}; do \
-	    ${MPIEXEC} -n $$np ./ex171 -f ${DATAFILESPATH}/matrices/arco1 -dof $$dof -viewer_binary_skip_info > ex171.tmp 2>&1; \
-	    if (${DIFF} output/ex171.out ex171.tmp) then true; \
-            else echo ${PWD} ; echo "Possible problem with ex171 with:";\
-	    echo ${MPIEXEC} -n $$np ./ex171 -f ${DATAFILESPATH}/matrices/arco1 -dof $$dof -viewer_binary_skip_info; fi; \
+	  for p in ${P}; do \
+	    for q in ${Q}; do \
+	      ${MPIEXEC} -n $$np ./ex171 -f ${DATAFILESPATH}/matrices/arco1 -p $$p -q $$q -viewer_binary_skip_info > ex171.tmp 2>&1; \
+	      if (${DIFF} output/ex171.out ex171.tmp) then true; \
+        else echo ${PWD} ; echo "Possible problem with ex171 with:";\
+	      echo ${MPIEXEC} -n $$np ./ex171 -f ${DATAFILESPATH}/matrices/arco1 -dof $$dof -viewer_binary_skip_info; fi; \
+	    done; \
 	  done; \
 	done; \
 	${RM} -f ex171.tmp
