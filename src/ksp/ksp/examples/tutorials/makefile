@@ -1125,7 +1125,7 @@ runex58_sbaij:
 	${RM} -f ex58.tmp
 
 runex60:
-	-@${MPIEXEC} -n 1 ./ex60 -dt .125 -niter 5 -imax 40 -ksp_monitor_short -pc_type pbjacobi -ksp_atol 1e-6 > ex60_1.tmp 2>&1;         \
+	-@${MPIEXEC} -n 1 ./ex60 -a 0.1 -dt .125 -niter 5 -imax 40 -ksp_monitor_short -pc_type pbjacobi -ksp_atol 1e-6 > ex60_1.tmp 2>&1;         \
 	${DIFF} output/ex60_1.out ex60_1.tmp || printf "${PWD}\nPossible problem with with ex60_1, diffs above \n=========================================\n"; \
 	${RM} -f ex60_1.tmp
 
