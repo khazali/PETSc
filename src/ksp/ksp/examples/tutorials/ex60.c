@@ -88,9 +88,9 @@ int main(int argc, char **argv)
   UserContext       ctxt;
   PetscInt          nstages,is,ie,matis,matie,*ix,*ix2;
   PetscInt          n,i,s,t;
-  PetscScalar       *A,*b,*zvals;
-  PetscReal         dx,dx2,err;
-  Mat               J,TA;
+  PetscScalar       *A,*B,*At,*b,*zvals;
+  PetscReal         dx,dx2,err,one=1.0;
+  Mat               I,J,TA,SC,R;
   KSP               ksp;
 
   PetscInitialize(&argc,&argv,(char*)0,help);
@@ -134,11 +134,14 @@ int main(int argc, char **argv)
   /* allocate and calculate (1/dt)*A^{-1} and b */
   if (!strcmp(ctxt.irktype,GAUSS24)) {
     nstages = 2;
-    ierr = PetscMalloc2(nstages*nstages,PetscScalar,&A,
+    ierr = PetscMalloc4(nstages*nstages,PetscScalar,&A,
+                        nstages*nstages,PetscScalar,&B,
+                        nstages        ,PetscScalar,&At,
                         nstages        ,PetscScalar,&b);CHKERRQ(ierr);
     A[0] = 0.25; A[2] = (3.0-2.0*1.7320508075688772)/12.0;
     A[1] = (3.0+2.0*1.7320508075688772)/12.0; A[3] = 0.25;
     b[0] = 0.5; b[1] = 0.5;
+    B[0] = B[3] = 1.0; B[1] = B[2] = 0.0;
     ierr = PetscKernel_A_gets_inverse_A_2(A,0.0);CHKERRQ(ierr);
   } else {
     ierr = PetscPrintf(PETSC_COMM_WORLD,"Error: %s is not a supported IRK method.\n",
@@ -147,13 +150,21 @@ int main(int argc, char **argv)
     return(0);
   }
   for (s=0; s<nstages*nstages; s++) A[s] *= 1.0/ctxt.dt;
-  for (s=0; s<nstages; s++) b[s] *= ctxt.dt;
+  for (s=0; s<nstages; s++) b[s] *= (-ctxt.dt);
+  for (s=0; s<nstages; s++) {
+    At[s] = 0;
+    for (t=0; t<nstages; t++) At[s] += A[s+nstages*t];
+  }
 
   /* allocate and calculate the (-J) matrix */
   ierr = MatCreate(PETSC_COMM_WORLD,&J);CHKERRQ(ierr);
   ierr = MatSetType(J,MATAIJ);CHKERRQ(ierr);
   ierr = MatSetSizes(J,PETSC_DECIDE,PETSC_DECIDE,ctxt.imax,ctxt.imax);CHKERRQ(ierr);
   ierr = MatSetUp(J);CHKERRQ(ierr);
+  ierr = MatCreate(PETSC_COMM_WORLD,&I);CHKERRQ(ierr);
+  ierr = MatSetType(I,MATAIJ);CHKERRQ(ierr);
+  ierr = MatSetSizes(I,PETSC_DECIDE,PETSC_DECIDE,ctxt.imax,ctxt.imax);CHKERRQ(ierr);
+  ierr = MatSetUp(I);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(J,&matis,&matie);CHKERRQ(ierr);
   for (i=matis; i<matie; i++) {
     PetscScalar values[3] = {-ctxt.a*1.0/dx2,ctxt.a*2.0/dx2,-ctxt.a*1.0/dx2};
@@ -173,12 +184,21 @@ int main(int argc, char **argv)
       col[2] = i+1;
     }
     ierr= MatSetValues(J,1,&i,3,col,values,INSERT_VALUES);CHKERRQ(ierr);
+    ierr= MatSetValues(I,1,&i,1,&i,&one,INSERT_VALUES);CHKERRQ(ierr);
   }
   ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd  (J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(I,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd  (I,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
-  /* Create the TAIJ matrix */
-  ierr = MatCreateTAIJ(J,nstages,A,&TA);CHKERRQ(ierr);
+  /* Create the TAIJ matrix for solving the stages */
+  ierr = MatCreateTAIJ(J,nstages,nstages,A,B,&TA);CHKERRQ(ierr);
+
+  /* Create the TAIJ matrix for step completion */
+  ierr = MatCreateTAIJ(J,1,nstages,NULL,b,&SC);CHKERRQ(ierr);
+
+  /* Create the TAIJ matrix to create the R for solving the stages */
+  ierr = MatCreateTAIJ(I,nstages,1,NULL,At,&R);CHKERRQ(ierr);
 
   /* Create and set options for KSP */
   ierr = KSPCreate(PETSC_COMM_WORLD,&ksp);CHKERRQ(ierr);
@@ -200,37 +220,13 @@ int main(int argc, char **argv)
   for (n=0; n<ctxt.niter; n++) {
 
     /* compute and set the right hand side */
-    PetscScalar *uarr;
-    ierr = VecGetArray(u,&uarr);CHKERRQ(ierr);
-    for (i=is; i<ie; i++) {
-      for (s=0; s<nstages; s++) {
-        ix[s]     = i*nstages+s;
-        zvals[s]  = 0;
-        for (t=0; t<nstages; t++) zvals[s] += uarr[i]*A[t*nstages+s];
-      }
-      ierr = VecSetValues(rhs,nstages,ix,zvals,INSERT_VALUES);CHKERRQ(ierr);
-    }
-    ierr = VecAssemblyBegin (rhs);CHKERRQ(ierr);
-    ierr = VecAssemblyEnd   (rhs);CHKERRQ(ierr);
-    ierr = VecRestoreArray  (u,&uarr);CHKERRQ(ierr);
+    ierr = MatMult(R,u,rhs);CHKERRQ(ierr);
 
     /* Solve the system */
     ierr = KSPSolve(ksp,rhs,z);CHKERRQ(ierr);
 
     /* Update the solution */
-    for (s=0; s<nstages; s++) {
-      for (i=is; i<ie; i++) ix2[i-is] = i*nstages+s;
-      /* extract stage vector */
-      PetscScalar *warr;
-      ierr = VecGetArray(w,&warr);CHKERRQ(ierr);
-      ierr = VecGetValues(z,ie-is,ix2,warr);CHKERRQ(ierr);
-      ierr = VecRestoreArray(w,&warr);CHKERRQ(ierr);
-
-      /* Step completion */
-      ierr = VecScale(w,-b[s]);CHKERRQ(ierr); 
-      /* -b because J is actually -J */
-      ierr = MatMultAdd(J,w,u,u);CHKERRQ(ierr);
-    }
+    ierr = MatMultAdd(SC,z,u,u);CHKERRQ(ierr);
 
     /* time step complete */
   }
@@ -249,9 +245,11 @@ int main(int argc, char **argv)
   /* Free up memory */
   ierr = KSPDestroy(&ksp);      CHKERRQ(ierr);
   ierr = MatDestroy(&TA);       CHKERRQ(ierr);
+  ierr = MatDestroy(&SC);       CHKERRQ(ierr);
+  ierr = MatDestroy(&R);        CHKERRQ(ierr);
   ierr = MatDestroy(&J);        CHKERRQ(ierr);
-  ierr = PetscFree(A);          CHKERRQ(ierr);
-  ierr = PetscFree(b);          CHKERRQ(ierr);
+  ierr = MatDestroy(&I);        CHKERRQ(ierr);
+  ierr = PetscFree4(A,B,At,b);  CHKERRQ(ierr);
   ierr = VecDestroy(&w);        CHKERRQ(ierr);
   ierr = VecDestroy(&uex);      CHKERRQ(ierr);
   ierr = VecDestroy(&u);        CHKERRQ(ierr);
