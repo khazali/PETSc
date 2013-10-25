@@ -454,7 +454,7 @@ runex31:
 	   ${RM} -f ex31_1.tmp
 
 runex33:
-	-@${MPIEXEC} -n 1 ./ex33 -nrefine 3 -f ${PETSC_DIR}/share/petsc/datafiles/meshes/square-4x4.exo -monitor error > ex33_1.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex33 -nrefine 2 -f ${PETSC_DIR}/share/petsc/datafiles/meshes/square-4x4.exo -monitor error > ex33_1.tmp 2>&1; \
 	   ${DIFF} output/ex33_1.out ex33_1.tmp || echo  ${PWD} "\nPossible problem with ex20_1, diffs above \n=========================================";  \
 	   ${RM} -f ex33_1.tmp
 

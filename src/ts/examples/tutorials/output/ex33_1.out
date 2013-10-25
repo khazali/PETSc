@@ -1,12 +1,12 @@
   0  time        0  |x|        0         error functional: [0.0002365708,0.05666167] integral=0.01916224
-  1  time    1e+20  |x|  0.06243         error functional: [8.420959e-05,0.01281517] integral=0.004089645
-CONVERGED_ITS at time 1e+20 after 1 steps. Errors: |e|_inf=1.281517e-02 |e|_2=4.089645e-03, N=16
+  1  time    1e+20  |x|  0.06243         error functional: [8.399114e-05,0.01281496] integral=0.004089709
+CONVERGED_ITS at time 1e+20 after 1 steps. Errors: |e|_inf=1.281496e-02 |e|_2=4.089709e-03, N=16
   0  time        0  |x|        0         error functional: [1.513981e-05,0.06212672] integral=0.01812478
-  1  time    1e+20  |x|  0.06421         error functional: [7.53915e-05,0.003876525] integral=0.001104024
-CONVERGED_ITS at time 1e+20 after 1 steps. Errors: |e|_inf=3.876525e-03 |e|_2=1.104024e-03, N=64
+  1  time    1e+20  |x|  0.06421         error functional: [7.539815e-05,0.00387671] integral=0.001104009
+CONVERGED_ITS at time 1e+20 after 1 steps. Errors: |e|_inf=3.876710e-03 |e|_2=1.104009e-03, N=64
   0  time        0  |x|        0         error functional: [9.518126e-07,0.06236227] integral=0.01786457
-  1  time    1e+20  |x|  0.06296         error functional: [8.375495e-07,0.001091853] integral=0.0002809029
-CONVERGED_ITS at time 1e+20 after 1 steps. Errors: |e|_inf=1.091853e-03 |e|_2=2.809029e-04, N=256
+  1  time    1e+20  |x|  0.06296         error functional: [8.737998e-07,0.001091852] integral=0.0002809017
+CONVERGED_ITS at time 1e+20 after 1 steps. Errors: |e|_inf=1.091852e-03 |e|_2=2.809017e-04, N=256
 	N | Convergance rates |e|_inf		|e|_2  (1)
-	64			1.725016e+00	1.889204e+00
-	256			1.827986e+00	1.974628e+00
+	64			1.724924e+00	1.889246e+00
+	256			1.828056e+00	1.974615e+00
