@@ -16,7 +16,7 @@
 
 static PetscInt c__1 = 1;
 static PetscInt c__2 = 2;
-static PetscScalar c_b248 = 1.;
+/* static PetscScalar c_b248 = 1.; */
 typedef int ftnlen;
 typedef struct {
   int cierr;
@@ -261,12 +261,13 @@ typedef struct {
 /* External routines and functions */
 /* Intrinsic functions */
 /* Set RINF to largest positive real number (infinity) */
-PetscErrorCode HSLmc64AD(PetscInt *job, PetscInt *m, PetscInt *n, 
-                         PetscInt *ne, PetscInt *ip, PetscInt *irn, PetscScalar *a, PetscInt *num, 
+PetscErrorCode HSLmc64AD(const PetscInt *job, PetscInt *m, PetscInt *n, 
+                         PetscInt *ne, const PetscInt *ip, const PetscInt *irn, PetscScalar *a, PetscInt *num, 
                          PetscInt *perm, PetscInt *liw, PetscInt *iw, PetscInt *ldw, PetscScalar *dw,
                          PetscInt *icntl, PetscScalar *cntl, PetscInt *info)
 {
   PetscErrorCode ierr;
+#ifdef CHECKING
     /* Format strings */
     static char fmt_9001[] = "(\002 ****** Error in MC64A/AD. INFO(1) = \002"
 	    ",i2,\002 because \002,(a),\002 = \002,i10)";
@@ -301,6 +302,7 @@ PetscErrorCode HSLmc64AD(PetscInt *job, PetscInt *m, PetscInt *n,
 	    "))";
     static char fmt_9034[] = "(\002 DW(M+1:M+N)= \002,5(f11.3)/(14x,5(f11.3)"
 	    "))";
+#endif
 
     /* System generated locals */
     PetscInt i__1, i__2, i__3;
@@ -318,6 +320,7 @@ PetscErrorCode HSLmc64AD(PetscInt *job, PetscInt *m, PetscInt *n,
     static PetscInt warn1, warn2, warn4;
 
     /* Fortran I/O blocks */
+#ifdef CHECKING
     static cilist io___5 = { 0, 0, 0, fmt_9001, 0 };
     static cilist io___6 = { 0, 0, 0, fmt_9001, 0 };
     static cilist io___7 = { 0, 0, 0, fmt_9001, 0 };
@@ -345,6 +348,7 @@ PetscErrorCode HSLmc64AD(PetscInt *job, PetscInt *m, PetscInt *n,
     static cilist io___33 = { 0, 0, 0, fmt_9032, 0 };
     static cilist io___34 = { 0, 0, 0, fmt_9033, 0 };
     static cilist io___35 = { 0, 0, 0, fmt_9034, 0 };
+#endif
     extern PetscScalar huge_(PetscScalar *);
 
     PetscFunctionBegin;
@@ -919,7 +923,9 @@ L90:
     }
 #endif
 /* Return from subroutine. */
+#ifdef CHECKING
 L99:
+#endif
     PetscFunctionReturn(0);
 /* L9004: */
 /* L9005: */
@@ -950,7 +956,7 @@ L99:
 /* Local parameters */
 /* External subroutines and/or functions */
 PetscErrorCode HSLmc64BD(PetscInt *m, PetscInt *n, PetscInt *ne, 
-                         PetscInt *ip, PetscInt *irn, PetscScalar *a, PetscInt *iperm, PetscInt *
+                         const PetscInt *ip, const PetscInt *irn, PetscScalar *a, PetscInt *iperm, PetscInt *
                          num, PetscInt *jperm, PetscInt *pr, PetscInt *q, PetscInt *l, PetscScalar *d__,
                          PetscScalar *rinf)
 {
@@ -1379,9 +1385,9 @@ L2000:
 /* CNT is the number of calls made to MC64U so far. */
 /* NUM is the cardinality of last matching found. */
 /* Compute a first maximum matching from scratch on whole matrix. */
-PetscErrorCode HSLmc64SD(PetscInt *m, PetscInt *n, PetscInt *ne, 
-                         PetscInt *ip, PetscInt *irn, PetscScalar *a, PetscInt *iperm, PetscInt *
-                         numx, PetscInt *w, PetscInt *len, PetscInt *lenl, PetscInt *lenh, PetscInt *fc,
+PetscErrorCode HSLmc64SD(PetscInt *m, PetscInt *n, PetscInt *ne,
+                         const PetscInt *ip, const PetscInt *irn, PetscScalar *a, PetscInt *iperm, PetscInt *numx,
+                         PetscInt *w, PetscInt *len, PetscInt *lenl, PetscInt *lenh, PetscInt *fc,
                          PetscInt *iw, PetscInt *iw4, PetscScalar *rlx, PetscScalar *rinf)
 {
   PetscErrorCode ierr;
@@ -1646,7 +1652,7 @@ L2000:
 /*   not been scanned during one pass through the main loop. */
 /* NUMX is maximum possible size of matching. */
 PetscErrorCode HSLmc64UD(PetscInt *id, PetscInt *mod, PetscInt *m, 
-                         PetscInt *n, PetscInt *irn, PetscInt *lirn, PetscInt *ip, PetscInt *lenc, 
+                         PetscInt *n, const PetscInt *irn, PetscInt *lirn, const PetscInt *ip, PetscInt *lenc, 
                          PetscInt *fc, PetscInt *iperm, PetscInt *num, PetscInt *numx, PetscInt *pr,
                          PetscInt *arp, PetscInt *cv, PetscInt *out)
 {
@@ -1864,9 +1870,9 @@ L101:
 /* Local parameters */
 /* External subroutines and/or functions */
 /* Set RINF to largest positive real number */
-PetscErrorCode HSLmc64WD(PetscInt *m, PetscInt *n, PetscInt *ne, 
-                         PetscInt *ip, PetscInt *irn, PetscScalar *a, PetscInt *iperm, PetscInt *
-                         num, PetscInt *jperm, PetscInt *out, PetscInt *pr, PetscInt *q, PetscInt *l,
+PetscErrorCode HSLmc64WD(PetscInt *m, PetscInt *n, PetscInt *ne,
+                         const PetscInt *ip, const PetscInt *irn, PetscScalar *a, PetscInt *iperm, PetscInt *num,
+                         PetscInt *jperm, PetscInt *out, PetscInt *pr, PetscInt *q, PetscInt *l,
                          PetscScalar *u, PetscScalar *d__, PetscScalar *rinf)
 {
   PetscErrorCode ierr;
@@ -2349,8 +2355,8 @@ L1100:
 /*   which have not been scanned when looking for a cheap assignment. */
 /* OUT(I) is one less than the number of non-zeros in row I */
 /*   which have not been scanned during one pass through the main loop. */
-PetscErrorCode HSLmc64ZD(PetscInt *m, PetscInt *n, PetscInt *irn, 
-                         PetscInt *lirn, PetscInt *ip, PetscInt *lenc, PetscInt *iperm, PetscInt *num,
+PetscErrorCode HSLmc64ZD(PetscInt *m, PetscInt *n, const PetscInt *irn,
+                         PetscInt *lirn, const PetscInt *ip, PetscInt *lenc, PetscInt *iperm, PetscInt *num,
                          PetscInt *pr, PetscInt *arp, PetscInt *cv, PetscInt *out)
 {
   PetscErrorCode ierr;
@@ -3012,6 +3018,7 @@ PetscErrorCode mc64AD(PetscInt *job, PetscInt *n, PetscInt *ne, PetscInt *ip, Pe
 {
   PetscErrorCode ierr;
     /* Format strings */
+#ifdef CHECKING
     static char fmt_9001[] = "(\002 ****** Error in MC64A/AD. INFO(1) = \002"
 	    ",i2,\002 because \002,(a),\002 = \002,i10)";
     static char fmt_9004[] = "(\002 ****** Error in MC64A/AD. INFO(1) = \002"
@@ -3042,6 +3049,7 @@ PetscErrorCode mc64AD(PetscInt *job, PetscInt *n, PetscInt *ne, PetscInt *ip, Pe
 	    "))";
     static char fmt_9034[] = "(\002 DW(N+1:2N) = \002,5(f11.3)/(14x,5(f11.3)"
 	    "))";
+#endif
 
     /* System generated locals */
     PetscInt i__1, i__2;
@@ -3057,6 +3065,7 @@ PetscErrorCode mc64AD(PetscInt *job, PetscInt *n, PetscInt *ne, PetscInt *ip, Pe
     static PetscInt i__, j, k;
     static PetscScalar fact, rinf;
 
+#ifdef CHECKING
     /* Fortran I/O blocks */
     static cilist io___16 = { 0, 0, 0, fmt_9001, 0 };
     static cilist io___17 = { 0, 0, 0, fmt_9001, 0 };
@@ -3076,6 +3085,7 @@ PetscErrorCode mc64AD(PetscInt *job, PetscInt *n, PetscInt *ne, PetscInt *ip, Pe
     static cilist io___35 = { 0, 0, 0, fmt_9032, 0 };
     static cilist io___36 = { 0, 0, 0, fmt_9033, 0 };
     static cilist io___37 = { 0, 0, 0, fmt_9034, 0 };
+#endif
 
     PetscFunctionBegin;
     /* Parameter adjustments */
@@ -3456,7 +3466,9 @@ L90:
     }
 #endif
 /* Return from subroutine. */
+#ifdef CHECKING
 L99:
+#endif
     PetscFunctionReturn(0);
 }
 
@@ -4236,7 +4248,7 @@ L40:
 /* Local constants */
 /* Local variables */
 /* Local arrays */
-PetscErrorCode mc64RD(PetscInt *n, PetscInt *ne, PetscInt *ip, PetscInt *irn, PetscScalar *a)
+PetscErrorCode mc64RD(PetscInt *n, PetscInt *ne, const PetscInt *ip, PetscInt *irn, PetscScalar *a)
 {
     /* System generated locals */
     PetscInt i__1, i__2, i__3;
@@ -4701,7 +4713,7 @@ L1000:
 /* remains sorted by decreasing value. */
 /* The sorting is done by straightforward insertion; therefore the use */
 /* of this routine should be avoided for large XX (XX < 20). */
-PetscErrorCode mc64QD(PetscInt *ip, PetscInt *lenl, PetscInt *lenh, PetscInt *w, PetscInt *wlen, PetscScalar *a, PetscInt *nval, PetscScalar *val)
+PetscErrorCode mc64QD(const PetscInt *ip, PetscInt *lenl, PetscInt *lenh, PetscInt *w, PetscInt *wlen, PetscScalar *a, PetscInt *nval, PetscScalar *val)
 {
     /* System generated locals */
     PetscInt i__1, i__2, i__3;
