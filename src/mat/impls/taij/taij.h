@@ -4,9 +4,10 @@
 #include <../src/mat/impls/aij/mpi/mpiaij.h>
 
 #define TAIJHEADER          \
-  PetscInt    dof;          \
+  PetscInt    p,q;          \
   Mat         AIJ;          \
   PetscScalar *S;           \
+  PetscScalar *T;           \
   PetscScalar *ibdiag;      \
   PetscBool   ibdiagvalid;  \
 
@@ -16,7 +17,7 @@ typedef struct {
 
 typedef struct {
   TAIJHEADER;
-  Mat        OAIJ;    /* representation of interpolation for one component */
+  Mat        OAIJ;    
   Mat        A;
   VecScatter ctx;     /* update ghost points for parallel case */
   Vec        w;       /* work space for ghost values for parallel case */
