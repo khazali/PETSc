@@ -1,4 +1,4 @@
-#include <petscmat.h>
+#include <petscmat.h> /*I <petscmat.h> I*/
 #include <petscblaslapack.h>
 
 #undef __FUNCT__
