@@ -37,7 +37,11 @@ PETSC_EXTERN PetscErrorCode MatGetOrdering_WBM(Mat mat, MatOrderingType type, IS
   cntl[0]  = 0.0;/*1e-8*/
 
   ierr = PetscMalloc3(liw,PetscInt,&iw,ldw,PetscScalar,&dw,nrow,PetscInt,&perm);CHKERRQ(ierr);
+#ifdef PETSC_USE_COMPLEX
   ierr = HSLmc64AD(&job, &ncol, &nrow, &nnz, ia, ja, a, &num, perm, &liw, iw, &ldw, dw, icntl, cntl, info);CHKERRQ(ierr);
+#else
+  SETERRQ(PetscObjectComm((PetscObject) mat), PETSC_ERR_SUP, "WBM using MC64 does not support complex numbers");
+#endif
   ierr = MatRestoreRowIJ(mat, 1, PETSC_TRUE, PETSC_TRUE, NULL, &ia, &ja, &done);CHKERRQ(ierr);
   for (i = 0; i < nrow; ++i) perm[i]--;
   /* If job == 5, dw[0..ncols] contains the column scaling and dw[ncols..ncols+nrows] contains the row scaling */

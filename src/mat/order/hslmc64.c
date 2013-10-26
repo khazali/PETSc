@@ -12,6 +12,18 @@
 #include <petscsys.h>
 #include <petsc-private/matorderimpl.h>
 
+#ifdef PETSC_USE_COMPLEX
+
+PetscErrorCode HSLmc64AD(const PetscInt *job, PetscInt *m, PetscInt *n, 
+                         PetscInt *ne, const PetscInt *ip, const PetscInt *irn, PetscScalar *a, PetscInt *num, 
+                         PetscInt *perm, PetscInt *liw, PetscInt *iw, PetscInt *ldw, PetscScalar *dw,
+                         PetscInt *icntl, PetscScalar *cntl, PetscInt *info)
+{
+  SETERRQ(PETSC_COMM_SELF, PETSC_ERR_SUP, "HSL MC64 does not support complex numbers");
+}
+
+#else
+
 /* Table of constant values */
 
 static PetscInt c__1 = 1;
@@ -5744,3 +5756,5 @@ L140:
     PetscFunctionReturn(0);
 
 }
+
+#endif /* PETSC_USE_COMPLEX */
