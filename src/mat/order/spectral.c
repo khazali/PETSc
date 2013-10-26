@@ -104,10 +104,10 @@ PetscErrorCode MatCreateLaplacian(Mat A, PetscReal tol, PetscBool weighted, Mat 
 #define __FUNCT__ "MatGetOrdering_Spectral"
 PETSC_EXTERN PetscErrorCode MatGetOrdering_Spectral(Mat A, MatOrderingType type, IS *row, IS *col)
 {
-  Mat               L;
-  PetscInt         *perm, tmp;
-  const PetscScalar eps = 1.0e-12;
-  PetscErrorCode    ierr;
+  Mat             L;
+  PetscInt       *perm, tmp;
+  const PetscReal eps = 1.0e-12;
+  PetscErrorCode  ierr;
 
   PetscFunctionBegin;
   ierr = MatCreateLaplacian(A, eps, PETSC_FALSE, &L);CHKERRQ(ierr);
@@ -128,7 +128,11 @@ PETSC_EXTERN PetscErrorCode MatGetOrdering_Spectral(Mat A, MatOrderingType type,
   /* Compute Fiedler vector (right now, all eigenvectors) */
   {
     Mat          LD;
-    PetscScalar *a, *realpart, *imagpart, *eigvec, *work, sdummy;
+    PetscScalar *a;
+    PetscReal   *realpart, *imagpart, *eigvec, *work;
+#ifndef PETSC_USE_COMPLEX
+    PetscReal    sdummy;
+#endif
     PetscBLASInt bn, bN, lwork, lierr, idummy;
     PetscInt     n, i, evInd;
 
@@ -141,7 +145,11 @@ PETSC_EXTERN PetscErrorCode MatGetOrdering_Spectral(Mat A, MatOrderingType type,
     ierr = PetscBLASIntCast(1,&idummy);CHKERRQ(ierr);
     ierr = PetscMalloc4(n,PetscScalar,&realpart,n,PetscScalar,&imagpart,n*n,PetscScalar,&eigvec,lwork,PetscScalar,&work);CHKERRQ(ierr);
     ierr = PetscFPTrapPush(PETSC_FP_TRAP_OFF);CHKERRQ(ierr);
+#ifdef PETSC_USE_COMPLEX
+    SETERRQ(PetscObjectComm((PetscObject) A), PETSC_ERR_SUP, "Spectral partitioning does not support complex numbers");
+#else
     PetscStackCall("LAPACKgeev", LAPACKgeev_("N","V",&bn,a,&bN,realpart,imagpart,&sdummy,&idummy,eigvec,&bN,work,&lwork,&lierr));
+#endif
     if (lierr) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_LIB, "Error in LAPACK routine %d", (int) lierr);
     ierr = PetscFPTrapPop();CHKERRQ(ierr);
     /* Check lowest eigenvalue and eigenvector */
