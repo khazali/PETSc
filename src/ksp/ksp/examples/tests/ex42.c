@@ -12,7 +12,7 @@ int main(int argc,char **args)
   KSP            ksp;      /* linear solver context */
   PetscInt       Ii,Istart,Iend,m = 11;
   PetscErrorCode ierr;
-  PetscScalar    v;
+  PetscScalar    v,xnorm; 
 
   PetscInitialize(&argc,&args,(char*)0,help);
   ierr = PetscOptionsGetInt(NULL,"-m",&m,NULL);CHKERRQ(ierr);
@@ -30,14 +30,14 @@ int main(int argc,char **args)
     v = (PetscScalar)Ii+1;
     ierr = MatSetValues(A,1,&Ii,1,&Ii,&v,INSERT_VALUES);CHKERRQ(ierr);
   }
-  /* Make A sigular */
+  /* Make A singular */
   Ii = m - 1; /* last diagonal entry */
   v  = 0.0;
   ierr = MatSetValues(A,1,&Ii,1,&Ii,&v,INSERT_VALUES);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
-  /* A is symmetric. Set symmetric flag to enable KSP_type = minres */
+  /* A is symmetric. Set symmetric flag to enable KSP_type = minres or minresqlp */
   ierr = MatSetOption(A,MAT_SYMMETRIC,PETSC_TRUE);CHKERRQ(ierr);
 
   ierr = VecCreate(PETSC_COMM_WORLD,&b);CHKERRQ(ierr);
@@ -57,12 +57,21 @@ int main(int argc,char **args)
                       Check solution and clean up
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   ierr = VecView(x,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  ierr = VecNorm(x,NORM_2,&xnorm);CHKERRQ(ierr);   
+  if (xnorm > 3.1826) {
+     printf("\nERROR: TWO NORM OF X = %g IS TOO LARGE.\n", xnorm);
+  }  else if (xnorm < 1.2448) {
+     printf("\nERROR: TWO NORM OF X = %g IS TOO SMALL.\n", xnorm);
+  } else {
+     printf("\nxnorm = %g. x is a least-squares solution if ~ 3.1825. It is a pseudoinverse solution if ~ 1.2449.\n", xnorm);
+  }
 
   /* Free work space. */
   ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = VecDestroy(&b);CHKERRQ(ierr);  
   ierr = MatDestroy(&A);CHKERRQ(ierr);
+
 
   ierr = PetscFinalize();
   return 0;

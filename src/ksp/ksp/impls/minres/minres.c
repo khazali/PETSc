@@ -3,6 +3,8 @@
 
 typedef struct {
   PetscReal haptol;
+  PetscBool monitor_arnorm;
+  PetscReal Arnorm;
 } KSP_MINRES;
 
 #undef __FUNCT__
@@ -18,6 +20,50 @@ PetscErrorCode KSPSetUp_MINRES(KSP ksp)
   PetscFunctionReturn(0);
 }
 
+/* modified from KSPMonitorDefault() by adding Arnorm */
+#undef __FUNCT__
+#define __FUNCT__ "KSPMINTRESMonitor"
+PetscErrorCode KSPMINTRESMonitor(KSP ksp,PetscInt n,PetscReal rnorm,void *dummy)
+{
+  PetscErrorCode ierr;
+  PetscViewer    viewer = (PetscViewer) dummy;
+  KSP_MINRES  *minres = (KSP_MINRES*)ksp->data;
+
+  PetscFunctionBegin;
+  if (!viewer) {
+    ierr = PetscViewerASCIIGetStdout(PetscObjectComm((PetscObject)ksp),&viewer);CHKERRQ(ierr);
+  }
+  ierr = PetscViewerASCIIAddTab(viewer,((PetscObject)ksp)->tablevel);CHKERRQ(ierr);
+  if (n == 0 && ((PetscObject)ksp)->prefix) {
+    ierr = PetscViewerASCIIPrintf(viewer,"  Residual norms for %s solve.\n",((PetscObject)ksp)->prefix);CHKERRQ(ierr);
+  }
+  ierr = PetscViewerASCIIPrintf(viewer,"%3D KSP Residual norm %14.12e, Arnorm %14.12e\n",n,(double)rnorm,(double)minres->Arnorm);CHKERRQ(ierr);
+  ierr = PetscViewerASCIISubtractTab(viewer,((PetscObject)ksp)->tablevel);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#ifdef NOTDEF
+#undef __FUNCT__
+#define __FUNCT__ "KSPSetFromOptions_MINRES"
+PetscErrorCode KSPSetFromOptions_MINRES(KSP ksp)
+{
+  PetscErrorCode ierr;
+  KSP_MINRES  *minres = (KSP_MINRES*)ksp->data;
+
+  PetscFunctionBegin;
+  ierr = PetscOptionsHead("KSP MINRES options");CHKERRQ(ierr);
+
+  ierr = PetscOptionsBool("-ksp_monitor_minres","Monitor rnorm and Arnorm","KSPMINRESMonitor",minres->monitor_arnorm,&minres->monitor_arnorm,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-ksp_monitor_minres_relrnorm","Monitor relative rnorm and Arnorm","KSPMINRESMonitor",minres->monitor_relrnorm,&minres->monitor_relrnorm,NULL);CHKERRQ(ierr);
+  printf("monitor_arnorm %d\n",minres->monitor_arnorm);
+  if (minres->monitor_arnorm) {
+    ierr = KSPMonitorSet(ksp,KSPMINTRESQLPMonitor,NULL,NULL);CHKERRQ(ierr);
+  }
+
+  ierr = PetscOptionsTail();CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "KSPSolve_MINRES"
@@ -27,6 +73,7 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
   PetscInt       i;
   PetscScalar    alpha,beta,ibeta,betaold,eta,c=1.0,ceta,cold=1.0,coold,s=0.0,sold=0.0,soold;
   PetscScalar    rho0,rho1,irho1,rho2,mrho2,rho3,mrho3,dp = 0.0;
+  PetscReal      Arnorm=0.0,root=0.0;
   PetscReal      np;
   Vec            X,B,R,Z,U,V,W,UOLD,VOLD,WOLD,WOOLD;
   Mat            Amat,Pmat;
@@ -54,7 +101,7 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
 
   ksp->its = 0;
 
-  ierr = VecSet(UOLD,0.0);CHKERRQ(ierr);          /*     u_old  <-   0   */
+  ierr = VecSet(UOLD,0.0);CHKERRQ(ierr);           /*     u_old  <-   0   */
   ierr = VecCopy(UOLD,VOLD);CHKERRQ(ierr);         /*     v_old  <-   0   */
   ierr = VecCopy(UOLD,W);CHKERRQ(ierr);            /*     w      <-   0   */
   ierr = VecCopy(UOLD,WOLD);CHKERRQ(ierr);         /*     w_old  <-   0   */
@@ -62,11 +109,16 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
   if (!ksp->guess_zero) {
     ierr = KSP_MatMult(ksp,Amat,X,R);CHKERRQ(ierr); /*     r <- b - A*x    */
     ierr = VecAYPX(R,-1.0,B);CHKERRQ(ierr);
+    ierr = MatMult(Amat,R,WOOLD);CHKERRQ(ierr);     /* WOOLD <- A*r        */
+    ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr);   
   } else {
     ierr = VecCopy(B,R);CHKERRQ(ierr);              /*     r <- b (x is 0) */
+    /* Arnorm = norm(A*B) */
+    ierr = MatMult(Amat,B,WOOLD);CHKERRQ(ierr);
+    ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr); 
   }
 
-  ierr = KSP_PCApply(ksp,R,Z);CHKERRQ(ierr); /*     z  <- B*r       */
+  ierr = KSP_PCApply(ksp,R,Z);CHKERRQ(ierr);        /*     z  <- B*r       */
 
   ierr = VecDot(R,Z,&dp);CHKERRQ(ierr);
   if (PetscRealPart(dp) < minres->haptol) {
@@ -88,7 +140,7 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
 
   ierr = VecNorm(Z,NORM_2,&np);CHKERRQ(ierr);      /*   np <- ||z||        */
 
-  KSPLogResidualHistory(ksp,np);
+  ierr       = KSPLogResidualHistory(ksp,np);CHKERRQ(ierr);
   ierr       = KSPMonitor(ksp,0,np);CHKERRQ(ierr);
   ksp->rnorm = np;
   ierr       = (*ksp->converged)(ksp,0,np,&ksp->reason,ksp->cnvP);CHKERRQ(ierr); /* test for convergence */
@@ -161,7 +213,17 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
     ierr  = VecScale(U,ibeta);CHKERRQ(ierr);     /*  u <- z / beta       */
 
     np = ksp->rnorm * PetscAbsScalar(s);
-
+    root = PetscSqrtReal(rho0*rho0 + (cold*beta)*(cold*beta));   
+    Arnorm = ksp->rnorm * root;  
+    printf("\n*** %3d-th  Arnorm %8.3g",(ksp->its)-1,Arnorm);
+    //minres->Arnorm = Arnorm;
+    if (Arnorm < minres->haptol) {
+      ierr = PetscInfo2(ksp,"Detected happy breakdown %G tolerance %G. It is a least-squares solution.\n",Arnorm,minres->haptol);CHKERRQ(ierr);
+      printf("~~~Arnorm %8.3g < minres->haptol = %g, exit \n",Arnorm,minres->haptol);  
+      ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+      ksp->reason = KSP_CONVERGED_ATOL_NORMAL;
+      break;
+    }
     ksp->rnorm = np;
     KSPLogResidualHistory(ksp,np);
     ierr = KSPMonitor(ksp,i+1,np);CHKERRQ(ierr);
@@ -169,6 +231,15 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
     if (ksp->reason) break;
     i++;
   } while (i<ksp->max_it);
+
+  ierr = KSP_MatMult(ksp,Amat,X,R);CHKERRQ(ierr);      /*     r <- A*x        */
+  ierr = VecAXPY(R,-1.0,B);CHKERRQ(ierr);              /*     r <- A*x - b    */
+  ierr = MatMult(Amat,R,WOOLD);CHKERRQ(ierr);          /* WOOLD <- A*r        */
+  ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr);  /* Arnorm = norm2(A*r) */
+  //minres->Arnorm = Arnorm;
+  printf("\n~~~~ Final Arnorm %8.3g\n", Arnorm);
+  ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+
   if (i >= ksp->max_it) ksp->reason = KSP_DIVERGED_ITS;
   PetscFunctionReturn(0);
 }
@@ -185,9 +256,17 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
           be positive definite for this method.
           Supports only left preconditioning.
 
-   Reference: Paige & Saunders, 1975.
+   References: MINRES for nonsingular lineqr equations:
+               C. C. Paige and M. A. Saunders (1975). Solution of sparse indefinite systems of linear equations, SIAM J. Numerical Analysis 12, 617-629.
+               
+               For extension of MINRES to singular symmetric or Hermitian matrix or linear operator:
+               S.-C. T. Choi (2006). Iterative Methods for Singular Linear Equations and Least-Squares Problems, PhD thesis, ICME, Stanford University.
+               S.-C. T. Choi, C. C. Paige and M. A. Saunders (2011).  MINRES-QLP: A Krylov Subspace Method for Indefinite or Singular Symmetric Systems. SIAM J. Scientific Computing 33, Number 4, 1810-1836.
+               S.-C. T. Choi and M. A. Saunders (2013). ALGORITHM: MINRES-QLP for Symmetric and Hermitian Linear Equations and Least-Squares Problems. ACM Transactions on Mathematical Software.  To appear.
 
    Contributed by: Robert Scheichl: maprs@maths.bath.ac.uk
+                   Sou-Cheng Choi : sctchoi@mcs.anl.gov
+                   Hong Zhang     : hzhang@mcs.anl.gov
 
 .seealso: KSPCreate(), KSPSetType(), KSPType (for list of available types), KSP, KSPCG, KSPCR
 M*/
