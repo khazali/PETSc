@@ -4,7 +4,7 @@
 typedef struct {
   PetscReal haptol;
   PetscBool monitor_arnorm;
-  PetscReal Arnorm;
+  PetscReal Arnorm,relArnorm;
 } KSP_MINRES;
 
 #undef __FUNCT__
@@ -20,14 +20,14 @@ PetscErrorCode KSPSetUp_MINRES(KSP ksp)
   PetscFunctionReturn(0);
 }
 
-/* modified from KSPMonitorDefault() by adding Arnorm */
+/* modified from KSPMonitorDefault() by adding Arnorm - same as KSPMINTRESQLPMonitor - merge them into one! */
 #undef __FUNCT__
 #define __FUNCT__ "KSPMINTRESMonitor"
 PetscErrorCode KSPMINTRESMonitor(KSP ksp,PetscInt n,PetscReal rnorm,void *dummy)
 {
   PetscErrorCode ierr;
   PetscViewer    viewer = (PetscViewer) dummy;
-  KSP_MINRES  *minres = (KSP_MINRES*)ksp->data;
+  KSP_MINRES     *minres = (KSP_MINRES*)ksp->data;
 
   PetscFunctionBegin;
   if (!viewer) {
@@ -37,43 +37,37 @@ PetscErrorCode KSPMINTRESMonitor(KSP ksp,PetscInt n,PetscReal rnorm,void *dummy)
   if (n == 0 && ((PetscObject)ksp)->prefix) {
     ierr = PetscViewerASCIIPrintf(viewer,"  Residual norms for %s solve.\n",((PetscObject)ksp)->prefix);CHKERRQ(ierr);
   }
-  ierr = PetscViewerASCIIPrintf(viewer,"%3D KSP Residual norm %14.12e, Arnorm %14.12e\n",n,(double)rnorm,(double)minres->Arnorm);CHKERRQ(ierr);
+  ierr = PetscViewerASCIIPrintf(viewer,"%3D KSP Residual norm %14.12e, Arnorm %14.12e, relArnorm %14.12e\n",n,(double)rnorm,(double)minres->Arnorm,(double)minres->relArnorm);CHKERRQ(ierr);
   ierr = PetscViewerASCIISubtractTab(viewer,((PetscObject)ksp)->tablevel);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
-#ifdef NOTDEF
 #undef __FUNCT__
 #define __FUNCT__ "KSPSetFromOptions_MINRES"
 PetscErrorCode KSPSetFromOptions_MINRES(KSP ksp)
 {
   PetscErrorCode ierr;
-  KSP_MINRES  *minres = (KSP_MINRES*)ksp->data;
+  KSP_MINRES     *minres = (KSP_MINRES*)ksp->data;
 
   PetscFunctionBegin;
   ierr = PetscOptionsHead("KSP MINRES options");CHKERRQ(ierr);
-
   ierr = PetscOptionsBool("-ksp_monitor_minres","Monitor rnorm and Arnorm","KSPMINRESMonitor",minres->monitor_arnorm,&minres->monitor_arnorm,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsBool("-ksp_monitor_minres_relrnorm","Monitor relative rnorm and Arnorm","KSPMINRESMonitor",minres->monitor_relrnorm,&minres->monitor_relrnorm,NULL);CHKERRQ(ierr);
-  printf("monitor_arnorm %d\n",minres->monitor_arnorm);
   if (minres->monitor_arnorm) {
-    ierr = KSPMonitorSet(ksp,KSPMINTRESQLPMonitor,NULL,NULL);CHKERRQ(ierr);
+    ierr = KSPMonitorSet(ksp,KSPMINTRESMonitor,NULL,NULL);CHKERRQ(ierr);
   }
-
   ierr = PetscOptionsTail();CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "KSPSolve_MINRES"
-PetscErrorCode  KSPSolve_MINRES(KSP ksp)
+PetscErrorCode KSPSolve_MINRES(KSP ksp)
 {
   PetscErrorCode ierr;
   PetscInt       i;
   PetscScalar    alpha,beta,ibeta,betaold,eta,c=1.0,ceta,cold=1.0,coold,s=0.0,sold=0.0,soold;
   PetscScalar    rho0,rho1,irho1,rho2,mrho2,rho3,mrho3,dp = 0.0;
-  PetscReal      Arnorm=0.0,root=0.0;
+  PetscReal      root = 0.0, Arnorm = 0.0, relArnorm = 0.0, pnorm = 0.0, Anorm2 = 0.0;
   PetscReal      np;
   Vec            X,B,R,Z,U,V,W,UOLD,VOLD,WOLD,WOOLD;
   Mat            Amat,Pmat;
@@ -117,6 +111,7 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
     ierr = MatMult(Amat,B,WOOLD);CHKERRQ(ierr);
     ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr); 
   }
+  minres->Arnorm = Arnorm;
 
   ierr = KSP_PCApply(ksp,R,Z);CHKERRQ(ierr);        /*     z  <- B*r       */
 
@@ -141,7 +136,6 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
   ierr = VecNorm(Z,NORM_2,&np);CHKERRQ(ierr);      /*   np <- ||z||        */
 
   ierr       = KSPLogResidualHistory(ksp,np);CHKERRQ(ierr);
-  ierr       = KSPMonitor(ksp,0,np);CHKERRQ(ierr);
   ksp->rnorm = np;
   ierr       = (*ksp->converged)(ksp,0,np,&ksp->reason,ksp->cnvP);CHKERRQ(ierr); /* test for convergence */
   if (ksp->reason) PetscFunctionReturn(0);
@@ -171,7 +165,11 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
 
     dp   = PetscAbsScalar(dp);
     beta = PetscSqrtScalar(dp);                               /*  beta <- sqrt(r'*z)   */
-
+    
+    pnorm  = ksp->its == 1? PetscSqrtReal(alpha*alpha + beta*beta) :  PetscSqrtReal(betaold*betaold + alpha*alpha + beta*beta);
+          //TODO pnorm  = ksp->its == 1? VecNorm([alfa, betan],NORM_2,&pnorm): VecNorm([beta, alfa, betan],NORM_2,&pnorm);
+    Anorm2 = Anorm2 > pnorm? Anorm2 : pnorm;
+      
     /* QR factorisation    */
     coold = cold; cold = c; soold = sold; sold = s;
 
@@ -208,33 +206,37 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
     ierr  = VecScale(V,ibeta);CHKERRQ(ierr);     /*  v <- r / beta       */
     ierr  = VecScale(U,ibeta);CHKERRQ(ierr);     /*  u <- z / beta       */
 
-    np = ksp->rnorm * PetscAbsScalar(s);
-    root = PetscSqrtReal(rho0*rho0 + (cold*beta)*(cold*beta));   
-    Arnorm = ksp->rnorm * root;  
-    printf("\n*** %3d-th  Arnorm %8.3g\n",(ksp->its)-1,Arnorm);
-    //minres->Arnorm = Arnorm;
+    root = PetscSqrtReal(rho0*rho0 + (cold*beta)*(cold*beta));   /* ? form two vector and use VecNorm */
+    Arnorm = ksp->rnorm * root;
+    relArnorm = root / Anorm2;
+    printf("\n*** %3d-th  Arnorm %8.3g, rnorm %8.3g, Anorm %8.3g, relArnorml %8.3g\n",(ksp->its)-1, Arnorm, np, Anorm2, relArnorm);
+    minres->Arnorm    = Arnorm;
+    minres->relArnorm = relArnorm;
+    ierr = KSPMonitor(ksp,i,np);CHKERRQ(ierr);
+
     if (Arnorm < minres->haptol) {
       ierr = PetscInfo2(ksp,"Detected happy breakdown %G tolerance %G. It is a least-squares solution.\n",Arnorm,minres->haptol);CHKERRQ(ierr);
       printf("~~~Arnorm %8.3g < minres->haptol = %g, exit \n",Arnorm,minres->haptol);  
-      //ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
       ksp->reason = KSP_CONVERGED_ATOL_NORMAL;
       break;
     }
+    np = ksp->rnorm * PetscAbsScalar(s);
     ksp->rnorm = np;
     KSPLogResidualHistory(ksp,np);
-    ierr = KSPMonitor(ksp,i+1,np);CHKERRQ(ierr);
     ierr = (*ksp->converged)(ksp,i+1,np,&ksp->reason,ksp->cnvP);CHKERRQ(ierr); /* test for convergence */
     if (ksp->reason) break;
     i++;
   } while (i<ksp->max_it);
 
   ierr = KSP_MatMult(ksp,Amat,X,R);CHKERRQ(ierr);      /*     r <- A*x        */
-  ierr = VecAXPY(R,-1.0,B);CHKERRQ(ierr);              /*     r <- A*x - b  -- ???  */
+  ierr = VecAXPY(R,-1.0,B);CHKERRQ(ierr);              /*     r <- A*x - b    */
   ierr = MatMult(Amat,R,WOOLD);CHKERRQ(ierr);          /* WOOLD <- A*r        */
   ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr);  /* Arnorm = norm2(A*r) */
-  //minres->Arnorm = Arnorm;
-  printf("\n~~~~ Final Arnorm %8.3g\n", Arnorm);
-  //ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  relArnorm = Arnorm / Anorm2;
+  printf("\n~~~~ Final Arnorm %8.3g, relArnorml %8.3g\n", Arnorm, relArnorm);
+  minres->Arnorm    = Arnorm;
+  minres->relArnorm = relArnorm;
+  ierr = KSPMonitor(ksp,i,np);CHKERRQ(ierr);
 
   if (i >= ksp->max_it) ksp->reason = KSP_DIVERGED_ITS;
   PetscFunctionReturn(0);
@@ -285,7 +287,7 @@ PETSC_EXTERN PetscErrorCode KSPCreate_MINRES(KSP ksp)
   ksp->ops->setup          = KSPSetUp_MINRES;
   ksp->ops->solve          = KSPSolve_MINRES;
   ksp->ops->destroy        = KSPDestroyDefault;
-  ksp->ops->setfromoptions = 0;
+  ksp->ops->setfromoptions = KSPSetFromOptions_MINRES;
   ksp->ops->buildsolution  = KSPBuildSolutionDefault;
   ksp->ops->buildresidual  = KSPBuildResidualDefault;
   PetscFunctionReturn(0);

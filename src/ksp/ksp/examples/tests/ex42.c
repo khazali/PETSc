@@ -1,7 +1,9 @@
 
-static char help[] = "Solves a linear system in parallel. Contributed by S.C. Choi for testing  MINRESQLP. \n\n";
+static char help[] = "Solves a linear system in parallel. Contributed by S.C. Choi for testing MINRES and MINRESQLP. \n\n";
 /* 
- Example: ./ex42 -ksp_type minresqlp -pc_type none -ksp_monitor_minresqlp
+ Example: 
+   mpiexec -n <np> ./ex42 -ksp_type minres -pc_type none -ksp_monitor_minres
+   mpiexec -n <np> ./ex42 -ksp_type minresqlp -pc_type none -ksp_monitor_minresqlp
  */
 
 #include <petscksp.h>
