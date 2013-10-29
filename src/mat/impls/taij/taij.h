@@ -9,7 +9,7 @@
   PetscScalar *S;           \
   PetscScalar *T;           \
   PetscScalar *ibdiag;      \
-  PetscBool   ibdiagvalid;  \
+  PetscBool   ibdiagvalid,getrowactive;  \
 
 typedef struct {
   TAIJHEADER;

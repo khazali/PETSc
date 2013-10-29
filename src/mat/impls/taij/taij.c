@@ -427,6 +427,147 @@ PetscErrorCode MatInvertBlockDiagonal_MPITAIJ_dof(Mat A,const PetscScalar **valu
 /* ----------------------------------------------------------------*/
 
 #undef __FUNCT__
+#define __FUNCT__ "MatGetRow_SeqTAIJ"
+PetscErrorCode MatGetRow_SeqTAIJ(Mat A,PetscInt row,PetscInt *ncols,PetscInt **cols,PetscScalar **values)
+{
+  Mat_SeqTAIJ     *b    = (Mat_SeqTAIJ*) A->data;
+  PetscErrorCode  ierr,diag;
+  PetscInt        nzaij,nz,*colsaij,*idx,i,j,p=b->p,q=b->q,r=row/p,s=row%p,c;
+  PetscScalar     *vaij,*v,*S=b->S,*T=b->T;
+
+  PetscFunctionBegin;
+  if (b->getrowactive) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Already active");
+  b->getrowactive = PETSC_TRUE;
+  if (row < 0 || row >= A->rmap->n) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Row %D out of range",row);
+
+  ierr  = MatGetRow_SeqAIJ(b->AIJ,r,&nzaij,&colsaij,&vaij);CHKERRQ(ierr);
+  diag  = PETSC_FALSE;
+  c     = nzaij;
+  for (i=0; i<nzaij; i++) {
+    /* check if this row contains a diagonal entry */
+    if (colsaij[i] == r) {
+      diag = PETSC_TRUE;
+      c = i;
+    }
+  }
+  /* calculate size of row */
+  if (diag == PETSC_TRUE) nz = nzaij*q;
+  else                    nz = (nzaij+1)*q;
+
+  if (cols || values) {
+    ierr = PetscMalloc2(nz,PetscInt,&idx,nz,PetscScalar,&v);CHKERRQ(ierr);
+    for (i=0; i<nzaij; i++) {
+      for (j=0; j<q; j++) {
+        idx[i*q+j] = colsaij[i]*q+j;
+        v[i*q+j]   = vaij[i]*T[s+j*p];
+      }
+    }
+    for (j=0; j<q; j++) {
+      idx[c*q+j] = r*q+j; 
+      v[c*q+j]  += S[s+j*p];
+    }
+  }
+
+  if (ncols)    *ncols  = nz;
+  if (cols)     *cols   = idx;
+  if (values)   *values = v;
+
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatRestoreRow_SeqTAIJ"
+PetscErrorCode MatRestoreRow_SeqTAIJ(Mat A,PetscInt row,PetscInt *nz,PetscInt **idx,PetscScalar **v)
+{
+  PetscErrorCode ierr;
+  PetscFunctionBegin;
+  ierr = PetscFree2(*idx,*v);CHKERRQ(ierr);
+  ((Mat_SeqTAIJ*)A->data)->getrowactive = PETSC_FALSE;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatGetRow_MPITAIJ"
+PetscErrorCode MatGetRow_MPITAIJ(Mat A,PetscInt row,PetscInt *ncols,PetscInt **cols,PetscScalar **values)
+{
+  Mat_MPITAIJ     *b      = (Mat_MPITAIJ*) A->data;
+  Mat             MatAIJ  = ((Mat_SeqTAIJ*)b->AIJ->data)->AIJ;
+  Mat             MatOAIJ = ((Mat_SeqTAIJ*)b->OAIJ->data)->AIJ;
+  Mat             AIJ     = b->A;
+  PetscErrorCode  ierr;
+  const PetscInt  rstart=A->rmap->rstart,rend=A->rmap->rend,p=b->p,q=b->q,*garray;
+  PetscInt        nz,*idx,ncolsaij,ncolsoaij,*colsaij,*colsoaij,r,s,c,i,j,lrow;
+  PetscScalar     *v,*vals,*ovals,*S=b->S,*T=b->T;
+  PetscBool       diag;
+
+  PetscFunctionBegin;
+  if (b->getrowactive) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Already active");
+  b->getrowactive = PETSC_TRUE;
+  if (row < rstart || row >= rend) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Only local rows");
+  lrow = row - rstart;
+
+  r = lrow/p;
+  s = lrow%p;
+
+  ierr = MatMPIAIJGetSeqAIJ(AIJ,NULL,NULL,&garray);
+  ierr = MatGetRow_SeqAIJ(MatAIJ,lrow/p,&ncolsaij,&colsaij,&vals);CHKERRQ(ierr);
+  ierr = MatGetRow_SeqAIJ(MatOAIJ,lrow/p,&ncolsoaij,&colsoaij,&ovals);CHKERRQ(ierr);
+
+  diag  = PETSC_FALSE;
+  c     = ncolsaij + ncolsoaij;
+  for (i=0; i<ncolsaij; i++) {
+    /* check if this row contains a diagonal entry */
+    if (colsaij[i] == r) {
+      diag = PETSC_TRUE;
+      c = i;
+    }
+  }
+  /* calculate size of row */
+  if (diag == PETSC_TRUE) nz = (ncolsaij+ncolsoaij)*q;
+  else                    nz = (ncolsaij+ncolsoaij+1)*q;
+
+  if (cols || values) {
+    ierr = PetscMalloc2(nz,PetscInt,&idx,nz,PetscScalar,&v);CHKERRQ(ierr);
+    for (i=0; i<ncolsaij; i++) {
+      for (j=0; j<q; j++) {
+        idx[i*q+j] = (colsaij[i]+rstart/p)*q+j;
+        v[i*q+j]   = vals[i]*T[s+j*p];
+      }
+    }
+    for (i=0; i<ncolsoaij; i++) {
+      for (j=0; j<q; j++) {
+        idx[(i+ncolsaij)*q+j] = garray[colsoaij[i]]*q+j;
+        v[(i+ncolsaij)*q+j]   = ovals[i]*T[s+j*p];
+      }
+    }
+    for (j=0; j<q; j++) {
+      idx[c*q+j] = (r+rstart/p)*q+j; 
+      v[c*q+j]  += S[s+j*p];
+    }
+  }
+
+  if (ncols)  *ncols  = nz;
+  if (cols)   *cols   = idx;
+  if (values) *values = v;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatRestoreRow_MPITAIJ"
+PetscErrorCode MatRestoreRow_MPITAIJ(Mat A,PetscInt row,PetscInt *nz,PetscInt **idx,PetscScalar **v)
+{
+  PetscErrorCode ierr;
+  PetscFunctionBegin;
+  ierr = PetscFree2(*idx,*v);CHKERRQ(ierr);
+  ((Mat_SeqTAIJ*)A->data)->getrowactive = PETSC_FALSE;
+  PetscFunctionReturn(0);
+}
+
+#if 0
+These functions are commented out since MATTAIJ will use the basic MatConvert (which uses MatGetRow()).
+They are retained to provide an idea on how to implement MatConvert for MATTAIJ.
+
+#undef __FUNCT__
 #define __FUNCT__ "MatConvert_SeqTAIJ_SeqAIJ"
 PETSC_EXTERN PetscErrorCode MatConvert_SeqTAIJ_SeqAIJ(Mat A, MatType newtype,MatReuse reuse,Mat *newmat)
 {
@@ -483,8 +624,6 @@ PETSC_EXTERN PetscErrorCode MatConvert_SeqTAIJ_SeqAIJ(Mat A, MatType newtype,Mat
   }
   PetscFunctionReturn(0);
 }
-
-#if 0
 
 #include <../src/mat/impls/aij/mpi/mpiaij.h>
 
@@ -626,8 +765,10 @@ PetscErrorCode  MatCreateTAIJ(Mat A,PetscInt p,PetscInt q,const PetscScalar S[],
 
   ierr = MatCreate(PetscObjectComm((PetscObject)A),&B);CHKERRQ(ierr);
   ierr = MatSetSizes(B,p*A->rmap->n,q*A->cmap->n,p*A->rmap->N,q*A->cmap->N);CHKERRQ(ierr);
-  ierr = PetscLayoutSetBlockSize(B->rmap,p);CHKERRQ(ierr);
-  ierr = PetscLayoutSetBlockSize(B->cmap,q);CHKERRQ(ierr);
+  /*
+  ierr = PetscLayoutSetBlockSize(B->rmap,q);CHKERRQ(ierr);
+  ierr = PetscLayoutSetBlockSize(B->cmap,p);CHKERRQ(ierr);
+  */
   ierr = PetscLayoutSetUp(B->rmap);CHKERRQ(ierr);
   ierr = PetscLayoutSetUp(B->cmap);CHKERRQ(ierr);
 
@@ -655,8 +796,13 @@ PetscErrorCode  MatCreateTAIJ(Mat A,PetscInt p,PetscInt q,const PetscScalar S[],
     B->ops->mult                = MatMult_SeqTAIJ_N;
     B->ops->multadd             = MatMultAdd_SeqTAIJ_N;
     B->ops->invertblockdiagonal = MatInvertBlockDiagonal_SeqTAIJ_N;
+    B->ops->getrow              = MatGetRow_SeqTAIJ;
+    B->ops->restorerow          = MatRestoreRow_SeqTAIJ;
 
+    /*
+    This is commented out since MATTAIJ will use the basic MatConvert (which uses MatGetRow()).
     ierr = PetscObjectComposeFunction((PetscObject)B,"MatConvert_seqtaij_seqaij_C",MatConvert_SeqTAIJ_SeqAIJ);CHKERRQ(ierr);
+    */
 
   } else {
     Mat_MPIAIJ  *mpiaij = (Mat_MPIAIJ*)A->data;
@@ -681,7 +827,7 @@ PetscErrorCode  MatCreateTAIJ(Mat A,PetscInt p,PetscInt q,const PetscScalar S[],
     else    PetscMemzero(b->T,p*q*sizeof(PetscScalar));
 
     ierr = MatCreateTAIJ(mpiaij->A,p,q,b->S,b->T,&b->AIJ);CHKERRQ(ierr); 
-    ierr = MatCreateTAIJ(mpiaij->B,p,q,b->S,b->T,&b->OAIJ);CHKERRQ(ierr);
+    ierr = MatCreateTAIJ(mpiaij->B,p,q,NULL,b->T,&b->OAIJ);CHKERRQ(ierr);
 
     ierr = VecGetSize(mpiaij->lvec,&n);CHKERRQ(ierr);
     ierr = VecCreate(PETSC_COMM_SELF,&b->w);CHKERRQ(ierr);
@@ -706,8 +852,9 @@ PetscErrorCode  MatCreateTAIJ(Mat A,PetscInt p,PetscInt q,const PetscScalar S[],
     B->ops->mult                = MatMult_MPITAIJ_dof;
     B->ops->multadd             = MatMultAdd_MPITAIJ_dof;
     B->ops->invertblockdiagonal = MatInvertBlockDiagonal_MPITAIJ_dof;
+    B->ops->getrow              = MatGetRow_MPITAIJ;
+    B->ops->restorerow          = MatRestoreRow_MPITAIJ;
 
-    //ierr = PetscObjectComposeFunction((PetscObject)B,"MatConvert_mpitaij_mpiaij_C",MatConvert_MPITAIJ_MPIAIJ);CHKERRQ(ierr);
   }
   B->ops->getsubmatrix = MatGetSubMatrix_TAIJ;
   ierr  = MatSetUp(B);CHKERRQ(ierr);
