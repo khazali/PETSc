@@ -150,11 +150,10 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
   do {
     ksp->its = i+1;
 
-/*   Lanczos  */
-
+    /* Lanczos  */
     ierr = KSP_MatMult(ksp,Amat,U,R);CHKERRQ(ierr);   /*      r <- A*u   */
     ierr = VecDot(U,R,&alpha);CHKERRQ(ierr);          /*  alpha <- r'*u  */
-    ierr = KSP_PCApply(ksp,R,Z);CHKERRQ(ierr); /*      z <- B*r   */
+    ierr = KSP_PCApply(ksp,R,Z);CHKERRQ(ierr);        /*  z <- B*r   */
 
     ierr = VecAXPY(R,-alpha,V);CHKERRQ(ierr);     /*  r <- r - alpha v     */
     ierr = VecAXPY(Z,-alpha,U);CHKERRQ(ierr);     /*  z <- z - alpha u     */
@@ -173,8 +172,7 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
     dp   = PetscAbsScalar(dp);
     beta = PetscSqrtScalar(dp);                               /*  beta <- sqrt(r'*z)   */
 
-/*    QR factorisation    */
-
+    /* QR factorisation    */
     coold = cold; cold = c; soold = sold; sold = s;
 
     rho0 = cold * alpha - coold * sold * betaold;
@@ -182,19 +180,17 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
     rho2 = sold * alpha + coold * cold * betaold;
     rho3 = soold * betaold;
 
-/*     Givens rotation    */
-
+    /* Givens rotation    */
     c = rho0 / rho1;
     s = beta / rho1;
 
-/*    Update    */
-
+    /* Update - too many VecCopy()? */
     ierr = VecCopy(WOLD,WOOLD);CHKERRQ(ierr);     /*  w_oold <- w_old      */
     ierr = VecCopy(W,WOLD);CHKERRQ(ierr);         /*  w_old  <- w          */
 
     ierr  = VecCopy(U,W);CHKERRQ(ierr);           /*  w      <- u          */
     mrho2 = -rho2;
-    ierr  = VecAXPY(W,mrho2,WOLD);CHKERRQ(ierr); /*  w <- w - rho2 w_old  */
+    ierr  = VecAXPY(W,mrho2,WOLD);CHKERRQ(ierr);  /*  w <- w - rho2 w_old  */
     mrho3 = -rho3;
     ierr  = VecAXPY(W,mrho3,WOOLD);CHKERRQ(ierr); /*  w <- w - rho3 w_oold */
     irho1 = 1.0 / rho1;
@@ -215,12 +211,12 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
     np = ksp->rnorm * PetscAbsScalar(s);
     root = PetscSqrtReal(rho0*rho0 + (cold*beta)*(cold*beta));   
     Arnorm = ksp->rnorm * root;  
-    printf("\n*** %3d-th  Arnorm %8.3g",(ksp->its)-1,Arnorm);
+    printf("\n*** %3d-th  Arnorm %8.3g\n",(ksp->its)-1,Arnorm);
     //minres->Arnorm = Arnorm;
     if (Arnorm < minres->haptol) {
       ierr = PetscInfo2(ksp,"Detected happy breakdown %G tolerance %G. It is a least-squares solution.\n",Arnorm,minres->haptol);CHKERRQ(ierr);
       printf("~~~Arnorm %8.3g < minres->haptol = %g, exit \n",Arnorm,minres->haptol);  
-      ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+      //ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
       ksp->reason = KSP_CONVERGED_ATOL_NORMAL;
       break;
     }
@@ -233,12 +229,12 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
   } while (i<ksp->max_it);
 
   ierr = KSP_MatMult(ksp,Amat,X,R);CHKERRQ(ierr);      /*     r <- A*x        */
-  ierr = VecAXPY(R,-1.0,B);CHKERRQ(ierr);              /*     r <- A*x - b    */
+  ierr = VecAXPY(R,-1.0,B);CHKERRQ(ierr);              /*     r <- A*x - b  -- ???  */
   ierr = MatMult(Amat,R,WOOLD);CHKERRQ(ierr);          /* WOOLD <- A*r        */
   ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr);  /* Arnorm = norm2(A*r) */
   //minres->Arnorm = Arnorm;
   printf("\n~~~~ Final Arnorm %8.3g\n", Arnorm);
-  ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  //ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
 
   if (i >= ksp->max_it) ksp->reason = KSP_DIVERGED_ITS;
   PetscFunctionReturn(0);
@@ -266,7 +262,6 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
 
    Contributed by: Robert Scheichl: maprs@maths.bath.ac.uk
                    Sou-Cheng Choi : sctchoi@mcs.anl.gov
-                   Hong Zhang     : hzhang@mcs.anl.gov
 
 .seealso: KSPCreate(), KSPSetType(), KSPType (for list of available types), KSP, KSPCG, KSPCR
 M*/

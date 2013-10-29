@@ -53,12 +53,11 @@ PetscErrorCode KSPSetFromOptions_MINRESQLP(KSP ksp)
   ierr = PetscOptionsHead("KSP MINRESQLP options");CHKERRQ(ierr);
 
   ierr = PetscOptionsBool("-ksp_monitor_minresqlp","Monitor rnorm and Arnorm","KSPMINRESQLPMonitor",minresqlp->monitor_arnorm,&minresqlp->monitor_arnorm,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsBool("-ksp_monitor_minresqlp_relrnorm","Monitor relative rnorm and Arnorm","KSPMINRESQLPMonitor",minresqlp->monitor_relrnorm,&minresqlp->monitor_relrnorm,NULL);CHKERRQ(ierr);
-  printf("monitor_arnorm %d\n",minresqlp->monitor_arnorm);
   if (minresqlp->monitor_arnorm) {
     ierr = KSPMonitorSet(ksp,KSPMINTRESQLPMonitor,NULL,NULL);CHKERRQ(ierr);
   }
-
+  ierr = PetscOptionsBool("-ksp_monitor_minresqlp_relrnorm","Monitor relative rnorm and Arnorm","KSPMINRESQLPMonitor",minresqlp->monitor_relrnorm,&minresqlp->monitor_relrnorm,NULL);CHKERRQ(ierr); // not being implemented yet!
+  
   ierr = PetscOptionsTail();CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -73,7 +72,7 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
   KSP_MINRESQLP  *minresqlp = (KSP_MINRESQLP*)ksp->data;
   PetscReal      Arnorm=minresqlp->Arnorm,root=0.0;
   PetscScalar    rho0,rho1,irho1,rho2,mrho2,rho3,mrho3,dp = 0.0;
-  PetscReal      np;
+  PetscReal      np; //=residual???, used for convergence test!
   Vec            X,B,R,Z,U,V,W,UOLD,VOLD,WOLD,WOOLD;
   Mat            Amat,Pmat;
   MatStructure   pflag;
@@ -94,7 +93,6 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
   VOLD    = ksp->work[6];
   WOLD    = ksp->work[7];
   WOOLD   = ksp->work[8];
-  ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
 
   ierr = PCGetOperators(ksp->pc,&Amat,&Pmat,&pflag);CHKERRQ(ierr);
 
@@ -106,14 +104,14 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
   ierr = VecCopy(UOLD,WOLD);CHKERRQ(ierr);         /*     w_old  <-   0   */
 
   if (!ksp->guess_zero) {
-    ierr = KSP_MatMult(ksp,Amat,X,R);CHKERRQ(ierr);/*     r <- b - A*x    */
+    ierr = KSP_MatMult(ksp,Amat,X,R);CHKERRQ(ierr);     /* r <- b - A*x        */
     ierr = VecAYPX(R,-1.0,B);CHKERRQ(ierr);
-    ierr = MatMult(Amat,R,WOOLD);CHKERRQ(ierr);    /* WOOLD <- A*r        */
-    ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr); /* Arnorm = norm(A*r) */
+    ierr = MatMult(Amat,R,WOOLD);CHKERRQ(ierr);         /* WOOLD <- A*r        */
+    ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr); /* Arnorm = norm(A*r)  */
   } else { 
-    ierr = VecCopy(B,R);CHKERRQ(ierr);             /*     r <- b (x is 0) */
-    ierr = MatMult(Amat,B,WOOLD);CHKERRQ(ierr);    /* WOOLD <- A*b        */
-    ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr); /* Arnorm = norm(A*b) */
+    ierr = VecCopy(B,R);CHKERRQ(ierr);                  /*     r <- b (x is 0) */
+    ierr = MatMult(Amat,B,WOOLD);CHKERRQ(ierr);         /* WOOLD <- A*b        */
+    ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr); /* Arnorm = norm(A*b)  */
   }
 
   ierr = KSP_PCApply(ksp,R,Z);CHKERRQ(ierr);       /*     z  <- B*r       */
@@ -139,7 +137,6 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
   ierr = VecNorm(Z,NORM_2,&np);CHKERRQ(ierr);     /*   np <- ||z||        */
 
   KSPLogResidualHistory(ksp,np);
-  ierr = KSPMonitor(ksp,0,np);CHKERRQ(ierr);
   ksp->rnorm = np;
   ierr = (*ksp->converged)(ksp,0,np,&ksp->reason,ksp->cnvP);CHKERRQ(ierr);  /* test for convergence */
   if (ksp->reason) PetscFunctionReturn(0);
@@ -170,7 +167,7 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
     dp = PetscAbsScalar(dp);
     beta = PetscSqrtScalar(dp);                   /*  beta <- sqrt(r'*z)   */
 
-    /*    QR factorisation    */
+    /* QR factorisation    */
     coold = cold; cold = c; soold = sold; sold = s;
 
     rho0 = cold * alpha - coold * sold * betaold;
@@ -178,11 +175,11 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
     rho2 = sold * alpha + coold * cold * betaold;
     rho3 = soold * betaold;
 
-    /*     Givens rotation    */
+    /* Givens rotation    */
     c = rho0 / rho1;
     s = beta / rho1;
 
-    /*    Update    */
+    /* Update    */
     ierr = VecCopy(WOLD,WOOLD);CHKERRQ(ierr);     /*  w_oold <- w_old      */
     ierr = VecCopy(W,WOLD);CHKERRQ(ierr);         /*  w_old  <- w          */
 
@@ -206,36 +203,35 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
     ierr = VecScale(V,ibeta);CHKERRQ(ierr);       /*  v <- r / beta       */
     ierr = VecScale(U,ibeta);CHKERRQ(ierr);       /*  u <- z / beta       */
 
-    np = ksp->rnorm * PetscAbsScalar(s);
     root = PetscSqrtReal(rho0*rho0 + (cold*beta)*(cold*beta));
     Arnorm = ksp->rnorm * root;  
 
-    printf("\n*** %3d-th  Arnorm %8.3g",(ksp->its)-1,Arnorm); 
-
+    printf("  *** %3d-th  Arnorm %8.3g\n",(ksp->its)-1,Arnorm); 
     minresqlp->Arnorm = Arnorm; 
+    ierr = KSPMonitor(ksp,i,np);CHKERRQ(ierr);
     if (Arnorm < minresqlp->haptol) {
       ierr = PetscInfo2(ksp,"Detected happy breakdown %G tolerance %G. It is a least-squares solution.\n",Arnorm,minresqlp->haptol);CHKERRQ(ierr);
       /* printf("Arnorm %g < minresqlp->haptol = %g, exit \n",Arnorm, minresqlp->haptol); */
-      ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
       ksp->reason = KSP_CONVERGED_ATOL_NORMAL;
       break;
     }
 
+    np = ksp->rnorm * PetscAbsScalar(s); //res???
     ksp->rnorm = np;
     KSPLogResidualHistory(ksp,np);
-    ierr = KSPMonitor(ksp,i+1,np);CHKERRQ(ierr);
     ierr = (*ksp->converged)(ksp,i+1,np,&ksp->reason,ksp->cnvP);CHKERRQ(ierr); /* test for convergence */
     if (ksp->reason) break;
     i++;
   } while (i<ksp->max_it);
 
-    
-  ierr = KSP_MatMult(ksp,Amat,X,R);CHKERRQ(ierr);      /*     r <- A*x        */
-  ierr = VecAXPY(R,-1.0,B);CHKERRQ(ierr);              /*     r <- A*x - b    */
+  /* do we need following other than montoring final Arnorm??? */
+  ierr = KSP_MatMult(ksp,Amat,X,R);CHKERRQ(ierr);      /* r <- A*x            */
+  ierr = VecAXPY(R,-1.0,B);CHKERRQ(ierr);              /* r <- A*x - b        */
   ierr = MatMult(Amat,R,WOOLD);CHKERRQ(ierr);          /* WOOLD <- A*r        */
   ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr);  /* Arnorm = norm2(A*r) */
   minresqlp->Arnorm = Arnorm; 
-  printf("\n~~~~ Final Arnorm %8.3g\n", Arnorm); 
+  printf("  ~~~~ Final Arnorm %8.3g\n", Arnorm); 
+  ierr = KSPMonitor(ksp,i,np);CHKERRQ(ierr);
 
   if (i >= ksp->max_it) {
     ksp->reason = KSP_DIVERGED_ITS;
@@ -260,7 +256,6 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
 
    Contributed by: Robert Scheichl: maprs@maths.bath.ac.uk
                    Sou-Cheng Choi : sctchoi@mcs.anl.gov, schoi32@iit.edu
-                   Hong Zhang     : hzhang@mcs.anl.gov
 
 .seealso: KSPCreate(), KSPSetType(), KSPType (for list of available types), KSP, KSPCG, KSPCR
 M*/

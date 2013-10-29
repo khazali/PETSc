@@ -1,5 +1,8 @@
 
-static char help[] = "Solves a linear system in parallel with MINRES. Modified from ../tutorials/ex2.c \n\n";
+static char help[] = "Solves a linear system in parallel. Contributed by S.C. Choi for testing  MINRESQLP. \n\n";
+/* 
+ Example: ./ex42 -ksp_type minresqlp -pc_type none -ksp_monitor_minresqlp
+ */
 
 #include <petscksp.h>
 
@@ -56,7 +59,7 @@ int main(int argc,char **args)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
                       Check solution and clean up
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  ierr = VecView(x,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  //ierr = VecView(x,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   ierr = VecNorm(x,NORM_2,&xnorm);CHKERRQ(ierr);   
   if (xnorm > 3.1826) {
      printf("\nERROR: TWO NORM OF X = %g IS TOO LARGE.\n", xnorm);
