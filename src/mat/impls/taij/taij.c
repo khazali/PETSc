@@ -3,7 +3,7 @@
   Defines the basic matrix operations for the TAIJ  matrix storage format.
   This format is used to evaluate matrices of the form:
 
-    [S \otimes I + T \otimes A]
+    [I \otimes S + A \otimes T]
 
   where
     S is a dense (p \times q) matrix
@@ -196,7 +196,7 @@ PetscErrorCode MatDestroy_MPITAIJ(Mat A)
 /*MC
   MATTAIJ - MATTAIJ = "taij" - A matrix type to be used to evaluate matrices of the following form:
 
-    [S \otimes I + T \otimes A]
+    [I \otimes S + A \otimes T]
 
   where
     S is a dense (p \times q) matrix
@@ -719,7 +719,7 @@ PetscErrorCode  MatGetSubMatrix_TAIJ(Mat mat,IS isrow,IS iscol,MatReuse cll,Mat 
 /*@C
   MatCreateTAIJ - Creates a matrix type to be used for matrices of the following form:
 
-    [S \otimes I + T \otimes A]
+    [I \otimes S + A \otimes T]
 
   where
     S is a dense (p \times q) matrix
