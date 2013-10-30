@@ -279,9 +279,11 @@ PetscErrorCode TAIJMultAdd_Seq(Mat A,Vec *xx,Vec *yy,Vec *zz)
     n    = ii[i+1] - jrow;
     sums = y + p*i;
     bx   = x + q*i;
-    for (j=0; j<q; j++) {
-      for (k=0; k<p; k++) {
-        sums[k] += s[k+j*p]*bx[j];
+    if (i < b->AIJ->cmap->n) {
+      for (j=0; j<q; j++) {
+        for (k=0; k<p; k++) {
+          sums[k] += s[k+j*p]*bx[j];
+        }
       }
     }
     for (j=0; j<n; j++) {
