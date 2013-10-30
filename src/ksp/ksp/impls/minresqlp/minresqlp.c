@@ -70,7 +70,7 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
   PetscInt       i;
   PetscScalar    alpha,beta,ibeta,betaold,eta,c=1.0,ceta,cold=1.0,coold,s=0.0,sold=0.0,soold;
   KSP_MINRESQLP  *minresqlp = (KSP_MINRESQLP*)ksp->data;
-  PetscReal      Arnorm=minresqlp->Arnorm,root=0.0;
+  PetscReal      Arnorm=minresqlp->Arnorm, root = 0.0, relArnorm = 0.0, pnorm = 0.0, Anorm2 = 0.0;
   PetscScalar    rho0,rho1,irho1,rho2,mrho2,rho3,mrho3,dp = 0.0;
   PetscReal      np; //=residual???, used for convergence test!
   Vec            X,B,R,Z,U,V,W,UOLD,VOLD,WOLD,WOOLD;
@@ -108,7 +108,7 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
     ierr = VecAYPX(R,-1.0,B);CHKERRQ(ierr);
     ierr = MatMult(Amat,R,WOOLD);CHKERRQ(ierr);         /* WOOLD <- A*r        */
     ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr); /* Arnorm = norm(A*r)  */
-  } else { 
+  } else {
     ierr = VecCopy(B,R);CHKERRQ(ierr);                  /*     r <- b (x is 0) */
     ierr = MatMult(Amat,B,WOOLD);CHKERRQ(ierr);         /* WOOLD <- A*b        */
     ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr); /* Arnorm = norm(A*b)  */
@@ -167,6 +167,9 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
     dp = PetscAbsScalar(dp);
     beta = PetscSqrtScalar(dp);                   /*  beta <- sqrt(r'*z)   */
 
+    pnorm  = ksp->its == 1? PetscSqrtReal(alpha*alpha + beta*beta) :  PetscSqrtReal(betaold*betaold + alpha*alpha + beta*beta);
+          //TODO pnorm  = ksp->its == 1? VecNorm([alfa, betan],NORM_2,&pnorm): VecNorm([beta, alfa, betan],NORM_2,&pnorm);
+    Anorm2 = Anorm2 > pnorm? Anorm2 : pnorm;
     /* QR factorisation    */
     coold = cold; cold = c; soold = sold; sold = s;
 
@@ -203,15 +206,16 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
     ierr = VecScale(V,ibeta);CHKERRQ(ierr);       /*  v <- r / beta       */
     ierr = VecScale(U,ibeta);CHKERRQ(ierr);       /*  u <- z / beta       */
 
-    root = PetscSqrtReal(rho0*rho0 + (cold*beta)*(cold*beta));
-    Arnorm = ksp->rnorm * root;  
-
-    printf("  *** %3d-th  Arnorm %8.3g\n",(ksp->its)-1,Arnorm); 
-    minresqlp->Arnorm = Arnorm; 
+    root = PetscSqrtReal(rho0*rho0 + (cold*beta)*(cold*beta));  /* ? form two vector and use VecNorm */
+    Arnorm = ksp->rnorm * root;
+    relArnorm = root / Anorm2;
+    printf("\n*** %3d-th  Arnorm %8.3g, rnorm %8.3g, Anorm %8.3g, relArnorm %8.3g\n",(ksp->its)-1, Arnorm, np, Anorm2, relArnorm);
+    minresqlp->Arnorm    = Arnorm;
+    //minresqlp->relArnorm = relArnorm;   //TODO
     ierr = KSPMonitor(ksp,i,np);CHKERRQ(ierr);
-    if (Arnorm < minresqlp->haptol) {
+    if (relArnorm < minresqlp->haptol) {
       ierr = PetscInfo2(ksp,"Detected happy breakdown %G tolerance %G. It is a least-squares solution.\n",Arnorm,minresqlp->haptol);CHKERRQ(ierr);
-      /* printf("Arnorm %g < minresqlp->haptol = %g, exit \n",Arnorm, minresqlp->haptol); */
+      printf("Arnorm %g < minresqlp->haptol = %g, exit \n",Arnorm, minresqlp->haptol);
       ksp->reason = KSP_CONVERGED_ATOL_NORMAL;
       break;
     }
@@ -229,8 +233,9 @@ PetscErrorCode  KSPSolve_MINRESQLP(KSP ksp)
   ierr = VecAXPY(R,-1.0,B);CHKERRQ(ierr);              /* r <- A*x - b        */
   ierr = MatMult(Amat,R,WOOLD);CHKERRQ(ierr);          /* WOOLD <- A*r        */
   ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr);  /* Arnorm = norm2(A*r) */
+  relArnorm = Arnorm / Anorm2;
   minresqlp->Arnorm = Arnorm; 
-  printf("  ~~~~ Final Arnorm %8.3g\n", Arnorm); 
+  printf("\n~~~~ Final Arnorm %8.3g, relArnorm %8.3g\n", Arnorm, relArnorm);
   ierr = KSPMonitor(ksp,i,np);CHKERRQ(ierr);
 
   if (i >= ksp->max_it) {

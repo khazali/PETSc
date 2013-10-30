@@ -111,7 +111,6 @@ PetscErrorCode KSPSolve_MINRES(KSP ksp)
     ierr = MatMult(Amat,B,WOOLD);CHKERRQ(ierr);
     ierr = VecNorm(WOOLD,NORM_2,&Arnorm);CHKERRQ(ierr); 
   }
-  minres->Arnorm = Arnorm;
 
   ierr = KSP_PCApply(ksp,R,Z);CHKERRQ(ierr);        /*     z  <- B*r       */
 
@@ -209,12 +208,12 @@ PetscErrorCode KSPSolve_MINRES(KSP ksp)
     root = PetscSqrtReal(rho0*rho0 + (cold*beta)*(cold*beta));   /* ? form two vector and use VecNorm */
     Arnorm = ksp->rnorm * root;
     relArnorm = root / Anorm2;
-    printf("\n*** %3d-th  Arnorm %8.3g, rnorm %8.3g, Anorm %8.3g, relArnorml %8.3g\n",(ksp->its)-1, Arnorm, np, Anorm2, relArnorm);
+    printf("\n*** %3d-th  Arnorm %8.3g, rnorm %8.3g, Anorm %8.3g, relArnorm %8.3g\n",(ksp->its)-1, Arnorm, np, Anorm2, relArnorm);
     minres->Arnorm    = Arnorm;
     minres->relArnorm = relArnorm;
     ierr = KSPMonitor(ksp,i,np);CHKERRQ(ierr);
 
-    if (Arnorm < minres->haptol) {
+    if (relArnorm < minres->haptol) {
       ierr = PetscInfo2(ksp,"Detected happy breakdown %G tolerance %G. It is a least-squares solution.\n",Arnorm,minres->haptol);CHKERRQ(ierr);
       printf("~~~Arnorm %8.3g < minres->haptol = %g, exit \n",Arnorm,minres->haptol);  
       ksp->reason = KSP_CONVERGED_ATOL_NORMAL;
