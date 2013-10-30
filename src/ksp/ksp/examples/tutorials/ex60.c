@@ -84,7 +84,7 @@ static PetscErrorCode ExactSolution(Vec,void*,PetscReal);
 int main(int argc, char **argv)
 {
   PetscErrorCode    ierr;
-  Vec               u,uex,rhs,z,w;
+  Vec               u,uex,rhs,z;
   UserContext       ctxt;
   PetscInt          nstages,is,ie,matis,matie,*ix,*ix2;
   PetscInt          n,i,s,t;
@@ -125,7 +125,6 @@ int main(int argc, char **argv)
   ierr = VecSetSizes(u,PETSC_DECIDE,ctxt.imax);CHKERRQ(ierr);
   ierr = VecSetFromOptions(u);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&uex);CHKERRQ(ierr);
-  ierr = VecDuplicate(u,&w);CHKERRQ(ierr);
   /* initial solution */
   ierr = ExactSolution(u  ,&ctxt,0.0);CHKERRQ(ierr);                 
   /* exact   solution */
@@ -250,7 +249,6 @@ int main(int argc, char **argv)
   ierr = MatDestroy(&J);        CHKERRQ(ierr);
   ierr = MatDestroy(&I);        CHKERRQ(ierr);
   ierr = PetscFree4(A,B,At,b);  CHKERRQ(ierr);
-  ierr = VecDestroy(&w);        CHKERRQ(ierr);
   ierr = VecDestroy(&uex);      CHKERRQ(ierr);
   ierr = VecDestroy(&u);        CHKERRQ(ierr);
 
@@ -273,8 +271,8 @@ PetscErrorCode ExactSolution(Vec u,void *c,PetscReal t)
   ierr = VecGetOwnershipRange(u,&is,&ie);CHKERRQ(ierr);
   ierr = VecGetArray(u,&uarr);CHKERRQ(ierr);
   for(i=is; i<ie; i++) {
-    x       = i * dx;
-    uarr[i] = PetscExpScalar(-4.0*pi*pi*a*t)*PetscSinScalar(2*pi*x);
+    x          = i * dx;
+    uarr[i-is] = PetscExpScalar(-4.0*pi*pi*a*t)*PetscSinScalar(2*pi*x);
   }
   ierr = VecRestoreArray(u,&uarr);CHKERRQ(ierr);
   PetscFunctionReturn(0);
