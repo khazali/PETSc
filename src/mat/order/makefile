@@ -18,7 +18,7 @@ SOURCEC  = sp1wd.c spnd.c spqmd.c sprcm.c sorder.c sregis.c\
            degree.c  fnroot.c genqmd.c qmdqt.c rcm.c fn1wd.c gen1wd.c \
            genrcm.c qmdrch.c rootls.c fndsep.c gennd.c qmdmrg.c qmdupd.c \
            wbm.c hslmc64.c spectral.c
-SOURCEH  = order.h
+SOURCEH  = ../../../include/petsc-private/matorderimpl.h
 LIBBASE  = libpetscmat
 DIRS     = amd
 LOCDIR   = src/mat/order/

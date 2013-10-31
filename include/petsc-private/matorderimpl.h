@@ -1,5 +1,9 @@
+#ifndef __MATORDERIMPL_H
+#define __MATORDERIMPL_H
+
 #include <petscmat.h>
 #include <petsc-private/petscimpl.h>
+
 /*
    Defines the interface to the SparsePack routines, translated into C.
 */
