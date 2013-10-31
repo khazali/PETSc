@@ -12,7 +12,10 @@ PETSC_EXTERN PetscErrorCode MatGetOrdering_WBM(Mat mat, MatOrderingType type, IS
   PetscScalar    *a, *dw, cntl[1];
   const PetscInt *ia, *ja;
   const PetscInt  job = 5;
-  PetscInt       *perm, nrow, ncol, nnz, num, liw, *iw, ldw, icntl[5], info[10], i;
+  PetscInt       *perm, nrow, ncol, nnz, liw, *iw, ldw, icntl[5], i;
+#ifndef PETSC_USE_COMPLEX
+  PetscInt        num, info[10];
+#endif
   PetscBool       done;
   PetscErrorCode  ierr;
 
