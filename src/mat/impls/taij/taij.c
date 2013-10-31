@@ -18,7 +18,7 @@
      MatMultAdd()
      MatInvertBlockDiagonal()
   and
-     MatCreateTAIJ(Mat,p,q,,Mat*)
+     MatCreateTAIJ(Mat,PetscInt,PetscInt,const PetscScalar[],const PetscScalar[],Mat*)
 
   This single directory handles both the sequential and parallel codes
 */
@@ -828,9 +828,9 @@ PetscErrorCode  MatGetSubMatrix_TAIJ(Mat mat,IS isrow,IS iscol,MatReuse cll,Mat 
 
   Input Parameters:
 + A - the AIJ matrix
-+ S - the S matrix, stored as a PetscScalar array (column-major)
-+ T - the T matrix, stored as a PetscScalar array (column-major)
-- p - number of rows in S and T
+. S - the S matrix, stored as a PetscScalar array (column-major)
+. T - the T matrix, stored as a PetscScalar array (column-major)
+. p - number of rows in S and T
 - q - number of columns in S and T
 
   Output Parameter:
@@ -838,8 +838,8 @@ PetscErrorCode  MatGetSubMatrix_TAIJ(Mat mat,IS isrow,IS iscol,MatReuse cll,Mat 
 
   Operations provided:
 + MatMult
-+ MatMultAdd
-+ MatInvertBlockDiagonal
+. MatMultAdd
+. MatInvertBlockDiagonal
 - MatView
 
   Level: advanced

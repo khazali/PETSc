@@ -1885,7 +1885,7 @@ runex171:
 	      ${MPIEXEC} -n $$np ./ex171 -f ${DATAFILESPATH}/matrices/small -p $$p -q $$q -viewer_binary_skip_info > ex171.tmp 2>&1; \
 	      if (${DIFF} output/ex171.out ex171.tmp) then true; \
         else echo ${PWD} ; echo "Possible problem with ex171 with:";\
-	      echo ${MPIEXEC} -n $$np ./ex171 -f ${DATAFILESPATH}/matrices/arco1 -dof $$dof -viewer_binary_skip_info; fi; \
+	      echo ${MPIEXEC} -n $$np ./ex171 -f ${DATAFILESPATH}/matrices/small -p $$p -q$$q -viewer_binary_skip_info; fi; \
 	    done; \
 	  done; \
 	done; \
