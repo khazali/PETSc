@@ -324,15 +324,14 @@ PetscErrorCode HSLmc64AD(const PetscInt *job, PetscInt *m, PetscInt *n,
 #ifdef CHECKING
     PetscInt s_wsfe(cilist *), do_fio(PetscInt *, char *, ftnlen), e_wsfe(void);
 #endif
-    double log(PetscScalar);
 
     /* Local variables */
     static PetscInt i__, j, k;
     static PetscScalar fact, rinf;
+#ifdef CHECKING
     static PetscInt warn1, warn2, warn4;
 
     /* Fortran I/O blocks */
-#ifdef CHECKING
     static cilist io___5 = { 0, 0, 0, fmt_9001, 0 };
     static cilist io___6 = { 0, 0, 0, fmt_9001, 0 };
     static cilist io___7 = { 0, 0, 0, fmt_9001, 0 };
@@ -378,12 +377,12 @@ PetscErrorCode HSLmc64AD(const PetscInt *job, PetscInt *m, PetscInt *n,
     /* Function Body */
     rinf = 1.79769313486231571E+308/*huge_(&rinf)*/;
     rinf /= *n;
+#ifdef CHECKING
     warn1 = 0;
     warn2 = 0;
     warn4 = 0;
 /* Check value of JOB */
     if (icntl[4] == 0) {
-#ifdef CHECKING
 /* Check input data */
 	if (*job < 1 || *job > 5) {
 	    info[1] = -1;
@@ -467,8 +466,8 @@ PetscErrorCode HSLmc64AD(const PetscInt *job, PetscInt *m, PetscInt *n,
 /*         GO TO 99 */
 /*       ENDIF */
 /*     ENDIF */
-#endif
     }
+#endif
     if (icntl[4] == 0) {
 /* Check row indices. Use IW(1:M) as workspace */
 	i__1 = *m;
@@ -809,7 +808,9 @@ PetscErrorCode HSLmc64AD(const PetscInt *job, PetscInt *m, PetscInt *n,
 	    if (dw[*m + j] < fact) {
 		goto L86;
 	    }
+#ifdef CHECKING
 	    warn2 = 2;
+#endif
 /* Scaling factor is large, return with warning */
 	    goto L90;
 L86:
@@ -820,7 +821,9 @@ L86:
 	    if (dw[i__] < fact) {
 		goto L87;
 	    }
+#ifdef CHECKING
 	    warn2 = 2;
+#endif
 /* Scaling factor is large, return with warning */
 	    goto L90;
 L87:
@@ -830,6 +833,7 @@ L87:
     }
 /* If matrix is structurally singular, return with warning */
 L90:
+#ifdef CHECKING
     if (*num < *n) {
 	warn1 = 1;
     }
@@ -839,7 +843,6 @@ L90:
 	    warn4 = 4;
 	}
     }
-#ifdef CHECKING
 /* Set warning flag and print warnings (only if no errors were found) */
     if (info[1] == 0) {
 	info[1] = warn1 + warn2 + warn4;
