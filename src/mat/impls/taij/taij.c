@@ -868,10 +868,12 @@ PetscErrorCode  MatCreateTAIJ(Mat A,PetscInt p,PetscInt q,const PetscScalar S[],
 
   ierr = MatCreate(PetscObjectComm((PetscObject)A),&B);CHKERRQ(ierr);
   ierr = MatSetSizes(B,p*A->rmap->n,q*A->cmap->n,p*A->rmap->N,q*A->cmap->N);CHKERRQ(ierr);
-  /*
-  ierr = PetscLayoutSetBlockSize(B->rmap,q);CHKERRQ(ierr);
-  ierr = PetscLayoutSetBlockSize(B->cmap,p);CHKERRQ(ierr);
-  */
+  
+  if (p == q) {
+    /* Set block size for square S,T */
+    ierr = PetscLayoutSetBlockSize(B->rmap,q);CHKERRQ(ierr);
+    ierr = PetscLayoutSetBlockSize(B->cmap,p);CHKERRQ(ierr);
+  }
   ierr = PetscLayoutSetUp(B->rmap);CHKERRQ(ierr);
   ierr = PetscLayoutSetUp(B->cmap);CHKERRQ(ierr);
 
