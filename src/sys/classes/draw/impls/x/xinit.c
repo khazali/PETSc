@@ -274,8 +274,6 @@ PetscErrorCode  PetscDrawSetSave_X(PetscDraw draw,const char *filename)
   PetscErrorCode ierr;
 #if defined(PETSC_HAVE_POPEN)
   PetscMPIInt    rank;
-  char           command[PETSC_MAX_PATH_LEN];
-  FILE           *fd;
 #endif
 
   PetscFunctionBegin;
@@ -283,19 +281,83 @@ PetscErrorCode  PetscDrawSetSave_X(PetscDraw draw,const char *filename)
 #if defined(PETSC_HAVE_POPEN)
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)draw),&rank);CHKERRQ(ierr);
   if (!rank) {
+    char  command[PETSC_MAX_PATH_LEN];
+    FILE  *fd;
+    int   err;
+
+    ierr = PetscMemzero(command,sizeof(command));CHKERRQ(ierr);
     ierr = PetscSNPrintf(command,PETSC_MAX_PATH_LEN,"rm -fr %s %s.m4v",draw->savefilename,draw->savefilename);CHKERRQ(ierr);
     ierr = PetscPOpen(PETSC_COMM_SELF,NULL,command,"r",&fd);CHKERRQ(ierr);
-    ierr = PetscPClose(PETSC_COMM_SELF,fd,NULL);CHKERRQ(ierr);
+    ierr = PetscPClose(PETSC_COMM_SELF,fd,&err);CHKERRQ(ierr);
     ierr = PetscSNPrintf(command,PETSC_MAX_PATH_LEN,"mkdir %s",draw->savefilename);CHKERRQ(ierr);
     ierr = PetscPOpen(PETSC_COMM_SELF,NULL,command,"r",&fd);CHKERRQ(ierr);
-    ierr = PetscPClose(PETSC_COMM_SELF,fd,NULL);CHKERRQ(ierr);
+    ierr = PetscPClose(PETSC_COMM_SELF,fd,&err);CHKERRQ(ierr);
   }
 #endif
   PetscFunctionReturn(0);
 }
 
+
 #if defined(PETSC_HAVE_AFTERIMAGE)
 #include <afterimage.h>
+
+#if defined(PETSC_HAVE_SAWS)
+#include <petscviewersaws.h>
+typedef struct _P_PetscGif *PetscGif;
+struct _P_PetscGif {
+  PetscGif next;
+  char     *filename;
+} ;
+
+static PetscGif gifs = 0;
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscGifDestroy"
+static PetscErrorCode PetscGifDestroy(void)
+{
+  PetscErrorCode ierr;
+  PetscGif       gif,ogif = gifs;
+
+  PetscFunctionBegin;
+  while (ogif) {
+    gif = ogif->next;
+    ierr = PetscFree(ogif->filename);CHKERRQ(ierr);
+    ierr = PetscFree(ogif);CHKERRQ(ierr);
+    ogif = gif;
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscGifAdd"
+static PetscErrorCode PetscGifAdd(const char *filename)
+{
+  PetscErrorCode ierr;
+  PetscGif       gif,ogif = gifs;
+  PetscBool      flg;
+
+  PetscFunctionBegin;
+  if (ogif){
+    ierr = PetscStrcmp(filename,ogif->filename,&flg);CHKERRQ(ierr);
+    if (flg) PetscFunctionReturn(0);
+    while (ogif->next) {
+      ogif = ogif->next;
+      ierr = PetscStrcmp(filename,ogif->filename,&flg);CHKERRQ(ierr);
+      if (flg) PetscFunctionReturn(0);
+    }
+    ierr = PetscNew(struct _P_PetscGif,&gif);CHKERRQ(ierr);
+    ogif->next = gif;
+  } else {
+    ierr = PetscNew(struct _P_PetscGif,&gif);CHKERRQ(ierr);
+    gifs = gif;
+  }
+  ierr = PetscStrallocpy(filename,&gif->filename);CHKERRQ(ierr);
+  ierr = PetscRegisterFinalize(PetscGifDestroy);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#endif
+
 #undef __FUNCT__
 #define __FUNCT__ "PetscDrawSave_X"
 PetscErrorCode PetscDrawSave_X(PetscDraw draw)
@@ -331,6 +393,23 @@ PetscErrorCode PetscDrawSave_X(PetscDraw draw)
     ierr    = PetscSNPrintf(filename,PETSC_MAX_PATH_LEN,"%s/%s_%d.Gif",draw->savefilename,draw->savefilename,draw->savefilecount++);CHKERRQ(ierr);
   }
   ASImage2file(asimage, 0, filename,ASIT_Gif,0);
+#if defined(PETSC_HAVE_SAWS)
+  {
+    char     body[4096];
+    PetscGif gif;
+    size_t   len = 0;
+
+    ierr = PetscGifAdd(draw->savefilename);CHKERRQ(ierr);
+    gif  = gifs;
+    while (gif) {
+      ierr = PetscSNPrintf(body+len,4086-len,"<img src=\"%s/%s.Gif\" alt=\"None\">",gif->filename,gif->filename);CHKERRQ(ierr);
+      ierr = PetscStrlen(body,&len);CHKERRQ(ierr);
+      gif  = gif->next;
+    }
+    ierr = PetscStrcat(body,"<br>\n");CHKERRQ(ierr);
+    PetscStackCallSAWs(SAWs_Set_Body,("index.html",1,body));
+  }
+#endif
 
   XDestroyImage(image);
   destroy_asvisual(asv,0);

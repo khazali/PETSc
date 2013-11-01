@@ -731,8 +731,8 @@ PetscErrorCode  MatSetUp(Mat A)
   PetscFunctionReturn(0);
 }
 
-#if defined(PETSC_HAVE_AMS)
-#include <petscviewerams.h>
+#if defined(PETSC_HAVE_SAWS)
+#include <petscviewersaws.h>
 #endif
 #undef __FUNCT__
 #define __FUNCT__ "MatView"
@@ -819,7 +819,7 @@ PetscErrorCode  MatView(Mat mat,PetscViewer viewer)
   PetscInt          rows,cols,bs;
   PetscBool         iascii;
   PetscViewerFormat format;
-#if defined(PETSC_HAVE_AMS)
+#if defined(PETSC_HAVE_SAWS)
   PetscBool      isams;
 #endif
 
@@ -831,15 +831,15 @@ PetscErrorCode  MatView(Mat mat,PetscViewer viewer)
   }
   PetscValidHeaderSpecific(viewer,PETSC_VIEWER_CLASSID,2);
   PetscCheckSameComm(mat,1,viewer,2);
-  if (!mat->assembled) SETERRQ(PetscObjectComm((PetscObject)mat),PETSC_ERR_ORDER,"Must call MatAssemblyBegin/End() before viewing matrix");
   MatCheckPreallocated(mat,1);
 
   ierr = PetscLogEventBegin(MAT_View,mat,viewer,0,0);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&iascii);CHKERRQ(ierr);
-#if defined(PETSC_HAVE_AMS)
-  ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERAMS,&isams);CHKERRQ(ierr);
+#if defined(PETSC_HAVE_SAWS)
+  ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERSAWS,&isams);CHKERRQ(ierr);
 #endif
   if (iascii) {
+    if (!mat->assembled) SETERRQ(PetscObjectComm((PetscObject)mat),PETSC_ERR_ORDER,"Must call MatAssemblyBegin/End() before viewing matrix");
     ierr = PetscViewerGetFormat(viewer,&format);CHKERRQ(ierr);
     if (format == PETSC_VIEWER_ASCII_INFO || format == PETSC_VIEWER_ASCII_INFO_DETAIL) {
       ierr = PetscObjectPrintClassNamePrefixType((PetscObject)mat,viewer);CHKERRQ(ierr);
@@ -865,10 +865,14 @@ PetscErrorCode  MatView(Mat mat,PetscViewer viewer)
       if (mat->nullsp) {ierr = PetscViewerASCIIPrintf(viewer,"  has attached null space\n");CHKERRQ(ierr);}
       if (mat->nearnullsp) {ierr = PetscViewerASCIIPrintf(viewer,"  has attached near null space\n");CHKERRQ(ierr);}
     }
-#if defined(PETSC_HAVE_AMS)
+#if defined(PETSC_HAVE_SAWS)
   } else if (isams) {
-    if (((PetscObject)mat)->amsmem == -1) {
-      ierr = PetscObjectViewAMS((PetscObject)mat,viewer);CHKERRQ(ierr);
+    PetscMPIInt rank;
+
+    ierr = PetscObjectName((PetscObject)mat);CHKERRQ(ierr);
+    ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
+    if (!((PetscObject)mat)->amsmem && !rank) {
+      ierr = PetscObjectViewSAWs((PetscObject)mat,viewer);CHKERRQ(ierr);
     }
 #endif
   }
@@ -878,6 +882,7 @@ PetscErrorCode  MatView(Mat mat,PetscViewer viewer)
     ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
   } else if (!iascii) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Viewer type %s not supported",((PetscObject)viewer)->type_name);
   if (iascii) {
+    if (!mat->assembled) SETERRQ(PetscObjectComm((PetscObject)mat),PETSC_ERR_ORDER,"Must call MatAssemblyBegin/End() before viewing matrix");
     ierr = PetscViewerGetFormat(viewer,&format);CHKERRQ(ierr);
     if (format == PETSC_VIEWER_ASCII_INFO || format == PETSC_VIEWER_ASCII_INFO_DETAIL) {
       ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
@@ -1025,8 +1030,8 @@ PetscErrorCode  MatDestroy(Mat *A)
   if (--((PetscObject)(*A))->refct > 0) {*A = NULL; PetscFunctionReturn(0);}
 
   ierr = PetscViewerDestroy(&(*A)->viewonassembly);CHKERRQ(ierr);
-  /* if memory was published with AMS then destroy it */
-  ierr = PetscObjectAMSViewOff((PetscObject)*A);CHKERRQ(ierr);
+  /* if memory was published with SAWs then destroy it */
+  ierr = PetscObjectSAWsViewOff((PetscObject)*A);CHKERRQ(ierr);
   if ((*A)->ops->destroy) {
     ierr = (*(*A)->ops->destroy)(*A);CHKERRQ(ierr);
   }

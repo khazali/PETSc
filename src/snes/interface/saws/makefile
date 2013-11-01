@@ -1,16 +1,16 @@
-#requirespackage  'PETSC_HAVE_AMS'
+#requirespackage  'PETSC_HAVE_SAWS'
 
 ALL: lib
 
 CFLAGS   =
 FFLAGS   =
-SOURCEC  = kspams.c
+SOURCEC  = snessaws.c
 SOURCEF  =
 SOURCEH  =
-LIBBASE  = libpetscksp
+LIBBASE  = libpetscsnes
 DIRS     =
-LOCDIR   = src/ksp/ksp/interface/ams/
-MANSEC   = KSP
+LOCDIR   = src/snes/interface/saws/
+MANSEC   = SNES
 
 include ${PETSC_DIR}/conf/variables
 include ${PETSC_DIR}/conf/rules

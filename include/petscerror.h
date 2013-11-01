@@ -514,7 +514,7 @@ PETSC_STATIC_INLINE PetscBool PetscStackActive(void)
 #define PetscStackPushNoCheck(funct,petsc_routine,hot)                        \
   do {                                                                        \
     PetscStack* petscstackp;                                                  \
-    PetscStackAMSTakeAccess();                                                \
+    PetscStackSAWsTakeAccess();                                                \
     petscstackp = (PetscStack*)PetscThreadLocalGetValue(petscstack);          \
     if (petscstackp && (petscstackp->currentsize < PETSCSTACKSIZE)) {         \
       petscstackp->function[petscstackp->currentsize]  = funct;               \
@@ -526,12 +526,12 @@ PETSC_STATIC_INLINE PetscBool PetscStackActive(void)
     if (petscstackp) {                                                        \
       petscstackp->hotdepth += (hot || petscstackp->hotdepth);                \
     }                                                                         \
-    PetscStackAMSGrantAccess();                                               \
+    PetscStackSAWsGrantAccess();                                               \
   } while (0)
 
 #define PetscStackPopNoCheck                                            \
   do {PetscStack* petscstackp;                                          \
-    PetscStackAMSTakeAccess();                                          \
+    PetscStackSAWsTakeAccess();                                          \
     petscstackp = (PetscStack*)PetscThreadLocalGetValue(petscstack);    \
     if (petscstackp && petscstackp->currentsize > 0) {                  \
       petscstackp->currentsize--;                                       \
@@ -543,7 +543,7 @@ PETSC_STATIC_INLINE PetscBool PetscStackActive(void)
     if (petscstackp) {                                                  \
       petscstackp->hotdepth = PetscMax(petscstackp->hotdepth-1,0);      \
     }                                                                   \
-    PetscStackAMSGrantAccess();                                         \
+    PetscStackSAWsGrantAccess();                                         \
   } while (0)
 
 /*MC
