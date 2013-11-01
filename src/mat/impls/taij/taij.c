@@ -351,7 +351,8 @@ PetscErrorCode MatInvertBlockDiagonal_SeqTAIJ_N(Mat A,const PetscScalar **values
 {
   Mat_SeqTAIJ       *b  = (Mat_SeqTAIJ*)A->data;
   Mat_SeqAIJ        *a  = (Mat_SeqAIJ*)b->AIJ->data;
-  const PetscScalar *s  = b->S;
+  const PetscScalar *S  = b->S;
+  const PetscScalar *T  = b->T;
   const PetscScalar *v  = a->a;
   const PetscInt     p  = b->p, q = b->q, m = b->AIJ->rmap->n, *idx = a->j, *ii = a->i;
   PetscErrorCode    ierr;
@@ -359,12 +360,14 @@ PetscErrorCode MatInvertBlockDiagonal_SeqTAIJ_N(Mat A,const PetscScalar **values
   PetscScalar       *diag,aval,*v_work;
 
   PetscFunctionBegin;
-  if (p != q) {
-    SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_SUP,"Block size must be square to calculate inverse.");
-  } else {
-    dof  = p;
-    dof2 = dof*dof;
+  if (p != q) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_SUP,"MATTAIJ: Block size must be square to calculate inverse.");
+  if ((!S) && (!T) && (!b->isTI)) {
+    SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_SUP,"MATTAIJ: Cannot invert a zero matrix.");
   }
+
+  dof  = p;
+  dof2 = dof*dof;
+
   if (b->ibdiagvalid) {
     if (values) *values = b->ibdiag;
     PetscFunctionReturn(0);
@@ -378,10 +381,20 @@ PetscErrorCode MatInvertBlockDiagonal_SeqTAIJ_N(Mat A,const PetscScalar **values
 
   ierr = PetscMalloc2(dof,PetscScalar,&v_work,dof,PetscInt,&v_pivots);CHKERRQ(ierr);
   for (i=0; i<m; i++) {
-    ierr = PetscMemcpy(diag,s,dof2*sizeof(PetscScalar));CHKERRQ(ierr);
-    aval = 0;
-    for (j=ii[i]; j<ii[i+1]; j++) if (idx[j] == i) aval = v[j];
-    for (j=0; j<dof; j++) diag[j+dof*j] += aval;
+    if (S) {
+      ierr = PetscMemcpy(diag,S,dof2*sizeof(PetscScalar));CHKERRQ(ierr);
+    } else {
+      ierr = PetscMemzero(diag,dof2*sizeof(PetscScalar));CHKERRQ(ierr);
+    }
+    if (b->isTI) {
+      aval = 0;
+      for (j=ii[i]; j<ii[i+1]; j++) if (idx[j] == i) aval = v[j];
+      for (j=0; j<dof; j++) diag[j+dof*j] += aval;
+    } else if (T) {
+      aval = 0;
+      for (j=ii[i]; j<ii[i+1]; j++) if (idx[j] == i) aval = v[j];
+      for (j=0; j<dof2; j++) diag[j] += aval*T[j];
+    }
     ierr = PetscKernel_A_gets_inverse_A(dof,diag,v_pivots,v_work);CHKERRQ(ierr);
     diag += dof2;
   }
