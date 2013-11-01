@@ -41,7 +41,7 @@ int main(int argc,char **args)
   for (i=0; i<p; i++) {
     for (j = 0; j<q; j++) {
       /* set some random non-zero values */
-      S[i+p*j] = ((PetscReal) (i*j)) / ((PetscReal) (p+q));
+      S[i+p*j] = ((PetscReal) ((i+1)*(j+1))) / ((PetscReal) (p+q));
       T[i+p*j] = ((PetscReal) ((p-i)+j)) / ((PetscReal) (p*q));
     }
   }
@@ -114,6 +114,39 @@ int main(int argc,char **args)
 
   ierr = MatDestroy(&TA);CHKERRQ(ierr);
   ierr = MatDestroy(&B);CHKERRQ(ierr);
+
+  /* Test TAIJ when T is is an identity matrix */
+
+  if (p == q) {
+
+    for (i=0; i<p; i++) {
+      for (j=0; j<q; j++) {
+        if (i==j) T[i+j*p] = 1.0;
+        else      T[i+j*p] = 0.0;
+      }
+    }
+
+    /* create taij matrix TA */
+    ierr = MatCreateTAIJ(A,p,q,S,T,&TA);CHKERRQ(ierr);
+    ierr = MatGetLocalSize(A,&m,&n);CHKERRQ(ierr);
+    ierr = MatGetSize(A,&M,&N);CHKERRQ(ierr);
+
+    if (size == 1) {
+      ierr = MatConvert(TA,MATSEQAIJ,MAT_INITIAL_MATRIX,&B);CHKERRQ(ierr);
+    } else {
+      ierr = MatConvert(TA,MATMPIAIJ,MAT_INITIAL_MATRIX,&B);CHKERRQ(ierr);
+    }
+
+    /* Test MatMult() */
+    ierr = MatMultEqual(TA,B,10,&flg);CHKERRQ(ierr);
+    if (!flg) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_CONV_FAILED,"Error in Test 4: MatMult() for TAIJ matrix");
+    /* Test MatMultAdd() */
+    ierr = MatMultAddEqual(TA,B,10,&flg);CHKERRQ(ierr);
+    if (!flg) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_CONV_FAILED,"Error in Test 4: MatMultAdd() for TAIJ matrix");
+
+    ierr = MatDestroy(&TA);CHKERRQ(ierr);
+    ierr = MatDestroy(&B);CHKERRQ(ierr);
+  }
 
   /* Done with all tests */
 
