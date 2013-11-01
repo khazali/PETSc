@@ -26,7 +26,7 @@ PetscErrorCode MatConvert_Basic(Mat mat, MatType newtype,MatReuse reuse,Mat *new
 
   ierr = MatCreate(PetscObjectComm((PetscObject)mat),&M);CHKERRQ(ierr);
   ierr = MatSetSizes(M,lm,ln,m,n);CHKERRQ(ierr);
-  ierr = MatSetBlockSize(M,mat->rmap->bs);CHKERRQ(ierr);
+  ierr = MatSetBlockSizes(M,mat->rmap->bs,mat->cmap->bs);CHKERRQ(ierr);
   ierr = MatSetType(M,newtype);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)M,MATSEQSBAIJ,&isseqsbaij);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)M,MATMPISBAIJ,&ismpisbaij);CHKERRQ(ierr);
