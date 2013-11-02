@@ -3074,7 +3074,6 @@ PetscErrorCode mc64AD(PetscInt *job, PetscInt *n, PetscInt *ne, PetscInt *ip, Pe
 #ifdef CHECKING
     PetscInt s_wsfe(cilist *), do_fio(PetscInt *, char *, ftnlen), e_wsfe(void);
 #endif
-    double log(PetscScalar);
 
     /* Local variables */
     static PetscInt i__, j, k;
