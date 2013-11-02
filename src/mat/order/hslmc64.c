@@ -629,7 +629,7 @@ PetscErrorCode HSLmc64AD(const PetscInt *job, PetscInt *m, PetscInt *n,
 	i__2 = *ne;
 	for (k = 1; k <= i__2; ++k) {
 	    iw[k] = irn[k];
-	    dw[k] = (d__1 = a[k], abs(d__1));
+	    dw[k] = (d__1 = a[k], fabs(d__1));
 /* L20: */
 	}
 /* Sort entries in each column by decreasing value. */
@@ -648,14 +648,14 @@ PetscErrorCode HSLmc64AD(const PetscInt *job, PetscInt *m, PetscInt *n,
 	    fact = 0.;
 	    i__3 = ip[j + 1] - 1;
 	    for (k = ip[j]; k <= i__3; ++k) {
-		if ((d__1 = a[k], abs(d__1)) > fact) {
-		    fact = (d__2 = a[k], abs(d__2));
+		if ((d__1 = a[k], fabs(d__1)) > fact) {
+		    fact = (d__2 = a[k], fabs(d__2));
 		}
 /* L30: */
 	    }
 	    i__3 = ip[j + 1] - 1;
 	    for (k = ip[j]; k <= i__3; ++k) {
-		dw[(*m << 1) + k] = fact - (d__1 = a[k], abs(d__1));
+		dw[(*m << 1) + k] = fact - (d__1 = a[k], fabs(d__1));
 /* L40: */
 	    }
 /* L50: */
@@ -678,7 +678,7 @@ PetscErrorCode HSLmc64AD(const PetscInt *job, PetscInt *m, PetscInt *n,
 		fact = 0.;
 		i__3 = ip[j + 1] - 1;
 		for (k = ip[j]; k <= i__3; ++k) {
-		    dw[(*m << 1) + *n + k] = (d__1 = a[k], abs(d__1));
+		    dw[(*m << 1) + *n + k] = (d__1 = a[k], fabs(d__1));
 		    if (dw[(*m << 1) + *n + k] > fact) {
 			fact = dw[(*m << 1) + *n + k];
 		    }
@@ -1032,7 +1032,7 @@ PetscErrorCode HSLmc64BD(PetscInt *m, PetscInt *n, PetscInt *ne,
 	i__2 = ip[j + 1] - 1;
 	for (k = ip[j]; k <= i__2; ++k) {
 	    i__ = irn[k];
-	    ai = (d__1 = a[k], abs(d__1));
+	    ai = (d__1 = a[k], fabs(d__1));
 	    if (ai > d__[i__]) {
 		d__[i__] = ai;
 	    }
@@ -1093,7 +1093,7 @@ L30:
 	i__2 = ip[j + 1] - 1;
 	for (k = ip[j]; k <= i__2; ++k) {
 	    i__ = irn[k];
-	    ai = (d__1 = a[k], abs(d__1));
+	    ai = (d__1 = a[k], fabs(d__1));
 	    if (ai < bv) {
 		goto L50;
 	    }
@@ -1112,7 +1112,7 @@ L30:
 		if (iperm[ii] != 0) {
 		    goto L70;
 		}
-		if ((d__1 = a[kk], abs(d__1)) >= bv) {
+		if ((d__1 = a[kk], fabs(d__1)) >= bv) {
 		    goto L80;
 		}
 L70:
@@ -1169,7 +1169,7 @@ L95:
 	i__2 = ip[j + 1] - 1;
 	for (k = ip[j]; k <= i__2; ++k) {
 	    i__ = irn[k];
-	    dnew = (d__1 = a[k], abs(d__1));
+	    dnew = (d__1 = a[k], fabs(d__1));
 	    if (csp >= dnew) {
 		goto L115;
 	    }
@@ -1245,7 +1245,7 @@ L153:
 		    goto L155;
 		}
 /* Computing MIN */
-		d__2 = dq0, d__3 = (d__1 = a[k], abs(d__1));
+		d__2 = dq0, d__3 = (d__1 = a[k], fabs(d__1));
 		dnew = PetscMin(d__2,d__3);
 		if (csp >= dnew) {
 		    goto L155;
@@ -3074,7 +3074,6 @@ PetscErrorCode mc64AD(PetscInt *job, PetscInt *n, PetscInt *ne, PetscInt *ip, Pe
 #ifdef CHECKING
     PetscInt s_wsfe(cilist *), do_fio(PetscInt *, char *, ftnlen), e_wsfe(void);
 #endif
-    double log(PetscScalar);
 
     /* Local variables */
     static PetscInt i__, j, k;
@@ -3333,7 +3332,7 @@ PetscErrorCode mc64AD(PetscInt *job, PetscInt *n, PetscInt *ne, PetscInt *ip, Pe
 	i__1 = *ne;
 	for (k = 1; k <= i__1; ++k) {
 	    iw[k] = irn[k];
-	    dw[k] = (d__1 = a[k], abs(d__1));
+	    dw[k] = (d__1 = a[k], fabs(d__1));
 /* L20: */
 	}
 /* Sort entries in each column by decreasing value. */
@@ -3348,14 +3347,14 @@ PetscErrorCode mc64AD(PetscInt *job, PetscInt *n, PetscInt *ne, PetscInt *ip, Pe
 	    fact = 0.;
 	    i__2 = ip[j + 1] - 1;
 	    for (k = ip[j]; k <= i__2; ++k) {
-		if ((d__1 = a[k], abs(d__1)) > fact) {
-		    fact = (d__2 = a[k], abs(d__2));
+		if ((d__1 = a[k], fabs(d__1)) > fact) {
+		    fact = (d__2 = a[k], fabs(d__2));
 		}
 /* L30: */
 	    }
 	    i__2 = ip[j + 1] - 1;
 	    for (k = ip[j]; k <= i__2; ++k) {
-		dw[(*n << 1) + k] = fact - (d__1 = a[k], abs(d__1));
+		dw[(*n << 1) + k] = fact - (d__1 = a[k], fabs(d__1));
 /* L40: */
 	    }
 /* L50: */
@@ -3371,7 +3370,7 @@ PetscErrorCode mc64AD(PetscInt *job, PetscInt *n, PetscInt *ne, PetscInt *ip, Pe
 	    fact = 0.;
 	    i__2 = ip[j + 1] - 1;
 	    for (k = ip[j]; k <= i__2; ++k) {
-		dw[*n * 3 + k] = (d__1 = a[k], abs(d__1));
+		dw[*n * 3 + k] = (d__1 = a[k], fabs(d__1));
 		if (dw[*n * 3 + k] > fact) {
 		    fact = dw[*n * 3 + k];
 		}
@@ -3573,7 +3572,7 @@ PetscErrorCode mc64BD(PetscInt *n, PetscInt *ne, PetscInt *ip, PetscInt *irn,
 	i__2 = ip[j + 1] - 1;
 	for (k = ip[j]; k <= i__2; ++k) {
 	    i__ = irn[k];
-	    ai = (d__1 = a[k], abs(d__1));
+	    ai = (d__1 = a[k], fabs(d__1));
 	    if (ai > d__[i__]) {
 		d__[i__] = ai;
 	    }
@@ -3631,7 +3630,7 @@ L20:
 	i__2 = ip[j + 1] - 1;
 	for (k = ip[j]; k <= i__2; ++k) {
 	    i__ = irn[k];
-	    ai = (d__1 = a[k], abs(d__1));
+	    ai = (d__1 = a[k], fabs(d__1));
 	    if (ai < bv) {
 		goto L50;
 	    }
@@ -3650,7 +3649,7 @@ L20:
 		if (iperm[ii] != 0) {
 		    goto L70;
 		}
-		if ((d__1 = a[kk], abs(d__1)) >= bv) {
+		if ((d__1 = a[kk], fabs(d__1)) >= bv) {
 		    goto L80;
 		}
 L70:
@@ -3704,7 +3703,7 @@ L95:
 	i__2 = ip[j + 1] - 1;
 	for (k = ip[j]; k <= i__2; ++k) {
 	    i__ = irn[k];
-	    dnew = (d__1 = a[k], abs(d__1));
+	    dnew = (d__1 = a[k], fabs(d__1));
 	    if (csp >= dnew) {
 		goto L115;
 	    }
@@ -3779,7 +3778,7 @@ L153:
 		    goto L155;
 		}
 /* Computing MIN */
-		d__2 = dq0, d__3 = (d__1 = a[k], abs(d__1));
+		d__2 = dq0, d__3 = (d__1 = a[k], fabs(d__1));
 		dnew = PetscMin(d__2,d__3);
 		if (csp >= dnew) {
 		    goto L155;
