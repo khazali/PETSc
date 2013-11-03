@@ -177,6 +177,67 @@ should become two quads separated by a zero-volume cell with 4 vertices
    |       |     |       |    |       |     |  |       |
    3--11---4-19--9--15---7    2---8---3-13--6  3---5---1
 
+Test 1:
+
+Original mesh with 9 cells,
+
+  9 ----10 ----11 ----12
+  |      |      |      |
+  |      |      |      |
+  |      |      |      |
+  |      |      |      |
+ 13 ----14 ----15 ----16
+  |      |      |      |
+  |      |      |      |
+  |      |      |      |
+  |      |      |      |
+ 17 ----18 ----19 ----20
+  |      |      |      |
+  |      |      |      |
+  |      |      |      |
+  |      |      |      |
+ 21 ----22 ----23 ----24
+
+After first fault,
+
+ 12 ----13 ----14-28 ----15
+  |      |      |  |      |
+  |  0   |  1   | 9|  2   |
+  |      |      |  |      |
+  |      |      |  |      |
+ 16 ----17 ----18-29 ----19
+  |      |      |  |      |
+  |  3   |  4   |10|  5   |
+  |      |      |  |      |
+  |      |      |  |      |
+ 20 ----21-----22-30 ----23
+  |      |      |  \--11- |
+  |  6   |  7   |     8   |
+  |      |      |         |
+  |      |      |         |
+ 24 ----25 ----26--------27
+
+After second fault,
+
+ 14 ----15 ----16-30 ----17
+  |      |      |  |      |
+  |  0   |  1   | 9|  2   |
+  |      |      |  |      |
+  |      |      |  |      |
+ 18 ----19 ----20-31 ----21
+  |      |      |  |      |
+  |  3   |  4   |10|  5   |
+  |      |      |  |      |
+  |      |      |  |      |
+ 33 ----34-----24-32 ----25
+  |  12  | 13 / |  \-11-- |
+ 22 ----23---/  |         |
+  |      |   7  |     8   |
+  |  6   |      |         |
+  |      |      |         |
+  |      |      |         |
+ 26 ----27 ----28--------29
+
 Hexahedron
 ----------
 Test 0:
@@ -554,7 +615,7 @@ PetscErrorCode CreateHex_3D(MPI_Comm comm, PetscInt testNum, DM *dm)
 PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 {
   PetscInt       dim          = user->dim;
-  PetscBool      cellSimplex  = user->cellSimplex;
+  PetscBool      cellSimplex  = user->cellSimplex, hasFaultB;
   const char     *partitioner = "chaco";
   PetscMPIInt    rank;
   PetscErrorCode ierr;
@@ -594,18 +655,37 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     ierr = DMDestroy(dm);CHKERRQ(ierr);
     *dm  = dmHybrid;
   }
+  ierr = DMPlexHasLabel(*dm, "faultB", &hasFaultB);CHKERRQ(ierr);
+  if (hasFaultB) {
+    DM      dmHybrid = NULL;
+    DMLabel faultLabel, hybridLabel;
+
+    ierr = DMPlexCheckSymmetry(*dm);CHKERRQ(ierr);
+    ierr = DMPlexCheckSkeleton(*dm, user->cellSimplex);CHKERRQ(ierr);
+    ierr = DMPlexGetLabel(*dm, "faultB", &faultLabel);CHKERRQ(ierr);
+    ierr = DMPlexCreateHybridMesh(*dm, faultLabel, &hybridLabel, &dmHybrid);CHKERRQ(ierr);
+    ierr = PetscViewerASCIISynchronizedAllow(PETSC_VIEWER_STDOUT_WORLD, PETSC_TRUE);CHKERRQ(ierr);
+    ierr = DMLabelView(hybridLabel, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    ierr = DMLabelDestroy(&hybridLabel);CHKERRQ(ierr);
+    ierr = DMDestroy(dm);CHKERRQ(ierr);
+    *dm  = dmHybrid;
+  }
   {
     DM distributedMesh = NULL;
 
     /* Distribute mesh over processes */
     ierr = DMPlexDistribute(*dm, partitioner, 0, NULL, &distributedMesh);CHKERRQ(ierr);
     if (distributedMesh) {
+      ierr = DMPlexCheckSymmetry(*dm);CHKERRQ(ierr);
+      ierr = DMPlexCheckSkeleton(*dm, user->cellSimplex);CHKERRQ(ierr);
       ierr = DMDestroy(dm);CHKERRQ(ierr);
       *dm  = distributedMesh;
     }
   }
   ierr = PetscObjectSetName((PetscObject) *dm, "Hybrid Mesh");CHKERRQ(ierr);
   ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
+  ierr = DMPlexCheckSymmetry(*dm);CHKERRQ(ierr);
+  ierr = DMPlexCheckSkeleton(*dm, user->cellSimplex);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -620,8 +700,6 @@ int main(int argc, char **argv)
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
   ierr = ProcessOptions(PETSC_COMM_WORLD, &user);CHKERRQ(ierr);
   ierr = CreateMesh(PETSC_COMM_WORLD, &user, &dm);CHKERRQ(ierr);
-  ierr = DMPlexCheckSymmetry(dm);CHKERRQ(ierr);
-  ierr = DMPlexCheckSkeleton(dm, user.cellSimplex);CHKERRQ(ierr);
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return 0;
