@@ -64,6 +64,10 @@ ex12: ex12.o   chkopts
 	-${CLINKER} -o ex12 ex12.o  ${PETSC_DM_LIB}
 	${RM} -f ex12.o
 
+ex13f90: ex13f90aux.o ex13f90.o chkopts
+	-${FLINKER} -o ex13f90 ex13f90.o ex13f90aux.o ${PETSC_DM_LIB}
+	${RM} -f ex13f90.o ex13f90aux.o ex13f90aux ex13f90aux.mod
+
 ex14: ex14.o   chkopts
 	-${CLINKER} -o ex14 ex14.o  ${PETSC_DM_LIB}
 	${RM} -f ex14.o
