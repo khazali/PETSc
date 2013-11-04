@@ -368,7 +368,7 @@ PETSC_EXTERN PetscBool PetscCheckPointer(const void*,PetscDataType);
    regardless of the type.
 
    Synopsis:
-   #include "petscsys.h"
+   #include "petsc-private/petscimpl.h"
    PetscErrorCode PetscObjectStateIncrease(PetscObject obj)
 
    Logically Collective
@@ -413,7 +413,7 @@ PETSC_EXTERN PetscInt         PetscObjectComposedDataMax;
    PetscObjectComposedDataSetInt - attach integer data to a PetscObject
 
    Synopsis:
-   #include "petscsys.h"
+   #include "petsc-private/petscimpl.h"
    PetscErrorCode PetscObjectComposedDataSetInt(PetscObject obj,int id,int data)
 
    Not collective
@@ -437,7 +437,7 @@ M*/
    PetscObjectComposedDataGetInt - retrieve integer data attached to an object
 
    Synopsis:
-   #include "petscsys.h"
+   #include "petsc-private/petscimpl.h"
    PetscErrorCode PetscObjectComposedDataGetInt(PetscObject obj,int id,int data,PetscBool  flag)
 
    Not collective
@@ -462,7 +462,7 @@ M*/
    PetscObjectComposedDataSetIntstar - attach integer array data to a PetscObject
 
    Synopsis:
-   #include "petscsys.h"
+   #include "petsc-private/petscimpl.h"
    PetscErrorCode PetscObjectComposedDataSetIntstar(PetscObject obj,int id,int *data)
 
    Not collective
@@ -487,7 +487,7 @@ M*/
    attached to an object
 
    Synopsis:
-   #include "petscsys.h"
+   #include "petsc-private/petscimpl.h"
    PetscErrorCode PetscObjectComposedDataGetIntstar(PetscObject obj,int id,int *data,PetscBool  flag)
 
    Not collective
@@ -512,7 +512,7 @@ M*/
    PetscObjectComposedDataSetReal - attach real data to a PetscObject
 
    Synopsis:
-   #include "petscsys.h"
+   #include "petsc-private/petscimpl.h"
    PetscErrorCode PetscObjectComposedDataSetReal(PetscObject obj,int id,PetscReal data)
 
    Not collective
@@ -536,7 +536,7 @@ M*/
    PetscObjectComposedDataGetReal - retrieve real data attached to an object
 
    Synopsis:
-   #include "petscsys.h"
+   #include "petsc-private/petscimpl.h"
    PetscErrorCode PetscObjectComposedDataGetReal(PetscObject obj,int id,PetscReal data,PetscBool  flag)
 
    Not collective
@@ -561,7 +561,7 @@ M*/
    PetscObjectComposedDataSetRealstar - attach real array data to a PetscObject
 
    Synopsis:
-   #include "petscsys.h"
+   #include "petsc-private/petscimpl.h"
    PetscErrorCode PetscObjectComposedDataSetRealstar(PetscObject obj,int id,PetscReal *data)
 
    Not collective
@@ -586,7 +586,7 @@ M*/
    attached to an object
 
    Synopsis:
-   #include "petscsys.h"
+   #include "petsc-private/petscimpl.h"
    PetscErrorCode PetscObjectComposedDataGetRealstar(PetscObject obj,int id,PetscReal *data,PetscBool  flag)
 
    Not collective
@@ -611,7 +611,7 @@ M*/
    PetscObjectComposedDataSetScalar - attach scalar data to a PetscObject
 
    Synopsis:
-   #include "petscsys.h"
+   #include "petsc-private/petscimpl.h"
    PetscErrorCode PetscObjectComposedDataSetScalar(PetscObject obj,int id,PetscScalar data)
 
    Not collective
@@ -639,7 +639,7 @@ M*/
    PetscObjectComposedDataGetScalar - retrieve scalar data attached to an object
 
    Synopsis:
-   #include "petscsys.h"
+   #include "petsc-private/petscimpl.h"
    PetscErrorCode PetscObjectComposedDataGetScalar(PetscObject obj,int id,PetscScalar data,PetscBool  flag)
 
    Not collective
@@ -669,7 +669,7 @@ M*/
    PetscObjectComposedDataSetScalarstar - attach scalar array data to a PetscObject
 
    Synopsis:
-   #include "petscsys.h"
+   #include "petsc-private/petscimpl.h"
    PetscErrorCode PetscObjectComposedDataSetScalarstar(PetscObject obj,int id,PetscScalar *data)
 
    Not collective
@@ -698,7 +698,7 @@ M*/
    attached to an object
 
    Synopsis:
-   #include "petscsys.h"
+   #include "petsc-private/petscimpl.h"
    PetscErrorCode PetscObjectComposedDataGetScalarstar(PetscObject obj,int id,PetscScalar *data,PetscBool  flag)
 
    Not collective
