@@ -14,28 +14,6 @@ PetscErrorCode KSPSetUp_MINRESQLP(KSP ksp)
   PetscFunctionReturn(0);
 }
 
-/* modified from KSPMonitorDefault() by adding Arnorm */
-#undef __FUNCT__
-#define __FUNCT__ "KSPMINTRESQLPMonitor"
-PetscErrorCode KSPMINTRESQLPMonitor(KSP ksp,PetscInt n,PetscReal rnorm,void *dummy)
-{
-  PetscErrorCode ierr;
-  PetscViewer    viewer = (PetscViewer) dummy;
-  KSP_MINRES  *minresqlp = (KSP_MINRES*)ksp->data;
-
-  PetscFunctionBegin;
-  if (!viewer) {
-    ierr = PetscViewerASCIIGetStdout(PetscObjectComm((PetscObject)ksp),&viewer);CHKERRQ(ierr);
-  }
-  ierr = PetscViewerASCIIAddTab(viewer,((PetscObject)ksp)->tablevel);CHKERRQ(ierr);
-  if (n == 0 && ((PetscObject)ksp)->prefix) {
-    ierr = PetscViewerASCIIPrintf(viewer,"  Residual norms for %sn solve.\n",((PetscObject)ksp)->prefix);CHKERRQ(ierr);
-  }
-  ierr = PetscViewerASCIIPrintf(viewer,"%3D KSP Residual norm %14.12e, Arnorm %14.12e\n",n,(double)rnorm,(double)minresqlp->Arnorm);CHKERRQ(ierr);
-  ierr = PetscViewerASCIISubtractTab(viewer,((PetscObject)ksp)->tablevel);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
 #undef __FUNCT__
 #define __FUNCT__ "KSPSetFromOptions_MINRESQLP"
 PetscErrorCode KSPSetFromOptions_MINRESQLP(KSP ksp)
