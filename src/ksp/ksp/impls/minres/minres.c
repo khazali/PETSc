@@ -1,11 +1,5 @@
 
-#include <petsc-private/kspimpl.h>
-
-typedef struct {
-  PetscReal haptol;
-  PetscBool monitor_arnorm;
-  PetscReal Arnorm,relArnorm;
-} KSP_MINRES;
+#include <../src/ksp/ksp/impls/minres/minresimpl.h>       /*I "petscksp.h" I*/
 
 #undef __FUNCT__
 #define __FUNCT__ "KSPSetUp_MINRES"
@@ -20,10 +14,10 @@ PetscErrorCode KSPSetUp_MINRES(KSP ksp)
   PetscFunctionReturn(0);
 }
 
-/* modified from KSPMonitorDefault() by adding Arnorm - same as KSPMINTRESQLPMonitor - merge them into one! */
+/* modified from KSPMonitorDefault() by adding Arnorm */
 #undef __FUNCT__
-#define __FUNCT__ "KSPMINTRESMonitor"
-PetscErrorCode KSPMINTRESMonitor(KSP ksp,PetscInt n,PetscReal rnorm,void *dummy)
+#define __FUNCT__ "KSPMINRESMonitor"
+PetscErrorCode KSPMINRESMonitor(KSP ksp,PetscInt n,PetscReal rnorm,void *dummy)
 {
   PetscErrorCode ierr;
   PetscViewer    viewer = (PetscViewer) dummy;
@@ -53,7 +47,7 @@ PetscErrorCode KSPSetFromOptions_MINRES(KSP ksp)
   ierr = PetscOptionsHead("KSP MINRES options");CHKERRQ(ierr);
   ierr = PetscOptionsBool("-ksp_monitor_minres","Monitor rnorm and Arnorm","KSPMINRESMonitor",minres->monitor_arnorm,&minres->monitor_arnorm,NULL);CHKERRQ(ierr);
   if (minres->monitor_arnorm) {
-    ierr = KSPMonitorSet(ksp,KSPMINTRESMonitor,NULL,NULL);CHKERRQ(ierr);
+    ierr = KSPMonitorSet(ksp,KSPMINRESMonitor,NULL,NULL);CHKERRQ(ierr);
   }
   ierr = PetscOptionsTail();CHKERRQ(ierr);
   PetscFunctionReturn(0);
