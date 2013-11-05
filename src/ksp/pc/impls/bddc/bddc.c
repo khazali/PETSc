@@ -1,25 +1,22 @@
 /* TODOLIST
 
    ConstraintsSetup
-   - assure same constraints between neighbours by sorting vals by global index before SVD!
    - tolerances for constraints as an option (take care of single precision!)
-   - MAT_IGNORE_ZERO_ENTRIES for Constraints Matrix
+   - Can MAT_IGNORE_ZERO_ENTRIES be used for Constraints Matrix?
 
    Solvers
    - Add support for reuse fill and cholecky factor for coarse solver (similar to local solvers)
-   - reuse already allocated coarse matrix if possible
-   - Propagate ksp prefixes for solvers to mat objects? 
+   - Propagate ksp prefixes for solvers to mat objects?
    - Propagate nearnullspace info among levels
 
    User interface
    - Change SetNeumannBoundaries to SetNeumannBoundariesLocal and provide new SetNeumannBoundaries (same Dirichlet)
-   - Negative indices in dirichlet and Neumann is should be skipped (now they cause out-of-bounds access)
+   - Negative indices in dirichlet and Neumann ISs should be skipped (now they cause out-of-bounds access)
    - Provide PCApplyTranpose_BDDC
    - DofSplitting and DM attached to pc?
 
    Debugging output
    - Better management of verbosity levels of debugging output
-   - Crashes on some architecture -> call SynchronizedAllow before every SynchronizedPrintf
 
    Build
    - make runexe59
@@ -36,9 +33,8 @@
    - Move FETIDP code to its own classes
 
    MATIS related operations contained in BDDC code
-   - Add MAT_REUSE in MatConvert_IS_AIJ
    - Provide general case for subassembling
-   - Preallocation routines in MatConvert_IS_AIJ
+   - Preallocation routines in MatISGetMPIAXAIJ
 
 */
 
@@ -660,7 +656,7 @@ static PetscErrorCode PCPreSolve_BDDC(PC pc, KSP ksp, Vec rhs, Vec x)
   flg = PETSC_FALSE;
   if (dirIS) flg = PETSC_TRUE;
   ierr = MPI_Allreduce(&flg,&bddc_has_dirichlet_boundaries,1,MPIU_BOOL,MPI_LOR,PetscObjectComm((PetscObject)pc));CHKERRQ(ierr);
-  
+
   /* store the original rhs */
   ierr = VecCopy(rhs,pcbddc->original_rhs);CHKERRQ(ierr);
 
@@ -807,13 +803,10 @@ PetscErrorCode PCSetUp_BDDC(PC pc)
   PetscErrorCode   ierr;
   PC_BDDC*         pcbddc = (PC_BDDC*)pc->data;
   MatNullSpace     nearnullspace;
-  const Vec        *nearnullvecs,*onearnullvecs;
   MatStructure     flag;
-  PetscObjectState state;
-  PetscInt         nnsp_size,onnsp_size;
   PetscBool        computeis,computetopography,computesolvers;
-  PetscBool        new_nearnullspace_provided,nnsp_has_cnst,onnsp_has_cnst;
- 
+  PetscBool        new_nearnullspace_provided;
+
   PetscFunctionBegin;
   /* the following lines of code should be replaced by a better logic between PCIS, PCNN, PCBDDC and other future nonoverlapping preconditioners */
   /* PCIS does not support MatStructure flags different from SAME_PRECONDITIONER */
@@ -857,40 +850,39 @@ PetscErrorCode PCSetUp_BDDC(PC pc)
     PC_IS* pcis = (PC_IS*)pc->data;
     pcis->computesolvers = PETSC_FALSE;
     ierr = PCISSetUp(pc);CHKERRQ(ierr);
+    ierr = ISLocalToGlobalMappingCreateIS(pcis->is_B_local,&pcbddc->BtoNmap);CHKERRQ(ierr);
   }
 
   /* Analyze interface */
   if (computetopography) {
     ierr = PCBDDCAnalyzeInterface(pc);CHKERRQ(ierr);
   }
- 
+
   /* infer if NullSpace object attached to Mat via MatSetNearNullSpace has changed */
   new_nearnullspace_provided = PETSC_FALSE;
   ierr = MatGetNearNullSpace(pc->pmat,&nearnullspace);CHKERRQ(ierr);
   if (pcbddc->onearnullspace) { /* already used nearnullspace */
-    if (!nearnullspace) { /* near null space attached to mat has been destroyed */ 
+    if (!nearnullspace) { /* near null space attached to mat has been destroyed */
       new_nearnullspace_provided = PETSC_TRUE;
     } else {
       /* determine if the two nullspaces are different (should be lightweight) */
       if (nearnullspace != pcbddc->onearnullspace) {
-        new_nearnullspace_provided = PETSC_TRUE; 
-      } else { /* maybe the user has changed the content of the nearnullspace */
-        ierr = MatNullSpaceGetVecs(nearnullspace,&nnsp_has_cnst,&nnsp_size,&nearnullvecs);CHKERRQ(ierr);
-        ierr = MatNullSpaceGetVecs(pcbddc->onearnullspace,&onnsp_has_cnst,&onnsp_size,&onearnullvecs);CHKERRQ(ierr);
-        if ( (nnsp_has_cnst != onnsp_has_cnst) || (nnsp_size != onnsp_size) ) {
-          new_nearnullspace_provided = PETSC_TRUE;
-        } else { /* nullspaces have the same size, so check vectors or their ObjectStateId */
-          PetscInt i;
-          for (i=0;i<nnsp_size;i++) {
-            ierr = PetscObjectStateGet((PetscObject)nearnullvecs[i],&state);CHKERRQ(ierr);
-            if (nearnullvecs[i] != onearnullvecs[i] || pcbddc->onearnullvecs_state[i] != state) { 
-              new_nearnullspace_provided = PETSC_TRUE; 
-              break;
-            }
+        new_nearnullspace_provided = PETSC_TRUE;
+      } else { /* maybe the user has changed the content of the nearnullspace so check vectors ObjectStateId */
+        PetscInt         i;
+        const Vec        *nearnullvecs;
+        PetscObjectState state;
+        PetscInt         nnsp_size;
+        ierr = MatNullSpaceGetVecs(nearnullspace,NULL,&nnsp_size,&nearnullvecs);CHKERRQ(ierr);
+        for (i=0;i<nnsp_size;i++) {
+          ierr = PetscObjectStateGet((PetscObject)nearnullvecs[i],&state);CHKERRQ(ierr);
+          if (pcbddc->onearnullvecs_state[i] != state) {
+            new_nearnullspace_provided = PETSC_TRUE;
+            break;
           }
         }
       }
-    } 
+    }
   } else {
     if (!nearnullspace) { /* both nearnullspaces are null */
       new_nearnullspace_provided = PETSC_FALSE;
@@ -900,14 +892,15 @@ PetscErrorCode PCSetUp_BDDC(PC pc)
   }
 
   /* Setup constraints and related work vectors */
+  /* reset primal space flags */
   pcbddc->new_primal_space = PETSC_FALSE;
+  pcbddc->new_primal_space_local = PETSC_FALSE;
   if (computetopography || new_nearnullspace_provided) {
+    /* It also sets the primal space flags */
     ierr = PCBDDCConstraintsSetUp(pc);CHKERRQ(ierr);
     /* Allocate needed local vectors (which depends on quantities defined during ConstraintsSetUp) */
     ierr = PCBDDCSetUpLocalWorkVectors(pc);CHKERRQ(ierr);
-    /* set flag for primal space */
-    pcbddc->new_primal_space = PETSC_TRUE;
-  } 
+  }
 
   if (computesolvers || pcbddc->new_primal_space) {
     /* reset data */
@@ -1020,6 +1013,7 @@ PetscErrorCode PCDestroy_BDDC(PC pc)
   /* free global vectors needed in presolve */
   ierr = VecDestroy(&pcbddc->temp_solution);CHKERRQ(ierr);
   ierr = VecDestroy(&pcbddc->original_rhs);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingDestroy(&pcbddc->BtoNmap);CHKERRQ(ierr);
   /* remove functions */
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCBDDCSetPrimalVerticesLocalIS_C",NULL);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCBDDCSetCoarseningRatio_C",NULL);CHKERRQ(ierr);
@@ -1258,8 +1252,8 @@ static PetscErrorCode PCBDDCCreateFETIDPOperators_BDDC(PC pc, Mat *fetidp_mat, P
 +  pc - the BDDC preconditioning context already setup
 
    Output Parameters:
-.  fetidp_mat - shell FETIDP matrix object 
-.  fetidp_pc  - shell Dirichlet preconditioner for FETIDP matrix  
+.  fetidp_mat - shell FETIDP matrix object
+.  fetidp_pc  - shell Dirichlet preconditioner for FETIDP matrix
 
    Options Database Keys:
 -    -fetidp_fullyredundant: use or not a fully redundant set of Lagrange multipliers
@@ -1286,11 +1280,11 @@ PetscErrorCode PCBDDCCreateFETIDPOperators(PC pc, Mat *fetidp_mat, PC *fetidp_pc
 /*MC
    PCBDDC - Balancing Domain Decomposition by Constraints.
 
-   An implementation of the BDDC preconditioner based on 
+   An implementation of the BDDC preconditioner based on
 
-.vb   
+.vb
    [1] C. R. Dohrmann. "An approximate BDDC preconditioner", Numerical Linear Algebra with Applications Volume 14, Issue 2, pages 149-168, March 2007
-   [2] A. Klawonn and O. B. Widlund. "Dual-Primal FETI Methods for Linear Elasticity", http://cs.nyu.edu/csweb/Research/TechReports/TR2004-855/TR2004-855.pdf 
+   [2] A. Klawonn and O. B. Widlund. "Dual-Primal FETI Methods for Linear Elasticity", http://cs.nyu.edu/csweb/Research/TechReports/TR2004-855/TR2004-855.pdf
    [3] J. Mandel, B. Sousedik, C. R. Dohrmann. "Multispace and Multilevel BDDC", http://arxiv.org/abs/0712.3977
 .ve
 
@@ -1298,7 +1292,7 @@ PetscErrorCode PCBDDCCreateFETIDPOperators(PC pc, Mat *fetidp_mat, PC *fetidp_pc
 
    Currently works with MATIS matrices with local Neumann matrices of type MATSEQAIJ, MATSEQBAIJ or MATSEQSBAIJ, either with real or complex numbers.
 
-   It also works with unsymmetric and indefinite problems. 
+   It also works with unsymmetric and indefinite problems.
 
    Unlike 'conventional' interface preconditioners, PCBDDC iterates over all degrees of freedom, not just those on the interface. This allows the use of approximate solvers on the subdomains.
 
@@ -1321,7 +1315,7 @@ PetscErrorCode PCBDDCCreateFETIDPOperators(PC pc, Mat *fetidp_mat, PC *fetidp_pc
 .    -pc_bddc_use_change_on_faces <0> - use change of basis approach on faces if change of basis has been requested
 .    -pc_bddc_switch_static <0> - switches from M_2 to M_3 operator (see reference article [1])
 .    -pc_bddc_levels <0> - maximum number of levels for multilevel
-.    -pc_bddc_coarsening_ratio - H/h ratio at the coarser level  
+.    -pc_bddc_coarsening_ratio - H/h ratio at the coarser level
 -    -pc_bddc_check_level <0> - set verbosity level of debugging output
 
    Options for Dirichlet, Neumann or coarse solver can be set with
@@ -1377,9 +1371,16 @@ PETSC_EXTERN PetscErrorCode PCCreate_BDDC(PC pc)
   pcbddc->use_nnsp_true       = PETSC_FALSE; /* not yet exposed */
   pcbddc->dbg_flag            = 0;
 
+  pcbddc->BtoNmap                    = 0;
+  pcbddc->local_primal_size          = 0;
+  pcbddc->n_vertices                 = 0;
+  pcbddc->n_actual_vertices          = 0;
+  pcbddc->n_constraints              = 0;
+  pcbddc->primal_indices_local_idxs  = 0;
   pcbddc->recompute_topography       = PETSC_FALSE;
   pcbddc->coarse_size                = 0;
   pcbddc->new_primal_space           = PETSC_FALSE;
+  pcbddc->new_primal_space_local     = PETSC_FALSE;
   pcbddc->global_primal_indices      = 0;
   pcbddc->onearnullspace             = 0;
   pcbddc->onearnullvecs_state        = 0;

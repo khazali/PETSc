@@ -36,9 +36,14 @@ typedef struct {
   KSP           ksp_D;
   /* Quantities defining constraining details (local) of the preconditioner */
   /* These quantities define the preconditioner itself */
+  ISLocalToGlobalMapping BtoNmap;
   PetscInt      n_constraints;
   PetscInt      n_vertices;
+  PetscInt      n_actual_vertices;
   Mat           ConstraintMatrix;
+  PetscBool     new_primal_space;
+  PetscBool     new_primal_space_local;
+  PetscInt      *primal_indices_local_idxs;
   PetscBool     use_change_of_basis;
   PetscBool     use_change_on_faces;
   Mat           ChangeOfBasisMatrix;
@@ -53,7 +58,6 @@ typedef struct {
   /* Some customization is possible */
   PetscBool                  recompute_topography;
   PCBDDCGraph                mat_graph;
-  PetscBool                  new_primal_space;
   MatNullSpace               onearnullspace;
   PetscObjectState           *onearnullvecs_state;
   MatNullSpace               NullSpace;
