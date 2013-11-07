@@ -99,7 +99,7 @@ int main(int argc, char **argv)
   PetscInt          nstages,is,ie,matis,matie,*ix,*ix2;
   PetscInt          n,i,s,t;
   PetscScalar       *A,*B,*At,*b,*zvals,one = 1.0;
-  PetscReal         *c,dx,dx2,err;
+  PetscReal         *c,dx,dx2,err,time;
   Mat               Identity,J,TA,SC,R;
   KSP               ksp;
   PetscFunctionList IRKList = NULL;
@@ -250,7 +250,7 @@ int main(int argc, char **argv)
                       nstages,PetscScalar,&zvals,
                       ie-is,PetscInt,&ix2);CHKERRQ(ierr);
   /* iterate in time */
-  for (n=0; n<ctxt.niter; n++) {
+  for (n=0,time=0.; n<ctxt.niter; n++) {
 
     /* compute and set the right hand side */
     ierr = MatMult(R,u,rhs);CHKERRQ(ierr);
@@ -262,6 +262,7 @@ int main(int argc, char **argv)
     ierr = MatMultAdd(SC,z,u,u);CHKERRQ(ierr);
 
     /* time step complete */
+    time += ctxt.dt;
   }
   PetscFree3(ix,ix2,zvals);
 
@@ -273,7 +274,7 @@ int main(int argc, char **argv)
   ierr = VecAYPX(uex,-1.0,u);
   ierr = VecNorm(uex,NORM_2,&err);
   err  = PetscSqrtReal(err*err/((PetscReal)ctxt.imax));
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"L2 norm of the numerical error = %G\n",err);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"L2 norm of the numerical error = %G (time=%G)\n",err,time);CHKERRQ(ierr);
 
   /* Free up memory */
   ierr = KSPDestroy(&ksp);      CHKERRQ(ierr);

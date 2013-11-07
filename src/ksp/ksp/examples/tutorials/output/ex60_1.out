@@ -6,12 +6,12 @@
   2 KSP Residual norm < 1.e-11
   0 KSP Residual norm 0.177397 
   1 KSP Residual norm 0.0892889 
-  2 KSP Residual norm 4.996e-10 
+  2 KSP Residual norm 4.743e-10 
   0 KSP Residual norm 0.108415 
   1 KSP Residual norm 0.0545682 
-  2 KSP Residual norm 7.54134e-08 
+  2 KSP Residual norm 7.08954e-08 
   0 KSP Residual norm 0.0662569 
   1 KSP Residual norm 0.0333489 
-  2 KSP Residual norm 1.1704e-05 
-  3 KSP Residual norm 7.3565e-07 
-L2 norm of the numerical error = 0.000317064
+  2 KSP Residual norm 1.09006e-05 
+  3 KSP Residual norm 6.89548e-07 
+L2 norm of the numerical error = 0.000317062 (time=0.625)
