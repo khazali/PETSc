@@ -62,9 +62,11 @@ T*/
   petscpc.h       - preconditioners
 */
 #include <petscksp.h>
+#include <petscdt.h>
 
 /* define the IRK methods available */
 #define IRKGAUSS24    "gauss24"
+#define IRKGAUSS      "gauss"
 
 typedef struct __context__ {
   PetscReal     a;              /* diffusion coefficient      */
@@ -76,6 +78,7 @@ typedef struct __context__ {
 
 static PetscErrorCode ExactSolution(Vec,void*,PetscReal);
 static PetscErrorCode RKCreate_Gauss24(PetscInt,PetscScalar**,PetscScalar**,PetscReal**);
+static PetscErrorCode RKCreate_Gauss(PetscInt,PetscScalar**,PetscScalar**,PetscReal**);
 
 #include <petsc-private/kernels/blockinvert.h>
 
@@ -97,6 +100,7 @@ int main(int argc, char **argv)
 
   PetscInitialize(&argc,&argv,(char*)0,help);
   ierr = PetscFunctionListAdd(&IRKList,IRKGAUSS24,RKCreate_Gauss24);CHKERRQ(ierr);
+  ierr = PetscFunctionListAdd(&IRKList,IRKGAUSS,RKCreate_Gauss);CHKERRQ(ierr);
 
   /* default value */
   ctxt.a       = 1.0;
@@ -306,6 +310,47 @@ static PetscErrorCode RKCreate_Gauss24(PetscInt nstages,PetscScalar **gauss_A,Pe
 
   *gauss_A = A;
   *gauss_b = b;
+  *gauss_c = c;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "RKCreate_Gauss"
+/* Arrays should be freed with PetscFree3(A,b,c) */
+static PetscErrorCode RKCreate_Gauss(PetscInt nstages,PetscScalar **gauss_A,PetscScalar **gauss_b,PetscReal **gauss_c)
+{
+  PetscErrorCode    ierr;
+  PetscScalar       *A,*G0,*G1;
+  PetscReal         *b,*c;
+  PetscInt          i,j;
+  Mat               G0mat,G1mat,Amat;
+
+  PetscFunctionBegin;
+  ierr = PetscMalloc3(PetscSqr(nstages),PetscScalar,&A,nstages,PetscScalar,gauss_b,nstages,PetscReal,&c);CHKERRQ(ierr);
+  ierr = PetscMalloc3(nstages,PetscReal,&b,PetscSqr(nstages),PetscScalar,&G0,PetscSqr(nstages),PetscScalar,&G1);CHKERRQ(ierr);
+  ierr = PetscDTGaussQuadrature(nstages,0.,1.,c,b);CHKERRQ(ierr);
+  for (i=0; i<nstages; i++) (*gauss_b)[i] = b[i]; /* copy to possibly-complex array */
+
+  /* A^T = G0^{-1} G1 */
+  for (i=0; i<nstages; i++) {
+    for (j=0; j<nstages; j++) {
+      G0[i*nstages+j] = PetscPowRealInt(c[i],j);
+      G1[i*nstages+j] = PetscPowRealInt(c[i],j+1)/(j+1);
+    }
+  }
+  /* The arrays above are row-aligned, but we create dense matrices as the transpose */
+  ierr = MatCreateSeqDense(PETSC_COMM_SELF,nstages,nstages,G0,&G0mat);CHKERRQ(ierr);
+  ierr = MatCreateSeqDense(PETSC_COMM_SELF,nstages,nstages,G1,&G1mat);CHKERRQ(ierr);
+  ierr = MatCreateSeqDense(PETSC_COMM_SELF,nstages,nstages,A,&Amat);CHKERRQ(ierr);
+  ierr = MatLUFactor(G0mat,NULL,NULL,NULL);CHKERRQ(ierr);
+  ierr = MatMatSolve(G0mat,G1mat,Amat);CHKERRQ(ierr);
+  ierr = MatTranspose(Amat,MAT_REUSE_MATRIX,&Amat);CHKERRQ(ierr);
+
+  ierr = MatDestroy(&G0mat);CHKERRQ(ierr);
+  ierr = MatDestroy(&G1mat);CHKERRQ(ierr);
+  ierr = MatDestroy(&Amat);CHKERRQ(ierr);
+  ierr = PetscFree3(b,G0,G1);CHKERRQ(ierr);
+  *gauss_A = A;
   *gauss_c = c;
   PetscFunctionReturn(0);
 }
