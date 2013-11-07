@@ -68,12 +68,19 @@ T*/
 #define IRKGAUSS24    "gauss24"
 #define IRKGAUSS      "gauss"
 
+typedef enum {
+  PHYSICS_DIFFUSION,
+  PHYSICS_ADVECTION
+} PhysicsType;
+const char *const PhysicsTypes[] = {"DIFFUSION","ADVECTION","PhysicsType","PHYSICS_",NULL};
+
 typedef struct __context__ {
   PetscReal     a;              /* diffusion coefficient      */
   PetscReal     xmin,xmax;      /* domain bounds              */
   PetscInt      imax;           /* number of grid points      */
   PetscInt      niter;          /* number of time iterations  */
   PetscReal     dt;             /* time step size             */
+  PhysicsType   physics_type;
 } UserContext;
 
 static PetscErrorCode ExactSolution(Vec,void*,PetscReal);
@@ -109,6 +116,7 @@ int main(int argc, char **argv)
   ctxt.imax    = 20;
   ctxt.niter   = 0;
   ctxt.dt      = 0.0;
+  ctxt.physics_type = PHYSICS_DIFFUSION;
 
   ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"IRK options","");CHKERRQ(ierr);
   ierr = PetscOptionsReal("-a","diffusion coefficient","<1.0>",ctxt.a,
@@ -128,6 +136,8 @@ int main(int argc, char **argv)
   nstages = 2;
   ierr = PetscOptionsInt ("-irk_nstages","Number of stages in IRK method","",
                           nstages,&nstages,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsEnum("-physics_type","Type of process to discretize","",
+                          PhysicsTypes,(PetscEnum)ctxt.physics_type,(PetscEnum*)&ctxt.physics_type,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   /* allocate and initialize solution vector and exact solution */
@@ -178,8 +188,21 @@ int main(int argc, char **argv)
   ierr = MatSetUp(Identity);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(J,&matis,&matie);CHKERRQ(ierr);
   for (i=matis; i<matie; i++) {
-    PetscScalar values[3] = {-ctxt.a*1.0/dx2,ctxt.a*2.0/dx2,-ctxt.a*1.0/dx2};
+    PetscScalar values[3];
     PetscInt    col[3];
+    switch (ctxt.physics_type) {
+    case PHYSICS_DIFFUSION:
+      values[0] = -ctxt.a*1.0/dx2;
+      values[1] = ctxt.a*2.0/dx2;
+      values[2] = -ctxt.a*1.0/dx2;
+      break;
+    case PHYSICS_ADVECTION:
+      values[0] = -ctxt.a*.5/dx;
+      values[1] = 0.;
+      values[2] = ctxt.a*.5/dx;
+      break;
+    default: SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"No support for physics type %s",PhysicsTypes[ctxt.physics_type]);
+    }
     /* periodic boundaries */
     if (i == 0) {
       col[0] = ctxt.imax-1;
@@ -285,7 +308,15 @@ PetscErrorCode ExactSolution(Vec u,void *c,PetscReal t)
   ierr = VecGetArray(u,&uarr);CHKERRQ(ierr);
   for(i=is; i<ie; i++) {
     x          = i * dx;
-    uarr[i-is] = PetscExpScalar(-4.0*pi*pi*a*t)*PetscSinScalar(2*pi*x);
+    switch (ctxt->physics_type) {
+    case PHYSICS_DIFFUSION:
+      uarr[i-is] = PetscExpScalar(-4.0*pi*pi*a*t)*PetscSinScalar(2*pi*x);
+      break;
+    case PHYSICS_ADVECTION:
+      uarr[i-is] = PetscSinScalar(2*pi*(x - a*t));
+      break;
+    default: SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"No support for physics type %s",PhysicsTypes[ctxt->physics_type]);
+    }
   }
   ierr = VecRestoreArray(u,&uarr);CHKERRQ(ierr);
   PetscFunctionReturn(0);
