@@ -207,6 +207,35 @@ static PetscErrorCode PCApply_PBJacobi_7(PC pc,Vec x,Vec y)
   ierr = PetscLogFlops(91.0*m);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+#undef __FUNCT__
+#define __FUNCT__ "PCApply_PBJacobi_N"
+static PetscErrorCode PCApply_PBJacobi_N(PC pc,Vec x,Vec y)
+{
+  PC_PBJacobi       *jac = (PC_PBJacobi*)pc->data;
+  PetscErrorCode    ierr;
+  PetscInt          i,j,k,m = jac->mbs,bs=jac->bs;
+  const MatScalar   *diag = jac->diag;
+  const PetscScalar *xx;
+  PetscScalar       *yy;
+
+  PetscFunctionBegin;
+  ierr = VecGetArrayRead(x,&xx);CHKERRQ(ierr);
+  ierr = VecGetArray(y,&yy);CHKERRQ(ierr);
+  for (i=0; i<m; i++) {
+    for (j=0; j<bs; j++) yy[i*bs+j] = 0.;
+    for (j=0; j<bs; j++) {
+      for (k=0; k<bs; k++) {
+        yy[i*bs+k] += diag[k+bs*j]*xx[i*bs+j];
+      }
+    }
+    diag += bs*bs;
+  }
+  ierr = VecRestoreArrayRead(x,&xx);CHKERRQ(ierr);
+  ierr = VecRestoreArray(y,&yy);CHKERRQ(ierr);
+  ierr = PetscLogFlops(m*bs*(2*bs-1));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /* -------------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "PCSetUp_PBJacobi"
@@ -245,7 +274,7 @@ static PetscErrorCode PCSetUp_PBJacobi(PC pc)
     pc->ops->apply = PCApply_PBJacobi_7;
     break;
   default:
-    SETERRQ1(PetscObjectComm((PetscObject)pc),PETSC_ERR_SUP,"not supported for block size %D",jac->bs);
+    pc->ops->apply = PCApply_PBJacobi_N;
   }
   PetscFunctionReturn(0);
 }
