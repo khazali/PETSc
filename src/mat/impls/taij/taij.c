@@ -433,7 +433,7 @@ PetscErrorCode MatMult_MPITAIJ_dof(Mat A,Vec xx,Vec yy)
 {
   PetscErrorCode ierr;
   PetscFunctionBegin;
-  ierr = TAIJMultAdd_MPI(A,xx,PETSC_NULL,yy);
+  ierr = TAIJMultAdd_MPI(A,xx,PETSC_NULL,yy);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -443,7 +443,7 @@ PetscErrorCode MatMultAdd_MPITAIJ_dof(Mat A,Vec xx,Vec yy, Vec zz)
 {
   PetscErrorCode ierr;
   PetscFunctionBegin;
-  ierr = TAIJMultAdd_MPI(A,xx,yy,zz);
+  ierr = TAIJMultAdd_MPI(A,xx,yy,zz);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
