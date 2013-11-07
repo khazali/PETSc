@@ -79,8 +79,8 @@ static PetscErrorCode ExactSolution(Vec,void*,PetscReal);
 
 #include <petsc-private/kernels/blockinvert.h>
 
-#undef __FUNC__
-#define __FUNC__ "main"
+#undef __FUNCT__
+#define __FUNCT__ "main"
 int main(int argc, char **argv)
 {
   PetscErrorCode    ierr;
@@ -99,25 +99,27 @@ int main(int argc, char **argv)
   ctxt.xmin    = 0.0;
   ctxt.xmax    = 1.0;
   ctxt.imax    = 20;
-  ctxt.niter   = 0; 
+  ctxt.niter   = 0;
   ctxt.dt      = 0.0;
   ierr = PetscStrcpy(ctxt.irktype,GAUSS24);CHKERRQ(ierr);
 
-  /* Read options */
+  ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"IRK options","");CHKERRQ(ierr);
   ierr = PetscOptionsReal("-a","diffusion coefficient","<1.0>",ctxt.a,
-                          &ctxt.a,PETSC_NULL);CHKERRQ(ierr);
+                          &ctxt.a,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt ("-imax","grid size","<20>",ctxt.imax,
-                          &ctxt.imax,PETSC_NULL);CHKERRQ(ierr);
+                          &ctxt.imax,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-xmin","xmin","<0.0>",ctxt.xmin,
-                          &ctxt.xmin,PETSC_NULL);CHKERRQ(ierr);
+                          &ctxt.xmin,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-xmax","xmax","<1.0>",ctxt.xmax,
-                          &ctxt.xmax,PETSC_NULL);CHKERRQ(ierr);
+                          &ctxt.xmax,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt ("-niter","number of time steps","<0>",ctxt.niter,
-                          &ctxt.niter,PETSC_NULL);CHKERRQ(ierr);
+                          &ctxt.niter,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-dt","time step size","<0.0>",ctxt.dt,
-                          &ctxt.dt,PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-irktype","IRK method","<2>",ctxt.irktype,
                             ctxt.irktype,50,PETSC_NULL);CHKERRQ(ierr);
+                          &ctxt.dt,NULL);CHKERRQ(ierr);
+
+  ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   /* allocate and initialize solution vector and exact solution */
   dx = (ctxt.xmax - ctxt.xmin)/((PetscReal) ctxt.imax); dx2 = dx*dx;
@@ -211,10 +213,9 @@ int main(int argc, char **argv)
   ierr = VecDuplicate(z,&rhs);
 
   ierr = VecGetOwnershipRange(u,&is,&ie);CHKERRQ(ierr);
-  PetscMalloc3(nstages,PetscInt,&ix,
-               nstages,PetscScalar,&zvals,
-               ie-is,PetscInt,&ix2);CHKERRQ(ierr);
-
+  ierr = PetscMalloc3(nstages,PetscInt,&ix,
+                      nstages,PetscScalar,&zvals,
+                      ie-is,PetscInt,&ix2);CHKERRQ(ierr);
   /* iterate in time */
   for (n=0; n<ctxt.niter; n++) {
 
@@ -256,8 +257,8 @@ int main(int argc, char **argv)
   return(0);
 }
 
-#undef __FUNC__
-#define __FUNC__
+#undef __FUNCT__
+#define __FUNCT__ "ExactSolution"
 PetscErrorCode ExactSolution(Vec u,void *c,PetscReal t)
 {
   UserContext     *ctxt = (UserContext*) c;
