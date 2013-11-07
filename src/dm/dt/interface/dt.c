@@ -147,7 +147,6 @@ PetscErrorCode PetscDTGaussQuadrature(PetscInt npoints,PetscReal a,PetscReal b,P
     x[i] = 0;                   /* diagonal is 0 */
     if (i) w[i-1] = 0.5 / PetscSqrtReal(1 - 1./PetscSqr(2*i));
   }
-  ierr = PetscRealView(npoints-1,w,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
   ierr = PetscMalloc2(npoints*npoints,PetscScalar,&Z,PetscMax(1,2*npoints-2),PetscReal,&work);CHKERRQ(ierr);
   ierr = PetscBLASIntCast(npoints,&N);CHKERRQ(ierr);
   LDZ  = N;
@@ -161,7 +160,7 @@ PetscErrorCode PetscDTGaussQuadrature(PetscInt npoints,PetscReal a,PetscReal b,P
     x[i]           = (a+b)/2 - y*(b-a)/2;
     x[npoints-i-1] = (a+b)/2 + y*(b-a)/2;
 
-    w[i] = w[npoints-1-i] = (b-a)*PetscSqr(0.5*PetscAbsScalar(Z[i*npoints] + Z[(npoints-i-1)*npoints]));
+    w[i] = w[npoints-1-i] = (b-a)*PetscAbsScalar(Z[i*npoints])*PetscAbsScalar(Z[(npoints-i-1)*npoints]);
   }
   ierr = PetscFree2(Z,work);CHKERRQ(ierr);
   PetscFunctionReturn(0);
