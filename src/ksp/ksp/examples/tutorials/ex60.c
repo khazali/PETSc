@@ -96,7 +96,7 @@ int main(int argc, char **argv)
   Mat               Identity,J,TA,SC,R;
   KSP               ksp;
   PetscFunctionList IRKList = NULL;
-  char              irktype[256] = IRKGAUSS24;
+  char              irktype[256] = IRKGAUSS;
 
   PetscInitialize(&argc,&argv,(char*)0,help);
   ierr = PetscFunctionListAdd(&IRKList,IRKGAUSS24,RKCreate_Gauss24);CHKERRQ(ierr);
