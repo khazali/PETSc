@@ -90,7 +90,7 @@ int main(int argc, char **argv)
   PetscInt          n,i,s,t;
   PetscScalar       *A,*B,*At,*b,*zvals;
   PetscReal         dx,dx2,err,one=1.0;
-  Mat               I,J,TA,SC,R;
+  Mat               Identity,J,TA,SC,R;
   KSP               ksp;
 
   PetscInitialize(&argc,&argv,(char*)0,help);
@@ -115,9 +115,9 @@ int main(int argc, char **argv)
   ierr = PetscOptionsInt ("-niter","number of time steps","<0>",ctxt.niter,
                           &ctxt.niter,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-dt","time step size","<0.0>",ctxt.dt,
+                          &ctxt.dt,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-irktype","IRK method","<2>",ctxt.irktype,
                             ctxt.irktype,50,PETSC_NULL);CHKERRQ(ierr);
-                          &ctxt.dt,NULL);CHKERRQ(ierr);
 
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
@@ -162,10 +162,10 @@ int main(int argc, char **argv)
   ierr = MatSetType(J,MATAIJ);CHKERRQ(ierr);
   ierr = MatSetSizes(J,PETSC_DECIDE,PETSC_DECIDE,ctxt.imax,ctxt.imax);CHKERRQ(ierr);
   ierr = MatSetUp(J);CHKERRQ(ierr);
-  ierr = MatCreate(PETSC_COMM_WORLD,&I);CHKERRQ(ierr);
-  ierr = MatSetType(I,MATAIJ);CHKERRQ(ierr);
-  ierr = MatSetSizes(I,PETSC_DECIDE,PETSC_DECIDE,ctxt.imax,ctxt.imax);CHKERRQ(ierr);
-  ierr = MatSetUp(I);CHKERRQ(ierr);
+  ierr = MatCreate(PETSC_COMM_WORLD,&Identity);CHKERRQ(ierr);
+  ierr = MatSetType(Identity,MATAIJ);CHKERRQ(ierr);
+  ierr = MatSetSizes(Identity,PETSC_DECIDE,PETSC_DECIDE,ctxt.imax,ctxt.imax);CHKERRQ(ierr);
+  ierr = MatSetUp(Identity);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(J,&matis,&matie);CHKERRQ(ierr);
   for (i=matis; i<matie; i++) {
     PetscScalar values[3] = {-ctxt.a*1.0/dx2,ctxt.a*2.0/dx2,-ctxt.a*1.0/dx2};
@@ -185,12 +185,12 @@ int main(int argc, char **argv)
       col[2] = i+1;
     }
     ierr= MatSetValues(J,1,&i,3,col,values,INSERT_VALUES);CHKERRQ(ierr);
-    ierr= MatSetValues(I,1,&i,1,&i,&one,INSERT_VALUES);CHKERRQ(ierr);
+    ierr= MatSetValues(Identity,1,&i,1,&i,&one,INSERT_VALUES);CHKERRQ(ierr);
   }
   ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd  (J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatAssemblyBegin(I,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatAssemblyEnd  (I,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(Identity,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd  (Identity,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
   /* Create the TAIJ matrix for solving the stages */
   ierr = MatCreateTAIJ(J,nstages,nstages,A,B,&TA);CHKERRQ(ierr);
@@ -199,7 +199,7 @@ int main(int argc, char **argv)
   ierr = MatCreateTAIJ(J,1,nstages,NULL,b,&SC);CHKERRQ(ierr);
 
   /* Create the TAIJ matrix to create the R for solving the stages */
-  ierr = MatCreateTAIJ(I,nstages,1,NULL,At,&R);CHKERRQ(ierr);
+  ierr = MatCreateTAIJ(Identity,nstages,1,NULL,At,&R);CHKERRQ(ierr);
 
   /* Create and set options for KSP */
   ierr = KSPCreate(PETSC_COMM_WORLD,&ksp);CHKERRQ(ierr);
@@ -248,8 +248,8 @@ int main(int argc, char **argv)
   ierr = MatDestroy(&SC);       CHKERRQ(ierr);
   ierr = MatDestroy(&R);        CHKERRQ(ierr);
   ierr = MatDestroy(&J);        CHKERRQ(ierr);
-  ierr = MatDestroy(&I);        CHKERRQ(ierr);
   ierr = PetscFree4(A,B,At,b);  CHKERRQ(ierr);
+  ierr = MatDestroy(&Identity); CHKERRQ(ierr);
   ierr = VecDestroy(&uex);      CHKERRQ(ierr);
   ierr = VecDestroy(&u);        CHKERRQ(ierr);
 
