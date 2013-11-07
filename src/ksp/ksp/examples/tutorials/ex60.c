@@ -64,7 +64,7 @@ T*/
 #include <petscksp.h>
 
 /* define the IRK methods available */
-#define GAUSS24    "gauss24"
+#define IRKGAUSS24    "gauss24"
 
 typedef struct __context__ {
   PetscReal     a;              /* diffusion coefficient      */
@@ -72,10 +72,10 @@ typedef struct __context__ {
   PetscInt      imax;           /* number of grid points      */
   PetscInt      niter;          /* number of time iterations  */
   PetscReal     dt;             /* time step size             */
-  char          irktype[50];    /* irk method                 */
 } UserContext;
 
 static PetscErrorCode ExactSolution(Vec,void*,PetscReal);
+static PetscErrorCode RKCreate_Gauss24(PetscInt,PetscScalar**,PetscScalar**,PetscReal**);
 
 #include <petsc-private/kernels/blockinvert.h>
 
@@ -88,12 +88,16 @@ int main(int argc, char **argv)
   UserContext       ctxt;
   PetscInt          nstages,is,ie,matis,matie,*ix,*ix2;
   PetscInt          n,i,s,t;
-  PetscScalar       *A,*B,*At,*b,*zvals;
-  PetscReal         dx,dx2,err,one=1.0;
+  PetscScalar       *A,*B,*At,*b,*zvals,one = 1.0;
+  PetscReal         *c,dx,dx2,err;
   Mat               Identity,J,TA,SC,R;
   KSP               ksp;
+  PetscFunctionList IRKList = NULL;
+  char              irktype[256] = IRKGAUSS24;
 
   PetscInitialize(&argc,&argv,(char*)0,help);
+  ierr = PetscFunctionListAdd(&IRKList,IRKGAUSS24,RKCreate_Gauss24);CHKERRQ(ierr);
+
   /* default value */
   ctxt.a       = 1.0;
   ctxt.xmin    = 0.0;
@@ -101,7 +105,6 @@ int main(int argc, char **argv)
   ctxt.imax    = 20;
   ctxt.niter   = 0;
   ctxt.dt      = 0.0;
-  ierr = PetscStrcpy(ctxt.irktype,GAUSS24);CHKERRQ(ierr);
 
   ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"IRK options","");CHKERRQ(ierr);
   ierr = PetscOptionsReal("-a","diffusion coefficient","<1.0>",ctxt.a,
@@ -116,9 +119,11 @@ int main(int argc, char **argv)
                           &ctxt.niter,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-dt","time step size","<0.0>",ctxt.dt,
                           &ctxt.dt,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsString("-irktype","IRK method","<2>",ctxt.irktype,
-                            ctxt.irktype,50,PETSC_NULL);CHKERRQ(ierr);
-
+  ierr = PetscOptionsList("-irk_type","IRK method family","",
+                          IRKList,irktype,irktype,sizeof(irktype),NULL);CHKERRQ(ierr);
+  nstages = 2;
+  ierr = PetscOptionsInt ("-irk_nstages","Number of stages in IRK method","",
+                          nstages,&nstages,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   /* allocate and initialize solution vector and exact solution */
@@ -132,29 +137,30 @@ int main(int argc, char **argv)
   /* exact   solution */
   ierr = ExactSolution(uex,&ctxt,ctxt.dt*ctxt.niter);CHKERRQ(ierr);
 
-  /* allocate and calculate (1/dt)*A^{-1} and b */
-  if (!strcmp(ctxt.irktype,GAUSS24)) {
-    nstages = 2;
-    ierr = PetscMalloc4(nstages*nstages,PetscScalar,&A,
-                        nstages*nstages,PetscScalar,&B,
-                        nstages        ,PetscScalar,&At,
-                        nstages        ,PetscScalar,&b);CHKERRQ(ierr);
-    A[0] = 0.25; A[2] = (3.0-2.0*1.7320508075688772)/12.0;
-    A[1] = (3.0+2.0*1.7320508075688772)/12.0; A[3] = 0.25;
-    b[0] = 0.5; b[1] = 0.5;
-    B[0] = B[3] = 1.0; B[1] = B[2] = 0.0;
-    ierr = PetscKernel_A_gets_inverse_A_2(A,0.0);CHKERRQ(ierr);
-  } else {
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"Error: %s is not a supported IRK method.\n",
-                       ctxt.irktype);CHKERRQ(ierr);
-    PetscFinalize();
-    return(0);
+  {                             /* Create A,b,c */
+    PetscErrorCode (*irkcreate)(PetscInt,PetscScalar**,PetscScalar**,PetscReal**);
+    ierr = PetscFunctionListFind(IRKList,irktype,&irkcreate);CHKERRQ(ierr);
+    ierr = (*irkcreate)(nstages,&A,&b,&c);CHKERRQ(ierr);
   }
+  {                             /* Invert A */
+    PetscInt *pivots;
+    PetscScalar *work;
+    ierr = PetscMalloc2(nstages,PetscInt,&pivots,nstages,PetscScalar,&work);CHKERRQ(ierr);
+    ierr = PetscKernel_A_gets_inverse_A(nstages,A,pivots,work);CHKERRQ(ierr);
+    ierr = PetscFree2(pivots,work);CHKERRQ(ierr);
+  }
+  /* Scale (1/dt)*A^{-1} and (1/dt)*b */
   for (s=0; s<nstages*nstages; s++) A[s] *= 1.0/ctxt.dt;
   for (s=0; s<nstages; s++) b[s] *= (-ctxt.dt);
+
+  /* Compute row sums At and identity B */
+  ierr = PetscMalloc2(nstages,PetscScalar,&At,PetscSqr(nstages),PetscScalar,&B);CHKERRQ(ierr);
   for (s=0; s<nstages; s++) {
     At[s] = 0;
-    for (t=0; t<nstages; t++) At[s] += A[s+nstages*t];
+    for (t=0; t<nstages; t++) {
+      At[s] += A[s+nstages*t];      /* Row sums of  */
+      B[s+nstages*t] = 1.*(s == t); /* identity */
+    }
   }
 
   /* allocate and calculate the (-J) matrix */
@@ -248,10 +254,12 @@ int main(int argc, char **argv)
   ierr = MatDestroy(&SC);       CHKERRQ(ierr);
   ierr = MatDestroy(&R);        CHKERRQ(ierr);
   ierr = MatDestroy(&J);        CHKERRQ(ierr);
-  ierr = PetscFree4(A,B,At,b);  CHKERRQ(ierr);
   ierr = MatDestroy(&Identity); CHKERRQ(ierr);
+  ierr = PetscFree3(A,b,c);     CHKERRQ(ierr);
+  ierr = PetscFree2(At,B);      CHKERRQ(ierr);
   ierr = VecDestroy(&uex);      CHKERRQ(ierr);
   ierr = VecDestroy(&u);        CHKERRQ(ierr);
+  ierr = PetscFunctionListDestroy(&IRKList);CHKERRQ(ierr);
 
   PetscFinalize();
   return(0);
@@ -276,5 +284,28 @@ PetscErrorCode ExactSolution(Vec u,void *c,PetscReal t)
     uarr[i-is] = PetscExpScalar(-4.0*pi*pi*a*t)*PetscSinScalar(2*pi*x);
   }
   ierr = VecRestoreArray(u,&uarr);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "RKCreate_Gauss24"
+/* Arrays should be freed with PetscFree3(A,b,c) */
+static PetscErrorCode RKCreate_Gauss24(PetscInt nstages,PetscScalar **gauss_A,PetscScalar **gauss_b,PetscReal **gauss_c)
+{
+  PetscErrorCode    ierr;
+  PetscScalar       *A,*b;
+  PetscReal         *c;
+
+  PetscFunctionBegin;
+  if (nstages != 2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Method 'gauss24' does not support %D stages, use -irk_nstages 2",nstages);
+  ierr = PetscMalloc3(PetscSqr(nstages),PetscReal,&A,nstages,PetscReal,&b,nstages,PetscReal,&c);CHKERRQ(ierr);
+  A[0] = 0.25; A[2] = (3.0-2.0*1.7320508075688772)/12.0;
+  A[1] = (3.0+2.0*1.7320508075688772)/12.0; A[3] = 0.25;
+  b[0] = 0.5;                        b[1] = 0.5;
+  c[0] = 0.5 - PetscSqrtReal(3)/6;   c[1] = 0.5 + PetscSqrtReal(3)/6;
+
+  *gauss_A = A;
+  *gauss_b = b;
+  *gauss_c = c;
   PetscFunctionReturn(0);
 }
