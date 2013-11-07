@@ -198,7 +198,7 @@ static PetscErrorCode PCApply_PBJacobi_7(PC pc,Vec x,Vec y)
   }
   ierr = VecRestoreArray(x,&xx);CHKERRQ(ierr);
   ierr = VecRestoreArray(y,&yy);CHKERRQ(ierr);
-  ierr = PetscLogFlops(80.0*m);CHKERRQ(ierr);
+  ierr = PetscLogFlops(91.0*m);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 /* -------------------------------------------------------------------------- */
