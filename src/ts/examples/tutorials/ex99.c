@@ -14,7 +14,7 @@ F*/
 #include <petscdmplex.h>
 #include <petscdmda.h>
 
-#define MAX_DIM 3                   /* Geometric dimension */
+#define MAX_DIM 3                  /* Geometric dimension */
 #define ALEN(a) (sizeof(a)/sizeof((a)[0]))
 
 /* Represents continuum physical equations. */
@@ -28,9 +28,7 @@ typedef struct _n_Model *Model;
 typedef struct _n_User *User;
 
 typedef PetscErrorCode (*SolutionFunction)(Model,PetscReal,const PetscReal*,PetscScalar*,void*);
-typedef PetscErrorCode (*BoundaryFunction)(Model,PetscReal,const PetscReal*,const PetscReal*,const PetscScalar*,PetscScalar*,void*);
 typedef PetscErrorCode (*FunctionalFunction)(Model,PetscReal,const PetscReal*,const PetscScalar*,PetscReal*,void*);
-static PetscErrorCode ModelBoundaryRegister(Model,const char*,BoundaryFunction,void*,PetscInt,const PetscInt*);
 static PetscErrorCode ModelSolutionSetDefault(Model,SolutionFunction,void*);
 static PetscErrorCode ModelSourceSetDefault(Model,SolutionFunction,void*);
 static PetscErrorCode ModelAlphaSetDefault(Model,SolutionFunction,void*);
@@ -40,16 +38,6 @@ static PetscErrorCode OutputVTK(DM,const char*,PetscViewer*);
 struct FieldDescription {
   const char *name;
   PetscInt dof;
-};
-
-typedef struct _n_BoundaryLink *BoundaryLink;
-struct _n_BoundaryLink {
-  char             *name;
-  BoundaryFunction func;
-  void             *ctx;
-  PetscInt         numids;
-  PetscInt         *ids;
-  BoundaryLink     next;
 };
 
 typedef struct _n_FunctionalLink *FunctionalLink;
@@ -71,7 +59,6 @@ struct _n_Physics {
 struct _n_Model {
   MPI_Comm         comm;        /* Does not do collective communicaton, but some error conditions can be collective */
   Physics          physics;
-  BoundaryLink     boundary;
   FunctionalLink   functionalRegistry;
   PetscInt         maxComputed;
   PetscInt         numMonitored;
@@ -82,12 +69,13 @@ struct _n_Model {
   SolutionFunction source;
   SolutionFunction alpha;
   /* void             *solutionctx; */
-  PetscInt dim;
+  PetscInt         dim;
+  PetscReal        BCFactor;
 };
 #define MAX_LEVEL 16
 struct _n_User {
   PetscInt       numGhostCells;
-  PetscInt       cEndInterior; /* First boundary ghost cell */
+  PetscInt       cEndInterior; /* First boundary process ghost cell */
   Vec            cellgeom, facegeom;
   PetscInt       vtkInterval;   /* For monitor */
   Model          model;
@@ -96,6 +84,7 @@ struct _n_User {
   PetscReal      dx[MAX_LEVEL][MAX_DIM]; /* dx at each level, cartisian grid */
   /* PetscInt       N[MAX_LEVEL][MAX_DIM]; */   /* number of cells in each dim */
   PetscInt       ilev; /* cache of current level */
+  PetscBool      useBoxStencil;
 };
 
 /* this is going away !!!! */
@@ -123,17 +112,6 @@ typedef struct {
 } Physics_Lap;
 
 static const struct FieldDescription PhysicsFields_Lap[] = {{"U",1},{NULL,0}};
-
-#undef __FUNCT__
-#define __FUNCT__ "PhysicsBoundary_DiriHomo"
-static PetscErrorCode PhysicsBoundary_DiriHomo(Model mod, PetscReal time, const PetscReal *fCentroid, const PetscReal *normal, const PetscScalar *xInterior, PetscScalar *xGhost, void *ctx)
-{
-  /* Physics      phys = (Physics)ctx; */
-  /* Physics_Lap *lap = (Physics_Lap*)phys->data; */
-  PetscFunctionBeginUser;
-  xGhost[0] = -xInterior[0];
-  PetscFunctionReturn(0);
-}
 
 /* U: (x^2-x^4)*(y^4-y^2)*(z^4-z^2) */
 #undef __FUNCT__
@@ -223,9 +201,6 @@ static PetscErrorCode PhysicsCreate_Lap(Model mod,Physics phys)
   lap = (Physics_Lap*)phys->data;
 
   {
-    const PetscInt diriids[] = {100,101,102,103};
-    /* Register "canned" boundary conditions and defaults for where to apply. */
-    ierr = ModelBoundaryRegister(mod,"diri",PhysicsBoundary_DiriHomo,phys,ALEN(diriids),diriids);CHKERRQ(ierr);
     /* Initial/transient solution with default boundary conditions */
     ierr = ModelSolutionSetDefault(mod,PhysicsSolution_Lap_x4_x2,phys);CHKERRQ(ierr);
     ierr = ModelSourceSetDefault(mod,PhysicsSource_Lap_x4_x2,phys);CHKERRQ(ierr);
@@ -261,7 +236,7 @@ PetscErrorCode ConstructGeometry(DM dm, Vec *facegeom, Vec *cellgeom, User user)
   ierr = DMSetCoordinateSection(dmCell, coordSection);CHKERRQ(ierr);
   ierr = DMSetCoordinatesLocal(dmCell, coordinates);CHKERRQ(ierr);
   ierr = PetscSectionCreate(PetscObjectComm((PetscObject)dm), &sectionCell);CHKERRQ(ierr);
-  ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+  ierr = DMDAGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = PetscSectionSetChart(sectionCell, cStart, cEnd);CHKERRQ(ierr);
   for (c = cStart; c < cEnd; ++c) {
     ierr = PetscSectionSetDof(sectionCell, c, sizeof(CellGeom)/sizeof(PetscScalar));CHKERRQ(ierr);
@@ -282,7 +257,7 @@ PetscErrorCode ConstructGeometry(DM dm, Vec *facegeom, Vec *cellgeom, User user)
   /* Compute face normals, centroid(used?) */
   ierr = DMClone(dm, &dmFace);CHKERRQ(ierr);
   ierr = PetscSectionCreate(PetscObjectComm((PetscObject)dm), &sectionFace);CHKERRQ(ierr);
-  ierr = DMPlexGetHeightStratum(dm, 1, &fStart, &fEnd);CHKERRQ(ierr);
+  ierr = DMDAGetHeightStratum(dm, 1, &fStart, &fEnd);CHKERRQ(ierr);
   ierr = PetscSectionSetChart(sectionFace, fStart, fEnd);CHKERRQ(ierr);
 
   for (f = fStart; f < fEnd; ++f) {
@@ -362,99 +337,7 @@ PetscErrorCode ConstructGeometry(DM dm, Vec *facegeom, Vec *cellgeom, User user)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "SetUpBoundaries"
-PetscErrorCode SetUpBoundaries(MPI_Comm comm, User user)
-{
-  Model          mod = user->model;
-  PetscErrorCode ierr;
-  BoundaryLink   b;
-
-  PetscFunctionBeginUser;
-  ierr = PetscOptionsBegin(comm,NULL,"Boundary condition options","");CHKERRQ(ierr);
-  for (b = mod->boundary; b; b=b->next) {
-    char      optname[512];
-    PetscInt  ids[512],len = 512;
-    PetscBool flg;
-    ierr = PetscSNPrintf(optname,sizeof optname,"-bc_%s",b->name);CHKERRQ(ierr);
-    ierr = PetscMemzero(ids,sizeof(ids));CHKERRQ(ierr);
-    ierr = PetscOptionsIntArray(optname,"List of boundary IDs","",ids,&len,&flg);CHKERRQ(ierr);
-    if (flg) {
-      /* TODO: check all IDs to make sure they exist in the mesh */
-      ierr      = PetscFree(b->ids);CHKERRQ(ierr);
-      b->numids = len;
-      ierr      = PetscMalloc(len*sizeof(PetscInt),&b->ids);CHKERRQ(ierr);
-      ierr      = PetscMemcpy(b->ids,ids,len*sizeof(PetscInt));CHKERRQ(ierr);
-    }
-  }
-  ierr = PetscOptionsEnd();CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "ModelBoundaryRegister"
-/* The ids are just defaults, can be overridden at command line. I expect to set defaults based on names in the future. */
-static PetscErrorCode ModelBoundaryRegister(Model mod,const char *name,BoundaryFunction bcFunc,void *ctx,PetscInt numids,const PetscInt *ids)
-{
-  PetscErrorCode ierr;
-  BoundaryLink   link;
-
-  PetscFunctionBeginUser;
-  ierr          = PetscNew(struct _n_BoundaryLink,&link);CHKERRQ(ierr);
-  ierr          = PetscStrallocpy(name,&link->name);CHKERRQ(ierr);
-  link->numids  = numids;
-  ierr          = PetscMalloc(numids*sizeof(PetscInt),&link->ids);CHKERRQ(ierr);
-  ierr          = PetscMemcpy(link->ids,ids,numids*sizeof(PetscInt));CHKERRQ(ierr);
-  link->func    = bcFunc;
-  link->ctx     = ctx;
-  link->next    = mod->boundary;
-  mod->boundary = link;
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "BoundaryLinkDestroy"
-static PetscErrorCode BoundaryLinkDestroy(BoundaryLink *link)
-{
-  PetscErrorCode ierr;
-  BoundaryLink   l,next;
-
-  PetscFunctionBeginUser;
-  if (!link) PetscFunctionReturn(0);
-  l     = *link;
-  *link = NULL;
-  for (; l; l=next) {
-    next = l->next;
-    ierr = PetscFree(l->ids);CHKERRQ(ierr);
-    ierr = PetscFree(l->name);CHKERRQ(ierr);
-    ierr = PetscFree(l);CHKERRQ(ierr);
-  }
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "ModelBoundaryFind"
-static PetscErrorCode ModelBoundaryFind(Model mod,PetscInt id,BoundaryFunction *bcFunc,void **ctx)
-{
-  BoundaryLink link;
-  PetscInt     i;
-
-  PetscFunctionBeginUser;
-  *bcFunc = NULL;
-  for (link=mod->boundary; link; link=link->next) {
-    for (i=0; i<link->numids; i++) {
-      if (link->ids[i] == id) {
-        *bcFunc = link->func;
-        *ctx    = link->ctx;
-        PetscFunctionReturn(0);
-      }
-    }
-  }
-  SETERRQ1(mod->comm,PETSC_ERR_USER,"Boundary ID %D not associated with any registered boundary condition",id);
-  PetscFunctionReturn(0);
-}
-#undef __FUNCT__
 #define __FUNCT__ "ModelSolutionSetDefault"
-/* Behavior will be different for multi-physics or when using non-default boundary conditions */
 static PetscErrorCode ModelSolutionSetDefault(Model mod,SolutionFunction func,void *ctx)
 {
   PetscFunctionBeginUser;
@@ -464,7 +347,6 @@ static PetscErrorCode ModelSolutionSetDefault(Model mod,SolutionFunction func,vo
 }
 #undef __FUNCT__
 #define __FUNCT__ "ModelSourceSetDefault"
-/* Behavior will be different for multi-physics or when using non-default boundary conditions */
 static PetscErrorCode ModelSourceSetDefault(Model mod,SolutionFunction func,void *ctx)
 {
   PetscFunctionBeginUser;
@@ -474,7 +356,6 @@ static PetscErrorCode ModelSourceSetDefault(Model mod,SolutionFunction func,void
 }
 #undef __FUNCT__
 #define __FUNCT__ "ModelAlphaSetDefault"
-/* Behavior will be different for multi-physics or when using non-default boundary conditions */
 static PetscErrorCode ModelAlphaSetDefault(Model mod,SolutionFunction func,void *ctx)
 {
   PetscFunctionBeginUser;
@@ -579,7 +460,7 @@ PetscErrorCode SetInitialCondition(DM dm, Vec X, User user)
   PetscErrorCode    ierr;
 
   PetscFunctionBeginUser;
-  ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+  ierr = DMDAGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = VecGetArray(X, &x);CHKERRQ(ierr);
   for (c = cStart; c < cEndInterior; ++c) {
     PetscScalar    *xc;
@@ -635,7 +516,7 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
       fmax[i]      = PETSC_MIN_REAL;
       fintegral[i] = 0;
     }
-    ierr = DMPlexGetHeightStratum(dm,0,&cStart,&cEnd);CHKERRQ(ierr);
+    ierr = DMDAGetHeightStratum(dm,0,&cStart,&cEnd);CHKERRQ(ierr);
     ierr = VecGetDM(user->cellgeom,&dmCell);CHKERRQ(ierr);
     ierr = VecGetArrayRead(user->cellgeom,&cellgeom_v);CHKERRQ(ierr);
     ierr = VecGetArrayRead(X,&x_v);CHKERRQ(ierr);
@@ -751,7 +632,7 @@ PetscErrorCode CreatePartitionVec(DM dm, DM *dmCell, Vec *partition)
   ierr = DMSetCoordinatesLocal(*dmCell, coordinates);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)dm), &rank);CHKERRQ(ierr);
   ierr = PetscSectionCreate(PetscObjectComm((PetscObject)dm), &sectionCell);CHKERRQ(ierr);
-  ierr = DMPlexGetHeightStratum(*dmCell, 0, &cStart, &cEnd);CHKERRQ(ierr);
+  ierr = DMDAGetHeightStratum(*dmCell, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = PetscSectionSetChart(sectionCell, cStart, cEnd);CHKERRQ(ierr);
   for (c = cStart; c < cEnd; ++c) {
     ierr = PetscSectionSetDof(sectionCell, c, 1);CHKERRQ(ierr);
@@ -773,105 +654,124 @@ PetscErrorCode CreatePartitionVec(DM dm, DM *dmCell, Vec *partition)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "ApplyBC"
-static PetscErrorCode ApplyBC(DM dm, PetscReal time, Vec locX, User user)
-{
-  Model             mod = user->model;
-  const char        *name = "Face Sets";
-  DM                dmFace;
-  IS                idIS;
-  const PetscInt    *ids;
-  PetscScalar       *x;
-  const PetscScalar *facegeom;
-  PetscInt          numFS, fs;
-  PetscErrorCode    ierr;
-
-  PetscFunctionBeginUser;
-  ierr = VecGetDM(user->facegeom,&dmFace);CHKERRQ(ierr);
-  ierr = DMPlexGetLabelIdIS(dm, name, &idIS);CHKERRQ(ierr);
-  if (!idIS) PetscFunctionReturn(0);
-  ierr = ISGetLocalSize(idIS, &numFS);CHKERRQ(ierr);
-  ierr = ISGetIndices(idIS, &ids);CHKERRQ(ierr);
-  ierr = VecGetArrayRead(user->facegeom, &facegeom);CHKERRQ(ierr);
-  ierr = VecGetArray(locX, &x);CHKERRQ(ierr);
-  for (fs = 0; fs < numFS; ++fs) {
-    BoundaryFunction bcFunc;
-    void             *bcCtx;
-    IS               faceIS;
-    const PetscInt   *faces;
-    PetscInt         numFaces, f;
-    ierr = ModelBoundaryFind(mod,ids[fs],&bcFunc,&bcCtx);CHKERRQ(ierr);
-    ierr = DMPlexGetStratumIS(dm, name, ids[fs], &faceIS);CHKERRQ(ierr);
-    ierr = ISGetLocalSize(faceIS, &numFaces);CHKERRQ(ierr);
-    ierr = ISGetIndices(faceIS, &faces);CHKERRQ(ierr);
-    for (f = 0; f < numFaces; ++f) {
-      const PetscInt    face = faces[f], *cells;
-      const PetscScalar *xI;
-      PetscScalar       *xG;
-      const FaceGeom    *fg;
-      ierr = DMPlexPointLocalRead(dmFace, face, facegeom, &fg);CHKERRQ(ierr);
-      ierr = DMPlexGetSupport(dm, face, &cells);CHKERRQ(ierr);
-      ierr = DMPlexPointLocalRead(dm, cells[0], x, &xI);CHKERRQ(ierr);
-      ierr = DMPlexPointLocalRef(dm, cells[1], x, &xG);CHKERRQ(ierr);
-      ierr = (*bcFunc)(mod, time, fg->centroid, fg->normal, xI, xG, bcCtx);CHKERRQ(ierr);
-    }
-    ierr = ISRestoreIndices(faceIS, &faces);CHKERRQ(ierr);
-    ierr = ISDestroy(&faceIS);CHKERRQ(ierr);
-  }
-  ierr = VecRestoreArray(locX, &x);CHKERRQ(ierr);
-  ierr = VecRestoreArrayRead(user->facegeom,&facegeom);CHKERRQ(ierr);
-  ierr = ISRestoreIndices(idIS, &ids);CHKERRQ(ierr);
-  ierr = ISDestroy(&idIS);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
 #define __FUNCT__ "ApplyLaplacianLocal"
-static PetscErrorCode ApplyLaplacianLocal(DM dm,DM dmFace,DM dmCell,PetscReal time,Vec locX,Vec F,User user)
+static PetscErrorCode ApplyLaplacianLocal(DM dm,DM dmFace,DM dmCell,PetscReal time,Vec locU,Vec F,User user)
 {
-  /* Physics           phys = user->model->physics; */
   DMLabel           ghostLabel;
   PetscErrorCode    ierr;
-  const PetscScalar *facegeom, *cellgeom, *x;
+  const PetscScalar *facegeom, *cellgeom, *uArray;
   PetscScalar       *f;
   PetscInt          fStart, fEnd, face;
+  const PetscReal   sten[2]={10./12.,1./12.}; /* 1D stencil: [1  10  1] / 12 */
+  const PetscReal   BCFact = user->model->BCFactor; /* Diri */
+  const int dim = user->model->dim;
 
   PetscFunctionBeginUser;
   ierr = VecGetArrayRead(user->facegeom,&facegeom);CHKERRQ(ierr);
-  ierr = VecGetArrayRead(user->cellgeom,&cellgeom);CHKERRQ(ierr);
-  ierr = VecGetArrayRead(locX,&x);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(user->cellgeom,&cellgeom);CHKERRQ(ierr);// kill
+  ierr = VecGetArrayRead(locU,&uArray);CHKERRQ(ierr);
   ierr = VecGetArray(F,&f);CHKERRQ(ierr);
   ierr = DMPlexGetLabel(dm, "ghost", &ghostLabel);CHKERRQ(ierr);
-  ierr = DMPlexGetHeightStratum(dm, 1, &fStart, &fEnd);CHKERRQ(ierr);
+  ierr = DMDAGetHeightStratum(dm, 1, &fStart, &fEnd);CHKERRQ(ierr);
   for (face = fStart; face < fEnd; ++face) {
     const PetscInt    *cells;
-    PetscInt          ghost;
-    PetscScalar       *fL,*fR,v[MAX_DIM],dx,area,flux,alpha;
+    PetscInt          ghost,nC,dirs[MAX_DIM],i;
+    PetscScalar       *fL,*fR,area,flux,alpha,u[2];
+    PetscReal          v[MAX_DIM],dx,fact0[2],fact1[2];
     const FaceGeom    *fg;
     const CellGeom    *cgL,*cgR;
-    const PetscScalar *xL,*xR;
+    const PetscScalar *puL,*puR;
 
     ierr = DMLabelGetValue(ghostLabel, face, &ghost);CHKERRQ(ierr);
     if (ghost >= 0) continue;
-    ierr = DMPlexGetSupport(dm, face, &cells);CHKERRQ(ierr);
     ierr = DMPlexPointLocalRead(dmFace,face,facegeom,&fg);CHKERRQ(ierr);
-    ierr = DMPlexPointLocalRead(dmCell,cells[0],cellgeom,&cgL);CHKERRQ(ierr);
-    ierr = DMPlexPointLocalRead(dmCell,cells[1],cellgeom,&cgR);CHKERRQ(ierr);
-    ierr = DMPlexPointLocalRead(dm,cells[0],x,&xL);CHKERRQ(ierr);
-    ierr = DMPlexPointLocalRead(dm,cells[1],x,&xR);CHKERRQ(ierr);
+    /* get direction of face */
+    for (i=0,dirs[0]=-1;i<dim;++i) if (fg->normal[i]!=0.0) dirs[0] = i;
+    ierr = DMPlexGetSupportSize(dm, face, &nC);CHKERRQ(ierr);
+    ierr = DMPlexGetSupport(dm, face, &cells);CHKERRQ(ierr);
+    ierr = DMPlexPointLocalRead(dmCell,cells[0],cellgeom,&cgL);CHKERRQ(ierr); // kill
+    ierr = DMPlexPointLocalRead(dm,cells[0],uArray,&puL);CHKERRQ(ierr);
     ierr = DMPlexPointGlobalRef(dm,cells[0],f,&fL);CHKERRQ(ierr);
-    ierr = DMPlexPointGlobalRef(dm,cells[1],f,&fR);CHKERRQ(ierr);
-    ierr = (*user->model->alpha)(user->model,time,fg->centroid,&alpha,user->model->physics);CHKERRQ(ierr); /* store this? */
-    WaxpyD(user->model->dim,-1,cgL->centroid,cgR->centroid,v); /* dx vector */
+    fact0[0] = fact0[1] = 1.;
+    if (nC==2) {
+      ierr = DMPlexPointLocalRead(dmCell,cells[1],cellgeom,&cgR);CHKERRQ(ierr); // kill
+      ierr = DMPlexPointLocalRead(dm,cells[1],uArray,&puR);CHKERRQ(ierr);
+      ierr = DMPlexPointGlobalRef(dm,cells[1],f,&fR);CHKERRQ(ierr);
+    }
+    else {
+      ierr = DMPlexPointLocalRead(dmCell,cells[0],cellgeom,&cgR);CHKERRQ(ierr); // kill
+      /* ierr = DMPlexPointLocalRead(dm,cells[0],uArray,&puR);CHKERRQ(ierr); */
+      /* ierr = DMPlexPointGlobalRef(dm,cells[0],f,&fR);CHKERRQ(ierr); */
+      puR = puL;
+      fR = 0; /* no update of ghost */
+      if (fg->normal[dirs[0]] > 0.) fact0[1] = BCFact; // right ghost
+      else fact0[0] = BCFact;
+PetscPrintf(PETSC_COMM_WORLD,"ApplyLaplacianLocal: have domain ghost cell on face %d cell %d normal %e in direction %d\n",face,cells[0],fg->normal[dirs[0]],dirs[0]);
+    }
+    ierr = (*user->model->alpha)(user->model,time,fg->centroid,&alpha,user->model->physics);CHKERRQ(ierr);
+    if (user->useBoxStencil) { /* use a box, not start, stencil */
+      int s0; /* short recursion by hand ? */
+      PetscPrintf(PETSC_COMM_WORLD,"\t\tApplyLaplacianLocal: do corners: face 0 normal %e in direction %d\n",fg->normal[dirs[0]],dirs[0]);
+      u[0] = fact0[0]*sten[0]*(*puL);
+      u[1] = fact0[1]*sten[0]*(*puR);
+      /* for each side of face 0 */
+      for (s0=0;s0<2;s0++) {
+        const FaceGeom *fg;
+        PetscInt numFaces,f;
+        const PetscInt *faces;
+        const PetscInt cell= (nC==2 || s0==0) ? cells[s0] : cells[0];
+        DMPlexGetConeSize(dm, cell, &numFaces);
+        DMPlexGetCone(dm, cell, &faces);
+        for (f = 0; f < numFaces; ++f) {
+          const PetscInt face = faces[f];
+          ierr = DMPlexPointLocalRead(dmFace,face,facegeom,&fg);CHKERRQ(ierr);
+          for (i=0,dirs[1]=-1;i<dim;++i) if (fg->normal[i] != 0.0 && i != dirs[0]) dirs[1]=i;
+          if (dirs[1]!=-1) { /* we have a perp face  */
+            PetscInt nC;
+            const PetscInt *cells;
+            const PetscScalar *puL,*puR;
+            ierr = DMPlexGetSupportSize(dm, face, &nC);CHKERRQ(ierr);
+PetscPrintf(PETSC_COMM_WORLD,"\t\t\tApplyLaplacianLocal: do corners: face 1 normal %e in direction %d\n",fg->normal[dirs[1]],dirs[1]);
+            ierr = DMPlexGetSupport(dm, face, &cells);CHKERRQ(ierr);
+            ierr = DMPlexPointLocalRead(dm,cells[0],uArray,&puL);CHKERRQ(ierr);
+            fact1[0] = fact1[1] = 1.;
+            if (nC==2) {
+              ierr = DMPlexPointLocalRead(dm,cells[1],uArray,&puR);CHKERRQ(ierr);
+            }
+            else {
+              puR = puL;
+              if (fg->normal[dirs[0]] > 0.) fact1[1] = BCFact; // right ghost
+              else fact1[0] = BCFact;
+            }
+            if (dim==2) {
+PetscPrintf(PETSC_COMM_WORLD,"\t\t\t\t: %d\n",fg->normal[dirs[1]],dirs[1]);
+              u[0] += fact0[0]*fact1[0]*sten[1]*(*puL);
+              u[1] += fact0[1]*fact1[1]*sten[1]*(*puR);
+            }
+            else {
+              /* 3rd D */
+              SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"dim=%d",dim);
+            }
+          }
+        }
+      }
+    } else {
+      u[0] = fact0[0] * (*puL); u[1] = fact0[1] * (*puR);
+    }
+
+    WaxpyD(user->model->dim,-1,cgL->centroid,cgR->centroid,v); /* dx vector -- don't need this -- no cellgeom */
+    PetscPrintf(PETSC_COMM_WORLD,"\tApplyLaplacianLocal: dx vector=(%e,%e)\n",v[0],v[1]);
     dx = Norm2D(user->model->dim,v);
+    if(abs(user->dx[user->ilev][0]-dx)>1.e-12) SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"x=%e",dx);
     area = Norm2D(user->model->dim,fg->normal);
-    flux = alpha*(xR[0]-xL[0])/dx;
-    if (fL) fL[0] -= area*flux / cgL->volume;
-    if (fR) fR[0] += area*flux / cgR->volume;
+
+    flux = alpha*(u[1] - u[0])/dx;
+    if (fL) *fL -= area*flux / cgL->volume;
+    if (fR) *fR += area*flux / cgR->volume;
   }
   ierr = VecRestoreArrayRead(user->facegeom,&facegeom);CHKERRQ(ierr);
-  ierr = VecRestoreArrayRead(user->cellgeom,&cellgeom);CHKERRQ(ierr);
-  ierr = VecRestoreArrayRead(locX,&x);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(user->cellgeom,&cellgeom);CHKERRQ(ierr); // kill
+  ierr = VecRestoreArrayRead(locU,&uArray);CHKERRQ(ierr);
   ierr = VecRestoreArray(F,&f);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -893,11 +793,8 @@ PetscErrorCode ComputeFunctionLap(SNES snes,Vec U,Vec FU,void *ctx)
   ierr = VecGetDM(user->facegeom,&dmFace);CHKERRQ(ierr);
   ierr = VecGetDM(user->cellgeom,&dmCell);CHKERRQ(ierr);
   ierr = DMGetLocalVector(dm,&locU);CHKERRQ(ierr);
-  ierr = DMGlobalToLocalBegin(dm, U, INSERT_VALUES, locU);CHKERRQ(ierr); /* get ghost values - echange */
+  ierr = DMGlobalToLocalBegin(dm, U, INSERT_VALUES, locU);CHKERRQ(ierr); /* get ghost values - exchange */
   ierr = DMGlobalToLocalEnd(dm, U, INSERT_VALUES, locU);CHKERRQ(ierr);
-
-  ierr = ApplyBC(dm, 0., locU, user);CHKERRQ(ierr); /* set ghost values - boundary */
-
   ierr = VecZeroEntries(FU);CHKERRQ(ierr);
   ierr = ApplyLaplacianLocal(dm,dmFace,dmCell,0.,locU,FU,user);CHKERRQ(ierr);
 
@@ -928,7 +825,7 @@ PetscErrorCode RHSFunctionLap(TS ts,PetscReal t,Vec globalin,Vec globalout,void 
   /* subtract off RHS to solve Ax=b */
   ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
   ierr = VecGetDM(user->cellgeom, &dmCell);CHKERRQ(ierr);
-  ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+  ierr = DMDAGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = VecGetArrayRead(user->cellgeom, &cgeom_v);CHKERRQ(ierr);
   ierr = VecGetArray(globalout, &x_v);CHKERRQ(ierr);
   for (c = cStart; c < user->cEndInterior; ++c) {
@@ -954,7 +851,7 @@ int main(int argc, char **argv)
   Model             mod;
   Physics           phys;
   DM                dm;
-  PetscReal         ftime,dt;
+  PetscReal         ftime,dt,L=1.;
   PetscInt          overlap, nsteps, nrefine,i,ilev, N[MAX_DIM];
   int               refinement_ratio;
   TS                ts;
@@ -979,9 +876,12 @@ int main(int argc, char **argv)
 
   ierr = PetscOptionsBegin(comm,NULL,"Structured Grid Finite Volume Options","");CHKERRQ(ierr);
   {
+    user->useBoxStencil = PETSC_FALSE;
+    ierr = PetscOptionsBool("-use_box_stencil","Use a box (9 or 27 point) stencil","",user->useBoxStencil,&user->useBoxStencil,NULL);CHKERRQ(ierr);
     mod->dim = 2;
     ierr = PetscOptionsInt("-dim","dimension of problem (2 or 3)","",mod->dim,&mod->dim,NULL);CHKERRQ(ierr);
-    for (i=0;i<mod->dim;i++) N[i] = 4;
+    for (i=0;i<MAX_DIM;i++) N[i] = 1;
+    for (i=0;i<mod->dim;i++) N[i] = 4; /* default size */
     ierr = PetscOptionsInt("-nx","number of cells in x direction","",N[0],&N[0],NULL);CHKERRQ(ierr);
     ierr = PetscOptionsInt("-ny","number of cells in y direction","",N[1],&N[1],NULL);CHKERRQ(ierr);
     ierr = PetscOptionsInt("-nz","number of cells in z direction","",N[2],&N[2],NULL);CHKERRQ(ierr);
@@ -1000,13 +900,11 @@ int main(int argc, char **argv)
     ierr = PhysicsCreate_Lap(mod,phys);CHKERRQ(ierr);
     /* Count number of fields and dofs */
     for (phys->nfields=0,phys->dof=0; phys->field_desc[phys->nfields].name; phys->nfields++) phys->dof += phys->field_desc[phys->nfields].dof;
-
     if (phys->dof != 1) SETERRQ1(comm,PETSC_ERR_ARG_WRONGSTATE,"Physics dof=%d",phys->dof);
+    mod->BCFactor = -1.0; /* Diri */
     ierr = ModelFunctionalSetFromOptions(mod);CHKERRQ(ierr);
   }
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
-
-  ierr = SetUpBoundaries(comm, user);CHKERRQ(ierr);
 
   /* outer congerance loop */
   for (ilev=0;ilev<=nrefine;ilev++) {
@@ -1014,20 +912,21 @@ int main(int argc, char **argv)
     if (ilev!=0) {
       for (i=0;i<mod->dim;i++) N[i] *= refinement_ratio;
     }
+    for (i=0;i<mod->dim;i++) user->dx[ilev][i] = L/N[i];
     /* create base mesh */
     switch (mod->dim) {
     case 2:
-      ierr = DMDACreate2d(comm, DMDA_BOUNDARY_GHOSTED, DMDA_BOUNDARY_GHOSTED, DMDA_STENCIL_BOX, N[0], N[1], PETSC_DETERMINE, PETSC_DETERMINE, 1, 1, NULL, NULL, &dm);CHKERRQ(ierr);
+      ierr = DMDACreate2d(comm, DMDA_BOUNDARY_NONE, DMDA_BOUNDARY_NONE, DMDA_STENCIL_BOX, N[0], N[1], PETSC_DETERMINE, PETSC_DETERMINE, 1, 1, NULL, NULL, &dm);CHKERRQ(ierr);
       break;
     case 3:
-      ierr = DMDACreate3d(comm, DMDA_BOUNDARY_GHOSTED, DMDA_BOUNDARY_GHOSTED, DMDA_BOUNDARY_GHOSTED, DMDA_STENCIL_BOX,  N[0], N[1], N[2], PETSC_DETERMINE, PETSC_DETERMINE, PETSC_DETERMINE, 1, 1, NULL, NULL, NULL, &dm);CHKERRQ(ierr);
+      ierr = DMDACreate3d(comm, DMDA_BOUNDARY_NONE, DMDA_BOUNDARY_NONE, DMDA_BOUNDARY_NONE, DMDA_STENCIL_BOX,  N[0], N[1], N[2], PETSC_DETERMINE, PETSC_DETERMINE, PETSC_DETERMINE, 1, 1, NULL, NULL, NULL, &dm);CHKERRQ(ierr);
       break;
     default:
       SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Cannot create structured mesh of dimension %d", mod->dim);
     }
-    ierr = DMDASetVertexCoordinates(dm, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0);CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_WORLD,"\tN=(%d,%d,%d) dim=%d\n",N[0],N[1],N[2],mod->dim);
-    {
+    ierr = DMDASetVertexCoordinates(dm, 0.0, L, 0.0, L, 0.0, L);CHKERRQ(ierr);
+    PetscPrintf(PETSC_COMM_WORLD,"\t%d) N=(%d,%d,%d) dim=%d dx=(%e,%e)\n",ilev,N[0],N[1],N[2],mod->dim,user->dx[ilev][0],user->dx[ilev][1]);
+    if (1){
       DM distributedMesh = NULL;
       /* Distribute mesh over processes */
       ierr = DMPlexDistribute(dm, "chaco", 0, NULL, &distributedMesh);CHKERRQ(ierr);
@@ -1039,16 +938,8 @@ PetscPrintf(PETSC_COMM_WORLD,"\tN=(%d,%d,%d) dim=%d\n",N[0],N[1],N[2],mod->dim);
 
     ierr = PetscObjectSetName((PetscObject)dm, "Coarsest Mesh");CHKERRQ(ierr);
     ierr = DMSetFromOptions(dm);CHKERRQ(ierr);
+    DMView(dm,PETSC_VIEWER_STDOUT_WORLD);
 
-    /* construct ghost cells ??? */
-    {
-      DM gdm;
-      ierr = DMPlexGetHeightStratum(dm, 0, NULL, &user->cEndInterior);CHKERRQ(ierr);
-      ierr = DMPlexConstructGhostCells(dm, NULL, &user->numGhostCells, &gdm);CHKERRQ(ierr);
-      ierr = DMDestroy(&dm);CHKERRQ(ierr);
-      dm   = gdm;
-    }
-DMView(dm,PETSC_VIEWER_STDOUT_WORLD);
     ierr = ConstructGeometry(dm, &user->facegeom, &user->cellgeom, user);CHKERRQ(ierr);
     if (1) {ierr = VecView(user->cellgeom, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);}
     /* ierr = DMPlexSetPreallocationCenterDimension(dm, 0);CHKERRQ(ierr); ??????????????? */
@@ -1141,7 +1032,6 @@ DMView(dm,PETSC_VIEWER_STDOUT_WORLD);
   }
 
   ierr = FunctionalLinkDestroy(&user->model->functionalRegistry);CHKERRQ(ierr);
-  ierr = BoundaryLinkDestroy(&user->model->boundary);CHKERRQ(ierr);
   ierr = PetscFree(user->model->functionalMonitored);CHKERRQ(ierr);
   ierr = PetscFree(user->model->functionalCall);CHKERRQ(ierr);
   ierr = PetscFree(user->model->physics->data);CHKERRQ(ierr);
