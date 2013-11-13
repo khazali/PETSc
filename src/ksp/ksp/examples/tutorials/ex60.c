@@ -97,7 +97,7 @@ int main(int argc, char **argv)
   Vec               u,uex,rhs,z;
   UserContext       ctxt;
   PetscInt          nstages,is,ie,matis,matie,*ix,*ix2;
-  PetscInt          n,i,s,t;
+  PetscInt          n,i,s,t,total_its;
   PetscScalar       *A,*B,*At,*b,*zvals,one = 1.0;
   PetscReal         *c,dx,dx2,err,time;
   Mat               Identity,J,TA,SC,R;
@@ -250,13 +250,16 @@ int main(int argc, char **argv)
                       nstages,PetscScalar,&zvals,
                       ie-is,PetscInt,&ix2);CHKERRQ(ierr);
   /* iterate in time */
-  for (n=0,time=0.; n<ctxt.niter; n++) {
+  for (n=0,time=0.,total_its=0; n<ctxt.niter; n++) {
+    PetscInt its;
 
     /* compute and set the right hand side */
     ierr = MatMult(R,u,rhs);CHKERRQ(ierr);
 
     /* Solve the system */
     ierr = KSPSolve(ksp,rhs,z);CHKERRQ(ierr);
+    ierr = KSPGetIterationNumber(ksp,&its);CHKERRQ(ierr);
+    total_its += its;
 
     /* Update the solution */
     ierr = MatMultAdd(SC,z,u,u);CHKERRQ(ierr);
@@ -275,6 +278,7 @@ int main(int argc, char **argv)
   ierr = VecNorm(uex,NORM_2,&err);
   err  = PetscSqrtReal(err*err/((PetscReal)ctxt.imax));
   ierr = PetscPrintf(PETSC_COMM_WORLD,"L2 norm of the numerical error = %G (time=%G)\n",err,time);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"Number of time steps: %D (%D Krylov iterations)\n",ctxt.niter,total_its);CHKERRQ(ierr);
 
   /* Free up memory */
   ierr = KSPDestroy(&ksp);      CHKERRQ(ierr);
