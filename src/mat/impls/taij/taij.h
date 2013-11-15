@@ -3,13 +3,14 @@
 
 #include <../src/mat/impls/aij/mpi/mpiaij.h>
 
-#define TAIJHEADER                            \
-  PetscInt    p,q;                            \
-  Mat         AIJ;                            \
-  PetscScalar *S;                             \
-  PetscScalar *T;                             \
-  PetscScalar *ibdiag;                        \
-  PetscBool   ibdiagvalid,getrowactive,isTI;  \
+#define TAIJHEADER                                \
+  PetscInt    p,q;                                \
+  Mat         AIJ;                                \
+  PetscScalar *S;                                 \
+  PetscScalar *T;                                 \
+  PetscScalar *ibdiag;                            \
+  PetscBool   ibdiagvalid,getrowactive,isTI;      \
+  PetscScalar *sor_w,*sor_work,*sor_t,*sor_arr,*sor_y
 
 typedef struct {
   TAIJHEADER;
