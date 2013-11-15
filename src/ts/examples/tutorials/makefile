@@ -160,9 +160,11 @@ ex33: ex33.o  chkopts
 	-${CLINKER} -o ex33 ex33.o ${PETSC_TS_LIB}
 	${RM} ex33.o
 
+ex98: ex98.o  chkopts
+	-${CLINKER} -o ex98 ex98.o ${PETSC_TS_LIB}
+
 ex99: ex99.o  chkopts
 	-${CLINKER} -o ex99 ex99.o ${PETSC_TS_LIB}
-#	${RM} ex99.o
 
 #---------------------------------------------------------------------------------
 runex1:
@@ -462,8 +464,11 @@ runex33:
 	   ${DIFF} output/ex33_1.out ex33_1.tmp || echo  ${PWD} "\nPossible problem with ex20_1, diffs above \n=========================================";  \
 	   ${RM} -f ex33_1.tmp
 
+runex98:
+	-@${MPIEXEC} -n 1 ./ex98 -nrefine 4 -f ${PETSC_DIR}/share/petsc/datafiles/meshes/square-4x4.exo -monitor error -ksp_type cg -pc_type gamg -pc_gamg_agg_nsmooths 1 -mg_levels_pc_type jacobi -mg_levels_ksp_type chebyshev -mg_levels_ksp_max_it 1 -ksp_max_it 20 -snes_monitor -ksp_norm_type unpreconditioned -box_stencil true -const_coef false
+
 runex99:
-	-@${MPIEXEC} -n 1 ./ex99 -nrefine 2 -f ${PETSC_DIR}/share/petsc/datafiles/meshes/square-4x4.exo -monitor error 
+	-@${MPIEXEC} -n 1 ./ex99 -nrefine 0 -monitor error
 
 
 TESTEXAMPLES_C		  = ex1.PETSc runex1 runex1_2 ex1.rm ex2.PETSc runex2 ex2.rm ex3.PETSc runex3 runex3_2 ex3.rm \
