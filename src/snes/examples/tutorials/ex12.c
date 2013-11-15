@@ -333,11 +333,9 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "SetupElement"
-PetscErrorCode SetupElement(DM dm, AppCtx *user)
+#define __FUNCT__ "SetupElementCommon"
+PetscErrorCode SetupElementCommon(DM dm, const PetscInt dim, const char *prefix, const PetscInt qorder, PetscFE *fem)
 {
-  const PetscInt  dim = user->dim;
-  PetscFE         fem;
   PetscQuadrature q;
   DM              K;
   PetscSpace      P;
@@ -348,12 +346,14 @@ PetscErrorCode SetupElement(DM dm, AppCtx *user)
   PetscFunctionBegin;
   /* Create space */
   ierr = PetscSpaceCreate(PetscObjectComm((PetscObject) dm), &P);CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) P, prefix);CHKERRQ(ierr);
   ierr = PetscSpaceSetFromOptions(P);CHKERRQ(ierr);
   ierr = PetscSpacePolynomialSetNumVariables(P, dim);CHKERRQ(ierr);
   ierr = PetscSpaceSetUp(P);CHKERRQ(ierr);
   ierr = PetscSpaceGetOrder(P, &order);CHKERRQ(ierr);
   /* Create dual space */
   ierr = PetscDualSpaceCreate(PetscObjectComm((PetscObject) dm), &Q);CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) Q, prefix);CHKERRQ(ierr);
   ierr = PetscDualSpaceCreateReferenceCell(Q, dim, PETSC_TRUE, &K);CHKERRQ(ierr);
   ierr = PetscDualSpaceSetDM(Q, K);CHKERRQ(ierr);
   ierr = DMDestroy(&K);CHKERRQ(ierr);
@@ -361,16 +361,29 @@ PetscErrorCode SetupElement(DM dm, AppCtx *user)
   ierr = PetscDualSpaceSetFromOptions(Q);CHKERRQ(ierr);
   ierr = PetscDualSpaceSetUp(Q);CHKERRQ(ierr);
   /* Create element */
-  ierr = PetscFECreate(PetscObjectComm((PetscObject) dm), &fem);CHKERRQ(ierr);
-  ierr = PetscFESetFromOptions(fem);CHKERRQ(ierr);
-  ierr = PetscFESetBasisSpace(fem, P);CHKERRQ(ierr);
-  ierr = PetscFESetDualSpace(fem, Q);CHKERRQ(ierr);
-  ierr = PetscFESetNumComponents(fem, 1);CHKERRQ(ierr);
+  ierr = PetscFECreate(PetscObjectComm((PetscObject) dm), fem);CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) *fem, prefix);CHKERRQ(ierr);
+  ierr = PetscFESetFromOptions(*fem);CHKERRQ(ierr);
+  ierr = PetscFESetBasisSpace(*fem, P);CHKERRQ(ierr);
+  ierr = PetscFESetDualSpace(*fem, Q);CHKERRQ(ierr);
+  ierr = PetscFESetNumComponents(*fem, 1);CHKERRQ(ierr);
   ierr = PetscSpaceDestroy(&P);CHKERRQ(ierr);
   ierr = PetscDualSpaceDestroy(&Q);CHKERRQ(ierr);
-  /* Create quadrature */
-  ierr = PetscDTGaussJacobiQuadrature(dim, order, -1.0, 1.0, &q);CHKERRQ(ierr);
-  ierr = PetscFESetQuadrature(fem, q);CHKERRQ(ierr);
+  /* Create quadrature (with specified order if given) */
+  ierr = PetscDTGaussJacobiQuadrature(dim, qorder > 0 ? qorder : order, -1.0, 1.0, &q);CHKERRQ(ierr);
+  ierr = PetscFESetQuadrature(*fem, q);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SetupElement"
+PetscErrorCode SetupElement(DM dm, AppCtx *user)
+{
+  const PetscInt  dim = user->dim;
+  PetscFE         fem;
+  PetscErrorCode  ierr;
+
+  ierr = SetupElementCommon(dm, dim, 0, -1, &fem);CHKERRQ(ierr);
   user->fe[0] = fem;
   user->fem.fe = user->fe;
   PetscFunctionReturn(0);
@@ -383,45 +396,16 @@ PetscErrorCode SetupMaterialElement(DM dm, AppCtx *user)
   const PetscInt  dim = user->dim;
   const char     *prefix = "mat_";
   PetscFE         fem;
-  PetscQuadrature q;
-  DM              K;
   PetscSpace      P;
-  PetscDualSpace  Q;
-  PetscInt        order, qorder;
+  PetscInt        qorder;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
   if (user->variableCoefficient != COEFF_FIELD) {user->fem.feAux = NULL; user->feAux[0] = NULL; PetscFunctionReturn(0);}
-  /* Create space */
-  ierr = PetscSpaceCreate(PetscObjectComm((PetscObject) dm), &P);CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) P, prefix);CHKERRQ(ierr);
-  ierr = PetscSpaceSetFromOptions(P);CHKERRQ(ierr);
-  ierr = PetscSpacePolynomialSetNumVariables(P, dim);CHKERRQ(ierr);
-  ierr = PetscSpaceSetUp(P);CHKERRQ(ierr);
-  ierr = PetscSpaceGetOrder(P, &order);CHKERRQ(ierr);
-  /* Create dual space */
-  ierr = PetscDualSpaceCreate(PetscObjectComm((PetscObject) dm), &Q);CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) Q, prefix);CHKERRQ(ierr);
-  ierr = PetscDualSpaceCreateReferenceCell(Q, dim, PETSC_TRUE, &K);CHKERRQ(ierr);
-  ierr = PetscDualSpaceSetDM(Q, K);CHKERRQ(ierr);
-  ierr = DMDestroy(&K);CHKERRQ(ierr);
-  ierr = PetscDualSpaceSetOrder(Q, order);CHKERRQ(ierr);
-  ierr = PetscDualSpaceSetFromOptions(Q);CHKERRQ(ierr);
-  ierr = PetscDualSpaceSetUp(Q);CHKERRQ(ierr);
-  /* Create element */
-  ierr = PetscFECreate(PetscObjectComm((PetscObject) dm), &fem);CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) fem, prefix);CHKERRQ(ierr);
-  ierr = PetscFESetFromOptions(fem);CHKERRQ(ierr);
-  ierr = PetscFESetBasisSpace(fem, P);CHKERRQ(ierr);
-  ierr = PetscFESetDualSpace(fem, Q);CHKERRQ(ierr);
-  ierr = PetscFESetNumComponents(fem, 1);CHKERRQ(ierr);
-  ierr = PetscSpaceDestroy(&P);CHKERRQ(ierr);
-  ierr = PetscDualSpaceDestroy(&Q);CHKERRQ(ierr);
-  /* Create quadrature, must agree with solution quadrature */
+  /* Our quadrature must agree with solution quadrature, so look it up */
   ierr = PetscFEGetBasisSpace(user->fe[0], &P);CHKERRQ(ierr);
   ierr = PetscSpaceGetOrder(P, &qorder);CHKERRQ(ierr);
-  ierr = PetscDTGaussJacobiQuadrature(dim, qorder, -1.0, 1.0, &q);CHKERRQ(ierr);
-  ierr = PetscFESetQuadrature(fem, q);CHKERRQ(ierr);
+  ierr = SetupElementCommon(dm, dim, prefix, qorder, &fem);CHKERRQ(ierr);
   user->feAux[0]  = fem;
   user->fem.feAux = user->feAux;
   PetscFunctionReturn(0);
@@ -434,43 +418,11 @@ PetscErrorCode SetupBdElement(DM dm, AppCtx *user)
   const PetscInt  dim    = user->dim-1;
   const char     *prefix = "bd_";
   PetscFE         fem;
-  PetscQuadrature q;
-  DM              K;
-  PetscSpace      P;
-  PetscDualSpace  Q;
-  PetscInt        order;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
   if (user->bcType != NEUMANN) {user->fem.feBd = NULL; user->feBd[0] = NULL; PetscFunctionReturn(0);}
-  /* Create space */
-  ierr = PetscSpaceCreate(PetscObjectComm((PetscObject) dm), &P);CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) P, prefix);CHKERRQ(ierr);
-  ierr = PetscSpaceSetFromOptions(P);CHKERRQ(ierr);
-  ierr = PetscSpacePolynomialSetNumVariables(P, dim);CHKERRQ(ierr);
-  ierr = PetscSpaceSetUp(P);CHKERRQ(ierr);
-  ierr = PetscSpaceGetOrder(P, &order);CHKERRQ(ierr);
-  /* Create dual space */
-  ierr = PetscDualSpaceCreate(PetscObjectComm((PetscObject) dm), &Q);CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) Q, prefix);CHKERRQ(ierr);
-  ierr = PetscDualSpaceCreateReferenceCell(Q, dim, PETSC_TRUE, &K);CHKERRQ(ierr);
-  ierr = PetscDualSpaceSetDM(Q, K);CHKERRQ(ierr);
-  ierr = DMDestroy(&K);CHKERRQ(ierr);
-  ierr = PetscDualSpaceSetOrder(Q, order);CHKERRQ(ierr);
-  ierr = PetscDualSpaceSetFromOptions(Q);CHKERRQ(ierr);
-  ierr = PetscDualSpaceSetUp(Q);CHKERRQ(ierr);
-  /* Create element */
-  ierr = PetscFECreate(PetscObjectComm((PetscObject) dm), &fem);CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) fem, prefix);CHKERRQ(ierr);
-  ierr = PetscFESetFromOptions(fem);CHKERRQ(ierr);
-  ierr = PetscFESetBasisSpace(fem, P);CHKERRQ(ierr);
-  ierr = PetscFESetDualSpace(fem, Q);CHKERRQ(ierr);
-  ierr = PetscFESetNumComponents(fem, 1);CHKERRQ(ierr);
-  ierr = PetscSpaceDestroy(&P);CHKERRQ(ierr);
-  ierr = PetscDualSpaceDestroy(&Q);CHKERRQ(ierr);
-  /* Create quadrature */
-  ierr = PetscDTGaussJacobiQuadrature(dim, order, -1.0, 1.0, &q);CHKERRQ(ierr);
-  ierr = PetscFESetQuadrature(fem, q);CHKERRQ(ierr);
+  ierr = SetupElementCommon(dm, dim, prefix, -1, &fem);CHKERRQ(ierr);
   user->feBd[0] = fem;
   user->fem.feBd = user->feBd;
   PetscFunctionReturn(0);
