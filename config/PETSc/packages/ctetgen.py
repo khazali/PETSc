@@ -5,7 +5,6 @@ class Configure(PETSc.package.NewPackage):
     PETSc.package.NewPackage.__init__(self, framework)
     self.gitcommit         = '6952da917114e8c3788a9f22df1b7aaa21335a13'
     self.giturls           = ['https://bitbucket.org/petsc/ctetgen.git']
-    self.download          = ['http://ftp.mcs.anl.gov/pub/petsc/externalpackages/ctetgen-0.1.tar.gz']
     self.functions         = []
     self.includes          = []
     self.liblist           = [['libctetgen.a']]
