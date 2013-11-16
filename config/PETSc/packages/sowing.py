@@ -3,7 +3,8 @@ import PETSc.package
 class Configure(PETSc.package.NewPackage):
   def __init__(self, framework):
     PETSc.package.NewPackage.__init__(self, framework)
-    self.download          = ['http://ftp.mcs.anl.gov/pub/petsc/externalpackages/sowing-1.1.16e.tar.gz']
+    self.gitcommit         = '120108a263dc950fa9c532cf604ce1bc650fa8cf'
+    self.giturls           = ['https://bitbucket.org/petsc/pkg-sowing.git']
     self.complex           = 1
     self.double            = 0
     self.requires32bitint  = 0
