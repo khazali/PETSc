@@ -371,7 +371,7 @@ class Package(config.base.Configure):
   def matchExcludeDir(self,dir):
     '''Check is the dir matches something in the excluded directory list'''
     for exdir in self.excludedDirs:
-      if dir.startswith(exdir):
+      if dir.startswith(exdir.lower()):
         return 1
     return 0
 
@@ -382,15 +382,20 @@ class Package(config.base.Configure):
       os.makedirs(packages)
       self.framework.actions.addArgument('Framework', 'Directory creation', 'Created the external packages directory: '+packages)
     Dir = None
+    pkgDirs = os.listdir(packages)
     self.framework.logPrint('Looking for '+self.PACKAGE+' in directory starting with '+str(self.downloadfilename))
-    for d in os.listdir(packages):
-      if d.startswith(self.downloadfilename) and os.path.isdir(os.path.join(packages, d)) and not self.matchExcludeDir(d):
+    self.framework.logPrint('Current dirlist: '+ str(pkgDirs))
+    for d in pkgDirs:
+      if not os.path.isdir(os.path.join(packages, d)): pkgDirs.remove(d)
+    self.framework.logPrint('Current dirlist:'+ str(pkgDirs))
+    pkgNames = tuple([x+self.downloadfilename.lower() for x in ['','petsc-','petsc-pkg-']])
+    for d in pkgDirs:
+      if d.lower().startswith(pkgNames) and not self.matchExcludeDir(d.lower()):
         self.framework.logPrint('Found a copy of '+self.PACKAGE+' in '+str(d))
         Dir = d
         break
     if Dir is None:
       self.framework.logPrint('Could not locate an existing copy of '+self.downloadfilename+':')
-      self.framework.logPrint('  '+str(os.listdir(packages)))
       if retry <= 0:
         raise RuntimeError('Unable to download '+self.downloadname)
       self.downLoad()
