@@ -90,7 +90,7 @@ class Package(config.base.Configure):
     help.addArgument(self.PACKAGE, '-with-'+self.package+'-pkg-config=<dir>', nargs.Arg(None, None, 'Look for '+self.name+' using pkg-config utility optional directory to look in'))
     help.addArgument(self.PACKAGE,'-with-'+self.package+'-include=<dirs>',nargs.ArgDirList(None,None,'Indicate the directory of the '+self.name+' include files'))
     help.addArgument(self.PACKAGE,'-with-'+self.package+'-lib=<libraries: e.g. [/Users/..../lib'+self.package+'.a,...]>',nargs.ArgLibrary(None,None,'Indicate the '+self.name+' libraries'))
-    if self.download and not self.download[0] == 'redefine':
+    if (self.download and not self.download[0] == 'redefine') or self.giturls:
       help.addArgument(self.PACKAGE, '-download-'+self.package+'=<no,yes,filename>', nargs.ArgDownload(None, 0, 'Download and install '+self.name))
     return
 
@@ -324,7 +324,7 @@ class Package(config.base.Configure):
 
   def checkDownload(self, requireDownload = 1):
     '''Check if we should download the package, returning the install directory or the empty string indicating installation'''
-    if not self.download:
+    if not self.download and not self.giturls:
       return ''
     downloadPackage = 0
     downloadPackageVal = self.framework.argDB['download-'+self.downloadname.lower()]
@@ -338,7 +338,7 @@ class Package(config.base.Configure):
       downloadPackage = 1
 
     if downloadPackage:
-      if not self.download:
+      if not self.download and not self.giturls:
         raise RuntimeError('Package'+self.package+' does not support automatic download.\n')
       if self.license and not os.path.isfile('.'+self.package+'_license'):
         self.framework.logClear()
@@ -560,14 +560,14 @@ class Package(config.base.Configure):
         raise RuntimeError('Cannot use '+self.name+' with MPIUNI, you need a real MPI')
       if not self.worksonWindows and (self.setCompilers.CC.find('win32fe') >= 0):
         raise RuntimeError('External package '+self.name+' does not work with Microsoft compilers')
-      if self.download and self.framework.argDB.get('download-'+self.downloadname.lower()) and not self.downloadonWindows and (self.setCompilers.CC.find('win32fe') >= 0):
+      if (self.download or self.giturls) and self.framework.argDB.get('download-'+self.downloadname.lower()) and not self.downloadonWindows and (self.setCompilers.CC.find('win32fe') >= 0):
         raise RuntimeError('External package '+self.name+' does not support --download-'+self.downloadname.lower()+' with Microsoft compilers')
-    if not self.download and self.framework.argDB.has_key('download-'+self.downloadname.lower()) and self.framework.argDB['download-'+self.downloadname.lower()]:
+    if not self.download and not self.giturls and self.framework.argDB.has_key('download-'+self.downloadname.lower()) and self.framework.argDB['download-'+self.downloadname.lower()]:
       raise RuntimeError('External package '+self.name+' does not support --download-'+self.downloadname.lower())
     return
 
   def configure(self):
-    if self.download and not self.download[0] == 'redefine' and self.framework.argDB['download-'+self.downloadname.lower()]:
+    if ((self.download and not self.download[0] == 'redefine') or self.giturls) and self.framework.argDB['download-'+self.downloadname.lower()]:
       self.framework.argDB['with-'+self.package] = 1
     if 'with-'+self.package+'-dir' in self.framework.argDB or 'with-'+self.package+'-include' in self.framework.argDB or 'with-'+self.package+'-lib' in self.framework.argDB:
       self.framework.argDB['with-'+self.package] = 1
