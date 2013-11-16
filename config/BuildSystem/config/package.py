@@ -411,19 +411,12 @@ class Package(config.base.Configure):
     return
 
   def downLoad(self):
-    '''Downloads a package; using hg or ftp; opens it in the with-external-packages-dir directory'''
+    '''Downloads a package; using git or http/ftp; opens it in the with-external-packages-dir directory'''
     import retrieval
 
     retriever = retrieval.Retriever(self.sourceControl, argDB = self.framework.argDB)
     retriever.setup()
     self.framework.logPrint('Downloading '+self.name)
-    # check if its http://ftp.mcs - and add ftp://ftp.mcs as fallback
-    download_urls = []
-    for url in self.download:
-      download_urls.append(url)
-      if url.find('http://ftp.mcs.anl.gov') >=0:
-        download_urls.append(url.replace('http://','ftp://'))
-    # now attempt to download each url until any one succeeds.
     err =''
     if not self.downloadURLSetByUser and hasattr(self.sourceControl, 'git') and self.gitcommit and self.gitPreReqCheck():
       for giturl in self.giturls: # First try to fetch using Git
@@ -436,6 +429,18 @@ class Package(config.base.Configure):
         except RuntimeError, e:
           self.logPrint('ERROR: '+str(e))
           err += str(e)
+    # If git not found - construct tarball urls for git Repos.
+    download_urls = []
+    if not self.downloadURLSetByUser and self.gitcommit:
+      for giturl in self.giturls:
+        if giturl.startswith('https://bitbucket.org/petsc/'): download_urls.append(giturl+'/get/'+self.gitcommit+'.tar.gz')
+        elif giturl.startswith('https://github.com/'): download_urls.append(giturl+'/archive/'+self.gitcommit+'.tar.gz')
+    # check if its http://ftp.mcs - and add ftp://ftp.mcs as fallback
+    for url in self.download:
+      download_urls.append(url)
+      if url.find('http://ftp.mcs.anl.gov') >=0:
+        download_urls.append(url.replace('http://','ftp://'))
+    # now attempt to download each url until any one succeeds.
     for url in download_urls:
       try:
         retriever.genericRetrieve(url, self.externalPackagesDir, self.downloadname)
