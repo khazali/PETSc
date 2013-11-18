@@ -220,6 +220,7 @@ regressionParameters = {'src/sys/comm/examples/tests/ex1':    [{'numProcs': 2},
                                                                   {'numProcs': 1, 'args': '-dim 3 -interpolate 1 -cell_simplex 0 -refinement_uniform       -num_dof 1,0,0,0'},
                                                                   # Parallel tests
                                                                   ],
+                        'src/dm/impls/plex/examples/tests/ex11': [{'numProcs': 1, 'args': ''}],
                         'src/dm/impls/plex/examples/tests/ex1f90': [{'numProcs': 1, 'args': ''}],
                         'src/dm/impls/plex/examples/tests/ex2f90': [{'numProcs': 1, 'args': ''}],
                         'src/dm/impls/plex/examples/tutorials/ex1': [{'numProcs': 1, 'args': ''},
@@ -1698,7 +1699,7 @@ class PETScMaker(script.Script):
    except ValueError:
      args   = params.get('args', '')
    hosts    = ','.join(['localhost']*int(numProcs))
-   return ' '.join([self.configInfo.mpi.mpiexec, '-hosts', hosts, '-n', str(numProcs), os.path.abspath(executable), args])
+   return ' '.join([self.configInfo.mpi.mpiexec, '-host', hosts, '-n', str(numProcs), os.path.abspath(executable), args])
 
  def runTest(self, testDir, executable, testNum, replace, **params):
    '''testNum can be any string'''

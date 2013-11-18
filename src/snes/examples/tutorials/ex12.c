@@ -11,7 +11,7 @@ domain, using a parallel unstructured mesh (DMPLEX) to discretize it.\n\n\n";
 #define NUM_FIELDS 1
 PetscInt spatialDim = 0;
 
-typedef enum {NEUMANN, DIRICHLET} BCType;
+typedef enum {NEUMANN, DIRICHLET, NONE} BCType;
 typedef enum {RUN_FULL, RUN_TEST, RUN_PERF} RunType;
 typedef enum {COEFF_NONE, COEFF_ANALYTIC, COEFF_FIELD} CoeffType;
 
@@ -193,7 +193,7 @@ void quadratic_u_3d(const PetscReal x[], PetscScalar *u)
 #define __FUNCT__ "ProcessOptions"
 PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
-  const char    *bcTypes[2]  = {"neumann", "dirichlet"};
+  const char    *bcTypes[3]  = {"neumann", "dirichlet", "none"};
   const char    *runTypes[3] = {"full", "test", "perf"};
   const char    *coeffTypes[3] = {"none", "analytic", "field"};
   PetscInt       bc, run, coeff;
@@ -213,7 +213,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->variableCoefficient = COEFF_NONE;
   options->jacobianMF          = PETSC_FALSE;
   options->showInitial         = PETSC_FALSE;
-  options->showSolution        = PETSC_TRUE;
+  options->showSolution        = PETSC_FALSE;
 
   options->fem.f0Funcs = (void (**)(const PetscScalar[], const PetscScalar[], const PetscScalar[], const PetscScalar[], const PetscReal[], PetscScalar[])) &options->f0Funcs;
   options->fem.f1Funcs = (void (**)(const PetscScalar[], const PetscScalar[], const PetscScalar[], const PetscScalar[], const PetscReal[], PetscScalar[])) &options->f1Funcs;
@@ -246,7 +246,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscStrcpy(options->partitioner, "chaco");CHKERRQ(ierr);
   ierr = PetscOptionsString("-partitioner", "The graph partitioner", "pflotran.cxx", options->partitioner, options->partitioner, 2048, NULL);CHKERRQ(ierr);
   bc   = options->bcType;
-  ierr = PetscOptionsEList("-bc_type","Type of boundary condition","ex12.c",bcTypes,2,bcTypes[options->bcType],&bc,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsEList("-bc_type","Type of boundary condition","ex12.c",bcTypes,3,bcTypes[options->bcType],&bc,NULL);CHKERRQ(ierr);
   options->bcType = (BCType) bc;
   coeff = options->variableCoefficient;
   ierr = PetscOptionsEList("-variable_coefficient","Type of variable coefficent","ex12.c",coeffTypes,3,coeffTypes[options->variableCoefficient],&coeff,NULL);CHKERRQ(ierr);
@@ -776,27 +776,6 @@ int main(int argc, char **argv)
       ierr = VecNorm(r, NORM_2, &res);CHKERRQ(ierr);
       ierr = PetscPrintf(PETSC_COMM_WORLD, "Linear L_2 Residual: %g\n", res);CHKERRQ(ierr);
     }
-  }
-
-  if (user.runType == RUN_FULL) {
-    PetscViewer viewer;
-    Vec         uLocal;
-    const char *name;
-
-    ierr = PetscViewerCreate(PETSC_COMM_WORLD, &viewer);CHKERRQ(ierr);
-    ierr = PetscViewerSetType(viewer, PETSCVIEWERVTK);CHKERRQ(ierr);
-    ierr = PetscViewerSetFormat(viewer, PETSC_VIEWER_ASCII_VTK);CHKERRQ(ierr);
-    ierr = PetscViewerFileSetName(viewer, "ex12_sol.vtk");CHKERRQ(ierr);
-
-    ierr = DMGetLocalVector(dm, &uLocal);CHKERRQ(ierr);
-    ierr = PetscObjectGetName((PetscObject) u, &name);CHKERRQ(ierr);
-    ierr = PetscObjectSetName((PetscObject) uLocal, name);CHKERRQ(ierr);
-    ierr = DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal);CHKERRQ(ierr);
-    ierr = DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal);CHKERRQ(ierr);
-    ierr = VecView(uLocal, viewer);CHKERRQ(ierr);
-    ierr = DMRestoreLocalVector(dm, &uLocal);CHKERRQ(ierr);
-
-    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
   }
 
   if (user.bcType == NEUMANN) {

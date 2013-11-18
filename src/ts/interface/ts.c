@@ -4059,7 +4059,7 @@ PetscErrorCode TSSetMaxSNESFailures(TS ts,PetscInt fails)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "TSSetErrorIfStepFails()"
+#define __FUNCT__ "TSSetErrorIfStepFails"
 /*@
    TSSetErrorIfStepFails - Error if no step succeeds
 

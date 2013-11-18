@@ -362,7 +362,6 @@ PETSC_EXTERN PetscErrorCode MatHeaderReplace(Mat A,Mat C)
 
   ((PetscObject)A)->refct = refct;
 
-  ierr = PetscLogObjectDestroy((PetscObject)C);CHKERRQ(ierr);
   ierr = PetscFree(C);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
