@@ -573,6 +573,7 @@ PetscErrorCode MatSOR_SeqTAIJ(Mat A,Vec bb,PetscReal omega,MatSORType flag,Petsc
           }
           PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,w,arr,work);
         }
+        ierr = PetscMemcpy(t+i2,w,bs*sizeof(PetscScalar));CHKERRQ(ierr);
 
         v  = aa + diag[i] + 1;
         vi = aj + diag[i] + 1;
@@ -605,66 +606,99 @@ PetscErrorCode MatSOR_SeqTAIJ(Mat A,Vec bb,PetscReal omega,MatSORType flag,Petsc
         idiag += bs2;
         i2    += bs;
       }
+      xb = t;
     }
+    else xb = b;
     if (flag & SOR_BACKWARD_SWEEP || flag & SOR_LOCAL_BACKWARD_SWEEP) {
       idiag = taij->ibdiag+bs2*(m-1);
       i2    = bs * (m-1);
-      for (i=m-1; i>=0; i--) {
-        ierr = PetscMemcpy(w,b+i2,bs*sizeof(PetscScalar));CHKERRQ(ierr);
-
-        v  = aa + ai[i];
-        vi = aj + ai[i];
-        nz = diag[i] - ai[i];
-        workt = work;
-        for (j=0; j<nz; j++) {
-          ierr   = PetscMemcpy(workt,x + bs*(*vi++),bs*sizeof(PetscScalar));CHKERRQ(ierr);
-          workt += bs;
-        }
-        arrt = arr;
-        if (T) {
+      if (xb == b) {
+        for (i=m-1; i>=0; i--) {
+          ierr = PetscMemcpy(w,b+i2,bs*sizeof(PetscScalar));CHKERRQ(ierr);
+  
+          v  = aa + ai[i];
+          vi = aj + ai[i];
+          nz = diag[i] - ai[i];
+          workt = work;
           for (j=0; j<nz; j++) {
-            ierr  = PetscMemcpy(arrt,T,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
-            for (k=0; k<bs2; k++) arrt[k] *= v[j];
-            arrt += bs2;
+            ierr   = PetscMemcpy(workt,x + bs*(*vi++),bs*sizeof(PetscScalar));CHKERRQ(ierr);
+            workt += bs;
           }
-          PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,w,arr,work);
-        } else if (taij->isTI) {
-          for (j=0; j<nz; j++) {
-            ierr = PetscMemzero(arrt,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
-            for (k=0; k<bs; k++) arrt[k+bs*k] = v[j];
-            arrt += bs2;
+          arrt = arr;
+          if (T) {
+            for (j=0; j<nz; j++) {
+              ierr  = PetscMemcpy(arrt,T,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
+              for (k=0; k<bs2; k++) arrt[k] *= v[j];
+              arrt += bs2;
+            }
+            PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,w,arr,work);
+          } else if (taij->isTI) {
+            for (j=0; j<nz; j++) {
+              ierr = PetscMemzero(arrt,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
+              for (k=0; k<bs; k++) arrt[k+bs*k] = v[j];
+              arrt += bs2;
+            }
+            PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,w,arr,work);
           }
-          PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,w,arr,work);
-        }
 
-        v  = aa + diag[i] + 1;
-        vi = aj + diag[i] + 1;
-        nz = ai[i+1] - diag[i] - 1;
-        workt = work;
-        for (j=0; j<nz; j++) {
-          ierr   = PetscMemcpy(workt,x + bs*(*vi++),bs*sizeof(PetscScalar));CHKERRQ(ierr);
-          workt += bs;
-        }
-        arrt = arr;
-        if (T) {
+          v  = aa + diag[i] + 1;
+          vi = aj + diag[i] + 1;
+          nz = ai[i+1] - diag[i] - 1;
+          workt = work;
           for (j=0; j<nz; j++) {
-            ierr  = PetscMemcpy(arrt,T,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
-            for (k=0; k<bs2; k++) arrt[k] *= v[j];
-            arrt += bs2;
+            ierr   = PetscMemcpy(workt,x + bs*(*vi++),bs*sizeof(PetscScalar));CHKERRQ(ierr);
+            workt += bs;
           }
-          PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,w,arr,work);
-        } else if (taij->isTI) {
-          for (j=0; j<nz; j++) {
-            ierr = PetscMemzero(arrt,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
-            for (k=0; k<bs; k++) arrt[k+bs*k] = v[j];
-            arrt += bs2;
+          arrt = arr;
+          if (T) {
+            for (j=0; j<nz; j++) {
+              ierr  = PetscMemcpy(arrt,T,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
+              for (k=0; k<bs2; k++) arrt[k] *= v[j];
+              arrt += bs2;
+            }
+            PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,w,arr,work);
+          } else if (taij->isTI) {
+            for (j=0; j<nz; j++) {
+              ierr = PetscMemzero(arrt,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
+              for (k=0; k<bs; k++) arrt[k+bs*k] = v[j];
+              arrt += bs2;
+            }
+            PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,w,arr,work);
           }
-          PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,w,arr,work);
+
+          PetscKernel_w_gets_Ar_times_v(bs,bs,w,idiag,y);
+          for (j=0; j<bs; j++) *(x+i2+j) = (1.0-omega) * *(x+i2+j) + omega * *(y+j);
         }
-
-        PetscKernel_w_gets_Ar_times_v(bs,bs,w,idiag,y);
-        for (j=0; j<bs; j++) *(x+i2+j) = (1.0-omega) * *(x+i2+j) + omega * *(y+j);
-
+      } else {
+        for (i=m-1; i>=0; i--) {
+          ierr = PetscMemcpy(w,xb+i2,bs*sizeof(PetscScalar));CHKERRQ(ierr);
+          v  = aa + diag[i] + 1;
+          vi = aj + diag[i] + 1;
+          nz = ai[i+1] - diag[i] - 1;
+          workt = work;
+          for (j=0; j<nz; j++) {
+            ierr   = PetscMemcpy(workt,x + bs*(*vi++),bs*sizeof(PetscScalar));CHKERRQ(ierr);
+            workt += bs;
+          }
+          arrt = arr;
+          if (T) {
+            for (j=0; j<nz; j++) {
+              ierr  = PetscMemcpy(arrt,T,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
+              for (k=0; k<bs2; k++) arrt[k] *= v[j];
+              arrt += bs2;
+            }
+            PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,w,arr,work);
+          } else if (taij->isTI) {
+            for (j=0; j<nz; j++) {
+              ierr = PetscMemzero(arrt,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
+              for (k=0; k<bs; k++) arrt[k+bs*k] = v[j];
+              arrt += bs2;
+            }
+            PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,w,arr,work);
+          }
+          PetscKernel_w_gets_Ar_times_v(bs,bs,w,idiag,y);
+          for (j=0; j<bs; j++) *(x+i2+j) = (1.0-omega) * *(x+i2+j) + omega * *(y+j);
+        }
         idiag -= bs2;
         i2    -= bs;
       }
