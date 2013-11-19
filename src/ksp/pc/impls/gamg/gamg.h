@@ -10,6 +10,7 @@ struct _PCGAMGOps {
   PetscErrorCode (*coarsen)(PC, Mat*, PetscCoarsenData**);
   PetscErrorCode (*prolongator)(PC, const Mat, const Mat, PetscCoarsenData*, Mat*);
   PetscErrorCode (*optprol)(PC, const Mat, Mat*);
+  PetscErrorCode (*bootstrap)(PC,PetscInt,Mat*,Mat*);
   PetscErrorCode (*createdefaultdata)(PC, Mat); /* for data methods that have a default (SA) */
   PetscErrorCode (*setfromoptions)(PC);
   PetscErrorCode (*destroy)(PC);
@@ -37,6 +38,11 @@ typedef struct gamg_TAG {
   PetscReal eigtarget[2];
   PetscReal *data;          /* [data_sz] blocked vector of vertex data on fine grid (coordinates/nullspace) */
   PetscReal *orig_data;          /* cache data */
+
+  /* bootstrap options */
+  PetscBool bootstrap;
+  PetscInt  bs_nv;
+  PetscInt  bs_sweeps;
 
   struct _PCGAMGOps *ops;
   char *gamg_type_name;

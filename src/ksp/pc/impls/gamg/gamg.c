@@ -669,6 +669,11 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
 #endif
   } /* levels */
 
+  /* hierarchy improvement phase */
+  if (pc_gamg->ops->bootstrap && pc_gamg->bootstrap) {
+    ierr = pc_gamg->ops->bootstrap(pc,level+1,Aarr,Parr);CHKERRQ(ierr);
+  }
+
   if (pc_gamg->data) {
     ierr          = PetscFree(pc_gamg->data);CHKERRQ(ierr);
     pc_gamg->data = NULL;
@@ -1354,6 +1359,29 @@ PetscErrorCode PCSetFromOptions_GAMG(PC pc)
     if (flag && pc_gamg->verbose) {
       ierr = PetscPrintf(comm,"\t[%d]%s threshold set %e\n",0,__FUNCT__,pc_gamg->threshold);CHKERRQ(ierr);
     }
+    /* -pc_gamg_bootstrap */
+    ierr = PetscOptionsBool("-pc_gamg_bootstrap",
+                            "Bootstrap post-setup phase",
+                            "",
+                            pc_gamg->bootstrap,
+                            &pc_gamg->bootstrap,
+                            NULL);CHKERRQ(ierr);
+    /* -pc_gamg_bootstrap_n */
+    ierr = PetscOptionsInt("-pc_gamg_bootstrap_n",
+                           "Number of bootstrap vectors",
+                           "",
+                           pc_gamg->bs_nv,
+                           &pc_gamg->bs_nv,
+                           NULL);CHKERRQ(ierr);
+    /* -pc_gamg_bootstrap_sweeps */
+    ierr = PetscOptionsInt("-pc_gamg_bootstrap_sweeps",
+                           "Bootstrap sweeps",
+                           "",
+                           pc_gamg->bs_sweeps,
+                           &pc_gamg->bs_sweeps,
+                           NULL);CHKERRQ(ierr);
+
+
     /* -pc_gamg_eigtarget */
     ierr = PetscOptionsRealArray("-pc_gamg_eigtarget","Target eigenvalue range as fraction of estimated maximum eigenvalue","PCGAMGSetEigTarget",pc_gamg->eigtarget,&two,NULL);CHKERRQ(ierr);
     ierr = PetscOptionsInt("-pc_mg_levels",
@@ -1450,6 +1478,10 @@ PETSC_EXTERN PetscErrorCode PCCreate_GAMG(PC pc)
   pc_gamg->emax_id          = -1;
   pc_gamg->eigtarget[0]     = 0.05;
   pc_gamg->eigtarget[1]     = 1.05;
+
+  pc_gamg->bootstrap        = PETSC_FALSE;
+  pc_gamg->bs_sweeps        = 1;
+  pc_gamg->bs_nv            = 5;
 
   /* private events */
 #if defined PETSC_GAMG_USE_LOG
