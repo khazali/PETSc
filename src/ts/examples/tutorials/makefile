@@ -158,7 +158,7 @@ ex31: ex31.o chkopts
 
 ex33: ex33.o  chkopts
 	-${CLINKER} -o ex33 ex33.o ${PETSC_TS_LIB}
-	${RM} ex33.o
+#	${RM} ex33.o
 
 ex98: ex98.o  chkopts
 	-${CLINKER} -o ex98 ex98.o ${PETSC_TS_LIB}

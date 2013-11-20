@@ -22,9 +22,8 @@ F*/
 
 static PetscBool s_useBoxStencil = PETSC_TRUE;
 static PetscBool s_constCoef = PETSC_TRUE;
-static PetscReal s_BCFact = -1.; /* Diri */
 
-#define DIM 2 /* Geometric dimension */
+#define MAX_DIM 3 /* Geometric dimension */
 #define ALEN(a) (sizeof(a)/sizeof((a)[0]))
 
 /* Represents continuum physical equations. */
@@ -78,34 +77,35 @@ struct _n_Model {
   SolutionFunction solution;
   SolutionFunction source;
   SolutionFunction alpha;
-  void             *solutionctx;
+  /* void             *solutionctx; */
+  PetscInt         dim;
 };
-
+#define MAX_LEVEL 16
 struct _n_User {
   Vec            cellgeom, facegeom;
   PetscInt       vtkInterval;   /* For monitor */
   Model          model;
-  PetscReal      errorInf[32], error2[32];
-  PetscReal      dx[32][3]; /* dx at each level, cartisian grid */
-  PetscInt       N[32],ilev;
+  PetscReal      errorInf[MAX_LEVEL], error2[MAX_LEVEL];
+  PetscReal      dx[MAX_LEVEL][MAX_DIM]; /* dx at each level, cartisian grid */
+  PetscInt       N[MAX_LEVEL],ilev;
 };
 
 typedef struct {
-  PetscScalar normal[DIM];              /* Area-scaled normals */
-  PetscScalar centroid[DIM];            /* Location of centroid (quadrature point) */
+  PetscScalar normal[MAX_DIM];              /* Area-scaled normals */
+  PetscScalar centroid[MAX_DIM];            /* Location of centroid (quadrature point) */
 } FaceGeom;
 
 typedef struct {
-  PetscScalar centroid[DIM];
+  PetscScalar centroid[MAX_DIM];
   PetscScalar volume;
 } CellGeom;
 
-PETSC_STATIC_INLINE PetscScalar DotD(const PetscScalar *x, const PetscScalar *y) {PetscScalar sum = 0.0; PetscInt d; for (d = 0; d < DIM; ++d) sum += x[d]*y[d]; return sum;}
-PETSC_STATIC_INLINE PetscReal Norm2D(const PetscScalar *x) {return PetscSqrtReal(PetscAbsScalar(DotD(x,x)));}
-PETSC_STATIC_INLINE void axD(const PetscScalar a,PetscScalar *x){PetscInt i; for (i=0; i<DIM; i++) x[i] *= a;}
-PETSC_STATIC_INLINE void waxD(const PetscScalar a,const PetscScalar *x, PetscScalar *w){PetscInt i; for (i=0; i<DIM; i++) w[i] = x[i]*a;}
-PETSC_STATIC_INLINE void NormalizeD(PetscScalar *x) {PetscReal a = 1./Norm2D(x); PetscInt d; for (d = 0; d < DIM; ++d) x[d] *= a;}
-PETSC_STATIC_INLINE void WaxpyD(PetscScalar a, const PetscScalar *x, const PetscScalar *y, PetscScalar *w) {PetscInt d; for (d = 0; d < DIM; ++d) w[d] = a*x[d] + y[d];}
+PETSC_STATIC_INLINE PetscScalar DotD(PetscInt DIM, const PetscScalar *x, const PetscScalar *y) {PetscScalar sum = 0.0; PetscInt d; for (d = 0; d < DIM; ++d) sum += x[d]*y[d]; return sum;}
+PETSC_STATIC_INLINE PetscReal Norm2D(PetscInt DIM, const PetscScalar *x) {return PetscSqrtReal(PetscAbsScalar(DotD(DIM,x,x)));}
+PETSC_STATIC_INLINE void axD(PetscInt DIM, const PetscScalar a,PetscScalar *x){PetscInt i; for (i=0; i<DIM; i++) x[i] *= a;}
+/* PETSC_STATIC_INLINE void waxD(PetscInt DIM, const PetscScalar a,const PetscScalar *x, PetscScalar *w){PetscInt i; for (i=0; i<DIM; i++) w[i] = x[i]*a;} */
+/* PETSC_STATIC_INLINE void NormalizeD(PetscInt DIM, PetscScalar *x) {PetscReal a = 1./Norm2D(DIM,x); PetscInt d; for (d = 0; d < DIM; ++d) x[d] *= a;} */
+PETSC_STATIC_INLINE void WaxpyD(PetscInt DIM, PetscScalar a, const PetscScalar *x, const PetscScalar *y, PetscScalar *w) {PetscInt d; for (d = 0; d < DIM; ++d) w[d] = a*x[d] + y[d];}
 
 /******************* Laplacian ********************/
 typedef struct {
@@ -122,13 +122,13 @@ static const struct FieldDescription PhysicsFields_Lap[] = {{"U",1},{NULL,0}};
 static PetscErrorCode PhysicsSolution_x4_x2(Model mod,PetscReal time,const PetscReal *x,PetscScalar *u,void *ctx)
 {
   PetscScalar r;
-  PetscScalar e[DIM];
+  PetscScalar e[MAX_DIM];
   PetscInt d;
 
   PetscFunctionBeginUser;
-  for (d = 0; d < DIM; ++d) e[d] = x[d]*x[d];
-  for (d = 0; d < DIM; ++d) e[d] *= e[d] - 1;
-  for (r = 1.0, d = 0; d < DIM; ++d) r *= e[d];
+  for (d = 0; d < mod->dim; ++d) e[d] = x[d]*x[d];
+  for (d = 0; d < mod->dim; ++d) e[d] *= e[d] - 1;
+  for (r = 1.0, d = 0; d < mod->dim; ++d) r *= e[d];
   *u = r;
   PetscFunctionReturn(0);
 }
@@ -141,26 +141,26 @@ static PetscErrorCode PhysicsSource_Lap_x4_x2(Model mod,PetscReal time,const Pet
   /* Physics        phys    = (Physics)ctx; */
   /* Physics_Lap *lap = (Physics_Lap*)phys->data; */
   PetscScalar r,alpha;
-  PetscScalar x2[DIM]; /* = x*x; */
-  PetscScalar a[DIM]; /* = x2*(x2-1) */
-  PetscScalar b[DIM]; /* = 12*x2-2; */
+  PetscScalar x2[MAX_DIM]; /* = x*x; */
+  PetscScalar a[MAX_DIM]; /* = x2*(x2-1) */
+  PetscScalar b[MAX_DIM]; /* = 12*x2-2; */
   PetscInt d;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
-  for (d = 0; d < DIM; ++d) x2[d] = x[d]*x[d];
-  for (d = 0; d < DIM; ++d) a[d] = x2[d]*(x2[d]-1);
-  for (d = 0; d < DIM; ++d) b[d] = 12*x2[d]-2;
+  for (d = 0; d < mod->dim; ++d) x2[d] = x[d]*x[d];
+  for (d = 0; d < mod->dim; ++d) a[d] = x2[d]*(x2[d]-1);
+  for (d = 0; d < mod->dim; ++d) b[d] = 12*x2[d]-2;
 
   /* cross products of coordinates prevents the use of D_TERM */
-  if (DIM==2)
+  if (mod->dim==2)
     r = b[0]*a[1] + a[0]*b[1];
-  else if (DIM==3)
+  else if (mod->dim==3)
     r = b[0]*a[1]*a[2] + a[0]*b[1]*a[2] + a[0]*a[1]*b[2];
-  else  if (DIM==1)
+  else  if (mod->dim==1)
    r = b[0];
   else
-    SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"No support for solution this DIM %d",DIM);
+    SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"No support for solution this DIM %d",mod->dim);
 
   ierr = (*mod->alpha)(mod,time,x,&alpha,ctx);CHKERRQ(ierr);
   *rhs = alpha*r;
@@ -183,7 +183,7 @@ static PetscErrorCode PhysicsAlpha_n1_x_2y(Model mod,PetscReal time,const PetscR
   PetscFunctionBeginUser;
   int i;
   *alpha = -.1;
-  for (i=0; i<DIM; i++) *alpha -= (i+1)*x[i]; /* -(.1+x+2y+3z) */
+  for (i=0; i<mod->dim; i++) *alpha -= (i+1)*x[i]; /* -(.1+x+2y+3z) */
   PetscFunctionReturn(0);
 }
 
@@ -195,38 +195,38 @@ static PetscErrorCode PhysicsSource_div_n1x2y_grad_x4_x2(Model mod,PetscReal tim
   /* Physics        phys    = (Physics)ctx; */
   /* Physics_Lap *lap = (Physics_Lap*)phys->data; */
   PetscScalar r,alpha;
-  PetscScalar x2[DIM]; /* = x*x; */
-  PetscScalar a[DIM]; /* = x2*(x2-1) */
-  PetscScalar b[DIM]; /* = 12*x2-2; */
-  PetscScalar c[DIM]; /* = x*(4x2-2); */
+  PetscScalar x2[MAX_DIM]; /* = x*x; */
+  PetscScalar a[MAX_DIM]; /* = x2*(x2-1) */
+  PetscScalar b[MAX_DIM]; /* = 12*x2-2; */
+  PetscScalar c[MAX_DIM]; /* = x*(4x2-2); */
   PetscInt d;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
-  for (d = 0; d < DIM; ++d) x2[d] = x[d]*x[d];
-  for (d = 0; d < DIM; ++d) a[d] = x2[d]*(x2[d]-1);
-  for (d = 0; d < DIM; ++d) b[d] = 12*x2[d]-2;
-  for (d = 0; d < DIM; ++d) c[d] = x[d]*(4*x2[d]-2);
+  for (d = 0; d < mod->dim; ++d) x2[d] = x[d]*x[d];
+  for (d = 0; d < mod->dim; ++d) a[d] = x2[d]*(x2[d]-1);
+  for (d = 0; d < mod->dim; ++d) b[d] = 12*x2[d]-2;
+  for (d = 0; d < mod->dim; ++d) c[d] = x[d]*(4*x2[d]-2);
 
   /* cross products of coordinates prevents the use of D_TERM */
-  if (DIM==2)
+  if (mod->dim==2)
     r = b[0]*a[1] + a[0]*b[1];
-  else if (DIM==3)
+  else if (mod->dim==3)
     r = b[0]*a[1]*a[2] + a[0]*b[1]*a[2] + a[0]*a[1]*b[2];
-  else  if (DIM==1)
+  else  if (mod->dim==1)
     r = b[0];
-  else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"No support for solution this DIM %d",DIM);
+  else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"No support for solution this DIM %d",mod->dim);
 
   /* scale const (old) part by material coef, has -1 */
   ierr = (*mod->alpha)(mod,time,x,&alpha,ctx);CHKERRQ(ierr);
   r *= alpha;
 
   /* new terms from non-const */
-  if (DIM==2)
+  if (mod->dim==2)
     r -= c[0]*a[1] + 2*a[0]*c[1];
-  else if (DIM==3)
+  else if (mod->dim==3)
     r -= c[0]*a[1]*a[2] + 2*a[0]*c[1]*a[2] + 3*a[0]*a[1]*c[2];
-  else  if (DIM==1)
+  else  if (mod->dim==1)
     r -= c[0];
 
   *rhs = r;
@@ -292,7 +292,6 @@ PetscErrorCode ConstructGeometry(DM dm, Vec *facegeom, Vec *cellgeom, User user)
 
   PetscFunctionBeginUser;
   ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
-  if (dim != DIM) SETERRQ2(PetscObjectComm((PetscObject)dm),PETSC_ERR_SUP,"No support for dim %D != DIM %D",dim,DIM);
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
   ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
 
@@ -352,18 +351,13 @@ PetscErrorCode ConstructGeometry(DM dm, Vec *facegeom, Vec *cellgeom, User user)
         ierr = DMPlexPointLocalRead(dmCell, cells[1], cgeom, &cR);CHKERRQ(ierr);
         lcentroid = cells[0] >= cEnd ? fg->centroid : cL->centroid;
         rcentroid = cells[1] >= cEnd ? fg->centroid : cR->centroid;
-        WaxpyD(-1, lcentroid, rcentroid, v);
-        if (DotD(fg->normal, v) < 0) {
+        WaxpyD(dim,-1, lcentroid, rcentroid, v);
+        if (DotD(dim,fg->normal, v) < 0) {
           for (d = 0; d < dim; ++d) fg->normal[d] = -fg->normal[d];
         }
-        if (DotD(fg->normal, v) <= 0) {
-#if DIM == 2
-          SETERRQ5(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Direction for face %d could not be fixed, normal (%g,%g) v (%g,%g)", f, fg->normal[0], fg->normal[1], v[0], v[1]);
-#elif DIM == 3
-          SETERRQ7(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Direction for face %d could not be fixed, normal (%g,%g,%g) v (%g,%g,%g)", f, fg->normal[0], fg->normal[1], fg->normal[2], v[0], v[1], v[2]);
-#else
-#  error DIM not supported
-#endif
+        if (DotD(dim,fg->normal, v) <= 0) {
+          if (dim==2) SETERRQ5(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Direction for face %d could not be fixed, normal (%g,%g) v (%g,%g)", f, fg->normal[0], fg->normal[1], v[0], v[1]);
+          else SETERRQ7(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Direction for face %d could not be fixed, normal (%g,%g,%g) v (%g,%g,%g)", f, fg->normal[0], fg->normal[1], fg->normal[2], v[0], v[1], v[2]);
         }
       }
     }
@@ -418,7 +412,7 @@ static PetscErrorCode ModelSolutionSetDefault(Model mod,SolutionFunction func,vo
 {
   PetscFunctionBeginUser;
   mod->solution    = func;
-  mod->solutionctx = ctx;
+  /* mod->solutionctx = ctx; */
   PetscFunctionReturn(0);
 }
 #undef __FUNCT__
@@ -731,14 +725,61 @@ PetscErrorCode CreatePartitionVec(DM dm, DM *dmCell, Vec *partition)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "getBCGhostVal"
+static PetscErrorCode getBCGhostVal(DM dm, DM dmFace, PetscInt orderpoly, PetscInt dim, PetscInt axis, PetscScalar normal, PetscInt cell0,
+                            const PetscScalar *uArray, const PetscScalar *facegeom, PetscScalar *ghostVal)
+{
+  PetscErrorCode    ierr;
+  PetscReal interp[5][4] = { { -1., 0., 0., 0.},
+                             { -5./2, 1./2, 0., 0.},
+                             { -13./3, 5./3, -1./3, 0.},
+                             { -77./12,43./12,-17./12,3./12} };
+  PetscInt oi;
+  PetscFunctionBeginUser;
+  if (orderpoly<2 || orderpoly>5) SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"order poly %d not supported",orderpoly);
+
+  *ghostVal=0.0;
+  oi=0;
+  do {
+    const PetscScalar *pu;
+    const FaceGeom *fg;
+    PetscInt numFaces,f;
+    const PetscInt *faces;
+PetscPrintf(PETSC_COMM_WORLD,"\tgetBCGhostVal: %d) do cell %d gv=%e interp=%e, axis %d, normal=%e \n",oi+1,cell0,*ghostVal,interp[orderpoly-2][oi],axis,normal);
+    ierr = DMPlexPointLocalRead(dm,cell0,uArray,&pu);CHKERRQ(ierr);
+    *ghostVal += (*pu)*interp[orderpoly-2][oi];
+    DMPlexGetConeSize(dm, cell0, &numFaces);
+    DMPlexGetCone(dm, cell0, &faces);
+    for (f = 0, cell0 = -1; f < numFaces; ++f) {
+      const PetscInt face = faces[f];
+      ierr = DMPlexPointLocalRead(dmFace,face,facegeom,&fg);CHKERRQ(ierr);
+PetscPrintf(PETSC_COMM_WORLD,"\t\tlook at face %d, cell %d, fg->normal=%e\n",face,fg->normal[axis]);
+      if (fg->normal[axis]*normal > 0.0) {
+        PetscInt nC;
+        const PetscInt *cells;
+        ierr = DMPlexGetSupportSize(dm, face, &nC);CHKERRQ(ierr);
+        ierr = DMPlexGetSupport(dm, face, &cells);CHKERRQ(ierr);
+        if (cells[0] == cell0) cell0 = cells[1];
+        else if (cells[1] == cell0) cell0 = cells[0];
+        else SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"cell %d not found",cell0);
+PetscPrintf(PETSC_COMM_WORLD,"\t\t found next cell %d n*n=%e\n",cell0,fg->normal[axis]*normal);
+      }
+    }
+    if (cell0==-1) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"cell not found");
+  } while (oi++ < orderpoly-1);
+
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
 #define __FUNCT__ "ApplyLaplacianLocal"
 static PetscErrorCode ApplyLaplacianLocal(DM dm,DM dmFace,DM dmCell,PetscReal time,Vec locU,Vec F,User user)
 {
-  /* Physics           phys = user->model->physics; */
   PetscErrorCode    ierr;
   const PetscScalar *facegeom, *uArray;
   PetscScalar       *f;
-  PetscInt          fStart, fEnd, face;
+  PetscInt          fStart, fEnd, face, dim = user->model->dim, s_order=5;
   const PetscReal   sten[2]={10./12.,1./12.}; /* 1D stencil: [1  10  1] / 12 */
   PetscFunctionBeginUser;
   ierr = VecGetArrayRead(user->facegeom,&facegeom);CHKERRQ(ierr);
@@ -747,93 +788,111 @@ static PetscErrorCode ApplyLaplacianLocal(DM dm,DM dmFace,DM dmCell,PetscReal ti
   ierr = DMPlexGetHeightStratum(dm, 1, &fStart, &fEnd);CHKERRQ(ierr);
 
   for (face = fStart; face < fEnd; ++face) {
-    const PetscInt    *cells0;
-    PetscInt           nC,dirs[3],i;
-    PetscScalar       *fL,*fR,flux,alpha,u[2];
-    PetscReal          dx=1./4.,fact0[2]; /* fact: kludgy way to get BCs arund corners -- can not do high order!!! */
+    const PetscInt    *cells;
+    PetscInt           nC,axis[MAX_DIM],i,dir[MAX_DIM]={0,0,0};
+    PetscScalar       *fL,*fR,flux,alpha,uu[2];
+    PetscReal          dx;
     const FaceGeom    *fg;
-    const PetscScalar *puL,*puR;
 
     ierr = DMPlexPointLocalRead(dmFace,face,facegeom,&fg);CHKERRQ(ierr);
     /* get direction of face */
-    for (i=0,dirs[0]=-1;i<DIM;++i) if (fg->normal[i]!=0.0) dirs[0] = i;
+    for (i=0,axis[0]=-1;i<dim;++i) if (fg->normal[i]!=0.0) axis[0] = i;
     ierr = DMPlexGetSupportSize(dm, face, &nC);CHKERRQ(ierr);
-    ierr = DMPlexGetSupport(dm, face, &cells0);CHKERRQ(ierr);
-    fact0[0] = fact0[1] = 1.;
-    if (nC==2) {
-      /* not a BC */
-      ierr = DMPlexPointLocalRead(dm,cells0[0],uArray,&puL);CHKERRQ(ierr);
-      ierr = DMPlexPointGlobalRef(dm,cells0[0],f,&fL);CHKERRQ(ierr);
-      ierr = DMPlexPointLocalRead(dm,cells0[1],uArray,&puR);CHKERRQ(ierr);
-      ierr = DMPlexPointGlobalRef(dm,cells0[1],f,&fR);CHKERRQ(ierr);
+    ierr = DMPlexGetSupport(dm, face, &cells);CHKERRQ(ierr);
+    {
+      const PetscScalar *puL,*puR;
+      if (nC==2) {
+        /* not a BC */
+        ierr = DMPlexPointLocalRead(dm,cells[0],uArray,&puL);CHKERRQ(ierr);
+        ierr = DMPlexPointGlobalRef(dm,cells[0],f,&fL);CHKERRQ(ierr);
+        ierr = DMPlexPointLocalRead(dm,cells[1],uArray,&puR);CHKERRQ(ierr);
+        ierr = DMPlexPointGlobalRef(dm,cells[1],f,&fR);CHKERRQ(ierr);
+        uu[0] = *puL; uu[1] = *puR;
+      } else if (fg->normal[axis[0]] > 0.) { /* right ghost */
+        fR = 0; /* no update of ghost */
+        ierr = DMPlexPointLocalRead(dm,cells[0],uArray,&puL);CHKERRQ(ierr);
+        ierr = DMPlexPointGlobalRef(dm,cells[0],f,&fL);CHKERRQ(ierr);
+        uu[0] = *puL;
+        dir[axis[0]] = 1;
+PetscPrintf(PETSC_COMM_WORLD,"ApplyLaplacianLocal right/up axis %d\n",axis[0]);
+        ierr = getBCGhostVal(dm,dmFace,s_order,dim,axis[0],-fg->normal[axis[0]],cells[0],uArray,facegeom,&uu[1]);CHKERRQ(ierr);
+      } else {
+        fL = 0; /* no update of ghost */
+        ierr = DMPlexPointLocalRead(dm,cells[0],uArray,&puR);CHKERRQ(ierr);
+        ierr = DMPlexPointGlobalRef(dm,cells[0],f,&fR);CHKERRQ(ierr);
+        uu[1] = *puR;
+        dir[axis[0]] = -1;
+PetscPrintf(PETSC_COMM_WORLD,"ApplyLaplacianLocal left/down axis %d\n",axis[0]);
+        ierr = getBCGhostVal(dm,dmFace,s_order,dim,axis[0],-fg->normal[axis[0]],cells[0],uArray,facegeom,&uu[0]);CHKERRQ(ierr);
+      }
     }
-    else if (fg->normal[dirs[0]] > 0.) { /* right ghost */
-      fR = 0; /* no update of ghost */
-      ierr = DMPlexPointLocalRead(dm,cells0[0],uArray,&puL);CHKERRQ(ierr);
-      ierr = DMPlexPointGlobalRef(dm,cells0[0],f,&fL);CHKERRQ(ierr);
-      puR = puL;
-      fact0[1] = s_BCFact;
-    }
-    else {
-      fL = 0; /* no update of ghost */
-      ierr = DMPlexPointLocalRead(dm,cells0[0],uArray,&puR);CHKERRQ(ierr);
-      ierr = DMPlexPointGlobalRef(dm,cells0[0],f,&fR);CHKERRQ(ierr);
-      puL = puR;
-      fact0[0] = s_BCFact;
-    }
-
     ierr = (*user->model->alpha)(user->model,time,fg->centroid,&alpha,user->model->physics);CHKERRQ(ierr);
     if (s_useBoxStencil) { /* use a box, not star, stencil */
       int s0; /* short recursion by hand ? */
-      u[0] = fact0[0]*sten[0]*(*puL);
-      u[1] = fact0[1]*sten[0]*(*puR);
-      /* for each side of face 0 */
+      uu[0] *= sten[0];
+      uu[1] *= sten[0];
+      /* for each side of the face */
       for (s0=0;s0<2;s0++) {
         const FaceGeom *fg;
-        PetscInt numFaces,f,cell0;
+        PetscInt numFaces,ff,cell0;
         const PetscInt *faces;
-        if (nC==2) cell0 = cells0[s0]; /* we have extracted data a BC factors ??? */
-        else       cell0 = cells0[0];
+        if (nC==2) cell0 = cells[s0];
+        else       cell0 = cells[0];
         DMPlexGetConeSize(dm, cell0, &numFaces);
+        if (numFaces != 2*dim) SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"%d 2D faces ????",numFaces);
         DMPlexGetCone(dm, cell0, &faces);
-        for (f = 0; f < numFaces; ++f) {
-          const PetscInt face = faces[f];
+        for (ff = 0; ff < numFaces; ++ff) {
+          const PetscInt face = faces[ff];
           ierr = DMPlexPointLocalRead(dmFace,face,facegeom,&fg);CHKERRQ(ierr);
-          for (i=0,dirs[1]=-1;i<DIM;++i) if (fg->normal[i] != 0.0 && i != dirs[0]) dirs[1]=i;
-          if (dirs[1]!=-1) { /* we have a perp face  */
-            PetscInt nC,fact1;
-            const PetscInt *cells1;
-            const PetscScalar *pu;
+          for (i=0,axis[1]=-1;i<dim;++i) if (fg->normal[i]!=0.0 && i!=axis[0]) axis[1]=i;
+          if (axis[1]!=-1) { /* we have a perp face, look for a cell  */
+            PetscInt nC;
+            const PetscInt *cells;
+            PetscScalar u1;
+PetscPrintf(PETSC_COMM_WORLD,"\t found face in dir %d\n",axis[1]);
             ierr = DMPlexGetSupportSize(dm, face, &nC);CHKERRQ(ierr);
-            ierr = DMPlexGetSupport(dm, face, &cells1);CHKERRQ(ierr);
-            fact1 = 1.;
+            ierr = DMPlexGetSupport(dm, face, &cells);CHKERRQ(ierr);
             if (nC==2) {
-              /* not a BC - get u for other (corner) cell */
-              if (cells1[0] == cell0) DMPlexPointLocalRead(dm,cells1[1],uArray,&pu);
-              else if (cells1[1] == cell0) DMPlexPointLocalRead(dm,cells1[0],uArray,&pu);
+              PetscInt cell1;
+              if (cells[0] == cell0) cell1 = cells[1];
+              else if (cells[1] == cell0) cell1 = cells[0];
               else SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"cell %d not found",cell0);
+              if (dir[axis[0]]==0) { /* regular cell */
+                const PetscScalar *pu;
+                ierr = DMPlexPointLocalRead(dm,cell1,uArray,&pu);CHKERRQ(ierr);
+                u1 = *pu;
+              } else { /* edge: first dir (l/r) was a BC ghost, now have to get ghost */
+                ierr = getBCGhostVal(dm,dmFace,s_order,dim,axis[0],-fg->normal[axis[0]],cell1,uArray,facegeom,&u1);CHKERRQ(ierr);
+PetscPrintf(PETSC_COMM_WORLD,"\t\t l/r edge normal=%e dir=%d\n",fg->normal[axis[0]],dir[axis[0]]);
+              }
+              /* dir[axis[1]] = 0; */
+            } else { /* dir 1 (up/down) is a BC edge/corner */
+              if (dir[axis[0]]==0) { /* edge */
+                ierr = getBCGhostVal(dm,dmFace,s_order,dim,axis[1],-fg->normal[axis[1]],cell0,uArray,facegeom,&u1);CHKERRQ(ierr);
+PetscPrintf(PETSC_COMM_WORLD,"\t\t up/down edge normal=%e dir=%d\n",fg->normal[axis[1]],dir[axis[1]]);
+              } else { /* corner */
+                const PetscScalar *pu;
+                ierr = DMPlexPointLocalRead(dm,cell0,uArray,&pu);CHKERRQ(ierr);
+                u1 = -(*pu); /* very low order */
+PetscPrintf(PETSC_COMM_WORLD,"\t\t\t corner cell=%d\n",cell0);
+              }
+              /* if (fg->normal[axis[1]] > 0.) dir[axis[1]] = 1; */
+              /* else dir[axis[1]] = -1; */
             }
-            else {
-              ierr = DMPlexPointLocalRead(dm,cells1[0],uArray,&pu);CHKERRQ(ierr);
-              fact1 = s_BCFact;
-            }
-            if (DIM==2) {
-              u[s0] += fact1*fact0[s0]*sten[1]*(*pu);
+            if (dim==2) {
+              uu[s0] += sten[1]*u1;
             }
             else {
               /* 3rd D */
-              SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"dim=%d",DIM);
+              SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"dim=%d",dim);
             }
           } /* have a perp face */
         } /* faces of side cell */
       } /* each side */
-    } else {
-      u[0] = fact0[0] * (*puL);
-      u[1] = fact0[1] * (*puR);
     }
 
-    dx = user->dx[user->ilev][dirs[0]];
-    flux = alpha*(u[1] - u[0])/dx;
+    dx = user->dx[user->ilev][axis[0]];
+    flux = alpha*(uu[1] - uu[0])/dx;
     if (fL) *fL -= flux / dx;
     if (fR) *fR += flux / dx;
   }
@@ -918,7 +977,7 @@ PetscErrorCode RHSFunctionLap(TS ts,PetscReal t,Vec globalin,Vec globalout,void 
       *pfDest = sten[0]*(*pfSrci);
 
       DMPlexGetConeSize(dm, c, &numFaces);
-      if (numFaces != 4) SETERRQ1(mod->comm,PETSC_ERR_ARG_WRONGSTATE,"%d 2D faces ????",numFaces);
+      if (numFaces != 2*mod->dim) SETERRQ1(mod->comm,PETSC_ERR_ARG_WRONGSTATE,"%d 2D faces ????",numFaces);
       DMPlexGetCone(dm, c, &faces);
       for (f = 0; f < numFaces; ++f) {
         const PetscInt face = faces[f];
@@ -937,7 +996,7 @@ PetscErrorCode RHSFunctionLap(TS ts,PetscReal t,Vec globalin,Vec globalout,void 
         else if (cells[0] != c) SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"BC face cell %d not here",c);
         else {
           pfSrcj = pfSrci;
-          fact = s_BCFact;
+
         }
         *pfDest += fact*sten[1]*(*pfSrcj);
       }
@@ -999,10 +1058,6 @@ int main(int argc, char **argv)
 
   ierr = PetscOptionsBegin(comm,NULL,"Unstructured Finite Volume Options","");CHKERRQ(ierr);
   {
-    PetscBool use_diri = PETSC_TRUE;
-    ierr = PetscOptionsBool("-diri","Use Diri BCs","",use_diri,&use_diri,NULL);CHKERRQ(ierr);
-    if (use_diri) s_BCFact = -1.;
-    else s_BCFact = 1.; /* neumann */
     s_useBoxStencil = PETSC_TRUE;
     ierr = PetscOptionsBool("-box_stencil","Use Box Stencil (9 point)","",s_useBoxStencil,&s_useBoxStencil,NULL);CHKERRQ(ierr);
     s_constCoef = PETSC_FALSE;
@@ -1015,7 +1070,7 @@ int main(int argc, char **argv)
     vtkCellGeom = PETSC_FALSE;
     nrefine=0;
     ierr = PetscOptionsInt("-nrefine","Number of refinment steps","",nrefine,&nrefine,NULL);CHKERRQ(ierr);
-    if (nrefine>=32) nrefine = 31;
+    if (nrefine>=MAX_LEVEL) nrefine = MAX_LEVEL-1;
     ierr = PetscOptionsBool("-ufv_vtk_cellgeom","Write cell geometry (for debugging)","",vtkCellGeom,&vtkCellGeom,NULL);CHKERRQ(ierr);
     ierr = PetscMemzero(phys,sizeof(struct _n_Physics));CHKERRQ(ierr);
     ierr = PhysicsCreate_Lap(mod,phys);CHKERRQ(ierr);
@@ -1029,7 +1084,6 @@ int main(int argc, char **argv)
   /* outer congerance loop */
   for (ilev=0,N=4;ilev<=nrefine;ilev++,N*=2) {
     user->ilev = ilev;
-    for (i=0;i<DIM;i++) user->dx[ilev][i] = 1./N;
     /* create base mesh 4x4 !!! */
     if (!rank) {
       exoid = ex_open(filename, EX_READ, &CPU_word_size, &IO_word_size, &version);
@@ -1037,6 +1091,8 @@ int main(int argc, char **argv)
     } else exoid = -1;                 /* Not used */
     ierr = DMPlexCreateExodus(comm, exoid, PETSC_TRUE, &dm);CHKERRQ(ierr);
     if (!rank) {ierr = ex_close(exoid);CHKERRQ(ierr);}
+    ierr = DMPlexGetDimension(dm, &mod->dim);CHKERRQ(ierr);
+    for (i=0;i<mod->dim;i++) user->dx[ilev][i] = 1./N; /* hack to get size of square grid */
 
     /* refine mesh */
     /* ierr = DMPlexSetRefinementUniform(dm, PETSC_TRUE); */
@@ -1153,6 +1209,28 @@ int main(int argc, char **argv)
   ierr = PetscFree(user->model->physics);CHKERRQ(ierr);
   ierr = PetscFree(user->model);CHKERRQ(ierr);
   ierr = PetscFree(user);CHKERRQ(ierr);
+
+  if (0) {
+    // setup interpolation
+    const PetscInt ntarg=1,nref=5;
+    PetscReal targetx[ntarg+1],sourcex[nref+1],RCoef[nref],t;
+    int i,j;
+    for (i=0,j=-1;i<=1;i++,j++) targetx[i] = j;
+    //  normal interpolant
+    //  sources:                 0   1           2           3           4           5
+    //  targets (*)  |     *     | o |     o     |     o     |     o     |     o     |
+    //  coord       -1           0.  eps         1           2           3           4
+    for (i=0,t=-1.e-6;i<=ntarg;i++,j++,t+=1.e-6) sourcex[i] = t;
+    for (i=2,j=1;i<=nref;i++,j++) sourcex[i] = j;
+    printf("source: ");
+    for (i=0;i<=nref;i++) printf(" %e",sourcex[i]); printf("\ntarget:");
+    for (i=0;i<=ntarg;i++) printf(" %e",targetx[i]); printf("\n");
+    // PetscDTReconstructPoly(degree,nsource,*sourcex,ntarget,*targetx,*R)
+    ierr = PetscDTReconstructPoly(0,nref-1,sourcex,ntarg,targetx,RCoef);CHKERRQ(ierr);
+    printf("RCoef:");
+    for (i=0;i<nref-1;i++) printf(" %e",RCoef[i]);
+    printf("\n");
+  }
 
   ierr = PetscFinalize();
   return(0);
