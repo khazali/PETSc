@@ -8,9 +8,6 @@
 #include <petscsys.h>        /*I  "petscsys.h"   I*/
 #include <petscbt.h>
 #include <../src/sys/utils/ftn-kernels/fcopy.h>
-#if defined(PETSC_HAVE_SYS_DDI_H)
-#include <sys/ddi.h>
-#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscMemcmp"
