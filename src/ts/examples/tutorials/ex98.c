@@ -753,7 +753,7 @@ PetscPrintf(PETSC_COMM_WORLD,"\tgetBCGhostVal: %d) do cell %d gv=%e interp=%e, a
     for (f = 0, cell0 = -1; f < numFaces; ++f) {
       const PetscInt face = faces[f];
       ierr = DMPlexPointLocalRead(dmFace,face,facegeom,&fg);CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_WORLD,"\t\tlook at face %d, cell %d, fg->normal=%e\n",face,fg->normal[axis]);
+      PetscPrintf(PETSC_COMM_WORLD,"\t\tlook at face %d, fg->normal[%d]=%e\n",face,axis,fg->normal[axis]);
       if (fg->normal[axis]*normal > 0.0) {
         PetscInt nC;
         const PetscInt *cells;
