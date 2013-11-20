@@ -8,8 +8,8 @@
 #include <petscsys.h>        /*I  "petscsys.h"   I*/
 #include <petscbt.h>
 #include <../src/sys/utils/ftn-kernels/fcopy.h>
-#if defined(PETSC_HAVE_SYS_DDI_H)
-#include <sys/ddi.h>
+#if defined(PETSC_HAVE_STRING_H)
+#include <string.h>
 #endif
 
 #undef __FUNCT__
