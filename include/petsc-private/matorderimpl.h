@@ -27,6 +27,7 @@ PETSC_EXTERN PetscErrorCode SPARSEPACKrcm(const PetscInt*,const PetscInt*,const 
 
 PETSC_EXTERN PetscErrorCode HSLmc64AD(const PetscInt *job, PetscInt *m, PetscInt *n, PetscInt *ne, const PetscInt *ip, const PetscInt *irn, PetscScalar *a, PetscInt *num,
                                       PetscInt *perm, PetscInt *liw, PetscInt *iw, PetscInt *ldw, PetscScalar *dw, PetscInt *icntl, PetscScalar *cntl, PetscInt *info);
+#if !defined(PETSC_USE_COMPLEX)
 PETSC_EXTERN PetscErrorCode HSLmc64BD(PetscInt *m, PetscInt *n, PetscInt *ne, const PetscInt *ip, const PetscInt *irn, PetscScalar *a, PetscInt *iperm, PetscInt *num,
                                       PetscInt *jperm, PetscInt *pr, PetscInt *q, PetscInt *l, PetscScalar *d__, PetscScalar *rinf);
 PETSC_EXTERN PetscErrorCode HSLmc64SD(PetscInt *m, PetscInt *n, PetscInt *ne, const PetscInt *ip, const PetscInt *irn, PetscScalar *a, PetscInt *iperm, PetscInt *numx,
@@ -53,4 +54,5 @@ PETSC_EXTERN PetscErrorCode mc64WD(PetscInt *n, PetscInt *ne, PetscInt *ip, Pets
 PETSC_EXTERN PetscErrorCode mc21AD(PetscInt *n, PetscInt *icn, PetscInt *licn, PetscInt *ip, PetscInt *lenr, PetscInt *iperm, PetscInt *numnz, PetscInt *iw);
 PETSC_EXTERN PetscErrorCode mc21BD(PetscInt *n, PetscInt *icn, PetscInt *licn, PetscInt *ip, PetscInt *lenr, PetscInt *iperm, PetscInt *numnz, PetscInt *pr, PetscInt *arp, PetscInt *cv, PetscInt *out);
 PETSC_EXTERN PetscScalar fd15AD(char *t, int t_len);
+#endif
 #endif
