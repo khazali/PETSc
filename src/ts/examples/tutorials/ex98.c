@@ -20,8 +20,9 @@ F*/
 #error This example requires ExodusII support. Reconfigure using --download-exodusii
 #endif
 
-static PetscBool s_useBoxStencil = PETSC_TRUE;
-static PetscBool s_constCoef = PETSC_TRUE;
+static PetscBool s_useBoxStencil;
+static PetscBool s_constCoef;
+static PetscInt s_order;
 
 #define MAX_DIM 3 /* Geometric dimension */
 #define ALEN(a) (sizeof(a)/sizeof((a)[0]))
@@ -726,51 +727,69 @@ PetscErrorCode CreatePartitionVec(DM dm, DM *dmCell, Vec *partition)
 
 #undef __FUNCT__
 #define __FUNCT__ "getBCGhostVal"
-static PetscErrorCode getBCGhostVal(DM dm, DM dmFace, PetscInt orderpoly, PetscInt dim, PetscInt axis, PetscScalar normal, PetscInt cell0,
+static PetscErrorCode getBCGhostVal(DM dm, DM dmFace, PetscInt orderpoly, PetscInt dim, PetscInt axis, PetscInt cell0,
                             const PetscScalar *uArray, const PetscScalar *facegeom, PetscScalar *ghostVal)
 {
   PetscErrorCode    ierr;
-  PetscReal interp[5][4] = { { -1., 0., 0., 0.},
-                             { -5./2, 1./2, 0., 0.},
-                             { -13./3, 5./3, -1./3, 0.},
-                             { -77./12,43./12,-17./12,3./12} };
-  PetscInt oi;
-  PetscFunctionBeginUser;
-  if (orderpoly<2 || orderpoly>5) SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"order poly %d not supported",orderpoly);
+  const PetscReal interp_point[5][4] = { { -1.,              0.,                0.,                0.}, /* 2 */
+                                         { -39./18,          7./18,             0.,                0.}, /* 3 */
+                                         {-3.45833333333333, 1.25,             -0.258333333333333, 0.}, /* 4 */
+                                         {-4.85138888888889, 2.64305555555555, -1.09416666666666,  0.199007936507936} /* 5 */
+  };
+  const PetscReal interp_cell[5][4] = { { -1.,    0.,        0.,   0.}, /* 2 */
+                                        { -5./2,  1./2,      0.,   0.}, /* 3 */
+                                        {-13./3,  5./3,   -1./3,   0.}, /* 4 */
+                                        {-77./12, 43./12, -17./12, 3./12} /* 5 */
+  };
+  const PetscReal (*interp)[4] = interp_cell;
 
+  PetscInt oi,cell,lastcell=cell0;
+  PetscFunctionBeginUser;
+  if (orderpoly<0) {
+    interp = interp_point;
+    orderpoly *= -1;
+  } else interp = interp_cell;
+  if (orderpoly<2 || orderpoly>5) SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"order poly %d not supported",orderpoly);
   *ghostVal=0.0;
   oi=0;
+  cell = cell0;
+  //PetscPrintf(PETSC_COMM_WORLD,"getBCGhostVal: start cell %d\n",cell);
   do {
     const PetscScalar *pu;
     const FaceGeom *fg;
     PetscInt numFaces,f;
     const PetscInt *faces;
-PetscPrintf(PETSC_COMM_WORLD,"\tgetBCGhostVal: %d) do cell %d gv=%e interp=%e, axis %d, normal=%e \n",oi+1,cell0,*ghostVal,interp[orderpoly-2][oi],axis,normal);
-    ierr = DMPlexPointLocalRead(dm,cell0,uArray,&pu);CHKERRQ(ierr);
-    *ghostVal += (*pu)*interp[orderpoly-2][oi];
-    DMPlexGetConeSize(dm, cell0, &numFaces);
-    DMPlexGetCone(dm, cell0, &faces);
-    for (f = 0, cell0 = -1; f < numFaces; ++f) {
+    //PetscPrintf(PETSC_COMM_WORLD,"\tdo cell %d\n",cell);
+    ierr = DMPlexPointLocalRead(dm,cell,uArray,&pu);CHKERRQ(ierr);
+    *ghostVal += (*pu)*interp[orderpoly-2][oi]; /* first boundary cell */
+    DMPlexGetConeSize(dm, cell, &numFaces);
+    DMPlexGetCone(dm, cell, &faces);
+    for (f = 0; f < numFaces; ++f) {
       const PetscInt face = faces[f];
       ierr = DMPlexPointLocalRead(dmFace,face,facegeom,&fg);CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_WORLD,"\t\tlook at face %d, fg->normal[%d]=%e\n",face,axis,fg->normal[axis]);
-      if (fg->normal[axis]*normal > 0.0) {
+      if (fg->normal[axis]!=0.0) { /* we have a perp face, look for a cell */
         PetscInt nC;
-        const PetscInt *cells;
         ierr = DMPlexGetSupportSize(dm, face, &nC);CHKERRQ(ierr);
-        ierr = DMPlexGetSupport(dm, face, &cells);CHKERRQ(ierr);
-        if (cells[0] == cell0) cell0 = cells[1];
-        else if (cells[1] == cell0) cell0 = cells[0];
-        else SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"cell %d not found",cell0);
-PetscPrintf(PETSC_COMM_WORLD,"\t\t found next cell %d n*n=%e\n",cell0,fg->normal[axis]*normal);
+        if (nC==2) { /* looking away from BC so we know only one face has two cells  */
+          const PetscInt *cells;
+          ierr = DMPlexGetSupport(dm, face, &cells);CHKERRQ(ierr);
+          if ((cells[0]!=lastcell && cells[0]!=cell) || (cells[1]!=lastcell && cells[1]!=cell)) {
+            lastcell = cell;
+            if (cells[0]!=lastcell && cells[0]!=cell) cell = cells[0];
+            else if (cells[1]!=lastcell && cells[1]!=cell) cell = cells[1];
+          }
+          else {
+            //PetscPrintf(PETSC_COMM_WORLD,"\t\t\t\tskip face %d\n",face);
+            continue; /* we are looking back */
+          }
+          break;  /* we found it */
+        }
       }
     }
-    if (cell0==-1) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"cell not found");
-  } while (oi++ < orderpoly-1);
-
+    if (lastcell==cell) SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"cell %d not found",cell);
+  } while (++oi < orderpoly-1);
   PetscFunctionReturn(0);
 }
-
 
 #undef __FUNCT__
 #define __FUNCT__ "ApplyLaplacianLocal"
@@ -779,7 +798,7 @@ static PetscErrorCode ApplyLaplacianLocal(DM dm,DM dmFace,DM dmCell,PetscReal ti
   PetscErrorCode    ierr;
   const PetscScalar *facegeom, *uArray;
   PetscScalar       *f;
-  PetscInt          fStart, fEnd, face, dim = user->model->dim, s_order=5;
+  PetscInt          fStart, fEnd, face, dim = user->model->dim;
   const PetscReal   sten[2]={10./12.,1./12.}; /* 1D stencil: [1  10  1] / 12 */
   PetscFunctionBeginUser;
   ierr = VecGetArrayRead(user->facegeom,&facegeom);CHKERRQ(ierr);
@@ -814,16 +833,14 @@ static PetscErrorCode ApplyLaplacianLocal(DM dm,DM dmFace,DM dmCell,PetscReal ti
         ierr = DMPlexPointGlobalRef(dm,cells[0],f,&fL);CHKERRQ(ierr);
         uu[0] = *puL;
         dir[axis[0]] = 1;
-PetscPrintf(PETSC_COMM_WORLD,"ApplyLaplacianLocal right/up axis %d\n",axis[0]);
-        ierr = getBCGhostVal(dm,dmFace,s_order,dim,axis[0],-fg->normal[axis[0]],cells[0],uArray,facegeom,&uu[1]);CHKERRQ(ierr);
+        ierr = getBCGhostVal(dm,dmFace,s_order,dim,axis[0],cells[0],uArray,facegeom,&uu[1]);CHKERRQ(ierr);
       } else {
         fL = 0; /* no update of ghost */
         ierr = DMPlexPointLocalRead(dm,cells[0],uArray,&puR);CHKERRQ(ierr);
         ierr = DMPlexPointGlobalRef(dm,cells[0],f,&fR);CHKERRQ(ierr);
         uu[1] = *puR;
         dir[axis[0]] = -1;
-PetscPrintf(PETSC_COMM_WORLD,"ApplyLaplacianLocal left/down axis %d\n",axis[0]);
-        ierr = getBCGhostVal(dm,dmFace,s_order,dim,axis[0],-fg->normal[axis[0]],cells[0],uArray,facegeom,&uu[0]);CHKERRQ(ierr);
+        ierr = getBCGhostVal(dm,dmFace,s_order,dim,axis[0],cells[0],uArray,facegeom,&uu[0]);CHKERRQ(ierr);
       }
     }
     ierr = (*user->model->alpha)(user->model,time,fg->centroid,&alpha,user->model->physics);CHKERRQ(ierr);
@@ -836,8 +853,8 @@ PetscPrintf(PETSC_COMM_WORLD,"ApplyLaplacianLocal left/down axis %d\n",axis[0]);
         const FaceGeom *fg;
         PetscInt numFaces,ff,cell0;
         const PetscInt *faces;
-        if (nC==2) cell0 = cells[s0];
-        else       cell0 = cells[0];
+        if (dir[axis[0]]==0) cell0 = cells[s0];
+        else                 cell0 = cells[0]; /* BC face: first face is normal, second is fake */
         DMPlexGetConeSize(dm, cell0, &numFaces);
         if (numFaces != 2*dim) SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"%d 2D faces ????",numFaces);
         DMPlexGetCone(dm, cell0, &faces);
@@ -848,8 +865,7 @@ PetscPrintf(PETSC_COMM_WORLD,"ApplyLaplacianLocal left/down axis %d\n",axis[0]);
           if (axis[1]!=-1) { /* we have a perp face, look for a cell  */
             PetscInt nC;
             const PetscInt *cells;
-            PetscScalar u1;
-PetscPrintf(PETSC_COMM_WORLD,"\t found face in dir %d\n",axis[1]);
+            PetscScalar u1 = 1.e300;
             ierr = DMPlexGetSupportSize(dm, face, &nC);CHKERRQ(ierr);
             ierr = DMPlexGetSupport(dm, face, &cells);CHKERRQ(ierr);
             if (nC==2) {
@@ -857,34 +873,41 @@ PetscPrintf(PETSC_COMM_WORLD,"\t found face in dir %d\n",axis[1]);
               if (cells[0] == cell0) cell1 = cells[1];
               else if (cells[1] == cell0) cell1 = cells[0];
               else SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"cell %d not found",cell0);
-              if (dir[axis[0]]==0) { /* regular cell */
+              if (dir[axis[0]]==0 || s0==0) { /* very regular cell */
                 const PetscScalar *pu;
                 ierr = DMPlexPointLocalRead(dm,cell1,uArray,&pu);CHKERRQ(ierr);
-                u1 = *pu;
-              } else { /* edge: first dir (l/r) was a BC ghost, now have to get ghost */
-                ierr = getBCGhostVal(dm,dmFace,s_order,dim,axis[0],-fg->normal[axis[0]],cell1,uArray,facegeom,&u1);CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_WORLD,"\t\t l/r edge normal=%e dir=%d\n",fg->normal[axis[0]],dir[axis[0]]);
+                u1 = (*pu);
+              } else { /* BC face */
+                /* | c1 |  (c1) */
+                /* | s0 || (s1) */
+                /* | c1 |  (c1) */
+                ierr = getBCGhostVal(dm,dmFace,s_order,dim,axis[0],cell1,uArray,facegeom,&u1);CHKERRQ(ierr);
               }
-              /* dir[axis[1]] = 0; */
-            } else { /* dir 1 (up/down) is a BC edge/corner */
-              if (dir[axis[0]]==0) { /* edge */
-                ierr = getBCGhostVal(dm,dmFace,s_order,dim,axis[1],-fg->normal[axis[1]],cell0,uArray,facegeom,&u1);CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_WORLD,"\t\t up/down edge normal=%e dir=%d\n",fg->normal[axis[1]],dir[axis[1]]);
-              } else { /* corner */
-                const PetscScalar *pu;
-                ierr = DMPlexPointLocalRead(dm,cell0,uArray,&pu);CHKERRQ(ierr);
-                u1 = -(*pu); /* very low order */
-PetscPrintf(PETSC_COMM_WORLD,"\t\t\t corner cell=%d\n",cell0);
-              }
+            } else { /* secondary face is a BC */
               /* if (fg->normal[axis[1]] > 0.) dir[axis[1]] = 1; */
               /* else dir[axis[1]] = -1; */
+              if (dir[axis[0]]==0) { /* edge: cell0=cells[s0] & we are a BC face */
+                /* | (c1) | (c1) */
+                /* | s0  ||  s1  */
+                ierr = getBCGhostVal(dm,dmFace,s_order,dim,axis[1],cell0,uArray,facegeom,&u1);CHKERRQ(ierr);
+              } else { /* BC face in both directions: corner */
+                PetscScalar ua,ub;
+                /* ierr = DMPlexPointLocalRead(dm,cell0,uArray,&pu);CHKERRQ(ierr); */
+                /* u1 = -(*pu); */ /* very low order */
+                ierr = getBCGhostVal(dm,dmFace,s_order,dim,0,cell0,uArray,facegeom,&ua);CHKERRQ(ierr);
+                ierr = getBCGhostVal(dm,dmFace,s_order,dim,1,cell0,uArray,facegeom,&ub);CHKERRQ(ierr);
+                u1 = (ua+ub)/2.;
+              }
             }
             if (dim==2) {
-              uu[s0] += sten[1]*u1;
-            }
-            else {
-              /* 3rd D */
-              SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"dim=%d",dim);
+              if (dir[axis[0]] != -1) {
+                uu[s0] += sten[1]*u1;
+              } else {
+                uu[(s0+1)%2] += sten[1]*u1;
+              }
+            } else {
+              /* 3D */
+              SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"dim=%d not done for Box stencil",dim);
             }
           } /* have a perp face */
         } /* faces of side cell */
@@ -967,6 +990,11 @@ PetscErrorCode RHSFunctionLap(TS ts,PetscReal t,Vec globalin,Vec globalout,void 
     PetscInt numFaces,f;
     const PetscInt *faces;
     PetscScalar *uu;
+    DM           dmFace;
+    const PetscScalar *facegeom;
+
+    ierr = VecGetArrayRead(user->facegeom,&facegeom);CHKERRQ(ierr);
+    ierr = VecGetDM(user->facegeom,&dmFace);CHKERRQ(ierr);
     ierr = PetscMalloc((cEnd-cStart) * sizeof(PetscScalar), &uu);CHKERRQ(ierr);
     for (c = cStart; c < cEnd; ++c) {
       const PetscScalar *pfSrci;
@@ -983,22 +1011,26 @@ PetscErrorCode RHSFunctionLap(TS ts,PetscReal t,Vec globalin,Vec globalout,void 
         const PetscInt face = faces[f];
         PetscInt nC;
         const PetscInt *cells;
-        const PetscScalar *pfSrcj;
-        PetscReal fact = 1.;
+        PetscScalar fSrcj;
         ierr = DMPlexGetSupportSize(dm, face, &nC);CHKERRQ(ierr);
         ierr = DMPlexGetSupport(dm, face, &cells);CHKERRQ(ierr);
         if (nC==2) {
+          const PetscScalar *pfSrcj;
           /* not a BC - get u for other (corner) cell */
           if (cells[0] == c) DMPlexPointLocalRead(dm,cells[1],rhs_v,&pfSrcj);
           else if (cells[1] == c) DMPlexPointLocalRead(dm,cells[0],rhs_v,&pfSrcj);
           else SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"cell %d not found",c);
+          fSrcj = *pfSrcj;
         }
         else if (cells[0] != c) SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONGSTATE,"BC face cell %d not here",c);
         else {
-          pfSrcj = pfSrci;
-
+          /* const FaceGeom    *fg; PetscInt axis,i; */
+          /* ierr = DMPlexPointLocalRead(dmFace,face,facegeom,&fg);CHKERRQ(ierr); */
+          /* for (i=0,axis=-1;i<mod->dim;++i) if (fg->normal[i]!=0.0) axis = i; */
+          /* ierr = getBCGhostVal(dm,dmFace,2,mod->dim,axis,c,rhs_v,facegeom,&fSrcj);CHKERRQ(ierr); */
+          fSrcj = 0;
         }
-        *pfDest += fact*sten[1]*(*pfSrcj);
+        *pfDest += sten[1]*fSrcj;
       }
     }
     /* copy back */
@@ -1048,7 +1080,6 @@ int main(int argc, char **argv)
   ierr = PetscInitialize(&argc, &argv, (char*) 0, help);CHKERRQ(ierr);
   comm = PETSC_COMM_WORLD;
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
-  if (rank!=0) SETERRQ(comm,PETSC_ERR_ARG_WRONGSTATE,"one process -- no ghosts");
   ierr = PetscNew(struct _n_User,&user);CHKERRQ(ierr);
   ierr = PetscNew(struct _n_Model,&user->model);CHKERRQ(ierr);
   ierr = PetscNew(struct _n_Physics,&user->model->physics);CHKERRQ(ierr);
@@ -1058,6 +1089,8 @@ int main(int argc, char **argv)
 
   ierr = PetscOptionsBegin(comm,NULL,"Unstructured Finite Volume Options","");CHKERRQ(ierr);
   {
+    s_order = 2;
+    ierr = PetscOptionsInt("-bc_order","order of Boundary Condition interpolation (2-5)","",s_order,&s_order,NULL);CHKERRQ(ierr);
     s_useBoxStencil = PETSC_TRUE;
     ierr = PetscOptionsBool("-box_stencil","Use Box Stencil (9 point)","",s_useBoxStencil,&s_useBoxStencil,NULL);CHKERRQ(ierr);
     s_constCoef = PETSC_FALSE;
@@ -1117,6 +1150,15 @@ int main(int argc, char **argv)
       dm   = dmDist;
     }
     ierr = DMSetFromOptions(dm);CHKERRQ(ierr);
+    /* { */
+    /*   DM gdm; */
+    /*   PetscInt  cStart, cEnd; */
+    /*   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr); */
+    /*   ierr = DMPlexGetHeightStratum(dm, 0, NULL, &cEnd);CHKERRQ(ierr); */
+    /*   ierr = DMPlexConstructGhostCells(dm, NULL, &user->numGhostCells, &gdm);CHKERRQ(ierr); */
+    /*   ierr = DMDestroy(&dm);CHKERRQ(ierr); */
+    /*   dm   = gdm; */
+    /* } */
     /* DMView(dm,PETSC_VIEWER_STDOUT_WORLD); */
     ierr = ConstructGeometry(dm, &user->facegeom, &user->cellgeom, user);CHKERRQ(ierr);
     if (0) {ierr = VecView(user->cellgeom, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);}
