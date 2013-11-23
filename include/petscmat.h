@@ -924,8 +924,6 @@ typedef const char* MatOrderingType;
 #define MATORDERINGRCM         "rcm"
 #define MATORDERINGQMD         "qmd"
 #define MATORDERINGROWLENGTH   "rowlength"
-#define MATORDERINGWBM         "wbm"
-#define MATORDERINGSPECTRAL    "spectral"
 #define MATORDERINGAMD         "amd"            /* only works if UMFPACK is installed with PETSc */
 
 PETSC_EXTERN PetscErrorCode MatGetOrdering(Mat,MatOrderingType,IS*,IS*);
@@ -936,7 +934,6 @@ PETSC_EXTERN PetscBool         MatOrderingRegisterAllCalled;
 PETSC_EXTERN PetscFunctionList MatOrderingList;
 
 PETSC_EXTERN PetscErrorCode MatReorderForNonzeroDiagonal(Mat,PetscReal,IS,IS);
-PETSC_EXTERN PetscErrorCode MatCreateLaplacian(Mat,PetscReal,PetscBool,Mat*);
 
 /*S
     MatFactorShiftType - Numeric Shift.
