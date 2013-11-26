@@ -10,7 +10,10 @@
   PetscScalar *T;                                 \
   PetscScalar *ibdiag;                            \
   PetscBool   ibdiagvalid,getrowactive,isTI;      \
-  PetscScalar *sor_w,*sor_work,*sor_t,*sor_arr,*sor_y
+  struct {                                        \
+    PetscBool setup;                              \
+    PetscScalar *w,*work,*t,*arr,*y;              \
+  } sor;
 
 typedef struct {
   TAIJHEADER;

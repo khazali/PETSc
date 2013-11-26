@@ -132,9 +132,8 @@ PetscErrorCode MatDestroy_SeqTAIJ(Mat A)
   PetscFunctionBegin;
   ierr = MatDestroy(&b->AIJ);CHKERRQ(ierr);
   ierr = PetscFree3(b->S,b->T,b->ibdiag);CHKERRQ(ierr);
+  ierr = PetscFree5(b->sor.w,b->sor.y,b->sor.work,b->sor.t,b->sor.arr);CHKERRQ(ierr);
   ierr = PetscFree(A->data);CHKERRQ(ierr);
-  ierr = PetscFree5(b->sor_w,b->sor_y,b->sor_work,b->sor_t,b->sor_arr);CHKERRQ(ierr);
-
   PetscFunctionReturn(0);
 }
 
@@ -446,23 +445,22 @@ PetscErrorCode MatSOR_SeqTAIJ(Mat A,Vec bb,PetscReal omega,MatSORType flag,Petsc
   idiag = taij->ibdiag;
   diag  = a->diag;
 
-  if (!taij->sor_w)     { ierr=PetscMalloc(bs*sizeof(PetscScalar)   ,&taij->sor_w);    CHKERRQ(ierr); }
-  if (!taij->sor_y)     { ierr=PetscMalloc(bs*sizeof(PetscScalar)   ,&taij->sor_y);    CHKERRQ(ierr); }
-  if (!taij->sor_work)  { ierr=PetscMalloc(m*bs*sizeof(PetscScalar) ,&taij->sor_work); CHKERRQ(ierr); }
-  if (!taij->sor_t)     { ierr=PetscMalloc(m*bs*sizeof(PetscScalar) ,&taij->sor_t);    CHKERRQ(ierr); }
-  if (!taij->sor_arr)   { ierr=PetscMalloc(m*bs2*sizeof(PetscScalar),&taij->sor_arr);  CHKERRQ(ierr); }
-  y     = taij->sor_y;
-  w     = taij->sor_w;
-  work  = taij->sor_work;
-  t     = taij->sor_t;
-  arr   = taij->sor_arr;
+  if (!taij->sor.setup) {
+    ierr = PetscMalloc5(bs,PetscScalar,&taij->sor.w,bs,PetscScalar,&taij->sor.y,m*bs,PetscScalar,&taij->sor.work,m*bs,PetscScalar,&taij->sor.t,m*bs2,PetscScalar,&taij->sor.arr);CHKERRQ(ierr);
+    taij->sor.setup = PETSC_TRUE;
+  }
+  y     = taij->sor.y;
+  w     = taij->sor.w;
+  work  = taij->sor.work;
+  t     = taij->sor.t;
+  arr   = taij->sor.arr;
 
   ierr = VecGetArray(xx,&x);    CHKERRQ(ierr);
   ierr = VecGetArrayRead(bb,&b);CHKERRQ(ierr);
 
   if (flag & SOR_ZERO_INITIAL_GUESS) {
     if (flag & SOR_FORWARD_SWEEP || flag & SOR_LOCAL_FORWARD_SWEEP) {
-      PetscKernel_w_gets_Ar_times_v(bs,bs,b,idiag,x);
+      PetscKernel_w_gets_Ar_times_v(bs,bs,b,idiag,x);                            /* x[0:bs] <- D^{-1} b[0:bs] */
       ierr   =  PetscMemcpy(t,b,bs*sizeof(PetscScalar));CHKERRQ(ierr);
       i2     =  bs;
       idiag  += bs2;
@@ -471,33 +469,30 @@ PetscErrorCode MatSOR_SeqTAIJ(Mat A,Vec bb,PetscReal omega,MatSORType flag,Petsc
         vi = aj + ai[i];
         nz = diag[i] - ai[i];
 
-        ierr = PetscMemcpy(w,b+i2,bs*sizeof(PetscScalar));CHKERRQ(ierr);
-        /* copy all rows of x that are needed into contiguous space */
-        workt = work;
-        for (j=0; j<nz; j++) {
-          ierr   = PetscMemcpy(workt,x + bs*(*vi++),bs*sizeof(PetscScalar));CHKERRQ(ierr);
-          workt += bs;
-        }
-        arrt = arr;
-        if (T) {
+        if (T) {                /* FIXME: This branch untested */
+          ierr = PetscMemcpy(w,b+i2,bs*sizeof(PetscScalar));CHKERRQ(ierr);
+          /* copy all rows of x that are needed into contiguous space */
+          workt = work;
+          for (j=0; j<nz; j++) {
+            ierr   = PetscMemcpy(workt,x + bs*(*vi++),bs*sizeof(PetscScalar));CHKERRQ(ierr);
+            workt += bs;
+          }
+          arrt = arr;
           for (j=0; j<nz; j++) {
             ierr  = PetscMemcpy(arrt,T,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
             for (k=0; k<bs2; k++) arrt[k] *= v[j];
             arrt += bs2;
           }
-          PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,w,arr,work);
+          PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,work,arr,w);
         } else if (taij->isTI) {
+          for (k=0; k<bs; k++) t[i2+k] = b[i2+k];
           for (j=0; j<nz; j++) {
-            ierr = PetscMemzero(arrt,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
-            for (k=0; k<bs; k++) arrt[k+bs*k] = v[j];
-            arrt += bs2;
+            for (k=0; k<bs; k++) t[i2+k] -= v[j] * x[vi[j]*bs+k];
           }
-          PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,w,arr,work);
         }
 
-        ierr = PetscMemcpy(t+i2,w,bs*sizeof(PetscScalar));CHKERRQ(ierr);
-        PetscKernel_w_gets_Ar_times_v(bs,bs,w,idiag,y);
-        for (j=0; j<bs; j++) *(x+i2+j) = omega * *(y+j);
+        PetscKernel_w_gets_Ar_times_v(bs,bs,t+i2,idiag,y);
+        for (j=0; j<bs; j++) x[i2+j] = omega * y[j];
 
         idiag += bs2;
         i2    += bs;
@@ -505,8 +500,7 @@ PetscErrorCode MatSOR_SeqTAIJ(Mat A,Vec bb,PetscReal omega,MatSORType flag,Petsc
       /* for logging purposes assume number of nonzero in lower half is 1/2 of total */
       ierr = PetscLogFlops(1.0*bs2*a->nz);CHKERRQ(ierr);
       xb = t;
-    }
-    else xb = b;
+    } else xb = b;
     if (flag & SOR_BACKWARD_SWEEP || flag & SOR_LOCAL_BACKWARD_SWEEP) {
       idiag = taij->ibdiag+bs2*(m-1);
       i2    = bs * (m-1);
@@ -519,15 +513,15 @@ PetscErrorCode MatSOR_SeqTAIJ(Mat A,Vec bb,PetscReal omega,MatSORType flag,Petsc
         vi = aj + diag[i] + 1;
         nz = ai[i+1] - diag[i] - 1;
 
-        ierr = PetscMemcpy(w,xb+i2,bs*sizeof(PetscScalar));CHKERRQ(ierr);
-        /* copy all rows of x that are needed into contiguous space */
-        workt = work;
-        for (j=0; j<nz; j++) {
-          ierr   = PetscMemcpy(workt,x + bs*(*vi++),bs*sizeof(PetscScalar));CHKERRQ(ierr);
-          workt += bs;
-        }
-        arrt = arr;
-        if (T) {
+        if (T) {                /* FIXME: This branch untested */
+          ierr = PetscMemcpy(w,xb+i2,bs*sizeof(PetscScalar));CHKERRQ(ierr);
+          /* copy all rows of x that are needed into contiguous space */
+          workt = work;
+          for (j=0; j<nz; j++) {
+            ierr   = PetscMemcpy(workt,x + bs*(*vi++),bs*sizeof(PetscScalar));CHKERRQ(ierr);
+            workt += bs;
+          }
+          arrt = arr;
           for (j=0; j<nz; j++) {
             ierr  = PetscMemcpy(arrt,T,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
             for (k=0; k<bs2; k++) arrt[k] *= v[j];
@@ -535,16 +529,14 @@ PetscErrorCode MatSOR_SeqTAIJ(Mat A,Vec bb,PetscReal omega,MatSORType flag,Petsc
           }
           PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,w,arr,work);
         } else if (taij->isTI) {
+          for (k=0; k<bs; k++) w[k] = t[i2+k];
           for (j=0; j<nz; j++) {
-            ierr = PetscMemzero(arrt,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
-            for (k=0; k<bs; k++) arrt[k+bs*k] = v[j];
-            arrt += bs2;
+            for (k=0; k<bs; k++) w[k] -= v[j] * x[vi[j]*bs+k];
           }
-          PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,w,arr,work);
         }
 
-        PetscKernel_w_gets_Ar_times_v(bs,bs,w,idiag,y);
-        for (j=0; j<bs; j++) *(x+i2+j) = (1.0-omega) * *(x+i2+j) + omega * *(y+j);
+        PetscKernel_w_gets_Ar_times_v(bs,bs,w,idiag,y); /* RHS incorrect for omega != 1.0 */
+        for (j=0; j<bs; j++) x[i2+j] = (1.0-omega) * x[i2+j] + omega * y[j];
 
         idiag -= bs2;
         i2    -= bs;
@@ -553,7 +545,7 @@ PetscErrorCode MatSOR_SeqTAIJ(Mat A,Vec bb,PetscReal omega,MatSORType flag,Petsc
     }
     its--;
   }
-  while (its--) {
+  while (its--) {               /* FIXME: This branch not updated */
     if (flag & SOR_FORWARD_SWEEP || flag & SOR_LOCAL_FORWARD_SWEEP) {
       i2     =  0;
       idiag  = taij->ibdiag;
@@ -1223,8 +1215,6 @@ PetscErrorCode  MatCreateTAIJ(Mat A,PetscInt p,PetscInt q,const PetscScalar S[],
     B->ops->getrow              = MatGetRow_SeqTAIJ;
     B->ops->restorerow          = MatRestoreRow_SeqTAIJ;
     B->ops->sor                 = MatSOR_SeqTAIJ;
-
-    b->sor_w = b->sor_work = b->sor_t = b->sor_arr = b->sor_y = NULL;
 
     /*
     This is commented out since MATTAIJ will use the basic MatConvert (which uses MatGetRow()).
