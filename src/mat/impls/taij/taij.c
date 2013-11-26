@@ -406,6 +406,17 @@ PetscErrorCode MatInvertBlockDiagonal_SeqTAIJ_N(Mat A,const PetscScalar **values
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "MatGetDiagonalBlock_MPITAIJ"
+static PetscErrorCode MatGetDiagonalBlock_MPITAIJ(Mat A,Mat *B)
+{
+  Mat_MPITAIJ *taij = (Mat_MPITAIJ*) A->data;
+
+  PetscFunctionBegin;
+  *B = taij->AIJ;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "MatSOR_SeqTAIJ"
 PetscErrorCode MatSOR_SeqTAIJ(Mat A,Vec bb,PetscReal omega,MatSORType flag,PetscReal fshift,PetscInt its,PetscInt lits,Vec xx)
 {
@@ -1274,7 +1285,7 @@ PetscErrorCode  MatCreateTAIJ(Mat A,PetscInt p,PetscInt q,const PetscScalar S[],
     B->ops->invertblockdiagonal = MatInvertBlockDiagonal_MPITAIJ_dof;
     B->ops->getrow              = MatGetRow_MPITAIJ;
     B->ops->restorerow          = MatRestoreRow_MPITAIJ;
-
+    ierr = PetscObjectComposeFunction((PetscObject)B,"MatGetDiagonalBlock_C",MatGetDiagonalBlock_MPITAIJ);CHKERRQ(ierr);
   }
   B->ops->getsubmatrix = MatGetSubMatrix_TAIJ;
   ierr  = MatSetUp(B);CHKERRQ(ierr);
