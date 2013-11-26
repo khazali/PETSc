@@ -38,3 +38,4 @@
   9 KSP Residual norm 2.01212e-06 
  10 KSP Residual norm 3.72221e-07 
 L2 norm of the numerical error = 0.000304756 (time=0.625)
+Number of time steps: 5 (34 Krylov iterations)
