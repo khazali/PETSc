@@ -86,6 +86,7 @@ typedef struct __context__ {
 static PetscErrorCode ExactSolution(Vec,void*,PetscReal);
 static PetscErrorCode RKCreate_Gauss24(PetscInt,PetscScalar**,PetscScalar**,PetscReal**);
 static PetscErrorCode RKCreate_Gauss(PetscInt,PetscScalar**,PetscScalar**,PetscReal**);
+static PetscErrorCode Assemble_AdvDiff(MPI_Comm,UserContext*,Mat*);
 
 #include <petsc-private/kernels/blockinvert.h>
 
@@ -99,7 +100,7 @@ int main(int argc, char **argv)
   PetscInt          nstages,is,ie,matis,matie,*ix,*ix2;
   PetscInt          n,i,s,t,total_its;
   PetscScalar       *A,*B,*At,*b,*zvals,one = 1.0;
-  PetscReal         *c,dx,dx2,err,time;
+  PetscReal         *c,err,time;
   Mat               Identity,J,TA,SC,R;
   KSP               ksp;
   PetscFunctionList IRKList = NULL;
@@ -141,7 +142,6 @@ int main(int argc, char **argv)
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   /* allocate and initialize solution vector and exact solution */
-  dx = (ctxt.xmax - ctxt.xmin)/((PetscReal) ctxt.imax); dx2 = dx*dx;
   ierr = VecCreate(PETSC_COMM_WORLD,&u);CHKERRQ(ierr);
   ierr = VecSetSizes(u,PETSC_DECIDE,ctxt.imax);CHKERRQ(ierr);
   ierr = VecSetFromOptions(u);CHKERRQ(ierr);
@@ -178,50 +178,19 @@ int main(int argc, char **argv)
   }
 
   /* allocate and calculate the (-J) matrix */
-  ierr = MatCreate(PETSC_COMM_WORLD,&J);CHKERRQ(ierr);
-  ierr = MatSetType(J,MATAIJ);CHKERRQ(ierr);
-  ierr = MatSetSizes(J,PETSC_DECIDE,PETSC_DECIDE,ctxt.imax,ctxt.imax);CHKERRQ(ierr);
-  ierr = MatSetUp(J);CHKERRQ(ierr);
+  switch (ctxt.physics_type) {
+  case PHYSICS_ADVECTION:
+  case PHYSICS_DIFFUSION:
+    ierr = Assemble_AdvDiff(PETSC_COMM_WORLD,&ctxt,&J);CHKERRQ(ierr);
+  }
   ierr = MatCreate(PETSC_COMM_WORLD,&Identity);CHKERRQ(ierr);
   ierr = MatSetType(Identity,MATAIJ);CHKERRQ(ierr);
-  ierr = MatSetSizes(Identity,PETSC_DECIDE,PETSC_DECIDE,ctxt.imax,ctxt.imax);CHKERRQ(ierr);
-  ierr = MatSetUp(Identity);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(J,&matis,&matie);CHKERRQ(ierr);
+  ierr = MatSetSizes(Identity,matie-matis,matie-matis,ctxt.imax,ctxt.imax);CHKERRQ(ierr);
+  ierr = MatSetUp(Identity);CHKERRQ(ierr);
   for (i=matis; i<matie; i++) {
-    PetscScalar values[3];
-    PetscInt    col[3];
-    switch (ctxt.physics_type) {
-    case PHYSICS_DIFFUSION:
-      values[0] = -ctxt.a*1.0/dx2;
-      values[1] = ctxt.a*2.0/dx2;
-      values[2] = -ctxt.a*1.0/dx2;
-      break;
-    case PHYSICS_ADVECTION:
-      values[0] = -ctxt.a*.5/dx;
-      values[1] = 0.;
-      values[2] = ctxt.a*.5/dx;
-      break;
-    default: SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"No support for physics type %s",PhysicsTypes[ctxt.physics_type]);
-    }
-    /* periodic boundaries */
-    if (i == 0) {
-      col[0] = ctxt.imax-1;
-      col[1] = i;
-      col[2] = i+1;
-    } else if (i == ctxt.imax-1) {
-      col[0] = i-1;
-      col[1] = i;
-      col[2] = 0;
-    } else {
-      col[0] = i-1;
-      col[1] = i;
-      col[2] = i+1;
-    }
-    ierr= MatSetValues(J,1,&i,3,col,values,INSERT_VALUES);CHKERRQ(ierr);
     ierr= MatSetValues(Identity,1,&i,1,&i,&one,INSERT_VALUES);CHKERRQ(ierr);
   }
-  ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatAssemblyEnd  (J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(Identity,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd  (Identity,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
@@ -388,5 +357,56 @@ static PetscErrorCode RKCreate_Gauss(PetscInt nstages,PetscScalar **gauss_A,Pets
   ierr = PetscFree3(b,G0,G1);CHKERRQ(ierr);
   *gauss_A = A;
   *gauss_c = c;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "Assemble_AdvDiff"
+static PetscErrorCode Assemble_AdvDiff(MPI_Comm comm,UserContext *user,Mat *J)
+{
+  PetscErrorCode ierr;
+  PetscInt       matis,matie,i;
+  PetscReal      dx,dx2;
+  PetscFunctionBegin;
+  dx = (user->xmax - user->xmin)/((PetscReal)user->imax); dx2 = dx*dx;
+  ierr = MatCreate(comm,J);CHKERRQ(ierr);
+  ierr = MatSetType(*J,MATAIJ);CHKERRQ(ierr);
+  ierr = MatSetSizes(*J,PETSC_DECIDE,PETSC_DECIDE,user->imax,user->imax);CHKERRQ(ierr);
+  ierr = MatSetUp(*J);CHKERRQ(ierr);
+  ierr = MatGetOwnershipRange(*J,&matis,&matie);CHKERRQ(ierr);
+  for (i=matis; i<matie; i++) {
+    PetscScalar values[3];
+    PetscInt    col[3];
+    switch (user->physics_type) {
+    case PHYSICS_DIFFUSION:
+      values[0] = -user->a*1.0/dx2;
+      values[1] = user->a*2.0/dx2;
+      values[2] = -user->a*1.0/dx2;
+      break;
+    case PHYSICS_ADVECTION:
+      values[0] = -user->a*.5/dx;
+      values[1] = 0.;
+      values[2] = user->a*.5/dx;
+      break;
+    default: SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"No support for physics type %s",PhysicsTypes[user->physics_type]);
+    }
+    /* periodic boundaries */
+    if (i == 0) {
+      col[0] = user->imax-1;
+      col[1] = i;
+      col[2] = i+1;
+    } else if (i == user->imax-1) {
+      col[0] = i-1;
+      col[1] = i;
+      col[2] = 0;
+    } else {
+      col[0] = i-1;
+      col[1] = i;
+      col[2] = i+1;
+    }
+    ierr= MatSetValues(*J,1,&i,3,col,values,INSERT_VALUES);CHKERRQ(ierr);
+  }
+  ierr = MatAssemblyBegin(*J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd  (*J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
