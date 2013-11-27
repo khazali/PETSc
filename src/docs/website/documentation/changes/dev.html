@@ -96,6 +96,9 @@
 
       <h4>General:</h4>
       <ul>
+        <li>PetscSynchronizedFlush() takes an additional argument, the file pointer on rank 0</li>
+        <li>PetscObjectStateQuery() is now corrected with PetscObjectStateGet()</li>
+        <li>A new PetscObjectState typedef is used by interface; 64-bit int to prevent overflow.</li>
         <li>
           The configure option <tt>--with-dynamic-loading</tt> has been
           removed since this functionality is automatically available on
