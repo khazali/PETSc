@@ -469,26 +469,20 @@ PetscErrorCode MatSOR_SeqTAIJ(Mat A,Vec bb,PetscReal omega,MatSORType flag,Petsc
         vi = aj + ai[i];
         nz = diag[i] - ai[i];
 
-        if (T) {                /* FIXME: This branch untested */
-          ierr = PetscMemcpy(w,b+i2,bs*sizeof(PetscScalar));CHKERRQ(ierr);
-          /* copy all rows of x that are needed into contiguous space */
-          workt = work;
+        if (T) {                /* b - T (Arow * x) */
+          for (k=0; k<bs; k++) w[k] = 0;
           for (j=0; j<nz; j++) {
-            ierr   = PetscMemcpy(workt,x + bs*(*vi++),bs*sizeof(PetscScalar));CHKERRQ(ierr);
-            workt += bs;
+            for (k=0; k<bs; k++) w[k] -= v[j] * x[vi[j]*bs+k];
           }
-          arrt = arr;
-          for (j=0; j<nz; j++) {
-            ierr  = PetscMemcpy(arrt,T,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
-            for (k=0; k<bs2; k++) arrt[k] *= v[j];
-            arrt += bs2;
-          }
-          PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs*nz,work,arr,w);
+          PetscKernel_w_gets_w_minus_Ar_times_v(bs,bs,w,T,&t[i2]);
+          for (k=0; k<bs; k++) t[i2+k] += b[i2+k];
         } else if (taij->isTI) {
           for (k=0; k<bs; k++) t[i2+k] = b[i2+k];
           for (j=0; j<nz; j++) {
             for (k=0; k<bs; k++) t[i2+k] -= v[j] * x[vi[j]*bs+k];
           }
+        } else {
+          for (k=0; k<bs; k++) t[i2+k] = b[i2+k];
         }
 
         PetscKernel_w_gets_Ar_times_v(bs,bs,t+i2,idiag,y);

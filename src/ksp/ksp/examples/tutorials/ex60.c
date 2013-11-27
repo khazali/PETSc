@@ -230,6 +230,7 @@ int main(int argc, char **argv)
 
     /* Update the solution */
     ierr = MatMultAdd(SC,z,u,u);CHKERRQ(ierr);
+    ierr = VecView(u,PETSC_VIEWER_DRAW_WORLD);CHKERRQ(ierr);
 
     /* time step complete */
     time += ctxt.dt;
@@ -283,6 +284,7 @@ PetscErrorCode ExactSolution(Vec u,void *c,PetscReal t)
     switch (ctxt->physics_type) {
     case PHYSICS_DIFFUSION:
       uarr[i-is] = PetscExpScalar(-4.0*pi*pi*a*t)*PetscSinScalar(2*pi*x);
+      // uarr[i-is] = PetscExpScalar(-4.0*pi*pi*a*t)* (PetscAbsReal(x - 0.5) < 0.2);
       break;
     case PHYSICS_ADVECTION:
       uarr[i-is] = PetscSinScalar(2*pi*(x - a*t));
