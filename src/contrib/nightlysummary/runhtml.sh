@@ -114,28 +114,43 @@ generate_section()
   do
     echo "Processing file $f..."
     echo "<tr><td class=\"desc\">" >> $OUTFILE
-    echo "<a href=\"${f#$LOGDIR/}\">${f#$LOGDIR/}</a>" >> $OUTFILE
+    echo "<a href=\"filtered-${f#$LOGDIR/}\">${f#$LOGDIR/}</a> <a href=\"${f#$LOGDIR/}\" style=\"font-size: 0.8em;\">(full output)</a>" >> $OUTFILE
 
-    # Write number of warnings: [greps 1,2 below are for solaris builds and 3 is for Mac]
-    numwarnings=`grep "[Ww]arning[: ]" $f \
+    # Grep warnings [greps 1,2 below are for solaris builds and 3 is for Mac, 4 for cusp, 5 for CUDA]
+    filtered_warnings=`grep "[Ww]arning[: ]" $f \
         | grep -v 'warning: statement not reached' \
         | grep -v 'warning: loop not entered at top' \
         | grep -v 'warning: no debug symbols in executable (-arch x86_64)' \
-        | wc -l`
-    if [ "$numwarnings" -gt "0" ]
+        | grep -v 'cusp/complex.h' | grep -v 'cusp/detail/device/generalized_spmv/coo_flat.h' \
+        | grep -v 'thrust/detail/vector_base.inl' | grep -v 'thrust/detail/tuple_transform.h' | grep -v 'detail/tuple.inl' | grep -v 'detail/launch_closure.inl'`
+    filtered_warnings_num="0"
+    if [ "$filtered_warnings" != "" ]; then
+      filtered_warnings_num=`echo "$filtered_warnings" | wc -l`
+    fi
+
+    # Grep errors (with context)
+    filtered_errors=`grep -B 2 -A 5 " [Kk]illed\| [Ff]atal[: ]\| [Ee][Rr][Rr][Oo][Rr][: ]" $f`
+    filtered_errors_num=`grep " [Kk]illed\| [Ff]atal[: ]\| [Ee][Rr][Rr][Oo][Rr][: ]" $f | wc -l`
+
+    echo -e "---- WARNINGS ----\n"  > $LOGDIR/filtered-${f#$LOGDIR/}
+    echo "$filtered_warnings"      >> $LOGDIR/filtered-${f#$LOGDIR/}
+    echo -e "\n---- ERRORS ----\n" >> $LOGDIR/filtered-${f#$LOGDIR/}
+    echo "$filtered_errors"        >> $LOGDIR/filtered-${f#$LOGDIR/}
+
+    # Write number of warnings:
+    if [ "$filtered_warnings_num" -gt "0" ]
     then
-	  echo "</td><td class=\"yellow\">$numwarnings</td>" >> $OUTFILE
+	  echo "</td><td class=\"yellow\">$filtered_warnings_num</td>" >> $OUTFILE
     else
-	  echo "</td><td class=\"green\">$numwarnings</td>" >> $OUTFILE
+	  echo "</td><td class=\"green\">$filtered_warnings_num</td>" >> $OUTFILE
     fi
 
     # Write number of errors:
-    numerrors=`grep " [Kk]illed\| [Ff]atal[: ]\| [Ee][Rr][Rr][Oo][Rr][: ]" $f | wc -l`
-    if [ "$numerrors" -gt "0" ]
+    if [ "$filtered_errors_num" -gt "0" ]
     then
-	  echo "</td><td class=\"red\">$numerrors</td></tr>" >> $OUTFILE
+	  echo "</td><td class=\"red\">$filtered_errors_num</td></tr>" >> $OUTFILE
     else
-	  echo "</td><td class=\"green\">$numerrors</td></tr>" >> $OUTFILE
+	  echo "</td><td class=\"green\">$filtered_errors_num</td></tr>" >> $OUTFILE
     fi
   done
   echo "</table></center>" >> $OUTFILE

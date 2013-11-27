@@ -782,7 +782,7 @@ PetscErrorCode  ISLocalToGlobalMappingGetInfo(ISLocalToGlobalMapping mapping,Pet
         ierr = PetscSynchronizedPrintf(comm,"\n");CHKERRQ(ierr);
       }
     }
-    ierr = PetscSynchronizedFlush(comm);CHKERRQ(ierr);
+    ierr = PetscSynchronizedFlush(comm,PETSC_STDOUT);CHKERRQ(ierr);
   } /* -----------------------------------  */
 
   /* wait on original sends */
@@ -904,7 +904,7 @@ PetscErrorCode  ISLocalToGlobalMappingGetInfo(ISLocalToGlobalMapping mapping,Pet
         ierr = PetscSynchronizedPrintf(comm,"\n");CHKERRQ(ierr);
       }
     }
-    ierr = PetscSynchronizedFlush(comm);CHKERRQ(ierr);
+    ierr = PetscSynchronizedFlush(comm,PETSC_STDOUT);CHKERRQ(ierr);
   } /* -----------------------------------  */
 
   /* count number subdomains for each local node */
@@ -967,7 +967,7 @@ PetscErrorCode  ISLocalToGlobalMappingGetInfo(ISLocalToGlobalMapping mapping,Pet
       }
       ierr = PetscSynchronizedPrintf(comm,"\n");CHKERRQ(ierr);
     }
-    ierr = PetscSynchronizedFlush(comm);CHKERRQ(ierr);
+    ierr = PetscSynchronizedFlush(comm,PETSC_STDOUT);CHKERRQ(ierr);
   } /* -----------------------------------  */
 
   /* wait on sends */
