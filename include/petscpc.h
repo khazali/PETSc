@@ -80,6 +80,7 @@ typedef const char* PCType;
 #define PCBICGSTABCUSP    "bicgstabcusp"
 #define PCAINVCUSP        "ainvcusp"
 #define PCBDDC            "bddc"
+#define PCCR              "cr"
 
 /* Logging support */
 PETSC_EXTERN PetscClassId PC_CLASSID;
@@ -468,6 +469,9 @@ PETSC_EXTERN PetscErrorCode PCBDDCCreateFETIDPOperators(PC,Mat*,PC*);
 PETSC_EXTERN PetscErrorCode PCBDDCMatFETIDPGetRHS(Mat,Vec,Vec);
 PETSC_EXTERN PetscErrorCode PCBDDCMatFETIDPGetSolution(Mat,Vec,Vec);
 #endif
+
+PETSC_EXTERN PetscErrorCode PCCRSetCoarseIS(PC,IS);
+PETSC_EXTERN PetscErrorCode PCCRGetCoarseIS(PC,IS);
 
 PETSC_EXTERN PetscErrorCode PCISSetUseStiffnessScaling(PC,PetscBool);
 PETSC_EXTERN PetscErrorCode PCISSetSubdomainScalingFactor(PC,PetscScalar);

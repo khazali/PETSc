@@ -29,6 +29,7 @@ PETSC_EXTERN PetscErrorCode PCCreate_LSC(PC);
 PETSC_EXTERN PetscErrorCode PCCreate_Redistribute(PC);
 PETSC_EXTERN PetscErrorCode PCCreate_SVD(PC);
 PETSC_EXTERN PetscErrorCode PCCreate_GAMG(PC);
+PETSC_EXTERN PetscErrorCode PCCreate_CR(PC);
 
 #if defined(PETSC_HAVE_ML)
 PETSC_EXTERN PetscErrorCode PCCreate_ML(PC);
@@ -110,6 +111,7 @@ PetscErrorCode  PCRegisterAll(void)
   ierr = PCRegister(PCREDISTRIBUTE ,PCCreate_Redistribute);CHKERRQ(ierr);
   ierr = PCRegister(PCSVD          ,PCCreate_SVD);CHKERRQ(ierr);
   ierr = PCRegister(PCGAMG         ,PCCreate_GAMG);CHKERRQ(ierr);
+  ierr = PCRegister(PCCR           ,PCCreate_CR);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_ML)
   ierr = PCRegister(PCML           ,PCCreate_ML);CHKERRQ(ierr);
 #endif
