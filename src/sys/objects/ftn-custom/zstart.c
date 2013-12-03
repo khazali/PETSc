@@ -239,6 +239,9 @@ PETSC_EXTERN void PETSC_STDCALL petscinitialize_(CHAR filename PETSC_MIXED_LEN(l
   int         j;
 #endif
 #endif
+#if defined(PETSC_HAVE_CUDA)
+  PetscBool   flg2;
+#endif
   int         flag;
   PetscMPIInt size;
   char        *t1,name[256],hostname[64];
@@ -438,9 +441,9 @@ PETSC_EXTERN void PETSC_STDCALL petscinitialize_(CHAR filename PETSC_MIXED_LEN(l
 #endif
 
 #if defined(PETSC_HAVE_CUDA)
-  flg  = PETSC_TRUE;
-  *ierr = PetscOptionsGetBool(NULL,"-cublas",&flg,NULL);
-  if (flg) cublasInit();
+  flg2  = PETSC_TRUE;
+  *ierr = PetscOptionsGetBool(NULL,"-cublas",&flg2,NULL);
+  if (flg2) cublasInit();
 #endif
 }
 
