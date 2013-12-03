@@ -46,7 +46,7 @@ PETSC_EXTERN PetscErrorCode MatGetOrdering_WBM(Mat mat, MatOrderingType type, IS
   case 5: liw = 3*nrow + 2*ncol; ldw = nrow + 2*ncol + nnz;break;
   }
 
-  ierr = PetscMalloc3(liw,PetscInt,&iw,ldw,PetscScalar,&dw,nrow,PetscInt,&perm);CHKERRQ(ierr);
+  ierr = PetscMalloc3(liw,&iw,ldw,&dw,nrow,&perm);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_SUPERLU_DIST)
   {
     PetscInt        num, info[10], icntl[10];

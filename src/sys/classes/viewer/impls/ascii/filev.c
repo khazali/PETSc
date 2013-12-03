@@ -573,7 +573,7 @@ PetscErrorCode  PetscViewerASCIIPrintf(PetscViewer viewer,const char format[],..
     size_t      fullLength;
     PrintfQueue next;
 
-    ierr = PetscNew(struct _PrintfQueue,&next);CHKERRQ(ierr);
+    ierr = PetscNew(&next);CHKERRQ(ierr);
     if (petsc_printfqueue) {
       petsc_printfqueue->next = next;
       petsc_printfqueue       = next;
@@ -582,7 +582,7 @@ PetscErrorCode  PetscViewerASCIIPrintf(PetscViewer viewer,const char format[],..
     }
     petsc_printfqueuelength++;
     next->size = QUEUESTRINGSIZE;
-    ierr       = PetscMalloc(next->size*sizeof(char), &next->string);CHKERRQ(ierr);
+    ierr       = PetscMalloc1(next->size, &next->string);CHKERRQ(ierr);
     ierr       = PetscMemzero(next->string,next->size);CHKERRQ(ierr);
     string     = next->string;
     tab        = intab;
@@ -867,7 +867,7 @@ PETSC_EXTERN PetscErrorCode PetscViewerCreate_ASCII(PetscViewer viewer)
   PetscErrorCode    ierr;
 
   PetscFunctionBegin;
-  ierr         = PetscNewLog(viewer,PetscViewer_ASCII,&vascii);CHKERRQ(ierr);
+  ierr         = PetscNewLog(viewer,&vascii);CHKERRQ(ierr);
   viewer->data = (void*)vascii;
 
   viewer->ops->destroy          = PetscViewerDestroy_ASCII;
@@ -971,7 +971,7 @@ PetscErrorCode  PetscViewerASCIISynchronizedPrintf(PetscViewer viewer,const char
     size_t      fullLength;
     PrintfQueue next;
 
-    ierr = PetscNew(struct _PrintfQueue,&next);CHKERRQ(ierr);
+    ierr = PetscNew(&next);CHKERRQ(ierr);
     if (petsc_printfqueue) {
       petsc_printfqueue->next = next;
       petsc_printfqueue       = next;
@@ -980,7 +980,7 @@ PetscErrorCode  PetscViewerASCIISynchronizedPrintf(PetscViewer viewer,const char
     }
     petsc_printfqueuelength++;
     next->size = QUEUESTRINGSIZE;
-    ierr       = PetscMalloc(next->size*sizeof(char), &next->string);CHKERRQ(ierr);
+    ierr       = PetscMalloc1(next->size, &next->string);CHKERRQ(ierr);
     ierr       = PetscMemzero(next->string,next->size);CHKERRQ(ierr);
     string     = next->string;
     tab       *= 2;
