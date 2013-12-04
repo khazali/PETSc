@@ -35,6 +35,65 @@ static PetscErrorCode PCView_CR(PC pc,PetscViewer viewer)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PCCRGetCandidateEstimates_CR"
+PetscErrorCode  PCCRGetCandidateEstimates_CR(PC pc,Vec s)
+{
+  PetscErrorCode ierr;
+  Vec            x,e;
+  PetscRandom    rand;
+  PetscInt       i,j,ncoarse;
+  const PetscInt *cisarray;
+  PC_CR          *cr = (PC_CR*)pc->data;
+  PetscReal       maxs;
+
+  PetscFunctionBegin;
+  ierr = VecDuplicate(s,&e);CHKERRQ(ierr);
+  ierr = VecDuplicate(s,&x);CHKERRQ(ierr);
+  ierr = PetscRandomCreate(PetscObjectComm((PetscObject)pc),&rand);CHKERRQ(ierr);
+  ierr = PetscRandomSetFromOptions(rand);CHKERRQ(ierr);
+  ierr = ISGetIndices(cr->cis,&cisarray);CHKERRQ(ierr);
+  ierr = ISGetLocalSize(cr->cis,&ncoarse);CHKERRQ(ierr);
+  ierr = VecSet(s,0.);CHKERRQ(ierr);
+
+  for (i=0;i<5;i++) {
+    /* set the vector to be randomly between 1/2 and 1 */
+    ierr = VecSetRandom(x,rand);CHKERRQ(ierr);
+    ierr = VecScale(x,0.25);CHKERRQ(ierr);
+    ierr = VecShift(x,0.75);CHKERRQ(ierr);
+    for (j=0;j<ncoarse;j++) {
+      ierr = VecSetValue(x,cisarray[j],0.,INSERT_VALUES);CHKERRQ(ierr);
+    }
+    /* run the smoother */
+    for (j=0;j<4;j++) {
+      ierr = PCApply(pc,x,e);CHKERRQ(ierr);
+      ierr = VecCopy(e,x);CHKERRQ(ierr);
+    }
+    ierr = VecPointwiseMax(s,e,s);CHKERRQ(ierr);
+  }
+  ierr = ISRestoreIndices(cr->cis,&cisarray);CHKERRQ(ierr);
+  ierr = VecNorm(s,NORM_INFINITY,&maxs);CHKERRQ(ierr);
+  if (maxs != 0.) {
+    ierr = VecScale(s,1./maxs);CHKERRQ(ierr);
+  }
+  ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
+  ierr = VecDestroy(&e);CHKERRQ(ierr);
+  ierr = VecDestroy(&x);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PCCRGetCandidateEstimates"
+PetscErrorCode PCCRGetCandidateEstimates(PC pc,Vec s)
+{
+  PetscErrorCode ierr;
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(pc,PC_CLASSID,1);
+  PetscValidHeaderSpecific(s,VEC_CLASSID,2);
+  ierr = PetscTryMethod(pc,"PCCRGetCandidateEstimates_C",(PC,Vec),(pc,s));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PCApply_CR"
 static PetscErrorCode PCApply_CR(PC pc,Vec x,Vec y)
 {
@@ -102,6 +161,7 @@ static PetscErrorCode PCDestroy_CR(PC pc)
   ierr = PetscFree(pc->data);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRSetCoarseIS_C",NULL);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRGetCoarseIS_C",NULL);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRGetCandidateEstimates_C",NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -237,6 +297,7 @@ static PetscErrorCode PCSetUp_CR(PC pc)
   PetscFunctionReturn(0);
 }
 
+
 /* -------------------------------------------------------------------------------------*/
 /*MC
 
@@ -244,6 +305,17 @@ static PetscErrorCode PCSetUp_CR(PC pc)
         the problem rather than the whole.  Uses the action of an inner preconditioner to smooth the nodes outside of the
         coarse set provided by the user.  The coarse set is held invariant.  This could be more general for non coarse-fine
         splittings, but for now it's very "classical".
+
+   References:
+
+   Brandt, Achi. "General highly accurate algebraic coarsening."
+   Electronic Transactions on Numerical Analysis 10.1 (2000): 1-20.
+
+   Brannick, James J., and Robert D. Falgout. "Compatible relaxation and coarsening in algebraic multigrid."
+   SIAM Journal on Scientific Computing 32.3 (2010): 1393-1416.
+
+   Livne, O. E. "Coarsening by compatible relaxation."
+   Numerical linear algebra with applications 11.2-3 (2004): 205-227.
 
    Level: intermediate
 
@@ -273,5 +345,6 @@ PETSC_EXTERN PetscErrorCode PCCreate_CR(PC pc)
 
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRSetCoarseIS_C",PCCRSetCoarseIS_CR);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRGetCoarseIS_C",PCCRGetCoarseIS_CR);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRGetCandidateEstimates_C",PCCRGetCandidateEstimates_CR);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
