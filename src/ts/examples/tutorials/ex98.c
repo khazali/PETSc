@@ -1038,7 +1038,7 @@ PetscErrorCode RHSFunctionLap(TS ts,PetscReal t,Vec globalin,Vec globalout,void 
     ierr = (*mod->source)(mod,t,cg->centroid,source,mod->physics);CHKERRQ(ierr);
     ierr = DMPlexPointGlobalRef(dm,c,rhs_v,&pf);CHKERRQ(ierr);
     if (pf) *pf = -source[0];
-    else SETERRQ(mod->comm,PETSC_ERR_ARG_WRONGSTATE,"no x ?????");
+    /* else SETERRQ(mod->comm,PETSC_ERR_ARG_WRONGSTATE,"no x ?????"); */
   }
 
   if (s_useBoxStencil) { /* Mehrstellen baby -- does not work because of low order BCs (probably), but does help constants. */
