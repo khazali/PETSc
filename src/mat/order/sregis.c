@@ -51,7 +51,9 @@ PetscErrorCode  MatOrderingRegisterAll(void)
   ierr = MatOrderingRegister(MATORDERINGRCM,      MatGetOrdering_RCM);CHKERRQ(ierr);
   ierr = MatOrderingRegister(MATORDERINGQMD,      MatGetOrdering_QMD);CHKERRQ(ierr);
   ierr = MatOrderingRegister(MATORDERINGROWLENGTH,MatGetOrdering_RowLength);CHKERRQ(ierr);
+#if defined(PETSC_HAVE_SUPERLU_DIST)
   ierr = MatOrderingRegister(MATORDERINGWBM,      MatGetOrdering_WBM);CHKERRQ(ierr);
+#endif
   ierr = MatOrderingRegister(MATORDERINGSPECTRAL, MatGetOrdering_Spectral);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_UMFPACK)
   ierr = MatOrderingRegister(MATORDERINGAMD,      MatGetOrdering_AMD);CHKERRQ(ierr);

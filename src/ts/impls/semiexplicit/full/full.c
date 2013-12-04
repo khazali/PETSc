@@ -203,7 +203,7 @@ PETSC_EXTERN PetscErrorCode TSCreate_DAESimple_Full(TS ts)
   ts->ops->setfromoptions = TSSetFromOptions_DAESimple;
   ts->ops->solve          = TSSolve_DAESimple;
 
-  ierr = PetscNewLog(ts,TS_DAESimple,&tsdae);CHKERRQ(ierr);
+  ierr = PetscNewLog(ts,&tsdae);CHKERRQ(ierr);
   ts->data = (void*)tsdae;
 
   tsdae->setfromoptions = TSSetFromOptions_DAESimple_Full;

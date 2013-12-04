@@ -773,7 +773,7 @@ PetscErrorCode  DMGetLocalToGlobalMapping(DM dm,ISLocalToGlobalMapping *ltog)
       ierr = DMGetDefaultGlobalSection(dm, &sectionGlobal);CHKERRQ(ierr);
       ierr = PetscSectionGetChart(section, &pStart, &pEnd);CHKERRQ(ierr);
       ierr = PetscSectionGetStorageSize(section, &size);CHKERRQ(ierr);
-      ierr = PetscMalloc(size * sizeof(PetscInt), &ltog);CHKERRQ(ierr); /* We want the local+overlap size */
+      ierr = PetscMalloc1(size, &ltog);CHKERRQ(ierr); /* We want the local+overlap size */
       for (p = pStart, l = 0; p < pEnd; ++p) {
         PetscInt dof, off, c;
 
@@ -1064,7 +1064,7 @@ PetscErrorCode DMGetWorkArray(DM dm,PetscInt count,PetscDataType dtype,void *mem
     link       = dm->workin;
     dm->workin = dm->workin->next;
   } else {
-    ierr = PetscNewLog(dm,struct _DMWorkLink,&link);CHKERRQ(ierr);
+    ierr = PetscNewLog(dm,&link);CHKERRQ(ierr);
   }
   ierr = PetscDataTypeGetSize(dtype,&size);CHKERRQ(ierr);
   if (size*count > link->bytes) {
@@ -1178,7 +1178,7 @@ PetscErrorCode DMCreateFieldIS(DM dm, PetscInt *numFields, char ***fieldNames, I
 
     ierr = DMGetDefaultGlobalSection(dm, &sectionGlobal);CHKERRQ(ierr);
     ierr = PetscSectionGetNumFields(section, &nF);CHKERRQ(ierr);
-    ierr = PetscMalloc2(nF,PetscInt,&fieldSizes,nF,PetscInt*,&fieldIndices);CHKERRQ(ierr);
+    ierr = PetscMalloc2(nF,&fieldSizes,nF,&fieldIndices);CHKERRQ(ierr);
     ierr = PetscSectionGetChart(sectionGlobal, &pStart, &pEnd);CHKERRQ(ierr);
     for (f = 0; f < nF; ++f) {
       fieldSizes[f] = 0;
@@ -1198,7 +1198,7 @@ PetscErrorCode DMCreateFieldIS(DM dm, PetscInt *numFields, char ***fieldNames, I
       }
     }
     for (f = 0; f < nF; ++f) {
-      ierr          = PetscMalloc(fieldSizes[f] * sizeof(PetscInt), &fieldIndices[f]);CHKERRQ(ierr);
+      ierr          = PetscMalloc1(fieldSizes[f], &fieldIndices[f]);CHKERRQ(ierr);
       fieldSizes[f] = 0;
     }
     for (p = pStart; p < pEnd; ++p) {
@@ -1220,7 +1220,7 @@ PetscErrorCode DMCreateFieldIS(DM dm, PetscInt *numFields, char ***fieldNames, I
     }
     if (numFields) *numFields = nF;
     if (fieldNames) {
-      ierr = PetscMalloc(nF * sizeof(char*), fieldNames);CHKERRQ(ierr);
+      ierr = PetscMalloc1(nF, fieldNames);CHKERRQ(ierr);
       for (f = 0; f < nF; ++f) {
         const char *fieldName;
 
@@ -1229,7 +1229,7 @@ PetscErrorCode DMCreateFieldIS(DM dm, PetscInt *numFields, char ***fieldNames, I
       }
     }
     if (fields) {
-      ierr = PetscMalloc(nF * sizeof(IS), fields);CHKERRQ(ierr);
+      ierr = PetscMalloc1(nF, fields);CHKERRQ(ierr);
       for (f = 0; f < nF; ++f) {
         ierr = ISCreateGeneral(PetscObjectComm((PetscObject)dm), fieldSizes[f], fieldIndices[f], PETSC_OWN_POINTER, &(*fields)[f]);CHKERRQ(ierr);
       }
@@ -1306,7 +1306,7 @@ PetscErrorCode DMCreateFieldDecomposition(DM dm, PetscInt *len, char ***namelist
     if (section) {ierr = PetscSectionGetNumFields(section, &numFields);CHKERRQ(ierr);}
     if (section && numFields && dm->ops->createsubdm) {
       *len = numFields;
-      ierr = PetscMalloc3(numFields,char*,namelist,numFields,IS,islist,numFields,DM,dmlist);CHKERRQ(ierr);
+      ierr = PetscMalloc3(numFields,namelist,numFields,islist,numFields,dmlist);CHKERRQ(ierr);
       for (f = 0; f < numFields; ++f) {
         const char *fieldName;
 
@@ -2802,7 +2802,7 @@ PetscErrorCode  DMLoad(DM newdm, PetscViewer viewer)
   if (!isbinary) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"Invalid viewer; open viewer with PetscViewerBinaryOpen()");
 
   ierr = PetscViewerBinaryRead(viewer,&classid,1,PETSC_INT);CHKERRQ(ierr);
-  if (classid != DM_FILE_CLASSID) SETERRQ(PetscObjectComm((PetscObject)newdm),PETSC_ERR_ARG_WRONG,"Not DM next in file");
+  if (classid != DM_FILE_CLASSID) SETERRQ1(PetscObjectComm((PetscObject)newdm),PETSC_ERR_ARG_WRONG,"Not DM next in file, classid found %d",(int)classid);
   ierr = PetscViewerBinaryRead(viewer,type,256,PETSC_CHAR);CHKERRQ(ierr);
   ierr = DMSetType(newdm, type);CHKERRQ(ierr);
   if (newdm->ops->load) {
@@ -3122,8 +3122,8 @@ PetscErrorCode DMCreateDefaultSF(DM dm, PetscSection localSection, PetscSection 
     ierr     = PetscSectionGetConstraintDof(globalSection, p, &gcdof);CHKERRQ(ierr);
     nleaves += gdof < 0 ? -(gdof+1)-gcdof : gdof-gcdof;
   }
-  ierr = PetscMalloc(nleaves * sizeof(PetscInt), &local);CHKERRQ(ierr);
-  ierr = PetscMalloc(nleaves * sizeof(PetscSFNode), &remote);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nleaves, &local);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nleaves, &remote);CHKERRQ(ierr);
   for (p = pStart, l = 0; p < pEnd; ++p) {
     const PetscInt *cind;
     PetscInt       dof, cdof, off, gdof, gcdof, goff, gsize, d, c;
@@ -3149,8 +3149,9 @@ PetscErrorCode DMCreateDefaultSF(DM dm, PetscSection localSection, PetscSection 
       for (d = 0; d < gsize; ++d, ++l) {
         PetscInt offset = -(goff+1) + d, r;
 
-        ierr = PetscFindInt(offset,size,ranges,&r);CHKERRQ(ierr);
+        ierr = PetscFindInt(offset,size+1,ranges,&r);CHKERRQ(ierr);
         if (r < 0) r = -(r+2);
+        if ((r < 0) || (r >= size)) SETERRQ4(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Point %d mapped to invalid process %d (%d, %d)", p, r, gdof, goff);
         remote[l].rank  = r;
         remote[l].index = offset - ranges[r];
       }
@@ -3244,7 +3245,7 @@ PetscErrorCode DMSetNumFields(DM dm, PetscInt numFields)
   }
   ierr          = PetscFree(dm->fields);CHKERRQ(ierr);
   dm->numFields = numFields;
-  ierr          = PetscMalloc(dm->numFields * sizeof(PetscObject), &dm->fields);CHKERRQ(ierr);
+  ierr          = PetscMalloc1(dm->numFields, &dm->fields);CHKERRQ(ierr);
   for (f = 0; f < dm->numFields; ++f) {
     ierr = PetscContainerCreate(PetscObjectComm((PetscObject)dm), (PetscContainer*) &dm->fields[f]);CHKERRQ(ierr);
   }

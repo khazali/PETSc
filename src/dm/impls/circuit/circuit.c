@@ -111,7 +111,7 @@ PetscErrorCode DMCircuitLayoutSetUp(DM dm)
 
   PetscFunctionBegin;
   if (circuit->nNodes) {
-    ierr = PetscMalloc(numCorners*circuit->nNodes*sizeof(PetscInt),&vertexcoords);CHKERRQ(ierr);
+    ierr = PetscMalloc1(numCorners*circuit->nNodes,&vertexcoords);CHKERRQ(ierr);
   }
   ierr = DMPlexCreateFromCellList(PetscObjectComm((PetscObject)dm),dim,circuit->nEdges,circuit->nNodes,numCorners,PETSC_FALSE,circuit->edges,spacedim,vertexcoords,&circuit->plex);CHKERRQ(ierr);
   if (circuit->nNodes) {
@@ -127,14 +127,14 @@ PetscErrorCode DMCircuitLayoutSetUp(DM dm)
   ierr = PetscSectionSetChart(circuit->DofSection,circuit->pStart,circuit->pEnd);CHKERRQ(ierr);
 
   circuit->dataheadersize = sizeof(struct _p_DMCircuitComponentHeader)/sizeof(DMCircuitComponentGenericDataType);
-  ierr = PetscMalloc((circuit->pEnd-circuit->pStart)*sizeof(struct _p_DMCircuitComponentHeader),&circuit->header);CHKERRQ(ierr);
+  ierr = PetscMalloc1((circuit->pEnd-circuit->pStart),&circuit->header);CHKERRQ(ierr);
   for (i = circuit->pStart; i < circuit->pEnd; i++) {
     circuit->header[i].ndata = 0;
     ndata = circuit->header[i].ndata;
     ierr = PetscSectionAddDof(circuit->DataSection,i,circuit->dataheadersize);CHKERRQ(ierr);
     circuit->header[i].offset[ndata] = 0;
   }
-  ierr = PetscMalloc((circuit->pEnd-circuit->pStart)*sizeof(struct _p_DMCircuitComponentValue),&circuit->cvalue);CHKERRQ(ierr);
+  ierr = PetscMalloc1((circuit->pEnd-circuit->pStart),&circuit->cvalue);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -480,7 +480,7 @@ PetscErrorCode DMCircuitComponentSetUp(DM dm)
   PetscFunctionBegin;
   ierr = PetscSectionSetUp(circuit->DataSection);CHKERRQ(ierr);
   ierr = PetscSectionGetStorageSize(circuit->DataSection,&arr_size);CHKERRQ(ierr);
-  ierr = PetscMalloc(arr_size*sizeof(DMCircuitComponentGenericDataType),&circuit->componentdataarray);CHKERRQ(ierr);
+  ierr = PetscMalloc1(arr_size,&circuit->componentdataarray);CHKERRQ(ierr);
   componentdataarray = circuit->componentdataarray;
   for (p = circuit->pStart; p < circuit->pEnd; p++) {
     ierr = PetscSectionGetOffset(circuit->DataSection,p,&offsetp);CHKERRQ(ierr);

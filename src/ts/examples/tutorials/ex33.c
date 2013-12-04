@@ -285,7 +285,7 @@ static PetscErrorCode PhysicsCreate_Lap(Model mod,Physics phys)
 
   PetscFunctionBeginUser;
   phys->field_desc = PhysicsFields_Lap;
-  ierr = PetscNew(Physics_Lap,&phys->data);CHKERRQ(ierr);
+  ierr = PetscNew(&phys->data);CHKERRQ(ierr);
   lap = (Physics_Lap*)phys->data;
   {
     const PetscInt diriids[] = {100,101,102,103};
@@ -467,7 +467,7 @@ PetscErrorCode SetUpLocalSpace(DM dm, User user)
     ierr = PetscSectionSetConstraintDof(stateSection, c, dof);CHKERRQ(ierr);
   }
   ierr = PetscSectionSetUp(stateSection);CHKERRQ(ierr);
-  ierr = PetscMalloc(dof * sizeof(PetscInt), &cind);CHKERRQ(ierr);
+  ierr = PetscMalloc1(dof, &cind);CHKERRQ(ierr);
   for (d = 0; d < dof; ++d) cind[d] = d;
   for (c = user->cEndInterior; c < cEnd; ++c) {
     ierr = PetscSectionSetConstraintIndices(stateSection, c, cind);CHKERRQ(ierr);
@@ -500,7 +500,7 @@ PetscErrorCode SetUpBoundaries(MPI_Comm comm, User user)
       /* TODO: check all IDs to make sure they exist in the mesh */
       ierr      = PetscFree(b->ids);CHKERRQ(ierr);
       b->numids = len;
-      ierr      = PetscMalloc(len*sizeof(PetscInt),&b->ids);CHKERRQ(ierr);
+      ierr      = PetscMalloc1(len,&b->ids);CHKERRQ(ierr);
       ierr      = PetscMemcpy(b->ids,ids,len*sizeof(PetscInt));CHKERRQ(ierr);
     }
   }
@@ -517,10 +517,10 @@ static PetscErrorCode ModelBoundaryRegister(Model mod,const char *name,BoundaryF
   BoundaryLink   link;
 
   PetscFunctionBeginUser;
-  ierr          = PetscNew(struct _n_BoundaryLink,&link);CHKERRQ(ierr);
+  ierr          = PetscNew(&link);CHKERRQ(ierr);
   ierr          = PetscStrallocpy(name,&link->name);CHKERRQ(ierr);
   link->numids  = numids;
-  ierr          = PetscMalloc(numids*sizeof(PetscInt),&link->ids);CHKERRQ(ierr);
+  ierr          = PetscMalloc1(numids,&link->ids);CHKERRQ(ierr);
   ierr          = PetscMemcpy(link->ids,ids,numids*sizeof(PetscInt));CHKERRQ(ierr);
   link->func    = bcFunc;
   link->ctx     = ctx;
@@ -611,7 +611,7 @@ static PetscErrorCode ModelFunctionalRegister(Model mod,const char *name,PetscIn
 
   PetscFunctionBeginUser;
   for (ptr=&mod->functionalRegistry; *ptr; ptr = &(*ptr)->next) lastoffset = (*ptr)->offset;
-  ierr         = PetscNew(struct _n_FunctionalLink,&link);CHKERRQ(ierr);
+  ierr         = PetscNew(&link);CHKERRQ(ierr);
   ierr         = PetscStrallocpy(name,&link->name);CHKERRQ(ierr);
   link->offset = lastoffset + 1;
   link->func   = func;
@@ -635,9 +635,9 @@ static PetscErrorCode ModelFunctionalSetFromOptions(Model mod)
   mod->numMonitored = ALEN(names);
   ierr = PetscOptionsStringArray("-monitor","list of functionals to monitor","",names,&mod->numMonitored,NULL);CHKERRQ(ierr);
   /* Create list of functionals that will be computed somehow */
-  ierr = PetscMalloc(mod->numMonitored*sizeof(FunctionalLink),&mod->functionalMonitored);CHKERRQ(ierr);
+  ierr = PetscMalloc1(mod->numMonitored,&mod->functionalMonitored);CHKERRQ(ierr);
   /* Create index of calls that we will have to make to compute these functionals (over-allocation in general). */
-  ierr = PetscMalloc(mod->numMonitored*sizeof(FunctionalLink),&mod->functionalCall);CHKERRQ(ierr);
+  ierr = PetscMalloc1(mod->numMonitored,&mod->functionalCall);CHKERRQ(ierr);
   mod->numCall = 0;
 
   for (i=0; i<mod->numMonitored; i++) {
@@ -747,7 +747,7 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
     DM                dmCell;
     PetscReal         *fmin,*fmax,*fintegral,*ftmp;
     fcount = mod->maxComputed+1;
-    ierr   = PetscMalloc4(fcount,PetscReal,&fmin,fcount,PetscReal,&fmax,fcount,PetscReal,&fintegral,fcount,PetscReal,&ftmp);CHKERRQ(ierr);
+    ierr   = PetscMalloc4(fcount,&fmin,fcount,&fmax,fcount,&fintegral,fcount,&ftmp);CHKERRQ(ierr);
     for (i=0; i<fcount; i++) {
       fmin[i]      = PETSC_MAX_REAL;
       fmax[i]      = PETSC_MIN_REAL;
@@ -1214,9 +1214,11 @@ int main(int argc, char **argv)
   ierr = PetscInitialize(&argc, &argv, (char*) 0, help);CHKERRQ(ierr);
   comm = PETSC_COMM_WORLD;
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
-  ierr = PetscNew(struct _n_User,&user);CHKERRQ(ierr);
-  ierr = PetscNew(struct _n_Model,&user->model);CHKERRQ(ierr);
-  ierr = PetscNew(struct _n_Physics,&user->model->physics);CHKERRQ(ierr);
+
+  ierr = PetscNew(&user);CHKERRQ(ierr);
+  ierr = PetscNew(&user->model);CHKERRQ(ierr);
+  ierr = PetscNew(&user->model->physics);CHKERRQ(ierr);
+
   mod  = user->model;
   phys = mod->physics;
   mod->comm = comm;

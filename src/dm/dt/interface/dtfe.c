@@ -486,7 +486,7 @@ PetscErrorCode PetscSpaceSetUp_Polynomial(PetscSpace sp)
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
-  ierr = PetscMalloc(ndegree * sizeof(PetscInt), &poly->degrees);CHKERRQ(ierr);
+  ierr = PetscMalloc1(ndegree, &poly->degrees);CHKERRQ(ierr);
   for (deg = 0; deg < ndegree; ++deg) poly->degrees[deg] = deg;
   PetscFunctionReturn(0);
 }
@@ -642,7 +642,7 @@ PetscErrorCode PetscSpaceEvaluate_Polynomial(PetscSpace sp, PetscInt npoints, co
     }
   }
   /* Multiply by A (pdim x ndegree * dim) */
-  ierr = PetscMalloc2(dim,PetscInt,&ind,dim,PetscInt,&tup);CHKERRQ(ierr);
+  ierr = PetscMalloc2(dim,&ind,dim,&tup);CHKERRQ(ierr);
   if (B) {
     /* B (npoints x pdim) */
     if (poly->tensor) {
@@ -739,7 +739,7 @@ PETSC_EXTERN PetscErrorCode PetscSpaceCreate_Polynomial(PetscSpace sp)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(sp, PETSCSPACE_CLASSID, 1);
-  ierr     = PetscNewLog(sp, PetscSpace_Poly, &poly);CHKERRQ(ierr);
+  ierr     = PetscNewLog(sp,&poly);CHKERRQ(ierr);
   sp->data = poly;
 
   poly->numVariables = 0;
@@ -965,7 +965,7 @@ PETSC_EXTERN PetscErrorCode PetscSpaceCreate_DG(PetscSpace sp)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(sp, PETSCSPACE_CLASSID, 1);
-  ierr     = PetscNewLog(sp, PetscSpace_DG, &dg);CHKERRQ(ierr);
+  ierr     = PetscNewLog(sp,&dg);CHKERRQ(ierr);
   sp->data = dg;
 
   dg->numVariables   = 0;
@@ -1551,9 +1551,8 @@ PetscErrorCode PetscDualSpaceSetUp_Lagrange(PetscDualSpace sp)
   /* Classify element type */
   ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = DMPlexGetDepth(dm, &depth);CHKERRQ(ierr);
-  ierr = PetscMalloc((dim+1) * sizeof(PetscInt), &lag->numDof);CHKERRQ(ierr);
-  ierr = PetscMemzero(lag->numDof, (dim+1) * sizeof(PetscInt));CHKERRQ(ierr);
-  ierr = PetscMalloc2(depth+1,PetscInt,&pStart,depth+1,PetscInt,&pEnd);CHKERRQ(ierr);
+  ierr = PetscCalloc1(dim+1, &lag->numDof);CHKERRQ(ierr);
+  ierr = PetscMalloc2(depth+1,&pStart,depth+1,&pEnd);CHKERRQ(ierr);
   for (d = 0; d <= depth; ++d) {
     ierr = DMPlexGetDepthStratum(dm, d, &pStart[d], &pEnd[d]);CHKERRQ(ierr);
   }
@@ -1565,11 +1564,11 @@ PetscErrorCode PetscDualSpaceSetUp_Lagrange(PetscDualSpace sp)
   else SETERRQ(PETSC_COMM_SELF, PETSC_ERR_SUP, "Only support simplices and tensor product cells");
   lag->simplex = simplex;
   ierr = PetscDualSpaceGetDimension(sp, &pdim);CHKERRQ(ierr);
-  ierr = PetscMalloc(pdim * sizeof(PetscQuadrature), &sp->functional);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pdim, &sp->functional);CHKERRQ(ierr);
   if (!dim) {
     sp->functional[f].numPoints = 1;
-    ierr = PetscMalloc(sp->functional[f].numPoints * sizeof(PetscReal), &qpoints);CHKERRQ(ierr);
-    ierr = PetscMalloc(sp->functional[f].numPoints * sizeof(PetscReal), &qweights);CHKERRQ(ierr);
+    ierr = PetscMalloc1(sp->functional[f].numPoints, &qpoints);CHKERRQ(ierr);
+    ierr = PetscMalloc1(sp->functional[f].numPoints, &qweights);CHKERRQ(ierr);
     qpoints[0]  = 0.0;
     qweights[0] = 1.0;
     sp->functional[f].points  = qpoints;
@@ -1588,8 +1587,8 @@ PetscErrorCode PetscDualSpaceSetUp_Lagrange(PetscDualSpace sp)
 
         if (order < 1) continue;
         sp->functional[f].numPoints = 1;
-        ierr = PetscMalloc(sp->functional[f].numPoints*dim * sizeof(PetscReal), &qpoints);CHKERRQ(ierr);
-        ierr = PetscMalloc(sp->functional[f].numPoints     * sizeof(PetscReal), &qweights);CHKERRQ(ierr);
+        ierr = PetscMalloc1(sp->functional[f].numPoints*dim, &qpoints);CHKERRQ(ierr);
+        ierr = PetscMalloc1(sp->functional[f].numPoints, &qweights);CHKERRQ(ierr);
         ierr = VecGetArrayRead(coordinates, &coords);CHKERRQ(ierr);
         ierr = PetscSectionGetDof(csection, p, &dof);CHKERRQ(ierr);
         ierr = PetscSectionGetOffset(csection, p, &off);CHKERRQ(ierr);
@@ -1612,8 +1611,8 @@ PetscErrorCode PetscDualSpaceSetUp_Lagrange(PetscDualSpace sp)
         if (n != dim*2) SETERRQ3(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Point %d has %d coordinate values instead of %d", p, n, dim*2);
         for (k = 1; k <= num; ++k) {
           sp->functional[f].numPoints = 1;
-          ierr = PetscMalloc(sp->functional[f].numPoints*dim * sizeof(PetscReal), &qpoints);CHKERRQ(ierr);
-          ierr = PetscMalloc(sp->functional[f].numPoints     * sizeof(PetscReal), &qweights);CHKERRQ(ierr);
+          ierr = PetscMalloc1(sp->functional[f].numPoints*dim, &qpoints);CHKERRQ(ierr);
+          ierr = PetscMalloc1(sp->functional[f].numPoints, &qweights);CHKERRQ(ierr);
           for (d = 0; d < dim; ++d) {qpoints[d] = k*PetscRealPart(coords[1*dim+d] - coords[0*dim+d])/(num+1) + PetscRealPart(coords[0*dim+d]);}
           qweights[0] = 1.0;
           sp->functional[f].points  = qpoints;
@@ -1640,8 +1639,8 @@ PetscErrorCode PetscDualSpaceSetUp_Lagrange(PetscDualSpace sp)
         if (order > 0) {SETERRQ(PETSC_COMM_SELF, PETSC_ERR_SUP, "Too lazy to implement cells");}
 
         sp->functional[f].numPoints = 1;
-        ierr = PetscMalloc(sp->functional[f].numPoints*dim * sizeof(PetscReal), &qpoints);CHKERRQ(ierr);
-        ierr = PetscMalloc(sp->functional[f].numPoints     * sizeof(PetscReal), &qweights);CHKERRQ(ierr);
+        ierr = PetscMalloc1(sp->functional[f].numPoints*dim, &qpoints);CHKERRQ(ierr);
+        ierr = PetscMalloc1(sp->functional[f].numPoints, &qweights);CHKERRQ(ierr);
         ierr = DMPlexVecGetClosure(dm, csection, coordinates, p, &csize, &coords);CHKERRQ(ierr);
         if (csize%dim) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Coordinate size %d is not divisible by spatial dimension %d", csize, dim);
         for (d = 0; d < dim; ++d) {
@@ -1747,7 +1746,7 @@ PETSC_EXTERN PetscErrorCode PetscDualSpaceCreate_Lagrange(PetscDualSpace sp)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(sp, PETSCDUALSPACE_CLASSID, 1);
-  ierr     = PetscNewLog(sp, PetscDualSpace_Lag, &lag);CHKERRQ(ierr);
+  ierr     = PetscNewLog(sp,&lag);CHKERRQ(ierr);
   sp->data = lag;
 
   lag->numDof  = NULL;
@@ -2283,7 +2282,7 @@ PetscErrorCode PetscFEGetNumDof(PetscFE fem, const PetscInt **numDof)
 
     ierr = PetscDualSpaceGetDM(fem->dualSpace, &dm);CHKERRQ(ierr);
     ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
-    ierr = PetscMalloc((dim+1) * sizeof(PetscInt), &fem->numDof);CHKERRQ(ierr);
+    ierr = PetscMalloc1((dim+1), &fem->numDof);CHKERRQ(ierr);
     for (d = 0; d <= dim; ++d) {
       fem->numDof[d] = fem->numComponents*numDofDual[d];
     }
@@ -2473,13 +2472,13 @@ PetscErrorCode PetscFEIntegrateResidual_Basic(PetscFE fem, PetscInt Ne, PetscInt
     numComponents += Nc;
   }
   ierr = PetscFEGetQuadrature(fe[field], &quad);CHKERRQ(ierr);
-  ierr = PetscMalloc6(quad.numPoints*dim,PetscScalar,&f0,quad.numPoints*dim*dim,PetscScalar,&f1,numComponents,PetscScalar,&u,numComponents*dim,PetscScalar,&gradU,dim,PetscReal,&x,dim,PetscReal,&realSpaceDer);
+  ierr = PetscMalloc6(quad.numPoints*dim,&f0,quad.numPoints*dim*dim,&f1,numComponents,&u,numComponents*dim,&gradU,dim,&x,dim,&realSpaceDer);
   for (f = 0; f < NfAux; ++f) {
     PetscInt Nc;
     ierr = PetscFEGetNumComponents(feAux[f], &Nc);CHKERRQ(ierr);
     numComponentsAux += Nc;
   }
-  if (NfAux) {ierr = PetscMalloc2(numComponentsAux,PetscScalar,&a,numComponentsAux*dim,PetscScalar,&gradA);CHKERRQ(ierr);}
+  if (NfAux) {ierr = PetscMalloc2(numComponentsAux,&a,numComponentsAux*dim,&gradA);CHKERRQ(ierr);}
   for (e = 0; e < Ne; ++e) {
     const PetscReal  detJ        = geom.detJ[e];
     const PetscReal *v0          = &geom.v0[e*dim];
@@ -2673,13 +2672,13 @@ PetscErrorCode PetscFEIntegrateBdResidual_Basic(PetscFE fem, PetscInt Ne, PetscI
     numComponents += Nc;
   }
   ierr = PetscFEGetQuadrature(fe[field], &quad);CHKERRQ(ierr);
-  ierr = PetscMalloc6(quad.numPoints*dim,PetscScalar,&f0,quad.numPoints*dim*dim,PetscScalar,&f1,numComponents,PetscScalar,&u,numComponents*dim,PetscScalar,&gradU,dim,PetscReal,&x,dim,PetscReal,&realSpaceDer);
+  ierr = PetscMalloc6(quad.numPoints*dim,&f0,quad.numPoints*dim*dim,&f1,numComponents,&u,numComponents*dim,&gradU,dim,&x,dim,&realSpaceDer);
   for (f = 0; f < NfAux; ++f) {
     PetscInt Nc;
     ierr = PetscFEGetNumComponents(feAux[f], &Nc);CHKERRQ(ierr);
     numComponentsAux += Nc;
   }
-  if (NfAux) {ierr = PetscMalloc2(numComponentsAux,PetscScalar,&a,numComponentsAux*dim,PetscScalar,&gradA);CHKERRQ(ierr);}
+  if (NfAux) {ierr = PetscMalloc2(numComponentsAux,&a,numComponentsAux*dim,&gradA);CHKERRQ(ierr);}
   for (e = 0; e < Ne; ++e) {
     const PetscReal  detJ        = geom.detJ[e];
     const PetscReal *v0          = &geom.v0[e*dim];
@@ -2891,8 +2890,8 @@ PetscErrorCode PetscFEIntegrateJacobian_Basic(PetscFE fem, PetscInt Ne, PetscInt
     cellDof += Nb*Nc;
   }
   ierr = PetscFEGetQuadrature(fe[fieldI], &quad);CHKERRQ(ierr);
-  ierr = PetscMalloc4(NcI*NcJ,PetscScalar,&g0,NcI*NcJ*dim,PetscScalar,&g1,NcI*NcJ*dim,PetscScalar,&g2,NcI*NcJ*dim*dim,PetscScalar,&g3);
-  ierr = PetscMalloc5(numComponents,PetscScalar,&u,numComponents*dim,PetscScalar,&gradU,dim,PetscReal,&x,dim,PetscReal,&realSpaceDerI,dim,PetscReal,&realSpaceDerJ);
+  ierr = PetscMalloc4(NcI*NcJ,&g0,NcI*NcJ*dim,&g1,NcI*NcJ*dim,&g2,NcI*NcJ*dim*dim,&g3);
+  ierr = PetscMalloc5(numComponents,&u,numComponents*dim,&gradU,dim,&x,dim,&realSpaceDerI,dim,&realSpaceDerJ);
   for (f = 0; f < NfAux; ++f) {
     PetscInt Nb, Nc;
     ierr = PetscFEGetDimension(feAux[f], &Nb);CHKERRQ(ierr);
@@ -2900,7 +2899,7 @@ PetscErrorCode PetscFEIntegrateJacobian_Basic(PetscFE fem, PetscInt Ne, PetscInt
     numComponentsAux += Nc;
     cellDofAux       += Nb*Nc;
   }
-  if (NfAux) {ierr = PetscMalloc2(numComponentsAux,PetscScalar,&a,numComponentsAux*dim,PetscScalar,&gradA);CHKERRQ(ierr);}
+  if (NfAux) {ierr = PetscMalloc2(numComponentsAux,&a,numComponentsAux*dim,&gradA);CHKERRQ(ierr);}
   for (e = 0; e < Ne; ++e) {
     const PetscReal  detJ        = geom.detJ[e];
     const PetscReal *v0          = &geom.v0[e*dim];
@@ -3109,7 +3108,7 @@ PETSC_EXTERN PetscErrorCode PetscFECreate_Basic(PetscFE fem)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(fem, PETSCFE_CLASSID, 1);
-  ierr      = PetscNewLog(fem, PetscFE_Basic, &b);CHKERRQ(ierr);
+  ierr      = PetscNewLog(fem,&b);CHKERRQ(ierr);
   fem->data = b;
 
   ierr = PetscFEInitialize_Basic(fem);CHKERRQ(ierr);
@@ -3577,7 +3576,7 @@ PetscErrorCode PetscFEOpenCLGetIntegrationKernel(PetscFE fem, PetscBool useAux, 
 
   PetscFunctionBegin;
   ierr = PetscFEGetSpatialDimension(fem, &dim);CHKERRQ(ierr);
-  ierr = PetscMalloc(8192 * sizeof(char), &buffer);CHKERRQ(ierr);
+  ierr = PetscMalloc1(8192, &buffer);CHKERRQ(ierr);
   ierr = PetscFEGetTileSizes(fem, NULL, &N_bl, NULL, NULL);CHKERRQ(ierr);
   ierr = PetscFEOpenCLGenerateIntegrationCode(fem, &buffer, 8192, useAux, N_bl);CHKERRQ(ierr);
   len  = strlen(buffer);
@@ -3718,7 +3717,7 @@ PetscErrorCode PetscFEIntegrateResidual_OpenCL(PetscFE fem, PetscInt Ne, PetscIn
     {
       PetscInt c, b, d;
 
-      ierr = PetscMalloc4(Ne*N_bt,float,&f_coeff,Ne,float,&f_coeffAux,Ne*dim*dim,float,&f_invJ,Ne,float,&f_detJ);CHKERRQ(ierr);
+      ierr = PetscMalloc4(Ne*N_bt,&f_coeff,Ne,&f_coeffAux,Ne*dim*dim,&f_invJ,Ne,&f_detJ);CHKERRQ(ierr);
       for (c = 0; c < Ne; ++c) {
         f_detJ[c] = (float) geom.detJ[c];
         for (d = 0; d < dim*dim; ++d) {
@@ -3747,7 +3746,7 @@ PetscErrorCode PetscFEIntegrateResidual_OpenCL(PetscFE fem, PetscInt Ne, PetscIn
     {
       PetscInt c, b, d;
 
-      ierr = PetscMalloc4(Ne*N_bt,double,&d_coeff,Ne,double,&d_coeffAux,Ne*dim*dim,double,&d_invJ,Ne,double,&d_detJ);CHKERRQ(ierr);
+      ierr = PetscMalloc4(Ne*N_bt,&d_coeff,Ne,&d_coeffAux,Ne*dim*dim,&d_invJ,Ne,&d_detJ);CHKERRQ(ierr);
       for (c = 0; c < Ne; ++c) {
         d_detJ[c] = (double) geom.detJ[c];
         for (d = 0; d < dim*dim; ++d) {
@@ -3807,7 +3806,7 @@ PetscErrorCode PetscFEIntegrateResidual_OpenCL(PetscFE fem, PetscInt Ne, PetscIn
       PetscInt c, b;
 
       ierr = PetscFree4(f_coeff,f_coeffAux,f_invJ,f_detJ);CHKERRQ(ierr);
-      ierr = PetscMalloc(Ne*N_bt * sizeof(float), &elem);CHKERRQ(ierr);
+      ierr = PetscMalloc1(Ne*N_bt, &elem);CHKERRQ(ierr);
       ierr = clEnqueueReadBuffer(ocl->queue_id, o_elemVec, CL_TRUE, 0, Ne*N_bt * realSize, elem, 0, NULL, NULL);CHKERRQ(ierr);
       for (c = 0; c < Ne; ++c) {
         for (b = 0; b < N_bt; ++b) {
@@ -3823,7 +3822,7 @@ PetscErrorCode PetscFEIntegrateResidual_OpenCL(PetscFE fem, PetscInt Ne, PetscIn
       PetscInt c, b;
 
       ierr = PetscFree4(d_coeff,d_coeffAux,d_invJ,d_detJ);CHKERRQ(ierr);
-      ierr = PetscMalloc(Ne*N_bt * sizeof(double), &elem);CHKERRQ(ierr);
+      ierr = PetscMalloc1(Ne*N_bt, &elem);CHKERRQ(ierr);
       ierr = clEnqueueReadBuffer(ocl->queue_id, o_elemVec, CL_TRUE, 0, Ne*N_bt * realSize, elem, 0, NULL, NULL);CHKERRQ(ierr);
       for (c = 0; c < Ne; ++c) {
         for (b = 0; b < N_bt; ++b) {
@@ -3908,7 +3907,7 @@ PETSC_EXTERN PetscErrorCode PetscFECreate_OpenCL(PetscFE fem)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(fem, PETSCFE_CLASSID, 1);
-  ierr      = PetscNewLog(fem, PetscFE_OpenCL, &ocl);CHKERRQ(ierr);
+  ierr      = PetscNewLog(fem,&ocl);CHKERRQ(ierr);
   fem->data = ocl;
 
   /* Init Platform */

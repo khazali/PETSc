@@ -34,7 +34,7 @@ PetscErrorCode MatCreateLaplacian(Mat A, PetscReal tol, PetscBool weighted, Mat 
   ierr = MatGetLocalSize(A, &m, &n);CHKERRQ(ierr);
   ierr = MatSetSizes(*L, m, n, M, N);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(A, &rStart, &rEnd);CHKERRQ(ierr);
-  ierr = PetscMalloc2(m,PetscInt,&dnnz,m,PetscInt,&onnz);CHKERRQ(ierr);
+  ierr = PetscMalloc2(m,&dnnz,m,&onnz);CHKERRQ(ierr);
   for (r = rStart; r < rEnd; ++r) {
     const PetscScalar *vals;
     const PetscInt    *cols;
@@ -61,7 +61,7 @@ PetscErrorCode MatCreateLaplacian(Mat A, PetscReal tol, PetscBool weighted, Mat 
   ierr = MatSetFromOptions(*L);CHKERRQ(ierr);
   ierr = MatXAIJSetPreallocation(*L, 1, dnnz, onnz, NULL, NULL);CHKERRQ(ierr);
   ierr = MatSetUp(*L);CHKERRQ(ierr);
-  ierr = PetscMalloc2(colMax,PetscInt,&newCols,colMax,PetscScalar,&newVals);CHKERRQ(ierr);
+  ierr = PetscMalloc2(colMax,&newCols,colMax,&newVals);CHKERRQ(ierr);
   for (r = rStart; r < rEnd; ++r) {
     const PetscScalar *vals;
     const PetscInt    *cols;
@@ -143,7 +143,7 @@ PETSC_EXTERN PetscErrorCode MatGetOrdering_Spectral(Mat A, MatOrderingType type,
     ierr = PetscBLASIntCast(n, &bN);CHKERRQ(ierr);
     ierr = PetscBLASIntCast(5*n,&lwork);CHKERRQ(ierr);
     ierr = PetscBLASIntCast(1,&idummy);CHKERRQ(ierr);
-    ierr = PetscMalloc4(n,PetscScalar,&realpart,n,PetscScalar,&imagpart,n*n,PetscScalar,&eigvec,lwork,PetscScalar,&work);CHKERRQ(ierr);
+    ierr = PetscMalloc4(n,&realpart,n,&imagpart,n*n,&eigvec,lwork,&work);CHKERRQ(ierr);
     ierr = PetscFPTrapPush(PETSC_FP_TRAP_OFF);CHKERRQ(ierr);
 #ifdef PETSC_USE_COMPLEX
     SETERRQ(PetscObjectComm((PetscObject) A), PETSC_ERR_SUP, "Spectral partitioning does not support complex numbers");
@@ -153,7 +153,7 @@ PETSC_EXTERN PetscErrorCode MatGetOrdering_Spectral(Mat A, MatOrderingType type,
     if (lierr) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_LIB, "Error in LAPACK routine %d", (int) lierr);
     ierr = PetscFPTrapPop();CHKERRQ(ierr);
     /* Check lowest eigenvalue and eigenvector */
-    ierr = PetscMalloc(n * sizeof(PetscInt), &perm);CHKERRQ(ierr);
+    ierr = PetscMalloc1(n, &perm);CHKERRQ(ierr);
     for (i = 0; i < n; ++i) perm[i] = i;
     ierr = PetscSortRealWithPermutation(n,realpart,perm);CHKERRQ(ierr);
     evInd = perm[0];
