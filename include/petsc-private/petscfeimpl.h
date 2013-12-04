@@ -107,6 +107,9 @@ typedef struct {
   PetscInt cellType;
 } PetscFE_Basic;
 
+typedef struct {
+} PetscFE_Nonaffine;
+
 #ifdef PETSC_HAVE_OPENCL
 
 #ifdef __APPLE__
