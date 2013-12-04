@@ -465,7 +465,7 @@ runex33:
 	   ${RM} -f ex33_1.tmp
 
 runex98:
-	-@${MPIEXEC} -n 1 ./ex98 -nrefine 4 -f ${PETSC_DIR}/share/petsc/datafiles/meshes/square-4x4.exo -monitor error -ksp_type cg -pc_type gamg -pc_gamg_agg_nsmooths 1 -mg_levels_pc_type jacobi -mg_levels_ksp_type chebyshev -mg_levels_ksp_max_it 1 -ksp_max_it 20 -snes_monitor -ksp_norm_type unpreconditioned -box_stencil true -const_coef false
+	-@${MPIEXEC} -n 1 ./ex98 -nrefine 3 -f ${PETSC_DIR}/share/petsc/datafiles/meshes/square-4x4.exo -monitor error -ksp_type cg -pc_type gamg -pc_gamg_agg_nsmooths 1 -mg_levels_pc_type jacobi -mg_levels_ksp_type chebyshev -mg_levels_ksp_max_it 1 -ksp_max_it 20 -snes_monitor -ksp_norm_type unpreconditioned -box_stencil true -const_coef false
 
 runex98_3D:
 	-@${MPIEXEC} -n 1 ./ex98 -nrefine 2 -f ${PETSC_DIR}/share/petsc/datafiles/meshes/cube-4x4x4.exo -monitor error -ksp_type cg -pc_type gamg -pc_gamg_agg_nsmooths 1 -mg_levels_pc_type jacobi -mg_levels_ksp_type chebyshev -mg_levels_ksp_max_it 1 -snes_monitor -ksp_norm_type unpreconditioned -box_stencil false -const_coef true
