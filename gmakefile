@@ -9,8 +9,6 @@ MODDIR := $(PETSC_ARCH)/include
 BINDIR := $(PETSC_ARCH)/bin
 LIBDIR := $(abspath $(PETSC_ARCH)/lib)
 
-vpath %.test.c $(PETSC_ARCH)/src       # Find generated source files
-
 pkgs := sys vec mat dm ksp snes ts
 langs := c cu cxx F
 
@@ -158,6 +156,9 @@ $(PETSC_ARCH)/src/%.test.c : conf/testmaingen.py $(generated) | $$(@D)/.DIR
 # present package level.
 $(BINDIR)/%.test : $(OBJDIR)/%.test.o $$(obj) $(libpetscall) | $(LIBDIR)
 	$(call quiet,CLINKER) -o $@ $< $(obj) $(lib)
+# Special rule to avoid using vpath to locate these source files (needed for make-3.81)
+$(OBJDIR)/%.test.o : $(PETSC_ARCH)/src/%.test.c | $$(@D)/.DIR
+	$(PETSC_COMPILE.c) $(abspath $<) -o $@
 
 ### Normal build rules ###
 $(OBJDIR)/%.o : %.c | $$(@D)/.DIR
