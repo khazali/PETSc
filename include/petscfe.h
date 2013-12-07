@@ -104,6 +104,7 @@ PETSC_EXTERN PetscErrorCode PetscFEDestroy(PetscFE *);
 PETSC_EXTERN PetscErrorCode PetscFESetType(PetscFE, PetscFEType);
 PETSC_EXTERN PetscErrorCode PetscFEGetType(PetscFE, PetscFEType *);
 PETSC_EXTERN PetscErrorCode PetscFESetUp(PetscFE);
+PETSC_EXTERN PetscErrorCode PetscFEView(PetscFE,PetscViewer);
 PETSC_EXTERN PetscErrorCode PetscFESetFromOptions(PetscFE);
 PETSC_EXTERN PetscErrorCode PetscFERegister(const char [], PetscErrorCode (*)(PetscFE));
 PETSC_EXTERN PetscErrorCode PetscFERegisterAll(void);
