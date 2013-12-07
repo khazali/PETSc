@@ -270,6 +270,9 @@ ex72: ex72.h ex72.o  chkopts
 ex73f90t: ex73f90t.o  chkopts
 	-${FLINKER} -o ex73f90t ex73f90t.o ${PETSC_SNES_LIB}
 	${RM} ex73f90t.o
+ex-seaice: ex-seaice.o  chkopts
+	-${CLINKER} -o $@ $< ${PETSC_SNES_LIB}
+	${RM} $<
 #--------------------------------------------------------------------------
 runex1:
 	-@${MPIEXEC} -n 1 ./ex1 -ksp_gmres_cgs_refinement_type refine_always -snes_monitor_short > ex1_1.tmp 2>&1;   \
