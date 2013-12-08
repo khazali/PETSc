@@ -30,6 +30,8 @@ PETSC_EXTERN PetscErrorCode PetscSpaceSetType(PetscSpace, PetscSpaceType);
 PETSC_EXTERN PetscErrorCode PetscSpaceGetType(PetscSpace, PetscSpaceType *);
 PETSC_EXTERN PetscErrorCode PetscSpaceSetUp(PetscSpace);
 PETSC_EXTERN PetscErrorCode PetscSpaceSetFromOptions(PetscSpace);
+PETSC_EXTERN PetscErrorCode PetscSpaceView(PetscSpace,PetscViewer);
+PETSC_EXTERN PetscErrorCode PetscSpaceViewFromOptions(PetscSpace,const char[],const char[]);
 PETSC_EXTERN PetscErrorCode PetscSpaceRegister(const char [], PetscErrorCode (*)(PetscSpace));
 PETSC_EXTERN PetscErrorCode PetscSpaceRegisterAll(void);
 PETSC_EXTERN PetscErrorCode PetscSpaceRegisterDestroy(void);
@@ -43,6 +45,7 @@ PETSC_EXTERN PetscErrorCode PetscSpacePolynomialSetNumVariables(PetscSpace, Pets
 PETSC_EXTERN PetscErrorCode PetscSpacePolynomialGetNumVariables(PetscSpace, PetscInt *);
 PETSC_EXTERN PetscErrorCode PetscSpacePolynomialSetSymmetric(PetscSpace, PetscBool);
 PETSC_EXTERN PetscErrorCode PetscSpacePolynomialGetSymmetric(PetscSpace, PetscBool *);
+PETSC_EXTERN PetscErrorCode PetscSpacePolynomialSetTensor(PetscSpace, PetscBool);
 
 PETSC_EXTERN PetscErrorCode PetscSpaceDGSetQuadrature(PetscSpace, PetscQuadrature);
 PETSC_EXTERN PetscErrorCode PetscSpaceDGGetQuadrature(PetscSpace, PetscQuadrature *);
