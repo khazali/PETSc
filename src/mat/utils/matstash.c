@@ -456,11 +456,9 @@ PetscErrorCode MatStashScatterBegin_Private(Mat mat,MatStash *stash,PetscInt *ow
   bs2 = stash->bs*stash->bs;
 
   /*  first count number of contributors to each processor */
-  ierr = PetscMalloc1(size,&sizes);CHKERRQ(ierr);
-  ierr = PetscMemzero(sizes,size*sizeof(PetscMPIInt));CHKERRQ(ierr);
-  ierr = PetscMalloc1(size,&nlengths);CHKERRQ(ierr);
-  ierr = PetscMemzero(nlengths,size*sizeof(PetscMPIInt));CHKERRQ(ierr);
-  ierr = PetscMalloc1((stash->n+1),&owner);CHKERRQ(ierr);
+  ierr = PetscCalloc1(size,&sizes);CHKERRQ(ierr);
+  ierr = PetscCalloc1(size,&nlengths);CHKERRQ(ierr);
+  ierr = PetscMalloc1(stash->n+1,&owner);CHKERRQ(ierr);
 
   i       = j    = 0;
   lastidx = -1;

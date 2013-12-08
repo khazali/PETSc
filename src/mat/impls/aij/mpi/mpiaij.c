@@ -837,9 +837,8 @@ PetscErrorCode MatZeroRowsColumns_MPIAIJ(Mat A,PetscInt N,const PetscInt rows[],
   PetscFunctionBegin;
   ierr = PetscObjectGetComm((PetscObject)A,&comm);CHKERRQ(ierr);
   /*  first count number of contributors to each processor */
-  ierr = PetscMalloc1(2*size,&sizes);CHKERRQ(ierr);
-  ierr = PetscMemzero(sizes,2*size*sizeof(PetscInt));CHKERRQ(ierr);
-  ierr = PetscMalloc1((N+1),&owner);CHKERRQ(ierr); /* see note*/
+  ierr = PetscCalloc1(2*size,&sizes);CHKERRQ(ierr);
+  ierr = PetscMalloc1(N+1,&owner);CHKERRQ(ierr); /* see note*/
   j    = 0;
   for (i=0; i<N; i++) {
     if (lastidx > (idx = rows[i])) j = 0;
