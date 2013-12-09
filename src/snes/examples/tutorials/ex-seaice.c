@@ -50,8 +50,27 @@ struct _User {
   Field       *fq;              /* Workspace for coefficient of test function at quadrature points */
   Field       *Dfq;             /* Workspace for coefficient of test function gradient at quadrature points */
   CoordField  *cq;
+
+  /* Options */
+  CoordField  L;
+  PetscReal   dt;
+  PetscReal   Coriolis_f;
+  PetscReal   rho_ice;
+  PetscReal   rho_air;
+  PetscReal   rho_water;
+  PetscReal   Cdrag_air;
+  PetscReal   Cdrag_water;
+  PetscReal   theta_drag_air;
+  PetscReal   theta_drag_water;
+  PetscReal   Pstar;
+  PetscReal   ellipse_ratio;
+  PetscReal   Concentration;
+  PetscReal   zeta_max_coeff;
+
+  PetscBool   view_initial;
 };
 
+/*****************************  Finite element support  ******************************/
 #undef __FUNCT__
 #define __FUNCT__ "DMDAComputeCellGeometry_2D"
 static PetscErrorCode DMDAComputeCellGeometry_2D(DM dm, const PetscScalar vertices[], const PetscReal refPoint[], PetscReal J[], PetscReal invJ[], PetscReal *detJ)
@@ -124,6 +143,7 @@ static PetscBool SubdomainInterior(DMDALocalInfo *info,PetscInt i,PetscInt j) {
   return PETSC_FALSE;
 }
 
+PETSC_UNUSED
 static PetscBool DomainInterior(DMDALocalInfo *info,PetscInt i,PetscInt j) {
   if (0 < i && i < info->mx-1 && 0 < j && j < info->my-1) return PETSC_TRUE;
   return PETSC_FALSE;
@@ -169,18 +189,104 @@ static void GetElementRange(DMDALocalInfo *info,PetscInt *xes,PetscInt *xee,Pets
   *yee = PetscMin(info->ys+info->ym,info->my-1);
 }
 
+/*****************************  Physics  ******************************/
+static void StrainRate(const Field dx[2],PetscScalar e[2][2]) {
+  e[0][0] = dx[0].u[0];
+  e[0][1] = e[1][0] = 0.5*(dx[0].u[1] + dx[1].u[0]);
+  e[1][1] = dx[1].u[1];
+}
+
+static PetscScalar IceThickness(User user,CoordField c) {
+  return 1.0;
+}
+
+static Field VelocityWater(User user,CoordField c) {
+  Field v;
+  PetscReal L = PetscMin(user->L.x[0],user->L.x[1]) / 6;
+  PetscScalar x = c.x[0] / L,y = c.x[1]/L;
+  PetscScalar xa = x + 2.,ya = y + 2.,r2a = PetscSqr(xa) + PetscSqr(ya);
+  PetscScalar xb = x - 2.,yb = y - 2.,r2b = PetscSqr(xb) + PetscSqr(yb);
+
+  v.u[0] = -PetscExpScalar(1-r2a) * ya + PetscExpScalar(1-r2b) * yb;
+  v.u[1] =  PetscExpScalar(1-r2a) * xa - PetscExpScalar(1-r2b) * xb;
+  return v;
+}
+
+static Field VelocityOld(User user,CoordField c) {
+  return VelocityWater(user,c);
+}
+
+static PetscScalar IceStrength(User user,PetscScalar h) {
+  PetscReal A = 0.9;                                                       /* Ice concentration */
+  return user->Pstar * h * PetscExpScalar(-user->Concentration * (1 - A)); /* LKT+12 Eq. 5 */
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "EffectiveViscosity"
+static PetscErrorCode EffectiveViscosity(User user,PetscScalar h,PetscScalar P,const PetscScalar e[2][2],PetscScalar *zeta,PetscScalar *eta)
+{
+  PetscScalar Delta,zeta_max;
+
+  PetscFunctionBegin;
+  Delta = PetscSqrtScalar((PetscSqr(e[0][0]) + PetscSqr(e[1][1]))*(1 + 1/PetscSqr(user->ellipse_ratio))
+                          + 4*PetscSqr(e[0][1]/user->ellipse_ratio)
+                          + 2*e[0][0]*e[1][1]*(1 - 1/PetscSqr(user->ellipse_ratio)));
+  zeta_max = user->zeta_max_coeff * P;
+  *zeta = zeta_max * PetscTanhScalar(P / (2 * Delta * zeta_max)); /* bulk modulus */
+  *eta = *zeta / PetscSqr(user->ellipse_ratio);                   /* shear modulus */
+  // printf("zeta %g  eta %g\n",*zeta,*eta);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "WaterDrag"
+static PetscErrorCode WaterDrag(User user,CoordField c,Field x,Field *tau_w)
+{
+  Field uwater,u;
+  PetscScalar umag;
+  PetscInt i;
+
+  PetscFunctionBegin;
+  uwater = VelocityWater(user,c);
+  u.u[0] = x.u[0] - uwater.u[0];
+  u.u[1] = x.u[1] - uwater.u[1];
+  umag = PetscSqrtScalar(PetscSqr(u.u[0]) + PetscSqr(u.u[1]));
+  for (i=0; i<2; i++) {
+    tau_w->u[i] = user->rho_ice * user->Cdrag_water * umag
+      * (u.u[i] * PetscCosReal(user->theta_drag_water)
+         + (i?-1:1) * u.u[(i+1)%2] * PetscSinReal(user->theta_drag_water));
+  }
+  PetscFunctionReturn(0);
+}
+
 #undef __FUNCT__
 #define __FUNCT__ "PointwiseResidual"
 static PetscErrorCode PointwiseResidual(User user,CoordField c,Field x,const Field dx[],Field *f,Field df[])
 {
+  PetscErrorCode ierr;
+  PetscScalar h,m,alpha,edot[2][2],P,zeta,eta;
+  Field uold,tau_w;
+  PetscInt i,j;
 
   PetscFunctionBegin;
-  f->u[0] = x.u[0] - PetscSqr(c.x[0]) - c.x[1];
-  f->u[1] = x.u[1] - PetscSqr(c.x[1]) - c.x[0];
-  df[0].u[0] = dx[0].u[0];
-  df[1].u[0] = dx[1].u[0];
-  df[0].u[1] = dx[0].u[1];
-  df[1].u[1] = dx[1].u[1];
+  h = IceThickness(user,c);
+  m = user->rho_ice * h;
+  uold = VelocityOld(user,c);
+  alpha = 1 / user->dt;
+  P = IceStrength(user,h);
+
+  StrainRate(dx,edot);
+  ierr = EffectiveViscosity(user,h,P,edot,&zeta,&eta);CHKERRQ(ierr);
+  ierr = WaterDrag(user,c,x,&tau_w);CHKERRQ(ierr);
+  for (i=0; i<2; i++) {
+    f->u[i] = alpha * m * (x.u[i] - uold.u[i])
+      + m * user->Coriolis_f * (i?-1:1) * x.u[(i+1)%2]
+      - tau_w.u[i];
+    for (j=0; j<2; j++) {       /* 2 \eta \dot\epsilon + (\zeta-\eta) \trace(\dot\epsilon) I - P/2 I */
+      df[j].u[i] = 2 * eta * edot[i][j]
+        + (i==j) * ((zeta - eta) * (edot[0][0] + edot[1][1]) - P/2);
+    }
+  }
   PetscFunctionReturn(0);
 }
 
@@ -362,16 +468,18 @@ static PetscErrorCode InitialGuess(DM da,User user,Vec X)
 
   for (j=info.ys; j<info.ys+info.ym; j++) {
     for (i=info.xs; i<info.xs+info.xm; i++) {
-      x[j][i].u[0] = PetscSqr(c[j][i].x[0]);
-      x[j][i].u[1] = PetscSqr(c[j][i].x[1]);
-      if (DomainInterior(&info,i,j) && 0) {
-        x[j][i].u[0] = 1.;
-        x[j][i].u[1] = 1.;
-      }
+      x[j][i] = VelocityOld(user,c[j][i]);
     }
   }
   ierr = DMDAVecRestoreArray(da,X,&x);CHKERRQ(ierr);
   ierr = DMDAVecRestoreArray(cda,Coord,&c);CHKERRQ(ierr);
+
+  if (user->view_initial) {
+    PetscViewer viewer;
+    ierr = PetscViewerVTKOpen(PetscObjectComm((PetscObject)da),"si-initial.vts",FILE_MODE_WRITE,&viewer);CHKERRQ(ierr);
+    ierr = VecView(X,viewer);CHKERRQ(ierr);
+    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -440,6 +548,70 @@ static PetscErrorCode SetupElement(MPI_Comm comm,User user)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "UserSetFromOptions"
+static PetscErrorCode UserSetFromOptions(User user)
+{
+  PetscErrorCode ierr;
+  PetscInt n;
+  PetscReal L[2] = {1e4,1e4};
+
+  PetscFunctionBegin;
+  ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"Sea ice solver options",NULL);CHKERRQ(ierr);
+  n = 2;
+  ierr = PetscOptionsRealArray("-L","Length of domain in x and y directions [m]","",L,&n,NULL);CHKERRQ(ierr);
+  user->L.x[0] = L[0];
+  user->L.x[1] = L[1];
+
+  user->dt = 100;
+  ierr = PetscOptionsReal("-dt","Time step length [s]","",user->dt,&user->dt,NULL);CHKERRQ(ierr);
+
+  user->Coriolis_f = 1.46e-4;
+  ierr = PetscOptionsReal("-coriolis_f","Coriolis parameter [s^-1]","",user->Coriolis_f,&user->Coriolis_f,NULL);CHKERRQ(ierr);
+
+  user->rho_ice = 900;
+  ierr = PetscOptionsReal("-rho_ice","Desity of sea ice [kg m^-3]","",user->rho_ice,&user->rho_ice,NULL);CHKERRQ(ierr);
+
+  user->rho_air = 1.3;
+  ierr = PetscOptionsReal("-rho_air","Desity of air [kg m^-3]","",user->rho_air,&user->rho_air,NULL);CHKERRQ(ierr);
+
+  user->rho_water = 1026;
+  ierr = PetscOptionsReal("-rho_water","Desity of ocean water [kg m^-3]","",user->rho_water,&user->rho_water,NULL);CHKERRQ(ierr);
+
+  user->Cdrag_air = 1.2e-3;
+  ierr = PetscOptionsReal("-Cdrag_air","Air drag coefficient []","",user->Cdrag_air,&user->Cdrag_air,NULL);CHKERRQ(ierr);
+
+  user->Cdrag_water = 5.5-3;
+  ierr = PetscOptionsReal("-Cdrag_water","Water drag coefficient []","",user->Cdrag_water,&user->Cdrag_water,NULL);CHKERRQ(ierr);
+
+  user->theta_drag_air = 25;
+  ierr = PetscOptionsReal("-theta_drag_air","Air drag turning angle [degrees]","",user->theta_drag_air,&user->theta_drag_air,NULL);CHKERRQ(ierr);
+  user->theta_drag_air *= PETSC_PI/180;
+
+  user->theta_drag_water = 25;
+  ierr = PetscOptionsReal("-theta_drag_water","Water drag turning angle [degrees]","",user->theta_drag_water,&user->theta_drag_water,NULL);CHKERRQ(ierr);
+  user->theta_drag_water *= PETSC_PI/180;
+
+  user->Pstar = 27.5e3;
+  ierr = PetscOptionsReal("-Pstar","Ice strength parameter [N m^-2]","",user->Pstar,&user->Pstar,NULL);CHKERRQ(ierr);
+
+  user->ellipse_ratio = 2;
+  ierr = PetscOptionsReal("-ellipse_ratio","Ellipse ratio in constitutive model []","",user->ellipse_ratio,&user->ellipse_ratio,NULL);CHKERRQ(ierr);
+
+  user->Concentration = 20;
+  ierr = PetscOptionsReal("-Concentration","Ice concentration parameter []","",user->Concentration,&user->Concentration,NULL);CHKERRQ(ierr);
+
+  user->zeta_max_coeff = 2.5e8;
+  ierr = PetscOptionsReal("-zeta_max_coeff","Coefficient for limiting zeta []","",user->zeta_max_coeff,&user->zeta_max_coeff,NULL);CHKERRQ(ierr);
+
+  user->view_initial = PETSC_FALSE;
+  ierr = PetscOptionsBool("-view_initial","View initial velocity solution","",user->view_initial,&user->view_initial,NULL);CHKERRQ(ierr);
+
+  ierr = PetscOptionsEnd();CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc,char **argv)
 {
@@ -453,11 +625,12 @@ int main(int argc,char **argv)
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return(1);
   comm = PETSC_COMM_WORLD;
+  ierr = UserSetFromOptions(&user);CHKERRQ(ierr);
   ierr = SetupElement(comm,&user);CHKERRQ(ierr);
 
   ierr = SNESCreate(comm,&snes);CHKERRQ(ierr);
   ierr = DMDACreate2d(PETSC_COMM_WORLD,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE,DMDA_STENCIL_BOX,-8,-8,PETSC_DECIDE,PETSC_DECIDE,2,1,NULL,NULL,&da);CHKERRQ(ierr);
-  ierr = DMDASetUniformCoordinates(da,-1.0,1.0,-1.0,1.0,0.0,0.0);CHKERRQ(ierr);
+  ierr = DMDASetUniformCoordinates(da,-user.L.x[0],user.L.x[0],-user.L.x[1],user.L.x[1],0.0,0.0);CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,0,"ux");CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,1,"uy");CHKERRQ(ierr);
   ierr = SNESSetDM(snes,da);CHKERRQ(ierr);
