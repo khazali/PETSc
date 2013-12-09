@@ -377,7 +377,7 @@ static PetscErrorCode InitialGuess(DM da,User user,Vec X)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupElement"
-static PetscErrorCode SetupElement(DM dm,User user)
+static PetscErrorCode SetupElement(MPI_Comm comm,User user)
 {
   const PetscInt  dim = 2;
   PetscFE         fem;
@@ -390,7 +390,7 @@ static PetscErrorCode SetupElement(DM dm,User user)
 
   PetscFunctionBegin;
   /* Create space */
-  ierr = PetscSpaceCreate(PetscObjectComm((PetscObject)dm),&P);CHKERRQ(ierr);
+  ierr = PetscSpaceCreate(comm,&P);CHKERRQ(ierr);
   ierr = PetscSpaceSetOrder(P,1);CHKERRQ(ierr);
   ierr = PetscSpaceSetFromOptions(P);CHKERRQ(ierr);
   ierr = PetscSpacePolynomialSetTensor(P,PETSC_TRUE);CHKERRQ(ierr);
@@ -398,7 +398,7 @@ static PetscErrorCode SetupElement(DM dm,User user)
   ierr = PetscSpaceSetUp(P);CHKERRQ(ierr);
   ierr = PetscSpaceGetOrder(P,&order);CHKERRQ(ierr);
   /* Create dual space */
-  ierr = PetscDualSpaceCreate(PetscObjectComm((PetscObject)dm),&Q);CHKERRQ(ierr);
+  ierr = PetscDualSpaceCreate(comm,&Q);CHKERRQ(ierr);
   ierr = PetscDualSpaceCreateReferenceCell(Q,dim,PETSC_FALSE,&K);CHKERRQ(ierr);
   ierr = PetscDualSpaceSetDM(Q,K);CHKERRQ(ierr);
   ierr = DMDestroy(&K);CHKERRQ(ierr);
@@ -406,7 +406,7 @@ static PetscErrorCode SetupElement(DM dm,User user)
   ierr = PetscDualSpaceSetFromOptions(Q);CHKERRQ(ierr);
   ierr = PetscDualSpaceSetUp(Q);CHKERRQ(ierr);
   /* Create element */
-  ierr = PetscFECreate(PetscObjectComm((PetscObject)dm),&fem);CHKERRQ(ierr);
+  ierr = PetscFECreate(comm,&fem);CHKERRQ(ierr);
   ierr = PetscFESetFromOptions(fem);CHKERRQ(ierr);
   ierr = PetscFESetBasisSpace(fem,P);CHKERRQ(ierr);
   ierr = PetscFESetDualSpace(fem,Q);CHKERRQ(ierr);
@@ -453,6 +453,8 @@ int main(int argc,char **argv)
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return(1);
   comm = PETSC_COMM_WORLD;
+  ierr = SetupElement(comm,&user);CHKERRQ(ierr);
+
   ierr = SNESCreate(comm,&snes);CHKERRQ(ierr);
   ierr = DMDACreate2d(PETSC_COMM_WORLD,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE,DMDA_STENCIL_BOX,-8,-8,PETSC_DECIDE,PETSC_DECIDE,2,1,NULL,NULL,&da);CHKERRQ(ierr);
   ierr = DMDASetUniformCoordinates(da,-1.0,1.0,-1.0,1.0,0.0,0.0);CHKERRQ(ierr);
@@ -460,7 +462,6 @@ int main(int argc,char **argv)
   ierr = DMDASetFieldName(da,1,"uy");CHKERRQ(ierr);
   ierr = SNESSetDM(snes,da);CHKERRQ(ierr);
 
-  ierr = SetupElement(da,&user);CHKERRQ(ierr);
   ierr = DMDASNESSetFunctionLocal(da,INSERT_VALUES,(PetscErrorCode (*)(DMDALocalInfo*,void*,void*,void*))FormFunctionLocal,&user);CHKERRQ(ierr);
   ierr = DMDASNESSetJacobianLocal(da,(DMDASNESJacobian)FormJacobianLocal,&user);CHKERRQ(ierr);
   // ierr = SNESSetGS(snes,NonlinearGS,&user);CHKERRQ(ierr);
