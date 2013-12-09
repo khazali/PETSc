@@ -341,7 +341,7 @@ PETSC_EXTERN PetscErrorCode PCCreate_CR(PC pc)
   PC_CR          *cr;
 
   PetscFunctionBegin;
-  ierr = PetscNewLog(pc,PC_CR,&cr);CHKERRQ(ierr);
+  ierr = PetscNewLog(pc,&cr);CHKERRQ(ierr);
 
   pc->data = (void*)cr;
 
