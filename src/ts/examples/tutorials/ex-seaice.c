@@ -28,7 +28,7 @@ where
 
   ------------------------------------------------------------------------F*/
 
-#include <petscsnes.h>
+#include <petscts.h>
 #include <petscdmda.h>
 #include <petscfe.h>
 
@@ -47,13 +47,13 @@ struct _User {
   PetscReal   *weights;         /* Real-space quadrature weights */
   Field       *xq;              /* Workspace for solution at quadrature points */
   Field       *Dxq;             /* Workspace for solution gradient at quadrature points Dxq[2*q+i].u */
+  Field       *xdotq;           /* Workspace for time derivatives of solution at quadrature points */
   Field       *fq;              /* Workspace for coefficient of test function at quadrature points */
   Field       *Dfq;             /* Workspace for coefficient of test function gradient at quadrature points */
   CoordField  *cq;
 
   /* Options */
   CoordField  L;
-  PetscReal   dt;
   PetscReal   Coriolis_f;
   PetscReal   rho_ice;
   PetscReal   rho_air;
@@ -68,6 +68,9 @@ struct _User {
   PetscReal   zeta_max_coeff;
 
   PetscBool   view_initial;
+
+  PetscReal   range_zeta[2];
+  PetscBool   monitor_range;
 };
 
 /*****************************  Finite element support  ******************************/
@@ -207,17 +210,20 @@ static Field VelocityWater(User user,CoordField c) {
   PetscScalar xa = x + 2.,ya = y + 2.,r2a = PetscSqr(xa) + PetscSqr(ya);
   PetscScalar xb = x - 2.,yb = y - 2.,r2b = PetscSqr(xb) + PetscSqr(yb);
 
-  v.u[0] = -PetscExpScalar(1-r2a) * ya + PetscExpScalar(1-r2b) * yb;
-  v.u[1] =  PetscExpScalar(1-r2a) * xa - PetscExpScalar(1-r2b) * xb;
+  v.u[0] = -PetscExpScalar(1-r2a) * ya - PetscExpScalar(1-r2b) * yb;
+  v.u[1] =  PetscExpScalar(1-r2a) * xa + PetscExpScalar(1-r2b) * xb;
+  v.u[0] *= 0.1;
+  v.u[1] *= 0.1;
+
+  if (0) {
+    v.u[0] = 0.;
+    v.u[1] = (x < 0) ? -1. : 1.;
+  }
   return v;
 }
 
-static Field VelocityOld(User user,CoordField c) {
-  return VelocityWater(user,c);
-}
-
 static PetscScalar IceStrength(User user,PetscScalar h) {
-  PetscReal A = 0.9;                                                       /* Ice concentration */
+  PetscReal A = 0.98;                                                       /* Ice concentration */
   return user->Pstar * h * PetscExpScalar(-user->Concentration * (1 - A)); /* LKT+12 Eq. 5 */
 }
 
@@ -234,7 +240,9 @@ static PetscErrorCode EffectiveViscosity(User user,PetscScalar h,PetscScalar P,c
   zeta_max = user->zeta_max_coeff * P;
   *zeta = zeta_max * PetscTanhScalar(P / (2 * Delta * zeta_max)); /* bulk modulus */
   *eta = *zeta / PetscSqr(user->ellipse_ratio);                   /* shear modulus */
-  // printf("zeta %g  eta %g\n",*zeta,*eta);
+
+  user->range_zeta[0] = PetscMin(user->range_zeta[0],PetscRealPart(*zeta));
+  user->range_zeta[1] = PetscMax(user->range_zeta[1],PetscRealPart(*zeta));
   PetscFunctionReturn(0);
 }
 
@@ -248,39 +256,36 @@ static PetscErrorCode WaterDrag(User user,CoordField c,Field x,Field *tau_w)
 
   PetscFunctionBegin;
   uwater = VelocityWater(user,c);
-  u.u[0] = x.u[0] - uwater.u[0];
-  u.u[1] = x.u[1] - uwater.u[1];
+  for (i=0; i<2; i++) u.u[i] = uwater.u[i] - x.u[i];
   umag = PetscSqrtScalar(PetscSqr(u.u[0]) + PetscSqr(u.u[1]));
   for (i=0; i<2; i++) {
     tau_w->u[i] = user->rho_ice * user->Cdrag_water * umag
       * (u.u[i] * PetscCosReal(user->theta_drag_water)
-         + (i?-1:1) * u.u[(i+1)%2] * PetscSinReal(user->theta_drag_water));
+         + (i?1:-1) * u.u[(i+1)%2] * PetscSinReal(user->theta_drag_water));
   }
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PointwiseResidual"
-static PetscErrorCode PointwiseResidual(User user,CoordField c,Field x,const Field dx[],Field *f,Field df[])
+static PetscErrorCode PointwiseResidual(User user,CoordField c,PetscReal time,Field x,const Field dx[],Field xdot,Field *f,Field df[])
 {
   PetscErrorCode ierr;
-  PetscScalar h,m,alpha,edot[2][2],P,zeta,eta;
-  Field uold,tau_w;
+  PetscScalar h,m,edot[2][2],P,zeta,eta;
+  Field tau_w;
   PetscInt i,j;
 
   PetscFunctionBegin;
   h = IceThickness(user,c);
   m = user->rho_ice * h;
-  uold = VelocityOld(user,c);
-  alpha = 1 / user->dt;
   P = IceStrength(user,h);
 
   StrainRate(dx,edot);
   ierr = EffectiveViscosity(user,h,P,edot,&zeta,&eta);CHKERRQ(ierr);
   ierr = WaterDrag(user,c,x,&tau_w);CHKERRQ(ierr);
   for (i=0; i<2; i++) {
-    f->u[i] = alpha * m * (x.u[i] - uold.u[i])
-      + m * user->Coriolis_f * (i?-1:1) * x.u[(i+1)%2]
+    f->u[i] = m * xdot.u[i]
+      + m * user->Coriolis_f * (i?1:-1) * x.u[(i+1)%2]
       - tau_w.u[i];
     for (j=0; j<2; j++) {       /* 2 \eta \dot\epsilon + (\zeta-\eta) \trace(\dot\epsilon) I - P/2 I */
       df[j].u[i] = 2 * eta * edot[i][j]
@@ -292,12 +297,12 @@ static PetscErrorCode PointwiseResidual(User user,CoordField c,Field x,const Fie
 
 #undef __FUNCT__
 #define __FUNCT__ "PointwiseJacobian"
-static PetscErrorCode PointwiseJacobian(User user,CoordField c,Field x,const Field dx[],Field y,const Field dy[],Field *g,Field dg[])
+static PetscErrorCode PointwiseJacobian(User user,CoordField c,PetscReal time,Field x,const Field dx[],Field xdot,PetscReal shift,Field y,const Field dy[],Field *g,Field dg[])
 {
 
   PetscFunctionBegin;
-  g->u[0] = y.u[0];
-  g->u[1] = y.u[1];
+  g->u[0] = shift*y.u[0];
+  g->u[1] = shift*y.u[1];
   dg[0].u[0] = dy[0].u[0];
   dg[1].u[0] = dy[1].u[0];
   dg[0].u[1] = dy[0].u[1];
@@ -307,7 +312,7 @@ static PetscErrorCode PointwiseJacobian(User user,CoordField c,Field x,const Fie
 
 #undef __FUNCT__
 #define __FUNCT__ "FormFunctionLocal"
-static PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,Field **x,Field **f,void *ptr)
+static PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,PetscReal time,Field **x,Field **xdot,Field **f,void *ptr)
 {
   User        user = (User)ptr;
   DM          cda;
@@ -318,6 +323,9 @@ static PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,Field **x,Field **f,
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  user->range_zeta[0] = PETSC_MAX_REAL;
+  user->range_zeta[1] = PETSC_MIN_REAL;
+
   ierr = DMGetCoordinateDM(info->da,&cda);CHKERRQ(ierr);
   ierr = DMGetCoordinatesLocal(info->da,&C);CHKERRQ(ierr);
   ierr = DMDAVecGetArray(cda,C,&c);CHKERRQ(ierr);
@@ -333,20 +341,22 @@ static PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,Field **x,Field **f,
   GetElementRange(info,&xes,&xee,&yes,&yee);
   for (j=yes; j<yee; j++) {
     for (i=xes; i<xee; i++) {
-      Field xe[4],fe[4],*feref[4];
-      Field *xq = user->xq,*dxq = user->Dxq,*fq = user->fq,*dfq = user->Dfq;
+      Field xe[4],xdote[4],fe[4],*feref[4];
+      Field *xq = user->xq,*dxq = user->Dxq,*xdotq = user->xdotq,*fq = user->fq,*dfq = user->Dfq;
       const PetscReal *weights,*De;
       CoordField ce[4],*cq = user->cq;
       QuadExtract(x,i,j,xe);
+      QuadExtract(xdot,i,j,xdote);
       QuadExtractRef(info,f,i,j,feref);
       QuadExtractCoord(c,i,j,ce);
       QuadRealSpace(user,ce,D,&weights,&De);
       QuadMult(&user->q,1,B,xe,xq);
+      QuadMult(&user->q,1,B,xdote,xdotq);
       QuadMult(&user->q,2,De,xe,dxq);
       QuadMultCoord(&user->q,1,B,ce,cq);
 
       for (k=0; k<user->q.numPoints; k++) {
-        ierr = PointwiseResidual(user,cq[k],xq[k],&dxq[k*2],&fq[k],&dfq[k*2]);CHKERRQ(ierr);
+        ierr = PointwiseResidual(user,cq[k],time,xq[k],&dxq[k*2],xdotq[k],&fq[k],&dfq[k*2]);CHKERRQ(ierr);
         fq[k].u[0] *= weights[k];
         fq[k].u[1] *= weights[k];
         for (l=0; l<2; l++) {
@@ -366,12 +376,19 @@ static PetscErrorCode FormFunctionLocal(DMDALocalInfo *info,Field **x,Field **f,
     }
   }
   ierr = DMDAVecRestoreArray(cda,C,&c);CHKERRQ(ierr);
+
+  if (user->monitor_range) {
+    user->range_zeta[1] *= -1;
+    ierr = MPI_Allreduce(MPI_IN_PLACE,user->range_zeta,2,MPIU_REAL,MPIU_MIN,PetscObjectComm((PetscObject)info->da));CHKERRQ(ierr);
+    user->range_zeta[1] *= -1;
+    ierr = PetscPrintf(PetscObjectComm((PetscObject)info->da),"Ranges: zeta [%G,%G]\n",user->range_zeta[0],user->range_zeta[1]);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "FormJacobianLocal"
-static PetscErrorCode FormJacobianLocal(DMDALocalInfo *info,Field **x,Mat Amat,Mat Pmat,MatStructure *mstructure,void *ptr)
+static PetscErrorCode FormJacobianLocal(DMDALocalInfo *info,PetscReal time,Field **x,Field **xdot,PetscReal shift,Mat Amat,Mat Pmat,MatStructure *mstructure,void *ptr)
 {
   User        user = (User)ptr;
   DM          cda;
@@ -396,14 +413,16 @@ static PetscErrorCode FormJacobianLocal(DMDALocalInfo *info,Field **x,Mat Amat,M
     for (i=xes; i<xee; i++) {
       const MatStencil rowcol[4] = {{0,j,i,0},{0,j,i+1,0},{0,j+1,i+1,0},{0,j+1,i,0}};
       const PetscReal *weights,*De;
-      Field xe[4],*xq = user->xq,*dxq = user->Dxq;
+      Field xe[4],xdote[4],*xq = user->xq,*dxq = user->Dxq,*xdotq = user->xdotq;
       CoordField ce[4],*cq = user->cq;
       PetscScalar K[4*2][4*2];
       PetscInt p,q,qf;
       QuadExtract(x,i,j,xe);
+      QuadExtract(xdot,i,j,xdote);
       QuadExtractCoord(c,i,j,ce);
       QuadRealSpace(user,ce,D,&weights,&De);
       QuadMult(&user->q,1,B,xe,xq);
+      QuadMult(&user->q,1,B,xdote,xdotq);
       QuadMult(&user->q,2,De,xe,dxq);
       QuadMultCoord(&user->q,1,B,ce,cq);
 
@@ -418,7 +437,7 @@ static PetscErrorCode FormJacobianLocal(DMDALocalInfo *info,Field **x,Mat Amat,M
           dyp[1].u[pfield] = De[(k*2+1)*4+p/2];
           dyp[0].u[ofield] = 0;
           dyp[1].u[ofield] = 0;
-          ierr = PointwiseJacobian(user,cq[k],xq[k],&dxq[k*2],yp,dyp,&g,dg);CHKERRQ(ierr);
+          ierr = PointwiseJacobian(user,cq[k],time,xq[k],&dxq[k*2],xdotq[k],shift,yp,dyp,&g,dg);CHKERRQ(ierr);
           for (q=0; q<4; q++) {
             for (qf=0; qf<2; qf++) {
               K[q*2+qf][p] += B[k*4+q] * weights[k] * g.u[qf]
@@ -468,7 +487,7 @@ static PetscErrorCode InitialGuess(DM da,User user,Vec X)
 
   for (j=info.ys; j<info.ys+info.ym; j++) {
     for (i=info.xs; i<info.xs+info.xm; i++) {
-      x[j][i] = VelocityOld(user,c[j][i]);
+      x[j][i] = VelocityWater(user,c[j][i]);
     }
   }
   ierr = DMDAVecRestoreArray(da,X,&x);CHKERRQ(ierr);
@@ -543,7 +562,8 @@ static PetscErrorCode SetupElement(MPI_Comm comm,User user)
   user->fe = fem;
   user->q  = q;
 
-  ierr = PetscMalloc7(q.numPoints*2*4,&user->De,q.numPoints,&user->weights,q.numPoints,&user->xq,q.numPoints*2,&user->Dxq,q.numPoints,&user->fq,q.numPoints*2,&user->Dfq,q.numPoints,&user->cq);CHKERRQ(ierr);
+  ierr = PetscMalloc5(q.numPoints*2*4,&user->De,q.numPoints,&user->weights,q.numPoints,&user->xq,q.numPoints*2,&user->Dxq,q.numPoints,&user->xdotq);CHKERRQ(ierr);
+  ierr = PetscMalloc3(q.numPoints,&user->fq,q.numPoints*2,&user->Dfq,q.numPoints,&user->cq);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -561,9 +581,6 @@ static PetscErrorCode UserSetFromOptions(User user)
   ierr = PetscOptionsRealArray("-L","Length of domain in x and y directions [m]","",L,&n,NULL);CHKERRQ(ierr);
   user->L.x[0] = L[0];
   user->L.x[1] = L[1];
-
-  user->dt = 100;
-  ierr = PetscOptionsReal("-dt","Time step length [s]","",user->dt,&user->dt,NULL);CHKERRQ(ierr);
 
   user->Coriolis_f = 1.46e-4;
   ierr = PetscOptionsReal("-coriolis_f","Coriolis parameter [s^-1]","",user->Coriolis_f,&user->Coriolis_f,NULL);CHKERRQ(ierr);
@@ -606,6 +623,9 @@ static PetscErrorCode UserSetFromOptions(User user)
   user->view_initial = PETSC_FALSE;
   ierr = PetscOptionsBool("-view_initial","View initial velocity solution","",user->view_initial,&user->view_initial,NULL);CHKERRQ(ierr);
 
+  user->monitor_range = PETSC_FALSE;
+  ierr = PetscOptionsBool("-monitor_range","Monitor range of effective viscosity","",user->monitor_range,&user->monitor_range,NULL);CHKERRQ(ierr);
+
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -616,10 +636,10 @@ static PetscErrorCode UserSetFromOptions(User user)
 int main(int argc,char **argv)
 {
   struct _User   user;
-  PetscInt       its;
+  PetscInt       its,stepno;
   PetscErrorCode ierr;
   MPI_Comm       comm;
-  SNES           snes;
+  TS             ts;
   DM             da;
   Vec            X;
 
@@ -628,33 +648,36 @@ int main(int argc,char **argv)
   ierr = UserSetFromOptions(&user);CHKERRQ(ierr);
   ierr = SetupElement(comm,&user);CHKERRQ(ierr);
 
-  ierr = SNESCreate(comm,&snes);CHKERRQ(ierr);
   ierr = DMDACreate2d(PETSC_COMM_WORLD,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE,DMDA_STENCIL_BOX,-8,-8,PETSC_DECIDE,PETSC_DECIDE,2,1,NULL,NULL,&da);CHKERRQ(ierr);
   ierr = DMDASetUniformCoordinates(da,-user.L.x[0],user.L.x[0],-user.L.x[1],user.L.x[1],0.0,0.0);CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,0,"ux");CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,1,"uy");CHKERRQ(ierr);
-  ierr = SNESSetDM(snes,da);CHKERRQ(ierr);
 
-  ierr = DMDASNESSetFunctionLocal(da,INSERT_VALUES,(PetscErrorCode (*)(DMDALocalInfo*,void*,void*,void*))FormFunctionLocal,&user);CHKERRQ(ierr);
-  ierr = DMDASNESSetJacobianLocal(da,(DMDASNESJacobian)FormJacobianLocal,&user);CHKERRQ(ierr);
-  // ierr = SNESSetGS(snes,NonlinearGS,&user);CHKERRQ(ierr);
-  ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
+  ierr = TSCreate(comm,&ts);CHKERRQ(ierr);
+  ierr = TSSetDM(ts,da);CHKERRQ(ierr);
+  ierr = DMDATSSetIFunctionLocal(da,INSERT_VALUES,(DMDATSIFunctionLocal)FormFunctionLocal,&user);CHKERRQ(ierr);
+  ierr = DMDATSSetIJacobianLocal(da,(DMDATSIJacobianLocal)FormJacobianLocal,&user);CHKERRQ(ierr);
+  ierr = TSSetEquationType(ts,TS_EQ_IMPLICIT);CHKERRQ(ierr);
+  ierr = TSSetInitialTimeStep(ts,0.,30.);CHKERRQ(ierr);
+  ierr = TSSetDuration(ts,100,24*3600);CHKERRQ(ierr);
+  ierr = TSSetMaxSNESFailures(ts,-1);CHKERRQ(ierr); /* Retry forever */
+  ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
 
   ierr = DMCreateGlobalVector(da,&X);CHKERRQ(ierr);
   ierr = InitialGuess(da,&user,X);CHKERRQ(ierr);
 
-  /* get the loaded configuration */
-  ierr = SNESSolve(snes,NULL,X);CHKERRQ(ierr);
+  ierr = TSSolve(ts,X);CHKERRQ(ierr);
 
-  ierr = SNESGetIterationNumber(snes,&its);CHKERRQ(ierr);
-  ierr = PetscPrintf(comm,"Number of SNES iterations = %D\n", its);CHKERRQ(ierr);
-  ierr = SNESGetSolution(snes,&X);CHKERRQ(ierr);
+  ierr = TSGetTimeStepNumber(ts,&stepno);CHKERRQ(ierr);
+  ierr = TSGetSNESIterations(ts,&its);CHKERRQ(ierr);
+  ierr = PetscPrintf(comm,"TS steps %D, SNES iterations %D\n",stepno,its);CHKERRQ(ierr);
 
   ierr = VecDestroy(&X);CHKERRQ(ierr);
   ierr = DMDestroy(&da);CHKERRQ(ierr);
-  ierr = SNESDestroy(&snes);CHKERRQ(ierr);
+  ierr = TSDestroy(&ts);CHKERRQ(ierr);
   ierr = PetscFEDestroy(&user.fe);CHKERRQ(ierr);
-  ierr = PetscFree7(user.De,user.weights,user.xq,user.Dxq,user.fq,user.Dfq,user.cq);CHKERRQ(ierr);
+  ierr = PetscFree5(user.De,user.weights,user.xq,user.Dxq,user.xdotq);CHKERRQ(ierr);
+  ierr = PetscFree3(user.fq,user.Dfq,user.cq);CHKERRQ(ierr);
   PetscFinalize();
   return 0;
 }
