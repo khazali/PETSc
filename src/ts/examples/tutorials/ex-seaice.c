@@ -249,6 +249,30 @@ static PetscErrorCode EffectiveViscosity(User user,PetscScalar h,PetscScalar P,c
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "EffectiveViscosity_dy"
+static PetscErrorCode EffectiveViscosity_dy(User user,PetscScalar h,PetscScalar P,const PetscScalar e[2][2],const PetscScalar e_dy[2][2],PetscScalar *zeta,PetscScalar *zeta_dy,PetscScalar *eta,PetscScalar *eta_dy)
+{
+  PetscScalar Delta,Delta_dy,zeta_max;
+
+  PetscFunctionBegin;
+  Delta = PetscSqrtScalar((PetscSqr(e[0][0]) + PetscSqr(e[1][1]))*(1 + 1/PetscSqr(user->ellipse_ratio))
+                          + 4*PetscSqr(e[0][1]/user->ellipse_ratio)
+                          + 2*e[0][0]*e[1][1]*(1 - 1/PetscSqr(user->ellipse_ratio)));
+  Delta_dy = 0.5 / Delta * ((2 * e[0][0] * e_dy[0][0] + 2 * e[1][1] * e_dy[1][1])*(1 + 1/PetscSqr(user->ellipse_ratio))
+                            + 8 * e[0][1] * e_dy[0][1] / PetscSqr(user->ellipse_ratio)
+                            + 2*(e_dy[0][0]*e[1][1] + e[0][0]*e_dy[1][1])*(1 - 1/PetscSqr(user->ellipse_ratio)));
+
+  zeta_max = user->zeta_max_coeff * P;
+  *zeta = zeta_max * PetscTanhScalar(P / (2 * Delta * zeta_max)); /* bulk modulus */
+  *eta = *zeta / PetscSqr(user->ellipse_ratio);                   /* shear modulus */
+
+  if (Delta == 0.) *zeta_dy = 0.;
+  else             *zeta_dy = zeta_max * (1 - PetscSqr(PetscTanhScalar(P / (2 * Delta * zeta_max)))) * (- P / (2 * PetscSqr(Delta) * zeta_max) * Delta_dy);
+  *eta_dy = *zeta_dy / PetscSqr(user->ellipse_ratio);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "WaterDrag"
 static PetscErrorCode WaterDrag(User user,CoordField c,Field x,Field *tau_w)
 {
@@ -264,6 +288,33 @@ static PetscErrorCode WaterDrag(User user,CoordField c,Field x,Field *tau_w)
     tau_w->u[i] = user->rho_ice * user->Cdrag_water * umag
       * (u.u[i] * PetscCosReal(user->theta_drag_water)
          + (i?1:-1) * u.u[(i+1)%2] * PetscSinReal(user->theta_drag_water));
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "WaterDrag_y"
+static PetscErrorCode WaterDrag_y(User user,CoordField c,Field x,Field y,Field *tau_w,Field *tau_w_y)
+{
+  Field uwater,u;
+  PetscScalar umag,umag_y;
+  PetscInt i;
+
+  PetscFunctionBegin;
+  uwater = VelocityWater(user,c);
+  for (i=0; i<2; i++) u.u[i] = uwater.u[i] - x.u[i];
+  umag = PetscSqrtScalar(PetscSqr(u.u[0]) + PetscSqr(u.u[1]));
+  umag_y = -0.5 / umag * 2 * (u.u[0] * y.u[0] + u.u[1] * y.u[1]);
+  for (i=0; i<2; i++) {
+    tau_w->u[i] = user->rho_ice * user->Cdrag_water * umag
+      * (u.u[i] * PetscCosReal(user->theta_drag_water)
+         + (i?1:-1) * u.u[(i+1)%2] * PetscSinReal(user->theta_drag_water));
+    tau_w_y->u[i] = user->rho_ice * user->Cdrag_water * umag_y
+      * (u.u[i] * PetscCosReal(user->theta_drag_water)
+         + (i?1:-1) * u.u[(i+1)%2] * PetscSinReal(user->theta_drag_water))
+      + user->rho_ice * user->Cdrag_water * umag
+      * (-y.u[i] * PetscCosReal(user->theta_drag_water)
+         - (i?1:-1) * y.u[(i+1)%2] * PetscSinReal(user->theta_drag_water));
   }
   PetscFunctionReturn(0);
 }
@@ -301,14 +352,30 @@ static PetscErrorCode PointwiseResidual(User user,CoordField c,PetscReal time,Fi
 #define __FUNCT__ "PointwiseJacobian"
 static PetscErrorCode PointwiseJacobian(User user,CoordField c,PetscReal time,Field x,const Field dx[],Field xdot,PetscReal shift,Field y,const Field dy[],Field *g,Field dg[])
 {
+  PetscErrorCode ierr;
+  PetscScalar h,m,edot[2][2],edot_dy[2][2],P,zeta,zeta_dy,eta,eta_dy;
+  Field tau_w,tau_w_y;
+  PetscInt i,j;
 
   PetscFunctionBegin;
-  g->u[0] = shift*y.u[0];
-  g->u[1] = shift*y.u[1];
-  dg[0].u[0] = dy[0].u[0];
-  dg[1].u[0] = dy[1].u[0];
-  dg[0].u[1] = dy[0].u[1];
-  dg[1].u[1] = dy[1].u[1];
+  h = IceThickness(user,c);
+  m = user->rho_ice * h;
+  P = IceStrength(user,h);
+
+  StrainRate(dx,edot);
+  StrainRate(dy,edot_dy);
+  ierr = EffectiveViscosity_dy(user,h,P,edot,edot_dy,&zeta,&zeta_dy,&eta,&eta_dy);CHKERRQ(ierr);
+  ierr = WaterDrag_y(user,c,x,y,&tau_w,&tau_w_y);CHKERRQ(ierr);
+  for (i=0; i<2; i++) {
+    g->u[i] = m * shift * y.u[i]
+      + m * user->Coriolis_f * (i?1:-1) * y.u[(i+1)%2]
+      - tau_w_y.u[i];
+    for (j=0; j<2; j++) {       /* 2 \eta \dot\epsilon + (\zeta-\eta) \trace(\dot\epsilon) I - P/2 I */
+      dg[j].u[i] = 2 * (eta_dy * edot[i][j] + eta * edot_dy[i][j])
+        + (i==j) * (zeta_dy - eta_dy) * (edot[0][0] + edot[1][1])
+        + (i==j) * (zeta - eta) * (edot_dy[0][0] + edot_dy[1][1]);
+    }
+  }
   PetscFunctionReturn(0);
 }
 
@@ -420,11 +487,11 @@ static PetscErrorCode FormJacobianLocal(DMDALocalInfo *info,PetscReal time,Field
       PetscScalar K[4*2][4*2];
       PetscInt p,q,qf;
       QuadExtract(x,i,j,xe);
-      QuadExtract(xdot,i,j,xdote);
+      if (0) QuadExtract(xdot,i,j,xdote);
       QuadExtractCoord(c,i,j,ce);
       QuadRealSpace(user,ce,D,&weights,&De);
       QuadMult(&user->q,1,B,xe,xq);
-      QuadMult(&user->q,1,B,xdote,xdotq);
+      if (0) QuadMult(&user->q,1,B,xdote,xdotq);
       QuadMult(&user->q,2,De,xe,dxq);
       QuadMultCoord(&user->q,1,B,ce,cq);
 
