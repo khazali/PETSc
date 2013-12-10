@@ -66,6 +66,7 @@ struct _User {
   PetscReal   ellipse_ratio;
   PetscReal   Concentration;
   PetscReal   zeta_max_coeff;
+  PetscReal   water_speed;
 
   PetscBool   view_initial;
 
@@ -212,13 +213,14 @@ static Field VelocityWater(User user,CoordField c) {
 
   v.u[0] = -PetscExpScalar(1-r2a) * ya - PetscExpScalar(1-r2b) * yb;
   v.u[1] =  PetscExpScalar(1-r2a) * xa + PetscExpScalar(1-r2b) * xb;
-  v.u[0] *= 0.1;
-  v.u[1] *= 0.1;
 
   if (0) {
     v.u[0] = 0.;
     v.u[1] = (x < 0) ? -1. : 1.;
   }
+
+  v.u[0] *= user->water_speed;
+  v.u[1] *= user->water_speed;
   return v;
 }
 
@@ -619,6 +621,9 @@ static PetscErrorCode UserSetFromOptions(User user)
 
   user->zeta_max_coeff = 2.5e8;
   ierr = PetscOptionsReal("-zeta_max_coeff","Coefficient for limiting zeta []","",user->zeta_max_coeff,&user->zeta_max_coeff,NULL);CHKERRQ(ierr);
+
+  user->water_speed = 0.1;
+  ierr = PetscOptionsReal("-water_speed","Reference speed for water [m s^-1]","",user->water_speed,&user->water_speed,NULL);CHKERRQ(ierr);
 
   user->view_initial = PETSC_FALSE;
   ierr = PetscOptionsBool("-view_initial","View initial velocity solution","",user->view_initial,&user->view_initial,NULL);CHKERRQ(ierr);
