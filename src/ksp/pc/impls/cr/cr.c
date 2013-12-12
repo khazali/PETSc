@@ -9,6 +9,7 @@ typedef struct {
   PetscInt  candidate_trials;
   PetscBool candidate_view;
   PetscBool trydm;            /* try to coarsen the DM and create the injection if no injection is set */
+  PetscReal stol;             /* stagnation tolerance for convergence estimates */
 } PC_CR;
 
 #undef __FUNCT__
@@ -20,6 +21,7 @@ static PetscErrorCode PCView_CR(PC pc,PetscViewer viewer)
   PC_CR             *cr = (PC_CR*)pc->data;
   Vec               s;
   PetscInt          m,n;
+  PetscReal         convfact;
 
   PetscFunctionBegin;
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&iascii);CHKERRQ(ierr);
@@ -39,9 +41,10 @@ static PetscErrorCode PCView_CR(PC pc,PetscViewer viewer)
     }
   }
   if (cr->candidate_view) {
-    ierr = PetscViewerASCIIPrintf(viewer,"Candidate Coarse-point Measures:");CHKERRQ(ierr);
     ierr = MatGetVecs(pc->pmat,&s,NULL);CHKERRQ(ierr);
-    ierr = PCCRGetCandidateEstimates(pc,s);CHKERRQ(ierr);
+    ierr = PCCRGetCandidateEstimates(pc,s,&convfact);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(viewer,"Candidate Fine-point convergence factor: %f\n",convfact);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(viewer,"Candidate Coarse-point Measures:\n");CHKERRQ(ierr);
     ierr = VecView(s,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
     ierr = VecDestroy(&s);CHKERRQ(ierr);
   }
@@ -50,12 +53,13 @@ static PetscErrorCode PCView_CR(PC pc,PetscViewer viewer)
 
 #undef __FUNCT__
 #define __FUNCT__ "PCCRGetCandidateEstimates_CR"
-PetscErrorCode  PCCRGetCandidateEstimates_CR(PC pc,Vec s)
+PetscErrorCode  PCCRGetCandidateEstimates_CR(PC pc,Vec s,PetscReal *convest)
 {
   PetscErrorCode ierr;
   Vec            x,e,eold,cvec;
   PetscRandom    rand;
   PetscInt       j,i;
+  PetscReal      enorm,eoldnorm,trialconvest;
   PC_CR          *cr = (PC_CR*)pc->data;
 
   PetscFunctionBegin;
@@ -74,15 +78,26 @@ PetscErrorCode  PCCRGetCandidateEstimates_CR(PC pc,Vec s)
     ierr = VecShift(e,0.75);CHKERRQ(ierr);
     if (cr->inj) {
       ierr = MatMult(cr->inj,e,cvec);CHKERRQ(ierr);
-      ierr = VecScale(cvec,-1);CHKERRQ(ierr);
-      ierr = MatMultTransposeAdd(cr->inj,cvec,e,e);CHKERRQ(ierr);
+      ierr = MatMultTranspose(cr->inj,cvec,eold);CHKERRQ(ierr);
+      ierr = VecPointwiseMult(eold,cr->injscale,eold);CHKERRQ(ierr);
+      ierr = VecAXPY(e,-1.0,eold);CHKERRQ(ierr);
     }
-    /* error propagation: e_{i+1} = (I - MA)e_i where M smooths only the fine subspace and e_0 has zero error on coarse nodes */
+    /* error propagation: e_{i+1} = (I - MA)e_i where M smooths only the fine subspace and e_0 has zero error on coarse and boundary nodes */
     for (j=0;j<cr->candidate_sweeps;j++) {
       ierr = MatMult(pc->pmat,e,x);CHKERRQ(ierr);
       ierr = VecCopy(e,eold);CHKERRQ(ierr);
       ierr = PCApply(pc,x,e);CHKERRQ(ierr);
       ierr = VecAYPX(e,-1.0,eold);CHKERRQ(ierr);
+      if (convest && j == cr->candidate_sweeps-1) {
+        ierr = VecNorm(eold,NORM_2,&eoldnorm);CHKERRQ(ierr);
+        ierr = VecNorm(e,NORM_2,&enorm);CHKERRQ(ierr);
+        if (eoldnorm > 0.) {
+          trialconvest = enorm/eoldnorm;
+        } else {
+          trialconvest = 0.;
+        }
+        if (trialconvest > *convest) *convest = trialconvest;
+      }
     }
     ierr = VecPointwiseMax(s,e,s);CHKERRQ(ierr);
   }
@@ -96,14 +111,15 @@ PetscErrorCode  PCCRGetCandidateEstimates_CR(PC pc,Vec s)
 
 #undef __FUNCT__
 #define __FUNCT__ "PCCRGetCandidateEstimates"
-PetscErrorCode PCCRGetCandidateEstimates(PC pc,Vec s)
+PetscErrorCode PCCRGetCandidateEstimates(PC pc,Vec s,PetscReal *convtest)
 {
   PetscErrorCode ierr;
   PetscFunctionBegin;
   PetscValidHeaderSpecific(pc,PC_CLASSID,1);
   PetscValidHeaderSpecific(s,VEC_CLASSID,2);
   ierr = VecSet(s,0.);CHKERRQ(ierr);
-  ierr = PetscTryMethod(pc,"PCCRGetCandidateEstimates_C",(PC,Vec),(pc,s));CHKERRQ(ierr);
+  if (convtest) *convtest = 0.;
+  ierr = PetscTryMethod(pc,"PCCRGetCandidateEstimates_C",(PC,Vec,PetscReal*),(pc,s,convtest));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -175,8 +191,8 @@ static PetscErrorCode PCDestroy_CR(PC pc)
 
   PetscFunctionBegin;
   ierr = PetscFree(pc->data);CHKERRQ(ierr);
-  ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRSetCoarseIS_C",NULL);CHKERRQ(ierr);
-  ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRGetCoarseIS_C",NULL);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRSetInjection_C",NULL);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRGetInjection_C",NULL);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRGetCandidateEstimates_C",NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -198,6 +214,7 @@ static PetscErrorCode PCSetFromOptions_CR(PC pc)
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode PCSetUp_CR(PC pc);
 
 #undef __FUNCT__
 #define __FUNCT__ "PCCRSetInjection_CR"
@@ -207,8 +224,13 @@ static PetscErrorCode  PCCRSetInjection_CR(PC pc,Mat inj)
   PetscErrorCode    ierr;
 
   PetscFunctionBegin;
+  if (cr->inj) {
+    ierr = MatDestroy(&cr->inj);CHKERRQ(ierr);
+    ierr = VecDestroy(&cr->injscale);CHKERRQ(ierr);
+  }
   ierr = PetscObjectReference((PetscObject)inj);CHKERRQ(ierr);
   cr->inj = inj;
+  ierr = PCSetUp_CR(pc);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -238,14 +260,14 @@ PetscErrorCode  PCCRSetInjection(PC pc,Mat inj)
 
 #undef __FUNCT__
 #define __FUNCT__ "PCCRGetInjection"
-PetscErrorCode  PCCRGetInjection(PC pc,Mat inj)
+PetscErrorCode  PCCRGetInjection(PC pc,Mat *inj)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(pc,PC_CLASSID,1);
   PetscValidHeaderSpecific(inj,MAT_CLASSID,2);
-  ierr = PetscTryMethod(pc,"PCCRGetInjection_C",(PC,Mat),(pc,inj));CHKERRQ(ierr);
+  ierr = PetscTryMethod(pc,"PCCRGetInjection_C",(PC,Mat*),(pc,inj));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

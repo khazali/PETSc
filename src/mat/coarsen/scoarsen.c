@@ -3,6 +3,7 @@
 
 PETSC_EXTERN PetscErrorCode MatCoarsenCreate_MIS(MatCoarsen);
 PETSC_EXTERN PetscErrorCode MatCoarsenCreate_HEM(MatCoarsen);
+PETSC_EXTERN PetscErrorCode MatCoarsenCreate_CR(MatCoarsen);
 
 #undef __FUNCT__
 #define __FUNCT__ "MatCoarsenRegisterAll"
@@ -37,6 +38,7 @@ PetscErrorCode  MatCoarsenRegisterAll(void)
 
   ierr = MatCoarsenRegister(MATCOARSENMIS,MatCoarsenCreate_MIS);CHKERRQ(ierr);
   ierr = MatCoarsenRegister(MATCOARSENHEM,MatCoarsenCreate_HEM);CHKERRQ(ierr);
+  ierr = MatCoarsenRegister(MATCOARSENCR,MatCoarsenCreate_CR);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

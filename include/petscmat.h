@@ -1226,6 +1226,7 @@ J*/
 typedef const char* MatCoarsenType;
 #define MATCOARSENMIS  "mis"
 #define MATCOARSENHEM  "hem"
+#define MATCOARSENCR   "cr"
 
 /* linked list for aggregates */
 typedef struct _PetscCDIntNd{

@@ -470,9 +470,9 @@ PETSC_EXTERN PetscErrorCode PCBDDCMatFETIDPGetRHS(Mat,Vec,Vec);
 PETSC_EXTERN PetscErrorCode PCBDDCMatFETIDPGetSolution(Mat,Vec,Vec);
 #endif
 
-PETSC_EXTERN PetscErrorCode PCCRSetCoarseIS(PC,IS);
-PETSC_EXTERN PetscErrorCode PCCRGetCoarseIS(PC,IS);
-PETSC_EXTERN PetscErrorCode PCCRGetCandidateEstimates(PC,Vec);
+PETSC_EXTERN PetscErrorCode PCCRSetInjection(PC,Mat);
+PETSC_EXTERN PetscErrorCode PCCRGetInjection(PC,Mat*);
+PETSC_EXTERN PetscErrorCode PCCRGetCandidateEstimates(PC,Vec,PetscReal*);
 
 PETSC_EXTERN PetscErrorCode PCISSetUseStiffnessScaling(PC,PetscBool);
 PETSC_EXTERN PetscErrorCode PCISSetSubdomainScalingFactor(PC,PetscScalar);
