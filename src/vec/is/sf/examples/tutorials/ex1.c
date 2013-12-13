@@ -13,6 +13,8 @@ T*/
 #include <petscsf.h>
 #include <petscviewer.h>
 
+const char *const SFTestOpTypes[] = {"sum","prod","max","min","land","band","lor","bor","lxor","bxor"};
+
 #undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc,char **argv)
@@ -24,9 +26,7 @@ int main(int argc,char **argv)
   PetscSF        sf;
   PetscBool      test_bcast,test_reduce,test_degree,test_fetchandop,test_gather,test_scatter,test_embed,test_invert;
   MPI_Op         mop;
-  char           defstring[256] = "sum";
-  char           opstring[256];
-  PetscBool      strflg;
+  PetscInt       op;
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
@@ -37,48 +37,23 @@ int main(int argc,char **argv)
   ierr            = PetscOptionsBool("-test_bcast","Test broadcast","",test_bcast,&test_bcast,NULL);CHKERRQ(ierr);
   test_reduce     = PETSC_FALSE;
   ierr            = PetscOptionsBool("-test_reduce","Test reduction","",test_reduce,&test_reduce,NULL);CHKERRQ(ierr);
-  mop             = MPI_SUM;
-  ierr            = PetscOptionsString("-test_op","Designate which MPI_Op to use","",defstring,opstring,256,NULL);CHKERRQ(ierr);
-  ierr = PetscStrcmp("sum",opstring,&strflg);CHKERRQ(ierr);
-  if (strflg) {
-    mop = MPIU_SUM;
+  op              = 0;
+  ierr            = PetscOptionsEList("-test_op","Designate which MPI_Op to use","",SFTestOpTypes,10,"sum",&op,NULL);CHKERRQ(ierr);
+
+  switch(op) {
+  case 0: mop = MPIU_SUM; break;
+  case 1: mop = MPI_PROD; break;
+  case 2: mop = MPIU_MAX; break;
+  case 3: mop = MPIU_MIN; break;
+  case 4: mop = MPI_LAND; break;
+  case 5: mop = MPI_BAND; break;
+  case 6: mop = MPI_LOR; break;
+  case 7: mop = MPI_BOR; break;
+  case 8: mop = MPI_LXOR; break;
+  case 9: mop = MPI_BXOR; break;
+  default: mop = MPIU_SUM; break;
   }
-  ierr = PetscStrcmp("prod",opstring,&strflg);CHKERRQ(ierr);
-  if (strflg) {
-    mop = MPI_PROD;
-  }
-  ierr = PetscStrcmp("max",opstring,&strflg);CHKERRQ(ierr);
-  if (strflg) {
-    mop = MPI_MAX;
-  }
-  ierr = PetscStrcmp("min",opstring,&strflg);CHKERRQ(ierr);
-  if (strflg) {
-    mop = MPI_MIN;
-  }
-  ierr = PetscStrcmp("land",opstring,&strflg);CHKERRQ(ierr);
-  if (strflg) {
-    mop = MPI_LAND;
-  }
-  ierr = PetscStrcmp("band",opstring,&strflg);CHKERRQ(ierr);
-  if (strflg) {
-    mop = MPI_BAND;
-  }
-  ierr = PetscStrcmp("lor",opstring,&strflg);CHKERRQ(ierr);
-  if (strflg) {
-    mop = MPI_LOR;
-  }
-  ierr = PetscStrcmp("bor",opstring,&strflg);CHKERRQ(ierr);
-  if (strflg) {
-    mop = MPI_BOR;
-  }
-  ierr = PetscStrcmp("lxor",opstring,&strflg);CHKERRQ(ierr);
-  if (strflg) {
-    mop = MPI_LXOR;
-  }
-  ierr = PetscStrcmp("bxor",opstring,&strflg);CHKERRQ(ierr);
-  if (strflg) {
-    mop = MPI_BXOR;
-  }
+
   test_degree     = PETSC_FALSE;
   ierr            = PetscOptionsBool("-test_degree","Test computation of vertex degree","",test_degree,&test_degree,NULL);CHKERRQ(ierr);
   test_fetchandop = PETSC_FALSE;
