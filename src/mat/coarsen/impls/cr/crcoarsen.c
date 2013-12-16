@@ -2,7 +2,12 @@
 #include <petscpc.h>
 
 typedef struct {
-  PetscReal dummy;
+  PetscReal entrythreshold;
+  PetscReal convgoal;
+  PetscReal abstol;
+  PetscReal maxratio;
+  PetscInt  maxsweeps;
+  PetscBool verbose;
 } MatCoarsen_CR;
 
 #undef __FUNCT__
@@ -10,11 +15,12 @@ typedef struct {
 static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
 {
   PetscErrorCode   ierr;
+  MatCoarsen_CR    *cr = (MatCoarsen_CR*)coarse->subctx;
   Mat              mat = coarse->graph;
   PC               pccr;
-  PetscInt         k,j,i,idx,maxsweeps=20,ms,me;
-  Vec              s,cview;
-  PetscInt         *sperm;
+  PetscInt         k,j,i,idx,maxsweeps=cr->maxsweeps,ms,me;
+  Vec              s;
+  PetscInt         *sperm,ncoarse;
   PetscScalar      *sarray;
   PetscReal        *sarray_real;
   PetscCoarsenData *agg_lists;
@@ -27,7 +33,7 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
   Vec              cvec;
   Mat              inj;
   PetscScalar      smax;
-  PetscReal        convfact;
+  PetscReal        convfact,convgoal=cr->convgoal,abstol=cr->abstol,entrythreshold=cr->entrythreshold,maxratio=cr->maxratio;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(coarse,MAT_COARSEN_CLASSID,1);
@@ -35,12 +41,10 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
   /* create the smoother */
   ierr = PCCreate(PetscObjectComm((PetscObject)coarse),&pccr);CHKERRQ(ierr);
   ierr = PCSetType(pccr,PCCR);CHKERRQ(ierr);
-  ierr = PCAppendOptionsPrefix(pccr,"coarsen_cr_");CHKERRQ(ierr);
+  ierr = PCAppendOptionsPrefix(pccr,"coarsen_");CHKERRQ(ierr);
   ierr = PCSetOperators(pccr,mat,mat,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
   ierr = PCSetFromOptions(pccr);CHKERRQ(ierr);
   ierr = MatGetVecs(mat,&s,NULL);CHKERRQ(ierr);
-  ierr = VecDuplicate(s,&cview);CHKERRQ(ierr);
-  ierr = VecSet(cview,0.);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(mat,&ms,&me);CHKERRQ(ierr);
 
   /* setup the space for the aggregation */
@@ -49,6 +53,7 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
   ierr = PetscMalloc1(me-ms,&sperm);CHKERRQ(ierr);
   ierr = PetscMalloc1(me-ms,&state);CHKERRQ(ierr);
   ierr = PetscMalloc1(me-ms,&cidx);CHKERRQ(ierr);
+  ncoarse = 0;
 
   for (i=0;i<me-ms;i++) {
     state[i] = -1;
@@ -58,8 +63,11 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
     /* run the smoother to get error propagation */
     ierr = PCCRGetCandidateEstimates(pccr,s,&convfact);CHKERRQ(ierr);
     ierr = VecMax(s,NULL,&smax);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"%d out of %d: convergence estimate: %f\n",idx,me-ms,convfact);CHKERRQ(ierr);
-    if (convfact < 0.7) break;
+    if (cr->verbose) {
+      ierr = PetscPrintf(PetscObjectComm((PetscObject)coarse),"%d out of %d: convergence estimate: %f\n",idx,me-ms,convfact);CHKERRQ(ierr);
+    }
+    if (convfact < convgoal) break;
+    if (ncoarse >= maxratio*(me-ms)) break;
     /* sort the indices by badness */
     ierr = VecGetArray(s,&sarray);CHKERRQ(ierr);
     for (i=0;i<me-ms;i++) {
@@ -72,9 +80,8 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
     /* add a local MIS worth of them to the mix */
     for (i=me-ms-1;i >= 0;i--) {
       idx=sperm[i];
-      if (state[idx] == -1 && (PetscAbsReal(sarray_real[idx]) > 0.5*PetscRealPart(smax) || (k==0 && PetscRealPart(smax) > 1e-12))) {
+      if (state[idx] == -1 && (PetscAbsReal(sarray_real[idx]) > entrythreshold*PetscRealPart(smax) && (PetscRealPart(smax) > abstol))) {
         state[idx] = -2; /* set it to be accepted forever and ever */
-        ierr = VecSetValue(cview,idx+ms,1.,INSERT_VALUES);CHKERRQ(ierr);
         ierr = MatGetRow(mat,idx+ms,&mncol,&mcol,NULL);CHKERRQ(ierr);
         for (j=0;j<mncol;j++) {
           if (mcol[j] >= ms && mcol[j] < me) {
@@ -85,6 +92,10 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
           }
         }
         ierr = MatRestoreRow(mat,idx+ms,&mncol,&mcol,NULL);CHKERRQ(ierr);
+        ncoarse++;
+        if (ncoarse >= maxratio*(me-ms)) {
+          break;
+        }
       }
     }
     idx=0;
@@ -93,9 +104,6 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
         cidx[idx]=i+ms;
         idx++;
       }
-    }
-    if (0) {
-      ierr = VecView(s,PETSC_VIEWER_DRAW_(PetscObjectComm((PetscObject)coarse)));
     }
     /* create the scatter for this new set */
     ierr = VecCreate(PetscObjectComm((PetscObject)coarse),&cvec);CHKERRQ(ierr);
@@ -107,7 +115,7 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
     ierr = PCDestroy(&pccr);CHKERRQ(ierr);
 
     ierr = PCCreate(PetscObjectComm((PetscObject)coarse),&pccr);CHKERRQ(ierr);
-    ierr = PCAppendOptionsPrefix(pccr,"coarsen_cr_");CHKERRQ(ierr);
+    ierr = PCAppendOptionsPrefix(pccr,"mat_coarsen_cr_");CHKERRQ(ierr);
     ierr = PCSetType(pccr,PCCR);CHKERRQ(ierr);
     ierr = PCSetOperators(pccr,mat,mat,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
     ierr = PCCRSetInjection(pccr,inj);CHKERRQ(ierr);
@@ -136,6 +144,10 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
     }
   }
   coarse->agg_lists = agg_lists;
+  ierr = PetscFree(sarray_real);CHKERRQ(ierr);
+  ierr = PetscFree(sperm);CHKERRQ(ierr);
+  ierr = PetscFree(state);CHKERRQ(ierr);
+  ierr = PetscFree(cidx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -173,6 +185,25 @@ PetscErrorCode MatCoarsenDestroy_CR(MatCoarsen coarse)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "MatCoarsenSetFromOptions_CR"
+PetscErrorCode MatCoarsenSetFromOptions_CR(MatCoarsen coarse)
+{
+  MatCoarsen_CR *cr = (MatCoarsen_CR*)coarse->subctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscOptionsHead("MatCoarsen CR options");CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-mat_coarsen_cr_convgoal","Smoother convergence goal","MatCoarsen",cr->convgoal,&cr->convgoal,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-mat_coarsen_cr_threshold","Relative threshold for adding an unknown to the coarse set","MatCoarsen",cr->entrythreshold,&cr->entrythreshold,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-mat_coarsen_cr_abstol","Absolute threshold for considering unknown entries for the coarse set","MatCoarsen",cr->abstol,&cr->abstol,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-mat_coarsen_cr_maxsweeps","Maximum number of attempts at finding a coarse set that meets the convergence goals","MatCoarsen",cr->maxsweeps,&cr->maxsweeps,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-mat_coarsen_cr_maxratio","Maximum coarse nodes as a multiple of fine","MatCoarsen",cr->maxratio,&cr->maxratio,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-mat_coarsen_cr_verbose","Verbose output for the coarsening","MatCoarsen",cr->verbose,&cr->verbose,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsTail();CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "MatCoarsenCreate_CR"
 PETSC_EXTERN PetscErrorCode MatCoarsenCreate_CR(MatCoarsen coarse)
 {
@@ -182,9 +213,16 @@ PETSC_EXTERN PetscErrorCode MatCoarsenCreate_CR(MatCoarsen coarse)
   PetscFunctionBegin;
   ierr           = PetscNewLog(coarse,&cr);CHKERRQ(ierr);
   coarse->subctx = (void*)cr;
+  cr->convgoal                = 0.7;
+  cr->entrythreshold          = 0.5;
+  cr->abstol                  = 1e-6;
+  cr->maxsweeps               = 5;
+  cr->maxratio                = 0.5;
+  cr->verbose                 = PETSC_FALSE;
 
-  coarse->ops->apply   = MatCoarsenApply_CR;
-  coarse->ops->view    = MatCoarsenView_CR;
-  coarse->ops->destroy = MatCoarsenDestroy_CR;
+  coarse->ops->apply          = MatCoarsenApply_CR;
+  coarse->ops->view           = MatCoarsenView_CR;
+  coarse->ops->destroy        = MatCoarsenDestroy_CR;
+  coarse->ops->setfromoptions = MatCoarsenSetFromOptions_CR;
   PetscFunctionReturn(0);
 }

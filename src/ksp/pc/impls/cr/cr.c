@@ -321,7 +321,7 @@ static PetscErrorCode PCSetUp_CR(PC pc)
     ierr = PCCreate(PetscObjectComm((PetscObject)pc),&cr->fpc);CHKERRQ(ierr);
     ierr = PCGetOptionsPrefix(pc,&prefix);CHKERRQ(ierr);
     ierr = PCSetOptionsPrefix(cr->fpc,prefix);CHKERRQ(ierr);
-    ierr = PCAppendOptionsPrefix(cr->fpc,"cr_");CHKERRQ(ierr);
+    ierr = PCAppendOptionsPrefix(cr->fpc,"habituated_");CHKERRQ(ierr);
     ierr = PCGetOperators(pc,&A,&P,&flg);CHKERRQ(ierr);
     ierr = PCSetOperators(cr->fpc,A,P,flg);CHKERRQ(ierr);
     ierr = PCSetType(cr->fpc,PCSOR);CHKERRQ(ierr);
