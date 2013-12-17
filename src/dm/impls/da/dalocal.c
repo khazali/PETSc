@@ -1346,7 +1346,7 @@ PetscErrorCode DMDAComputeL2Diff(DM dm, PetscFE fe[], void (**funcs)(const Petsc
   ierr = DMDAGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = PetscFEGetQuadrature(fe[0], &quad);CHKERRQ(ierr);
   for (c = cStart; c < cEnd; ++c) {
-    const PetscScalar *x = NULL;
+    PetscScalar *x = NULL;
     PetscReal    elemDiff = 0.0;
 
     ierr = DMDAComputeCellGeometry(dm, c, &quad, v0, J, invJ, &detJ);CHKERRQ(ierr);
