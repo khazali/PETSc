@@ -22,23 +22,45 @@ typedef struct {
 
 static int spdim = 1;
 
+/* u = 1 */
 void constant(const PetscReal coords[], PetscScalar *u)
 {
   PetscInt d;
   for (d = 0; d < spdim; ++d) u[d] = 1.0;
 }
+void constantDer(const PetscReal coords[], const PetscReal n[], PetscScalar *u)
+{
+  PetscInt d;
+  for (d = 0; d < spdim; ++d) u[d] = 0.0;
+}
 
+/* u = x */
 void linear(const PetscReal coords[], PetscScalar *u)
 {
   PetscInt d;
   for (d = 0; d < spdim; ++d) u[d] = coords[d];
 }
+void linearDer(const PetscReal coords[], const PetscReal n[], PetscScalar *u)
+{
+  PetscInt d, e;
+  for (d = 0; d < spdim; ++d) {
+    u[d] = 0.0;
+    for (e = 0; e < spdim; ++e) u[d] += (d == e ? 1.0 : 0.0) * n[e];
+  }
+}
 
+/* u = x^2 or u = (x^2, xy) or u = (xy, yz, zx) */
 void quadratic(const PetscReal coords[], PetscScalar *u)
 {
   if (spdim > 2)      {u[0] = coords[0]*coords[1]; u[1] = coords[1]*coords[2]; u[2] = coords[2]*coords[0];}
   else if (spdim > 1) {u[0] = coords[0]*coords[0]; u[1] = coords[0]*coords[1];}
   else if (spdim > 0) {u[0] = coords[0]*coords[0];}
+}
+void quadraticDer(const PetscReal coords[], const PetscReal n[], PetscScalar *u)
+{
+  if (spdim > 2)      {u[0] = coords[1]*n[0] + coords[0]*n[1]; u[1] = coords[2]*n[1] + coords[1]*n[2]; u[2] = coords[2]*n[0] + coords[0]*n[2];}
+  else if (spdim > 1) {u[0] = 2.0*coords[0]*n[0]; u[1] = coords[1]*n[0] + coords[0]*n[1];}
+  else if (spdim > 0) {u[0] = 2.0*coords[0]*n[0];}
 }
 
 #undef __FUNCT__
@@ -206,11 +228,13 @@ PetscErrorCode SetupSection(DM dm, AppCtx *user)
 #define __FUNCT__ "CheckFunctions"
 PetscErrorCode CheckFunctions(DM dm, PetscInt order, Vec u, AppCtx *user)
 {
-  void          (*exactFuncs[3]) (const PetscReal x[], PetscScalar *u);
+  void          (*exactFuncs[1]) (const PetscReal x[], PetscScalar *u);
+  void          (*exactFuncDers[1]) (const PetscReal x[], const PetscReal n[], PetscScalar *u);
+  PetscReal       n[3] = {1.0, 1.0, 1.0};
   MPI_Comm        comm;
   PetscInt        dim  = user->dim, Nc;
   PetscQuadrature fq;
-  PetscReal       error, tol = 1.0e-10;
+  PetscReal       error, errorDer, tol = 1.0e-10;
   PetscBool       isPlex, isDA;
   PetscErrorCode  ierr;
 
@@ -223,13 +247,16 @@ PetscErrorCode CheckFunctions(DM dm, PetscInt order, Vec u, AppCtx *user)
   /* Setup functions to approximate */
   switch (order) {
   case 0:
-    exactFuncs[0] = constant;
+    exactFuncs[0]    = constant;
+    exactFuncDers[0] = constantDer;
     break;
   case 1:
-    exactFuncs[0] = linear;
+    exactFuncs[0]    = linear;
+    exactFuncDers[0] = linearDer;
     break;
   case 2:
-    exactFuncs[0] = quadratic;
+    exactFuncs[0]    = quadratic;
+    exactFuncDers[0] = quadraticDer;
     break;
   default:
     SETERRQ2(comm, PETSC_ERR_ARG_OUTOFRANGE, "Could not determine functions to test for dimension %d order %d", dim, order);
@@ -243,14 +270,19 @@ PetscErrorCode CheckFunctions(DM dm, PetscInt order, Vec u, AppCtx *user)
   /* Compare approximation to exact in L_2 */
   if (isPlex) {
     ierr = DMPlexComputeL2Diff(dm, &user->fe, exactFuncs, u, &error);CHKERRQ(ierr);
+    ierr = DMPlexComputeL2GradientDiff(dm, &user->fe, exactFuncDers, u, n, &errorDer);CHKERRQ(ierr);
   } else if (isDA) {
     ierr = DMDAComputeL2Diff(dm, &user->fe, exactFuncs, u, &error);CHKERRQ(ierr);
   } else SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_UNKNOWN_TYPE, "No FEM projection routine for this type of DM");
   if (error > tol) {
     ierr = PetscPrintf(comm, "Tests FAIL for order %d at tolerance %g error %g\n", order, tol, error);CHKERRQ(ierr);
-    /* SETERRQ3(comm, PETSC_ERR_ARG_WRONG, "Input FIAT tabulation cannot resolve functions of order %d, error %g > %g", order, error, tol); */
   } else {
     ierr = PetscPrintf(comm, "Tests pass for order %d at tolerance %g\n", order, tol);CHKERRQ(ierr);
+  }
+  if (errorDer > tol) {
+    ierr = PetscPrintf(comm, "Tests FAIL for order %d derivatives at tolerance %g error %g\n", order, tol, errorDer);CHKERRQ(ierr);
+  } else {
+    ierr = PetscPrintf(comm, "Tests pass for order %d derivatives at tolerance %g\n", order, tol);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
