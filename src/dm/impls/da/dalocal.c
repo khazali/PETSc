@@ -1217,7 +1217,7 @@ PetscErrorCode DMDASetVertexCoordinates(DM dm, PetscReal xl, PetscReal xu, Petsc
 
 #undef __FUNCT__
 #define __FUNCT__ "DMDAProjectFunctionLocal"
-PetscErrorCode DMDAProjectFunctionLocal(DM dm, PetscFE fe[], void (**funcs)(const PetscReal [], PetscScalar *), InsertMode mode, Vec localX)
+PetscErrorCode DMDAProjectFunctionLocal(DM dm, PetscFE fe[], void (**funcs)(const PetscReal [], PetscScalar *, void *), void **ctxs, InsertMode mode, Vec localX)
 {
   PetscDualSpace *sp;
   PetscQuadrature q;
@@ -1252,10 +1252,11 @@ PetscErrorCode DMDAProjectFunctionLocal(DM dm, PetscFE fe[], void (**funcs)(cons
     geom.J    = J;
     geom.detJ = detJ;
     for (f = 0, v = 0; f < numFields; ++f) {
+      void * const ctx = ctxs ? ctxs[f] : NULL;
       ierr = PetscFEGetNumComponents(fe[f], &numComp);CHKERRQ(ierr);
       ierr = PetscDualSpaceGetDimension(sp[f], &spDim);CHKERRQ(ierr);
       for (d = 0; d < spDim; ++d) {
-        ierr = PetscDualSpaceApply(sp[f], d, geom, numComp, funcs[f], &values[v]);CHKERRQ(ierr);
+        ierr = PetscDualSpaceApply(sp[f], d, geom, numComp, funcs[f], ctx, &values[v]);CHKERRQ(ierr);
         v += numComp;
       }
     }
@@ -1276,6 +1277,7 @@ PetscErrorCode DMDAProjectFunctionLocal(DM dm, PetscFE fe[], void (**funcs)(cons
 + dm      - The DM
 . fe      - The PetscFE associated with the field
 . funcs   - The coordinate functions to evaluate
+. ctxs    - Optional array of contexts to pass to each coordinate function.  ctxs itself may be null.
 - mode    - The insertion mode for values
 
   Output Parameter:
@@ -1285,7 +1287,7 @@ PetscErrorCode DMDAProjectFunctionLocal(DM dm, PetscFE fe[], void (**funcs)(cons
 
 .seealso: DMDAComputeL2Diff()
 @*/
-PetscErrorCode DMDAProjectFunction(DM dm, PetscFE fe[], void (**funcs)(const PetscReal [], PetscScalar *), InsertMode mode, Vec X)
+PetscErrorCode DMDAProjectFunction(DM dm, PetscFE fe[], void (**funcs)(const PetscReal [], PetscScalar *, void *), void **ctxs, InsertMode mode, Vec X)
 {
   Vec            localX;
   PetscErrorCode ierr;
@@ -1293,7 +1295,7 @@ PetscErrorCode DMDAProjectFunction(DM dm, PetscFE fe[], void (**funcs)(const Pet
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   ierr = DMGetLocalVector(dm, &localX);CHKERRQ(ierr);
-  ierr = DMDAProjectFunctionLocal(dm, fe, funcs, mode, localX);CHKERRQ(ierr);
+  ierr = DMDAProjectFunctionLocal(dm, fe, funcs, ctxs, mode, localX);CHKERRQ(ierr);
   ierr = DMLocalToGlobalBegin(dm, localX, mode, X);CHKERRQ(ierr);
   ierr = DMLocalToGlobalEnd(dm, localX, mode, X);CHKERRQ(ierr);
   ierr = DMRestoreLocalVector(dm, &localX);CHKERRQ(ierr);
@@ -1309,6 +1311,7 @@ PetscErrorCode DMDAProjectFunction(DM dm, PetscFE fe[], void (**funcs)(const Pet
 + dm    - The DM
 . fe    - The PetscFE object for each field
 . funcs - The functions to evaluate for each field component
+. ctxs  - Optional array of contexts to pass to each coordinate function.  ctxs itself may be null.
 - X     - The coefficient vector u_h
 
   Output Parameter:
@@ -1318,7 +1321,7 @@ PetscErrorCode DMDAProjectFunction(DM dm, PetscFE fe[], void (**funcs)(const Pet
 
 .seealso: DMDAProjectFunction()
 @*/
-PetscErrorCode DMDAComputeL2Diff(DM dm, PetscFE fe[], void (**funcs)(const PetscReal [], PetscScalar *), Vec X, PetscReal *diff)
+PetscErrorCode DMDAComputeL2Diff(DM dm, PetscFE fe[], void (**funcs)(const PetscReal [], PetscScalar *, void *), void **ctxs, Vec X, PetscReal *diff)
 {
   const PetscInt  debug = 0;
   PetscSection    section;
@@ -1356,6 +1359,7 @@ PetscErrorCode DMDAComputeL2Diff(DM dm, PetscFE fe[], void (**funcs)(const Petsc
     ierr = DMDAVecGetClosure(dm, NULL, localX, c, NULL, &x);CHKERRQ(ierr);
 
     for (field = 0, comp = 0, fieldOffset = 0; field < numFields; ++field) {
+      void * const ctx = ctxs ? ctxs[field] : NULL;
       const PetscInt   numQuadPoints = quad.numPoints;
       const PetscReal *quadPoints    = quad.points;
       const PetscReal *quadWeights   = quad.weights;
@@ -1377,7 +1381,7 @@ PetscErrorCode DMDAComputeL2Diff(DM dm, PetscFE fe[], void (**funcs)(const Petsc
             coords[d] += J[d*dim+e]*(quadPoints[q*dim+e] + 1.0);
           }
         }
-        (*funcs[field])(coords, funcVal);
+        (*funcs[field])(coords, funcVal, ctx);
         for (fc = 0; fc < numBasisComps; ++fc) {
           PetscScalar interpolant = 0.0;
 

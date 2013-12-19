@@ -209,8 +209,8 @@ PETSC_EXTERN PetscErrorCode DMDASetVertexCoordinates(DM,PetscReal,PetscReal,Pets
 PETSC_EXTERN PetscErrorCode DMDASetPreallocationCenterDimension(DM, PetscInt);
 PETSC_EXTERN PetscErrorCode DMDAGetPreallocationCenterDimension(DM, PetscInt*);
 
-PETSC_EXTERN PetscErrorCode DMDAProjectFunction(DM, PetscFE[], void (**)(const PetscReal [], PetscScalar *), InsertMode, Vec);
-PETSC_EXTERN PetscErrorCode DMDAProjectFunctionLocal(DM, PetscFE[], void (**)(const PetscReal [], PetscScalar *), InsertMode, Vec);
-PETSC_EXTERN PetscErrorCode DMDAComputeL2Diff(DM, PetscFE[], void (**)(const PetscReal [], PetscScalar *), Vec, PetscReal *);
+PETSC_EXTERN PetscErrorCode DMDAProjectFunction(DM, PetscFE[], void (**)(const PetscReal [], PetscScalar *, void *), void **, InsertMode, Vec);
+PETSC_EXTERN PetscErrorCode DMDAProjectFunctionLocal(DM, PetscFE[], void (**)(const PetscReal [], PetscScalar *, void *), void **, InsertMode, Vec);
+PETSC_EXTERN PetscErrorCode DMDAComputeL2Diff(DM, PetscFE[], void (**)(const PetscReal [], PetscScalar *, void *), void **, Vec, PetscReal *);
 
 #endif
