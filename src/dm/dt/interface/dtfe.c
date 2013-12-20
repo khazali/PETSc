@@ -1613,7 +1613,7 @@ PetscErrorCode PetscDualSpaceSetUp_Lagrange(PetscDualSpace sp)
           sp->functional[f].numPoints = 1;
           ierr = PetscMalloc1(sp->functional[f].numPoints*dim, &qpoints);CHKERRQ(ierr);
           ierr = PetscMalloc1(sp->functional[f].numPoints, &qweights);CHKERRQ(ierr);
-          for (d = 0; d < dim; ++d) {qpoints[d] = k*PetscRealPart(coords[1*dim+d] - coords[0*dim+d])/(num+1) + PetscRealPart(coords[0*dim+d]);}
+          for (d = 0; d < dim; ++d) {qpoints[d] = k*PetscRealPart(coords[1*dim+d] - coords[0*dim+d])/order + PetscRealPart(coords[0*dim+d]);}
           qweights[0] = 1.0;
           sp->functional[f].points  = qpoints;
           sp->functional[f].weights = qweights;
