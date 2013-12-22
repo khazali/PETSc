@@ -22,14 +22,18 @@ class Configure(config.base.Configure):
     self.compilers = framework.require('config.compilers', self)
     self.functions = framework.require('config.functions', self)
     self.libraries = framework.require('config.libraries', self)
+    self.petscConf = framework.require('PETSc.Configure', self)
     return
 
-  def checkPrototype(self, includes = '', body = '', cleanup = 1, codeBegin = None, codeEnd = None):
-    (output, error, status) = self.outputCompile(includes, body, cleanup, codeBegin, codeEnd)
-    output += error
-    if output.find('implicit') >= 0 or output.find('Implicit') >= 0:
-      return 0
-    return 1
+  def featureTestMacros(self):
+    features = ''
+    if self.petscConf.defines.get('_POSIX_C_SOURCE_200112L'):
+      features += '#define _POSIX_C_SOURCE 200112L\n'
+    if self.petscConf.defines.get('_BSD_SOURCE'):
+      features += '#define _BSD_SOURCE\n'
+    if self.petscConf.defines.get('_GNU_SOURCE'):
+      features += '#define _GNU_SOURCE\n'
+    return features
 
 #-------------------------------------------------------
   def configureMissingDefines(self):
@@ -86,7 +90,7 @@ class Configure(config.base.Configure):
 
 
   def configureMissingGetdomainnamePrototype(self):
-    head ='''
+    head = self.featureTestMacros() + '''
 #ifdef PETSC_HAVE_UNISTD_H
 #include <unistd.h>
 #endif
@@ -95,39 +99,40 @@ class Configure(config.base.Configure):
 #endif
 '''
     code = '''
+int (*getdomainname_ptr)(char*,size_t) = getdomainname;
 char test[10];
-int err = getdomainname(test,10);
+if (getdomainname_ptr(test,10)) return 1;
 '''
-    if not self.checkPrototype(head,code):
-      self.addPrototype('int getdomainname(char *, int);', 'C')
+    if not self.checkCompile(head,code):
+      self.addPrototype('#include <stddef.h>\nint getdomainname(char *, size_t);', 'C')
     if hasattr(self.compilers, 'CXX'):
       self.pushLanguage('C++')
       if not self.checkLink(head,code):
-        self.addPrototype('int getdomainname(char *, int);', 'extern C')
+        self.addPrototype('#include <stddef.h>\nint getdomainname(char *, size_t);', 'extern C')
       self.popLanguage()
     return
 
   def configureMissingSrandPrototype(self):
-    head ='''
+    head = self.featureTestMacros() + '''
 #ifdef PETSC_HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
 '''
     code = '''
-double a;
-long   b=10;
-srand(b);
-a=drand48();
-
+double (*drand48_ptr)(void) = drand48;
+void (*srand48_ptr)(long int) = srand48;
+long int seed=10;
+srand48_ptr(seed);
+if (drand48_ptr() > 0.5) return 1;
 '''
-    if not self.checkPrototype(head,code):
-      self.addPrototype('double drand48();', 'C')
-      self.addPrototype('void   srand48(long);', 'C')
+    if not self.checkCompile(head,code):
+      self.addPrototype('double drand48(void);', 'C')
+      self.addPrototype('void   srand48(long int);', 'C')
     if hasattr(self.compilers, 'CXX'):
       self.pushLanguage('C++')
       if not self.checkLink(head,code):
-        self.addPrototype('double drand48();', 'extern C')
-        self.addPrototype('void   srand48(long);', 'extern C')
+        self.addPrototype('double drand48(void);', 'extern C')
+        self.addPrototype('void   srand48(long int);', 'extern C')
       self.popLanguage()
     return
 
