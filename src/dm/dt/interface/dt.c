@@ -264,7 +264,7 @@ static PetscErrorCode PetscDTGaussJacobiQuadrature1D_Internal(PetscInt npoints, 
 
   PetscFunctionBegin;
 
-  a1      = PetscPowReal(2, a+b+1);
+  a1      = PetscPowReal(2.0, a+b+1);
 #if defined(PETSC_HAVE_TGAMMA)
   a2      = tgamma(a + npoints + 1);
   a3      = tgamma(b + npoints + 1);
