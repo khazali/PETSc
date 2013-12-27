@@ -98,6 +98,51 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     *dm  = distributedMesh;
   }
   ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
+  ierr = DMViewFromOptions(*dm, NULL, "-dm_view");CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SetupSection"
+PetscErrorCode SetupSection(DM dm, AppCtx *user)
+{
+  PetscSection   section;
+  DMLabel        label;
+  PetscInt       dim         = user->dim;
+  const char    *bdLabel     = "marker";
+  PetscInt       numBC       = 3;
+  PetscInt       bcFields[3] = {0, 1, 2};
+  IS             bcPoints[3] = {NULL, NULL, NULL}, tmpIS;
+  PetscInt       numComp[NUM_FIELDS];
+  PetscInt      *numDof, pStart, pEnd, d, f;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = PetscMalloc1(NUM_FIELDS*(dim+1),&numDof);CHKERRQ(ierr);
+  for (f = 0; f < NUM_FIELDS; ++f) {
+    const PetscInt *numFDof;
+    ierr = PetscFEGetNumComponents(user->fe[f], &numComp[f]);CHKERRQ(ierr);
+    ierr = PetscFEGetNumDof(user->fe[f], &numFDof);CHKERRQ(ierr);
+    for (d = 0; d <= dim; ++d) numDof[f*(dim+1)+d] = numFDof[d];
+  }
+  ierr = DMPlexGetLabel(dm, bdLabel, &label);CHKERRQ(ierr);
+  ierr = DMPlexLabelComplete(dm, label);CHKERRQ(ierr);
+  ierr = DMPlexGetStratumIS(dm, bdLabel, 1, &bcPoints[0]);CHKERRQ(ierr);
+  bcPoints[1] = bcPoints[0];
+  ierr = DMPlexGetChart(dm, &pStart, &pEnd);CHKERRQ(ierr);
+  ierr = ISCreateStride(PETSC_COMM_SELF, pEnd-pStart, pStart, 1, &tmpIS);CHKERRQ(ierr);
+  ierr = ISDifference(tmpIS, bcPoints[0], &bcPoints[2]);CHKERRQ(ierr);
+  ierr = ISDestroy(&tmpIS);CHKERRQ(ierr);
+  ierr = DMPlexCreateSection(dm, dim, NUM_FIELDS, numComp, numDof, numBC, bcFields, bcPoints, &section);CHKERRQ(ierr);
+  ierr = PetscSectionSetFieldName(section, 0, "state");CHKERRQ(ierr);
+  ierr = PetscSectionSetFieldName(section, 1, "adjoint");CHKERRQ(ierr);
+  ierr = PetscSectionSetFieldName(section, 2, "control");CHKERRQ(ierr);
+  ierr = DMSetDefaultSection(dm, section);CHKERRQ(ierr);
+  ierr = PetscSectionView(section, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  ierr = PetscSectionDestroy(&section);CHKERRQ(ierr);
+  ierr = ISDestroy(&bcPoints[0]);CHKERRQ(ierr);
+  ierr = ISDestroy(&bcPoints[2]);CHKERRQ(ierr);
+  ierr = PetscFree(numDof);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -108,6 +153,7 @@ int main(int argc, char **argv)
   DM             dm;          /* Problem specification */
   SNES           snes;        /* Nonlinear solver */
   AppCtx         user;        /* user-defined work context */
+  PetscInt       f;
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
@@ -116,6 +162,15 @@ int main(int argc, char **argv)
   ierr = CreateMesh(PETSC_COMM_WORLD, &user, &dm);CHKERRQ(ierr);
   ierr = SNESSetDM(snes, dm);CHKERRQ(ierr);
 
+  ierr = PetscFECreateDefault(dm, user.dim, "state_",   -1, &user.fe[0]);
+  ierr = PetscFECreateDefault(dm, user.dim, "adjoint_", -1, &user.fe[1]);
+  ierr = PetscFECreateDefault(dm, user.dim, "control_", -1, &user.fe[2]);
+  user.fem.fe = user.fe;
+  ierr = SetupSection(dm, &user);CHKERRQ(ierr);
+
+  for (f = 0; f < NUM_FIELDS; ++f) {ierr = PetscFEDestroy(&user.fe[f]);CHKERRQ(ierr);}
+  ierr = DMDestroy(&dm);CHKERRQ(ierr);
+  ierr = SNESDestroy(&snes);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return 0;
 }
