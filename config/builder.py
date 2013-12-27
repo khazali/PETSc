@@ -260,7 +260,9 @@ regressionParameters = {'src/dm/impls/patch/examples/tests/ex1': [{'numProcs': 1
                                                                {'numProcs': 1, 'args': '-run_type test -dim 3 -f /Users/knepley/Downloads/kis_modell_tet2.exo -refinement_limit 0.0    -bc_type dirichlet -interpolate 1 -show_initial -dm_plex_print_fem 1 -dm_view',
                                                                 'requires': ['exodusii', 'Broken']}],
                         'src/snes/examples/tutorials/ex13':   [# 2D serial P1 test 0-
-                                                               {'numProcs': 1, 'args': '-petscspace_order 1'}],
+                                                               {'numProcs': 1, 'args': '-state_petscspace_order 1 -adjoint_petscspace_order 1 -control_petscspace_order 1 -dm_view'},
+                                                               {'numProcs': 1, 'args': '-state_petscspace_order 1 -adjoint_petscspace_order 1 -control_petscspace_order 1 -dm_refine 1 -dm_view'},
+                                                               {'numProcs': 1, 'args': '-state_petscspace_order 1 -adjoint_petscspace_order 1 -control_petscspace_order 1 -dm_refine 2 -dm_view'}],
                         'src/snes/examples/tutorials/ex31':   [# Decoupled field Dirichlet tests 0-6
                                                                {'numProcs': 1, 'args': '-run_type test -refinement_limit 0.0     -forcing_type constant -bc_type dirichlet -interpolate 1 -show_initial -dm_plex_print_fem 1',
                                                                 'setup': './bin/pythonscripts/PetscGenerateFEMQuadrature.py 2 2 2 1 laplacian 2 1 1 1 gradient 2 1 1 1 identity src/snes/examples/tutorials/ex31.h'},
