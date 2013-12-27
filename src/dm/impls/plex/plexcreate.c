@@ -4,26 +4,6 @@
 #include <petscsf.h>
 
 #undef __FUNCT__
-#define __FUNCT__ "DMSetFromOptions_Plex"
-PetscErrorCode  DMSetFromOptions_Plex(DM dm)
-{
-  DM_Plex        *mesh = (DM_Plex*) dm->data;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  ierr = PetscOptionsHead("DMPlex Options");CHKERRQ(ierr);
-  /* Handle DMPlex refinement */
-  /* Handle associated vectors */
-  /* Handle viewing */
-  ierr = PetscOptionsBool("-dm_plex_print_set_values", "Output all set values info", "DMView", PETSC_FALSE, &mesh->printSetValues, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-dm_plex_print_fem", "Debug output level all fem computations", "DMView", 0, &mesh->printFEM, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsReal("-dm_plex_print_tol", "Tolerance for FEM output", "DMView", PETSC_FALSE, &mesh->printTol, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsTail();CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
 #define __FUNCT__ "DMPlexCreateDoublet"
 /*@
   DMPlexCreateDoublet - Creates a mesh of two cells of the specified type, optionally with later refinement.
@@ -650,6 +630,48 @@ extern PetscErrorCode DMDestroy_Plex(DM dm);
 extern PetscErrorCode DMView_Plex(DM dm, PetscViewer viewer);
 extern PetscErrorCode DMCreateSubDM_Plex(DM dm, PetscInt numFields, PetscInt fields[], IS *is, DM *subdm);
 extern PetscErrorCode DMLocatePoints_Plex(DM dm, Vec v, IS *cellIS);
+
+#undef __FUNCT__
+#define __FUNCT__ "DMSetFromOptions_Plex"
+PetscErrorCode  DMSetFromOptions_Plex(DM dm)
+{
+  DM_Plex       *mesh   = (DM_Plex*) dm->data;
+  PetscInt       refine = 0, r;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  ierr = PetscOptionsHead("DMPlex Options");CHKERRQ(ierr);
+  /* Handle DMPlex refinement */
+  ierr = PetscOptionsInt("-dm_refine", "The number of uniform refinements", "DMCreate", refine, &refine, NULL);CHKERRQ(ierr);
+  ierr = DMPlexSetRefinementUniform(dm, refine ? PETSC_TRUE : PETSC_FALSE);CHKERRQ(ierr);
+  for (r = 0; r < refine; ++r) {
+    DM refinedMesh;
+
+    ierr = DMRefine(dm, PetscObjectComm((PetscObject) dm), &refinedMesh);CHKERRQ(ierr);
+    /* Total hack since we do not pass in a pointer */
+    {
+      PetscSection coordSection;
+      Vec          coords;
+
+      ierr = DMGetCoordinateSection(refinedMesh, &coordSection);CHKERRQ(ierr);
+      ierr = DMGetCoordinatesLocal(refinedMesh, &coords);CHKERRQ(ierr);
+      ierr = DMSetCoordinateSection(dm, coordSection);CHKERRQ(ierr);
+      ierr = DMSetCoordinatesLocal(dm, coords);CHKERRQ(ierr);
+      ierr = DMDestroy_Plex(dm);CHKERRQ(ierr);
+      dm->data = refinedMesh->data;
+      ((DM_Plex *) refinedMesh->data)->refct++;
+    }
+    ierr = DMDestroy(&refinedMesh);CHKERRQ(ierr);
+  }
+  /* Handle associated vectors */
+  /* Handle viewing */
+  ierr = PetscOptionsBool("-dm_plex_print_set_values", "Output all set values info", "DMView", PETSC_FALSE, &mesh->printSetValues, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-dm_plex_print_fem", "Debug output level all fem computations", "DMView", 0, &mesh->printFEM, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-dm_plex_print_tol", "Tolerance for FEM output", "DMView", PETSC_FALSE, &mesh->printTol, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsTail();CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
 
 #undef __FUNCT__
 #define __FUNCT__ "DMCreateGlobalVector_Plex"
