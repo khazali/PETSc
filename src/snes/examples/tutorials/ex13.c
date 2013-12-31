@@ -3,22 +3,29 @@ http://www.math.cmu.edu/~shlomo/VKI-Lectures/lecture4/\n\
 We use DMPlex, in 2d and 3d, with P1 Lagrange finite elements.\n\n\n";
 
 /*F
-  Let $\phi$ be the state variable, $\alpha$ the design variable and consider the minimization problem,
+  Let $\phi$ be the state variable, $\lambda$ the adjoint variable, $\alpha$ the design variable and consider the minimization problem,
 \begin{equation}
   \min_\alpha \frac{1}{2} \int_{\partial\Omega} (\frac{\partial\phi}{\partial n} - d)^2 ds
 \end{equation}
 where $\phi$ satisfies
 \begin{align}
-  \Delta \phi &= 0      & \Omega \\
-  \phi        &= \alpha & \partial\Omega
+  -\Delta \phi &= 0      & \Omega \\
+   \phi        &= \alpha & \partial\Omega
 \end{align}
 and where  $\Omega = [0,1]\times[0,1]$. A simple calculation shows that the necessary (optimality) conditions are given by
 \begin{align}
-  \Delta \phi    &= 0      & \Omega \\
-  \phi           &= \alpha & \partial\Omega \\
-  \Delta \lambda &= 0      & \Omega \\
-  \lambda        &= \alpha - \frac{\partial\phi}{\partial n} & \partial\Omega \\
+  -\Delta \phi    &= 0      & \Omega \\
+  \phi            &= \alpha & \partial\Omega \\
+  -\Delta \lambda &= 0      & \Omega \\
+  \lambda         &= \alpha - \frac{\partial\phi}{\partial n} & \partial\Omega \\
   \frac{\partial\lambda}{\partial n} &= 0 & \partial\Omega.
+\end{align}
+In 2D we use the exact solution
+\begin{align}
+  u       &= x^2 + y^2 \\
+  \lambda &= 0 \\
+  d       &= \cases{0 & bottom \\-2 & top\\0 & left\\-2 & right} \\
+          &= -2x - 2y
 \end{align}
 F*/
 
@@ -45,14 +52,14 @@ typedef struct {
   void (*g1Funcs[NUM_FIELDS*NUM_FIELDS])(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g1[]); /* g1_uu(x,y,z), g1_up(x,y,z), g1_pu(x,y,z), and g1_pp(x,y,z) */
   void (*g2Funcs[NUM_FIELDS*NUM_FIELDS])(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g2[]); /* g2_uu(x,y,z), g2_up(x,y,z), g2_pu(x,y,z), and g2_pp(x,y,z) */
   void (*g3Funcs[NUM_FIELDS*NUM_FIELDS])(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g3[]); /* g3_uu(x,y,z), g3_up(x,y,z), g3_pu(x,y,z), and g3_pp(x,y,z) */
-  void (**exactFuncs)(const PetscReal x[], PetscScalar *u, void *ctx); /* The exact solution function u(x,y,z), v(x,y,z), and p(x,y,z) */
+  void (*exactFuncs[NUM_FIELDS])(const PetscReal x[], PetscScalar *u, void *ctx); /* The exact solution function u(x,y,z), v(x,y,z), and p(x,y,z) */
   void (*f0BdFuncs[NUM_FIELDS])(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], const PetscReal n[], PetscScalar f0[]); /* f0_u(x,y,z), and f0_p(x,y,z) */
   void (*f1BdFuncs[NUM_FIELDS])(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], const PetscReal n[], PetscScalar f1[]); /* f1_u(x,y,z), and f1_p(x,y,z) */
 } AppCtx;
 
 #undef __FUNCT__
 #define __FUNCT__ "ProcessOptions"
-PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
+static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   PetscErrorCode ierr;
 
@@ -81,7 +88,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 
 #undef __FUNCT__
 #define __FUNCT__ "CreateMesh"
-PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
+static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 {
   DM             distributedMesh = NULL;
   DMLabel        label;
@@ -104,7 +111,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupSection"
-PetscErrorCode SetupSection(DM dm, AppCtx *user)
+static PetscErrorCode SetupSection(DM dm, AppCtx *user)
 {
   PetscSection   section;
   DMLabel        label;
@@ -138,7 +145,6 @@ PetscErrorCode SetupSection(DM dm, AppCtx *user)
   ierr = PetscSectionSetFieldName(section, 1, "adjoint");CHKERRQ(ierr);
   ierr = PetscSectionSetFieldName(section, 2, "control");CHKERRQ(ierr);
   ierr = DMSetDefaultSection(dm, section);CHKERRQ(ierr);
-  ierr = PetscSectionView(section, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&section);CHKERRQ(ierr);
   ierr = ISDestroy(&bcPoints[0]);CHKERRQ(ierr);
   ierr = ISDestroy(&bcPoints[2]);CHKERRQ(ierr);
