@@ -152,6 +152,64 @@ static PetscErrorCode SetupSection(DM dm, AppCtx *user)
   PetscFunctionReturn(0);
 }
 
+static void zero(const PetscReal x[], PetscScalar *u, void *ctx)
+{
+  u[0] = 0.0;
+}
+
+static void quadratic_u_2d(const PetscReal x[], PetscScalar *u, void *ctx)
+{
+  u[0] = x[0]*x[0] + x[1]*x[1];
+}
+
+static void f0_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f0[])
+{
+  f0[0] = 4.0;
+}
+
+static void f1_u(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar f1[])
+{
+  PetscInt d;
+  for (d = 0; d < spatialDim; ++d) f1[d] = gradU[d];
+}
+
+/* < \nabla v, \nabla u > */
+static void g3_uu(const PetscScalar u[], const PetscScalar gradU[], const PetscScalar a[], const PetscScalar gradA[], const PetscReal x[], PetscScalar g3[])
+{
+  PetscInt d;
+  for (d = 0; d < spatialDim; ++d) g3[d*spatialDim+d] = 1.0;
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SetupProblem"
+static PetscErrorCode SetupProblem(DM dm, AppCtx *user)
+{
+  PetscFEM *fem = &user->fem;
+  PetscInt  f;
+
+  PetscFunctionBeginUser;
+  for (f = 0; f < NUM_FIELDS; ++f) {
+    fem->f0Funcs[f]   = fem->f1Funcs[f]   = NULL;
+    fem->f0BdFuncs[f] = fem->f1BdFuncs[f] = NULL;
+    fem->g0Funcs[f]   = fem->g1Funcs[f]   = fem->g2Funcs[f] = fem->g3Funcs[f] = NULL;
+  }
+  fem->f0Funcs[0] = f0_u;
+  fem->f1Funcs[0] = f1_u;
+  fem->g3Funcs[0] = g3_uu;
+  fem->f1Funcs[1] = f1_u;
+  fem->g3Funcs[1] = g3_uu;
+  switch (user->dim) {
+  case 2:
+    user->exactFuncs[0] = quadratic_u_2d;
+    user->exactFuncs[1] = zero;
+    user->exactFuncs[2] = quadratic_u_2d;
+    break;
+  default:
+    SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_ARG_OUTOFRANGE, "Invalid dimension %d", user->dim);
+  }
+  PetscFunctionReturn(0);
+}
+
 #undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc, char **argv)
@@ -159,6 +217,8 @@ int main(int argc, char **argv)
   DM             dm;          /* Problem specification */
   SNES           snes;        /* Nonlinear solver */
   AppCtx         user;        /* user-defined work context */
+  Mat            J;
+  Vec            u, r, alpha;
   PetscInt       f;
   PetscErrorCode ierr;
 
@@ -173,7 +233,37 @@ int main(int argc, char **argv)
   ierr = PetscFECreateDefault(dm, user.dim, "control_", -1, &user.fe[2]);
   user.fem.fe = user.fe;
   ierr = SetupSection(dm, &user);CHKERRQ(ierr);
+  ierr = SetupProblem(dm, &user);CHKERRQ(ierr);
 
+  ierr = DMCreateGlobalVector(dm, &u);CHKERRQ(ierr);
+  ierr = VecDuplicate(u, &r);CHKERRQ(ierr);
+  ierr = DMCreateMatrix(dm, &J);CHKERRQ(ierr);
+  ierr = DMSNESSetFunctionLocal(dm,  (PetscErrorCode (*)(DM,Vec,Vec,void*)) DMPlexComputeResidualFEM, &user);CHKERRQ(ierr);
+  ierr = DMSNESSetJacobianLocal(dm,  (PetscErrorCode (*)(DM,Vec,Mat,Mat,MatStructure*,void*)) DMPlexComputeJacobianFEM, &user);CHKERRQ(ierr);
+  ierr = SNESSetJacobian(snes, J, J, NULL, NULL);CHKERRQ(ierr);
+  ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
+  ierr = DMPlexProjectFunction(dm, user.fe, user.exactFuncs, NULL, INSERT_ALL_VALUES, u);CHKERRQ(ierr);
+  {
+    PetscReal error = 0.0, res = 0.0;
+
+    /* Check discretization error */
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Initial guess\n");CHKERRQ(ierr);
+    ierr = VecView(u, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    ierr = DMPlexComputeL2Diff(dm, user.fe, user.exactFuncs, NULL, u, &error);CHKERRQ(ierr);
+    if (error < 1.0e-11) {ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Discretization Error: < 1.0e-11\n");CHKERRQ(ierr);}
+    else                 {ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Discretization Error: %g\n", error);CHKERRQ(ierr);}
+    /* Check residual */
+    ierr = SNESComputeFunction(snes, u, r);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Initial Residual\n");CHKERRQ(ierr);
+    ierr = VecChop(r, 1.0e-10);CHKERRQ(ierr);
+    ierr = VecView(r, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    ierr = VecNorm(r, NORM_2, &res);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Residual: %g\n", res);CHKERRQ(ierr);
+  }
+
+  ierr = MatDestroy(&J);CHKERRQ(ierr);
+  ierr = VecDestroy(&u);CHKERRQ(ierr);
+  ierr = VecDestroy(&r);CHKERRQ(ierr);
   for (f = 0; f < NUM_FIELDS; ++f) {ierr = PetscFEDestroy(&user.fe[f]);CHKERRQ(ierr);}
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
   ierr = SNESDestroy(&snes);CHKERRQ(ierr);
