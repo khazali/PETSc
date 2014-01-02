@@ -817,7 +817,7 @@ PetscErrorCode MatZeroRowsColumns_MPIAIJ(Mat A,PetscInt N,const PetscInt rows[],
   PetscErrorCode    ierr;
   PetscMPIInt       size = l->size,imdex,n,rank = l->rank,tag = ((PetscObject)A)->tag,lastidx = -1;
   PetscInt          i,*owners = A->rmap->range;
-  PetscInt          *nprocs,j,idx,nsends;
+  PetscInt          *sizes,j,idx,nsends;
   PetscInt          nmax,*svalues,*starts,*owner,nrecvs;
   PetscInt          *rvalues,count,base,slen,*source;
   PetscInt          *lens,*lrows,*values,m;
@@ -837,16 +837,16 @@ PetscErrorCode MatZeroRowsColumns_MPIAIJ(Mat A,PetscInt N,const PetscInt rows[],
   PetscFunctionBegin;
   ierr = PetscObjectGetComm((PetscObject)A,&comm);CHKERRQ(ierr);
   /*  first count number of contributors to each processor */
-  ierr = PetscCalloc1(2*size,&nprocs);CHKERRQ(ierr);
-  ierr = PetscMalloc1((N+1),&owner);CHKERRQ(ierr); /* see note*/
+  ierr = PetscCalloc1(2*size,&sizes);CHKERRQ(ierr);
+  ierr = PetscMalloc1(N+1,&owner);CHKERRQ(ierr); /* see note*/
   j    = 0;
   for (i=0; i<N; i++) {
     if (lastidx > (idx = rows[i])) j = 0;
     lastidx = idx;
     for (; j<size; j++) {
       if (idx >= owners[j] && idx < owners[j+1]) {
-        nprocs[2*j]++;
-        nprocs[2*j+1] = 1;
+        sizes[2*j]++;
+        sizes[2*j+1] = 1;
         owner[i]      = j;
 #if defined(PETSC_DEBUG)
         found = PETSC_TRUE;
@@ -859,10 +859,10 @@ PetscErrorCode MatZeroRowsColumns_MPIAIJ(Mat A,PetscInt N,const PetscInt rows[],
     found = PETSC_FALSE;
 #endif
   }
-  nsends = 0;  for (i=0; i<size; i++) nsends += nprocs[2*i+1];
+  nsends = 0;  for (i=0; i<size; i++) nsends += sizes[2*i+1];
 
   /* inform other processors of number of messages and max length*/
-  ierr = PetscMaxSum(comm,nprocs,&nmax,&nrecvs);CHKERRQ(ierr);
+  ierr = PetscMaxSum(comm,sizes,&nmax,&nrecvs);CHKERRQ(ierr);
 
   /* post receives:   */
   ierr = PetscMalloc1((nrecvs+1)*(nmax+1),&rvalues);CHKERRQ(ierr);
@@ -880,15 +880,15 @@ PetscErrorCode MatZeroRowsColumns_MPIAIJ(Mat A,PetscInt N,const PetscInt rows[],
   ierr = PetscMalloc1((size+1),&starts);CHKERRQ(ierr);
 
   starts[0] = 0;
-  for (i=1; i<size; i++) starts[i] = starts[i-1] + nprocs[2*i-2];
+  for (i=1; i<size; i++) starts[i] = starts[i-1] + sizes[2*i-2];
   for (i=0; i<N; i++) svalues[starts[owner[i]]++] = rows[i];
 
   starts[0] = 0;
-  for (i=1; i<size+1; i++) starts[i] = starts[i-1] + nprocs[2*i-2];
+  for (i=1; i<size+1; i++) starts[i] = starts[i-1] + sizes[2*i-2];
   count = 0;
   for (i=0; i<size; i++) {
-    if (nprocs[2*i+1]) {
-      ierr = MPI_Isend(svalues+starts[i],nprocs[2*i],MPIU_INT,i,tag,comm,send_waits+count++);CHKERRQ(ierr);
+    if (sizes[2*i+1]) {
+      ierr = MPI_Isend(svalues+starts[i],sizes[2*i],MPIU_INT,i,tag,comm,send_waits+count++);CHKERRQ(ierr);
     }
   }
   ierr = PetscFree(starts);CHKERRQ(ierr);
@@ -920,7 +920,7 @@ PetscErrorCode MatZeroRowsColumns_MPIAIJ(Mat A,PetscInt N,const PetscInt rows[],
   ierr = PetscFree(rvalues);CHKERRQ(ierr);
   ierr = PetscFree2(lens,source);CHKERRQ(ierr);
   ierr = PetscFree(owner);CHKERRQ(ierr);
-  ierr = PetscFree(nprocs);CHKERRQ(ierr);
+  ierr = PetscFree(sizes);CHKERRQ(ierr);
   /* lrows are the local rows to be zeroed, slen is the number of local rows */
 
   /* zero diagonal part of matrix */
@@ -5026,9 +5026,9 @@ PetscErrorCode  MatMPIAIJGetLocalMat(Mat A,MatReuse scall,Mat *A_loc)
 {
   PetscErrorCode ierr;
   Mat_MPIAIJ     *mpimat=(Mat_MPIAIJ*)A->data;
-  Mat_SeqAIJ     *mat,*a=(Mat_SeqAIJ*)(mpimat->A)->data,*b=(Mat_SeqAIJ*)(mpimat->B)->data;
-  PetscInt       *ai=a->i,*aj=a->j,*bi=b->i,*bj=b->j,*cmap=mpimat->garray;
-  MatScalar      *aa=a->a,*ba=b->a,*cam;
+  Mat_SeqAIJ     *mat,*a,*b;
+  PetscInt       *ai,*aj,*bi,*bj,*cmap=mpimat->garray;
+  MatScalar      *aa,*ba,*cam;
   PetscScalar    *ca;
   PetscInt       am=A->rmap->n,i,j,k,cstart=A->cmap->rstart;
   PetscInt       *ci,*cj,col,ncols_d,ncols_o,jo;
@@ -5038,6 +5038,10 @@ PetscErrorCode  MatMPIAIJGetLocalMat(Mat A,MatReuse scall,Mat *A_loc)
   ierr = PetscObjectTypeCompare((PetscObject)A,MATMPIAIJ,&match);CHKERRQ(ierr);
   if (!match) SETERRQ(PetscObjectComm((PetscObject)A), PETSC_ERR_SUP,"Requires MPIAIJ matrix as input");
   ierr = PetscLogEventBegin(MAT_Getlocalmat,A,0,0,0);CHKERRQ(ierr);
+  a = (Mat_SeqAIJ*)(mpimat->A)->data;
+  b = (Mat_SeqAIJ*)(mpimat->B)->data;
+  ai = a->i; aj = a->j; bi = b->i; bj = b->j;
+  aa = a->a; ba = b->a;
   if (scall == MAT_INITIAL_MATRIX) {
     ierr  = PetscMalloc1((1+am),&ci);CHKERRQ(ierr);
     ci[0] = 0;

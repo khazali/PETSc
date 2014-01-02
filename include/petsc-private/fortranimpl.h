@@ -12,8 +12,8 @@
 
 PETSC_EXTERN PetscErrorCode PetscScalarAddressToFortran(PetscObject,PetscInt,PetscScalar*,PetscScalar*,PetscInt,size_t*);
 PETSC_EXTERN PetscErrorCode PetscScalarAddressFromFortran(PetscObject,PetscScalar*,size_t,PetscInt,PetscScalar **);
-PETSC_EXTERN size_t         PetscIntAddressToFortran(PetscInt*,PetscInt*);
-PETSC_EXTERN PetscInt        *PetscIntAddressFromFortran(PetscInt*,size_t);
+PETSC_EXTERN size_t         PetscIntAddressToFortran(const PetscInt*,const PetscInt*);
+PETSC_EXTERN PetscInt        *PetscIntAddressFromFortran(const PetscInt*,size_t);
 PETSC_EXTERN char   *PETSC_NULL_CHARACTER_Fortran;
 PETSC_EXTERN void    *PETSC_NULL_INTEGER_Fortran;
 PETSC_EXTERN void    *PETSC_NULL_SCALAR_Fortran;
@@ -78,7 +78,7 @@ if (flg) {                                   \
 
 /*
     The cast through PETSC_UINTPTR_T is so that compilers that warn about casting to/from void * to void(*)(void)
-    will not complain about these comparisons. It is now know if this works for all compilers
+    will not complain about these comparisons. It is not know if this works for all compilers
 */
 #define FORTRANNULLINTEGER(a)  (((void*)(PETSC_UINTPTR_T)a) == PETSC_NULL_INTEGER_Fortran)
 #define FORTRANNULLSCALAR(a)   (((void*)(PETSC_UINTPTR_T)a) == PETSC_NULL_SCALAR_Fortran)

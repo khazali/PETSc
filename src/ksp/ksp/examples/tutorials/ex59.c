@@ -509,6 +509,7 @@ static PetscErrorCode GLLStuffs(DomainData dd, GLLData *glldata)
 
   glldata->rhoGL[0]=2.0/(PetscScalar)(p*(p+1.0));
   glldata->rhoGL[p]=glldata->rhoGL[0];
+  z2 = -1;                      /* Dummy value to avoid -Wmaybe-initialized */
   for (i=1; i<p; i++) {
     x  = glldata->zGL[i];
     z0 = 1.0;
@@ -910,19 +911,19 @@ static PetscErrorCode ComputeKSPBDDC(DomainData dd,Mat A,KSP *ksp)
 static PetscErrorCode InitializeDomainData(DomainData *dd)
 {
   PetscErrorCode ierr;
-  PetscMPIInt    nprocs,rank;
+  PetscMPIInt    sizes,rank;
   PetscInt       factor;
 
   PetscFunctionBeginUser;
   dd->gcomm = PETSC_COMM_WORLD;
-  ierr      = MPI_Comm_size(dd->gcomm,&nprocs);
+  ierr      = MPI_Comm_size(dd->gcomm,&sizes);
   ierr      = MPI_Comm_rank(dd->gcomm,&rank);
   /* test data passed in */
-  if (nprocs<2) SETERRQ(dd->gcomm,PETSC_ERR_USER,"This is not a uniprocessor test");
+  if (sizes<2) SETERRQ(dd->gcomm,PETSC_ERR_USER,"This is not a uniprocessor test");
   /* Get informations from command line */
   /* Processors/subdomains per dimension */
   /* Default is 1d problem */
-  dd->npx = nprocs;
+  dd->npx = sizes;
   dd->npy = 0;
   dd->npz = 0;
   dd->dim = 1;
@@ -964,13 +965,13 @@ static PetscErrorCode InitializeDomainData(DomainData *dd)
   dd->scalingfactor = PetscPowScalar(10.0,(PetscScalar)factor*PetscPowScalar(-1.0,(PetscScalar)rank));
   /* test data passed in */
   if (dd->dim==1) {
-    if (nprocs!=dd->npx) SETERRQ(dd->gcomm,PETSC_ERR_USER,"Number of mpi procs in 1D must be equal to npx");
+    if (sizes!=dd->npx) SETERRQ(dd->gcomm,PETSC_ERR_USER,"Number of mpi procs in 1D must be equal to npx");
     if (dd->nex<dd->npx) SETERRQ(dd->gcomm,PETSC_ERR_USER,"Number of elements per dim must be greater/equal than number of procs per dim");
   } else if (dd->dim==2) {
-    if (nprocs!=dd->npx*dd->npy) SETERRQ(dd->gcomm,PETSC_ERR_USER,"Number of mpi procs in 2D must be equal to npx*npy");
+    if (sizes!=dd->npx*dd->npy) SETERRQ(dd->gcomm,PETSC_ERR_USER,"Number of mpi procs in 2D must be equal to npx*npy");
     if (dd->nex<dd->npx || dd->ney<dd->npy) SETERRQ(dd->gcomm,PETSC_ERR_USER,"Number of elements per dim must be greater/equal than number of procs per dim");
   } else {
-    if (nprocs!=dd->npx*dd->npy*dd->npz) SETERRQ(dd->gcomm,PETSC_ERR_USER,"Number of mpi procs in 3D must be equal to npx*npy*npz");
+    if (sizes!=dd->npx*dd->npy*dd->npz) SETERRQ(dd->gcomm,PETSC_ERR_USER,"Number of mpi procs in 3D must be equal to npx*npy*npz");
     if (dd->nex<dd->npx || dd->ney<dd->npy || dd->nez<dd->npz) SETERRQ(dd->gcomm,PETSC_ERR_USER,"Number of elements per dim must be greater/equal than number of procs per dim");
   }
   PetscFunctionReturn(0);
