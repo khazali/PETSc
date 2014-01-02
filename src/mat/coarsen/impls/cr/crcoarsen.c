@@ -32,7 +32,7 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
   VecScatter       cscatter;
   Vec              cvec;
   Mat              inj;
-  PetscScalar      smax;
+  PetscReal        smax;
   PetscReal        convfact,convgoal=cr->convgoal,abstol=cr->abstol,entrythreshold=cr->entrythreshold,maxratio=cr->maxratio;
 
   PetscFunctionBegin;
@@ -80,7 +80,7 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
     /* add a local MIS worth of them to the mix */
     for (i=me-ms-1;i >= 0;i--) {
       idx=sperm[i];
-      if (state[idx] == -1 && (PetscAbsReal(sarray_real[idx]) > entrythreshold*PetscRealPart(smax) && (PetscRealPart(smax) > abstol))) {
+      if (state[idx] == -1 && (PetscAbsReal(sarray_real[idx]) > entrythreshold*smax && (smax > abstol))) {
         state[idx] = -2; /* set it to be accepted forever and ever */
         ierr = MatGetRow(mat,idx+ms,&mncol,&mcol,NULL);CHKERRQ(ierr);
         for (j=0;j<mncol;j++) {

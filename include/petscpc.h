@@ -470,6 +470,16 @@ PETSC_EXTERN PetscErrorCode PCBDDCMatFETIDPGetRHS(Mat,Vec,Vec);
 PETSC_EXTERN PetscErrorCode PCBDDCMatFETIDPGetSolution(Mat,Vec,Vec);
 #endif
 
+/*E
+    PCCRTrialTypes - Type of trial performed while calculating candidate estimates for PCCR
+
+    Level: intermediate
+
+.seealso: PCCRSetTrialType()
+E*/
+typedef enum {PC_CR_TRIAL_CONSTANT=0,PC_CR_TRIAL_RANDOM=1,PC_CR_TRIAL_NULLSPACE=2} PCCRTrialType;
+PETSC_EXTERN const char *const PCCRTrialTypes[];
+PETSC_EXTERN PetscErrorCode PCCRSetTrialType(PC,PCCRTrialType);
 PETSC_EXTERN PetscErrorCode PCCRSetInjection(PC,Mat);
 PETSC_EXTERN PetscErrorCode PCCRGetInjection(PC,Mat*);
 PETSC_EXTERN PetscErrorCode PCCRGetCandidateEstimates(PC,Vec,PetscReal*);

@@ -1,15 +1,18 @@
 #include <petsc-private/pcimpl.h>     /*I "petscpc.h" I*/
 #include <petscdm.h>
 
+const char *const PCCRTrialTypes[] = {"CONSTANT","RANDOM","NULLSPACE","PCCRTrialType","PC_CR_TRIAL_",0};
+
 typedef struct {
-  Mat       inj;              /* injection matrix */
-  Vec       injscale;         /* injection scaling for the Kaczmarz iteration */
-  PC        fpc;              /* habituated PC */
-  PetscInt  candidate_sweeps;
-  PetscInt  candidate_trials;
-  PetscBool candidate_view;
-  PetscBool trydm;            /* try to coarsen the DM and create the injection if no injection is set */
-  PetscReal stol;             /* stagnation tolerance for convergence estimates */
+  Mat           inj;              /* injection matrix */
+  Vec           injscale;         /* injection scaling for the Kaczmarz iteration */
+  PC            fpc;              /* habituated PC */
+  PetscInt      candidate_sweeps;
+  PetscInt      candidate_trials;
+  PetscBool     candidate_view;
+  PetscBool     trydm;            /* try to coarsen the DM and create the injection if no injection is set */
+  PetscReal     stol;             /* stagnation tolerance for convergence estimates */
+  PCCRTrialType trial_type;
 } PC_CR;
 
 #undef __FUNCT__
@@ -58,11 +61,36 @@ PetscErrorCode  PCCRGetCandidateEstimates_CR(PC pc,Vec s,PetscReal *convest)
   PetscErrorCode ierr;
   Vec            x,e,eold,cvec;
   PetscRandom    rand;
-  PetscInt       j,i;
+  PetscBool      has_const = PETSC_FALSE;
+  PetscInt       j,i,candidate_trials=0,nns;
   PetscReal      enorm,eoldnorm,trialconvest;
   PC_CR          *cr = (PC_CR*)pc->data;
+  MatNullSpace   nullspace;
+  const Vec      *nsvecs;
 
   PetscFunctionBegin;
+  switch (cr->trial_type) {
+  case (PC_CR_TRIAL_CONSTANT):
+    candidate_trials=1;
+    break;
+  case (PC_CR_TRIAL_RANDOM):
+    candidate_trials=cr->candidate_trials;
+    break;
+  case (PC_CR_TRIAL_NULLSPACE):
+    ierr = MatGetNullSpace(pc->pmat,&nullspace);CHKERRQ(ierr);
+    if (!nullspace) {
+      ierr = MatGetNearNullSpace(pc->pmat,&nullspace);CHKERRQ(ierr);
+    }
+    if (!nullspace) {
+      SETERRQ(PetscObjectComm((PetscObject)pc),PETSC_ERR_ARG_WRONGSTATE,"Matrix must have a set nullspace or near-nullspace to use PC_CR_TRIAL_NULLSPACE");
+    }
+    ierr = MatNullSpaceGetVecs(nullspace,&has_const,&nns,&nsvecs);CHKERRQ(ierr);
+    candidate_trials=nns+(has_const ? 1 : 0);
+    break;
+  default:
+    SETERRQ(PetscObjectComm((PetscObject)pc),PETSC_ERR_ARG_WRONGSTATE,"Unsupported trial type.");
+    break;
+  }
   ierr = VecDuplicate(s,&e);CHKERRQ(ierr);
   ierr = VecDuplicate(s,&eold);CHKERRQ(ierr);
   ierr = VecDuplicate(s,&x);CHKERRQ(ierr);
@@ -71,11 +99,25 @@ PetscErrorCode  PCCRGetCandidateEstimates_CR(PC pc,Vec s,PetscReal *convest)
   ierr = PetscRandomSetFromOptions(rand);CHKERRQ(ierr);
   ierr = VecSet(s,0.);CHKERRQ(ierr);
 
-  for (i=0;i<cr->candidate_trials;i++) {
-    /* set the vector to be randomly between 1/2 and 1 */
-    ierr = VecSetRandom(e,rand);CHKERRQ(ierr);
-    ierr = VecScale(e,0.25);CHKERRQ(ierr);
-    ierr = VecShift(e,0.75);CHKERRQ(ierr);
+  for (i=0;i<candidate_trials;i++) {
+    switch (cr->trial_type) {
+    case (PC_CR_TRIAL_CONSTANT):
+      ierr = VecSet(e,1.0);CHKERRQ(ierr);
+      break;
+    case (PC_CR_TRIAL_RANDOM):
+      /* set the vector to be randomly between 1/2 and 1 */
+      ierr = VecSetRandom(e,rand);CHKERRQ(ierr);
+      ierr = VecScale(e,0.25);CHKERRQ(ierr);
+      ierr = VecShift(e,0.75);CHKERRQ(ierr);
+      break;
+    case (PC_CR_TRIAL_NULLSPACE):
+      if (i==nns && has_const) {
+        ierr = VecSet(e,1.0);CHKERRQ(ierr);
+      } else {
+        ierr = VecCopy(nsvecs[i],e);CHKERRQ(ierr);
+      }
+      break;
+    }
     if (cr->inj) {
       ierr = MatMult(cr->inj,e,cvec);CHKERRQ(ierr);
       ierr = MatMultTranspose(cr->inj,cvec,eold);CHKERRQ(ierr);
@@ -207,6 +249,7 @@ static PetscErrorCode PCSetFromOptions_CR(PC pc)
   PetscFunctionBegin;
   ierr = PetscOptionsHead("Compatible Relaxation options");CHKERRQ(ierr);
   ierr = PetscOptionsInt("-pc_cr_candidate_sweeps","Number of smoother sweeps in candidate measure computation","",cr->candidate_sweeps,&cr->candidate_sweeps,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsEnum("-pc_cr_trial_type","Type of trial vectors to use","PCCRTrialType",PCCRTrialTypes,(PetscEnum)cr->trial_type,(PetscEnum*)&cr->trial_type,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-pc_cr_candidate_trials","Number of trial vectors in candidate measure computation","",cr->candidate_trials,&cr->candidate_trials,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-pc_cr_candidate_view","Show candidate measures during PCView()","",cr->candidate_view,&cr->candidate_view,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-pc_cr_use_dm","Show candidate measures during PCView()","",cr->trydm,&cr->trydm,NULL);CHKERRQ(ierr);
@@ -246,6 +289,17 @@ PetscErrorCode PCCRGetInjection_CR(PC pc,Mat *inj)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PCCRSetTrialType_CR"
+PetscErrorCode PCCRSetTrialType_CR(PC pc,PCCRTrialType tt)
+{
+  PC_CR          *cr = (PC_CR*)pc->data;
+
+  PetscFunctionBegin;
+  cr->trial_type = tt;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PCCRSetInjection"
 PetscErrorCode  PCCRSetInjection(PC pc,Mat inj)
 {
@@ -266,8 +320,20 @@ PetscErrorCode  PCCRGetInjection(PC pc,Mat *inj)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(pc,PC_CLASSID,1);
-  PetscValidHeaderSpecific(inj,MAT_CLASSID,2);
   ierr = PetscTryMethod(pc,"PCCRGetInjection_C",(PC,Mat*),(pc,inj));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
+#define __FUNCT__ "PCCRSetTrialType"
+PetscErrorCode  PCCRSetTrialType(PC pc,PCCRTrialType tt)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(pc,PC_CLASSID,1);
+  ierr = PetscTryMethod(pc,"PCCRSetTrialType_C",(PC,PCCRTrialType),(pc,tt));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -389,5 +455,6 @@ PETSC_EXTERN PetscErrorCode PCCreate_CR(PC pc)
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRSetInjection_C",PCCRSetInjection_CR);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRGetInjection_C",PCCRGetInjection_CR);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRGetCandidateEstimates_C",PCCRGetCandidateEstimates_CR);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRSetTrialType_C",PCCRSetTrialType_CR);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
