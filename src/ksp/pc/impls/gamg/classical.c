@@ -145,7 +145,7 @@ PetscErrorCode PCGAMGGraph_Classical(PC pc,const Mat A,Mat *G)
     gidx = 0;
     /* create the local and global sparsity patterns */
     for (c = 0; c < ncols; c++) {
-      if (PetscRealPart(-rval[c]) > gamg->threshold*PetscRealPart(Amax[r-s])) {
+      if (PetscRealPart(-rval[c]) > gamg->threshold*PetscRealPart(Amax[r-s]) || rcol[c] == r) {
         if (rcol[c] < f && rcol[c] >= s) {
           lidx++;
         } else {
@@ -171,7 +171,7 @@ PetscErrorCode PCGAMGGraph_Classical(PC pc,const Mat A,Mat *G)
     idx = 0;
     for (c = 0; c < ncols; c++) {
       /* classical strength of connection */
-      if (PetscRealPart(-rval[c]) > gamg->threshold*PetscRealPart(Amax[r-s])) {
+      if (PetscRealPart(-rval[c]) > gamg->threshold*PetscRealPart(Amax[r-s]) || rcol[c] == r) {
         gcol[idx] = rcol[c];
         gval[idx] = rval[c];
         idx++;
@@ -637,8 +637,8 @@ PetscErrorCode PCGAMGTruncateProlongator_Private(PC pc,Mat *P)
         ptot_neg += PetscRealPart(pval[j]);
       }
     }
-    if (PetscAbsScalar(pthresh_pos) > 0.) ptot_pos /= pthresh_pos;
-    if (PetscAbsScalar(pthresh_neg) > 0.) ptot_neg /= pthresh_neg;
+    if (PetscAbsReal(pthresh_pos) > 0.) ptot_pos /= pthresh_pos;
+    if (PetscAbsReal(pthresh_neg) > 0.) ptot_neg /= pthresh_neg;
     idx=0;
     for (j=0;j<ncols;j++) {
       if (PetscRealPart(pval[j]) >= pmax_pos*cls->interp_threshold) {
@@ -940,7 +940,7 @@ PetscErrorCode PCGAMGProlongator_Classical_Standard(PC pc, const Mat A, const Ma
 
 #undef __FUNCT__
 #define __FUNCT__ "PCGAMGOptProl_Classical_Jacobi"
-PetscErrorCode PCGAMGOptProl_Classical_Jacobi(PC pc,Mat A,Mat *P)
+PetscErrorCode PCGAMGOptProl_Classical_Jacobi(PC pc,const Mat A,Mat *P)
 {
 
   PetscErrorCode    ierr;
@@ -1039,7 +1039,7 @@ PetscErrorCode PCGAMGSetFromOptions_Classical(PC pc)
 
   PetscFunctionBegin;
   ierr = PetscOptionsHead("GAMG-Classical options");CHKERRQ(ierr);
-  ierr = PetscOptionsList("-pc_gamg_classical_type","Type of Classical AMG prolongation",
+  ierr = PetscOptionsFList("-pc_gamg_classical_type","Type of Classical AMG prolongation",
                           "PCGAMGClassicalSetType",PCGAMGClassicalProlongatorList,cls->prolongtype, tname, sizeof(tname), &flg);CHKERRQ(ierr);
   if (flg) {
     ierr = PCGAMGClassicalSetType(pc,tname);CHKERRQ(ierr);
@@ -1539,7 +1539,7 @@ PetscErrorCode  PCCreateGAMG_Classical(PC pc)
   }
 
   /* create sub context for SA */
-  ierr = PetscNewLog(pc, PC_GAMG_Classical, &pc_gamg_classical);CHKERRQ(ierr);
+  ierr = PetscNewLog(pc,&pc_gamg_classical);CHKERRQ(ierr);
   pc_gamg->subctx = pc_gamg_classical;
   pc->ops->setfromoptions = PCGAMGSetFromOptions_Classical;
   /* reset does not do anything; setup not virtual */
