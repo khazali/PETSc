@@ -236,9 +236,9 @@ static PetscErrorCode PCDestroy_CR(PC pc)
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRSetInjection_C",NULL);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRGetInjection_C",NULL);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRGetCandidateEstimates_C",NULL);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)pc,"PCCRSetTrialType_C",NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-
 #undef __FUNCT__
 #define __FUNCT__ "PCSetFromOptions_CR"
 static PetscErrorCode PCSetFromOptions_CR(PC pc)

@@ -34,6 +34,8 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
   Mat              inj;
   PetscReal        smax;
   PetscReal        convfact,convgoal=cr->convgoal,abstol=cr->abstol,entrythreshold=cr->entrythreshold,maxratio=cr->maxratio;
+  PetscInt         glob_ncoarse=0,msize=0;
+
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(coarse,MAT_COARSEN_CLASSID,1);
@@ -54,7 +56,7 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
   ierr = PetscMalloc1(me-ms,&state);CHKERRQ(ierr);
   ierr = PetscMalloc1(me-ms,&cidx);CHKERRQ(ierr);
   ncoarse = 0;
-
+  ierr = MatGetSize(mat,&msize,NULL);CHKERRQ(ierr);
   for (i=0;i<me-ms;i++) {
     state[i] = -1;
   }
@@ -64,10 +66,10 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
     ierr = PCCRGetCandidateEstimates(pccr,s,&convfact);CHKERRQ(ierr);
     ierr = VecMax(s,NULL,&smax);CHKERRQ(ierr);
     if (cr->verbose) {
-      ierr = PetscPrintf(PetscObjectComm((PetscObject)coarse),"%d out of %d: convergence estimate: %f\n",idx,me-ms,convfact);CHKERRQ(ierr);
+      ierr = PetscPrintf(PetscObjectComm((PetscObject)coarse),"%d out of %d: convergence estimate: %f\n",glob_ncoarse,msize,convfact);CHKERRQ(ierr);
     }
     if (convfact < convgoal) break;
-    if (ncoarse >= maxratio*(me-ms)) break;
+    if (glob_ncoarse >= maxratio*(msize)) break;
     /* sort the indices by badness */
     ierr = VecGetArray(s,&sarray);CHKERRQ(ierr);
     for (i=0;i<me-ms;i++) {
@@ -93,11 +95,9 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
         }
         ierr = MatRestoreRow(mat,idx+ms,&mncol,&mcol,NULL);CHKERRQ(ierr);
         ncoarse++;
-        if (ncoarse >= maxratio*(me-ms)) {
-          break;
-        }
       }
     }
+    ierr = MPI_Allreduce(&ncoarse,&glob_ncoarse,1,MPIU_INT,MPIU_SUM,PetscObjectComm((PetscObject)coarse));CHKERRQ(ierr);
     idx=0;
     for (i=0;i<me-ms;i++) {
       if (state[i] == -2) {
@@ -115,7 +115,7 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
     ierr = PCDestroy(&pccr);CHKERRQ(ierr);
 
     ierr = PCCreate(PetscObjectComm((PetscObject)coarse),&pccr);CHKERRQ(ierr);
-    ierr = PCAppendOptionsPrefix(pccr,"mat_coarsen_cr_");CHKERRQ(ierr);
+    ierr = PCAppendOptionsPrefix(pccr,"coarsen_");CHKERRQ(ierr);
     ierr = PCSetType(pccr,PCCR);CHKERRQ(ierr);
     ierr = PCSetOperators(pccr,mat,mat,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
     ierr = PCCRSetInjection(pccr,inj);CHKERRQ(ierr);
