@@ -18,17 +18,17 @@ PetscErrorCode PCGAMGGeneralizedRayleighQuotient(PetscInt l,Mat *A,Mat *P,Vec *v
     ierr = MatMultTranspose(P[i],v[i-1],v[i]);CHKERRQ(ierr);
   }
   ierr = VecDot(v[level],w,&vtv);CHKERRQ(ierr);
-  *rq = vtAv/PetscRealPart(vtv);
+  if (rq) {*rq = vtAv/PetscRealPart(vtv);}
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode PCGAMGGetNearNullspace(PC pc,PetscInt l,Mat *A,Mat *P,PetscInt n,PetscScalar ***lambdas,Vec ***ws)
+PetscErrorCode PCGAMGGetNearNullspace(PC pc,PetscInt l,Mat *A,Mat *P,PetscInt n,PetscScalar **lambdas,Vec **ws)
 {
-  PetscInt       h,i,j,k;
+  PetscInt       h,i,j,k,size;
   PetscErrorCode ierr;
   KSP            *ksp; /* smoothers */
   Vec            **w,*v;
-  PetscScalar    **lambda,lambdaold,lambdaerr;
+  PetscScalar    **lambda,lambdaold,lambdaerr,lambdainit;
   PC             spc;
   const char     *prefix;
   PetscRandom    rand;
@@ -43,7 +43,7 @@ PetscErrorCode PCGAMGGetNearNullspace(PC pc,PetscInt l,Mat *A,Mat *P,PetscInt n,
     ierr = PetscMalloc1(n,&lambda[i]);CHKERRQ(ierr);
     ierr = MatGetVecs(A[i],NULL,&v[i]);CHKERRQ(ierr);
     ierr = VecDuplicateVecs(v[i],n,&w[i]);CHKERRQ(ierr);
-    ierr = KSPCreate(PetscObjectComm((PetscObject)pc),&ksp[i]);CHKERRQ(ierr);
+    ierr = KSPCreate(PetscObjectComm((PetscObject)A[i]),&ksp[i]);CHKERRQ(ierr);
     ierr = KSPSetOperators(ksp[i],A[i],A[i],SAME_NONZERO_PATTERN);
     if (i==l-1) {
       ierr = KSPSetType(ksp[i],KSPGMRES);CHKERRQ(ierr);
@@ -72,12 +72,15 @@ PetscErrorCode PCGAMGGetNearNullspace(PC pc,PetscInt l,Mat *A,Mat *P,PetscInt n,
         ierr = VecNormalize(w[i][j],NULL);CHKERRQ(ierr);
       }
       ierr = PCGAMGGeneralizedRayleighQuotient(l,A,P,v,w[i][j],i,&lambda[i][j]);CHKERRQ(ierr);
-      PetscInt    size;
       ierr = VecGetSize(w[i][j],&size);CHKERRQ(ierr);
-      /* ierr = PetscPrintf(PETSC_COMM_WORLD,"[%d] eigenvalue %d: %12.14g\n",size,j,lambda[i][j]);CHKERRQ(ierr); */
-      for (h=0;h<100;h++) {
-        /* smooth */
-        ierr = VecScale(v[i],lambda[i][j]);CHKERRQ(ierr);
+      lambdainit=lambda[i][j];
+      for (h=0;h<1000;h++) {
+        /* smooth -- RQ iteration starting from 0 eigenvalue for the coarse, inverse iteration with constant offset for the fine */
+        if (i == l-1) {
+          ierr = VecScale(v[i],lambda[i][j]);CHKERRQ(ierr);
+        } else {
+          ierr = VecScale(v[i],lambdainit);CHKERRQ(ierr);
+        }
         ierr = KSPSetInitialGuessNonzero(ksp[i],PETSC_TRUE);CHKERRQ(ierr);
         ierr = KSPSolve(ksp[i],v[i],w[i][j]);CHKERRQ(ierr);
         /* orthogonalize against the previously computed eigenvectors */
@@ -92,7 +95,6 @@ PetscErrorCode PCGAMGGetNearNullspace(PC pc,PetscInt l,Mat *A,Mat *P,PetscInt n,
         lambdaerr = PetscAbsScalar(lambdaold-lambda[i][j]);
         if (PetscAbsScalar(lambda[i][j]) > 1e-12) lambdaerr /= PetscAbsScalar(lambda[i][j]);
         if (PetscAbsScalar(lambdaerr) < 1e-3) break;
-        /* ierr = PetscPrintf(PETSC_COMM_WORLD,"[%d] eigenvalue %d: %12.14g\n",size,j,lambda[i][j]);CHKERRQ(ierr); */
       }
       if (i==l-1) {
         ierr = PetscPrintf(PETSC_COMM_WORLD,"[%d] eigenvalue %d: %12.14g\n",size,j,lambda[i][j]);CHKERRQ(ierr);
@@ -110,19 +112,23 @@ PetscErrorCode PCGAMGGetNearNullspace(PC pc,PetscInt l,Mat *A,Mat *P,PetscInt n,
   }
   /* destroy */
   for (i=0;i<l;i++) {
-    ierr = PetscFree(lambda[i]);CHKERRQ(ierr);
-    /* ierr = VecDestroyVecs(n,&w[i]);CHKERRQ(ierr); */
+    if (i != 0 && lambdas) {
+      ierr = PetscFree(lambda[i]);CHKERRQ(ierr);
+    }
+    if (i != 0 && ws) {
+      ierr = VecDestroyVecs(n,&w[i]);CHKERRQ(ierr);
+    }
     ierr = VecDestroy(&v[i]);CHKERRQ(ierr);
     ierr = KSPDestroy(&ksp[i]);CHKERRQ(ierr);
   }
   ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
-  ierr = PetscFree(lambda);CHKERRQ(ierr);
   ierr = PetscFree(v);CHKERRQ(ierr);
-  /* ierr = PetscFree(w);CHKERRQ(ierr); */
   ierr = PetscFree(ksp);CHKERRQ(ierr);
 
-  *lambdas = lambda;
-  *ws = w;
+  *lambdas = lambda[0];
+  *ws = w[0];
+  ierr = PetscFree(w);CHKERRQ(ierr);
+  ierr = PetscFree(lambda);CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }

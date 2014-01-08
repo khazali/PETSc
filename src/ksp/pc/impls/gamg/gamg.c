@@ -1380,7 +1380,13 @@ PetscErrorCode PCSetFromOptions_GAMG(PC pc)
                            pc_gamg->bs_sweeps,
                            &pc_gamg->bs_sweeps,
                            NULL);CHKERRQ(ierr);
-
+    /* -pc_gamg_bootstrap_mgeig */
+    ierr = PetscOptionsBool("-pc_gamg_bootstrap_mgeig",
+                            "Use the multigrid eigensolver in bootstrapping",
+                            "",
+                            pc_gamg->bs_mgeig,
+                            &pc_gamg->bs_mgeig,
+                            NULL);CHKERRQ(ierr);
 
     /* -pc_gamg_eigtarget */
     ierr = PetscOptionsRealArray("-pc_gamg_eigtarget","Target eigenvalue range as fraction of estimated maximum eigenvalue","PCGAMGSetEigTarget",pc_gamg->eigtarget,&two,NULL);CHKERRQ(ierr);

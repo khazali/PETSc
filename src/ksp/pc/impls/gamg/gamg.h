@@ -43,6 +43,7 @@ typedef struct gamg_TAG {
   PetscBool bootstrap;
   PetscInt  bs_nv;
   PetscInt  bs_sweeps;
+  PetscBool bs_mgeig;
 
   struct _PCGAMGOps *ops;
   char *gamg_type_name;

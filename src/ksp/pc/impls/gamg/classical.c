@@ -1143,6 +1143,8 @@ PetscErrorCode PCGAMGClassicalInjection(PC pc,Mat P,VecScatter *inj)
   PetscFunctionReturn(0);
 }
 
+
+
 #undef __FUNCT__
 #define __FUNCT__ "PCGAMGClassicalBootstrapProlongator"
 PetscErrorCode PCGAMGClassicalBootstrapProlongator(PC pc,const Mat A,Mat *aP,PetscInt nv,Vec *vs)
@@ -1402,6 +1404,8 @@ PetscErrorCode PCGAMGClassicalBootstrapProlongator(PC pc,const Mat A,Mat *aP,Pet
   PetscFunctionReturn(0);
 }
 
+PETSC_EXTERN PetscErrorCode PCGAMGGetNearNullspace(PC,PetscInt,Mat *,Mat *,PetscInt,PetscScalar **,Vec **);
+
 #undef __FUNCT__
 #define __FUNCT__ "PCGAMGBootstrap_Classical"
 PetscErrorCode PCGAMGBootstrap_Classical(PC pc,PetscInt nlevels,Mat *A,Mat *P)
@@ -1420,7 +1424,7 @@ PetscErrorCode PCGAMGBootstrap_Classical(PC pc,PetscInt nlevels,Mat *A,Mat *P)
   PetscInt          rs,re,ncols,ncolsmax;
   MatNullSpace      nullspace,nearspace;
   PetscInt          nnull,nnear,nconstant;
-  PetscBool         constant;
+  PetscBool         constant=PETSC_FALSE;
   const Vec         *vnull,*vnear;
 
   PetscFunctionBegin;
@@ -1440,11 +1444,24 @@ PetscErrorCode PCGAMGBootstrap_Classical(PC pc,PetscInt nlevels,Mat *A,Mat *P)
     nv = 2*ncolsmax;
   }
 
+  /* discover nv vectors in the near nullspace and set it on all the levels */
+  if (pc_gamg->bs_mgeig) {
+    PetscScalar  *evalues;
+    Vec          *evecs;
+    MatNullSpace ns;
+    ierr = PCGAMGGetNearNullspace(pc,nlevels,A,P,nv,&evalues,&evecs);CHKERRQ(ierr);
+    ierr = MatNullSpaceCreate(PetscObjectComm((PetscObject)A[0]),PETSC_FALSE,nv,evecs,&ns);CHKERRQ(ierr);
+    ierr = MatSetNearNullSpace(A[0],ns);CHKERRQ(ierr);
+    ierr = VecDestroyVecs(nv,&evecs);CHKERRQ(ierr);
+    ierr = MatNullSpaceDestroy(&ns);CHKERRQ(ierr);
+    ierr = PetscFree(evalues);CHKERRQ(ierr);
+  }
+
   ierr = MatGetNullSpace(A[0],&nullspace);CHKERRQ(ierr);
   ierr = MatGetNearNullSpace(A[0],&nearspace);CHKERRQ(ierr);
   nnull=0;
   nnear=0;
-  nconstant=1;
+  nconstant=0;
   if (nullspace) {
     ierr = MatNullSpaceGetVecs(nullspace,&constant,&nnull,&vnull);CHKERRQ(ierr);
   }
