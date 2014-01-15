@@ -486,6 +486,7 @@ struct _MatColoringOps {
 struct _p_MatColoring {
   PETSCHEADER(struct _MatColoringOps);
   Mat        mat;
+  Mat        matt;      /* transpose matrix needed for parallel distance-2 */
   PetscInt   dist;      /* distance of the coloring */
   PetscInt   maxcolors; /* the maximum number of colors returned, maxcolors=1 for MIS */
   void       *data;     /* inner context */

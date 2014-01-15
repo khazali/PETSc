@@ -82,6 +82,7 @@ PetscErrorCode MatColoringCreate(Mat m,MatColoring *mcptr)
                            "MatColoring",PetscObjectComm((PetscObject)m),MatColoringDestroy, MatColoringView);CHKERRQ(ierr);
   ierr = PetscObjectReference((PetscObject)m);CHKERRQ(ierr);
   mc->mat       = m;
+  mc->matt      = NULL;
   mc->dist      = 2; /* default to Jacobian computation case */
   mc->maxcolors = 0; /* no maximum */
   *mcptr        = mc;
@@ -113,6 +114,7 @@ PetscErrorCode MatColoringDestroy(MatColoring *mc)
   PetscFunctionBegin;
   if (--((PetscObject)(*mc))->refct > 0) {*mc = 0; PetscFunctionReturn(0);}
   ierr = MatDestroy(&(*mc)->mat);CHKERRQ(ierr);
+  ierr = MatDestroy(&(*mc)->matt);CHKERRQ(ierr);
   if ((*mc)->ops->destroy) {ierr = (*((*mc)->ops->destroy))(*mc);CHKERRQ(ierr);}
   ierr = PetscHeaderDestroy(mc);CHKERRQ(ierr);
   PetscFunctionReturn(0);

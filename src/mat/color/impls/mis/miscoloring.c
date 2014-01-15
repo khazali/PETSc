@@ -349,6 +349,8 @@ PetscErrorCode MISCompute_Private(MatColoring mc,ISColoringValue curcolor,PetscI
   PetscFunctionReturn(0);
 }
 
+PETSC_EXTERN PetscErrorCode MatColoringComputeMIS(MatColoring,PetscReal*,IS*);
+
 #undef __FUNCT__
 #define __FUNCT__ "MatColoringApply_MIS"
 PETSC_EXTERN PetscErrorCode MatColoringApply_MIS(MatColoring mc,ISColoring *iscoloring)
@@ -358,6 +360,7 @@ PETSC_EXTERN PetscErrorCode MatColoringApply_MIS(MatColoring mc,ISColoring *isco
   ISColoringValue curcolor,finalcolor;
   ISColoringValue *color;
   PetscInt        i,nadded,nadded_total,ncolstotal,ncols;
+  IS              curis;
 
   PetscFunctionBegin;
   nadded=1;
@@ -367,6 +370,8 @@ PETSC_EXTERN PetscErrorCode MatColoringApply_MIS(MatColoring mc,ISColoring *isco
   ierr = MISInitialize_Private(mc);CHKERRQ(ierr);
   color = mis->color;
   ierr = MISCreateWeights_Private(mc);CHKERRQ(ierr);
+  ierr = MatColoringComputeMIS(mc,mis->wts,&curis);CHKERRQ(ierr);
+  ierr = ISDestroy(&curis);CHKERRQ(ierr);
   curcolor=0;
   for (i=0;(i<mc->maxcolors || mc->maxcolors == 0) && (nadded_total < ncolstotal);i++) {
     ierr = MISCompute_Private(mc,curcolor,&nadded);CHKERRQ(ierr);
