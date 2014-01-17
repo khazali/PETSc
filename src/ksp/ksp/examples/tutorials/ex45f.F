@@ -7,6 +7,7 @@
 #include <finclude/petscpc.h>
 #include <finclude/petscksp.h>
 #include <finclude/petscdm.h>
+#include <petscdm.h>
 #include <finclude/petscdmda.h>
 
        PetscInt is,js,iw,jw
@@ -21,8 +22,8 @@
 
        call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
        call KSPCreate(MPI_COMM_WORLD,ksp,ierr)
-       call DMDACreate2D(MPI_COMM_WORLD, DMDA_BOUNDARY_NONE,            &
-     &    DMDA_BOUNDARY_NONE, DMDA_STENCIL_STAR,-three,-three,          &
+       call DMDACreate2D(MPI_COMM_WORLD, DM_BOUNDARY_NONE,              &
+     &    DM_BOUNDARY_NONE, DMDA_STENCIL_STAR,-three,-three,            &
      &    PETSC_DECIDE,PETSC_DECIDE,one,one, PETSC_NULL_INTEGER,        &
      &    PETSC_NULL_INTEGER, dm, ierr)
        call KSPSetDM(ksp,dm,ierr)

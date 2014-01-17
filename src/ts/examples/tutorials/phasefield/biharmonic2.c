@@ -24,6 +24,7 @@ Evolve the Cahn-Hillard equations:
 
 
 */
+#include <petscdm.h>
 #include <petscdmda.h>
 #include <petscts.h>
 #include <petscdraw.h>
@@ -77,7 +78,7 @@ int main(int argc,char **argv)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create distributed array (DMDA) to manage parallel grid and vectors
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  ierr = DMDACreate1d(PETSC_COMM_WORLD, DMDA_BOUNDARY_PERIODIC, -10,2,2,NULL,&da);CHKERRQ(ierr);
+  ierr = DMDACreate1d(PETSC_COMM_WORLD, DM_BOUNDARY_PERIODIC, -10,2,2,NULL,&da);CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,0,"Biharmonic heat equation: w = -kappa*u_xx");CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,1,"Biharmonic heat equation: u");CHKERRQ(ierr);
   ierr = DMDAGetInfo(da,0,&Mx,0,0,0,0,0,0,0,0,0,0,0);CHKERRQ(ierr);
@@ -252,7 +253,7 @@ PetscErrorCode FormFunction(TS ts,PetscReal ftime,Vec X,Vec Xdot,Vec F,void *ptr
         break;
       case 3: /* logarithmic */
         if (PetscRealPart(x[i].u) < -1.0 + 2.0*ctx->tol)     f[i].w += .5*ctx->theta*(-PetscLogReal(ctx->tol) + PetscLogScalar((1.0-x[i].u)/2.0)) + ctx->theta_c*x[i].u;
-        else if (PetscRealPart(x[i].u) > 1.0 - 2.0*ctx->tol) f[i].w += .5*ctx->theta*(-PetscLogScalar((1.0+x[i].u)/2.0) + PetscLogScalar(ctx->tol)) + ctx->theta_c*x[i].u;
+        else if (PetscRealPart(x[i].u) > 1.0 - 2.0*ctx->tol) f[i].w += .5*ctx->theta*(-PetscLogScalar((1.0+x[i].u)/2.0) + PetscLogReal(ctx->tol)) + ctx->theta_c*x[i].u;
         else                                                 f[i].w += .5*ctx->theta*(-PetscLogScalar((1.0+x[i].u)/2.0) + PetscLogScalar((1.0-x[i].u)/2.0)) + ctx->theta_c*x[i].u;
         break;
       }

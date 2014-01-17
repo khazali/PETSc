@@ -12,6 +12,7 @@ static const char help[] = "1D nonequilibrium radiation diffusion with Saha ioni
 */
 
 #include <petscts.h>
+#include <petscdm.h>
 #include <petscdmda.h>
 
 typedef enum {BC_DIRICHLET,BC_NEUMANN,BC_ROBIN} BCType;
@@ -107,7 +108,7 @@ static void RDMaterialEnergy_Saha(RD rd,const RDNode *n,PetscScalar *inEm,RDNode
               chi_t = -chi / T * T_t,
               a     = 1.,
               a_t   = 0,
-              b     = 4. * rd->m_p / rd->rho * pow(2. * PETSC_PI * rd->m_e * rd->I_H / PetscSqr(rd->h),1.5) * PetscExpScalar(-chi) * PetscPowScalar(chi,1.5), /* Eq 7 */
+              b     = 4. * rd->m_p / rd->rho * PetscPowScalar(2. * PETSC_PI * rd->m_e * rd->I_H / PetscSqr(rd->h),1.5) * PetscExpScalar(-chi) * PetscPowScalar(chi,1.5), /* Eq 7 */
               b_t   = -b*chi_t + 1.5*b/chi*chi_t,
               c     = -b,
               c_t   = -b_t;
@@ -788,7 +789,7 @@ static PetscErrorCode RDInitialState(RD rd,Vec X)
       x[i].T = RDRadiationTemperature(rd,x[i].E);
       break;
     case 3:
-      x[i].E = 7.56e-2 * rd->unit.Joule / pow(rd->unit.meter,3);
+      x[i].E = 7.56e-2 * rd->unit.Joule / PetscPowScalar(rd->unit.meter,3);
       x[i].T = RDRadiationTemperature(rd,x[i].E);
       break;
     default: SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"No initial state %D",rd->initial);
@@ -820,7 +821,7 @@ static PetscErrorCode RDView(RD rd,Vec X,PetscViewer viewer)
   ierr = DMDAGetInfo(rd->da,0, &M,0,0, 0,0,0, 0,0,0,0,0,0);CHKERRQ(ierr);
   ierr = DMDAGetOwnershipRanges(rd->da,&lx,0,0);CHKERRQ(ierr);
   ierr = PetscObjectGetComm((PetscObject)rd->da,&comm);CHKERRQ(ierr);
-  ierr = DMDACreate1d(comm,DMDA_BOUNDARY_NONE,M,1,0,lx,&da);CHKERRQ(ierr);
+  ierr = DMDACreate1d(comm,DM_BOUNDARY_NONE,M,1,0,lx,&da);CHKERRQ(ierr);
   ierr = DMDASetUniformCoordinates(da,0.,rd->L,0.,0.,0.,0.);CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,0,"T_rad");CHKERRQ(ierr);
   ierr = DMCreateGlobalVector(da,&Y);CHKERRQ(ierr);
@@ -974,7 +975,7 @@ static PetscErrorCode RDCreate(MPI_Comm comm,RD *inrd)
     switch (rd->initial) {
     case 1:
       rd->leftbc     = BC_ROBIN;
-      rd->Eapplied   = 4 * rd->unit.Joule / pow(rd->unit.meter,3.);
+      rd->Eapplied   = 4 * rd->unit.Joule / PetscPowRealInt(rd->unit.meter,3);
       rd->L          = 1. * rd->unit.meter;
       rd->beta       = 3.0;
       rd->gamma      = 3.0;
@@ -990,7 +991,7 @@ static PetscErrorCode RDCreate(MPI_Comm comm,RD *inrd)
       break;
     case 3:
       rd->leftbc     = BC_ROBIN;
-      rd->Eapplied   = 7.503e6 * rd->unit.Joule / pow(rd->unit.meter,3);
+      rd->Eapplied   = 7.503e6 * rd->unit.Joule / PetscPowRealInt(rd->unit.meter,3);
       rd->L          = 5. * rd->unit.meter;
       rd->beta       = 3.5;
       rd->gamma      = 3.5;
@@ -1024,20 +1025,20 @@ static PetscErrorCode RDCreate(MPI_Comm comm,RD *inrd)
   case 3:
     /* Table 2 */
     rd->rho     = 1.17e-3 * kilogram / (meter*meter*meter);                      /* density */
-    rd->K_R     = 7.44e18 * pow(meter,5.) * pow(Kelvin,3.5) * pow(kilogram,-2.); /*  */
-    rd->K_p     = 2.33e20 * pow(meter,5.) * pow(Kelvin,3.5) * pow(kilogram,-2.); /*  */
+    rd->K_R     = 7.44e18 * PetscPowRealInt(meter,5) * PetscPowReal(Kelvin,3.5) * PetscPowRealInt(kilogram,-2); /*  */
+    rd->K_p     = 2.33e20 * PetscPowRealInt(meter,5) * PetscPowReal(Kelvin,3.5) * PetscPowRealInt(kilogram,-2); /*  */
     rd->I_H     = 2.179e-18 * Joule;                                             /* Hydrogen ionization potential */
     rd->m_p     = 1.673e-27 * kilogram;                                          /* proton mass */
     rd->m_e     = 9.109e-31 * kilogram;                                          /* electron mass */
     rd->h       = 6.626e-34 * Joule * second;                                    /* Planck's constant */
     rd->k       = 1.381e-23 * Joule / Kelvin;                                    /* Boltzman constant */
     rd->c       = 3.00e8 * meter / second;                                       /* speed of light */
-    rd->sigma_b = 5.67e-8 * Watt * pow(meter,-2.) * pow(Kelvin,-4.);             /* Stefan-Boltzman constant */
+    rd->sigma_b = 5.67e-8 * Watt * PetscPowRealInt(meter,-2) * PetscPowRealInt(Kelvin,-4);             /* Stefan-Boltzman constant */
     rd->MaterialEnergy = RDMaterialEnergy_Saha;
     break;
   }
 
-  ierr = DMDACreate1d(comm,DMDA_BOUNDARY_NONE,-20,sizeof(RDNode)/sizeof(PetscScalar),1,NULL,&rd->da);CHKERRQ(ierr);
+  ierr = DMDACreate1d(comm,DM_BOUNDARY_NONE,-20,sizeof(RDNode)/sizeof(PetscScalar),1,NULL,&rd->da);CHKERRQ(ierr);
   ierr = DMDASetFieldName(rd->da,0,"E");CHKERRQ(ierr);
   ierr = DMDASetFieldName(rd->da,1,"T");CHKERRQ(ierr);
   ierr = DMDASetUniformCoordinates(rd->da,0.,1.,0.,0.,0.,0.);CHKERRQ(ierr);

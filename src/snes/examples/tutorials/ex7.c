@@ -38,6 +38,7 @@ T*/
 */
 #include <petscsys.h>
 #include <petscbag.h>
+#include <petscdm.h>
 #include <petscdmda.h>
 #include <petscsnes.h>
 
@@ -137,7 +138,7 @@ int main(int argc,char **argv)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create distributed array (DMDA) to manage parallel grid and vectors
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  ierr = DMDACreate2d(PETSC_COMM_WORLD, DMDA_BOUNDARY_NONE, DMDA_BOUNDARY_NONE,DMDA_STENCIL_BOX,-3,-3,PETSC_DECIDE,PETSC_DECIDE,3,1,NULL,NULL,&da);CHKERRQ(ierr);
+  ierr = DMDACreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE,DMDA_STENCIL_BOX,-3,-3,PETSC_DECIDE,PETSC_DECIDE,3,1,NULL,NULL,&da);CHKERRQ(ierr);
   ierr = DMDASetFieldName(da, 0, "ooblek");CHKERRQ(ierr);
   ierr = DMSetApplicationContext(da,&user);CHKERRQ(ierr);
   ierr = SNESSetDM(snes, (DM) da);CHKERRQ(ierr);
@@ -274,8 +275,8 @@ PetscErrorCode FormInitialGuess(SNES snes,Vec X,void *ctx)
         ierr = ExactSolution(i*hx, j*hy, &x[j][i]);CHKERRQ(ierr);
       } else {
         PetscReal temp = (PetscReal)(PetscMin(j,My-j-1))*hy;
-        x[j][i].u = temp1*sqrt(PetscMin((PetscReal)(PetscMin(i,Mx-i-1))*hx,temp));
-        x[j][i].v = temp1*sqrt(PetscMin((PetscReal)(PetscMin(i,Mx-i-1))*hx,temp));
+        x[j][i].u = temp1*PetscSqrtReal(PetscMin((PetscReal)(PetscMin(i,Mx-i-1))*hx,temp));
+        x[j][i].v = temp1*PetscSqrtReal(PetscMin((PetscReal)(PetscMin(i,Mx-i-1))*hx,temp));
         x[j][i].p = 1.0;
       }
 #endif

@@ -15,6 +15,7 @@ In the latter case, in order to avoid runtime errors during factorization, pleas
 
 #include <petscksp.h>
 #include <petscpc.h>
+#include <petscdm.h>
 #include <petscdmda.h>
 #include <petscblaslapack.h>
 #define DEBUG 0
@@ -305,7 +306,7 @@ static PetscErrorCode ComputeMapping(DomainData dd,ISLocalToGlobalMapping *isg2l
   PetscErrorCode         ierr;
   DM                     da;
   AO                     ao;
-  DMDABoundaryType       bx = DMDA_BOUNDARY_NONE,by = DMDA_BOUNDARY_NONE, bz = DMDA_BOUNDARY_NONE;
+  DMBoundaryType         bx = DM_BOUNDARY_NONE,by = DM_BOUNDARY_NONE, bz = DM_BOUNDARY_NONE;
   DMDAStencilType        stype = DMDA_STENCIL_BOX;
   ISLocalToGlobalMapping temp_isg2lmap;
   IS                     GlobalIS;
@@ -509,6 +510,7 @@ static PetscErrorCode GLLStuffs(DomainData dd, GLLData *glldata)
 
   glldata->rhoGL[0]=2.0/(PetscScalar)(p*(p+1.0));
   glldata->rhoGL[p]=glldata->rhoGL[0];
+  z2 = -1;                      /* Dummy value to avoid -Wmaybe-initialized */
   for (i=1; i<p; i++) {
     x  = glldata->zGL[i];
     z0 = 1.0;

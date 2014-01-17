@@ -46,6 +46,7 @@ T*/
      petscviewer.h - viewers               petscpc.h  - preconditioners
      petscksp.h   - linear solvers
 */
+#include <petscdm.h>
 #include <petscdmda.h>
 #include <petscsnes.h>
 
@@ -121,7 +122,7 @@ int main(int argc,char **argv)
   ierr = PetscOptionsGetInt(NULL,"-Nx",&Nx,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,"-Ny",&Ny,NULL);CHKERRQ(ierr);
   if (Nx*Ny != size && (Nx != PETSC_DECIDE || Ny != PETSC_DECIDE)) SETERRQ(PETSC_COMM_SELF,1,"Incompatible number of processors:  Nx * Ny != size");
-  ierr = DMDACreate2d(PETSC_COMM_WORLD, DMDA_BOUNDARY_NONE, DMDA_BOUNDARY_NONE,DMDA_STENCIL_STAR,user.mx,user.my,Nx,Ny,1,1,NULL,NULL,&user.da);CHKERRQ(ierr);
+  ierr = DMDACreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE,DMDA_STENCIL_STAR,user.mx,user.my,Nx,Ny,1,1,NULL,NULL,&user.da);CHKERRQ(ierr);
   ierr = SNESSetDM(snes,user.da);CHKERRQ(ierr);
   /*
      Visualize the distribution of the array across the processors
@@ -359,7 +360,7 @@ PetscErrorCode FormFunction(SNES snes,Vec X,Vec F,void *ptr)
       ux     = (x[row+1] - x[row-1])*half*hy;
       uxx    = (two*u - x[row-1] - x[row+1])*hydhx;
       uyy    = (two*u - x[row-gxm] - x[row+gxm])*hxdhy;
-      f[row] = uxx + uyy - kappa*ux - sc*exp(u);
+      f[row] = uxx + uyy - kappa*ux - sc*PetscExpScalar(u);
     }
   }
 
@@ -465,7 +466,7 @@ PetscErrorCode FormJacobian(SNES snes,Vec X,Mat *J,Mat *B,MatStructure *flag,voi
       /* interior grid points */
       v[0] = -hxdhy; col[0] = ltog[row - gxm];
       v[1] = -hydhx; col[1] = ltog[row - 1];
-      v[2] = two*(hydhx + hxdhy) - sc*lambda*exp(x[row]); col[2] = grow;
+      v[2] = two*(hydhx + hxdhy) - sc*lambda*PetscExpScalar(x[row]); col[2] = grow;
       v[3] = -hydhx; col[3] = ltog[row + 1];
       v[4] = -hxdhy; col[4] = ltog[row + gxm];
       ierr = MatSetValues(jac,1,&grow,5,col,v,INSERT_VALUES);CHKERRQ(ierr);
