@@ -295,6 +295,10 @@ ex60: ex60.o chkopts
 	-${CLINKER} -o ex60 ex60.o ${PETSC_KSP_LIB}
 	${RM} ex60.o
 
+ex61: ex61.o chkopts
+	-${CLINKER} -o ex61 ex61.o ${PETSC_KSP_LIB}
+	${RM} ex61.o
+
 #----------------------------------------------------------------------------
 runex1:
 	-@${MPIEXEC} -n 1 ./ex1 -ksp_monitor_short -ksp_gmres_cgs_refinement_type refine_always > ex1_1.tmp 2>&1;	  \
