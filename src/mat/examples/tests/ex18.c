@@ -14,12 +14,15 @@ int main(int argc,char **args)
   PetscMPIInt    rank,size;
   PetscErrorCode ierr;
   PetscScalar    v,v0,v1,v2,a0=0.1,a,rhsval, *boundary_values;
-  PetscBool      upwind = PETSC_FALSE, nonlocalBC;
+  PetscBool      upwind = PETSC_FALSE, nonlocalBC = PETSC_FALSE;
 
   ierr = PetscInitialize(&argc,&args,(char*)0,help);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
   ierr = MPI_Comm_size(PETSC_COMM_WORLD,&size);CHKERRQ(ierr);
   n = nlocal*size;
+
+  ierr = PetscOptionsGetInt(NULL, "-bs", &bs, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL, "-nonlocal_bc", &nonlocalBC, NULL);CHKERRQ(ierr);
 
   ierr = MatCreate(PETSC_COMM_WORLD,&A);CHKERRQ(ierr);
   ierr = MatSetSizes(A,PETSC_DECIDE,PETSC_DECIDE,m*n*bs,m*n*bs);CHKERRQ(ierr);
@@ -80,12 +83,16 @@ int main(int argc,char **args)
       ierr = PetscMalloc1(nboundary_nodes,&boundary_nodes);CHKERRQ(ierr);
       k = 0;
       for (i=size; i<m; i++,k++) {boundary_nodes[k] = n*i;};
-    } else {
+    } else if (rank < m) {
       nboundary_nodes = nlocal+1;
       ierr = PetscMalloc1(nboundary_nodes,&boundary_nodes);CHKERRQ(ierr);
       boundary_nodes[0] = rank*n;
       k = 1;
-    };
+    } else {
+      nboundary_nodes = nlocal;
+      ierr = PetscMalloc1(nboundary_nodes,&boundary_nodes);CHKERRQ(ierr);
+      k = 0;
+    }
     for (j=nlocal*rank; j<nlocal*(rank+1); j++,k++) {boundary_nodes[k] = j;};
   } else {
     /*version where boundary conditions are set by the node owners only */
