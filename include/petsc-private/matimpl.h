@@ -481,11 +481,13 @@ struct _MatColoringOps {
   PetscErrorCode (*setfromoptions)(MatColoring);
   PetscErrorCode (*view)(MatColoring,PetscViewer);
   PetscErrorCode (*apply)(MatColoring,ISColoring*);
+  PetscErrorCode (*graph)(MatColoring,Mat*);
 };
 
 struct _p_MatColoring {
   PETSCHEADER(struct _MatColoringOps);
   Mat        mat;
+  Mat        graph;     /* matrix that is actually treated; may be the block incidence matrix or the squared matrix */
   PetscInt   dist;      /* distance of the coloring */
   PetscInt   maxcolors; /* the maximum number of colors returned, maxcolors=1 for MIS */
   void       *data;     /* inner context */

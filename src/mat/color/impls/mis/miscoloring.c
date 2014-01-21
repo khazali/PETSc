@@ -1,351 +1,150 @@
 #include <petsc-private/matimpl.h>      /*I "petscmat.h"  I*/
-#include <petscsf.h>
+#include <../src/mat/impls/aij/seq/aij.h>
+#include <../src/mat/impls/aij/mpi/mpiaij.h>
 
-PETSC_EXTERN PetscErrorCode MatColoringCreateBipartiteGraph(MatColoring,PetscSF *,PetscSF *);
-PETSC_EXTERN PetscErrorCode MatColoringDiscoverBoundary(MatColoring,PetscSF,PetscSF,PetscInt *,PetscInt**);
-
-typedef struct {
-  PetscSF         etoc;
-  PetscSF         etor;
-  PetscReal       *wts;
-  PetscReal       *wtsinit;
-  PetscReal       *wtscol;
-  PetscReal       *wtsrow;
-  PetscReal       *wtsleafrow;
-  PetscReal       *wtsleafcol;
-  PetscReal       *wtsspread;
-  PetscInt        *state;
-  PetscInt        *statecol;
-  PetscInt        *staterow;
-  PetscInt        *stateleafcol;
-  PetscInt        *stateleafrow;
-  PetscInt        *statespread;
-  ISColoringValue *color;
-} MC_MIS;
+PETSC_EXTERN PetscErrorCode MatColoringGetLocalGraph_Private(Mat G,PetscInt **ia,PetscInt **ja,PetscInt **iao,PetscInt **jao);
+PETSC_EXTERN PetscErrorCode MatColoringGetDistanceKGraph(Mat M,PetscInt k,PetscInt **dia,Mat *Mk);
 
 #undef __FUNCT__
 #define __FUNCT__ "MISCreateWeights_Private"
-PetscErrorCode MISCreateWeights_Private(MatColoring mc)
+PetscErrorCode MISCreateWeights_Private(MatColoring mc,PetscReal *weights,PetscInt *lperm)
 {
-  MC_MIS         *mis = (MC_MIS *)mc->data;
+  Mat            G=mc->graph;
   PetscErrorCode ierr;
-  PetscInt       i,ncols;
+  PetscInt       i,ncols,s,e,n;
   PetscRandom    rand;
-  PetscReal      *wts = mis->wts;
   PetscReal      r;
-  const PetscInt *coldegrees;
-  PetscSF        etoc=mis->etoc;
 
   PetscFunctionBegin;
   /* each weight should be the degree plus a random perturbation */
-  ierr = PetscSFGetGraph(etoc,&ncols,NULL,NULL,NULL);CHKERRQ(ierr);
-  ierr = PetscSFComputeDegreeBegin(etoc,&coldegrees);CHKERRQ(ierr);
-  ierr = PetscSFComputeDegreeEnd(etoc,&coldegrees);CHKERRQ(ierr);
   ierr = PetscRandomCreate(PetscObjectComm((PetscObject)mc),&rand);CHKERRQ(ierr);
   ierr = PetscRandomSetFromOptions(rand);CHKERRQ(ierr);
-  for (i=0;i<ncols;i++) {
+  ierr = MatGetOwnershipRange(G,&s,&e);CHKERRQ(ierr);
+  n=e-s;
+  for (i=s;i<e;i++) {
+    ierr = MatGetRow(G,i,&ncols,NULL,NULL);CHKERRQ(ierr);
     ierr = PetscRandomGetValueReal(rand,&r);CHKERRQ(ierr);
-    wts[i] = coldegrees[i] + PetscAbsReal(r);
+    weights[i-s] = ncols + PetscAbsReal(r);
+    lperm[i-s] = i-s;
+    ierr = MatRestoreRow(G,i,&ncols,NULL,NULL);CHKERRQ(ierr);
   }
+  ierr = PetscSortRealWithPermutation(n,weights,lperm);CHKERRQ(ierr);
   ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "MISInitialize_Private"
-PetscErrorCode MISInitialize_Private(MatColoring mc)
+#define __FUNCT__ "MatColoringComputeMIS_Private"
+PETSC_EXTERN PetscErrorCode MatColoringComputeMIS_Private(MatColoring mc,PetscInt *lperm,PetscReal *weights,Vec wtvec,ISColoringValue curcolor,ISColoringValue *colors,PetscInt *ncurcolor)
 {
-  MC_MIS         *mis = (MC_MIS *)mc->data;
-  PetscInt       i,croot,cleaf,rroot,rleaf;
+  Mat            G=mc->graph,Gd,Go;
+  Mat_MPIAIJ     *aij = (Mat_MPIAIJ*)G->data;
   PetscErrorCode ierr;
+  PetscBool      isMPIAIJ,isSEQAIJ;
+  PetscInt       idx,i,j,ms,me,mn,msize;
+  PetscInt       nr,nr_global,nr_global_old;
+  Vec            ovec;
+  VecScatter     oscatter;
+  PetscScalar    *wtarray,*owtarray;
+  const PetscInt *cidx;
+  PetscInt       ncols;
+  PetscBool      isIn,isValid;
 
   PetscFunctionBegin;
-  ierr = MatColoringCreateBipartiteGraph(mc,&mis->etoc,&mis->etor);CHKERRQ(ierr);
-  ierr = PetscSFGetGraph(mis->etoc,&croot,&cleaf,NULL,NULL);CHKERRQ(ierr);
-  ierr = PetscSFGetGraph(mis->etor,&rroot,&rleaf,NULL,NULL);CHKERRQ(ierr);
-  ierr = PetscMalloc7(croot,&mis->wts,
-                      croot,&mis->wtsinit,
-                      croot,&mis->wtscol,
-                      rroot,&mis->wtsrow,
-                      croot,&mis->wtsspread,
-                      cleaf,&mis->wtsleafcol,
-                      rleaf,&mis->wtsleafrow);CHKERRQ(ierr);
-  ierr = PetscMalloc6(croot,&mis->state,
-                      croot,&mis->statecol,
-                      rroot,&mis->staterow,
-                      croot,&mis->statespread,
-                      cleaf,&mis->stateleafcol,
-                      rleaf,&mis->stateleafrow);CHKERRQ(ierr);
-  ierr = PetscMalloc(sizeof(ISColoringValue)*croot,&mis->color);CHKERRQ(ierr);
-  for (i=0;i<croot;i++) {
-    mis->color[i] = IS_COLORING_MAX;
-  }
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "MatColoringDestroy_MIS"
-PetscErrorCode MatColoringDestroy_MIS(MatColoring mc)
-{
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  ierr = PetscFree(mc->data);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "MISTearDown_Private"
-PetscErrorCode MISTearDown_Private(MatColoring mc)
-{
-  MC_MIS         *mis = (MC_MIS *)mc->data;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  ierr = PetscSFDestroy(&mis->etoc);CHKERRQ(ierr);
-  ierr = PetscSFDestroy(&mis->etor);CHKERRQ(ierr);
-  ierr = PetscFree7(mis->wts,
-                    mis->wtsinit,
-                    mis->wtscol,
-                    mis->wtsrow,
-                    mis->wtsspread,
-                    mis->wtsleafcol,
-                    mis->wtsleafrow);CHKERRQ(ierr);
-  ierr = PetscFree6(mis->state,
-                    mis->statecol,
-                    mis->staterow,
-                    mis->statespread,
-                    mis->stateleafcol,
-                    mis->stateleafrow);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "MISGreatestWeight_Private"
-PetscErrorCode MISGreatestWeight_Private(MatColoring mc,PetscReal *wtsin,PetscReal *maxwts)
-{
-  MC_MIS         *mis = (MC_MIS *)mc->data;
-  PetscInt       nrows,ncols,nentries,idx,dist=mc->dist;
-  PetscInt       i,j,k;
-  const PetscInt *degrees;
-  PetscReal      *ewts,*wtsrow=mis->wtsrow,*wtscol=mis->wtscol;
-  PetscSF        etoc=mis->etoc,etor=mis->etor;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  nentries=0;
-  ierr = PetscSFGetGraph(etor,&nrows,NULL,NULL,NULL);CHKERRQ(ierr);
-  ierr = PetscSFGetGraph(etoc,&ncols,NULL,NULL,NULL);CHKERRQ(ierr);
-  for (i=0;i<ncols;i++) {
-    wtscol[i] = wtsin[i];
-  }
-  for (k=0;k<dist;k++) {
-    if (k%2 == 1) {
-      /* second step takes the row weights to the column weights */
-      ierr = PetscLogEventBegin(Mat_Coloring_Comm,mc,0,0,0);CHKERRQ(ierr);
-      ierr = PetscSFComputeDegreeBegin(etor,&degrees);CHKERRQ(ierr);
-      ierr = PetscSFComputeDegreeEnd(etor,&degrees);CHKERRQ(ierr);
-      ierr = PetscLogEventEnd(Mat_Coloring_Comm,mc,0,0,0);CHKERRQ(ierr);
-      nentries=0;
-      for(i=0;i<nrows;i++) {
-          nentries += degrees[i];
-      }
-      idx=0;
-      ewts = mis->wtsleafrow;
-      for(i=0;i<nrows;i++) {
-        for (j=0;j<degrees[i];j++) {
-          ewts[idx] = wtsrow[i];
-          idx++;
-        }
-        wtscol[i]=0.;
-      }
-      if (idx != nentries) SETERRQ2(PetscObjectComm((PetscObject)mc),PETSC_ERR_NOT_CONVERGED,"Bad number of entries %d vs %d",idx,nentries);
-      ierr = PetscLogEventBegin(Mat_Coloring_Comm,mc,0,0,0);CHKERRQ(ierr);
-      ierr = PetscSFReduceBegin(etoc,MPI_DOUBLE,ewts,wtscol,MPI_MAX);CHKERRQ(ierr);
-      ierr = PetscSFReduceEnd(etoc,MPI_DOUBLE,ewts,wtscol,MPI_MAX);CHKERRQ(ierr);
-      ierr = PetscLogEventEnd(Mat_Coloring_Comm,mc,0,0,0);CHKERRQ(ierr);
-    } else {
-      /* first step takes the column weights to the row weights */
-      ierr = PetscSFComputeDegreeBegin(etoc,&degrees);CHKERRQ(ierr);
-      ierr = PetscSFComputeDegreeEnd(etoc,&degrees);CHKERRQ(ierr);
-      nentries=0;
-      for(i=0;i<ncols;i++) {
-          nentries += degrees[i];
-      }
-      ewts = mis->wtsleafcol;
-      idx=0;
-      for(i=0;i<ncols;i++) {
-        for (j=0;j<degrees[i];j++) {
-          ewts[idx] = wtscol[i];
-          idx++;
-        }
-        wtsrow[i]=0.;
-      }
-      if (idx != nentries) SETERRQ2(PetscObjectComm((PetscObject)mc),PETSC_ERR_NOT_CONVERGED,"Bad number of entries %d vs %d",idx,nentries);
-      ierr = PetscLogEventBegin(Mat_Coloring_Comm,mc,0,0,0);CHKERRQ(ierr);
-      ierr = PetscSFReduceBegin(etor,MPI_DOUBLE,ewts,wtsrow,MPI_MAX);CHKERRQ(ierr);
-      ierr = PetscSFReduceEnd(etor,MPI_DOUBLE,ewts,wtsrow,MPI_MAX);CHKERRQ(ierr);
-      ierr = PetscLogEventEnd(Mat_Coloring_Comm,mc,0,0,0);CHKERRQ(ierr);
-    }
-  }
-  if (mc->dist % 2 == 1) {
-    /* if it's an odd number of steps, copy out the square part */
-    for (i=0;i<ncols;i++) {
-      if (i < nrows) {
-        maxwts[i] = wtsrow[i];
-      } else {
-        maxwts[i] = 0;
-      }
-    }
+  ierr = PetscObjectTypeCompare((PetscObject)G,MATMPIAIJ,&isMPIAIJ);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject)G,MATSEQAIJ,&isSEQAIJ);CHKERRQ(ierr);
+  if (isMPIAIJ) {
+    Gd = aij->A;
+    Go = aij->B;
+    ovec = aij->lvec;
+    oscatter = aij->Mvctx;
+  } else if (isSEQAIJ) {
+    Gd = G;
+    Go = NULL;
+    ovec = NULL;
+    oscatter = NULL;
   } else {
-    for (i=0;i<ncols;i++) {
-      maxwts[i] = wtscol[i];
-    }
+    SETERRQ(PetscObjectComm((PetscObject)mc),PETSC_ERR_ARG_WRONGSTATE,"Only support for AIJ matrices");
   }
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "MISSpreadState_Private"
-PetscErrorCode MISSpreadState_Private(MatColoring mc,PetscInt *statein,PetscInt *stateout)
-{
-  MC_MIS         *mis = (MC_MIS *)mc->data;
-  PetscInt       nrows,ncols,nentries,idx,dist=mc->dist;
-  PetscInt       i,j,k;
-  const PetscInt *degrees;
-  PetscInt       *estate;
-  PetscInt       *staterow=mis->staterow,*statecol=mis->statecol;
-  PetscSF        etoc=mis->etoc,etor=mis->etor;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  ierr = PetscSFGetGraph(etoc,&ncols,NULL,NULL,NULL);CHKERRQ(ierr);
-  ierr = PetscSFGetGraph(etor,&nrows,NULL,NULL,NULL);CHKERRQ(ierr);
-  for (i=0;i<ncols;i++) {
-    statecol[i] = statein[i];
-  }
-  for (k=0;k<dist;k++) {
-    if (k%2 == 1) {
-      ierr = PetscLogEventBegin(Mat_Coloring_Comm,mc,0,0,0);CHKERRQ(ierr);
-      ierr = PetscSFComputeDegreeBegin(etor,&degrees);CHKERRQ(ierr);
-      ierr = PetscSFComputeDegreeEnd(etor,&degrees);CHKERRQ(ierr);
-      ierr = PetscLogEventEnd(Mat_Coloring_Comm,mc,0,0,0);CHKERRQ(ierr);
-      nentries=0;
-      for(i=0;i<nrows;i++) {
-        nentries += degrees[i];
-      }
-      estate = mis->stateleafrow;
-      idx=0;
-      for(i=0;i<nrows;i++) {
-        for (j=0;j<degrees[i];j++) {
-          estate[idx] = staterow[i];
-          idx++;
-        }
-        statecol[i]=0;
-      }
-      if (idx != nentries) SETERRQ2(PetscObjectComm((PetscObject)mc),PETSC_ERR_NOT_CONVERGED,"Bad number of entries %d vs %d",idx,nentries);
-      ierr = PetscLogEventBegin(Mat_Coloring_Comm,etoc,0,0,0);CHKERRQ(ierr);
-      ierr = PetscSFReduceBegin(etoc,MPIU_INT,estate,statecol,MPIU_MAX);CHKERRQ(ierr);
-      ierr = PetscSFReduceEnd(etoc,MPIU_INT,estate,statecol,MPIU_MAX);CHKERRQ(ierr);
-      ierr = PetscLogEventEnd(Mat_Coloring_Comm,etoc,0,0,0);CHKERRQ(ierr);
+  /* distance one coloring -- super simple, just do it greedily based upon locally-known weights */
+  ierr = MatGetOwnershipRange(G,&ms,&me);CHKERRQ(ierr);
+  ierr = MatGetSize(G,&msize,NULL);CHKERRQ(ierr);
+  mn = me-ms;
+  ierr = VecGetArray(wtvec,&wtarray);CHKERRQ(ierr);
+  for (i=0;i<mn;i++) {
+    if (colors[i]==IS_COLORING_MAX || colors[i]==curcolor) {
+      wtarray[i] = weights[i];
     } else {
-      ierr = PetscLogEventBegin(Mat_Coloring_Comm,etoc,0,0,0);CHKERRQ(ierr);
-      ierr = PetscSFComputeDegreeBegin(etoc,&degrees);CHKERRQ(ierr);
-      ierr = PetscSFComputeDegreeEnd(etoc,&degrees);CHKERRQ(ierr);
-      ierr = PetscLogEventEnd(Mat_Coloring_Comm,etoc,0,0,0);CHKERRQ(ierr);
-      nentries=0;
-      for(i=0;i<ncols;i++) {
-        nentries += degrees[i];
-      }
-      idx=0;
-      estate = mis->stateleafcol;
-      for(i=0;i<ncols;i++) {
-        for (j=0;j<degrees[i];j++) {
-          estate[idx] = statecol[i];
-          idx++;
+      wtarray[i] = 0.;
+    }
+  }
+  ierr = VecRestoreArray(wtvec,&wtarray);CHKERRQ(ierr);
+  nr_global=0;
+  nr_global_old=-1;
+  nr=0;
+  while (nr_global != nr_global_old) {
+    nr_global_old=nr_global;
+    nr_global=0;
+    /* transfer weights over by the scatter */
+    if (oscatter) {
+      ierr = VecScatterBegin(oscatter,wtvec,ovec,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+      ierr = VecScatterEnd(oscatter,wtvec,ovec,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    }
+    /* for each local row, check if it's the top weight in its neighbors, and alter the weights in the weight vector accordingly as things are eliminated*/
+    ierr = VecGetArray(wtvec,&wtarray);CHKERRQ(ierr);
+    if (ovec) {
+      ierr = VecGetArray(ovec,&owtarray);CHKERRQ(ierr);
+    }
+    for (i=0;i<mn;i++) {
+      idx = lperm[mn-i-1];
+      if (PetscRealPart(wtarray[idx]) > 0. && colors[idx]==IS_COLORING_MAX) {
+        isIn = PETSC_TRUE;
+        isValid = PETSC_TRUE;
+        ierr = MatGetRow(Gd,idx,&ncols,&cidx,NULL);CHKERRQ(ierr);
+        for (j=0;j<ncols;j++) {
+          if (PetscRealPart(wtarray[cidx[j]]) < 0) {
+            isValid=PETSC_FALSE;
+            isIn=PETSC_FALSE;
+            break;
+          }
+          if (PetscRealPart(wtarray[cidx[j]]) > PetscRealPart(wtarray[idx])) {
+            isIn = PETSC_FALSE;
+            break;
+          }
         }
-        staterow[i]=0;
-      }
-      if (idx != nentries) SETERRQ2(PetscObjectComm((PetscObject)mc),PETSC_ERR_NOT_CONVERGED,"Bad number of entries %d vs %d",idx,nentries);
-      ierr = PetscLogEventBegin(Mat_Coloring_Comm,etor,0,0,0);CHKERRQ(ierr);
-      ierr = PetscSFReduceBegin(etor,MPIU_INT,estate,staterow,MPI_MAX);CHKERRQ(ierr);
-      ierr = PetscSFReduceEnd(etor,MPIU_INT,estate,staterow,MPI_MAX);CHKERRQ(ierr);
-      ierr = PetscLogEventEnd(Mat_Coloring_Comm,etor,0,0,0);CHKERRQ(ierr);
-    }
-  }
-  if (mc->dist % 2 == 1) {
-    /* if it's an odd number of steps, copy out the square part */
-    for (i=0;i<ncols;i++) {
-      if (i < nrows) {
-        stateout[i] = staterow[i];
-      } else {
-        stateout[i] = 0;
-      }
-    }
-  } else {
-    for (i=0;i<ncols;i++) {
-      stateout[i] = statecol[i];
-    }
-  }
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "MISCompute_Private"
-PetscErrorCode MISCompute_Private(MatColoring mc,ISColoringValue curcolor,PetscInt *nadded_global)
-{
-  MC_MIS          *mis = (MC_MIS *)mc->data;
-  PetscInt        nr,nc,i;
-  PetscInt        *state=mis->state,*spreadstate=mis->statespread;
-  PetscErrorCode  ierr;
-  PetscReal       *wts=mis->wts,*wtsinit=mis->wtsinit,*wtsspread=mis->wtsspread;
-  PetscInt        nadded,misadded,misadded_global;
-  PetscSF         etoc=mis->etoc,etor=mis->etor;
-  ISColoringValue *colors = mis->color;
-
-  PetscFunctionBegin;
-  nadded=0;
-  misadded_global=1;
-  ierr = PetscSFGetGraph(etor,&nr,NULL,NULL,NULL);CHKERRQ(ierr);
-  ierr = PetscSFGetGraph(etoc,&nc,NULL,NULL,NULL);CHKERRQ(ierr);
-  for (i=0;i<nc;i++) {
-    if (colors[i] == IS_COLORING_MAX) {
-      wtsinit[i] = wts[i];
-    } else {
-      /* already has a color and thus isn't in the graph any longer */
-      wtsinit[i] = 0.;
-    }
-    state[i]=0;
-    wtsspread[i]=0.;
-    spreadstate[i]=0;
-  }
-  while (misadded_global > 0) {
-    ierr = MISGreatestWeight_Private(mc,wtsinit,wtsspread);CHKERRQ(ierr);
-    misadded = 0;
-    for (i=0;i<nc;i++) {
-      if (wtsinit[i] >= wtsspread[i] && wtsinit[i] != 0.) {
-        /* pick this one */
-        colors[i] = curcolor;
-        nadded++;
-        state[i] = 1;
-        wtsinit[i] = 0.;
-        misadded++;
-      } else {
-        state[i] = 0;
+        ierr = MatRestoreRow(Gd,idx,&ncols,&cidx,NULL);CHKERRQ(ierr);
+        if (Go) {
+          ierr = MatGetRow(Go,idx,&ncols,&cidx,NULL);CHKERRQ(ierr);
+          for (j=0;j<ncols;j++) {
+            if (PetscRealPart(owtarray[cidx[j]]) < 0) {
+              isValid=PETSC_FALSE;
+              isIn=PETSC_FALSE;
+              break;
+            }
+            if (PetscRealPart(owtarray[cidx[j]]) > PetscRealPart(wtarray[idx])) {
+              isIn = PETSC_FALSE;
+              break;
+            }
+          }
+          ierr = MatRestoreRow(Go,idx,&ncols,&cidx,NULL);CHKERRQ(ierr);
+        }
+        if (!isValid) {
+          wtarray[idx]=0.;
+        }
+        if (isIn) {
+          colors[idx]=curcolor;
+          nr++;
+          wtarray[idx]=-1;
+        }
       }
     }
-    misadded_global = 0;
-    ierr = MPI_Allreduce(&misadded,&misadded_global,1,MPIU_INT,MPI_SUM,PetscObjectComm((PetscObject)mc));CHKERRQ(ierr);
-    ierr = MISSpreadState_Private(mc,state,spreadstate);CHKERRQ(ierr);
-    for (i=0;i<nc;i++) {
-      /* eliminated */
-      if (colors[i] == IS_COLORING_MAX && state[i] == 0 && spreadstate[i] == 1) {
-        wtsinit[i] = 0.;
-      }
+    ierr = VecRestoreArray(wtvec,&wtarray);CHKERRQ(ierr);
+    if (ovec) {
+      ierr = VecRestoreArray(ovec,&owtarray);CHKERRQ(ierr);
     }
+    ierr = MPI_Allreduce(&nr,&nr_global,1,MPIU_INT,MPI_SUM,PetscObjectComm((PetscObject)mc));CHKERRQ(ierr);
   }
-  *nadded_global=0;
-  ierr = MPI_Allreduce(&nadded,nadded_global,1,MPIU_INT,MPI_SUM,PetscObjectComm((PetscObject)mc));CHKERRQ(ierr);
+  *ncurcolor=nr_global;
   PetscFunctionReturn(0);
 }
 
@@ -353,39 +152,51 @@ PetscErrorCode MISCompute_Private(MatColoring mc,ISColoringValue curcolor,PetscI
 #define __FUNCT__ "MatColoringApply_MIS"
 PETSC_EXTERN PetscErrorCode MatColoringApply_MIS(MatColoring mc,ISColoring *iscoloring)
 {
-  MC_MIS          *mis=(MC_MIS*)mc->data;
   PetscErrorCode  ierr;
   ISColoringValue curcolor,finalcolor;
-  ISColoringValue *color;
-  PetscInt        i,nadded,nadded_total,ncolstotal,ncols;
+  ISColoringValue *colors;
+  PetscInt        i,n,s,e,nadded_total,ncolstotal,ncols,ncurcolor;
+  Vec             work;
+  PetscReal       *wts;
+  PetscInt        *lperm;
 
   PetscFunctionBegin;
-  nadded=1;
   nadded_total=0;
-  ierr = MatGetSize(mc->mat,NULL,&ncolstotal);CHKERRQ(ierr);
-  ierr = MatGetLocalSize(mc->mat,NULL,&ncols);CHKERRQ(ierr);
-  ierr = MISInitialize_Private(mc);CHKERRQ(ierr);
-  color = mis->color;
-  ierr = MISCreateWeights_Private(mc);CHKERRQ(ierr);
+  ierr = MatGetSize(mc->graph,NULL,&ncolstotal);CHKERRQ(ierr);
+  ierr = MatGetLocalSize(mc->graph,NULL,&ncols);CHKERRQ(ierr);
+  ierr = MatGetVecs(mc->graph,NULL,&work);CHKERRQ(ierr);
+  ierr = MatGetOwnershipRange(mc->graph,&s,&e);CHKERRQ(ierr);
+  n=e-s;
+  ierr = PetscMalloc1(n,&wts);CHKERRQ(ierr);
+  ierr = PetscMalloc1(n,&lperm);CHKERRQ(ierr);
+  ierr = PetscMalloc1(n,&colors);CHKERRQ(ierr);
+  for (i=0;i<n;i++) {
+    colors[i] = IS_COLORING_MAX;
+  }
+  ierr = MISCreateWeights_Private(mc,wts,lperm);CHKERRQ(ierr);
   curcolor=0;
   for (i=0;(i<mc->maxcolors || mc->maxcolors == 0) && (nadded_total < ncolstotal);i++) {
-    ierr = MISCompute_Private(mc,curcolor,&nadded);CHKERRQ(ierr);
-    nadded_total += nadded;
-    if (!nadded && nadded_total != ncolstotal) {SETERRQ(PetscObjectComm((PetscObject)mc),PETSC_ERR_NOT_CONVERGED,"MatColoringApply_MIS made no progress");}
+    ierr = MatColoringComputeMIS_Private(mc,lperm,wts,work,curcolor,colors,&ncurcolor);CHKERRQ(ierr);
+    nadded_total += ncurcolor;
     curcolor++;
   }
   finalcolor = curcolor;
   for (i=0;i<ncols;i++) {
     /* set up a dummy color if the coloring has been truncated */
-    if (color[i] == IS_COLORING_MAX) {
-      color[i] = curcolor;
+    if (colors[i] == IS_COLORING_MAX) {
+      colors[i] = curcolor;
       finalcolor = curcolor+1;
     }
   }
-  ierr = ISColoringCreate(PetscObjectComm((PetscObject)mc),finalcolor,ncols,color,iscoloring);CHKERRQ(ierr);
-  ierr = MISTearDown_Private(mc);CHKERRQ(ierr);
+  ierr = ISColoringCreate(PetscObjectComm((PetscObject)mc),finalcolor,ncols,colors,iscoloring);CHKERRQ(ierr);
+  ierr = PetscFree(wts);CHKERRQ(ierr);
+  /* ierr = PetscFree(colors);CHKERRQ(ierr); */
+  ierr = PetscFree(lperm);CHKERRQ(ierr);
+  ierr = VecDestroy(&work);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+
+PetscErrorCode MatColoringGetGraph_Private(MatColoring,Mat*);
 
 #undef __FUNCT__
 #define __FUNCT__ "MatColoringCreate_MIS"
@@ -403,15 +214,11 @@ PETSC_EXTERN PetscErrorCode MatColoringApply_MIS(MatColoring mc,ISColoring *isco
 M*/
 PETSC_EXTERN PetscErrorCode MatColoringCreate_MIS(MatColoring mc)
 {
-  MC_MIS         *mis;
-  PetscErrorCode ierr;
-
   PetscFunctionBegin;
-  ierr                    = PetscNewLog(mc,&mis);CHKERRQ(ierr);
-  mc->data                = mis;
   mc->ops->apply          = MatColoringApply_MIS;
   mc->ops->view           = NULL;
-  mc->ops->destroy        = MatColoringDestroy_MIS;
+  mc->ops->graph          = MatColoringGetGraph_Private;
+  mc->ops->destroy        = NULL;
   mc->ops->setfromoptions = NULL;
   PetscFunctionReturn(0);
 }

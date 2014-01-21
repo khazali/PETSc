@@ -113,6 +113,7 @@ PetscErrorCode MatColoringDestroy(MatColoring *mc)
   PetscFunctionBegin;
   if (--((PetscObject)(*mc))->refct > 0) {*mc = 0; PetscFunctionReturn(0);}
   ierr = MatDestroy(&(*mc)->mat);CHKERRQ(ierr);
+  ierr = MatDestroy(&(*mc)->graph);CHKERRQ(ierr);
   if ((*mc)->ops->destroy) {ierr = (*((*mc)->ops->destroy))(*mc);CHKERRQ(ierr);}
   ierr = PetscHeaderDestroy(mc);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -370,6 +371,12 @@ PetscErrorCode MatColoringApply(MatColoring mc,ISColoring *coloring)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(mc,MAT_COLORING_CLASSID,1);
   ierr = PetscLogEventBegin(Mat_Coloring_Apply,mc,0,0,0);CHKERRQ(ierr);
+  if (mc->ops->graph) {
+    ierr = (*mc->ops->graph)(mc,&mc->graph);CHKERRQ(ierr);
+  } else {
+    mc->graph = mc->mat;
+    ierr = PetscObjectReference((PetscObject)mc->graph);CHKERRQ(ierr);
+  }
   ierr = (*mc->ops->apply)(mc,coloring);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(Mat_Coloring_Apply,mc,0,0,0);CHKERRQ(ierr);
   /* valid */
