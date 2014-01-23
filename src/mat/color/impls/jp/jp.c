@@ -40,7 +40,7 @@ PETSC_EXTERN PetscErrorCode MatColoringApply_JP(MatColoring mc,ISColoring *iscol
   Mat_MPIAIJ     *aij = (Mat_MPIAIJ*)G->data;
   PetscErrorCode ierr;
   PetscBool      isMPIAIJ,isSEQAIJ;
-  PetscInt       idx,i,j,ms,me,mn,msize,curncols,maxcols,maxcolor,maxcolor_global;
+  PetscInt       idx,i,j,ms,me,mn,msize,curncols,maxcolors,finalcolor,finalcolor_global;
   PetscInt       nr,nr_global;
   Vec            wtvec,colvec;
   Vec            owtvec,ocolvec;
@@ -55,7 +55,7 @@ PETSC_EXTERN PetscErrorCode MatColoringApply_JP(MatColoring mc,ISColoring *iscol
   PetscBool       *mask;
 
   PetscFunctionBegin;
-  maxcolor=0;
+  finalcolor=0;
   ierr = PetscObjectTypeCompare((PetscObject)G,MATMPIAIJ,&isMPIAIJ);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)G,MATSEQAIJ,&isSEQAIJ);CHKERRQ(ierr);
   if (isMPIAIJ) {
@@ -97,21 +97,26 @@ PETSC_EXTERN PetscErrorCode MatColoringApply_JP(MatColoring mc,ISColoring *iscol
   ierr = VecRestoreArray(colvec,&colarray);CHKERRQ(ierr);
   nr_global=0;
   nr=0;
-  /* find the maximum degree and use it to estimate the maximum number of colors needed */
-  maxcols=0;
-  for (i=0;i<mn;i++) {
-    ierr = MatGetRow(Gd,i,&ncols,NULL,NULL);CHKERRQ(ierr);
-    curncols=ncols;
-    ierr = MatRestoreRow(Gd,i,&ncols,NULL,NULL);CHKERRQ(ierr);
-    if (Go) {
-      ierr = MatGetRow(Go,i,&ncols,NULL,NULL);CHKERRQ(ierr);
-      curncols+=ncols;
-      ierr = MatRestoreRow(Go,i,&ncols,NULL,NULL);CHKERRQ(ierr);
+ /* maxcolors = max(degree) + 1 or the user-set maximum colors */
+  if (mc->maxcolors) {
+    maxcolors=mc->maxcolors+1;
+  } else {
+    maxcolors=0;
+    for (i=0;i<mn;i++) {
+      ierr = MatGetRow(Gd,i,&ncols,NULL,NULL);CHKERRQ(ierr);
+      curncols=ncols;
+      ierr = MatRestoreRow(Gd,i,&ncols,NULL,NULL);CHKERRQ(ierr);
+      if (Go) {
+        ierr = MatGetRow(Go,i,&ncols,NULL,NULL);CHKERRQ(ierr);
+        curncols+=ncols;
+        ierr = MatRestoreRow(Go,i,&ncols,NULL,NULL);CHKERRQ(ierr);
+      }
+      if (curncols > maxcolors) maxcolors = curncols;
     }
-    if (curncols > maxcols) maxcols = curncols;
+    maxcolors++;
   }
-  maxcols++;
-  ierr = PetscMalloc1(maxcols,&mask);CHKERRQ(ierr);
+  ierr = PetscMalloc1(maxcolors,&mask);CHKERRQ(ierr);
+
   while (nr_global < msize) {
     nr_global=0;
     /* transfer weights over by the scatter */
@@ -131,7 +136,7 @@ PETSC_EXTERN PetscErrorCode MatColoringApply_JP(MatColoring mc,ISColoring *iscol
     for (i=0;i<mn;i++) {
       idx = perm[mn-i-1];
       if (PetscRealPart(wtarray[idx]) > 0.) {
-        for (j=0;j<maxcols;j++) {
+        for (j=0;j<maxcolors;j++) {
           mask[j]=PETSC_FALSE;
         }
         isIn = PETSC_TRUE;
@@ -161,14 +166,14 @@ PETSC_EXTERN PetscErrorCode MatColoringApply_JP(MatColoring mc,ISColoring *iscol
         }
         if (isIn) {
           /* you've filled the mask; set it to the lowest color */
-          for (j=0;j<maxcols;j++) {
+          for (j=0;j<maxcolors;j++) {
             if (!mask[j]) {
-              colarray[idx]=j;
-              colors[idx]=j;
               break;
             }
           }
-          if (j>maxcolor) maxcolor=j;
+          colarray[idx]=j;
+          colors[idx]=j;
+          if (j>finalcolor) finalcolor=j;
           nr++;
           wtarray[idx]=0.;
         }
@@ -181,10 +186,10 @@ PETSC_EXTERN PetscErrorCode MatColoringApply_JP(MatColoring mc,ISColoring *iscol
       ierr = VecRestoreArray(ocolvec,&ocolarray);CHKERRQ(ierr);
     }
     ierr = MPI_Allreduce(&nr,&nr_global,1,MPIU_INT,MPI_SUM,PetscObjectComm((PetscObject)mc));CHKERRQ(ierr);
-    maxcolor_global=0;
-    ierr = MPI_Allreduce(&maxcolor,&maxcolor_global,1,MPIU_INT,MPI_MAX,PetscObjectComm((PetscObject)mc));CHKERRQ(ierr);
+    finalcolor_global=0;
+    ierr = MPI_Allreduce(&finalcolor,&finalcolor_global,1,MPIU_INT,MPI_MAX,PetscObjectComm((PetscObject)mc));CHKERRQ(ierr);
   }
-  ierr = ISColoringCreate(PetscObjectComm((PetscObject)mc),maxcolor_global+1,mn,colors,iscoloring);CHKERRQ(ierr);
+  ierr = ISColoringCreate(PetscObjectComm((PetscObject)mc),finalcolor_global+1,mn,colors,iscoloring);CHKERRQ(ierr);
   ierr = VecDestroy(&wtvec);CHKERRQ(ierr);
   ierr = VecDestroy(&colvec);CHKERRQ(ierr);
   if (ocolvec) {ierr = VecDestroy(&ocolvec);CHKERRQ(ierr);}
