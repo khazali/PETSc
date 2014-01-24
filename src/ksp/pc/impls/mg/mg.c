@@ -194,14 +194,14 @@ PetscErrorCode  PCMGSetLevels(PC pc,PetscInt levels,MPI_Comm *comms)
 
   mg->nlevels = levels;
 
-  ierr = PetscMalloc(levels*sizeof(PC_MG*),&mglevels);CHKERRQ(ierr);
+  ierr = PetscMalloc1(levels,&mglevels);CHKERRQ(ierr);
   ierr = PetscLogObjectMemory((PetscObject)pc,levels*(sizeof(PC_MG*)));CHKERRQ(ierr);
 
   ierr = PCGetOptionsPrefix(pc,&prefix);CHKERRQ(ierr);
 
   mg->stageApply = 0;
   for (i=0; i<levels; i++) {
-    ierr = PetscNewLog(pc,PC_MG_Levels,&mglevels[i]);CHKERRQ(ierr);
+    ierr = PetscNewLog(pc,&mglevels[i]);CHKERRQ(ierr);
 
     mglevels[i]->level               = i;
     mglevels[i]->levels              = levels;
@@ -586,7 +586,7 @@ PetscErrorCode PCSetUp_MG(PC pc)
     /* construct the interpolation from the DMs */
     Mat p;
     Vec rscale;
-    ierr     = PetscMalloc(n*sizeof(DM),&dms);CHKERRQ(ierr);
+    ierr     = PetscMalloc1(n,&dms);CHKERRQ(ierr);
     dms[n-1] = pc->dm;
     for (i=n-2; i>-1; i--) {
       DMKSP kdm;
@@ -951,7 +951,7 @@ PetscErrorCode  PCMGMultiplicativeSetCycles(PC pc,PetscInt n)
 #define __FUNCT__ "PCMGSetGalerkin"
 /*@
    PCMGSetGalerkin - Causes the coarser grid matrices to be computed from the
-      finest grid via the Galerkin process: A_i-1 = r_i * A_i * r_i^t
+      finest grid via the Galerkin process: A_i-1 = r_i * A_i * p_i
 
    Logically Collective on PC
 
@@ -983,7 +983,7 @@ PetscErrorCode PCMGSetGalerkin(PC pc,PetscBool use)
 #define __FUNCT__ "PCMGGetGalerkin"
 /*@
    PCMGGetGalerkin - Checks if Galerkin multigrid is being used, i.e.
-      A_i-1 = r_i * A_i * r_i^t
+      A_i-1 = r_i * A_i * p_i
 
    Not Collective
 
@@ -1150,7 +1150,7 @@ PETSC_EXTERN PetscErrorCode PCCreate_MG(PC pc)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr        = PetscNewLog(pc,PC_MG,&mg);CHKERRQ(ierr);
+  ierr        = PetscNewLog(pc,&mg);CHKERRQ(ierr);
   pc->data    = (void*)mg;
   mg->nlevels = -1;
 
