@@ -221,13 +221,13 @@ PETSC_STATIC_INLINE PetscErrorCode SNESLogConvergenceHistory(SNES snes,PetscReal
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscObjectAMSTakeAccess((PetscObject)snes);CHKERRQ(ierr);
+  ierr = PetscObjectSAWsTakeAccess((PetscObject)snes);CHKERRQ(ierr);
   if (snes->conv_hist && snes->conv_hist_max > snes->conv_hist_len) {
     if (snes->conv_hist)     snes->conv_hist[snes->conv_hist_len]     = res;
     if (snes->conv_hist_its) snes->conv_hist_its[snes->conv_hist_len] = its;
     snes->conv_hist_len++;
   }
-  ierr = PetscObjectAMSGrantAccess((PetscObject)snes);CHKERRQ(ierr);
+  ierr = PetscObjectSAWsGrantAccess((PetscObject)snes);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -245,6 +245,6 @@ PETSC_INTERN PetscErrorCode SNESConvergedDefault_VI(SNES,PetscInt,PetscReal,Pets
 
 PetscErrorCode SNESScaleStep_Private(SNES,Vec,PetscReal*,PetscReal*,PetscReal*,PetscReal*);
 
-PETSC_EXTERN PetscLogEvent SNES_Solve, SNES_LineSearch, SNES_FunctionEval, SNES_JacobianEval, SNES_GSEval, SNES_NPCSolve;
+PETSC_EXTERN PetscLogEvent SNES_Solve, SNES_LineSearch, SNES_FunctionEval, SNES_JacobianEval, SNES_GSEval, SNES_GSFuncEval, SNES_NPCSolve;
 
 #endif
