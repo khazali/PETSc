@@ -75,14 +75,14 @@ static PetscErrorCode PCSetUp_Redundant(PC pc)
       ierr = PetscSubcommSetType(red->psubcomm,PETSC_SUBCOMM_CONTIGUOUS);CHKERRQ(ierr);
       /* enable runtime switch of psubcomm type, e.g., '-psubcomm_type interlaced */
       ierr = PetscSubcommSetFromOptions(red->psubcomm);CHKERRQ(ierr);
-      ierr = PetscLogObjectMemory(pc,sizeof(PetscSubcomm));CHKERRQ(ierr);
+      ierr = PetscLogObjectMemory((PetscObject)pc,sizeof(PetscSubcomm));CHKERRQ(ierr);
 
       /* create a new PC that processors in each subcomm have copy of */
       subcomm = red->psubcomm->comm;
 
       ierr = KSPCreate(subcomm,&red->ksp);CHKERRQ(ierr);
       ierr = PetscObjectIncrementTabLevel((PetscObject)red->ksp,(PetscObject)pc,1);CHKERRQ(ierr);
-      ierr = PetscLogObjectParent(pc,red->ksp);CHKERRQ(ierr);
+      ierr = PetscLogObjectParent((PetscObject)pc,(PetscObject)red->ksp);CHKERRQ(ierr);
       ierr = KSPSetType(red->ksp,KSPPREONLY);CHKERRQ(ierr);
       ierr = KSPGetPC(red->ksp,&red->pc);CHKERRQ(ierr);
       ierr = PCSetType(red->pc,PCLU);CHKERRQ(ierr);
@@ -119,7 +119,7 @@ static PetscErrorCode PCSetUp_Redundant(PC pc)
         ierr = VecGetSize(x,&M);CHKERRQ(ierr);
         ierr = VecGetOwnershipRange(x,&mstart,&mend);CHKERRQ(ierr);
         mlocal = mend - mstart;
-        ierr = PetscMalloc2(red->psubcomm->n*mlocal,PetscInt,&idx1,red->psubcomm->n*mlocal,PetscInt,&idx2);CHKERRQ(ierr);
+        ierr = PetscMalloc2(red->psubcomm->n*mlocal,&idx1,red->psubcomm->n*mlocal,&idx2);CHKERRQ(ierr);
         j    = 0;
         for (k=0; k<red->psubcomm->n; k++) {
           for (i=mstart; i<mend; i++) {
@@ -362,14 +362,14 @@ static PetscErrorCode  PCRedundantGetKSP_Redundant(PC pc,KSP *innerksp)
     ierr = PetscSubcommCreate(comm,&red->psubcomm);CHKERRQ(ierr);
     ierr = PetscSubcommSetNumber(red->psubcomm,red->nsubcomm);CHKERRQ(ierr);
     ierr = PetscSubcommSetType(red->psubcomm,PETSC_SUBCOMM_INTERLACED);CHKERRQ(ierr);
-    ierr = PetscLogObjectMemory(pc,sizeof(PetscSubcomm));CHKERRQ(ierr);
+    ierr = PetscLogObjectMemory((PetscObject)pc,sizeof(PetscSubcomm));CHKERRQ(ierr);
 
     /* create a new PC that processors in each subcomm have copy of */
     subcomm = red->psubcomm->comm;
 
     ierr = KSPCreate(subcomm,&red->ksp);CHKERRQ(ierr);
     ierr = PetscObjectIncrementTabLevel((PetscObject)red->ksp,(PetscObject)pc,1);CHKERRQ(ierr);
-    ierr = PetscLogObjectParent(pc,red->ksp);CHKERRQ(ierr);
+    ierr = PetscLogObjectParent((PetscObject)pc,(PetscObject)red->ksp);CHKERRQ(ierr);
     ierr = KSPSetType(red->ksp,KSPPREONLY);CHKERRQ(ierr);
     ierr = KSPGetPC(red->ksp,&red->pc);CHKERRQ(ierr);
     ierr = PCSetType(red->pc,PCLU);CHKERRQ(ierr);
@@ -481,7 +481,7 @@ PETSC_EXTERN PetscErrorCode PCCreate_Redundant(PC pc)
   PetscMPIInt    size;
 
   PetscFunctionBegin;
-  ierr = PetscNewLog(pc,PC_Redundant,&red);CHKERRQ(ierr);
+  ierr = PetscNewLog(pc,&red);CHKERRQ(ierr);
   ierr = MPI_Comm_size(PetscObjectComm((PetscObject)pc),&size);CHKERRQ(ierr);
 
   red->nsubcomm       = size;

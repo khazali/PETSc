@@ -103,8 +103,6 @@ struct _p_SNES {
 
   PetscBool   tolerancesset;      /* SNESSetTolerances() called and tolerances should persist through SNESCreate_XXX()*/
 
-  PetscReal   norm_init;          /* the initial norm value */
-  PetscBool   norm_init_set;      /* the initial norm has been set */
   PetscBool   vec_func_init_set;  /* the initial function has been set */
 
   SNESNormSchedule normschedule;  /* Norm computation type for SNES instance */
@@ -139,7 +137,8 @@ struct _p_SNES {
   PetscBool   ksp_ewconv;        /* flag indicating use of Eisenstat-Walker KSP convergence criteria */
   void        *kspconvctx;       /* Eisenstat-Walker KSP convergence context */
 
-  PetscReal   ttol;           /* used by default convergence test routine */
+  /* SNESConvergedDefault context: split it off into a separate var/struct to be passed as context to SNESConvergedDefault? */
+  PetscReal   ttol;              /* rtol*initial_residual_norm */
 
   Vec         *vwork;            /* more work vectors for Jacobian approx */
   PetscInt    nvwork;
@@ -212,6 +211,7 @@ typedef struct {
   PetscReal threshold;           /* threshold for imposing safeguard */
   PetscReal lresid_last;         /* linear residual from last iteration */
   PetscReal norm_last;           /* function norm from last iteration */
+  PetscReal norm_first;          /* function norm from the beginning of the first iteration. */
 } SNESKSPEW;
 
 #undef __FUNCT__
@@ -221,13 +221,13 @@ PETSC_STATIC_INLINE PetscErrorCode SNESLogConvergenceHistory(SNES snes,PetscReal
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscObjectAMSTakeAccess((PetscObject)snes);CHKERRQ(ierr);
+  ierr = PetscObjectSAWsTakeAccess((PetscObject)snes);CHKERRQ(ierr);
   if (snes->conv_hist && snes->conv_hist_max > snes->conv_hist_len) {
     if (snes->conv_hist)     snes->conv_hist[snes->conv_hist_len]     = res;
     if (snes->conv_hist_its) snes->conv_hist_its[snes->conv_hist_len] = its;
     snes->conv_hist_len++;
   }
-  ierr = PetscObjectAMSGrantAccess((PetscObject)snes);CHKERRQ(ierr);
+  ierr = PetscObjectSAWsGrantAccess((PetscObject)snes);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -245,6 +245,6 @@ PETSC_INTERN PetscErrorCode SNESConvergedDefault_VI(SNES,PetscInt,PetscReal,Pets
 
 PetscErrorCode SNESScaleStep_Private(SNES,Vec,PetscReal*,PetscReal*,PetscReal*,PetscReal*);
 
-PETSC_EXTERN PetscLogEvent SNES_Solve, SNES_LineSearch, SNES_FunctionEval, SNES_JacobianEval, SNES_GSEval, SNES_NPCSolve;
+PETSC_EXTERN PetscLogEvent SNES_Solve, SNES_LineSearch, SNES_FunctionEval, SNES_JacobianEval, SNES_GSEval, SNES_GSFuncEval, SNES_NPCSolve;
 
 #endif

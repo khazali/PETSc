@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
 configure_options = [
+  '--with-cc=clang',
+  '--with-cxx=clang++',
+  '--with-fc=gfortran',
   '--with-debugging=1',
   '--with-fortran-interfaces=1',
   '--download-mpich=1',
@@ -11,6 +14,7 @@ configure_options = [
   '--download-parmetis=1',
   '--download-ptscotch=1',
   '--download-umfpack=1',
+  '--download-klu=1',
   '--download-triangle=1',
   '--download-superlu=1',
   '--download-superlu_dist=1',

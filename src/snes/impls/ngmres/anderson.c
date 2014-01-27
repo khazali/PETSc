@@ -74,10 +74,10 @@ PetscErrorCode SNESSolve_Anderson(SNES snes)
   XM = snes->work[3];
   FM = snes->work[4];
 
-  ierr       = PetscObjectAMSTakeAccess((PetscObject)snes);CHKERRQ(ierr);
+  ierr       = PetscObjectSAWsTakeAccess((PetscObject)snes);CHKERRQ(ierr);
   snes->iter = 0;
   snes->norm = 0.;
-  ierr       = PetscObjectAMSGrantAccess((PetscObject)snes);CHKERRQ(ierr);
+  ierr       = PetscObjectSAWsGrantAccess((PetscObject)snes);CHKERRQ(ierr);
 
   /* initialization */
 
@@ -99,23 +99,18 @@ PetscErrorCode SNESSolve_Anderson(SNES snes)
         PetscFunctionReturn(0);
       }
     } else snes->vec_func_init_set = PETSC_FALSE;
-    if (!snes->norm_init_set) {
-      /* convergence test */
-      ierr = VecNorm(F,NORM_2,&fnorm);CHKERRQ(ierr);
-      if (PetscIsInfOrNanReal(fnorm)) {
-        snes->reason = SNES_DIVERGED_FNORM_NAN;
-        PetscFunctionReturn(0);
-      }
-    } else {
-      fnorm               = snes->norm_init;
-      snes->norm_init_set = PETSC_FALSE;
+
+    ierr = VecNorm(F,NORM_2,&fnorm);CHKERRQ(ierr);
+    if (PetscIsInfOrNanReal(fnorm)) {
+      snes->reason = SNES_DIVERGED_FNORM_NAN;
+      PetscFunctionReturn(0);
     }
   }
   fminnorm = fnorm;
 
-  ierr       = PetscObjectAMSTakeAccess((PetscObject)snes);CHKERRQ(ierr);
+  ierr       = PetscObjectSAWsTakeAccess((PetscObject)snes);CHKERRQ(ierr);
   snes->norm = fnorm;
-  ierr       = PetscObjectAMSGrantAccess((PetscObject)snes);CHKERRQ(ierr);
+  ierr       = PetscObjectSAWsGrantAccess((PetscObject)snes);CHKERRQ(ierr);
   ierr       = SNESLogConvergenceHistory(snes,fnorm,0);CHKERRQ(ierr);
   ierr       = SNESMonitor(snes,0,fnorm);CHKERRQ(ierr);
   ierr       = (*snes->ops->converged)(snes,0,0.0,0.0,fnorm,&snes->reason,snes->cnvP);CHKERRQ(ierr);
@@ -129,7 +124,6 @@ PetscErrorCode SNESSolve_Anderson(SNES snes)
     if (snes->pc && snes->pcside == PC_RIGHT) {
       ierr = VecCopy(X,XM);CHKERRQ(ierr);
       ierr = SNESSetInitialFunction(snes->pc,F);CHKERRQ(ierr);
-      ierr = SNESSetInitialFunctionNorm(snes->pc,fnorm);CHKERRQ(ierr);
 
       ierr = PetscLogEventBegin(SNES_NPCSolve,snes->pc,XM,B,0);CHKERRQ(ierr);
       ierr = SNESSolve(snes->pc,B,XM);CHKERRQ(ierr);
@@ -189,10 +183,10 @@ PetscErrorCode SNESSolve_Anderson(SNES snes)
     ierr = VecCopy(XA,X);CHKERRQ(ierr);
     ierr = VecCopy(FA,F);CHKERRQ(ierr);
 
-    ierr       = PetscObjectAMSTakeAccess((PetscObject)snes);CHKERRQ(ierr);
+    ierr       = PetscObjectSAWsTakeAccess((PetscObject)snes);CHKERRQ(ierr);
     snes->iter = k;
     snes->norm = fnorm;
-    ierr       = PetscObjectAMSGrantAccess((PetscObject)snes);CHKERRQ(ierr);
+    ierr       = PetscObjectSAWsGrantAccess((PetscObject)snes);CHKERRQ(ierr);
     ierr       = SNESLogConvergenceHistory(snes,snes->norm,snes->iter);CHKERRQ(ierr);
     ierr       = SNESMonitor(snes,snes->iter,snes->norm);CHKERRQ(ierr);
     ierr       = (*snes->ops->converged)(snes,snes->iter,xnorm,ynorm,fnorm,&snes->reason,snes->cnvP);CHKERRQ(ierr);
@@ -223,7 +217,7 @@ PetscErrorCode SNESSolve_Anderson(SNES snes)
    References:
 
     "D. G. Anderson. Iterative procedures for nonlinear integral equations.
-    J. Assoc. Comput. Mach., 12:547–560, 1965."
+    J. Assoc. Comput. Mach., 12:547-560, 1965."
 
 .seealso: SNESNGMRES, SNESCreate(), SNES, SNESSetType(), SNESType (for list of available types)
 M*/
@@ -247,7 +241,7 @@ PETSC_EXTERN PetscErrorCode SNESCreate_Anderson(SNES snes)
   snes->usesksp = PETSC_FALSE;
   snes->pcside  = PC_RIGHT;
 
-  ierr          = PetscNewLog(snes,SNES_NGMRES,&ngmres);CHKERRQ(ierr);
+  ierr          = PetscNewLog(snes,&ngmres);CHKERRQ(ierr);
   snes->data    = (void*) ngmres;
   ngmres->msize = 30;
 
