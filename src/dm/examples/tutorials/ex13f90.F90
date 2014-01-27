@@ -46,6 +46,8 @@ program main
   call MPI_Comm_size(comm,size,ierr)
   if (rank == 0) then
     write(*,*) "Hi! We're solving van der Pol using ",size," processes."
+    write(*,*) " "
+    write(*,*) "  t     x1         x2"
   endif
 
   ! Set up the global grid
@@ -141,7 +143,7 @@ program main
 
     ! Write result to screen (if main process)
     if (rank == 0 .and. mod(itime,nscreen) == 0) then
-      write(*,*) t,f(1,1,1,1),f(2,1,1,1)
+      write(*,101) t,f(1,1,1,1),f(2,1,1,1)
     endif
     
     ! Map to PETSc coordinates
@@ -156,4 +158,5 @@ program main
   call DMRestoreLocalVector(SolScal,Lvec,ierr)
   call DMDestroy(SolScal,ierr)
   call PetscFinalize(ierr)
+101 format(F5.1,2F11.6)
 end program main
