@@ -78,6 +78,7 @@ PetscErrorCode  DMInitializePackage(void)
   ierr = PetscLogEventRegister("DMPlexDistribData",      DM_CLASSID,&DMPLEX_DistributeData);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPlexStratify",         DM_CLASSID,&DMPLEX_Stratify);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPlexPreallocate",      DM_CLASSID,&DMPLEX_Preallocate);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("DMPlexScalarsFEM",       DM_CLASSID,&DMPLEX_ScalarsFEM);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPlexResidualFEM",      DM_CLASSID,&DMPLEX_ResidualFEM);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPlexJacobianFEM",      DM_CLASSID,&DMPLEX_JacobianFEM);CHKERRQ(ierr);
   /* Process info exclusions */

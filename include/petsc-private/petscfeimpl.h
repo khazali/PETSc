@@ -65,6 +65,14 @@ struct _PetscFEOps {
   PetscErrorCode (*view)(PetscFE,PetscViewer);
   PetscErrorCode (*destroy)(PetscFE);
   /* Element integration */
+  PetscErrorCode (*integratescalars)(PetscInt, PetscQuadrature, PetscInt, PetscInt, PetscFE[], PetscCellGeometry, const PetscScalar[],
+                                     PetscInt, PetscFE[], const PetscScalar[],
+                                     void (*)(const PetscScalar[], const PetscScalar[], const PetscScalar[], const PetscScalar[], const PetscReal[], PetscScalar[]),
+                                     PetscScalar[]);
+  PetscErrorCode (*integratebdscalars)(PetscInt, PetscQuadrature, PetscInt, PetscInt, PetscFE[], PetscCellGeometry, const PetscScalar[],
+                                       PetscInt, PetscFE[], const PetscScalar[],
+                                       void (*)(const PetscScalar[], const PetscScalar[], const PetscScalar[], const PetscScalar[], const PetscReal[], const PetscReal[], PetscScalar[]),
+                                       PetscScalar[]);
   PetscErrorCode (*integrateresidual)(PetscFE, PetscInt, PetscInt, PetscFE[], PetscInt, PetscCellGeometry, const PetscScalar[],
                                       PetscInt, PetscFE[], const PetscScalar[],
                                       void (*)(const PetscScalar[], const PetscScalar[], const PetscScalar[], const PetscScalar[], const PetscReal[], PetscScalar[]),
