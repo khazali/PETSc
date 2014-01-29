@@ -386,11 +386,65 @@ PETSC_STATIC_INLINE void Det3D_Internal(PetscReal *detJ, PetscReal J[])
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "Volume_Triangle_Internal"
+PETSC_STATIC_INLINE void Volume_Triangle_Internal(PetscReal *vol, PetscReal coords[])
+{
+  /* Signed volume is 1/2 the determinant
+
+   |  1  1  1 |
+   | x0 x1 x2 |
+   | y0 y1 y2 |
+
+     but if x0,y0 is the origin, we have
+
+   | x1 x2 |
+   | y1 y2 |
+  */
+  const PetscReal x1 = coords[2] - coords[0], y1 = coords[3] - coords[1];
+  const PetscReal x2 = coords[4] - coords[0], y2 = coords[5] - coords[1];
+  PetscReal       M[4], detM;
+  M[0] = x1; M[1] = x2;
+  M[2] = y1; M[3] = y2;
+  Det2D_Internal(&detM, M);
+  *vol = 0.5*detM;
+  PetscLogFlops(5.0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "Volume_Triangle_Origin_Internal"
 PETSC_STATIC_INLINE void Volume_Triangle_Origin_Internal(PetscReal *vol, PetscReal coords[])
 {
   Det2D_Internal(vol, coords);
   *vol *= 0.5;
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "Volume_Tetrahedron_Internal"
+PETSC_STATIC_INLINE void Volume_Tetrahedron_Internal(PetscReal *vol, PetscReal coords[])
+{
+  /* Signed volume is 1/6th of the determinant
+
+   |  1  1  1  1 |
+   | x0 x1 x2 x3 |
+   | y0 y1 y2 y3 |
+   | z0 z1 z2 z3 |
+
+     but if x0,y0,z0 is the origin, we have
+
+   | x1 x2 x3 |
+   | y1 y2 y3 |
+   | z1 z2 z3 |
+  */
+  const PetscReal x1 = coords[3] - coords[0], y1 = coords[4]  - coords[1], z1 = coords[5]  - coords[2];
+  const PetscReal x2 = coords[6] - coords[0], y2 = coords[7]  - coords[1], z2 = coords[8]  - coords[2];
+  const PetscReal x3 = coords[9] - coords[0], y3 = coords[10] - coords[1], z3 = coords[11] - coords[2];
+  PetscReal       M[9], detM;
+  M[0] = x1; M[1] = x2; M[2] = x3;
+  M[3] = y1; M[4] = y2; M[5] = y3;
+  M[6] = z1; M[7] = z2; M[8] = z3;
+  Det3D_Internal(&detM, M);
+  *vol = -0.16666666666666666666666*detM;
+  PetscLogFlops(10.0);
 }
 
 #undef __FUNCT__
