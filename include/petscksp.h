@@ -612,6 +612,7 @@ PETSC_EXTERN PetscErrorCode MatSchurComplementGetAinvType(Mat,MatSchurComplement
 PETSC_EXTERN PetscErrorCode MatSchurComplementGetPmat(Mat,MatReuse,Mat*);
 PETSC_EXTERN PetscErrorCode MatGetSchurComplement(Mat,IS,IS,IS,IS,MatReuse,Mat *,MatSchurComplementAinvType,MatReuse,Mat *);
 PETSC_EXTERN PetscErrorCode MatCreateSchurComplementPmat(Mat,Mat,Mat,Mat,MatSchurComplementAinvType,MatReuse,Mat*);
+PETSC_EXTERN PetscErrorCode MatSchurComplementComputeExplicitOperator(Mat,Mat*);
 
 
 PETSC_EXTERN PetscErrorCode KSPSetDM(KSP,DM);
