@@ -7,19 +7,19 @@ s.t.     x1^2 + x2 = 2
       -1 <= x1,x2 <= 2
 ---------------------------------------------------------------------- */
 
-#include "taosolver.h"
+#include <petsctao.h>
 
 
 static  char help[]="";
 
 
-/* 
-   User-defined application context - contains data needed by the 
+/*
+   User-defined application context - contains data needed by the
    application-provided call-back routines, FormFunction(),
    FormGradient(), and FormHessian().
 */
 
-/* 
+/*
    x,d in R^n
    f in R
    bin in R^mi
@@ -27,7 +27,7 @@ static  char help[]="";
    Aeq in R^(me x n)
    Ain in R^(mi x n)
    H in R^(n x n)
-   min f=(1/2)*x'*H*x + d'*x   
+   min f=(1/2)*x'*H*x + d'*x
    s.t.  Aeq*x == beq
          Ain*x >= bin
 */
@@ -45,12 +45,12 @@ typedef struct {
 
 PetscErrorCode InitializeProblem(AppCtx *);
 PetscErrorCode DestroyProblem(AppCtx *);
-PetscErrorCode FormFunctionGradient(TaoSolver,Vec,PetscReal *,Vec,void *);
-PetscErrorCode FormHessian(TaoSolver,Vec,Mat*,Mat*, MatStructure *,void*);
-PetscErrorCode FormInequalityConstraints(TaoSolver,Vec,Vec,void*);
-PetscErrorCode FormEqualityConstraints(TaoSolver,Vec,Vec,void*);
-PetscErrorCode FormInequalityJacobian(TaoSolver,Vec,Mat*,Mat*, MatStructure *,void*);
-PetscErrorCode FormEqualityJacobian(TaoSolver,Vec,Mat*,Mat*, MatStructure *,void*);
+PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal *,Vec,void *);
+PetscErrorCode FormHessian(Tao,Vec,Mat*,Mat*, MatStructure *,void*);
+PetscErrorCode FormInequalityConstraints(Tao,Vec,Vec,void*);
+PetscErrorCode FormEqualityConstraints(Tao,Vec,Vec,void*);
+PetscErrorCode FormInequalityJacobian(Tao,Vec,Mat*,Mat*, MatStructure *,void*);
+PetscErrorCode FormEqualityJacobian(Tao,Vec,Mat*,Mat*, MatStructure *,void*);
 
 
 
@@ -59,15 +59,14 @@ PetscErrorCode FormEqualityJacobian(TaoSolver,Vec,Mat*,Mat*, MatStructure *,void
 PetscErrorCode main(int argc,char **argv)
 {
   PetscErrorCode ierr;                /* used to check for functions returning nonzeros */
-  TaoSolver tao;
-  TaoSolverTerminationReason reason;        
+  Tao tao;
+  TaoTerminationReason reason;
   KSP ksp;
   PC  pc;
   AppCtx      user;                /* application context */
 
   /* Initialize TAO,PETSc */
   PetscInitialize(&argc,&argv,(char *)0,help);
-  TaoInitialize(&argc,&argv,(char *)0,help);
 
   ierr = PetscPrintf(PETSC_COMM_WORLD,"\n---- TOY Problem -----\n");CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"Solution should be f(1,1)=-2\n");CHKERRQ(ierr);
@@ -107,18 +106,15 @@ PetscErrorCode main(int argc,char **argv)
   ierr = TaoGetTerminationReason(tao,&reason);CHKERRQ(ierr);
   if (reason < 0) {
     PetscPrintf(MPI_COMM_WORLD, "TAO failed to converge.\n");
-  }
-  else {
+  } else {
     PetscPrintf(MPI_COMM_WORLD, "Optimization terminated with status %D.\n", reason);
   }
 
   /* Finalize Memory */
   ierr = DestroyProblem(&user);CHKERRQ(ierr);
   ierr = TaoDestroy(&tao);CHKERRQ(ierr);
-  /* Finalize TAO, PETSc */
-  TaoFinalize();
-  PetscFinalize();
 
+  PetscFinalize();
   return 0;
 }
 
@@ -136,7 +132,7 @@ PetscErrorCode InitializeProblem(AppCtx *user)
   ierr = VecSet(user->x,0.0);CHKERRQ(ierr);
   ierr = VecSet(user->xl,-1.0);CHKERRQ(ierr);
   ierr = VecSet(user->xu,2.0);CHKERRQ(ierr);
-  
+
   user->ne = 1;
   ierr = VecCreateSeq(PETSC_COMM_SELF,user->ne,&user->ce);CHKERRQ(ierr);
 
@@ -176,7 +172,7 @@ PetscErrorCode DestroyProblem(AppCtx *user)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormFunctionGradient"
-PetscErrorCode FormFunctionGradient(TaoSolver tao, Vec X, PetscReal *f, Vec G, void *ctx)
+PetscErrorCode FormFunctionGradient(Tao tao, Vec X, PetscReal *f, Vec G, void *ctx)
 {
   PetscScalar *x,*g;
   PetscErrorCode ierr;
@@ -194,7 +190,7 @@ PetscErrorCode FormFunctionGradient(TaoSolver tao, Vec X, PetscReal *f, Vec G, v
 
 #undef __FUNCT__
 #define __FUNCT__ "FormHessian"
-PetscErrorCode FormHessian(TaoSolver tao, Vec x, Mat *H, Mat *Hpre, MatStructure *ms, void *ctx)
+PetscErrorCode FormHessian(Tao tao, Vec x, Mat *H, Mat *Hpre, MatStructure *ms, void *ctx)
 {
   AppCtx *user = (AppCtx*)ctx;
   Vec DE,DI;
@@ -214,18 +210,18 @@ PetscErrorCode FormHessian(TaoSolver tao, Vec x, Mat *H, Mat *Hpre, MatStructure
   ierr = VecRestoreArray(DI,&di);CHKERRQ(ierr);
 
   ierr = MatSetValues(*H,1,&zero,1,&zero,&val,INSERT_VALUES);CHKERRQ(ierr);
-  ierr = MatSetValues(*H,1,&one,1,&one,&two,INSERT_VALUES);CHKERRQ(ierr);  
-  
+  ierr = MatSetValues(*H,1,&one,1,&one,&two,INSERT_VALUES);CHKERRQ(ierr);
+
   ierr = MatAssemblyBegin(user->H,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(user->H,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  
+
   *ms = SAME_NONZERO_PATTERN;
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "FormInequalityConstraints"
-PetscErrorCode FormInequalityConstraints(TaoSolver tao, Vec X, Vec CI, void *ctx)
+PetscErrorCode FormInequalityConstraints(Tao tao, Vec X, Vec CI, void *ctx)
 {
   PetscScalar *x,*c;
   PetscErrorCode ierr;
@@ -233,17 +229,17 @@ PetscErrorCode FormInequalityConstraints(TaoSolver tao, Vec X, Vec CI, void *ctx
   PetscFunctionBegin;
   ierr = VecGetArray(X,&x);CHKERRQ(ierr);
   ierr = VecGetArray(CI,&c);CHKERRQ(ierr);
-  c[0] = x[0]*x[0] - x[1]; 
+  c[0] = x[0]*x[0] - x[1];
   c[1] = -x[0]*x[0] + x[1] + 1.0;
   ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
   ierr = VecRestoreArray(CI,&c);CHKERRQ(ierr);
   PetscFunctionReturn(0);
-  
+
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "FormEqualityConstraints"
-PetscErrorCode FormEqualityConstraints(TaoSolver tao, Vec X, Vec CE,void *ctx)
+PetscErrorCode FormEqualityConstraints(Tao tao, Vec X, Vec CE,void *ctx)
 {
   PetscScalar *x,*c;
   PetscErrorCode ierr;
@@ -251,7 +247,7 @@ PetscErrorCode FormEqualityConstraints(TaoSolver tao, Vec X, Vec CE,void *ctx)
   PetscFunctionBegin;
   ierr = VecGetArray(X,&x);CHKERRQ(ierr);
   ierr = VecGetArray(CE,&c);CHKERRQ(ierr);
-  c[0] = x[0]*x[0] + x[1] - 2.0; 
+  c[0] = x[0]*x[0] + x[1] - 2.0;
   ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
   ierr = VecRestoreArray(CE,&c);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -260,7 +256,7 @@ PetscErrorCode FormEqualityConstraints(TaoSolver tao, Vec X, Vec CE,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormInequalityJacobian"
-PetscErrorCode FormInequalityJacobian(TaoSolver tao, Vec X, Mat *JI, Mat *JIpre,  MatStructure *ms, void *ctx)
+PetscErrorCode FormInequalityJacobian(Tao tao, Vec X, Mat *JI, Mat *JIpre,  MatStructure *ms, void *ctx)
 {
   PetscInt rows[2];
   PetscInt cols[2];
@@ -277,14 +273,14 @@ PetscErrorCode FormInequalityJacobian(TaoSolver tao, Vec X, Mat *JI, Mat *JIpre,
   ierr = MatSetValues(*JI,2,rows,2,cols,vals,INSERT_VALUES);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(*JI,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(*JI,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  
+
   PetscFunctionReturn(0);
 }
 
 
 #undef __FUNCT__
 #define __FUNCT__ "FormEqualityJacobian"
-PetscErrorCode FormEqualityJacobian(TaoSolver tao, Vec X, Mat *JE, Mat *JEpre, MatStructure *ms, void *ctx)
+PetscErrorCode FormEqualityJacobian(Tao tao, Vec X, Mat *JE, Mat *JEpre, MatStructure *ms, void *ctx)
 {
   PetscInt rows[2];
   PetscScalar vals[2],*x;
@@ -298,6 +294,6 @@ PetscErrorCode FormEqualityJacobian(TaoSolver tao, Vec X, Mat *JE, Mat *JEpre, M
   ierr = MatSetValues(*JE,1,rows,2,rows,vals,INSERT_VALUES);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(*JE,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(*JE,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  
+
   PetscFunctionReturn(0);
 }

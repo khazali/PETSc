@@ -1,7 +1,6 @@
-#include "petscvec.h"
-#include "taosolver.h"
-#include "tao-private/taolinesearch_impl.h"
-#include "owarmijo.h"
+
+#include <petsc-private/taolinesearchimpl.h>
+#include <../src/tao/linesearch/impls/owarmijo/owarmijo.h>
 
 #define REPLACE_FIFO 1
 #define REPLACE_MRU  2
@@ -37,7 +36,7 @@ static PetscErrorCode ProjWork_OWLQN(Vec w,Vec x,Vec gv,PetscReal *gdx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchDestroy_OWArmijo"
 static PetscErrorCode TaoLineSearchDestroy_OWArmijo(TaoLineSearch ls)
 {
@@ -54,7 +53,7 @@ static PetscErrorCode TaoLineSearchDestroy_OWArmijo(TaoLineSearch ls)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchSetFromOptions_OWArmijo"
 static PetscErrorCode TaoLineSearchSetFromOptions_OWArmijo(TaoLineSearch ls)
 {
@@ -75,7 +74,7 @@ static PetscErrorCode TaoLineSearchSetFromOptions_OWArmijo(TaoLineSearch ls)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchView_OWArmijo"
 static PetscErrorCode TaoLineSearchView_OWArmijo(TaoLineSearch ls, PetscViewer pv)
 {
@@ -86,19 +85,19 @@ static PetscErrorCode TaoLineSearchView_OWArmijo(TaoLineSearch ls, PetscViewer p
   PetscFunctionBegin;
   ierr = PetscObjectTypeCompare((PetscObject)pv, PETSCVIEWERASCII, &isascii);CHKERRQ(ierr);
   if (isascii) {
-    ierr = PetscViewerASCIIPrintf(pv,"  maxf=%d, ftol=%g, gtol=%g\n",ls->max_funcs, ls->rtol, ls->ftol);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(pv,"  maxf=%D, ftol=%g, gtol=%g\n",ls->max_funcs, (double)ls->rtol, (double)ls->ftol);CHKERRQ(ierr);
     ierr=PetscViewerASCIIPrintf(pv,"  OWArmijo linesearch",armP->alpha);CHKERRQ(ierr);
     if (armP->nondescending) {
       ierr = PetscViewerASCIIPrintf(pv, " (nondescending)");CHKERRQ(ierr);
     }
-    ierr=PetscViewerASCIIPrintf(pv,": alpha=%g beta=%g ",armP->alpha,armP->beta);CHKERRQ(ierr);
-    ierr=PetscViewerASCIIPrintf(pv,"sigma=%g ",armP->sigma);CHKERRQ(ierr);
-    ierr=PetscViewerASCIIPrintf(pv,"memsize=%d\n",armP->memorySize);CHKERRQ(ierr);
+    ierr=PetscViewerASCIIPrintf(pv,": alpha=%g beta=%g ",(double)armP->alpha,(double)armP->beta);CHKERRQ(ierr);
+    ierr=PetscViewerASCIIPrintf(pv,"sigma=%g ",(double)armP->sigma);CHKERRQ(ierr);
+    ierr=PetscViewerASCIIPrintf(pv,"memsize=%D\n",armP->memorySize);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchApply_OWArmijo"
 /* @ TaoApply_OWArmijo - This routine performs a linesearch. It
    backtracks until the (nonmonotone) OWArmijo conditions are satisfied.
@@ -123,7 +122,7 @@ static PetscErrorCode TaoLineSearchView_OWArmijo(TaoLineSearch ls, PetscViewer p
    condition and the directional derivative condition hold
 
    negative number if an input parameter is invalid
--   -1 -  step < 0 
+-   -1 -  step < 0
 
    positive number > 1 if the line search otherwise terminates
 +    1 -  Step is at the lower bound, stepmin.
@@ -139,8 +138,10 @@ static PetscErrorCode TaoLineSearchApply_OWArmijo(TaoLineSearch ls, Vec x, Petsc
   Vec                        g_old;
   PetscReal                  owlqn_minstep=0.005;
   PetscReal                  partgdx;
+  MPI_Comm                   comm;
 
   PetscFunctionBegin;
+  ierr = PetscObjectGetComm((PetscObject)ls,&comm);CHKERRQ(ierr);
   fact = 0.0;
   ls->nfeval=0;
   ls->reason = TAOLINESEARCH_CONTINUE_ITERATING;
@@ -158,19 +159,19 @@ static PetscErrorCode TaoLineSearchApply_OWArmijo(TaoLineSearch ls, Vec x, Petsc
 
   /* Check linesearch parameters */
   if (armP->alpha < 1) {
-    ierr = PetscInfo1(ls,"OWArmijo line search error: alpha (%g) < 1\n", armP->alpha);CHKERRQ(ierr);
+    ierr = PetscInfo1(ls,"OWArmijo line search error: alpha (%g) < 1\n", (double)armP->alpha);CHKERRQ(ierr);
     ls->reason=TAOLINESEARCH_FAILED_BADPARAMETER;
   } else if ((armP->beta <= 0) || (armP->beta >= 1)) {
-    ierr = PetscInfo1(ls,"OWArmijo line search error: beta (%g) invalid\n", armP->beta);CHKERRQ(ierr);
+    ierr = PetscInfo1(ls,"OWArmijo line search error: beta (%g) invalid\n", (double)armP->beta);CHKERRQ(ierr);
     ls->reason=TAOLINESEARCH_FAILED_BADPARAMETER;
   } else if ((armP->beta_inf <= 0) || (armP->beta_inf >= 1)) {
-    ierr = PetscInfo1(ls,"OWArmijo line search error: beta_inf (%g) invalid\n", armP->beta_inf);CHKERRQ(ierr);
+    ierr = PetscInfo1(ls,"OWArmijo line search error: beta_inf (%g) invalid\n", (double)armP->beta_inf);CHKERRQ(ierr);
     ls->reason=TAOLINESEARCH_FAILED_BADPARAMETER;
   } else if ((armP->sigma <= 0) || (armP->sigma >= 0.5)) {
-    ierr = PetscInfo1(ls,"OWArmijo line search error: sigma (%g) invalid\n", armP->sigma);CHKERRQ(ierr);
+    ierr = PetscInfo1(ls,"OWArmijo line search error: sigma (%g) invalid\n", (double)armP->sigma);CHKERRQ(ierr);
     ls->reason=TAOLINESEARCH_FAILED_BADPARAMETER;
   } else if (armP->memorySize < 1) {
-    ierr = PetscInfo1(ls,"OWArmijo line search error: memory_size (%d) < 1\n", armP->memorySize);CHKERRQ(ierr);
+    ierr = PetscInfo1(ls,"OWArmijo line search error: memory_size (%D) < 1\n", armP->memorySize);CHKERRQ(ierr);
     ls->reason=TAOLINESEARCH_FAILED_BADPARAMETER;
   }  else if ((armP->referencePolicy != REFERENCE_MAX) && (armP->referencePolicy != REFERENCE_AVE) && (armP->referencePolicy != REFERENCE_MEAN)) {
     ierr = PetscInfo(ls,"OWArmijo line search error: reference_policy invalid\n");CHKERRQ(ierr);
@@ -189,7 +190,7 @@ static PetscErrorCode TaoLineSearchApply_OWArmijo(TaoLineSearch ls, Vec x, Petsc
      the historical array and populate it with the initial function
      values. */
   if (!armP->memory) {
-    ierr = PetscMalloc(sizeof(PetscReal)*armP->memorySize, &armP->memory );CHKERRQ(ierr);
+    ierr = PetscMalloc1(armP->memorySize, &armP->memory );CHKERRQ(ierr);
   }
 
   if (!armP->memorySetup) {
@@ -224,7 +225,7 @@ static PetscErrorCode TaoLineSearchApply_OWArmijo(TaoLineSearch ls, Vec x, Petsc
   }
 
   if (armP->nondescending) {
-    fact = armP->sigma; 
+    fact = armP->sigma;
   }
 
   ierr = VecDuplicate(g,&g_old);CHKERRQ(ierr);
@@ -238,16 +239,16 @@ static PetscErrorCode TaoLineSearchApply_OWArmijo(TaoLineSearch ls, Vec x, Petsc
 
     partgdx=0.0;
     ierr = ProjWork_OWLQN(armP->work,x,g_old,&partgdx);
-    ierr = MPI_Allreduce(&partgdx,&gdx,1,MPI_DOUBLE,MPI_SUM,PETSC_COMM_WORLD);CHKERRQ(ierr);
+    ierr = MPI_Allreduce(&partgdx,&gdx,1,MPIU_REAL,MPIU_SUM,comm);CHKERRQ(ierr);
 
     /* Check the condition of gdx */
     if (PetscIsInfOrNanReal(gdx)) {
-      ierr = PetscInfo1(ls,"Initial Line Search step * g is Inf or Nan (%g)\n",gdx);CHKERRQ(ierr);
+      ierr = PetscInfo1(ls,"Initial Line Search step * g is Inf or Nan (%g)\n",(double)gdx);CHKERRQ(ierr);
       ls->reason=TAOLINESEARCH_FAILED_INFORNAN;
       PetscFunctionReturn(0);
     }
     if (gdx >= 0.0) {
-      ierr = PetscInfo1(ls,"Initial Line Search step is not descent direction (g's=%g)\n",gdx);CHKERRQ(ierr);
+      ierr = PetscInfo1(ls,"Initial Line Search step is not descent direction (g's=%g)\n",(double)gdx);CHKERRQ(ierr);
       ls->reason = TAOLINESEARCH_FAILED_ASCENT;
       PetscFunctionReturn(0);
     }
@@ -264,7 +265,7 @@ static PetscErrorCode TaoLineSearchApply_OWArmijo(TaoLineSearch ls, Vec x, Petsc
       ls->step *= armP->beta_inf;
     } else {
       /* Check descent condition */
-      if (armP->nondescending && *f <= ref - ls->step*fact*ref)	break;
+      if (armP->nondescending && *f <= ref - ls->step*fact*ref) break;
       if (!armP->nondescending && *f <= ref + armP->sigma * gdx) break;
       ls->step *= armP->beta;
     }
@@ -279,7 +280,7 @@ static PetscErrorCode TaoLineSearchApply_OWArmijo(TaoLineSearch ls, Vec x, Petsc
     ierr = PetscInfo(ls, "Step length is below tolerance.\n");CHKERRQ(ierr);
     ls->reason = TAOLINESEARCH_HALTED_RTOL;
   } else if (ls->nfeval >= ls->max_funcs) {
-    ierr = PetscInfo2(ls, "Number of line search function evals (%d) > maximum allowed (%d)\n",ls->nfeval, ls->max_funcs);CHKERRQ(ierr);
+    ierr = PetscInfo2(ls, "Number of line search function evals (%D) > maximum allowed (%D)\n",ls->nfeval, ls->max_funcs);CHKERRQ(ierr);
     ls->reason = TAOLINESEARCH_HALTED_MAXFCN;
   }
   if (ls->reason) PetscFunctionReturn(0);
@@ -301,12 +302,12 @@ static PetscErrorCode TaoLineSearchApply_OWArmijo(TaoLineSearch ls, Vec x, Petsc
   if (!g_computed) {
     ierr = TaoLineSearchComputeGradient(ls, x, g);CHKERRQ(ierr);
   }
-  ierr = PetscInfo2(ls, "%d function evals in line search, step = %10.4f\n",ls->nfeval, ls->step);CHKERRQ(ierr);
+  ierr = PetscInfo2(ls, "%D function evals in line search, step = %10.4f\n",ls->nfeval, (double)ls->step);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 EXTERN_C_BEGIN
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchCreate_OWArmijo"
 PetscErrorCode TaoLineSearchCreate_OWArmijo(TaoLineSearch ls)
 {

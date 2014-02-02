@@ -1,8 +1,8 @@
 #ifndef __TAO_SQPCON_H
 #define __TAO_SQPCON_H
 
-#include "private/taosolver_impl.h"
-#include "petscis.h"
+#include <petsc-private/taoimpl.h>
+#include <petscis.h>
 
 typedef struct {
   Mat M;    /* Quasi-newton hessian matrix */
@@ -17,7 +17,7 @@ typedef struct {
 
   Vec U;    /* State variable */
   Vec V;    /* Design variable */
-  
+
   Vec DU;   /* State step */
   Vec DV;   /* Design step */
   Vec DL;   /* Multipliers step */
@@ -30,7 +30,7 @@ typedef struct {
   Vec Gold;
   Vec WU;   /* state work vector */
   Vec WV;   /* design work vector */
-  Vec Tbar; 
+  Vec Tbar;
   Vec aqwac;
 
   PetscInt m; /* number of constraints */
@@ -46,7 +46,7 @@ typedef struct {
   PetscInt    subset_type;
   MatStructure statematflag,designmatflag;
 
-  
+
 
 } TAO_SQPCON;
 

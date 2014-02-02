@@ -2,14 +2,14 @@
 
 /* ----------------------------------------------------------------------
 
-  Elastic-plastic torsion problem.  
+  Elastic-plastic torsion problem.
 
-  The elastic plastic torsion problem arises from the determination 
+  The elastic plastic torsion problem arises from the determination
   of the stress field on an infinitely long cylindrical bar, which is
   equivalent to the solution of the following problem:
 
   min{ .5 * integral(||gradient(v(x))||^2 dx) - C * integral(v(x) dx)}
-  
+
   where C is the torsion angle per unit length.
 
   The multiprocessor version of this code is eptorsion2.c.
@@ -17,7 +17,7 @@
 ---------------------------------------------------------------------- */
 
 /*
-  Include "taosolver.h" so that we can use TAO solvers.  Note that this 
+  Include "petsctao.h" so that we can use TAO solvers.  Note that this
   file automatically includes files for lower-level support, such as those
   provided by the PETSc library:
      petsc.h       - base PETSc routines   petscvec.h - vectors
@@ -26,7 +26,7 @@
      petscviewer.h - viewers               petscpc.h  - preconditioners
 */
 
-#include "taosolver.h"
+#include <petsctao.h>
 
 
 static  char help[]=
@@ -39,20 +39,19 @@ The command line options are:\n\
   -my <yg>, where <yg> = number of grid points in the 2nd coordinate direction\n\
   -par <param>, where <param> = angle of twist per unit length\n\n";
 
-/*T 
+/*T
    Concepts: TAO - Solving an unconstrained minimization problem
-   Routines: TaoInitialize(); TaoFinalize(); 
    Routines: TaoCreate(); TaoSetType();
-   Routines: TaoSetInitialVector(); 
+   Routines: TaoSetInitialVector();
    Routines: TaoSetObjectiveAndGradientRoutine();
    Routines: TaoSetHessianRoutine(); TaoSetFromOptions();
    Routines: TaoGetKSP(); TaoSolve();
    Routines: TaoGetTerminationReason(); TaoDestroy();
    Processors: 1
-T*/ 
+T*/
 
-/* 
-   User-defined application context - contains data needed by the 
+/*
+   User-defined application context - contains data needed by the
    application-provided call-back routines, FormFunction(),
    FormGradient(), and FormHessian().
 */
@@ -68,34 +67,33 @@ typedef struct {
 /* -------- User-defined Routines --------- */
 
 PetscErrorCode FormInitialGuess(AppCtx*,Vec);
-PetscErrorCode FormFunction(TaoSolver,Vec,PetscReal*,void*);
-PetscErrorCode FormGradient(TaoSolver,Vec,Vec,void*);
-PetscErrorCode FormHessian(TaoSolver,Vec,Mat*,Mat*, MatStructure *,void*);
+PetscErrorCode FormFunction(Tao,Vec,PetscReal*,void*);
+PetscErrorCode FormGradient(Tao,Vec,Vec,void*);
+PetscErrorCode FormHessian(Tao,Vec,Mat*,Mat*, MatStructure *,void*);
 PetscErrorCode HessianProductMat(Mat,Vec,Vec);
 PetscErrorCode HessianProduct(void*,Vec,Vec);
-PetscErrorCode MatrixFreeHessian(TaoSolver,Vec,Mat*,Mat*,MatStructure*,void*);
-PetscErrorCode FormFunctionGradient(TaoSolver,Vec,PetscReal *,Vec,void *);
+PetscErrorCode MatrixFreeHessian(Tao,Vec,Mat*,Mat*,MatStructure*,void*);
+PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal *,Vec,void *);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
 PetscErrorCode main(int argc,char **argv)
 {
-  PetscErrorCode             ierr;                /* used to check for functions returning nonzeros */
-  PetscInt                   mx=10;               /* discretization in x-direction */
-  PetscInt                   my=10;               /* discretization in y-direction */
-  Vec                        x;                   /* solution, gradient vectors */
-  PetscBool                  flg;                 /* A return value when checking for use options */
-  TaoSolver                  tao;                 /* TaoSolver solver context */
-  Mat                        H;                   /* Hessian matrix */
-  TaoSolverTerminationReason reason;        
-  KSP                        ksp;                 /* PETSc Krylov subspace solver */
-  AppCtx                     user;                /* application context */
-  PetscMPIInt                size;                /* number of processes */
-  PetscReal                  one=1.0;
+  PetscErrorCode       ierr;                /* used to check for functions returning nonzeros */
+  PetscInt             mx=10;               /* discretization in x-direction */
+  PetscInt             my=10;               /* discretization in y-direction */
+  Vec                  x;                   /* solution, gradient vectors */
+  PetscBool            flg;                 /* A return value when checking for use options */
+  Tao                  tao;                 /* Tao solver context */
+  Mat                  H;                   /* Hessian matrix */
+  TaoTerminationReason reason;
+  KSP                  ksp;                 /* PETSc Krylov subspace solver */
+  AppCtx               user;                /* application context */
+  PetscMPIInt          size;                /* number of processes */
+  PetscReal            one=1.0;
 
   /* Initialize TAO,PETSc */
   PetscInitialize(&argc,&argv,(char *)0,help);
-  TaoInitialize(&argc,&argv,(char *)0,help);
 
   ierr = MPI_Comm_size(MPI_COMM_WORLD,&size);CHKERRQ(ierr);
   if (size >1) SETERRQ(PETSC_COMM_SELF,1,"Incorrect number of processors");
@@ -136,7 +134,7 @@ PetscErrorCode main(int argc,char **argv)
 
     ierr = TaoSetHessianRoutine(tao,H,H,MatrixFreeHessian,(void *)&user);CHKERRQ(ierr);
 
-    /* Set null preconditioner.  Alternatively, set user-provided 
+    /* Set null preconditioner.  Alternatively, set user-provided
        preconditioner or explicitly form preconditioning matrix */
     ierr = PetscOptionsSetValue("-tao_pc_type","none");CHKERRQ(ierr);
   } else {
@@ -174,7 +172,6 @@ PetscErrorCode main(int argc,char **argv)
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = MatDestroy(&H);CHKERRQ(ierr);
 
-  TaoFinalize();
   PetscFinalize();
   return 0;
 }
@@ -182,7 +179,7 @@ PetscErrorCode main(int argc,char **argv)
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormInitialGuess"
-/* 
+/*
     FormInitialGuess - Computes an initial approximation to the solution.
 
     Input Parameters:
@@ -216,19 +213,19 @@ PetscErrorCode FormInitialGuess(AppCtx *user,Vec X)
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormFunctionGradient"
-/* 
+/*
    FormFunctionGradient - Evaluates the function and corresponding gradient.
-    
+
    Input Parameters:
-   tao - the TaoSolver context
-   X   - the input vector 
+   tao - the Tao context
+   X   - the input vector
    ptr - optional user-defined context, as set by TaoSetFunction()
 
    Output Parameters:
    f   - the newly evaluated function
    G   - the newly evaluated gradient
 */
-PetscErrorCode FormFunctionGradient(TaoSolver tao,Vec X,PetscReal *f,Vec G,void *ptr)
+PetscErrorCode FormFunctionGradient(Tao tao,Vec X,PetscReal *f,Vec G,void *ptr)
 {
   PetscErrorCode ierr;
 
@@ -240,18 +237,18 @@ PetscErrorCode FormFunctionGradient(TaoSolver tao,Vec X,PetscReal *f,Vec G,void 
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormFunction"
-/* 
+/*
    FormFunction - Evaluates the function, f(X).
 
    Input Parameters:
-.  tao - the TaoSolver context
-.  X   - the input vector 
+.  tao - the Tao context
+.  X   - the input vector
 .  ptr - optional user-defined context, as set by TaoSetFunction()
 
    Output Parameters:
 .  f    - the newly evaluated function
 */
-PetscErrorCode FormFunction(TaoSolver tao,Vec X,PetscReal *f,void *ptr)
+PetscErrorCode FormFunction(Tao tao,Vec X,PetscReal *f,void *ptr)
 {
   AppCtx         *user = (AppCtx *) ptr;
   PetscReal      hx = user->hx, hy = user->hy, area, three = 3.0, p5 = 0.5;
@@ -312,18 +309,18 @@ PetscErrorCode FormFunction(TaoSolver tao,Vec X,PetscReal *f,void *ptr)
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormGradient"
-/*  
-    FormGradient - Evaluates the gradient, G(X).              
+/*
+    FormGradient - Evaluates the gradient, G(X).
 
     Input Parameters:
-.   tao  - the TaoSolver context
+.   tao  - the Tao context
 .   X    - input vector
 .   ptr  - optional user-defined context
-    
+
     Output Parameters:
 .   G - vector containing the newly evaluated gradient
 */
-PetscErrorCode FormGradient(TaoSolver tao,Vec X,Vec G,void *ptr)
+PetscErrorCode FormGradient(Tao tao,Vec X,Vec G,void *ptr)
 {
   AppCtx         *user = (AppCtx *) ptr;
   PetscReal      zero=0.0, p5=0.5, three = 3.0, area, val, *x;
@@ -408,14 +405,14 @@ PetscErrorCode FormGradient(TaoSolver tao,Vec X,Vec G,void *ptr)
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormHessian"
-/* 
+/*
    FormHessian - Forms the Hessian matrix.
 
    Input Parameters:
-.  tao - the TaoSolver context
+.  tao - the Tao context
 .  X    - the input vector
 .  ptr  - optional user-defined context, as set by TaoSetHessian()
-   
+
    Output Parameters:
 .  H     - Hessian matrix
 .  PrecH - optionally different preconditioning Hessian
@@ -427,7 +424,7 @@ PetscErrorCode FormGradient(TaoSolver tao,Vec X,Vec G,void *ptr)
    Hessian a column at a time, it is not particularly efficient and
    is not recommended.
 */
-PetscErrorCode FormHessian(TaoSolver tao,Vec X,Mat *HH,Mat *Hpre, MatStructure *flg, void *ptr)
+PetscErrorCode FormHessian(Tao tao,Vec X,Mat *HH,Mat *Hpre, MatStructure *flg, void *ptr)
 {
   AppCtx         *user = (AppCtx *) ptr;
   PetscErrorCode ierr;
@@ -475,33 +472,33 @@ PetscErrorCode FormHessian(TaoSolver tao,Vec X,Mat *HH,Mat *Hpre, MatStructure *
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "MatrixFreeHessian"
-/* 
+/*
    MatrixFreeHessian - Sets a pointer for use in computing Hessian-vector
    products.
-    
+
    Input Parameters:
-.  tao - the TaoSolver context
+.  tao - the Tao context
 .  X    - the input vector
 .  ptr  - optional user-defined context, as set by TaoSetHessian()
-   
+
    Output Parameters:
 .  H     - Hessian matrix
 .  PrecH - optionally different preconditioning Hessian
 .  flag  - flag indicating matrix structure
 */
-PetscErrorCode MatrixFreeHessian(TaoSolver tao,Vec X,Mat *H,Mat *PrecH, MatStructure *flag,void *ptr)
+PetscErrorCode MatrixFreeHessian(Tao tao,Vec X,Mat *H,Mat *PrecH, MatStructure *flag,void *ptr)
 {
   AppCtx     *user = (AppCtx *) ptr;
 
   /* Sets location of vector for use in computing matrix-vector products  of the form H(X)*y  */
-  user->xvec = X;   
+  user->xvec = X;
   return 0;
 }
 
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "HessianProductMat"
-/* 
+/*
    HessianProductMat - Computes the matrix-vector product
    y = mat*svec.
 
@@ -525,8 +522,8 @@ PetscErrorCode HessianProductMat(Mat mat,Vec svec,Vec y)
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "HessianProduct"
-/* 
-   Hessian Product - Computes the matrix-vector product: 
+/*
+   Hessian Product - Computes the matrix-vector product:
    y = f''(x)*svec.
 
    Input Parameters
@@ -582,7 +579,7 @@ PetscErrorCode HessianProduct(void *ptr,Vec svec,Vec y)
        }
      }
    }
-  
+
   /* Compute f''(x)*s over the upper triangular elements */
   for (j=0; j<=ny; j++) {
     for (i=0; i<=nx; i++) {

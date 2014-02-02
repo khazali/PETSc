@@ -1,7 +1,8 @@
+
 !
 !  Include file for Fortran use of the TAO (Optimization) package in PETSc
 !
-#include "finclude/taosolverdef.h"
+#include "finclude/petsctaodef.h"
 
       PetscEnum TAO_CONVERGED_FATOL
       PetscEnum TAO_CONVERGED_FRTOL

@@ -7,10 +7,10 @@
    -- feasible (F)    - iterates guaranteed to remain within bounds
    -- linesearch (LS) - Armijo rule on direction
 
- Many other reformulations are possible and combinations of 
+ Many other reformulations are possible and combinations of
  feasible/infeasible and linesearch/trust region are possible.
 
- Basic theory 
+ Basic theory
    Fischer-Burmeister reformulation is semismooth with a continuously
    differentiable merit function and strongly semismooth if the F has
    lipschitz continuous derivatives.
@@ -50,19 +50,19 @@
 
 #ifndef __TAO_SSLS_H
 #define __TAO_SSLS_H
-#include "tao-private/taosolver_impl.h"
+#include <petsc-private/taoimpl.h>
 
 typedef struct {
-  Vec ff;	/* fischer function */
-  Vec dpsi;	/* gradient of psi */
-  
-  Vec da;	/* work vector for subdifferential calculation (diag pert) */
-  Vec db;	/* work vector for subdifferential calculation (row scale) */
+  Vec ff;       /* fischer function */
+  Vec dpsi;     /* gradient of psi */
+
+  Vec da;       /* work vector for subdifferential calculation (diag pert) */
+  Vec db;       /* work vector for subdifferential calculation (row scale) */
   Vec dm;   /* work vector for subdifferential calculation (mu vector) */
   Vec dxfree;
 
-  Vec t1;	/* work vector */
-  Vec t2;	/* work vector */
+  Vec t1;       /* work vector */
+  Vec t2;       /* work vector */
 
   Vec r1,r2,r3,w; /* work vectors */
 
@@ -73,10 +73,10 @@ typedef struct {
   PetscReal delta;
   PetscReal rho;
 
-  PetscReal rtol;	/* Solution tolerances */
+  PetscReal rtol;       /* Solution tolerances */
   PetscReal atol;
 
-  PetscReal identifier;	/* Active-set identification */
+  PetscReal identifier; /* Active-set identification */
 
   /* Interior-point method data */
   PetscReal mu_init; /* initial smoothing parameter value */
@@ -87,15 +87,15 @@ typedef struct {
   PetscReal g_mucon; /* gradient of merit function with respect to mu */
 
   Mat J_sub, Jpre_sub; /* subset of jacobian */
-  MatStructure matflag; 
-  Vec f;	/* constraint function */
-  
+  MatStructure matflag;
+  Vec f;        /* constraint function */
+
   IS fixed;
   IS free;
 } TAO_SSLS;
 
-PetscErrorCode TaoSetFromOptions_SSLS(TaoSolver);
-PetscErrorCode TaoView_SSLS(TaoSolver,PetscViewer);
+PetscErrorCode TaoSetFromOptions_SSLS(Tao);
+PetscErrorCode TaoView_SSLS(Tao,PetscViewer);
 
 PetscErrorCode Tao_SSLS_Function(TaoLineSearch, Vec, PetscReal *, void *);
 PetscErrorCode Tao_SSLS_FunctionGradient(TaoLineSearch, Vec, PetscReal *, Vec, void *);

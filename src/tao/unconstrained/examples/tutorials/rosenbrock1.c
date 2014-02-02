@@ -1,29 +1,28 @@
 /* Program usage: mpirun -np 1 rosenbrock1 [-help] [all TAO options] */
 
-/*  Include "tao.h" so we can use TAO solvers.  */
-#include "tao.h"
+/*  Include "petsctao.h" so we can use TAO solvers.  */
+#include <petsctao.h>
 
 static  char help[] = "This example demonstrates use of the TAO package to \n\
 solve an unconstrained minimization problem on a single processor.  We \n\
 minimize the extended Rosenbrock function: \n\
    sum_{i=0}^{n/2-1} ( alpha*(x_{2i+1}-x_{2i}^2)^2 + (1-x_{2i})^2 ) \n";
 
-/*T 
+/*T
    Concepts: TAO - Solving an unconstrained minimization problem
-   Routines: TaoInitialize(); TaoFinalize();
    Routines: TaoCreate();
    Routines: TaoSetType(); TaoSetObjectiveAndGradientRoutine();
    Routines: TaoSetHessianRoutine();
    Routines: TaoSetInitialVector();
    Routines: TaoSetFromOptions();
    Routines: TaoSolve();
-   Routines: TaoGetTerminationReason(); TaoDestroy(); 
+   Routines: TaoGetTerminationReason(); TaoDestroy();
    Processors: 1
-T*/ 
+T*/
 
 
-/* 
-   User-defined application context - contains data needed by the 
+/*
+   User-defined application context - contains data needed by the
    application-provided call-back routines that evaluate the function,
    gradient, and hessian.
 */
@@ -33,25 +32,25 @@ typedef struct {
 } AppCtx;
 
 /* -------------- User-defined routines ---------- */
-PetscErrorCode FormFunctionGradient(TaoSolver,Vec,PetscReal*,Vec,void*);
-PetscErrorCode FormHessian(TaoSolver,Vec,Mat*,Mat*,MatStructure*,void*);
+PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
+PetscErrorCode FormHessian(Tao,Vec,Mat*,Mat*,MatStructure*,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc,char **argv)
 {
-  PetscErrorCode             ierr;                  /* used to check for functions returning nonzeros */
-  PetscReal                  zero=0.0;
-  Vec                        x;                     /* solution vector */
-  Mat                        H;
-  TaoSolver                  tao;                   /* TaoSolver solver context */
-  PetscBool                  flg;
-  PetscMPIInt                size,rank;                  /* number of processes running */
-  TaoSolverTerminationReason reason;
-  AppCtx                     user;                  /* user-defined application context */
+  PetscErrorCode       ierr;                  /* used to check for functions returning nonzeros */
+  PetscReal            zero=0.0;
+  Vec                  x;                     /* solution vector */
+  Mat                  H;
+  Tao                  tao;                   /* Tao solver context */
+  PetscBool            flg;
+  PetscMPIInt          size,rank;                  /* number of processes running */
+  TaoTerminationReason reason;
+  AppCtx               user;                  /* user-defined application context */
 
   /* Initialize TAO and PETSc */
-  TaoInitialize(&argc,&argv,(char*)0,help);
+  PetscInitialize(&argc,&argv,(char*)0,help);
   ierr = MPI_Comm_size(PETSC_COMM_WORLD,&size);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
   if (size >1) SETERRQ(PETSC_COMM_SELF,1,"Incorrect number of processors");
@@ -74,12 +73,12 @@ int main(int argc,char **argv)
 
   /* Set solution vec and an initial guess */
   ierr = VecSet(x, zero);CHKERRQ(ierr);
-  ierr = TaoSetInitialVector(tao,x);CHKERRQ(ierr); 
+  ierr = TaoSetInitialVector(tao,x);CHKERRQ(ierr);
 
   /* Set routines for function, gradient, hessian evaluation */
   ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,&user);CHKERRQ(ierr);
   ierr = TaoSetHessianRoutine(tao,H,H,FormHessian,&user);CHKERRQ(ierr);
-    
+
   /* Check for TAO command line options */
   ierr = TaoSetFromOptions(tao);CHKERRQ(ierr);
 
@@ -96,21 +95,20 @@ int main(int argc,char **argv)
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = MatDestroy(&H);CHKERRQ(ierr);
 
-  TaoFinalize();
   return 0;
 }
 
 /* -------------------------------------------------------------------- */
 #undef __FUNCT__
 #define __FUNCT__ "FormFunctionGradient"
-/*  
-    FormFunctionGradient - Evaluates the function, f(X), and gradient, G(X). 
+/*
+    FormFunctionGradient - Evaluates the function, f(X), and gradient, G(X).
 
     Input Parameters:
-.   tao  - the TaoSolver context
+.   tao  - the Tao context
 .   X    - input vector
 .   ptr  - optional user-defined context, as set by TaoSetFunctionGradient()
-    
+
     Output Parameters:
 .   G - vector containing the newly evaluated gradient
 .   f - function value
@@ -118,11 +116,11 @@ int main(int argc,char **argv)
     Note:
     Some optimization methods ask for the function and the gradient evaluation
     at the same time.  Evaluating both at once may be more efficient that
-    evaluating each separately. 
+    evaluating each separately.
 */
-PetscErrorCode FormFunctionGradient(TaoSolver tao,Vec X,PetscReal *f, Vec G,void *ptr)
+PetscErrorCode FormFunctionGradient(Tao tao,Vec X,PetscReal *f, Vec G,void *ptr)
 {
-  AppCtx         *user = (AppCtx *) ptr;  
+  AppCtx         *user = (AppCtx *) ptr;
   PetscInt       i,nn=user->n/2;
   PetscErrorCode ierr;
   PetscReal      ff=0,t1,t2,alpha=user->alpha;
@@ -156,7 +154,7 @@ PetscErrorCode FormFunctionGradient(TaoSolver tao,Vec X,PetscReal *f, Vec G,void
    FormHessian - Evaluates Hessian matrix.
 
    Input Parameters:
-.  tao   - the TaoSolver context
+.  tao   - the Tao context
 .  x     - input vector
 .  ptr   - optional user-defined context, as set by TaoSetHessian()
 
@@ -166,7 +164,7 @@ PetscErrorCode FormFunctionGradient(TaoSolver tao,Vec X,PetscReal *f, Vec G,void
    Note:  Providing the Hessian may not be necessary.  Only some solvers
    require this matrix.
 */
-PetscErrorCode FormHessian(TaoSolver tao,Vec X,Mat *HH, Mat *Hpre, MatStructure *flag,void *ptr)
+PetscErrorCode FormHessian(Tao tao,Vec X,Mat *HH, Mat *Hpre, MatStructure *flag,void *ptr)
 {
   AppCtx         *user = (AppCtx*)ptr;
   PetscErrorCode ierr;

@@ -1,11 +1,11 @@
-#include "tao-private/taolinesearch_impl.h"
-#include "gpcglinesearch.h" 
+#include <petsc-private/taolinesearchimpl.h>
+#include <../src/tao/linesearch/impls/gpcglinesearch/gpcglinesearch.h>
 
 /* ---------------------------------------------------------- */
 
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchDestroy_GPCG"
-static PetscErrorCode TaoLineSearchDestroy_GPCG(TaoLineSearch ls) 
+static PetscErrorCode TaoLineSearchDestroy_GPCG(TaoLineSearch ls)
 {
   PetscErrorCode         ierr;
   TAOLINESEARCH_GPCG_CTX *ctx = (TAOLINESEARCH_GPCG_CTX *)ls->data;
@@ -21,7 +21,7 @@ static PetscErrorCode TaoLineSearchDestroy_GPCG(TaoLineSearch ls)
 
 
 /*------------------------------------------------------------*/
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchView_GPCG"
 static PetscErrorCode TaoLineSearchView_GPCG(TaoLineSearch ls, PetscViewer viewer)
 {
@@ -37,7 +37,7 @@ static PetscErrorCode TaoLineSearchView_GPCG(TaoLineSearch ls, PetscViewer viewe
 }
 
 /*------------------------------------------------------------*/
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchApply_GPCG"
 static PetscErrorCode TaoLineSearchApply_GPCG(TaoLineSearch ls, Vec x, PetscReal *f, Vec g, Vec s)
 {
@@ -50,11 +50,11 @@ static PetscErrorCode TaoLineSearchApply_GPCG(TaoLineSearch ls, Vec x, PetscReal
   PetscFunctionBegin;
   /* ls->stepmin - lower bound for step */
   /* ls->stepmax - upper bound for step */
-  /* ls->rtol 	  - relative tolerance for an acceptable step */
-  /* ls->ftol 	  - tolerance for sufficient decrease condition */
-  /* ls->gtol 	  - tolerance for curvature condition */
-  /* ls->nfeval	  - number of function evaluations */
-  /* ls->nfeval	  - number of function/gradient evaluations */
+  /* ls->rtol     - relative tolerance for an acceptable step */
+  /* ls->ftol     - tolerance for sufficient decrease condition */
+  /* ls->gtol     - tolerance for curvature condition */
+  /* ls->nfeval   - number of function evaluations */
+  /* ls->nfeval   - number of function/gradient evaluations */
   /* ls->max_funcs  - maximum number of function evaluations */
 
   ls->reason = TAOLINESEARCH_CONTINUE_ITERATING;
@@ -88,7 +88,7 @@ static PetscErrorCode TaoLineSearchApply_GPCG(TaoLineSearch ls, Vec x, PetscReal
   ierr = VecCopy(g,neP->Gold);CHKERRQ(ierr);
   if (ls->bounded) {
     /* Compute the smallest steplength that will make one nonbinding variable  equal the bound */
-    ierr = VecStepBoundInfo(x,ls->lower,ls->upper,s,&rho,&actred,&d1);CHKERRQ(ierr);
+    ierr = VecStepBoundInfo(x,s,ls->lower,ls->upper,&rho,&actred,&d1);CHKERRQ(ierr);
     ls->step = PetscMin(ls->step,d1);
   }
   rho=0; actred=0;
@@ -128,22 +128,22 @@ static PetscErrorCode TaoLineSearchApply_GPCG(TaoLineSearch ls, Vec x, PetscReal
     }
 
     if (0 == i) {
-	ls->f_fullstep = *f;
+        ls->f_fullstep = *f;
     }
 
     actred = *f - finit;
     ierr = VecCopy(neP->W2,neP->W1);CHKERRQ(ierr);
     ierr = VecAXPY(neP->W1,-1.0,x);CHKERRQ(ierr);    /* W1 = W2 - X */
     ierr = VecDot(neP->W1,neP->Gold,&prered);CHKERRQ(ierr);
-    
+
     if (fabs(prered)<1.0e-100) prered=1.0e-12;
     rho = actred/prered;
-    
-    /* 
+
+    /*
        If sufficient progress has been obtained, accept the
-       point.  Otherwise, backtrack. 
+       point.  Otherwise, backtrack.
     */
-    
+
     if (actred > 0) {
       ierr = PetscInfo(ls,"Step resulted in ascent, rejecting.\n");CHKERRQ(ierr);
       ls->step = (ls->step)/2;
@@ -154,7 +154,7 @@ static PetscErrorCode TaoLineSearchApply_GPCG(TaoLineSearch ls, Vec x, PetscReal
     }
 
     /* Convergence testing */
-  
+
     if (ls->step <= ls->stepmin || ls->step >= ls->stepmax) {
       ls->reason = TAOLINESEARCH_HALTED_OTHER;
       ierr = PetscInfo(ls,"Rounding errors may prevent further progress.  May not be a step satisfying\n");CHKERRQ(ierr);
@@ -193,7 +193,7 @@ static PetscErrorCode TaoLineSearchApply_GPCG(TaoLineSearch ls, Vec x, PetscReal
 
 /* ---------------------------------------------------------- */
 EXTERN_C_BEGIN
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchCreate_GPCG"
 PetscErrorCode TaoLineSearchCreate_GPCG(TaoLineSearch ls)
 {
@@ -201,17 +201,17 @@ PetscErrorCode TaoLineSearchCreate_GPCG(TaoLineSearch ls)
   TAOLINESEARCH_GPCG_CTX *neP;
 
   PetscFunctionBegin;
-  ls->ftol		  = 0.05;
-  ls->rtol		  = 0.0;
-  ls->gtol		  = 0.0;
-  ls->stepmin		  = 1.0e-20;
-  ls->stepmax		  = 1.0e+20;
-  ls->nfeval		  = 0; 
-  ls->max_funcs		  = 30;
+  ls->ftol                = 0.05;
+  ls->rtol                = 0.0;
+  ls->gtol                = 0.0;
+  ls->stepmin             = 1.0e-20;
+  ls->stepmax             = 1.0e+20;
+  ls->nfeval              = 0;
+  ls->max_funcs           = 30;
   ls->step                = 1.0;
 
   ierr = PetscNewLog(ls,&neP);CHKERRQ(ierr);
-  neP->bracket		  = 0; 
+  neP->bracket            = 0;
   neP->infoc              = 1;
   ls->data = (void*)neP;
 

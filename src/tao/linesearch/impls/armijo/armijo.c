@@ -1,7 +1,5 @@
-#include "petscvec.h"
-#include "taosolver.h"
-#include "tao-private/taolinesearch_impl.h"
-#include "armijo.h"
+#include <petsc-private/taolinesearchimpl.h>
+#include <../src/tao/linesearch/impls/armijo/armijo.h>
 
 #define REPLACE_FIFO 1
 #define REPLACE_MRU  2
@@ -10,7 +8,7 @@
 #define REFERENCE_AVE  2
 #define REFERENCE_MEAN 3
 
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchDestroy_Armijo"
 static PetscErrorCode TaoLineSearchDestroy_Armijo(TaoLineSearch ls)
 {
@@ -25,7 +23,7 @@ static PetscErrorCode TaoLineSearchDestroy_Armijo(TaoLineSearch ls)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchReset_Armijo"
 static PetscErrorCode TaoLineSearchReset_Armijo(TaoLineSearch ls)
 {
@@ -40,7 +38,7 @@ static PetscErrorCode TaoLineSearchReset_Armijo(TaoLineSearch ls)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchSetFromOptions_Armijo"
 static PetscErrorCode TaoLineSearchSetFromOptions_Armijo(TaoLineSearch ls)
 {
@@ -61,7 +59,7 @@ static PetscErrorCode TaoLineSearchSetFromOptions_Armijo(TaoLineSearch ls)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchView_Armijo"
 static PetscErrorCode TaoLineSearchView_Armijo(TaoLineSearch ls, PetscViewer pv)
 {
@@ -87,13 +85,13 @@ static PetscErrorCode TaoLineSearchView_Armijo(TaoLineSearch ls, PetscViewer pv)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchApply_Armijo"
 /* @ TaoApply_Armijo - This routine performs a linesearch. It
    backtracks until the (nonmonotone) Armijo conditions are satisfied.
 
    Input Parameters:
-+  tao - TaoSolver context
++  tao - Tao context
 .  X - current iterate (on output X contains new iterate, X + step*S)
 .  S - search direction
 .  f - merit function evaluated at X
@@ -112,7 +110,7 @@ static PetscErrorCode TaoLineSearchView_Armijo(TaoLineSearch ls, PetscViewer pv)
    condition and the directional derivative condition hold
 
    negative number if an input parameter is invalid
--   -1 -  step < 0 
+-   -1 -  step < 0
 
    positive number > 1 if the line search otherwise terminates
 +    1 -  Step is at the lower bound, stepmin.
@@ -177,7 +175,7 @@ static PetscErrorCode TaoLineSearchApply_Armijo(TaoLineSearch ls, Vec x, PetscRe
      the historical array and populate it with the initial function
      values. */
   if (!armP->memory) {
-    ierr = PetscMalloc(sizeof(PetscReal)*armP->memorySize, &armP->memory );CHKERRQ(ierr);
+    ierr = PetscMalloc1(armP->memorySize, &armP->memory );CHKERRQ(ierr);
   }
 
   if (!armP->memorySetup) {
@@ -189,7 +187,7 @@ static PetscErrorCode TaoLineSearchApply_Armijo(TaoLineSearch ls, Vec x, PetscRe
     armP->lastReference = armP->memory[0];
     armP->memorySetup=PETSC_TRUE;
   }
-  
+
   /* Calculate reference value (MAX) */
   ref = armP->memory[0];
   idx = 0;
@@ -223,9 +221,9 @@ static PetscErrorCode TaoLineSearchApply_Armijo(TaoLineSearch ls, Vec x, PetscRe
     ls->reason = TAOLINESEARCH_FAILED_ASCENT;
     PetscFunctionReturn(0);
   }
-  
+
   if (armP->nondescending) {
-    fact = armP->sigma; 
+    fact = armP->sigma;
   } else {
     fact = armP->sigma * gdx;
   }
@@ -258,7 +256,7 @@ static PetscErrorCode TaoLineSearchApply_Armijo(TaoLineSearch ls, Vec x, PetscRe
     } else {
       /* Check descent condition */
       if (armP->nondescending && *f <= ref - ls->step*fact*ref)
-	break;
+        break;
       if (!armP->nondescending && *f <= ref + ls->step*fact) {
         break;
       }
@@ -277,7 +275,7 @@ static PetscErrorCode TaoLineSearchApply_Armijo(TaoLineSearch ls, Vec x, PetscRe
   } else if ((ls->nfeval+ls->nfgeval) >= ls->max_funcs) {
     ierr = PetscInfo2(ls, "Number of line search function evals (%D) > maximum allowed (%D)\n",ls->nfeval+ls->nfgeval, ls->max_funcs);CHKERRQ(ierr);
     ls->reason = TAOLINESEARCH_HALTED_MAXFCN;
-  } 
+  }
   if (ls->reason) {
     PetscFunctionReturn(0);
   }
@@ -304,7 +302,7 @@ static PetscErrorCode TaoLineSearchApply_Armijo(TaoLineSearch ls, Vec x, PetscRe
 }
 
 EXTERN_C_BEGIN
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchCreate_Armijo"
 PetscErrorCode TaoLineSearchCreate_Armijo(TaoLineSearch ls)
 {

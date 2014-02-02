@@ -1,12 +1,12 @@
 #ifndef __TAO_GPCGLINESEARCH_H
 #define __TAO_GPCGLINESEARCH_H
 
-#include "petscvec.h"
+#include <petscvec.h>
 
 typedef struct {
 
 /* --------------- Parameters used by line search method ----------------- */
-  PetscReal maxstep;	     /* maximum step size */
+  PetscReal maxstep;         /* maximum step size */
   PetscInt    bracket;
   PetscInt    infoc;
 

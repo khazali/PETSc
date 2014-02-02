@@ -1,11 +1,11 @@
 /*
- Context for limited memory variable metric method for unconstrained 
+ Context for limited memory variable metric method for unconstrained
  optimization.
 */
 
 #ifndef __TAO_OWLQN_H
 #define __TAO_OWLQN_H
-#include "tao-private/taosolver_impl.h"
+#include <petsc-private/taoimpl.h>
 
 typedef struct {
   Mat M;

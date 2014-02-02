@@ -1,4 +1,4 @@
-#include "tao.h"
+#include "petsctao.h" 
 
 typedef struct {
   PetscInt  n;       /* dimension */
@@ -6,19 +6,18 @@ typedef struct {
 } AppCtx;
 
 /* -------------- User-defined routines ---------- */
-PetscErrorCode FormFunctionGradient(TaoSolver,Vec,PetscReal*,Vec,void*);
-PetscErrorCode FormHessian(TaoSolver,Vec,Mat*,Mat*,MatStructure*,void*);
+PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
+PetscErrorCode FormHessian(Tao,Vec,Mat*,Mat*,MatStructure*,void*);
 
 int main(int argc,char **argv)
 {
   PetscErrorCode ierr;  /* used to check for functions returning nonzeros */
-  Vec        x;         /* solution vector */
-  Mat        H;         /* Hessian matrix */
-  TaoSolver  tao;       /* TaoSolver context */
-  AppCtx     user;      /* user-defined application context */
+  Vec            x;         /* solution vector */
+  Mat            H;         /* Hessian matrix */
+  Tao            tao;       /* Tao context */
+  AppCtx         user;      /* user-defined application context */
 
-  /* Initialize TAO */
-  TaoInitialize(&argc,&argv,(char*)0,0);
+  PetscInitialize(&argc,&argv,(char*)0,0);
 
   /* Initialize problem parameters */
   user.n = 2; user.alpha = 99.0;
@@ -50,5 +49,5 @@ int main(int argc,char **argv)
   ierr = VecDestroy(&x); CHKERRQ(ierr);
   ierr = MatDestroy(&H); CHKERRQ(ierr);
 
-  TaoFinalize();
+  PetscFinalize();
 }

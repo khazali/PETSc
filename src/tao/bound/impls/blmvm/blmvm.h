@@ -1,9 +1,9 @@
 #ifndef __TAO_BLMVM_H
 #define __TAO_BLMVM_H
-#include "tao-private/taosolver_impl.h"
+#include <petsc-private/taoimpl.h>
 
 /*
- Context for limited memory variable metric method for bound constrained 
+ Context for limited memory variable metric method for bound constrained
  optimization.
 */
 typedef struct {

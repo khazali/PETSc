@@ -1,46 +1,45 @@
-#ifndef __TAOSOLVER_IMPL_H
-#define __TAOSOLVER_IMPL_H
+#ifndef __TAO_IMPL_H
+#define __TAO_IMPL_H
 
-#include "taosolver.h"
-#include "taolinesearch.h"
-#include "petsc-private/petscimpl.h"
-#include "petscksp.h"
+#include <petsctaolinesearch.h>
+#include <petsc-private/petscimpl.h>
+#include <petscksp.h>
 
-typedef struct _TaoSolverOps *TaoSolverOps;
+typedef struct _TaoOps *TaoOps;
 
-struct _TaoSolverOps {
+struct _TaoOps {
   /* Methods set by application */
-    PetscErrorCode (*computeobjective)(TaoSolver, Vec, PetscReal*, void*);
-    PetscErrorCode (*computeobjectiveandgradient)(TaoSolver, Vec, PetscReal*, Vec, void*);
-    PetscErrorCode (*computegradient)(TaoSolver, Vec, Vec, void*);
-    PetscErrorCode (*computehessian)(TaoSolver, Vec, Mat*, Mat*, MatStructure*, void*);
-    PetscErrorCode (*computeseparableobjective)(TaoSolver, Vec, Vec, void*);
-    PetscErrorCode (*computeconstraints)(TaoSolver, Vec, Vec, void*);
-    PetscErrorCode (*computeinequalityconstraints)(TaoSolver, Vec, Vec, void*);
-    PetscErrorCode (*computeequalityconstraints)(TaoSolver, Vec, Vec, void*);
-    PetscErrorCode (*computejacobian)(TaoSolver, Vec, Mat*, Mat*, MatStructure*, void*);
-    PetscErrorCode (*computejacobianstate)(TaoSolver, Vec, Mat*, Mat*, Mat*, MatStructure*, void*);
-    PetscErrorCode (*computejacobiandesign)(TaoSolver, Vec, Mat*, void*);
-    PetscErrorCode (*computejacobianinequality)(TaoSolver, Vec, Mat*, Mat*, MatStructure*, void*);
-    PetscErrorCode (*computejacobianequality)(TaoSolver, Vec, Mat*, Mat*, MatStructure*, void*);
-    PetscErrorCode (*computebounds)(TaoSolver, Vec, Vec, void*);
+    PetscErrorCode (*computeobjective)(Tao, Vec, PetscReal*, void*);
+    PetscErrorCode (*computeobjectiveandgradient)(Tao, Vec, PetscReal*, Vec, void*);
+    PetscErrorCode (*computegradient)(Tao, Vec, Vec, void*);
+    PetscErrorCode (*computehessian)(Tao, Vec, Mat*, Mat*, MatStructure*, void*);
+    PetscErrorCode (*computeseparableobjective)(Tao, Vec, Vec, void*);
+    PetscErrorCode (*computeconstraints)(Tao, Vec, Vec, void*);
+    PetscErrorCode (*computeinequalityconstraints)(Tao, Vec, Vec, void*);
+    PetscErrorCode (*computeequalityconstraints)(Tao, Vec, Vec, void*);
+    PetscErrorCode (*computejacobian)(Tao, Vec, Mat*, Mat*, MatStructure*, void*);
+    PetscErrorCode (*computejacobianstate)(Tao, Vec, Mat*, Mat*, Mat*, MatStructure*, void*);
+    PetscErrorCode (*computejacobiandesign)(Tao, Vec, Mat*, void*);
+    PetscErrorCode (*computejacobianinequality)(Tao, Vec, Mat*, Mat*, MatStructure*, void*);
+    PetscErrorCode (*computejacobianequality)(Tao, Vec, Mat*, Mat*, MatStructure*, void*);
+    PetscErrorCode (*computebounds)(Tao, Vec, Vec, void*);
 
-    PetscErrorCode (*convergencetest)(TaoSolver,void*);
+    PetscErrorCode (*convergencetest)(Tao,void*);
     PetscErrorCode (*convergencedestroy)(void*);
 
   /* Methods set by solver */
-    PetscErrorCode (*computedual)(TaoSolver, Vec, Vec);
-    PetscErrorCode (*setup)(TaoSolver);
-    PetscErrorCode (*solve)(TaoSolver);
-    PetscErrorCode (*view)(TaoSolver, PetscViewer);
-    PetscErrorCode (*setfromoptions)(TaoSolver);
-    PetscErrorCode (*destroy)(TaoSolver);
+    PetscErrorCode (*computedual)(Tao, Vec, Vec);
+    PetscErrorCode (*setup)(Tao);
+    PetscErrorCode (*solve)(Tao);
+    PetscErrorCode (*view)(Tao, PetscViewer);
+    PetscErrorCode (*setfromoptions)(Tao);
+    PetscErrorCode (*destroy)(Tao);
 };
 
 #define MAXTAOMONITORS 10
 
-struct _p_TaoSolver {
-    PETSCHEADER(struct _TaoSolverOps);
+struct _p_Tao {
+    PETSCHEADER(struct _TaoOps);
     void *user;
     void *user_objP;
     void *user_objgradP;
@@ -57,12 +56,12 @@ struct _p_TaoSolver {
     void *user_jac_designP;
     void *user_boundsP;
 
-    PetscErrorCode (*monitor[MAXTAOMONITORS])(TaoSolver,void*);
+    PetscErrorCode (*monitor[MAXTAOMONITORS])(Tao,void*);
     PetscErrorCode (*monitordestroy[MAXTAOMONITORS])(void**);
     void *monitorcontext[MAXTAOMONITORS];
     PetscInt numbermonitors;
-    void *cnvP; 
-    TaoSolverTerminationReason reason;
+    void *cnvP;
+    TaoTerminationReason reason;
 
     PetscBool setupcalled;
     void *data;
@@ -93,15 +92,15 @@ struct _p_TaoSolver {
     Mat jacobian_design;
     Mat jacobian_state_pre;
     Mat jacobian_design_pre;
-    IS state_is;   
-    IS design_is;   
+    IS state_is;
+    IS design_is;
     PetscReal step;
     PetscReal residual;
     PetscReal gnorm0;
     PetscReal cnorm;
     PetscReal cnorm0;
     PetscReal fc;
-    
+
 
     PetscInt  max_it;
     PetscInt  max_funcs;
@@ -122,7 +121,7 @@ struct _p_TaoSolver {
 
     PetscInt  ksp_its;
 
-    
+
     TaoLineSearch linesearch;
     PetscBool lsflag; /* goes up when line search fails */
     KSP ksp;
@@ -149,18 +148,16 @@ struct _p_TaoSolver {
     PetscBool viewjacobian;
     PetscViewer viewer;
 
-    PetscInt subset_type; 
-    PetscInt hist_max;/* Number of iteration histories to keep */
-    PetscReal *hist_obj; /* obj value at each iteration */
-    PetscReal *hist_resid; /* residual at each iteration */
-    PetscReal *hist_cnorm; /* constraint norm at each iteration */
-    PetscInt hist_len;
-    PetscBool hist_reset;
-
-    
+    TaoSubsetType subset_type;
+    PetscInt      hist_max;/* Number of iteration histories to keep */
+    PetscReal     *hist_obj; /* obj value at each iteration */
+    PetscReal     *hist_resid; /* residual at each iteration */
+    PetscReal     *hist_cnorm; /* constraint norm at each iteration */
+    PetscInt      hist_len;
+    PetscBool     hist_reset;
 };
 
-extern PetscLogEvent TaoSolver_Solve, TaoSolver_ObjectiveEval, TaoSolver_ObjGradientEval, TaoSolver_GradientEval, TaoSolver_HessianEval, TaoSolver_ConstraintsEval, TaoSolver_JacobianEval;
+extern PetscLogEvent Tao_Solve, Tao_ObjectiveEval, Tao_ObjGradientEval, Tao_GradientEval, Tao_HessianEval, Tao_ConstraintsEval, Tao_JacobianEval;
 
 #define TaoLogHistory(tao,obj,resid,cnorm) \
   { if (tao->hist_max > tao->hist_len) \

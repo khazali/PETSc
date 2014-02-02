@@ -1,11 +1,11 @@
-#include "sqpcon.h"
-#include "../src/tao/matrix/lmvmmat.h"
-#include "../src/tao/matrix/approxmat.h"
-#include "../src/tao/matrix/submatfree.h"
+#include <sqpcon.h>
+#include <../src/tao/matrix/lmvmmat.h>
+#include <../src/tao/matrix/approxmat.h>
+#include <../src/tao/matrix/submatfree.h>
 
 #undef __FUNCT__
 #define __FUNCT__ "TaoDestroy_SQPCON"
-static PetscErrorCode TaoDestroy_SQPCON(TaoSolver tao)
+static PetscErrorCode TaoDestroy_SQPCON(Tao tao)
 {
   TAO_SQPCON     *sqpconP = (TAO_SQPCON*)tao->data;
   PetscErrorCode ierr;
@@ -41,7 +41,7 @@ static PetscErrorCode TaoDestroy_SQPCON(TaoSolver tao)
 
 #undef __FUNCT__
 #define __FUNCT__ "TaoSetFromOptions_SQPCON"
-static PetscErrorCode TaoSetFromOptions_SQPCON(TaoSolver tao)
+static PetscErrorCode TaoSetFromOptions_SQPCON(Tao tao)
 {
   PetscErrorCode ierr;
   PetscFunctionBegin;
@@ -51,7 +51,7 @@ static PetscErrorCode TaoSetFromOptions_SQPCON(TaoSolver tao)
 
 #undef __FUNCT__
 #define __FUNCT__ "TaoView_SQPCON"
-static PetscErrorCode TaoView_SQPCON(TaoSolver tao, PetscViewer viewer)
+static PetscErrorCode TaoView_SQPCON(Tao tao, PetscViewer viewer)
 {
   PetscFunctionBegin;
   PetscFunctionReturn(0);
@@ -59,7 +59,7 @@ static PetscErrorCode TaoView_SQPCON(TaoSolver tao, PetscViewer viewer)
 
 #undef __FUNCT__
 #define __FUNCT__ "TaoSetup_SQPCON"
-static PetscErrorCode TaoSetup_SQPCON(TaoSolver tao)
+static PetscErrorCode TaoSetup_SQPCON(Tao tao)
 {
   TAO_SQPCON     *sqpconP = (TAO_SQPCON*)tao->data;
   PetscInt       lo, hi, nlocal;
@@ -124,11 +124,11 @@ static PetscErrorCode TaoSetup_SQPCON(TaoSolver tao)
 
 #undef __FUNCT__
 #define __FUNCT__ "TaoSolve_SQPCON"
-static PetscErrorCode TaoSolve_SQPCON(TaoSolver tao)
+static PetscErrorCode TaoSolve_SQPCON(Tao tao)
 {
   TAO_SQPCON                     *sqpconP = (TAO_SQPCON*)tao->data;
   PetscInt                       iter=0;
-  TaoSolverTerminationReason     reason = TAO_CONTINUE_ITERATING;
+  TaoTerminationReason     reason = TAO_CONTINUE_ITERATING;
   TaoLineSearchTerminationReason ls_reason = TAOLINESEARCH_CONTINUE_ITERATING;
   PetscReal                      step=1.0,f,fm, fold;
   PetscReal                      cnorm, mnorm;
@@ -167,7 +167,7 @@ static PetscErrorCode TaoSolve_SQPCON(TaoSolver tao)
     ierr = VecScale(sqpconP->Tbar, -1.0);CHKERRQ(ierr);
 
     /* aqwac =  A'\(Q*Tbar + c) */
-    if (iter > 0) { 
+    if (iter > 0) {
       ierr = MatMult(sqpconP->Q,sqpconP->Tbar,sqpconP->WV);CHKERRQ(ierr);
     } else {
       ierr = VecCopy(sqpconP->Tbar, sqpconP->WV);CHKERRQ(ierr);
@@ -191,7 +191,7 @@ static PetscErrorCode TaoSolve_SQPCON(TaoSolver tao)
     /* Backsolve for u =  A\(g - B*dv)  = tbar - A\(B*dv)*/
     ierr = MatMult(tao->jacobian_design, sqpconP->DV, sqpconP->WL);CHKERRQ(ierr);
     ierr = MatMult(tao->jacobian_state_inv, sqpconP->WL, sqpconP->DU);CHKERRQ(ierr);
-    ierr = VecScale(sqpconP->DU, -1.0);CHKERRQ(ierr); 
+    ierr = VecScale(sqpconP->DU, -1.0);CHKERRQ(ierr);
     ierr = VecAXPY(sqpconP->DU, 1.0, sqpconP->Tbar);CHKERRQ(ierr);
 
     /* Assemble Big D */
@@ -225,7 +225,7 @@ static PetscErrorCode TaoSolve_SQPCON(TaoSolver tao)
     ierr = VecScatterBegin(sqpconP->design_scatter, tao->solution, sqpconP->V, INSERT_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
     ierr = VecScatterEnd(sqpconP->design_scatter, tao->solution, sqpconP->V, INSERT_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
 
-    
+
     /* Evaluate Function, Gradient, Constraints, and Jacobian */
     ierr = TaoComputeObjectiveAndGradient(tao,tao->solution,&f,tao->gradient);CHKERRQ(ierr);
     ierr = TaoComputeConstraints(tao,tao->solution, tao->constraints);CHKERRQ(ierr);
@@ -238,7 +238,7 @@ static PetscErrorCode TaoSolve_SQPCON(TaoSolver tao)
     ierr = VecScatterBegin(sqpconP->design_scatter, tao->gradient, sqpconP->GV, INSERT_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
     ierr = VecScatterEnd(sqpconP->design_scatter, tao->gradient, sqpconP->GV, INSERT_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
 
-    /* Update approx to hessian of the Lagrangian wrt state (Q) 
+    /* Update approx to hessian of the Lagrangian wrt state (Q)
           with u_k+1, gu_k+1 */
     if (use_update) {
       ierr = MatApproxUpdate(sqpconP->Q,sqpconP->U,sqpconP->GU);CHKERRQ(ierr);
@@ -258,7 +258,7 @@ static PetscErrorCode TaoSolve_SQPCON(TaoSolver tao)
 EXTERN_C_BEGIN
 #undef __FUNCT__
 #define __FUNCT__ "TaoCreate_SQPCON"
-PetscErrorCode TaoCreate_SQPCON(TaoSolver tao)
+PetscErrorCode TaoCreate_SQPCON(Tao tao)
 {
   TAO_SQPCON     *sqpconP;
   PetscErrorCode ierr;

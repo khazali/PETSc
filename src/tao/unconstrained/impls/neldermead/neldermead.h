@@ -1,11 +1,11 @@
 #ifndef __TAO_NELDERMEAD_H
 #define __TAO_NELDERMEAD_H
-#include "tao-private/taosolver_impl.h"
+#include <petsc-private/taoimpl.h>
 
 
 typedef struct {
 
-  PetscReal mu_ic;      
+  PetscReal mu_ic;
   PetscReal mu_oc;
   PetscReal mu_r;
   PetscReal mu_e;
@@ -27,7 +27,7 @@ typedef struct {
   PetscInt nincontract;
   PetscInt noutcontract;
 
-  
+
 } TAO_NelderMead;
 
 #endif /* ifndef __TAO_NELDERMEAD_H */

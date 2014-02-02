@@ -1,11 +1,10 @@
 #ifndef __TAO_MFQNLS_H
 #define __TAO_MFQNLS_H
-#include "include/private/taosolver_impl.h"
-#include "petsc.h"
-#include "petscblaslapack.h"
-#include "taolapack.h"
-#ifdef PETSC_HAVE_MATLAB_ENGINE  
-#include "engine.h"
+#include <include/petsc-private/taoimpl.h>
+#include <petsc.h>
+#include <petscblaslapack.h>
+#ifdef PETSC_HAVE_MATLAB_ENGINE
+#include <engine.h>
 #endif
 
 
@@ -20,7 +19,7 @@ typedef struct {
   PetscReal par2; /* delta multiplier for all interp. points */
   PetscReal par3; /* Pivot threshold for validity */
   PetscReal par4; /* Pivot threshold for additional points */
-  
+
 
 
   /* Workspace */
@@ -56,19 +55,19 @@ typedef struct {
   PetscInt *interp_indices; /* n */
   PetscBLASInt *iwork; /* n */
   PetscInt nHist;
-  VecScatter scatterf,scatterx; 
+  VecScatter scatterf,scatterx;
   Vec *Mdir;
   PetscInt sizemdir;
   Vec localf, localx, localfmin, localxmin;
   Vec workxvec;
   PetscMPIInt size;
-#ifdef PETSC_HAVE_MATLAB_ENGINE  
+#ifdef PETSC_HAVE_MATLAB_ENGINE
   PetscMatlabEngine me;
 #endif
 
   Mat Hs;
   Vec b;
-  
+
   PetscReal deltamax;
   PetscReal deltamin;
   PetscReal subproblem_rtol;   /* parameter used by quadratic subproblem */
@@ -93,18 +92,18 @@ typedef struct {
   PetscReal *omega; /* npmax - np - 1 */
 
 
-    
-       
+
+
 } TAO_POUNDERS;
 
 
 
 PetscErrorCode TaoPounders_formquad(TAO_POUNDERS *mfqP,PetscBool checkonly)
-PetscErrorCode TaoPounders_solvequadratic(TaoSolver tao,PetscReal *gnorm, PetscReal *qmin);
+PetscErrorCode TaoPounders_solvequadratic(Tao tao,PetscReal *gnorm, PetscReal *qmin);
 /* PetscErrorCode phi2eval(PetscReal *x, PetscInt n, PetscReal *phi);
 PetscErrorCode getquadpounders(TAO_POUNDERS *mfqP);
 PetscErrorCode morepoints(TAO_POUNDERS *mfqP);
-PetscErrorCode addpoint(TaoSolver tao, TAO_POUNDERS *mfqP, PetscInt index);
-PetscErrorCode modelimprove(TaoSolver tao, TAO_POUNDERS *mfqP, PetscInt addallpoints);
+PetscErrorCode addpoint(Tao tao, TAO_POUNDERS *mfqP, PetscInt index);
+PetscErrorCode modelimprove(Tao tao, TAO_POUNDERS *mfqP, PetscInt addallpoints);
 PetscErrorCode affpoints(TAO_POUNDERS *mfqP, PetscReal *xmin, PetscReal c); */
 #endif /* ifndef __TAO_MFQNLS */

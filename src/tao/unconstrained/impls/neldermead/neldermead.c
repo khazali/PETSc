@@ -1,12 +1,12 @@
-#include "neldermead.h"
-#include "petscvec.h"
+#include <../src/tao/unconstrained/impls/neldermead/neldermead.h>
+#include <petscvec.h>
 
 static PetscErrorCode NelderMeadSort(TAO_NelderMead *nm);
 static PetscErrorCode NelderMeadReplace(TAO_NelderMead *nm, PetscInt index, Vec Xmu, PetscReal f);
 /* ---------------------------------------------------------- */
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoSetUp_NM"
-static PetscErrorCode TaoSetUp_NM(TaoSolver tao)
+static PetscErrorCode TaoSetUp_NM(Tao tao)
 {
   PetscErrorCode ierr;
   TAO_NelderMead *nm = (TAO_NelderMead *)tao->data;
@@ -17,8 +17,8 @@ static PetscErrorCode TaoSetUp_NM(TaoSolver tao)
   nm->N = n;
   nm->oneOverN = 1.0/n;
   ierr = VecDuplicateVecs(tao->solution,nm->N+1,&nm->simplex);CHKERRQ(ierr);
-  ierr = PetscMalloc((nm->N+1)*sizeof(PetscReal),&nm->f_values);CHKERRQ(ierr);
-  ierr = PetscMalloc((nm->N+1)*sizeof(PetscInt),&nm->indices);CHKERRQ(ierr);
+  ierr = PetscMalloc1((nm->N+1),&nm->f_values);CHKERRQ(ierr);
+  ierr = PetscMalloc1((nm->N+1),&nm->indices);CHKERRQ(ierr);
   ierr = VecDuplicate(tao->solution,&nm->Xbar);CHKERRQ(ierr);
   ierr = VecDuplicate(tao->solution,&nm->Xmur);CHKERRQ(ierr);
   ierr = VecDuplicate(tao->solution,&nm->Xmue);CHKERRQ(ierr);
@@ -30,9 +30,9 @@ static PetscErrorCode TaoSetUp_NM(TaoSolver tao)
 }
 
 /* ---------------------------------------------------------- */
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoDestroy_NM"
-PetscErrorCode TaoDestroy_NM(TaoSolver tao)
+PetscErrorCode TaoDestroy_NM(Tao tao)
 {
   TAO_NelderMead *nm = (TAO_NelderMead*)tao->data;
   PetscErrorCode ierr;
@@ -53,9 +53,9 @@ PetscErrorCode TaoDestroy_NM(TaoSolver tao)
 }
 
 /*------------------------------------------------------------*/
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoSetFromOptions_NM"
-PetscErrorCode TaoSetFromOptions_NM(TaoSolver tao)
+PetscErrorCode TaoSetFromOptions_NM(Tao tao)
 {
   TAO_NelderMead *nm = (TAO_NelderMead*)tao->data;
   PetscBool      flg;
@@ -73,9 +73,9 @@ PetscErrorCode TaoSetFromOptions_NM(TaoSolver tao)
 }
 
 /*------------------------------------------------------------*/
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoView_NM"
-PetscErrorCode TaoView_NM(TaoSolver tao,PetscViewer viewer)
+PetscErrorCode TaoView_NM(Tao tao,PetscViewer viewer)
 {
   TAO_NelderMead *nm = (TAO_NelderMead*)tao->data;
   PetscBool      isascii;
@@ -96,13 +96,13 @@ PetscErrorCode TaoView_NM(TaoSolver tao,PetscViewer viewer)
 }
 
 /*------------------------------------------------------------*/
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoSolve_NM"
-PetscErrorCode TaoSolve_NM(TaoSolver tao)
+PetscErrorCode TaoSolve_NM(Tao tao)
 {
   PetscErrorCode             ierr;
   TAO_NelderMead             *nm = (TAO_NelderMead*)tao->data;
-  TaoSolverTerminationReason reason;
+  TaoTerminationReason reason;
   PetscReal                  *x;
   PetscInt                   iter=0,i;
   Vec                        Xmur=nm->Xmur, Xmue=nm->Xmue, Xmuc=nm->Xmuc, Xbar=nm->Xbar;
@@ -116,7 +116,7 @@ PetscErrorCode TaoSolve_NM(TaoSolver tao)
   nm->nincontract =  0;
   nm->noutcontract = 0;
   nm->nexpand =      0;
-  
+
   if (tao->XL || tao->XU || tao->ops->computebounds) {
     ierr = PetscPrintf(((PetscObject)tao)->comm,"WARNING: Variable bounds have been set but will be ignored by NelderMead algorithm\n");CHKERRQ(ierr);
   }
@@ -136,7 +136,7 @@ PetscErrorCode TaoSolve_NM(TaoSolver tao)
     ierr = TaoComputeObjective(tao,nm->simplex[i],&nm->f_values[i]);CHKERRQ(ierr);
     nm->indices[i] = i;
   }
-  
+
   /*  Xbar  = (Sum of all simplex vectors - worst vector)/N */
   ierr = NelderMeadSort(nm);CHKERRQ(ierr);
   ierr = VecSet(Xbar,0.0);CHKERRQ(ierr);
@@ -167,9 +167,9 @@ PetscErrorCode TaoSolve_NM(TaoSolver tao)
       ierr = VecAXPBYPCZ(Xmue,1+nm->mu_e,-nm->mu_e,0,Xbar,nm->simplex[nm->indices[nm->N]]);CHKERRQ(ierr);
       ierr = TaoComputeObjective(tao,Xmue,&fe);CHKERRQ(ierr);
       if (fe < fr) {
-	ierr = NelderMeadReplace(nm,nm->indices[nm->N],Xmue,fe);CHKERRQ(ierr);
+        ierr = NelderMeadReplace(nm,nm->indices[nm->N],Xmue,fe);CHKERRQ(ierr);
       } else {
-	ierr = NelderMeadReplace(nm,nm->indices[nm->N],Xmur,fr);CHKERRQ(ierr);
+        ierr = NelderMeadReplace(nm,nm->indices[nm->N],Xmur,fr);CHKERRQ(ierr);
       }
     } else if (nm->f_values[nm->indices[nm->N-1]] <= fr && fr < nm->f_values[nm->indices[nm->N]]) {
       /* outside contraction */
@@ -179,8 +179,8 @@ PetscErrorCode TaoSolve_NM(TaoSolver tao)
 
       ierr = TaoComputeObjective(tao,Xmuc,&fc);CHKERRQ(ierr);
       if (fc <= fr) {
-	ierr = NelderMeadReplace(nm,nm->indices[nm->N],Xmuc,fc);CHKERRQ(ierr);
-      }	else shrink=1;
+        ierr = NelderMeadReplace(nm,nm->indices[nm->N],Xmuc,fc);CHKERRQ(ierr);
+      } else shrink=1;
     } else {
       /* inside contraction */
       nm->nincontract++;
@@ -188,7 +188,7 @@ PetscErrorCode TaoSolve_NM(TaoSolver tao)
       ierr = VecAXPBYPCZ(Xmuc,1+nm->mu_ic,-nm->mu_ic,0,Xbar,nm->simplex[nm->indices[nm->N]]);CHKERRQ(ierr);
       ierr = TaoComputeObjective(tao,Xmuc,&fc);CHKERRQ(ierr);
       if (fc < nm->f_values[nm->indices[nm->N]]) {
-	ierr = NelderMeadReplace(nm,nm->indices[nm->N],Xmuc,fc);CHKERRQ(ierr);
+        ierr = NelderMeadReplace(nm,nm->indices[nm->N],Xmuc,fc);CHKERRQ(ierr);
       } else shrink = 1;
     }
 
@@ -198,7 +198,7 @@ PetscErrorCode TaoSolve_NM(TaoSolver tao)
 
       for (i=1;i<nm->N+1;i++) {
         ierr = VecAXPBY(nm->simplex[nm->indices[i]],1.5,-0.5,nm->simplex[nm->indices[0]]);
-	ierr = TaoComputeObjective(tao,nm->simplex[nm->indices[i]], &nm->f_values[nm->indices[i]]);CHKERRQ(ierr);
+        ierr = TaoComputeObjective(tao,nm->simplex[nm->indices[i]], &nm->f_values[nm->indices[i]]);CHKERRQ(ierr);
       }
       ierr = VecAXPBY(Xbar,1.5*nm->oneOverN,-0.5,nm->simplex[nm->indices[0]]);CHKERRQ(ierr);
 
@@ -214,9 +214,9 @@ PetscErrorCode TaoSolve_NM(TaoSolver tao)
 
 /* ---------------------------------------------------------- */
 EXTERN_C_BEGIN
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "TaoCreate_NM"
-PetscErrorCode TaoCreate_NM(TaoSolver tao)
+PetscErrorCode TaoCreate_NM(Tao tao)
 {
   TAO_NelderMead *nm;
   PetscErrorCode ierr;
@@ -233,8 +233,13 @@ PetscErrorCode TaoCreate_NM(TaoSolver tao)
 
   tao->max_it = 2000;
   tao->max_funcs = 4000;
+#if defined(PETSC_USE_REAL_SINGLE)
+  tao->fatol = 1e-5;
+  tao->frtol = 1e-5;
+#else
   tao->fatol = 1e-8;
   tao->frtol = 1e-8;
+#endif
 
   nm->simplex = 0;
   nm->lamda = 1;
@@ -247,12 +252,12 @@ PetscErrorCode TaoCreate_NM(TaoSolver tao)
   PetscFunctionReturn(0);
 }
 EXTERN_C_END
-    
+
 
 /*------------------------------------------------------------*/
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "NelderMeadSort"
-PetscErrorCode NelderMeadSort(TAO_NelderMead *nm) 
+PetscErrorCode NelderMeadSort(TAO_NelderMead *nm)
 {
   PetscReal *values = nm->f_values;
   PetscInt  *indices = nm->indices;
@@ -260,7 +265,7 @@ PetscErrorCode NelderMeadSort(TAO_NelderMead *nm)
   PetscInt  i,j,index;
   PetscReal val;
 
-  PetscFunctionBegin;  
+  PetscFunctionBegin;
   for (i=1;i<dim;i++) {
     index = indices[i];
     val = values[index];
@@ -274,7 +279,7 @@ PetscErrorCode NelderMeadSort(TAO_NelderMead *nm)
 
 
 /*------------------------------------------------------------*/
-#undef __FUNCT__  
+#undef __FUNCT__
 #define __FUNCT__ "NelderMeadReplace"
 PetscErrorCode NelderMeadReplace(TAO_NelderMead *nm, PetscInt index, Vec Xmu, PetscReal f)
 {

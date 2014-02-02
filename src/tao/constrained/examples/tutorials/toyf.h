@@ -3,7 +3,7 @@
 #include "finclude/petscmat.h"
 #include "finclude/petscksp.h"
 #include "finclude/petscpc.h"
-#include "finclude/taosolver.h"
+#include "finclude/petsctao.h"
 
       Vec x0,xl,xu
       Vec ce,ci,bl,bu
@@ -12,4 +12,4 @@
 
       common /userctx/ x0,xl,xu,ce,ci,bl,bu,Ae,Ai,Hess,n,ne,ni
 
-      
+

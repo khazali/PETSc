@@ -1,5 +1,5 @@
-#include "taolinesearch.h"
-#include "ipm.h" /*I "ipm.h" I*/
+#include <petsctaolinesearch.h>
+#include <../src/tao/constrained/impls/ipm/ipm.h> /*I "ipm.h" I*/
 /*
 #define DEBUG_IPM
 #define DEBUG_K
@@ -19,29 +19,29 @@
    Jin in R^(mi x n) (tao->jacobian_inequality)
    Ai in  R^(nb x n) (ipmP->Ai)
    H in R^(n x n) (tao->hessian)
-   min f=(1/2)*x'*H*x + d'*x   
+   min f=(1/2)*x'*H*x + d'*x
    s.t.  CE(x) == 0
          CI(x) >= 0
-	 x >= tao->XL
-	 -x >= -tao->XU
+         x >= tao->XL
+         -x >= -tao->XU
 */
 
-static PetscErrorCode IPMComputeKKT(TaoSolver tao);
-static PetscErrorCode IPMPushInitialPoint(TaoSolver tao);
-static PetscErrorCode IPMEvaluate(TaoSolver tao);
-static PetscErrorCode IPMUpdateK(TaoSolver tao);
-static PetscErrorCode IPMUpdateAi(TaoSolver tao);
-static PetscErrorCode IPMGatherRHS(TaoSolver tao,Vec,Vec,Vec,Vec,Vec);
-static PetscErrorCode IPMScatterStep(TaoSolver tao,Vec,Vec,Vec,Vec,Vec);
-static PetscErrorCode IPMInitializeBounds(TaoSolver tao);
+static PetscErrorCode IPMComputeKKT(Tao tao);
+static PetscErrorCode IPMPushInitialPoint(Tao tao);
+static PetscErrorCode IPMEvaluate(Tao tao);
+static PetscErrorCode IPMUpdateK(Tao tao);
+static PetscErrorCode IPMUpdateAi(Tao tao);
+static PetscErrorCode IPMGatherRHS(Tao tao,Vec,Vec,Vec,Vec,Vec);
+static PetscErrorCode IPMScatterStep(Tao tao,Vec,Vec,Vec,Vec,Vec);
+static PetscErrorCode IPMInitializeBounds(Tao tao);
 
 #undef __FUNCT__
 #define __FUNCT__ "TaoSolve_IPM"
-static PetscErrorCode TaoSolve_IPM(TaoSolver tao)
+static PetscErrorCode TaoSolve_IPM(Tao tao)
 {
   PetscErrorCode             ierr;
   TAO_IPM                    *ipmP = (TAO_IPM*)tao->data;
-  TaoSolverTerminationReason reason = TAO_CONTINUE_ITERATING;
+  TaoTerminationReason reason = TAO_CONTINUE_ITERATING;
   PetscInt                   iter = 0,its,i;
   PetscScalar                stepsize=1.0;
   PetscScalar                step_s,step_l,alpha,tau,sigma,phi_target;
@@ -57,7 +57,7 @@ static PetscErrorCode TaoSolve_IPM(TaoSolver tao)
 #if defined(DEBUG_IPM)
   ierr = VecNorm(tao->solution,NORM_2,&tau);CHKERRQ(ierr);
   ierr = VecView(tao->solution,0);CHKERRQ(ierr);
-  /*  PetscPrintf(PETSC_COMM_WORLD,"||x0|| = %g\n",tau); */
+  /*  PetscPrintf(PETSC_COMM_WORLD,"||x0|| = %g\n",(double)tau); */
 #endif
   ierr = VecCopy(tao->solution,ipmP->rhs_x);CHKERRQ(ierr);
   ierr = IPMEvaluate(tao);CHKERRQ(ierr);
@@ -66,11 +66,11 @@ static PetscErrorCode TaoSolve_IPM(TaoSolver tao)
 
   while (reason == TAO_CONTINUE_ITERATING) {
     ierr = IPMUpdateK(tao);CHKERRQ(ierr);
-    /* 
+    /*
        rhs.x    = -rd
        rhs.lame = -rpe
        rhs.lami = -rpi
-       rhs.com  = -com 
+       rhs.com  = -com
     */
 
     ierr = VecCopy(ipmP->rd,ipmP->rhs_x);CHKERRQ(ierr);
@@ -78,19 +78,17 @@ static PetscErrorCode TaoSolve_IPM(TaoSolver tao)
       ierr = VecCopy(ipmP->rpe,ipmP->rhs_lamdae);CHKERRQ(ierr);
     }
     if (ipmP->nb > 0) {
-	ierr = VecCopy(ipmP->rpi,ipmP->rhs_lamdai);CHKERRQ(ierr);
-	ierr = VecCopy(ipmP->complementarity,ipmP->rhs_s);CHKERRQ(ierr);
+      ierr = VecCopy(ipmP->rpi,ipmP->rhs_lamdai);CHKERRQ(ierr);
+      ierr = VecCopy(ipmP->complementarity,ipmP->rhs_s);CHKERRQ(ierr);
     }
-    ierr = IPMGatherRHS(tao,ipmP->bigrhs,ipmP->rhs_x,ipmP->rhs_lamdae,
-			ipmP->rhs_lamdai,ipmP->rhs_s);CHKERRQ(ierr);
+    ierr = IPMGatherRHS(tao,ipmP->bigrhs,ipmP->rhs_x,ipmP->rhs_lamdae,ipmP->rhs_lamdai,ipmP->rhs_s);CHKERRQ(ierr);
     ierr = VecScale(ipmP->bigrhs,-1.0);CHKERRQ(ierr);
 
     /* solve K * step = rhs */
     ierr = KSPSetOperators(tao->ksp,ipmP->K,ipmP->K,DIFFERENT_NONZERO_PATTERN);CHKERRQ(ierr);
     ierr = KSPSolve(tao->ksp,ipmP->bigrhs,ipmP->bigstep);CHKERRQ(ierr);
 
-    ierr = IPMScatterStep(tao,ipmP->bigstep,tao->stepdirection,ipmP->ds,
-			  ipmP->dlamdae,ipmP->dlamdai);CHKERRQ(ierr);
+    ierr = IPMScatterStep(tao,ipmP->bigstep,tao->stepdirection,ipmP->ds,ipmP->dlamdae,ipmP->dlamdai);CHKERRQ(ierr);
     ierr = KSPGetIterationNumber(tao->ksp,&its);CHKERRQ(ierr);
     tao->ksp_its += its;
 #if defined DEBUG_KKT
@@ -102,12 +100,12 @@ static PetscErrorCode TaoSolve_IPM(TaoSolver tao)
     PetscScalar norm1,norm2;
     ierr = VecNorm(ipmP->bigrhs,NORM_2,&norm1);
     ierr = VecNorm(ipmP->bigstep,NORM_2,&norm2);
-    PetscPrintf(PETSC_COMM_WORLD,"||rhs|| = %g\t ||step|| = %g\n",norm1,norm2);
+    PetscPrintf(PETSC_COMM_WORLD,"||rhs|| = %g\t ||step|| = %g\n",(double)norm1,(double)norm2);
 #endif
      /* Find distance along step direction to closest bound */
     if (ipmP->nb > 0) {
-      ierr = VecStepBoundInfo(ipmP->s,ipmP->Zero_nb,ipmP->Inf_nb,ipmP->ds,&step_s,NULL,NULL);CHKERRQ(ierr);
-      ierr = VecStepBoundInfo(ipmP->lamdai,ipmP->Zero_nb,ipmP->Inf_nb,ipmP->dlamdai,&step_l,NULL,NULL);CHKERRQ(ierr);
+      ierr = VecStepBoundInfo(ipmP->s,ipmP->ds,ipmP->Zero_nb,ipmP->Inf_nb,&step_s,NULL,NULL);CHKERRQ(ierr);
+      ierr = VecStepBoundInfo(ipmP->lamdai,ipmP->dlamdai,ipmP->Zero_nb,ipmP->Inf_nb,&step_l,NULL,NULL);CHKERRQ(ierr);
       alpha = PetscMin(step_s,step_l);
       alpha = PetscMin(alpha,1.0);
       ipmP->alpha1 = alpha;
@@ -115,7 +113,6 @@ static PetscErrorCode TaoSolve_IPM(TaoSolver tao)
       ipmP->alpha1 = alpha = 1.0;
     }
 
-    
     /* x_aff = x + alpha*d */
     ierr = VecCopy(tao->solution,ipmP->save_x);CHKERRQ(ierr);
     if (ipmP->me > 0) {
@@ -135,7 +132,6 @@ static PetscErrorCode TaoSolve_IPM(TaoSolver tao)
       ierr = VecAXPY(ipmP->s,alpha,ipmP->ds);CHKERRQ(ierr);
     }
 
-    
     /* Recompute kkt to find centering parameter sigma = (new_mu/old_mu)^3 */
     if (ipmP->mu == 0.0) {
       sigma = 0.0;
@@ -145,7 +141,7 @@ static PetscErrorCode TaoSolve_IPM(TaoSolver tao)
     ierr = IPMComputeKKT(tao);CHKERRQ(ierr);
     sigma *= ipmP->mu;
     sigma*=sigma*sigma;
-    
+
     /* revert kkt info */
     ierr = VecCopy(ipmP->save_x,tao->solution);CHKERRQ(ierr);
     if (ipmP->me > 0) {
@@ -184,14 +180,14 @@ static PetscErrorCode TaoSolve_IPM(TaoSolver tao)
       tau = PetscMax(ipmP->taumin,1.0-ipmP->mu);
       tau = PetscMin(tau,1.0);
       if (tau != 1.0) {
-	ierr = VecScale(ipmP->s,tau);CHKERRQ(ierr);
-	ierr = VecScale(ipmP->lamdai,tau);CHKERRQ(ierr);
+        ierr = VecScale(ipmP->s,tau);CHKERRQ(ierr);
+        ierr = VecScale(ipmP->lamdai,tau);CHKERRQ(ierr);
       }
-      ierr = VecStepBoundInfo(ipmP->s,ipmP->Zero_nb,ipmP->Inf_nb,ipmP->ds,&step_s,NULL,NULL);CHKERRQ(ierr);
-      ierr = VecStepBoundInfo(ipmP->lamdai,ipmP->Zero_nb,ipmP->Inf_nb,ipmP->dlamdai,&step_l,NULL,NULL);CHKERRQ(ierr);
+      ierr = VecStepBoundInfo(ipmP->s,ipmP->ds,ipmP->Zero_nb,ipmP->Inf_nb,&step_s,NULL,NULL);CHKERRQ(ierr);
+      ierr = VecStepBoundInfo(ipmP->lamdai,ipmP->dlamdai,ipmP->Zero_nb,ipmP->Inf_nb,&step_l,NULL,NULL);CHKERRQ(ierr);
       if (tau != 1.0) {
-	ierr = VecCopy(ipmP->save_s,ipmP->s);CHKERRQ(ierr);
-	ierr = VecCopy(ipmP->save_lamdai,ipmP->lamdai);CHKERRQ(ierr);
+        ierr = VecCopy(ipmP->save_s,ipmP->s);CHKERRQ(ierr);
+        ierr = VecCopy(ipmP->save_lamdai,ipmP->lamdai);CHKERRQ(ierr);
       }
       alpha = PetscMin(step_s,step_l);
       alpha = PetscMin(alpha,1.0);
@@ -202,8 +198,8 @@ static PetscErrorCode TaoSolve_IPM(TaoSolver tao)
     /* TODO make phi_target meaningful */
     phi_target = ipmP->dec * ipmP->phi;
     for (i=0; i<11;i++) {
-#if defined DEBUG_KKT2      
-    PetscPrintf(PETSC_COMM_WORLD,"alpha2=%g\n",alpha);
+#if defined DEBUG_KKT2
+    PetscPrintf(PETSC_COMM_WORLD,"alpha2=%g\n",(double)alpha);
       PetscPrintf(PETSC_COMM_WORLD,"old point:\n");
       VecView(tao->solution,0);
       VecView(ipmP->lamdae,0);
@@ -212,11 +208,11 @@ static PetscErrorCode TaoSolve_IPM(TaoSolver tao)
 #endif
       ierr = VecAXPY(tao->solution,alpha,tao->stepdirection);CHKERRQ(ierr);
       if (ipmP->nb > 0) {
-	ierr = VecAXPY(ipmP->s,alpha,ipmP->ds);CHKERRQ(ierr);
-	ierr = VecAXPY(ipmP->lamdai,alpha,ipmP->dlamdai);CHKERRQ(ierr);
+        ierr = VecAXPY(ipmP->s,alpha,ipmP->ds);CHKERRQ(ierr);
+        ierr = VecAXPY(ipmP->lamdai,alpha,ipmP->dlamdai);CHKERRQ(ierr);
       }
       if (ipmP->me > 0) {
-	ierr = VecAXPY(ipmP->lamdae,alpha,ipmP->dlamdae);CHKERRQ(ierr);
+        ierr = VecAXPY(ipmP->lamdae,alpha,ipmP->dlamdae);CHKERRQ(ierr);
       }
 #if defined DEBUG_KKT
       PetscPrintf(PETSC_COMM_WORLD,"step direction:\n");
@@ -233,30 +229,29 @@ static PetscErrorCode TaoSolve_IPM(TaoSolver tao)
 #endif
       /* update dual variables */
       if (ipmP->me > 0) {
-	ierr = VecCopy(ipmP->lamdae,tao->DE);CHKERRQ(ierr);
+        ierr = VecCopy(ipmP->lamdae,tao->DE);CHKERRQ(ierr);
       }
-      /* TODO: fix 
+      /* TODO: fix
       if (ipmP->nb > 0) {
-	ierr = VecScatterBegin
-	PetscInt lstart,lend;
-	
-	ierr = VecGetOwnershipRange(ipmP->lamdai,&lstart,&lend);
-	ierr = VecGetArray(ipmP->lamdai,&li);CHKERRQ(ierr);
-	ierr = VecGetArray(tao->DI,&di);CHKERRQ(ierr);
-	for (j=lstart;j<lend;j++) {
-	  if (j < ipmP->nilb) {
-	    di[j] = li[j];
-	  }
-	}
-	ierr = VecRestoreArray(ipmP->lamdai,&li);CHKERRQ(ierr);
-	ierr = VecRestoreArray(tao->DI,&di);CHKERRQ(ierr);
+        ierr = VecScatterBegin
+        PetscInt lstart,lend;
+
+        ierr = VecGetOwnershipRange(ipmP->lamdai,&lstart,&lend);
+        ierr = VecGetArray(ipmP->lamdai,&li);CHKERRQ(ierr);
+        ierr = VecGetArray(tao->DI,&di);CHKERRQ(ierr);
+        for (j=lstart;j<lend;j++) {
+          if (j < ipmP->nilb) {
+            di[j] = li[j];
+          }
+        }
+        ierr = VecRestoreArray(ipmP->lamdai,&li);CHKERRQ(ierr);
+        ierr = VecRestoreArray(tao->DI,&di);CHKERRQ(ierr);
       }
       */
-      
 
       ierr = IPMEvaluate(tao);CHKERRQ(ierr);
       ierr = IPMComputeKKT(tao);CHKERRQ(ierr);
-      if (ipmP->phi <= phi_target) break; 
+      if (ipmP->phi <= phi_target) break;
       alpha /= 2.0;
     }
 
@@ -268,7 +263,7 @@ static PetscErrorCode TaoSolve_IPM(TaoSolver tao)
 
 #undef __FUNCT__
 #define __FUNCT__ "TaoSetup_IPM"
-static PetscErrorCode TaoSetup_IPM(TaoSolver tao)
+static PetscErrorCode TaoSetup_IPM(Tao tao)
 {
   TAO_IPM        *ipmP = (TAO_IPM*)tao->data;
   PetscErrorCode ierr;
@@ -302,7 +297,7 @@ static PetscErrorCode TaoSetup_IPM(TaoSolver tao)
 
 #undef __FUNCT__
 #define __FUNCT__ "IPMInitializeBounds"
-static PetscErrorCode IPMInitializeBounds(TaoSolver tao)
+static PetscErrorCode IPMInitializeBounds(Tao tao)
 {
   TAO_IPM        *ipmP = (TAO_IPM*)tao->data;
   Vec            xtmp;
@@ -333,14 +328,14 @@ static PetscErrorCode IPMInitializeBounds(TaoSolver tao)
     ierr = TaoComputeVariableBounds(tao);CHKERRQ(ierr);
   }
   if (tao->XL) {
-    ierr = VecSet(xtmp,TAO_NINFINITY);CHKERRQ(ierr);
+    ierr = VecSet(xtmp,PETSC_NINFINITY);CHKERRQ(ierr);
     ierr = VecWhichGreaterThan(tao->XL,xtmp,&ipmP->isxl);CHKERRQ(ierr);
     ierr = ISGetSize(ipmP->isxl,&ipmP->nxlb);CHKERRQ(ierr);
   } else {
     ipmP->nxlb=0;
   }
   if (tao->XU) {
-    ierr = VecSet(xtmp,TAO_INFINITY);CHKERRQ(ierr);
+    ierr = VecSet(xtmp,PETSC_INFINITY);CHKERRQ(ierr);
     ierr = VecWhichLessThan(tao->XU,xtmp,&ipmP->isxu);CHKERRQ(ierr);
     ierr = ISGetSize(ipmP->isxu,&ipmP->nxub);CHKERRQ(ierr);
   } else {
@@ -355,22 +350,22 @@ static PetscErrorCode IPMInitializeBounds(TaoSolver tao)
 #if defined DEBUG_K
   PetscPrintf(PETSC_COMM_WORLD,"isxl:\n");
   if (ipmP->nxlb) {
-    ISView(ipmP->isxl,0);  
+    ISView(ipmP->isxl,0);
   }
   PetscPrintf(PETSC_COMM_WORLD,"isxu:\n");
   if (ipmP->nxub) {
-    ISView(ipmP->isxu,0);  
+    ISView(ipmP->isxu,0);
   }
 
-#endif  
+#endif
   ipmP->nb = ipmP->nxlb + ipmP->nxub + ipmP->mi;
-  
+
   comm = ((PetscObject)(tao->solution))->comm;
 
   bigsize = ipmP->n+2*ipmP->nb+ipmP->me;
-  ierr = PetscMalloc(bigsize*sizeof(PetscInt),&stepind);CHKERRQ(ierr);
-  ierr = PetscMalloc(ipmP->n*sizeof(PetscInt),&xind);CHKERRQ(ierr);
-  ierr = PetscMalloc(ipmP->me*sizeof(PetscInt),&uceind);CHKERRQ(ierr);
+  ierr = PetscMalloc1(bigsize,&stepind);CHKERRQ(ierr);
+  ierr = PetscMalloc1(ipmP->n,&xind);CHKERRQ(ierr);
+  ierr = PetscMalloc1(ipmP->me,&uceind);CHKERRQ(ierr);
   ierr = VecGetOwnershipRange(tao->solution,&xstart,&xend);CHKERRQ(ierr);
 
   if (ipmP->nb > 0) {
@@ -394,17 +389,17 @@ static PetscErrorCode IPMInitializeBounds(TaoSolver tao)
     ierr = VecDuplicate(ipmP->s,&ipmP->One_nb);CHKERRQ(ierr);
     ierr = VecSet(ipmP->One_nb,1.0);CHKERRQ(ierr);
     ierr = VecDuplicate(ipmP->s,&ipmP->Inf_nb);CHKERRQ(ierr);
-    ierr = VecSet(ipmP->Inf_nb,TAO_INFINITY);CHKERRQ(ierr);
-    
-    ierr = PetscMalloc(ipmP->nb*sizeof(PetscInt),&cind);CHKERRQ(ierr);
-    ierr = PetscMalloc(ipmP->mi*sizeof(PetscInt),&ucind);CHKERRQ(ierr);
+    ierr = VecSet(ipmP->Inf_nb,PETSC_INFINITY);CHKERRQ(ierr);
+
+    ierr = PetscMalloc1(ipmP->nb,&cind);CHKERRQ(ierr);
+    ierr = PetscMalloc1(ipmP->mi,&ucind);CHKERRQ(ierr);
     ierr = VecGetOwnershipRange(ipmP->s,&sstart,&send);CHKERRQ(ierr);
-    
+
     if (ipmP->mi > 0) {
       ierr = VecGetOwnershipRange(tao->constraints_inequality,&ucstart,&ucend);CHKERRQ(ierr);
       counter=0;
       for (i=ucstart;i<ucend;i++) {
-	cind[counter++] = i;
+        cind[counter++] = i;
       }
       ierr = ISCreateGeneral(comm,counter,cind,PETSC_COPY_VALUES,&isuc);CHKERRQ(ierr);
       ierr = ISCreateGeneral(comm,counter,cind,PETSC_COPY_VALUES,&isc);CHKERRQ(ierr);
@@ -421,17 +416,17 @@ static PetscErrorCode IPMInitializeBounds(TaoSolver tao)
       /* find offsets for this processor */
       xl_offset = ipmP->mi;
       for (i=0;i<ipmP->nxlb;i++) {
-	if (xli[i] < xstart) {
-	  xl_offset++;
-	} else break;
+        if (xli[i] < xstart) {
+          xl_offset++;
+        } else break;
       }
       ierr = ISRestoreIndices(bigxl,&xli);CHKERRQ(ierr);
-    
+
       ierr = ISGetIndices(ipmP->isxl,&xli);CHKERRQ(ierr);
       ierr = ISGetLocalSize(ipmP->isxl,&nloc);CHKERRQ(ierr);
       for (i=0;i<nloc;i++) {
-	xind[i] = xli[i];
-	cind[i] = xl_offset+i;
+        xind[i] = xli[i];
+        cind[i] = xl_offset+i;
       }
 
       ierr = ISCreateGeneral(comm,nloc,xind,PETSC_COPY_VALUES,&isx);CHKERRQ(ierr);
@@ -448,17 +443,17 @@ static PetscErrorCode IPMInitializeBounds(TaoSolver tao)
       /* find offsets for this processor */
       xu_offset = ipmP->mi + ipmP->nxlb;
       for (i=0;i<ipmP->nxub;i++) {
-	if (xui[i] < xstart) {
-	  xu_offset++;
-	} else break;
+        if (xui[i] < xstart) {
+          xu_offset++;
+        } else break;
       }
       ierr = ISRestoreIndices(bigxu,&xui);CHKERRQ(ierr);
 
       ierr = ISGetIndices(ipmP->isxu,&xui);CHKERRQ(ierr);
       ierr = ISGetLocalSize(ipmP->isxu,&nloc);CHKERRQ(ierr);
       for (i=0;i<nloc;i++) {
-	xind[i] = xui[i];
-	cind[i] = xu_offset+i;
+        xind[i] = xui[i];
+        cind[i] = xu_offset+i;
       }
 
       ierr = ISCreateGeneral(comm,nloc,xind,PETSC_COPY_VALUES,&isx);CHKERRQ(ierr);
@@ -468,7 +463,7 @@ static PetscErrorCode IPMInitializeBounds(TaoSolver tao)
       ierr = ISDestroy(&isc);CHKERRQ(ierr);
       ierr = ISDestroy(&bigxu);CHKERRQ(ierr);
     }
-  }    
+  }
   ierr = VecCreate(comm,&ipmP->bigrhs);CHKERRQ(ierr);
   ierr = VecGetType(tao->solution,&vtype);CHKERRQ(ierr);
   ierr = VecSetType(ipmP->bigrhs,vtype);CHKERRQ(ierr);
@@ -506,7 +501,7 @@ static PetscErrorCode IPMInitializeBounds(TaoSolver tao)
     ierr = VecScatterCreate(ipmP->s,is1,ipmP->bigrhs,sis,&ipmP->rhs3);CHKERRQ(ierr);
     ierr = ISDestroy(&sis);CHKERRQ(ierr);
     ierr = ISDestroy(&is1);CHKERRQ(ierr);
-  }    
+  }
 
   if (ipmP->me > 0) {
     ierr = VecGetOwnershipRange(tao->constraints_equality,&ucestart,&uceend);CHKERRQ(ierr);
@@ -514,23 +509,22 @@ static PetscErrorCode IPMInitializeBounds(TaoSolver tao)
       stepind[i-ucestart] = i + ipmP->n+ipmP->nb;
       uceind[i-ucestart] = i;
     }
-    
+
     ierr = ISCreateGeneral(comm,uceend-ucestart,stepind,PETSC_COPY_VALUES,&sis);CHKERRQ(ierr);
     ierr = ISCreateGeneral(comm,uceend-ucestart,uceind,PETSC_COPY_VALUES,&is1);CHKERRQ(ierr);
     ierr = VecScatterCreate(ipmP->bigstep,sis,tao->constraints_equality,is1,&ipmP->step3);CHKERRQ(ierr);
     ierr = ISDestroy(&sis);CHKERRQ(ierr);
 
-
     for (i=ucestart;i<uceend;i++) {
       stepind[i-ucestart] = i + ipmP->n;
     }
-    
+
     ierr = ISCreateGeneral(comm,uceend-ucestart,stepind,PETSC_COPY_VALUES,&sis);CHKERRQ(ierr);
     ierr = VecScatterCreate(tao->constraints_equality,is1,ipmP->bigrhs,sis,&ipmP->rhs2);CHKERRQ(ierr);
     ierr = ISDestroy(&sis);CHKERRQ(ierr);
     ierr = ISDestroy(&is1);CHKERRQ(ierr);
   }
-  
+
   if (ipmP->nb > 0) {
     for (i=sstart;i<send;i++) {
       stepind[i-sstart] = i + ipmP->n + ipmP->nb + ipmP->me;
@@ -554,7 +548,7 @@ static PetscErrorCode IPMInitializeBounds(TaoSolver tao)
 
 #undef __FUNCT__
 #define __FUNCT__ "TaoDestroy_IPM"
-static PetscErrorCode TaoDestroy_IPM(TaoSolver tao)
+static PetscErrorCode TaoDestroy_IPM(Tao tao)
 {
   TAO_IPM        *ipmP = (TAO_IPM*)tao->data;
   PetscErrorCode ierr;
@@ -605,16 +599,15 @@ static PetscErrorCode TaoDestroy_IPM(TaoSolver tao)
   ierr = VecDestroy(&ipmP->bigstep);CHKERRQ(ierr);
   ierr = MatDestroy(&ipmP->Ai);CHKERRQ(ierr);
   ierr = MatDestroy(&ipmP->K);CHKERRQ(ierr);
-  ierr = ISDestroy(&ipmP->isxu);CHKERRQ(ierr);  
-  ierr = ISDestroy(&ipmP->isxl);CHKERRQ(ierr);  
+  ierr = ISDestroy(&ipmP->isxu);CHKERRQ(ierr);
+  ierr = ISDestroy(&ipmP->isxl);CHKERRQ(ierr);
   ierr = PetscFree(tao->data);CHKERRQ(ierr);
-  tao->data = NULL;
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "TaoSetFromOptions_IPM"
-static PetscErrorCode TaoSetFromOptions_IPM(TaoSolver tao)
+static PetscErrorCode TaoSetFromOptions_IPM(Tao tao)
 {
   TAO_IPM        *ipmP = (TAO_IPM*)tao->data;
   PetscErrorCode ierr;
@@ -632,7 +625,7 @@ static PetscErrorCode TaoSetFromOptions_IPM(TaoSolver tao)
 
 #undef __FUNCT__
 #define __FUNCT__ "TaoView_IPM"
-static PetscErrorCode TaoView_IPM(TaoSolver tao, PetscViewer viewer)
+static PetscErrorCode TaoView_IPM(Tao tao, PetscViewer viewer)
 {
   return 0;
 }
@@ -650,9 +643,9 @@ static PetscErrorCode TaoView_IPM(TaoSolver tao, PetscViewer viewer)
 /*
 #undef __FUNCT__
 #define __FUNCT__ "IPMObjective"
-static PetscErrorCode IPMObjective(TaoLineSearch ls, Vec X, PetscReal *f, void *tptr) 
+static PetscErrorCode IPMObjective(TaoLineSearch ls, Vec X, PetscReal *f, void *tptr)
 {
-  TaoSolver tao = (TaoSolver)tptr;
+  Tao tao = (Tao)tptr;
   TAO_IPM *ipmP = (TAO_IPM*)tao->data;
   PetscErrorCode ierr;
   PetscFunctionBegin;
@@ -666,8 +659,8 @@ static PetscErrorCode IPMObjective(TaoLineSearch ls, Vec X, PetscReal *f, void *
    f = d'x + 0.5 * x' * H * x
    rd = H*x + d + Ae'*lame - Ai'*lami
        Ai =   jac_ineq
-	       I (w/lb)
-	      -I (w/ub) 
+               I (w/lb)
+              -I (w/ub)
 
    rpe = ce
    rpi = ci - s;
@@ -678,7 +671,7 @@ static PetscErrorCode IPMObjective(TaoLineSearch ls, Vec X, PetscReal *f, void *
 */
 #undef __FUNCT__
 #define __FUNCT__ "IPMComputeKKT"
-static PetscErrorCode IPMComputeKKT(TaoSolver tao)
+static PetscErrorCode IPMComputeKKT(Tao tao)
 {
   TAO_IPM        *ipmP = (TAO_IPM *)tao->data;
   PetscScalar    norm;
@@ -698,7 +691,6 @@ static PetscErrorCode IPMComputeKKT(TaoSolver tao)
 #endif
     /* rpe = ce(x) */
     ierr = VecCopy(tao->constraints_equality,ipmP->rpe);CHKERRQ(ierr);
-
   }
   if (ipmP->nb > 0) {
     /* rd = rd - Ai'*lamdai */
@@ -716,20 +708,19 @@ static PetscErrorCode IPMComputeKKT(TaoSolver tao)
 
     /* com = s .* lami */
     ierr = VecPointwiseMult(ipmP->complementarity, ipmP->s,ipmP->lamdai);CHKERRQ(ierr);
-
   }
   /* phi = ||rd; rpe; rpi; com|| */
   ierr = VecDot(ipmP->rd,ipmP->rd,&norm);CHKERRQ(ierr);
-  ipmP->phi = norm; 
+  ipmP->phi = norm;
   if (ipmP->me > 0 ) {
     ierr = VecDot(ipmP->rpe,ipmP->rpe,&norm);CHKERRQ(ierr);
-    ipmP->phi += norm; 
+    ipmP->phi += norm;
   }
   if (ipmP->nb > 0) {
     ierr = VecDot(ipmP->rpi,ipmP->rpi,&norm);CHKERRQ(ierr);
-    ipmP->phi += norm; 
+    ipmP->phi += norm;
     ierr = VecDot(ipmP->complementarity,ipmP->complementarity,&norm);CHKERRQ(ierr);
-    ipmP->phi += norm; 
+    ipmP->phi += norm;
     /* mu = s'*lami/nb */
     ierr = VecDot(ipmP->s,ipmP->lamdai,&ipmP->mu);CHKERRQ(ierr);
     ipmP->mu /= ipmP->nb;
@@ -752,14 +743,14 @@ static PetscErrorCode IPMComputeKKT(TaoSolver tao)
   ierr = VecView(ipmP->rpi,0);
   PetscPrintf(PETSC_COMM_WORLD,"\ncomplementarity\n");
   ierr = VecView(ipmP->complementarity,0);
-#endif  
+#endif
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "IPMEvaluate"
 /* evaluate user info at current point */
-PetscErrorCode IPMEvaluate(TaoSolver tao)
+PetscErrorCode IPMEvaluate(Tao tao)
 {
   TAO_IPM        *ipmP = (TAO_IPM *)tao->data;
   PetscErrorCode ierr;
@@ -774,7 +765,6 @@ PetscErrorCode IPMEvaluate(TaoSolver tao)
   if (ipmP->mi > 0) {
     ierr = TaoComputeInequalityConstraints(tao,tao->solution,tao->constraints_inequality);
     ierr = TaoComputeJacobianInequality(tao,tao->solution,&tao->jacobian_inequality,&tao->jacobian_inequality_pre,&ipmP->Aeflag);CHKERRQ(ierr);
-
   }
   if (ipmP->nb > 0) {
     /* Ai' =   jac_ineq | I (w/lb) | -I (w/ub)  */
@@ -786,7 +776,7 @@ PetscErrorCode IPMEvaluate(TaoSolver tao)
 #undef __FUNCT__
 #define __FUNCT__ "IPMPushInitialPoint"
 /* Push initial point away from bounds */
-PetscErrorCode IPMPushInitialPoint(TaoSolver tao)
+PetscErrorCode IPMPushInitialPoint(Tao tao)
 {
   TAO_IPM        *ipmP = (TAO_IPM *)tao->data;
   PetscErrorCode ierr;
@@ -812,16 +802,16 @@ PetscErrorCode IPMPushInitialPoint(TaoSolver tao)
 
 #undef __FUNCT__
 #define __FUNCT__ "IPMUpdateAi"
-PetscErrorCode IPMUpdateAi(TaoSolver tao)
+PetscErrorCode IPMUpdateAi(Tao tao)
 {
   /* Ai =     Ji
-	      I (w/lb)
-	     -I (w/ub) */
+              I (w/lb)
+             -I (w/ub) */
 
   /* Ci =    user->ci
              Xi - lb (w/lb)
-	     -Xi + ub (w/ub)  */
-	     
+             -Xi + ub (w/ub)  */
+
   TAO_IPM           *ipmP = (TAO_IPM *)tao->data;
   MPI_Comm          comm;
   PetscInt          i;
@@ -834,31 +824,27 @@ PetscErrorCode IPMUpdateAi(TaoSolver tao)
   PetscInt          r2,r3,r4;
   PetscMPIInt       size;
   PetscErrorCode    ierr;
-  
+
   PetscFunctionBegin;
-  CHKMEMQ;
   r2 = ipmP->mi;
   r3 = r2 + ipmP->nxlb;
   r4 = r3 + ipmP->nxub;
-  
-  if (!ipmP->nb) {
-    PetscFunctionReturn(0);
-  }
-  CHKMEMQ;
+
+  if (!ipmP->nb) PetscFunctionReturn(0);
 
   /* Create Ai matrix if it doesn't exist yet */
   if (!ipmP->Ai) {
     comm = ((PetscObject)(tao->solution))->comm;
-    ierr = PetscMalloc(ipmP->nb*sizeof(PetscInt),&nonzeros);CHKERRQ(ierr);
+    ierr = PetscMalloc1(ipmP->nb,&nonzeros);CHKERRQ(ierr);
     ierr = MPI_Comm_size(comm,&size);
     if (size == 1) {
       for (i=0;i<ipmP->mi;i++) {
-	ierr = MatGetRow(tao->jacobian_inequality,i,&ncols,NULL,NULL);CHKERRQ(ierr);
-	nonzeros[i] = ncols;
-	ierr = MatRestoreRow(tao->jacobian_inequality,i,&ncols,NULL,NULL);CHKERRQ(ierr);
+        ierr = MatGetRow(tao->jacobian_inequality,i,&ncols,NULL,NULL);CHKERRQ(ierr);
+        nonzeros[i] = ncols;
+        ierr = MatRestoreRow(tao->jacobian_inequality,i,&ncols,NULL,NULL);CHKERRQ(ierr);
       }
       for (i=r2;i<r4;i++) {
-	nonzeros[i] = 1;
+        nonzeros[i] = 1;
       }
     }
     ierr = MatCreate(comm,&ipmP->Ai);CHKERRQ(ierr);
@@ -871,7 +857,6 @@ PetscErrorCode IPMUpdateAi(TaoSolver tao)
       ierr = PetscFree(nonzeros);CHKERRQ(ierr);
     }
   }
-
 
   /* Copy values from user jacobian to Ai */
   ierr = MatGetOwnershipRange(ipmP->Ai,&astart,&aend);CHKERRQ(ierr);
@@ -887,16 +872,15 @@ PetscErrorCode IPMUpdateAi(TaoSolver tao)
       ierr = MatRestoreRow(tao->jacobian_inequality,i,&ncols,&cols,&vals);CHKERRQ(ierr);
     }
   }
-  
 
   /* I w/ xlb */
   if (ipmP->nxlb) {
     for (i=0;i<ipmP->nxlb;i++) {
       if (i>=astart && i<aend) {
-	newrow = i+r2;
-	newcol = i;
-	newval = 1.0;
-	ierr = MatSetValues(ipmP->Ai,1,&newrow,1,&newcol,&newval,INSERT_VALUES);CHKERRQ(ierr);
+        newrow = i+r2;
+        newcol = i;
+        newval = 1.0;
+        ierr = MatSetValues(ipmP->Ai,1,&newrow,1,&newcol,&newval,INSERT_VALUES);CHKERRQ(ierr);
       }
     }
   }
@@ -912,13 +896,12 @@ PetscErrorCode IPMUpdateAi(TaoSolver tao)
     }
   }
 
-  
   ierr = MatAssemblyBegin(ipmP->Ai,MAT_FINAL_ASSEMBLY);
   ierr = MatAssemblyEnd(ipmP->Ai,MAT_FINAL_ASSEMBLY);
   CHKMEMQ;
 
   ierr = VecSet(ipmP->ci,0.0);CHKERRQ(ierr);
-  
+
   /* user ci */
   if (ipmP->mi > 0) {
     ierr = VecScatterBegin(ipmP->ci_scat,tao->constraints_inequality,ipmP->ci,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
@@ -932,7 +915,7 @@ PetscErrorCode IPMUpdateAi(TaoSolver tao)
     ierr = VecAXPY(ipmP->work,-1.0,tao->XL);CHKERRQ(ierr);
 
     /* lower bounds on variables */
-    if (ipmP->nxlb > 0) { 
+    if (ipmP->nxlb > 0) {
       ierr = VecScatterBegin(ipmP->xl_scat,ipmP->work,ipmP->ci,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
       ierr = VecScatterEnd(ipmP->xl_scat,ipmP->work,ipmP->ci,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
     }
@@ -942,22 +925,21 @@ PetscErrorCode IPMUpdateAi(TaoSolver tao)
     ierr = VecCopy(tao->solution,ipmP->work);CHKERRQ(ierr);
     ierr = VecScale(ipmP->work,-1.0);CHKERRQ(ierr);
     ierr = VecAXPY(ipmP->work,1.0,tao->XU);CHKERRQ(ierr);
-    if (ipmP->nxub > 0) { 
+    if (ipmP->nxub > 0) {
       ierr = VecScatterBegin(ipmP->xu_scat,ipmP->work,ipmP->ci,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
       ierr = VecScatterEnd(ipmP->xu_scat,ipmP->work,ipmP->ci,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
     }
   }
-
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "IPMUpdateK"
-/* create K = [ Hlag , 0 , Ae', -Ai']; 
+/* create K = [ Hlag , 0 , Ae', -Ai'];
               [Ae , 0,   0  , 0];
-              [Ai ,-I,   0 ,  0];  
+              [Ai ,-I,   0 ,  0];
               [ 0 , S ,  0,   Y ];  */
-PetscErrorCode IPMUpdateK(TaoSolver tao)
+PetscErrorCode IPMUpdateK(Tao tao)
 {
   TAO_IPM         *ipmP = (TAO_IPM *)tao->data;
   MPI_Comm        comm;
@@ -983,7 +965,7 @@ PetscErrorCode IPMUpdateK(TaoSolver tao)
 
   PetscFunctionBegin;
   comm = ((PetscObject)(tao->solution))->comm;
-  ierr = MPI_Comm_size(comm,&size);
+  ierr = MPI_Comm_size(comm,&size);CHKERRQ(ierr);
   ierr = IPMUpdateAi(tao);CHKERRQ(ierr);
 #if defined DEBUG_K
   PetscPrintf(PETSC_COMM_WORLD,"H\n");  MatView(tao->hessian,0);
@@ -993,20 +975,17 @@ PetscErrorCode IPMUpdateK(TaoSolver tao)
   if (ipmP->me) {
     PetscPrintf(PETSC_COMM_WORLD,"Ae\n"); MatView(tao->jacobian_equality,0);
   }
-
-#endif  
+#endif
   /* allocate workspace */
   subsize = PetscMax(ipmP->n,ipmP->nb);
   subsize = PetscMax(ipmP->me,subsize);
   subsize = PetscMax(2,subsize);
-  ierr = PetscMalloc(sizeof(PetscInt)*subsize,&indices);CHKERRQ(ierr);
-  ierr = PetscMalloc(sizeof(PetscReal)*subsize,&newvals);CHKERRQ(ierr);
+  ierr = PetscMalloc1(subsize,&indices);CHKERRQ(ierr);
+  ierr = PetscMalloc1(subsize,&newvals);CHKERRQ(ierr);
 
   r1 = c1 = ipmP->n;
   r2 = r1 + ipmP->me;  c2 = c1 + ipmP->nb;
   r3 = c3 = r2 + ipmP->nb;
-  
-  
 
   bigsize = ipmP->n+2*ipmP->nb+ipmP->me;
   ierr = VecGetOwnershipRange(ipmP->bigrhs,&kstart,&kend);CHKERRQ(ierr);
@@ -1014,20 +993,20 @@ PetscErrorCode IPMUpdateK(TaoSolver tao)
   klocalsize = kend-kstart;
   if (!ipmP->K) {
     if (size == 1) {
-      ierr = PetscMalloc((kend-kstart)*sizeof(PetscInt),&nonzeros);CHKERRQ(ierr);
+      ierr = PetscMalloc1((kend-kstart),&nonzeros);CHKERRQ(ierr);
       for (i=0;i<bigsize;i++) {
-	if (i<r1) {
-	  ierr = MatGetRow(tao->hessian,i,&ncols,NULL,NULL);CHKERRQ(ierr);
-	  nonzeros[i] = ncols;
-	  ierr = MatRestoreRow(tao->hessian,i,&ncols,NULL,NULL);CHKERRQ(ierr);
-	  nonzeros[i] += ipmP->me+ipmP->nb;
-	} else if (i<r2) {
-	  nonzeros[i-kstart] = ipmP->n;
-	} else if (i<r3) {
-	  nonzeros[i-kstart] = ipmP->n+1;
-	} else if (i<bigsize) {
-	  nonzeros[i-kstart] = 2;
-	}
+        if (i<r1) {
+          ierr = MatGetRow(tao->hessian,i,&ncols,NULL,NULL);CHKERRQ(ierr);
+          nonzeros[i] = ncols;
+          ierr = MatRestoreRow(tao->hessian,i,&ncols,NULL,NULL);CHKERRQ(ierr);
+          nonzeros[i] += ipmP->me+ipmP->nb;
+        } else if (i<r2) {
+          nonzeros[i-kstart] = ipmP->n;
+        } else if (i<r3) {
+          nonzeros[i-kstart] = ipmP->n+1;
+        } else if (i<bigsize) {
+          nonzeros[i-kstart] = 2;
+        }
       }
       ierr = MatCreate(comm,&ipmP->K);CHKERRQ(ierr);
       ierr = MatSetType(ipmP->K,MATSEQAIJ);CHKERRQ(ierr);
@@ -1036,23 +1015,23 @@ PetscErrorCode IPMUpdateK(TaoSolver tao)
       ierr = MatSetFromOptions(ipmP->K);CHKERRQ(ierr);
       ierr = PetscFree(nonzeros);CHKERRQ(ierr);
     } else {
-      ierr = PetscMalloc((kend-kstart)*sizeof(PetscInt),&d_nonzeros);CHKERRQ(ierr);
-      ierr = PetscMalloc((kend-kstart)*sizeof(PetscInt),&o_nonzeros);CHKERRQ(ierr);
+      ierr = PetscMalloc1((kend-kstart),&d_nonzeros);CHKERRQ(ierr);
+      ierr = PetscMalloc1((kend-kstart),&o_nonzeros);CHKERRQ(ierr);
       for (i=kstart;i<kend;i++) {
-	if (i<r1) {
-	  /* TODO fix preallocation for mpi mats */
-	  d_nonzeros[i-kstart] = PetscMin(ipmP->n+ipmP->me+ipmP->nb,kend-kstart);
-	  o_nonzeros[i-kstart] = PetscMin(ipmP->n+ipmP->me+ipmP->nb,bigsize-(kend-kstart));
-	} else if (i<r2) {
-	  d_nonzeros[i-kstart] = PetscMin(ipmP->n,kend-kstart);
-	  o_nonzeros[i-kstart] = PetscMin(ipmP->n,bigsize-(kend-kstart));
-	} else if (i<r3) {
-	  d_nonzeros[i-kstart] = PetscMin(ipmP->n+2,kend-kstart);
-	  o_nonzeros[i-kstart] = PetscMin(ipmP->n+2,bigsize-(kend-kstart));
-	} else {
-	  d_nonzeros[i-kstart] = PetscMin(2,kend-kstart);
-	  o_nonzeros[i-kstart] = PetscMin(2,bigsize-(kend-kstart));
-	}
+        if (i<r1) {
+          /* TODO fix preallocation for mpi mats */
+          d_nonzeros[i-kstart] = PetscMin(ipmP->n+ipmP->me+ipmP->nb,kend-kstart);
+          o_nonzeros[i-kstart] = PetscMin(ipmP->n+ipmP->me+ipmP->nb,bigsize-(kend-kstart));
+        } else if (i<r2) {
+          d_nonzeros[i-kstart] = PetscMin(ipmP->n,kend-kstart);
+          o_nonzeros[i-kstart] = PetscMin(ipmP->n,bigsize-(kend-kstart));
+        } else if (i<r3) {
+          d_nonzeros[i-kstart] = PetscMin(ipmP->n+2,kend-kstart);
+          o_nonzeros[i-kstart] = PetscMin(ipmP->n+2,bigsize-(kend-kstart));
+        } else {
+          d_nonzeros[i-kstart] = PetscMin(2,kend-kstart);
+          o_nonzeros[i-kstart] = PetscMin(2,bigsize-(kend-kstart));
+        }
       }
       ierr = MatCreate(comm,&ipmP->K);CHKERRQ(ierr);
       ierr = MatSetType(ipmP->K,MATMPIAIJ);CHKERRQ(ierr);
@@ -1061,11 +1040,9 @@ PetscErrorCode IPMUpdateK(TaoSolver tao)
       ierr = PetscFree(d_nonzeros);CHKERRQ(ierr);
       ierr = PetscFree(o_nonzeros);CHKERRQ(ierr);
       ierr = MatSetFromOptions(ipmP->K);CHKERRQ(ierr);
-    
     }
   }
 
- 
   ierr = MatZeroEntries(ipmP->K);CHKERRQ(ierr);
   /* Copy H */
   for (i=hstart;i<hend;i++) {
@@ -1080,18 +1057,18 @@ PetscErrorCode IPMUpdateK(TaoSolver tao)
   if (ipmP->me > 0) {
     ierr = MatGetOwnershipRange(tao->jacobian_equality,&aestart,&aeend);CHKERRQ(ierr);
     for (i=aestart;i<aeend;i++) {
-      ierr = MatGetRow(tao->jacobian_equality,i,&ncols,&cols,&vals);CHKERRQ(ierr);	
+      ierr = MatGetRow(tao->jacobian_equality,i,&ncols,&cols,&vals);CHKERRQ(ierr);
       if (ncols > 0) {
-	/*Ae*/
-	row = i+r1;
-	ierr = MatSetValues(ipmP->K,1,&row,ncols,cols,vals,INSERT_VALUES);CHKERRQ(ierr);
-	/*Ae'*/
-	for (j=0;j<ncols;j++) {
-	  newcol = i + c2;
-	  newrow = cols[j];
-	  newval = vals[j];
-	  ierr = MatSetValues(ipmP->K,1,&newrow,1,&newcol,&newval,INSERT_VALUES);CHKERRQ(ierr);
-	}
+        /*Ae*/
+        row = i+r1;
+        ierr = MatSetValues(ipmP->K,1,&row,ncols,cols,vals,INSERT_VALUES);CHKERRQ(ierr);
+        /*Ae'*/
+        for (j=0;j<ncols;j++) {
+          newcol = i + c2;
+          newrow = cols[j];
+          newval = vals[j];
+          ierr = MatSetValues(ipmP->K,1,&newrow,1,&newcol,&newval,INSERT_VALUES);CHKERRQ(ierr);
+        }
       }
       ierr = MatRestoreRow(tao->jacobian_equality,i,&ncols,&cols,&vals);CHKERRQ(ierr);
     }
@@ -1104,28 +1081,26 @@ PetscErrorCode IPMUpdateK(TaoSolver tao)
       row = i+r2;
       ierr = MatGetRow(ipmP->Ai,i,&ncols,&cols,&vals);CHKERRQ(ierr);
       if (ncols > 0) {
-	/*Ai*/
-	ierr = MatSetValues(ipmP->K,1,&row,ncols,cols,vals,INSERT_VALUES);CHKERRQ(ierr);
-	/*-Ai'*/
-	for (j=0;j<ncols;j++) {
-	  newcol = i + c3;
-	  newrow = cols[j];
-	  newval = -vals[j];
-	  ierr = MatSetValues(ipmP->K,1,&newrow,1,&newcol,&newval,INSERT_VALUES);CHKERRQ(ierr);
-	}
+        /*Ai*/
+        ierr = MatSetValues(ipmP->K,1,&row,ncols,cols,vals,INSERT_VALUES);CHKERRQ(ierr);
+        /*-Ai'*/
+        for (j=0;j<ncols;j++) {
+          newcol = i + c3;
+          newrow = cols[j];
+          newval = -vals[j];
+          ierr = MatSetValues(ipmP->K,1,&newrow,1,&newcol,&newval,INSERT_VALUES);CHKERRQ(ierr);
+        }
       }
       ierr = MatRestoreRow(ipmP->Ai,i,&ncols,&cols,&vals);CHKERRQ(ierr);
     }
 
-
-    
     /* -I */
     for (i=kstart;i<kend;i++) {
       if (i>=r2 && i<r3) {
-	newrow = i;
-	newcol = i-r2+c1;
-	newval = -1.0;
-	MatSetValues(ipmP->K,1,&newrow,1,&newcol,&newval,INSERT_VALUES);CHKERRQ(ierr);
+        newrow = i;
+        newcol = i-r2+c1;
+        newval = -1.0;
+        MatSetValues(ipmP->K,1,&newrow,1,&newcol,&newval,INSERT_VALUES);CHKERRQ(ierr);
       }
     }
 
@@ -1142,16 +1117,16 @@ PetscErrorCode IPMUpdateK(TaoSolver tao)
       newrow = r3+i;
       ierr = MatSetValues(ipmP->K,1,&newrow,2,newcols,newvals,INSERT_VALUES);CHKERRQ(ierr);
     }
-  
+
     ierr = VecRestoreArray(ipmP->lamdai,&l);CHKERRQ(ierr);
     ierr = VecRestoreArray(ipmP->s,&y);CHKERRQ(ierr);
-  }      
+  }
 
   ierr = PetscFree(indices);CHKERRQ(ierr);
   ierr = PetscFree(newvals);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(ipmP->K,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(ipmP->K,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-#if defined DEBUG_K  
+#if defined DEBUG_K
   PetscPrintf(PETSC_COMM_WORLD,"K\n");  MatView(ipmP->K,0);
 #endif
   PetscFunctionReturn(0);
@@ -1159,7 +1134,7 @@ PetscErrorCode IPMUpdateK(TaoSolver tao)
 
 #undef __FUNCT__
 #define __FUNCT__ "IPMGatherRHS"
-PetscErrorCode IPMGatherRHS(TaoSolver tao,Vec RHS,Vec X1,Vec X2,Vec X3,Vec X4)
+PetscErrorCode IPMGatherRHS(Tao tao,Vec RHS,Vec X1,Vec X2,Vec X3,Vec X4)
 {
   TAO_IPM        *ipmP = (TAO_IPM *)tao->data;
   PetscErrorCode ierr;
@@ -1167,8 +1142,8 @@ PetscErrorCode IPMGatherRHS(TaoSolver tao,Vec RHS,Vec X1,Vec X2,Vec X3,Vec X4)
   PetscFunctionBegin;
   /* rhs = [x1      (n)
             x2     (me)
-	    x3     (nb)
-	    x4     (nb)] */
+            x3     (nb)
+            x4     (nb)] */
   if (X1) {
     ierr = VecScatterBegin(ipmP->rhs1,X1,RHS,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
     ierr = VecScatterEnd(ipmP->rhs1,X1,RHS,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
@@ -1195,13 +1170,13 @@ PetscErrorCode IPMGatherRHS(TaoSolver tao,Vec RHS,Vec X1,Vec X2,Vec X3,Vec X4)
   if (X4) {VecView(X4,0);}
   PetscPrintf(PETSC_COMM_WORLD,"RHS\n");
   VecView(RHS,0);
-#endif  
+#endif
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "IPMScatterStep"
-PetscErrorCode IPMScatterStep(TaoSolver tao, Vec STEP, Vec X1, Vec X2, Vec X3, Vec X4)
+PetscErrorCode IPMScatterStep(Tao tao, Vec STEP, Vec X1, Vec X2, Vec X3, Vec X4)
 {
   TAO_IPM        *ipmP = (TAO_IPM *)tao->data;
   PetscErrorCode ierr;
@@ -1209,9 +1184,9 @@ PetscErrorCode IPMScatterStep(TaoSolver tao, Vec STEP, Vec X1, Vec X2, Vec X3, V
   PetscFunctionBegin;
   CHKMEMQ;
   /*        [x1    (n)
-	     x2    (nb) may be 0
- 	     x3    (me) may be 0
-	     x4    (nb) may be 0 */
+             x2    (nb) may be 0
+             x3    (me) may be 0
+             x4    (nb) may be 0 */
   if (X1) {
     ierr = VecScatterBegin(ipmP->step1,STEP,X1,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
     ierr = VecScatterEnd(ipmP->step1,STEP,X1,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
@@ -1237,14 +1212,14 @@ PetscErrorCode IPMScatterStep(TaoSolver tao, Vec STEP, Vec X1, Vec X2, Vec X3, V
   if (X2) {VecView(X2,0);}
   if (X3) {VecView(X3,0);}
   if (X4) {VecView(X4,0);}
-#endif  
+#endif
   PetscFunctionReturn(0);
 }
 
 EXTERN_C_BEGIN
 #undef __FUNCT__
 #define __FUNCT__ "TaoCreate_IPM"
-PetscErrorCode TaoCreate_IPM(TaoSolver tao)
+PetscErrorCode TaoCreate_IPM(Tao tao)
 {
   TAO_IPM        *ipmP;
   PetscErrorCode ierr;
@@ -1256,7 +1231,7 @@ PetscErrorCode TaoCreate_IPM(TaoSolver tao)
   tao->ops->setfromoptions = TaoSetFromOptions_IPM;
   tao->ops->destroy = TaoDestroy_IPM;
   /* tao->ops->computedual = TaoComputeDual_IPM; */
-  
+
   ierr = PetscNewLog(tao,&ipmP);CHKERRQ(ierr);
   tao->data = (void*)ipmP;
   tao->max_it = 200;

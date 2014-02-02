@@ -305,7 +305,7 @@ PETSC_EXTERN PetscComplex PETSC_i;
    PetscMin - Returns minimum of two numbers
 
    Synopsis:
-   #include "petscmath.h"
+   #include <petscmath.h>
    type PetscMin(type v1,type v2)
 
    Not Collective
@@ -329,7 +329,7 @@ M*/
    PetscMax - Returns maxium of two numbers
 
    Synopsis:
-   #include "petscmath.h"
+   #include <petscmath.h>
    type max PetscMax(type v1,type v2)
 
    Not Collective
@@ -351,7 +351,7 @@ M*/
    PetscClipInterval - Returns a number clipped to be within an interval
 
    Synopsis:
-   #include "petscmath.h"
+   #include <petscmath.h>
    type clip PetscClipInterval(type x,type a,type b)
 
    Not Collective
@@ -374,7 +374,7 @@ M*/
    PetscAbsInt - Returns the absolute value of an integer
 
    Synopsis:
-   #include "petscmath.h"
+   #include <petscmath.h>
    int abs PetscAbsInt(int v1)
 
    Not Collective
@@ -393,7 +393,7 @@ M*/
    PetscAbsReal - Returns the absolute value of an real number
 
    Synopsis:
-   #include "petscmath.h"
+   #include <petscmath.h>
    Real abs PetscAbsReal(PetscReal v1)
 
    Not Collective
@@ -413,7 +413,7 @@ M*/
    PetscSqr - Returns the square of a number
 
    Synopsis:
-   #include "petscmath.h"
+   #include <petscmath.h>
    type sqr PetscSqr(type v1)
 
    Not Collective
@@ -469,6 +469,9 @@ M*/
 #  define PETSC_SQRT_MACHINE_EPSILON    1.38777878078e-17
 #  define PETSC_SMALL                   1.e-20
 #endif
+
+#define PETSC_INFINITY                PETSC_MAX_REAL/4.0
+#define PETSC_NINFINITY              -PETSC_INFINITY
 
 PETSC_EXTERN PetscErrorCode PetscIsInfOrNanScalar(PetscScalar);
 PETSC_EXTERN PetscErrorCode PetscIsInfOrNanReal(PetscReal);

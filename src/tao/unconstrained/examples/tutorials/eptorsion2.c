@@ -2,24 +2,24 @@
 
 /* ----------------------------------------------------------------------
 
-  Elastic-plastic torsion problem.  
+  Elastic-plastic torsion problem.
 
-  The elastic plastic torsion problem arises from the determination 
+  The elastic plastic torsion problem arises from the determination
   of the stress field on an infinitely long cylindrical bar, which is
   equivalent to the solution of the following problem:
 
   min{ .5 * integral(||gradient(v(x))||^2 dx) - C * integral(v(x) dx)}
-  
+
   where C is the torsion angle per unit length.
 
-  The uniprocessor version of this code is eptorsion1.c; the Fortran 
+  The uniprocessor version of this code is eptorsion1.c; the Fortran
   version of this code is eptorsion2f.F.
 
-  This application solves the problem without calculating hessians 
+  This application solves the problem without calculating hessians
 ---------------------------------------------------------------------- */
 
 /*
-  Include "tao.h" so that we can use TAO solvers.  Note that this 
+  Include "petsctao.h" so that we can use TAO solvers.  Note that this
   file automatically includes files for lower-level support, such as those
   provided by the PETSc library:
      petsc.h       - base PETSc routines   petscvec.h - vectors
@@ -30,10 +30,10 @@
   the parallel mesh.
 */
 
-#include "taosolver.h"
-#include "petscdmda.h"
+#include <petsctao.h>
+#include <petscdmda.h>
 
-static  char help[] = 
+static  char help[] =
 "Demonstrates use of the TAO package to solve \n\
 unconstrained minimization problems in parallel.  This example is based on \n\
 the Elastic-Plastic Torsion (dept) problem from the MINPACK-2 test suite.\n\
@@ -42,20 +42,19 @@ The command line options are:\n\
   -my <yg>, where <yg> = number of grid points in the 2nd coordinate direction\n\
   -par <param>, where <param> = angle of twist per unit length\n\n";
 
-/*T 
+/*T
    Concepts: TAO - Solving an unconstrained minimization problem
-   Routines: TaoInitialize(); TaoFinalize(); 
    Routines: TaoCreate(); TaoSetType();
-   Routines: TaoSetInitialVector(); 
+   Routines: TaoSetInitialVector();
    Routines: TaoSetObjectiveAndGradientRoutine();
    Routines: TaoSetHessianRoutine(); TaoSetFromOptions();
    Routines: TaoSolve();
    Routines: TaoGetTerminationReason(); TaoDestroy();
    Processors: n
-T*/ 
+T*/
 
-/* 
-   User-defined application context - contains data needed by the 
+/*
+   User-defined application context - contains data needed by the
    application-provided call-back routines, FormFunction() and
    FormGradient().
 */
@@ -71,27 +70,26 @@ typedef struct {
 
 
 PetscErrorCode FormInitialGuess(AppCtx*, Vec);
-PetscErrorCode FormFunctionGradient(TaoSolver,Vec,PetscReal*,Vec,void*);
-PetscErrorCode FormHessian(TaoSolver,Vec,Mat*,Mat*,MatStructure*,void*);
+PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
+PetscErrorCode FormHessian(Tao,Vec,Mat*,Mat*,MatStructure*,void*);
 
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
-int main(int argc, char **argv) 
+int main(int argc, char **argv)
 {
     PetscErrorCode ierr;
     Vec x;
     Mat H;
     PetscInt Nx, Ny;
-    TaoSolver tao;
-    TaoSolverTerminationReason reason;
+    Tao tao;
+    TaoTerminationReason reason;
     PetscBool flg;
     KSP ksp; PC pc;
     AppCtx user;
 
     /* Initialize PETSc, TAO */
     PetscInitialize(&argc, &argv, (char *)0, help);
-    TaoInitialize(&argc, &argv, (char *)0, help);
 
     /* Specify default dimension of the problem */
     user.param = 5.0; user.mx = 10; user.my = 10;
@@ -102,12 +100,12 @@ int main(int argc, char **argv)
     ierr = PetscOptionsGetInt(NULL,"-my",&user.my,&flg);CHKERRQ(ierr);
     ierr = PetscOptionsGetInt(NULL,"-mx",&user.mx,&flg);CHKERRQ(ierr);
 
-    PetscPrintf(PETSC_COMM_WORLD,"\n---- Elastic-Plastic Torsion Problem -----\n");
-    PetscPrintf(PETSC_COMM_WORLD,"mx: %D     my: %D   \n\n",user.mx,user.my);  
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"\n---- Elastic-Plastic Torsion Problem -----\n");CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"mx: %D     my: %D   \n\n",user.mx,user.my);CHKERRQ(ierr);
 
     /* Set up distributed array */
     ierr = DMDACreate2d(PETSC_COMM_WORLD,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE,DMDA_STENCIL_STAR,user.mx,user.my,Nx,Ny,1,1,NULL,NULL,
-			&user.dm);CHKERRQ(ierr);
+                        &user.dm);CHKERRQ(ierr);
 
     /* Create vectors */
     ierr = DMCreateGlobalVector(user.dm,&x);CHKERRQ(ierr);
@@ -136,7 +134,7 @@ int main(int argc, char **argv)
 
     /* Check for any TAO command line options */
     ierr = TaoSetFromOptions(tao);CHKERRQ(ierr);
-    
+
     ierr = TaoGetKSP(tao,&ksp);CHKERRQ(ierr);
     if (ksp) {
       ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
@@ -149,9 +147,8 @@ int main(int argc, char **argv)
     /* Get information on termination */
     ierr = TaoGetTerminationReason(tao,&reason);CHKERRQ(ierr);
     if (reason <= 0){
-	ierr=PetscPrintf(MPI_COMM_WORLD, "Try another method! \n");
-	CHKERRQ(ierr); 
-    }  
+        ierr=PetscPrintf(MPI_COMM_WORLD, "Try another method! \n");CHKERRQ(ierr);
+    }
 
     /* Free TAO data structures */
     ierr = TaoDestroy(&tao);CHKERRQ(ierr);
@@ -163,11 +160,7 @@ int main(int argc, char **argv)
     ierr = VecDestroy(&user.localX);CHKERRQ(ierr);
     ierr = DMDestroy(&user.dm);CHKERRQ(ierr);
 
-
-    /* Finalize TAO and PETSc*/
-    TaoFinalize();
     PetscFinalize();
-    
     return 0;
 }
 
@@ -217,19 +210,19 @@ PetscErrorCode FormInitialGuess(AppCtx *user,Vec X)
 /* ------------------------------------------------------------------ */
 #undef __FUNCT__
 #define __FUNCT__ "FormFunctionGradient"
-/* 
+/*
    FormFunctionGradient - Evaluates the function and corresponding gradient.
-    
+
    Input Parameters:
-   tao - the TaoSolver context
-   X   - the input vector 
+   tao - the Tao context
+   X   - the input vector
    ptr - optional user-defined context, as set by TaoSetObjectiveAndGradientRoutine()
 
    Output Parameters:
    f   - the newly evaluated function
    G   - the newly evaluated gradient
 */
-PetscErrorCode FormFunctionGradient(TaoSolver tao,Vec X,PetscReal *f,Vec G,void *ptr){
+PetscErrorCode FormFunctionGradient(Tao tao,Vec X,PetscReal *f,Vec G,void *ptr){
 
   AppCtx *user = (AppCtx *)ptr;
   PetscErrorCode    ierr;
@@ -240,8 +233,8 @@ PetscErrorCode FormFunctionGradient(TaoSolver tao,Vec X,PetscReal *f,Vec G,void 
   PetscReal three = 3.0, zero = 0.0, *x, floc, cdiv3 = user->param/three;
   PetscReal p5 = 0.5, area, val, flin, fquad;
   PetscReal v,vb,vl,vr,vt,dvdx,dvdy;
-  PetscReal hx = 1.0/(user->mx + 1); 
-  PetscReal hy = 1.0/(user->my + 1);  
+  PetscReal hx = 1.0/(user->mx + 1);
+  PetscReal hy = 1.0/(user->my + 1);
   Vec    localX = user->localX;
 
 
@@ -361,7 +354,7 @@ PetscErrorCode FormFunctionGradient(TaoSolver tao,Vec X,PetscReal *f,Vec G,void 
 
 #undef __FUNCT__
 #define __FUNCT__ "FormHessian"
-PetscErrorCode FormHessian(TaoSolver tao, Vec X, Mat *H, Mat *Hpre, MatStructure *flag, void*ctx){
+PetscErrorCode FormHessian(Tao tao, Vec X, Mat *H, Mat *Hpre, MatStructure *flag, void*ctx){
 
   AppCtx *user= (AppCtx*) ctx;
   PetscErrorCode ierr;
@@ -372,7 +365,7 @@ PetscErrorCode FormHessian(TaoSolver tao, Vec X, Mat *H, Mat *Hpre, MatStructure
   PetscReal hx=1.0/(user->mx+1), hy=1.0/(user->my+1), hxhx=1.0/(hx*hx), hyhy=1.0/(hy*hy), area=0.5*hx*hy;
   Mat A=*H;
 
-  /* Compute the quadratic term in the objective function */  
+  /* Compute the quadratic term in the objective function */
 
   /*
      Get local grid boundaries
@@ -383,13 +376,13 @@ PetscErrorCode FormHessian(TaoSolver tao, Vec X, Mat *H, Mat *Hpre, MatStructure
   ierr = DMDAGetGhostCorners(user->dm,&gxs,&gys,NULL,&gxm,&gym,NULL);CHKERRQ(ierr);
 
   for (j=ys; j<ys+ym; j++){
-    
+
     for (i=xs; i< xs+xm; i++){
 
       row=(j-gys)*gxm + (i-gxs);
 
       k=0;
-      if (j>gys){ 
+      if (j>gys){
         v[k]=-2*hyhy; col[k]=row - gxm; k++;
       }
 
@@ -411,7 +404,7 @@ PetscErrorCode FormHessian(TaoSolver tao, Vec X, Mat *H, Mat *Hpre, MatStructure
 
     }
   }
-  /* 
+  /*
      Assemble matrix, using the 2-step process:
      MatAssemblyBegin(), MatAssemblyEnd().
      By placing code between these two statements, computations can be

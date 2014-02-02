@@ -1,8 +1,7 @@
 #ifndef __TAO_GPCG_H
 #define __TAO_GPCG_H
-#include "tao-private/taosolver_impl.h" 
-#include "taolinesearch.h"          
-#include "tao_util.h"
+#include <petsc-private/taoimpl.h>
+#include <petsctaolinesearch.h>
 
 typedef struct{
 
@@ -42,7 +41,7 @@ typedef struct{
   Mat H;
   Vec B;
   PetscReal c;
-  
+
   PetscReal f;
   PetscReal step;
   Mat Hsub;
