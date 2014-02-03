@@ -409,7 +409,9 @@ PetscErrorCode DMPlexCreateCubeBoundary(DM dm, const PetscReal lower[], const Pe
 + comm  - The communicator for the DM object
 . lower - The lower left corner coordinates
 . upper - The upper right corner coordinates
-- edges - The number of cells in each direction
+. edges - The number of cells in each direction
+. bdX   - The boundary type for the X direction
+- bdY   - The boundary type for the Y direction
 
   Output Parameter:
 . dm  - The DM object
@@ -644,6 +646,9 @@ PetscErrorCode DMPlexCreateBoxMesh(MPI_Comm comm, PetscInt dim, PetscBool interp
   Input Parameters:
 + comm  - The communicator for the DM object
 . dim   - The spatial dimension
+. periodicX - The boundary type for the X direction
+. periodicY - The boundary type for the Y direction
+. periodicZ - The boundary type for the Z direction
 - cells - The number of cells in each direction
 
   Output Parameter:
