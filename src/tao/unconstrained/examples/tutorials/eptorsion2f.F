@@ -83,8 +83,8 @@
 
 
 !     Set up distributed array and vectors
-      call DMDACreate2d(PETSC_COMM_WORLD,DMDA_BOUNDARY_NONE,             &
-     &     DMDA_BOUNDARY_NONE,                                           &
+      call DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_NONE,               &
+     &     DM_BOUNDARY_NONE,                                             &
      &     DMDA_STENCIL_BOX,mx,my,Nx,Ny,i1,i1,PETSC_NULL_INTEGER,        &
      &     PETSC_NULL_INTEGER,dm,ierr)
 
@@ -402,13 +402,10 @@
 
 
 !  Sum function contributions from all processes
-      call MPI_Allreduce(floc,f,1,MPIU_SCALAR,MPI_SUM,                   &
+      call MPI_Allreduce(floc,f,1,MPIU_SCALAR,MPIU_SUM,                   &
      &                   PETSC_COMM_WORLD,ierr)
       call PetscLogFlops((ye-ysm)*(xe-xsm)*20+(xep-xs)*(yep-ys)*16.0d0,     &
      &                    ierr)
-
-
-
       return
       end
 
