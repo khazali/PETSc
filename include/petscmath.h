@@ -42,6 +42,7 @@ typedef float PetscReal;
 #define PetscCeilReal(a)    ceil(a)
 #define PetscFloorReal(a)   floor(a)
 #define PetscFmodReal(a,b)  fmod(a,b)
+#define PetscTGamma(a)      tgammaf(a)
 #elif defined(PETSC_USE_REAL_DOUBLE)
 #define MPIU_REAL   MPI_DOUBLE
 typedef double PetscReal;
@@ -62,6 +63,7 @@ typedef double PetscReal;
 #define PetscCeilReal(a)    ceil(a)
 #define PetscFloorReal(a)   floor(a)
 #define PetscFmodReal(a,b)  fmod(a,b)
+#define PetscTGamma(a)      tgamma(a)
 #elif defined(PETSC_USE_REAL___FLOAT128)
 #if defined(__cplusplus)
 extern "C" {
@@ -91,6 +93,7 @@ typedef __float128 PetscReal;
 #define PetscCeilReal(a)    ceilq(a)
 #define PetscFloorReal(a)   floorq(a)
 #define PetscFmodReal(a,b)  fmodq(a,b)
+#define PetscTGamma(a)      tgammaq(a)
 #endif /* PETSC_USE_REAL_* */
 
 /*
@@ -122,6 +125,8 @@ typedef __float128 PetscReal;
 #define PetscSinhComplex(a)          complexlib::sinh(a)
 #define PetscCoshComplex(a)          complexlib::cosh(a)
 #define PetscTanhComplex(a)          complexlib::tanh(a)
+#define PetscAsinComplex(a)          complexlib::asin(a)
+#define PetscAcosComplex(a)          complexlib::acos(a)
 
 #if defined(PETSC_USE_REAL_SINGLE)
 typedef complexlib::complex<float> PetscComplex;
@@ -156,6 +161,9 @@ typedef float _Complex PetscComplex;
 #define PetscSinhComplex(a)          csinhf(a)
 #define PetscCoshComplex(a)          ccoshf(a)
 #define PetscTanhComplex(a)          ctanhf(a)
+#define PetscCosComplex(a)           ccosf(a)
+#define PetscAsinComplex(a)          casinf(a)
+#define PetscAcosComplex(a)          cacosf(a)
 
 #elif defined(PETSC_USE_REAL_DOUBLE)
 typedef double _Complex PetscComplex;
@@ -174,6 +182,8 @@ typedef double _Complex PetscComplex;
 #define PetscSinhComplex(a)          csinh(a)
 #define PetscCoshComplex(a)          ccosh(a)
 #define PetscTanhComplex(a)          ctanh(a)
+#define PetscAsinComplex(a)          casin(a)
+#define PetscAcosComplex(a)          cacos(a)
 
 #elif defined(PETSC_USE_REAL___FLOAT128)
 typedef __complex128 PetscComplex;
@@ -194,6 +204,8 @@ PETSC_EXTERN MPI_Datatype MPIU___COMPLEX128 PetscAttrMPITypeTag(__complex128);
 #define PetscCoshComplex(a)          ccoshq(a)
 #define PetscTanhComplex(a)          ctanhq(a)
 
+#define PetscAsinComplex(a)          casinq(a)
+#define PetscAcosComplex(a)          cacosq(a)
 #endif /* PETSC_USE_REAL_* */
 #elif defined(PETSC_USE_COMPLEX)
 #error "PETSc was configured --with-scalar-type=complex, but a language-appropriate complex library is not available"
@@ -246,6 +258,9 @@ typedef PetscComplex PetscScalar;
 #define PetscSinhScalar(a)    PetscSinhComplex(a)
 #define PetscCoshScalar(a)    PetscCoshComplex(a)
 #define PetscTanhScalar(a)    PetscTanhComplex(a)
+#define PetscAsinScalar(a)    PetscAsinComplex(a)
+#define PetscAcosScalar(a)    PetscAcosComplex(a)
+
 #define MPIU_SCALAR MPIU_COMPLEX
 
 /*
@@ -270,6 +285,8 @@ PETSC_STATIC_INLINE PetscReal PetscAbsScalar(PetscScalar a) {return a < 0.0 ? -a
 #define PetscSinhScalar(a)    sinh(a)
 #define PetscCoshScalar(a)    cosh(a)
 #define PetscTanhScalar(a)    tanh(a)
+#define PetscAsinScalar(a)    asin(a)
+#define PetscAcosScalar(a)    acos(a)
 #else /* PETSC_USE_REAL___FLOAT128 */
 #define PetscSqrtScalar(a)    sqrtq(a)
 #define PetscPowScalar(a,b)   powq(a,b)
@@ -281,6 +298,8 @@ PETSC_STATIC_INLINE PetscReal PetscAbsScalar(PetscScalar a) {return a < 0.0 ? -a
 #define PetscSinhScalar(a)    sinhq(a)
 #define PetscCoshScalar(a)    coshq(a)
 #define PetscTanhScalar(a)    tanhq(a)
+#define PetscAsinScalar(a)    asinq(a)
+#define PetscAcosScalar(a)    acosq(a)
 #endif /* PETSC_USE_REAL___FLOAT128 */
 
 #endif /* PETSC_USE_COMPLEX */
