@@ -3,78 +3,87 @@ import PETSc.package
 class Configure(PETSc.package.NewPackage):
   def __init__(self, framework):
     PETSc.package.NewPackage.__init__(self, framework)
-    self.download  = ['http://ftp.mcs.anl.gov/pub/petsc/externalpackages/zoltan_distrib.tar.gz']
+    self.download  = ['http://www.cs.sandia.gov/~kddevin/Zoltan_Distributions/zoltan_distrib_v3.8.tar.gz',
+                      'http://ftp.mcs.anl.gov/pub/petsc/externalpackages/zoltan_distrib_v3.8.tar.gz']
     self.functions = ['Zoltan_LB_Partition']
     self.includes  = ['zoltan.h']
     self.liblist   = [['libzoltan.a']]
     self.license   = 'http://www.cs.sandia.gov/Zoltan/Zoltan.html'
+    self.needsMath = 1
     return
 
   def setupDependencies(self, framework):
     PETSc.package.NewPackage.setupDependencies(self, framework)
-    self.x        = framework.require('PETSc.packages.X',self)
-    self.parmetis = framework.require('PETSc.packages.parmetis',self)
-    self.deps = [self.mpi, self.parmetis]
+    self.compilerFlags   = framework.require('config.compilerFlags', self)
+    self.sharedLibraries = framework.require('PETSc.utilities.sharedLibraries', self)
+    self.deps            = [self.mpi,]
     return
 
   def Install(self):
     import os
     self.framework.pushLanguage('C')
+    args = ['--prefix='+self.installDir]
+    args.append('--libdir='+os.path.join(self.installDir,self.libdir))
     ccompiler=self.framework.getCompiler()
-    args = ['ZOLTAN_ARCH="'+self.arch+'"']
-    args.append('CC="'+self.framework.getCompiler()+'"')
+    args.append('CC="'+ccompiler+'"')
     args.append('CFLAGS="'+self.framework.getCompilerFlags()+'"')
     self.framework.popLanguage()
-    if hasattr(self.compilers, 'CXX'):
-      self.framework.pushLanguage('Cxx')
-      args.append('CPPC="'+self.framework.getCompiler()+'"')
-      self.framework.popLanguage()
-    args.append('AR="'+self.compilers.AR+' '+self.compilers.AR_FLAGS+'"')
-    args.append('RANLIB="'+self.compilers.RANLIB+'"')
-    if self.x.found:
-      args.append('X_LIBS="'+str(self.x.lib)+'"')
-    if self.mpi.found:
-      if self.mpi.include:
-        args.append('MPI_INCPATH="'+' '.join([self.headers.getIncludeArgument(inc) for inc in self.mpi.include])+'"')
-      if self.mpi.lib:
-        args.append('MPI_LIB="'+' '.join([self.libraries.getLibArgument(lib) for lib in self.mpi.lib])+'"')
-    if self.parmetis.found:
-      if self.parmetis.include:
-        args.append('PARMETIS_INCPATH="'+' '.join([self.headers.getIncludeArgument(inc) for inc in self.parmetis.include])+'"')
-      if self.parmetis.lib:
-        args.append('PARMETIS_LIBPATH="'+' '.join([self.libraries.getLibArgument(lib) for lib in self.parmetis.lib])+'"')
-    args = ' '.join(args)
+    args.append('--enable-mpi')
+    # use --with-mpi if we know it works
+    if self.mpi.directory and (os.path.realpath(ccompiler)).find(os.path.realpath(self.mpi.directory)) >=0:
+      self.framework.log.write('Zoltan configure: using --with-mpi-root='+self.mpi.directory+'\n')
+      args.append('--with-mpi="'+self.mpi.directory+'"')
+    # else provide everything!
+    else:
+      #print a message if the previous check failed
+      if self.mpi.directory:
+        self.framework.log.write('Zoltan configure: --with-mpi-dir specified - but could not use it\n')
+        self.framework.log.write(str(os.path.realpath(ccompiler))+' '+str(os.path.realpath(self.mpi.directory))+'\n')
 
-    fd = file(os.path.join(self.packageDir, 'Zoltanconfig'),'w')
+      args.append('--without-mpicc')
+      if self.mpi.include:
+        args.append('--with-mpi-incdir="'+self.mpi.include[0]+'"')
+      else:
+        args.append('--with-mpi-incdir="/usr/include"')  # dummy case
+
+      if self.mpi.lib:
+        args.append('--with-mpi-libdir="'+os.path.dirname(self.mpi.lib[0])+'"')
+        libs = []
+        for l in self.mpi.lib:
+          ll = os.path.basename(l)
+          if ll.endswith('.a'): libs.append(ll[3:-2])
+          elif ll.endswith('.so'): libs.append(ll[3:-3])
+          elif ll.endswith('.dylib'): libs.append(ll[3:-6])
+          libs.append(ll[3:-2])
+        libs = '-l' + ' -l'.join(libs)
+        args.append('--with-mpi-libs="'+libs+'"')
+      else:
+        args.append('--with-mpi-libdir="/usr/lib"')  # dummy case
+        args.append('--with-mpi-libs="-lc"')
+    args = ' '.join(args)
+    fd = file(os.path.join(self.packageDir,'zoltan'), 'w')
     fd.write(args)
     fd.close()
 
-    if self.installNeeded('Zoltanconfig'):
-      fd = file(os.path.join(self.packageDir, 'Utilities', 'Config', 'Config.'+self.arch), 'w')
-      fd.write('''
-##############################################################################
-#  Environment variables for compiling the Zoltan and test drivers using PETSc
-##############################################################################
-# The location of the VTK libraries, built with OpenGL
-#   We do not do these correctly
-VTK_LIBPATH =
-VTK_INCPATH =
-# The location of the GL or Mesa libraries, and the libraries
-#   We do not do these correctly
-GL_LIBPATH = -L/usr/lib
-GL_INCPATH = -I/usr/include
-GL_LIBS    = -lGL -lGLU
-# Have no idea about VTK_OFFSCREEN_* and MESA_* stuff
-''')
-      fd.close()
+    if self.installNeeded('zoltan'):
+      folder = os.path.join(self.packageDir, self.arch)
+      if os.path.isdir(folder):
+        import shutil
+        shutil.rmtree(folder)
+      os.mkdir(folder)
       try:
-        self.logPrintBox('Compiling zoltan; this may take several minutes')
-        output1,err1,ret1  = PETSc.package.NewPackage.executeShellCommand('rm -f '+self.installDir+'lib/libzoltan*', timeout=2500, log = self.framework.log)
-        output2,err2,ret2  = PETSc.package.NewPackage.executeShellCommand('cd '+self.packageDir+' && make clean && make '+args+' zoltan', timeout=2500, log = self.framework.log)
+        self.logPrintBox('Configuring Zoltan; this may take several minutes')
+        output1,err1,ret1  = PETSc.package.NewPackage.executeShellCommand('cd '+folder+' && ../configure '+args, timeout=900, log = self.framework.log)
       except RuntimeError, e:
-        raise RuntimeError('Error running make on ZOLTAN: '+str(e))
-
-      output3,err3,ret3  = PETSc.package.NewPackage.executeShellCommand('mv -f '+os.path.join(self.packageDir, 'Obj_'+self.arch)+'/lib* '+os.path.join(self.installDir, 'lib'))
-      output4,err4,ret4  = PETSc.package.NewPackage.executeShellCommand('cp -f '+os.path.join(self.packageDir, 'include')+'/*.h '+os.path.join(self.installDir, 'include'))
-      self.postInstall(output1+err1+output2+err2+output3+err3+output4+err4,'Zoltanconfig')
+        raise RuntimeError('Error running configure on Zoltan: '+str(e))
+      try:
+        self.logPrintBox('Compiling Zoltan; this may take several minutes')
+        output2,err2,ret2  = PETSc.package.NewPackage.executeShellCommand('cd '+folder+' && make && make install && make clean ', timeout=900, log = self.framework.log)
+      except RuntimeError, e:
+        raise RuntimeError('Error running make on Zoltan: '+str(e))
+      try:
+        output3,err3,ret3  = PETSc.package.NewPackage.executeShellCommand(self.setCompilers.RANLIB+' '+os.path.join(self.installDir,'lib')+'/lib*.a', timeout=2500, log = self.framework.log)
+      except RuntimeError, e:
+        raise RuntimeError('Error running ranlib on Zoltan libraries: '+str(e))
+      self.postInstall(output1+err1+output2+err2+output3+err3,'zoltan')
     return self.installDir
