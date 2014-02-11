@@ -1049,6 +1049,7 @@ typedef const  char*           MatColoringType;
 #define MATCOLORINGSL      "sl"
 #define MATCOLORINGLF      "lf"
 #define MATCOLORINGID      "id"
+#define MATCOLORINGZOLTAN  "zoltan"
 
 PETSC_EXTERN PetscErrorCode MatColoringCreate(Mat,MatColoring*);
 PETSC_EXTERN PetscErrorCode MatColoringDestroy(MatColoring*);

@@ -7,6 +7,9 @@ PETSC_EXTERN PetscErrorCode MatColoringCreate_Natural(MatColoring);
 PETSC_EXTERN PetscErrorCode MatColoringCreate_SL(MatColoring);
 PETSC_EXTERN PetscErrorCode MatColoringCreate_ID(MatColoring);
 PETSC_EXTERN PetscErrorCode MatColoringCreate_LF(MatColoring);
+#ifdef PETSC_HAVE_ZOLTAN
+PETSC_EXTERN PetscErrorCode MatColoringCreate_Zoltan(MatColoring);
+#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "MatColoringRegisterAll"
@@ -38,5 +41,8 @@ PetscErrorCode  MatColoringRegisterAll(void)
   ierr = MatColoringRegister(MATCOLORINGSL,MatColoringCreate_SL);CHKERRQ(ierr);
   ierr = MatColoringRegister(MATCOLORINGID,MatColoringCreate_ID);CHKERRQ(ierr);
   ierr = MatColoringRegister(MATCOLORINGLF,MatColoringCreate_LF);CHKERRQ(ierr);
+#ifdef PETSC_HAVE_ZOLTAN
+  ierr = MatColoringRegister(MATCOLORINGZOLTAN,MatColoringCreate_Zoltan);CHKERRQ(ierr);
+#endif
   PetscFunctionReturn(0);
 }

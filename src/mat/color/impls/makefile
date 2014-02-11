@@ -1,7 +1,7 @@
 
 ALL: lib
 
-DIRS     = natural minpack mis jp
+DIRS     = natural minpack mis jp zoltan
 LOCDIR   = src/mat/color/impls/
 
 include ${PETSC_DIR}/conf/variables
