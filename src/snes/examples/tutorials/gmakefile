@@ -1,0 +1,75 @@
+
+# This directory contains SNES example programs for solving systems of
+# nonlinear equations.
+
+#CPPFLAGS	 = -I/PETSc3/geodynamics/PetscSimulationsViewers/src
+CFLAGS           =
+FFLAGS		 =
+CPPFLAGS         =
+FPPFLAGS         =
+LOCDIR		 = src/snes/examples/tutorials/
+MANSEC           = SNES
+EXAMPLESC	 := $(shell ls *.c)
+EXAMPLESF	 := $(shell ls *.F *.F90)
+EXAMPLESCH	 = ex43-44.h
+EXAMPLESFH       = ex5f.h
+EXAMPLESMATLAB   = ex5m.m  ex61genm.m ex61m.m
+DIRS		 = ex10d
+
+include ${PETSC_DIR}/conf/variables
+include ${PETSC_DIR}/conf/rules
+
+ex%.o : ex%.c  chkopts
+	-@${PCC} -o $@ -c $< ${PCC_FLAGS} ${CFLAGS} ${CCPPFLAGS}
+
+ex%f.o : ex%f.F  chkopts
+	-@${FC} -o $@ -c $< ${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS}
+
+ex%f90.o : ex%f90.F  chkopts
+	-@${FC} -o $@ -c $< ${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS}
+
+ex% : ex%.o  chkopts
+	-@${CLINKER} -o $@ $< ${PETSC_SNES_LIB}
+
+ex%f : ex%f.o  chkopts
+	-@${FLINKER} -o $@ $< ${PETSC_SNES_LIB}
+	-@${RM} $<
+
+ex%f90 : ex%f.o  chkopts
+	-@${FLINKER} -o $@ $< ${PETSC_SNES_LIB}
+	-@${RM} $<
+
+runex%: ex%
+	@packages=(pastix mumps superlu hypre spai superlu superlu_dist metis parmetis sundials ml real complex single double __float128 x) ;\
+	installedpackages=(hypre ml superlu_dist x) ;\
+        a=`grep "Run Number Processes:" $<.c | sed "s/Run Number Processes://g"`; \
+        a=`echo "$${a}" | tr -d ' ' | tr '\n' '>'`;\
+        IFS='>' command read -a  sizes <<< "$${a}";\
+	inargs=`grep "Run Arguments:" $<.c | sed "s/Run Arguments://g"`; \
+        inargs=`echo "$${inargs}" | tr -s ' ' | tr '\n' '>'`;\
+        IFS='>' command read -a  args <<< "$${inargs}";\
+	inofile=`grep "Run Output File:" $<.c | sed "s/Run Output File://g"`; \
+        inofile=`echo "$${inofile}" | tr -d ' ' | tr '\n' '>'`;\
+        IFS='>' command read -a  ofile <<< "$${inofile}";\
+	orequirements=`grep "Run Requirements:" $<.c | sed "s/Run Requirements://g"`; \
+        orequirements=`echo "$${orequirements}" | tr -d ' ' | tr '\n' '>'`;\
+        IFS='>' command read -a requirements <<< "$${orequirements}";\
+        Len=$${#args[@]};\
+        for (( i=0; i<$${Len}; i++ )); do \
+           found="yes";\
+           command read -a  argarray <<< "$${args[$${i}]} $${requirements[$${i}]}";\
+           for p in "$${packages[@]}"; do \
+             if [[ " $${argarray[@]} " =~ " $$p " ]]; then \
+               if ! [[ " $${installedpackages[@]} " =~ " $$p " ]]; then found="no"; continue ; fi; \
+             fi;\
+           done; \
+           if [[ "$${found}" == "no" ]]; then continue; fi; \
+           ${MPIEXEC} -n $${sizes[$${i}]} ./$< $${args[$${i}]} > tmpdata 2>&1; \
+	   if !(${DIFF} output/$${ofile[$$i]}.out tmpdata) then  \
+	     printf "${PWD}\nPossible problem with -np $${sizes[$${i}]} $< $${args[$${i}]} :: $${ofile[$$i]}.out\n=========================================\n"; \
+           fi; \
+	   ${RM} tmpdata;\
+         done
+
+include ${PETSC_DIR}/conf/test
+
