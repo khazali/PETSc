@@ -40,8 +40,8 @@ ex%f90 : ex%f.o  chkopts
 	-@${RM} $<
 
 runex%: ex%
-	@packages=(pastix mumps superlu hypre spai superlu superlu_dist metis parmetis sundials ml real complex single double __float128 x) ;\
-	installedpackages=(hypre ml superlu_dist x) ;\
+	@packages=(pastix mumps superlu hypre spai superlu superlu_dist metis parmetis sundials ml real complex single double __float128 mpi_win_create mpi_alltoallw 32bitindices 64bitindices) ;\
+	installedpackages=(hypre ml superlu_dist x mpi_win_create mpi_alltoallw 32bitindices) ;\
         a=`grep "Run Number Processes:" $<.c | sed "s/Run Number Processes://g"`; \
         a=`echo "$${a}" | tr -d ' ' | tr '\n' '>'`;\
         IFS='>' command read -a  sizes <<< "$${a}";\
@@ -60,7 +60,11 @@ runex%: ex%
            command read -a  argarray <<< "$${args[$${i}]} $${requirements[$${i}]}";\
            for p in "$${packages[@]}"; do \
              if [[ " $${argarray[@]} " =~ " $$p " ]]; then \
-               if ! [[ " $${installedpackages[@]} " =~ " $$p " ]]; then found="no"; continue ; fi; \
+               if ! [[ " $${installedpackages[@]} " =~ " $$p " ]]; then \
+                 echo Rejected due to $$p;\
+                 found="no"; \
+                 continue ; \
+               fi; \
              fi;\
            done; \
            if [[ "$${found}" == "no" ]]; then continue; fi; \

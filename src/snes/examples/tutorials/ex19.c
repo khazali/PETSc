@@ -720,159 +720,185 @@ PetscErrorCode NonlinearGS(SNES snes, Vec X, Vec B, void *ctx)
    Run Requirements:     
    Run Arguments:        -da_refine 3 -snes_monitor_short -pc_type redundant -mat_type mpiaij -redundant_ksp_type preonly -redundant_pc_factor_mat_solver_package mumps -pc_redundant_number 2
 
+Tests various scatter implementations
+   Run Number Processes: 4
+   Run Output File:      ex19_5
+   Run Requirements:
+   Run Arguments:        -da_refine 3 -ksp_type fgmres -pc_type mg -pc_mg_type full
+   Run Number Processes: 4
+   Run Output File:      ex19_5
+   Run Requirements:
+   Run Arguments:        -da_refine 3 -ksp_type fgmres -pc_type mg -pc_mg_type full -vecscatter_rsend
+   Run Number Processes: 4
+   Run Output File:      ex19_5
+   Run Requirements:
+   Run Arguments:        -da_refine 3 -ksp_type fgmres -pc_type mg -pc_mg_type full -vecscatter_ssend
+   Run Number Processes: 4
+   Run Output File:      ex19_5
+   Run Requirements:
+   Run Arguments:        -da_refine 3 -ksp_type fgmres -pc_type mg -pc_mg_type full -vecscatter_alltoall
+   Run Number Processes: 4
+   Run Output File:      ex19_5
+   Run Requirements:     mpi_alltoallw 32bitindices
+   Run Arguments:        -da_refine 3 -ksp_type fgmres -pc_type mg -pc_mg_type full -vecscatter_alltoall -vecscatter_nopack
+   Run Number Processes: 4
+   Run Output File:      ex19_5
+   Run Requirements:     mpi_win_create
+   Run Arguments:        -da_refine 3 -ksp_type fgmres -pc_type mg -pc_mg_type full -vecscatter_window
+
    Run Number Processes: 1
    Run Output File:      ex19_6
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -snes_monitor_short -ksp_monitor_short -pc_type fieldsplit -snes_view -ksp_type fgmres -da_refine 1
 
    Run Number Processes: 3
    Run Output File:      ex19_7
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -snes_monitor_short -ksp_monitor_short -pc_type fieldsplit -snes_view -da_refine 1 -ksp_type fgmres
 
    Run Number Processes: 1
    Run Output File:      ex19_8
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -snes_monitor_short -ksp_monitor_short -pc_type fieldsplit -pc_fieldsplit_block_size 2 -pc_fieldsplit_0_fields 0,1 -pc_fieldsplit_1_fields 0,1 -pc_fieldsplit_type multiplicative -snes_view   -fieldsplit_pc_type lu -da_refine 1 -ksp_type fgmres
 
    Run Number Processes: 3
    Run Output File:      ex19_9
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -snes_monitor_short -ksp_monitor_short -pc_type fieldsplit -pc_fieldsplit_type multiplicative -snes_view -da_refine 1 -ksp_type fgmres
 
    Run Number Processes: 3
    Run Output File:      ex19_10
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -snes_monitor_short -ksp_monitor_short -pc_type fieldsplit -pc_fieldsplit_type symmetric_multiplicative -snes_view  -da_refine 1 -ksp_type fgmres
 
    Run Number Processes: 4
    Run Output File:      ex19_11
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:         -snes_monitor_short -pc_type redundant -mat_type mpiaij -redundant_pc_factor_mat_solver_package pastix -pc_redundant_number 2 -da_refine 4 -ksp_type fgmres
 
    Run Number Processes: 12
    Run Output File:      ex19_12
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:         -snes_monitor_short -pc_type redundant -mat_type mpiaij -redundant_pc_factor_mat_solver_package pastix -pc_redundant_number 5  -da_refine 4 -ksp_type fgmres
 
    Run Number Processes: 3
    Run Output File:      ex19_13
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -snes_monitor_short -ksp_monitor_short -pc_type fieldsplit -pc_fieldsplit_type multiplicative -snes_view  -da_refine 1 -ksp_type fgmres  -snes_mf_operator
 
    Run Number Processes: 4
    Run Output File:      ex19_14
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -snes_monitor_short -pc_type mg -dm_mat_type baij -mg_coarse_pc_type bjacobi -da_refine 3 -ksp_type fgmres
 
    Run Number Processes: 4
    Run Output File:      ex19_2
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -snes_converged_reason -pc_type mg -dm_mat_type baij -mg_coarse_pc_type bjacobi -da_refine 3 -ksp_type fgmres -mat_fd_type ds
 
    Run Number Processes: 1
    Run Output File:      ex19_superlu
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_grid_x 20 -da_grid_y 20 -pc_type lu -pc_factor_mat_solver_package superlu
 
    Run Number Processes: 1
    Run Output File:      ex19_superlu_equil
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:         -da_grid_x 20 -da_grid_y 20 -{snes,ksp}_monitor_short -pc_type lu -pc_factor_mat_solver_package superlu -mat_superlu_equil
 
    Run Number Processes: 1
    Run Output File:      ex19_superlu
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_grid_x 20 -da_grid_y 20 -pc_type lu -pc_factor_mat_solver_package superlu_dist
 
    Run Number Processes: 2
    Run Output File:      ex19_superlu
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_grid_x 20 -da_grid_y 20 -pc_type lu -pc_factor_mat_solver_package superlu_dist
 
    Run Number Processes: 1
    Run Output File:      ex19_fieldsplit_2
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_block_size 4 -pc_fieldsplit_type additive -pc_fieldsplit_0_fields 0,1,2 -pc_fieldsplit_1_fields 3 -snes_monitor_short -ksp_monitor_short
 
    Run Number Processes: 1
    Run Output File:      ex19_fieldsplit_3
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_block_size 4 -pc_fieldsplit_type additive -pc_fieldsplit_0_fields 0,1,2 -pc_fieldsplit_1_fields 3 -fieldsplit_0_pc_type lu -fieldsplit_1_pc_type lu -snes_monitor_short -ksp_monitor_short
 
    Run Number Processes: 1
    Run Output File:      ex19_fieldsplit_4
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_block_size 4 -pc_fieldsplit_type SCHUR -pc_fieldsplit_0_fields 0,1,2 -pc_fieldsplit_1_fields 3 -fieldsplit_0_pc_type lu -fieldsplit_1_pc_type lu -snes_monitor_short -ksp_monitor_short
 
    Run Number Processes: 2
    Run Output File:      ex19_fieldsplit_5
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -pc_type fieldsplit -pc_fieldsplit_block_size 4 -pc_fieldsplit_type SCHUR -pc_fieldsplit_0_fields 0,1,2 -pc_fieldsplit_1_fields 3 -fieldsplit_0_pc_type lu -fieldsplit_1_pc_type lu -snes_monitor_short -ksp_monitor_short  -fieldsplit_0_pc_factor_mat_solver_package mumps -fieldsplit_1_pc_factor_mat_solver_package mumps
 
    Run Number Processes: 2
    Run Output File:      ex19_fieldsplit_hypre
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -pc_type fieldsplit -pc_fieldsplit_block_size 4 -pc_fieldsplit_type SCHUR -pc_fieldsplit_0_fields 0,1,2 -pc_fieldsplit_1_fields 3 -fieldsplit_0_pc_type lu -fieldsplit_0_pc_factor_mat_solver_package mumps -fieldsplit_1_pc_type hypre -fieldsplit_1_pc_hypre_type boomeramg -snes_monitor_short -ksp_monitor_short
 
    Run Number Processes: 1
    Run Output File:      ex19_composite_fieldsplit
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -ksp_type fgmres -pc_type composite -pc_composite_type MULTIPLICATIVE -pc_composite_pcs fieldsplit,none -sub_0_pc_fieldsplit_block_size 4 -sub_0_pc_fieldsplit_type additive -sub_0_pc_fieldsplit_0_fields 0,1,2 -sub_0_pc_fieldsplit_1_fields 3 -snes_monitor_short -ksp_monitor_short
 
    Run Number Processes: 1
    Run Output File:      ex19_composite_fieldsplit_bjacobi
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -ksp_type fgmres -pc_type composite -pc_composite_type MULTIPLICATIVE -pc_composite_pcs fieldsplit,bjacobi -sub_0_pc_fieldsplit_block_size 4 -sub_0_pc_fieldsplit_type additive -sub_0_pc_fieldsplit_0_fields 0,1,2 -sub_0_pc_fieldsplit_1_fields 3 -sub_1_pc_bjacobi_blocks 16 -sub_1_sub_pc_type lu -snes_monitor_short -ksp_monitor_short
 
    Run Number Processes: 4
    Run Output File:      ex19_composite_fieldsplit_bjacobi_2
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -ksp_type fgmres -pc_type composite -pc_composite_type MULTIPLICATIVE -pc_composite_pcs fieldsplit,bjacobi -sub_0_pc_fieldsplit_block_size 4 -sub_0_pc_fieldsplit_type additive -sub_0_pc_fieldsplit_0_fields 0,1,2 -sub_0_pc_fieldsplit_1_fields 3 -sub_1_pc_bjacobi_blocks 16 -sub_1_sub_pc_type lu -snes_monitor_short -ksp_monitor_short
 
    Run Number Processes: 4
    Run Output File:      ex19_ngmres_nasm
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 4 -da_overlap 2 -snes_monitor_short -snes_type ngmres -snes_max_it 10 -npc_snes_type nasm -npc_snes_nasm_type basic -grashof 4e4 -lidvelocity 100
 
    Run Number Processes: 4
    Run Output File:      ex19_aspin
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 3 -da_overlap 2 -snes_monitor_short -snes_type aspin -grashof 4e4 -lidvelocity 100 -ksp_monitor_short
 
    Run Number Processes: 1
    Run Output File:      ex19_fas
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 4 -snes_monitor_short -snes_type fas -fas_levels_snes_type gs -fas_levels_snes_gs_sweeps 3 -fas_levels_snes_gs_rtol 1e-15 -fas_levels_snes_gs_atol 0.0 -fas_levels_snes_gs_stol 0.0  -grashof 4e4 -snes_fas_smoothup 6 -snes_fas_smoothdown 6 -lidvelocity 100
 
    Run Number Processes: 1
    Run Output File:      ex19_fas_full
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 4 -snes_monitor_short -snes_type fas -snes_fas_type full -snes_fas_full_downsweep -fas_levels_snes_type gs -fas_levels_snes_gs_sweeps 3 -fas_levels_snes_gs_rtol 1e-15 -fas_levels_snes_gs_atol 0.0 -fas_levels_snes_gs_stol 0.0 -grashof 4e4 -snes_fas_smoothup 6 -snes_fas_smoothdown 6 -lidvelocity 100
 
    Run Number Processes: 1
    Run Output File:      ex19_ngmres_fas
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 4 -snes_monitor_short -snes_type ngmres -npc_fas_levels_snes_type gs -npc_fas_levels_snes_gs_sweeps 3 -npc_fas_levels_snes_gs_rtol 1e-15 -npc_fas_levels_snes_gs_atol 0.0 -npc_fas_levels_snes_gs_stol 0.0 -npc_snes_type fas -npc_fas_levels_snes_type gs -npc_snes_max_it 1 -npc_snes_fas_smoothup 6 -npc_snes_fas_smoothdown 6  -lidvelocity 100 -grashof 4e4
 
    Run Number Processes: 1
    Run Output File:      ex19_ngmres_fas_gssecant
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 3 -snes_monitor_short -snes_type ngmres -npc_snes_type fas -npc_fas_levels_snes_type gs -npc_fas_levels_snes_max_it 6 -npc_fas_levels_snes_gs_secant -npc_fas_levels_snes_gs_max_it 1 -npc_fas_coarse_snes_max_it 1 -lidvelocity 100 -grashof 4e4
 
    Run BROKEN Number Processes: 2
    Run BROKEN Output File:      ex19_ngmres_fas_ms
-   Run BROKEN Requirements:     
+   Run BROKEN Requirements:
    Run BROKEN Arguments:        -snes_grid_sequence 2 -lidvelocity 200 -grashof 1e4 -snes_monitor_short -snes_view -snes_converged_reason -snes_type ngmres -npc_snes_type fas -npc_fas_coarse_snes_type newtonls -npc_fas_coarse_ksp_type preonly -npc_snes_max_it 1 -npc_fas_snes_type ms -npc_fas_snes_max_it 1 -npc_fas_ksp_type preonly -npc_fas_pc_type none -npc_fas_snes_ms_type m62 -npc_fas_snes_max_it 1 -npc_fas_snes_ms_damping 0.22
 
    Run Number Processes: 4
    Run Output File:      ex19_bjacobi
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 4 -ksp_type fgmres -pc_type bjacobi -pc_bjacobi_blocks 2 -sub_ksp_type gmres -sub_ksp_max_it 2 -sub_pc_type bjacobi -sub_sub_ksp_type preonly -sub_sub_pc_type ilu -snes_monitor_short
 
    Run Number Processes: 2
    Run Output File:      ex19_composite_gs_newton
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 3 -grashof 4e4 -lidvelocity 100 -snes_monitor_short -snes_type composite -snes_composite_type additiveoptimal -snes_composite_sneses gs,newtonls -sub_0_snes_max_it 20 -sub_1_pc_type mg
 
    Run Number Processes: 1
