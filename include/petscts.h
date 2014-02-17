@@ -103,6 +103,7 @@ typedef enum {
   TS_DIVERGED_STEP_REJECTED   = -2
 } TSConvergedReason;
 PETSC_EXTERN const char *const*TSConvergedReasons;
+
 /*MC
    TS_CONVERGED_ITERATING - this only occurs if TSGetConvergedReason() is called during the TSSolve()
 
@@ -120,12 +121,13 @@ M*/
 M*/
 
 /*MC
-   TS_CONVERGED_ITS - the maximum number of iterations was reached prior to the final time
+   TS_CONVERGED_ITS - the maximum number of iterations (time-steps) was reached prior to the final time
 
    Level: beginner
 
 .seealso: TSSolve(), TSGetConvergedReason(), TSGetAdapt(), TSSetDuration()
 M*/
+
 /*MC
    TS_CONVERGED_USER - user requested termination
 
@@ -147,7 +149,9 @@ M*/
 
    Level: beginner
 
-.seealso: TSSolve(), TSGetConvergedReason(), TSGetAdapt(), TSGetSNES(), SNESGetConvergedReason()
+   Notes: See TSSetMaxSNESFailures() for how to allow more nonlinear solver failures.
+
+.seealso: TSSolve(), TSGetConvergedReason(), TSGetAdapt(), TSGetSNES(), SNESGetConvergedReason(), TSSetMaxSNESFailures()
 M*/
 
 /*MC
@@ -155,7 +159,9 @@ M*/
 
    Level: beginner
 
-.seealso: TSSolve(), TSGetConvergedReason(), TSGetAdapt()
+   Notes: See TSSetMaxStepRejections() for how to allow more step rejections.
+
+.seealso: TSSolve(), TSGetConvergedReason(), TSGetAdapt(), TSSetMaxStepRejections()
 M*/
 
 /*E
