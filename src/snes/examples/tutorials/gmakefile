@@ -2,6 +2,8 @@
 # This directory contains SNES example programs for solving systems of
 # nonlinear equations.
 
+PETSCFEATURES="pastix,mumps,superlu,hypre,spai,superlu,superlu_dist,metis,parmetis,sundials,ml,real,complex,single,double,__float128,mpi_win_create,mpi_alltoallw,32bitindices,64bitindices"
+
 #CPPFLAGS	 = -I/PETSc3/geodynamics/PetscSimulationsViewers/src
 CFLAGS           =
 FFLAGS		 =
@@ -16,12 +18,20 @@ EXAMPLESFH       = ex5f.h
 EXAMPLESMATLAB   = ex5m.m  ex61genm.m ex61m.m
 DIRS		 = ex10d
 
+EXECUTABLES = $(EXAMPLESC:.c=)
+
+all: ${EXECUTABLES}
 include ${PETSC_DIR}/conf/variables
 include ${PETSC_DIR}/conf/rules
 include ${PETSC_DIR}/${PETSC_ARCH}/conf/gmakevariables
 
 ex%.o : ex%.c  chkopts
 	-@${PCC} -o $@ -c $< ${PCC_FLAGS} ${CFLAGS} ${CCPPFLAGS}
+
+ex31.h:
+	-${PETSC_DIR}/bin/pythonscripts/PetscGenerateFEMQuadrature.py 2 2 2 1 laplacian 2 1 1 1 gradient 2 1 1 1 identity ${PETSC_DIR}/src/snes/examples/tutorials/ex31.h
+ex31: ex31.h ex31.o chkopts
+	-@${CLINKER} -o $@ $< ${PETSC_SNES_LIB}
 
 ex%f.o : ex%f.F  chkopts
 	-@${FC} -o $@ -c $< ${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS}
@@ -40,8 +50,6 @@ ex%f90 : ex%f.o  chkopts
 	-@${FLINKER} -o $@ $< ${PETSC_SNES_LIB}
 	-@${RM} $<
 
-PETSCFEATURES="pastix,mumps,superlu,hypre,spai,superlu,superlu_dist,metis,parmetis,sundials,ml,real,complex,single,double,__float128,mpi_win_create,mpi_alltoallw,32bitindices,64bitindices"
-#PETSCINSTALLEDFEATURES="hypre,ml,superlu_dist,x,mpi_win_create,mpi_alltoallw,32bitindices"
 runex%: ex%
 	@IFS=',' command read -a packages <<< "${PETSCFEATURES}";\
         IFS=',' command read -a  installedpackages <<< "${PETSCINSTALLEDFEATURES}";\

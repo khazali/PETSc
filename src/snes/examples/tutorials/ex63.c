@@ -77,8 +77,8 @@ int main(int argc, char **argv)
   ierr = DMDASetElementType(user.da2,DMDA_ELEMENT_P1);CHKERRQ(ierr);
 
   /* Set x and y coordinates */
-  ierr = DMDASetUniformCoordinates(user.da1,user.xmin,user.xmax,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
-  ierr = DMDASetUniformCoordinates(user.da2,user.xmin,user.xmax,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+  ierr = DMDASetUniformCoordinates(user.da1,user.xmin,user.xmax,0.0,0.0,0.0,0.0);CHKERRQ(ierr);
+  ierr = DMDASetUniformCoordinates(user.da2,user.xmin,user.xmax,0.0,0.0,0.0,0.0);CHKERRQ(ierr);
   /* Get global vector x from DM (da1) and duplicate vectors r,xl,xu */
   ierr = DMCreateGlobalVector(user.da1,&x);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&r);CHKERRQ(ierr);
@@ -283,7 +283,6 @@ PetscErrorCode Update_q(AppCtx *user)
   PetscErrorCode ierr;
   PetscScalar    *q_p, *w1, *w2;
   PetscInt       i,n;
-  PetscScalar    norm1;
 
   PetscFunctionBeginUser;
   ierr = VecPointwiseMult(user->Riv,user->eta,user->eta);CHKERRQ(ierr);
@@ -414,7 +413,6 @@ PetscErrorCode SetInitialGuess(Vec X,AppCtx *user)
   PetscScalar       x[2];
   Vec               coords;
   const PetscScalar *_coords;
-  PetscViewer       view;
   PetscScalar       xwidth = user->xmax - user->xmin;
 
   PetscFunctionBeginUser;

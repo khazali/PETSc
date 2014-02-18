@@ -69,7 +69,7 @@ int main(int argc, char **argv)
   Mat            J;
   PetscScalar    t=0.0;
   /* PetscViewer    view_out, view_p, view_q, view_psi, view_mat; */
-  PetscReal      bounds[] = {1000.0,-1000.,0.0,1.0,1000.0,-1000.0,0.0,1.0,1000.0,-1000.0};
+  PetscReal      PETSC_UNUSED bounds[] = {1000.0,-1000.,0.0,1.0,1000.0,-1000.0,0.0,1.0,1000.0,-1000.0};
 
 
   PetscInitialize(&argc,&argv, (char*)0, help);
@@ -91,8 +91,8 @@ int main(int argc, char **argv)
   ierr = DMDASetElementType(user.da2,DMDA_ELEMENT_P1);CHKERRQ(ierr);
 
   /* Set x and y coordinates */
-  ierr = DMDASetUniformCoordinates(user.da1,user.xmin,user.xmax,user.ymin,user.ymax,NULL,NULL);CHKERRQ(ierr);
-  ierr = DMDASetUniformCoordinates(user.da2,user.xmin,user.xmax,user.ymin,user.ymax,NULL,NULL);CHKERRQ(ierr);
+  ierr = DMDASetUniformCoordinates(user.da1,user.xmin,user.xmax,user.ymin,user.ymax,0.0,0.0);CHKERRQ(ierr);
+  ierr = DMDASetUniformCoordinates(user.da2,user.xmin,user.xmax,user.ymin,user.ymax,0.0,0.0);CHKERRQ(ierr);
   /* Get global vector x from DM (da1) and duplicate vectors r,xl,xu */
   ierr = DMCreateGlobalVector(user.da1,&x);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&r);CHKERRQ(ierr);
@@ -173,12 +173,6 @@ int main(int argc, char **argv)
   }
 
   while (t<user.T) {
-
-    char        filename[PETSC_MAX_PATH_LEN];
-    PetscScalar a = 1.0;
-    PetscInt    i;
-    /*PetscViewer  view;*/
-
 
     ierr = SNESSetFunction(snes,r,FormFunction,(void*)&user);CHKERRQ(ierr);
     ierr = SNESSetJacobian(snes,J,J,FormJacobian,(void*)&user);CHKERRQ(ierr);
@@ -427,7 +421,7 @@ PetscErrorCode SetInitialGuess(Vec X,AppCtx *user)
   PetscScalar       x[3],y[3];
   Vec               coords;
   const PetscScalar *_coords;
-  PetscScalar       xwidth = user->xmax - user->xmin, ywidth = user->ymax - user->ymin;
+  PetscScalar       xwidth = user->xmax - user->xmin;
 
   PetscFunctionBeginUser;
   ierr = VecGetLocalSize(X,&n);CHKERRQ(ierr);
@@ -1023,7 +1017,6 @@ PetscErrorCode Phi(AppCtx *user)
 PetscErrorCode Phi_read(AppCtx *user)
 {
   PetscErrorCode ierr;
-  PetscReal      *values;
   PetscViewer    viewer;
   PetscInt       power;
 

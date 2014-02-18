@@ -123,7 +123,7 @@ int main(int argc, char **argv)
   DM             da;     /* grid */
   Vec            u;      /* solution vector */
   AppCtx         user;   /* user-defined work context */
-  PetscReal      t;      /* time */
+  PetscReal      t = 0.0;      /* time */
   PetscErrorCode ierr;
   PetscInt       n;
 

@@ -53,9 +53,7 @@ int main(int argc, char **argv)
   Vec            xl,xu; /* Upper and lower bounds on variables */
   Mat            J;
   PetscScalar    t=0.0;
-  PetscViewer    view_out, view_p, view_q, view_psi, view_mat, view_vtk_cv,view_vtk_eta;
-  char           cv_filename[80],eta_filename[80];
-  PetscReal      bounds[] = {1000.0,-1000.,0.0,1.0,1000.0,-1000.0,0.0,1.0,1000.0,-1000.0};
+  PetscReal      PETSC_UNUSED bounds[] = {1000.0,-1000.,0.0,1.0,1000.0,-1000.0,0.0,1.0,1000.0,-1000.0};
 
 
   PetscInitialize(&argc,&argv, (char*)0, help);
@@ -142,12 +140,6 @@ int main(int argc, char **argv)
   PetscInt j = 0;
 
   while (t<user.T) {
-
-    char        filename[PETSC_MAX_PATH_LEN];
-    PetscScalar a = 1.0;
-    PetscInt    i;
-    PetscViewer view;
-
 
     ierr = SNESSetFunction(snes,r,FormFunction,(void*)&user);CHKERRQ(ierr);
     ierr = SNESSetJacobian(snes,J,J,FormJacobian,(void*)&user);CHKERRQ(ierr);
@@ -361,7 +353,6 @@ PetscErrorCode SetInitialGuess(Vec X,AppCtx *user)
   PetscErrorCode ierr;
   PetscInt       n,i,j,Xda,Yda,Zda;
   PetscScalar    *xx,*cv_p,*wv_p,*eta_p;
-  PetscViewer    view_out;
 
   /* needed for the void growth case */
   PetscScalar       xmid,ymid,zmid,cv_v=1.0,cv_m=user->Sv*user->cv0,eta_v=1.0,eta_m=0.0,h,lambda;
@@ -571,7 +562,7 @@ PetscErrorCode SetUpMatrices(AppCtx *user)
   PetscErrorCode ierr;
   PetscInt       nele,nen,i,j,n;
   const PetscInt *ele;
-  PetscScalar    dt=user->dt,hx,hy,hz;
+  PetscScalar    hx,hy,hz;
 
   PetscInt    idx[8];
   PetscScalar eM_0[8][8],eM_2[8][8];
