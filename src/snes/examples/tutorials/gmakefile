@@ -39,9 +39,11 @@ ex%f90 : ex%f.o  chkopts
 	-@${FLINKER} -o $@ $< ${PETSC_SNES_LIB}
 	-@${RM} $<
 
+PETSCFEATURES="pastix,mumps,superlu,hypre,spai,superlu,superlu_dist,metis,parmetis,sundials,ml,real,complex,single,double,__float128,mpi_win_create,mpi_alltoallw,32bitindices,64bitindices"
+PETSCINSTALLEDFEATURES="hypre,ml,superlu_dist,x,mpi_win_create,mpi_alltoallw,32bitindices"
 runex%: ex%
-	@packages=(pastix mumps superlu hypre spai superlu superlu_dist metis parmetis sundials ml real complex single double __float128 mpi_win_create mpi_alltoallw 32bitindices 64bitindices) ;\
-	installedpackages=(hypre ml superlu_dist x mpi_win_create mpi_alltoallw 32bitindices) ;\
+	@IFS=',' command read -a packages <<< "${PETSCFEATURES}";\
+        IFS=',' command read -a  installedpackages <<< "${PETSCINSTALLEDFEATURES}";\
         a=`grep "Run Number Processes:" $<.c | sed "s/Run Number Processes://g"`; \
         a=`echo "$${a}" | tr -d ' ' | tr '\n' '>'`;\
         IFS='>' command read -a  sizes <<< "$${a}";\
@@ -61,7 +63,7 @@ runex%: ex%
            for p in "$${packages[@]}"; do \
              if [[ " $${argarray[@]} " =~ " $$p " ]]; then \
                if ! [[ " $${installedpackages[@]} " =~ " $$p " ]]; then \
-                 echo Rejected due to $$p;\
+                  if [[ "${verbose}" == "yes" ]]; then echo Rejected due to $$p; fi;\
                  found="no"; \
                  continue ; \
                fi; \
@@ -69,7 +71,7 @@ runex%: ex%
            done; \
            if [[ "$${found}" == "no" ]]; then continue; fi; \
            ${MPIEXEC} -n $${sizes[$${i}]} ./$< $${args[$${i}]} > tmpdata 2>&1; \
-	   if !(${DIFF} output/$${ofile[$$i]}.out tmpdata) then  \
+	   if !(${PETSC_DIR}/bin/petscdiff output/$${ofile[$$i]}.out tmpdata) then  \
 	     printf "${PWD}\nPossible problem with -np $${sizes[$${i}]} $< $${args[$${i}]} :: $${ofile[$$i]}.out\n=========================================\n"; \
            fi; \
 	   ${RM} tmpdata;\

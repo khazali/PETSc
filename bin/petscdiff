@@ -1,0 +1,13 @@
+#! /bin/csh -f
+
+sed  "s/[0-9]\.[0-9]*[e]*[-]*[+]*[0-9]*/XXX/g" $1 > tmpA
+sed  "s/[0-9]\.[0-9]*[e]*[-]*[+]*[0-9]*/XXX/g" $2 > tmpB
+diff tmpA tmpB >& /dev/null
+if ($?) then
+  diff -y --suppress-common-lines -B $1 $2 ;
+  exit 1;
+else
+  exit 0;
+endif
+
+
