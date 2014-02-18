@@ -18,6 +18,7 @@ DIRS		 = ex10d
 
 include ${PETSC_DIR}/conf/variables
 include ${PETSC_DIR}/conf/rules
+include ${PETSC_DIR}/${PETSC_ARCH}/conf/gmakevariables
 
 ex%.o : ex%.c  chkopts
 	-@${PCC} -o $@ -c $< ${PCC_FLAGS} ${CFLAGS} ${CCPPFLAGS}
@@ -40,7 +41,7 @@ ex%f90 : ex%f.o  chkopts
 	-@${RM} $<
 
 PETSCFEATURES="pastix,mumps,superlu,hypre,spai,superlu,superlu_dist,metis,parmetis,sundials,ml,real,complex,single,double,__float128,mpi_win_create,mpi_alltoallw,32bitindices,64bitindices"
-PETSCINSTALLEDFEATURES="hypre,ml,superlu_dist,x,mpi_win_create,mpi_alltoallw,32bitindices"
+#PETSCINSTALLEDFEATURES="hypre,ml,superlu_dist,x,mpi_win_create,mpi_alltoallw,32bitindices"
 runex%: ex%
 	@IFS=',' command read -a packages <<< "${PETSCFEATURES}";\
         IFS=',' command read -a  installedpackages <<< "${PETSCINSTALLEDFEATURES}";\
@@ -72,7 +73,7 @@ runex%: ex%
            if [[ "$${found}" == "no" ]]; then continue; fi; \
            ${MPIEXEC} -n $${sizes[$${i}]} ./$< $${args[$${i}]} > tmpdata 2>&1; \
 	   if !(${PETSC_DIR}/bin/petscdiff output/$${ofile[$$i]}.out tmpdata) then  \
-	     printf "${PWD}\nPossible problem with -np $${sizes[$${i}]} $< $${args[$${i}]} :: $${ofile[$$i]}.out\n=========================================\n"; \
+	     printf "${PWD}\nPossible problem with -np $${sizes[$${i}]} $< $${args[$${i}]} :: $${ofile[$$i]}.out\n==========================================================================\n"; \
            fi; \
 	   ${RM} tmpdata;\
          done
