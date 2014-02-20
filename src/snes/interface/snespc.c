@@ -6,6 +6,7 @@
 #undef __FUNCT__
 #define __FUNCT__ "SNESApplyPC"
 /*@
+   SNESApplyPC - Runs the nonlinear preconditioner and returns the step.
 
    Collective on SNES
 
