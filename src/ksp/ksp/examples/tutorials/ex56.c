@@ -273,6 +273,7 @@ int main(int argc,char **args)
     ierr = MatSetNearNullSpace(Amat,matnull);CHKERRQ(ierr);
     ierr = MatNullSpaceDestroy(&matnull);CHKERRQ(ierr);
     ierr = VecDestroy(&vec_coords);CHKERRQ(ierr);
+    ierr = PetscFree(sCoord);CHKERRQ(ierr);
   } else {
     ierr = PCSetCoordinates(pc, 3, m/3, coords);CHKERRQ(ierr);
   }
