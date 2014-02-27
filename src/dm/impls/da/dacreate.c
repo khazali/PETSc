@@ -1,6 +1,8 @@
 
 #include <petsc-private/dmdaimpl.h>    /*I   "petscdmda.h"   I*/
 
+const char *const DMDAInterpolationTypes[] = {"Q0","Q1","DMDAInterpolationType","DMDA_",0};
+
 #undef __FUNCT__
 #define __FUNCT__ "DMSetFromOptions_DA"
 PetscErrorCode  DMSetFromOptions_DA(DM da)
@@ -78,6 +80,8 @@ PetscErrorCode  DMSetFromOptions_DA(DM da)
   }
 
   if (negativeMNP) {ierr = PetscOptionsInt("-da_refine","Uniformly refine DA one or more times","None",refine,&refine,NULL);CHKERRQ(ierr);}
+
+  ierr = PetscOptionsEnum("-da_interpolation_type","interpolation type: Q0, Q1, etc.","DMDASetInterpolationType",DMDAInterpolationTypes,(PetscEnum)dd->interptype,(PetscEnum*)&dd->interptype,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsTail();CHKERRQ(ierr);
 
   while (refine--) {
