@@ -51,6 +51,7 @@ typedef struct {
 
   PetscInt              refine_x,refine_y,refine_z;    /* ratio used in refining */
   PetscInt              coarsen_x,coarsen_y,coarsen_z; /* ratio used for coarsening */
+  MPI_Comm              lcomm; /* Local comm among replicas when reducing the process set */
 
 #define DMDA_MAX_WORK_ARRAYS 2 /* work arrays for holding work via DMDAGetArray() */
   void                  *arrayin[DMDA_MAX_WORK_ARRAYS],*arrayout[DMDA_MAX_WORK_ARRAYS];

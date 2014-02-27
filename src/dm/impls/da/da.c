@@ -1034,12 +1034,18 @@ PetscErrorCode  DMRefine_DA(DM da,MPI_Comm comm,DM *daref)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMCoarsen_DA"
-PetscErrorCode  DMCoarsen_DA(DM da, MPI_Comm comm,DM *daref)
+PetscErrorCode  DMCoarsen_DA(DM da, MPI_Comm commIn,DM *daref)
 {
-  PetscErrorCode ierr;
-  PetscInt       M,N,P,i;
+  DM_DA         *dd = (DM_DA *) da->data, *dd2;
   DM             da2;
-  DM_DA          *dd = (DM_DA*)da->data,*dd2;
+  MPI_Comm       comm = commIn == MPI_COMM_NULL ? PetscObjectComm((PetscObject) da) : commIn;
+  const PetscInt cellLimit = 8;
+  PetscInt       m = dd->m, n = dd->n, p = dd->p;
+  PetscInt      *lx = dd->lx, *ly = dd->ly, *lz = dd->lz;
+  PetscInt      *clx,*cly,*clz;
+  PetscInt       M, N, P, i;
+  PetscBool      subcomm = PETSC_FALSE;
+  PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(da,DM_CLASSID,1);
@@ -1068,37 +1074,56 @@ PetscErrorCode  DMCoarsen_DA(DM da, MPI_Comm comm,DM *daref)
   } else {
     P = 1 + (dd->P - 1) / dd->coarsen_z;
   }
-  ierr = DMDACreate(PetscObjectComm((PetscObject)da),&da2);CHKERRQ(ierr);
+  subcomm = (((M < cellLimit) || (dd->dim > 1 && N < cellLimit) || (dd->dim > 2 && P < cellLimit)) &&
+             !(dd->m%dd->coarsen_x) && !(dd->dim > 1 && dd->m%dd->coarsen_y) && !(dd->dim > 2 && dd->m%dd->coarsen_z)) ? PETSC_TRUE : PETSC_FALSE;
+  if (subcomm) {
+    PetscInt    j, k, c;
+    PetscMPIInt rank, pset, prnk;
+
+    ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) da), &rank);CHKERRQ(ierr);
+    /* Reduce the process set */
+    k    = rank/(n*m);
+    j    = (rank - k*n*m)/m;
+    i    = rank - (k*n - j)*m;
+    m   /= dd->coarsen_x;
+    n   /= dd->coarsen_x;
+    p   /= dd->coarsen_x;
+    pset = ((k%dd->coarsen_z)*dd->coarsen_y + j%dd->coarsen_y)*dd->coarsen_x + i%dd->coarsen_x;
+    prnk = ((k/dd->coarsen_z)*n + j/dd->coarsen_y)*m + i/dd->coarsen_x;
+    ierr = MPI_Comm_split(PetscObjectComm((PetscObject) da), pset, prnk, &comm);CHKERRQ(ierr);
+    ierr = MPI_Comm_split(PetscObjectComm((PetscObject) da), prnk, pset, &dd->lcomm);CHKERRQ(ierr);
+    ierr = PetscCalloc3(m,&lx,n,&ly,p,&lz);CHKERRQ(ierr);
+    for (i = 0; i < m; ++i) for (c = 0; c < dd->coarsen_x; ++c) lx[i] += dd->lx[i*dd->coarsen_x+c];
+    for (j = 0; j < n; ++j) for (c = 0; c < dd->coarsen_y; ++c) ly[j] += dd->ly[j*dd->coarsen_y+c];
+    for (k = 0; k < p; ++k) for (c = 0; c < dd->coarsen_z; ++c) lz[k] += dd->lz[k*dd->coarsen_z+c];
+  } else {
+    dd->lcomm = PETSC_COMM_SELF;
+  }
+  ierr = DMDACreate(comm,&da2);CHKERRQ(ierr);
   ierr = DMSetOptionsPrefix(da2,((PetscObject)da)->prefix);CHKERRQ(ierr);
   ierr = DMDASetDim(da2,dd->dim);CHKERRQ(ierr);
   ierr = DMDASetSizes(da2,M,N,P);CHKERRQ(ierr);
-  ierr = DMDASetNumProcs(da2,dd->m,dd->n,dd->p);CHKERRQ(ierr);
+  ierr = DMDASetNumProcs(da2,m,n,p);CHKERRQ(ierr);
   ierr = DMDASetBoundaryType(da2,dd->bx,dd->by,dd->bz);CHKERRQ(ierr);
   ierr = DMDASetDof(da2,dd->w);CHKERRQ(ierr);
   ierr = DMDASetStencilType(da2,dd->stencil_type);CHKERRQ(ierr);
   ierr = DMDASetStencilWidth(da2,dd->s);CHKERRQ(ierr);
+  ierr = PetscMalloc3(m,&clx,n,&cly,p,&clz);CHKERRQ(ierr);
   if (dd->dim == 3) {
-    PetscInt *lx,*ly,*lz;
-    ierr = PetscMalloc3(dd->m,&lx,dd->n,&ly,dd->p,&lz);CHKERRQ(ierr);
-    ierr = DMDACoarsenOwnershipRanges(da,(PetscBool)(dd->bx == DM_BOUNDARY_PERIODIC || dd->interptype == DMDA_Q0),dd->s,dd->coarsen_x,dd->m,dd->lx,lx);CHKERRQ(ierr);
-    ierr = DMDACoarsenOwnershipRanges(da,(PetscBool)(dd->by == DM_BOUNDARY_PERIODIC || dd->interptype == DMDA_Q0),dd->s,dd->coarsen_y,dd->n,dd->ly,ly);CHKERRQ(ierr);
-    ierr = DMDACoarsenOwnershipRanges(da,(PetscBool)(dd->bz == DM_BOUNDARY_PERIODIC || dd->interptype == DMDA_Q0),dd->s,dd->coarsen_z,dd->p,dd->lz,lz);CHKERRQ(ierr);
-    ierr = DMDASetOwnershipRanges(da2,lx,ly,lz);CHKERRQ(ierr);
-    ierr = PetscFree3(lx,ly,lz);CHKERRQ(ierr);
+    ierr = DMDACoarsenOwnershipRanges(da,(PetscBool)(dd->bx == DM_BOUNDARY_PERIODIC || dd->interptype == DMDA_Q0),dd->s,dd->coarsen_x,m,lx,clx);CHKERRQ(ierr);
+    ierr = DMDACoarsenOwnershipRanges(da,(PetscBool)(dd->by == DM_BOUNDARY_PERIODIC || dd->interptype == DMDA_Q0),dd->s,dd->coarsen_y,n,ly,cly);CHKERRQ(ierr);
+    ierr = DMDACoarsenOwnershipRanges(da,(PetscBool)(dd->bz == DM_BOUNDARY_PERIODIC || dd->interptype == DMDA_Q0),dd->s,dd->coarsen_z,p,lz,clz);CHKERRQ(ierr);
+    ierr = DMDASetOwnershipRanges(da2,clx,cly,clz);CHKERRQ(ierr);
   } else if (dd->dim == 2) {
-    PetscInt *lx,*ly;
-    ierr = PetscMalloc2(dd->m,&lx,dd->n,&ly);CHKERRQ(ierr);
-    ierr = DMDACoarsenOwnershipRanges(da,(PetscBool)(dd->bx == DM_BOUNDARY_PERIODIC || dd->interptype == DMDA_Q0),dd->s,dd->coarsen_x,dd->m,dd->lx,lx);CHKERRQ(ierr);
-    ierr = DMDACoarsenOwnershipRanges(da,(PetscBool)(dd->by == DM_BOUNDARY_PERIODIC || dd->interptype == DMDA_Q0),dd->s,dd->coarsen_y,dd->n,dd->ly,ly);CHKERRQ(ierr);
-    ierr = DMDASetOwnershipRanges(da2,lx,ly,NULL);CHKERRQ(ierr);
-    ierr = PetscFree2(lx,ly);CHKERRQ(ierr);
+    ierr = DMDACoarsenOwnershipRanges(da,(PetscBool)(dd->bx == DM_BOUNDARY_PERIODIC || dd->interptype == DMDA_Q0),dd->s,dd->coarsen_x,m,lx,clx);CHKERRQ(ierr);
+    ierr = DMDACoarsenOwnershipRanges(da,(PetscBool)(dd->by == DM_BOUNDARY_PERIODIC || dd->interptype == DMDA_Q0),dd->s,dd->coarsen_y,n,ly,cly);CHKERRQ(ierr);
+    ierr = DMDASetOwnershipRanges(da2,clx,cly,NULL);CHKERRQ(ierr);
   } else if (dd->dim == 1) {
-    PetscInt *lx;
-    ierr = PetscMalloc1(dd->m,&lx);CHKERRQ(ierr);
-    ierr = DMDACoarsenOwnershipRanges(da,(PetscBool)(dd->bx == DM_BOUNDARY_PERIODIC || dd->interptype == DMDA_Q0),dd->s,dd->coarsen_x,dd->m,dd->lx,lx);CHKERRQ(ierr);
-    ierr = DMDASetOwnershipRanges(da2,lx,NULL,NULL);CHKERRQ(ierr);
-    ierr = PetscFree(lx);CHKERRQ(ierr);
+    ierr = DMDACoarsenOwnershipRanges(da,(PetscBool)(dd->bx == DM_BOUNDARY_PERIODIC || dd->interptype == DMDA_Q0),dd->s,dd->coarsen_x,m,lx,clx);CHKERRQ(ierr);
+    ierr = DMDASetOwnershipRanges(da2,clx,NULL,NULL);CHKERRQ(ierr);
   }
+  ierr = PetscFree3(clx,cly,clz);CHKERRQ(ierr);
+  if (subcomm) {ierr = PetscFree3(lx,ly,lz);CHKERRQ(ierr);}
   dd2 = (DM_DA*)da2->data;
 
   /* allow overloaded (user replaced) operations to be inherited by refinement clones; why are only some inherited and not all? */
