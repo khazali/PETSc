@@ -78,6 +78,7 @@ PETSC_EXTERN PetscErrorCode DMLabelGetStratumIS(DMLabel, PetscInt, IS *);
 PETSC_EXTERN PetscErrorCode DMLabelClearStratum(DMLabel, PetscInt);
 PETSC_EXTERN PetscErrorCode DMLabelCreateIndex(DMLabel, PetscInt, PetscInt);
 PETSC_EXTERN PetscErrorCode DMLabelDestroyIndex(DMLabel);
+PETSC_EXTERN PetscErrorCode DMLabelHasValue(DMLabel, PetscInt, PetscBool *);
 PETSC_EXTERN PetscErrorCode DMLabelHasPoint(DMLabel, PetscInt, PetscBool *);
 PETSC_EXTERN PetscErrorCode DMLabelFilter(DMLabel, PetscInt, PetscInt);
 PETSC_EXTERN PetscErrorCode DMLabelPermute(DMLabel, IS, DMLabel *);
@@ -163,6 +164,8 @@ PETSC_EXTERN PetscErrorCode DMPlexGetRefinementLimit(DM, PetscReal *);
 PETSC_EXTERN PetscErrorCode DMPlexSetRefinementLimit(DM, PetscReal);
 PETSC_EXTERN PetscErrorCode DMPlexGetRefinementUniform(DM, PetscBool *);
 PETSC_EXTERN PetscErrorCode DMPlexSetRefinementUniform(DM, PetscBool);
+PETSC_EXTERN PetscErrorCode DMPlexGetCoarseDM(DM, DM *);
+PETSC_EXTERN PetscErrorCode DMPlexSetCoarseDM(DM, DM);
 
 /* Support for cell-vertex meshes */
 PETSC_EXTERN PetscErrorCode DMPlexGetNumFaceVertices(DM, PetscInt, PetscInt, PetscInt *);
@@ -197,6 +200,11 @@ PETSC_EXTERN PetscErrorCode DMPlexVTKWriteAll(PetscObject, PetscViewer);
 PETSC_EXTERN PetscErrorCode DMPlexGetScale(DM, PetscUnit, PetscReal *);
 PETSC_EXTERN PetscErrorCode DMPlexSetScale(DM, PetscUnit, PetscReal);
 
+typedef struct _n_Boundary *DMBoundary;
+PETSC_EXTERN PetscErrorCode DMPlexAddBoundary(DM, PetscBool, const char[], PetscInt, void (*)(), PetscInt, const PetscInt *, void *);
+PETSC_EXTERN PetscErrorCode DMPlexGetNumBoundary(DM, PetscInt *);
+PETSC_EXTERN PetscErrorCode DMPlexGetBoundary(DM, PetscInt, PetscBool *, const char **, PetscInt *, void (**)(), PetscInt *, const PetscInt **, void **);
+
 typedef struct {
   DM    dm;
   Vec   u; /* The base vector for the Jacbobian action J(u) x */
@@ -211,4 +219,5 @@ PETSC_EXTERN PetscErrorCode DMPlexComputeL2GradientDiff(DM, PetscFE[], void (**)
 PETSC_EXTERN PetscErrorCode DMPlexComputeResidualFEM(DM, Vec, Vec, void *);
 PETSC_EXTERN PetscErrorCode DMPlexComputeJacobianActionFEM(DM, Mat, Vec, Vec, void *);
 PETSC_EXTERN PetscErrorCode DMPlexComputeJacobianFEM(DM, Vec, Mat, Mat, MatStructure*,void *);
+PETSC_EXTERN PetscErrorCode DMPlexComputeInterpolatorFEM(DM, DM, Mat, void *);
 #endif

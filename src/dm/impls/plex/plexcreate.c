@@ -730,9 +730,13 @@ PetscErrorCode DMPlexCreateHexBoxMesh(MPI_Comm comm, PetscInt dim, const PetscIn
 
 /* External function declarations here */
 extern PetscErrorCode DMCreateInterpolation_Plex(DM dmCoarse, DM dmFine, Mat *interpolation, Vec *scaling);
+extern PetscErrorCode DMCreateInjection_Plex(DM dmCoarse, DM dmFine, VecScatter *ctx);
+extern PetscErrorCode DMCreateDefaultSection_Plex(DM dm);
 extern PetscErrorCode DMCreateMatrix_Plex(DM dm,  Mat *J);
 extern PetscErrorCode DMCreateCoordinateDM_Plex(DM dm, DM *cdm);
 extern PetscErrorCode DMRefine_Plex(DM dm, MPI_Comm comm, DM *dmRefined);
+extern PetscErrorCode DMCoarsen_Plex(DM dm, MPI_Comm comm, DM *dmCoarsened);
+extern PetscErrorCode DMRefineHierarchy_Plex(DM dm, PetscInt nlevels, DM dmRefined[]);
 extern PetscErrorCode DMClone_Plex(DM dm, DM *newdm);
 extern PetscErrorCode DMSetUp_Plex(DM dm);
 extern PetscErrorCode DMDestroy_Plex(DM dm);
@@ -741,11 +745,69 @@ extern PetscErrorCode DMCreateSubDM_Plex(DM dm, PetscInt numFields, PetscInt fie
 extern PetscErrorCode DMLocatePoints_Plex(DM dm, Vec v, IS *cellIS);
 
 #undef __FUNCT__
+#define __FUNCT__ "DMPlexReplace_Static"
+/* Replace dm with the contents of dmNew
+   - Share the DM_Plex structure
+   - Share the coordinates
+*/
+static PetscErrorCode DMPlexReplace_Static(DM dm, DM dmNew)
+{
+  PetscSection   coordSection;
+  Vec            coords;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = DMGetCoordinateSection(dmNew, &coordSection);CHKERRQ(ierr);
+  ierr = DMGetCoordinatesLocal(dmNew, &coords);CHKERRQ(ierr);
+  ierr = DMSetCoordinateSection(dm, coordSection);CHKERRQ(ierr);
+  ierr = DMSetCoordinatesLocal(dm, coords);CHKERRQ(ierr);
+  ierr = DMDestroy_Plex(dm);CHKERRQ(ierr);
+  dm->data = dmNew->data;
+  ((DM_Plex *) dmNew->data)->refct++;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexSwap_Static"
+/* Swap dm with the contents of dmNew
+   - Swap the DM_Plex structure
+   - Swap the coordinates
+*/
+static PetscErrorCode DMPlexSwap_Static(DM dmA, DM dmB)
+{
+  DM             coordDMA, coordDMB;
+  Vec            coordsA,  coordsB;
+  void          *tmp;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = DMGetCoordinateDM(dmA, &coordDMA);CHKERRQ(ierr);
+  ierr = DMGetCoordinateDM(dmB, &coordDMB);CHKERRQ(ierr);
+  ierr = PetscObjectReference((PetscObject) coordDMA);CHKERRQ(ierr);
+  ierr = DMSetCoordinateDM(dmA, coordDMB);CHKERRQ(ierr);
+  ierr = DMSetCoordinateDM(dmB, coordDMA);CHKERRQ(ierr);
+  ierr = PetscObjectDereference((PetscObject) coordDMA);CHKERRQ(ierr);
+
+  ierr = DMGetCoordinatesLocal(dmA, &coordsA);CHKERRQ(ierr);
+  ierr = DMGetCoordinatesLocal(dmB, &coordsB);CHKERRQ(ierr);
+  ierr = PetscObjectReference((PetscObject) coordsA);CHKERRQ(ierr);
+  ierr = DMSetCoordinatesLocal(dmA, coordsB);CHKERRQ(ierr);
+  ierr = DMSetCoordinatesLocal(dmB, coordsA);CHKERRQ(ierr);
+  ierr = PetscObjectDereference((PetscObject) coordsA);CHKERRQ(ierr);
+  tmp       = dmA->data;
+  dmA->data = dmB->data;
+  dmB->data = tmp;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "DMSetFromOptions_Plex"
 PetscErrorCode  DMSetFromOptions_Plex(DM dm)
 {
   DM_Plex       *mesh   = (DM_Plex*) dm->data;
+  DMBoundary     b;
   PetscInt       refine = 0, r;
+  PetscBool      isHierarchy;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -753,27 +815,62 @@ PetscErrorCode  DMSetFromOptions_Plex(DM dm)
   ierr = PetscOptionsHead("DMPlex Options");CHKERRQ(ierr);
   /* Handle DMPlex refinement */
   ierr = PetscOptionsInt("-dm_refine", "The number of uniform refinements", "DMCreate", refine, &refine, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-dm_refine_hierarchy", "The number of uniform refinements", "DMCreate", refine, &refine, &isHierarchy);CHKERRQ(ierr);
   ierr = DMPlexSetRefinementUniform(dm, refine ? PETSC_TRUE : PETSC_FALSE);CHKERRQ(ierr);
-  for (r = 0; r < refine; ++r) {
-    DM refinedMesh;
+  if (refine && isHierarchy) {
+    DM *dms;
 
-    ierr = DMRefine(dm, PetscObjectComm((PetscObject) dm), &refinedMesh);CHKERRQ(ierr);
+    ierr = PetscMalloc1(refine,&dms);CHKERRQ(ierr);
+    ierr = DMRefineHierarchy(dm, refine, dms);CHKERRQ(ierr);
     /* Total hack since we do not pass in a pointer */
-    {
-      PetscSection coordSection;
-      Vec          coords;
-
-      ierr = DMGetCoordinateSection(refinedMesh, &coordSection);CHKERRQ(ierr);
-      ierr = DMGetCoordinatesLocal(refinedMesh, &coords);CHKERRQ(ierr);
-      ierr = DMSetCoordinateSection(dm, coordSection);CHKERRQ(ierr);
-      ierr = DMSetCoordinatesLocal(dm, coords);CHKERRQ(ierr);
-      ierr = DMDestroy_Plex(dm);CHKERRQ(ierr);
-      dm->data = refinedMesh->data;
-      ((DM_Plex *) refinedMesh->data)->refct++;
+    ierr = DMPlexSwap_Static(dm, dms[refine-1]);CHKERRQ(ierr);
+    if (refine == 1) {
+      ierr = DMPlexSetCoarseDM(dm, dms[0]);CHKERRQ(ierr);
+    } else {
+      ierr = DMPlexSetCoarseDM(dm, dms[refine-2]);CHKERRQ(ierr);
+      ierr = DMPlexSetCoarseDM(dms[0], dms[refine-1]);CHKERRQ(ierr);
     }
-    ierr = DMDestroy(&refinedMesh);CHKERRQ(ierr);
+    /* Free DMs */
+    for (r = 0; r < refine; ++r) {ierr = DMDestroy(&dms[r]);CHKERRQ(ierr);}
+    ierr = PetscFree(dms);CHKERRQ(ierr);
+  } else {
+    for (r = 0; r < refine; ++r) {
+      DM refinedMesh;
+
+      ierr = DMRefine(dm, PetscObjectComm((PetscObject) dm), &refinedMesh);CHKERRQ(ierr);
+      /* Total hack since we do not pass in a pointer */
+      ierr = DMPlexReplace_Static(dm, refinedMesh);CHKERRQ(ierr);
+      ierr = DMDestroy(&refinedMesh);CHKERRQ(ierr);
+    }
   }
-  /* Handle associated vectors */
+  /* Handle boundary conditions */
+  ierr = PetscOptionsBegin(PetscObjectComm((PetscObject) dm), NULL, "Boundary condition options", "");CHKERRQ(ierr);
+  for (b = mesh->boundary; b; b = b->next) {
+    char      optname[1024];
+    PetscInt  ids[1024], len = 1024, i;
+    PetscBool flg;
+
+    ierr = PetscSNPrintf(optname, sizeof(optname), "-bc_%s", b->name);CHKERRQ(ierr);
+    ierr = PetscMemzero(ids, sizeof(ids));CHKERRQ(ierr);
+    ierr = PetscOptionsIntArray(optname, "List of boundary IDs", "", ids, &len, &flg);CHKERRQ(ierr);
+    if (flg) {
+      DMLabel label;
+
+      ierr = DMPlexGetLabel(dm, b->name, &label);CHKERRQ(ierr);
+      for (i = 0; i < len; ++i) {
+        PetscBool has;
+
+        ierr = DMLabelHasValue(label, ids[i], &has);CHKERRQ(ierr);
+        if (!has) SETERRQ2(PetscObjectComm((PetscObject) dm), PETSC_ERR_ARG_WRONG, "Boundary id %D is not present in the label %s", ids[i], b->name);
+      }
+      b->numids = len;
+      ierr = PetscFree(b->ids);CHKERRQ(ierr);
+      ierr = PetscMalloc1(len, &b->ids);CHKERRQ(ierr);
+      ierr = PetscMemcpy(b->ids, ids, len*sizeof(PetscInt));CHKERRQ(ierr);
+    }
+  }
+  ierr = PetscOptionsEnd();CHKERRQ(ierr);
+>>>>>>> knepley/feature-plex-fas
   /* Handle viewing */
   ierr = PetscOptionsBool("-dm_plex_print_set_values", "Output all set values info", "DMView", PETSC_FALSE, &mesh->printSetValues, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-dm_plex_print_fem", "Debug output level all fem computations", "DMView", 0, &mesh->printFEM, NULL);CHKERRQ(ierr);
@@ -816,21 +913,22 @@ PetscErrorCode DMInitialize_Plex(DM dm)
   dm->ops->setfromoptions                  = DMSetFromOptions_Plex;
   dm->ops->clone                           = DMClone_Plex;
   dm->ops->setup                           = DMSetUp_Plex;
+  dm->ops->createdefaultsection            = DMCreateDefaultSection_Plex;
   dm->ops->createglobalvector              = DMCreateGlobalVector_Plex;
   dm->ops->createlocalvector               = DMCreateLocalVector_Plex;
   dm->ops->getlocaltoglobalmapping         = NULL;
   dm->ops->getlocaltoglobalmappingblock    = NULL;
   dm->ops->createfieldis                   = NULL;
   dm->ops->createcoordinatedm              = DMCreateCoordinateDM_Plex;
-  dm->ops->getcoloring                     = 0;
+  dm->ops->getcoloring                     = NULL;
   dm->ops->creatematrix                    = DMCreateMatrix_Plex;
-  dm->ops->createinterpolation             = 0;
-  dm->ops->getaggregates                   = 0;
-  dm->ops->getinjection                    = 0;
+  dm->ops->createinterpolation             = DMCreateInterpolation_Plex;
+  dm->ops->getaggregates                   = NULL;
+  dm->ops->getinjection                    = DMCreateInjection_Plex;
   dm->ops->refine                          = DMRefine_Plex;
-  dm->ops->coarsen                         = 0;
-  dm->ops->refinehierarchy                 = 0;
-  dm->ops->coarsenhierarchy                = 0;
+  dm->ops->coarsen                         = DMCoarsen_Plex;
+  dm->ops->refinehierarchy                 = DMRefineHierarchy_Plex;
+  dm->ops->coarsenhierarchy                = NULL;
   dm->ops->globaltolocalbegin              = NULL;
   dm->ops->globaltolocalend                = NULL;
   dm->ops->localtoglobalbegin              = NULL;

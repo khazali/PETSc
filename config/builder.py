@@ -295,9 +295,10 @@ regressionParameters = {'src/sys/comm/examples/tests/ex1':    [{'numProcs': 2},
                                                                 'requires': ['exodusii', 'Broken']},
                                                                {'numProcs': 1, 'args': '-run_type test -dim 3 -f /Users/knepley/Downloads/kis_modell_tet2.exo -refinement_limit 0.0    -bc_type dirichlet -interpolate 1 -show_initial -dm_plex_print_fem 1 -dm_view',
                                                                 'requires': ['exodusii', 'Broken']},
-                                                               # Full solve 39-40
+                                                               # Full solve 39-41
                                                                {'numProcs': 1, 'args': '-run_type full -refinement_limit 0.015625 -interpolate 1 -petscspace_order 2 -pc_type gamg -ksp_rtol 1.0e-10 -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason'},
-                                                               {'numProcs': 1, 'args': '-run_type full -refinement_limit 0.015625 -variable_coefficient nonlinear -interpolate 1 -petscspace_order 2 -pc_type svd -ksp_rtol 1.0e-10 -snes_monitor_short -snes_converged_reason'}],
+                                                               {'numProcs': 1, 'args': '-run_type full -refinement_limit 0.015625 -variable_coefficient nonlinear -interpolate 1 -petscspace_order 2 -pc_type svd -ksp_rtol 1.0e-10 -snes_monitor_short -snes_converged_reason'},
+                                                               {'numProcs': 1, 'args': '-run_type full -refinement_limit 0.0 -variable_coefficient nonlinear -interpolate 1 -petscspace_order 1 -snes_type fas -snes_fas_levels 2 -pc_type svd -ksp_rtol 1.0e-10 -snes_monitor_short -snes_converged_reason -dm_refine_hierarchy 1 -dm_plex_print_fem 2'}],
                         'src/snes/examples/tutorials/ex13':   [# 2D serial P1 test 0-
                                                                {'numProcs': 1, 'args': '-state_petscspace_order 1 -adjoint_petscspace_order 1 -control_petscspace_order 1 -dm_view'},
                                                                {'numProcs': 1, 'args': '-state_petscspace_order 1 -adjoint_petscspace_order 1 -control_petscspace_order 1 -dm_refine 1 -dm_view'},

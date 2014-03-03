@@ -435,11 +435,13 @@ PetscErrorCode SetupElementCommon(DM dm, const PetscInt dim, const char *prefix,
   ierr = PetscFESetBasisSpace(*fem, P);CHKERRQ(ierr);
   ierr = PetscFESetDualSpace(*fem, Q);CHKERRQ(ierr);
   ierr = PetscFESetNumComponents(*fem, 1);CHKERRQ(ierr);
+  ierr = PetscFESetUp(*fem);CHKERRQ(ierr);
   ierr = PetscSpaceDestroy(&P);CHKERRQ(ierr);
   ierr = PetscDualSpaceDestroy(&Q);CHKERRQ(ierr);
   /* Create quadrature (with specified order if given) */
   ierr = PetscDTGaussJacobiQuadrature(dim, qorder > 0 ? qorder : order, -1.0, 1.0, &q);CHKERRQ(ierr);
   ierr = PetscFESetQuadrature(*fem, q);CHKERRQ(ierr);
+  ierr = PetscQuadratureDestroy(&q);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -572,35 +574,18 @@ PetscErrorCode SetupExactSolution(DM dm, AppCtx *user)
 #define __FUNCT__ "SetupSection"
 PetscErrorCode SetupSection(DM dm, AppCtx *user)
 {
-  PetscSection    section;
-  DMLabel         label;
-  PetscInt        dim         = user->dim;
-  const char     *bdLabel     = user->bcType == NEUMANN   ? "boundary" : "marker";
-  PetscInt        numBC       = user->bcType == DIRICHLET ? 1 : 0;
-  PetscInt        bcFields[1] = {0};
-  IS              bcPoints[1] = {NULL};
-  PetscInt        numComp[1];
-  const PetscInt *numDof;
-  PetscBool       has;
-  PetscErrorCode  ierr;
+  DM             cdm = dm;
+  const PetscInt id  = 1;
+  PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
-  ierr = PetscFEGetNumComponents(user->fe[0], &numComp[0]);CHKERRQ(ierr);
-  ierr = PetscFEGetNumDof(user->fe[0], &numDof);CHKERRQ(ierr);
-  ierr = DMPlexHasLabel(dm, bdLabel, &has);CHKERRQ(ierr);
-  if (!has) {
-    ierr = DMPlexCreateLabel(dm, bdLabel);CHKERRQ(ierr);
-    ierr = DMPlexGetLabel(dm, bdLabel, &label);CHKERRQ(ierr);
-    ierr = DMPlexMarkBoundaryFaces(dm, label);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) user->fe[0], "potential");CHKERRQ(ierr);
+  while (cdm) {
+    ierr = DMSetNumFields(cdm, 1);CHKERRQ(ierr);
+    ierr = DMSetField(cdm, 0, user->fe[0]);CHKERRQ(ierr);
+    ierr = DMPlexAddBoundary(cdm, user->bcType == DIRICHLET, user->bcType == NEUMANN ? "boundary" : "marker", 0, NULL, 1, &id, user);CHKERRQ(ierr);
+    ierr = DMPlexGetCoarseDM(cdm, &cdm);CHKERRQ(ierr);
   }
-  ierr = DMPlexGetLabel(dm, bdLabel, &label);CHKERRQ(ierr);
-  ierr = DMPlexLabelComplete(dm, label);CHKERRQ(ierr);
-  if (user->bcType == DIRICHLET) {ierr  = DMPlexGetStratumIS(dm, bdLabel, 1, &bcPoints[0]);CHKERRQ(ierr);}
-  ierr = DMPlexCreateSection(dm, dim, NUM_FIELDS, numComp, numDof, numBC, bcFields, bcPoints, &section);CHKERRQ(ierr);
-  ierr = PetscSectionSetFieldName(section, 0, "potential");CHKERRQ(ierr);
-  ierr = DMSetDefaultSection(dm, section);CHKERRQ(ierr);
-  ierr = PetscSectionDestroy(&section);CHKERRQ(ierr);
-  if (user->bcType == DIRICHLET) {ierr = ISDestroy(&bcPoints[0]);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 
@@ -665,6 +650,7 @@ int main(int argc, char **argv)
   ierr = SNESCreate(PETSC_COMM_WORLD, &snes);CHKERRQ(ierr);
   ierr = CreateMesh(PETSC_COMM_WORLD, &user, &dm);CHKERRQ(ierr);
   ierr = SNESSetDM(snes, dm);CHKERRQ(ierr);
+  ierr = DMSetApplicationContext(dm, &user);CHKERRQ(ierr);
 
   ierr = DMClone(dm, &dmAux);CHKERRQ(ierr);
   ierr = DMPlexCopyCoordinates(dm, dmAux);CHKERRQ(ierr);
