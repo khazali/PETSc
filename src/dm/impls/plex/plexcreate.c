@@ -870,7 +870,6 @@ PetscErrorCode  DMSetFromOptions_Plex(DM dm)
     }
   }
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
->>>>>>> knepley/feature-plex-fas
   /* Handle viewing */
   ierr = PetscOptionsBool("-dm_plex_print_set_values", "Output all set values info", "DMView", PETSC_FALSE, &mesh->printSetValues, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-dm_plex_print_fem", "Debug output level all fem computations", "DMView", 0, &mesh->printFEM, NULL);CHKERRQ(ierr);
