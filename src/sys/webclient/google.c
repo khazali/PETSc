@@ -28,6 +28,10 @@
    Output Parameter:
 .   access_token - token that can be passed to PetscGoogleDriveUpload()
 
+   Options Database:
+.  -google_refresh_token XXX   where XXX was obtained from PetscGoogleDriveAuthorize()
+
+
 .seealso: PetscURLShorten(), PetscGoogleDriveAuthorize(), PetscGoogleDriveUpload()
 
 @*/
@@ -47,7 +51,7 @@ PetscErrorCode PetscGoogleDriveRefresh(MPI_Comm comm,const char refresh_token[],
     if (!refresh_token) {
       PetscBool set;
       ierr = PetscMalloc1(512,&refreshtoken);CHKERRQ(ierr);
-      ierr = PetscOptionsGetString(NULL,"-refresh_token",refreshtoken,512,&set);CHKERRQ(ierr);
+      ierr = PetscOptionsGetString(NULL,"-google_refresh_token",refreshtoken,512,&set);CHKERRQ(ierr);
       if (!set) {
         ierr = PetscGoogleDriveAuthorize(comm,access_token,refreshtoken,512*sizeof(char));CHKERRQ(ierr);
         ierr = PetscFree(refreshtoken);CHKERRQ(ierr);
@@ -56,7 +60,7 @@ PetscErrorCode PetscGoogleDriveRefresh(MPI_Comm comm,const char refresh_token[],
     }
     ierr = PetscSSLInitializeContext(&ctx);CHKERRQ(ierr);
     ierr = PetscHTTPSConnect("accounts.google.com",443,ctx,&sock,&ssl);CHKERRQ(ierr);
-    ierr = PetscStrcpy(body,"&client_id=");CHKERRQ(ierr);
+    ierr = PetscStrcpy(body,"client_id=");CHKERRQ(ierr);
     ierr = PetscStrcat(body,PETSC_GOOGLE_CLIENT_ID);CHKERRQ(ierr);
     ierr = PetscStrcat(body,"&client_secret=");CHKERRQ(ierr);
     ierr = PetscStrcat(body,PETSC_GOOGLE_CLIENT_ST);CHKERRQ(ierr);
@@ -65,7 +69,7 @@ PetscErrorCode PetscGoogleDriveRefresh(MPI_Comm comm,const char refresh_token[],
     if (!refresh_token) {ierr = PetscFree(refreshtoken);CHKERRQ(ierr);}
     ierr = PetscStrcat(body,"&grant_type=refresh_token");CHKERRQ(ierr);
 
-    ierr = PetscHTTPSRequest("POST","https://accounts.google.com/o/oauth2/token",NULL,"application/x-www-form-urlencoded",body,ssl,buff,sizeof(buff));CHKERRQ(ierr);
+    ierr = PetscHTTPSRequest("POST","accounts.google.com/o/oauth2/token",NULL,"application/x-www-form-urlencoded",body,ssl,buff,sizeof(buff));CHKERRQ(ierr);
     ierr = PetscSSLDestroyContext(ctx);CHKERRQ(ierr);
     close(sock);
 
@@ -96,16 +100,16 @@ PetscErrorCode PetscGoogleDriveRefresh(MPI_Comm comm,const char refresh_token[],
 -   filename - file to upload; if you upload multiple times it will have different names each time on Google Drive
 
   Options Database:
-.  -refresh_token   XXX
+.  -google_refresh_token   XXX
 
   Usage Patterns:
-    With PETSc option -refresh_token  XXX given
+    With PETSc option -google_refresh_token  XXX given
     PetscGoogleDriveUpload(comm,NULL,filename);        will upload file with no user interaction
 
-    Without PETSc option -refresh_token XXX given
+    Without PETSc option -google_refresh_token XXX given
     PetscGoogleDriveUpload(comm,NULL,filename);        for first use will prompt user to authorize access to Google Drive with their processor
 
-    With PETSc option -refresh_token  XXX given
+    With PETSc option -google_refresh_token  XXX given
     PetscGoogleDriveRefresh(comm,NULL,access_token,sizeof(access_token));
     PetscGoogleDriveUpload(comm,access_token,filename);
 
@@ -158,14 +162,14 @@ PetscErrorCode PetscGoogleDriveUpload(MPI_Comm comm,const char access_token[],co
     fd = fopen (filename, "r");
     if (!fd) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_FILE_OPEN,"Unable to open file: %s",filename);
     rd = fread (body+blen, sizeof (unsigned char), sb.st_size, fd);
-    if (rd != sb.st_size) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_FILE_OPEN,"Unable to read entire file: %s %d %d",filename,(int)rd,sb.st_size);
+    if (rd != (size_t) sb.st_size) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_FILE_OPEN,"Unable to read entire file: %s %d %d",filename,(int)rd,sb.st_size);
     fclose(fd);
     body[blen + rd] = 0;
     ierr = PetscStrcat(body,"\r\n\r\n"
                             "--foo_bar_baz\r\n");
     ierr = PetscSSLInitializeContext(&ctx);CHKERRQ(ierr);
     ierr = PetscHTTPSConnect("www.googleapis.com",443,ctx,&sock,&ssl);CHKERRQ(ierr);
-    ierr = PetscHTTPSRequest("POST","https://www.googleapis.com/upload/drive/v2/files/",head,"multipart/related; boundary=\"foo_bar_baz\"",body,ssl,buff,sizeof(buff));CHKERRQ(ierr);
+    ierr = PetscHTTPSRequest("POST","www.googleapis.com/upload/drive/v2/files/",head,"multipart/related; boundary=\"foo_bar_baz\"",body,ssl,buff,sizeof(buff));CHKERRQ(ierr);
     ierr = PetscFree(body);CHKERRQ(ierr);
     ierr = PetscSSLDestroyContext(ctx);CHKERRQ(ierr);
     close(sock);
@@ -194,7 +198,7 @@ PetscErrorCode PetscGoogleDriveUpload(MPI_Comm comm,const char access_token[],co
    Notes: This call requires stdout and stdin access from process 0 on the MPI communicator
 
    You can run src/sys/webclient/examples/tutorials/obtainrefreshtoken to get a refresh token and then in the future pass it to
-   PETSc programs with -refresh_token XXX
+   PETSc programs with -google_refresh_token XXX
 
 .seealso: PetscGoogleDriveRefresh(), PetscGoogleDriveUpload(), PetscURLShorten()
 
@@ -210,7 +214,7 @@ PetscErrorCode PetscGoogleDriveAuthorize(MPI_Comm comm,char access_token[],char 
   size_t         len;
 
   PetscFunctionBegin;
-  ierr = PetscPrintf(comm,"Cut and paste the following into your browser:\n"
+  ierr = PetscPrintf(comm,"Cut and paste the following into your browser:\n\n"
                           "https://accounts.google.com/o/oauth2/auth?"
                           "scope=https%%3A%%2F%%2Fwww.googleapis.com%%2Fauth%%2Fdrive.file&"
                           "redirect_uri=urn:ietf:wg:oauth:2.0:oob&"
@@ -237,7 +241,7 @@ PetscErrorCode PetscGoogleDriveAuthorize(MPI_Comm comm,char access_token[],char 
     ierr = PetscStrcat(body,"&redirect_uri=urn:ietf:wg:oauth:2.0:oob&");CHKERRQ(ierr);
     ierr = PetscStrcat(body,"grant_type=authorization_code");CHKERRQ(ierr);
 
-    ierr = PetscHTTPSRequest("POST","https://accounts.google.com/o/oauth2/token",NULL,"application/x-www-form-urlencoded",body,ssl,buff,sizeof(buff));CHKERRQ(ierr);
+    ierr = PetscHTTPSRequest("POST","accounts.google.com/o/oauth2/token",NULL,"application/x-www-form-urlencoded",body,ssl,buff,sizeof(buff));CHKERRQ(ierr);
     ierr = PetscSSLDestroyContext(ctx);CHKERRQ(ierr);
     close(sock);
 
@@ -259,7 +263,7 @@ PetscErrorCode PetscGoogleDriveAuthorize(MPI_Comm comm,char access_token[],char 
     ierr = PetscStrncpy(refresh_token,refresh,tokensize);CHKERRQ(ierr);
 
     ierr = PetscPrintf(comm,"Here is your Google refresh token, save it in a save place, in the future you can run PETSc\n");CHKERRQ(ierr);
-    ierr = PetscPrintf(comm,"programs with the option -refresh_token %d\n",refresh);CHKERRQ(ierr);
+    ierr = PetscPrintf(comm,"programs with the option -google_refresh_token %d\n",refresh);CHKERRQ(ierr);
     ierr = PetscPrintf(comm,"to access Google Drive automatically\n");CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
@@ -292,7 +296,7 @@ PetscErrorCode PetscURLShorten(const char url[],char shorturl[],size_t lenshortu
   ierr = PetscSSLInitializeContext(&ctx);CHKERRQ(ierr);
   ierr = PetscHTTPSConnect("www.googleapis.com",443,ctx,&sock,&ssl);CHKERRQ(ierr);
   ierr = PetscSNPrintf(body,512,"{\"longUrl\": \"%s\"}",url);CHKERRQ(ierr);
-  ierr = PetscHTTPSRequest("POST","https://www.googleapis.com/urlshortener/v1/url",NULL,"application/json",body,ssl,buff,sizeof(buff));CHKERRQ(ierr);
+  ierr = PetscHTTPSRequest("POST","www.googleapis.com/urlshortener/v1/url",NULL,"application/json",body,ssl,buff,sizeof(buff));CHKERRQ(ierr);
   ierr = PetscSSLDestroyContext(ctx);CHKERRQ(ierr);
   close(sock);
   ierr = PetscStrstr(buff,"\"id\": \"",&sub1);CHKERRQ(ierr);
