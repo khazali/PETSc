@@ -4631,9 +4631,11 @@ PetscErrorCode DMRefineHierarchy_Plex(DM dm, PetscInt nlevels, DM dmRefined[])
 #define __FUNCT__ "DMCoarsen_Plex"
 PetscErrorCode DMCoarsen_Plex(DM dm, MPI_Comm comm, DM *dmCoarsened)
 {
-  DM_Plex *mesh = (DM_Plex*) dm->data;
+  DM_Plex       *mesh = (DM_Plex*) dm->data;
+  PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ierr = PetscObjectReference((PetscObject) mesh->coarseMesh);CHKERRQ(ierr);
   *dmCoarsened = mesh->coarseMesh;
   PetscFunctionReturn(0);
 }
@@ -6187,7 +6189,7 @@ PetscErrorCode DMPlexMatSetClosureRefined(DM dmf, PetscSection fsection, PetscSe
     ierr2 = DMRestoreWorkArray(dmc, numCIndices, PETSC_INT, &cindices);CHKERRQ(ierr2);
     CHKERRQ(ierr);
   }
-  ierr = DMGetWorkArray(dmf, numCPoints*2*4, PETSC_INT, &ftotpoints);CHKERRQ(ierr);
+  ierr = DMRestoreWorkArray(dmf, numCPoints*2*4, PETSC_INT, &ftotpoints);CHKERRQ(ierr);
   ierr = DMPlexRestoreTransitiveClosure(dmc, point, PETSC_TRUE, &numCPoints, &cpoints);CHKERRQ(ierr);
   ierr = DMRestoreWorkArray(dmf, numFIndices, PETSC_INT, &findices);CHKERRQ(ierr);
   ierr = DMRestoreWorkArray(dmc, numCIndices, PETSC_INT, &cindices);CHKERRQ(ierr);
@@ -6671,11 +6673,13 @@ PetscErrorCode DMCreateInterpolation_Plex(DM dmCoarse, DM dmFine, Mat *interpola
 
    Can extend PetscFEIntegrateJacobian_Basic() to do a specialized cell loop
   */
-  *scaling = NULL;
   ierr = DMGetDefaultGlobalSection(dmFine, &gsf);CHKERRQ(ierr);
   ierr = PetscSectionGetConstrainedStorageSize(gsf, &m);CHKERRQ(ierr);
   ierr = DMGetDefaultGlobalSection(dmCoarse, &gsc);CHKERRQ(ierr);
   ierr = PetscSectionGetConstrainedStorageSize(gsc, &n);CHKERRQ(ierr);
+  /* FAS fails without a scaling vector */
+  ierr = DMCreateGlobalVector(dmCoarse, scaling);CHKERRQ(ierr);
+  ierr = VecSet(*scaling, 1.0);CHKERRQ(ierr);
   /* We need to preallocate properly */
   ierr = MatCreate(PetscObjectComm((PetscObject) dmCoarse), interpolation);CHKERRQ(ierr);
   ierr = MatSetSizes(*interpolation, m, n, PETSC_DETERMINE, PETSC_DETERMINE);CHKERRQ(ierr);
@@ -6685,7 +6689,6 @@ PetscErrorCode DMCreateInterpolation_Plex(DM dmCoarse, DM dmFine, Mat *interpola
   ierr = MatSetOption(*interpolation, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE);CHKERRQ(ierr);
   ierr = DMGetApplicationContext(dmFine, &ctx);CHKERRQ(ierr);
   ierr = DMPlexComputeInterpolatorFEM(dmCoarse, dmFine, *interpolation, ctx);CHKERRQ(ierr);
-  ierr = MatView(*interpolation, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -6693,16 +6696,55 @@ PetscErrorCode DMCreateInterpolation_Plex(DM dmCoarse, DM dmFine, Mat *interpola
 #define __FUNCT__ "DMCreateInjection_Plex"
 PetscErrorCode DMCreateInjection_Plex(DM dmCoarse, DM dmFine, VecScatter *ctx)
 {
+  Vec             cv,  fv;
+  IS              cis, fis, fpointIS;
+  PetscSection    sc, gsc, gsf;
+  const PetscInt *fpoints;
+  PetscInt       *cindices, *findices;
+  PetscInt        cpStart, cpEnd, m, off, cp;
+  PetscErrorCode  ierr;
+
   PetscFunctionBegin;
-  SETERRQ(PetscObjectComm((PetscObject) dmCoarse), PETSC_ERR_SUP, "Working as fast as I can");
-  /*
-  Loop over coarse vertices
-    Lookup associated fine vertex
-      map coarse dofs to fine dofs
-  Loop over coarse cells
-    Lookup associated fine cells
-      map coarse dofs to fine dofs
-  */
+  ierr = DMGetDefaultGlobalSection(dmFine, &gsf);CHKERRQ(ierr);
+  ierr = DMGetGlobalVector(dmFine, &fv);CHKERRQ(ierr);
+  ierr = DMGetDefaultSection(dmCoarse, &sc);CHKERRQ(ierr);
+  ierr = DMGetDefaultGlobalSection(dmCoarse, &gsc);CHKERRQ(ierr);
+  ierr = DMGetGlobalVector(dmCoarse, &cv);CHKERRQ(ierr);
+  ierr = DMPlexCreateCoarsePointIS(dmCoarse, &fpointIS);CHKERRQ(ierr);
+  ierr = PetscSectionGetConstrainedStorageSize(gsc, &m);CHKERRQ(ierr);
+  ierr = PetscMalloc2(m,&cindices,m,&findices);CHKERRQ(ierr);
+  ierr = PetscSectionGetChart(gsc, &cpStart, &cpEnd);CHKERRQ(ierr);
+  ierr = ISGetIndices(fpointIS, &fpoints);CHKERRQ(ierr);
+  for (cp = cpStart, off = 0; cp < cpEnd; ++cp) {
+    const PetscInt *cdofsC = NULL;
+    PetscInt        fp     = fpoints[cp-cpStart], dofC, cdofC, dofF, offC, offF, d, e;
+
+    ierr = PetscSectionGetDof(gsc, cp, &dofC);CHKERRQ(ierr);
+    if (dofC <= 0) continue;
+    ierr = PetscSectionGetConstraintDof(sc, cp, &cdofC);CHKERRQ(ierr);
+    ierr = PetscSectionGetDof(gsf, fp, &dofF);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(gsc, cp, &offC);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(gsf, fp, &offF);CHKERRQ(ierr);
+    if (cdofC) {ierr = PetscSectionGetConstraintIndices(sc, cp, &cdofsC);CHKERRQ(ierr);}
+    if (dofC != dofF) SETERRQ4(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Point %d (%d) has %d coarse dofs != %d fine dofs", cp, fp, dofC, dofF);
+    if (offC < 0 || offF < 0) SETERRQ3(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Coarse point %d has invalid offset %d (%d)", cp, offC, offF);
+    for (d = 0, e = 0; d < dofC; ++d) {
+      if (cdofsC && cdofsC[e] == d) {++e; continue;}
+      cindices[off+d-e] = offC+d; findices[off+d-e] = offF+d;
+    }
+    if (e != cdofC) SETERRQ4(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Point %d (%d) has invalid number of constraints %d != %d", cp, fp, e, cdofC);
+    off += dofC-cdofC;
+  }
+  ierr = ISRestoreIndices(fpointIS, &fpoints);CHKERRQ(ierr);
+  if (off != m) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Number of coarse dofs %d != %d", off, m);
+  ierr = ISCreateGeneral(PETSC_COMM_SELF, m, cindices, PETSC_OWN_POINTER, &cis);CHKERRQ(ierr);
+  ierr = ISCreateGeneral(PETSC_COMM_SELF, m, findices, PETSC_OWN_POINTER, &fis);CHKERRQ(ierr);
+  ierr = VecScatterCreate(cv, cis, fv, fis, ctx);CHKERRQ(ierr);
+  ierr = ISDestroy(&cis);CHKERRQ(ierr);
+  ierr = ISDestroy(&fis);CHKERRQ(ierr);
+  ierr = DMRestoreGlobalVector(dmFine, &fv);CHKERRQ(ierr);
+  ierr = DMRestoreGlobalVector(dmCoarse, &cv);CHKERRQ(ierr);
+  ierr = ISDestroy(&fpointIS);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
