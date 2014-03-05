@@ -65,7 +65,7 @@ PETSC_EXTERN PetscErrorCode SNESComputeNGSDefaultSecant(SNES snes,Vec X,Vec B,vo
     ierr = PetscContainerCreate(PetscObjectComm((PetscObject)snes),&colorcontainer);CHKERRQ(ierr);
     ierr = PetscContainerSetPointer(colorcontainer,(void *)coloring);CHKERRQ(ierr);
     ierr = PetscContainerSetUserDestroy(colorcontainer,(PetscErrorCode (*)(void *))SNESNGSDestroy_Private);CHKERRQ(ierr);
-    ierr = PetscObjectCompose((PetscObject)snes,"SNESGSColoring",(PetscObject)colorcontainer);CHKERRQ(ierr);
+    ierr = PetscObjectCompose((PetscObject)snes,"SNESNGSColoring",(PetscObject)colorcontainer);CHKERRQ(ierr);
     ierr = PetscContainerDestroy(&colorcontainer);CHKERRQ(ierr);
   } else {
     ierr = PetscContainerGetPointer(colorcontainer,(void **)&coloring);CHKERRQ(ierr);
