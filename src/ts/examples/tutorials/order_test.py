@@ -66,7 +66,7 @@ if (strTestProblem in ['ex36','ex36SE','ex36A']):
 
 
 print 'Building ' + strTestProblem
-os_out=os.system('make -s ' + strTestProblem + ' PETSC_ARCH=arch-mac-opt')
+os_out=os.system('make -s ' + strTestProblem)
 if(os_out <> 0):
     raise NameError('Possible compilation errors. Aborting.')
 
