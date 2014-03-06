@@ -50,7 +50,7 @@ if (strTestProblem in ['ex36','ex36SE','ex36A']):
         n=n+1
 
     tfinal=0.015
-    tsmaxsteps=0.1*np.array([150,300,600,800,1000,1250,1500])
+    tsmaxsteps=np.array([150,300,600,800,1000,1250,1500])
     tsmaxsteps=tsmaxsteps.astype(np.int)
     tsdt=np.float(tfinal)/tsmaxsteps
     msims=tsdt.size
