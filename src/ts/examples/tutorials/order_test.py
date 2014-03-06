@@ -13,7 +13,7 @@ io = PetscBinaryIO.PetscBinaryIO()
 list_supported_problems=['ex36','ex36SE','ex36A']
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:],"he:d:")
+    opts, args = getopt.getopt(sys.argv[1:],"he:d:p:")
 except getopt.GetoptError:
     print 'test.py -e <example: ex36> -d <details: (0) or 1>'
     print 'e.g.  test.py -e ex36'
@@ -21,6 +21,8 @@ except getopt.GetoptError:
 
 optDetails=False
 strTestProblem='ex36'
+strPETScXtraArguments=' '
+
 for opt, arg in opts:
     if opt == '-h':
         print 'test.py -e <example: ex36> -d <details: (0) or 1>'
@@ -28,6 +30,8 @@ for opt, arg in opts:
         sys.exit()
     elif opt in ('-e'):
         strTestProblem = arg.lstrip()
+    elif opt in ('-p'):
+        strPETScXtraArguments += arg.lstrip()
     elif opt in ('-d'):
         print arg
         optDetails = arg in ['true', '1', 't', 'y', 'yes', 'yup']
@@ -35,6 +39,7 @@ for opt, arg in opts:
 
 if (not strTestProblem in list_supported_problems):
     raise NameError('Problem '+ strTestProblem +' is not supported. Aborting.')
+
 strTestProblemOutFile=strTestProblem+'.out'
 strTestProblemRefSolFile=strTestProblem+'_ref_sol.pcl'
 
@@ -45,7 +50,7 @@ if (strTestProblem in ['ex36','ex36SE','ex36A']):
         n=n+1
 
     tfinal=0.015
-    tsmaxsteps=np.array([150,300,600,800,1000,1250,1500])
+    tsmaxsteps=0.1*np.array([150,300,600,800,1000,1250,1500])
     tsmaxsteps=tsmaxsteps.astype(np.int)
     tsdt=np.float(tfinal)/tsmaxsteps
     msims=tsdt.size
@@ -54,10 +59,10 @@ if (strTestProblem in ['ex36','ex36SE','ex36A']):
     timesteps=np.zeros((msims,1))
     solution=np.zeros((msims,n))
 
-    PETScOptionsStr='-ts_type rosw -ts_max_snes_failures -1  -ksp_max_it 5000000 -ts_atol 1e-5 -ts_rtol 1e-5 -ts_adapt_type none -ksp_rtol 1e-10 -snes_rtol 1e-10  -ts_arkimex_type 3 -ts_rosw_type ra3pw '
+    PETScOptionsStr='-ts_max_snes_failures -1  -ksp_max_it 5000000 -ts_atol 1e-5 -ts_rtol 1e-5 -ts_adapt_type none -ksp_rtol 1e-10 -snes_rtol 1e-10'
 
     if(optDetails):
-        PETScOptionsStr=PETScOptionsStr + ' -ts_monitor_lg_solution -ts_monitor_lg_timestep -lg_indicate_data_points 0 -ts_monitor -ts_adapt_monito '
+        PETScOptionsStr=PETScOptionsStr + ' -ts_monitor_lg_solution -ts_monitor_lg_timestep -lg_indicate_data_points 0 -ts_monitor -ts_adapt_monitor '
 
 
 print 'Building ' + strTestProblem
@@ -85,7 +90,7 @@ if bWriteReference==False:
 # Running the simulation with different time steps
 for simID in range(0,msims):
     print 'Running ' + strTestProblem + ' with dt = '+ str(tsdt[simID])
-    os_out=os.system(strTestProblem +  ' -ts_dt '+ str(tsdt[simID]) + ' -ts_max_steps ' + str(tsmaxsteps[simID]) + ' '  + PETScOptionsStr + ' -ts_view_solution binary:'+ strTestProblemOutFile + ' ')
+    os_out=os.system(strTestProblem +  ' -ts_dt '+ str(tsdt[simID]) + ' -ts_max_steps ' + str(tsmaxsteps[simID]) + ' '  + PETScOptionsStr + ' ' +strPETScXtraArguments +' '+ ' -ts_view_solution binary:'+ strTestProblemOutFile + ' ')
     if(os_out <> 0):
         raise NameError('Error running '+ strTestProblem +'. Aborting.')
 
