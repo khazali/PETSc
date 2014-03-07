@@ -791,6 +791,20 @@ static PetscErrorCode DMPlexConstructCohesiveCells_Internal(DM dm, DMLabel label
             hasUnsplit   = PETSC_TRUE;
           } else {
             coneNew[2+q] = v + pMaxNew[dep-1];
+            if (dep > 1) {
+              const PetscInt *econe;
+              PetscInt        econeSize, r, vs, vu;
+
+              ierr = DMPlexGetConeSize(dm, cone[q], &econeSize);CHKERRQ(ierr);
+              ierr = DMPlexGetCone(dm, cone[q], &econe);CHKERRQ(ierr);
+              for (r = 0; r < econeSize; ++r) {
+                ierr = PetscFindInt(econe[r], numSplitPoints[dep-2],   splitPoints[dep-2],   &vs);CHKERRQ(ierr);
+                ierr = PetscFindInt(econe[r], numUnsplitPoints[dep-2], unsplitPoints[dep-2], &vu);CHKERRQ(ierr);
+                if (vs >= 0) continue;
+                if (vu < 0) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Could not locate point %d in split or unsplit points of depth %d", econe[r], dep-2);
+                hasUnsplit   = PETSC_TRUE;
+              }
+            }
           }
         }
         ierr = DMPlexSetCone(sdm, splitp, &coneNew[2]);CHKERRQ(ierr);
@@ -1009,7 +1023,6 @@ static PetscErrorCode DMPlexConstructCohesiveCells_Internal(DM dm, DMLabel label
         ierr = DMPlexSetSupport(sdm, hybedge, supportNew);CHKERRQ(ierr);
       } else if (dep == dim-2) {
         const PetscInt hybface = p + pMaxNew[dep+1] + numSplitPoints[dep+1] + numSplitPoints[dep];
-        PetscInt       hybcell = -1;
 
         /* Unsplit edge: Faces into original edge, split face, and hybrid face twice */
         for (f = 0, qf = 0; f < supportSize; ++f) {
@@ -1021,7 +1034,6 @@ static PetscErrorCode DMPlexConstructCohesiveCells_Internal(DM dm, DMLabel label
             if (face < 0) SETERRQ1(comm, PETSC_ERR_ARG_WRONG, "Face %d is not a split face", support[f]);
             supportNew[qf++] = DMPlexShiftPoint_Internal(support[f], depth, depthMax, depthEnd, depthShift) /*support[f] + depthOffset[dep+1]*/;
             supportNew[qf++] = face + pMaxNew[dep+1];
-            hybcell          = face + pMaxNew[dep+2] + numSplitPoints[dep+2];
           } else {
             supportNew[qf++] = DMPlexShiftPoint_Internal(support[f], depth, depthMax, depthEnd, depthShift) /*support[f] + depthOffset[dep+1]*/;
           }
