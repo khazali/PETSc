@@ -1142,7 +1142,7 @@ PetscErrorCode DMPlexComputeInterpolatorFEM(DM dmc, DM dmf, Mat I, void *user)
   PetscSection      fsection, fglobalSection;
   PetscSection      csection, cglobalSection;
   PetscScalar      *elemMat;
-  PetscInt          dim, Nf, f, fieldI, fieldJ, offsetI, offsetJ, numCells, cStart, cEnd, c;
+  PetscInt          dim, Nf, f, fieldI, fieldJ, offsetI, offsetJ, cStart, cEnd, c;
   PetscInt          rCellDof = 0, cCellDof = 0;
   PetscErrorCode    ierr;
 
@@ -1157,7 +1157,6 @@ PetscErrorCode DMPlexComputeInterpolatorFEM(DM dmc, DM dmf, Mat I, void *user)
   ierr = DMGetDefaultGlobalSection(dmc, &cglobalSection);CHKERRQ(ierr);
   ierr = PetscSectionGetNumFields(fsection, &Nf);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dmc, 0, &cStart, &cEnd);CHKERRQ(ierr);
-  numCells = cEnd - cStart;
   ierr = PetscMalloc1(Nf,&feRef);CHKERRQ(ierr);
   for (f = 0; f < Nf; ++f) {
     PetscInt rNb, cNb, Nc;
