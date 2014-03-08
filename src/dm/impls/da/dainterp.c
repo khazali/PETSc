@@ -527,7 +527,7 @@ PetscErrorCode DMCreateInterpolation_DA_2D_Q0(DM dac,DM daf,Mat *A)
      The coarse vector is then duplicated 4 times (each time it lives on 1/4 of the
      processors). It's effective length is hence 4 times its normal length, this is
      why the col_scale is multiplied by the interpolation matrix column sizes.
-     sol_shift allows each set of 1/4 processors do its own interpolation using ITS
+     col_shift allows each set of 1/4 processors do its own interpolation using ITS
      copy of the coarse vector. A bit of a hack but you do better.
 
      In the standard case when size_f == size_c col_scale == 1 and col_shift == 0
@@ -538,7 +538,7 @@ PetscErrorCode DMCreateInterpolation_DA_2D_Q0(DM dac,DM daf,Mat *A)
   col_scale = size_f/size_c;
   col_shift = Mx*My*(rank_f/size_c);
 
-  ierr = MatPreallocateInitialize(PetscObjectComm((PetscObject)daf),m_f*n_f,col_scale*m_c*n_c,dnz,onz);CHKERRQ(ierr);
+  ierr = MatPreallocateInitialize(PetscObjectComm((PetscObject)daf),m_f*n_f,m_c*n_c,dnz,onz);CHKERRQ(ierr);
   for (j=j_start; j<j_start+n_f; j++) {
     for (i=i_start; i<i_start+m_f; i++) {
       /* convert to local "natural" numbering and then to PETSc global numbering */
@@ -565,7 +565,7 @@ PetscErrorCode DMCreateInterpolation_DA_2D_Q0(DM dac,DM daf,Mat *A)
     }
   }
   ierr = MatCreate(PetscObjectComm((PetscObject)daf),&mat);CHKERRQ(ierr);
-  ierr = MatSetSizes(mat,m_f*n_f,col_scale*m_c*n_c,mx*my,col_scale*Mx*My);CHKERRQ(ierr);
+  ierr = MatSetSizes(mat,m_f*n_f,m_c*n_c,mx*my,col_scale*Mx*My);CHKERRQ(ierr);
   ierr = MatSetType(mat,MATAIJ);CHKERRQ(ierr);
   ierr = MatSeqAIJSetPreallocation(mat,0,dnz);CHKERRQ(ierr);
   ierr = MatMPIAIJSetPreallocation(mat,0,dnz,0,onz);CHKERRQ(ierr);
