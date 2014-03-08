@@ -34,16 +34,15 @@
 @*/
 PetscErrorCode  DMCreateInterpolationScale(DM dac,DM daf,Mat mat,Vec *scale)
 {
-  PetscErrorCode ierr;
   Vec            fine;
-  PetscScalar    one = 1.0;
+  PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = DMCreateGlobalVector(daf,&fine);CHKERRQ(ierr);
-  ierr = DMCreateGlobalVector(dac,scale);CHKERRQ(ierr);
-  ierr = VecSet(fine,one);CHKERRQ(ierr);
-  ierr = MatRestrict(mat,fine,*scale);CHKERRQ(ierr);
-  ierr = VecDestroy(&fine);CHKERRQ(ierr);
+  ierr = DMGetGlobalVector(daf, &fine);CHKERRQ(ierr);
+  ierr = VecSet(fine, 1.0);CHKERRQ(ierr);
+  ierr = DMCreateGlobalVector(dac, scale);CHKERRQ(ierr);
+  ierr = MatRestrict(mat, fine, *scale);CHKERRQ(ierr);
+  ierr = DMRestoreGlobalVector(daf, &fine);CHKERRQ(ierr);
   ierr = VecReciprocal(*scale);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
