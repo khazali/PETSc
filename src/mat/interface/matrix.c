@@ -7620,7 +7620,7 @@ PetscErrorCode  MatInterpolate(Mat A,Vec x,Vec y)
 PetscErrorCode  MatRestrict(Mat A,Vec x,Vec y)
 {
   PetscErrorCode ierr;
-  PetscInt       M,N,Ny;
+  PetscInt       M,N,Nx,Ny;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(A,MAT_CLASSID,1);
@@ -7630,11 +7630,41 @@ PetscErrorCode  MatRestrict(Mat A,Vec x,Vec y)
   MatCheckPreallocated(A,1);
 
   ierr = MatGetSize(A,&M,&N);CHKERRQ(ierr);
+  ierr = VecGetSize(x,&Nx);CHKERRQ(ierr);
   ierr = VecGetSize(y,&Ny);CHKERRQ(ierr);
-  if (M == Ny) {
+  if ((M == Ny) && (N == Nx)) {
     ierr = MatMult(A,x,y);CHKERRQ(ierr);
-  } else {
+  } else if ((N == Ny) && (M == Nx)) {
     ierr = MatMultTranspose(A,x,y);CHKERRQ(ierr);
+  } else {
+    /* Support restriction on coarse subcommunicators */
+    Vec          coarseX, coarseY;
+    PetscScalar *a, *ca;
+    PetscInt     xn, yn, cnx, cny;
+
+    /* Get DM from matrix and GetVector()? */
+    ierr = MatGetVecs(A, &coarseX, &coarseY);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(x, &xn);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(y, &yn);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(coarseX, &cnx);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(coarseY, &cny);CHKERRQ(ierr);
+    if ((N == Nx) && (yn == cny)) {
+      ierr = MatMult(A, x, coarseY);CHKERRQ(ierr);
+      ierr = VecGetArray(y, &a);CHKERRQ(ierr);
+      ierr = VecGetArray(coarseY, &ca);CHKERRQ(ierr);
+      ierr = PetscMemcpy(a, ca, yn * sizeof(PetscScalar));CHKERRQ(ierr);
+      ierr = VecRestoreArray(y, &a);CHKERRQ(ierr);
+      ierr = VecRestoreArray(coarseY, &ca);CHKERRQ(ierr);
+    } else if ((M == Nx) && (yn == cnx)) {
+      ierr = MatMultTranspose(A, x, coarseX);CHKERRQ(ierr);
+      ierr = VecGetArray(y, &a);CHKERRQ(ierr);
+      ierr = VecGetArray(coarseX, &ca);CHKERRQ(ierr);
+      ierr = PetscMemcpy(a, ca, yn * sizeof(PetscScalar));CHKERRQ(ierr);
+      ierr = VecRestoreArray(y, &a);CHKERRQ(ierr);
+      ierr = VecRestoreArray(coarseX, &ca);CHKERRQ(ierr);
+    } else SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Unable to find size match for MatRestrict");
+    ierr = VecDestroy(&coarseX);CHKERRQ(ierr);
+    ierr = VecDestroy(&coarseY);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
