@@ -497,7 +497,8 @@ static PetscErrorCode DMCoarsenHook_SNESVecSol(DM dm,DM dmc,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "KSPComputeOperators_SNES"
-/* This may be called to rediscretize the operator on levels of linear multigrid. The DM shuffle is so the user can
+/* This may be called to rediscretize the operator on levels of linear multigrid.
+ * The DM and communicator shuffle is so the user can
  * safely call SNESGetDM() in their residual evaluation routine. */
 static PetscErrorCode KSPComputeOperators_SNES(KSP ksp,Mat A,Mat B,void *ctx)
 {
@@ -506,12 +507,15 @@ static PetscErrorCode KSPComputeOperators_SNES(KSP ksp,Mat A,Mat B,void *ctx)
   Mat            Asave = A,Bsave = B;
   Vec            X,Xnamed = NULL;
   DM             dmsave;
+  MPI_Comm       commsave;
   void           *ctxsave;
   PetscErrorCode (*jac)(SNES,Vec,Mat,Mat,void*);
 
   PetscFunctionBegin;
-  dmsave = snes->dm;
-  ierr   = KSPGetDM(ksp,&snes->dm);CHKERRQ(ierr);
+  commsave = PetscObjectComm((PetscObject) snes);
+  dmsave   = snes->dm;
+  ierr     = PetscObjectSetComm((PetscObject) snes, PetscObjectComm((PetscObject) ksp));CHKERRQ(ierr);
+  ierr     = KSPGetDM(ksp,&snes->dm);CHKERRQ(ierr);
   if (dmsave == snes->dm) X = snes->vec_sol; /* We are on the finest level */
   else {                                     /* We are on a coarser level, this vec was initialized using a DM restrict hook */
     ierr = DMGetNamedGlobalVector(snes->dm,"SNESVecSol",&Xnamed);CHKERRQ(ierr);
@@ -533,6 +537,7 @@ static PetscErrorCode KSPComputeOperators_SNES(KSP ksp,Mat A,Mat B,void *ctx)
   if (Xnamed) {
     ierr = DMRestoreNamedGlobalVector(snes->dm,"SNESVecSol",&Xnamed);CHKERRQ(ierr);
   }
+  ierr     = PetscObjectSetComm((PetscObject) snes, commsave);CHKERRQ(ierr);
   snes->dm = dmsave;
   PetscFunctionReturn(0);
 }
