@@ -7532,7 +7532,7 @@ PetscErrorCode  MatStashSetInitialSize(Mat mat,PetscInt size, PetscInt bsize)
 PetscErrorCode  MatInterpolateAdd(Mat A,Vec x,Vec y,Vec w)
 {
   PetscErrorCode ierr;
-  PetscInt       M,N,Ny;
+  PetscInt       M,N,Nx,Ny;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(A,MAT_CLASSID,1);
@@ -7541,12 +7541,43 @@ PetscErrorCode  MatInterpolateAdd(Mat A,Vec x,Vec y,Vec w)
   PetscValidHeaderSpecific(w,VEC_CLASSID,4);
   PetscValidType(A,1);
   MatCheckPreallocated(A,1);
+
   ierr = MatGetSize(A,&M,&N);CHKERRQ(ierr);
+  ierr = VecGetSize(x,&Nx);CHKERRQ(ierr);
   ierr = VecGetSize(y,&Ny);CHKERRQ(ierr);
-  if (M == Ny) {
+  if ((M == Ny) && (N == Nx)) {
     ierr = MatMultAdd(A,x,y,w);CHKERRQ(ierr);
-  } else {
+  } else if ((N == Ny) && (M == Nx)) {
     ierr = MatMultTransposeAdd(A,x,y,w);CHKERRQ(ierr);
+  } else {
+    /* Support interpolation on coarse subcommunicators */
+    Vec          coarseX, coarseY;
+    PetscScalar *a, *ca;
+    PetscInt     xn, yn, cnx, cny;
+
+    /* Get DM from matrix and GetVector()? */
+    ierr = MatGetVecs(A, &coarseX, &coarseY);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(x, &xn);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(y, &yn);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(coarseX, &cnx);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(coarseY, &cny);CHKERRQ(ierr);
+    if ((N == Ny) && (xn == cnx)) {
+      ierr = VecGetArray(x, &a);CHKERRQ(ierr);
+      ierr = VecGetArray(coarseX, &ca);CHKERRQ(ierr);
+      ierr = PetscMemcpy(ca, a, xn * sizeof(PetscScalar));CHKERRQ(ierr);
+      ierr = VecRestoreArray(y, &a);CHKERRQ(ierr);
+      ierr = VecRestoreArray(coarseY, &ca);CHKERRQ(ierr);
+      ierr = MatMultAdd(A, coarseX, y, w);CHKERRQ(ierr);
+    } else if ((M == Ny) && (xn == cny)) {
+      ierr = VecGetArray(x, &a);CHKERRQ(ierr);
+      ierr = VecGetArray(coarseY, &ca);CHKERRQ(ierr);
+      ierr = PetscMemcpy(ca, a, xn * sizeof(PetscScalar));CHKERRQ(ierr);
+      ierr = VecRestoreArray(x, &a);CHKERRQ(ierr);
+      ierr = VecRestoreArray(coarseY, &ca);CHKERRQ(ierr);
+      ierr = MatMultTransposeAdd(A, coarseY, y, w);CHKERRQ(ierr);
+    } else SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Unable to find size match for MatRestrict");
+    ierr = VecDestroy(&coarseX);CHKERRQ(ierr);
+    ierr = VecDestroy(&coarseY);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -7577,7 +7608,7 @@ PetscErrorCode  MatInterpolateAdd(Mat A,Vec x,Vec y,Vec w)
 PetscErrorCode  MatInterpolate(Mat A,Vec x,Vec y)
 {
   PetscErrorCode ierr;
-  PetscInt       M,N,Ny;
+  PetscInt       M,N,Nx,Ny;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(A,MAT_CLASSID,1);
@@ -7585,12 +7616,43 @@ PetscErrorCode  MatInterpolate(Mat A,Vec x,Vec y)
   PetscValidHeaderSpecific(y,VEC_CLASSID,3);
   PetscValidType(A,1);
   MatCheckPreallocated(A,1);
+
   ierr = MatGetSize(A,&M,&N);CHKERRQ(ierr);
+  ierr = VecGetSize(x,&Nx);CHKERRQ(ierr);
   ierr = VecGetSize(y,&Ny);CHKERRQ(ierr);
-  if (M == Ny) {
+  if ((M == Ny) && (N == Nx)) {
     ierr = MatMult(A,x,y);CHKERRQ(ierr);
-  } else {
+  } else if ((N == Ny) && (M == Nx)) {
     ierr = MatMultTranspose(A,x,y);CHKERRQ(ierr);
+  } else {
+    /* Support interpolation on coarse subcommunicators */
+    Vec          coarseX, coarseY;
+    PetscScalar *a, *ca;
+    PetscInt     xn, yn, cnx, cny;
+
+    /* Get DM from matrix and GetVector()? */
+    ierr = MatGetVecs(A, &coarseX, &coarseY);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(x, &xn);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(y, &yn);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(coarseX, &cnx);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(coarseY, &cny);CHKERRQ(ierr);
+    if ((N == Ny) && (xn == cnx)) {
+      ierr = VecGetArray(x, &a);CHKERRQ(ierr);
+      ierr = VecGetArray(coarseX, &ca);CHKERRQ(ierr);
+      ierr = PetscMemcpy(ca, a, xn * sizeof(PetscScalar));CHKERRQ(ierr);
+      ierr = VecRestoreArray(y, &a);CHKERRQ(ierr);
+      ierr = VecRestoreArray(coarseY, &ca);CHKERRQ(ierr);
+      ierr = MatMult(A, coarseX, y);CHKERRQ(ierr);
+    } else if ((M == Ny) && (xn == cny)) {
+      ierr = VecGetArray(x, &a);CHKERRQ(ierr);
+      ierr = VecGetArray(coarseY, &ca);CHKERRQ(ierr);
+      ierr = PetscMemcpy(ca, a, xn * sizeof(PetscScalar));CHKERRQ(ierr);
+      ierr = VecRestoreArray(x, &a);CHKERRQ(ierr);
+      ierr = VecRestoreArray(coarseY, &ca);CHKERRQ(ierr);
+      ierr = MatMultTranspose(A, coarseY, y);CHKERRQ(ierr);
+    } else SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Unable to find size match for MatRestrict");
+    ierr = VecDestroy(&coarseX);CHKERRQ(ierr);
+    ierr = VecDestroy(&coarseY);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
