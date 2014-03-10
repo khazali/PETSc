@@ -1207,6 +1207,7 @@ PetscErrorCode DMCreateInjection_DA_2D(DM dac,DM daf,VecScatter *inject)
   ierr = DMRestoreGlobalVector(dac,&vecc);CHKERRQ(ierr);
   ierr = DMRestoreGlobalVector(daf,&vecf);CHKERRQ(ierr);
   ierr = ISDestroy(&isf);CHKERRQ(ierr);
+  ierr = ISDestroy(&isc);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
