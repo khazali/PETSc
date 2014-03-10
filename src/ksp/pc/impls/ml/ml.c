@@ -871,7 +871,8 @@ PetscErrorCode PCSetUp_ML(PC pc)
   pc_ml->Nlevels = Nlevels;
   fine_level     = Nlevels - 1;
 
-  ierr = PCMGSetLevels(pc,Nlevels,NULL);CHKERRQ(ierr);
+  ierr = PCMGSetLevels(pc,Nlevels);CHKERRQ(ierr);
+  ierr = PCMGSetUpLevels(pc,NULL);CHKERRQ(ierr);
   /* set default smoothers */
   for (level=1; level<=fine_level; level++) {
     ierr = PCMGGetSmoother(pc,level,&smoother);CHKERRQ(ierr);

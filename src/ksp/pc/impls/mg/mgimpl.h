@@ -40,7 +40,7 @@ typedef struct {
   PetscInt  cyclesperpcapply;                 /* Number of cycles to use in each PCApply(), multiplicative only*/
   PetscInt  maxlevels;                        /* total number of levels allocated */
   PetscInt  galerkin;                         /* use Galerkin process to compute coarser matrices, 0=no, 1=yes, 2=yes but computed externally */
-  PetscBool usedmfornumberoflevels;           /* sets the number of levels by getting this information out of the DM */
+  PetscBool setfromoptions;                   /* SetFromOptions() was called on this PC, and should be called on subobjects */
 
   PetscInt     nlevels;
   PC_MG_Levels **levels;
@@ -48,7 +48,7 @@ typedef struct {
   PetscInt     default_smoothd;               /*  with calls to KSPSetTolerances() */
   PetscReal    rtol,abstol,dtol,ttol;         /* tolerances for when running with PCApplyRichardson_MG */
 
-  void          *innerctx;                   /* optional data for preconditioner, like PCEXOTIC that inherits off of PCMG */
+  void          *innerctx;                    /* optional data for preconditioner, like PCEXOTIC that inherits off of PCMG */
   PetscLogStage stageApply;
 } PC_MG;
 

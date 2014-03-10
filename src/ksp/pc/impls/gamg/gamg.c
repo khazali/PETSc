@@ -677,7 +677,8 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
   if (pc_gamg->verbose) PetscPrintf(comm,"\t[%d]%s %d levels, grid complexity = %g\n",0,__FUNCT__,level+1,nnztot/nnz0);
   pc_gamg->Nlevels = level + 1;
   fine_level       = level;
-  ierr             = PCMGSetLevels(pc,pc_gamg->Nlevels,NULL);CHKERRQ(ierr);
+  ierr             = PCMGSetLevels(pc,pc_gamg->Nlevels);CHKERRQ(ierr);
+  ierr             = PCMGSetUpLevels(pc,NULL);CHKERRQ(ierr);
 
   /* simple setup */
   if (!PETSC_TRUE) {

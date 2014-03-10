@@ -2,14 +2,14 @@
 #include <petscpc.h>
 
 #if defined(PETSC_HAVE_FORTRAN_CAPS)
-#define pcmgsetlevels_             PCMGSETLEVELS
+#define pcmgsetuplevels_           PCMGSETUPLEVELS
 #elif !defined(PETSC_HAVE_FORTRAN_UNDERSCORE)
-#define pcmgsetlevels_             pcmgsetlevels
+#define pcmgsetuplevels_           pcmgsetuplevels
 #endif
 
-PETSC_EXTERN void PETSC_STDCALL pcmgsetlevels_(PC *pc,PetscInt *levels,MPI_Comm *comms, PetscErrorCode *ierr)
+PETSC_EXTERN void PETSC_STDCALL pcmgsetuplevels_(PC *pc,MPI_Comm *comms, PetscErrorCode *ierr)
 {
   CHKFORTRANNULLOBJECT(comms);
-  *ierr = PCMGSetLevels(*pc,*levels,comms);
+  *ierr = PCMGSetUpLevels(*pc,comms);
 }
 

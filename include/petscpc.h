@@ -522,7 +522,8 @@ typedef enum { PC_MG_CYCLE_V = 1,PC_MG_CYCLE_W = 2 } PCMGCycleType;
 PETSC_EXTERN const char *const PCMGCycleTypes[];
 
 PETSC_EXTERN PetscErrorCode PCMGSetType(PC,PCMGType);
-PETSC_EXTERN PetscErrorCode PCMGSetLevels(PC,PetscInt,MPI_Comm*);
+PETSC_EXTERN PetscErrorCode PCMGSetUpLevels(PC,MPI_Comm*);
+PETSC_EXTERN PetscErrorCode PCMGSetLevels(PC,PetscInt);
 PETSC_EXTERN PetscErrorCode PCMGGetLevels(PC,PetscInt*);
 
 PETSC_EXTERN PetscErrorCode PCMGSetNumberSmoothUp(PC,PetscInt);
