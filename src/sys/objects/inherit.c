@@ -11,6 +11,7 @@ PetscInt    PetscObjectsCounts = 0, PetscObjectsMaxCounts = 0;
 #endif
 
 extern PetscErrorCode PetscObjectGetComm_Petsc(PetscObject,MPI_Comm*);
+extern PetscErrorCode PetscObjectSetComm_Petsc(PetscObject,MPI_Comm);
 extern PetscErrorCode PetscObjectCompose_Petsc(PetscObject,const char[],PetscObject);
 extern PetscErrorCode PetscObjectQuery_Petsc(PetscObject,const char[],PetscObject*);
 extern PetscErrorCode PetscObjectComposeFunction_Petsc(PetscObject,const char[],void (*)(void));
@@ -51,6 +52,7 @@ PetscErrorCode  PetscHeaderCreate_Private(PetscObject h,PetscClassId classid,con
   h->bops->destroy         = des;
   h->bops->view            = vie;
   h->bops->getcomm         = PetscObjectGetComm_Petsc;
+  h->bops->setcomm         = PetscObjectSetComm_Petsc;
   h->bops->compose         = PetscObjectCompose_Petsc;
   h->bops->query           = PetscObjectQuery_Petsc;
   h->bops->composefunction = PetscObjectComposeFunction_Petsc;
@@ -626,6 +628,16 @@ PetscErrorCode PetscObjectGetComm_Petsc(PetscObject obj,MPI_Comm *comm)
   PetscFunctionBegin;
   PetscValidHeader(obj,1);
   *comm = obj->comm;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscObjectSetComm_Petsc"
+PetscErrorCode PetscObjectSetComm_Petsc(PetscObject obj,MPI_Comm comm)
+{
+  PetscFunctionBegin;
+  PetscValidHeader(obj,1);
+  obj->comm = comm;
   PetscFunctionReturn(0);
 }
 

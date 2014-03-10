@@ -18,6 +18,7 @@
    PetscOps: structure of core operations that all PETSc objects support.
 
       getcomm()         - Gets the object's communicator.
+      setcomm()         - Sets the object's communicator.
       view()            - Is the routine for viewing the entire PETSc object; for
                           example, MatView() is the general matrix viewing routine.
                           This is used by PetscObjectView((PetscObject)obj) to allow
@@ -36,6 +37,7 @@
 
 typedef struct {
    PetscErrorCode (*getcomm)(PetscObject,MPI_Comm *);
+   PetscErrorCode (*setcomm)(PetscObject,MPI_Comm);
    PetscErrorCode (*view)(PetscObject,PetscViewer);
    PetscErrorCode (*destroy)(PetscObject*);
    PetscErrorCode (*compose)(PetscObject,const char[],PetscObject);

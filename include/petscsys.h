@@ -1574,6 +1574,7 @@ PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*PetscErrorCodeFunction)(void);
 */
 PETSC_EXTERN PetscErrorCode PetscObjectDestroy(PetscObject*);
 PETSC_EXTERN PetscErrorCode PetscObjectGetComm(PetscObject,MPI_Comm *);
+PETSC_EXTERN PetscErrorCode PetscObjectSetComm(PetscObject,MPI_Comm);
 PETSC_EXTERN PetscErrorCode PetscObjectGetClassId(PetscObject,PetscClassId *);
 PETSC_EXTERN PetscErrorCode PetscObjectGetClassName(PetscObject,const char *[]);
 PETSC_EXTERN PetscErrorCode PetscObjectSetType(PetscObject,const char []);
