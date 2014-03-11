@@ -2638,6 +2638,9 @@ PETSC_EXTERN PetscErrorCode PetscBoxRefresh(MPI_Comm,const char[],char[],char[],
 
 PETSC_EXTERN PetscErrorCode PetscTextBelt(MPI_Comm,const char[],const char[],PetscBool*);
 
+PETSC_EXTERN PetscErrorCode PetscPullJSONValue(const char[],const char[],char[],size_t,PetscBool*);
+PETSC_EXTERN PetscErrorCode PetscPushJSONValue(char[],const char[],const char[],size_t);
+
 /* Reset __FUNCT__ in case the user does not define it themselves */
 #undef __FUNCT__
 #define __FUNCT__ "User provided function"

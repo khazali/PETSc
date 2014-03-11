@@ -34,12 +34,25 @@ static PetscErrorCode PetscBoxStartWebServer_Private(void)
   const char          *options[optionsLen];
   struct mg_callbacks callbacks;
   struct mg_context   *ctx;
+  char                keyfile[PETSC_MAX_PATH_LEN];
+  PetscBool           exists;
 
   PetscFunctionBegin;
   options[0] = "listening_ports";
   options[1] = "8081s";
+
+  ierr = PetscStrcpy(keyfile,"sslclient.pem");CHKERRQ(ierr);
+  ierr = PetscTestFile(keyfile,'r',&exists);CHKERRQ(ierr);
+  if (!exists) {
+    ierr = PetscGetHomeDirectory(keyfile,PETSC_MAX_PATH_LEN);CHKERRQ(ierr);
+    ierr = PetscStrcat(keyfile,"/");CHKERRQ(ierr);
+    ierr = PetscStrcat(keyfile,"sslclient.pem");CHKERRQ(ierr);
+    ierr = PetscTestFile(keyfile,'r',&exists);CHKERRQ(ierr);
+    if (!exists) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_FILE_OPEN,"Unable to locate sslclient.pem file in current directory or home directory");
+  }
+
   options[2] = "ssl_certificate";
-  options[3] = "/Users/barrysmith/Src/saws/saws.pem";
+  options[3] = keyfile;
   options[4] = NULL;
 
   /* Prepare callbacks structure. We have only one callback, the rest are NULL. */
@@ -50,6 +63,10 @@ static PetscErrorCode PetscBoxStartWebServer_Private(void)
   while (!result) {};
   PetscFunctionReturn(0);
 }
+
+#if defined(PETSC_HAVE_UNISTD_H)
+#include <unistd.h>
+#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscBoxAuthorize"
@@ -74,6 +91,14 @@ static PetscErrorCode PetscBoxStartWebServer_Private(void)
 
    This requires PETSc be installed using --with-saws or --download-saws
 
+   Requires the user have created a self-signed ssl certificate with
+
+$    saws/CA.pl  -newcert  (using the passphrase of password)
+$    cat newkey.pem newcert.pem > sslclient.pem
+
+    and put the resulting file in either the current directory (with the application) or in the home directory. This seems kind of
+    silly but it was all I could figure out.
+
 .seealso: PetscBoxRefresh(), PetscBoxUpload(), PetscURLShorten()
 
 @*/
@@ -83,13 +108,14 @@ PetscErrorCode PetscBoxAuthorize(MPI_Comm comm,char access_token[],char refresh_
   SSL            *ssl;
   int            sock;
   PetscErrorCode ierr;
-  char           buff[8*1024],body[1024],*access,*refresh,*ctmp;
+  char           buff[8*1024],body[1024];
   PetscMPIInt    rank;
-  PetscBool      flg;
+  PetscBool      flg,found;
 
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
   if (!rank) {
+    if (!isatty(fileno(PETSC_STDOUT))) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"Requires users input/output");
     ierr = PetscPrintf(comm,"Cut and paste the following into your browser:\n\n"
                             "https://www.box.com/api/oauth2/authorize?"
                             "response_type=code&"
@@ -116,25 +142,13 @@ PetscErrorCode PetscBoxAuthorize(MPI_Comm comm,char access_token[],char refresh_
     ierr = PetscSSLDestroyContext(ctx);CHKERRQ(ierr);
     close(sock);
 
-    ierr   = PetscStrstr(buff,"\"access_token\" : \"",&access);CHKERRQ(ierr);
-    if (!access) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"Did not receive access token from Box");
-    access += 18;
-    ierr   = PetscStrchr(access,'\"',&ctmp);CHKERRQ(ierr);
-    if (!ctmp) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"Access token from Box is misformed");
-    *ctmp  = 0;
-    ierr   = PetscStrncpy(access_token,access,tokensize);CHKERRQ(ierr);
-    *ctmp  = '\"';
-
-    ierr   = PetscStrstr(buff,"\"refresh_token\" : \"",&refresh);CHKERRQ(ierr);
-    if (!refresh) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"Did not receive refresh token from Box");
-    refresh += 19;
-    ierr   = PetscStrchr(refresh,'\"',&ctmp);CHKERRQ(ierr);
-    if (!ctmp) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"Refresh token from Box is misformed");
-    *ctmp  = 0;
-    ierr = PetscStrncpy(refresh_token,refresh,tokensize);CHKERRQ(ierr);
+    ierr   = PetscPullJSONValue(buff,"access_token",access_token,tokensize,&found);CHKERRQ(ierr);
+    if (!found) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"Box did not return access token");
+    ierr   = PetscPullJSONValue(buff,"refresh_token",refresh_token,tokensize,&found);CHKERRQ(ierr);
+    if (!found) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"Box did not return refresh token");
 
     ierr = PetscPrintf(comm,"Here is your Box refresh token, save it in a save place, in the future you can run PETSc\n");CHKERRQ(ierr);
-    ierr = PetscPrintf(comm,"programs with the option -box_refresh_token %s\n",refresh);CHKERRQ(ierr);
+    ierr = PetscPrintf(comm,"programs with the option -box_refresh_token %s\n",refresh_token);CHKERRQ(ierr);
     ierr = PetscPrintf(comm,"to access Box Drive automatically\n");CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
@@ -167,9 +181,10 @@ PetscErrorCode PetscBoxRefresh(MPI_Comm comm,const char refresh_token[],char acc
   SSL            *ssl;
   int            sock;
   PetscErrorCode ierr;
-  char           buff[8*1024],body[1024],*access,*ctmp;
+  char           buff[8*1024],body[1024];
   PetscMPIInt    rank;
-  char           *refreshtoken = (char*)refresh_token,*refresh;
+  char           *refreshtoken = (char*)refresh_token;
+  PetscBool      found;
 
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
@@ -203,24 +218,13 @@ PetscErrorCode PetscBoxRefresh(MPI_Comm comm,const char refresh_token[],char acc
     ierr = PetscSSLDestroyContext(ctx);CHKERRQ(ierr);
     close(sock);
 
-    ierr   = PetscStrstr(buff,"\"access_token\":\"",&access);CHKERRQ(ierr);
-    if (!access) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"Did not receive access token from Box");
-    access += 16;
-    ierr   = PetscStrchr(access,'\"',&ctmp);CHKERRQ(ierr);
-    if (!ctmp) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"Access token from Box is misformed");
-    *ctmp  = 0;
-    ierr   = PetscStrncpy(access_token,access,tokensize);CHKERRQ(ierr);
-    *ctmp  = '\"';
+    ierr   = PetscPullJSONValue(buff,"access_token",access_token,tokensize,&found);CHKERRQ(ierr);
+    if (!found) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"Box did not return access token");
+    ierr   = PetscPullJSONValue(buff,"refresh_token",new_refresh_token,tokensize,&found);CHKERRQ(ierr);
+    if (!found) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"Box did not return refresh token");
 
-    ierr   = PetscStrstr(buff,"\"refresh_token\":\"",&refresh);CHKERRQ(ierr);
-    if (!refresh) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"Did not receive refresh token from Box");
-    refresh += 17;
-    ierr   = PetscStrchr(refresh,'\"',&ctmp);CHKERRQ(ierr);
-    if (!ctmp) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"Refresh token from Box is misformed");
-    *ctmp  = 0;
-    ierr = PetscStrncpy(new_refresh_token,refresh,tokensize);CHKERRQ(ierr);
     ierr = PetscPrintf(comm,"Here is your new Box refresh token, save it in a save place, in the future you can run PETSc\n");CHKERRQ(ierr);
-    ierr = PetscPrintf(comm,"programs with the option -box_refresh_token %s\n",refresh);CHKERRQ(ierr);
+    ierr = PetscPrintf(comm,"programs with the option -box_refresh_token %s\n",new_refresh_token);CHKERRQ(ierr);
     ierr = PetscPrintf(comm,"to access Box Drive automatically\n");CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
@@ -291,16 +295,16 @@ PetscErrorCode PetscBoxUpload(MPI_Comm comm,const char access_token[],const char
     len = 1024 + sb.st_size;
     ierr = PetscMalloc1(len,&body);CHKERRQ(ierr);
     ierr = PetscStrcpy(body,"--foo_bar_baz\r\n"
-                         "Content-Type: application/json\r\n\r\n"
-                         "{"
-                         "\"title\": \"");
-    ierr = PetscStrcat(body,filename);
-    ierr = PetscStrcat(body,"\","
-                         "\"mimeType\": \"text.html\","
-                         "\"description\": \" a file\""
-                         "}\r\n\r\n"
-                         "--foo_bar_baz\r\n"
-                         "Content-Type: text/html\r\n\r\n");
+                            "Content-Type: application/json\r\n\r\n"
+                            "{");CHKERRQ(ierr);
+    ierr = PetscPushJSONValue(body,"title",filename,len);CHKERRQ(ierr);
+    ierr = PetscStrcat(body,",");CHKERRQ(ierr);
+    ierr = PetscPushJSONValue(body,"mimeType","text.html",len);CHKERRQ(ierr);
+    ierr = PetscStrcat(body,",");CHKERRQ(ierr);
+    ierr = PetscPushJSONValue(body,"description","a file",len);CHKERRQ(ierr);
+    ierr = PetscStrcat(body, "}\r\n\r\n"
+                             "--foo_bar_baz\r\n"
+                             "Content-Type: text/html\r\n\r\n");CHKERRQ(ierr);
     ierr = PetscStrlen(body,&blen);CHKERRQ(ierr);
     fd = fopen (filename, "r");
     if (!fd) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_FILE_OPEN,"Unable to open file: %s",filename);

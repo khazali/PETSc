@@ -25,7 +25,7 @@ static void sigpipe_handle(int x)
 
     If built with PETSC_USE_SSL_CERTIFICATE requires the user have created a self-signed certificate with
 
-$    ./CA.pl  -newcert  (using the passphrase of password)
+$    saws/CA.pl  -newcert  (using the passphrase of password)
 $    cat newkey.pem newcert.pem > sslclient.pem
 
     and put the resulting file in either the current directory (with the application) or in the home directory. This seems kind of
@@ -52,6 +52,7 @@ PetscErrorCode PetscSSLInitializeContext(SSL_CTX **octx)
     signal(SIGPIPE,sigpipe_handle);
 
     ctx  = SSL_CTX_new(SSLv23_method());
+    SSL_CTX_set_mode(ctx,SSL_MODE_AUTO_RETRY);
 
 #if defined(PETSC_USE_SSL_CERTIFICATE)
     /* Locate keyfile */
@@ -99,7 +100,8 @@ PetscErrorCode PetscHTTPBuildRequest(const char type[],const char url[],const ch
   ierr = PetscStrallocpy(url,&host);CHKERRQ(ierr);
   ierr = PetscStrchr(host,'/',&path);CHKERRQ(ierr);
   if (!path) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"url must contain / it is %s",url);
-  ierr = PetscStrlen(host,&hostlen);CHKERRQ(ierr);
+  *path = 0;
+  ierr  = PetscStrlen(host,&hostlen);CHKERRQ(ierr);
 
   ierr = PetscStrchr(url,'/',&path);CHKERRQ(ierr);
   ierr = PetscStrlen(path,&pathlen);CHKERRQ(ierr);
@@ -166,6 +168,7 @@ PetscErrorCode PetscHTTPSRequest(const char type[],const char url[],const char h
   int            r;
   size_t         request_len,len;
   PetscErrorCode ierr;
+  PetscBool      foundbody = PETSC_FALSE;
 
   PetscFunctionBegin;
   ierr = PetscHTTPBuildRequest(type,url,header,ctype,body,&request);CHKERRQ(ierr);
@@ -180,21 +183,48 @@ PetscErrorCode PetscHTTPSRequest(const char type[],const char url[],const char h
       SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"SSL socket write problem");
   }
 
-  /* Now read the server's response, assuming  that it's terminated by a close */
-  r = SSL_read(ssl,buff,(int)buffsize);
-  len = r;
-  switch (SSL_get_error(ssl,r)){
-  case SSL_ERROR_NONE:
-    break;
-  case SSL_ERROR_ZERO_RETURN:
-    SSL_shutdown(ssl);  /* ignore shutdown error message */
-    break;
-  case SSL_ERROR_SYSCALL:
-    break;
-  default:
-    SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"SSL read problem");
-  }
-  buff[len] = 0; /* null terminate string */
+  /* Now read the server's response, globus sends it in two chunks hence must read a second time if needed */
+  ierr      = PetscMemzero(buff,buffsize);CHKERRQ(ierr);
+  len       = 0;
+  foundbody = PETSC_FALSE;
+  do {
+    char   *clen;
+    int    cl;
+    size_t nlen;
+
+    r = SSL_read(ssl,buff+len,(int)buffsize);
+    len += r;
+    switch (SSL_get_error(ssl,r)){
+    case SSL_ERROR_NONE:
+      break;
+    case SSL_ERROR_ZERO_RETURN:
+      foundbody = PETSC_TRUE;
+      SSL_shutdown(ssl);
+      break;
+    case SSL_ERROR_SYSCALL:
+      foundbody = PETSC_TRUE;
+      break;
+    default:
+      SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"SSL read problem");
+    }
+
+    ierr = PetscStrstr(buff,"Content-Length: ",&clen);CHKERRQ(ierr);
+    if (clen) {
+      clen += 15;
+      sscanf(clen,"%d",&cl);
+      if (!cl) foundbody = PETSC_TRUE;
+      else {
+        ierr = PetscStrstr(buff,"\r\n\r\n",&clen);CHKERRQ(ierr);
+        if (clen) {
+          ierr = PetscStrlen(clen,&nlen);CHKERRQ(ierr);
+          if (nlen-4 == (size_t) cl) foundbody = PETSC_TRUE;
+        }
+      }
+    } else {
+      /* if no content length than must leave because you don't know if you can read again */
+      foundbody = PETSC_TRUE;
+    }
+  } while (!foundbody);
   ierr = PetscInfo1(NULL,"HTTPS result follows: \n%s\n",buff);CHKERRQ(ierr);
 
   SSL_free(ssl);
@@ -237,7 +267,6 @@ PetscErrorCode PetscHTTPRequest(const char type[],const char url[],const char he
   PetscFunctionReturn(0);
 }
 
-
 #undef __FUNCT__
 #define __FUNCT__ "PetscHTTPSConnect"
 PetscErrorCode PetscHTTPSConnect(const char host[],int port,SSL_CTX *ctx,int *sock,SSL **ssl)
@@ -257,3 +286,96 @@ PetscErrorCode PetscHTTPSConnect(const char host[],int port,SSL_CTX *ctx,int *so
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "PetscPullJSONValue"
+/*
+     Given a JSON response containing the substring with "key" : "value"  where there may or not be spaces around the : returns the value.
+*/
+PetscErrorCode PetscPullJSONValue(const char buff[],const char key[],char value[],size_t valuelen,PetscBool *found)
+{
+  PetscErrorCode ierr;
+  char           *v,*w;
+  char           work[256];
+  size_t         len;
+
+  PetscFunctionBegin;
+  ierr = PetscStrcpy(work,"\"");CHKERRQ(ierr);
+  ierr = PetscStrncat(work,key,250);CHKERRQ(ierr);
+  ierr = PetscStrcat(work,"\":");CHKERRQ(ierr);
+  ierr = PetscStrstr(buff,work,&v);CHKERRQ(ierr);
+  ierr = PetscStrlen(work,&len);CHKERRQ(ierr);
+  if (v) {
+    v += len;
+  } else {
+    work[len++-1] = 0;
+    ierr = PetscStrcat(work," :");CHKERRQ(ierr);
+    ierr = PetscStrstr(buff,work,&v);CHKERRQ(ierr);
+    if (!v) {
+      *found = PETSC_FALSE;
+      PetscFunctionReturn(0);
+    }
+    v += len;
+  }
+  ierr = PetscStrchr(v,'\"',&v);CHKERRQ(ierr);
+  if (!v) {
+    *found = PETSC_FALSE;
+    PetscFunctionReturn(0);
+  }
+  ierr = PetscStrchr(v+1,'\"',&w);CHKERRQ(ierr);
+  if (!w) {
+    *found = PETSC_FALSE;
+    PetscFunctionReturn(0);
+  }
+  *found = PETSC_TRUE;
+  ierr = PetscStrncpy(value,v+1,PetscMin(w-v,valuelen));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#include <ctype.h>
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscPushJSONValue"
+/*
+     Pushs a "key" : "value" pair onto a string
+
+     Ignores lengths so can cause buffer overflow
+*/
+PetscErrorCode PetscPushJSONValue(char buff[],const char key[],const char value[],size_t bufflen)
+{
+  PetscErrorCode ierr;
+  size_t         len;
+  PetscBool      special;
+
+  PetscFunctionBegin;
+  ierr = PetscStrcmp(value,"null",&special);CHKERRQ(ierr);
+  if (!special) {
+    ierr = PetscStrcmp(value,"true",&special);CHKERRQ(ierr);
+  }
+  if (!special) {
+    ierr = PetscStrcmp(value,"false",&special);CHKERRQ(ierr);
+  }
+  if (!special) {
+    PetscInt i;
+
+    ierr    = PetscStrlen(value,&len);CHKERRQ(ierr);
+    special = PETSC_TRUE;
+    for (i=0; i<(int)len; i++) {
+      if (!isdigit(value[i])) {
+        special = PETSC_FALSE;
+        break;
+      }
+    }
+  }
+
+  ierr = PetscStrcat(buff,"\"");CHKERRQ(ierr);
+  ierr = PetscStrcat(buff,key);CHKERRQ(ierr);
+  ierr = PetscStrcat(buff,"\":");CHKERRQ(ierr);
+  if (!special) {
+    ierr = PetscStrcat(buff,"\"");CHKERRQ(ierr);
+  }
+  ierr = PetscStrcat(buff,value);CHKERRQ(ierr);
+  if (!special) {
+    ierr = PetscStrcat(buff,"\"");CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
