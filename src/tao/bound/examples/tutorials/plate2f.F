@@ -146,7 +146,7 @@
 
       call TaoCreate(PETSC_COMM_WORLD,tao,ierr)
       CHKERRQ(ierr)
-      call TaoSetType(tao,'tao_blmvm',ierr)
+      call TaoSetType(tao,TAOBLMVM,ierr)
       CHKERRQ(ierr)
 
 !     Set minimization function and gradient, hessian evaluation functions
@@ -501,7 +501,7 @@
 !   Option (A) seems cleaner/easier in many cases, and is the procedure
 !   used in this example.
 
-      subroutine FormHessian(tao, X, Hessian, Hpc, flg, dummy, ierr)
+      subroutine FormHessian(tao, X, Hessian, Hpc, dummy, ierr)
       implicit none
 
 ! dm,Top,Left,Right,Bottom,mx,my,localX defined in plate2f.h
@@ -510,7 +510,6 @@
       Tao     tao
       Vec            X
       Mat            Hessian,Hpc
-      MatStructure   flg
       PetscInt       dummy
       PetscErrorCode ierr
 

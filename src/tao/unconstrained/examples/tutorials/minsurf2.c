@@ -27,7 +27,7 @@ The command line options are:\n\
    Routines: TaoSetHessianRoutine(); TaoSetFromOptions();
    Routines: TaoSetMonitor();
    Routines: TaoSolve(); TaoView();
-   Routines: TaoGetTerminationReason(); TaoDestroy();
+   Routines: TaoGetConvergedReason(); TaoDestroy();
    Processors: n
 T*/
 
@@ -51,23 +51,23 @@ static PetscErrorCode MSA_InitialPoint(AppCtx*,Vec);
 PetscErrorCode QuadraticH(AppCtx*,Vec,Mat);
 PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal *,Vec,void*);
 PetscErrorCode FormGradient(Tao,Vec,Vec,void*);
-PetscErrorCode FormHessian(Tao,Vec,Mat*,Mat*,MatStructure *,void*);
+PetscErrorCode FormHessian(Tao,Vec,Mat,Mat,void*);
 PetscErrorCode My_Monitor(Tao, void *);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
 int main( int argc, char **argv )
 {
-  PetscErrorCode       ierr;                /* used to check for functions returning nonzeros */
-  PetscInt             Nx, Ny;              /* number of processors in x- and y- directions */
-  Vec                  x;                   /* solution, gradient vectors */
-  PetscBool            flg, viewmat;        /* flags */
-  PetscBool            fddefault, fdcoloring;   /* flags */
-  TaoTerminationReason reason;
-  Tao                  tao;                 /* TAO solver context */
-  AppCtx               user;                /* user-defined work context */
-  ISColoring           iscoloring;
-  MatFDColoring        matfdcoloring;
+  PetscErrorCode     ierr;                /* used to check for functions returning nonzeros */
+  PetscInt           Nx, Ny;              /* number of processors in x- and y- directions */
+  Vec                x;                   /* solution, gradient vectors */
+  PetscBool          flg, viewmat;        /* flags */
+  PetscBool          fddefault, fdcoloring;   /* flags */
+  TaoConvergedReason reason;
+  Tao                tao;                 /* TAO solver context */
+  AppCtx             user;                /* user-defined work context */
+  ISColoring         iscoloring;
+  MatFDColoring      matfdcoloring;
 
   /* Initialize TAO */
   PetscInitialize( &argc, &argv,(char *)0,help );
@@ -92,7 +92,7 @@ int main( int argc, char **argv )
 
   /* Create TAO solver and set desired solution method.*/
   ierr = TaoCreate(PETSC_COMM_WORLD,&tao);CHKERRQ(ierr);
-  ierr = TaoSetType(tao,"tao_cg");CHKERRQ(ierr);
+  ierr = TaoSetType(tao,TAOCG);CHKERRQ(ierr);
 
   /*
      Extract global vector from DA for the vector of variables --  PETSC routine
@@ -167,7 +167,7 @@ int main( int argc, char **argv )
   ierr = TaoView(tao,PETSC_VIEWER_STDOUT_WORLD);
 
   /* Get information on termination */
-  ierr = TaoGetTerminationReason(tao,&reason);CHKERRQ(ierr);
+  ierr = TaoGetConvergedReason(tao,&reason);CHKERRQ(ierr);
   if (reason <= 0 ){
       ierr = PetscPrintf(MPI_COMM_WORLD,"Try a different TAO method \n");CHKERRQ(ierr);
   }
@@ -411,20 +411,14 @@ PetscErrorCode FormFunctionGradient(Tao tao, Vec X, PetscReal *fcn,Vec G,void *u
 .  flg  - flag indicating matrix structure
 
 */
-PetscErrorCode FormHessian(Tao tao,Vec X,Mat *H, Mat *Hpre, MatStructure *flg, void *ptr)
+PetscErrorCode FormHessian(Tao tao,Vec X,Mat H, Mat Hpre, void *ptr)
 {
   PetscErrorCode ierr;
   AppCtx         *user = (AppCtx *) ptr;
 
   PetscFunctionBegin;
   /* Evaluate the Hessian entries*/
-  ierr = QuadraticH(user,X,*H);CHKERRQ(ierr);
-
-
-  /* Indicate that this matrix has the same sparsity pattern during
-     successive iterations; setting this flag can save significant work
-     in computing the preconditioner for some methods. */
-  *flg=SAME_NONZERO_PATTERN;
+  ierr = QuadraticH(user,X,H);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

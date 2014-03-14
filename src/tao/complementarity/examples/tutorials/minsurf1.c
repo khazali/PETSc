@@ -41,7 +41,7 @@ typedef struct {
 static PetscErrorCode MSA_BoundaryConditions(AppCtx *);
 static PetscErrorCode MSA_InitialPoint(AppCtx *, Vec);
 PetscErrorCode FormConstraints(Tao, Vec, Vec, void *);
-PetscErrorCode FormJacobian(Tao, Vec, Mat *, Mat*, MatStructure*,void *);
+PetscErrorCode FormJacobian(Tao, Vec, Mat, Mat, void *);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -84,7 +84,7 @@ int main(int argc, char **argv)
 
   /* Create TAO solver and set desired solution method */
   ierr = TaoCreate(PETSC_COMM_SELF,&tao);CHKERRQ(ierr);
-  ierr = TaoSetType(tao,"tao_ssils");CHKERRQ(ierr);
+  ierr = TaoSetType(tao,TAOSSILS);CHKERRQ(ierr);
 
   /* Set data structure */
   ierr = TaoSetInitialVector(tao, x);CHKERRQ(ierr);
@@ -274,10 +274,9 @@ PetscErrorCode FormConstraints(Tao tao, Vec X, Vec G, void *ptr)
 .  tH    - Jacobian matrix
 
 */
-PetscErrorCode FormJacobian(Tao tao, Vec X, Mat *tH, Mat* tHPre, MatStructure* flag, void *ptr)
+PetscErrorCode FormJacobian(Tao tao, Vec X, Mat H, Mat tHPre, void *ptr)
 {
   AppCtx         *user = (AppCtx *) ptr;
-  Mat            H = *tH;
   PetscErrorCode ierr;
   PetscInt       i,j,k,row;
   PetscInt       mx=user->mx, my=user->my;
@@ -292,7 +291,6 @@ PetscErrorCode FormJacobian(Tao tao, Vec X, Mat *tH, Mat* tHPre, MatStructure* f
   ierr = MatSetOption(H,MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr);
   ierr = MatAssembled(H,&assembled);CHKERRQ(ierr);
   if (assembled){ierr = MatZeroEntries(H); CHKERRQ(ierr);}
-  *flag=SAME_NONZERO_PATTERN;
 
   /* Get pointers to vector data */
   ierr = VecGetArray(X, &x);CHKERRQ(ierr);

@@ -283,7 +283,7 @@ is undefined at that point or an error occurred.
 Some optimization routines also require a Hessian matrix from the user.
 The routine that evaluates the Hessian should have the form 
 \begin{verbatim}
-   PetscErrorCode EvaluateHessian(Tao,Vec,Mat*,Mat*,MatStructure*,
+   PetscErrorCode EvaluateHessian(Tao,Vec,Mat,Mat,MatStructure*,
                      void*);
 \end{verbatim}
 where the first argument of this routine is a TAO solver object.  The
@@ -303,8 +303,8 @@ One can set the Hessian evaluation routine by calling the \sindex{Hessian}
 \findex{TaoSetHessianRoutine()}
 \begin{verbatim}
    TaoSetHessianRoutine(Tao,Mat H, Mat Hpre,
-                     PetscErrorCode (*)(Tao,Vec,Mat*,Mat*,
-                     MatStructure*,void*), void *);
+                     PetscErrorCode (*)(Tao,Vec,Mat,Mat,
+                     void*), void *);
 \end{verbatim}
 routine. 
 The first argument is the TAO Solver object. The second and third arguments
@@ -496,13 +496,13 @@ can be retrieved with the follwing command.
 \begin{verbatim}
    TaoGetSolutionStatus(Tao tao, PetscInt *iterate, PetscReal *f,
                      PetscReal *gnorm, PetscReal *cnorm, PetscReal *xdiff,
-                     TaoTerminationReason *reason)
+                     TaoConvergedReason *reason)
 \end{verbatim}
 The last argument returns a code that indicates the reason that the solver 
 terminated.  Positive 
 numbers indicate that a solution has been found, while negative numbers
 indicate a failure.  A list of reasons can be found in the manual page
-for {\tt Tao\-Get\-Termination\-Reason()}.
+for {\tt Tao\-Get\-Converged\-Reason()}.
 
 \subsection{Obtaining a Solution}
 
@@ -600,7 +600,7 @@ column contains the partial derivatives of $c(x)$ with respect to one
 variable.  The evaluation of the Jacobian of $c$ should be performed 
 by calling the 
 \begin{verbatim}
-   PetscErrorCode JacobianState(Tao,Vec,Mat*,Mat*,Mat*,
+   PetscErrorCode JacobianState(Tao,Vec,Mat,Mat,Mat,
                      MatStructure*, void*);
    PetscErrorCode JacobianDesign(Tao,Vec,Mat*,void*);
 \end{verbatim}
@@ -621,8 +621,8 @@ registered
 with TAO by using the 
 \begin{verbatim}
    TaoSetJacobianStateRoutine(Tao,Mat,Mat,Mat,
-                     PetscErrorCode (*)(Tao,Vec,Mat*,Mat*,
-                     MatStructure*,void*), void*);
+                     PetscErrorCode (*)(Tao,Vec,Mat,Mat,
+                     void*), void*);
    TaoSetJacobianDesignRoutine(Tao,Mat,
                      PetscErrorCode (*)(Tao,Vec,Mat*,void*), 
                      void*);
@@ -671,14 +671,14 @@ routine.
 The computation of the Jacobian of the separable objective routine 
 should be in a routine that looks like
 \begin{verbatim}
-   PetscErrorCode EvaluateJacobian(Tao,Vec,Mat*,Mat*,MatStructure*,
+   PetscErrorCode EvaluateJacobian(Tao,Vec,Mat,Mat,MatStructure*,
                      void*);
 \end{verbatim}
 This function can be registered with TAO by using the function
 \begin{verbatim}
    TaoSetJacobianRoutine(Tao,Mat J, Mat Jpre,
-                     PetscErrorCode (*)(Tao,Vec,Mat*,Mat*,
-                     MatStructure*,void*), void *);
+                     PetscErrorCode (*)(Tao,Vec,Mat,Mat,
+                     void*), void *);
 \end{verbatim}
 The first argument is the TAO solver object, the second and third arguments
 are the Mat object where the Jacobian will be stored and the Mat object
@@ -730,7 +730,7 @@ to one variable.
 The evaluation of the Jacobian of $C$ should be performed in a routine
 of the form
 \begin{verbatim}
-   PetscErrorCode EvaluateJacobian(Tao,Vec,Mat*,Mat*,MatStructure*,
+   PetscErrorCode EvaluateJacobian(Tao,Vec,Mat,Mat,MatStructure*,
                      void*);
 \end{verbatim}
 \noindent
@@ -749,8 +749,8 @@ This routine should be specified to TAO by using the
 \findex{TaoAppSetJacobianRoutine()}
 \begin{verbatim}
    TaoSetJacobianRoutine(Tao,Mat J, Mat Jpre,
-                     PetscErrorCode (*)(Tao,Vec,Mat*,Mat*, 
-                     MatStructure*,void*), void*);
+                     PetscErrorCode (*)(Tao,Vec,Mat,Mat, 
+                     void*), void*);
 \end{verbatim}
 \noindent
 command.

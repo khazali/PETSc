@@ -130,7 +130,7 @@
 #endif
 
 /*MC
-    PetscErrorCode - datatype used for return error code from all PETSc functions
+    PetscErrorCode - datatype used for return error code from almost all PETSc functions
 
     Level: beginner
 
@@ -141,11 +141,14 @@ typedef int PetscErrorCode;
 /*MC
 
     PetscClassId - A unique id used to identify each PETSc class.
-         (internal integer in the data structure used for error
-         checking). These are all computed by an offset from the lowest
-         one, PETSC_SMALLEST_CLASSID.
 
-    Level: advanced
+    Notes: Use PetscClassIdRegister() to obtain a new value for a new class being created. Usually
+         XXXInitializePackage() calls it for each class it defines.
+
+    Developer Notes: Internal integer stored in the _p_PetscObject data structure.
+         These are all computed by an offset from the lowest one, PETSC_SMALLEST_CLASSID.
+
+    Level: developer
 
 .seealso: PetscClassIdRegister(), PetscLogEventRegister(), PetscHeaderCreate()
 M*/
@@ -210,6 +213,11 @@ typedef Petsc64bitInt PetscInt;
 #else
 typedef int PetscInt;
 #define MPIU_INT MPI_INT
+#endif
+#if defined(PETSC_HAVE_MPI_INT64_T)
+#  define MPIU_INT64 MPI_INT64_T
+#else
+#  define MPIU_INT64 MPI_LONG_LONG_INT
 #endif
 
 
@@ -516,17 +524,17 @@ PETSC_EXTERN PetscErrorCode PetscCommDestroy(MPI_Comm*);
 
    Level: beginner
 
-   Notes: Memory is always allocated at least double aligned
+   Notes:
+   Memory is always allocated at least double aligned
 
-          If you request memory of zero size it will allocate no space and assign the pointer to 0; PetscFree() will
-          properly handle not freeing the null pointer.
+   It is safe to allocate size 0 and pass the resulting pointer (which may or may not be NULL) to PetscFree().
 
 .seealso: PetscFree(), PetscNew()
 
   Concepts: memory allocation
 
 M*/
-#define PetscMalloc(a,b)  ((a != 0) ? (*PetscTrMalloc)((a),__LINE__,PETSC_FUNCTION_NAME,__FILE__,(void**)(b)) : (*(b) = 0,0) )
+#define PetscMalloc(a,b)  ((*PetscTrMalloc)((a),__LINE__,PETSC_FUNCTION_NAME,__FILE__,(void**)(b)))
 
 /*MC
    PetscAddrAlign - Rounds up an address to PETSC_MEMALIGN alignment
@@ -1079,14 +1087,16 @@ M*/
 
    Level: beginner
 
-   Notes: Memory must have been obtained with PetscNew() or PetscMalloc()
+   Notes:
+   Memory must have been obtained with PetscNew() or PetscMalloc().
+   It is safe to call PetscFree() on a NULL pointer.
 
 .seealso: PetscNew(), PetscMalloc(), PetscFreeVoid()
 
   Concepts: memory allocation
 
 M*/
-#define PetscFree(a)   ((a) && ((*PetscTrFree)((void*)(a),__LINE__,PETSC_FUNCTION_NAME,__FILE__) || ((a) = 0,0)))
+#define PetscFree(a)   ((*PetscTrFree)((void*)(a),__LINE__,PETSC_FUNCTION_NAME,__FILE__) || ((a) = 0,0))
 
 /*MC
    PetscFreeVoid - Frees memory

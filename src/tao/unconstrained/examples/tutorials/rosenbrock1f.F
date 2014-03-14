@@ -15,7 +15,7 @@
 !  Routines: TaoSetInitialVector();
 !  Routines: TaoSetFromOptions();
 !  Routines: TaoSolve();
-!  Routines: TaoGetTerminationReason(); TaoDestroy();
+!  Routines: TaoGetConvergedReason(); TaoDestroy();
 !  Processors: 1
 !T*/
 !
@@ -40,7 +40,7 @@
       PetscInt         i2,i1
       integer          size,rank    ! number of processes running
       PetscReal      zero
-      TaoTerminationReason reason
+      TaoConvergedReason reason
 
 
 
@@ -92,7 +92,7 @@
 !  Create TAO solver
       call TaoCreate(PETSC_COMM_SELF,tao,ierr)
       CHKERRQ(ierr)
-      call TaoSetType(tao,"tao_lmvm",ierr)
+      call TaoSetType(tao,TAOLMVM,ierr)
       CHKERRQ(ierr)
 
 !  Set routines for function, gradient, and hessian evaluation
@@ -117,7 +117,7 @@
 !  SOLVE THE APPLICATION
       call TaoSolve(tao,ierr)
 
-      call TaoGetTerminationReason(tao, reason, ierr)
+      call TaoGetConvergedReason(tao, reason, ierr)
       if (reason .le. 0) then
          print *,'Try a different TAO method, adjust some parameters,'
          print *,'or check the function evaluation routines.'
@@ -224,7 +224,7 @@
 !  Note: Providing the Hessian may not be necessary.  Only some solvers
 !  require this matrix.
 
-      subroutine FormHessian(tao,X,H,PrecH,flag,dummy,ierr)
+      subroutine FormHessian(tao,X,H,PrecH,dummy,ierr)
       implicit none
 
 #include "rosenbrock1f.h"
@@ -233,7 +233,6 @@
       Tao        tao
       Vec              X
       Mat              H, PrecH
-      MatStructure     flag
       PetscErrorCode   ierr
       PetscInt         dummy
 
@@ -285,24 +284,6 @@
       call MatAssemblyEnd(H,MAT_FINAL_ASSEMBLY,ierr)
 
       call PetscLogFlops(nn*9.0d0,ierr)
-
-!  Set flag to indicate that the Hessian matrix retains an identical
-!  nonzero structure throughout all nonlinear iterations (although the
-!  values of the entries change). Thus, we can save some work in setting
-!  up the preconditioner (e.g., no need to redo symbolic factorization for
-!  ICC preconditioners).
-!   - If the nonzero structure of the matrix is different during
-!     successive linear solves, then the flag DIFFERENT_NONZERO_PATTERN
-!     must be used instead.  If you are unsure whether the matrix
-!     structure has changed or not, use the flag DIFFERENT_NONZERO_PATTERN.
-!   - Caution:  If you specify SAME_NONZERO_PATTERN, the software
-!     believes your assertion and does not check the structure
-!     of the matrix.  If you erroneously claim that the structure
-!     is the same when it actually is not, the new preconditioner
-!     will not function correctly.  Thus, use this optimization
-!     feature with caution!
-
-      flag = SAME_NONZERO_PATTERN
 
       return
       end

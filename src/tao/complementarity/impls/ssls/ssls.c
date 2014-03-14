@@ -24,8 +24,6 @@ PetscErrorCode TaoSetFromOptions_SSLS(Tao tao)
 #define __FUNCT__ "TaoView_SSLS"
 PetscErrorCode TaoView_SSLS(Tao tao, PetscViewer pv)
 {
-  /*PetscErrorCode ierr; */
-
   PetscFunctionBegin;
   PetscFunctionReturn(0);
 }
@@ -35,12 +33,11 @@ PetscErrorCode TaoView_SSLS(Tao tao, PetscViewer pv)
 #define __FUNCT__ "Tao_SSLS_Function"
 PetscErrorCode Tao_SSLS_Function(TaoLineSearch ls, Vec X, PetscReal *fcn, void *ptr)
 {
-  Tao tao = (Tao)ptr;
-  TAO_SSLS *ssls = (TAO_SSLS *)tao->data;
+  Tao            tao = (Tao)ptr;
+  TAO_SSLS       *ssls = (TAO_SSLS *)tao->data;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-
   ierr = TaoComputeConstraints(tao, X, tao->constraints);CHKERRQ(ierr);
   ierr = VecFischer(X,tao->constraints,tao->XL,tao->XU,ssls->ff);CHKERRQ(ierr);
   ierr = VecNorm(ssls->ff,NORM_2,&ssls->merit);CHKERRQ(ierr);
@@ -53,24 +50,22 @@ PetscErrorCode Tao_SSLS_Function(TaoLineSearch ls, Vec X, PetscReal *fcn, void *
 #define __FUNCT__ "Tao_SSLS_FunctionGradient"
 PetscErrorCode Tao_SSLS_FunctionGradient(TaoLineSearch ls, Vec X, PetscReal *fcn,  Vec G, void *ptr)
 {
-  Tao tao = (Tao)ptr;
-  TAO_SSLS *ssls = (TAO_SSLS *)tao->data;
+  Tao            tao = (Tao)ptr;
+  TAO_SSLS       *ssls = (TAO_SSLS *)tao->data;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-
   ierr = TaoComputeConstraints(tao, X, tao->constraints);CHKERRQ(ierr);
   ierr = VecFischer(X,tao->constraints,tao->XL,tao->XU,ssls->ff);CHKERRQ(ierr);
   ierr = VecNorm(ssls->ff,NORM_2,&ssls->merit);CHKERRQ(ierr);
   *fcn = 0.5*ssls->merit*ssls->merit;
 
-  ierr = TaoComputeJacobian(tao, tao->solution, &tao->jacobian, &tao->jacobian_pre, &ssls->matflag);CHKERRQ(ierr);
+  ierr = TaoComputeJacobian(tao,tao->solution,tao->jacobian,tao->jacobian_pre);CHKERRQ(ierr);
 
-  ierr = D_Fischer(tao->jacobian, tao->solution, tao->constraints,tao->XL, tao->XU, ssls->t1, ssls->t2,ssls->da, ssls->db);CHKERRQ(ierr);
+  ierr = MatDFischer(tao->jacobian, tao->solution, tao->constraints,tao->XL, tao->XU, ssls->t1, ssls->t2,ssls->da, ssls->db);CHKERRQ(ierr);
   ierr = MatDiagonalScale(tao->jacobian,ssls->db,NULL);CHKERRQ(ierr);
   ierr = MatDiagonalSet(tao->jacobian,ssls->da,ADD_VALUES);CHKERRQ(ierr);
   ierr = MatMultTranspose(tao->jacobian,ssls->ff,G);CHKERRQ(ierr);
-
   PetscFunctionReturn(0);
 }
 

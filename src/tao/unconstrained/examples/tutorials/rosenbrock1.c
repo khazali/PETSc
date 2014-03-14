@@ -16,7 +16,7 @@ minimize the extended Rosenbrock function: \n\
    Routines: TaoSetInitialVector();
    Routines: TaoSetFromOptions();
    Routines: TaoSolve();
-   Routines: TaoGetTerminationReason(); TaoDestroy();
+   Routines: TaoGetConvergedReason(); TaoDestroy();
    Processors: 1
 T*/
 
@@ -33,21 +33,21 @@ typedef struct {
 
 /* -------------- User-defined routines ---------- */
 PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
-PetscErrorCode FormHessian(Tao,Vec,Mat*,Mat*,MatStructure*,void*);
+PetscErrorCode FormHessian(Tao,Vec,Mat,Mat,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc,char **argv)
 {
-  PetscErrorCode       ierr;                  /* used to check for functions returning nonzeros */
-  PetscReal            zero=0.0;
-  Vec                  x;                     /* solution vector */
-  Mat                  H;
-  Tao                  tao;                   /* Tao solver context */
-  PetscBool            flg;
-  PetscMPIInt          size,rank;                  /* number of processes running */
-  TaoTerminationReason reason;
-  AppCtx               user;                  /* user-defined application context */
+  PetscErrorCode     ierr;                  /* used to check for functions returning nonzeros */
+  PetscReal          zero=0.0;
+  Vec                x;                     /* solution vector */
+  Mat                H;
+  Tao                tao;                   /* Tao solver context */
+  PetscBool          flg;
+  PetscMPIInt        size,rank;                  /* number of processes running */
+  TaoConvergedReason reason;
+  AppCtx             user;                  /* user-defined application context */
 
   /* Initialize TAO and PETSc */
   PetscInitialize(&argc,&argv,(char*)0,help);
@@ -69,7 +69,7 @@ int main(int argc,char **argv)
 
   /* Create TAO solver with desired solution method */
   ierr = TaoCreate(PETSC_COMM_SELF,&tao);CHKERRQ(ierr);
-  ierr = TaoSetType(tao,"tao_lmvm");CHKERRQ(ierr);
+  ierr = TaoSetType(tao,TAOLMVM);CHKERRQ(ierr);
 
   /* Set solution vec and an initial guess */
   ierr = VecSet(x, zero);CHKERRQ(ierr);
@@ -86,7 +86,7 @@ int main(int argc,char **argv)
   ierr = TaoSolve(tao);CHKERRQ(ierr);
 
   /* Get termination information */
-  ierr = TaoGetTerminationReason(tao,&reason);CHKERRQ(ierr);
+  ierr = TaoGetConvergedReason(tao,&reason);CHKERRQ(ierr);
   if (reason <= 0) {
     ierr = PetscPrintf(MPI_COMM_WORLD,"Try a different TAO type, adjust some parameters, or check the function evaluation routines\n");CHKERRQ(ierr);
   }
@@ -164,14 +164,13 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec X,PetscReal *f, Vec G,void *ptr)
    Note:  Providing the Hessian may not be necessary.  Only some solvers
    require this matrix.
 */
-PetscErrorCode FormHessian(Tao tao,Vec X,Mat *HH, Mat *Hpre, MatStructure *flag,void *ptr)
+PetscErrorCode FormHessian(Tao tao,Vec X,Mat H, Mat Hpre, void *ptr)
 {
   AppCtx         *user = (AppCtx*)ptr;
   PetscErrorCode ierr;
   PetscInt       i, nn=user->n/2, ind[2];
   PetscReal      alpha=user->alpha;
   PetscReal      v[2][2],*x;
-  Mat            H=*HH;
   PetscBool      assembled;
 
   /* Zero existing matrix entries */
@@ -194,8 +193,6 @@ PetscErrorCode FormHessian(Tao tao,Vec X,Mat *HH, Mat *Hpre, MatStructure *flag,
   /* Assemble matrix */
   ierr = MatAssemblyBegin(H,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(H,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  *flag=SAME_NONZERO_PATTERN;
-
   ierr = PetscLogFlops(nn*9);CHKERRQ(ierr);
   return 0;
 }

@@ -45,7 +45,7 @@ static PetscErrorCode Fsnes(SNES snes ,Vec X,Vec G,void*ctx)
    to take advantage of sparsity in the problem.  Although
    TaoAppDefaultComputeGradient is not recommended for general use
    in large-scale applications, It can be useful in checking the
-   correctness of a user-provided gradient.  Use the tao method "tao_fd_test"
+   correctness of a user-provided gradient.  Use the tao method TAOTEST
    to get an indication of whether your gradient is correct.
 
 
@@ -71,19 +71,24 @@ PetscErrorCode TaoDefaultComputeGradient(Tao tao,Vec X,Vec G,void *dummy)
   ierr = VecGetOwnershipRange(X,&low,&high);CHKERRQ(ierr);
   ierr = VecGetArray(G,&g);CHKERRQ(ierr);
   for (i=0;i<N;i++) {
-      ierr = VecSetValue(X,i,h,ADD_VALUES);CHKERRQ(ierr);
-      ierr = VecAssemblyBegin(X);CHKERRQ(ierr);
-      ierr = VecAssemblyEnd(X);CHKERRQ(ierr);
+    if (i>=low && i<high) {
+      PetscScalar *xx;
+      ierr = VecGetArray(X,&xx);CHKERRQ(ierr);
+      xx[i-low] += h;
+      ierr = VecRestoreArray(X,&xx);CHKERRQ(ierr);
+    }
 
-      ierr = TaoComputeObjective(tao,X,&f2);CHKERRQ(ierr);
+    ierr = TaoComputeObjective(tao,X,&f2);CHKERRQ(ierr);
 
-      ierr = VecSetValue(X,i,-h,ADD_VALUES);
-      ierr = VecAssemblyBegin(X);CHKERRQ(ierr);
-      ierr = VecAssemblyEnd(X);CHKERRQ(ierr);
-
-      if (i>=low && i<high) {
-          g[i-low]=(f2-f)/h;
-      }
+    if (i>=low && i<high) {
+      PetscScalar *xx;
+      ierr = VecGetArray(X,&xx);CHKERRQ(ierr);
+      xx[i-low] -= h;
+      ierr = VecRestoreArray(X,&xx);CHKERRQ(ierr);
+    }
+    if (i>=low && i<high) {
+      g[i-low]=(f2-f)/h;
+    }
   }
   ierr = VecRestoreArray(G,&g);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -124,7 +129,8 @@ PetscErrorCode TaoDefaultComputeGradient(Tao tao,Vec X,Vec G,void *dummy)
 .seealso: TaoSetHessianRoutine(), TaoDefaultComputeHessianColor(), SNESComputeJacobianDefault(), TaoSetGradientRoutine(), TaoDefaultComputeGradient()
 
 @*/
-PetscErrorCode TaoDefaultComputeHessian(Tao tao,Vec V,Mat *H,Mat *B,MatStructure *flag,void *dummy){
+PetscErrorCode TaoDefaultComputeHessian(Tao tao,Vec V,Mat H,Mat B,void *dummy)
+{
   PetscErrorCode       ierr;
   MPI_Comm             comm;
   Vec                  G;
@@ -138,11 +144,11 @@ PetscErrorCode TaoDefaultComputeHessian(Tao tao,Vec V,Mat *H,Mat *B,MatStructure
 
   ierr = TaoComputeGradient(tao,V,G);CHKERRQ(ierr);
 
-  ierr = PetscObjectGetComm((PetscObject)(*H),&comm);CHKERRQ(ierr);
+  ierr = PetscObjectGetComm((PetscObject)H,&comm);CHKERRQ(ierr);
   ierr = SNESCreate(comm,&snes);CHKERRQ(ierr);
 
   ierr = SNESSetFunction(snes,G,Fsnes,tao);CHKERRQ(ierr);
-  ierr = SNESComputeJacobianDefault(snes,V,H,B,flag,tao);CHKERRQ(ierr);
+  ierr = SNESComputeJacobianDefault(snes,V,H,B,tao);CHKERRQ(ierr);
   ierr = SNESDestroy(&snes);CHKERRQ(ierr);
   ierr = VecDestroy(&G);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -171,21 +177,18 @@ PetscErrorCode TaoDefaultComputeHessian(Tao tao,Vec V,Mat *H,Mat *B,MatStructure
 .seealso: TaoSetHessianRoutine(), TaoDefaultComputeHessian(),SNESComputeJacobianDefaultColor(), TaoSetGradientRoutine()
 
 @*/
-PetscErrorCode TaoDefaultComputeHessianColor(Tao tao, Vec V, Mat *H,Mat *B,MatStructure *flag,void *ctx)
+PetscErrorCode TaoDefaultComputeHessianColor(Tao tao, Vec V, Mat H,Mat B,void *ctx)
 {
   PetscErrorCode      ierr;
   MatFDColoring       coloring = (MatFDColoring)ctx;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ctx,MAT_FDCOLORING_CLASSID,6);
-  *flag = SAME_NONZERO_PATTERN;
-
   ierr=PetscInfo(tao,"TAO computing matrix using finite differences Hessian and coloring\n");CHKERRQ(ierr);
-  ierr = MatFDColoringApply(*B,coloring,V,flag,ctx);CHKERRQ(ierr);
-
-  if (*H != *B) {
-      ierr = MatAssemblyBegin(*H, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-      ierr = MatAssemblyEnd(*H, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatFDColoringApply(B,coloring,V,ctx);CHKERRQ(ierr);
+  if (H != B) {
+    ierr = MatAssemblyBegin(H, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(H, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }

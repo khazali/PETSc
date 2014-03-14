@@ -72,26 +72,24 @@ static PetscErrorCode MatLMVMSolveShell(PC pc, Vec xin, Vec xout);
 #define __FUNCT__ "TaoSolve_NTR"
 static PetscErrorCode TaoSolve_NTR(Tao tao)
 {
-  TAO_NTR                    *tr = (TAO_NTR *)tao->data;
-  PC                         pc;
-  KSPConvergedReason         ksp_reason;
-  TaoTerminationReason reason;
-  MatStructure               matflag;
-  PetscReal                  fmin, ftrial, prered, actred, kappa, sigma, beta;
-  PetscReal                  tau, tau_1, tau_2, tau_max, tau_min, max_radius;
-  PetscReal                  f, gnorm;
+  TAO_NTR            *tr = (TAO_NTR *)tao->data;
+  PC                 pc;
+  KSPConvergedReason ksp_reason;
+  TaoConvergedReason reason;
+  PetscReal          fmin, ftrial, prered, actred, kappa, sigma, beta;
+  PetscReal          tau, tau_1, tau_2, tau_max, tau_min, max_radius;
+  PetscReal          f, gnorm;
 
-  PetscReal                  delta;
-  PetscReal                  norm_d;
-  PetscErrorCode             ierr;
+  PetscReal          delta;
+  PetscReal          norm_d;
+  PetscErrorCode     ierr;
+  PetscInt           iter = 0;
+  PetscInt           bfgsUpdates = 0;
+  PetscInt           needH;
 
-  PetscInt                   iter = 0;
-  PetscInt                   bfgsUpdates = 0;
-  PetscInt                   needH;
-
-  PetscInt                   i_max = 5;
-  PetscInt                   j_max = 1;
-  PetscInt                   i, j, N, n, its;
+  PetscInt           i_max = 5;
+  PetscInt           j_max = 1;
+  PetscInt           i, j, N, n, its;
 
   PetscFunctionBegin;
   if (tao->XL || tao->XU || tao->ops->computebounds) {
@@ -200,7 +198,7 @@ static PetscErrorCode TaoSolve_NTR(Tao tao)
       sigma = 0.0;
 
       if (needH) {
-          ierr = TaoComputeHessian(tao, tao->solution, &tao->hessian, &tao->hessian_pre, &matflag);CHKERRQ(ierr);
+        ierr = TaoComputeHessian(tao,tao->solution,tao->hessian,tao->hessian_pre);CHKERRQ(ierr);
         needH = 0;
       }
 
@@ -340,7 +338,7 @@ static PetscErrorCode TaoSolve_NTR(Tao tao)
 
     /* Compute the Hessian */
     if (needH) {
-      ierr = TaoComputeHessian(tao, tao->solution, &tao->hessian, &tao->hessian_pre, &matflag);CHKERRQ(ierr);
+      ierr = TaoComputeHessian(tao,tao->solution,tao->hessian,tao->hessian_pre);CHKERRQ(ierr);
       needH = 0;
     }
 
@@ -359,7 +357,7 @@ static PetscErrorCode TaoSolve_NTR(Tao tao)
     }
 
     while (reason == TAO_CONTINUE_ITERATING) {
-      ierr = KSPSetOperators(tao->ksp, tao->hessian, tao->hessian_pre, matflag);CHKERRQ(ierr);
+      ierr = KSPSetOperators(tao->ksp, tao->hessian, tao->hessian_pre);CHKERRQ(ierr);
 
       /* Solve the trust region subproblem */
       if (NTR_KSP_NASH == tr->ksp_type) {

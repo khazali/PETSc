@@ -21,7 +21,7 @@ The command line options are:\n\
    Routines: TaoSetObjectiveAndGradientRoutine();
    Routines: TaoSetHessianRoutine(); TaoSetFromOptions();
    Routines: TaoGetKSP(); TaoSolve();
-   Routines: TaoGetTerminationReason(); TaoDestroy();
+   Routines: TaoGetConvergedReason(); TaoDestroy();
    Processors: 1
 T*/
 
@@ -42,21 +42,21 @@ static PetscErrorCode MSA_BoundaryConditions(AppCtx*);
 static PetscErrorCode MSA_InitialPoint(AppCtx*,Vec);
 static PetscErrorCode QuadraticH(AppCtx*,Vec,Mat);
 PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
-PetscErrorCode FormHessian(Tao,Vec,Mat*,Mat*,MatStructure *,void*);
+PetscErrorCode FormHessian(Tao,Vec,Mat,Mat,void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
 int main( int argc, char **argv )
 {
-  PetscErrorCode       ierr;              /* used to check for functions returning nonzeros */
-  PetscInt             N;                 /* Size of vector */
-  PetscMPIInt          size;              /* Number of processors */
-  Vec                  x;                 /* solution, gradient vectors */
-  KSP                  ksp;               /*  PETSc Krylov subspace method */
-  PetscBool            flg;               /* A return value when checking for user options */
-  TaoTerminationReason reason;
-  Tao                  tao;               /* Tao solver context */
-  AppCtx               user;              /* user-defined work context */
+  PetscErrorCode     ierr;              /* used to check for functions returning nonzeros */
+  PetscInt           N;                 /* Size of vector */
+  PetscMPIInt        size;              /* Number of processors */
+  Vec                x;                 /* solution, gradient vectors */
+  KSP                ksp;               /*  PETSc Krylov subspace method */
+  PetscBool          flg;               /* A return value when checking for user options */
+  TaoConvergedReason reason;
+  Tao                tao;               /* Tao solver context */
+  AppCtx             user;              /* user-defined work context */
 
   /* Initialize TAO,PETSc */
   PetscInitialize( &argc, &argv,(char *)0,help );
@@ -79,7 +79,7 @@ int main( int argc, char **argv )
 
   /* Create TAO solver and set desired solution method  */
   ierr = TaoCreate(PETSC_COMM_SELF,&tao);CHKERRQ(ierr);
-  ierr = TaoSetType(tao,"tao_lmvm");CHKERRQ(ierr);
+  ierr = TaoSetType(tao,TAOLMVM);CHKERRQ(ierr);
 
   /* Initialize minsurf application data structure for use in the function evaluations  */
   ierr = MSA_BoundaryConditions(&user);CHKERRQ(ierr);            /* Application specific routine */
@@ -113,7 +113,7 @@ int main( int argc, char **argv )
   ierr = TaoSolve(tao);CHKERRQ(ierr);
 
   /* Get information on termination */
-  ierr = TaoGetTerminationReason(tao,&reason);CHKERRQ(ierr);
+  ierr = TaoGetConvergedReason(tao,&reason);CHKERRQ(ierr);
   if (reason <= 0) {
     ierr = PetscPrintf(MPI_COMM_WORLD,"Try a different TAO method, adjust some parameters, or check the function evaluation routines\n");CHKERRQ(ierr);
   }
@@ -309,18 +309,13 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec X,PetscReal *fcn,Vec G,void *use
 .  flg  - flag indicating matrix structure
 
 */
-PetscErrorCode FormHessian(Tao tao,Vec X,Mat *H, Mat *Hpre, MatStructure *flg, void *ptr)
+PetscErrorCode FormHessian(Tao tao,Vec X,Mat H, Mat Hpre, void *ptr)
 {
   PetscErrorCode ierr;
   AppCtx         *user = (AppCtx *) ptr;
 
   /* Evaluate the Hessian entries*/
-  ierr = QuadraticH(user,X,*H);CHKERRQ(ierr);
-
-  /* Indicate that this matrix has the same sparsity pattern during
-     successive iterations; setting this flag can save significant work
-     in computing the preconditioner for some methods. */
-  *flg=SAME_NONZERO_PATTERN;
+  ierr = QuadraticH(user,X,H);CHKERRQ(ierr);
   return 0;
 }
 

@@ -123,7 +123,7 @@ typedef struct {
 /* -------- User-defined Routines --------- */
 
 PetscErrorCode FormConstraints(Tao, Vec, Vec, void *);
-PetscErrorCode FormJacobian(Tao, Vec, Mat *, Mat*, MatStructure*, void *);
+PetscErrorCode FormJacobian(Tao, Vec, Mat, Mat, void *);
 PetscErrorCode ComputeVariableBounds(Tao, Vec, Vec, void*);
 
 #undef __FUNCT__
@@ -217,7 +217,7 @@ int main(int argc, char **argv)
 
   /* Create TAO solver and set desired solution method  */
   ierr = TaoCreate(PETSC_COMM_WORLD, &tao);CHKERRQ(ierr);
-  ierr = TaoSetType(tao,"tao_ssils");CHKERRQ(ierr);
+  ierr = TaoSetType(tao,TAOSSILS);CHKERRQ(ierr);
 
   /* Set routines for constraints function and Jacobian evaluation */
   ierr = TaoSetConstraintsRoutine(tao, c, FormConstraints, (void *)&user);CHKERRQ(ierr);
@@ -401,10 +401,9 @@ PetscErrorCode FormConstraints(Tao tao, Vec X, Vec F, void *ptr)
    Output Parameters:
 .  J    - Jacobian matrix
 */
-PetscErrorCode FormJacobian(Tao tao, Vec X, Mat *tJ, Mat *tJPre, MatStructure *flag, void *ptr)
+PetscErrorCode FormJacobian(Tao tao, Vec X, Mat J, Mat tJPre, void *ptr)
 {
   AppCtx         *user = (AppCtx *) ptr;
-  Mat            J = *tJ;
   PetscReal      *c = user->c, *d = user->d;
   PetscReal      rate = user->rate;
   PetscReal      dt = user->dt, ds = user->ds;
@@ -417,7 +416,6 @@ PetscErrorCode FormJacobian(Tao tao, Vec X, Mat *tJ, Mat *tJPre, MatStructure *f
   PetscBool      assembled;
 
   /* Set various matrix options */
-  *flag=SAME_NONZERO_PATTERN;
   ierr = MatSetOption(J,MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr);
   ierr = MatAssembled(J,&assembled);CHKERRQ(ierr);
   if (assembled){ierr = MatZeroEntries(J); CHKERRQ(ierr);}

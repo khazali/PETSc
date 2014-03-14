@@ -72,35 +72,33 @@ static PetscErrorCode MatLMVMSolveShell(PC pc, Vec b, Vec x)
 #define __FUNCT__ "TaoSolve_NTL"
 static PetscErrorCode TaoSolve_NTL(Tao tao)
 {
-  TAO_NTL                        *tl = (TAO_NTL *)tao->data;
-  PC                             pc;
-  KSPConvergedReason             ksp_reason;
-  TaoTerminationReason     reason;
-  TaoLineSearchTerminationReason ls_reason;
+  TAO_NTL                      *tl = (TAO_NTL *)tao->data;
+  PC                           pc;
+  KSPConvergedReason           ksp_reason;
+  TaoConvergedReason           reason;
+  TaoLineSearchConvergedReason ls_reason;
 
-  PetscReal                      fmin, ftrial, prered, actred, kappa, sigma;
-  PetscReal                      tau, tau_1, tau_2, tau_max, tau_min, max_radius;
-  PetscReal f, fold, gdx, gnorm;
-  PetscReal step = 1.0;
+  PetscReal                    fmin, ftrial, prered, actred, kappa, sigma;
+  PetscReal                    tau, tau_1, tau_2, tau_max, tau_min, max_radius;
+  PetscReal                    f, fold, gdx, gnorm;
+  PetscReal                    step = 1.0;
 
-  PetscReal delta;
-  PetscReal norm_d = 0.0;
-  MatStructure matflag;
-  PetscErrorCode ierr;
-  PetscInt stepType;
-  PetscInt iter = 0,its;
+  PetscReal                    delta;
+  PetscReal                    norm_d = 0.0;
+  PetscErrorCode               ierr;
+  PetscInt                     stepType;
+  PetscInt                     iter = 0,its;
 
-  PetscInt bfgsUpdates = 0;
-  PetscInt needH;
+  PetscInt                     bfgsUpdates = 0;
+  PetscInt                     needH;
 
-  PetscInt i_max = 5;
-  PetscInt j_max = 1;
-  PetscInt i, j, n, N;
+  PetscInt                     i_max = 5;
+  PetscInt                     j_max = 1;
+  PetscInt                     i, j, n, N;
 
-  PetscInt tr_reject;
+  PetscInt                     tr_reject;
 
   PetscFunctionBegin;
-
   if (tao->XL || tao->XU || tao->ops->computebounds) {
     ierr = PetscPrintf(((PetscObject)tao)->comm,"WARNING: Variable bounds have been set but will be ignored by ntl algorithm\n");CHKERRQ(ierr);
   }
@@ -208,7 +206,7 @@ static PetscErrorCode TaoSolve_NTL(Tao tao)
       sigma = 0.0;
 
       if (needH) {
-        ierr = TaoComputeHessian(tao, tao->solution, &tao->hessian, &tao->hessian_pre, &matflag);CHKERRQ(ierr);
+        ierr = TaoComputeHessian(tao,tao->solution,tao->hessian,tao->hessian_pre);CHKERRQ(ierr);
         needH = 0;
       }
 
@@ -338,7 +336,7 @@ static PetscErrorCode TaoSolve_NTL(Tao tao)
 
     /* Compute the Hessian */
     if (needH) {
-      ierr = TaoComputeHessian(tao, tao->solution, &tao->hessian, &tao->hessian_pre, &matflag);CHKERRQ(ierr);
+      ierr = TaoComputeHessian(tao,tao->solution,tao->hessian,tao->hessian_pre);CHKERRQ(ierr);
       needH = 0;
     }
 
@@ -355,7 +353,7 @@ static PetscErrorCode TaoSolve_NTL(Tao tao)
       ierr = MatLMVMUpdate(tl->M,tao->solution, tao->gradient);CHKERRQ(ierr);
       ++bfgsUpdates;
     }
-    ierr = KSPSetOperators(tao->ksp, tao->hessian, tao->hessian_pre, matflag);CHKERRQ(ierr);
+    ierr = KSPSetOperators(tao->ksp, tao->hessian, tao->hessian_pre);CHKERRQ(ierr);
     /* Solve the Newton system of equations */
     if (NTL_KSP_NASH == tl->ksp_type) {
       ierr = KSPNASHSetRadius(tao->ksp,tl->max_radius);CHKERRQ(ierr);
@@ -792,7 +790,7 @@ static PetscErrorCode TaoSolve_NTL(Tao tao)
     /* The radius may have been increased; modify if it is too large */
     tao->trust = PetscMin(tao->trust, tl->max_radius);
 
-    /* Check for termination */
+    /* Check for converged */
     ierr = VecNorm(tao->gradient, NORM_2, &gnorm);CHKERRQ(ierr);
     if (PetscIsInfOrNanReal(f) || PetscIsInfOrNanReal(gnorm)) SETERRQ(PETSC_COMM_SELF,1,"User provided compute function generated Not-a-Number");
     needH = 1;
@@ -933,7 +931,7 @@ PetscErrorCode TaoCreate_NTL(Tao tao)
 {
   TAO_NTL        *tl;
   PetscErrorCode ierr;
-  const char     *morethuente_type = TAOLINESEARCH_MT;
+  const char     *morethuente_type = TAOLINESEARCHMT;
 
   PetscFunctionBegin;
   ierr = PetscNewLog(tao,&tl);CHKERRQ(ierr);

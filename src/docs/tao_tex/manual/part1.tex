@@ -123,7 +123,7 @@ Chapter~\ref{chapter:tao_solver}.
         PetscErrorCode (*FormFGradient)(Tao,Vec,PetscReal*,Vec,void*), 
         void *user);
    TaoSetHessianRoutine(Tao tao, Mat H, Mat Hpre,
-        PetscErrorCode (*FormHessian)(Tao,Vec,Mat*,Mat*,MatStructure*,
+        PetscErrorCode (*FormHessian)(Tao,Vec,Mat,Mat,
         void*), void *user);
    TaoSolve(Tao tao);
    TaoDestroy(Tao tao);
@@ -271,7 +271,7 @@ information about error handling in Fortran.
 \begin{figure}[htb]
 {\footnotesize
 \begin{verbatim}
-> rosenbrock1 -tao_method tao_nls
+> rosenbrock1 -tao_type nls
 [0]PETSC ERROR: --------------------- Error Message ------------------------------------
 [0]PETSC ERROR: Object is in wrong state!
 [0]PETSC ERROR: Not for unassembled matrix!

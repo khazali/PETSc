@@ -19,7 +19,7 @@ static  char help[]="";
    Routines: TaoSetInequalityJacobianRoutine();
    Routines: TaoSetHessianRoutine(); TaoSetFromOptions();
    Routines: TaoGetKSP(); TaoSolve();
-   Routines: TaoGetTerminationReason(); TaoDestroy();
+   Routines: TaoGetConvergedReason(); TaoDestroy();
    Processors: 1
 T*/
 
@@ -56,26 +56,26 @@ typedef struct {
 PetscErrorCode InitializeProblem(AppCtx*);
 PetscErrorCode DestroyProblem(AppCtx *);
 PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal *,Vec,void *);
-PetscErrorCode FormHessian(Tao,Vec,Mat*,Mat*, MatStructure *,void*);
+PetscErrorCode FormHessian(Tao,Vec,Mat,Mat, void*);
 PetscErrorCode FormInequalityConstraints(Tao,Vec,Vec,void*);
 PetscErrorCode FormEqualityConstraints(Tao,Vec,Vec,void*);
-PetscErrorCode FormInequalityJacobian(Tao,Vec,Mat*,Mat*, MatStructure *,void*);
-PetscErrorCode FormEqualityJacobian(Tao,Vec,Mat*,Mat*, MatStructure *,void*);
+PetscErrorCode FormInequalityJacobian(Tao,Vec,Mat,Mat, void*);
+PetscErrorCode FormEqualityJacobian(Tao,Vec,Mat,Mat, void*);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
 PetscErrorCode main(int argc,char **argv)
 {
-  PetscErrorCode       ierr;                /* used to check for functions returning nonzeros */
-  PetscMPIInt          size;
-  Vec                  x;                   /* solution */
-  KSP                  ksp;
-  PC                   pc;
-  Vec                  ceq,cin;
-  PetscBool            flg;                 /* A return value when checking for use options */
-  Tao                  tao;                 /* Tao solver context */
-  TaoTerminationReason reason;
-  AppCtx               user;                /* application context */
+  PetscErrorCode     ierr;                /* used to check for functions returning nonzeros */
+  PetscMPIInt        size;
+  Vec                x;                   /* solution */
+  KSP                ksp;
+  PC                 pc;
+  Vec                ceq,cin;
+  PetscBool          flg;                 /* A return value when checking for use options */
+  Tao                tao;                 /* Tao solver context */
+  TaoConvergedReason reason;
+  AppCtx             user;                /* application context */
 
   /* Initialize TAO,PETSc */
   PetscInitialize(&argc,&argv,(char *)0,help);
@@ -92,7 +92,7 @@ PetscErrorCode main(int argc,char **argv)
   ierr = VecSet(x,1.0);CHKERRQ(ierr);
 
   ierr = TaoCreate(PETSC_COMM_WORLD,&tao);CHKERRQ(ierr);
-  ierr = TaoSetType(tao,"tao_ipm");CHKERRQ(ierr);
+  ierr = TaoSetType(tao,TAOIPM);CHKERRQ(ierr);
   ierr = TaoSetInitialVector(tao,x);CHKERRQ(ierr);
   ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void*)&user);CHKERRQ(ierr);
   ierr = TaoSetEqualityConstraintsRoutine(tao,ceq,FormEqualityConstraints,(void*)&user);CHKERRQ(ierr);
@@ -120,7 +120,7 @@ PetscErrorCode main(int argc,char **argv)
   ierr = TaoSolve(tao);CHKERRQ(ierr);
 
   /* Analyze solution */
-  ierr = TaoGetTerminationReason(tao,&reason);CHKERRQ(ierr);
+  ierr = TaoGetConvergedReason(tao,&reason);CHKERRQ(ierr);
   if (reason < 0) {
     ierr = PetscPrintf(MPI_COMM_WORLD, "TAO failed to converge.\n");CHKERRQ(ierr);
   } else {
@@ -267,14 +267,9 @@ PetscErrorCode FormFunctionGradient(Tao tao, Vec x, PetscReal *f, Vec g, void *c
 
 #undef __FUNCT__
 #define __FUNCT__ "FormHessian"
-PetscErrorCode FormHessian(Tao tao, Vec x, Mat *H, Mat *Hpre, MatStructure *ms, void *ctx)
+PetscErrorCode FormHessian(Tao tao, Vec x, Mat H, Mat Hpre, void *ctx)
 {
-  AppCtx *user = (AppCtx*)ctx;
-
   PetscFunctionBegin;
-  *H = user->H;
-  *Hpre = user->H;
-  *ms = SAME_NONZERO_PATTERN;
   PetscFunctionReturn(0);
 }
 
@@ -305,26 +300,16 @@ PetscErrorCode FormEqualityConstraints(Tao tao, Vec x, Vec ce,void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "FormInequalityJacobian"
-PetscErrorCode FormInequalityJacobian(Tao tao, Vec x, Mat *JI, Mat *JIpre,  MatStructure *ms, void *ctx)
+PetscErrorCode FormInequalityJacobian(Tao tao, Vec x, Mat JI, Mat JIpre,  void *ctx)
 {
-  AppCtx *user = (AppCtx*)ctx;
-
   PetscFunctionBegin;
-  *JI = user->Ain;
-  *JIpre = user->Ain;
-  *ms = SAME_NONZERO_PATTERN;
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "FormEqualityJacobian"
-PetscErrorCode FormEqualityJacobian(Tao tao, Vec x, Mat *JE, Mat *JEpre, MatStructure *ms, void *ctx)
+PetscErrorCode FormEqualityJacobian(Tao tao, Vec x, Mat JE, Mat JEpre, void *ctx)
 {
-  AppCtx *user = (AppCtx*)ctx;
-
   PetscFunctionBegin;
-  *JE = user->Aeq;
-  *JEpre = user->Aeq;
-  *ms = SAME_NONZERO_PATTERN;
   PetscFunctionReturn(0);
 }

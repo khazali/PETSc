@@ -46,7 +46,7 @@ The command line options are:\n\
    Routines: TaoSetObjectiveAndGradientRoutine();
    Routines: TaoSetHessianRoutine(); TaoSetFromOptions();
    Routines: TaoGetKSP(); TaoSolve();
-   Routines: TaoGetTerminationReason(); TaoDestroy();
+   Routines: TaoGetConvergedReason(); TaoDestroy();
    Processors: 1
 T*/
 
@@ -69,28 +69,28 @@ typedef struct {
 PetscErrorCode FormInitialGuess(AppCtx*,Vec);
 PetscErrorCode FormFunction(Tao,Vec,PetscReal*,void*);
 PetscErrorCode FormGradient(Tao,Vec,Vec,void*);
-PetscErrorCode FormHessian(Tao,Vec,Mat*,Mat*, MatStructure *,void*);
+PetscErrorCode FormHessian(Tao,Vec,Mat,Mat, void*);
 PetscErrorCode HessianProductMat(Mat,Vec,Vec);
 PetscErrorCode HessianProduct(void*,Vec,Vec);
-PetscErrorCode MatrixFreeHessian(Tao,Vec,Mat*,Mat*,MatStructure*,void*);
+PetscErrorCode MatrixFreeHessian(Tao,Vec,Mat,Mat,void*);
 PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal *,Vec,void *);
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
 PetscErrorCode main(int argc,char **argv)
 {
-  PetscErrorCode       ierr;                /* used to check for functions returning nonzeros */
-  PetscInt             mx=10;               /* discretization in x-direction */
-  PetscInt             my=10;               /* discretization in y-direction */
-  Vec                  x;                   /* solution, gradient vectors */
-  PetscBool            flg;                 /* A return value when checking for use options */
-  Tao                  tao;                 /* Tao solver context */
-  Mat                  H;                   /* Hessian matrix */
-  TaoTerminationReason reason;
-  KSP                  ksp;                 /* PETSc Krylov subspace solver */
-  AppCtx               user;                /* application context */
-  PetscMPIInt          size;                /* number of processes */
-  PetscReal            one=1.0;
+  PetscErrorCode     ierr;                /* used to check for functions returning nonzeros */
+  PetscInt           mx=10;               /* discretization in x-direction */
+  PetscInt           my=10;               /* discretization in y-direction */
+  Vec                x;                   /* solution, gradient vectors */
+  PetscBool          flg;                 /* A return value when checking for use options */
+  Tao                tao;                 /* Tao solver context */
+  Mat                H;                   /* Hessian matrix */
+  TaoConvergedReason reason;
+  KSP                ksp;                 /* PETSc Krylov subspace solver */
+  AppCtx             user;                /* application context */
+  PetscMPIInt        size;                /* number of processes */
+  PetscReal          one=1.0;
 
   /* Initialize TAO,PETSc */
   PetscInitialize(&argc,&argv,(char *)0,help);
@@ -116,7 +116,7 @@ PetscErrorCode main(int argc,char **argv)
 
   /* Create TAO solver and set desired solution method */
   ierr = TaoCreate(PETSC_COMM_SELF,&tao);CHKERRQ(ierr);
-  ierr = TaoSetType(tao,"tao_lmvm");CHKERRQ(ierr);
+  ierr = TaoSetType(tao,TAOLMVM);CHKERRQ(ierr);
 
   /* Set solution vector with an initial guess */
   ierr = FormInitialGuess(&user,x);CHKERRQ(ierr);
@@ -161,7 +161,7 @@ PetscErrorCode main(int argc,char **argv)
   */
 
   /* Get information on termination */
-  ierr = TaoGetTerminationReason(tao,&reason);CHKERRQ(ierr);
+  ierr = TaoGetConvergedReason(tao,&reason);CHKERRQ(ierr);
   if (reason <= 0){
     ierr = PetscPrintf(PETSC_COMM_WORLD,"Try a different TAO method, adjust some parameters, or check the function evaluation routines\n");CHKERRQ(ierr);
   }
@@ -424,16 +424,14 @@ PetscErrorCode FormGradient(Tao tao,Vec X,Vec G,void *ptr)
    Hessian a column at a time, it is not particularly efficient and
    is not recommended.
 */
-PetscErrorCode FormHessian(Tao tao,Vec X,Mat *HH,Mat *Hpre, MatStructure *flg, void *ptr)
+PetscErrorCode FormHessian(Tao tao,Vec X,Mat H,Mat Hpre, void *ptr)
 {
   AppCtx         *user = (AppCtx *) ptr;
   PetscErrorCode ierr;
   PetscInt       i,j, ndim = user->ndim;
   PetscReal      *y, zero = 0.0, one = 1.0;
-  Mat            H=*HH;
   PetscBool      assembled;
 
-  *Hpre = H;
   user->xvec = X;
 
   /* Initialize Hessian entries and work vector to zero */
@@ -462,8 +460,6 @@ PetscErrorCode FormHessian(Tao tao,Vec X,Mat *HH,Mat *Hpre, MatStructure *flg, v
     }
     ierr = VecRestoreArray(user->y,&y);CHKERRQ(ierr);
   }
-
-  *flg=SAME_NONZERO_PATTERN;
   ierr = MatAssemblyBegin(H,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(H,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   return 0;
@@ -486,7 +482,7 @@ PetscErrorCode FormHessian(Tao tao,Vec X,Mat *HH,Mat *Hpre, MatStructure *flg, v
 .  PrecH - optionally different preconditioning Hessian
 .  flag  - flag indicating matrix structure
 */
-PetscErrorCode MatrixFreeHessian(Tao tao,Vec X,Mat *H,Mat *PrecH, MatStructure *flag,void *ptr)
+PetscErrorCode MatrixFreeHessian(Tao tao,Vec X,Mat H,Mat PrecH, void *ptr)
 {
   AppCtx     *user = (AppCtx *) ptr;
 

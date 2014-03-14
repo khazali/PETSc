@@ -41,13 +41,13 @@ PetscErrorCode TaoDestroy_SSILS(Tao tao)
 #define __FUNCT__ "TaoSolve_SSILS"
 static PetscErrorCode TaoSolve_SSILS(Tao tao)
 {
-  TAO_SSLS                       *ssls = (TAO_SSLS *)tao->data;
-  PetscReal                      psi, ndpsi, normd, innerd, t=0;
-  PetscReal                      delta, rho;
-  PetscInt                       iter=0,kspits;
-  TaoTerminationReason     reason;
-  TaoLineSearchTerminationReason ls_reason;
-  PetscErrorCode                 ierr;
+  TAO_SSLS                     *ssls = (TAO_SSLS *)tao->data;
+  PetscReal                    psi, ndpsi, normd, innerd, t=0;
+  PetscReal                    delta, rho;
+  PetscInt                     iter=0,kspits;
+  TaoConvergedReason           reason;
+  TaoLineSearchConvergedReason ls_reason;
+  PetscErrorCode               ierr;
 
   PetscFunctionBegin;
   /* Assume that Setup has been called!
@@ -73,7 +73,7 @@ static PetscErrorCode TaoSolve_SSILS(Tao tao)
 
     /* Calculate direction.  (Really negative of newton direction.  Therefore,
        rest of the code uses -d.) */
-    ierr = KSPSetOperators(tao->ksp,tao->jacobian,tao->jacobian_pre,ssls->matflag);CHKERRQ(ierr);
+    ierr = KSPSetOperators(tao->ksp,tao->jacobian,tao->jacobian_pre);CHKERRQ(ierr);
     ierr = KSPSolve(tao->ksp,ssls->ff,tao->stepdirection);CHKERRQ(ierr);
     ierr = KSPGetIterationNumber(tao->ksp,&kspits);CHKERRQ(ierr);
     tao->ksp_its+=kspits;
@@ -105,7 +105,7 @@ PetscErrorCode TaoCreate_SSILS(Tao tao)
 {
   TAO_SSLS       *ssls;
   PetscErrorCode ierr;
-  const char     *armijo_type = TAOLINESEARCH_ARMIJO;
+  const char     *armijo_type = TAOLINESEARCHARMIJO;
 
   PetscFunctionBegin;
   ierr = PetscNewLog(tao,&ssls);CHKERRQ(ierr);
