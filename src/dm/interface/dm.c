@@ -59,6 +59,7 @@ PetscErrorCode  DMCreate(MPI_Comm comm,DM *dm)
   }
   v->numFields = 0;
   v->fields    = NULL;
+  v->dmBC      = NULL;
   ierr = DMSetVecType(v,VECSTANDARD);CHKERRQ(ierr);
   ierr = DMSetMatType(v,MATAIJ);CHKERRQ(ierr);
   *dm = v;
@@ -512,6 +513,7 @@ PetscErrorCode  DMDestroy(DM *dm)
     ierr = PetscObjectDestroy((PetscObject *) &(*dm)->fields[f]);CHKERRQ(ierr);
   }
   ierr = PetscFree((*dm)->fields);CHKERRQ(ierr);
+  ierr = DMDestroy(&(*dm)->dmBC);CHKERRQ(ierr);
   /* if memory was published with SAWs then destroy it */
   ierr = PetscObjectSAWsViewOff((PetscObject)*dm);CHKERRQ(ierr);
 
@@ -2756,24 +2758,26 @@ PetscErrorCode  DMRegister(const char sname[],PetscErrorCode (*function)(DM))
 @*/
 PetscErrorCode  DMLoad(DM newdm, PetscViewer viewer)
 {
+  PetscBool      isbinary, ishdf5;
   PetscErrorCode ierr;
-  PetscBool      isbinary;
-  PetscInt       classid;
-  char           type[256];
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(newdm,DM_CLASSID,1);
   PetscValidHeaderSpecific(viewer,PETSC_VIEWER_CLASSID,2);
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERBINARY,&isbinary);CHKERRQ(ierr);
-  if (!isbinary) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"Invalid viewer; open viewer with PetscViewerBinaryOpen()");
+  ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERHDF5,&ishdf5);CHKERRQ(ierr);
+  if (isbinary) {
+    PetscInt classid;
+    char     type[256];
 
-  ierr = PetscViewerBinaryRead(viewer,&classid,1,PETSC_INT);CHKERRQ(ierr);
-  if (classid != DM_FILE_CLASSID) SETERRQ1(PetscObjectComm((PetscObject)newdm),PETSC_ERR_ARG_WRONG,"Not DM next in file, classid found %d",(int)classid);
-  ierr = PetscViewerBinaryRead(viewer,type,256,PETSC_CHAR);CHKERRQ(ierr);
-  ierr = DMSetType(newdm, type);CHKERRQ(ierr);
-  if (newdm->ops->load) {
-    ierr = (*newdm->ops->load)(newdm,viewer);CHKERRQ(ierr);
-  }
+    ierr = PetscViewerBinaryRead(viewer,&classid,1,PETSC_INT);CHKERRQ(ierr);
+    if (classid != DM_FILE_CLASSID) SETERRQ1(PetscObjectComm((PetscObject)newdm),PETSC_ERR_ARG_WRONG,"Not DM next in file, classid found %d",(int)classid);
+    ierr = PetscViewerBinaryRead(viewer,type,256,PETSC_CHAR);CHKERRQ(ierr);
+    ierr = DMSetType(newdm, type);CHKERRQ(ierr);
+    if (newdm->ops->load) {ierr = (*newdm->ops->load)(newdm,viewer);CHKERRQ(ierr);}
+  } else if (ishdf5) {
+    if (newdm->ops->load) {ierr = (*newdm->ops->load)(newdm,viewer);CHKERRQ(ierr);}
+  } else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"Invalid viewer; open viewer with PetscViewerBinaryOpen() or PetscViewerHDF5Open()");
   PetscFunctionReturn(0);
 }
 
@@ -3630,5 +3634,39 @@ PetscErrorCode DMLocatePoints(DM dm, Vec v, IS *cells)
   if (dm->ops->locatepoints) {
     ierr = (*dm->ops->locatepoints)(dm,v,cells);CHKERRQ(ierr);
   } else SETERRQ(PetscObjectComm((PetscObject)dm), PETSC_ERR_SUP, "Point location not available for this DM");
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMGetOutputDM"
+PetscErrorCode DMGetOutputDM(DM dm, DM *odm)
+{
+  PetscSection   section;
+  PetscBool      hasConstraints;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  PetscValidPointer(odm,2);
+  ierr = DMGetDefaultSection(dm, &section);CHKERRQ(ierr);
+  ierr = PetscSectionHasConstraints(section, &hasConstraints);CHKERRQ(ierr);
+  if (!hasConstraints) {
+    *odm = dm;
+    PetscFunctionReturn(0);
+  }
+  if (!dm->dmBC) {
+    PetscSection newSection, gsection;
+    PetscSF      sf;
+
+    ierr = DMClone(dm, &dm->dmBC);CHKERRQ(ierr);
+    ierr = PetscSectionClone(section, &newSection);CHKERRQ(ierr);
+    ierr = DMSetDefaultSection(dm->dmBC, newSection);CHKERRQ(ierr);
+    ierr = PetscSectionDestroy(&newSection);CHKERRQ(ierr);
+    ierr = DMGetPointSF(dm->dmBC, &sf);CHKERRQ(ierr);
+    ierr = PetscSectionCreateGlobalSection(section, sf, PETSC_TRUE, &gsection);CHKERRQ(ierr);
+    ierr = DMSetDefaultGlobalSection(dm->dmBC, gsection);CHKERRQ(ierr);
+    ierr = PetscSectionDestroy(&gsection);CHKERRQ(ierr);
+  }
+  *odm = dm->dmBC;
   PetscFunctionReturn(0);
 }
