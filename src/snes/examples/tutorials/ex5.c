@@ -1,4 +1,3 @@
-
 static char help[] = "Bratu nonlinear PDE in 2d.\n\
 We solve the  Bratu (SFI - solid fuel ignition) problem in a 2D rectangular\n\
 domain, using distributed arrays (DMDAs) to partition the parallel grid.\n\
@@ -68,10 +67,21 @@ extern PetscErrorCode FormInitialGuess(DM,AppCtx*,Vec);
 extern PetscErrorCode FormFunctionLocal(DMDALocalInfo*,PetscScalar**,PetscScalar**,AppCtx*);
 extern PetscErrorCode FormJacobianLocal(DMDALocalInfo*,PetscScalar**,Mat,Mat,AppCtx*);
 extern PetscErrorCode FormObjectiveLocal(DMDALocalInfo*,PetscScalar**,PetscReal*,AppCtx*);
-#if defined(PETSC_HAVE_MATLAB_ENGINE)
 extern PetscErrorCode FormFunctionMatlab(SNES,Vec,Vec,void*);
-#endif
 extern PetscErrorCode NonlinearGS(SNES,Vec,Vec,void*);
+
+/*
+ * Getting something that works in C and CPP for an arg that may or may not be defined is tricky.  Here, if we have
+ * "#define PETSC_HAVE_BOOGER 1" we match on the placeholder define, insert the "0," for arg1 and generate the triplet
+ * (0, 1, 0).  Then the last step cherry picks the 2nd arg (a one).  When PETSC_HAVE_BOOGER is not defined, we generate
+ * a (... 1, 0) pair, and when the last step cherry picks the 2nd arg, we get a zero.
+ */
+#define PetscDefined_arg_1 0,
+#define PetscDefined(d)       PetscDefined_(PETSC_ ## d)
+#define PetscDefined_(d)      PetscDefined__(d)
+#define PetscDefined__(value) PetscDefined___(PetscDefined_arg_ ## value)
+#define PetscDefined___(arg1_or_junk) PetscDefined____(arg1_or_junk 1, 0)
+#define PetscDefined____(ignored, val, ...) val
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -86,10 +96,8 @@ int main(int argc,char **argv)
   PetscReal      bratu_lambda_min = 0.;
   PetscBool      flg              = PETSC_FALSE;
   DM             da;
-#if defined(PETSC_HAVE_MATLAB_ENGINE)
   Vec            r               = NULL;
   PetscBool      matlab_function = PETSC_FALSE;
-#endif
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize program
@@ -137,13 +145,13 @@ int main(int argc,char **argv)
     ierr = DMDASNESSetObjectiveLocal(da,(DMDASNESObjective)FormObjectiveLocal,&user);CHKERRQ(ierr);
   }
 
-#if defined(PETSC_HAVE_MATLAB_ENGINE)
-  ierr = PetscOptionsGetBool(NULL,"-matlab_function",&matlab_function,0);CHKERRQ(ierr);
-  if (matlab_function) {
-    ierr = VecDuplicate(x,&r);CHKERRQ(ierr);
-    ierr = SNESSetFunction(snes,r,FormFunctionMatlab,&user);CHKERRQ(ierr);
+  if (PetscDefined(HAVE_MATLAB_ENGINE)) {
+    ierr = PetscOptionsGetBool(NULL,"-matlab_function",&matlab_function,0);CHKERRQ(ierr);
+    if (matlab_function) {
+      ierr = VecDuplicate(x,&r);CHKERRQ(ierr);
+      ierr = SNESSetFunction(snes,r,FormFunctionMatlab,&user);CHKERRQ(ierr);
+    }
   }
-#endif
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Customize nonlinear solver; set runtime options
@@ -165,9 +173,7 @@ int main(int argc,char **argv)
      Free work space.  All PETSc objects should be destroyed when they
      are no longer needed.
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-#if defined(PETSC_HAVE_MATLAB_ENGINE)
   ierr = VecDestroy(&r);CHKERRQ(ierr);
-#endif
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = SNESDestroy(&snes);CHKERRQ(ierr);
   ierr = DMDestroy(&da);CHKERRQ(ierr);
@@ -433,11 +439,11 @@ PetscErrorCode FormJacobianLocal(DMDALocalInfo *info,PetscScalar **x,Mat jacpre,
   PetscFunctionReturn(0);
 }
 
-#if defined(PETSC_HAVE_MATLAB_ENGINE)
 #undef __FUNCT__
 #define __FUNCT__ "FormFunctionMatlab"
 PetscErrorCode FormFunctionMatlab(SNES snes,Vec X,Vec F,void *ptr)
 {
+#if PetscDefined(HAVE_MATLAB_ENGINE)
   AppCtx         *user = (AppCtx*)ptr;
   PetscErrorCode ierr;
   PetscInt       Mx,My;
@@ -479,8 +485,10 @@ PetscErrorCode FormFunctionMatlab(SNES snes,Vec X,Vec F,void *ptr)
   ierr = DMRestoreLocalVector(da,&localX);CHKERRQ(ierr);
   ierr = DMRestoreLocalVector(da,&localF);CHKERRQ(ierr);
   PetscFunctionReturn(0);
-}
+#else
+    return 0;                     /* Never called */
 #endif
+}
 
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
