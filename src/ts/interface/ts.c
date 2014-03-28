@@ -2631,6 +2631,11 @@ PetscErrorCode  TSStep(TS ts)
   ierr = PetscLogEventEnd(TS_Step,ts,0,0,0);CHKERRQ(ierr);
 
   ts->time_step_prev = ts->ptime - ts->ptime_prev;
+  {
+    DM dm;
+    ierr = TSGetDM(ts, &dm);CHKERRQ(ierr);
+    ierr = DMTSSetTimeStepNumber(dm, ts->steps);CHKERRQ(ierr);
+  }
 
   if (ts->reason < 0) {
     if (ts->errorifstepfailed) {

@@ -10,16 +10,18 @@ PetscLogEvent DMPLEX_Interpolate, DMPLEX_Partition, DMPLEX_Distribute, DMPLEX_Di
 PETSC_EXTERN PetscErrorCode VecView_Seq(Vec, PetscViewer);
 PETSC_EXTERN PetscErrorCode VecView_MPI(Vec, PetscViewer);
 PETSC_EXTERN PetscErrorCode VecLoad_Default(Vec, PetscViewer);
+PETSC_EXTERN PetscErrorCode DMTSGetTimeStepNumber(DM,PetscInt*);
 
 #undef __FUNCT__
 #define __FUNCT__ "GetField_Static"
 static PetscErrorCode GetField_Static(DM dm, PetscSection section, PetscSection sectionGlobal, Vec v, PetscInt field, PetscInt pStart, PetscInt pEnd, IS *is, Vec *subv)
 {
   PetscInt      *subIndices;
-  PetscInt       subSize = 0, subOff = 0, p;
+  PetscInt       Nc, subSize = 0, subOff = 0, p;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ierr = PetscSectionGetFieldComponents(section, field, &Nc);CHKERRQ(ierr);
   for (p = pStart; p < pEnd; ++p) {
     PetscInt gdof, fdof = 0;
 
@@ -47,6 +49,7 @@ static PetscErrorCode GetField_Static(DM dm, PetscSection section, PetscSection 
   }
   ierr = ISCreateGeneral(PetscObjectComm((PetscObject) dm), subSize, subIndices, PETSC_OWN_POINTER, is);CHKERRQ(ierr);
   ierr = VecGetSubVector(v, *is, subv);CHKERRQ(ierr);
+  ierr = VecSetBlockSize(*subv, Nc);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -126,7 +129,10 @@ PetscErrorCode VecView_Plex_Local(Vec v, PetscViewer viewer)
     PetscSection sectionGlobal;
     Vec          gv;
     const char  *name;
+    PetscInt     timestep;
 
+    ierr = DMTSGetTimeStepNumber(dm, &timestep);CHKERRQ(ierr);
+    ierr = PetscViewerHDF5SetTimestep(viewer, timestep);CHKERRQ(ierr);
     ierr = PetscViewerGetFormat(viewer, &format);CHKERRQ(ierr);
     ierr = DMGetOutputDM(dm, &dmBC);CHKERRQ(ierr);
     ierr = DMGetDefaultGlobalSection(dmBC, &sectionGlobal);CHKERRQ(ierr);
@@ -142,13 +148,12 @@ PetscErrorCode VecView_Plex_Local(Vec v, PetscViewer viewer)
       /* Output visualization representation */
       PetscInt numFields, f;
 
-      /* TODO ierr = PetscViewerHDF5SetTimestep(viewer, istep);CHKERRQ(ierr); */
       ierr = PetscSectionGetNumFields(section, &numFields);CHKERRQ(ierr);
       for (f = 0; f < numFields; ++f) {
         Vec         subv;
         IS          is;
         const char *fname, *fgroup;
-        char        group[MAXPATHLEN];
+        char        group[PETSC_MAX_PATH_LEN];
 
         ierr = GetFieldType_Static(dm, section, f, &pStart, &pEnd, &ft);CHKERRQ(ierr);
         fgroup = (ft == PETSC_VTK_POINT_VECTOR_FIELD) || (ft == PETSC_VTK_POINT_FIELD) ? "/vertex_fields" : "/cell_fields";
@@ -160,7 +165,7 @@ PetscErrorCode VecView_Plex_Local(Vec v, PetscViewer viewer)
         else       {ierr = VecView_MPI(subv, viewer);CHKERRQ(ierr);}
         ierr = RestoreField_Static(dmBC, section, sectionGlobal, gv, f, pStart, pEnd, &is, &subv);CHKERRQ(ierr);
         ierr = PetscViewerHDF5PopGroup(viewer);CHKERRQ(ierr);
-        ierr = PetscSNPrintf(group, MAXPATHLEN, "%s/%s", fgroup, fname);CHKERRQ(ierr);
+        ierr = PetscSNPrintf(group, PETSC_MAX_PATH_LEN, "%s/%s", fgroup, fname);CHKERRQ(ierr);
         if ((ft == PETSC_VTK_POINT_VECTOR_FIELD) || (ft == PETSC_VTK_CELL_VECTOR_FIELD)) {
           ierr = PetscViewerHDF5WriteAttribute(viewer, group, "vector_field_type", PETSC_STRING, "vector");CHKERRQ(ierr);
         } else {
@@ -202,7 +207,6 @@ PetscErrorCode VecView_Plex(Vec v, PetscViewer viewer)
 #if defined(PETSC_HAVE_HDF5)
     if (ishdf5) {
       ierr = PetscViewerHDF5PushGroup(viewer, "/fields");CHKERRQ(ierr);
-      /* TODO ierr = PetscViewerHDF5SetTimestep(viewer, istep);CHKERRQ(ierr); */
     }
 #endif
     ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_HDF5_VIZ);CHKERRQ(ierr);
@@ -271,8 +275,10 @@ PetscErrorCode VecLoad_Plex(Vec v, PetscViewer viewer)
     ierr = PetscObjectSetName((PetscObject) locv, name);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_HDF5)
     if (ishdf5) {
+      PetscInt timestep;
+      ierr = DMTSGetTimeStepNumber(dm, &timestep);CHKERRQ(ierr);
+      ierr = PetscViewerHDF5SetTimestep(viewer, timestep);CHKERRQ(ierr);
       ierr = PetscViewerHDF5PushGroup(viewer, "/fields");CHKERRQ(ierr);
-      /* TODO ierr = PetscViewerHDF5SetTimestep(viewer, istep);CHKERRQ(ierr); */
     }
 #endif
     ierr = VecLoad_Plex_Local(locv, viewer);CHKERRQ(ierr);
@@ -546,7 +552,7 @@ PetscErrorCode DMPlexView_HDF5(DM dm, PetscViewer viewer)
   PetscReal       lengthScale;
   const char     *label   = NULL;
   PetscInt        labelId = 0, dim;
-  char            group[MAXPATHLEN];
+  char            group[PETSC_MAX_PATH_LEN];
   PetscInt        vStart, vEnd, v, cellHeight, cStart, cEnd, cMax, cell, conesSize = 0, numCornersLocal = 0, numCorners, numLabels, l;
   hid_t           fileId, groupId;
   herr_t          status;
@@ -668,7 +674,7 @@ PetscErrorCode DMPlexView_HDF5(DM dm, PetscViewer viewer)
     ierr = DMLabelGetNumValues(label, &numValues);CHKERRQ(ierr);
     ierr = DMLabelGetValueIS(label, &valueIS);CHKERRQ(ierr);
     ierr = ISGetIndices(valueIS, &values);CHKERRQ(ierr);
-    ierr = PetscSNPrintf(group, MAXPATHLEN, "/labels/%s", name);CHKERRQ(ierr);
+    ierr = PetscSNPrintf(group, PETSC_MAX_PATH_LEN, "/labels/%s", name);CHKERRQ(ierr);
     ierr = PetscViewerHDF5PushGroup(viewer, group);CHKERRQ(ierr);
     ierr = PetscViewerHDF5OpenGroup(viewer, &fileId, &groupId);CHKERRQ(ierr);
     if (groupId != fileId) {status = H5Gclose(groupId);CHKERRQ(status);}
@@ -677,7 +683,7 @@ PetscErrorCode DMPlexView_HDF5(DM dm, PetscViewer viewer)
     for (v = 0; v < numValues; ++v) {
       IS   stratumIS;
 
-      ierr = PetscSNPrintf(group, MAXPATHLEN, "/labels/%s/%d", name, values[v]);CHKERRQ(ierr);
+      ierr = PetscSNPrintf(group, PETSC_MAX_PATH_LEN, "/labels/%s/%d", name, values[v]);CHKERRQ(ierr);
       ierr = DMLabelGetStratumIS(label, values[v], &stratumIS);CHKERRQ(ierr);
       /* TODO: Need to globalize point names and remove unowned points */
       ierr = PetscViewerHDF5PushGroup(viewer, group);CHKERRQ(ierr);
@@ -731,14 +737,14 @@ static herr_t ReadLabelStratumHDF5_Static(hid_t g_id, const char *name, const H5
   const PetscInt *ind;
   PetscInt        value, N, i;
   const char     *lname;
-  char            group[MAXPATHLEN];
+  char            group[PETSC_MAX_PATH_LEN];
   PetscErrorCode  ierr;
 
   ierr = PetscOptionsStringToInt(name, &value);
   ierr = ISCreate(PetscObjectComm((PetscObject) viewer), &stratumIS);
   ierr = PetscObjectSetName((PetscObject) stratumIS, "indices");
   ierr = DMLabelGetName(label, &lname);
-  ierr = PetscSNPrintf(group, MAXPATHLEN, "/labels/%s/%s", lname, name);CHKERRQ(ierr);
+  ierr = PetscSNPrintf(group, PETSC_MAX_PATH_LEN, "/labels/%s/%s", lname, name);CHKERRQ(ierr);
   ierr = PetscViewerHDF5PushGroup(viewer, group);CHKERRQ(ierr);
   ierr = ISLoad(stratumIS, viewer);
   ierr = PetscViewerHDF5PopGroup(viewer);CHKERRQ(ierr);
