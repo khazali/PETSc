@@ -187,8 +187,6 @@ struct _DMTSOps {
 
 struct _p_DMTS {
   PETSCHEADER(struct _DMTSOps);
-  PetscInt steps;
-
   void *rhsfunctionctx;
   void *rhsjacobianctx;
 
