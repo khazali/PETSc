@@ -935,6 +935,7 @@ PetscErrorCode MatAssemblyEnd_MPIBAIJ(Mat mat,MatAssemblyType mode)
   PetscFunctionReturn(0);
 }
 
+extern PetscErrorCode MatView_SeqBAIJ(Mat,PetscViewer);
 #include <petscdraw.h>
 #undef __FUNCT__
 #define __FUNCT__ "MatView_MPIBAIJ_ASCIIorDraworSocket"
@@ -942,7 +943,7 @@ static PetscErrorCode MatView_MPIBAIJ_ASCIIorDraworSocket(Mat mat,PetscViewer vi
 {
   Mat_MPIBAIJ       *baij = (Mat_MPIBAIJ*)mat->data;
   PetscErrorCode    ierr;
-  PetscMPIInt       size = baij->size,rank = baij->rank;
+  PetscMPIInt       rank = baij->rank;
   PetscInt          bs   = mat->rmap->bs;
   PetscBool         iascii,isdraw;
   PetscViewer       sviewer;
@@ -984,10 +985,7 @@ static PetscErrorCode MatView_MPIBAIJ_ASCIIorDraworSocket(Mat mat,PetscViewer vi
     ierr = PetscDrawIsNull(draw,&isnull);CHKERRQ(ierr); if (isnull) PetscFunctionReturn(0);
   }
 
-  if (size == 1) {
-    ierr = PetscObjectSetName((PetscObject)baij->A,((PetscObject)mat)->name);CHKERRQ(ierr);
-    ierr = MatView(baij->A,viewer);CHKERRQ(ierr);
-  } else {
+  {
     /* assemble the entire matrix onto first processor. */
     Mat         A;
     Mat_SeqBAIJ *Aloc;
@@ -1046,10 +1044,7 @@ static PetscErrorCode MatView_MPIBAIJ_ASCIIorDraworSocket(Mat mat,PetscViewer vi
     */
     ierr = PetscViewerGetSingleton(viewer,&sviewer);CHKERRQ(ierr);
     if (!rank) {
-      ierr = PetscObjectSetName((PetscObject)((Mat_MPIBAIJ*)(A->data))->A,((PetscObject)mat)->name);CHKERRQ(ierr);
-      /* Set the type name to MATMPIBAIJ so that the correct type can be printed out by PetscObjectPrintClassNamePrefixType() in MatView_SeqBAIJ_ASCII()*/
-      PetscStrcpy(((PetscObject)((Mat_MPIBAIJ*)(A->data))->A)->type_name,MATMPIBAIJ);
-      ierr = MatView(((Mat_MPIBAIJ*)(A->data))->A,sviewer);CHKERRQ(ierr);
+      ierr = MatView_SeqBAIJ(((Mat_MPIBAIJ*)(A->data))->A,sviewer);CHKERRQ(ierr);
     }
     ierr = PetscViewerRestoreSingleton(viewer,&sviewer);CHKERRQ(ierr);
     ierr = MatDestroy(&A);CHKERRQ(ierr);
