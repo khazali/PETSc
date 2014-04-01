@@ -84,6 +84,7 @@ static PetscErrorCode createLevel(const PC pc,const Mat Amat_fine,const PetscInt
   MPI_Comm        comm;
   PetscMPIInt     rank,size,new_size,nactive=*a_nactive_proc;
   PetscInt        ncrs_eq,ncrs,f_bs;
+  const PetscScalar shift = PETSC_MACHINE_EPSILON*PETSC_MACHINE_EPSILON*PETSC_MACHINE_EPSILON;
 
   PetscFunctionBegin;
   ierr = PetscObjectGetComm((PetscObject)Amat_fine,&comm);CHKERRQ(ierr);
@@ -92,6 +93,7 @@ static PetscErrorCode createLevel(const PC pc,const Mat Amat_fine,const PetscInt
   ierr = MatGetBlockSize(Amat_fine, &f_bs);CHKERRQ(ierr);
   /* RAP */
   ierr = MatPtAP(Amat_fine, Pold, MAT_INITIAL_MATRIX, 2.0, &Cmat);CHKERRQ(ierr);
+  ierr = MatShift(Cmat,shift);CHKERRQ(ierr);
 
   /* set 'ncrs' (nodes), 'ncrs_eq' (equations)*/
   ierr = MatGetLocalSize(Cmat, &ncrs_eq, NULL);CHKERRQ(ierr);
@@ -497,6 +499,7 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
       ierr = PCReset_MG(pc);CHKERRQ(ierr);
       pc->setupcalled = 0;
     } else {
+      const PetscScalar shift = PETSC_MACHINE_EPSILON*PETSC_MACHINE_EPSILON*PETSC_MACHINE_EPSILON;
       PC_MG_Levels **mglevels = mg->levels;
       /* just do Galerkin grids */
       Mat          B,dA,dB;
@@ -513,12 +516,12 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
           if (pc_gamg->setup_count==2) {
             ierr = MatPtAP(dB,mglevels[level+1]->interpolate,MAT_INITIAL_MATRIX,2.0,&B);CHKERRQ(ierr);
             ierr = MatDestroy(&mglevels[level]->A);CHKERRQ(ierr);
-
             mglevels[level]->A = B;
           } else {
             ierr = KSPGetOperators(mglevels[level]->smoothd,NULL,&B);CHKERRQ(ierr);
             ierr = MatPtAP(dB,mglevels[level+1]->interpolate,MAT_REUSE_MATRIX,2.0,&B);CHKERRQ(ierr);
           }
+          ierr = MatShift(B,shift);CHKERRQ(ierr);
           ierr = KSPSetOperators(mglevels[level]->smoothd,B,B);CHKERRQ(ierr);
           dB   = B;
         }
