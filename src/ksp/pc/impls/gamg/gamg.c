@@ -511,13 +511,13 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
         for (level=pc_gamg->Nlevels-2; level>=0; level--) {
           /* the first time through the matrix structure has changed from repartitioning */
           if (pc_gamg->setup_count==2) {
-            ierr = MatPtAP(dB,mglevels[level+1]->interpolate,MAT_INITIAL_MATRIX,1.0,&B);CHKERRQ(ierr);
+            ierr = MatPtAP(dB,mglevels[level+1]->interpolate,MAT_INITIAL_MATRIX,2.0,&B);CHKERRQ(ierr);
             ierr = MatDestroy(&mglevels[level]->A);CHKERRQ(ierr);
 
             mglevels[level]->A = B;
           } else {
             ierr = KSPGetOperators(mglevels[level]->smoothd,NULL,&B);CHKERRQ(ierr);
-            ierr = MatPtAP(dB,mglevels[level+1]->interpolate,MAT_REUSE_MATRIX,1.0,&B);CHKERRQ(ierr);
+            ierr = MatPtAP(dB,mglevels[level+1]->interpolate,MAT_REUSE_MATRIX,2.0,&B);CHKERRQ(ierr);
           }
           ierr = KSPSetOperators(mglevels[level]->smoothd,B,B);CHKERRQ(ierr);
           dB   = B;
