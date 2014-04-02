@@ -641,8 +641,8 @@ static PetscErrorCode DMPlexView_HDF5(DM dm, PetscViewer viewer)
   DM              cdm;
   Vec             coordinates, newcoords;
   Vec             coneVec, cellVec;
-  IS              globalVertexNumbers;
-  const PetscInt *gvertex;
+  IS              globalVertexNumbers, globalPointNumbers;
+  const PetscInt *gvertex, *gpoint;
   PetscScalar    *sizes, *vertices;
   PetscReal       lengthScale;
   const char     *label   = NULL;
@@ -726,7 +726,7 @@ static PetscErrorCode DMPlexView_HDF5(DM dm, PetscViewer viewer)
         closure[Nc++] = closure[p];
         }
     }
-    ierr = DMPlexInvertCell(dim, Nc, closure);CHKERRQ(ierr);
+    ierr = DMPlexInvertCell_Internal(dim, Nc, closure);CHKERRQ(ierr);
     for (p = 0; p < Nc; ++p) {
       const PetscInt gv = gvertex[closure[p] - vStart];
       vertices[v++] = gv < 0 ? -(gv+1) : gv;
@@ -749,6 +749,8 @@ static PetscErrorCode DMPlexView_HDF5(DM dm, PetscViewer viewer)
 
   ierr = PetscViewerHDF5WriteAttribute(viewer, "/topology/cells", "cell_dim", PETSC_INT, (void *) &dim);CHKERRQ(ierr);
   /* Write Labels*/
+  ierr = DMPlexCreatePointNumbering(dm, &globalPointNumbers);CHKERRQ(ierr);
+  ierr = ISGetIndices(globalPointNumbers, &gpoint);CHKERRQ(ierr);
   ierr = PetscViewerHDF5PushGroup(viewer, "/labels");CHKERRQ(ierr);
   ierr = PetscViewerHDF5OpenGroup(viewer, &fileId, &groupId);CHKERRQ(ierr);
   if (groupId != fileId) {status = H5Gclose(groupId);CHKERRQ(status);}
@@ -757,7 +759,7 @@ static PetscErrorCode DMPlexView_HDF5(DM dm, PetscViewer viewer)
   for (l = 0; l < numLabels; ++l) {
     DMLabel         label;
     const char     *name;
-    IS              valueIS;
+    IS              valueIS, globalValueIS;
     const PetscInt *values;
     PetscInt        numValues, v;
     PetscBool       isDepth;
@@ -766,29 +768,47 @@ static PetscErrorCode DMPlexView_HDF5(DM dm, PetscViewer viewer)
     ierr = PetscStrncmp(name, "depth", 10, &isDepth);CHKERRQ(ierr);
     if (isDepth) continue;
     ierr = DMPlexGetLabel(dm, name, &label);CHKERRQ(ierr);
-    ierr = DMLabelGetNumValues(label, &numValues);CHKERRQ(ierr);
-    ierr = DMLabelGetValueIS(label, &valueIS);CHKERRQ(ierr);
-    ierr = ISGetIndices(valueIS, &values);CHKERRQ(ierr);
     ierr = PetscSNPrintf(group, PETSC_MAX_PATH_LEN, "/labels/%s", name);CHKERRQ(ierr);
     ierr = PetscViewerHDF5PushGroup(viewer, group);CHKERRQ(ierr);
     ierr = PetscViewerHDF5OpenGroup(viewer, &fileId, &groupId);CHKERRQ(ierr);
     if (groupId != fileId) {status = H5Gclose(groupId);CHKERRQ(status);}
     ierr = PetscViewerHDF5PopGroup(viewer);CHKERRQ(ierr);
-    /* TODO: Need to actually loop over the union of label values, ISAllGather() */
+    ierr = DMLabelGetValueIS(label, &valueIS);CHKERRQ(ierr);
+    ierr = ISAllGather(valueIS, &globalValueIS);CHKERRQ(ierr);
+    ierr = ISSortRemoveDups(globalValueIS);CHKERRQ(ierr);
+    ierr = ISGetLocalSize(globalValueIS, &numValues);CHKERRQ(ierr);
+    ierr = ISGetIndices(globalValueIS, &values);CHKERRQ(ierr);
     for (v = 0; v < numValues; ++v) {
-      IS   stratumIS;
+      IS              stratumIS, globalStratumIS;
+      const PetscInt *spoints;
+      PetscInt       *gspoints, n, gn, p;
+      const char     *iname;
 
       ierr = PetscSNPrintf(group, PETSC_MAX_PATH_LEN, "/labels/%s/%d", name, values[v]);CHKERRQ(ierr);
       ierr = DMLabelGetStratumIS(label, values[v], &stratumIS);CHKERRQ(ierr);
-      /* TODO: Need to globalize point names and remove unowned points */
+
+      ierr = ISGetLocalSize(stratumIS, &n);CHKERRQ(ierr);
+      ierr = ISGetIndices(stratumIS, &spoints);CHKERRQ(ierr);
+      for (gn = 0, p = 0; p < n; ++p) if (gpoint[spoints[p]] >= 0) ++gn;
+      ierr = PetscMalloc1(gn,&gspoints);CHKERRQ(ierr);
+      for (gn = 0, p = 0; p < n; ++p) if (gpoint[spoints[p]] >= 0) gspoints[gn++] = gpoint[spoints[p]];
+      ierr = ISRestoreIndices(stratumIS, &spoints);CHKERRQ(ierr);
+      ierr = ISCreateGeneral(PetscObjectComm((PetscObject) dm), gn, gspoints, PETSC_OWN_POINTER, &globalStratumIS);CHKERRQ(ierr);
+      ierr = PetscObjectGetName((PetscObject) stratumIS, &iname);CHKERRQ(ierr);
+      ierr = PetscObjectSetName((PetscObject) globalStratumIS, iname);CHKERRQ(ierr);
+
       ierr = PetscViewerHDF5PushGroup(viewer, group);CHKERRQ(ierr);
-      ierr = ISView(stratumIS, viewer);CHKERRQ(ierr);
+      ierr = ISView(globalStratumIS, viewer);CHKERRQ(ierr);
       ierr = PetscViewerHDF5PopGroup(viewer);CHKERRQ(ierr);
+      ierr = ISDestroy(&globalStratumIS);CHKERRQ(ierr);
       ierr = ISDestroy(&stratumIS);CHKERRQ(ierr);
     }
-    ierr = ISRestoreIndices(valueIS, &values);CHKERRQ(ierr);
+    ierr = ISRestoreIndices(globalValueIS, &values);CHKERRQ(ierr);
+    ierr = ISDestroy(&globalValueIS);CHKERRQ(ierr);
     ierr = ISDestroy(&valueIS);CHKERRQ(ierr);
   }
+  ierr = ISRestoreIndices(globalPointNumbers, &gpoint);CHKERRQ(ierr);
+  ierr = ISDestroy(&globalPointNumbers);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 #endif
@@ -3120,6 +3140,30 @@ PetscErrorCode DMPlexOrient(DM dm)
   ierr = PetscBTDestroy(&flippedCells);CHKERRQ(ierr);
   ierr = PetscBTDestroy(&seenFaces);CHKERRQ(ierr);
   ierr = PetscFree(faceFIFO);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexInvertCell_Internal"
+PetscErrorCode DMPlexInvertCell_Internal(PetscInt dim, PetscInt numCorners, PetscInt cone[])
+{
+  int tmpc;
+
+  PetscFunctionBegin;
+  if (dim != 3) PetscFunctionReturn(0);
+  switch (numCorners) {
+  case 4:
+    tmpc    = cone[0];
+    cone[0] = cone[1];
+    cone[1] = tmpc;
+    break;
+  case 8:
+    tmpc    = cone[1];
+    cone[1] = cone[3];
+    cone[3] = tmpc;
+    break;
+  default: break;
+  }
   PetscFunctionReturn(0);
 }
 
@@ -5858,7 +5902,7 @@ PetscErrorCode DMPlexSetVTKCellHeight(DM dm, PetscInt cellHeight)
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexCreateNumbering_Private"
 /* We can easily have a form that takes an IS instead */
-PetscErrorCode DMPlexCreateNumbering_Private(DM dm, PetscInt pStart, PetscInt pEnd, PetscSF sf, IS *numbering)
+static PetscErrorCode DMPlexCreateNumbering_Private(DM dm, PetscInt pStart, PetscInt pEnd, PetscInt shift, PetscInt *globalSize, PetscSF sf, IS *numbering)
 {
   PetscSection   section, globalSection;
   PetscInt      *numbers, p;
@@ -5875,8 +5919,16 @@ PetscErrorCode DMPlexCreateNumbering_Private(DM dm, PetscInt pStart, PetscInt pE
   ierr = PetscMalloc1((pEnd - pStart), &numbers);CHKERRQ(ierr);
   for (p = pStart; p < pEnd; ++p) {
     ierr = PetscSectionGetOffset(globalSection, p, &numbers[p-pStart]);CHKERRQ(ierr);
+    if (numbers[p-pStart] < 0) numbers[p-pStart] -= shift;
+    else                       numbers[p-pStart] += shift;
   }
-  ierr = ISCreateGeneral(PetscObjectComm((PetscObject)dm), pEnd - pStart, numbers, PETSC_OWN_POINTER, numbering);CHKERRQ(ierr);
+  ierr = ISCreateGeneral(PetscObjectComm((PetscObject) dm), pEnd - pStart, numbers, PETSC_OWN_POINTER, numbering);CHKERRQ(ierr);
+  if (globalSize) {
+    PetscLayout layout;
+    ierr = PetscSectionGetPointLayout(PetscObjectComm((PetscObject) dm), globalSection, &layout);CHKERRQ(ierr);
+    ierr = PetscLayoutGetSize(layout, globalSize);CHKERRQ(ierr);
+    ierr = PetscLayoutDestroy(&layout);CHKERRQ(ierr);
+  }
   ierr = PetscSectionDestroy(&section);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&globalSection);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -5897,7 +5949,7 @@ PetscErrorCode DMPlexGetCellNumbering(DM dm, IS *globalCellNumbers)
     ierr = DMPlexGetHeightStratum(dm, cellHeight, &cStart, &cEnd);CHKERRQ(ierr);
     ierr = DMPlexGetHybridBounds(dm, &cMax, NULL, NULL, NULL);CHKERRQ(ierr);
     if (cMax >= 0) cEnd = PetscMin(cEnd, cMax);
-    ierr = DMPlexCreateNumbering_Private(dm, cStart, cEnd, dm->sf, &mesh->globalCellNumbers);CHKERRQ(ierr);
+    ierr = DMPlexCreateNumbering_Private(dm, cStart, cEnd, 0, NULL, dm->sf, &mesh->globalCellNumbers);CHKERRQ(ierr);
   }
   *globalCellNumbers = mesh->globalCellNumbers;
   PetscFunctionReturn(0);
@@ -5917,9 +5969,35 @@ PetscErrorCode DMPlexGetVertexNumbering(DM dm, IS *globalVertexNumbers)
     ierr = DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
     ierr = DMPlexGetHybridBounds(dm, NULL, NULL, NULL, &vMax);CHKERRQ(ierr);
     if (vMax >= 0) vEnd = PetscMin(vEnd, vMax);
-    ierr = DMPlexCreateNumbering_Private(dm, vStart, vEnd, dm->sf, &mesh->globalVertexNumbers);CHKERRQ(ierr);
+    ierr = DMPlexCreateNumbering_Private(dm, vStart, vEnd, 0, NULL, dm->sf, &mesh->globalVertexNumbers);CHKERRQ(ierr);
   }
   *globalVertexNumbers = mesh->globalVertexNumbers;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexCreatePointNumbering"
+PetscErrorCode DMPlexCreatePointNumbering(DM dm, IS *globalPointNumbers)
+{
+  IS             nums[4];
+  PetscInt       depths[4];
+  PetscInt       depth, d, shift = 0;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  ierr = DMPlexGetDepth(dm, &depth);CHKERRQ(ierr);
+  depths[0] = depth; depths[1] = 0;
+  for (d = 2; d <= depth; ++d) depths[d] = depth-d+1;
+  for (d = 0; d <= depth; ++d) {
+    PetscInt pStart, pEnd, gsize;
+
+    ierr = DMPlexGetDepthStratum(dm, depths[d], &pStart, &pEnd);CHKERRQ(ierr);
+    ierr = DMPlexCreateNumbering_Private(dm, pStart, pEnd, shift, &gsize, dm->sf, &nums[d]);CHKERRQ(ierr);
+    shift += gsize;
+  }
+  ierr = ISConcatenate(PetscObjectComm((PetscObject) dm), depth+1, nums, globalPointNumbers);
+  for (d = 0; d <= depth; ++d) {ierr = ISDestroy(&nums[d]);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 
