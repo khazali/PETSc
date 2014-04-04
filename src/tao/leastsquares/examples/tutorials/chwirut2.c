@@ -443,7 +443,7 @@ PetscErrorCode MyMonitor(Tao tao, void *ptr)
 #define __FUNCT__ "TaskWorker"
 PetscErrorCode TaskWorker(AppCtx *user)
 {
-  PetscReal      x[NPARAMETERS],f;
+  PetscReal      x[NPARAMETERS],f=0;
   PetscMPIInt    tag=IDLE_TAG;
   PetscInt       index;
   MPI_Status     status;
@@ -483,7 +483,7 @@ PetscErrorCode StopWorkers(AppCtx *user)
 {
   PetscInt       checkedin;
   MPI_Status     status;
-  PetscReal      f,x[NPARAMETERS];
+  PetscReal      f=0,x[NPARAMETERS]={0};
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
