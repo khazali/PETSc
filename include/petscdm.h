@@ -5,6 +5,7 @@
 #define __PETSCDM_H
 #include <petscmat.h>
 #include <petscdmtypes.h>
+#include <petscfetypes.h>
 
 PETSC_EXTERN PetscErrorCode DMInitializePackage(void);
 
@@ -28,7 +29,9 @@ typedef const char* DMType;
 #define DMREDUNDANT "redundant"
 #define DMPATCH     "patch"
 #define DMMOAB      "moab"
+#define DMCIRCUIT   "circuit"
 
+PETSC_EXTERN const char *const DMBoundaryTypes[];
 PETSC_EXTERN PetscFunctionList DMList;
 PETSC_EXTERN PetscBool         DMRegisterAllCalled;
 PETSC_EXTERN PetscErrorCode DMCreate(MPI_Comm,DM*);
@@ -57,8 +60,8 @@ PETSC_EXTERN PetscErrorCode DMGetLocalToGlobalMapping(DM,ISLocalToGlobalMapping*
 PETSC_EXTERN PetscErrorCode DMGetLocalToGlobalMappingBlock(DM,ISLocalToGlobalMapping*);
 PETSC_EXTERN PetscErrorCode DMCreateFieldIS(DM,PetscInt*,char***,IS**);
 PETSC_EXTERN PetscErrorCode DMGetBlockSize(DM,PetscInt*);
-PETSC_EXTERN PetscErrorCode DMCreateColoring(DM,ISColoringType,MatType,ISColoring*);
-PETSC_EXTERN PetscErrorCode DMCreateMatrix(DM,MatType,Mat*);
+PETSC_EXTERN PetscErrorCode DMCreateColoring(DM,ISColoringType,ISColoring*);
+PETSC_EXTERN PetscErrorCode DMCreateMatrix(DM,Mat*);
 PETSC_EXTERN PetscErrorCode DMSetMatrixPreallocateOnly(DM,PetscBool);
 PETSC_EXTERN PetscErrorCode DMCreateInterpolation(DM,DM,Mat*,Vec*);
 PETSC_EXTERN PetscErrorCode DMCreateInjection(DM,DM,VecScatter*);
@@ -73,7 +76,7 @@ PETSC_EXTERN PetscErrorCode DMRefineHookAdd(DM,PetscErrorCode (*)(DM,DM,void*),P
 PETSC_EXTERN PetscErrorCode DMRestrict(DM,Mat,Vec,Mat,DM);
 PETSC_EXTERN PetscErrorCode DMInterpolate(DM,Mat,DM);
 PETSC_EXTERN PetscErrorCode DMSetFromOptions(DM);
-PETSC_EXTERN PetscErrorCode DMViewFromOptions(DM,const char[], const char[]);
+PETSC_STATIC_INLINE PetscErrorCode DMViewFromOptions(DM A,const char prefix[],const char name[]) {return PetscObjectViewFromOptions((PetscObject)A,prefix,name);}
 
 PETSC_EXTERN PetscErrorCode DMSetUp(DM);
 PETSC_EXTERN PetscErrorCode DMCreateInterpolationScale(DM,DM,Mat,Vec*);
@@ -88,6 +91,9 @@ PETSC_EXTERN PetscErrorCode DMLocalToLocalEnd(DM,Vec,InsertMode,Vec);
 PETSC_EXTERN PetscErrorCode DMConvert(DM,DMType,DM*);
 
 PETSC_EXTERN PetscErrorCode DMGetCoordinateDM(DM,DM*);
+PETSC_EXTERN PetscErrorCode DMSetCoordinateDM(DM,DM);
+PETSC_EXTERN PetscErrorCode DMGetCoordinateSection(DM,PetscSection*);
+PETSC_EXTERN PetscErrorCode DMSetCoordinateSection(DM,PetscSection);
 PETSC_EXTERN PetscErrorCode DMGetCoordinates(DM,Vec*);
 PETSC_EXTERN PetscErrorCode DMSetCoordinates(DM,Vec);
 PETSC_EXTERN PetscErrorCode DMGetCoordinatesLocal(DM,Vec*);
@@ -100,7 +106,9 @@ PETSC_EXTERN PetscErrorCode DMSubDomainRestrict(DM,VecScatter,VecScatter,DM);
 
 PETSC_EXTERN PetscErrorCode DMSetOptionsPrefix(DM,const char []);
 PETSC_EXTERN PetscErrorCode DMSetVecType(DM,VecType);
+PETSC_EXTERN PetscErrorCode DMGetVecType(DM,VecType*);
 PETSC_EXTERN PetscErrorCode DMSetMatType(DM,MatType);
+PETSC_EXTERN PetscErrorCode DMGetMatType(DM,MatType*);
 PETSC_EXTERN PetscErrorCode DMSetApplicationContext(DM,void*);
 PETSC_EXTERN PetscErrorCode DMSetApplicationContextDestroy(DM,PetscErrorCode (*)(void**));
 PETSC_EXTERN PetscErrorCode DMGetApplicationContext(DM,void*);
@@ -142,9 +150,14 @@ PETSC_EXTERN PetscErrorCode DMCreateDefaultSF(DM, PetscSection, PetscSection);
 PETSC_EXTERN PetscErrorCode DMGetPointSF(DM, PetscSF *);
 PETSC_EXTERN PetscErrorCode DMSetPointSF(DM, PetscSF);
 
+PETSC_EXTERN PetscErrorCode DMGetOutputDM(DM, DM *);
+PETSC_EXTERN PetscErrorCode DMGetOutputSequenceNumber(DM, PetscInt *);
+PETSC_EXTERN PetscErrorCode DMSetOutputSequenceNumber(DM, PetscInt);
+
 PETSC_EXTERN PetscErrorCode DMGetNumFields(DM, PetscInt *);
 PETSC_EXTERN PetscErrorCode DMSetNumFields(DM, PetscInt);
 PETSC_EXTERN PetscErrorCode DMGetField(DM, PetscInt, PetscObject *);
+PETSC_EXTERN PetscErrorCode DMSetField(DM, PetscInt, PetscObject);
 
 typedef enum {PETSC_UNIT_LENGTH, PETSC_UNIT_MASS, PETSC_UNIT_TIME, PETSC_UNIT_CURRENT, PETSC_UNIT_TEMPERATURE, PETSC_UNIT_AMOUNT, PETSC_UNIT_LUMINOSITY, NUM_PETSC_UNITS} PetscUnit;
 

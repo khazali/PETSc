@@ -227,7 +227,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_TAIJ(Mat A)
   PetscMPIInt    size;
 
   PetscFunctionBegin;
-  ierr     = PetscNewLog(A,Mat_MPITAIJ,&b);CHKERRQ(ierr);
+  ierr     = PetscNewLog(A,&b);CHKERRQ(ierr);
   A->data  = (void*)b;
 
   ierr = PetscMemzero(A->ops,sizeof(struct _MatOps));CHKERRQ(ierr);
@@ -373,13 +373,13 @@ PetscErrorCode MatInvertBlockDiagonal_SeqTAIJ_N(Mat A,const PetscScalar **values
     PetscFunctionReturn(0);
   }
   if (!b->ibdiag) {
-    ierr = PetscMalloc(dof2*m*sizeof(PetscScalar),&b->ibdiag);CHKERRQ(ierr);
+    ierr = PetscMalloc1(dof2*m,&b->ibdiag);CHKERRQ(ierr);
     ierr = PetscLogObjectMemory((PetscObject)A,dof2*m*sizeof(PetscScalar));CHKERRQ(ierr);
   }
   if (values) *values = b->ibdiag;
   diag = b->ibdiag;
 
-  ierr = PetscMalloc2(dof,PetscScalar,&v_work,dof,PetscInt,&v_pivots);CHKERRQ(ierr);
+  ierr = PetscMalloc2(dof,&v_work,dof,&v_pivots);CHKERRQ(ierr);
   for (i=0; i<m; i++) {
     if (S) {
       ierr = PetscMemcpy(diag,S,dof2*sizeof(PetscScalar));CHKERRQ(ierr);
@@ -446,7 +446,7 @@ PetscErrorCode MatSOR_SeqTAIJ(Mat A,Vec bb,PetscReal omega,MatSORType flag,Petsc
   diag  = a->diag;
 
   if (!taij->sor.setup) {
-    ierr = PetscMalloc5(bs,PetscScalar,&taij->sor.w,bs,PetscScalar,&taij->sor.y,m*bs,PetscScalar,&taij->sor.work,m*bs,PetscScalar,&taij->sor.t,m*bs2,PetscScalar,&taij->sor.arr);CHKERRQ(ierr);
+    ierr = PetscMalloc5(bs,&taij->sor.w,bs,&taij->sor.y,m*bs,&taij->sor.work,m*bs,&taij->sor.t,m*bs2,&taij->sor.arr);CHKERRQ(ierr);
     taij->sor.setup = PETSC_TRUE;
   }
   y     = taij->sor.y;
@@ -778,8 +778,8 @@ PetscErrorCode MatGetRow_SeqTAIJ(Mat A,PetscInt row,PetscInt *ncols,PetscInt **c
 {
   Mat_SeqTAIJ     *b    = (Mat_SeqTAIJ*) A->data;
   PetscErrorCode  ierr,diag;
-  PetscInt        nzaij,nz,*colsaij,*idx,i,j,p=b->p,q=b->q,r=row/p,s=row%p,c;
-  PetscScalar     *vaij,*v,*S=b->S,*T=b->T;
+  PetscInt        nzaij,nz,*colsaij,*idx = NULL,i,j,p=b->p,q=b->q,r=row/p,s=row%p,c;
+  PetscScalar     *vaij,*v = NULL,*S=b->S,*T=b->T;
 
   PetscFunctionBegin;
   if (b->getrowactive) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Already active");
@@ -812,7 +812,8 @@ PetscErrorCode MatGetRow_SeqTAIJ(Mat A,PetscInt row,PetscInt *ncols,PetscInt **c
   if (T || b->isTI) nz += (diag && S ? (nzaij-1)*q : nzaij*q);
 
   if (cols || values) {
-    ierr = PetscMalloc2(nz,PetscInt,&idx,nz,PetscScalar,&v);CHKERRQ(ierr);
+    ierr = PetscMalloc1(nz,&idx);CHKERRQ(ierr);
+    ierr = PetscMalloc1(nz,&v);CHKERRQ(ierr);
     if (b->isTI) {
       for (i=0; i<nzaij; i++) {
         for (j=0; j<q; j++) {
@@ -838,8 +839,9 @@ PetscErrorCode MatGetRow_SeqTAIJ(Mat A,PetscInt row,PetscInt *ncols,PetscInt **c
 
   if (ncols)    *ncols  = nz;
   if (cols)     *cols   = idx;
+  else {ierr = PetscFree(idx);CHKERRQ(ierr);}
   if (values)   *values = v;
-
+  else {ierr = PetscFree(v);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 
@@ -849,7 +851,8 @@ PetscErrorCode MatRestoreRow_SeqTAIJ(Mat A,PetscInt row,PetscInt *nz,PetscInt **
 {
   PetscErrorCode ierr;
   PetscFunctionBegin;
-  ierr = PetscFree2(*idx,*v);CHKERRQ(ierr);
+  if (idx) {ierr = PetscFree(*idx);CHKERRQ(ierr);}
+  if (v)   {ierr = PetscFree(*v);CHKERRQ(ierr);}
   ((Mat_SeqTAIJ*)A->data)->getrowactive = PETSC_FALSE;
   PetscFunctionReturn(0);
 }
@@ -864,8 +867,8 @@ PetscErrorCode MatGetRow_MPITAIJ(Mat A,PetscInt row,PetscInt *ncols,PetscInt **c
   Mat             AIJ     = b->A;
   PetscErrorCode  ierr;
   const PetscInt  rstart=A->rmap->rstart,rend=A->rmap->rend,p=b->p,q=b->q,*garray;
-  PetscInt        nz,*idx,ncolsaij,ncolsoaij,*colsaij,*colsoaij,r,s,c,i,j,lrow;
-  PetscScalar     *v,*vals,*ovals,*S=b->S,*T=b->T;
+  PetscInt        nz,*idx = NULL,ncolsaij,ncolsoaij,*colsaij,*colsoaij,r,s,c,i,j,lrow;
+  PetscScalar     *v = NULL,*vals,*ovals,*S=b->S,*T=b->T;
   PetscBool       diag;
 
   PetscFunctionBegin;
@@ -906,7 +909,8 @@ PetscErrorCode MatGetRow_MPITAIJ(Mat A,PetscInt row,PetscInt *ncols,PetscInt **c
   if (T || b->isTI) nz += (diag && S ? (ncolsaij+ncolsoaij-1)*q : (ncolsaij+ncolsoaij)*q);
 
   if (cols || values) {
-    ierr = PetscMalloc2(nz,PetscInt,&idx,nz,PetscScalar,&v);CHKERRQ(ierr);
+    ierr = PetscMalloc1(nz,&idx);CHKERRQ(ierr);
+    ierr = PetscMalloc1(nz,&v);CHKERRQ(ierr);
     if (b->isTI) {
       for (i=0; i<ncolsaij; i++) {
         for (j=0; j<q; j++) {
@@ -936,7 +940,7 @@ PetscErrorCode MatGetRow_MPITAIJ(Mat A,PetscInt row,PetscInt *ncols,PetscInt **c
     }
     if (S) {
       for (j=0; j<q; j++) {
-        idx[c*q+j] = (r+rstart/p)*q+j; 
+        idx[c*q+j] = (r+rstart/p)*q+j;
         v[c*q+j]  += S[s+j*p];
       }
     }
@@ -944,7 +948,9 @@ PetscErrorCode MatGetRow_MPITAIJ(Mat A,PetscInt row,PetscInt *ncols,PetscInt **c
 
   if (ncols)  *ncols  = nz;
   if (cols)   *cols   = idx;
+  else {ierr = PetscFree(idx);CHKERRQ(ierr);}
   if (values) *values = v;
+  else {ierr = PetscFree(v);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 
@@ -954,7 +960,8 @@ PetscErrorCode MatRestoreRow_MPITAIJ(Mat A,PetscInt row,PetscInt *nz,PetscInt **
 {
   PetscErrorCode ierr;
   PetscFunctionBegin;
-  ierr = PetscFree2(*idx,*v);CHKERRQ(ierr);
+  if (idx) {ierr = PetscFree(*idx);CHKERRQ(ierr);}
+  if (v)   {ierr = PetscFree(*v);CHKERRQ(ierr);}
   ((Mat_SeqTAIJ*)A->data)->getrowactive = PETSC_FALSE;
   PetscFunctionReturn(0);
 }
@@ -977,16 +984,14 @@ PETSC_EXTERN PetscErrorCode MatConvert_SeqTAIJ_SeqAIJ(Mat A, MatType newtype,Mat
 
   PetscFunctionBegin;
   ierr = MatGetSize(a,&m,&n);CHKERRQ(ierr);
-  ierr = PetscMalloc(p*m*sizeof(PetscInt),&ilen);CHKERRQ(ierr);
+  ierr = PetscMalloc1(p*m,&ilen);CHKERRQ(ierr);
   for (i=0; i<m; i++) {
     nmax = PetscMax(nmax,aij->ilen[i]);
     for (j=0; j<p; j++) ilen[p*i+j] = aij->ilen[i]*q;
   }
   ierr = MatCreateSeqAIJ(PETSC_COMM_SELF,m*p,n*q,0,ilen,&B);CHKERRQ(ierr);
   ierr = PetscFree(ilen);CHKERRQ(ierr);
-  ierr = PetscMalloc5(q,PetscInt,&icols,p*q,PetscScalar,&s,
-                      p,PetscInt,&srow,q,PetscInt,&scol,
-                      p*q,PetscScalar,&t);CHKERRQ(ierr);
+  ierr = PetscMalloc5(q,&icols,p*q,&s,p,&srow,q,&scol,p*q,&t);CHKERRQ(ierr);
 
   for (i=0; i<m; i++) {
     for (j=0; j<p; j++) srow[j] = i*p+j;
@@ -1040,7 +1045,7 @@ PETSC_EXTERN PetscErrorCode MatConvert_MPITAIJ_MPIAIJ(Mat A, MatType newtype,Mat
   PetscScalar    *vals,*ovals;
 
   PetscFunctionBegin;
-  ierr = PetscMalloc2(A->rmap->n,PetscInt,&dnz,A->rmap->n,PetscInt,&onz);CHKERRQ(ierr);
+  ierr = PetscMalloc2(A->rmap->n,&dnz,A->rmap->n,&onz);CHKERRQ(ierr);
   for (i=0; i<A->rmap->n/dof; i++) {
     nmax  = PetscMax(nmax,AIJ->ilen[i]);
     onmax = PetscMax(onmax,OAIJ->ilen[i]);
@@ -1052,7 +1057,7 @@ PETSC_EXTERN PetscErrorCode MatConvert_MPITAIJ_MPIAIJ(Mat A, MatType newtype,Mat
   ierr = MatCreateAIJ(PetscObjectComm((PetscObject)A),A->rmap->n,A->cmap->n,A->rmap->N,A->cmap->N,0,dnz,0,onz,&B);CHKERRQ(ierr);
   ierr = PetscFree2(dnz,onz);CHKERRQ(ierr);
 
-  ierr   = PetscMalloc2(nmax,PetscInt,&icols,onmax,PetscInt,&oicols);CHKERRQ(ierr);
+  ierr   = PetscMalloc2(nmax,&icols,onmax,&oicols);CHKERRQ(ierr);
   rstart = dof*taij->A->rmap->rstart;
   cstart = dof*taij->A->cmap->rstart;
   garray = mpiaij->garray;
@@ -1201,11 +1206,11 @@ PetscErrorCode  MatCreateTAIJ(Mat A,PetscInt p,PetscInt q,const PetscScalar S[],
     b->AIJ          = A;
     b->isTI         = isTI;
     if (S) {
-      ierr = PetscMalloc(p*q*sizeof(PetscScalar),&b->S);CHKERRQ(ierr);
+      ierr = PetscMalloc1(p*q,&b->S);CHKERRQ(ierr);
       ierr = PetscMemcpy(b->S,S,p*q*sizeof(PetscScalar));CHKERRQ(ierr);
     } else  b->S = NULL;
     if (T && (!isTI)) {
-      ierr = PetscMalloc(p*q*sizeof(PetscScalar),&b->T);CHKERRQ(ierr);
+      ierr = PetscMalloc1(p*q,&b->T);CHKERRQ(ierr);
       ierr = PetscMemcpy(b->T,T,p*q*sizeof(PetscScalar));CHKERRQ(ierr);
     } else b->T = NULL;
 
@@ -1239,11 +1244,11 @@ PetscErrorCode  MatCreateTAIJ(Mat A,PetscInt p,PetscInt q,const PetscScalar S[],
     b->A    = A;
     b->isTI = isTI;
     if (S) {
-      ierr = PetscMalloc(p*q*sizeof(PetscScalar),&b->S);CHKERRQ(ierr);
+      ierr = PetscMalloc1(p*q,&b->S);CHKERRQ(ierr);
       ierr = PetscMemcpy(b->S,S,p*q*sizeof(PetscScalar));CHKERRQ(ierr);
     } else  b->S = NULL;
     if (T &&(!isTI)) {
-      ierr = PetscMalloc(p*q*sizeof(PetscScalar),&b->T);CHKERRQ(ierr);
+      ierr = PetscMalloc1(p*q,&b->T);CHKERRQ(ierr);
       ierr = PetscMemcpy(b->T,T,p*q*sizeof(PetscScalar));CHKERRQ(ierr);
     } else b->T = NULL;
 

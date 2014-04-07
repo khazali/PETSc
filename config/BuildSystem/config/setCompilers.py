@@ -1,5 +1,6 @@
 from __future__ import generators
 import config.base
+import config
 
 import os
 
@@ -145,7 +146,7 @@ class Configure(config.base.Configure):
     except RuntimeError:
       pass
     return 0
-  isGNU = staticmethod(isGNU)
+  isGNU = staticmethod(config.memoize(isGNU))
 
   def isClang(compiler):
     '''Returns true if the compiler is a Clang/LLVM compiler'''
@@ -228,12 +229,10 @@ class Configure(config.base.Configure):
   def isIBM(compiler):
     '''Returns true if the compiler is a IBM compiler'''
     try:
-      (output, error, status) = config.base.Configure.executeShellCommand(compiler+' -flags')
+      (output, error, status) = config.base.Configure.executeShellCommand(compiler+' -qversion')
       output = output + error
-      #
-      # Do not know what to look for for IBM compilers
-      #
-      return 0
+      if 'IBM XL' in output:
+        return 1
     except RuntimeError:
       pass
     return 0
@@ -696,6 +695,15 @@ class Configure(config.base.Configure):
           yield 'mpCC_r'
           yield 'mpCC'
         self.usedMPICompilers = 0
+      #attempt to match c++ compiler with c compiler
+      if self.CC.find('win32fe cl') >= 0:
+        yield 'win32fe cl'
+      elif self.CC.find('win32fe icl') >= 0:
+        yield 'win32fe icl'
+      elif self.CC == 'clang':
+        yield 'clang++'
+      elif self.CC == 'icc':
+        yield 'icpc'
       vendor = self.vendor
       if (not vendor) and self.framework.argDB['with-gnu-compilers']:
         yield 'g++'
@@ -841,6 +849,14 @@ class Configure(config.base.Configure):
           yield 'mpf90'
           yield 'mpf77'
         self.usedMPICompilers = 0
+      #attempt to match fortran compiler with c compiler
+      if self.CC.find('win32fe cl') >= 0:
+        yield 'win32fe f90'
+        yield 'win32fe ifc'
+      elif self.CC.find('win32fe icl') >= 0:
+        yield 'win32fe ifc'
+      elif self.CC == 'icc':
+        yield 'ifort'
       vendor = self.vendor
       if (not vendor) and self.framework.argDB['with-gnu-compilers']:
         yield 'gfortran'
@@ -966,8 +982,7 @@ class Configure(config.base.Configure):
        - There needs to be a test that checks that the functionality is actually working'''
     self.usePIC = 0
     useSharedLibraries = 'with-shared-libraries' in self.framework.argDB and self.framework.argDB['with-shared-libraries']
-    useDynamicLoading  = 'with-dynamic-loading'  in self.framework.argDB and self.framework.argDB['with-dynamic-loading']
-    if not self.framework.argDB['with-pic'] and not useSharedLibraries and not useDynamicLoading:
+    if not self.framework.argDB['with-pic'] and not useSharedLibraries:
       self.framework.logPrint("Skip checking PIC options on user request")
       return
     languages = ['C']
@@ -1101,18 +1116,14 @@ class Configure(config.base.Configure):
     arcWindows = os.path.join(self.tmpDir, 'libconf1.lib')
     def checkArchive(command, status, output, error):
       if error or status:
-        self.framework.logPrint('Possible ERROR while running archiver: '+output)
-        if status: self.framework.logPrint('ret = '+str(status))
-        if error: self.framework.logPrint('error message = {'+error+'}')
+        self.logError('archiver', status, output, error)
         if os.path.isfile(objName):
           os.remove(objName)
         raise RuntimeError('Archiver is not functional')
       return
     def checkRanlib(command, status, output, error):
       if error or status:
-        self.framework.logPrint('Possible ERROR while running ranlib: '+output)
-        if status: self.framework.logPrint('ret = '+str(status))
-        if error: self.framework.logPrint('error message = {'+error+'}')
+        self.logError('ranlib', status, output, error)
         if os.path.isfile(arcUnix):
           os.remove(arcUnix)
         raise RuntimeError('Ranlib is not functional with your archiver.  Try --with-ranlib=true if ranlib is unnecessary.')
@@ -1167,8 +1178,7 @@ class Configure(config.base.Configure):
 
   def generateSharedLinkerGuesses(self):
     useSharedLibraries = 'with-shared-libraries' in self.framework.argDB and self.framework.argDB['with-shared-libraries']
-    useDynamicLoading  = 'with-dynamic-loading'  in self.framework.argDB and self.framework.argDB['with-dynamic-loading']
-    if not self.framework.argDB['with-pic'] and not useSharedLibraries and not useDynamicLoading:
+    if not self.framework.argDB['with-pic'] and not useSharedLibraries:
       self.setStaticLinker()
       self.staticLinker = self.AR
       self.staticLibraries = 1
@@ -1196,6 +1206,7 @@ class Configure(config.base.Configure):
     yield (self.CC, ['-shared'], 'so')
     yield (self.CC, ['-dynamic'], 'so')
     yield (self.CC, ['-qmkshrobj'], 'so')
+    yield (self.CC, ['-shared'], 'dll')
     # Solaris default
     if Configure.isSolaris():
       if hasattr(self, 'CXX') and self.mainLanguage == 'Cxx':
@@ -1517,6 +1528,17 @@ if (dlclose(handle)) {
         self.logPrintBox('***** WARNING: '+envVal+' (set to '+os.environ[envVal]+') found in environment variables - ignoring \n use ./configure '+envVal+'=$'+envVal+' if you really want to use that value ******')
         del os.environ[envVal]
     return
+
+  def checkIntoShared(self,symbol,lib):
+    '''Check that a given library can be linked into a shared library'''
+    import sys
+    if not self.checkCompile(includes = 'char *'+symbol+'(void);\n',body = 'return '+symbol+'();\n', cleanup = 0, codeBegin = 'char* testroutine(void){', codeEnd = '}'):
+      raise RunTimeError('Unable to compile test file with symbol: '+symbol)
+    oldLibs = self.LIBS
+    self.LIBS = self.libraries.toStringNoDupes(lib) + ' '+self.LIBS
+    ret = self.checkLink(includes = 'char *'+symbol+'(void);\n',body = 'return '+symbol+'();\n', cleanup = 0, codeBegin = 'char* testroutine(void){', codeEnd = '}',shared =1)
+    self.LIBS = oldLibs
+    return ret
 
   def configure(self):
     self.executeTest(self.printEnvVariables)

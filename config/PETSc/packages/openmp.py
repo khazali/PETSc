@@ -37,10 +37,9 @@ class Configure(PETSc.package.NewPackage):
                  ]:
       if self.setCompilers.checkCompilerFlag(flag):
         ompflag = flag
+        self.found = 1
         break
     self.setCompilers.addCompilerFlag(ompflag)
-    if self.setCompilers.checkLinkerFlag(ompflag):
-      self.setCompilers.addLinkerFlag(ompflag)
     self.setCompilers.popLanguage()
     if hasattr(self.compilers, 'FC'):
       self.setCompilers.pushLanguage('FC')
@@ -49,8 +48,6 @@ class Configure(PETSc.package.NewPackage):
     if hasattr(self.compilers, 'CXX'):
       self.setCompilers.pushLanguage('Cxx')
       self.setCompilers.addCompilerFlag(ompflag)
-      if self.setCompilers.checkLinkerFlag(ompflag):
-        self.setCompilers.addLinkerFlag(ompflag)
       self.setCompilers.popLanguage()
     # OpenMP threadprivate variables are not supported on all platforms (for e.g on MacOS).
     # Hence forcing to configure additionally with --with-pthreadclasses so that pthread

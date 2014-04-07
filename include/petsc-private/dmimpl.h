@@ -15,6 +15,7 @@ struct _DMOps {
   PetscErrorCode (*clone)(DM,DM*);
   PetscErrorCode (*setfromoptions)(DM);
   PetscErrorCode (*setup)(DM);
+  PetscErrorCode (*createdefaultsection)(DM);
   PetscErrorCode (*createglobalvector)(DM,Vec*);
   PetscErrorCode (*createlocalvector)(DM,Vec*);
   PetscErrorCode (*getlocaltoglobalmapping)(DM);
@@ -22,8 +23,8 @@ struct _DMOps {
   PetscErrorCode (*createfieldis)(DM,PetscInt*,char***,IS**);
   PetscErrorCode (*createcoordinatedm)(DM,DM*);
 
-  PetscErrorCode (*getcoloring)(DM,ISColoringType,MatType,ISColoring*);
-  PetscErrorCode (*creatematrix)(DM, MatType,Mat*);
+  PetscErrorCode (*getcoloring)(DM,ISColoringType,ISColoring*);
+  PetscErrorCode (*creatematrix)(DM, Mat*);
   PetscErrorCode (*createinterpolation)(DM,DM,Mat*,Vec*);
   PetscErrorCode (*getaggregates)(DM,DM,Mat*);
   PetscErrorCode (*getinjection)(DM,DM,VecScatter*);
@@ -142,7 +143,10 @@ struct _p_DM {
   NullSpaceFunc           nullspaceConstructors[10];
   /* Fields are represented by objects */
   PetscInt                numFields;
-  PetscObject             *fields;
+  PetscFE                *fields;
+  /* Output structures */
+  DM                      dmBC;                 /* The DM with boundary conditions in the global DM */
+  PetscInt                outputSequenceNum;    /* The current sequence number for output */
 
   PetscObject             dmksp,dmsnes,dmts;
 };

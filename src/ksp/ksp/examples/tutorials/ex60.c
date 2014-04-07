@@ -132,7 +132,7 @@ int main(int argc, char **argv)
                           &ctxt.niter,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-dt","time step size","<0.0>",ctxt.dt,
                           &ctxt.dt,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsList("-irk_type","IRK method family","",
+  ierr = PetscOptionsFList("-irk_type","IRK method family","",
                           IRKList,irktype,irktype,sizeof(irktype),NULL);CHKERRQ(ierr);
   nstages = 2;
   ierr = PetscOptionsInt ("-irk_nstages","Number of stages in IRK method","",
@@ -159,7 +159,7 @@ int main(int argc, char **argv)
   {                             /* Invert A */
     PetscInt *pivots;
     PetscScalar *work;
-    ierr = PetscMalloc2(nstages,PetscInt,&pivots,nstages,PetscScalar,&work);CHKERRQ(ierr);
+    ierr = PetscMalloc2(nstages,&pivots,nstages,&work);CHKERRQ(ierr);
     ierr = PetscKernel_A_gets_inverse_A(nstages,A,pivots,work);CHKERRQ(ierr);
     ierr = PetscFree2(pivots,work);CHKERRQ(ierr);
   }
@@ -168,7 +168,7 @@ int main(int argc, char **argv)
   for (s=0; s<nstages; s++) b[s] *= (-ctxt.dt);
 
   /* Compute row sums At and identity B */
-  ierr = PetscMalloc2(nstages,PetscScalar,&At,PetscSqr(nstages),PetscScalar,&B);CHKERRQ(ierr);
+  ierr = PetscMalloc2(nstages,&At,PetscSqr(nstages),&B);CHKERRQ(ierr);
   for (s=0; s<nstages; s++) {
     At[s] = 0;
     for (t=0; t<nstages; t++) {
@@ -205,7 +205,7 @@ int main(int argc, char **argv)
 
   /* Create and set options for KSP */
   ierr = KSPCreate(PETSC_COMM_WORLD,&ksp);CHKERRQ(ierr);
-  ierr = KSPSetOperators(ksp,TA,TA,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp,TA,TA);CHKERRQ(ierr);
   ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
 
   /* Allocate work and right-hand-side vectors */
@@ -215,9 +215,7 @@ int main(int argc, char **argv)
   ierr = VecDuplicate(z,&rhs);
 
   ierr = VecGetOwnershipRange(u,&is,&ie);CHKERRQ(ierr);
-  ierr = PetscMalloc3(nstages,PetscInt,&ix,
-                      nstages,PetscScalar,&zvals,
-                      ie-is,PetscInt,&ix2);CHKERRQ(ierr);
+  ierr = PetscMalloc3(nstages,&ix,nstages,&zvals,ie-is,&ix2);CHKERRQ(ierr);
   /* iterate in time */
   for (n=0,time=0.,total_its=0; n<ctxt.niter; n++) {
     PetscInt its;
@@ -246,7 +244,7 @@ int main(int argc, char **argv)
   ierr = VecAYPX(uex,-1.0,u);
   ierr = VecNorm(uex,NORM_2,&err);
   err  = PetscSqrtReal(err*err/((PetscReal)ctxt.imax));
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"L2 norm of the numerical error = %G (time=%G)\n",err,time);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"L2 norm of the numerical error = %g (time=%g)\n",(double)err,(double)time);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"Number of time steps: %D (%D Krylov iterations)\n",ctxt.niter,total_its);CHKERRQ(ierr);
 
   /* Free up memory */
@@ -307,7 +305,7 @@ static PetscErrorCode RKCreate_Gauss24(PetscInt nstages,PetscScalar **gauss_A,Pe
 
   PetscFunctionBegin;
   if (nstages != 2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Method 'gauss24' does not support %D stages, use -irk_nstages 2",nstages);
-  ierr = PetscMalloc3(PetscSqr(nstages),PetscReal,&A,nstages,PetscReal,&b,nstages,PetscReal,&c);CHKERRQ(ierr);
+  ierr = PetscMalloc3(PetscSqr(nstages),&A,nstages,&b,nstages,&c);CHKERRQ(ierr);
   A[0] = 0.25; A[2] = (3.0-2.0*1.7320508075688772)/12.0;
   A[1] = (3.0+2.0*1.7320508075688772)/12.0; A[3] = 0.25;
   b[0] = 0.5;                        b[1] = 0.5;
@@ -331,8 +329,8 @@ static PetscErrorCode RKCreate_Gauss(PetscInt nstages,PetscScalar **gauss_A,Pets
   Mat               G0mat,G1mat,Amat;
 
   PetscFunctionBegin;
-  ierr = PetscMalloc3(PetscSqr(nstages),PetscScalar,&A,nstages,PetscScalar,gauss_b,nstages,PetscReal,&c);CHKERRQ(ierr);
-  ierr = PetscMalloc3(nstages,PetscReal,&b,PetscSqr(nstages),PetscScalar,&G0,PetscSqr(nstages),PetscScalar,&G1);CHKERRQ(ierr);
+  ierr = PetscMalloc3(PetscSqr(nstages),&A,nstages,gauss_b,nstages,&c);CHKERRQ(ierr);
+  ierr = PetscMalloc3(nstages,&b,PetscSqr(nstages),&G0,PetscSqr(nstages),&G1);CHKERRQ(ierr);
   ierr = PetscDTGaussQuadrature(nstages,0.,1.,c,b);CHKERRQ(ierr);
   for (i=0; i<nstages; i++) (*gauss_b)[i] = b[i]; /* copy to possibly-complex array */
 

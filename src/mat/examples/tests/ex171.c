@@ -35,7 +35,7 @@ int main(int argc,char **args)
   /* Get dof, then create S and T */
   ierr = PetscOptionsGetInt(NULL,"-p",&p,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,"-q",&q,NULL);CHKERRQ(ierr);
-  ierr = PetscMalloc2(p*q,PetscScalar,&S,p*q,PetscScalar,&T);CHKERRQ(ierr);
+  ierr = PetscMalloc2(p*q,&S,p*q,&T);CHKERRQ(ierr);
   for (i=0; i<p*q; i++) S[i] = 0;
 
   for (i=0; i<p; i++) {

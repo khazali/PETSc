@@ -5,7 +5,7 @@
 #
 ALL: all
 LOCDIR	 = ./
-DIRS	 = src include tutorials lua
+DIRS	 = src include tutorials interfaces
 CFLAGS	 =
 FFLAGS	 =
 CPPFLAGS =
@@ -24,7 +24,7 @@ all: chk_makej
 	@${OMAKE}  PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} chk_petscdir chk_upgrade | tee ${PETSC_ARCH}/conf/make.log
 	@ln -sf ${PETSC_ARCH}/conf/make.log make.log
 	@if [ "${MAKE_IS_GNUMAKE}" != "" ]; then \
-	   ${OMAKE} PETSC_ARCH=${PETSC_ARCH} PETSC_DIR=${PETSC_DIR} all-gnumake-local 2>&1 | tee -a ${PETSC_ARCH}/conf/make.log; \
+	   ${OMAKE_PRINTDIR} PETSC_ARCH=${PETSC_ARCH} PETSC_DIR=${PETSC_DIR} all-gnumake-local 2>&1 | tee -a ${PETSC_ARCH}/conf/make.log; \
 	elif [ "${PETSC_BUILD_USING_CMAKE}" != "" ]; then \
 	   ${OMAKE} PETSC_ARCH=${PETSC_ARCH} PETSC_DIR=${PETSC_DIR} all-cmake-local 2>&1 | tee -a ${PETSC_ARCH}/conf/make.log \
 		| egrep -v '( --check-build-system |cmake -E | -o CMakeFiles/petsc[[:lower:]]*.dir/| -o lib/libpetsc|CMakeFiles/petsc[[:lower:]]*\.dir/(build|depend|requires)|-f CMakeFiles/Makefile2|Dependee .* is newer than depender |provides\.build. is up to date)'; \
@@ -34,18 +34,19 @@ all: chk_makej
 	 fi
 	@egrep -i "( error | error: |no such file or directory)" ${PETSC_ARCH}/conf/make.log | tee ${PETSC_ARCH}/conf/error.log > /dev/null
 	@if test -s ${PETSC_ARCH}/conf/error.log; then \
-           printf ${PETSC_TEXT_HILIGHT}"**************************ERROR************************************\n" 2>&1 | tee -a ${PETSC_ARCH}/conf/make.log; \
+           printf ${PETSC_TEXT_HILIGHT}"**************************ERROR*************************************\n" 2>&1 | tee -a ${PETSC_ARCH}/conf/make.log; \
            echo "  Error during compile, check ${PETSC_ARCH}/conf/make.log" 2>&1 | tee -a ${PETSC_ARCH}/conf/make.log; \
            echo "  Send it and ${PETSC_ARCH}/conf/configure.log to petsc-maint@mcs.anl.gov" 2>&1 | tee -a ${PETSC_ARCH}/conf/make.log;\
            printf "********************************************************************"${PETSC_TEXT_NORMAL}"\n" 2>&1 | tee -a ${PETSC_ARCH}/conf/make.log;\
 	 else \
 	  ${OMAKE} shared_install PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} 2>&1 | tee -a ${PETSC_ARCH}/conf/make.log ;\
         fi #solaris make likes to print the whole command that gave error. So split this up into the smallest chunk below
+	@echo "Finishing at: `date`" >> ${PETSC_ARCH}/conf/make.log
 	@if test -s ${PETSC_ARCH}/conf/error.log; then exit 1; fi
 
 all-gnumake:
 	@if [ "${MAKE_IS_GNUMAKE}" != "" ]; then \
-          ${OMAKE}  PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} PETSC_BUILD_USING_CMAKE="" all;\
+          ${OMAKE_PRINTDIR}  PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} PETSC_BUILD_USING_CMAKE="" all;\
         else printf ${PETSC_TEXT_HILIGHT}"Build not configured for GNUMAKE. Quiting"${PETSC_TEXT_NORMAL}"\n"; exit 1; fi
 
 all-cmake:
@@ -68,19 +69,14 @@ info: chk_makej
 	-@echo "=========================================="
 	-@echo " "
 	-@echo "See documentation/faq.html and documentation/bugreporting.html"
-	-@echo "for help with installation problems. Please send EVERYTHING"
-	-@echo "printed out below when reporting problems"
+	-@echo "for help with installation problems.  Please send EVERYTHING"
+	-@echo "printed out below when reporting problems.  Please check the"
+	-@echo "mailing list archives and consider subscribing."
 	-@echo " "
-	-@echo "To subscribe to the PETSc announcement list, send mail to "
-	-@echo "majordomo@mcs.anl.gov with the message: "
-	-@echo "subscribe petsc-announce"
-	-@echo " "
-	-@echo "To subscribe to the PETSc users mailing list, send mail to "
-	-@echo "majordomo@mcs.anl.gov with the message: "
-	-@echo "subscribe petsc-users"
+	-@echo "  http://www.mcs.anl.gov/petsc/miscellaneous/mailing-lists.html"
 	-@echo " "
 	-@echo "=========================================="
-	-@echo On `date` on `hostname`
+	-@echo Starting on `hostname` at `date`
 	-@echo Machine characteristics: `uname -a`
 	-@echo "-----------------------------------------"
 	-@echo "Using PETSc directory: ${PETSC_DIR}"
@@ -138,27 +134,32 @@ build: chk_makej
 #
 check: test
 test:
-	-@${OMAKE_NOPRINTDIR} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} test_build 2>&1 | tee ./${PETSC_ARCH}/conf/test.log
+	-@${OMAKE} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} test_build 2>&1 | tee ./${PETSC_ARCH}/conf/test.log
+	-@if [ "${PETSC_WITH_BATCH}" = "" ]; then \
+          printf "=========================================\n"; \
+          printf "Now to evaluate the computer systems you plan use - do:\n"; \
+          printf "make PETSC_DIR=${PETSC_DIR} PETSC_ARCH=${PETSC_ARCH} streams NPMAX=<number of MPI processes you intend to use>\n"; \
+        fi
 testx:
-	-@${OMAKE_NOPRINTDIR} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} testx_build 2>&1 | tee ./${PETSC_ARCH}/conf/testx.log
+	-@${OMAKE} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} testx_build 2>&1 | tee ./${PETSC_ARCH}/conf/testx.log
 test_build:
 	-@echo "Running test examples to verify correct installation"
 	-@echo "Using PETSC_DIR=${PETSC_DIR} and PETSC_ARCH=${PETSC_ARCH}"
-	@cd src/snes/examples/tutorials >/dev/null; ${OMAKE_NOPRINTDIR} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} clean
-	@cd src/snes/examples/tutorials >/dev/null; ${OMAKE_NOPRINTDIR} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} testex19
+	@cd src/snes/examples/tutorials >/dev/null; ${OMAKE} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} clean
+	@cd src/snes/examples/tutorials >/dev/null; ${OMAKE} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} testex19
 	@if [ "${FC}" != "" ]; then \
           egrep "^#define PETSC_USE_FORTRAN_DATATYPES 1" ${PETSC_DIR}/${PETSC_ARCH}/include/petscconf.h | tee .ftn-dtype.log > /dev/null; \
           if test -s .ftn-dtype.log; then F90TEST="testex5f90t"; else F90TEST="testex5f"; fi; ${RM} .ftn-dtype.log; \
-          cd src/snes/examples/tutorials >/dev/null; ${OMAKE_NOPRINTDIR} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} $${F90TEST}; \
+          cd src/snes/examples/tutorials >/dev/null; ${OMAKE} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} $${F90TEST}; \
          fi;
-	@cd src/snes/examples/tutorials >/dev/null; ${OMAKE_NOPRINTDIR} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} clean
+	@cd src/snes/examples/tutorials >/dev/null; ${OMAKE} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} clean
 	-@echo "Completed test examples"
 testx_build:
 	-@echo "Running graphics test example to verify correct X11 installation"
 	-@echo "Using PETSC_DIR=${PETSC_DIR} and PETSC_ARCH=${PETSC_ARCH}"
-	@cd src/snes/examples/tutorials; ${OMAKE_NOPRINTDIR} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} clean
-	@cd src/snes/examples/tutorials; ${OMAKE_NOPRINTDIR} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} testxex19
-	@cd src/snes/examples/tutorials; ${OMAKE_NOPRINTDIR} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} clean
+	@cd src/snes/examples/tutorials; ${OMAKE} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} clean
+	@cd src/snes/examples/tutorials; ${OMAKE} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} testxex19
+	@cd src/snes/examples/tutorials; ${OMAKE} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} clean
 	-@echo "Completed graphics test example"
 
 testexamples: info
@@ -216,8 +217,21 @@ deletemods: chk_makej
 	-${RM} -f ${PETSC_DIR}/${PETSC_ARCH}/include/petsc*.mod
 
 # Cleans up build
-allclean: deletelibs deletemods
+allclean-legacy: deletelibs deletemods
 	-@${OMAKE} PETSC_ARCH=${PETSC_ARCH} PETSC_DIR=${PETSC_DIR} ACTION=clean tree
+allclean-cmake:
+	-@cd ${PETSC_ARCH} && ${OMAKE} clean
+allclean-gnumake:
+	-@${OMAKE} -f gmakefile clean
+
+allclean:
+	@if [ "${MAKE_IS_GNUMAKE}" != "" ]; then \
+	   ${OMAKE} PETSC_ARCH=${PETSC_ARCH} PETSC_DIR=${PETSC_DIR} allclean-gnumake; \
+	elif [ "${PETSC_BUILD_USING_CMAKE}" != "" ]; then \
+	   ${OMAKE} PETSC_ARCH=${PETSC_ARCH} PETSC_DIR=${PETSC_DIR} allclean-cmake; \
+	else \
+	   ${OMAKE} PETSC_ARCH=${PETSC_ARCH} PETSC_DIR=${PETSC_DIR} allclean-legacy; \
+	fi
 #
 reconfigure:
 	@${PYTHON} ${PETSC_ARCH}/conf/reconfigure-${PETSC_ARCH}.py
@@ -235,7 +249,10 @@ newall:
 	-@cd src/ts;   @${PYTHON} ${PETSC_DIR}/config/builder.py
 
 streams:
-	cd src/benchmarks/streams; ${OMAKE} test
+	cd src/benchmarks/streams; ${OMAKE} streams
+
+stream:
+	cd src/benchmarks/streams; ${OMAKE} stream
 # ------------------------------------------------------------------
 #
 # All remaining actions are intended for PETSc developers only.
@@ -285,6 +302,7 @@ alldoc1: chk_loc deletemanualpages chk_concepts_dir
 	-@cat ${PETSC_DIR}/src/docs/mpi.www.index >> ${LOC}/docs/manualpages/htmlmap
 	-cd src/docs/tex/manual; ${OMAKE} manual.pdf LOC=${LOC}
 	-cd src/docs/tex/manual; ${OMAKE} developers.pdf LOC=${LOC}
+	-cd src/docs/tao_tex/manual; ${OMAKE} manual.pdf
 	-${OMAKE} ACTION=manualpages tree_basic LOC=${LOC}
 	-${PYTHON} bin/maint/wwwindex.py ${PETSC_DIR} ${LOC}
 	-${OMAKE} ACTION=manexamples tree_basic LOC=${LOC}
@@ -327,11 +345,13 @@ docsetdate: chk_petscdir
         fi; \
         datestr=`git log -1 --pretty=format:%ci | cut -d ' ' -f 1`; \
         export datestr; \
+        gitver=`git describe`; \
+        export gitver; \
         find * -type d -wholename src/docs/website -prune -o -type d -wholename src/benchmarks/results -prune -o \
           -type d -wholename config/BuildSystem/docs/website -prune -o -type d -wholename include/web -prune -o \
           -type d -wholename 'arch-*' -prune -o -type d -wholename src/tops -prune -o -type d -wholename externalpackages -prune -o \
           -type f -wholename tutorials/multiphysics/tutorial.html -prune -o -type f -name \*.html \
-          -exec perl -pi -e 's^(<body.*>)^$$1\n   <div id=\"version\" align=right><b>$$ENV{petscversion} $$ENV{datestr}</b></div>^i' {} \; \
+          -exec perl -pi -e 's^(<body.*>)^$$1\n   <div id=\"version\" align=right><b>$$ENV{petscversion} $$ENV{datestr}</b></div>\n   <div id="bugreport" align=right><a href="mailto:petsc-maint\@mcs.anl.gov?subject=Typo or Error in Documentation &body=Please describe the typo or error in the documentation: $$ENV{petscversion} $$ENV{gitver} {} "><small>Report Typos and Errors</small></a></div>^i' {} \; \
           -exec perl -pi -e 's^(<head>)^$$1 <link rel="canonical" href="http://www.mcs.anl.gov/petsc/petsc-current/{}" />^i' {} \; ; \
         echo "Done fixing version number, date, canonical URL info"
 
@@ -405,9 +425,14 @@ gcov:
 mergegcov:
 	-@${PETSC_DIR}/bin/maint/gcov.py -merge_gcov ${LOC} *.tar.gz
 
-# usage make allrcslabel NEW_RCS_LABEL=v_2_0_28
-allrcslabel:
-	-@${OMAKE} PETSC_ARCH=${PETSC_ARCH} NEW_RCS_LABEL=${NEW_RCS_LABEL} ACTION=rcslabel  alltree
+########################
+#
+# Create the include dependency graph (requires graphviz to be available)
+#
+includegraph:
+	-@${PETSC_DIR}/src/contrib/style/include-graph.sh includegraph.pdf
+	-@echo Include dependency graph written to includegraph.pdf
+
 #
 # -------------------------------------------------------------------------------
 #
@@ -419,9 +444,9 @@ countfortranfunctions:
 	sed "s/_$$//" | sort > /tmp/countfortranfunctions
 
 countcfunctions:
-	-@grep extern ${PETSC_DIR}/include/*.h  | grep "(" | tr -s ' ' | \
+	-@grep PETSC_EXTERN ${PETSC_DIR}/include/*.h  | grep "(" | tr -s ' ' | \
 	cut -d'(' -f1 | cut -d' ' -f3 | grep -v "\*" | tr -s '\012' |  \
-	tr 'A-Z' 'a-z' |  sort > /tmp/countcfunctions
+	tr 'A-Z' 'a-z' |  sort | uniq > /tmp/countcfunctions
 
 difffortranfunctions: countfortranfunctions countcfunctions
 	-@echo -------------- Functions missing in the fortran interface ---------------------

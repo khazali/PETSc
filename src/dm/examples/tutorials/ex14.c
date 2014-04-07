@@ -9,6 +9,7 @@ Use the options
      -da_processors_y <MY> number of processors in x direction
 */
 
+#include <petscdm.h>
 #include <petscdmda.h>
 
 #undef __FUNCT__
@@ -84,9 +85,9 @@ int main(int argc,char **argv)
   ierr = MPI_Comm_size(PETSC_COMM_WORLD,&size);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
   if (dim == 2) {
-    ierr = DMDACreate2d(PETSC_COMM_WORLD,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE,DMDA_STENCIL_STAR,-4,-4,PETSC_DECIDE,PETSC_DECIDE,3,1,NULL,NULL,&da);CHKERRQ(ierr);
+    ierr = DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DMDA_STENCIL_STAR,-4,-4,PETSC_DECIDE,PETSC_DECIDE,3,1,NULL,NULL,&da);CHKERRQ(ierr);
   } else if (dim == 3) {
-    ierr = DMDACreate3d(PETSC_COMM_WORLD, DMDA_BOUNDARY_NONE, DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE,DMDA_STENCIL_STAR,-4,-4,-4,PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,3,1,NULL,NULL,NULL,&da);CHKERRQ(ierr);
+    ierr = DMDACreate3d(PETSC_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DMDA_STENCIL_STAR,-4,-4,-4,PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,3,1,NULL,NULL,NULL,&da);CHKERRQ(ierr);
   }
 
   ierr = DMDAGetLocalInfo(da,&info);CHKERRQ(ierr);
@@ -211,7 +212,8 @@ int main(int argc,char **argv)
       if (i == rank) {
         Mat m;
         ierr = PetscPrintf(PETSC_COMM_SELF,"Processor %d: \n",i);CHKERRQ(ierr);
-        ierr = DMCreateMatrix(subda[0],"mpiaij",&m);CHKERRQ(ierr);
+        ierr = DMSetMatType(subda[0],MATAIJ);CHKERRQ(ierr);
+        ierr = DMCreateMatrix(subda[0],&m);CHKERRQ(ierr);
         ierr = MatView(m,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
         ierr = MatDestroy(&m);CHKERRQ(ierr);
       }

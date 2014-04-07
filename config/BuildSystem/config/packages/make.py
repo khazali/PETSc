@@ -111,9 +111,11 @@ class Configure(config.package.Package):
     # Check to see if make allows rules which look inside archives
     if self.haveGNUMake:
       self.addMakeRule('libc','${LIBNAME}(${OBJSC})')
+      self.addMakeRule('libcxx','${LIBNAME}(${OBJSCXX})')
       self.addMakeRule('libcu','${LIBNAME}(${OBJSCU})')
     else:
       self.addMakeRule('libc','${OBJSC}','-${AR} ${AR_FLAGS} ${LIBNAME} ${OBJSC}')
+      self.addMakeRule('libcxx','${OBJSCXX}','-${AR} ${AR_FLAGS} ${LIBNAME} ${OBJSCXX}')
       self.addMakeRule('libcu','${OBJSCU}','-${AR} ${AR_FLAGS} ${LIBNAME} ${OBJSCU}')
     self.addMakeRule('libf','${OBJSF}','-${AR} ${AR_FLAGS} ${LIBNAME} ${OBJSF}')
     return
@@ -160,6 +162,6 @@ class Configure(config.package.Package):
       self.executeTest(self.configureMake)
     self.executeTest(self.configureCheckGNUMake)
     self.executeTest(self.configureMakeNP)
-    self.addMakeMacro('OMAKE ', self.make+' '+self.printdirflag)
-    self.addMakeMacro('OMAKE_NOPRINTDIR ', self.make+' '+self.noprintdirflag)
+    self.addMakeMacro('OMAKE_PRINTDIR ', self.make+' '+self.printdirflag)
+    self.addMakeMacro('OMAKE', self.make+' '+self.noprintdirflag)
     return
