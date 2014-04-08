@@ -12,6 +12,7 @@
 
 */
 #include <petscsys.h>
+#include <petsc-private/kernels/blockinvert.h>
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscLINPACKgefa"

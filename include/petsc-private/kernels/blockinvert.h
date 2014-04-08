@@ -19,8 +19,8 @@
    src/mat/impls/baij/seq
 */
 
-extern PetscErrorCode PetscLINPACKgefa(MatScalar*,PetscInt,PetscInt*);
-extern PetscErrorCode PetscLINPACKgedi(MatScalar*,PetscInt,PetscInt*,MatScalar*);
+PETSC_EXTERN PetscErrorCode PetscLINPACKgefa(MatScalar*,PetscInt,PetscInt*);
+PETSC_EXTERN PetscErrorCode PetscLINPACKgedi(MatScalar*,PetscInt,PetscInt*,MatScalar*);
 PETSC_EXTERN PetscErrorCode PetscKernel_A_gets_inverse_A_2(MatScalar*,PetscReal);
 PETSC_EXTERN PetscErrorCode PetscKernel_A_gets_inverse_A_3(MatScalar*,PetscReal);
 
