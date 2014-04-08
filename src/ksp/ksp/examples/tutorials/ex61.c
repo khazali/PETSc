@@ -57,6 +57,7 @@ typedef struct {
 static PetscErrorCode ExactSolution(UserContext*,DM,PetscReal,Vec);
 static PetscErrorCode RKCreate_Gauss(PetscInt,PetscScalar**,PetscScalar**,PetscReal**);
 static PetscErrorCode ComputeMatrix(DM,Mat,void*);
+static PetscErrorCode CreateIdentityLike(Mat B,Mat *Identity);
 
 #include <petsc-private/kernels/blockinvert.h>
 
@@ -68,8 +69,8 @@ int main(int argc, char **argv)
   Vec               u,uex,rhs,z;
   UserContext       ctx;
   PetscInt          nstages,is,ie,matis,matie,*ix,*ix2;
-  PetscInt          n,i,s,t,total_its;
-  PetscScalar       *A,*B,*At,*b,*zvals,one = 1.0;
+  PetscInt          n,s,t,total_its,mg_levels;
+  PetscScalar       *A,*B,*At,*b,*zvals;
   PetscReal         *c,err,time;
   Mat               Identity,J,TA,SC,R;
   KSP               ksp;
@@ -86,6 +87,7 @@ int main(int argc, char **argv)
   ctx.xmax    = 1.0;
   ctx.niter   = 0;
   ctx.dt      = 0.0;
+  mg_levels    = 1;
 
   ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"IRK options","");CHKERRQ(ierr);
   ierr = PetscOptionsReal("-a","diffusion coefficient","<1.0>",ctx.a,&ctx.a,NULL);CHKERRQ(ierr);
@@ -94,6 +96,7 @@ int main(int argc, char **argv)
   ierr = PetscOptionsFList("-irk_type","IRK method family","",IRKList,irktype,irktype,sizeof(irktype),NULL);CHKERRQ(ierr);
   nstages = 2;
   ierr = PetscOptionsInt ("-irk_nstages","Number of stages in IRK method","",nstages,&nstages,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-mg_levels","Number of multigrid levels","",mg_levels,&mg_levels,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   ierr = DMDACreate3d(PETSC_COMM_WORLD,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DMDA_STENCIL_BOX,-9,-9,-9,PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,1,1,NULL,NULL,NULL,&dm);CHKERRQ(ierr);
@@ -134,16 +137,8 @@ int main(int argc, char **argv)
   /* allocate and calculate the (-J) matrix */
   ierr = DMCreateMatrix(dm,&J);CHKERRQ(ierr);
   ierr = ComputeMatrix(dm,J,&ctx);CHKERRQ(ierr);
-  ierr = MatCreate(PETSC_COMM_WORLD,&Identity);CHKERRQ(ierr);
-  ierr = MatSetType(Identity,MATAIJ);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(J,&matis,&matie);CHKERRQ(ierr);
-  ierr = MatSetSizes(Identity,matie-matis,matie-matis,PETSC_DETERMINE,PETSC_DETERMINE);CHKERRQ(ierr);
-  ierr = MatSetUp(Identity);CHKERRQ(ierr);
-  for (i=matis; i<matie; i++) {
-    ierr= MatSetValues(Identity,1,&i,1,&i,&one,INSERT_VALUES);CHKERRQ(ierr);
-  }
-  ierr = MatAssemblyBegin(Identity,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatAssemblyEnd  (Identity,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = CreateIdentityLike(J,&Identity);CHKERRQ(ierr);
 
   /* Create the TAIJ matrix for solving the stages */
   ierr = MatCreateTAIJ(J,nstages,nstages,A,B,&TA);CHKERRQ(ierr);
@@ -157,6 +152,32 @@ int main(int argc, char **argv)
   /* Create and set options for KSP */
   ierr = KSPCreate(PETSC_COMM_WORLD,&ksp);CHKERRQ(ierr);
   ierr = KSPSetOperators(ksp,TA,TA);CHKERRQ(ierr);
+  if (mg_levels > 1) {
+    PC pc,pc0;
+    DM dmc;
+    Mat J0,TA0,P,MP;
+    KSP ksp0;
+    ierr = DMCoarsen(dm,MPI_COMM_NULL,&dmc);CHKERRQ(ierr);
+    ierr = DMCreateInterpolation(dmc,dm,&P,NULL);CHKERRQ(ierr);
+    ierr = MatPtAP(J,P,MAT_INITIAL_MATRIX,2.0,&J0);CHKERRQ(ierr);
+    ierr = MatCreateTAIJ(J0,nstages,nstages,A,B,&TA0);CHKERRQ(ierr);
+    ierr = MatCreateMAIJ(P,nstages,&MP);CHKERRQ(ierr);
+    ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
+    ierr = PCSetType(pc,PCMG);CHKERRQ(ierr);
+    ierr = PCMGSetLevels(pc,2,NULL);CHKERRQ(ierr);
+    ierr = PCMGSetInterpolation(pc,1,MP);CHKERRQ(ierr);
+    ierr = PCMGGetSmoother(pc,0,&ksp0);CHKERRQ(ierr);
+    ierr = KSPSetOperators(ksp0,TA0,TA0);CHKERRQ(ierr);
+    ierr = KSPSetType(ksp0,KSPGMRES);CHKERRQ(ierr);
+    ierr = KSPGetPC(ksp0,&pc0);CHKERRQ(ierr);
+    ierr = PCSetType(pc0,PCPBJACOBI);CHKERRQ(ierr);
+    ierr = MatDestroy(&J0);CHKERRQ(ierr);
+    ierr = MatDestroy(&TA0);CHKERRQ(ierr);
+    ierr = MatDestroy(&MP);CHKERRQ(ierr);
+    ierr = MatDestroy(&P);CHKERRQ(ierr);
+    ierr = DMDestroy(&dmc);CHKERRQ(ierr);
+  }
+
   ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
 
   /* Allocate work and right-hand-side vectors */
@@ -319,5 +340,26 @@ PetscErrorCode ComputeMatrix(DM da,Mat B,void *ctx)
   }
   ierr = MatAssemblyBegin(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "CreateIdentityLike"
+static PetscErrorCode CreateIdentityLike(Mat B,Mat *Identity)
+{
+  PetscErrorCode ierr;
+  PetscInt matis,matie,i;
+
+  PetscFunctionBegin;
+  ierr = MatGetOwnershipRange(B,&matis,&matie);CHKERRQ(ierr);
+  ierr = MatCreate(PetscObjectComm((PetscObject)B),Identity);CHKERRQ(ierr);
+  ierr = MatSetType(*Identity,MATAIJ);CHKERRQ(ierr);
+  ierr = MatSetSizes(*Identity,matie-matis,matie-matis,PETSC_DETERMINE,PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = MatSetUp(*Identity);CHKERRQ(ierr);
+  for (i=matis; i<matie; i++) {
+    ierr= MatSetValue(*Identity,i,i,1.0,INSERT_VALUES);CHKERRQ(ierr);
+  }
+  ierr = MatAssemblyBegin(*Identity,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd  (*Identity,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
