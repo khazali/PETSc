@@ -2675,8 +2675,8 @@ PetscErrorCode PetscFEIntegrateResidual_Basic(PetscFE fem, PetscInt Ne, PetscInt
 {
   const PetscInt  debug = 0;
   PetscQuadrature quad;
-  PetscScalar    *f0, *f1, *u, *gradU, *a, *gradA = NULL;
-  PetscReal      *x, *refSpaceDer;
+  PetscScalar    *f0, *f1, *u, *gradU, *a, *gradA = NULL, *refSpaceDer;
+  PetscReal      *x;
   PetscInt        dim, Ncomp, numComponents = 0, numComponentsAux = 0, cOffset = 0, cOffsetAux = 0, eOffset = 0, e, f;
   PetscErrorCode  ierr;
 
@@ -2859,8 +2859,8 @@ PetscErrorCode PetscFEIntegrateIFunction_Basic(PetscFE fem, PetscInt Ne, PetscIn
 {
   const PetscInt  debug = 0;
   PetscQuadrature quad;
-  PetscScalar    *f0, *f1, *u, *u_t, *gradU, *a, *gradA = NULL;
-  PetscReal      *x, *refSpaceDer;
+  PetscScalar    *f0, *f1, *u, *u_t, *gradU, *a, *gradA = NULL, *refSpaceDer;
+  PetscReal      *x;
   PetscInt        dim, Ncomp, numComponents = 0, numComponentsAux = 0, cOffset = 0, cOffsetAux = 0, eOffset = 0, e, f;
   PetscErrorCode  ierr;
 
@@ -3044,8 +3044,8 @@ PetscErrorCode PetscFEIntegrateBdResidual_Basic(PetscFE fem, PetscInt Ne, PetscI
 {
   const PetscInt  debug = 0;
   PetscQuadrature quad;
-  PetscScalar    *f0, *f1, *u, *gradU, *a, *gradA = NULL;
-  PetscReal      *x, *refSpaceDer;
+  PetscScalar    *f0, *f1, *u, *gradU, *a, *gradA = NULL, *refSpaceDer;
+  PetscReal      *x;
   PetscInt        dim, numComponents = 0, numComponentsAux = 0, cOffset = 0, cOffsetAux = 0, eOffset = 0, e, f;
   PetscErrorCode  ierr;
 
@@ -3228,8 +3228,8 @@ PetscErrorCode PetscFEIntegrateBdIFunction_Basic(PetscFE fem, PetscInt Ne, Petsc
 {
   const PetscInt  debug = 0;
   PetscQuadrature quad;
-  PetscScalar    *f0, *f1, *u, *u_t, *gradU, *a, *gradA = NULL;
-  PetscReal      *x, *refSpaceDer;
+  PetscScalar    *f0, *f1, *u, *u_t, *gradU, *a, *gradA = NULL, *refSpaceDer;
+  PetscReal      *x;
   PetscInt        dim, numComponents = 0, numComponentsAux = 0, cOffset = 0, cOffsetAux = 0, eOffset = 0, e, f;
   PetscErrorCode  ierr;
 
@@ -3423,8 +3423,8 @@ PetscErrorCode PetscFEIntegrateJacobian_Basic(PetscFE fem, PetscInt Ne, PetscInt
   PetscInt        offsetI    = 0; /* Offset into an element vector for fieldI */
   PetscInt        offsetJ    = 0; /* Offset into an element vector for fieldJ */
   PetscQuadrature quad;
-  PetscScalar    *g0, *g1, *g2, *g3, *u, *gradU, *a, *gradA = NULL;
-  PetscReal      *x, *refSpaceDer;
+  PetscScalar    *g0, *g1, *g2, *g3, *u, *gradU, *a, *gradA = NULL, *refSpaceDer;
+  PetscReal      *x;
   PetscReal      *basisI, *basisDerI, *basisJ, *basisDerJ;
   PetscInt        NbI = 0, NcI = 0, NbJ = 0, NcJ = 0, numComponents = 0, numComponentsAux = 0;
   PetscInt        dim, f, e;
@@ -4043,8 +4043,8 @@ PetscErrorCode PetscFEIntegrateResidual_Nonaffine(PetscFE fem, PetscInt Ne, Pets
 {
   const PetscInt  debug = 0;
   PetscQuadrature quad;
-  PetscScalar    *f0, *f1, *u, *gradU, *a, *gradA;
-  PetscReal      *x, *refSpaceDer;
+  PetscScalar    *f0, *f1, *u, *gradU, *a, *gradA, *refSpaceDer;
+  PetscReal      *x;
   PetscInt        dim, numComponents = 0, numComponentsAux = 0, cOffset = 0, cOffsetAux = 0, eOffset = 0, e, f;
   PetscErrorCode  ierr;
 
@@ -4228,8 +4228,8 @@ PetscErrorCode PetscFEIntegrateBdResidual_Nonaffine(PetscFE fem, PetscInt Ne, Pe
 {
   const PetscInt  debug = 0;
   PetscQuadrature quad;
-  PetscScalar    *f0, *f1, *u, *gradU, *a, *gradA;
-  PetscReal      *x, *refSpaceDer;
+  PetscScalar    *f0, *f1, *u, *gradU, *a, *gradA, *refSpaceDer;
+  PetscReal      *x;
   PetscInt        dim, numComponents = 0, numComponentsAux = 0, cOffset = 0, cOffsetAux = 0, eOffset = 0, e, f;
   PetscErrorCode  ierr;
 
@@ -4425,8 +4425,8 @@ PetscErrorCode PetscFEIntegrateJacobian_Nonaffine(PetscFE fem, PetscInt Ne, Pets
   PetscInt        offsetI    = 0; /* Offset into an element vector for fieldI */
   PetscInt        offsetJ    = 0; /* Offset into an element vector for fieldJ */
   PetscQuadrature quad;
-  PetscScalar    *g0, *g1, *g2, *g3, *u, *gradU, *a, *gradA;
-  PetscReal      *x, *refSpaceDer;
+  PetscScalar    *g0, *g1, *g2, *g3, *u, *gradU, *a, *gradA, *refSpaceDer;
+  PetscReal      *x;
   PetscReal      *basisI, *basisDerI, *basisJ, *basisDerJ;
   PetscInt        NbI = 0, NcI = 0, NbJ = 0, NcJ = 0, numComponents = 0, numComponentsAux = 0;
   PetscInt        dim, f, e;
