@@ -44,7 +44,7 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
   ierr = PCCreate(PetscObjectComm((PetscObject)coarse),&pccr);CHKERRQ(ierr);
   ierr = PCSetType(pccr,PCCR);CHKERRQ(ierr);
   ierr = PCAppendOptionsPrefix(pccr,"coarsen_");CHKERRQ(ierr);
-  ierr = PCSetOperators(pccr,mat,mat,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  ierr = PCSetOperators(pccr,mat,mat);CHKERRQ(ierr);
   ierr = PCSetFromOptions(pccr);CHKERRQ(ierr);
   ierr = MatGetVecs(mat,&s,NULL);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(mat,&ms,&me);CHKERRQ(ierr);
@@ -117,7 +117,7 @@ static PetscErrorCode MatCoarsenApply_CR(MatCoarsen coarse)
     ierr = PCCreate(PetscObjectComm((PetscObject)coarse),&pccr);CHKERRQ(ierr);
     ierr = PCAppendOptionsPrefix(pccr,"coarsen_");CHKERRQ(ierr);
     ierr = PCSetType(pccr,PCCR);CHKERRQ(ierr);
-    ierr = PCSetOperators(pccr,mat,mat,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+    ierr = PCSetOperators(pccr,mat,mat);CHKERRQ(ierr);
     ierr = PCCRSetInjection(pccr,inj);CHKERRQ(ierr);
     ierr = PCSetFromOptions(pccr);CHKERRQ(ierr);
 

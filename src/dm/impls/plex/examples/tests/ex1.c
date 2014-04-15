@@ -2,10 +2,6 @@ static char help[] = "Run C version of TetGen to construct and refine a mesh\n\n
 
 #include <petscdmplex.h>
 
-#if defined(PETSC_HAVE_CGNS)
-#include <cgnslib.h>
-#endif
-
 typedef struct {
   DM            dm;                /* REQUIRED in order to use SNES evaluation functions */
   PetscInt      debug;             /* The debugging level */
@@ -83,25 +79,14 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
       ierr = DMPlexCreateGmsh(comm, viewer, interpolate, dm);CHKERRQ(ierr);
       ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
     } else {
-#if defined(PETSC_HAVE_CGNS)
-      int cgid = -1;
-
-      if (!rank) {
-        ierr = cg_open(filename, CG_MODE_READ, &cgid);CHKERRQ(ierr);
-        if (cgid <= 0) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_LIB, "cg_open(\"%s\",...) did not return a valid file ID", filename);
-      }
-      ierr = DMPlexCreateCGNS(comm, cgid, interpolate, dm);CHKERRQ(ierr);
-      if (!rank) {ierr = cg_close(cgid);CHKERRQ(ierr);}
-#else
-      SETERRQ(comm, PETSC_ERR_SUP, "Loading meshes requires CGNS support. Reconfigure using --with-cgns-dir");
-#endif
+      ierr = DMPlexCreateCGNSFromFile(comm, filename, interpolate, dm);CHKERRQ(ierr);
     }
   } else if (cellSimplex) {
     ierr = DMPlexCreateBoxMesh(comm, dim, interpolate, dm);CHKERRQ(ierr);
   } else {
     const PetscInt cells[3] = {2, 2, 2};
 
-    ierr = DMPlexCreateHexBoxMesh(comm, dim, cells, dm);CHKERRQ(ierr);
+    ierr = DMPlexCreateHexBoxMesh(comm, dim, cells, PETSC_FALSE, PETSC_FALSE, PETSC_FALSE, dm);CHKERRQ(ierr);
   }
   {
     DM refinedMesh     = NULL;

@@ -146,6 +146,8 @@ static PetscErrorCode PetscScanString(MPI_Comm comm,size_t n,char str[])
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "PetscStrdup"
 /*
     This is needed because certain strings may be freed by SAWs, hence we cannot use PetscStrallocpy()
 */
@@ -671,7 +673,7 @@ PetscErrorCode  PetscOptionsEnum(const char opt[],const char text[],const char m
 +  opt - option name
 .  text - short string that describes the option
 .  man - manual page with additional information on option
--  defaultv - the default (current) value
+-  defaultv - the default (current) value, if the user does not provide a value this is returned in value
 
    Output Parameter:
 +  value - the integer value to return
@@ -721,7 +723,7 @@ PetscErrorCode  PetscOptionsInt(const char opt[],const char text[],const char ma
 +  opt - option name
 .  text - short string that describes the option
 .  man - manual page with additional information on option
-.  defaultv - the default (current) value
+.  defaultv - the default (current) value, if the user does not provide a value this is returned in value
 -  len - length of the result string including null terminator
 
    Output Parameter:
@@ -773,7 +775,7 @@ PetscErrorCode  PetscOptionsString(const char opt[],const char text[],const char
 +  opt - option name
 .  text - short string that describes the option
 .  man - manual page with additional information on option
--  defaultv - the default (current) value
+-  defaultv - the default (current) value, if the user does not provide a value this is returned in value
 
    Output Parameter:
 +  value - the value to return
@@ -807,7 +809,7 @@ PetscErrorCode  PetscOptionsReal(const char opt[],const char text[],const char m
   }
   ierr = PetscOptionsGetReal(PetscOptionsObject.prefix,opt,value,set);CHKERRQ(ierr);
   if (PetscOptionsObject.printhelp && PetscOptionsPublishCount == 1 && !PetscOptionsObject.alreadyprinted) {
-    ierr = (*PetscHelpPrintf)(PetscOptionsObject.comm,"  -%s%s <%G>: %s (%s)\n",PetscOptionsObject.prefix ? PetscOptionsObject.prefix : "",opt+1,defaultv,text,ManSection(man));CHKERRQ(ierr);
+    ierr = (*PetscHelpPrintf)(PetscOptionsObject.comm,"  -%s%s <%g>: %s (%s)\n",PetscOptionsObject.prefix ? PetscOptionsObject.prefix : "",opt+1,(double)defaultv,text,ManSection(man));CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -823,7 +825,7 @@ PetscErrorCode  PetscOptionsReal(const char opt[],const char text[],const char m
 +  opt - option name
 .  text - short string that describes the option
 .  man - manual page with additional information on option
--  defaultv - the default (current) value
+-  defaultv - the default (current) value, if the user does not provide a value this is returned in value
 
    Output Parameter:
 +  value - the value to return
@@ -917,7 +919,7 @@ PetscErrorCode  PetscOptionsName(const char opt[],const char text[],const char m
 .  text - short string that describes the option
 .  man - manual page with additional information on option
 .  list - the possible choices
-.  defaultv - the default (current) value
+.  defaultv - the default (current) value, if the user does not provide a value this is returned in value
 -  len - the length of the character array value
 
    Output Parameter:
@@ -976,7 +978,7 @@ PetscErrorCode  PetscOptionsFList(const char opt[],const char ltext[],const char
 .  man - manual page with additional information on option
 .  list - the possible choices (one of these must be selected, anything else is invalid)
 .  ntext - number of choices
--  defaultv - the default (current) value
+-  defaultv - the default (current) value, if the user does not provide a value the index of defaultv is returned
 
    Output Parameter:
 +  value - the index of the value to return
@@ -1186,7 +1188,8 @@ PetscErrorCode  PetscOptionsBoolGroupEnd(const char opt[],const char text[],cons
    Input Parameters:
 +  opt - option name
 .  text - short string that describes the option
--  man - manual page with additional information on option
+.  man - manual page with additional information on option
+-  deflt - the default value, if the user does not set a value then this value is returned in flg
 
    Output Parameter:
 .  flg - PETSC_TRUE or PETSC_FALSE
@@ -1285,9 +1288,9 @@ PetscErrorCode  PetscOptionsRealArray(const char opt[],const char text[],const c
   }
   ierr = PetscOptionsGetRealArray(PetscOptionsObject.prefix,opt,value,n,set);CHKERRQ(ierr);
   if (PetscOptionsObject.printhelp && PetscOptionsPublishCount == 1 && !PetscOptionsObject.alreadyprinted) {
-    ierr = (*PetscHelpPrintf)(PetscOptionsObject.comm,"  -%s%s <%G",PetscOptionsObject.prefix?PetscOptionsObject.prefix:"",opt+1,value[0]);CHKERRQ(ierr);
+    ierr = (*PetscHelpPrintf)(PetscOptionsObject.comm,"  -%s%s <%g",PetscOptionsObject.prefix?PetscOptionsObject.prefix:"",opt+1,(double)value[0]);CHKERRQ(ierr);
     for (i=1; i<*n; i++) {
-      ierr = (*PetscHelpPrintf)(PetscOptionsObject.comm,",%G",value[i]);CHKERRQ(ierr);
+      ierr = (*PetscHelpPrintf)(PetscOptionsObject.comm,",%g",(double)value[i]);CHKERRQ(ierr);
     }
     ierr = (*PetscHelpPrintf)(PetscOptionsObject.comm,">: %s (%s)\n",text,ManSection(man));CHKERRQ(ierr);
   }

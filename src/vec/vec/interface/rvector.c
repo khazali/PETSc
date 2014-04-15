@@ -20,7 +20,11 @@ PETSC_EXTERN PetscErrorCode VecValidValues(Vec vec,PetscInt argnum,PetscBool beg
   const PetscScalar *x;
 
   PetscFunctionBegin;
+#if defined(PETSC_HAVE_CUSP)
+  if ((vec->petscnative || vec->ops->getarray) && vec->valid_GPU_array != PETSC_CUSP_GPU) {
+#else
   if (vec->petscnative || vec->ops->getarray) {
+#endif
     ierr = VecGetLocalSize(vec,&n);CHKERRQ(ierr);
     ierr = VecGetArrayRead(vec,&x);CHKERRQ(ierr);
     for (i=0; i<n; i++) {
@@ -576,7 +580,7 @@ PetscErrorCode  VecSet(Vec x,PetscScalar alpha)
   val  = PetscAbsScalar(alpha);
   ierr = PetscObjectComposedDataSetReal((PetscObject)x,NormIds[NORM_1],x->map->N * val);CHKERRQ(ierr);
   ierr = PetscObjectComposedDataSetReal((PetscObject)x,NormIds[NORM_INFINITY],val);CHKERRQ(ierr);
-  val  = PetscSqrtReal((double)x->map->N) * val;
+  val  = PetscSqrtReal((PetscReal)x->map->N) * val;
   ierr = PetscObjectComposedDataSetReal((PetscObject)x,NormIds[NORM_2],val);CHKERRQ(ierr);
   ierr = PetscObjectComposedDataSetReal((PetscObject)x,NormIds[NORM_FROBENIUS],val);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1306,17 +1310,19 @@ PetscErrorCode  VecGetSubVector(Vec X,IS is,Vec *Y)
     ierr = ISContiguousLocal(is,gstart,gend,&start,&contiguous);CHKERRQ(ierr);
     ierr = MPI_Allreduce(&contiguous,&gcontiguous,1,MPIU_BOOL,MPI_LAND,PetscObjectComm((PetscObject)is));CHKERRQ(ierr);
     if (gcontiguous) {          /* We can do a no-copy implementation */
-      PetscInt    n,N;
+      PetscInt    n,N,bs;
       PetscScalar *x;
       PetscMPIInt size;
       ierr = ISGetLocalSize(is,&n);CHKERRQ(ierr);
       ierr = VecGetArray(X,&x);CHKERRQ(ierr);
+      ierr = VecGetBlockSize(X,&bs);CHKERRQ(ierr);
+      if (n%bs) bs = 1;
       ierr = MPI_Comm_size(PetscObjectComm((PetscObject)X),&size);CHKERRQ(ierr);
       if (size == 1) {
-        ierr = VecCreateSeqWithArray(PetscObjectComm((PetscObject)X),1,n,x+start,&Z);CHKERRQ(ierr);
+        ierr = VecCreateSeqWithArray(PetscObjectComm((PetscObject)X),bs,n,x+start,&Z);CHKERRQ(ierr);
       } else {
         ierr = ISGetSize(is,&N);CHKERRQ(ierr);
-        ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)X),1,n,N,x+start,&Z);CHKERRQ(ierr);
+        ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)X),bs,n,N,x+start,&Z);CHKERRQ(ierr);
       }
       ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
     } else {                    /* Have to create a scatter and do a copy */

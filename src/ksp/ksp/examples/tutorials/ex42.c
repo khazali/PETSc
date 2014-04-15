@@ -9,8 +9,8 @@ all boundaries are free-slip, i.e. zero normal flow and zero tangential stress \
 
 /* Contributed by Dave May */
 
-#include "petscksp.h"
-#include "petscdmda.h"
+#include <petscksp.h>
+#include <petscdmda.h>
 
 #define PROFILE_TIMING
 #define ASSEMBLE_LOWER_TRIANGULAR
@@ -94,10 +94,10 @@ PetscErrorCode CellPropertiesDestroy(CellProperties *C)
 
 #undef __FUNCT__
 #define __FUNCT__ "CellPropertiesGetCell"
-PetscErrorCode CellPropertiesGetCell(CellProperties C,PetscInt I,PetscInt J,PetscInt K,GaussPointCoefficients **G)
+PetscErrorCode CellPropertiesGetCell(CellProperties C,PetscInt II,PetscInt J,PetscInt K,GaussPointCoefficients **G)
 {
   PetscFunctionBeginUser;
-  *G = &C->gpc[(I-C->sex) + (J-C->sey)*C->mx + (K-C->sez)*C->mx*C->my];
+  *G = &C->gpc[(II-C->sex) + (J-C->sey)*C->mx + (K-C->sez)*C->mx*C->my];
   PetscFunctionReturn(0);
 }
 
@@ -481,32 +481,32 @@ static PetscInt ASS_MAP_wIwDI_uJuDJ(PetscInt wi,PetscInt wd,PetscInt w_NPE,Petsc
 #define __FUNCT__ "DMDASetValuesLocalStencil3D_ADD_VALUES"
 static PetscErrorCode DMDASetValuesLocalStencil3D_ADD_VALUES(StokesDOF ***fields_F,MatStencil u_eqn[],MatStencil p_eqn[],PetscScalar Fe_u[],PetscScalar Fe_p[])
 {
-  PetscInt n,I,J,K;
+  PetscInt n,II,J,K;
 
   PetscFunctionBeginUser;
   for (n = 0; n<NODES_PER_EL; n++) {
-    I = u_eqn[NSD*n].i;
+    II = u_eqn[NSD*n].i;
     J = u_eqn[NSD*n].j;
     K = u_eqn[NSD*n].k;
 
-    fields_F[K][J][I].u_dof = fields_F[K][J][I].u_dof+Fe_u[NSD*n];
+    fields_F[K][J][II].u_dof = fields_F[K][J][II].u_dof+Fe_u[NSD*n];
 
-    I = u_eqn[NSD*n+1].i;
+    II = u_eqn[NSD*n+1].i;
     J = u_eqn[NSD*n+1].j;
     K = u_eqn[NSD*n+1].k;
 
-    fields_F[K][J][I].v_dof = fields_F[K][J][I].v_dof+Fe_u[NSD*n+1];
+    fields_F[K][J][II].v_dof = fields_F[K][J][II].v_dof+Fe_u[NSD*n+1];
 
-    I = u_eqn[NSD*n+2].i;
+    II = u_eqn[NSD*n+2].i;
     J = u_eqn[NSD*n+2].j;
     K = u_eqn[NSD*n+2].k;
-    fields_F[K][J][I].w_dof = fields_F[K][J][I].w_dof+Fe_u[NSD*n+2];
+    fields_F[K][J][II].w_dof = fields_F[K][J][II].w_dof+Fe_u[NSD*n+2];
 
-    I = p_eqn[n].i;
+    II = p_eqn[n].i;
     J = p_eqn[n].j;
     K = p_eqn[n].k;
 
-    fields_F[K][J][I].p_dof = fields_F[K][J][I].p_dof+Fe_p[n];
+    fields_F[K][J][II].p_dof = fields_F[K][J][II].p_dof+Fe_p[n];
 
   }
   PetscFunctionReturn(0);
@@ -833,7 +833,6 @@ static PetscErrorCode AssembleA_Stokes(Mat A,DM stokes_da,CellProperties cell_pr
   GaussPointCoefficients *props;
   PetscScalar            *prop_eta;
   PetscInt               n,M,N,P;
-  PetscLogDouble         t0,t1;
   PetscErrorCode         ierr;
 
   PetscFunctionBeginUser;
@@ -1148,7 +1147,7 @@ static PetscErrorCode DMDACreateManufacturedSolution(PetscInt mx,PetscInt my,Pet
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
-  ierr = DMDACreate3d(PETSC_COMM_WORLD,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE,DMDA_STENCIL_BOX,
+  ierr = DMDACreate3d(PETSC_COMM_WORLD,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DMDA_STENCIL_BOX,
                       mx+1,my+1,mz+1,PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,4,1,NULL,NULL,NULL,&da);CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,0,"anlytic_Vx");CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,1,"anlytic_Vy");CHKERRQ(ierr);
@@ -1391,7 +1390,6 @@ PetscErrorCode DAView_3DVTK_StructuredGrid_appended(DM da,Vec FIELD,const char f
   PetscScalar    *_L_FIELD;
   PetscInt       memory_offset;
   PetscScalar    *buffer;
-  PetscLogDouble t0,t1;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
@@ -1692,7 +1690,7 @@ PetscErrorCode KSPMonitorStokesBlocks(KSP ksp,PetscInt n,PetscReal rnorm,void *d
   Mat            A;
 
   PetscFunctionBeginUser;
-  ierr = KSPGetOperators(ksp,&A,0,0);CHKERRQ(ierr);
+  ierr = KSPGetOperators(ksp,&A,NULL);CHKERRQ(ierr);
   ierr = MatGetVecs(A,&w,&v);CHKERRQ(ierr);
 
   ierr = KSPBuildResidual(ksp,v,w,&Br);CHKERRQ(ierr);
@@ -1784,7 +1782,7 @@ static PetscErrorCode solve_stokes_3d_coupled(PetscInt mx,PetscInt my,PetscInt m
   p_dof         = P_DOFS; /* p - pressure */
   dof           = u_dof+p_dof;
   stencil_width = 1;
-  ierr          = DMDACreate3d(PETSC_COMM_WORLD,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE,DMDA_STENCIL_BOX,
+  ierr          = DMDACreate3d(PETSC_COMM_WORLD,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DMDA_STENCIL_BOX,
                                mx+1,my+1,mz+1,PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,dof,stencil_width,NULL,NULL,NULL,&da_Stokes);CHKERRQ(ierr);
   ierr = DMDASetFieldName(da_Stokes,0,"Vx");CHKERRQ(ierr);
   ierr = DMDASetFieldName(da_Stokes,1,"Vy");CHKERRQ(ierr);
@@ -1860,7 +1858,7 @@ static PetscErrorCode solve_stokes_3d_coupled(PetscInt mx,PetscInt my,PetscInt m
             cell->eta[p] = 1.0;
 
             cell->fx[p] = 0.0*coord_x;
-            cell->fy[p] = -PetscSinReal((double)2.2*PETSC_PI*coord_y)*PetscCosReal(1.0*PETSC_PI*coord_x);
+            cell->fy[p] = -PetscSinReal(2.2*PETSC_PI*coord_y)*PetscCosReal(1.0*PETSC_PI*coord_x);
             cell->fz[p] = 0.0*coord_z;
             cell->hc[p] = 0.0;
           }
@@ -1914,7 +1912,7 @@ static PetscErrorCode solve_stokes_3d_coupled(PetscInt mx,PetscInt my,PetscInt m
             cell->eta[p] = 1.0;
 
             cell->fx[p] = 0.0;
-            cell->fy[p] = -PetscSinReal((double)3*PETSC_PI*coord_y)*PetscCosReal(1.0*PETSC_PI*coord_x);
+            cell->fy[p] = -PetscSinReal(3.0*PETSC_PI*coord_y)*PetscCosReal(1.0*PETSC_PI*coord_x);
             cell->fz[p] = 0.0*coord_z;
             cell->hc[p] = 0.0;
           }
@@ -1981,7 +1979,7 @@ static PetscErrorCode solve_stokes_3d_coupled(PetscInt mx,PetscInt my,PetscInt m
   /* SOLVE */
   ierr = KSPCreate(PETSC_COMM_WORLD,&ksp_S);CHKERRQ(ierr);
   ierr = KSPSetOptionsPrefix(ksp_S,"stokes_"); /* stokes */ CHKERRQ(ierr);
-  ierr = KSPSetOperators(ksp_S,A,B,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp_S,A,B);CHKERRQ(ierr);
   ierr = KSPSetFromOptions(ksp_S);CHKERRQ(ierr);
 
   {

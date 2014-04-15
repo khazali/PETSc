@@ -245,6 +245,35 @@ PetscErrorCode DMLabelDestroyIndex(DMLabel label)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "DMLabelHasValue"
+/*@
+  DMLabelHasValue - Determine whether a label assigns the value to any point
+
+  Input Parameters:
++ label - the DMLabel
+- value - the value
+
+  Output Parameter:
+. contains - Flag indicating whether the label maps this value to any point
+
+  Level: developer
+
+.seealso: DMLabelHasPoint(), DMLabelGetValue(), DMLabelSetValue()
+@*/
+PetscErrorCode DMLabelHasValue(DMLabel label, PetscInt value, PetscBool *contains)
+{
+  PetscInt v;
+
+  PetscFunctionBegin;
+  PetscValidPointer(contains, 3);
+  for (v = 0; v < label->numStrata; ++v) {
+    if (value == label->stratumValues[v]) break;
+  }
+  *contains = (v < label->numStrata ? PETSC_TRUE : PETSC_FALSE);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "DMLabelHasPoint"
 /*@
   DMLabelHasPoint - Determine whether a label assigns a value to a point
@@ -496,6 +525,7 @@ PetscErrorCode DMLabelGetStratumIS(DMLabel label, PetscInt value, IS *points)
     if (label->stratumValues[v] == value) {
       if (label->arrayValid) {
         ierr = ISCreateGeneral(PETSC_COMM_SELF, label->stratumSizes[v], &label->points[label->stratumOffsets[v]], PETSC_COPY_VALUES, points);CHKERRQ(ierr);
+        ierr = PetscObjectSetName((PetscObject) *points, "indices");CHKERRQ(ierr);
       } else {
         SETERRQ(PETSC_COMM_SELF, PETSC_ERR_SUP, "Need to implement this to speedup Stratify");
       }

@@ -347,7 +347,6 @@ static PetscErrorCode PCSetUp_CR(PC pc)
   Vec            fvec,cvec;
   VecScatter     inj;
   Mat            A,P;
-  MatStructure   flg;
   const char     *prefix;
   PetscInt       fs,fe,fn,i;
   PetscScalar    *fvecarray;
@@ -388,8 +387,8 @@ static PetscErrorCode PCSetUp_CR(PC pc)
     ierr = PCGetOptionsPrefix(pc,&prefix);CHKERRQ(ierr);
     ierr = PCSetOptionsPrefix(cr->fpc,prefix);CHKERRQ(ierr);
     ierr = PCAppendOptionsPrefix(cr->fpc,"habituated_");CHKERRQ(ierr);
-    ierr = PCGetOperators(pc,&A,&P,&flg);CHKERRQ(ierr);
-    ierr = PCSetOperators(cr->fpc,A,P,flg);CHKERRQ(ierr);
+    ierr = PCGetOperators(pc,&A,&P);CHKERRQ(ierr);
+    ierr = PCSetOperators(cr->fpc,A,P);CHKERRQ(ierr);
     ierr = PCSetType(cr->fpc,PCSOR);CHKERRQ(ierr);
     ierr = PCSetFromOptions(cr->fpc);CHKERRQ(ierr);
   }
