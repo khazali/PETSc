@@ -196,12 +196,25 @@ alltests:
 	-@${RM} ${PETSC_ARCH}/conf/alltests.log alltests.log
 	-@ln -s ${PETSC_ARCH}/conf/alltests.log alltests.log
 	-@if [ "${PETSC_WITH_BATCH}" == "" ]; then make PETSC_ARCH=${PETSC_ARCH} PETSC_DIR=${PETSC_DIR} stream NPMAX=4 | tee ${PETSC_ARCH}/conf/alltests.log ;fi
+	-@${OMAKE} tree_gmake_test  PETSC_ARCH=${PETSC_ARCH} PETSC_DIR=${PETSC_DIR} MPIEXEC="${MPIEXEC}" DATAFILESPATH=${DATAFILESPATH} 2>&1 | tee ${PETSC_ARCH}/conf/alltests.log
 	-@${OMAKE} alltest PETSC_ARCH=${PETSC_ARCH} PETSC_DIR=${PETSC_DIR} MPIEXEC="${MPIEXEC}" DATAFILESPATH=${DATAFILESPATH} 2>&1 | tee ${PETSC_ARCH}/conf/alltests.log
 
 alltest:
 	-@for i in ${TEST_RUNS} ; do \
           echo "******* Testing: ${TESTMODE}_$$i *******"; \
 	  ${OMAKE} PETSC_ARCH=${PETSC_ARCH} PETSC_DIR=${PETSC_DIR} ACTION=${TESTMODE}_$$i MPIEXEC="${MPIEXEC}" NO_PRINT_DIR=yes tree ; \
+	done
+
+#
+#  will run the gmake tests in each directory that has a gmakefile
+#
+tree_gmake_test:
+	-@for dir in ${DIRS} ; do if [ -d $$dir ]; then \
+	(cd $$dir ; \
+        if [ -f gmakefile ]; then \
+	  ${OMAKE}  -f gmakefile runex19 PETSC_ARCH=${PETSC_ARCH} MPIEXEC="${MPIEXEC}" DATAFILESPATH=${DATAFILESPATH}; \
+        fi; \
+	${OMAKE}  tree_gmake_test ACTION=${ACTION} PETSC_ARCH=${PETSC_ARCH}  MPIEXEC="${MPIEXEC}" DATAFILESPATH=${DATAFILESPATH}) ;fi; \
 	done
 
 tests_DATAFILESPATH:

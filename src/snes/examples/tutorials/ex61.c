@@ -119,8 +119,8 @@ int main(int argc, char **argv)
   ierr = DMDASetElementType(user.da2,DMDA_ELEMENT_P1);CHKERRQ(ierr);
 
   /* Set x and y coordinates */
-  ierr = DMDASetUniformCoordinates(user.da1,user.xmin,user.xmax,user.ymin,user.ymax,NULL,NULL);CHKERRQ(ierr);
-  ierr = DMDASetUniformCoordinates(user.da2,user.xmin,user.xmax,user.ymin,user.ymax,NULL,NULL);CHKERRQ(ierr);
+  ierr = DMDASetUniformCoordinates(user.da1,user.xmin,user.xmax,user.ymin,user.ymax,0.0,0.0);CHKERRQ(ierr);
+  ierr = DMDASetUniformCoordinates(user.da2,user.xmin,user.xmax,user.ymin,user.ymax,0.0,0.0);CHKERRQ(ierr);
 
 
   /* Get global vector x from DM (da1) and duplicate vectors r,xl,xu */
@@ -374,7 +374,7 @@ PetscErrorCode Update_u(Vec X,AppCtx *user)
 PetscErrorCode Update_q(AppCtx *user)
 {
   PetscErrorCode ierr;
-  PetscScalar    *q_p,*w1,*w2,max1;
+  PetscScalar    *q_p,*w1,*w2;
   PetscInt       i,n;
 
   PetscFunctionBeginUser;

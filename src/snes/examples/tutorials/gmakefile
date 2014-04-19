@@ -1,0 +1,93 @@
+
+# make runexN   or make runexN UPDATEFILE=outputfileyouwantupdated
+#
+PETSCFEATURES="pastix,mumps,superlu,hypre,spai,superlu,superlu_dist,metis,parmetis,sundials,ml,real,complex,single,double,__float128,mpi_win_create,mpi_alltoallw,32bitindices,64bitindices"
+
+#CPPFLAGS	 = -I/PETSc3/geodynamics/PetscSimulationsViewers/src
+CFLAGS           =
+FFLAGS		 =
+CPPFLAGS         =
+FPPFLAGS         =
+LOCDIR		 = src/snes/examples/tutorials/
+MANSEC           = SNES
+EXAMPLESC	 := $(shell ls *.c)
+EXAMPLESF	 := $(shell ls *.F *.F90)
+EXAMPLESCH	 = ex43-44.h
+EXAMPLESFH       = ex5f.h
+EXAMPLESMATLAB   = ex5m.m  ex61genm.m ex61m.m
+DIRS		 = ex10d
+
+EXECUTABLES = $(EXAMPLESC:.c=)
+
+all: ${EXECUTABLES}
+include ${PETSC_DIR}/conf/variables
+include ${PETSC_DIR}/conf/rules
+include ${PETSC_DIR}/${PETSC_ARCH}/conf/gmakevariables
+
+ex%.o : ex%.c  chkopts
+	-@${PCC} -o $@ -c $< ${PCC_FLAGS} ${CFLAGS} ${CCPPFLAGS}
+
+ex31.h:
+	-${PETSC_DIR}/bin/pythonscripts/PetscGenerateFEMQuadrature.py 2 2 2 1 laplacian 2 1 1 1 gradient 2 1 1 1 identity ${PETSC_DIR}/src/snes/examples/tutorials/ex31.h
+ex31: ex31.h ex31.o chkopts
+	-@${CLINKER} -o $@ $< ${PETSC_SNES_LIB}
+
+ex%f.o : ex%f.F  chkopts
+	-@${FC} -o $@ -c $< ${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS}
+
+ex%f90.o : ex%f90.F  chkopts
+	-@${FC} -o $@ -c $< ${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS}
+
+ex% : ex%.o  chkopts
+	-@${CLINKER} -o $@ $< ${PETSC_SNES_LIB}
+
+ex%f : ex%f.o  chkopts
+	-@${FLINKER} -o $@ $< ${PETSC_SNES_LIB}
+	-@${RM} $<
+
+ex%f90 : ex%f.o  chkopts
+	-@${FLINKER} -o $@ $< ${PETSC_SNES_LIB}
+	-@${RM} $<
+
+runex%: ex%
+	@IFS=',' command read -a packages <<< "${PETSCFEATURES}";\
+        IFS=',' command read -a  installedpackages <<< "${PETSCINSTALLEDFEATURES}";\
+        a=`grep "Run Number Processes:" $<.c | sed "s/Run Number Processes://g"`; \
+        a=`echo "$${a}" | tr -d ' ' | tr '\n' '>'`;\
+        IFS='>' command read -a  sizes <<< "$${a}";\
+	inargs=`grep "Run Arguments:" $<.c | sed "s/Run Arguments://g"`; \
+        inargs=`echo "$${inargs}" | tr -s ' ' | tr '\n' '>'`;\
+        IFS='>' command read -a  args <<< "$${inargs}";\
+	inofile=`grep "Run Output File:" $<.c | sed "s/Run Output File://g"`; \
+        inofile=`echo "$${inofile}" | tr -d ' ' | tr '\n' '>'`;\
+        IFS='>' command read -a  ofile <<< "$${inofile}";\
+	orequirements=`grep "Run Requirements:" $<.c | sed "s/Run Requirements://g"`; \
+        orequirements=`echo "$${orequirements}" | tr -d ' ' | tr '\n' '>'`;\
+        IFS='>' command read -a requirements <<< "$${orequirements}";\
+        Len=$${#args[@]};\
+        for (( i=0; i<$${Len}; i++ )); do \
+           found="yes";\
+           command read -a  argarray <<< "$${args[$${i}]} $${requirements[$${i}]}";\
+           for p in "$${packages[@]}"; do \
+             if [[ " $${argarray[@]} " =~ " $$p " ]]; then \
+               if ! [[ " $${installedpackages[@]} " =~ " $$p " ]]; then \
+                  if [[ "${verbose}" == "yes" ]]; then echo Rejected due to $$p; fi;\
+                 found="no"; \
+                 continue ; \
+               fi; \
+             fi;\
+           done; \
+           if [[ "$${found}" == "no" ]]; then continue; fi; \
+           if [[ "${UPDATEFILE}" == $${ofile[$$i]}.out ]]; then \
+             ${MPIEXEC} -n $${sizes[$${i}]} ./$< $${args[$${i}]} > output/$${ofile[$$i]}.out ; \
+           elif [[ "${UPDATEFILE}" == "" ]]; then \
+             ${MPIEXEC} -n $${sizes[$${i}]} ./$< $${args[$${i}]} > tmpdata 2>&1; \
+	       if !(${PETSC_DIR}/bin/petscdiff output/$${ofile[$$i]}.out tmpdata) then  \
+	         printf "${PWD}\nPossible problem with -np $${sizes[$${i}]} $< $${args[$${i}]} :: $${ofile[$$i]}.out\n==========================================================================\n"; \
+               fi; \
+	     ${RM} tmpdata;\
+           fi; \
+         done
+
+include ${PETSC_DIR}/conf/test
+
