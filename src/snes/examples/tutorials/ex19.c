@@ -667,57 +667,57 @@ PetscErrorCode NonlinearGS(SNES snes, Vec X, Vec B, void *ctx)
 
    Run Number Processes: 2
    Run Output File:      ex19_1
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 3 -snes_monitor_short -pc_type mg -ksp_type fgmres -pc_mg_type full
 
    Run Number Processes: 4
    Run Output File:      ex19_2
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 3 -snes_converged_reason -pc_type mg -mat_fd_type ds
 
    Run Number Processes: 2
    Run Output File:      ex19_1
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 3 -snes_monitor_short -pc_type mg -ksp_type fgmres -pc_mg_type full -mat_fd_coloring_bcols 1
 
    Run Number Processes: 4
    Run Output File:      ex19_2
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 3 -snes_converged_reason -pc_type mg -mat_fd_type ds -mat_fd_coloring_bcols 1
 
    Run Number Processes: 1
    Run Output File:      ex19_fdcoloring_wp
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 3 -snes_monitor_short -pc_type mg
 
    Run Number Processes: 1
    Run Output File:      ex19_2
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 3 -snes_converged_reason -pc_type mg -mat_fd_type ds
 
    Run Number Processes: 1
    Run Output File:      ex19_fdcoloring_wp
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 3 -snes_monitor_short -pc_type mg -mat_fd_coloring_bcols 1
 
    Run Number Processes: 1
    Run Output File:      ex19_2
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 3 -snes_converged_reason -pc_type mg -mat_fd_type ds -mat_fd_coloring_bcols 1
 
    Run Number Processes: 1
    Run Output File:      ex19_fdcoloring_wp
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 3 -snes_monitor_short -pc_type mg -dm_mat_type baij
 
    Run Number Processes: 1
    Run Output File:      ex19_2
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 3 -snes_converged_reason -pc_type mg -mat_fd_type ds -dm_mat_type baij
 
    Run Number Processes: 4
    Run Output File:      ex19_3
-   Run Requirements:     
+   Run Requirements:
    Run Arguments:        -da_refine 3 -snes_monitor_short -pc_type redundant -mat_type mpiaij -redundant_ksp_type preonly -redundant_pc_factor_mat_solver_package mumps -pc_redundant_number 2
 
 Tests various scatter implementations
@@ -869,22 +869,22 @@ Tests various scatter implementations
    Run Number Processes: 1
    Run Output File:      ex19_fas
    Run Requirements:
-   Run Arguments:        -da_refine 4 -snes_monitor_short -snes_type fas -fas_levels_snes_type gs -fas_levels_snes_gs_sweeps 3 -fas_levels_snes_gs_rtol 1e-15 -fas_levels_snes_gs_atol 0.0 -fas_levels_snes_gs_stol 0.0  -grashof 4e4 -snes_fas_smoothup 6 -snes_fas_smoothdown 6 -lidvelocity 100
+   Run Arguments:        -da_refine 4 -snes_monitor_short -snes_type fas -fas_levels_snes_type ngs -fas_levels_snes_gs_sweeps 3 -fas_levels_snes_gs_rtol 1e-15 -fas_levels_snes_gs_atol 0.0 -fas_levels_snes_gs_stol 0.0  -grashof 4e4 -snes_fas_smoothup 6 -snes_fas_smoothdown 6 -lidvelocity 100
 
    Run Number Processes: 1
    Run Output File:      ex19_fas_full
    Run Requirements:
-   Run Arguments:        -da_refine 4 -snes_monitor_short -snes_type fas -snes_fas_type full -snes_fas_full_downsweep -fas_levels_snes_type gs -fas_levels_snes_gs_sweeps 3 -fas_levels_snes_gs_rtol 1e-15 -fas_levels_snes_gs_atol 0.0 -fas_levels_snes_gs_stol 0.0 -grashof 4e4 -snes_fas_smoothup 6 -snes_fas_smoothdown 6 -lidvelocity 100
+   Run Arguments:        -da_refine 4 -snes_monitor_short -snes_type fas -snes_fas_type full -snes_fas_full_downsweep -fas_levels_snes_type ngs -fas_levels_snes_gs_sweeps 3 -fas_levels_snes_gs_rtol 1e-15 -fas_levels_snes_gs_atol 0.0 -fas_levels_snes_gs_stol 0.0 -grashof 4e4 -snes_fas_smoothup 6 -snes_fas_smoothdown 6 -lidvelocity 100
 
    Run Number Processes: 1
    Run Output File:      ex19_ngmres_fas
    Run Requirements:
-   Run Arguments:        -da_refine 4 -snes_monitor_short -snes_type ngmres -npc_fas_levels_snes_type gs -npc_fas_levels_snes_gs_sweeps 3 -npc_fas_levels_snes_gs_rtol 1e-15 -npc_fas_levels_snes_gs_atol 0.0 -npc_fas_levels_snes_gs_stol 0.0 -npc_snes_type fas -npc_fas_levels_snes_type gs -npc_snes_max_it 1 -npc_snes_fas_smoothup 6 -npc_snes_fas_smoothdown 6  -lidvelocity 100 -grashof 4e4
+   Run Arguments:        -da_refine 4 -snes_monitor_short -snes_type ngmres -npc_fas_levels_snes_type ngs -npc_fas_levels_snes_gs_sweeps 3 -npc_fas_levels_snes_gs_rtol 1e-15 -npc_fas_levels_snes_gs_atol 0.0 -npc_fas_levels_snes_gs_stol 0.0 -npc_snes_type fas -npc_fas_levels_snes_type ngs -npc_snes_max_it 1 -npc_snes_fas_smoothup 6 -npc_snes_fas_smoothdown 6  -lidvelocity 100 -grashof 4e4
 
    Run Number Processes: 1
    Run Output File:      ex19_ngmres_fas_gssecant
    Run Requirements:
-   Run Arguments:        -da_refine 3 -snes_monitor_short -snes_type ngmres -npc_snes_type fas -npc_fas_levels_snes_type gs -npc_fas_levels_snes_max_it 6 -npc_fas_levels_snes_gs_secant -npc_fas_levels_snes_gs_max_it 1 -npc_fas_coarse_snes_max_it 1 -lidvelocity 100 -grashof 4e4
+   Run Arguments:        -da_refine 3 -snes_monitor_short -snes_type ngmres -npc_snes_type fas -npc_fas_levels_snes_type ngs -npc_fas_levels_snes_max_it 6 -npc_fas_levels_snes_gs_secant -npc_fas_levels_snes_gs_max_it 1 -npc_fas_coarse_snes_max_it 1 -lidvelocity 100 -grashof 4e4
 
    Run BROKEN Number Processes: 2
    Run BROKEN Output File:      ex19_ngmres_fas_ms
@@ -899,7 +899,7 @@ Tests various scatter implementations
    Run Number Processes: 2
    Run Output File:      ex19_composite_gs_newton
    Run Requirements:
-   Run Arguments:        -da_refine 3 -grashof 4e4 -lidvelocity 100 -snes_monitor_short -snes_type composite -snes_composite_type additiveoptimal -snes_composite_sneses gs,newtonls -sub_0_snes_max_it 20 -sub_1_pc_type mg
+   Run Arguments:        -da_refine 3 -grashof 4e4 -lidvelocity 100 -snes_monitor_short -snes_type composite -snes_composite_type additiveoptimal -snes_composite_sneses ngs,newtonls -sub_0_snes_max_it 20 -sub_1_pc_type mg
 
    Run Number Processes: 1
    Run Output File:      ex19_draw
