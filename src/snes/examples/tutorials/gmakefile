@@ -1,7 +1,6 @@
 
-# This directory contains SNES example programs for solving systems of
-# nonlinear equations.
-
+# make runexN   or make runexN UPDATEFILE=outputfileyouwantupdated
+#
 PETSCFEATURES="pastix,mumps,superlu,hypre,spai,superlu,superlu_dist,metis,parmetis,sundials,ml,real,complex,single,double,__float128,mpi_win_create,mpi_alltoallw,32bitindices,64bitindices"
 
 #CPPFLAGS	 = -I/PETSc3/geodynamics/PetscSimulationsViewers/src
@@ -79,11 +78,15 @@ runex%: ex%
              fi;\
            done; \
            if [[ "$${found}" == "no" ]]; then continue; fi; \
-           ${MPIEXEC} -n $${sizes[$${i}]} ./$< $${args[$${i}]} > tmpdata 2>&1; \
-	   if !(${PETSC_DIR}/bin/petscdiff output/$${ofile[$$i]}.out tmpdata) then  \
-	     printf "${PWD}\nPossible problem with -np $${sizes[$${i}]} $< $${args[$${i}]} :: $${ofile[$$i]}.out\n==========================================================================\n"; \
+           if [[ "${UPDATEFILE}" == $${ofile[$$i]}.out ]]; then \
+             ${MPIEXEC} -n $${sizes[$${i}]} ./$< $${args[$${i}]} > output/$${ofile[$$i]}.out ; \
+           elif [[ "${UPDATEFILE}" == "" ]]; then \
+             ${MPIEXEC} -n $${sizes[$${i}]} ./$< $${args[$${i}]} > tmpdata 2>&1; \
+	       if !(${PETSC_DIR}/bin/petscdiff output/$${ofile[$$i]}.out tmpdata) then  \
+	         printf "${PWD}\nPossible problem with -np $${sizes[$${i}]} $< $${args[$${i}]} :: $${ofile[$$i]}.out\n==========================================================================\n"; \
+               fi; \
+	     ${RM} tmpdata;\
            fi; \
-	   ${RM} tmpdata;\
          done
 
 include ${PETSC_DIR}/conf/test
