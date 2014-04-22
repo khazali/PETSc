@@ -510,6 +510,7 @@
       integer i
       PetscReal f,x(n)
       PetscErrorCode ierr
+      PetscInt i
 
       f=0.0
       do i=1,n
@@ -522,6 +523,9 @@
          CHKERRQ(ierr)
          checkedin=checkedin+1
          source = status(MPI_SOURCE)
+         do i=1,n
+           x(i) = 0.0
+         enddo
          call MPI_Send(x,n,MPIU_SCALAR,source,DIE_TAG,PETSC_COMM_WORLD,    &
      &        ierr)
          CHKERRQ(ierr)
