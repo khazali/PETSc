@@ -706,6 +706,20 @@ typedef enum {SNES_QN_RESTART_DEFAULT  = 0,
               SNES_QN_RESTART_POWELL   = 2,
               SNES_QN_RESTART_PERIODIC = 3} SNESQNRestartType;
 PETSC_EXTERN const char *const SNESQNRestartTypes[];
+
+/*E
+    SNESQNType - Determines the type of quasi-Newton update.
+
+   Level: beginner
+
+   Values:
++  SNES_QN_LBFGS                     - Limited-memory Broyden–Fletcher–Goldfarb–Shanno update
+.  SNES_QN_BROYDEN                   - Limited-memory Broyden update
+-  SNES_QN_BADBROYDEN                - Limited-memory "Bad" Broyden update
+
+.seealso: SNESQN, SNESQNSetType()
+
+E*/
 typedef enum {SNES_QN_LBFGS      = 0,
               SNES_QN_BROYDEN    = 1,
               SNES_QN_BADBROYDEN = 2
