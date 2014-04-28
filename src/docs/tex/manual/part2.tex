@@ -3530,15 +3530,16 @@ The SNES class includes methods for solving systems of nonlinear equations of th
 where $\F: \, \Re^n \to \Re^n$.
 Newton-like methods provide the core of the package, including
 \sindex{Newton-like methods} both line search \sindex{line search}
-and trust region \sindex{trust region} techniques, which are discussed
-further in Section~\ref{sec_nlsolvers}. Following the
-PETSc design philosophy, the interfaces to the various solvers are all
-virtually identical. In addition, the SNES software is completely
-flexible, so that the user can at runtime change any facet of the
-solution process.
+and trust region \sindex{trust region} techniques.  A suite of nonlinear Krylov
+methods and methods based upon problem decomposition are also included.  The
+solvers are discussed further in Section~\ref{sec_nlsolvers}. Following the
+PETSc design philosophy, the interfaces to the various solvers are all virtually
+identical. In addition, the SNES software is completely flexible, so that the
+user can at runtime change any facet of the solution process.
 
-The general form of the $n$-dimensional Newton's method for solving
-(\ref{eq_F=0}) is
+PETSc's default method for solving the nonlinear equation is Newton's method. The general form of the $n$-dimensional
+Newton's method for solving (\ref{eq_F=0}) is
+
 \begin{equation}
      \x_{k+1} = \x_k - \J(\x_k)^{-1} \F(\x_k), \;\; k=0,1, \ldots,
 \label{eq_n1}
@@ -3715,9 +3716,9 @@ a variety of examples.
 \section{The Nonlinear Solvers}
 \label{sec_nlsolvers}
 
-As summarized in Table~\ref{tab_snesdefaults}, SNES includes several
-Newton-like nonlinear solvers based on line search techniques and
-trust region methods.
+As summarized in Table~\ref{tab_snesdefaults}, SNES includes several Newton-like nonlinear solvers based on line search
+techniques and trust region methods.  Also provided are several nonlinear Krylov methods, as well as nonlinear
+methods involving decompositions of the problem.
 
 Each solver may have associated with it a set of options, which can be
 set with routines and options database commands provided for this
@@ -3727,12 +3728,22 @@ few in the sections below.
 
 \begin{table}
 \begin{center}
-\begin{tabular}{llll}
-{\bf Method}    &{\bf SNESType}& {\bf Options Name}    &{\bf Default Convergence Test}\\
+\begin{tabular}{lllll}
+{\bf Method}    &{\bf SNESType}& {\bf Options Name}          & {\bf Default Line Search} \\
 \hline
-Line search     & SNESNEWTONLS   & newtonls    & SNESConverged\_NEWTONLS()\\
-Trust region    & SNESNEWTONTR   & newtontr   & SNESConverged\_NEWTONTR()\\
-Test Jacobian   & SNESTEST        & test  & \\
+Line search Newton           & SNESNEWTONLS    & newtonls    & SNESLINESEARCHBT  \\
+Trust region Newton          & SNESNEWTONTR    & newtontr    & --                \\
+Test Jacobian                & SNESTEST        & test        & --                \\
+Nonlinear Richardson         & SNESNRICHARDSON & nrichardson & SNESLINESEARCHL2  \\
+Nonlinear CG                 & SNESNCG         & ncg         & SNESLINESEARCHCP  \\
+Nonlinear GMRES              & SNESNGMRES      & ngmres      & SNESLINESEARCHL2  \\
+Quasi-Newton                 & SNESQN          & qn          & see Table~\ref{tab_qndefaults} \\
+FAS                          & SNESFAS         & fas         & --                \\
+Nonlinear ASM                & SNESNASM        & nasm        & --                \\
+Composite                    & SNESCOMPOSITE   & composite   & --                \\
+Nonlinear Gauss-Seidel       & SNESGS          & ngs         & --                \\
+Anderson Mixing              & SNESAnderson    & anderson    & --                \\
+Shell                        & SNESSHELL       & shell       & --                \\
 \hline
 \end{tabular}
 \end{center}
@@ -3740,28 +3751,65 @@ Test Jacobian   & SNESTEST        & test  & \\
 \label{tab_snesdefaults}
 \end{table}
 
-\subsection{Line Search Techniques} \sindex{line search}
+\subsection{Line Search Newton} \sindex{line search}
 
-The method SNESNEWTONLS (\trl{-snes_type} \trl{newtonls}) provides a line
-search Newton method for solving systems of nonlinear equations.  By
-default, this technique employs cubic backtracking \cite{dennis:83}.
-An alternative line search routine can be set with the command
+The method SNESNEWTONLS (\trl{-snes_type} \trl{newtonls}) provides a line search Newton method for solving systems of
+nonlinear equations.  By default, this technique employs cubic backtracking \cite{dennis:83}.  Alternative line search
+techniques are listed in Table~\ref{tab_linesearches}.
+
+\begin{table}
+\begin{center}
+\begin{tabular}{lll}
+{\bf Line Search}      &{\bf SNESLineSearchType}& {\bf Options Name} \\
+\hline
+Backtracking           & SNESLINESEARCHBT       & bt                 \\
+(damped) step          & SNESLINESEARCHBASIC    & basic              \\
+L2-norm  Minimization  & SNESLINESEARCHL2       & l2                 \\
+Critical point         & SNESLINESEARCHCP       & cp                 \\
+Shell                  & SNESLINESEARCHSHELL    & shell              \\
+\hline
+\end{tabular}
+\end{center}
+\caption{PETSc Line Search Methods}
+\label{tab_linesearches}
+\end{table}
+
+Every SNES has a line search context of type SNESLineSearch that may be retrieved using
 \begin{tabbing}
-  SNESSetLineSearch\=(SNES snes,PetscErrorCode (*ls)(SNES,Vec,Vec,Vec,Vec,double,double*,double*),\\
-                   \>void *lsctx);
+SNESGetLineSearch(SNES snes,SNESLineSearch *ls);.
 \end{tabbing}
-Other line search methods provided by PETSc are
-SNESSearchQuadraticLine(), SNESLineSearchNo(), and SNESLineSearchNoNorms(),
-which can be set with the option \findex{-snes_ls}
+
+There are several default options for the line searches.  The order of polynomial approximation may be set
+with \trl{-snes_linesearch_order} or
 \begin{tabbing}
-  \trl{-snes_ls [cubic, quadratic, basic, basicnonorms]}
+SNESLineSearchSetOrder(SNESLineSearch ls, PetscInt order);
 \end{tabbing}
-The line search routines involve several parameters, which are set
-to defaults that are reasonable for many applications.  The user
-can override the defaults by using the options
-\trl{-snes_ls_alpha <alpha>}, \findex{-snes_ls_alpha}
-\trl{-snes_ls_maxstep <max>}, and \findex{-snes_ls_maxstep}
-\trl{-snes_ls_steptol <tol>}. \findex{-snes_ls_steptol}
+for instance, 2 for quadratic or 3 for cubic. Sometimes, it may not be necessary to monitor the progress of the
+nonlinear iteration.  In this case, \trl{-snes_linesearch_norms} or
+\begin{tabbing}
+SNESLineSearchSetNorms(SNESLineSearch ls,PetscBool norms);
+\end{tabbing}
+may be used to turn off function, step, and solution norm computation at the end of the linesearch.
+
+The default line search for the line search Newton method, SNESLINESEARCHBT involves several parameters, which are set
+to defaults that are reasonable for many applications.  The user can override the defaults by using the options
+
+\trl{-snes_linesearch_alpha <alpha>}, \findex{-snes_linesearch_alpha}
+\trl{-snes_linesearch_maxstep <max>}, and \findex{-snes_linesearch_maxstep}
+\trl{-snes_linesearch_minlambda <tol>}. \findex{-snes_linesearch_minlambda}
+
+Besides the backtracking linesearch, there are SNESLINESEARCHL2, which uses a polynomial secant minimization of
+$||F(x)||_2$, and SNESLINESEARCHCP, which minimizes $F(x) \cdot Y$ where Y is the search direction.  These are both
+potentially iterative line searches, which may be used to find a better-fitted steplength in the case where a single
+secant search is not sufficient.  The number of iterations may be set with \trl{-snes_linesearch_max_it}.  In addition,
+the convergence criteria of the iterative line searches may be set using function tolerances \trl{-snes_linesearch_rtol}
+and \trl{-snes_linesearch_atol}, and steplength tolerance \trl{snes_linesearch_ltol}.
+
+Custom line search types may either be defined using SNESLineSearchShell, or by creating a custom user line search type
+in the model of the preexisting ones and register it using
+\begin{tabbing}
+SNESLineSearchRegister(const char sname[],PetscErrorCode (*function)(SNESLineSearch));.
+\end{tabbing}
 
 \subsection{Trust Region Methods}\sindex{trust region}
 
@@ -3777,6 +3825,133 @@ radius, computed by
 by setting $ \Delta_0 $ via the option
 \trl{-snes_tr_delta0 <delta0>}.
 
+\subsection{Nonlinear Krylov Methods}
+
+A number of nonlinear Krylov methods are provided, including Nonlinear richardson, conjugate gradient, GMRES, and
+Anderson Mixing.  These methods are described individually below.  They are all instrumental to PETSc's nonlinear
+preconditioning.
+
+\textbf{Nonlinear Richardson.}
+The nonlinear Richardson iteration merely takes the form of a line search-damped fixed-point iteration of the form
+\begin{equation}
+     \x_{k+1} = \x_k - \lambda \F(\x_k), \;\; k=0,1, \ldots,
+\label{eq_nrich}
+\end{equation}
+\noindent where the default linesearch is SNESLINESEARCHL2.  This simple solver is mostly useful as a nonlinear smoother, or to
+provide line search stabilization to an inner method.
+
+\textbf{Nonlinear Conjugate Gradients.}
+Nonlinear CG is equivalent to linear CG, but with the steplength determined by line search (SNESLINESEARCHCP by
+default).  Five variants (Fletcher-Reed, Hestenes-Steifel, Polak-Ribiere-Polyak, Dai-Yuan, and Conjugate Descent) are
+implemented in PETSc and may be chosen using
+\begin{tabbing}
+SNESNCGSetType(SNES snes, SNESNCGType btype);.
+\end{tabbing}
+
+\textbf{Anderson Mixing and Nonlinear GMRES Methods.}
+Nonlinear GMRES and Anderson Mixing methods combine the last $m$ iterates, plus a new fixed-point iteration iterate,
+into a residual-minimizing new iterate.
+
+\subsection{Quasi-Newton Methods}
+
+Quasi-Newton methods store iterative rank-one updates to the Jacobian instead of computing it directly.  Three
+limited-memory quasi-Newton methods are provided, L-BFGS, which are described in Table~\ref{tab_qndefaults}.  These all are
+encapsulated under \trl{-snes_type qn} and may be changed with \trl{snes_qn_type}.  The default is L-BFGS, which
+provides symmetric updates to an approximate Jacobian.  This iteration is similar to the line search Newton methods.
+
+\begin{table}
+\begin{center}
+\begin{tabular}{llll}
+{\bf QN Method}    &{\bf SNESQNType}& {\bf Options Name}    &{\bf Default Line Search}\\
+\hline
+L-BFGS            & \trl{SNES_QN_LBFGS}       & lbfgs             & SNESLINESEARCHCP     \\
+``Good'' Broyden  & \trl{SNES_QN_BROYDEN}     & broyden           & SNESLINESEARCHBASIC  \\
+``Bad'' Broyden   & \trl{SNES_QN_BADBROYEN}   & badbroyden        & SNESLINESEARCHL2     \\
+\hline
+\end{tabular}
+\end{center}
+\caption{PETSc quasi-Newton solvers}
+\label{tab_qndefaults}
+\end{table}
+
+One may also control the form of the initial Jacobian approximation with
+\begin{tabbing}
+SNESQNSetScaleType(SNES snes, SNESQNScaleType stype);
+\end{tabbing}
+and the restart type with
+\begin{tabbing}
+SNESQNSetRestartType(SNES snes, SNESQNRestartType rtype);.
+\end{tabbing}
+
+\subsection{The Full Approximation Scheme}
+
+The Full Approximation Scheme is a nonlinear multigrid correction.  At each
+level, there is a recursive cycle control SNES instance, and either one or two
+nonlinear solvers as smoothers (up and down).  Problems set up using the SNES
+DMDA interface are automatically coarsened.  FAS differs slightly from PCMG, in
+that the hierarchy is constructed recursively.  However, much of the interface
+is a one-to-one map.  We describe the ``get'' operations here, and it can be
+assumed that each has a corresponding ``set'' operation.  For instance, the
+number of levels in the hierarchy may be retrieved using
+\begin{tabbing}
+SNESFASGetLevels(SNES snes, PetscInt *levels);
+\end{tabbing}
+
+There are four SNESFAS cycle
+types, \trl{SNES_FAS_MULTIPLICATIVE}, \trl{SNES_FAS_ADDITIVE}, \trl{SNES_FAS_FULL},
+or \trl{SNES_FAS_KASKADE}, The type may be set with
+\begin{tabbing}
+SNESFASSetType(SNES snes,SNESFASType fastype);.
+\end{tabbing}
+\noindent and the cycle type, 1 for V, 2 for W, may be set with
+\begin{tabbing}
+SNESFASSetCycles(SNES snes, PetscInt cycles);.
+\end{tabbing}
+Much like the interface to PCMG described in Section~\ref{sec_mg}, there are
+interfaces to recover the various levels' cycles and smoothers. The level
+smoothers may be accessed with
+\begin{tabbing}
+SNESFASGetSmoother(SNES snes, PetscInt level, SNES *smooth);\\
+SNESFASGetSmootherUp(SNES snes, PetscInt level, SNES *smooth);\\
+SNESFASGetSmootherDown(SNES snes, PetscInt level, SNES *smooth);
+\end{tabbing}
+\noindent and the level cycles with
+\begin{tabbing}
+SNESFASGetCycleSNES(SNES snes,PetscInt level,SNES *lsnes);.
+\end{tabbing}
+Much like PCMG, the restriction and prolongation at a level may be acquired with
+\begin{tabbing}
+SNESFASGetInterpolation(SNES snes, PetscInt level, Mat *mat);
+SNESFASGetRestriction(SNES snes, PetscInt level, Mat *mat);.
+\end{tabbing}
+In addition, FAS requires special restriction for solution-like variables,
+called injection.  This may be set with
+\begin{tabbing}
+SNESFASGetInjection(SNES snes, PetscInt level, Mat *mat);.
+\end{tabbing}
+The coarse solve context may be acquired with
+\begin{tabbing}
+SNESFASGetCoarseSolve(SNES snes, SNES *smooth);
+\end{tabbing}
+
+\subsection{Nonlinear Additive Schwarz}
+
+Nonlinear Additive Schwarz methods (NASM) take a number of local nonlinear
+subproblems, solves them independently in parallel, and combines those solutions
+into a new approximate solution.
+\begin{tabbing}
+SNESNASMSetSubdomains(SNES snes,PetscInt n,SNES subsnes[],VecScatter iscatter[],VecScatter oscatter[],VecScatter gscatter[]);
+\end{tabbing}
+ allows for the user to create these local subdomains.  Problems set up using the SNES DMDA interface are automatically
+decomposed.  To begin, the type of subdomain updates to the whole solution are limited to two types borrowed from
+PCASM: \trl{PC_ASM_BASIC}, in which the overlapping updates added.  \trl{PC_ASM_RESTRICT} updates in a nonoverlapping
+fashion.  This may be set with
+\begin{tabbing}
+        SNESNASMSetType(SNES snes,PCASMType type);.
+\end{tabbing}
+SNESASPIN is a helper SNES type that sets up a nonlinearly preconditioned Newton's
+method using NASM as the preconditioner.
+
 \section{General Options}
 
 This section discusses options and routines that apply to all SNES
@@ -3787,15 +3962,13 @@ computations.
 \subsection{Convergence Tests}
 \label{sec_snesconvergence}
 
-Convergence of the nonlinear solvers can be detected in a variety of
-ways; the user can even specify a customized test, as discussed
-below. \sindex{convergence tests} The default convergence routines for
-the various nonlinear solvers within SNES are listed in
-Table~\ref{tab_snesdefaults}; see the corresponding manual pages for
-detailed descriptions.  Each of these convergence tests involves
-several parameters, which are set by default to values that should be
-reasonable for a wide range of problems.  The user can customize the
-parameters to the problem at hand by using some of the following
+Convergence of the nonlinear solvers can be detected in a variety of ways; the
+user can even specify a customized test, as discussed below. \sindex{convergence
+tests} Most of the nonlinear solvers use SNESConvergenceTestDefault(), however,
+SNESNEWTONTR uses a method-specific additional convergence test as well.  The
+ convergence tests involves several parameters, which are set by default
+to values that should be reasonable for a wide range of problems.  The user can
+customize the parameters to the problem at hand by using some of the following
 routines and options.
 
 One method of convergence testing is
@@ -4063,7 +4236,7 @@ or
 \end{tabbing}
 This information is used to eliminate the redundant computation of these parameters,
 therefor reducing the number of collective operations and improving the efficiency of the
-application code.
+         application code.
 
 It is also possible to monitor the differencing parameters h that are computed
 via the routines
@@ -4149,6 +4322,7 @@ A code fragment that demonstrates this process is given below.
 \begin{tabbing}
    ISColoring    iscoloring;\\
    MatFDColoring fdcoloring;\\
+   MatColoring   coloring;\\
 
    \trl{/*}\\
       This initializes the nonzero structure of the Jacobian. This is artificial\\
@@ -4161,8 +4335,11 @@ A code fragment that demonstrates this process is given below.
        Color the matrix, i.e. determine groups of columns that share no common \\
       rows. These columns in the Jacobian can all be computed simultaneously.\\
    \trl{*/}\\
-   MatGetColoring(J,MATCOLORINGSL,\&iscoloring);\\
-
+   MatColoringCreate(J,\&coloring);\\
+   MatColoringSetType(coloring,MATCOLORINGSL);\\
+   MatColoringSetFromOptions(coloring);\\
+   MatColoringApply(coloring,\&iscoloring);\\
+   MatColoringDestroy(\&coloring);\\
    \trl{/*}\\
        Create the data structure that SNESComputeJacobianDefaultColor() uses\\
        to compute the actual Jacobians via finite differences.\\
@@ -4190,24 +4367,24 @@ fairly easily obtain an estimate of the location of nonzeros in
 the matrix. This is harder in the unstructured case, and has not yet
 been implemented in general.
 
-One need not necessarily use the routine MatGetColoring() to
+One need not necessarily use a MatColoring object to
 determine a coloring.  For example, if a grid can be colored directly
 (without using the associated matrix), then that coloring can be provided
 to MatFDColoringCreate().  Note that the user must always
 preset the nonzero structure in the matrix regardless of which
 coloring routine is used.
 
-For sequential matrices PETSc provides three matrix coloring routines from the
-MINPACK package \cite{more84}: smallest-last (\trl{sl}), largest-first (\trl{lf}),
-and incidence-degree (\trl{id}).  These colorings, as well as the ``natural'' coloring
-for which each column has its own unique color, may be accessed with the command line options
+For sequential matrices PETSc provides three matrix coloring routines on from the MINPACK package \cite{more84}:
+smallest-last (\trl{sl}), largest-first (\trl{lf}), and incidence-degree (\trl{id}).  In addition, two implementations
+of parallel colorings are in PETSc, greedy (\trl{greedy}) and Jones-Plassmann (\trl{jp}). These colorings, as well as the
+``natural'' coloring for which each column has its own unique color, may be accessed with the command line options
 \begin{tabbing}
-   -mat\_coloring\_type \trl{<}sl,id,lf,natural\trl{>}
+   -mat\_coloring\_type \trl{<}sl,id,lf,natural,greedy,jp\trl{> }
 \end{tabbing}
-Alternatively, one can set a coloring type of \trl{MATCOLORINGSL}, \trl{
-MATCOLORINGID}, \trl{MATCOLORINGLF}, or \trl{MATCOLORINGNATURAL}
-when calling MatGetColoring(). \findex{-mat_coloring} \findex{MATCOLORINGSL} \findex{MATCOLORINGID}
-\findex{MATCOLORINGLF} \findex{MATCOLORINGNATURAL}
+Alternatively, one can set a coloring type of \trl{MATCOLORINGGREEDY} or \trl{MATCOLORINGJP} for parallel algorithms,
+or \trl{MATCOLORINGSL}, \trl{ MATCOLORINGID}, \trl{MATCOLORINGLF}, \trl{MATCOLORINGNATURAL} for sequential algorithms
+when calling MatColoringSetType(). \findex{-mat_coloring_type} \findex{MATCOLORINGSL} \findex{MATCOLORINGID}
+\findex{MATCOLORINGLF} \findex{MATCOLORINGNATURAL} \findex{MATCOLORINGGREEDY} \findex{MATCOLORINGJP}
 
 As for the matrix-free computation of Jacobians (see Section
 \ref{sec_nlmatrixfree}), two parameters affect the accuracy of the
@@ -4236,10 +4413,11 @@ These parameters may be set from the options database with
 \end{tabbing}
 \findex{-mat_fd_coloring_err} \findex{-mat_fd_coloring_umin}
 
-Note that although MatGetColoring() works for parallel matrices, the routine currently uses a sequential algorithm.
-Extensions may be forthcoming.
-However, if one can compute the coloring \trl{iscoloring} some other way, the routine MatFDColoringCreate() is scalable.
-An example of this for 2D distributed arrays is given below that uses the utility routine DMCreateColoring().
+Note that MatColoring type MATCOLORINGSL, MATCOLORINGLF, and MATCOLORINGID are sequential algorithms.  MATCOLORINGJP and
+MATCOLORINGGREEDY are parallel algorithms, although in practice they may create more colors than the sequential
+algorithms.  If one computes the coloring \trl{iscoloring} reasonably with a parallel algorithm or by knowledge of the
+discretization, the routine MatFDColoringCreate() is scalable.  An example of this for 2D distributed arrays is given
+below that uses the utility routine DMCreateColoring().
 
 \begin{tabbing}
    DMCreateColoring(da,IS\_COLORING\_GHOSTED,\&iscoloring);\\
@@ -4259,6 +4437,44 @@ Some or all of the lower bounds may be negative infinity (indicated to PETSc wit
    SNESVISetVariableBounds(SNES,Vec Lu,Vec Hu);
 \end{tabbing}
 is \findex{SNESVISetVariableBounds} used to indicate that one is solving a variational inequality. The option \trl{-snes_vi_monitor} \findex{-snes_vi_monitor} turns on extra monitoring of the active set associated with the bounds and \trl{-snes_vi_type} \findex{-snes_vi_type} allows selecting from several VI solvers, the default is preferred.
+
+\section{Nonlinear Preconditioning}
+
+Nonlinear preconditioning in PETSc involves the use of an inner SNES instance to define the step for an outer SNES
+instance.  The inner instance may be extracted using
+\begin{tabbing}
+SNESGetNPC(SNES snes,SNES *npc);
+\end{tabbing}
+and passed run-time options using the \trl{-npc_}
+prefix. Nonlinear preconditioning comes in two flavors: left and right.  The side may be changed
+using \trl{-snes_npc_side} or SNESSetNPCSide(). Left nonlinear preconditioning redefines the nonlinear function as the action of the
+nonlinear preconditioner $\mathbf{M}$;
+\begin{equation}
+        \F_{M}(x) = \mathbf{M}(\x,\mathbf{b}) - \x.
+\end{equation}
+\noindent Right nonlinear preconditioning redefines the nonlinear function as the function on the action of the
+nonlinear preconditioner;
+\begin{equation}
+        \F(\mathbf{M}(\x,\mathbf{b})) = \mathbf{b},
+\end{equation}
+\noindent  which can be interpreted as putting the preconditioner into ``striking distance'' of the solution by outer acceleration.
+
+In addition, basic patterns of solver composition are available with the SNESType SNESCOMPOSITE.  This allows for two or
+more SNES instances to be combined additively or multiplicatively.  By command line, a set of SNES types may be given by
+comma separated list argument to \trl{-snes_composite_sneses}.  There are additive (\trl{SNES_COMPOSITE_ADDITIVE}),
+additive with optimal damping (\trl{SNES_COMPOSITE_ADDITIVEOPTIMAL}), and multiplicative
+(\trl{SNES_COMPOSITE_MULTIPLICATIVE}) variants which may be set with
+\begin{tabbing}
+SNESCompositeSetType(SNES,SNESCompositeType);
+\end{tabbing}
+New subsolvers may be added to the composite solver with
+\begin{tabbing}
+SNESCompositeAddSNES(SNES,SNESType);
+\end{tabbing}
+and accessed with
+\begin{tabbing}
+SNESCompositeGetSNES(SNES,PetscInt,SNES *);.
+\end{tabbing}
 
 % ---------------------------------------------------------------
 \cleardoublepage
