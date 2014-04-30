@@ -483,7 +483,7 @@ PetscErrorCode StopWorkers(AppCtx *user)
 {
   PetscInt       checkedin;
   MPI_Status     status;
-  PetscReal      f=0,x[NPARAMETERS]={0};
+  PetscReal      f,x[NPARAMETERS];
   PetscErrorCode ierr;
 
   PetscFunctionBegin;

@@ -507,15 +507,10 @@
       integer checkedin
       integer status(MPI_STATUS_SIZE)
       integer source
-      integer i
       PetscReal f,x(n)
       PetscErrorCode ierr
       PetscInt i
 
-      f=0.0
-      do i=1,n
-         x(i)=0.0
-      end do
       checkedin=0
       do while (checkedin .lt. size-1)
          call MPI_Recv(f,1,MPIU_SCALAR,MPI_ANY_SOURCE,MPI_ANY_TAG,         &
