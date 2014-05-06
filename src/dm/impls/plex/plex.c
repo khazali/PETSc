@@ -2550,7 +2550,7 @@ PetscErrorCode DMPlexOrient(DM dm)
         ierr = MatSetUp(G);CHKERRQ(ierr);
         for (p = 0; p < numProcs; ++p) {
           for (n = 0; n < recvcounts[p]; ++n) {
-            const PetscInt    r = proc;
+            const PetscInt    r = p;
             const PetscInt    q = adj[displs[p]+n];
             const PetscScalar o = val[displs[p]+n] ? 1.0 : 0.0;
 
