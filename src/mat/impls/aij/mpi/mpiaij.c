@@ -1359,13 +1359,6 @@ PetscErrorCode MatView_MPIAIJ_ASCIIorDraworSocket(Mat mat,PetscViewer viewer)
     PetscInt   M = mat->rmap->N,N = mat->cmap->N,m,*ai,*aj,row,*cols,i,*ct;
     MatScalar  *a;
 
-    if (mat->rmap->N > 1024) {
-      PetscBool flg = PETSC_FALSE;
-
-      ierr = PetscOptionsGetBool(((PetscObject) mat)->prefix, "-mat_ascii_output_large", &flg,NULL);CHKERRQ(ierr);
-      if (!flg) SETERRQ(PetscObjectComm((PetscObject)mat),PETSC_ERR_ARG_OUTOFRANGE,"ASCII matrix output not allowed for matrices with more than 1024 rows, use binary format instead.\nYou can override this restriction using -mat_ascii_output_large.");
-    }
-
     ierr = MatCreate(PetscObjectComm((PetscObject)mat),&A);CHKERRQ(ierr);
     if (!rank) {
       ierr = MatSetSizes(A,M,N,M,N);CHKERRQ(ierr);
@@ -3862,7 +3855,7 @@ PetscErrorCode  MatMPIAIJSetPreallocationCSR(Mat B,const PetscInt i[],const Pets
    The AIJ format (also called the Yale sparse matrix format or
    compressed row storage (CSR)), is fully compatible with standard Fortran 77
    storage.  The stored row and column indices begin with zero.
-   See the <A href="../../docs/manual.pdf#nameddest=ch_mat">Mat chapter of the users manual</A> for details.
+   See Users-Manual: ch_mat for details.
 
    The parallel matrix is partitioned such that the first m0 rows belong to
    process 0, the next m1 rows belong to process 1, the next m2 rows belong
