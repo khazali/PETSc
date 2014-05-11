@@ -6180,16 +6180,10 @@ PetscErrorCode DMCreateDefaultSection_Plex(DM dm)
     DMLabel         label;
     const PetscInt *values;
     PetscInt        bd2, field, numValues;
-    PetscBool       isEssential, has, duplicate = PETSC_FALSE;
+    PetscBool       isEssential, duplicate = PETSC_FALSE;
 
     ierr = DMPlexGetBoundary(dm, bd, &isEssential, NULL, &bdLabel, &field, NULL, &numValues, &values, NULL);CHKERRQ(ierr);
     if (numValues != 1) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_SUP, "Bug me and I will fix this");
-    ierr = DMPlexHasLabel(dm, bdLabel, &has);CHKERRQ(ierr);
-    if (!has) {
-      ierr = DMPlexCreateLabel(dm, bdLabel);CHKERRQ(ierr);
-      ierr = DMPlexGetLabel(dm, bdLabel, &label);CHKERRQ(ierr);
-      ierr = DMPlexMarkBoundaryFaces(dm, label);CHKERRQ(ierr);
-    }
     ierr = DMPlexGetLabel(dm, bdLabel, &label);CHKERRQ(ierr);
     /* Only want to do this for FEM, and only once */
     for (bd2 = 0; bd2 < bd; ++bd2) {
