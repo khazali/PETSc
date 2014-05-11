@@ -22,12 +22,41 @@ typedef struct {
   PetscInt dummy;
 } PetscLimiter_Sin;
 
+typedef struct {
+  PetscInt dummy;
+} PetscLimiter_Zero;
+
+typedef struct {
+  PetscInt dummy;
+} PetscLimiter_None;
+
+typedef struct {
+  PetscInt dummy;
+} PetscLimiter_Minmod;
+
+typedef struct {
+  PetscInt dummy;
+} PetscLimiter_VanLeer;
+
+typedef struct {
+  PetscInt dummy;
+} PetscLimiter_VanAlbada;
+
+typedef struct {
+  PetscInt dummy;
+} PetscLimiter_Superbee;
+
+typedef struct {
+  PetscInt dummy;
+} PetscLimiter_MC;
+
 typedef struct _PetscFVOps *PetscFVOps;
 struct _PetscFVOps {
   PetscErrorCode (*setfromoptions)(PetscFV);
   PetscErrorCode (*setup)(PetscFV);
   PetscErrorCode (*view)(PetscFV,PetscViewer);
   PetscErrorCode (*destroy)(PetscFV);
+  PetscErrorCode (*computegradient)(PetscFV, PetscInt, const PetscScalar[], PetscScalar []);
   PetscErrorCode (*integraterhsfunction)(PetscFV, PetscInt, PetscInt, PetscFV[], PetscInt, PetscCellGeometry, PetscCellGeometry, PetscScalar[], PetscScalar[],
                                          void (*)(const PetscReal[], const PetscReal[], const PetscScalar[], const PetscScalar[], PetscScalar[], void *),
                                          PetscScalar[], PetscScalar[], void *);
@@ -48,7 +77,8 @@ typedef struct {
 } PetscFV_Upwind;
 
 typedef struct {
-  PetscInt cellType;
+  PetscInt     maxFaces, workSize;
+  PetscScalar *B, *Binv, *tau, *work;
 } PetscFV_LeastSquares;
 
 #endif
