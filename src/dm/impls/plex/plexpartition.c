@@ -377,7 +377,7 @@ PetscErrorCode DMPlexPartition_ParMetis(DM dm, PetscInt numVertices, PetscInt st
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexEnlargePartition"
 /* Expand the partition by BFS on the adjacency graph */
-PetscErrorCode DMPlexEnlargePartition(DM dm, const PetscInt start[], const PetscInt adjacency[], PetscSection origPartSection, IS origPartition, PetscSection *partSection, IS *partition)
+PetscErrorCode DMPlexEnlargePartition(DM dm, PetscSection origPartSection, IS origPartition, PetscSection *partSection, IS *partition)
 {
   PetscHashI      h;
   const PetscInt *points;
@@ -451,7 +451,7 @@ PetscErrorCode DMPlexEnlargePartition(DM dm, const PetscInt start[], const Petsc
   Input Parameters:
   + dm - The DM
   . height - The height for points in the partition
-  - enlarge - Expand each partition with neighbors
+  - overlap - Depth of partition overlap
 
   Output Parameters:
   + partSection - The PetscSection giving the division of points by partition
@@ -463,12 +463,14 @@ PetscErrorCode DMPlexEnlargePartition(DM dm, const PetscInt start[], const Petsc
 
 .seealso DMPlexDistribute()
 */
-PetscErrorCode DMPlexCreatePartition(DM dm, const char name[], PetscInt height, PetscBool enlarge, PetscSection *partSection, IS *partition, PetscSection *origPartSection, IS *origPartition)
+PetscErrorCode DMPlexCreatePartition(DM dm, const char name[], PetscInt height, PetscInt overlap, PetscSection *partSection, IS *partition, PetscSection *origPartSection, IS *origPartition)
 {
   char           partname[1024];
   PetscBool      isChaco = PETSC_FALSE, isMetis = PETSC_FALSE, flg;
   PetscMPIInt    size;
   PetscErrorCode ierr;
+  PetscSection   *previousPartSection = NULL;
+  IS             *previousPartition = NULL;
 
   PetscFunctionBegin;
   ierr = MPI_Comm_size(PetscObjectComm((PetscObject)dm), &size);CHKERRQ(ierr);
@@ -512,11 +514,16 @@ PetscErrorCode DMPlexCreatePartition(DM dm, const char name[], PetscInt height, 
       ierr = DMPlexPartition_ParMetis(dm, numVertices, start, adjacency, partSection, partition);CHKERRQ(ierr);
 #endif
     } else SETERRQ1(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Unknown mesh partitioning package %s", name);
-    if (enlarge) {
+    if (overlap > 0) {
       *origPartSection = *partSection;
       *origPartition   = *partition;
+    }
+    while (overlap > 0) {
+      previousPartSection = partSection;
+      previousPartition   = partition;
 
-      ierr = DMPlexEnlargePartition(dm, start, adjacency, *origPartSection, *origPartition, partSection, partition);CHKERRQ(ierr);
+      ierr = DMPlexEnlargePartition(dm, *previousPartSection, *previousPartition, partSection, partition);CHKERRQ(ierr);
+      overlap--;
     }
     ierr = PetscFree(start);CHKERRQ(ierr);
     ierr = PetscFree(adjacency);CHKERRQ(ierr);
