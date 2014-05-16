@@ -143,6 +143,22 @@ PETSC_EXTERN PetscErrorCode MatColoringApply_Minpack(MatColoring mc,ISColoring *
 
 #undef __FUNCT__
 #define __FUNCT__ "MatColoringCreate_Minpack"
+/*MC
+  MATCOLORINGMINPACK - Coloring routines from the MINPACK project
+
+   Level: beginner
+
+   Notes:
+   These coloring routines are serial and work in parallel by duplicating the
+   matrix on each processor, taking the subset of the coloring.
+
+   References:
+   Thomas F. Coleman, Burton S. Garbow, Jorge J. More'
+   The MINPACK Project. Argonne National Laboratory, July 1983.
+
+
+.seealso: MatColoringCreate(), MatColoring, MatColoringSetType()
+M*/
 PETSC_EXTERN PetscErrorCode MatColoringCreate_Minpack(MatColoring mc)
 {
     PetscFunctionBegin;
