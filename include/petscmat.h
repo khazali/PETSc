@@ -1041,19 +1041,19 @@ J*/
 typedef const  char*           MatColoringType;
 #define MATCOLORINGJP      "jp"
 #define MATCOLORINGNATURAL "natural"
-#define MATCOLORINGSL      "sl"
-#define MATCOLORINGLF      "lf"
-#define MATCOLORINGID      "id"
+#define MATCOLORINGMINPACK "minpack"
 #define MATCOLORINGGREEDY  "greedy"
 
 /*E
-   MatColoringWeightType - Type of weight scheme
+   MatColoringWeightType - Type of weight or ordering scheme
 
     Not Collective
 
 +   MAT_COLORING_RANDOM  - Random weights
 .   MAT_COLORING_LEXICAL - Lexical weighting based upon global numbering.
--   MAT_COLORING_LF      - Last-first weighting.
+.   MAT_COLORING_LF      - Last-first weighting.
+-   MAT_COLORING_SL      - Smallest-last weighting.
+-   MAT_COLORING_ID      - Incidence-degree ordering.
 
     Level: intermediate
 
@@ -1061,7 +1061,7 @@ typedef const  char*           MatColoringType;
 
 .seealso: MatCUSPSetFormat(), MatCUSPFormatOperation
 E*/
-typedef enum {MAT_COLORING_WEIGHT_RANDOM,MAT_COLORING_WEIGHT_LEXICAL,MAT_COLORING_WEIGHT_LF,MAT_COLORING_WEIGHT_SL} MatColoringWeightType;
+typedef enum {MAT_COLORING_WEIGHT_RANDOM,MAT_COLORING_WEIGHT_LEXICAL,MAT_COLORING_WEIGHT_LF,MAT_COLORING_WEIGHT_SL,MAT_COLORING_WEIGHT_ID} MatColoringWeightType;
 
 PETSC_EXTERN PetscErrorCode MatColoringCreate(Mat,MatColoring*);
 PETSC_EXTERN PetscErrorCode MatColoringGetDegrees(Mat,PetscInt,PetscInt*);

@@ -2,7 +2,7 @@
 
 PetscFunctionList MatColoringList              = 0;
 PetscBool         MatColoringRegisterAllCalled = PETSC_FALSE;
-const char *const MatColoringWeightTypes[] = {"RANDOM","LEXICAL","LF","SL","MatColoringWeightType","MAT_COLORING_WEIGHT_",0};
+const char *const MatColoringWeightTypes[] = {"RANDOM","LEXICAL","LF","SL","ID","MatColoringWeightType","MAT_COLORING_WEIGHT_",0};
 
 PETSC_EXTERN PetscErrorCode MatColoringTestValid(MatColoring,ISColoring);
 
@@ -196,7 +196,7 @@ PetscErrorCode MatColoringSetType(MatColoring mc,MatColoringType type)
 PetscErrorCode MatColoringSetFromOptions(MatColoring mc)
 {
   PetscBool      flg;
-  MatColoringType deft        = MATCOLORINGSL;
+  MatColoringType deft        = MATCOLORINGMINPACK;
   char           type[256];
   PetscErrorCode ierr;
   PetscInt       dist,maxcolors;

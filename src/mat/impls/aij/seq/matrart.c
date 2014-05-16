@@ -67,7 +67,7 @@ PetscErrorCode MatRARtSymbolic_SeqAIJ_SeqAIJ_colorrart(Mat A,Mat R,PetscReal fil
   /* Create MatTransposeColoring from symbolic C=R*A*R^T */
   ierr = MatColoringCreate(*C,&coloring);CHKERRQ(ierr);
   ierr = MatColoringSetDistance(coloring,2);CHKERRQ(ierr);
-  ierr = MatColoringSetType(coloring,MATCOLORINGSL);CHKERRQ(ierr);
+  ierr = MatColoringSetType(coloring,MATCOLORINGMINPACK);CHKERRQ(ierr);
   ierr = MatColoringSetFromOptions(coloring);CHKERRQ(ierr);
   ierr = MatColoringApply(coloring,&iscoloring);CHKERRQ(ierr);
   ierr = MatColoringDestroy(&coloring);CHKERRQ(ierr);

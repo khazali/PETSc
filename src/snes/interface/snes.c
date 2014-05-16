@@ -2277,7 +2277,7 @@ PetscErrorCode  SNESComputeJacobian(SNES snes,Vec X,Mat A,Mat B)
 
       ierr = MatDuplicate(B,MAT_DO_NOT_COPY_VALUES,&Bfd);CHKERRQ(ierr);
       ierr = MatColoringCreate(Bfd,&coloring);CHKERRQ(ierr);
-      ierr = MatColoringSetType(coloring,MATCOLORINGSL);CHKERRQ(ierr);
+      ierr = MatColoringSetType(coloring,MATCOLORINGMINPACK);CHKERRQ(ierr);
       ierr = MatColoringSetFromOptions(coloring);CHKERRQ(ierr);
       ierr = MatColoringApply(coloring,&iscoloring);CHKERRQ(ierr);
       ierr = MatColoringDestroy(&coloring);CHKERRQ(ierr);

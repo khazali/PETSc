@@ -4,9 +4,7 @@
 PETSC_EXTERN PetscErrorCode MatColoringCreate_JP(MatColoring);
 PETSC_EXTERN PetscErrorCode MatColoringCreate_Greedy(MatColoring);
 PETSC_EXTERN PetscErrorCode MatColoringCreate_Natural(MatColoring);
-PETSC_EXTERN PetscErrorCode MatColoringCreate_SL(MatColoring);
-PETSC_EXTERN PetscErrorCode MatColoringCreate_ID(MatColoring);
-PETSC_EXTERN PetscErrorCode MatColoringCreate_LF(MatColoring);
+PETSC_EXTERN PetscErrorCode MatColoringCreate_Minpack(MatColoring);
 
 #undef __FUNCT__
 #define __FUNCT__ "MatColoringRegisterAll"
@@ -35,8 +33,6 @@ PetscErrorCode  MatColoringRegisterAll(void)
   ierr = MatColoringRegister(MATCOLORINGJP,MatColoringCreate_JP);CHKERRQ(ierr);
   ierr = MatColoringRegister(MATCOLORINGGREEDY,MatColoringCreate_Greedy);CHKERRQ(ierr);
   ierr = MatColoringRegister(MATCOLORINGNATURAL,MatColoringCreate_Natural);CHKERRQ(ierr);
-  ierr = MatColoringRegister(MATCOLORINGSL,MatColoringCreate_SL);CHKERRQ(ierr);
-  ierr = MatColoringRegister(MATCOLORINGID,MatColoringCreate_ID);CHKERRQ(ierr);
-  ierr = MatColoringRegister(MATCOLORINGLF,MatColoringCreate_LF);CHKERRQ(ierr);
+  ierr = MatColoringRegister(MATCOLORINGMINPACK,MatColoringCreate_Minpack);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
