@@ -365,6 +365,8 @@ PetscErrorCode MatColoringCreateWeights(MatColoring mc,PetscReal **weights,Petsc
   case MAT_COLORING_WEIGHT_SL:
     ierr = MatColoringCreateSmallestLastWeights(mc,wts);CHKERRQ(ierr);
     break;
+  default:
+    SETERRQ(PetscObjectComm((PetscObject)mc),PETSC_ERR_ARG_OUTOFRANGE,"Unsupported weight type");
   }
   if (lperm) {
     ierr = PetscMalloc1(n,lperm);CHKERRQ(ierr);

@@ -101,7 +101,7 @@ PETSC_EXTERN PetscErrorCode MatColoringApply_Minpack(MatColoring mc,ISColoring *
     }
     break;
   default:
-    SETERRQ(PetscObjectComm((PetscObject)mc),PETSC_ERR_SUP,"MATCOLORINGMINPACK does not support this weight type");
+    SETERRQ(PetscObjectComm((PetscObject)mc),PETSC_ERR_ARG_OUTOFRANGE,"Unsupported weight type");
   }
   ierr = PetscMalloc1(n,&coloring);CHKERRQ(ierr);
   MINPACKseq(&n,cja,cia,rja,ria,list,coloring,&ncolors,work);
