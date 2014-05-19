@@ -422,16 +422,16 @@ PetscErrorCode  DMSetUp_DA_3D(DM da)
 
   /* allocate the base parallel and sequential vectors */
   dd->Nlocal = x*y*z*dof;
-  ierr       = VecCreateMPIWithArray(comm,dof,dd->Nlocal,PETSC_DECIDE,0,&global);CHKERRQ(ierr);
+  ierr       = VecCreateMPIWithArray(comm,dof,dd->Nlocal,PETSC_DECIDE,NULL,&global);CHKERRQ(ierr);
   dd->nlocal = (Xe-Xs)*(Ye-Ys)*(Ze-Zs)*dof;
-  ierr       = VecCreateSeqWithArray(PETSC_COMM_SELF,dof,dd->nlocal,0,&local);CHKERRQ(ierr);
+  ierr       = VecCreateSeqWithArray(PETSC_COMM_SELF,dof,dd->nlocal,NULL,&local);CHKERRQ(ierr);
 
   /* generate appropriate vector scatters */
   /* local to global inserts non-ghost point region into global */
   ierr = VecGetOwnershipRange(global,&start,&end);CHKERRQ(ierr);
   ierr = ISCreateStride(comm,x*y*z*dof,start,1,&to);CHKERRQ(ierr);
 
-  ierr   = PetscMalloc1(x*y*z,&idx);CHKERRQ(ierr);
+  ierr   = PetscMalloc1((IXe-IXs)*(IYe-IYs)*(IZe-IZs),&idx);CHKERRQ(ierr);
   left   = xs - Xs; right = left + x;
   bottom = ys - Ys; top = bottom + y;
   down   = zs - Zs; up  = down + z;
@@ -444,7 +444,7 @@ PetscErrorCode  DMSetUp_DA_3D(DM da)
     }
   }
 
-  ierr = ISCreateBlock(comm,dof,count,idx,PETSC_OWN_POINTER,&from);CHKERRQ(ierr);
+  ierr = ISCreateBlock(comm,dof,count,idx,PETSC_USE_POINTER,&from);CHKERRQ(ierr);
   ierr = VecScatterCreate(local,from,global,to,&ltog);CHKERRQ(ierr);
   ierr = PetscLogObjectParent((PetscObject)da,(PetscObject)ltog);CHKERRQ(ierr);
   ierr = ISDestroy(&from);CHKERRQ(ierr);
@@ -453,9 +453,6 @@ PetscErrorCode  DMSetUp_DA_3D(DM da)
   /* global to local must include ghost points within the domain,
      but not ghost points outside the domain that aren't periodic */
   if (stencil_type == DMDA_STENCIL_BOX) {
-    count = (IXe-IXs)*(IYe-IYs)*(IZe-IZs);
-    ierr  = PetscMalloc1(count,&idx);CHKERRQ(ierr);
-
     left   = IXs - Xs; right = left + (IXe-IXs);
     bottom = IYs - Ys; top = bottom + (IYe-IYs);
     down   = IZs - Zs; up  = down + (IZe-IZs);
@@ -468,12 +465,8 @@ PetscErrorCode  DMSetUp_DA_3D(DM da)
       }
     }
     ierr = ISCreateBlock(comm,dof,count,idx,PETSC_OWN_POINTER,&to);CHKERRQ(ierr);
-
   } else {
     /* This is way ugly! We need to list the funny cross type region */
-    count = ((ys-IYs) + (IYe-ye))*x*z + ((xs-IXs) + (IXe-xe))*y*z + ((zs-IZs) + (IZe-ze))*x*y + x*y*z;
-    ierr  = PetscMalloc1(count,&idx);CHKERRQ(ierr);
-
     left   = xs - Xs; right = left + x;
     bottom = ys - Ys; top = bottom + y;
     down   = zs - Zs;   up  = down + z;
@@ -769,7 +762,6 @@ PetscErrorCode  DMSetUp_DA_3D(DM da)
   }
 
   ierr = PetscMalloc1((Xe-Xs)*(Ye-Ys)*(Ze-Zs),&idx);CHKERRQ(ierr);
-  ierr = PetscLogObjectMemory((PetscObject)da,(Xe-Xs)*(Ye-Ys)*(Ze-Zs)*sizeof(PetscInt));CHKERRQ(ierr);
 
   nn = 0;
   /* Bottom Level */
@@ -1029,7 +1021,7 @@ PetscErrorCode  DMSetUp_DA_3D(DM da)
     }
   }
 
-  ierr = ISCreateBlock(comm,dof,nn,idx,PETSC_COPY_VALUES,&from);CHKERRQ(ierr);
+  ierr = ISCreateBlock(comm,dof,nn,idx,PETSC_USE_POINTER,&from);CHKERRQ(ierr);
   ierr = VecScatterCreate(global,from,local,to,&gtol);CHKERRQ(ierr);
   ierr = PetscLogObjectParent((PetscObject)da,(PetscObject)gtol);CHKERRQ(ierr);
   ierr = ISDestroy(&to);CHKERRQ(ierr);

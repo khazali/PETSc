@@ -2298,11 +2298,12 @@ PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt 
 {
   VecScatter_MPI_General *from,*to;
   PetscMPIInt            size,rank,imdex,tag,n;
-  PetscInt               *source = NULL,*owners = NULL;
+  PetscInt               *source = NULL,*owners = NULL,nxr;
   PetscInt               *lowner = NULL,*start = NULL,lengthy,lengthx;
   PetscMPIInt            *nprocs = NULL,nrecvs;
   PetscInt               i,j,idx,nsends;
-  PetscInt               *owner = NULL,*starts = NULL,count,slen;
+  PetscMPIInt            *owner = NULL;
+  PetscInt               *starts = NULL,count,slen;
   PetscInt               *rvalues,*svalues,base,*values,nprocslocal,recvtotal,*rsvalues;
   PetscMPIInt            *onodes1,*olengths1;
   MPI_Comm               comm;
@@ -2359,7 +2360,11 @@ PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt 
      1) starts[i] gives the starting index in svalues for stuff going to
      the ith processor
   */
-  ierr = PetscMalloc3(nx,&svalues,nsends,&send_waits,size+1,&starts);CHKERRQ(ierr);
+  nxr = 0;
+  for (i=0; i<nx; i++) {
+    if (owner[i] != rank) nxr++;
+  }
+  ierr = PetscMalloc3(nxr,&svalues,nsends,&send_waits,size+1,&starts);CHKERRQ(ierr);
 
   starts[0]  = 0;
   for (i=1; i<size; i++) starts[i] = starts[i-1] + nprocs[i-1];
@@ -2465,6 +2470,7 @@ PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt 
         if (bs*inidy[i] >= lengthy) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Scattering past end of TO vector");
       }
     }
+    ierr = PetscLogObjectMemory((PetscObject)ctx,2*nt*sizeof(PetscInt));CHKERRQ(ierr);
   } else {
     from->local.n      = 0;
     from->local.vslots = 0;
@@ -2817,7 +2823,8 @@ PetscErrorCode VecScatterCreate_PtoP(PetscInt nx,const PetscInt *inidx,PetscInt 
   PetscInt       *owners = xin->map->range;
   PetscMPIInt    *nprocs = NULL;
   PetscInt       i,j,idx,nsends,*local_inidx = NULL,*local_inidy = NULL;
-  PetscInt       *owner   = NULL,*starts  = NULL,count,slen;
+  PetscMPIInt    *owner   = NULL;
+  PetscInt       *starts  = NULL,count,slen;
   PetscInt       *rvalues = NULL,*svalues = NULL,base,*values = NULL,*rsvalues,recvtotal,lastidx;
   PetscMPIInt    *onodes1,*olengths1,nrecvs;
   MPI_Comm       comm;
