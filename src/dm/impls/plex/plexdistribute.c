@@ -358,109 +358,35 @@ PetscErrorCode DMPlexDistributeData(DM dm, PetscSF pointSF, PetscSection origina
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMPlexDistribute"
-/*@C
-  DMPlexDistribute - Distributes the mesh and any associated sections.
-
-  Not Collective
-
-  Input Parameter:
-+ dm  - The original DMPlex object
-. partitioner - The partitioning package, or NULL for the default
-- overlap - The overlap of partitions, 0 is the default
-
-  Output Parameter:
-+ sf - The PetscSF used for point distribution
-- parallelMesh - The distributed DMPlex object, or NULL
-
-  Note: If the mesh was not distributed, the return value is NULL.
-
-  The user can control the definition of adjacency for the mesh using DMPlexGetAdjacencyUseCone() and
-  DMPlexSetAdjacencyUseClosure(). They should choose the combination appropriate for the function
-  representation on the mesh.
-
-  Level: intermediate
-
-.keywords: mesh, elements
-.seealso: DMPlexCreate(), DMPlexDistributeByFace(), DMPlexSetAdjacencyUseCone(), DMPlexSetAdjacencyUseClosure()
-@*/
-PetscErrorCode DMPlexDistribute(DM dm, const char partitioner[], PetscInt overlap, PetscSF *sf, DM *dmParallel)
+#define __FUNCT__ "DMPlexDistribute_Migrate"
+PetscErrorCode DMPlexDistribute_Migrate(DM dm, PetscSection partSection, IS part, PetscSF pointSF, ISLocalToGlobalMapping renumbering, DM *dmParallel)
 {
-  DM_Plex               *mesh   = (DM_Plex*) dm->data, *pmesh;
+  DM_Plex               *mesh = (DM_Plex*) dm->data, *pmesh;
   MPI_Comm               comm;
-  const PetscInt         height = 0;
-  PetscInt               dim, numRemoteRanks;
-  IS                     origCellPart,        origPart,        cellPart,        part;
-  PetscSection           origCellPartSection, origPartSection, cellPartSection, partSection;
-  PetscSFNode           *remoteRanks;
-  PetscSF                partSF, pointSF, coneSF;
-  ISLocalToGlobalMapping renumbering;
+  PetscInt               dim;
   PetscSection           originalConeSection, newConeSection;
+  PetscSF                coneSF;
   PetscInt              *remoteOffsets;
   PetscInt              *cones, *newCones, newConesSize;
   PetscBool              flg;
-  PetscMPIInt            rank, numProcs, p;
+  PetscMPIInt            rank;
   PetscErrorCode         ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  if (sf) PetscValidPointer(sf,4);
-  PetscValidPointer(dmParallel,5);
+  /* if (sf) PetscValidPointer(sf,4); */
+  /* PetscValidPointer(dmParallel,5); */
 
-  ierr = PetscLogEventBegin(DMPLEX_Distribute,dm,0,0,0);CHKERRQ(ierr);
   ierr = PetscObjectGetComm((PetscObject)dm,&comm);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
-  ierr = MPI_Comm_size(comm, &numProcs);CHKERRQ(ierr);
-
-  *dmParallel = NULL;
-  if (numProcs == 1) PetscFunctionReturn(0);
-
   ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
-  /* Create cell partition - We need to rewrite to use IS, use the MatPartition stuff */
-  ierr = PetscLogEventBegin(DMPLEX_Partition,dm,0,0,0);CHKERRQ(ierr);
-  ierr = DMPlexCreatePartition(dm, partitioner, height, overlap, &cellPartSection, &cellPart, &origCellPartSection, &origCellPart);CHKERRQ(ierr);
-  /* Create SF assuming a serial partition for all processes: Could check for IS length here */
-  if (!rank) numRemoteRanks = numProcs;
-  else       numRemoteRanks = 0;
-  ierr = PetscMalloc1(numRemoteRanks, &remoteRanks);CHKERRQ(ierr);
-  for (p = 0; p < numRemoteRanks; ++p) {
-    remoteRanks[p].rank  = p;
-    remoteRanks[p].index = 0;
-  }
-  ierr = PetscSFCreate(comm, &partSF);CHKERRQ(ierr);
-  ierr = PetscSFSetGraph(partSF, 1, numRemoteRanks, NULL, PETSC_OWN_POINTER, remoteRanks, PETSC_OWN_POINTER);CHKERRQ(ierr);
-  ierr = PetscOptionsHasName(((PetscObject) dm)->prefix, "-partition_view", &flg);CHKERRQ(ierr);
-  if (flg) {
-    ierr = PetscPrintf(comm, "Cell Partition:\n");CHKERRQ(ierr);
-    ierr = PetscSectionView(cellPartSection, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-    ierr = ISView(cellPart, NULL);CHKERRQ(ierr);
-    if (origCellPart) {
-      ierr = PetscPrintf(comm, "Original Cell Partition:\n");CHKERRQ(ierr);
-      ierr = PetscSectionView(origCellPartSection, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-      ierr = ISView(origCellPart, NULL);CHKERRQ(ierr);
-    }
-    ierr = PetscSFView(partSF, NULL);CHKERRQ(ierr);
-  }
-  /* Close the partition over the mesh */
-  ierr = DMPlexCreatePartitionClosure(dm, cellPartSection, cellPart, &partSection, &part);CHKERRQ(ierr);
-  ierr = ISDestroy(&cellPart);CHKERRQ(ierr);
-  ierr = PetscSectionDestroy(&cellPartSection);CHKERRQ(ierr);
+
   /* Create new mesh */
   ierr  = DMPlexCreate(comm, dmParallel);CHKERRQ(ierr);
   ierr  = DMPlexSetDimension(*dmParallel, dim);CHKERRQ(ierr);
   ierr  = PetscObjectSetName((PetscObject) *dmParallel, "Parallel Mesh");CHKERRQ(ierr);
   pmesh = (DM_Plex*) (*dmParallel)->data;
-  /* Distribute sieve points and the global point numbering (replaces creating remote bases) */
-  ierr = PetscSFConvertPartition(partSF, partSection, part, &renumbering, &pointSF);CHKERRQ(ierr);
-  if (flg) {
-    ierr = PetscPrintf(comm, "Point Partition:\n");CHKERRQ(ierr);
-    ierr = PetscSectionView(partSection, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-    ierr = ISView(part, NULL);CHKERRQ(ierr);
-    ierr = PetscSFView(pointSF, NULL);CHKERRQ(ierr);
-    ierr = PetscPrintf(comm, "Point Renumbering after partition:\n");CHKERRQ(ierr);
-    ierr = ISLocalToGlobalMappingView(renumbering, NULL);CHKERRQ(ierr);
-  }
-  ierr = PetscLogEventEnd(DMPLEX_Partition,dm,0,0,0);CHKERRQ(ierr);
+
   ierr = PetscLogEventBegin(DMPLEX_DistributeCones,dm,0,0,0);CHKERRQ(ierr);
   /* Distribute cone section */
   ierr = DMPlexGetConeSection(dm, &originalConeSection);CHKERRQ(ierr);
@@ -582,6 +508,110 @@ PetscErrorCode DMPlexDistribute(DM dm, const char partitioner[], PetscInt overla
     }
     ierr = ISLocalToGlobalMappingRestoreIndices(renumbering, &gpoints);CHKERRQ(ierr);
   }
+
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexDistribute"
+/*@C
+  DMPlexDistribute - Distributes the mesh and any associated sections.
+
+  Not Collective
+
+  Input Parameter:
++ dm  - The original DMPlex object
+. partitioner - The partitioning package, or NULL for the default
+- overlap - The overlap of partitions, 0 is the default
+
+  Output Parameter:
++ sf - The PetscSF used for point distribution
+- parallelMesh - The distributed DMPlex object, or NULL
+
+  Note: If the mesh was not distributed, the return value is NULL.
+
+  The user can control the definition of adjacency for the mesh using DMPlexGetAdjacencyUseCone() and
+  DMPlexSetAdjacencyUseClosure(). They should choose the combination appropriate for the function
+  representation on the mesh.
+
+  Level: intermediate
+
+.keywords: mesh, elements
+.seealso: DMPlexCreate(), DMPlexDistributeByFace(), DMPlexSetAdjacencyUseCone(), DMPlexSetAdjacencyUseClosure()
+@*/
+PetscErrorCode DMPlexDistribute(DM dm, const char partitioner[], PetscInt overlap, PetscSF *sf, DM *dmParallel)
+{
+  DM_Plex               *mesh   = (DM_Plex*) dm->data, *pmesh;
+  MPI_Comm               comm;
+  const PetscInt         height = 0;
+  PetscInt               dim, numRemoteRanks;
+  IS                     origCellPart,        origPart,        cellPart,        part;
+  PetscSection           origCellPartSection, origPartSection, cellPartSection, partSection;
+  PetscSFNode           *remoteRanks;
+  PetscSF                partSF, pointSF;
+  ISLocalToGlobalMapping renumbering;
+  PetscBool              flg;
+  PetscMPIInt            rank, numProcs, p;
+  PetscErrorCode         ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  if (sf) PetscValidPointer(sf,4);
+  PetscValidPointer(dmParallel,5);
+
+  ierr = PetscLogEventBegin(DMPLEX_Distribute,dm,0,0,0);CHKERRQ(ierr);
+  ierr = PetscObjectGetComm((PetscObject)dm,&comm);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &numProcs);CHKERRQ(ierr);
+
+  *dmParallel = NULL;
+  if (numProcs == 1) PetscFunctionReturn(0);
+
+  ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
+  /* Create cell partition - We need to rewrite to use IS, use the MatPartition stuff */
+  ierr = PetscLogEventBegin(DMPLEX_Partition,dm,0,0,0);CHKERRQ(ierr);
+  ierr = DMPlexCreatePartition(dm, partitioner, height, overlap, &cellPartSection, &cellPart, &origCellPartSection, &origCellPart);CHKERRQ(ierr);
+  /* Create SF assuming a serial partition for all processes: Could check for IS length here */
+  if (!rank) numRemoteRanks = numProcs;
+  else       numRemoteRanks = 0;
+  ierr = PetscMalloc1(numRemoteRanks, &remoteRanks);CHKERRQ(ierr);
+  for (p = 0; p < numRemoteRanks; ++p) {
+    remoteRanks[p].rank  = p;
+    remoteRanks[p].index = 0;
+  }
+  ierr = PetscSFCreate(comm, &partSF);CHKERRQ(ierr);
+  ierr = PetscSFSetGraph(partSF, 1, numRemoteRanks, NULL, PETSC_OWN_POINTER, remoteRanks, PETSC_OWN_POINTER);CHKERRQ(ierr);
+  ierr = PetscOptionsHasName(((PetscObject) dm)->prefix, "-partition_view", &flg);CHKERRQ(ierr);
+  if (flg) {
+    ierr = PetscPrintf(comm, "Cell Partition:\n");CHKERRQ(ierr);
+    ierr = PetscSectionView(cellPartSection, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    ierr = ISView(cellPart, NULL);CHKERRQ(ierr);
+    if (origCellPart) {
+      ierr = PetscPrintf(comm, "Original Cell Partition:\n");CHKERRQ(ierr);
+      ierr = PetscSectionView(origCellPartSection, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+      ierr = ISView(origCellPart, NULL);CHKERRQ(ierr);
+    }
+    ierr = PetscSFView(partSF, NULL);CHKERRQ(ierr);
+  }
+  /* Close the partition over the mesh */
+  ierr = DMPlexCreatePartitionClosure(dm, cellPartSection, cellPart, &partSection, &part);CHKERRQ(ierr);
+  ierr = ISDestroy(&cellPart);CHKERRQ(ierr);
+  ierr = PetscSectionDestroy(&cellPartSection);CHKERRQ(ierr);
+  /* Distribute sieve points and the global point numbering (replaces creating remote bases) */
+  ierr = PetscSFConvertPartition(partSF, partSection, part, &renumbering, &pointSF);CHKERRQ(ierr);
+  if (flg) {
+    ierr = PetscPrintf(comm, "Point Partition:\n");CHKERRQ(ierr);
+    ierr = PetscSectionView(partSection, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    ierr = ISView(part, NULL);CHKERRQ(ierr);
+    ierr = PetscSFView(pointSF, NULL);CHKERRQ(ierr);
+    ierr = PetscPrintf(comm, "Point Renumbering after partition:\n");CHKERRQ(ierr);
+    ierr = ISLocalToGlobalMappingView(renumbering, NULL);CHKERRQ(ierr);
+  }
+  ierr = PetscLogEventEnd(DMPLEX_Partition,dm,0,0,0);CHKERRQ(ierr);
+
+  ierr = DMPlexDistribute_Migrate(dm, partSection, part, pointSF, renumbering, dmParallel);CHKERRQ(ierr);
+  pmesh = (DM_Plex*) (*dmParallel)->data;
+
   /* Cleanup Partition */
   ierr = ISLocalToGlobalMappingDestroy(&renumbering);CHKERRQ(ierr);
   ierr = PetscSFDestroy(&partSF);CHKERRQ(ierr);
@@ -708,12 +738,14 @@ PetscErrorCode DMPlexRedistribute(DM dm, const char partitioner[], PetscInt over
 {
   MPI_Comm               comm;
   PetscMPIInt            rank, numProcs;
-  PetscSF                pointSF;
+  PetscSF                partSF, pointSF;
+  ISLocalToGlobalMapping renumbering;
   const PetscSFNode      *iremote;
   const PetscInt         *ilocal;
-  PetscInt               nroots, nleaves, *origCells;
+  PetscInt               nroots, nleaves, numRemoteRanks, *origCells;
   IS                     cellPart, origCellPart, newPart;
   PetscSection           cellPartSection, origCellPartSection, newPartSection;
+  PetscSFNode            *remoteRanks;
   PetscInt               i, p, cStart, cEnd, ncells;
   PetscBT                bt;
   PetscBool              flg;
@@ -734,8 +766,6 @@ PetscErrorCode DMPlexRedistribute(DM dm, const char partitioner[], PetscInt over
     SETERRQ(PetscObjectComm((PetscObject)dm), PETSC_ERR_SUP, "Full parallel re-partitioning is currently not supported");
   } else {
     ierr = DMGetPointSF(dm, &pointSF);CHKERRQ(ierr);
-    ierr = PetscSFView(pointSF, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-
     /* Growing the halo from overlap 0 requires remote points, which we don't have.
        But if we "over-allocate" the original halo, we have enough info to build
        the correct halo, iff L_orig > L_redist.
@@ -790,12 +820,26 @@ PetscErrorCode DMPlexRedistribute(DM dm, const char partitioner[], PetscInt over
     }
     /* Rebuild the original non-overlapping partitioning */
     ierr = DMPlexCreatePartitionClosure(dm, cellPartSection, cellPart, &newPartSection, &newPart);CHKERRQ(ierr);
-    if (flg) {
-      ierr = PetscPrintf(comm, "NewPartition:\n");CHKERRQ(ierr);
-      ierr = PetscSectionView(newPartSection, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-      ierr = ISView(newPart, NULL);CHKERRQ(ierr);
-    }
   }
+  numRemoteRanks = numProcs;
+  ierr = PetscMalloc1(numRemoteRanks, &remoteRanks);CHKERRQ(ierr);
+  for (p = 0; p < numRemoteRanks; ++p) {
+    remoteRanks[p].rank  = p;
+    remoteRanks[p].index = 0;
+  }
+  ierr = PetscSFCreate(comm, &partSF);CHKERRQ(ierr);
+  ierr = PetscSFSetGraph(partSF, 1, numRemoteRanks, NULL, PETSC_OWN_POINTER, remoteRanks, PETSC_OWN_POINTER);CHKERRQ(ierr);
+  ierr = PetscSFConvertPartition(partSF, newPartSection, newPart, &renumbering, &pointSF);CHKERRQ(ierr);
+  if (flg) {
+    ierr = PetscPrintf(comm, "New Partition:\n");CHKERRQ(ierr);
+    ierr = PetscSectionView(newPartSection, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    ierr = ISView(newPart, NULL);CHKERRQ(ierr);
+    ierr = PetscSFView(pointSF, NULL);CHKERRQ(ierr);
+    ierr = PetscPrintf(comm, "Point Renumbering after partition:\n");CHKERRQ(ierr);
+    ierr = ISLocalToGlobalMappingView(renumbering, NULL);CHKERRQ(ierr);
+  }
+
+  ierr = DMPlexDistribute_Migrate(dm, newPartSection, newPart, pointSF, renumbering, newdm);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(DMPLEX_Distribute,dm,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
