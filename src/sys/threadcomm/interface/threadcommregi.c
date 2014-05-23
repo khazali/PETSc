@@ -8,6 +8,9 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThread(PetscThreadComm);
 #if defined(PETSC_HAVE_OPENMP)
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMP(PetscThreadComm);
 #endif
+#if defined(PETSC_HAVE_TBB)
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_TBB(PetscThreadComm);
+#endif
 
 extern PetscBool PetscThreadCommRegisterAllCalled;
 
@@ -37,6 +40,9 @@ PetscErrorCode PetscThreadCommRegisterAll(void)
 #endif
 #if defined(PETSC_HAVE_OPENMP)
   ierr = PetscThreadCommRegister(OPENMP,  PetscThreadCommCreate_OpenMP);CHKERRQ(ierr);
+#endif
+#if defined(PETSC_HAVE_TBB)
+  ierr = PetscThreadCommRegister(TBB,     PetscThreadCommCreate_TBB);CHKERRQ(ierr);
 #endif
   PetscFunctionReturn(0);
 }

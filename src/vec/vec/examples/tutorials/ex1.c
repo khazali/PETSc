@@ -68,15 +68,20 @@ int main(int argc,char **argv)
   /*
      Set the vectors to entries to a constant value.
   */
+  printf("Setting vecs\n");
   ierr = VecSet(x,one);CHKERRQ(ierr);
+  //VecView(x,PETSC_VIEWER_STDOUT_WORLD);
   ierr = VecSet(y,two);CHKERRQ(ierr);
+  //VecView(y,PETSC_VIEWER_STDOUT_WORLD);
   ierr = VecSet(z[0],one);CHKERRQ(ierr);
   ierr = VecSet(z[1],two);CHKERRQ(ierr);
   ierr = VecSet(z[2],three);CHKERRQ(ierr);
   /*
      Demonstrate various basic vector routines.
   */
+  printf("Barrier\n");
   MPI_Barrier(PETSC_COMM_WORLD);
+  printf("After barrier\n");
   ierr = VecDot(x,y,&dot);CHKERRQ(ierr);
   ierr = VecMDot(x,3,z,dots);CHKERRQ(ierr);
 
@@ -85,7 +90,6 @@ int main(int argc,char **argv)
      PETSC_USE_COMPLEX is defined in the makefiles; otherwise,
      (when using real numbers) it is undefined.
   */
-
   ierr = PetscPrintf(PETSC_COMM_WORLD,"Vector length %D\n",n);CHKERRQ(ierr);
   ierr = VecMax(x,&maxind,&maxval);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"VecMax %g, VecInd %D\n",(double)maxval,maxind);CHKERRQ(ierr);

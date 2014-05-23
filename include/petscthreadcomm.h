@@ -28,6 +28,7 @@ typedef const char* PetscThreadCommType;
 #define PTHREAD             "pthread"
 #define NOTHREAD            "nothread"
 #define OPENMP              "openmp"
+#define TBB                 "tbb"
 
 PETSC_EXTERN PetscFunctionList PetscThreadCommList;
 
