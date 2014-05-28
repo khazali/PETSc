@@ -4,7 +4,7 @@ ALL: lib
 
 CFLAGS   =
 FFLAGS   =
-CXXFLAGS = -I/soft/com/packages/intel/13/update5/tbb/include/tbb/
+CXXFLAGS =
 SOURCECXX = tctbb.cxx
 SOURCEF  =
 SOURCEH  =

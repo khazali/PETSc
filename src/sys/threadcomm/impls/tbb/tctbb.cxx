@@ -1,7 +1,7 @@
 #include <../src/sys/threadcomm/impls/tbb/tctbbimpl.h>
-#include "blocked_range.h"
-#include "parallel_for.h"
-#include "task_scheduler_init.h"
+#include "tbb/blocked_range.h"
+#include "tbb/parallel_for.h"
+#include "tbb/task_scheduler_init.h"
 
 using namespace tbb;
 
@@ -10,7 +10,7 @@ class TBBRunKernel {
 
 public:
   void operator()(blocked_range<size_t>& r) const {
-    int trank= r.begin();
+    PetscInt trank= r.begin();
     job->job_status[trank] = THREAD_JOB_RECIEVED;
     PetscRunKernel(trank,job->nargs,job);
     job->job_status[trank]= THREAD_JOB_COMPLETED;
