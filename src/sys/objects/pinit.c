@@ -438,7 +438,7 @@ PETSC_EXTERN PetscMPIInt PetscDataRep_write_conv_fn(void*, MPI_Datatype,PetscMPI
 
 int  PetscGlobalArgc   = 0;
 char **PetscGlobalArgs = 0;
-PetscSegBuffer PetscCitationsList; 
+PetscSegBuffer PetscCitationsList;
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscCitationsInitialize"
@@ -1051,6 +1051,12 @@ PetscErrorCode  PetscFinalize(void)
     ierr = PetscFree(buffs);CHKERRQ(ierr);
   }
 #endif
+  /*
+    It should be safe to cancel the options monitors, since we don't expect to be setting options
+    here (at least that are worth monitoring).  Monitors ought to be released so that they release
+    whatever memory was allocated there before -malloc_dump reports unfreed memory.
+  */
+  ierr = PetscOptionsMonitorCancel();CHKERRQ(ierr);
 
 #if defined(PETSC_SERIALIZE_FUNCTIONS)
   ierr = PetscFPTDestroy();CHKERRQ(ierr);
@@ -1106,7 +1112,7 @@ PetscErrorCode  PetscFinalize(void)
 #endif
   mname[0] = 0;
 
-  ierr = PetscLogViewFromOptions();CHKERRQ(ierr);  
+  ierr = PetscLogViewFromOptions();CHKERRQ(ierr);
   ierr = PetscOptionsGetString(NULL,"-log_summary",mname,PETSC_MAX_PATH_LEN,&flg1);CHKERRQ(ierr);
   if (flg1) {
     PetscViewer viewer;
