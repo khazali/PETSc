@@ -2841,7 +2841,7 @@ PetscErrorCode PetscFEIntegrate_Basic(PetscFE fem, PetscProblem prob, PetscInt f
                                       const PetscScalar coefficients[], PetscProblem probAux, const PetscScalar coefficientsAux[], PetscReal integral[])
 {
   const PetscInt  debug = 0;
-  void          (*obj_func)(const PetscScalar u[], const PetscScalar u_x[], const PetscScalar a[], const PetscScalar a_x[], const PetscReal x[], PetscScalar obj[]);
+  void          (*obj_func)(const PetscScalar u[], const PetscScalar u_x[], const PetscScalar u_t[], const PetscScalar a[], const PetscScalar a_x[], const PetscScalar a_t[], const PetscReal x[], PetscScalar obj[]);
   PetscQuadrature quad;
   PetscScalar    *u, *u_x, *a, *a_x;
   PetscReal      *x;
@@ -2849,6 +2849,8 @@ PetscErrorCode PetscFEIntegrate_Basic(PetscFE fem, PetscProblem prob, PetscInt f
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
+  ierr = PetscProblemGetObjective(prob, field, &obj_func);CHKERRQ(ierr);
+  if (!obj_func) PetscFunctionReturn(0);
   ierr = PetscFEGetSpatialDimension(fem, &dim);CHKERRQ(ierr);
   ierr = PetscFEGetQuadrature(fem, &quad);CHKERRQ(ierr);
   ierr = PetscProblemGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
@@ -2878,7 +2880,7 @@ PetscErrorCode PetscFEIntegrate_Basic(PetscFE fem, PetscProblem prob, PetscInt f
       CoordinatesRefToReal(dim, dim, v0, J, &quadPoints[q*dim], x);
       ierr = EvaluateFieldJets(prob,    PETSC_FALSE, q, invJ, &coefficients[cOffset],       NULL, u, u_x, NULL);CHKERRQ(ierr);
       ierr = EvaluateFieldJets(probAux, PETSC_FALSE, q, invJ, &coefficientsAux[cOffsetAux], NULL, a, a_x, NULL);CHKERRQ(ierr);
-      obj_func(u, u_x, a, a_x, x, &integrand);
+      obj_func(u, NULL, u_x, a, NULL, a_x, x, &integrand);
       integrand *= detJ*quadWeights[q];
       integral[field] += PetscRealPart(integrand);
       if (debug > 1) {ierr = PetscPrintf(PETSC_COMM_SELF, "    int: %g %g\n", PetscRealPart(integrand), integral[field]);CHKERRQ(ierr);}
@@ -3795,6 +3797,8 @@ PetscErrorCode PetscFEOpenCLGenerateIntegrationCode(PetscFE fem, char **string_b
   char            float_str[]   = "float", double_str[]  = "double";
   char           *numeric_str   = &(float_str[0]);
   PetscInt        op            = ocl->op;
+  PetscReal       lambda        = 1.0;
+  PetscReal       mu            = 0.25;
   PetscBool       useField      = PETSC_FALSE;
   PetscBool       useFieldDer   = PETSC_TRUE;
   PetscBool       useFieldAux   = useAux;
@@ -4100,31 +4104,31 @@ PetscErrorCode PetscFEOpenCLGenerateIntegrationCode(PetscFE fem, char **string_b
       ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail,
 "      switch (cidx) {\n"
 "      case 0:\n"
-"        f_1[fidx].x = 0.5*(gradU[0].x + gradU[0].x);\n"
-"        f_1[fidx].y = 0.5*(gradU[0].y + gradU[1].x);\n"
+"        f_1[fidx].x = lambda*(gradU[0].x + gradU[1].y) + mu*(gradU[0].x + gradU[0].x);\n"
+"        f_1[fidx].y = lambda*(gradU[0].x + gradU[1].y) + mu*(gradU[0].y + gradU[1].x);\n"
 "        break;\n"
 "      case 1:\n"
-"        f_1[fidx].x = 0.5*(gradU[1].x + gradU[0].y);\n"
-"        f_1[fidx].y = 0.5*(gradU[1].y + gradU[1].y);\n"
+"        f_1[fidx].x = lambda*(gradU[0].x + gradU[1].y) + mu*(gradU[1].x + gradU[0].y);\n"
+"        f_1[fidx].y = lambda*(gradU[0].x + gradU[1].y) + mu*(gradU[1].y + gradU[1].y);\n"
 "      }\n",
                            &count);STRING_ERROR_CHECK("Message to short");break;
     case 3:
       ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail,
 "      switch (cidx) {\n"
 "      case 0:\n"
-"        f_1[fidx].x = 0.5*(gradU[0].x + gradU[0].x);\n"
-"        f_1[fidx].y = 0.5*(gradU[0].y + gradU[1].x);\n"
-"        f_1[fidx].z = 0.5*(gradU[0].z + gradU[2].x);\n"
+"        f_1[fidx].x = lambda*(gradU[0].x + gradU[1].y + gradU[2].z) + mu*(gradU[0].x + gradU[0].x);\n"
+"        f_1[fidx].y = lambda*(gradU[0].x + gradU[1].y + gradU[2].z) + mu*(gradU[0].y + gradU[1].x);\n"
+"        f_1[fidx].z = lambda*(gradU[0].x + gradU[1].y + gradU[2].z) + mu*(gradU[0].z + gradU[2].x);\n"
 "        break;\n"
 "      case 1:\n"
-"        f_1[fidx].x = 0.5*(gradU[1].x + gradU[0].y);\n"
-"        f_1[fidx].y = 0.5*(gradU[1].y + gradU[1].y);\n"
-"        f_1[fidx].z = 0.5*(gradU[1].y + gradU[2].y);\n"
+"        f_1[fidx].x = lambda*(gradU[0].x + gradU[1].y + gradU[2].z) + mu*(gradU[1].x + gradU[0].y);\n"
+"        f_1[fidx].y = lambda*(gradU[0].x + gradU[1].y + gradU[2].z) + mu*(gradU[1].y + gradU[1].y);\n"
+"        f_1[fidx].z = lambda*(gradU[0].x + gradU[1].y + gradU[2].z) + mu*(gradU[1].y + gradU[2].y);\n"
 "        break;\n"
 "      case 2:\n"
-"        f_1[fidx].x = 0.5*(gradU[2].x + gradU[0].z);\n"
-"        f_1[fidx].y = 0.5*(gradU[2].y + gradU[1].z);\n"
-"        f_1[fidx].z = 0.5*(gradU[2].y + gradU[2].z);\n"
+"        f_1[fidx].x = lambda*(gradU[0].x + gradU[1].y + gradU[2].z) + mu*(gradU[2].x + gradU[0].z);\n"
+"        f_1[fidx].y = lambda*(gradU[0].x + gradU[1].y + gradU[2].z) + mu*(gradU[2].y + gradU[1].z);\n"
+"        f_1[fidx].z = lambda*(gradU[0].x + gradU[1].y + gradU[2].z) + mu*(gradU[2].y + gradU[2].z);\n"
 "      }\n",
                            &count);STRING_ERROR_CHECK("Message to short");break;
     }}
@@ -4202,6 +4206,7 @@ PetscErrorCode PetscFEOpenCLGetIntegrationKernel(PetscFE fem, PetscBool useAux, 
 {
   PetscFE_OpenCL *ocl = (PetscFE_OpenCL *) fem->data;
   PetscInt        dim, N_bl;
+  PetscBool       flg;
   char           *buffer;
   size_t          len;
   char            errMsg[8192];
@@ -4213,6 +4218,8 @@ PetscErrorCode PetscFEOpenCLGetIntegrationKernel(PetscFE fem, PetscBool useAux, 
   ierr = PetscMalloc1(8192, &buffer);CHKERRQ(ierr);
   ierr = PetscFEGetTileSizes(fem, NULL, &N_bl, NULL, NULL);CHKERRQ(ierr);
   ierr = PetscFEOpenCLGenerateIntegrationCode(fem, &buffer, 8192, useAux, N_bl);CHKERRQ(ierr);
+  ierr = PetscOptionsHasName(fem->hdr.prefix, "-petscfe_opencl_kernel_print", &flg);CHKERRQ(ierr);
+  if (flg) {ierr = PetscPrintf(PetscObjectComm((PetscObject) fem), "OpenCL FE Integration Kernel:\n%s\n", buffer);CHKERRQ(ierr);}
   len  = strlen(buffer);
   *ocl_prog = clCreateProgramWithSource(ocl->ctx_id, 1, (const char **) &buffer, &len, &ierr2);CHKERRQ(ierr2);
   ierr = clBuildProgram(*ocl_prog, 0, NULL, NULL, NULL, NULL);
