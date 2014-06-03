@@ -83,15 +83,22 @@ struct  _p_PetscThreadCommJobCtx{
   PetscInt          *job_status;                   /* Thread job status */
 };
 
+typedef struct _p_PetscThreadInfo* PetscThreadInfo;
+struct _p_PetscThreadInfo{
+  PetscInt        rank;
+  PetscThreadComm tcomm;
+};
+
 /* Structure to manage job queue */
 typedef struct _p_PetscThreadCommJobQueue* PetscThreadCommJobQueue;
 struct _p_PetscThreadCommJobQueue{
   PetscInt ctr;                                         /* job counter */
   PetscInt kernel_ctr;                                  /* kernel counter .. need this otherwise race conditions are unavoidable */
   PetscThreadCommJobCtx jobs;                           /* queue of jobs */
+  PetscInt *current_status;                             /* Status of current job for each thread */
+  PetscThreadInfo *tinfo;                                    /* Data to pass to pthreads */
+  PetscThreadCommJobCtx *current_data;                  /* Data for current job for each thread*/
 };
-
-extern PetscThreadCommJobQueue PetscJobQueue;
 
 typedef struct _PetscThreadCommOps* PetscThreadCommOps;
 struct _PetscThreadCommOps {
@@ -116,6 +123,7 @@ struct _p_PetscThreadComm{
   PetscInt                job_ctr;      /* which job is this threadcomm running in the job queue */
   PetscBool               isnothread;   /* No threading model used */
   PetscInt                nkernels;     /* Maximum kernels launched */
+  PetscThreadCommJobQueue jobqueue;     /* Job queue */
 };
 
 /* Global thread communicator that manages all the threads. Other threadcomms

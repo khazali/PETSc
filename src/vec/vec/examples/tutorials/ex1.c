@@ -14,6 +14,7 @@ T*/
 */
 
 #include <petscvec.h>
+#include <petscthreadcomm.h>
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -48,6 +49,8 @@ int main(int argc,char **argv)
 
   */
 
+  PetscThreadCommView(PETSC_COMM_WORLD,PETSC_VIEWER_STDOUT_SELF);
+
   ierr = VecCreate(PETSC_COMM_WORLD,&x);CHKERRQ(ierr);
   ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRQ(ierr);
   ierr = VecSetFromOptions(x);CHKERRQ(ierr);
@@ -68,7 +71,6 @@ int main(int argc,char **argv)
   /*
      Set the vectors to entries to a constant value.
   */
-  printf("Setting vecs\n");
   ierr = VecSet(x,one);CHKERRQ(ierr);
   //VecView(x,PETSC_VIEWER_STDOUT_WORLD);
   ierr = VecSet(y,two);CHKERRQ(ierr);
@@ -79,9 +81,7 @@ int main(int argc,char **argv)
   /*
      Demonstrate various basic vector routines.
   */
-  printf("Barrier\n");
   MPI_Barrier(PETSC_COMM_WORLD);
-  printf("After barrier\n");
   ierr = VecDot(x,y,&dot);CHKERRQ(ierr);
   ierr = VecMDot(x,3,z,dots);CHKERRQ(ierr);
 
