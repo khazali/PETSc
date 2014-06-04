@@ -37,6 +37,11 @@ PETSC_EXTERN PetscMPIInt Petsc_ThreadComm_keyval;
 #define THREAD_JOB_RECIEVED    2
 #define THREAD_JOB_COMPLETED   0
 
+/* Thread status */
+#define THREAD_TERMINATE      0
+#define THREAD_INITIALIZED    1
+#define THREAD_CREATED        0
+
 #define PetscReadOnce(type,val) (*(volatile type *)&val)
 
 #if defined(PETSC_MEMORY_BARRIER)
@@ -54,6 +59,15 @@ PETSC_EXTERN PetscMPIInt Petsc_ThreadComm_keyval;
 #else
 #define PetscWriteMemoryBarrier()
 #endif
+
+#if defined(PETSC_CPU_RELAX)
+#define PetscCPURelax() do {PETSC_CPU_RELAX();} while (0)
+#else
+#define PetscCPURelax() do { } while (0)
+#endif
+
+typedef enum {PTHREADPOOLSPARK_SELF} PetscThreadPoolSparkType;
+extern const char *const PetscThreadPoolSparkTypes[];
 
 typedef struct _p_PetscThreadCommRedCtx *PetscThreadCommRedCtx;
 struct _p_PetscThreadCommRedCtx{
@@ -85,19 +99,19 @@ struct  _p_PetscThreadCommJobCtx{
 
 typedef struct _p_PetscThreadInfo* PetscThreadInfo;
 struct _p_PetscThreadInfo{
-  PetscInt        rank;
-  PetscThreadComm tcomm;
+  PetscInt        rank;       /* Rank of thread */
+  PetscThreadComm tcomm;      /* Thread comm for current thread */
+  PetscInt        status;     /* Status of current job for each thread */
+  PetscThreadCommJobCtx data; /* Data for current job for each thread*/
 };
 
 /* Structure to manage job queue */
 typedef struct _p_PetscThreadCommJobQueue* PetscThreadCommJobQueue;
 struct _p_PetscThreadCommJobQueue{
-  PetscInt ctr;                                         /* job counter */
-  PetscInt kernel_ctr;                                  /* kernel counter .. need this otherwise race conditions are unavoidable */
-  PetscThreadCommJobCtx jobs;                           /* queue of jobs */
-  PetscInt *current_status;                             /* Status of current job for each thread */
-  PetscThreadInfo *tinfo;                                    /* Data to pass to pthreads */
-  PetscThreadCommJobCtx *current_data;                  /* Data for current job for each thread*/
+  PetscInt ctr;                      /* Job counter */
+  PetscInt kernel_ctr;               /* Kernel counter .. need this otherwise race conditions are unavoidable */
+  PetscThreadCommJobCtx jobs;        /* Queue of jobs */
+  PetscThreadInfo *tinfo;            /* Data to pass to pthread worker */
 };
 
 typedef struct _PetscThreadCommOps* PetscThreadCommOps;
@@ -107,6 +121,19 @@ struct _PetscThreadCommOps {
   PetscErrorCode (*view)(PetscThreadComm,PetscViewer);
   PetscErrorCode (*barrier)(PetscThreadComm);
   PetscErrorCode (*getrank)(PetscInt*);
+};
+
+struct _p_PetscThreadPool{
+  PetscInt                nthreads;   /* Number of threads in pool */
+  PetscInt                maxthreads; /* Max number of threads pool can hold */
+  PetscInt                master;     /* Track master thread */
+  PetscThreadCommJobQueue jobqueue;   /* Job queue */
+
+  PetscBool               ismainworker; /* Is the main thread also a work thread? */
+  PetscInt                *granks;    /* Track thread ranks in pool */
+  PetscInt                thread_num_start; /* Index for the first created thread (=1 if main thread is a worker, else 0 */
+  PetscThreadPoolSparkType spark;  /* Type for sparking threads */
+  PetscBool                synchronizeafter; /* Whether the main thread should block until all threads complete kernel */
 };
 
 struct _p_PetscThreadComm{
@@ -123,7 +150,7 @@ struct _p_PetscThreadComm{
   PetscInt                job_ctr;      /* which job is this threadcomm running in the job queue */
   PetscBool               isnothread;   /* No threading model used */
   PetscInt                nkernels;     /* Maximum kernels launched */
-  PetscThreadCommJobQueue jobqueue;     /* Job queue */
+  PetscThreadPool         pool;         /* Thread pool */
 };
 
 /* Global thread communicator that manages all the threads. Other threadcomms

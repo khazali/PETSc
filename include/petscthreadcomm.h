@@ -16,6 +16,7 @@ PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*PetscThreadKernel)(PetscInt,...);
 .seealso: PetscThreadCommCreate(), PetscThreadCommDestroy
 */
 typedef struct _p_PetscThreadComm *PetscThreadComm;
+typedef struct _p_PetscThreadPool *PetscThreadPool;
 
 /*
    PetscThreadCommReduction - Context used for managing threaded reductions
@@ -67,5 +68,15 @@ PETSC_EXTERN PetscErrorCode PetscThreadReductionKernelPost(PetscInt,PetscThreadC
 PETSC_EXTERN PetscErrorCode PetscThreadReductionKernelEnd(PetscInt,PetscThreadCommReduction,void*);
 PETSC_EXTERN PetscErrorCode PetscThreadReductionBegin(MPI_Comm,PetscThreadCommReductionOp,PetscDataType,PetscInt,PetscThreadCommReduction*);
 PETSC_EXTERN PetscErrorCode PetscThreadReductionEnd(PetscThreadCommReduction,void*);
+
+// Threadpool functions
+PETSC_EXTERN PetscErrorCode PetscCommGetPool(MPI_Comm comm,PetscThreadPool *pool);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolCreateJobQueue(PetscThreadComm tcomm,PetscThreadPool pool);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolJoin(MPI_Comm comm, PetscInt trank, PetscInt *poolrank);
+PETSC_EXTERN void* PetscThreadPoolFunc(void *arg);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolReturn(MPI_Comm comm, PetscInt *poolrank);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolBarrier(PetscThreadComm comm);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolDestroy(MPI_Comm comm);
 
 #endif

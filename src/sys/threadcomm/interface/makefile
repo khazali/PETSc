@@ -2,7 +2,7 @@ ALL: lib
 
 CFLAGS   =
 SOURCEH	 =
-SOURCEC  = dlregisthreadcomm.c threadcomm.c threadcommregi.c threadcommred.c
+SOURCEC  = dlregisthreadcomm.c threadcomm.c threadcommregi.c threadcommred.c threadpool.c
 LIBBASE	 = libpetscsys
 DIRS	 =
 LOCDIR   = src/sys/threadcomm/interface/
