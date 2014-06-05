@@ -3,7 +3,8 @@
 static PetscBool PetscThreadCommPackageInitialized = PETSC_FALSE;
 
 extern PetscErrorCode PetscThreadCommDetach(MPI_Comm);
-extern PetscBool PetscThreadCommRegisterAllCalled;
+extern PetscBool PetscThreadCommRegisterAllModelsCalled;
+extern PetscBool PetscThreadCommRegisterAllTypesCalled;
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommFinalizePackage"
@@ -24,7 +25,8 @@ PetscErrorCode PetscThreadCommFinalizePackage(void)
   ierr = PetscFunctionListDestroy(&PetscThreadCommList);CHKERRQ(ierr);
   ierr = MPI_Keyval_free(&Petsc_ThreadComm_keyval);CHKERRQ(ierr);
   PetscThreadCommPackageInitialized = PETSC_FALSE;
-  PetscThreadCommRegisterAllCalled  = PETSC_FALSE;
+  PetscThreadCommRegisterAllModelsCalled  = PETSC_FALSE;
+  PetscThreadCommRegisterAllTypesCalled  = PETSC_FALSE;
   PetscFunctionReturn(0);
 }
 

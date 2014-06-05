@@ -1,7 +1,17 @@
+#define PETSC_DESIRE_FEATURE_TEST_MACROS
 #include <petscthreadcomm.h>
 #include <petsc-private/threadcommimpl.h>
 
 const char *const PetscThreadPoolSparkTypes[] = {"SELF","PetscThreadPoolSparkType","PTHREADPOOLSPARK_",0};
+
+/*
+  PetscPThreadCommAffinityPolicy - Core affinity policy for pthreads
+
+$ PTHREADAFFPOLICY_ALL     - threads can run on any core. OS decides thread scheduling
+$ PTHREADAFFPOLICY_ONECORE - threads can run on only one core.
+$ PTHREADAFFPOLICY_NONE    - No set affinity policy. OS decides thread scheduling
+*/
+const char *const PetscPThreadCommAffinityPolicyTypes[] = {"ALL","ONECORE","NONE","PetscPThreadCommAffinityPolicyType","PTHREADAFFPOLICY_",0};
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscCommGetPool"
@@ -35,6 +45,7 @@ PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm)
   tcomm->pool->master = 0;
 
   // Initialize options
+  tcomm->pool->aff = PTHREADAFFPOLICY_ONECORE;
   tcomm->pool->spark = PTHREADPOOLSPARK_SELF;
   tcomm->pool->ismainworker = PETSC_TRUE;
   tcomm->pool->synchronizeafter = PETSC_TRUE;
@@ -42,6 +53,7 @@ PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm)
   // Get option settings from command line
   ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"Thread pool options",NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-threadcomm_pool_main_is_worker","Main thread is also a worker thread",NULL,PETSC_TRUE,&tcomm->pool->ismainworker,&flg);CHKERRQ(ierr);
+  ierr = PetscOptionsEnum("-threadcomm_pool_affpolicy","Thread affinity policy"," ",PetscPThreadCommAffinityPolicyTypes,(PetscEnum)tcomm->pool->aff,(PetscEnum*)&tcomm->pool->aff,&flg);CHKERRQ(ierr);
   ierr = PetscOptionsEnum("-threadcomm_pool_spark","Thread pool spark type"," ",PetscThreadPoolSparkTypes,(PetscEnum)tcomm->pool->spark,(PetscEnum*)&tcomm->pool->spark,&flg);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-threadcomm_pool_synchronizeafter","Puts a barrier after every kernel call",NULL,PETSC_TRUE,&tcomm->pool->synchronizeafter,&flg);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
@@ -154,7 +166,7 @@ void SparkThreads(PetscInt myrank,PetscThreadComm tcomm,PetscThreadCommJobCtx jo
 #define __FUNCT__ "PetscThreadPoolFunc"
 void* PetscThreadPoolFunc(void *arg)
 {
-  PetscInt              trank,my_job_counter = 0,my_kernel_ctr=0,glob_kernel_ctr;
+  PetscInt trank,my_job_counter = 0,my_kernel_ctr=0,glob_kernel_ctr;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx job;
   PetscThreadComm tcomm;
@@ -228,9 +240,55 @@ PetscErrorCode PetscThreadPoolBarrier(PetscThreadComm tcomm)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolDestroy"
-PetscErrorCode PetscThreadPoolDestroy(MPI_Comm comm)
+PetscErrorCode PetscThreadPoolDestroy(PetscThreadPool pool)
 {
-  PetscFunctionBegin;
+  PetscErrorCode ierr;
 
+  PetscFunctionBegin;
+  if(!pool) PetscFunctionReturn(0);
+
+  ierr = PetscFree(pool->granks);CHKERRQ(ierr);
+  ierr = PetscFree(pool->jobqueue->jobs[0].job_status);CHKERRQ(ierr);
+  ierr = PetscFree(pool->jobqueue->jobs);CHKERRQ(ierr);
+  ierr = PetscFree(pool->jobqueue->tinfo);CHKERRQ(ierr);
+  ierr = PetscFree(pool->jobqueue);CHKERRQ(ierr);
+  ierr = PetscFree(pool);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+
+#if defined(PETSC_HAVE_SCHED_CPU_SET_T)
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadPoolSetAffinity"
+PetscErrorCode PetscThreadPoolSetAffinity(PetscThreadComm tcomm,cpu_set_t *cpuset,PetscInt trank,PetscBool *set)
+{
+  PetscInt ncores,j;
+
+  PetscFunctionBegin;
+  printf("Setting affinity for rank=%d\n",trank);
+  PetscGetNCores(&ncores);
+  switch (tcomm->pool->aff) {
+  case PTHREADAFFPOLICY_ONECORE:
+    CPU_ZERO(cpuset);
+    CPU_SET(tcomm->affinities[trank]%ncores,cpuset);
+    *set = PETSC_TRUE;
+    break;
+  case PTHREADAFFPOLICY_ALL:
+    CPU_ZERO(cpuset);
+    for (j=0; j<ncores; j++) {
+      CPU_SET(j,cpuset);
+    }
+    *set = PETSC_TRUE;
+    break;
+  case PTHREADAFFPOLICY_NONE:
+    if(tcomm->pool->ismainworker && trank==0) {
+      CPU_ZERO(cpuset);
+      CPU_SET(tcomm->affinities[0]%ncores,cpuset);
+      *set = PETSC_TRUE;
+    } else {
+      *set = PETSC_FALSE;
+    }
+    break;
+  }
+  PetscFunctionReturn(0);
+}
+#endif

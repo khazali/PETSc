@@ -9,6 +9,30 @@ PetscErrorCode PetscThreadCommGetRank_OpenMP(PetscInt *trank)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommSetAffinity_OpenMP"
+PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMP(PetscThreadComm tcomm)
+{
+  PetscErrorCode ierr;
+#if defined(PETSC_HAVE_SCHED_CPU_SET_T)
+  cpu_set_t *cpuset;
+#endif
+
+  PetscFunctionBegin;
+#if defined(PETSC_HAVE_SCHED_CPU_SET_T)
+  ierr = PetscMalloc1(tcomm->nworkThreads,&cpuset);
+#pragma omp parallel num_threads(tcomm->nworkThreads) shared(tcomm)
+  {
+    PetscInt trank;
+    PetscBool set;
+    trank = omp_get_thread_num();
+    PetscThreadPoolSetAffinity(tcomm,&cpuset[trank],trank,&set);
+    if(set) sched_setaffinity(0,sizeof(cpu_set_t),&cpuset[trank]);
+  }
+#endif
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommCreate_OpenMP"
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMP(PetscThreadComm tcomm)
 {
@@ -18,19 +42,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMP(PetscThreadComm tcomm)
   ierr                  = PetscStrcpy(tcomm->type,OPENMP);CHKERRQ(ierr);
   tcomm->ops->runkernel = PetscThreadCommRunKernel_OpenMP;
   tcomm->ops->getrank   = PetscThreadCommGetRank_OpenMP;
-#pragma omp parallel num_threads(tcomm->nworkThreads) shared(tcomm)
-  {
-#if defined(PETSC_HAVE_SCHED_CPU_SET_T)
-    cpu_set_t mset;
-    PetscInt  ncores, icorr,trank;
-    PetscGetNCores(&ncores);
-    CPU_ZERO(&mset);
-    trank = omp_get_thread_num();
-    icorr = tcomm->affinities[trank]%ncores;
-    CPU_SET(icorr,&mset);
-    sched_setaffinity(0,sizeof(cpu_set_t),&mset);
-#endif
-  }
+  ierr = PetscThreadCommSetAffinity_OpenMP(tcomm);
   PetscFunctionReturn(0);
 }
 

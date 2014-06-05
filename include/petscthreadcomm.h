@@ -25,6 +25,10 @@ typedef struct _p_PetscThreadPool *PetscThreadPool;
 */
 typedef struct _p_PetscThreadCommReduction *PetscThreadCommReduction;
 
+typedef const char* PetscThreadCommModel;
+#define LOOP                "loop"
+#define USER                "user"
+
 typedef const char* PetscThreadCommType;
 #define PTHREAD             "pthread"
 #define NOTHREAD            "nothread"
@@ -77,6 +81,8 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolJoin(MPI_Comm comm, PetscInt trank, P
 PETSC_EXTERN void* PetscThreadPoolFunc(void *arg);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolReturn(MPI_Comm comm, PetscInt *poolrank);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolBarrier(PetscThreadComm comm);
-PETSC_EXTERN PetscErrorCode PetscThreadPoolDestroy(MPI_Comm comm);
-
+PETSC_EXTERN PetscErrorCode PetscThreadPoolDestroy(PetscThreadPool pool);
+#if defined(PETSC_HAVE_SCHED_CPU_SET_T)
+PETSC_EXTERN PetscErrorCode PetscThreadPoolSetAffinity(PetscThreadComm tcomm,cpu_set_t *cpuset,PetscInt trank,PetscBool *set);
+#endif
 #endif

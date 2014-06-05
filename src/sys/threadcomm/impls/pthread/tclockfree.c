@@ -1,15 +1,12 @@
 #include <../src/sys/threadcomm/impls/pthread/tcpthreadimpl.h>
 
-#define THREAD_TERMINATE      0
-#define THREAD_INITIALIZED    1
-#define THREAD_CREATED        0
 #if defined PETSC_HAVE_MALLOC_H
 #include <malloc.h>
 #endif
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscPThreadCommInitialize_LockFree"
-PetscErrorCode PetscPThreadCommInitialize_LockFree(PetscThreadComm tcomm)
+#define __FUNCT__ "PetscThreadCommInitialize_PThread"
+PetscErrorCode PetscThreadCommInitialize_PThread(PetscThreadComm tcomm)
 {
   PetscErrorCode          ierr;
   PetscInt                i;
@@ -24,7 +21,6 @@ PetscErrorCode PetscPThreadCommInitialize_LockFree(PetscThreadComm tcomm)
     jobqueue->tinfo[i]->rank = tcomm->pool->granks[i];
     jobqueue->tinfo[i]->tcomm = tcomm;
     ierr = pthread_create(&ptcomm->tid[i],&ptcomm->attr[i],&PetscThreadPoolFunc,&jobqueue->tinfo[i]);CHKERRQ(ierr);
-    printf("pthread tid=%d\n",ptcomm->tid[i]);
   }
 
   if (tcomm->pool->ismainworker) jobqueue->tinfo[0]->status = THREAD_INITIALIZED;
@@ -42,8 +38,8 @@ PetscErrorCode PetscPThreadCommInitialize_LockFree(PetscThreadComm tcomm)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscPThreadCommFinalize_LockFree"
-PetscErrorCode PetscPThreadCommFinalize_LockFree(PetscThreadComm tcomm)
+#define __FUNCT__ "PetscThreadCommFinalize_PThread"
+PetscErrorCode PetscThreadCommFinalize_PThread(PetscThreadComm tcomm)
 {
   PetscErrorCode          ierr;
   void                    *jstatus;

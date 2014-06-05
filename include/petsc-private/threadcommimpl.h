@@ -42,6 +42,10 @@ PETSC_EXTERN PetscMPIInt Petsc_ThreadComm_keyval;
 #define THREAD_INITIALIZED    1
 #define THREAD_CREATED        0
 
+/* Thread model */
+#define THREAD_MODEL_LOOP   0
+#define THREAD_MODEL_USER   1
+
 #define PetscReadOnce(type,val) (*(volatile type *)&val)
 
 #if defined(PETSC_MEMORY_BARRIER)
@@ -65,6 +69,9 @@ PETSC_EXTERN PetscMPIInt Petsc_ThreadComm_keyval;
 #else
 #define PetscCPURelax() do { } while (0)
 #endif
+
+typedef enum {PTHREADAFFPOLICY_ALL,PTHREADAFFPOLICY_ONECORE,PTHREADAFFPOLICY_NONE} PetscPThreadCommAffinityPolicyType;
+extern const char *const PetscPTheadCommAffinityPolicyTypes[];
 
 typedef enum {PTHREADPOOLSPARK_SELF} PetscThreadPoolSparkType;
 extern const char *const PetscThreadPoolSparkTypes[];
@@ -133,7 +140,9 @@ struct _p_PetscThreadPool{
   PetscInt                *granks;    /* Track thread ranks in pool */
   PetscInt                thread_num_start; /* Index for the first created thread (=1 if main thread is a worker, else 0 */
   PetscThreadPoolSparkType spark;  /* Type for sparking threads */
+  PetscPThreadCommAffinityPolicyType  aff;    /* affinity policy */
   PetscBool                synchronizeafter; /* Whether the main thread should block until all threads complete kernel */
+  PetscInt                 model;        /* Threading model used */
 };
 
 struct _p_PetscThreadComm{
@@ -159,8 +168,10 @@ struct _p_PetscThreadComm{
 extern PetscThreadComm PETSC_THREAD_COMM_WORLD;
 
 /* register thread communicator models */
+PETSC_EXTERN PetscErrorCode PetscThreadModelRegister(const char[],PetscErrorCode(*)(PetscThreadComm));
 PETSC_EXTERN PetscErrorCode PetscThreadCommRegister(const char[],PetscErrorCode(*)(PetscThreadComm));
-PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAll(void);
+PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAllModels(void);
+PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAllTypes(PetscThreadComm tcomm);
 
 #undef __FUNCT__
 #define __FUNCT__
