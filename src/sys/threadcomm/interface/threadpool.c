@@ -119,21 +119,24 @@ PetscErrorCode PetscThreadPoolCreateJobQueue(PetscThreadComm tcomm,PetscThreadPo
 // Need to redo this implementation
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolJoin"
-PetscErrorCode PetscThreadPoolJoin(MPI_Comm comm,PetscInt trank,PetscInt *prank)
+PetscErrorCode PetscThreadPoolJoin(PetscThreadComm tcomm,PetscInt trank,PetscInt *prank)
 {
   PetscThreadPool pool;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   printf("rank=%d joined thread pool\n",trank);
-  ierr = PetscCommGetPool(comm,&pool);
+  pool = tcomm->pool;
   pool->nthreads++;
   pool->master = 0;
 
   if(trank==0) {
     *prank = 0;
   } else {
-    //ierr = PetscThreadPoolFunc(comm,trank);
+    pool->jobqueue->tinfo[trank]->status = THREAD_CREATED;
+    pool->jobqueue->tinfo[trank]->rank = pool->granks[trank];
+    pool->jobqueue->tinfo[trank]->tcomm = tcomm;
+    ierr = PetscThreadPoolFunc((void*)&pool->jobqueue->tinfo[trank]);
     *prank = -1;
   }
   PetscFunctionReturn(0);

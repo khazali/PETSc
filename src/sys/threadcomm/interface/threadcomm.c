@@ -247,7 +247,9 @@ PetscErrorCode PetscThreadCommDestroy(PetscThreadComm *tcomm)
   PetscFunctionBegin;
   if (!*tcomm) PetscFunctionReturn(0);
   if (!--(*tcomm)->refct) {
-    ierr = PetscThreadCommStackDestroy();CHKERRQ(ierr);
+    if((*tcomm)->pool->model==THREAD_MODEL_LOOP) {
+      ierr = PetscThreadCommStackDestroy();CHKERRQ(ierr);
+    }
 
     /* Destroy the implementation specific data struct */
     if ((*tcomm)->ops->destroy) (*(*tcomm)->ops->destroy)(*tcomm);
@@ -1310,7 +1312,9 @@ PetscErrorCode PetscThreadCommWorldInitialize(void)
   ierr = PetscThreadCommSetModel(tcomm,LOOP);CHKERRQ(ierr);
   ierr = PetscThreadCommSetType(tcomm,NOTHREAD);CHKERRQ(ierr);
   ierr = PetscThreadCommReductionCreate(tcomm,&tcomm->red);CHKERRQ(ierr);
-  ierr = PetscThreadCommStackCreate();CHKERRQ(ierr);
+  if(tcomm->pool->model==THREAD_MODEL_LOOP) {
+    ierr = PetscThreadCommStackCreate();CHKERRQ(ierr);
+  }
   tcomm->refct++;
   PetscFunctionReturn(0);
 }

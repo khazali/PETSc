@@ -32,6 +32,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadLoop(PetscThreadComm);
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadUser(PetscThreadComm);
 extern PetscErrorCode PetscThreadCommInitialize_PThread(PetscThreadComm);
 extern PetscErrorCode PetscThreadCommFinalize_PThread(PetscThreadComm);
-extern PetscErrorCode PetscThreadPoolRunKernel_PThread(PetscThreadComm,PetscThreadCommJobCtx);
+extern PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm,PetscThreadCommJobCtx);
 
 #endif

@@ -3,7 +3,7 @@ ALL: lib
 
 CFLAGS   =
 FFLAGS   =
-SOURCEC  = tcpthread.c tclockfree.c
+SOURCEC  = tcpthread.c
 SOURCEF  =
 SOURCEH  = tcpthreadimpl.h
 LIBBASE  = libpetscsys
