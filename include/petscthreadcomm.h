@@ -77,7 +77,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadReductionEnd(PetscThreadCommReduction,voi
 PETSC_EXTERN PetscErrorCode PetscCommGetPool(MPI_Comm comm,PetscThreadPool *pool);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolCreateJobQueue(PetscThreadComm tcomm,PetscThreadPool pool);
-PETSC_EXTERN PetscErrorCode PetscThreadPoolJoin(PetscThreadComm comm, PetscInt trank, PetscInt *poolrank);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolJoin(MPI_Comm comm, PetscInt trank, PetscInt *poolrank);
 PETSC_EXTERN void* PetscThreadPoolFunc(void *arg);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolReturn(MPI_Comm comm, PetscInt *poolrank);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolBarrier(PetscThreadComm comm);

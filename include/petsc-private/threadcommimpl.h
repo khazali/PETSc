@@ -109,7 +109,7 @@ struct _p_PetscThreadInfo{
   PetscInt        rank;       /* Rank of thread */
   PetscThreadComm tcomm;      /* Thread comm for current thread */
   PetscInt        status;     /* Status of current job for each thread */
-  PetscThreadCommJobCtx data; /* Data for current job for each thread*/
+  PetscThreadCommJobCtx data; /* Data for current job for each thread */
 };
 
 /* Structure to manage job queue */
@@ -136,13 +136,11 @@ struct _p_PetscThreadPool{
   PetscInt                master;     /* Track master thread */
   PetscThreadCommJobQueue jobqueue;   /* Job queue */
 
-  PetscBool               ismainworker; /* Is the main thread also a work thread? */
   PetscInt                *granks;    /* Track thread ranks in pool */
   PetscInt                thread_num_start; /* Index for the first created thread (=1 if main thread is a worker, else 0 */
   PetscThreadPoolSparkType spark;  /* Type for sparking threads */
   PetscPThreadCommAffinityPolicyType  aff;    /* affinity policy */
   PetscBool                synchronizeafter; /* Whether the main thread should block until all threads complete kernel */
-  PetscInt                 model;        /* Threading model used */
 };
 
 struct _p_PetscThreadComm{
@@ -152,6 +150,7 @@ struct _p_PetscThreadComm{
   PetscThreadCommOps      ops;          /* Operations table */
   void                    *data;        /* implementation specific data */
   char                    type[256];    /* Thread model type */
+  PetscInt                model;        /* Threading model used */
   PetscInt                leader;       /* Rank of the leader thread. This thread manages
                                            the synchronization for collective operatons like reductions.
                                         */
@@ -159,6 +158,7 @@ struct _p_PetscThreadComm{
   PetscInt                job_ctr;      /* which job is this threadcomm running in the job queue */
   PetscBool               isnothread;   /* No threading model used */
   PetscInt                nkernels;     /* Maximum kernels launched */
+  PetscBool               ismainworker; /* Is the main thread also a work thread? */
   PetscThreadPool         pool;         /* Thread pool */
 };
 

@@ -66,7 +66,7 @@ PetscErrorCode PetscThreadCommRegisterAllTypes(PetscThreadComm tcomm)
   PetscFunctionBegin;
   PetscThreadCommRegisterAllTypesCalled = PETSC_TRUE;
 
-  type = tcomm->pool->model;
+  type = tcomm->model;
   printf("Registering Types = %d\n",type);
 
   ierr = PetscThreadCommRegister(NOTHREAD,PetscThreadCommCreate_NoThread);CHKERRQ(ierr);

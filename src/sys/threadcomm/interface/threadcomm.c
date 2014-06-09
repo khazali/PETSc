@@ -247,7 +247,7 @@ PetscErrorCode PetscThreadCommDestroy(PetscThreadComm *tcomm)
   PetscFunctionBegin;
   if (!*tcomm) PetscFunctionReturn(0);
   if (!--(*tcomm)->refct) {
-    if((*tcomm)->pool->model==THREAD_MODEL_LOOP) {
+    if((*tcomm)->model==THREAD_MODEL_LOOP) {
       ierr = PetscThreadCommStackDestroy();CHKERRQ(ierr);
     }
 
@@ -504,7 +504,7 @@ PetscErrorCode PetscThreadCommSetModel(PetscThreadComm tcomm,PetscThreadCommMode
   if (!PetscThreadCommRegisterAllModelsCalled) { ierr = PetscThreadCommRegisterAllModels();CHKERRQ(ierr);}
 
   ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"Thread model - setting threading model",NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsFList("-threadcomm_model","Thread communicator model","PetscThreadCommSetType",PetscThreadModelList,model,smodel,256,&flg);CHKERRQ(ierr);
+  ierr = PetscOptionsFList("-threadcomm_model","Thread communicator model","PetscThreadCommSetModel",PetscThreadModelList,model,smodel,256,&flg);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
   if (!flg) ierr = PetscStrcpy(smodel,model);CHKERRQ(ierr);
   ierr = PetscFunctionListFind(PetscThreadModelList,smodel,&r);CHKERRQ(ierr);
@@ -1312,7 +1312,7 @@ PetscErrorCode PetscThreadCommWorldInitialize(void)
   ierr = PetscThreadCommSetModel(tcomm,LOOP);CHKERRQ(ierr);
   ierr = PetscThreadCommSetType(tcomm,NOTHREAD);CHKERRQ(ierr);
   ierr = PetscThreadCommReductionCreate(tcomm,&tcomm->red);CHKERRQ(ierr);
-  if(tcomm->pool->model==THREAD_MODEL_LOOP) {
+  if(tcomm->model==THREAD_MODEL_LOOP) {
     ierr = PetscThreadCommStackCreate();CHKERRQ(ierr);
   }
   tcomm->refct++;
@@ -1391,7 +1391,14 @@ PetscErrorCode PetscThreadModelCreate_Loop(PetscThreadComm tcomm)
 {
   PetscFunctionBegin;
   printf("Creating Loop Model\n");
-  tcomm->pool->model = THREAD_MODEL_LOOP;
+  tcomm->model = THREAD_MODEL_LOOP;
+
+  if (tcomm->ismainworker) {
+    tcomm->pool->nthreads = tcomm->nworkThreads-1;
+  } else {
+    tcomm->pool->nthreads = tcomm->nworkThreads;
+  }
+
   PetscFunctionReturn(0);
 }
 
@@ -1401,6 +1408,6 @@ PetscErrorCode PetscThreadModelCreate_User(PetscThreadComm tcomm)
 {
   PetscFunctionBegin;
   printf("Creating User Model\n");
-  tcomm->pool->model = THREAD_MODEL_USER;
+  tcomm->model = THREAD_MODEL_USER;
   PetscFunctionReturn(0);
 }

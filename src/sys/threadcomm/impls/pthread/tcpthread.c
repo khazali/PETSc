@@ -56,7 +56,7 @@ PetscErrorCode PetscThreadCommSetAffinity_PThread(PetscThreadComm tcomm)
   }
 
   /* Set affinity for main thread */
-  if (tcomm->pool->ismainworker) {
+  if (tcomm->ismainworker) {
     PetscThreadPoolSetAffinity(tcomm,&cpuset[0],0,&set);
     sched_setaffinity(0,sizeof(cpu_set_t),&cpuset[0]);
   }
@@ -107,7 +107,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadLoop(PetscThreadComm tc
   if (!PetscPThreadCommInitializeCalled) { /* Only done for PETSC_THREAD_COMM_WORLD */
     PetscPThreadCommInitializeCalled = PETSC_TRUE;
 
-    if (tcomm->pool->ismainworker) {
+    if (tcomm->ismainworker) {
 #if defined(PETSC_PTHREAD_LOCAL)
       PetscPThreadRank=0; /* Main thread rank */
 #else
@@ -156,7 +156,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadUser(PetscThreadComm tc
   tcomm->ops->barrier      = PetscThreadPoolBarrier;
   tcomm->ops->getrank      = PetscThreadCommGetRank_PThread;
 
-  if (tcomm->pool->ismainworker) {
+  if (tcomm->ismainworker) {
 #if defined(PETSC_PTHREAD_LOCAL)
     PetscPThreadRank=0; /* Main thread rank */
 #else
@@ -178,7 +178,7 @@ PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm tcomm,PetscThrea
   PetscFunctionBegin;
   printf("rank=%d running kernel\n",0);
   ptcomm = (PetscThreadComm_PThread)tcomm->data;
-  if (tcomm->pool->ismainworker) {
+  if (tcomm->ismainworker) {
     job->job_status[0]   = THREAD_JOB_RECIEVED;
     jobqueue->tinfo[0]->data = job;
     PetscRunKernel(0,job->nargs, jobqueue->tinfo[0]->data);
@@ -209,7 +209,7 @@ PetscErrorCode PetscThreadCommInitialize_PThread(PetscThreadComm tcomm)
     ierr = pthread_create(&ptcomm->tid[i],&ptcomm->attr[i],&PetscThreadPoolFunc,&jobqueue->tinfo[i]);CHKERRQ(ierr);
   }
 
-  if (tcomm->pool->ismainworker) jobqueue->tinfo[0]->status = THREAD_INITIALIZED;
+  if (tcomm->ismainworker) jobqueue->tinfo[0]->status = THREAD_INITIALIZED;
 
   PetscInt threads_initialized=0;
   /* Wait till all threads have been initialized */
