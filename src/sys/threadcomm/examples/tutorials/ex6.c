@@ -1,4 +1,4 @@
-static char help[] = "Test PetscThreadPool.\n\n";
+static char help[] = "Test PetscThreadPool with OpenMP with PETSc vector routines.\n\n";
 
 #include <petscvec.h>
 #include <omp.h>
@@ -11,7 +11,7 @@ int main(int argc,char **argv)
 {
   Vec             x, y;
   PetscErrorCode  ierr;
-  PetscInt        nthreads, n=20, *indices;
+  PetscInt        nthreads, n=20, *indices, pstart, pend, lsize, gsize;
   PetscScalar     alpha=3.0;
   PetscScalar     *ay;
 
@@ -21,7 +21,7 @@ int main(int argc,char **argv)
   ierr = PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&nthreads);CHKERRQ(ierr);
   printf("nthreads=%d\n",nthreads);
 
-#pragma omp parallel num_threads(nthreads) default(shared) private(ierr)
+  #pragma omp parallel num_threads(nthreads) default(shared) private(ierr)
   {
     int i, prank, start, end;
     PetscScalar vnorm=0.0;
@@ -32,8 +32,7 @@ int main(int argc,char **argv)
     printf("trank=%d joined pool prank=%d\n",trank,prank);
     if(prank>=0) {
       printf("Working on vec\n");
-      ierr = VecCreate(PETSC_COMM_WORLD,&x);CHKERRCONTINUE(ierr);
-      ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRCONTINUE(ierr);
+      ierr = VecCreateMPI(PETSC_COMM_WORLD,PETSC_DECIDE,n,&x);CHKERRCONTINUE(ierr);
       ierr = VecSetFromOptions(x);CHKERRCONTINUE(ierr);
       ierr = VecDuplicate(x,&y);CHKERRCONTINUE(ierr);
 
@@ -46,13 +45,18 @@ int main(int argc,char **argv)
       ierr = VecNorm(y,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
       printf("Norm=%f\n",vnorm);
       ierr = VecGetArray(y,&ay);CHKERRCONTINUE(ierr);
-      ierr = PetscThreadCommGetOwnershipRanges(PETSC_COMM_WORLD,n,&indices);CHKERRCONTINUE(ierr);
+      ierr = VecGetOwnershipRange(x,&pstart,&pend);
+      ierr = VecGetLocalSize(x,&lsize);
+      ierr = VecGetSize(x,&gsize);
+      printf("localsize=%d globalsize=%d pstart=%d pend=%d\n",lsize,gsize,pstart,pend);
+      ierr = PetscThreadCommGetOwnershipRanges(PETSC_COMM_WORLD,pend-pstart,&indices);CHKERRCONTINUE(ierr);
     }
     ierr = PetscThreadPoolReturn(PETSC_COMM_WORLD,&prank);CHKERRCONTINUE(ierr);
 
     // Parallel threaded user code
     start = indices[trank];
     end = indices[trank+1];
+    printf("trank=%d start=%d end=%d\n",trank,start,end);
     for(i=start; i<end; i++) {
       ay[i] = ay[i]*ay[i];
     }

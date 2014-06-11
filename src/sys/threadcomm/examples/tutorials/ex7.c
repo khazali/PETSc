@@ -1,4 +1,4 @@
-static char help[] = "Test PetscThreadPool with pthreads.\n\n";
+static char help[] = "Test PetscThreadPool with pthreads with PETSc vector routines.\n\n";
 
 #include <petscvec.h>
 #include <petscthreadcomm.h>

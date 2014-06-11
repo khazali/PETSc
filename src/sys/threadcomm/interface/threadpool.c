@@ -328,7 +328,6 @@ PetscErrorCode PetscThreadPoolSetAffinity(PetscThreadComm tcomm,cpu_set_t *cpuse
   PetscInt ncores,j;
 
   PetscFunctionBegin;
-  printf("Setting affinity for rank=%d\n",trank);
   PetscGetNCores(&ncores);
   switch (tcomm->pool->aff) {
   case PTHREADAFFPOLICY_ONECORE:
