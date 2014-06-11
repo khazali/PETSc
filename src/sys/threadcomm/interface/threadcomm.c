@@ -583,8 +583,8 @@ PetscErrorCode PetscThreadCommBarrier(MPI_Comm comm)
   PetscFunctionBegin;
   ierr = PetscLogEventBegin(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-  if (tcomm->ops->barrier) {
-    ierr = (*tcomm->ops->barrier)(tcomm);CHKERRQ(ierr);
+  if (tcomm->ops->kernelbarrier) {
+    ierr = (*tcomm->ops->kernelbarrier)(tcomm);CHKERRQ(ierr);
   }
   ierr = PetscLogEventEnd(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1293,6 +1293,7 @@ PetscErrorCode PetscThreadCommAttach(MPI_Comm comm,PetscThreadComm tcomm)
 */
 PetscErrorCode PetscThreadCommWorldInitialize(void)
 {
+  PetscInt                i;
   PetscErrorCode          ierr;
   PetscThreadComm         tcomm;
 
@@ -1307,6 +1308,15 @@ PetscErrorCode PetscThreadCommWorldInitialize(void)
   ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"Thread comm - setting number of kernels",NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-threadcomm_nkernels","number of kernels that can be launched simultaneously","",16,&tcomm->nkernels,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
+
+  ierr = PetscMalloc1(tcomm->nworkThreads,&tcomm->my_job_counter);
+  ierr = PetscMalloc1(tcomm->nworkThreads,&tcomm->my_kernel_ctr);
+  ierr = PetscMalloc1(tcomm->nworkThreads,&tcomm->glob_kernel_ctr);
+  for(i=0; i<tcomm->nworkThreads; i++) {
+    tcomm->my_job_counter[i] = 0;
+    tcomm->my_kernel_ctr[i] = 0;
+    tcomm->glob_kernel_ctr[i] = 0;
+  }
 
   ierr = PetscThreadPoolCreate(tcomm);CHKERRQ(ierr);
   ierr = PetscThreadCommSetModel(tcomm,LOOP);CHKERRQ(ierr);

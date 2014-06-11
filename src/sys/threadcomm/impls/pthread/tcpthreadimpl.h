@@ -19,6 +19,8 @@
 struct _p_PetscThreadComm_PThread {
   pthread_t      *tid;                       /* thread ids */
   pthread_attr_t *attr;                      /* thread attributes */
+  pthread_barrier_t barr;                    /* pthread barrier */
+  pthread_mutex_t threadmutex;               /* mutex for nthreads variable */
 };
 typedef struct _p_PetscThreadComm_PThread *PetscThreadComm_PThread;
 
@@ -33,5 +35,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadUser(PetscThreadComm);
 extern PetscErrorCode PetscThreadCommInitialize_PThread(PetscThreadComm);
 extern PetscErrorCode PetscThreadCommFinalize_PThread(PetscThreadComm);
 extern PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm,PetscThreadCommJobCtx);
+extern PetscErrorCode PetscThreadCommBarrier_PThread(PetscThreadComm);
+extern PetscErrorCode PetscThreadCommAtomicIncrement_PThread(PetscThreadComm,PetscInt*,PetscInt);
 
 #endif

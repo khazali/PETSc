@@ -126,7 +126,9 @@ struct _PetscThreadCommOps {
   PetscErrorCode (*destroy)(PetscThreadComm);
   PetscErrorCode (*runkernel)(PetscThreadComm,PetscThreadCommJobCtx);
   PetscErrorCode (*view)(PetscThreadComm,PetscViewer);
-  PetscErrorCode (*barrier)(PetscThreadComm);
+  PetscErrorCode (*kernelbarrier)(PetscThreadComm);
+  PetscErrorCode (*globalbarrier)();
+  PetscErrorCode (*atomicincrement)(PetscThreadComm,PetscInt*,PetscInt);
   PetscErrorCode (*getrank)(PetscInt*);
 };
 
@@ -156,6 +158,9 @@ struct _p_PetscThreadComm{
                                         */
   PetscThreadCommReduction red;         /* Reduction context */
   PetscInt                job_ctr;      /* which job is this threadcomm running in the job queue */
+  PetscInt                *my_job_counter;
+  PetscInt                *my_kernel_ctr;
+  PetscInt                *glob_kernel_ctr;
   PetscBool               isnothread;   /* No threading model used */
   PetscInt                nkernels;     /* Maximum kernels launched */
   PetscBool               ismainworker; /* Is the main thread also a work thread? */

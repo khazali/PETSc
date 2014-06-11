@@ -116,7 +116,6 @@ PetscErrorCode PetscThreadPoolCreateJobQueue(PetscThreadComm tcomm,PetscThreadPo
   PetscFunctionReturn(0);
 }
 
-// Need to redo this implementation
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolJoin"
 PetscErrorCode PetscThreadPoolJoin(MPI_Comm comm,PetscInt trank,PetscInt *prank)
@@ -131,16 +130,24 @@ PetscErrorCode PetscThreadPoolJoin(MPI_Comm comm,PetscInt trank,PetscInt *prank)
   ierr = PetscCommGetPool(comm,&pool);
   pool->master = 0;
 
+  ierr = (*tcomm->ops->atomicincrement)(tcomm,&tcomm->pool->nthreads,1);
+
+  printf("adding thread nthreads=%d\n",tcomm->pool->nthreads);
+  ierr = (*tcomm->ops->globalbarrier)(tcomm);
   if(trank==0) {
-    tcomm->pool->nthreads++;
     *prank = 0;
   } else {
-    pool->jobqueue->tinfo[trank]->status = THREAD_CREATED;
+    pool->jobqueue->tinfo[trank]->status = THREAD_INITIALIZED;
     pool->jobqueue->tinfo[trank]->rank = pool->granks[trank];
+    pool->jobqueue->tinfo[trank]->data = 0;
     pool->jobqueue->tinfo[trank]->tcomm = tcomm;
+    *prank = -1;
+  }
+  ierr = (*tcomm->ops->globalbarrier)(tcomm);
+
+  if(trank>0) {
     PetscThreadInfo tinfo = pool->jobqueue->tinfo[trank];
     ierr = PetscThreadPoolFunc_User(tinfo);
-    *prank = -1;
   }
   PetscFunctionReturn(0);
 }
@@ -187,8 +194,6 @@ void* PetscThreadPoolFunc(void *arg)
 
   tinfo->data = 0;
   tinfo->status = THREAD_INITIALIZED;
-  tcomm->pool->nthreads++;
-  printf("adding thread nthreads=%d\n",tcomm->pool->nthreads);
 
   /* Spin loop */
   while (PetscReadOnce(int,tinfo->status) != THREAD_TERMINATE) {
@@ -215,7 +220,7 @@ void* PetscThreadPoolFunc(void *arg)
 #define __FUNCT__ "PetscThreadPoolFunc_User"
 PetscErrorCode PetscThreadPoolFunc_User(PetscThreadInfo tinfo)
 {
-  PetscInt trank,my_job_counter = 0,my_kernel_ctr=0,glob_kernel_ctr;
+  PetscInt trank;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx job;
   PetscThreadComm tcomm;
@@ -226,16 +231,11 @@ PetscErrorCode PetscThreadPoolFunc_User(PetscThreadInfo tinfo)
   jobqueue = tcomm->pool->jobqueue;
   printf("rank=%d in ThreadPoolFunc_User\n",trank);
 
-  tinfo->data = 0;
-  tinfo->status = THREAD_INITIALIZED;
-  tcomm->pool->nthreads++;
-  printf("adding thread nthreads=%d\n",tcomm->pool->nthreads);
-
   /* Spin loop */
   while (PetscReadOnce(int,tinfo->status) != THREAD_TERMINATE) {
-    glob_kernel_ctr = PetscReadOnce(int,jobqueue->kernel_ctr);
-    if (my_kernel_ctr < glob_kernel_ctr) {
-      job = &jobqueue->jobs[my_job_counter];
+    tcomm->glob_kernel_ctr[trank] = PetscReadOnce(int,jobqueue->kernel_ctr);
+    if (tcomm->my_kernel_ctr[trank] < tcomm->glob_kernel_ctr[trank]) {
+      job = &jobqueue->jobs[tcomm->my_job_counter[trank]];
       /* Spark the thread pool */
       SparkThreads(trank,tcomm,job);
       if (job->job_status[trank] == THREAD_JOB_RECIEVED) {
@@ -244,12 +244,11 @@ PetscErrorCode PetscThreadPoolFunc_User(PetscThreadInfo tinfo)
         /* Post job completed status */
         job->job_status[trank] = THREAD_JOB_COMPLETED;
       }
-      my_job_counter = (my_job_counter+1)%job->tcomm->nkernels;
-      my_kernel_ctr++;
+      tcomm->my_job_counter[trank] = (tcomm->my_job_counter[trank]+1)%job->tcomm->nkernels;
+      tcomm->my_kernel_ctr[trank]++;
     }
     PetscCPURelax();
   }
-  tcomm->pool->nthreads--;
   PetscFunctionReturn(0);
 }
 
@@ -264,17 +263,16 @@ PetscErrorCode PetscThreadPoolReturn(MPI_Comm comm,PetscInt *prank)
 
   PetscFunctionBegin;
   if(*prank>=0) {
-    printf("Returning thread\n");
+    printf("Returning all threads\n");
     ierr = PetscCommGetThreadComm(comm,&tcomm);
     ierr = PetscCommGetPool(comm,&pool);
-    ierr = PetscThreadPoolBarrier(tcomm);
     for(i=pool->thread_num_start; i<pool->nthreads; i++) {
-      //PetscThreadCommJobCtx jobctx = &pool->jobqueue->jobs[tcomm->job_ctr];
-      //jobctx->job_status[i] = THREAD_TERMINATE;
+      printf("terminate thread %d\n",i);
       pool->jobqueue->tinfo[i]->status = THREAD_TERMINATE;
     }
-    pool->nthreads--;
   }
+  ierr = (*tcomm->ops->globalbarrier)(tcomm);
+  ierr = (*tcomm->ops->atomicincrement)(tcomm,&pool->nthreads,-1);
   PetscFunctionReturn(0);
 }
 
@@ -289,7 +287,7 @@ PetscErrorCode PetscThreadPoolBarrier(PetscThreadComm tcomm)
   PetscInt                job_status;
 
   PetscFunctionBegin;
-  printf("In PetscThreadPoolBarrier\n");
+  printf("In PetscThreadPoolBarrier job_ctr=%d\n",tcomm->job_ctr);
   if (tcomm->nworkThreads == 1 && tcomm->ismainworker) PetscFunctionReturn(0);
 
   /* Loop till all threads signal that they have done their job */

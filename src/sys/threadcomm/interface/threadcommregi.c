@@ -7,7 +7,8 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadLoop(PetscThreadComm);
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadUser(PetscThreadComm);
 #endif
 #if defined(PETSC_HAVE_OPENMP)
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMP(PetscThreadComm);
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPLoop(PetscThreadComm);
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPUser(PetscThreadComm);
 #endif
 #if defined(PETSC_HAVE_TBB)
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_TBB(PetscThreadComm);
@@ -80,7 +81,11 @@ PetscErrorCode PetscThreadCommRegisterAllTypes(PetscThreadComm tcomm)
 #endif
 
 #if defined(PETSC_HAVE_OPENMP)
-  ierr = PetscThreadCommRegister(OPENMP,  PetscThreadCommCreate_OpenMP);CHKERRQ(ierr);
+  if (type==THREAD_MODEL_LOOP) {
+    ierr = PetscThreadCommRegister(OPENMP,  PetscThreadCommCreate_OpenMPLoop);CHKERRQ(ierr);
+  } else if (type==THREAD_MODEL_USER) {
+    ierr = PetscThreadCommRegister(OPENMP,  PetscThreadCommCreate_OpenMPUser);CHKERRQ(ierr);
+  }
 #endif
 
 #if defined(PETSC_HAVE_TBB)
