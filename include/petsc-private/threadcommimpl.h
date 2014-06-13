@@ -135,7 +135,6 @@ struct _PetscThreadCommOps {
 struct _p_PetscThreadPool{
   PetscInt                nthreads;   /* Number of threads in pool */
   PetscInt                maxthreads; /* Max number of threads pool can hold */
-  PetscInt                master;     /* Track master thread */
   PetscThreadCommJobQueue jobqueue;   /* Job queue */
 
   PetscInt                *granks;    /* Track thread ranks in pool */
@@ -150,7 +149,7 @@ struct _p_PetscThreadComm{
   PetscInt                nworkThreads; /* Number of threads in the pool */
   PetscInt                *affinities;  /* Thread affinity */
   PetscThreadCommOps      ops;          /* Operations table */
-  void                    *data;        /* implementation specific data */
+  void                    *data;        /* Implementation specific data */
   char                    type[256];    /* Thread model type */
   PetscInt                model;        /* Threading model used */
   PetscInt                leader;       /* Rank of the leader thread. This thread manages

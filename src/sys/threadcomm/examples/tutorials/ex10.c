@@ -17,10 +17,9 @@ int main(int argc,char **argv)
   PetscErrorCode  ierr;
   PetscInt        nthreads, n=20;
   PetscInt        i,j,Ii,J;
-  PetscScalar     v;
+  PetscScalar     v, vnorm;
   KSP             ksp;
   PC              pc;
-  PetscScalar     t1, t2, vnorm;
 
   PetscInitialize(&argc,&argv,(char*)0,help);
 
@@ -79,10 +78,7 @@ int main(int argc,char **argv)
 
       ierr = KSPSetUp(ksp);CHKERRCONTINUE(ierr);
       ierr = PetscPrintf(PETSC_COMM_WORLD,"Solving linear system\n");CHKERRCONTINUE(ierr);
-      t1 = MPI_Wtime();
       ierr = KSPSolve(ksp,b,x);CHKERRCONTINUE(ierr);
-      t2 = MPI_Wtime();
-      ierr = PetscPrintf(PETSC_COMM_WORLD,"Solve time=%f\n",t2-t1);CHKERRCONTINUE(ierr);
 
       KSPConvergedReason reason;
       PetscScalar rnorm;

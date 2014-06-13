@@ -44,7 +44,6 @@ PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm)
   tcomm->pool->nthreads = 0;
   tcomm->pool->maxthreads = tcomm->nworkThreads;
   ierr = PetscMalloc1(tcomm->pool->maxthreads,&tcomm->pool->granks);
-  tcomm->pool->master = 0;
 
   // Initialize options
   tcomm->pool->aff = PTHREADAFFPOLICY_ONECORE;
@@ -128,7 +127,6 @@ PetscErrorCode PetscThreadPoolJoin(MPI_Comm comm,PetscInt trank,PetscInt *prank)
   printf("rank=%d joined thread pool\n",trank);
   ierr = PetscCommGetThreadComm(comm,&tcomm);
   ierr = PetscCommGetPool(comm,&pool);
-  pool->master = 0;
 
   ierr = (*tcomm->ops->atomicincrement)(tcomm,&tcomm->pool->nthreads,1);
 
