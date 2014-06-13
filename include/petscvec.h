@@ -438,6 +438,7 @@ PETSC_EXTERN PetscErrorCode VecGhostRestoreLocalForm(Vec,Vec*);
 PETSC_EXTERN PetscErrorCode VecGhostIsLocalForm(Vec,Vec,PetscBool*);
 PETSC_EXTERN PetscErrorCode VecGhostUpdateBegin(Vec,InsertMode,ScatterMode);
 PETSC_EXTERN PetscErrorCode VecGhostUpdateEnd(Vec,InsertMode,ScatterMode);
+PETSC_EXTERN PetscErrorCode VecGhostGetValues(Vec,PetscInt,const PetscInt[],PetscScalar[]);
 
 PETSC_EXTERN PetscErrorCode VecConjugate(Vec);
 
