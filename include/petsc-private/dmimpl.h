@@ -84,6 +84,14 @@ struct _DMGlobalToLocalHookLink {
   DMGlobalToLocalHookLink next;
 };
 
+typedef struct _DMLocalToGlobalHookLink *DMLocalToGlobalHookLink;
+struct _DMLocalToGlobalHookLink {
+  PetscErrorCode (*beginhook)(DM,Vec,InsertMode,Vec,void*);
+  PetscErrorCode (*endhook)(DM,Vec,InsertMode,Vec,void*);
+  void *ctx;
+  DMLocalToGlobalHookLink next;
+};
+
 typedef enum {DMVEC_STATUS_IN,DMVEC_STATUS_OUT} DMVecStatus;
 typedef struct _DMNamedVecLink *DMNamedVecLink;
 struct _DMNamedVecLink {
@@ -126,6 +134,7 @@ struct _p_DM {
   DMRefineHookLink        refinehook;
   DMSubDomainHookLink     subdomainhook;
   DMGlobalToLocalHookLink gtolhook;
+  DMLocalToGlobalHookLink ltoghook;
   /* Flexible communication */
   PetscSF                 sf;                   /* SF for parallel point overlap */
   PetscSF                 defaultSF;            /* SF for parallel dof overlap using default section */
