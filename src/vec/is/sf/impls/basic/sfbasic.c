@@ -1019,7 +1019,32 @@ static PetscErrorCode PetscSFReduceEnd_Basic(PetscSF sf,MPI_Datatype unit,const 
 #define __FUNCT__ "PetscSFReduceLocal_Basic"
 static PetscErrorCode PetscSFReduceLocal_Basic(PetscSF sf,MPI_Datatype unit,const void *leafdata,void *rootdata,MPI_Op op)
 {
-  SETERRQ(PETSC_COMM_SELF, PETSC_ERR_SUP, "Not implemented");
+  PetscSFBasicPack  link;
+  PetscInt          r,nrootranks,nleafranks;
+  const PetscInt    *rootoffset,*leafoffset,*rootloc,*leafloc;
+  const PetscMPIInt *rootranks,*leafranks;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscSFBasicGetRootInfo(sf,&nrootranks,&rootranks,&rootoffset,&rootloc);CHKERRQ(ierr);
+  ierr = PetscSFBasicGetLeafInfo(sf,&nleafranks,&leafranks,&leafoffset,&leafloc);CHKERRQ(ierr);
+  ierr = PetscSFBasicGetPack(sf,unit,rootdata,&link);CHKERRQ(ierr);
+
+  type *lu = (type *) leafdata;
+  type *ru = (type *) rootdata;
+  for (r = 0; r < nleafranks; ++r) {
+    if (rank != leafranks[r]) continue;
+    const PetscMPIInt n    = leafoffset[r+1] - leafoffset[r];
+    const PetscInt   *lidx = leafloc+leafoffset[r];
+    const PetscInt   *ridx = rootloc+rootoffset[r];
+    PetscInt          bs   = link->bs, i, j, k;
+
+    for (i = 0; i < n; ++i)
+      for (j = 0; j < bs; j += BS)
+        for (k = j; k < j+BS; ++k)
+          ru[ridx[i]*bs+k] = lu[lidx[i]*bs+k];
+  }
+  PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
