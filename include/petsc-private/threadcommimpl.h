@@ -19,6 +19,7 @@
 #endif
 
 PETSC_EXTERN PetscMPIInt Petsc_ThreadComm_keyval;
+PETSC_EXTERN PetscMPIInt Petsc_ThreadPool_keyval;
 
 /* Max. number of arguments for kernel */
 #define PETSC_KERNEL_NARGS_MAX 10
@@ -132,38 +133,59 @@ struct _PetscThreadCommOps {
   PetscErrorCode (*getrank)(PetscInt*);
 };
 
-struct _p_PetscThreadPool{
-  PetscInt                nthreads;   /* Number of threads in pool */
-  PetscInt                maxthreads; /* Max number of threads pool can hold */
-  PetscThreadCommJobQueue jobqueue;   /* Job queue */
+//typedef struct _p_PetscThread* PetscThread;
+//struct _p_PetscThread{
+//  PetscInt grank;    /* Thread rank in pool */
+//  PetscInt affinity; /* Thread affinity */
+//};
 
-  PetscInt                *granks;    /* Track thread ranks in pool */
-  PetscInt                thread_num_start; /* Index for the first created thread (=1 if main thread is a worker, else 0 */
+struct _p_PetscThreadPool{
+
+  // General threadpool information
+  PetscInt                refct;        /* Number of MPI_Comm references */
+  PetscThreadCommOps      ops;          /* Operations table */
+  char                    type[256];    /* Thread model type */
+
+  // User input options
+  PetscInt                model;        /* Threading model used */
   PetscThreadPoolSparkType spark;  /* Type for sparking threads */
   PetscPThreadCommAffinityPolicyType  aff;    /* affinity policy */
   PetscBool                synchronizeafter; /* Whether the main thread should block until all threads complete kernel */
+  PetscBool               ismainworker; /* Is the main thread also a work thread? */
+  PetscInt                nkernels;     /* Maximum kernels launched */
+
+  // Thread information
+  PetscInt                npoolthreads; /* Max number of threads pool can hold */
+  PetscInt                *granks;
+  PetscInt                *affinities;
+  //PetscThread             *threads;     /* Array of threads */
 };
 
+/* Global thread pool that holds all threads and thread information */
+extern PetscThreadPool PETSC_THREAD_POOL;
+
 struct _p_PetscThreadComm{
-  PetscInt                refct;
-  PetscInt                nworkThreads; /* Number of threads in the pool */
-  PetscInt                *affinities;  /* Thread affinity */
-  PetscThreadCommOps      ops;          /* Operations table */
-  void                    *data;        /* Implementation specific data */
-  char                    type[256];    /* Thread model type */
-  PetscInt                model;        /* Threading model used */
-  PetscInt                leader;       /* Rank of the leader thread. This thread manages
-                                           the synchronization for collective operatons like reductions.
-                                        */
-  PetscThreadCommReduction red;         /* Reduction context */
+
+  // General threadcomm information
+  PetscInt                 refct;         /* Number of MPI_Comm references */
+  PetscInt                 leader;       /* Rank of the leader thread. This thread manages
+                                           the synchronization for collective operatons like reductions. */
+  PetscBool                isnothread;   /* No threading model used */
+  PetscInt                 thread_start; /* Index for the first created thread (=1 if main thread is a worker, else 0 */
+  void                     *data;        /* Implementation specific data */
+  PetscThreadCommReduction red;          /* Reduction context */
+  PetscBool                active;       /* Does this threadcomm have access to the threads? */
+
+  // Thread information
+  PetscInt ncommthreads; /* Max threads comm can use */
+  PetscInt nthreads;     /* Number of active threads available to comm */
+
+  // Job information
+  PetscThreadCommJobQueue jobqueue;     /* Job queue */
   PetscInt                job_ctr;      /* which job is this threadcomm running in the job queue */
   PetscInt                *my_job_counter;
   PetscInt                *my_kernel_ctr;
   PetscInt                *glob_kernel_ctr;
-  PetscBool               isnothread;   /* No threading model used */
-  PetscInt                nkernels;     /* Maximum kernels launched */
-  PetscBool               ismainworker; /* Is the main thread also a work thread? */
-  PetscThreadPool         pool;         /* Thread pool */
 };
 
 /* Global thread communicator that manages all the threads. Other threadcomms

@@ -23,11 +23,12 @@ public:
 #define __FUNCT__ "PetscThreadCommCreate_TBB"
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_TBB(PetscThreadComm tcomm)
 {
+  PetscThreadPool pool = PETSC_THREAD_POOL;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscStrcpy(tcomm->type,TBB);CHKERRQ(ierr);
-  tcomm->ops->runkernel = PetscThreadCommRunKernel_TBB;
+  ierr = PetscStrcpy(pool->type,TBB);CHKERRQ(ierr);
+  pool->ops->runkernel = PetscThreadCommRunKernel_TBB;
   PetscFunctionReturn(0);
 }
 
@@ -36,7 +37,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_TBB(PetscThreadComm tcomm)
 PetscErrorCode PetscThreadCommRunKernel_TBB(PetscThreadComm tcomm,PetscThreadCommJobCtx job)
 {
   PetscFunctionBegin;
-  task_scheduler_init init(tcomm->nworkThreads);
-  parallel_for(blocked_range<size_t>(0,tcomm->nworkThreads,1),TBBRunKernel(job));
+  task_scheduler_init init(tcomm->ncommthreads);
+  parallel_for(blocked_range<size_t>(0,tcomm->ncommthreads,1),TBBRunKernel(job));
   PetscFunctionReturn(0);
 }

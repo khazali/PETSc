@@ -61,29 +61,30 @@ PetscErrorCode PetscThreadCommRegisterAllModels(void)
 @*/
 PetscErrorCode PetscThreadCommRegisterAllTypes(PetscThreadComm tcomm)
 {
-  PetscInt type;
+  PetscInt model;
   PetscErrorCode ierr;
+  PetscThreadPool pool = PETSC_THREAD_POOL;
 
   PetscFunctionBegin;
   PetscThreadCommRegisterAllTypesCalled = PETSC_TRUE;
 
-  type = tcomm->model;
-  printf("Registering Types = %d\n",type);
+  model = pool->model;
+  printf("Registering Types = %d\n",model);
 
   ierr = PetscThreadCommRegister(NOTHREAD,PetscThreadCommCreate_NoThread);CHKERRQ(ierr);
 
 #if defined(PETSC_HAVE_PTHREADCLASSES)
-  if (type==THREAD_MODEL_LOOP) {
+  if (model==THREAD_MODEL_LOOP) {
     ierr = PetscThreadCommRegister(PTHREAD, PetscThreadCommCreate_PThreadLoop);CHKERRQ(ierr);
-  } else if (type==THREAD_MODEL_USER) {
+  } else if (model==THREAD_MODEL_USER) {
     ierr = PetscThreadCommRegister(PTHREAD, PetscThreadCommCreate_PThreadUser);CHKERRQ(ierr);
   }
 #endif
 
 #if defined(PETSC_HAVE_OPENMP)
-  if (type==THREAD_MODEL_LOOP) {
+  if (model==THREAD_MODEL_LOOP) {
     ierr = PetscThreadCommRegister(OPENMP,  PetscThreadCommCreate_OpenMPLoop);CHKERRQ(ierr);
-  } else if (type==THREAD_MODEL_USER) {
+  } else if (model==THREAD_MODEL_USER) {
     ierr = PetscThreadCommRegister(OPENMP,  PetscThreadCommCreate_OpenMPUser);CHKERRQ(ierr);
   }
 #endif

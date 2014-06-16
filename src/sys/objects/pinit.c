@@ -931,6 +931,7 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
   }
 
   ierr = PetscThreadCommInitializePackage();CHKERRQ(ierr);
+  ierr = PetscThreadPoolInitializePackage();CHKERRQ(ierr);
 
   /*
       Setup building of stack frames for all function calls
@@ -1199,7 +1200,14 @@ PetscErrorCode  PetscFinalize(void)
     PetscThreadComm tcomm_world;
     ierr = PetscGetThreadCommWorld(&tcomm_world);CHKERRQ(ierr);
     /* Free global thread communicator */
+    //ierr = PetscThreadCommWorldDetach(PETSC_COMM_WORLD);
     ierr = PetscThreadCommDestroy(&tcomm_world);CHKERRQ(ierr);
+
+    PetscThreadPool pool;
+    ierr = PetscThreadPoolGetPool(PETSC_COMM_WORLD,&pool);CHKERRQ(ierr);
+    /* Free thread pool */
+    //ierr = PetscThreadPoolDetach(PETSC_COMM_WORLD,PETSC_THREAD_POOL);
+    ierr = PetscThreadPoolDestroy(&pool);CHKERRQ(ierr);
   }
 
 #if defined(PETSC_USE_LOG)
