@@ -2,7 +2,7 @@
 #include <petscctable.h>
 
 /* Logging support */
-PetscLogEvent PETSCSF_SetGraph, PETSCSF_BcastBegin, PETSCSF_BcastEnd, PETSCSF_ReduceBegin, PETSCSF_ReduceEnd, PETSCSF_FetchAndOpBegin, PETSCSF_FetchAndOpEnd;
+PetscLogEvent PETSCSF_SetGraph, PETSCSF_BcastBegin, PETSCSF_BcastEnd, PETSCSF_ReduceBegin, PETSCSF_ReduceEnd, PETSCSF_ReduceLocal, PETSCSF_FetchAndOpBegin, PETSCSF_FetchAndOpEnd;
 
 #if defined(PETSC_USE_DEBUG)
 #  define PetscSFCheckGraphSet(sf,arg) do {                          \
@@ -966,7 +966,7 @@ PetscErrorCode PetscSFBcastEnd(PetscSF sf,MPI_Datatype unit,const void *rootdata
 /*@C
    PetscSFReduceBegin - begin reduction of leafdata into rootdata, to be completed with call to PetscSFReduceEnd()
 
-   Collective
+   Collective on PetscSF
 
    Input Arguments:
 +  sf - star forest
@@ -1000,7 +1000,7 @@ PetscErrorCode PetscSFReduceBegin(PetscSF sf,MPI_Datatype unit,const void *leafd
 /*@C
    PetscSFReduceEnd - end a reduction operation started with PetscSFReduceBegin()
 
-   Collective
+   Collective on PetscSF
 
    Input Arguments:
 +  sf - star forest
@@ -1026,6 +1026,40 @@ PetscErrorCode PetscSFReduceEnd(PetscSF sf,MPI_Datatype unit,const void *leafdat
   ierr = PetscSFSetUp(sf);CHKERRQ(ierr);
   ierr = (*sf->ops->ReduceEnd)(sf,unit,leafdata,rootdata,op);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(PETSCSF_ReduceEnd,sf,0,0,0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscSFReduceLocal"
+/*@C
+  PetscSFReduceLocal - reduce only local leafdata into rootdata
+
+  Not collective
+
+  Input Arguments:
++ sf - star forest
+. unit - data type
+. leafdata - values to reduce
+- op - reduction operation
+
+   Output Arguments:
+.  rootdata - result of reduction of values from local leaves of each root
+
+   Level: intermediate
+
+.seealso: PetscSFReduceBegin(), PetscSFReduceBegin()
+@*/
+PetscErrorCode PetscSFReduceLocal(PetscSF sf,MPI_Datatype unit,const void *leafdata,void *rootdata,MPI_Op op)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(sf,PETSCSF_CLASSID,1);
+  PetscSFCheckGraphSet(sf,1);
+  ierr = PetscLogEventBegin(PETSCSF_ReduceLocal,sf,0,0,0);CHKERRQ(ierr);
+  ierr = PetscSFSetUp(sf);CHKERRQ(ierr);
+  ierr = (sf->ops->ReduceLocal)(sf,unit,leafdata,rootdata,op);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(PETSCSF_ReduceLocal,sf,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

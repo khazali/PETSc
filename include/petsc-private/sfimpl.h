@@ -5,7 +5,7 @@
 #include <petsc-private/petscimpl.h>
 #include <petscviewer.h>
 
-PETSC_EXTERN PetscLogEvent PETSCSF_SetGraph, PETSCSF_BcastBegin, PETSCSF_BcastEnd, PETSCSF_ReduceBegin, PETSCSF_ReduceEnd, PETSCSF_FetchAndOpBegin, PETSCSF_FetchAndOpEnd;
+PETSC_EXTERN PetscLogEvent PETSCSF_SetGraph, PETSCSF_BcastBegin, PETSCSF_BcastEnd, PETSCSF_ReduceBegin, PETSCSF_ReduceEnd, PETSCSF_ReduceLocal, PETSCSF_FetchAndOpBegin, PETSCSF_FetchAndOpEnd;
 
 struct _PetscSFOps {
   PetscErrorCode (*Reset)(PetscSF);
@@ -18,6 +18,7 @@ struct _PetscSFOps {
   PetscErrorCode (*BcastEnd)(PetscSF,MPI_Datatype,const void*,void*);
   PetscErrorCode (*ReduceBegin)(PetscSF,MPI_Datatype,const void*,void*,MPI_Op);
   PetscErrorCode (*ReduceEnd)(PetscSF,MPI_Datatype,const void*,void*,MPI_Op);
+  PetscErrorCode (*ReduceLocal)(PetscSF,MPI_Datatype,const void*,void*,MPI_Op);
   PetscErrorCode (*FetchAndOpBegin)(PetscSF,MPI_Datatype,void*,const void*,void*,MPI_Op);
   PetscErrorCode (*FetchAndOpEnd)(PetscSF,MPI_Datatype,void*,const void *,void *,MPI_Op);
 };

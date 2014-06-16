@@ -1016,6 +1016,13 @@ static PetscErrorCode PetscSFReduceEnd_Basic(PetscSF sf,MPI_Datatype unit,const 
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscSFReduceLocal_Basic"
+static PetscErrorCode PetscSFReduceLocal_Basic(PetscSF sf,MPI_Datatype unit,const void *leafdata,void *rootdata,MPI_Op op)
+{
+  SETERRQ(PETSC_COMM_SELF, PETSC_ERR_SUP, "Not implemented");
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscSFFetchAndOpBegin_Basic"
 static PetscErrorCode PetscSFFetchAndOpBegin_Basic(PetscSF sf,MPI_Datatype unit,void *rootdata,const void *leafdata,void *leafupdate,MPI_Op op)
 {
@@ -1089,6 +1096,7 @@ PETSC_EXTERN PetscErrorCode PetscSFCreate_Basic(PetscSF sf)
   sf->ops->BcastEnd        = PetscSFBcastEnd_Basic;
   sf->ops->ReduceBegin     = PetscSFReduceBegin_Basic;
   sf->ops->ReduceEnd       = PetscSFReduceEnd_Basic;
+  sf->ops->ReduceLocal     = PetscSFReduceLocal_Basic;
   sf->ops->FetchAndOpBegin = PetscSFFetchAndOpBegin_Basic;
   sf->ops->FetchAndOpEnd   = PetscSFFetchAndOpEnd_Basic;
 
