@@ -13,6 +13,7 @@ int main(int argc,char **argv)
   PetscErrorCode  ierr;
   PetscInt        nthreads, n=20, lsize;
   PetscScalar     alpha=3.0;
+  PetscThreadComm tcomm;
 
   PetscInitialize(&argc,&argv,(char*)0,help);
 
@@ -33,8 +34,10 @@ int main(int argc,char **argv)
     PetscScalar *ay;
     int trank = omp_get_thread_num();
 
+    ierr = PetscCommGetThreadComm(PETSC_COMM_WORLD,&tcomm);CHKERRCONTINUE(ierr);
+
     // User gives threads to PETSc for threaded PETSc work
-    ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank,tcomm);CHKERRCONTINUE(ierr);
     PetscPrintf(PETSC_COMM_WORLD,"trank=%d joined pool prank=%d\n",trank,prank);
     if(prank>=0) {
       PetscPrintf(PETSC_COMM_WORLD,"Vec work\n");
@@ -63,7 +66,7 @@ int main(int argc,char **argv)
     ierr = VecRestoreArray(y,&ay);CHKERRCONTINUE(ierr);
 
     // User gives threads to PETSc for threaded PETSc work
-    ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank,tcomm);CHKERRCONTINUE(ierr);
     if(prank>=0) {
 
       // Vec work
@@ -75,7 +78,7 @@ int main(int argc,char **argv)
     ierr = PetscThreadPoolReturn(PETSC_COMM_WORLD,&prank);CHKERRCONTINUE(ierr);
 
     // User gives threads to PETSc for threaded PETSc work
-    ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank,tcomm);CHKERRCONTINUE(ierr);
     if(prank>=0) {
 
       PetscScalar *avals, *bvals;

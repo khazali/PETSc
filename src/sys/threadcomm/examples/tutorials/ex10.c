@@ -20,12 +20,15 @@ int main(int argc,char **argv)
   PetscScalar     v, vnorm;
   KSP             ksp;
   PC              pc;
+  PetscThreadComm tcomm;
 
   PetscInitialize(&argc,&argv,(char*)0,help);
 
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&nthreads);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"nthreads=%d\n",nthreads);CHKERRQ(ierr);
+  ierr = PetscCommGetThreadComm(PETSC_COMM_WORLD,&tcomm);CHKERRCONTINUE(ierr);
+
 
   // Create vectors
   ierr = VecCreateMPI(PETSC_COMM_WORLD,PETSC_DECIDE,n*n,&x);CHKERRCONTINUE(ierr);
@@ -37,7 +40,7 @@ int main(int argc,char **argv)
     PetscInt pstart,pend,lsize,gsize;
     PetscInt prank,trank = omp_get_thread_num();
 
-    ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank,tcomm);CHKERRCONTINUE(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD,"trank=%d joined pool prank=%d\n",trank,prank);CHKERRCONTINUE(ierr);
     if(prank>=0) {
       // Set rhs

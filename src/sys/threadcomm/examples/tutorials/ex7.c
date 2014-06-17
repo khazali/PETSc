@@ -7,7 +7,6 @@ static char help[] = "Test PetscThreadPool with pthreads with PETSc vector routi
 void func(void *arg);
 
 Vec x, y;
-PetscInt *indices;
 PetscScalar *ay;
 
 #undef __FUNCT__
@@ -49,62 +48,65 @@ int main(int argc,char **argv)
 
 void func(void *arg) {
 
-  PetscInt i, n=100, prank, start, end, nthreads;
+  PetscInt i, n=100, prank, start, end, nthreads, lsize, *indices;
   PetscScalar alpha=3.0, vnorm;
   int trank = *(int*)arg;
   PetscErrorCode ierr;
 
-  printf("in func trank=%d\n",trank);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"in func trank=%d\n",trank);
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRCONTINUE(ierr);
   ierr = PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&nthreads);CHKERRCONTINUE(ierr);
 
-  // Insert parallel threaded user code here
-
   // User gives threads to PETSc to use for PETSc functions
   ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank);CHKERRCONTINUE(ierr);
-  printf("rank=%d joined pool prank=%d\n",trank,prank);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"rank=%d joined pool prank=%d\n",trank,prank);
   if(prank>=0) {
-    printf("rank=%d working on vec\n",trank);
     ierr = VecCreate(PETSC_COMM_WORLD,&x);CHKERRCONTINUE(ierr);
     ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRCONTINUE(ierr);
     ierr = VecSetFromOptions(x);CHKERRCONTINUE(ierr);
     ierr = VecDuplicate(x,&y);CHKERRCONTINUE(ierr);
 
-    printf("Vec set\n");
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"Vec work\n");
     ierr = VecSet(x,2.0);CHKERRCONTINUE(ierr);
     ierr = VecSet(y,3.0);CHKERRCONTINUE(ierr);
     ierr = VecAXPY(y,alpha,x);CHKERRCONTINUE(ierr);
 
     //VecView(y,PETSC_VIEWER_STDOUT_WORLD);
     ierr = VecNorm(y,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
-    printf("Norm=%f\n",vnorm);
-    ierr = VecGetArray(y,&ay);CHKERRCONTINUE(ierr);
-    PetscThreadCommGetOwnershipRanges(PETSC_COMM_WORLD,n,&indices);
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"Norm=%f\n",vnorm);
   }
   // User takes back threads from PETSc once done calling PETSc functions
   ierr = PetscThreadPoolReturn(PETSC_COMM_WORLD,&prank);CHKERRCONTINUE(ierr);
 
-  // Insert parallel threaded user code here
+  // Get data for local work
+  ierr = VecGetArray(y,&ay);CHKERRCONTINUE(ierr);
+  ierr = VecGetLocalSize(x,&lsize);CHKERRCONTINUE(ierr);
+  ierr = PetscThreadCommGetOwnershipRanges(PETSC_COMM_WORLD,lsize,&indices);
+
+  // Parallel threaded user code
   start = indices[trank];
   end = indices[trank+1];
-  printf("trank=%d nthreads=%d start=%d end=%d\n",trank,nthreads,start,end);
   for(i=start; i<end; i++) {
     ay[i] = ay[i]*ay[i];
   }
 
-  printf("\n\n\nReturning threads to petsc\n");
+  // Restore vector
+  ierr = VecRestoreArray(y,&ay);CHKERRCONTINUE(ierr);
+
+  // User gives threads to PETSc for threaded PETSc work
   ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank);CHKERRCONTINUE(ierr);
+
   if(prank>=0) {
 
-    ierr = VecRestoreArray(y,&ay);CHKERRCONTINUE(ierr);
+    // Vec work
     VecScale(y,2.0);
     VecAXPY(y,alpha,x);
 
     //VecView(y,PETSC_VIEWER_STDOUT_WORLD);
     ierr = VecNorm(y,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
-    printf("Norm=%f\n",vnorm);
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"Norm=%f\n",vnorm);
 
-    printf("Vec destroy\n");
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"Vec destroy\n");
     ierr = VecDestroy(&x);CHKERRCONTINUE(ierr);
     ierr = VecDestroy(&y);CHKERRCONTINUE(ierr);
   }

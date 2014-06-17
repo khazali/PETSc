@@ -2,7 +2,7 @@
 #define __TCTBBIMPLH
 
 #include <petsc-private/threadcommimpl.h>
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_TBB(PetscThreadComm);
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_TBB(PetscThreadPool);
 extern PetscErrorCode PetscThreadCommRunKernel_TBB(PetscThreadComm,PetscThreadCommJobCtx);
 
 #endif

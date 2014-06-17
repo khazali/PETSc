@@ -188,26 +188,6 @@ PetscErrorCode  PetscCommDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,PetscMPII
     counter->tag = *maxval - 128; /* hope that any still active tags were issued right at the beginning of the run */
   }
 
-  // Attach threadcomm to communicator
-  if (first_tag) *first_tag = counter->tag--;
-
-  ierr = MPI_Attr_get(*comm_out,Petsc_ThreadComm_keyval,(PetscThreadComm*)&tcomm,&flg);CHKERRQ(ierr);
-  if (!flg) {
-    /* Threadcomm does not exist on this communicator, get the global threadcomm and attach it to this communicator */
-    ierr = PetscCommGetThreadComm(*comm_out,&tcomm);CHKERRQ(ierr);
-    ierr = PetscThreadCommAttach(*comm_out,tcomm);CHKERRQ(ierr);
-  }
-  /* Only the main thread updates counter->refcount */
-  ierr = PetscThreadCommGetRank(tcomm,&trank);CHKERRQ(ierr);
-  if (!trank) counter->refcount++; /* number of references to this comm */
-
-  if (counter->tag < 1) {
-    ierr = PetscInfo1(0,"Out of tags for object, starting to recycle. Comm reference count %d\n",counter->refcount);CHKERRQ(ierr);
-    ierr = MPI_Attr_get(MPI_COMM_WORLD,MPI_TAG_UB,&maxval,&flg);CHKERRQ(ierr);
-    if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"MPI error: MPI_Attr_get() is not returning a MPI_TAG_UB");
-    counter->tag = *maxval - 128; /* hope that any still active tags were issued right at the beginning of the run */
-  }
-
   // Attach Threadpool to communicator
   if (first_tag) *first_tag = counter->tag--;
 
@@ -218,8 +198,29 @@ PetscErrorCode  PetscCommDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,PetscMPII
     ierr = PetscThreadPoolAttach(*comm_out,pool);CHKERRQ(ierr);
   }
   /* Only the main thread updates counter->refcount */
-  ierr = PetscThreadCommGetRank(tcomm,&trank);CHKERRQ(ierr);
+  ierr = PetscThreadCommGetRank(&trank);CHKERRQ(ierr);
   if (!trank) counter->refcount++; /* number of references to this comm */
+
+  if (counter->tag < 1) {
+    ierr = PetscInfo1(0,"Out of tags for object, starting to recycle. Comm reference count %d\n",counter->refcount);CHKERRQ(ierr);
+    ierr = MPI_Attr_get(MPI_COMM_WORLD,MPI_TAG_UB,&maxval,&flg);CHKERRQ(ierr);
+    if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"MPI error: MPI_Attr_get() is not returning a MPI_TAG_UB");
+    counter->tag = *maxval - 128; /* hope that any still active tags were issued right at the beginning of the run */
+  }
+
+  // Attach threadcomm to communicator
+  if (first_tag) *first_tag = counter->tag--;
+
+  ierr = MPI_Attr_get(*comm_out,pool->tcworld_keyval,(PetscThreadComm*)&tcomm,&flg);CHKERRQ(ierr);
+  if (!flg) {
+    /* Threadcomm does not exist on this communicator, get the global threadcomm and attach it to this communicator */
+    ierr = PetscCommGetThreadComm(*comm_out,&tcomm);CHKERRQ(ierr);
+    ierr = PetscThreadCommAttach(*comm_out,tcomm);CHKERRQ(ierr);
+  }
+  /* Only the main thread updates counter->refcount */
+  ierr = PetscThreadCommGetRank(&trank);CHKERRQ(ierr);
+  if (!trank) counter->refcount++; /* number of references to this comm */
+
   PetscFunctionReturn(0);
 }
 
@@ -260,20 +261,20 @@ PetscErrorCode  PetscCommDestroy(MPI_Comm *comm)
     if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_CORRUPT,"Inner MPI_Comm does not have expected tag/name counter, problem with corrupted memory");
   }
 
-  /* Threadcomm - Only the main thread updates counter->refcount */
-  ierr = MPI_Attr_get(icomm,Petsc_ThreadComm_keyval,(PetscThreadComm*)&tcomm,&flg);CHKERRQ(ierr);
-  if (flg) {
-    PetscInt trank;
-    ierr = PetscThreadCommGetRank(tcomm,&trank);CHKERRQ(ierr);
-    /* Only thread rank 0 updates the counter */
-    if (!trank) counter->refcount--;
-  } else counter->refcount--;
-
   /* Threadpool - Only the main thread updates counter->refcount */
   ierr = MPI_Attr_get(icomm,Petsc_ThreadPool_keyval,(PetscThreadPool*)&pool,&flg);CHKERRQ(ierr);
   if (flg) {
     PetscInt trank;
-    ierr = PetscThreadCommGetRank(tcomm,&trank);CHKERRQ(ierr);
+    ierr = PetscThreadCommGetRank(&trank);CHKERRQ(ierr);
+    /* Only thread rank 0 updates the counter */
+    if (!trank) counter->refcount--;
+  } else counter->refcount--;
+
+  /* Threadcomm - Only the main thread updates counter->refcount */
+  ierr = MPI_Attr_get(icomm,pool->tcworld_keyval,(PetscThreadComm*)&tcomm,&flg);CHKERRQ(ierr);
+  if (flg) {
+    PetscInt trank;
+    ierr = PetscThreadCommGetRank(&trank);CHKERRQ(ierr);
     /* Only thread rank 0 updates the counter */
     if (!trank) counter->refcount--;
   } else counter->refcount--;

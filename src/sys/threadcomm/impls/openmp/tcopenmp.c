@@ -34,34 +34,32 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMP(PetscThreadPool po
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommCreate_OpenMPLoop"
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPLoop(PetscThreadComm tcomm)
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPLoop(PetscThreadPool pool)
 {
-  PetscThreadPool pool = PETSC_THREAD_POOL;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr                  = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
+  ierr                 = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
   pool->ops->runkernel = PetscThreadCommRunKernel_OpenMPLoop;
   pool->ops->getrank   = PetscThreadCommGetRank_OpenMP;
-  ierr = PetscThreadCommSetAffinity_OpenMP(pool);
+  ierr                 = PetscThreadCommSetAffinity_OpenMP(pool);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommCreate_OpenMPUser"
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPUser(PetscThreadComm tcomm)
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPUser(PetscThreadPool pool)
 {
-  PetscThreadPool pool = PETSC_THREAD_POOL;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr                  = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
-  pool->ops->runkernel = PetscThreadCommRunKernel_OpenMPUser;
-  pool->ops->getrank   = PetscThreadCommGetRank_OpenMP;
-  pool->ops->kernelbarrier = PetscThreadPoolBarrier;
-  pool->ops->globalbarrier = PetscThreadCommBarrier_OpenMP;
+  ierr                       = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
+  pool->ops->runkernel       = PetscThreadCommRunKernel_OpenMPUser;
+  pool->ops->getrank         = PetscThreadCommGetRank_OpenMP;
+  pool->ops->kernelbarrier   = PetscThreadPoolBarrier;
+  pool->ops->globalbarrier   = PetscThreadCommBarrier_OpenMP;
   pool->ops->atomicincrement = PetscThreadCommAtomicIncrement_OpenMP;
-  ierr = PetscThreadCommSetAffinity_OpenMP(pool);
+  ierr                       = PetscThreadCommSetAffinity_OpenMP(pool);
   PetscFunctionReturn(0);
 }
 

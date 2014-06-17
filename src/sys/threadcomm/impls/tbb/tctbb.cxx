@@ -21,9 +21,8 @@ public:
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommCreate_TBB"
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_TBB(PetscThreadComm tcomm)
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_TBB(PetscThreadPool pool)
 {
-  PetscThreadPool pool = PETSC_THREAD_POOL;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
