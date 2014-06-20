@@ -21,7 +21,7 @@ $ PTHREADAFFPOLICY_NONE    - No set affinity policy. OS decides thread schedulin
 */
 const char *const PetscPThreadCommAffinityPolicyTypes[] = {"ALL","ONECORE","NONE","PetscPThreadCommAffinityPolicyType","PTHREADAFFPOLICY_",0};
 
-PETSC_EXTERN PetscErrorCode PetscThreadPoolFunc_User(PetscThreadInfo tinfo);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolFunc_User(PetscThread thread);
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscGetNCores"
@@ -186,10 +186,12 @@ PetscErrorCode PetscThreadPoolCreate(PetscThreadPool *pool)
   poolout->ismainworker     = PETSC_TRUE;
   poolout->nkernels         = 16;
 
-  poolout->npoolthreads = -1;
-  poolout->granks       = NULL;
-  poolout->affinities   = NULL;
-  poolout->data         = NULL;
+  poolout->npoolthreads   = -1;
+  //poolout->granks         = NULL;
+  poolout->affinities     = NULL;
+  poolout->data           = NULL;
+  poolout->thread_keyvals = NULL;
+  poolout->poolthreads    = NULL;
 
   *pool = poolout;
 
@@ -200,9 +202,9 @@ PetscErrorCode PetscThreadPoolCreate(PetscThreadPool *pool)
 #define __FUNCT__ "PetscThreadPoolInitialize"
 PetscErrorCode PetscThreadPoolInitialize(void)
 {
-  PetscInt i;
-  PetscBool flg;
-  PetscErrorCode ierr;
+  PetscInt        i;
+  PetscBool       flg;
+  PetscErrorCode  ierr;
   PetscThreadPool pool;
   PetscThreadComm tcomm;
 
@@ -215,8 +217,13 @@ PetscErrorCode PetscThreadPoolInitialize(void)
   ierr = PetscThreadPoolSetNThreads(pool,PETSC_DECIDE);
   ierr = PetscMalloc1(pool->npoolthreads,&pool->affinities);CHKERRQ(ierr);
   ierr = PetscThreadPoolSetAffinities(pool,NULL);CHKERRQ(ierr);
-  ierr = PetscMalloc1(pool->npoolthreads,&pool->granks);CHKERRQ(ierr);
+  //ierr = PetscMalloc1(pool->npoolthreads,&pool->granks);CHKERRQ(ierr);
   ierr = PetscMalloc1(pool->npoolthreads,&pool->thread_keyvals);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pool->npoolthreads,&pool->poolthreads);CHKERRQ(ierr);
+  for(i=0; i<pool->npoolthreads; i++) {
+    ierr = PetscNew(&pool->poolthreads[i]);CHKERRQ(ierr);
+    pool->poolthreads[i]->grank = i;
+  }
 
   // Get option settings from command line
   ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"Thread pool options",NULL);CHKERRQ(ierr);
@@ -228,7 +235,7 @@ PetscErrorCode PetscThreadPoolInitialize(void)
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   /* Set up thread ranks */
-  for (i=0; i<pool->npoolthreads; i++) pool->granks[i] = i;
+  //for (i=0; i<pool->npoolthreads; i++) pool->granks[i] = i;
 
   ierr = PetscThreadPoolSetModel(pool,LOOP);CHKERRQ(ierr);
   ierr = PetscThreadPoolSetType(pool,NOTHREAD);CHKERRQ(ierr);
@@ -466,8 +473,9 @@ PetscErrorCode  PetscThreadPoolModelRegister(const char sname[],PetscErrorCode (
  so that it can use critical sections */
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommLocalBarrier"
-PetscErrorCode PetscThreadCommLocalBarrier(PetscThreadComm tcomm,PetscThreadPool pool)
+PetscErrorCode PetscThreadCommLocalBarrier(PetscThreadComm tcomm)
 {
+  PetscThreadPool pool = PETSC_THREAD_POOL;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
@@ -503,25 +511,22 @@ PetscErrorCode PetscThreadPoolJoin(MPI_Comm comm,PetscInt trank,PetscInt *prank,
   ierr = PetscThreadPoolGetPool(comm,&pool);
 
   printf("adding thread nthreads=%d\n",tcomm->nthreads);
-  ierr = (*pool->ops->globalbarrier)(tcomm);
+  ierr = PetscThreadCommLocalBarrier(tcomm);
   pool->thread_keyvals[trank] = tcomm->keyval;
   if(trank==tcomm->leader) {
     tcomm->active = PETSC_TRUE;
     *prank = 0;
   } else {
-    tcomm->jobqueue->tinfo[trank]->status = THREAD_INITIALIZED;
-    tcomm->jobqueue->tinfo[trank]->rank = pool->granks[trank];
-    tcomm->jobqueue->tinfo[trank]->data = 0;
-    tcomm->jobqueue->tinfo[trank]->tcomm = tcomm;
+    pool->poolthreads[trank]->status = THREAD_INITIALIZED;
+    pool->poolthreads[trank]->jobdata = 0;
+    pool->poolthreads[trank]->tcomm = tcomm;
     *prank = -1;
   }
   ierr = (*pool->ops->atomicincrement)(tcomm,&tcomm->nthreads,1);
-  ierr = PetscThreadCommLocalBarrier(tcomm,pool);
-  //ierr = (*pool->ops->globalbarrier)(tcomm);
+  ierr = PetscThreadCommLocalBarrier(tcomm);
 
   if(trank!=tcomm->leader) {
-    PetscThreadInfo tinfo = tcomm->jobqueue->tinfo[trank];
-    ierr = PetscThreadPoolFunc_User(tinfo);
+    ierr = PetscThreadPoolFunc_User(pool->poolthreads[trank]);
   }
   PetscFunctionReturn(0);
 }
@@ -533,7 +538,7 @@ PetscBool CheckThreadCommMembership(PetscInt myrank,PetscThreadComm tcomm)
   PetscThreadPool pool = PETSC_THREAD_POOL;
 
   for (i=0;i<tcomm->ncommthreads;i++) {
-    if (myrank == pool->granks[i]) return PETSC_TRUE;
+    if (myrank == pool->poolthreads[i]->grank) return PETSC_TRUE;
   }
   return PETSC_FALSE;
 }
@@ -545,7 +550,7 @@ void SparkThreads(PetscInt myrank,PetscThreadComm tcomm,PetscThreadCommJobCtx jo
   switch (pool->spark) {
   case PTHREADPOOLSPARK_SELF:
     if (CheckThreadCommMembership(myrank,tcomm)) {
-      tcomm->jobqueue->tinfo[myrank]->data = job;
+      tcomm->commthreads[myrank]->jobdata = job;
       job->job_status[myrank] = THREAD_JOB_RECIEVED;
     }
     break;
@@ -560,21 +565,21 @@ void* PetscThreadPoolFunc(void *arg)
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx job;
   PetscThreadComm tcomm;
-  PetscThreadInfo tinfo;
+  PetscThread thread;
   PetscThreadPool pool = PETSC_THREAD_POOL;
 
   PetscFunctionBegin;
-  tinfo = *(PetscThreadInfo*)arg;
-  trank = tinfo->rank;
-  tcomm = tinfo->tcomm;
+  thread = *(PetscThread*)arg;
+  trank = thread->grank;
+  tcomm = thread->tcomm;
   jobqueue = tcomm->jobqueue;
   printf("rank=%d in ThreadPoolFunc_Loop\n",trank);
 
-  tinfo->data = 0;
-  tinfo->status = THREAD_INITIALIZED;
+  thread->jobdata = 0;
+  thread->status = THREAD_INITIALIZED;
 
   /* Spin loop */
-  while (PetscReadOnce(int,tinfo->status) != THREAD_TERMINATE) {
+  while (PetscReadOnce(int,thread->status) != THREAD_TERMINATE) {
     glob_kernel_ctr = PetscReadOnce(int,jobqueue->kernel_ctr);
     if (my_kernel_ctr < glob_kernel_ctr) {
       job = &jobqueue->jobs[my_job_counter];
@@ -582,7 +587,7 @@ void* PetscThreadPoolFunc(void *arg)
       SparkThreads(trank,tcomm,job);
       if (job->job_status[trank] == THREAD_JOB_RECIEVED) {
         /* Do own job */
-        PetscRunKernel(trank,tinfo->data->nargs,tinfo->data);
+        PetscRunKernel(trank,thread->jobdata->nargs,thread->jobdata);
         /* Post job completed status */
         job->job_status[trank] = THREAD_JOB_COMPLETED;
       }
@@ -596,7 +601,7 @@ void* PetscThreadPoolFunc(void *arg)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolFunc_User"
-PetscErrorCode PetscThreadPoolFunc_User(PetscThreadInfo tinfo)
+PetscErrorCode PetscThreadPoolFunc_User(PetscThread thread)
 {
   PetscInt trank;
   PetscThreadCommJobQueue jobqueue;
@@ -605,13 +610,13 @@ PetscErrorCode PetscThreadPoolFunc_User(PetscThreadInfo tinfo)
   PetscThreadPool pool = PETSC_THREAD_POOL;
 
   PetscFunctionBegin;
-  trank = tinfo->rank;
-  tcomm = tinfo->tcomm;
+  trank = thread->grank;
+  tcomm = thread->tcomm;
   jobqueue = tcomm->jobqueue;
   printf("rank=%d in ThreadPoolFunc_User\n",trank);
 
   /* Spin loop */
-  while (PetscReadOnce(int,tinfo->status) != THREAD_TERMINATE) {
+  while (PetscReadOnce(int,thread->status) != THREAD_TERMINATE) {
     tcomm->glob_kernel_ctr[trank] = PetscReadOnce(int,jobqueue->kernel_ctr);
     if (tcomm->my_kernel_ctr[trank] < tcomm->glob_kernel_ctr[trank]) {
       job = &jobqueue->jobs[tcomm->my_job_counter[trank]];
@@ -619,7 +624,7 @@ PetscErrorCode PetscThreadPoolFunc_User(PetscThreadInfo tinfo)
       SparkThreads(trank,tcomm,job);
       if (job->job_status[trank] == THREAD_JOB_RECIEVED) {
         /* Do own job */
-        PetscRunKernel(trank,tinfo->data->nargs,tinfo->data);
+        PetscRunKernel(trank,thread->jobdata->nargs,thread->jobdata);
         /* Post job completed status */
         job->job_status[trank] = THREAD_JOB_COMPLETED;
       }
@@ -647,11 +652,11 @@ PetscErrorCode PetscThreadPoolReturn(MPI_Comm comm,PetscInt *prank)
     printf("Returning all threads\n");
     for(i=tcomm->thread_start; i<tcomm->ncommthreads; i++) {
       printf("terminate thread %d\n",i);
-      tcomm->jobqueue->tinfo[i]->status = THREAD_TERMINATE;
+      tcomm->commthreads[i]->status = THREAD_TERMINATE;
     }
   }
-  ierr = (*pool->ops->globalbarrier)(tcomm);
   ierr = (*pool->ops->atomicincrement)(tcomm,&tcomm->nthreads,-1);
+  ierr = PetscThreadCommLocalBarrier(tcomm);
   PetscFunctionReturn(0);
 }
 
@@ -661,7 +666,7 @@ PetscErrorCode PetscThreadPoolBarrier(PetscThreadComm tcomm)
 {
   PetscInt                active_threads=0,i;
   PetscBool               wait          =PETSC_TRUE;
-  PetscThreadPool pool = PETSC_THREAD_POOL;
+  PetscThreadPool         pool          =PETSC_THREAD_POOL;
   PetscThreadCommJobQueue jobqueue      =tcomm->jobqueue;
   PetscThreadCommJobCtx   job           =&jobqueue->jobs[tcomm->job_ctr];
   PetscInt                job_status;
@@ -673,7 +678,7 @@ PetscErrorCode PetscThreadPoolBarrier(PetscThreadComm tcomm)
   /* Loop till all threads signal that they have done their job */
   while (wait) {
     for (i=0; i<tcomm->ncommthreads; i++) {
-      job_status      = job->job_status[pool->granks[i]];
+      job_status      = job->job_status[i];
       active_threads += job_status;
     }
     if (PetscReadOnce(int,active_threads) > 0) active_threads = 0;
@@ -686,15 +691,20 @@ PetscErrorCode PetscThreadPoolBarrier(PetscThreadComm tcomm)
 #define __FUNCT__ "PetscThreadPoolDestroy"
 PetscErrorCode PetscThreadPoolDestroy(PetscThreadPool *pool)
 {
+  PetscInt       i;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   printf("Destroying thread pool refct=%d\n",(*pool)->refct);
   if(!(*pool)) PetscFunctionReturn(0);
   if(!--(*pool)->refct) {
-    ierr = PetscFree((*pool)->granks);CHKERRQ(ierr);
+    //ierr = PetscFree((*pool)->granks);CHKERRQ(ierr);
     ierr = PetscFree((*pool)->affinities);CHKERRQ(ierr);
     ierr = PetscFree((*pool)->ops);CHKERRQ(ierr);
+    for(i=0; i<(*pool)->npoolthreads; i++) {
+      ierr = PetscFree((*pool)->poolthreads[i]);CHKERRQ(ierr);
+    }
+    ierr = PetscFree((*pool)->poolthreads);CHKERRQ(ierr);
     ierr = PetscFree(*pool);CHKERRQ(ierr);
   }
   pool = NULL;

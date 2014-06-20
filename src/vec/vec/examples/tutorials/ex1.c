@@ -49,7 +49,7 @@ int main(int argc,char **argv)
 
   */
 
-  PetscThreadCommView(PETSC_COMM_WORLD,PETSC_VIEWER_STDOUT_SELF);
+  //PetscThreadCommView(PETSC_COMM_WORLD,PETSC_VIEWER_STDOUT_SELF);
 
   ierr = VecCreate(PETSC_COMM_WORLD,&x);CHKERRQ(ierr);
   ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRQ(ierr);

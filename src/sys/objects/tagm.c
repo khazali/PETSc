@@ -181,45 +181,45 @@ PetscErrorCode  PetscCommDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,PetscMPII
   ierr = MPI_Barrier(comm_in);CHKERRQ(ierr);
 #endif
 
-  if (counter->tag < 1) {
-    ierr = PetscInfo1(0,"Out of tags for object, starting to recycle. Comm reference count %d\n",counter->refcount);CHKERRQ(ierr);
-    ierr = MPI_Attr_get(MPI_COMM_WORLD,MPI_TAG_UB,&maxval,&flg);CHKERRQ(ierr);
-    if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"MPI error: MPI_Attr_get() is not returning a MPI_TAG_UB");
-    counter->tag = *maxval - 128; /* hope that any still active tags were issued right at the beginning of the run */
-  }
+  /* if (counter->tag < 1) { */
+  /*   ierr = PetscInfo1(0,"Out of tags for object, starting to recycle. Comm reference count %d\n",counter->refcount);CHKERRQ(ierr); */
+  /*   ierr = MPI_Attr_get(MPI_COMM_WORLD,MPI_TAG_UB,&maxval,&flg);CHKERRQ(ierr); */
+  /*   if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"MPI error: MPI_Attr_get() is not returning a MPI_TAG_UB"); */
+  /*   counter->tag = *maxval - 128; /\* hope that any still active tags were issued right at the beginning of the run *\/ */
+  /* } */
 
-  // Attach Threadpool to communicator
-  if (first_tag) *first_tag = counter->tag--;
+  /* // Attach Threadpool to communicator */
+  /* if (first_tag) *first_tag = counter->tag--; */
 
-  ierr = MPI_Attr_get(*comm_out,Petsc_ThreadPool_keyval,(PetscThreadPool*)&pool,&flg);CHKERRQ(ierr);
-  if (!flg) {
-    /* Threadpool does not exist on this communicator, get the global threadpool and attach it to this communicator */
-    ierr = PetscThreadPoolGetPool(*comm_out,&pool);CHKERRQ(ierr);
-    ierr = PetscThreadPoolAttach(*comm_out,pool);CHKERRQ(ierr);
-  }
-  /* Only the main thread updates counter->refcount */
-  ierr = PetscThreadCommGetRank(&trank);CHKERRQ(ierr);
-  if (!trank) counter->refcount++; /* number of references to this comm */
+  /* ierr = MPI_Attr_get(*comm_out,Petsc_ThreadPool_keyval,(PetscThreadPool*)&pool,&flg);CHKERRQ(ierr); */
+  /* if (!flg) { */
+  /*   /\* Threadpool does not exist on this communicator, get the global threadpool and attach it to this communicator *\/ */
+  /*   ierr = PetscThreadPoolGetPool(*comm_out,&pool);CHKERRQ(ierr); */
+  /*   ierr = PetscThreadPoolAttach(*comm_out,pool);CHKERRQ(ierr); */
+  /* } */
+  /* /\* Only the main thread updates counter->refcount *\/ */
+  /* ierr = PetscThreadCommGetRank(&trank);CHKERRQ(ierr); */
+  /* if (!trank) counter->refcount++; /\* number of references to this comm *\/ */
 
-  if (counter->tag < 1) {
-    ierr = PetscInfo1(0,"Out of tags for object, starting to recycle. Comm reference count %d\n",counter->refcount);CHKERRQ(ierr);
-    ierr = MPI_Attr_get(MPI_COMM_WORLD,MPI_TAG_UB,&maxval,&flg);CHKERRQ(ierr);
-    if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"MPI error: MPI_Attr_get() is not returning a MPI_TAG_UB");
-    counter->tag = *maxval - 128; /* hope that any still active tags were issued right at the beginning of the run */
-  }
+  /* if (counter->tag < 1) { */
+  /*   ierr = PetscInfo1(0,"Out of tags for object, starting to recycle. Comm reference count %d\n",counter->refcount);CHKERRQ(ierr); */
+  /*   ierr = MPI_Attr_get(MPI_COMM_WORLD,MPI_TAG_UB,&maxval,&flg);CHKERRQ(ierr); */
+  /*   if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"MPI error: MPI_Attr_get() is not returning a MPI_TAG_UB"); */
+  /*   counter->tag = *maxval - 128; /\* hope that any still active tags were issued right at the beginning of the run *\/ */
+  /* } */
 
-  // Attach threadcomm to communicator
-  if (first_tag) *first_tag = counter->tag--;
+  /* // Attach threadcomm to communicator */
+  /* if (first_tag) *first_tag = counter->tag--; */
 
-  ierr = MPI_Attr_get(*comm_out,pool->tcworld_keyval,(PetscThreadComm*)&tcomm,&flg);CHKERRQ(ierr);
-  if (!flg) {
-    /* Threadcomm does not exist on this communicator, get the global threadcomm and attach it to this communicator */
-    ierr = PetscCommGetThreadComm(*comm_out,&tcomm);CHKERRQ(ierr);
-    ierr = PetscThreadCommAttach(*comm_out,tcomm);CHKERRQ(ierr);
-  }
-  /* Only the main thread updates counter->refcount */
-  ierr = PetscThreadCommGetRank(&trank);CHKERRQ(ierr);
-  if (!trank) counter->refcount++; /* number of references to this comm */
+  /* ierr = MPI_Attr_get(*comm_out,pool->tcworld_keyval,(PetscThreadComm*)&tcomm,&flg);CHKERRQ(ierr); */
+  /* if (!flg) { */
+  /*   /\* Threadcomm does not exist on this communicator, get the global threadcomm and attach it to this communicator *\/ */
+  /*   ierr = PetscCommGetThreadComm(*comm_out,&tcomm);CHKERRQ(ierr); */
+  /*   ierr = PetscThreadCommAttach(*comm_out,tcomm);CHKERRQ(ierr); */
+  /* } */
+  /* /\* Only the main thread updates counter->refcount *\/ */
+  /* ierr = PetscThreadCommGetRank(&trank);CHKERRQ(ierr); */
+  /* if (!trank) counter->refcount++; /\* number of references to this comm *\/ */
 
   PetscFunctionReturn(0);
 }

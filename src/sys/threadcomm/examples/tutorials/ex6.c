@@ -9,23 +9,24 @@ static char help[] = "Test PetscThreadPool with OpenMP with PETSc vector routine
 #define __FUNCT__ "main"
 int main(int argc,char **argv)
 {
-  Vec             x, y, a, b, c;
+  Vec             x, y;//, a, b, c;
   PetscErrorCode  ierr;
-  PetscInt        nthreads, n=20, lsize;
+  PetscInt        nthreads, n=20;
   PetscScalar     alpha=3.0;
-  PetscThreadComm tcomm;
+  MPI_Comm        comm1;
+  PetscThreadComm tcomm1;
 
   PetscInitialize(&argc,&argv,(char*)0,help);
 
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRQ(ierr);
-  ierr = PetscThreadPoolGetNThreads(PETSC_COMM_WORLD,&nthreads);CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"nthreads=%d\n",nthreads);CHKERRQ(ierr);
+  ierr = PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&nthreads);CHKERRQ(ierr);
+  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,nthreads,PETSC_FALSE,&comm1,&tcomm1);
+  ierr = PetscPrintf(comm1,"nthreads=%d\n",nthreads);CHKERRQ(ierr);
 
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"Creating vecs\n");CHKERRQ(ierr);
-  ierr = VecCreateMPI(PETSC_COMM_WORLD,PETSC_DECIDE,n,&x);CHKERRQ(ierr);
+  ierr = PetscPrintf(comm1,"Creating vecs\n");CHKERRQ(ierr);
+  ierr = VecCreateMPI(comm1,PETSC_DECIDE,n,&x);CHKERRQ(ierr);
   ierr = VecSetFromOptions(x);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&y);CHKERRQ(ierr);
-  ierr = VecDuplicate(x,&c);CHKERRQ(ierr);
 
   #pragma omp parallel num_threads(nthreads) default(shared) private(ierr)
   {
@@ -37,20 +38,30 @@ int main(int argc,char **argv)
     ierr = PetscCommGetThreadComm(PETSC_COMM_WORLD,&tcomm);CHKERRCONTINUE(ierr);
 
     // User gives threads to PETSc for threaded PETSc work
-    ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank,tcomm);CHKERRCONTINUE(ierr);
-    PetscPrintf(PETSC_COMM_WORLD,"trank=%d joined pool prank=%d\n",trank,prank);
+    ierr = PetscThreadPoolJoin(comm1,trank,&prank);CHKERRCONTINUE(ierr);
+    PetscPrintf(comm1,"trank=%d joined pool prank=%d\n",trank,prank);
     if(prank>=0) {
-      PetscPrintf(PETSC_COMM_WORLD,"Vec work\n");
+      PetscPrintf(comm1,"Vec work\n");
       ierr = VecSet(x,2.0);CHKERRCONTINUE(ierr);
       ierr = VecSet(y,3.0);CHKERRCONTINUE(ierr);
       ierr = VecAXPY(y,alpha,x);CHKERRCONTINUE(ierr);
       ierr = VecNorm(y,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
-      ierr = PetscPrintf(PETSC_COMM_WORLD,"Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm1,"Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
     }
-    ierr = PetscThreadPoolReturn(PETSC_COMM_WORLD,&prank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadPoolReturn(comm1,&prank);CHKERRCONTINUE(ierr);
+  }
+
+  // Destroy Vecs
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"Vec destroy\n");CHKERRCONTINUE(ierr);
+  ierr = VecDestroy(&x);CHKERRCONTINUE(ierr);
+  ierr = VecDestroy(&y);CHKERRCONTINUE(ierr);
+
+  PetscFinalize();
+  return 0;
+}
 
     // Get data for local work
-    ierr = VecGetArray(y,&ay);CHKERRCONTINUE(ierr);
+    /*ierr = VecGetArray(y,&ay);CHKERRCONTINUE(ierr);
     ierr = VecGetLocalSize(x,&lsize);CHKERRCONTINUE(ierr);
     ierr = PetscThreadCommGetOwnershipRanges(PETSC_COMM_WORLD,lsize,&indices);CHKERRCONTINUE(ierr);
 
@@ -63,10 +74,10 @@ int main(int argc,char **argv)
     }
 
     // Restore vector
-    ierr = VecRestoreArray(y,&ay);CHKERRCONTINUE(ierr);
+    ierr = VecRestoreArray(y,&ay);CHKERRCONTINUE(ierr);*/
 
     // User gives threads to PETSc for threaded PETSc work
-    ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank,tcomm);CHKERRCONTINUE(ierr);
+    /*ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank,tcomm);CHKERRCONTINUE(ierr);
     if(prank>=0) {
 
       // Vec work
@@ -131,7 +142,7 @@ int main(int argc,char **argv)
       VecMDot(c,2,mvecs,vals);
       ierr = PetscPrintf(PETSC_COMM_WORLD,"mdot n1=%f n2=%f\n",vals[0],vals[1]);CHKERRCONTINUE(ierr);
     }
-    ierr = PetscThreadPoolReturn(PETSC_COMM_WORLD,&prank);CHKERRCONTINUE(ierr);
+     ierr = PetscThreadPoolReturn(PETSC_COMM_WORLD,&prank);CHKERRCONTINUE(ierr);
   }
 
   // Destroy Vecs
@@ -143,4 +154,4 @@ int main(int argc,char **argv)
 
   PetscFinalize();
   return 0;
-}
+     }*/

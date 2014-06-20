@@ -185,15 +185,15 @@ PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm tcomm,PetscThrea
   PetscErrorCode          ierr;
   PetscThreadComm_PThread ptcomm;
   PetscThreadPool pool = PETSC_THREAD_POOL;
-  PetscThreadCommJobQueue jobqueue=tcomm->jobqueue;
+  //PetscThreadCommJobQueue jobqueue=tcomm->jobqueue;
 
   PetscFunctionBegin;
   printf("rank=%d running kernel\n",0);
   ptcomm = (PetscThreadComm_PThread)pool->data;
   if (pool->ismainworker) {
     job->job_status[0]   = THREAD_JOB_RECIEVED;
-    jobqueue->tinfo[0]->data = job;
-    PetscRunKernel(0,job->nargs, jobqueue->tinfo[0]->data);
+    tcomm->commthreads[0]->jobdata = job;
+    PetscRunKernel(0,job->nargs, tcomm->commthreads[0]->jobdata);
     job->job_status[0]   = THREAD_JOB_COMPLETED;
   }
   if (pool->synchronizeafter) {
@@ -210,26 +210,25 @@ PetscErrorCode PetscThreadCommInitialize_PThread(PetscThreadComm tcomm)
   PetscInt                i;
   PetscThreadPool pool = PETSC_THREAD_POOL;
   PetscThreadComm_PThread ptcomm=(PetscThreadComm_PThread)pool->data;
-  PetscThreadCommJobQueue jobqueue=tcomm->jobqueue;
+  //PetscThreadCommJobQueue jobqueue=tcomm->jobqueue;
 
   PetscFunctionBegin;
   /* Create threads */
   for (i=tcomm->thread_start; i < tcomm->ncommthreads; i++) {
     printf("Creating thread=%d\n",i);
-    jobqueue->tinfo[i]->status = THREAD_CREATED;
-    jobqueue->tinfo[i]->rank = pool->granks[i];
-    jobqueue->tinfo[i]->tcomm = tcomm;
-    ierr = pthread_create(&ptcomm->tid[i],&ptcomm->attr[i],&PetscThreadPoolFunc,&jobqueue->tinfo[i]);CHKERRQ(ierr);
+    tcomm->commthreads[i]->status = THREAD_CREATED;
+    tcomm->commthreads[i]->tcomm = tcomm;
+    ierr = pthread_create(&ptcomm->tid[i],&ptcomm->attr[i],&PetscThreadPoolFunc,&tcomm->commthreads[i]);CHKERRQ(ierr);
   }
 
-  if (pool->ismainworker) jobqueue->tinfo[0]->status = THREAD_INITIALIZED;
+  if (pool->ismainworker) tcomm->commthreads[0]->status = THREAD_INITIALIZED;
 
   PetscInt threads_initialized=0;
   /* Wait till all threads have been initialized */
   while (threads_initialized != tcomm->ncommthreads) {
     threads_initialized=0;
     for (i=0; i<tcomm->ncommthreads; i++) {
-      if (!jobqueue->tinfo[pool->granks[i]]->status) break;
+      if (!tcomm->commthreads[i]->status) break;
       threads_initialized++;
     }
   }
@@ -244,14 +243,14 @@ PetscErrorCode PetscThreadCommFinalize_PThread(PetscThreadComm tcomm)
   void                    *jstatus;
   PetscThreadPool pool = PETSC_THREAD_POOL;
   PetscThreadComm_PThread ptcomm=(PetscThreadComm_PThread)pool->data;
-  PetscThreadCommJobQueue jobqueue=tcomm->jobqueue;
+  //PetscThreadCommJobQueue jobqueue=tcomm->jobqueue;
   PetscInt                i;
 
   PetscFunctionBegin;
   ierr = (*pool->ops->kernelbarrier)(tcomm);CHKERRQ(ierr);
   for (i=tcomm->thread_start; i < tcomm->ncommthreads; i++) {
     printf("Terminating thread=%d\n",i);
-    jobqueue->tinfo[i]->status = THREAD_TERMINATE;
+    tcomm->commthreads[i]->status = THREAD_TERMINATE;
     ierr = pthread_join(ptcomm->tid[i],&jstatus);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);

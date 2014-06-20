@@ -6,7 +6,7 @@ CPPFLAGS         =
 FPPFLAGS         =
 LOCDIR           = src/sys/threadcomm/examples/tutorials/
 MANSEC           = PetscThreadComm
-EXAMPLESC        = ex1.c ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c ex9.c ex10.c
+EXAMPLESC        = ex1.c ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c ex9.c ex10.c ex11.c
 
 include ${PETSC_DIR}/conf/variables
 include ${PETSC_DIR}/conf/rules
@@ -51,3 +51,7 @@ ex9: ex9.o chkopts
 ex10: ex10.o chkopts
 	-${CLINKER} -o ex10 ex10.o  ${PETSC_VEC_LIB}
 	${RM} -f ex10.o
+
+ex11: ex11.o chkopts
+	-${CLINKER} -o ex11 ex11.o  ${PETSC_VEC_LIB}
+	${RM} -f ex11.o

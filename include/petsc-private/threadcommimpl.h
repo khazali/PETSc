@@ -105,21 +105,13 @@ struct  _p_PetscThreadCommJobCtx{
   PetscInt          *job_status;                   /* Thread job status */
 };
 
-typedef struct _p_PetscThreadInfo* PetscThreadInfo;
-struct _p_PetscThreadInfo{
-  PetscInt        rank;       /* Rank of thread */
-  PetscThreadComm tcomm;      /* Thread comm for current thread */
-  PetscInt        status;     /* Status of current job for each thread */
-  PetscThreadCommJobCtx data; /* Data for current job for each thread */
-};
-
 /* Structure to manage job queue */
 typedef struct _p_PetscThreadCommJobQueue* PetscThreadCommJobQueue;
 struct _p_PetscThreadCommJobQueue{
   PetscInt ctr;                      /* Job counter */
   PetscInt kernel_ctr;               /* Kernel counter .. need this otherwise race conditions are unavoidable */
   PetscThreadCommJobCtx jobs;        /* Queue of jobs */
-  PetscThreadInfo *tinfo;            /* Data to pass to pthread worker */
+  //PetscThreadInfo *tinfo;            /* Data to pass to pthread worker */
 };
 
 typedef struct _PetscThreadCommOps* PetscThreadCommOps;
@@ -133,14 +125,15 @@ struct _PetscThreadCommOps {
   PetscErrorCode (*getrank)(PetscInt*);
 };
 
-//typedef struct _p_PetscThread* PetscThread;
-//struct _p_PetscThread{
-//  PetscInt grank;    /* Thread rank in pool */
-//  PetscInt affinity; /* Thread affinity */
-//};
+typedef struct _p_PetscThread* PetscThread;
+struct _p_PetscThread{
+  PetscInt              grank;   /* Thread rank in pool */
+  PetscThreadComm       tcomm;   /* Thread comm for current thread */
+  PetscInt              status;  /* Status of current job for each thread */
+  PetscThreadCommJobCtx jobdata; /* Data for current job for each thread */
+};
 
 struct _p_PetscThreadPool{
-
   // General threadpool information
   PetscInt                refct;           /* Number of MPI_Comm references */
   PetscThreadCommOps      ops;             /* Operations table */
@@ -157,18 +150,13 @@ struct _p_PetscThreadPool{
 
   // Thread information
   PetscInt                npoolthreads;    /* Max number of threads pool can hold */
-  PetscInt                *granks;
   PetscInt                *affinities;
   void                    *data;           /* Implementation specific data */
   PetscMPIInt             *thread_keyvals; /* Array of key values for active threadcomm for each thread */
-  //PetscThread             *threads;   /* Array of threads */
+  PetscThread             *poolthreads;   /* Array of all threads */
 };
 
-/* Global thread pool that holds all threads and thread information */
-extern PetscThreadPool PETSC_THREAD_POOL;
-
 struct _p_PetscThreadComm{
-
   // General threadcomm information
   PetscInt                 refct;        /* Number of MPI_Comm references */
   PetscInt                 leader;       /* Rank of the leader thread. This thread manages
@@ -177,11 +165,13 @@ struct _p_PetscThreadComm{
   PetscInt                 thread_start; /* Index for the first created thread (=1 if main thread is a worker, else 0 */
   PetscThreadCommReduction red;          /* Reduction context */
   PetscBool                active;       /* Does this threadcomm have access to the threads? */
-  PetscMPIInt              keyval;       /* MPI keyvalue used to retreive threadcomm from MPI comm */
+
 
   // Thread information
+  PetscThreadPool         *pool;        /* Threadpool containing threads for this comm */
   PetscInt                ncommthreads; /* Max threads comm can use */
   PetscInt                nthreads;     /* Number of active threads available to comm */
+  PetscThread             *commthreads; /* Threads that this comm can use */
 
   // Job information
   PetscThreadCommJobQueue jobqueue;     /* Job queue */
