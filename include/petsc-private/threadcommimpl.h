@@ -19,7 +19,6 @@
 #endif
 
 PETSC_EXTERN PetscMPIInt Petsc_ThreadComm_keyval;
-PETSC_EXTERN PetscMPIInt Petsc_ThreadPool_keyval;
 
 /* Max. number of arguments for kernel */
 #define PETSC_KERNEL_NARGS_MAX 10
@@ -102,7 +101,7 @@ struct  _p_PetscThreadCommJobCtx{
   void              *args[PETSC_KERNEL_NARGS_MAX]; /* Array of void* to hold the arguments */
   PetscScalar       scalars[3];                    /* Array to hold three scalar values */
   PetscInt          ints[3];                       /* Array to hold three integer values */
-  PetscInt          *job_status;                   /* Thread job status */
+  PetscInt          job_status;                   /* Thread job status */
 };
 
 /* Structure to manage job queue */
@@ -133,6 +132,13 @@ struct _p_PetscThread{
   PetscThreadComm       tcomm;   /* Thread comm for current thread */
   PetscInt              status;  /* Status of current job for each thread */
   PetscThreadCommJobCtx jobdata; /* Data for current job for each thread */
+
+  // Job information
+  PetscThreadCommJobQueue jobqueue;     /* Job queue */
+  PetscInt                job_ctr;      /* which job is this threadcomm running in the job queue */
+  PetscInt                my_job_counter;
+  PetscInt                my_kernel_ctr;
+  PetscInt                glob_kernel_ctr;
 };
 
 struct _p_PetscThreadPool{
@@ -174,22 +180,10 @@ struct _p_PetscThreadComm{
   PetscInt                nthreads;     /* Number of active threads available to comm */
   PetscThread             *commthreads; /* Threads that this comm can use */
 
-  // Job information
-  PetscThreadCommJobQueue jobqueue;     /* Job queue */
-  PetscInt                job_ctr;      /* which job is this threadcomm running in the job queue */
-  PetscInt                *my_job_counter;
-  PetscInt                *my_kernel_ctr;
-  PetscInt                *glob_kernel_ctr;
-
   // User barrier
   PetscInt                barrier_threads;
   PetscBool               wait1, wait2;
 };
-
-/* Global thread communicator that manages all the threads. Other threadcomms
-   use threads from PETSC_THREAD_COMM_WORLD
-*/
-extern PetscThreadComm PETSC_THREAD_COMM_WORLD;
 
 /* register thread communicator models */
 PETSC_EXTERN PetscErrorCode PetscThreadPoolModelRegister(const char[],PetscErrorCode(*)(PetscThreadPool));

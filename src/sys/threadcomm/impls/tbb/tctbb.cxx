@@ -11,9 +11,9 @@ class TBBRunKernel {
 public:
   void operator()(blocked_range<size_t>& r) const {
     PetscInt trank= r.begin();
-    job->job_status[trank] = THREAD_JOB_RECIEVED;
+    job->job_status = THREAD_JOB_RECIEVED;
     PetscRunKernel(trank,job->nargs,job);
-    job->job_status[trank]= THREAD_JOB_COMPLETED;
+    job->job_status = THREAD_JOB_COMPLETED;
   }
 
   TBBRunKernel(PetscThreadCommJobCtx ijob) : job(ijob) {}

@@ -70,11 +70,11 @@ PetscErrorCode PetscThreadCommRunKernel_OpenMPLoop(PetscThreadComm tcomm,PetscTh
   PetscInt        trank=0;
 
   PetscFunctionBegin;
-#pragma omp parallel num_threads(tcomm->ncommthreads) shared(job) private(trank)
+#pragma omp parallel num_threads(tcomm->ncommthreads) private(trank)
   {
     trank = omp_get_thread_num();
     PetscRunKernel(trank,job->nargs,job);
-    job->job_status[trank] = THREAD_JOB_COMPLETED;
+    job->job_status = THREAD_JOB_COMPLETED;
   }
   PetscFunctionReturn(0);
 }
@@ -89,9 +89,9 @@ PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm tcomm,PetscTh
   PetscFunctionBegin;
   printf("Running OpenMP User kernel\n");
   if(pool->ismainworker) {
-    job->job_status[0] = THREAD_JOB_RECIEVED;
+    job->job_status = THREAD_JOB_RECIEVED;
     PetscRunKernel(0,job->nargs,job);
-    job->job_status[0] = THREAD_JOB_COMPLETED;
+    job->job_status = THREAD_JOB_COMPLETED;
   }
   if(pool->synchronizeafter) {
     ierr = (*pool->ops->kernelbarrier)(tcomm);CHKERRCONTINUE(ierr);
