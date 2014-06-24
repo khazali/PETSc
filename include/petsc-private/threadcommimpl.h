@@ -111,7 +111,6 @@ struct _p_PetscThreadCommJobQueue{
   PetscInt ctr;                      /* Job counter */
   PetscInt kernel_ctr;               /* Kernel counter .. need this otherwise race conditions are unavoidable */
   PetscThreadCommJobCtx jobs;        /* Queue of jobs */
-  //PetscThreadInfo *tinfo;            /* Data to pass to pthread worker */
 };
 
 typedef struct _PetscThreadCommOps* PetscThreadCommOps;
@@ -123,6 +122,9 @@ struct _PetscThreadCommOps {
   PetscErrorCode (*globalbarrier)();
   PetscErrorCode (*atomicincrement)(PetscThreadComm,PetscInt*,PetscInt);
   PetscErrorCode (*getrank)(PetscInt*);
+  // Create threads and put in ThreadPool
+  PetscErrorCode (*createthreads)(PetscThreadComm);
+  PetscErrorCode (*destroythreads)(PetscThreadComm);
 };
 
 typedef struct _p_PetscThread* PetscThread;
@@ -138,7 +140,6 @@ struct _p_PetscThreadPool{
   PetscInt                refct;           /* Number of MPI_Comm references */
   PetscThreadCommOps      ops;             /* Operations table */
   char                    type[256];       /* Thread model type */
-  PetscMPIInt             tcworld_keyval;  /* Key value for ThreadCommWorld */
 
   // User input options
   PetscInt                model;             /* Threading model used */
@@ -147,12 +148,12 @@ struct _p_PetscThreadPool{
   PetscBool                synchronizeafter; /* Whether the main thread should block until all threads complete kernel */
   PetscBool               ismainworker; /* Is the main thread also a work thread? */
   PetscInt                nkernels;     /* Maximum kernels launched */
+  PetscBool               createdthreads; /* Did PETSc create threads? */
 
   // Thread information
   PetscInt                npoolthreads;    /* Max number of threads pool can hold */
   PetscInt                *affinities;
   void                    *data;           /* Implementation specific data */
-  PetscMPIInt             *thread_keyvals; /* Array of key values for active threadcomm for each thread */
   PetscThread             *poolthreads;   /* Array of all threads */
 };
 
@@ -168,7 +169,7 @@ struct _p_PetscThreadComm{
 
 
   // Thread information
-  PetscThreadPool         *pool;        /* Threadpool containing threads for this comm */
+  PetscThreadPool         pool;        /* Threadpool containing threads for this comm */
   PetscInt                ncommthreads; /* Max threads comm can use */
   PetscInt                nthreads;     /* Number of active threads available to comm */
   PetscThread             *commthreads; /* Threads that this comm can use */

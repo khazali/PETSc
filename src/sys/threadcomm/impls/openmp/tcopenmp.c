@@ -83,7 +83,7 @@ PetscErrorCode PetscThreadCommRunKernel_OpenMPLoop(PetscThreadComm tcomm,PetscTh
 #define __FUNCT__ "PetscThreadCommRunKernel_OpenMPUser"
 PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm tcomm,PetscThreadCommJobCtx job)
 {
-  PetscThreadPool pool = PETSC_THREAD_POOL;
+  PetscThreadPool pool = tcomm->pool;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;

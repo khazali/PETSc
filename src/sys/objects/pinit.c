@@ -1100,7 +1100,7 @@ PetscErrorCode  PetscFinalize(void)
 #endif
   mname[0] = 0;
 
-  ierr = PetscLogViewFromOptions();CHKERRQ(ierr);  
+  ierr = PetscLogViewFromOptions();CHKERRQ(ierr);
   ierr = PetscOptionsGetString(NULL,"-log_summary",mname,PETSC_MAX_PATH_LEN,&flg1);CHKERRQ(ierr);
   if (flg1) {
     PetscViewer viewer;
@@ -1196,17 +1196,12 @@ PetscErrorCode  PetscFinalize(void)
   }
 #endif
 
-  {
-    PetscThreadComm tcomm_world;
-    ierr = PetscGetThreadCommWorld(&tcomm_world);CHKERRQ(ierr);
-    /* Free global thread communicator */
-    ierr = PetscThreadCommDestroy(&tcomm_world);CHKERRQ(ierr);
-
-    PetscThreadPool pool;
-    ierr = PetscThreadPoolGetPool(PETSC_COMM_WORLD,&pool);CHKERRQ(ierr);
-    /* Free thread pool */
-    ierr = PetscThreadPoolDestroy(&pool);CHKERRQ(ierr);
-  }
+  /* { */
+  /*   PetscThreadComm tcomm; */
+  /*   ierr = PetscCommGetThreadComm(PETSC_COMM_WORLD,&tcomm);CHKERRQ(ierr); */
+  /*   /\* Free global thread communicator *\/ */
+  /*   ierr = PetscThreadCommDestroy(&tcomm);CHKERRQ(ierr); */
+  /* } */
 
 #if defined(PETSC_USE_LOG)
   /*

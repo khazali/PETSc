@@ -310,9 +310,9 @@ PetscErrorCode PetscSubcommCreate_contiguous(PetscSubcomm psubcomm)
   {
     PetscThreadComm tcomm;
     ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-    ierr = MPI_Attr_put(dupcomm,tcomm->keyval,tcomm);CHKERRQ(ierr);
+    ierr = MPI_Attr_put(dupcomm,Petsc_ThreadComm_keyval,tcomm);CHKERRQ(ierr);
     tcomm->refct++;
-    ierr = MPI_Attr_put(subcomm,tcomm->keyval,tcomm);CHKERRQ(ierr);
+    ierr = MPI_Attr_put(subcomm,Petsc_ThreadComm_keyval,tcomm);CHKERRQ(ierr);
     tcomm->refct++;
   }
   ierr = PetscCommDuplicate(dupcomm,&psubcomm->dupparent,NULL);CHKERRQ(ierr);
@@ -394,9 +394,9 @@ PetscErrorCode PetscSubcommCreate_interlaced(PetscSubcomm psubcomm)
   {
     PetscThreadComm tcomm;
     ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-    ierr = MPI_Attr_put(dupcomm,tcomm->keyval,tcomm);CHKERRQ(ierr);
+    ierr = MPI_Attr_put(dupcomm,Petsc_ThreadComm_keyval,tcomm);CHKERRQ(ierr);
     tcomm->refct++;
-    ierr = MPI_Attr_put(subcomm,tcomm->keyval,tcomm);CHKERRQ(ierr);
+    ierr = MPI_Attr_put(subcomm,Petsc_ThreadComm_keyval,tcomm);CHKERRQ(ierr);
     tcomm->refct++;
   }
   ierr = PetscCommDuplicate(dupcomm,&psubcomm->dupparent,NULL);CHKERRQ(ierr);

@@ -15,10 +15,7 @@ static PetscBool PetscThreadPoolPackageInitialized = PETSC_FALSE;
 @*/
 PetscErrorCode PetscThreadPoolFinalizePackage(void)
 {
-  PetscErrorCode ierr;
-
   PetscFunctionBegin;
-  ierr = MPI_Keyval_free(&Petsc_ThreadPool_keyval);CHKERRQ(ierr);
   PetscThreadPoolPackageInitialized = PETSC_FALSE;
   PetscFunctionReturn(0);
 }
@@ -61,7 +58,7 @@ PETSC_EXTERN PetscMPIInt MPIAPI Petsc_DelThreadPool(MPI_Comm comm,PetscMPIInt ke
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscThreadPoolDestroy((PetscThreadPool*)&attr);CHKERRQ(ierr);
+  ierr = PetscThreadPoolDestroy((PetscThreadComm)&attr);CHKERRQ(ierr);
   ierr = PetscInfo1(0,"Deleting thread pool data in an MPI_Comm %ld\n",(long)comm);if (ierr) PetscFunctionReturn((PetscMPIInt)ierr);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -83,10 +80,6 @@ PetscErrorCode PetscThreadPoolInitializePackage(void)
 
   PetscFunctionBegin;
   if (PetscThreadPoolPackageInitialized) PetscFunctionReturn(0);
-
-  if (Petsc_ThreadPool_keyval == MPI_KEYVAL_INVALID) {
-    ierr = MPI_Keyval_create(Petsc_CopyThreadPool,Petsc_DelThreadPool,&Petsc_ThreadPool_keyval,(void*)0);CHKERRQ(ierr);
-  }
 
   ierr = PetscGetNCores(NULL);CHKERRQ(ierr);
 

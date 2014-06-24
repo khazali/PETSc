@@ -36,7 +36,7 @@ PetscErrorCode PetscThreadCommGetRank_PThread(PetscInt *trank)
 #define __FUNCT__ "PetscThreadCommSetAffinity_PThread"
 PetscErrorCode PetscThreadCommSetAffinity_PThread(PetscThreadComm tcomm)
 {
-  PetscThreadPool         pool = PETSC_THREAD_POOL;
+  PetscThreadPool         pool = tcomm->pool;
   PetscErrorCode          ierr;
   PetscThreadComm_PThread ptcomm=(PetscThreadComm_PThread)pool->data;
   pthread_attr_t          *attr =ptcomm->attr;
@@ -69,7 +69,7 @@ PetscErrorCode PetscThreadCommSetAffinity_PThread(PetscThreadComm tcomm)
 #define __FUNCT__ "PetscThreadCommDestroy_PThread"
 PetscErrorCode PetscThreadCommDestroy_PThread(PetscThreadComm tcomm)
 {
-  PetscThreadPool pool = PETSC_THREAD_POOL;
+  PetscThreadPool pool = tcomm->pool;
   PetscThreadComm_PThread ptcomm=(PetscThreadComm_PThread)pool->data;
   PetscErrorCode          ierr;
 
@@ -166,6 +166,8 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadUser(PetscThreadPool po
   pool->ops->globalbarrier   = PetscThreadCommBarrier_PThread;
   pool->ops->atomicincrement = PetscThreadCommAtomicIncrement_PThread;
   pool->ops->getrank         = PetscThreadCommGetRank_PThread;
+  pool->ops->createthreads   = PetscThreadCommInitialize_PThread;
+  pool->ops->destroythreads  = PetscThreadCommFinalize_PThread;
 
   if (pool->ismainworker) {
 #if defined(PETSC_PTHREAD_LOCAL)
@@ -184,7 +186,7 @@ PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm tcomm,PetscThrea
 {
   PetscErrorCode          ierr;
   PetscThreadComm_PThread ptcomm;
-  PetscThreadPool pool = PETSC_THREAD_POOL;
+  PetscThreadPool pool = tcomm->pool;
   //PetscThreadCommJobQueue jobqueue=tcomm->jobqueue;
 
   PetscFunctionBegin;
@@ -208,7 +210,7 @@ PetscErrorCode PetscThreadCommInitialize_PThread(PetscThreadComm tcomm)
 {
   PetscErrorCode          ierr;
   PetscInt                i;
-  PetscThreadPool pool = PETSC_THREAD_POOL;
+  PetscThreadPool pool = tcomm->pool;
   PetscThreadComm_PThread ptcomm=(PetscThreadComm_PThread)pool->data;
   //PetscThreadCommJobQueue jobqueue=tcomm->jobqueue;
 
@@ -216,16 +218,16 @@ PetscErrorCode PetscThreadCommInitialize_PThread(PetscThreadComm tcomm)
   /* Create threads */
   for (i=tcomm->thread_start; i < tcomm->ncommthreads; i++) {
     printf("Creating thread=%d\n",i);
-    tcomm->commthreads[i]->status = THREAD_CREATED;
-    tcomm->commthreads[i]->tcomm = tcomm;
-    ierr = pthread_create(&ptcomm->tid[i],&ptcomm->attr[i],&PetscThreadPoolFunc,&tcomm->commthreads[i]);CHKERRQ(ierr);
+    pool->poolthreads[i]->status = THREAD_CREATED;
+    pool->poolthreads[i]->tcomm = tcomm;
+    ierr = pthread_create(&ptcomm->tid[i],&ptcomm->attr[i],&PetscThreadPoolFunc,&pool->poolthreads[i]);CHKERRQ(ierr);
   }
 
-  if (pool->ismainworker) tcomm->commthreads[0]->status = THREAD_INITIALIZED;
+  if (pool->ismainworker) pool->poolthreads[0]->status = THREAD_INITIALIZED;
 
   PetscInt threads_initialized=0;
   /* Wait till all threads have been initialized */
-  while (threads_initialized != tcomm->ncommthreads) {
+  while (threads_initialized != pool->npoolthreads) {
     threads_initialized=0;
     for (i=0; i<tcomm->ncommthreads; i++) {
       if (!tcomm->commthreads[i]->status) break;
@@ -241,7 +243,7 @@ PetscErrorCode PetscThreadCommFinalize_PThread(PetscThreadComm tcomm)
 {
   PetscErrorCode          ierr;
   void                    *jstatus;
-  PetscThreadPool pool = PETSC_THREAD_POOL;
+  PetscThreadPool pool = tcomm->pool;
   PetscThreadComm_PThread ptcomm=(PetscThreadComm_PThread)pool->data;
   //PetscThreadCommJobQueue jobqueue=tcomm->jobqueue;
   PetscInt                i;
@@ -260,7 +262,7 @@ PetscErrorCode PetscThreadCommFinalize_PThread(PetscThreadComm tcomm)
 #define __FUNCT__ "PetscThreadCommBarrier_PThread"
 PetscErrorCode PetscThreadCommBarrier_PThread(PetscThreadComm tcomm)
 {
-  PetscThreadPool pool = PETSC_THREAD_POOL;
+  PetscThreadPool pool = tcomm->pool;
   PetscThreadComm_PThread ptcomm = (PetscThreadComm_PThread)pool->data;
 
   PetscFunctionBegin;
@@ -272,7 +274,7 @@ PetscErrorCode PetscThreadCommBarrier_PThread(PetscThreadComm tcomm)
 #define __FUNCT__ "PetscThreadCommAtomicIncrement_PThread"
 PetscErrorCode PetscThreadCommAtomicIncrement_PThread(PetscThreadComm tcomm,PetscInt *val,PetscInt inc)
 {
-  PetscThreadPool pool = PETSC_THREAD_POOL;
+  PetscThreadPool pool = tcomm->pool;
   PetscThreadComm_PThread ptcomm = (PetscThreadComm_PThread)pool->data;
 
   PetscFunctionBegin;
