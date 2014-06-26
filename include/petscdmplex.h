@@ -145,6 +145,7 @@ PETSC_EXTERN PetscErrorCode DMPlexCreatePartitionClosure(DM, PetscSection, IS, P
 PETSC_EXTERN PetscErrorCode DMPlexDistribute(DM, const char[], PetscInt, PetscSF*, DM*);
 PETSC_EXTERN PetscErrorCode DMPlexDistributeField(DM,PetscSF,PetscSection,Vec,PetscSection,Vec);
 PETSC_EXTERN PetscErrorCode DMPlexDistributeData(DM,PetscSF,PetscSection,MPI_Datatype,void*,PetscSection,void**);
+PETSC_EXTERN PetscErrorCode DMPlexDecompose(DM, const char [], PetscInt, PetscInt, DM **);
 PETSC_EXTERN PetscErrorCode DMPlexSetAdjacencyUseCone(DM,PetscBool);
 PETSC_EXTERN PetscErrorCode DMPlexGetAdjacencyUseCone(DM,PetscBool*);
 PETSC_EXTERN PetscErrorCode DMPlexSetAdjacencyUseClosure(DM,PetscBool);
