@@ -26,9 +26,8 @@ typedef struct {
   PetscInt      dim;               /* The topological mesh dimension */
   char          filename[2048];    /* The optional ExodusII file */
   PetscBool     interpolate;       /* Generate intermediate mesh elements */
+  PetscBool     simplex;           /* Use simplices or tensor product cells */
   PetscReal     refinementLimit;   /* The largest allowable cell volume */
-  PetscBool     refinementUniform; /* Uniformly refine the mesh */
-  PetscInt      refinementRounds;  /* The number of uniform refinements */
   char          partitioner[2048]; /* The graph partitioner */
   /* Problem definition */
   BCType        bcType;
@@ -247,9 +246,8 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->dim                 = 2;
   options->filename[0]         = '\0';
   options->interpolate         = PETSC_FALSE;
+  options->simplex             = PETSC_TRUE;
   options->refinementLimit     = 0.0;
-  options->refinementUniform   = PETSC_FALSE;
-  options->refinementRounds    = 1;
   options->bcType              = DIRICHLET;
   options->variableCoefficient = COEFF_NONE;
   options->jacobianMF          = PETSC_FALSE;
@@ -273,9 +271,9 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   if (flg) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "This option requires ExodusII support. Reconfigure using --download-exodusii");
 #endif
   ierr = PetscOptionsBool("-interpolate", "Generate intermediate mesh elements", "ex12.c", options->interpolate, &options->interpolate, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-simplex", "Use simplices or tensor product cells", "ex12.c", options->simplex, &options->simplex, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-refinement_limit", "The largest allowable cell volume", "ex12.c", options->refinementLimit, &options->refinementLimit, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsBool("-refinement_uniform", "Uniformly refine the mesh", "ex52.c", options->refinementUniform, &options->refinementUniform, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-refinement_rounds", "The number of uniform refinements", "ex52.c", options->refinementRounds, &options->refinementRounds, NULL);CHKERRQ(ierr);
+  if (!options->simplex && options->refinementLimit > 0.0) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Cannot refine tensor cells based on a volume criterion");
   ierr = PetscStrcpy(options->partitioner, "chaco");CHKERRQ(ierr);
   ierr = PetscOptionsString("-partitioner", "The graph partitioner", "pflotran.cxx", options->partitioner, options->partitioner, 2048, NULL);CHKERRQ(ierr);
   bc   = options->bcType;
@@ -307,13 +305,14 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 #define __FUNCT__ "CreateMesh"
 PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 {
-  PetscInt       dim               = user->dim;
-  const char    *filename          = user->filename;
-  PetscBool      interpolate       = user->interpolate;
-  PetscReal      refinementLimit   = user->refinementLimit;
-  PetscBool      refinementUniform = user->refinementUniform;
-  PetscInt       refinementRounds  = user->refinementRounds;
-  const char    *partitioner       = user->partitioner;
+  DM             refinedMesh     = NULL;
+  DM             distributedMesh = NULL;
+  PetscInt       dim             = user->dim;
+  const char    *filename        = user->filename;
+  PetscBool      interpolate     = user->interpolate;
+  PetscReal      refinementLimit = user->refinementLimit;
+  const char    *partitioner     = user->partitioner;
+  const PetscInt cells[3]        = {4, 4, 4};
   size_t         len;
   PetscErrorCode ierr;
 
@@ -321,7 +320,8 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   ierr = PetscLogEventBegin(user->createMeshEvent,0,0,0,0);CHKERRQ(ierr);
   ierr = PetscStrlen(filename, &len);CHKERRQ(ierr);
   if (!len) {
-    ierr = DMPlexCreateBoxMesh(comm, dim, interpolate, dm);CHKERRQ(ierr);
+    if (user->simplex) {ierr = DMPlexCreateBoxMesh(comm, dim, interpolate, dm);CHKERRQ(ierr);}
+    else               {ierr = DMPlexCreateHexBoxMesh(comm, dim, cells, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, dm);CHKERRQ(ierr);}
     ierr = PetscObjectSetName((PetscObject) *dm, "Mesh");CHKERRQ(ierr);
   } else if (user->checkpoint) {
     ierr = DMCreate(comm, dm);CHKERRQ(ierr);
@@ -336,40 +336,20 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     ierr = DMPlexSetRefinementUniform(*dm, PETSC_FALSE);CHKERRQ(ierr);
     /* Must have boundary marker for Dirichlet conditions */
   }
-  {
-    DM refinedMesh     = NULL;
-    DM distributedMesh = NULL;
-
-    /* Refine mesh using a volume constraint */
+  /* Refine mesh using a volume constraint */
+  if (refinementLimit > 0.0) {
     ierr = DMPlexSetRefinementLimit(*dm, refinementLimit);CHKERRQ(ierr);
     ierr = DMRefine(*dm, comm, &refinedMesh);CHKERRQ(ierr);
-    if (refinedMesh) {
-      const char *name;
-
-      ierr = PetscObjectGetName((PetscObject) *dm,         &name);CHKERRQ(ierr);
-      ierr = PetscObjectSetName((PetscObject) refinedMesh,  name);CHKERRQ(ierr);
-      ierr = DMDestroy(dm);CHKERRQ(ierr);
-      *dm  = refinedMesh;
-    }
-    /* Distribute mesh over processes */
-    ierr = DMPlexDistribute(*dm, partitioner, 0, NULL, &distributedMesh);CHKERRQ(ierr);
-    if (distributedMesh) {
-      ierr = DMDestroy(dm);CHKERRQ(ierr);
-      *dm  = distributedMesh;
-    }
-    /* Use regular refinement in parallel */
-    if (refinementUniform) {
-      PetscInt r;
-
-      ierr = DMPlexSetRefinementUniform(*dm, refinementUniform);CHKERRQ(ierr);
-      for (r = 0; r < refinementRounds; ++r) {
-        ierr = DMRefine(*dm, comm, &refinedMesh);CHKERRQ(ierr);
-        if (refinedMesh) {
-          ierr = DMDestroy(dm);CHKERRQ(ierr);
-          *dm  = refinedMesh;
-        }
-      }
-    }
+  }
+  if (refinedMesh) {
+    ierr = DMDestroy(dm);CHKERRQ(ierr);
+    *dm  = refinedMesh;
+  }
+  /* Distribute mesh over processes */
+  ierr = DMPlexDistribute(*dm, partitioner, 0, NULL, &distributedMesh);CHKERRQ(ierr);
+  if (distributedMesh) {
+    ierr = DMDestroy(dm);CHKERRQ(ierr);
+    *dm  = distributedMesh;
   }
   ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
   if (user->bcType == NEUMANN) {
@@ -459,20 +439,20 @@ PetscErrorCode SetupDiscretization(DM dm, AppCtx *user)
 
   PetscFunctionBeginUser;
   /* Create finite element */
-  ierr = PetscFECreateDefault(dm, dim, 1, PETSC_TRUE, NULL, -1, &fe);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dm, dim, 1, user->simplex, NULL, -1, &fe);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe, "potential");CHKERRQ(ierr);
   if (user->bcType == NEUMANN) {
-    ierr = PetscFECreateDefault(dm, dim-1, 1, PETSC_TRUE, "bd_", -1, &feBd);CHKERRQ(ierr);
+    ierr = PetscFECreateDefault(dm, dim-1, 1, user->simplex, "bd_", -1, &feBd);CHKERRQ(ierr);
     ierr = PetscObjectSetName((PetscObject) feBd, "potential");CHKERRQ(ierr);
   }
   if (user->variableCoefficient == COEFF_FIELD) {
     PetscQuadrature q;
 
-    ierr = PetscFECreateDefault(dm, dim, 1, PETSC_TRUE, "mat_", -1, &feAux);CHKERRQ(ierr);
+    ierr = PetscFECreateDefault(dm, dim, 1, user->simplex, "mat_", -1, &feAux);CHKERRQ(ierr);
     ierr = PetscFEGetQuadrature(fe, &q);CHKERRQ(ierr);
     ierr = PetscFESetQuadrature(feAux, q);CHKERRQ(ierr);
   }
-  if (user->check) {ierr = PetscFECreateDefault(dm, dim, 1, PETSC_TRUE, "ch_", -1, &feCh);CHKERRQ(ierr);}
+  if (user->check) {ierr = PetscFECreateDefault(dm, dim, 1, user->simplex, "ch_", -1, &feCh);CHKERRQ(ierr);}
   /* Set discretization and boundary conditions for each mesh */
   while (cdm) {
     ierr = DMGetDS(cdm, &prob);CHKERRQ(ierr);

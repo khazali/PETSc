@@ -186,7 +186,7 @@ extern int FREE_GRAPH;
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexPartition_Chaco"
-PetscErrorCode DMPlexPartition_Chaco(DM dm, PetscInt numVertices, PetscInt start[], PetscInt adjacency[], PetscSection *partSection, IS *partition)
+PetscErrorCode DMPlexPartition_Chaco(DM dm, PetscInt n, PetscInt numVertices, PetscInt start[], PetscInt adjacency[], PetscSection *partSection, IS *partition)
 {
   enum {DEFAULT_METHOD = 1, INERTIAL_METHOD = 3};
   MPI_Comm       comm;
@@ -210,16 +210,14 @@ PetscErrorCode DMPlexPartition_Chaco(DM dm, PetscInt numVertices, PetscInt start
   short int     *assignment;              /* Output partition */
   int            fd_stdout, fd_pipe[2];
   PetscInt      *points;
-  PetscMPIInt    commSize;
   int            i, v, p;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = PetscObjectGetComm((PetscObject)dm,&comm);CHKERRQ(ierr);
-  ierr = MPI_Comm_size(comm, &commSize);CHKERRQ(ierr);
   if (!numVertices) {
     ierr = PetscSectionCreate(comm, partSection);CHKERRQ(ierr);
-    ierr = PetscSectionSetChart(*partSection, 0, commSize);CHKERRQ(ierr);
+    ierr = PetscSectionSetChart(*partSection, 0, n);CHKERRQ(ierr);
     ierr = PetscSectionSetUp(*partSection);CHKERRQ(ierr);
     ierr = ISCreateGeneral(comm, 0, NULL, PETSC_OWN_POINTER, partition);CHKERRQ(ierr);
     PetscFunctionReturn(0);
@@ -231,7 +229,7 @@ PetscErrorCode DMPlexPartition_Chaco(DM dm, PetscInt numVertices, PetscInt start
     /* manager.createCellCoordinates(nvtxs, &x, &y, &z); */
     SETERRQ(comm, PETSC_ERR_SUP, "Inertial partitioning not yet supported");
   }
-  mesh_dims[0] = commSize;
+  mesh_dims[0] = n;
   mesh_dims[1] = 1;
   mesh_dims[2] = 1;
   ierr = PetscMalloc1(nvtxs, &assignment);CHKERRQ(ierr);
@@ -269,13 +267,13 @@ PetscErrorCode DMPlexPartition_Chaco(DM dm, PetscInt numVertices, PetscInt start
 #endif
   /* Convert to PetscSection+IS */
   ierr = PetscSectionCreate(comm, partSection);CHKERRQ(ierr);
-  ierr = PetscSectionSetChart(*partSection, 0, commSize);CHKERRQ(ierr);
+  ierr = PetscSectionSetChart(*partSection, 0, n);CHKERRQ(ierr);
   for (v = 0; v < nvtxs; ++v) {
     ierr = PetscSectionAddDof(*partSection, assignment[v], 1);CHKERRQ(ierr);
   }
   ierr = PetscSectionSetUp(*partSection);CHKERRQ(ierr);
   ierr = PetscMalloc1(nvtxs, &points);CHKERRQ(ierr);
-  for (p = 0, i = 0; p < commSize; ++p) {
+  for (p = 0, i = 0; p < n; ++p) {
     for (v = 0; v < nvtxs; ++v) {
       if (assignment[v] == p) points[i++] = v;
     }
@@ -296,7 +294,7 @@ PetscErrorCode DMPlexPartition_Chaco(DM dm, PetscInt numVertices, PetscInt start
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexPartition_ParMetis"
-PetscErrorCode DMPlexPartition_ParMetis(DM dm, PetscInt numVertices, PetscInt start[], PetscInt adjacency[], PetscSection *partSection, IS *partition)
+PetscErrorCode DMPlexPartition_ParMetis(DM dm, PetscInt n, PetscInt numVertices, PetscInt start[], PetscInt adjacency[], PetscSection *partSection, IS *partition)
 {
   MPI_Comm       comm;
   PetscInt       nvtxs      = numVertices; /* The number of vertices in full graph */
@@ -315,14 +313,13 @@ PetscErrorCode DMPlexPartition_ParMetis(DM dm, PetscInt numVertices, PetscInt st
   /* Outputs */
   PetscInt       edgeCut;                  /* The number of edges cut by the partition */
   PetscInt      *assignment, *points;
-  PetscMPIInt    commSize, rank, p, v, i;
+  PetscMPIInt    rank, p, v, i;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = PetscObjectGetComm((PetscObject) dm, &comm);CHKERRQ(ierr);
-  ierr = MPI_Comm_size(comm, &commSize);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
-  nparts = commSize;
+  nparts = n;
   options[0] = 0; /* Use all defaults */
   /* Calculate vertex distribution */
   ierr = PetscMalloc4(nparts+1,&vtxdist,nparts*ncon,&tpwgts,ncon,&ubvec,nvtxs,&assignment);CHKERRQ(ierr);
@@ -356,13 +353,13 @@ PetscErrorCode DMPlexPartition_ParMetis(DM dm, PetscInt numVertices, PetscInt st
   }
   /* Convert to PetscSection+IS */
   ierr = PetscSectionCreate(comm, partSection);CHKERRQ(ierr);
-  ierr = PetscSectionSetChart(*partSection, 0, commSize);CHKERRQ(ierr);
+  ierr = PetscSectionSetChart(*partSection, 0, n);CHKERRQ(ierr);
   for (v = 0; v < nvtxs; ++v) {
     ierr = PetscSectionAddDof(*partSection, assignment[v], 1);CHKERRQ(ierr);
   }
   ierr = PetscSectionSetUp(*partSection);CHKERRQ(ierr);
   ierr = PetscMalloc1(nvtxs, &points);CHKERRQ(ierr);
-  for (p = 0, i = 0; p < commSize; ++p) {
+  for (p = 0, i = 0; p < n; ++p) {
     for (v = 0; v < nvtxs; ++v) {
       if (assignment[v] == p) points[i++] = v;
     }
@@ -450,6 +447,7 @@ PetscErrorCode DMPlexEnlargePartition(DM dm, const PetscInt start[], const Petsc
 
   Input Parameters:
   + dm - The DM
+  . n - The number of partitions
   . height - The height for points in the partition
   - enlarge - Expand each partition with neighbors
 
@@ -463,25 +461,22 @@ PetscErrorCode DMPlexEnlargePartition(DM dm, const PetscInt start[], const Petsc
 
 .seealso DMPlexDistribute()
 */
-PetscErrorCode DMPlexCreatePartition(DM dm, const char name[], PetscInt height, PetscBool enlarge, PetscSection *partSection, IS *partition, PetscSection *origPartSection, IS *origPartition)
+PetscErrorCode DMPlexCreatePartition(DM dm, const char name[], PetscInt n, PetscInt height, PetscBool enlarge, PetscSection *partSection, IS *partition, PetscSection *origPartSection, IS *origPartition)
 {
   char           partname[1024];
   PetscBool      isChaco = PETSC_FALSE, isMetis = PETSC_FALSE, flg;
-  PetscMPIInt    size;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = MPI_Comm_size(PetscObjectComm((PetscObject)dm), &size);CHKERRQ(ierr);
-
   *origPartSection = NULL;
   *origPartition   = NULL;
-  if (size == 1) {
+  if (n == 1) {
     PetscInt *points;
     PetscInt  cStart, cEnd, c;
 
     ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
     ierr = PetscSectionCreate(PetscObjectComm((PetscObject)dm), partSection);CHKERRQ(ierr);
-    ierr = PetscSectionSetChart(*partSection, 0, size);CHKERRQ(ierr);
+    ierr = PetscSectionSetChart(*partSection, 0, n);CHKERRQ(ierr);
     ierr = PetscSectionSetDof(*partSection, 0, cEnd-cStart);CHKERRQ(ierr);
     ierr = PetscSectionSetUp(*partSection);CHKERRQ(ierr);
     ierr = PetscMalloc1((cEnd - cStart), &points);CHKERRQ(ierr);
@@ -503,13 +498,13 @@ PetscErrorCode DMPlexCreatePartition(DM dm, const char name[], PetscInt height, 
     ierr = DMPlexCreateNeighborCSR(dm, 0, &numVertices, &start, &adjacency);CHKERRQ(ierr);
     if (!name || isChaco) {
 #if defined(PETSC_HAVE_CHACO)
-      ierr = DMPlexPartition_Chaco(dm, numVertices, start, adjacency, partSection, partition);CHKERRQ(ierr);
+      ierr = DMPlexPartition_Chaco(dm, n, numVertices, start, adjacency, partSection, partition);CHKERRQ(ierr);
 #else
       SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Mesh partitioning needs external package support.\nPlease reconfigure with --download-chaco.");
 #endif
     } else if (isMetis) {
 #if defined(PETSC_HAVE_PARMETIS)
-      ierr = DMPlexPartition_ParMetis(dm, numVertices, start, adjacency, partSection, partition);CHKERRQ(ierr);
+      ierr = DMPlexPartition_ParMetis(dm, n, numVertices, start, adjacency, partSection, partition);CHKERRQ(ierr);
 #endif
     } else SETERRQ1(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Unknown mesh partitioning package %s", name);
     if (enlarge) {

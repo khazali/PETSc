@@ -4,7 +4,7 @@
 #include <petscsf.h>
 
 /* Logging support */
-PetscLogEvent DMPLEX_Interpolate, DMPLEX_Partition, DMPLEX_Distribute, DMPLEX_DistributeCones, DMPLEX_DistributeLabels, DMPLEX_DistributeSF, DMPLEX_DistributeField, DMPLEX_DistributeData, DMPLEX_Stratify, DMPLEX_Preallocate, DMPLEX_ResidualFEM, DMPLEX_JacobianFEM, DMPLEX_InterpolatorFEM, DMPLEX_InjectorFEM;
+PetscLogEvent DMPLEX_Interpolate, DMPLEX_Partition, DMPLEX_Distribute, DMPLEX_DistributeCones, DMPLEX_DistributeLabels, DMPLEX_DistributeSF, DMPLEX_DistributeField, DMPLEX_DistributeData, DMPLEX_Decompose, DMPLEX_Stratify, DMPLEX_Preallocate, DMPLEX_ResidualFEM, DMPLEX_JacobianFEM, DMPLEX_InterpolatorFEM, DMPLEX_InjectorFEM;
 
 PETSC_EXTERN PetscErrorCode VecView_Seq(Vec, PetscViewer);
 PETSC_EXTERN PetscErrorCode VecView_MPI(Vec, PetscViewer);
@@ -6378,4 +6378,47 @@ PetscErrorCode DMPlexSetCoarseDM(DM dm, DM cdm)
   mesh->coarseMesh = cdm;
   ierr = PetscObjectReference((PetscObject) mesh->coarseMesh);CHKERRQ(ierr);
   PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMCreateDomainDecomposition_Plex"
+PetscErrorCode DMCreateDomainDecomposition_Plex(DM dm, PetscInt *len, char ***namelist, IS **innerislist, IS **outerislist, DM **dmlist)
+{
+  DM            *dms;
+  PetscInt       partSize = 1, dim, cStart, cEnd, n, i;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  /* Partition DM
+       increase overlap by 1 (we could decide that overlap is not necessary for some domains maybe with coloring, but this is simpler)
+       outer is a straight partition numbering
+       inner gives ownership to the lower numbered partition (should we do tie-breaking instead?)
+     Return n and dms
+  */
+  ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
+  for (i = 0; i < dim; ++i) partSize *= 2;
+  ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+  n    = (cEnd - cStart) / partSize;
+  ierr = DMPlexDecompose(dm, NULL, n, 1, &dms);CHKERRQ(ierr);
+  if (len) *len = n;
+  if (namelist) {
+    ierr = PetscMalloc1(n, namelist);CHKERRQ(ierr);
+    for (i = 0; i < n; ++i) (*namelist)[i] = NULL;
+  }
+
+  //ierr = DMDASubDomainIS_Private(dm, n, dms, innerislist, outerislist);CHKERRQ(ierr);
+  for (i = 0; i < n; ++i) {
+    ierr = DMView(dms[i], PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  }
+
+  if (dmlist) *dmlist = dms;
+  else for (i = 0; i < n; ++i) {ierr = DMDestroy(&dms[i]);CHKERRQ(ierr);}
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMCreateDomainDecompositionScatters_Plex"
+PetscErrorCode DMCreateDomainDecompositionScatters_Plex(DM dm, PetscInt nsubdms, DM *subdms, VecScatter **iscat, VecScatter **oscat, VecScatter **lscat)
+{
+  SETERRQ(PETSC_COMM_SELF, PETSC_ERR_SUP, "Not implemented");
 }

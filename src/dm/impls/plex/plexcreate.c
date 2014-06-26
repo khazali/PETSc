@@ -753,6 +753,8 @@ extern PetscErrorCode DMView_Plex(DM dm, PetscViewer viewer);
 extern PetscErrorCode DMLoad_Plex(DM dm, PetscViewer viewer);
 extern PetscErrorCode DMCreateSubDM_Plex(DM dm, PetscInt numFields, PetscInt fields[], IS *is, DM *subdm);
 extern PetscErrorCode DMLocatePoints_Plex(DM dm, Vec v, IS *cellIS);
+extern PetscErrorCode DMCreateDomainDecomposition_Plex(DM, PetscInt *, char ***, IS **, IS **, DM **);
+extern PetscErrorCode DMCreateDomainDecompositionScatters_Plex(DM, PetscInt, DM *, VecScatter **, VecScatter **, VecScatter **);
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexReplace_Static"
@@ -969,6 +971,8 @@ PetscErrorCode DMInitialize_Plex(DM dm)
   dm->ops->destroy                         = DMDestroy_Plex;
   dm->ops->createsubdm                     = DMCreateSubDM_Plex;
   dm->ops->locatepoints                    = DMLocatePoints_Plex;
+  dm->ops->createdomaindecomposition       = DMCreateDomainDecomposition_Plex;
+  dm->ops->createddscatters                = DMCreateDomainDecompositionScatters_Plex;
   PetscFunctionReturn(0);
 }
 

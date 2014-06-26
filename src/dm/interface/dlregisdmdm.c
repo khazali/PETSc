@@ -76,6 +76,7 @@ PetscErrorCode  DMInitializePackage(void)
   ierr = PetscLogEventRegister("DMPlexDistribSF",        DM_CLASSID,&DMPLEX_DistributeSF);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPlexDistField",        DM_CLASSID,&DMPLEX_DistributeField);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPlexDistData",         DM_CLASSID,&DMPLEX_DistributeData);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("DMPlexDecompose",        DM_CLASSID,&DMPLEX_Decompose);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPlexStratify",         DM_CLASSID,&DMPLEX_Stratify);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPlexPrealloc",         DM_CLASSID,&DMPLEX_Preallocate);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPlexResidualFE",       DM_CLASSID,&DMPLEX_ResidualFEM);CHKERRQ(ierr);
