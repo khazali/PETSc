@@ -797,6 +797,69 @@ PetscErrorCode DMLabelDistribute(DMLabel label, PetscSection partSection, IS par
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "DMLabelDecompose"
+PetscErrorCode DMLabelDecompose(DMLabel label, PetscSection partSection, IS part, PetscInt p, ISLocalToGlobalMapping renumbering, DMLabel *labelNew)
+{
+  const PetscInt *partArray;
+  PetscInt        dof, off, poff, s;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBegin;
+  if (label) {ierr = DMLabelMakeValid_Private(label);CHKERRQ(ierr);}
+  ierr = DMLabelCreate(label->name, labelNew);CHKERRQ(ierr);
+  /* Set numStrata */
+  (*labelNew)->numStrata = label->numStrata;
+  ierr = PetscMalloc1((*labelNew)->numStrata, &(*labelNew)->stratumValues);CHKERRQ(ierr);
+  ierr = PetscMalloc2((*labelNew)->numStrata,&(*labelNew)->stratumSizes,(*labelNew)->numStrata+1,&(*labelNew)->stratumOffsets);CHKERRQ(ierr);
+  /* Set stratumValues */
+  ierr = PetscMemcpy((*labelNew)->stratumValues, label->stratumValues, label->numStrata * sizeof(PetscInt));CHKERRQ(ierr);
+  /* Set stratumSizes: we use the fact that both the stratum points and partArray are sorted */
+  ierr = ISGetIndices(part, &partArray);CHKERRQ(ierr);
+  ierr = PetscSectionGetDof(partSection, p, &dof);CHKERRQ(ierr);
+  ierr = PetscSectionGetOffset(partSection, p, &off);CHKERRQ(ierr);
+  for (s = 0; s < label->numStrata; ++s) {
+    PetscInt lStart = label->stratumOffsets[s], lEnd = label->stratumOffsets[s]+label->stratumSizes[s];
+    PetscInt pStart = off,                      pEnd = off+dof;
+
+    while (pStart < pEnd && lStart < lEnd) {
+      if (partArray[pStart] > label->points[lStart]) {
+        ++lStart;
+      } else if (label->points[lStart] > partArray[pStart]) {
+        ++pStart;
+      } else {
+        ++(*labelNew)->stratumSizes[s];
+        ++pStart; ++lStart;
+      }
+    }
+  }
+  /* Calculate stratumOffsets */
+  (*labelNew)->stratumOffsets[0] = 0;
+  for (s = 0; s < (*labelNew)->numStrata; ++s) {(*labelNew)->stratumOffsets[s+1] = (*labelNew)->stratumSizes[s] + (*labelNew)->stratumOffsets[s];}
+  /* Set points */
+  ierr = PetscMalloc1((*labelNew)->stratumOffsets[(*labelNew)->numStrata], &(*labelNew)->points);CHKERRQ(ierr);
+  for (s = 0, poff = 0; s < label->numStrata; ++s) {
+    PetscInt lStart = label->stratumOffsets[s], lEnd = label->stratumOffsets[s]+label->stratumSizes[s];
+    PetscInt pStart = off,                      pEnd = off+dof;
+
+    while (pStart < pEnd && lStart < lEnd) {
+      if (partArray[pStart] > label->points[lStart]) {
+        ++lStart;
+      } else if (label->points[lStart] > partArray[pStart]) {
+        ++pStart;
+      } else {
+        (*labelNew)->points[poff++] = label->points[lStart];
+        ++pStart; ++lStart;
+      }
+    }
+  }
+  ierr = ISRestoreIndices(part, &partArray);CHKERRQ(ierr);
+  /* Renumber points */
+  ierr = ISGlobalToLocalMappingApplyBlock(renumbering, IS_GTOLM_MASK, (*labelNew)->stratumOffsets[(*labelNew)->numStrata], (*labelNew)->points, NULL, (*labelNew)->points);CHKERRQ(ierr);
+  /* Sort points */
+  for (s = 0; s < (*labelNew)->numStrata; ++s) {ierr = PetscSortInt((*labelNew)->stratumSizes[s], &(*labelNew)->points[(*labelNew)->stratumOffsets[s]]);CHKERRQ(ierr);}
+  PetscFunctionReturn(0);
+}
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexCreateLabel"
