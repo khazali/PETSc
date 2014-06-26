@@ -289,6 +289,8 @@ regressionParameters = {'src/dm/impls/patch/examples/tests/ex1': [{'numProcs': 1
                                                                {'num': 'restart_1', 'numProcs': 1, 'args': '-run_type test -refinement_limit 0.0    -bc_type dirichlet -interpolate 1 -petscspace_order 1 -f sol.h5 -restart'},
                                                                # Periodicity 0
                                                                {'num': 'periodic_0', 'numProcs': 1, 'args': '-run_type full -refinement_limit 0.0    -bc_type dirichlet -interpolate 1 -petscspace_order 1'},
+                                                               # NASM 0
+                                                               {'num': 'nasm_0', 'numProcs': 1, 'args': '-run_type full -simplex 0 -interpolate 1 -bc_type dirichlet -petscspace_order 1 -petscspace_poly_tensor -snes_monitor -snes_type nasm'},
 ],
                         'src/snes/examples/tutorials/ex33':   [{'numProcs': 1, 'args': '-snes_converged_reason -snes_monitor_short'}],
                         'src/snes/examples/tutorials/ex36':   [# 2D serial P2/P1 tests 0-1
