@@ -360,16 +360,16 @@ PetscErrorCode DMPlexDistributeData(DM dm, PetscSF pointSF, PetscSection origina
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexDistribute"
 /*@C
-  DMPlexDistribute - Distributes the mesh and any associated sections.
+  DMPlexDistribute - Distributes the mesh across processes.
 
-  Not Collective
+  Collective on DM
 
-  Input Parameter:
+  Input Parameters:
 + dm  - The original DMPlex object
 . partitioner - The partitioning package, or NULL for the default
 - overlap - The overlap of partitions, 0 is the default
 
-  Output Parameter:
+  Output Parameters:
 + sf - The PetscSF used for point distribution
 - parallelMesh - The distributed DMPlex object, or NULL
 
@@ -382,7 +382,7 @@ PetscErrorCode DMPlexDistributeData(DM dm, PetscSF pointSF, PetscSection origina
   Level: intermediate
 
 .keywords: mesh, elements
-.seealso: DMPlexCreate(), DMPlexDistributeByFace(), DMPlexSetAdjacencyUseCone(), DMPlexSetAdjacencyUseClosure()
+.seealso: DMPlexCreate(), DMPlexSetAdjacencyUseCone(), DMPlexSetAdjacencyUseClosure()
 @*/
 PetscErrorCode DMPlexDistribute(DM dm, const char partitioner[], PetscInt overlap, PetscSF *sf, DM *dmParallel)
 {
