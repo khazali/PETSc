@@ -10,6 +10,8 @@ static PetscInt   N_CORES                 = -1;
 
 const char *const PetscThreadPoolSparkTypes[] = {"SELF","PetscThreadPoolSparkType","PTHREADPOOLSPARK_",0};
 
+extern PetscErrorCode PetscThreadPoolFunc_User(PetscThread thread);
+
 /*
   PetscPThreadCommAffinityPolicy - Core affinity policy for pthreads
 
@@ -19,7 +21,7 @@ $ PTHREADAFFPOLICY_NONE    - No set affinity policy. OS decides thread schedulin
 */
 const char *const PetscPThreadCommAffinityPolicyTypes[] = {"ALL","ONECORE","NONE","PetscPThreadCommAffinityPolicyType","PTHREADAFFPOLICY_",0};
 
-PETSC_EXTERN PetscErrorCode PetscThreadPoolFunc_User(PetscThread thread);
+//PETSC_EXTERN PetscErrorCode PetscThreadPoolFunc_User(PetscThread thread);
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscGetNCores"
@@ -426,6 +428,16 @@ PetscErrorCode PetscThreadPoolCreateModel_Loop(PetscThreadPool pool)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscThreadPoolCreateModel_Auto"
+PetscErrorCode PetscThreadPoolCreateModel_Auto(PetscThreadPool pool)
+{
+  PetscFunctionBegin;
+  printf("Creating Auto Model\n");
+  pool->model = THREAD_MODEL_AUTO;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolCreateModel_User"
 PetscErrorCode PetscThreadPoolCreateModel_User(PetscThreadPool pool)
 {
@@ -588,7 +600,7 @@ void* PetscThreadPoolFunc(void *arg)
       SparkThreads(trank,tcomm,job);
       if (job->job_status == THREAD_JOB_RECIEVED) {
         /* Do own job */
-        PetscRunKernel(trank,thread->jobdata->nargs,thread->jobdata);
+        PetscRunKernel(job->commrank,thread->jobdata->nargs,thread->jobdata);
         /* Post job completed status */
         job->job_status = THREAD_JOB_COMPLETED;
       }
@@ -626,7 +638,7 @@ PetscErrorCode PetscThreadPoolFunc_User(PetscThread thread)
       SparkThreads(trank,tcomm,job);
       if (job->job_status == THREAD_JOB_RECIEVED) {
         /* Do own job */
-        PetscRunKernel(trank,thread->jobdata->nargs,thread->jobdata);
+        PetscRunKernel(job->commrank,thread->jobdata->nargs,thread->jobdata);
         /* Post job completed status */
         job->job_status = THREAD_JOB_COMPLETED;
       }

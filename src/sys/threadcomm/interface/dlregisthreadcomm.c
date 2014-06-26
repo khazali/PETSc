@@ -68,6 +68,8 @@ PETSC_EXTERN PetscMPIInt MPIAPI Petsc_DelThreadComm(MPI_Comm comm,PetscMPIInt ke
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  PetscThreadComm tcomm = (PetscThreadComm)attr;
+  printf("In Petsc_DelThreadComm nthreads=%d\n",tcomm->ncommthreads);
   ierr = PetscThreadCommDestroy((PetscThreadComm*)&attr);CHKERRQ(ierr);
   ierr = PetscInfo1(0,"Deleting thread communicator data in an MPI_Comm %ld\n",(long)comm);
   if (ierr) PetscFunctionReturn((PetscMPIInt)ierr);CHKERRQ(ierr);

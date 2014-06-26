@@ -44,7 +44,8 @@ PETSC_EXTERN PetscMPIInt Petsc_ThreadComm_keyval;
 
 /* Thread model */
 #define THREAD_MODEL_LOOP   0
-#define THREAD_MODEL_USER   1
+#define THREAD_MODEL_AUTO   1
+#define THREAD_MODEL_USER   2
 
 #define PetscReadOnce(type,val) (*(volatile type *)&val)
 
@@ -96,6 +97,7 @@ struct _p_PetscThreadCommReduction{
 typedef struct _p_PetscThreadCommJobCtx* PetscThreadCommJobCtx;
 struct  _p_PetscThreadCommJobCtx{
   PetscThreadComm   tcomm;                         /* The thread communicator */
+  PetscInt          commrank;                      /* Rank of thread in communicator */
   PetscInt          nargs;                         /* Number of arguments for the kernel */
   PetscThreadKernel pfunc;                         /* Kernel function */
   void              *args[PETSC_KERNEL_NARGS_MAX]; /* Array of void* to hold the arguments */
@@ -142,25 +144,11 @@ struct _p_PetscThread{
 };
 
 struct _p_PetscThreadPool{
-  // General threadpool information
-  PetscInt                refct;           /* Number of MPI_Comm references */
-  PetscThreadCommOps      ops;             /* Operations table */
-  char                    type[256];       /* Thread model type */
-
-  // User input options
-  PetscInt                model;             /* Threading model used */
-  PetscThreadPoolSparkType spark;            /* Type for sparking threads */
-  PetscPThreadCommAffinityPolicyType  aff;   /* affinity policy */
-  PetscBool                synchronizeafter; /* Whether the main thread should block until all threads complete kernel */
-  PetscBool               ismainworker; /* Is the main thread also a work thread? */
-  PetscInt                nkernels;     /* Maximum kernels launched */
-  PetscBool               createdthreads; /* Did PETSc create threads? */
-
-  // Thread information
+  PetscInt                refct;           /* Number of ThreadComm references */
   PetscInt                npoolthreads;    /* Max number of threads pool can hold */
-  PetscInt                *affinities;
+  PetscInt                *affinities;     /* Core affinity of each thread */
   void                    *data;           /* Implementation specific data */
-  PetscThread             *poolthreads;   /* Array of all threads */
+  PetscThread             *poolthreads;    /* Array of all threads */
 };
 
 struct _p_PetscThreadComm{
@@ -170,9 +158,18 @@ struct _p_PetscThreadComm{
                                            the synchronization for collective operatons like reductions. */
   PetscBool                isnothread;   /* No threading model used */
   PetscInt                 thread_start; /* Index for the first created thread (=1 if main thread is a worker, else 0 */
+  PetscInt                 model;        /* Threading model used */
   PetscThreadCommReduction red;          /* Reduction context */
   PetscBool                active;       /* Does this threadcomm have access to the threads? */
+  PetscThreadCommOps       ops;          /* Operations table */
+  char                     type[256];    /* Thread model type */
 
+  // User input options
+  PetscThreadPoolSparkType spark;            /* Type for sparking threads */
+  PetscPThreadCommAffinityPolicyType  aff;   /* affinity policy */
+  PetscBool                synchronizeafter; /* Whether the main thread should block until all threads complete kernel */
+  PetscInt                 nkernels;     /* Maximum kernels launched */
+  PetscBool                ismainworker; /* Is the main thread also a work thread? */
 
   // Thread information
   PetscThreadPool         pool;        /* Threadpool containing threads for this comm */
@@ -195,6 +192,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolRegisterAllTypes(PetscThreadPool pool
 #define __FUNCT__
 PETSC_STATIC_INLINE PetscErrorCode PetscRunKernel(PetscInt trank,PetscInt nargs,PetscThreadCommJobCtx job)
 {
+  printf("Running kernel with trank=%d\n",trank);
   switch(nargs) {
   case 0:
     (*job->pfunc)(trank);

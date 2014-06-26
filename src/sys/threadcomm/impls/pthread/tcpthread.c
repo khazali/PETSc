@@ -77,12 +77,12 @@ PetscErrorCode PetscThreadCommDestroy_PThread(PetscThreadComm tcomm)
   ptcommcrtct--;
   if (!ptcommcrtct) {
     /* Terminate the thread pool */
-    if(pool->model==THREAD_MODEL_LOOP) {
+    if(tcomm->model==THREAD_MODEL_LOOP) {
       ierr = PetscThreadCommFinalize_PThread(tcomm);CHKERRQ(ierr);
       ierr = PetscFree(ptcomm->tid);CHKERRQ(ierr);
       ierr = PetscFree(ptcomm->attr);CHKERRQ(ierr);
     }
-    if(pool->model==THREAD_MODEL_USER) {
+    if(tcomm->model==THREAD_MODEL_USER) {
       ierr = pthread_barrier_destroy(&ptcomm->barr);CHKERRQ(ierr);
       ierr = pthread_mutex_destroy(&ptcomm->threadmutex);CHKERRQ(ierr);
     }
@@ -143,6 +143,45 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadLoop(PetscThreadPool po
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommCreate_PThreadAuto"
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadAuto(PetscThreadPool pool)
+{
+  PetscThreadComm_PThread ptcomm;
+  PetscErrorCode          ierr;
+
+  PetscFunctionBegin;
+  printf("Creating PThread Auto\n");
+  ptcommcrtct++;
+  ierr = PetscStrcpy(pool->type,PTHREAD);CHKERRQ(ierr);
+  ierr = PetscNew(&ptcomm);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pool->npoolthreads,&ptcomm->tid);
+  ierr = PetscMalloc1(pool->npoolthreads,&ptcomm->attr);
+
+  pthread_barrier_init(&ptcomm->barr,NULL,pool->npoolthreads);
+  pthread_mutex_init(&ptcomm->threadmutex,NULL);
+
+  pool->data                 = (void*)ptcomm;
+  pool->ops->destroy         = PetscThreadCommDestroy_PThread;
+  pool->ops->runkernel       = PetscThreadCommRunKernel_PThread;
+  pool->ops->kernelbarrier   = PetscThreadPoolBarrier;
+  pool->ops->globalbarrier   = PetscThreadCommBarrier_PThread;
+  pool->ops->atomicincrement = PetscThreadCommAtomicIncrement_PThread;
+  pool->ops->getrank         = PetscThreadCommGetRank_PThread;
+  pool->ops->createthreads   = PetscThreadCommInitialize_PThreadUser;
+  pool->ops->destroythreads  = PetscThreadCommFinalize_PThread;
+
+  if (pool->ismainworker) {
+#if defined(PETSC_PTHREAD_LOCAL)
+    PetscPThreadRank=0; /* Main thread rank */
+#else
+    ierr = pthread_key_create(&PetscPThreadRankkey,NULL);CHKERRQ(ierr);
+    ierr = pthread_setspecific(PetscPThreadRankkey,&pool->granks[0]);CHKERRQ(ierr);
+#endif
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommCreate_PThreadUser"
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadUser(PetscThreadPool pool)
 {
@@ -167,7 +206,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadUser(PetscThreadPool po
   pool->ops->globalbarrier   = PetscThreadCommBarrier_PThread;
   pool->ops->atomicincrement = PetscThreadCommAtomicIncrement_PThread;
   pool->ops->getrank         = PetscThreadCommGetRank_PThread;
-  pool->ops->createthreads   = PetscThreadCommInitialize_PThread;
+  pool->ops->createthreads   = PetscThreadCommInitialize_PThreadUser;
   pool->ops->destroythreads  = PetscThreadCommFinalize_PThread;
 
   if (pool->ismainworker) {
@@ -188,7 +227,6 @@ PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm tcomm,PetscThrea
   PetscErrorCode          ierr;
   PetscThreadComm_PThread ptcomm;
   PetscThreadPool pool = tcomm->pool;
-  //PetscThreadCommJobQueue jobqueue=tcomm->jobqueue;
 
   PetscFunctionBegin;
   printf("rank=%d running kernel\n",0);
@@ -196,7 +234,7 @@ PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm tcomm,PetscThrea
   if (pool->ismainworker) {
     job->job_status   = THREAD_JOB_RECIEVED;
     tcomm->commthreads[0]->jobdata = job;
-    PetscRunKernel(0,job->nargs, tcomm->commthreads[0]->jobdata);
+    PetscRunKernel(job->commrank,job->nargs, tcomm->commthreads[0]->jobdata);
     job->job_status   = THREAD_JOB_COMPLETED;
   }
   if (pool->synchronizeafter) {
@@ -206,8 +244,8 @@ PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm tcomm,PetscThrea
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommInitialize_PThread"
-PetscErrorCode PetscThreadCommInitialize_PThread(PetscThreadComm tcomm)
+#define __FUNCT__ "PetscThreadCommInitialize_PThreadUser"
+PetscErrorCode PetscThreadCommInitialize_PThreadUser(PetscThreadComm tcomm)
 {
   PetscErrorCode          ierr;
   PetscInt                i;

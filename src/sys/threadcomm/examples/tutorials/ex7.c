@@ -1,7 +1,8 @@
-static char help[] = "Test PetscThreadPool with pthreads with PETSc vector routines.\n\n";
+static char help[] = "Test threadcomms with pthreads for model=auto with PETSc vector routines.\n\n";
 
 #include <petscvec.h>
 #include <petscthreadcomm.h>
+//#include <petsc-private/threadcommimpl.h>
 
 // Threaded user function
 PetscErrorCode user_func(PetscInt trank,Vec y, MPI_Comm *comm) {
@@ -40,6 +41,8 @@ int main(int argc,char **argv)
   PetscInt i, n=20, nthreads, nthreads2, *granks;
   PetscScalar vnorm,alpha=3.0;
   MPI_Comm comm,comm1,comm2;
+  MPI_Comm comm_a, comm_b;
+  PetscInt ntcthreads1,ntcthreads2;
 
   PetscInitialize(&argc,&argv,(char*)0,help);
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRQ(ierr);
@@ -48,16 +51,27 @@ int main(int argc,char **argv)
   // Create MPI_Comm and ThreadComm from PETSC_COMM_WORLD
   // Create worker threads in PETSc, master thread returns
   ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,nthreads,PETSC_TRUE,&comm1);
+  PetscThreadCommGetNThreads(comm1,&ntcthreads1);
+  printf("After creating comm1, comm1 has %d threads\n\n\n",ntcthreads1);
 
-  // Create second ThreadComm using every other thread
+  // Create second threadcomm using every other thread
   nthreads2 = ceil((PetscScalar)nthreads/2.0);
   ierr = PetscMalloc1(nthreads2,&granks);CHKERRQ(ierr);
   for(i=0; i<nthreads2; i++) {
     granks[i] = i*2;
   }
   ierr = PetscThreadCommCreateShare(comm1,nthreads2,granks,&comm2);
-  comm = comm2;
 
+  PetscThreadCommGetNThreads(comm1,&ntcthreads1);
+  PetscThreadCommGetNThreads(comm2,&ntcthreads2);
+  printf("After creating comm2, comm1 has %d threads\n",ntcthreads1);
+  printf("After creating comm2, comm2 has %d threads\n",ntcthreads2);
+
+  // Run tests using 1 comm
+  comm = comm1;
+  //comm = comm2;
+
+  printf("\n\nRunning test with single comm\n");
   // Create two vectors on MPIComm/ThreadComm
   ierr = VecCreate(comm,&x);CHKERRQ(ierr);
   ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRQ(ierr);
@@ -82,7 +96,34 @@ int main(int argc,char **argv)
 
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = VecDestroy(&y);CHKERRQ(ierr);
-  printf("Calling PetscFinalize\n");
+
+  // Run test using vecs created on different comms in same petsc operation
+  //comm_a = comm1;
+  // comm_b = comm2;
+  comm_a = comm2;
+  comm_b = comm1;
+
+  ierr = PetscPrintf(comm_a,"\n\nTesting computations with vectors on different comms\n");
+  ierr = VecCreate(comm_a,&x);CHKERRQ(ierr);
+  ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRQ(ierr);
+  ierr = VecSetFromOptions(x);CHKERRQ(ierr);
+  ierr = VecSet(x,2.0);CHKERRQ(ierr);
+
+  ierr = VecCreate(comm_b,&y);CHKERRQ(ierr);
+  ierr = VecSetSizes(y,PETSC_DECIDE,n);CHKERRQ(ierr);
+  ierr = VecSetFromOptions(y);CHKERRQ(ierr);
+  ierr = VecSet(y,3.0);CHKERRQ(ierr);
+
+  ierr = VecAXPY(y,alpha,x);CHKERRQ(ierr);
+  //VecView(y,PETSC_VIEWER_STDOUT_WORLD);
+  ierr = VecNorm(y,NORM_2,&vnorm);CHKERRQ(ierr);
+  ierr = PetscPrintf(comm_a,"Different Comms Norm=%f\n",vnorm);CHKERRQ(ierr);
+
+  printf("\n\nFreeing MPI_Comms\n");
+  PetscCommDestroy(&comm1);
+  PetscCommDestroy(&comm2);
+
+  printf("\n\nCalling PetscFinalize\n");
   PetscFinalize();
 
   return 0;

@@ -213,25 +213,23 @@ PetscErrorCode PetscThreadCommDestroy(PetscThreadComm *tcomm)
 @*/
 PetscErrorCode PetscThreadCommView(MPI_Comm comm,PetscViewer viewer)
 {
-  PetscThreadPool pool;
   PetscErrorCode  ierr;
   PetscBool       iascii;
   PetscThreadComm tcomm=0;
 
   PetscFunctionBegin;
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-  pool = tcomm->pool;
   if (!viewer) {ierr = PetscViewerASCIIGetStdout(comm,&viewer);CHKERRQ(ierr);}
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&iascii);CHKERRQ(ierr);
   if (iascii) {
     ierr = PetscViewerASCIIPrintf(viewer,"Thread Communicator\n");CHKERRQ(ierr);
     ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"Number of threads = %D\n",tcomm->ncommthreads);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIPrintf(viewer,"Type = %s\n",pool->type);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(viewer,"Type = %s\n",tcomm->type);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
-    if (pool->ops->view) {
+    if (tcomm->ops->view) {
       ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
-      ierr = (*pool->ops->view)(tcomm,viewer);CHKERRQ(ierr);
+      ierr = (*tcomm->ops->view)(tcomm,viewer);CHKERRQ(ierr);
       ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
     }
   }
@@ -327,16 +325,14 @@ PetscErrorCode PetscThreadCommGetAffinities(MPI_Comm comm,PetscInt affinities[])
 */
 PetscErrorCode PetscThreadCommBarrier(MPI_Comm comm)
 {
-  PetscThreadPool pool;
   PetscErrorCode  ierr;
   PetscThreadComm tcomm=0;
 
   PetscFunctionBegin;
   ierr = PetscLogEventBegin(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-  pool = tcomm->pool;
-  if (pool->ops->kernelbarrier) {
-    ierr = (*pool->ops->kernelbarrier)(tcomm);CHKERRQ(ierr);
+  if (tcomm->ops->kernelbarrier) {
+    ierr = (*tcomm->ops->kernelbarrier)(tcomm);CHKERRQ(ierr);
   }
   ierr = PetscLogEventEnd(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -383,14 +379,12 @@ PetscErrorCode PetscThreadCommGetScalars(MPI_Comm comm,PetscScalar **val1, Petsc
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
   PetscInt                job_num, trank;
-  PetscThreadPool pool;
 
   PetscFunctionBegin;
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
   ierr = PetscThreadCommGetRank(tcomm,&trank);CHKERRQ(ierr);
-  pool = tcomm->pool;
   jobqueue = tcomm->pool->poolthreads[trank]->jobqueue;
-  job_num = jobqueue->ctr%pool->nkernels;
+  job_num = jobqueue->ctr%tcomm->nkernels;
   job     = &jobqueue->jobs[job_num];
   if (val1) *val1 = &job->scalars[0];
   if (val2) *val2 = &job->scalars[1];
@@ -439,14 +433,12 @@ PetscErrorCode PetscThreadCommGetInts(MPI_Comm comm,PetscInt **val1, PetscInt **
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
   PetscInt                job_num,trank;
-  PetscThreadPool pool;
 
   PetscFunctionBegin;
   ierr    = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
   ierr = PetscThreadCommGetRank(tcomm,&trank);CHKERRQ(ierr);
-  pool = tcomm->pool;
   jobqueue = tcomm->pool->poolthreads[trank]->jobqueue;
-  job_num = jobqueue->ctr%pool->nkernels;
+  job_num = jobqueue->ctr%tcomm->nkernels;
   job     = &jobqueue->jobs[job_num];
   if (val1) *val1 = &job->ints[0];
   if (val2) *val2 = &job->ints[1];
@@ -510,6 +502,7 @@ PetscErrorCode PetscThreadCommRunKernel(MPI_Comm comm,PetscErrorCode (*func)(Pet
 
     // Prepare to run kernel
     job->tcomm          = tcomm;
+    job->commrank       = i;
     tcomm->commthreads[i]->job_ctr = jobqueue->ctr;
     job->nargs          = nargs;
     job->pfunc          = (PetscThreadKernel)func;
@@ -524,7 +517,7 @@ PetscErrorCode PetscThreadCommRunKernel(MPI_Comm comm,PetscErrorCode (*func)(Pet
 
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
-    jobqueue->ctr = (jobqueue->ctr+1)%pool->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->ctr = (jobqueue->ctr+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
     jobqueue->kernel_ctr++;
   }
 
@@ -533,7 +526,7 @@ PetscErrorCode PetscThreadCommRunKernel(MPI_Comm comm,PetscErrorCode (*func)(Pet
     ierr = PetscRunKernel(0,job->nargs,job);CHKERRQ(ierr);
     job->job_status = THREAD_JOB_COMPLETED;
   } else {
-    ierr = (*pool->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
+    ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
   }
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -548,7 +541,6 @@ static PetscErrorCode PetscThreadCommRunKernel0_Private(PetscThreadComm tcomm,Pe
   PetscInt                i;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
-  PetscThreadPool pool = tcomm->pool;
 
   PetscFunctionBegin;
   if (tcomm->isnothread) {
@@ -569,6 +561,7 @@ static PetscErrorCode PetscThreadCommRunKernel0_Private(PetscThreadComm tcomm,Pe
 
     // Prepare to run kernel
     job->tcomm          = tcomm;
+    job->commrank       = i;
     tcomm->commthreads[i]->job_ctr = jobqueue->ctr;
     job->nargs          = 1;
     job->pfunc          = (PetscThreadKernel)func;
@@ -580,12 +573,12 @@ static PetscErrorCode PetscThreadCommRunKernel0_Private(PetscThreadComm tcomm,Pe
 
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
-    jobqueue->ctr = (jobqueue->ctr+1)%pool->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->ctr = (jobqueue->ctr+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
     jobqueue->kernel_ctr++;
   }
 
   // Run kernel for main thread
-  ierr = (*pool->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
+  ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -660,12 +653,10 @@ PetscErrorCode PetscThreadCommRunKernel1(MPI_Comm comm,PetscErrorCode (*func)(Pe
   PetscThreadComm         tcomm=0;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
-  PetscThreadPool pool;
 
   PetscFunctionBegin;
   ierr = PetscLogEventBegin(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-  pool = tcomm->pool;
 
   if (tcomm->isnothread) {
     ierr = (*func)(0,in1);CHKERRQ(ierr);
@@ -684,6 +675,8 @@ PetscErrorCode PetscThreadCommRunKernel1(MPI_Comm comm,PetscErrorCode (*func)(Pe
     }
 
     job->tcomm          = tcomm;
+    job->commrank       = i;
+    printf("Setting commrank=%d\n",i);
     tcomm->commthreads[i]->job_ctr = jobqueue->ctr;
     job->nargs          = 1;
     job->pfunc          = (PetscThreadKernel)func;
@@ -696,12 +689,12 @@ PetscErrorCode PetscThreadCommRunKernel1(MPI_Comm comm,PetscErrorCode (*func)(Pe
 
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
-    jobqueue->ctr = (jobqueue->ctr+1)%pool->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->ctr = (jobqueue->ctr+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
     jobqueue->kernel_ctr++;
   }
 
   // Run kernel for main thread
-  ierr = (*pool->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
+  ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -741,12 +734,10 @@ PetscErrorCode PetscThreadCommRunKernel2(MPI_Comm comm,PetscErrorCode (*func)(Pe
   PetscThreadComm         tcomm=0;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
-  PetscThreadPool pool;
 
   PetscFunctionBegin;
   ierr = PetscLogEventBegin(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-  pool = tcomm->pool;
 
   if (tcomm->isnothread) {
     ierr = (*func)(0,in1,in2);CHKERRQ(ierr);
@@ -763,6 +754,7 @@ PetscErrorCode PetscThreadCommRunKernel2(MPI_Comm comm,PetscErrorCode (*func)(Pe
     }
 
     job->tcomm          = tcomm;
+    job->commrank       = i;
     tcomm->commthreads[i]->job_ctr = jobqueue->ctr;
     job->nargs          = 2;
     job->pfunc          = (PetscThreadKernel)func;
@@ -777,12 +769,12 @@ PetscErrorCode PetscThreadCommRunKernel2(MPI_Comm comm,PetscErrorCode (*func)(Pe
 
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
-    jobqueue->ctr = (jobqueue->ctr+1)%pool->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->ctr = (jobqueue->ctr+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
     jobqueue->kernel_ctr++;
   }
 
   // Run kernel for main thread
-  ierr = (*pool->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
+  ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -823,12 +815,10 @@ PetscErrorCode PetscThreadCommRunKernel3(MPI_Comm comm,PetscErrorCode (*func)(Pe
   PetscThreadComm         tcomm=0;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
-  PetscThreadPool pool;
 
   PetscFunctionBegin;
   ierr = PetscLogEventBegin(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-  pool = tcomm->pool;
 
   if (tcomm->isnothread) {
     ierr = (*func)(0,in1,in2,in3);CHKERRQ(ierr);
@@ -845,6 +835,7 @@ PetscErrorCode PetscThreadCommRunKernel3(MPI_Comm comm,PetscErrorCode (*func)(Pe
     }
 
     job->tcomm          = tcomm;
+    job->commrank       = i;
     tcomm->commthreads[i]->job_ctr = jobqueue->ctr;
     job->nargs          = 3;
     job->pfunc          = (PetscThreadKernel)func;
@@ -859,11 +850,11 @@ PetscErrorCode PetscThreadCommRunKernel3(MPI_Comm comm,PetscErrorCode (*func)(Pe
 
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
-    jobqueue->ctr = (jobqueue->ctr+1)%pool->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->ctr = (jobqueue->ctr+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
     jobqueue->kernel_ctr++;
   }
 
-  ierr = (*pool->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
+  ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -905,12 +896,10 @@ PetscErrorCode PetscThreadCommRunKernel4(MPI_Comm comm,PetscErrorCode (*func)(Pe
   PetscThreadComm         tcomm=0;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
-  PetscThreadPool pool;
 
   PetscFunctionBegin;
   ierr = PetscLogEventBegin(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-  pool = tcomm->pool;
 
   if (tcomm->isnothread) {
     ierr = (*func)(0,in1,in2,in3,in4);CHKERRQ(ierr);
@@ -927,6 +916,7 @@ PetscErrorCode PetscThreadCommRunKernel4(MPI_Comm comm,PetscErrorCode (*func)(Pe
     }
 
     job->tcomm          = tcomm;
+    job->commrank       = i;
     tcomm->commthreads[i]->job_ctr = jobqueue->ctr;
     job->nargs          = 4;
     job->pfunc          = (PetscThreadKernel)func;
@@ -942,12 +932,12 @@ PetscErrorCode PetscThreadCommRunKernel4(MPI_Comm comm,PetscErrorCode (*func)(Pe
 
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
-    jobqueue->ctr = (jobqueue->ctr+1)%pool->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->ctr = (jobqueue->ctr+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
     jobqueue->kernel_ctr++;
   }
 
   // Run kernel for main thread
-  ierr = (*pool->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
+  ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1013,6 +1003,7 @@ PetscErrorCode PetscThreadCommRunKernel6(MPI_Comm comm,PetscErrorCode (*func)(Pe
     }
 
     job->tcomm          = tcomm;
+    job->commrank       = i;
     tcomm->commthreads[i]->job_ctr = jobqueue->ctr;
     job->nargs          = 6;
     job->pfunc          = (PetscThreadKernel)func;
@@ -1030,12 +1021,12 @@ PetscErrorCode PetscThreadCommRunKernel6(MPI_Comm comm,PetscErrorCode (*func)(Pe
 
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
-    jobqueue->ctr = (jobqueue->ctr+1)%pool->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->ctr = (jobqueue->ctr+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
     jobqueue->kernel_ctr++;
   }
 
   // Run kernel for main thread
-  ierr = (*pool->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
+  ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1112,40 +1103,107 @@ PetscErrorCode PetscThreadCommCreate(MPI_Comm comm,PetscInt nthreads,PetscBool c
   // Initialize ThreadComm
   ierr = PetscThreadCommInitialize(nthreads,granks,tcomm);
   // Duplicate MPI_Comm
-  ierr = PetscCommDuplicate(comm,mpicomm,PETSC_NULL);
+  ierr = PetscCommForceDuplicate(comm,mpicomm,PETSC_NULL);
   // Attach ThreadComm to new MPI_Comm
   ierr = PetscThreadCommAttach(*mpicomm,tcomm);
+  printf("Created new threadcomm with %d threads\n",tcomm->ncommthreads);
+
+  PetscThreadComm newcomm;
+  PetscCommGetThreadComm(*mpicomm,&newcomm);
+  printf("newcomm has %d threads\n",newcomm->ncommthreads);
+
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommCreateShare"
-/*
-  PetscThreadCommInitialize - Initializes a thread communicator object
-
-  PetscThreadCommInitialize() defaults to using the nonthreaded communicator.
-*/
 PetscErrorCode PetscThreadCommCreateShare(MPI_Comm comm,PetscInt nthreads,PetscInt *granks,MPI_Comm *mpicomm)
 {
   PetscThreadComm tcomm,incomm;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  // Get input comm
+  printf("Creating new comm with %d threads\n",nthreads);
+  // Get input threadcomm
   ierr = PetscCommGetThreadComm(comm,&incomm);
-  // Allocate space for new ThreadComm
+  // Allocate space for new threadcomm
   ierr = PetscThreadCommAlloc(&tcomm);
   // Set new threadcomm to use input threadpool
   tcomm->pool = incomm->pool;
+  tcomm->pool->refct++;
   // Initialize ThreadComm
   ierr = PetscThreadCommInitialize(nthreads,granks,tcomm);
   // Duplicate MPI_Comm
-  ierr = PetscCommDuplicate(comm,mpicomm,PETSC_NULL);
-  incomm->refct++;
-  // Remove previous threadcomm
+  ierr = PetscCommForceDuplicate(comm,mpicomm,PETSC_NULL);
+
+  PetscThreadComm dupcomm;
+  PetscCommGetThreadComm(*mpicomm,&dupcomm);
+  printf("dupcomm has %d threads\n",dupcomm->ncommthreads);
+
+  // Remove original threadcomm
   ierr = PetscThreadCommDetach(*mpicomm);
+
+  PetscThreadComm origcomm;
+  printf("Checking that original comm still exists\n");
+  PetscCommGetThreadComm(comm,&origcomm);
+  printf("origcomm has %d threads\n",origcomm->ncommthreads);
+
   // Attach ThreadComm to new MPI_Comm
   ierr = PetscThreadCommAttach(*mpicomm,tcomm);
+
+  PetscThreadComm newcomm;
+  PetscCommGetThreadComm(*mpicomm,&newcomm);
+  printf("newcomm has %d threads\n",newcomm->ncommthreads);
+
+  PetscThreadComm oldcomm;
+  PetscCommGetThreadComm(comm,&oldcomm);
+  printf("oldcomm has %d threads\n",oldcomm->ncommthreads);
+
+  printf("Created new threadcomm with %d threads\n",tcomm->ncommthreads);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommSplit"
+PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *commsizes,MPI_Comm **splitcomms)
+{
+  MPI_Comm newcomm;
+  PetscThreadComm incomm,tcomm;
+  PetscErrorCode ierr;
+  PetscInt i, j, *granks, startthread;
+
+  PetscFunctionBegin;
+  // Get input threadcomm
+  ierr = PetscCommGetThreadComm(comm,&incomm);
+  ierr = PetscMalloc1(ncomms,splitcomms);
+  // Create each splitcomm
+  for(i=0; i<ncomms; i++) {
+    // Allocate space for new threadcomm
+    ierr = PetscThreadCommAlloc(&tcomm);
+    // Set new threadcomm to use input threadpool
+    tcomm->pool = incomm->pool;
+    tcomm->pool->refct++;
+    // Set granks for threadcomm
+    PetscMalloc1(commsizes[i],&granks);
+    // Previous threads
+    startthread = 0;
+    for(j=0; j<i; j++) {
+      startthread += commsizes[j];
+    }
+    for(j=0; j<commsizes[i]; j++) {
+      granks[j] = startthread + j;
+      printf("Comm[%d] grank=%d\n",i,startthread+j);
+    }
+    // Initialize ThreadComm
+    ierr = PetscThreadCommInitialize(commsizes[i],granks,tcomm);
+    // Duplicate MPI_Comm
+    ierr = PetscCommForceDuplicate(comm,&newcomm,PETSC_NULL);
+    // Remove original threadcomm
+    ierr = PetscThreadCommDetach(newcomm);
+    // Attach ThreadComm to new MPI_Comm
+    ierr = PetscThreadCommAttach(newcomm,tcomm);
+    (*splitcomms)[i] = newcomm;
+  }
   PetscFunctionReturn(0);
 }
 
@@ -1189,22 +1247,28 @@ PetscErrorCode PetscThreadCommCreateShare(MPI_Comm comm,PetscInt nthreads,PetscI
 */
 PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *granks,PetscThreadComm tcomm)
 {
+  PetscThreadPool         pool;
   PetscInt                i;
   PetscErrorCode          ierr;
-  PetscThreadPool         pool;
 
   PetscFunctionBegin;
   pool = tcomm->pool;
   //ierr = PetscThreadCommCreate(&tcomm);CHKERRQ(ierr);
 
-  if (pool->ismainworker) {
+  if (tcomm->model==THREAD_MODEL_LOOP) {
+    tcomm->ismainworker = PETSC_TRUE;
+    tcomm->thread_start = 1;
+    tcomm->ncommthreads = nthreads-1;
+  } else if (tcomm->model==THREAD_MODEL_AUTO) {
+    tcomm->ismainworker = PETSC_FALSE;
     tcomm->thread_start = 0;
     tcomm->ncommthreads = nthreads;
-  } else {
+  } else if (tcomm->model==THREAD_MODEL_USER) {
+    tcomm->ismainworker = PETSC_TRUE;
     tcomm->thread_start = 1;
     tcomm->ncommthreads = nthreads-1;
   }
-  ierr = PetscStrcmp(NOTHREAD,pool->type,&tcomm->isnothread);CHKERRQ(ierr);
+  ierr = PetscStrcmp(NOTHREAD,tcomm->type,&tcomm->isnothread);CHKERRQ(ierr);
 
   ierr = PetscMalloc1(tcomm->ncommthreads,&tcomm->commthreads);
   for(i=tcomm->thread_start; i<tcomm->ncommthreads; i++) {
@@ -1212,8 +1276,8 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *granks,Pets
   }
 
   /* Set the leader thread rank */
-  if (pool->npoolthreads) {
-    if (pool->ismainworker) tcomm->leader = granks[0];
+  if (tcomm->ncommthreads) {
+    if (tcomm->ismainworker) tcomm->leader = granks[0];
     else tcomm->leader = granks[1];
   }
 
@@ -1279,14 +1343,12 @@ PetscErrorCode PetscThreadCommGetOwnershipRanges(MPI_Comm comm,PetscInt N,PetscI
 */
 PetscErrorCode PetscThreadCommGetRank(PetscThreadComm tcomm,PetscInt *trank)
 {
-  PetscThreadPool pool;
   PetscErrorCode ierr;
   PetscInt       rank = 0;
 
   PetscFunctionBegin;
-  pool = tcomm->pool;
-  if (pool->ops->getrank) {
-    ierr = (*pool->ops->getrank)(&rank);CHKERRQ(ierr);
+  if (tcomm->ops->getrank) {
+    ierr = (*tcomm->ops->getrank)(&rank);CHKERRQ(ierr);
   }
   *trank = rank;
   PetscFunctionReturn(0);

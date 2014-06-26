@@ -1,86 +1,48 @@
-static char help[] = "Test Splitting PetscThreadPool.\n\n";
+static char help[] = "Test Splitting PetscThreadComm.\n\n";
 
 #include <petscvec.h>
-#include <omp.h>
 #include <petscthreadcomm.h>
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc,char **argv)
 {
-  Vec             x1, y1, x2, y2;
   PetscErrorCode  ierr;
-  PetscInt        prank, nthreads, n=20;
-  PetscScalar     alpha, vnorm;
-  PetscThreadComm tcomm;
+  PetscInt i, n=20, nthreads;
+  MPI_Comm comm1;
+  PetscInt ntcthreads;
 
   PetscInitialize(&argc,&argv,(char*)0,help);
-
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRQ(ierr);
-  ierr = PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&nthreads);CHKERRQ(ierr);
-  PetscPrintf(PETSC_COMM_WORLD,"nthreads=%d\n",nthreads);
+  ierr = PetscOptionsGetInt(NULL,"-nthreads",&nthreads,NULL);CHKERRQ(ierr);
 
-  //Split ThreadComm into two comms of half size
-  ierr = PetscCommGetThreadComm(PETSC_COMM_WORLD,&tcomm);CHKERRCONTINUE(ierr);
-  PetscInt cthreads = nthreads/2;
-  PetscInt commsize[2];
-  commsize[0] = cthreads;
-  commsize[1] = cthreads;
-  PetscThreadComm splitcomms[2];
-  ierr = PetscThreadCommSplit(tcomm,2,commsize,splitcomms);
+  // Create MPI_Comm and ThreadComm from PETSC_COMM_WORLD
+  // Create worker threads in PETSc, master thread returns
+  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,nthreads,PETSC_TRUE,&comm1);
+  PetscThreadCommGetNThreads(comm1,&ntcthreads);
+  printf("After creating comm1, comm1 has %d threads\n\n\n",ntcthreads);
 
-  #pragma omp parallel num_threads(nthreads) default(shared) private(ierr)
-  {
-    int trank = omp_get_thread_num();
+  printf("\n\nCreating split comms\n");
+  // Create a set of split threadcomms that each use some threads
+  MPI_Comm *splitcomms;
+  int ncomms = 4;
+  int *commsizes;
+  PetscMalloc1(ncomms,&commsizes);
+  int splitsize = floor((PetscScalar)nthreads/(PetscScalar)ncomms);
+  for(i=0; i<ncomms; i++) {
+    commsizes[i] = splitsize;
+  }
+  PetscThreadCommSplit(comm1,ncomms,commsizes,&splitcomms);
 
-    // Threads in first comm do this work
-    if(trank < cthreads) {
-      ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank,splitcomms[0]);CHKERRCONTINUE(ierr);
-      if(prank>=0) {
-        ierr = VecCreate(PETSC_COMM_WORLD,&x1);CHKERRCONTINUE(ierr);
-        ierr = VecSetSizes(x1,PETSC_DECIDE,n);CHKERRCONTINUE(ierr);
-        ierr = VecSetFromOptions(x1);CHKERRCONTINUE(ierr);
-        ierr = VecDuplicate(x1,&y1);CHKERRCONTINUE(ierr);
-
-        alpha = 4.0;
-        ierr = VecSet(x1,2.0);CHKERRCONTINUE(ierr);
-        ierr = VecSet(y1,3.0);CHKERRCONTINUE(ierr);
-        ierr = VecAXPY(y1,alpha,x1);CHKERRCONTINUE(ierr);
-        ierr = VecNorm(y1,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
-        ierr = PetscPrintf(PETSC_COMM_WORLD,"ThreadComm1 Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
-
-        ierr = VecDestroy(&x1);CHKERRCONTINUE(ierr);
-        ierr = VecDestroy(&y1);CHKERRCONTINUE(ierr);
-      }
-      ierr = PetscThreadPoolReturn(PETSC_COMM_WORLD,&prank);CHKERRCONTINUE(ierr);
-    }
-    // Threads in second comm do this work
-    else
-    {
-      ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank,splitcomms[1]);CHKERRCONTINUE(ierr);
-      if(prank>=0) {
-        ierr = VecCreate(PETSC_COMM_WORLD,&x2);CHKERRCONTINUE(ierr);
-        ierr = VecSetSizes(x2,PETSC_DECIDE,n);CHKERRCONTINUE(ierr);
-        ierr = VecSetFromOptions(x2);CHKERRCONTINUE(ierr);
-        ierr = VecDuplicate(x2,&y2);CHKERRCONTINUE(ierr);
-
-        alpha = 8.0;
-        ierr = VecSet(x2,3.0);CHKERRCONTINUE(ierr);
-        ierr = VecSet(y2,6.0);CHKERRCONTINUE(ierr);
-        ierr = VecAXPY(y2,alpha,x2);CHKERRCONTINUE(ierr);
-        ierr = VecNorm(y2,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
-        ierr = PetscPrintf(PETSC_COMM_WORLD,"ThreadComm1 Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
-
-        ierr = VecDestroy(&x2);CHKERRCONTINUE(ierr);
-        ierr = VecDestroy(&y2);CHKERRCONTINUE(ierr);
-      }
-      ierr = PetscThreadPoolReturn(PETSC_COMM_WORLD,&prank);CHKERRCONTINUE(ierr);
-    }
+  for(i=0; i<ncomms; i++) {
+    PetscThreadCommGetNThreads(splitcomms[i],&ntcthreads);
+    printf("After creating splitcomms, comm[%d] has %d threads\n",i,ntcthreads);
   }
 
-  // Destroy comms
-  PetscThreadCommDestroy(&splitcomms[0]);
-  PetscThreadCommDestroy(&splitcomms[1]);
+  for(i=0; i<ncomms; i++) {
+    PetscCommDestroy(&splitcomms[i]);
+  }
+  PetscFree(splitcomms);
 
   PetscFinalize();
   return 0;

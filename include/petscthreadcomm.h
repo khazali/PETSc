@@ -27,6 +27,7 @@ typedef struct _p_PetscThreadCommReduction *PetscThreadCommReduction;
 
 typedef const char* PetscThreadPoolModel;
 #define LOOP                "loop"
+#define AUTO                "auto"
 #define USER                "user"
 
 typedef const char* PetscThreadPoolType;
@@ -69,7 +70,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommDetach(MPI_Comm);
 PETSC_EXTERN PetscErrorCode PetscThreadCommAttach(MPI_Comm,PetscThreadComm);
 PETSC_EXTERN PetscErrorCode PetscThreadCommDestroy(PetscThreadComm*);
 
-PETSC_EXTERN PetscErrorCode PetscThreadCommSplit(PetscThreadComm tcomm,PetscInt ncomms,PetscInt *commsizes,PetscThreadComm *splitcomms);
+PETSC_EXTERN PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *commsizes,MPI_Comm **splitcomms);
 
 /* Reduction operations */
 PETSC_EXTERN PetscErrorCode PetscThreadReductionKernelPost(PetscInt,PetscThreadCommReduction,void*);
