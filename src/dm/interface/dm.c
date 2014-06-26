@@ -1434,6 +1434,10 @@ PetscErrorCode  DMRefine(DM dm,MPI_Comm comm,DM *dmf)
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   ierr = (*dm->ops->refine)(dm,comm,dmf);CHKERRQ(ierr);
   if (*dmf) {
+    const char *name;
+
+    ierr = PetscObjectGetName((PetscObject)  dm, &name);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject) *dmf, name);CHKERRQ(ierr);
     (*dmf)->ops->creatematrix = dm->ops->creatematrix;
 
     ierr = PetscObjectCopyFortranFunctionPointers((PetscObject)dm,(PetscObject)*dmf);CHKERRQ(ierr);
