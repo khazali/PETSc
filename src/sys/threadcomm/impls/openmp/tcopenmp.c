@@ -34,32 +34,32 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMP(PetscThreadPool po
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommCreate_OpenMPLoop"
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPLoop(PetscThreadPool pool)
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPLoop(PetscThreadComm tcomm)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr                 = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
-  pool->ops->runkernel = PetscThreadCommRunKernel_OpenMPLoop;
-  pool->ops->getrank   = PetscThreadCommGetRank_OpenMP;
-  ierr                 = PetscThreadCommSetAffinity_OpenMP(pool);
+  ierr                  = PetscStrcpy(tcomm->type,OPENMP);CHKERRQ(ierr);
+  tcomm->ops->runkernel = PetscThreadCommRunKernel_OpenMPLoop;
+  tcomm->ops->getrank   = PetscThreadCommGetRank_OpenMP;
+  ierr                  = PetscThreadCommSetAffinity_OpenMP(tcomm->pool);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommCreate_OpenMPUser"
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPUser(PetscThreadPool pool)
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPUser(PetscThreadComm tcomm)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr                       = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
-  pool->ops->runkernel       = PetscThreadCommRunKernel_OpenMPUser;
-  pool->ops->getrank         = PetscThreadCommGetRank_OpenMP;
-  pool->ops->kernelbarrier   = PetscThreadPoolBarrier;
-  pool->ops->globalbarrier   = PetscThreadCommBarrier_OpenMP;
-  pool->ops->atomicincrement = PetscThreadCommAtomicIncrement_OpenMP;
-  ierr                       = PetscThreadCommSetAffinity_OpenMP(pool);
+  ierr                        = PetscStrcpy(tcomm->type,OPENMP);CHKERRQ(ierr);
+  tcomm->ops->runkernel       = PetscThreadCommRunKernel_OpenMPUser;
+  tcomm->ops->getrank         = PetscThreadCommGetRank_OpenMP;
+  tcomm->ops->kernelbarrier   = PetscThreadPoolBarrier;
+  tcomm->ops->globalbarrier   = PetscThreadCommBarrier_OpenMP;
+  tcomm->ops->atomicincrement = PetscThreadCommAtomicIncrement_OpenMP;
+  ierr                        = PetscThreadCommSetAffinity_OpenMP(tcomm->pool);
   PetscFunctionReturn(0);
 }
 
@@ -83,18 +83,17 @@ PetscErrorCode PetscThreadCommRunKernel_OpenMPLoop(PetscThreadComm tcomm,PetscTh
 #define __FUNCT__ "PetscThreadCommRunKernel_OpenMPUser"
 PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm tcomm,PetscThreadCommJobCtx job)
 {
-  PetscThreadPool pool = tcomm->pool;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   printf("Running OpenMP User kernel\n");
-  if(pool->ismainworker) {
+  if(tcomm->ismainworker) {
     job->job_status = THREAD_JOB_RECIEVED;
     PetscRunKernel(0,job->nargs,job);
     job->job_status = THREAD_JOB_COMPLETED;
   }
-  if(pool->synchronizeafter) {
-    ierr = (*pool->ops->kernelbarrier)(tcomm);CHKERRCONTINUE(ierr);
+  if(tcomm->syncafter) {
+    ierr = (*tcomm->ops->kernelbarrier)(tcomm);CHKERRCONTINUE(ierr);
   }
   PetscFunctionReturn(0);
 }

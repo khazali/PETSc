@@ -21,13 +21,13 @@ public:
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommCreate_TBB"
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_TBB(PetscThreadPool pool)
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_TBB(PetscThreadComm tcomm)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscStrcpy(pool->type,TBB);CHKERRQ(ierr);
-  pool->ops->runkernel = PetscThreadCommRunKernel_TBB;
+  ierr = PetscStrcpy(tcomm->type,TBB);CHKERRQ(ierr);
+  tcomm->ops->runkernel = PetscThreadCommRunKernel_TBB;
   PetscFunctionReturn(0);
 }
 

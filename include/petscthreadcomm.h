@@ -25,19 +25,19 @@ typedef struct _p_PetscThreadPool *PetscThreadPool;
 */
 typedef struct _p_PetscThreadCommReduction *PetscThreadCommReduction;
 
-typedef const char* PetscThreadPoolModel;
+typedef const char* PetscThreadCommModel;
 #define LOOP                "loop"
 #define AUTO                "auto"
 #define USER                "user"
 
-typedef const char* PetscThreadPoolType;
-#define PTHREAD             "pthread"
+typedef const char* PetscThreadCommType;
 #define NOTHREAD            "nothread"
+#define PTHREAD             "pthread"
 #define OPENMP              "openmp"
 #define TBB                 "tbb"
 
-PETSC_EXTERN PetscFunctionList PetscThreadPoolTypeList;
-PETSC_EXTERN PetscFunctionList PetscThreadPoolModelList;
+PETSC_EXTERN PetscFunctionList PetscThreadCommTypeList;
+PETSC_EXTERN PetscFunctionList PetscThreadCommModelList;
 
 typedef enum {THREADCOMM_SUM,THREADCOMM_PROD,THREADCOMM_MAX,THREADCOMM_MIN,THREADCOMM_MAXLOC,THREADCOMM_MINLOC} PetscThreadCommReductionOp;
 PETSC_EXTERN const char* const PetscThreadCommReductionOps[];
@@ -71,6 +71,8 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommAttach(MPI_Comm,PetscThreadComm);
 PETSC_EXTERN PetscErrorCode PetscThreadCommDestroy(PetscThreadComm*);
 
 PETSC_EXTERN PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *commsizes,MPI_Comm **splitcomms);
+PETSC_EXTERN PetscErrorCode PetscThreadCommSetModel(PetscThreadComm tcomm,PetscThreadCommModel model);
+PETSC_EXTERN PetscErrorCode PetscThreadCommSetType(PetscThreadComm tcomm,PetscThreadCommType type);
 
 /* Reduction operations */
 PETSC_EXTERN PetscErrorCode PetscThreadReductionKernelPost(PetscInt,PetscThreadCommReduction,void*);

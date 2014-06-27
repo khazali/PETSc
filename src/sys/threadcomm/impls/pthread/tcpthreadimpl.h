@@ -16,9 +16,13 @@
    and PTHREAD threading models. For NONTHREADED threading model, no extra
    pthreads are created
 */
+struct _p_PetscThread_PThread {
+  pthread_t      tid;                       /* thread ids */
+  pthread_attr_t attr;                      /* thread attributes */
+};
+typedef struct _p_PetscThread_PThread *PetscThread_PThread;
+
 struct _p_PetscThreadComm_PThread {
-  pthread_t      *tid;                       /* thread ids */
-  pthread_attr_t *attr;                      /* thread attributes */
   pthread_barrier_t barr;                    /* pthread barrier */
   pthread_mutex_t threadmutex;               /* mutex for nthreads variable */
 };
@@ -30,9 +34,9 @@ extern PETSC_PTHREAD_LOCAL PetscInt PetscPThreadRank; /* Rank of the calling thr
 extern pthread_key_t PetscPThreadRankkey;
 #endif
 
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadLoop(PetscThreadPool);
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadAuto(PetscThreadPool);
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadUser(PetscThreadPool);
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadLoop(PetscThreadComm);
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadAuto(PetscThreadComm);
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadUser(PetscThreadComm);
 extern PetscErrorCode PetscThreadCommInitialize_PThreadUser(PetscThreadComm);
 extern PetscErrorCode PetscThreadCommFinalize_PThread(PetscThreadComm);
 extern PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm,PetscThreadCommJobCtx);

@@ -3,8 +3,8 @@
 #define __TCOPENMPIMPLH
 
 #include <petsc-private/threadcommimpl.h>
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPLoop(PetscThreadPool);
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPUser(PetscThreadPool);
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPLoop(PetscThreadComm);
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPUser(PetscThreadComm);
 extern PetscErrorCode PetscThreadCommRunKernel_OpenMPLoop(PetscThreadComm,PetscThreadCommJobCtx);
 extern PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm,PetscThreadCommJobCtx);
 extern PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm);

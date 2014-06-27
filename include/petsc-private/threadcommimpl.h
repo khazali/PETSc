@@ -47,6 +47,12 @@ PETSC_EXTERN PetscMPIInt Petsc_ThreadComm_keyval;
 #define THREAD_MODEL_AUTO   1
 #define THREAD_MODEL_USER   2
 
+/* Thread type */
+#define THREAD_TYPE_NONE    0
+#define THREAD_TYPE_PTHREAD 1
+#define THREAD_TYPE_OPENMP  2
+#define THREAD_TYPE_TBB     3
+
 #define PetscReadOnce(type,val) (*(volatile type *)&val)
 
 #if defined(PETSC_MEMORY_BARRIER)
@@ -71,8 +77,8 @@ PETSC_EXTERN PetscMPIInt Petsc_ThreadComm_keyval;
 #define PetscCPURelax() do { } while (0)
 #endif
 
-typedef enum {PTHREADAFFPOLICY_ALL,PTHREADAFFPOLICY_ONECORE,PTHREADAFFPOLICY_NONE} PetscPThreadCommAffinityPolicyType;
-extern const char *const PetscPTheadCommAffinityPolicyTypes[];
+typedef enum {PTHREADAFFPOLICY_ALL,PTHREADAFFPOLICY_ONECORE,PTHREADAFFPOLICY_NONE} PetscThreadCommAffPolicyType;
+extern const char *const PetscThreadCommAffPolicyTypes[];
 
 typedef enum {PTHREADPOOLSPARK_SELF} PetscThreadPoolSparkType;
 extern const char *const PetscThreadPoolSparkTypes[];
@@ -141,14 +147,15 @@ struct _p_PetscThread{
   PetscInt                my_job_counter;
   PetscInt                my_kernel_ctr;
   PetscInt                glob_kernel_ctr;
+  void                    *data;           /* Implementation specific thread data */
 };
 
 struct _p_PetscThreadPool{
   PetscInt                refct;           /* Number of ThreadComm references */
   PetscInt                npoolthreads;    /* Max number of threads pool can hold */
   PetscInt                *affinities;     /* Core affinity of each thread */
-  void                    *data;           /* Implementation specific data */
   PetscThread             *poolthreads;    /* Array of all threads */
+  PetscInt                model;           /* Threading model used */
 };
 
 struct _p_PetscThreadComm{
@@ -156,23 +163,24 @@ struct _p_PetscThreadComm{
   PetscInt                 refct;        /* Number of MPI_Comm references */
   PetscInt                 leader;       /* Rank of the leader thread. This thread manages
                                            the synchronization for collective operatons like reductions. */
-  PetscBool                isnothread;   /* No threading model used */
   PetscInt                 thread_start; /* Index for the first created thread (=1 if main thread is a worker, else 0 */
   PetscInt                 model;        /* Threading model used */
+  PetscInt                 threadtype;   /* Thread type used */
   PetscThreadCommReduction red;          /* Reduction context */
   PetscBool                active;       /* Does this threadcomm have access to the threads? */
   PetscThreadCommOps       ops;          /* Operations table */
   char                     type[256];    /* Thread model type */
+  void                     *data;        /* Implementation specific threadcomm data */
 
   // User input options
-  PetscThreadPoolSparkType spark;            /* Type for sparking threads */
-  PetscPThreadCommAffinityPolicyType  aff;   /* affinity policy */
-  PetscBool                synchronizeafter; /* Whether the main thread should block until all threads complete kernel */
+  PetscThreadPoolSparkType spark;        /* Type for sparking threads */
+  PetscThreadCommAffPolicyType  aff;     /* Affinity policy */
+  PetscBool                syncafter;    /* Whether the main thread should block until all threads complete kernel */
   PetscInt                 nkernels;     /* Maximum kernels launched */
   PetscBool                ismainworker; /* Is the main thread also a work thread? */
 
   // Thread information
-  PetscThreadPool         pool;        /* Threadpool containing threads for this comm */
+  PetscThreadPool         pool;         /* Threadpool containing threads for this comm */
   PetscInt                ncommthreads; /* Max threads comm can use */
   PetscInt                nthreads;     /* Number of active threads available to comm */
   PetscThread             *commthreads; /* Threads that this comm can use */
@@ -183,10 +191,10 @@ struct _p_PetscThreadComm{
 };
 
 /* register thread communicator models */
-PETSC_EXTERN PetscErrorCode PetscThreadPoolModelRegister(const char[],PetscErrorCode(*)(PetscThreadPool));
-PETSC_EXTERN PetscErrorCode PetscThreadPoolTypeRegister(const char[],PetscErrorCode(*)(PetscThreadPool));
-PETSC_EXTERN PetscErrorCode PetscThreadPoolRegisterAllModels(void);
-PETSC_EXTERN PetscErrorCode PetscThreadPoolRegisterAllTypes(PetscThreadPool pool);
+PETSC_EXTERN PetscErrorCode PetscThreadCommModelRegister(const char[],PetscErrorCode(*)(PetscThreadComm));
+PETSC_EXTERN PetscErrorCode PetscThreadCommTypeRegister(const char[],PetscErrorCode(*)(PetscThreadComm));
+PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAllModels(void);
+PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAllTypes(PetscThreadComm tcomm);
 
 #undef __FUNCT__
 #define __FUNCT__
