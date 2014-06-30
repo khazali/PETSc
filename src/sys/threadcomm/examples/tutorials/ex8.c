@@ -1,4 +1,4 @@
-static char help[] = "Test Splitting PetscThreadComm.\n\n";
+static char help[] = "Test threadcomm with type=pthread, model=loop with PETSc vector routines.\n\n";
 
 #include <petscvec.h>
 #include <petscthreadcomm.h>
@@ -7,42 +7,56 @@ static char help[] = "Test Splitting PetscThreadComm.\n\n";
 #define __FUNCT__ "main"
 int main(int argc,char **argv)
 {
+  Vec x, y;
   PetscErrorCode  ierr;
-  PetscInt i, n=20, nthreads;
-  MPI_Comm comm1;
-  PetscInt ntcthreads;
+  PetscInt n=20;
+  PetscScalar vnorm,alpha=3.0;
 
   PetscInitialize(&argc,&argv,(char*)0,help);
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetInt(NULL,"-nthreads",&nthreads,NULL);CHKERRQ(ierr);
+  //ierr = PetscOptionsGetInt(NULL,"-nthreads",&nthreads,NULL);CHKERRQ(ierr);
 
-  // Create MPI_Comm and ThreadComm from PETSC_COMM_WORLD
-  // Create worker threads in PETSc, master thread returns
-  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,nthreads,PETSC_TRUE,&comm1);
-  PetscThreadCommGetNThreads(comm1,&ntcthreads);
-  printf("After creating comm1, comm1 has %d threads\n\n\n",ntcthreads);
+  PetscPrintf(PETSC_COMM_WORLD,"\n\nRunning test 1\n");
+  ierr = VecCreate(PETSC_COMM_WORLD,&x);CHKERRQ(ierr);
+  ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRQ(ierr);
+  ierr = VecSetFromOptions(x);CHKERRQ(ierr);
+  ierr = VecDuplicate(x,&y);CHKERRQ(ierr);
 
-  printf("\n\nCreating split comms\n");
-  // Create a set of split threadcomms that each use some threads
-  MPI_Comm *splitcomms;
-  int ncomms = 4;
-  int *commsizes;
-  PetscMalloc1(ncomms,&commsizes);
-  int splitsize = floor((PetscScalar)nthreads/(PetscScalar)ncomms);
-  for(i=0; i<ncomms; i++) {
-    commsizes[i] = splitsize;
-  }
-  PetscThreadCommSplit(comm1,ncomms,commsizes,&splitcomms);
+  // Run PETSc code
+  ierr = VecSet(x,2.0);CHKERRQ(ierr);
+  ierr = VecSet(y,3.0);CHKERRQ(ierr);
+  ierr = VecAXPY(y,alpha,x);CHKERRQ(ierr);
+  //VecView(y,PETSC_VIEWER_STDOUT_WORLD);
+  ierr = VecNorm(y,NORM_2,&vnorm);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"Norm=%f\n",vnorm);CHKERRQ(ierr);
 
-  for(i=0; i<ncomms; i++) {
-    PetscThreadCommGetNThreads(splitcomms[i],&ntcthreads);
-    printf("After creating splitcomms, comm[%d] has %d threads\n",i,ntcthreads);
-  }
+  ierr = VecPointwiseMult(y,y,y);CHKERRQ(ierr);
+  ierr = VecScale(y,2.0);CHKERRQ(ierr);
+  ierr = VecAXPY(y,alpha,x);CHKERRQ(ierr);
+  ierr = VecNorm(y,NORM_2,&vnorm);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"Norm=%f\n",vnorm);CHKERRQ(ierr);
 
-  for(i=0; i<ncomms; i++) {
-    PetscCommDestroy(&splitcomms[i]);
-  }
-  PetscFree(splitcomms);
+  ierr = VecDestroy(&x);CHKERRQ(ierr);
+  ierr = VecDestroy(&y);CHKERRQ(ierr);
+
+  PetscPrintf(PETSC_COMM_WORLD,"\n\nRunning test 2\n");
+  ierr = VecCreate(PETSC_COMM_WORLD,&x);CHKERRQ(ierr);
+  ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRQ(ierr);
+  ierr = VecSetFromOptions(x);CHKERRQ(ierr);
+  ierr = VecSet(x,2.0);CHKERRQ(ierr);
+
+  ierr = VecCreate(PETSC_COMM_WORLD,&y);CHKERRQ(ierr);
+  ierr = VecSetSizes(y,PETSC_DECIDE,n);CHKERRQ(ierr);
+  ierr = VecSetFromOptions(y);CHKERRQ(ierr);
+  ierr = VecSet(y,3.0);CHKERRQ(ierr);
+
+  ierr = VecAXPY(y,alpha,x);CHKERRQ(ierr);
+  //VecView(y,PETSC_VIEWER_STDOUT_WORLD);
+  ierr = VecNorm(y,NORM_2,&vnorm);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"Different Comms Norm=%f\n",vnorm);CHKERRQ(ierr);
+
+  ierr = VecDestroy(&x);CHKERRQ(ierr);
+  ierr = VecDestroy(&y);CHKERRQ(ierr);
 
   PetscFinalize();
   return 0;

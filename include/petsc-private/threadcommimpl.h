@@ -48,10 +48,10 @@ PETSC_EXTERN PetscMPIInt Petsc_ThreadComm_keyval;
 #define THREAD_MODEL_USER   2
 
 /* Thread type */
-#define THREAD_TYPE_NONE    0
-#define THREAD_TYPE_PTHREAD 1
-#define THREAD_TYPE_OPENMP  2
-#define THREAD_TYPE_TBB     3
+#define THREAD_TYPE_NOTHREAD 0
+#define THREAD_TYPE_PTHREAD  1
+#define THREAD_TYPE_OPENMP   2
+#define THREAD_TYPE_TBB      3
 
 #define PetscReadOnce(type,val) (*(volatile type *)&val)
 
@@ -122,24 +122,21 @@ struct _p_PetscThreadCommJobQueue{
 
 typedef struct _PetscThreadCommOps* PetscThreadCommOps;
 struct _PetscThreadCommOps {
-  PetscErrorCode (*destroy)(PetscThreadComm);
   PetscErrorCode (*runkernel)(PetscThreadComm,PetscThreadCommJobCtx);
   PetscErrorCode (*view)(PetscThreadComm,PetscViewer);
-  PetscErrorCode (*kernelbarrier)(PetscThreadComm);
   PetscErrorCode (*globalbarrier)();
   PetscErrorCode (*atomicincrement)(PetscThreadComm,PetscInt*,PetscInt);
   PetscErrorCode (*getrank)(PetscInt*);
-  // Create threads and put in ThreadPool
-  PetscErrorCode (*createthreads)(PetscThreadComm);
-  PetscErrorCode (*destroythreads)(PetscThreadComm);
+  PetscErrorCode (*commdestroy)(PetscThreadComm);
 };
 
 typedef struct _p_PetscThread* PetscThread;
 struct _p_PetscThread{
-  PetscInt              grank;   /* Thread rank in pool */
-  PetscThreadComm       tcomm;   /* Thread comm for current thread */
-  PetscInt              status;  /* Status of current job for each thread */
-  PetscThreadCommJobCtx jobdata; /* Data for current job for each thread */
+  PetscInt              grank;    /* Thread rank in pool */
+  PetscThreadPool       pool;     /* Threadpool for current thread */
+  PetscInt              status;   /* Status of current job for each thread */
+  PetscThreadCommJobCtx jobdata;  /* Data for current job for each thread */
+  PetscInt              affinity; /* Core affinity of each thread */
 
   // Job information
   PetscThreadCommJobQueue jobqueue;     /* Job queue */
@@ -153,30 +150,44 @@ struct _p_PetscThread{
 struct _p_PetscThreadPool{
   PetscInt                refct;           /* Number of ThreadComm references */
   PetscInt                npoolthreads;    /* Max number of threads pool can hold */
-  PetscInt                *affinities;     /* Core affinity of each thread */
   PetscThread             *poolthreads;    /* Array of all threads */
+
+  // General threadcomm information
+  char                    type[256];       /* Thread model type */
   PetscInt                model;           /* Threading model used */
+  PetscInt                threadtype;      /* Threading type used */
+  PetscThreadCommAffPolicyType aff;        /* Affinity policy */
+  PetscInt                nkernels;        /* Maximum kernels launched */
+  PetscInt                thread_start;    /* Pool rank of first thread*/
+  PetscInt                ismainworker;    /* Is main thread a worker thread? */
+
+  // Create and manage threads in ThreadPool
+  PetscErrorCode (*tcomm_init)(PetscThreadComm);
+  PetscErrorCode (*createthread)(PetscThread);
+  PetscErrorCode (*startthreads)(PetscThreadPool);
+  PetscErrorCode (*setaffinities)(PetscThreadPool);
+  PetscErrorCode (*pooldestroy)(PetscThreadPool);
 };
 
 struct _p_PetscThreadComm{
   // General threadcomm information
+  PetscInt                 model;        /* Threading model used */
+  PetscInt                 threadtype;   /* Thread type used */
+  PetscInt                 nkernels;     /* Maximum kernels launched */
+
+  // Threadcomm information
   PetscInt                 refct;        /* Number of MPI_Comm references */
   PetscInt                 leader;       /* Rank of the leader thread. This thread manages
                                            the synchronization for collective operatons like reductions. */
   PetscInt                 thread_start; /* Index for the first created thread (=1 if main thread is a worker, else 0 */
-  PetscInt                 model;        /* Threading model used */
-  PetscInt                 threadtype;   /* Thread type used */
   PetscThreadCommReduction red;          /* Reduction context */
   PetscBool                active;       /* Does this threadcomm have access to the threads? */
   PetscThreadCommOps       ops;          /* Operations table */
-  char                     type[256];    /* Thread model type */
   void                     *data;        /* Implementation specific threadcomm data */
 
   // User input options
   PetscThreadPoolSparkType spark;        /* Type for sparking threads */
-  PetscThreadCommAffPolicyType  aff;     /* Affinity policy */
   PetscBool                syncafter;    /* Whether the main thread should block until all threads complete kernel */
-  PetscInt                 nkernels;     /* Maximum kernels launched */
   PetscBool                ismainworker; /* Is the main thread also a work thread? */
 
   // Thread information
@@ -192,9 +203,10 @@ struct _p_PetscThreadComm{
 
 /* register thread communicator models */
 PETSC_EXTERN PetscErrorCode PetscThreadCommModelRegister(const char[],PetscErrorCode(*)(PetscThreadComm));
+PETSC_EXTERN PetscErrorCode PetscThreadCommInitTypeRegister(const char sname[],PetscErrorCode (*function)(PetscThreadPool));
 PETSC_EXTERN PetscErrorCode PetscThreadCommTypeRegister(const char[],PetscErrorCode(*)(PetscThreadComm));
 PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAllModels(void);
-PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAllTypes(PetscThreadComm tcomm);
+PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAllTypes(PetscThreadPool);
 
 #undef __FUNCT__
 #define __FUNCT__

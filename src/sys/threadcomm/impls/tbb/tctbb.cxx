@@ -20,13 +20,23 @@ public:
 };
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommCreate_TBB"
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_TBB(PetscThreadComm tcomm)
+#define __FUNCT__ "PetscThreadCommInit_TBB"
+PETSC_EXTERN PetscErrorCode PetscThreadCommInit_TBB(PetscThreadPool pool)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscStrcpy(tcomm->type,TBB);CHKERRQ(ierr);
+  ierr = PetscStrcpy(pool->type,TBB);CHKERRQ(ierr);
+  pool->threadtype = THREAD_TYPE_TBB;
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommCreate_TBB"
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_TBB(PetscThreadComm tcomm)
+{
+  PetscFunctionBegin;
   tcomm->ops->runkernel = PetscThreadCommRunKernel_TBB;
   PetscFunctionReturn(0);
 }

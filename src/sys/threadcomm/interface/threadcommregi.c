@@ -1,6 +1,11 @@
 
 #include <petsc-private/threadcommimpl.h>     /*I    "petscthreadcomm.h"  I*/
 
+PETSC_EXTERN PetscErrorCode PetscThreadCommInit_NoThread(PetscThreadPool);
+PETSC_EXTERN PetscErrorCode PetscThreadCommInit_PThread(PetscThreadPool);
+PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadPool);
+PETSC_EXTERN PetscErrorCode PetscThreadCommInit_TBB(PetscThreadPool);
+
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_NoThread(PetscThreadComm);
 #if defined(PETSC_HAVE_PTHREADCLASSES)
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadLoop(PetscThreadComm);
@@ -62,7 +67,7 @@ PetscErrorCode PetscThreadCommRegisterAllModels(void)
 
 .seealso: PetscThreadCommRegisterDestroy()
 @*/
-PetscErrorCode PetscThreadCommRegisterAllTypes(PetscThreadComm tcomm)
+PetscErrorCode PetscThreadCommRegisterAllTypes(PetscThreadPool pool)
 {
   PetscInt model;
   PetscErrorCode ierr;
@@ -70,8 +75,13 @@ PetscErrorCode PetscThreadCommRegisterAllTypes(PetscThreadComm tcomm)
   PetscFunctionBegin;
   PetscThreadCommRegisterAllTypesCalled = PETSC_TRUE;
 
-  model = tcomm->model;
+  model = pool->model;
   printf("Registering Types = %d\n",model);
+
+  ierr = PetscThreadCommInitTypeRegister(NOTHREAD,PetscThreadCommInit_NoThread);CHKERRQ(ierr);
+  ierr = PetscThreadCommInitTypeRegister(PTHREAD,PetscThreadCommInit_PThread);CHKERRQ(ierr);
+  ierr = PetscThreadCommInitTypeRegister(OPENMP,PetscThreadCommInit_OpenMP);CHKERRQ(ierr);
+  ierr = PetscThreadCommInitTypeRegister(TBB,PetscThreadCommInit_TBB);CHKERRQ(ierr);
 
   ierr = PetscThreadCommTypeRegister(NOTHREAD,PetscThreadCommCreate_NoThread);CHKERRQ(ierr);
 

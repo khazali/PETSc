@@ -1,8 +1,7 @@
-static char help[] = "Test threadcomms with pthreads for model=auto with PETSc vector routines.\n\n";
+static char help[] = "Test threadcomm with type=pthread, model=auto with PETSc vector routines.\n\n";
 
 #include <petscvec.h>
 #include <petscthreadcomm.h>
-//#include <petsc-private/threadcommimpl.h>
 
 // Threaded user function
 PetscErrorCode user_func(PetscInt trank,Vec y, MPI_Comm *comm) {
@@ -67,6 +66,10 @@ int main(int argc,char **argv)
   printf("After creating comm2, comm1 has %d threads\n",ntcthreads1);
   printf("After creating comm2, comm2 has %d threads\n",ntcthreads2);
 
+  PetscThreadCommCreateAttach(PETSC_COMM_WORLD,nthreads,PETSC_TRUE);
+  PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&ntcthreads1);
+  printf("PETSC_COMM_WORLD has %d threads\n",ntcthreads1);
+
   // Run tests using 1 comm
   comm = comm1;
   //comm = comm2;
@@ -118,6 +121,9 @@ int main(int argc,char **argv)
   //VecView(y,PETSC_VIEWER_STDOUT_WORLD);
   ierr = VecNorm(y,NORM_2,&vnorm);CHKERRQ(ierr);
   ierr = PetscPrintf(comm_a,"Different Comms Norm=%f\n",vnorm);CHKERRQ(ierr);
+
+  ierr = VecDestroy(&x);CHKERRQ(ierr);
+  ierr = VecDestroy(&y);CHKERRQ(ierr);
 
   printf("\n\nFreeing MPI_Comms\n");
   PetscCommDestroy(&comm1);
