@@ -6384,9 +6384,13 @@ PetscErrorCode DMPlexSetCoarseDM(DM dm, DM cdm)
 #define __FUNCT__ "DMCreateDomainDecomposition_Plex"
 PetscErrorCode DMCreateDomainDecomposition_Plex(DM dm, PetscInt *len, char ***namelist, IS **innerislist, IS **outerislist, DM **dmlist)
 {
-  DM            *dms;
-  PetscInt       partSize = 1, dim, cStart, cEnd, n, i;
-  PetscErrorCode ierr;
+  DM             *dms;
+  IS             *inner, *outer;
+  PetscSection    partSection, origPartSection;
+  IS              part,        origPart;
+  const PetscInt *points,     *origPoints;
+  PetscInt        partSize = 1, dim, cStart, cEnd, n, i;
+  PetscErrorCode  ierr;
 
   PetscFunctionBegin;
   /* Partition DM
@@ -6399,20 +6403,110 @@ PetscErrorCode DMCreateDomainDecomposition_Plex(DM dm, PetscInt *len, char ***na
   for (i = 0; i < dim; ++i) partSize *= 2;
   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   n    = (cEnd - cStart) / partSize;
-  ierr = DMPlexDecompose(dm, NULL, n, 1, &dms);CHKERRQ(ierr);
+  ierr = DMPlexDecompose(dm, NULL, n, 1, &origPartSection, &origPart, &partSection, &part, &dms);CHKERRQ(ierr);
   if (len) *len = n;
   if (namelist) {
     ierr = PetscMalloc1(n, namelist);CHKERRQ(ierr);
     for (i = 0; i < n; ++i) (*namelist)[i] = NULL;
   }
-
-  //ierr = DMDASubDomainIS_Private(dm, n, dms, innerislist, outerislist);CHKERRQ(ierr);
   for (i = 0; i < n; ++i) {
     ierr = DMView(dms[i], PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
+  /* Create IS for overlapping (outer) domains */
+  ierr = PetscMalloc1(n,&inner);CHKERRQ(ierr);
+  ierr = PetscMalloc1(n,&outer);CHKERRQ(ierr);
+  ierr = ISGetIndices(part, &points);CHKERRQ(ierr);
+  ierr = ISGetIndices(origPart, &origPoints);CHKERRQ(ierr);
+  for (i = 0; i < n; ++i) {
+    PetscSection sg, sl;
+    PetscInt    *idx;
+    PetscInt     origPartSize, origPartOff, partSize, partOff, size, pStart, pEnd, p, k;
 
+    /* Outer dofs */
+    ierr = PetscSectionGetDof(partSection, i, &partSize);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(partSection, i, &partOff);CHKERRQ(ierr);
+    ierr = DMGetDefaultSection(dm, &sg);CHKERRQ(ierr);
+    ierr = DMGetDefaultSection(dms[i], &sl);CHKERRQ(ierr);
+    ierr = PetscSectionGetConstrainedStorageSize(sl, &size);CHKERRQ(ierr);
+    ierr = PetscMalloc1(size,&idx);CHKERRQ(ierr);
+    ierr = PetscSectionGetChart(sl, &pStart, &pEnd);CHKERRQ(ierr);
+    if (partSize != pEnd-pStart) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Overlapping partition size %d != %d local section size", partSize, pEnd-pStart);
+    for (p = pStart, k = 0; p < pEnd; ++p) {
+      const PetscInt *cind;
+      PetscInt        dof, cdof, goff, d, c;
+
+      ierr = PetscSectionGetDof(sl, p, &dof);CHKERRQ(ierr);
+      ierr = PetscSectionGetConstraintDof(sl, p, &cdof);CHKERRQ(ierr);
+      ierr = PetscSectionGetConstraintIndices(sl, p, &cind);CHKERRQ(ierr);
+      ierr = PetscSectionGetOffset(sg, points[partOff+p-pStart], &goff);CHKERRQ(ierr);
+      if (cdof) {
+        for (d = 0, c = 0; d < dof; ++d) {
+          if (cind[c] == d) {++c; continue;}
+          idx[k++] = goff+d;
+        }
+      } else {
+        for (d = 0; d < dof; ++d) {
+          idx[k++] = goff+d;
+        }
+      }
+    }
+    if (k != size) SETERRQ3(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Partition %d has %d outer dof != %d section size", i, k, size);
+    ierr = ISCreateGeneral(PetscObjectComm((PetscObject) dms[i]), size, idx, PETSC_OWN_POINTER, &outer[i]);CHKERRQ(ierr);
+    /* Inner dofs */
+    ierr = PetscSectionGetDof(origPartSection, i, &origPartSize);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(origPartSection, i, &origPartOff);CHKERRQ(ierr);
+    for (p = 0, size = 0; p < origPartSize; ++p) {
+      PetscInt dof, cdof;
+
+      ierr = PetscSectionGetDof(sg, origPoints[origPartOff+p], &dof);CHKERRQ(ierr);
+      ierr = PetscSectionGetConstraintDof(sg, origPoints[origPartOff+p], &cdof);CHKERRQ(ierr);
+      size += dof-cdof;
+    }
+    ierr = PetscMalloc1(size,&idx);CHKERRQ(ierr);
+    for (p = 0, k = 0; p < origPartSize; ++p) {
+      const PetscInt *cind;
+      PetscInt        dof, cdof, goff, d, c;
+
+      ierr = PetscSectionGetDof(sg, origPoints[origPartOff+p], &dof);CHKERRQ(ierr);
+      ierr = PetscSectionGetConstraintDof(sg, origPoints[origPartOff+p], &cdof);CHKERRQ(ierr);
+      ierr = PetscSectionGetConstraintIndices(sg, origPoints[origPartOff+p], &cind);CHKERRQ(ierr);
+      ierr = PetscSectionGetOffset(sg, origPoints[origPartOff+p], &goff);CHKERRQ(ierr);
+      if (cdof) {
+        for (d = 0, c = 0; d < dof; ++d) {
+          if (cind[c] == d) {++c; continue;}
+          idx[k++] = goff+d;
+        }
+      } else {
+        for (d = 0; d < dof; ++d) {
+          idx[k++] = goff+d;
+        }
+      }
+    }
+    if (k != size) SETERRQ3(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Partition %d has %d inner dof != %d section size", i, k, size);
+    ierr = ISCreateGeneral(PetscObjectComm((PetscObject) dms[i]), size, idx, PETSC_OWN_POINTER, &inner[i]);CHKERRQ(ierr);
+
+    ierr = ISView(inner[i], PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    ierr = ISView(outer[i], PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  }
+  ierr = ISRestoreIndices(part, &points);CHKERRQ(ierr);
+  ierr = ISRestoreIndices(origPart, &origPoints);CHKERRQ(ierr);
+  ierr = PetscSectionDestroy(&partSection);CHKERRQ(ierr);
+  ierr = ISDestroy(&part);CHKERRQ(ierr);
+  if (innerislist) *innerislist = inner;
+  else {
+    for (i = 0; i < n; ++i) {ierr = ISDestroy(&inner[i]);CHKERRQ(ierr);}
+    ierr = PetscFree(inner);CHKERRQ(ierr);
+  }
+  if (outerislist) *outerislist = outer;
+  else {
+    for (i = 0; i < n; ++i) {ierr = ISDestroy(&outer[i]);CHKERRQ(ierr);}
+    ierr = PetscFree(outer);CHKERRQ(ierr);
+  }
   if (dmlist) *dmlist = dms;
-  else for (i = 0; i < n; ++i) {ierr = DMDestroy(&dms[i]);CHKERRQ(ierr);}
+  else {
+    for (i = 0; i < n; ++i) {ierr = DMDestroy(&dms[i]);CHKERRQ(ierr);}
+    ierr = PetscFree(dms);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
