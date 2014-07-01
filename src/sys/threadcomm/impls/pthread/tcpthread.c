@@ -107,6 +107,7 @@ PetscErrorCode PetscThreadPoolDestroy_PThread(PetscThreadPool pool)
   }
   /* Destroy pthread thread data */
   for(i=0; i<pool->npoolthreads; i++) {
+    pt = (PetscThread_PThread)pool->poolthreads[i]->data;
     ierr = PetscFree(pt);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
@@ -170,9 +171,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadLoop(PetscThreadComm tc
     ierr = pthread_setspecific(PetscPThreadRankkey,&tcomm->commthreads[0]->grank);CHKERRQ(ierr);
 #endif
   }
-
-  //ierr = PetscThreadCommSetAffinity_PThread(pool);CHKERRQ(ierr);
-
   PetscFunctionReturn(0);
 }
 
@@ -204,8 +202,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadAuto(PetscThreadComm tc
     ierr = pthread_key_create(&PetscPThreadRankkey,NULL);CHKERRQ(ierr);
     ierr = pthread_setspecific(PetscPThreadRankkey,&tcomm->commthreads[0]->grank);CHKERRQ(ierr);
 #endif
-
-    ierr = PetscThreadCommSetAffinity_PThread(tcomm->pool);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }

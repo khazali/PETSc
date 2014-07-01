@@ -47,9 +47,14 @@ PetscErrorCode PetscCommGetThreadComm(MPI_Comm comm,PetscThreadComm *tcomm)
   PetscFunctionBegin;
   ierr = MPI_Attr_get(comm,Petsc_ThreadComm_keyval,(PetscThreadComm*)&ptr,&flg);CHKERRQ(ierr);
   if (!flg) {
-    printf("Error getting threadcomm\n");
-    exit(0);
-  } else *tcomm = (PetscThreadComm)ptr;
+    // Create and attach threadcomm based on user input options
+    PetscThreadCommCreateAttach(comm,PETSC_DECIDE);
+    // Get threadcomm from MPI_Comm
+    ierr = MPI_Attr_get(comm,Petsc_ThreadComm_keyval,(PetscThreadComm*)&ptr,&flg);CHKERRQ(ierr);
+  }
+  // Return threadcomm or return error message
+  if(flg) *tcomm = (PetscThreadComm)ptr;
+  else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Unable to attach threadcomm to MPI_Comm.");
   PetscFunctionReturn(0);
 }
 
@@ -1131,7 +1136,7 @@ PetscErrorCode PetscThreadCommAttach(MPI_Comm comm,PetscThreadComm tcomm)
 
   PetscThreadCommInitialize() defaults to using the nonthreaded communicator.
 */
-PetscErrorCode PetscThreadCommCreate(MPI_Comm comm,PetscInt nthreads,PetscBool createthreads,MPI_Comm *mpicomm)
+PetscErrorCode PetscThreadCommCreate(MPI_Comm comm,PetscInt nthreads,MPI_Comm *mpicomm)
 {
   PetscInt i, *granks;
   PetscThreadComm tcomm;
@@ -1141,7 +1146,7 @@ PetscErrorCode PetscThreadCommCreate(MPI_Comm comm,PetscInt nthreads,PetscBool c
   // Allocate space for ThreadComm
   ierr = PetscThreadCommAlloc(&tcomm);
   // Create ThreadPool
-  ierr = PetscThreadPoolCreate(tcomm,nthreads,createthreads);
+  ierr = PetscThreadPoolCreate(tcomm,&nthreads);
   // Set thread ranks
   PetscMalloc1(nthreads,&granks);
   for(i=0; i<nthreads; i++) {
@@ -1212,17 +1217,18 @@ PetscErrorCode PetscThreadCommCreateShare(MPI_Comm comm,PetscInt nthreads,PetscI
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommCreateAttach"
-PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt nthreads,PetscBool createthreads)
+PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt nthreads)
 {
   PetscInt i, *granks;
   PetscThreadComm tcomm;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  printf("Calling PetscThreadCommCreateAttach\n");
   // Allocate space for ThreadComm
   ierr = PetscThreadCommAlloc(&tcomm);
   // Create ThreadPool
-  ierr = PetscThreadPoolCreate(tcomm,nthreads,createthreads);
+  ierr = PetscThreadPoolCreate(tcomm,&nthreads);
   // Set thread ranks
   PetscMalloc1(nthreads,&granks);
   for(i=0; i<nthreads; i++) {
@@ -1314,7 +1320,7 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *granks,Pets
   if (tcomm->model==THREAD_MODEL_LOOP) {
     tcomm->ismainworker = PETSC_TRUE;
     tcomm->thread_start = 1;
-    tcomm->ncommthreads = nthreads-1;
+    tcomm->ncommthreads = nthreads;
   } else if (tcomm->model==THREAD_MODEL_AUTO) {
     tcomm->ismainworker = PETSC_FALSE;
     tcomm->thread_start = 0;
@@ -1322,12 +1328,12 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *granks,Pets
   } else if (tcomm->model==THREAD_MODEL_USER) {
     tcomm->ismainworker = PETSC_TRUE;
     tcomm->thread_start = 1;
-    tcomm->ncommthreads = nthreads-1;
+    tcomm->ncommthreads = nthreads;
   }
   printf("threadstart=%d ncommthreads=%d\n",tcomm->thread_start,tcomm->ncommthreads);
 
   ierr = PetscMalloc1(tcomm->ncommthreads,&tcomm->commthreads);
-  for(i=tcomm->thread_start; i<tcomm->ncommthreads; i++) {
+  for(i=0; i<tcomm->ncommthreads; i++) {
     tcomm->commthreads[i] = pool->poolthreads[granks[i]];
   }
 
@@ -1343,7 +1349,7 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *granks,Pets
 
   /* Set the leader thread rank */
   if (tcomm->ncommthreads) {
-    if (tcomm->ismainworker) tcomm->leader = granks[1];
+    if (tcomm->ismainworker) tcomm->leader = granks[0];
     else tcomm->leader = granks[0];
   }
 

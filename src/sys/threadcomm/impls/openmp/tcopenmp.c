@@ -41,6 +41,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadPool pool)
   PetscFunctionBegin;
   ierr             = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
   pool->threadtype = THREAD_TYPE_OPENMP;
+  pool->setaffinities = PetscThreadCommSetAffinity_OpenMP;
   PetscFunctionReturn(0);
 }
 
@@ -48,12 +49,9 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadPool pool)
 #define __FUNCT__ "PetscThreadCommCreate_OpenMPLoop"
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPLoop(PetscThreadComm tcomm)
 {
-  PetscErrorCode ierr;
-
   PetscFunctionBegin;
   tcomm->ops->runkernel = PetscThreadCommRunKernel_OpenMPLoop;
   tcomm->ops->getrank   = PetscThreadCommGetRank_OpenMP;
-  ierr                  = PetscThreadCommSetAffinity_OpenMP(tcomm->pool);
   PetscFunctionReturn(0);
 }
 
@@ -61,14 +59,11 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPLoop(PetscThreadComm tco
 #define __FUNCT__ "PetscThreadCommCreate_OpenMPUser"
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPUser(PetscThreadComm tcomm)
 {
-  PetscErrorCode ierr;
-
   PetscFunctionBegin;
   tcomm->ops->runkernel       = PetscThreadCommRunKernel_OpenMPUser;
   tcomm->ops->getrank         = PetscThreadCommGetRank_OpenMP;
   tcomm->ops->globalbarrier   = PetscThreadCommBarrier_OpenMP;
   tcomm->ops->atomicincrement = PetscThreadCommAtomicIncrement_OpenMP;
-  ierr                        = PetscThreadCommSetAffinity_OpenMP(tcomm->pool);
   PetscFunctionReturn(0);
 }
 

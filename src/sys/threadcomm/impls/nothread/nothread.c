@@ -20,3 +20,5 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_NoThread(PetscThreadComm comm)
   if (comm->ncommthreads != 1) SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONG,"Cannot have more than 1 thread for the nonthread communicator,threads requested = %D",comm->ncommthreads);
   PetscFunctionReturn(0);
 }
+
+

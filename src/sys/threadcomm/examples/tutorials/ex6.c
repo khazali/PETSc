@@ -1,4 +1,4 @@
-static char help[] = "Test PetscThreadPool with OpenMP with PETSc vector routines.\n\n";
+static char help[] = "Test PetscThreadPool with type=OpenMP,model=user with PETSc vector routines.\n\n";
 
 #include <petscvec.h>
 #include <omp.h>
@@ -17,8 +17,8 @@ int main(int argc,char **argv)
   PetscInitialize(&argc,&argv,(char*)0,help);
 
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetInt(NULL,"-nthreads",&nthreads,NULL);CHKERRQ(ierr);
-  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,nthreads,PETSC_FALSE,&comm);
+  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,&comm);
+  ierr = PetscThreadCommGetNThreads(comm,&nthreads);CHKERRQ(ierr);
   ierr = PetscPrintf(comm,"nthreads=%d\n",nthreads);CHKERRQ(ierr);
 
   ierr = PetscPrintf(comm,"Creating vecs\n");CHKERRQ(ierr);

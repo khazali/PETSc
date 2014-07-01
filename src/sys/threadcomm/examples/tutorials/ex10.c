@@ -20,18 +20,17 @@ int main(int argc,char **argv)
   PetscScalar     v, vnorm;
   KSP             ksp;
   PC              pc;
-  PetscThreadComm tcomm;
+  MPI_Comm        comm;
 
   PetscInitialize(&argc,&argv,(char*)0,help);
 
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRQ(ierr);
-  ierr = PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&nthreads);CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"nthreads=%d\n",nthreads);CHKERRQ(ierr);
-  ierr = PetscCommGetThreadComm(PETSC_COMM_WORLD,&tcomm);CHKERRCONTINUE(ierr);
-
+  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,&comm);
+  ierr = PetscThreadCommGetNThreads(comm,&nthreads);CHKERRQ(ierr);
+  ierr = PetscPrintf(comm,"nthreads=%d\n",nthreads);CHKERRQ(ierr);
 
   // Create vectors
-  ierr = VecCreateMPI(PETSC_COMM_WORLD,PETSC_DECIDE,n*n,&x);CHKERRCONTINUE(ierr);
+  ierr = VecCreateMPI(comm,PETSC_DECIDE,n*n,&x);CHKERRCONTINUE(ierr);
   ierr = VecSetFromOptions(x);CHKERRCONTINUE(ierr);
   ierr = VecDuplicate(x,&b);CHKERRCONTINUE(ierr);
 
@@ -40,8 +39,8 @@ int main(int argc,char **argv)
     PetscInt pstart,pend,lsize,gsize;
     PetscInt prank,trank = omp_get_thread_num();
 
-    ierr = PetscThreadPoolJoin(PETSC_COMM_WORLD,trank,&prank,tcomm);CHKERRCONTINUE(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"trank=%d joined pool prank=%d\n",trank,prank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadPoolJoin(comm,trank,&prank);CHKERRCONTINUE(ierr);
+    ierr = PetscPrintf(comm,"trank=%d joined pool prank=%d\n",trank,prank);CHKERRCONTINUE(ierr);
     if(prank>=0) {
       // Set rhs
       ierr = VecSet(b,2.0);CHKERRCONTINUE(ierr);
@@ -50,11 +49,11 @@ int main(int argc,char **argv)
       ierr = VecGetOwnershipRange(x,&pstart,&pend);CHKERRCONTINUE(ierr);
       ierr = VecGetLocalSize(x,&lsize);CHKERRCONTINUE(ierr);
       ierr = VecGetSize(x,&gsize);CHKERRCONTINUE(ierr);
-      ierr = PetscPrintf(PETSC_COMM_WORLD,"localsize=%d globalsize=%d pstart=%d pend=%d\n",lsize,gsize,pstart,pend);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"localsize=%d globalsize=%d pstart=%d pend=%d\n",lsize,gsize,pstart,pend);CHKERRCONTINUE(ierr);
 
       // Create Matrix
-      ierr = PetscPrintf(PETSC_COMM_WORLD,"Creating matrix\n");CHKERRCONTINUE(ierr);
-      ierr = MatCreate(PETSC_COMM_WORLD,&A);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"Creating matrix\n");CHKERRCONTINUE(ierr);
+      ierr = MatCreate(comm,&A);CHKERRCONTINUE(ierr);
       ierr = MatSetSizes(A,PETSC_DECIDE,PETSC_DECIDE,n*n,n*n);CHKERRCONTINUE(ierr);
       ierr = MatSetType(A,MATMPIAIJ);CHKERRCONTINUE(ierr);
       ierr = MatSetUp(A);CHKERRCONTINUE(ierr);
@@ -73,14 +72,14 @@ int main(int argc,char **argv)
       ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRCONTINUE(ierr);
       ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRCONTINUE(ierr);
 
-      ierr = KSPCreate(PETSC_COMM_WORLD,&ksp);CHKERRCONTINUE(ierr);
+      ierr = KSPCreate(comm,&ksp);CHKERRCONTINUE(ierr);
       ierr = KSPSetOperators(ksp,A,A);CHKERRCONTINUE(ierr);
       ierr = KSPSetType(ksp,KSPCG);CHKERRCONTINUE(ierr);
       ierr = KSPGetPC(ksp,&pc);CHKERRCONTINUE(ierr);
       ierr = PCSetType(pc,PCJACOBI);CHKERRCONTINUE(ierr);
 
       ierr = KSPSetUp(ksp);CHKERRCONTINUE(ierr);
-      ierr = PetscPrintf(PETSC_COMM_WORLD,"Solving linear system\n");CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"Solving linear system\n");CHKERRCONTINUE(ierr);
       ierr = KSPSolve(ksp,b,x);CHKERRCONTINUE(ierr);
 
       KSPConvergedReason reason;
@@ -88,9 +87,9 @@ int main(int argc,char **argv)
       ierr = VecNorm(x,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
       ierr = KSPGetConvergedReason(ksp,&reason);CHKERRCONTINUE(ierr);
       ierr = KSPGetResidualNorm(ksp,&rnorm);CHKERRCONTINUE(ierr);
-      ierr = PetscPrintf(PETSC_COMM_WORLD,"Residual=%f Converged=%d Soln norm=%f\n",rnorm,reason,vnorm);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"Residual=%f Converged=%d Soln norm=%f\n",rnorm,reason,vnorm);CHKERRCONTINUE(ierr);
     }
-    ierr = PetscThreadPoolReturn(PETSC_COMM_WORLD,&prank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadPoolReturn(comm,&prank);CHKERRCONTINUE(ierr);
   }
 
   ierr = KSPDestroy(&ksp);CHKERRQ(ierr);

@@ -45,13 +45,12 @@ int main(int argc,char **argv)
 
   PetscInitialize(&argc,&argv,(char*)0,help);
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetInt(NULL,"-nthreads",&nthreads,NULL);CHKERRQ(ierr);
 
   // Create MPI_Comm and ThreadComm from PETSC_COMM_WORLD
   // Create worker threads in PETSc, master thread returns
-  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,nthreads,PETSC_TRUE,&comm1);
-  PetscThreadCommGetNThreads(comm1,&ntcthreads1);
-  printf("After creating comm1, comm1 has %d threads\n\n\n",ntcthreads1);
+  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,&comm1);CHKERRQ(ierr);
+  ierr = PetscThreadCommGetNThreads(comm1,&nthreads);CHKERRQ(ierr);
+  printf("After creating comm1, comm1 has %d threads\n\n\n",nthreads);
 
   // Create second threadcomm using every other thread
   nthreads2 = ceil((PetscScalar)nthreads/2.0);
@@ -66,7 +65,7 @@ int main(int argc,char **argv)
   printf("After creating comm2, comm1 has %d threads\n",ntcthreads1);
   printf("After creating comm2, comm2 has %d threads\n",ntcthreads2);
 
-  PetscThreadCommCreateAttach(PETSC_COMM_WORLD,nthreads,PETSC_TRUE);
+  PetscThreadCommCreateAttach(PETSC_COMM_WORLD,nthreads);
   PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&ntcthreads1);
   printf("PETSC_COMM_WORLD has %d threads\n",ntcthreads1);
 

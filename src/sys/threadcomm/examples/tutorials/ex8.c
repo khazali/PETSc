@@ -1,4 +1,4 @@
-static char help[] = "Test threadcomm with type=pthread, model=loop with PETSc vector routines.\n\n";
+static char help[] = "Test threadcomm with model=loop or no threadcomm settings with PETSc vector routines.\n\n";
 
 #include <petscvec.h>
 #include <petscthreadcomm.h>
@@ -9,7 +9,7 @@ int main(int argc,char **argv)
 {
   Vec x, y;
   PetscErrorCode  ierr;
-  PetscInt n=20;
+  PetscInt n=20, nthreads;
   PetscScalar vnorm,alpha=3.0;
 
   PetscInitialize(&argc,&argv,(char*)0,help);
@@ -21,6 +21,9 @@ int main(int argc,char **argv)
   ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRQ(ierr);
   ierr = VecSetFromOptions(x);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&y);CHKERRQ(ierr);
+
+  PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&nthreads);
+  printf("PETSC_COMM_WORLD has %d threads\n",nthreads);
 
   // Run PETSc code
   ierr = VecSet(x,2.0);CHKERRQ(ierr);
@@ -39,11 +42,17 @@ int main(int argc,char **argv)
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = VecDestroy(&y);CHKERRQ(ierr);
 
+  PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&nthreads);
+  printf("After test 1 PETSC_COMM_WORLD has %d threads\n",nthreads);
+
   PetscPrintf(PETSC_COMM_WORLD,"\n\nRunning test 2\n");
   ierr = VecCreate(PETSC_COMM_WORLD,&x);CHKERRQ(ierr);
   ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRQ(ierr);
   ierr = VecSetFromOptions(x);CHKERRQ(ierr);
   ierr = VecSet(x,2.0);CHKERRQ(ierr);
+
+  PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&nthreads);
+  printf("After vec create 2 PETSC_COMM_WORLD has %d threads\n",nthreads);
 
   ierr = VecCreate(PETSC_COMM_WORLD,&y);CHKERRQ(ierr);
   ierr = VecSetSizes(y,PETSC_DECIDE,n);CHKERRQ(ierr);
