@@ -688,8 +688,12 @@ PetscErrorCode DMPlexDistribute(DM dm, const char partitioner[], PetscInt overla
 . n - The number of partitions
 - overlap - The overlap of partitions, 0 is the default
 
-  Output Parameter:
-. dms - The individual DMPlex objects for each domain
+  Output Parameters:
++ origPartSection - Offsets into 'part' for partitions without overlap
+. origPart - Array of partition points
+. partitionSection - Offsets into 'part' for partitions with overlap
+. partition - Array of partition points
+- dms - The individual DMPlex objects for each domain
 
   The user can control the definition of adjacency for the mesh using DMPlexGetAdjacencyUseCone() and
   DMPlexSetAdjacencyUseClosure(). They should choose the combination appropriate for the function
@@ -700,14 +704,14 @@ PetscErrorCode DMPlexDistribute(DM dm, const char partitioner[], PetscInt overla
 .keywords: mesh, elements
 .seealso: DMPlexDistribute(), DMPlexCreate(), DMPlexSetAdjacencyUseCone(), DMPlexSetAdjacencyUseClosure()
 @*/
-PetscErrorCode DMPlexDecompose(DM dm, const char partitioner[], PetscInt n, PetscInt overlap, DM **dms)
+PetscErrorCode DMPlexDecompose(DM dm, const char partitioner[], PetscInt n, PetscInt overlap, PetscSection *origPartitionSection, IS *origPartition, PetscSection *partitionSection, IS *partition, DM **dms)
 {
   DM_Plex               *mesh   = (DM_Plex *) dm->data, *pmesh;
   const PetscInt         height = 0;
   MPI_Comm               comm;
   PetscInt               dim, numRemoteRanks;
-  IS                     origCellPart,        cellPart,        part;
-  PetscSection           origCellPartSection, cellPartSection, partSection;
+  IS                     origCellPart,        cellPart,        origPart,        part;
+  PetscSection           origCellPartSection, cellPartSection, origPartSection, partSection;
   PetscSFNode           *remoteRanks;
   PetscSF                partSF, pointSF, coneSF;
   ISLocalToGlobalMapping renumbering;
@@ -760,6 +764,9 @@ PetscErrorCode DMPlexDecompose(DM dm, const char partitioner[], PetscInt n, Pets
     ierr = PetscSFView(partSF, NULL);CHKERRQ(ierr);
   }
   /* Close the partition over the mesh */
+  ierr = DMPlexCreatePartitionClosure(dm, origCellPartSection, origCellPart, &origPartSection, &origPart);CHKERRQ(ierr);
+  ierr = ISDestroy(&origCellPart);CHKERRQ(ierr);
+  ierr = PetscSectionDestroy(&origCellPartSection);CHKERRQ(ierr);
   ierr = DMPlexCreatePartitionClosure(dm, cellPartSection, cellPart, &partSection, &part);CHKERRQ(ierr);
   ierr = ISDestroy(&cellPart);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&cellPartSection);CHKERRQ(ierr);
@@ -880,27 +887,21 @@ PetscErrorCode DMPlexDecompose(DM dm, const char partitioner[], PetscInt n, Pets
     /* Distribute labels */
     ierr = PetscLogEventBegin(DMPLEX_DistributeLabels,dm,0,0,0);CHKERRQ(ierr);
     {
-      DMLabel  next      = mesh->labels, newNext = pmesh->labels;
-      PetscInt numLabels = 0, l;
+      DMLabel next = mesh->labels, newNext = pmesh->labels;
 
-      /* Bcast number of labels */
-      while (next) {++numLabels; next = next->next;}
-      ierr = MPI_Bcast(&numLabels, 1, MPIU_INT, 0, comm);CHKERRQ(ierr);
-      next = mesh->labels;
-      for (l = 0; l < numLabels; ++l) {
+      while (next) {
         DMLabel   labelNew;
         PetscBool isdepth;
 
         /* Skip "depth" because it is recreated */
-        if (!rank) {ierr = PetscStrcmp(next->name, "depth", &isdepth);CHKERRQ(ierr);}
-        ierr = MPI_Bcast(&isdepth, 1, MPIU_BOOL, 0, comm);CHKERRQ(ierr);
-        if (isdepth) {if (!rank) next = next->next; continue;}
+        ierr = PetscStrcmp(next->name, "depth", &isdepth);CHKERRQ(ierr);
+        if (isdepth) {next = next->next; continue;}
         ierr = DMLabelDecompose(next, partSection, part, i, renumbering, &labelNew);CHKERRQ(ierr);
         /* Insert into list */
         if (newNext) newNext->next = labelNew;
         else         pmesh->labels = labelNew;
         newNext = labelNew;
-        if (!rank) next = next->next;
+        next = next->next;
       }
     }
     ierr = PetscLogEventEnd(DMPLEX_DistributeLabels,dm,0,0,0);CHKERRQ(ierr);
@@ -935,13 +936,32 @@ PetscErrorCode DMPlexDecompose(DM dm, const char partitioner[], PetscInt n, Pets
     ierr = ISLocalToGlobalMappingDestroy(&renumbering);CHKERRQ(ierr);
     /* Copy BC */
     ierr = DMPlexCopyBoundary(dm, pdm);CHKERRQ(ierr);
+    /* Copy DS */
+    {
+      PetscDS prob;
+
+      ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
+      ierr = DMSetDS(pdm, prob);CHKERRQ(ierr);
+    }
     /* Cleanup */
     ierr = PetscSFDestroy(&pointSF);CHKERRQ(ierr);
     ierr = DMSetFromOptions(pdm);CHKERRQ(ierr);
   }
   ierr = PetscSFDestroy(&partSF);CHKERRQ(ierr);
-  ierr = PetscSectionDestroy(&partSection);CHKERRQ(ierr);
-  ierr = ISDestroy(&part);CHKERRQ(ierr);
+  if (origPartition) {
+    *origPartitionSection = origPartSection;
+    *origPartition        = origPart;
+  } else {
+    ierr = PetscSectionDestroy(&origPartSection);CHKERRQ(ierr);
+    ierr = ISDestroy(&origPart);CHKERRQ(ierr);
+  }
+  if (partition) {
+    *partitionSection = partSection;
+    *partition        = part;
+  } else {
+    ierr = PetscSectionDestroy(&partSection);CHKERRQ(ierr);
+    ierr = ISDestroy(&part);CHKERRQ(ierr);
+  }
   ierr = PetscLogEventEnd(DMPLEX_Decompose,dm,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
