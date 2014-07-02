@@ -187,16 +187,16 @@ PetscErrorCode  PetscCommDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,PetscMPII
   ierr = MPI_Barrier(comm_in);CHKERRQ(ierr);
 #endif
 
-  /* if (counter->tag < 1) { */
-  /*   ierr = PetscInfo1(0,"Out of tags for object, starting to recycle. Comm reference count %d\n",counter->refcount);CHKERRQ(ierr); */
-  /*   ierr = MPI_Attr_get(MPI_COMM_WORLD,MPI_TAG_UB,&maxval,&flg);CHKERRQ(ierr); */
-  /*   if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"MPI error: MPI_Attr_get() is not returning a MPI_TAG_UB"); */
-  /*   counter->tag = *maxval - 128; /\* hope that any still active tags were issued right at the beginning of the run *\/ */
-  /* } */
+  if (counter->tag < 1) {
+    ierr = PetscInfo1(0,"Out of tags for object, starting to recycle. Comm reference count %d\n",counter->refcount);CHKERRQ(ierr);
+    ierr = MPI_Attr_get(MPI_COMM_WORLD,MPI_TAG_UB,&maxval,&flg);CHKERRQ(ierr);
+    if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"MPI error: MPI_Attr_get() is not returning a MPI_TAG_UB");
+    counter->tag = *maxval - 128; /* hope that any still active tags were issued right at the beginning of the run */
+  }
+
+  if (first_tag) *first_tag = counter->tag--;
 
   /* // Attach threadcomm to communicator */
-  /* if (first_tag) *first_tag = counter->tag--; */
-
   /* ierr = MPI_Attr_get(*comm_out,Petsc_ThreadComm_keyval,(PetscThreadComm*)&tcomm,&flg);CHKERRQ(ierr); */
   /* if (!flg) { */
   /*   /\* Threadcomm does not exist on this communicator, get the comm_in threadcomm and attach it to this communicator *\/ */
@@ -216,35 +216,26 @@ PetscErrorCode  PetscCommForceDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,Pets
   PetscErrorCode   ierr;
   PetscCommCounter *counter;
   PetscMPIInt      *maxval,flg;
-  //PetscInt         trank;
-  //PetscThreadComm  tcomm;
 
   PetscFunctionBegin;
+  printf("In CommForceDup\n");
+  /* Get counter for comm_in */
   ierr = MPI_Attr_get(comm_in,Petsc_Counter_keyval,&counter,&flg);CHKERRQ(ierr);
 
-  union {MPI_Comm comm; void *ptr;} ucomm;
-  /* check if this communicator has a PETSc communicator imbedded in it */
-  ierr = MPI_Attr_get(comm_in,Petsc_InnerComm_keyval,&ucomm,&flg);CHKERRQ(ierr);
-
-  printf("In CommDup, comm not known to system\n");
-  /* This communicator is not yet known to this system, so we duplicate it and make an internal communicator */
+  /* Duplicate communicator*/
   ierr = MPI_Comm_dup(comm_in,comm_out);CHKERRQ(ierr);
   ierr = MPI_Attr_get(MPI_COMM_WORLD,MPI_TAG_UB,&maxval,&flg);CHKERRQ(ierr);
   if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"MPI error: MPI_Attr_get() is not returning a MPI_TAG_UB");
-  ierr = PetscMalloc(sizeof(PetscCommCounter),&counter);CHKERRQ(ierr);
 
+  /* Create counter for comm_out */
+  ierr = PetscMalloc(sizeof(PetscCommCounter),&counter);CHKERRQ(ierr);
   counter->tag       = *maxval;
   counter->refcount  = 0;
   counter->namecount = 0;
 
+  /* Attach new counter to comm_out */
   ierr = MPI_Attr_put(*comm_out,Petsc_Counter_keyval,counter);CHKERRQ(ierr);
   ierr = PetscInfo3(0,"Duplicating a communicator %ld %ld max tags = %d\n",(long)comm_in,(long)*comm_out,*maxval);CHKERRQ(ierr);
-
-  /* save PETSc communicator inside user communicator, so we can get it next time */
-  ucomm.comm = *comm_out;   /* ONLY the comm part of the union is significant. */
-  ierr = MPI_Attr_put(comm_in,Petsc_InnerComm_keyval,ucomm.ptr);CHKERRQ(ierr);
-  ucomm.comm = comm_in;
-  ierr = MPI_Attr_put(*comm_out,Petsc_OuterComm_keyval,ucomm.ptr);CHKERRQ(ierr);
 
 #if defined(PETSC_USE_DEBUG)
   /*
@@ -255,25 +246,17 @@ PetscErrorCode  PetscCommForceDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,Pets
   ierr = MPI_Barrier(comm_in);CHKERRQ(ierr);
 #endif
 
-  /* if (counter->tag < 1) { */
-  /*   ierr = PetscInfo1(0,"Out of tags for object, starting to recycle. Comm reference count %d\n",counter->refcount);CHKERRQ(ierr); */
-  /*   ierr = MPI_Attr_get(MPI_COMM_WORLD,MPI_TAG_UB,&maxval,&flg);CHKERRQ(ierr); */
-  /*   if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"MPI error: MPI_Attr_get() is not returning a MPI_TAG_UB"); */
-  /*   counter->tag = *maxval - 128; /\* hope that any still active tags were issued right at the beginning of the run *\/ */
-  /* } */
+  /* If out of tags then move to tag near beginning */
+  if (counter->tag < 1) {
+    ierr = PetscInfo1(0,"Out of tags for object, starting to recycle. Comm reference count %d\n",counter->refcount);CHKERRQ(ierr);
+    ierr = MPI_Attr_get(MPI_COMM_WORLD,MPI_TAG_UB,&maxval,&flg);CHKERRQ(ierr);
+    if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"MPI error: MPI_Attr_get() is not returning a MPI_TAG_UB");
+    counter->tag = *maxval - 128; /* hope that any still active tags were issued right at the beginning of the run */
+  }
 
-  /* // Attach threadcomm to communicator */
-  /* if (first_tag) *first_tag = counter->tag--; */
+  /* Return next available tag */
+  if (first_tag) *first_tag = counter->tag--;
 
-  /* ierr = MPI_Attr_get(*comm_out,Petsc_ThreadComm_keyval,(PetscThreadComm*)&tcomm,&flg);CHKERRQ(ierr); */
-  /* if (!flg) { */
-  /*   /\* Threadcomm does not exist on this communicator, get the comm_in threadcomm and attach it to this communicator *\/ */
-  /*   ierr = PetscCommGetThreadComm(comm_in,&tcomm);CHKERRQ(ierr); */
-  /*   ierr = PetscThreadCommAttach(*comm_out,tcomm);CHKERRQ(ierr); */
-  /* } */
-  /* /\* Only the main thread updates counter->refcount *\/ */
-  /* ierr = PetscThreadCommGetRank(tcomm,&trank);CHKERRQ(ierr); */
-  /* if (!trank) counter->refcount++; /\* number of references to this comm *\/ */
   PetscFunctionReturn(0);
 }
 

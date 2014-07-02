@@ -4,6 +4,7 @@
 */
 #include <petsc-private/petscimpl.h>  /*I   "petscsys.h"    I*/
 #include <petscviewer.h>
+#include <petscthreadcomm.h>
 
 #if defined(PETSC_USE_LOG)
 PetscObject *PetscObjects      = 0;
@@ -26,7 +27,9 @@ PetscErrorCode  PetscHeaderCreate_Private(PetscObject h,PetscClassId classid,con
                                           MPI_Comm comm,PetscErrorCode (*des)(PetscObject*),PetscErrorCode (*vie)(PetscObject,PetscViewer))
 {
   static PetscInt idcnt = 1;
+  PetscBool       exists;
   PetscErrorCode  ierr;
+  PetscThreadComm tcomm;
 #if defined(PETSC_USE_LOG)
   PetscObject     *newPetscObjects;
   PetscInt         newPetscObjectsMaxCounts,i;
@@ -56,7 +59,19 @@ PetscErrorCode  PetscHeaderCreate_Private(PetscObject h,PetscClassId classid,con
   h->bops->composefunction = PetscObjectComposeFunction_Petsc;
   h->bops->queryfunction   = PetscObjectQueryFunction_Petsc;
 
-  ierr = PetscCommDuplicate(comm,&h->comm,&h->tag);CHKERRQ(ierr);
+  //ierr = PetscCommDuplicate(comm,&h->comm,&h->tag);CHKERRQ(ierr);
+  ierr = PetscCommForceDuplicate(comm,&h->comm,&h->tag);CHKERRQ(ierr);
+  ierr = PetscCommCheckGetThreadComm(h->comm,&tcomm,&exists);CHKERRQ(ierr);
+  if(exists) {
+    PetscThreadCommAttach(h->comm,tcomm);CHKERRQ(ierr);
+  }
+
+  //ierr = PetscCommDuplicate(PETSC_COMM_SELF,&h->commself,&h->tag);CHKERRQ(ierr);
+  ierr = PetscCommForceDuplicate(PETSC_COMM_SELF,&h->commself,&h->tag);CHKERRQ(ierr);
+  ierr = PetscCommCheckGetThreadComm(h->comm,&tcomm,&exists);CHKERRQ(ierr);
+  if(exists) {
+    PetscThreadCommAttach(h->commself,tcomm);CHKERRQ(ierr);
+  }
 
 #if defined(PETSC_USE_LOG)
   /* Keep a record of object created */

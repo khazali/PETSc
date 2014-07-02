@@ -47,6 +47,7 @@ PETSC_EXTERN const char* const PetscThreadCommReductionOps[];
 #define PETSC_REDUCTIONS_MAX 32
 
 PETSC_EXTERN PetscErrorCode PetscCommGetThreadComm(MPI_Comm,PetscThreadComm*);
+PETSC_EXTERN PetscErrorCode PetscCommCheckGetThreadComm(MPI_Comm,PetscThreadComm*,PetscBool*);
 PETSC_EXTERN PetscErrorCode PetscThreadCommInitializePackage(void);
 PETSC_EXTERN PetscErrorCode PetscThreadCommFinalizePackage(void);
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate(MPI_Comm,PetscInt,MPI_Comm*);

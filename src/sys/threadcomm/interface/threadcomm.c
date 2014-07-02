@@ -59,6 +59,29 @@ PetscErrorCode PetscCommGetThreadComm(MPI_Comm comm,PetscThreadComm *tcomm)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscCommCheckGetThreadComm"
+/*
+   Check if threadcomm exists. If so return it and a flag telling if it exists.
+*/
+PetscErrorCode PetscCommCheckGetThreadComm(MPI_Comm comm,PetscThreadComm *tcomm,PetscBool *exists)
+{
+  PetscMPIInt    flg;
+  PetscErrorCode ierr;
+  void           *ptr;
+
+  PetscFunctionBegin;
+  ierr = MPI_Attr_get(comm,Petsc_ThreadComm_keyval,(PetscThreadComm*)&ptr,&flg);CHKERRQ(ierr);
+  if (flg) {
+    *exists = PETSC_TRUE;
+    *tcomm = (PetscThreadComm)ptr;
+  } else {
+    *exists = PETSC_FALSE;
+    *tcomm = NULL;
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommAlloc"
 /*
    PetscThreadCommAlloc - Allocates a thread communicator object
@@ -531,7 +554,7 @@ PetscErrorCode PetscThreadCommRunKernel(MPI_Comm comm,PetscErrorCode (*func)(Pet
 {
   PetscErrorCode          ierr;
   va_list                 argptr;
-  PetscInt                i;
+  PetscInt                i,j;
   PetscThreadComm         tcomm=0;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
@@ -559,7 +582,7 @@ PetscErrorCode PetscThreadCommRunKernel(MPI_Comm comm,PetscErrorCode (*func)(Pet
     job->nargs          = nargs;
     job->pfunc          = (PetscThreadKernel)func;
     va_start(argptr,nargs);
-    for (i=0; i < nargs; i++) job->args[i] = va_arg(argptr,void*);
+    for (j=0; j<nargs; j++) job->args[j] = va_arg(argptr,void*);
     va_end(argptr);
     job->job_status = THREAD_JOB_POSTED;
   }
@@ -736,6 +759,7 @@ PetscErrorCode PetscThreadCommRunKernel1(MPI_Comm comm,PetscErrorCode (*func)(Pe
     job->job_status = THREAD_JOB_POSTED;
   }
 
+  // Get jobqueue and job for main thread
   jobqueue = tcomm->commthreads[0]->jobqueue;
   job  = &jobqueue->jobs[jobqueue->ctr];
 
@@ -897,6 +921,7 @@ PetscErrorCode PetscThreadCommRunKernel3(MPI_Comm comm,PetscErrorCode (*func)(Pe
     job->job_status = THREAD_JOB_POSTED;
   }
 
+  // Get jobqueue and job for main thread
   jobqueue = tcomm->commthreads[0]->jobqueue;
   job  = &jobqueue->jobs[jobqueue->ctr];
 
@@ -979,6 +1004,7 @@ PetscErrorCode PetscThreadCommRunKernel4(MPI_Comm comm,PetscErrorCode (*func)(Pe
     job->job_status = THREAD_JOB_POSTED;
   }
 
+  // Get jobqueue and job for main thread
   jobqueue = tcomm->commthreads[0]->jobqueue;
   job  = &jobqueue->jobs[jobqueue->ctr];
 
@@ -1068,6 +1094,7 @@ PetscErrorCode PetscThreadCommRunKernel6(MPI_Comm comm,PetscErrorCode (*func)(Pe
     job->job_status = THREAD_JOB_POSTED;
   }
 
+  // Get jobqueue and job for main thread
   jobqueue = tcomm->commthreads[0]->jobqueue;
   job  = &jobqueue->jobs[jobqueue->ctr];
 

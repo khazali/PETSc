@@ -37,6 +37,14 @@ MPI_Comm  PetscObjectComm(PetscObject obj)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscObjectCommSelf"
+MPI_Comm  PetscObjectCommSelf(PetscObject obj)
+{
+  if (!obj) return MPI_COMM_NULL;
+  return obj->commself;
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscObjectGetComm"
 /*@C
    PetscObjectGetComm - Gets the MPI communicator for any PetscObject,

@@ -2544,6 +2544,7 @@ M*/
 M*/
 
 PETSC_EXTERN MPI_Comm PetscObjectComm(PetscObject);
+PETSC_EXTERN MPI_Comm PetscObjectCommSelf(PetscObject);
 
 typedef enum {PETSC_SUBCOMM_GENERAL=0,PETSC_SUBCOMM_CONTIGUOUS=1,PETSC_SUBCOMM_INTERLACED=2} PetscSubcommType;
 PETSC_EXTERN const char *const PetscSubcommTypes[];

@@ -3247,12 +3247,12 @@ PetscErrorCode  MatMPIAIJSetPreallocation_MPIAIJ(Mat B,PetscInt d_nz,const Petsc
 
   if (!B->preallocated) {
     /* Explicitly create 2 MATSEQAIJ matrices. */
-    ierr = MatCreate(PETSC_COMM_SELF,&b->A);CHKERRQ(ierr);
+    ierr = MatCreate(PetscObjectCommSelf((PetscObject)B),&b->A);CHKERRQ(ierr);
     ierr = MatSetSizes(b->A,B->rmap->n,B->cmap->n,B->rmap->n,B->cmap->n);CHKERRQ(ierr);
     ierr = MatSetBlockSizesFromMats(b->A,B,B);CHKERRQ(ierr);
     ierr = MatSetType(b->A,MATSEQAIJ);CHKERRQ(ierr);
     ierr = PetscLogObjectParent((PetscObject)B,(PetscObject)b->A);CHKERRQ(ierr);
-    ierr = MatCreate(PETSC_COMM_SELF,&b->B);CHKERRQ(ierr);
+    ierr = MatCreate(PetscObjectCommSelf((PetscObject)B),&b->B);CHKERRQ(ierr);
     ierr = MatSetSizes(b->B,B->rmap->n,B->cmap->N,B->rmap->n,B->cmap->N);CHKERRQ(ierr);
     ierr = MatSetBlockSizesFromMats(b->B,B,B);CHKERRQ(ierr);
     ierr = MatSetType(b->B,MATSEQAIJ);CHKERRQ(ierr);

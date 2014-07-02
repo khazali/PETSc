@@ -101,12 +101,12 @@ PetscErrorCode MatSetUpMultiply_MPIAIJ(Mat mat)
   ierr = PetscFree(indices);CHKERRQ(ierr);
 #endif
   /* create local vector that is used to scatter into */
-  ierr = VecCreateSeq(PETSC_COMM_SELF,ec,&aij->lvec);CHKERRQ(ierr);
+  ierr = VecCreateSeq(PetscObjectCommSelf((PetscObject)mat),ec,&aij->lvec);CHKERRQ(ierr);
 
   /* create two temporary Index sets for build scatter gather */
   ierr = ISCreateGeneral(((PetscObject)mat)->comm,ec,garray,PETSC_COPY_VALUES,&from);CHKERRQ(ierr);
 
-  ierr = ISCreateStride(PETSC_COMM_SELF,ec,0,1,&to);CHKERRQ(ierr);
+  ierr = ISCreateStride(PetscObjectCommSelf((PetscObject)mat),ec,0,1,&to);CHKERRQ(ierr);
 
   /* create temporary global vector to generate scatter context */
   /* This does not allocate the array's memory so is efficient */
