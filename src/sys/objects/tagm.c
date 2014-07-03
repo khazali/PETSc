@@ -134,19 +134,15 @@ PetscErrorCode  PetscCommDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,PetscMPII
   PetscErrorCode   ierr;
   PetscCommCounter *counter;
   PetscMPIInt      *maxval,flg;
-  //PetscInt         trank;
-  //PetscThreadComm  tcomm;
 
   PetscFunctionBegin;
   ierr = MPI_Attr_get(comm_in,Petsc_Counter_keyval,&counter,&flg);CHKERRQ(ierr);
 
   if (!flg) {  /* this is NOT a PETSc comm */
-    printf("In CommDup, not a Petsc comm\n");
     union {MPI_Comm comm; void *ptr;} ucomm;
     /* check if this communicator has a PETSc communicator imbedded in it */
     ierr = MPI_Attr_get(comm_in,Petsc_InnerComm_keyval,&ucomm,&flg);CHKERRQ(ierr);
     if (!flg) {
-      printf("In CommDup, comm not known to system\n");
       /* This communicator is not yet known to this system, so we duplicate it and make an internal communicator */
       ierr = MPI_Comm_dup(comm_in,comm_out);CHKERRQ(ierr);
       ierr = MPI_Attr_get(MPI_COMM_WORLD,MPI_TAG_UB,&maxval,&flg);CHKERRQ(ierr);
@@ -166,17 +162,14 @@ PetscErrorCode  PetscCommDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,PetscMPII
       ucomm.comm = comm_in;
       ierr = MPI_Attr_put(*comm_out,Petsc_OuterComm_keyval,ucomm.ptr);CHKERRQ(ierr);
     } else {
-      printf("In CommDup, comm known to system\n");
       *comm_out = ucomm.comm;
       /* pull out the inner MPI_Comm and hand it back to the caller */
       ierr = MPI_Attr_get(*comm_out,Petsc_Counter_keyval,&counter,&flg);CHKERRQ(ierr);
       if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Inner PETSc communicator does not have its tag/name counter attribute set");
       ierr = PetscInfo2(0,"Using internal PETSc communicator %ld %ld\n",(long)comm_in,(long)*comm_out);CHKERRQ(ierr);
     }
-  } else {
-    printf("In CommDup, is a Petsc comm\n");
-    *comm_out = comm_in;
-  }
+  } else *comm_out = comm_in;
+  counter->refcount++;
 
 #if defined(PETSC_USE_DEBUG)
   /*
@@ -196,16 +189,6 @@ PetscErrorCode  PetscCommDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,PetscMPII
 
   if (first_tag) *first_tag = counter->tag--;
 
-  /* // Attach threadcomm to communicator */
-  /* ierr = MPI_Attr_get(*comm_out,Petsc_ThreadComm_keyval,(PetscThreadComm*)&tcomm,&flg);CHKERRQ(ierr); */
-  /* if (!flg) { */
-  /*   /\* Threadcomm does not exist on this communicator, get the comm_in threadcomm and attach it to this communicator *\/ */
-  /*   ierr = PetscCommGetThreadComm(*comm_out,&tcomm);CHKERRQ(ierr); */
-  /*   ierr = PetscThreadCommAttach(*comm_out,tcomm);CHKERRQ(ierr); */
-  /* } */
-  /* /\* Only the main thread updates counter->refcount *\/ */
-  /* ierr = PetscThreadCommGetRank(tcomm,&trank);CHKERRQ(ierr); */
-  /* if (!trank) counter->refcount++; /\* number of references to this comm *\/ */
   PetscFunctionReturn(0);
 }
 
@@ -218,7 +201,6 @@ PetscErrorCode  PetscCommForceDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,Pets
   PetscMPIInt      *maxval,flg;
 
   PetscFunctionBegin;
-  printf("In CommForceDup\n");
   /* Get counter for comm_in */
   ierr = MPI_Attr_get(comm_in,Petsc_Counter_keyval,&counter,&flg);CHKERRQ(ierr);
 
@@ -234,6 +216,7 @@ PetscErrorCode  PetscCommForceDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,Pets
   counter->namecount = 0;
 
   /* Attach new counter to comm_out */
+  counter->refcount++;
   ierr = MPI_Attr_put(*comm_out,Petsc_Counter_keyval,counter);CHKERRQ(ierr);
   ierr = PetscInfo3(0,"Duplicating a communicator %ld %ld max tags = %d\n",(long)comm_in,(long)*comm_out,*maxval);CHKERRQ(ierr);
 
@@ -282,11 +265,9 @@ PetscErrorCode  PetscCommDestroy(MPI_Comm *comm)
   PetscCommCounter *counter;
   PetscMPIInt      flg;
   MPI_Comm         icomm = *comm,ocomm;
-  PetscThreadComm  tcomm;
   union {MPI_Comm comm; void *ptr;} ucomm;
 
   PetscFunctionBegin;
-  printf("Destroying PetscComm\n");
   if (*comm == MPI_COMM_NULL) PetscFunctionReturn(0);
   ierr = MPI_Attr_get(icomm,Petsc_Counter_keyval,&counter,&flg);CHKERRQ(ierr);
   if (!flg) { /* not a PETSc comm, check if it has an inner comm */
@@ -297,16 +278,7 @@ PetscErrorCode  PetscCommDestroy(MPI_Comm *comm)
     if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_CORRUPT,"Inner MPI_Comm does not have expected tag/name counter, problem with corrupted memory");
   }
 
-  /* Threadcomm - Only the main thread updates counter->refcount */
-  ierr = MPI_Attr_get(icomm,Petsc_ThreadComm_keyval,(PetscThreadComm*)&tcomm,&flg);CHKERRQ(ierr);
-  if (flg) {
-    PetscInt trank;
-    ierr = PetscThreadCommGetRank(tcomm,&trank);CHKERRQ(ierr);
-    /* Only thread rank 0 updates the counter */
-    if (!trank) counter->refcount--;
-  } else counter->refcount--;
-
-  if (!counter->refcount) {
+  if (!(--counter->refcount)) {
     /* if MPI_Comm has outer comm then remove reference to inner MPI_Comm from outer MPI_Comm */
     ierr = MPI_Attr_get(icomm,Petsc_OuterComm_keyval,&ucomm,&flg);CHKERRQ(ierr);
     if (flg) {

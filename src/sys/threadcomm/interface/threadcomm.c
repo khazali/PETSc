@@ -225,10 +225,9 @@ PetscErrorCode PetscThreadCommDestroy(PetscThreadComm *tcomm)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  printf("In ThreadCommDestroy refct=%d\n",(*tcomm)->refct);
   if (!*tcomm) PetscFunctionReturn(0);
   if (!--(*tcomm)->refct) {
-    printf("Destroying ThreadComm\n");
+    printf("Destroying threadcomm\n");
     //if(pool->model==THREAD_MODEL_LOOP) {
     //ierr = PetscThreadCommStackDestroy();CHKERRQ(ierr);
     //}
@@ -751,7 +750,6 @@ PetscErrorCode PetscThreadCommRunKernel1(MPI_Comm comm,PetscErrorCode (*func)(Pe
 
     job->tcomm          = tcomm;
     job->commrank       = i;
-    printf("Setting commrank=%d\n",i);
     tcomm->commthreads[i]->job_ctr = jobqueue->ctr;
     job->nargs          = 1;
     job->pfunc          = (PetscThreadKernel)func;
@@ -1129,7 +1127,6 @@ PetscErrorCode PetscThreadCommDetach(MPI_Comm comm)
   if (flg) {
     printf("Detaching comm refct=%d\n",tcomm->refct);
     ierr = MPI_Attr_delete(comm,Petsc_ThreadComm_keyval);CHKERRQ(ierr);
-    printf("After attr_delete refct=%d\n",tcomm->refct);
   }
   PetscFunctionReturn(0);
 }
@@ -1149,8 +1146,8 @@ PetscErrorCode PetscThreadCommAttach(MPI_Comm comm,PetscThreadComm tcomm)
   PetscFunctionBegin;
   ierr = MPI_Attr_get(comm,Petsc_ThreadComm_keyval,&ptr,&flg);CHKERRQ(ierr);
   if (!flg) {
-    tcomm->refct++;
     printf("Attaching comm refct=%d\n",tcomm->refct);
+    tcomm->refct++;
     ierr = MPI_Attr_put(comm,Petsc_ThreadComm_keyval,tcomm);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);

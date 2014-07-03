@@ -11,7 +11,7 @@ PetscErrorCode user_func(PetscInt trank,Vec y, MPI_Comm *comm) {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  printf("In user func trank=%d\n",trank);
+  ierr = PetscPrintf(*comm,"In user func trank=%d\n",trank);CHKERRCONTINUE(ierr);
 
   // Get data for local work
   ierr = VecGetArray(y,&ay);CHKERRCONTINUE(ierr);
@@ -43,14 +43,14 @@ int main(int argc,char **argv)
   MPI_Comm comm_a, comm_b;
   PetscInt ntcthreads1,ntcthreads2;
 
-  PetscInitialize(&argc,&argv,(char*)0,help);
+  ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRQ(ierr);
 
   // Create MPI_Comm and ThreadComm from PETSC_COMM_WORLD
   // Create worker threads in PETSc, master thread returns
   ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,&comm1);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(comm1,&nthreads);CHKERRQ(ierr);
-  printf("After creating comm1, comm1 has %d threads\n\n\n",nthreads);
+  ierr = PetscPrintf(comm1,"Created comm1 with %d threads\n",nthreads);CHKERRQ(ierr);
 
   // Create second threadcomm using every other thread
   nthreads2 = ceil((PetscScalar)nthreads/2.0);
@@ -58,22 +58,21 @@ int main(int argc,char **argv)
   for(i=0; i<nthreads2; i++) {
     granks[i] = i*2;
   }
-  ierr = PetscThreadCommCreateShare(comm1,nthreads2,granks,&comm2);
+  ierr = PetscThreadCommCreateShare(comm1,nthreads2,granks,&comm2);CHKERRQ(ierr);
 
-  PetscThreadCommGetNThreads(comm1,&ntcthreads1);
-  PetscThreadCommGetNThreads(comm2,&ntcthreads2);
-  printf("After creating comm2, comm1 has %d threads\n",ntcthreads1);
-  printf("After creating comm2, comm2 has %d threads\n",ntcthreads2);
+  ierr = PetscThreadCommGetNThreads(comm1,&ntcthreads1);CHKERRQ(ierr);
+  ierr = PetscThreadCommGetNThreads(comm2,&ntcthreads2);CHKERRQ(ierr);
+  ierr = PetscPrintf(comm2,"Comm1 has %d threads, created comm2 with %d threads\n",ntcthreads1,ntcthreads2);CHKERRQ(ierr);
 
-  PetscThreadCommCreateAttach(PETSC_COMM_WORLD,nthreads);
-  PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&ntcthreads1);
-  printf("PETSC_COMM_WORLD has %d threads\n",ntcthreads1);
+  ierr = PetscThreadCommCreateAttach(PETSC_COMM_WORLD,nthreads);CHKERRQ(ierr);
+  ierr = PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&ntcthreads1);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"PETSC_COMM_WORLD has %d threads\n",ntcthreads1);CHKERRQ(ierr);
 
   // Run tests using 1 comm
   comm = comm1;
   //comm = comm2;
 
-  printf("\n\nRunning test with single comm\n");
+  ierr = PetscPrintf(comm,"\n\nRunning test with single comm\n");
   // Create two vectors on MPIComm/ThreadComm
   ierr = VecCreate(comm,&x);CHKERRQ(ierr);
   ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRQ(ierr);
@@ -124,12 +123,11 @@ int main(int argc,char **argv)
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = VecDestroy(&y);CHKERRQ(ierr);
 
-  printf("\n\nFreeing MPI_Comms\n");
-  PetscCommDestroy(&comm1);
-  PetscCommDestroy(&comm2);
+  ierr = PetscFree(granks);CHKERRQ(ierr);
+  ierr = PetscCommDestroy(&comm1);CHKERRQ(ierr);
+  ierr = PetscCommDestroy(&comm2);CHKERRQ(ierr);
 
-  printf("\n\nCalling PetscFinalize\n");
-  PetscFinalize();
+  ierr = PetscFinalize();CHKERRQ(ierr);
 
   return 0;
 }

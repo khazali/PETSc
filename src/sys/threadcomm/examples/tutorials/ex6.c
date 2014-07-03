@@ -14,10 +14,10 @@ int main(int argc,char **argv)
   PetscScalar     alpha=3.0;
   MPI_Comm        comm;
 
-  PetscInitialize(&argc,&argv,(char*)0,help);
+  ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr);
 
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRQ(ierr);
-  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,&comm);
+  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,&comm);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(comm,&nthreads);CHKERRQ(ierr);
   ierr = PetscPrintf(comm,"nthreads=%d\n",nthreads);CHKERRQ(ierr);
 
@@ -35,7 +35,7 @@ int main(int argc,char **argv)
 
     // User gives threads to PETSc for threaded PETSc work
     ierr = PetscThreadPoolJoin(comm,trank,&prank);CHKERRCONTINUE(ierr);
-    PetscPrintf(comm,"trank=%d joined pool prank=%d\n",trank,prank);
+    ierr = PetscPrintf(comm,"trank=%d joined pool prank=%d\n",trank,prank);CHKERRCONTINUE(ierr);
     if(prank>=0) {
       ierr = VecSet(x,2.0);CHKERRCONTINUE(ierr);
       ierr = VecSet(y,3.0);CHKERRCONTINUE(ierr);
@@ -126,16 +126,20 @@ int main(int argc,char **argv)
       VecMDot(c,2,mvecs,vals);
       ierr = PetscPrintf(comm,"MDot n1=%f n2=%f\n",vals[0],vals[1]);CHKERRCONTINUE(ierr);
     }
-     ierr = PetscThreadPoolReturn(comm,&prank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadPoolReturn(comm,&prank);CHKERRCONTINUE(ierr);
   }
 
   // Destroy Vecs
-  ierr = PetscPrintf(comm,"Destory and Finalize\n");CHKERRCONTINUE(ierr);
-  ierr = VecDestroy(&x);CHKERRCONTINUE(ierr);
-  ierr = VecDestroy(&y);CHKERRCONTINUE(ierr);
-  ierr = VecDestroy(&a);CHKERRCONTINUE(ierr);
-  ierr = VecDestroy(&b);CHKERRCONTINUE(ierr);
+  ierr = PetscPrintf(comm,"Destory and Finalize\n");CHKERRQ(ierr);
+  ierr = VecDestroy(&x);CHKERRQ(ierr);
+  ierr = VecDestroy(&y);CHKERRQ(ierr);
+  ierr = VecDestroy(&a);CHKERRQ(ierr);
+  ierr = VecDestroy(&b);CHKERRQ(ierr);
+  ierr = VecDestroy(&c);CHKERRQ(ierr);
 
-  PetscFinalize();
+  // Destroy Threadcomms
+  ierr = PetscCommDestroy(&comm);CHKERRQ(ierr);
+
+  ierr = PetscFinalize();CHKERRQ(ierr);
   return 0;
 }

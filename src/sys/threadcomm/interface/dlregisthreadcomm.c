@@ -33,9 +33,9 @@ PetscErrorCode PetscThreadCommFinalizePackage(void)
 #undef __FUNCT__
 #define __FUNCT__ "Petsc_CopyThreadComm"
 /*
-  This frees the thread communicator attached to MPI_Comm
+  This copies the thread communicator attached to MPI_Comm
 
-  This is called by MPI, not by users. This is called when MPI_Comm_free() is called on the communicator.
+  This is called by MPI, not by users. This is called when MPI_Comm_dup() is called on the communicator.
 
   Note: this is declared extern "C" because it is passed to MPI_Keyval_create()
 */
@@ -65,11 +65,11 @@ PETSC_EXTERN PetscMPIInt MPIAPI Petsc_CopyThreadComm(MPI_Comm comm,PetscMPIInt k
 */
 PETSC_EXTERN PetscMPIInt MPIAPI Petsc_DelThreadComm(MPI_Comm comm,PetscMPIInt keyval,void *attr,void *extra_state)
 {
+  PetscThreadComm tcomm;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  PetscThreadComm tcomm = (PetscThreadComm)attr;
-  printf("In Petsc_DelThreadComm nthreads=%d\n",tcomm->ncommthreads);
+  tcomm = (PetscThreadComm)attr;
   ierr = PetscThreadCommDestroy((PetscThreadComm*)&attr);CHKERRQ(ierr);
   ierr = PetscInfo1(0,"Deleting thread communicator data in an MPI_Comm %ld\n",(long)comm);
   if (ierr) PetscFunctionReturn((PetscMPIInt)ierr);CHKERRQ(ierr);

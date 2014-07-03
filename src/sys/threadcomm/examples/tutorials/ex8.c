@@ -12,18 +12,17 @@ int main(int argc,char **argv)
   PetscInt n=20, nthreads;
   PetscScalar vnorm,alpha=3.0;
 
-  PetscInitialize(&argc,&argv,(char*)0,help);
+  ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRQ(ierr);
-  //ierr = PetscOptionsGetInt(NULL,"-nthreads",&nthreads,NULL);CHKERRQ(ierr);
 
-  PetscPrintf(PETSC_COMM_WORLD,"\n\nRunning test 1\n");
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"\n\nRunning test 1\n");CHKERRQ(ierr);
   ierr = VecCreate(PETSC_COMM_WORLD,&x);CHKERRQ(ierr);
   ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRQ(ierr);
   ierr = VecSetFromOptions(x);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&y);CHKERRQ(ierr);
 
-  PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&nthreads);
-  printf("PETSC_COMM_WORLD has %d threads\n",nthreads);
+  ierr = PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&nthreads);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"PETSC_COMM_WORLD has %d threads\n",nthreads);CHKERRQ(ierr);
 
   // Run PETSc code
   ierr = VecSet(x,2.0);CHKERRQ(ierr);
@@ -42,17 +41,11 @@ int main(int argc,char **argv)
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = VecDestroy(&y);CHKERRQ(ierr);
 
-  PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&nthreads);
-  printf("After test 1 PETSC_COMM_WORLD has %d threads\n",nthreads);
-
-  PetscPrintf(PETSC_COMM_WORLD,"\n\nRunning test 2\n");
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"\n\nRunning test 2\n");CHKERRQ(ierr);
   ierr = VecCreate(PETSC_COMM_WORLD,&x);CHKERRQ(ierr);
   ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRQ(ierr);
   ierr = VecSetFromOptions(x);CHKERRQ(ierr);
   ierr = VecSet(x,2.0);CHKERRQ(ierr);
-
-  PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&nthreads);
-  printf("After vec create 2 PETSC_COMM_WORLD has %d threads\n",nthreads);
 
   ierr = VecCreate(PETSC_COMM_WORLD,&y);CHKERRQ(ierr);
   ierr = VecSetSizes(y,PETSC_DECIDE,n);CHKERRQ(ierr);
@@ -67,6 +60,6 @@ int main(int argc,char **argv)
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = VecDestroy(&y);CHKERRQ(ierr);
 
-  PetscFinalize();
+  ierr = PetscFinalize();CHKERRQ(ierr);
   return 0;
 }

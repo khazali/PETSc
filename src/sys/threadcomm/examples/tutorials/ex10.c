@@ -22,17 +22,17 @@ int main(int argc,char **argv)
   PC              pc;
   MPI_Comm        comm;
 
-  PetscInitialize(&argc,&argv,(char*)0,help);
+  ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr);
 
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRQ(ierr);
-  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,&comm);
+  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,&comm);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(comm,&nthreads);CHKERRQ(ierr);
   ierr = PetscPrintf(comm,"nthreads=%d\n",nthreads);CHKERRQ(ierr);
 
   // Create vectors
-  ierr = VecCreateMPI(comm,PETSC_DECIDE,n*n,&x);CHKERRCONTINUE(ierr);
-  ierr = VecSetFromOptions(x);CHKERRCONTINUE(ierr);
-  ierr = VecDuplicate(x,&b);CHKERRCONTINUE(ierr);
+  ierr = VecCreateMPI(comm,PETSC_DECIDE,n*n,&x);CHKERRQ(ierr);
+  ierr = VecSetFromOptions(x);CHKERRQ(ierr);
+  ierr = VecDuplicate(x,&b);CHKERRQ(ierr);
 
   #pragma omp parallel num_threads(nthreads) default(shared) private(ierr)
   {
@@ -96,7 +96,8 @@ int main(int argc,char **argv)
   ierr = MatDestroy(&A);CHKERRQ(ierr);
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = VecDestroy(&b);CHKERRQ(ierr);
+  ierr = PetscCommDestroy(&comm);CHKERRQ(ierr);
 
-  PetscFinalize();
+  ierr = PetscFinalize();CHKERRQ(ierr);
   return 0;
 }

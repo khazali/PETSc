@@ -1,3 +1,4 @@
+/* Old example, probably doesn't work at the moment */
 static char help[] = "Test PetscThreadPool with OpenMP with PETSc matrix routines.\n\n";
 
 #include <petscmat.h>

@@ -274,6 +274,7 @@ PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm, PetscInt *nthreads)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  printf("Creating ThreadPool\n");
   ierr = PetscThreadPoolAlloc(&tcomm->pool);
   ierr = PetscThreadPoolInitialize(tcomm->pool,*nthreads);
 

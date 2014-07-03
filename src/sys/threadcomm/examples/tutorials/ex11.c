@@ -8,6 +8,7 @@ void func(void *arg);
 
 Vec x, y;
 PetscScalar *ay;
+MPI_Comm comm;
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -19,8 +20,10 @@ int main(int argc,char **argv)
   pthread_attr_t *attr;
   PetscInt *tranks;
 
-  PetscInitialize(&argc,&argv,(char*)0,help);
-  ierr = PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&nthreads);CHKERRQ(ierr);
+  ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr);
+
+  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,&comm);CHKERRQ(ierr);
+  ierr = PetscThreadCommGetNThreads(comm,&nthreads);CHKERRQ(ierr);
 
   tid = (pthread_t*)malloc(sizeof(pthread_t)*nthreads);
   attr = (pthread_attr_t*)malloc(sizeof(pthread_attr_t)*nthreads);
@@ -40,43 +43,40 @@ int main(int argc,char **argv)
     pthread_join(tid[tnum],&res);
   }
 
-  printf("Calling PetscFinalize\n");
-  PetscFinalize();
+  ierr = PetscCommDestroy(&comm);CHKERRQ(ierr);
+
+  ierr = PetscFinalize();CHKERRQ(ierr);
 
   return 0;
 }
 
 void func(void *arg) {
 
-  PetscInt i, n=100, prank, start, end, nthreads, lsize, *indices;
+  PetscInt i, n=100, prank, start, end, lsize, *indices;
   PetscScalar alpha=3.0, vnorm;
   int trank = *(int*)arg;
-  MPI_Comm comm;
   PetscErrorCode ierr;
 
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"in func trank=%d\n",trank);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"in func trank=%d\n",trank);CHKERRCONTINUE(ierr);
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRCONTINUE(ierr);
-  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,&comm);
-  ierr = PetscThreadCommGetNThreads(comm,&nthreads);CHKERRCONTINUE(ierr);
-  ierr = PetscPrintf(comm,"nthreads=%d\n",nthreads);CHKERRCONTINUE(ierr);
 
   // User gives threads to PETSc to use for PETSc functions
   ierr = PetscThreadPoolJoin(comm,trank,&prank);CHKERRCONTINUE(ierr);
-  ierr = PetscPrintf(comm,"rank=%d joined pool prank=%d\n",trank,prank);
+  ierr = PetscPrintf(comm,"rank=%d joined pool prank=%d\n",trank,prank);CHKERRCONTINUE(ierr);
   if(prank>=0) {
     ierr = VecCreate(comm,&x);CHKERRCONTINUE(ierr);
     ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRCONTINUE(ierr);
     ierr = VecSetFromOptions(x);CHKERRCONTINUE(ierr);
     ierr = VecDuplicate(x,&y);CHKERRCONTINUE(ierr);
 
-    ierr = PetscPrintf(comm,"Vec work\n");
+    ierr = PetscPrintf(comm,"Vec work\n");CHKERRCONTINUE(ierr);
     ierr = VecSet(x,2.0);CHKERRCONTINUE(ierr);
     ierr = VecSet(y,3.0);CHKERRCONTINUE(ierr);
     ierr = VecAXPY(y,alpha,x);CHKERRCONTINUE(ierr);
 
     //VecView(y,PETSC_VIEWER_STDOUT_WORLD);
     ierr = VecNorm(y,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
-    ierr = PetscPrintf(comm,"Norm=%f\n",vnorm);
+    ierr = PetscPrintf(comm,"Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
   }
   // User takes back threads from PETSc once done calling PETSc functions
   ierr = PetscThreadPoolReturn(comm,&prank);CHKERRCONTINUE(ierr);
@@ -84,7 +84,7 @@ void func(void *arg) {
   // Get data for local work
   ierr = VecGetArray(y,&ay);CHKERRCONTINUE(ierr);
   ierr = VecGetLocalSize(x,&lsize);CHKERRCONTINUE(ierr);
-  ierr = PetscThreadCommGetOwnershipRanges(comm,lsize,&indices);
+  ierr = PetscThreadCommGetOwnershipRanges(comm,lsize,&indices);CHKERRCONTINUE(ierr);
 
   // Parallel threaded user code
   start = indices[trank];
@@ -101,12 +101,12 @@ void func(void *arg) {
 
   if(prank>=0) {
     // Vec work
-    VecScale(y,2.0);
-    VecAXPY(y,alpha,x);
+    ierr = VecScale(y,2.0);CHKERRCONTINUE(ierr);
+    ierr = VecAXPY(y,alpha,x);CHKERRCONTINUE(ierr);
 
     //VecView(y,PETSC_VIEWER_STDOUT_WORLD);
     ierr = VecNorm(y,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
-    ierr = PetscPrintf(comm,"Norm=%f\n",vnorm);
+    ierr = PetscPrintf(comm,"Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
 
     ierr = PetscPrintf(comm,"Vec destroy\n");
     ierr = VecDestroy(&x);CHKERRCONTINUE(ierr);
