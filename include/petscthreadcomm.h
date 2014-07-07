@@ -83,8 +83,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadReductionBegin(MPI_Comm,PetscThreadCommRe
 PETSC_EXTERN PetscErrorCode PetscThreadReductionEnd(PetscThreadCommReduction,void*);
 
 // Threadpool functions
-PETSC_EXTERN PetscErrorCode PetscThreadPoolInitializePackage(void);
-PETSC_EXTERN PetscErrorCode PetscThreadPoolFinalizePackage(void);
 PETSC_EXTERN PetscErrorCode PetscGetNCores(PetscInt*);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolGetPool(MPI_Comm comm,PetscThreadPool *pool);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolInitialize();

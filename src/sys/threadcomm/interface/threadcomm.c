@@ -117,7 +117,6 @@ PetscErrorCode PetscThreadCommAlloc(PetscThreadComm *tcomm)
   ierr                      = PetscNew(&tcommout->ops);CHKERRQ(ierr);
   tcommout->data            = NULL;
 
-  tcommout->spark           = PTHREADPOOLSPARK_SELF;
   tcommout->syncafter       = PETSC_TRUE;
   tcommout->ismainworker    = PETSC_TRUE;
 
@@ -1379,7 +1378,7 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *granks,Pets
 
   /* Initialize implementation specific settings */
   printf("Initializing threadcomm implementation settings\n");
-  ierr = (*pool->tcomm_init)(tcomm);CHKERRQ(ierr);
+  ierr = (*pool->ops->tcomminit)(tcomm);CHKERRQ(ierr);
 
   ierr = PetscThreadCommReductionCreate(tcomm,&tcomm->red);CHKERRQ(ierr);
   //if(pool->model==THREAD_MODEL_LOOP) {

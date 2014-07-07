@@ -137,10 +137,10 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommInit_PThread(PetscThreadPool pool)
   printf("Init PThread\n");
   ierr = PetscStrcpy(pool->type,PTHREAD);CHKERRQ(ierr);
   pool->threadtype = THREAD_TYPE_PTHREAD;
-  pool->createthread = PetscThreadCreate_PThread;
-  pool->startthreads = PetscThreadCommInitialize_PThreadUser;
-  pool->setaffinities = PetscThreadCommSetAffinity_PThread;
-  pool->pooldestroy = PetscThreadPoolDestroy_PThread;
+  pool->ops->createthread = PetscThreadCreate_PThread;
+  pool->ops->startthreads = PetscThreadCommInitialize_PThreadUser;
+  pool->ops->setaffinities = PetscThreadCommSetAffinity_PThread;
+  pool->ops->pooldestroy = PetscThreadPoolDestroy_PThread;
   PetscFunctionReturn(0);
 }
 

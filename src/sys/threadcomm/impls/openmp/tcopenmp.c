@@ -41,7 +41,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadPool pool)
   PetscFunctionBegin;
   ierr             = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
   pool->threadtype = THREAD_TYPE_OPENMP;
-  pool->setaffinities = PetscThreadCommSetAffinity_OpenMP;
+  pool->ops->setaffinities = PetscThreadCommSetAffinity_OpenMP;
   PetscFunctionReturn(0);
 }
 

@@ -931,7 +931,6 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
   }
 
   ierr = PetscThreadCommInitializePackage();CHKERRQ(ierr);
-  ierr = PetscThreadPoolInitializePackage();CHKERRQ(ierr);
 
   /*
       Setup building of stack frames for all function calls
