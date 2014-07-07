@@ -238,6 +238,7 @@ PetscErrorCode PetscThreadCommDestroy(PetscThreadComm *tcomm)
 
     ierr = PetscThreadPoolDestroy((*tcomm)->pool);CHKERRQ(ierr);
     ierr = PetscThreadCommReductionDestroy((*tcomm)->red);CHKERRQ(ierr);
+    ierr = PetscFree((*tcomm)->ops);CHKERRQ(ierr);
     ierr = PetscFree((*tcomm));CHKERRQ(ierr);
   }
   *tcomm = NULL;
@@ -394,14 +395,13 @@ PetscErrorCode PetscThreadCommJobBarrier(PetscThreadComm tcomm)
   PetscInt                job_status;
 
   PetscFunctionBegin;
-  printf("In PetscThreadCommBarrier job_ctr=%d\n",tcomm->commthreads[0]->job_ctr);
   if (tcomm->ncommthreads == 1 && tcomm->ismainworker) PetscFunctionReturn(0);
 
   /* Loop till all threads signal that they have done their job */
   while (wait) {
     for (i=0; i<tcomm->ncommthreads; i++) {
       jobqueue = tcomm->commthreads[i]->jobqueue;
-      job = &jobqueue->jobs[tcomm->commthreads[i]->job_ctr];
+      job = &jobqueue->jobs[jobqueue->newest_job_index];
       job_status      = job->job_status;
       active_threads += job_status;
     }
@@ -451,14 +451,13 @@ PetscErrorCode PetscThreadCommGetScalars(MPI_Comm comm,PetscScalar **val1, Petsc
   PetscThreadComm         tcomm;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
-  PetscInt                job_num, trank;
+  PetscInt                trank;
 
   PetscFunctionBegin;
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
   ierr = PetscThreadCommGetRank(tcomm,&trank);CHKERRQ(ierr);
   jobqueue = tcomm->pool->poolthreads[trank]->jobqueue;
-  job_num = jobqueue->ctr%tcomm->nkernels;
-  job     = &jobqueue->jobs[job_num];
+  job     = &jobqueue->jobs[jobqueue->next_job_index];
   if (val1) *val1 = &job->scalars[0];
   if (val2) *val2 = &job->scalars[1];
   if (val3) *val3 = &job->scalars[2];
@@ -505,14 +504,13 @@ PetscErrorCode PetscThreadCommGetInts(MPI_Comm comm,PetscInt **val1, PetscInt **
   PetscThreadComm         tcomm;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
-  PetscInt                job_num,trank;
+  PetscInt                trank;
 
   PetscFunctionBegin;
   ierr    = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
   ierr = PetscThreadCommGetRank(tcomm,&trank);CHKERRQ(ierr);
   jobqueue = tcomm->pool->poolthreads[trank]->jobqueue;
-  job_num = jobqueue->ctr%tcomm->nkernels;
-  job     = &jobqueue->jobs[job_num];
+  job     = &jobqueue->jobs[jobqueue->next_job_index];
   if (val1) *val1 = &job->ints[0];
   if (val2) *val2 = &job->ints[1];
   if (val3) *val3 = &job->ints[2];
@@ -556,18 +554,16 @@ PetscErrorCode PetscThreadCommRunKernel(MPI_Comm comm,PetscErrorCode (*func)(Pet
   PetscThreadComm         tcomm=0;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
-  PetscThreadPool pool;
 
   PetscFunctionBegin;
   if (nargs > PETSC_KERNEL_NARGS_MAX) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"Requested %D input arguments for kernel, max. limit %D",nargs,PETSC_KERNEL_NARGS_MAX);
   ierr = PetscLogEventBegin(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-  pool = tcomm->pool;
 
   // Loop over each thread in threadcomm
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
-    job  = &jobqueue->jobs[jobqueue->ctr]; /* Get the job context from the queue to launch this job */
+    job  = &jobqueue->jobs[jobqueue->next_job_index]; /* Get the job context from the queue to launch this job */
     // Make sure previous job completed
     if (job->job_status != THREAD_JOB_NONE) {
       while (PetscReadOnce(int,job->job_status) != THREAD_JOB_COMPLETED) ;
@@ -576,25 +572,20 @@ PetscErrorCode PetscThreadCommRunKernel(MPI_Comm comm,PetscErrorCode (*func)(Pet
     // Prepare to run kernel
     job->tcomm          = tcomm;
     job->commrank       = i;
-    tcomm->commthreads[i]->job_ctr = jobqueue->ctr;
     job->nargs          = nargs;
     job->pfunc          = (PetscThreadKernel)func;
     va_start(argptr,nargs);
     for (j=0; j<nargs; j++) job->args[j] = va_arg(argptr,void*);
     va_end(argptr);
     job->job_status = THREAD_JOB_POSTED;
-  }
-
-  jobqueue = tcomm->commthreads[0]->jobqueue;
-  job  = &jobqueue->jobs[jobqueue->ctr];
-
-  for(i=0; i<tcomm->ncommthreads; i++) {
-    jobqueue = tcomm->commthreads[i]->jobqueue;
-    jobqueue->ctr = (jobqueue->ctr+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
-    jobqueue->kernel_ctr++;
+    jobqueue->newest_job_index = jobqueue->next_job_index;
+    jobqueue->next_job_index = (jobqueue->next_job_index+1)%tcomm->nkernels; /* Increment queue ctr to point to the next available slot */
+    jobqueue->total_jobs_ctr++;
   }
 
   // Run Kernel for main thread
+  jobqueue = tcomm->commthreads[0]->jobqueue;
+  job  = &jobqueue->jobs[jobqueue->newest_job_index];
   if (tcomm->threadtype==THREAD_TYPE_NOTHREAD) {
     ierr = PetscRunKernel(0,job->nargs,job);CHKERRQ(ierr);
     job->job_status = THREAD_JOB_COMPLETED;
@@ -626,7 +617,7 @@ static PetscErrorCode PetscThreadCommRunKernel0_Private(PetscThreadComm tcomm,Pe
     jobqueue = tcomm->commthreads[i]->jobqueue;
 
     if (!jobqueue) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Trying to run kernel with no job queue");
-    job = &jobqueue->jobs[jobqueue->ctr]; /* Get the job context from the queue to launch this job */
+    job = &jobqueue->jobs[jobqueue->next_job_index]; /* Get the job context from the queue to launch this job */
     // Make sure previous job completed
     if (job->job_status != THREAD_JOB_NONE) {
       while (PetscReadOnce(int,job->job_status) != THREAD_JOB_COMPLETED) ;
@@ -635,23 +626,19 @@ static PetscErrorCode PetscThreadCommRunKernel0_Private(PetscThreadComm tcomm,Pe
     // Prepare to run kernel
     job->tcomm          = tcomm;
     job->commrank       = i;
-    tcomm->commthreads[i]->job_ctr = jobqueue->ctr;
     job->nargs          = 1;
     job->pfunc          = (PetscThreadKernel)func;
     job->job_status = THREAD_JOB_POSTED;
-  }
-
-  jobqueue = tcomm->commthreads[0]->jobqueue;
-  job = &jobqueue->jobs[jobqueue->ctr];
-
-  for(i=0; i<tcomm->ncommthreads; i++) {
-    jobqueue = tcomm->commthreads[i]->jobqueue;
-    jobqueue->ctr = (jobqueue->ctr+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
-    jobqueue->kernel_ctr++;
+    jobqueue->newest_job_index = jobqueue->next_job_index;
+    jobqueue->next_job_index = (jobqueue->next_job_index+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->total_jobs_ctr++;
   }
 
   // Run kernel for main thread
+  jobqueue = tcomm->commthreads[0]->jobqueue;
+  job = &jobqueue->jobs[jobqueue->newest_job_index];
   ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
+
   PetscFunctionReturn(0);
 }
 
@@ -742,31 +729,25 @@ PetscErrorCode PetscThreadCommRunKernel1(MPI_Comm comm,PetscErrorCode (*func)(Pe
     jobqueue = tcomm->commthreads[i]->jobqueue;
 
     if (!jobqueue) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Trying to run kernel with no job queue");
-    job = &jobqueue->jobs[jobqueue->ctr]; /* Get the job context from the queue to launch this job */
+    job = &jobqueue->jobs[jobqueue->next_job_index]; /* Get the job context from the queue to launch this job */
     if (job->job_status != THREAD_JOB_NONE) {
       while (PetscReadOnce(int,job->job_status) != THREAD_JOB_COMPLETED) ;
     }
 
     job->tcomm          = tcomm;
     job->commrank       = i;
-    tcomm->commthreads[i]->job_ctr = jobqueue->ctr;
     job->nargs          = 1;
     job->pfunc          = (PetscThreadKernel)func;
     job->args[0]        = in1;
     job->job_status = THREAD_JOB_POSTED;
-  }
-
-  // Get jobqueue and job for main thread
-  jobqueue = tcomm->commthreads[0]->jobqueue;
-  job  = &jobqueue->jobs[jobqueue->ctr];
-
-  for(i=0; i<tcomm->ncommthreads; i++) {
-    jobqueue = tcomm->commthreads[i]->jobqueue;
-    jobqueue->ctr = (jobqueue->ctr+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
-    jobqueue->kernel_ctr++;
+    jobqueue->newest_job_index = jobqueue->next_job_index;
+    jobqueue->next_job_index = (jobqueue->next_job_index+1)%tcomm->nkernels; /* Increment queue ctr to point to the next available slot */
+    jobqueue->total_jobs_ctr++;
   }
 
   // Run kernel for main thread
+  jobqueue = tcomm->commthreads[0]->jobqueue;
+  job  = &jobqueue->jobs[jobqueue->newest_job_index];
   ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
@@ -818,35 +799,30 @@ PetscErrorCode PetscThreadCommRunKernel2(MPI_Comm comm,PetscErrorCode (*func)(Pe
     PetscFunctionReturn(0);
   }
 
+  // Set job information for all threads
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
     if (!jobqueue) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Trying to run kernel with no job queue");
-    job = &jobqueue->jobs[jobqueue->ctr]; /* Get the job context from the queue to launch this job */
+    job = &jobqueue->jobs[jobqueue->next_job_index]; /* Get the job context from the queue to launch this job */
     if (job->job_status != THREAD_JOB_NONE) {
       while (PetscReadOnce(int,job->job_status) != THREAD_JOB_COMPLETED) ;
     }
 
     job->tcomm          = tcomm;
     job->commrank       = i;
-    tcomm->commthreads[i]->job_ctr = jobqueue->ctr;
     job->nargs          = 2;
     job->pfunc          = (PetscThreadKernel)func;
     job->args[0]        = in1;
     job->args[1]        = in2;
     job->job_status = THREAD_JOB_POSTED;
-  }
-
-  // Get job for main thread
-  jobqueue = tcomm->commthreads[0]->jobqueue;
-  job  = &jobqueue->jobs[jobqueue->ctr];
-
-  for(i=0; i<tcomm->ncommthreads; i++) {
-    jobqueue = tcomm->commthreads[i]->jobqueue;
-    jobqueue->ctr = (jobqueue->ctr+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
-    jobqueue->kernel_ctr++;
+    jobqueue->newest_job_index = jobqueue->next_job_index;
+    jobqueue->next_job_index = (jobqueue->next_job_index+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->total_jobs_ctr++;
   }
 
   // Run kernel for main thread
+  jobqueue = tcomm->commthreads[0]->jobqueue;
+  job  = &jobqueue->jobs[jobqueue->newest_job_index];
   ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
@@ -902,32 +878,27 @@ PetscErrorCode PetscThreadCommRunKernel3(MPI_Comm comm,PetscErrorCode (*func)(Pe
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
     if (!jobqueue) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Trying to run kernel with no job queue");
-    job = &jobqueue->jobs[jobqueue->ctr]; /* Get the job context from the queue to launch this job */
+    job = &jobqueue->jobs[jobqueue->next_job_index]; /* Get the job context from the queue to launch this job */
     if (job->job_status != THREAD_JOB_NONE) {
       while (PetscReadOnce(int,job->job_status) != THREAD_JOB_COMPLETED) ;
     }
 
     job->tcomm          = tcomm;
     job->commrank       = i;
-    tcomm->commthreads[i]->job_ctr = jobqueue->ctr;
     job->nargs          = 3;
     job->pfunc          = (PetscThreadKernel)func;
     job->args[0]        = in1;
     job->args[1]        = in2;
     job->args[2]        = in3;
     job->job_status = THREAD_JOB_POSTED;
+    jobqueue->newest_job_index = jobqueue->next_job_index;
+    jobqueue->next_job_index = (jobqueue->next_job_index+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->total_jobs_ctr++;
   }
 
-  // Get jobqueue and job for main thread
+  // Run kernel for main thread
   jobqueue = tcomm->commthreads[0]->jobqueue;
-  job  = &jobqueue->jobs[jobqueue->ctr];
-
-  for(i=0; i<tcomm->ncommthreads; i++) {
-    jobqueue = tcomm->commthreads[i]->jobqueue;
-    jobqueue->ctr = (jobqueue->ctr+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
-    jobqueue->kernel_ctr++;
-  }
-
+  job  = &jobqueue->jobs[jobqueue->newest_job_index];
   ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
@@ -984,14 +955,13 @@ PetscErrorCode PetscThreadCommRunKernel4(MPI_Comm comm,PetscErrorCode (*func)(Pe
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
     if (!jobqueue) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Trying to run kernel with no job queue");
-    job = &jobqueue->jobs[jobqueue->ctr]; /* Get the job context from the queue to launch this job */
+    job = &jobqueue->jobs[jobqueue->next_job_index]; /* Get the job context from the queue to launch this job */
     if (job->job_status != THREAD_JOB_NONE) {
       while (PetscReadOnce(int,job->job_status) != THREAD_JOB_COMPLETED) ;
     }
 
     job->tcomm          = tcomm;
     job->commrank       = i;
-    tcomm->commthreads[i]->job_ctr = jobqueue->ctr;
     job->nargs          = 4;
     job->pfunc          = (PetscThreadKernel)func;
     job->args[0]        = in1;
@@ -999,19 +969,14 @@ PetscErrorCode PetscThreadCommRunKernel4(MPI_Comm comm,PetscErrorCode (*func)(Pe
     job->args[2]        = in3;
     job->args[3]        = in4;
     job->job_status = THREAD_JOB_POSTED;
-  }
-
-  // Get jobqueue and job for main thread
-  jobqueue = tcomm->commthreads[0]->jobqueue;
-  job  = &jobqueue->jobs[jobqueue->ctr];
-
-  for(i=0; i<tcomm->ncommthreads; i++) {
-    jobqueue = tcomm->commthreads[i]->jobqueue;
-    jobqueue->ctr = (jobqueue->ctr+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
-    jobqueue->kernel_ctr++;
+    jobqueue->newest_job_index = jobqueue->next_job_index;
+    jobqueue->next_job_index = (jobqueue->next_job_index+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->total_jobs_ctr++;
   }
 
   // Run kernel for main thread
+  jobqueue = tcomm->commthreads[0]->jobqueue;
+  job  = &jobqueue->jobs[jobqueue->newest_job_index];
   ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
@@ -1072,14 +1037,13 @@ PetscErrorCode PetscThreadCommRunKernel6(MPI_Comm comm,PetscErrorCode (*func)(Pe
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
     if (!jobqueue) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Trying to run kernel with no job queue");
-    job = &jobqueue->jobs[jobqueue->ctr]; /* Get the job context from the queue to launch this job */
+    job = &jobqueue->jobs[jobqueue->next_job_index]; /* Get the job context from the queue to launch this job */
     if (job->job_status != THREAD_JOB_NONE) {
       while (PetscReadOnce(int,job->job_status) != THREAD_JOB_COMPLETED) ;
     }
 
     job->tcomm          = tcomm;
     job->commrank       = i;
-    tcomm->commthreads[i]->job_ctr = jobqueue->ctr;
     job->nargs          = 6;
     job->pfunc          = (PetscThreadKernel)func;
     job->args[0]        = in1;
@@ -1089,19 +1053,14 @@ PetscErrorCode PetscThreadCommRunKernel6(MPI_Comm comm,PetscErrorCode (*func)(Pe
     job->args[4]        = in5;
     job->args[5]        = in6;
     job->job_status = THREAD_JOB_POSTED;
-  }
-
-  // Get jobqueue and job for main thread
-  jobqueue = tcomm->commthreads[0]->jobqueue;
-  job  = &jobqueue->jobs[jobqueue->ctr];
-
-  for(i=0; i<tcomm->ncommthreads; i++) {
-    jobqueue = tcomm->commthreads[i]->jobqueue;
-    jobqueue->ctr = (jobqueue->ctr+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
-    jobqueue->kernel_ctr++;
+    jobqueue->newest_job_index = jobqueue->next_job_index;
+    jobqueue->next_job_index = (jobqueue->next_job_index+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->total_jobs_ctr++;
   }
 
   // Run kernel for main thread
+  jobqueue = tcomm->commthreads[0]->jobqueue;
+  job  = &jobqueue->jobs[jobqueue->newest_job_index];
   ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);

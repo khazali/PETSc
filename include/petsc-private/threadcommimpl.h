@@ -112,8 +112,11 @@ struct  _p_PetscThreadCommJobCtx{
 /* Structure to manage job queue */
 typedef struct _p_PetscThreadCommJobQueue* PetscThreadCommJobQueue;
 struct _p_PetscThreadCommJobQueue{
-  PetscInt ctr;                      /* Job counter */
-  PetscInt kernel_ctr;               /* Kernel counter .. need this otherwise race conditions are unavoidable */
+  PetscInt current_job_index;        /* Index of current job this thread is working on */
+  PetscInt newest_job_index;         /* Index of newest job added to the jobqueue */
+  PetscInt next_job_index;           /* Index of next available job slot */
+  PetscInt total_jobs_ctr;           /* Total number of jobs added to jobqueue */
+  PetscInt completed_jobs_ctr;       /* Total number of jobs completed in this jobqueue thread */
   PetscThreadCommJobCtx jobs;        /* Queue of jobs */
 };
 
@@ -129,24 +132,18 @@ struct _PetscThreadCommOps {
 
 typedef struct _p_PetscThread* PetscThread;
 struct _p_PetscThread{
-  PetscInt              grank;    /* Thread rank in pool */
-  PetscThreadPool       pool;     /* Threadpool for current thread */
-  PetscInt              status;   /* Status of current job for each thread */
-  PetscThreadCommJobCtx jobdata;  /* Data for current job for each thread */
-  PetscInt              affinity; /* Core affinity of each thread */
-
-  // Job information
-  PetscThreadCommJobQueue jobqueue;     /* Job queue */
-  PetscInt                job_ctr;      /* which job is this threadcomm running in the job queue */
-  PetscInt                my_job_counter;
-  PetscInt                my_kernel_ctr;
-  PetscInt                glob_kernel_ctr;
-  void                    *data;           /* Implementation specific thread data */
+  PetscInt                grank;    /* Thread rank in pool */
+  PetscThreadPool         pool;     /* Threadpool for current thread */
+  PetscInt                status;   /* Status of current job for each thread */
+  PetscThreadCommJobCtx   jobdata;  /* Data for current job for each thread */
+  PetscInt                affinity; /* Core affinity of each thread */
+  PetscThreadCommJobQueue jobqueue; /* Job queue */
+  void                    *data;    /* Implementation specific thread data */
 };
 
 typedef struct _PetscThreadPoolOps* PetscThreadPoolOps;
 struct _PetscThreadPoolOps {
-  PetscErrorCode (*tcomminit)(PetscThreadComm);    /* Function to initialize threadcomm */
+  PetscErrorCode (*tcomminit)(PetscThreadComm);     /* Function to initialize threadcomm */
   PetscErrorCode (*createthread)(PetscThread);      /* Function to allocate thread struct */
   PetscErrorCode (*startthreads)(PetscThreadPool);  /* Function to initialize and create threads */
   PetscErrorCode (*setaffinities)(PetscThreadPool); /* Function to set thread affinities */
@@ -158,7 +155,6 @@ struct _p_PetscThreadPool{
   PetscInt                npoolthreads;    /* Max number of threads pool can hold */
   PetscThread             *poolthreads;    /* Array of all threads */
 
-  // General threadcomm information
   char                    type[256];       /* Thread model type */
   PetscInt                model;           /* Threading model used */
   PetscInt                threadtype;      /* Threading type used */
@@ -170,12 +166,10 @@ struct _p_PetscThreadPool{
 };
 
 struct _p_PetscThreadComm{
-  // General threadcomm information
+  // Threadcomm information
   PetscInt                 model;        /* Threading model used */
   PetscInt                 threadtype;   /* Thread type used */
   PetscInt                 nkernels;     /* Maximum kernels launched */
-
-  // Threadcomm information
   PetscInt                 refct;        /* Number of MPI_Comm references */
   PetscInt                 leader;       /* Rank of the leader thread. This thread manages
                                            the synchronization for collective operatons like reductions. */
@@ -184,8 +178,6 @@ struct _p_PetscThreadComm{
   PetscBool                active;       /* Does this threadcomm have access to the threads? */
   PetscThreadCommOps       ops;          /* Threadcomm operations table */
   void                     *data;        /* Implementation specific threadcomm data */
-
-  // User input options
   PetscBool                syncafter;    /* Whether the main thread should block until all threads complete kernel */
   PetscBool                ismainworker; /* Is the main thread also a work thread? */
 

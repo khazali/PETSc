@@ -30,7 +30,7 @@ make ex8
 echo ""
 echo "Run ex10 test"
 make ex10
-./ex10 -n 20 -threadcomm_type openmp -threadcomm_model user -threadcomm_nthreads $nthreads
+./ex10 -n 10 -threadcomm_type openmp -threadcomm_model user -threadcomm_nthreads $nthreads
 
 echo ""
 echo "Run ex11 test"

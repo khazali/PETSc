@@ -246,12 +246,14 @@ PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm tcomm,PetscThrea
 
   PetscFunctionBegin;
   printf("rank=%d running kernel\n",0);
+  // Do work for main thread
   if (tcomm->ismainworker) {
     job->job_status   = THREAD_JOB_RECIEVED;
     tcomm->commthreads[0]->jobdata = job;
     PetscRunKernel(job->commrank,job->nargs, tcomm->commthreads[0]->jobdata);
     job->job_status   = THREAD_JOB_COMPLETED;
   }
+  // Synchronize
   if (tcomm->syncafter) {
     ierr = PetscThreadCommJobBarrier(tcomm);CHKERRQ(ierr);
   }
