@@ -347,10 +347,12 @@ typedef struct {
     PetscInt Energy;
   } functional;
 } Physics_SW;
-typedef struct {
-  PetscScalar vals[0];
-  PetscScalar h;
-  PetscScalar uh[DIM];
+typedef union {
+  PetscScalar vals[1+DIM];
+  struct {
+    PetscScalar h;
+    PetscScalar uh[DIM];
+  };
 } SWNode;
 
 static const struct FieldDescription PhysicsFields_SW[] = {{"Height",1},{"Momentum",DIM},{NULL,0}};
@@ -480,11 +482,13 @@ static PetscErrorCode PhysicsCreate_SW(DM dm, Model mod,Physics phys)
 }
 
 /******************* Euler ********************/
-typedef struct {
-  PetscScalar vals[0];
-  PetscScalar r;
-  PetscScalar ru[DIM];
-  PetscScalar e;
+typedef union {
+  PetscScalar vals[2+DIM];
+  struct {
+    PetscScalar r;
+    PetscScalar ru[DIM];
+    PetscScalar e;
+  };
 } EulerNode;
 typedef PetscErrorCode (*EquationOfState)(const PetscReal*, const EulerNode*, PetscScalar*);
 typedef struct {
