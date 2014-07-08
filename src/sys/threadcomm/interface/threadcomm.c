@@ -134,76 +134,53 @@ PetscErrorCode PetscThreadCommAlloc(PetscThreadComm *tcomm)
   PetscFunctionReturn(0);
 }
 
-/* #if defined(PETSC_USE_DEBUG) */
+#if defined(PETSC_USE_DEBUG)
 
-/* static PetscErrorCode PetscThreadCommStackCreate_kernel(PetscInt trank) */
-/* { */
-/*   if (trank && !PetscStackActive()) { */
-/*     PetscStack *petscstack_in; */
-/*     petscstack_in = (PetscStack*)malloc(sizeof(PetscStack)); */
-/*     petscstack_in->currentsize = 0; */
-/*     PetscThreadLocalSetValue((PetscThreadKey*)&petscstack,petscstack_in); */
-/*   } */
-/*   return 0; */
-/* } */
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommStackCreate"
+PetscErrorCode PetscThreadCommStackCreate(PetscInt trank)
+{
+  if (trank && !PetscStackActive()) {
+    PetscStack *petscstack_in;
+    petscstack_in = (PetscStack*)malloc(sizeof(PetscStack));
+    petscstack_in->currentsize = 0;
+    PetscThreadLocalSetValue((PetscThreadKey*)&petscstack,petscstack_in);
+  }
+  return 0;
+}
 
-/* /\* Creates stack frames for threads other than the main thread *\/ */
-/* #undef __FUNCT__ */
-/* #define __FUNCT__ "PetscThreadCommStackCreate" */
-/* PetscErrorCode  PetscThreadCommStackCreate(void) */
-/* { */
-/*   PetscErrorCode ierr; */
-/*   ierr = PetscThreadCommRunKernel0(PETSC_COMM_SELF,(PetscThreadKernel)PetscThreadCommStackCreate_kernel);CHKERRQ(ierr); */
-/*   ierr = PetscThreadCommBarrier(PETSC_COMM_SELF);CHKERRQ(ierr); */
-/*   return 0; */
-/* } */
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommStackDestroy"
+PetscErrorCode PetscThreadCommStackDestroy(PetscInt trank)
+{
+  if (trank && PetscStackActive()) {
+    PetscStack *petscstack_in;
+    petscstack_in = (PetscStack*)PetscThreadLocalGetValue(petscstack);
+    free(petscstack_in);
+    PetscThreadLocalSetValue((PetscThreadKey*)&petscstack,(PetscStack*)0);
+  }
+  return 0;
+}
 
-/* static PetscErrorCode PetscThreadCommStackDestroy_kernel(PetscInt trank) */
-/* { */
-/*   if (trank && PetscStackActive()) { */
-/*     PetscStack *petscstack_in; */
-/*     petscstack_in = (PetscStack*)PetscThreadLocalGetValue(petscstack); */
-/*     free(petscstack_in); */
-/*     PetscThreadLocalSetValue((PetscThreadKey*)&petscstack,(PetscStack*)0); */
-/*   } */
-/*   return 0; */
-/* } */
+#else
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommStackCreate"
+PetscErrorCode  PetscThreadCommStackCreate(PetscInt trank)
+{
+  PetscFunctionBegin;
+  PetscFunctionReturn(0);
+}
 
-/* #undef __FUNCT__ */
-/* #define __FUNCT__ "PetscThreadCommStackDestroy" */
-/* /\* Destroy stack frames for threads other than main thread */
-/*  * */
-/*  * The keyval may have been destroyed by the time this function is called, thus we must call */
-/*  * PetscThreadCommRunKernel0_Private so that we never reference an MPI_Comm. */
-/*  *\/ */
-/* PetscErrorCode  PetscThreadCommStackDestroy(void) */
-/* { */
-/*   PetscErrorCode ierr; */
-/*   PetscFunctionBegin; */
-/*   ierr = PetscThreadCommRunKernel0_Private(PETSC_THREAD_COMM_WORLD,(PetscThreadKernel)PetscThreadCommStackDestroy_kernel);CHKERRQ(ierr); */
-/*   PETSC_THREAD_COMM_WORLD = NULL; */
-/*   PetscFunctionReturn(0); */
-/*   return 0; */
-/* } */
-/* #else */
-/* #undef __FUNCT__ */
-/* #define __FUNCT__ "PetscThreadCommStackCreate" */
-/* PetscErrorCode  PetscThreadCommStackCreate(void) */
-/* { */
-/*   PetscFunctionBegin; */
-/*   PetscFunctionReturn(0); */
-/* } */
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommStackDestroy"
+PetscErrorCode  PetscThreadCommStackDestroy(PetscInt trank)
+{
+  PetscFunctionBegin;
+  PETSC_THREAD_COMM_WORLD = NULL;
+  PetscFunctionReturn(0);
+}
 
-/* #undef __FUNCT__ */
-/* #define __FUNCT__ "PetscThreadCommStackDestroy" */
-/* PetscErrorCode  PetscThreadCommStackDestroy(void) */
-/* { */
-/*   PetscFunctionBegin; */
-/*   PETSC_THREAD_COMM_WORLD = NULL; */
-/*   PetscFunctionReturn(0); */
-/* } */
-
-/* #endif */
+#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommDestroy"
@@ -227,9 +204,6 @@ PetscErrorCode PetscThreadCommDestroy(PetscThreadComm *tcomm)
   if (!*tcomm) PetscFunctionReturn(0);
   if (!--(*tcomm)->refct) {
     printf("Destroying threadcomm\n");
-    //if(pool->model==THREAD_MODEL_LOOP) {
-    //ierr = PetscThreadCommStackDestroy();CHKERRQ(ierr);
-    //}
 
     /* Destroy pthread specific data */
     if((*tcomm)->threadtype==THREAD_TYPE_PTHREAD) {
@@ -447,20 +421,21 @@ PetscErrorCode PetscThreadCommJobBarrier(PetscThreadComm tcomm)
 @*/
 PetscErrorCode PetscThreadCommGetScalars(MPI_Comm comm,PetscScalar **val1, PetscScalar **val2, PetscScalar **val3)
 {
+  PetscInt                i;
   PetscErrorCode          ierr;
   PetscThreadComm         tcomm;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
-  PetscInt                trank;
 
   PetscFunctionBegin;
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-  ierr = PetscThreadCommGetRank(tcomm,&trank);CHKERRQ(ierr);
-  jobqueue = tcomm->pool->poolthreads[trank]->jobqueue;
-  job     = &jobqueue->jobs[jobqueue->next_job_index];
-  if (val1) *val1 = &job->scalars[0];
-  if (val2) *val2 = &job->scalars[1];
-  if (val3) *val3 = &job->scalars[2];
+  for(i=0; i<tcomm->ncommthreads; i++) {
+    jobqueue = tcomm->commthreads[i]->jobqueue;
+    job     = &jobqueue->jobs[jobqueue->next_job_index];
+    if (val1) *val1 = &job->scalars[0];
+    if (val2) *val2 = &job->scalars[1];
+    if (val3) *val3 = &job->scalars[2];
+  }
   PetscFunctionReturn(0);
 }
 
@@ -500,20 +475,21 @@ PetscErrorCode PetscThreadCommGetScalars(MPI_Comm comm,PetscScalar **val1, Petsc
 @*/
 PetscErrorCode PetscThreadCommGetInts(MPI_Comm comm,PetscInt **val1, PetscInt **val2, PetscInt **val3)
 {
+  PetscInt                i;
   PetscErrorCode          ierr;
   PetscThreadComm         tcomm;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
-  PetscInt                trank;
 
   PetscFunctionBegin;
   ierr    = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-  ierr = PetscThreadCommGetRank(tcomm,&trank);CHKERRQ(ierr);
-  jobqueue = tcomm->pool->poolthreads[trank]->jobqueue;
-  job     = &jobqueue->jobs[jobqueue->next_job_index];
-  if (val1) *val1 = &job->ints[0];
-  if (val2) *val2 = &job->ints[1];
-  if (val3) *val3 = &job->ints[2];
+  for(i=0; i<tcomm->ncommthreads; i++) {
+    jobqueue = tcomm->commthreads[i]->jobqueue;
+    job     = &jobqueue->jobs[jobqueue->next_job_index];
+    if (val1) *val1 = &job->ints[0];
+    if (val2) *val2 = &job->ints[1];
+    if (val3) *val3 = &job->ints[2];
+  }
   PetscFunctionReturn(0);
 }
 
@@ -1085,6 +1061,7 @@ PetscErrorCode PetscThreadCommDetach(MPI_Comm comm)
   if (flg) {
     printf("Detaching comm refct=%d\n",tcomm->refct);
     ierr = MPI_Attr_delete(comm,Petsc_ThreadComm_keyval);CHKERRQ(ierr);
+    printf("Detached comm refct=%d\n",tcomm->refct);
   }
   PetscFunctionReturn(0);
 }
@@ -1107,6 +1084,7 @@ PetscErrorCode PetscThreadCommAttach(MPI_Comm comm,PetscThreadComm tcomm)
     printf("Attaching comm refct=%d\n",tcomm->refct);
     tcomm->refct++;
     ierr = MPI_Attr_put(comm,Petsc_ThreadComm_keyval,tcomm);CHKERRQ(ierr);
+    printf("Attached comm refct=%d\n",tcomm->refct);
   }
   PetscFunctionReturn(0);
 }
@@ -1142,10 +1120,6 @@ PetscErrorCode PetscThreadCommCreate(MPI_Comm comm,PetscInt nthreads,MPI_Comm *m
   ierr = PetscThreadCommAttach(*mpicomm,tcomm);
   printf("Created new threadcomm with %d threads\n",tcomm->ncommthreads);
 
-  PetscThreadComm newcomm;
-  PetscCommGetThreadComm(*mpicomm,&newcomm);
-  printf("newcomm has %d threads\n",newcomm->ncommthreads);
-
   PetscFunctionReturn(0);
 }
 
@@ -1169,30 +1143,10 @@ PetscErrorCode PetscThreadCommCreateShare(MPI_Comm comm,PetscInt nthreads,PetscI
   ierr = PetscThreadCommInitialize(nthreads,granks,tcomm);
   // Duplicate MPI_Comm
   ierr = PetscCommForceDuplicate(comm,mpicomm,PETSC_NULL);
-
-  PetscThreadComm dupcomm;
-  PetscCommGetThreadComm(*mpicomm,&dupcomm);
-  printf("dupcomm has %d threads\n",dupcomm->ncommthreads);
-
   // Remove original threadcomm
   ierr = PetscThreadCommDetach(*mpicomm);
-
-  PetscThreadComm origcomm;
-  printf("Checking that original comm still exists\n");
-  PetscCommGetThreadComm(comm,&origcomm);
-  printf("origcomm has %d threads\n",origcomm->ncommthreads);
-
   // Attach ThreadComm to new MPI_Comm
   ierr = PetscThreadCommAttach(*mpicomm,tcomm);
-
-  PetscThreadComm newcomm;
-  PetscCommGetThreadComm(*mpicomm,&newcomm);
-  printf("newcomm has %d threads\n",newcomm->ncommthreads);
-
-  PetscThreadComm oldcomm;
-  PetscCommGetThreadComm(comm,&oldcomm);
-  printf("oldcomm has %d threads\n",oldcomm->ncommthreads);
-
   printf("Created new threadcomm with %d threads\n",tcomm->ncommthreads);
   PetscFunctionReturn(0);
 }
@@ -1221,10 +1175,29 @@ PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt nthreads)
   // Attach ThreadComm to MPI_Comm
   ierr = PetscThreadCommAttach(comm,tcomm);
   printf("Created new threadcomm with %d threads\n",tcomm->ncommthreads);
+  PetscFunctionReturn(0);
+}
 
-  PetscThreadComm newcomm;
-  PetscCommGetThreadComm(comm,&newcomm);
-  printf("newcomm has %d threads\n",newcomm->ncommthreads);
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommSplitEvenly"
+PetscErrorCode PetscThreadCommSplitEvenly(MPI_Comm comm, PetscInt ncomms,MPI_Comm **splitcomms)
+{
+  PetscThreadComm tcomm;
+  PetscInt        i,splitsize,remainder,*commsizes;
+  PetscBool       extra;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscCommGetThreadComm(comm,&tcomm);
+  ierr = PetscMalloc1(ncomms,&commsizes);CHKERRQ(ierr);
+
+  splitsize = tcomm->ncommthreads/ncomms;
+  remainder = tcomm->ncommthreads - splitsize*ncomms;
+  for (i=0; i<ncomms; i++) {
+    extra = (PetscBool)(i < remainder);
+    commsizes[i] = extra ? splitsize+1 : splitsize;
+  }
+  PetscThreadCommSplit(comm,ncomms,commsizes,splitcomms);
   PetscFunctionReturn(0);
 }
 
@@ -1250,24 +1223,27 @@ PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *comm
     tcomm->pool->refct++;
     // Set granks for threadcomm
     PetscMalloc1(commsizes[i],&granks);
-    // Previous threads
+    // Count previous threads
     startthread = 0;
     for(j=0; j<i; j++) {
       startthread += commsizes[j];
     }
+    // Set threads this comm will use
     for(j=0; j<commsizes[i]; j++) {
       granks[j] = startthread + j;
-      printf("Comm[%d] grank=%d\n",i,startthread+j);
+      printf("Creating splitcomm %d with thread %d\n",j,granks[j]);
     }
     // Initialize ThreadComm
     ierr = PetscThreadCommInitialize(commsizes[i],granks,tcomm);
     // Duplicate MPI_Comm
+    newcomm = (*splitcomms)[i];
     ierr = PetscCommForceDuplicate(comm,&newcomm,PETSC_NULL);
     // Remove original threadcomm
     ierr = PetscThreadCommDetach(newcomm);
     // Attach ThreadComm to new MPI_Comm
     ierr = PetscThreadCommAttach(newcomm,tcomm);
-    (*splitcomms)[i] = newcomm;
+    //(*splitcomms)[i] = newcomm;
+    ierr = PetscFree(granks);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -1338,11 +1314,8 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *granks,Pets
   /* Initialize implementation specific settings */
   printf("Initializing threadcomm implementation settings\n");
   ierr = (*pool->ops->tcomminit)(tcomm);CHKERRQ(ierr);
-
   ierr = PetscThreadCommReductionCreate(tcomm,&tcomm->red);CHKERRQ(ierr);
-  //if(pool->model==THREAD_MODEL_LOOP) {
-  //ierr = PetscThreadCommStackCreate();CHKERRQ(ierr);
-  //}
+
   PetscFunctionReturn(0);
 }
 

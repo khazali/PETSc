@@ -148,7 +148,7 @@ struct _PetscThreadPoolOps {
   PetscErrorCode (*startthreads)(PetscThreadPool);  /* Function to initialize and create threads */
   PetscErrorCode (*setaffinities)(PetscThreadPool); /* Function to set thread affinities */
   PetscErrorCode (*pooldestroy)(PetscThreadPool);   /* Function to destroy threads */
- };
+};
 
 struct _p_PetscThreadPool{
   PetscInt                refct;           /* Number of ThreadComm references */
@@ -172,7 +172,7 @@ struct _p_PetscThreadComm{
   PetscInt                 nkernels;     /* Maximum kernels launched */
   PetscInt                 refct;        /* Number of MPI_Comm references */
   PetscInt                 leader;       /* Rank of the leader thread. This thread manages
-                                           the synchronization for collective operatons like reductions. */
+                                            the synchronization for collective operatons like reductions. */
   PetscInt                 thread_start; /* Index for the first created thread (=1 if main thread is a worker, else 0 */
   PetscThreadCommReduction red;          /* Reduction context */
   PetscBool                active;       /* Does this threadcomm have access to the threads? */

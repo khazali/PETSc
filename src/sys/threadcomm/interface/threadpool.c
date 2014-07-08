@@ -90,12 +90,12 @@ PetscErrorCode PetscThreadPoolAlloc(PetscThreadPool *pool)
   poolout->npoolthreads   = -1;
   poolout->poolthreads    = NULL;
 
-  pootout->model          = THREAD_MODEL_LOOP;
+  poolout->model          = THREAD_MODEL_LOOP;
   poolout->threadtype     = THREAD_TYPE_NOTHREAD;
   poolout->aff            = PTHREADAFFPOLICY_ONECORE;
   poolout->nkernels       = 16;
   poolout->thread_start   = -1;
-  poolout->ismainwork     = PETSC_TRUE;
+  poolout->ismainworker   = PETSC_TRUE;
   ierr                    = PetscNew(&poolout->ops);CHKERRQ(ierr);
 
   *pool = poolout;
@@ -504,7 +504,7 @@ PetscErrorCode PetscThreadPoolJoin(MPI_Comm comm,PetscInt trank,PetscInt *prank)
   ierr = PetscThreadCommLocalBarrier(tcomm);
 
   if(trank!=tcomm->leader) {
-    ierr = PetscThreadPoolFunc_User(tcomm->commthreads[trank]);
+    PetscThreadPoolFunc((void*)&tcomm->commthreads[trank]);
   }
   PetscFunctionReturn(0);
 }
@@ -518,14 +518,6 @@ PetscBool CheckThreadCommMembership(PetscInt myrank,PetscThreadPool pool)
     if (myrank == pool->poolthreads[i]->grank) return PETSC_TRUE;
   }
   return PETSC_FALSE;
-}
-
-void SparkThreads(PetscInt myrank,PetscThreadPool pool,PetscThreadCommJobCtx job)
-{
-  if (CheckThreadCommMembership(myrank,pool)) {
-    pool->poolthreads[myrank]->jobdata = job;
-    job->job_status = THREAD_JOB_RECIEVED;
-  }
 }
 
 #undef __FUNCT__
@@ -543,7 +535,10 @@ void* PetscThreadPoolFunc(void *arg)
   trank = thread->grank;
   pool = thread->pool;
   jobqueue = pool->poolthreads[trank]->jobqueue;
-  printf("rank=%d in ThreadPoolFunc_Loop\n",trank);
+  printf("rank=%d in ThreadPoolFunc\n",trank);
+
+  //Create thread stack
+  PetscThreadCommStackCreate(trank);
 
   thread->jobdata = 0;
   thread->status = THREAD_INITIALIZED;
@@ -552,9 +547,9 @@ void* PetscThreadPoolFunc(void *arg)
   while (PetscReadOnce(int,thread->status) != THREAD_TERMINATE) {
     if (jobqueue->completed_jobs_ctr < jobqueue->total_jobs_ctr) {
       job = &jobqueue->jobs[jobqueue->current_job_index];
-      /* Spark the thread pool */
-      SparkThreads(trank,pool,job);
-      if (job->job_status == THREAD_JOB_RECIEVED) {
+      /* Check that this thread is in threadcomm */
+      if (CheckThreadCommMembership(trank,pool)) {
+        pool->poolthreads[trank]->jobdata = job;
         /* Do own job */
         PetscRunKernel(job->commrank,thread->jobdata->nargs,thread->jobdata);
         /* Post job completed status */
@@ -565,42 +560,8 @@ void* PetscThreadPoolFunc(void *arg)
     }
     PetscCPURelax();
   }
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "PetscThreadPoolFunc_User"
-PetscErrorCode PetscThreadPoolFunc_User(PetscThread thread)
-{
-  PetscInt trank;
-  PetscThreadCommJobQueue jobqueue;
-  PetscThreadCommJobCtx job;
-  PetscThreadPool pool;
-
-  PetscFunctionBegin;
-  trank = thread->grank;
-  pool = thread->pool;
-  jobqueue = pool->poolthreads[trank]->jobqueue;
-  printf("rank=%d in ThreadPoolFunc_User\n",trank);
-
-  /* Spin loop */
-  while (PetscReadOnce(int,thread->status) != THREAD_TERMINATE) {
-    if (jobqueue->completed_jobs_ctr < jobqueue->total_jobs_ctr) {
-      job = &jobqueue->jobs[jobqueue->current_job_index];
-      /* Spark the thread pool */
-      SparkThreads(trank,pool,job);
-      if (job->job_status == THREAD_JOB_RECIEVED) {
-        printf("Thread %d executing job %d\n",thread->grank,jobqueue->current_job_index);
-        /* Do own job */
-        PetscRunKernel(job->commrank,thread->jobdata->nargs,thread->jobdata);
-        /* Post job completed status */
-        job->job_status = THREAD_JOB_COMPLETED;
-      }
-      jobqueue->current_job_index = (jobqueue->current_job_index+1)%pool->nkernels;
-      jobqueue->completed_jobs_ctr++;
-    }
-    PetscCPURelax();
-  }
+  // Destroy thread stack
+  PetscThreadCommStackDestroy(trank);
   PetscFunctionReturn(0);
 }
 

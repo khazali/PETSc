@@ -239,6 +239,7 @@ PetscErrorCode  PetscCommForceDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,Pets
 
   /* Return next available tag */
   if (first_tag) *first_tag = counter->tag--;
+  printf("Duped comm with refcount=%d\n",counter->refcount);
 
   PetscFunctionReturn(0);
 }
@@ -270,6 +271,7 @@ PetscErrorCode  PetscCommDestroy(MPI_Comm *comm)
   PetscFunctionBegin;
   if (*comm == MPI_COMM_NULL) PetscFunctionReturn(0);
   ierr = MPI_Attr_get(icomm,Petsc_Counter_keyval,&counter,&flg);CHKERRQ(ierr);
+  printf("Calling petscdestroycomm refct=%d\n",counter->refcount);
   if (!flg) { /* not a PETSc comm, check if it has an inner comm */
     ierr = MPI_Attr_get(icomm,Petsc_InnerComm_keyval,&ucomm,&flg);CHKERRQ(ierr);
     if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_CORRUPT,"MPI_Comm does not have tag/name counter nor does it have inner MPI_Comm");
@@ -279,6 +281,7 @@ PetscErrorCode  PetscCommDestroy(MPI_Comm *comm)
   }
 
   if (!(--counter->refcount)) {
+    printf("Destroying PetscComm\n");
     /* if MPI_Comm has outer comm then remove reference to inner MPI_Comm from outer MPI_Comm */
     ierr = MPI_Attr_get(icomm,Petsc_OuterComm_keyval,&ucomm,&flg);CHKERRQ(ierr);
     if (flg) {

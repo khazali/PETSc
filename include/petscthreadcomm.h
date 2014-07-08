@@ -74,7 +74,11 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommDetach(MPI_Comm);
 PETSC_EXTERN PetscErrorCode PetscThreadCommAttach(MPI_Comm,PetscThreadComm);
 PETSC_EXTERN PetscErrorCode PetscThreadCommDestroy(PetscThreadComm*);
 
+PETSC_EXTERN PetscErrorCode PetscThreadCommSplitEvenly(MPI_Comm comm,PetscInt ncomms,MPI_Comm **splitcomms);
 PETSC_EXTERN PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *commsizes,MPI_Comm **splitcomms);
+
+PETSC_EXTERN PetscErrorCode PetscThreadCommStackCreate(PetscInt trank);
+PETSC_EXTERN PetscErrorCode PetscThreadCommStackDestroy(PetscInt trank);
 
 /* Reduction operations */
 PETSC_EXTERN PetscErrorCode PetscThreadReductionKernelPost(PetscInt,PetscThreadCommReduction,void*);
