@@ -10,7 +10,7 @@ int main(int argc,char **argv)
   MPI_Comm comm, *splitcomms;
   Vec *xvec, *yvec;
   PetscScalar *vnorm, alpha=3.0, xval, yval;
-  PetscInt i, n=20, nthreads, ncomms=2;
+  PetscInt i, n=20, nthreads, ncomms=1;
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr);
@@ -34,8 +34,8 @@ int main(int argc,char **argv)
   PetscThreadCommSplit(comm,ncomms,commsizes,&splitcomms1);*/
 
   // Split threads evenly among comms
-  printf("Creating split comm\n");
-  PetscThreadCommSplitEvenly(comm,ncomms,&splitcomms);
+  printf("Creating splitcomm with %d comms\n",ncomms);
+  ierr = PetscThreadCommSplitEvenly(comm,ncomms,&splitcomms);CHKERRQ(ierr);
 
   ierr = PetscPrintf(comm,"Creating split comms with %d comms\n",ncomms);
 
@@ -77,10 +77,10 @@ int main(int argc,char **argv)
 
   // Destroy MPI_Comms/threadcomms
   for(i=0; i<ncomms; i++) {
-    printf("destroying splitcomm\n");
+    ierr = VecDestroy(&xvec[i]);CHKERRQ(ierr);
+    ierr = VecDestroy(&yvec[i]);CHKERRQ(ierr);
     ierr = PetscCommDestroy(&splitcomms[i]);CHKERRQ(ierr);
   }
-  printf("destroying main comm\n");
   ierr = PetscCommDestroy(&comm);CHKERRQ(ierr);
 
   ierr = PetscFinalize();CHKERRQ(ierr);

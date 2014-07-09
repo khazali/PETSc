@@ -61,7 +61,7 @@ void func(void *arg) {
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRCONTINUE(ierr);
 
   // User gives threads to PETSc to use for PETSc functions
-  ierr = PetscThreadPoolJoin(comm,trank,&prank);CHKERRCONTINUE(ierr);
+  ierr = PetscThreadPoolJoin(&comm,1,trank,&prank);CHKERRCONTINUE(ierr);
   ierr = PetscPrintf(comm,"rank=%d joined pool prank=%d\n",trank,prank);CHKERRCONTINUE(ierr);
   if(prank>=0) {
     ierr = VecCreate(comm,&x);CHKERRCONTINUE(ierr);
@@ -79,7 +79,7 @@ void func(void *arg) {
     ierr = PetscPrintf(comm,"Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
   }
   // User takes back threads from PETSc once done calling PETSc functions
-  ierr = PetscThreadPoolReturn(comm,&prank);CHKERRCONTINUE(ierr);
+  ierr = PetscThreadPoolReturn(&comm,1,trank,&prank);CHKERRCONTINUE(ierr);
 
   // Get data for local work
   ierr = VecGetArray(y,&ay);CHKERRCONTINUE(ierr);
@@ -97,7 +97,7 @@ void func(void *arg) {
   ierr = VecRestoreArray(y,&ay);CHKERRCONTINUE(ierr);
 
   // User gives threads to PETSc for threaded PETSc work
-  ierr = PetscThreadPoolJoin(comm,trank,&prank);CHKERRCONTINUE(ierr);
+  ierr = PetscThreadPoolJoin(&comm,1,trank,&prank);CHKERRCONTINUE(ierr);
 
   if(prank>=0) {
     // Vec work
@@ -112,5 +112,5 @@ void func(void *arg) {
     ierr = VecDestroy(&x);CHKERRCONTINUE(ierr);
     ierr = VecDestroy(&y);CHKERRCONTINUE(ierr);
   }
-   ierr = PetscThreadPoolReturn(comm,&prank);CHKERRCONTINUE(ierr);
+  ierr = PetscThreadPoolReturn(&comm,1,trank,&prank);CHKERRCONTINUE(ierr);
 }

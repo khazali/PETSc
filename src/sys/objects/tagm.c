@@ -271,7 +271,6 @@ PetscErrorCode  PetscCommDestroy(MPI_Comm *comm)
   PetscFunctionBegin;
   if (*comm == MPI_COMM_NULL) PetscFunctionReturn(0);
   ierr = MPI_Attr_get(icomm,Petsc_Counter_keyval,&counter,&flg);CHKERRQ(ierr);
-  printf("Calling petscdestroycomm refct=%d\n",counter->refcount);
   if (!flg) { /* not a PETSc comm, check if it has an inner comm */
     ierr = MPI_Attr_get(icomm,Petsc_InnerComm_keyval,&ucomm,&flg);CHKERRQ(ierr);
     if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_CORRUPT,"MPI_Comm does not have tag/name counter nor does it have inner MPI_Comm");

@@ -87,6 +87,7 @@ PetscErrorCode PetscThreadCommRunKernel_OpenMPLoop(PetscThreadComm tcomm,PetscTh
 #define __FUNCT__ "PetscThreadCommRunKernel_OpenMPUser"
 PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm tcomm,PetscThreadCommJobCtx job)
 {
+  PetscThreadCommJobQueue jobqueue;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -95,6 +96,9 @@ PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm tcomm,PetscTh
     job->job_status = THREAD_JOB_RECIEVED;
     PetscRunKernel(0,job->nargs,job);
     job->job_status = THREAD_JOB_COMPLETED;
+    jobqueue = tcomm->commthreads[0]->jobqueue;
+    jobqueue->current_job_index = (jobqueue->current_job_index+1)%tcomm->nkernels;
+    jobqueue->completed_jobs_ctr++;
   }
   if(tcomm->syncafter) {
     ierr = PetscThreadCommJobBarrier(tcomm);CHKERRCONTINUE(ierr);

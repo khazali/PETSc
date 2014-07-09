@@ -39,7 +39,7 @@ int main(int argc,char **argv)
     PetscInt pstart,pend,lsize,gsize;
     PetscInt prank,trank = omp_get_thread_num();
 
-    ierr = PetscThreadPoolJoin(comm,trank,&prank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadPoolJoin(&comm,1,trank,&prank);CHKERRCONTINUE(ierr);
     ierr = PetscPrintf(comm,"trank=%d joined pool prank=%d\n",trank,prank);CHKERRCONTINUE(ierr);
     if(prank>=0) {
       // Set rhs
@@ -89,7 +89,7 @@ int main(int argc,char **argv)
       ierr = KSPGetResidualNorm(ksp,&rnorm);CHKERRCONTINUE(ierr);
       ierr = PetscPrintf(comm,"Residual=%f Converged=%d Soln norm=%f\n",rnorm,reason,vnorm);CHKERRCONTINUE(ierr);
     }
-    ierr = PetscThreadPoolReturn(comm,&prank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadPoolReturn(&comm,1,trank,&prank);CHKERRCONTINUE(ierr);
   }
 
   ierr = KSPDestroy(&ksp);CHKERRQ(ierr);

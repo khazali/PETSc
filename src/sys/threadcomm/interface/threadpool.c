@@ -480,32 +480,54 @@ PetscErrorCode PetscThreadPoolSetAffinity(PetscThreadPool pool,cpu_set_t *cpuset
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolJoin"
-PetscErrorCode PetscThreadPoolJoin(MPI_Comm comm,PetscInt trank,PetscInt *prank)
+PetscErrorCode PetscThreadPoolJoin(MPI_Comm *comm,PetscInt ncomms,PetscInt trank,PetscInt *prank)
 {
-  PetscThreadComm tcomm;
+  PetscInt i, j;
+  PetscThreadComm *tcomm;
   PetscErrorCode ierr;
+  PetscInt comm_index = -1, local_index = -1;
 
   PetscFunctionBegin;
-  printf("rank=%d joined thread pool\n",trank);
-  ierr = PetscCommGetThreadComm(comm,&tcomm);
 
-  printf("adding thread nthreads=%d\n",tcomm->nthreads);
-  ierr = PetscThreadCommLocalBarrier(tcomm);
-  if(trank==tcomm->leader) {
-    tcomm->active = PETSC_TRUE;
-    *prank = 0;
+  printf("rank=%d joining thread pool\n",trank);
+  PetscMalloc1(ncomms,&tcomm);
+  // Determine which threadcomm and local thread this thread belongs to
+  for(i=0; i<ncomms; i++) {
+    ierr = PetscCommGetThreadComm(comm[i],&tcomm[i]);
+
+    // Check if this thread is in threadcomm
+    for(j=0; j<tcomm[i]->ncommthreads; j++) {
+      if(tcomm[i]->commthreads[j]->grank==trank) {
+        comm_index = i;
+        local_index = j;
+      }
+    }
+  }
+  printf("trank=%d comm_index=%d local_index=%d leader=%d\n",trank,comm_index,local_index,tcomm[comm_index]->leader);
+
+  // Make sure all threads have reached this routine
+  ierr = PetscThreadCommLocalBarrier(tcomm[comm_index]);
+
+  // Initialize thread and join threadpool if a worker thread
+  if(trank==tcomm[comm_index]->leader) {
+    tcomm[comm_index]->active = PETSC_TRUE;
+    *prank = comm_index;
   } else {
-    tcomm->commthreads[trank]->status = THREAD_INITIALIZED;
-    tcomm->commthreads[trank]->jobdata = 0;
-    tcomm->commthreads[trank]->pool = tcomm->pool;
+    tcomm[comm_index]->commthreads[local_index]->status = THREAD_INITIALIZED;
+    tcomm[comm_index]->commthreads[local_index]->jobdata = 0;
+    tcomm[comm_index]->commthreads[local_index]->pool = tcomm[comm_index]->pool;
     *prank = -1;
   }
-  ierr = (*tcomm->ops->atomicincrement)(tcomm,&tcomm->nthreads,1);
-  ierr = PetscThreadCommLocalBarrier(tcomm);
+  ierr = (*tcomm[comm_index]->ops->atomicincrement)(tcomm[comm_index],&tcomm[comm_index]->nthreads,1);
 
-  if(trank!=tcomm->leader) {
-    PetscThreadPoolFunc((void*)&tcomm->commthreads[trank]);
+  // Make sure all threads have initialized threadcomm
+  ierr = PetscThreadCommLocalBarrier(tcomm[comm_index]);
+
+  if(*prank==-1) {
+    // Join thread pool if not leader thread
+    PetscThreadPoolFunc((void*)&tcomm[comm_index]->commthreads[local_index]);
   }
+
   PetscFunctionReturn(0);
 }
 
@@ -567,25 +589,37 @@ void* PetscThreadPoolFunc(void *arg)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolReturn"
-PetscErrorCode PetscThreadPoolReturn(MPI_Comm comm,PetscInt *prank)
+PetscErrorCode PetscThreadPoolReturn(MPI_Comm *comm,PetscInt ncomms,PetscInt trank,PetscInt *prank)
 {
-  PetscThreadComm tcomm;
-  PetscThreadPool pool;
-  PetscInt i;
+  PetscThreadComm *tcomm;
+  PetscInt i, j, comm_index=-1;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscCommGetThreadComm(comm,&tcomm);
-  pool = tcomm->pool;
-  if(*prank>=0) {
-    printf("Returning all threads\n");
-    for(i=0; i<pool->npoolthreads; i++) {
-      printf("terminate thread %d\n",i);
-      pool->poolthreads[i]->status = THREAD_TERMINATE;
+
+  PetscMalloc1(ncomms,&tcomm);
+  // Determine which threadcomm and local thread this thread belongs to
+  for(i=0; i<ncomms; i++) {
+    ierr = PetscCommGetThreadComm(comm[i],&tcomm[i]);
+
+    // Check if this thread is in threadcomm
+    for(j=0; j<tcomm[i]->ncommthreads; j++) {
+      if(tcomm[i]->commthreads[j]->grank==trank) comm_index = i;
     }
   }
-  ierr = (*tcomm->ops->atomicincrement)(tcomm,&tcomm->nthreads,-1);
-  ierr = PetscThreadCommLocalBarrier(tcomm);
+
+  // Master threads terminate worker threads
+  if(*prank>=0) {
+    printf("Returning all threads\n");
+    ierr = PetscThreadCommJobBarrier(tcomm[comm_index]);
+    for(i=0; i<tcomm[comm_index]->ncommthreads; i++) {
+      tcomm[comm_index]->commthreads[i]->status = THREAD_TERMINATE;
+    }
+  }
+
+  // Make sure all threads have reached this point
+  ierr = (*tcomm[comm_index]->ops->atomicincrement)(tcomm[comm_index],&tcomm[comm_index]->nthreads,-1);
+  ierr = PetscThreadCommLocalBarrier(tcomm[comm_index]);
   PetscFunctionReturn(0);
 }
 

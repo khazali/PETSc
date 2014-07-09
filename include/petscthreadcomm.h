@@ -97,10 +97,10 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm,PetscInt
 PETSC_EXTERN PetscErrorCode PetscThreadPoolSetNThreads(PetscThreadPool pool,PetscInt nthreads);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolGetNThreads(MPI_Comm comm,PetscInt *nthreads);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolSetAffinities(PetscThreadPool pool,const PetscInt affinities[]);
-PETSC_EXTERN PetscErrorCode PetscThreadPoolJoin(MPI_Comm comm, PetscInt trank, PetscInt *poolrank);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolJoin(MPI_Comm *comm, PetscInt ncomms, PetscInt trank, PetscInt *poolrank);
 PETSC_EXTERN PetscErrorCode PetscThreadCommLocalBarrier(PetscThreadComm tcomm);
 PETSC_EXTERN void* PetscThreadPoolFunc(void *arg);
-PETSC_EXTERN PetscErrorCode PetscThreadPoolReturn(MPI_Comm comm, PetscInt *poolrank);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolReturn(MPI_Comm *comm, PetscInt ncomms,PetscInt trank,PetscInt *poolrank);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolBarrier(PetscThreadPool pool);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolDestroy(PetscThreadPool pool);
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)

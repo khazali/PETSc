@@ -1205,22 +1205,16 @@ PetscErrorCode PetscThreadCommSplitEvenly(MPI_Comm comm, PetscInt ncomms,MPI_Com
 #define __FUNCT__ "PetscThreadCommSplit"
 PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *commsizes,MPI_Comm **splitcomms)
 {
-  MPI_Comm newcomm;
-  PetscThreadComm incomm,tcomm;
   PetscErrorCode ierr;
   PetscInt i, j, *granks, startthread;
 
   PetscFunctionBegin;
-  // Get input threadcomm
-  ierr = PetscCommGetThreadComm(comm,&incomm);
+
+  // Allocate splitcomms
   ierr = PetscMalloc1(ncomms,splitcomms);
+
   // Create each splitcomm
   for(i=0; i<ncomms; i++) {
-    // Allocate space for new threadcomm
-    ierr = PetscThreadCommAlloc(&tcomm);
-    // Set new threadcomm to use input threadpool
-    tcomm->pool = incomm->pool;
-    tcomm->pool->refct++;
     // Set granks for threadcomm
     PetscMalloc1(commsizes[i],&granks);
     // Count previous threads
@@ -1233,16 +1227,8 @@ PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *comm
       granks[j] = startthread + j;
       printf("Creating splitcomm %d with thread %d\n",j,granks[j]);
     }
-    // Initialize ThreadComm
-    ierr = PetscThreadCommInitialize(commsizes[i],granks,tcomm);
-    // Duplicate MPI_Comm
-    newcomm = (*splitcomms)[i];
-    ierr = PetscCommForceDuplicate(comm,&newcomm,PETSC_NULL);
-    // Remove original threadcomm
-    ierr = PetscThreadCommDetach(newcomm);
-    // Attach ThreadComm to new MPI_Comm
-    ierr = PetscThreadCommAttach(newcomm,tcomm);
-    //(*splitcomms)[i] = newcomm;
+    // Create threadcomm that shares threads with input threadcomm
+    ierr = PetscThreadCommCreateShare(comm,commsizes[i],granks,&(*splitcomms)[i]);
     ierr = PetscFree(granks);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
