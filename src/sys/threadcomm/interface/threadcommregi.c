@@ -2,21 +2,17 @@
 #include <petsc-private/threadcommimpl.h>     /*I    "petscthreadcomm.h"  I*/
 
 PETSC_EXTERN PetscErrorCode PetscThreadCommInit_NoThread(PetscThreadPool);
-PETSC_EXTERN PetscErrorCode PetscThreadCommInit_PThread(PetscThreadPool);
-PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadPool);
-PETSC_EXTERN PetscErrorCode PetscThreadCommInit_TBB(PetscThreadPool);
-
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_NoThread(PetscThreadComm);
 #if defined(PETSC_HAVE_PTHREADCLASSES)
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadLoop(PetscThreadComm);
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadAuto(PetscThreadComm);
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadUser(PetscThreadComm);
+PETSC_EXTERN PetscErrorCode PetscThreadCommInit_PThread(PetscThreadPool);
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThread(PetscThreadComm);
 #endif
 #if defined(PETSC_HAVE_OPENMP)
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPLoop(PetscThreadComm);
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPUser(PetscThreadComm);
+PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadPool);
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMP(PetscThreadComm);
 #endif
 #if defined(PETSC_HAVE_TBB)
+PETSC_EXTERN PetscErrorCode PetscThreadCommInit_TBB(PetscThreadPool);
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_TBB(PetscThreadComm);
 #endif
 
@@ -76,34 +72,23 @@ PetscErrorCode PetscThreadCommRegisterAllTypes(PetscThreadPool pool)
   PetscThreadCommRegisterAllTypesCalled = PETSC_TRUE;
 
   model = pool->model;
-  printf("Registering Types = %d\n",model);
+  printf("Registering Types\n");
 
   ierr = PetscThreadCommInitTypeRegister(NOTHREAD,PetscThreadCommInit_NoThread);CHKERRQ(ierr);
-  ierr = PetscThreadCommInitTypeRegister(PTHREAD,PetscThreadCommInit_PThread);CHKERRQ(ierr);
-  ierr = PetscThreadCommInitTypeRegister(OPENMP,PetscThreadCommInit_OpenMP);CHKERRQ(ierr);
-  ierr = PetscThreadCommInitTypeRegister(TBB,PetscThreadCommInit_TBB);CHKERRQ(ierr);
-
   ierr = PetscThreadCommTypeRegister(NOTHREAD,PetscThreadCommCreate_NoThread);CHKERRQ(ierr);
 
 #if defined(PETSC_HAVE_PTHREADCLASSES)
-  if (model==THREAD_MODEL_LOOP) {
-    ierr = PetscThreadCommTypeRegister(PTHREAD, PetscThreadCommCreate_PThreadLoop);CHKERRQ(ierr);
-  } else if (model==THREAD_MODEL_AUTO) {
-    ierr = PetscThreadCommTypeRegister(PTHREAD, PetscThreadCommCreate_PThreadAuto);CHKERRQ(ierr);
-  } else if (model==THREAD_MODEL_USER) {
-    ierr = PetscThreadCommTypeRegister(PTHREAD, PetscThreadCommCreate_PThreadUser);CHKERRQ(ierr);
-  }
+  ierr = PetscThreadCommInitTypeRegister(PTHREAD,PetscThreadCommInit_PThread);CHKERRQ(ierr);
+  ierr = PetscThreadCommTypeRegister(PTHREAD, PetscThreadCommCreate_PThread);CHKERRQ(ierr);
 #endif
 
 #if defined(PETSC_HAVE_OPENMP)
-  if (model==THREAD_MODEL_LOOP) {
-    ierr = PetscThreadCommTypeRegister(OPENMP,  PetscThreadCommCreate_OpenMPLoop);CHKERRQ(ierr);
-  } else if (model==THREAD_MODEL_USER) {
-    ierr = PetscThreadCommTypeRegister(OPENMP,  PetscThreadCommCreate_OpenMPUser);CHKERRQ(ierr);
-  }
+  ierr = PetscThreadCommInitTypeRegister(OPENMP,PetscThreadCommInit_OpenMP);CHKERRQ(ierr);
+  ierr = PetscThreadCommTypeRegister(OPENMP,  PetscThreadCommCreate_OpenMP);CHKERRQ(ierr);
 #endif
 
 #if defined(PETSC_HAVE_TBB)
+  ierr = PetscThreadCommInitTypeRegister(TBB,PetscThreadCommInit_TBB);CHKERRQ(ierr);
   ierr = PetscThreadCommTypeRegister(TBB,     PetscThreadCommCreate_TBB);CHKERRQ(ierr);
 #endif
 

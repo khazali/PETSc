@@ -124,8 +124,8 @@ typedef struct _PetscThreadCommOps* PetscThreadCommOps;
 struct _PetscThreadCommOps {
   PetscErrorCode (*runkernel)(PetscThreadComm,PetscThreadCommJobCtx);
   PetscErrorCode (*view)(PetscThreadComm,PetscViewer);
-  PetscErrorCode (*globalbarrier)();
-  PetscErrorCode (*atomicincrement)(PetscThreadComm,PetscInt*,PetscInt);
+  PetscErrorCode (*barrier)(PetscThreadComm);
+  PetscErrorCode (*getcores)(PetscThreadComm,PetscInt,PetscInt*);
   PetscErrorCode (*getrank)(PetscInt*);
   PetscErrorCode (*commdestroy)(PetscThreadComm);
 };
@@ -184,12 +184,7 @@ struct _p_PetscThreadComm{
   // Thread information
   PetscThreadPool         pool;         /* Threadpool containing threads for this comm */
   PetscInt                ncommthreads; /* Max threads comm can use */
-  PetscInt                nthreads;     /* Number of active threads available to comm */
   PetscThread             *commthreads; /* Threads that this comm can use */
-
-  // User barrier
-  PetscInt                barrier_threads;
-  PetscBool               wait1, wait2;
 };
 
 /* register thread communicator models */

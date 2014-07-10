@@ -27,38 +27,38 @@ int main(int argc,char **argv)
   #pragma omp parallel num_threads(nthreads) default(shared) private(ierr)
   {
     Vec x, y, a, b;
-    PetscInt prank;
+    PetscInt commrank;
     PetscScalar vnorm=0.0, xval, yval;
     int trank = omp_get_thread_num();
 
     // User gives threads to PETSc for threaded PETSc work
-    printf("trank=%d joining pool\n",trank);
-    ierr = PetscThreadPoolJoin(splitcomms,ncomms,trank,&prank);CHKERRCONTINUE(ierr);
-    ierr = PetscPrintf(comm,"trank=%d joined pool prank=%d\n",trank,prank);CHKERRCONTINUE(ierr);
-    if(prank>=0) {
-      ierr = PetscPrintf(splitcomms[prank],"Creating vecs\n");CHKERRCONTINUE(ierr);
-      ierr = VecCreateMPI(splitcomms[prank],PETSC_DECIDE,n,&x);CHKERRCONTINUE(ierr);
+    printf("trank=%d joining comm\n",trank);
+    ierr = PetscThreadCommJoin(splitcomms,ncomms,trank,&commrank);CHKERRCONTINUE(ierr);
+    ierr = PetscPrintf(comm,"trank=%d joined comm commrank=%d\n",trank,commrank);CHKERRCONTINUE(ierr);
+    if(commrank>=0) {
+      ierr = PetscPrintf(splitcomms[commrank],"Creating vecs\n");CHKERRCONTINUE(ierr);
+      ierr = VecCreateMPI(splitcomms[commrank],PETSC_DECIDE,n,&x);CHKERRCONTINUE(ierr);
       ierr = VecSetFromOptions(x);CHKERRCONTINUE(ierr);
       ierr = VecDuplicate(x,&y);CHKERRCONTINUE(ierr);
 
-      xval = 1.0*(prank+1.0);
-      yval = 2.0*(prank+1.0);
+      xval = 1.0*(commrank+1.0);
+      yval = 2.0*(commrank+1.0);
       ierr = VecSet(x,xval);CHKERRCONTINUE(ierr);
       ierr = VecSet(y,yval);CHKERRCONTINUE(ierr);
       ierr = VecAXPY(y,alpha,x);CHKERRCONTINUE(ierr);
       ierr = VecNorm(y,NORM_1,&vnorm);CHKERRCONTINUE(ierr);
-      ierr = PetscPrintf(splitcomms[prank],"Comm=%d Norm=%f\n",prank,vnorm);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(splitcomms[commrank],"Comm=%d Norm=%f\n",commrank,vnorm);CHKERRCONTINUE(ierr);
 
       ierr = VecDestroy(&x);CHKERRCONTINUE(ierr);
       ierr = VecDestroy(&y);CHKERRCONTINUE(ierr);
     }
-    ierr = PetscThreadPoolReturn(splitcomms,ncomms,trank,&prank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadCommReturn(splitcomms,ncomms,trank,&commrank);CHKERRCONTINUE(ierr);
 
     // User gives threads to PETSc for threaded PETSc work
     printf("Running single comm test trank=%d\n",trank);
-    ierr = PetscThreadPoolJoin(&comm,1,trank,&prank);CHKERRCONTINUE(ierr);
-    ierr = PetscPrintf(comm,"trank=%d joined pool prank=%d\n",trank,prank);CHKERRCONTINUE(ierr);
-    if(prank>=0) {
+    ierr = PetscThreadCommJoin(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
+    ierr = PetscPrintf(comm,"trank=%d joined comm commrank=%d\n",trank,commrank);CHKERRCONTINUE(ierr);
+    if(commrank>=0) {
       ierr = VecCreateMPI(comm,PETSC_DECIDE,n,&a);CHKERRCONTINUE(ierr);
       ierr = VecSetFromOptions(a);CHKERRCONTINUE(ierr);
       ierr = VecDuplicate(a,&b);CHKERRCONTINUE(ierr);
@@ -72,7 +72,7 @@ int main(int argc,char **argv)
       ierr = VecDestroy(&a);CHKERRCONTINUE(ierr);
       ierr = VecDestroy(&b);CHKERRCONTINUE(ierr);
     }
-    ierr = PetscThreadPoolReturn(&comm,1,trank,&prank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadCommReturn(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
   }
 
   // Destroy Threadcomms

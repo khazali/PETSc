@@ -39,31 +39,36 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadPool pool)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr             = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
-  pool->threadtype = THREAD_TYPE_OPENMP;
+  if(pool->model==THREAD_MODEL_AUTO) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Unable to use auto thread model with OpenMP. Use loop or user model with OpenMP");
+
+  ierr                     = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
+  pool->threadtype         = THREAD_TYPE_OPENMP;
   pool->ops->setaffinities = PetscThreadCommSetAffinity_OpenMP;
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommCreate_OpenMPLoop"
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPLoop(PetscThreadComm tcomm)
+#define __FUNCT__ "PetscThreadCommCreate_OpenMP"
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMP(PetscThreadComm tcomm)
 {
-  PetscFunctionBegin;
-  tcomm->ops->runkernel = PetscThreadCommRunKernel_OpenMPLoop;
-  tcomm->ops->getrank   = PetscThreadCommGetRank_OpenMP;
-  PetscFunctionReturn(0);
-}
+  PetscThreadComm_OpenMP ptcomm;
+  PetscErrorCode         ierr;
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommCreate_OpenMPUser"
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPUser(PetscThreadComm tcomm)
-{
   PetscFunctionBegin;
-  tcomm->ops->runkernel       = PetscThreadCommRunKernel_OpenMPUser;
-  tcomm->ops->getrank         = PetscThreadCommGetRank_OpenMP;
-  tcomm->ops->globalbarrier   = PetscThreadCommBarrier_OpenMP;
-  tcomm->ops->atomicincrement = PetscThreadCommAtomicIncrement_OpenMP;
+  ierr = PetscNew(&ptcomm);CHKERRQ(ierr);
+  ptcomm->barrier_threads = 0;
+  ptcomm->wait_inc = PETSC_TRUE;
+  ptcomm->wait_dec = PETSC_TRUE;
+
+  tcomm->data           = (void*)ptcomm;
+  if(tcomm->model==THREAD_MODEL_LOOP) {
+    tcomm->ops->runkernel = PetscThreadCommRunKernel_OpenMPLoop;
+  } else if(tcomm->model==THREAD_MODEL_USER) {
+    tcomm->ops->runkernel = PetscThreadCommRunKernel_OpenMPUser;
+  }
+  tcomm->ops->barrier   = PetscThreadCommBarrier_OpenMP;
+  tcomm->ops->getcores  = PetscThreadCommGetCores_OpenMP;
+  tcomm->ops->getrank   = PetscThreadCommGetRank_OpenMP;
   PetscFunctionReturn(0);
 }
 
@@ -71,14 +76,23 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMPUser(PetscThreadComm tco
 #define __FUNCT__ "PetscThreadCommRunKernel_OpenMPLoop"
 PetscErrorCode PetscThreadCommRunKernel_OpenMPLoop(PetscThreadComm tcomm,PetscThreadCommJobCtx job)
 {
-  PetscInt        trank=0;
+  PetscThreadCommJobQueue jobqueue;
+  PetscThreadCommJobCtx   threadjob;
+  PetscInt                trank;
 
   PetscFunctionBegin;
-#pragma omp parallel num_threads(tcomm->ncommthreads) private(trank)
+#pragma omp parallel num_threads(tcomm->ncommthreads) private(trank,jobqueue,threadjob)
   {
     trank = omp_get_thread_num();
-    PetscRunKernel(trank,job->nargs,job);
-    job->job_status = THREAD_JOB_COMPLETED;
+    /* Get thread specific jobqueue and job */
+    jobqueue = tcomm->commthreads[trank]->jobqueue;
+    threadjob = &jobqueue->jobs[jobqueue->newest_job_index];
+    /* Run kernel and update thread status */
+    threadjob->job_status = THREAD_JOB_RECIEVED;
+    PetscRunKernel(trank,threadjob->nargs,threadjob);
+    threadjob->job_status = THREAD_JOB_COMPLETED;
+    jobqueue->current_job_index = (jobqueue->current_job_index+1)%tcomm->nkernels;
+    jobqueue->completed_jobs_ctr++;
   }
   PetscFunctionReturn(0);
 }
@@ -96,7 +110,7 @@ PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm tcomm,PetscTh
     job->job_status = THREAD_JOB_RECIEVED;
     PetscRunKernel(0,job->nargs,job);
     job->job_status = THREAD_JOB_COMPLETED;
-    jobqueue = tcomm->commthreads[0]->jobqueue;
+    jobqueue = tcomm->commthreads[tcomm->leader]->jobqueue;
     jobqueue->current_job_index = (jobqueue->current_job_index+1)%tcomm->nkernels;
     jobqueue->completed_jobs_ctr++;
   }
@@ -108,19 +122,57 @@ PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm tcomm,PetscTh
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommBarrier_OpenMP"
+/* Reusable barrier that can block threads in one threadcomm while threads
+ in other threadcomms continue executing. */
 PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm tcomm)
 {
+  PetscThreadComm_OpenMP ptcomm = (PetscThreadComm_OpenMP)tcomm->data;
+  PetscErrorCode  ierr;
+
   PetscFunctionBegin;
-  #pragma omp barrier
+  ierr = PetscLogEventBegin(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
+  // Increment counter one thread at a time
+  #pragma omp atomic
+  ptcomm->barrier_threads++;
+
+  // Make sure all threads increment counter
+  while(ptcomm->wait_inc) {
+    if(PetscReadOnce(int,ptcomm->barrier_threads) == tcomm->ncommthreads) {
+      #pragma omp critical
+      {
+        ptcomm->wait_dec = PETSC_TRUE;
+        ptcomm->wait_inc = PETSC_FALSE;
+      }
+    }
+  }
+
+  // Decrement counter one thread at a time
+  #pragma omp atomic
+  ptcomm->barrier_threads--;
+
+  // Make sure all threads decrement counter
+  while(ptcomm->wait_dec) {
+    if(PetscReadOnce(int,ptcomm->barrier_threads) == 0) {
+      #pragma omp critical
+      {
+        ptcomm->wait_inc = PETSC_TRUE;
+        ptcomm->wait_dec = PETSC_FALSE;
+      }
+    }
+  }
+  ierr = PetscLogEventEnd(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommAtomicIncrement_OpenMP"
-PetscErrorCode PetscThreadCommAtomicIncrement_OpenMP(PetscThreadComm tcomm,PetscInt *val,PetscInt inc)
+#define __FUNCT__ "PetscThreadCommGetCores_OpenMP"
+PetscErrorCode PetscThreadCommGetCores_OpenMP(PetscThreadComm tcomm,PetscInt ncores,PetscInt *firstcore)
 {
   PetscFunctionBegin;
-  #pragma omp atomic
-  (*val)+=inc;
+  #pragma omp critical
+  {
+    *firstcore = NUMTHREADS;
+    NUMTHREADS+=ncores;
+  }
   PetscFunctionReturn(0);
 }

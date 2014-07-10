@@ -1,4 +1,4 @@
-static char help[] = "Test PetscThreadPool with type=pthreads,model=user with PETSc vector routines.\n\n";
+static char help[] = "Test threadcomm with type=pthreads,model=user with PETSc vector routines.\n\n";
 
 #include <petscvec.h>
 #include <petscthreadcomm.h>
@@ -52,7 +52,7 @@ int main(int argc,char **argv)
 
 void func(void *arg) {
 
-  PetscInt i, n=100, prank, start, end, lsize, *indices;
+  PetscInt i, n=100, commrank, start, end, lsize, *indices;
   PetscScalar alpha=3.0, vnorm;
   int trank = *(int*)arg;
   PetscErrorCode ierr;
@@ -61,9 +61,9 @@ void func(void *arg) {
   ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRCONTINUE(ierr);
 
   // User gives threads to PETSc to use for PETSc functions
-  ierr = PetscThreadPoolJoin(&comm,1,trank,&prank);CHKERRCONTINUE(ierr);
-  ierr = PetscPrintf(comm,"rank=%d joined pool prank=%d\n",trank,prank);CHKERRCONTINUE(ierr);
-  if(prank>=0) {
+  ierr = PetscThreadCommJoin(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
+  ierr = PetscPrintf(comm,"rank=%d joined comm commrank=%d\n",trank,commrank);CHKERRCONTINUE(ierr);
+  if(commrank>=0) {
     ierr = VecCreate(comm,&x);CHKERRCONTINUE(ierr);
     ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRCONTINUE(ierr);
     ierr = VecSetFromOptions(x);CHKERRCONTINUE(ierr);
@@ -79,7 +79,7 @@ void func(void *arg) {
     ierr = PetscPrintf(comm,"Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
   }
   // User takes back threads from PETSc once done calling PETSc functions
-  ierr = PetscThreadPoolReturn(&comm,1,trank,&prank);CHKERRCONTINUE(ierr);
+  ierr = PetscThreadCommReturn(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
 
   // Get data for local work
   ierr = VecGetArray(y,&ay);CHKERRCONTINUE(ierr);
@@ -97,9 +97,9 @@ void func(void *arg) {
   ierr = VecRestoreArray(y,&ay);CHKERRCONTINUE(ierr);
 
   // User gives threads to PETSc for threaded PETSc work
-  ierr = PetscThreadPoolJoin(&comm,1,trank,&prank);CHKERRCONTINUE(ierr);
+  ierr = PetscThreadCommJoin(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
 
-  if(prank>=0) {
+  if(commrank>=0) {
     // Vec work
     ierr = VecScale(y,2.0);CHKERRCONTINUE(ierr);
     ierr = VecAXPY(y,alpha,x);CHKERRCONTINUE(ierr);
@@ -112,5 +112,5 @@ void func(void *arg) {
     ierr = VecDestroy(&x);CHKERRCONTINUE(ierr);
     ierr = VecDestroy(&y);CHKERRCONTINUE(ierr);
   }
-  ierr = PetscThreadPoolReturn(&comm,1,trank,&prank);CHKERRCONTINUE(ierr);
+  ierr = PetscThreadCommReturn(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
 }

@@ -122,12 +122,7 @@ PetscErrorCode PetscThreadCommAlloc(PetscThreadComm *tcomm)
 
   tcommout->pool            = NULL;
   tcommout->ncommthreads    = -1;
-  tcommout->nthreads        = 0;
   tcommout->commthreads     = NULL;
-
-  tcommout->barrier_threads = 0;
-  tcommout->wait1           = PETSC_TRUE;
-  tcommout->wait2           = PETSC_TRUE;
 
   *tcomm                    = tcommout;
 
@@ -204,6 +199,8 @@ PetscErrorCode PetscThreadCommDestroy(PetscThreadComm *tcomm)
   if (!*tcomm) PetscFunctionReturn(0);
   if (!--(*tcomm)->refct) {
     printf("Destroying threadcomm\n");
+    /* Make sure all jobs are completed */
+    ierr = PetscThreadCommJobBarrier(*tcomm);CHKERRQ(ierr);
 
     /* Destroy pthread specific data */
     if((*tcomm)->threadtype==THREAD_TYPE_PTHREAD) {
@@ -326,6 +323,19 @@ PetscErrorCode PetscThreadCommGetAffinities(MPI_Comm comm,PetscInt affinities[])
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommBarrier"
+PetscErrorCode PetscThreadCommBarrier(MPI_Comm comm)
+{
+  PetscErrorCode  ierr;
+  PetscThreadComm tcomm=0;
+
+  PetscFunctionBegin;
+  ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
+  ierr = PetscThreadCommJobBarrier(tcomm);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommUserBarrier"
 /*  PetscThreadCommBarrier - Apply a barrier on the thread communicator
                              associated with the MPI communicator
 
@@ -345,16 +355,14 @@ PetscErrorCode PetscThreadCommGetAffinities(MPI_Comm comm,PetscInt affinities[])
 
     May not be applicable to all types.
 */
-PetscErrorCode PetscThreadCommBarrier(MPI_Comm comm)
+PetscErrorCode PetscThreadCommUserBarrier(MPI_Comm comm)
 {
   PetscErrorCode  ierr;
   PetscThreadComm tcomm=0;
 
   PetscFunctionBegin;
-  ierr = PetscLogEventBegin(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-  ierr = PetscThreadCommJobBarrier(tcomm);CHKERRQ(ierr);
-  ierr = PetscLogEventEnd(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
+  ierr = (tcomm->ops->barrier)(tcomm);
   PetscFunctionReturn(0);
 }
 
@@ -367,8 +375,10 @@ PetscErrorCode PetscThreadCommJobBarrier(PetscThreadComm tcomm)
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
   PetscInt                job_status;
+  PetscErrorCode          ierr;
 
   PetscFunctionBegin;
+  ierr = PetscLogEventBegin(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
   if (tcomm->ncommthreads == 1 && tcomm->ismainworker) PetscFunctionReturn(0);
 
   /* Loop till all threads signal that they have done their job */
@@ -382,6 +392,7 @@ PetscErrorCode PetscThreadCommJobBarrier(PetscThreadComm tcomm)
     if (PetscReadOnce(int,active_threads) > 0) active_threads = 0;
     else wait=PETSC_FALSE;
   }
+  ierr = PetscLogEventEnd(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1106,7 +1117,7 @@ PetscErrorCode PetscThreadCommCreate(MPI_Comm comm,PetscInt nthreads,MPI_Comm *m
   // Allocate space for ThreadComm
   ierr = PetscThreadCommAlloc(&tcomm);
   // Create ThreadPool
-  ierr = PetscThreadPoolCreate(tcomm,&nthreads);
+  ierr = PetscThreadPoolCreate(tcomm,&nthreads);CHKERRQ(ierr);
   // Set thread ranks
   PetscMalloc1(nthreads,&granks);
   for(i=0; i<nthreads; i++) {
@@ -1293,8 +1304,7 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *granks,Pets
 
   /* Set the leader thread rank */
   if (tcomm->ncommthreads) {
-    if (tcomm->ismainworker) tcomm->leader = granks[0];
-    else tcomm->leader = granks[0];
+    tcomm->leader = 0;
   }
 
   /* Initialize implementation specific settings */
@@ -1449,33 +1459,90 @@ PetscErrorCode PetscThreadCommCreateModel_User(PetscThreadPool pool)
   PetscFunctionReturn(0);
 }
 
-/* Reusable barrier that can block threads in one threadcomm while threads
- in other threadcomms continue executing. May need to make implementation specific
- so that it can use critical sections */
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommLocalBarrier"
-PetscErrorCode PetscThreadCommLocalBarrier(PetscThreadComm tcomm)
+#define __FUNCT__ "PetscThreadCommJoin"
+PetscErrorCode PetscThreadCommJoin(MPI_Comm *comm,PetscInt ncomms,PetscInt trank,PetscInt *commrank)
 {
-  PetscErrorCode  ierr;
+  PetscInt i, j;
+  PetscThreadComm *tcomm;
+  PetscErrorCode ierr;
+  PetscInt comm_index = -1, local_index = -1;
 
   PetscFunctionBegin;
-  // Make sure all threads increment counter
-  ierr = (*tcomm->ops->atomicincrement)(tcomm,&tcomm->barrier_threads,1);
-  while(tcomm->wait1) {
-    if(PetscReadOnce(int,tcomm->barrier_threads) == tcomm->ncommthreads) {
-      tcomm->wait2 = PETSC_TRUE;
-      tcomm->wait1 = PETSC_FALSE;
+
+  printf("rank=%d joining thread pool\n",trank);
+  PetscMalloc1(ncomms,&tcomm);
+  // Determine which threadcomm and local thread this thread belongs to
+  for(i=0; i<ncomms; i++) {
+    ierr = PetscCommGetThreadComm(comm[i],&tcomm[i]);
+
+    // Check if this thread is in threadcomm
+    for(j=0; j<tcomm[i]->ncommthreads; j++) {
+      if(tcomm[i]->commthreads[j]->grank==trank) {
+        comm_index = i;
+        local_index = j;
+      }
     }
+  }
+  printf("trank=%d comm_index=%d local_index=%d leader=%d\n",trank,comm_index,local_index,tcomm[comm_index]->leader);
+
+  // Make sure all threads have reached this routine
+  ierr = (*tcomm[comm_index]->ops->barrier)(tcomm[comm_index]);
+
+  // Initialize thread and join threadpool if a worker thread
+  if(local_index==tcomm[comm_index]->leader) {
+    tcomm[comm_index]->active = PETSC_TRUE;
+    *commrank = comm_index;
+  } else {
+    tcomm[comm_index]->commthreads[local_index]->status = THREAD_INITIALIZED;
+    tcomm[comm_index]->commthreads[local_index]->jobdata = 0;
+    tcomm[comm_index]->commthreads[local_index]->pool = tcomm[comm_index]->pool;
+    *commrank = -1;
   }
 
-  // Make sure all threads exited previous while loop so we can reset wait1
-  ierr = (*tcomm->ops->atomicincrement)(tcomm,&tcomm->barrier_threads,-1);
-  while(tcomm->wait2) {
-    if(PetscReadOnce(int,tcomm->barrier_threads) == 0) {
-      tcomm->wait1 = PETSC_TRUE;
-      tcomm->wait2 = PETSC_FALSE;
-    }
+  // Make sure all threads have initialized threadcomm
+  ierr = (*tcomm[comm_index]->ops->barrier)(tcomm[comm_index]);
+
+  if(*commrank==-1) {
+    // Join thread pool if not leader thread
+    PetscThreadPoolFunc((void*)&tcomm[comm_index]->commthreads[local_index]);
   }
+
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommReturn"
+PetscErrorCode PetscThreadCommReturn(MPI_Comm *comm,PetscInt ncomms,PetscInt trank,PetscInt *commrank)
+{
+  PetscThreadComm *tcomm;
+  PetscInt i, j, comm_index=-1;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+
+  PetscMalloc1(ncomms,&tcomm);
+  // Determine which threadcomm and local thread this thread belongs to
+  for(i=0; i<ncomms; i++) {
+    ierr = PetscCommGetThreadComm(comm[i],&tcomm[i]);
+
+    // Check if this thread is in threadcomm
+    for(j=0; j<tcomm[i]->ncommthreads; j++) {
+      if(tcomm[i]->commthreads[j]->grank==trank) comm_index = i;
+    }
+  }
+
+  // Master threads terminate worker threads
+  if(*commrank>=0) {
+    printf("Returning all threads\n");
+    ierr = PetscThreadCommJobBarrier(tcomm[comm_index]);
+    for(i=0; i<tcomm[comm_index]->ncommthreads; i++) {
+      tcomm[comm_index]->commthreads[i]->status = THREAD_TERMINATE;
+    }
+  }
+
+  // Make sure all threads have reached this point
+  ierr = (*tcomm[comm_index]->ops->barrier)(tcomm[comm_index]);
+  *commrank = -1;
+  PetscFunctionReturn(0);
+}

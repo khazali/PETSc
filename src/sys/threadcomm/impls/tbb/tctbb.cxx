@@ -26,6 +26,8 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommInit_TBB(PetscThreadPool pool)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if(pool->model==THREAD_MODEL_AUTO || pool->model==THREAD_MODEL_USER) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Unable to use auto or user thread model with TBB. Use loop model with TBB");
+
   ierr = PetscStrcpy(pool->type,TBB);CHKERRQ(ierr);
   pool->threadtype = THREAD_TYPE_TBB;
   PetscFunctionReturn(0);

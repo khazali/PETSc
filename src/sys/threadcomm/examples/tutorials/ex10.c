@@ -1,4 +1,4 @@
-static char help[] = "Test PetscThreadPool with OpenMP with PETSc matrix routines.\n\n";
+static char help[] = "Test threadcomm with OpenMP with PETSc matrix routines.\n\n";
 
 #include <petscmat.h>
 #include <petscvec.h>
@@ -37,11 +37,11 @@ int main(int argc,char **argv)
   #pragma omp parallel num_threads(nthreads) default(shared) private(ierr)
   {
     PetscInt pstart,pend,lsize,gsize;
-    PetscInt prank,trank = omp_get_thread_num();
+    PetscInt commrank,trank = omp_get_thread_num();
 
-    ierr = PetscThreadPoolJoin(&comm,1,trank,&prank);CHKERRCONTINUE(ierr);
-    ierr = PetscPrintf(comm,"trank=%d joined pool prank=%d\n",trank,prank);CHKERRCONTINUE(ierr);
-    if(prank>=0) {
+    ierr = PetscThreadCommJoin(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
+    ierr = PetscPrintf(comm,"trank=%d joined comm commrank=%d\n",trank,commrank);CHKERRCONTINUE(ierr);
+    if(commrank>=0) {
       // Set rhs
       ierr = VecSet(b,2.0);CHKERRCONTINUE(ierr);
 
@@ -89,7 +89,7 @@ int main(int argc,char **argv)
       ierr = KSPGetResidualNorm(ksp,&rnorm);CHKERRCONTINUE(ierr);
       ierr = PetscPrintf(comm,"Residual=%f Converged=%d Soln norm=%f\n",rnorm,reason,vnorm);CHKERRCONTINUE(ierr);
     }
-    ierr = PetscThreadPoolReturn(&comm,1,trank,&prank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadCommReturn(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
   }
 
   ierr = KSPDestroy(&ksp);CHKERRQ(ierr);

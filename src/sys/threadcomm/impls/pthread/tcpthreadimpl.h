@@ -35,14 +35,12 @@ extern pthread_key_t PetscPThreadRankkey;
 #endif
 
 PETSC_EXTERN PetscErrorCode PetscThreadCommInit_PThread(PetscThreadPool);
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadLoop(PetscThreadComm);
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadAuto(PetscThreadComm);
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThreadUser(PetscThreadComm);
-extern PetscErrorCode PetscThreadCommInitialize_PThreadUser(PetscThreadPool);
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThread(PetscThreadComm);
+extern PetscErrorCode PetscThreadCommInitialize_PThread(PetscThreadPool);
 extern PetscErrorCode PetscThreadCommDestroy_PThread(PetscThreadComm);
 extern PetscErrorCode PetscThreadPoolDestroy_PThread(PetscThreadPool);
 extern PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm,PetscThreadCommJobCtx);
 extern PetscErrorCode PetscThreadCommBarrier_PThread(PetscThreadComm);
-extern PetscErrorCode PetscThreadCommAtomicIncrement_PThread(PetscThreadComm,PetscInt*,PetscInt);
+extern PetscErrorCode PetscThreadCommGetCores_PThread(PetscThreadComm,PetscInt,PetscInt*);
 
 #endif
