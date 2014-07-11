@@ -67,7 +67,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMP(PetscThreadComm tcomm)
     tcomm->ops->runkernel = PetscThreadCommRunKernel_OpenMPUser;
   }
   tcomm->ops->barrier   = PetscThreadCommBarrier_OpenMP;
-  tcomm->ops->getcores  = PetscThreadCommGetCores_OpenMP;
   tcomm->ops->getrank   = PetscThreadCommGetRank_OpenMP;
   PetscFunctionReturn(0);
 }
@@ -161,18 +160,5 @@ PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm tcomm)
     }
   }
   ierr = PetscLogEventEnd(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommGetCores_OpenMP"
-PetscErrorCode PetscThreadCommGetCores_OpenMP(PetscThreadComm tcomm,PetscInt ncores,PetscInt *firstcore)
-{
-  PetscFunctionBegin;
-  #pragma omp critical
-  {
-    *firstcore = NUMTHREADS;
-    NUMTHREADS+=ncores;
-  }
   PetscFunctionReturn(0);
 }

@@ -3,18 +3,17 @@
 #include <petsc-private/threadcommimpl.h>
 
 static PetscInt   N_CORES                 = -1;
-PetscInt          NUMTHREADS              = -1;
 PetscBool         PetscThreadCommRegisterAllModelsCalled = PETSC_FALSE;
 PetscBool         PetscThreadCommRegisterAllTypesCalled  = PETSC_FALSE;
 
 /*
   PetscPThreadCommAffinityPolicy - Core affinity policy for pthreads
 
-$ PTHREADAFFPOLICY_ALL     - threads can run on any core. OS decides thread scheduling
-$ PTHREADAFFPOLICY_ONECORE - threads can run on only one core.
-$ PTHREADAFFPOLICY_NONE    - No set affinity policy. OS decides thread scheduling
+$ THREADAFFPOLICY_ALL     - threads can run on any core. OS decides thread scheduling
+$ THREADAFFPOLICY_ONECORE - threads can run on only one core.
+$ THREADAFFPOLICY_NONE    - No set affinity policy. OS decides thread scheduling
 */
-const char *const PetscThreadCommAffPolicyTypes[] = {"ALL","ONECORE","NONE","PetscPThreadCommAffinityPolicyType","PTHREADAFFPOLICY_",0};
+const char *const PetscThreadCommAffPolicyTypes[] = {"ALL","ONECORE","NONE","PetscPThreadCommAffinityPolicyType","THREADAFFPOLICY_",0};
 
 PETSC_EXTERN PetscErrorCode PetscThreadDestroy_PThread(PetscThread thread);
 
@@ -43,9 +42,9 @@ PetscErrorCode PetscGetNCores(PetscInt *ncores)
     {
       PetscErrorCode ierr;
       size_t         len = sizeof(N_CORES);
-      ierr = sysctlbyname("hw.activecpu",&N_CORES,&len,NULL,0); /* osx preferes activecpu over ncpu */
+      ierr = sysctlbyname("hw.activecpu",&N_CORES,&len,PETSC_NULL,0); /* osx preferes activecpu over ncpu */
       if (ierr) { /* freebsd check ncpu */
-        sysctlbyname("hw.ncpu",&N_CORES,&len,NULL,0);
+        sysctlbyname("hw.ncpu",&N_CORES,&len,PETSC_NULL,0);
         /* continue even if there is an error */
       }
     }
@@ -82,16 +81,16 @@ PetscErrorCode PetscThreadPoolAlloc(PetscThreadPool *pool)
   PetscThreadPool poolout;
 
   PetscFunctionBegin;
-  *pool = NULL;
+  *pool = PETSC_NULL;
   ierr = PetscNew(&poolout);CHKERRQ(ierr);
 
   poolout->refct          = 0;
   poolout->npoolthreads   = -1;
-  poolout->poolthreads    = NULL;
+  poolout->poolthreads    = PETSC_NULL;
 
   poolout->model          = THREAD_MODEL_LOOP;
   poolout->threadtype     = THREAD_TYPE_NOTHREAD;
-  poolout->aff            = PTHREADAFFPOLICY_ONECORE;
+  poolout->aff            = THREADAFFPOLICY_ONECORE;
   poolout->nkernels       = 16;
   poolout->thread_start   = -1;
   poolout->ismainworker   = PETSC_TRUE;
@@ -131,9 +130,9 @@ PetscErrorCode PetscThreadCreateJobQueue(PetscThread thread,PetscThreadPool pool
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolInitialize"
-PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool pool, PetscInt nthreads)
+PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool pool,PetscInt nthreads)
 {
-  PetscInt        i;
+  PetscInt        i,ncores;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
@@ -159,30 +158,28 @@ PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool pool, PetscInt nthreads
   }
 
   // Get option settings from command line
-  ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"Threadcomm options",NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-threadcomm_nkernels","number of kernels that can be launched simultaneously","",16,&pool->nkernels,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBegin(PETSC_COMM_WORLD,PETSC_NULL,"Threadcomm options",PETSC_NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-threadcomm_nkernels","number of kernels that can be launched simultaneously","",16,&pool->nkernels,PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   // Create thread structs for pool
+  PetscGetNCores(&ncores);
   ierr = PetscMalloc1(pool->npoolthreads,&pool->poolthreads);CHKERRQ(ierr);
   for(i=0; i<pool->npoolthreads; i++) {
     ierr = PetscNew(&pool->poolthreads[i]);CHKERRQ(ierr);
-    pool->poolthreads[i]->grank    = i;
-    pool->poolthreads[i]->pool     = NULL;
+    pool->poolthreads[i]->grank    = i % ncores;
+    pool->poolthreads[i]->pool     = PETSC_NULL;
     pool->poolthreads[i]->status   = 0;
-    pool->poolthreads[i]->jobdata  = NULL;
-    pool->poolthreads[i]->affinity = i;
-    pool->poolthreads[i]->jobqueue = NULL;
-    pool->poolthreads[i]->data     = NULL;
+    pool->poolthreads[i]->jobdata  = PETSC_NULL;
+    pool->poolthreads[i]->affinity = i % ncores;
+    pool->poolthreads[i]->jobqueue = PETSC_NULL;
+    pool->poolthreads[i]->data     = PETSC_NULL;
 
     ierr = PetscThreadCreateJobQueue(pool->poolthreads[i],pool);
     if(pool->threadtype==THREAD_TYPE_PTHREAD) {
       ierr = pool->ops->createthread(pool->poolthreads[i]);
     }
   }
-
-  printf("Setting affinities in threadpool\n");
-  ierr = PetscThreadPoolSetAffinities(pool,NULL);CHKERRQ(ierr);
 
   printf("Initialized pool with %d threads\n",pool->npoolthreads);
   pool->refct++;
@@ -217,7 +214,7 @@ PetscErrorCode PetscThreadPoolSetType(PetscThreadPool pool,PetscThreadCommType t
   PetscValidCharPointer(type,2);
   if (!PetscThreadCommRegisterAllTypesCalled) { ierr = PetscThreadCommRegisterAllTypes(pool);CHKERRQ(ierr);}
 
-  ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"Threadcomm type - setting threading type",NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBegin(PETSC_COMM_WORLD,PETSC_NULL,"Threadcomm type - setting threading type",PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsFList("-threadcomm_type","Threadcomm type","PetscThreadCommSetType",PetscThreadCommTypeList,type,pool->type,256,&flg);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
@@ -262,7 +259,7 @@ PetscErrorCode PetscThreadPoolSetModel(PetscThreadPool pool,PetscThreadCommModel
   PetscValidCharPointer(model,2);
   if (!PetscThreadCommRegisterAllModelsCalled) { ierr = PetscThreadCommRegisterAllModels();CHKERRQ(ierr);}
 
-  ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"Threadcomm model - setting threading model",NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBegin(PETSC_COMM_WORLD,PETSC_NULL,"Threadcomm model - setting threading model",PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsFList("-threadcomm_model","Threadcomm model","PetscThreadCommSetModel",PetscThreadCommModelList,model,smodel,256,&flg);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
   if (!flg) ierr = PetscStrcpy(smodel,model);CHKERRQ(ierr);
@@ -274,14 +271,16 @@ PetscErrorCode PetscThreadPoolSetModel(PetscThreadPool pool,PetscThreadCommModel
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolCreate"
-PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm, PetscInt *nthreads)
+PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm,PetscInt *affinities,PetscInt *nthreads)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  printf("Creating ThreadPool\n");
+  printf("********************Creating ThreadPool***********************\n");
   ierr = PetscThreadPoolAlloc(&tcomm->pool);
   ierr = PetscThreadPoolInitialize(tcomm->pool,*nthreads);CHKERRQ(ierr);
+  printf("Setting affinities in threadpool\n");
+  ierr = PetscThreadPoolSetAffinities(tcomm->pool,affinities);CHKERRQ(ierr);
 
   // Create threads and put in pool
   if(tcomm->pool->threadtype==THREAD_TYPE_PTHREAD && (tcomm->pool->model==THREAD_MODEL_AUTO || tcomm->pool->model==THREAD_MODEL_LOOP)) {
@@ -331,7 +330,7 @@ PetscErrorCode PetscThreadPoolSetNThreads(PetscThreadPool pool,PetscInt nthreads
   // Check input options for number of threads
   if (nthreads == PETSC_DECIDE) {
     pool->npoolthreads = 1;
-    ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"Thread comm - setting number of threads",NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsBegin(PETSC_COMM_WORLD,PETSC_NULL,"Thread comm - setting number of threads",PETSC_NULL);CHKERRQ(ierr);
     ierr = PetscOptionsInt("-threadcomm_nthreads","number of threads to use in the thread communicator","PetscThreadPoolSetNThreads",1,&nthr,&flg);CHKERRQ(ierr);
     ierr = PetscOptionsEnd();CHKERRQ(ierr);
     if (flg) {
@@ -422,7 +421,7 @@ PetscErrorCode PetscThreadPoolSetAffinities(PetscThreadPool pool,const PetscInt 
   if (!affinities) {
 
     /* Check if option is present in the options database */
-    ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"Thread comm - setting thread affinities",NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsBegin(PETSC_COMM_WORLD,PETSC_NULL,"Thread comm - setting thread affinities",PETSC_NULL);CHKERRQ(ierr);
     ierr = PetscOptionsEnum("-threadcomm_affpolicy","Thread affinity policy"," ",PetscThreadCommAffPolicyTypes,(PetscEnum)pool->aff,(PetscEnum*)&pool->aff,&flg);CHKERRQ(ierr);
     ierr = PetscMalloc1(pool->npoolthreads,&affopt);
     ierr = PetscOptionsIntArray("-threadcomm_affinities","Set core affinities of threads","PetscThreadCommSetAffinities",affopt,&nmax,&flg);CHKERRQ(ierr);
@@ -432,15 +431,16 @@ PetscErrorCode PetscThreadPoolSetAffinities(PetscThreadPool pool,const PetscInt 
     if (flg) {
       if (nmax != pool->npoolthreads) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Must set affinities for all threads, Threads = %D, Core affinities set = %D",pool->npoolthreads,nmax);
       for(i=0; i<pool->npoolthreads; i++) pool->poolthreads[i]->affinity = affopt[i];
-    } else {
-      /* Set affinities based on affinity policy */
-      ierr = (*pool->ops->setaffinities)(pool);CHKERRQ(ierr);
+      pool->aff = THREADAFFPOLICY_ONECORE;
     }
     PetscFree(affopt);
   } else {
     /* Use affinities from input parameter */
     for(i=0; i<pool->npoolthreads; i++) pool->poolthreads[i]->affinity = affinities[i];
+    pool->aff = THREADAFFPOLICY_ONECORE;
   }
+  /* Set affinities based on thread policy and settings of each threads affinities */
+  ierr = (*pool->ops->setaffinities)(pool);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -455,26 +455,23 @@ PetscErrorCode PetscThreadPoolSetAffinity(PetscThreadPool pool,cpu_set_t *cpuset
   printf("in poolsetaff\n");
   PetscGetNCores(&ncores);
   switch (pool->aff) {
-  case PTHREADAFFPOLICY_ONECORE:
+  case THREADAFFPOLICY_ONECORE:
     CPU_ZERO(cpuset);
+    printf("Setting thread affinity for trank=%d to core %d\n",trank,pool->poolthreads[trank]->affinity%ncores);
     CPU_SET(pool->poolthreads[trank]->affinity%ncores,cpuset);
     *set = PETSC_TRUE;
     break;
-  case PTHREADAFFPOLICY_ALL:
+  case THREADAFFPOLICY_ALL:
+    printf("Setting affinity to all\n");
     CPU_ZERO(cpuset);
     for (j=0; j<ncores; j++) {
       CPU_SET(j,cpuset);
     }
     *set = PETSC_TRUE;
     break;
-  case PTHREADAFFPOLICY_NONE:
-    if(pool->model==THREAD_TYPE_NOTHREAD && trank==0) {
-      CPU_ZERO(cpuset);
-      CPU_SET(pool->poolthreads[0]->affinity%ncores,cpuset);
-      *set = PETSC_TRUE;
-    } else {
-      *set = PETSC_FALSE;
-    }
+  case THREADAFFPOLICY_NONE:
+    printf("Setting affinity to none\n");
+    *set = PETSC_FALSE;
     break;
   }
   PetscFunctionReturn(0);
@@ -563,6 +560,6 @@ PetscErrorCode PetscThreadPoolDestroy(PetscThreadPool pool)
     ierr = PetscFree(pool->ops);CHKERRQ(ierr);
     ierr = PetscFree(pool);CHKERRQ(ierr);
   }
-  pool = NULL;
+  pool = PETSC_NULL;
   PetscFunctionReturn(0);
 }

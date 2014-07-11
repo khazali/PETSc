@@ -1,5 +1,4 @@
 
-
 CFLAGS           =
 FFLAGS           =
 CPPFLAGS         =
@@ -11,6 +10,8 @@ EXAMPLESC        = ex1.c ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c ex9.c ex10.c 
 include ${PETSC_DIR}/conf/variables
 include ${PETSC_DIR}/conf/rules
 include ${PETSC_DIR}/conf/test
+
+all: ex6 ex7 ex8 ex9 ex10 ex11 ex12
 
 ex1: ex1.o chkopts
 	-${CLINKER} -o ex1 ex1.o  ${PETSC_LIB}

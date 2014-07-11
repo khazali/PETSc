@@ -15,6 +15,5 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMP(PetscThreadComm);
 extern PetscErrorCode PetscThreadCommRunKernel_OpenMPLoop(PetscThreadComm,PetscThreadCommJobCtx);
 extern PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm,PetscThreadCommJobCtx);
 extern PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm);
-extern PetscErrorCode PetscThreadCommGetCores_OpenMP(PetscThreadComm,PetscInt,PetscInt*);
 
 #endif

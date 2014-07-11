@@ -77,7 +77,7 @@ PETSC_EXTERN PetscMPIInt Petsc_ThreadComm_keyval;
 #define PetscCPURelax() do { } while (0)
 #endif
 
-typedef enum {PTHREADAFFPOLICY_ALL,PTHREADAFFPOLICY_ONECORE,PTHREADAFFPOLICY_NONE} PetscThreadCommAffPolicyType;
+typedef enum {THREADAFFPOLICY_ALL,THREADAFFPOLICY_ONECORE,THREADAFFPOLICY_NONE} PetscThreadCommAffPolicyType;
 extern const char *const PetscThreadCommAffPolicyTypes[];
 
 typedef struct _p_PetscThreadCommRedCtx *PetscThreadCommRedCtx;

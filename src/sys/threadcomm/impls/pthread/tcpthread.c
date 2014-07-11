@@ -154,21 +154,20 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThread(PetscThreadComm tcomm)
   printf("Creating PThread\n");
   ierr = PetscNew(&ptcomm);CHKERRQ(ierr);
 
-  pthread_barrier_init(&ptcomm->barr,NULL,tcomm->ncommthreads);
-  pthread_mutex_init(&ptcomm->threadmutex,NULL);
+  pthread_barrier_init(&ptcomm->barr,PETSC_NULL,tcomm->ncommthreads);
+  pthread_mutex_init(&ptcomm->threadmutex,PETSC_NULL);
 
   tcomm->data             = (void*)ptcomm;
   tcomm->ops->commdestroy = PetscThreadCommDestroy_PThread;
   tcomm->ops->runkernel   = PetscThreadCommRunKernel_PThread;
   tcomm->ops->barrier     = PetscThreadCommBarrier_PThread;
-  tcomm->ops->getcores    = PetscThreadCommGetCores_PThread;
   tcomm->ops->getrank     = PetscThreadCommGetRank_PThread;
 
   if (tcomm->ismainworker) {
 #if defined(PETSC_PTHREAD_LOCAL)
     PetscPThreadRank=0; /* Main thread rank */
 #else
-    ierr = pthread_key_create(&PetscPThreadRankkey,NULL);CHKERRQ(ierr);
+    ierr = pthread_key_create(&PetscPThreadRankkey,PETSC_NULL);CHKERRQ(ierr);
     ierr = pthread_setspecific(PetscPThreadRankkey,&tcomm->commthreads[0]->grank);CHKERRQ(ierr);
 #endif
   }
@@ -249,19 +248,5 @@ PetscErrorCode PetscThreadCommBarrier_PThread(PetscThreadComm tcomm)
   ierr = PetscLogEventBegin(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
   pthread_barrier_wait(&ptcomm->barr);
   ierr = PetscLogEventEnd(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommGetCores_PThread"
-PetscErrorCode PetscThreadCommGetCores_PThread(PetscThreadComm tcomm,PetscInt ncores,PetscInt *firstcore)
-{
-  PetscThreadComm_PThread ptcomm = (PetscThreadComm_PThread)tcomm->data;
-
-  PetscFunctionBegin;
-  pthread_mutex_lock(&ptcomm->threadmutex);
-  *firstcore = NUMTHREADS;
-  NUMTHREADS+=ncores;
-  pthread_mutex_unlock(&ptcomm->threadmutex);
   PetscFunctionReturn(0);
 }

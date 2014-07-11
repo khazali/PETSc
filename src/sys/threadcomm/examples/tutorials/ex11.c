@@ -22,7 +22,7 @@ int main(int argc,char **argv)
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr);
 
-  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,&comm);CHKERRQ(ierr);
+  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,PETSC_NULL,&comm);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(comm,&nthreads);CHKERRQ(ierr);
 
   tid = (pthread_t*)malloc(sizeof(pthread_t)*nthreads);
@@ -58,7 +58,7 @@ void func(void *arg) {
   PetscErrorCode ierr;
 
   ierr = PetscPrintf(PETSC_COMM_WORLD,"in func trank=%d\n",trank);CHKERRCONTINUE(ierr);
-  ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRCONTINUE(ierr);
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-n",&n,PETSC_NULL);CHKERRCONTINUE(ierr);
 
   // User gives threads to PETSc to use for PETSc functions
   ierr = PetscThreadCommJoin(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);

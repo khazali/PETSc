@@ -41,6 +41,5 @@ extern PetscErrorCode PetscThreadCommDestroy_PThread(PetscThreadComm);
 extern PetscErrorCode PetscThreadPoolDestroy_PThread(PetscThreadPool);
 extern PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm,PetscThreadCommJobCtx);
 extern PetscErrorCode PetscThreadCommBarrier_PThread(PetscThreadComm);
-extern PetscErrorCode PetscThreadCommGetCores_PThread(PetscThreadComm,PetscInt,PetscInt*);
 
 #endif
