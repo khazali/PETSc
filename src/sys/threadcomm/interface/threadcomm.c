@@ -1190,11 +1190,40 @@ PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt *affinities,Pe
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommCreateWithRanks"
+PetscErrorCode PetscThreadCommCreateWithRanks(MPI_Comm comm,PetscInt nthreads,PetscInt *ranks,PetscInt *affinities,MPI_Comm *mpicomm)
+{
+  PetscInt i, *granks;
+  PetscThreadComm tcomm;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  // Allocate space for ThreadComm
+  ierr = PetscThreadCommAlloc(&tcomm);
+  // Create ThreadPool
+  ierr = PetscThreadPoolCreateWithRanks(tcomm,ranks,affinities,&nthreads);CHKERRQ(ierr);
+  // Set thread ranks
+  PetscMalloc1(nthreads,&granks);
+  for(i=0; i<nthreads; i++) {
+    granks[i] = i;
+  }
+  // Initialize ThreadComm
+  ierr = PetscThreadCommInitialize(nthreads,granks,tcomm);
+  // Duplicate MPI_Comm
+  ierr = PetscCommForceDuplicate(comm,mpicomm,PETSC_NULL);
+  // Attach ThreadComm to new MPI_Comm
+  ierr = PetscThreadCommAttach(*mpicomm,tcomm);
+  printf("Created new threadcomm with %d threads\n",tcomm->ncommthreads);
+
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommCreateMultiple"
 PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,PetscInt nthreads,PetscInt *incommsizes,PetscInt *affinities,MPI_Comm **multcomms)
 {
   PetscErrorCode ierr;
-  PetscInt i, j, *multaffinities, startthread, *commsizes;
+  PetscInt i, j, *multranks, *multaffinities, startthread, *commsizes;
   PetscInt        splitsize,remainder;
   PetscBool       extra;
 
@@ -1218,7 +1247,8 @@ PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,Petsc
 
   // Create each splitcomm
   for(i=0; i<ncomms; i++) {
-    // Set granks for threadcomm
+    // Set ranks and affinities for threadcomm
+    PetscMalloc1(commsizes[i],&multranks);
     PetscMalloc1(commsizes[i],&multaffinities);
     // Count previous threads
     startthread = 0;
@@ -1228,14 +1258,16 @@ PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,Petsc
     // Set default affinities this multcomm will use
     for(j=0; j<commsizes[i]; j++) {
       if(!affinities) {
+        multranks[j] = startthread + j;
         multaffinities[j] = startthread + j;
       } else {
+        multranks[j] = startthread + j;
         multaffinities[j] = affinities[j];
       }
       printf("Creating multcomm thread %d on core %d\n",j,multaffinities[j]);
     }
     // Create threadcomm
-    ierr = PetscThreadCommCreate(comm,commsizes[i],multaffinities,&(*multcomms)[i]);
+    ierr = PetscThreadCommCreateWithRanks(comm,commsizes[i],multranks,multaffinities,&(*multcomms)[i]);
 
     ierr = PetscFree(multaffinities);CHKERRQ(ierr);
   }
@@ -1532,7 +1564,7 @@ PetscErrorCode PetscThreadCommJoin(MPI_Comm *comm,PetscInt ncomms,PetscInt trank
 
     // Check if this thread is in threadcomm
     for(j=0; j<tcomm[i]->ncommthreads; j++) {
-      if(startthread+j==trank) {
+      if(tcomm[i]->commthreads[j]->grank==trank) {
         comm_index = i;
         local_index = j;
       }
@@ -1589,7 +1621,9 @@ PetscErrorCode PetscThreadCommReturn(MPI_Comm *comm,PetscInt ncomms,PetscInt tra
 
     // Check if this thread is in threadcomm
     for(j=0; j<tcomm[i]->ncommthreads; j++) {
-      if(startthread+j==trank) comm_index = i;
+      if(tcomm[i]->commthreads[j]->grank==trank) {
+        comm_index = i;
+      }
     }
     startthread += tcomm[i]->ncommthreads;
   }

@@ -20,12 +20,30 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMP(PetscThreadPool po
   PetscFunctionBegin;
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
   ierr = PetscMalloc1(pool->npoolthreads,&cpuset);
+
+  // Find largest thread affinity in pool
+  /*PetscInt maxaffinity = 0;
+  for(i=0; i<pool->npoolthreads; i++) {
+    if(pool->poolthreads[i]->affinity > maxaffinity) {
+      maxaffinity = pool->poolthreads[i]->affinity;
+    }
+  }
+
+  PetscInt *affinities;
+  PetscMalloc1(maxaffinity,&affinities);
+  for(i=0; i<pool->npoolthreads; i++) {
+    affinities[i] = -1;
+  }
+  for(i=0; i<pool->npoolthreads; i++) {
+    affinities[pool->poolthreads[i]->affinity] = i;
+  }*/
+
 #pragma omp parallel num_threads(pool->npoolthreads) shared(pool)
   {
     PetscInt trank;
     PetscBool set;
     trank = omp_get_thread_num();
-    PetscThreadPoolSetAffinity(pool,&cpuset[trank],trank,&set);
+    PetscThreadPoolSetAffinity(pool,&cpuset[trank],pool->poolthreads[trank]->affinity,&set);
     if(set) sched_setaffinity(0,sizeof(cpu_set_t),&cpuset[trank]);
   }
 #endif
@@ -107,6 +125,7 @@ PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm tcomm,PetscTh
   printf("Running OpenMP User kernel\n");
   if(tcomm->ismainworker) {
     job->job_status = THREAD_JOB_RECIEVED;
+    printf("Running job for master thread \n");
     PetscRunKernel(0,job->nargs,job);
     job->job_status = THREAD_JOB_COMPLETED;
     jobqueue = tcomm->commthreads[tcomm->leader]->jobqueue;

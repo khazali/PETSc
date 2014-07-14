@@ -130,7 +130,7 @@ PetscErrorCode PetscThreadCreateJobQueue(PetscThread thread,PetscThreadPool pool
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolInitialize"
-PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool pool,PetscInt nthreads)
+PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool pool,PetscInt nthreads,PetscInt *ranks)
 {
   PetscInt        i,ncores;
   PetscErrorCode  ierr;
@@ -167,7 +167,12 @@ PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool pool,PetscInt nthreads)
   ierr = PetscMalloc1(pool->npoolthreads,&pool->poolthreads);CHKERRQ(ierr);
   for(i=0; i<pool->npoolthreads; i++) {
     ierr = PetscNew(&pool->poolthreads[i]);CHKERRQ(ierr);
-    pool->poolthreads[i]->grank    = i % ncores;
+    pool->poolthreads[i]->lrank = i;
+    if(!ranks) {
+      pool->poolthreads[i]->grank = i % ncores;
+    } else {
+      pool->poolthreads[i]->grank = ranks[i];
+    }
     pool->poolthreads[i]->pool     = PETSC_NULL;
     pool->poolthreads[i]->status   = 0;
     pool->poolthreads[i]->jobdata  = PETSC_NULL;
@@ -276,9 +281,33 @@ PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm,PetscInt *affinities,
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  printf("********************Creating ThreadPool***********************\n");
+  printf("Creating ThreadPool\n");
   ierr = PetscThreadPoolAlloc(&tcomm->pool);
-  ierr = PetscThreadPoolInitialize(tcomm->pool,*nthreads);CHKERRQ(ierr);
+  ierr = PetscThreadPoolInitialize(tcomm->pool,*nthreads,PETSC_NULL);CHKERRQ(ierr);
+  printf("Setting affinities in threadpool\n");
+
+  // Set thread affinities in thread struct
+  ierr = PetscThreadPoolSetAffinities(tcomm->pool,affinities);CHKERRQ(ierr);
+
+  // Create threads and put in pool
+  if(tcomm->pool->threadtype==THREAD_TYPE_PTHREAD && (tcomm->pool->model==THREAD_MODEL_AUTO || tcomm->pool->model==THREAD_MODEL_LOOP)) {
+    ierr = (*tcomm->pool->ops->startthreads)(tcomm->pool);
+  }
+  // Return number of threads in pool
+  *nthreads = tcomm->pool->npoolthreads;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadPoolCreateWithRanks"
+PetscErrorCode PetscThreadPoolCreateWithRanks(PetscThreadComm tcomm,PetscInt *ranks,PetscInt *affinities,PetscInt *nthreads)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  printf("Creating ThreadPool\n");
+  ierr = PetscThreadPoolAlloc(&tcomm->pool);
+  ierr = PetscThreadPoolInitialize(tcomm->pool,*nthreads,ranks);CHKERRQ(ierr);
   printf("Setting affinities in threadpool\n");
   ierr = PetscThreadPoolSetAffinities(tcomm->pool,affinities);CHKERRQ(ierr);
 
@@ -447,7 +476,7 @@ PetscErrorCode PetscThreadPoolSetAffinities(PetscThreadPool pool,const PetscInt 
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolSetAffinity"
-PetscErrorCode PetscThreadPoolSetAffinity(PetscThreadPool pool,cpu_set_t *cpuset,PetscInt trank,PetscBool *set)
+PetscErrorCode PetscThreadPoolSetAffinity(PetscThreadPool pool,cpu_set_t *cpuset,PetscInt affinity,PetscBool *set)
 {
   PetscInt ncores,j;
 
@@ -457,8 +486,8 @@ PetscErrorCode PetscThreadPoolSetAffinity(PetscThreadPool pool,cpu_set_t *cpuset
   switch (pool->aff) {
   case THREADAFFPOLICY_ONECORE:
     CPU_ZERO(cpuset);
-    printf("Setting thread affinity for trank=%d to core %d\n",trank,pool->poolthreads[trank]->affinity%ncores);
-    CPU_SET(pool->poolthreads[trank]->affinity%ncores,cpuset);
+    printf("Setting thread affinity to core %d\n",affinity%ncores);
+    CPU_SET(affinity%ncores,cpuset);
     *set = PETSC_TRUE;
     break;
   case THREADAFFPOLICY_ALL:
@@ -478,17 +507,6 @@ PetscErrorCode PetscThreadPoolSetAffinity(PetscThreadPool pool,cpu_set_t *cpuset
 }
 #endif
 
-/* Checks whether this thread is a member of tcomm */
-PetscBool CheckThreadCommMembership(PetscInt myrank,PetscThreadPool pool)
-{
-  PetscInt i;
-
-  for (i=0;i<pool->npoolthreads;i++) {
-    if (myrank == pool->poolthreads[i]->grank) return PETSC_TRUE;
-  }
-  return PETSC_FALSE;
-}
-
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolFunc"
 void* PetscThreadPoolFunc(void *arg)
@@ -501,7 +519,7 @@ void* PetscThreadPoolFunc(void *arg)
 
   PetscFunctionBegin;
   thread = *(PetscThread*)arg;
-  trank = thread->grank;
+  trank = thread->lrank;
   pool = thread->pool;
   jobqueue = pool->poolthreads[trank]->jobqueue;
   printf("rank=%d in ThreadPoolFunc\n",trank);
@@ -516,14 +534,12 @@ void* PetscThreadPoolFunc(void *arg)
   while (PetscReadOnce(int,thread->status) != THREAD_TERMINATE) {
     if (jobqueue->completed_jobs_ctr < jobqueue->total_jobs_ctr) {
       job = &jobqueue->jobs[jobqueue->current_job_index];
-      /* Check that this thread is in threadcomm */
-      if (CheckThreadCommMembership(trank,pool)) {
-        pool->poolthreads[trank]->jobdata = job;
-        /* Do own job */
-        PetscRunKernel(job->commrank,thread->jobdata->nargs,thread->jobdata);
-        /* Post job completed status */
-        job->job_status = THREAD_JOB_COMPLETED;
-      }
+      pool->poolthreads[trank]->jobdata = job;
+      /* Do own job */
+      printf("Running job for commrank=%d\n",job->commrank);
+      PetscRunKernel(job->commrank,thread->jobdata->nargs,thread->jobdata);
+      /* Post job completed status */
+      job->job_status = THREAD_JOB_COMPLETED;
       jobqueue->current_job_index = (jobqueue->current_job_index+1)%pool->nkernels;
       jobqueue->completed_jobs_ctr++;
     }

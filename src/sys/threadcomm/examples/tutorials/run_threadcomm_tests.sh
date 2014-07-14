@@ -29,7 +29,7 @@ make ex8
 
 echo ""
 echo "Run ex9 test"
-make ex8
+make ex9
 ./ex9 -n 100000 -threadcomm_type openmp -threadcomm_model user -threadcomm_nthreads $nthreads -ncomms 2
 
 

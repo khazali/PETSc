@@ -132,7 +132,8 @@ struct _PetscThreadCommOps {
 
 typedef struct _p_PetscThread* PetscThread;
 struct _p_PetscThread{
-  PetscInt                grank;    /* Thread rank in pool */
+  PetscInt                grank;    /* Global thread rank */
+  PetscInt                lrank;    /* Local thread rank in pool */
   PetscThreadPool         pool;     /* Threadpool for current thread */
   PetscInt                status;   /* Status of current job for each thread */
   PetscThreadCommJobCtx   jobdata;  /* Data for current job for each thread */
