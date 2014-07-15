@@ -17,7 +17,7 @@ int main(int argc,char **argv)
   ierr = PetscOptionsGetInt(PETSC_NULL,"-n",&n,PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(PETSC_NULL,"-ncomms",&ncomms,PETSC_NULL);CHKERRQ(ierr);
 
-  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,PETSC_NULL,&comm);CHKERRQ(ierr);
+  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,PETSC_NULL,PETSC_NULL,&comm);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(comm,&nthreads);CHKERRQ(ierr);
   ierr = PetscPrintf(comm,"nthreads=%d\n",nthreads);CHKERRQ(ierr);
 
@@ -32,20 +32,23 @@ int main(int argc,char **argv)
   ierr = PetscPrintf(shcomm,"Created shared comm with %d threads\n",ntcthreads);CHKERRQ(ierr);
 
   printf("Creating splitcomm with %d comms\n",ncomms);
-  ierr = PetscThreadCommSplitEvenly(comm,ncomms,&splitcomms);CHKERRQ(ierr);
+  ierr = PetscThreadCommSplit(comm,ncomms,PETSC_NULL,&splitcomms);CHKERRQ(ierr);
 
-  ierr = PetscThreadCommCreateMultiple(PETSC_COMM_WORLD,ncomms,nthreads,PETSC_NULL,PETSC_NULL,&multcomms);
+  printf("\n\n\nCreating multcomm with %d comms\n",ncomms);
+  ierr = PetscThreadCommCreateMultiple(PETSC_COMM_WORLD,ncomms,nthreads,PETSC_NULL,PETSC_NULL,PETSC_NULL,&multcomms);
   ierr = PetscThreadCommGetNThreads(multcomms[0],&ntcthreads);CHKERRQ(ierr);
   ierr = PetscPrintf(comm,"multcomm1 ntcthreads=%d\n",ntcthreads);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(multcomms[1],&ntcthreads);CHKERRQ(ierr);
   ierr = PetscPrintf(comm,"multcomm2 ntcthreads=%d\n",ntcthreads);CHKERRQ(ierr);
+  printf("\nDone creating multcomm\n\n\n");
+  //exit(0);
 
   #pragma omp parallel num_threads(nthreads) default(shared) private(ierr)
   {
-    Vec x, y, a, b;
+    Vec x,y,a,b;
     PetscInt commrank;
     PetscScalar vnorm=0.0, xval, yval;
-    int trank = omp_get_thread_num();
+    PetscInt trank = omp_get_thread_num();
 
     // User gives threads to PETSc for threaded multiple comm PETSc work
     ierr = PetscThreadCommJoin(multcomms,ncomms,trank,&commrank);CHKERRCONTINUE(ierr);
@@ -69,7 +72,7 @@ int main(int argc,char **argv)
     }
     ierr = PetscThreadCommReturn(multcomms,ncomms,trank,&commrank);CHKERRCONTINUE(ierr);
 
-     #pragma omp barrier
+    #pragma omp barrier
 
     // User gives threads to PETSc for threaded split comm PETSc work
     ierr = PetscThreadCommJoin(splitcomms,ncomms,trank,&commrank);CHKERRCONTINUE(ierr);
@@ -115,7 +118,7 @@ int main(int argc,char **argv)
     }
     ierr = PetscThreadCommReturn(&shcomm,1,trank,&commrank);CHKERRCONTINUE(ierr);
 
-    #pragma omp barrier
+     #pragma omp barrier
 
     // User gives threads to PETSc for threaded single comm PETSc work
     ierr = PetscPrintf(comm,"\n\n\nRunning single comm test trank=%d\n",trank);

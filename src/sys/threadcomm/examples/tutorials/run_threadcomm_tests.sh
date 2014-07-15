@@ -1,6 +1,17 @@
 #!/bin/sh
 
+nthreads=$1
+ncomms=$2
+
+if [ -z "$1" ]
+then
 nthreads=4
+fi
+
+if [ -z "$2" ]
+then
+ncomms=2
+fi
 
 echo ""
 echo "Run ex6 test"
@@ -30,7 +41,7 @@ make ex8
 echo ""
 echo "Run ex9 test"
 make ex9
-./ex9 -n 100000 -threadcomm_type openmp -threadcomm_model user -threadcomm_nthreads $nthreads -ncomms 2
+./ex9 -n 100000 -threadcomm_type openmp -threadcomm_model user -threadcomm_nthreads $nthreads -ncomms $ncomms
 
 
 echo ""
@@ -46,4 +57,4 @@ make ex11
 echo ""
 echo "Run ex12 test"
 make ex12
-./ex12 -n 1000000 -threadcomm_type pthread -threadcomm_model auto -threadcomm_syncafter false -threadcomm_nthreads 4 -ncomms 2
+./ex12 -n 1000000 -threadcomm_type pthread -threadcomm_model auto -threadcomm_syncafter false -threadcomm_nthreads $nthreads -ncomms $ncomms

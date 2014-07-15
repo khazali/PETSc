@@ -60,8 +60,15 @@ PetscErrorCode  PetscHeaderCreate_Private(PetscObject h,PetscClassId classid,con
   h->bops->queryfunction   = PetscObjectQueryFunction_Petsc;
 
   // Duplicate comms with PetscCommDuplicate
-  ierr = PetscCommDuplicate(comm,&h->comm,&h->tag);CHKERRQ(ierr);
+  /*ierr = PetscCommDuplicate(comm,&h->comm,&h->tag);CHKERRQ(ierr);
   ierr = PetscCommDuplicate(PETSC_COMM_SELF,&h->commself,&h->tag);CHKERRQ(ierr);
+  ierr = PetscCommCheckGetThreadComm(h->comm,&tcomm,&exists);CHKERRQ(ierr);
+  if(exists) {
+    PetscThreadCommAttach(h->commself,tcomm);CHKERRQ(ierr);
+  }*/
+
+  ierr = PetscCommDuplicate(comm,&h->comm,&h->tag);CHKERRQ(ierr);
+  ierr = PetscCommForceDuplicate(PETSC_COMM_SELF,&h->commself,&h->tag);CHKERRQ(ierr);
   ierr = PetscCommCheckGetThreadComm(h->comm,&tcomm,&exists);CHKERRQ(ierr);
   if(exists) {
     PetscThreadCommAttach(h->commself,tcomm);CHKERRQ(ierr);
@@ -77,7 +84,7 @@ PetscErrorCode  PetscHeaderCreate_Private(PetscObject h,PetscClassId classid,con
   ierr = PetscCommCheckGetThreadComm(h->comm,&tcomm,&exists);CHKERRQ(ierr);
   if(exists) {
     PetscThreadCommAttach(h->commself,tcomm);CHKERRQ(ierr);
-  }*/
+   }*/
 
 #if defined(PETSC_USE_LOG)
   /* Keep a record of object created */

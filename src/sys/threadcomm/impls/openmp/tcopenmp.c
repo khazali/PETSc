@@ -9,42 +9,41 @@ PetscErrorCode PetscThreadCommGetRank_OpenMP(PetscInt *trank)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommSetAffinity_OpenMP"
-PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMP(PetscThreadPool pool)
+#define __FUNCT__ "PetscThreadCommSetAffinity_OpenMPUser"
+PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMPUser(PetscThreadPool pool,PetscThread thread)
 {
   PetscErrorCode ierr;
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
-  cpu_set_t *cpuset;
+  cpu_set_t cpuset;
 #endif
+  PetscBool set;
 
   PetscFunctionBegin;
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
-  ierr = PetscMalloc1(pool->npoolthreads,&cpuset);
+  printf("OpenMP Setting affinity for lrank=%d grank=%d aff=%d\n",thread->lrank,thread->grank,thread->affinity);
+  ierr = PetscThreadPoolSetAffinity(pool,&cpuset,thread->affinity,&set);
+  if(set) sched_setaffinity(0,sizeof(cpu_set_t),&cpuset);
+#endif
+  PetscFunctionReturn(0);
+}
 
-  // Find largest thread affinity in pool
-  /*PetscInt maxaffinity = 0;
-  for(i=0; i<pool->npoolthreads; i++) {
-    if(pool->poolthreads[i]->affinity > maxaffinity) {
-      maxaffinity = pool->poolthreads[i]->affinity;
-    }
-  }
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommSetAffinity_OpenMPLoop"
+PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMPLoop(PetscThreadPool pool,PetscThread thread)
+{
+  PetscFunctionBegin;
+#if defined(PETSC_HAVE_SCHED_CPU_SET_T)
 
-  PetscInt *affinities;
-  PetscMalloc1(maxaffinity,&affinities);
-  for(i=0; i<pool->npoolthreads; i++) {
-    affinities[i] = -1;
-  }
-  for(i=0; i<pool->npoolthreads; i++) {
-    affinities[pool->poolthreads[i]->affinity] = i;
-  }*/
-
-#pragma omp parallel num_threads(pool->npoolthreads) shared(pool)
+  #pragma omp parallel num_threads(pool->npoolthreads)
   {
+    cpu_set_t cpuset;
     PetscInt trank;
     PetscBool set;
     trank = omp_get_thread_num();
-    PetscThreadPoolSetAffinity(pool,&cpuset[trank],pool->poolthreads[trank]->affinity,&set);
-    if(set) sched_setaffinity(0,sizeof(cpu_set_t),&cpuset[trank]);
+
+    printf("OpenMP Setting affinity for lrank=%d grank=%d aff=%d\n",trank,trank,trank);
+    PetscThreadPoolSetAffinity(pool,&cpuset,trank,&set);
+    if(set) sched_setaffinity(0,sizeof(cpu_set_t),&cpuset);
   }
 #endif
   PetscFunctionReturn(0);
@@ -61,7 +60,11 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadPool pool)
 
   ierr                     = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
   pool->threadtype         = THREAD_TYPE_OPENMP;
-  pool->ops->setaffinities = PetscThreadCommSetAffinity_OpenMP;
+  if(pool->model==THREAD_MODEL_USER) {
+    pool->ops->setaffinities = PetscThreadCommSetAffinity_OpenMPUser;
+  } else if(pool->model==THREAD_MODEL_LOOP) {
+    pool->ops->setaffinities = PetscThreadCommSetAffinity_OpenMPLoop;
+  }
   PetscFunctionReturn(0);
 }
 
@@ -128,7 +131,7 @@ PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm tcomm,PetscTh
     printf("Running job for master thread \n");
     PetscRunKernel(0,job->nargs,job);
     job->job_status = THREAD_JOB_COMPLETED;
-    jobqueue = tcomm->commthreads[tcomm->leader]->jobqueue;
+    jobqueue = tcomm->commthreads[tcomm->lleader]->jobqueue;
     jobqueue->current_job_index = (jobqueue->current_job_index+1)%tcomm->nkernels;
     jobqueue->completed_jobs_ctr++;
   }

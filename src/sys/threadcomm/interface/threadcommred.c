@@ -397,7 +397,8 @@ PetscErrorCode PetscThreadReductionKernelEnd(PetscInt trank,PetscThreadCommReduc
 {
   PetscThreadCommRedCtx redctx=&red->redctx[red->ctr];
 
-  if (PetscReadOnce(int,redctx->tcomm->leader) == trank) {
+  printf("Reduction kernel end trank=%d gleader=%d\n",trank,redctx->tcomm->gleader);
+  if (PetscReadOnce(int,redctx->tcomm->gleader) == trank) {
     PetscThreadReductionEnd_Private(redctx,outdata);
     redctx->red_status = THREADCOMM_REDUCTION_COMPLETE;
     red->ctr++;

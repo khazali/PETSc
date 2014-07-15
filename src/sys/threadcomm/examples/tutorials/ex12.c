@@ -20,7 +20,7 @@ int main(int argc,char **argv)
   // Create MPI_Comm and ThreadComm from PETSC_COMM_WORLD
   // Create worker threads in PETSc, master thread returns
   printf("Creating threadcomm\n");
-  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,PETSC_NULL,&comm);CHKERRQ(ierr);
+  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,PETSC_NULL,PETSC_NULL,&comm);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(comm,&nthreads);CHKERRQ(ierr);
   ierr = PetscPrintf(comm,"Created comm with %d threads\n",nthreads);CHKERRQ(ierr);
 
@@ -35,7 +35,7 @@ int main(int argc,char **argv)
 
   // Split threads evenly among comms
   printf("Creating splitcomm with %d comms\n",ncomms);
-  ierr = PetscThreadCommSplitEvenly(comm,ncomms,&splitcomms);CHKERRQ(ierr);
+  ierr = PetscThreadCommSplit(comm,ncomms,PETSC_NULL,&splitcomms);CHKERRQ(ierr);
 
   ierr = PetscPrintf(comm,"Creating split comms with %d comms\n",ncomms);
 

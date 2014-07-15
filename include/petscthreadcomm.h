@@ -63,12 +63,10 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommGetOwnershipRanges(MPI_Comm,PetscInt,
 PETSC_EXTERN PetscErrorCode PetscThreadCommGetAffinities(MPI_Comm,PetscInt[]);
 PETSC_EXTERN PetscErrorCode PetscThreadCommView(MPI_Comm,PetscViewer);
 /* Routines to create threadcomms */
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate(MPI_Comm,PetscInt,PetscInt*,MPI_Comm*);
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreate(MPI_Comm,PetscInt,PetscInt*,PetscInt*,MPI_Comm*);
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreateShare(MPI_Comm,PetscInt,PetscInt*,MPI_Comm*);
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm,PetscInt*,PetscInt);
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreateWithRanks(MPI_Comm comm,PetscInt nthreads,PetscInt *ranks,PetscInt *affinities,MPI_Comm *mpicomm);
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,PetscInt nthreads,PetscInt *commsizes,PetscInt *affinities,MPI_Comm **multcomms);
-PETSC_EXTERN PetscErrorCode PetscThreadCommSplitEvenly(MPI_Comm,PetscInt,MPI_Comm**);
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm,PetscInt*,PetscInt*,PetscInt);
+PETSC_EXTERN PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm,PetscInt,PetscInt,PetscInt*,PetscInt*,PetscInt*,MPI_Comm**);
 PETSC_EXTERN PetscErrorCode PetscThreadCommSplit(MPI_Comm,PetscInt,PetscInt*,MPI_Comm**);
 PETSC_EXTERN PetscErrorCode PetscThreadCommDetach(MPI_Comm);
 PETSC_EXTERN PetscErrorCode PetscThreadCommAttach(MPI_Comm,PetscThreadComm);
@@ -116,8 +114,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolSetAffinities(PetscThreadPool pool,co
 PETSC_EXTERN PetscErrorCode PetscThreadPoolSetAffinity(PetscThreadPool pool,cpu_set_t *cpuset,PetscInt trank,PetscBool *set);
 #endif
 /* Worker thread routines */
-PETSC_EXTERN PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm,PetscInt *affinities,PetscInt *nthreads);
-PetscErrorCode PetscThreadPoolCreateWithRanks(PetscThreadComm tcomm,PetscInt *ranks,PetscInt *affinities,PetscInt *nthreads);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm,PetscInt *granks,PetscInt *affinities,PetscInt *nthreads);
 PETSC_EXTERN void* PetscThreadPoolFunc(void *arg);
 
 #endif

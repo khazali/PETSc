@@ -27,27 +27,23 @@ PetscErrorCode PetscThreadCommGetRank_PThread(PetscInt *trank)
 /* Sets the attributes for threads */
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommSetAffinity_PThread"
-PetscErrorCode PetscThreadCommSetAffinity_PThread(PetscThreadPool pool)
+PetscErrorCode PetscThreadCommSetAffinity_PThread(PetscThreadPool pool,PetscThread thread)
 {
   PetscErrorCode      ierr;
   PetscThread_PThread ptcomm;
   PetscBool           set;
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
-  cpu_set_t           *cpuset;
+  cpu_set_t           cpuset;
 #endif
-  PetscInt            i;
 
   PetscFunctionBegin;
   printf("in setaff_pthread\n");
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
   /* Set affinity for workers */
-  ierr = PetscMalloc1(pool->npoolthreads,&cpuset);CHKERRQ(ierr);
-  for (i=0; i<pool->npoolthreads; i++) {
-    ptcomm = (PetscThread_PThread)pool->poolthreads[i]->data;
-    ierr = pthread_attr_init(&ptcomm->attr);CHKERRQ(ierr);
-    PetscThreadPoolSetAffinity(pool,&cpuset[i],i,&set);
-    if(set) pthread_attr_setaffinity_np(&ptcomm->attr,sizeof(cpu_set_t),&cpuset[i]);
-  }
+  ptcomm = (PetscThread_PThread)thread->data;
+  ierr = pthread_attr_init(&ptcomm->attr);CHKERRQ(ierr);
+  PetscThreadPoolSetAffinity(pool,&cpuset,thread->affinity,&set);
+  if(set) pthread_attr_setaffinity_np(&ptcomm->attr,sizeof(cpu_set_t),&cpuset);
 #endif
   PetscFunctionReturn(0);
 }
@@ -189,7 +185,7 @@ PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm tcomm,PetscThrea
     tcomm->commthreads[0]->jobdata = job;
     PetscRunKernel(job->commrank,job->nargs, tcomm->commthreads[0]->jobdata);
     job->job_status   = THREAD_JOB_COMPLETED;
-    jobqueue = tcomm->commthreads[tcomm->leader]->jobqueue;
+    jobqueue = tcomm->commthreads[tcomm->lleader]->jobqueue;
     jobqueue->current_job_index = (jobqueue->current_job_index+1)%tcomm->nkernels;
     jobqueue->completed_jobs_ctr++;
   }
