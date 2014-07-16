@@ -1,6 +1,7 @@
 
 #include <petsc-private/threadcommimpl.h>     /*I    "petscthreadcomm.h"  I*/
 
+/* Threadcomm initialization and creation routines */
 PETSC_EXTERN PetscErrorCode PetscThreadCommInit_NoThread(PetscThreadPool);
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_NoThread(PetscThreadComm);
 #if defined(PETSC_HAVE_PTHREADCLASSES)
@@ -16,17 +17,19 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommInit_TBB(PetscThreadPool);
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_TBB(PetscThreadComm);
 #endif
 
+/* Threadcomm model creation routines */
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreateModel_Loop(PetscThreadComm);
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreateModel_Auto(PetscThreadComm);
 PETSC_EXTERN PetscErrorCode PetscThreadCommCreateModel_User(PetscThreadComm);
 
+/* Variables to track model/type registration */
 extern PetscBool PetscThreadCommRegisterAllModelsCalled;
 extern PetscBool PetscThreadCommRegisterAllTypesCalled;
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommRegisterAllModels"
 /*@C
-   PetscThreadCommRegisterAllModels - Registers of all the threadpool models
+   PetscThreadCommRegisterAllModels - Registers all of the threadpool models
 
    Not Collective
 
@@ -53,7 +56,7 @@ PetscErrorCode PetscThreadCommRegisterAllModels(void)
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommRegisterAllTypes"
 /*@C
-   PetscThreadCommRegisterAllTypes - Registers of all the threadpool models
+   PetscThreadCommRegisterAllTypes - Registers all of the threadpool models
 
    Not Collective
 
@@ -65,31 +68,29 @@ PetscErrorCode PetscThreadCommRegisterAllModels(void)
 @*/
 PetscErrorCode PetscThreadCommRegisterAllTypes(PetscThreadPool pool)
 {
-  PetscInt model;
+  PetscInt       model;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscThreadCommRegisterAllTypesCalled = PETSC_TRUE;
-
   model = pool->model;
-  printf("Registering Types\n");
 
   ierr = PetscThreadCommInitTypeRegister(NOTHREAD,PetscThreadCommInit_NoThread);CHKERRQ(ierr);
   ierr = PetscThreadCommTypeRegister(NOTHREAD,PetscThreadCommCreate_NoThread);CHKERRQ(ierr);
 
 #if defined(PETSC_HAVE_PTHREADCLASSES)
   ierr = PetscThreadCommInitTypeRegister(PTHREAD,PetscThreadCommInit_PThread);CHKERRQ(ierr);
-  ierr = PetscThreadCommTypeRegister(PTHREAD, PetscThreadCommCreate_PThread);CHKERRQ(ierr);
+  ierr = PetscThreadCommTypeRegister(PTHREAD,PetscThreadCommCreate_PThread);CHKERRQ(ierr);
 #endif
 
 #if defined(PETSC_HAVE_OPENMP)
   ierr = PetscThreadCommInitTypeRegister(OPENMP,PetscThreadCommInit_OpenMP);CHKERRQ(ierr);
-  ierr = PetscThreadCommTypeRegister(OPENMP,  PetscThreadCommCreate_OpenMP);CHKERRQ(ierr);
+  ierr = PetscThreadCommTypeRegister(OPENMP,PetscThreadCommCreate_OpenMP);CHKERRQ(ierr);
 #endif
 
 #if defined(PETSC_HAVE_TBB)
   ierr = PetscThreadCommInitTypeRegister(TBB,PetscThreadCommInit_TBB);CHKERRQ(ierr);
-  ierr = PetscThreadCommTypeRegister(TBB,     PetscThreadCommCreate_TBB);CHKERRQ(ierr);
+  ierr = PetscThreadCommTypeRegister(TBB,PetscThreadCommCreate_TBB);CHKERRQ(ierr);
 #endif
 
   PetscFunctionReturn(0);

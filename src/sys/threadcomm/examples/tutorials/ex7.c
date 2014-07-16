@@ -70,7 +70,7 @@ int main(int argc,char **argv)
     affinities[i] = nthreads + i;
   }
   // Attach threadcomm to PETSC_COMM_WORLD
-  ierr = PetscThreadCommCreateAttach(PETSC_COMM_WORLD,PETSC_NULL,affinities,nthreads);CHKERRQ(ierr);
+  ierr = PetscThreadCommCreateAttach(PETSC_COMM_WORLD,nthreads,PETSC_NULL,affinities);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&ntcthreads1);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"PETSC_COMM_WORLD has %d threads\n",ntcthreads1);CHKERRQ(ierr);
 

@@ -1,5 +1,4 @@
-/* Define feature test macros to make sure CPU_SET and other functions are available
- */
+/* Define feature test macros to make sure CPU_SET and other functions are available */
 #define PETSC_DESIRE_FEATURE_TEST_MACROS
 
 #include <petsc-private/threadcommimpl.h>      /*I "petscthreadcomm.h" I*/
@@ -8,10 +7,12 @@
 #include <malloc.h>
 #endif
 
-PetscMPIInt       Petsc_ThreadComm_keyval                = MPI_KEYVAL_INVALID;
-PetscFunctionList PetscThreadCommInitTypeList            = PETSC_NULL;
-PetscFunctionList PetscThreadCommTypeList                = PETSC_NULL;
-PetscFunctionList PetscThreadCommModelList               = PETSC_NULL;
+PetscMPIInt       Petsc_ThreadComm_keyval     = MPI_KEYVAL_INVALID;
+PetscFunctionList PetscThreadCommInitTypeList = PETSC_NULL;
+PetscFunctionList PetscThreadCommTypeList     = PETSC_NULL;
+PetscFunctionList PetscThreadCommModelList    = PETSC_NULL;
+
+extern PetscInt   N_CORES;
 
 /* Logging support */
 PetscLogEvent ThreadComm_RunKernel, ThreadComm_Barrier;
@@ -21,20 +22,21 @@ static PetscErrorCode PetscThreadCommRunKernel0_Private(PetscThreadComm tcomm,Pe
 #undef __FUNCT__
 #define __FUNCT__ "PetscCommGetThreadComm"
 /*@C
-  PetscCommGetThreadComm - Gets the thread communicator
-                           associated with the MPI communicator
+   PetscCommGetThreadComm - Gets the thread communicator
+                            associated with the MPI communicator
 
-  Not Collective
+   Not Collective
 
-  Input Parameters:
-. comm - the MPI communicator
+   Input Parameters:
+.  comm - MPI communicator
 
-  Output Parameters:
-. tcommp - pointer to the thread communicator
+   Output Parameters:
+.  tcommp - Pointer to the thread communicator
 
-  Notes: If no thread communicator is on the MPI_Comm then the global thread communicator
-         is returned.
-  Level: Intermediate
+   Level: Intermediate
+
+   Notes: If no thread communicator is on the MPI_Comm then the global
+   thread communicator is returned.
 
 .seealso: PetscThreadCommCreate(), PetscThreadCommDestroy()
 @*/
@@ -48,7 +50,7 @@ PetscErrorCode PetscCommGetThreadComm(MPI_Comm comm,PetscThreadComm *tcomm)
   ierr = MPI_Attr_get(comm,Petsc_ThreadComm_keyval,(PetscThreadComm*)&ptr,&flg);CHKERRQ(ierr);
   if (!flg) {
     // Create and attach threadcomm based on user input options
-    PetscThreadCommCreateAttach(comm,PETSC_NULL,PETSC_NULL,PETSC_DECIDE);
+    PetscThreadCommCreateAttach(comm,PETSC_DECIDE,PETSC_NULL,PETSC_NULL);
     // Get threadcomm from MPI_Comm
     ierr = MPI_Attr_get(comm,Petsc_ThreadComm_keyval,(PetscThreadComm*)&ptr,&flg);CHKERRQ(ierr);
   }
@@ -61,9 +63,26 @@ PetscErrorCode PetscCommGetThreadComm(MPI_Comm comm,PetscThreadComm *tcomm)
 #undef __FUNCT__
 #define __FUNCT__ "PetscCommCheckGetThreadComm"
 /*
-   Check if threadcomm exists. If so return it and a flag telling if it exists.
+   PetscCommCheckGetThreadComm - Check if threadcomm exists and if so return it.
+
+   Not Collective
+
+   Input Parameters:
+.  comm - MPI Communicator
+
+   Output Parameters:
++  tcomm - Thread communicator attached to the MPI_Comm
+-  set   - True if threadcomm exists, false if not
+
+   Level: developer
+
+   Notes:
+   Tries to get the threadcomm from the MPI comm. If successful returns the
+   threadcomm and a flag set to true, if not returns PETSC_NULL and a flag
+   set to false.
+
 */
-PetscErrorCode PetscCommCheckGetThreadComm(MPI_Comm comm,PetscThreadComm *tcomm,PetscBool *exists)
+PetscErrorCode PetscCommCheckGetThreadComm(MPI_Comm comm,PetscThreadComm *tcomm,PetscBool *set)
 {
   PetscMPIInt    flg;
   PetscErrorCode ierr;
@@ -72,10 +91,10 @@ PetscErrorCode PetscCommCheckGetThreadComm(MPI_Comm comm,PetscThreadComm *tcomm,
   PetscFunctionBegin;
   ierr = MPI_Attr_get(comm,Petsc_ThreadComm_keyval,(PetscThreadComm*)&ptr,&flg);CHKERRQ(ierr);
   if (flg) {
-    *exists = PETSC_TRUE;
+    *set   = PETSC_TRUE;
     *tcomm = (PetscThreadComm)ptr;
   } else {
-    *exists = PETSC_FALSE;
+    *set   = PETSC_FALSE;
     *tcomm = PETSC_NULL;
   }
   PetscFunctionReturn(0);
@@ -93,6 +112,11 @@ PetscErrorCode PetscCommCheckGetThreadComm(MPI_Comm comm,PetscThreadComm *tcomm,
 
    Level: developer
 
+   Notes:
+   Allocates the thread communicator and initializes each variable to
+   indicate that the threadcomm has been allocated but still needs to
+   be initialized.
+
 .seealso: PetscThreadCommDestroy()
 */
 PetscErrorCode PetscThreadCommAlloc(PetscThreadComm *tcomm)
@@ -103,29 +127,28 @@ PetscErrorCode PetscThreadCommAlloc(PetscThreadComm *tcomm)
   PetscFunctionBegin;
   PetscValidPointer(tcomm,2);
 
-  *tcomm = PETSC_NULL;
-  ierr                      = PetscNew(&tcommout);CHKERRQ(ierr);
+  *tcomm                 = PETSC_NULL;
+  ierr                   = PetscNew(&tcommout);CHKERRQ(ierr);
 
-  tcommout->model           = 0;
-  tcommout->threadtype      = THREAD_TYPE_NOTHREAD;
+  tcommout->model        = 0;
+  tcommout->threadtype   = THREAD_TYPE_NOTHREAD;
+  tcommout->nkernels     = 16;
+  tcommout->refct        = 0;
+  tcommout->lleader      = 0;
+  tcommout->gleader      = 0;
+  tcommout->thread_start = 0;
+  tcommout->red          = PETSC_NULL;
+  tcommout->active       = PETSC_FALSE;
+  ierr                   = PetscNew(&tcommout->ops);CHKERRQ(ierr);
+  tcommout->data         = PETSC_NULL;
+  tcommout->syncafter    = PETSC_TRUE;
+  tcommout->ismainworker = PETSC_TRUE;
 
-  tcommout->refct           = 0;
-  tcommout->lleader         = 0;
-  tcommout->gleader         = 0;
-  tcommout->thread_start    = 0;
-  tcommout->red             = PETSC_NULL;
-  tcommout->active          = PETSC_FALSE;
-  ierr                      = PetscNew(&tcommout->ops);CHKERRQ(ierr);
-  tcommout->data            = PETSC_NULL;
+  tcommout->pool         = PETSC_NULL;
+  tcommout->ncommthreads = -1;
+  tcommout->commthreads  = PETSC_NULL;
 
-  tcommout->syncafter       = PETSC_TRUE;
-  tcommout->ismainworker    = PETSC_TRUE;
-
-  tcommout->pool            = PETSC_NULL;
-  tcommout->ncommthreads    = -1;
-  tcommout->commthreads     = PETSC_NULL;
-
-  *tcomm                    = tcommout;
+  *tcomm                 = tcommout;
 
   PetscFunctionReturn(0);
 }
@@ -134,6 +157,22 @@ PetscErrorCode PetscThreadCommAlloc(PetscThreadComm *tcomm)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommStackCreate"
+/*
+   PetscThreadCommStackCreate - Create a petscstack on a thread
+
+   Not Collective
+
+   Input Parameters:
+.  trank - Thread rank
+
+   Level: developer
+
+   Notes:
+   Only used in debug mode. Creates a petscstack on the calling thread.
+   Master thread should already have a petscstack on it, so this skips
+   the master thread.
+
+*/
 PetscErrorCode PetscThreadCommStackCreate(PetscInt trank)
 {
   if (trank && !PetscStackActive()) {
@@ -147,6 +186,22 @@ PetscErrorCode PetscThreadCommStackCreate(PetscInt trank)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommStackDestroy"
+/*
+   PetscThreadCommStackDestroy - Destroy a petscstack on a thread
+
+   Not Collective
+
+   Input Parameters:
+.  trank - Thread rank
+
+   Level: developer
+
+   Notes:
+   Only used in debug mode. Destroys the petscstack on the calling thread.
+   Master thread will continue being used so do not destroy the petscstack
+   on it.
+
+*/
 PetscErrorCode PetscThreadCommStackDestroy(PetscInt trank)
 {
   if (trank && PetscStackActive()) {
@@ -161,6 +216,9 @@ PetscErrorCode PetscThreadCommStackDestroy(PetscInt trank)
 #else
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommStackCreate"
+/*
+   PetscThreadCommStackCreate - Empty function when not using debug mode
+*/
 PetscErrorCode  PetscThreadCommStackCreate(PetscInt trank)
 {
   PetscFunctionBegin;
@@ -169,10 +227,12 @@ PetscErrorCode  PetscThreadCommStackCreate(PetscInt trank)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommStackDestroy"
+/*
+   PetscThreadCommStackDestroy - Empty function when not using debug mode
+*/
 PetscErrorCode  PetscThreadCommStackDestroy(PetscInt trank)
 {
   PetscFunctionBegin;
-  PETSC_THREAD_COMM_WORLD = PETSC_NULL;
   PetscFunctionReturn(0);
 }
 
@@ -181,14 +241,19 @@ PetscErrorCode  PetscThreadCommStackDestroy(PetscInt trank)
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommDestroy"
 /*
-  PetscThreadCommDestroy - Frees a thread communicator object
+   PetscThreadCommDestroy - Frees a thread communicator object
 
-  Not Collective
+   Not Collective
 
-  Input Parameters:
-. tcomm - the PetscThreadComm object
+   Input Parameters:
+.  tcomm - the PetscThreadComm object
 
-  Level: developer
+   Level: developer
+
+   Notes:
+   Reduces the reference count for this threadcomm. Once there are no
+   more references to this, the threadcomm is destroyed along with the
+   associated threadpool.
 
 .seealso: PetscThreadCommCreate()
 */
@@ -273,6 +338,9 @@ PetscErrorCode PetscThreadCommView(MPI_Comm comm,PetscViewer viewer)
 
    Level: developer
 
+   Notes:
+   Returns -1 if threadcomm has not been created yet.
+
 .seealso: PetscThreadCommSetNThreads()
 @*/
 PetscErrorCode PetscThreadCommGetNThreads(MPI_Comm comm,PetscInt *nthreads)
@@ -281,8 +349,12 @@ PetscErrorCode PetscThreadCommGetNThreads(MPI_Comm comm,PetscInt *nthreads)
   PetscThreadComm tcomm=0;
 
   PetscFunctionBegin;
-  ierr      = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-  *nthreads = tcomm->ncommthreads;
+  ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
+  if (tcomm) {
+    *nthreads = tcomm->ncommthreads;
+  } else {
+    *nthreads = -1;
+  }
   PetscFunctionReturn(0);
 }
 
@@ -309,14 +381,14 @@ PetscErrorCode PetscThreadCommGetNThreads(MPI_Comm comm,PetscInt *nthreads)
 */
 PetscErrorCode PetscThreadCommGetAffinities(MPI_Comm comm,PetscInt affinities[])
 {
-  PetscInt i;
+  PetscInt        i;
   PetscErrorCode  ierr;
   PetscThreadComm tcomm=0;
 
   PetscFunctionBegin;
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
   PetscValidIntPointer(affinities,2);
-  for(i=0; i<tcomm->ncommthreads; i++) {
+  for (i=0; i<tcomm->ncommthreads; i++) {
     affinities[i] = tcomm->commthreads[i]->affinity;
   }
   PetscFunctionReturn(0);
@@ -324,6 +396,23 @@ PetscErrorCode PetscThreadCommGetAffinities(MPI_Comm comm,PetscInt affinities[])
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommBarrier"
+/*@
+   PetscThreadCommBarrier - Calls a job barrier on the threadcomm associated
+                            with the MPI communicator
+
+   Not Collective
+
+   Input Parameters:
+.  comm - MPI Communicator with attached threadcomm
+
+   Level: developer
+
+   Notes:
+   Extracts threadcomm from the MPI_Comm and calls job barrier
+   to verify that the threadcomm has finished all of its jobs.
+   Called by the master thread only.
+
+@*/
 PetscErrorCode PetscThreadCommBarrier(MPI_Comm comm)
 {
   PetscErrorCode  ierr;
@@ -331,16 +420,16 @@ PetscErrorCode PetscThreadCommBarrier(MPI_Comm comm)
 
   PetscFunctionBegin;
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-  ierr = PetscThreadCommJobBarrier(tcomm);
+  ierr = PetscThreadCommJobBarrier(tcomm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommUserBarrier"
-/*  PetscThreadCommBarrier - Apply a barrier on the thread communicator
-                             associated with the MPI communicator
+/*  PetscThreadUserCommBarrier - Calls a barrier on the thread communicator
+                                 associated with the MPI communicator
 
-    Not collective
+    Collective on Threadcomm
 
     Input Parameters:
 .   comm - the MPI communicator
@@ -348,13 +437,11 @@ PetscErrorCode PetscThreadCommBarrier(MPI_Comm comm)
     Level: developer
 
     Notes:
-    This routine provides an interface to put an explicit barrier between
-    successive kernel calls to ensure that the first kernel is executed
-    by all the threads before calling the next one.
+    Extracts threadcomm from the MPI_Comm and calls a barrier to
+    verify that the all threads in the threadcomm have reached this point in
+    the code.
+    Must be called by all threads in the threadcomm.
 
-    Called by the main thread only.
-
-    May not be applicable to all types.
 */
 PetscErrorCode PetscThreadCommUserBarrier(MPI_Comm comm)
 {
@@ -369,6 +456,21 @@ PetscErrorCode PetscThreadCommUserBarrier(MPI_Comm comm)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommJobBarrier"
+/*
+   PetscThreadCommJobBarrier - Barrier to verify that all threads in a
+                               threadcomm have finished all of their jobs
+
+   Not Collective
+
+   Input Parameters:
+.  tcomm - Threadcomm
+
+   Level: developer
+
+   Notes: Loops until all threads have finished the last job they were given.
+   Called by master thread while worker threads are in threadpool spin loop.
+
+*/
 PetscErrorCode PetscThreadCommJobBarrier(PetscThreadComm tcomm)
 {
   PetscInt                active_threads=0,i;
@@ -435,15 +537,15 @@ PetscErrorCode PetscThreadCommGetScalars(MPI_Comm comm,PetscScalar **val1, Petsc
 {
   PetscInt                i;
   PetscErrorCode          ierr;
-  PetscThreadComm         tcomm;
+  PetscThreadComm         tcomm=0;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
 
   PetscFunctionBegin;
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-  for(i=0; i<tcomm->ncommthreads; i++) {
+  for (i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
-    job     = &jobqueue->jobs[jobqueue->next_job_index];
+    job      = &jobqueue->jobs[jobqueue->next_job_index];
     if (val1) *val1 = &job->scalars[0];
     if (val2) *val2 = &job->scalars[1];
     if (val3) *val3 = &job->scalars[2];
@@ -489,7 +591,7 @@ PetscErrorCode PetscThreadCommGetInts(MPI_Comm comm,PetscInt **val1, PetscInt **
 {
   PetscInt                i;
   PetscErrorCode          ierr;
-  PetscThreadComm         tcomm;
+  PetscThreadComm         tcomm=0;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
 
@@ -497,7 +599,7 @@ PetscErrorCode PetscThreadCommGetInts(MPI_Comm comm,PetscInt **val1, PetscInt **
   ierr    = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
-    job     = &jobqueue->jobs[jobqueue->next_job_index];
+    job      = &jobqueue->jobs[jobqueue->next_job_index];
     if (val1) *val1 = &job->ints[0];
     if (val2) *val2 = &job->ints[1];
     if (val3) *val3 = &job->ints[2];
@@ -548,16 +650,16 @@ PetscErrorCode PetscThreadCommRunKernel(MPI_Comm comm,PetscErrorCode (*func)(Pet
   ierr = PetscLogEventBegin(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
 
-  // Loop over each thread in threadcomm
-  for(i=0; i<tcomm->ncommthreads; i++) {
+  // Set job information for all threads
+  for (i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
-    job  = &jobqueue->jobs[jobqueue->next_job_index]; /* Get the job context from the queue to launch this job */
+    job      = &jobqueue->jobs[jobqueue->next_job_index];
     // Make sure previous job completed
     if (job->job_status != THREAD_JOB_NONE) {
       while (PetscReadOnce(int,job->job_status) != THREAD_JOB_COMPLETED) ;
     }
 
-    // Prepare to run kernel
+    // Prepare to run kernel by initializing next job
     job->tcomm          = tcomm;
     job->commrank       = i;
     job->nargs          = nargs;
@@ -565,28 +667,45 @@ PetscErrorCode PetscThreadCommRunKernel(MPI_Comm comm,PetscErrorCode (*func)(Pet
     va_start(argptr,nargs);
     for (j=0; j<nargs; j++) job->args[j] = va_arg(argptr,void*);
     va_end(argptr);
-    job->job_status = THREAD_JOB_POSTED;
+    job->job_status            = THREAD_JOB_POSTED;
     jobqueue->newest_job_index = jobqueue->next_job_index;
-    jobqueue->next_job_index = (jobqueue->next_job_index+1)%tcomm->nkernels; /* Increment queue ctr to point to the next available slot */
+    jobqueue->next_job_index   = (jobqueue->next_job_index+1)%tcomm->nkernels;
     jobqueue->total_jobs_ctr++;
   }
 
   // Run Kernel for main thread
   jobqueue = tcomm->commthreads[0]->jobqueue;
-  job  = &jobqueue->jobs[jobqueue->newest_job_index];
+  job      = &jobqueue->jobs[jobqueue->newest_job_index];
   if (tcomm->threadtype==THREAD_TYPE_NOTHREAD) {
     ierr = PetscRunKernel(0,job->nargs,job);CHKERRQ(ierr);
     job->job_status = THREAD_JOB_COMPLETED;
   } else {
     ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
   }
+
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommRunKernel0_Private"
-/* The zero-argument kernel needs to be callable with an unwrapped PetscThreadComm after ThreadComm keyval has been freed. */
+/*
+   PetscThreadCommRunKernel0_Private - The zero-argument kernel needs to be callable with an
+                                       unwrapped PetscThreadComm after ThreadComm keyval has
+                                       been freed.
+
+   Not Collective
+
+   Input Parameters:
++  tcomm - Thread communicator
+-  func  - the kernel (needs to be cast to PetscThreadKernel)
+
+   Level: developer
+
+   Notes:
+   Runs kernel taking threadcomm as input instead of a MPI communicator.
+
+*/
 static PetscErrorCode PetscThreadCommRunKernel0_Private(PetscThreadComm tcomm,PetscErrorCode (*func)(PetscInt,...))
 {
   PetscErrorCode          ierr;
@@ -595,38 +714,38 @@ static PetscErrorCode PetscThreadCommRunKernel0_Private(PetscThreadComm tcomm,Pe
   PetscThreadCommJobCtx   job;
 
   PetscFunctionBegin;
+  // Run kernel for nothread thread type
   if (tcomm->threadtype == THREAD_TYPE_NOTHREAD) {
     ierr = (*func)(0);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
 
-  // Loop over each thread in threadcomm
+  // Set job information for all threads
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
 
     if (!jobqueue) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Trying to run kernel with no job queue");
-    job = &jobqueue->jobs[jobqueue->next_job_index]; /* Get the job context from the queue to launch this job */
+    job = &jobqueue->jobs[jobqueue->next_job_index];
     // Make sure previous job completed
     if (job->job_status != THREAD_JOB_NONE) {
       while (PetscReadOnce(int,job->job_status) != THREAD_JOB_COMPLETED) ;
     }
 
     // Prepare to run kernel
-    job->tcomm          = tcomm;
-    job->commrank       = i;
-    job->nargs          = 1;
-    job->pfunc          = (PetscThreadKernel)func;
-    job->job_status = THREAD_JOB_POSTED;
+    job->tcomm                 = tcomm;
+    job->commrank              = i;
+    job->nargs                 = 1;
+    job->pfunc                 = (PetscThreadKernel)func;
+    job->job_status            = THREAD_JOB_POSTED;
     jobqueue->newest_job_index = jobqueue->next_job_index;
-    jobqueue->next_job_index = (jobqueue->next_job_index+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->next_job_index   = (jobqueue->next_job_index+1)%tcomm->nkernels;
     jobqueue->total_jobs_ctr++;
   }
 
   // Run kernel for main thread
   jobqueue = tcomm->commthreads[0]->jobqueue;
-  job = &jobqueue->jobs[jobqueue->newest_job_index];
-  ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
-
+  job      = &jobqueue->jobs[jobqueue->newest_job_index];
+  ierr     = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -657,8 +776,8 @@ static PetscErrorCode PetscThreadCommRunKernel0_Private(PetscThreadComm tcomm,Pe
 @*/
 PetscErrorCode PetscThreadCommRunKernel0(MPI_Comm comm,PetscErrorCode (*func)(PetscInt,...))
 {
-  PetscErrorCode        ierr;
-  PetscThreadComm       tcomm=0;
+  PetscErrorCode  ierr;
+  PetscThreadComm tcomm=0;
 
   PetscFunctionBegin;
   ierr = PetscLogEventBegin(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
@@ -706,37 +825,40 @@ PetscErrorCode PetscThreadCommRunKernel1(MPI_Comm comm,PetscErrorCode (*func)(Pe
   ierr = PetscLogEventBegin(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
 
+  // Run kernel for nothread thread type
   if (tcomm->threadtype == THREAD_TYPE_NOTHREAD) {
     ierr = (*func)(0,in1);CHKERRQ(ierr);
     ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
 
-  // Loop over each thread in threadcomm
+  // Set job information for all threads
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
 
     if (!jobqueue) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Trying to run kernel with no job queue");
-    job = &jobqueue->jobs[jobqueue->next_job_index]; /* Get the job context from the queue to launch this job */
+    job = &jobqueue->jobs[jobqueue->next_job_index];
+    // Make sure previous job completed
     if (job->job_status != THREAD_JOB_NONE) {
       while (PetscReadOnce(int,job->job_status) != THREAD_JOB_COMPLETED) ;
     }
 
-    job->tcomm          = tcomm;
-    job->commrank       = i;
-    job->nargs          = 1;
-    job->pfunc          = (PetscThreadKernel)func;
-    job->args[0]        = in1;
-    job->job_status = THREAD_JOB_POSTED;
+    // Prepare to run kernel
+    job->tcomm                 = tcomm;
+    job->commrank              = i;
+    job->nargs                 = 1;
+    job->pfunc                 = (PetscThreadKernel)func;
+    job->args[0]               = in1;
+    job->job_status            = THREAD_JOB_POSTED;
     jobqueue->newest_job_index = jobqueue->next_job_index;
-    jobqueue->next_job_index = (jobqueue->next_job_index+1)%tcomm->nkernels; /* Increment queue ctr to point to the next available slot */
+    jobqueue->next_job_index   = (jobqueue->next_job_index+1)%tcomm->nkernels;
     jobqueue->total_jobs_ctr++;
   }
 
   // Run kernel for main thread
   jobqueue = tcomm->commthreads[0]->jobqueue;
-  job  = &jobqueue->jobs[jobqueue->newest_job_index];
-  ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
+  job      = &jobqueue->jobs[jobqueue->newest_job_index];
+  ierr     = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -781,6 +903,7 @@ PetscErrorCode PetscThreadCommRunKernel2(MPI_Comm comm,PetscErrorCode (*func)(Pe
   ierr = PetscLogEventBegin(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
 
+  // Run kernel for nothread thread type
   if (tcomm->threadtype == THREAD_TYPE_NOTHREAD) {
     ierr = (*func)(0,in1,in2);CHKERRQ(ierr);
     ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
@@ -788,30 +911,32 @@ PetscErrorCode PetscThreadCommRunKernel2(MPI_Comm comm,PetscErrorCode (*func)(Pe
   }
 
   // Set job information for all threads
-  for(i=0; i<tcomm->ncommthreads; i++) {
+  for (i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
     if (!jobqueue) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Trying to run kernel with no job queue");
-    job = &jobqueue->jobs[jobqueue->next_job_index]; /* Get the job context from the queue to launch this job */
+    job = &jobqueue->jobs[jobqueue->next_job_index];
+    // Make sure previous job completed
     if (job->job_status != THREAD_JOB_NONE) {
       while (PetscReadOnce(int,job->job_status) != THREAD_JOB_COMPLETED) ;
     }
 
-    job->tcomm          = tcomm;
-    job->commrank       = i;
-    job->nargs          = 2;
-    job->pfunc          = (PetscThreadKernel)func;
-    job->args[0]        = in1;
-    job->args[1]        = in2;
-    job->job_status = THREAD_JOB_POSTED;
+    // Prepare to run kernel
+    job->tcomm                 = tcomm;
+    job->commrank              = i;
+    job->nargs                 = 2;
+    job->pfunc                 = (PetscThreadKernel)func;
+    job->args[0]               = in1;
+    job->args[1]               = in2;
+    job->job_status            = THREAD_JOB_POSTED;
     jobqueue->newest_job_index = jobqueue->next_job_index;
-    jobqueue->next_job_index = (jobqueue->next_job_index+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->next_job_index   = (jobqueue->next_job_index+1)%tcomm->nkernels;
     jobqueue->total_jobs_ctr++;
   }
 
   // Run kernel for main thread
   jobqueue = tcomm->commthreads[0]->jobqueue;
-  job  = &jobqueue->jobs[jobqueue->newest_job_index];
-  ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
+  job      = &jobqueue->jobs[jobqueue->newest_job_index];
+  ierr     = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -857,37 +982,41 @@ PetscErrorCode PetscThreadCommRunKernel3(MPI_Comm comm,PetscErrorCode (*func)(Pe
   ierr = PetscLogEventBegin(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
 
-  if (tcomm->threadtype==THREAD_TYPE_NOTHREAD) {
+  // Run kernel for nothread thread type
+  if (tcomm->threadtype == THREAD_TYPE_NOTHREAD) {
     ierr = (*func)(0,in1,in2,in3);CHKERRQ(ierr);
     ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
 
+  // Set job information for all threads
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
     if (!jobqueue) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Trying to run kernel with no job queue");
-    job = &jobqueue->jobs[jobqueue->next_job_index]; /* Get the job context from the queue to launch this job */
+    job = &jobqueue->jobs[jobqueue->next_job_index];
+    // Make sure previous job completed
     if (job->job_status != THREAD_JOB_NONE) {
       while (PetscReadOnce(int,job->job_status) != THREAD_JOB_COMPLETED) ;
     }
 
-    job->tcomm          = tcomm;
-    job->commrank       = i;
-    job->nargs          = 3;
-    job->pfunc          = (PetscThreadKernel)func;
-    job->args[0]        = in1;
-    job->args[1]        = in2;
-    job->args[2]        = in3;
-    job->job_status = THREAD_JOB_POSTED;
+    // Prepare to run kernel
+    job->tcomm                 = tcomm;
+    job->commrank              = i;
+    job->nargs                 = 3;
+    job->pfunc                 = (PetscThreadKernel)func;
+    job->args[0]               = in1;
+    job->args[1]               = in2;
+    job->args[2]               = in3;
+    job->job_status            = THREAD_JOB_POSTED;
     jobqueue->newest_job_index = jobqueue->next_job_index;
-    jobqueue->next_job_index = (jobqueue->next_job_index+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->next_job_index   = (jobqueue->next_job_index+1)%tcomm->nkernels;
     jobqueue->total_jobs_ctr++;
   }
 
   // Run kernel for main thread
   jobqueue = tcomm->commthreads[0]->jobqueue;
-  job  = &jobqueue->jobs[jobqueue->newest_job_index];
-  ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
+  job      = &jobqueue->jobs[jobqueue->newest_job_index];
+  ierr     = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -934,38 +1063,42 @@ PetscErrorCode PetscThreadCommRunKernel4(MPI_Comm comm,PetscErrorCode (*func)(Pe
   ierr = PetscLogEventBegin(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
 
+  // Run kernel for nothread thread type
   if (tcomm->threadtype==THREAD_TYPE_NOTHREAD) {
     ierr = (*func)(0,in1,in2,in3,in4);CHKERRQ(ierr);
     ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
 
+  // Set job information for all threads
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
     if (!jobqueue) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Trying to run kernel with no job queue");
-    job = &jobqueue->jobs[jobqueue->next_job_index]; /* Get the job context from the queue to launch this job */
+    job = &jobqueue->jobs[jobqueue->next_job_index];
+    // Make sure previous job completed
     if (job->job_status != THREAD_JOB_NONE) {
       while (PetscReadOnce(int,job->job_status) != THREAD_JOB_COMPLETED) ;
     }
 
-    job->tcomm          = tcomm;
-    job->commrank       = i;
-    job->nargs          = 4;
-    job->pfunc          = (PetscThreadKernel)func;
-    job->args[0]        = in1;
-    job->args[1]        = in2;
-    job->args[2]        = in3;
-    job->args[3]        = in4;
-    job->job_status = THREAD_JOB_POSTED;
+    // Prepare to run kernel
+    job->tcomm                 = tcomm;
+    job->commrank              = i;
+    job->nargs                 = 4;
+    job->pfunc                 = (PetscThreadKernel)func;
+    job->args[0]               = in1;
+    job->args[1]               = in2;
+    job->args[2]               = in3;
+    job->args[3]               = in4;
+    job->job_status            = THREAD_JOB_POSTED;
     jobqueue->newest_job_index = jobqueue->next_job_index;
-    jobqueue->next_job_index = (jobqueue->next_job_index+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->next_job_index   = (jobqueue->next_job_index+1)%tcomm->nkernels;
     jobqueue->total_jobs_ctr++;
   }
 
   // Run kernel for main thread
   jobqueue = tcomm->commthreads[0]->jobqueue;
-  job  = &jobqueue->jobs[jobqueue->newest_job_index];
-  ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
+  job      = &jobqueue->jobs[jobqueue->newest_job_index];
+  ierr     = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1009,54 +1142,67 @@ PetscErrorCode PetscThreadCommRunKernel6(MPI_Comm comm,PetscErrorCode (*func)(Pe
   PetscThreadComm         tcomm=0;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
-  PetscThreadPool pool;
 
   PetscFunctionBegin;
   ierr = PetscLogEventBegin(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
-  pool = tcomm->pool;
 
+  // Run kernel for nothread thread type
   if (tcomm->threadtype == THREAD_TYPE_NOTHREAD) {
     ierr = (*func)(0,in1,in2,in3,in4,in5,in6);CHKERRQ(ierr);
     ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
 
+  // Set job information for all threads
   for(i=0; i<tcomm->ncommthreads; i++) {
     jobqueue = tcomm->commthreads[i]->jobqueue;
     if (!jobqueue) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Trying to run kernel with no job queue");
-    job = &jobqueue->jobs[jobqueue->next_job_index]; /* Get the job context from the queue to launch this job */
+    job = &jobqueue->jobs[jobqueue->next_job_index];
+    // Make sure previous job completed
     if (job->job_status != THREAD_JOB_NONE) {
       while (PetscReadOnce(int,job->job_status) != THREAD_JOB_COMPLETED) ;
     }
 
-    job->tcomm          = tcomm;
-    job->commrank       = i;
-    job->nargs          = 6;
-    job->pfunc          = (PetscThreadKernel)func;
-    job->args[0]        = in1;
-    job->args[1]        = in2;
-    job->args[2]        = in3;
-    job->args[3]        = in4;
-    job->args[4]        = in5;
-    job->args[5]        = in6;
-    job->job_status = THREAD_JOB_POSTED;
+    // Prepare to run kernel
+    job->tcomm                 = tcomm;
+    job->commrank              = i;
+    job->nargs                 = 6;
+    job->pfunc                 = (PetscThreadKernel)func;
+    job->args[0]               = in1;
+    job->args[1]               = in2;
+    job->args[2]               = in3;
+    job->args[3]               = in4;
+    job->args[4]               = in5;
+    job->args[5]               = in6;
+    job->job_status            = THREAD_JOB_POSTED;
     jobqueue->newest_job_index = jobqueue->next_job_index;
-    jobqueue->next_job_index = (jobqueue->next_job_index+1)%tcomm->nkernels; /* Increment the queue ctr to point to the next available slot */
+    jobqueue->next_job_index   = (jobqueue->next_job_index+1)%tcomm->nkernels;
     jobqueue->total_jobs_ctr++;
   }
 
   // Run kernel for main thread
   jobqueue = tcomm->commthreads[0]->jobqueue;
-  job  = &jobqueue->jobs[jobqueue->newest_job_index];
-  ierr = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
+  job      = &jobqueue->jobs[jobqueue->newest_job_index];
+  ierr     = (*tcomm->ops->runkernel)(tcomm,job);CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(ThreadComm_RunKernel,0,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 /*
-   Detaches the thread communicator from the MPI communicator if it exists
+   PetscThreadCommDetach - Detaches the thread communicator from the MPI communicator
+
+   Not Collective
+
+   Input Parameters:
+.  comm - MPI Communicator
+
+   Level: developer
+
+   Notes:
+   If this MPI comm is a PETSc comm, delete the attached threadcomm.
+
 */
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommDetach"
@@ -1067,20 +1213,27 @@ PetscErrorCode PetscThreadCommDetach(MPI_Comm comm)
   void           *ptr;
 
   PetscFunctionBegin;
-  PetscThreadComm tcomm;
-  PetscCommGetThreadComm(comm,&tcomm);
   ierr = MPI_Attr_get(comm,Petsc_ThreadComm_keyval,&ptr,&flg);CHKERRQ(ierr);
   if (flg) {
-    printf("Detaching comm refct=%d\n",tcomm->refct);
     ierr = MPI_Attr_delete(comm,Petsc_ThreadComm_keyval);CHKERRQ(ierr);
-    printf("Detached comm refct=%d\n",tcomm->refct);
   }
   PetscFunctionReturn(0);
 }
 
 /*
-   This routine attaches the thread communicator to the MPI communicator if it does not
-   exist already.
+   PetscThreadCommAttach - Attach the thread communicator to the MPI communicator
+
+   Not Collective
+
+   Input Parameters:
++  comm  - MPI communicator
+-  tcomm - Threadcomm to attach to MPI comm
+
+   Level: developer
+
+   Notes:
+   If this MPI comm is a PETSc comm, attach the threadcomm.
+
 */
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommAttach"
@@ -1093,134 +1246,248 @@ PetscErrorCode PetscThreadCommAttach(MPI_Comm comm,PetscThreadComm tcomm)
   PetscFunctionBegin;
   ierr = MPI_Attr_get(comm,Petsc_ThreadComm_keyval,&ptr,&flg);CHKERRQ(ierr);
   if (!flg) {
-    printf("Attaching comm refct=%d\n",tcomm->refct);
     tcomm->refct++;
     ierr = MPI_Attr_put(comm,Petsc_ThreadComm_keyval,tcomm);CHKERRQ(ierr);
-    printf("Attached comm refct=%d\n",tcomm->refct);
   }
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommCreate"
-/*
-  PetscThreadCommInitialize - Initializes a thread communicator object
+/*@
+   PetscThreadCommCreate - Create a thread communicator object
 
-  PetscThreadCommInitialize() defaults to using the nonthreaded communicator.
+   Not Collective
 
- comm - MPI communicator.
- nthreads - Number of threads for communicator.
- granks - Array of ranks for each thread.
- affinities - Array of core affinities for each thread.
- mpicomm - New MPI_Comm with attached threadcomm.
+   Input Parameters:
++  comm       - MPI communicator
+.  nthreads   - Number of threads for communicator or PETSC_DECIDE
+.  granks     - Array of ranks for each thread or PETSC_NULL
+-  affinities - Array of core affinities for each thread or PETSC_NULL
 
- granks and affinities can be the same array.
-*/
+   Output Parameters:
+.  mpicomm    - New MPI_Comm with attached threadcomm
+
+   Level: developer
+
+   Notes:
+   Allocates and initializes a threadcomm. Duplicates the input MPI comm and attaches the
+   created threadcomm to it. Creates a new threadpool for the threadcomm to use.
+   PETSc can automatically set nthreads, granks, and affinities. The granks and affinities
+   arrays can be the same array.
+
+@*/
 PetscErrorCode PetscThreadCommCreate(MPI_Comm comm,PetscInt nthreads,PetscInt *granks,PetscInt *affinities,MPI_Comm *mpicomm)
 {
-  PetscInt i, *lranks;
+  PetscInt        i,*lranks;
   PetscThreadComm tcomm;
-  PetscErrorCode ierr;
+  PetscErrorCode  ierr;
 
   PetscFunctionBegin;
   // Allocate space for ThreadComm
-  ierr = PetscThreadCommAlloc(&tcomm);
+  ierr = PetscThreadCommAlloc(&tcomm);CHKERRQ(ierr);
   // Create ThreadPool
-  ierr = PetscThreadPoolCreate(tcomm,granks,affinities,&nthreads);CHKERRQ(ierr);
+  ierr = PetscThreadPoolCreate(tcomm,nthreads,granks,affinities);CHKERRQ(ierr);
+  if (nthreads == PETSC_DECIDE) {
+    nthreads = tcomm->pool->npoolthreads;
+  }
   // Set thread ranks
-  PetscMalloc1(nthreads,&lranks);
-  for(i=0; i<nthreads; i++) {
+  ierr = PetscMalloc1(nthreads,&lranks);CHKERRQ(ierr);
+  for (i=0; i<nthreads; i++) {
     lranks[i] = i;
   }
   // Initialize ThreadComm
-  ierr = PetscThreadCommInitialize(nthreads,lranks,tcomm);
+  ierr = PetscThreadCommInitialize(nthreads,lranks,tcomm);CHKERRQ(ierr);
   // Duplicate MPI_Comm
-  ierr = PetscCommForceDuplicate(comm,mpicomm,PETSC_NULL);
+  ierr = PetscCommForceDuplicate(comm,mpicomm,PETSC_NULL);CHKERRQ(ierr);
   // Attach ThreadComm to new MPI_Comm
-  ierr = PetscThreadCommAttach(*mpicomm,tcomm);
+  ierr = PetscThreadCommAttach(*mpicomm,tcomm);CHKERRQ(ierr);
   printf("Created new threadcomm with %d threads\n",tcomm->ncommthreads);
-
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommCreateShare"
+/*@
+   PetscThreadCommCreateShare - Create a thread communicator object that uses the threadpool
+                                from another thread communicator
+
+   Not Collective
+
+   Input Parameters:
++  comm     - MPI communicator
+.  nthreads - Number of threads for communicator or PETSC_DECIDE
+-  granks   - Array of ranks for each thread or PETSC_NULL
+
+   Output Parameters:
+.  mpicomm  - New MPI_Comm with attached threadcomm
+
+   Level: developer
+
+   Notes:
+   Allocates and initializes a threadcomm. Duplicates the input MPI comm and attaches the
+   created threadcomm to it. Uses the threadcomm from the input mpi comm.
+   If user passes in PETSC_DECIDE for nthreads then use all threads in the original threadcomm.
+   If user passes in PETSC_NULL for granks then use the first nthreads threads in the original threadcomm.
+
+@*/
 PetscErrorCode PetscThreadCommCreateShare(MPI_Comm comm,PetscInt nthreads,PetscInt *granks,MPI_Comm *mpicomm)
 {
   PetscThreadComm tcomm,incomm;
-  PetscInt i,j,*lranks;
-  PetscErrorCode ierr;
+  PetscInt        i,j,*lranks;
+  PetscErrorCode  ierr;
 
   PetscFunctionBegin;
   printf("Creating new comm with %d threads\n",nthreads);
   // Get input threadcomm
-  ierr = PetscCommGetThreadComm(comm,&incomm);
+  ierr = PetscCommGetThreadComm(comm,&incomm);CHKERRQ(ierr);
+  // Make sure input arguments are reasonable
+  if (nthreads > incomm->ncommthreads) {
+    SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Cannot created a shared threadcomm with more threads than original threadcomm");
+  }
   // Allocate space for new threadcomm
-  ierr = PetscThreadCommAlloc(&tcomm);
+  ierr = PetscThreadCommAlloc(&tcomm);CHKERRQ(ierr);
   // Set new threadcomm to use input threadpool
   tcomm->pool = incomm->pool;
   tcomm->pool->refct++;
+  // If user did not pass in nthreads, set nthreads equal to nthreads in the input threadcomm
+  if (nthreads == PETSC_DECIDE) {
+    nthreads = incomm->ncommthreads;
+  }
+  // If user did not pass in granks, use the first nthreads threads in the incomm
+  if (granks == PETSC_NULL) {
+    for (i=0; i<nthreads; i++) {
+      granks[i] = incomm->commthreads[i]->grank;
+    }
+  }
   // Convert granks to lranks
-  PetscMalloc1(nthreads,&lranks);
+  ierr = PetscMalloc1(nthreads,&lranks);CHKERRQ(ierr);
   for(i=0; i<nthreads; i++) {
+    lranks[i] = -1;
     for(j=0; j<tcomm->pool->npoolthreads; j++) {
       if(granks[i]==tcomm->pool->poolthreads[j]->grank) lranks[i] = j;
     }
+    if (lranks[i]==-1) {
+      SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Original threadcomm does not contain requested thread for shared threadcomm");
+    }
   }
   // Initialize ThreadComm
-  ierr = PetscThreadCommInitialize(nthreads,lranks,tcomm);
+  ierr = PetscThreadCommInitialize(nthreads,lranks,tcomm);CHKERRQ(ierr);
   // Duplicate MPI_Comm
-  ierr = PetscCommForceDuplicate(comm,mpicomm,PETSC_NULL);
+  ierr = PetscCommForceDuplicate(comm,mpicomm,PETSC_NULL);CHKERRQ(ierr);
   // Remove original threadcomm
-  ierr = PetscThreadCommDetach(*mpicomm);
+  ierr = PetscThreadCommDetach(*mpicomm);CHKERRQ(ierr);
   // Attach ThreadComm to new MPI_Comm
-  ierr = PetscThreadCommAttach(*mpicomm,tcomm);
+  ierr = PetscThreadCommAttach(*mpicomm,tcomm);CHKERRQ(ierr);
   printf("Created new threadcomm with %d threads\n",tcomm->ncommthreads);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommCreateAttach"
-PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt *granks,PetscInt *affinities,PetscInt nthreads)
+/*@
+   PetscThreadCommCreateAttach - Create a thread communicator object and attach it to the MPI Comm
+
+   Not Collective
+
+   Input Parameters:
++  comm       - MPI communicator
+.  nthreads   - Number of threads for communicator or PETSC_DECIDE
+.  granks     - Array of ranks for each thread or PETSC_NULL
+-  affinities - Array of core affinities for each thread or PETSC_NULL
+
+   Level: developer
+
+   Notes:
+   Allocates and initializes a threadcomm. Attaches the created threadcomm to the input
+   MPI Comm. Creates a new threadpool for the threadcomm to use.
+   PETSc can automatically set nthreads, granks, and affinities. The granks and affinities
+   arrays can be the same array.
+
+@*/
+PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt nthreads,PetscInt *granks,PetscInt *affinities)
 {
-  PetscInt i, *lranks;
+  PetscInt        i,*lranks;
   PetscThreadComm tcomm;
-  PetscErrorCode ierr;
+  PetscErrorCode  ierr;
 
   PetscFunctionBegin;
   printf("Calling PetscThreadCommCreateAttach\n");
   // Allocate space for ThreadComm
-  ierr = PetscThreadCommAlloc(&tcomm);
+  ierr = PetscThreadCommAlloc(&tcomm);CHKERRQ(ierr);
   // Create ThreadPool
-  ierr = PetscThreadPoolCreate(tcomm,granks,affinities,&nthreads);
+  ierr = PetscThreadPoolCreate(tcomm,nthreads,granks,affinities);CHKERRQ(ierr);
+  if (nthreads == PETSC_DECIDE) {
+    nthreads = tcomm->pool->npoolthreads;
+  }
   // Set thread ranks
-  PetscMalloc1(nthreads,&lranks);
+  ierr = PetscMalloc1(nthreads,&lranks);CHKERRQ(ierr);
   for(i=0; i<nthreads; i++) {
     lranks[i] = i;
   }
   // Initialize ThreadComm
-  ierr = PetscThreadCommInitialize(nthreads,lranks,tcomm);
+  ierr = PetscThreadCommInitialize(nthreads,lranks,tcomm);CHKERRQ(ierr);
   // Attach ThreadComm to MPI_Comm
-  ierr = PetscThreadCommAttach(comm,tcomm);
+  ierr = PetscThreadCommAttach(comm,tcomm);CHKERRQ(ierr);
   printf("Created new threadcomm with %d threads\n",tcomm->ncommthreads);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommCreateMultiple"
+/*@
+   PetscThreadCommCreateMultiple - Create multiple thread communicator objects and attach each
+                                   to a duplicated MPI Comm.
+
+   Not Collective
+
+   Input Parameters:
++  comm        - MPI communicator
+.  ncomms      - Number of thread comms to create
+.  nthreads    - Number of threads in all communicators or PETSC_DECIDE
+.  incommsizes - Array of sizes for each new comm to create or PETSC_NULL
+.  granks      - Array of ranks for each thread or PETSC_NULL
+-  affinities  - Array of core affinities for each thread or PETSC_NULL
+
+   Output Parameters:
+.  multcomms   - Array of MPI comms each with a different threadcomm
+
+   Level: developer
+
+   Notes:
+   Allocates and initializes multiple threadcomms. Duplicates the input MPI comm and attaches
+   a threadcomm to the duplicate MPI Comm. Creates a new threadpool for each threadcomm to use.
+   PETSc can automatically set nthreads, incommsizes, granks, and affinities. The granks and
+   affinities arrays can be the same array.
+
+@*/
 PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,PetscInt nthreads,PetscInt *incommsizes,PetscInt *granks,PetscInt *affinities,MPI_Comm **multcomms)
 {
   PetscErrorCode ierr;
-  PetscInt i, j, *multranks, *multaffinities, startthread, *commsizes;
-  PetscInt        splitsize,remainder;
-  PetscBool       extra;
+  PetscInt       i,j,*multranks,*multaffinities,*commsizes;
+  PetscInt       splitsize,remainder,nthr,startthread;
+  PetscBool      extra,flg;
 
   PetscFunctionBegin;
   // Allocate splitcomms
-  ierr = PetscMalloc1(ncomms,multcomms);
+  ierr = PetscMalloc1(ncomms,multcomms);CHKERRQ(ierr);
 
   // If user did not pass in commsizes, split them evenly
   if(!incommsizes) {
+
+    // If user did not pass in nthreads, get from input options or use ncomms
+    if (nthreads == PETSC_DECIDE) {
+      nthreads = ncomms;
+      ierr = PetscOptionsBegin(PETSC_COMM_WORLD,PETSC_NULL,"Thread comm - setting number of threads",PETSC_NULL);CHKERRQ(ierr);
+      ierr = PetscOptionsInt("-threadcomm_nthreads","number of threads to use in the thread communicator","PetscThreadPoolSetNThreads",1,&nthr,&flg);CHKERRQ(ierr);
+      ierr = PetscOptionsEnd();CHKERRQ(ierr);
+      if (flg) {
+        if (nthr == PETSC_DECIDE) nthreads = N_CORES;
+        else nthreads = nthr;
+      }
+    }
+
+    // Allocate and set commsizes
     ierr = PetscMalloc1(ncomms,&commsizes);CHKERRQ(ierr);
 
     splitsize = nthreads/ncomms;
@@ -1230,14 +1497,15 @@ PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,Petsc
       commsizes[i] = extra ? splitsize+1 : splitsize;
     }
   } else {
+    // Use input commsizes
     commsizes = incommsizes;
   }
 
   // Create each splitcomm
   for(i=0; i<ncomms; i++) {
     // Set ranks and affinities for threadcomm
-    PetscMalloc1(commsizes[i],&multranks);
-    PetscMalloc1(commsizes[i],&multaffinities);
+    ierr = PetscMalloc1(commsizes[i],&multranks);CHKERRQ(ierr);
+    ierr = PetscMalloc1(commsizes[i],&multaffinities);CHKERRQ(ierr);
     // Count previous threads
     startthread = 0;
     for(j=0; j<i; j++) {
@@ -1252,8 +1520,9 @@ PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,Petsc
       printf("Creating multcomm thread=%d rank=%d on core=%d\n",j,multranks[j],multaffinities[j]);
     }
     // Create threadcomm
-    ierr = PetscThreadCommCreate(comm,commsizes[i],multranks,multaffinities,&(*multcomms)[i]);
+    ierr = PetscThreadCommCreate(comm,commsizes[i],multranks,multaffinities,&(*multcomms)[i]);CHKERRQ(ierr);
 
+    ierr = PetscFree(multranks);CHKERRQ(ierr);
     ierr = PetscFree(multaffinities);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
@@ -1261,21 +1530,53 @@ PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,Petsc
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommSplit"
-PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *incommsizes,MPI_Comm **splitcomms)
+/*@
+   PetscThreadCommCreateSplit - Split a threadcomm into multiple smaller threadcomms, with each
+                                using the same threadpool as the original threadcomm.
+
+   Not Collective
+
+   Input Parameters:
++  comm        - MPI communicator
+.  ncomms      - Number of thread comms to create
+.  incommsizes - Array of sizes for each new comm to create or PETSC_NULL
+-  granks      - Array of global ranks for each thread in splitcomm or PETSC_NULL
+
+   Output Parameters:
+.  multcomms   - Array of MPI comms each with a different threadcomm
+
+   Level: developer
+
+   Notes:
+   Allocates and initializes multiple threadcomms. Duplicates the input MPI comm and attaches
+   a threadcomm to the duplicate MPI Comm. Creates a new threadpool for each threadcomm to use.
+   PETSc can automatically set nthreads, incommsizes, granks, and affinities. The granks and
+   affinities arrays can be the same array.
+
+@*/
+PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *incommsizes,PetscInt *ingranks,MPI_Comm **splitcomms)
 {
-  PetscErrorCode ierr;
-  PetscInt i, j, *lranks, startthread, *commsizes, splitsize,remainder;
-  PetscBool extra;
+  PetscErrorCode  ierr;
+  PetscInt        i,j,*granks,startthread,*commsizes,splitsize,remainder,nthreads;
+  PetscBool       extra;
   PetscThreadComm tcomm;
 
   PetscFunctionBegin;
+  ierr = PetscCommGetThreadComm(comm,&tcomm);
 
   // Allocate splitcomms
   ierr = PetscMalloc1(ncomms,splitcomms);
 
+  // Check that split threadcomms use same number of threads as original threadcomm
+  if (incommsizes) {
+    for (i=0; i<ncomms; i++) {
+      nthreads += incommsizes[i];
+    }
+  }
+  if (nthreads > tcomm->ncommthreads) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Splitcomm contains more threads than original comm");
+
   // If user did not pass in commsizes split them evenly
-  if(!incommsizes) {
-    ierr = PetscCommGetThreadComm(comm,&tcomm);
+  if (!incommsizes) {
     ierr = PetscMalloc1(ncomms,&commsizes);CHKERRQ(ierr);
     splitsize = tcomm->ncommthreads/ncomms;
     remainder = tcomm->ncommthreads - splitsize*ncomms;
@@ -1288,22 +1589,27 @@ PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *inco
   }
 
   // Create each splitcomm
-  for(i=0; i<ncomms; i++) {
-    // Set lranks for threadcomm
-    PetscMalloc1(commsizes[i],&lranks);
+  for (i=0; i<ncomms; i++) {
+    PetscMalloc1(commsizes[i],&granks);
     // Count previous threads
     startthread = 0;
-    for(j=0; j<i; j++) {
+    for (j=0; j<i; j++) {
       startthread += commsizes[j];
     }
-    // Set threads this comm will use
-    for(j=0; j<commsizes[i]; j++) {
-      lranks[j] = startthread + j;
-      printf("Creating splitcomm %d with thread %d\n",j,lranks[j]);
+    // Set granks
+    if (!ingranks) {
+      for (j=0; j<commsizes[i]; j++) {
+        granks[j] = startthread + j;
+        printf("Creating splitcomm %d with thread %d\n",j,granks[j]);
+      }
+    } else {
+      for (j=0; j<commsizes[i]; j++) {
+        granks[j] = ingranks[startthread+j];
+      }
     }
     // Create threadcomm that shares threads with input threadcomm
-    ierr = PetscThreadCommCreateShare(comm,commsizes[i],lranks,&(*splitcomms)[i]);
-    ierr = PetscFree(lranks);CHKERRQ(ierr);
+    ierr = PetscThreadCommCreateShare(comm,commsizes[i],granks,&(*splitcomms)[i]);CHKERRQ(ierr);
+    ierr = PetscFree(granks);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -1311,9 +1617,21 @@ PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *inco
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommInitialize"
 /*
-  PetscThreadCommInitialize - Initializes a thread communicator object
+   PetscThreadCommInitialize - Initializes a thread communicator object
 
-  PetscThreadCommInitialize() defaults to using the nonthreaded communicator.
+   Not Collective
+
+   Input Parameters:
++  nthreads - Number of threads for the threadcomm
+.  lranks   - Threadpool rank for each thread to add to the threadcomm
+-  tcomm    - Threadcomm to initialize
+
+   Level: developer
+
+   Notes:
+   Allocates the threadcomm based on the settings from the threadpool. The threadcomm
+   gains access to the requested threads in the threadpool.
+   Defaults to using the nonthreaded communicator.
 */
 PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *lranks,PetscThreadComm tcomm)
 {

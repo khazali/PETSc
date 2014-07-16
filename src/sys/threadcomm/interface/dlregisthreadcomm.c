@@ -1,7 +1,7 @@
 #include <petsc-private/threadcommimpl.h>
 
+/* Variables to track package registration/initialization */
 static PetscBool PetscThreadCommPackageInitialized = PETSC_FALSE;
-
 extern PetscBool PetscThreadCommRegisterAllModelsCalled;
 extern PetscBool PetscThreadCommRegisterAllTypesCalled;
 
@@ -42,12 +42,12 @@ PetscErrorCode PetscThreadCommFinalizePackage(void)
 PETSC_EXTERN PetscMPIInt MPIAPI Petsc_CopyThreadComm(MPI_Comm comm,PetscMPIInt keyval,void *extra_state,void *attr_in,void *attr_out,int *flag)
 {
   PetscErrorCode  ierr;
-  PetscThreadComm tcomm = (PetscThreadComm)attr_in;
+  PetscThreadComm tcomm;
 
   PetscFunctionBegin;
+  tcomm = (PetscThreadComm)attr_in;
   tcomm->refct++;
   *(void**)attr_out = tcomm;
-
   *flag = 1;
   ierr  = PetscInfo1(0,"Copying thread communicator data in an MPI_Comm %ld\n",(long)comm);CHKERRQ(ierr);
   if (ierr) PetscFunctionReturn((PetscMPIInt)ierr);
@@ -66,7 +66,7 @@ PETSC_EXTERN PetscMPIInt MPIAPI Petsc_CopyThreadComm(MPI_Comm comm,PetscMPIInt k
 PETSC_EXTERN PetscMPIInt MPIAPI Petsc_DelThreadComm(MPI_Comm comm,PetscMPIInt keyval,void *attr,void *extra_state)
 {
   PetscThreadComm tcomm;
-  PetscErrorCode ierr;
+  PetscErrorCode  ierr;
 
   PetscFunctionBegin;
   tcomm = (PetscThreadComm)attr;

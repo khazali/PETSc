@@ -32,7 +32,7 @@ int main(int argc,char **argv)
   ierr = PetscPrintf(shcomm,"Created shared comm with %d threads\n",ntcthreads);CHKERRQ(ierr);
 
   printf("Creating splitcomm with %d comms\n",ncomms);
-  ierr = PetscThreadCommSplit(comm,ncomms,PETSC_NULL,&splitcomms);CHKERRQ(ierr);
+  ierr = PetscThreadCommSplit(comm,ncomms,PETSC_NULL,PETSC_NULL,&splitcomms);CHKERRQ(ierr);
 
   printf("\n\n\nCreating multcomm with %d comms\n",ncomms);
   ierr = PetscThreadCommCreateMultiple(PETSC_COMM_WORLD,ncomms,nthreads,PETSC_NULL,PETSC_NULL,PETSC_NULL,&multcomms);

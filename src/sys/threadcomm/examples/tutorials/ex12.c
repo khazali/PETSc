@@ -35,7 +35,7 @@ int main(int argc,char **argv)
 
   // Split threads evenly among comms
   printf("Creating splitcomm with %d comms\n",ncomms);
-  ierr = PetscThreadCommSplit(comm,ncomms,PETSC_NULL,&splitcomms);CHKERRQ(ierr);
+  ierr = PetscThreadCommSplit(comm,ncomms,PETSC_NULL,PETSC_NULL,&splitcomms);CHKERRQ(ierr);
 
   ierr = PetscPrintf(comm,"Creating split comms with %d comms\n",ncomms);
 
