@@ -2,6 +2,19 @@
 #include <../src/sys/threadcomm/impls/openmp/tcopenmpimpl.h>
 #include <omp.h>
 
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommGetRank_OpenMP"
+/*
+   PetscThreadCommGetRank_OpenMP - Get rank of calling thread
+
+   Not Collective
+
+   Output Parameters:
+.  trank - Rank of calling thread
+
+   Level: developer
+
+*/
 PetscErrorCode PetscThreadCommGetRank_OpenMP(PetscInt *trank)
 {
   *trank =  omp_get_thread_num();
@@ -10,25 +23,58 @@ PetscErrorCode PetscThreadCommGetRank_OpenMP(PetscInt *trank)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommSetAffinity_OpenMPUser"
+/*
+   PetscThreadCommSetAffinity_OpenMPUser - Set thread affinity for an openmp
+                                           thread for the user thread model
+
+   Not Collective
+
+   Input Parameters:
++  pool   - Threadpool containing affinity settings
+-  thread - Thread to set the affinity for
+
+   Level: developer
+
+   Notes:
+   Must be called by an openmp thread to correctly set the affinity.
+
+*/
 PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMPUser(PetscThreadPool pool,PetscThread thread)
 {
+  PetscBool      set;
   PetscErrorCode ierr;
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
-  cpu_set_t cpuset;
+  cpu_set_t      cpuset;
 #endif
-  PetscBool set;
 
   PetscFunctionBegin;
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
   printf("OpenMP Setting affinity for lrank=%d grank=%d aff=%d\n",thread->lrank,thread->grank,thread->affinity);
   ierr = PetscThreadPoolSetAffinity(pool,&cpuset,thread->affinity,&set);
-  if(set) sched_setaffinity(0,sizeof(cpu_set_t),&cpuset);
+  if (set) sched_setaffinity(0,sizeof(cpu_set_t),&cpuset);
 #endif
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommSetAffinity_OpenMPLoop"
+/*
+   PetscThreadCommSetAffinity_OpenMPLoop - Set thread affinity for an openmp
+                                           thread for the loop thread model
+
+   Not Collective
+
+   Input Parameters:
++  pool   - Threadpool containing affinity settings
+-  thread - Thread to set the affinity for (unused for this setaffinity routine)
+
+   Level: developer
+
+   Notes:
+   This routine assumes that there is one threadcomm and one threadpool, and
+   is therefore only used by the loop user model.
+
+*/
 PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMPLoop(PetscThreadPool pool,PetscThread thread)
 {
   PetscFunctionBegin;
@@ -36,41 +82,58 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMPLoop(PetscThreadPoo
 
   #pragma omp parallel num_threads(pool->npoolthreads)
   {
-    cpu_set_t cpuset;
-    PetscInt trank;
-    PetscBool set;
+    cpu_set_t      cpuset;
+    PetscInt       trank;
+    PetscBool      set;
+    PetscErrorCode ierr;
     trank = omp_get_thread_num();
 
     printf("OpenMP Setting affinity for lrank=%d grank=%d aff=%d\n",trank,trank,trank);
-    PetscThreadPoolSetAffinity(pool,&cpuset,trank,&set);
-    if(set) sched_setaffinity(0,sizeof(cpu_set_t),&cpuset);
+    ierr = PetscThreadPoolSetAffinity(pool,&cpuset,trank,&set);CHKERRCONTINUE(ierr);
+    if (set) sched_setaffinity(0,sizeof(cpu_set_t),&cpuset);
   }
 #endif
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommInit_OpenMP"
-PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadPool pool)
+#define __FUNCT__ "PetscThreadPoolInit_OpenMP"
+/*
+   PetscThreadPoolInit_OpenMP - Initialize the threadpool to use OpenMP as
+                                the threading type
+
+   Not Collective
+
+   Input Parameters:
+.  pool - Threadpool to initialize
+
+   Level: developer
+
+*/
+PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_OpenMP(PetscThreadPool pool)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  if(pool->model==THREAD_MODEL_AUTO) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Unable to use auto thread model with OpenMP. Use loop or user model with OpenMP");
+  if (pool->model == THREAD_MODEL_AUTO) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Unable to use auto thread model with OpenMP. Use loop or user model with OpenMP");
 
-  ierr                     = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
-  pool->threadtype         = THREAD_TYPE_OPENMP;
-  if(pool->model==THREAD_MODEL_USER) {
+  ierr = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
+  pool->threadtype = THREAD_TYPE_OPENMP;
+  if (pool->model == THREAD_MODEL_USER) {
     pool->ops->setaffinities = PetscThreadCommSetAffinity_OpenMPUser;
-  } else if(pool->model==THREAD_MODEL_LOOP) {
+  } else if (pool->model == THREAD_MODEL_LOOP) {
     pool->ops->setaffinities = PetscThreadCommSetAffinity_OpenMPLoop;
   }
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommCreate_OpenMP"
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMP(PetscThreadComm tcomm)
+#define __FUNCT__ "PetscThreadCommInit_OpenMP"
+/*
+   PetscThreadCommInit_OpenMP - Initialize the threadcomm to use OpenMP as
+                                the threading type
+*/
+PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadComm tcomm)
 {
   PetscThreadComm_OpenMP ptcomm;
   PetscErrorCode         ierr;
@@ -81,24 +144,41 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMP(PetscThreadComm tcomm)
   ptcomm->wait_inc = PETSC_TRUE;
   ptcomm->wait_dec = PETSC_TRUE;
 
-  tcomm->data           = (void*)ptcomm;
-  if(tcomm->model==THREAD_MODEL_LOOP) {
+  tcomm->data = (void*)ptcomm;
+  if (tcomm->model == THREAD_MODEL_LOOP) {
     tcomm->ops->runkernel = PetscThreadCommRunKernel_OpenMPLoop;
-  } else if(tcomm->model==THREAD_MODEL_USER) {
+  } else if (tcomm->model == THREAD_MODEL_USER) {
     tcomm->ops->runkernel = PetscThreadCommRunKernel_OpenMPUser;
   }
-  tcomm->ops->barrier   = PetscThreadCommBarrier_OpenMP;
-  tcomm->ops->getrank   = PetscThreadCommGetRank_OpenMP;
+  tcomm->ops->barrier = PetscThreadCommBarrier_OpenMP;
+  tcomm->ops->getrank = PetscThreadCommGetRank_OpenMP;
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommRunKernel_OpenMPLoop"
+/*
+   PetscThreadCommRunKernel_OpenMPLoop - Run kernel routine for OpenMP loop thread model
+
+   Not Collective
+
+   Input Parameters:
++  tcomm - Threadcomm to run the kernel
+-  job   - job for the kernel to run
+
+   Level: developer
+
+   Notes:
+   Creates an OpenMP parallel region for the threadcomm and runs the jobs on the threads
+   in the threadcomm. OpenMP automatically synchronizes at the end of the OpenMP region.
+
+*/
 PetscErrorCode PetscThreadCommRunKernel_OpenMPLoop(PetscThreadComm tcomm,PetscThreadCommJobCtx job)
 {
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   threadjob;
   PetscInt                trank;
+  PetscErrorCode          ierr;
 
   PetscFunctionBegin;
 #pragma omp parallel num_threads(tcomm->ncommthreads) private(trank,jobqueue,threadjob)
@@ -108,8 +188,8 @@ PetscErrorCode PetscThreadCommRunKernel_OpenMPLoop(PetscThreadComm tcomm,PetscTh
     jobqueue = tcomm->commthreads[trank]->jobqueue;
     threadjob = &jobqueue->jobs[jobqueue->newest_job_index];
     /* Run kernel and update thread status */
-    threadjob->job_status = THREAD_JOB_RECIEVED;
-    PetscRunKernel(trank,threadjob->nargs,threadjob);
+    threadjob->job_status = THREAD_JOB_RECEIVED;
+    ierr = PetscRunKernel(trank,threadjob->nargs,threadjob);CHKERRCONTINUE(ierr);
     threadjob->job_status = THREAD_JOB_COMPLETED;
     jobqueue->current_job_index = (jobqueue->current_job_index+1)%tcomm->nkernels;
     jobqueue->completed_jobs_ctr++;
@@ -119,23 +199,41 @@ PetscErrorCode PetscThreadCommRunKernel_OpenMPLoop(PetscThreadComm tcomm,PetscTh
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommRunKernel_OpenMPUser"
+/*
+   PetscThreadCommRunKernel_OpenMPUser - Run kernel routine for OpenMP user thread model
+
+   Not Collective
+
+   Input Parameters:
++  tcomm - Threadcomm to run the kernel
+-  job   - job for the kernel to run
+
+   Level: developer
+
+   Notes:
+   This routine must be called from within an OpenMP parallel region. Runs the jobs on
+   the calling thread. Synchronization at the end of the kernel is optional. If the user
+   does not synchronize in this function, they will need to call a synchronization function
+   in their code to verify that the job has finished.
+
+*/
 PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm tcomm,PetscThreadCommJobCtx job)
 {
   PetscThreadCommJobQueue jobqueue;
-  PetscErrorCode ierr;
+  PetscErrorCode          ierr;
 
   PetscFunctionBegin;
   printf("Running OpenMP User kernel\n");
-  if(tcomm->ismainworker) {
-    job->job_status = THREAD_JOB_RECIEVED;
+  if (tcomm->ismainworker) {
+    job->job_status = THREAD_JOB_RECEIVED;
     printf("Running job for master thread \n");
-    PetscRunKernel(0,job->nargs,job);
+    ierr = PetscRunKernel(0,job->nargs,job);CHKERRCONTINUE(ierr);
     job->job_status = THREAD_JOB_COMPLETED;
     jobqueue = tcomm->commthreads[tcomm->lleader]->jobqueue;
     jobqueue->current_job_index = (jobqueue->current_job_index+1)%tcomm->nkernels;
     jobqueue->completed_jobs_ctr++;
   }
-  if(tcomm->syncafter) {
+  if (tcomm->syncafter) {
     ierr = PetscThreadCommJobBarrier(tcomm);CHKERRCONTINUE(ierr);
   }
   PetscFunctionReturn(0);
@@ -143,12 +241,30 @@ PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm tcomm,PetscTh
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommBarrier_OpenMP"
-/* Reusable barrier that can block threads in one threadcomm while threads
- in other threadcomms continue executing. */
+/*
+   PetscThreadCommBarrier_OpenMP - Barrier that ensures all threads in a threadcomm
+                                   have reached the barrier
+
+   Collective on threadcomm
+
+   Input Parameters:
+.  tcomm - Threadcomm
+
+   Level: developer
+
+   Notes:
+   The OpenMP barrier only works with all OpenMP threads. This routine implements a
+   reusable barrier that can block threads in one threadcomm while threads
+   in other threadcomms continue executing. This barrier has each thread increment a
+   counter and wait until all threads have incremented the counter, then has each
+   thread decrement the counter and wait until all threads have decremented the counter.
+   This ensures that the barrier is ready to be called again.
+
+*/
 PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm tcomm)
 {
   PetscThreadComm_OpenMP ptcomm = (PetscThreadComm_OpenMP)tcomm->data;
-  PetscErrorCode  ierr;
+  PetscErrorCode         ierr;
 
   PetscFunctionBegin;
   ierr = PetscLogEventBegin(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
@@ -157,8 +273,8 @@ PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm tcomm)
   ptcomm->barrier_threads++;
 
   // Make sure all threads increment counter
-  while(ptcomm->wait_inc) {
-    if(PetscReadOnce(int,ptcomm->barrier_threads) == tcomm->ncommthreads) {
+  while (ptcomm->wait_inc) {
+    if (PetscReadOnce(int,ptcomm->barrier_threads) == tcomm->ncommthreads) {
       #pragma omp critical
       {
         ptcomm->wait_dec = PETSC_TRUE;
@@ -172,8 +288,8 @@ PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm tcomm)
   ptcomm->barrier_threads--;
 
   // Make sure all threads decrement counter
-  while(ptcomm->wait_dec) {
-    if(PetscReadOnce(int,ptcomm->barrier_threads) == 0) {
+  while (ptcomm->wait_dec) {
+    if (PetscReadOnce(int,ptcomm->barrier_threads) == 0) {
       #pragma omp critical
       {
         ptcomm->wait_inc = PETSC_TRUE;

@@ -84,8 +84,12 @@ int main(int argc,char **argv)
   ierr = VecDuplicate(x,&y);CHKERRQ(ierr);
 
   // Run PETSc code
-  ierr = VecSet(x,2.0);CHKERRQ(ierr);
-  ierr = VecSet(y,3.0);CHKERRQ(ierr);
+  //ierr = VecSet(x,2.0);CHKERRQ(ierr);
+  //ierr = VecSet(y,3.0);CHKERRQ(ierr);
+  for(i=0; i<n; i++) {
+    VecSetValue(x,i,i*1.0,INSERT_VALUES);
+    VecSetValue(y,i,i*2.0,INSERT_VALUES);
+  }
   ierr = VecAXPY(y,alpha,x);CHKERRQ(ierr);
   //VecView(y,PETSC_VIEWER_STDOUT_WORLD);
   ierr = VecNorm(y,NORM_2,&vnorm);CHKERRQ(ierr);

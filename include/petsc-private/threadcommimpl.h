@@ -34,7 +34,7 @@ PETSC_EXTERN PetscMPIInt Petsc_ThreadComm_keyval;
 /* Job status for threads */
 #define THREAD_JOB_NONE       -1
 #define THREAD_JOB_POSTED      1
-#define THREAD_JOB_RECIEVED    2
+#define THREAD_JOB_RECEIVED    2
 #define THREAD_JOB_COMPLETED   0
 
 /* Thread status */
@@ -82,19 +82,19 @@ extern const char *const PetscThreadCommAffPolicyTypes[];
 
 typedef struct _p_PetscThreadCommRedCtx *PetscThreadCommRedCtx;
 struct _p_PetscThreadCommRedCtx{
-  PetscThreadComm               tcomm;          /* The associated threadcomm */
-  PetscInt                      red_status;     /* Reduction status */
-  PetscInt                      *thread_status; /* Reduction status of each thread */
-  void                          *local_red;     /* Array to hold local reduction contribution from each thread */
-  PetscThreadCommReductionOp    op;             /* The reduction operation */
-  PetscDataType                 type;           /* The reduction data type */
+  PetscThreadComm            tcomm;          /* The associated threadcomm */
+  PetscInt                   red_status;     /* Reduction status */
+  PetscInt                   *thread_status; /* Reduction status of each thread */
+  void                       *local_red;     /* Array to hold local reduction contribution from each thread */
+  PetscThreadCommReductionOp op;             /* The reduction operation */
+  PetscDataType              type;           /* The reduction data type */
 };
 
 struct _p_PetscThreadCommReduction{
-  PetscInt              nreds;                              /* Number of reductions in operation */
-  PetscThreadCommRedCtx redctx;                             /* Reduction objects */
-  PetscInt               ctr;                               /* Global Reduction counter */
-  PetscInt              *thread_ctr;                        /* Reduction counter for each thread */
+  PetscInt              nreds;                  /* Number of reductions in operation */
+  PetscThreadCommRedCtx redctx;                 /* Reduction objects */
+  PetscInt               ctr;                   /* Global Reduction counter */
+  PetscInt              *thread_ctr;            /* Reduction counter for each thread */
 };
 
 typedef struct _p_PetscThreadCommJobCtx* PetscThreadCommJobCtx;
@@ -106,7 +106,7 @@ struct  _p_PetscThreadCommJobCtx{
   void              *args[PETSC_KERNEL_NARGS_MAX]; /* Array of void* to hold the arguments */
   PetscScalar       scalars[3];                    /* Array to hold three scalar values */
   PetscInt          ints[3];                       /* Array to hold three integer values */
-  PetscInt          job_status;                   /* Thread job status */
+  PetscInt          job_status;                    /* Thread job status */
 };
 
 /* Structure to manage job queue */
@@ -144,11 +144,11 @@ struct _p_PetscThread{
 
 typedef struct _PetscThreadPoolOps* PetscThreadPoolOps;
 struct _PetscThreadPoolOps {
-  PetscErrorCode (*tcomminit)(PetscThreadComm);     /* Function to initialize threadcomm */
-  PetscErrorCode (*createthread)(PetscThread);      /* Function to allocate thread struct */
-  PetscErrorCode (*startthreads)(PetscThreadPool);  /* Function to initialize and create threads */
+  PetscErrorCode (*tcomminit)(PetscThreadComm);                 /* Function to initialize threadcomm */
+  PetscErrorCode (*createthread)(PetscThread);                  /* Function to allocate thread struct */
+  PetscErrorCode (*startthreads)(PetscThreadPool);              /* Function to initialize and create threads */
   PetscErrorCode (*setaffinities)(PetscThreadPool,PetscThread); /* Function to set thread affinities */
-  PetscErrorCode (*pooldestroy)(PetscThreadPool);   /* Function to destroy threads */
+  PetscErrorCode (*pooldestroy)(PetscThreadPool);               /* Function to destroy threads */
 };
 
 struct _p_PetscThreadPool{
@@ -184,9 +184,9 @@ struct _p_PetscThreadComm{
   PetscBool                ismainworker; /* Is the main thread also a work thread? */
 
   // Thread information
-  PetscThreadPool         pool;         /* Threadpool containing threads for this comm */
-  PetscInt                ncommthreads; /* Max threads comm can use */
-  PetscThread             *commthreads; /* Threads that this comm can use */
+  PetscThreadPool         pool;          /* Threadpool containing threads for this comm */
+  PetscInt                ncommthreads;  /* Max threads comm can use */
+  PetscThread             *commthreads;  /* Threads that this comm can use */
 };
 
 /* register thread communicator models */

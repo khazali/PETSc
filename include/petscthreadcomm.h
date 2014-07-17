@@ -6,23 +6,12 @@
 /* Function pointer cast for the kernel function */
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*PetscThreadKernel)(PetscInt,...);
 
-/*
-  PetscThreadComm - Abstract object that manages all thread communication models
-
-  Level: developer
-
-  Concepts: threads
-
-.seealso: PetscThreadCommCreate(), PetscThreadCommDestroy
-*/
+/* PetscThreadComm - Abstract object that manages all thread communication models */
 typedef struct _p_PetscThreadComm *PetscThreadComm;
+/* PetscThreadPool - Abstract object that manages all threads */
 typedef struct _p_PetscThreadPool *PetscThreadPool;
 
-/*
-   PetscThreadCommReduction - Context used for managing threaded reductions
-
-   Level: developer
-*/
+/* PetscThreadCommReduction - Context used for managing threaded reductions */
 typedef struct _p_PetscThreadCommReduction *PetscThreadCommReduction;
 
 typedef const char* PetscThreadCommModel;
@@ -36,7 +25,7 @@ typedef const char* PetscThreadCommType;
 #define OPENMP              "openmp"
 #define TBB                 "tbb"
 
-PETSC_EXTERN PetscFunctionList PetscThreadCommInitTypeList;
+PETSC_EXTERN PetscFunctionList PetscThreadPoolTypeList;
 PETSC_EXTERN PetscFunctionList PetscThreadCommTypeList;
 PETSC_EXTERN PetscFunctionList PetscThreadCommModelList;
 
@@ -99,22 +88,22 @@ PETSC_EXTERN PetscErrorCode PetscThreadReductionEnd(PetscThreadCommReduction,voi
 
 /* Threadpool routines in threadpool.c */
 /* Initialization/Destruction routines */
-PETSC_EXTERN PetscErrorCode PetscThreadPoolAlloc(PetscThreadPool *pool);
-PETSC_EXTERN PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool pool,PetscInt nthreads,PetscInt *ranks);
-PETSC_EXTERN PetscErrorCode PetscThreadPoolDestroy(PetscThreadPool pool);
-PETSC_EXTERN PetscErrorCode PetscThreadPoolSetModel(PetscThreadPool pool,PetscThreadCommModel model);
-PETSC_EXTERN PetscErrorCode PetscThreadPoolSetType(PetscThreadPool pool,PetscThreadCommType type);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolAlloc(PetscThreadPool*);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool,PetscInt,PetscInt*);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolDestroy(PetscThreadPool);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolSetModel(PetscThreadPool,PetscThreadCommModel);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolSetType(PetscThreadPool,PetscThreadCommType);
 /* General routines */
 PETSC_EXTERN PetscErrorCode PetscGetNCores(PetscInt*);
-PETSC_EXTERN PetscErrorCode PetscThreadPoolGetPool(MPI_Comm comm,PetscThreadPool *pool);
-PETSC_EXTERN PetscErrorCode PetscThreadPoolSetNThreads(PetscThreadPool pool,PetscInt nthreads);
-PETSC_EXTERN PetscErrorCode PetscThreadPoolGetNThreads(MPI_Comm comm,PetscInt *nthreads);
-PETSC_EXTERN PetscErrorCode PetscThreadPoolSetAffinities(PetscThreadPool pool,const PetscInt affinities[]);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolGetPool(MPI_Comm,PetscThreadPool*);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolSetNThreads(PetscThreadPool,PetscInt);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolGetNThreads(MPI_Comm,PetscInt*);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolSetAffinities(PetscThreadPool,const PetscInt[]);
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
-PETSC_EXTERN PetscErrorCode PetscThreadPoolSetAffinity(PetscThreadPool pool,cpu_set_t *cpuset,PetscInt trank,PetscBool *set);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolSetAffinity(PetscThreadPool,cpu_set_t*,PetscInt,PetscBool*);
 #endif
 /* Worker thread routines */
-PETSC_EXTERN PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm,PetscInt nthreads,PetscInt *granks,PetscInt *affinities);
-PETSC_EXTERN void* PetscThreadPoolFunc(void *arg);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolCreate(PetscThreadComm,PetscInt,PetscInt*,PetscInt*);
+PETSC_EXTERN void* PetscThreadPoolFunc(void*);
 
 #endif

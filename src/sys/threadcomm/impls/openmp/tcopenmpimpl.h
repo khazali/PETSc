@@ -10,10 +10,10 @@ struct _p_PetscThreadComm_OpenMP {
 };
 typedef struct _p_PetscThreadComm_OpenMP *PetscThreadComm_OpenMP;
 
-PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadPool);
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_OpenMP(PetscThreadComm);
-extern PetscErrorCode PetscThreadCommRunKernel_OpenMPLoop(PetscThreadComm,PetscThreadCommJobCtx);
-extern PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm,PetscThreadCommJobCtx);
-extern PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_OpenMP(PetscThreadPool);
+PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadComm);
+PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel_OpenMPLoop(PetscThreadComm,PetscThreadCommJobCtx);
+PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm,PetscThreadCommJobCtx);
+PETSC_EXTERN PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm);
 
 #endif

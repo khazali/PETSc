@@ -297,9 +297,9 @@ PetscErrorCode PetscThreadPoolSetType(PetscThreadPool pool,PetscThreadCommType t
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   // Find and call threadcomm init function
-  if(flg) {
-    ierr = PetscFunctionListFind(PetscThreadCommInitTypeList,pool->type,&r);CHKERRQ(ierr);
-    if (!r) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_UNKNOWN_TYPE,"Unable to find requested threadcomm type %s",pool->type);
+  if (flg) {
+    ierr = PetscFunctionListFind(PetscThreadPoolTypeList,pool->type,&r);CHKERRQ(ierr);
+    if (!r) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_UNKNOWN_TYPE,"Unable to find requested threadpool type %s",pool->type);
     ierr = (*r)(pool);CHKERRQ(ierr);
   } else PetscStrcpy(pool->type,NOTHREAD);
 
@@ -558,7 +558,7 @@ PetscErrorCode PetscThreadPoolSetAffinities(PetscThreadPool pool,const PetscInt 
       ierr = (*pool->ops->setaffinities)(pool,pool->poolthreads[i]);CHKERRQ(ierr);
     }
   }
-  if(pool->threadtype == THREAD_TYPE_OPENMP && pool->model == THREAD_MODEL_LOOP) {
+  if (pool->threadtype == THREAD_TYPE_OPENMP && pool->model == THREAD_MODEL_LOOP) {
     ierr = (*pool->ops->setaffinities)(pool,PETSC_NULL);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
@@ -654,7 +654,7 @@ void* PetscThreadPoolFunc(void *arg)
   printf("rank=%d in ThreadPoolFunc\n",trank);
 
   // Set affinity for this thread
-  if(pool->threadtype==THREAD_TYPE_OPENMP) {
+  if (pool->threadtype == THREAD_TYPE_OPENMP) {
     ierr = (*pool->ops->setaffinities)(pool,thread);CHKERRCONTINUE(ierr);
   }
 

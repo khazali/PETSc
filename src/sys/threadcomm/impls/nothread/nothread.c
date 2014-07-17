@@ -1,8 +1,20 @@
 #include <../src/sys/threadcomm/impls/nothread/nothreadimpl.h>
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommInit_NoThread"
-PETSC_EXTERN PetscErrorCode PetscThreadCommInit_NoThread(PetscThreadPool pool)
+#define __FUNCT__ "PetscThreadPoolInit_NoThread"
+/*
+   PetscThreadPoolInit_NoThread - Initialize a threadpool to use the
+                                  nothread thread type
+
+   Not Collective
+
+   Input Parameters:
+.  pool - Threadpool to initialize
+
+   Level: developer
+
+*/
+PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_NoThread(PetscThreadPool pool)
 {
   PetscErrorCode ierr;
 
@@ -13,12 +25,22 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommInit_NoThread(PetscThreadPool pool)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommCreate_NoThread"
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_NoThread(PetscThreadComm comm)
+#define __FUNCT__ "PetscThreadCommInit_NoThread"
+/*
+   PetscThreadCommInit_NoThread - Initialize a threadcomm to use the
+                                  nothread thread type
+
+   Not Collective
+
+   Input Parameters:
+.  comm - Threadcomm to initialize
+
+   Level: developer
+
+*/
+PETSC_EXTERN PetscErrorCode PetscThreadCommInit_NoThread(PetscThreadComm tcomm)
 {
   PetscFunctionBegin;
-  if (comm->ncommthreads != 1) SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONG,"Cannot have more than 1 thread for the nonthread communicator,threads requested = %D",comm->ncommthreads);
+  if (tcomm->ncommthreads != 1) SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONG,"Cannot have more than 1 thread for the nonthread communicator,threads requested = %D",tcomm->ncommthreads);
   PetscFunctionReturn(0);
 }
-
-

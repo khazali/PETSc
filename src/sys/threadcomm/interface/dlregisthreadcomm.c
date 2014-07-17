@@ -2,8 +2,8 @@
 
 /* Variables to track package registration/initialization */
 static PetscBool PetscThreadCommPackageInitialized = PETSC_FALSE;
-extern PetscBool PetscThreadCommRegisterAllModelsCalled;
-extern PetscBool PetscThreadCommRegisterAllTypesCalled;
+PETSC_EXTERN PetscBool PetscThreadCommRegisterAllModelsCalled;
+PETSC_EXTERN PetscBool PetscThreadCommRegisterAllTypesCalled;
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommFinalizePackage"
@@ -21,6 +21,7 @@ PetscErrorCode PetscThreadCommFinalizePackage(void)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ierr = PetscFunctionListDestroy(&PetscThreadPoolTypeList);CHKERRQ(ierr);
   ierr = PetscFunctionListDestroy(&PetscThreadCommTypeList);CHKERRQ(ierr);
   ierr = PetscFunctionListDestroy(&PetscThreadCommModelList);CHKERRQ(ierr);
   ierr = MPI_Keyval_free(&Petsc_ThreadComm_keyval);CHKERRQ(ierr);
@@ -94,7 +95,7 @@ PetscErrorCode PetscThreadCommInitializePackage(void)
   PetscFunctionBegin;
   if (PetscThreadCommPackageInitialized) PetscFunctionReturn(0);
 
-  if(Petsc_ThreadComm_keyval == MPI_KEYVAL_INVALID) {
+  if (Petsc_ThreadComm_keyval == MPI_KEYVAL_INVALID) {
     ierr = MPI_Keyval_create(Petsc_CopyThreadComm,Petsc_DelThreadComm,&Petsc_ThreadComm_keyval,(void*)0);CHKERRQ(ierr);
   }
 

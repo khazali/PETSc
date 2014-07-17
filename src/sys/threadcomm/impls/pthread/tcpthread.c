@@ -1,9 +1,6 @@
-/* Define feature test macros to make sure CPU_SET and other functions are available
- */
+/* Define feature test macros to make sure CPU_SET and other functions are available */
 #define PETSC_DESIRE_FEATURE_TEST_MACROS
-
 #include <../src/sys/threadcomm/impls/pthread/tcpthreadimpl.h>
-
 #if defined PETSC_HAVE_MALLOC_H
 #include <malloc.h>
 #endif
@@ -14,6 +11,19 @@ PETSC_PTHREAD_LOCAL PetscInt PetscPThreadRank;
 pthread_key_t PetscPThreadRankkey;
 #endif
 
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommGetRank_PThread"
+/*
+   PetscThreadCommGetRank_PThread - Get the rank of the calling thread
+
+   Not Collective
+
+   Output Parameters:
+.  trank - Rank of calling thread
+
+   Level: developer
+
+*/
 PetscErrorCode PetscThreadCommGetRank_PThread(PetscInt *trank)
 {
 #if defined(PETSC_PTHREAD_LOCAL)
@@ -24,7 +34,22 @@ PetscErrorCode PetscThreadCommGetRank_PThread(PetscInt *trank)
   return 0;
 }
 
-/* Sets the attributes for threads */
+/*
+   PetscThreadCommSetAffinity_PThread - Set affinity for a PThread thread
+
+   Not Collective
+
+   Input Parameters:
++  pool   - Threadpool with thread model settings
+-  thread - Thread whose affinity is being set
+
+   Level: developer
+
+   Notes:
+   Sets the affinity for the thread by creating and setting a pthread attribute. When a
+   pthread is created, it uses this attribute to set the affinity of the thread.
+
+*/
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommSetAffinity_PThread"
 PetscErrorCode PetscThreadCommSetAffinity_PThread(PetscThreadPool pool,PetscThread thread)
@@ -43,43 +68,36 @@ PetscErrorCode PetscThreadCommSetAffinity_PThread(PetscThreadPool pool,PetscThre
   ptcomm = (PetscThread_PThread)thread->data;
   ierr = pthread_attr_init(&ptcomm->attr);CHKERRQ(ierr);
   PetscThreadPoolSetAffinity(pool,&cpuset,thread->affinity,&set);
-  if(set) pthread_attr_setaffinity_np(&ptcomm->attr,sizeof(cpu_set_t),&cpuset);
+  if (set) pthread_attr_setaffinity_np(&ptcomm->attr,sizeof(cpu_set_t),&cpuset);
 #endif
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommJoinPThreads"
-PetscErrorCode PetscThreadCommJoinPThreads(PetscThreadPool pool)
-{
-  PetscErrorCode          ierr;
-  void                    *jstatus;
-  PetscThread_PThread ptcomm;
-  PetscInt                i;
-
-  PetscFunctionBegin;
-  for (i=0; i<pool->npoolthreads; i++) {
-    printf("Terminating thread=%d\n",i);
-    pool->poolthreads[i]->status = THREAD_TERMINATE;
-  }
-  for (i=1; i<pool->npoolthreads; i++) {
-    ptcomm = (PetscThread_PThread)pool->poolthreads[i]->data;
-    ierr = pthread_join(ptcomm->tid,&jstatus);CHKERRQ(ierr);
-  }
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommDestroy_PThread"
+/*
+   PetscThreadCommDestroy_PThread - Destroy the PThread specific threadcomm struct
+
+   Not Collective
+
+   Input Parameters:
+.  tcomm - Threadcomm to destroy
+
+   Level: developer
+
+   Notes:
+   Destroys the barrier and mutex for the threadcomm.
+
+*/
 PetscErrorCode PetscThreadCommDestroy_PThread(PetscThreadComm tcomm)
 {
   PetscThreadComm_PThread ptcomm = (PetscThreadComm_PThread)tcomm->data;
-  PetscErrorCode ierr;
+  PetscErrorCode          ierr;
 
   PetscFunctionBegin;
   if (!ptcomm) PetscFunctionReturn(0);
   /* Destroy pthread threadcomm data */
-  if(tcomm->model==THREAD_MODEL_USER || tcomm->model==THREAD_MODEL_AUTO) {
+  if (tcomm->model==THREAD_MODEL_USER || tcomm->model==THREAD_MODEL_AUTO) {
     ierr = pthread_barrier_destroy(&ptcomm->barr);CHKERRQ(ierr);
     ierr = pthread_mutex_destroy(&ptcomm->threadmutex);CHKERRQ(ierr);
   }
@@ -89,31 +107,69 @@ PetscErrorCode PetscThreadCommDestroy_PThread(PetscThreadComm tcomm)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolDestroy_PThread"
+/*
+   PetscThreadPoolDestroy_PThread - Destroy the PThread specific threadpool structures and
+                                    terminate any threads created by Petsc
+
+   Not Collective
+
+   Input Parameters:
+.  pool - Threadpool with input settings
+
+   Level: developer
+
+   Notes:
+   In order to destroy a threadpool, the associated threadcomms must be destroyed.
+   Threadcomm destroy has a barrier to verify that all threads have finished their jobs.
+   This routine terminates the thread in the threadpool and then joins the thread.
+   Then PThreads specific structs are then destroyed.
+
+*/
 PetscErrorCode PetscThreadPoolDestroy_PThread(PetscThreadPool pool)
 {
-  PetscThread_PThread pt;
+  PetscThread_PThread ptcomm;
   PetscInt            i;
   PetscErrorCode      ierr;
+  void                *status;
 
   PetscFunctionBegin;
   /* Terminate the thread pool */
-  if(pool->model==THREAD_MODEL_LOOP || pool->model==THREAD_MODEL_AUTO) {
-    ierr = PetscThreadCommJoinPThreads(pool);CHKERRQ(ierr);
+  if (pool->model==THREAD_MODEL_LOOP || pool->model==THREAD_MODEL_AUTO) {
+    for (i=0; i<pool->npoolthreads; i++) {
+      printf("Terminating thread=%d\n",i);
+      pool->poolthreads[i]->status = THREAD_TERMINATE;
+    }
+    for (i=1; i<pool->npoolthreads; i++) {
+      ptcomm = (PetscThread_PThread)pool->poolthreads[i]->data;
+      ierr = pthread_join(ptcomm->tid,&status);CHKERRQ(ierr);
+    }
   }
+
   /* Destroy pthread thread data */
-  for(i=0; i<pool->npoolthreads; i++) {
-    pt = (PetscThread_PThread)pool->poolthreads[i]->data;
-    ierr = PetscFree(pt);CHKERRQ(ierr);
+  for (i=0; i<pool->npoolthreads; i++) {
+    ptcomm = (PetscThread_PThread)pool->poolthreads[i]->data;
+    ierr = PetscFree(ptcomm);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCreate_PThread"
+/*
+   PetscThreadCreate_PThread - Create a PThread data struct
+
+   Not Collective
+
+   Input Parameters:
+.  thread - Thread to create a PThread struct for
+
+   Level: developer
+
+*/
 PETSC_EXTERN PetscErrorCode PetscThreadCreate_PThread(PetscThread thread)
 {
   PetscThread_PThread ptcomm;
-  PetscErrorCode ierr;
+  PetscErrorCode      ierr;
 
   PetscFunctionBegin;
   printf("Create pthread\n");
@@ -123,25 +179,51 @@ PETSC_EXTERN PetscErrorCode PetscThreadCreate_PThread(PetscThread thread)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommInit_PThread"
-PETSC_EXTERN PetscErrorCode PetscThreadCommInit_PThread(PetscThreadPool pool)
+#define __FUNCT__ "PetscThreadPoolInit_PThread"
+/*
+   PetscThreadPoolInit_PThread - Initialize PThread specific threadpool variables
+
+   Not Collective
+
+   Input Parameters:
+.  pool - Threadpool to initialize
+
+   Level: developer
+
+*/
+PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_PThread(PetscThreadPool pool)
 {
-  PetscErrorCode          ierr;
+  PetscErrorCode ierr;
 
   PetscFunctionBegin;
   printf("Init PThread\n");
-  ierr = PetscStrcpy(pool->type,PTHREAD);CHKERRQ(ierr);
-  pool->threadtype = THREAD_TYPE_PTHREAD;
-  pool->ops->createthread = PetscThreadCreate_PThread;
-  pool->ops->startthreads = PetscThreadCommInitialize_PThread;
+  ierr                     = PetscStrcpy(pool->type,PTHREAD);CHKERRQ(ierr);
+  pool->threadtype         = THREAD_TYPE_PTHREAD;
+  pool->ops->createthread  = PetscThreadCreate_PThread;
+  pool->ops->startthreads  = PetscThreadCommInitialize_PThread;
   pool->ops->setaffinities = PetscThreadCommSetAffinity_PThread;
-  pool->ops->pooldestroy = PetscThreadPoolDestroy_PThread;
+  pool->ops->pooldestroy   = PetscThreadPoolDestroy_PThread;
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommCreate_PThread"
-PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThread(PetscThreadComm tcomm)
+#define __FUNCT__ "PetscThreadCommInit_PThread"
+/*
+   PetscThreadCommInit_PThread - Initialize PThread specific threadcomm variables
+
+   Not Collective
+
+   Input Parameters:
+.  tcomm - Threadcomm to initialize
+
+   Level: developer
+
+   Notes:
+   Initializes the PThread specific threadcomm structs, creates a pthread barrier, and
+   creates a pthread mutex.
+
+*/
+PETSC_EXTERN PetscErrorCode PetscThreadCommInit_PThread(PetscThreadComm tcomm)
 {
   PetscThreadComm_PThread ptcomm;
   PetscErrorCode          ierr;
@@ -150,8 +232,8 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThread(PetscThreadComm tcomm)
   printf("Creating PThread\n");
   ierr = PetscNew(&ptcomm);CHKERRQ(ierr);
 
-  pthread_barrier_init(&ptcomm->barr,PETSC_NULL,tcomm->ncommthreads);
-  pthread_mutex_init(&ptcomm->threadmutex,PETSC_NULL);
+  ierr = pthread_barrier_init(&ptcomm->barr,PETSC_NULL,tcomm->ncommthreads);CHKERRQ(ierr);
+  ierr = pthread_mutex_init(&ptcomm->threadmutex,PETSC_NULL);CHKERRQ(ierr);
 
   tcomm->data             = (void*)ptcomm;
   tcomm->ops->commdestroy = PetscThreadCommDestroy_PThread;
@@ -172,6 +254,22 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommCreate_PThread(PetscThreadComm tcomm)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommRunKernel_PThread"
+/*
+   PetscThreadCommRunKernel_PThread - Run a job on a threadcomm
+
+   Not Collective
+
+   Input Parameters:
++  tcomm - Threadcomm to run kernel on
+-  job   - Job to run on threadcomm
+
+   Level: developer
+
+   Notes:
+   Runs the job for the threadcomm. Synchronization after running the kernel is user optional.
+   If user does not synchronize here, then the user must use synchronization in their code.
+
+*/
 PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm tcomm,PetscThreadCommJobCtx job)
 {
   PetscThreadCommJobQueue jobqueue;
@@ -181,10 +279,10 @@ PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm tcomm,PetscThrea
   printf("rank=%d running kernel\n",0);
   // Do work for main thread
   if (tcomm->ismainworker) {
-    job->job_status   = THREAD_JOB_RECIEVED;
+    job->job_status   = THREAD_JOB_RECEIVED;
     tcomm->commthreads[0]->jobdata = job;
-    PetscRunKernel(job->commrank,job->nargs, tcomm->commthreads[0]->jobdata);
-    job->job_status   = THREAD_JOB_COMPLETED;
+    ierr = PetscRunKernel(job->commrank,job->nargs, tcomm->commthreads[0]->jobdata);CHKERRQ(ierr);
+    job->job_status = THREAD_JOB_COMPLETED;
     jobqueue = tcomm->commthreads[tcomm->lleader]->jobqueue;
     jobqueue->current_job_index = (jobqueue->current_job_index+1)%tcomm->nkernels;
     jobqueue->completed_jobs_ctr++;
@@ -198,10 +296,25 @@ PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm tcomm,PetscThrea
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommInitialize_PThread"
+/*
+   PetscThreadCommInitialize_PThread - Initialize and create the threads in the threadpool
+
+   Not Collective
+
+   Input Parameters:
+.  pool - Threadpool to initialize
+
+   Level: developer
+
+   Notes:
+   Initializes the threads, creates the pthreads, and verifies that each thread is ready
+   to receive work.
+
+*/
 PetscErrorCode PetscThreadCommInitialize_PThread(PetscThreadPool pool)
 {
-  PetscErrorCode          ierr;
-  PetscInt                i;
+  PetscErrorCode      ierr;
+  PetscInt            i,threads_initialized=0;
   PetscThread_PThread ptcomm;
 
   PetscFunctionBegin;
@@ -221,7 +334,6 @@ PetscErrorCode PetscThreadCommInitialize_PThread(PetscThreadPool pool)
 
   if (pool->ismainworker) pool->poolthreads[0]->status = THREAD_INITIALIZED;
 
-  PetscInt threads_initialized=0;
   /* Wait till all threads have been initialized */
   while (threads_initialized != pool->npoolthreads) {
     threads_initialized=0;
@@ -235,6 +347,20 @@ PetscErrorCode PetscThreadCommInitialize_PThread(PetscThreadPool pool)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommBarrier_PThread"
+/*
+   PetscThreadCommBarrier_PThread - PThreads barrier for threadcomm
+
+   Collective on threadcomm
+
+   Input Parameters:
+.  tcomm - Threadcomm to use barrier on
+
+   Level: developer
+
+   Notes:
+   Must be called by all threads.
+
+*/
 PetscErrorCode PetscThreadCommBarrier_PThread(PetscThreadComm tcomm)
 {
   PetscThreadComm_PThread ptcomm = (PetscThreadComm_PThread)tcomm->data;
