@@ -48,7 +48,7 @@ int main(int argc,char **argv)
 
   // Create MPI_Comm and ThreadComm from PETSC_COMM_WORLD
   // Create worker threads in PETSc, master thread returns
-  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,PETSC_NULL,PETSC_NULL,&comm1);CHKERRQ(ierr);
+  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,PETSC_NULL,&comm1);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(comm1,&nthreads);CHKERRQ(ierr);
   ierr = PetscPrintf(comm1,"Created comm1 with %d threads\n",nthreads);CHKERRQ(ierr);
 
@@ -70,7 +70,7 @@ int main(int argc,char **argv)
     affinities[i] = nthreads + i;
   }
   // Attach threadcomm to PETSC_COMM_WORLD
-  ierr = PetscThreadCommCreateAttach(PETSC_COMM_WORLD,nthreads,PETSC_NULL,affinities);CHKERRQ(ierr);
+  ierr = PetscThreadCommCreateAttach(PETSC_COMM_WORLD,nthreads,affinities);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(PETSC_COMM_WORLD,&ntcthreads1);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"PETSC_COMM_WORLD has %d threads\n",ntcthreads1);CHKERRQ(ierr);
 

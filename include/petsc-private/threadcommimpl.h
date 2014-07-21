@@ -132,8 +132,7 @@ struct _PetscThreadCommOps {
 
 typedef struct _p_PetscThread* PetscThread;
 struct _p_PetscThread{
-  PetscInt                grank;    /* Global thread rank */
-  PetscInt                lrank;    /* Local thread rank in pool */
+  PetscInt                prank;    /* Thread rank in pool */
   PetscThreadPool         pool;     /* Threadpool for current thread */
   PetscInt                status;   /* Status of current job for each thread */
   PetscThreadCommJobCtx   jobdata;  /* Data for current job for each thread */
@@ -185,7 +184,11 @@ struct _p_PetscThreadComm{
 
   // Thread information
   PetscThreadPool         pool;          /* Threadpool containing threads for this comm */
-  PetscInt                ncommthreads;  /* Max threads comm can use */
+  PetscInt                threadblock;   /* Number of threads in pool occupied by this comm (including threads
+                                            that are intentionally unused) */
+  PetscInt                shift;         /* Pool rank of smallest thread in threadcomm, used to shift pool ranks
+                                            for threads in threadcomm so that the smallest rank is 0 */
+  PetscInt                ncommthreads;  /* Number of threads in this comm */
   PetscThread             *commthreads;  /* Threads that this comm can use */
 };
 

@@ -22,42 +22,7 @@ PetscErrorCode PetscThreadCommGetRank_OpenMP(PetscInt *trank)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommSetAffinity_OpenMPUser"
-/*
-   PetscThreadCommSetAffinity_OpenMPUser - Set thread affinity for an openmp
-                                           thread for the user thread model
-
-   Not Collective
-
-   Input Parameters:
-+  pool   - Threadpool containing affinity settings
--  thread - Thread to set the affinity for
-
-   Level: developer
-
-   Notes:
-   Must be called by an openmp thread to correctly set the affinity.
-
-*/
-PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMPUser(PetscThreadPool pool,PetscThread thread)
-{
-  PetscBool      set;
-  PetscErrorCode ierr;
-#if defined(PETSC_HAVE_SCHED_CPU_SET_T)
-  cpu_set_t      cpuset;
-#endif
-
-  PetscFunctionBegin;
-#if defined(PETSC_HAVE_SCHED_CPU_SET_T)
-  printf("OpenMP Setting affinity for lrank=%d grank=%d aff=%d\n",thread->lrank,thread->grank,thread->affinity);
-  ierr = PetscThreadPoolSetAffinity(pool,&cpuset,thread->affinity,&set);
-  if (set) sched_setaffinity(0,sizeof(cpu_set_t),&cpuset);
-#endif
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommSetAffinity_OpenMPLoop"
+#define __FUNCT__ "PetscThreadCommSetAffinity_OpenMP"
 /*
    PetscThreadCommSetAffinity_OpenMPLoop - Set thread affinity for an openmp
                                            thread for the loop thread model
@@ -75,7 +40,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMPUser(PetscThreadPoo
    is therefore only used by the loop user model.
 
 */
-PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMPLoop(PetscThreadPool pool,PetscThread thread)
+PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMP(PetscThreadPool pool,PetscThread thread)
 {
   PetscFunctionBegin;
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
@@ -119,11 +84,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_OpenMP(PetscThreadPool pool)
 
   ierr = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
   pool->threadtype = THREAD_TYPE_OPENMP;
-  if (pool->model == THREAD_MODEL_USER) {
-    pool->ops->setaffinities = PetscThreadCommSetAffinity_OpenMPUser;
-  } else if (pool->model == THREAD_MODEL_LOOP) {
-    pool->ops->setaffinities = PetscThreadCommSetAffinity_OpenMPLoop;
-  }
+  pool->ops->setaffinities = PetscThreadCommSetAffinity_OpenMP;
   PetscFunctionReturn(0);
 }
 

@@ -1321,6 +1321,10 @@ PETSC_EXTERN PetscErrorCode (*PetscTrFree)(void*,int,const char[],const char[]);
 PETSC_EXTERN PetscErrorCode PetscMallocSet(PetscErrorCode (*)(size_t,int,const char[],const char[],void**),PetscErrorCode (*)(void*,int,const char[],const char[]));
 PETSC_EXTERN PetscErrorCode PetscMallocClear(void);
 
+#if defined(PETSC_HAVE_PTHREADCLASSES) || defined (PETSC_HAVE_OPENMP)
+#include <pthread.h>
+#endif
+
 /*
     PetscLogDouble variables are used to contain double precision numbers
   that are not used in the numerical computations, but rather in logging,
@@ -1328,6 +1332,19 @@ PETSC_EXTERN PetscErrorCode PetscMallocClear(void);
 */
 typedef double PetscLogDouble;
 #define MPIU_PETSCLOGDOUBLE MPI_DOUBLE
+
+#if defined(PETSC_HAVE_PTHREADCLASSES)
+#if defined(PETSC_PTHREAD_LOCAL)
+PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscTRMallocStruct *petsctrmalloc;
+#else
+PETSC_EXTERN PetscThreadKey petsctrmalloc;
+#endif
+#elif defined(PETSC_HAVE_OPENMP)
+PETSC_EXTERN PetscTRMallocStruct *petsctrmalloc;
+#pragma omp threadprivate(petscstack)
+#else
+PETSC_EXTERN PetscTRMallocStruct *petsctrmalloc;
+#endif
 
 /*
    Routines for tracing memory corruption/bleeding with default PETSc  memory allocation

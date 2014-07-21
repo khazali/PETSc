@@ -189,8 +189,7 @@ PetscErrorCode PetscThreadCreateJobQueue(PetscThread thread,PetscThreadPool pool
 
    Input Parameters:
 +  pool     - Threadpool
-.  nthreads - Number of threads to put in threadpool
--  granks   - Global thread rank of each thread in pool or PETSC_DECIDE to set ranks
+-  nthreads - Number of threads to put in threadpool
 
    Options Database keys:
    -threadcomm_nkernels <nkernels>
@@ -201,7 +200,7 @@ PetscErrorCode PetscThreadCreateJobQueue(PetscThread thread,PetscThreadPool pool
    Initializes threadpool and creates and initializes each thread.
    PETSc sets the global ranks from 0 to nthreads-1.
 @*/
-PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool pool,PetscInt nthreads,PetscInt *granks)
+PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool pool,PetscInt nthreads)
 {
   PetscInt       i,ncores;
   PetscErrorCode ierr;
@@ -234,13 +233,8 @@ PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool pool,PetscInt nthreads,
   ierr = PetscMalloc1(pool->npoolthreads,&pool->poolthreads);CHKERRQ(ierr);
   for (i=0; i<pool->npoolthreads; i++) {
     ierr = PetscNew(&pool->poolthreads[i]);CHKERRQ(ierr);
-    pool->poolthreads[i]->lrank = i;
-    if (!granks) {
-      pool->poolthreads[i]->grank = i % ncores;
-    } else {
-      pool->poolthreads[i]->grank = granks[i];
-    }
-    printf("Pool index=%d grank=%d\n",i,pool->poolthreads[i]->grank);
+    pool->poolthreads[i]->prank = i % ncores;
+    printf("Pool index=%d prank=%d\n",i,pool->poolthreads[i]->prank);
     pool->poolthreads[i]->pool     = PETSC_NULL;
     pool->poolthreads[i]->status   = 0;
     pool->poolthreads[i]->jobdata  = PETSC_NULL;
@@ -363,7 +357,6 @@ PetscErrorCode PetscThreadPoolSetModel(PetscThreadPool pool,PetscThreadCommModel
    Input Parameters:
 +  tcomm      - Threadcomm to create threadpool for
 .  nthreads   - Number of threads to create in pool or PETSC_DECIDE
-.  granks     - Global thread ranks for threads in pool or PETSC_DECIDE
 -  affinities - Core affinities for each thread in pool or PETSC_DECIDE
 
    Level: developer
@@ -372,18 +365,18 @@ PetscErrorCode PetscThreadPoolSetModel(PetscThreadPool pool,PetscThreadCommModel
    Allocates and initializes a threadpool. Can create threads and add them to a threadpool.
    Passing PETSC_DECIDE for nthreads gets the number of threads from user input option
    or uses the number of cores available.
-   Passing PETSC_DECIDE for granks or affinities initializes the ranks and affinities
+   Passing PETSC_DECIDE for affinities initializes the affinities
    from 0 to nthreads-1.
 
 @*/
-PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm,PetscInt nthreads,PetscInt *granks,PetscInt *affinities)
+PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm,PetscInt nthreads,PetscInt *affinities)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   printf("Creating ThreadPool\n");
   ierr = PetscThreadPoolAlloc(&tcomm->pool);CHKERRQ(ierr);
-  ierr = PetscThreadPoolInitialize(tcomm->pool,nthreads,granks);CHKERRQ(ierr);
+  ierr = PetscThreadPoolInitialize(tcomm->pool,nthreads);CHKERRQ(ierr);
   printf("Setting affinities in threadpool\n");
 
   // Set thread affinities in thread struct
@@ -648,15 +641,10 @@ void* PetscThreadPoolFunc(void *arg)
 
   PetscFunctionBegin;
   thread   = *(PetscThread*)arg;
-  trank    = thread->lrank;
+  trank    = thread->prank;
   pool     = thread->pool;
   jobqueue = pool->poolthreads[trank]->jobqueue;
   printf("rank=%d in ThreadPoolFunc\n",trank);
-
-  // Set affinity for this thread
-  if (pool->threadtype == THREAD_TYPE_OPENMP) {
-    ierr = (*pool->ops->setaffinities)(pool,thread);CHKERRCONTINUE(ierr);
-  }
 
   // Create thread stack
   ierr = PetscThreadCommStackCreate(trank);CHKERRCONTINUE(ierr);

@@ -17,7 +17,7 @@ int main(int argc,char **argv)
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr);
 
   ierr = PetscOptionsGetInt(PETSC_NULL,"-n",&n,PETSC_NULL);CHKERRQ(ierr);
-  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,PETSC_NULL,PETSC_NULL,&comm);CHKERRQ(ierr);
+  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,PETSC_NULL,&comm);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(comm,&nthreads);CHKERRQ(ierr);
   ierr = PetscPrintf(comm,"nthreads=%d\n",nthreads);CHKERRQ(ierr);
 
@@ -34,7 +34,7 @@ int main(int argc,char **argv)
     int trank = omp_get_thread_num();
 
     // User gives threads to PETSc for threaded PETSc work
-    ierr = PetscThreadCommJoin(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadCommJoinComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
     ierr = PetscPrintf(comm,"trank=%d joined comm commrank=%d\n",trank,commrank);CHKERRCONTINUE(ierr);
     if(commrank>=0) {
       ierr = VecSet(x,2.0);CHKERRCONTINUE(ierr);
@@ -43,7 +43,7 @@ int main(int argc,char **argv)
       ierr = VecNorm(y,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
       ierr = PetscPrintf(comm,"Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
     }
-    ierr = PetscThreadCommReturn(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadCommReturnComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
 
     // Get data for local work
     ierr = VecGetArray(y,&ay);CHKERRCONTINUE(ierr);
@@ -62,17 +62,17 @@ int main(int argc,char **argv)
     ierr = VecRestoreArray(y,&ay);CHKERRCONTINUE(ierr);
 
     // User gives threads to PETSc for threaded PETSc work
-    ierr = PetscThreadCommJoin(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadCommJoinComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
     if(commrank>=0) {
       ierr = VecScale(y,2.0);CHKERRCONTINUE(ierr);
       ierr = VecAXPY(y,alpha,x);CHKERRCONTINUE(ierr);
       ierr = VecNorm(y,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
       ierr = PetscPrintf(comm,"Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
     }
-    ierr = PetscThreadCommReturn(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadCommReturnComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
 
     // User gives threads to PETSc for threaded PETSc work
-    ierr = PetscThreadCommJoin(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadCommJoinComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
     if(commrank>=0) {
 
       PetscScalar *avals, *bvals;
@@ -126,7 +126,7 @@ int main(int argc,char **argv)
       VecMDot(c,2,mvecs,vals);
       ierr = PetscPrintf(comm,"MDot n1=%f n2=%f\n",vals[0],vals[1]);CHKERRCONTINUE(ierr);
     }
-    ierr = PetscThreadCommReturn(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadCommReturnComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
   }
 
   // Destroy Vecs

@@ -50,7 +50,7 @@ PetscErrorCode PetscCommGetThreadComm(MPI_Comm comm,PetscThreadComm *tcomm)
   ierr = MPI_Attr_get(comm,Petsc_ThreadComm_keyval,(PetscThreadComm*)&ptr,&flg);CHKERRQ(ierr);
   if (!flg) {
     // Create and attach threadcomm based on user input options
-    ierr = PetscThreadCommCreateAttach(comm,PETSC_DECIDE,PETSC_NULL,PETSC_NULL);CHKERRQ(ierr);
+    ierr = PetscThreadCommCreateAttach(comm,PETSC_DECIDE,PETSC_NULL);CHKERRQ(ierr);
     // Get threadcomm from MPI_Comm
     ierr = MPI_Attr_get(comm,Petsc_ThreadComm_keyval,(PetscThreadComm*)&ptr,&flg);CHKERRQ(ierr);
   }
@@ -1261,7 +1261,6 @@ PetscErrorCode PetscThreadCommAttach(MPI_Comm comm,PetscThreadComm tcomm)
    Input Parameters:
 +  comm       - MPI communicator
 .  nthreads   - Number of threads for communicator or PETSC_DECIDE
-.  granks     - Array of ranks for each thread or PETSC_NULL
 -  affinities - Array of core affinities for each thread or PETSC_NULL
 
    Output Parameters:
@@ -1272,11 +1271,10 @@ PetscErrorCode PetscThreadCommAttach(MPI_Comm comm,PetscThreadComm tcomm)
    Notes:
    Allocates and initializes a threadcomm. Duplicates the input MPI comm and attaches the
    created threadcomm to it. Creates a new threadpool for the threadcomm to use.
-   PETSc can automatically set nthreads, granks, and affinities. The granks and affinities
-   arrays can be the same array.
+   PETSc can automatically set nthreads and affinities.
 
 @*/
-PetscErrorCode PetscThreadCommCreate(MPI_Comm comm,PetscInt nthreads,PetscInt *granks,PetscInt *affinities,MPI_Comm *mpicomm)
+PetscErrorCode PetscThreadCommCreate(MPI_Comm comm,PetscInt nthreads,PetscInt *affinities,MPI_Comm *mpicomm)
 {
   PetscInt        i,*lranks;
   PetscThreadComm tcomm;
@@ -1286,7 +1284,7 @@ PetscErrorCode PetscThreadCommCreate(MPI_Comm comm,PetscInt nthreads,PetscInt *g
   // Allocate space for ThreadComm
   ierr = PetscThreadCommAlloc(&tcomm);CHKERRQ(ierr);
   // Create ThreadPool
-  ierr = PetscThreadPoolCreate(tcomm,nthreads,granks,affinities);CHKERRQ(ierr);
+  ierr = PetscThreadPoolCreate(tcomm,nthreads,affinities);CHKERRQ(ierr);
   if (nthreads == PETSC_DECIDE) nthreads = tcomm->pool->npoolthreads;
   // Set thread ranks
   ierr = PetscMalloc1(nthreads,&lranks);CHKERRQ(ierr);
@@ -1312,7 +1310,7 @@ PetscErrorCode PetscThreadCommCreate(MPI_Comm comm,PetscInt nthreads,PetscInt *g
    Input Parameters:
 +  comm     - MPI communicator
 .  nthreads - Number of threads for communicator or PETSC_DECIDE
--  granks   - Array of ranks for each thread or PETSC_NULL
+-  inpranks   - Array of ranks for each thread or PETSC_NULL
 
    Output Parameters:
 .  mpicomm  - New MPI_Comm with attached threadcomm
@@ -1323,13 +1321,13 @@ PetscErrorCode PetscThreadCommCreate(MPI_Comm comm,PetscInt nthreads,PetscInt *g
    Allocates and initializes a threadcomm. Duplicates the input MPI comm and attaches the
    created threadcomm to it. Uses the threadcomm from the input mpi comm.
    If user passes in PETSC_DECIDE for nthreads then use all threads in the original threadcomm.
-   If user passes in PETSC_NULL for granks then use the first nthreads threads in the original threadcomm.
+   If user passes in PETSC_NULL for inpranks then use the first nthreads threads in the original threadcomm.
 
 @*/
-PetscErrorCode PetscThreadCommCreateShare(MPI_Comm comm,PetscInt nthreads,PetscInt *granks,MPI_Comm *mpicomm)
+PetscErrorCode PetscThreadCommCreateShare(MPI_Comm comm,PetscInt nthreads,PetscInt *inpranks,MPI_Comm *mpicomm)
 {
   PetscThreadComm tcomm,incomm;
-  PetscInt        i,j,*lranks;
+  PetscInt        i,*pranks;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
@@ -1350,24 +1348,16 @@ PetscErrorCode PetscThreadCommCreateShare(MPI_Comm comm,PetscInt nthreads,PetscI
     nthreads = incomm->ncommthreads;
   }
   // If user did not pass in granks, use the first nthreads threads in the incomm
-  if (granks == PETSC_NULL) {
+  if (pranks == PETSC_NULL) {
+    ierr = PetscMalloc1(nthreads,&pranks);CHKERRQ(ierr);
     for (i=0; i<nthreads; i++) {
-      granks[i] = incomm->commthreads[i]->grank;
+      pranks[i] = incomm->commthreads[i]->prank;
     }
-  }
-  // Convert granks to lranks
-  ierr = PetscMalloc1(nthreads,&lranks);CHKERRQ(ierr);
-  for (i=0; i<nthreads; i++) {
-    lranks[i] = -1;
-    for (j=0; j<tcomm->pool->npoolthreads; j++) {
-      if (granks[i] == tcomm->pool->poolthreads[j]->grank) lranks[i] = j;
-    }
-    if (lranks[i] == -1) {
-      SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Original threadcomm does not contain requested thread for shared threadcomm");
-    }
+  } else {
+    pranks = inpranks;
   }
   // Initialize ThreadComm
-  ierr = PetscThreadCommInitialize(nthreads,lranks,tcomm);CHKERRQ(ierr);
+  ierr = PetscThreadCommInitialize(nthreads,pranks,tcomm);CHKERRQ(ierr);
   // Duplicate MPI_Comm
   ierr = PetscCommForceDuplicate(comm,mpicomm,PETSC_NULL);CHKERRQ(ierr);
   // Remove original threadcomm
@@ -1388,7 +1378,6 @@ PetscErrorCode PetscThreadCommCreateShare(MPI_Comm comm,PetscInt nthreads,PetscI
    Input Parameters:
 +  comm       - MPI communicator
 .  nthreads   - Number of threads for communicator or PETSC_DECIDE
-.  granks     - Array of ranks for each thread or PETSC_NULL
 -  affinities - Array of core affinities for each thread or PETSC_NULL
 
    Level: developer
@@ -1396,13 +1385,12 @@ PetscErrorCode PetscThreadCommCreateShare(MPI_Comm comm,PetscInt nthreads,PetscI
    Notes:
    Allocates and initializes a threadcomm. Attaches the created threadcomm to the input
    MPI Comm. Creates a new threadpool for the threadcomm to use.
-   PETSc can automatically set nthreads, granks, and affinities. The granks and affinities
-   arrays can be the same array.
+   PETSc can automatically set nthreads and affinities.
 
 @*/
-PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt nthreads,PetscInt *granks,PetscInt *affinities)
+PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt nthreads,PetscInt *affinities)
 {
-  PetscInt        i,*lranks;
+  PetscInt        i,*pranks;
   PetscThreadComm tcomm;
   PetscErrorCode  ierr;
 
@@ -1411,13 +1399,13 @@ PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt nthreads,Petsc
   // Allocate space for ThreadComm
   ierr = PetscThreadCommAlloc(&tcomm);CHKERRQ(ierr);
   // Create ThreadPool
-  ierr = PetscThreadPoolCreate(tcomm,nthreads,granks,affinities);CHKERRQ(ierr);
+  ierr = PetscThreadPoolCreate(tcomm,nthreads,affinities);CHKERRQ(ierr);
   if (nthreads == PETSC_DECIDE) nthreads = tcomm->pool->npoolthreads;
   // Set thread ranks
-  ierr = PetscMalloc1(nthreads,&lranks);CHKERRQ(ierr);
-  for (i=0; i<nthreads; i++) lranks[i] = i;
+  ierr = PetscMalloc1(nthreads,&pranks);CHKERRQ(ierr);
+  for (i=0; i<nthreads; i++) pranks[i] = i;
   // Initialize ThreadComm
-  ierr = PetscThreadCommInitialize(nthreads,lranks,tcomm);CHKERRQ(ierr);
+  ierr = PetscThreadCommInitialize(nthreads,pranks,tcomm);CHKERRQ(ierr);
   // Attach ThreadComm to MPI_Comm
   ierr = PetscThreadCommAttach(comm,tcomm);CHKERRQ(ierr);
   printf("Created new threadcomm with %d threads\n",tcomm->ncommthreads);
@@ -1437,7 +1425,6 @@ PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt nthreads,Petsc
 .  ncomms      - Number of thread comms to create
 .  nthreads    - Number of threads in all communicators or PETSC_DECIDE
 .  incommsizes - Array of sizes for each new comm to create or PETSC_NULL
-.  granks      - Array of ranks for each thread or PETSC_NULL
 -  affinities  - Array of core affinities for each thread or PETSC_NULL
 
    Output Parameters:
@@ -1448,16 +1435,16 @@ PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt nthreads,Petsc
    Notes:
    Allocates and initializes multiple threadcomms. Duplicates the input MPI comm and attaches
    a threadcomm to the duplicate MPI Comm. Creates a new threadpool for each threadcomm to use.
-   PETSc can automatically set nthreads, incommsizes, granks, and affinities. The granks and
-   affinities arrays can be the same array.
+   PETSc can automatically set nthreads, incommsizes and affinities.
 
 @*/
-PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,PetscInt nthreads,PetscInt *incommsizes,PetscInt *granks,PetscInt *affinities,MPI_Comm **multcomms)
+PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,PetscInt nthreads,PetscInt *incommsizes,PetscInt *affinities,MPI_Comm **multcomms)
 {
-  PetscErrorCode ierr;
-  PetscInt       i,j,*multranks,*multaffinities,*commsizes;
-  PetscInt       splitsize,remainder,nthr,startthread;
-  PetscBool      extra,flg;
+  PetscErrorCode  ierr;
+  PetscInt        i,j,*multaffinities,*commsizes;
+  PetscInt        splitsize,remainder,nthr,startthread;
+  PetscBool       extra,flg;
+  PetscThreadComm tcomm;
 
   PetscFunctionBegin;
   // Allocate splitcomms
@@ -1494,8 +1481,7 @@ PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,Petsc
 
   // Create each splitcomm
   for (i=0; i<ncomms; i++) {
-    // Set ranks and affinities for threadcomm
-    ierr = PetscMalloc1(commsizes[i],&multranks);CHKERRQ(ierr);
+    // Set affinities for threadcomm
     ierr = PetscMalloc1(commsizes[i],&multaffinities);CHKERRQ(ierr);
     // Count previous threads
     startthread = 0;
@@ -1504,16 +1490,14 @@ PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,Petsc
     }
     // Set default affinities this multcomm will use
     for (j=0; j<commsizes[i]; j++) {
-      if (!granks) multranks[j] = startthread + j;
-      else multranks[j] = granks[j];
       if (!affinities) multaffinities[j] = startthread + j;
       else multaffinities[j] = affinities[j];
-      printf("Creating multcomm thread=%d rank=%d on core=%d\n",j,multranks[j],multaffinities[j]);
+      printf("Creating multcomm thread=%d on core=%d\n",j,multaffinities[j]);
     }
     // Create threadcomm
-    ierr = PetscThreadCommCreate(comm,commsizes[i],multranks,multaffinities,&(*multcomms)[i]);CHKERRQ(ierr);
-
-    ierr = PetscFree(multranks);CHKERRQ(ierr);
+    ierr = PetscThreadCommCreate(comm,commsizes[i],multaffinities,&(*multcomms)[i]);CHKERRQ(ierr);
+    ierr = PetscCommGetThreadComm((*multcomms)[i],&tcomm);CHKERRQ(ierr);
+    tcomm->threadblock = tcomm->ncommthreads;
     ierr = PetscFree(multaffinities);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
@@ -1531,7 +1515,7 @@ PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,Petsc
 +  comm        - MPI communicator
 .  ncomms      - Number of thread comms to create
 .  incommsizes - Array of sizes for each new comm to create or PETSC_NULL
--  granks      - Array of global ranks for each thread in splitcomm or PETSC_NULL
+-  inpranks      - Array of global ranks for each thread in splitcomm or PETSC_NULL
 
    Output Parameters:
 .  multcomms   - Array of MPI comms each with a different threadcomm
@@ -1541,16 +1525,15 @@ PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,Petsc
    Notes:
    Allocates and initializes multiple threadcomms. Duplicates the input MPI comm and attaches
    a threadcomm to the duplicate MPI Comm. Creates a new threadpool for each threadcomm to use.
-   PETSc can automatically set nthreads, incommsizes, granks, and affinities. The granks and
-   affinities arrays can be the same array.
+   PETSc can automatically set nthreads, incommsizes, inpranks, and affinities.
 
 @*/
-PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *incommsizes,PetscInt *ingranks,MPI_Comm **splitcomms)
+PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *incommsizes,PetscInt *inpranks,MPI_Comm **splitcomms)
 {
   PetscErrorCode  ierr;
-  PetscInt        i,j,*granks,startthread,*commsizes,splitsize,remainder,nthreads;
+  PetscInt        i,j,*pranks,startthread,*commsizes,splitsize,remainder,nthreads;
   PetscBool       extra;
-  PetscThreadComm tcomm;
+  PetscThreadComm tcomm,stcomm;
 
   PetscFunctionBegin;
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
@@ -1581,26 +1564,28 @@ PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *inco
 
   // Create each splitcomm
   for (i=0; i<ncomms; i++) {
-    ierr = PetscMalloc1(commsizes[i],&granks);CHKERRQ(ierr);
+    ierr = PetscMalloc1(commsizes[i],&pranks);CHKERRQ(ierr);
     // Count previous threads
     startthread = 0;
     for (j=0; j<i; j++) {
       startthread += commsizes[j];
     }
     // Set granks
-    if (!ingranks) {
+    if (!inpranks) {
       for (j=0; j<commsizes[i]; j++) {
-        granks[j] = startthread + j;
-        printf("Creating splitcomm %d with thread %d\n",j,granks[j]);
+        pranks[j] = startthread + j;
+        printf("Creating splitcomm %d with thread %d\n",j,pranks[j]);
       }
     } else {
       for (j=0; j<commsizes[i]; j++) {
-        granks[j] = ingranks[startthread+j];
+        pranks[j] = inpranks[startthread+j];
       }
     }
     // Create threadcomm that shares threads with input threadcomm
-    ierr = PetscThreadCommCreateShare(comm,commsizes[i],granks,&(*splitcomms)[i]);CHKERRQ(ierr);
-    ierr = PetscFree(granks);CHKERRQ(ierr);
+    ierr = PetscThreadCommCreateShare(comm,commsizes[i],pranks,&(*splitcomms)[i]);CHKERRQ(ierr);
+    ierr = PetscCommGetThreadComm((*splitcomms)[i],&stcomm);CHKERRQ(ierr);
+    stcomm->threadblock = stcomm->ncommthreads;
+    ierr = PetscFree(pranks);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -1614,7 +1599,7 @@ PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *inco
 
    Input Parameters:
 +  nthreads - Number of threads for the threadcomm
-.  lranks   - Threadpool rank for each thread to add to the threadcomm
+.  pranks   - Threadpool rank for each thread to add to the threadcomm
 -  tcomm    - Threadcomm to initialize
 
    Level: developer
@@ -1624,7 +1609,7 @@ PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *inco
    gains access to the requested threads in the threadpool.
    Defaults to using the nonthreaded communicator.
 */
-PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *lranks,PetscThreadComm tcomm)
+PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *pranks,PetscThreadComm tcomm)
 {
   PetscThreadPool pool;
   PetscInt        i;
@@ -1657,12 +1642,13 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *lranks,Pets
     tcomm->thread_start = 1;
     tcomm->ncommthreads = nthreads;
   }
+  tcomm->threadblock = pool->npoolthreads;
   printf("threadstart=%d ncommthreads=%d\n",tcomm->thread_start,tcomm->ncommthreads);
 
   ierr = PetscMalloc1(tcomm->ncommthreads,&tcomm->commthreads);CHKERRQ(ierr);
   for (i=0; i<tcomm->ncommthreads; i++) {
-    printf("threadcomm thread i=%d gets poolthreads lranks=%d\n",i,lranks[i]);
-    tcomm->commthreads[i] = pool->poolthreads[lranks[i]];
+    printf("threadcomm thread i=%d gets poolthreads pranks=%d\n",i,pranks[i]);
+    tcomm->commthreads[i] = pool->poolthreads[pranks[i]];
   }
 
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
@@ -1670,8 +1656,8 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *lranks,Pets
   if (tcomm->ismainworker) {
     PetscBool set;
     cpu_set_t cpuset;
-    printf("main thread setting affinity to grank=%d\n",tcomm->commthreads[0]->grank);
-    ierr = PetscThreadPoolSetAffinity(tcomm->pool,&cpuset,tcomm->commthreads[0]->grank,&set);CHKERRQ(ierr);
+    printf("main thread setting affinity to grank=%d\n",tcomm->commthreads[0]->prank);
+    ierr = PetscThreadPoolSetAffinity(tcomm->pool,&cpuset,tcomm->commthreads[0]->prank,&set);CHKERRQ(ierr);
     sched_setaffinity(0,sizeof(cpu_set_t),&cpuset);
   }
 #endif
@@ -1679,7 +1665,7 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *lranks,Pets
   /* Set the leader thread rank */
   if (tcomm->ncommthreads) {
     tcomm->lleader = 0;
-    tcomm->gleader = tcomm->commthreads[0]->grank;
+    tcomm->gleader = tcomm->commthreads[0]->prank;
   }
 
   /* Initialize implementation specific settings */
@@ -1827,9 +1813,133 @@ PetscErrorCode PetscThreadCommInitModel_User(PetscThreadPool pool)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommJoin"
+#define __FUNCT__ "PetscThreadCommSetThreadAffinity"
+/*
+   PetscThreadCommSetThreadAffinity - Migrate thread to specified core based on
+                                      specified thread affinity
+
+   Not Collective
+
+   Input Parameters:
++  pool - Threadpool with settings
+-  thread - Thread to set affinity for
+
+   Level: developer
+
+   Notes:
+   Moves thread given to Petsc by the user to the core specified by the affinity
+   settings.
+
+*/
+PETSC_EXTERN PetscErrorCode PetscThreadCommSetThreadAffinity(PetscThreadPool pool,PetscThread thread)
+{
+  PetscBool      set;
+  PetscErrorCode ierr;
+#if defined(PETSC_HAVE_SCHED_CPU_SET_T)
+  cpu_set_t      cpuset;
+#endif
+
+  PetscFunctionBegin;
+#if defined(PETSC_HAVE_SCHED_CPU_SET_T)
+  printf("Setting affinity for prank=%d aff=%d\n",thread->prank,thread->affinity);
+  ierr = PetscThreadPoolSetAffinity(pool,&cpuset,thread->affinity,&set);
+  if (set) sched_setaffinity(0,sizeof(cpu_set_t),&cpuset);
+#endif
+  PetscFunctionReturn(0);
+}
+
+
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommJoinComm"
 /*@
-   PetscThreadCommJoin - Allows user to give a thread to PETSc to use to do work
+   PetscThreadCommJoinComm - Allows user to give a thread to PETSc to use to do work.
+                             Gives multiple threads to a single threadcomm
+
+   Not Collective
+
+   Input Parameters:
++  comm     - MPI Comm containing the threadcomm to join
+-  trank    - Rank of calling thread (must be between 0 and ncommthreads-1)
+
+   Output Parameters:
+.  commrank - Rank of thread that returns from this function (0 for master thread, -1 for worker thread). User can pass in nonnegative commrank for master thread.
+
+   Level: developer
+
+   Notes:
+   This routine allows threads to enter a threadpool for petsc to use to do work. A master
+   thread will return from this function and give work to the worker threads in this
+   threadcomm. The user can give some threads to petsc while using continuing to use
+   other threads.
+
+   commrank returns the user input value or 0 as the commrank for the master threads,
+   and returns -1 for worker threads. This allows worker threads to avoid calling
+   routines a second time. Any threads with rank greater than the number of threads
+   in this threadcomm return immediately with -1 for commrank, and will skip to
+   PetscThreadCommReturnComm().
+
+   The user can use this routine to join multiple threads to multiple threadcomms, but
+   they must make sure each thread calls this routine with the correct threadcomm and a
+   thread rank between 0 and ncommthreads-1 (even if the thread has a higher rank).
+
+   Example of usage:
+   PetscThreadCommJoinComm(...);
+   if (commrank >= 0) {
+     // do work
+   }
+   PetscThreadCommReturnComm(...);
+
+@*/
+PetscErrorCode PetscThreadCommJoinComm(MPI_Comm comm,PetscInt trank,PetscInt *commrank)
+{
+  PetscThreadComm tcomm;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBegin;
+  printf("rank=%d joining thread pool\n",trank);
+  ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
+
+  // Make sure this thread is in a comm
+  if (trank >= 0 && trank < tcomm->ncommthreads) {
+    printf("Joining thread %d to comm\n",trank);
+
+    // Make sure all threads have reached this routine
+    ierr = (*tcomm->ops->barrier)(tcomm);
+
+    // Initialize thread and join threadpool if a worker thread
+    if (trank == tcomm->lleader) {
+      tcomm->active = PETSC_TRUE;
+      if(*commrank < 0) *commrank = 0;
+    } else {
+      tcomm->commthreads[trank]->status  = THREAD_INITIALIZED;
+      tcomm->commthreads[trank]->jobdata = 0;
+      tcomm->commthreads[trank]->pool    = tcomm->pool;
+      *commrank = -1;
+    }
+
+    // Make sure all threads have initialized threadcomm
+    ierr = (*tcomm->ops->barrier)(tcomm);
+
+    // Set affinity
+    if(tcomm->threadtype == THREAD_TYPE_OPENMP) {
+      ierr = PetscThreadCommSetThreadAffinity(tcomm->pool,tcomm->commthreads[trank]);CHKERRCONTINUE(ierr);
+    }
+
+    if (*commrank == -1) {
+      // Join thread pool if not leader thread
+      PetscThreadPoolFunc((void*)&tcomm->commthreads[trank]);
+    }
+  } else {
+    *commrank = -1;
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommJoinMultComms"
+/*@
+   PetscThreadCommJoinComms - Allows user to give a thread to PETSc to use to do work
 
    Not Collective
 
@@ -1862,7 +1972,7 @@ PetscErrorCode PetscThreadCommInitModel_User(PetscThreadPool pool)
    PetscThreadCommReturn(...);
 
 @*/
-PetscErrorCode PetscThreadCommJoin(MPI_Comm *comm,PetscInt ncomms,PetscInt trank,PetscInt *commrank)
+PetscErrorCode PetscThreadCommJoinMultComms(MPI_Comm *comm,PetscInt ncomms,PetscInt trank,PetscInt *commrank)
 {
   PetscInt        i,j,comm_index=-1,local_index=-1,startthread=0;
   PetscThreadComm *tcomm;
@@ -1872,18 +1982,19 @@ PetscErrorCode PetscThreadCommJoin(MPI_Comm *comm,PetscInt ncomms,PetscInt trank
   printf("rank=%d joining thread pool\n",trank);
   ierr = PetscMalloc1(ncomms,&tcomm);CHKERRQ(ierr);
 
-  // Determine which threadcomm and local thread this thread belongs to
+  // Determine which threadcomm and local thread to join
   for (i=0; i<ncomms; i++) {
     ierr = PetscCommGetThreadComm(comm[i],&tcomm[i]);CHKERRQ(ierr);
 
-    // Check if this thread is in threadcomm
+    // Find thread to join
     for (j=0; j<tcomm[i]->ncommthreads; j++) {
-      if (tcomm[i]->commthreads[j]->grank == trank) {
+      // Check if this is the correct threadcomm and thread
+      if (startthread + tcomm[i]->commthreads[j]->prank - tcomm[i]->shift == trank) {
         comm_index  = i;
         local_index = j;
       }
     }
-    startthread += tcomm[i]->ncommthreads;
+    startthread += tcomm[i]->threadblock;
   }
 
   // Make sure this thread is in a comm
@@ -1907,6 +2018,11 @@ PetscErrorCode PetscThreadCommJoin(MPI_Comm *comm,PetscInt ncomms,PetscInt trank
     // Make sure all threads have initialized threadcomm
     ierr = (*tcomm[comm_index]->ops->barrier)(tcomm[comm_index]);
 
+    // Set affinity
+    if(tcomm[comm_index]->threadtype == THREAD_TYPE_OPENMP) {
+      ierr = PetscThreadCommSetThreadAffinity(tcomm[comm_index]->pool,tcomm[comm_index]->commthreads[local_index]);CHKERRCONTINUE(ierr);
+    }
+
     if (*commrank == -1) {
       // Join thread pool if not leader thread
       PetscThreadPoolFunc((void*)&tcomm[comm_index]->commthreads[local_index]);
@@ -1918,9 +2034,69 @@ PetscErrorCode PetscThreadCommJoin(MPI_Comm *comm,PetscInt ncomms,PetscInt trank
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadCommReturn"
+#define __FUNCT__ "PetscThreadCommReturnComm"
 /*@
-   PetscThreadCommReturn - Allows user to take back a thread that it previously gave to PETSc
+   PetscThreadCommReturnComm - Allows user to take back a thread that it previously gave to PETSc
+
+   Not Collective
+
+   Input Parameters:
++  comm     - MPI Comm containing the threadcomm to join
+.  ncomms   - Number of threadcomms for threads to join
+-  trank    - Rank of calling thread
+
+   Output Parameters:
+.  commrank - Rank of thread that returns from this function
+
+   Level: developer
+
+   Notes:
+   Allows user to take back threads it gave to PETSc. Must first wait for all threads in the
+   threadcomm to finish the jobs they have been given. These threads will then return from
+   PetscThreadCommJoinComm(). Using an if statement will allow these threads to avoid recalling
+   any routines that the master threads called. This routine will then allow the master and worker
+   threads to reach the same point in the code again. Sets commrank to -1 after calling this.
+
+   Example of usage:
+   PetscThreadCommJoinComm(...);
+   if (commrank >= 0) {
+     // do work
+   }
+   PetscThreadCommReturnComm(...);
+
+@*/
+PetscErrorCode PetscThreadCommReturnComm(MPI_Comm comm,PetscInt trank,PetscInt *commrank)
+{
+  PetscInt        i;
+  PetscThreadComm tcomm;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
+
+  // Make sure this thread is in a comm
+  if (trank >= 0 && trank < tcomm->ncommthreads) {
+    // Master threads terminate worker threads
+    if (*commrank >= 0) {
+      printf("Returning all threads\n");
+      // Make sure each thread has finished its work
+      ierr = PetscThreadCommJobBarrier(tcomm);
+      for (i=0; i<tcomm->ncommthreads; i++) {
+        tcomm->commthreads[i]->status = THREAD_TERMINATE;
+      }
+    }
+
+    // Make sure all worker threads have terminated successfully and reached this barrier
+    ierr = (*tcomm->ops->barrier)(tcomm);
+  }
+  *commrank = -1;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommReturnMultComms"
+/*@
+   PetscThreadCommReturnMultComms - Allows user to take back a thread that it previously gave to PETSc
 
    Not Collective
 
@@ -1949,7 +2125,7 @@ PetscErrorCode PetscThreadCommJoin(MPI_Comm *comm,PetscInt ncomms,PetscInt trank
    PetscThreadCommReturn(...);
 
 @*/
-PetscErrorCode PetscThreadCommReturn(MPI_Comm *comm,PetscInt ncomms,PetscInt trank,PetscInt *commrank)
+PetscErrorCode PetscThreadCommReturnMultComms(MPI_Comm *comm,PetscInt ncomms,PetscInt trank,PetscInt *commrank)
 {
   PetscThreadComm *tcomm;
   PetscInt        i, j, comm_index=-1, startthread=0;
@@ -1957,17 +2133,19 @@ PetscErrorCode PetscThreadCommReturn(MPI_Comm *comm,PetscInt ncomms,PetscInt tra
 
   PetscFunctionBegin;
   PetscMalloc1(ncomms,&tcomm);
-  // Determine which threadcomm and local thread this thread belongs to
-  for (i=0; i<ncomms; i++) {
-    ierr = PetscCommGetThreadComm(comm[i],&tcomm[i]);
 
-    // Check if this thread is in threadcomm
+  // Determine which threadcomm and local thread to join
+  for (i=0; i<ncomms; i++) {
+    ierr = PetscCommGetThreadComm(comm[i],&tcomm[i]);CHKERRQ(ierr);
+
+    // Find thread to join
     for (j=0; j<tcomm[i]->ncommthreads; j++) {
-      if (tcomm[i]->commthreads[j]->grank == trank) {
-        comm_index = i;
+      // Check if this is the correct threadcomm and thread
+      if (startthread + tcomm[i]->commthreads[j]->prank - tcomm[i]->shift == trank) {
+        comm_index  = i;
       }
     }
-    startthread += tcomm[i]->ncommthreads;
+    startthread += tcomm[i]->threadblock;
   }
 
   // Make sure this thread is in a comm
