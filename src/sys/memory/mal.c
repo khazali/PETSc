@@ -91,10 +91,26 @@ PetscErrorCode  PetscFreeDefault(void *ptr,int line,char *func,char *file)
   return 0;
 }
 
+#if defined(PETSC_HAVE_PTHREADCLASSES)
+#if defined(PETSC_PTHREAD_LOCAL)
+PETSC_PTHREAD_LOCAL PetscErrorCode (*PetscTrMalloc)(size_t,int,const char[],const char[],void**) = PetscMallocAlign;
+PETSC_PTHREAD_LOCAL PetscErrorCode (*PetscTrFree)(void*,int,const char[],const char[])           = PetscFreeAlign;
+PETSC_PTHREAD_LOCAL PetscBool petscsetmallocvisited = PETSC_FALSE;
+#else
+PetscThreadKey PetscErrorCode (*PetscTrMalloc)(size_t,int,const char[],const char[],void**) = PetscMallocAlign;
+PetscThreadKey PetscErrorCode (*PetscTrFree)(void*,int,const char[],const char[])           = PetscFreeAlign;
+PetscThreadKey PetscBool petscsetmallocvisited = PETSC_FALSE;
+#endif
+#elif defined(PETSC_HAVE_OPENMP)
 PetscErrorCode (*PetscTrMalloc)(size_t,int,const char[],const char[],void**) = PetscMallocAlign;
 PetscErrorCode (*PetscTrFree)(void*,int,const char[],const char[])           = PetscFreeAlign;
-
 PetscBool petscsetmallocvisited = PETSC_FALSE;
+#pragma omp threadprivate(PetscTrMalloc,PetscTrFree,petscsetmallocvisited)
+#else
+PetscErrorCode (*PetscTrMalloc)(size_t,int,const char[],const char[],void**) = PetscMallocAlign;
+PetscErrorCode (*PetscTrFree)(void*,int,const char[],const char[])           = PetscFreeAlign;
+PetscBool petscsetmallocvisited = PETSC_FALSE;
+#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscMallocSet"

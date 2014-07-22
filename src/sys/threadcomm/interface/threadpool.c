@@ -208,7 +208,7 @@ PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool pool,PetscInt nthreads)
   PetscFunctionBegin;
   printf("Creating thread pool\n");
   // Set threadpool variables
-  ierr = PetscThreadPoolSetModel(pool,LOOP);CHKERRQ(ierr);
+  pool->model = ThreadModel;
   ierr = PetscThreadPoolSetType(pool,NOTHREAD);CHKERRQ(ierr);
   ierr = PetscThreadPoolSetNThreads(pool,nthreads);CHKERRQ(ierr);
 
@@ -284,7 +284,7 @@ PetscErrorCode PetscThreadPoolSetType(PetscThreadPool pool,PetscThreadCommType t
 
   PetscFunctionBegin;
   PetscValidCharPointer(type,2);
-  if (!PetscThreadCommRegisterAllTypesCalled) { ierr = PetscThreadCommRegisterAllTypes(pool);CHKERRQ(ierr);}
+  if (!PetscThreadCommRegisterAllTypesCalled) { ierr = PetscThreadCommRegisterAllTypes();CHKERRQ(ierr);}
 
   ierr = PetscOptionsBegin(PETSC_COMM_WORLD,PETSC_NULL,"Threadcomm type - setting threading type",PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsFList("-threadcomm_type","Threadcomm type","PetscThreadCommSetType",PetscThreadCommTypeList,type,pool->type,256,&flg);CHKERRQ(ierr);
@@ -300,50 +300,6 @@ PetscErrorCode PetscThreadPoolSetType(PetscThreadPool pool,PetscThreadCommType t
   // Find threadcomm create function
   ierr = PetscFunctionListFind(PetscThreadCommTypeList,pool->type,&pool->ops->tcomminit);CHKERRQ(ierr);
   if (!pool->ops->tcomminit) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_UNKNOWN_TYPE,"Unable to find requested threadcomm type %s",pool->type);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "PetscThreadPoolSetModel"
-/*@
-   PetscThreadPoolSetModel - Sets the threading model for the thread communicator
-
-   Logically collective
-
-   Input Parameters:
-+  tcomm - the thread communicator
--  model  - the type of thread model needed
-
-   Options Database keys:
-   -threadcomm_model <type>
-
-   Available models
-   See "petsc/include/petscthreadcomm.h" for available types
-
-   Level: developer
-
-   Notes:
-   Sets threading model for the threadpool by checking thread model function list and calling
-   the appropriate function.
-
-@*/
-PetscErrorCode PetscThreadPoolSetModel(PetscThreadPool pool,PetscThreadCommModel model)
-{
-  PetscErrorCode ierr,(*r)(PetscThreadPool);
-  char           smodel[256];
-  PetscBool      flg;
-
-  PetscFunctionBegin;
-  PetscValidCharPointer(model,2);
-  if (!PetscThreadCommRegisterAllModelsCalled) { ierr = PetscThreadCommRegisterAllModels();CHKERRQ(ierr);}
-
-  ierr = PetscOptionsBegin(PETSC_COMM_WORLD,PETSC_NULL,"Threadcomm model - setting threading model",PETSC_NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsFList("-threadcomm_model","Threadcomm model","PetscThreadCommSetModel",PetscThreadCommModelList,model,smodel,256,&flg);CHKERRQ(ierr);
-  ierr = PetscOptionsEnd();CHKERRQ(ierr);
-  if (!flg) ierr = PetscStrcpy(smodel,model);CHKERRQ(ierr);
-  ierr = PetscFunctionListFind(PetscThreadCommModelList,smodel,&r);CHKERRQ(ierr);
-  if (!r) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_UNKNOWN_TYPE,"Unable to find requested Threadcomm model %s",smodel);
-  ierr = (*r)(pool);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -646,8 +602,9 @@ void* PetscThreadPoolFunc(void *arg)
   jobqueue = pool->poolthreads[trank]->jobqueue;
   printf("rank=%d in ThreadPoolFunc\n",trank);
 
-  // Create thread stack
-  ierr = PetscThreadCommStackCreate(trank);CHKERRCONTINUE(ierr);
+  if (pool->model == THREAD_MODEL_LOOP || pool->model == THREAD_MODEL_AUTO) {
+    ierr = PetscThreadInitialize();CHKERRCONTINUE(ierr);
+  }
 
   thread->jobdata = 0;
   thread->status = THREAD_INITIALIZED;
@@ -668,8 +625,10 @@ void* PetscThreadPoolFunc(void *arg)
     PetscCPURelax();
   }
 
-  // Destroy thread stack
-  ierr = PetscThreadCommStackDestroy(trank);CHKERRCONTINUE(ierr);
+  if (pool->model == THREAD_MODEL_LOOP || pool->model == THREAD_MODEL_AUTO) {
+    ierr = PetscThreadFinalize();CHKERRCONTINUE(ierr);
+  }
+
   PetscFunctionReturn(0);
 }
 

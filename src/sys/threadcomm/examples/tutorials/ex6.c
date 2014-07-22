@@ -33,6 +33,8 @@ int main(int argc,char **argv)
     PetscScalar *ay;
     int trank = omp_get_thread_num();
 
+    ierr = PetscThreadInitialize();CHKERRCONTINUE(ierr);
+
     // User gives threads to PETSc for threaded PETSc work
     ierr = PetscThreadCommJoinComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
     ierr = PetscPrintf(comm,"trank=%d joined comm commrank=%d\n",trank,commrank);CHKERRCONTINUE(ierr);
@@ -125,8 +127,12 @@ int main(int argc,char **argv)
       mvecs[1] = b;
       VecMDot(c,2,mvecs,vals);
       ierr = PetscPrintf(comm,"MDot n1=%f n2=%f\n",vals[0],vals[1]);CHKERRCONTINUE(ierr);
+      ierr = PetscFree(avals);CHKERRCONTINUE(ierr);
+      ierr = PetscFree(bvals);CHKERRCONTINUE(ierr);
     }
     ierr = PetscThreadCommReturnComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
+
+    ierr = PetscThreadFinalize();CHKERRCONTINUE(ierr);
   }
 
   // Destroy Vecs

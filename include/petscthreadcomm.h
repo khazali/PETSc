@@ -25,6 +25,7 @@ typedef const char* PetscThreadCommType;
 #define OPENMP              "openmp"
 #define TBB                 "tbb"
 
+PETSC_EXTERN PetscFunctionList PetscThreadTypeList;
 PETSC_EXTERN PetscFunctionList PetscThreadPoolTypeList;
 PETSC_EXTERN PetscFunctionList PetscThreadCommTypeList;
 PETSC_EXTERN PetscFunctionList PetscThreadCommModelList;
@@ -34,6 +35,12 @@ PETSC_EXTERN const char* const PetscThreadCommReductionOps[];
 
 /* Max. number of reductions */
 #define PETSC_REDUCTIONS_MAX 32
+
+/* Thread routines in threads.c */
+PETSC_EXTERN PetscErrorCode PetscThreadInitialize(void);
+PETSC_EXTERN PetscErrorCode PetscThreadFinalize(void);
+PETSC_EXTERN PetscErrorCode PetscThreadSetModel(PetscThreadCommModel model);
+PETSC_EXTERN PetscErrorCode PetscThreadSetType(PetscThreadCommType type);
 
 /* Package routines in dlregisthreadcomm.c */
 PETSC_EXTERN PetscErrorCode PetscThreadCommInitializePackage(void);
@@ -79,8 +86,8 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommJoinMultComms(MPI_Comm*,PetscInt,Pets
 PETSC_EXTERN PetscErrorCode PetscThreadCommReturnComm(MPI_Comm,PetscInt,PetscInt*);
 PETSC_EXTERN PetscErrorCode PetscThreadCommReturnMultComms(MPI_Comm*,PetscInt,PetscInt,PetscInt*);
 /* Debug routines */
-PETSC_EXTERN PetscErrorCode PetscThreadCommStackCreate(PetscInt);
-PETSC_EXTERN PetscErrorCode PetscThreadCommStackDestroy(PetscInt);
+PETSC_EXTERN PetscErrorCode PetscThreadCommStackCreate();
+PETSC_EXTERN PetscErrorCode PetscThreadCommStackDestroy();
 
 /* Reduction operations in threadcommred.c */
 PETSC_EXTERN PetscErrorCode PetscThreadReductionKernelPost(PetscInt,PetscThreadCommReduction,void*);

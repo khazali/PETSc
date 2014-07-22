@@ -1316,14 +1316,22 @@ M*/
                                                    ((m6)=0,(m5)=0,(m4)=0,(m3)=0,(m2)=0,(m1)=0,PetscFree(m7))))))))
 #endif
 
+#if defined(PETSC_HAVE_PTHREADCLASSES)
+#if defined(PETSC_PTHREAD_LOCAL)
+PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscErrorCode (*PetscTrMalloc)(size_t,int,const char[],const char[],void**);
+PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscErrorCode (*PetscTrFree)(void*,int,const char[],const char[]);
+#else
+PETSC_EXTERN PetscThreadKey PetscErrorCode (*PetscTrMalloc)(size_t,int,const char[],const char[],void**);
+PETSC_EXTERN PetscThreadKey PetscErrorCode (*PetscTrFree)(void*,int,const char[],const char[]);
+#endif
+#else
 PETSC_EXTERN PetscErrorCode (*PetscTrMalloc)(size_t,int,const char[],const char[],void**);
 PETSC_EXTERN PetscErrorCode (*PetscTrFree)(void*,int,const char[],const char[]);
+#endif
+
+
 PETSC_EXTERN PetscErrorCode PetscMallocSet(PetscErrorCode (*)(size_t,int,const char[],const char[],void**),PetscErrorCode (*)(void*,int,const char[],const char[]));
 PETSC_EXTERN PetscErrorCode PetscMallocClear(void);
-
-#if defined(PETSC_HAVE_PTHREADCLASSES) || defined (PETSC_HAVE_OPENMP)
-#include <pthread.h>
-#endif
 
 /*
     PetscLogDouble variables are used to contain double precision numbers
@@ -1332,19 +1340,6 @@ PETSC_EXTERN PetscErrorCode PetscMallocClear(void);
 */
 typedef double PetscLogDouble;
 #define MPIU_PETSCLOGDOUBLE MPI_DOUBLE
-
-#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscTRMallocStruct *petsctrmalloc;
-#else
-PETSC_EXTERN PetscThreadKey petsctrmalloc;
-#endif
-#elif defined(PETSC_HAVE_OPENMP)
-PETSC_EXTERN PetscTRMallocStruct *petsctrmalloc;
-#pragma omp threadprivate(petscstack)
-#else
-PETSC_EXTERN PetscTRMallocStruct *petsctrmalloc;
-#endif
 
 /*
    Routines for tracing memory corruption/bleeding with default PETSc  memory allocation
@@ -1359,6 +1354,8 @@ PETSC_EXTERN PetscErrorCode PetscMallocValidate(int,const char[],const char[]);
 PETSC_EXTERN PetscErrorCode PetscMallocSetDumpLog(void);
 PETSC_EXTERN PetscErrorCode PetscMallocSetDumpLogThreshold(PetscLogDouble);
 PETSC_EXTERN PetscErrorCode PetscMallocGetDumpLog(PetscBool*);
+PETSC_EXTERN PetscErrorCode PetscTrMallocMergeData(void);
+PETSC_EXTERN PetscErrorCode PetscTrMallocDestroy(void);
 
 /*E
     PetscDataType - Used for handling different basic data types.
@@ -2659,6 +2656,20 @@ PETSC_EXTERN PetscErrorCode PetscTextBelt(MPI_Comm,const char[],const char[],Pet
 
 PETSC_EXTERN PetscErrorCode PetscPullJSONValue(const char[],const char[],char[],size_t,PetscBool*);
 PETSC_EXTERN PetscErrorCode PetscPushJSONValue(char[],const char[],const char[],size_t);
+
+/* Thread variables */
+PetscInt ThreadModel;
+PetscInt ThreadType;
+
+/* Lock variables */
+typedef struct {
+  void *trmalloc_lock;
+} PetscThreadLocks;
+
+PetscThreadLocks *PetscLocks;
+
+PetscErrorCode (*PetscThreadLockAcquire)(void*);
+PetscErrorCode (*PetscThreadLockRelease)(void*);
 
 /* Reset __FUNCT__ in case the user does not define it themselves */
 #undef __FUNCT__

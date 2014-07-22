@@ -23,6 +23,20 @@ public:
 };
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscThreadInit_TBB"
+PetscErrorCode PetscThreadInit_TBB()
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ThreadType = THREAD_TYPE_TBB;
+  ierr = PetscThreadLockInitialize_TBB();CHKERRQ(ierr);
+  PetscThreadLockAcquire = PetscThreadLockAcquire_TBB;
+  PetscThreadLockRelease = PetscThreadLockRelease_TBB;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolInit_TBB"
 /*
    PetscThreadPoolInit_TBB - Initialize threadpool to use tbb
@@ -35,7 +49,7 @@ public:
    Level: developer
 
 */
-PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_TBB(PetscThreadPool pool)
+PetscErrorCode PetscThreadPoolInit_TBB(PetscThreadPool pool)
 {
   PetscErrorCode ierr;
 
@@ -60,7 +74,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_TBB(PetscThreadPool pool)
    Level: developer
 
 */
-PETSC_EXTERN PetscErrorCode PetscThreadCommInit_TBB(PetscThreadComm tcomm)
+PetscErrorCode PetscThreadCommInit_TBB(PetscThreadComm tcomm)
 {
   PetscFunctionBegin;
   tcomm->ops->runkernel = PetscThreadCommRunKernel_TBB;
@@ -90,5 +104,45 @@ PetscErrorCode PetscThreadCommRunKernel_TBB(PetscThreadComm tcomm,PetscThreadCom
   PetscFunctionBegin;
   task_scheduler_init init(tcomm->ncommthreads);
   parallel_for(blocked_range<size_t>(0,tcomm->ncommthreads,1),TBBRunKernel(job),affinity);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockInitialize_TBB"
+PetscErrorCode PetscThreadLockInitialize_TBB(void)
+{
+  PetscThreadLock_TBB ptlock;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (PetscLocks) PetscFunctionReturn(0);
+
+  ierr = PetscNew(&PetscLocks);CHKERRQ(ierr);
+  ptlock = (PetscThreadLock_TBB)PetscLocks->trmalloc_lock;
+  //omp_init_lock(&ptlock->lock);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockAcquire_TBB"
+PetscErrorCode PetscThreadLockAcquire_TBB(void *lock)
+{
+  PetscThreadLock_TBB ptlock;
+
+  PetscFunctionBegin;
+  ptlock = (PetscThreadLock_TBB)lock;
+  //omp_set_lock(&ptlock->lock);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockRelease_TBB"
+PetscErrorCode PetscThreadLockRelease_TBB(void *lock)
+{
+  PetscThreadLock_TBB ptlock;
+
+  PetscFunctionBegin;
+  ptlock = (PetscThreadLock_TBB)lock;
+  //omp_unset_lock(&ptlock->lock);
   PetscFunctionReturn(0);
 }

@@ -62,6 +62,20 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMP(PetscThreadPool po
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscThreadInit_OpenMP"
+PETSC_EXTERN PetscErrorCode PetscThreadInit_OpenMP()
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ThreadType = THREAD_TYPE_OPENMP;
+  ierr = PetscThreadLockInitialize_OpenMP();CHKERRQ(ierr);
+  PetscThreadLockAcquire = PetscThreadLockAcquire_OpenMP;
+  PetscThreadLockRelease = PetscThreadLockRelease_OpenMP;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolInit_OpenMP"
 /*
    PetscThreadPoolInit_OpenMP - Initialize the threadpool to use OpenMP as
@@ -259,5 +273,45 @@ PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm tcomm)
     }
   }
   ierr = PetscLogEventEnd(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockInitialize_OpenMP"
+PetscErrorCode PetscThreadLockInitialize_OpenMP(void)
+{
+  PetscThreadLock_OpenMP ptlock;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (PetscLocks) PetscFunctionReturn(0);
+
+  ierr = PetscNew(&PetscLocks);CHKERRQ(ierr);
+  ptlock = (PetscThreadLock_OpenMP)PetscLocks->trmalloc_lock;
+  omp_init_lock(&ptlock->lock);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockAcquire_OpenMP"
+PetscErrorCode PetscThreadLockAcquire_OpenMP(void *lock)
+{
+  PetscThreadLock_OpenMP ptlock;
+
+  PetscFunctionBegin;
+  ptlock = (PetscThreadLock_OpenMP)lock;
+  omp_set_lock(&ptlock->lock);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockRelease_OpenMP"
+PetscErrorCode PetscThreadLockRelease_OpenMP(void *lock)
+{
+  PetscThreadLock_OpenMP ptlock;
+
+  PetscFunctionBegin;
+  ptlock = (PetscThreadLock_OpenMP)lock;
+  omp_unset_lock(&ptlock->lock);
   PetscFunctionReturn(0);
 }

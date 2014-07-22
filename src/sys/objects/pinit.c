@@ -944,6 +944,11 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
   ierr = PetscFPTCreate(10000);CHKERRQ(ierr);
 #endif
 
+  /*
+      Initialize thread code
+  */
+  ierr = PetscThreadSetModel(LOOP);CHKERRQ(ierr);
+  ierr = PetscThreadSetType(NOTHREAD);CHKERRQ(ierr);
 
   /*
       Once we are completedly initialized then we can set this variables

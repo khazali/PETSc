@@ -3,6 +3,7 @@
 #define __TCOPENMPIMPLH
 
 #include <petsc-private/threadcommimpl.h>
+#include <omp.h>
 
 struct _p_PetscThreadComm_OpenMP {
   PetscInt  barrier_threads;
@@ -10,10 +11,18 @@ struct _p_PetscThreadComm_OpenMP {
 };
 typedef struct _p_PetscThreadComm_OpenMP *PetscThreadComm_OpenMP;
 
+typedef struct _p_PetscThreadLock_OpenMP {
+  omp_lock_t lock; /* lock for openmp routines */
+};
+typedef struct _p_PetscThreadLock_OpenMP *PetscThreadLock_OpenMP;
+
 PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_OpenMP(PetscThreadPool);
 PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadComm);
 PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel_OpenMPLoop(PetscThreadComm,PetscThreadCommJobCtx);
 PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm,PetscThreadCommJobCtx);
 PETSC_EXTERN PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm);
+PETSC_EXTERN PetscErrorCode PetscThreadLockInitialize_OpenMP(void);
+PETSC_EXTERN PetscErrorCode PetscThreadLockAcquire_OpenMP(void*);
+PETSC_EXTERN PetscErrorCode PetscThreadLockRelease_OpenMP(void*);
 
 #endif

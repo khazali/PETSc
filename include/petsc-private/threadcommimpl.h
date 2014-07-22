@@ -193,11 +193,8 @@ struct _p_PetscThreadComm{
 };
 
 /* register thread communicator models */
-PETSC_EXTERN PetscErrorCode PetscThreadCommModelRegister(const char[],PetscErrorCode(*)(PetscThreadComm));
-PETSC_EXTERN PetscErrorCode PetscThreadCommInitTypeRegister(const char sname[],PetscErrorCode (*function)(PetscThreadPool));
-PETSC_EXTERN PetscErrorCode PetscThreadCommTypeRegister(const char[],PetscErrorCode(*)(PetscThreadComm));
 PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAllModels(void);
-PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAllTypes(PetscThreadPool);
+PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAllTypes(void);
 
 #undef __FUNCT__
 #define __FUNCT__

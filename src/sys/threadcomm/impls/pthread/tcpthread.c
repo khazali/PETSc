@@ -99,7 +99,6 @@ PetscErrorCode PetscThreadCommDestroy_PThread(PetscThreadComm tcomm)
   /* Destroy pthread threadcomm data */
   if (tcomm->model==THREAD_MODEL_USER || tcomm->model==THREAD_MODEL_AUTO) {
     ierr = pthread_barrier_destroy(&ptcomm->barr);CHKERRQ(ierr);
-    ierr = pthread_mutex_destroy(&ptcomm->threadmutex);CHKERRQ(ierr);
   }
   ierr = PetscFree(ptcomm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -179,6 +178,20 @@ PETSC_EXTERN PetscErrorCode PetscThreadCreate_PThread(PetscThread thread)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscThreadInit_PThread"
+PETSC_EXTERN PetscErrorCode PetscThreadInit_PThread(PetscThreadPool pool)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ThreadType = THREAD_TYPE_PTHREAD;
+  ierr = PetscThreadLockInitialize_PThread();CHKERRQ(ierr);
+  PetscThreadLockAcquire = PetscThreadLockAcquire_PThread;
+  PetscThreadLockRelease = PetscThreadLockRelease_PThread;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolInit_PThread"
 /*
    PetscThreadPoolInit_PThread - Initialize PThread specific threadpool variables
@@ -233,7 +246,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommInit_PThread(PetscThreadComm tcomm)
   ierr = PetscNew(&ptcomm);CHKERRQ(ierr);
 
   ierr = pthread_barrier_init(&ptcomm->barr,PETSC_NULL,tcomm->ncommthreads);CHKERRQ(ierr);
-  ierr = pthread_mutex_init(&ptcomm->threadmutex,PETSC_NULL);CHKERRQ(ierr);
 
   tcomm->data             = (void*)ptcomm;
   tcomm->ops->commdestroy = PetscThreadCommDestroy_PThread;
@@ -370,5 +382,45 @@ PetscErrorCode PetscThreadCommBarrier_PThread(PetscThreadComm tcomm)
   ierr = PetscLogEventBegin(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
   pthread_barrier_wait(&ptcomm->barr);
   ierr = PetscLogEventEnd(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockInitialize_PThread"
+PetscErrorCode PetscThreadLockInitialize_PThread(void)
+{
+  PetscThreadLock_PThread ptlock;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (PetscLocks) PetscFunctionReturn(0);
+
+  ierr = PetscNew(&PetscLocks);CHKERRQ(ierr);
+  ptlock = (PetscThreadLock_PThread)PetscLocks->trmalloc_lock;
+  ierr = pthread_mutex_init(&ptlock->lock,PETSC_NULL);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockAcquire_PThread"
+PetscErrorCode PetscThreadLockAcquire_PThread(void *lock)
+{
+  PetscThreadLock_PThread ptlock;
+
+  PetscFunctionBegin;
+  ptlock = (PetscThreadLock_PThread)lock;
+  pthread_mutex_lock(&ptlock->lock);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockRelease_PThread"
+PetscErrorCode PetscThreadLockRelease_PThread(void *lock)
+{
+  PetscThreadLock_PThread ptlock;
+
+  PetscFunctionBegin;
+  ptlock = (PetscThreadLock_PThread)lock;
+  pthread_mutex_unlock(&ptlock->lock);
   PetscFunctionReturn(0);
 }

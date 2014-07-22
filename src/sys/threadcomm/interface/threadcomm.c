@@ -8,6 +8,7 @@
 #endif
 
 PetscMPIInt       Petsc_ThreadComm_keyval  = MPI_KEYVAL_INVALID;
+PetscFunctionList PetscThreadTypeList      = PETSC_NULL;
 PetscFunctionList PetscThreadPoolTypeList  = PETSC_NULL;
 PetscFunctionList PetscThreadCommTypeList  = PETSC_NULL;
 PetscFunctionList PetscThreadCommModelList = PETSC_NULL;
@@ -173,9 +174,9 @@ PetscErrorCode PetscThreadCommAlloc(PetscThreadComm *tcomm)
    the master thread.
 
 */
-PetscErrorCode PetscThreadCommStackCreate(PetscInt trank)
+PetscErrorCode PetscThreadCommStackCreate()
 {
-  if (trank && !PetscStackActive()) {
+  if (!PetscStackActive()) {
     PetscStack *petscstack_in;
     petscstack_in = (PetscStack*)malloc(sizeof(PetscStack));
     petscstack_in->currentsize = 0;
@@ -202,9 +203,9 @@ PetscErrorCode PetscThreadCommStackCreate(PetscInt trank)
    on it.
 
 */
-PetscErrorCode PetscThreadCommStackDestroy(PetscInt trank)
+PetscErrorCode PetscThreadCommStackDestroy()
 {
-  if (trank && PetscStackActive()) {
+  if (PetscStackActive()) {
     PetscStack *petscstack_in;
     petscstack_in = (PetscStack*)PetscThreadLocalGetValue(petscstack);
     free(petscstack_in);
@@ -219,7 +220,7 @@ PetscErrorCode PetscThreadCommStackDestroy(PetscInt trank)
 /*
    PetscThreadCommStackCreate - Empty function when not using debug mode
 */
-PetscErrorCode  PetscThreadCommStackCreate(PetscInt trank)
+PetscErrorCode  PetscThreadCommStackCreate()
 {
   PetscFunctionBegin;
   PetscFunctionReturn(0);
@@ -230,7 +231,7 @@ PetscErrorCode  PetscThreadCommStackCreate(PetscInt trank)
 /*
    PetscThreadCommStackDestroy - Empty function when not using debug mode
 */
-PetscErrorCode  PetscThreadCommStackDestroy(PetscInt trank)
+PetscErrorCode  PetscThreadCommStackDestroy()
 {
   PetscFunctionBegin;
   PetscFunctionReturn(0);
@@ -1765,10 +1766,10 @@ PetscErrorCode PetscThreadCommGetRank(PetscThreadComm tcomm,PetscInt *trank)
    Level: developer
 
 */
-PetscErrorCode PetscThreadCommInitModel_Loop(PetscThreadPool pool)
+PetscErrorCode PetscThreadCommInitModel_Loop()
 {
   PetscFunctionBegin;
-  pool->model = THREAD_MODEL_LOOP;
+  ThreadModel = THREAD_MODEL_LOOP;
   PetscFunctionReturn(0);
 }
 
@@ -1785,10 +1786,10 @@ PetscErrorCode PetscThreadCommInitModel_Loop(PetscThreadPool pool)
    Level: developer
 
 */
-PetscErrorCode PetscThreadCommInitModel_Auto(PetscThreadPool pool)
+PetscErrorCode PetscThreadCommInitModel_Auto()
 {
   PetscFunctionBegin;
-  pool->model = THREAD_MODEL_AUTO;
+  ThreadModel = THREAD_MODEL_AUTO;
   PetscFunctionReturn(0);
 }
 
@@ -1805,10 +1806,10 @@ PetscErrorCode PetscThreadCommInitModel_Auto(PetscThreadPool pool)
    Level: developer
 
 */
-PetscErrorCode PetscThreadCommInitModel_User(PetscThreadPool pool)
+PetscErrorCode PetscThreadCommInitModel_User()
 {
   PetscFunctionBegin;
-  pool->model = THREAD_MODEL_USER;
+  ThreadModel = THREAD_MODEL_USER;
   PetscFunctionReturn(0);
 }
 

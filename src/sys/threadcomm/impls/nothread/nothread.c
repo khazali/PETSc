@@ -1,6 +1,20 @@
 #include <../src/sys/threadcomm/impls/nothread/nothreadimpl.h>
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscThreadInit_NoThread"
+PETSC_EXTERN PetscErrorCode PetscThreadInit_NoThread()
+{
+  //PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ThreadType = THREAD_TYPE_NOTHREAD;
+  //ierr = PetscThreadLockInitialize_NoThread();CHKERRQ(ierr);
+  PetscThreadLockAcquire = PetscThreadLockAcquire_NoThread;
+  PetscThreadLockRelease = PetscThreadLockRelease_NoThread;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscThreadPoolInit_NoThread"
 /*
    PetscThreadPoolInit_NoThread - Initialize a threadpool to use the
@@ -42,5 +56,21 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommInit_NoThread(PetscThreadComm tcomm)
 {
   PetscFunctionBegin;
   if (tcomm->ncommthreads != 1) SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_ARG_WRONG,"Cannot have more than 1 thread for the nonthread communicator,threads requested = %D",tcomm->ncommthreads);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockAcquire_NoThread"
+PetscErrorCode PetscThreadLockAcquire_NoThread(void *lock)
+{
+  PetscFunctionBegin;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockRelease_NoThread"
+PetscErrorCode PetscThreadLockRelease_NoThread(void *lock)
+{
+  PetscFunctionBegin;
   PetscFunctionReturn(0);
 }

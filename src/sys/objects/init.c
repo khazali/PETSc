@@ -218,7 +218,17 @@ PetscErrorCode  PetscEnd(void)
 
 PetscBool PetscOptionsPublish = PETSC_FALSE;
 extern PetscErrorCode PetscSetUseTrMalloc_Private(void);
+
+#if defined(PETSC_HAVE_PTHREADCLASSES)
+#if defined(PETSC_PTHREAD_LOCAL)
+extern PETSC_PTHREAD_LOCAL PetscBool      petscsetmallocvisited;
+#else
+extern PetscThreadKey      petscsetmallocvisited;
+#endif
+#else
 extern PetscBool      petscsetmallocvisited;
+#endif
+
 static char           emacsmachinename[256];
 
 PetscErrorCode (*PetscExternalVersionFunction)(MPI_Comm) = 0;
