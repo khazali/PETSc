@@ -530,7 +530,24 @@ PetscErrorCode DMPlexCreatePartition(DM dm, const char name[], PetscInt n, Petsc
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexCreatePartitionClosure"
-PetscErrorCode DMPlexCreatePartitionClosure(DM dm, PetscSection pointSection, IS pointPartition, PetscSection *section, IS *partition)
+/*@
+  DMPlexCreatePartitionClosure - Create a partition from the closure of the input partition
+
+  Input Parameters:
++ dm - The DM
+. pointSection - A PetscSection describing the size of each partition
+. pointPartition - The list of points in each partition
+- overlapping - Whether the output partitions should overlap
+
+  Output Parameters:
++ section - A PetscSection describing the size of each output partition
+- partition - The list of points in each output partition
+
+  Level: developer
+
+.seealso: DMPlexCreatePartition(), DMPlexDistribute()
+@*/
+PetscErrorCode DMPlexCreatePartitionClosure(DM dm, PetscSection pointSection, IS pointPartition, PetscBool overlapping, PetscSection *section, IS *partition)
 {
   /* const PetscInt  height = 0; */
   const PetscInt *partArray;
@@ -575,7 +592,7 @@ PetscErrorCode DMPlexCreatePartitionClosure(DM dm, PetscSection pointSection, IS
     ierr = PetscSegBufferGetInts(segpack,partSize,&placePoints);CHKERRQ(ierr);
     ierr = PetscSegBufferExtractTo(segpart,placePoints);CHKERRQ(ierr);
     ierr = PetscSortInt(partSize,placePoints);CHKERRQ(ierr);
-    for (p=0; p<partSize; p++) {ierr = PetscBTClear(bt,placePoints[p]-pStart);CHKERRQ(ierr);}
+    if (overlapping) for (p=0; p<partSize; p++) {ierr = PetscBTClear(bt,placePoints[p]-pStart);CHKERRQ(ierr);}
   }
   ierr = PetscBTDestroy(&bt);CHKERRQ(ierr);
   ierr = PetscSegBufferDestroy(&segpart);CHKERRQ(ierr);
