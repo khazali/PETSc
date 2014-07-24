@@ -102,7 +102,7 @@ PetscErrorCode DMPlexLabelComplete(DM dm, DMLabel label)
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexLabelAddCells"
 /*@
-  DMPlexLabelAddCells - Starting with a label marking faces on a surface, we add a cell for each face
+  DMPlexLabelAddCells - Starting with a label marking points on a surface, we add all cells in the support
 
   Input Parameters:
 + dm - The DM
@@ -113,9 +113,11 @@ PetscErrorCode DMPlexLabelComplete(DM dm, DMLabel label)
 
   Level: developer
 
-  Note: The cells allow FEM boundary conditions to be applied using the cell geometry
+  Note: The cells allow FEM boundary conditions to be applied using the cell geometry. This happens, for example,
+  in DMPlexInsertBoundaryValuesFEM() where the closure of the label cells is calcuated and set using the
+  INSERT_BC_VALUES mode.
 
-.seealso: DMPlexLabelComplete(), DMPlexLabelCohesiveComplete()
+.seealso: DMPlexLabelComplete(), DMPlexLabelCohesiveComplete(), DMPlexInsertBoundaryValuesFEM()
 @*/
 PetscErrorCode DMPlexLabelAddCells(DM dm, DMLabel label)
 {
@@ -133,19 +135,48 @@ PetscErrorCode DMPlexLabelAddCells(DM dm, DMLabel label)
     IS              pointIS;
     const PetscInt *points;
     PetscInt        numPoints, p;
+    PetscBT         cellPoints;
 
     ierr = DMLabelGetStratumSize(label, values[v], &numPoints);CHKERRQ(ierr);
     ierr = DMLabelGetStratumIS(label, values[v], &pointIS);CHKERRQ(ierr);
     ierr = ISGetIndices(pointIS, &points);CHKERRQ(ierr);
+    ierr = PetscBTCreate(numPoints, &cellPoints);CHKERRQ(ierr);
+    ierr = PetscBTMemzero(numPoints, cellPoints);CHKERRQ(ierr);
     for (p = 0; p < numPoints; ++p) {
       PetscInt *closure = NULL;
-      PetscInt  closureSize, point;
+      PetscInt  closureSize, point, c, loc;
 
-      ierr = DMPlexGetTransitiveClosure(dm, points[p], PETSC_FALSE, &closureSize, &closure);CHKERRQ(ierr);
-      point = closure[(closureSize-1)*2];
-      if ((point >= cStart) && (point < cEnd)) {ierr = DMLabelSetValue(label, point, values[v]);CHKERRQ(ierr);}
-      ierr = DMPlexRestoreTransitiveClosure(dm, points[p], PETSC_FALSE, &closureSize, &closure);CHKERRQ(ierr);
+      if ((point < cStart) || (point >= cEnd)) continue;
+      ierr = PetscBTSet(cellPoints, p);CHKERRQ(ierr);
+      ierr = DMPlexGetTransitiveClosure(dm, points[p], PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
+      for (c = 2; c < closureSize*2; c += 2) {
+        ierr = PetscFindInt(closure[c], numPoints, points, &loc);CHKERRQ(ierr);
+        if (loc >= 0) {ierr = PetscBTSet(cellPoints, loc);CHKERRQ(ierr);}
+      }
+      ierr = DMPlexRestoreTransitiveClosure(dm, points[p], PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
     }
+    for (p = 0; p < numPoints; ++p) {
+      PetscInt *support = NULL;
+      PetscInt  supportSize, point;
+
+      if (PetscBTLookup(cellPoints, p)) continue;
+      ierr = DMPlexGetTransitiveClosure(dm, points[p], PETSC_FALSE, &supportSize, &support);CHKERRQ(ierr);
+      point = support[(supportSize-1)*2];
+      if ((point >= cStart) && (point < cEnd)) {
+        PetscInt *closure = NULL;
+        PetscInt  closureSize, c, loc;
+
+        ierr = DMLabelSetValue(label, point, values[v]);CHKERRQ(ierr);
+        ierr = DMPlexGetTransitiveClosure(dm, point, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
+        for (c = 2; c < closureSize*2; c += 2) {
+          ierr = PetscFindInt(closure[c], numPoints, points, &loc);CHKERRQ(ierr);
+          if (loc >= 0) {ierr = PetscBTSet(cellPoints, loc);CHKERRQ(ierr);}
+        }
+        ierr = DMPlexRestoreTransitiveClosure(dm, point, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
+      }
+      ierr = DMPlexRestoreTransitiveClosure(dm, points[p], PETSC_FALSE, &supportSize, &support);CHKERRQ(ierr);
+    }
+    ierr = PetscBTDestroy(&cellPoints);CHKERRQ(ierr);
     ierr = ISRestoreIndices(pointIS, &points);CHKERRQ(ierr);
     ierr = ISDestroy(&pointIS);CHKERRQ(ierr);
   }
