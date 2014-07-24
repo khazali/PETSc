@@ -420,7 +420,7 @@ PETSC_EXTERN PetscErrorCode PetscFPTrapPop(void);
      This code is for managing thread local global variables. Each of Linux, Microsoft WINDOWS, OpenMP, and Apple OS X have
    different ways to indicate this. On OS X each thread local global is accessed by using a pthread_key_t for that variable.
    Thus we have functions for creating destroying and using the keys. Except for OS X these access functions merely directly
-   acess the thread local variable.
+   access the thread local variable.
 */
 
 #if defined(PETSC_HAVE_PTHREADCLASSES) && !defined(PETSC_PTHREAD_LOCAL)

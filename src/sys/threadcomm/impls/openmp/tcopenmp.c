@@ -280,15 +280,16 @@ PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm tcomm)
 #define __FUNCT__ "PetscThreadLockInitialize_OpenMP"
 PetscErrorCode PetscThreadLockInitialize_OpenMP(void)
 {
-  PetscThreadLock_OpenMP ptlock;
+  PetscThreadLock_OpenMP omplock;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   if (PetscLocks) PetscFunctionReturn(0);
 
-  ierr = PetscNew(&PetscLocks);CHKERRQ(ierr);
-  ptlock = (PetscThreadLock_OpenMP)PetscLocks->trmalloc_lock;
-  omp_init_lock(&ptlock->lock);
+  ierr = PetscNew(&PetscLocks);
+  ierr = PetscNew(&PetscLocks->trmalloc_lock);
+  omplock = (PetscThreadLock_OpenMP)PetscLocks->trmalloc_lock;
+  omp_init_lock(omplock);
   PetscFunctionReturn(0);
 }
 
@@ -296,11 +297,11 @@ PetscErrorCode PetscThreadLockInitialize_OpenMP(void)
 #define __FUNCT__ "PetscThreadLockAcquire_OpenMP"
 PetscErrorCode PetscThreadLockAcquire_OpenMP(void *lock)
 {
-  PetscThreadLock_OpenMP ptlock;
+  PetscThreadLock_OpenMP omplock;
 
   PetscFunctionBegin;
-  ptlock = (PetscThreadLock_OpenMP)lock;
-  omp_set_lock(&ptlock->lock);
+  omplock = (PetscThreadLock_OpenMP)lock;
+  omp_set_lock(omplock);
   PetscFunctionReturn(0);
 }
 
@@ -308,10 +309,10 @@ PetscErrorCode PetscThreadLockAcquire_OpenMP(void *lock)
 #define __FUNCT__ "PetscThreadLockRelease_OpenMP"
 PetscErrorCode PetscThreadLockRelease_OpenMP(void *lock)
 {
-  PetscThreadLock_OpenMP ptlock;
+  PetscThreadLock_OpenMP omplock;
 
   PetscFunctionBegin;
-  ptlock = (PetscThreadLock_OpenMP)lock;
-  omp_unset_lock(&ptlock->lock);
+  omplock = (PetscThreadLock_OpenMP)lock;
+  omp_unset_lock(omplock);
   PetscFunctionReturn(0);
 }

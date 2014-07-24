@@ -389,15 +389,15 @@ PetscErrorCode PetscThreadCommBarrier_PThread(PetscThreadComm tcomm)
 #define __FUNCT__ "PetscThreadLockInitialize_PThread"
 PetscErrorCode PetscThreadLockInitialize_PThread(void)
 {
-  PetscThreadLock_PThread ptlock;
-  PetscErrorCode ierr;
+  //PetscThreadLock_PThread ptlock;
+  //PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  if (PetscLocks) PetscFunctionReturn(0);
+  //if (PetscLocks) PetscFunctionReturn(0);
 
-  ierr = PetscNew(&PetscLocks);CHKERRQ(ierr);
-  ptlock = (PetscThreadLock_PThread)PetscLocks->trmalloc_lock;
-  ierr = pthread_mutex_init(&ptlock->lock,PETSC_NULL);CHKERRQ(ierr);
+  //ierr = PetscNew(&PetscLocks);CHKERRQ(ierr);
+  //ptlock = (PetscThreadLock_PThread)PetscLocks->trmalloc_lock;
+  //ierr = pthread_mutex_init(&ptlock->lock,PETSC_NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -405,11 +405,11 @@ PetscErrorCode PetscThreadLockInitialize_PThread(void)
 #define __FUNCT__ "PetscThreadLockAcquire_PThread"
 PetscErrorCode PetscThreadLockAcquire_PThread(void *lock)
 {
-  PetscThreadLock_PThread ptlock;
+  //PetscThreadLock_PThread ptlock;
 
   PetscFunctionBegin;
-  ptlock = (PetscThreadLock_PThread)lock;
-  pthread_mutex_lock(&ptlock->lock);
+  //ptlock = (PetscThreadLock_PThread)lock;
+  //pthread_mutex_lock(&ptlock->lock);
   PetscFunctionReturn(0);
 }
 
@@ -417,10 +417,10 @@ PetscErrorCode PetscThreadLockAcquire_PThread(void *lock)
 #define __FUNCT__ "PetscThreadLockRelease_PThread"
 PetscErrorCode PetscThreadLockRelease_PThread(void *lock)
 {
-  PetscThreadLock_PThread ptlock;
+  //PetscThreadLock_PThread ptlock;
 
   PetscFunctionBegin;
-  ptlock = (PetscThreadLock_PThread)lock;
-  pthread_mutex_unlock(&ptlock->lock);
+  //ptlock = (PetscThreadLock_PThread)lock;
+  //pthread_mutex_unlock(&ptlock->lock);
   PetscFunctionReturn(0);
 }

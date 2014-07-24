@@ -11,10 +11,7 @@ struct _p_PetscThreadComm_OpenMP {
 };
 typedef struct _p_PetscThreadComm_OpenMP *PetscThreadComm_OpenMP;
 
-typedef struct _p_PetscThreadLock_OpenMP {
-  omp_lock_t lock; /* lock for openmp routines */
-};
-typedef struct _p_PetscThreadLock_OpenMP *PetscThreadLock_OpenMP;
+typedef omp_lock_t *PetscThreadLock_OpenMP;
 
 PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_OpenMP(PetscThreadPool);
 PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadComm);

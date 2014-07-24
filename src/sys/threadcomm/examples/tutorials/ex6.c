@@ -35,6 +35,9 @@ int main(int argc,char **argv)
 
     ierr = PetscThreadInitialize();CHKERRCONTINUE(ierr);
 
+    if(PetscMasterThread==PETSC_TRUE) printf("thread %d is master\n",trank);
+    else printf("thread %d is worker\n",trank);
+
     // User gives threads to PETSc for threaded PETSc work
     ierr = PetscThreadCommJoinComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
     ierr = PetscPrintf(comm,"trank=%d joined comm commrank=%d\n",trank,commrank);CHKERRCONTINUE(ierr);

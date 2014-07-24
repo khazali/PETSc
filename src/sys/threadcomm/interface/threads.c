@@ -16,6 +16,8 @@ PetscErrorCode PetscThreadInitialize(void)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  PetscMasterThread = 0;
+
   // Create thread stack
   ierr = PetscThreadCommStackCreate();CHKERRQ(ierr);
 

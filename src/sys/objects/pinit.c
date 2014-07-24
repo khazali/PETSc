@@ -947,6 +947,7 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
   /*
       Initialize thread code
   */
+  PetscMasterThread = 1;
   ierr = PetscThreadSetModel(LOOP);CHKERRQ(ierr);
   ierr = PetscThreadSetType(NOTHREAD);CHKERRQ(ierr);
 

@@ -111,15 +111,7 @@ PetscErrorCode PetscThreadCommRunKernel_TBB(PetscThreadComm tcomm,PetscThreadCom
 #define __FUNCT__ "PetscThreadLockInitialize_TBB"
 PetscErrorCode PetscThreadLockInitialize_TBB(void)
 {
-  PetscThreadLock_TBB ptlock;
-  PetscErrorCode ierr;
-
   PetscFunctionBegin;
-  if (PetscLocks) PetscFunctionReturn(0);
-
-  ierr = PetscNew(&PetscLocks);CHKERRQ(ierr);
-  ptlock = (PetscThreadLock_TBB)PetscLocks->trmalloc_lock;
-  //omp_init_lock(&ptlock->lock);
   PetscFunctionReturn(0);
 }
 
@@ -127,11 +119,7 @@ PetscErrorCode PetscThreadLockInitialize_TBB(void)
 #define __FUNCT__ "PetscThreadLockAcquire_TBB"
 PetscErrorCode PetscThreadLockAcquire_TBB(void *lock)
 {
-  PetscThreadLock_TBB ptlock;
-
   PetscFunctionBegin;
-  ptlock = (PetscThreadLock_TBB)lock;
-  //omp_set_lock(&ptlock->lock);
   PetscFunctionReturn(0);
 }
 
@@ -139,10 +127,6 @@ PetscErrorCode PetscThreadLockAcquire_TBB(void *lock)
 #define __FUNCT__ "PetscThreadLockRelease_TBB"
 PetscErrorCode PetscThreadLockRelease_TBB(void *lock)
 {
-  PetscThreadLock_TBB ptlock;
-
   PetscFunctionBegin;
-  ptlock = (PetscThreadLock_TBB)lock;
-  //omp_unset_lock(&ptlock->lock);
   PetscFunctionReturn(0);
 }

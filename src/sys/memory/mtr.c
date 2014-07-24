@@ -773,6 +773,6 @@ PetscErrorCode PetscTrMallocDestroy(void)
 
   PetscFunctionBegin;
   ierr = PetscTrMallocMergeData();CHKERRQ(ierr);
-  ierr = PetscFree(trmalloc);CHKERRQ(ierr);
+  //free(trmalloc);
   PetscFunctionReturn(0);
 }

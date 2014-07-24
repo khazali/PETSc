@@ -2660,8 +2660,10 @@ PETSC_EXTERN PetscErrorCode PetscPushJSONValue(char[],const char[],const char[],
 /* Thread variables */
 PetscInt ThreadModel;
 PetscInt ThreadType;
+PetscInt PetscMasterThread;
 
-/* Lock variables */
+/* Lock variables - lock type is implementation specific */
+#include <omp.h>
 typedef struct {
   void *trmalloc_lock;
 } PetscThreadLocks;
