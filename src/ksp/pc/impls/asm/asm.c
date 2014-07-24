@@ -200,7 +200,7 @@ static PetscErrorCode PCSetUp_ASM(PC pc)
         PetscInt  num_domains, d;
         char      **domain_names;
         IS        *inner_domain_is, *outer_domain_is;
-        ierr = DMCreateDomainDecomposition(pc->dm, &num_domains, &domain_names, &inner_domain_is, &outer_domain_is, &domain_dm);CHKERRQ(ierr);
+        ierr = DMCreateDomainDecomposition(pc->dm, &num_domains, &domain_names, NULL, &inner_domain_is, &outer_domain_is, NULL, &domain_dm);CHKERRQ(ierr);
         if (num_domains) {
           ierr = PCASMSetLocalSubdomains(pc, num_domains, outer_domain_is, inner_domain_is);CHKERRQ(ierr);
         }

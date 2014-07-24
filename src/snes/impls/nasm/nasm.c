@@ -98,9 +98,10 @@ PetscErrorCode SNESSetUp_NASM(SNES snes)
   PetscErrorCode ierr;
   DM             dm,subdm;
   DM             *subdms;
+  IS             *linner, *ginner, *gouter, *glocal;
   PetscInt       i;
   const char     *optionsprefix;
-  Vec            F;
+  Vec            F, gvec;
   PetscMPIInt    size;
   KSP            ksp;
   PC             pc;
@@ -110,9 +111,36 @@ PetscErrorCode SNESSetUp_NASM(SNES snes)
     ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
     if (dm) {
       nasm->usesdm = PETSC_TRUE;
-      ierr         = DMCreateDomainDecomposition(dm,&nasm->n,NULL,NULL,NULL,&subdms);CHKERRQ(ierr);
+      ierr         = DMCreateDomainDecomposition(dm,&nasm->n,NULL,&linner,&ginner,&gouter,&glocal,&subdms);CHKERRQ(ierr);
       if (!subdms) SETERRQ(PetscObjectComm((PetscObject)dm),PETSC_ERR_ARG_WRONGSTATE,"DM has no default decomposition defined.  Set subsolves manually with SNESNASMSetSubdomains().");
+#if 0
       ierr = DMCreateDomainDecompositionScatters(dm,nasm->n,subdms,&nasm->iscatter,&nasm->oscatter,&nasm->gscatter);CHKERRQ(ierr);
+#else
+      ierr = PetscMalloc1(nasm->n, &nasm->iscatter);CHKERRQ(ierr);
+      ierr = PetscMalloc1(nasm->n, &nasm->oscatter);CHKERRQ(ierr);
+      ierr = PetscMalloc1(nasm->n, &nasm->gscatter);CHKERRQ(ierr);
+      ierr = DMGetGlobalVector(dm, &gvec);CHKERRQ(ierr);
+      for (i = 0; i < nasm->n; ++i) {
+        Vec ovec, lvec;
+
+        ierr = DMGetGlobalVector(subdms[i], &ovec);CHKERRQ(ierr);
+        ierr = DMGetLocalVector(subdms[i], &lvec);CHKERRQ(ierr);
+        ierr = VecScatterCreate(gvec, ginner[i], ovec, linner[i], &nasm->iscatter[i]);CHKERRQ(ierr);
+        ierr = VecScatterCreate(gvec, gouter[i], ovec, NULL,      &nasm->oscatter[i]);CHKERRQ(ierr);
+        ierr = VecScatterCreate(gvec, glocal[i], lvec, NULL,      &nasm->gscatter[i]);CHKERRQ(ierr);
+        ierr = DMRestoreGlobalVector(subdms[i], &ovec);CHKERRQ(ierr);
+        ierr = DMRestoreLocalVector(subdms[i], &lvec);CHKERRQ(ierr);
+        ierr = ISDestroy(&linner[i]);CHKERRQ(ierr);
+        ierr = ISDestroy(&ginner[i]);CHKERRQ(ierr);
+        ierr = ISDestroy(&gouter[i]);CHKERRQ(ierr);
+        ierr = ISDestroy(&glocal[i]);CHKERRQ(ierr);
+      }
+      ierr = DMRestoreGlobalVector(dm, &gvec);CHKERRQ(ierr);
+      ierr = PetscFree(linner);CHKERRQ(ierr);
+      ierr = PetscFree(ginner);CHKERRQ(ierr);
+      ierr = PetscFree(gouter);CHKERRQ(ierr);
+      ierr = PetscFree(glocal);CHKERRQ(ierr);
+#endif
 
       ierr = SNESGetOptionsPrefix(snes, &optionsprefix);CHKERRQ(ierr);
       ierr = PetscMalloc1(nasm->n,&nasm->subsnes);CHKERRQ(ierr);

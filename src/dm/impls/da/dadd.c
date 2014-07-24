@@ -415,13 +415,14 @@ PetscErrorCode DMDASubDomainIS_Private(DM dm,PetscInt n,DM *subdm,IS **iis,IS **
 
 #undef __FUNCT__
 #define __FUNCT__ "DMCreateDomainDecomposition_DA"
-PetscErrorCode DMCreateDomainDecomposition_DA(DM dm,PetscInt *len,char ***names,IS **iis,IS **ois,DM **subdm)
+PetscErrorCode DMCreateDomainDecomposition_DA(DM dm,PetscInt *len,char ***names,IS **siis,IS **iis,IS **ois,IS **lis,DM **subdm)
 {
   PetscErrorCode ierr;
   DM             *sdm;
   PetscInt       n,i;
 
   PetscFunctionBegin;
+  if (siis || lis) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_SUP, "Retturn of subinner and local ISes not yet supported");
   ierr = DMDASubDomainDA_Private(dm,&n,&sdm);CHKERRQ(ierr);
   if (names) {
     ierr = PetscMalloc1(n,names);CHKERRQ(ierr);

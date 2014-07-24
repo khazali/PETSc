@@ -1316,8 +1316,10 @@ PetscErrorCode DMCreateSubDM(DM dm, PetscInt numFields, PetscInt fields[], IS *i
   Output Parameters:
 + len         - The number of subproblems in the domain decomposition (or NULL if not requested)
 . namelist    - The name for each subdomain (or NULL if not requested)
+. subinnerislist - The subdomain indices for each inner subdomain (or NULL, if not requested)
 . innerislist - The global indices for each inner subdomain (or NULL, if not requested)
 . outerislist - The global indices for each outer subdomain (or NULL, if not requested)
+. localislist - The global indices for each local subdomain, which is the outer domain including ghosts and boundary conditions (or NULL, if not requested)
 - dmlist      - The DMs for each subdomain subproblem (or NULL, if not requested; if NULL is returned, no DMs are defined)
 
   Level: intermediate
@@ -1329,7 +1331,7 @@ PetscErrorCode DMCreateSubDM(DM dm, PetscInt numFields, PetscInt fields[], IS *i
 
 .seealso DMDestroy(), DMView(), DMCreateInterpolation(), DMCreateColoring(), DMCreateMatrix(), DMCreateDomainDecompositionDM(), DMCreateFieldDecomposition()
 @*/
-PetscErrorCode DMCreateDomainDecomposition(DM dm, PetscInt *len, char ***namelist, IS **innerislist, IS **outerislist, DM **dmlist)
+PetscErrorCode DMCreateDomainDecomposition(DM dm, PetscInt *len, char ***namelist, IS **subinnerislist, IS **innerislist, IS **outerislist, IS **localislist, DM **dmlist)
 {
   PetscErrorCode      ierr;
   DMSubDomainHookLink link;
@@ -1337,11 +1339,13 @@ PetscErrorCode DMCreateDomainDecomposition(DM dm, PetscInt *len, char ***namelis
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  if (len)           {PetscValidPointer(len,2);            *len         = 0;}
-  if (namelist)      {PetscValidPointer(namelist,3);       *namelist    = NULL;}
-  if (innerislist)   {PetscValidPointer(innerislist,4);    *innerislist = NULL;}
-  if (outerislist)   {PetscValidPointer(outerislist,5);    *outerislist = NULL;}
-  if (dmlist)        {PetscValidPointer(dmlist,6);         *dmlist      = NULL;}
+  if (len)            {PetscValidPointer(len,2);            *len            = 0;}
+  if (namelist)       {PetscValidPointer(namelist,3);       *namelist       = NULL;}
+  if (subinnerislist) {PetscValidPointer(subinnerislist,4); *subinnerislist = NULL;}
+  if (innerislist)    {PetscValidPointer(innerislist,4);    *innerislist    = NULL;}
+  if (outerislist)    {PetscValidPointer(outerislist,5);    *outerislist    = NULL;}
+  if (localislist)    {PetscValidPointer(localislist,4);    *localislist    = NULL;}
+  if (dmlist)         {PetscValidPointer(dmlist,6);         *dmlist         = NULL;}
   /*
    Is it a good idea to apply the following check across all impls?
    Perhaps some impls can have a well-defined decomposition before DMSetUp?
@@ -1349,7 +1353,7 @@ PetscErrorCode DMCreateDomainDecomposition(DM dm, PetscInt *len, char ***namelis
    */
   if (!dm->setupcalled) SETERRQ(PetscObjectComm((PetscObject)dm),PETSC_ERR_ARG_WRONGSTATE, "Decomposition defined only after DMSetUp");
   if (dm->ops->createdomaindecomposition) {
-    ierr = (*dm->ops->createdomaindecomposition)(dm,&l,namelist,innerislist,outerislist,dmlist);CHKERRQ(ierr);
+    ierr = (*dm->ops->createdomaindecomposition)(dm,&l,namelist,subinnerislist,innerislist,outerislist,localislist,dmlist);CHKERRQ(ierr);
     /* copy subdomain hooks and context over to the subdomain DMs */
     if (dmlist) {
       for (i = 0; i < l; i++) {

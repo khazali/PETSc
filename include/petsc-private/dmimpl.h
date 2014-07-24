@@ -46,7 +46,7 @@ struct _DMOps {
 
   PetscErrorCode (*createsubdm)(DM,PetscInt,PetscInt*,IS*,DM*);
   PetscErrorCode (*createfielddecomposition)(DM,PetscInt*,char***,IS**,DM**);
-  PetscErrorCode (*createdomaindecomposition)(DM,PetscInt*,char***,IS**,IS**,DM**);
+  PetscErrorCode (*createdomaindecomposition)(DM,PetscInt*,char***,IS**,IS**,IS**,IS**,DM**);
   PetscErrorCode (*createddscatters)(DM,PetscInt,DM*,VecScatter**,VecScatter**,VecScatter**);
 
   PetscErrorCode (*locatepoints)(DM,Vec,IS*);

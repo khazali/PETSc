@@ -291,7 +291,7 @@ static PetscErrorCode PCSetUp_GASM(PC pc)
         PetscInt  num_subdomains, d;
         char      **subdomain_names;
         IS        *inner_subdomain_is, *outer_subdomain_is;
-        ierr = DMCreateDomainDecomposition(pc->dm, &num_subdomains, &subdomain_names, &inner_subdomain_is, &outer_subdomain_is, &subdomain_dm);CHKERRQ(ierr);
+        ierr = DMCreateDomainDecomposition(pc->dm, &num_subdomains, &subdomain_names, NULL, &inner_subdomain_is, &outer_subdomain_is, NULL, &subdomain_dm);CHKERRQ(ierr);
         if (num_subdomains) {
           ierr = PCGASMSetSubdomains(pc, num_subdomains, inner_subdomain_is, outer_subdomain_is);CHKERRQ(ierr);
         }
