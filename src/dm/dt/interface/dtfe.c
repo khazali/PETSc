@@ -5423,7 +5423,7 @@ PetscErrorCode PetscFECreateDefault(DM dm, PetscInt dim, PetscInt numComp, Petsc
   ierr = PetscDualSpaceDestroy(&Q);CHKERRQ(ierr);
   /* Create quadrature (with specified order if given) */
   if (isSimplex) {ierr = PetscDTGaussJacobiQuadrature(dim, PetscMax(qorder > 0 ? qorder : order, 1), -1.0, 1.0, &q);CHKERRQ(ierr);}
-  else           {ierr = PetscDTGaussTensorQuadrature(dim, PetscMax(qorder > 0 ? qorder : order, 1), -1.0, 1.0, &q);CHKERRQ(ierr);}
+  else           {ierr = PetscDTGaussTensorQuadrature(dim, PetscMax(qorder > 0 ? qorder : order+1, 1), -1.0, 1.0, &q);CHKERRQ(ierr);}
   ierr = PetscFESetQuadrature(*fem, q);CHKERRQ(ierr);
   ierr = PetscQuadratureDestroy(&q);CHKERRQ(ierr);
   PetscFunctionReturn(0);
