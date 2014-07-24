@@ -466,6 +466,20 @@ PetscErrorCode DMPlexProjectField(DM dm, Vec U, void (**funcs)(const PetscScalar
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexInsertBoundaryValuesFEM"
+/*@
+  DMPlexInsertBoundaryValuesFEM - This method computes the boundary values for all essential boundary conditions
+  given for the DM, and inserts them into the local vector.
+
+  Input Parameters:
+. dm - The DM
+
+  Output Parameters:
+. localX - The local vector with boundary values
+
+  Level: developer
+
+.seealso: DMPlexProjectFunctionLabelLocal()
+@*/
 PetscErrorCode DMPlexInsertBoundaryValuesFEM(DM dm, Vec localX)
 {
   void        (**funcs)(const PetscReal x[], PetscScalar *u, void *ctx);
