@@ -443,7 +443,7 @@ PetscErrorCode DMPlexDistribute(DM dm, const char partitioner[], PetscInt overla
     ierr = PetscSFView(partSF, NULL);CHKERRQ(ierr);
   }
   /* Close the partition over the mesh */
-  ierr = DMPlexCreatePartitionClosure(dm, cellPartSection, cellPart, &partSection, &part);CHKERRQ(ierr);
+  ierr = DMPlexCreatePartitionClosure(dm, cellPartSection, cellPart, PETSC_TRUE, &partSection, &part);CHKERRQ(ierr);
   ierr = ISDestroy(&cellPart);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&cellPartSection);CHKERRQ(ierr);
   /* Create new mesh */
@@ -607,7 +607,7 @@ PetscErrorCode DMPlexDistribute(DM dm, const char partitioner[], PetscInt overla
       /* Make sure points in the original partition are not assigned to other procs */
       const PetscInt *origPoints;
 
-      ierr = DMPlexCreatePartitionClosure(dm, origCellPartSection, origCellPart, &origPartSection, &origPart);CHKERRQ(ierr);
+      ierr = DMPlexCreatePartitionClosure(dm, origCellPartSection, origCellPart, PETSC_TRUE, &origPartSection, &origPart);CHKERRQ(ierr);
       ierr = ISGetIndices(origPart, &origPoints);CHKERRQ(ierr);
       for (p = 0; p < numProcs; ++p) {
         PetscInt dof, off, d;
@@ -764,10 +764,7 @@ PetscErrorCode DMPlexDecompose(DM dm, const char partitioner[], PetscInt n, Pets
     ierr = PetscSFView(partSF, NULL);CHKERRQ(ierr);
   }
   /* Close the partition over the mesh */
-  ierr = DMPlexCreatePartitionClosure(dm, origCellPartSection, origCellPart, &origPartSection, &origPart);CHKERRQ(ierr);
-  ierr = ISDestroy(&origCellPart);CHKERRQ(ierr);
-  ierr = PetscSectionDestroy(&origCellPartSection);CHKERRQ(ierr);
-  ierr = DMPlexCreatePartitionClosure(dm, cellPartSection, cellPart, &partSection, &part);CHKERRQ(ierr);
+  ierr = DMPlexCreatePartitionClosure(dm, cellPartSection, cellPart, PETSC_TRUE, &partSection, &part);CHKERRQ(ierr);
   ierr = ISDestroy(&cellPart);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&cellPartSection);CHKERRQ(ierr);
   if (flg) {
@@ -775,6 +772,10 @@ PetscErrorCode DMPlexDecompose(DM dm, const char partitioner[], PetscInt n, Pets
     ierr = PetscSectionView(partSection, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
     ierr = ISView(part, NULL);CHKERRQ(ierr);
   }
+  /* Create a non-overlapping inner partition */
+  ierr = DMPlexCreatePartitionClosure(dm, origCellPartSection, origCellPart, PETSC_FALSE, &origPartSection, &origPart);CHKERRQ(ierr);
+  ierr = ISDestroy(&origCellPart);CHKERRQ(ierr);
+  ierr = PetscSectionDestroy(&origCellPartSection);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(DMPLEX_Partition,dm,0,0,0);CHKERRQ(ierr);
   /* Create new meshes */
   for (i = 0; i < n; ++i) {
