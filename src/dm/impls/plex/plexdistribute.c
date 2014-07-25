@@ -515,13 +515,11 @@ PetscErrorCode DMPlexDistribute_Migrate(DM dm, PetscSection partSection, IS part
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexDistribute_CreatePointSF"
-PetscErrorCode DMPlexDistribute_CreatePointSF(DM dm, PetscSF pointSF, PetscSection origCellPartSection, IS origCellPart, PetscSF *sf)
+PetscErrorCode DMPlexDistribute_CreatePointSF(DM dm, PetscSF pointSF, PetscSection origPartSection, IS origPart, PetscSF *sf)
 {
   MPI_Comm        comm;
   const PetscInt  *leaves;
   PetscSFNode     *remotePoints, *rowners, *lowners;
-  PetscSection    origPartSection;
-  IS              origPart;
   PetscInt        numRoots, numLeaves, numGhostPoints = 0, p, gp, *ghostPoints;
   PetscInt        pStart, pEnd;
   PetscMPIInt     rank, numProcs;
@@ -540,11 +538,10 @@ PetscErrorCode DMPlexDistribute_CreatePointSF(DM dm, PetscSF pointSF, PetscSecti
     rowners[p].rank  = -1;
     rowners[p].index = -1;
   }
-  if (origCellPart) {
+  if (origPart) {
     /* Make sure points in the original partition are not assigned to other procs */
     const PetscInt *origPoints;
 
-    ierr = DMPlexCreatePartitionClosure(dm, origCellPartSection, origCellPart, &origPartSection, &origPart);CHKERRQ(ierr);
     ierr = ISGetIndices(origPart, &origPoints);CHKERRQ(ierr);
     for (p = 0; p < numProcs; ++p) {
       PetscInt dof, off, d;
@@ -559,8 +556,6 @@ PetscErrorCode DMPlexDistribute_CreatePointSF(DM dm, PetscSF pointSF, PetscSecti
     ierr = ISDestroy(&origPart);CHKERRQ(ierr);
     ierr = PetscSectionDestroy(&origPartSection);CHKERRQ(ierr);
   }
-  ierr = ISDestroy(&origCellPart);CHKERRQ(ierr);
-  ierr = PetscSectionDestroy(&origCellPartSection);CHKERRQ(ierr);
 
   ierr = PetscSFBcastBegin(pointSF, MPIU_2INT, rowners, lowners);CHKERRQ(ierr);
   ierr = PetscSFBcastEnd(pointSF, MPIU_2INT, rowners, lowners);CHKERRQ(ierr);
@@ -640,8 +635,8 @@ PetscErrorCode DMPlexDistribute(DM dm, const char partitioner[], PetscInt overla
   MPI_Comm               comm;
   const PetscInt         height = 0;
   PetscInt               dim, numRemoteRanks;
-  IS                     origCellPart,        cellPart,        part;
-  PetscSection           origCellPartSection, cellPartSection, partSection;
+  IS                     origCellPart,        origPart,        cellPart,        part;
+  PetscSection           origCellPartSection, origPartSection, cellPartSection, partSection;
   PetscSFNode           *remoteRanks;
   PetscSF                partSF, pointSF;
   ISLocalToGlobalMapping renumbering;
@@ -713,7 +708,13 @@ PetscErrorCode DMPlexDistribute(DM dm, const char partitioner[], PetscInt overla
   ierr = PetscSectionDestroy(&partSection);CHKERRQ(ierr);
   ierr = ISDestroy(&part);CHKERRQ(ierr);
 
-  ierr = DMPlexDistribute_CreatePointSF(*dmParallel, pointSF, origCellPartSection, origCellPart, sf);CHKERRQ(ierr);
+  if (origCellPart) {
+    ierr = DMPlexCreatePartitionClosure(dm, origCellPartSection, origCellPart, &origPartSection, &origPart);CHKERRQ(ierr);
+  }
+  ierr = ISDestroy(&origCellPart);CHKERRQ(ierr);
+  ierr = PetscSectionDestroy(&origCellPartSection);CHKERRQ(ierr);
+
+  ierr = DMPlexDistribute_CreatePointSF(*dmParallel, pointSF, origPartSection, origPart, sf);CHKERRQ(ierr);
 
   pmesh->useCone    = mesh->useCone;
   pmesh->useClosure = mesh->useClosure;
