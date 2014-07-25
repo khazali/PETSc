@@ -5,6 +5,7 @@
 */
 #include <petscsys.h>           /*I "petscsys.h" I*/
 #include <petscviewer.h>
+#include <petscthreadcomm.h>
 #if defined(PETSC_HAVE_MALLOC_H)
 #include <malloc.h>
 #endif
@@ -76,7 +77,8 @@ PetscTRMallocStruct *trmalloc;
 #endif
 
 /* Global malloc statistics */
-int global_TRallocated = 0;
+PetscInt global_TRallocated = 0;
+PetscInt global_TRMaxMem = 0;
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscSetUseTrMalloc_Private"
@@ -354,30 +356,37 @@ PetscErrorCode  PetscTrFreeDefault(void *aa,int line,const char function[],const
  @*/
 PetscErrorCode  PetscMemoryShowUsage(PetscViewer viewer,const char message[])
 {
-  PetscLogDouble allocated,maximum,resident,residentmax;
+  PetscLogDouble allocated,maximum,resident,residentmax,gallocated,gmaximum;
   PetscErrorCode ierr;
   PetscMPIInt    rank;
   MPI_Comm       comm;
 
   PetscFunctionBegin;
   if (!viewer) viewer = PETSC_VIEWER_STDOUT_WORLD;
+  // Update global structs with data from all processes
+  ierr = PetscTrMallocMergeData();CHKERRQ(ierr);
+  // Get memory usage
   ierr = PetscMallocGetCurrentUsage(&allocated);CHKERRQ(ierr);
   ierr = PetscMallocGetMaximumUsage(&maximum);CHKERRQ(ierr);
   ierr = PetscMemoryGetCurrentUsage(&resident);CHKERRQ(ierr);
   ierr = PetscMemoryGetMaximumUsage(&residentmax);CHKERRQ(ierr);
+  ierr = PetscThreadLockAcquire(PetscLocks->trmalloc_lock);CHKERRQ(ierr);
+  gallocated = (PetscLogDouble)global_TRallocated;
+  gmaximum = (PetscLogDouble)global_TRMaxMem;
+  ierr = PetscThreadLockRelease(PetscLocks->trmalloc_lock);CHKERRQ(ierr);
   if (residentmax > 0) residentmax = PetscMax(resident,residentmax);
   ierr = PetscObjectGetComm((PetscObject)viewer,&comm);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
   ierr = PetscViewerASCIIPrintf(viewer,message);CHKERRQ(ierr);
   ierr = PetscViewerASCIISynchronizedAllow(viewer,PETSC_TRUE);CHKERRQ(ierr);
   if (resident && residentmax && allocated) {
-    ierr = PetscViewerASCIISynchronizedPrintf(viewer,"[%d]Current space PetscMalloc()ed %g, max space PetscMalloced() %g\n[%d]Current process memory %g max process memory %g\n",rank,allocated,maximum,rank,resident,residentmax);CHKERRQ(ierr);
+    ierr = PetscViewerASCIISynchronizedPrintf(viewer,"[%d]Current space PetscMalloc()ed %g, max space PetscMalloced() %g\n[%d]Current process memory %g max process memory %g\n[%d]Total space PetscMalloc()ed %g, max total space PetscMalloced() %g\n",rank,allocated,maximum,rank,resident,residentmax,rank,gallocated,gmaximum);CHKERRQ(ierr);
   } else if (resident && residentmax) {
     ierr = PetscViewerASCIISynchronizedPrintf(viewer,"[%d]Run with -malloc to get statistics on PetscMalloc() calls\n[%d]Current process memory %g max process memory %g\n",rank,rank,resident,residentmax);CHKERRQ(ierr);
   } else if (resident && allocated) {
-    ierr = PetscViewerASCIISynchronizedPrintf(viewer,"[%d]Current space PetscMalloc()ed %g, max space PetscMalloced() %g\n[%d]Current process memory %g, run with -memory_info to get max memory usage\n",rank,allocated,maximum,rank,resident);CHKERRQ(ierr);
+    ierr = PetscViewerASCIISynchronizedPrintf(viewer,"[%d]Current space PetscMalloc()ed %g, max space PetscMalloced() %g\n[%d]Current process memory %g, run with -memory_info to get max memory usage\n[%d]Total space PetscMalloc()ed %g, max total space PetscMalloced() %g\n",rank,allocated,maximum,rank,resident,rank,gallocated,gmaximum);CHKERRQ(ierr);
   } else if (allocated) {
-    ierr = PetscViewerASCIISynchronizedPrintf(viewer,"[%d]Current space PetscMalloc()ed %g, max space PetscMalloced() %g\n[%d]OS cannot compute process memory\n",rank,allocated,maximum,rank);CHKERRQ(ierr);
+    ierr = PetscViewerASCIISynchronizedPrintf(viewer,"[%d]Current space PetscMalloc()ed %g, max space PetscMalloced() %g\n[%d]OS cannot compute process memory\n[%d]Total space PetscMalloc()ed %g, max total space PetscMalloced() %g\n",rank,allocated,maximum,rank,rank,gallocated,gmaximum);CHKERRQ(ierr);
   } else {
     ierr = PetscViewerASCIIPrintf(viewer,"Run with -malloc to get statistics on PetscMalloc() calls\nOS cannot compute process memory\n");CHKERRQ(ierr);
   }
@@ -513,7 +522,11 @@ PetscErrorCode  PetscMallocDump(FILE *fp)
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(MPI_COMM_WORLD,&rank);CHKERRQ(ierr);
   if (!fp) fp = PETSC_STDOUT;
-  if (trmalloc->TRallocated > 0) fprintf(fp,"[%d]Total space allocated %.0f bytes\n",rank,(PetscLogDouble)trmalloc->TRallocated);
+  if (trmalloc->TRallocated > 0) {
+    ierr = PetscThreadLockRelease(PetscLocks->trmalloc_lock);CHKERRQ(ierr);
+    fprintf(fp,"[%d]Thread space allocated %.0f bytes Total space allocated %.0f\n",rank,(PetscLogDouble)trmalloc->TRallocated,(PetscLogDouble)global_TRallocated);
+    ierr = PetscThreadLockRelease(PetscLocks->trmalloc_lock);CHKERRQ(ierr);
+  }
   head = trmalloc->TRhead;
   while (head) {
     fprintf(fp,"[%2d]%.0f bytes %s() line %d in %s\n",rank,(PetscLogDouble)head->size,head->functionname,head->lineno,head->filename);
@@ -760,8 +773,8 @@ PetscErrorCode PetscTrMallocMergeData(void)
   PetscFunctionBegin;
   ierr = PetscThreadLockAcquire(PetscLocks->trmalloc_lock);CHKERRQ(ierr);
   global_TRallocated += trmalloc->TRallocated;
+  global_TRMaxMem    += trmalloc->TRMaxMem;
   ierr = PetscThreadLockRelease(PetscLocks->trmalloc_lock);CHKERRQ(ierr);
-  trmalloc->TRallocated = 0;
   PetscFunctionReturn(0);
 }
 
@@ -773,6 +786,87 @@ PetscErrorCode PetscTrMallocDestroy(void)
 
   PetscFunctionBegin;
   ierr = PetscTrMallocMergeData();CHKERRQ(ierr);
-  //free(trmalloc);
+  //ierr = PetscMallocSetDumpLog();CHKERRQ(ierr);
+  ierr = PetscTrMallocFinalize();
+  free(trmalloc);
+  PetscFunctionReturn(0);
+}
+
+extern PetscErrorCode PetscSequentialPhaseBegin_Private(MPI_Comm,int);
+extern PetscErrorCode PetscSequentialPhaseEnd_Private(MPI_Comm,int);
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscTrMallocFinalize"
+/*
+   Finalize TrMalloc code.
+   Only master thread uses sequential phasing. Master thread calls this
+   routine in PetscFinalize.
+*/
+PetscErrorCode PetscTrMallocFinalize()
+{
+  char           fname[PETSC_MAX_PATH_LEN],fname2[PETSC_MAX_PATH_LEN];
+  FILE           *fd;
+  PetscInt       err;
+  PetscErrorCode ierr;
+  PetscBool      flg1 = PETSC_FALSE,flg2 = PETSC_FALSE;
+  PetscMPIInt    rank;
+
+  PetscFunctionBegin;
+  ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
+
+  /* Dump malloc data based on input options */
+  fname[0] = 0;
+  ierr = PetscOptionsGetString(NULL,"-malloc_dump",fname,250,&flg1);CHKERRQ(ierr);
+  flg2 = PETSC_FALSE;
+  ierr = PetscOptionsGetBool(NULL,"-malloc_test",&flg2,NULL);CHKERRQ(ierr);
+#if defined(PETSC_USE_DEBUG)
+  if (PETSC_RUNNING_ON_VALGRIND) flg2 = PETSC_FALSE;
+#else
+  flg2 = PETSC_FALSE; /* Skip reporting for optimized builds regardless of -malloc_test */
+#endif
+  if (flg1 && fname[0]) {
+    char sname[PETSC_MAX_PATH_LEN];
+
+    sprintf(sname,"%s_%d",fname,rank);
+    fd   = fopen(sname,"w"); if (!fd) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_FILE_OPEN,"Cannot open log file: %s",sname);
+    ierr = PetscMallocDump(fd);CHKERRQ(ierr);
+    err  = fclose(fd);
+    if (err) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SYS,"fclose() failed on file");
+  } else if (flg1 || flg2) {
+    MPI_Comm local_comm;
+    if (PetscMasterThread) {
+      ierr = MPI_Comm_dup(MPI_COMM_WORLD,&local_comm);CHKERRQ(ierr);
+      ierr = PetscSequentialPhaseBegin_Private(local_comm,1);CHKERRQ(ierr);
+    }
+    ierr = PetscMallocDump(stdout);CHKERRQ(ierr);
+    if (PetscMasterThread) {
+      ierr = PetscSequentialPhaseEnd_Private(local_comm,1);CHKERRQ(ierr);
+      ierr = MPI_Comm_free(&local_comm);CHKERRQ(ierr);
+    }
+  }
+
+  /* Dump malloc log based on input options */
+  fd = NULL;
+  fname2[0] = 0;
+
+  ierr = PetscOptionsGetString(NULL,"-malloc_log",fname2,250,&flg1);CHKERRQ(ierr);
+  ierr = PetscOptionsHasName(NULL,"-malloc_log_threshold",&flg2);CHKERRQ(ierr);
+  if (flg1 && fname2[0]) {
+    int err;
+
+    if (!rank) {
+      fd = fopen(fname2,"w");
+      if (!fd) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_FILE_OPEN,"Cannot open log file: %s",fname2);
+    }
+    ierr = PetscMallocSetDumpLog();CHKERRQ(ierr);
+    ierr = PetscMallocDumpLog(fd);CHKERRQ(ierr);
+    if (fd) {
+      err = fclose(fd);
+      if (err) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SYS,"fclose() failed on file");
+    }
+  } else if (flg1 || flg2) {
+    ierr = PetscMallocSetDumpLog();CHKERRQ(ierr);
+    ierr = PetscMallocDumpLog(stdout);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }

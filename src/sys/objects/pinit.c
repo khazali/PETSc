@@ -1259,64 +1259,7 @@ PetscErrorCode  PetscFinalize(void)
 
   ierr = PetscInfoAllow(PETSC_FALSE,NULL);CHKERRQ(ierr);
 
-  {
-    char fname[PETSC_MAX_PATH_LEN];
-    FILE *fd;
-    int  err;
-
-    fname[0] = 0;
-
-    ierr = PetscOptionsGetString(NULL,"-malloc_dump",fname,250,&flg1);CHKERRQ(ierr);
-    flg2 = PETSC_FALSE;
-    ierr = PetscOptionsGetBool(NULL,"-malloc_test",&flg2,NULL);CHKERRQ(ierr);
-#if defined(PETSC_USE_DEBUG)
-    if (PETSC_RUNNING_ON_VALGRIND) flg2 = PETSC_FALSE;
-#else
-    flg2 = PETSC_FALSE;         /* Skip reporting for optimized builds regardless of -malloc_test */
-#endif
-    if (flg1 && fname[0]) {
-      char sname[PETSC_MAX_PATH_LEN];
-
-      sprintf(sname,"%s_%d",fname,rank);
-      fd   = fopen(sname,"w"); if (!fd) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_FILE_OPEN,"Cannot open log file: %s",sname);
-      ierr = PetscMallocDump(fd);CHKERRQ(ierr);
-      err  = fclose(fd);
-      if (err) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SYS,"fclose() failed on file");
-    } else if (flg1 || flg2) {
-      MPI_Comm local_comm;
-
-      ierr = MPI_Comm_dup(MPI_COMM_WORLD,&local_comm);CHKERRQ(ierr);
-      ierr = PetscSequentialPhaseBegin_Private(local_comm,1);CHKERRQ(ierr);
-      ierr = PetscMallocDump(stdout);CHKERRQ(ierr);
-      ierr = PetscSequentialPhaseEnd_Private(local_comm,1);CHKERRQ(ierr);
-      ierr = MPI_Comm_free(&local_comm);CHKERRQ(ierr);
-    }
-  }
-
-  {
-    char fname[PETSC_MAX_PATH_LEN];
-    FILE *fd = NULL;
-
-    fname[0] = 0;
-
-    ierr = PetscOptionsGetString(NULL,"-malloc_log",fname,250,&flg1);CHKERRQ(ierr);
-    ierr = PetscOptionsHasName(NULL,"-malloc_log_threshold",&flg2);CHKERRQ(ierr);
-    if (flg1 && fname[0]) {
-      int err;
-
-      if (!rank) {
-        fd = fopen(fname,"w");
-        if (!fd) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_FILE_OPEN,"Cannot open log file: %s",fname);
-      }
-      ierr = PetscMallocDumpLog(fd);CHKERRQ(ierr);
-      if (fd) {
-        err = fclose(fd);
-        if (err) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SYS,"fclose() failed on file");
-      }
-    } else if (flg1 || flg2) {
-      ierr = PetscMallocDumpLog(stdout);CHKERRQ(ierr);
-    }
-  }
+  ierr = PetscTrMallocFinalize();CHKERRQ(ierr);
 
 #if defined(PETSC_HAVE_CUDA)
   flg  = PETSC_TRUE;

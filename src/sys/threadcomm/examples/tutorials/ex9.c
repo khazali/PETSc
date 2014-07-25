@@ -50,6 +50,8 @@ int main(int argc,char **argv)
     PetscScalar vnorm = 0.0, xval, yval;
     PetscInt trank = omp_get_thread_num();
 
+    ierr = PetscThreadInitialize();CHKERRCONTINUE(ierr);
+
     // User gives threads to PETSc for threaded multiple comm PETSc work
     ierr = PetscThreadCommJoinMultComms(multcomms,ncomms,trank,&commrank);CHKERRCONTINUE(ierr);
     if(commrank>=0) {
@@ -139,6 +141,8 @@ int main(int argc,char **argv)
       ierr = VecDestroy(&b);CHKERRCONTINUE(ierr);
     }
      ierr = PetscThreadCommReturnMultComms(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
+
+     ierr = PetscThreadFinalize();CHKERRCONTINUE(ierr);
   }
 
   // Destroy Threadcomms

@@ -269,10 +269,8 @@ PetscErrorCode PetscThreadCommDestroy(PetscThreadComm *tcomm)
     /* Make sure all jobs are completed */
     ierr = PetscThreadCommJobBarrier(*tcomm);CHKERRQ(ierr);
 
-    /* Destroy pthread specific data */
-    if ((*tcomm)->threadtype == THREAD_TYPE_PTHREAD) {
-      ierr = ((*tcomm)->ops->commdestroy)(*tcomm);CHKERRQ(ierr);
-    }
+    /* Destroy thread specific data */
+    ierr = ((*tcomm)->ops->commdestroy)(*tcomm);CHKERRQ(ierr);
 
     ierr = PetscThreadPoolDestroy((*tcomm)->pool);CHKERRQ(ierr);
     ierr = PetscThreadCommReductionDestroy((*tcomm)->red);CHKERRQ(ierr);

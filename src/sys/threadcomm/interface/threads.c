@@ -4,6 +4,29 @@
 PETSC_EXTERN PetscBool PetscThreadCommRegisterAllModelsCalled;
 PETSC_EXTERN PetscBool PetscThreadCommRegisterAllTypesCalled;
 
+/* Thread variables */
+PetscInt ThreadModel;
+PetscInt ThreadType;
+#if defined(PETSC_HAVE_PTHREADCLASSES)
+#if defined(PETSC_PTHREAD_LOCAL)
+PETSC_PTHREAD_LOCAL PetscInt PetscMasterThread;
+PETSC_PTHREAD_LOCAL PetscInt PetscThreadInit;
+#else
+PetscThreadKey PetscMasterThread;
+PetscThreadKey PetscThreadInit;
+#endif
+#elif defined(PETSC_HAVE_OPENMP)
+PetscInt PetscMasterThread;
+PetscInt PetscThreadInit;
+#pragma omp threadprivate(PetscMasterThread,PetscThreadInit)
+#else
+PetscInt PetscMasterThread;
+PetscInt PetscThreadInit;
+#endif
+
+PetscErrorCode (*PetscThreadLockAcquire)(void*);
+PetscErrorCode (*PetscThreadLockRelease)(void*);
+
 extern PetscErrorCode PetscSetUseTrMalloc_Private(void);
 
 #undef __FUNCT__
@@ -16,13 +39,18 @@ PetscErrorCode PetscThreadInitialize(void)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  PetscMasterThread = 0;
+  // Make sure this thread has not been initialized yet
+  if(PetscMasterThread || PetscThreadInit) PetscFunctionReturn(0);
+
+  printf("Creating thread\n");
 
   // Create thread stack
   ierr = PetscThreadCommStackCreate();CHKERRQ(ierr);
 
   // Setup TRMalloc
   ierr = PetscSetUseTrMalloc_Private();CHKERRQ(ierr);
+
+  PetscThreadInit = 1;
   PetscFunctionReturn(0);
 }
 
@@ -37,11 +65,17 @@ PetscErrorCode PetscThreadFinalize(void)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if(PetscMasterThread || !PetscThreadInit) PetscFunctionReturn(0);
+
+  printf("***********Destroying thread*****************\n");
+
   // Add code to destroy TRMalloc/merged with main trmalloc data
   ierr = PetscTrMallocDestroy();CHKERRQ(ierr);
 
   // Destroy thread stack
   ierr = PetscThreadCommStackDestroy();CHKERRQ(ierr);
+
+  PetscThreadInit = 0;
   PetscFunctionReturn(0);
 }
 

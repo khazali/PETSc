@@ -22,7 +22,7 @@ int main(int argc,char **argv)
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr);
 
-  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,PETSC_NULL,PETSC_NULL,&comm);CHKERRQ(ierr);
+  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,PETSC_NULL,&comm);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(comm,&nthreads);CHKERRQ(ierr);
 
   tid = (pthread_t*)malloc(sizeof(pthread_t)*nthreads);
@@ -60,8 +60,10 @@ void func(void *arg) {
   ierr = PetscPrintf(PETSC_COMM_WORLD,"in func trank=%d\n",trank);CHKERRCONTINUE(ierr);
   ierr = PetscOptionsGetInt(PETSC_NULL,"-n",&n,PETSC_NULL);CHKERRCONTINUE(ierr);
 
+  ierr = PetscThreadInitialize();CHKERRCONTINUE(ierr);
+
   // User gives threads to PETSc to use for PETSc functions
-  ierr = PetscThreadCommJoin(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
+  ierr = PetscThreadCommJoinComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
   ierr = PetscPrintf(comm,"rank=%d joined comm commrank=%d\n",trank,commrank);CHKERRCONTINUE(ierr);
   if(commrank>=0) {
     ierr = VecCreate(comm,&x);CHKERRCONTINUE(ierr);
@@ -79,7 +81,7 @@ void func(void *arg) {
     ierr = PetscPrintf(comm,"Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
   }
   // User takes back threads from PETSc once done calling PETSc functions
-  ierr = PetscThreadCommReturn(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
+  ierr = PetscThreadCommReturnComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
 
   // Get data for local work
   ierr = VecGetArray(y,&ay);CHKERRCONTINUE(ierr);
@@ -97,7 +99,7 @@ void func(void *arg) {
   ierr = VecRestoreArray(y,&ay);CHKERRCONTINUE(ierr);
 
   // User gives threads to PETSc for threaded PETSc work
-  ierr = PetscThreadCommJoin(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
+  ierr = PetscThreadCommJoinComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
 
   if(commrank>=0) {
     // Vec work
@@ -112,5 +114,7 @@ void func(void *arg) {
     ierr = VecDestroy(&x);CHKERRCONTINUE(ierr);
     ierr = VecDestroy(&y);CHKERRCONTINUE(ierr);
   }
-  ierr = PetscThreadCommReturn(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
+  ierr = PetscThreadCommReturnComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
+
+  ierr = PetscThreadFinalize();CHKERRCONTINUE(ierr);
 }

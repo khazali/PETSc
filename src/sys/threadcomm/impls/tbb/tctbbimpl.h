@@ -6,7 +6,7 @@
 
 //typedef spin_mutex LockType;
 
-typedef struct _p_PetscThreadLock_TBB {
+struct _p_PetscThreadLock_TBB {
   //LockType lock; /* lock for tbb routines */
 };
 typedef struct _p_PetscThreadLock_TBB *PetscThreadLock_TBB;

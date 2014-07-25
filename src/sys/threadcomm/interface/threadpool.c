@@ -658,10 +658,8 @@ PetscErrorCode PetscThreadPoolDestroy(PetscThreadPool pool)
   if (!pool) PetscFunctionReturn(0);
   if (!--pool->refct) {
     printf("Destroying ThreadPool\n");
-    /* Destroy pthreads structs and join pthreads */
-    if (pool->threadtype == THREAD_TYPE_PTHREAD) {
-      ierr = (*pool->ops->pooldestroy)(pool);CHKERRQ(ierr);
-    }
+    /* Destroy implementation specific structs */
+    ierr = (*pool->ops->pooldestroy)(pool);CHKERRQ(ierr);
     /* Destroy thread structs in threadpool */
     for (i=0; i<pool->npoolthreads; i++) {
       ierr = PetscFree(pool->poolthreads[i]->jobqueue);CHKERRQ(ierr);

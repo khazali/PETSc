@@ -23,10 +23,7 @@ struct _p_PetscThreadComm_PThread {
 };
 typedef struct _p_PetscThreadComm_PThread *PetscThreadComm_PThread;
 
-struct _p_PetscThreadLock_PThread {
-  pthread_mutex_t lock;                     /* lock for pthread routines */
-};
-typedef struct _p_PetscThreadLock_PThread *PetscThreadLock_PThread;
+typedef pthread_mutex_t *PetscThreadLock_PThread;
 
 /* Rank of the calling thread - thread local variable */
 #if defined(PETSC_PTHREAD_LOCAL)

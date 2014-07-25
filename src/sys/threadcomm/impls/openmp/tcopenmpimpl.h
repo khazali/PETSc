@@ -15,9 +15,12 @@ typedef omp_lock_t *PetscThreadLock_OpenMP;
 
 PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_OpenMP(PetscThreadPool);
 PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadComm);
+PETSC_EXTERN PetscErrorCode PetscThreadPoolDestroy_OpenMP(PetscThreadPool);
+PETSC_EXTERN PetscErrorCode PetscThreadCommDestroy_OpenMP(PetscThreadComm);
 PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel_OpenMPLoop(PetscThreadComm,PetscThreadCommJobCtx);
 PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm,PetscThreadCommJobCtx);
 PETSC_EXTERN PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm);
+
 PETSC_EXTERN PetscErrorCode PetscThreadLockInitialize_OpenMP(void);
 PETSC_EXTERN PetscErrorCode PetscThreadLockAcquire_OpenMP(void*);
 PETSC_EXTERN PetscErrorCode PetscThreadLockRelease_OpenMP(void*);

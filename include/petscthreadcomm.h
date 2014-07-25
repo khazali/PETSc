@@ -25,6 +25,25 @@ typedef const char* PetscThreadCommType;
 #define OPENMP              "openmp"
 #define TBB                 "tbb"
 
+PETSC_EXTERN PetscInt ThreadModel;
+PETSC_EXTERN PetscInt ThreadType;
+#if defined(PETSC_HAVE_PTHREADCLASSES)
+#if defined(PETSC_PTHREAD_LOCAL)
+PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscInt PetscMasterThread;
+PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscInt PetscThreadInit;
+#else
+PETSC_EXTERN PetscThreadKey PetscMasterThread;
+PETSC_EXTERN PetscThreadKey PetscThreadInit;
+#endif
+#else
+PETSC_EXTERN PetscInt PetscMasterThread;
+PETSC_EXTERN PetscInt PetscThreadInit;
+#endif
+PETSC_EXTERN PetscErrorCode (*PetscThreadLockAcquire)(void*);
+PETSC_EXTERN PetscErrorCode (*PetscThreadLockRelease)(void*);
+
+//PETSC_EXTERN PetscThreadLocks PetscLocks;
+
 PETSC_EXTERN PetscFunctionList PetscThreadTypeList;
 PETSC_EXTERN PetscFunctionList PetscThreadPoolTypeList;
 PETSC_EXTERN PetscFunctionList PetscThreadCommTypeList;

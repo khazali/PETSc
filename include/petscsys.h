@@ -1356,6 +1356,7 @@ PETSC_EXTERN PetscErrorCode PetscMallocSetDumpLogThreshold(PetscLogDouble);
 PETSC_EXTERN PetscErrorCode PetscMallocGetDumpLog(PetscBool*);
 PETSC_EXTERN PetscErrorCode PetscTrMallocMergeData(void);
 PETSC_EXTERN PetscErrorCode PetscTrMallocDestroy(void);
+PETSC_EXTERN PetscErrorCode PetscTrMallocFinalize(void);
 
 /*E
     PetscDataType - Used for handling different basic data types.
@@ -2657,21 +2658,12 @@ PETSC_EXTERN PetscErrorCode PetscTextBelt(MPI_Comm,const char[],const char[],Pet
 PETSC_EXTERN PetscErrorCode PetscPullJSONValue(const char[],const char[],char[],size_t,PetscBool*);
 PETSC_EXTERN PetscErrorCode PetscPushJSONValue(char[],const char[],const char[],size_t);
 
-/* Thread variables */
-PetscInt ThreadModel;
-PetscInt ThreadType;
-PetscInt PetscMasterThread;
-
 /* Lock variables - lock type is implementation specific */
-#include <omp.h>
-typedef struct {
+typedef struct _p_PetscThreadLocks *PetscThreadLocks;
+struct _p_PetscThreadLocks{
   void *trmalloc_lock;
-} PetscThreadLocks;
-
-PetscThreadLocks *PetscLocks;
-
-PetscErrorCode (*PetscThreadLockAcquire)(void*);
-PetscErrorCode (*PetscThreadLockRelease)(void*);
+};
+PetscThreadLocks PetscLocks;
 
 /* Reset __FUNCT__ in case the user does not define it themselves */
 #undef __FUNCT__
