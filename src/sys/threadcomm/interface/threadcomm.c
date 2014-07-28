@@ -270,7 +270,9 @@ PetscErrorCode PetscThreadCommDestroy(PetscThreadComm *tcomm)
     ierr = PetscThreadCommJobBarrier(*tcomm);CHKERRQ(ierr);
 
     /* Destroy thread specific data */
-    ierr = ((*tcomm)->ops->commdestroy)(*tcomm);CHKERRQ(ierr);
+    if ((*tcomm)->threadtype != THREAD_TYPE_NOTHREAD) {
+      ierr = ((*tcomm)->ops->commdestroy)(*tcomm);CHKERRQ(ierr);
+    }
 
     ierr = PetscThreadPoolDestroy((*tcomm)->pool);CHKERRQ(ierr);
     ierr = PetscThreadCommReductionDestroy((*tcomm)->red);CHKERRQ(ierr);
@@ -1347,7 +1349,7 @@ PetscErrorCode PetscThreadCommCreateShare(MPI_Comm comm,PetscInt nthreads,PetscI
     nthreads = incomm->ncommthreads;
   }
   // If user did not pass in granks, use the first nthreads threads in the incomm
-  if (pranks == PETSC_NULL) {
+  if (inpranks == PETSC_NULL) {
     ierr = PetscMalloc1(nthreads,&pranks);CHKERRQ(ierr);
     for (i=0; i<nthreads; i++) {
       pranks[i] = incomm->commthreads[i]->prank;

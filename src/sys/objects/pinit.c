@@ -1201,12 +1201,18 @@ PetscErrorCode  PetscFinalize(void)
   }
 #endif
 
-  /* { */
-  /*   PetscThreadComm tcomm; */
-  /*   ierr = PetscCommGetThreadComm(PETSC_COMM_WORLD,&tcomm);CHKERRQ(ierr); */
-  /*   /\* Free global thread communicator *\/ */
-  /*   ierr = PetscThreadCommDestroy(&tcomm);CHKERRQ(ierr); */
-  /* } */
+  {
+    /* Destroy any threadcomm/threadpool attached to PETSC_COMM_WORLD */
+    printf("Destroying PETSC_COMM_WORLD threadcomm\n");
+    PetscThreadComm tcomm;
+    PetscBool       set;
+    ierr = PetscCommCheckGetThreadComm(PETSC_COMM_WORLD,&tcomm,&set);CHKERRQ(ierr);
+    /* Free global thread communicator */
+    if(set) {
+      ierr = PetscThreadCommDestroy(&tcomm);CHKERRQ(ierr);
+    }
+    printf("Done destroying PETSC_COMM_WORLD threadcomm\n");
+  }
 
 #if defined(PETSC_USE_LOG)
   /*

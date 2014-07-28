@@ -219,15 +219,7 @@ PetscErrorCode  PetscEnd(void)
 PetscBool PetscOptionsPublish = PETSC_FALSE;
 extern PetscErrorCode PetscSetUseTrMalloc_Private(void);
 
-#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-extern PETSC_PTHREAD_LOCAL PetscBool      petscsetmallocvisited;
-#else
-extern PetscThreadKey      petscsetmallocvisited;
-#endif
-#else
-extern PetscBool      petscsetmallocvisited;
-#endif
+
 
 static char           emacsmachinename[256];
 
@@ -270,7 +262,7 @@ PetscErrorCode  PetscOptionsCheckInitial_Private(void)
   MPI_Comm       comm = PETSC_COMM_WORLD;
   PetscBool      flg1 = PETSC_FALSE,flg2 = PETSC_FALSE,flg3 = PETSC_FALSE,flg4 = PETSC_FALSE,flag;
   PetscErrorCode ierr;
-  PetscReal      si,logthreshold;
+  PetscReal      si;
   PetscInt       intensity;
   int            i;
   PetscMPIInt    rank;
@@ -279,54 +271,7 @@ PetscErrorCode  PetscOptionsCheckInitial_Private(void)
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
 
-  /*
-      Setup the memory management; support for tracing malloc() usage
-  */
-  ierr = PetscOptionsHasName(NULL,"-malloc_log",&flg3);CHKERRQ(ierr);
-  logthreshold = 0.0;
-  ierr = PetscOptionsGetReal(NULL,"-malloc_log_threshold",&logthreshold,&flg1);CHKERRQ(ierr);
-  if (flg1) flg3 = PETSC_TRUE;
-#if defined(PETSC_USE_DEBUG)
-  ierr = PetscOptionsGetBool(NULL,"-malloc",&flg1,&flg2);CHKERRQ(ierr);
-  if ((!flg2 || flg1) && !petscsetmallocvisited) {
-    if (flg2 || !(PETSC_RUNNING_ON_VALGRIND)) {
-      /* turn off default -malloc if valgrind is being used */
-      ierr = PetscSetUseTrMalloc_Private();CHKERRQ(ierr);
-    }
-  }
-#else
-  ierr = PetscOptionsGetBool(NULL,"-malloc_dump",&flg1,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetBool(NULL,"-malloc",&flg2,NULL);CHKERRQ(ierr);
-  if (flg1 || flg2 || flg3) {ierr = PetscSetUseTrMalloc_Private();CHKERRQ(ierr);}
-#endif
-  if (flg3) {
-    ierr = PetscMallocSetDumpLogThreshold((PetscLogDouble)logthreshold);CHKERRQ(ierr);
-  }
-  flg1 = PETSC_FALSE;
-  ierr = PetscOptionsGetBool(NULL,"-malloc_debug",&flg1,NULL);CHKERRQ(ierr);
-  if (flg1) {
-    ierr = PetscSetUseTrMalloc_Private();CHKERRQ(ierr);
-    ierr = PetscMallocDebug(PETSC_TRUE);CHKERRQ(ierr);
-  }
-  flg1 = PETSC_FALSE;
-  ierr = PetscOptionsGetBool(NULL,"-malloc_test",&flg1,NULL);CHKERRQ(ierr);
-#if defined(PETSC_USE_DEBUG)
-  if (flg1 && !PETSC_RUNNING_ON_VALGRIND) {
-    ierr = PetscSetUseTrMalloc_Private();CHKERRQ(ierr);
-    ierr = PetscMallocSetDumpLog();CHKERRQ(ierr);
-    ierr = PetscMallocDebug(PETSC_TRUE);CHKERRQ(ierr);
-  }
-#endif
-
-  flg1 = PETSC_FALSE;
-  ierr = PetscOptionsGetBool(NULL,"-malloc_info",&flg1,NULL);CHKERRQ(ierr);
-  if (!flg1) {
-    flg1 = PETSC_FALSE;
-    ierr = PetscOptionsGetBool(NULL,"-memory_info",&flg1,NULL);CHKERRQ(ierr);
-  }
-  if (flg1) {
-    ierr = PetscMemorySetGetMaximumUsage();CHKERRQ(ierr);
-  }
+  ierr = PetscTrMallocInitialize();CHKERRQ(ierr);
 
   /*
       Set the display variable for graphics

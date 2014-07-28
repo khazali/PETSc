@@ -91,6 +91,7 @@ PetscErrorCode PetscSetUseTrMalloc_Private(void)
   if(trmalloc) PetscFunctionReturn(0);
 
   /* Allocate and initialize trmalloc */
+  printf("******************Allocating trmalloc master=%d*********************\n",PetscMasterThread);
   ierr = PetscNew(&trmalloc);CHKERRQ(ierr);
   ierr = PetscMallocSet(PetscTrMallocDefault,PetscTrFreeDefault);CHKERRQ(ierr);
 
@@ -146,7 +147,9 @@ PetscErrorCode  PetscMallocValidate(int line,const char function[],const char fi
   PetscClassId *nend;
 
   PetscFunctionBegin;
-  head = trmalloc->TRhead; lasthead = NULL;
+  if(!trmalloc) printf("***********ERROR: trmalloc not allocated*******************\n");
+  head = trmalloc->TRhead;
+  lasthead = NULL;
   while (head) {
     if (head->classid != CLASSID_VALUE) {
       (*PetscErrorPrintf)("PetscMallocValidate: error detected at  %s() line %d in %s\n",function,line,file);
@@ -198,9 +201,10 @@ PetscErrorCode  PetscTrMallocDefault(size_t a,int lineno,const char function[],c
 
   PetscFunctionBegin;
   if (trmalloc->TRdebugLevel) {
+    printf("Calling MallocVal from TrMallocDef\n");
     ierr = PetscMallocValidate(lineno,function,filename); if (ierr) PetscFunctionReturn(ierr);
   }
-
+  //printf("mallocing line=%d func=%s\n",lineno,function);
   nsize = (a + (PETSC_MEMALIGN-1)) & ~(PETSC_MEMALIGN-1);
   ierr  = PetscMallocAlign(nsize+sizeof(TrSPACE)+sizeof(PetscClassId),lineno,function,filename,(void**)&inew);CHKERRQ(ierr);
 
@@ -281,9 +285,10 @@ PetscErrorCode  PetscTrFreeDefault(void *aa,int line,const char function[],const
   if (!a) PetscFunctionReturn(0);
 
   if (trmalloc->TRdebugLevel) {
+    printf("Calling MallocVal from TrFreeDef\n");
     ierr = PetscMallocValidate(line,function,file);CHKERRQ(ierr);
   }
-
+  //printf("freeing line=%d func=%s\n",line,function);
   ahead = a;
   a     = a - sizeof(TrSPACE);
   head  = (TRSPACE*)a;
@@ -328,7 +333,12 @@ PetscErrorCode  PetscTrFreeDefault(void *aa,int line,const char function[],const
   trmalloc->TRallocated -= head->size;
   trmalloc->TRfrags--;
   if (head->prev) head->prev->next = head->next;
-  else trmalloc->TRhead = head->next;
+  else {
+    if(trmalloc->TRhead==head->next) {
+      printf("****************ERROR: SETTING TRhead->next to TRhead*************\n");
+    }
+    trmalloc->TRhead = head->next;
+  }
 
   if (head->next) head->next->prev = head->prev;
   ierr = PetscFreeAlign(a,line,function,file);CHKERRQ(ierr);
@@ -788,9 +798,84 @@ PetscErrorCode PetscTrMallocDestroy(void)
   ierr = PetscTrMallocMergeData();CHKERRQ(ierr);
   //ierr = PetscMallocSetDumpLog();CHKERRQ(ierr);
   ierr = PetscTrMallocFinalize();
+  printf("********************freeing trmalloc********************\n");
   free(trmalloc);
   PetscFunctionReturn(0);
 }
+
+#if defined(PETSC_HAVE_PTHREADCLASSES)
+#if defined(PETSC_PTHREAD_LOCAL)
+extern PETSC_PTHREAD_LOCAL PetscBool      petscsetmallocvisited;
+#else
+extern PetscThreadKey      petscsetmallocvisited;
+#endif
+#else
+extern PetscBool      petscsetmallocvisited;
+#endif
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscTrMallocInitialize"
+/*
+   Initialize TrMalloc code. Master thread calls this routine in PetscInitialize.
+*/
+PetscErrorCode PetscTrMallocInitialize()
+{
+  PetscBool      flg1 = PETSC_FALSE,flg2 = PETSC_FALSE,flg3 = PETSC_FALSE;
+  PetscErrorCode ierr;
+  PetscReal      logthreshold;
+
+  PetscFunctionBegin;
+  /*
+      Setup the memory management; support for tracing malloc() usage
+  */
+  ierr = PetscOptionsHasName(NULL,"-malloc_log",&flg3);CHKERRQ(ierr);
+  logthreshold = 0.0;
+  ierr = PetscOptionsGetReal(NULL,"-malloc_log_threshold",&logthreshold,&flg1);CHKERRQ(ierr);
+  if (flg1) flg3 = PETSC_TRUE;
+#if defined(PETSC_USE_DEBUG)
+  ierr = PetscOptionsGetBool(NULL,"-malloc",&flg1,&flg2);CHKERRQ(ierr);
+  if ((!flg2 || flg1) && !petscsetmallocvisited) {
+    if (flg2 || !(PETSC_RUNNING_ON_VALGRIND)) {
+      /* turn off default -malloc if valgrind is being used */
+      ierr = PetscSetUseTrMalloc_Private();CHKERRQ(ierr);
+    }
+  }
+#else
+  ierr = PetscOptionsGetBool(NULL,"-malloc_dump",&flg1,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL,"-malloc",&flg2,NULL);CHKERRQ(ierr);
+  if (flg1 || flg2 || flg3) {ierr = PetscSetUseTrMalloc_Private();CHKERRQ(ierr);}
+#endif
+  if (flg3) {
+    ierr = PetscMallocSetDumpLogThreshold((PetscLogDouble)logthreshold);CHKERRQ(ierr);
+  }
+  flg1 = PETSC_FALSE;
+  ierr = PetscOptionsGetBool(NULL,"-malloc_debug",&flg1,NULL);CHKERRQ(ierr);
+  if (flg1) {
+    ierr = PetscSetUseTrMalloc_Private();CHKERRQ(ierr);
+    ierr = PetscMallocDebug(PETSC_TRUE);CHKERRQ(ierr);
+  }
+  flg1 = PETSC_FALSE;
+  ierr = PetscOptionsGetBool(NULL,"-malloc_test",&flg1,NULL);CHKERRQ(ierr);
+#if defined(PETSC_USE_DEBUG)
+  if (flg1 && !PETSC_RUNNING_ON_VALGRIND) {
+    ierr = PetscSetUseTrMalloc_Private();CHKERRQ(ierr);
+    ierr = PetscMallocSetDumpLog();CHKERRQ(ierr);
+    ierr = PetscMallocDebug(PETSC_TRUE);CHKERRQ(ierr);
+  }
+#endif
+
+  flg1 = PETSC_FALSE;
+  ierr = PetscOptionsGetBool(NULL,"-malloc_info",&flg1,NULL);CHKERRQ(ierr);
+  if (!flg1) {
+    flg1 = PETSC_FALSE;
+    ierr = PetscOptionsGetBool(NULL,"-memory_info",&flg1,NULL);CHKERRQ(ierr);
+  }
+  if (flg1) {
+    ierr = PetscMemorySetGetMaximumUsage();CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
 
 extern PetscErrorCode PetscSequentialPhaseBegin_Private(MPI_Comm,int);
 extern PetscErrorCode PetscSequentialPhaseEnd_Private(MPI_Comm,int);
@@ -813,6 +898,9 @@ PetscErrorCode PetscTrMallocFinalize()
 
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
+
+  /* Merge data */
+  ierr = PetscTrMallocMergeData();CHKERRQ(ierr);
 
   /* Dump malloc data based on input options */
   fname[0] = 0;
@@ -868,5 +956,10 @@ PetscErrorCode PetscTrMallocFinalize()
     ierr = PetscMallocSetDumpLog();CHKERRQ(ierr);
     ierr = PetscMallocDumpLog(stdout);CHKERRQ(ierr);
   }
+
+  /* Free trmalloc */
+  printf("*********************Freeing trmalloc**************************\n");
+  free(trmalloc);
+
   PetscFunctionReturn(0);
 }

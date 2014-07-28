@@ -48,7 +48,8 @@ PetscErrorCode PetscThreadInitialize(void)
   ierr = PetscThreadCommStackCreate();CHKERRQ(ierr);
 
   // Setup TRMalloc
-  ierr = PetscSetUseTrMalloc_Private();CHKERRQ(ierr);
+  //ierr = PetscSetUseTrMalloc_Private();CHKERRQ(ierr);
+  ierr = PetscTrMallocInitialize();CHKERRQ(ierr);
 
   PetscThreadInit = 1;
   PetscFunctionReturn(0);
@@ -67,10 +68,11 @@ PetscErrorCode PetscThreadFinalize(void)
   PetscFunctionBegin;
   if(PetscMasterThread || !PetscThreadInit) PetscFunctionReturn(0);
 
-  printf("***********Destroying thread*****************\n");
+  printf("***********Destroying thread***************** master=%d init=%d\n",PetscMasterThread,PetscThreadInit);
 
   // Add code to destroy TRMalloc/merged with main trmalloc data
-  ierr = PetscTrMallocDestroy();CHKERRQ(ierr);
+  //ierr = PetscTrMallocDestroy();CHKERRQ(ierr);
+  ierr = PetscTrMallocFinalize();CHKERRQ(ierr);
 
   // Destroy thread stack
   ierr = PetscThreadCommStackDestroy();CHKERRQ(ierr);

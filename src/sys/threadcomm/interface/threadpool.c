@@ -209,8 +209,8 @@ PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool pool,PetscInt nthreads)
   printf("Creating thread pool\n");
   // Set threadpool variables
   pool->model = ThreadModel;
-  ierr = PetscThreadPoolSetType(pool,NOTHREAD);CHKERRQ(ierr);
   ierr = PetscThreadPoolSetNThreads(pool,nthreads);CHKERRQ(ierr);
+  ierr = PetscThreadPoolSetType(pool,NOTHREAD);CHKERRQ(ierr);
 
   if (pool->model == THREAD_MODEL_LOOP) {
     pool->ismainworker = PETSC_TRUE;
@@ -659,7 +659,9 @@ PetscErrorCode PetscThreadPoolDestroy(PetscThreadPool pool)
   if (!--pool->refct) {
     printf("Destroying ThreadPool\n");
     /* Destroy implementation specific structs */
-    ierr = (*pool->ops->pooldestroy)(pool);CHKERRQ(ierr);
+    if (pool->threadtype != THREAD_TYPE_NOTHREAD) {
+      ierr = (*pool->ops->pooldestroy)(pool);CHKERRQ(ierr);
+    }
     /* Destroy thread structs in threadpool */
     for (i=0; i<pool->npoolthreads; i++) {
       ierr = PetscFree(pool->poolthreads[i]->jobqueue);CHKERRQ(ierr);

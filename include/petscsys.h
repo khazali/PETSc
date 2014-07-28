@@ -1356,6 +1356,7 @@ PETSC_EXTERN PetscErrorCode PetscMallocSetDumpLogThreshold(PetscLogDouble);
 PETSC_EXTERN PetscErrorCode PetscMallocGetDumpLog(PetscBool*);
 PETSC_EXTERN PetscErrorCode PetscTrMallocMergeData(void);
 PETSC_EXTERN PetscErrorCode PetscTrMallocDestroy(void);
+PETSC_EXTERN PetscErrorCode PetscTrMallocInitialize(void);
 PETSC_EXTERN PetscErrorCode PetscTrMallocFinalize(void);
 
 /*E

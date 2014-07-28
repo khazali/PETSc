@@ -5,6 +5,7 @@
 #define __PETSCOPTIONS_H
 #include <petscsys.h>
 #include <petscviewertypes.h>
+#include <petscthreadcomm.h>
 
 PETSC_EXTERN PetscErrorCode PetscOptionsHasName(const char[],const char[],PetscBool *);
 PETSC_EXTERN PetscErrorCode PetscOptionsGetInt(const char[],const char [],PetscInt *,PetscBool *);
@@ -55,11 +56,22 @@ PETSC_EXTERN PetscErrorCode PetscOptionsMonitorCancel(void);
 PETSC_EXTERN PetscErrorCode PetscOptionsMonitorDefault(const char[], const char[], void *);
 
 PETSC_EXTERN PetscBool PetscOptionsPublish;
+
+#if defined(PETSC_HAVE_PTHREADCLASSES)
+#if defined(PETSC_PTHREAD_LOCAL)
+PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscInt PetscOptionsPublishCount;
+#else
+PETSC_EXTERN PetscThreadKey PetscOptionsPublishCount;
+#endif
+#elif defined(PETSC_HAVE_OPENMP)
 PETSC_EXTERN PetscInt PetscOptionsPublishCount;
+#else
+PETSC_EXTERN PetscInt PetscOptionsPublishCount;
+#endif
 
 /*MC
     PetscOptionsBegin - Begins a set of queries on the options database that are related and should be
-     displayed on the same window of a GUI that allows the user to set the options interactively. Often one should 
+     displayed on the same window of a GUI that allows the user to set the options interactively. Often one should
      use PetscObjectOptionsBegin() rather than this call.
 
    Synopsis:
