@@ -438,17 +438,20 @@ PetscErrorCode PetscSFSetGraph(PetscSF sf,PetscInt nroots,PetscInt nleaves,const
 PetscErrorCode PetscSFCreateInverseSF(PetscSF sf,PetscSF *isf)
 {
   PetscErrorCode ierr;
+  MPI_Comm       comm;
   PetscMPIInt    rank;
-  PetscInt       i,nroots,nleaves,maxlocal,count,*newilocal;
+  PetscInt       i,nroots,nleaves,maxlocal,maxglobal,count,*newilocal;
   const PetscInt *ilocal;
   PetscSFNode    *roots,*leaves;
 
   PetscFunctionBegin;
-  ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)sf),&rank);CHKERRQ(ierr);
+  ierr = PetscObjectGetComm((PetscObject)sf,&comm);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
   ierr = PetscSFGetGraph(sf,&nroots,&nleaves,&ilocal,NULL);CHKERRQ(ierr);
   for (i=0,maxlocal=0; i<nleaves; i++) maxlocal = PetscMax(maxlocal,(ilocal ? ilocal[i] : i)+1);
-  ierr = PetscMalloc2(nroots,&roots,maxlocal,&leaves);CHKERRQ(ierr);
-  for (i=0; i<maxlocal; i++) {
+  ierr = MPI_Allreduce(&maxlocal, &maxglobal, 1, MPIU_INT, MPI_MAX, comm);CHKERRQ(ierr);
+  ierr = PetscMalloc2(nroots,&roots,maxglobal,&leaves);CHKERRQ(ierr);
+  for (i=0; i<maxglobal; i++) {
     leaves[i].rank  = rank;
     leaves[i].index = i;
   }
@@ -475,7 +478,7 @@ PetscErrorCode PetscSFCreateInverseSF(PetscSF sf,PetscSF *isf)
   }
 
   ierr = PetscSFDuplicate(sf,PETSCSF_DUPLICATE_CONFONLY,isf);CHKERRQ(ierr);
-  ierr = PetscSFSetGraph(*isf,maxlocal,count,newilocal,PETSC_OWN_POINTER,roots,PETSC_COPY_VALUES);CHKERRQ(ierr);
+  ierr = PetscSFSetGraph(*isf,maxglobal,count,newilocal,PETSC_OWN_POINTER,roots,PETSC_COPY_VALUES);CHKERRQ(ierr);
   ierr = PetscFree2(roots,leaves);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
