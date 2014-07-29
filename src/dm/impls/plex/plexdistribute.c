@@ -374,8 +374,8 @@ PetscErrorCode DMPlexDistribute_Migrate(DM dm, PetscSection partSection, IS part
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  /* if (sf) PetscValidPointer(sf,4); */
-  /* PetscValidPointer(dmParallel,5); */
+  if (pointSF) PetscValidPointer(pointSF,4);
+  PetscValidPointer(dmParallel,5);
 
   ierr = PetscObjectGetComm((PetscObject)dm,&comm);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
@@ -601,6 +601,79 @@ PetscErrorCode DMPlexDistribute_CreatePointSF(DM dm, PetscSF pointSF, PetscSecti
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexDistribute_InheritPointSF"
+PetscErrorCode DMPlexDistribute_InheritPointSF(DM dm, IS partition, ISLocalToGlobalMapping renumbering, PetscSF *sf)
+{
+  MPI_Comm        comm;
+  PetscInt        nleaves, *leaves=NULL, numLocal, numRemote;
+  PetscSFNode     *roots=NULL;
+  const PetscInt  *local, *part_ind;
+  const PetscSFNode *remote;
+  PetscInt        p, pStart, pEnd, part_size, rank, index, li;
+  PetscSF         origSF;
+  PetscSection    pointSec;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  ierr = PetscObjectGetComm((PetscObject)dm,&comm);CHKERRQ(ierr);
+
+  /* First, convert the old pointSF mapping into a section for quick lookup */
+  ierr = DMPlexGetChart(dm, &pStart, &pEnd);CHKERRQ(ierr);
+  ierr = PetscSectionCreate(comm, &pointSec);CHKERRQ(ierr);
+  ierr = PetscSectionSetChart(pointSec, pStart, pEnd);CHKERRQ(ierr);
+  ierr = PetscSectionSetUp(pointSec);CHKERRQ(ierr);
+  for (p=pStart; p<pEnd; p++) {
+    ierr = PetscSectionSetDof(pointSec, p, -1);CHKERRQ(ierr);
+    ierr = PetscSectionSetOffset(pointSec, p, -1);CHKERRQ(ierr);
+  }
+  ierr = DMGetPointSF(dm, &origSF);CHKERRQ(ierr);
+  ierr = PetscSFGetGraph(origSF, &numRemote, &numLocal, &local, &remote);CHKERRQ(ierr);
+  for (p=0; p<numLocal; p++) {
+    ierr = PetscSectionSetDof(pointSec, local[p], remote[p].rank);CHKERRQ(ierr);
+    ierr = PetscSectionSetOffset(pointSec, local[p], remote[p].index);CHKERRQ(ierr);
+  }
+
+  /* Then build a new SF mapping our new leaves to the old roots */
+  ierr = ISGetIndices(partition, &part_ind);CHKERRQ(ierr);
+  ierr = ISGetLocalSize(partition, &part_size);CHKERRQ(ierr);
+  nleaves = 0;
+  for (p=0; p<part_size; p++) {
+    ierr = PetscSectionGetDof(pointSec, part_ind[p], &rank);CHKERRQ(ierr);
+    if (rank >= 0) nleaves++;
+  }
+  ierr = PetscMalloc2(nleaves, &leaves, nleaves, &roots);CHKERRQ(ierr);
+
+  li = 0;
+  for (p=0; p<part_size; p++) {
+    ierr = PetscSectionGetDof(pointSec, part_ind[p], &rank);CHKERRQ(ierr);
+    if (rank >= 0) {
+      ierr = PetscSectionGetOffset(pointSec, part_ind[p], &index);CHKERRQ(ierr);
+      leaves[li] = p;
+      roots[li].rank = rank;
+      roots[li].index = index;
+      li++;
+    }
+  }
+  ierr = PetscSFSetGraph(*sf, numRemote, nleaves, leaves, PETSC_OWN_POINTER, roots, PETSC_OWN_POINTER);CHKERRQ(ierr);
+  ierr = PetscSectionDestroy(&pointSec);CHKERRQ(ierr);
+
+  /* The newly created SF maps new leaves to old roots, but we need it to map to the new roots.
+     So we can use it to communicate the new root IDs and update accordingly. */
+  PetscInt *oldRoots, *newRoots;
+  ierr = PetscMalloc2(pEnd-pStart, &oldRoots, pEnd-pStart, &newRoots);CHKERRQ(ierr);
+  for (p=0; p<part_size; p++) {
+    oldRoots[ part_ind[p] ] = p;
+  }
+  ierr = PetscSFBcastBegin(*sf, MPIU_INT, oldRoots, newRoots);CHKERRQ(ierr);
+  ierr = PetscSFBcastEnd(*sf, MPIU_INT, oldRoots, newRoots);CHKERRQ(ierr);
+  for (p=0; p<nleaves; p++) roots[p].index = newRoots[leaves[p]];
+
+  PetscFree2(oldRoots, newRoots);
+  ierr = ISRestoreIndices(partition, &part_ind);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexDistribute"
@@ -687,6 +760,7 @@ PetscErrorCode DMPlexDistribute(DM dm, const char partitioner[], PetscInt overla
   ierr = DMPlexCreatePartitionClosure(dm, cellPartSection, cellPart, &partSection, &part);CHKERRQ(ierr);
   ierr = ISDestroy(&cellPart);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&cellPartSection);CHKERRQ(ierr);
+
   /* Distribute sieve points and the global point numbering (replaces creating remote bases) */
   ierr = PetscSFConvertPartition(partSF, partSection, part, &renumbering, &pointSF);CHKERRQ(ierr);
   if (flg) {
@@ -702,19 +776,20 @@ PetscErrorCode DMPlexDistribute(DM dm, const char partitioner[], PetscInt overla
   ierr = DMPlexDistribute_Migrate(dm, partSection, part, pointSF, renumbering, dmParallel);CHKERRQ(ierr);
   pmesh = (DM_Plex*) (*dmParallel)->data;
 
+  if (origCellPart) {
+    ierr = DMPlexCreatePartitionClosure(dm, origCellPartSection, origCellPart, &origPartSection, &origPart);CHKERRQ(ierr);
+    ierr = DMPlexDistribute_CreatePointSF(*dmParallel, pointSF, origPartSection, origPart, sf);CHKERRQ(ierr);
+  } else {
+    ierr = DMPlexDistribute_CreatePointSF(*dmParallel, pointSF, partSection, part, sf);CHKERRQ(ierr);
+  }
+
   /* Cleanup Partition */
   ierr = ISLocalToGlobalMappingDestroy(&renumbering);CHKERRQ(ierr);
   ierr = PetscSFDestroy(&partSF);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&partSection);CHKERRQ(ierr);
   ierr = ISDestroy(&part);CHKERRQ(ierr);
-
-  if (origCellPart) {
-    ierr = DMPlexCreatePartitionClosure(dm, origCellPartSection, origCellPart, &origPartSection, &origPart);CHKERRQ(ierr);
-  }
   ierr = ISDestroy(&origCellPart);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&origCellPartSection);CHKERRQ(ierr);
-
-  ierr = DMPlexDistribute_CreatePointSF(*dmParallel, pointSF, origPartSection, origPart, sf);CHKERRQ(ierr);
 
   pmesh->useCone    = mesh->useCone;
   pmesh->useClosure = mesh->useClosure;
@@ -768,8 +843,8 @@ PetscErrorCode DMPlexRedistribute(DM dm, const char partitioner[], PetscInt over
   const PetscSFNode      *iremote;
   const PetscInt         *ilocal;
   PetscInt               nroots, nleaves, numRemoteRanks, *origCells;
-  IS                     cellPart, origCellPart, newPart;
-  PetscSection           cellPartSection, origCellPartSection, newPartSection;
+  IS                     cellPart, origCellPart, origPart, newPart;
+  PetscSection           cellPartSection, origCellPartSection, origPartSection, newPartSection;
   PetscSFNode            *remoteRanks;
   PetscInt               i, p, cStart, cEnd, ncells;
   PetscBT                bt;
@@ -866,13 +941,23 @@ PetscErrorCode DMPlexRedistribute(DM dm, const char partitioner[], PetscInt over
 
   ierr = DMPlexDistribute_Migrate(dm, newPartSection, newPart, pointSF, renumbering, newdm);CHKERRQ(ierr);
 
+  if (origCellPart) {
+    ierr = DMPlexCreatePartitionClosure(dm, origCellPartSection, origCellPart, &origPartSection, &origPart);CHKERRQ(ierr);
+  }
+  ierr = ISDestroy(&origCellPart);CHKERRQ(ierr);
+  ierr = PetscSectionDestroy(&origCellPartSection);CHKERRQ(ierr);
+
+  /* Instead of voting on the point ownership via the SF created from the
+     partitioning (DMPlexDistribute_CreatePointSF) we can simply derive
+     the new pointSF from the old pointSF when shrinking halos. */
+  ierr = DMPlexDistribute_InheritPointSF(dm, newPart, renumbering, &((*newdm)->sf));CHKERRQ(ierr);
+
   /* Cleanup Partition */
   ierr = ISLocalToGlobalMappingDestroy(&renumbering);CHKERRQ(ierr);
   ierr = PetscSFDestroy(&partSF);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&newPartSection);CHKERRQ(ierr);
   ierr = ISDestroy(&newPart);CHKERRQ(ierr);
 
-  ierr = DMPlexDistribute_CreatePointSF(*newdm, pointSF, origCellPartSection, origCellPart, sf);CHKERRQ(ierr);
   pmesh = (DM_Plex*) (*newdm)->data;
   pmesh->useCone    = mesh->useCone;
   pmesh->useClosure = mesh->useClosure;
