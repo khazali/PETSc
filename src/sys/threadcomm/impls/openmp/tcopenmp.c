@@ -101,10 +101,12 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_OpenMP(PetscThreadPool pool)
   pool->ops->setaffinities = PetscThreadCommSetAffinity_OpenMP;
   pool->ops->pooldestroy = PetscThreadPoolDestroy_OpenMP;
   if (pool->model == THREAD_MODEL_LOOP) {
+    printf("*******************Initializing threadpool threadstructs nthreads=%d****************\n",pool->npoolthreads);
     // Initialize each thread
     #pragma omp parallel num_threads(pool->npoolthreads)
     {
       ierr = PetscThreadInitialize();CHKERRCONTINUE(ierr);
+      printf("Petscthread init=%d\n",PetscThreadInit);
     }
   }
   PetscFunctionReturn(0);
@@ -152,12 +154,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommDestroy_OpenMP(PetscThreadComm tcomm)
   PetscFunctionBegin;
   if(!ptcomm) PetscFunctionReturn(0);
   /* Destroy openmp threadcomm data */
-  if (tcomm->model == THREAD_MODEL_LOOP) {
-    #pragma omp parallel num_threads(tcomm->ncommthreads)
-    {
-      ierr = PetscThreadFinalize();CHKERRCONTINUE(ierr);
-    }
-  }
   ierr = PetscFree(ptcomm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -172,9 +168,9 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolDestroy_OpenMP(PetscThreadPool pool)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  printf("***************DESTROYING THREADPOOL THREAD STRUCTS***********\n");
   /* Destroy openmp thread data */
   if (pool->model == THREAD_MODEL_LOOP) {
+    printf("***************DESTROYING THREADPOOL THREAD STRUCTS nthreads=%d***********\n",pool->npoolthreads);
     #pragma omp parallel num_threads(pool->npoolthreads)
     {
       ierr = PetscThreadFinalize();CHKERRCONTINUE(ierr);

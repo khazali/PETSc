@@ -4,11 +4,12 @@
 #define __FUNCT__ "PetscThreadInit_NoThread"
 PETSC_EXTERN PetscErrorCode PetscThreadInit_NoThread()
 {
-  //PetscErrorCode ierr;
+  PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ThreadType = THREAD_TYPE_NOTHREAD;
-  //ierr = PetscThreadLockInitialize_NoThread();CHKERRQ(ierr);
+  ierr = PetscNew(&PetscLocks);CHKERRQ(ierr);
+  PetscLocks->trmalloc_lock = PETSC_NULL;
   PetscThreadLockAcquire = PetscThreadLockAcquire_NoThread;
   PetscThreadLockRelease = PetscThreadLockRelease_NoThread;
   PetscFunctionReturn(0);

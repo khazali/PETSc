@@ -40,10 +40,18 @@ int main(int argc,char **argv)
   void *res;
   for(tnum=0; tnum<nthreads; tnum++) {
     printf("Joining thread %d\n",tnum);
+    pthread_attr_destroy(&attr[tnum]);
     pthread_join(tid[tnum],&res);
   }
 
+  //ierr = PetscFree(tid);CHKERRQ(ierr);
+  //ierr = PetscFree(attr);CHKERRQ(ierr);
+  //ierr = PetscFree(tranks);CHKERRQ(ierr);
   ierr = PetscCommDestroy(&comm);CHKERRQ(ierr);
+
+  free(tid);
+  free(attr);
+  free(tranks);
 
   ierr = PetscFinalize();CHKERRQ(ierr);
 
@@ -52,15 +60,15 @@ int main(int argc,char **argv)
 
 void func(void *arg) {
 
-  PetscInt i, n=100, commrank, start, end, lsize, *indices;
+  PetscInt i, n=100, commrank=0, start, end, lsize, *indices;
   PetscScalar alpha=3.0, vnorm;
   int trank = *(int*)arg;
   PetscErrorCode ierr;
 
+  ierr = PetscThreadInitialize();CHKERRCONTINUE(ierr);
+
   ierr = PetscPrintf(PETSC_COMM_WORLD,"in func trank=%d\n",trank);CHKERRCONTINUE(ierr);
   ierr = PetscOptionsGetInt(PETSC_NULL,"-n",&n,PETSC_NULL);CHKERRCONTINUE(ierr);
-
-  ierr = PetscThreadInitialize();CHKERRCONTINUE(ierr);
 
   // User gives threads to PETSc to use for PETSc functions
   ierr = PetscThreadCommJoinComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
@@ -116,5 +124,6 @@ void func(void *arg) {
   }
   ierr = PetscThreadCommReturnComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
 
+  ierr = PetscFree(indices);CHKERRCONTINUE(ierr);
   ierr = PetscThreadFinalize();CHKERRCONTINUE(ierr);
 }

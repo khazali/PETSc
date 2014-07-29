@@ -276,6 +276,7 @@ PetscErrorCode PetscThreadCommDestroy(PetscThreadComm *tcomm)
 
     ierr = PetscThreadPoolDestroy((*tcomm)->pool);CHKERRQ(ierr);
     ierr = PetscThreadCommReductionDestroy((*tcomm)->red);CHKERRQ(ierr);
+    ierr = PetscFree((*tcomm)->commthreads);CHKERRQ(ierr);
     ierr = PetscFree((*tcomm)->ops);CHKERRQ(ierr);
     ierr = PetscFree((*tcomm));CHKERRQ(ierr);
   }
@@ -1296,6 +1297,7 @@ PetscErrorCode PetscThreadCommCreate(MPI_Comm comm,PetscInt nthreads,PetscInt *a
   ierr = PetscCommForceDuplicate(comm,mpicomm,PETSC_NULL);CHKERRQ(ierr);
   // Attach ThreadComm to new MPI_Comm
   ierr = PetscThreadCommAttach(*mpicomm,tcomm);CHKERRQ(ierr);
+  ierr = PetscFree(lranks);CHKERRQ(ierr);
   printf("Created new threadcomm with %d threads\n",tcomm->ncommthreads);
   PetscFunctionReturn(0);
 }
@@ -1409,6 +1411,7 @@ PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt nthreads,Petsc
   ierr = PetscThreadCommInitialize(nthreads,pranks,tcomm);CHKERRQ(ierr);
   // Attach ThreadComm to MPI_Comm
   ierr = PetscThreadCommAttach(comm,tcomm);CHKERRQ(ierr);
+  ierr = PetscFree(pranks);
   printf("Created new threadcomm with %d threads\n",tcomm->ncommthreads);
   PetscFunctionReturn(0);
 }

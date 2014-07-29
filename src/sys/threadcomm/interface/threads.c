@@ -39,16 +39,16 @@ PetscErrorCode PetscThreadInitialize(void)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  printf("IN PETSCTHREADINIT master=%d init=%d\n",PetscMasterThread,PetscThreadInit);
   // Make sure this thread has not been initialized yet
   if(PetscMasterThread || PetscThreadInit) PetscFunctionReturn(0);
 
-  printf("Creating thread\n");
+  printf("*******************Creating thread**********************\n");
 
   // Create thread stack
   ierr = PetscThreadCommStackCreate();CHKERRQ(ierr);
 
   // Setup TRMalloc
-  //ierr = PetscSetUseTrMalloc_Private();CHKERRQ(ierr);
   ierr = PetscTrMallocInitialize();CHKERRQ(ierr);
 
   PetscThreadInit = 1;
@@ -66,6 +66,7 @@ PetscErrorCode PetscThreadFinalize(void)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  printf("IN PETSCTHREADFINALIZE master=%d init=%d\n",PetscMasterThread,PetscThreadInit);
   if(PetscMasterThread || !PetscThreadInit) PetscFunctionReturn(0);
 
   printf("***********Destroying thread***************** master=%d init=%d\n",PetscMasterThread,PetscThreadInit);

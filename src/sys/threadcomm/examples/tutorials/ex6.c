@@ -28,7 +28,7 @@ int main(int argc,char **argv)
 
   #pragma omp parallel num_threads(nthreads) default(shared) private(ierr)
   {
-    PetscInt commrank, i, start, end, *indices, lsize;
+    PetscInt commrank=0, i, start, end, *indices, lsize;
     PetscScalar vnorm=0.0;
     PetscScalar *ay;
     int trank = omp_get_thread_num();
@@ -134,6 +134,8 @@ int main(int argc,char **argv)
       ierr = PetscFree(bvals);CHKERRCONTINUE(ierr);
     }
     ierr = PetscThreadCommReturnComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
+
+    ierr = PetscFree(indices);CHKERRCONTINUE(ierr);
 
     ierr = PetscThreadFinalize();CHKERRCONTINUE(ierr);
   }

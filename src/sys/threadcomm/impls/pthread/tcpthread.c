@@ -147,6 +147,7 @@ PetscErrorCode PetscThreadPoolDestroy_PThread(PetscThreadPool pool)
   /* Destroy pthread thread data */
   for (i=0; i<pool->npoolthreads; i++) {
     ptcomm = (PetscThread_PThread)pool->poolthreads[i]->data;
+    pthread_attr_destroy(&ptcomm->attr);
     ierr = PetscFree(ptcomm);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);

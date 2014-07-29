@@ -28,6 +28,7 @@ PetscErrorCode user_func(PetscInt trank,Vec y, MPI_Comm *comm) {
 
   // Restore vector
   ierr = VecRestoreArray(y,&ay);CHKERRCONTINUE(ierr);
+  ierr = PetscFree(indices);CHKERRCONTINUE(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -159,6 +160,7 @@ int main(int argc,char **argv)
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = VecDestroy(&y);CHKERRQ(ierr);
 
+  ierr = PetscFree(affinities);CHKERRQ(ierr);
   ierr = PetscFree(granks);CHKERRQ(ierr);
   ierr = PetscCommDestroy(&comm1);CHKERRQ(ierr);
   ierr = PetscCommDestroy(&comm2);CHKERRQ(ierr);

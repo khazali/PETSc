@@ -21,6 +21,7 @@ PetscErrorCode PetscThreadCommFinalizePackage(void)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ierr = PetscFunctionListDestroy(&PetscThreadTypeList);CHKERRQ(ierr);
   ierr = PetscFunctionListDestroy(&PetscThreadPoolTypeList);CHKERRQ(ierr);
   ierr = PetscFunctionListDestroy(&PetscThreadCommTypeList);CHKERRQ(ierr);
   ierr = PetscFunctionListDestroy(&PetscThreadCommModelList);CHKERRQ(ierr);

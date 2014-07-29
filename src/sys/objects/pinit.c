@@ -11,6 +11,7 @@
 #endif
 
 #include <petscthreadcomm.h>
+#include <petsc-private/threadcommimpl.h>
 
 #if defined(PETSC_USE_LOG)
 extern PetscErrorCode PetscLogBegin_Private(void);
@@ -952,6 +953,13 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
   ierr = PetscThreadSetType(NOTHREAD);CHKERRQ(ierr);
 
   /*
+      If using loop model, create a threadcomm and attach to PETSC_COMM_WORLD.
+  */
+  if (ThreadModel == THREAD_MODEL_LOOP && ThreadType != THREAD_TYPE_NOTHREAD) {
+    ierr = PetscThreadCommCreateAttach(PETSC_COMM_WORLD,PETSC_DECIDE,PETSC_NULL);CHKERRQ(ierr);
+  }
+
+  /*
       Once we are completedly initialized then we can set this variables
   */
   PetscInitializeCalled = PETSC_TRUE;
@@ -1204,13 +1212,7 @@ PetscErrorCode  PetscFinalize(void)
   {
     /* Destroy any threadcomm/threadpool attached to PETSC_COMM_WORLD */
     printf("Destroying PETSC_COMM_WORLD threadcomm\n");
-    PetscThreadComm tcomm;
-    PetscBool       set;
-    ierr = PetscCommCheckGetThreadComm(PETSC_COMM_WORLD,&tcomm,&set);CHKERRQ(ierr);
-    /* Free global thread communicator */
-    if(set) {
-      ierr = PetscThreadCommDestroy(&tcomm);CHKERRQ(ierr);
-    }
+    ierr = MPI_Attr_delete(PETSC_COMM_WORLD,Petsc_ThreadComm_keyval);CHKERRQ(ierr);
     printf("Done destroying PETSC_COMM_WORLD threadcomm\n");
   }
 
@@ -1350,6 +1352,12 @@ PetscErrorCode  PetscFinalize(void)
   ierr = MPI_Keyval_free(&Petsc_Counter_keyval);CHKERRQ(ierr);
   ierr = MPI_Keyval_free(&Petsc_InnerComm_keyval);CHKERRQ(ierr);
   ierr = MPI_Keyval_free(&Petsc_OuterComm_keyval);CHKERRQ(ierr);
+
+  /* Destroy thread locks */
+  if(PetscLocks) {
+    ierr = PetscFree(PetscLocks->trmalloc_lock);CHKERRQ(ierr);
+    ierr = PetscFree(PetscLocks);CHKERRQ(ierr);
+  }
 
   if (PetscBeganMPI) {
 #if defined(PETSC_HAVE_MPI_FINALIZED)

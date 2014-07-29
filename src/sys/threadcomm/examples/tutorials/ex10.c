@@ -37,7 +37,7 @@ int main(int argc,char **argv)
   #pragma omp parallel num_threads(nthreads) default(shared) private(ierr)
   {
     PetscInt pstart,pend,lsize,gsize;
-    PetscInt commrank,trank = omp_get_thread_num();
+    PetscInt commrank=0,trank = omp_get_thread_num();
 
     ierr = PetscThreadInitialize();CHKERRCONTINUE(ierr);
 

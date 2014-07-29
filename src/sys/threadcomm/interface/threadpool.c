@@ -664,6 +664,7 @@ PetscErrorCode PetscThreadPoolDestroy(PetscThreadPool pool)
     }
     /* Destroy thread structs in threadpool */
     for (i=0; i<pool->npoolthreads; i++) {
+      ierr = PetscFree(pool->poolthreads[i]->jobqueue->jobs);CHKERRQ(ierr);
       ierr = PetscFree(pool->poolthreads[i]->jobqueue);CHKERRQ(ierr);
       ierr = PetscFree(pool->poolthreads[i]);CHKERRQ(ierr);
     }
