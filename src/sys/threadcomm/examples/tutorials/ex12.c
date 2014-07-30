@@ -82,6 +82,9 @@ int main(int argc,char **argv)
     ierr = PetscCommDestroy(&splitcomms[i]);CHKERRQ(ierr);
   }
   ierr = PetscCommDestroy(&comm);CHKERRQ(ierr);
+  ierr = PetscFree(xvec);CHKERRQ(ierr);
+  ierr = PetscFree(yvec);CHKERRQ(ierr);
+  ierr = PetscFree(vnorm);CHKERRQ(ierr);
 
   ierr = PetscFinalize();CHKERRQ(ierr);
   return 0;

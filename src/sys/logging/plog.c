@@ -65,18 +65,54 @@ PetscLogDouble petsc_gather_ct       = 0.0;  /* The number of gathers and gather
 PetscLogDouble petsc_scatter_ct      = 0.0;  /* The number of scatters and scattervs */
 
 /* Logging functions */
+#if defined(PETSC_HAVE_PTHREADCLASSES)
+#if defined(PETSC_PTHREAD_LOCAL)
+PETSC_PTHREAD_LOCAL PetscErrorCode (*PetscLogPHC)(PetscObject) = NULL;
+PETSC_PTHREAD_LOCAL PetscErrorCode (*PetscLogPHD)(PetscObject) = NULL;
+PETSC_PTHREAD_LOCAL PetscErrorCode (*PetscLogPLB)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
+PETSC_PTHREAD_LOCAL PetscErrorCode (*PetscLogPLE)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
+#else
+PetscThreadKey PetscErrorCode (*PetscLogPHC)(PetscObject) = NULL;
+PetscThreadKey PetscErrorCode (*PetscLogPHD)(PetscObject) = NULL;
+PetscThreadKey PetscErrorCode (*PetscLogPLB)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
+PetscThreadKey PetscErrorCode (*PetscLogPLE)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
+#endif
+#elif defined(PETSC_HAVE_OPENMP)
 PetscErrorCode (*PetscLogPHC)(PetscObject) = NULL;
 PetscErrorCode (*PetscLogPHD)(PetscObject) = NULL;
 PetscErrorCode (*PetscLogPLB)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
 PetscErrorCode (*PetscLogPLE)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
+#pragma omp threadprivate(PetscLogPHC,PetscLogPHD,PetscLogPLB,PetscLogPLE)
+#else
+PetscErrorCode (*PetscLogPHC)(PetscObject) = NULL;
+PetscErrorCode (*PetscLogPHD)(PetscObject) = NULL;
+PetscErrorCode (*PetscLogPLB)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
+PetscErrorCode (*PetscLogPLE)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
+#endif
 
 /* Tracing event logging variables */
-FILE             *petsc_tracefile            = NULL;
-int              petsc_tracelevel            = 0;
-const char       *petsc_traceblanks          = "                                                                                                    ";
-char             petsc_tracespace[128]       = " ";
-PetscLogDouble   petsc_tracetime             = 0.0;
+typedef struct {
+  FILE             *petsc_tracefile            = NULL;
+  int              petsc_tracelevel            = 0;
+  const char       *petsc_traceblanks          = "                                                                                                    ";
+  char             petsc_tracespace[128]       = " ";
+  PetscLogDouble   petsc_tracetime             = 0.0;
+} PetscTraceStruct;
+
+PetscTraceStruct PetscTraceVars;
+
+#if defined(PETSC_HAVE_PTHREADCLASSES)
+#if defined(PETSC_PTHREAD_LOCAL)
+static PETSC_PTHREAD_LOCAL PetscBool PetscLogBegin_PrivateCalled = PETSC_FALSE;
+#else
+static PetscThreadKey PetscLogBegin_PrivateCalled = PETSC_FALSE;
+#endif
+#elif defined(PETSC_HAVE_OPENMP)
 static PetscBool PetscLogBegin_PrivateCalled = PETSC_FALSE;
+#pragma omp threadprivate(PetscLogBegin_PrivateCalled)
+#else
+static PetscBool PetscLogBegin_PrivateCalled = PETSC_FALSE;
+#endif
 
 /*---------------------------------------------- General Functions --------------------------------------------------*/
 #undef __FUNCT__
@@ -240,7 +276,9 @@ PetscErrorCode  PetscLogBegin_Private(void)
 #endif
 
   /* All processors sync here for more consistent logging */
-  ierr = MPI_Barrier(PETSC_COMM_WORLD);CHKERRQ(ierr);
+  if(PetscMasterThread) {
+    ierr = MPI_Barrier(PETSC_COMM_WORLD);CHKERRQ(ierr);
+  }
   PetscTime(&petsc_BaseTime);
   ierr = PetscLogStagePush(stage);CHKERRQ(ierr);
   PetscFunctionReturn(0);

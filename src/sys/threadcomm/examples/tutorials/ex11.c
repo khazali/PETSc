@@ -25,9 +25,9 @@ int main(int argc,char **argv)
   ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,PETSC_NULL,&comm);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(comm,&nthreads);CHKERRQ(ierr);
 
-  tid = (pthread_t*)malloc(sizeof(pthread_t)*nthreads);
-  attr = (pthread_attr_t*)malloc(sizeof(pthread_attr_t)*nthreads);
-  tranks = (PetscInt*)malloc(sizeof(PetscInt)*nthreads);
+  ierr = PetscMalloc1(nthreads,&tid);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nthreads,&attr);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nthreads,&tranks);CHKERRQ(ierr);
 
   printf("Creating %d threads\n",nthreads);
   for(tnum=0; tnum<nthreads; tnum++) {
@@ -44,14 +44,10 @@ int main(int argc,char **argv)
     pthread_join(tid[tnum],&res);
   }
 
-  //ierr = PetscFree(tid);CHKERRQ(ierr);
-  //ierr = PetscFree(attr);CHKERRQ(ierr);
-  //ierr = PetscFree(tranks);CHKERRQ(ierr);
+  ierr = PetscFree(tid);CHKERRQ(ierr);
+  ierr = PetscFree(attr);CHKERRQ(ierr);
+  ierr = PetscFree(tranks);CHKERRQ(ierr);
   ierr = PetscCommDestroy(&comm);CHKERRQ(ierr);
-
-  free(tid);
-  free(attr);
-  free(tranks);
 
   ierr = PetscFinalize();CHKERRQ(ierr);
 

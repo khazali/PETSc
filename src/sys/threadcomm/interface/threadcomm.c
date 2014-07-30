@@ -1504,6 +1504,9 @@ PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,Petsc
     tcomm->threadblock = tcomm->ncommthreads;
     ierr = PetscFree(multaffinities);CHKERRQ(ierr);
   }
+  if (!incommsizes) {
+    ierr = PetscFree(commsizes);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -1590,6 +1593,9 @@ PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *inco
     ierr = PetscCommGetThreadComm((*splitcomms)[i],&stcomm);CHKERRQ(ierr);
     stcomm->threadblock = stcomm->ncommthreads;
     ierr = PetscFree(pranks);CHKERRQ(ierr);
+  }
+  if(!incommsizes) {
+    ierr = PetscFree(commsizes);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -2034,6 +2040,7 @@ PetscErrorCode PetscThreadCommJoinMultComms(MPI_Comm *comm,PetscInt ncomms,Petsc
   } else {
     *commrank = -1;
   }
+  ierr = PetscFree(tcomm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -2136,7 +2143,7 @@ PetscErrorCode PetscThreadCommReturnMultComms(MPI_Comm *comm,PetscInt ncomms,Pet
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
-  PetscMalloc1(ncomms,&tcomm);
+  ierr = PetscMalloc1(ncomms,&tcomm);CHKERRQ(ierr);
 
   // Determine which threadcomm and local thread to join
   for (i=0; i<ncomms; i++) {
@@ -2168,5 +2175,6 @@ PetscErrorCode PetscThreadCommReturnMultComms(MPI_Comm *comm,PetscInt ncomms,Pet
     ierr = (*tcomm[comm_index]->ops->barrier)(tcomm[comm_index]);
   }
   *commrank = -1;
+  ierr = PetscFree(tcomm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

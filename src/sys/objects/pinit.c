@@ -756,6 +756,9 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
   PETSC_STDOUT = stdout;
   PETSC_STDERR = stderr;
 
+  /* Set this thread as master thread */
+  PetscMasterThread = 1;
+
   ierr = PetscOptionsCreate();CHKERRQ(ierr);
 
   /*
@@ -948,7 +951,6 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
   /*
       Initialize thread code
   */
-  PetscMasterThread = 1;
   ierr = PetscThreadSetModel(LOOP);CHKERRQ(ierr);
   ierr = PetscThreadSetType(NOTHREAD);CHKERRQ(ierr);
 

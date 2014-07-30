@@ -6,15 +6,22 @@
 #include <petsc-private/vecimpl.h>    /*I  "petscvec.h"   I*/
 
 /* Logging support */
-PetscClassId  VEC_CLASSID;
-PetscLogEvent VEC_View, VEC_Max, VEC_Min, VEC_DotBarrier, VEC_Dot, VEC_MDotBarrier, VEC_MDot, VEC_TDot;
-PetscLogEvent VEC_Norm, VEC_Normalize, VEC_Scale, VEC_Copy, VEC_Set, VEC_AXPY, VEC_AYPX, VEC_WAXPY;
-PetscLogEvent VEC_MTDot, VEC_NormBarrier, VEC_MAXPY, VEC_Swap, VEC_AssemblyBegin, VEC_ScatterBegin, VEC_ScatterEnd;
-PetscLogEvent VEC_AssemblyEnd, VEC_PointwiseMult, VEC_SetValues, VEC_Load, VEC_ScatterBarrier;
-PetscLogEvent VEC_SetRandom, VEC_ReduceArithmetic, VEC_ReduceBarrier, VEC_ReduceCommunication,VEC_ReduceBegin,VEC_ReduceEnd,VEC_Ops;
-PetscLogEvent VEC_DotNormBarrier, VEC_DotNorm, VEC_AXPBYPCZ, VEC_CUSPCopyFromGPU, VEC_CUSPCopyToGPU;
-PetscLogEvent VEC_CUSPCopyFromGPUSome, VEC_CUSPCopyToGPUSome;
-PetscLogEvent VEC_ViennaCLCopyFromGPU, VEC_ViennaCLCopyToGPU;
+#if defined(PETSC_HAVE_PTHREADCLASSES)
+#if defined(PETSC_PTHREAD_LOCAL)
+PETSC_PTHREAD_LOCAL PetscClassId      VEC_CLASSID;
+PETSC_PTHREAD_LOCAL PetscVecLogEvents VEC_Logs;
+#else
+PetscThreadKey PetscClassId      VEC_CLASSID;
+PetscThreadKey PetscVecLogEvents VEC_Logs;
+#endif
+#elif defined(PETSC_HAVE_OPENMP)
+PetscClassId      VEC_CLASSID;
+PetscVecLogEvents VEC_Logs;
+#pragma omp threadprivate(VEC_CLASSID,VEC_Logs)
+#else
+PetscClassId      VEC_CLASSID;
+PetscVecLogEvents VEC_Logs;
+#endif
 
 extern PetscErrorCode VecStashGetInfo_Private(VecStash*,PetscInt*,PetscInt*);
 #undef __FUNCT__
@@ -208,11 +215,11 @@ PetscErrorCode  VecAssemblyBegin(Vec vec)
   PetscValidHeaderSpecific(vec,VEC_CLASSID,1);
   PetscValidType(vec,1);
   ierr = VecStashViewFromOptions(vec,NULL,"-vec_view_stash");CHKERRQ(ierr);
-  ierr = PetscLogEventBegin(VEC_AssemblyBegin,vec,0,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(VEC_Logs.VEC_AssemblyBegin,vec,0,0,0);CHKERRQ(ierr);
   if (vec->ops->assemblybegin) {
     ierr = (*vec->ops->assemblybegin)(vec);CHKERRQ(ierr);
   }
-  ierr = PetscLogEventEnd(VEC_AssemblyBegin,vec,0,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(VEC_Logs.VEC_AssemblyBegin,vec,0,0,0);CHKERRQ(ierr);
   ierr = PetscObjectStateIncrease((PetscObject)vec);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -247,12 +254,12 @@ PetscErrorCode  VecAssemblyEnd(Vec vec)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(vec,VEC_CLASSID,1);
-  ierr = PetscLogEventBegin(VEC_AssemblyEnd,vec,0,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(VEC_Logs.VEC_AssemblyEnd,vec,0,0,0);CHKERRQ(ierr);
   PetscValidType(vec,1);
   if (vec->ops->assemblyend) {
     ierr = (*vec->ops->assemblyend)(vec);CHKERRQ(ierr);
   }
-  ierr = PetscLogEventEnd(VEC_AssemblyEnd,vec,0,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(VEC_Logs.VEC_AssemblyEnd,vec,0,0,0);CHKERRQ(ierr);
   ierr = VecViewFromOptions(vec,NULL,"-vec_view");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -644,7 +651,7 @@ PetscErrorCode  VecView(Vec vec,PetscViewer viewer)
   /* PetscCheckSameComm(vec,1,viewer,2); Viewing a SELF vec on a parallel viewer should be acceptable */
   if (vec->stash.n || vec->bstash.n) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call VecAssemblyBegin/End() before viewing this vector");
 
-  ierr = PetscLogEventBegin(VEC_View,vec,viewer,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(VEC_Logs.VEC_View,vec,viewer,0,0);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&iascii);CHKERRQ(ierr);
   if (iascii) {
     PetscInt rows,bs;
@@ -664,7 +671,7 @@ PetscErrorCode  VecView(Vec vec,PetscViewer viewer)
     }
   }
   ierr = (*vec->ops->view)(vec,viewer);CHKERRQ(ierr);
-  ierr = PetscLogEventEnd(VEC_View,vec,viewer,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(VEC_Logs.VEC_View,vec,viewer,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -998,12 +1005,12 @@ PetscErrorCode  VecLoad(Vec newvec, PetscViewer viewer)
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERHDF5,&ishdf5);CHKERRQ(ierr);
   if (!isbinary && !ishdf5) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"Invalid viewer; open viewer with PetscViewerBinaryOpen()");
 
-  ierr = PetscLogEventBegin(VEC_Load,viewer,0,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(VEC_Logs.VEC_Load,viewer,0,0,0);CHKERRQ(ierr);
   if (!((PetscObject)newvec)->type_name && !newvec->ops->create) {
     ierr = VecSetType(newvec, VECSTANDARD);CHKERRQ(ierr);
   }
   ierr = (*newvec->ops->load)(newvec,viewer);CHKERRQ(ierr);
-  ierr = PetscLogEventEnd(VEC_Load,viewer,0,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(VEC_Logs.VEC_Load,viewer,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1025,7 +1032,7 @@ PetscErrorCode  VecLoad(Vec newvec, PetscViewer viewer)
 
    Concepts: vector^reciprocal
 
-.seealso: VecLog(), VecExp(), VecSqrtAbs()
+.seealso: VEC_Logs(), VecExp(), VecSqrtAbs()
 
 @*/
 PetscErrorCode  VecReciprocal(Vec vec)
@@ -1169,9 +1176,9 @@ PetscErrorCode  VecPointwiseMult(Vec w, Vec x,Vec y)
   PetscCheckSameTypeAndComm(y,3,w,1);
   if (x->map->n != y->map->n || x->map->n != w->map->n) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Incompatible vector local lengths");
 
-  ierr = PetscLogEventBegin(VEC_PointwiseMult,x,y,w,0);CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(VEC_Logs.VEC_PointwiseMult,x,y,w,0);CHKERRQ(ierr);
   ierr = (*w->ops->pointwisemult)(w,x,y);CHKERRQ(ierr);
-  ierr = PetscLogEventEnd(VEC_PointwiseMult,x,y,w,0);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(VEC_Logs.VEC_PointwiseMult,x,y,w,0);CHKERRQ(ierr);
   ierr = PetscObjectStateIncrease((PetscObject)w);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -1224,9 +1231,9 @@ PetscErrorCode  VecSetRandom(Vec x,PetscRandom rctx)
     rctx = randObj;
   }
 
-  ierr = PetscLogEventBegin(VEC_SetRandom,x,rctx,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(VEC_Logs.VEC_SetRandom,x,rctx,0,0);CHKERRQ(ierr);
   ierr = (*x->ops->setrandom)(x,rctx);CHKERRQ(ierr);
-  ierr = PetscLogEventEnd(VEC_SetRandom,x,rctx,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(VEC_Logs.VEC_SetRandom,x,rctx,0,0);CHKERRQ(ierr);
 
   ierr = PetscRandomDestroy(&randObj);CHKERRQ(ierr);
   ierr = PetscObjectStateIncrease((PetscObject)x);CHKERRQ(ierr);
@@ -1639,7 +1646,7 @@ PetscErrorCode  VecCopy(Vec x,Vec y)
   }
 #endif
 
-  ierr = PetscLogEventBegin(VEC_Copy,x,y,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(VEC_Logs.VEC_Copy,x,y,0,0);CHKERRQ(ierr);
 #if defined(PETSC_USE_MIXED_PRECISION)
   extern PetscErrorCode VecGetArray(Vec,double**);
   extern PetscErrorCode VecRestoreArray(Vec,double**);
@@ -1685,7 +1692,7 @@ PetscErrorCode  VecCopy(Vec x,Vec y)
   }
 #endif
 
-  ierr = PetscLogEventEnd(VEC_Copy,x,y,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(VEC_Logs.VEC_Copy,x,y,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1722,7 +1729,7 @@ PetscErrorCode  VecSwap(Vec x,Vec y)
   if (x->map->N != y->map->N) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Incompatible vector global lengths");
   if (x->map->n != y->map->n) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Incompatible vector local lengths");
 
-  ierr = PetscLogEventBegin(VEC_Swap,x,y,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(VEC_Logs.VEC_Swap,x,y,0,0);CHKERRQ(ierr);
   for (i=0; i<4; i++) {
     ierr = PetscObjectComposedDataGetReal((PetscObject)x,NormIds[i],normxs[i],flgxs[i]);CHKERRQ(ierr);
     ierr = PetscObjectComposedDataGetReal((PetscObject)y,NormIds[i],normys[i],flgys[i]);CHKERRQ(ierr);
@@ -1738,7 +1745,7 @@ PetscErrorCode  VecSwap(Vec x,Vec y)
       ierr = PetscObjectComposedDataSetReal((PetscObject)x,NormIds[i],normys[i]);CHKERRQ(ierr);
     }
   }
-  ierr = PetscLogEventEnd(VEC_Swap,x,y,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(VEC_Logs.VEC_Swap,x,y,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

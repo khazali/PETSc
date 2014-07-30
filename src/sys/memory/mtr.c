@@ -146,6 +146,7 @@ PetscErrorCode  PetscMallocValidate(int line,const char function[],const char fi
   head = trmalloc.TRhead;
   lasthead = NULL;
   while (head) {
+    //printf("head->func=%s file=%s\n",head->functionname,head->filename);
     if (head->classid != CLASSID_VALUE) {
       (*PetscErrorPrintf)("PetscMallocValidate: error detected at  %s() line %d in %s\n",function,line,file);
       (*PetscErrorPrintf)("Memory at address %p is corrupted\n",head);

@@ -32,6 +32,7 @@ PetscErrorCode  VecRegisterAll(void)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  printf("***************Calling VecRegisterAll***************\n");
   VecRegisterAllCalled = PETSC_TRUE;
 
   ierr = VecRegister(VECSEQ,        VecCreate_Seq);CHKERRQ(ierr);

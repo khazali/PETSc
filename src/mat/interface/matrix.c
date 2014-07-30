@@ -85,9 +85,9 @@ PetscErrorCode  MatSetRandom(Mat x,PetscRandom rctx)
     rctx = randObj;
   }
 
-  ierr = PetscLogEventBegin(VEC_SetRandom,x,rctx,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(VEC_Logs.VEC_SetRandom,x,rctx,0,0);CHKERRQ(ierr);
   ierr = (*x->ops->setrandom)(x,rctx);CHKERRQ(ierr);
-  ierr = PetscLogEventEnd(VEC_SetRandom,x,rctx,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(VEC_Logs.VEC_SetRandom,x,rctx,0,0);CHKERRQ(ierr);
 
   x->assembled = PETSC_TRUE;
   ierr         = PetscRandomDestroy(&randObj);CHKERRQ(ierr);

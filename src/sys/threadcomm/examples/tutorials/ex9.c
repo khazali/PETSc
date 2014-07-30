@@ -74,7 +74,7 @@ int main(int argc,char **argv)
     }
     ierr = PetscThreadCommReturnMultComms(multcomms,ncomms,trank,&commrank);CHKERRCONTINUE(ierr);
 
-    #pragma omp barrier
+    /*#pragma omp barrier
 
     // User gives threads to PETSc for threaded split comm PETSc work
     ierr = PetscThreadCommJoinMultComms(splitcomms,ncomms,trank,&commrank);CHKERRCONTINUE(ierr);
@@ -140,7 +140,7 @@ int main(int argc,char **argv)
       ierr = VecDestroy(&a);CHKERRCONTINUE(ierr);
       ierr = VecDestroy(&b);CHKERRCONTINUE(ierr);
     }
-     ierr = PetscThreadCommReturnMultComms(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
+     ierr = PetscThreadCommReturnMultComms(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);*/
 
      ierr = PetscThreadFinalize();CHKERRCONTINUE(ierr);
   }
@@ -153,6 +153,9 @@ int main(int argc,char **argv)
   }
   ierr = PetscCommDestroy(&shcomm);CHKERRQ(ierr);
   ierr = PetscCommDestroy(&comm);CHKERRQ(ierr);
+  ierr = PetscFree(splitcomms);CHKERRQ(ierr);
+  ierr = PetscFree(multcomms);CHKERRQ(ierr);
+  ierr = PetscFree(granks);CHKERRQ(ierr);
 
   ierr = PetscFinalize();CHKERRQ(ierr);
   return 0;

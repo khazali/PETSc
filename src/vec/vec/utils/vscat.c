@@ -1720,13 +1720,13 @@ PetscErrorCode  VecScatterBegin(VecScatter inctx,Vec x,Vec y,InsertMode addv,Sca
 #endif
 
   inctx->inuse = PETSC_TRUE;
-  ierr = PetscLogEventBarrierBegin(VEC_ScatterBarrier,0,0,0,0,PetscObjectComm((PetscObject)inctx));CHKERRQ(ierr);
+  ierr = PetscLogEventBarrierBegin(VEC_Logs.VEC_ScatterBarrier,0,0,0,0,PetscObjectComm((PetscObject)inctx));CHKERRQ(ierr);
   ierr = (*inctx->begin)(inctx,x,y,addv,mode);CHKERRQ(ierr);
   if (inctx->beginandendtogether && inctx->end) {
     inctx->inuse = PETSC_FALSE;
     ierr = (*inctx->end)(inctx,x,y,addv,mode);CHKERRQ(ierr);
   }
-  ierr = PetscLogEventBarrierEnd(VEC_ScatterBarrier,0,0,0,0,PetscObjectComm((PetscObject)inctx));CHKERRQ(ierr);
+  ierr = PetscLogEventBarrierEnd(VEC_Logs.VEC_ScatterBarrier,0,0,0,0,PetscObjectComm((PetscObject)inctx));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1767,9 +1767,9 @@ PetscErrorCode  VecScatterEnd(VecScatter ctx,Vec x,Vec y,InsertMode addv,Scatter
   ctx->inuse = PETSC_FALSE;
   if (!ctx->end) PetscFunctionReturn(0);
   if (!ctx->beginandendtogether) {
-    ierr = PetscLogEventBegin(VEC_ScatterEnd,ctx,x,y,0);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(VEC_Logs.VEC_ScatterEnd,ctx,x,y,0);CHKERRQ(ierr);
     ierr = (*(ctx)->end)(ctx,x,y,addv,mode);CHKERRQ(ierr);
-    ierr = PetscLogEventEnd(VEC_ScatterEnd,ctx,x,y,0);CHKERRQ(ierr);
+    ierr = PetscLogEventEnd(VEC_Logs.VEC_ScatterEnd,ctx,x,y,0);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }

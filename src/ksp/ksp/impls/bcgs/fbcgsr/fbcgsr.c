@@ -105,19 +105,19 @@ PetscErrorCode  KSPSolve_FBCGSR(KSP ksp)
       tau  = rho*rho;
       ierr = VecDot(V,RP,&sigma);CHKERRQ(ierr); /* sigma <- (v,rp) */
     } else {
-      ierr = PetscLogEventBegin(VEC_ReduceArithmetic,0,0,0,0);CHKERRQ(ierr);
+      ierr = PetscLogEventBegin(VEC_Logs.VEC_ReduceArithmetic,0,0,0,0);CHKERRQ(ierr);
       tau  = sigma = 0.0;
       for (j=0; j<N; j++) {
         tau   += r[j]*rp[j]; /* tau <- (r,rp) */
         sigma += v[j]*rp[j]; /* sigma <- (v,rp) */
       }
       PetscLogFlops(4.0*N);
-      ierr      = PetscLogEventEnd(VEC_ReduceArithmetic,0,0,0,0);CHKERRQ(ierr);
+      ierr      = PetscLogEventEnd(VEC_Logs.VEC_ReduceArithmetic,0,0,0,0);CHKERRQ(ierr);
       insums[0] = tau;
       insums[1] = sigma;
-      ierr      = PetscLogEventBarrierBegin(VEC_ReduceBarrier,0,0,0,0,PetscObjectComm((PetscObject)ksp));CHKERRQ(ierr);
+      ierr      = PetscLogEventBarrierBegin(VEC_Logs.VEC_ReduceBarrier,0,0,0,0,PetscObjectComm((PetscObject)ksp));CHKERRQ(ierr);
       ierr      = MPI_Allreduce(insums,outsums,2,MPIU_SCALAR,MPIU_SUM,PetscObjectComm((PetscObject)ksp));CHKERRQ(ierr);
-      ierr      = PetscLogEventBarrierEnd(VEC_ReduceBarrier,0,0,0,0,PetscObjectComm((PetscObject)ksp));CHKERRQ(ierr);
+      ierr      = PetscLogEventBarrierEnd(VEC_Logs.VEC_ReduceBarrier,0,0,0,0,PetscObjectComm((PetscObject)ksp));CHKERRQ(ierr);
       tau       = outsums[0];
       sigma     = outsums[1];
     }
@@ -133,7 +133,7 @@ PetscErrorCode  KSPSolve_FBCGSR(KSP ksp)
     ierr = MatMult(pc->mat,S2,T);CHKERRQ(ierr); /* t <- A s2 */
 
     /* inner prodcuts */
-    ierr = PetscLogEventBegin(VEC_ReduceArithmetic,0,0,0,0);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(VEC_Logs.VEC_ReduceArithmetic,0,0,0,0);CHKERRQ(ierr);
     xi1  = xi2 = xi3 = xi4 = 0.0;
     for (j=0; j<N; j++) {
       xi1 += s[j]*s[j]; /* xi1 <- (s,s) */
@@ -142,16 +142,16 @@ PetscErrorCode  KSPSolve_FBCGSR(KSP ksp)
       xi4 += t[j]*rp[j]; /* xi4 <- (t,rp) */
     }
     PetscLogFlops(8.0*N);
-    ierr = PetscLogEventEnd(VEC_ReduceArithmetic,0,0,0,0);CHKERRQ(ierr);
+    ierr = PetscLogEventEnd(VEC_Logs.VEC_ReduceArithmetic,0,0,0,0);CHKERRQ(ierr);
 
     insums[0] = xi1;
     insums[1] = xi2;
     insums[2] = xi3;
     insums[3] = xi4;
 
-    ierr = PetscLogEventBarrierBegin(VEC_ReduceBarrier,0,0,0,0,PetscObjectComm((PetscObject)ksp));CHKERRQ(ierr);
+    ierr = PetscLogEventBarrierBegin(VEC_Logs.VEC_ReduceBarrier,0,0,0,0,PetscObjectComm((PetscObject)ksp));CHKERRQ(ierr);
     ierr = MPI_Allreduce(insums,outsums,4,MPIU_SCALAR,MPIU_SUM,PetscObjectComm((PetscObject)ksp));CHKERRQ(ierr);
-    ierr = PetscLogEventBarrierEnd(VEC_ReduceBarrier,0,0,0,0,PetscObjectComm((PetscObject)ksp));CHKERRQ(ierr);
+    ierr = PetscLogEventBarrierEnd(VEC_Logs.VEC_ReduceBarrier,0,0,0,0,PetscObjectComm((PetscObject)ksp));CHKERRQ(ierr);
     xi1  = outsums[0];
     xi2  = outsums[1];
     xi3  = outsums[2];
@@ -180,13 +180,13 @@ PetscErrorCode  KSPSolve_FBCGSR(KSP ksp)
     if (ksp->reason) break;
 
     /* vector updates */
-    ierr = PetscLogEventBegin(VEC_Ops,0,0,0,0);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(VEC_Logs.VEC_Ops,0,0,0,0);CHKERRQ(ierr);
     for (j=0; j<N; j++) {
       r[j] = s[j] - omega * t[j]; /* r <- s - omega t */
       p[j] = r[j] + beta * (p[j] - omega * v[j]); /* p <- r + beta * (p - omega v) */
     }
     PetscLogFlops(6.0*N);
-    ierr = PetscLogEventEnd(VEC_Ops,0,0,0,0);CHKERRQ(ierr);
+    ierr = PetscLogEventEnd(VEC_Logs.VEC_Ops,0,0,0,0);CHKERRQ(ierr);
 
   }
 

@@ -28,6 +28,9 @@ PetscErrorCode (*PetscThreadLockAcquire)(void*);
 PetscErrorCode (*PetscThreadLockRelease)(void*);
 
 extern PetscErrorCode PetscSetUseTrMalloc_Private(void);
+#if defined(PETSC_USE_LOG)
+extern PetscErrorCode PetscLogBegin_Private(void);
+#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadInitialize"
@@ -44,6 +47,11 @@ PetscErrorCode PetscThreadInitialize(void)
   if(PetscMasterThread || PetscThreadInit) PetscFunctionReturn(0);
 
   printf("*******************Creating thread**********************\n");
+
+  // Initialize logging
+#if defined(PETSC_USE_LOG)
+  ierr = PetscLogBegin_Private();CHKERRQ(ierr);
+#endif
 
   // Create thread stack
   ierr = PetscThreadCommStackCreate();CHKERRQ(ierr);

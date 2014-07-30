@@ -3,8 +3,18 @@
      Some useful vector utility functions.
 */
 #include <../src/vec/vec/impls/mpi/pvecimpl.h>          /*I "petscvec.h" I*/
-extern MPI_Op VecMax_Local_Op;
-extern MPI_Op VecMin_Local_Op;
+#if defined(PETSC_HAVE_PTHREADCLASSES)
+#if defined(PETSC_PTHREAD_LOCAL)
+PETSC_EXTERN PETSC_PTHREAD_LOCAL MPI_Op VecMax_Local_Op;
+PETSC_EXTERN PETSC_PTHREAD_LOCAL MPI_Op VecMin_Local_Op;
+#else
+PETSC_EXTERN PetscThreadKey VecMax_Local_Op;
+PETSC_EXTERN PetscThreadKey VecMin_Local_Op;
+#endif
+#else
+PETSC_EXTERN MPI_Op VecMax_Local_Op;
+PETSC_EXTERN MPI_Op VecMin_Local_Op;
+#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "VecStrideSet"
@@ -1153,7 +1163,7 @@ PetscErrorCode  VecDotNorm2(Vec s,Vec t,PetscScalar *dp, PetscReal *nm)
   if (s->map->N != t->map->N) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Incompatible vector global lengths");
   if (s->map->n != t->map->n) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Incompatible vector local lengths");
 
-  ierr = PetscLogEventBarrierBegin(VEC_DotNormBarrier,s,t,0,0,PetscObjectComm((PetscObject)s));CHKERRQ(ierr);
+  ierr = PetscLogEventBarrierBegin(VEC_Logs.VEC_DotNormBarrier,s,t,0,0,PetscObjectComm((PetscObject)s));CHKERRQ(ierr);
   if (s->ops->dotnorm2) {
     ierr = (*s->ops->dotnorm2)(s,t,dp,&dpx);CHKERRQ(ierr);
     *nm  = PetscRealPart(dpx);CHKERRQ(ierr);
@@ -1177,7 +1187,7 @@ PetscErrorCode  VecDotNorm2(Vec s,Vec t,PetscScalar *dp, PetscReal *nm)
     ierr = VecRestoreArray(s, &sx);CHKERRQ(ierr);
     ierr = PetscLogFlops(4.0*n);CHKERRQ(ierr);
   }
-  ierr = PetscLogEventBarrierEnd(VEC_DotNormBarrier,s,t,0,0,PetscObjectComm((PetscObject)s));CHKERRQ(ierr);
+  ierr = PetscLogEventBarrierEnd(VEC_Logs.VEC_DotNormBarrier,s,t,0,0,PetscObjectComm((PetscObject)s));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
