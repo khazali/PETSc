@@ -1,6 +1,117 @@
 #include <petsc-private/dmpleximpl.h>   /*I      "petscdmplex.h"   I*/
 
 #undef __FUNCT__
+#define __FUNCT__ "DMPlexGetPartitioningHeight"
+/*@
+  DMPlexGetPartitioningHeight - Get height of the stratum used for partitioning.
+
+  Input Parameters:
++ dm - The DM object
+
+  Output Parameters:
++ height - The height of the partitiioning stratum: 0 if using cones for adjacency and dim otherwise
+
+  Level: advanced
+
+.seealso: DMPlexSetAdjacencyUseCone(), DMPlexSetAdjacencyUseClosure(), DMPlexCreatePartition(), DMPlexDistribute()
+@*/
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexGetPartitioningHeight"
+PetscErrorCode DMPlexGetPartitioningHeight(DM dm, PetscInt *height)
+{
+  DM_Plex       *mesh = (DM_Plex *) dm->data;
+
+  PetscFunctionBeginHot;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  PetscValidPointer(height,2);
+  if (mesh->useCone) *height = 0;
+  else *height = dm->dim;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexCreateNeighborCSRParallel"
+/*
+  DMPlexNeighborCSRParallel - Create a connectivity graph for all cells/vertices.
+
+  Collective on DM
+
+  Input Parameters:
+  + dm - The DM
+
+  Output Parameters:
+  + numVertices - The number of vertices in the create graph
+  . offsets - The offsets of each vertex in the adjacency list
+  . adjacency - Connectivity between graph vertices
+
+  The user can control the definition of adjacency for the mesh using DMPlexGetAdjacencyUseCone() and
+  DMPlexSetAdjacencyUseClosure(). They should choose the combination appropriate for the function
+  representation on the mesh.
+
+  When DMPlexGetAdjacencyUseCone is set to PETSC_TRUE the cell connectivity is generated, otherwise
+  the created graph represents vertex connectivity.
+
+  The resulting connectivity graph includes processor offsets and adheres to the parallel CSR format
+  required by ParMETIS.
+
+  Level: developer
+
+.seealso DMPlexPartition(), DMPlexDistribute()
+*/
+PetscErrorCode DMPlexCreateNeighborCSRParallel(DM dm, PetscInt *numVertices, PetscInt **offsets, PetscInt **adjacency)
+{
+  MPI_Comm       comm;
+  PetscMPIInt    size, rank;
+  PetscInt       i, idx, height, p, pStart, pEnd, numPoints, numAdj;
+  PetscInt       *off=NULL, *adj=NULL, *tmpAdj=NULL;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscObjectGetComm((PetscObject) dm, &comm);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &size);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+
+  ierr = DMPlexGetPartitioningHeight(dm, &height);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(dm, height, &pStart, &pEnd);CHKERRQ(ierr);
+  numPoints = pEnd-pStart;
+
+  /* Run though adjacencies and count connections per point */
+  ierr = PetscCalloc1(numPoints+1, &off);CHKERRQ(ierr);
+  for (p = 0; p < numPoints; p++) {
+    numAdj = PETSC_DETERMINE;
+    ierr = DMPlexGetAdjacency(dm, pStart+p, &numAdj, &tmpAdj);CHKERRQ(ierr);
+    for (i=0; i<numAdj; i++) {
+      if (p+pStart == tmpAdj[i]) continue;
+      if (pStart <= tmpAdj[i] && tmpAdj[i] < pEnd) off[p+1]++;
+    }
+  }
+
+  /* Compute graph offset from point connections */
+  for (p = 1; p < numPoints+1; p++) off[p] += off[p-1];
+
+  /* Get according graph adjacencies */
+  ierr = PetscMalloc1(off[numPoints], &adj);CHKERRQ(ierr);
+  for (p = 0; p < numPoints; p++) {
+    numAdj = PETSC_DETERMINE;
+    ierr = DMPlexGetAdjacency(dm, pStart+p, &numAdj, &tmpAdj);CHKERRQ(ierr);
+
+    idx = 0;
+    for (i=0; i<numAdj; i++) {
+      if (p+pStart == tmpAdj[i]) continue;
+      if (pStart <= tmpAdj[i] && tmpAdj[i] < pEnd) {
+        adj[off[p]+idx] = tmpAdj[i] - pStart;
+        idx++;
+      }
+    }
+  }
+
+  if (numVertices) *numVertices = numPoints;
+  if (offsets)     *offsets   = off;
+  if (adjacency)   *adjacency = adj;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "DMPlexCreateNeighborCSR"
 PetscErrorCode DMPlexCreateNeighborCSR(DM dm, PetscInt cellHeight, PetscInt *numVertices, PetscInt **offsets, PetscInt **adjacency)
 {
@@ -268,6 +379,10 @@ PetscErrorCode DMPlexPartition_Chaco(DM dm, PetscInt numVertices, PetscInt start
   }
 #endif
   /* Convert to PetscSection+IS */
+  /* Since the partitioner counts entities from 0 we need to add the stratum height back in. */
+  PetscInt height, pStart;
+  ierr = DMPlexGetPartitioningHeight(dm, &height);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(dm, height, &pStart, NULL);CHKERRQ(ierr);
   ierr = PetscSectionCreate(comm, partSection);CHKERRQ(ierr);
   ierr = PetscSectionSetChart(*partSection, 0, commSize);CHKERRQ(ierr);
   for (v = 0; v < nvtxs; ++v) {
@@ -277,7 +392,7 @@ PetscErrorCode DMPlexPartition_Chaco(DM dm, PetscInt numVertices, PetscInt start
   ierr = PetscMalloc1(nvtxs, &points);CHKERRQ(ierr);
   for (p = 0, i = 0; p < commSize; ++p) {
     for (v = 0; v < nvtxs; ++v) {
-      if (assignment[v] == p) points[i++] = v;
+      if (assignment[v] == p) points[i++] = v + pStart;
     }
   }
   if (i != nvtxs) SETERRQ2(comm, PETSC_ERR_PLIB, "Number of points %D should be %D", i, nvtxs);
@@ -355,6 +470,10 @@ PetscErrorCode DMPlexPartition_ParMetis(DM dm, PetscInt numVertices, PetscInt st
     }
   }
   /* Convert to PetscSection+IS */
+  /* Since the partitioner counts entities from 0 we need to add the stratum height back in. */
+  PetscInt height, pStart;
+  ierr = DMPlexGetPartitioningHeight(dm, &height);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(dm, height, &pStart, NULL);CHKERRQ(ierr);
   ierr = PetscSectionCreate(comm, partSection);CHKERRQ(ierr);
   ierr = PetscSectionSetChart(*partSection, 0, commSize);CHKERRQ(ierr);
   for (v = 0; v < nvtxs; ++v) {
@@ -364,7 +483,7 @@ PetscErrorCode DMPlexPartition_ParMetis(DM dm, PetscInt numVertices, PetscInt st
   ierr = PetscMalloc1(nvtxs, &points);CHKERRQ(ierr);
   for (p = 0, i = 0; p < commSize; ++p) {
     for (v = 0; v < nvtxs; ++v) {
-      if (assignment[v] == p) points[i++] = v;
+      if (assignment[v] == p) points[i++] = v + pStart;
     }
   }
   if (i != nvtxs) SETERRQ2(comm, PETSC_ERR_PLIB, "Number of points %D should be %D", i, nvtxs);
@@ -502,7 +621,7 @@ PetscErrorCode DMPlexCreatePartition(DM dm, const char name[], PetscInt height, 
     PetscInt *start     = NULL;
     PetscInt *adjacency = NULL;
 
-    ierr = DMPlexCreateNeighborCSR(dm, 0, &numVertices, &start, &adjacency);CHKERRQ(ierr);
+    ierr = DMPlexCreateNeighborCSRParallel(dm, &numVertices, &start, &adjacency);CHKERRQ(ierr);
     if (!name || isChaco) {
 #if defined(PETSC_HAVE_CHACO)
       ierr = DMPlexPartition_Chaco(dm, numVertices, start, adjacency, partSection, partition);CHKERRQ(ierr);
