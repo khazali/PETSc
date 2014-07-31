@@ -2663,6 +2663,7 @@ PETSC_EXTERN PetscErrorCode PetscPushJSONValue(char[],const char[],const char[],
 typedef struct _p_PetscThreadLocks *PetscThreadLocks;
 struct _p_PetscThreadLocks{
   void *trmalloc_lock;
+  void *vec_lock;
 };
 PetscThreadLocks PetscLocks;
 

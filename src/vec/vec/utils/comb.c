@@ -103,18 +103,7 @@ static PetscErrorCode  PetscSplitReductionCreate(MPI_Comm comm,PetscSplitReducti
    MPI_Op_create() converts the function PetscSplitReduction_Local() to the
    MPI operator PetscSplitReduction_Op.
 */
-#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_PTHREAD_LOCAL MPI_Op PetscSplitReduction_Op = 0;
-#else
-PetscThreadKey MPI_Op PetscSplitReduction_Op = 0;
-#endif
-#elif defined(PETSC_HAVE_OPENMP)
 MPI_Op PetscSplitReduction_Op = 0;
-#pragma omp threadprivate(PetscSplitReduction_Op)
-#else
-MPI_Op PetscSplitReduction_Op = 0;
-#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscSplitReduction_Local"
@@ -329,7 +318,18 @@ PetscErrorCode  PetscSplitReductionDestroy(PetscSplitReduction *sr)
   PetscFunctionReturn(0);
 }
 
+#if defined(PETSC_HAVE_PTHREADCLASSES)
+#if defined(PETSC_PTHREAD_LOCAL)
+static PETSC_PTHREAD_LOCAL PetscMPIInt Petsc_Reduction_keyval = MPI_KEYVAL_INVALID;
+#else
+static PetscThreadKey Petsc_Reduction_keyval = MPI_KEYVAL_INVALID;
+#endif
+#elif defined(PETSC_HAVE_OPENMP)
 static PetscMPIInt Petsc_Reduction_keyval = MPI_KEYVAL_INVALID;
+#pragma omp threadprivate(Petsc_Reduction_keyval)
+#else
+static PetscMPIInt Petsc_Reduction_keyval = MPI_KEYVAL_INVALID;
+#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "Petsc_DelReduction"

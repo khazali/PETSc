@@ -42,11 +42,11 @@ PETSC_EXTERN int        petsc_numActions, petsc_maxActions;
 PETSC_EXTERN int        petsc_numObjects, petsc_maxObjects;
 PETSC_EXTERN int        petsc_numObjectsDestroyed;
 
-PETSC_EXTERN FILE          *petsc_tracefile;
-PETSC_EXTERN int            petsc_tracelevel;
+PETSC_EXTERN FILE             *petsc_tracefile;
+PETSC_EXTERN int              petsc_tracelevel;
+PETSC_EXTERN PetscLogDouble   petsc_tracetime;
 PETSC_EXTERN const char    *petsc_traceblanks;
 PETSC_EXTERN char           petsc_tracespace[128];
-PETSC_EXTERN PetscLogDouble petsc_tracetime;
 
 #ifdef PETSC_USE_LOG
 

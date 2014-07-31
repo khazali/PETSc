@@ -969,8 +969,18 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
 }
 
 #if defined(PETSC_USE_LOG)
-extern PetscObject *PetscObjects;
-extern PetscInt    PetscObjectsCounts, PetscObjectsMaxCounts;
+#if defined(PETSC_HAVE_PTHREADCLASSES)
+#if defined(PETSC_PTHREAD_LOCAL)
+PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscObject *PetscObjects;
+PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscInt    PetscObjectsCounts, PetscObjectsMaxCounts;
+#else
+PETSC_EXTERN PetscThreadKey *PetscObjects;
+PETSC_EXTERN PetscThreadKey PetscObjectsCounts, PetscObjectsMaxCounts;
+#endif
+#else
+PETSC_EXTERN PetscObject *PetscObjects;
+PETSC_EXTERN PetscInt    PetscObjectsCounts, PetscObjectsMaxCounts;
+#endif
 #endif
 
 #undef __FUNCT__
@@ -1358,6 +1368,7 @@ PetscErrorCode  PetscFinalize(void)
   /* Destroy thread locks */
   if(PetscLocks) {
     ierr = PetscFree(PetscLocks->trmalloc_lock);CHKERRQ(ierr);
+    ierr = PetscFree(PetscLocks->vec_lock);CHKERRQ(ierr);
     ierr = PetscFree(PetscLocks);CHKERRQ(ierr);
   }
 

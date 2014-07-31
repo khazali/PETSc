@@ -6,22 +6,8 @@
 #include <petsc-private/vecimpl.h>    /*I  "petscvec.h"   I*/
 
 /* Logging support */
-#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_PTHREAD_LOCAL PetscClassId      VEC_CLASSID;
-PETSC_PTHREAD_LOCAL PetscVecLogEvents VEC_Logs;
-#else
-PetscThreadKey PetscClassId      VEC_CLASSID;
-PetscThreadKey PetscVecLogEvents VEC_Logs;
-#endif
-#elif defined(PETSC_HAVE_OPENMP)
 PetscClassId      VEC_CLASSID;
 PetscVecLogEvents VEC_Logs;
-#pragma omp threadprivate(VEC_CLASSID,VEC_Logs)
-#else
-PetscClassId      VEC_CLASSID;
-PetscVecLogEvents VEC_Logs;
-#endif
 
 extern PetscErrorCode VecStashGetInfo_Private(VecStash*,PetscInt*,PetscInt*);
 #undef __FUNCT__

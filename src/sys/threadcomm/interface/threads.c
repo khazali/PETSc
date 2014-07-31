@@ -50,7 +50,7 @@ PetscErrorCode PetscThreadInitialize(void)
 
   // Initialize logging
 #if defined(PETSC_USE_LOG)
-  ierr = PetscLogBegin_Private();CHKERRQ(ierr);
+  //ierr = PetscLogBegin_Private();CHKERRQ(ierr);
 #endif
 
   // Create thread stack
@@ -80,7 +80,6 @@ PetscErrorCode PetscThreadFinalize(void)
   printf("***********Destroying thread***************** master=%d init=%d\n",PetscMasterThread,PetscThreadInit);
 
   // Add code to destroy TRMalloc/merged with main trmalloc data
-  //ierr = PetscTrMallocDestroy();CHKERRQ(ierr);
   ierr = PetscTrMallocFinalize();CHKERRQ(ierr);
 
   // Destroy thread stack

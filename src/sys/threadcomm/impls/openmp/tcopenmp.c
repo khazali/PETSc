@@ -326,19 +326,31 @@ PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm tcomm)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockCreate_OpenMP"
+PetscErrorCode PetscThreadLockCreate_OpenMP(void **lock)
+{
+  PetscThreadLock_OpenMP omplock;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscNew(&omplock);CHKERRQ(ierr);
+  omp_init_lock(omplock);
+  *lock = (void*)omplock;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscThreadLockInitialize_OpenMP"
 PetscErrorCode PetscThreadLockInitialize_OpenMP(void)
 {
-  PetscThreadLock_OpenMP omplock;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   if (PetscLocks) PetscFunctionReturn(0);
 
   ierr = PetscNew(&PetscLocks);CHKERRQ(ierr);
-  ierr = PetscNew(&omplock);CHKERRQ(ierr);
-  omp_init_lock(omplock);
-  PetscLocks->trmalloc_lock = (void*)omplock;
+  ierr = PetscThreadLockCreate_OpenMP(&PetscLocks->trmalloc_lock);
+  ierr = PetscThreadLockCreate_OpenMP(&PetscLocks->vec_lock);
   PetscFunctionReturn(0);
 }
 

@@ -113,17 +113,7 @@ typedef const char* VecType;
 #define    VEC_FILE_CLASSID 1211214
 
 PETSC_EXTERN PetscClassId VEC_SCATTER_CLASSID;
-
-#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscClassId      VEC_CLASSID;
-#else
-PETSC_EXTERN PetscThreadKey PetscClassId      VEC_CLASSID;
-#endif
-#else
-PETSC_EXTERN PetscClassId      VEC_CLASSID;
-#endif
-
+PETSC_EXTERN PetscClassId VEC_CLASSID;
 
 PETSC_EXTERN PetscErrorCode VecInitializePackage(void);
 PETSC_EXTERN PetscErrorCode VecFinalizePackage(void);
@@ -319,21 +309,8 @@ PETSC_EXTERN PetscErrorCode VecGetBlockSize(Vec,PetscInt*);
 PETSC_EXTERN PetscErrorCode VecSetValuesBlocked(Vec,PetscInt,const PetscInt[],const PetscScalar[],InsertMode);
 
 /* Dynamic creation and loading functions */
-#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscFunctionList VecList;
-PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscBool         VecRegisterAllCalled;
-#else
-PETSC_EXTERN PetscThreadKey VecList;
-PETSC_EXTERN PetscThreadKey VecRegisterAllCalled;
-#endif
-#elif defined(PETSC_HAVE_OPENMP)
 PETSC_EXTERN PetscFunctionList VecList;
 PETSC_EXTERN PetscBool         VecRegisterAllCalled;
-#else
-PETSC_EXTERN PetscFunctionList VecList;
-PETSC_EXTERN PetscBool         VecRegisterAllCalled;
-#endif
 
 PETSC_EXTERN PetscErrorCode VecSetType(Vec, VecType);
 PETSC_EXTERN PetscErrorCode VecGetType(Vec, VecType *);

@@ -147,15 +147,7 @@ typedef struct {
   PetscLogEvent VEC_ViennaCLCopyFromGPU, VEC_ViennaCLCopyToGPU;
 } PetscVecLogEvents;
 
-#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscVecLogEvents VEC_Logs;
-#else
-PETSC_EXTERN PetscThreadKey PetscVecLogEvents VEC_Logs;
-#endif
-#else
 PETSC_EXTERN PetscVecLogEvents VEC_Logs;
-#endif
 
 #if defined(PETSC_HAVE_CUSP)
 PETSC_EXTERN PetscErrorCode VecCUSPAllocateCheckHost(Vec v);

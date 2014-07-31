@@ -7,18 +7,7 @@
 */
 #include <petsc-private/logimpl.h> /*I    "petscsys.h"   I*/
 
-#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_PTHREAD_LOCAL PetscStageLog petsc_stageLog = 0;
-#else
-PetscThreadKey petsc_stageLog = 0;
-#endif
-#elif defined(PETSC_HAVE_OPENMP)
 PetscStageLog petsc_stageLog = 0;
-#pragma omp threadprivate(petsc_stageLog)
-#else
-PetscStageLog petsc_stageLog = 0;
-#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscLogGetStageLog"

@@ -89,22 +89,8 @@ PetscErrorCode VecNorm_MPI(Vec xin,NormType type,PetscReal *z)
    A call to MPI_Op_create() converts the function Vec[Max,Min]_Local() to the MPI operator Vec[Max,Min]_Local_Op.
    These are marked PETSC_EXTERN since the function pointers are passed to MPI.
 */
-#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_PTHREAD_LOCAL MPI_Op VecMax_Local_Op = 0;
-PETSC_PTHREAD_LOCAL MPI_Op VecMin_Local_Op = 0;
-#else
-PetscThreadKey VecMax_Local_Op = 0;
-PetscThreadKey VecMin_Local_Op = 0;
-#endif
-#elif defined(PETSC_HAVE_OPENMP)
 MPI_Op VecMax_Local_Op = 0;
 MPI_Op VecMin_Local_Op = 0;
-#pragma omp threadprivate(VecMax_Local_Op,VecMin_Local_Op)
-#else
-MPI_Op VecMax_Local_Op = 0;
-MPI_Op VecMin_Local_Op = 0;
-#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "VecMax_Local"

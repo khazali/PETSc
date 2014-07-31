@@ -387,19 +387,31 @@ PetscErrorCode PetscThreadCommBarrier_PThread(PetscThreadComm tcomm)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockCreate_PThread"
+PetscErrorCode PetscThreadLockCreate_PThread(void **lock)
+{
+  PetscThreadLock_PThread ptlock;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscNew(&ptlock);CHKERRQ(ierr);
+  ierr = pthread_mutex_init(ptlock,PETSC_NULL);CHKERRQ(ierr);
+  *lock = (void*)ptlock;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscThreadLockInitialize_PThread"
 PetscErrorCode PetscThreadLockInitialize_PThread(void)
 {
-  PetscThreadLock_PThread ptlock;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   if (PetscLocks) PetscFunctionReturn(0);
 
   ierr = PetscNew(&PetscLocks);CHKERRQ(ierr);
-  ierr = PetscNew(&ptlock);CHKERRQ(ierr);
-  ierr = pthread_mutex_init(ptlock,PETSC_NULL);CHKERRQ(ierr);
-  PetscLocks->trmalloc_lock = (void*)ptlock;
+  ierr = PetscThreadLockCreate_PThread(&PetscLocks->trmalloc_lock);
+  ierr = PetscThreadLockCreate_PThread(&PetscLocks->vec_lock);
   PetscFunctionReturn(0);
 }
 

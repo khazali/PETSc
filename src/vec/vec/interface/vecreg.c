@@ -1,22 +1,8 @@
 
 #include <petsc-private/vecimpl.h>    /*I "petscvec.h"  I*/
 
-#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_PTHREAD_LOCAL PetscFunctionList VecList              = NULL;
-PETSC_PTHREAD_LOCAL PetscBool         VecRegisterAllCalled = PETSC_FALSE;
-#else
-PetscThreadKey VecList              = NULL;
-PetscThreadKey VecRegisterAllCalled = PETSC_FALSE;
-#endif
-#elif defined(PETSC_HAVE_OPENMP)
 PetscFunctionList VecList              = NULL;
 PetscBool         VecRegisterAllCalled = PETSC_FALSE;
-#pragma omp threadprivate(VecList,VecRegisterAllCalled)
-#else
-PetscFunctionList VecList              = NULL;
-PetscBool         VecRegisterAllCalled = PETSC_FALSE;
-#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "VecSetType"

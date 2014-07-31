@@ -3,18 +3,8 @@
      Some useful vector utility functions.
 */
 #include <../src/vec/vec/impls/mpi/pvecimpl.h>          /*I "petscvec.h" I*/
-#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_EXTERN PETSC_PTHREAD_LOCAL MPI_Op VecMax_Local_Op;
-PETSC_EXTERN PETSC_PTHREAD_LOCAL MPI_Op VecMin_Local_Op;
-#else
-PETSC_EXTERN PetscThreadKey VecMax_Local_Op;
-PETSC_EXTERN PetscThreadKey VecMin_Local_Op;
-#endif
-#else
 PETSC_EXTERN MPI_Op VecMax_Local_Op;
 PETSC_EXTERN MPI_Op VecMin_Local_Op;
-#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "VecStrideSet"
