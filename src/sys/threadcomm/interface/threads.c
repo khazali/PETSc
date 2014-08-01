@@ -27,6 +27,21 @@ PetscInt PetscThreadInit;
 PetscErrorCode (*PetscThreadLockAcquire)(void*);
 PetscErrorCode (*PetscThreadLockRelease)(void*);
 
+#if defined(PETSC_USE_LOG)
+#if defined(PETSC_HAVE_PTHREADCLASSES)
+#if defined(PETSC_PTHREAD_LOCAL)
+PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscObject *PetscObjects;
+PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscInt    PetscObjectsCounts, PetscObjectsMaxCounts;
+#else
+PETSC_EXTERN PetscThreadKey *PetscObjects;
+PETSC_EXTERN PetscThreadKey PetscObjectsCounts, PetscObjectsMaxCounts;
+#endif
+#else
+PETSC_EXTERN PetscObject *PetscObjects;
+PETSC_EXTERN PetscInt    PetscObjectsCounts, PetscObjectsMaxCounts;
+#endif
+#endif
+
 extern PetscErrorCode PetscSetUseTrMalloc_Private(void);
 #if defined(PETSC_USE_LOG)
 extern PetscErrorCode PetscLogBegin_Private(void);
@@ -50,7 +65,7 @@ PetscErrorCode PetscThreadInitialize(void)
 
   // Initialize logging
 #if defined(PETSC_USE_LOG)
-  //ierr = PetscLogBegin_Private();CHKERRQ(ierr);
+  ierr = PetscLogBegin_Private();CHKERRQ(ierr);
 #endif
 
   // Create thread stack
@@ -78,6 +93,13 @@ PetscErrorCode PetscThreadFinalize(void)
   if(PetscMasterThread || !PetscThreadInit) PetscFunctionReturn(0);
 
   printf("***********Destroying thread***************** master=%d init=%d\n",PetscMasterThread,PetscThreadInit);
+
+#if defined(PETSC_USE_LOG)
+  PetscObjectsCounts    = 0;
+  PetscObjectsMaxCounts = 0;
+  ierr = PetscFree(PetscObjects);CHKERRQ(ierr);
+  ierr = PetscLogDestroy();CHKERRQ(ierr);
+#endif
 
   // Add code to destroy TRMalloc/merged with main trmalloc data
   ierr = PetscTrMallocFinalize();CHKERRQ(ierr);

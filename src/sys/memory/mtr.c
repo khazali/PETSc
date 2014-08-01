@@ -65,15 +65,15 @@ typedef struct {
 
 #if defined(PETSC_HAVE_PTHREADCLASSES)
 #if defined(PETSC_PTHREAD_LOCAL)
-PETSC_PTHREAD_LOCAL PetscTRMallocStruct trmalloc;
+static PETSC_PTHREAD_LOCAL PetscTRMallocStruct trmalloc;
 #else
-PetscThreadKey trmalloc;
+static PetscThreadKey trmalloc;
 #endif
 #elif defined(PETSC_HAVE_OPENMP)
-PetscTRMallocStruct trmalloc;
+static PetscTRMallocStruct trmalloc;
 #pragma omp threadprivate(trmalloc)
 #else
-PetscTRMallocStruct trmalloc;
+static PetscTRMallocStruct trmalloc;
 #endif
 
 /* Global malloc statistics */
@@ -328,13 +328,20 @@ PetscErrorCode  PetscTrFreeDefault(void *aa,int line,const char function[],const
 
   trmalloc.TRallocated -= head->size;
   trmalloc.TRfrags--;
-  if (head->prev) head->prev->next = head->next;
-  else {
-    if(trmalloc.TRhead==head->next) {
-      printf("****************ERROR: SETTING TRhead->next to TRhead*************\n");
+
+  /* Check for loops in list */
+  TRSPACE *checkhead = trmalloc.TRhead;
+  if(checkhead) {
+    while(checkhead != head) {
+      if(checkhead == head->next) {
+        printf("****************ERROR: Creating loop in TRMALLOC*************\n");
+      }
+      checkhead = checkhead->next;
     }
-    trmalloc.TRhead = head->next;
   }
+
+  if (head->prev) head->prev->next = head->next;
+  else trmalloc.TRhead = head->next;
 
   if (head->next) head->next->prev = head->prev;
   ierr = PetscFreeAlign(a,line,function,file);CHKERRQ(ierr);

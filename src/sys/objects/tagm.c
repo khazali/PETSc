@@ -208,9 +208,22 @@ PetscErrorCode  PetscCommForceDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,Pets
    }*/
 
   /* Duplicate communicator*/
+  PetscCommCounter *check2;
+  PetscMPIInt cflg2;
+  MPI_Attr_get(comm_in,Petsc_Counter_keyval,&check2,&cflg2);
+  if(cflg2) {
+    printf("Comm_in has a counter\n");
+  }
   ierr = MPI_Comm_dup(comm_in,comm_out);CHKERRQ(ierr);
   ierr = MPI_Attr_get(MPI_COMM_WORLD,MPI_TAG_UB,&maxval,&flg);CHKERRQ(ierr);
   if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"MPI error: MPI_Attr_get() is not returning a MPI_TAG_UB");
+
+  PetscCommCounter *check;
+  PetscMPIInt cflg;
+  ierr = MPI_Attr_get(*comm_out,Petsc_Counter_keyval,&check,&cflg);CHKERRQ(ierr);
+  if(cflg) {
+    printf("Duped comm already has a counter before counter malloc\n");
+  }
 
   /* Create counter for comm_out */
   ierr = PetscMalloc(sizeof(PetscCommCounter),&counter);CHKERRQ(ierr);
@@ -219,6 +232,10 @@ PetscErrorCode  PetscCommForceDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,Pets
   counter->namecount = 0;
 
   /* Attach new counter to comm_out */
+  ierr = MPI_Attr_get(*comm_out,Petsc_Counter_keyval,&check,&cflg);CHKERRQ(ierr);
+  if(cflg) {
+    printf("Duped comm already has a counter after counter malloc\n");
+  }
   counter->refcount++;
   ierr = MPI_Attr_put(*comm_out,Petsc_Counter_keyval,counter);CHKERRQ(ierr);
   ierr = PetscInfo3(0,"Duplicating a communicator %ld %ld max tags = %d\n",(long)comm_in,(long)*comm_out,*maxval);CHKERRQ(ierr);

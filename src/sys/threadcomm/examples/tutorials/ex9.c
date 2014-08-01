@@ -22,17 +22,17 @@ int main(int argc,char **argv)
   ierr = PetscPrintf(comm,"nthreads=%d\n",nthreads);CHKERRQ(ierr);
 
   // Create second threadcomm using every other thread
-  nthreads2 = ceil((PetscScalar)nthreads/2.0);
+  /*nthreads2 = ceil((PetscScalar)nthreads/2.0);
   ierr = PetscMalloc1(nthreads2,&granks);CHKERRQ(ierr);
   for(i=0; i<nthreads2; i++) {
     granks[i] = i*2;
   }
   ierr = PetscThreadCommCreateShare(comm,nthreads2,granks,&shcomm);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(shcomm,&ntcthreads);CHKERRQ(ierr);
-  ierr = PetscPrintf(shcomm,"Created shared comm with %d threads\n",ntcthreads);CHKERRQ(ierr);
+  ierr = PetscPrintf(shcomm,"Created shared comm with %d threads\n",ntcthreads);CHKERRQ(ierr);*/
 
-  printf("Creating splitcomm with %d comms\n",ncomms);
-  ierr = PetscThreadCommSplit(comm,ncomms,PETSC_NULL,PETSC_NULL,&splitcomms);CHKERRQ(ierr);
+  /*printf("Creating splitcomm with %d comms\n",ncomms);
+  ierr = PetscThreadCommSplit(comm,ncomms,PETSC_NULL,PETSC_NULL,&splitcomms);CHKERRQ(ierr);*/
 
   printf("\n\n\nCreating multcomm with %d comms\n",ncomms);
   ierr = PetscThreadCommCreateMultiple(PETSC_COMM_WORLD,ncomms,nthreads,PETSC_NULL,PETSC_NULL,&multcomms);
@@ -58,19 +58,19 @@ int main(int argc,char **argv)
       ierr = PetscPrintf(comm,"Computing with trank=%d commrank=%d\n",trank,commrank);CHKERRCONTINUE(ierr);
       ierr = PetscPrintf(multcomms[commrank],"Creating vecs commrank=%d\n",commrank);CHKERRCONTINUE(ierr);
       ierr = VecCreateMPI(multcomms[commrank],PETSC_DECIDE,n,&x);CHKERRCONTINUE(ierr);
-      ierr = VecSetFromOptions(x);CHKERRCONTINUE(ierr);
-      ierr = VecDuplicate(x,&y);CHKERRCONTINUE(ierr);
+      //ierr = VecSetFromOptions(x);CHKERRCONTINUE(ierr);
+      //ierr = VecDuplicate(x,&y);CHKERRCONTINUE(ierr);
 
-      xval = 1.0*(commrank+1.0);
+      /*xval = 1.0*(commrank+1.0);
       yval = 2.0*(commrank+1.0);
       ierr = VecSet(x,xval);CHKERRCONTINUE(ierr);
       ierr = VecSet(y,yval);CHKERRCONTINUE(ierr);
       ierr = VecAXPY(y,alpha,x);CHKERRCONTINUE(ierr);
       //ierr = VecNorm(y,NORM_1,&vnorm);CHKERRCONTINUE(ierr);
-      ierr = PetscPrintf(multcomms[commrank],"Multcomm=%d Norm=%f\n",commrank,vnorm);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(multcomms[commrank],"Multcomm=%d Norm=%f\n",commrank,vnorm);CHKERRCONTINUE(ierr);*/
 
       ierr = VecDestroy(&x);CHKERRCONTINUE(ierr);
-      ierr = VecDestroy(&y);CHKERRCONTINUE(ierr);
+      //ierr = VecDestroy(&y);CHKERRCONTINUE(ierr);
     }
     ierr = PetscThreadCommReturnMultComms(multcomms,ncomms,trank,&commrank);CHKERRCONTINUE(ierr);
 
@@ -148,14 +148,14 @@ int main(int argc,char **argv)
   // Destroy Threadcomms
   ierr = PetscPrintf(comm,"Destory and Finalize\n");CHKERRQ(ierr);
   for(i=0; i<ncomms; i++) {
-    ierr = PetscCommDestroy(&splitcomms[i]);CHKERRQ(ierr);
+    //ierr = PetscCommDestroy(&splitcomms[i]);CHKERRQ(ierr);
     ierr = PetscCommDestroy(&multcomms[i]);CHKERRQ(ierr);
   }
-  ierr = PetscCommDestroy(&shcomm);CHKERRQ(ierr);
+  //ierr = PetscCommDestroy(&shcomm);CHKERRQ(ierr);
   ierr = PetscCommDestroy(&comm);CHKERRQ(ierr);
-  ierr = PetscFree(splitcomms);CHKERRQ(ierr);
+  //ierr = PetscFree(splitcomms);CHKERRQ(ierr);
   ierr = PetscFree(multcomms);CHKERRQ(ierr);
-  ierr = PetscFree(granks);CHKERRQ(ierr);
+  //ierr = PetscFree(granks);CHKERRQ(ierr);
 
   ierr = PetscFinalize();CHKERRQ(ierr);
   return 0;
