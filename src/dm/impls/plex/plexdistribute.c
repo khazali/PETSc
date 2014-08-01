@@ -736,7 +736,7 @@ PetscErrorCode DMPlexDecompose(DM dm, const char partitioner[], PetscInt n, Pets
     ierr = PetscObjectReference((PetscObject) dm);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
-  ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
 
   /* Create cell partition - We need to rewrite to use IS, use the MatPartition stuff */
   if (overlap > 1) SETERRQ(comm, PETSC_ERR_SUP, "Overlap > 1 not yet implemented");
@@ -783,7 +783,7 @@ PetscErrorCode DMPlexDecompose(DM dm, const char partitioner[], PetscInt n, Pets
     char name[256];
 
     ierr  = DMPlexCreate(comm, &pdm);CHKERRQ(ierr);
-    ierr  = DMPlexSetDimension(pdm, dim);CHKERRQ(ierr);
+    ierr  = DMSetDimension(pdm, dim);CHKERRQ(ierr);
     ierr  = PetscSNPrintf(name, 255, "Subdomain %D", i);CHKERRQ(ierr);
     ierr  = PetscObjectSetName((PetscObject) pdm, name);CHKERRQ(ierr);
     pmesh = (DM_Plex*) (pdm)->data;

@@ -6345,7 +6345,7 @@ PetscErrorCode DMCreateDomainDecomposition_Plex(DM dm, PetscInt *len, char ***na
        inner gives ownership to the lower numbered partition (should we do tie-breaking instead?)
      Return n and dms
   */
-  ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   for (i = 0; i < dim; ++i) partSize *= 2;
   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   n    = (cEnd - cStart) / partSize;
