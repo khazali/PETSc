@@ -448,7 +448,7 @@ PetscErrorCode PetscCitationsInitialize()
 
   PetscFunctionBegin;
   ierr = PetscSegBufferCreate(1,10000,&PetscCitationsList);CHKERRQ(ierr);
-  ierr = PetscCitationsRegister("@TechReport{petsc-user-ref,\n  Author = {Satish Balay and Shrirang Abhyankar and Mark F. Adams and Jed Brown and Peter Brune\n            and Kris Buschelman and Victor Eijkhout and William D. Gropp\n            and Dinesh Kaushik and Matthew G. Knepley\n            and Lois Curfman McInnes and Karl Rupp and Barry F. Smith\n            and Hong Zhang},\n  Title = {{PETS}c Users Manual},\n  Number = {ANL-95/11 - Revision 3.4},\n  Institution = {Argonne National Laboratory},\n  Year = {2013}\n}\n",NULL);CHKERRQ(ierr);
+  ierr = PetscCitationsRegister("@TechReport{petsc-user-ref,\n  Author = {Satish Balay and Shrirang Abhyankar and Mark F. Adams and Jed Brown and Peter Brune\n            and Kris Buschelman and Victor Eijkhout and William D. Gropp\n            and Dinesh Kaushik and Matthew G. Knepley\n            and Lois Curfman McInnes and Karl Rupp and Barry F. Smith\n            and Hong Zhang},\n  Title = {{PETS}c Users Manual},\n  Number = {ANL-95/11 - Revision 3.5},\n  Institution = {Argonne National Laboratory},\n  Year = {2014}\n}\n",NULL);CHKERRQ(ierr);
   ierr = PetscCitationsRegister("@InProceedings{petsc-efficient,\n  Author = {Satish Balay and William D. Gropp and Lois Curfman McInnes and Barry F. Smith},\n  Title = {Efficient Management of Parallelism in Object Oriented Numerical Software Libraries},\n  Booktitle = {Modern Software Tools in Scientific Computing},\n  Editor = {E. Arge and A. M. Bruaset and H. P. Langtangen},\n  Pages = {163--202},\n  Publisher = {Birkh{\\\"{a}}user Press},\n  Year = {1997}\n}\n",NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -632,11 +632,11 @@ PetscErrorCode  PetscInitializeSAWs(const char help[])
     ierr = PetscFree(intro);CHKERRQ(ierr);
     ierr = PetscFree(appline);CHKERRQ(ierr);
     PetscStackCallSAWs(SAWs_Initialize,());
-    ierr = PetscCitationsRegister("@TechReport{ saws,"
-                                  "Author = {Matt Otten and Jed Brown and Barry Smith},"
-                                  "Title  = {Scientific Application Web Server (SAWs) Users Manual},"
-                                  "Institution = {Argonne National Laboratory},"
-                                  "Year   = 2013}",NULL);CHKERRQ(ierr);
+    ierr = PetscCitationsRegister("@TechReport{ saws,\n"
+                                  "  Author = {Matt Otten and Jed Brown and Barry Smith},\n"
+                                  "  Title  = {Scientific Application Web Server (SAWs) Users Manual},\n"
+                                  "  Institution = {Argonne National Laboratory},\n"
+                                  "  Year   = 2013\n}\n",NULL);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -1155,7 +1155,7 @@ PetscErrorCode  PetscFinalize(void)
   /* preemptive call to avoid listing this option in options table as unused */
   ierr = PetscOptionsHasName(NULL,"-malloc_dump",&flg1);CHKERRQ(ierr);
   ierr = PetscOptionsHasName(NULL,"-objects_dump",&flg1);CHKERRQ(ierr);
-  ierr = PetscOptionsGetBool(NULL,"-options_table",&flg2,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL,"-options_view",&flg2,NULL);CHKERRQ(ierr);
 
   if (flg2) {
     PetscViewer viewer;

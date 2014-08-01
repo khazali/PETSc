@@ -106,6 +106,7 @@ J*/
 #define MATSOLVERESSL         "essl"
 #define MATSOLVERLUSOL        "lusol"
 #define MATSOLVERMUMPS        "mumps"
+#define MATSOLVERMKL_PARDISO  "mkl_pardiso"
 #define MATSOLVERPASTIX       "pastix"
 #define MATSOLVERMATLAB       "matlab"
 #define MATSOLVERPETSC        "petsc"
@@ -358,6 +359,7 @@ PETSC_EXTERN PetscErrorCode MatRestoreColumn(Mat,PetscInt,PetscInt *,const Petsc
 PETSC_EXTERN PetscErrorCode MatGetColumnVector(Mat,Vec,PetscInt);
 PETSC_EXTERN PetscErrorCode MatSeqAIJGetArray(Mat,PetscScalar *[]);
 PETSC_EXTERN PetscErrorCode MatSeqAIJRestoreArray(Mat,PetscScalar *[]);
+PETSC_EXTERN PetscErrorCode MatSeqAIJGetMaxRowNonzeros(Mat,PetscInt*);
 PETSC_EXTERN PetscErrorCode MatSeqAIJSetValuesLocalFast(Mat,PetscInt,const PetscInt[],PetscInt,const PetscInt[],const PetscScalar[],InsertMode);
 PETSC_EXTERN PetscErrorCode MatDenseGetArray(Mat,PetscScalar *[]);
 PETSC_EXTERN PetscErrorCode MatDenseRestoreArray(Mat,PetscScalar *[]);
@@ -562,6 +564,10 @@ PETSC_EXTERN PetscErrorCode MatFindOffBlockDiagonalEntries(Mat,IS*);
    MatSetValue - Set a single entry into a matrix.
 
    Not collective
+
+   Synopsis:
+     #include <petscmat.h>
+     PetscErrorCode MatSetValue(Mat m,PetscInt row,PetscInt col,PetscScalar value,InsertMode mode)
 
    Input Parameters:
 +  m - the matrix
@@ -1500,6 +1506,7 @@ PETSC_EXTERN PetscErrorCode MatShellSetContext(Mat,void*);
 PETSC_EXTERN PetscErrorCode MatMPIBAIJSetHashTableFactor(Mat,PetscReal);
 PETSC_EXTERN PetscErrorCode MatISGetLocalMat(Mat,Mat*);
 PETSC_EXTERN PetscErrorCode MatISSetLocalMat(Mat,Mat);
+PETSC_EXTERN PetscErrorCode MatISGetMPIXAIJ(Mat,MatReuse,Mat*);
 
 /*S
      MatNullSpace - Object that removes a null space from a vector, i.e.
@@ -1605,6 +1612,13 @@ PETSC_EXTERN PetscErrorCode MatMumpsGetInfo(Mat,PetscInt,PetscInt*);
 PETSC_EXTERN PetscErrorCode MatMumpsGetInfog(Mat,PetscInt,PetscInt*);
 PETSC_EXTERN PetscErrorCode MatMumpsGetRinfo(Mat,PetscInt,PetscReal*);
 PETSC_EXTERN PetscErrorCode MatMumpsGetRinfog(Mat,PetscInt,PetscReal*);
+#endif
+
+/*
+   PETSc interface to Mkl_Pardiso
+*/
+#ifdef PETSC_HAVE_MKL_PARDISO
+PETSC_EXTERN PetscErrorCode MatMkl_PardisoSetCntl(Mat,PetscInt,PetscInt);
 #endif
 
 /*

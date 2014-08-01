@@ -1360,6 +1360,7 @@ PetscErrorCode MatMult_SeqAIJ(Mat A,Vec xx,Vec yy)
   if (usecprow) { /* use compressed row format */
     ierr = VecGetArrayRead(xx,&x);CHKERRQ(ierr);
     ierr = VecGetArray(yy,&y);CHKERRQ(ierr);
+    ierr = PetscMemzero(y,m*sizeof(PetscScalar));CHKERRQ(ierr);
     m    = a->compressedrow.nrows;
     ii   = a->compressedrow.i;
     ridx = a->compressedrow.rindex;
@@ -1411,6 +1412,7 @@ PetscErrorCode MatMult_SeqAIJ(Mat A,Vec xx,Vec yy)
   aa   = a->a;
   ii   = a->i;
   if (usecprow) { /* use compressed row format */
+    ierr = PetscMemzero(y,m*sizeof(PetscScalar));CHKERRQ(ierr);
     m    = a->compressedrow.nrows;
     ii   = a->compressedrow.i;
     ridx = a->compressedrow.rindex;
@@ -2394,8 +2396,13 @@ PetscErrorCode MatGetSubMatrix_SeqAIJ(Mat A,IS isrow,IS iscol,PetscInt csize,Mat
   ierr = ISGetLocalSize(isrow,&nrows);CHKERRQ(ierr);
   ierr = ISGetLocalSize(iscol,&ncols);CHKERRQ(ierr);
 
-  ierr = ISStrideGetInfo(iscol,&first,&step);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)iscol,ISSTRIDE,&stride);CHKERRQ(ierr);
+  if (stride) {
+    ierr = ISStrideGetInfo(iscol,&first,&step);CHKERRQ(ierr);
+  } else {
+    first = 0;
+    step  = 0;
+  }
   if (stride && step == 1) {
     /* special case of contiguous rows */
     ierr = PetscMalloc2(nrows,&lens,nrows,&starts);CHKERRQ(ierr);
@@ -3591,7 +3598,7 @@ PetscErrorCode  MatCreateSeqAIJ(MPI_Comm comm,PetscInt m,PetscInt n,PetscInt nz,
    Collective on MPI_Comm
 
    Input Parameters:
-+  B - The matrix-free
++  B - The matrix
 .  nz - number of nonzeros per row (same for all rows)
 -  nnz - array containing the number of nonzeros in the various rows
          (possibly different for each row) or NULL
@@ -3957,6 +3964,9 @@ PETSC_EXTERN PetscErrorCode MatGetFactor_aij_mumps(Mat,MatFactorType,Mat*);
 #if defined(PETSC_HAVE_SUPERLU)
 PETSC_EXTERN PetscErrorCode MatGetFactor_seqaij_superlu(Mat,MatFactorType,Mat*);
 #endif
+#if defined(PETSC_HAVE_MKL_PARDISO)
+PETSC_EXTERN PetscErrorCode MatGetFactor_aij_mkl_pardiso(Mat,MatFactorType,Mat*);
+#endif
 #if defined(PETSC_HAVE_SUPERLU_DIST)
 PETSC_EXTERN PetscErrorCode MatGetFactor_seqaij_superlu_dist(Mat,MatFactorType,Mat*);
 #endif
@@ -4005,6 +4015,32 @@ PetscErrorCode  MatSeqAIJGetArray(Mat A,PetscScalar **array)
 
   PetscFunctionBegin;
   ierr = PetscUseMethod(A,"MatSeqAIJGetArray_C",(Mat,PetscScalar**),(A,array));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatSeqAIJGetMaxRowNonzeros"
+/*@C
+   MatSeqAIJGetMaxRowNonzeros - returns the maximum number of nonzeros in any row
+
+   Not Collective
+
+   Input Parameter:
+.  mat - a MATSEQDENSE matrix
+
+   Output Parameter:
+.   nz - the maximum number of nonzeros in any row
+
+   Level: intermediate
+
+.seealso: MatSeqAIJRestoreArray(), MatSeqAIJGetArrayF90()
+@*/
+PetscErrorCode  MatSeqAIJGetMaxRowNonzeros(Mat A,PetscInt *nz)
+{
+  Mat_SeqAIJ     *aij = (Mat_SeqAIJ*)A->data;
+
+  PetscFunctionBegin;
+  *nz = aij->rmax;
   PetscFunctionReturn(0);
 }
 
@@ -4089,6 +4125,9 @@ PETSC_EXTERN PetscErrorCode MatCreate_SeqAIJ(Mat B)
 #endif
 #if defined(PETSC_HAVE_SUPERLU)
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatGetFactor_superlu_C",MatGetFactor_seqaij_superlu);CHKERRQ(ierr);
+#endif
+#if defined(PETSC_HAVE_MKL_PARDISO)
+  ierr = PetscObjectComposeFunction((PetscObject)B,"MatGetFactor_mkl_pardiso_C",MatGetFactor_aij_mkl_pardiso);CHKERRQ(ierr);
 #endif
 #if defined(PETSC_HAVE_SUPERLU_DIST)
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatGetFactor_superlu_dist_C",MatGetFactor_seqaij_superlu_dist);CHKERRQ(ierr);

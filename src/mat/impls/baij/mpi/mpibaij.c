@@ -2787,7 +2787,7 @@ PetscErrorCode MatMPIBAIJSetPreallocationCSR_MPIBAIJ(Mat B,PetscInt bs,const Pet
    Collective on MPI_Comm
 
    Input Parameters:
-+  A - the matrix
++  B - the matrix
 .  bs - the block size
 .  i - the indices into j for the start of each local row (starts with zero)
 .  j - the column indices for each local row (starts with zero) these must be sorted for each row
@@ -3089,7 +3089,7 @@ M*/
    Collective on Mat
 
    Input Parameters:
-+  A - the matrix
++  B - the matrix
 .  bs   - size of block
 .  d_nz  - number of block nonzeros per block row in diagonal portion of local
            submatrix  (same for all local rows)
@@ -3684,9 +3684,9 @@ PetscErrorCode  MatMPIBAIJGetSeqBAIJ(Mat A,Mat *Ad,Mat *Ao,const PetscInt *colma
   Mat_MPIBAIJ *a = (Mat_MPIBAIJ*)A->data;
 
   PetscFunctionBegin;
-  *Ad     = a->A;
-  *Ao     = a->B;
-  *colmap = a->garray;
+  if (Ad)     *Ad     = a->A;
+  if (Ao)     *Ao     = a->B;
+  if (colmap) *colmap = a->garray;
   PetscFunctionReturn(0);
 }
 
