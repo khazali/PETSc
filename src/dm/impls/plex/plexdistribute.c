@@ -730,7 +730,7 @@ PetscErrorCode DMPlexDistribute(DM dm, const char partitioner[], PetscInt overla
   *dmParallel = NULL;
   if (numProcs == 1) PetscFunctionReturn(0);
 
-  ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   /* Create cell partition - We need to rewrite to use IS, use the MatPartition stuff */
   ierr = PetscLogEventBegin(DMPLEX_Partition,dm,0,0,0);CHKERRQ(ierr);
   ierr = DMPlexCreatePartition(dm, partitioner, height, overlap, &cellPartSection, &cellPart, &origCellPartSection, &origCellPart);CHKERRQ(ierr);
