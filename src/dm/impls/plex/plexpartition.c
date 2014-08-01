@@ -501,8 +501,7 @@ PetscErrorCode DMPlexEnlargePartition(DM dm, PetscSection origPartSection, IS or
   PetscHashI      h;
   const PetscInt *points;
   PetscInt      **tmpPoints, *newPoints, totPoints = 0;
-  PetscInt        pStart, pEnd, part, q;
-  PetscBool       useCone;
+  PetscInt        pStart, pEnd, part, q, height, hStart, hEnd;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
@@ -512,8 +511,8 @@ PetscErrorCode DMPlexEnlargePartition(DM dm, PetscSection origPartSection, IS or
   ierr = PetscSectionSetChart(*partSection, pStart, pEnd);CHKERRQ(ierr);
   ierr = ISGetIndices(origPartition, &points);CHKERRQ(ierr);
   ierr = PetscMalloc1((pEnd - pStart), &tmpPoints);CHKERRQ(ierr);
-  ierr = DMPlexGetAdjacencyUseCone(dm, &useCone);CHKERRQ(ierr);
-  ierr = DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE);CHKERRQ(ierr);
+  ierr = DMPlexGetPartitioningHeight(dm, &height);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(dm, height, &hStart, &hEnd);CHKERRQ(ierr);
   for (part = pStart; part < pEnd; ++part) {
     PetscInt *adj = NULL;
     PetscInt  numPoints, nP, numNewPoints, off, p, n = 0;
@@ -534,7 +533,9 @@ PetscErrorCode DMPlexEnlargePartition(DM dm, PetscSection origPartSection, IS or
       PetscInt       adjSize = PETSC_DETERMINE, a;
 
       ierr = DMPlexGetAdjacency(dm, point, &adjSize, &adj);CHKERRQ(ierr);
-      for (a = 0; a < adjSize; ++a) PetscHashIAdd(h, adj[a], 1);
+      for (a = 0; a < adjSize; ++a) {
+        if (hStart <= adj[a] && adj[a] < hEnd) PetscHashIAdd(h, adj[a], 1);
+      }
     }
     PetscHashISize(h, numNewPoints);
     ierr = PetscSectionSetDof(*partSection, part, numNewPoints);CHKERRQ(ierr);
@@ -543,7 +544,6 @@ PetscErrorCode DMPlexEnlargePartition(DM dm, PetscSection origPartSection, IS or
     ierr = PetscFree(adj);CHKERRQ(ierr);
     totPoints += numNewPoints;
   }
-  ierr = DMPlexSetAdjacencyUseCone(dm, useCone);CHKERRQ(ierr);
   ierr = ISRestoreIndices(origPartition, &points);CHKERRQ(ierr);
   PetscHashIDestroy(h);
   ierr = PetscSectionSetUp(*partSection);CHKERRQ(ierr);
@@ -637,6 +637,7 @@ PetscErrorCode DMPlexCreatePartition(DM dm, const char name[], PetscInt height, 
       *origPartSection = *partSection;
       *origPartition   = *partition;
     }
+
     while (overlap > 0) {
       previousPartSection = partSection;
       previousPartition   = partition;
@@ -663,13 +664,14 @@ PetscErrorCode DMPlexCreatePartition(DM dm, const char name[], PetscInt height, 
 #define __FUNCT__ "DMPlexCreatePartitionClosure"
 PetscErrorCode DMPlexCreatePartitionClosure(DM dm, PetscSection pointSection, IS pointPartition, PetscSection *section, IS *partition)
 {
-  /* const PetscInt  height = 0; */
+  PetscInt  height;
   const PetscInt *partArray;
   PetscInt       *allPoints, *packPoints;
-  PetscInt        rStart, rEnd, rank, pStart, pEnd, newSize;
+  PetscInt        rStart, rEnd, rank, pStart, pEnd, cStart, cEnd, hStart, hEnd, newSize;
   PetscErrorCode  ierr;
-  PetscBT         bt;
+  PetscBT         bt, cellBT, heightBT;
   PetscSegBuffer  segpack,segpart;
+  PetscBool       contained;
 
   PetscFunctionBegin;
   ierr = PetscSectionGetChart(pointSection, &rStart, &rEnd);CHKERRQ(ierr);
@@ -680,35 +682,85 @@ PetscErrorCode DMPlexCreatePartitionClosure(DM dm, PetscSection pointSection, IS
   ierr = PetscBTCreate(pEnd-pStart,&bt);CHKERRQ(ierr);
   ierr = PetscSegBufferCreate(sizeof(PetscInt),1000,&segpack);CHKERRQ(ierr);
   ierr = PetscSegBufferCreate(sizeof(PetscInt),1000,&segpart);CHKERRQ(ierr);
+
+  ierr = DMPlexGetPartitioningHeight(dm, &height);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(dm, height, &hStart, &hEnd);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+  ierr = PetscBTCreate(cEnd-cStart, &cellBT);CHKERRQ(ierr);
+  ierr = PetscBTCreate(hEnd-hStart, &heightBT);CHKERRQ(ierr);
+
+  PetscInt *closure = NULL;
+  PetscInt point, cpoint, closureSize, i, c;
+  PetscInt numAdj, *adj = NULL;
   for (rank = rStart; rank < rEnd; ++rank) {
     PetscInt partSize = 0, numPoints, offset, p, *PETSC_RESTRICT placePoints;
-
     ierr = PetscSectionGetDof(pointSection, rank, &numPoints);CHKERRQ(ierr);
     ierr = PetscSectionGetOffset(pointSection, rank, &offset);CHKERRQ(ierr);
-    for (p = 0; p < numPoints; ++p) {
-      PetscInt  point   = partArray[offset+p], closureSize, c;
-      PetscInt *closure = NULL;
 
-      /* TODO Include support for height > 0 case */
-      ierr = DMPlexGetTransitiveClosure(dm, point, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
-      for (c=0; c<closureSize; c++) {
-        PetscInt cpoint = closure[c*2];
-        if (!PetscBTLookupSet(bt,cpoint-pStart)) {
-          PetscInt *PETSC_RESTRICT pt;
-          partSize++;
-          ierr = PetscSegBufferGetInts(segpart,1,&pt);CHKERRQ(ierr);
-          *pt = cpoint;
-        }
-      }
-      ierr = DMPlexRestoreTransitiveClosure(dm, point, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
+    for (p = 0; p < numPoints; ++p) {
+      ierr = PetscBTSet(heightBT, partArray[offset+p]);CHKERRQ(ierr);
     }
+
+    for (p = 0; p < numPoints; ++p) {
+      point = partArray[offset+p];
+
+      if (height > 0) {
+        /* For non-cell-based partitions (ie. height > 0) we first get all cells in star(p),
+           before adding all points in the cell closure, iff all vertices in it are in the partition. */
+        numAdj = PETSC_DETERMINE;
+        ierr = DMPlexGetAdjacency(dm, point, &numAdj, &adj);CHKERRQ(ierr);
+        for (i=0; i<numAdj; i++) {
+          ierr = DMPlexGetTransitiveClosure(dm, adj[i], PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
+
+          /* For each closure check that all points in the partitioning height
+             are contained in our original partition before adding the closure. */
+          contained = PETSC_TRUE;
+          for (c=0; c<closureSize; c++) {
+            cpoint = closure[c*2];
+            if (hStart <= cpoint && cpoint < hEnd) {
+              if (!PetscBTLookup(heightBT, cpoint)) contained = PETSC_FALSE;
+            }
+          }
+          if (!contained) continue;
+
+          for (c=0; c<closureSize; c++) {
+            cpoint = closure[c*2];
+            if (!PetscBTLookupSet(bt,cpoint-pStart)) {
+              PetscInt *PETSC_RESTRICT pt;
+              partSize++;
+              ierr = PetscSegBufferGetInts(segpart,1,&pt);CHKERRQ(ierr);
+              *pt = cpoint;
+            }
+          }
+        }
+        ierr = DMPlexRestoreTransitiveClosure(dm, adj[i], PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
+      } else {
+        /* For cell-based partitions we can simply add the closure of each cell */
+        ierr = DMPlexGetTransitiveClosure(dm, point, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
+        for (c=0; c<closureSize; c++) {
+          cpoint = closure[c*2];
+          if (!PetscBTLookupSet(bt,cpoint-pStart)) {
+            PetscInt *PETSC_RESTRICT pt;
+            partSize++;
+            ierr = PetscSegBufferGetInts(segpart,1,&pt);CHKERRQ(ierr);
+            *pt = cpoint;
+          }
+        }
+        ierr = DMPlexRestoreTransitiveClosure(dm, point, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
+      }
+    }
+
     ierr = PetscSectionSetDof(*section, rank, partSize);CHKERRQ(ierr);
     ierr = PetscSegBufferGetInts(segpack,partSize,&placePoints);CHKERRQ(ierr);
     ierr = PetscSegBufferExtractTo(segpart,placePoints);CHKERRQ(ierr);
     ierr = PetscSortInt(partSize,placePoints);CHKERRQ(ierr);
     for (p=0; p<partSize; p++) {ierr = PetscBTClear(bt,placePoints[p]-pStart);CHKERRQ(ierr);}
+    for (p=cStart; p<cEnd; p++) {ierr = PetscBTClear(cellBT,p);CHKERRQ(ierr);}
+    for (p = 0; p < numPoints; ++p) {ierr = PetscBTClear(heightBT, partArray[offset+p]);CHKERRQ(ierr);}
   }
   ierr = PetscBTDestroy(&bt);CHKERRQ(ierr);
+  ierr = PetscBTDestroy(&cellBT);CHKERRQ(ierr);
+  ierr = PetscBTDestroy(&heightBT);CHKERRQ(ierr);
   ierr = PetscSegBufferDestroy(&segpart);CHKERRQ(ierr);
 
   ierr = PetscSectionSetUp(*section);CHKERRQ(ierr);
