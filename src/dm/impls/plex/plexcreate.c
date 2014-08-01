@@ -36,7 +36,7 @@ PetscErrorCode DMPlexCreateDoublet(MPI_Comm comm, PetscInt dim, PetscBool simple
   PetscFunctionBegin;
   ierr = DMCreate(comm, &dm);CHKERRQ(ierr);
   ierr = DMSetType(dm, DMPLEX);CHKERRQ(ierr);
-  ierr = DMPlexSetDimension(dm, dim);CHKERRQ(ierr);
+  ierr = DMSetDimension(dm, dim);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
   switch (dim) {
   case 2:
@@ -881,7 +881,7 @@ PetscErrorCode DMPlexCreateBoxMesh(MPI_Comm comm, PetscInt dim, PetscBool interp
   ierr = DMCreate(comm, &boundary);CHKERRQ(ierr);
   PetscValidLogicalCollectiveInt(boundary,dim,2);
   ierr = DMSetType(boundary, DMPLEX);CHKERRQ(ierr);
-  ierr = DMPlexSetDimension(boundary, dim-1);CHKERRQ(ierr);
+  ierr = DMSetDimension(boundary, dim-1);CHKERRQ(ierr);
   switch (dim) {
   case 2:
   {
@@ -941,7 +941,7 @@ PetscErrorCode DMPlexCreateHexBoxMesh(MPI_Comm comm, PetscInt dim, const PetscIn
   ierr = DMCreate(comm, dm);CHKERRQ(ierr);
   PetscValidLogicalCollectiveInt(*dm,dim,2);
   ierr = DMSetType(*dm, DMPLEX);CHKERRQ(ierr);
-  ierr = DMPlexSetDimension(*dm, dim);CHKERRQ(ierr);
+  ierr = DMSetDimension(*dm, dim);CHKERRQ(ierr);
   switch (dim) {
   case 2:
   {
@@ -1168,6 +1168,26 @@ static PetscErrorCode DMCreateLocalVector_Plex(DM dm,Vec *vec)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "DMGetDimPoints_Plex"
+static PetscErrorCode DMGetDimPoints_Plex(DM dm, PetscInt dim, PetscInt *pStart, PetscInt *pEnd)
+{
+  PetscInt       depth, d;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = DMPlexGetDepth(dm, &depth);CHKERRQ(ierr);
+  if (depth == 1) {
+    ierr = DMGetDimension(dm, &d);CHKERRQ(ierr);
+    if (dim == 0)      {ierr = DMPlexGetDepthStratum(dm, dim, pStart, pEnd);CHKERRQ(ierr);}
+    else if (dim == d) {ierr = DMPlexGetDepthStratum(dm, 1, pStart, pEnd);CHKERRQ(ierr);}
+    else               {*pStart = 0; *pEnd = 0;}
+  } else {
+    ierr = DMPlexGetDepthStratum(dm, dim, pStart, pEnd);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "DMInitialize_Plex"
 PetscErrorCode DMInitialize_Plex(DM dm)
 {
@@ -1198,6 +1218,7 @@ PetscErrorCode DMInitialize_Plex(DM dm)
   dm->ops->localtoglobalend                = NULL;
   dm->ops->destroy                         = DMDestroy_Plex;
   dm->ops->createsubdm                     = DMCreateSubDM_Plex;
+  dm->ops->getdimpoints                    = DMGetDimPoints_Plex;
   dm->ops->locatepoints                    = DMLocatePoints_Plex;
   dm->ops->createdomaindecomposition       = DMCreateDomainDecomposition_Plex;
   dm->ops->createddscatters                = DMCreateDomainDecompositionScatters_Plex;
@@ -1241,10 +1262,10 @@ PETSC_EXTERN PetscErrorCode DMCreate_Plex(DM dm)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   ierr     = PetscNewLog(dm,&mesh);CHKERRQ(ierr);
+  dm->dim  = 0;
   dm->data = mesh;
 
   mesh->refct             = 1;
-  mesh->dim               = 0;
   ierr                    = PetscSectionCreate(PetscObjectComm((PetscObject)dm), &mesh->coneSection);CHKERRQ(ierr);
   mesh->maxConeSize       = 0;
   mesh->cones             = NULL;
@@ -1445,7 +1466,7 @@ PetscErrorCode DMPlexCreateFromCellList(MPI_Comm comm, PetscInt dim, PetscInt nu
   PetscFunctionBegin;
   ierr = DMCreate(comm, dm);CHKERRQ(ierr);
   ierr = DMSetType(*dm, DMPLEX);CHKERRQ(ierr);
-  ierr = DMPlexSetDimension(*dm, dim);CHKERRQ(ierr);
+  ierr = DMSetDimension(*dm, dim);CHKERRQ(ierr);
   ierr = DMPlexBuildFromCellList_Private(*dm, numCells, numVertices, numCorners, cells);CHKERRQ(ierr);
   if (interpolate) {
     DM idm = NULL;
@@ -1464,7 +1485,7 @@ PetscErrorCode DMPlexCreateFromCellList(MPI_Comm comm, PetscInt dim, PetscInt nu
   DMPlexCreateFromDAG - This takes as input the adjacency-list representation of the Directed Acyclic Graph (Hasse Diagram) encoding a mesh, and produces a DM
 
   Input Parameters:
-+ dm - The empty DM object, usually from DMCreate() and DMPlexSetDimension()
++ dm - The empty DM object, usually from DMCreate() and DMSetDimension()
 . depth - The depth of the DAG
 . numPoints - The number of points at each depth
 . coneSize - The cone size of each point
@@ -1507,7 +1528,7 @@ PetscErrorCode DMPlexCreateFromDAG(DM dm, PetscInt depth, const PetscInt numPoin
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   for (d = 0; d <= depth; ++d) pEnd += numPoints[d];
   ierr = DMPlexSetChart(dm, pStart, pEnd);CHKERRQ(ierr);
   for (p = pStart; p < pEnd; ++p) {
@@ -1583,7 +1604,7 @@ PetscErrorCode DMPlexCreateReferenceCell(MPI_Comm comm, PetscInt dim, PetscBool 
   PetscFunctionBeginUser;
   ierr = DMCreate(comm, &rdm);CHKERRQ(ierr);
   ierr = DMSetType(rdm, DMPLEX);CHKERRQ(ierr);
-  ierr = DMPlexSetDimension(rdm, dim);CHKERRQ(ierr);
+  ierr = DMSetDimension(rdm, dim);CHKERRQ(ierr);
   switch (dim) {
   case 0:
   {
