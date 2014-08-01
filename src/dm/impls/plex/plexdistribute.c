@@ -379,11 +379,11 @@ PetscErrorCode DMPlexDistribute_Migrate(DM dm, PetscSection partSection, IS part
 
   ierr = PetscObjectGetComm((PetscObject)dm,&comm);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
-  ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
 
   /* Create new mesh */
   ierr  = DMPlexCreate(comm, dmParallel);CHKERRQ(ierr);
-  ierr  = DMPlexSetDimension(*dmParallel, dim);CHKERRQ(ierr);
+  ierr  = DMSetDimension(*dmParallel, dim);CHKERRQ(ierr);
   ierr  = PetscObjectSetName((PetscObject) *dmParallel, "Parallel Mesh");CHKERRQ(ierr);
   pmesh = (DM_Plex*) (*dmParallel)->data;
 
