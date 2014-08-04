@@ -969,7 +969,9 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
 }
 
 #if defined(PETSC_USE_LOG)
-#if defined(PETSC_HAVE_PTHREADCLASSES)
+PETSC_EXTERN PetscObject *PetscObjects;
+PETSC_EXTERN PetscInt    PetscObjectsCounts, PetscObjectsMaxCounts;
+/*#if defined(PETSC_HAVE_PTHREADCLASSES)
 #if defined(PETSC_PTHREAD_LOCAL)
 PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscObject *PetscObjects;
 PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscInt    PetscObjectsCounts, PetscObjectsMaxCounts;
@@ -980,7 +982,7 @@ PETSC_EXTERN PetscThreadKey PetscObjectsCounts, PetscObjectsMaxCounts;
 #else
 PETSC_EXTERN PetscObject *PetscObjects;
 PETSC_EXTERN PetscInt    PetscObjectsCounts, PetscObjectsMaxCounts;
-#endif
+ #endif*/
 #endif
 
 #undef __FUNCT__
@@ -1223,9 +1225,7 @@ PetscErrorCode  PetscFinalize(void)
 
   {
     /* Destroy any threadcomm/threadpool attached to PETSC_COMM_WORLD */
-    printf("Destroying PETSC_COMM_WORLD threadcomm\n");
     ierr = MPI_Attr_delete(PETSC_COMM_WORLD,Petsc_ThreadComm_keyval);CHKERRQ(ierr);
-    printf("Done destroying PETSC_COMM_WORLD threadcomm\n");
   }
 
 #if defined(PETSC_USE_LOG)

@@ -19,9 +19,9 @@ int main(int argc,char **argv)
   ierr = PetscOptionsGetInt(PETSC_NULL,"-n",&n,PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,PETSC_DECIDE,PETSC_NULL,&comm);CHKERRQ(ierr);
   ierr = PetscThreadCommGetNThreads(comm,&nthreads);CHKERRQ(ierr);
-  ierr = PetscPrintf(comm,"nthreads=%d\n",nthreads);CHKERRQ(ierr);
+  ierr = PetscPrintf(comm,"Running test with %d threads\n",nthreads);CHKERRQ(ierr);
 
-  ierr = PetscPrintf(comm,"Creating vecs\n");CHKERRQ(ierr);
+  ierr = PetscPrintf(comm,"Creating Vectors\n");CHKERRQ(ierr);
   ierr = VecCreateMPI(comm,PETSC_DECIDE,n,&x);CHKERRQ(ierr);
   ierr = VecSetFromOptions(x);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&y);CHKERRQ(ierr);
@@ -35,18 +35,14 @@ int main(int argc,char **argv)
 
     ierr = PetscThreadInitialize();CHKERRCONTINUE(ierr);
 
-    if(PetscMasterThread==PETSC_TRUE) printf("thread %d is master\n",trank);
-    else printf("thread %d is worker\n",trank);
-
     // User gives threads to PETSc for threaded PETSc work
     ierr = PetscThreadCommJoinComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
-    ierr = PetscPrintf(comm,"trank=%d joined comm commrank=%d\n",trank,commrank);CHKERRCONTINUE(ierr);
     if(commrank>=0) {
       ierr = VecSet(x,2.0);CHKERRCONTINUE(ierr);
       ierr = VecSet(y,3.0);CHKERRCONTINUE(ierr);
       ierr = VecAXPY(y,alpha,x);CHKERRCONTINUE(ierr);
       ierr = VecNorm(y,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
-      ierr = PetscPrintf(comm,"Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"Test1 Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
     }
     ierr = PetscThreadCommReturnComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
 
@@ -58,7 +54,6 @@ int main(int argc,char **argv)
     // Parallel threaded user code
     start = indices[trank];
     end = indices[trank+1];
-    ierr = PetscPrintf(comm,"trank=%d start=%d end=%d\n",trank,start,end);CHKERRCONTINUE(ierr);
     for(i=start; i<end; i++) {
       ay[i] = ay[i]*ay[i];
     }
@@ -72,7 +67,7 @@ int main(int argc,char **argv)
       ierr = VecScale(y,2.0);CHKERRCONTINUE(ierr);
       ierr = VecAXPY(y,alpha,x);CHKERRCONTINUE(ierr);
       ierr = VecNorm(y,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
-      ierr = PetscPrintf(comm,"Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"Test2 Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
     }
     ierr = PetscThreadCommReturnComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
 
@@ -99,28 +94,28 @@ int main(int argc,char **argv)
       PetscScalar vmin, vmax;
       ierr = VecMin(a,&vminind,&vmin);CHKERRCONTINUE(ierr);
       ierr = VecMax(a,&vmaxind,&vmax);CHKERRCONTINUE(ierr);
-      ierr = PetscPrintf(comm,"Min=%f Max=%f\n",vmin,vmax);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"Test3 Min=%f Max=%f\n",vmin,vmax);CHKERRCONTINUE(ierr);
 
       // Vec Pointwise
       ierr = VecPointwiseMult(c,a,b);CHKERRCONTINUE(ierr);
       ierr = VecNorm(c,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
-      ierr = PetscPrintf(comm,"PMult Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"Test3 PMult Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
 
       ierr = VecPointwiseDivide(c,a,b);CHKERRCONTINUE(ierr);
       ierr = VecNorm(c,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
-      ierr = PetscPrintf(comm,"PDiv Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"Test3 PDiv Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
 
       ierr = VecPointwiseMax(c,a,b);CHKERRCONTINUE(ierr);
       ierr = VecNorm(c,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
-      ierr = PetscPrintf(comm,"PMax Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"Test3 PMax Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
 
       ierr = VecPointwiseMin(c,a,b);CHKERRCONTINUE(ierr);
       ierr = VecNorm(c,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
-      ierr = PetscPrintf(comm,"PMin Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"Test3 PMin Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
 
       ierr = VecPointwiseMaxAbs(c,a,b);CHKERRCONTINUE(ierr);
       ierr = VecNorm(c,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
-      ierr = PetscPrintf(comm,"PMaxAbs Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"Test3 PMaxAbs Norm=%f\n",vnorm);CHKERRCONTINUE(ierr);
 
       // Vec multiple dot product
       VecSet(c,5.0);
@@ -129,7 +124,7 @@ int main(int argc,char **argv)
       mvecs[0] = a;
       mvecs[1] = b;
       VecMDot(c,2,mvecs,vals);
-      ierr = PetscPrintf(comm,"MDot n1=%f n2=%f\n",vals[0],vals[1]);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"Test3 MDot n1=%f n2=%f\n",vals[0],vals[1]);CHKERRCONTINUE(ierr);
       ierr = PetscFree(avals);CHKERRCONTINUE(ierr);
       ierr = PetscFree(bvals);CHKERRCONTINUE(ierr);
     }

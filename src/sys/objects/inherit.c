@@ -7,7 +7,9 @@
 #include <petscthreadcomm.h>
 
 #if defined(PETSC_USE_LOG)
-#if defined(PETSC_HAVE_PTHREADCLASSES)
+PetscObject *PetscObjects      = 0;
+PetscInt    PetscObjectsCounts = 0, PetscObjectsMaxCounts = 0;
+/*#if defined(PETSC_HAVE_PTHREADCLASSES)
 #if defined(PETSC_PTHREAD_LOCAL)
 PETSC_PTHREAD_LOCAL PetscObject *PetscObjects      = 0;
 PETSC_PTHREAD_LOCAL PetscInt    PetscObjectsCounts = 0, PetscObjectsMaxCounts = 0;
@@ -22,7 +24,7 @@ PetscInt    PetscObjectsCounts = 0, PetscObjectsMaxCounts = 0;
 #else
 PetscObject *PetscObjects      = 0;
 PetscInt    PetscObjectsCounts = 0, PetscObjectsMaxCounts = 0;
-#endif
+ #endif*/
 #endif
 
 extern PetscErrorCode PetscObjectGetComm_Petsc(PetscObject,MPI_Comm*);
@@ -73,42 +75,12 @@ PetscErrorCode  PetscHeaderCreate_Private(PetscObject h,PetscClassId classid,con
   h->bops->composefunction = PetscObjectComposeFunction_Petsc;
   h->bops->queryfunction   = PetscObjectQueryFunction_Petsc;
 
-  // Duplicate comms with PetscCommDuplicate
-  /*ierr = PetscCommDuplicate(comm,&h->comm,&h->tag);CHKERRQ(ierr);
-  ierr = PetscCommDuplicate(PETSC_COMM_SELF,&h->commself,&h->tag);CHKERRQ(ierr);
-  ierr = PetscCommCheckGetThreadComm(h->comm,&tcomm,&exists);CHKERRQ(ierr);
-  if(exists) {
-    PetscThreadCommAttach(h->commself,tcomm);CHKERRQ(ierr);
-  }*/
-
   ierr = PetscCommDuplicate(comm,&h->comm,&h->tag);CHKERRQ(ierr);
-  //ierr = MPI_Comm_dup(PETSC_COMM_SELF,&h->commself);CHKERRQ(ierr);
   ierr = PetscCommForceDuplicate(PETSC_COMM_SELF,&h->commself,&h->tag);CHKERRQ(ierr);
   ierr = PetscCommCheckGetThreadComm(h->comm,&tcomm,&exists);CHKERRQ(ierr);
-
-  MPI_Comm scomm = PETSC_COMM_SELF;
-  PetscCommCounter *counter;
-  PetscMPIInt tflg;
-  MPI_Attr_get(h->commself,Petsc_Counter_keyval,&counter,&tflg);
-  printf("Counter tag=%d refcount=%d flg=%d\n",counter->tag,counter->refcount,tflg);
-  if(counter->refcount!=1) {
-    printf("REFCOUNT FOR COMMSELF IS NOT 1\n");
-  }
   if(exists) {
     PetscThreadCommAttach(h->commself,tcomm);CHKERRQ(ierr);
    }
-
-  // Duplicate comms with PetscCommForceDuplicate
-  /*ierr = PetscCommForceDuplicate(comm,&h->comm,&h->tag);CHKERRQ(ierr);
-  ierr = PetscCommCheckGetThreadComm(h->comm,&tcomm,&exists);CHKERRQ(ierr);
-  if(exists) {
-    PetscThreadCommAttach(h->comm,tcomm);CHKERRQ(ierr);
-  }
-  ierr = PetscCommForceDuplicate(PETSC_COMM_SELF,&h->commself,&h->tag);CHKERRQ(ierr);
-  ierr = PetscCommCheckGetThreadComm(h->comm,&tcomm,&exists);CHKERRQ(ierr);
-  if(exists) {
-    PetscThreadCommAttach(h->commself,tcomm);CHKERRQ(ierr);
-   }*/
 
 #if defined(PETSC_USE_LOG)
   /* Keep a record of object created */

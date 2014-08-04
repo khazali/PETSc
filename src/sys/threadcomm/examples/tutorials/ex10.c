@@ -42,7 +42,6 @@ int main(int argc,char **argv)
     ierr = PetscThreadInitialize();CHKERRCONTINUE(ierr);
 
     ierr = PetscThreadCommJoinComm(comm,trank,&commrank);CHKERRCONTINUE(ierr);
-    ierr = PetscPrintf(comm,"trank=%d joined comm commrank=%d\n",trank,commrank);CHKERRCONTINUE(ierr);
     if(commrank>=0) {
       // Set rhs
       ierr = VecSet(b,2.0);CHKERRCONTINUE(ierr);

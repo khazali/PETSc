@@ -66,13 +66,13 @@ const char       *petsc_traceblanks = "                                         
 char             petsc_tracespace[128] = " ";
 
 /* Logging functions */
-PETSC_PTHREAD_LOCAL PetscErrorCode (*PetscLogPHC)(PetscObject) = NULL;
-PETSC_PTHREAD_LOCAL PetscErrorCode (*PetscLogPHD)(PetscObject) = NULL;
-PETSC_PTHREAD_LOCAL PetscErrorCode (*PetscLogPLB)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
-PETSC_PTHREAD_LOCAL PetscErrorCode (*PetscLogPLE)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
+PetscErrorCode (*PetscLogPHC)(PetscObject) = NULL;
+PetscErrorCode (*PetscLogPHD)(PetscObject) = NULL;
+PetscErrorCode (*PetscLogPLB)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
+PetscErrorCode (*PetscLogPLE)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
 
-//static PetscBool PetscLogBegin_PrivateCalled = PETSC_FALSE;
-#if defined(PETSC_HAVE_PTHREADCLASSES)
+static PetscBool PetscLogBegin_PrivateCalled = PETSC_FALSE;
+/*#if defined(PETSC_HAVE_PTHREADCLASSES)
 #if defined(PETSC_PTHREAD_LOCAL)
 static PETSC_PTHREAD_LOCAL PetscBool PetscLogBegin_PrivateCalled = PETSC_FALSE;
 #else
@@ -83,7 +83,7 @@ static PetscBool PetscLogBegin_PrivateCalled = PETSC_FALSE;
 #pragma omp threadprivate(PetscLogData,PetscLogBegin_PrivateCalled)
 #else
 static PetscBool PetscLogBegin_PrivateCalled = PETSC_FALSE;
- #endif
+ #endif*/
 
 #if defined(PETSC_USE_LOG)
 #include <petscmachineinfo.h>
@@ -2094,7 +2094,6 @@ PetscErrorCode  PetscClassIdRegister(const char name[],PetscClassId *oclass)
 #endif
 
   PetscFunctionBegin;
-  printf("**********Registering class %s**************\n",name);
   *oclass = ++PETSC_LARGEST_CLASSID;
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogGetStageLog(&stageLog);CHKERRQ(ierr);

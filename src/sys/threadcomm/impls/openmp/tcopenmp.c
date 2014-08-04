@@ -53,7 +53,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMP(PetscThreadPool po
     PetscErrorCode ierr;
     trank = omp_get_thread_num();
 
-    printf("OpenMP Setting affinity for lrank=%d grank=%d aff=%d\n",trank,trank,trank);
     ierr = PetscThreadPoolSetAffinity(pool,&cpuset,trank,&set);CHKERRCONTINUE(ierr);
     if (set) sched_setaffinity(0,sizeof(cpu_set_t),&cpuset);
   }
@@ -101,12 +100,10 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_OpenMP(PetscThreadPool pool)
   pool->ops->setaffinities = PetscThreadCommSetAffinity_OpenMP;
   pool->ops->pooldestroy = PetscThreadPoolDestroy_OpenMP;
   if (pool->model == THREAD_MODEL_LOOP) {
-    printf("*******************Initializing threadpool threadstructs nthreads=%d****************\n",pool->npoolthreads);
     // Initialize each thread
     #pragma omp parallel num_threads(pool->npoolthreads)
     {
       ierr = PetscThreadInitialize();CHKERRCONTINUE(ierr);
-      printf("Petscthread init=%d\n",PetscThreadInit);
     }
   }
   PetscFunctionReturn(0);
@@ -170,7 +167,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolDestroy_OpenMP(PetscThreadPool pool)
   PetscFunctionBegin;
   /* Destroy openmp thread data */
   if (pool->model == THREAD_MODEL_LOOP) {
-    printf("***************DESTROYING THREADPOOL THREAD STRUCTS nthreads=%d***********\n",pool->npoolthreads);
     #pragma omp parallel num_threads(pool->npoolthreads)
     {
       ierr = PetscThreadFinalize();CHKERRCONTINUE(ierr);
@@ -247,10 +243,8 @@ PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm tcomm,PetscTh
   PetscErrorCode          ierr;
 
   PetscFunctionBegin;
-  printf("Running OpenMP User kernel\n");
   if (tcomm->ismainworker) {
     job->job_status = THREAD_JOB_RECEIVED;
-    printf("Running job for master thread \n");
     ierr = PetscRunKernel(0,job->nargs,job);CHKERRCONTINUE(ierr);
     job->job_status = THREAD_JOB_COMPLETED;
     jobqueue = tcomm->commthreads[tcomm->lleader]->jobqueue;

@@ -57,7 +57,8 @@ PETSC_EXTERN PetscErrorCode PetscOptionsMonitorDefault(const char[], const char[
 
 PETSC_EXTERN PetscBool PetscOptionsPublish;
 
-#if defined(PETSC_HAVE_PTHREADCLASSES)
+PETSC_EXTERN PetscInt PetscOptionsPublishCount;
+/*#if defined(PETSC_HAVE_PTHREADCLASSES)
 #if defined(PETSC_PTHREAD_LOCAL)
 PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscInt PetscOptionsPublishCount;
 #else
@@ -67,7 +68,7 @@ PETSC_EXTERN PetscThreadKey PetscOptionsPublishCount;
 PETSC_EXTERN PetscInt PetscOptionsPublishCount;
 #else
 PETSC_EXTERN PetscInt PetscOptionsPublishCount;
-#endif
+ #endif*/
 
 /*MC
     PetscOptionsBegin - Begins a set of queries on the options database that are related and should be

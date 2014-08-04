@@ -201,29 +201,11 @@ PetscErrorCode  PetscCommForceDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,Pets
   PetscMPIInt      *maxval,flg;
 
   PetscFunctionBegin;
-  /* Get counter for comm_in */
-  /*ierr = MPI_Attr_get(comm_in,Petsc_Counter_keyval,&counter,&flg);CHKERRQ(ierr);
-  if(!flg) {
-    printf("***************Comm in does not have a counter************\n");
-   }*/
 
   /* Duplicate communicator*/
-  PetscCommCounter *check2;
-  PetscMPIInt cflg2;
-  MPI_Attr_get(comm_in,Petsc_Counter_keyval,&check2,&cflg2);
-  if(cflg2) {
-    printf("Comm_in has a counter\n");
-  }
   ierr = MPI_Comm_dup(comm_in,comm_out);CHKERRQ(ierr);
   ierr = MPI_Attr_get(MPI_COMM_WORLD,MPI_TAG_UB,&maxval,&flg);CHKERRQ(ierr);
   if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"MPI error: MPI_Attr_get() is not returning a MPI_TAG_UB");
-
-  PetscCommCounter *check;
-  PetscMPIInt cflg;
-  ierr = MPI_Attr_get(*comm_out,Petsc_Counter_keyval,&check,&cflg);CHKERRQ(ierr);
-  if(cflg) {
-    printf("Duped comm already has a counter before counter malloc\n");
-  }
 
   /* Create counter for comm_out */
   ierr = PetscMalloc(sizeof(PetscCommCounter),&counter);CHKERRQ(ierr);
@@ -232,10 +214,6 @@ PetscErrorCode  PetscCommForceDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,Pets
   counter->namecount = 0;
 
   /* Attach new counter to comm_out */
-  ierr = MPI_Attr_get(*comm_out,Petsc_Counter_keyval,&check,&cflg);CHKERRQ(ierr);
-  if(cflg) {
-    printf("Duped comm already has a counter after counter malloc\n");
-  }
   counter->refcount++;
   ierr = MPI_Attr_put(*comm_out,Petsc_Counter_keyval,counter);CHKERRQ(ierr);
   ierr = PetscInfo3(0,"Duplicating a communicator %ld %ld max tags = %d\n",(long)comm_in,(long)*comm_out,*maxval);CHKERRQ(ierr);
@@ -299,7 +277,6 @@ PetscErrorCode  PetscCommDestroy(MPI_Comm *comm)
   }
 
   if (!(--counter->refcount)) {
-    printf("Destroying PetscComm\n");
     /* if MPI_Comm has outer comm then remove reference to inner MPI_Comm from outer MPI_Comm */
     ierr = MPI_Attr_get(icomm,Petsc_OuterComm_keyval,&ucomm,&flg);CHKERRQ(ierr);
     if (flg) {

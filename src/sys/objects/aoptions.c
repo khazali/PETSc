@@ -17,7 +17,9 @@
 
     Eventually we'll attach this beast to a MPI_Comm
 */
-#if defined(PETSC_HAVE_PTHREADCLASSES)
+PetscOptionsObjectType PetscOptionsObject;
+PetscInt               PetscOptionsPublishCount = 0;
+/*#if defined(PETSC_HAVE_PTHREADCLASSES)
 #if defined(PETSC_PTHREAD_LOCAL)
 PETSC_PTHREAD_LOCAL PetscOptionsObjectType PetscOptionsObject;
 PETSC_PTHREAD_LOCAL PetscInt               PetscOptionsPublishCount = 0;
@@ -32,7 +34,7 @@ PetscInt               PetscOptionsPublishCount = 0;
 #else
 PetscOptionsObjectType PetscOptionsObject;
 PetscInt               PetscOptionsPublishCount = 0;
-#endif
+ #endif*/
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscOptionsBegin_Private"

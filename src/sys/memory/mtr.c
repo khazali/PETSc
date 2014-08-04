@@ -88,7 +88,6 @@ PetscErrorCode PetscSetUseTrMalloc_Private(void)
 
   PetscFunctionBegin;
   /* Allocate and initialize trmalloc */
-  printf("******************Initializing trmalloc master=%d*********************\n",PetscMasterThread);
   ierr = PetscMallocSet(PetscTrMallocDefault,PetscTrFreeDefault);CHKERRQ(ierr);
 
   trmalloc.TRallocated             = 0;
@@ -146,7 +145,6 @@ PetscErrorCode  PetscMallocValidate(int line,const char function[],const char fi
   head = trmalloc.TRhead;
   lasthead = NULL;
   while (head) {
-    //printf("head->func=%s file=%s\n",head->functionname,head->filename);
     if (head->classid != CLASSID_VALUE) {
       (*PetscErrorPrintf)("PetscMallocValidate: error detected at  %s() line %d in %s\n",function,line,file);
       (*PetscErrorPrintf)("Memory at address %p is corrupted\n",head);
@@ -197,10 +195,8 @@ PetscErrorCode  PetscTrMallocDefault(size_t a,int lineno,const char function[],c
 
   PetscFunctionBegin;
   if (trmalloc.TRdebugLevel) {
-    printf("Calling MallocVal from TrMallocDef\n");
     ierr = PetscMallocValidate(lineno,function,filename); if (ierr) PetscFunctionReturn(ierr);
   }
-  //printf("mallocing line=%d func=%s\n",lineno,function);
   nsize = (a + (PETSC_MEMALIGN-1)) & ~(PETSC_MEMALIGN-1);
   ierr  = PetscMallocAlign(nsize+sizeof(TrSPACE)+sizeof(PetscClassId),lineno,function,filename,(void**)&inew);CHKERRQ(ierr);
 
@@ -281,10 +277,8 @@ PetscErrorCode  PetscTrFreeDefault(void *aa,int line,const char function[],const
   if (!a) PetscFunctionReturn(0);
 
   if (trmalloc.TRdebugLevel) {
-    printf("Calling MallocVal from TrFreeDef\n");
     ierr = PetscMallocValidate(line,function,file);CHKERRQ(ierr);
   }
-  //printf("freeing line=%d func=%s\n",line,function);
   ahead = a;
   a     = a - sizeof(TrSPACE);
   head  = (TRSPACE*)a;
@@ -328,17 +322,6 @@ PetscErrorCode  PetscTrFreeDefault(void *aa,int line,const char function[],const
 
   trmalloc.TRallocated -= head->size;
   trmalloc.TRfrags--;
-
-  /* Check for loops in list */
-  TRSPACE *checkhead = trmalloc.TRhead;
-  if(checkhead) {
-    while(checkhead != head) {
-      if(checkhead == head->next) {
-        printf("****************ERROR: Creating loop in TRMALLOC*************\n");
-      }
-      checkhead = checkhead->next;
-    }
-  }
 
   if (head->prev) head->prev->next = head->next;
   else trmalloc.TRhead = head->next;
@@ -799,9 +782,7 @@ PetscErrorCode PetscTrMallocDestroy(void)
 
   PetscFunctionBegin;
   ierr = PetscTrMallocMergeData();CHKERRQ(ierr);
-  //ierr = PetscMallocSetDumpLog();CHKERRQ(ierr);
   ierr = PetscTrMallocFinalize();
-  printf("********************destroying trmalloc********************\n");
   PetscFunctionReturn(0);
 }
 
@@ -955,6 +936,5 @@ PetscErrorCode PetscTrMallocFinalize()
     ierr = PetscMallocSetDumpLog();CHKERRQ(ierr);
     ierr = PetscMallocDumpLog(stdout);CHKERRQ(ierr);
   }
-  printf("**************Finalizing trmalloc********************\n");
   PetscFunctionReturn(0);
 }

@@ -62,7 +62,6 @@ PetscErrorCode PetscThreadCommSetAffinity_PThread(PetscThreadPool pool,PetscThre
 #endif
 
   PetscFunctionBegin;
-  printf("in setaff_pthread\n");
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
   /* Set affinity for workers */
   ptcomm = (PetscThread_PThread)thread->data;
@@ -135,7 +134,6 @@ PetscErrorCode PetscThreadPoolDestroy_PThread(PetscThreadPool pool)
   /* Terminate the thread pool */
   if (pool->model==THREAD_MODEL_LOOP || pool->model==THREAD_MODEL_AUTO) {
     for (i=0; i<pool->npoolthreads; i++) {
-      printf("Terminating thread=%d\n",i);
       pool->poolthreads[i]->status = THREAD_TERMINATE;
     }
     for (i=1; i<pool->npoolthreads; i++) {
@@ -172,7 +170,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadCreate_PThread(PetscThread thread)
   PetscErrorCode      ierr;
 
   PetscFunctionBegin;
-  printf("Create pthread\n");
   ierr = PetscNew(&ptcomm);
   thread->data = (void*)ptcomm;
   PetscFunctionReturn(0);
@@ -210,7 +207,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_PThread(PetscThreadPool pool)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  printf("Init PThread\n");
   ierr                     = PetscStrcpy(pool->type,PTHREAD);CHKERRQ(ierr);
   pool->threadtype         = THREAD_TYPE_PTHREAD;
   pool->ops->createthread  = PetscThreadCreate_PThread;
@@ -243,7 +239,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommInit_PThread(PetscThreadComm tcomm)
   PetscErrorCode          ierr;
 
   PetscFunctionBegin;
-  printf("Creating PThread\n");
   ierr = PetscNew(&ptcomm);CHKERRQ(ierr);
 
   ierr = pthread_barrier_init(&ptcomm->barr,PETSC_NULL,tcomm->ncommthreads);CHKERRQ(ierr);
@@ -289,7 +284,6 @@ PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm tcomm,PetscThrea
   PetscErrorCode          ierr;
 
   PetscFunctionBegin;
-  printf("rank=%d running kernel\n",0);
   // Do work for main thread
   if (tcomm->ismainworker) {
     job->job_status   = THREAD_JOB_RECEIVED;
@@ -333,14 +327,12 @@ PetscErrorCode PetscThreadCommInitialize_PThread(PetscThreadPool pool)
   PetscFunctionBegin;
   /* Init thread structs */
   for (i=0; i<pool->npoolthreads; i++) {
-    printf("Creating thread=%d\n",i);
     pool->poolthreads[i]->status = THREAD_CREATED;
     pool->poolthreads[i]->pool = pool;
   }
 
   /* Create threads */
   for (i=pool->thread_start; i<pool->npoolthreads; i++) {
-    printf("Creating thread %d\n",i);
     ptcomm = (PetscThread_PThread)pool->poolthreads[i]->data;
     ierr = pthread_create(&ptcomm->tid,&ptcomm->attr,&PetscThreadPoolFunc,&pool->poolthreads[i]);CHKERRQ(ierr);
   }

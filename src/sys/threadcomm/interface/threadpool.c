@@ -206,7 +206,6 @@ PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool pool,PetscInt nthreads)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  printf("Creating thread pool\n");
   // Set threadpool variables
   pool->model = ThreadModel;
   ierr = PetscThreadPoolSetNThreads(pool,nthreads);CHKERRQ(ierr);
@@ -234,7 +233,6 @@ PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool pool,PetscInt nthreads)
   for (i=0; i<pool->npoolthreads; i++) {
     ierr = PetscNew(&pool->poolthreads[i]);CHKERRQ(ierr);
     pool->poolthreads[i]->prank = i % ncores;
-    printf("Pool index=%d prank=%d\n",i,pool->poolthreads[i]->prank);
     pool->poolthreads[i]->pool     = PETSC_NULL;
     pool->poolthreads[i]->status   = 0;
     pool->poolthreads[i]->jobdata  = PETSC_NULL;
@@ -248,7 +246,6 @@ PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool pool,PetscInt nthreads)
     }
   }
 
-  printf("Initialized pool with %d threads\n",pool->npoolthreads);
   pool->refct++;
   PetscFunctionReturn(0);
 }
@@ -330,10 +327,8 @@ PetscErrorCode PetscThreadPoolCreate(PetscThreadComm tcomm,PetscInt nthreads,Pet
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  printf("Creating ThreadPool\n");
   ierr = PetscThreadPoolAlloc(&tcomm->pool);CHKERRQ(ierr);
   ierr = PetscThreadPoolInitialize(tcomm->pool,nthreads);CHKERRQ(ierr);
-  printf("Setting affinities in threadpool\n");
 
   // Set thread affinities in thread struct
   ierr = PetscThreadPoolSetAffinities(tcomm->pool,affinities);CHKERRQ(ierr);
@@ -475,7 +470,6 @@ PetscErrorCode PetscThreadPoolSetAffinities(PetscThreadPool pool,const PetscInt 
   PetscInt       i,*affopt,nmax=pool->npoolthreads;
 
   PetscFunctionBegin;
-  printf("In poolsetaffinities\n");
   /* Do not need to set thread pool affinities if no threads */
   if (pool->threadtype == THREAD_TYPE_NOTHREAD) PetscFunctionReturn(0);
 
@@ -540,17 +534,14 @@ PetscErrorCode PetscThreadPoolSetAffinity(PetscThreadPool pool,cpu_set_t *cpuset
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  printf("in poolsetaff\n");
   ierr = PetscGetNCores(&ncores);CHKERRQ(ierr);
   switch (pool->aff) {
   case THREADAFFPOLICY_ONECORE:
     CPU_ZERO(cpuset);
-    printf("Setting thread affinity to core %d\n",affinity%ncores);
     CPU_SET(affinity%ncores,cpuset);
     *set = PETSC_TRUE;
     break;
   case THREADAFFPOLICY_ALL:
-    printf("Setting affinity to all\n");
     CPU_ZERO(cpuset);
     for (j=0; j<ncores; j++) {
       CPU_SET(j,cpuset);
@@ -558,7 +549,6 @@ PetscErrorCode PetscThreadPoolSetAffinity(PetscThreadPool pool,cpu_set_t *cpuset
     *set = PETSC_TRUE;
     break;
   case THREADAFFPOLICY_NONE:
-    printf("Setting affinity to none\n");
     *set = PETSC_FALSE;
     break;
   }
@@ -600,7 +590,6 @@ void* PetscThreadPoolFunc(void *arg)
   trank    = thread->prank;
   pool     = thread->pool;
   jobqueue = pool->poolthreads[trank]->jobqueue;
-  printf("rank=%d in ThreadPoolFunc\n",trank);
 
   if (pool->model == THREAD_MODEL_LOOP || pool->model == THREAD_MODEL_AUTO) {
     ierr = PetscThreadInitialize();CHKERRCONTINUE(ierr);
@@ -615,7 +604,6 @@ void* PetscThreadPoolFunc(void *arg)
       job = &jobqueue->jobs[jobqueue->current_job_index];
       pool->poolthreads[trank]->jobdata = job;
       /* Do own job */
-      printf("Running job for commrank=%d\n",job->commrank);
       PetscRunKernel(job->commrank,thread->jobdata->nargs,thread->jobdata);
       /* Post job completed status */
       job->job_status = THREAD_JOB_COMPLETED;
@@ -654,10 +642,8 @@ PetscErrorCode PetscThreadPoolDestroy(PetscThreadPool pool)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  printf("In ThreadPoolDestroy refct=%d\n",pool->refct);
   if (!pool) PetscFunctionReturn(0);
   if (!--pool->refct) {
-    printf("Destroying ThreadPool\n");
     /* Destroy implementation specific structs */
     if (pool->threadtype != THREAD_TYPE_NOTHREAD) {
       ierr = (*pool->ops->pooldestroy)(pool);CHKERRQ(ierr);

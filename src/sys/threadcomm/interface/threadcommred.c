@@ -397,7 +397,6 @@ PetscErrorCode PetscThreadReductionKernelEnd(PetscInt trank,PetscThreadCommReduc
 {
   PetscThreadCommRedCtx redctx=&red->redctx[red->ctr];
 
-  printf("Reduction kernel end trank=%d gleader=%d\n",trank,redctx->tcomm->gleader);
   if (PetscReadOnce(int,redctx->tcomm->gleader) == trank) {
     PetscThreadReductionEnd_Private(redctx,outdata);
     redctx->red_status = THREADCOMM_REDUCTION_COMPLETE;
@@ -439,7 +438,6 @@ PetscErrorCode PetscThreadCommReductionCreate(PetscThreadComm tcomm,PetscThreadC
      from each thread while the second half is used only for maxloc and minloc operations to hold the local max and min locations
   */
   ierr = PetscMalloc1(PETSC_REDUCTIONS_MAX*2*tcomm->ncommthreads,(PetscScalar**)&redout->redctx[0].local_red);CHKERRQ(ierr);
-  printf("Creating reduction with %d threads\n",tcomm->ncommthreads);
   for (i=0; i < PETSC_REDUCTIONS_MAX; i++) {
     redctx                = &redout->redctx[i];
     redctx->thread_status = redout->redctx[0].thread_status + i*tcomm->ncommthreads;

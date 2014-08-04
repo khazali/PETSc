@@ -1,60 +1,88 @@
-static char help[] = "PThreads code to test and debug threadcomm code.\n\n";
+static char help[] = "Test threadcomm with OpenMP with PETSc matrix routines.\n\n";
 
+#include <petscmat.h>
 #include <petscvec.h>
-#include <petscthreadcomm.h>
+#include <petscksp.h>
+#include <mpi.h>
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc,char **argv)
 {
-  Vec x, y;
+  Mat             A;
+  Vec             x, b;
   PetscErrorCode  ierr;
-  PetscInt i, n=20, nthreads, *granks, *affinities;
-  PetscScalar vnorm,alpha=3.0;
-  MPI_Comm comm;
+  PetscInt        n=20;
+  PetscInt        i,j,Ii,J;
+  PetscScalar     v, vnorm;
+  KSP             ksp;
+  PC              pc;
+  MPI_Comm        comm;
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr);
+
   ierr = PetscOptionsGetInt(PETSC_NULL,"-n",&n,PETSC_NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetInt(PETSC_NULL,"-threadcomm_nthreads",&nthreads,PETSC_NULL);CHKERRQ(ierr);
 
-  // Create MPI_Comm and ThreadComm from PETSC_COMM_WORLD
-  // Create worker threads in PETSc, master thread returns
-  PetscMalloc1(nthreads,&granks);
-  PetscMalloc1(nthreads,&affinities);
-  int j=0;
-  for(i=0; i<nthreads; i+=2) {
-    granks[i] = j;
-    granks[i+1] = j;
-    affinities[i] = j;
-    affinities[i+1] = j;
-    j++;
-  }
-
-  ierr = PetscThreadCommCreate(PETSC_COMM_WORLD,nthreads,granks,affinities,&comm);CHKERRQ(ierr);
-  ierr = PetscPrintf(comm,"Created comm1 with %d threads\n",nthreads);CHKERRQ(ierr);
-
-  // Create two vectors on MPIComm/ThreadComm
-  ierr = VecCreate(comm,&x);CHKERRQ(ierr);
-  ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRQ(ierr);
+  // Create vectors
+  comm = PETSC_COMM_WORLD;
+  printf("Creating vector\n");
+  ierr = VecCreateMPI(comm,PETSC_DECIDE,n*n,&x);CHKERRQ(ierr);
   ierr = VecSetFromOptions(x);CHKERRQ(ierr);
-  ierr = VecDuplicate(x,&y);CHKERRQ(ierr);
+  ierr = VecDuplicate(x,&b);CHKERRQ(ierr);
 
-  // Run PETSc code
-  for(i=0; i<n; i++) {
-    VecSetValue(x,i,i*1.0,INSERT_VALUES);
-    VecSetValue(y,i,i*2.0,INSERT_VALUES);
-  }
-  //ierr = VecSet(x,2.0);CHKERRQ(ierr);
-  //ierr = VecSet(y,3.0);CHKERRQ(ierr);
-  ierr = VecAXPY(y,alpha,x);CHKERRQ(ierr);
-  //VecView(y,PETSC_VIEWER_STDOUT_WORLD);
-  ierr = VecNorm(y,NORM_2,&vnorm);CHKERRQ(ierr);
-  ierr = PetscPrintf(comm,"Norm=%f\n",vnorm);CHKERRQ(ierr);
+    PetscInt pstart,pend,lsize,gsize;
 
+      // Set rhs
+      ierr = VecSet(b,2.0);CHKERRCONTINUE(ierr);
+
+      // Get ownership information
+      ierr = VecGetOwnershipRange(x,&pstart,&pend);CHKERRCONTINUE(ierr);
+      ierr = VecGetLocalSize(x,&lsize);CHKERRCONTINUE(ierr);
+      ierr = VecGetSize(x,&gsize);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"localsize=%d globalsize=%d pstart=%d pend=%d\n",lsize,gsize,pstart,pend);CHKERRCONTINUE(ierr);
+
+      // Create Matrix
+      ierr = PetscPrintf(comm,"Creating matrix\n");CHKERRCONTINUE(ierr);
+      ierr = MatCreate(comm,&A);CHKERRCONTINUE(ierr);
+      ierr = MatSetSizes(A,PETSC_DECIDE,PETSC_DECIDE,n*n,n*n);CHKERRCONTINUE(ierr);
+      ierr = MatSetType(A,MATMPIAIJ);CHKERRCONTINUE(ierr);
+      ierr = MatSetUp(A);CHKERRCONTINUE(ierr);
+
+      // Assemble matrix
+      for (i=0; i<n; i++) {
+        for (j=0; j<n; j++) {
+          v = -1.0;  Ii = j + n*i;
+          if (i>0)   {J = Ii - n; MatSetValues(A,1,&Ii,1,&J,&v,INSERT_VALUES);}
+          if (i<n-1) {J = Ii + n; MatSetValues(A,1,&Ii,1,&J,&v,INSERT_VALUES);}
+          if (j>0)   {J = Ii - 1; MatSetValues(A,1,&Ii,1,&J,&v,INSERT_VALUES);}
+          if (j<n-1) {J = Ii + 1; MatSetValues(A,1,&Ii,1,&J,&v,INSERT_VALUES);}
+          v = 4.0; MatSetValues(A,1,&Ii,1,&Ii,&v,INSERT_VALUES);
+        }
+      }
+      ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRCONTINUE(ierr);
+      ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRCONTINUE(ierr);
+
+      ierr = KSPCreate(comm,&ksp);CHKERRCONTINUE(ierr);
+      ierr = KSPSetOperators(ksp,A,A);CHKERRCONTINUE(ierr);
+      ierr = KSPSetType(ksp,KSPCG);CHKERRCONTINUE(ierr);
+      ierr = KSPGetPC(ksp,&pc);CHKERRCONTINUE(ierr);
+      ierr = PCSetType(pc,PCJACOBI);CHKERRCONTINUE(ierr);
+
+      ierr = KSPSetUp(ksp);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"Solving linear system\n");CHKERRCONTINUE(ierr);
+      ierr = KSPSolve(ksp,b,x);CHKERRCONTINUE(ierr);
+
+      KSPConvergedReason reason;
+      PetscScalar rnorm;
+      ierr = VecNorm(x,NORM_2,&vnorm);CHKERRCONTINUE(ierr);
+      ierr = KSPGetConvergedReason(ksp,&reason);CHKERRCONTINUE(ierr);
+      ierr = KSPGetResidualNorm(ksp,&rnorm);CHKERRCONTINUE(ierr);
+      ierr = PetscPrintf(comm,"Residual=%f Converged=%d Soln norm=%f\n",rnorm,reason,vnorm);CHKERRCONTINUE(ierr);
+
+  ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
+  ierr = MatDestroy(&A);CHKERRQ(ierr);
   ierr = VecDestroy(&x);CHKERRQ(ierr);
-  ierr = VecDestroy(&y);CHKERRQ(ierr);
-
-  ierr = PetscCommDestroy(&comm);CHKERRQ(ierr);
+  ierr = VecDestroy(&b);CHKERRQ(ierr);
 
   ierr = PetscFinalize();CHKERRQ(ierr);
   return 0;

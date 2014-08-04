@@ -265,7 +265,6 @@ PetscErrorCode PetscThreadCommDestroy(PetscThreadComm *tcomm)
   PetscFunctionBegin;
   if (!*tcomm) PetscFunctionReturn(0);
   if (!--(*tcomm)->refct) {
-    printf("Destroying threadcomm\n");
     /* Make sure all jobs are completed */
     ierr = PetscThreadCommJobBarrier(*tcomm);CHKERRQ(ierr);
 
@@ -1298,7 +1297,6 @@ PetscErrorCode PetscThreadCommCreate(MPI_Comm comm,PetscInt nthreads,PetscInt *a
   // Attach ThreadComm to new MPI_Comm
   ierr = PetscThreadCommAttach(*mpicomm,tcomm);CHKERRQ(ierr);
   ierr = PetscFree(lranks);CHKERRQ(ierr);
-  printf("Created new threadcomm with %d threads\n",tcomm->ncommthreads);
   PetscFunctionReturn(0);
 }
 
@@ -1334,7 +1332,6 @@ PetscErrorCode PetscThreadCommCreateShare(MPI_Comm comm,PetscInt nthreads,PetscI
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
-  printf("Creating new comm with %d threads\n",nthreads);
   // Get input threadcomm
   ierr = PetscCommGetThreadComm(comm,&incomm);CHKERRQ(ierr);
   // Make sure input arguments are reasonable
@@ -1367,7 +1364,6 @@ PetscErrorCode PetscThreadCommCreateShare(MPI_Comm comm,PetscInt nthreads,PetscI
   ierr = PetscThreadCommDetach(*mpicomm);CHKERRQ(ierr);
   // Attach ThreadComm to new MPI_Comm
   ierr = PetscThreadCommAttach(*mpicomm,tcomm);CHKERRQ(ierr);
-  printf("Created new threadcomm with %d threads\n",tcomm->ncommthreads);
   PetscFunctionReturn(0);
 }
 
@@ -1398,7 +1394,6 @@ PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt nthreads,Petsc
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
-  printf("Calling PetscThreadCommCreateAttach\n");
   // Allocate space for ThreadComm
   ierr = PetscThreadCommAlloc(&tcomm);CHKERRQ(ierr);
   // Create ThreadPool
@@ -1412,7 +1407,6 @@ PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt nthreads,Petsc
   // Attach ThreadComm to MPI_Comm
   ierr = PetscThreadCommAttach(comm,tcomm);CHKERRQ(ierr);
   ierr = PetscFree(pranks);
-  printf("Created new threadcomm with %d threads\n",tcomm->ncommthreads);
   PetscFunctionReturn(0);
 }
 
@@ -1496,7 +1490,6 @@ PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,Petsc
     for (j=0; j<commsizes[i]; j++) {
       if (!affinities) multaffinities[j] = startthread + j;
       else multaffinities[j] = affinities[j];
-      printf("Creating multcomm thread=%d on core=%d\n",j,multaffinities[j]);
     }
     // Create threadcomm
     ierr = PetscThreadCommCreate(comm,commsizes[i],multaffinities,&(*multcomms)[i]);CHKERRQ(ierr);
@@ -1581,7 +1574,6 @@ PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *inco
     if (!inpranks) {
       for (j=0; j<commsizes[i]; j++) {
         pranks[j] = startthread + j;
-        printf("Creating splitcomm %d with thread %d\n",j,pranks[j]);
       }
     } else {
       for (j=0; j<commsizes[i]; j++) {
@@ -1627,7 +1619,6 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *pranks,Pets
   PetscBool       flg;
 
   PetscFunctionBegin;
-  printf("In threadcomm_init with %d threads\n",nthreads);
   pool = tcomm->pool;
 
   // Get option settings from command line
@@ -1638,7 +1629,7 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *pranks,Pets
   tcomm->model      = pool->model;
   tcomm->threadtype = pool->threadtype;
   tcomm->nkernels   = pool->nkernels;
-  printf("init based on model=%d\n",tcomm->model);
+
   if (tcomm->model == THREAD_MODEL_LOOP) {
     tcomm->ismainworker = PETSC_TRUE;
     tcomm->thread_start = 1;
@@ -1653,11 +1644,9 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *pranks,Pets
     tcomm->ncommthreads = nthreads;
   }
   tcomm->threadblock = pool->npoolthreads;
-  printf("threadstart=%d ncommthreads=%d\n",tcomm->thread_start,tcomm->ncommthreads);
 
   ierr = PetscMalloc1(tcomm->ncommthreads,&tcomm->commthreads);CHKERRQ(ierr);
   for (i=0; i<tcomm->ncommthreads; i++) {
-    printf("threadcomm thread i=%d gets poolthreads pranks=%d\n",i,pranks[i]);
     tcomm->commthreads[i] = pool->poolthreads[pranks[i]];
   }
 
@@ -1666,7 +1655,6 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *pranks,Pets
   if (tcomm->ismainworker) {
     PetscBool set;
     cpu_set_t cpuset;
-    printf("main thread setting affinity to grank=%d\n",tcomm->commthreads[0]->prank);
     ierr = PetscThreadPoolSetAffinity(tcomm->pool,&cpuset,tcomm->commthreads[0]->prank,&set);CHKERRQ(ierr);
     sched_setaffinity(0,sizeof(cpu_set_t),&cpuset);
   }
@@ -1679,7 +1667,6 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *pranks,Pets
   }
 
   /* Initialize implementation specific settings */
-  printf("Initializing threadcomm implementation settings\n");
   ierr = (*pool->ops->tcomminit)(tcomm);CHKERRQ(ierr);
   ierr = PetscThreadCommReductionCreate(tcomm,&tcomm->red);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1851,7 +1838,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommSetThreadAffinity(PetscThreadPool poo
 
   PetscFunctionBegin;
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
-  printf("Setting affinity for prank=%d aff=%d\n",thread->prank,thread->affinity);
   ierr = PetscThreadPoolSetAffinity(pool,&cpuset,thread->affinity,&set);
   if (set) sched_setaffinity(0,sizeof(cpu_set_t),&cpuset);
 #endif
@@ -1907,12 +1893,10 @@ PetscErrorCode PetscThreadCommJoinComm(MPI_Comm comm,PetscInt trank,PetscInt *co
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
-  printf("rank=%d joining thread pool\n",trank);
   ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
 
   // Make sure this thread is in a comm
   if (trank >= 0 && trank < tcomm->ncommthreads) {
-    printf("Joining thread %d to comm\n",trank);
 
     // Make sure all threads have reached this routine
     ierr = (*tcomm->ops->barrier)(tcomm);
@@ -1989,7 +1973,6 @@ PetscErrorCode PetscThreadCommJoinMultComms(MPI_Comm *comm,PetscInt ncomms,Petsc
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
-  printf("rank=%d joining thread pool\n",trank);
   ierr = PetscMalloc1(ncomms,&tcomm);CHKERRQ(ierr);
 
   // Determine which threadcomm and local thread to join
@@ -2009,7 +1992,6 @@ PetscErrorCode PetscThreadCommJoinMultComms(MPI_Comm *comm,PetscInt ncomms,Petsc
 
   // Make sure this thread is in a comm
   if (comm_index >= 0) {
-    printf("trank=%d comm_index=%d local_index=%d lleader=%d\n",trank,comm_index,local_index,tcomm[comm_index]->lleader);
 
     // Make sure all threads have reached this routine
     ierr = (*tcomm[comm_index]->ops->barrier)(tcomm[comm_index]);
@@ -2089,7 +2071,6 @@ PetscErrorCode PetscThreadCommReturnComm(MPI_Comm comm,PetscInt trank,PetscInt *
   if (trank >= 0 && trank < tcomm->ncommthreads) {
     // Master threads terminate worker threads
     if (*commrank >= 0) {
-      printf("Returning all threads\n");
       // Make sure each thread has finished its work
       ierr = PetscThreadCommJobBarrier(tcomm);
       for (i=0; i<tcomm->ncommthreads; i++) {
@@ -2163,7 +2144,6 @@ PetscErrorCode PetscThreadCommReturnMultComms(MPI_Comm *comm,PetscInt ncomms,Pet
   if (comm_index >= 0) {
     // Master threads terminate worker threads
     if (*commrank >= 0) {
-      printf("Returning all threads\n");
       // Make sure each thread has finished its work
       ierr = PetscThreadCommJobBarrier(tcomm[comm_index]);
       for (i=0; i<tcomm[comm_index]->ncommthreads; i++) {

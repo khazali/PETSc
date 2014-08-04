@@ -200,7 +200,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAllTypes(void);
 #define __FUNCT__
 PETSC_STATIC_INLINE PetscErrorCode PetscRunKernel(PetscInt trank,PetscInt nargs,PetscThreadCommJobCtx job)
 {
-  printf("Running kernel with trank=%d\n",trank);
   switch(nargs) {
   case 0:
     (*job->pfunc)(trank);
