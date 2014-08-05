@@ -181,16 +181,30 @@ static PetscErrorCode DMPlexGetAdjacency_Transitive_Internal(DM dm, PetscInt p, 
 {
   PetscInt      *star = NULL;
   PetscInt       numAdj = 0, maxAdjSize = *adjSize, starSize, s;
+  PetscInt       cStart, cEnd, vStart, vEnd;
+  PetscBool      useCone;
   PetscErrorCode ierr;
 
   PetscFunctionBeginHot;
+
+  ierr = DMPlexGetAdjacencyUseCone(dm, &useCone);CHKERRQ(ierr);
+  if (useCone) {
+    ierr = DMPlexGetDepthStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+    ierr = DMPlexGetHeightStratum(dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
+  } else {
+    ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+    ierr = DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
+  }
+
   ierr = DMPlexGetTransitiveClosure(dm, p, useClosure, &starSize, &star);CHKERRQ(ierr);
   for (s = 0; s < starSize*2; s += 2) {
     const PetscInt *closure = NULL;
     PetscInt        closureSize, c, q;
+    if (cStart > star[s] || star[s] >= cEnd) continue;
 
     ierr = DMPlexGetTransitiveClosure(dm, star[s], (PetscBool)!useClosure, &closureSize, (PetscInt**) &closure);CHKERRQ(ierr);
     for (c = 0; c < closureSize*2; c += 2) {
+      if (vStart > closure[c] || closure[c] >= vEnd) continue;
       for (q = 0; q < numAdj || (adj[numAdj++] = closure[c],0); ++q) {
         if (closure[c] == adj[q]) break;
       }
