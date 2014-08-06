@@ -1,4 +1,5 @@
 #include <petsc-private/dmpleximpl.h>   /*I      "petscdmplex.h"   I*/
+#include <petsc-private/sfimpl.h> /*I "petscsf.h" I*/
 #include <petscsf.h>
 
 #undef __FUNCT__
@@ -846,7 +847,7 @@ PetscErrorCode DMPlexRedistribute(DM dm, const char partitioner[], PetscInt over
   IS                     cellPart, origCellPart, origPart, newPart;
   PetscSection           cellPartSection, origCellPartSection, origPartSection, newPartSection;
   PetscSFNode            *remoteRanks;
-  PetscInt               i, p, cStart, cEnd, ncells;
+  PetscInt               i, p, cStart, cEnd, ncells, pStart, pEnd;
   PetscBT                bt;
   PetscBool              flg;
   PetscErrorCode         ierr;
@@ -930,6 +931,10 @@ PetscErrorCode DMPlexRedistribute(DM dm, const char partitioner[], PetscInt over
   ierr = PetscSFCreate(comm, &partSF);CHKERRQ(ierr);
   ierr = PetscSFSetGraph(partSF, 1, numRemoteRanks, NULL, PETSC_OWN_POINTER, remoteRanks, PETSC_OWN_POINTER);CHKERRQ(ierr);
   ierr = PetscSFConvertPartition(partSF, newPartSection, newPart, &renumbering, &pointSF);CHKERRQ(ierr);
+  /* Hack alert: The created pointSF has the wrong root space for
+     "shringking" partitions, so we simply enforce the right nroots */
+  ierr = DMPlexGetChart(dm, &pStart, &pEnd);CHKERRQ(ierr);
+  pointSF->nroots = pEnd - pStart;
   if (flg) {
     ierr = PetscPrintf(comm, "New Partition:\n");CHKERRQ(ierr);
     ierr = PetscSectionView(newPartSection, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
