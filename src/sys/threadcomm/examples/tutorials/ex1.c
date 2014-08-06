@@ -1,4 +1,4 @@
-static char help[] = "Test PetscThreadComm Interface.\n\n";
+static char help[] = "Test PetscThreadComm Interface for loop threading model.\n\n";
 
 /*T
    Concepts: PetscThreadComm^basic example

@@ -7,19 +7,19 @@
 #if defined(PETSC_HAVE_PTHREAD_H)
 #include <pthread.h>
 #elif defined(PETSC_HAVE_WINPTHREADS_H)
-#include <winpthreads.h>       /* http://locklessinc.com/downloads/winpthreads.h */
+#include <winpthreads.h> /* http://locklessinc.com/downloads/winpthreads.h */
 #endif
 
 /* PetscThread_PThread - Contains PThread specific data structures for thread */
 struct _p_PetscThread_PThread {
-  pthread_t      tid;                       /* thread ids */
-  pthread_attr_t attr;                      /* thread attributes */
+  pthread_t      tid;               /* thread ids */
+  pthread_attr_t attr;              /* thread attributes */
 };
 typedef struct _p_PetscThread_PThread *PetscThread_PThread;
 
 /* PetscThreadComm_PThread - Contains PThread specific data structures for threadcomm */
 struct _p_PetscThreadComm_PThread {
-  pthread_barrier_t barr;                    /* pthread barrier */
+  pthread_barrier_t barr;           /* pthread barrier */
 };
 typedef struct _p_PetscThreadComm_PThread *PetscThreadComm_PThread;
 
@@ -40,9 +40,9 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommDestroy_PThread(PetscThreadComm);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolDestroy_PThread(PetscThreadPool);
 PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm,PetscThreadCommJobCtx);
 PETSC_EXTERN PetscErrorCode PetscThreadCommBarrier_PThread(PetscThreadComm);
-
-PETSC_EXTERN PetscErrorCode PetscThreadLockInitialize_PThread(void);
-PETSC_EXTERN PetscErrorCode PetscThreadLockAcquire_PThread(void *lock);
-PETSC_EXTERN PetscErrorCode PetscThreadLockRelease_PThread(void *lock);
+PETSC_EXTERN PetscErrorCode PetscThreadLockCreate_PThread(void**);
+PETSC_EXTERN PetscErrorCode PetscThreadLockDestroy_PThread(void**);
+PETSC_EXTERN PetscErrorCode PetscThreadLockAcquire_PThread(void*);
+PETSC_EXTERN PetscErrorCode PetscThreadLockRelease_PThread(void*);
 
 #endif

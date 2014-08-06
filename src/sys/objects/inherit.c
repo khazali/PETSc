@@ -9,22 +9,6 @@
 #if defined(PETSC_USE_LOG)
 PetscObject *PetscObjects      = 0;
 PetscInt    PetscObjectsCounts = 0, PetscObjectsMaxCounts = 0;
-/*#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_PTHREAD_LOCAL PetscObject *PetscObjects      = 0;
-PETSC_PTHREAD_LOCAL PetscInt    PetscObjectsCounts = 0, PetscObjectsMaxCounts = 0;
-#else
-PetscThreadKey *PetscObjects      = 0;
-PetscThreadKey PetscObjectsCounts = 0, PetscObjectsMaxCounts = 0;
-#endif
-#elif defined(PETSC_HAVE_OPENMP)
-PetscObject *PetscObjects      = 0;
-PetscInt    PetscObjectsCounts = 0, PetscObjectsMaxCounts = 0;
-#pragma omp threadprivate(PetscObjects,PetscObjectsCounts,PetscObjectsMaxCounts)
-#else
-PetscObject *PetscObjects      = 0;
-PetscInt    PetscObjectsCounts = 0, PetscObjectsMaxCounts = 0;
- #endif*/
 #endif
 
 extern PetscErrorCode PetscObjectGetComm_Petsc(PetscObject,MPI_Comm*);
@@ -77,7 +61,7 @@ PetscErrorCode  PetscHeaderCreate_Private(PetscObject h,PetscClassId classid,con
 
   ierr = PetscCommDuplicate(comm,&h->comm,&h->tag);CHKERRQ(ierr);
   ierr = PetscCommForceDuplicate(PETSC_COMM_SELF,&h->commself,&h->tag);CHKERRQ(ierr);
-  ierr = PetscCommCheckGetThreadComm(h->comm,&tcomm,&exists);CHKERRQ(ierr);
+  ierr = PetscThreadCommCheckGetComm(h->comm,&tcomm,&exists);CHKERRQ(ierr);
   if(exists) {
     PetscThreadCommAttach(h->commself,tcomm);CHKERRQ(ierr);
    }

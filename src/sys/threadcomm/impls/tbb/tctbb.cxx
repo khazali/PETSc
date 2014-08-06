@@ -24,13 +24,20 @@ public:
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadInit_TBB"
+/*
+   PetscThreadInit_TBB - Initialize thread for TBB
+
+   Not Collective
+
+   Level: developer
+
+*/
 PetscErrorCode PetscThreadInit_TBB()
 {
-  PetscErrorCode ierr;
-
   PetscFunctionBegin;
   ThreadType = THREAD_TYPE_TBB;
-  ierr = PetscThreadLockInitialize_TBB();CHKERRQ(ierr);
+  PetscThreadLockCreate  = PetscThreadLockCreate_TBB;
+  PetscThreadLockDestroy = PetscThreadLockDestroy_TBB;
   PetscThreadLockAcquire = PetscThreadLockAcquire_TBB;
   PetscThreadLockRelease = PetscThreadLockRelease_TBB;
   PetscFunctionReturn(0);
@@ -57,7 +64,11 @@ PetscErrorCode PetscThreadPoolInit_TBB(PetscThreadPool pool)
   if (pool->model == THREAD_MODEL_AUTO || pool->model == THREAD_MODEL_USER) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Unable to use auto or user thread model with TBB. Use loop model with TBB");
 
   ierr = PetscStrcpy(pool->type,TBB);CHKERRQ(ierr);
-  pool->threadtype = THREAD_TYPE_TBB;
+  pool->threadtype         = THREAD_TYPE_TBB;
+  pool->ops->createthread  = PetscThreadCreate_TBB;
+  pool->ops->startthreads  = PetscThreadCommInitialize_TBB;
+  pool->ops->setaffinities = PetscThreadCommSetAffinity_TBB;
+  pool->ops->pooldestroy   = PetscThreadPoolDestroy_TBB;
   PetscFunctionReturn(0);
 }
 
@@ -96,6 +107,7 @@ PetscErrorCode PetscThreadCommInit_TBB(PetscThreadComm tcomm)
 
    Notes:
    Uses affinity_partitioner to automatically set the thread affinities efficiently.
+
 */
 PetscErrorCode PetscThreadCommRunKernel_TBB(PetscThreadComm tcomm,PetscThreadCommJobCtx job)
 {
@@ -108,8 +120,64 @@ PetscErrorCode PetscThreadCommRunKernel_TBB(PetscThreadComm tcomm,PetscThreadCom
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadLockInitialize_TBB"
-PetscErrorCode PetscThreadLockInitialize_TBB(void)
+#define __FUNCT__ "PetscThreadCreate_TBB"
+PetscErrorCode PetscThreadCreate_TBB(PetscThread thread)
+{
+  PetscFunctionBegin;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommInitialize_TBB"
+PetscErrorCode PetscThreadCommInitialize_TBB(PetscThreadPool pool)
+{
+  PetscFunctionBegin;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadCommSetAffinity_TBB"
+PetscErrorCode PetscThreadCommSetAffinity_TBB(PetscThreadPool pool, PetscThread thread)
+{
+  PetscFunctionBegin;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadPoolDestroy_TBB"
+PetscErrorCode PetscThreadPoolDestroy_TBB(PetscThreadPool pool)
+{
+  PetscFunctionBegin;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockCreate_TBB"
+/*
+   PetscThreadLockCreate_TBB
+
+   Not Collective
+
+   Level: developer
+
+*/
+PetscErrorCode PetscThreadLockCreate_TBB(void** lock)
+{
+  PetscFunctionBegin;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockDestroy_TBB"
+/*
+   PetscThreadLockDestroy_TBB
+
+   Not Collective
+
+   Level: developer
+
+*/
+PetscErrorCode PetscThreadLockDestroy_TBB(void** lock)
 {
   PetscFunctionBegin;
   PetscFunctionReturn(0);
@@ -117,6 +185,14 @@ PetscErrorCode PetscThreadLockInitialize_TBB(void)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadLockAcquire_TBB"
+/*
+   PetscThreadLockAcquire_TBB
+
+   Not Collective
+
+   Level: developer
+
+*/
 PetscErrorCode PetscThreadLockAcquire_TBB(void *lock)
 {
   PetscFunctionBegin;
@@ -125,6 +201,14 @@ PetscErrorCode PetscThreadLockAcquire_TBB(void *lock)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadLockRelease_TBB"
+/*
+   PetscThreadLockRelease_TBB
+
+   Not Collective
+
+   Level: developer
+
+*/
 PetscErrorCode PetscThreadLockRelease_TBB(void *lock)
 {
   PetscFunctionBegin;

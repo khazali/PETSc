@@ -45,6 +45,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMP(PetscThreadPool po
   PetscFunctionBegin;
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
 
+  /* Access threads */
   #pragma omp parallel num_threads(pool->npoolthreads)
   {
     cpu_set_t      cpuset;
@@ -53,6 +54,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMP(PetscThreadPool po
     PetscErrorCode ierr;
     trank = omp_get_thread_num();
 
+    /* Set affinity for current thread */
     ierr = PetscThreadPoolSetAffinity(pool,&cpuset,trank,&set);CHKERRCONTINUE(ierr);
     if (set) sched_setaffinity(0,sizeof(cpu_set_t),&cpuset);
   }
@@ -62,15 +64,22 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommSetAffinity_OpenMP(PetscThreadPool po
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadInit_OpenMP"
+/*
+   PetscThreadInit_OpenMP - Initialize Thread for OpenMP
+
+   Not Collective
+
+   Level: developer
+
+*/
 PETSC_EXTERN PetscErrorCode PetscThreadInit_OpenMP()
 {
-  PetscErrorCode ierr;
-
   PetscFunctionBegin;
-  ThreadType = THREAD_TYPE_OPENMP;
-  ierr = PetscThreadLockInitialize_OpenMP();CHKERRQ(ierr);
+  ThreadType             = THREAD_TYPE_OPENMP;
   PetscThreadLockAcquire = PetscThreadLockAcquire_OpenMP;
   PetscThreadLockRelease = PetscThreadLockRelease_OpenMP;
+  PetscThreadLockCreate  = PetscThreadLockCreate_OpenMP;
+  PetscThreadLockDestroy = PetscThreadLockDestroy_OpenMP;
   PetscFunctionReturn(0);
 }
 
@@ -100,7 +109,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_OpenMP(PetscThreadPool pool)
   pool->ops->setaffinities = PetscThreadCommSetAffinity_OpenMP;
   pool->ops->pooldestroy = PetscThreadPoolDestroy_OpenMP;
   if (pool->model == THREAD_MODEL_LOOP) {
-    // Initialize each thread
+    /* Initialize each thread */
     #pragma omp parallel num_threads(pool->npoolthreads)
     {
       ierr = PetscThreadInitialize();CHKERRCONTINUE(ierr);
@@ -114,6 +123,14 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_OpenMP(PetscThreadPool pool)
 /*
    PetscThreadCommInit_OpenMP - Initialize the threadcomm to use OpenMP as
                                 the threading type
+
+   Not Collective
+
+   Input Parameters:
+.  tcomm - Threadcomm to initialize
+
+   Level: developer
+
 */
 PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadComm tcomm)
 {
@@ -142,6 +159,14 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadComm tcomm)
 #define __FUNCT__ "PetscThreadCommDestroy_OpenMP"
 /*
    PetscThreadCommDestroy_OpenMP - Destroy OpenMP threadcomm structs
+
+   Not Collective
+
+   Input Parameters:
+.  tcomm - Threadcomm to destroy
+
+   Level: developer
+
 */
 PETSC_EXTERN PetscErrorCode PetscThreadCommDestroy_OpenMP(PetscThreadComm tcomm)
 {
@@ -159,6 +184,14 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommDestroy_OpenMP(PetscThreadComm tcomm)
 #define __FUNCT__ "PetscThreadPoolDestroy_OpenMP"
 /*
    PetscThreadPoolDestroy_OpenMP - Destroy OpenMP thread structs
+
+   Not Collective
+
+   Input Parameters:
+.  pool - Threadpool to destroy
+
+   Level: developer
+
 */
 PETSC_EXTERN PetscErrorCode PetscThreadPoolDestroy_OpenMP(PetscThreadPool pool)
 {
@@ -286,11 +319,11 @@ PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm tcomm)
 
   PetscFunctionBegin;
   ierr = PetscLogEventBegin(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
-  // Increment counter one thread at a time
+  /* Increment counter one thread at a time */
   #pragma omp atomic
   ptcomm->barrier_threads++;
 
-  // Make sure all threads increment counter
+  /* Make sure all threads increment counter */
   while (ptcomm->wait_inc) {
     if (PetscReadOnce(int,ptcomm->barrier_threads) == tcomm->ncommthreads) {
       #pragma omp critical
@@ -301,11 +334,11 @@ PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm tcomm)
     }
   }
 
-  // Decrement counter one thread at a time
+  /* Decrement counter one thread at a time */
   #pragma omp atomic
   ptcomm->barrier_threads--;
 
-  // Make sure all threads decrement counter
+  /* Make sure all threads decrement counter */
   while (ptcomm->wait_dec) {
     if (PetscReadOnce(int,ptcomm->barrier_threads) == 0) {
       #pragma omp critical
@@ -321,6 +354,14 @@ PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm tcomm)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadLockCreate_OpenMP"
+/*
+   PetscThreadLockCreate_OpenMP - Allocate and create an OpenMP lock
+
+   Not Collective
+
+   Level: developer
+
+*/
 PetscErrorCode PetscThreadLockCreate_OpenMP(void **lock)
 {
   PetscThreadLock_OpenMP omplock;
@@ -334,22 +375,36 @@ PetscErrorCode PetscThreadLockCreate_OpenMP(void **lock)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadLockInitialize_OpenMP"
-PetscErrorCode PetscThreadLockInitialize_OpenMP(void)
+#define __FUNCT__ "PetscThreadLockDestroy_OpenMP"
+/*
+   PetscThreadLockDestroy_OpenMP - Destroy an OpenMP lock
+
+   Not Collective
+
+   Level: developer
+
+*/
+PetscErrorCode PetscThreadLockDestroy_OpenMP(void **lock)
 {
+  PetscThreadLock_OpenMP ptlock = (PetscThreadLock_OpenMP)lock;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  if (PetscLocks) PetscFunctionReturn(0);
-
-  ierr = PetscNew(&PetscLocks);CHKERRQ(ierr);
-  ierr = PetscThreadLockCreate_OpenMP(&PetscLocks->trmalloc_lock);
-  ierr = PetscThreadLockCreate_OpenMP(&PetscLocks->vec_lock);
+  omp_destroy_lock(ptlock);
+  ierr = PetscFree(ptlock);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadLockAcquire_OpenMP"
+/*
+   PetscThreadLockAcquire_OpenMP - Acquire an OpenMP lock
+
+   Not Collective
+
+   Level: developer
+
+*/
 PetscErrorCode PetscThreadLockAcquire_OpenMP(void *lock)
 {
   PetscThreadLock_OpenMP omplock;
@@ -362,6 +417,14 @@ PetscErrorCode PetscThreadLockAcquire_OpenMP(void *lock)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadLockRelease_OpenMP"
+/*
+   PetscThreadLockRelease_OpenMP - Release an OpenMP lock
+
+   Not Collective
+
+   Level: developer
+
+*/
 PetscErrorCode PetscThreadLockRelease_OpenMP(void *lock)
 {
   PetscThreadLock_OpenMP omplock;

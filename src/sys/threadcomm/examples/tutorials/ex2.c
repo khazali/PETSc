@@ -1,4 +1,4 @@
-static const char help[] = "STREAM benchmark for pthread implemenentations\n\n";
+static const char help[] = "STREAM benchmark for loop threading model\n\n";
 
 /*-----------------------------------------------------------------------*/
 /* Program: Stream                                                       */

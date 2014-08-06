@@ -2,6 +2,14 @@
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadInit_NoThread"
+/*
+   PetscThreadInit_NoThread - Initialize NoThread thread type
+
+   Not Collective
+
+   Level: developer
+
+*/
 PETSC_EXTERN PetscErrorCode PetscThreadInit_NoThread()
 {
   PetscErrorCode ierr;
@@ -12,6 +20,8 @@ PETSC_EXTERN PetscErrorCode PetscThreadInit_NoThread()
   PetscLocks->trmalloc_lock = PETSC_NULL;
   PetscThreadLockAcquire = PetscThreadLockAcquire_NoThread;
   PetscThreadLockRelease = PetscThreadLockRelease_NoThread;
+  PetscThreadLockCreate  = PetscThreadLockCreate_NoThread;
+  PetscThreadLockDestroy = PetscThreadLockDestroy_NoThread;
   PetscFunctionReturn(0);
 }
 
@@ -61,7 +71,56 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommInit_NoThread(PetscThreadComm tcomm)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockCreate_NoThread"
+/*
+   PetscThreadLockCreate_NoThread
+
+   Not Collective
+
+   Input Parameters:
+.  lock - Pointer to a lock
+
+   Level: developer
+
+*/
+PetscErrorCode PetscThreadLockCreate_NoThread(void **lock)
+{
+  PetscFunctionBegin;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLockDestroy_NoThread"
+/*
+   PetscThreadLockDestroy_NoThread
+
+   Not Collective
+
+   Input Parameters:
+.  lock - Pointer to a lock
+
+   Level: developer
+
+*/
+PetscErrorCode PetscThreadLockDestroy_NoThread(void **lock)
+{
+  PetscFunctionBegin;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscThreadLockAcquire_NoThread"
+/*
+   PetscThreadLockAcquire_NoThread
+
+   Not Collective
+
+   Input Parameters:
+.  lock - Pointer to a lock
+
+   Level: developer
+
+*/
 PetscErrorCode PetscThreadLockAcquire_NoThread(void *lock)
 {
   PetscFunctionBegin;
@@ -70,6 +129,17 @@ PetscErrorCode PetscThreadLockAcquire_NoThread(void *lock)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadLockRelease_NoThread"
+/*
+   PetscThreadLockRelease_NoThread
+
+   Not Collective
+
+   Input Parameters:
+.  lock - Pointer to a lock
+
+   Level: developer
+
+*/
 PetscErrorCode PetscThreadLockRelease_NoThread(void *lock)
 {
   PetscFunctionBegin;

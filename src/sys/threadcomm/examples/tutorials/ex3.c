@@ -1,4 +1,4 @@
-static char help[] = "Test to demonstrate interface for thread reductions and passing scalar values.\n\n";
+static char help[] = "Test to demonstrate interface for thread reductions and passing scalar values for loop threading model.\n\n";
 
 /*T
    Concepts: PetscThreadComm^basic example: Threaded reductions and passing scalar values
@@ -8,6 +8,7 @@ T*/
   Include "petscthreadcomm.h" so that we can use the PetscThreadComm interface.
 */
 #include <petscthreadcomm.h>
+#include <petscviewer.h>
 
 PetscInt *trstarts;
 

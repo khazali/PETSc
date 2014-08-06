@@ -5,6 +5,7 @@
 #include <petsc-private/threadcommimpl.h>
 #include <omp.h>
 
+/* Barrier variables for OpenMP barrier on threadcomm */
 struct _p_PetscThreadComm_OpenMP {
   PetscInt  barrier_threads;
   PetscBool wait_inc, wait_dec;
@@ -20,8 +21,8 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommDestroy_OpenMP(PetscThreadComm);
 PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel_OpenMPLoop(PetscThreadComm,PetscThreadCommJobCtx);
 PETSC_EXTERN PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm,PetscThreadCommJobCtx);
 PETSC_EXTERN PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm);
-
-PETSC_EXTERN PetscErrorCode PetscThreadLockInitialize_OpenMP(void);
+PETSC_EXTERN PetscErrorCode PetscThreadLockCreate_OpenMP(void**);
+PETSC_EXTERN PetscErrorCode PetscThreadLockDestroy_OpenMP(void**);
 PETSC_EXTERN PetscErrorCode PetscThreadLockAcquire_OpenMP(void*);
 PETSC_EXTERN PetscErrorCode PetscThreadLockRelease_OpenMP(void*);
 

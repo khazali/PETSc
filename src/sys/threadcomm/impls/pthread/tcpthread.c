@@ -177,15 +177,22 @@ PETSC_EXTERN PetscErrorCode PetscThreadCreate_PThread(PetscThread thread)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadInit_PThread"
+/*
+   PetscThreadInit_PThread - Initialize thread specific data structs
+
+   Not Collective
+
+   Level: developer
+
+*/
 PETSC_EXTERN PetscErrorCode PetscThreadInit_PThread()
 {
-  PetscErrorCode ierr;
-
   PetscFunctionBegin;
-  ThreadType = THREAD_TYPE_PTHREAD;
-  ierr = PetscThreadLockInitialize_PThread();CHKERRQ(ierr);
+  ThreadType             = THREAD_TYPE_PTHREAD;
   PetscThreadLockAcquire = PetscThreadLockAcquire_PThread;
   PetscThreadLockRelease = PetscThreadLockRelease_PThread;
+  PetscThreadLockCreate  = PetscThreadLockCreate_PThread;
+  PetscThreadLockDestroy = PetscThreadLockDestroy_PThread;
   PetscFunctionReturn(0);
 }
 
@@ -284,7 +291,7 @@ PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm tcomm,PetscThrea
   PetscErrorCode          ierr;
 
   PetscFunctionBegin;
-  // Do work for main thread
+  /* Do work for main thread */
   if (tcomm->ismainworker) {
     job->job_status   = THREAD_JOB_RECEIVED;
     tcomm->commthreads[0]->jobdata = job;
@@ -294,7 +301,7 @@ PetscErrorCode PetscThreadCommRunKernel_PThread(PetscThreadComm tcomm,PetscThrea
     jobqueue->current_job_index = (jobqueue->current_job_index+1)%tcomm->nkernels;
     jobqueue->completed_jobs_ctr++;
   }
-  // Synchronize
+  /* Synchronize */
   if (tcomm->syncafter) {
     ierr = PetscThreadCommJobBarrier(tcomm);CHKERRQ(ierr);
   }
@@ -334,7 +341,7 @@ PetscErrorCode PetscThreadCommInitialize_PThread(PetscThreadPool pool)
   /* Create threads */
   for (i=pool->thread_start; i<pool->npoolthreads; i++) {
     ptcomm = (PetscThread_PThread)pool->poolthreads[i]->data;
-    ierr = pthread_create(&ptcomm->tid,&ptcomm->attr,&PetscThreadPoolFunc,&pool->poolthreads[i]);CHKERRQ(ierr);
+    ierr = pthread_create(&ptcomm->tid,&ptcomm->attr,&PetscThreadPoolFunc_Private,&pool->poolthreads[i]);CHKERRQ(ierr);
   }
 
   if (pool->ismainworker) pool->poolthreads[0]->status = THREAD_INITIALIZED;
@@ -380,6 +387,17 @@ PetscErrorCode PetscThreadCommBarrier_PThread(PetscThreadComm tcomm)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadLockCreate_PThread"
+/*
+   PetscThreadLockCreate_PThread - Create a lock for pthreads using a mutex
+
+   Not Collective
+
+   Output Parameters:
+.  lock - Pointer to an initialized pthreads lock
+
+   Level: developer
+
+*/
 PetscErrorCode PetscThreadLockCreate_PThread(void **lock)
 {
   PetscThreadLock_PThread ptlock;
@@ -393,22 +411,39 @@ PetscErrorCode PetscThreadLockCreate_PThread(void **lock)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PetscThreadLockInitialize_PThread"
-PetscErrorCode PetscThreadLockInitialize_PThread(void)
+#define __FUNCT__ "PetscThreadLockDestroy_PThread"
+/*
+   PetscThreadLockDestroy_PThread - Destroy a pthread lock
+
+   Not Collective
+
+   Level: developer
+
+*/
+PetscErrorCode PetscThreadLockDestroy_PThread(void **lock)
 {
+  PetscThreadLock_PThread ptlock = (PetscThreadLock_PThread)lock;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  if (PetscLocks) PetscFunctionReturn(0);
-
-  ierr = PetscNew(&PetscLocks);CHKERRQ(ierr);
-  ierr = PetscThreadLockCreate_PThread(&PetscLocks->trmalloc_lock);
-  ierr = PetscThreadLockCreate_PThread(&PetscLocks->vec_lock);
+  pthread_mutex_destroy(ptlock);
+  ierr = PetscFree(ptlock);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadLockAcquire_PThread"
+/*
+   PetscThreadLockAcquire_PThread - Acquire a lock for this thread
+
+   Not Collective
+
+   Input Parameters:
+.  lock - Lock to acquire
+
+   Level: developer
+
+*/
 PetscErrorCode PetscThreadLockAcquire_PThread(void *lock)
 {
   PetscThreadLock_PThread ptlock;
@@ -421,6 +456,17 @@ PetscErrorCode PetscThreadLockAcquire_PThread(void *lock)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadLockRelease_PThread"
+/*
+   PetscThreadLockRelease_PThread - Release a lock for this thread
+
+   Not Collective
+
+   Input Parameters:
+.  lock - Lock to release
+
+   Level: developer
+
+*/
 PetscErrorCode PetscThreadLockRelease_PThread(void *lock)
 {
   PetscThreadLock_PThread ptlock;

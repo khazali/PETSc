@@ -34,7 +34,7 @@ PetscErrorCode PetscThreadReductionBegin(MPI_Comm comm,PetscThreadCommReductionO
   PetscThreadCommReduction red;
 
   PetscFunctionBegin;
-  ierr = PetscCommGetThreadComm(comm,&tcomm);CHKERRQ(ierr);
+  ierr = PetscThreadCommGetComm(comm,&tcomm);CHKERRQ(ierr);
   red  = tcomm->red;
   if (red->ctr+nreds > PETSC_REDUCTIONS_MAX) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Reductions in operation: %D Max. allowed: %D",red->ctr+nreds,PETSC_REDUCTIONS_MAX);
   for (i=red->ctr; i<red->ctr+nreds; i++) {
@@ -420,6 +420,11 @@ PetscErrorCode PetscThreadReductionKernelEnd(PetscInt trank,PetscThreadCommReduc
 +  tcomm - the thread communicator
 .  red   - the reduction context
 
+   Notes:
+   The size of local_red is twice the number of threads. The first half holds the local reductions
+   from each thread while the second half is used only for maxloc and minloc operations to hold the
+   local max and min locations
+
 */
 PetscErrorCode PetscThreadCommReductionCreate(PetscThreadComm tcomm,PetscThreadCommReduction *newred)
 {
@@ -429,15 +434,12 @@ PetscErrorCode PetscThreadCommReductionCreate(PetscThreadComm tcomm,PetscThreadC
   PetscInt                 i,j;
 
   PetscFunctionBegin;
-  ierr         = PetscNew(&redout);CHKERRQ(ierr);
-  redout->nreds=0;
-  redout->ctr  = 0;
-  ierr         = PetscMalloc1(PETSC_REDUCTIONS_MAX,(struct _p_PetscThreadCommRedCtx**)&redout->redctx);CHKERRQ(ierr);
-  ierr         = PetscMalloc1(PETSC_REDUCTIONS_MAX*tcomm->ncommthreads,&redout->redctx[0].thread_status);CHKERRQ(ierr);
-  /* Note that the size of local_red is twice the number of threads. The first half holds the local reductions
-     from each thread while the second half is used only for maxloc and minloc operations to hold the local max and min locations
-  */
-  ierr = PetscMalloc1(PETSC_REDUCTIONS_MAX*2*tcomm->ncommthreads,(PetscScalar**)&redout->redctx[0].local_red);CHKERRQ(ierr);
+  ierr          = PetscNew(&redout);CHKERRQ(ierr);
+  redout->nreds = 0;
+  redout->ctr   = 0;
+  ierr          = PetscMalloc1(PETSC_REDUCTIONS_MAX,(struct _p_PetscThreadCommRedCtx**)&redout->redctx);CHKERRQ(ierr);
+  ierr          = PetscMalloc1(PETSC_REDUCTIONS_MAX*tcomm->ncommthreads,&redout->redctx[0].thread_status);CHKERRQ(ierr);
+  ierr          = PetscMalloc1(PETSC_REDUCTIONS_MAX*2*tcomm->ncommthreads,(PetscScalar**)&redout->redctx[0].local_red);CHKERRQ(ierr);
   for (i=0; i < PETSC_REDUCTIONS_MAX; i++) {
     redctx                = &redout->redctx[i];
     redctx->thread_status = redout->redctx[0].thread_status + i*tcomm->ncommthreads;

@@ -21,11 +21,14 @@ PetscErrorCode PetscThreadCommFinalizePackage(void)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  /* Destroy function lists and thread key value */
   ierr = PetscFunctionListDestroy(&PetscThreadTypeList);CHKERRQ(ierr);
   ierr = PetscFunctionListDestroy(&PetscThreadPoolTypeList);CHKERRQ(ierr);
   ierr = PetscFunctionListDestroy(&PetscThreadCommTypeList);CHKERRQ(ierr);
   ierr = PetscFunctionListDestroy(&PetscThreadCommModelList);CHKERRQ(ierr);
   ierr = MPI_Keyval_free(&Petsc_ThreadComm_keyval);CHKERRQ(ierr);
+
+  /* Set global variables to specific that threadcomm package is not set up */
   PetscThreadCommPackageInitialized      = PETSC_FALSE;
   PetscThreadCommRegisterAllModelsCalled = PETSC_FALSE;
   PetscThreadCommRegisterAllTypesCalled  = PETSC_FALSE;
@@ -34,12 +37,28 @@ PetscErrorCode PetscThreadCommFinalizePackage(void)
 
 #undef __FUNCT__
 #define __FUNCT__ "Petsc_CopyThreadComm"
-/*
-  This copies the thread communicator attached to MPI_Comm
+/*@C
+   Petsc_CopyThreadComm - Copies the thread communicator attached to MPI_Comm
 
-  This is called by MPI, not by users. This is called when MPI_Comm_dup() is called on the communicator.
+   Not Collective
 
-  Note: this is declared extern "C" because it is passed to MPI_Keyval_create()
+   Input Parameters:
++  comm        - MPI communicator
+.  keyval      - Not used
+.  extra_state - Not used
+.  attr_in     - Threadcomm to copy
+-  attr_out    - Copy of threadcomm
+
+   Output Parameters:
+.  flag        - True if threadcomm is copied
+
+   Level: developer
+
+   Notes:
+   This is called by MPI, not by users. This is called when MPI_Comm_dup() is called on the
+   communicator. This is declared extern "C" because it is passed to MPI_Keyval_create()
+
+.seealso Petsc_DelThreadComm()
 */
 PETSC_EXTERN PetscMPIInt MPIAPI Petsc_CopyThreadComm(MPI_Comm comm,PetscMPIInt keyval,void *extra_state,void *attr_in,void *attr_out,int *flag)
 {
@@ -58,13 +77,25 @@ PETSC_EXTERN PetscMPIInt MPIAPI Petsc_CopyThreadComm(MPI_Comm comm,PetscMPIInt k
 
 #undef __FUNCT__
 #define __FUNCT__ "Petsc_DelThreadComm"
-/*
-  This frees the thread communicator attached to MPI_Comm
+/*@C
+   Petsc_DelThreadComm - Frees the thread communicator attached to MPI_Comm
 
-  This is called by MPI, not by users. This is called when MPI_Comm_free() is called on the communicator.
+   Not Collective
 
-  Note: this is declared extern "C" because it is passed to MPI_Keyval_create()
-*/
+   Input Parameters:
++  comm        - MPI communicator
+.  keyval      - Not used
+.  attr        - Threadcomm to free
+-  extra_state - Not used
+
+   Level: developer
+
+   Notes:
+   This is called by MPI, not by users. This is called when MPI_Comm_free() is called on
+   the communicator. This is declared extern "C" because it is passed to MPI_Keyval_create()
+
+.seealso Petsc_CopyThreadComm()
+@*/
 PETSC_EXTERN PetscMPIInt MPIAPI Petsc_DelThreadComm(MPI_Comm comm,PetscMPIInt keyval,void *attr,void *extra_state)
 {
   PetscThreadComm tcomm;
@@ -87,6 +118,9 @@ PETSC_EXTERN PetscMPIInt MPIAPI Petsc_DelThreadComm(MPI_Comm comm,PetscMPIInt ke
 
    Level: developer
 
+   Notes:
+   Create the needed keyvalues and register events and packages for threadcomm routines. 
+
 .seealso: PetscThreadCommFinalizePackage()
 @*/
 PetscErrorCode PetscThreadCommInitializePackage(void)
@@ -101,12 +135,10 @@ PetscErrorCode PetscThreadCommInitializePackage(void)
   }
 
   ierr = PetscGetNCores(NULL);CHKERRQ(ierr);
-
   ierr = PetscLogEventRegister("ThreadCommRunKer",  0, &ThreadComm_RunKernel);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("ThreadCommBarrie",  0, &ThreadComm_Barrier);CHKERRQ(ierr);
 
   PetscThreadCommPackageInitialized = PETSC_TRUE;
-
   ierr = PetscRegisterFinalize(PetscThreadCommFinalizePackage);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

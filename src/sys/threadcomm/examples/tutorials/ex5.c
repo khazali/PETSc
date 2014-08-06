@@ -1,5 +1,5 @@
 
-static char help[] = "Micro-benchmark kernel times.\n\n";
+static char help[] = "Micro-benchmark kernel times for OpenMP with loop threading model.\n\n";
 
 /*
   Include "petscthreadcomm.h" so that we can use the PetscThreadComm interface.

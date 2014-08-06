@@ -77,6 +77,16 @@ PETSC_EXTERN PetscMPIInt Petsc_ThreadComm_keyval;
 #define PetscCPURelax() do { } while (0)
 #endif
 
+/* Extern functions */
+PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAllModels(void);
+PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAllTypes(void);
+PETSC_EXTERN void* PetscThreadPoolFunc_Private(void*);
+PETSC_EXTERN PetscErrorCode PetscThreadCommReductionCreate(PetscThreadComm,PetscThreadCommReduction*);
+PETSC_EXTERN PetscErrorCode PetscThreadCommReductionDestroy(PetscThreadCommReduction);
+
+/* Extern variables */
+PETSC_EXTERN PetscLogEvent ThreadComm_RunKernel, ThreadComm_Barrier;
+
 typedef enum {THREADAFFPOLICY_ALL,THREADAFFPOLICY_ONECORE,THREADAFFPOLICY_NONE} PetscThreadCommAffPolicyType;
 extern const char *const PetscThreadCommAffPolicyTypes[];
 
@@ -192,10 +202,6 @@ struct _p_PetscThreadComm{
   PetscThread             *commthreads;  /* Threads that this comm can use */
 };
 
-/* register thread communicator models */
-PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAllModels(void);
-PETSC_EXTERN PetscErrorCode PetscThreadCommRegisterAllTypes(void);
-
 #undef __FUNCT__
 #define __FUNCT__
 PETSC_STATIC_INLINE PetscErrorCode PetscRunKernel(PetscInt trank,PetscInt nargs,PetscThreadCommJobCtx job)
@@ -238,8 +244,4 @@ PETSC_STATIC_INLINE PetscErrorCode PetscRunKernel(PetscInt trank,PetscInt nargs,
   return 0;
 }
 
-PETSC_EXTERN PetscErrorCode PetscThreadCommReductionCreate(PetscThreadComm,PetscThreadCommReduction*);
-PETSC_EXTERN PetscErrorCode PetscThreadCommReductionDestroy(PetscThreadCommReduction);
-
-PETSC_EXTERN PetscLogEvent ThreadComm_RunKernel, ThreadComm_Barrier;
 #endif

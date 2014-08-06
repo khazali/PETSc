@@ -953,6 +953,7 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
   */
   ierr = PetscThreadSetModel(LOOP);CHKERRQ(ierr);
   ierr = PetscThreadSetType(NOTHREAD);CHKERRQ(ierr);
+  ierr = PetscThreadLocksInitialize();CHKERRQ(ierr);
 
   /*
       If using loop model, create a threadcomm and attach to PETSC_COMM_WORLD.
@@ -1366,11 +1367,7 @@ PetscErrorCode  PetscFinalize(void)
   ierr = MPI_Keyval_free(&Petsc_OuterComm_keyval);CHKERRQ(ierr);
 
   /* Destroy thread locks */
-  if(PetscLocks) {
-    ierr = PetscFree(PetscLocks->trmalloc_lock);CHKERRQ(ierr);
-    ierr = PetscFree(PetscLocks->vec_lock);CHKERRQ(ierr);
-    ierr = PetscFree(PetscLocks);CHKERRQ(ierr);
-  }
+  ierr = PetscThreadLocksFinalize();CHKERRQ(ierr);
 
   if (PetscBeganMPI) {
 #if defined(PETSC_HAVE_MPI_FINALIZED)

@@ -41,8 +41,8 @@ PETSC_EXTERN PetscInt PetscThreadInit;
 #endif
 PETSC_EXTERN PetscErrorCode (*PetscThreadLockAcquire)(void*);
 PETSC_EXTERN PetscErrorCode (*PetscThreadLockRelease)(void*);
-
-//PETSC_EXTERN PetscThreadLocks PetscLocks;
+PETSC_EXTERN PetscErrorCode (*PetscThreadLockCreate)(void**);
+PETSC_EXTERN PetscErrorCode (*PetscThreadLockDestroy)(void**);
 
 PETSC_EXTERN PetscFunctionList PetscThreadTypeList;
 PETSC_EXTERN PetscFunctionList PetscThreadPoolTypeList;
@@ -58,8 +58,10 @@ PETSC_EXTERN const char* const PetscThreadCommReductionOps[];
 /* Thread routines in threads.c */
 PETSC_EXTERN PetscErrorCode PetscThreadInitialize(void);
 PETSC_EXTERN PetscErrorCode PetscThreadFinalize(void);
-PETSC_EXTERN PetscErrorCode PetscThreadSetModel(PetscThreadCommModel model);
-PETSC_EXTERN PetscErrorCode PetscThreadSetType(PetscThreadCommType type);
+PETSC_EXTERN PetscErrorCode PetscThreadSetModel(PetscThreadCommModel);
+PETSC_EXTERN PetscErrorCode PetscThreadSetType(PetscThreadCommType);
+PETSC_EXTERN PetscErrorCode PetscThreadLocksInitialize(void);
+PETSC_EXTERN PetscErrorCode PetscThreadLocksFinalize(void);
 
 /* Package routines in dlregisthreadcomm.c */
 PETSC_EXTERN PetscErrorCode PetscThreadCommInitializePackage(void);
@@ -70,8 +72,8 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommFinalizePackage(void);
 PETSC_EXTERN PetscErrorCode PetscThreadCommInitialize(PetscInt,PetscInt*,PetscThreadComm);
 PETSC_EXTERN PetscErrorCode PetscThreadCommDestroy(PetscThreadComm*);
 /* General routines */
-PETSC_EXTERN PetscErrorCode PetscCommGetThreadComm(MPI_Comm,PetscThreadComm*);
-PETSC_EXTERN PetscErrorCode PetscCommCheckGetThreadComm(MPI_Comm,PetscThreadComm*,PetscBool*);
+PETSC_EXTERN PetscErrorCode PetscThreadCommGetComm(MPI_Comm,PetscThreadComm*);
+PETSC_EXTERN PetscErrorCode PetscThreadCommCheckGetComm(MPI_Comm,PetscThreadComm*,PetscBool*);
 PETSC_EXTERN PetscErrorCode PetscThreadCommGetNThreads(MPI_Comm,PetscInt*);
 PETSC_EXTERN PetscErrorCode PetscThreadCommGetRank(PetscThreadComm,PetscInt*);
 PETSC_EXTERN PetscErrorCode PetscThreadCommGetOwnershipRanges(MPI_Comm,PetscInt,PetscInt*[]);
@@ -104,9 +106,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommJoinComm(MPI_Comm,PetscInt, PetscInt*
 PETSC_EXTERN PetscErrorCode PetscThreadCommJoinMultComms(MPI_Comm*,PetscInt,PetscInt, PetscInt*);
 PETSC_EXTERN PetscErrorCode PetscThreadCommReturnComm(MPI_Comm,PetscInt,PetscInt*);
 PETSC_EXTERN PetscErrorCode PetscThreadCommReturnMultComms(MPI_Comm*,PetscInt,PetscInt,PetscInt*);
-/* Debug routines */
-PETSC_EXTERN PetscErrorCode PetscThreadCommStackCreate();
-PETSC_EXTERN PetscErrorCode PetscThreadCommStackDestroy();
 
 /* Reduction operations in threadcommred.c */
 PETSC_EXTERN PetscErrorCode PetscThreadReductionKernelPost(PetscInt,PetscThreadCommReduction,void*);
@@ -116,7 +115,6 @@ PETSC_EXTERN PetscErrorCode PetscThreadReductionEnd(PetscThreadCommReduction,voi
 
 /* Threadpool routines in threadpool.c */
 /* Initialization/Destruction routines */
-PETSC_EXTERN PetscErrorCode PetscThreadPoolAlloc(PetscThreadPool*);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolInitialize(PetscThreadPool,PetscInt);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolDestroy(PetscThreadPool);
 PETSC_EXTERN PetscErrorCode PetscThreadPoolSetModel(PetscThreadPool,PetscThreadCommModel);
@@ -130,8 +128,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolSetAffinities(PetscThreadPool,const P
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
 PETSC_EXTERN PetscErrorCode PetscThreadPoolSetAffinity(PetscThreadPool,cpu_set_t*,PetscInt,PetscBool*);
 #endif
-/* Worker thread routines */
+/* Thread routines */
 PETSC_EXTERN PetscErrorCode PetscThreadPoolCreate(PetscThreadComm,PetscInt,PetscInt*);
-PETSC_EXTERN void* PetscThreadPoolFunc(void*);
 
 #endif

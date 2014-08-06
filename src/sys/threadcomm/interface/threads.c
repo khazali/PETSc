@@ -1,12 +1,10 @@
 #include <petsc-private/threadcommimpl.h>
 
-/* Variables to track model/type registration */
-PETSC_EXTERN PetscBool PetscThreadCommRegisterAllModelsCalled;
-PETSC_EXTERN PetscBool PetscThreadCommRegisterAllTypesCalled;
-
-/* Thread variables */
+/* Global variables for thread model/thread type */
 PetscInt ThreadModel;
 PetscInt ThreadType;
+
+/* Thread specific global variables */
 #if defined(PETSC_HAVE_PTHREADCLASSES)
 #if defined(PETSC_PTHREAD_LOCAL)
 PETSC_PTHREAD_LOCAL PetscInt PetscMasterThread;
@@ -24,53 +22,51 @@ PetscInt PetscMasterThread;
 PetscInt PetscThreadInit;
 #endif
 
+/* Lock functions */
 PetscErrorCode (*PetscThreadLockAcquire)(void*);
 PetscErrorCode (*PetscThreadLockRelease)(void*);
+PetscErrorCode (*PetscThreadLockCreate)(void**);
+PetscErrorCode (*PetscThreadLockDestroy)(void**);
 
+/* Extern variables/functions */
+PETSC_EXTERN PetscBool PetscThreadCommRegisterAllModelsCalled;
+PETSC_EXTERN PetscBool PetscThreadCommRegisterAllTypesCalled;
+PETSC_EXTERN PetscErrorCode PetscThreadCommStackCreate();
+PETSC_EXTERN PetscErrorCode PetscThreadCommStackDestroy();
 #if defined(PETSC_USE_LOG)
 PETSC_EXTERN PetscObject *PetscObjects;
 PETSC_EXTERN PetscInt    PetscObjectsCounts, PetscObjectsMaxCounts;
-/*#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscObject *PetscObjects;
-PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscInt    PetscObjectsCounts, PetscObjectsMaxCounts;
-#else
-PETSC_EXTERN PetscThreadKey *PetscObjects;
-PETSC_EXTERN PetscThreadKey PetscObjectsCounts, PetscObjectsMaxCounts;
 #endif
-#else
-PETSC_EXTERN PetscObject *PetscObjects;
-PETSC_EXTERN PetscInt    PetscObjectsCounts, PetscObjectsMaxCounts;
- #endif*/
-#endif
-
-extern PetscErrorCode PetscSetUseTrMalloc_Private(void);
-#if defined(PETSC_USE_LOG)
-extern PetscErrorCode PetscLogBegin_Private(void);
-#endif
+PETSC_EXTERN PetscErrorCode PetscSetUseTrMalloc_Private(void);
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadInitialize"
-/*
+/*@
    PetscThreadInitialize - Initialize thread specific data structs
-*/
+
+   Not Collective
+
+   Level: developer
+
+   Notes:
+   Initialize thread specific global variables and data structures.
+   Must be called after thread is created to take advantage of PETSc
+   system routines.
+
+.seealso PetscThreadFinalize()
+@*/
 PetscErrorCode PetscThreadInitialize(void)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  // Make sure this thread has not been initialized yet
+  /* Make sure this thread has not been initialized yet */
   if(PetscMasterThread || PetscThreadInit) PetscFunctionReturn(0);
 
-  // Initialize logging
-#if defined(PETSC_USE_LOG)
-  //ierr = PetscLogBegin_Private();CHKERRQ(ierr);
-#endif
-
-  // Create thread stack
+  /* Create thread stack */
   ierr = PetscThreadCommStackCreate();CHKERRQ(ierr);
 
-  // Setup TRMalloc
+  /* Setup TRMalloc */
   ierr = PetscTrMallocInitialize();CHKERRQ(ierr);
 
   PetscThreadInit = 1;
@@ -79,10 +75,21 @@ PetscErrorCode PetscThreadInitialize(void)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadFinalize"
-/*
+/*@
    PetscThreadFinalize - Merge thread specific data with the main thread and
                          destroy thread specific data structs
-*/
+
+   Not Collective
+
+   Level: developer
+
+   Notes:
+   Finalize thread specific global variables and data structures. If needed
+   merge data from this thread with main thread/global variables. Must be
+   called before thread is destroyed.
+
+.seealso PetscThreadInitialize()
+@*/
 PetscErrorCode PetscThreadFinalize(void)
 {
   PetscErrorCode ierr;
@@ -90,17 +97,10 @@ PetscErrorCode PetscThreadFinalize(void)
   PetscFunctionBegin;
   if(PetscMasterThread || !PetscThreadInit) PetscFunctionReturn(0);
 
-  /*#if defined(PETSC_USE_LOG)
-  PetscObjectsCounts    = 0;
-  PetscObjectsMaxCounts = 0;
-  ierr = PetscFree(PetscObjects);CHKERRQ(ierr);
-  ierr = PetscLogDestroy();CHKERRQ(ierr);
-#endif*/
-
-  // Add code to destroy TRMalloc/merged with main trmalloc data
+  /* Add code to destroy TRMalloc/merged with main trmalloc data */
   ierr = PetscTrMallocFinalize();CHKERRQ(ierr);
 
-  // Destroy thread stack
+  /* Destroy thread stack */
   ierr = PetscThreadCommStackDestroy();CHKERRQ(ierr);
 
   PetscThreadInit = 0;
@@ -109,7 +109,7 @@ PetscErrorCode PetscThreadFinalize(void)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadSetModel"
-/*@
+/*@C
    PetscThreadPoolSetModel - Sets the threading model for the thread communicator
 
    Logically collective
@@ -141,10 +141,13 @@ PetscErrorCode PetscThreadSetModel(PetscThreadCommModel model)
   PetscValidCharPointer(model,2);
   if (!PetscThreadCommRegisterAllModelsCalled) { ierr = PetscThreadCommRegisterAllModels();CHKERRQ(ierr);}
 
+  /* Get thread model from command line */
   ierr = PetscOptionsBegin(PETSC_COMM_WORLD,PETSC_NULL,"Threadcomm model - setting threading model",PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsFList("-threadcomm_model","Threadcomm model","PetscThreadCommSetModel",PetscThreadCommModelList,model,smodel,256,&flg);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
   if (!flg) ierr = PetscStrcpy(smodel,model);CHKERRQ(ierr);
+
+  /* Find and call thread model initialization function */
   ierr = PetscFunctionListFind(PetscThreadCommModelList,smodel,&r);CHKERRQ(ierr);
   if (!r) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_UNKNOWN_TYPE,"Unable to find requested thread model %s",smodel);
   ierr = (*r)();CHKERRQ(ierr);
@@ -153,7 +156,7 @@ PetscErrorCode PetscThreadSetModel(PetscThreadCommModel model)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadSetType"
-/*@
+/*@C
    PetscThreadPoolSetType - Sets the threading type for the thread communicator
 
    Logically Collective
@@ -185,14 +188,66 @@ PetscErrorCode PetscThreadSetType(PetscThreadCommType type)
   PetscValidCharPointer(type,2);
   if (!PetscThreadCommRegisterAllTypesCalled) { ierr = PetscThreadCommRegisterAllTypes();CHKERRQ(ierr);}
 
+  /* Get thread type from command line */
   ierr = PetscOptionsBegin(PETSC_COMM_WORLD,PETSC_NULL,"Threadcomm type - setting threading type",PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsFList("-threadcomm_type","Threadcomm type","PetscThreadCommSetType",PetscThreadTypeList,type,stype,256,&flg);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
   if (!flg) ierr = PetscStrcpy(stype,type);CHKERRQ(ierr);
 
-  // Find and call thread init function
+  /* Find and call thread type initialization function */
   ierr = PetscFunctionListFind(PetscThreadTypeList,stype,&r);CHKERRQ(ierr);
   if (!r) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_UNKNOWN_TYPE,"Unable to find requested thread type %s",stype);
   ierr = (*r)();CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLocksInitialize"
+/*@
+   PetscThreadLocksInitialize - Allocate and initialize all locks
+
+   Logically Collective
+
+   Level: developer
+
+   Notes:
+   Calls implementation specific routine to allocate and initialize
+   each lock.
+
+@*/
+PetscErrorCode PetscThreadLocksInitialize(void)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (PetscLocks) PetscFunctionReturn(0);
+  ierr = PetscNew(&PetscLocks);CHKERRQ(ierr);
+  ierr = (*PetscThreadLockCreate)(&PetscLocks->trmalloc_lock);
+  ierr = (*PetscThreadLockCreate)(&PetscLocks->vec_lock);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscThreadLocksFinalize"
+/*@
+   PetscThreadLocksFinalize - Destroy and free all locks
+
+   Logically Collective
+
+   Level: developer
+
+   Notes:
+   Calls implementation specific routine to destroy each lock.
+
+@*/
+PetscErrorCode PetscThreadLocksFinalize(void)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (!PetscLocks) PetscFunctionReturn(0);
+  ierr = (*PetscThreadLockDestroy)(PetscLocks->trmalloc_lock);CHKERRQ(ierr);
+  ierr = (*PetscThreadLockDestroy)(PetscLocks->vec_lock);CHKERRQ(ierr);
+  ierr = PetscFree(PetscLocks);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
