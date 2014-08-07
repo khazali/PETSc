@@ -7,7 +7,6 @@
 
 #include <petsc-private/petscimpl.h>        /*I  "petscsys.h"   I*/
 #include <petscviewer.h>
-#include <petscthreadcomm.h>
 
 #define ManSection(str) ((str) ? (str) : "None")
 
@@ -19,22 +18,6 @@
 */
 PetscOptionsObjectType PetscOptionsObject;
 PetscInt               PetscOptionsPublishCount = 0;
-/*#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_PTHREAD_LOCAL PetscOptionsObjectType PetscOptionsObject;
-PETSC_PTHREAD_LOCAL PetscInt               PetscOptionsPublishCount = 0;
-#else
-PetscThreadKey PetscOptionsObject;
-PetscThreadKey PetscOptionsPublishCount = 0;
-#endif
-#elif defined(PETSC_HAVE_OPENMP)
-PetscOptionsObjectType PetscOptionsObject;
-PetscInt               PetscOptionsPublishCount = 0;
-#pragma omp threadprivate(PetscOptionsObject,PetscOptionsPublishCount)
-#else
-PetscOptionsObjectType PetscOptionsObject;
-PetscInt               PetscOptionsPublishCount = 0;
- #endif*/
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscOptionsBegin_Private"

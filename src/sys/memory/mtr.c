@@ -48,6 +48,7 @@ typedef union {
   char    v[HEADER_BYTES];
 } TrSPACE;
 
+/* Thread specific struct containing memory data */
 typedef struct {
   size_t    TRallocated;
   int       TRfrags;
@@ -63,6 +64,7 @@ typedef struct {
   const char **PetscLogMallocFile,**PetscLogMallocFunction;
 } PetscTRMallocStruct;
 
+/* Global, thread local memory variable */
 #if defined(PETSC_HAVE_PTHREADCLASSES)
 #if defined(PETSC_PTHREAD_LOCAL)
 static PETSC_PTHREAD_LOCAL PetscTRMallocStruct trmalloc;
@@ -762,6 +764,19 @@ PetscErrorCode  PetscMallocGetDebug(PetscBool *flg)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscTrMallocMergeData"
+/*@
+   PetscTrMallocMergeData - Merge data from a thread into the global data structures
+
+   Not Collective
+
+   Level: developer
+
+   Notes:
+   User must acquire trmalloc lock prior to modifying global trmalloc variables.
+   This method is currently designed to be called when a worker thread is destroyed
+   or when the main thread reaches PetscFinalize.
+
+@*/
 PetscErrorCode PetscTrMallocMergeData(void)
 {
   PetscErrorCode ierr;
@@ -776,6 +791,18 @@ PetscErrorCode PetscTrMallocMergeData(void)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscTrMallocDestroy"
+/*@
+   PetscTrMallocDestroy - Merge data and destroy thread specific structs
+
+   Not Collective
+
+   Level: developer
+
+   Notes:
+   Merge thread specific data into global data structs and then destroy
+   thread specific data.
+
+@*/
 PetscErrorCode PetscTrMallocDestroy(void)
 {
   PetscErrorCode ierr;
@@ -788,18 +815,29 @@ PetscErrorCode PetscTrMallocDestroy(void)
 
 #if defined(PETSC_HAVE_PTHREADCLASSES)
 #if defined(PETSC_PTHREAD_LOCAL)
-extern PETSC_PTHREAD_LOCAL PetscBool      petscsetmallocvisited;
+extern PETSC_PTHREAD_LOCAL PetscBool petscsetmallocvisited;
 #else
-extern PetscThreadKey      petscsetmallocvisited;
+extern PetscThreadKey petscsetmallocvisited;
 #endif
 #else
-extern PetscBool      petscsetmallocvisited;
+extern PetscBool petscsetmallocvisited;
 #endif
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscTrMallocInitialize"
 /*
-   Initialize TrMalloc code. Master thread calls this routine in PetscInitialize.
+   PetscTrMallocInitialize - Initialize thread specific TrMalloc structs
+
+   Not Collective
+
+   Level: developer
+
+   Notes:
+   Master thread calls this routine in PetscInitialize, worker threads
+   call this routine in PetscThreadInitialize. Gets command line input
+   from user related to malloc and sets up thread specific data structs
+   so that each thread can track its own memory usage.
+
 */
 PetscErrorCode PetscTrMallocInitialize()
 {
@@ -808,9 +846,7 @@ PetscErrorCode PetscTrMallocInitialize()
   PetscReal      logthreshold;
 
   PetscFunctionBegin;
-  /*
-      Setup the memory management; support for tracing malloc() usage
-  */
+  /* Setup the memory management; support for tracing malloc() usage */
   ierr = PetscOptionsHasName(NULL,"-malloc_log",&flg3);CHKERRQ(ierr);
   logthreshold = 0.0;
   ierr = PetscOptionsGetReal(NULL,"-malloc_log_threshold",&logthreshold,&flg1);CHKERRQ(ierr);
@@ -859,16 +895,24 @@ PetscErrorCode PetscTrMallocInitialize()
   PetscFunctionReturn(0);
 }
 
-
 extern PetscErrorCode PetscSequentialPhaseBegin_Private(MPI_Comm,int);
 extern PetscErrorCode PetscSequentialPhaseEnd_Private(MPI_Comm,int);
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscTrMallocFinalize"
 /*
-   Finalize TrMalloc code.
+   PetscTrMallocFinalize - Execute end of run routines for memory tracking code
+
+   Not Collective on Worker, Collective on Master
+
+   Level: developer
+
+   Notes:
    Only master thread uses sequential phasing. Master thread calls this
-   routine in PetscFinalize.
+   routine in PetscFinalize. Worker threads call this in PetscThreadFinalize.
+   Since worker threads may call this at different times, we do not
+   use sequential phasing.
+
 */
 PetscErrorCode PetscTrMallocFinalize()
 {

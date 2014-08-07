@@ -52,18 +52,6 @@ typedef struct {
 static PetscOptionsTable      *options = 0;
 
 PETSC_EXTERN PetscOptionsObjectType PetscOptionsObject;
-/*#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscOptionsObjectType PetscOptionsObject;
-#else
-PETSC_EXTERN PetscThreadKey PetscOptionsObject;
-#endif
-#elif defined(PETSC_HAVE_OPENMP)
-PETSC_EXTERN PetscOptionsObjectType PetscOptionsObject;
-#pragma omp threadprivate(PetscOptionsObject)
-#else
-PETSC_EXTERN PetscOptionsObjectType PetscOptionsObject;
- #endif*/
 
 /*
     Options events monitor

@@ -319,18 +319,6 @@ PetscErrorCode  PetscSplitReductionDestroy(PetscSplitReduction *sr)
 }
 
 static PetscMPIInt Petsc_Reduction_keyval = MPI_KEYVAL_INVALID;
-/*#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-static PETSC_PTHREAD_LOCAL PetscMPIInt Petsc_Reduction_keyval = MPI_KEYVAL_INVALID;
-#else
-static PetscThreadKey Petsc_Reduction_keyval = MPI_KEYVAL_INVALID;
-#endif
-#elif defined(PETSC_HAVE_OPENMP)
-static PetscMPIInt Petsc_Reduction_keyval = MPI_KEYVAL_INVALID;
-#pragma omp threadprivate(Petsc_Reduction_keyval)
-#else
-static PetscMPIInt Petsc_Reduction_keyval = MPI_KEYVAL_INVALID;
- #endif*/
 
 #undef __FUNCT__
 #define __FUNCT__ "Petsc_DelReduction"

@@ -46,7 +46,7 @@ PETSC_EXTERN PetscErrorCode PetscSetUseTrMalloc_Private(void);
 
    Not Collective
 
-   Level: developer
+   Level: Advanced
 
    Notes:
    Initialize thread specific global variables and data structures.
@@ -81,7 +81,7 @@ PetscErrorCode PetscThreadInitialize(void)
 
    Not Collective
 
-   Level: developer
+   Level: Advanced
 
    Notes:
    Finalize thread specific global variables and data structures. If needed

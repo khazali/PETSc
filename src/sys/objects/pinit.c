@@ -972,18 +972,6 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
 #if defined(PETSC_USE_LOG)
 PETSC_EXTERN PetscObject *PetscObjects;
 PETSC_EXTERN PetscInt    PetscObjectsCounts, PetscObjectsMaxCounts;
-/*#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscObject *PetscObjects;
-PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscInt    PetscObjectsCounts, PetscObjectsMaxCounts;
-#else
-PETSC_EXTERN PetscThreadKey *PetscObjects;
-PETSC_EXTERN PetscThreadKey PetscObjectsCounts, PetscObjectsMaxCounts;
-#endif
-#else
-PETSC_EXTERN PetscObject *PetscObjects;
-PETSC_EXTERN PetscInt    PetscObjectsCounts, PetscObjectsMaxCounts;
- #endif*/
 #endif
 
 #undef __FUNCT__

@@ -39,24 +39,24 @@ int       petsc_numObjects = 0, petsc_maxObjects = 100;
 int       petsc_numObjectsDestroyed = 0;
 
 /* Global counters */
-PetscLogDouble petsc_BaseTime = 0.0;
-PetscLogDouble petsc_TotalFlops = 0.0;      /* The number of flops */
-PetscLogDouble petsc_tmp_flops = 0.0;       /* The incremental number of flops */
-PetscLogDouble petsc_send_ct = 0.0;         /* The number of sends */
-PetscLogDouble petsc_recv_ct = 0.0;         /* The number of receives */
-PetscLogDouble petsc_send_len = 0.0;        /* The total length of all sent messages */
-PetscLogDouble petsc_recv_len = 0.0;        /* The total length of all received messages */
-PetscLogDouble petsc_isend_ct = 0.0;        /* The number of immediate sends */
-PetscLogDouble petsc_irecv_ct = 0.0;        /* The number of immediate receives */
-PetscLogDouble petsc_isend_len = 0.0;       /* The total length of all immediate send messages */
-PetscLogDouble petsc_irecv_len = 0.0;       /* The total length of all immediate receive messages */
-PetscLogDouble petsc_wait_ct = 0.0;         /* The number of waits */
-PetscLogDouble petsc_wait_any_ct = 0.0;     /* The number of anywaits */
-PetscLogDouble petsc_wait_all_ct = 0.0;     /* The number of waitalls */
+PetscLogDouble petsc_BaseTime        = 0.0;
+PetscLogDouble petsc_TotalFlops      = 0.0; /* The number of flops */
+PetscLogDouble petsc_tmp_flops       = 0.0; /* The incremental number of flops */
+PetscLogDouble petsc_send_ct         = 0.0; /* The number of sends */
+PetscLogDouble petsc_recv_ct         = 0.0; /* The number of receives */
+PetscLogDouble petsc_send_len        = 0.0; /* The total length of all sent messages */
+PetscLogDouble petsc_recv_len        = 0.0; /* The total length of all received messages */
+PetscLogDouble petsc_isend_ct        = 0.0; /* The number of immediate sends */
+PetscLogDouble petsc_irecv_ct        = 0.0; /* The number of immediate receives */
+PetscLogDouble petsc_isend_len       = 0.0; /* The total length of all immediate send messages */
+PetscLogDouble petsc_irecv_len       = 0.0; /* The total length of all immediate receive messages */
+PetscLogDouble petsc_wait_ct         = 0.0; /* The number of waits */
+PetscLogDouble petsc_wait_any_ct     = 0.0; /* The number of anywaits */
+PetscLogDouble petsc_wait_all_ct     = 0.0; /* The number of waitalls */
 PetscLogDouble petsc_sum_of_waits_ct = 0.0; /* The total number of waits */
-PetscLogDouble petsc_allreduce_ct = 0.0;    /* The number of reductions */
-PetscLogDouble petsc_gather_ct = 0.0;       /* The number of gathers and gathervs */
-PetscLogDouble petsc_scatter_ct = 0.0;      /* The number of scatters and scattervs */
+PetscLogDouble petsc_allreduce_ct    = 0.0; /* The number of reductions */
+PetscLogDouble petsc_gather_ct       = 0.0; /* The number of gathers and gathervs */
+PetscLogDouble petsc_scatter_ct      = 0.0; /* The number of scatters and scattervs */
 
 /* Tracing event logging variables */
 FILE             *petsc_tracefile = NULL;
@@ -72,18 +72,6 @@ PetscErrorCode (*PetscLogPLB)(PetscLogEvent, int, PetscObject, PetscObject, Pets
 PetscErrorCode (*PetscLogPLE)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject) = NULL;
 
 static PetscBool PetscLogBegin_PrivateCalled = PETSC_FALSE;
-/*#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-static PETSC_PTHREAD_LOCAL PetscBool PetscLogBegin_PrivateCalled = PETSC_FALSE;
-#else
-static PetscThreadKey PetscLogBegin_PrivateCalled = PETSC_FALSE;
-#endif
-#elif defined(PETSC_HAVE_OPENMP)
-static PetscBool PetscLogBegin_PrivateCalled = PETSC_FALSE;
-#pragma omp threadprivate(PetscLogData,PetscLogBegin_PrivateCalled)
-#else
-static PetscBool PetscLogBegin_PrivateCalled = PETSC_FALSE;
- #endif*/
 
 #if defined(PETSC_USE_LOG)
 #include <petscmachineinfo.h>

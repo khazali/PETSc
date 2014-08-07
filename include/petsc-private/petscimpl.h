@@ -36,6 +36,7 @@
 
 typedef struct {
    PetscErrorCode (*getcomm)(PetscObject,MPI_Comm *);
+   PetscErrorCode (*getcommself)(PetscObject,MPI_Comm *);
    PetscErrorCode (*view)(PetscObject,PetscViewer);
    PetscErrorCode (*destroy)(PetscObject*);
    PetscErrorCode (*compose)(PetscObject,const char[],PetscObject);
@@ -410,18 +411,6 @@ PETSC_EXTERN PetscErrorCode PetscObjectComposedDataIncreaseScalar(PetscObject);
 PETSC_EXTERN PetscErrorCode PetscObjectComposedDataIncreaseScalarstar(PetscObject);
 
 PETSC_EXTERN PetscInt         PetscObjectComposedDataMax;
-/*#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscInt PetscObjectComposedDataMax;
-#else
-PETSC_EXTERN PetscThreadKey PetscObjectComposedDataMax;
-#endif
-#elif defined(PETSC_HAVE_OPENMP)
-PETSC_EXTERN PetscInt PetscObjectComposedDataMax;
-#pragma omp threadprivate(PetscObjectComposedDataMax)
-#else
-PETSC_EXTERN PetscInt PetscObjectComposedDataMax;
- #endif*/
 
 /*MC
    PetscObjectComposedDataSetInt - attach integer data to a PetscObject

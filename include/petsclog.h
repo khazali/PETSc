@@ -176,15 +176,6 @@ PETSC_EXTERN PetscErrorCode PetscLogObjectParent(PetscObject,PetscObject);
 PETSC_EXTERN PetscErrorCode PetscLogObjectMemory(PetscObject,PetscLogDouble);
 
 PETSC_EXTERN PetscStageLog petsc_stageLog;
-/*#if defined(PETSC_HAVE_PTHREADCLASSES)
-#if defined(PETSC_PTHREAD_LOCAL)
-PETSC_EXTERN PETSC_PTHREAD_LOCAL PetscStageLog petsc_stageLog;
-#else
-PETSC_EXTERN PetscThreadKey petsc_stageLog;
-#endif
-#else
-PETSC_EXTERN PetscStageLog petsc_stageLog;
- #endif*/
 
 #if defined(PETSC_USE_LOG)  /* --- Logging is turned on --------------------------------*/
 
@@ -224,10 +215,10 @@ PETSC_EXTERN PetscErrorCode PetscLogMPEBegin(void);
 PETSC_EXTERN PetscErrorCode PetscLogMPEDump(const char[]);
 #endif
 
+PETSC_EXTERN PetscErrorCode (*PetscLogPLB)(PetscLogEvent,int,PetscObject,PetscObject,PetscObject,PetscObject);
+PETSC_EXTERN PetscErrorCode (*PetscLogPLE)(PetscLogEvent,int,PetscObject,PetscObject,PetscObject,PetscObject);
 PETSC_EXTERN PetscErrorCode (*PetscLogPHC)(PetscObject);
 PETSC_EXTERN PetscErrorCode (*PetscLogPHD)(PetscObject);
-PETSC_EXTERN PetscErrorCode (*PetscLogPLB)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject);
-PETSC_EXTERN PetscErrorCode (*PetscLogPLE)(PetscLogEvent, int, PetscObject, PetscObject, PetscObject, PetscObject);
 
 #define PetscLogObjectParents(p,n,d)  0;{int _i; for (_i=0; _i<n; _i++) {ierr = PetscLogObjectParent((PetscObject)p,(PetscObject)(d)[_i]);CHKERRQ(ierr);}}
 #define PetscLogObjectCreate(h)      ((PetscLogPHC) ? (*PetscLogPHC)((PetscObject)h) : 0)

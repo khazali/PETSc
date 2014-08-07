@@ -7,7 +7,7 @@
 #undef __FUNCT__
 #define __FUNCT__ "PetscObjectComm"
 /*@C
-   PetscObjectComm - Gets the MPI communicator for any PetscObject   regardless of the type.
+   PetscObjectComm - Gets the MPI communicator for any PetscObject regardless of the type.
 
    Not Collective
 
@@ -22,7 +22,7 @@
    Level: advanced
 
    Notes: Never use this in the form
-$       comm = PetscObjectComm((PetscObject)obj); 
+$       comm = PetscObjectComm((PetscObject)obj);
         instead use PetscObjectGetComm()
 
    Concepts: communicator^getting from object
@@ -38,6 +38,30 @@ MPI_Comm  PetscObjectComm(PetscObject obj)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscObjectCommSelf"
+/*@C
+   PetscObjectCommSelf - Gets the MPI self communicator for any PetscObject regardless of the type.
+
+   Not Collective
+
+   Input Parameter:
+.  obj - any PETSc object, for example a Vec, Mat or KSP. Thus must be
+         cast with a (PetscObject), for example,
+         SETERRQ(PetscObjectComm((PetscObject)mat,...);
+
+   Output Parameter:
+.  comm - the MPI communicator or MPI_COMM_NULL if object is not valid
+
+   Level: advanced
+
+   Notes: Never use this in the form
+$       comm = PetscObjectCommSelf((PetscObject)obj);
+        instead use PetscObjectGetCommSelf()
+
+   Concepts: communicator^getting from object
+   Concepts: MPI communicator^getting from object
+
+.seealso: PetscObjectGetCommSelf()
+@*/
 MPI_Comm  PetscObjectCommSelf(PetscObject obj)
 {
   if (!obj) return MPI_COMM_NULL;
@@ -77,6 +101,42 @@ PetscErrorCode  PetscObjectGetComm(PetscObject obj,MPI_Comm *comm)
   if (obj->bops->getcomm) {
     ierr = obj->bops->getcomm(obj,comm);CHKERRQ(ierr);
   } else *comm = obj->comm;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscObjectGetCommSelf"
+/*@C
+   PetscObjectGetCommSelf - Gets the MPI self communicator for any PetscObject,
+   regardless of the type.
+
+   Not Collective
+
+   Input Parameter:
+.  obj - any PETSc object, for example a Vec, Mat or KSP. Thus must be
+         cast with a (PetscObject), for example,
+         PetscObjectGetCommSelf((PetscObject)mat,&comm);
+
+   Output Parameter:
+.  commself - the MPI self communicator
+
+   Level: advanced
+
+   Concepts: communicator^getting from object
+   Concepts: MPI communicator^getting from object
+
+.seealso: PetscObjectCommSelf()
+@*/
+PetscErrorCode  PetscObjectGetCommSelf(PetscObject obj,MPI_Comm *commself)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeader(obj,1);
+  PetscValidPointer(commself,2);
+  if (obj->bops->getcommself) {
+    ierr = obj->bops->getcommself(obj,commself);CHKERRQ(ierr);
+  } else *commself = obj->commself;
   PetscFunctionReturn(0);
 }
 

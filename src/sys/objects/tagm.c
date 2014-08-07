@@ -188,12 +188,36 @@ PetscErrorCode  PetscCommDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,PetscMPII
   }
 
   if (first_tag) *first_tag = counter->tag--;
-
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscCommForceDuplicate"
+/*@C
+  PetscCommForceDuplicate - Duplicates the communicator even if it is already a PETSc comm.
+
+  Collective on MPI_Comm
+
+  Input Parameters:
+. comm_in - Input communicator
+
+  Output Parameters:
++ comm_out - Output communicator.
+- first_tag - Tag available that has not already been used with this communicator (you may
+              pass in NULL if you do not need a tag)
+
+  PETSc communicators are just regular MPI communicators that keep track of which
+  tags have been used to prevent tag conflict. If you pass a non-PETSc communicator into
+  a PETSc creation routine it will attach a private communicator for use in the objects communications.
+  The internal MPI_Comm is used to perform all the MPI calls for PETSc, the outer MPI_Comm is a user
+  level MPI_Comm that may be performing communication for the user or other library and so IS NOT used by PETSc.
+
+  Level: developer
+
+  Concepts: communicator^duplicate
+
+.seealso: PetscObjectGetNewTag(), PetscCommGetNewTag(), PetscCommDestroy()
+@*/
 PetscErrorCode  PetscCommForceDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,PetscMPIInt *first_tag)
 {
   PetscErrorCode   ierr;
@@ -237,7 +261,6 @@ PetscErrorCode  PetscCommForceDuplicate(MPI_Comm comm_in,MPI_Comm *comm_out,Pets
 
   /* Return next available tag */
   if (first_tag) *first_tag = counter->tag--;
-
   PetscFunctionReturn(0);
 }
 

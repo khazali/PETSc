@@ -2659,7 +2659,7 @@ PETSC_EXTERN PetscErrorCode PetscTextBelt(MPI_Comm,const char[],const char[],Pet
 PETSC_EXTERN PetscErrorCode PetscPullJSONValue(const char[],const char[],char[],size_t,PetscBool*);
 PETSC_EXTERN PetscErrorCode PetscPushJSONValue(char[],const char[],const char[],size_t);
 
-/* Lock variables - lock type is implementation specific */
+/* Global lock variables - lock type is implementation specific */
 typedef struct _p_PetscThreadLocks *PetscThreadLocks;
 struct _p_PetscThreadLocks{
   void *trmalloc_lock;

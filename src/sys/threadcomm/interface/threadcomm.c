@@ -74,7 +74,7 @@ PetscErrorCode PetscThreadCommGetComm(MPI_Comm comm,PetscThreadComm *tcomm)
 +  tcomm - Thread communicator attached to the MPI_Comm
 -  set   - True if threadcomm exists, false if not
 
-   Level: developer
+   Level: Intermediate
 
    Notes:
    Tries to get the threadcomm from the MPI comm. If successful returns the
@@ -247,7 +247,7 @@ PetscErrorCode  PetscThreadCommStackDestroy()
    Input Parameters:
 .  tcomm - the PetscThreadComm object
 
-   Level: developer
+   Level: Beginner
 
    Notes:
    Reduces the reference count for this threadcomm. Once there are no
@@ -293,7 +293,7 @@ PetscErrorCode PetscThreadCommDestroy(PetscThreadComm *tcomm)
 +  comm - MPI communicator
 -  viewer - viewer to display, for example PETSC_VIEWER_STDOUT_WORLD
 
-   Level: developer
+   Level: Beginner
 
 .seealso: PetscThreadCommCreate()
 @*/
@@ -336,7 +336,7 @@ PetscErrorCode PetscThreadCommView(MPI_Comm comm,PetscViewer viewer)
    Output Parameters:
 .  nthreads - number of threads
 
-   Level: developer
+   Level: Beginner
 
    Notes:
    Returns -1 if threadcomm has not been created yet.
@@ -369,7 +369,7 @@ PetscErrorCode PetscThreadCommGetNThreads(MPI_Comm comm,PetscInt *nthreads)
     Output Parameters:
 .   affinities - thread affinities
 
-    Level: developer
+    Level: Advanced
 
     Notes:
     The user must allocate space (nthreads PetscInts) for the
@@ -402,7 +402,7 @@ PetscErrorCode PetscThreadCommGetAffinities(MPI_Comm comm,PetscInt affinities[])
    Input Parameters:
 .  comm - MPI Communicator with attached threadcomm
 
-   Level: developer
+   Level: Advanced
 
    Notes:
    Extracts threadcomm from the MPI_Comm and calls job barrier
@@ -432,7 +432,7 @@ PetscErrorCode PetscThreadCommBarrier(MPI_Comm comm)
     Input Parameters:
 .   comm - the MPI communicator
 
-    Level: developer
+    Level: Advanced
 
     Notes:
     Extracts threadcomm from the MPI_Comm and calls a barrier to
@@ -756,7 +756,7 @@ static PetscErrorCode PetscThreadCommRunKernel0_Private(PetscThreadComm tcomm,Pe
 +  comm  - the MPI communicator
 -  func  - the kernel (needs to be cast to PetscThreadKernel)
 
-   Level: developer
+   Level: Advanced
 
    Notes:
    All input arguments to the kernel must be passed by reference, Petsc objects are
@@ -795,7 +795,7 @@ PetscErrorCode PetscThreadCommRunKernel0(MPI_Comm comm,PetscErrorCode (*func)(Pe
 .  func  - the kernel (needs to be cast to PetscThreadKernel)
 -  in1   - input argument for the kernel
 
-   Level: developer
+   Level: Advanced
 
    Notes:
    All input arguments to the kernel must be passed by reference, Petsc objects are
@@ -873,7 +873,7 @@ PetscErrorCode PetscThreadCommRunKernel1(MPI_Comm comm,PetscErrorCode (*func)(Pe
 .  in1   - 1st input argument for the kernel
 -  in2   - 2nd input argument for the kernel
 
-   Level: developer
+   Level: Advanced
 
    Notes:
    All input arguments to the kernel must be passed by reference, Petsc objects are
@@ -952,7 +952,7 @@ PetscErrorCode PetscThreadCommRunKernel2(MPI_Comm comm,PetscErrorCode (*func)(Pe
 .  in2   - second input argument for the kernel
 -  in3   - third input argument for the kernel
 
-   Level: developer
+   Level: Advanced
 
    Notes:
    All input arguments to the kernel must be passed by reference, Petsc objects are
@@ -1033,7 +1033,7 @@ PetscErrorCode PetscThreadCommRunKernel3(MPI_Comm comm,PetscErrorCode (*func)(Pe
 .  in3   - third input argument for the kernel
 -  in4   - fourth input argument for the kernel
 
-   Level: developer
+   Level: Advanced
 
    Notes:
    All input arguments to the kernel must be passed by reference, Petsc objects are
@@ -1117,7 +1117,7 @@ PetscErrorCode PetscThreadCommRunKernel4(MPI_Comm comm,PetscErrorCode (*func)(Pe
 .  in5   - fifth input argument for the kernel
 -  in6   - sixth input argument for the kernel
 
-   Level: developer
+   Level: Advanced
 
    Notes:
    All input arguments to the kernel must be passed by reference, Petsc objects are
@@ -1264,7 +1264,7 @@ PetscErrorCode PetscThreadCommAttach(MPI_Comm comm,PetscThreadComm tcomm)
    Output Parameters:
 .  mpicomm    - New MPI_Comm with attached threadcomm
 
-   Level: developer
+   Level: Beginner
 
    Notes:
    Allocates and initializes a threadcomm. Duplicates the input MPI comm and attaches the
@@ -1313,7 +1313,7 @@ PetscErrorCode PetscThreadCommCreate(MPI_Comm comm,PetscInt nthreads,PetscInt *a
    Output Parameters:
 .  mpicomm  - New MPI_Comm with attached threadcomm
 
-   Level: developer
+   Level: Intermediate
 
    Notes:
    Allocates and initializes a threadcomm. Duplicates the input MPI comm and attaches the
@@ -1376,7 +1376,7 @@ PetscErrorCode PetscThreadCommCreateShare(MPI_Comm comm,PetscInt nthreads,PetscI
 .  nthreads   - Number of threads for communicator or PETSC_DECIDE
 -  affinities - Array of core affinities for each thread or PETSC_NULL
 
-   Level: developer
+   Level: Intermediate
 
    Notes:
    Allocates and initializes a threadcomm. Attaches the created threadcomm to the input
@@ -1425,7 +1425,10 @@ PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt nthreads,Petsc
    Output Parameters:
 .  multcomms   - Array of MPI comms each with a different threadcomm
 
-   Level: developer
+   Level: Advanced
+
+   Options Database Keys:
+   -threadcomm_nthreads <nthreads>
 
    Notes:
    Allocates and initializes multiple threadcomms. Duplicates the input MPI comm and attaches
@@ -1514,7 +1517,7 @@ PetscErrorCode PetscThreadCommCreateMultiple(MPI_Comm comm,PetscInt ncomms,Petsc
    Output Parameters:
 .  multcomms   - Array of MPI comms each with a different threadcomm
 
-   Level: developer
+   Level: Advanced
 
    Notes:
    Allocates and initializes multiple threadcomms. Duplicates the input MPI comm and attaches
@@ -1593,6 +1596,9 @@ PetscErrorCode PetscThreadCommSplit(MPI_Comm comm,PetscInt ncomms,PetscInt *inco
 -  tcomm    - Threadcomm to initialize
 
    Level: developer
+
+   Options Database Keys:
+   -threadcomm_syncafter <true/false>
 
    Notes:
    Allocates the threadcomm based on the settings from the threadpool. The threadcomm
@@ -1678,7 +1684,7 @@ PetscErrorCode PetscThreadCommInitialize(PetscInt nthreads,PetscInt *pranks,Pets
    Output Parameters:
 .  trstarts - The starting array indices for each thread. The size of trstarts is nthreads+1
 
-   Level: developer
+   Level: Beginner
 
    Notes:
    This routine mallocs trstarts.
@@ -1719,7 +1725,7 @@ PetscErrorCode PetscThreadCommGetOwnershipRanges(MPI_Comm comm,PetscInt N,PetscI
    Output Parameters:
 .  trank - The rank of the calling thread
 
-   Level: developer
+   Level: Beginner
 
    Notes:
    Calls implementation specific routine to get the rank of the calling thread.
@@ -1810,7 +1816,7 @@ PetscErrorCode PetscThreadCommInitModel_User()
 +  pool - Threadpool with settings
 -  thread - Thread to set affinity for
 
-   Level: developer
+   Level: Advanced
 
    Notes:
    Moves thread given to Petsc by the user to the core specified by the affinity
@@ -1848,7 +1854,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommSetThreadAffinity(PetscThreadPool poo
    Output Parameters:
 .  commrank - Rank of thread that returns from this function (0 for master thread, -1 for worker thread). User can pass in nonnegative commrank for master thread.
 
-   Level: developer
+   Level: Advanced
 
    Notes:
    This routine allows threads to enter a threadpool for petsc to use to do work. A master
@@ -1933,7 +1939,7 @@ PetscErrorCode PetscThreadCommJoinComm(MPI_Comm comm,PetscInt trank,PetscInt *co
    Output Parameters:
 .  commrank - Rank of thread that returns from this function
 
-   Level: developer
+   Level: Advanced
 
    Notes:
    This routine allows threads to enter a threadpool for petsc to use to do work. A master
@@ -2029,7 +2035,7 @@ PetscErrorCode PetscThreadCommJoinMultComms(MPI_Comm *comm,PetscInt ncomms,Petsc
    Output Parameters:
 .  commrank - Rank of thread that returns from this function
 
-   Level: developer
+   Level: Advanced
 
    Notes:
    Allows user to take back threads it gave to PETSc. Must first wait for all threads in the
@@ -2089,7 +2095,7 @@ PetscErrorCode PetscThreadCommReturnComm(MPI_Comm comm,PetscInt trank,PetscInt *
    Output Parameters:
 .  commrank - Rank of thread that returns from this function
 
-   Level: developer
+   Level: Advanced
 
    Notes:
    Allows user to take back threads it gave to PETSc. Must first wait for all threads in the

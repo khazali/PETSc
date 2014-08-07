@@ -12,6 +12,7 @@ PetscInt    PetscObjectsCounts = 0, PetscObjectsMaxCounts = 0;
 #endif
 
 extern PetscErrorCode PetscObjectGetComm_Petsc(PetscObject,MPI_Comm*);
+extern PetscErrorCode PetscObjectGetCommSelf_Petsc(PetscObject,MPI_Comm*);
 extern PetscErrorCode PetscObjectCompose_Petsc(PetscObject,const char[],PetscObject);
 extern PetscErrorCode PetscObjectQuery_Petsc(PetscObject,const char[],PetscObject*);
 extern PetscErrorCode PetscObjectComposeFunction_Petsc(PetscObject,const char[],void (*)(void));
@@ -54,17 +55,21 @@ PetscErrorCode  PetscHeaderCreate_Private(PetscObject h,PetscClassId classid,con
   h->bops->destroy         = des;
   h->bops->view            = vie;
   h->bops->getcomm         = PetscObjectGetComm_Petsc;
+  h->bops->getcommself     = PetscObjectGetCommSelf_Petsc;
   h->bops->compose         = PetscObjectCompose_Petsc;
   h->bops->query           = PetscObjectQuery_Petsc;
   h->bops->composefunction = PetscObjectComposeFunction_Petsc;
   h->bops->queryfunction   = PetscObjectQueryFunction_Petsc;
 
   ierr = PetscCommDuplicate(comm,&h->comm,&h->tag);CHKERRQ(ierr);
+  /* Force duplicate the commself since PETSC_COMM_SELF is the same for
+     each thread on a MPI rank */
   ierr = PetscCommForceDuplicate(PETSC_COMM_SELF,&h->commself,&h->tag);CHKERRQ(ierr);
+  /* Attach threadcomm to newly duplicated commself */
   ierr = PetscThreadCommCheckGetComm(h->comm,&tcomm,&exists);CHKERRQ(ierr);
   if(exists) {
     PetscThreadCommAttach(h->commself,tcomm);CHKERRQ(ierr);
-   }
+  }
 
 #if defined(PETSC_USE_LOG)
   /* Keep a record of object created */
@@ -124,7 +129,6 @@ PetscErrorCode  PetscHeaderDestroy_Private(PetscObject h)
   ierr = PetscObjectDestroyOptionsHandlers(h);CHKERRQ(ierr);
   ierr = PetscObjectListDestroy(&h->olist);CHKERRQ(ierr);
   ierr = PetscCommDestroy(&h->commself);CHKERRQ(ierr);
-  //ierr = MPI_Comm_free(&h->commself);CHKERRQ(ierr);
   ierr = PetscCommDestroy(&h->comm);CHKERRQ(ierr);
   /* next destroy other things */
   h->classid = PETSCFREEDHEADER;
@@ -637,6 +641,16 @@ PetscErrorCode PetscObjectGetComm_Petsc(PetscObject obj,MPI_Comm *comm)
   PetscFunctionBegin;
   PetscValidHeader(obj,1);
   *comm = obj->comm;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscObjectGetCommSelf_Petsc"
+PetscErrorCode PetscObjectGetCommSelf_Petsc(PetscObject obj,MPI_Comm *commself)
+{
+  PetscFunctionBegin;
+  PetscValidHeader(obj,1);
+  *commself = obj->commself;
   PetscFunctionReturn(0);
 }
 
