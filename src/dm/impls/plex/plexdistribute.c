@@ -967,6 +967,8 @@ PetscErrorCode DMPlexRedistribute(DM dm, const char partitioner[], PetscInt over
   pmesh->useCone    = mesh->useCone;
   pmesh->useClosure = mesh->useClosure;
 
+  if (*sf) *sf = pointSF;
+
   /* Cleanup */
   ierr = DMSetFromOptions(*newdm);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(DMPLEX_Distribute,dm,0,0,0);CHKERRQ(ierr);
