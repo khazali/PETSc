@@ -193,13 +193,13 @@ struct _p_PetscThreadComm{
   PetscBool                ismainworker; /* Is the main thread also a work thread? */
 
   // Thread information
-  PetscThreadPool         pool;          /* Threadpool containing threads for this comm */
-  PetscInt                threadblock;   /* Number of threads in pool occupied by this comm (including threads
+  PetscThreadPool          pool;         /* Threadpool containing threads for this comm */
+  PetscInt                 threadblock;  /* Number of threads in pool occupied by this comm (including threads
                                             that are intentionally unused) */
-  PetscInt                shift;         /* Pool rank of smallest thread in threadcomm, used to shift pool ranks
+  PetscInt                 shift;        /* Pool rank of smallest thread in threadcomm, used to shift pool ranks
                                             for threads in threadcomm so that the smallest rank is 0 */
-  PetscInt                ncommthreads;  /* Number of threads in this comm */
-  PetscThread             *commthreads;  /* Threads that this comm can use */
+  PetscInt                 ncommthreads; /* Number of threads in this comm */
+  PetscThread              *commthreads; /* Threads that this comm can use */
 };
 
 #undef __FUNCT__

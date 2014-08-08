@@ -16,9 +16,9 @@ PetscErrorCode user_func(PetscInt trank,Vec y, MPI_Comm *comm) {
 
   PetscFunctionBegin;
   /* Get data for local work */
-  ierr = VecGetArray(y,&ay);CHKERRCONTINUE(ierr);
-  ierr = VecGetLocalSize(y,&lsize);CHKERRCONTINUE(ierr);
-  ierr = PetscThreadCommGetOwnershipRanges(*comm,lsize,&indices);CHKERRCONTINUE(ierr);
+  ierr = VecGetArray(y,&ay);CHKERRQ(ierr);
+  ierr = VecGetLocalSize(y,&lsize);CHKERRQ(ierr);
+  ierr = PetscThreadCommGetOwnershipRanges(*comm,lsize,&indices);CHKERRQ(ierr);
 
   /* Parallel threaded user code */
   start = indices[trank];
@@ -26,8 +26,8 @@ PetscErrorCode user_func(PetscInt trank,Vec y, MPI_Comm *comm) {
   for(i=start; i<end; i++) ay[i] = ay[i]*ay[i];
 
   /* Restore vector */
-  ierr = VecRestoreArray(y,&ay);CHKERRCONTINUE(ierr);
-  ierr = PetscFree(indices);CHKERRCONTINUE(ierr);
+  ierr = VecRestoreArray(y,&ay);CHKERRQ(ierr);
+  ierr = PetscFree(indices);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -64,7 +64,7 @@ int main(int argc,char **argv)
   ierr = PetscPrintf(comm2,"Comm1 has %d threads, created comm2 with %d threads\n",ntcthreads1,ntcthreads2);CHKERRQ(ierr);
 
   /* Set thread affinities for this threadcomm specifically */
-  PetscMalloc1(nthreads,&affinities);
+  ierr = PetscMalloc1(nthreads,&affinities);CHKERRQ(ierr);
   for(i=0; i<nthreads; i++) affinities[i] = nthreads + i;
   /* Attach threadcomm to PETSC_COMM_WORLD */
   ierr = PetscThreadCommCreateAttach(PETSC_COMM_WORLD,nthreads,affinities);CHKERRQ(ierr);
@@ -73,7 +73,7 @@ int main(int argc,char **argv)
 
   /* Run single comm test 1 */
   comm = comm1;
-  ierr = PetscPrintf(comm,"\nRunning test with first single comm\n");
+  ierr = PetscPrintf(comm,"\nRunning test with first single comm\n");CHKERRQ(ierr);
   /* Create two vectors on MPIComm/ThreadComm */
   ierr = VecCreate(comm,&x);CHKERRQ(ierr);
   ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRQ(ierr);
@@ -82,8 +82,8 @@ int main(int argc,char **argv)
 
   /* Run PETSc code */
   for(i=0; i<n; i++) {
-    VecSetValue(x,i,i*1.0,INSERT_VALUES);
-    VecSetValue(y,i,i*2.0,INSERT_VALUES);
+    ierr = VecSetValue(x,i,i*1.0,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecSetValue(y,i,i*2.0,INSERT_VALUES);CHKERRQ(ierr);
   }
   ierr = VecAXPY(y,alpha,x);CHKERRQ(ierr);
   ierr = VecNorm(y,NORM_2,&vnorm);CHKERRQ(ierr);
@@ -102,7 +102,7 @@ int main(int argc,char **argv)
 
   /* Run single comm test 2 */
   comm = comm2;
-  ierr = PetscPrintf(comm,"\nRunning test with second single comm\n");
+  ierr = PetscPrintf(comm,"\nRunning test with second single comm\n");CHKERRQ(ierr);
   /* Create two vectors on MPIComm/ThreadComm */
   ierr = VecCreate(comm,&x);CHKERRQ(ierr);
   ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRQ(ierr);
@@ -131,7 +131,7 @@ int main(int argc,char **argv)
   comm_a = comm2;
   comm_b = comm1;
 
-  ierr = PetscPrintf(comm_a,"\nTesting computations with vectors on different comms\n");
+  ierr = PetscPrintf(comm_a,"\nTesting computations with vectors on different comms\n");CHKERRQ(ierr);
   ierr = VecCreate(comm_a,&x);CHKERRQ(ierr);
   ierr = VecSetSizes(x,PETSC_DECIDE,n);CHKERRQ(ierr);
   ierr = VecSetFromOptions(x);CHKERRQ(ierr);

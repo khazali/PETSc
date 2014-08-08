@@ -1191,81 +1191,189 @@ dense format described above.
 \chapter{Threads}
 \label{sec:threads}
 
-PETSc can use a hybrid programming model with a number of different thread types and threading models. PETSc supports PThreads, OpenMP, and Intel Threaded Building Blocks thread types. More notes on all threadcomm routines are found in the function headers in the code directory in src/sys/threadcomm. Examples for each threading model can be found in src/sys/threadcomm/examples. Note that the threading code is a work in progress and parts of the code need more work to be made more reliable and effective.
+PETSc can use a hybrid programming model with a number of different thread types and
+threading models. PETSc supports PThread, OpenMP, and Intel Threaded Building Block
+thread types. More notes on all threadcomm routines are found in the function headers
+in the code directory in src/sys/threadcomm. Examples for each threading model can be
+found in src/sys/threadcomm/examples. Note that the threading code is a work in progress
+and parts of the code need more work to be made more reliable and effective.
 
 \section{Thread Concepts}
 
 \subsection{Thread Communicators}
 
-Threadcomms are used to allow users to interact with threads. Each threadcomm is attached to an MPI Comm, and an MPI Comm can have at most one threadcomm attached to it. A number of routines are provided to allow users to create threadcomms. These include routines to create a single threadcomm, to create threadcomms that share threads with another threadcomm, and to create multiple threadcomms at once.
+Threadcomms are used to allow users to interact with threads. Each threadcomm is
+attached to an MPI Comm, and an MPI Comm can have at most one threadcomm attached to it.
+A number of routines are provided to allow users to create threadcomms. These include
+routines to create a single threadcomm, to create threadcomms that share threads with
+another threadcomm, and to create multiple threadcomms at once.
 
-When a PETSc object is created, it will be associated with a MPI Comm and the threadcomm associated with that MPI Comm. By default after a threaded kernel is executed, PETSc will call a barrier on all threads in the threadpool. The user can pass in a command line option to turn this off, but will then be required to use synchronization as needed to ensure that the code works correctly.
+When a PETSc object is created, it will be associated with a MPI Comm and the threadcomm
+attached to that MPI Comm. By default after a threaded kernel is executed, PETSc will
+call a barrier on all threads in the threadpool. The user can pass in a command line
+option to turn this off, but will then be required to use synchronization as needed to
+ensure that the code works correctly.
 
 \subsection{Thread Pools}
 
-Threadpools are used to hold and manage a group of threads. When a threadcomm is created a threadpool is also created holding all threads in the threadcomm, and only this threadcomm will have access to these threads. If a threadcomm is created from a previously existing threadcomm, then this new threadcomm will share the same threadpool as the previously existing threadcomm.
+Threadpools are used to hold and manage a group of threads. When a threadcomm is
+created a threadpool is also created holding all threads in the threadcomm, and
+only this threadcomm will have access to these threads. If a threadcomm is created
+from a previously existing threadcomm, then this new threadcomm will share the same
+threadpool as the previously existing threadcomm.
 
 \subsection{Threads}
 
-When a threadpool is created, a thread is created for each thread in the threadpool. When using a threading model that allows PETSc to create the threads, the worker threads will enter a spin loop in the threadpool to wait for jobs, while the master threads will execute the users code.
+When a threadpool is created, a thread is created for each thread in the threadpool.
+When using a threading model that allows PETSc to create the threads, the worker
+threads will enter a spin loop in the threadpool to wait for jobs, while the master
+threads will execute the users code.
 
-When using a threading model that allows users to create the threads, then PETSc will create the structs and variables for all threadcomms, threadpools, and threads, but there will not be any threads in the threadpool. Instead, the user will create the threads and give them to a specific threadcomm. At that point, the worker threads will enter a spin loop in the threadpool to wait for work, while the master threads will execute the users code. The user can later take back control of these threads, although PETSc will maintain control of the threads until they have completed all of their jobs.
+When using a threading model that allows users to create the threads, then PETSc
+will create the structs and variables for all threadcomms, threadpools, and threads,
+but there will not be any threads in the threadpool. Instead, the user will create
+the threads and give them to a specific threadcomm. At that point, the worker threads
+will enter a spin loop in the threadpool to wait for work, while the master threads
+will execute the users code and give jobs to the worker threads. The user can later
+take back control of these threads, although PETSc will maintain control of the
+threads until they have completed all of their jobs.
 
-Each thread has its own job queue containing a list of jobs to complete. The max number of jobs in this list depends on the number of kernels setting. If a job is added to a job queue that is full of jobs that have not been completed, then the thread assigning the job will wait until a job has been completed and then add the new job to the job queue.
+Each thread has its own job queue containing a list of jobs to complete. The max
+number of jobs in this list depends on the number of kernels setting. If a job is
+added to a job queue that is full of jobs that have not been completed, then the
+thread assigning the job will wait until a job has been completed and then add the
+new job to the job queue.
 
 \subsection{Thread Safety}
 
-One of the key requirements for using multiple threads is that the code must have some mechanism to guarantee safe, consistent execution. PETSc contains many global variables and data structures used throughout the code that must be modified to be thread safe. The primary approach to thread safety so far is to make each global variable thread local. This can allow each thread to maintain information specific to that thread. Then when each thread is destroyed, merge the thread specific data with global data as needed using locks. This approach is currently used for the malloc code and the petscstack code.
+One of the key requirements for using multiple threads is that the code must have
+some mechanism to guarantee safe, consistent execution. PETSc contains many global
+variables and data structures used throughout the code that must be modified to be
+thread safe. The primary approach to thread safety so far is to make many global
+variables thread local. This can allow each thread to maintain information specific
+to that thread. Then when each thread is destroyed, merge the thread specific data
+with global data as needed using locks. This approach is currently used for the
+malloc code and the petscstack code.
 
-In some cases it is necessary to use locks to ensure that only a single thread accesses a data structure at a time. In this case a lock will have to be acquired at the beginning of a section of code and then released at the end of a section of code. Locks need to be used in a limited manner to avoid hurting performance. Currently this is used to merge data from thread specific structs for worker threads to global structs as well as to ensure that only a single thread initializes the vector package. However there may be a better approach to making the vector package initialization thread safe since this routine calls logging functions that are currently not thread safe.
+In some cases it is necessary to use locks to ensure that only a single thread
+accesses a data structure at a time. In this case a lock will have to be acquired
+at the beginning of a section of code and then released at the end of a section of
+code. Locks need to be used in a limited manner to avoid hurting performance.
+Currently locks are used to merge data from thread specific structs for worker
+threads to global structs as well as to ensure that only a single thread initializes
+the vector package. However there may be a better approach to making the vector
+package initialization thread safe since this routine calls logging functions that
+are currently not thread safe. Similar changes will likely be needed for initializing
+other packages.
 
 \section{Thread Models}
 
-There are currently three threading models implemented in PETSc that give users different levels of control of the threads.
+There are currently three threading models implemented in PETSc that give users
+different levels of control of the threads.
 
 \subsection{Loop}
 
-This is a simple threading model that allows PETSc to use shared memory parallelism within PETSc routines. Users must pass in command line arguments to set the thread type, thread model, and number of threads to use this model. PETSc will automatically create a single threadcomm and attach it to PETSC\_COMM\_WORLD. When a user calls a PETSc function, then if that function has a threaded implementation, then PETSc will call that kernel routine. The user will not have to write any threaded code.
-
-This threading model works with PThreads, OpenMP, and Intel Threaded Building Blocks.
+This is a simple threading model that allows PETSc to use shared memory parallelism
+within PETSc routines. Users must pass in command line arguments to set the thread
+type, thread model, and number of threads to use this model. PETSc will automatically
+create a single threadcomm and attach it to PETSC\_COMM\_WORLD. A single master thread
+will execute the users code while the remaining worker threads will wait in a spin
+loop in the threadpool for jobs to complete. When a user calls a PETSc function, then
+if that function has a threaded implementation, then PETSc will call that kernel
+routine. The user will not have to write any threaded code. This threading model works
+with PThreads, OpenMP, and Intel Threaded Building Blocks.
 
 \subsection{Auto}
 
-This threading model gives more control of the threads to the user. The user must create threadcomms, but when a threadcomm is created, PETSc will create the threads and add those threads to a threadpool. A single master thread will execute the users code and give work to each threadcomm and each thread. The threads will wait in the threadpool for work and complete jobs as the master thread assigns them. To get the best performance when using multiple threadcomms, it is best to turn off explicit synchronization. This will allow the master thread to avoid waiting in barriers and assign more jobs more quickly.
-
-This threading model only works with PThreads.
+This threading model gives more control of the threads to the user. The user must
+create threadcomms, but when a threadcomm is created, PETSc will create the threads
+and add those threads to a threadpool. A single master thread will execute the users
+code and give work to each threadcomm and each thread. The threads will wait in the
+threadpool for work and complete jobs as the master thread assigns them. To get the
+best performance when using multiple threadcomms, it is best to turn off explicit
+synchronization. This will allow the master thread to avoid waiting in barriers and
+assign more jobs more quickly. This threading model only works with PThreads.
 
 \subsection{User}
 
-This threading model allows users to create all threads and explicitly give them to PETSc or take control back from PETSc. A user can create threadcomms prior to creating threads to set up the threadcomm structs and variables, and then later give threads to the threadcomms. A CommJoin routine can be called to give control of threads to PETSc and a CommReturn routine can be called to take back control of the threads. When PETSc is given control of the threads, a single master thread for each threadcomm will return from CommJoin and execute the users code while the worker threads will wait in the threadpool for jobs to execute. When CommReturn is called to return control of the threads to the user, the master threads will set all worker threads in a threadcomm to exit the spin loop once all jobs have been completed and cause those threads to exit the CommJoin routine.
+This threading model allows users to create all threads and explicitly give them to
+PETSc or take control back from PETSc. A user can create threadcomms prior to creating
+threads to set up the threadcomm structs and variables, and then later give threads to
+the threadcomms. A join routine can be called to give control of threads to PETSc and a
+return routine can be called to take back control of the threads. When PETSc is given
+control of the threads, a single master thread for each threadcomm will return from the
+join routine and execute the users code while the worker threads will wait in the threadpool
+for jobs to execute. When the return routine is called to return control of the threads to
+the user, the master threads will set all worker threads in a threadcomm to exit the spin
+loop once all jobs have been completed and cause those threads to exit the join routine.
 
-The CommJoin routine will return a comm rank, which will be a nonnegative integer. All worker threads will return with a negative integer. An if statement must be placed immediately after CommJoin to ensure that worker threads do not call the previously executed routines twice. This if statement must end immediately before the CommReturn routine to allow the worker and master threads to reach the same point in the code.
+The join routine will return a comm rank, which will be a nonnegative integer for master
+threads. All worker threads will return with a negative integer. An if statement must be
+placed immediately after the join routine to ensure that worker threads do not call the
+previously executed routines twice. This if statement must end immediately before the return
+routine to allow the worker and master threads to reach the same point in the code.
 
-After creating the threads, the user must call PetscThreadInitialize() to initialize thread specific PETSc data structures. Before destroying threads, the user must call PetscThreadFinalize() to merge any thread specific data to a global data structure and then destroy any thread specific data structures.
-
-This threading model works with PThreads and OpenMP.
+After creating the threads, the user must call PetscThreadInitialize() to initialize thread
+specific PETSc data structures. Before destroying threads, the user must call PetscThreadFinalize()
+to merge any thread specific data to a global data structure and then destroy any thread specific
+data structures. This threading model works with PThreads and OpenMP.
 
 \section{Future Work}
 
-\subsection{Bugs}
+A number of changes are necessary to make the code more effective and reliable before this
+code becomes commonly used. There are also many changes that can be made to improve the
+functionality of this code. Below are some known issues and suggestions for future work.
 
-A number of changes are necessary to make the code more effective and reliable before this code becomes commonly used. There are also plenty of changes that can be made to improve the functionality of this code. Below are some known issues.
+\subsection{Known Issues}
 
-Currently PETSc is not fully threadsafe. Especially when using multiple threadcomms in parallel, the code will work sometimes, but other times the code will fail to run to completion due to a variety of issues. The logging code in particular needs to be modified to be threadsafe, although this may require some significant changes since this code is used throughout many other PETSc routines.
+Currently PETSc is not fully threadsafe. Especially when using multiple threadcomms in
+parallel, the code will work sometimes, but other times the code will fail to run to
+completion due to a variety of issues. The logging code in particular needs to be
+modified to be threadsafe, although this may require some significant changes since
+this code is used throughout many other PETSc routines.
 
-The ex9 threadcomm example with multiple threads and multiple comms in particular is error prone (run with 8+ threads and 8+ threadcomms), although it works at times and at other times fails for a variety of reasons. Known issues include having a selfcomm get a counter attached to it prior to calling the routine to attach a counter, which will often result in errors later in the run. Also in PetscMallocValidate(), an infinite loop can occur where the TRhead linked list ends up with a loop. Issues will occur at times where a variable will be freed multiple times during finalization code. The code will occasionally fail to run in other ways.
+The ex9 threadcomm example with multiple threads and multiple comms in particular is
+error prone (run with 8+ threads and 8+ threadcomms to cause errors to frequently occur),
+although it works at times and at other times fails for a variety of reasons. Known issues
+include having a selfcomm get a counter attached to it prior to calling the routine to
+attach a counter, which will often result in errors later in the run. Also in PetscMallocValidate(),
+an infinite loop can occur where the TRhead linked list ends up with a loop in the list. Issues
+will occur at times where a variable will be freed multiple times during finalization code.
+The code will occasionally fail to run in other ways.
 
-While some parts of the code have been modified to improve thread safety, these sections may need additional work to be fully threadsafe or to provide the same functionality as when not using threads.
+While some parts of the code have been modified to improve thread safety, these sections may
+need additional work to be fully threadsafe or to provide the same functionality as when not
+using threads.
 
 \subsection{Additional Functionality}
 
-Currently the code is tested by creating all threadcomms at the beginning of the simulation. Testing that the code works when threadcomms are created in the middle of a simulation and adding additional functionality would be beneficial. It may potentially be useful to allow users to increase the number of threads in a threadcomm/threadpool during a simulation.
+Currently the code is tested by creating all threadcomms at the beginning of the simulation.
+Testing that the code works when threadcomms are created in the middle of a simulation and
+adding additional functionality would be beneficial. It may potentially be useful to allow
+users to increase the number of threads in a threadcomm/threadpool during a simulation.
 
-Currently barriers are called by a master thread. Adding functionality that allows a barrier function to be added to thread job queue would allow a threadcomm containing only worker threads, such in the auto threading model, to call barriers after each routine without causing the master thread to wait.
+Currently barriers are called by a master thread. Adding functionality that allows a barrier
+function to be added to a thread job queue would allow a threadcomm containing only worker
+threads, such in the auto threading model, to call barriers after each routine without
+causing the master thread to wait.
 
-There may be potential to remove the requirement to set the threading model through the command line prior to the simulation and instead allow users to determine during the simulation how they want to use threads. It may be possible to remove the different thread models entirely and instead create new functions or modify current functions to allow users to create threads and use threads in a variety of ways during the simulation.
+There may be potential to remove the requirement to set the threading model through the
+command line prior to the simulation and instead allow users to determine during the
+simulation how they want to use threads. It may be possible to remove the different thread
+models entirely and instead create new functions or modify current functions to allow users
+to create threads and use threads in a variety of ways during the simulation.
 
-The Intel Threaded Building Blocks code has a fairly simple implementation at this point. It should be possible to add new functionality for this thread type including modifying it to work for the auto or user threading models.
+There are currently four different ways to use thread local global variables. These are
+determined at compile time. Only the option using PETSC\_PTHREAD\_LOCAL has been tested.
+The additional options for creating thread local global variables need to be tested and
+may require additional changes. Ideally it would help to determine which option to use
+at runtime.
+
+The Intel Threaded Building Blocks code has a fairly simple implementation at this point.
+It should be possible to add new functionality for this thread type including modifying it
+to work for the auto and/or user threading models.
+
+Some routines throughout PETSc currently do not have multithreaded kernels. The vector and matrix multiply routines are multithreaded, but most other linear algebra routines are not. These will need to be developed to allow users to fully take advantage of using PETSc with threads.
 
 \bibliographystyle{plain}
 \bibliography{../petsc}

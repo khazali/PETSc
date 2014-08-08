@@ -604,7 +604,7 @@ void* PetscThreadPoolFunc_Private(void *arg)
       job = &jobqueue->jobs[jobqueue->current_job_index];
       pool->poolthreads[trank]->jobdata = job;
       /* Do own job */
-      PetscRunKernel(job->commrank,thread->jobdata->nargs,thread->jobdata);
+      ierr = PetscRunKernel(job->commrank,thread->jobdata->nargs,thread->jobdata);CHKERRCONTINUE(ierr);
       /* Post job completed status */
       job->job_status = THREAD_JOB_COMPLETED;
       jobqueue->current_job_index = (jobqueue->current_job_index+1)%pool->nkernels;

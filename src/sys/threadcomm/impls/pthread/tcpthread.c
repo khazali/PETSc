@@ -170,7 +170,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadCreate_PThread(PetscThread thread)
   PetscErrorCode      ierr;
 
   PetscFunctionBegin;
-  ierr = PetscNew(&ptcomm);
+  ierr         = PetscNew(&ptcomm);
   thread->data = (void*)ptcomm;
   PetscFunctionReturn(0);
 }
@@ -376,7 +376,7 @@ PetscErrorCode PetscThreadCommInitialize_PThread(PetscThreadPool pool)
 PetscErrorCode PetscThreadCommBarrier_PThread(PetscThreadComm tcomm)
 {
   PetscThreadComm_PThread ptcomm = (PetscThreadComm_PThread)tcomm->data;
-  PetscErrorCode ierr;
+  PetscErrorCode          ierr;
 
   PetscFunctionBegin;
   ierr = PetscLogEventBegin(ThreadComm_Barrier,0,0,0,0);CHKERRQ(ierr);
@@ -401,11 +401,11 @@ PetscErrorCode PetscThreadCommBarrier_PThread(PetscThreadComm tcomm)
 PetscErrorCode PetscThreadLockCreate_PThread(void **lock)
 {
   PetscThreadLock_PThread ptlock;
-  PetscErrorCode ierr;
+  PetscErrorCode          ierr;
 
   PetscFunctionBegin;
-  ierr = PetscNew(&ptlock);CHKERRQ(ierr);
-  ierr = pthread_mutex_init(ptlock,PETSC_NULL);CHKERRQ(ierr);
+  ierr  = PetscNew(&ptlock);CHKERRQ(ierr);
+  ierr  = pthread_mutex_init(ptlock,PETSC_NULL);CHKERRQ(ierr);
   *lock = (void*)ptlock;
   PetscFunctionReturn(0);
 }
@@ -423,7 +423,7 @@ PetscErrorCode PetscThreadLockCreate_PThread(void **lock)
 PetscErrorCode PetscThreadLockDestroy_PThread(void **lock)
 {
   PetscThreadLock_PThread ptlock = (PetscThreadLock_PThread)lock;
-  PetscErrorCode ierr;
+  PetscErrorCode          ierr;
 
   PetscFunctionBegin;
   pthread_mutex_destroy(ptlock);

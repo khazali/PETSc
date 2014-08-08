@@ -1,7 +1,7 @@
 #include <petsc-private/threadcommimpl.h>
 
 /* Variables to track package registration/initialization */
-static PetscBool PetscThreadCommPackageInitialized = PETSC_FALSE;
+static PetscBool       PetscThreadCommPackageInitialized = PETSC_FALSE;
 PETSC_EXTERN PetscBool PetscThreadCommRegisterAllModelsCalled;
 PETSC_EXTERN PetscBool PetscThreadCommRegisterAllTypesCalled;
 

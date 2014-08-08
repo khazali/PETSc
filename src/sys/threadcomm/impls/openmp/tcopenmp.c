@@ -104,10 +104,10 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_OpenMP(PetscThreadPool pool)
   PetscFunctionBegin;
   if (pool->model == THREAD_MODEL_AUTO) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Unable to use auto thread model with OpenMP. Use loop or user model with OpenMP");
 
-  ierr = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
-  pool->threadtype = THREAD_TYPE_OPENMP;
+  ierr                     = PetscStrcpy(pool->type,OPENMP);CHKERRQ(ierr);
+  pool->threadtype         = THREAD_TYPE_OPENMP;
   pool->ops->setaffinities = PetscThreadCommSetAffinity_OpenMP;
-  pool->ops->pooldestroy = PetscThreadPoolDestroy_OpenMP;
+  pool->ops->pooldestroy   = PetscThreadPoolDestroy_OpenMP;
   if (pool->model == THREAD_MODEL_LOOP) {
     /* Initialize each thread */
     #pragma omp parallel num_threads(pool->npoolthreads)
@@ -138,10 +138,10 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommInit_OpenMP(PetscThreadComm tcomm)
   PetscErrorCode         ierr;
 
   PetscFunctionBegin;
-  ierr = PetscNew(&ptcomm);CHKERRQ(ierr);
+  ierr                    = PetscNew(&ptcomm);CHKERRQ(ierr);
   ptcomm->barrier_threads = 0;
-  ptcomm->wait_inc = PETSC_TRUE;
-  ptcomm->wait_dec = PETSC_TRUE;
+  ptcomm->wait_inc        = PETSC_TRUE;
+  ptcomm->wait_dec        = PETSC_TRUE;
 
   tcomm->data = (void*)ptcomm;
   if (tcomm->model == THREAD_MODEL_LOOP) {
@@ -278,14 +278,14 @@ PetscErrorCode PetscThreadCommRunKernel_OpenMPUser(PetscThreadComm tcomm,PetscTh
   PetscFunctionBegin;
   if (tcomm->ismainworker) {
     job->job_status = THREAD_JOB_RECEIVED;
-    ierr = PetscRunKernel(0,job->nargs,job);CHKERRCONTINUE(ierr);
+    ierr = PetscRunKernel(0,job->nargs,job);CHKERRQ(ierr);
     job->job_status = THREAD_JOB_COMPLETED;
     jobqueue = tcomm->commthreads[tcomm->lleader]->jobqueue;
     jobqueue->current_job_index = (jobqueue->current_job_index+1)%tcomm->nkernels;
     jobqueue->completed_jobs_ctr++;
   }
   if (tcomm->syncafter) {
-    ierr = PetscThreadCommJobBarrier(tcomm);CHKERRCONTINUE(ierr);
+    ierr = PetscThreadCommJobBarrier(tcomm);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -365,7 +365,7 @@ PetscErrorCode PetscThreadCommBarrier_OpenMP(PetscThreadComm tcomm)
 PetscErrorCode PetscThreadLockCreate_OpenMP(void **lock)
 {
   PetscThreadLock_OpenMP omplock;
-  PetscErrorCode ierr;
+  PetscErrorCode         ierr;
 
   PetscFunctionBegin;
   ierr = PetscNew(&omplock);CHKERRQ(ierr);
@@ -387,7 +387,7 @@ PetscErrorCode PetscThreadLockCreate_OpenMP(void **lock)
 PetscErrorCode PetscThreadLockDestroy_OpenMP(void **lock)
 {
   PetscThreadLock_OpenMP ptlock = (PetscThreadLock_OpenMP)lock;
-  PetscErrorCode ierr;
+  PetscErrorCode         ierr;
 
   PetscFunctionBegin;
   omp_destroy_lock(ptlock);

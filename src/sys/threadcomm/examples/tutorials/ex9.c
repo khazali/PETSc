@@ -40,7 +40,7 @@ int main(int argc,char **argv)
 
   /* Create multiple threadcomms */
   ierr = PetscPrintf(comm,"Creating multcomm with %d comms\n",ncomms);CHKERRQ(ierr);
-  ierr = PetscThreadCommCreateMultiple(PETSC_COMM_WORLD,ncomms,nthreads,PETSC_NULL,PETSC_NULL,&multcomms);
+  ierr = PetscThreadCommCreateMultiple(PETSC_COMM_WORLD,ncomms,nthreads,PETSC_NULL,PETSC_NULL,&multcomms);CHKERRQ(ierr);
 
   #pragma omp parallel num_threads(nthreads) default(shared) private(ierr)
   {
@@ -98,7 +98,7 @@ int main(int argc,char **argv)
     #pragma omp barrier
 
     /* User gives threads to PETSc for threaded shared comm PETSc work */
-    ierr = PetscPrintf(comm,"\nRunning shared comm test\n");
+    ierr = PetscPrintf(comm,"\nRunning shared comm test\n");CHKERRCONTINUE(ierr);
     ierr = PetscThreadCommJoinMultComms(&shcomm,1,trank,&commrank);CHKERRCONTINUE(ierr);
     if(commrank>=0) {
       ierr = VecCreateMPI(shcomm,PETSC_DECIDE,n,&a);CHKERRCONTINUE(ierr);
@@ -116,10 +116,10 @@ int main(int argc,char **argv)
     }
     ierr = PetscThreadCommReturnMultComms(&shcomm,1,trank,&commrank);CHKERRCONTINUE(ierr);
 
-     #pragma omp barrier
+    #pragma omp barrier
 
     /* User gives threads to PETSc for threaded single comm PETSc work */
-    ierr = PetscPrintf(comm,"\nRunning single comm test\n");
+    ierr = PetscPrintf(comm,"\nRunning single comm test\n");CHKERRCONTINUE(ierr);
     ierr = PetscThreadCommJoinMultComms(&comm,1,trank,&commrank);CHKERRCONTINUE(ierr);
     if(commrank>=0) {
       ierr = VecCreateMPI(comm,PETSC_DECIDE,n,&a);CHKERRCONTINUE(ierr);

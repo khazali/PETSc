@@ -65,10 +65,8 @@ PetscErrorCode PetscThreadInitialize(void)
 
   /* Create thread stack */
   ierr = PetscThreadCommStackCreate();CHKERRQ(ierr);
-
   /* Setup TRMalloc */
   ierr = PetscTrMallocInitialize();CHKERRQ(ierr);
-
   PetscThreadInit = 1;
   PetscFunctionReturn(0);
 }
@@ -99,10 +97,8 @@ PetscErrorCode PetscThreadFinalize(void)
 
   /* Add code to destroy TRMalloc/merged with main trmalloc data */
   ierr = PetscTrMallocFinalize();CHKERRQ(ierr);
-
   /* Destroy thread stack */
   ierr = PetscThreadCommStackDestroy();CHKERRQ(ierr);
-
   PetscThreadInit = 0;
   PetscFunctionReturn(0);
 }
@@ -222,8 +218,8 @@ PetscErrorCode PetscThreadLocksInitialize(void)
   PetscFunctionBegin;
   if (PetscLocks) PetscFunctionReturn(0);
   ierr = PetscNew(&PetscLocks);CHKERRQ(ierr);
-  ierr = (*PetscThreadLockCreate)(&PetscLocks->trmalloc_lock);
-  ierr = (*PetscThreadLockCreate)(&PetscLocks->vec_lock);
+  ierr = (*PetscThreadLockCreate)(&PetscLocks->trmalloc_lock);CHKERRQ(ierr);
+  ierr = (*PetscThreadLockCreate)(&PetscLocks->vec_lock);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

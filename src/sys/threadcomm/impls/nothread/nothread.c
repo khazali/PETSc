@@ -15,13 +15,13 @@ PETSC_EXTERN PetscErrorCode PetscThreadInit_NoThread()
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ThreadType = THREAD_TYPE_NOTHREAD;
-  ierr = PetscNew(&PetscLocks);CHKERRQ(ierr);
+  ThreadType                = THREAD_TYPE_NOTHREAD;
+  ierr                      = PetscNew(&PetscLocks);CHKERRQ(ierr);
   PetscLocks->trmalloc_lock = PETSC_NULL;
-  PetscThreadLockAcquire = PetscThreadLockAcquire_NoThread;
-  PetscThreadLockRelease = PetscThreadLockRelease_NoThread;
-  PetscThreadLockCreate  = PetscThreadLockCreate_NoThread;
-  PetscThreadLockDestroy = PetscThreadLockDestroy_NoThread;
+  PetscThreadLockAcquire    = PetscThreadLockAcquire_NoThread;
+  PetscThreadLockRelease    = PetscThreadLockRelease_NoThread;
+  PetscThreadLockCreate     = PetscThreadLockCreate_NoThread;
+  PetscThreadLockDestroy    = PetscThreadLockDestroy_NoThread;
   PetscFunctionReturn(0);
 }
 
@@ -44,7 +44,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadPoolInit_NoThread(PetscThreadPool pool)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscStrcpy(pool->type,NOTHREAD);CHKERRQ(ierr);
+  ierr             = PetscStrcpy(pool->type,NOTHREAD);CHKERRQ(ierr);
   pool->threadtype = THREAD_TYPE_NOTHREAD;
   PetscFunctionReturn(0);
 }

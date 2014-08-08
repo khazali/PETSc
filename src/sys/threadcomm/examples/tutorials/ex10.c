@@ -15,14 +15,14 @@ static char help[] = "Test threadcomm with OpenMP thread type and user thread mo
 #define __FUNCT__ "main"
 int main(int argc,char **argv)
 {
-  Mat             A;
-  Vec             x, b;
-  PetscErrorCode  ierr;
-  PetscInt        nthreads,n=20,i,j,Ii,J;
-  PetscScalar     v, vnorm;
-  KSP             ksp;
-  PC              pc;
-  MPI_Comm        comm;
+  Mat            A;
+  Vec            x, b;
+  PetscErrorCode ierr;
+  PetscInt       nthreads,n=20,i,j,Ii,J;
+  PetscScalar    v, vnorm;
+  KSP            ksp;
+  PC             pc;
+  MPI_Comm       comm;
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr);
 

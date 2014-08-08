@@ -30,7 +30,7 @@ int main(int argc,char **argv)
 
   /* Split threads evenly among comms */
   ierr = PetscThreadCommSplit(comm,ncomms,PETSC_NULL,PETSC_NULL,&splitcomms);CHKERRQ(ierr);
-  ierr = PetscPrintf(comm,"Created split comms with %d comms\n",ncomms);
+  ierr = PetscPrintf(comm,"Created split comms with %d comms\n",ncomms);CHKERRQ(ierr);
 
   for(i=0; i<ncomms; i++) {
     ierr = PetscThreadCommGetNThreads(splitcomms[i],&nthreads);CHKERRQ(ierr);
@@ -57,15 +57,15 @@ int main(int argc,char **argv)
   }
 
   ierr = PetscPrintf(comm,"Main thread at barrier after distributing work\n");CHKERRQ(ierr);
-  PetscThreadCommBarrier(comm);
+  ierr = PetscThreadCommBarrier(comm);CHKERRQ(ierr);
 
   /* Output final results */
   for(i=0; i<ncomms; i++) {
     ierr = VecNorm(yvec[i],NORM_1,&vnorm[i]);CHKERRQ(ierr);
-    ierr = PetscPrintf(splitcomms[i],"Splitcomm %d computed vnorm=%lf\n",i,vnorm[i]);
+    ierr = PetscPrintf(splitcomms[i],"Splitcomm %d computed vnorm=%lf\n",i,vnorm[i]);CHKERRQ(ierr);
   }
 
-  PetscThreadCommBarrier(comm);
+  ierr = PetscThreadCommBarrier(comm);CHKERRQ(ierr);
 
   /* Destroy MPI_Comms/threadcomms */
   for(i=0; i<ncomms; i++) {

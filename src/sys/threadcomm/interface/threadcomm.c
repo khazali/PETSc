@@ -13,10 +13,10 @@ PetscFunctionList PetscThreadPoolTypeList  = PETSC_NULL;
 PetscFunctionList PetscThreadCommTypeList  = PETSC_NULL;
 PetscFunctionList PetscThreadCommModelList = PETSC_NULL;
 
-PETSC_EXTERN PetscInt   N_CORES;
+PETSC_EXTERN PetscInt N_CORES;
 
 /* Logging support */
-PetscLogEvent ThreadComm_RunKernel, ThreadComm_Barrier;
+PetscLogEvent ThreadComm_RunKernel,ThreadComm_Barrier;
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscThreadCommGetComm"
@@ -42,9 +42,9 @@ PetscLogEvent ThreadComm_RunKernel, ThreadComm_Barrier;
 @*/
 PetscErrorCode PetscThreadCommGetComm(MPI_Comm comm,PetscThreadComm *tcomm)
 {
-  PetscErrorCode  ierr;
-  PetscMPIInt     flg;
-  void            *ptr;
+  PetscErrorCode ierr;
+  PetscMPIInt    flg;
+  void           *ptr;
 
   PetscFunctionBegin;
   ierr = MPI_Attr_get(comm,Petsc_ThreadComm_keyval,(PetscThreadComm*)&ptr,&flg);CHKERRQ(ierr);
@@ -473,7 +473,7 @@ PetscErrorCode PetscThreadCommUserBarrier(MPI_Comm comm)
 PetscErrorCode PetscThreadCommJobBarrier(PetscThreadComm tcomm)
 {
   PetscInt                active_threads=0,i,job_status;
-  PetscBool               wait          =PETSC_TRUE;
+  PetscBool               wait=PETSC_TRUE;
   PetscThreadCommJobQueue jobqueue;
   PetscThreadCommJobCtx   job;
   PetscErrorCode          ierr;
@@ -1403,7 +1403,7 @@ PetscErrorCode PetscThreadCommCreateAttach(MPI_Comm comm,PetscInt nthreads,Petsc
   ierr = PetscThreadCommInitialize(nthreads,pranks,tcomm);CHKERRQ(ierr);
   /* Attach ThreadComm to MPI_Comm */
   ierr = PetscThreadCommAttach(comm,tcomm);CHKERRQ(ierr);
-  ierr = PetscFree(pranks);
+  ierr = PetscFree(pranks);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1695,7 +1695,7 @@ PetscErrorCode PetscThreadCommGetOwnershipRanges(MPI_Comm comm,PetscInt N,PetscI
   PetscErrorCode  ierr;
   PetscInt        Q,R,*trstarts_out,nloc,i;
   PetscBool       S;
-  PetscThreadComm tcomm = PETSC_NULL;
+  PetscThreadComm tcomm=PETSC_NULL;
 
   PetscFunctionBegin;
   ierr            = PetscThreadCommGetComm(comm,&tcomm);CHKERRQ(ierr);
@@ -1833,7 +1833,7 @@ PETSC_EXTERN PetscErrorCode PetscThreadCommSetThreadAffinity(PetscThreadPool poo
 
   PetscFunctionBegin;
 #if defined(PETSC_HAVE_SCHED_CPU_SET_T)
-  ierr = PetscThreadPoolSetAffinity(pool,&cpuset,thread->affinity,&set);
+  ierr = PetscThreadPoolSetAffinity(pool,&cpuset,thread->affinity,&set);CHKERRQ(ierr);
   if (set) sched_setaffinity(0,sizeof(cpu_set_t),&cpuset);
 #endif
   PetscFunctionReturn(0);
@@ -1893,7 +1893,7 @@ PetscErrorCode PetscThreadCommJoinComm(MPI_Comm comm,PetscInt trank,PetscInt *co
   if (trank >= 0 && trank < tcomm->ncommthreads) {
 
     /* Make sure all threads have reached this routine */
-    ierr = (*tcomm->ops->barrier)(tcomm);
+    ierr = (*tcomm->ops->barrier)(tcomm);CHKERRQ(ierr);
 
     /* Initialize thread and join threadpool if a worker thread */
     if (trank == tcomm->lleader) {
@@ -1989,7 +1989,7 @@ PetscErrorCode PetscThreadCommJoinMultComms(MPI_Comm *comm,PetscInt ncomms,Petsc
   if (comm_index >= 0) {
 
     /* Make sure all threads have reached this routine */
-    ierr = (*tcomm[comm_index]->ops->barrier)(tcomm[comm_index]);
+    ierr = (*tcomm[comm_index]->ops->barrier)(tcomm[comm_index]);CHKERRQ(ierr);
 
     /* Initialize thread and join threadpool if a worker thread */
     if (local_index == tcomm[comm_index]->lleader) {
@@ -2003,11 +2003,11 @@ PetscErrorCode PetscThreadCommJoinMultComms(MPI_Comm *comm,PetscInt ncomms,Petsc
     }
 
     /* Make sure all threads have initialized threadcomm */
-    ierr = (*tcomm[comm_index]->ops->barrier)(tcomm[comm_index]);
+    ierr = (*tcomm[comm_index]->ops->barrier)(tcomm[comm_index]);CHKERRQ(ierr);
 
     /* Set affinity */
     if(tcomm[comm_index]->threadtype == THREAD_TYPE_OPENMP) {
-      ierr = PetscThreadCommSetThreadAffinity(tcomm[comm_index]->pool,tcomm[comm_index]->commthreads[local_index]);CHKERRCONTINUE(ierr);
+      ierr = PetscThreadCommSetThreadAffinity(tcomm[comm_index]->pool,tcomm[comm_index]->commthreads[local_index]);CHKERRQ(ierr);
     }
 
     if (*commrank == -1) {
@@ -2074,7 +2074,7 @@ PetscErrorCode PetscThreadCommReturnComm(MPI_Comm comm,PetscInt trank,PetscInt *
     }
 
     /* Make sure all worker threads have terminated successfully and reached this barrier */
-    ierr = (*tcomm->ops->barrier)(tcomm);
+    ierr = (*tcomm->ops->barrier)(tcomm);CHKERRQ(ierr);
   }
   *commrank = -1;
   PetscFunctionReturn(0);
@@ -2115,7 +2115,7 @@ PetscErrorCode PetscThreadCommReturnComm(MPI_Comm comm,PetscInt trank,PetscInt *
 PetscErrorCode PetscThreadCommReturnMultComms(MPI_Comm *comm,PetscInt ncomms,PetscInt trank,PetscInt *commrank)
 {
   PetscThreadComm *tcomm;
-  PetscInt        i, j, comm_index=-1, startthread=0;
+  PetscInt        i,j,comm_index=-1,startthread=0;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
@@ -2140,14 +2140,14 @@ PetscErrorCode PetscThreadCommReturnMultComms(MPI_Comm *comm,PetscInt ncomms,Pet
     /* Master threads terminate worker threads */
     if (*commrank >= 0) {
       /* Make sure each thread has finished its work */
-      ierr = PetscThreadCommJobBarrier(tcomm[comm_index]);
+      ierr = PetscThreadCommJobBarrier(tcomm[comm_index]);CHKERRQ(ierr);
       for (i=0; i<tcomm[comm_index]->ncommthreads; i++) {
         tcomm[comm_index]->commthreads[i]->status = THREAD_TERMINATE;
       }
     }
 
     /* Make sure all worker threads have terminated successfully and reached this barrier */
-    ierr = (*tcomm[comm_index]->ops->barrier)(tcomm[comm_index]);
+    ierr = (*tcomm[comm_index]->ops->barrier)(tcomm[comm_index]);CHKERRQ(ierr);
   }
   *commrank = -1;
   ierr = PetscFree(tcomm);CHKERRQ(ierr);
