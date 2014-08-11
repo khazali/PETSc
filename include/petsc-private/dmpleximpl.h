@@ -3,6 +3,7 @@
 
 #include <petscmat.h>       /*I      "petscmat.h"          I*/
 #include <petscdmplex.h> /*I      "petscdmplex.h"    I*/
+#include <petscsf.h>
 #include <petscbt.h>
 #include <petsc-private/dmimpl.h>
 #include <../src/sys/utils/hash.h>

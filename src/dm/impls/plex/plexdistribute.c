@@ -1,5 +1,4 @@
 #include <petsc-private/dmpleximpl.h>   /*I      "petscdmplex.h"   I*/
-#include <petscsf.h>
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexSetAdjacencyUseCone"

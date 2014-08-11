@@ -604,3 +604,137 @@ PetscErrorCode DMPlexCreatePartitionClosure(DM dm, PetscSection pointSection, IS
   ierr = ISCreateGeneral(PetscObjectComm((PetscObject)dm), newSize, allPoints, PETSC_OWN_POINTER, partition);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+
+/*
+  DMPlexCreatePartitionOverlap - Create a partition of local cells in the remote overlap of neightbouring processes
+
+  Collective on DM
+
+  Input Parameters:
+  + dm - The DM
+
+  Output Parameters:
+  + section - The PetscSection giving the division of overlap cells by partition
+  . overlap - The list of overlap cells by partition
+
+  The user can control the definition of adjacency for the mesh using DMPlexGetAdjacencyUseCone() and
+  DMPlexSetAdjacencyUseClosure(). They should choose the combination appropriate for the function
+  representation on the mesh.
+
+  Level: intermediate
+
+.seealso DMPlexDistribute(), DMPlexCreatePartition(), DMPlexCreatePartitionClosure(), DMPlexSetAdjacencyUseCone(), DMPlexSetAdjacencyUseClosure()
+*/
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexCreatePartitionOverlap"
+PetscErrorCode DMPlexCreatePartitionOverlap(DM dm, PetscSection *section, IS *overlap)
+{
+  PetscMPIInt        rank, numProcs;
+  MPI_Comm           comm;
+  PetscBool          useClosure, useCone;
+  PetscSF            pointSF;
+  const PetscInt    *rootDegree, *ilocal;
+  const PetscSFNode *iremote;
+  PetscInt           p, pStart, pEnd, c, cStart, cEnd, fStart, fEnd;
+  PetscInt           j, numPoints, proc, sumDegree, point, ideg, adjSize, nleaves;
+  PetscInt          *myRank, *sendRanks, *recvRanks, *adjacency=NULL;
+  PetscBT            partitionBT;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+
+  ierr = PetscObjectGetComm((PetscObject)dm,&comm);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &numProcs);CHKERRQ(ierr);
+  ierr = DMGetPointSF(dm, &pointSF);CHKERRQ(ierr);
+  ierr = DMPlexGetChart(dm, &pStart, &pEnd);CHKERRQ(ierr);
+  numPoints = pEnd - pStart;
+  ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(dm, 1, &fStart, &fEnd);CHKERRQ(ierr);
+  ierr = DMPlexGetAdjacencyUseClosure(dm, &useClosure);CHKERRQ(ierr);
+  ierr = DMPlexGetAdjacencyUseCone(dm, &useCone);CHKERRQ(ierr);
+
+  /* Establish which points to send to which rank */
+  ierr = PetscSFComputeDegreeBegin(pointSF,&rootDegree);CHKERRQ(ierr);
+  ierr = PetscSFComputeDegreeEnd(pointSF,&rootDegree);CHKERRQ(ierr);
+  for (sumDegree=0, p=0; p<numPoints; p++) sumDegree += rootDegree[p];
+  ierr = PetscMalloc2(numPoints, &myRank, sumDegree, &sendRanks);CHKERRQ(ierr);
+  for (p=0; p<numPoints; p++) myRank[p] = rank;
+  ierr = PetscSFGatherBegin(pointSF, MPIU_INT, myRank, sendRanks);CHKERRQ(ierr);
+  ierr = PetscSFGatherEnd(pointSF, MPIU_INT, myRank, sendRanks);CHKERRQ(ierr);
+
+  /* Establish from which rank we reveice which points */
+  ierr = PetscSFGetGraph(pointSF, NULL, &nleaves, &ilocal, &iremote);CHKERRQ(ierr);
+  ierr = PetscMalloc1(numPoints, &recvRanks);CHKERRQ(ierr);
+  for (p=0; p<numPoints; p++) recvRanks[p] = -1;
+  for (p=0; p<nleaves; p++) recvRanks[ilocal[p]] = iremote[p].rank;
+
+  /* Now build the partition overlap by finding all local cells attached
+     to shared facets. For FVM adjacency this is simply the facet support
+     and for FEM this is computed as the star(closure(f)) for shared facets.
+     Cell connections via shared vertices are ignored here, sicne they can
+     be ambiguous if a shared vertex has multiple receivers in the pointSF. */
+  if (useClosure) {DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE);CHKERRQ(ierr);}
+
+  ierr = PetscBTCreate(numProcs*numPoints, &partitionBT);CHKERRQ(ierr);
+  for (p=0, ideg=0; p<numPoints; p++) {
+    if (rootDegree[p] <= 0 && recvRanks[p] < 0) continue;
+    if (fStart <= p && p < fEnd) {
+      /* If closure-based (FEM) adjacency is used we find all cells
+         in the inverted adjacency (star(closure(f))) of shared facets */
+      if (useClosure) {
+        adjSize = PETSC_DETERMINE;
+        ierr = DMPlexGetAdjacency(dm, p, &adjSize, &adjacency);CHKERRQ(ierr);
+      } else {
+        /* When using FVM adjacency we only consider
+           cells in the support of send/recv facets. */
+        ierr = DMPlexGetSupportSize(dm, p, &adjSize);CHKERRQ(ierr);
+        ierr = DMPlexGetSupport(dm, p, (const PetscInt**) &adjacency);CHKERRQ(ierr);
+      }
+      for (c=0; c<adjSize; c++) {
+        point = adjacency[c];
+        if (cStart <= point && point < cEnd) {
+          /* Add cells connected via send points */
+          for (j=0; j<rootDegree[p]; j++) {
+            proc = sendRanks[ideg+j];
+            PetscBTSet(partitionBT, proc*numPoints + point);
+          }
+          /* Add cells connected via recv points */
+          if (recvRanks[p] >= 0) PetscBTSet(partitionBT, recvRanks[p]*numPoints + point);
+        }
+      }
+    }
+    ideg += rootDegree[p];
+  }
+  ierr = DMPlexSetAdjacencyUseCone(dm, useCone);CHKERRQ(ierr);
+
+  /* Build the partition overlap section */
+  PetscInt npoints, partSize, partOffset, *partPoints;
+  ierr = PetscSectionCreate(comm, section);CHKERRQ(ierr);
+  ierr = PetscSectionSetChart(*section, 0, numProcs);CHKERRQ(ierr);
+  for (proc=0; proc<numProcs; proc++) {
+    for (npoints = 0, p=0; p<numPoints; p++) {
+      if (PetscBTLookup(partitionBT, proc*numPoints+p)) npoints++;
+    }
+    ierr = PetscSectionSetDof(*section, proc, npoints);CHKERRQ(ierr);
+  }
+  ierr = PetscSectionSetUp(*section);CHKERRQ(ierr);
+  ierr = PetscSectionGetStorageSize(*section, &partSize);CHKERRQ(ierr);
+  ierr = PetscMalloc1(partSize, &partPoints);CHKERRQ(ierr);
+
+  /* Build the partition overlap IS */
+  for (proc=0; proc<numProcs; proc++) {
+    ierr = PetscSectionGetOffset(*section, proc, &partOffset);CHKERRQ(ierr);
+    for (j=0, p=0; p<numPoints; p++) {
+      if (PetscBTLookup(partitionBT, proc*numPoints+p)) {
+        partPoints[partOffset+j] = p;
+        j++;
+      }
+    }
+  }
+  ierr = ISCreateGeneral(comm, partSize, partPoints, PETSC_OWN_POINTER, overlap);CHKERRQ(ierr);
+  ierr = PetscBTDestroy(&partitionBT);CHKERRQ(ierr);
+  ierr = PetscFree3(myRank, sendRanks, recvRanks);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
