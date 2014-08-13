@@ -738,3 +738,63 @@ PetscErrorCode DMPlexCreatePartitionOverlap(DM dm, PetscSection *section, IS *ov
   ierr = PetscFree3(myRank, sendRanks, recvRanks);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexCreatePartitionSF"
+PetscErrorCode DMPlexCreatePartitionSF(DM dm, PetscSection section, IS partition, PetscSF *sf)
+{
+  MPI_Comm           comm;
+  PetscMPIInt        rank, numProcs;
+  PetscInt           p, pStart, pEnd, nleaves, *remoteOffsets, *remotePoints;
+  PetscSF            rankSF, partitionSF;
+  PetscSFNode       *iremoteRanks, *iremote;
+  const PetscInt    *partitionArray;
+  const PetscSFNode *premote;
+  PetscSection       leafSection;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  ierr = PetscObjectGetComm((PetscObject)dm, &comm);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &numProcs);CHKERRQ(ierr);
+  ierr = DMPlexGetChart(dm, &pStart, &pEnd);CHKERRQ(ierr);
+
+  /* Build SF that maps into section entries */
+  ierr = PetscMalloc1(numProcs, &iremoteRanks);CHKERRQ(ierr);
+  for (p = 0; p < numProcs; p++) {
+    iremoteRanks[p].rank = p;
+    iremoteRanks[p].index = rank;
+  }
+  ierr = PetscSFCreate(comm, &rankSF);CHKERRQ(ierr);
+  ierr = PetscSFSetGraph(rankSF, numProcs, numProcs, NULL, PETSC_OWN_POINTER, iremoteRanks, PETSC_OWN_POINTER);CHKERRQ(ierr);
+
+  /* Build SF that maps over the partition IS */
+  ierr = PetscSectionCreate(comm, &leafSection);CHKERRQ(ierr);
+  ierr = PetscSFDistributeSection(rankSF, section, &remoteOffsets, leafSection);CHKERRQ(ierr);
+  ierr = PetscSFCreateRemoteOffsets(rankSF, section, leafSection, &remoteOffsets);CHKERRQ(ierr);
+  ierr = PetscSFCreateSectionSF(rankSF, section, remoteOffsets, leafSection, &partitionSF);CHKERRQ(ierr);
+
+  /* Derive points from the remote partition IS */
+  ierr = PetscSFGetGraph(partitionSF, NULL, &nleaves, NULL, &premote);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nleaves, &remotePoints);CHKERRQ(ierr);
+  ierr = ISGetIndices(partition, &partitionArray);CHKERRQ(ierr);
+  ierr = PetscSFBcastBegin(partitionSF, MPIU_INT, partitionArray, remotePoints);CHKERRQ(ierr);
+  ierr = PetscSFBcastEnd(partitionSF, MPIU_INT, partitionArray, remotePoints);CHKERRQ(ierr);
+
+  /* Build the new SF mapping actual remote roots into local leafs */
+  ierr = PetscSFCreate(comm, sf);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nleaves, &iremote);CHKERRQ(ierr);
+  for (p=0; p<nleaves; p++) {
+    iremote[p].index = remotePoints[p];
+    iremote[p].rank = premote[p].rank;
+  }
+  ierr = PetscSFSetGraph(*sf, pEnd-pStart, nleaves, NULL, PETSC_OWN_POINTER, iremote, PETSC_OWN_POINTER);CHKERRQ(ierr);
+
+  ierr = PetscFree(remoteOffsets);CHKERRQ(ierr);
+  ierr = PetscFree(remotePoints);CHKERRQ(ierr);
+  ierr = PetscSFDestroy(&rankSF);CHKERRQ(ierr);
+  ierr = PetscSectionDestroy(&leafSection);CHKERRQ(ierr);
+
+  PetscFunctionReturn(0);
+}
