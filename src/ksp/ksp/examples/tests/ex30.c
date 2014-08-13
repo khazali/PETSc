@@ -3,7 +3,7 @@ static char help[] = "Reads a PETSc matrix and vector from a file and solves a l
 It is copied and intended to move dirty codes from ksp/examples/tutorials/ex10.c and simplify ex10.c.\n\
   Input parameters include\n\
   -f0 <input_file> : first file to load (small system)\n\
-  -f1 <input_file> : second file to load (larger system)\n\n\
+  -f1 <input_file> : second file to load (la1rger system)\n\n\
   -trans  : solve transpose system instead\n\n";
 /*
   This code  can be used to test PETSc interface to other packages.\n\
@@ -139,6 +139,7 @@ int main(int argc,char **args)
       /* load B to get A = A + sigma*B */
       ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,file[2],FILE_MODE_READ,&fd);CHKERRQ(ierr);
       ierr = MatCreate(PETSC_COMM_WORLD,&B);CHKERRQ(ierr);
+      ierr = MatSetFromOptions(B);CHKERRQ(ierr);
       ierr = MatSetOptionsPrefix(B,"B_");CHKERRQ(ierr);
       ierr = MatLoad(B,fd);CHKERRQ(ierr);
       ierr = PetscViewerDestroy(&fd);CHKERRQ(ierr);

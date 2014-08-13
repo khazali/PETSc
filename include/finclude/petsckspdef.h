@@ -47,6 +47,7 @@
 #define KSPQCG 'qcg'
 #define KSPBICG 'bicg'
 #define KSPMINRES 'minres'
+#define KSPFMINRES 'fminres'
 #define KSPSYMMLQ 'symmlq'
 #define KSPLCD 'lcd'
 #define KSPPYTHON 'python'

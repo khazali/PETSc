@@ -3,7 +3,7 @@ ALL: lib
 
 CFLAGS   =
 FFLAGS   =
-SOURCEC  = minres.c
+SOURCEC  = minres.c fminres.c
 SOURCEF  =
 LIBBASE  = libpetscksp
 LOCDIR   = src/ksp/ksp/impls/minres/

@@ -42,8 +42,6 @@ static PetscErrorCode  KSPSolve_FBCGS(KSP ksp)
   S2 = ksp->work[6];
   P2 = ksp->work[7];
 
-  /* Only supports right preconditioning */
-  if (ksp->pc_side != PC_RIGHT) SETERRQ1(PetscObjectComm((PetscObject)ksp),PETSC_ERR_SUP,"KSP fbcgs does not support %s",PCSides[ksp->pc_side]);
   if (!ksp->guess_zero) {
     if (!bcgs->guess) {
       ierr = VecDuplicate(X,&bcgs->guess);CHKERRQ(ierr);
@@ -180,9 +178,8 @@ PETSC_EXTERN PetscErrorCode KSPCreate_FBCGS(KSP ksp)
   ksp->ops->reset          = KSPReset_BCGS;
   ksp->ops->buildresidual  = KSPBuildResidualDefault;
   ksp->ops->setfromoptions = KSPSetFromOptions_BCGS;
-  ksp->pc_side             = PC_RIGHT;  /* set default PC side */
-
-  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_PRECONDITIONED,PC_LEFT,2);CHKERRQ(ierr);
-  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_UNPRECONDITIONED,PC_RIGHT,1);CHKERRQ(ierr);
+  
+  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_UNPRECONDITIONED,PC_RIGHT,2);CHKERRQ(ierr);
+  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_NONE,PC_LEFT,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
