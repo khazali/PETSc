@@ -36,6 +36,10 @@ PetscErrorCode  KSPSolve_FMINRES(KSP ksp)
   PetscBool      diagonalscale;
 
   PetscFunctionBegin;
+  PetscMPIInt rank;
+  ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
+  //if (!rank) printf("KSPSolve_FMINRES...\n");
+  
   ierr = PCGetDiagonalScale(ksp->pc,&diagonalscale);CHKERRQ(ierr);
   if (diagonalscale) SETERRQ1(PetscObjectComm((PetscObject)ksp),PETSC_ERR_SUP,"Krylov method %s does not support diagonal scaling",((PetscObject)ksp)->type_name);
 
@@ -74,9 +78,14 @@ PetscErrorCode  KSPSolve_FMINRES(KSP ksp)
     ierr = PetscInfo2(ksp,"Detected indefinite operator %g tolerance %g\n",(double)PetscRealPart(dp),(double)fminres->haptol);CHKERRQ(ierr);
     ksp->reason = KSP_DIVERGED_INDEFINITE_MAT;
     PetscFunctionReturn(0);
+  } else if (PetscImaginaryPart(dp)) {
+    ierr = PetscInfo1(ksp,"Detected complex inner product dp %g\n",(double)PetscImaginaryPart(dp));CHKERRQ(ierr);
+    ksp->reason = KSP_DIVERGED_NONSYMMETRIC;
+    PetscFunctionReturn(0);
   }
 
-  dp   = PetscAbsScalar(dp);
+
+  //dp   = PetscAbsScalar(dp);
   dp   = PetscSqrtScalar(dp);
   beta = dp;                                        /*  beta <- sqrt(r'*z  */
   eta  = beta;
@@ -87,7 +96,8 @@ PetscErrorCode  KSPSolve_FMINRES(KSP ksp)
   ierr  = VecScale(V,ibeta);CHKERRQ(ierr);        /*    v <- r / beta     */
   ierr  = VecScale(U,ibeta);CHKERRQ(ierr);        /*    u <- z / beta     */
 
-  ierr = VecNorm(Z,NORM_2,&np);CHKERRQ(ierr);      /*   np <- ||z||        */
+  //ierr = VecNorm(Z,NORM_2,&np);CHKERRQ(ierr);      /*   np <- ||z||        */
+  ierr = VecNorm(R,NORM_2,&np);CHKERRQ(ierr); //new!!!
 
   ierr       = KSPLogResidualHistory(ksp,np);CHKERRQ(ierr);
   ierr       = KSPMonitor(ksp,0,np);CHKERRQ(ierr);
@@ -99,16 +109,16 @@ PetscErrorCode  KSPSolve_FMINRES(KSP ksp)
   do {
     ksp->its = i+1;
 
-/*   Lanczos  */
-
+    /*   Lanczos  */
     ierr = KSP_MatMult(ksp,Amat,U,R);CHKERRQ(ierr);   /*      r <- A*u   */
     ierr = VecDot(U,R,&alpha);CHKERRQ(ierr);          /*  alpha <- r'*u  */
-    ierr = KSP_PCApply(ksp,R,Z);CHKERRQ(ierr); /*      z <- B*r   */
+    //ierr = KSP_PCApply(ksp,R,Z);CHKERRQ(ierr); /*      z <- B*r   */
 
     ierr = VecAXPY(R,-alpha,V);CHKERRQ(ierr);     /*  r <- r - alpha v     */
-    ierr = VecAXPY(Z,-alpha,U);CHKERRQ(ierr);     /*  z <- z - alpha u     */
+    //ierr = VecAXPY(Z,-alpha,U);CHKERRQ(ierr);     /*  z <- z - alpha u     */
     ierr = VecAXPY(R,-beta,VOLD);CHKERRQ(ierr);   /*  r <- r - beta v_old  */
-    ierr = VecAXPY(Z,-beta,UOLD);CHKERRQ(ierr);   /*  z <- z - beta u_old  */
+    //ierr = VecAXPY(Z,-beta,UOLD);CHKERRQ(ierr);   /*  z <- z - beta u_old  */
+    ierr = KSP_PCApply(ksp,R,Z);CHKERRQ(ierr);  //new!!!
 
     betaold = beta;
 
@@ -122,7 +132,7 @@ PetscErrorCode  KSPSolve_FMINRES(KSP ksp)
     dp   = PetscAbsScalar(dp);
     beta = PetscSqrtScalar(dp);                               /*  beta <- sqrt(r'*z)   */
 
-/*    QR factorisation    */
+    /*    QR factorisation    */
 
     coold = cold; cold = c; soold = sold; sold = s;
 
@@ -131,12 +141,12 @@ PetscErrorCode  KSPSolve_FMINRES(KSP ksp)
     rho2 = sold * alpha + coold * cold * betaold;
     rho3 = soold * betaold;
 
-/*     Givens rotation    */
+    /*     Givens rotation    */
 
     c = rho0 / rho1;
     s = beta / rho1;
 
-/*    Update    */
+    /*    Update    */
 
     ierr = VecCopy(WOLD,WOOLD);CHKERRQ(ierr);     /*  w_oold <- w_old      */
     ierr = VecCopy(W,WOLD);CHKERRQ(ierr);         /*  w_old  <- w          */
@@ -161,7 +171,12 @@ PetscErrorCode  KSPSolve_FMINRES(KSP ksp)
     ierr  = VecScale(V,ibeta);CHKERRQ(ierr);     /*  v <- r / beta       */
     ierr  = VecScale(U,ibeta);CHKERRQ(ierr);     /*  u <- z / beta       */
 
-    np = ksp->rnorm * PetscAbsScalar(s);
+    //np = ksp->rnorm * PetscAbsScalar(s); -- preconditioned norm
+    ierr = KSP_MatMult(ksp,Amat,X,R);CHKERRQ(ierr); 
+    ierr = VecAXPY(R,-1.0,B);CHKERRQ(ierr); //R = B - A*X
+    ierr = VecNorm(R,NORM_2,&np);CHKERRQ(ierr);
+    
+    //if (!rank) printf(" %d - residual %g\n",i,np);
 
     ksp->rnorm = np;
     ierr = KSPLogResidualHistory(ksp,np);CHKERRQ(ierr);
@@ -184,11 +199,8 @@ PetscErrorCode  KSPSolve_FMINRES(KSP ksp)
 
    Notes: The operator and the preconditioner must be symmetric and the preconditioner must
           be positive definite for this method.
-          Supports only left preconditioning.
 
-   Reference: Paige & Saunders, 1975.
-
-   Contributed by: Robert Scheichl: maprs@maths.bath.ac.uk
+   Reference: Paige & Saunders, 1975 and.
 
 .seealso: KSPCreate(), KSPSetType(), KSPType (for list of available types), KSP, KSPCG, KSPCR
 M*/
@@ -200,14 +212,13 @@ PETSC_EXTERN PetscErrorCode KSPCreate_FMINRES(KSP ksp)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  printf("KSPCreate_FMINRES ...\n");
   ierr = KSPSetSupportedNorm(ksp,KSP_NORM_PRECONDITIONED,PC_LEFT,1);CHKERRQ(ierr); 
   ierr = KSPSetSupportedNorm(ksp,KSP_NORM_UNPRECONDITIONED,PC_RIGHT,2);CHKERRQ(ierr); 
   ierr = KSPSetSupportedNorm(ksp,KSP_NORM_NONE,PC_LEFT,0);CHKERRQ(ierr);  //from fgmres, means KSP_NORM_NONE and PC_LEFT are not supported!
 
-  ierr           = PetscNewLog(ksp,&fminres);CHKERRQ(ierr);
+  ierr            = PetscNewLog(ksp,&fminres);CHKERRQ(ierr);
   fminres->haptol = 1.e-50;
-  ksp->data      = (void*)fminres;
+  ksp->data       = (void*)fminres;
 
   /*
        Sets the functions that are associated with this data structure
