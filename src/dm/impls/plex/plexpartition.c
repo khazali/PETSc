@@ -709,6 +709,36 @@ PetscErrorCode DMPlexCreatePartitionOverlap(DM dm, PetscSection *section, IS *ov
   }
   ierr = DMPlexSetAdjacencyUseCone(dm, useCone);CHKERRQ(ierr);
 
+  /* Now add the closure of each cell to get the full overlap */
+  PetscInt closureSize, *closure=NULL;
+  for (proc=0; proc<numProcs; proc++) {
+    if (proc == rank) continue;
+    for (p=cStart; p<cEnd; p++) {
+      if (PetscBTLookup(partitionBT, proc*numPoints+p)) {
+        ierr = DMPlexGetTransitiveClosure(dm, p, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
+        for (c=0; c<closureSize; c++) PetscBTSet(partitionBT, proc*numPoints+closure[2*c]);
+      }
+    }
+  }
+  if (closure) {
+    ierr = DMPlexRestoreTransitiveClosure(dm, p, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
+  }
+
+  /* Remove all points covered by the pointSF */
+  for (p=0, ideg=0; p<numPoints; p++) {
+    if (rootDegree[p] <= 0 && recvRanks[p] < 0) continue;
+    /* Don't send points I'm already sending via pointSF */
+    for (j=0; j<rootDegree[p]; j++) {
+      proc = sendRanks[ideg+j];
+      PetscBTClear(partitionBT, proc*numPoints + p);
+    }
+    /* Don't send points I don't own */
+    if (recvRanks[p] >= 0) {
+      for (proc=0; proc<numProcs; proc++) PetscBTClear(partitionBT, proc*numPoints + p);
+    }
+    ideg += rootDegree[p];
+  }
+
   /* Build the partition overlap section */
   PetscInt npoints, partSize, partOffset, *partPoints;
   ierr = PetscSectionCreate(comm, section);CHKERRQ(ierr);
@@ -791,9 +821,9 @@ PetscErrorCode DMPlexCreatePartitionSF(DM dm, PetscSection section, IS partition
   }
   ierr = PetscSFSetGraph(*sf, pEnd-pStart, nleaves, NULL, PETSC_OWN_POINTER, iremote, PETSC_OWN_POINTER);CHKERRQ(ierr);
 
-  ierr = PetscFree(remoteOffsets);CHKERRQ(ierr);
   ierr = PetscFree(remotePoints);CHKERRQ(ierr);
   ierr = PetscSFDestroy(&rankSF);CHKERRQ(ierr);
+  ierr = PetscSFDestroy(&partitionSF);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&leafSection);CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
