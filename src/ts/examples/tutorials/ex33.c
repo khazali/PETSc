@@ -268,7 +268,7 @@ PetscErrorCode ConstructGeometry(DM dm, Vec *facegeom, Vec *cellgeom, User user)
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
-  ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   if (dim != DIM) SETERRQ2(PetscObjectComm((PetscObject)dm),PETSC_ERR_SUP,"No support for dim %D != DIM %D",dim,DIM);
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
   ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
@@ -1113,7 +1113,7 @@ int main(int argc, char **argv)
     /* DMView(dm,PETSC_VIEWER_STDOUT_WORLD); */
     ierr = ConstructGeometry(dm, &user->facegeom, &user->cellgeom, user);CHKERRQ(ierr);
     if (0) {ierr = VecView(user->cellgeom, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);}
-    ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
+    ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
     ierr = DMPlexSetPreallocationCenterDimension(dm, 0);CHKERRQ(ierr);
 
     /* Set up DM with section describing local vector and configure local vector. */
