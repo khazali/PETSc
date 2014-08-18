@@ -143,6 +143,7 @@ PETSC_EXTERN PetscErrorCode DMPlexCreatePartitionOverlap(DM, PetscSection *, IS 
 PETSC_EXTERN PetscErrorCode DMPlexCreatePartitionSF(DM, PetscSection, IS, PetscSF *);
 PETSC_EXTERN PetscErrorCode DMPlexCreateOverlapMigrationSF(DM, PetscSF, PetscSF *);
 PETSC_EXTERN PetscErrorCode DMPlexDistribute(DM, const char[], PetscInt, PetscSF*, DM*);
+PETSC_EXTERN PetscErrorCode DMPlexDistributeOverlap(DM, PetscInt, ISLocalToGlobalMapping, PetscSF *, DM *);
 PETSC_EXTERN PetscErrorCode DMPlexDistributeField(DM,PetscSF,PetscSection,Vec,PetscSection,Vec);
 PETSC_EXTERN PetscErrorCode DMPlexDistributeData(DM,PetscSF,PetscSection,MPI_Datatype,void*,PetscSection,void**);
 PETSC_EXTERN PetscErrorCode DMPlexSetAdjacencyUseCone(DM,PetscBool);

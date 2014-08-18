@@ -473,8 +473,8 @@ PetscErrorCode DMPlexCreatePartition(DM dm, const char name[], PetscInt height, 
   PetscFunctionBegin;
   ierr = MPI_Comm_size(PetscObjectComm((PetscObject)dm), &size);CHKERRQ(ierr);
 
-  *origPartSection = NULL;
-  *origPartition   = NULL;
+  if (origPartSection) *origPartSection = NULL;
+  if (origPartition) *origPartition   = NULL;
   if (size == 1) {
     PetscInt *points;
     PetscInt  cStart, cEnd, c;
