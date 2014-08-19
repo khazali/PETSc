@@ -459,7 +459,7 @@ PetscErrorCode DMPlexDistributeCoordinates(DM dm, PetscSF migrationSF, DM *dmPar
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexDistributeLabels"
-PetscErrorCode DMPlexDistributeLabels(DM dm, PetscSF migrationSF, PetscSection partSection, IS part, ISLocalToGlobalMapping renumbering, DM *dmParallel)
+PetscErrorCode DMPlexDistributeLabels(DM dm, PetscSF migrationSF, DM *dmParallel)
 {
   DM_Plex       *mesh      = (DM_Plex*) dm->data;
   DM_Plex       *pmesh     = (DM_Plex*) (*dmParallel)->data;
@@ -487,13 +487,13 @@ PetscErrorCode DMPlexDistributeLabels(DM dm, PetscSF migrationSF, PetscSection p
     /* Skip "depth" because it is recreated */
     if (!rank) {ierr = PetscStrcmp(next->name, "depth", &isdepth);CHKERRQ(ierr);}
     ierr = MPI_Bcast(&isdepth, 1, MPIU_BOOL, 0, comm);CHKERRQ(ierr);
-    if (isdepth) {if (!rank) next = next->next; continue;}
-    ierr = DMLabelDistribute(next, partSection, part, renumbering, &labelNew);CHKERRQ(ierr);
+    if (isdepth) {if(next) next = next->next; continue;}
+    ierr = DMLabelDistribute(next, migrationSF, &labelNew);CHKERRQ(ierr);
     /* Insert into list */
     if (newNext) newNext->next = labelNew;
     else         pmesh->labels = labelNew;
     newNext = labelNew;
-    if (!rank) next = next->next;
+    if (next) next = next->next;
   }
   ierr = PetscLogEventEnd(DMPLEX_DistributeLabels,dm,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -732,7 +732,7 @@ PetscErrorCode DMPlexDistribute(DM dm, const char partitioner[], PetscInt overla
   /* Migrate data to a non-overlapping parallel DM */
   ierr = DMPlexDistributeCones(dm, pointSF, renumbering, dmParallel);CHKERRQ(ierr);
   ierr = DMPlexDistributeCoordinates(dm, pointSF, dmParallel);CHKERRQ(ierr);
-  ierr = DMPlexDistributeLabels(dm, pointSF, partSection, part, renumbering, dmParallel);CHKERRQ(ierr);
+  ierr = DMPlexDistributeLabels(dm, pointSF, dmParallel);CHKERRQ(ierr);
   ierr = DMPlexDistributeSetupHybrid(dm, pointSF, renumbering, dmParallel);CHKERRQ(ierr);
 
   /* Build the point SF without overlap */
@@ -841,7 +841,7 @@ PetscErrorCode DMPlexDistributeOverlap(DM dm, PetscInt overlap, ISLocalToGlobalM
   ierr = PetscObjectSetName((PetscObject) *dmOverlap, "Parallel Mesh");CHKERRQ(ierr);
   ierr = DMPlexDistributeCones(dm, migrationSF, overlapRenumbering, dmOverlap);CHKERRQ(ierr);
   ierr = DMPlexDistributeCoordinates(dm, migrationSF, dmOverlap);CHKERRQ(ierr);
-  ierr = DMPlexDistributeLabels(dm, migrationSF, overlapSection, overlapPartition, overlapRenumbering, dmOverlap);CHKERRQ(ierr);
+  ierr = DMPlexDistributeLabels(dm, migrationSF, dmOverlap);CHKERRQ(ierr);
   ierr = DMPlexDistributeSetupHybrid(dm, migrationSF, overlapRenumbering, dmOverlap);CHKERRQ(ierr);
 
   /* Build the new point SF by propagating the depthShift generate remote root indices */
