@@ -670,38 +670,70 @@ PetscErrorCode DMPlexCreatePartitionOverlap(DM dm, PetscSection *section, IS *ov
   for (p=0; p<numPoints; p++) recvRanks[p] = -1;
   for (p=0; p<nleaves; p++) recvRanks[ilocal[p]] = iremote[p].rank;
 
+  /* Two partitions might also be connected via a point that neither of them
+     owns. To account for this corner case we build an SF to propagate
+     sendRanks to each receiver via an SF built from rootDegree. */
+  PetscSection rootDegreeSection, leafDegreeSection;
+  PetscSF degreeSF;
+  PetscInt offset, leafStart, leafEnd, *remoteOffsets, leafDegree, *sharedRanks;
+  ierr = PetscSectionCreate(comm, &rootDegreeSection);CHKERRQ(ierr);
+  ierr = PetscSectionCreate(comm, &leafDegreeSection);CHKERRQ(ierr);
+  ierr = PetscSectionSetChart(rootDegreeSection, pStart, pEnd);CHKERRQ(ierr);
+  for (p=pStart; p<pEnd; p++) {ierr = PetscSectionSetDof(rootDegreeSection, p, rootDegree[p]);CHKERRQ(ierr);}
+  ierr = PetscSectionSetUp(rootDegreeSection);CHKERRQ(ierr);
+  ierr = PetscSFDistributeSection(pointSF, rootDegreeSection, &remoteOffsets, leafDegreeSection);CHKERRQ(ierr);
+  ierr = PetscSFCreateSectionSF(pointSF, rootDegreeSection, remoteOffsets, leafDegreeSection, &degreeSF);CHKERRQ(ierr);
+  ierr = PetscSectionGetStorageSize(leafDegreeSection, &sumDegree);CHKERRQ(ierr);
+  ierr = PetscMalloc1(sumDegree, &sharedRanks);
+  ierr = PetscSFBcastBegin(degreeSF, MPIU_INT, sendRanks, sharedRanks);CHKERRQ(ierr);
+  ierr = PetscSFBcastEnd(degreeSF, MPIU_INT, sendRanks, sharedRanks);CHKERRQ(ierr);
+  ierr = PetscSectionGetChart(leafDegreeSection, &leafStart, &leafEnd);CHKERRQ(ierr);
+
   /* Now build the partition overlap by finding all local cells attached
-     to shared facets. For FVM adjacency this is simply the facet support
-     and for FEM this is computed as the star(closure(f)) for shared facets.
-     Cell connections via shared vertices are ignored here, sicne they can
+     to shared points. For FVM adjacency this is simply the facet support
+     and for FEM this is computed as the star(closure(p)) for shared points.
+     Cell connections via shared vertices are ignored here, since they can
      be ambiguous if a shared vertex has multiple receivers in the pointSF. */
   if (useClosure) {DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE);CHKERRQ(ierr);}
 
   ierr = PetscBTCreate(numProcs*numPoints, &partitionBT);CHKERRQ(ierr);
   for (p=0, ideg=0; p<numPoints; p++) {
-    if (rootDegree[p] <= 0 && recvRanks[p] < 0) continue;
-    if (fStart <= p && p < fEnd) {
+    if (leafStart <= p && p < leafEnd) {
+      ierr = PetscSectionGetDof(leafDegreeSection, p, &leafDegree);CHKERRQ(ierr);
+    } else {
+      leafDegree = -1;
+    }
+    if (rootDegree[p] <= 0 && recvRanks[p] < 0 && leafDegree <=0) continue;
+
+    if (useClosure) {
       /* If closure-based (FEM) adjacency is used we find all cells
-         in the inverted adjacency (star(closure(f))) of shared facets */
-      if (useClosure) {
-        adjSize = PETSC_DETERMINE;
-        ierr = DMPlexGetAdjacency(dm, p, &adjSize, &adjacency);CHKERRQ(ierr);
-      } else {
-        /* When using FVM adjacency we only consider
-           cells in the support of send/recv facets. */
-        ierr = DMPlexGetSupportSize(dm, p, &adjSize);CHKERRQ(ierr);
-        ierr = DMPlexGetSupport(dm, p, (const PetscInt**) &adjacency);CHKERRQ(ierr);
-      }
-      for (c=0; c<adjSize; c++) {
-        point = adjacency[c];
-        if (cStart <= point && point < cEnd) {
-          /* Add cells connected via send points */
-          for (j=0; j<rootDegree[p]; j++) {
-            proc = sendRanks[ideg+j];
-            PetscBTSet(partitionBT, proc*numPoints + point);
+         in the inverted adjacency (star(closure(p))) of shared points. */
+      adjSize = PETSC_DETERMINE;
+      ierr = DMPlexGetAdjacency(dm, p, &adjSize, &adjacency);CHKERRQ(ierr);
+    } else {
+      /* When using FVM adjacency we only consider
+         cells in the support of send/recv facets. */
+      if (fStart > p || p >= fEnd) continue;
+      ierr = DMPlexGetSupportSize(dm, p, &adjSize);CHKERRQ(ierr);
+      ierr = DMPlexGetSupport(dm, p, (const PetscInt**) &adjacency);CHKERRQ(ierr);
+    }
+    for (c=0; c<adjSize; c++) {
+      point = adjacency[c];
+      if (cStart <= point && point < cEnd) {
+        /* Add cells connected via send points */
+        for (j=0; j<rootDegree[p]; j++) {
+          proc = sendRanks[ideg+j];
+          PetscBTSet(partitionBT, proc*numPoints + point);
+        }
+        /* Add cells connected via recv points */
+        if (recvRanks[p] >= 0) PetscBTSet(partitionBT, recvRanks[p]*numPoints + point);
+        /* Add cells connected via shared, non-owned points */
+        if (leafDegree > 0) {
+          ierr = PetscSectionGetOffset(leafDegreeSection, p, &offset);CHKERRQ(ierr);
+          for (j=0; j<leafDegree; j++) {
+            proc = sharedRanks[offset+j];
+            if (proc != rank) PetscBTSet(partitionBT, proc*numPoints + point);
           }
-          /* Add cells connected via recv points */
-          if (recvRanks[p] >= 0) PetscBTSet(partitionBT, recvRanks[p]*numPoints + point);
         }
       }
     }
