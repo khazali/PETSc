@@ -156,6 +156,14 @@ ex31: ex31.o chkopts
 	-${CLINKER} -o ex31 ex31.o ${PETSC_TS_LIB}
 	${RM} ex31.o
 
+ex35: ex35.o chkopts
+	-${CLINKER} -o ex35 ex35.o ${PETSC_TS_LIB}
+	${RM} ex35.o
+
+ex33: ex33.o  chkopts
+	-${CLINKER} -o ex33 ex33.o ${PETSC_TS_LIB}
+	${RM} ex33.o
+
 ex40: ex40.o chkopts
 	-${CLINKER} -o ex40 ex40.o ${PETSC_TS_LIB}
 	${RM} ex40.o
@@ -163,10 +171,6 @@ ex40: ex40.o chkopts
 ex41: ex41.o chkopts
 	-${CLINKER} -o ex41 ex41.o ${PETSC_TS_LIB}
 	${RM} ex41.o
-
-ex35: ex35.o chkopts
-	-${CLINKER} -o ex35 ex35.o ${PETSC_TS_LIB}
-	${RM} ex35.o
 
 #---------------------------------------------------------------------------------
 runex1:
@@ -460,6 +464,11 @@ runex31:
 	-@${MPIEXEC} -n 1 ./ex31 > ex31_1.tmp 2>&1; \
 	   ${DIFF} output/ex31_1.out ex31_1.tmp || printf "${PWD}\nPossible problem with ex20_1, diffs above\n=========================================\n";  \
 	   ${RM} -f ex31_1.tmp
+
+runex33:
+	-@${MPIEXEC} -n 1 ./ex33 -nrefine 2 -f ${PETSC_DIR}/share/petsc/datafiles/meshes/square-4x4.exo -monitor error > ex33_1.tmp 2>&1; \
+	   ${DIFF} output/ex33_1.out ex33_1.tmp || echo  ${PWD} "\nPossible problem with ex20_1, diffs above \n=========================================";  \
+	   ${RM} -f ex33_1.tmp
 
 runex35:
 	-@${MPIEXEC} -n 1 ./ex35 -ts_monitor > ex35_1.tmp 2>&1;	  \

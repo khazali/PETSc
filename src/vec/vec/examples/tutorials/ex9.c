@@ -28,7 +28,7 @@ int main(int argc,char **argv)
   PetscMPIInt    rank,size;
   PetscInt       nlocal = 6,nghost = 2,ifrom[2],i,rstart,rend;
   PetscErrorCode ierr;
-  PetscBool      flg,flg2;
+  PetscBool      flg,flg2,ghostgetvalues;
   PetscScalar    value,*array,*tarray=0;
   Vec            lx,gx,gxs;
 
@@ -119,6 +119,21 @@ int main(int argc,char **argv)
   ierr = PetscSynchronizedFlush(PETSC_COMM_WORLD,PETSC_STDOUT);CHKERRQ(ierr);
 
   ierr = VecGhostRestoreLocalForm(gx,&lx);CHKERRQ(ierr);
+
+  /* Look up values in ghost vector by their global index.  Using local indices (via the local form) should be preferred
+   * whenever other application constraints permit.  It is an error to request indices that are not owned or ghosted.
+   */
+  ghostgetvalues = PETSC_FALSE;
+  ierr = PetscOptionsGetBool(NULL,"-ghostgetvalues",&ghostgetvalues,NULL);CHKERRQ(ierr);
+  if (ghostgetvalues) {
+    PetscScalar values[2];
+    ierr = VecGhostGetValues(gx,nghost,ifrom,values);CHKERRQ(ierr);
+    for (i=0; i<nghost; i++) {
+      ierr = PetscSynchronizedPrintf(PETSC_COMM_WORLD,"[%d] %D %g\n",rank,ifrom[i],(double)PetscRealPart(values[i]));CHKERRQ(ierr);
+    }
+    ierr = PetscSynchronizedFlush(PETSC_COMM_WORLD,PETSC_STDOUT);CHKERRQ(ierr);
+  }
+
   ierr = VecDestroy(&gx);CHKERRQ(ierr);
   if (flg) {ierr = PetscFree(tarray);CHKERRQ(ierr);}
   ierr = PetscFinalize();

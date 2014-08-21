@@ -51,10 +51,10 @@ PetscErrorCode PFReadMatPowerData(PFDATA *pf,char *filename)
   pf->ngen    = lindex[4]-lindex[3];
   pf->nbranch = lindex[6]-lindex[5];
 
-  ierr = PetscMalloc(pf->nbus*sizeof(struct _p_VERTEXDATA),&pf->bus);CHKERRQ(ierr);
-  ierr = PetscMalloc(pf->ngen*sizeof(struct _p_GEN),&pf->gen);CHKERRQ(ierr);
-  ierr = PetscMalloc(pf->nload*sizeof(struct _p_LOAD),&pf->load);CHKERRQ(ierr);
-  ierr = PetscMalloc(pf->nbranch*sizeof(struct _p_EDGEDATA),&pf->branch);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pf->nbus,&pf->bus);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pf->ngen,&pf->gen);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pf->nload,&pf->load);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pf->nbranch,&pf->branch);CHKERRQ(ierr);
   Bus = pf->bus; Gen = pf->gen; Load = pf->load; Branch = pf->branch;
 
   /* Setting pf->sbase to 100 */
@@ -159,8 +159,8 @@ PetscErrorCode PFReadMatPowerData(PFDATA *pf,char *filename)
     GEN  newgen;
     LOAD newload;
     PetscInt genj=0,loadj=0;
-    ierr = PetscMalloc(pf->ngen*sizeof(struct _p_GEN),&newgen);CHKERRQ(ierr);
-    ierr = PetscMalloc(pf->nload*sizeof(struct _p_LOAD),&newload);CHKERRQ(ierr);
+    ierr = PetscMalloc1(pf->ngen,&newgen);CHKERRQ(ierr);
+    ierr = PetscMalloc1(pf->nload,&newload);CHKERRQ(ierr);
     for (i = 0; i < pf->nbus; i++) {
       for (j = 0; j < pf->bus[i].ngen; j++) {
 	ierr = PetscMemcpy(&newgen[genj++],&pf->gen[pf->bus[i].gidx[j]],sizeof(struct _p_GEN));

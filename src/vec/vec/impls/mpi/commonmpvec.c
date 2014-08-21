@@ -305,6 +305,76 @@ PetscErrorCode  VecGhostUpdateEnd(Vec g,InsertMode insertmode,ScatterMode scatte
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "VecGhostGetValues"
+/*@
+   VecGhostGetValues - get values available in local form via their global indices
+
+   Not Collective
+
+   Input Arguments:
++  G - global ghosted vector
+.  n - number of indices
+-  gidx - global indices at which to obtain values
+
+   Output Arguments:
+.  values - vector entries at locations gidx
+
+   Level: advanced
+
+   Notes:
+
+   VecGhostUpdateBegin() and VecGhostUpdateEnd() must be called after modification of the global vector to ensure that
+   this function returns current values of the global vector.
+
+   If used in a performance-sensitive way, it is recommended to use VecGhostGetLocalForm() and VecGetValues() or
+   VecGetArrayRead() to access entries by local index.  Mapping global indices to local indices involves a search (or
+   non-scalable data structure) while local-to-global is simple array lookup.  This function exists for legacy
+   application that must access vectors based on global index.
+
+.seealso: VecGetValues(), VecGhostGetLocalForm(), VecGhostUpdateBegin(), VecGhostUpdateEnd()
+@*/
+PetscErrorCode VecGhostGetValues(Vec G,PetscInt n,const PetscInt gidx[],PetscScalar values[])
+{
+  PetscErrorCode ierr;
+  Vec L;
+  PetscInt i,bs,rstart,rend;
+  const PetscScalar *l;
+  Vec_MPI *g;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(G,VEC_CLASSID,1);
+  g = (Vec_MPI*)G->data;
+  ierr = VecGhostGetLocalForm(G,&L);CHKERRQ(ierr);
+  ierr = VecGetBlockSize(G,&bs);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRange(G,&rstart,&rend);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(L,&l);CHKERRQ(ierr);
+  for (i=0; i<n; i++) {
+    if (rstart <= gidx[i] && gidx[i] < rend) {
+      values[i] = l[gidx[i] - rstart];
+    } else {
+      PetscInt nghost = g->nghost / bs,loc;
+      if (PetscUnlikely(!g->lsorted)) {
+        PetscInt j;
+        ISLocalToGlobalMapping ltog;
+        ierr = PetscMalloc2(nghost,&g->lsorted,nghost,&g->gsorted);CHKERRQ(ierr);
+        for (j=0; j<nghost; j++) {
+          g->lsorted[j] = (rend-rstart)/bs + j;
+        }
+        ierr = VecGetLocalToGlobalMapping(G,&ltog);CHKERRQ(ierr);
+        ierr = ISLocalToGlobalMappingApplyBlock(ltog,nghost,g->lsorted,g->gsorted);CHKERRQ(ierr);
+        ierr = PetscSortIntWithArray(nghost,g->gsorted,g->lsorted);CHKERRQ(ierr);
+      }
+      ierr = PetscFindInt(gidx[i]/bs,nghost,g->gsorted,&loc);CHKERRQ(ierr);
+      if (loc < 0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Global index %D not a ghost point of vector",gidx[i]);CHKERRQ(ierr);
+      values[i] = l[g->lsorted[loc]*bs + gidx[i]%bs];
+    }
+  }
+
+  ierr = VecGhostRestoreLocalForm(G,&L);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "VecSetOption_MPI"
 PetscErrorCode VecSetOption_MPI(Vec v,VecOption op,PetscBool flag)
 {

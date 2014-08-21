@@ -2127,10 +2127,10 @@ $              ( I   -ksp(A00) A01 ) ( inv(A00)     0  ) (     I          0  )
 $              ( 0         I       ) (   0      ksp(S) ) ( -A10 ksp(A00)  I  )
      where the action of inv(A00) is applied using the KSP solver with prefix -fieldsplit_0_.  S is the Schur complement
 $              S = A11 - A10 ksp(A00) A01
-     which is usually dense and not stored explicitly.  The action of ksp(S) is computed using the KSP solver with prefix -fieldsplit_splitname_ (where splitname was given
-     in providing the SECOND split or 1 if not give). For PCFieldSplitGetKSP() when field number is 0,
-     it returns the KSP associated with -fieldsplit_0_ while field number 1 gives -fieldsplit_1_ KSP. By default
-     A11 is used to construct a preconditioner for S, use PCFieldSplitSetSchurPre() to turn on or off this
+     which is usually dense and not stored explicitly.  The action of ksp(S) is computed using the KSP solver with prefix
+     -fieldsplit_splitname_ (where splitname was given in providing the SECOND split or 1 if not give). For PCFieldSplitGetKSP()
+     when field number is 0,  it returns the KSP associated with -fieldsplit_0_ while field number 1 gives -fieldsplit_1_ KSP.
+     By default A11 is used to construct a preconditioner for S, use PCFieldSplitSetSchurPre() to turn on or off this
      option. You can use the preconditioner PCLSC to precondition the Schur complement with -fieldsplit_1_pc_type lsc.
      When option -fieldsplit_schur_precondition selfp is given, an approximation to S is assembled --
      Sp = A11 - A10 inv(diag(A00)) A01, which has type AIJ and can be used with a variety of preconditioners

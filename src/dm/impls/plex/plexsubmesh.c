@@ -1458,6 +1458,19 @@ PetscErrorCode DMPlexLabelCohesiveComplete(DM dm, DMLabel label, DMLabel blabel,
 
       ierr = DMLabelGetValue(blabel, point, &bval);CHKERRQ(ierr);
       if (bval >= 0) {
+        ierr = DMLabelGetValue(label, point, &val);CHKERRQ(ierr);
+        if ((val < 0) || (val > dim)) {
+          /* This could be a point added from splitting a vertex on an adjacent fault, otherwise its just wrong */
+          ierr = DMLabelClearValue(blabel, point, bval);CHKERRQ(ierr);
+        }
+      }
+    }
+    for (p = 0; p < numPoints; ++p) {
+      const PetscInt point = points[p];
+      PetscInt       val, bval;
+
+      ierr = DMLabelGetValue(blabel, point, &bval);CHKERRQ(ierr);
+      if (bval >= 0) {
         const PetscInt *cone,    *support;
         PetscInt        coneSize, supportSize, s, valA, valB, valE;
 
@@ -1875,8 +1888,8 @@ static PetscErrorCode DMPlexMarkCohesiveSubmesh_Uninterpolated(DM dm, PetscBool 
   PetscFunctionBegin;
   *numFaces = 0;
   *nFV = 0;
-  if (labelname) {ierr = DMPlexGetLabel(dm, labelname, &label);CHKERRQ(ierr);}
   *subCells = NULL;
+  if (labelname) {ierr = DMPlexGetLabel(dm, labelname, &label);CHKERRQ(ierr);}
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm, 0, NULL, &cEnd);CHKERRQ(ierr);
   ierr = DMPlexGetHybridBounds(dm, &cMax, NULL, NULL, NULL);CHKERRQ(ierr);
@@ -3141,8 +3154,8 @@ static PetscErrorCode DMPlexCreateCohesiveSubmesh_Interpolated(DM dm, const char
       ierr = PetscSFReduceEnd(sfPoint, MPIU_2INT, newLocalPoints, newOwners, MPI_MAXLOC);CHKERRQ(ierr);
       ierr = PetscSFBcastBegin(sfPoint, MPIU_2INT, newOwners, newLocalPoints);CHKERRQ(ierr);
       ierr = PetscSFBcastEnd(sfPoint, MPIU_2INT, newOwners, newLocalPoints);CHKERRQ(ierr);
-      ierr = PetscMalloc(numSubleaves * sizeof(PetscInt),    &slocalPoints);CHKERRQ(ierr);
-      ierr = PetscMalloc(numSubleaves * sizeof(PetscSFNode), &sremotePoints);CHKERRQ(ierr);
+      ierr = PetscMalloc1(numSubleaves,    &slocalPoints);CHKERRQ(ierr);
+      ierr = PetscMalloc1(numSubleaves, &sremotePoints);CHKERRQ(ierr);
       for (l = 0, sl = 0, ll = 0; l < numLeaves; ++l) {
         const PetscInt point    = localPoints[l];
         const PetscInt subpoint = DMPlexFilterPoint_Internal(point, 0, numSubpoints, subpoints);

@@ -1028,6 +1028,12 @@ PetscErrorCode  PetscFinalize(void)
     ierr = PetscFree(cits);CHKERRQ(ierr);
   }
   ierr = PetscSegBufferDestroy(&PetscCitationsList);CHKERRQ(ierr);
+  /*
+    It should be safe to cancel the options monitors, since we don't expect to be setting options
+    here (at least that are worth monitoring).  Monitors ought to be released so that they release
+    whatever memory was allocated there before -malloc_dump reports unfreed memory.
+  */
+  ierr = PetscOptionsMonitorCancel();CHKERRQ(ierr);
 
 #if defined(PETSC_HAVE_SSL) && defined(PETSC_USE_SOCKET_VIEWER)
   /* TextBelt is run for testing purposes only, please do not use this feature often */

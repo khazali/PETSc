@@ -116,16 +116,16 @@ int main(int argc,char **argv)
      The ofill (thought of as a DOF by DOF 2d (row-oriented) array) represents the nonzero coupling between degrees
      of freedom at one point with degrees of freedom on the adjacent point to the left or right. A 1 at i,j in the
      ofill array indicates that the degree of freedom i at a point is coupled to degree of freedom j at the
-     adjacent point. In this case ofill has only a few diagonal entries since the only spatial coupling is regular diffusion. */
-  ierr = PetscMalloc1(dof*dof,&ofill);CHKERRQ(ierr);
-  ierr = PetscMalloc1(dof*dof,&dfill);CHKERRQ(ierr);
-  ierr = PetscMemzero(ofill,dof*dof*sizeof(PetscInt));CHKERRQ(ierr);
-  ierr = PetscMemzero(dfill,dof*dof*sizeof(PetscInt));CHKERRQ(ierr);
+     adjacent point. In this case ofill has only a few diagonal entries since the only spatial coupling is regular diffusion */
+  ierr = PetscMalloc1(DOF*DOF,&ofill);CHKERRQ(ierr);
+  ierr = PetscMemzero(ofill,DOF*DOF*sizeof(PetscInt));CHKERRQ(ierr);
+  for (He=0; He<PetscMin(NHe,5); He++) ofill[He*DOF + He] = 1;
+  ofill[NHe*DOF + NHe] = ofill[(NHe+NV)*DOF + NHe + NV] = 1;
 
   /*
     dfil (thought of as a DOF by DOF 2d (row-oriented) array) repesents the nonzero coupling between degrees of
    freedom within a single grid point, i.e. the reaction and dissassociation interactions. */
-  ierr = PetscMalloc(DOF*DOF*sizeof(PetscInt),&dfill);CHKERRQ(ierr);
+  ierr = PetscMalloc1(DOF*DOF,&dfill);CHKERRQ(ierr);
   ierr = PetscMemzero(dfill,DOF*DOF*sizeof(PetscInt));CHKERRQ(ierr);
   ierr = GetDfill(dfill,&ctx);CHKERRQ(ierr);
   ierr = DMDASetBlockFills(da,dfill,ofill);CHKERRQ(ierr);
@@ -184,7 +184,7 @@ PetscErrorCode cHeVCreate(PetscReal ***cHeV)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscMalloc(MHeV*sizeof(PetscScalar),cHeV);CHKERRQ(ierr);
+  ierr = PetscMalloc1(MHeV,cHeV);CHKERRQ(ierr);
   (*cHeV)--;
   PetscFunctionReturn(0);
 }
@@ -1268,22 +1268,20 @@ PetscErrorCode MyMonitorSetUp(TS ts)
   if (!flg) PetscFunctionReturn(0);
 
   ierr = TSGetDM(ts,&da);CHKERRQ(ierr);
-  ierr = PetscNew(MyMonitorCtx,&ctx);CHKERRQ(ierr);
   ierr = PetscNew(&ctx);CHKERRQ(ierr);
-  ierr = PetscViewerDrawOpen(PetscObjectComm((PetscObject)da),NULL,"",PETSC_DECIDE,PETSC_DECIDE,600,400,&ctx->viewer);CHKERRQ(ierr);
 
   /* setup visualization for He */
   ierr = PetscViewerDrawOpen(PetscObjectComm((PetscObject)da),NULL,"",PETSC_DECIDE,PETSC_DECIDE,600,400,&ctx->Heviewer);CHKERRQ(ierr);
   ierr = DMDAGetCorners(da,&xs,NULL,NULL,&xm,NULL,NULL);CHKERRQ(ierr);
   ierr = DMDAGetInfo(da,PETSC_IGNORE,&M,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE);CHKERRQ(ierr);
   ierr = DMDAGetOwnershipRanges(da,&lx,NULL,NULL);CHKERRQ(ierr);
-  ierr = DMDACreate2d(PetscObjectComm((PetscObject)da),DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DMDA_STENCIL_STAR,M,NHe,PETSC_DETERMINE,1,1,1,lx,NULL,&ctx->Heda);CHKERRQ(ierr);
+  ierr = DMDACreate2d(PetscObjectComm((PetscObject)da),DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DM_STENCIL_STAR,M,NHe,PETSC_DETERMINE,1,1,1,lx,NULL,&ctx->Heda);CHKERRQ(ierr);
   ierr = DMDASetFieldName(ctx->Heda,0,"He");CHKERRQ(ierr);
   ierr = DMDASetCoordinateName(ctx->Heda,0,"X coordinate direction");CHKERRQ(ierr);
   ierr = PetscSNPrintf(ycoor,32,"%D ... Cluster size ... 1",NHe);CHKERRQ(ierr);
   ierr = DMDASetCoordinateName(ctx->Heda,1,ycoor);CHKERRQ(ierr);
   ierr = DMCreateGlobalVector(ctx->Heda,&ctx->He);CHKERRQ(ierr);
-  ierr = PetscMalloc(NHe*xm*sizeof(PetscInt),&idx);CHKERRQ(ierr);
+  ierr = PetscMalloc1(NHe*xm,&idx);CHKERRQ(ierr);
   cnt  = 0;
   for (xj=0; xj<NHe; xj++) {
     for (xi=xs; xi<xs+xm; xi++) {
@@ -1308,9 +1306,7 @@ PetscErrorCode MyMonitorSetUp(TS ts)
   ierr = PetscSNPrintf(ycoor,32,"%D ... Cluster size ... 1",NV);CHKERRQ(ierr);
   ierr = DMDASetCoordinateName(ctx->Vda,1,ycoor);CHKERRQ(ierr);
   ierr = DMCreateGlobalVector(ctx->Vda,&ctx->V);CHKERRQ(ierr);
-  ierr = PetscMalloc(NV*xm*sizeof(PetscInt),&idx);CHKERRQ(ierr);
-  ierr = DMCreateGlobalVector(ctx->da,&ctx->He);CHKERRQ(ierr);
-  ierr = PetscMalloc1(2*N*xm,&idx);CHKERRQ(ierr);
+  ierr = PetscMalloc1(NV*xm,&idx);CHKERRQ(ierr);
   cnt  = 0;
   for (xj=0; xj<NV; xj++) {
     for (xi=xs; xi<xs+xm; xi++) {
@@ -1335,7 +1331,7 @@ PetscErrorCode MyMonitorSetUp(TS ts)
   ierr = PetscSNPrintf(ycoor,32,"%D ... Cluster size ... 1",NHeV[1]);CHKERRQ(ierr);
   ierr = DMDASetCoordinateName(ctx->HeVda,1,ycoor);CHKERRQ(ierr);
   ierr = DMCreateGlobalVector(ctx->HeVda,&ctx->HeV);CHKERRQ(ierr);
-  ierr = PetscMalloc(NHeV[1]*xm*sizeof(PetscInt),&idx);CHKERRQ(ierr);
+  ierr = PetscMalloc1(NHeV[1]*xm,&idx);CHKERRQ(ierr);
   cnt  = 0;
   for (xj=0; xj<NHeV[1]; xj++) {
     for (xi=xs; xi<xs+xm; xi++) {

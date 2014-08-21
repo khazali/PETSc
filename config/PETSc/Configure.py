@@ -953,6 +953,24 @@ prepend-path PATH %s
       for i in postPackages: i.postProcess()
     return
 
+  def DumpFeatures(self):
+    fd  = open(os.path.join(self.arch.arch,'conf','gmakevariables'),'w')
+    cnt = 0
+    fd.write('PETSCINSTALLEDFEATURES="')
+    for i in self.framework.packages:
+      if i.useddirectly and not i.PACKAGE.replace('-','_').lower() in ['mpi','pthread','blaslapack','sowing','valgrind']:
+        if cnt: fd.write(",")
+        fd.write(i.PACKAGE.replace('-','_').lower())
+        cnt = cnt+1
+    if cnt: fd.write(",")
+    fd.write(self.scalartypes.precision)
+    fd.write(",")
+    fd.write(self.scalartypes.scalartype)
+    fd.write(",")
+    fd.write(str(self.libraryoptions.integerSize)+'bitindices')
+    fd.write('"\n')
+    fd.close()
+
   def configure(self):
     if not os.path.samefile(self.petscdir.dir, os.getcwd()):
       raise RuntimeError('Wrong PETSC_DIR option specified: '+str(self.petscdir.dir) + '\n  Configure invoked in: '+os.path.realpath(os.getcwd()))
@@ -999,6 +1017,7 @@ prepend-path PATH %s
     self.cmakeBoot()
     self.DumpPkgconfig()
     self.DumpModule()
+    self.DumpFeatures()
     self.framework.log.write('================================================================================\n')
     self.logClear()
     return

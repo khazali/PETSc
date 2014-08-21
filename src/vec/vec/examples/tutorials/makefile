@@ -252,6 +252,10 @@ runex9_3:
 	   if (${DIFF} output/ex9_1.out ex9_3.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex9_3, diffs above\n=========================================\n"; fi;\
 	   ${RM} -f ex9_3.tmp
+runex9_4:
+	-@${MPIEXEC} -n 2 ./ex9 -ghostgetvalues > ex9_4.tmp 2>&1;\
+	   ${DIFF} output/ex9_4.out ex9_4.tmp || printf "${PWD}\nPossible problem with with ex9_4, diffs above\n=========================================\n"; \
+	   ${RM} -f ex9_4.tmp
 runex9f:
 	-@${MPIEXEC} -n 2 ./ex9f > ex9f_1.tmp 2>&1;\
 	   if (${DIFF} output/ex9f_1.out ex9f_1.tmp) then true; \
@@ -313,7 +317,7 @@ runex21f90:
 TESTEXAMPLES_C		    = ex1.PETSc runex1 runex1_2 ex1.rm  \
                               ex2.PETSc runex2 ex2.rm ex5.PETSc runex5 runex5_2 ex5.rm ex6.PETSc \
                               runex6 ex6.rm ex8.PETSc runex8 ex8.rm ex10.PETSc runex10 runex10_2 runex10_3 ex10.rm ex11.PETSc runex11 ex11.rm \
-                              ex12.PETSc runex12 ex12.rm ex16.PETSc runex16 ex16.rm ex9.PETSc runex9 runex9_2 ex9.rm ex16.PETSc \
+                              ex12.PETSc runex12 ex12.rm ex16.PETSc runex16 ex16.rm ex9.PETSc runex9 runex9_2 runex9_3 runex9_4 ex9.rm ex16.PETSc \
                               ex16.rm
 TESTEXAMPLES_C_X	    = ex3.PETSc runex3 ex3.rm
 TESTEXAMPLES_FORTRAN	    = ex1f.PETSc runex1f runex1f_2 ex1f.rm ex2f.PETSc runex2f ex2f.rm ex4f.PETSc \

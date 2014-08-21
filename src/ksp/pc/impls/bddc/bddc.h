@@ -49,6 +49,7 @@ typedef struct {
   PetscBool     use_change_on_faces;
   Mat           ChangeOfBasisMatrix;
   Mat           user_ChangeOfBasisMatrix;
+  Mat           new_global_mat;
   Vec           original_rhs;
   Vec           temp_solution;
   Mat           local_mat;
@@ -86,6 +87,11 @@ typedef struct {
   Vec                        work_scaling;
   PetscBool                  use_deluxe_scaling;
   PCBDDCDeluxeScaling        deluxe_ctx;
+  PetscInt                   deluxe_threshold;
+  PetscBool                  deluxe_rebuild;
+  PetscInt                   deluxe_layers;
+  PetscBool                  deluxe_compute_rowadj;
+  PetscBool                  deluxe_use_useradj;
   /* For verbose output of some bddc data structures */
   PetscInt                   dbg_flag;
   PetscViewer                dbg_viewer;

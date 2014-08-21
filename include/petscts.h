@@ -39,6 +39,9 @@ typedef const char* TSType;
 #define TSARKIMEX         "arkimex"
 #define TSROSW            "rosw"
 #define TSEIMEX           "eimex"
+#define TSDAESIMPLERED    "daesimplered"
+#define TSDAESIMPLEFULL   "daesimplefull"
+
 /*E
     TSProblemType - Determines the type of problem this TS object is to be used to solve
 
@@ -244,6 +247,9 @@ PETSC_EXTERN PetscErrorCode TSSetTime(TS,PetscReal);
 PETSC_EXTERN PetscErrorCode TSGetTimeStepNumber(TS,PetscInt*);
 PETSC_EXTERN PetscErrorCode TSSetTimeStep(TS,PetscReal);
 
+PETSC_EXTERN PetscErrorCode TSDAESimpleSetRHSFunction(TS,Vec,PetscErrorCode (*)(PetscReal,Vec,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode TSDAESimpleSetIFunction(TS,Vec,PetscErrorCode (*)(PetscReal,Vec,Vec,Vec,void*),void*);
+
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSRHSFunction)(TS,PetscReal,Vec,Vec,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSRHSJacobian)(TS,PetscReal,Vec,Mat,Mat,void*);
 PETSC_EXTERN PetscErrorCode TSSetRHSFunction(TS,Vec,TSRHSFunction,void*);
@@ -282,7 +288,8 @@ PETSC_EXTERN PetscErrorCode TSSetRetainStages(TS,PetscBool);
 PETSC_EXTERN PetscErrorCode TSInterpolate(TS,PetscReal,Vec);
 PETSC_EXTERN PetscErrorCode TSSetTolerances(TS,PetscReal,Vec,PetscReal,Vec);
 PETSC_EXTERN PetscErrorCode TSGetTolerances(TS,PetscReal*,Vec*,PetscReal*,Vec*);
-PETSC_EXTERN PetscErrorCode TSErrorNormWRMS(TS,Vec,PetscReal*);
+PETSC_EXTERN PetscErrorCode TSSetDifferentialEquationsIS(TS,IS);
+PETSC_EXTERN PetscErrorCode TSErrorWeightedNorm(TS,Vec,PetscReal*);
 PETSC_EXTERN PetscErrorCode TSSetCFLTimeLocal(TS,PetscReal);
 PETSC_EXTERN PetscErrorCode TSGetCFLTime(TS,PetscReal*);
 
@@ -326,6 +333,11 @@ PETSC_EXTERN PetscErrorCode DMTSSetRHSFunctionLocal(DM,PetscErrorCode (*)(DM,Pet
 
 PETSC_EXTERN PetscErrorCode DMTSSetIFunctionSerialize(DM,PetscErrorCode (*)(void*,PetscViewer),PetscErrorCode (*)(void**,PetscViewer));
 PETSC_EXTERN PetscErrorCode DMTSSetIJacobianSerialize(DM,PetscErrorCode (*)(void*,PetscViewer),PetscErrorCode (*)(void**,PetscViewer));
+
+PETSC_EXTERN PetscErrorCode DMTSSetDAESimpleRHSFunction(DM,PetscErrorCode (*)(PetscReal,Vec,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode DMTSSetDAESimpleIFunction(DM,PetscErrorCode (*)(PetscReal,Vec,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode DMTSGetDAESimpleRHSFunction(DM,PetscErrorCode (**)(PetscReal,Vec,Vec,Vec,void*),void**);
+PETSC_EXTERN PetscErrorCode DMTSGetDAESimpleIFunction(DM,PetscErrorCode (**)(PetscReal,Vec,Vec,Vec,void*),void**);
 
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*DMDATSRHSFunctionLocal)(DMDALocalInfo*,PetscReal,void*,void*,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*DMDATSRHSJacobianLocal)(DMDALocalInfo*,PetscReal,void*,Mat,Mat,void*);

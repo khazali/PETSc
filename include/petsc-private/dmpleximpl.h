@@ -7,7 +7,7 @@
 #include <petsc-private/dmimpl.h>
 #include <../src/sys/utils/hash.h>
 
-PETSC_EXTERN PetscLogEvent DMPLEX_Interpolate, DMPLEX_Partition, DMPLEX_Distribute, DMPLEX_DistributeCones, DMPLEX_DistributeLabels, DMPLEX_DistributeSF, DMPLEX_DistributeField, DMPLEX_DistributeData, DMPLEX_Stratify, DMPLEX_Preallocate, DMPLEX_ResidualFEM, DMPLEX_JacobianFEM, DMPLEX_InterpolatorFEM, DMPLEX_InjectorFEM;
+PETSC_EXTERN PetscLogEvent DMPLEX_Interpolate, DMPLEX_Partition, DMPLEX_Distribute, DMPLEX_DistributeCones, DMPLEX_DistributeLabels, DMPLEX_DistributeSF, DMPLEX_DistributeField, DMPLEX_DistributeData, DMPLEX_Decompose, DMPLEX_Stratify, DMPLEX_Preallocate, DMPLEX_ResidualFEM, DMPLEX_JacobianFEM, DMPLEX_InterpolatorFEM, DMPLEX_InjectorFEM;
 
 /* This is an integer map, in addition it is also a container class
    Design points:
@@ -76,9 +76,25 @@ typedef struct {
   IS                   globalVertexNumbers;
   IS                   globalCellNumbers;
 
+  /* Constraints */
+  PetscSection         anchorSection;     /* maps constrained points to anchor points */
+  IS                   anchorIS;          /* anchors indexed by the above section */
+  PetscSection         constraintSection; /* maps points to rows in the constraint matrix below */
+  Mat                  constraintMat;     /* (m x n), m = constrained dofs in the default section, n = dofs in the default section */
+
+  /* Tree: automatically construct constraints for hierarchically non-conforming meshes */
+  PetscSection         parentSection;     /* dof == 1 if point has parent */
+  PetscInt            *parents;           /* point to parent */
+  PetscInt            *childIDs;          /* point to child ID */
+  PetscSection         childSection;      /* inverse of parent section */
+  PetscInt            *children;          /* point to children */
+  DM                   referenceTree;     /* reference tree to which child ID's refer */
+  PetscErrorCode      (*getchildsymmetry)(DM,PetscInt,PetscInt,PetscInt,PetscInt,PetscInt,PetscInt*,PetscInt*);
+
   /* Adjacency */
   PetscBool            useCone;           /* Use cone() first when defining adjacency */
   PetscBool            useClosure;        /* Use the transitive closure when defining adjacency */
+  PetscBool            useConstraints;    /* Replace constrained points with their anchors in adjacency lists */
 
   /* Output */
   PetscInt             vtkCellHeight;            /* The height of cells for output, default is 0 */
@@ -108,7 +124,7 @@ PETSC_EXTERN PetscErrorCode DMPlexView_HDF5(DM, PetscViewer);
 PETSC_EXTERN PetscErrorCode DMPlexLoad_HDF5(DM, PetscViewer);
 #endif
 
-PETSC_EXTERN PetscErrorCode DMPlexGetAdjacency_Internal(DM,PetscInt,PetscBool,PetscBool,PetscInt*,PetscInt*[]);
+PETSC_EXTERN PetscErrorCode DMPlexGetAdjacency_Internal(DM,PetscInt,PetscBool,PetscBool,PetscBool,PetscInt*,PetscInt*[]);
 PETSC_EXTERN PetscErrorCode DMPlexGetFaces_Internal(DM,PetscInt,PetscInt,PetscInt*,PetscInt*,const PetscInt*[]);
 PETSC_EXTERN PetscErrorCode DMPlexGetRawFaces_Internal(DM,PetscInt,PetscInt,const PetscInt[], PetscInt*,PetscInt*,const PetscInt*[]);
 PETSC_EXTERN PetscErrorCode DMPlexRestoreFaces_Internal(DM,PetscInt,PetscInt,PetscInt*,PetscInt*,const PetscInt*[]);
@@ -122,6 +138,40 @@ PETSC_EXTERN PetscErrorCode DMPlexInvertCell_Internal(PetscInt, PetscInt, PetscI
 PETSC_EXTERN PetscErrorCode DMPlexLocalizeCoordinate_Internal(DM, PetscInt, const PetscScalar[], const PetscScalar[], PetscScalar[]);
 PETSC_EXTERN PetscErrorCode DMPlexLocalizeAddCoordinate_Internal(DM, PetscInt, const PetscScalar[], const PetscScalar[], PetscScalar[]);
 PETSC_EXTERN PetscErrorCode DMPlexVecSetFieldClosure_Internal(DM, PetscSection, Vec, PetscBool[], PetscInt, const PetscScalar[], InsertMode);
+PETSC_EXTERN PetscErrorCode DMPlexProjectConstraints_Internal(DM, Vec, Vec);
+
+#undef __FUNCT__
+#define __FUNCT__ "DihedralInvert"
+/* invert dihedral symmetry: return a^-1,
+ * using the representation described in
+ * DMPlexGetConeOrientation() */
+PETSC_STATIC_INLINE PetscInt DihedralInvert(PetscInt N, PetscInt a)
+{
+  return (a <= 0) ? a : (N - a);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DihedralCompose"
+/* invert dihedral symmetry: return b * a,
+ * using the representation described in
+ * DMPlexGetConeOrientation() */
+PETSC_STATIC_INLINE PetscInt DihedralCompose(PetscInt N, PetscInt a, PetscInt b)
+{
+  if (!N) return 0;
+  return  (a >= 0) ?
+         ((b >= 0) ? ((a + b) % N) : -(((a - b - 1) % N) + 1)) :
+         ((b >= 0) ? -(((N - b - a - 1) % N) + 1) : ((N + b - a) % N));
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DihedralSwap"
+/* swap dihedral symmetries: return b * a^-1,
+ * using the representation described in
+ * DMPlexGetConeOrientation() */
+PETSC_STATIC_INLINE PetscInt DihedralSwap(PetscInt N, PetscInt a, PetscInt b)
+{
+  return DihedralCompose(N,DihedralInvert(N,a),b);
+}
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlex_Invert2D_Internal"

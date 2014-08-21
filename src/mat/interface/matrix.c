@@ -9087,7 +9087,7 @@ PetscErrorCode  MatMatMatMult(Mat A,Mat B,Mat C,MatReuse scall,PetscReal fill,Ma
    Input Parameters:
 +  mat - the matrix
 .  nsubcomm - the number of subcommunicators (= number of redundant parallel or sequential matrices)
-.  subcomm - MPI communicator split from the communicator where mat resides in (or MPI_COMM_NULL if nsubcomm is used)
+.  subcomm - MPI communicator split from the communicator where mat resides in (or MPI_COMM_NULL if psubcomm is used)
 -  reuse - either MAT_INITIAL_MATRIX or MAT_REUSE_MATRIX
 
    Output Parameter:
@@ -9109,6 +9109,7 @@ PetscErrorCode  MatMatMatMult(Mat A,Mat B,Mat C,MatReuse scall,PetscReal fill,Ma
 
 .seealso: MatDestroy()
 @*/
+
 PetscErrorCode  MatGetRedundantMatrix(Mat mat,PetscInt nsubcomm,MPI_Comm subcomm,MatReuse reuse,Mat *matredundant)
 {
   PetscErrorCode ierr;

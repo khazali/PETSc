@@ -9,8 +9,8 @@ CPPFLAGS         =
 FPPFLAGS         =
 LOCDIR		 = src/snes/examples/tutorials/
 MANSEC           = SNES
-EXAMPLESC	 = ex1.c ex2.c ex3.c  ex5.c ex5s.c ex7.c \
-                ex10.c ex12.c ex14.c ex15.c ex18.c ex19.c ex20.c ex21.c ex22.c \
+EXAMPLESC	 = ex1.c ex2.c ex3.c ex5.c ex5s.c ex7.c \
+                ex10.c ex12.c ex13.c ex14.c ex15.c ex18.c ex19.c ex20.c ex21.c ex22.c \
                 ex25.c ex28.c ex30.c ex33.c \
                 ex35.c ex42.c ex46.c ex48.c \
                 ex53.c ex54.c ex55.c ex58.c ex59.c ex60.c \
@@ -230,7 +230,7 @@ ex64: ex64.o  chkopts
 ex65: ex65.o  chkopts
 	-${CLINKER} -o ex65 ex65.o ${PETSC_SNES_LIB}
 	${RM} ex65.o
-ex653d: ex653D.o chkopts
+ex653d: ex653d.o chkopts
 	-${CLINKER} -o ex653d ex653D.o ${PETSC_SNES_LIB}
 	${RM} ex653d.o
 ex65dm: ex65dm.o  chkopts
@@ -1101,7 +1101,7 @@ TESTEXAMPLES_C		       = ex1.PETSc runex1 runex1_2 ex1.rm ex2.PETSc runex2  rune
                                  runex5_5_nasm runex5_5_newton_asm_dmda runex5_5_newton_gasm_dmda \
                                  runex5_6 ex5.rm ex7.PETSc runex7 ex7.rm\
                                  ex14.PETSc runex14 runex14_2 runex14_3 ex14.rm \
-                                 ex15.PETSc runex15 runex15_3 runex15_lag_jac runex15_lag_pc ex15.rm \
+                                 ex15.PETSc runex15 runex15_3 runex15_4 runex15_lag_jac runex15_lag_pc ex15.rm \
                                  ex16.PETSc runex16_3 ex16.rm \
                                  ex18.PETSc runex18 ex18.rm \
                                  ex19.PETSc runex19 runex19_2 runex19_bcols1 runex19_2_bcols1 runex19_fdcoloring_wp runex19_fdcoloring_ds \

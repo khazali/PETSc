@@ -13,6 +13,7 @@ typedef struct {
   PetscInt    nghost;                   /* length of local portion including ghost padding */
   Vec         localrep;                 /* local representation of vector */
   VecScatter  localupdate;              /* scatter to update ghost values */
+  PetscInt    *lsorted,*gsorted;        /* local indices for sorted global values */
 } Vec_MPI;
 
 PETSC_INTERN PetscErrorCode VecMDot_MPI(Vec,PetscInt,const Vec[],PetscScalar*);

@@ -100,6 +100,7 @@ PetscErrorCode DMClone(DM dm, DM *newdm)
   ierr = DMCreate(PetscObjectComm((PetscObject)dm), newdm);CHKERRQ(ierr);
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = DMSetDimension(*newdm, dim);CHKERRQ(ierr);
+  (*newdm)->setupcalled = PETSC_TRUE;
   if (dm->ops->clone) {
     ierr = (*dm->ops->clone)(dm, newdm);CHKERRQ(ierr);
   }
@@ -391,7 +392,7 @@ PetscErrorCode  DMSetOptionsPrefix(DM dm,const char prefix[])
 @*/
 PetscErrorCode  DMDestroy(DM *dm)
 {
-  PetscInt       i, cnt = 0, Nf = 0, f;
+  PetscInt       i, cnt = 0;
   DMNamedVecLink nlink,nnext;
   PetscErrorCode ierr;
 
@@ -399,18 +400,6 @@ PetscErrorCode  DMDestroy(DM *dm)
   if (!*dm) PetscFunctionReturn(0);
   PetscValidHeaderSpecific((*dm),DM_CLASSID,1);
 
-  if ((*dm)->prob) {
-    PetscObject disc;
-
-    /* I think it makes sense to dump all attached things when you are destroyed, which also eliminates circular references */
-    ierr = PetscDSGetNumFields((*dm)->prob, &Nf);CHKERRQ(ierr);
-    for (f = 0; f < Nf; ++f) {
-      ierr = PetscDSGetDiscretization((*dm)->prob, f, &disc);CHKERRQ(ierr);
-      ierr = PetscObjectCompose(disc, "pmat", NULL);CHKERRQ(ierr);
-      ierr = PetscObjectCompose(disc, "nullspace", NULL);CHKERRQ(ierr);
-      ierr = PetscObjectCompose(disc, "nearnullspace", NULL);CHKERRQ(ierr);
-    }
-  }
   /* count all the circular references of DM and its contained Vecs */
   for (i=0; i<DM_MAX_WORK_VECTORS; i++) {
     if ((*dm)->localin[i])  cnt++;
@@ -487,6 +476,14 @@ PetscErrorCode  DMDestroy(DM *dm)
       ierr = PetscFree(link);CHKERRQ(ierr);
     }
     (*dm)->gtolhook = NULL;
+  }
+  {
+    DMLocalToGlobalHookLink link,next;
+    for (link=(*dm)->ltoghook; link; link=next) {
+      next = link->next;
+      ierr = PetscFree(link);CHKERRQ(ierr);
+    }
+    (*dm)->ltoghook = NULL;
   }
   /* Destroy the work arrays */
   {
@@ -1437,6 +1434,10 @@ PetscErrorCode  DMRefine(DM dm,MPI_Comm comm,DM *dmf)
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   ierr = (*dm->ops->refine)(dm,comm,dmf);CHKERRQ(ierr);
   if (*dmf) {
+    const char *name;
+
+    ierr = PetscObjectGetName((PetscObject)  dm, &name);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject) *dmf, name);CHKERRQ(ierr);
     (*dmf)->ops->creatematrix = dm->ops->creatematrix;
 
     ierr = PetscObjectCopyFortranFunctionPointers((PetscObject)dm,(PetscObject)*dmf);CHKERRQ(ierr);
@@ -1712,6 +1713,59 @@ PetscErrorCode  DMGlobalToLocalEnd(DM dm,Vec g,InsertMode mode,Vec l)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "DMLocalToGlobalHookAdd"
+/*@C
+   DMLocalToGlobalHookAdd - adds a callback to be run when a local to global is called
+
+   Logically Collective
+
+   Input Arguments:
++  dm - the DM
+.  beginhook - function to run at the beginning of DMLocalToGlobalBegin()
+.  endhook - function to run after DMLocalToGlobalEnd() has completed
+-  ctx - [optional] user-defined context for provide data for the hooks (may be NULL)
+
+   Calling sequence for beginhook:
+$    beginhook(DM fine,Vec l,InsertMode mode,Vec g,void *ctx)
+
++  dm - global DM
+.  l - local vector
+.  mode - mode
+.  g - global vector
+-  ctx - optional user-defined function context
+
+
+   Calling sequence for endhook:
+$    endhook(DM fine,Vec l,InsertMode mode,Vec g,void *ctx)
+
++  global - global DM
+.  l - local vector
+.  mode - mode
+.  g - global vector
+-  ctx - optional user-defined function context
+
+   Level: advanced
+
+.seealso: DMRefineHookAdd(), SNESFASGetInterpolation(), SNESFASGetInjection(), PetscObjectCompose(), PetscContainerCreate()
+@*/
+PetscErrorCode DMLocalToGlobalHookAdd(DM dm,PetscErrorCode (*beginhook)(DM,Vec,InsertMode,Vec,void*),PetscErrorCode (*endhook)(DM,Vec,InsertMode,Vec,void*),void *ctx)
+{
+  PetscErrorCode          ierr;
+  DMLocalToGlobalHookLink link,*p;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  for (p=&dm->ltoghook; *p; p=&(*p)->next) {} /* Scan to the end of the current list of hooks */
+  ierr            = PetscMalloc(sizeof(struct _DMLocalToGlobalHookLink),&link);CHKERRQ(ierr);
+  link->beginhook = beginhook;
+  link->endhook   = endhook;
+  link->ctx       = ctx;
+  link->next      = NULL;
+  *p              = link;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "DMLocalToGlobalBegin"
 /*@
     DMLocalToGlobalBegin - updates global vectors from local vectors
@@ -1736,11 +1790,17 @@ PetscErrorCode  DMGlobalToLocalEnd(DM dm,Vec g,InsertMode mode,Vec l)
 @*/
 PetscErrorCode  DMLocalToGlobalBegin(DM dm,Vec l,InsertMode mode,Vec g)
 {
-  PetscSF        sf;
-  PetscErrorCode ierr;
+  PetscSF                 sf;
+  PetscErrorCode          ierr;
+  DMLocalToGlobalHookLink link;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  for (link=dm->ltoghook; link; link=link->next) {
+    if (link->beginhook) {
+      ierr = (*link->beginhook)(dm,l,mode,g,link->ctx);CHKERRQ(ierr);
+    }
+  }
   ierr = DMGetDefaultSF(dm, &sf);CHKERRQ(ierr);
   if (sf) {
     MPI_Op      op;
@@ -1790,6 +1850,7 @@ PetscErrorCode  DMLocalToGlobalEnd(DM dm,Vec l,InsertMode mode,Vec g)
 {
   PetscSF        sf;
   PetscErrorCode ierr;
+  DMLocalToGlobalHookLink link;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
@@ -1815,6 +1876,9 @@ PetscErrorCode  DMLocalToGlobalEnd(DM dm,Vec l,InsertMode mode,Vec g)
     ierr = VecRestoreArray(g, &gArray);CHKERRQ(ierr);
   } else {
     ierr = (*dm->ops->localtoglobalend)(dm,l,mode == INSERT_ALL_VALUES ? INSERT_VALUES : (mode == ADD_ALL_VALUES ? ADD_VALUES : mode),g);CHKERRQ(ierr);
+  }
+  for (link=dm->ltoghook; link; link=link->next) {
+    if (link->endhook) {ierr = (*link->endhook)(dm,g,mode,l,link->ctx);CHKERRQ(ierr);}
   }
   PetscFunctionReturn(0);
 }

@@ -112,7 +112,7 @@ int main(int argc,char **args)
     MatNullSpace nullsp;
     Vec *nullvecs;
     PetscInt i;
-    ierr = PetscMalloc(nearnulldim*sizeof(nullvecs[0]),&nullvecs);CHKERRQ(ierr);
+    ierr = PetscMalloc1(nearnulldim,&nullvecs);CHKERRQ(ierr);
     for (i=0; i<nearnulldim; i++) {
       ierr = VecCreate(PETSC_COMM_WORLD,&nullvecs[i]);CHKERRQ(ierr);
       ierr = VecLoad(nullvecs[i],fd);CHKERRQ(ierr);
