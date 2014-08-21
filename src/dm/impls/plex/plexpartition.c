@@ -605,6 +605,104 @@ PetscErrorCode DMPlexCreatePartitionClosure(DM dm, PetscSection pointSection, IS
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexCreatePartitionOverlap_AddRemoteConnections"
+PetscErrorCode DMPlexCreatePartitionOverlap_AddRemoteConnections(DM dm, PetscInt *recvRanks, PetscBT partitionBT)
+{
+  MPI_Comm           comm;
+  PetscMPIInt        rank, numProcs;
+  PetscSF            pointSF, rankSF, remoteSF;
+  PetscSection       localSection, remoteSection;
+  ISLocalToGlobalMapping renumbering;
+  PetscInt           j, p, pStart, pEnd, numPoints, proc, dof, offset, localSize, remoteSize;
+  PetscInt          *localIdx, *remoteOffsets;
+  const PetscInt    *ltog;
+  PetscSFNode       *localConnections, *remoteConnections, *remoteRanks;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+
+  ierr = PetscObjectGetComm((PetscObject)dm, &comm);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &numProcs);CHKERRQ(ierr);
+  ierr = DMGetPointSF(dm, &pointSF);CHKERRQ(ierr);
+  ierr = DMPlexGetChart(dm, &pStart, &pEnd);CHKERRQ(ierr);
+  numPoints = pEnd - pStart;
+
+  /* We need to inform point owners of overlap connections made on the local
+     process. For this we list all locally made connections for each root owner
+     in the pointSF, where each connection is an SFNode detailing which point to
+     donate to which process. */
+  ierr = PetscSectionCreate(comm, &localSection);CHKERRQ(ierr);
+  ierr = PetscSectionSetChart(localSection, 0, numProcs);CHKERRQ(ierr);
+  for (p=pStart; p<pEnd; p++) {
+    if (recvRanks[p] < 0) continue;
+    for (proc=0; proc<numProcs; proc++) {
+      if (PetscBTLookup(partitionBT, proc*numPoints + p)) {
+        ierr = PetscSectionGetDof(localSection, recvRanks[p], &dof);CHKERRQ(ierr);
+        ierr = PetscSectionSetDof(localSection, recvRanks[p], dof+1);CHKERRQ(ierr);
+      }
+    }
+  }
+  ierr = PetscSectionSetUp(localSection);CHKERRQ(ierr);
+  ierr = PetscSectionGetStorageSize(localSection, &localSize);CHKERRQ(ierr);
+  ierr = PetscMalloc1(localSize, &localConnections);CHKERRQ(ierr);
+  ierr = PetscCalloc1(numProcs, &localIdx);CHKERRQ(ierr);
+  for (p=pStart; p<pEnd; p++) {
+    if (recvRanks[p] < 0) continue;
+    for (proc=0; proc<numProcs; proc++) {
+      if (PetscBTLookup(partitionBT, proc*numPoints + p)) {
+        ierr = PetscSectionGetOffset(localSection, recvRanks[p], &offset);CHKERRQ(ierr);
+        localConnections[offset + localIdx[recvRanks[p]]].index = p;
+        localConnections[offset + localIdx[recvRanks[p]]].rank = proc;
+        localIdx[recvRanks[p]]++;
+      }
+    }
+  }
+
+  /* Translate local connection indices to remote numbering */
+  ierr = ISLocalToGlobalMappingCreateSF(pointSF, 0, &renumbering);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetIndices(renumbering, &ltog);CHKERRQ(ierr);
+  for (proc=0; proc<numProcs; proc++) {
+    ierr = PetscSectionGetDof(localSection, proc, &dof);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(localSection, proc, &offset);CHKERRQ(ierr);
+    for (j=0; j<dof; j++) {
+      localConnections[offset+j].index = ltog[ localConnections[offset+j].index ];
+    }
+  }
+
+  /* Build SF that maps into local section entries */
+  ierr = PetscMalloc1(numProcs, &remoteRanks);CHKERRQ(ierr);
+  for (p = 0; p < numProcs; p++) {
+    remoteRanks[p].rank = p;
+    remoteRanks[p].index = rank;
+  }
+  ierr = PetscSFCreate(comm, &rankSF);CHKERRQ(ierr);
+  ierr = PetscSFSetGraph(rankSF, numProcs, numProcs, NULL, PETSC_OWN_POINTER, remoteRanks, PETSC_OWN_POINTER);CHKERRQ(ierr);
+
+  /* Push local overlap connections to the point owner */
+  ierr = PetscSectionCreate(comm, &remoteSection);CHKERRQ(ierr);
+  ierr = PetscSFDistributeSection(rankSF, localSection, &remoteOffsets, remoteSection);CHKERRQ(ierr);
+  ierr = PetscSFCreateSectionSF(rankSF, localSection, remoteOffsets, remoteSection, &remoteSF);CHKERRQ(ierr);
+  ierr = PetscSectionGetStorageSize(remoteSection, &remoteSize);CHKERRQ(ierr);
+  ierr = PetscMalloc1(remoteSize, &remoteConnections);CHKERRQ(ierr);
+  ierr = PetscSFBcastBegin(remoteSF, MPIU_2INT, localConnections, remoteConnections);CHKERRQ(ierr);
+  ierr = PetscSFBcastEnd(remoteSF, MPIU_2INT, localConnections, remoteConnections);CHKERRQ(ierr);
+
+  for (p=0; p<remoteSize; p++) {
+    proc = remoteConnections[p].rank;
+    if (proc != rank) PetscBTSet(partitionBT, proc*numPoints+remoteConnections[p].index);
+  }
+
+  ierr = PetscSFDestroy(&rankSF);CHKERRQ(ierr);
+  ierr = PetscSFDestroy(&remoteSF);CHKERRQ(ierr);
+  ierr = PetscSectionDestroy(&localSection);CHKERRQ(ierr);
+  ierr = PetscSectionDestroy(&remoteSection);CHKERRQ(ierr);
+  ierr = PetscFree3(localConnections, remoteConnections, localIdx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /*
   DMPlexCreatePartitionOverlap - Create a partition of local cells in the remote overlap of neightbouring processes
 
@@ -755,6 +853,10 @@ PetscErrorCode DMPlexCreatePartitionOverlap(DM dm, PetscSection *section, IS *ov
   if (closure) {
     ierr = DMPlexRestoreTransitiveClosure(dm, p, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
   }
+
+  /* Before removing non-owned points we need to inform the point owner
+     of the connection we found and the receiving process. */
+  ierr = DMPlexCreatePartitionOverlap_AddRemoteConnections(dm, recvRanks, partitionBT);CHKERRQ(ierr);
 
   /* Remove all points covered by the pointSF */
   for (p=0, ideg=0; p<numPoints; p++) {
