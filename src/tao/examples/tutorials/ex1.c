@@ -191,21 +191,21 @@ static PetscErrorCode SetupProblem(DM dm, AppCtx *user)
 #define __FUNCT__ "SetupDiscretization"
 PetscErrorCode SetupDiscretization(DM dm, AppCtx *user)
 {
-  DM             cdm = dm;
-  const PetscInt dim = user->dim;
-  const PetscInt id  = 1;
-  PetscFE        fe[3];
-  PetscSpace     P;
-  PetscDS        prob;
-  PetscInt       order;
-  PetscErrorCode ierr;
+  DM              cdm = dm;
+  const PetscInt  dim = user->dim;
+  const PetscInt  id  = 1;
+  PetscFE         fe[3];
+  PetscQuadrature q;
+  PetscDS         prob;
+  PetscInt        order;
+  PetscErrorCode  ierr;
 
   PetscFunctionBeginUser;
   /* Create finite element */
   ierr = PetscFECreateDefault(dm, dim, 1, PETSC_TRUE, "potential_", -1, &fe[0]);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe[0], "potential");CHKERRQ(ierr);
-  ierr = PetscFEGetBasisSpace(fe[0], &P);CHKERRQ(ierr);
-  ierr = PetscSpaceGetOrder(P, &order);CHKERRQ(ierr);
+  ierr = PetscFEGetQuadrature(fe[0], &q);CHKERRQ(ierr);
+  ierr = PetscQuadratureGetOrder(q, &order);CHKERRQ(ierr);
   ierr = PetscFECreateDefault(dm, dim, 1, PETSC_TRUE, "conductivity_", order, &fe[1]);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe[1], "conductivity");CHKERRQ(ierr);
   ierr = PetscFECreateDefault(dm, dim, 1, PETSC_TRUE, "multiplier_", order, &fe[2]);CHKERRQ(ierr);
