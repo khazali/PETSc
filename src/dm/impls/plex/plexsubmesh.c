@@ -144,9 +144,9 @@ PetscErrorCode DMPlexLabelAddCells(DM dm, DMLabel label)
     ierr = PetscBTMemzero(numPoints, cellPoints);CHKERRQ(ierr);
     for (p = 0; p < numPoints; ++p) {
       PetscInt *closure = NULL;
-      PetscInt  closureSize, point, c, loc;
+      PetscInt  closureSize, c, loc;
 
-      if ((point < cStart) || (point >= cEnd)) continue;
+      if ((points[p] < cStart) || (points[p] >= cEnd)) continue;
       ierr = PetscBTSet(cellPoints, p);CHKERRQ(ierr);
       ierr = DMPlexGetTransitiveClosure(dm, points[p], PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
       for (c = 2; c < closureSize*2; c += 2) {
