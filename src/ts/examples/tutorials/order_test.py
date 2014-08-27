@@ -54,7 +54,7 @@ if (strTestProblem in ['ex36','ex36SE','ex36A']):
     tsmaxsteps=tsmaxsteps.astype(np.int)
     tsdt=np.float(tfinal)/tsmaxsteps
     msims=tsdt.size
-    tsmaxsteps_ref=np.int(100*tsmaxsteps[msims-1])
+    tsmaxsteps_ref=np.int(10*tsmaxsteps[msims-1])
     tsdt_ref=np.float(tfinal)/tsmaxsteps_ref
     timesteps=np.zeros((msims,1))
     solution=np.zeros((msims,n))
@@ -74,7 +74,7 @@ bWriteReference=os.path.isfile(strTestProblemRefSolFile)
 
 if bWriteReference==False:
     print 'Running ' + strTestProblem + ' to generate the reference solution with dt = ' + str(tsdt_ref) + '.'
-    os_out=os.system(strTestProblem +  ' -ts_dt '+ str(tsdt_ref) + ' -ts_max_steps ' + str(tsmaxsteps_ref) + ' '  + PETScOptionsStr + ' -ts_view_solution binary:'+ strTestProblemOutFile + ' ')
+    os_out=os.system(strTestProblem +  ' -ts_dt '+ str(tsdt_ref) + ' -ts_max_steps ' + str(tsmaxsteps_ref) + ' '  + PETScOptionsStr + ' ' +strPETScXtraArguments + ' -ts_view_solution binary:'+ strTestProblemOutFile + ' ')
     if(os_out <> 0):
         raise NameError('Error running '+ strTestProblem +'. Aborting.')
     PETSc_objects = io.readBinaryFile(strTestProblemOutFile)
