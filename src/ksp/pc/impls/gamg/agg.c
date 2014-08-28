@@ -235,6 +235,7 @@ static PetscErrorCode PCSetCoordinates_AGG(PC pc, PetscInt ndm, PetscInt a_nloc,
   PC_GAMG        *pc_gamg = (PC_GAMG*)mg->innerctx;
   PetscErrorCode ierr;
   PetscInt       arrsz,kk,ii,jj,nloc,ndatarows,ndf;
+  PetscBool      myCoords, anyCoords = PETSC_FALSE;
   Mat            mat = pc->pmat;
 
   PetscFunctionBegin;
@@ -242,10 +243,14 @@ static PetscErrorCode PCSetCoordinates_AGG(PC pc, PetscInt ndm, PetscInt a_nloc,
   PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
   nloc = a_nloc;
 
+  myCoords = (coords ? PETSC_TRUE : PETSC_FALSE);
+  ierr = MPI_Allreduce(&myCoords,&anyCoords,1,MPIU_BOOL,MPI_LOR,PetscObjectComm((PetscObject)pc));CHKERRQ(ierr);
+  if (anyCoords == PETSC_TRUE && myCoords == PETSC_FALSE && a_nloc) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_NULL,"Every process must have coordinates");
+
   /* SA: null space vectors */
   ierr = MatGetBlockSize(mat, &ndf);CHKERRQ(ierr); /* this does not work for Stokes */
-  if (coords && ndf==1) pc_gamg->data_cell_cols = 1; /* scalar w/ coords and SA (not needed) */
-  else if (coords) {
+  if (anyCoords && ndf==1) pc_gamg->data_cell_cols = 1; /* scalar w/ coords and SA (not needed) */
+  else if (anyCoords) {
     if (ndm > ndf) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"degrees of motion %d > block size %d",ndm,ndf);
     pc_gamg->data_cell_cols = (ndm==2 ? 3 : 6); /* displacement elasticity */
     if (ndm != ndf) {
@@ -276,7 +281,7 @@ static PetscErrorCode PCSetCoordinates_AGG(PC pc, PetscInt ndm, PetscInt a_nloc,
       }
 
       /* rotational modes */
-      if (coords) {
+      if (anyCoords) {
         if (ndm == 2) {
           data   += 2*M;
           data[0] = -coords[2*kk+1];
