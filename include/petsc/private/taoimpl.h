@@ -193,5 +193,4 @@ PETSC_STATIC_INLINE PetscErrorCode TaoLogConvergenceHistory(Tao tao, PetscReal o
   PetscFunctionReturn(0);
 }
 
-
 #endif

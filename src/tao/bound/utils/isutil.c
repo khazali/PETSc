@@ -21,6 +21,7 @@
   maskvalue should usually be 0.0, unless a pointwise divide will be used.
 
 @*/
+
 PetscErrorCode TaoVecGetSubVec(Vec vfull, IS is, PetscBool usemask, PetscScalar maskvalue, Vec *vreduced)
 {
   PetscErrorCode ierr;
@@ -51,19 +52,29 @@ PetscErrorCode TaoVecGetSubVec(Vec vfull, IS is, PetscBool usemask, PetscScalar 
       if (*vreduced == NULL) {
         ierr = VecDuplicate(vfull,vreduced);CHKERRQ(ierr);
       }
+      CHKMEMQ;
       ierr = VecSet(*vreduced,maskvalue);CHKERRQ(ierr);
+      CHKMEMQ;
       ierr = ISGetLocalSize(is,&nlocal);CHKERRQ(ierr);
+      CHKMEMQ;
       ierr = VecGetOwnershipRange(vfull,&flow,&fhigh);CHKERRQ(ierr);
+      CHKMEMQ;
       ierr = VecGetArray(vfull,&fv);CHKERRQ(ierr);
+      CHKMEMQ;
       ierr = VecGetArray(*vreduced,&rv);CHKERRQ(ierr);
+      CHKMEMQ;
       ierr = ISGetIndices(is,&s);CHKERRQ(ierr);
       if (nlocal > (fhigh-flow)) SETERRQ2(PETSC_COMM_WORLD,1,"IS local size %d > Vec local size %d",nlocal,fhigh-flow);
       for (i=0;i<nlocal;i++) {
         if (0) {printf("setting rv[%d] = fv[%d]\n",s[i]-flow,s[i]-flow);}
         rv[s[i]-flow] = fv[s[i]-flow];
       }
+      CHKMEMQ;
       ierr = ISRestoreIndices(is,&s);CHKERRQ(ierr);
+      CHKMEMQ;
       ierr = VecRestoreArray(vfull,&fv);CHKERRQ(ierr);
+      CHKMEMQ;
+
       ierr = VecRestoreArray(*vreduced,&rv);CHKERRQ(ierr);
     } else {
       ierr = VecGetType(vfull,&vtype);CHKERRQ(ierr);
@@ -75,7 +86,6 @@ PetscErrorCode TaoVecGetSubVec(Vec vfull, IS is, PetscBool usemask, PetscScalar 
       }
       ierr = VecCreate(comm,vreduced);CHKERRQ(ierr);
       ierr = VecSetType(*vreduced,vtype);CHKERRQ(ierr);
-
       ierr = VecSetSizes(*vreduced,nreduced_local,nreduced);CHKERRQ(ierr);
       ierr = VecGetOwnershipRange(*vreduced,&rlow,&rhigh);CHKERRQ(ierr);
       ierr = ISCreateStride(comm,nreduced_local,rlow,1,&ident);CHKERRQ(ierr);
