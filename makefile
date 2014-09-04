@@ -115,6 +115,7 @@ info: chk_makej
 	-@echo "------------------------------------------"
 	-@echo "Using mpiexec: ${MPIEXEC}"
 	-@echo "=========================================="
+	-@${OMAKE}  PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} chk_next_upstream
 
 #
 # Builds the PETSc libraries

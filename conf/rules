@@ -15,6 +15,9 @@ chk_petscdir:
 chk_upgrade:
 	-@PETSC_DIR=${PETSC_DIR} ${PYTHON} ${PETSC_DIR}/bin/petscnagupgrade.py
 
+chk_next_upstream:
+	-@PETSC_DIR=${PETSC_DIR} ${PYTHON} ${PETSC_DIR}/bin/petscnextupstream.py
+
 chk_makej:
 	@parallel=false;\
         mflags=`echo _${MFLAGS}_ | sed "s+ +_+g"`;\
