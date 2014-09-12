@@ -43,23 +43,35 @@ PetscErrorCode MatConvert_Basic(Mat mat, MatType newtype,MatReuse reuse,Mat *new
   } else if (ismpidense) {
     ierr = MatMPIDenseSetPreallocation(M,NULL);CHKERRQ(ierr);
   } else {
+    PetscSegBuffer seg;
+    PetscInt cnt;
     /* Preallocation block sizes.  (S)BAIJ matrices will have one index per block. */
     prbs = (isseqbaij || ismpibaij || isseqsbaij || ismpisbaij) ? PetscAbs(M->rmap->bs) : 1;
     pcbs = (isseqbaij || ismpibaij || isseqsbaij || ismpisbaij) ? PetscAbs(M->cmap->bs) : 1;
 
     ierr = PetscMalloc2(lm/prbs,&dnz,lm/prbs,&onz);CHKERRQ(ierr);
     ierr = MatGetOwnershipRangeColumn(mat,&cstart,&cend);CHKERRQ(ierr);
-    for (i=0; i<lm; i+=prbs) {
-      ierr = MatGetRow(mat,rstart+i,&nz,&cwork,NULL);CHKERRQ(ierr);
+    ierr = PetscSegBufferCreate(sizeof(PetscInt),100,&seg);CHKERRQ(ierr);
+    for (i=0; i*prbs<lm; i++,cnt=0) {
+      PetscInt ii,*bcols;
+      for (ii=i*prbs; ii<PetscMin((i+1)*prbs,lm); ii++) {
+        ierr = MatGetRow(mat,rstart+ii,&nz,&cwork,NULL);CHKERRQ(ierr);
+        ierr = PetscSegBufferGet(seg,nz,&bcols);CHKERRQ(ierr);
+        for (j=0; j<nz; j++) {
+          bcols[cnt++] = cwork[j] / pcbs;
+        }
+        ierr = MatRestoreRow(mat,rstart+ii,&nz,&cwork,NULL);CHKERRQ(ierr);
+      }
+      ierr = PetscSegBufferExtractInPlace(seg,&bcols);CHKERRQ(ierr);
+      ierr = PetscSortRemoveDupsInt(&cnt,bcols);CHKERRQ(ierr);
       dnz[i] = 0;
       onz[i] = 0;
-      for (j=0; j<nz; j+=pcbs) {
-        if ((isseqsbaij || ismpisbaij) && cwork[j] < rstart+i) continue;
-        if (cstart <= cwork[j] && cwork[j] < cend) dnz[i]++;
-        else                                       onz[i]++;
+      for (j=0; j<cnt; j++) {
+        if (cstart <= bcols[j]*pcbs && bcols[j]*pcbs < cend) dnz[i]++;
+        else                                                 onz[i]++;
       }
-      ierr = MatRestoreRow(mat,rstart+i,&nz,&cwork,NULL);CHKERRQ(ierr);
     }
+    ierr = PetscSegBufferDestroy(&seg);CHKERRQ(ierr);
     ierr = MatXAIJSetPreallocation(M,PETSC_DECIDE,dnz,onz,dnz,onz);CHKERRQ(ierr);
     ierr = PetscFree2(dnz,onz);CHKERRQ(ierr);
   }
