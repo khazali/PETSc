@@ -1415,17 +1415,24 @@ PetscErrorCode DMPlexBuildCoordinates_Private(DM dm, PetscInt spaceDim, PetscInt
 PetscErrorCode DMPlexBuildPointSF_Private(DM dm, PetscSF vertexSF)
 {
   MPI_Comm           comm;
-  PetscMPIInt        rank;
-  PetscInt           p, ci, pStart, pEnd, vStart, vEnd, vertex, nleaves, nclosure;
-  PetscInt          *ownership, *closure=NULL;
-  const PetscInt    *ilocal;
+  PetscMPIInt        rank, nprocs;
+  PetscInt           p, pStart, pEnd, vStart, vEnd, vertex, nroots, nleaves;
+  PetscInt           offset, remoteConeSize;
+  PetscInt          *ownership, *remoteOffsets, *cones, *remoteCones;
+  PetscInt           ci, nclosure, *closure=NULL, a, adjSize, *adj=NULL;
+  const PetscInt    *ilocal, *ranks;
   const PetscSFNode *iremote;
+  PetscSF            adjacentSF, coneSF;
+  PetscSection       sendSection, coneSection, remoteConeSection;
+  IS                 sendRanks;
+  ISLocalToGlobalMapping adjacentRenumbering;
   PetscBT            pointBT;
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
   ierr = PetscObjectGetComm((PetscObject)dm, &comm);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &nprocs);CHKERRQ(ierr);
   ierr = DMPlexGetChart(dm, &pStart, &pEnd);CHKERRQ(ierr);
   ierr = DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
 
@@ -1433,7 +1440,7 @@ PetscErrorCode DMPlexBuildPointSF_Private(DM dm, PetscSF vertexSF)
   ierr = PetscBTCreate(pEnd-pStart, &pointBT);CHKERRQ(ierr);
   ierr = PetscMalloc1(pEnd-pStart, &ownership);CHKERRQ(ierr);
   for (p=pStart; p<pEnd; p++) ownership[p] = rank;
-  ierr = PetscSFGetGraph(vertexSF, NULL, &nleaves, &ilocal, &iremote);CHKERRQ(ierr);
+  ierr = PetscSFGetGraph(vertexSF, &nroots, &nleaves, &ilocal, &iremote);CHKERRQ(ierr);
   for (p=0; p<nleaves; p++) {
     vertex = vStart + ilocal[p];
     ownership[vertex] = iremote[p].rank;
@@ -1452,6 +1459,43 @@ PetscErrorCode DMPlexBuildPointSF_Private(DM dm, PetscSF vertexSF)
     }
   }
 
+  /* In order to match local points to their remote roots we send the cones of
+     all points adjacent to local "send vertices" (root vertices with degree > 0)
+     to the respective receivers, where we can match them via the translated cones. */
+
+  ierr = PetscSFCreateSendRanks(vertexSF, &sendSection, &sendRanks);CHKERRQ(ierr);
+  ierr = ISGetIndices(sendRanks, &ranks);CHKERRQ(ierr);
+
+  /* Build a partition of points adjacent to "send vertices" */
+  DMLabel label;
+  PetscInt r, nranks;
+  ierr = DMPlexCreateLabel(dm, "adjacent");CHKERRQ(ierr);
+  ierr = DMPlexGetLabel(dm, "adjacent", &label);CHKERRQ(ierr);
+  for (p=0; p<nroots; p++) {
+    ierr = PetscSectionGetDof(sendSection, p, &nranks);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(sendSection, p, &offset);CHKERRQ(ierr);
+    if (nranks <= 0) continue;
+    /* Add all points adjacent to a vertex to the partition label */
+    adjSize = PETSC_DETERMINE;
+    ierr = DMPlexGetAdjacency(dm, vStart + p, &adjSize, &adj);CHKERRQ(ierr);
+    for (r=offset; r<offset+nranks; r++) {
+      for (a=0; a<adjSize; a++) {ierr = DMLabelSetValue(label, adj[a], ranks[r]);CHKERRQ(ierr);}
+    }
+  }
+  ierr = DMPlexConvertPartitionLabel(dm, label, &adjacentRenumbering, &adjacentSF);CHKERRQ(ierr);
+
+  /* Send cones of adjacent points to receiving procs */
+  ierr = DMPlexGetConeSection(dm, &coneSection);CHKERRQ(ierr);
+  ierr = PetscSectionCreate(comm, &remoteConeSection);CHKERRQ(ierr);
+  ierr = PetscSFDistributeSection(adjacentSF, coneSection, &remoteOffsets, remoteConeSection);CHKERRQ(ierr);
+  ierr = PetscSFCreateSectionSF(adjacentSF, coneSection, remoteOffsets, remoteConeSection, &coneSF);CHKERRQ(ierr);
+  ierr = PetscSectionGetStorageSize(remoteConeSection, &remoteConeSize);CHKERRQ(ierr);
+  ierr = PetscMalloc1(remoteConeSize, &remoteCones);CHKERRQ(ierr);
+  ierr = DMPlexGetCones(dm, &cones);CHKERRQ(ierr);
+  ierr = PetscSFBcastBegin(coneSF, MPIU_INT, cones, remoteCones);CHKERRQ(ierr);
+  ierr = PetscSFBcastEnd(coneSF, MPIU_INT, cones, remoteCones);CHKERRQ(ierr);
+
+  /* Clean up */
   ierr = PetscBTDestroy(&pointBT);CHKERRQ(ierr);
   ierr = PetscFree(ownership);CHKERRQ(ierr);
   PetscFunctionReturn(0);
