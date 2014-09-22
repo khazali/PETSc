@@ -627,6 +627,19 @@ PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*DMDASNESFunction)(DMDALocalInfo*,v
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*DMDASNESJacobian)(DMDALocalInfo*,void*,Mat,Mat,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*DMDASNESObjective)(DMDALocalInfo*,void*,PetscReal*,void*);
 
+PETSC_EXTERN PetscErrorCode DMSNESSetConstraintFunction(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESGetConstraintFunction(DM,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
+PETSC_EXTERN PetscErrorCode DMSNESSetConstraintJacobian(DM,PetscErrorCode (*)(SNES,Vec,Mat,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESGetConstraintJacobian(DM,PetscErrorCode (**)(SNES,Vec,Mat,void*),void**);
+PETSC_EXTERN PetscErrorCode DMSNESSetConstraintBounds(DM,PetscErrorCode (*)(SNES,Vec,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESGetConstraintBounds(DM,PetscErrorCode (**)(SNES,Vec,Vec,Vec,void*),void**);
+PETSC_EXTERN PetscErrorCode DMSNESSetActiveConstraints(DM,PetscErrorCode (*)(SNES,Vec,IS*,IS*,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESGetActiveConstraints(DM,PetscErrorCode (**)(SNES,Vec,IS*,IS*,void*),void**);
+PETSC_EXTERN PetscErrorCode DMSNESSetProjectOntoBounds(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESGetProjectOntoBounds(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
+
+
+
 PETSC_EXTERN PetscErrorCode DMDASNESSetFunctionLocal(DM,InsertMode,DMDASNESFunction,void*);
 PETSC_EXTERN PetscErrorCode DMDASNESSetJacobianLocal(DM,DMDASNESJacobian,void*);
 PETSC_EXTERN PetscErrorCode DMDASNESSetObjectiveLocal(DM,DMDASNESObjective,void*);

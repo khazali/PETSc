@@ -496,7 +496,7 @@ PetscErrorCode DMSNESSetNGS(DM dm,PetscErrorCode (*f)(SNES,Vec,Vec,void*),void *
 .  dm - DM to be used with SNES
 
    Output Arguments:
-+  f - relaxation function which performs Gauss-Seidel sweeps, see SNESGSFunction 
++  f - relaxation function which performs Gauss-Seidel sweeps, see SNESGSFunction
 -  ctx - context for residual evaluation
 
    Level: advanced
@@ -531,7 +531,7 @@ PetscErrorCode DMSNESGetNGS(DM dm,PetscErrorCode (**f)(SNES,Vec,Vec,void*),void 
    Input Argument:
 +  dm - DM to be used with SNES
 .  J - Jacobian evaluation function
--  ctx - context for residual evaluation
+-  ctx - context for Jacobian evaluation
 
    Level: advanced
 
@@ -568,8 +568,8 @@ PetscErrorCode DMSNESSetJacobian(DM dm,PetscErrorCode (*J)(SNES,Vec,Mat,Mat,void
 .  dm - DM to be used with SNES
 
    Output Arguments:
-+  J - Jacobian evaluation function; see SNESJacobianFunction for all calling sequence
--  ctx - context for residual evaluation
++  J   - Jacobian evaluation function; see SNESJacobianFunction for all calling sequence
+-  ctx - context for Jacobian evaluation
 
    Level: advanced
 
@@ -656,3 +656,367 @@ PetscErrorCode DMSNESGetPicard(DM dm,PetscErrorCode (**b)(SNES,Vec,Vec,void*),Pe
   if (ctx) *ctx = sdm->pctx;
   PetscFunctionReturn(0);
 }
+
+#undef __FUNCT__
+#define __FUNCT__ "DMSNESSetConstraintFunction"
+/*@C
+   DMSNESSetConstraintFunction - set SNES constraint evaluation function g(x)
+
+   Not Collective
+
+   Input arguments:
++  dm  - DM to be used with SNES
+.  g   - constraints vector evaluation function
+-  ctx - context for constraint evaluation
+
+   Level: advanced
+
+   Note:
+   SNESSetConstraintFunction() is normally used, but it calls this function internally because the user context is actually
+   associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
+   not. If DM took a more central role at some later date, this could become the primary method of setting the constraints.
+
+.seealso: DMSNESSetContext(), SNESSetFunction(), SNESSetJacobian(), DMSNESGetConstraintFunction(), SNESSetConstraintJacobian(), SNESConstraintFunction
+@*/
+PetscErrorCode DMSNESSetConstraintFunction(DM dm,PetscErrorCode (*g)(SNES,Vec,Vec,void*),void *ctx)
+{
+  PetscErrorCode ierr;
+  DMSNES         sdm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  if (g || ctx) {
+    ierr = DMGetDMSNESWrite(dm,&sdm);CHKERRQ(ierr);
+  }
+  if (g) sdm->ops->computecfunction = g;
+  if (ctx) sdm->cfunctionctx = ctx;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMSNESGetConstraintFunction"
+/*@C
+   DMSNESGetConstraintFunction - get SNES constraint evaluation function g(x)
+
+   Not Collective
+
+   Input parameter:
+.  dm  - DM to be used with SNES
+
+   Output parameters:
++  g   - constraint vector evaluation function
+-  ctx - context for constraint evaluation
+
+   Level: advanced
+
+   Note:
+   SNESGetConstraintFunction() is normally used, but it calls this function internally because the user context is actually
+   associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
+   not. If DM took a more central role at some later date, this could become the primary method of getting the constraints.
+
+.seealso: DMSNESSetContext(), SNESSetFunction(), SNESSetJacobian(), DMSNESSetConstraintFunction(), SNESConstraintFunction
+@*/
+PetscErrorCode DMSNESGetConstraintFunction(DM dm,PetscErrorCode (**g)(SNES,Vec,Vec,void*),void **ctx)
+{
+  PetscErrorCode ierr;
+  DMSNES         sdm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
+  if (g)   *g = sdm->ops->computecfunction;
+  if (ctx) *ctx = sdm->cfunctionctx;
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
+#define __FUNCT__ "DMSNESSetConstraintJacobian"
+/*@C
+   DMSNESSetConstraintJacobian - set SNES constraint Jacobian evaluation function J(x)
+
+   Not Collective
+
+   Input arguments:
++  dm  - DM to be used with SNES
+.  J   - constraint Jacobian evaluation function
+-  ctx - context for constraint Jacobian evaluation
+
+   Level: advanced
+
+   Note:
+   SNESSetConstraintJacobian() is normally used, but it calls this function internally because the user context is actually
+   associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
+   not. If DM took a more central role at some later date, this could become the primary method of setting the constraint
+   Jacobian.
+
+.seealso: DMSNESSetContext(), SNESSetConstraintFunction(), SNESGetConstraintFunction(), DMSNESGetConstraintJacobian(), SNESConstraintJacobian
+@*/
+PetscErrorCode DMSNESSetConstraintJacobian(DM dm,PetscErrorCode (*J)(SNES,Vec,Mat,void*),void *ctx)
+{
+  PetscErrorCode ierr;
+  DMSNES         sdm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  if (J || ctx) {
+    ierr = DMGetDMSNESWrite(dm,&sdm);CHKERRQ(ierr);
+  }
+  if (J) sdm->ops->computecjacobian = J;
+  if (ctx) sdm->cjacobianctx = ctx;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMSNESGetConstraintJacobian"
+/*@C
+   DMSNESGetConstraintJacobian - get SNES constraint Jacobian evaluation function J(x)
+
+   Not Collective
+
+   Input parameter:
+.  dm  - DM to be used with SNES
+
+   Output parameters:
++  J   - constraint Jacobian evaluation function
+-  ctx - context for constraint Jacobian evaluation
+
+   Level: advanced
+
+   Note:
+   SNESGetConstraintJacobian() is normally used, but it calls this function internally because the user context is actually
+   associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
+   not. If DM took a more central role at some later date, this could become the primary method of getting the constraint
+   Jacobian.
+
+.seealso: DMSNESSetContext(), SNESSetConstraintFunction(), SNESGetConstraintFunction(), DMSNESSetConstraintJacobian(), SNESConstraintFunction
+@*/
+PetscErrorCode DMSNESGetConstraintJacobian(DM dm,PetscErrorCode (**J)(SNES,Vec,Mat,void*),void **ctx)
+{
+  PetscErrorCode ierr;
+  DMSNES         sdm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
+  if (J)   *J = sdm->ops->computecjacobian;
+  if (ctx) *ctx = sdm->cjacobianctx;
+  PetscFunctionReturn(0);
+}
+
+#undef  __FUNCT__
+#define __FUNCT__ "DMSNESSetConstraintBounds"
+/*@C
+   DMSNESSetConstraintBounds - set SNES constraint bounds evaluation function b(x)
+
+   Not Collective
+
+   Input parameters:
++  dm  - DM to be used with SNES
+.  b   - constraint bounds evaluation function
+-  ctx - context for constraint bounds evaluation
+
+   Level: advanced
+
+   Note:
+   SNESSetConstraintBounds() is normally used, but it calls this function internally because the user context is actually
+   associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
+   not. If DM took a more central role at some later date, this could become the primary method of setting the constraint
+   bounds.
+
+.seealso: DMSNESSetContext(), SNESSetConstraintFunction(), SNESGetConstraintFunction(), DMSNESGetConstraintBounds(), SNESConstraintBounds
+@*/
+PetscErrorCode DMSNESSetConstraintBounds(DM dm,PetscErrorCode (*b)(SNES,Vec,Vec,Vec,void*),void *ctx)
+{
+  PetscErrorCode ierr;
+  DMSNES         sdm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
+  if (b)   sdm->ops->computecbounds = b;
+  if (ctx) sdm->cboundsctx   = ctx;
+  PetscFunctionReturn(0);
+}
+
+#undef  __FUNCT__
+#define __FUNCT__ "DMSNESGetConstraintBounds"
+/*@C
+   DMSNESGetConstraintBounds - get SNES constraint bounds evaluation function b(x)
+
+   Not Collective
+
+   Input parameter:
+.  dm  - DM to be used with SNES
+
+   Output parameters:
++  b   - constraint bounds evaluation function
+-  ctx - context for constraint bounds evaluation
+
+   Level: advanced
+
+   Note:
+   SNESGetConstraintBounds() is normally used, but it calls this function internally because the user context is actually
+   associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
+   not. If DM took a more central role at some later date, this could become the primary method of getting the constraint
+   bounds.
+
+.seealso: DMSNESSetContext(), SNESSetConstraintFunction(), SNESGetConstraintFunction(), DMSNESSetConstraintBounds(), SNESConstraintBounds
+@*/
+PetscErrorCode DMSNESGetConstraintBounds(DM dm,PetscErrorCode (**b)(SNES,Vec,Vec,Vec,void*),void **ctx)
+{
+  PetscErrorCode ierr;
+  DMSNES         sdm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
+  if (b)   *b = sdm->ops->computecbounds;
+  if (ctx) *ctx = sdm->cboundsctx;
+  PetscFunctionReturn(0);
+}
+
+#undef  __FUNCT__
+#define __FUNCT__ "DMSNESSetActiveConstraints"
+/*@C
+   DMSNESSetActiveConstraints - set SNES active constraints evaluation function a(x)
+
+   Not Collective
+
+   Input parameters:
++  dm  - DM to be used with SNES
+.  a   - active constraints evaluation function
+-  ctx - context for active constraints evaluation
+
+   Level: advanced
+
+   Note:
+   SNESSetActiveConstraints() is normally used, but it calls this function internally because the user context is actually
+   associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
+   not. If DM took a more central role at some later date, this could become the primary method of setting the active constraints
+   evaluation.
+
+.seealso: DMSNESSetContext(), SNESSetConstraintFunction(), SNESGetConstraintFunction(), DMSNESGetActiveConstraints(), SNESActiveConstraints
+@*/
+PetscErrorCode DMSNESSetActiveConstraints(DM dm,PetscErrorCode (*a)(SNES,Vec,IS*,IS*,void*),void *ctx)
+{
+  PetscErrorCode ierr;
+  DMSNES         sdm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
+  if (a)   sdm->ops->computeaconstraints = a;
+  if (ctx) sdm->aconstraintsctx          = ctx;
+  PetscFunctionReturn(0);
+}
+
+#undef  __FUNCT__
+#define __FUNCT__ "DMSNESGetActiveConstraints"
+/*@C
+   DMSNESGetActiveConstraints - get SNES active constraints evaluation function a(x)
+
+   Not Collective
+
+   Input parameter:
+.  dm  - DM to be used with SNES
+
+   Output parameters:
++  a   - active constraints evaluation function
+-  ctx - context for active constraints evaluation
+
+   Level: advanced
+
+   Note:
+   SNESGetActiveConstraints() is normally used, but it calls this function internally because the user context is actually
+   associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
+   not. If DM took a more central role at some later date, this could become the primary method of getting the active constraints
+   evaluation.
+
+.seealso: DMSNESSetContext(), SNESSetConstraintFunction(), SNESGetConstraintFunction(), DMSNESSetActiveConstraints(), SNESActiveConstraints
+@*/
+PetscErrorCode DMSNESGetActiveConstraints(DM dm,PetscErrorCode (**a)(SNES,Vec,IS*,IS*,void*),void **ctx)
+{
+  PetscErrorCode ierr;
+  DMSNES         sdm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
+  if (a)   *a = sdm->ops->computeaconstraints;
+  if (ctx) *ctx = sdm->aconstraintsctx;
+  PetscFunctionReturn(0);
+}
+
+#undef  __FUNCT__
+#define __FUNCT__ "DMSNESSetProjectOntoBounds"
+/*@C
+   DMSNESSetProjectOntoBounds - set SNES projection evaluation function p(x)
+
+   Not Collective
+
+   Input parameters:
++  dm  - DM to be used with SNES
+.  p   - projection evaluation function
+-  ctx - context for projection evaluation
+
+   Level: advanced
+
+   Note:
+   SNESSetProjectOntoBounds() is normally used, but it calls this function internally because the user context is actually
+   associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
+   not. If DM took a more central role at some later date, this could become the primary method of setting the projection
+   evaluation.
+
+.seealso: DMSNESSetContext(), SNESSetConstraintBounds(), SNESGetConstraintBounds(), DMSNESGetProjectOntoBounds(), SNESProjectOntoBounds
+@*/
+PetscErrorCode DMSNESSetProjectOntoBounds(DM dm,PetscErrorCode (*p)(SNES,Vec,Vec,void*),void *ctx)
+{
+  PetscErrorCode ierr;
+  DMSNES         sdm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
+  if (p)   sdm->ops->projectontobounds = p;
+  if (ctx) sdm->projectontoboundsctx   = ctx;
+  PetscFunctionReturn(0);
+}
+
+#undef  __FUNCT__
+#define __FUNCT__ "DMSNESGetProjectOntoBounds"
+/*@C
+   DMSNESGetProjectOntoBounds - get SNES projection evaluation function p(x)
+
+   Not Collective
+
+   Input parameter:
++  dm  - DM to be used with SNES
+
+   Output parameters:
++  p   - projection evaluation function
+-  ctx - context for projection evaluation
+
+   Level: advanced
+
+   Note:
+   SNESGetProjectOntoBounds() is normally used, but it calls this function internally because the user context is actually
+   associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
+   not. If DM took a more central role at some later date, this could become the primary method of getting the projection
+   evaluation.
+
+.seealso: DMSNESSetContext(), SNESSetConstraintBounds(), SNESGetConstraintBounds(), DMSNESSetProjectOntoBounds(), SNESProjectOntoBounds
+@*/
+PetscErrorCode DMSNESGetProjectOntoBounds(DM dm,PetscErrorCode (**p)(SNES,Vec,Vec,void*),void **ctx)
+{
+  PetscErrorCode ierr;
+  DMSNES         sdm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
+  if (p)   *p = sdm->ops->projectontobounds;
+  if (ctx) *ctx = sdm->projectontoboundsctx;
+  PetscFunctionReturn(0);
+}
+
