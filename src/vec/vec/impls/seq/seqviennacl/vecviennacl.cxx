@@ -250,19 +250,21 @@ PetscErrorCode VecViennaCLCopyFromGPU(Vec v)
 #define __FUNCT__ "VecCopy_SeqViennaCL_Private"
 static PetscErrorCode VecCopy_SeqViennaCL_Private(Vec xin,Vec yin)
 {
-  PetscScalar       *ya;
-  const PetscScalar *xa;
-  PetscErrorCode    ierr;
+  const ViennaCLVector *xgpu;
+  ViennaCLVector        *ygpu;
+  PetscErrorCode        ierr;
 
   PetscFunctionBegin;
-  ierr = VecViennaCLAllocateCheckHost(xin);
-  ierr = VecViennaCLAllocateCheckHost(yin);
+  ierr = VecViennaCLGetArrayRead(xin,&xgpu);CHKERRQ(ierr);
+  ierr = VecViennaCLGetArrayReadWrite(yin,&ygpu);CHKERRQ(ierr);
   if (xin != yin) {
-    ierr = VecGetArrayRead(xin,&xa);CHKERRQ(ierr);
-    ierr = VecGetArray(yin,&ya);CHKERRQ(ierr);
-    ierr = PetscMemcpy(ya,xa,xin->map->n*sizeof(PetscScalar));CHKERRQ(ierr);
-    ierr = VecRestoreArrayRead(xin,&xa);CHKERRQ(ierr);
-    ierr = VecRestoreArray(yin,&ya);CHKERRQ(ierr);
+    try {
+      *ygpu = *xgpu;
+    } catch(std::exception const & ex) {
+      SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"ViennaCL error: %s", ex.what());
+    }
+    ierr = VecViennaCLRestoreArrayRead(xin,&xgpu);CHKERRQ(ierr);
+    ierr = VecViennaCLGetArrayReadWrite(yin,&ygpu);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
