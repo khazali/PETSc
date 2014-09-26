@@ -248,6 +248,14 @@ reconfigure:
 #
 install:
 	@${PYTHON} ./config/install.py -destDir=${DESTDIR}
+uninstall:
+	@if [ ! -f ${DESTDIR}/conf/uninstall.py ]; then \
+          echo "Unable to locate ${DESTDIR}/conf/uninstall.py. Quiting"; \
+          exit 1; fi
+	@echo "========================================="
+	@echo "Uninstalling PETSc from ${DESTDIR}"
+	@echo "========================================="
+	@${DESTDIR}/conf/uninstall.py
 
 newall:
 	-@cd src/sys;  @${PYTHON} ${PETSC_DIR}/config/builder.py
