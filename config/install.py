@@ -197,18 +197,49 @@ class Installer(script.Script):
     self.fixConfFile(os.path.join(self.destLibDir,'pkgconfig','PETSc.pc'))
     return
 
+  def updateDirList(self,dlist,dname,prefix):
+    while dname not in dlist:
+      if dname == prefix: return
+      dlist.append(dname)
+      dname = os.path.dirname(dname)
+    return
+
   def createUninstaller(self):
     uninstallscript = os.path.join(self.destConfDir, 'uninstall.py')
+    pdirs = []
     f = open(uninstallscript, 'w')
     # Could use the Python AST to do this
     f.write('#!'+sys.executable+'\n')
     f.write('import os\n')
-
-    f.write('copies = '+repr(self.copies).replace(self.destDir,self.installDir))
+    # pretty print repr(self.copies)
+    f.write('installed_files = [\n')
+    for src,dst in self.copies:
+      pfile = dst.replace(self.destDir,self.installDir)
+      self.updateDirList(pdirs,os.path.dirname(pfile),self.installDir)
+      f.write('  \''+str(pfile)+'\',\n')
+    f.write('  \''+uninstallscript+'\'\n')
+    f.write(']\n')
+    f.write('installed_dirs = [\n')
+    pdirs.sort()
+    pdirs.reverse() # reverse the dir-list so that rmdir is invoked on leaf dirs first
+    for pdir in pdirs:
+      f.write('  \''+str(pdir)+'\',\n')
+    f.write(']\n')
     f.write('''
-for src, dst in copies:
-  if os.path.exists(dst):
-    os.remove(dst)
+for pfile in installed_files:
+  if os.path.exists(pfile):
+    try:
+      print 'deleting file:',pfile
+      os.remove(pfile)
+    except:
+      print '** unable to delete file:',pfile
+for pdir in installed_dirs:
+  if os.path.isdir(pdir):
+    try:
+      print 'deleting dir:',pdir
+      os.rmdir(pdir)
+    except:
+      print 'unable to delete dir:',pdir
 ''')
     f.close()
     os.chmod(uninstallscript,0744)
