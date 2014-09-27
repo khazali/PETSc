@@ -227,7 +227,7 @@ class Installer(script.Script):
     f.write(']\n')
     f.write('''
 for pfile in installed_files:
-  if os.path.exists(pfile):
+  if os.path.lexists(pfile):
     try:
       print 'deleting file:',pfile
       os.remove(pfile)
