@@ -1097,6 +1097,59 @@ PetscErrorCode PetscSFComputeDegreeEnd(PetscSF sf,const PetscInt **degree)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscSFCreateSendRanks"
+/*@C
+  PetscSFCreateSendRanks - Derive the set of ranks each roots is mapped to in an SF
+
+  Input Parameters:
++ sf - The SF
+
+  Output Parameters:
++ rankSection - Section mapping roots to process IDs
+- ranks       - Process IDs that each root is mapped to
+
+  Note: An SF is a non-symmetric mapping from the receiving leaves to roots on the
+  sending processes. This utility routine derives the inverse map for partitioning
+  problems that require a symmetric mapping.
+
+  Level: developer
+
+.seealso: PetscSFComputeDegreeBegin, PetscSFComputeDegreeEnd
+@*/
+PetscErrorCode PetscSFCreateSendRanks(PetscSF sf, PetscSection *rankSection, IS *ranks)
+{
+  MPI_Comm        comm;
+  PetscMPIInt     rank, numRanks;
+  PetscInt        p, nroots, sumDegree, *myRank, *sendRanks;
+  const PetscInt *rootDegree;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscObjectGetComm((PetscObject)sf, &comm);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &numRanks);CHKERRQ(ierr);
+
+  ierr = PetscSFGetGraph(sf, &nroots, NULL, NULL, NULL);CHKERRQ(ierr);
+  ierr = PetscSFComputeDegreeBegin(sf, &rootDegree);CHKERRQ(ierr);
+  ierr = PetscSFComputeDegreeEnd(sf, &rootDegree);CHKERRQ(ierr);
+  ierr = PetscSectionCreate(comm, rankSection);CHKERRQ(ierr);
+  ierr = PetscSectionSetChart(*rankSection, 0, nroots);CHKERRQ(ierr);
+  for (p=0; p<nroots; p++) {
+    ierr = PetscSectionSetDof(*rankSection, p, rootDegree[p]);CHKERRQ(ierr);
+  }
+  ierr = PetscSectionSetUp(*rankSection);CHKERRQ(ierr);
+  ierr = PetscSectionGetStorageSize(*rankSection, &sumDegree);CHKERRQ(ierr);
+  ierr = PetscMalloc2(nroots, &myRank, sumDegree, &sendRanks);CHKERRQ(ierr);
+  for (p=0; p<nroots; p++) myRank[p] = rank;
+  ierr = PetscSFGatherBegin(sf, MPIU_INT, myRank, sendRanks);CHKERRQ(ierr);
+  ierr = PetscSFGatherEnd(sf, MPIU_INT, myRank, sendRanks);CHKERRQ(ierr);
+  ierr = ISCreateGeneral(comm, sumDegree, sendRanks, PETSC_OWN_POINTER, ranks);CHKERRQ(ierr);
+  ierr = PetscFree(rootDegree);CHKERRQ(ierr);
+  ierr = PetscFree(myRank);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscSFFetchAndOpBegin"
 /*@C
    PetscSFFetchAndOpBegin - begin operation that fetches values from root and updates atomically by applying operation using my leaf value, to be completed with PetscSFFetchAndOpEnd()
