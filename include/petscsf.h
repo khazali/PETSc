@@ -5,6 +5,7 @@
 #define __PETSCSF_H
 #include <petscsys.h>
 #include <petscsftypes.h>
+#include <petscis.h>
 
 PETSC_EXTERN PetscClassId PETSCSF_CLASSID;
 
@@ -94,6 +95,7 @@ PETSC_EXTERN PetscErrorCode PetscSFGetRanks(PetscSF,PetscInt*,const PetscMPIInt*
 PETSC_EXTERN PetscErrorCode PetscSFGetGroups(PetscSF,MPI_Group*,MPI_Group*);
 PETSC_EXTERN PetscErrorCode PetscSFGetMultiSF(PetscSF,PetscSF*);
 PETSC_EXTERN PetscErrorCode PetscSFCreateInverseSF(PetscSF,PetscSF*);
+PETSC_EXTERN PetscErrorCode PetscSFCreateSendRanks(PetscSF, PetscSection*, IS*);
 
 /* broadcasts rootdata to leafdata */
 PETSC_EXTERN PetscErrorCode PetscSFBcastBegin(PetscSF,MPI_Datatype,const void *rootdata,void *leafdata)
