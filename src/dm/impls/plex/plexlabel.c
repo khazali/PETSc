@@ -1,4 +1,5 @@
 #include <petsc-private/dmpleximpl.h>   /*I      "petscdmplex.h"   I*/
+#include <petscsf.h>
 
 #undef __FUNCT__
 #define __FUNCT__ "DMLabelCreate"
@@ -1348,5 +1349,80 @@ PetscErrorCode DMPlexRemoveLabel(DM dm, const char name[], DMLabel *label)
     last = next;
     next = next->next;
   }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexConvertPartitionLabel"
+/*@C
+  DMPlexConvertPartitionLabel - Build an SF from a label that maps points to process IDs
+
+  Not Collective
+
+  Input Parameters:
++ dm   - The DMPlex object
+- label - The DMLabel
+
+  Output Parameter:
++ renumbering - Optional point renumbering ISLocalToGlobalMapping
+- sf - The partitioning SF
+
+  Level: developer
+
+.keywords: mesh
+.seealso: PetscSFConvertPartition
+@*/
+PetscErrorCode DMPlexConvertPartitionLabel(DM dm, DMLabel label, ISLocalToGlobalMapping *renumbering, PetscSF *sf)
+{
+  MPI_Comm       comm;
+  PetscMPIInt    rank, numRanks;
+  PetscInt       p, proc, numPoints, numPointsTotal, offset, *part_arr;
+  const PetscInt *point_arr;
+  PetscSF        rankSF;
+  PetscSFNode    *remoteRanks;
+  PetscSection   section;
+  IS             points, partition;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscObjectGetComm((PetscObject)dm, &comm);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &numRanks);CHKERRQ(ierr);
+
+  /* Build a section for the label partitioning */
+  ierr = PetscSectionCreate(comm, &section);CHKERRQ(ierr);
+  ierr = PetscSectionSetChart(section, 0, numRanks);CHKERRQ(ierr);
+  for (proc = 0; proc < numRanks; proc++) {
+    ierr = DMLabelGetStratumSize(label, proc, &numPoints);CHKERRQ(ierr);
+    ierr = PetscSectionSetDof(section, proc, numPoints);CHKERRQ(ierr);
+  }
+  ierr = PetscSectionSetUp(section);CHKERRQ(ierr);
+  /* Build the partition IS */
+  ierr = PetscSectionGetStorageSize(section, &numPointsTotal);CHKERRQ(ierr);
+  ierr = PetscMalloc1(numPointsTotal, &part_arr);CHKERRQ(ierr);
+  for (proc = 0; proc < numRanks; proc++) {
+    ierr = PetscSectionGetDof(section, proc, &numPoints);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(section, proc, &offset);CHKERRQ(ierr);
+    if (numPoints <= 0) continue;
+    ierr = DMLabelGetStratumIS(label, proc, &points);CHKERRQ(ierr);
+    ierr = ISGetIndices(points, &point_arr);CHKERRQ(ierr);
+    for (p=0; p<numPoints; p++) part_arr[offset+p] = point_arr[p];
+    ierr = ISRestoreIndices(points, &point_arr);CHKERRQ(ierr);
+  }
+  ierr = ISCreateGeneral(comm, numPointsTotal, part_arr, PETSC_OWN_POINTER, &partition);CHKERRQ(ierr);
+  /* Build a simple SF that maps into remote section entries */
+  ierr = PetscMalloc1(numRanks, &remoteRanks);CHKERRQ(ierr);
+  for (proc = 0; proc < numRanks; proc++) {
+    remoteRanks[proc].rank  = proc;
+    remoteRanks[proc].index = 0;
+  }
+  ierr = PetscSFCreate(comm, &rankSF);CHKERRQ(ierr);
+  ierr = PetscSFSetGraph(rankSF, 1, numRanks, NULL, PETSC_OWN_POINTER, remoteRanks, PETSC_OWN_POINTER);CHKERRQ(ierr);
+  /* Convert the partition SF/Section/IS into an SF/renumbering pair */
+  ierr = PetscSFConvertPartition(rankSF, section, partition, renumbering, sf);CHKERRQ(ierr);
+
+  ierr = PetscSectionDestroy(&section);CHKERRQ(ierr);
+  ierr = ISDestroy(&partition);CHKERRQ(ierr);
+  ierr = PetscSFDestroy(&rankSF);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
