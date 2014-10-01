@@ -1344,3 +1344,61 @@ PetscErrorCode DMPlexRemoveLabel(DM dm, const char name[], DMLabel *label)
   }
   PetscFunctionReturn(0);
 }
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexCreateLabelPartition"
+/*@C
+  DMPlexCreateLabelPartition - Build a partition from a label that maps points to process IDs
+
+  Not Collective
+
+  Input Parameters:
++ dm   - The DMPlex object
+- label - The DMLabel
+
+  Output Parameter:
++ section - The PetscSection giving the division of points by partition
+. partition - The list of points by partition
+
+  Level: developer
+
+.keywords: mesh
+.seealso: PetscSFConvertPartition
+@*/
+PetscErrorCode DMPlexCreateLabelPartition(DM dm, DMLabel label, PetscSection *section, IS *partition)
+{
+  MPI_Comm       comm;
+  PetscMPIInt    rank, numRanks;
+  PetscInt       p, proc, numPoints, numPointsTotal, offset, *part_arr;
+  const PetscInt *point_arr;
+  IS             points;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscObjectGetComm((PetscObject)dm, &comm);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &numRanks);CHKERRQ(ierr);
+
+  /* Build a section for the label partitioning */
+  ierr = PetscSectionCreate(comm, section);CHKERRQ(ierr);
+  ierr = PetscSectionSetChart(*section, 0, numRanks);CHKERRQ(ierr);
+  for (proc = 0; proc < numRanks; proc++) {
+    ierr = DMLabelGetStratumSize(label, proc, &numPoints);CHKERRQ(ierr);
+    ierr = PetscSectionSetDof(*section, proc, numPoints);CHKERRQ(ierr);
+  }
+  ierr = PetscSectionSetUp(*section);CHKERRQ(ierr);
+  /* Build the partition IS */
+  ierr = PetscSectionGetStorageSize(*section, &numPointsTotal);CHKERRQ(ierr);
+  ierr = PetscMalloc1(numPointsTotal, &part_arr);CHKERRQ(ierr);
+  for (proc = 0; proc < numRanks; proc++) {
+    ierr = PetscSectionGetDof(*section, proc, &numPoints);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(*section, proc, &offset);CHKERRQ(ierr);
+    if (numPoints <= 0) continue;
+    ierr = DMLabelGetStratumIS(label, proc, &points);CHKERRQ(ierr);
+    ierr = ISGetIndices(points, &point_arr);CHKERRQ(ierr);
+    for (p=0; p<numPoints; p++) part_arr[offset+p] = point_arr[p];
+    ierr = ISRestoreIndices(points, &point_arr);CHKERRQ(ierr);
+  }
+  ierr = ISCreateGeneral(comm, numPointsTotal, part_arr, PETSC_OWN_POINTER, partition);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
