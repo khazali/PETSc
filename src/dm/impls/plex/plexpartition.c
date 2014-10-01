@@ -607,15 +607,16 @@ PetscErrorCode DMPlexCreatePartitionClosure(DM dm, PetscSection pointSection, IS
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexCreatePartitionOverlap_AddRemoteConnections"
-PetscErrorCode DMPlexCreatePartitionOverlap_AddRemoteConnections(DM dm, PetscInt *recvRanks, PetscBT partitionBT)
+PetscErrorCode DMPlexCreatePartitionOverlap_AddRemoteConnections(DM dm, PetscInt *recvRanks, DMLabel label)
 {
   MPI_Comm           comm;
   PetscMPIInt        rank, numProcs;
   PetscSF            pointSF, rankSF, remoteSF;
   PetscSection       localSection, remoteSection;
   ISLocalToGlobalMapping renumbering;
-  PetscInt           j, p, pStart, pEnd, numPoints, proc, dof, offset, localSize, remoteSize;
+  PetscInt           j, p, pStart, pEnd, proc, dof, offset, localSize, remoteSize;
   PetscInt          *localIdx, *remoteOffsets;
+  PetscBool          assigned;
   const PetscInt    *ltog;
   PetscSFNode       *localConnections, *remoteConnections, *remoteRanks;
   PetscErrorCode     ierr;
@@ -628,7 +629,6 @@ PetscErrorCode DMPlexCreatePartitionOverlap_AddRemoteConnections(DM dm, PetscInt
   ierr = MPI_Comm_size(comm, &numProcs);CHKERRQ(ierr);
   ierr = DMGetPointSF(dm, &pointSF);CHKERRQ(ierr);
   ierr = DMPlexGetChart(dm, &pStart, &pEnd);CHKERRQ(ierr);
-  numPoints = pEnd - pStart;
 
   /* We need to inform point owners of overlap connections made on the local
      process. For this we list all locally made connections for each root owner
@@ -639,7 +639,8 @@ PetscErrorCode DMPlexCreatePartitionOverlap_AddRemoteConnections(DM dm, PetscInt
   for (p=pStart; p<pEnd; p++) {
     if (recvRanks[p] < 0) continue;
     for (proc=0; proc<numProcs; proc++) {
-      if (PetscBTLookup(partitionBT, proc*numPoints + p)) {
+      ierr = DMLabelStratumHasPoint(label, proc, p, &assigned);CHKERRQ(ierr);
+      if (assigned) {
         ierr = PetscSectionGetDof(localSection, recvRanks[p], &dof);CHKERRQ(ierr);
         ierr = PetscSectionSetDof(localSection, recvRanks[p], dof+1);CHKERRQ(ierr);
       }
@@ -652,7 +653,8 @@ PetscErrorCode DMPlexCreatePartitionOverlap_AddRemoteConnections(DM dm, PetscInt
   for (p=pStart; p<pEnd; p++) {
     if (recvRanks[p] < 0) continue;
     for (proc=0; proc<numProcs; proc++) {
-      if (PetscBTLookup(partitionBT, proc*numPoints + p)) {
+      ierr = DMLabelStratumHasPoint(label, proc, p, &assigned);CHKERRQ(ierr);
+      if (assigned) {
         ierr = PetscSectionGetOffset(localSection, recvRanks[p], &offset);CHKERRQ(ierr);
         localConnections[offset + localIdx[recvRanks[p]]].index = p;
         localConnections[offset + localIdx[recvRanks[p]]].rank = proc;
@@ -690,9 +692,12 @@ PetscErrorCode DMPlexCreatePartitionOverlap_AddRemoteConnections(DM dm, PetscInt
   ierr = PetscSFBcastBegin(remoteSF, MPIU_2INT, localConnections, remoteConnections);CHKERRQ(ierr);
   ierr = PetscSFBcastEnd(remoteSF, MPIU_2INT, localConnections, remoteConnections);CHKERRQ(ierr);
 
+  /* Add remote connections to label */
   for (p=0; p<remoteSize; p++) {
     proc = remoteConnections[p].rank;
-    if (proc != rank) PetscBTSet(partitionBT, proc*numPoints+remoteConnections[p].index);
+    if (proc != rank) {
+      ierr = DMLabelSetValue(label, remoteConnections[p].index, proc);
+    }
   }
 
   ierr = PetscSFDestroy(&rankSF);CHKERRQ(ierr);
@@ -729,14 +734,16 @@ PetscErrorCode DMPlexCreatePartitionOverlap(DM dm, PetscSection *section, IS *ov
 {
   PetscMPIInt        rank, numProcs;
   MPI_Comm           comm;
-  PetscBool          useClosure, useCone;
   PetscSF            pointSF;
-  const PetscInt    *rootDegree, *ilocal;
+  DMLabel            label;
+  const PetscInt    *ilocal, *sendRanks;
   const PetscSFNode *iremote;
-  PetscInt           p, pStart, pEnd, c, cStart, cEnd, fStart, fEnd;
-  PetscInt           j, numPoints, proc, sumDegree, point, ideg, adjSize, nleaves;
-  PetscInt          *myRank, *sendRanks, *recvRanks, *adjacency=NULL;
-  PetscBT            partitionBT;
+  PetscSF            sharedRankSF;
+  IS                 ranks;
+  PetscSection       sendRankSection, sharedRankSection;
+  PetscInt           p, pStart, pEnd, a, adjSize, nleaves;
+  PetscInt           numRanks, proc, sharedRankSize, offset;
+  PetscInt          *recvRanks, *remoteOffsets, *sharedRanks, *adjacency=NULL;
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
@@ -747,159 +754,95 @@ PetscErrorCode DMPlexCreatePartitionOverlap(DM dm, PetscSection *section, IS *ov
   ierr = MPI_Comm_size(comm, &numProcs);CHKERRQ(ierr);
   ierr = DMGetPointSF(dm, &pointSF);CHKERRQ(ierr);
   ierr = DMPlexGetChart(dm, &pStart, &pEnd);CHKERRQ(ierr);
-  numPoints = pEnd - pStart;
-  ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
-  ierr = DMPlexGetHeightStratum(dm, 1, &fStart, &fEnd);CHKERRQ(ierr);
-  ierr = DMPlexGetAdjacencyUseClosure(dm, &useClosure);CHKERRQ(ierr);
-  ierr = DMPlexGetAdjacencyUseCone(dm, &useCone);CHKERRQ(ierr);
+  ierr = DMLabelCreate("overlap", &label);CHKERRQ(ierr);
 
-  /* Establish which points to send to which rank */
-  ierr = PetscSFComputeDegreeBegin(pointSF,&rootDegree);CHKERRQ(ierr);
-  ierr = PetscSFComputeDegreeEnd(pointSF,&rootDegree);CHKERRQ(ierr);
-  for (sumDegree=0, p=0; p<numPoints; p++) sumDegree += rootDegree[p];
-  ierr = PetscMalloc2(numPoints, &myRank, sumDegree, &sendRanks);CHKERRQ(ierr);
-  for (p=0; p<numPoints; p++) myRank[p] = rank;
-  ierr = PetscSFGatherBegin(pointSF, MPIU_INT, myRank, sendRanks);CHKERRQ(ierr);
-  ierr = PetscSFGatherEnd(pointSF, MPIU_INT, myRank, sendRanks);CHKERRQ(ierr);
+  /* The local contribution to the overlap region of neighbouring processes
+     is computed by adding the locally known points adjacenct to a point
+     that is connected to a neighbour to a label, where the label value
+     is the neighbouring process ID. Threed types of connections are
+     considered:
+       * Direct connections via the leaf->root mapping in the pointSF
+       * Shared-point connections to other receivers of the same root
+       * Remote connections to partitions that we don't share any
+         points with, but are connected to via an intermediary process
+   */
 
-  /* Establish from which rank we reveice which points */
+  /* Build a root->leaf-rank mapping and push this over the pointSF
+     to establish connections via shared roots */
+  ierr = PetscSFCreateSendRanks(pointSF, &sendRankSection, &ranks);CHKERRQ(ierr);
+  ierr = ISGetIndices(ranks, &sendRanks);CHKERRQ(ierr);
+  ierr = PetscSectionCreate(comm, &sharedRankSection);CHKERRQ(ierr);
+  ierr = PetscSFDistributeSection(pointSF, sendRankSection, &remoteOffsets, sharedRankSection);CHKERRQ(ierr);
+  ierr = PetscSFCreateSectionSF(pointSF, sendRankSection, remoteOffsets, sharedRankSection, &sharedRankSF);CHKERRQ(ierr);
+  ierr = PetscSectionGetStorageSize(sharedRankSection, &sharedRankSize);CHKERRQ(ierr);
+  ierr = PetscMalloc1(sharedRankSize, &sharedRanks);
+  ierr = PetscSFBcastBegin(sharedRankSF, MPIU_INT, sendRanks, sharedRanks);CHKERRQ(ierr);
+  ierr = PetscSFBcastEnd(sharedRankSF, MPIU_INT, sendRanks, sharedRanks);CHKERRQ(ierr);
+
+  /* Add direct and shared-point connections via our local leaves */
   ierr = PetscSFGetGraph(pointSF, NULL, &nleaves, &ilocal, &iremote);CHKERRQ(ierr);
-  ierr = PetscMalloc1(numPoints, &recvRanks);CHKERRQ(ierr);
-  for (p=0; p<numPoints; p++) recvRanks[p] = -1;
+  for (p=0; p<nleaves; p++) {
+    adjSize = PETSC_DETERMINE;
+    ierr = DMPlexGetAdjacency(dm, ilocal[p], &adjSize, &adjacency);CHKERRQ(ierr);
+    /* Add connections via our leaves to the root owner */
+    for (a=0; a<adjSize; a++) {
+      ierr = DMLabelSetValue(label, adjacency[a], iremote[p].rank);CHKERRQ(ierr);
+    }
+    /* Add connections to other receivers of the shared root */
+    ierr = PetscSectionGetDof(sharedRankSection, ilocal[p], &numRanks);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(sharedRankSection, ilocal[p], &offset);CHKERRQ(ierr);
+    for (proc=0; proc<numRanks; proc++) {
+      if (sharedRanks[offset+proc] == rank) continue;
+      for (a=0; a<adjSize; a++) {
+        ierr = DMLabelSetValue(label, adjacency[a], sharedRanks[offset+proc]);CHKERRQ(ierr);
+      }
+    }
+  }
+  /* Add connections via roots to leaf owners */
+  for (p=pStart; p<pEnd; p++) {
+    ierr = PetscSectionGetDof(sendRankSection, p, &numRanks);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(sendRankSection, p, &offset);CHKERRQ(ierr);
+    if (numRanks <= 0) continue;
+    adjSize = PETSC_DETERMINE;
+    ierr = DMPlexGetAdjacency(dm, p, &adjSize, &adjacency);CHKERRQ(ierr);
+    for (proc=0; proc<numRanks; proc++) {
+      for (a=0; a<adjSize; a++) {
+        ierr = DMLabelSetValue(label, adjacency[a], sendRanks[offset+proc]);CHKERRQ(ierr);
+      }
+    }
+  }
+
+  /* Before removing non-owned points we need to inform root owners
+     and receiving process of all remote connections we established. */
+  ierr = PetscSFGetGraph(pointSF, NULL, &nleaves, &ilocal, &iremote);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pEnd-pStart, &recvRanks);CHKERRQ(ierr);
+  for (p=pStart; p<pEnd; p++) recvRanks[p] = -1;
   for (p=0; p<nleaves; p++) recvRanks[ilocal[p]] = iremote[p].rank;
+  ierr = DMPlexCreatePartitionOverlap_AddRemoteConnections(dm, recvRanks, label);CHKERRQ(ierr);
 
-  /* Two partitions might also be connected via a point that neither of them
-     owns. To account for this corner case we build an SF to propagate
-     sendRanks to each receiver via an SF built from rootDegree. */
-  PetscSection rootDegreeSection, leafDegreeSection;
-  PetscSF degreeSF;
-  PetscInt offset, leafStart, leafEnd, *remoteOffsets, leafDegree, *sharedRanks;
-  ierr = PetscSectionCreate(comm, &rootDegreeSection);CHKERRQ(ierr);
-  ierr = PetscSectionCreate(comm, &leafDegreeSection);CHKERRQ(ierr);
-  ierr = PetscSectionSetChart(rootDegreeSection, pStart, pEnd);CHKERRQ(ierr);
-  for (p=pStart; p<pEnd; p++) {ierr = PetscSectionSetDof(rootDegreeSection, p, rootDegree[p]);CHKERRQ(ierr);}
-  ierr = PetscSectionSetUp(rootDegreeSection);CHKERRQ(ierr);
-  ierr = PetscSFDistributeSection(pointSF, rootDegreeSection, &remoteOffsets, leafDegreeSection);CHKERRQ(ierr);
-  ierr = PetscSFCreateSectionSF(pointSF, rootDegreeSection, remoteOffsets, leafDegreeSection, &degreeSF);CHKERRQ(ierr);
-  ierr = PetscSectionGetStorageSize(leafDegreeSection, &sumDegree);CHKERRQ(ierr);
-  ierr = PetscMalloc1(sumDegree, &sharedRanks);
-  ierr = PetscSFBcastBegin(degreeSF, MPIU_INT, sendRanks, sharedRanks);CHKERRQ(ierr);
-  ierr = PetscSFBcastEnd(degreeSF, MPIU_INT, sendRanks, sharedRanks);CHKERRQ(ierr);
-  ierr = PetscSectionGetChart(leafDegreeSection, &leafStart, &leafEnd);CHKERRQ(ierr);
-
-  /* Now build the partition overlap by finding all local cells attached
-     to shared points. For FVM adjacency this is simply the facet support
-     and for FEM this is computed as the star(closure(p)) for shared points.
-     Cell connections via shared vertices are ignored here, since they can
-     be ambiguous if a shared vertex has multiple receivers in the pointSF. */
-  if (useClosure) {DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE);CHKERRQ(ierr);}
-
-  ierr = PetscBTCreate(numProcs*numPoints, &partitionBT);CHKERRQ(ierr);
-  for (p=0, ideg=0; p<numPoints; p++) {
-    if (leafStart <= p && p < leafEnd) {
-      ierr = PetscSectionGetDof(leafDegreeSection, p, &leafDegree);CHKERRQ(ierr);
-    } else {
-      leafDegree = -1;
-    }
-    if (rootDegree[p] <= 0 && recvRanks[p] < 0 && leafDegree <=0) continue;
-
-    if (useClosure) {
-      /* If closure-based (FEM) adjacency is used we find all cells
-         in the inverted adjacency (star(closure(p))) of shared points. */
-      adjSize = PETSC_DETERMINE;
-      ierr = DMPlexGetAdjacency(dm, p, &adjSize, &adjacency);CHKERRQ(ierr);
-    } else {
-      /* When using FVM adjacency we only consider
-         cells in the support of send/recv facets. */
-      if (fStart > p || p >= fEnd) continue;
-      ierr = DMPlexGetSupportSize(dm, p, &adjSize);CHKERRQ(ierr);
-      ierr = DMPlexGetSupport(dm, p, (const PetscInt**) &adjacency);CHKERRQ(ierr);
-    }
-    for (c=0; c<adjSize; c++) {
-      point = adjacency[c];
-      if (cStart <= point && point < cEnd) {
-        /* Add cells connected via send points */
-        for (j=0; j<rootDegree[p]; j++) {
-          proc = sendRanks[ideg+j];
-          PetscBTSet(partitionBT, proc*numPoints + point);
-        }
-        /* Add cells connected via recv points */
-        if (recvRanks[p] >= 0) PetscBTSet(partitionBT, recvRanks[p]*numPoints + point);
-        /* Add cells connected via shared, non-owned points */
-        if (leafDegree > 0) {
-          ierr = PetscSectionGetOffset(leafDegreeSection, p, &offset);CHKERRQ(ierr);
-          for (j=0; j<leafDegree; j++) {
-            proc = sharedRanks[offset+j];
-            if (proc != rank) PetscBTSet(partitionBT, proc*numPoints + point);
-          }
-        }
-      }
-    }
-    ideg += rootDegree[p];
-  }
-  ierr = DMPlexSetAdjacencyUseCone(dm, useCone);CHKERRQ(ierr);
-
-  /* Now add the closure of each cell to get the full overlap */
-  PetscInt closureSize, *closure=NULL;
-  for (proc=0; proc<numProcs; proc++) {
-    if (proc == rank) continue;
-    for (p=cStart; p<cEnd; p++) {
-      if (PetscBTLookup(partitionBT, proc*numPoints+p)) {
-        ierr = DMPlexGetTransitiveClosure(dm, p, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
-        for (c=0; c<closureSize; c++) PetscBTSet(partitionBT, proc*numPoints+closure[2*c]);
-      }
+  /* Strip points we don't own */
+  for (p=0; p<nleaves; p++) {
+    for (proc=0; proc<numProcs; proc++) {
+      ierr = DMLabelClearValue(label, ilocal[p], proc);CHKERRQ(ierr);
     }
   }
-  if (closure) {
-    ierr = DMPlexRestoreTransitiveClosure(dm, p, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
-  }
-
-  /* Before removing non-owned points we need to inform the point owner
-     of the connection we found and the receiving process. */
-  ierr = DMPlexCreatePartitionOverlap_AddRemoteConnections(dm, recvRanks, partitionBT);CHKERRQ(ierr);
-
-  /* Remove all points covered by the pointSF */
-  for (p=0, ideg=0; p<numPoints; p++) {
-    if (rootDegree[p] <= 0 && recvRanks[p] < 0) continue;
-    /* Don't send points I'm already sending via pointSF */
-    for (j=0; j<rootDegree[p]; j++) {
-      proc = sendRanks[ideg+j];
-      PetscBTClear(partitionBT, proc*numPoints + p);
-    }
-    /* Don't send points I don't own */
-    if (recvRanks[p] >= 0) {
-      for (proc=0; proc<numProcs; proc++) PetscBTClear(partitionBT, proc*numPoints + p);
-    }
-    ideg += rootDegree[p];
-  }
-
-  /* Build the partition overlap section */
-  PetscInt npoints, partSize, partOffset, *partPoints;
-  ierr = PetscSectionCreate(comm, section);CHKERRQ(ierr);
-  ierr = PetscSectionSetChart(*section, 0, numProcs);CHKERRQ(ierr);
-  for (proc=0; proc<numProcs; proc++) {
-    for (npoints = 0, p=0; p<numPoints; p++) {
-      if (PetscBTLookup(partitionBT, proc*numPoints+p)) npoints++;
-    }
-    ierr = PetscSectionSetDof(*section, proc, npoints);CHKERRQ(ierr);
-  }
-  ierr = PetscSectionSetUp(*section);CHKERRQ(ierr);
-  ierr = PetscSectionGetStorageSize(*section, &partSize);CHKERRQ(ierr);
-  ierr = PetscMalloc1(partSize, &partPoints);CHKERRQ(ierr);
-
-  /* Build the partition overlap IS */
-  for (proc=0; proc<numProcs; proc++) {
-    ierr = PetscSectionGetOffset(*section, proc, &partOffset);CHKERRQ(ierr);
-    for (j=0, p=0; p<numPoints; p++) {
-      if (PetscBTLookup(partitionBT, proc*numPoints+p)) {
-        partPoints[partOffset+j] = p;
-        j++;
-      }
+  /* Strip points we already send via the pointSF */
+  for (p=pStart; p<pEnd; p++) {
+    ierr = PetscSectionGetDof(sendRankSection, p, &numRanks);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(sendRankSection, p, &offset);CHKERRQ(ierr);
+    for (proc=0; proc<numRanks; proc++) {
+      ierr = DMLabelClearValue(label, p, sendRanks[offset+proc]);CHKERRQ(ierr);
     }
   }
-  ierr = ISCreateGeneral(comm, partSize, partPoints, PETSC_OWN_POINTER, overlap);CHKERRQ(ierr);
-  ierr = PetscBTDestroy(&partitionBT);CHKERRQ(ierr);
-  ierr = PetscFree3(myRank, sendRanks, recvRanks);CHKERRQ(ierr);
+  /* Build a partition (section/IS pair) from the label */
+  ierr = DMPlexCreateLabelPartition(dm, label, section, overlap);CHKERRQ(ierr);
+
+  /* Clean up */
+  ierr = ISRestoreIndices(ranks, &sendRanks);CHKERRQ(ierr);
+  ierr = PetscSectionDestroy(&sendRankSection);CHKERRQ(ierr);
+  ierr = ISDestroy(&ranks);CHKERRQ(ierr);
+  ierr = PetscFree(sharedRanks);
+  ierr = DMLabelDestroy(&label);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -986,7 +929,8 @@ PetscErrorCode DMPlexCreateOverlapMigrationSF(DM dm, PetscSF overlapSF, PetscSF 
 
   /* Before building the migration SF we need to know the new stratum offsets */
   ierr = PetscSFGetGraph(overlapSF, &nroots, &nleaves, NULL, &overlapRemote);CHKERRQ(ierr);
-  ierr = PetscMalloc2(nroots, &pointDepths, nleaves, &remoteDepths);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nroots, &pointDepths);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nleaves, &remoteDepths);CHKERRQ(ierr);
   for (d=0; d<dim+1; d++) {
     ierr = DMPlexGetDepthStratum(dm, d, &pStart, &pEnd);CHKERRQ(ierr);
     for (p=pStart; p<pEnd; p++) pointDepths[p] = d;
