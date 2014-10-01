@@ -2604,20 +2604,14 @@ PetscErrorCode  SNESGetConstraintFunction(SNES snes,Vec *v,Vec *vl, Vec *vu,Pets
   PetscFunctionBegin;
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
   if (v) {
-    PetscValidHeaderSpecific(v,VEC_CLASSID,2);
-    PetscCheckSameComm(snes,1,v,2);
     ierr = PetscObjectReference((PetscObject)snes->vec_constr);CHKERRQ(ierr);
     *v = snes->vec_constr;
   }
   if (vl) {
-    PetscValidHeaderSpecific(vl,VEC_CLASSID,2);
-    PetscCheckSameComm(snes,1,vl,2);
     ierr = PetscObjectReference((PetscObject)snes->vec_constrl);CHKERRQ(ierr);
     *vl = snes->vec_constrl;
   }
   if (vu) {
-    PetscValidHeaderSpecific(vu,VEC_CLASSID,2);
-    PetscCheckSameComm(snes,1,vu,2);
     ierr = PetscObjectReference((PetscObject)snes->vec_constru);CHKERRQ(ierr);
     *vu = snes->vec_constru;
   }
@@ -2627,13 +2621,115 @@ PetscErrorCode  SNESGetConstraintFunction(SNES snes,Vec *v,Vec *vl, Vec *vu,Pets
 }
 
 /*MC
-    SNESActiveConstraintsFunction - callback function identifying the active constraints
+    SNESConstraintJacobian - callback function computing the constraint Jacobian
+    for the constrained nonlinear problem (variational inequality) solved by SNES
+
+     Synopsis:
+     #include <petscsnes.h>
+     SNESConstraintJacobian(SNES snes,Vec x,Mat B,void *ctx);
+
+     Input Parameters:
++     snes - the SNES context
+.     x    - state at which to evaluate constraint derivatives
+-     ctx  - optional user-defined function context, passed in with SNESSetConstraintJacobian()
+
+     Output Parameter:
+.     B    - Jacobian (matrix of derivatives of) constraints at x
+
+   Level: intermediate
+
+.seealso:   SNESSetConstraintJacobian(), SNESGetConstraintJacobian()
+M*/
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESSetConstraintJacobian"
+/*@C
+   SNESSetConstraintJacobian -   sets the callback computing the constraint Jacobian and
+   the Jacobian matrix for use by the SNES routines in solving constrained nonlinear
+   systems (variational inequalities).
+
+   Logically Collective on SNES
+
+   Input Parameters:
++  snes - the SNES context
+.  B    - matrix to store the constraint Jacobian
+.  jac  - constraint Jacobian evaluation routine (see SNESConstraintJacobian)
+-  ctx  - optional (if not NULL) user-defined context for private data for the
+          constraint Jacobian evaluation routine.
+
+   Level: intermediate
+
+.keywords: SNES, nonlinear, set, constraint, Jacobian
+
+.seealso: SNESGetConstraintJacobian(), SNESSetConstraintFunction(), SNESConstraintJacobian
+@*/
+PetscErrorCode  SNESSetConstraintJacobian(SNES snes,Mat B,PetscErrorCode (*jac)(SNES,Vec,Mat,void*),void *ctx)
+{
+  PetscErrorCode ierr;
+  DM             dm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  if (B) {
+    PetscValidHeaderSpecific(B,MAT_CLASSID,2);
+    PetscCheckSameComm(snes,1,B,2);
+    ierr = PetscObjectReference((PetscObject)B);CHKERRQ(ierr);
+    ierr = MatDestroy(&snes->cjacobian);CHKERRQ(ierr);
+    snes->cjacobian = B;
+  }
+  ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
+  ierr = DMSNESSetConstraintJacobian(dm,jac,ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESGetConstraintJacobian"
+/*@C
+   SNESGetConstraintJacobian -   retrieves the callback computing the constraint Jacobian and
+   the Jacobian matrix used by the SNES routines in solving constrained nonlinear systems
+   (variational inequalities).
+
+   Logically Collective on SNES
+
+   Input Parameter:
+.  snes - the SNES context
+
+   Output Parameters:
++  B    - matrix storing the constraint Jacobian (or NULL, if not requested)
+.  jac  - constraint Jacobian evaluation routine (or NULL, if not requested; see SNESConstraintJacobian)
+-  ctx  - optional (if not NULL) user-defined context for private data for the
+          constraint Jacobian evaluation routine (or NULL, if not requested)
+
+   Level: intermediate
+
+.keywords: SNES, nonlinear, get, constraint, Jacobian
+
+.seealso: SNESSetConstraintJacobian(), SNESGetConstraintFunction(), SNESConstraintJacobian
+@*/
+PetscErrorCode  SNESGetConstraintJacobian(SNES snes,Mat *B,PetscErrorCode (**jac)(SNES,Vec,Mat,void*),void **ctx)
+{
+  PetscErrorCode ierr;
+  DM             dm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  if (B) {
+    ierr = PetscObjectReference((PetscObject)snes->cjacobian);CHKERRQ(ierr);
+    *B = snes->cjacobian;
+  }
+  ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
+  ierr = DMSNESGetConstraintJacobian(dm,jac,ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*MC
+    SNESActiveConstraints - callback function identifying the active constraints
     at the current state vector x of the constrained nonlinear problem (variational inequality)
     solved by SNES
 
      Synopsis:
      #include <petscsnes.h>
-     SNESActiveConstraintsFunction(SNES snes,Vec x,IS *active,IS *basis,void *ctx);
+     SNESActiveConstraints(SNES snes,Vec x,IS *active,IS *basis,void *ctx);
 
      Input Parameters:
 +     snes - the SNES context
@@ -2662,6 +2758,9 @@ PetscErrorCode  SNESGetConstraintFunction(SNES snes,Vec *v,Vec *vl, Vec *vu,Pets
 
 .seealso:   SNESSetAcitveConstraints(), SNESSetConstraintFunction(), SNESSetConstraintJacobian(), SNESConstraintFunction, SNESConstraintJacobian
 
+ M*/
+
+
 #undef __FUNCT__
 #define __FUNCT__ "SNESSetActiveConstraints"
 /*@C
@@ -2681,7 +2780,7 @@ PetscErrorCode  SNESGetConstraintFunction(SNES snes,Vec *v,Vec *vl, Vec *vu,Pets
 
 .seealso: SNESGetActiveConstraints(), SNESSetConstraintFunction(), SNESActiveConstraints
 @*/
-PetscErrorCode  SNESGetActiveConstraints(SNES snes,PetscErrorCode (**f)(SNES,Vec,IS*,IS*,void*),void **ctx)
+PetscErrorCode  SNESSetActiveConstraints(SNES snes,PetscErrorCode (*f)(SNES,Vec,IS*,IS*,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -2689,7 +2788,7 @@ PetscErrorCode  SNESGetActiveConstraints(SNES snes,PetscErrorCode (**f)(SNES,Vec
   PetscFunctionBegin;
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
-  ierr = DMSNESGetActiveConstraints(dm,f,ctx);CHKERRQ(ierr);
+  ierr = DMSNESSetActiveConstraints(dm,f,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -2714,7 +2813,7 @@ PetscErrorCode  SNESGetActiveConstraints(SNES snes,PetscErrorCode (**f)(SNES,Vec
 
 .seealso: SNESSetActiveConstraints(), SNESSetConstraintFunction(), SNESActiveConstraints
 @*/
-PetscErrorCode  SNESSetActiveConstraints(SNES snes,PetscErrorCode (*f)(SNES,Vec,IS*,IS*,void*),void *ctx)
+PetscErrorCode  SNESGetActiveConstraints(SNES snes,PetscErrorCode (**f)(SNES,Vec,IS*,IS*,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -2722,7 +2821,210 @@ PetscErrorCode  SNESSetActiveConstraints(SNES snes,PetscErrorCode (*f)(SNES,Vec,
   PetscFunctionBegin;
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
-  ierr = DMSNESSetActiveConstraints(dm,f,ctx);CHKERRQ(ierr);
+  ierr = DMSNESGetActiveConstraints(dm,f,ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*MC
+    SNESProjectOntoConstraints - callback function projecting a vector onto the feasible set
+    satisfying all of the constraints of the constrained nonlinear problem (variational inequality)
+    solved by SNES
+
+     Synopsis:
+     #include <petscsnes.h>
+     SNESProjectOntoConstraints(SNES snes,Vec x,Vec y,void *ctx);
+
+     Input Parameters:
++     snes - the SNES context
+.     x    - vector to project onto the feasible set
+-     ctx  - optional user-defined function context, passed in with SNESSetProjectOntoConstraints()
+
+     Output Parameters:
+-     y    - feasible vector resulting from the projection
+
+     Notes:
+     The projection is entirely up to the user.  We do not in general assume that for a feasible
+     vector its projection is the vector itself.
+
+
+   Level: intermediate
+
+.seealso:   SNESSetProjectOntoConstraints(), SNESSetConstraintFunction(), SNESSetConstraintJacobian(), SNESConstraintFunction, SNESConstraintJacobian
+
+ M*/
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESSetProjectOntoConstraints"
+/*@C
+   SNESSetProjectOntoConstraints -   sets the callback projecting vector onto the feasible set
+   defined by the constraints of the constrained nonlinear problem (variational inequality)
+   being solved by SNES.
+
+   Logically Collective on SNES
+
+   Input Parameters:
++  snes - the SNES context
+.  f    - function computing the projection onto the feasible set
+-  ctx  - optional (if not NULL) user-defined context for private data for the
+          projection onto the feasible set.
+
+   Level: intermediate
+
+.keywords: SNES, nonlinear, project, constraint, feasible
+
+.seealso: SNESGetProjectOntoConstraints(), SNESSetConstraintFunction(), SNESProjectOntoConstraints
+@*/
+PetscErrorCode  SNESSetProjectOntoConstraints(SNES snes,PetscErrorCode (*f)(SNES,Vec,Vec,void*),void *ctx)
+{
+  PetscErrorCode ierr;
+  DM             dm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
+  ierr = DMSNESSetProjectOntoConstraints(dm,f,ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESSetProjectOntoConstraints"
+/*@C
+   SNESSetProjectOntoConstraints -   sets the callback projecting vector onto the feasible set
+   defined by the constraints of the constrained nonlinear problem (variational inequality)
+   being solved by SNES.
+
+   Logically Collective on SNES
+
+   Input Parameter:
+.  snes - the SNES context
+
+   Output Parameters:
++  f    - function computing the projection onto the feasible set (or NULL, if not requested)
+-  ctx  - optional (if not NULL) user-defined context for private data for the
+          projection onto the feasible set (or NULL, if not requested)
+
+   Level: intermediate
+
+.keywords: SNES, nonlinear, get, project, constraint, feasible
+
+.seealso: SNESGetProjectOntoConstraints(), SNESSetConstraintFunction(), SNESProjectOntoConstraints
+@*/
+PetscErrorCode  SNESGetProjectOntoConstraints(SNES snes,PetscErrorCode (**f)(SNES,Vec,Vec,void*),void **ctx)
+{
+  PetscErrorCode ierr;
+  DM             dm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
+  ierr = DMSNESGetProjectOntoConstraints(dm,f,ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*MC
+    SNESDistanceToConstraints - callback function identifying the distance to the constraints
+    from the current state vector x along direction vector y.
+
+
+     Synopsis:
+     #include <petscsnes.h>
+     SNESDistanceToConstraints(SNES snes,Vec x,Vec y,Vec r,void *ctx);
+
+     Input Parameters:
++     snes - the SNES context
+.     x    - state, from which to measure the distance
+.     y    - direction, along which the distances are evaluated
+-     ctx  - optional user-defined function context, passed in with SNESSetDistanceToConstraints()
+
+     Output Parameter:
+.     r    - vector of distances, one entry per constraint
+
+     Notes:
+      The distance vector measures the size of the gap vu - g(x+y) or g(x+y) - vl, whichever smaller
+      (see SNESSetConstraintFunction() for definitions); the size of r is, therefore, the same as that
+      of the constraint vector.
+
+
+   Level: intermediate
+
+.seealso:   SNESGetDistanceToConstraints(), SNESSetActiveConstraints(), SNESConstraintFunction, SNESConstraintJacobian, SNESActiveConstraints
+
+ M*/
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESSetDistanceToConstraints"
+/*@C
+   SNESSetDistanceToConstraints -   sets the callback computing the distance to bounds for each constraint
+
+   Logically Collective on SNES
+
+   Input Parameters:
++  snes - the SNES context
+.  r    - vector of distances to constraints
+.  f    - function computing constraing gaps
+-  ctx  - optional (if not NULL) user-defined context for private data for the
+          computation of constraint gaps
+
+   Level: intermediate
+
+.keywords: SNES, nonlinear, set, active, constraint, distance, function
+
+.seealso: SNESGetDistanceToConstraints(), SNESSetConstraintFunction(), SNESDistanceToConstraints
+@*/
+PetscErrorCode  SNESSetDistanceToConstraints(SNES snes,Vec r,PetscErrorCode (*f)(SNES,Vec,Vec,void*),void **ctx)
+{
+  PetscErrorCode ierr;
+  DM             dm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
+  if (r) {
+    PetscValidHeaderSpecific(r,VEC_CLASSID,2);
+    PetscCheckSameComm(snes,1,r,2);
+    ierr = PetscObjectReference((PetscObject)r);CHKERRQ(ierr);
+    ierr = VecDestroy(&snes->vec_constrd);CHKERRQ(ierr);
+    snes->vec_constrd = r;
+  }
+  ierr = DMSNESSetDistanceToConstraints(dm,f,ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESGetDistanceToConstraints"
+/*@C
+   SNESGetDistanceToConstraints -   retrieves the callback computing the distance to bounds for each constraint
+
+   Logically Collective on SNES
+
+   Input Parameter:
+.  snes - the SNES context
+
+   Output Parameters:
++  r    - vector storing distances to constraints (or NULL, if not requested)
+.  f    - function computing constraing gaps (or NULL, if not requested)
+-  ctx  - optional (if not NULL) user-defined context for private data for the
+          computation of constraint gaps (or NULL, if not requested)
+
+   Level: intermediate
+
+.keywords: SNES, nonlinear, set, active, constraint, distance, function
+
+.seealso: SNESSetDistanceToConstraints(), SNESSetConstraintFunction(), SNESDistanceToConstraints
+@*/
+PetscErrorCode  SNESGetDistanceToConstraints(SNES snes,Vec *r,PetscErrorCode (**f)(SNES,Vec,Vec,void*),void **ctx)
+{
+  PetscErrorCode ierr;
+  DM             dm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
+  if (r) {
+    ierr = PetscObjectReference((PetscObject)snes->vec_constrd);CHKERRQ(ierr);
+    *r = snes->vec_constrd;
+  }
+  ierr = DMSNESGetDistanceToConstraints(dm,f,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

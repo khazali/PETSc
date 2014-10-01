@@ -923,7 +923,7 @@ PetscErrorCode DMSNESSetProjectOntoConstraints(DM dm,PetscErrorCode (*p)(SNES,Ve
 
    Output parameters:
 +  p   - projection evaluation function
--  ctx - context for projection evaluation
+-  ctx - optional (if not NULL) context for projection evaluation
 
    Level: advanced
 
@@ -945,5 +945,77 @@ PetscErrorCode DMSNESGetProjectOntoConstraints(DM dm,PetscErrorCode (**p)(SNES,V
   ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
   if (p)   *p = sdm->ops->projectontobounds;
   if (ctx) *ctx = sdm->projectontoboundsctx;
+  PetscFunctionReturn(0);
+}
+
+#undef  __FUNCT__
+#define __FUNCT__ "DMSNESSetDistanceToConstraints"
+/*@C
+   DMSNESSetDistanceToConstraints - set callback evaluating distance to constraint bounds
+
+   Not Collective
+
+   Input parameters:
++  dm  - DM to be used with SNES
+.  f   - bound gap evaluation function
+-  ctx - context for bound gap evaluation
+
+   Level: advanced
+
+   Note:
+   SNESSetDistanceToConstraints() is normally used, but it calls this function internally because the user context is actually
+   associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
+   not. If DM took a more central role at some later date, this could become the primary method of setting the bound gap
+   evaluation.
+
+.seealso: DMSNESSetContext(), DMSNESGetDistanceToConstraints(), SNESSetConstraintFunction(), DMSNESSetProjectOntoConstraints(), SNESDistanceToConstraints
+@*/
+PetscErrorCode DMSNESSetDistanceToConstraints(DM dm,PetscErrorCode (*f)(SNES,Vec,Vec,void*),void *ctx)
+{
+  PetscErrorCode ierr;
+  DMSNES         sdm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
+  if (p)   sdm->ops->distancetoconstraints = f;
+  if (ctx) sdm->distancetoconstraints->ctx   = ctx;
+  PetscFunctionReturn(0);
+}
+
+#undef  __FUNCT__
+#define __FUNCT__ "DMSNESGetDistanceToConstraints"
+/*@C
+   DMSNESGetDistanceToConstraints - retrieve callback evaluating distance to constraint bounds
+
+   Not Collective
+
+   Input parameter:
+.  dm  - DM to be used with SNES
+
+   Output parameters:
++  f   - bound gap evaluation function (or NULL, if not requested)
+-  ctx - optional (if not NULL) context for bound gap evaluation (or NULL, if not requested)
+
+   Level: advanced
+
+   Note:
+   SNESGetDistanceToConstraints() is normally used, but it calls this function internally because the user context is actually
+   associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
+   not. If DM took a more central role at some later date, this could become the primary method of retrieving the bound gap
+   evaluation.
+
+.seealso: DMSNESSetContext(), DMSNESSetDistanceToConstraints(), SNESGetConstraintFunction(), DMSNESGetProjectOntoConstraints(), SNESDistanceToConstraints
+@*/
+PetscErrorCode DMSNESSetDistanceToConstraints(DM dm,PetscErrorCode (**f)(SNES,Vec,Vec,void*),void **ctx)
+{
+  PetscErrorCode ierr;
+  DMSNES         sdm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
+  if (f)   *f = sdm->ops->distancetoconstraints;
+  if (ctx) *ctx = sdm->distancetoconstraints->ctx;
   PetscFunctionReturn(0);
 }

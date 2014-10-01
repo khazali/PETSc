@@ -46,6 +46,23 @@ typedef const char* SNESType;
 #define SNESASPIN        "aspin"
 #define SNESCOMPOSITE    "composite"
 
+/*J
+    SNESNEWTONASType - String with the name of a PETSc SNES active-set method.
+    Determines the type of linear solver used to solve the bordered saddle-point-form
+    linear system.
+
+    Available types: SNESNEWTONAS_PRIMAL, SNESNEWTONAS_SADDLE, SNESNEWTONAS_DUAL
+
+    Options Database Keys: -snes_newtonas_type saddle|primal|dual
+   Level: beginner
+
+.seealso: SNESNEWTONASSetType(), SNES, SNESCreate(), SNESDestroy(), SNESSetFromOptions()
+J*/
+typedef const char* SNESNEWTONASType;
+#define SNES_NEWTONAS_PRIMAL     "primal"
+#define SNES_NEWTONAS_SADDLE     "saddle"
+#define SNES_NEWTONAS_DUAL       "dual"
+
 /* Logging support */
 PETSC_EXTERN PetscClassId SNES_CLASSID;
 PETSC_EXTERN PetscClassId DMSNES_CLASSID;
@@ -348,8 +365,13 @@ PETSC_EXTERN PetscErrorCode SNESSetActiveConstraints(SNES,PetscErrorCode (*)(SNE
 PETSC_EXTERN PetscErrorCode SNESGetActiveConstraints(SNES,PetscErrorCode (**)(SNES,Vec,IS*,IS*,,void*),void**);
 
 PETSC_EXTERN PetscErrorCode SNESSetProjectOntoConstraints(SNES,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
-PETSC_EXTERN PetscErrorCode SNESGetProjectOntoConstraints(SNES,PetscErrorCode (**)(SNES,Vec,Vec,,void*),void**);
+PETSC_EXTERN PetscErrorCode SNESGetProjectOntoConstraints(SNES,PetscErrorCode (**)(SNES,Vec,Vec,void*),void*);
 
+PETSC_EXTERN PetscErrorCode SNESSetDistanceToConstraints(SNES,PetscErrorCode (*)(SNES,Vec,Vec,void*),void**);
+PETSC_EXTERN PetscErrorCode SNESGetDistanceToConstraints(SNES,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
+
+PETSC_EXTERN PetscErrorCode SNESNEWTONASSetType(SNES,SNESNEWTONASType);
+PETSC_EXTERN PetscErrorCode SNESNEWTONASGetType(SNES,SNESNEWTONASType*);
 
 /*E
     SNESNormSchedule - Frequency with which the norm is computed
@@ -648,7 +670,8 @@ PETSC_EXTERN PetscErrorCode DMSNESSetActiveConstraints(DM,PetscErrorCode (*)(SNE
 PETSC_EXTERN PetscErrorCode DMSNESGetActiveConstraints(DM,PetscErrorCode (**)(SNES,Vec,IS*,IS*,void*),void**);
 PETSC_EXTERN PetscErrorCode DMSNESSetProjectOntoConstraints(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSNESGetProjectOntoConstraints(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
-
+PETSC_EXTERN PetscErrorCode DMSNESSetDistanceToConstraints(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESGetDistanceToConstraints(DM,PetscErrorCode (**)(SNES,Vec,Vec,void*),void*);
 
 
 PETSC_EXTERN PetscErrorCode DMDASNESSetFunctionLocal(DM,InsertMode,DMDASNESFunction,void*);
