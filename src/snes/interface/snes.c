@@ -2604,15 +2604,12 @@ PetscErrorCode  SNESGetConstraintFunction(SNES snes,Vec *v,Vec *vl, Vec *vu,Pets
   PetscFunctionBegin;
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
   if (v) {
-    ierr = PetscObjectReference((PetscObject)snes->vec_constr);CHKERRQ(ierr);
     *v = snes->vec_constr;
   }
   if (vl) {
-    ierr = PetscObjectReference((PetscObject)snes->vec_constrl);CHKERRQ(ierr);
     *vl = snes->vec_constrl;
   }
   if (vu) {
-    ierr = PetscObjectReference((PetscObject)snes->vec_constru);CHKERRQ(ierr);
     *vu = snes->vec_constru;
   }
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
@@ -2674,8 +2671,8 @@ PetscErrorCode  SNESSetConstraintJacobian(SNES snes,Mat B,PetscErrorCode (*jac)(
     PetscValidHeaderSpecific(B,MAT_CLASSID,2);
     PetscCheckSameComm(snes,1,B,2);
     ierr = PetscObjectReference((PetscObject)B);CHKERRQ(ierr);
-    ierr = MatDestroy(&snes->cjacobian);CHKERRQ(ierr);
-    snes->cjacobian = B;
+    ierr = MatDestroy(&snes->jacobian_constr);CHKERRQ(ierr);
+    snes->jacobian_constr = B;
   }
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESSetConstraintJacobian(dm,jac,ctx);CHKERRQ(ierr);
@@ -2714,8 +2711,7 @@ PetscErrorCode  SNESGetConstraintJacobian(SNES snes,Mat *B,PetscErrorCode (**jac
   PetscFunctionBegin;
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
   if (B) {
-    ierr = PetscObjectReference((PetscObject)snes->cjacobian);CHKERRQ(ierr);
-    *B = snes->cjacobian;
+    *B = snes->jacobian_constr;
   }
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESGetConstraintJacobian(dm,jac,ctx);CHKERRQ(ierr);
@@ -2729,7 +2725,7 @@ PetscErrorCode  SNESGetConstraintJacobian(SNES snes,Mat *B,PetscErrorCode (**jac
 
      Synopsis:
      #include <petscsnes.h>
-     SNESActiveConstraints(SNES snes,Vec x,IS *active,IS *basis,void *ctx);
+     SNESActiveConstraints(SNES snes,Vec x,IS *active,IS *basis,Mat Bb_pre,Mat Bbt_pre,void *ctx);
 
      Input Parameters:
 +     snes - the SNES context
@@ -2737,21 +2733,25 @@ PetscErrorCode  SNESGetConstraintJacobian(SNES snes,Mat *B,PetscErrorCode (**jac
 -     ctx  - optional user-defined function context, passed in with SNESSetActiveConstraints()
 
      Output Parameters:
-+     active - indices of active constraints
--     basis  - indices of basis vectors spanning the active linearized constraint range
++     active  - indices of active constraints
+.     basis   - (NULL, if not available) indices of basis vectors spanning the active linearized constraint range
+.     Bb_pre  - (NULL, if not available) preconditioning matrix for Bb
+-     Bbt_pre - (NULL, if not available) preconditioning matrix for Bbt
 
      Notes:
      Active constraints are essentially those that would be violated when moving along the direction of
      the SNES function.  The linearized constraints are the span of the rows of the constraint Jacobian.
      Active constraints (linearized or otherwise) are labled by the corresponding rows of the constraint
-     Jacobian.  The active constraint Jacobian is the submatrix of the constraint Jacobian comprising
+     Jacobian.  The active constraint Jacobian is the submatrix B of the constraint Jacobian comprising
      the active constraint rows. Output parameter 'active' is exactly the indices of the active Jacobian
      rows.
 
-
-     The active linearized constraint range is the range of the columns of the active constraint Jacobian.
-     Output parameter 'basis' comprises indices of the active Jacobian columns that are a basis for the
-     active constraint linearized constraint range.
+     The active linearized constraint range is the range of the columns of B. Output parameter 'basis'
+     comprises the indices of B's columns that are a basis for the active constraint linearized constraint
+     range. Bb is the square matrix with these column indices, so the columns of Bb are the basis of the
+     linearized constraint range. Since in primal elimination methods inverses (or solves with)bof both Bb
+     and Bbt, the transpose of Bb, are needed, the user can provide matrices to build preconditioners for
+     both Bb and Bbt.
 
 
    Level: intermediate
@@ -2770,6 +2770,8 @@ PetscErrorCode  SNESGetConstraintJacobian(SNES snes,Mat *B,PetscErrorCode (**jac
 
    Input Parameters:
 +  snes - the SNES context
+.  Bb   - (NULL, if not provided) matrix to store the basis for the active constraints
+.  Bbt  - (NULL, if not provided) transposed basis matrix for the inactive constraints
 .  f    - function identifying the active constraints at the current state x
 -  ctx  - optional (if not NULL) user-defined context for private data for the
           identification of active constraints function.
@@ -2780,7 +2782,7 @@ PetscErrorCode  SNESGetConstraintJacobian(SNES snes,Mat *B,PetscErrorCode (**jac
 
 .seealso: SNESGetActiveConstraints(), SNESSetConstraintFunction(), SNESActiveConstraints
 @*/
-PetscErrorCode  SNESSetActiveConstraints(SNES snes,PetscErrorCode (*f)(SNES,Vec,IS*,IS*,void*),void *ctx)
+PetscErrorCode  SNESSetActiveConstraints(SNES snes,Mat Bb, Mat Bbt,PetscErrorCode (*f)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -2789,6 +2791,16 @@ PetscErrorCode  SNESSetActiveConstraints(SNES snes,PetscErrorCode (*f)(SNES,Vec,
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESSetActiveConstraints(dm,f,ctx);CHKERRQ(ierr);
+  if (Bb) {
+    ierr = PetscObjectReference((PetscObject)Bb);CHKERRQ(ierr);
+    ierr = MatDestroy(&snes->Bb);CHKERRQ(ierr);
+    snes->Bb = Bb;
+  }
+  if (Bbt) {
+    ierr = PetscObjectReference((PetscObject)Bbt);CHKERRQ(ierr);
+    ierr = MatDestroy(&snes->Bbt);CHKERRQ(ierr);
+    snes->Bbt = Bbt;
+  }
   PetscFunctionReturn(0);
 }
 
@@ -2813,7 +2825,7 @@ PetscErrorCode  SNESSetActiveConstraints(SNES snes,PetscErrorCode (*f)(SNES,Vec,
 
 .seealso: SNESSetActiveConstraints(), SNESSetConstraintFunction(), SNESActiveConstraints
 @*/
-PetscErrorCode  SNESGetActiveConstraints(SNES snes,PetscErrorCode (**f)(SNES,Vec,IS*,IS*,void*),void **ctx)
+PetscErrorCode  SNESGetActiveConstraints(SNES snes,PetscErrorCode (**f)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -2822,6 +2834,12 @@ PetscErrorCode  SNESGetActiveConstraints(SNES snes,PetscErrorCode (**f)(SNES,Vec
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESGetActiveConstraints(dm,f,ctx);CHKERRQ(ierr);
+  if (Bb) {
+    *Bb = snes->Bb;
+  }
+  if (Bbt) {
+    *Bbt = snes->Bbt;
+  }
   PetscFunctionReturn(0);
 }
 
@@ -2922,13 +2940,13 @@ PetscErrorCode  SNESGetProjectOntoConstraints(SNES snes,PetscErrorCode (**f)(SNE
 }
 
 /*MC
-    SNESDistanceToConstraints - callback function identifying the distance to the constraints
-    from the current state vector x along direction vector y.
+    SNESDistanceToConstraintBounds - callback function identifying the distance to the constraint
+    bounds from the current state vector x along direction vector y.
 
 
      Synopsis:
      #include <petscsnes.h>
-     SNESDistanceToConstraints(SNES snes,Vec x,Vec y,Vec r,void *ctx);
+     SNESDistanceToConstraintBounds(SNES snes,Vec x,Vec y,Vec r,void *ctx);
 
      Input Parameters:
 +     snes - the SNES context
@@ -2947,14 +2965,14 @@ PetscErrorCode  SNESGetProjectOntoConstraints(SNES snes,PetscErrorCode (**f)(SNE
 
    Level: intermediate
 
-.seealso:   SNESGetDistanceToConstraints(), SNESSetActiveConstraints(), SNESConstraintFunction, SNESConstraintJacobian, SNESActiveConstraints
+.seealso:   SNESGetDistanceToConstraintBounds(), SNESSetActiveConstraints(), SNESConstraintFunction, SNESConstraintJacobian, SNESActiveConstraints
 
  M*/
 
 #undef __FUNCT__
-#define __FUNCT__ "SNESSetDistanceToConstraints"
+#define __FUNCT__ "SNESSetDistanceToConstraintBouns"
 /*@C
-   SNESSetDistanceToConstraints -   sets the callback computing the distance to bounds for each constraint
+   SNESSetDistanceToConstraintBounds -   sets the callback computing the distance to the bounds for each constraint
 
    Logically Collective on SNES
 
@@ -2969,9 +2987,9 @@ PetscErrorCode  SNESGetProjectOntoConstraints(SNES snes,PetscErrorCode (**f)(SNE
 
 .keywords: SNES, nonlinear, set, active, constraint, distance, function
 
-.seealso: SNESGetDistanceToConstraints(), SNESSetConstraintFunction(), SNESDistanceToConstraints
+.seealso: SNESGetDistanceToConstraintBounds(), SNESSetConstraintFunction(), SNESDistanceToConstraintBounds
 @*/
-PetscErrorCode  SNESSetDistanceToConstraints(SNES snes,Vec r,PetscErrorCode (*f)(SNES,Vec,Vec,void*),void **ctx)
+PetscErrorCode  SNESSetDistanceToConstraintBounds(SNES snes,Vec r,PetscErrorCode (*f)(SNES,Vec,Vec,Vec,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -2986,14 +3004,14 @@ PetscErrorCode  SNESSetDistanceToConstraints(SNES snes,Vec r,PetscErrorCode (*f)
     ierr = VecDestroy(&snes->vec_constrd);CHKERRQ(ierr);
     snes->vec_constrd = r;
   }
-  ierr = DMSNESSetDistanceToConstraints(dm,f,ctx);CHKERRQ(ierr);
+  ierr = DMSNESSetDistanceToConstraintBounds(dm,f,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "SNESGetDistanceToConstraints"
+#define __FUNCT__ "SNESGetDistanceToConstraintBounds"
 /*@C
-   SNESGetDistanceToConstraints -   retrieves the callback computing the distance to bounds for each constraint
+   SNESGetDistanceToConstraintBounds -   retrieves the callback computing the distance to the bounds for each constraint
 
    Logically Collective on SNES
 
@@ -3010,9 +3028,9 @@ PetscErrorCode  SNESSetDistanceToConstraints(SNES snes,Vec r,PetscErrorCode (*f)
 
 .keywords: SNES, nonlinear, set, active, constraint, distance, function
 
-.seealso: SNESSetDistanceToConstraints(), SNESSetConstraintFunction(), SNESDistanceToConstraints
+.seealso: SNESSetDistanceToConstraintBounds(), SNESSetConstraintFunction(), SNESDistanceToConstraintBounds
 @*/
-PetscErrorCode  SNESGetDistanceToConstraints(SNES snes,Vec *r,PetscErrorCode (**f)(SNES,Vec,Vec,void*),void **ctx)
+PetscErrorCode  SNESGetDistanceToConstraintBounds(SNES snes,Vec *r,PetscErrorCode (**f)(SNES,Vec,Vec,Vec,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -3024,7 +3042,7 @@ PetscErrorCode  SNESGetDistanceToConstraints(SNES snes,Vec *r,PetscErrorCode (**
     ierr = PetscObjectReference((PetscObject)snes->vec_constrd);CHKERRQ(ierr);
     *r = snes->vec_constrd;
   }
-  ierr = DMSNESGetDistanceToConstraints(dm,f,ctx);CHKERRQ(ierr);
+  ierr = DMSNESGetDistanceToConstraintBoundss(dm,f,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

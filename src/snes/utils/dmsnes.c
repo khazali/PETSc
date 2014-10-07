@@ -688,8 +688,8 @@ PetscErrorCode DMSNESSetConstraintFunction(DM dm,PetscErrorCode (*g)(SNES,Vec,Ve
   if (g || ctx) {
     ierr = DMGetDMSNESWrite(dm,&sdm);CHKERRQ(ierr);
   }
-  if (g) sdm->ops->computecfunction = g;
-  if (ctx) sdm->cfunctionctx = ctx;
+  if (g) sdm->ops->constraintfunction = g;
+  if (ctx) sdm->constraintfunctionctx = ctx;
   PetscFunctionReturn(0);
 }
 
@@ -724,8 +724,8 @@ PetscErrorCode DMSNESGetConstraintFunction(DM dm,PetscErrorCode (**g)(SNES,Vec,V
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
-  if (g)   *g = sdm->ops->computecfunction;
-  if (ctx) *ctx = sdm->cfunctionctx;
+  if (g)   *g = sdm->ops->constraintfunction;
+  if (ctx) *ctx = sdm->constraintfunctionctx;
   PetscFunctionReturn(0);
 }
 
@@ -762,8 +762,8 @@ PetscErrorCode DMSNESSetConstraintJacobian(DM dm,PetscErrorCode (*J)(SNES,Vec,Ma
   if (J || ctx) {
     ierr = DMGetDMSNESWrite(dm,&sdm);CHKERRQ(ierr);
   }
-  if (J) sdm->ops->computecjacobian = J;
-  if (ctx) sdm->cjacobianctx = ctx;
+  if (J) sdm->ops->constraintjacobian = J;
+  if (ctx) sdm->constraintjacobianctx = ctx;
   PetscFunctionReturn(0);
 }
 
@@ -799,8 +799,8 @@ PetscErrorCode DMSNESGetConstraintJacobian(DM dm,PetscErrorCode (**J)(SNES,Vec,M
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
-  if (J)   *J = sdm->ops->computecjacobian;
-  if (ctx) *ctx = sdm->cjacobianctx;
+  if (J)   *J = sdm->ops->constraintjacobian;
+  if (ctx) *ctx = sdm->constraintjacobianctx;
   PetscFunctionReturn(0);
 }
 
@@ -826,7 +826,7 @@ PetscErrorCode DMSNESGetConstraintJacobian(DM dm,PetscErrorCode (**J)(SNES,Vec,M
 
 .seealso: DMSNESSetContext(), SNESSetConstraintFunction(), SNESGetConstraintFunction(), DMSNESGetActiveConstraints(), SNESActiveConstraints
 @*/
-PetscErrorCode DMSNESSetActiveConstraints(DM dm,PetscErrorCode (*a)(SNES,Vec,IS*,IS*,void*),void *ctx)
+PetscErrorCode DMSNESSetActiveConstraints(DM dm,PetscErrorCode (*a)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -834,8 +834,8 @@ PetscErrorCode DMSNESSetActiveConstraints(DM dm,PetscErrorCode (*a)(SNES,Vec,IS*
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
-  if (a)   sdm->ops->computeaconstraints = a;
-  if (ctx) sdm->aconstraintsctx          = ctx;
+  if (a)   sdm->ops->activeconstraints = a;
+  if (ctx) sdm->activeconstraintsctx     = ctx;
   PetscFunctionReturn(0);
 }
 
@@ -863,7 +863,7 @@ PetscErrorCode DMSNESSetActiveConstraints(DM dm,PetscErrorCode (*a)(SNES,Vec,IS*
 
 .seealso: DMSNESSetContext(), SNESSetConstraintFunction(), SNESGetConstraintFunction(), DMSNESSetActiveConstraints(), SNESActiveConstraints
 @*/
-PetscErrorCode DMSNESGetActiveConstraints(DM dm,PetscErrorCode (**a)(SNES,Vec,IS*,IS*,void*),void **ctx)
+PetscErrorCode DMSNESGetActiveConstraints(DM dm,PetscErrorCode (**a)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -871,8 +871,8 @@ PetscErrorCode DMSNESGetActiveConstraints(DM dm,PetscErrorCode (**a)(SNES,Vec,IS
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
-  if (a)   *a = sdm->ops->computeaconstraints;
-  if (ctx) *ctx = sdm->aconstraintsctx;
+  if (a)   *a = sdm->ops->activeconstraints;
+  if (ctx) *ctx = sdm->activeconstraintsctx;
   PetscFunctionReturn(0);
 }
 
@@ -949,9 +949,9 @@ PetscErrorCode DMSNESGetProjectOntoConstraints(DM dm,PetscErrorCode (**p)(SNES,V
 }
 
 #undef  __FUNCT__
-#define __FUNCT__ "DMSNESSetDistanceToConstraints"
+#define __FUNCT__ "DMSNESSetDistanceToConstraintBounds"
 /*@C
-   DMSNESSetDistanceToConstraints - set callback evaluating distance to constraint bounds
+   DMSNESSetDistanceToConstraintBounds - set callback evaluating distance to the constraint bounds
 
    Not Collective
 
@@ -963,14 +963,14 @@ PetscErrorCode DMSNESGetProjectOntoConstraints(DM dm,PetscErrorCode (**p)(SNES,V
    Level: advanced
 
    Note:
-   SNESSetDistanceToConstraints() is normally used, but it calls this function internally because the user context is actually
+   SNESSetDistanceToConstraintBounds() is normally used, but it calls this function internally because the user context is actually
    associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
    not. If DM took a more central role at some later date, this could become the primary method of setting the bound gap
    evaluation.
 
-.seealso: DMSNESSetContext(), DMSNESGetDistanceToConstraints(), SNESSetConstraintFunction(), DMSNESSetProjectOntoConstraints(), SNESDistanceToConstraints
+.seealso: DMSNESSetContext(), DMSNESGetDistanceToConstraintBounds(), SNESSetConstraintFunction(), DMSNESSetProjectOntoConstraints(), SNESDistanceToConstraintBounds
 @*/
-PetscErrorCode DMSNESSetDistanceToConstraints(DM dm,PetscErrorCode (*f)(SNES,Vec,Vec,void*),void *ctx)
+PetscErrorCode DMSNESSetDistanceToConstraintBounds(DM dm,PetscErrorCode (*f)(SNES,Vec,Vec,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -978,15 +978,15 @@ PetscErrorCode DMSNESSetDistanceToConstraints(DM dm,PetscErrorCode (*f)(SNES,Vec
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
-  if (p)   sdm->ops->distancetoconstraints = f;
-  if (ctx) sdm->distancetoconstraints->ctx   = ctx;
+  if (p)   sdm->ops->distancetoconstraintbounds = f;
+  if (ctx) sdm->distancetoconstraintboundctx   = ctx;
   PetscFunctionReturn(0);
 }
 
 #undef  __FUNCT__
-#define __FUNCT__ "DMSNESGetDistanceToConstraints"
+#define __FUNCT__ "DMSNESGetDistanceToConstraintBounds"
 /*@C
-   DMSNESGetDistanceToConstraints - retrieve callback evaluating distance to constraint bounds
+   DMSNESGetDistanceToConstraintBounds - retrieve callback evaluating distance to the constraint bounds
 
    Not Collective
 
@@ -1000,14 +1000,14 @@ PetscErrorCode DMSNESSetDistanceToConstraints(DM dm,PetscErrorCode (*f)(SNES,Vec
    Level: advanced
 
    Note:
-   SNESGetDistanceToConstraints() is normally used, but it calls this function internally because the user context is actually
+   SNESGetDistanceToConstraintBounds() is normally used, but it calls this function internally because the user context is actually
    associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
    not. If DM took a more central role at some later date, this could become the primary method of retrieving the bound gap
    evaluation.
 
-.seealso: DMSNESSetContext(), DMSNESSetDistanceToConstraints(), SNESGetConstraintFunction(), DMSNESGetProjectOntoConstraints(), SNESDistanceToConstraints
+.seealso: DMSNESSetContext(), DMSNESSetDistanceToConstraintBounds(), SNESGetConstraintFunction(), DMSNESGetProjectOntoConstraints(), SNESDistanceToConstraintBounds
 @*/
-PetscErrorCode DMSNESSetDistanceToConstraints(DM dm,PetscErrorCode (**f)(SNES,Vec,Vec,void*),void **ctx)
+PetscErrorCode DMSNESSetDistanceToConstraintBounds(DM dm,PetscErrorCode (**f)(SNES,Vec,Vec,Vec,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -1015,7 +1015,7 @@ PetscErrorCode DMSNESSetDistanceToConstraints(DM dm,PetscErrorCode (**f)(SNES,Ve
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
-  if (f)   *f = sdm->ops->distancetoconstraints;
-  if (ctx) *ctx = sdm->distancetoconstraints->ctx;
+  if (f)   *f = sdm->ops->distancetoconstraintbounds;
+  if (ctx) *ctx = sdm->distancetoconstraintboundsctx;
   PetscFunctionReturn(0);
 }

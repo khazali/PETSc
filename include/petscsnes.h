@@ -358,17 +358,17 @@ PETSC_EXTERN PetscErrorCode SNESComputeObjective(SNES,Vec,PetscReal *);
 PETSC_EXTERN PetscErrorCode SNESSetConstraintFunction(SNES,Vec,Vec,Vec,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
 PETSC_EXTERN PetscErrorCode SNESGetConstraintFunction(SNES,Vec*,Vec*,Vec*,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
 
-PETSC_EXTERN PetscErrorCode SNESSetConstraintJacobian(SNES,Mat,PetscErrorCode (*)(SNES,Vec,Mat,void*),void*);
-PETSC_EXTERN PetscErrorCode SNESGetConstraintJacobian(SNES,Mat*,PetscErrorCode (**)(SNES,Vec,Mat,void*),void**);
+PETSC_EXTERN PetscErrorCode SNESSetConstraintJacobian(SNES,Mat,PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*),void*);
+PETSC_EXTERN PetscErrorCode SNESGetConstraintJacobian(SNES,Mat*,PetscErrorCode (**)(SNES,Vec,Mat,Mat,void*),void**);
 
-PETSC_EXTERN PetscErrorCode SNESSetActiveConstraints(SNES,PetscErrorCode (*)(SNES,Vec,IS*,IS*,void*),void*);
-PETSC_EXTERN PetscErrorCode SNESGetActiveConstraints(SNES,PetscErrorCode (**)(SNES,Vec,IS*,IS*,,void*),void**);
+PETSC_EXTERN PetscErrorCode SNESSetActiveConstraints(SNES,Mat,Mat,PetscErrorCode (*)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void*);
+PETSC_EXTERN PetscErrorCode SNESGetActiveConstraints(SNES,Mat*,Mat*,PetscErrorCode (**)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void**);
 
 PETSC_EXTERN PetscErrorCode SNESSetProjectOntoConstraints(SNES,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
 PETSC_EXTERN PetscErrorCode SNESGetProjectOntoConstraints(SNES,PetscErrorCode (**)(SNES,Vec,Vec,void*),void*);
 
-PETSC_EXTERN PetscErrorCode SNESSetDistanceToConstraints(SNES,PetscErrorCode (*)(SNES,Vec,Vec,void*),void**);
-PETSC_EXTERN PetscErrorCode SNESGetDistanceToConstraints(SNES,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
+PETSC_EXTERN PetscErrorCode SNESSetDistanceToConstraintBounds(SNES,PetscErrorCode (*)(SNES,Vec,Vec,Vec,void*),void**);
+PETSC_EXTERN PetscErrorCode SNESGetDistanceToConstraintBounds(SNES,PetscErrorCode (**)(SNES,Vec,Vec,Vec,void*),void**);
 
 PETSC_EXTERN PetscErrorCode SNESNEWTONASSetType(SNES,SNESNEWTONASType);
 PETSC_EXTERN PetscErrorCode SNESNEWTONASGetType(SNES,SNESNEWTONASType*);
@@ -666,12 +666,12 @@ PETSC_EXTERN PetscErrorCode DMSNESSetConstraintFunction(DM,PetscErrorCode (*)(SN
 PETSC_EXTERN PetscErrorCode DMSNESGetConstraintFunction(DM,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
 PETSC_EXTERN PetscErrorCode DMSNESSetConstraintJacobian(DM,PetscErrorCode (*)(SNES,Vec,Mat,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSNESGetConstraintJacobian(DM,PetscErrorCode (**)(SNES,Vec,Mat,void*),void**);
-PETSC_EXTERN PetscErrorCode DMSNESSetActiveConstraints(DM,PetscErrorCode (*)(SNES,Vec,IS*,IS*,void*),void*);
-PETSC_EXTERN PetscErrorCode DMSNESGetActiveConstraints(DM,PetscErrorCode (**)(SNES,Vec,IS*,IS*,void*),void**);
+PETSC_EXTERN PetscErrorCode DMSNESSetActiveConstraints(DM,PetscErrorCode (*)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESGetActiveConstraints(DM,PetscErrorCode (**)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void**);
 PETSC_EXTERN PetscErrorCode DMSNESSetProjectOntoConstraints(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSNESGetProjectOntoConstraints(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
-PETSC_EXTERN PetscErrorCode DMSNESSetDistanceToConstraints(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
-PETSC_EXTERN PetscErrorCode DMSNESGetDistanceToConstraints(DM,PetscErrorCode (**)(SNES,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESSetDistanceToConstraintBounds(DM,PetscErrorCode (*)(SNES,Vec,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESGetDistanceToConstraintBounds(DM,PetscErrorCode (**)(SNES,Vec,Vec,Vec,void*),void*);
 
 
 PETSC_EXTERN PetscErrorCode DMDASNESSetFunctionLocal(DM,InsertMode,DMDASNESFunction,void*);

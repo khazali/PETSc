@@ -151,7 +151,9 @@ struct _p_SNES {
   Vec         vec_constrl;      /* upper bound on the constraints */
   Vec         vec_constru;      /* lower bound on the constraints */
   Vec         vec_constrd;      /* vector of distances to constraint bounds */
-  Mat         cjacobian;        /* matrix to store the constraint Jacobian */
+  Mat         jacobian_constr;  /* matrix to store the constraint Jacobian */
+  Mat         Bb;               /* matrix to store the basis of the active constraints (columns) */
+  Mat         Bbt;              /* matrix to store the basis of the active constraints (rows) */
   PetscInt    ntruebounds;      /* number of non-infinite bounds set on constraints */
 
 };
@@ -166,11 +168,11 @@ struct _DMSNESOps {
   PetscErrorCode (*computeobjective)(SNES,Vec,PetscReal*,void*);
 
   /* constraints/bounds */
-  PetscErrorCode (*computecfunction)(SNES,Vec,Vec,void*);
-  PetscErrorCode (*computecjacobianjacobian)(SNES,Vec,Mat,void*);
-  PetscErrorCode (*computecbounds)(SNES,Vec,Vec,Vec,void*);
-  PetscErrorCode (*computeaconstraints)(SNES,Vec,IS,IS,void*);
+  PetscErrorCode (*constraintfunction)(SNES,Vec,Vec,void*);
+  PetscErrorCode (*constraintjacobian)(SNES,Vec,Mat,void*);
+  PetscErrorCode (*activeconstraints)(SNES,Vec,IS*,IS*,Mat,Mat,void*);
   PetscErrorCode (*projectontobounds)(SNES,Vec,Vec,void*);
+  PetscErrorCode (*distancetoconstraintbounds)(SNES,Vec,Vec,void*);
 
   /* Picard iteration functions */
   PetscErrorCode (*computepfunction)(SNES,Vec,Vec,void*);
@@ -191,11 +193,11 @@ struct _p_DMSNES {
   void *jacobianctx;
   void *objectivectx;
 
-  void *cfunctionctx;
-  void *cjacobianctx;
-  void *cboundsctx;
-  void *aconstraintsctx;
-  void *projectontoboundsctx;
+  void *constraintfunctionctx;
+  void *constraintjacobianctx;
+  void *activeconstraintsctx;
+  void *projectontoconstraintctx;
+  void *distancetoconstraintboundsctx;
 
   void *data;
 
