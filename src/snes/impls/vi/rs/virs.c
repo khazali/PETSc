@@ -346,17 +346,6 @@ PetscErrorCode SNESCreateSubVectors_VINEWTONRSLS(SNES snes,PetscInt n,Vec *newv)
 #define __FUNCT__ "SNESSolve_VINEWTONRSLS"
 PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
 {
-<<<<<<< HEAD
-  SNES_VINEWTONRSLS    *vi = (SNES_VINEWTONRSLS*)snes->data;
-  PetscErrorCode       ierr;
-  PetscInt             maxits,i,lits;
-  SNESLineSearchReason lssucceed;
-  PetscReal            fnorm,gnorm,xnorm=0,ynorm;
-  Vec                  Y,X,F;
-  KSPConvergedReason   kspreason;
-  KSP                  ksp;
-  PC                   pc;
-=======
   SNES_VINEWTONRSLS  *vi = (SNES_VINEWTONRSLS*)snes->data;
   PetscErrorCode     ierr;
   PetscInt           maxits,i,lits;
@@ -364,7 +353,6 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
   PetscReal          fnorm,gnorm,xnorm=0,ynorm;
   Vec                Y,X,F,wx;
   KSPConvergedReason kspreason;
->>>>>>> initial work for masking/matrix-free support in vi. Doesnt work yet for mg
 
   PetscFunctionBegin;
   /* Multigrid must use Galerkin for coarse grids with active set/reduced space methods; cannot rediscretize on coarser grids*/
@@ -395,8 +383,6 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
   /* project X onto bounds */
   ierr = VecMedian(snes->xl,X,snes->xu,X);CHKERRQ(ierr);
   ierr = SNESComputeFunction(snes,X,F);CHKERRQ(ierr);
-<<<<<<< HEAD
-=======
   if (0) {
     Vec temp;
     ierr = VecDuplicate(F,&temp); CHKERRQ(ierr);CHKMEMQ;
@@ -407,7 +393,6 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
     snes->reason = SNES_DIVERGED_FUNCTION_DOMAIN;
     PetscFunctionReturn(0);
   }
->>>>>>> initial work for masking/matrix-free support in vi. Doesnt work yet for mg
   ierr = SNESVIComputeInactiveSetFnorm(snes,F,X,&fnorm);CHKERRQ(ierr);
   ierr = VecNormBegin(X,NORM_2,&xnorm);CHKERRQ(ierr);        /* xnorm <- ||x||  */
   ierr = VecNormEnd(X,NORM_2,&xnorm);CHKERRQ(ierr);
@@ -425,7 +410,7 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
 
   for (i=0; i<maxits; i++) {
 
-    IS         IS_act; /* _act -> active set _inact -> inactive set */
+    IS         IS_act; /* _act -> active set */
     IS         IS_redact; /* redundant active set */
     PetscInt   nis_act,nis_inact;
     Vec        Y_act=0,Y_inact=0,F_inact=0;
@@ -474,7 +459,6 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
 
 
     /* Create inactive set submatrix */
-<<<<<<< HEAD
     ierr = MatGetSubMatrix(snes->jacobian,vi->IS_inact,vi->IS_inact,MAT_INITIAL_MATRIX,&jac_inact_inact);CHKERRQ(ierr);
 
     if (0) {                    /* Dead code (temporary developer hack) */
@@ -544,24 +528,24 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
     } else prejac_inact_inact = jac_inact_inact;
 
     ierr = ISEqual(vi->IS_inact_prev,vi->IS_inact,&isequal);CHKERRQ(ierr);
-=======
-    ierr = TaoMatGetSubMat(snes->jacobian,IS_inact,wx,vi->subset_type,&jac_inact_inact);CHKERRQ(ierr);
+    ierr = TaoMatGetSubMat(snes->jacobian,vi->IS_inact,wx,vi->subset_type,&jac_inact_inact);CHKERRQ(ierr);
+
     if (snes->jacobian == snes->jacobian_pre) {
       ierr = MatDestroy(&prejac_inact_inact);CHKERRQ(ierr);
       ierr = PetscObjectReference((PetscObject)(prejac_inact_inact));
       prejac_inact_inact = jac_inact_inact;
     } else {
-      ierr = TaoMatGetSubMat(snes->jacobian_pre,IS_inact,wx,vi->subset_type,&prejac_inact_inact);CHKERRQ(ierr);
+      ierr = TaoMatGetSubMat(snes->jacobian_pre,vi->IS_inact,wx,vi->subset_type,&prejac_inact_inact);CHKERRQ(ierr);
     }
 
-    // old ierr = MatGetSubMatrix(snes->jacobian,IS_inact,IS_inact,MAT_INITIAL_MATRIX,&jac_inact_inact);CHKERRQ(ierr);
+    // old ierr = MatGetSubMatrix(snes->jacobian,vi->IS_inact,vi->IS_inact,MAT_INITIAL_MATRIX,&jac_inact_inact);CHKERRQ(ierr);
     if (0) {
       Vec temp;
       ierr = VecDuplicate(F,&temp); CHKERRQ(ierr);CHKMEMQ;
       ierr = VecSet(temp,0.0);CHKERRQ(ierr);CHKMEMQ;
     }
 
-    ierr = DMSetVI(snes->dm,IS_inact);CHKERRQ(ierr);
+    ierr = DMSetVI(snes->dm,vi->IS_inact);CHKERRQ(ierr);
     if (0) {
       Vec temp;
       ierr = VecDuplicate(F,&temp); CHKERRQ(ierr);CHKMEMQ;
@@ -576,7 +560,7 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
       ierr = VecSet(temp,0.0);CHKERRQ(ierr);CHKMEMQ;
     }
 
-    ierr = ISGetLocalSize(IS_inact,&nis_inact);CHKERRQ(ierr);
+    ierr = ISGetLocalSize(vi->IS_inact,&nis_inact);CHKERRQ(ierr);
 
     /* Create active and inactive set vectors */
     if (0) {
@@ -585,58 +569,18 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
       ierr = VecSet(temp,0.0);CHKERRQ(ierr);CHKMEMQ;
     }
     CHKMEMQ;
-    ierr = TaoVecGetSubVec(F,IS_inact,vi->subset_type,0.0,&F_inact);CHKERRQ(ierr);
+    ierr = TaoVecGetSubVec(F,vi->IS_inact,vi->subset_type,0.0,&F_inact);CHKERRQ(ierr);
     CHKMEMQ;
-    ierr = TaoVecGetSubVec(Y,IS_inact,vi->subset_type,0.0,&Y_inact);CHKERRQ(ierr);
+    ierr = TaoVecGetSubVec(Y,vi->IS_inact,vi->subset_type,0.0,&Y_inact);CHKERRQ(ierr);
     CHKMEMQ;
     ierr = TaoVecGetSubVec(Y,IS_act,vi->subset_type,0.0,&Y_act);CHKERRQ(ierr);
     CHKMEMQ;
     /* If active set has changed, then reset KSP (and PC) */
-    ierr = ISEqual(vi->IS_inact_prev,IS_inact,&isequal);CHKERRQ(ierr);
->>>>>>> initial work for masking/matrix-free support in vi. Doesnt work yet for mg
+    ierr = ISEqual(vi->IS_inact_prev,vi->IS_inact,&isequal);CHKERRQ(ierr);
     if (!isequal) {
       ierr = KSPReset(snes->ksp);CHKERRQ(ierr);
     }
 
-<<<<<<< HEAD
-    /*      ierr = ISView(vi->IS_inact,0);CHKERRQ(ierr); */
-    /*      ierr = ISView(IS_act,0);CHKERRQ(ierr);*/
-    /*      ierr = MatView(snes->jacobian_pre,0); */
-
-
-
-    ierr = KSPSetOperators(snes->ksp,jac_inact_inact,prejac_inact_inact);CHKERRQ(ierr);
-    ierr = KSPSetUp(snes->ksp);CHKERRQ(ierr);
-    {
-      PC        pc;
-      PetscBool flg;
-      ierr = KSPGetPC(snes->ksp,&pc);CHKERRQ(ierr);
-      ierr = PetscObjectTypeCompare((PetscObject)pc,PCFIELDSPLIT,&flg);CHKERRQ(ierr);
-      if (flg) {
-        KSP *subksps;
-        ierr = PCFieldSplitGetSubKSP(pc,NULL,&subksps);CHKERRQ(ierr);
-        ierr = KSPGetPC(subksps[0],&pc);CHKERRQ(ierr);
-        ierr = PetscFree(subksps);CHKERRQ(ierr);
-        ierr = PetscObjectTypeCompare((PetscObject)pc,PCBJACOBI,&flg);CHKERRQ(ierr);
-        if (flg) {
-          PetscInt       n,N = 101*101,j,cnts[3] = {0,0,0};
-          const PetscInt *ii;
-
-          ierr = ISGetSize(vi->IS_inact,&n);CHKERRQ(ierr);
-          ierr = ISGetIndices(vi->IS_inact,&ii);CHKERRQ(ierr);
-          for (j=0; j<n; j++) {
-            if (ii[j] < N) cnts[0]++;
-            else if (ii[j] < 2*N) cnts[1]++;
-            else if (ii[j] < 3*N) cnts[2]++;
-          }
-          ierr = ISRestoreIndices(vi->IS_inact,&ii);CHKERRQ(ierr);
-
-          ierr = PCBJacobiSetTotalBlocks(pc,3,cnts);CHKERRQ(ierr);
-        }
-      }
-    }
-
-=======
     /* Active set direction = 0 */
     ierr = VecSet(Y_act,0);CHKERRQ(ierr);
     if (0) {
@@ -647,7 +591,6 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
     }
     ierr = KSPSetOperators(snes->ksp,jac_inact_inact,prejac_inact_inact);CHKERRQ(ierr);
     ierr = KSPSetUp(snes->ksp);CHKERRQ(ierr);
->>>>>>> initial work for masking/matrix-free support in vi. Doesnt work yet for mg
     ierr = KSPSolve(snes->ksp,F_inact,Y_inact);CHKERRQ(ierr);
     ierr = KSPGetConvergedReason(snes->ksp,&kspreason);CHKERRQ(ierr);
     if (kspreason < 0) {
@@ -659,7 +602,7 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
      }
     ierr = VecSet(Y,0.0);
     ierr = VecISAXPY(Y,IS_act,1.0,Y_act);CHKERRQ(ierr);
-    ierr = VecISAXPY(Y,IS_inact,1.0,Y_inact);CHKERRQ(ierr);
+    ierr = VecISAXPY(Y,vi->IS_inact,1.0,Y_inact);CHKERRQ(ierr);
 
 
     ierr = VecDestroy(&F_inact);CHKERRQ(ierr);
