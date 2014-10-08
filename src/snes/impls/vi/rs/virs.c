@@ -436,15 +436,9 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
       ierr = VecDuplicate(F,&temp); CHKERRQ(ierr);CHKMEMQ;
       ierr = VecSet(temp,0.0);CHKERRQ(ierr);CHKMEMQ;
     }
-    if (0) {
-      Vec temp;
-      ierr = VecDuplicate(F,&temp); CHKERRQ(ierr);CHKMEMQ;
-      ierr = VecSet(temp,0.0);CHKERRQ(ierr);CHKMEMQ;
-    }
 
 
     /* Create inactive set submatrix */
-
     ierr = MatGetSubMatrix(snes->jacobian,vi->IS_inact,vi->IS_inact,MAT_INITIAL_MATRIX,&jac_inact_inact);CHKERRQ(ierr);
     if (snes->jacobian == snes->jacobian_pre) {
       ierr = MatDestroy(&prejac_inact_inact);CHKERRQ(ierr);
@@ -486,6 +480,7 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
     ierr = SNESVISubVector(F,vi->IS_inact,vi->ismasked,&F_inact);CHKERRQ(ierr);
     ierr = SNESVISubVector(Y,vi->IS_inact,vi->ismasked,&Y_inact);CHKERRQ(ierr);
     ierr = SNESVISubVector(Y,IS_act,vi->ismasked,&Y_act);CHKERRQ(ierr);
+
     /* If active set has changed, then reset KSP (and PC) */
     ierr = ISEqual(vi->IS_inact_prev,vi->IS_inact,&isequal);CHKERRQ(ierr);
     if (!isequal) {
