@@ -214,7 +214,7 @@ PETSC_EXTERN PetscErrorCode TaoSetConvergenceTest(Tao, PetscErrorCode (*)(Tao, v
 
 PETSC_EXTERN PetscErrorCode TaoSQPCONSetStateDesignIS(Tao, IS, IS);
 PETSC_EXTERN PetscErrorCode TaoLCLSetStateDesignIS(Tao, IS, IS);
-PETSC_EXTERN PetscErrorCode TaoPoundersGetFDJacobian(Tao, Mat, PetscReal);
+PETSC_EXTERN PetscErrorCode TaoPoundersGetFDJacobian(Tao, Vec, PetscReal, Mat);
 PETSC_EXTERN PetscErrorCode TaoMonitor(Tao, PetscInt, PetscReal, PetscReal, PetscReal, PetscReal, TaoConvergedReason*);
 
 

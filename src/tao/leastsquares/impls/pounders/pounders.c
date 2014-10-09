@@ -1117,30 +1117,37 @@ static PetscErrorCode TaoSetFromOptions_POUNDERS(Tao tao)
 
 #undef __FUNCT__
 #define __FUNCT__ "TaoPoundersGetFDJacobian"
-/* computes central-difference finite difference jacobian at the given vector */
-PetscErrorCode TaoPoundersGetFDJacobian(Tao tao, Vec X, Mat J, PetscReal h)
+/* computes central-difference finite difference jacobian at the given vector 
+   Matrix should already exist */
+PetscErrorCode TaoPoundersGetFDJacobian(Tao tao, Vec X, PetscReal h, Mat J)
 {
   PetscInt jstart,jend,fstart,fend,xstart,xend;
-  PetscInt m,n,*findices;
-  Vec fwork;
+  PetscInt m,n,*findices,i,j;
+  Vec fplus,fminus;
   Vec xwork;
-  PetscReal *x,*f;
+  PetscScalar *x;
+  const PetscScalar *f;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  PetscValidHeaderSpecific(tao,TAO_CLASSID,1);
+  PetscValidHeaderSpecific(X,VEC_CLASSID,2);
+  PetscValidHeaderSpecific(J,MAT_CLASSID,4);
+  PetscCheckSameComm(tao,1,X,2);
+  PetscCheckSameComm(tao,1,J,4);
   if (h==0.0) {
     SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"finite difference parameter h cannot be zero");
   }
-  if (!tao->separable_objective) {
+  if (!tao->sep_objective) {
     SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Separable Objective vector not provided");
   }
   ierr = MatGetOwnershipRange(J,&jstart,&jend);CHKERRQ(ierr);
   ierr = VecGetSize(tao->solution,&n);CHKERRQ(ierr);
-  ierr = VecGetSize(tao->separable_objective,&m);CHKERRQ(ierr);
+  ierr = VecGetSize(tao->sep_objective,&m);CHKERRQ(ierr);
   ierr = VecDuplicate(tao->solution,&xwork);CHKERRQ(ierr);
-  ierr = VecDuplicate(tao->separable_objective,&fplus);CHKERRQ(ierr);
-  ierr = VecDuplicate(tao->separable_objective,&fminus);CHKERRQ(ierr);
-  ierr = VecGetOwnershipRange(fplus,&fstart,&fend);CHKERRQ(ier);
+  ierr = VecDuplicate(tao->sep_objective,&fplus);CHKERRQ(ierr);
+  ierr = VecDuplicate(tao->sep_objective,&fminus);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRange(fplus,&fstart,&fend);CHKERRQ(ierr);
   ierr = VecGetOwnershipRange(xwork,&xstart,&xend);CHKERRQ(ierr);
   ierr = VecCopy(tao->solution,xwork);CHKERRQ(ierr);
   if ((fstart!=jstart) || (fend!=jend)) {
@@ -1148,36 +1155,36 @@ PetscErrorCode TaoPoundersGetFDJacobian(Tao tao, Vec X, Mat J, PetscReal h)
   }
   ierr = PetscMalloc1(jend-jstart,&findices);CHKERRQ(ierr);
   for (j=fstart;j<fend;j++) {
-    f[fstart-j] = j;
+    findices[j-fstart] = j;
   }
   /* the jth column of the jacobian is approximated by central difference
    J(x)_j ~= (F(x_j+h/2) - F(x_j-h/2))/ h
   */
-  for (j=0;j<n;j++) {
+  for (i=0;i<n;i++) {
     ierr = VecCopy(X,xwork);CHKERRQ(ierr);
-    if (i>=xlow && i<=xhi) {
+    if (i>=xstart && i<xend) {
       ierr = VecGetArray(xwork,&x);CHKERRQ(ierr);
-      x[i-low] += h/2.0;
+      x[i-xstart] += h/2.0;
       ierr = VecRestoreArray(xwork,&x);CHKERRQ(ierr);
     }
     ierr = TaoComputeSeparableObjective(tao,xwork,fplus);CHKERRQ(ierr);
-    if (i>=xlow && i<=xhi) {
+    if (i>=xstart && i<xend) {
       ierr = VecGetArray(xwork,&x);CHKERRQ(ierr);
-      x[i-low] -= h/2.0;
+      x[i-xstart] -= h;
       ierr = VecRestoreArray(xwork,&x);CHKERRQ(ierr);
     }
     ierr = TaoComputeSeparableObjective(tao,xwork,fminus);CHKERRQ(ierr);
     ierr = VecAXPY(fplus,-1.0,fminus);CHKERRQ(ierr);
     ierr = VecScale(fplus,1.0/h);CHKERRQ(ierr);
 
-    ierr = VecGetArrayRead(fplus,*f);CHKERRQ(ierr);
-    ierr = MatSetValues(J,fend-fstart,findices,&j,&f,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecRestoreArrayRead(fplus,*f);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(fplus,&f);CHKERRQ(ierr);
+    ierr = MatSetValues(J,fend-fstart,findices,1,&i,f,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(fplus,&f);CHKERRQ(ierr);
   }
   ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = VecDestroy(&fplus);CHKERRQ(ierr);
-  ierr = VecDestroy(&minus);CHKERRQ(ierr);
+  ierr = VecDestroy(&fminus);CHKERRQ(ierr);
   ierr = VecDestroy(&xwork);CHKERRQ(ierr);
   ierr = PetscFree(findices);CHKERRQ(ierr);
   PetscFunctionReturn(0);
