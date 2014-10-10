@@ -36,6 +36,66 @@ static PetscErrorCode FormIFunction(TS,PetscReal,Vec,Vec,Vec,void*);
 static PetscErrorCode FormIJacobian(TS,PetscReal,Vec,Vec,PetscReal,Mat,Mat,void*);
 static PetscErrorCode FormInitialSolution(TS,Vec,void*);
 
+static PetscErrorCode RegisterMyARK2(void)
+{
+  {
+    const PetscReal
+      A[4][4] = {{0,0,0,0},
+	 {0.5,0,0,0},
+		 {0.5,0.5,0,0},
+		 {1.0/6.,1.0/6.,1.0/6,0}},
+      b[4]={1.0/6.,1.0/6.,1.0/6,1./2.},
+	bt[4]={0.0,1.0,0.0,0},
+	  At[4][4] = {{1.0/2.0,0,0,0},
+		      {1.0/2.0,0.0,0,0},
+		      {1.0/2.0,1.0/2.0,0.0,0},
+		      {0.0,1.0/3.0,0.0,0.0}},
+	*bembedt = NULL,*bembed = NULL;
+	TSARKIMEXRegister("myark2",2,4,&At[0][0],&bt[0],NULL,&A[0][0],&b[0],NULL,bembedt,bembed,0,NULL,NULL);
+  }
+ /*  A[4][4] = {{0,0,0,0},
+		 {1.0,0,0,0},
+		 {0.5,0.0,0,0},
+		 {1.0/2.,0,1.0/2,0}},
+      b[4]={0,0,1.0,0.0},
+	bt[4]={0.0,-1.0,1.0,1.0},
+	  At[4][4] = {{0.0,0,0,0},
+		      {0.0,1.0,0,0},
+		      {0.0,0.0,0.5,0},
+		      {0.0,0.0,0.5,0.5}},*/
+
+ 
+  /*
+	 A[4][4] = = {{0,0,0,0},
+	 {0.5,0,0,0},
+		 {0.5,0.5,0,0},
+		 {1.0/6.,1.0/6.,1.0/6,0}},
+      b[4]={1.0/6.,1.0/6.,1.0/6,1./2.},
+	bt[4]={0.0,1.0,0.0,0},
+	  At[4][4] = {{1.0/2.0,0,0,0},
+		      {1.0/2.0,0.0,0,0},
+		      {1.0/2.0,1.0/2.0,0.0,0},
+		      {0.0,1.0/3.0,0.0,0.0}},
+   */
+
+ /*  {
+    const PetscReal
+      A[4][4] = {{0,0,0,0},
+		 {1.0,0,0,0},
+		 {0.5,0.0,0,0},
+		 {0.5,0,0.5,0}},
+      b[4]={0,0,1.0,0},
+	bt[4]={0,-1.0,1.0,1.0},
+      At[4][4] = {{0,0,0,0},
+		  {0.0,1.0,0,0},
+		  {0.0,0.0,0.5,0},
+		  {0,0,0.5,0.5}},
+	*bembedt = NULL,*bembed = NULL;
+	TSARKIMEXRegister("myark2",2,4,&At[0][0],&bt[0],NULL,&A[0][0],&b[0],NULL,bembedt,bembed,0,NULL,NULL);
+	}*/
+  return(0);
+}
+
 #undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc,char **argv)
@@ -53,6 +113,8 @@ int main(int argc,char **argv)
   TSConvergedReason reason;
 
   PetscInitialize(&argc,&argv,(char*)0,help);
+
+  RegisterMyARK2();
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create distributed array (DMDA) to manage parallel grid and vectors
