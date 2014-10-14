@@ -20,48 +20,62 @@ class MainFrame(Frame):
         self.pack(fill=BOTH, expand=1)
 
         #Buttons:
-        quitButton = Button(self, text='Quit', foreground='red',command=self.quit)
-        quitButton.place(x=560, y=450)
+        Button_Quit = Button(self, text='Quit', foreground='red',command=self.quit)
+        Button_Quit.place(x=730, y=565)
 
-        tButton = Button(self, text='Test', foreground='black',command=self.say_hi)
-        tButton.place(x=500, y=450)
+        Button_GenCmdLineOptions = Button(self, text='Build Command Line', foreground='black',command=self.say_hi)
+        Button_GenCmdLineOptions.place(x=570, y=565)
 
+        Button_Run = Button(self, text='Run', foreground='black',command=self.say_hi)
+        Button_Run.place(x=510, y=565)
 
-        lb=Label(self, text="Example")
-        lb.place(x=10,y=10)
-        scrollbar = Scrollbar(self, orient=VERTICAL)
+        ExampleFrame = Frame(master = self, height=250, width=230, bd=1, relief=SUNKEN)
+        ExampleFrame.place(x=10,y=10)
+
+        lb=Label(ExampleFrame, text="Examples")
+        lb.place(x=5,y=0)
+
+ 
+        
+        ExampleListFrame = Frame(master = ExampleFrame, height=150, width=190, bd=1, relief=SUNKEN)
+        ExampleListFrame.place(x=5,y=60)
+
+        scrollbar = Scrollbar(ExampleListFrame, orient=VERTICAL)
         scrollbar.pack( side = RIGHT, fill=Y )
-        listExamples = Listbox(self,yscrollcommand = scrollbar.set )
+        listExamples = Listbox(ExampleListFrame,yscrollcommand = scrollbar.set )
         scrollbar.config( command = listExamples.yview )
         #listExamples.place(x=10,y=30)
-        listExamples.pack( side = LEFT, fill = BOTH )
+       
         #scrollbar.pack(side=RIGHT, fill=Y)
+        import glob
+        listEx=glob.glob("./ex*.c")
+        for item in range(len(listEx)):
+            listExamples.insert(END, listEx[item])
+        self.ExampleList=listExamples
         
-        listExamples.insert(END, "a list entry")
-        for item in ["one", "two", "three", "four"]:
-            listExamples.insert(END, item)
+        
+        Entry_AddExample = Entry(ExampleFrame, width=12)
+        Entry_AddExample.place(x=5,y=25)
+        Entry_AddExample.delete(0, END)
+        Entry_AddExample.insert(0, "exXXX")
+        self.ExampleEntry=Entry_AddExample
 
+        #Button_AddExample = Button(ExampleFrame, text='Add', height=4, width=4,command=self.AddToList(Entry=Entry_AddExample,List=listExamples)) 
+        Button_AddExample = Button(ExampleFrame, text='Add', height=1, width=4,command=self.AddToExampleList)
+        Button_AddExample.place(x=135,y=25)
 
-        #print tButton.bbox()
-
-        #quitButton.grid(row=3, column=3)
-        #tButton.grid(row=3, column=2)
+        listExamples.pack( side = LEFT, fill = BOTH )
 
         #Window Positioning
         self.centerWindow()
 
-        #self.box_value = 'test'
-        #self.box = Combobox(self.parent, textvariable=self.box_value)
-        #self.box['values'] = ('X', 'Y', 'Z')
-        #self.box.current(0)
-        #self.box.grid(column=0, row=0)
     def yview(self, *args):
         apply(listExamples.yview, args)
 
     def centerWindow(self):
 
-        w = 640
-        h = 480
+        w = 800
+        h = 600
 
         sw = self.parent.winfo_screenwidth()
         sh = self.parent.winfo_screenheight()
@@ -69,8 +83,13 @@ class MainFrame(Frame):
         x = (sw - w)/2
         y = (sh - h)/2
         self.parent.geometry('%dx%d+%d+%d' % (w, h, x, y))
+
     def say_hi(self):
         print 'hi there, everyone!'
+
+    def AddToExampleList(self):
+        print 'Adding to list :'+ self.ExampleEntry.get()
+        self.ExampleList.insert(END, self.ExampleEntry.get())
 
 def main():
 
