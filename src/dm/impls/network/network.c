@@ -113,7 +113,7 @@ PetscErrorCode DMNetworkLayoutSetUp(DM dm)
   if (network->nNodes) {
     ierr = PetscMalloc1(numCorners*network->nNodes,&vertexcoords);CHKERRQ(ierr);
   }
-  ierr = DMPlexCreateFromCellList(PetscObjectComm((PetscObject)dm),dim,network->nEdges,network->nNodes,numCorners,PETSC_FALSE,network->edges,spacedim,vertexcoords,&network->plex);CHKERRQ(ierr);
+  ierr = DMPlexCreateFromCellList(PetscObjectComm((PetscObject)dm),dim,network->nEdges,network->nNodes,numCorners,PETSC_FALSE,network->edges,spacedim,vertexcoords,NULL,&network->plex);CHKERRQ(ierr);
   if (network->nNodes) {
     ierr = PetscFree(vertexcoords);CHKERRQ(ierr);
   }

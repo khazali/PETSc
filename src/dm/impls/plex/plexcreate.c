@@ -1427,6 +1427,7 @@ PetscErrorCode DMPlexBuildCoordinates_Private(DM dm, PetscInt spaceDim, PetscInt
 . cells - An array of numCells*numCorners numbers, the vertices for each cell
 . spaceDim - The spatial dimension used for coordinates
 - vertexCoords - An array of numVertices*spaceDim numbers, the coordinates of each vertex
+- vertexSF - An optional PetscSF mapping shared vertices in parallel, or NULL
 
   Output Parameter:
 . dm - The DM
@@ -1462,7 +1463,7 @@ $        3
 
 .seealso: DMPlexCreateFromDAG(), DMPlexCreate()
 @*/
-PetscErrorCode DMPlexCreateFromCellList(MPI_Comm comm, PetscInt dim, PetscInt numCells, PetscInt numVertices, PetscInt numCorners, PetscBool interpolate, const int cells[], PetscInt spaceDim, const double vertexCoords[], DM *dm)
+PetscErrorCode DMPlexCreateFromCellList(MPI_Comm comm, PetscInt dim, PetscInt numCells, PetscInt numVertices, PetscInt numCorners, PetscBool interpolate, const int cells[], PetscInt spaceDim, const double vertexCoords[], PetscSF vertexSF, DM *dm)
 {
   PetscErrorCode ierr;
 

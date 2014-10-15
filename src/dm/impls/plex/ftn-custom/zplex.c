@@ -9,7 +9,7 @@
 
 /* Definitions of Fortran Wrapper routines */
 
-PETSC_EXTERN void PETSC_STDCALL dmplexcreatefromcelllist_(MPI_Comm *comm, PetscInt *dim, PetscInt *numCells, PetscInt *numVertices, PetscInt *numCorners, PetscBool *interpolate, const int cells[], PetscInt *spaceDim, const double vertexCoords[], DM *dm, int *ierr)
+PETSC_EXTERN void PETSC_STDCALL dmplexcreatefromcelllist_(MPI_Comm *comm, PetscInt *dim, PetscInt *numCells, PetscInt *numVertices, PetscInt *numCorners, PetscBool *interpolate, const int cells[], PetscInt *spaceDim, const double vertexCoords[], PetscSF *vertexSF, DM *dm, int *ierr)
 {
-  *ierr = DMPlexCreateFromCellList(*comm, *dim, *numCells, *numVertices, *numCorners, *interpolate, cells, *spaceDim, vertexCoords, dm);
+  *ierr = DMPlexCreateFromCellList(*comm, *dim, *numCells, *numVertices, *numCorners, *interpolate, cells, *spaceDim, vertexCoords, *vertexSF, dm);
 }
