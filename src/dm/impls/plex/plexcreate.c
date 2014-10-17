@@ -1413,6 +1413,63 @@ PetscErrorCode DMPlexBuildCoordinates_Private(DM dm, PetscInt spaceDim, PetscInt
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "DMPlexCreatePointSF_Private"
+/*
+  Derives the full point-SF from an SF that only maps vertices
+ */
+PetscErrorCode DMPlexCreatePointSF_Private(DM dm, PetscSF sfVertex)
+{
+  MPI_Comm           comm;
+  PetscMPIInt        rank, numProcs;
+  PetscInt           p, pStart, pEnd, vStart, vEnd, l, nleaves, cl, closureSize;
+  PetscInt          *vStartAll, *ilocal, *closure = NULL, *owner;
+  PetscSFNode       *iremote;
+  const PetscInt    *vlocal;
+  const PetscSFNode *vremote;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscObjectGetComm((PetscObject) dm, &comm);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &numProcs);CHKERRQ(ierr);
+  ierr = DMPlexGetChart(dm, &pStart, &pEnd);CHKERRQ(ierr);
+
+  /* Build a vertex-SF with correct offsets and set as dm->sf */
+  ierr = DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
+  ierr = PetscMalloc1(numProcs, &vStartAll);CHKERRQ(ierr);
+  ierr = MPI_Allgather(&vStart, 1, MPIU_INT, vStartAll, 1, MPIU_INT, comm);CHKERRQ(ierr);
+  ierr = PetscSFGetGraph(sfVertex, NULL, &nleaves, &vlocal, &vremote);CHKERRQ(ierr);
+  ierr = PetscMalloc2(nleaves, &ilocal, nleaves, &iremote);CHKERRQ(ierr);
+  for (l = 0; l < nleaves; l++) {
+    ilocal[l] = vlocal[l] + vStart;
+    iremote[l].index = vremote[l].index + vStartAll[vremote[l].rank];
+    iremote[l].rank = vremote[l].rank;
+  }
+  ierr = PetscSFSetGraph(dm->sf, pEnd-pStart, nleaves, ilocal, PETSC_OWN_POINTER, iremote, PETSC_OWN_POINTER);CHKERRQ(ierr);
+  /* Establish ownership of all points in star(v) of leaf vertices */
+  ierr = PetscMalloc1(pEnd-pStart, &owner);CHKERRQ(ierr);
+  for (p = pStart; p < pEnd; p++) owner[p] = rank;
+  for (l = 0; l < nleaves; l++) {
+    /* Bid on behalf of rank n for all points in star(v_n) of leaf vertex v_n */
+    ierr = DMPlexGetTransitiveClosure(dm, ilocal[l], PETSC_FALSE, &closureSize, &closure);CHKERRQ(ierr);
+    for (cl = 0; cl < closureSize*2; cl += 2) {owner[closure[cl]] = iremote[l].rank;}
+  }
+  for (p = pStart; p < pEnd; p++) {
+    if (owner[p] == rank) continue;
+    /* Owner(p) := min(owner(v_i)) for all vertices v_i in closure(p) */
+    ierr = DMPlexGetTransitiveClosure(dm, p, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
+    for (cl = 0; cl < closureSize*2; cl += 2) {
+      const PetscInt point = closure[cl];
+      if (vStart <= point && point < vEnd) {owner[p] = PetscMin(owner[p], owner[point]);}
+    }
+  }
+  if (closure) {ierr = DMPlexRestoreTransitiveClosure(dm, p, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);}
+  ierr = PetscFree(owner);CHKERRQ(ierr);
+  ierr = PetscFree(vStartAll);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "DMPlexCreateFromCellList"
 /*@C
   DMPlexCreateFromCellList - This takes as input common mesh generator output, a list of the vertices for each cell, and produces a DM
@@ -1480,6 +1537,7 @@ PetscErrorCode DMPlexCreateFromCellList(MPI_Comm comm, PetscInt dim, PetscInt nu
     *dm  = idm;
   }
   ierr = DMPlexBuildCoordinates_Private(*dm, spaceDim, numCells, numVertices, vertexCoords);CHKERRQ(ierr);
+  if (vertexSF) {ierr = DMPlexCreatePointSF_Private(*dm, vertexSF);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 
