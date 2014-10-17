@@ -10,7 +10,7 @@ import PetscBinaryIO
 
 io = PetscBinaryIO.PetscBinaryIO()
 
-list_supported_problems=['ex36','ex36SE','ex36A','ex22']
+list_supported_problems=['ex36','ex36SE','ex36A','ex22','ex16']
 
 try:
     opts, args = getopt.getopt(sys.argv[1:],"he:d:p:")
@@ -66,6 +66,7 @@ if (strTestProblem in ['ex36','ex36SE','ex36A']):
 
 if (strTestProblem in ['ex22']):
     n=2*100
+
     tfinal=1.0
     #tsmaxsteps=np.array([100,250,500,1000,2000,5000,10000])
     tsmaxsteps=np.array([1000,2000,5000,10000])
@@ -78,11 +79,32 @@ if (strTestProblem in ['ex22']):
     timesteps=np.zeros((msims,1))
     solution=np.zeros((msims,n))
 
-    PETScOptionsStr='-ts_max_snes_failures -1  -ksp_max_it 5000000 -ts_atol 1e-5 -ts_rtol 1e-5 -ts_adapt_type none -ksp_rtol 1e-10 -snes_rtol 1e-10 -da_grid_x 100 -k0 100.0 -k1 200.0'
+    PETScOptionsStr='-ts_max_snes_failures -1  -ksp_max_it 5000000 -ts_atol 1e-5 -ts_rtol 1e-5 -ts_adapt_type none -ksp_rtol 1e-10 -snes_rtol 1e-10 -da_grid_x 100 -k0 100.0 -k1 200.0 -ts_final_time '+str(tfinal) 
 
     if(optDetails):
         PETScOptionsStr=PETScOptionsStr + ' -ts_monitor_draw_solution -ts_monitor -ts_adapt_monitor '
 
+
+
+if (strTestProblem in ['ex16']):
+    n=2
+
+    tfinal=2.0
+    #tsmaxsteps=np.array([100,250,500,1000,2000,5000,10000])
+    tsmaxsteps=2*np.array([10,20,50,75,100])
+    tsmaxsteps=tsmaxsteps.astype(np.int)
+    tsdt=np.float(tfinal)/tsmaxsteps
+    msims=tsdt.size
+    tsmaxsteps_ref=np.int(5*tsmaxsteps[msims-1])
+    print tsmaxsteps_ref
+    tsdt_ref=np.float(tfinal)/tsmaxsteps_ref
+    timesteps=np.zeros((msims,1))
+    solution=np.zeros((msims,n))
+
+    PETScOptionsStr='-ts_type arkimex -ts_arkimex_fully_implicit -ts_max_snes_failures -1  -ksp_max_it 5000000 -ts_atol 1e-5 -ts_rtol 1e-5 -ts_adapt_type none -ksp_rtol 1e-10 -snes_rtol 1e-10 -mu 1000.0 -ts_final_time '+str(tfinal) 
+
+    if(optDetails):
+        PETScOptionsStr=PETScOptionsStr + ' -ts_monitor_draw_solution -ts_monitor -ts_adapt_monitor '
 
 print 'Building ' + strTestProblem
 os_out=os.system('make -s ' + strTestProblem)
@@ -136,7 +158,7 @@ elif(strTestProblem=='ex36SE'):
     err_test=np.abs((solution[0:msims,4]-solution[0:msims,2])-(solution_ref[4]-solution_ref[2]))
 elif(strTestProblem=='ex36A'):
     err_test=np.abs(solution[0:msims,4]-solution_ref[4])
-elif(strTestProblem=='ex22'):
+elif(strTestProblem=='ex22' or strTestProblem=='ex16'):
     from numpy import linalg as LA
     err_test=np.zeros((msims))
     for i in range(msims):
