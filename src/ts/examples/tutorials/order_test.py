@@ -7,6 +7,7 @@ import numpy as np
 import struct
 import cPickle as pickle
 import PetscBinaryIO
+import ConfigParser
 
 io = PetscBinaryIO.PetscBinaryIO()
 
