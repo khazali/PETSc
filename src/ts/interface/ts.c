@@ -6561,7 +6561,7 @@ PetscErrorCode  TSDuplicate(MPI_Comm comm, TS tsin, TS *tsout)
 . ts    - The input TS
 
   Input Parameter:
-. tsdup   - The output TS (duplicate)
+. tsdup   - The duplicate TS
 
   Level: beginner
 
