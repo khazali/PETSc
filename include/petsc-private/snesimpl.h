@@ -147,6 +147,9 @@ struct _p_SNES {
   PetscBool   mf_operator;      /* -snes_mf_operator was used on this snes */
   PetscInt    mf_version;       /* The version of snes_mf used */
 
+  Vec         xl,xu;
+  PetscBool   usersetbounds;
+
   Vec         vec_constr;       /* vector of constraints */
   Vec         vec_constrl;      /* upper bound on the constraints */
   Vec         vec_constru;      /* lower bound on the constraints */
