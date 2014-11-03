@@ -45,6 +45,7 @@ typedef const char* SNESType;
 #define SNESANDERSON     "anderson"
 #define SNESASPIN        "aspin"
 #define SNESCOMPOSITE    "composite"
+#define SNESNEWTONAS     "newtonas"
 
 /*J
     SNESNEWTONASType - String with the name of a PETSc SNES active-set method.
@@ -59,9 +60,9 @@ typedef const char* SNESType;
 .seealso: SNESNEWTONASSetType(), SNES, SNESCreate(), SNESDestroy(), SNESSetFromOptions()
 J*/
 typedef const char* SNESNEWTONASType;
-#define SNES_NEWTONAS_PRIMAL     "primal"
-#define SNES_NEWTONAS_SADDLE     "saddle"
-#define SNES_NEWTONAS_DUAL       "dual"
+#define SNESNEWTONAS_PRIMAL     "primal"
+#define SNESNEWTONAS_SADDLE     "saddle"
+#define SNESNEWTONAS_DUAL       "dual"
 
 /* Logging support */
 PETSC_EXTERN PetscClassId SNES_CLASSID;
@@ -669,7 +670,7 @@ PETSC_EXTERN PetscErrorCode DMSNESGetConstraintJacobian(DM,PetscErrorCode (**)(S
 PETSC_EXTERN PetscErrorCode DMSNESSetActiveConstraints(DM,PetscErrorCode (*)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSNESGetActiveConstraints(DM,PetscErrorCode (**)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void**);
 PETSC_EXTERN PetscErrorCode DMSNESSetProjectOntoConstraints(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
-PETSC_EXTERN PetscErrorCode DMSNESGetProjectOntoConstraints(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESGetProjectOntoConstraints(DM,PetscErrorCode (**)(SNES,Vec,Vec,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSNESSetDistanceToConstraintBounds(DM,PetscErrorCode (*)(SNES,Vec,Vec,Vec,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSNESGetDistanceToConstraintBounds(DM,PetscErrorCode (**)(SNES,Vec,Vec,Vec,void*),void*);
 

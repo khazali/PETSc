@@ -906,8 +906,8 @@ PetscErrorCode DMSNESSetProjectOntoConstraints(DM dm,PetscErrorCode (*p)(SNES,Ve
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
-  if (p)   sdm->ops->projectontobounds = p;
-  if (ctx) sdm->projectontoboundsctx   = ctx;
+  if (p)   sdm->ops->projectontoconstraints = p;
+  if (ctx) sdm->projectontoconstraintsctx   = ctx;
   PetscFunctionReturn(0);
 }
 
@@ -943,8 +943,8 @@ PetscErrorCode DMSNESGetProjectOntoConstraints(DM dm,PetscErrorCode (**p)(SNES,V
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
-  if (p)   *p = sdm->ops->projectontobounds;
-  if (ctx) *ctx = sdm->projectontoboundsctx;
+  if (p)   *p = sdm->ops->projectontoconstraints;
+  if (ctx) *ctx = sdm->projectontoconstraintsctx;
   PetscFunctionReturn(0);
 }
 
@@ -978,8 +978,8 @@ PetscErrorCode DMSNESSetDistanceToConstraintBounds(DM dm,PetscErrorCode (*f)(SNE
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
-  if (p)   sdm->ops->distancetoconstraintbounds = f;
-  if (ctx) sdm->distancetoconstraintboundctx   = ctx;
+  if (f)   sdm->ops->distancetoconstraintbounds = f;
+  if (ctx) sdm->distancetoconstraintboundsctx  = ctx;
   PetscFunctionReturn(0);
 }
 

@@ -174,8 +174,8 @@ struct _DMSNESOps {
   PetscErrorCode (*constraintfunction)(SNES,Vec,Vec,void*);
   PetscErrorCode (*constraintjacobian)(SNES,Vec,Mat,void*);
   PetscErrorCode (*activeconstraints)(SNES,Vec,IS*,IS*,Mat,Mat,void*);
-  PetscErrorCode (*projectontobounds)(SNES,Vec,Vec,void*);
-  PetscErrorCode (*distancetoconstraintbounds)(SNES,Vec,Vec,void*);
+  PetscErrorCode (*projectontoconstraints)(SNES,Vec,Vec,void*);
+  PetscErrorCode (*distancetoconstraintbounds)(SNES,Vec,Vec,Vec,void*);
 
   /* Picard iteration functions */
   PetscErrorCode (*computepfunction)(SNES,Vec,Vec,void*);
@@ -199,7 +199,7 @@ struct _p_DMSNES {
   void *constraintfunctionctx;
   void *constraintjacobianctx;
   void *activeconstraintsctx;
-  void *projectontoconstraintctx;
+  void *projectontoconstraintsctx;
   void *distancetoconstraintboundsctx;
 
   void *data;

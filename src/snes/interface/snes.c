@@ -2596,7 +2596,7 @@ PetscErrorCode  SNESSetConstraintFunction(SNES snes,Vec v,Vec vl,Vec vu,PetscErr
 
 .seealso: SNESSetConstraintFunction(), SNESGetConstraintJacobian(), SNESConstraintFunction
 @*/
-PetscErrorCode  SNESGetConstraintFunction(SNES snes,Vec *v,Vec *vl, Vec *vu,PetscErrorCode (**g)(SNES,Vec,Vec,void*),void *ctx)
+PetscErrorCode  SNESGetConstraintFunction(SNES snes,Vec *v,Vec *vl, Vec *vu,PetscErrorCode (**g)(SNES,Vec,Vec,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -2825,7 +2825,7 @@ PetscErrorCode  SNESSetActiveConstraints(SNES snes,Mat Bb, Mat Bbt,PetscErrorCod
 
 .seealso: SNESSetActiveConstraints(), SNESSetConstraintFunction(), SNESActiveConstraints
 @*/
-PetscErrorCode  SNESGetActiveConstraints(SNES snes,PetscErrorCode (**f)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void **ctx)
+PetscErrorCode  SNESGetActiveConstraints(SNES snes,Mat* Bb,Mat* Bbt,PetscErrorCode (**f)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -3042,7 +3042,7 @@ PetscErrorCode  SNESGetDistanceToConstraintBounds(SNES snes,Vec *r,PetscErrorCod
     ierr = PetscObjectReference((PetscObject)snes->vec_constrd);CHKERRQ(ierr);
     *r = snes->vec_constrd;
   }
-  ierr = DMSNESGetDistanceToConstraintBoundss(dm,f,ctx);CHKERRQ(ierr);
+  ierr = DMSNESGetDistanceToConstraintBounds(dm,f,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

@@ -13,9 +13,11 @@ PetscErrorCode SNESSolve_NEWTONAS_Primal(SNES snes)
 {
   SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)snes->data;
   PetscErrorCode     ierr;
+  DM                 dm;
+  DMSNES             dmsnes;
 
   PetscFunctionBegin;
-  /* TODO: Set things up. */
+
 
   ierr = PetscObjectSAWsTakeAccess((PetscObject)snes);CHKERRQ(ierr);
 
@@ -312,8 +314,8 @@ PetscErrorCode SNESNEWTONASSetType(SNES snes,SNESNEWTONASType type)
 
   PetscFunctionBegin;
   newtas->type = type;
-  if (type == SNES_NEWTONAS_PRIMAL) snes->ops->solve = SNESSolve_NEWTONAS_Primal;
-  else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"SNESNEWTONAS solver type not supported: %s",type);
+  if (type == SNESNEWTONAS_PRIMAL) snes->ops->solve = SNESSolve_NEWTONAS_Primal;
+  else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"SNESNEWTONAS solver type not yet supported: %s",type);
   PetscFunctionReturn(0);
 }
 
