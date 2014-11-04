@@ -149,15 +149,14 @@ struct _p_SNES {
 
   Vec         xl,xu;
   PetscBool   usersetbounds;
+  PetscInt    ntruebounds;      /* number of non-infinite bounds set on constraints */
 
   Vec         vec_constr;       /* vector of constraints */
-  Vec         vec_constrl;      /* upper bound on the constraints */
-  Vec         vec_constru;      /* lower bound on the constraints */
+  Vec         vec_constrl;      /* lower bounds on the constraints */
+  Vec         vec_constru;      /* upper bound on the constraints */
   Vec         vec_constrd;      /* vector of distances to constraint bounds */
   Mat         jacobian_constr;  /* matrix to store the constraint Jacobian */
-  Mat         Bb;               /* matrix to store the basis of the active constraints (columns) */
-  Mat         Bbt;              /* matrix to store the basis of the active constraints (rows) */
-  PetscInt    ntruebounds;      /* number of non-infinite bounds set on constraints */
+
 
 };
 
@@ -173,9 +172,12 @@ struct _DMSNESOps {
   /* constraints/bounds */
   PetscErrorCode (*constraintfunction)(SNES,Vec,Vec,void*);
   PetscErrorCode (*constraintjacobian)(SNES,Vec,Mat,void*);
-  PetscErrorCode (*activeconstraints)(SNES,Vec,IS*,IS*,Mat,Mat,void*);
   PetscErrorCode (*projectontoconstraints)(SNES,Vec,Vec,void*);
   PetscErrorCode (*distancetoconstraintbounds)(SNES,Vec,Vec,Vec,void*);
+
+  /* Specific to SNESNEWTONAS.  QUESTION: how do we accommodate impl-specific callbacks and contexts? Different DMSNES impls? */
+  PetscErrorCode (*activeconstraints)(SNES,Vec,Vec,Vec,Mat,IS*,void*);
+  PetscErrorCode (*activeconstraintbasis)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*);
 
   /* Picard iteration functions */
   PetscErrorCode (*computepfunction)(SNES,Vec,Vec,void*);
@@ -198,9 +200,12 @@ struct _p_DMSNES {
 
   void *constraintfunctionctx;
   void *constraintjacobianctx;
-  void *activeconstraintsctx;
   void *projectontoconstraintsctx;
   void *distancetoconstraintboundsctx;
+
+  /* Specific to SNESNEWTONAS.  QUESTION: how do we accommodate impl-specific callbacks and contexts? Different DMSNES impls? */
+  void *activeconstraintsctx;
+  void *activeconstraintbasisctx;
 
   void *data;
 

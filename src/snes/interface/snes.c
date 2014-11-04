@@ -2215,6 +2215,7 @@ PetscErrorCode  SNESComputeJacobian(SNES snes,Vec X,Mat A,Mat B)
   /* PetscValidHeaderSpecific(A,MAT_CLASSID,3);
     PetscValidHeaderSpecific(B,MAT_CLASSID,4);   */
   {
+    /* FIXME: would it be better to have -snes_jacobian_compare_explicit?  */
     PetscBool flag = PETSC_FALSE,flag_draw = PETSC_FALSE,flag_contour = PETSC_FALSE,flag_operator = PETSC_FALSE;
     ierr = PetscOptionsGetBool(((PetscObject)snes)->prefix,"-snes_compare_explicit",&flag,NULL);CHKERRQ(ierr);
     ierr = PetscOptionsGetBool(((PetscObject)snes)->prefix,"-snes_compare_explicit_draw",&flag_draw,NULL);CHKERRQ(ierr);
@@ -2718,130 +2719,6 @@ PetscErrorCode  SNESGetConstraintJacobian(SNES snes,Mat *B,PetscErrorCode (**jac
   PetscFunctionReturn(0);
 }
 
-/*MC
-    SNESActiveConstraints - callback function identifying the active constraints
-    at the current state vector x of the constrained nonlinear problem (variational inequality)
-    solved by SNES
-
-     Synopsis:
-     #include <petscsnes.h>
-     SNESActiveConstraints(SNES snes,Vec x,IS *active,IS *basis,Mat Bb_pre,Mat Bbt_pre,void *ctx);
-
-     Input Parameters:
-+     snes - the SNES context
-.     x    - state at which to evaluate activities
--     ctx  - optional user-defined function context, passed in with SNESSetActiveConstraints()
-
-     Output Parameters:
-+     active  - indices of active constraints
-.     basis   - (NULL, if not available) indices of basis vectors spanning the active linearized constraint range
-.     Bb_pre  - (NULL, if not available) preconditioning matrix for Bb
--     Bbt_pre - (NULL, if not available) preconditioning matrix for Bbt
-
-     Notes:
-     Active constraints are essentially those that would be violated when moving along the direction of
-     the SNES function.  The linearized constraints are the span of the rows of the constraint Jacobian.
-     Active constraints (linearized or otherwise) are labled by the corresponding rows of the constraint
-     Jacobian.  The active constraint Jacobian is the submatrix B of the constraint Jacobian comprising
-     the active constraint rows. Output parameter 'active' is exactly the indices of the active Jacobian
-     rows.
-
-     The active linearized constraint range is the range of the columns of B. Output parameter 'basis'
-     comprises the indices of B's columns that are a basis for the active constraint linearized constraint
-     range. Bb is the square matrix with these column indices, so the columns of Bb are the basis of the
-     linearized constraint range. Since in primal elimination methods inverses (or solves with)bof both Bb
-     and Bbt, the transpose of Bb, are needed, the user can provide matrices to build preconditioners for
-     both Bb and Bbt.
-
-
-   Level: intermediate
-
-.seealso:   SNESSetAcitveConstraints(), SNESSetConstraintFunction(), SNESSetConstraintJacobian(), SNESConstraintFunction, SNESConstraintJacobian
-
- M*/
-
-
-#undef __FUNCT__
-#define __FUNCT__ "SNESSetActiveConstraints"
-/*@C
-   SNESSetActiveConstraints -   sets the callback identifying active constraints.
-
-   Logically Collective on SNES
-
-   Input Parameters:
-+  snes - the SNES context
-.  Bb   - (NULL, if not provided) matrix to store the basis for the active constraints
-.  Bbt  - (NULL, if not provided) transposed basis matrix for the inactive constraints
-.  f    - function identifying the active constraints at the current state x
--  ctx  - optional (if not NULL) user-defined context for private data for the
-          identification of active constraints function.
-
-   Level: intermediate
-
-.keywords: SNES, nonlinear, set, active, constraint, function
-
-.seealso: SNESGetActiveConstraints(), SNESSetConstraintFunction(), SNESActiveConstraints
-@*/
-PetscErrorCode  SNESSetActiveConstraints(SNES snes,Mat Bb, Mat Bbt,PetscErrorCode (*f)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void *ctx)
-{
-  PetscErrorCode ierr;
-  DM             dm;
-
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
-  ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
-  ierr = DMSNESSetActiveConstraints(dm,f,ctx);CHKERRQ(ierr);
-  if (Bb) {
-    ierr = PetscObjectReference((PetscObject)Bb);CHKERRQ(ierr);
-    ierr = MatDestroy(&snes->Bb);CHKERRQ(ierr);
-    snes->Bb = Bb;
-  }
-  if (Bbt) {
-    ierr = PetscObjectReference((PetscObject)Bbt);CHKERRQ(ierr);
-    ierr = MatDestroy(&snes->Bbt);CHKERRQ(ierr);
-    snes->Bbt = Bbt;
-  }
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "SNESGetActiveConstraints"
-/*@C
-   SNESGetActiveConstraints -   retrieves the callback identifying active constraints.
-
-   Logically Collective on SNES
-
-   Input Parameter:
-.  snes - the SNES context
-
-   Output Parameters:
-.  f    - function identifying the active constraints at the current state x
--  ctx  - optional (if not NULL) user-defined context for private data for the
-          identification of active constraints function.
-
-   Level: intermediate
-
-.keywords: SNES, nonlinear, get, active, constraint, function
-
-.seealso: SNESSetActiveConstraints(), SNESSetConstraintFunction(), SNESActiveConstraints
-@*/
-PetscErrorCode  SNESGetActiveConstraints(SNES snes,Mat* Bb,Mat* Bbt,PetscErrorCode (**f)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void **ctx)
-{
-  PetscErrorCode ierr;
-  DM             dm;
-
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
-  ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
-  ierr = DMSNESGetActiveConstraints(dm,f,ctx);CHKERRQ(ierr);
-  if (Bb) {
-    *Bb = snes->Bb;
-  }
-  if (Bbt) {
-    *Bbt = snes->Bbt;
-  }
-  PetscFunctionReturn(0);
-}
 
 /*MC
     SNESProjectOntoConstraints - callback function projecting a vector onto the feasible set
@@ -3106,6 +2983,26 @@ PetscErrorCode  SNESSetUp(SNES snes)
     ierr = DMCreateGlobalVector(dm,&snes->vec_func);CHKERRQ(ierr);
   }
 
+  /* Constraints-related linear structures. */
+  /* FIXME: need a constraint DM to query for a global constraint vector, when it hasn't been set */
+  if (!snes->vec_constr) SETERRQ(PetscObjectComm((PetscObject)snes),PETSC_ERR_ARG_WRONGSTATE, "No constraint Vec: call SNESSetConstraintFunction() first.");
+  if (!snes->vec_constrl) {
+    ierr = VecDuplicate(snes->vec_constr,&snes->vec_constrl);CHKERRQ(ierr);
+  }
+  if (!snes->vec_constru) {
+    ierr = VecDuplicate(snes->vec_constr,&snes->vec_constru);CHKERRQ(ierr);
+  }
+  if (!snes->vec_constrd) {
+    ierr = VecDuplicate(snes->vec_constr,&snes->vec_constrd);CHKERRQ(ierr);
+  }
+  if (!snes->jacobian_constr) SETERRQ(PetscObjectComm((PetscObject)snes),PETSC_ERR_ARG_WRONGSTATE, "No constraint Jacobian: call SNESSetConstraintJacobian() first.");
+
+  /*
+     FIXME: for problems with constraints (VI), there may be two or more DMs -- primal, constraints, composite of the two.
+     The proper DM for the linear solve may depend on the method (primal, dual, or saddle active set, semismooth or interior point).
+     The linear solver itself will strongly depend on the SNESVI method.  Should the DM construction for the linear solver be deferred to the impl?
+     Should the construction of the linear solver itself be deferred to the impl?
+  */
   if (!snes->ksp) {
     ierr = SNESGetKSP(snes, &snes->ksp);CHKERRQ(ierr);
   }
