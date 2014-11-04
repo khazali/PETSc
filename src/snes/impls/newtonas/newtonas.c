@@ -334,7 +334,7 @@ PetscErrorCode SNESSolve_NEWTONAS_Primal(SNES snes)
      FIXME: Nonlinear preconditioning would go here.
   */
 
-  if(dmsnes->ops->projectontoconstraints) {
+  if (dmsnes->ops->projectontoconstraints) {
     ierr = (*dmsnes->ops->projectontoconstraints)(snes,X,X,dmsnes->projectontoconstraintsctx);CHKERRQ(ierr);
   } /* No 'else' clause since there is really no default way of projecting onto constraints that I know of. */
 
@@ -349,12 +349,16 @@ PetscErrorCode SNESSolve_NEWTONAS_Primal(SNES snes)
     }
   } else snes->vec_func_init_set = PETSC_FALSE;
 
-
   /*
      QUESTION: How do we check convergence in the case with general constraints?
      The following might be a bad way to do it. Do we need to use a MERIT function?
      And/or dmsnes->ops->computeobjective?
-  */
+
+     Convergence is either the merit function is equal to zero (you have solved the problem) or the norm of
+     the gradient of the merit function is zero (you have a local minimizer of the merit function, but have
+     NOT solved the complementarity problem).
+   */
+
   ierr = VecNorm(F,NORM_2,&fnorm);CHKERRQ(ierr);        /* fnorm <- ||F||  */
   if (PetscIsInfOrNanReal(fnorm)) {
     snes->reason = SNES_DIVERGED_FNORM_NAN;
@@ -370,7 +374,7 @@ PetscErrorCode SNESSolve_NEWTONAS_Primal(SNES snes)
   ierr = (*snes->ops->converged)(snes,0,0.0,0.0,fnorm,&snes->reason,snes->cnvP);CHKERRQ(ierr);
   if (snes->reason) PetscFunctionReturn(0);
 
-  for (i=0; i<snes->max_its; i++) {
+  for (i=0; i<snes->max_its; ++i) {
     /* Call general purpose update function */
     if (snes->ops->update) {
       ierr = (*snes->ops->update)(snes, snes->iter);CHKERRQ(ierr);
@@ -391,13 +395,14 @@ PetscErrorCode SNESSolve_NEWTONAS_Primal(SNES snes)
 
     /* TODO: compute the initial 'active'. */
     new_active = NULL;
+    ierr = SNESNEWTONASInitialActiveSet_Private(snes,X,L,G,&active);CHKERRQ(ierr);
     do {
       if (new_active) { /* active set has been updated */
-	ierr = ISDestroy(&active);CHKERRQ(ierr);
-	active = new_active; new_active = NULL;
+	    ierr = ISDestroy(&active);CHKERRQ(ierr);
+	    active = new_active; new_active = NULL;
       }
       ierr = SNESNEWTONASLinearUpdate_Private(snes,X,L,F,snes->jacobian,snes->jacobian_pre,snes->jacobian_constr,active,dX,dL);CHKERRQ(ierr);
-      ierr = SNESNEWTONASExpandActiveSet_Private(snes,X,L,F,G,dX,dL,active,&new_active);CHKERRQ(ierr);
+      ierr = SNESNEWTONASModifyActiveSet_Private(snes,X,L,F,G,dX,dL,active,&new_active);CHKERRQ(ierr);
     } while (new_active);
 
 
@@ -412,6 +417,7 @@ PetscErrorCode SNESSolve_NEWTONAS_Primal(SNES snes)
     ierr  = SNESLineSearchGetNorms(linesearch, &xnorm, &fnorm, &dxnorm);CHKERRQ(ierr);
     ierr  = PetscInfo4(snes,"fnorm=%18.16e, hnorm=%18.16e, dxnorm=%18.16e, lssucceed=%d\n",(double)hnorm,(double)fnorm,(double)dxnorm,(int)lssucceed);CHKERRQ(ierr);
     if (snes->reason == SNES_DIVERGED_FUNCTION_COUNT) break;
+
     ierr = SNESGetFunctionDomainError(snes, &domainerror);CHKERRQ(ierr);
     if (domainerror) {
       snes->reason = SNES_DIVERGED_FUNCTION_DOMAIN;
