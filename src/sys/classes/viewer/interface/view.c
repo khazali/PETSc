@@ -343,3 +343,34 @@ PetscErrorCode  PetscViewerView(PetscViewer v,PetscViewer viewer)
   }
   PetscFunctionReturn(0);
 }
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscViewerRead"
+/*@C
+   PetscViewerRead - Reads from a binary file
+
+   Collective on MPI_Comm
+
+   Input Parameters:
++  viewer - the binary viewer
+.  data - location to write the data
+.  count - number of items of data to read
+-  datatype - type of data to read
+
+   Level: beginner
+
+   Concepts: binary files, ascii files
+
+.seealso: PetscViewerASCIIOpen(), PetscViewerSetFormat(), PetscViewerDestroy(),
+          VecView(), MatView(), VecLoad(), MatLoad(), PetscViewerBinaryGetDescriptor(),
+          PetscViewerBinaryGetInfoPointer(), PetscFileMode, PetscViewer
+@*/
+PetscErrorCode  PetscViewerRead(PetscViewer viewer, void *data, PetscInt count, PetscDataType dtype)
+{
+  PetscErrorCode    ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(viewer,PETSC_VIEWER_CLASSID,1);
+  ierr = (*viewer->ops->read)(viewer, data, count, dtype);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
