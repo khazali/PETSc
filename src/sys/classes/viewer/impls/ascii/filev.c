@@ -1020,18 +1020,20 @@ PetscErrorCode PetscViewerASCIIRead(PetscViewer viewer,void *data,PetscInt count
 {
   PetscViewer_ASCII *vascii = (PetscViewer_ASCII*)viewer->data;
   FILE              *fd = vascii->fd;
+  int                ret;
   PetscInt           i;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(viewer,PETSC_VIEWER_CLASSID,1);
 
   for (i=0; i<count; i++) {
-    if (dtype == PETSC_CHAR)         fscanf(fd, "%c",  &(((char*)data)[i]));
-    else if (dtype == PETSC_STRING)  fscanf(fd, "%s",  &(((char*)data)[i]));
-    else if (dtype == PETSC_INT)     fscanf(fd, "%d",  &(((PetscInt*)data)[i]));
-    else if (dtype == PETSC_FLOAT)   fscanf(fd, "%f",  &(((float*)data)[i]));
-    else if (dtype == PETSC_DOUBLE)  fscanf(fd, "%lg", &(((double*)data)[i]));
+    if (dtype == PETSC_CHAR)        ret = fscanf(fd, "%c",  &(((char*)data)[i]));
+    else if (dtype == PETSC_STRING) ret = fscanf(fd, "%s",  &(((char*)data)[i]));
+    else if (dtype == PETSC_INT)    ret = fscanf(fd, "%d",  &(((PetscInt*)data)[i]));
+    else if (dtype == PETSC_FLOAT)  ret = fscanf(fd, "%f",  &(((float*)data)[i]));
+    else if (dtype == PETSC_DOUBLE) ret = fscanf(fd, "%lg", &(((double*)data)[i]));
     else {SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"Data type not supported in PetscViewerASCIIRead()", dtype);}
+    if (ret ==EOF) {((char*)data)[i] = '\0'; break;}
   }
   PetscFunctionReturn(0);
 }

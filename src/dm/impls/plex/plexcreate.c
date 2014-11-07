@@ -1609,8 +1609,9 @@ PetscErrorCode DMPlexCreateFromFile(MPI_Comm comm, const char filename[], PetscB
   const char    *extGmsh   = ".msh";
   const char    *extCGNS   = ".cgns";
   const char    *extExodus = ".exo";
+  const char    *extCase   = ".cas";
   size_t         len;
-  PetscBool      isGmsh, isCGNS, isExodus;
+  PetscBool      isGmsh, isCGNS, isExodus, isCase;
   PetscMPIInt    rank;
   PetscErrorCode ierr;
 
@@ -1623,6 +1624,7 @@ PetscErrorCode DMPlexCreateFromFile(MPI_Comm comm, const char filename[], PetscB
   ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extGmsh,   4, &isGmsh);CHKERRQ(ierr);
   ierr = PetscStrncmp(&filename[PetscMax(0,len-5)], extCGNS,   5, &isCGNS);CHKERRQ(ierr);
   ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extExodus, 4, &isExodus);CHKERRQ(ierr);
+  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extCase,   4, &isCase);CHKERRQ(ierr);
   if (isGmsh) {
     PetscViewer viewer;
 
@@ -1636,6 +1638,14 @@ PetscErrorCode DMPlexCreateFromFile(MPI_Comm comm, const char filename[], PetscB
     ierr = DMPlexCreateCGNSFromFile(comm, filename, interpolate, dm);CHKERRQ(ierr);
   } else if (isExodus) {
     ierr = DMPlexCreateExodusFromFile(comm, filename, interpolate, dm);CHKERRQ(ierr);
+  } else if (isCase) {
+    PetscViewer viewer;
+    ierr = PetscViewerCreate(comm, &viewer);CHKERRQ(ierr);
+    ierr = PetscViewerSetType(viewer, PETSCVIEWERASCII);CHKERRQ(ierr);
+    ierr = PetscViewerFileSetMode(viewer, FILE_MODE_READ);CHKERRQ(ierr);
+    ierr = PetscViewerFileSetName(viewer, filename);CHKERRQ(ierr);
+    ierr = DMPlexCreateCase(comm, viewer, interpolate, dm);CHKERRQ(ierr);
+    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
   } else SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Cannot load file %s: unrecognized extension", filename);
   PetscFunctionReturn(0);
 }
