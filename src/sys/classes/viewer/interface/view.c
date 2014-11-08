@@ -371,6 +371,17 @@ PetscErrorCode  PetscViewerRead(PetscViewer viewer, void *data, PetscInt count, 
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(viewer,PETSC_VIEWER_CLASSID,1);
-  ierr = (*viewer->ops->read)(viewer, data, count, dtype);CHKERRQ(ierr);
+  if (dtype == PETSC_STRING) {
+    PetscInt c, i = 0;
+    char *s = (char *)data;
+    for (c = 0; c < count; c++) {
+      /* Read strings one char at a time */
+      do {ierr = (*viewer->ops->read)(viewer, &(s[i++]), 1, PETSC_CHAR);CHKERRQ(ierr);}
+      while (s[i-1]!='\n' && s[i-1]!='\t' && s[i-1]!=' ' && s[i-1]!='\0');
+      s[i-1] = '\0';
+    }
+  } else {
+    ierr = (*viewer->ops->read)(viewer, data, count, dtype);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
