@@ -53,6 +53,20 @@ PetscErrorCode DMPlexCreateCase_ReadSection(PetscViewer viewer, CaseSection *s)
   case 10:   /* Vertices */
     ierr = DMPlexCaseRead(viewer, buffer, ')');CHKERRQ(ierr);
     snum = sscanf(buffer, "(%x %x %x %d %d)", &(s->zoneID), &(s->first), &(s->last), &(s->type), &(s->nd));CHKERRQ(snum!=5);
+    if (s->zoneID > 0) {
+      PetscScalar *coords;
+      PetscInt c, d, numCoords;
+      ierr = DMPlexCaseRead(viewer, buffer, '(');CHKERRQ(ierr);
+      ierr = DMPlexCaseRead(viewer, buffer, '\n');CHKERRQ(ierr);
+      numCoords = s->last - s->first + 1;
+      ierr = PetscMalloc1(s->nd*numCoords, &coords);CHKERRQ(ierr);
+      for (c = 0; c < numCoords; c++) {
+        for (d = 0; d < s->nd; d++) {
+          ierr = PetscViewerRead(viewer, &(coords[c*s->nd+d]), 1, PETSC_REAL);CHKERRQ(ierr);
+        }
+      }
+      s->data = coords;
+    }
     ierr = DMPlexCaseRead(viewer, buffer, ')');CHKERRQ(ierr);
     break;
   case 12:   /* Cells */
@@ -123,9 +137,12 @@ PetscErrorCode DMPlexCreateCase_ReadSection(PetscViewer viewer, CaseSection *s)
 PetscErrorCode DMPlexCreateCase(MPI_Comm comm, PetscViewer viewer, PetscBool interpolate, DM *dm)
 {
   PetscMPIInt    rank;
-  PetscInt       c, f, v, dim = -1, numCells = -1, numVertices = -1, numFaces = -1;
-  PetscInt       numCellVertices = -1 , numFaceEntries = -1, numFaceVertices = -1;
+  PetscInt       c, f, v, d, dim = -1, numCells = -1, numVertices = -1, numFaces = -1;
+  PetscInt       numCellVertices = -1 , numFaceEntries = -1, numFaceVertices = -1, coordSize;
   PetscInt      *faces, *cellVertices;
+  PetscScalar   *coords, *coordsIn = NULL;
+  PetscSection   coordSection;
+  Vec            coordinates;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -145,6 +162,10 @@ PetscErrorCode DMPlexCreateCase(MPI_Comm comm, PetscViewer viewer, PetscBool int
         break;
       case 10:         /* Vertices */
         if (s.zoneID == 0) numVertices = s.last;
+        else {
+          if (coordsIn) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Currently no support for multiple coordinate sets in Case files");
+          coordsIn = s.data;
+        }
         break;
       case 12:         /* Cells */
         if (s.zoneID == 0) numCells = s.last;
@@ -239,6 +260,34 @@ PetscErrorCode DMPlexCreateCase(MPI_Comm comm, PetscViewer viewer, PetscBool int
     *dm  = idm;
   }
 
+  /* Read coordinates */
+  ierr = DMGetCoordinateSection(*dm, &coordSection);CHKERRQ(ierr);
+  ierr = PetscSectionSetNumFields(coordSection, 1);CHKERRQ(ierr);
+  ierr = PetscSectionSetFieldComponents(coordSection, 0, dim);CHKERRQ(ierr);
+  ierr = PetscSectionSetChart(coordSection, numCells, numCells + numVertices);CHKERRQ(ierr);
+  for (v = numCells; v < numCells+numVertices; ++v) {
+    ierr = PetscSectionSetDof(coordSection, v, dim);CHKERRQ(ierr);
+    ierr = PetscSectionSetFieldDof(coordSection, v, 0, dim);CHKERRQ(ierr);
+  }
+  ierr = PetscSectionSetUp(coordSection);CHKERRQ(ierr);
+  ierr = PetscSectionGetStorageSize(coordSection, &coordSize);CHKERRQ(ierr);
+  ierr = VecCreate(comm, &coordinates);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) coordinates, "coordinates");CHKERRQ(ierr);
+  ierr = VecSetSizes(coordinates, coordSize, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = VecSetType(coordinates, VECSTANDARD);CHKERRQ(ierr);
+  ierr = VecGetArray(coordinates, &coords);CHKERRQ(ierr);
+  if (!rank) {
+    for (v = 0; v < numVertices; ++v) {
+      for (d = 0; d < dim; ++d) {
+        coords[v*dim+d] = coordsIn[v*dim+d];
+      }
+    }
+  }
+  ierr = VecRestoreArray(coordinates, &coords);CHKERRQ(ierr);
+  ierr = DMSetCoordinatesLocal(*dm, coordinates);CHKERRQ(ierr);
+  ierr = VecDestroy(&coordinates);CHKERRQ(ierr);
+
   ierr = PetscFree2(cellVertices, faces);CHKERRQ(ierr);
+  ierr = PetscFree(coordsIn);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
