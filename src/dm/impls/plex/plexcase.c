@@ -87,7 +87,7 @@ PetscErrorCode DMPlexCreateCase_ReadSection(PetscViewer viewer, CaseSection *s)
       int      entry;
       snum = sscanf(buffer, "(%x %x %x %d %d)", &(s->zoneID), &(s->first), &(s->last), &(s->type), &(s->nd));CHKERRQ(snum!=5);
       switch (s->nd) {
-      case 0: SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Mixed faces in Case files are not supported");
+      case 0: numEntries = PETSC_DETERMINE; break;
       case 2: numEntries = 2 + 2; break;  /* linear */
       case 3: numEntries = 2 + 3; break;  /* triangular */
       case 4: numEntries = 2 + 4; break;  /* quadrilateral */
@@ -96,12 +96,33 @@ PetscErrorCode DMPlexCreateCase_ReadSection(PetscViewer viewer, CaseSection *s)
       ierr = DMPlexCaseRead(viewer, buffer, '(');CHKERRQ(ierr);
       ierr = DMPlexCaseRead(viewer, buffer, '\n');CHKERRQ(ierr);
       numFaces = s->last-s->first + 1;
-      ierr = PetscMalloc1(numEntries*numFaces, &face_array);CHKERRQ(ierr);
-      for (f = 0; f < numFaces; f++) {
-        for (e = 0; e < numEntries; e++) {
+      if (numEntries == PETSC_DETERMINE) {
+        for (f = 0; f < numFaces; f++) {
+          /* Attempt to read "mixed" faces, in case they are not actually mixed */
           ierr = PetscViewerRead(viewer, buffer, 1, PETSC_STRING);CHKERRQ(ierr);
           snum = sscanf(buffer, "%x", &entry);CHKERRQ(snum!=1);
-          face_array[f*numEntries + e] = entry;
+          if (numEntries == PETSC_DETERMINE) {
+            numEntries = entry + 2;
+            s->nd = entry;
+            ierr = PetscMalloc1(numEntries*numFaces, &face_array);CHKERRQ(ierr);
+          } else{
+            if (s->nd != entry ) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Currently no support for mixed faces in Case files");
+          }
+          for (e = 0; e < numEntries; e++) {
+            ierr = PetscViewerRead(viewer, buffer, 1, PETSC_STRING);CHKERRQ(ierr);
+            snum = sscanf(buffer, "%x", &entry);CHKERRQ(snum!=1);
+            face_array[f*numEntries + e] = entry;
+          }
+        }
+      } else {
+        /* Read face connectivity using provided header information */
+        ierr = PetscMalloc1(numEntries*numFaces, &face_array);CHKERRQ(ierr);
+        for (f = 0; f < numFaces; f++) {
+          for (e = 0; e < numEntries; e++) {
+            ierr = PetscViewerRead(viewer, buffer, 1, PETSC_STRING);CHKERRQ(ierr);
+            snum = sscanf(buffer, "%x", &entry);CHKERRQ(snum!=1);
+            face_array[f*numEntries + e] = entry;
+          }
         }
       }
       s->data = face_array;
@@ -157,6 +178,7 @@ PetscErrorCode DMPlexCreateCase(MPI_Comm comm, PetscViewer viewer, PetscBool int
       switch (index) {
       case -1: break;  /* End-of-file */
       case 0: break;   /* Comment */
+      case 1: break;   /* Header */
       case 2:          /* Dimsion */
         dim = s.nd;
         break;
@@ -178,7 +200,7 @@ PetscErrorCode DMPlexCreateCase(MPI_Comm comm, PetscViewer viewer, PetscBool int
           case 4: numCellVertices = 8; break;  /* hexahedral */
           case 5: numCellVertices = 5; break;  /* pyramid */
           case 6: numCellVertices = 6; break;  /* wedge */
-          default: SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Unknown cell element-type in Case file");
+          default: numCellVertices = PETSC_DETERMINE;
           }
         }
         break;
@@ -209,12 +231,14 @@ PetscErrorCode DMPlexCreateCase(MPI_Comm comm, PetscViewer viewer, PetscBool int
   ierr = DMSetDimension(*dm, dim);CHKERRQ(ierr);
   ierr = DMPlexSetChart(*dm, 0, numCells + numVertices);CHKERRQ(ierr);
   if (!rank) {
+    if (numCells < 0) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Unknown number of cells in Case file");
+    /* If no cell type was given we assume simplices */
+    if (numCellVertices == PETSC_DETERMINE) numCellVertices = numFaceVertices + 1;
     for (c = 0; c < numCells; ++c) {ierr = DMPlexSetConeSize(*dm, c, numCellVertices);CHKERRQ(ierr);}
   }
   ierr = DMSetUp(*dm);CHKERRQ(ierr);
   if (!rank) {
     /* Derive cell-vertex list from face-vertex and face-cell maps */
-    if (numCells < 0 || numCellVertices < 0) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Insufficent cell header information in Case file");
     ierr = PetscMalloc1(numCells*numCellVertices, &cellVertices);CHKERRQ(ierr);
     for (c = 0; c < numCells*numCellVertices; c++) cellVertices[c] = -1;
     for (f = 0; f < numFaces; f++) {
