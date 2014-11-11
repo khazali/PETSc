@@ -2639,6 +2639,7 @@ PetscErrorCode  SNESGetConstraintFunction(SNES snes,Vec *v,Vec *vl, Vec *vu,Pets
 .seealso:   SNESSetConstraintJacobian(), SNESGetConstraintJacobian()
 M*/
 
+/* QUESTION: should the user also (optionally) return Bt, the transpose? In case B doesn't implement MatMultTranspose() */
 #undef __FUNCT__
 #define __FUNCT__ "SNESSetConstraintJacobian"
 /*@C
@@ -2865,6 +2866,7 @@ PetscErrorCode  SNESSetUp(SNES snes)
   }
 
   ierr = SNESGetFunction(snes,&snes->vec_func,NULL,NULL);CHKERRQ(ierr);
+
 
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);

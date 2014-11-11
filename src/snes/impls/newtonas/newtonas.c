@@ -190,56 +190,111 @@ PetscErrorCode  SNESNEWTONASGetActiveConstraints(SNES snes,PetscErrorCode (**f)(
 }
 
 
+/* SNES NEWTONAS ALGORITHM SUBROUTINE STUBS BEGIN */
+
 #undef __FUNCT__
-#define __FUNCT__ "SNESNEWTONASExpandActiveSet_Private"
-static PetscErrorCode SNESNEWTONASExpandActiveSet_Private(SNES snes,Vec x,Vec l,Vec f,Vec g,Vec dx,Vec dl,IS active,IS *new_active)
+#define __FUNCT__ "SNESNEWTONASInitialActiveSet_Private"
+static PetscErrorCode SNESNEWTONASInitialActiveSet_Private(SNES snes,Vec x,Vec l,Vec f,Vec g,IS *active)
 {
-  /* Returns an expanded IS based on the distance to constraint bounds, or NULL if no expansion is necessary. */
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
   /* TODO: implement */
-  *new_active = NULL;
+  /* A = \{i : (g_i(x) = g_i^l & \lambda_i > 0) | (g_i(x) = g_i^u & \lambda_i < 0)\} -- strongly active set. */
+  /* TODO: check signs on \lambda in the foregoing def.*/
+  /*
+    This should use the distance to boundary computed in SNESNEWTONASComputeDistanceToBoundary().
+     Should we just roll that subroutine into this one?  It's not used anywhere else.
+  */
+  *active = NULL;
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "SNESNEWTONASLinearUpdate_Private"
-static PetscErrorCode SNESNEWTONASLinearUpdate_Private(SNES snes,Vec X,Vec L,Vec F,Mat A,Mat Apre,Mat B,IS active,Vec dX,Vec dL)
+#define __FUNCT__ "SNESNEWTONASComputeDistanceToBoundary"
+static PetscErrorCode SNESNEWTONASComputeDistanceToBoundary(SNES snes,Vec x,Vec l,Vec dx,Vec dl,Mat B,Vec distg,Vec distl)
 {
-  /* Observe that only a subvector of dL defined by the active set is nonzero. */
   PetscErrorCode     ierr;
-  Vec tdL; /* \tilde \delta \lambda */
-  Vec Q = snes->work[2];   /* Q = F + B^T*L */
+
+  PetscFunctionBegin;
+  /* TODO: implement */
+  /* ||f - l*B||_2^2  */
+  /* N.B.: this function might need to set domain error, when necessary (e.g., when computing f results in a domain error?) */
+  *merit = 0.0;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESNEWTONASModifyActiveSet_Private"
+static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,Vec x,Vec l,Vec f,Vec g,Vec dx,Vec dl,IS active,IS *new_active,PetscReal *tbar)
+{
+  /* Returns a modified IS based on the distance to constraint bounds, or NULL if no modification is necessary. */
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  /* TODO: implement */
+  /*
+     Also compute \overline t -- the upper bound on the search step size. This is because upper bounds on the individual
+     constraints are examined here anyway.  tbar is only one _MPI reduction_ away.
+  */
+  *new_active = NULL;
+  *tbar = 0.0;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESNEWTONASComputeMeritFunctionDefault"
+static PetscErrorCode SNESNEWTONASComputeMeritFunctionDefault(SNES snes,Vec x,Vec l,Vec f,Vec g,Mat B,PetscReal *merit)
+{
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  /* TODO: implement */
+  /* ||f - l*B||_2^2  */
+  /* N.B.: this function might need to set domain error, when necessary (e.g., when computing f results in a domain error?) */
+  *merit = 0.0;
+  PetscFunctionReturn(0);
+}
+
+
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESNEWTONASComputeSearchDirectionPrimal_Private"
+static PetscErrorCode SNESNEWTONASComputeSearchDirectionPrimal_Private(SNES snes,Vec x,Vec l,Vec f,Mat A,Mat Apre,Mat B,IS active,Vec dx,Vec dl)
+{
+  /* Observe that only a subvector of dl defined by the active set is nonzero. */
+  PetscErrorCode     ierr;
+  SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)(snes->data);
+  Vec                tildedl; /* \tilde \delta \lambda */
+  Vec                q = snes->work[2];   /* q = -(f - B^T*l) */
 
   PetscFunctionBegin;
 #if 0
   /* The following code needs to be cleaned up so that it at least compiles. */
   /*
     This function computes the linear update in the reduced subspace (defined by the active index set)
-     of the augmented system (defined by the state X and Lagrange multipliers L).  The linear update
+     of the augmented system (defined by the state x and Lagrange multipliers l).  The linear update
      is computed by eliminating the constraints using the 'active basis' computed by SNESNEWTONASActiveConstraintBasis().
   */
-  ierr = VecZeroEntries(dL);CHKERRQ(ierr);
+  ierr = VecZeroEntries(dl);CHKERRQ(ierr);
 
 
     /*
       Conceptually, we are solving the augmented system.
-                           |A         \tilde B^T| |dX            |   |f+B^T\lambda|
-                           |                    | |              | = |            |
-			   |\tilde B           0| |\tilde dlambda|   |      0     |
-      QUESTION: the rhs for the primal block: Q = f+B^T\lambda or Q = f-B^T\lambda?
-      In reality we eliminate \tilde dlambda using Bb and Bbt and solve for dX1 with the Schur complement.
-      dX0 and tdlambda are recovered later and assembled into dX and dL:
-                           |   A00        A01     \tilde B0^T| |      dX0     |   |f0+B0^T\lambda|
-                           |   A10        A11     \tilde B1^T| |      dX1     | = |f1+B1^T\lambda|
-			   |\tilde B0   \tilde B1      0     | |\tilde dlambda|   |      0       |,
+                           |A         \tilde B^T| |    dx     |   |-(f-B^T*l)|
+                           |                    | |           | = |          |
+			   |\tilde B           0| | \tilde dl |   |    0     |
+      In reality we eliminate \tilde dlambda using Bb and Bbt and solve for dx1 with the Schur complement.
+      dx0 and tdlambda are recovered later and assembled into dx and dl:
+                           |   A00        A01     \tilde B0^T| |   dx0     |   |-(f0-B0^T*l)|
+                           |   A10        A11     \tilde B1^T| |   dx1     | = |-(f1-B1^T*l)|
+			   |\tilde B0   \tilde B1      0     | | \tilde dl |   |      0     |,
 
       where \tilde B0 is Bb -- the submatrix composed of the basis columns.  For clarity, reorder:
 
-                           |\tilde B0      0        \tilde B1| | \tilde dlambda |   |       0      |
-                           |   A00     \tilde B0^T     A01   | |      dX0       | = |f0+B0^T\lambda|
-			   |   A10     \tilde B1^T     A11   | |      dX1       |   |f1+B1^T\lambda|
+                           |\tilde B0      0        \tilde B1| | \tilde dl |   |      0     |
+                           |   A00     \tilde B0^T     A01   | |    dx0    | = |-(f0-B0^T*l)|
+			   |   A10     \tilde B1^T     A11   | |    dx1    |   |-(f1+B1^T*l)|
 
       Now eliminate the upper-left 2x2 block submatrix, which can be factored as follows:
           |\tilde B0       0     |       |\tilde B0       0     | |    I       0     | |   I      0      |
@@ -274,8 +329,8 @@ static PetscErrorCode SNESNEWTONASLinearUpdate_Private(SNES snes,Vec X,Vec L,Vec
   ierr = KSPSetOperators(snes->ksp,J,J);CHKERRQ(ierr);
   /* TODO: configure snes->ksp using PCFIELDSPLIT to implement the solve with S above. */
   ierr = KSPSetUp(snes->ksp);CHKERRQ(ierr);
-  /* TODO: splice dX and tdL into tY */
-  ierr = KSPSolve(snes->ksp,Q,tY);CHKERRQ(ierr);
+  /* TODO: embed tildedl into dl and then splice dx and dl into y */
+  ierr = KSPSolve(snes->ksp,q,y);CHKERRQ(ierr);
   ierr = KSPGetConvergedReason(snes->ksp,&kspreason);CHKERRQ(ierr);
   if (kspreason < 0) {
     if (++snes->numLinearSolveFailures >= snes->maxLinearSolveFailures) {
@@ -287,6 +342,9 @@ static PetscErrorCode SNESNEWTONASLinearUpdate_Private(SNES snes,Vec X,Vec L,Vec
 #endif
   PetscFunctionReturn(0);
 }
+
+/* Also need two line searches: Armijo and projection-based. */
+/* SNES NEWTONAS ALGORITHM SUBROUTINE STUBS BEGIN */
 
 
 #undef __FUNCT__
@@ -339,6 +397,7 @@ PetscErrorCode SNESSolve_NEWTONAS_Primal(SNES snes)
   } /* No 'else' clause since there is really no default way of projecting onto constraints that I know of. */
 
 
+  /* FIXME: replace this with an application of the merit function. We might need a flag analogous to snes->vec_func_init_set.  For relative error checking? */
   /* QUESTION: Do we need if(!snes->vec_func_init_set) wrapping the following block? See SNESSolve_NEWTONLS() */
   if (!snes->vec_func_init_set) {
     ierr = SNESComputeFunction(snes,X,F);CHKERRQ(ierr);
@@ -359,6 +418,7 @@ PetscErrorCode SNESSolve_NEWTONAS_Primal(SNES snes)
      NOT solved the complementarity problem).
    */
 
+  /* FIXME: use the merit function.  How? */
   ierr = VecNorm(F,NORM_2,&fnorm);CHKERRQ(ierr);        /* fnorm <- ||F||  */
   if (PetscIsInfOrNanReal(fnorm)) {
     snes->reason = SNES_DIVERGED_FNORM_NAN;
@@ -371,6 +431,7 @@ PetscErrorCode SNESSolve_NEWTONAS_Primal(SNES snes)
   ierr       = SNESLogConvergenceHistory(snes,fnorm,0);CHKERRQ(ierr);
   ierr       = SNESMonitor(snes,0,fnorm);CHKERRQ(ierr);
   /* test convergence */
+  /* FIXME: use merit function */
   ierr = (*snes->ops->converged)(snes,0,0.0,0.0,fnorm,&snes->reason,snes->cnvP);CHKERRQ(ierr);
   if (snes->reason) PetscFunctionReturn(0);
 
@@ -395,14 +456,18 @@ PetscErrorCode SNESSolve_NEWTONAS_Primal(SNES snes)
 
     /* TODO: compute the initial 'active'. */
     new_active = NULL;
-    ierr = SNESNEWTONASInitialActiveSet_Private(snes,X,L,G,&active);CHKERRQ(ierr);
+    ierr = SNESNEWTONASInitialActiveSet_Private(snes,X,L,F,G,&active);CHKERRQ(ierr);
     do {
+      PetscReal tbar;
       if (new_active) { /* active set has been updated */
 	    ierr = ISDestroy(&active);CHKERRQ(ierr);
 	    active = new_active; new_active = NULL;
       }
-      ierr = SNESNEWTONASLinearUpdate_Private(snes,X,L,F,snes->jacobian,snes->jacobian_pre,snes->jacobian_constr,active,dX,dL);CHKERRQ(ierr);
-      ierr = SNESNEWTONASModifyActiveSet_Private(snes,X,L,F,G,dX,dL,active,&new_active);CHKERRQ(ierr);
+      if (newtas->type == SNES_NEWTONAS_PRIMAL) {
+	ierr = SNESNEWTONASComputeSearchDirectionPrimal_Private(snes,X,L,F,snes->jacobian,snes->jacobian_pre,snes->jacobian_constr,active,dX,dL);CHKERRQ(ierr);
+      }
+      else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"SNESNEWTONAS solver type not yet supported: %s",type);
+      ierr = SNESNEWTONASModifyActiveSet_Private(snes,X,L,F,G,dX,dL,active,&new_active,&tbar);CHKERRQ(ierr);
     } while (new_active);
 
 
@@ -487,10 +552,8 @@ PetscErrorCode SNESNEWTONASSetType(SNES snes,SNESNEWTONASType type)
 
   PetscFunctionBegin;
   newtas->type = type;
-  if (type == SNESNEWTONAS_PRIMAL) {
-    snes->ops->solve = SNESSolve_NEWTONAS_Primal;
-  }
-  else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"SNESNEWTONAS solver type not yet supported: %s",type);
+  snes->ops->solve = SNESSolve_NEWTONAS_Primal;
+
   PetscFunctionReturn(0);
 }
 
