@@ -6,13 +6,24 @@
 #include <petsc-private/vecimpl.h>
 
 /* TODO:
-   - How do we monitor convergence?  Need a monitor routine:
-      . SNESMonitor() calling sequence must change to allow for lambdas (maintain BACKWARD compatibility).
-      . SNESMonitorDefault() has to use those lambdas (maintain BACKWARD compatibility)..
-   - How do we detect convergence
-      . SNESConvergedDefault() needs to use not only the function norm, but also the norm
-        of the Lagrange multipliers AND the merit function (maintain BACKWARD compatibility).
-
+   - IMPLEMENTATION/API:
+    'OPTIMIZATION'
+     . SNESNEWTONASInitialActiveSet_Private()
+     . SNESNESNEWTONASModifyActiveSet_Private()
+     . SNESNEWTONASComputeMeritFunctionDefault
+    'SADDLE-POINT'
+     . SNESNEWTONASComputeSearchDirectionPrimal_Private()
+    'WIRING'
+     . Adjust SNESMonitor() API: need to be able to pass in the merit function as well as l*B.
+         :need to make sure that this API is general enough to support future SNESVI methods (e.g., semi-smooth, IPM).
+         :need to maintain BACKWARD-compatibility.
+     . Adjust SNESConvergedDefault() API: need to pass in the merit function as well as l*B.
+         :same concerns as above
+     . Adjust SNESLineSearchApply() API: need to be able to pass in l and, perhaps, g?
+         :same concerns as above.
+*/
+/*
+   QUESTIONS:
    - How do we ensure that in the absence of true constraints (i.e., when all constraints are +/-Inf)
      the algorithm reduces to an efficient approximation of constraint-free SNES (e.g., similar to SNESNEWTONLS).
 */
