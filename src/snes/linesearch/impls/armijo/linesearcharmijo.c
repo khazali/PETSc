@@ -1,6 +1,29 @@
 #include <petsc-private/linesearchimpl.h>
 #include <petsc-private/snesimpl.h>
 
+typedef struct {
+  PetscReal *memory;
+
+  PetscReal alpha;                      /* Initial reference factor >= 1 */
+  PetscReal beta;                       /* Steplength determination < 1 */
+  PetscReal beta_inf;           /* Steplength determination < 1 */
+  PetscReal sigma;                      /* Acceptance criteria < 1) */
+  PetscReal minimumStep;                /* Minimum step size */
+  PetscReal lastReference;              /* Reference value of last iteration */
+
+  PetscInt memorySize;          /* Number of functions kept in memory */
+  PetscInt current;                     /* Current element for FIFO */
+  PetscInt referencePolicy;             /* Integer for reference calculation rule */
+  PetscInt replacementPolicy;   /* Policy for replacing values in memory */
+
+  PetscBool nondescending;
+  PetscBool memorySetup;
+
+
+  Vec x;        /* Maintain reference to variable vector to check for changes */
+  Vec work;
+} SNESLineSearch_ARMIJO;
+
 #define REPLACE_FIFO 1
 #define REPLACE_MRU  2
 
@@ -67,17 +90,16 @@ static PetscErrorCode SNESLineSearchView_Armijo(SNESLineSearch ls, PetscViewer p
   PetscBool            isascii;
   PetscErrorCode       ierr;
 
+
   PetscFunctionBegin;
   ierr = PetscObjectTypeCompare((PetscObject)pv, PETSCVIEWERASCII, &isascii);CHKERRQ(ierr);
   if (isascii) {
-    ierr = PetscViewerASCIIPrintf(pv,"  maxf=%D, ftol=%g, gtol=%g\n",ls->max_funcs, (double)ls->rtol, (double)ls->ftol);CHKERRQ(ierr);
+    //    ierr = PetscViewerASCIIPrintf(pv,"  maxf=%D, ftol=%g, gtol=%g\n",ls->max_funcs, (double)ls->rtol, (double)ls->ftol);CHKERRQ(ierr);
     ierr=PetscViewerASCIIPrintf(pv,"  Armijo linesearch",armP->alpha);CHKERRQ(ierr);
     if (armP->nondescending) {
       ierr = PetscViewerASCIIPrintf(pv, " (nondescending)");CHKERRQ(ierr);
     }
-    if (ls->bounded) {
-      ierr = PetscViewerASCIIPrintf(pv," (projected)");CHKERRQ(ierr);
-    }
+
     ierr=PetscViewerASCIIPrintf(pv,": alpha=%g beta=%g ",(double)armP->alpha,(double)armP->beta);CHKERRQ(ierr);
     ierr=PetscViewerASCIIPrintf(pv,"sigma=%g ",(double)armP->sigma);CHKERRQ(ierr);
     ierr=PetscViewerASCIIPrintf(pv,"memsize=%D\n",armP->memorySize);CHKERRQ(ierr);
@@ -94,9 +116,10 @@ static PetscErrorCode  SNESLineSearchApply_Armijo(SNESLineSearch linesearch)
   //Vec            X, F, Y, W;
   Vec            x,work,s,g;
   SNES           snes;
-  PetscReal      gnorm, xnorm, ynorm, lambda, minlambda, maxstep;
+  PetscReal      gnorm, xnorm, ynorm, lambda, minlambda, maxstep,f;
   PetscBool      domainerror;
-  PetscReal      fact,ref,gdx;
+  PetscReal      fact,ref,gdx,stol;
+  PetscInt       max_it;
   PetscInt       idx,i;
   PetscErrorCode (*objective)(SNES,Vec,PetscReal*,void*);
   PetscErrorCode ierr;
@@ -107,8 +130,8 @@ static PetscErrorCode  SNESLineSearchApply_Armijo(SNESLineSearch linesearch)
   ierr = SNESLineSearchGetNorms(linesearch, &xnorm, &gnorm, &ynorm);CHKERRQ(ierr);
   ierr = SNESLineSearchGetLambda(linesearch, &lambda);CHKERRQ(ierr);
   ierr = SNESLineSearchGetSNES(linesearch, &snes);CHKERRQ(ierr);
-  ierr = SNESLineSearchGetMonitor(linesearch, &monitor);CHKERRQ(ierr);
-  ierr = SNESLineSearchGetTolerances(linesearch,&minlambda,&maxstep,NULL,NULL,NULL,&max_its);CHKERRQ(ierr);
+
+  ierr = SNESLineSearchGetTolerances(linesearch,&minlambda,&maxstep,NULL,NULL,NULL,&max_it);CHKERRQ(ierr);
   ierr = SNESGetTolerances(snes,NULL,NULL,&stol,NULL,NULL);CHKERRQ(ierr);
   ierr = SNESGetObjective(snes,&objective,NULL);CHKERRQ(ierr);
   if (!objective) {
@@ -132,7 +155,7 @@ static PetscErrorCode  SNESLineSearchApply_Armijo(SNESLineSearch linesearch)
 
   if (!armP->memorySetup) {
     for (i = 0; i < armP->memorySize; i++) {
-      armP->memory[i] = armP->alpha*(*f);
+      armP->memory[i] = armP->alpha*(f);
     }
 
     armP->current = 0;
@@ -189,15 +212,15 @@ static PetscErrorCode  SNESLineSearchApply_Armijo(SNESLineSearch linesearch)
     }
 
     /* Calculate function at new iterate */
-    ierr = SNESComputeObjective(snes,work,f);CHKERRQ(ierr);
+    ierr = SNESComputeObjective(snes,work,&f);CHKERRQ(ierr);
 
-    if (PetscIsInfOrNanReal(*f)) {
+    if (PetscIsInfOrNanReal(f)) {
       lambda *= armP->beta_inf;
     } else {
       /* Check descent condition */
-      if (armP->nondescending && *f <= ref - lambda*fact*ref)
+      if (armP->nondescending && f <= ref - lambda*fact*ref)
         break;
-      if (!armP->nondescending && *f <= ref + lambda*fact) {
+      if (!armP->nondescending && f <= ref + lambda*fact) {
         break;
       }
 
@@ -206,16 +229,16 @@ static PetscErrorCode  SNESLineSearchApply_Armijo(SNESLineSearch linesearch)
   }
 
   /* Check termination */
-  if (PetscIsInfOrNanReal(*f)) {
-    ierr = PetscInfo(ls, "Function is inf or nan.\n");CHKERRQ(ierr);
+  if (PetscIsInfOrNanReal(f)) {
+    ierr = PetscInfo(linesearch, "Function is inf or nan.\n");CHKERRQ(ierr);
     ierr = SNESLineSearchSetSuccess(linesearch,PETSC_FALSE);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   } else if (lambda < minlambda) {
-    ierr = PetscInfo(ls, "Step length is below tolerance.\n");CHKERRQ(ierr);
+    ierr = PetscInfo(linesearch, "Step length is below tolerance.\n");CHKERRQ(ierr);
     ierr = SNESLineSearchSetSuccess(linesearch,PETSC_FALSE);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   } else if (snes->nfuncs >= snes->max_funcs) {
-    ierr = PetscInfo2(ls, "Number of line search function evals (%D) > maximum allowed (%D)\n",snes->nfuncs, snes->max_funcs);CHKERRQ(ierr);
+    ierr = PetscInfo2(linesearch, "Number of line search function evals (%D) > maximum allowed (%D)\n",snes->nfuncs, snes->max_funcs);CHKERRQ(ierr);
     ierr = SNESLineSearchSetSuccess(linesearch,PETSC_FALSE);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
@@ -223,13 +246,13 @@ static PetscErrorCode  SNESLineSearchApply_Armijo(SNESLineSearch linesearch)
   /* Successful termination, update memory */
   armP->lastReference = ref;
   if (armP->replacementPolicy == REPLACE_FIFO) {
-    armP->memory[armP->current++] = *f;
+    armP->memory[armP->current++] = f;
     if (armP->current >= armP->memorySize) {
       armP->current = 0;
     }
   } else {
     armP->current = idx;
-    armP->memory[idx] = *f;
+    armP->memory[idx] = f;
   }
 
 
@@ -241,19 +264,19 @@ static PetscErrorCode  SNESLineSearchApply_Armijo(SNESLineSearch linesearch)
 
 
   if (linesearch->ops->viproject) {
-    ierr = (*linesearch->ops->viproject)(snes, W);CHKERRQ(ierr);
+    ierr = (*linesearch->ops->viproject)(snes, work);CHKERRQ(ierr);
   }
 
   /* postcheck */
-  ierr = SNESLineSearchPostCheck(linesearch,X,Y,W,&changed_y,&changed_w);CHKERRQ(ierr);
+  ierr = SNESLineSearchPostCheck(linesearch,x,s,work,&changed_y,&changed_w);CHKERRQ(ierr);
   if (changed_y) {
-    ierr = VecWAXPY(W,-lambda,Y,X);CHKERRQ(ierr);
+    ierr = VecWAXPY(work,-lambda,s,x);CHKERRQ(ierr);
     if (linesearch->ops->viproject) {
-      ierr = (*linesearch->ops->viproject)(snes, W);CHKERRQ(ierr);
+      ierr = (*linesearch->ops->viproject)(snes, work);CHKERRQ(ierr);
     }
   }
-  if (linesearch->norms || snes->iter < snes->max_its-1) {
-    ierr = (*linesearch->ops->snesfunc)(snes,W,F);CHKERRQ(ierr);
+  if (linesearch->norms || snes->iter < max_it-1) {
+    ierr = (*linesearch->ops->snesfunc)(snes,work,g);CHKERRQ(ierr);
     ierr = SNESGetFunctionDomainError(snes, &domainerror);CHKERRQ(ierr);
     if (domainerror) {
       ierr = SNESLineSearchSetSuccess(linesearch, PETSC_FALSE);CHKERRQ(ierr);
@@ -262,24 +285,24 @@ static PetscErrorCode  SNESLineSearchApply_Armijo(SNESLineSearch linesearch)
   }
 
   if (linesearch->norms) {
-    if (!linesearch->ops->vinorm) VecNormBegin(F, NORM_2, &linesearch->fnorm);
-    ierr = VecNormBegin(Y, NORM_2, &linesearch->ynorm);CHKERRQ(ierr);
-    ierr = VecNormBegin(W, NORM_2, &linesearch->xnorm);CHKERRQ(ierr);
-    if (!linesearch->ops->vinorm) VecNormEnd(F, NORM_2, &linesearch->fnorm);
-    ierr = VecNormEnd(Y, NORM_2, &linesearch->ynorm);CHKERRQ(ierr);
-    ierr = VecNormEnd(W, NORM_2, &linesearch->xnorm);CHKERRQ(ierr);
+    if (!linesearch->ops->vinorm) VecNormBegin(g, NORM_2, &linesearch->fnorm);
+    ierr = VecNormBegin(s, NORM_2, &linesearch->ynorm);CHKERRQ(ierr);
+    ierr = VecNormBegin(work, NORM_2, &linesearch->xnorm);CHKERRQ(ierr);
+    if (!linesearch->ops->vinorm) VecNormEnd(g, NORM_2, &linesearch->fnorm);
+    ierr = VecNormEnd(s, NORM_2, &linesearch->ynorm);CHKERRQ(ierr);
+    ierr = VecNormEnd(work, NORM_2, &linesearch->xnorm);CHKERRQ(ierr);
 
     if (linesearch->ops->vinorm) {
       linesearch->fnorm = gnorm;
 
-      ierr = (*linesearch->ops->vinorm)(snes, F, W, &linesearch->fnorm);CHKERRQ(ierr);
+      ierr = (*linesearch->ops->vinorm)(snes, g, work, &linesearch->fnorm);CHKERRQ(ierr);
     } else {
-      ierr = VecNorm(F,NORM_2,&linesearch->fnorm);CHKERRQ(ierr);
+      ierr = VecNorm(g,NORM_2,&linesearch->fnorm);CHKERRQ(ierr);
     }
   }
 
   /* copy the solution over */
-  ierr = VecCopy(W, X);CHKERRQ(ierr);
+  ierr = VecCopy(work, x);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -310,6 +333,17 @@ PETSC_EXTERN PetscErrorCode SNESLineSearchCreate_Armijo(SNESLineSearch linesearc
 {
   SNESLineSearch_ARMIJO *armP;
   PetscErrorCode        ierr;
+  PetscFunctionBegin;
+
+
+  linesearch->ops->apply          = SNESLineSearchApply_Armijo;
+  linesearch->ops->destroy        = SNESLineSearchDestroy_Armijo;
+  linesearch->ops->setfromoptions = SNESLineSearchSetFromOptions_Armijo;
+  linesearch->ops->reset          = SNESLineSearchReset_Armijo;
+  linesearch->ops->view           = SNESLineSearchView_Armijo;
+  linesearch->ops->setup          = NULL;
+
+  ierr = PetscNewLog(linesearch,&armP);CHKERRQ(ierr);
 
   armP->memory = NULL;
   armP->alpha = 1.0;
@@ -320,13 +354,6 @@ PETSC_EXTERN PetscErrorCode SNESLineSearchCreate_Armijo(SNESLineSearch linesearc
   armP->referencePolicy = REFERENCE_MAX;
   armP->replacementPolicy = REPLACE_MRU;
   armP->nondescending=PETSC_FALSE;
-  PetscFunctionBegin;
-  linesearch->ops->apply          = SNESLineSearchApply_Armijo;
-  linesearch->ops->destroy        = SNESLineSearchDestroy_Armijo;
-  linesearch->ops->setfromoptions = SNESLineSearchSetFromOptions_Armijo;
-  linesearch->ops->reset          = SNESLineSearchReset_Armijo;
-  linesearch->ops->view           = SNESLineSearchView_Armijo;
-  linesearch->ops->setup          = NULL;
 
   PetscFunctionReturn(0);
 }
