@@ -5,8 +5,14 @@
 #include <petsc-private/dmimpl.h>
 #include <petsc-private/vecimpl.h>
 
-/* QUESTIONS:
-   - How do we monitor convergence?  Need a monitor routine.
+/* TODO:
+   - How do we monitor convergence?  Need a monitor routine:
+      . SNESMonitor() calling sequence must change to allow for lambdas (maintain BACKWARD compatibility).
+      . SNESMonitorDefault() has to use those lambdas (maintain BACKWARD compatibility)..
+   - How do we detect convergence
+      . SNESConvergedDefault() needs to use not only the function norm, but also the norm
+        of the Lagrange multipliers AND the merit function (maintain BACKWARD compatibility).
+
    - How do we ensure that in the absence of true constraints (i.e., when all constraints are +/-Inf)
      the algorithm reduces to an efficient approximation of constraint-free SNES (e.g., similar to SNESNEWTONLS).
 */
@@ -40,9 +46,6 @@ static PetscErrorCode SNESNEWTONASComputeDistanceToBoundary(SNES snes,Vec x,Vec 
 
   PetscFunctionBegin;
   /* TODO: implement */
-  /* ||f - l*B||_2^2  */
-  /* N.B.: this function might need to set domain error, when necessary (e.g., when computing f results in a domain error?) */
-  *merit = 0.0;
   PetscFunctionReturn(0);
 }
 
@@ -174,7 +177,7 @@ static PetscErrorCode SNESNEWTONASComputeSearchDirectionPrimal_Private(SNES snes
 PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
 {
   PetscErrorCode     ierr;
-  Vec                X,dX,F,H,L,dL,G,W;
+  Vec                x,dx,f,h,l,dl,g,w;
   SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)snes->data;
   DM                  dm;
   DMSNES              dmsnes;
@@ -215,14 +218,14 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
   */
 
   if (dmsnes->ops->projectontoconstraints) {
-    ierr = (*dmsnes->ops->projectontoconstraints)(snes,X,X,dmsnes->projectontoconstraintsctx);CHKERRQ(ierr);
+    ierr = (*dmsnes->ops->projectontoconstraints)(snes,x,x,dmsnes->projectontoconstraintsctx);CHKERRQ(ierr);
   } /* No 'else' clause since there is really no default way of projecting onto constraints that I know of. */
 
 
   /* FIXME: replace this with an application of the merit function. We might need a flag analogous to snes->vec_func_init_set.  For relative error checking? */
   /* QUESTION: Do we need if(!snes->vec_func_init_set) wrapping the following block? See SNESSolve_NEWTONLS() */
   if (!snes->vec_func_init_set) {
-    ierr = SNESComputeFunction(snes,X,F);CHKERRQ(ierr);
+    ierr = SNESComputeFunction(snes,x,f);CHKERRQ(ierr);
     ierr = SNESGetFunctionDomainError(snes, &domainerror);CHKERRQ(ierr);
     if (domainerror) {
       snes->reason = SNES_DIVERGED_FUNCTION_DOMAIN;
@@ -241,7 +244,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
    */
 
   /* FIXME: use the merit function.  How? */
-  ierr = VecNorm(F,NORM_2,&fnorm);CHKERRQ(ierr);        /* fnorm <- ||F||  */
+  ierr = VecNorm(f,NORM_2,&fnorm);CHKERRQ(ierr);        /* fnorm <- ||f||  */
   if (PetscIsInfOrNanReal(fnorm)) {
     snes->reason = SNES_DIVERGED_FNORM_NAN;
     PetscFunctionReturn(0);
@@ -268,39 +271,43 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
     */
 
     /* Compute the primal and constraint Jacobians to form the reduced linear system below. */
-    ierr = SNESComputeJacobian(snes,X,snes->jacobian,snes->jacobian_pre);CHKERRQ(ierr);
+    ierr = SNESComputeJacobian(snes,x,snes->jacobian,snes->jacobian_pre);CHKERRQ(ierr);
     /*
        FIXME: eventually we want something like SNESComputeConstraintJacobian(),
        which will handle the MF case of the constraint Jacobian, comparison to the
        explicitly-computed operator and debugging.
     */
-    ierr = dmsnes->ops->constraintjacobian(snes,X,snes->jacobian_constr,dmsnes->constraintjacobianctx);CHKERRQ(ierr);
+    ierr = dmsnes->ops->constraintjacobian(snes,x,snes->jacobian_constr,dmsnes->constraintjacobianctx);CHKERRQ(ierr);
 
     /* TODO: compute the initial 'active'. */
     new_active = NULL;
-    ierr = SNESNEWTONASInitialActiveSet_Private(snes,X,L,F,G,&active);CHKERRQ(ierr);
+    ierr = SNESNEWTONASInitialActiveSet_Private(snes,x,l,f,g,&active);CHKERRQ(ierr);
     do {
       PetscReal tbar;
       if (new_active) { /* active set has been updated */
 	    ierr = ISDestroy(&active);CHKERRQ(ierr);
 	    active = new_active; new_active = NULL;
       }
-      if (newtas->type == SNES_NEWTONAS_PRIMAL) {
-	ierr = SNESNEWTONASComputeSearchDirectionPrimal_Private(snes,X,L,F,snes->jacobian,snes->jacobian_pre,snes->jacobian_constr,active,dX,dL);CHKERRQ(ierr);
+      if (newtas->type == SNESNEWTONAS_PRIMAL) {
+	ierr = SNESNEWTONASComputeSearchDirectionPrimal_Private(snes,x,l,f,snes->jacobian,snes->jacobian_pre,snes->jacobian_constr,active,dx,dl);CHKERRQ(ierr);
       }
-      else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"SNESNEWTONAS solver type not yet supported: %s",type);
-      ierr = SNESNEWTONASModifyActiveSet_Private(snes,X,L,F,G,dX,dL,active,&new_active,&tbar);CHKERRQ(ierr);
+      else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"SNESNEWTONAS solver type not yet supported: %s",newtas->type);
+      ierr = SNESNEWTONASModifyActiveSet_Private(snes,x,l,f,g,dx,dl,active,&new_active,&tbar);CHKERRQ(ierr);
     } while (new_active);
 
 
     /* TODO: from here to the end of the subroutine the code needs to be updated to take constraints into account. */
     /* Compute a (scaled) negative update in the line search routine:
-         X <- X - alpha*dX
-       and evaluate F = function(X) (depends on the line search).
+         x <- x - alpha*dx
+       and evaluate f = function(x) (depends on the line search).
     */
     hnorm = fnorm;
-    ierr  = SNESLineSearchApply(linesearch, X, F, &fnorm, dX);CHKERRQ(ierr);
+    /* FIXME: we need to change SNESLineSearch to allow for lambdas in a BACKWARD-compatible way. */
+#if 0
+    ierr  = SNESLineSearchApply(linesearch, x, l,f, &fnorm, dx,dl);CHKERRQ(ierr);
+#endif
     ierr  = SNESLineSearchGetSuccess(linesearch, &lssucceed);CHKERRQ(ierr);
+    /* FIXME: we need to use the merit function, instead or in addition to norms here. */
     ierr  = SNESLineSearchGetNorms(linesearch, &xnorm, &fnorm, &dxnorm);CHKERRQ(ierr);
     ierr  = PetscInfo4(snes,"fnorm=%18.16e, hnorm=%18.16e, dxnorm=%18.16e, lssucceed=%d\n",(double)hnorm,(double)fnorm,(double)dxnorm,(int)lssucceed);CHKERRQ(ierr);
     if (snes->reason == SNES_DIVERGED_FUNCTION_COUNT) break;
@@ -320,7 +327,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
         snes->reason = SNES_DIVERGED_LINE_SEARCH;
         /*
 	   FIXME: replace this with a NEWTONAS-specific check?
-	   ierr         = SNESNEWTONLSCheckLocalMin_Private(snes,snes->jacobian,F,W,fnorm,&ismin);CHKERRQ(ierr);
+	   ierr         = SNESNEWTONLSCheckLocalMin_Private(snes,snes->jacobian,f,w,fnorm,&ismin);CHKERRQ(ierr);
 	*/
         if (ismin) snes->reason = SNES_DIVERGED_LOCAL_MIN;
         break;
@@ -332,8 +339,13 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
     snes->norm = fnorm;
     ierr       = PetscObjectSAWsGrantAccess((PetscObject)snes);CHKERRQ(ierr);
     ierr       = SNESLogConvergenceHistory(snes,snes->norm,lits);CHKERRQ(ierr);
+    /* FIXME: a new monitor routine is needed to take lamba into account in a BACKWARD-compatible way. */
     ierr       = SNESMonitor(snes,snes->iter,snes->norm);CHKERRQ(ierr);
     /* Test for convergence */
+    /*
+      FIXME: we let the user to decide convergence.  Currently it is based on the norms of the solution and the function.
+       We need to include the norm of the Lagrange multipliers and the merit function in a BACKWARD-compatible way.
+    */
     ierr = (*snes->ops->converged)(snes,snes->iter,xnorm,dxnorm,fnorm,&snes->reason,snes->cnvP);CHKERRQ(ierr);
     if (snes->reason) break;
   }
@@ -374,7 +386,7 @@ PetscErrorCode SNESNEWTONASSetType(SNES snes,SNESNEWTONASType type)
 
   PetscFunctionBegin;
   newtas->type = type;
-  snes->ops->solve = SNESSolve_NEWTONAS_Primal;
+  snes->ops->solve = SNESSolve_NEWTONAS;
 
   PetscFunctionReturn(0);
 }
