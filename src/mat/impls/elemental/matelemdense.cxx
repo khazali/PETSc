@@ -1160,4 +1160,3 @@ PETSC_EXTERN PetscErrorCode MatCreate_ElemDense(Mat A)
   ierr = PetscObjectChangeTypeName((PetscObject)A,MATELEMDENSE);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-
