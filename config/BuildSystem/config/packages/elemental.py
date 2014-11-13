@@ -3,11 +3,11 @@ import config.package
 class Configure(config.package.CMakePackage):
   def __init__(self, framework):
     config.package.CMakePackage.__init__(self, framework)
-    self.gitcommit        = '60be4cf1536c2a97bbf8f32903c5dae0d47a2b04'
+    self.gitcommit        = '5dc20f1424206f2a09b001e2585fe5c794e60dbf'
     self.giturls          = ['https://github.com/elemental/Elemental']
-    self.download         = ['http://libelemental.org/pub/releases/Elemental-0.84-p5.tgz']
-    self.liblist          = [['libelemental.a','libpmrrr.a']]
-    self.includes         = ['elemental.hpp']
+    self.download         = ['http://libelemental.org/pub/releases/Elemental-0.85.tgz']
+    self.liblist          = [['libEl.a','libpmrrr.a']]
+    self.includes         = ['El.hpp']
     self.cxx              = 1
     self.requirescxx11    = 1
     self.downloadonWindows= 0
@@ -26,8 +26,8 @@ class Configure(config.package.CMakePackage):
   def formCMakeConfigureArgs(self):
     args = config.package.CMakePackage.formCMakeConfigureArgs(self)
     args.append('-DMATH_LIBS:STRING="'+self.libraries.toString(self.blasLapack.dlib)+'"')
-    args.append('-DUSE_QT5=OFF') # otherwise we would need Qt5 include paths to compile
-
+    # temporary patch
+    args.append('-DINSTALL_PYTHON_PACKAGE=OFF -DBUILD_METIS=OFF -DMANUAL_METIS=OFF -DBUILD_KISSFFT=OFF')
     self.framework.pushLanguage('C')
     args.append('-DMPI_C_COMPILER="'+self.framework.getCompiler()+'"')
     if self.framework.argDB['with-64-bit-indices']:
