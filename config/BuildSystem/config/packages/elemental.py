@@ -31,7 +31,7 @@ class Configure(config.package.CMakePackage):
     self.framework.pushLanguage('C')
     args.append('-DMPI_C_COMPILER="'+self.framework.getCompiler()+'"')
     if self.framework.argDB['with-64-bit-indices']:
-      args.append('-DUSE_64BIT_INTS=ON')
+      args.append('-DEL_USE_64BIT_INTS=ON')
     self.framework.popLanguage()
 
     self.framework.pushLanguage('Cxx')
