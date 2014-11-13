@@ -49,3 +49,24 @@ PetscErrorCode PetscElementalFinalizePackage(void)
   El::Finalize();
   PetscFunctionReturn(0);
 }
+
+#undef __FUNCT__
+#define __FUNCT__ "MatFactorGetSolverPackage_elemental_elemental"
+PetscErrorCode MatFactorGetSolverPackage_elemental_elemental(Mat A,const MatSolverPackage *type)
+{
+  PetscFunctionBegin;
+  *type = MATSOLVERELEMENTAL;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatSolverPackageRegister_Elemental"
+PETSC_EXTERN PetscErrorCode MatSolverPackageRegister_Elemental(void)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = MatSolverPackageRegister(MATSOLVERELEMENTAL,MATELEMDENSE,MAT_FACTOR_LU,MatGetFactor_elemdense_elemdense);CHKERRQ(ierr);
+  ierr = MatSolverPackageRegister(MATSOLVERELEMENTAL,MATELEMDENSE,MAT_FACTOR_CHOLESKY,MatGetFactor_elemdense_elemdense);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}

@@ -228,7 +228,7 @@ PetscErrorCode  MatGetOrdering(Mat mat,MatOrderingType type,IS *rperm,IS *cperm)
   ierr = PetscObjectTypeCompare((PetscObject)mat,MATMPIAIJCUSPARSE,&ismpiaijcusparse);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)mat,MATMPIBAIJ,&ismpibaij);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)mat,MATMPISBAIJ,&ismpisbaij);CHKERRQ(ierr);
-  ierr = PetscObjectTypeCompare((PetscObject)mat,MATELEMENTAL,&iselemental);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject)mat,MATELEMDENSE,&iselemental);CHKERRQ(ierr);
   if (isseqdense || ismpidense || ismpibaij || ismpisbaij || ismpiaijcusp || ismpiaijcusparse || iselemental) {
     ierr = MatGetLocalSize(mat,&m,NULL);CHKERRQ(ierr);
     /*

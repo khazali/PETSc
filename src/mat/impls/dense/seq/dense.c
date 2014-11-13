@@ -1164,7 +1164,7 @@ PetscErrorCode MatDestroy_SeqDense(Mat mat)
   ierr = PetscObjectComposeFunction((PetscObject)mat,"MatDenseRestoreArray_C",NULL);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)mat,"MatConvert_seqdense_seqaij_C",NULL);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_ELEMENTAL)
-  ierr = PetscObjectComposeFunction((PetscObject)mat,"MatConvert_seqdense_elemental_C",NULL);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)mat,"MatConvert_seqdense_elemdense_C",NULL);CHKERRQ(ierr);
 #endif
   ierr = PetscObjectComposeFunction((PetscObject)mat,"MatSeqDenseSetPreallocation_C",NULL);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)mat,"MatMatMult_seqaij_seqdense_C",NULL);CHKERRQ(ierr);
@@ -2217,8 +2217,8 @@ PetscErrorCode  MatSeqDenseSetPreallocation_SeqDense(Mat B,PetscScalar *data)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "MatConvert_SeqDense_Elemental"
-PETSC_EXTERN PetscErrorCode MatConvert_SeqDense_Elemental(Mat A, MatType newtype,MatReuse reuse,Mat *newmat)
+#define __FUNCT__ "MatConvert_SeqDense_ElemDense"
+PETSC_EXTERN PetscErrorCode MatConvert_SeqDense_ElemDense(Mat A, MatType newtype,MatReuse reuse,Mat *newmat)
 {
   Mat            mat_elemental;
   PetscErrorCode ierr;
@@ -2228,7 +2228,7 @@ PETSC_EXTERN PetscErrorCode MatConvert_SeqDense_Elemental(Mat A, MatType newtype
   PetscFunctionBegin;
   ierr = PetscMalloc3(M*N,&v_colwise,M,&rows,N,&cols);CHKERRQ(ierr);
   ierr = MatDenseGetArray(A,&array);CHKERRQ(ierr);
-  /* convert column-wise array into row-wise v_colwise, see MatSetValues_Elemental() */
+  /* convert column-wise array into row-wise v_colwise, see MatSetValues_ElemDense() */
   k = 0;
   for (j=0; j<N; j++) {
     cols[j] = j;
@@ -2243,7 +2243,7 @@ PETSC_EXTERN PetscErrorCode MatConvert_SeqDense_Elemental(Mat A, MatType newtype
 
   ierr = MatCreate(PetscObjectComm((PetscObject)A), &mat_elemental);CHKERRQ(ierr);
   ierr = MatSetSizes(mat_elemental,PETSC_DECIDE,PETSC_DECIDE,M,N);CHKERRQ(ierr);
-  ierr = MatSetType(mat_elemental,MATELEMENTAL);CHKERRQ(ierr);
+  ierr = MatSetType(mat_elemental,MATELEMDENSE);CHKERRQ(ierr);
   ierr = MatSetUp(mat_elemental);CHKERRQ(ierr);
 
   /* PETSc-Elemental interaface uses axpy for setting off-processor entries, only ADD_VALUES is allowed */
@@ -2330,7 +2330,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_SeqDense(Mat B)
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatDenseRestoreArray_C",MatDenseRestoreArray_SeqDense);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatConvert_seqdense_seqaij_C",MatConvert_SeqDense_SeqAIJ);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_ELEMENTAL)
-  ierr = PetscObjectComposeFunction((PetscObject)B,"MatConvert_seqdense_elemental_C",MatConvert_SeqDense_Elemental);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)B,"MatConvert_seqdense_elemdense_C",MatConvert_SeqDense_ElemDense);CHKERRQ(ierr);
 #endif
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatSeqDenseSetPreallocation_C",MatSeqDenseSetPreallocation_SeqDense);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatMatMult_seqaij_seqdense_C",MatMatMult_SeqAIJ_SeqDense);CHKERRQ(ierr);

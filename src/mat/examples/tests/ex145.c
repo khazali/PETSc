@@ -39,7 +39,7 @@ int main(int argc,char **argv)
   ierr = PetscPrintf(PETSC_COMM_WORLD," Create Elemental matrix A\n");CHKERRQ(ierr);
   ierr = MatCreate(PETSC_COMM_WORLD,&A);CHKERRQ(ierr);
   ierr = MatSetSizes(A,m,n,PETSC_DECIDE,PETSC_DECIDE);CHKERRQ(ierr);
-  ierr = MatSetType(A,MATELEMENTAL);CHKERRQ(ierr);
+  ierr = MatSetType(A,MATELEMDENSE);CHKERRQ(ierr);
   ierr = MatSetFromOptions(A);CHKERRQ(ierr);
   ierr = MatSetUp(A);CHKERRQ(ierr);
   /* Set local matrix entries */
@@ -72,7 +72,7 @@ int main(int argc,char **argv)
   ierr = PetscPrintf(PETSC_COMM_WORLD," Create rhs matrix B\n");CHKERRQ(ierr);
   ierr = MatCreate(PETSC_COMM_WORLD,&B);CHKERRQ(ierr);
   ierr = MatSetSizes(B,m,p,PETSC_DECIDE,PETSC_DECIDE);CHKERRQ(ierr);
-  ierr = MatSetType(B,MATELEMENTAL);CHKERRQ(ierr);
+  ierr = MatSetType(B,MATELEMDENSE);CHKERRQ(ierr);
   ierr = MatSetFromOptions(B);CHKERRQ(ierr);
   ierr = MatSetUp(B);CHKERRQ(ierr);
   ierr = MatGetOwnershipIS(B,&isrows,&iscols);CHKERRQ(ierr);
@@ -123,7 +123,7 @@ int main(int argc,char **argv)
   ierr = PetscPrintf(PETSC_COMM_WORLD," Create solution matrix X\n");CHKERRQ(ierr);
   ierr = MatCreate(PETSC_COMM_WORLD,&X);CHKERRQ(ierr);
   ierr = MatSetSizes(X,m,p,PETSC_DECIDE,PETSC_DECIDE);CHKERRQ(ierr);
-  ierr = MatSetType(X,MATELEMENTAL);CHKERRQ(ierr);
+  ierr = MatSetType(X,MATELEMDENSE);CHKERRQ(ierr);
   ierr = MatSetFromOptions(X);CHKERRQ(ierr);
   ierr = MatSetUp(X);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(X,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
@@ -156,7 +156,7 @@ int main(int argc,char **argv)
   /* Create matrix factor G, then copy Aher to G */
   ierr = MatCreate(PETSC_COMM_WORLD,&G);CHKERRQ(ierr);
   ierr = MatSetSizes(G,m,n,PETSC_DECIDE,PETSC_DECIDE);CHKERRQ(ierr);
-  ierr = MatSetType(G,MATELEMENTAL);CHKERRQ(ierr);
+  ierr = MatSetType(G,MATELEMDENSE);CHKERRQ(ierr);
   ierr = MatSetFromOptions(G);CHKERRQ(ierr);
   ierr = MatSetUp(G);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(G,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
@@ -212,7 +212,7 @@ int main(int argc,char **argv)
   /* Create matrix factor F, then copy A to F */
   ierr = MatCreate(PETSC_COMM_WORLD,&F);CHKERRQ(ierr);
   ierr = MatSetSizes(F,m,n,PETSC_DECIDE,PETSC_DECIDE);CHKERRQ(ierr);
-  ierr = MatSetType(F,MATELEMENTAL);CHKERRQ(ierr);
+  ierr = MatSetType(F,MATELEMDENSE);CHKERRQ(ierr);
   ierr = MatSetFromOptions(F);CHKERRQ(ierr);
   ierr = MatSetUp(F);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(F,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);

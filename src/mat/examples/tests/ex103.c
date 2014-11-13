@@ -73,12 +73,12 @@ int main(int argc, char** argv)
   }
 
   if (isDense || isAIJ) {
-    ierr = MatConvert(A, MATELEMENTAL, MAT_INITIAL_MATRIX, &A_elemental);CHKERRQ(ierr);
+    ierr = MatConvert(A, MATELEMDENSE, MAT_INITIAL_MATRIX, &A_elemental);CHKERRQ(ierr);
     //if (!rank) printf("\n Outplace MatConvert, A_elemental:\n");
     //ierr = MatView(A_elemental,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
 
     /* Test MAT_REUSE_MATRIX which is only supported for inplace conversion */
-    ierr = MatConvert(A, MATELEMENTAL, MAT_REUSE_MATRIX, &A);CHKERRQ(ierr);
+    ierr = MatConvert(A, MATELEMDENSE, MAT_REUSE_MATRIX, &A);CHKERRQ(ierr);
     //if (!rank) printf("\n Inplace MatConvert:\n");
     //ierr = MatView(A,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
 

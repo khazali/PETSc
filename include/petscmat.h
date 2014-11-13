@@ -54,7 +54,7 @@ typedef const char* MatType;
 #define MATDENSE           "dense"
 #define MATSEQDENSE        "seqdense"
 #define MATMPIDENSE        "mpidense"
-#define MATELEMENTAL       "elemental"
+#define MATELEMDENSE       "elemdense"
 #define MATBAIJ            "baij"
 #define MATSEQBAIJ         "seqbaij"
 #define MATMPIBAIJ         "mpibaij"

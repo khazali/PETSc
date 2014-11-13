@@ -68,7 +68,7 @@ int main(int argc,char **argv)
   ierr = MatDestroy(&D);CHKERRQ(ierr);
 
   /* Test MatTransposeMatMult() */
-  ierr = PetscObjectTypeCompare((PetscObject)A,MATELEMENTAL,&iselemental);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject)A,MATELEMDENSE,&iselemental);CHKERRQ(ierr);
   if (!iselemental) {
     ierr = MatTransposeMatMult(A,A,MAT_INITIAL_MATRIX,fill,&D);CHKERRQ(ierr); /* D = A^T*A */
     ierr = MatMultEqual(C,D,10,&equal);CHKERRQ(ierr);

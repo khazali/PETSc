@@ -566,7 +566,7 @@ PetscErrorCode MatDestroy_MPIDense(Mat mat)
   ierr = PetscObjectComposeFunction((PetscObject)mat,"MatDenseGetArray_C",NULL);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)mat,"MatDenseRestoreArray_C",NULL);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_ELEMENTAL)
-  ierr = PetscObjectComposeFunction((PetscObject)mat,"MatConvert_mpidense_elemental_C",NULL);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)mat,"MatConvert_mpidense_elemdense_C",NULL);CHKERRQ(ierr);
 #endif
   ierr = PetscObjectComposeFunction((PetscObject)mat,"MatGetDiagonalBlock_C",NULL);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)mat,"MatMPIDenseSetPreallocation_C",NULL);CHKERRQ(ierr);
@@ -1262,8 +1262,8 @@ PetscErrorCode  MatMPIDenseSetPreallocation_MPIDense(Mat mat,PetscScalar *data)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "MatConvert_MPIDense_Elemental"
-PETSC_EXTERN PetscErrorCode MatConvert_MPIDense_Elemental(Mat A, MatType newtype,MatReuse reuse,Mat *newmat)
+#define __FUNCT__ "MatConvert_MPIDense_ElemDense"
+PETSC_EXTERN PetscErrorCode MatConvert_MPIDense_ElemDense(Mat A, MatType newtype,MatReuse reuse,Mat *newmat)
 {
   Mat            mat_elemental;
   PetscErrorCode ierr;
@@ -1273,7 +1273,7 @@ PETSC_EXTERN PetscErrorCode MatConvert_MPIDense_Elemental(Mat A, MatType newtype
   PetscFunctionBegin;
   ierr = PetscMalloc3(m*N,&v_colwise,m,&rows,N,&cols);CHKERRQ(ierr);
   ierr = MatDenseGetArray(A,&array);CHKERRQ(ierr);
-  /* convert column-wise array into row-wise v_colwise, see MatSetValues_Elemental() */
+  /* convert column-wise array into row-wise v_colwise, see MatSetValues_ElemDense() */
   k = 0;
   for (j=0; j<N; j++) {
     cols[j] = j;
@@ -1288,7 +1288,7 @@ PETSC_EXTERN PetscErrorCode MatConvert_MPIDense_Elemental(Mat A, MatType newtype
 
   ierr = MatCreate(PetscObjectComm((PetscObject)A), &mat_elemental);CHKERRQ(ierr);
   ierr = MatSetSizes(mat_elemental,PETSC_DECIDE,PETSC_DECIDE,A->rmap->N,A->cmap->N);CHKERRQ(ierr);
-  ierr = MatSetType(mat_elemental,MATELEMENTAL);CHKERRQ(ierr);
+  ierr = MatSetType(mat_elemental,MATELEMDENSE);CHKERRQ(ierr);
   ierr = MatSetUp(mat_elemental);CHKERRQ(ierr);
   
   /* PETSc-Elemental interaface uses axpy for setting off-processor entries, only ADD_VALUES is allowed */
@@ -1334,7 +1334,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_MPIDense(Mat mat)
   ierr = PetscObjectComposeFunction((PetscObject)mat,"MatDenseGetArray_C",MatDenseGetArray_MPIDense);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)mat,"MatDenseRestoreArray_C",MatDenseRestoreArray_MPIDense);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_ELEMENTAL)
-  ierr = PetscObjectComposeFunction((PetscObject)mat,"MatConvert_mpidense_elemental_C",MatConvert_MPIDense_Elemental);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)mat,"MatConvert_mpidense_elemdense_C",MatConvert_MPIDense_ElemDense);CHKERRQ(ierr);
 #endif
   ierr = PetscObjectComposeFunction((PetscObject)mat,"MatGetDiagonalBlock_C",MatGetDiagonalBlock_MPIDense);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)mat,"MatMPIDenseSetPreallocation_C",MatMPIDenseSetPreallocation_MPIDense);CHKERRQ(ierr);

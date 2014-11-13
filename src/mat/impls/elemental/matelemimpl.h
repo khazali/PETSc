@@ -4,6 +4,9 @@
 #include <El.hpp>
 #include <petsc-private/matimpl.h>
 
+PetscErrorCode MatFactorGetSolverPackage_elemental_elemental(Mat,const MatSolverPackage*);
+PetscErrorCode MatGetFactor_elemdense_elemdense(Mat,MatFactorType,Mat*);
+
 #if defined(PETSC_USE_COMPLEX)
 typedef El::Complex<PetscReal> PetscElemScalar;
 #else
@@ -22,16 +25,16 @@ typedef struct {
   El::Matrix<PetscElemScalar>                  *esubmat; /* Used for adding off-proc matrix entries */
   El::AxpyInterface<PetscElemScalar>           *interface;
   El::DistMatrix<PetscInt,El::VC,El::STAR> *pivot; /* pivot vector representing the pivot matrix P in PA = LU */
-} Mat_Elemental;
+} Mat_ElemDense;
 
 typedef struct {
   El::Grid *grid;
   PetscInt   grid_refct;
-} Mat_Elemental_Grid;
+} Mat_ElemDense_Grid;
 
 PETSC_STATIC_INLINE void P2RO(Mat A,PetscInt rc,PetscInt p,PetscInt *rank,PetscInt *offset)
 {
-  Mat_Elemental *a       = (Mat_Elemental*)A->data;
+  Mat_ElemDense *a       = (Mat_ElemDense*)A->data;
   PetscInt      critical = a->m[rc]*a->mr[rc];
   if (p < critical) {
     *rank   = p / a->m[rc];
@@ -43,7 +46,7 @@ PETSC_STATIC_INLINE void P2RO(Mat A,PetscInt rc,PetscInt p,PetscInt *rank,PetscI
 }
 PETSC_STATIC_INLINE void RO2P(Mat A,PetscInt rc,PetscInt rank,PetscInt offset,PetscInt *p)
 {
-  Mat_Elemental *a = (Mat_Elemental*)A->data;
+  Mat_ElemDense *a = (Mat_ElemDense*)A->data;
   if (rank < a->mr[rc]) {
     *p = rank*a->m[rc] + offset;
   } else {
@@ -53,13 +56,13 @@ PETSC_STATIC_INLINE void RO2P(Mat A,PetscInt rc,PetscInt rank,PetscInt offset,Pe
 
 PETSC_STATIC_INLINE void E2RO(Mat A,PetscInt rc,PetscInt p,PetscInt *rank,PetscInt *offset)
 {
-  Mat_Elemental *a = (Mat_Elemental*)A->data;
+  Mat_ElemDense *a = (Mat_ElemDense*)A->data;
   *rank   = p % a->commsize;
   *offset = p / a->commsize;
 }
 PETSC_STATIC_INLINE void RO2E(Mat A,PetscInt rc,PetscInt rank,PetscInt offset,PetscInt *e)
 {
-  Mat_Elemental *a = (Mat_Elemental*)A->data;
+  Mat_ElemDense *a = (Mat_ElemDense*)A->data;
   *e = offset * a->commsize + rank;
 }
 

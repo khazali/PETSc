@@ -28,7 +28,7 @@ int main(int argc,char **args)
 
   ierr = MatCreate(PETSC_COMM_WORLD,&C);CHKERRQ(ierr);
   ierr = MatSetSizes(C,m,n,PETSC_DECIDE,PETSC_DECIDE);CHKERRQ(ierr);
-  ierr = MatSetType(C,MATELEMENTAL);CHKERRQ(ierr);
+  ierr = MatSetType(C,MATELEMDENSE);CHKERRQ(ierr);
   ierr = MatSetFromOptions(C);CHKERRQ(ierr);
   ierr = MatSetUp(C);CHKERRQ(ierr);
   ierr = MatGetOwnershipIS(C,&isrows,&iscols);CHKERRQ(ierr);
@@ -107,7 +107,7 @@ int main(int argc,char **args)
   /* Test MatAXPY(), MatAYPX() and in-place MatConvert() */
   ierr = MatCreate(PETSC_COMM_WORLD,&B);CHKERRQ(ierr);
   ierr = MatSetSizes(B,m,n,PETSC_DECIDE,PETSC_DECIDE);CHKERRQ(ierr);
-  ierr = MatSetType(B,MATELEMENTAL);CHKERRQ(ierr);
+  ierr = MatSetType(B,MATELEMDENSE);CHKERRQ(ierr);
   ierr = MatSetFromOptions(B);CHKERRQ(ierr);
   ierr = MatSetUp(B);CHKERRQ(ierr);
   ierr = MatGetOwnershipIS(B,&isrows,&iscols);CHKERRQ(ierr);

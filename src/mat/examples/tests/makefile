@@ -1141,15 +1141,15 @@ runex37_6:
 	   else printf "${PWD}\nPossible problem with ex37_6, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex37_1.tmp
 runex38:
-	-@${MPIEXEC} -n 2 ./ex38 -mat_type elemental -m 2 -n 3 > ex38_1.tmp 2>&1;   \
+	-@${MPIEXEC} -n 2 ./ex38 -mat_type elemdense -m 2 -n 3 > ex38_1.tmp 2>&1;   \
 	   ${DIFF} output/ex38_1.out ex38_1.tmp || printf "${PWD}\nPossible problem with ex38_1, diffs above\n=========================================\n"; \
 	   ${RM} -f ex38_1.tmp
 runex38_2:
-	-@${MPIEXEC} -n 6 ./ex38 -mat_type elemental -m 2 -n 2 > ex38_2.tmp 2>&1;   \
+	-@${MPIEXEC} -n 6 ./ex38 -mat_type elemdense -m 2 -n 2 > ex38_2.tmp 2>&1;   \
 	   ${DIFF} output/ex38_2.out ex38_2.tmp || printf "${PWD}\nPossible problem with ex38_2, diffs above\n=========================================\n"; \
 	   ${RM} -f ex38_2.tmp
 runex38_3:
-	-@${MPIEXEC} -n 6 ./ex38 -mat_type elemental -m 2 -n 2 -test_matmatmult > ex38_2.tmp 2>&1;   \
+	-@${MPIEXEC} -n 6 ./ex38 -mat_type elemdense -m 2 -n 2 -test_matmatmult > ex38_2.tmp 2>&1;   \
 	   ${DIFF} output/ex38_2.out ex38_2.tmp || printf "${PWD}\nPossible problem with ex38_3, diffs above\n=========================================\n"; \
 	   ${RM} -f ex38_2.tmp
 runex39:
@@ -1680,7 +1680,7 @@ runex103_1:
 	   else printf "${PWD}\nPossible problem with ex103_1, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex103.tmp
 runex103_2:
-	-@${MPIEXEC} -n 6 ./ex103 -mat_type elemental > ex103.tmp 2>&1; \
+	-@${MPIEXEC} -n 6 ./ex103 -mat_type elemdense > ex103.tmp 2>&1; \
 	   if (${DIFF} output/ex103.out ex103.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex103_2, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex103.tmp
@@ -1691,12 +1691,12 @@ runex104:
 	   else printf "${PWD}\nPossible problem with ex104, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex104.tmp
 runex104_elemental:
-	-@${MPIEXEC} -n 1 ./ex104 -mat_type elemental > ex104.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex104 -mat_type elemdense > ex104.tmp 2>&1; \
 	   if (${DIFF} output/ex104.out ex104.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex104_elemental, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex104.tmp
 runex104_elemental_2:
-	-@${MPIEXEC} -n 3 ./ex104 -mat_type elemental > ex104.tmp 2>&1; \
+	-@${MPIEXEC} -n 3 ./ex104 -mat_type elemdense > ex104.tmp 2>&1; \
 	   if (${DIFF} output/ex104.out ex104.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex104_elemental_2, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex104.tmp
