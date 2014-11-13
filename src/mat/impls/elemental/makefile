@@ -3,7 +3,7 @@
 ALL: lib
 
 FFLAGS   =
-SOURCECXX= matelem.cxx
+SOURCECXX= matelemcommon.cxx matelem.cxx
 SOURCEF  =
 SOURCEH  = matelemimpl.h
 LIBBASE  = libpetscmat
