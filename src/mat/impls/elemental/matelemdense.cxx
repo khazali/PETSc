@@ -1,4 +1,4 @@
-#include <../src/mat/impls/elemental/matelemimpl.h> /*I "petscmat.h" I*/
+#include <../src/mat/impls/elemental/matelemdenseimpl.h> /*I "petscmat.h" I*/
 
 /*
     The variable Petsc_Elemental_keyval is used to indicate an MPI attribute that
