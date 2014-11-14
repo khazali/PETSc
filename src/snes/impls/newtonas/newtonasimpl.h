@@ -11,6 +11,7 @@
 typedef struct {
   SNESNEWTONASType type;
   Vec              *lambda;    /* lambda and dlambda */
+  Vec              workg;      /* constraints work vector */
 #if 0
   /* These _might_ be needed in SNESNEWTONASLinearUpdate_Private() */
   Vec              tdlambda;    /* \tilde \delta \lambda; this vec's size is changing depending on the active set */
@@ -18,6 +19,12 @@ typedef struct {
 #endif
   Mat              Bb_pre;      /* preconditioning matrix for the basis of the active constraints (as columns) */
   Mat              Bbt_pre;     /* preconditioning matrix for the basis of the active constraints (as rows Bbt = Bb^T) */
+  Vec              ls_x;
+  Vec              ls_f;
+  Vec              ls_step;
+  VecScatter       scat_ls_to_x;
+  VecScatter       scat_ls_to_lambda;
+
 } SNES_NEWTONAS;
 
 #endif
