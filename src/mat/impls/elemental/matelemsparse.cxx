@@ -1,5 +1,4 @@
 #include <../src/mat/impls/elemental/matelemsparseimpl.h> /*I "petscmat.h" I*/
-
 /*
  Provides an interface to Elemental sparse solver
  This code has been copied and modified from the previous interface to Clique
@@ -14,41 +13,52 @@
             MAT_REUSE_MATRIX is only supported for inplace conversion, otherwise use MAT_INITIAL_MATRIX.
 
   output:
-.   cliq - ElemSparse context
+.   matelem - ElemSparse context
 */
 #undef __FUNCT__
 #define __FUNCT__ "MatConvertToElemSparse"
-PetscErrorCode MatConvertToElemSparse(Mat A,MatReuse reuse,Mat_ElemSparse *cliq)
+PetscErrorCode MatConvertToElemSparse(Mat A,MatReuse reuse,Mat_ElemSparse *matelem)
 {
   PetscErrorCode                        ierr;
-  PetscInt                              i,j,rstart,rend,ncols;
-  const PetscInt                        *cols;
-  const PetscElemScalar                 *vals;
+  PetscInt                              i,rstart,rend,ncols;
+  MatInfo                               info;
   El::DistSparseMatrix<PetscElemScalar> *cmat;
 
   PetscFunctionBegin;
   if (reuse == MAT_INITIAL_MATRIX){
     /* create ElemSparse matrix */
-    cmat = new El::DistSparseMatrix<PetscElemScalar>(A->rmap->N,cliq->cliq_comm);
-    cliq->cmat = cmat;
+    cmat = new El::DistSparseMatrix<PetscElemScalar>(A->rmap->N,matelem->cliq_comm);
+    matelem->cmat = cmat;
   } else {
-    cmat = cliq->cmat;
+    cmat = matelem->cmat;
   }
+
   /* fill matrix values */
   ierr = MatGetOwnershipRange(A,&rstart,&rend);CHKERRQ(ierr);
   const int firstLocalRow = cmat->FirstLocalRow();
   const int localHeight = cmat->LocalHeight();
-  if (rstart != firstLocalRow || rend-rstart != localHeight) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"matrix rowblock distribution does not match");
+  if (rstart != firstLocalRow || rend-rstart != localHeight) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_WRONG,"matrix rowblock distribution does not match");
 
-  //cmat->Reserve( 7*localHeight ); ??? TODO PREALLOCATION IS MISSING
-  for (i=rstart; i<rend; i++){
-    ierr = MatGetRow(A,i,&ncols,&cols,&vals);CHKERRQ(ierr);
+  /* elemental preallocation */
+  if (reuse == MAT_INITIAL_MATRIX) {
+    ierr = MatGetInfo(A,MAT_LOCAL,&info);CHKERRQ(ierr);
+    cmat->Reserve((PetscInt)info.nz_used);CHKERRQ(ierr);
+  }
+
+  /* insert values */
+  for (i=0; i<rend-rstart; i++){
+    PetscInt              j;
+    const PetscInt        *cols;
+    const PetscElemScalar *vals;
+    ierr = MatGetRow(A,i+rstart,&ncols,&cols,&vals);CHKERRQ(ierr);
     for (j=0; j<ncols; j++){
       cmat->QueueLocalUpdate(i,cols[j],vals[j]);
     }
-    ierr = MatRestoreRow(A,i,&ncols,&cols,&vals);CHKERRQ(ierr);
+    ierr = MatRestoreRow(A,i+rstart,&ncols,&cols,&vals);CHKERRQ(ierr);
   }
+  /* elemental assembly */
   cmat->MakeConsistent();
+
   PetscFunctionReturn(0);
 }
 
@@ -233,23 +243,9 @@ PetscErrorCode MatCholeskyFactorSymbolic_ElemSparse(Mat F,Mat A,IS r,const MatFa
   PetscFunctionReturn(0);
 }
 
-/*MC
-     MATSOLVERCLIQUE  - A solver package providing direct solvers for distributed
-  and sequential matrices via the external package Elemental.
-
-  Options Database Keys:
-+ -mat_clique_    -
-- -mat_clique_ <integer> -
-
-  Level: beginner
-
-.seealso: PCFactorSetMatSolverPackage(), MatSolverPackage
-
-M*/
-
 #undef __FUNCT__
-#define __FUNCT__ "MatGetFactor_aij_clique"
-PETSC_EXTERN PetscErrorCode MatGetFactor_aij_clique(Mat A,MatFactorType ftype,Mat *F)
+#define __FUNCT__ "MatGetFactor_aij_elemsparse"
+PETSC_EXTERN PetscErrorCode MatGetFactor_aij_elemsparse(Mat A,MatFactorType ftype,Mat *F)
 {
   Mat            B;
   Mat_ElemSparse     *cliq;
@@ -264,7 +260,7 @@ PETSC_EXTERN PetscErrorCode MatGetFactor_aij_clique(Mat A,MatFactorType ftype,Ma
   if (ftype == MAT_FACTOR_CHOLESKY){
     B->ops->choleskyfactorsymbolic = MatCholeskyFactorSymbolic_ElemSparse;
     B->ops->choleskyfactornumeric  = MatCholeskyFactorNumeric_ElemSparse;
-  } else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Factor type not supported");
+  } else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Factor type LU not supported");
 
   ierr = PetscNewLog(B,&cliq);CHKERRQ(ierr);
   B->spptr            = (void*)cliq;
@@ -296,13 +292,175 @@ PETSC_EXTERN PetscErrorCode MatGetFactor_aij_clique(Mat A,MatFactorType ftype,Ma
   PetscFunctionReturn(0);
 }
 
+/* -------------------------------------------------------------------*/
+static struct _MatOps MatOps_Values = {
+       0, //MatSetValues_ElemDense,
+       0,
+       0,
+       MatMult_ElemSparse,
+/* 4*/ 0, //MatMultAdd_ElemDense,
+       0, //MatMultTranspose_ElemDense,
+       0, //MatMultTransposeAdd_ElemDense,
+       MatSolve_ElemSparse,
+       0, //MatSolveAdd_ElemDense,
+       0, //MatSolveTranspose_ElemDense,
+/*10*/ 0, //MatSolveTransposeAdd_ElemDense,
+       0, //MatLUFactor_ElemDense,
+       0, //MatCholeskyFactor_ElemDense,
+       0,
+       0, //MatTranspose_ElemDense,
+/*15*/ 0, //MatGetInfo_ElemDense,
+       0,
+       0, //MatGetDiagonal_ElemDense,
+       0, //MatDiagonalScale_ElemDense,
+       0, //MatNorm_ElemDense,
+/*20*/ 0, //MatAssemblyBegin_ElemDense,
+       0, //MatAssemblyEnd_ElemDense,
+       0, //MatSetOption_ElemDense,
+       0, //MatZeroEntries_ElemDense,
+/*24*/ 0,
+       0, //MatLUFactorSymbolic_ElemDense,
+       0, //MatLUFactorNumeric_ElemDense,
+       MatCholeskyFactorSymbolic_ElemSparse,
+       MatCholeskyFactorNumeric_ElemSparse,
+/*29*/ 0, //MatSetUp_ElemDense,
+       0,
+       0,
+       0,
+       0,
+/*34*/ 0, //MatDuplicate_ElemDense,
+       0,
+       0,
+       0,
+       0,
+/*39*/ 0, //MatAXPY_ElemDense,
+       0,
+       0,
+       0,
+       0, //MatCopy_ElemDense,
+/*44*/ 0,
+       0, //MatScale_ElemDense,
+       0,
+       0,
+       0,
+/*49*/ 0,
+       0,
+       0,
+       0,
+       0,
+/*54*/ 0,
+       0,
+       0,
+       0,
+       0,
+/*59*/ 0,
+       MatDestroy_ElemSparse,
+       MatView_ElemSparse,
+       0,
+       0,
+/*64*/ 0,
+       0,
+       0,
+       0,
+       0,
+/*69*/ 0,
+       0,
+       0, //MatConvert_ElemDense_Dense,
+       0,
+       0,
+/*74*/ 0,
+       0,
+       0,
+       0,
+       0,
+/*79*/ 0,
+       0,
+       0,
+       0,
+       0,
+/*84*/ 0,
+       0,
+       0,
+       0,
+       0,
+/*89*/ 0, //MatMatMult_ElemDense,
+       0, //MatMatMultSymbolic_ElemDense,
+       0, //MatMatMultNumeric_ElemDense,
+       0,
+       0,
+/*94*/ 0,
+       0, //MatMatTransposeMult_ElemDense,
+       0, //MatMatTransposeMultSymbolic_ElemDense,
+       0, //MatMatTransposeMultNumeric_ElemDense,
+       0,
+/*99*/ 0,
+       0,
+       0,
+       0, //MatConjugate_ElemDense,
+       0,
+/*104*/0,
+       0,
+       0,
+       0,
+       0,
+/*109*/0, //MatMatSolve_ElemDense,
+       0,
+       0,
+       0,
+       0,
+/*114*/0,
+       0,
+       0,
+       0,
+       0,
+/*119*/0,
+       0, //MatHermitianTranspose_ElemDense,
+       0,
+       0,
+       0,
+/*124*/0,
+       0,
+       0,
+       0,
+       0,
+/*129*/0,
+       0,
+       0,
+       0,
+       0,
+/*134*/0,
+       0,
+       0,
+       0,
+       0
+};
+
+/*MC
+   MATELEMSPARSE = "elemsparse" - A matrix type for sparse matrices using the Elemental package
+
+   Options Database Keys:
++ -mat_type elemsparse - sets the matrix type to "elemsparse" during a call to MatSetFromOptions()
+
+  Level: beginner
+
+.seealso:
+M*/
+
 #undef __FUNCT__
-#define __FUNCT__ "MatSolverPackageRegister_ElemSparse"
-PETSC_EXTERN PetscErrorCode MatSolverPackageRegister_ElemSparse(void)
+#define __FUNCT__ "MatCreate_ElemSparse"
+PETSC_EXTERN PetscErrorCode MatCreate_ElemSparse(Mat A)
 {
-  PetscErrorCode ierr;
+  Mat_ElemSparse      *a;
+  PetscErrorCode     ierr;
 
   PetscFunctionBegin;
-  ierr = MatSolverPackageRegister(MATSOLVERCLIQUE,MATMPIAIJ,        MAT_FACTOR_LU,MatGetFactor_aij_clique);CHKERRQ(ierr);
+  ierr = PetscElementalInitializePackage();CHKERRQ(ierr);
+  ierr = PetscMemcpy(A->ops,&MatOps_Values,sizeof(struct _MatOps));CHKERRQ(ierr);
+  ierr = PetscNewLog(A,&a);CHKERRQ(ierr);
+  A->data = (void*)a;
+  /* Set up the elemental matrix */
+  El::mpi::Comm cxxcomm(PetscObjectComm((PetscObject)A));
+  a->cmat = new El::DistSparseMatrix<PetscElemScalar>(A->rmap->N,cxxcomm);
+  ierr = PetscObjectChangeTypeName((PetscObject)A,MATELEMSPARSE);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

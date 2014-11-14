@@ -56,6 +56,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_MPIAIJViennaCL(Mat);
 PETSC_EXTERN PetscErrorCode MatCreate_FFTW(Mat);
 #endif
 PETSC_EXTERN PetscErrorCode MatCreate_ElemDense(Mat);
+PETSC_EXTERN PetscErrorCode MatCreate_ElemSparse(Mat);
 
 /*
     This is used by MatSetType() to make sure that at least one
@@ -156,6 +157,7 @@ PetscErrorCode  MatRegisterAll(void)
 #endif
 #if defined PETSC_HAVE_ELEMENTAL
   ierr = MatRegister(MATELEMDENSE,      MatCreate_ElemDense);CHKERRQ(ierr);
+  ierr = MatRegister(MATELEMSPARSE,     MatCreate_ElemSparse);CHKERRQ(ierr);
 #endif
   PetscFunctionReturn(0);
 }

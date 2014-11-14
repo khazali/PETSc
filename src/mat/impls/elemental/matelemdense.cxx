@@ -666,7 +666,7 @@ static PetscErrorCode MatCholeskyFactorSymbolic_ElemDense(Mat F,Mat A,IS perm,co
 
 #undef __FUNCT__
 #define __FUNCT__ "MatGetFactor_elemdense_elemdense"
-PetscErrorCode MatGetFactor_elemdense_elemdense(Mat A,MatFactorType ftype,Mat *F)
+PETSC_EXTERN PetscErrorCode MatGetFactor_elemdense_elemdense(Mat A,MatFactorType ftype,Mat *F)
 {
   Mat            B;
   PetscErrorCode ierr;
