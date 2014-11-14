@@ -2893,18 +2893,20 @@ PetscErrorCode  SNESSetUp(SNES snes)
 
   /* Constraints-related linear structures. */
   /* FIXME: need a constraint DM to query for a global constraint vector, when it hasn't been set */
-  if (!snes->vec_constr) SETERRQ(PetscObjectComm((PetscObject)snes),PETSC_ERR_ARG_WRONGSTATE, "No constraint Vec: call SNESSetConstraintFunction() first.");
-  if (!snes->vec_constrl) {
-    ierr = VecDuplicate(snes->vec_constr,&snes->vec_constrl);CHKERRQ(ierr);
+  if (!snes->vec_constr) {
+    //SETERRQ(PetscObjectComm((PetscObject)snes),PETSC_ERR_ARG_WRONGSTATE, "No constraint Vec: call SNESSetConstraintFunction() first.");
+  } else {
+    if (!snes->vec_constrl) {
+      ierr = VecDuplicate(snes->vec_constr,&snes->vec_constrl);CHKERRQ(ierr);
+    }
+    if (!snes->vec_constru) {
+      ierr = VecDuplicate(snes->vec_constr,&snes->vec_constru);CHKERRQ(ierr);
+    }
+    if (!snes->vec_constrd) {
+      ierr = VecDuplicate(snes->vec_constr,&snes->vec_constrd);CHKERRQ(ierr);
+    }
+    if (!snes->jacobian_constr) SETERRQ(PetscObjectComm((PetscObject)snes),PETSC_ERR_ARG_WRONGSTATE, "No constraint Jacobian: call SNESSetConstraintJacobian() first.");
   }
-  if (!snes->vec_constru) {
-    ierr = VecDuplicate(snes->vec_constr,&snes->vec_constru);CHKERRQ(ierr);
-  }
-  if (!snes->vec_constrd) {
-    ierr = VecDuplicate(snes->vec_constr,&snes->vec_constrd);CHKERRQ(ierr);
-  }
-  if (!snes->jacobian_constr) SETERRQ(PetscObjectComm((PetscObject)snes),PETSC_ERR_ARG_WRONGSTATE, "No constraint Jacobian: call SNESSetConstraintJacobian() first.");
-
   /*
      FIXME: for problems with constraints (VI), there may be two or more DMs -- primal, constraints, composite of the two.
      The proper DM for the linear solve may depend on the method (primal, dual, or saddle active set, semismooth or interior point).

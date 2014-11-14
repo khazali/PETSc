@@ -80,6 +80,90 @@ static PetscErrorCode SNESNEWTONASComputeMeritFunctionDefault(SNES snes,Vec x,Ve
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "SNESNEWTONASScatter"
+/*
+   SNESNEWTONASScatter - Takes the solution from the line search and separates
+                   it into the solution and lagrange multiplier componenents
+*/
+static PetscErrorCode SNESNEWTONASScatter(SNES snes, Vec LS_X, Vec X, Vec Lambda)
+{
+  SNES_NEWTONAS     *newtas  = (SNES_NEWTONAS*)snes->data;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBegin;
+  ierr = VecScatterBegin(newtas->scat_ls_to_x,LS_X,X,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = VecScatterBegin(newtas->scat_ls_to_lambda,LS_X,Lambda,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = VecScatterEnd(newtas->scat_ls_to_x,LS_X,X,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = VecScatterEnd(newtas->scat_ls_to_lambda,LS_X,Lambda,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESNEWTONASGather"
+/*
+   SNESNEWTONASGather - Combines the solution vector and lagrange multipliers
+                    into one vector for the line search
+*/
+static PetscErrorCode SNESNEWTONASGather(SNES snes, Vec LS_X, Vec X, Vec Lambda)
+{
+  SNES_NEWTONAS     *newtas  = (SNES_NEWTONAS*)snes->data;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBegin;
+  ierr = VecScatterBegin(newtas->scat_ls_to_x,X,LS_X,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterBegin(newtas->scat_ls_to_lambda,Lambda,LS_X,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterEnd(newtas->scat_ls_to_x,X,LS_X,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterEnd(newtas->scat_ls_to_lambda,Lambda,LS_X,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESNEWTONASMeritFunction"
+static PetscErrorCode SNESNEWTONASMeritFunction(SNES snes, Vec X, Vec F)
+{
+  SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)snes->data;
+  Vec                workx = snes->work[0];
+  Vec                workf = snes->work[1];
+  Vec                workg = newtas->lambda[2];
+  Vec                workl = newtas->lambda[3];
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  /* scatter X to x,lambda */
+  ierr = SNESNEWTONASScatter(snes,X,workx,workl);CHKERRQ(ierr);
+
+  /* Compute merit function */
+  ierr = SNESComputeFunction(snes,workx,workf);CHKERRQ(ierr);
+
+  /* ... */
+
+  ierr = SNESNEWTONASGather(snes,F,workf,workg);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESNEWTONASMeritObjective"
+static PetscErrorCode SNESNEWTONASMeritObjective(SNES snes, Vec X, PetscReal *f)
+{
+  SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)snes->data;
+  Vec                workx = snes->work[0];
+  Vec                workl = newtas->lambda[2];
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  /* scatter X to x,lambda */
+  ierr = SNESNEWTONASScatter(snes,X,workx,workl);CHKERRQ(ierr);
+
+  /* Compute merit function */
+  ierr = SNESComputeObjective(snes,workx,f);CHKERRQ(ierr);
+
+  /* ... */
+  /* *f += xxx */
+
+  PetscFunctionReturn(0);
+}
 
 
 #undef __FUNCT__
@@ -184,6 +268,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
   PetscReal           fnorm,hnorm,xnorm,dxnorm;
   KSPConvergedReason  kspreason;
   PetscBool           domainerror;
+  PetscReal           gnorm;
   SNESLineSearch      linesearch;
   SNESConvergedReason reason;
   IS                  active,new_active;
@@ -300,10 +385,11 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
        and evaluate f = function(x) (depends on the line search).
     */
     hnorm = fnorm;
-    /* FIXME: we need to change SNESLineSearch to allow for lambdas in a BACKWARD-compatible way. */
-#if 0
-    ierr  = SNESLineSearchApply(linesearch, x, l,f, &fnorm, dx,dl);CHKERRQ(ierr);
-#endif
+
+    ierr = SNESNEWTONASGather(snes,newtas->ls_x,x,l);CHKERRQ(ierr);
+    ierr  = SNESLineSearchApply(linesearch, newtas->ls_x, newtas->ls_f, &gnorm, newtas->ls_step);CHKERRQ(ierr);
+    ierr = SNESNEWTONASScatter(snes,newtas->ls_f,x,l);CHKERRQ(ierr);
+
     ierr  = SNESLineSearchGetSuccess(linesearch, &lssucceed);CHKERRQ(ierr);
     /* FIXME: we need to use the merit function, instead or in addition to norms here. */
     ierr  = SNESLineSearchGetNorms(linesearch, &xnorm, &fnorm, &dxnorm);CHKERRQ(ierr);
@@ -452,6 +538,8 @@ PETSC_INTERN PetscErrorCode SNESSetFromOptions_NEWTONAS(SNES snes)
 PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
 {
   PetscErrorCode    ierr;
+  PetscInt          xlo,xhi,llo,lhi;
+  IS                is_x,is_l,is_full_x,is_full_l;
   SNES_NEWTONAS *newtas = (SNES_NEWTONAS*) snes->data;
 
   PetscFunctionBegin;
@@ -459,7 +547,7 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
     ierr = SNESNEWTONASSetType(snes,SNESNEWTONAS_PRIMAL);CHKERRQ(ierr);
   }
   if (newtas->lambda) {
-    ierr = VecDestroyVecs(2,&newtas->lambda);CHKERRQ(ierr);
+    ierr = VecDestroyVecs(4,&newtas->lambda);CHKERRQ(ierr);
   }
   /*
      QUESTION: Do we need to go through the public API to set private data structures?
@@ -467,11 +555,34 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
      they have to go into the SNES data structures to make use of the work vecs?
      A related question: why not let the impl allocated and clean up its own work vecs?
   */
-  ierr = SNESSetWorkVecs(snes,3);CHKERRQ(ierr);
+  ierr = SNESSetWorkVecs(snes,4);CHKERRQ(ierr);
   if (!newtas->lambda) {
     ierr = PetscMalloc(2*sizeof(Vec),&newtas->lambda);CHKERRQ(ierr);
   }
-  ierr = VecDuplicateVecs(snes->vec_constr,2,&newtas->lambda);CHKERRQ(ierr);
+  ierr = VecDuplicateVecs(snes->vec_constr,4,&newtas->lambda);CHKERRQ(ierr);
+
+  ierr = VecCreate(((PetscObject)snes)->comm,&newtas->ls_x);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRange(snes->vec_sol,&xlo,&xhi);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRange(newtas->lambda[0],&llo,&lhi);CHKERRQ(ierr);
+
+  ierr = VecSetSizes(newtas->ls_x,lhi-llo + xhi-xlo, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = VecSetType(newtas->ls_x,((PetscObject)(snes->vec_sol))->type_name);CHKERRQ(ierr);
+  ierr = VecSetFromOptions(newtas->ls_x);CHKERRQ(ierr);
+  ierr = VecDuplicate(newtas->ls_x,&newtas->ls_step);CHKERRQ(ierr);
+  ierr = VecDuplicate(newtas->ls_x,&newtas->ls_f);CHKERRQ(ierr);
+
+  ierr = ISCreateStride(PETSC_COMM_SELF,xhi-xlo,xlo,1,&is_x);CHKERRQ(ierr);
+  ierr = ISCreateStride(PETSC_COMM_SELF,xhi-xlo,xlo+llo,1,&is_full_x);CHKERRQ(ierr);
+  ierr = ISCreateStride(PETSC_COMM_SELF,lhi-llo,llo,1,&is_l);CHKERRQ(ierr);
+  ierr = ISCreateStride(PETSC_COMM_SELF,lhi-llo,xhi+llo,1,&is_full_l);CHKERRQ(ierr);
+
+  ierr = VecScatterCreate(newtas->ls_x,is_full_x,snes->vec_sol,is_x,&newtas->scat_ls_to_x);CHKERRQ(ierr);
+  ierr = VecScatterCreate(newtas->ls_x,is_full_l,newtas->lambda,is_l,&newtas->scat_ls_to_lambda);CHKERRQ(ierr);
+  ierr = ISDestroy(&is_x);CHKERRQ(ierr);
+  ierr = ISDestroy(&is_l);CHKERRQ(ierr);
+  ierr = ISDestroy(&is_full_x);CHKERRQ(ierr);
+  ierr = ISDestroy(&is_full_l);CHKERRQ(ierr);
+
   PetscFunctionReturn(0);
 }
 
