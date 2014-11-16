@@ -262,6 +262,7 @@ PETSC_EXTERN PetscErrorCode MatGetFactor_aij_elemsparse(Mat A,MatFactorType ftyp
     B->ops->choleskyfactornumeric  = MatCholeskyFactorNumeric_ElemSparse;
   } else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Factor type LU not supported");
 
+  ierr = PetscElementalInitializePackage();
   ierr = PetscNewLog(B,&cliq);CHKERRQ(ierr);
   B->spptr            = (void*)cliq;
   El::mpi::Comm cxxcomm(PetscObjectComm((PetscObject)A));

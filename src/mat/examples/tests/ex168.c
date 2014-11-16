@@ -1,5 +1,5 @@
 
-static char help[] = "Tests external Clique direct solvers. Simplified from ex130.c\n\
+static char help[] = "Tests external Elemental direct solvers. Simplified from ex130.c\n\
 Example: mpiexec -n <np> ./ex168 -f <matrix binary file> \n\n";
 
 #include <petscmat.h>
@@ -32,45 +32,29 @@ int main(int argc,char **args)
   ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,file,FILE_MODE_READ,&fd);CHKERRQ(ierr);
   ierr = MatCreate(PETSC_COMM_WORLD,&A);CHKERRQ(ierr);
   ierr = MatLoad(A,fd);CHKERRQ(ierr);
-  ierr = VecCreate(PETSC_COMM_WORLD,&b);CHKERRQ(ierr);
-  ierr = VecLoad(b,fd);CHKERRQ(ierr);
   ierr = PetscViewerDestroy(&fd);CHKERRQ(ierr);
   ierr = MatGetLocalSize(A,&m,&n);CHKERRQ(ierr);
   if (m != n) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ, "This example is not intended for rectangular matrices (%d, %d)", m, n);
   ierr = MatNorm(A,NORM_INFINITY,&Anorm);CHKERRQ(ierr);
 
-  /* Create vectors */
-  ierr = VecDuplicate(b,&x);CHKERRQ(ierr);
+  /* Create random rhs */
+  ierr = MatGetVecs(A,&b,&x);CHKERRQ(ierr);
+  ierr = VecSetRandom(b,NULL);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&u);CHKERRQ(ierr); /* save the true solution */
 
   /* Test Cholesky Factorization */
   ierr = MatGetOrdering(A,MATORDERINGNATURAL,&perm,&iperm);CHKERRQ(ierr);
-
-  if (!rank) printf(" Clique Cholesky:\n");
-  ierr = MatGetFactor(A,MATSOLVERCLIQUE,MAT_FACTOR_CHOLESKY,&F);CHKERRQ(ierr);
+  ierr = MatGetFactor(A,MATSOLVERELEMENTAL,MAT_FACTOR_CHOLESKY,&F);CHKERRQ(ierr);
 
   info.fill = 5.0;
-  ierr      = MatCholeskyFactorSymbolic(F,A,perm,&info);CHKERRQ(ierr);
-
-  for (nfact = 0; nfact < 1; nfact++) {
-    if (!rank) printf(" %d-the Cholesky numfactorization \n",nfact);
-    ierr = MatCholeskyFactorNumeric(F,A,&info);CHKERRQ(ierr);
-
-    /* Test MatSolve() */
-    if (testMatSolve && nfact == 2) {
-      ierr = MatSolve(F,b,x);CHKERRQ(ierr);
-
-      /* Check the residual */
-      ierr = MatMult(A,x,u);CHKERRQ(ierr);
-      ierr = VecAXPY(u,-1.0,b);CHKERRQ(ierr);
-      ierr = VecNorm(u,NORM_INFINITY,&norm);CHKERRQ(ierr);
-      /* if (norm > tol) { */
-      if (!rank) {
-        ierr = PetscPrintf(PETSC_COMM_SELF,"MatSolve: rel residual %g/%g = %g, LU numfact %d\n",norm,Anorm,norm/Anorm,nfact);CHKERRQ(ierr);
-      }
-      /*} */
-    }
-  }
+  ierr = MatCholeskyFactorSymbolic(F,A,perm,&info);CHKERRQ(ierr);
+  ierr = MatCholeskyFactorNumeric(F,A,&info);CHKERRQ(ierr);
+  ierr = MatSolve(F,b,x);CHKERRQ(ierr);
+  /* Check the residual */
+  ierr = MatMult(A,x,u);CHKERRQ(ierr);
+  ierr = VecAXPY(u,-1.0,b);CHKERRQ(ierr);
+  ierr = VecNorm(u,NORM_INFINITY,&norm);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"MatSolve: rel residual %g/%g = %g\n",norm,Anorm,norm/Anorm);CHKERRQ(ierr);
 
   /* Free data structures */
   ierr = MatDestroy(&A);CHKERRQ(ierr);
