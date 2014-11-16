@@ -37,8 +37,9 @@ PetscErrorCode MatConvertToElemSparse(Mat A,MatReuse reuse,Mat_ElemSparse *matel
   ierr = MatGetOwnershipRange(A,&rstart,&rend);CHKERRQ(ierr);
   const int firstLocalRow = cmat->FirstLocalRow();
   const int localHeight = cmat->LocalHeight();
-  if (rstart != firstLocalRow || rend-rstart != localHeight) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_WRONG,"matrix rowblock distribution does not match");
-
+  if (rstart != firstLocalRow || rend-rstart != localHeight) {
+    SETERRQ4(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_WRONG,"matrix rowblock distribution does not match! [%D,%D] != [%D,%D]",rstart,rend,firstLocalRow,firstLocalRow+localHeight);
+  }
   /* elemental preallocation */
   if (reuse == MAT_INITIAL_MATRIX) {
     ierr = MatGetInfo(A,MAT_LOCAL,&info);CHKERRQ(ierr);
