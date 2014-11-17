@@ -1,4 +1,88 @@
 #include <../src/mat/impls/elemental/matelemsparseimpl.h> /*I "petscmat.h" I*/
+
+#undef __FUNCT__
+#define __FUNCT__ "MatAssemblyBegin_ElemSparse"
+static PetscErrorCode MatAssemblyBegin_ElemSparse(Mat A,MatAssemblyType type)
+{
+  Mat_ElemSparse *a = (Mat_ElemSparse*)A->data;
+
+  PetscFunctionBegin;
+  a->cmat->MakeConsistent();
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatAssemblyEnd_ElemSparse"
+static PetscErrorCode MatAssemblyEnd_ElemSparse(Mat A,MatAssemblyType type)
+{
+  PetscFunctionBegin;
+  /* Nothing to be done */
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatSetValuesLocal_ElemSparse"
+static PetscErrorCode MatSetValuesLocal_ElemSparse(Mat A,PetscInt nr,const PetscInt *rows,PetscInt nc,const PetscInt *cols,const PetscScalar *vals,InsertMode imode)
+{
+  Mat_ElemSparse *a = (Mat_ElemSparse*)A->data;
+  PetscInt       i,j;
+
+  PetscFunctionBegin;
+  if (imode == INSERT_VALUES) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_WRONG,"INSERT_VALUES is currently not supported with MATELEMSPARSE! use ADD_VALUES instead");
+  for (i=0;i<nr;i++) {
+    for (j=0;j<nc;j++) {
+      a->cmat->QueueLocalUpdate(rows[i],cols[j],vals[i*nc+j]);
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatConvert_AIJ_ElemSparse"
+PETSC_EXTERN PetscErrorCode MatConvert_AIJ_ElemSparse(Mat A, MatType newtype,MatReuse reuse,Mat *newmat)
+{
+  Mat            mat_elemental;
+  Mat_ElemSparse *elem;
+  PetscErrorCode ierr;
+  PetscInt       row,rstart=A->rmap->rstart,rend=A->rmap->rend,rstart_el,rend_el;
+  MatInfo        info;
+
+  PetscFunctionBegin;
+  ierr = MatCreate(PetscObjectComm((PetscObject)A), &mat_elemental);CHKERRQ(ierr);
+  ierr = MatSetSizes(mat_elemental,PETSC_DECIDE,PETSC_DECIDE,A->rmap->N,A->cmap->N);CHKERRQ(ierr);
+  ierr = MatSetType(mat_elemental,MATELEMSPARSE);CHKERRQ(ierr);
+  ierr = MatSetUp(mat_elemental);CHKERRQ(ierr);
+  /* check */
+  ierr = MatGetOwnershipRange(A,&rstart,&rend);CHKERRQ(ierr);
+  elem = (Mat_ElemSparse*)mat_elemental->data;
+  rstart_el = elem->cmat->FirstLocalRow();
+  rend_el = elem->cmat->FirstLocalRow()+elem->cmat->LocalHeight();
+  if (rstart != rstart_el || rend != rend_el) {
+    SETERRQ4(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_WRONG,"matrix rowblock distribution does not match! [%D,%D] != [%D,%D]",rstart,rend,rstart_el,rend_el);
+  }
+  /* elemental preallocation */
+  ierr = MatGetInfo(A,MAT_LOCAL,&info);CHKERRQ(ierr);
+  elem->cmat->Reserve((PetscInt)info.nz_used);CHKERRQ(ierr);
+  /* fill matrix values */
+  for (row=0; row<rend-rstart; row++) {
+    PetscInt          ncols;
+    const PetscInt    *cols;
+    const PetscScalar *vals;
+    ierr = MatGetRow(A,row+rstart,&ncols,&cols,&vals);CHKERRQ(ierr);
+    ierr = MatSetValuesLocal(mat_elemental,1,&row,ncols,cols,vals,ADD_VALUES);CHKERRQ(ierr);
+    ierr = MatRestoreRow(A,row+rstart,&ncols,&cols,&vals);CHKERRQ(ierr);
+  }
+  ierr = MatAssemblyBegin(mat_elemental,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(mat_elemental,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+
+  if (reuse == MAT_REUSE_MATRIX) {
+    ierr = MatHeaderReplace(A,mat_elemental);CHKERRQ(ierr);
+  } else {
+    *newmat = mat_elemental;
+  }
+  PetscFunctionReturn(0);
+}
+
 /*
  Provides an interface to Elemental sparse solver
  This code has been copied and modified from the previous interface to Clique
@@ -126,13 +210,12 @@ PetscErrorCode MatView_ElemSparse(Mat A,PetscViewer viewer)
 PetscErrorCode MatDestroy_ElemSparse(Mat A)
 {
   PetscErrorCode ierr;
-  Mat_ElemSparse     *cliq=(Mat_ElemSparse*)A->spptr;
+  Mat_ElemSparse *cliq;
 
   PetscFunctionBegin;
-  printf("MatDestroy_ElemSparse ...\n");
+  cliq=(Mat_ElemSparse*)A->spptr;
   if (cliq && cliq->CleanUpClique) {
     /* Terminate instance, deallocate memories */
-    printf("MatDestroy_ElemSparse ... destroy clique struct \n");
     ierr = PetscCommDestroy(&(cliq->cliq_comm));CHKERRQ(ierr);
     // free cmat here
     delete cliq->cmat;
@@ -316,8 +399,8 @@ static struct _MatOps MatOps_Values = {
        0, //MatGetDiagonal_ElemDense,
        0, //MatDiagonalScale_ElemDense,
        0, //MatNorm_ElemDense,
-/*20*/ 0, //MatAssemblyBegin_ElemDense,
-       0, //MatAssemblyEnd_ElemDense,
+/*20*/ MatAssemblyBegin_ElemSparse,
+       MatAssemblyEnd_ElemSparse,
        0, //MatSetOption_ElemDense,
        0, //MatZeroEntries_ElemDense,
 /*24*/ 0,
@@ -363,7 +446,7 @@ static struct _MatOps MatOps_Values = {
 /*64*/ 0,
        0,
        0,
-       0,
+       MatSetValuesLocal_ElemSparse,
        0,
 /*69*/ 0,
        0,
@@ -461,8 +544,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_ElemSparse(Mat A)
   ierr = PetscNewLog(A,&a);CHKERRQ(ierr);
   A->data = (void*)a;
   /* Set up the elemental matrix */
-  El::mpi::Comm cxxcomm(PetscObjectComm((PetscObject)A));
-  a->cmat = new El::DistSparseMatrix<PetscElemScalar>(A->rmap->N,cxxcomm);
+  a->cmat = new El::DistSparseMatrix<PetscElemScalar>(A->rmap->N,PetscObjectComm((PetscObject)A));
   ierr = PetscObjectChangeTypeName((PetscObject)A,MATELEMSPARSE);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

@@ -15,8 +15,8 @@ typedef struct {
   El::DistMap                            *inverseMap;
   El::DistSymmInfo                       *info;
   El::DistSymmFrontTree<PetscElemScalar> *frontTree;
-  El::DistMultiVec<PetscElemScalar>        *rhs;
-  El::DistNodalMultiVec<PetscElemScalar>   *xNodal;
+  El::DistMultiVec<PetscElemScalar>      *rhs;
+  El::DistNodalMultiVec<PetscElemScalar> *xNodal;
 
   PetscErrorCode (*Destroy)(Mat);
 } Mat_ElemSparse;

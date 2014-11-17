@@ -679,7 +679,7 @@ PETSC_EXTERN PetscErrorCode MatGetFactor_elemdense_elemdense(Mat A,MatFactorType
   ierr = MatSetUp(B);CHKERRQ(ierr);
   B->factortype = ftype;
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatFactorGetSolverPackage_C",MatFactorGetSolverPackage_elemental_elemental);CHKERRQ(ierr);
-  *F            = B;
+  *F   = B;
   PetscFunctionReturn(0);
 }
 

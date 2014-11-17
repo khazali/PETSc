@@ -8,7 +8,7 @@ Example: mpiexec -n <np> ./ex168 -f <matrix binary file> \n\n";
 #define __FUNCT__ "main"
 int main(int argc,char **args)
 {
-  Mat            A,F;
+  Mat            A,A2,A_elem,F;
   Vec            u,x,b;
   PetscErrorCode ierr;
   PetscMPIInt    rank,size;
@@ -37,8 +37,15 @@ int main(int argc,char **args)
   if (m != n) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ, "This example is not intended for rectangular matrices (%d, %d)", m, n);
   ierr = MatNorm(A,NORM_INFINITY,&Anorm);CHKERRQ(ierr);
 
+  /* Test conversion routines */
+  ierr = MatDuplicate(A,MAT_COPY_VALUES,&A2);CHKERRQ(ierr);
+  ierr = MatConvert(A2,MATELEMSPARSE,MAT_INITIAL_MATRIX,&A_elem);CHKERRQ(ierr);
+  ierr = MatConvert(A2,MATELEMSPARSE,MAT_REUSE_MATRIX,&A2);CHKERRQ(ierr);
+  ierr = MatDestroy(&A_elem);CHKERRQ(ierr);
+  ierr = MatDestroy(&A2);CHKERRQ(ierr);
+
   /* Create random rhs */
-  ierr = MatGetVecs(A,&b,&x);CHKERRQ(ierr);
+  ierr = MatCreateVecs(A,&b,&x);CHKERRQ(ierr);
   ierr = VecSetRandom(b,NULL);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&u);CHKERRQ(ierr); /* save the true solution */
 
