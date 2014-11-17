@@ -1,6 +1,69 @@
 #include <../src/mat/impls/elemental/matelemsparseimpl.h> /*I "petscmat.h" I*/
 
 #undef __FUNCT__
+#define __FUNCT__ "MatSetUp_ElemSparse"
+static PetscErrorCode MatSetUp_ElemSparse(Mat A)
+{
+  Mat_ElemSparse *elem = (Mat_ElemSparse*)A->data;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscLayoutSetUp(A->rmap);CHKERRQ(ierr);
+  ierr = PetscLayoutSetUp(A->cmap);CHKERRQ(ierr);
+  if (A->rmap->rstart != elem->cmat->FirstLocalRow() || A->rmap->rend != elem->cmat->FirstLocalRow()+elem->cmat->LocalHeight()) {
+    SETERRQ4(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_WRONG,"matrix rowblock distribution does not match! [%D,%D] != [%D,%D]",
+             A->rmap->rstart,A->rmap->rend,elem->cmat->FirstLocalRow(),elem->cmat->FirstLocalRow()+elem->cmat->LocalHeight());
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatGetRow_ElemSparse"
+static PetscErrorCode MatGetRow_ElemSparse(Mat A,PetscInt row,PetscInt *nz,PetscInt **idx,PetscScalar **v)
+{
+  Mat_ElemSparse *a = (Mat_ElemSparse*)A->data;
+  PetscInt       lrow,nzp;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  lrow=row-A->rmap->rstart;
+  if (lrow<0) PetscFunctionReturn(0);
+  nzp=a->cmat->NumConnections(lrow);
+  if (nz) *nz = nzp;
+  if (v) {
+    *v = 0;
+    if (nzp) {
+      PetscInt i,off;
+      off=(PetscInt)a->cmat->EntryOffset(lrow);
+      ierr = PetscMalloc1(nzp,v);CHKERRQ(ierr);
+      for (i=0;i<nzp;i++) *(*v + i) = a->cmat->Value(i+off);
+    }
+  }
+  if (idx) {
+    *idx = 0;
+    if (nzp) {
+      PetscInt i,off;
+      off=(PetscInt)a->cmat->EntryOffset(lrow);
+      ierr = PetscMalloc1(nzp,idx);CHKERRQ(ierr);
+      for (i=0;i<nzp;i++) *(*idx + i) = a->cmat->Col(i+off);
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatRestoreRow_ElemSparse"
+static PetscErrorCode MatRestoreRow_ElemSparse(Mat A,PetscInt row,PetscInt *nz,PetscInt **idx,PetscScalar **v)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (idx) {ierr = PetscFree(*idx);CHKERRQ(ierr);}
+  if (v)   {ierr = PetscFree(*v);CHKERRQ(ierr);}
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "MatAssemblyBegin_ElemSparse"
 static PetscErrorCode MatAssemblyBegin_ElemSparse(Mat A,MatAssemblyType type)
 {
@@ -38,6 +101,50 @@ static PetscErrorCode MatSetValuesLocal_ElemSparse(Mat A,PetscInt nr,const Petsc
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "MatConvert_ElemSparse_AIJ"
+PETSC_EXTERN PetscErrorCode MatConvert_ElemSparse_AIJ(Mat A, MatType newtype,MatReuse reuse,Mat *newmat)
+{
+  Mat_ElemSparse *elem=(Mat_ElemSparse*)A->data;
+  Mat            mat_aij;
+  PetscInt       row,rstart=A->rmap->rstart,rend=A->rmap->rend,lr=A->rmap->n,lc=A->cmap->n;
+  PetscInt       *dnnz,*onnz;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = MatCreate(PetscObjectComm((PetscObject)A),&mat_aij);CHKERRQ(ierr);
+  ierr = MatSetSizes(mat_aij,lr,PETSC_DECIDE,A->rmap->N,A->cmap->N);CHKERRQ(ierr);
+  ierr = MatSetType(mat_aij,MATAIJ);CHKERRQ(ierr);
+  /* preallocation (overestimated for MPIAIJ) */
+  ierr = PetscMalloc2(lr,&dnnz,lr,&onnz);CHKERRQ(ierr);
+  for (row=0;row<lr;row++) {
+    dnnz[row]=PetscMin(elem->cmat->NumConnections(row),lc);
+    onnz[row]=PetscMin(elem->cmat->NumConnections(row),A->cmap->N-lc);
+  }
+  ierr = MatSeqAIJSetPreallocation(mat_aij,0,dnnz);CHKERRQ(ierr);
+  ierr = MatMPIAIJSetPreallocation(mat_aij,0,dnnz,0,onnz);CHKERRQ(ierr);
+  ierr = MatSetUp(mat_aij);CHKERRQ(ierr);
+  ierr = PetscFree2(dnnz,onnz);CHKERRQ(ierr);
+  /* fill matrix values */
+  for (row=rstart; row<rend; row++) {
+    PetscInt          ncols;
+    const PetscInt    *cols;
+    const PetscScalar *vals;
+    ierr = MatGetRow(A,row,&ncols,&cols,&vals);CHKERRQ(ierr);
+    ierr = MatSetValues(mat_aij,1,&row,ncols,cols,vals,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = MatRestoreRow(A,row,&ncols,&cols,&vals);CHKERRQ(ierr);
+  }
+  ierr = MatAssemblyBegin(mat_aij,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(mat_aij,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+
+  if (reuse == MAT_REUSE_MATRIX) {
+    ierr = MatHeaderReplace(A,mat_aij);CHKERRQ(ierr);
+  } else {
+    *newmat = mat_aij;
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "MatConvert_AIJ_ElemSparse"
 PETSC_EXTERN PetscErrorCode MatConvert_AIJ_ElemSparse(Mat A, MatType newtype,MatReuse reuse,Mat *newmat)
 {
@@ -48,7 +155,7 @@ PETSC_EXTERN PetscErrorCode MatConvert_AIJ_ElemSparse(Mat A, MatType newtype,Mat
   MatInfo        info;
 
   PetscFunctionBegin;
-  ierr = MatCreate(PetscObjectComm((PetscObject)A), &mat_elemental);CHKERRQ(ierr);
+  ierr = MatCreate(PetscObjectComm((PetscObject)A),&mat_elemental);CHKERRQ(ierr);
   ierr = MatSetSizes(mat_elemental,PETSC_DECIDE,PETSC_DECIDE,A->rmap->N,A->cmap->N);CHKERRQ(ierr);
   ierr = MatSetType(mat_elemental,MATELEMSPARSE);CHKERRQ(ierr);
   ierr = MatSetUp(mat_elemental);CHKERRQ(ierr);
@@ -232,6 +339,8 @@ PetscErrorCode MatDestroy_ElemSparse(Mat A)
 
   /* clear composed functions */
   ierr = PetscObjectComposeFunction((PetscObject)A,"MatFactorGetSolverPackage_C",NULL);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)A,"MatConvert_elemsparse_mpiaij_C",NULL);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)A,"MatConvert_elemsparse_seqaij_C",NULL);CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }
@@ -380,8 +489,8 @@ PETSC_EXTERN PetscErrorCode MatGetFactor_aij_elemsparse(Mat A,MatFactorType ftyp
 /* -------------------------------------------------------------------*/
 static struct _MatOps MatOps_Values = {
        0, //MatSetValues_ElemDense,
-       0,
-       0,
+       MatGetRow_ElemSparse,
+       MatRestoreRow_ElemSparse,
        MatMult_ElemSparse,
 /* 4*/ 0, //MatMultAdd_ElemDense,
        0, //MatMultTranspose_ElemDense,
@@ -408,7 +517,7 @@ static struct _MatOps MatOps_Values = {
        0, //MatLUFactorNumeric_ElemDense,
        MatCholeskyFactorSymbolic_ElemSparse,
        MatCholeskyFactorNumeric_ElemSparse,
-/*29*/ 0, //MatSetUp_ElemDense,
+/*29*/ MatSetUp_ElemSparse,
        0,
        0,
        0,
@@ -546,5 +655,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_ElemSparse(Mat A)
   /* Set up the elemental matrix */
   a->cmat = new El::DistSparseMatrix<PetscElemScalar>(A->rmap->N,PetscObjectComm((PetscObject)A));
   ierr = PetscObjectChangeTypeName((PetscObject)A,MATELEMSPARSE);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)A,"MatConvert_elemsparse_mpiaij_C",MatConvert_ElemSparse_AIJ);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)A,"MatConvert_elemsparse_seqaij_C",MatConvert_ElemSparse_AIJ);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
