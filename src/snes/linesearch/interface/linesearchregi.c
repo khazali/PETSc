@@ -31,7 +31,7 @@ PetscErrorCode SNESLineSearchRegisterAll(void)
   ierr = SNESLineSearchRegister(SNESLINESEARCHBASIC, SNESLineSearchCreate_Basic);CHKERRQ(ierr);
   ierr = SNESLineSearchRegister(SNESLINESEARCHL2,    SNESLineSearchCreate_L2);CHKERRQ(ierr);
   ierr = SNESLineSearchRegister(SNESLINESEARCHBT,    SNESLineSearchCreate_BT);CHKERRQ(ierr);
-  ierr = SNESLineSearchRegister(SNESLINESEARCHARMIJO,    SNESLineSearchCreate_ARMIJO);CHKERRQ(ierr);
+  ierr = SNESLineSearchRegister(SNESLINESEARCHARMIJO,    SNESLineSearchCreate_Armijo);CHKERRQ(ierr);
   ierr = SNESLineSearchRegister(SNESLINESEARCHCP,    SNESLineSearchCreate_CP);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
