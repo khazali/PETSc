@@ -156,6 +156,7 @@ struct _p_SNES {
   Vec         vec_constru;      /* upper bound on the constraints */
   Vec         vec_constrd;      /* vector of distances to constraint bounds */
   Mat         jacobian_constr;  /* matrix to store the constraint Jacobian */
+  Mat         jacobian_constrt; /* matrix to store the transpose of the constraint Jacobian */
 
 
 };
@@ -171,7 +172,7 @@ struct _DMSNESOps {
 
   /* constraints/bounds */
   PetscErrorCode (*constraintfunction)(SNES,Vec,Vec,void*);
-  PetscErrorCode (*constraintjacobian)(SNES,Vec,Mat,void*);
+  PetscErrorCode (*constraintjacobian)(SNES,Vec,Mat,Mat,void*);
   PetscErrorCode (*projectontoconstraints)(SNES,Vec,Vec,void*);
 
   /* Specific to SNESNEWTONAS.  QUESTION: how do we accommodate impl-specific callbacks and contexts? Different DMSNES impls? */

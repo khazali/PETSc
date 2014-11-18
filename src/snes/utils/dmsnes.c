@@ -791,7 +791,7 @@ PetscErrorCode DMSNESSetConstraintJacobian(DM dm,PetscErrorCode (*J)(SNES,Vec,Ma
 
 .seealso: DMSNESSetContext(), SNESSetConstraintFunction(), SNESGetConstraintFunction(), DMSNESSetConstraintJacobian(), SNESConstraintFunction
 @*/
-PetscErrorCode DMSNESGetConstraintJacobian(DM dm,PetscErrorCode (**J)(SNES,Vec,Mat,void*),void **ctx)
+PetscErrorCode DMSNESGetConstraintJacobian(DM dm,PetscErrorCode (**J)(SNES,Vec,Mat,Mat,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;

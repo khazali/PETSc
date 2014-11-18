@@ -361,7 +361,7 @@ PETSC_EXTERN PetscErrorCode SNESSetConstraintJacobian(SNES,Mat,PetscErrorCode (*
 PETSC_EXTERN PetscErrorCode SNESGetConstraintJacobian(SNES,Mat*,PetscErrorCode (**)(SNES,Vec,Mat,Mat,void*),void**);
 
 PETSC_EXTERN PetscErrorCode SNESSetProjectOntoConstraints(SNES,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
-PETSC_EXTERN PetscErrorCode SNESGetProjectOntoConstraints(SNES,PetscErrorCode (**)(SNES,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode SNESGetProjectOntoConstraints(SNES,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
 
 PETSC_EXTERN PetscErrorCode SNESNEWTONASSetType(SNES,SNESNEWTONASType);
 PETSC_EXTERN PetscErrorCode SNESNEWTONASGetType(SNES,SNESNEWTONASType*);
@@ -660,10 +660,10 @@ PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*DMDASNESObjective)(DMDALocalInfo*,
 
 PETSC_EXTERN PetscErrorCode DMSNESSetConstraintFunction(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSNESGetConstraintFunction(DM,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
-PETSC_EXTERN PetscErrorCode DMSNESSetConstraintJacobian(DM,PetscErrorCode (*)(SNES,Vec,Mat,void*),void*);
-PETSC_EXTERN PetscErrorCode DMSNESGetConstraintJacobian(DM,PetscErrorCode (**)(SNES,Vec,Mat,void*),void**);
+PETSC_EXTERN PetscErrorCode DMSNESSetConstraintJacobian(DM,PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESGetConstraintJacobian(DM,PetscErrorCode (**)(SNES,Vec,Mat,Mat,void*),void**);
 PETSC_EXTERN PetscErrorCode DMSNESSetProjectOntoConstraints(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
-PETSC_EXTERN PetscErrorCode DMSNESGetProjectOntoConstraints(DM,PetscErrorCode (**)(SNES,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESGetProjectOntoConstraints(DM,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
 
 PETSC_EXTERN PetscErrorCode DMSNESNEWTONASSetActiveConstraints(DM,PetscErrorCode (*)(SNES,Vec,Vec,Vec,Mat,IS*,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSNESNEWTONASGetActiveConstraints(DM,PetscErrorCode (**)(SNES,Vec,Vec,Vec,Mat,IS*,void*),void**);
