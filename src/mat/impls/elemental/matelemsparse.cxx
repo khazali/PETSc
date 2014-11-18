@@ -10,6 +10,9 @@ static PetscErrorCode MatSetUp_ElemSparse(Mat A)
   PetscFunctionBegin;
   ierr = PetscLayoutSetUp(A->rmap);CHKERRQ(ierr);
   ierr = PetscLayoutSetUp(A->cmap);CHKERRQ(ierr);
+  /* Set up the elemental matrix */
+  ierr = PetscCommDuplicate(PetscObjectComm((PetscObject)A),&(elem->cliq_comm),NULL);CHKERRQ(ierr);
+  elem->cmat = new El::DistSparseMatrix<PetscElemScalar>(A->rmap->N,elem->cliq_comm);
   if (A->rmap->rstart != elem->cmat->FirstLocalRow() || A->rmap->rend != elem->cmat->FirstLocalRow()+elem->cmat->LocalHeight()) {
     SETERRQ4(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_WRONG,"matrix rowblock distribution does not match! [%D,%D] != [%D,%D]",
              A->rmap->rstart,A->rmap->rend,elem->cmat->FirstLocalRow(),elem->cmat->FirstLocalRow()+elem->cmat->LocalHeight());
@@ -449,7 +452,6 @@ PETSC_EXTERN PetscErrorCode MatGetFactor_aij_elemental(Mat A,MatFactorType ftype
   ierr = MatSetSizes(B,A->rmap->n,A->cmap->n,PETSC_DETERMINE,PETSC_DETERMINE);CHKERRQ(ierr);
   ierr = MatSetType(B,((PetscObject)A)->type_name);CHKERRQ(ierr);
   ierr = MatSetUp(B);CHKERRQ(ierr);
-
   ierr = PetscElementalInitializePackage();
   ierr = PetscNewLog(B,&cliq);CHKERRQ(ierr);
   B->spptr            = (void*)cliq;
@@ -469,6 +471,8 @@ PETSC_EXTERN PetscErrorCode MatGetFactor_aij_elemental(Mat A,MatFactorType ftype
   B->ops->destroy = MatDestroy_ElemSparse;
   B->factortype   = ftype;
   B->assembled    = PETSC_FALSE;
+  B->ops->choleskyfactorsymbolic = MatCholeskyFactorSymbolic_ElemSparse;
+  B->ops->choleskyfactornumeric  = MatCholeskyFactorNumeric_ElemSparse;
 
   /* Set Clique options */
   ierr = PetscOptionsBegin(PetscObjectComm((PetscObject)A),((PetscObject)A)->prefix,"ElemSparse Options","Mat");CHKERRQ(ierr);
@@ -647,8 +651,6 @@ PETSC_EXTERN PetscErrorCode MatCreate_ElemSparse(Mat A)
   ierr = PetscMemcpy(A->ops,&MatOps_Values,sizeof(struct _MatOps));CHKERRQ(ierr);
   ierr = PetscNewLog(A,&a);CHKERRQ(ierr);
   A->data = (void*)a;
-  /* Set up the elemental matrix */
-  a->cmat = new El::DistSparseMatrix<PetscElemScalar>(A->rmap->N,PetscObjectComm((PetscObject)A));
   ierr = PetscObjectChangeTypeName((PetscObject)A,MATELEMSPARSE);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)A,"MatConvert_elemsparse_mpiaij_C",MatConvert_ElemSparse_AIJ);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)A,"MatConvert_elemsparse_seqaij_C",MatConvert_ElemSparse_AIJ);CHKERRQ(ierr);
