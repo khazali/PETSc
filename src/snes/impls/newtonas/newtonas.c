@@ -288,7 +288,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
        which will handle the MF case of the constraint Jacobian, comparison to the
        explicitly-computed operator and debugging.
     */
-    ierr = dmsnes->ops->constraintjacobian(snes,x,snes->jacobian_constr,dmsnes->constraintjacobianctx);CHKERRQ(ierr);
+    ierr = dmsnes->ops->constraintjacobian(snes,x,snes->jacobian_constr,snes->jacobian_constrt,dmsnes->constraintjacobianctx);CHKERRQ(ierr);
 
     /* TODO: compute the initial 'active'. */
     new_active = NULL;
