@@ -88,17 +88,20 @@ static PetscErrorCode MatAssemblyEnd_ElemSparse(Mat A,MatAssemblyType type)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "MatSetValuesLocal_ElemSparse"
-static PetscErrorCode MatSetValuesLocal_ElemSparse(Mat A,PetscInt nr,const PetscInt *rows,PetscInt nc,const PetscInt *cols,const PetscScalar *vals,InsertMode imode)
+#define __FUNCT__ "MatSetValues_ElemSparse"
+static PetscErrorCode MatSetValues_ElemSparse(Mat A,PetscInt nr,const PetscInt *rows,PetscInt nc,const PetscInt *cols,const PetscScalar *vals,InsertMode imode)
 {
   Mat_ElemSparse *a = (Mat_ElemSparse*)A->data;
   PetscInt       i,j;
 
   PetscFunctionBegin;
-  if (imode == INSERT_VALUES) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_WRONG,"INSERT_VALUES is currently not supported with MATELEMSPARSE! use ADD_VALUES instead");
+  if (imode == INSERT_VALUES) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_WRONG,"INSERT_VALUES is not currently supported with MATELEMSPARSE! use ADD_VALUES instead");
   for (i=0;i<nr;i++) {
+    if (rows[i] < A->rmap->rstart || rows[i] >= A->rmap->rend) {
+      SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_WRONG,"Insert unowned rows is not currently supported with MATELEMSPARSE");
+    }
     for (j=0;j<nc;j++) {
-      a->cmat->QueueLocalUpdate(rows[i],cols[j],vals[i*nc+j]);
+      a->cmat->QueueLocalUpdate(rows[i]-A->rmap->rstart,cols[j],vals[i*nc+j]);
     }
   }
   PetscFunctionReturn(0);
@@ -175,13 +178,13 @@ PETSC_EXTERN PetscErrorCode MatConvert_AIJ_ElemSparse(Mat A, MatType newtype,Mat
   ierr = MatGetInfo(A,MAT_LOCAL,&info);CHKERRQ(ierr);
   elem->cmat->Reserve((PetscInt)info.nz_used);CHKERRQ(ierr);
   /* fill matrix values */
-  for (row=0; row<rend-rstart; row++) {
+  for (row=rstart; row<rend; row++) {
     PetscInt          ncols;
     const PetscInt    *cols;
     const PetscScalar *vals;
-    ierr = MatGetRow(A,row+rstart,&ncols,&cols,&vals);CHKERRQ(ierr);
-    ierr = MatSetValuesLocal(mat_elemental,1,&row,ncols,cols,vals,ADD_VALUES);CHKERRQ(ierr);
-    ierr = MatRestoreRow(A,row+rstart,&ncols,&cols,&vals);CHKERRQ(ierr);
+    ierr = MatGetRow(A,row,&ncols,&cols,&vals);CHKERRQ(ierr);
+    ierr = MatSetValues(mat_elemental,1,&row,ncols,cols,vals,ADD_VALUES);CHKERRQ(ierr);
+    ierr = MatRestoreRow(A,row,&ncols,&cols,&vals);CHKERRQ(ierr);
   }
   ierr = MatAssemblyBegin(mat_elemental,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(mat_elemental,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
@@ -491,7 +494,7 @@ PETSC_EXTERN PetscErrorCode MatGetFactor_aij_elemental(Mat A,MatFactorType ftype
 
 /* -------------------------------------------------------------------*/
 static struct _MatOps MatOps_Values = {
-       0, //MatSetValues_ElemDense,
+       MatSetValues_ElemSparse,
        MatGetRow_ElemSparse,
        MatRestoreRow_ElemSparse,
        MatMult_ElemSparse,
@@ -558,7 +561,7 @@ static struct _MatOps MatOps_Values = {
 /*64*/ 0,
        0,
        0,
-       MatSetValuesLocal_ElemSparse,
+       0, //MatSetValuesLocal_ElemSparse,
        0,
 /*69*/ 0,
        0,
