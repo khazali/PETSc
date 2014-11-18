@@ -21,8 +21,9 @@ PetscErrorCode PetscElementalInitializePackage(void)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  if (El::Initialized()) PetscFunctionReturn(0);
-  { /* We have already initialized MPI, so this song and dance is just to pass these variables (which won't be used by Elemental) through the interface that needs references */
+  if (El::Initialized()) {
+    PetscFunctionReturn(0);
+  } else { /* We have already initialized MPI, so this song and dance is just to pass these variables (which won't be used by Elemental) through the interface that needs references */
     int zero = 0;
     char **nothing = 0;
     El::Initialize(zero,nothing);
