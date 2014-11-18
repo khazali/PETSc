@@ -2715,7 +2715,7 @@ PetscErrorCode  SNESSetConstraintJacobian(SNES snes,Mat B,Mat Bt,PetscErrorCode 
 
 .seealso: SNESSetConstraintJacobian(), SNESGetConstraintFunction(), SNESConstraintJacobian
 @*/
-PetscErrorCode  SNESGetConstraintJacobian(SNES snes,Mat *B,Mat *Bt,PetscErrorCode (**jac)(SNES,Vec,Mat,void*),void **ctx)
+PetscErrorCode  SNESGetConstraintJacobian(SNES snes,Mat *B,Mat *Bt,PetscErrorCode (**jac)(SNES,Vec,Mat,Mat,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
