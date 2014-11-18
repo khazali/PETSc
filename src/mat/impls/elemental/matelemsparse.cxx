@@ -11,10 +11,9 @@ static PetscErrorCode MatSetUp_ElemSparse(Mat A)
   ierr = PetscLayoutSetUp(A->rmap);CHKERRQ(ierr);
   ierr = PetscLayoutSetUp(A->cmap);CHKERRQ(ierr);
   /* Set up the elemental matrix */
-  ierr = PetscCommDuplicate(PetscObjectComm((PetscObject)A),&(elem->cliq_comm),NULL);CHKERRQ(ierr);
-  elem->cmat  = new El::DistSparseMatrix<PetscElemScalar>(A->rmap->N,A->cmap->N,elem->cliq_comm);
-  elem->cvecr = new El::DistMultiVec<PetscElemScalar>(A->cmap->N,1,elem->cliq_comm);
-  elem->cvecl = new El::DistMultiVec<PetscElemScalar>(A->rmap->N,1,elem->cliq_comm);
+  elem->cmat  = new El::DistSparseMatrix<PetscElemScalar>(A->rmap->N,A->cmap->N,PetscObjectComm((PetscObject)A));
+  elem->cvecr = new El::DistMultiVec<PetscElemScalar>(A->cmap->N,1,PetscObjectComm((PetscObject)A));
+  elem->cvecl = new El::DistMultiVec<PetscElemScalar>(A->rmap->N,1,PetscObjectComm((PetscObject)A));
   if (A->rmap->rstart != elem->cmat->FirstLocalRow() || A->rmap->rend != elem->cmat->FirstLocalRow()+elem->cmat->LocalHeight()) {
     SETERRQ4(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_WRONG,"matrix rowblock distribution does not match! [%D,%D] != [%D,%D]",
              A->rmap->rstart,A->rmap->rend,elem->cmat->FirstLocalRow(),elem->cmat->FirstLocalRow()+elem->cmat->LocalHeight());
@@ -223,7 +222,7 @@ PetscErrorCode MatConvertToElemSparse(Mat A,MatReuse reuse,Mat_ElemSparse *matel
   PetscFunctionBegin;
   if (reuse == MAT_INITIAL_MATRIX){
     /* create ElemSparse matrix */
-    cmat = new El::DistSparseMatrix<PetscElemScalar>(A->rmap->N,matelem->cliq_comm);
+    cmat = new El::DistSparseMatrix<PetscElemScalar>(A->rmap->N,PetscObjectComm((PetscObject)A));
     matelem->cmat = cmat;
   } else {
     cmat = matelem->cmat;
@@ -313,35 +312,49 @@ PetscErrorCode MatView_ElemSparse(Mat A,PetscViewer viewer)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "MatDestroy_ElemSparse_private"
+static PetscErrorCode MatDestroy_ElemSparse_private(Mat_ElemSparse* elem)
+{
+  PetscFunctionBegin;
+  if (elem->cmat) delete elem->cmat;
+  if (elem->cvecr) delete elem->cvecr;
+  if (elem->cvecl) delete elem->cvecl;
+  if (elem->frontTree) delete elem->frontTree;
+  if (elem->rhs) delete elem->rhs;
+  if (elem->xNodal) delete elem->xNodal;
+  if (elem->info) delete elem->info;
+  if (elem->inverseMap) delete elem->inverseMap;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "MatDestroy_ElemSparse"
-PetscErrorCode MatDestroy_ElemSparse(Mat A)
+static PetscErrorCode MatDestroy_ElemSparse(Mat A)
 {
   PetscErrorCode ierr;
-  Mat_ElemSparse *cliq;
+  Mat_ElemSparse *elem;
+  PetscBool      iselemsparse;
 
   PetscFunctionBegin;
-  cliq=(Mat_ElemSparse*)A->spptr;
-  if (cliq && cliq->CleanUpClique) {
-    /* Terminate instance, deallocate memories */
-    ierr = PetscCommDestroy(&(cliq->cliq_comm));CHKERRQ(ierr);
-    // free cmat here
-    delete cliq->cmat;
-    delete cliq->frontTree;
-    delete cliq->rhs;
-    delete cliq->xNodal;
-    delete cliq->info;
-    delete cliq->inverseMap;
-  }
-  if (cliq && cliq->Destroy) {
-    ierr = cliq->Destroy(A);CHKERRQ(ierr);
-  }
-  ierr = PetscFree(A->spptr);CHKERRQ(ierr);
-
   /* clear composed functions */
   ierr = PetscObjectComposeFunction((PetscObject)A,"MatFactorGetSolverPackage_C",NULL);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)A,"MatConvert_elemsparse_mpiaij_C",NULL);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)A,"MatConvert_elemsparse_seqaij_C",NULL);CHKERRQ(ierr);
 
+  ierr = PetscObjectTypeCompare((PetscObject)A,MATELEMSPARSE,&iselemsparse);CHKERRQ(ierr);
+  if (iselemsparse) {
+    elem = (Mat_ElemSparse*)A->data;
+    ierr = MatDestroy_ElemSparse_private(elem);
+    ierr = PetscFree(elem);CHKERRQ(ierr);
+  }
+  if (A->spptr) {
+    elem = (Mat_ElemSparse*)A->spptr;
+    ierr = MatDestroy_ElemSparse_private(elem);
+    if (elem->Destroy) {
+      ierr = (elem->Destroy)(A);CHKERRQ(ierr);
+    }
+    ierr = PetscFree(elem);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -350,26 +363,25 @@ PetscErrorCode MatDestroy_ElemSparse(Mat A)
 PetscErrorCode MatSolve_ElemSparse(Mat A,Vec B,Vec X)
 {
   PetscErrorCode        ierr;
-  PetscInt              i,rank;
-  const PetscElemScalar *b;
-  Mat_ElemSparse            *cliq=(Mat_ElemSparse*)A->spptr;
-  El::DistMultiVec<PetscElemScalar> *bc=cliq->rhs;
-  El::DistNodalMultiVec<PetscElemScalar> *xNodal=cliq->xNodal;
+  PetscInt              i;
+  const PetscScalar     *array;
+  Mat_ElemSparse        *elem=(Mat_ElemSparse*)A->spptr;
+  El::DistMultiVec<PetscElemScalar> *bc=elem->rhs;
+  El::DistNodalMultiVec<PetscElemScalar> *xNodal=elem->xNodal;
 
   PetscFunctionBegin;
-  ierr = VecGetArrayRead(B,(const PetscScalar **)&b);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(B,&array);CHKERRQ(ierr);
   for (i=0; i<A->rmap->n; i++) {
-    bc->SetLocal(i,0,b[i]);
+    bc->SetLocal(i,0,array[i]);
   }
-  ierr = VecRestoreArrayRead(B,(const PetscScalar **)&b);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(B,&array);CHKERRQ(ierr);
 
-  xNodal->Pull( *cliq->inverseMap, *cliq->info, *bc );
-  El::Solve( *cliq->info, *cliq->frontTree, *xNodal);
-  xNodal->Push( *cliq->inverseMap, *cliq->info, *bc );
+  xNodal->Pull( *elem->inverseMap, *elem->info, *bc );
+  El::Solve( *elem->info, *elem->frontTree, *xNodal);
+  xNodal->Push( *elem->inverseMap, *elem->info, *bc );
 
-  ierr = MPI_Comm_rank(cliq->cliq_comm,&rank);CHKERRQ(ierr);
-  for (i=0; i<bc->LocalHeight(); i++) {
-    ierr = VecSetValue(X,rank*bc->Blocksize()+i,bc->GetLocal(i,0),INSERT_VALUES);CHKERRQ(ierr);
+  for (i=0; i<A->cmap->n; i++) {
+    ierr = VecSetValue(X,i+A->cmap->rstart,bc->GetLocal(i,0),INSERT_VALUES);CHKERRQ(ierr);
   }
   ierr = VecAssemblyBegin(X);CHKERRQ(ierr);
   ierr = VecAssemblyEnd(X);CHKERRQ(ierr);
@@ -432,7 +444,6 @@ PetscErrorCode MatCholeskyFactorSymbolic_ElemSparse(Mat F,Mat A,IS r,const MatFa
   Acliq->frontTree = new El::DistSymmFrontTree<PetscElemScalar>( *cmat, map, sepTree, *Acliq->info );
 
   Acliq->matstruc      = DIFFERENT_NONZERO_PATTERN;
-  Acliq->CleanUpClique = PETSC_TRUE;
   PetscFunctionReturn(0);
 }
 
@@ -441,7 +452,7 @@ PetscErrorCode MatCholeskyFactorSymbolic_ElemSparse(Mat F,Mat A,IS r,const MatFa
 PETSC_EXTERN PetscErrorCode MatGetFactor_aij_elemental(Mat A,MatFactorType ftype,Mat *F)
 {
   Mat            B;
-  Mat_ElemSparse     *cliq;
+  Mat_ElemSparse *elem;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -450,19 +461,15 @@ PETSC_EXTERN PetscErrorCode MatGetFactor_aij_elemental(Mat A,MatFactorType ftype
   ierr = MatSetType(B,((PetscObject)A)->type_name);CHKERRQ(ierr);
   ierr = MatSetUp(B);CHKERRQ(ierr);
   ierr = PetscElementalInitializePackage();
-  ierr = PetscNewLog(B,&cliq);CHKERRQ(ierr);
-  B->spptr            = (void*)cliq;
-  El::mpi::Comm cxxcomm(PetscObjectComm((PetscObject)A));
-  ierr = PetscCommDuplicate(cxxcomm.comm,&(cliq->cliq_comm),NULL);CHKERRQ(ierr);
-  cliq->rhs           = new El::DistMultiVec<PetscElemScalar>(A->rmap->N,1,cliq->cliq_comm);
-  cliq->xNodal        = new El::DistNodalMultiVec<PetscElemScalar>();
-  cliq->info          = new El::DistSymmInfo;
-  cliq->inverseMap    = new El::DistMap;
-  cliq->CleanUpClique = PETSC_FALSE;
-  cliq->Destroy       = B->ops->destroy;
+  ierr = PetscNewLog(B,&elem);CHKERRQ(ierr);
+  B->spptr            = (void*)elem;
+  elem->rhs           = new El::DistMultiVec<PetscElemScalar>(A->rmap->N,1,PetscObjectComm((PetscObject)A));
+  elem->xNodal        = new El::DistNodalMultiVec<PetscElemScalar>();
+  elem->info          = new El::DistSymmInfo;
+  elem->inverseMap    = new El::DistMap;
+  elem->Destroy       = B->ops->destroy;
 
   B->ops->view    = MatView_ElemSparse;
-  B->ops->mult    = MatMult_ElemSparse; /* for cliq->cmat */
   B->ops->solve   = MatSolve_ElemSparse;
 
   B->ops->destroy = MatDestroy_ElemSparse;
@@ -473,9 +480,9 @@ PETSC_EXTERN PetscErrorCode MatGetFactor_aij_elemental(Mat A,MatFactorType ftype
 
   /* Set Clique options */
   ierr = PetscOptionsBegin(PetscObjectComm((PetscObject)A),((PetscObject)A)->prefix,"ElemSparse Options","Mat");CHKERRQ(ierr);
-  cliq->cutoff      = 128;  /* maximum size of leaf node */
-  cliq->numDistSeps = 1;    /* number of distributed separators to try */
-  cliq->numSeqSeps  = 1;    /* number of sequential separators to try */
+  elem->cutoff      = 128;  /* maximum size of leaf node */
+  elem->numDistSeps = 1;    /* number of distributed separators to try */
+  elem->numSeqSeps  = 1;    /* number of sequential separators to try */
   PetscOptionsEnd();
 
   *F = B;

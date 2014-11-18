@@ -61,6 +61,8 @@ int main(int argc,char **args)
   ierr = VecAXPY(b_elem,-1.0,b);CHKERRQ(ierr);
   ierr = VecNorm(b_elem,NORM_INFINITY,&norm);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"MatMult error %g\n",norm);CHKERRQ(ierr);
+  ierr = MatDestroy(&A_elem);CHKERRQ(ierr);
+  ierr = VecDestroy(&b_elem);CHKERRQ(ierr);
 
   /* Create random rhs */
   ierr = VecSetRandom(b,NULL);CHKERRQ(ierr);
