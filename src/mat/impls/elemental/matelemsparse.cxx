@@ -12,7 +12,9 @@ static PetscErrorCode MatSetUp_ElemSparse(Mat A)
   ierr = PetscLayoutSetUp(A->cmap);CHKERRQ(ierr);
   /* Set up the elemental matrix */
   ierr = PetscCommDuplicate(PetscObjectComm((PetscObject)A),&(elem->cliq_comm),NULL);CHKERRQ(ierr);
-  elem->cmat = new El::DistSparseMatrix<PetscElemScalar>(A->rmap->N,elem->cliq_comm);
+  elem->cmat  = new El::DistSparseMatrix<PetscElemScalar>(A->rmap->N,A->cmap->N,elem->cliq_comm);
+  elem->cvecr = new El::DistMultiVec<PetscElemScalar>(A->cmap->N,1,elem->cliq_comm);
+  elem->cvecl = new El::DistMultiVec<PetscElemScalar>(A->rmap->N,1,elem->cliq_comm);
   if (A->rmap->rstart != elem->cmat->FirstLocalRow() || A->rmap->rend != elem->cmat->FirstLocalRow()+elem->cmat->LocalHeight()) {
     SETERRQ4(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_WRONG,"matrix rowblock distribution does not match! [%D,%D] != [%D,%D]",
              A->rmap->rstart,A->rmap->rend,elem->cmat->FirstLocalRow(),elem->cmat->FirstLocalRow()+elem->cmat->LocalHeight());
@@ -261,27 +263,22 @@ PetscErrorCode MatConvertToElemSparse(Mat A,MatReuse reuse,Mat_ElemSparse *matel
 #define __FUNCT__ "MatMult_ElemSparse"
 static PetscErrorCode MatMult_ElemSparse(Mat A,Vec X,Vec Y)
 {
+  Mat_ElemSparse        *elem=(Mat_ElemSparse*)A->data;
   PetscErrorCode        ierr;
   PetscInt              i;
-  const PetscElemScalar *x;
-  Mat_ElemSparse            *cliq=(Mat_ElemSparse*)A->spptr;
-  El::DistSparseMatrix<PetscElemScalar> *cmat=cliq->cmat;
-  El::mpi::Comm cxxcomm(PetscObjectComm((PetscObject)A));
+  const PetscElemScalar *array;
 
   PetscFunctionBegin;
-  if (!cmat) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_NULL,"ElemSparse matrix cmat is not created yet");
-  ierr = VecGetArrayRead(X,(const PetscScalar **)&x);CHKERRQ(ierr);
+  if (!elem->cmat) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_NULL,"Elemental sparse matrix has not been created yet. Maybe you forgot to call MatSetUp");
 
-  El::DistMultiVec<PetscElemScalar> xc(A->cmap->N,1,cxxcomm);
-  El::DistMultiVec<PetscElemScalar> yc(A->rmap->N,1,cxxcomm);
+  ierr = VecGetArrayRead(X,&array);CHKERRQ(ierr);
   for (i=0; i<A->cmap->n; i++) {
-    xc.SetLocal(i,0,x[i]);
+    elem->cvecr->SetLocal(i,0,array[i]);
   }
-  El::Multiply(El::NORMAL,1.0,*cmat,xc,0.0,yc);
-  ierr = VecRestoreArrayRead(X,(const PetscScalar **)&x);CHKERRQ(ierr);
-
-  for (i=0; i<A->cmap->n; i++) {
-    ierr = VecSetValueLocal(Y,i,yc.GetLocal(i,0),INSERT_VALUES);CHKERRQ(ierr);
+  El::Multiply(El::NORMAL,1.0,*(elem->cmat),*(elem->cvecr),0.0,*(elem->cvecl));
+  ierr = VecRestoreArrayRead(X,&array);CHKERRQ(ierr);
+  for (i=0; i<A->rmap->n; i++) {
+    ierr = VecSetValue(Y,i+A->rmap->rstart,elem->cvecl->GetLocal(i,0),INSERT_VALUES);CHKERRQ(ierr);
   }
   ierr = VecAssemblyBegin(Y);CHKERRQ(ierr);
   ierr = VecAssemblyEnd(Y);CHKERRQ(ierr);

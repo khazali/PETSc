@@ -12,6 +12,8 @@ typedef struct {
   PetscInt     numSeqSeps;       /* number of sequential separators to try */
 
   El::DistSparseMatrix<PetscElemScalar>  *cmat;  /* Elemental sparse matrix */
+  El::DistMultiVec<PetscElemScalar>      *cvecr;  /* Elemental right vector for MatMults */
+  El::DistMultiVec<PetscElemScalar>      *cvecl;  /* Elemental left vector for MatMults */
   El::DistMap                            *inverseMap;
   El::DistSymmInfo                       *info;
   El::DistSymmFrontTree<PetscElemScalar> *frontTree;

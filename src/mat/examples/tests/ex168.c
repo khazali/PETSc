@@ -9,7 +9,7 @@ Example: mpiexec -n <np> ./ex168 -f <matrix binary file> \n\n";
 int main(int argc,char **args)
 {
   Mat            A,A2,A3,A_elem,F;
-  Vec            u,x,b;
+  Vec            u,x,b,b_elem;
   PetscErrorCode ierr;
   PetscMPIInt    rank,size;
   PetscInt       m,n,nfact;
@@ -35,6 +35,7 @@ int main(int argc,char **args)
   ierr = PetscViewerDestroy(&fd);CHKERRQ(ierr);
   ierr = MatGetLocalSize(A,&m,&n);CHKERRQ(ierr);
   if (m != n) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ, "This example is not intended for rectangular matrices (%d, %d)", m, n);
+  ierr = MatCreateVecs(A,&b,&x);CHKERRQ(ierr);
 
   /* Test conversion routines */
   ierr = MatDuplicate(A,MAT_COPY_VALUES,&A2);CHKERRQ(ierr);
@@ -51,8 +52,17 @@ int main(int argc,char **args)
   ierr = MatDestroy(&A_elem);CHKERRQ(ierr);
   ierr = MatDestroy(&A2);CHKERRQ(ierr);
 
+  /* test MatMult */
+  ierr = MatConvert(A,MATELEMSPARSE,MAT_INITIAL_MATRIX,&A_elem);CHKERRQ(ierr);
+  ierr = VecDuplicate(b,&b_elem);CHKERRQ(ierr);
+  ierr = VecSetRandom(x,NULL);CHKERRQ(ierr);
+  ierr = MatMult(A,x,b);CHKERRQ(ierr);
+  ierr = MatMult(A_elem,x,b_elem);CHKERRQ(ierr);
+  ierr = VecAXPY(b_elem,-1.0,b);CHKERRQ(ierr);
+  ierr = VecNorm(b_elem,NORM_INFINITY,&norm);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"MatMult error %g\n",norm);CHKERRQ(ierr);
+
   /* Create random rhs */
-  ierr = MatCreateVecs(A,&b,&x);CHKERRQ(ierr);
   ierr = VecSetRandom(b,NULL);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&u);CHKERRQ(ierr); /* save the true solution */
 
