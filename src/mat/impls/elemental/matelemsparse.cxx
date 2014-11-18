@@ -437,8 +437,8 @@ PetscErrorCode MatCholeskyFactorSymbolic_ElemSparse(Mat F,Mat A,IS r,const MatFa
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "MatGetFactor_aij_elemsparse"
-PETSC_EXTERN PetscErrorCode MatGetFactor_aij_elemsparse(Mat A,MatFactorType ftype,Mat *F)
+#define __FUNCT__ "MatGetFactor_aij_elemental"
+PETSC_EXTERN PetscErrorCode MatGetFactor_aij_elemental(Mat A,MatFactorType ftype,Mat *F)
 {
   Mat            B;
   Mat_ElemSparse     *cliq;

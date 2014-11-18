@@ -625,7 +625,7 @@ static PetscErrorCode  MatLUFactorNumeric_ElemDense(Mat F,Mat A,const MatFactorI
 static PetscErrorCode  MatLUFactorSymbolic_ElemDense(Mat F,Mat A,IS r,IS c,const MatFactorInfo *info)
 {
   PetscFunctionBegin;
-  /* F is create and allocated by MatGetFactor_elemental_petsc(), skip this routine. */
+  /* F is create and allocated by MatGetFactor_elemdense_elemental(), skip this routine. */
   PetscFunctionReturn(0);
 }
 
@@ -660,13 +660,13 @@ static PetscErrorCode MatCholeskyFactorNumeric_ElemDense(Mat F,Mat A,const MatFa
 static PetscErrorCode MatCholeskyFactorSymbolic_ElemDense(Mat F,Mat A,IS perm,const MatFactorInfo *info)
 {
   PetscFunctionBegin;
-  /* F is create and allocated by MatGetFactor_elemdense_petsc(), skip this routine. */
+  /* F is create and allocated by MatGetFactor_elemdense_elemental(), skip this routine. */
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "MatGetFactor_elemdense_elemdense"
-PETSC_EXTERN PetscErrorCode MatGetFactor_elemdense_elemdense(Mat A,MatFactorType ftype,Mat *F)
+#define __FUNCT__ "MatGetFactor_elemdense_elemental"
+PETSC_EXTERN PetscErrorCode MatGetFactor_elemdense_elemental(Mat A,MatFactorType ftype,Mat *F)
 {
   Mat            B;
   PetscErrorCode ierr;

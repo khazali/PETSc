@@ -66,9 +66,9 @@ PETSC_EXTERN PetscErrorCode MatSolverPackageRegister_Elemental(void)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = MatSolverPackageRegister(MATSOLVERELEMENTAL,MATELEMDENSE ,MAT_FACTOR_LU      ,MatGetFactor_elemdense_elemdense);CHKERRQ(ierr);
-  ierr = MatSolverPackageRegister(MATSOLVERELEMENTAL,MATELEMDENSE ,MAT_FACTOR_CHOLESKY,MatGetFactor_elemdense_elemdense);CHKERRQ(ierr);
-  ierr = MatSolverPackageRegister(MATSOLVERELEMENTAL,MATSEQAIJ    ,MAT_FACTOR_CHOLESKY,MatGetFactor_aij_elemsparse);CHKERRQ(ierr);
-  ierr = MatSolverPackageRegister(MATSOLVERELEMENTAL,MATMPIAIJ    ,MAT_FACTOR_CHOLESKY,MatGetFactor_aij_elemsparse);CHKERRQ(ierr);
+  ierr = MatSolverPackageRegister(MATSOLVERELEMENTAL,MATELEMDENSE ,MAT_FACTOR_LU      ,MatGetFactor_elemdense_elemental);CHKERRQ(ierr);
+  ierr = MatSolverPackageRegister(MATSOLVERELEMENTAL,MATELEMDENSE ,MAT_FACTOR_CHOLESKY,MatGetFactor_elemdense_elemental);CHKERRQ(ierr);
+  ierr = MatSolverPackageRegister(MATSOLVERELEMENTAL,MATSEQAIJ    ,MAT_FACTOR_CHOLESKY,MatGetFactor_aij_elemental);CHKERRQ(ierr);
+  ierr = MatSolverPackageRegister(MATSOLVERELEMENTAL,MATMPIAIJ    ,MAT_FACTOR_CHOLESKY,MatGetFactor_aij_elemental);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
