@@ -2620,11 +2620,12 @@ PetscErrorCode  SNESGetConstraintFunction(SNES snes,Vec *v,Vec *vl, Vec *vu,Pets
 
 /*MC
     SNESConstraintJacobian - callback function computing the constraint Jacobian
-    for the constrained nonlinear problem (variational inequality) solved by SNES
+    and, optionally, its transpose, for the constrained nonlinear problem
+    (variational inequality) solved by SNES
 
      Synopsis:
      #include <petscsnes.h>
-     SNESConstraintJacobian(SNES snes,Vec x,Mat B,void *ctx);
+     SNESConstraintJacobian(SNES snes,Vec x,Mat B,Mat Bt,void *ctx);
 
      Input Parameters:
 +     snes - the SNES context
@@ -2632,19 +2633,19 @@ PetscErrorCode  SNESGetConstraintFunction(SNES snes,Vec *v,Vec *vl, Vec *vu,Pets
 -     ctx  - optional user-defined function context, passed in with SNESSetConstraintJacobian()
 
      Output Parameter:
-.     B    - Jacobian (matrix of derivatives of) constraints at x
++     B    - Jacobian (matrix of derivatives of) constraints at x
+-     Bt   - transpose of constraint Jacobian, in case B does not implement MatMultTranspose (only if Bt isn't NULL)
 
    Level: intermediate
 
 .seealso:   SNESSetConstraintJacobian(), SNESGetConstraintJacobian()
 M*/
 
-/* QUESTION: should the user also (optionally) return Bt, the transpose? In case B doesn't implement MatMultTranspose() */
 #undef __FUNCT__
 #define __FUNCT__ "SNESSetConstraintJacobian"
 /*@C
    SNESSetConstraintJacobian -   sets the callback computing the constraint Jacobian and
-   the Jacobian matrix for use by the SNES routines in solving constrained nonlinear
+   the Jacobian matrices for use by the SNES routines in solving constrained nonlinear
    systems (variational inequalities).
 
    Logically Collective on SNES
@@ -2652,6 +2653,7 @@ M*/
    Input Parameters:
 +  snes - the SNES context
 .  B    - matrix to store the constraint Jacobian
+.  Bt   - matrix to store the transpose of the constraint Jacobian
 .  jac  - constraint Jacobian evaluation routine (see SNESConstraintJacobian)
 -  ctx  - optional (if not NULL) user-defined context for private data for the
           constraint Jacobian evaluation routine.
@@ -2662,7 +2664,7 @@ M*/
 
 .seealso: SNESGetConstraintJacobian(), SNESSetConstraintFunction(), SNESConstraintJacobian
 @*/
-PetscErrorCode  SNESSetConstraintJacobian(SNES snes,Mat B,PetscErrorCode (*jac)(SNES,Vec,Mat,void*),void *ctx)
+PetscErrorCode  SNESSetConstraintJacobian(SNES snes,Mat B,Mat Bt,PetscErrorCode (*jac)(SNES,Vec,Mat,Mat,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -2676,6 +2678,13 @@ PetscErrorCode  SNESSetConstraintJacobian(SNES snes,Mat B,PetscErrorCode (*jac)(
     ierr = MatDestroy(&snes->jacobian_constr);CHKERRQ(ierr);
     snes->jacobian_constr = B;
   }
+  if (Bt) {
+    PetscValidHeaderSpecific(Bt,MAT_CLASSID,2);
+    PetscCheckSameComm(snes,1,Bt,2);
+    ierr = PetscObjectReference((PetscObject)Bt);CHKERRQ(ierr);
+    ierr = MatDestroy(&snes->jacobian_constrt);CHKERRQ(ierr);
+    snes->jacobian_constrt = Bt;
+  }
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESSetConstraintJacobian(dm,jac,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -2685,7 +2694,7 @@ PetscErrorCode  SNESSetConstraintJacobian(SNES snes,Mat B,PetscErrorCode (*jac)(
 #define __FUNCT__ "SNESGetConstraintJacobian"
 /*@C
    SNESGetConstraintJacobian -   retrieves the callback computing the constraint Jacobian and
-   the Jacobian matrix used by the SNES routines in solving constrained nonlinear systems
+   the Jacobian matrices used by the SNES routines in solving constrained nonlinear systems
    (variational inequalities).
 
    Logically Collective on SNES
@@ -2695,6 +2704,7 @@ PetscErrorCode  SNESSetConstraintJacobian(SNES snes,Mat B,PetscErrorCode (*jac)(
 
    Output Parameters:
 +  B    - matrix storing the constraint Jacobian (or NULL, if not requested)
+-  Bt   - matrix storing the transpose of the constraint Jacobian (or NULL, if not requested)
 .  jac  - constraint Jacobian evaluation routine (or NULL, if not requested; see SNESConstraintJacobian)
 -  ctx  - optional (if not NULL) user-defined context for private data for the
           constraint Jacobian evaluation routine (or NULL, if not requested)
@@ -2705,7 +2715,7 @@ PetscErrorCode  SNESSetConstraintJacobian(SNES snes,Mat B,PetscErrorCode (*jac)(
 
 .seealso: SNESSetConstraintJacobian(), SNESGetConstraintFunction(), SNESConstraintJacobian
 @*/
-PetscErrorCode  SNESGetConstraintJacobian(SNES snes,Mat *B,PetscErrorCode (**jac)(SNES,Vec,Mat,void*),void **ctx)
+PetscErrorCode  SNESGetConstraintJacobian(SNES snes,Mat *B,Mat *Bt,PetscErrorCode (**jac)(SNES,Vec,Mat,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -2714,6 +2724,9 @@ PetscErrorCode  SNESGetConstraintJacobian(SNES snes,Mat *B,PetscErrorCode (**jac
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
   if (B) {
     *B = snes->jacobian_constr;
+  }
+  if (Bt) {
+    *Bt = snes->jacobian_constrt;
   }
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESGetConstraintJacobian(dm,jac,ctx);CHKERRQ(ierr);
