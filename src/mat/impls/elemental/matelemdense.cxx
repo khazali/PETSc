@@ -1150,7 +1150,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_ElemDense(Mat A)
   a->emat      = new El::DistMatrix<PetscElemScalar>(*a->grid);
   a->esubmat   = new El::Matrix<PetscElemScalar>(1,1);
   a->interface = new El::AxpyInterface<PetscElemScalar>;
-  a->pivot     = new El::DistMatrix<PetscInt,El::VC,El::STAR>;
+  a->pivot     = new El::DistMatrix<PetscInt,El::VC,El::STAR>(*a->grid);
 
   /* build cache for off array entries formed */
   a->interface->Attach(El::LOCAL_TO_GLOBAL,*(a->emat));
