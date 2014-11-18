@@ -366,9 +366,6 @@ PETSC_EXTERN PetscErrorCode SNESGetProjectOntoConstraints(SNES,PetscErrorCode (*
 PETSC_EXTERN PetscErrorCode SNESNEWTONASSetType(SNES,SNESNEWTONASType);
 PETSC_EXTERN PetscErrorCode SNESNEWTONASGetType(SNES,SNESNEWTONASType*);
 
-PETSC_EXTERN PetscErrorCode SNESNEWTONASSetActiveConstraints(SNES,Mat,Mat,PetscErrorCode (*)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void*);
-PETSC_EXTERN PetscErrorCode SNESNEWTONASGetActiveConstraints(SNES,Mat*,Mat*,PetscErrorCode (**)(SNES,Vec,IS*,IS*,Mat,Mat,void*),void**);
-
 /*E
     SNESNormSchedule - Frequency with which the norm is computed
 
