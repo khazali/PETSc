@@ -52,8 +52,8 @@ PetscErrorCode PetscElementalFinalizePackage(void)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "MatFactorGetSolverPackage_elemental_elemental"
-PETSC_EXTERN PetscErrorCode MatFactorGetSolverPackage_elemental_elemental(Mat A,const MatSolverPackage *type)
+#define __FUNCT__ "MatFactorGetSolverPackage_elemental"
+PETSC_EXTERN PetscErrorCode MatFactorGetSolverPackage_elemental(Mat A,const MatSolverPackage *type)
 {
   PetscFunctionBegin;
   *type = MATSOLVERELEMENTAL;

@@ -506,6 +506,7 @@ PETSC_EXTERN PetscErrorCode MatGetFactor_aij_elemental(Mat A,MatFactorType ftype
   B->assembled    = PETSC_FALSE;
   B->ops->choleskyfactorsymbolic = MatCholeskyFactorSymbolic_ElemSparse;
   B->ops->choleskyfactornumeric  = MatCholeskyFactorNumeric_ElemSparse;
+  ierr = PetscObjectComposeFunction((PetscObject)B,"MatFactorGetSolverPackage_C",MatFactorGetSolverPackage_elemental);CHKERRQ(ierr);
 
   /* Set Clique options */
   ierr = PetscOptionsBegin(PetscObjectComm((PetscObject)A),((PetscObject)A)->prefix,"ElemSparse Options","Mat");CHKERRQ(ierr);

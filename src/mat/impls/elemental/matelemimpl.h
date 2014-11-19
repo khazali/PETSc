@@ -4,7 +4,7 @@
 #include <El.hpp>
 #include <petsc-private/matimpl.h>
 
-PETSC_EXTERN PetscErrorCode MatFactorGetSolverPackage_elemental_elemental(Mat,const MatSolverPackage*);
+PETSC_EXTERN PetscErrorCode MatFactorGetSolverPackage_elemental(Mat,const MatSolverPackage*);
 PETSC_EXTERN PetscErrorCode MatGetFactor_elemdense_elemental(Mat,MatFactorType,Mat*);
 PETSC_EXTERN PetscErrorCode MatGetFactor_aij_elemental(Mat,MatFactorType,Mat*);
 
