@@ -5,6 +5,7 @@
 
 typedef struct {
   MatStructure matstruc;
+  PetscBool    freemv;
   PetscInt     cutoff;           /* maximum size of leaf node */
   PetscInt     numDistSeps;      /* number of distributed separators to try */
   PetscInt     numSeqSeps;       /* number of sequential separators to try */
@@ -17,7 +18,6 @@ typedef struct {
   El::DistMap                            *inverseMap;
   El::DistSymmInfo                       *info;
   El::DistSymmFrontTree<PetscElemScalar> *frontTree;
-  El::DistMultiVec<PetscElemScalar>      *rhs;
   El::DistNodalMultiVec<PetscElemScalar> *xNodal;
 
   PetscErrorCode (*Destroy)(Mat);
