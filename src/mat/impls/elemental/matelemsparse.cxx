@@ -1,6 +1,30 @@
 #include <../src/mat/impls/elemental/matelemsparseimpl.h> /*I "petscmat.h" I*/
 
 #undef __FUNCT__
+#define __FUNCT__ "MatGetInfo_ElemSparse"
+static PetscErrorCode MatGetInfo_ElemSparse(Mat A,MatInfoType flag,MatInfo *info)
+{
+  Mat_ElemSparse *a = (Mat_ElemSparse*)A->data;
+
+  PetscFunctionBegin;
+  info->block_size     = 1.0;
+
+  if (flag == MAT_LOCAL) {
+  } else if (flag == MAT_GLOBAL_MAX) {
+  } else if (flag == MAT_GLOBAL_SUM) {
+  }
+
+  info->nz_unneeded       = 0.0;
+  info->assemblies        = (double)A->num_ass;
+  info->mallocs           = 0;
+  info->memory            = ((PetscObject)A)->mem;
+  info->fill_ratio_given  = 0; /* determined by Elemental */
+  info->fill_ratio_needed = 0;
+  info->factor_mallocs    = 0;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "MatSetUp_ElemSparse"
 static PetscErrorCode MatSetUp_ElemSparse(Mat A)
 {
@@ -257,7 +281,7 @@ PetscErrorCode MatConvertToElemSparse(Mat A,MatReuse reuse,Mat_ElemSparse *matel
   }
   /* elemental assembly */
   cmat->MakeConsistent();
-
+  //Display(*cmat,"MATRIX");
   PetscFunctionReturn(0);
 }
 
@@ -322,6 +346,8 @@ static PetscErrorCode MatDestroy_ElemSparse_private(Mat_ElemSparse* elem)
   if (elem->cmat) delete elem->cmat;
   if (elem->cvecr) delete elem->cvecr;
   if (elem->cvecl) delete elem->cvecl;
+  if (elem->sepTree) delete elem->sepTree;
+  if (elem->map) delete elem->map;
   if (elem->frontTree) delete elem->frontTree;
   if (elem->rhs) delete elem->rhs;
   if (elem->xNodal) delete elem->xNodal;
@@ -408,6 +434,8 @@ PetscErrorCode MatCholeskyFactorNumeric_ElemSparse(Mat F,Mat A,const MatFactorIn
   }
 
   /* Numeric factorization */
+  if (cliq->frontTree) delete cliq->frontTree;
+  cliq->frontTree = new El::DistSymmFrontTree<PetscElemScalar>( *cmat, *cliq->map, *cliq->sepTree, *cliq->info );
   El::LDL( *cliq->info, *cliq->frontTree, El::LDL_1D);
   //L.frontType = cliq::SYMM_2D;
 
@@ -428,8 +456,6 @@ PetscErrorCode MatCholeskyFactorSymbolic_ElemSparse(Mat F,Mat A,IS r,const MatFa
   PetscErrorCode                        ierr;
   Mat_ElemSparse                        *Acliq=(Mat_ElemSparse*)F->spptr;
   El::DistSparseMatrix<PetscElemScalar> *cmat;
-  El::DistSeparatorTree                 sepTree;
-  El::DistMap                           map;
   El::BisectCtrl                        ctrl;
 
   PetscFunctionBegin;
@@ -441,10 +467,8 @@ PetscErrorCode MatCholeskyFactorSymbolic_ElemSparse(Mat F,Mat A,IS r,const MatFa
   ctrl.numSeqSeps = Acliq->numSeqSeps;
   ctrl.numDistSeps = Acliq->numDistSeps;
   ctrl.cutoff = Acliq->cutoff;
-  El::NestedDissection( cmat->DistGraph(), map, sepTree, *Acliq->info, ctrl);
-  map.FormInverse( *Acliq->inverseMap );
-  //Acliq->frontTree = new El::DistSymmFrontTree<PetscElemScalar>( El::TRANSPOSE, *cmat, map, sepTree, *Acliq->info );
-  Acliq->frontTree = new El::DistSymmFrontTree<PetscElemScalar>( *cmat, map, sepTree, *Acliq->info );
+  El::NestedDissection( cmat->DistGraph(), *Acliq->map, *Acliq->sepTree, *Acliq->info, ctrl);
+  Acliq->map->FormInverse( *Acliq->inverseMap );
 
   Acliq->matstruc      = DIFFERENT_NONZERO_PATTERN;
   PetscFunctionReturn(0);
@@ -470,6 +494,8 @@ PETSC_EXTERN PetscErrorCode MatGetFactor_aij_elemental(Mat A,MatFactorType ftype
   elem->xNodal        = new El::DistNodalMultiVec<PetscElemScalar>();
   elem->info          = new El::DistSymmInfo;
   elem->inverseMap    = new El::DistMap;
+  elem->map           = new El::DistMap;
+  elem->sepTree       = new El::DistSeparatorTree;
   elem->Destroy       = B->ops->destroy;
 
   B->ops->view    = MatView_ElemSparse;
@@ -509,7 +535,7 @@ static struct _MatOps MatOps_Values = {
        0, //MatCholeskyFactor_ElemDense,
        0,
        0, //MatTranspose_ElemDense,
-/*15*/ 0, //MatGetInfo_ElemDense,
+/*15*/ MatGetInfo_ElemSparse,
        0,
        0, //MatGetDiagonal_ElemDense,
        0, //MatDiagonalScale_ElemDense,
