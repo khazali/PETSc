@@ -35,7 +35,7 @@
 #define __FUNCT__ "SNESNEWTONASInitialActiveSet_Private"
 static PetscErrorCode SNESNEWTONASInitialActiveSet_Private(SNES snes,Vec x,Vec l,Vec f,Vec g,IS *active)
 {
-  PetscErrorCode     ierr;
+  /*  PetscErrorCode     ierr; */
 
   PetscFunctionBegin;
   /* TODO: implement */
@@ -49,23 +49,23 @@ static PetscErrorCode SNESNEWTONASInitialActiveSet_Private(SNES snes,Vec x,Vec l
   PetscFunctionReturn(0);
 }
 
+/*
 #undef __FUNCT__
 #define __FUNCT__ "SNESNEWTONASComputeDistanceToBoundary"
 static PetscErrorCode SNESNEWTONASComputeDistanceToBoundary(SNES snes,Vec x,Vec l,Vec dx,Vec dl,Mat B,Vec distg,Vec distl)
 {
-  PetscErrorCode     ierr;
 
   PetscFunctionBegin;
-  /* TODO: implement */
   PetscFunctionReturn(0);
 }
+*/
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESNEWTONASModifyActiveSet_Private"
 static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,Vec x,Vec l,Vec f,Vec g,Vec dx,Vec dl,IS active,IS *new_active,PetscReal *tbar)
 {
   /* Returns a modified IS based on the distance to constraint bounds, or NULL if no modification is necessary. */
-  PetscErrorCode     ierr;
+  /*  PetscErrorCode     ierr; */
 
   PetscFunctionBegin;
   /* TODO: implement */
@@ -78,19 +78,20 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,Vec x,Vec l,
   PetscFunctionReturn(0);
 }
 
+/*
 #undef __FUNCT__
 #define __FUNCT__ "SNESNEWTONASComputeMeritFunctionDefault"
 static PetscErrorCode SNESNEWTONASComputeMeritFunctionDefault(SNES snes,Vec x,Vec l,Vec f,Vec g,Mat B,PetscReal *merit)
 {
-  PetscErrorCode     ierr;
 
   PetscFunctionBegin;
-  /* TODO: implement */
-  /* ||f - l*B||_2^2  */
-  /* N.B.: this function might need to set domain error, when necessary (e.g., when computing f results in a domain error?) */
+  // TODO: implement 
+  // ||f - l*B||_2^2  
+  // N.B.: this function might need to set domain error, when necessary (e.g., when computing f results in a domain error?) 
   *merit = 0.0;
   PetscFunctionReturn(0);
 }
+*/
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESNEWTONASScatter"
@@ -130,7 +131,7 @@ static PetscErrorCode SNESNEWTONASGather(SNES snes, Vec LS_X, Vec X, Vec Lambda)
   PetscFunctionReturn(0);
 }
 
-
+/*
 #undef __FUNCT__
 #define __FUNCT__ "SNESNEWTONASMeritFunction"
 static PetscErrorCode SNESNEWTONASMeritFunction(SNES snes, Vec X, Vec F)
@@ -143,18 +144,18 @@ static PetscErrorCode SNESNEWTONASMeritFunction(SNES snes, Vec X, Vec F)
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
-  /* scatter X to x,lambda */
-  ierr = SNESNEWTONASScatter(snes,X,workx,workl);CHKERRQ(ierr);
 
-  /* Compute merit function */
+  ierr = SNESNEWTONASScatter(snes,X,workx,workl);CHKERRQ(ierr);
   ierr = SNESComputeFunction(snes,workx,workf);CHKERRQ(ierr);
 
-  /* ... */
+  // ...
 
   ierr = SNESNEWTONASGather(snes,F,workf,workg);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+*/
 
+/*
 #undef __FUNCT__
 #define __FUNCT__ "SNESNEWTONASMeritObjective"
 static PetscErrorCode SNESNEWTONASMeritObjective(SNES snes, Vec X, PetscReal *f)
@@ -165,28 +166,24 @@ static PetscErrorCode SNESNEWTONASMeritObjective(SNES snes, Vec X, PetscReal *f)
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
-  /* scatter X to x,lambda */
   ierr = SNESNEWTONASScatter(snes,X,workx,workl);CHKERRQ(ierr);
-
-  /* Compute merit function */
   ierr = SNESComputeObjective(snes,workx,f);CHKERRQ(ierr);
-
-  /* ... */
-  /* *f += xxx */
+  // ...
+  // *f += xxx
 
   PetscFunctionReturn(0);
 }
-
+*/
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESNEWTONASComputeSearchDirectionPrimal_Private"
 static PetscErrorCode SNESNEWTONASComputeSearchDirectionPrimal_Private(SNES snes,Vec x,Vec l,Vec f,Mat A,Mat Apre,Mat B,IS active,Vec dx,Vec dl)
 {
   /* Observe that only a subvector of dl defined by the active set is nonzero. */
-  PetscErrorCode     ierr;
-  SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)(snes->data);
-  Vec                tildedl; /* \tilde \delta \lambda */
-  Vec                q = snes->work[2];   /* q = -(f - B^T*l) */
+  /* PetscErrorCode     ierr; */
+  /* SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)(snes->data); */
+  /* Vec                tildedl; */ /* \tilde \delta \lambda */
+  /* Vec                q = snes->work[2]; */  /* q = -(f - B^T*l) */
 
   PetscFunctionBegin;
 #if 0
@@ -272,18 +269,16 @@ static PetscErrorCode SNESNEWTONASComputeSearchDirectionPrimal_Private(SNES snes
 PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
 {
   PetscErrorCode     ierr;
-  Vec                x,dx,f,h,l,dl,g,w;
+  Vec                x,dx,f,l,dl,g;/* h,w; */
   SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)snes->data;
   DM                  dm;
   DMSNES              dmsnes;
   PetscInt            i,lits;
   PetscBool           lssucceed;
   PetscReal           fnorm,hnorm,xnorm,dxnorm;
-  KSPConvergedReason  kspreason;
   PetscBool           domainerror;
   PetscReal           gnorm;
-  SNESLineSearch      linesearch;
-  SNESConvergedReason reason;
+  SNESLineSearch      linesearch=snes->linesearch;
   IS                  active,new_active;
 
   PetscFunctionBegin;
@@ -297,8 +292,8 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
   g      = snes->vec_constr;            /* constraints */
   l      = newtas->lambda[0];           /* \lambda */
   dl     = newtas->lambda[1];           /* \delta \lambda */
-  h      = snes->work[0];               /* residual at the linesearch location */
-  w      = snes->work[1];               /* linear update at the linesearch location */
+  //  h      = snes->work[0];               /* residual at the linesearch location */
+  //  w      = snes->work[1];               /* linear update at the linesearch location */
 
 
   ierr       = PetscObjectSAWsTakeAccess((PetscObject)snes);CHKERRQ(ierr);
@@ -420,7 +415,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
         PetscFunctionReturn(0);
       }
       if (++snes->numFailures >= snes->maxFailures) {
-        PetscBool ismin;
+        PetscBool ismin=PETSC_FALSE;
         snes->reason = SNES_DIVERGED_LINE_SEARCH;
         /*
 	   FIXME: replace this with a NEWTONAS-specific check?
@@ -435,6 +430,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
     snes->iter = i+1;
     snes->norm = fnorm;
     ierr       = PetscObjectSAWsGrantAccess((PetscObject)snes);CHKERRQ(ierr);
+    ierr = KSPGetIterationNumber(snes->ksp,&lits);CHKERRQ(ierr);
     ierr       = SNESLogConvergenceHistory(snes,snes->norm,lits);CHKERRQ(ierr);
     /* FIXME: a new monitor routine is needed to take lamba into account in a BACKWARD-compatible way. */
     ierr       = SNESMonitor(snes,snes->iter,snes->norm);CHKERRQ(ierr);
@@ -478,7 +474,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
 @*/
 PetscErrorCode SNESNEWTONASSetType(SNES snes,SNESNEWTONASType type)
 {
-  PetscErrorCode    ierr;
+  /*PetscErrorCode    ierr; */
   SNES_NEWTONAS     *newtas = (SNES_NEWTONAS*) snes->data;
 
   PetscFunctionBegin;
@@ -511,7 +507,7 @@ PetscErrorCode SNESNEWTONASSetType(SNES snes,SNESNEWTONASType type)
 @*/
 PetscErrorCode SNESNEWTONASGetType(SNES snes,SNESNEWTONASType *type)
 {
-  PetscErrorCode    ierr;
+  /* PetscErrorCode    ierr; */
   SNES_NEWTONAS     *newtas = (SNES_NEWTONAS*) snes->data;
 
   PetscFunctionBegin;
@@ -523,8 +519,8 @@ PetscErrorCode SNESNEWTONASGetType(SNES snes,SNESNEWTONASType *type)
 #define __FUNCT__ "SNESActiveConstraints_Default"
 PETSC_INTERN PetscErrorCode SNESActiveConstraints_Default(SNES snes,Vec x,IS *active,IS *basis,void *ctx)
 {
-  PetscErrorCode    ierr;
-  SNES_NEWTONAS     *newtas = (SNES_NEWTONAS*) snes->data;
+  /* PetscErrorCode    ierr; */
+  /* SNES_NEWTONAS     *newtas = (SNES_NEWTONAS*) snes->data; */
 
   PetscFunctionBegin;
   /* TODO: Apply QR or SVD to a redundant B? */
@@ -590,7 +586,7 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
   ierr = ISCreateStride(PETSC_COMM_SELF,lhi-llo,xhi+llo,1,&is_full_l);CHKERRQ(ierr);
 
   ierr = VecScatterCreate(newtas->ls_x,is_full_x,snes->vec_sol,is_x,&newtas->scat_ls_to_x);CHKERRQ(ierr);
-  ierr = VecScatterCreate(newtas->ls_x,is_full_l,newtas->lambda,is_l,&newtas->scat_ls_to_lambda);CHKERRQ(ierr);
+  ierr = VecScatterCreate(newtas->ls_x,is_full_l,newtas->lambda[0],is_l,&newtas->scat_ls_to_lambda);CHKERRQ(ierr);
   ierr = ISDestroy(&is_x);CHKERRQ(ierr);
   ierr = ISDestroy(&is_l);CHKERRQ(ierr);
   ierr = ISDestroy(&is_full_x);CHKERRQ(ierr);
@@ -609,7 +605,7 @@ PETSC_INTERN PetscErrorCode SNESDestroy_NEWTONAS(SNES snes)
   PetscFunctionBegin;
   /* TODO: Tear things down. */
   if (newtas->lambda) {
-    ierr = VecDestroyVecs(2,&newtas->lambda);CHKERRQ(ierr);
+    ierr = VecDestroyVecs(4,&newtas->lambda);CHKERRQ(ierr);
   }
   ierr = PetscFree(newtas->lambda);CHKERRQ(ierr);
   PetscFunctionReturn(0);
