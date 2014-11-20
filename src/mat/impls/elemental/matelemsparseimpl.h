@@ -28,6 +28,9 @@ typedef struct {
   PetscInt  numSeps;   /* number of separators to try */
   PetscBool selInv;    /* use selective inversion */
   PetscBool intraPiv;  /* use frontal pivoting */
+  PetscInt  nx;        /* number of grid points in x (fastest) direction */
+  PetscInt  ny;        /* number of grid points in y (slowest in 2D) direction */
+  PetscInt  nz;        /* number of grid points in z (slowest in 3D) direction */
 } Mat_ElemSparse;
 
 #endif
