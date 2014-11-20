@@ -73,7 +73,7 @@ static PetscErrorCode SNESNEWTONASComputeMeritFunctionDefault(SNES snes,Vec x,Ve
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESNEWTONASComputeSearchDirectionPrimal_Private"
-static PetscErrorCode SNESNEWTONASComputeSearchDirectionPrimal_Private(SNES snes,Vec x,Vec l,Vec f,Mat A,Mat Apre,Mat B,IS active,Vec dx,Vec dl)
+static PetscErrorCode SNESNEWTONASComputeSearchDirectionPrimal_Private(SNES snes,Vec x,Vec l,Vec f,Mat A,Mat Apre,Mat B,Mat Bt,IS active,Vec dx,Vec dl)
 {
   /* Observe that only a subvector of dl defined by the active set is nonzero. */
   PetscErrorCode     ierr;
@@ -276,7 +276,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
 	    active = new_active; new_active = NULL;
       }
       if (newtas->type == SNESNEWTONAS_PRIMAL) {
-	ierr = SNESNEWTONASComputeSearchDirectionPrimal_Private(snes,x,l,f,snes->jacobian,snes->jacobian_pre,snes->jacobian_constr,active,dx,dl);CHKERRQ(ierr);
+	ierr = SNESNEWTONASComputeSearchDirectionPrimal_Private(snes,x,l,f,snes->jacobian,snes->jacobian_pre,snes->jacobian_constr,snes->jacobian_constrt,active,dx,dl);CHKERRQ(ierr);
       }
       else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"SNESNEWTONAS solver type not yet supported: %s",newtas->type);
       ierr = SNESNEWTONASModifyActiveSet_Private(snes,x,l,f,g,dx,dl,active,&new_active,&tbar);CHKERRQ(ierr);
