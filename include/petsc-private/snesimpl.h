@@ -175,9 +175,9 @@ struct _DMSNESOps {
   PetscErrorCode (*constraintjacobian)(SNES,Vec,Mat,Mat,void*);
   PetscErrorCode (*projectontoconstraints)(SNES,Vec,Vec,void*);
 
-  /* Specific to SNESNEWTONAS.  QUESTION: how do we accommodate impl-specific callbacks and contexts? Different DMSNES impls? */
-  PetscErrorCode (*activeconstraints)(SNES,Vec,Vec,Vec,Mat,IS*,void*);
+  /* Specific to SNESNEWTONAS or SNESNEWTONAS_PRIMAL.  QUESTION: how do we accommodate impl-specific callbacks and contexts? Different DMSNES impls? */
   PetscErrorCode (*activeconstraintbasis)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*);
+  PetscErrorCode (*merit)(SNES,Vec,Vec,Vec,Vec,Mat,Mat,PetscReal*,void*);
 
   /* Picard iteration functions */
   PetscErrorCode (*computepfunction)(SNES,Vec,Vec,void*);
@@ -201,9 +201,9 @@ struct _p_DMSNES {
   void *constraintfunctionctx;
   void *constraintjacobianctx;
   void *projectontoconstraintsctx;
+  void *meritctx;
 
-  /* Specific to SNESNEWTONAS.  QUESTION: how do we accommodate impl-specific callbacks and contexts? Different DMSNES impls? */
-  void *activeconstraintsctx;
+  /* Specific to SNESNEWTONAS_PRIMAL.  QUESTION: how do we accommodate impl-specific callbacks and contexts? Different DMSNES impls? */
   void *activeconstraintbasisctx;
 
   void *data;

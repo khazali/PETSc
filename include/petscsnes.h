@@ -663,8 +663,6 @@ PETSC_EXTERN PetscErrorCode DMSNESGetConstraintJacobian(DM,PetscErrorCode (**)(S
 PETSC_EXTERN PetscErrorCode DMSNESSetProjectOntoConstraints(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSNESGetProjectOntoConstraints(DM,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
 
-PETSC_EXTERN PetscErrorCode DMSNESNEWTONASSetActiveConstraints(DM,PetscErrorCode (*)(SNES,Vec,Vec,Vec,Mat,IS*,void*),void*);
-PETSC_EXTERN PetscErrorCode DMSNESNEWTONASGetActiveConstraints(DM,PetscErrorCode (**)(SNES,Vec,Vec,Vec,Mat,IS*,void*),void**);
 PETSC_EXTERN PetscErrorCode DMSNESNEWTONASSetActiveConstraintBasis(DM,PetscErrorCode (*)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSNESNEWTONASGetActiveConstraintBasis(DM,PetscErrorCode (**)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void**);
 

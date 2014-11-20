@@ -55,16 +55,27 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,Vec x,Vec l,
   PetscFunctionReturn(0);
 }
 
+/*
+ * The merit function parameters are specific to SNESNEWTONAS -- there is really no way around it, except by passing
+ * the arguments indirectly by packing them into SNES.  This is unnecessarily, however, since the call to the merit
+ * function will always be made from a SNESNEWTONAS (or derived) context.  Even if we allow the user to set custom
+ * merit functions, they are still going to be SNESNEWTONAS-specific and should be able to interpret the arguments
+ * correctly. In a pinch an opaque ctx can be used by a custom Merit function.  Here we are still trying to reserve
+ * additional parameters (e.g., g and A), which *might* be used by custom Merit functions.
+ */
 #undef __FUNCT__
 #define __FUNCT__ "SNESNEWTONASComputeMeritFunctionDefault"
-static PetscErrorCode SNESNEWTONASComputeMeritFunctionDefault(SNES snes,Vec x,Vec l,Vec f,Vec g,Mat B,PetscReal *merit)
+static PetscErrorCode SNESNEWTONASComputeMeritFunctionDefault(SNES snes,Vec x,Vec l,Vec f,Vec g,Mat A,Mat B,PetscReal *merit,void *dummyctx)
 {
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
   /* TODO: implement */
-  /* ||f - l*B||_2^2  */
-  /* N.B.: this function might need to set domain error, when necessary (e.g., when computing f results in a domain error?) */
+  /* Compute f(x), B(x) = \grad g(x) and l*B, then compute *merit = ||f - l*B||_2^2  */
+  /*
+     N.B.: this function might need to set domain error, when necessary (e.g., when computing f results in a domain error?)
+     Should g be able to set domain error as well?
+   */
   *merit = 0.0;
   PetscFunctionReturn(0);
 }
