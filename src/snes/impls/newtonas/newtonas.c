@@ -156,7 +156,6 @@ static PetscErrorCode SNESNEWTONASComputeSearchDirectionPrimal_Private(SNES snes
   PetscFunctionReturn(0);
 }
 
-/* Also need two line searches: Armijo and projection-based. */
 /* SNES NEWTONAS ALGORITHM SUBROUTINE STUBS BEGIN */
 
 
