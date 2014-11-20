@@ -116,6 +116,7 @@ PetscErrorCode SNESLineSearchSetUp(SNESLineSearch linesearch)
       ierr = (*linesearch->ops->setup)(linesearch);CHKERRQ(ierr);
     }
     if (!linesearch->ops->snesfunc) {ierr = SNESLineSearchSetFunction(linesearch,SNESComputeFunction);CHKERRQ(ierr);}
+    if (!linesearch->ops->snesobj) {ierr = SNESLineSearchSetObjective(linesearch,SNESComputeObjective);CHKERRQ(ierr);}
     linesearch->lambda      = linesearch->damping;
     linesearch->setupcalled = PETSC_TRUE;
   }
@@ -160,9 +161,35 @@ PetscErrorCode SNESLineSearchReset(SNESLineSearch linesearch)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "SNESLineSearchSetObjective"
+/*@C
+   SNESLineSearchSetObjective - Sets the merit function evaluation used by the SNES line search
+
+   Input Parameters:
+.  linesearch - the SNESLineSearch context
++  merit_obj  - merit objective function evaluation routine
+
+   Level: developer
+
+   Notes: This is used internally by PETSc and not called by users
+
+.keywords: set, linesearch
+
+.seealso: SNESSetFunction()
+@*/
+PetscErrorCode  SNESLineSearchSetObjective(SNESLineSearch linesearch, PetscErrorCode (*merit_obj)(SNES,Vec,PetscReal*))
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(linesearch,SNESLINESEARCH_CLASSID,1);
+  linesearch->ops->snesobj = merit_obj;
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
 #define __FUNCT__ "SNESLineSearchSetFunction"
 /*@C
-   SNESLineSearchSetFunction - Sets the function evaluation used by the SNES line search
+   SNESLineSearchSetFunction - Sets the merit function evaluation used by the SNES line search
 
    Input Parameters:
 .  linesearch - the SNESLineSearch context
