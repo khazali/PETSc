@@ -19,6 +19,23 @@
          :same concerns as above.
     'MISC'
      . Create SNESNEWTONASComputeConstraints() and similar wrappers for use in custom Merit functions?
+  - Dmitry:
+    . 'WIRING':
+      : Make sure that SNESNEWTONASMeritXXX() has the right calling sequence so that the required parameters
+        can be passed in from all of its usual calling contexts (e.g., SNESLineSearch).
+      : Add get/set boilerplate for SNESNEWTONASMeritXXX()
+      : Likewise address the calling sequence issue for SNESConvergedXXX() and SNESMonitor().
+      : Add boilerplate code for SNESNEWTONASSet/GetActiveConstraintBasis().
+    . 'SKELETON':
+      : Produce the skeleton SNESNEWTONAS algorith that has all of the correct calls with the correct calling
+        sequences, even if it is to stubs.
+  - Jason:
+      'WIRING':
+      : Make sure that SNESLineSearch_Armijo makes calls to the correct functions: 'merit', rather than 'objective',
+        and 'projectontoconstraints' rather than the 'viproject'.
+      'OPTIMIZATION':
+      : Implement SNESNEWTONASInitialActiveSet_Private() & SNESNESNEWTONASModifyActiveSet_Private()
+      : Implement the second SNESLineSearch_XXX (the one that doesn't use the gradient of the constraints?)
 */
 /*
    QUESTIONS:
