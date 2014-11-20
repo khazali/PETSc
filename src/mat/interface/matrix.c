@@ -3028,11 +3028,11 @@ PetscErrorCode  MatCholeskyFactorSymbolic(Mat fact,Mat mat,IS perm,const MatFact
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
-  PetscValidType(mat,1);
-  if (perm) PetscValidHeaderSpecific(perm,IS_CLASSID,2);
-  if (info) PetscValidPointer(info,3);
-  PetscValidPointer(fact,4);
+  PetscValidHeaderSpecific(fact,MAT_CLASSID,1);
+  PetscValidType(fact,1);
+  if (perm) PetscValidHeaderSpecific(perm,IS_CLASSID,3);
+  if (info) PetscValidPointer(info,4);
+  PetscValidPointer(fact,1);
   if (mat->rmap->N != mat->cmap->N) SETERRQ(PetscObjectComm((PetscObject)mat),PETSC_ERR_ARG_WRONG,"Matrix must be square");
   if (!mat->assembled) SETERRQ(PetscObjectComm((PetscObject)mat),PETSC_ERR_ARG_WRONGSTATE,"Not for unassembled matrix");
   if (mat->factortype) SETERRQ(PetscObjectComm((PetscObject)mat),PETSC_ERR_ARG_WRONGSTATE,"Not for factored matrix");
@@ -3086,10 +3086,10 @@ PetscErrorCode  MatCholeskyFactorNumeric(Mat fact,Mat mat,const MatFactorInfo *i
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
-  PetscValidType(mat,1);
-  PetscValidPointer(fact,2);
-  PetscValidHeaderSpecific(fact,MAT_CLASSID,2);
+  PetscValidHeaderSpecific(fact,MAT_CLASSID,1);
+  PetscValidType(fact,1);
+  PetscValidPointer(mat,2);
+  PetscValidHeaderSpecific(mat,MAT_CLASSID,2);
   if (!mat->assembled) SETERRQ(PetscObjectComm((PetscObject)mat),PETSC_ERR_ARG_WRONGSTATE,"Not for unassembled matrix");
   if (!(fact)->ops->choleskyfactornumeric) SETERRQ1(PetscObjectComm((PetscObject)mat),PETSC_ERR_SUP,"Mat type %s numeric factor Cholesky",((PetscObject)mat)->type_name);
   if (mat->rmap->N != (fact)->rmap->N || mat->cmap->N != (fact)->cmap->N) SETERRQ4(PetscObjectComm((PetscObject)mat),PETSC_ERR_ARG_SIZ,"Mat mat,Mat fact: global dim %D should = %D %D should = %D",mat->rmap->N,(fact)->rmap->N,mat->cmap->N,(fact)->cmap->N);
