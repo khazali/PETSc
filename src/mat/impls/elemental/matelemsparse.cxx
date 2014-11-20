@@ -9,7 +9,7 @@
 #define __FUNCT__ "MatGetInfo_ElemSparse"
 static PetscErrorCode MatGetInfo_ElemSparse(Mat A,MatInfoType flag,MatInfo *info)
 {
-  Mat_ElemSparse *a = (Mat_ElemSparse*)A->data;
+  //Mat_ElemSparse *a = (Mat_ElemSparse*)A->data;
 
   PetscFunctionBegin;
   info->block_size     = 1.0;
@@ -307,20 +307,32 @@ PetscErrorCode MatView_ElemSparse(Mat A,PetscViewer viewer)
 
   PetscFunctionBegin;
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&iascii);CHKERRQ(ierr);
-  if (iascii) {
+  if (iascii && A->factortype != MAT_FACTOR_NONE) {
     PetscViewerFormat format;
     ierr = PetscViewerGetFormat(viewer,&format);CHKERRQ(ierr);
     if (format == PETSC_VIEWER_ASCII_INFO) {
-      ierr = PetscViewerASCIIPrintf(viewer,"ElemSparse run parameters:\n");CHKERRQ(ierr);
-    } else if (format == PETSC_VIEWER_DEFAULT) { /* matrix A is factored matrix, remove this block */
-      Mat Aaij;
-      ierr = PetscViewerASCIIUseTabs(viewer,PETSC_FALSE);CHKERRQ(ierr);
-      ierr = PetscViewerASCIIUseTabs(viewer,PETSC_TRUE);CHKERRQ(ierr);
-      ierr = PetscPrintf(PetscObjectComm((PetscObject)viewer),"ElemSparse matrix\n");CHKERRQ(ierr);
-      ierr = MatComputeExplicitOperator(A,&Aaij);CHKERRQ(ierr);
-      ierr = MatView(Aaij,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-      ierr = MatDestroy(&Aaij);CHKERRQ(ierr);
+      Mat_ElemSparse *elem=(Mat_ElemSparse*)A->spptr;
+      ierr = PetscViewerASCIIPrintf(viewer,"Elemental sparse solver options:\n");CHKERRQ(ierr);
+      if (elem->use_metis) {
+        if (elem->seq_nd) {
+          ierr = PetscViewerASCIIPrintf(viewer," Using METIS nested dissection\n");CHKERRQ(ierr);
+        } else {
+          ierr = PetscViewerASCIIPrintf(viewer," Using ParMETIS nested dissection\n");CHKERRQ(ierr);
+        }
+      } else {
+        ierr = PetscViewerASCIIPrintf(viewer," Using Elemental nested dissection\n");CHKERRQ(ierr);
+      }
+      ierr = PetscViewerASCIIPrintf(viewer," Maximum size of leaf node allowed: %d\n",elem->cutoff);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(viewer," Number of separators tried       : %d\n",elem->numSeps);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(viewer," Selective inversion              : %d\n",elem->selInv);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(viewer," Frontal pivoting                 : %d\n",elem->intraPiv);CHKERRQ(ierr);
     }
+  }
+  if (A->factortype == MAT_FACTOR_NONE) {
+    Mat Aaij;
+    ierr = MatConvert(A,MATAIJ,MAT_INITIAL_MATRIX,&Aaij);CHKERRQ(ierr);
+    ierr = MatView(Aaij,viewer);CHKERRQ(ierr);
+    ierr = MatDestroy(&Aaij);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -410,9 +422,10 @@ static PetscErrorCode MatSolve_ElemSparse(Mat A,Vec B,Vec X)
 #define __FUNCT__ "MatCholeskyFactorNumeric_ElemSparse"
 PetscErrorCode MatCholeskyFactorNumeric_ElemSparse(Mat F,Mat A,const MatFactorInfo *info)
 {
-  Mat_ElemSparse *elem=(Mat_ElemSparse*)F->spptr;
-  PetscBool      iselemsparse;
-  PetscErrorCode ierr;
+  Mat_ElemSparse    *elem=(Mat_ElemSparse*)F->spptr;
+  PetscBool         iselemsparse;
+  PetscErrorCode    ierr;
+  El::SymmFrontType frontType;
 
   PetscFunctionBegin;
   ierr = PetscObjectTypeCompare((PetscObject)A,MATELEMSPARSE,&iselemsparse);CHKERRQ(ierr);
@@ -422,14 +435,13 @@ PetscErrorCode MatCholeskyFactorNumeric_ElemSparse(Mat F,Mat A,const MatFactorIn
 
   /* Numerical factorization */
   if (elem->frontTree) delete elem->frontTree;
-  elem->frontTree = new El::DistSymmFrontTree<PetscElemScalar>( *elem->cmat, *elem->map, *elem->sepTree, *elem->info );
-  El::LDL( *elem->info, *elem->frontTree, El::LDL_1D);
-  //L.frontType = cliq::SYMM_2D;
-
-  // refactor
-  //cliq::ChangeFrontType( *cliq->frontTree, cliq::LDL_2D );
-  //*(cliq->frontTree.frontType) = cliq::LDL_2D;
-  //cliq::LDL( *cliq->info, *cliq->frontTree, cliq::LDL_2D );
+  elem->frontTree = new El::DistSymmFrontTree<PetscElemScalar>( *elem->cmat, *elem->map, *elem->sepTree, *elem->info , false);
+  if (elem->intraPiv) {
+    frontType = (elem->selInv ? El::LDL_INTRAPIV_SELINV_1D : El::LDL_INTRAPIV_1D);
+  } else {
+    frontType = (elem->selInv ? El::LDL_SELINV_1D : El::LDL_1D);
+  }
+  El::LDL( *elem->info, *elem->frontTree, frontType);
 
   elem->matstruc = SAME_NONZERO_PATTERN;
   F->assembled   = PETSC_TRUE;
@@ -441,7 +453,6 @@ PetscErrorCode MatCholeskyFactorNumeric_ElemSparse(Mat F,Mat A,const MatFactorIn
 PetscErrorCode MatCholeskyFactorSymbolic_ElemSparse(Mat F,Mat A,IS r,const MatFactorInfo *info)
 {
   Mat_ElemSparse *elem;
-  El::BisectCtrl ctrl;
   PetscBool      iselemsparse;
   PetscErrorCode ierr;
 
@@ -457,11 +468,21 @@ PetscErrorCode MatCholeskyFactorSymbolic_ElemSparse(Mat F,Mat A,IS r,const MatFa
     ierr = MatConvertToElemSparse_Private(A,elem);CHKERRQ(ierr);
   }
   /* call nested dissection and compute the map for the inverse */
-  ctrl.sequential = PETSC_TRUE;
-  ctrl.numSeqSeps = elem->numSeqSeps;
-  ctrl.numDistSeps = elem->numDistSeps;
-  ctrl.cutoff = elem->cutoff;
-  El::NestedDissection( elem->cmat->DistGraph(), *elem->map, *elem->sepTree, *elem->info, ctrl);
+  if (elem->use_metis) {
+    El::BisectCtrl ctrl;
+    ctrl.cutoff = elem->cutoff;
+    ctrl.sequential = elem->seq_nd;
+    ctrl.numSeqSeps = 0;
+    ctrl.numDistSeps = 0;
+    if (elem->seq_nd) {
+      ctrl.numSeqSeps = elem->numSeps;
+    } else {
+      ctrl.numDistSeps = elem->numSeps;
+    }
+    El::NestedDissection( elem->cmat->DistGraph(), *elem->map, *elem->sepTree, *elem->info, ctrl);
+  } else {
+    El::NaturalNestedDissection( A->rmap->N, 1, 1, elem->cmat->DistGraph(), *elem->map, *elem->sepTree, *elem->info, elem->cutoff );
+  }
   elem->map->FormInverse( *elem->inverseMap );
   elem->matstruc = DIFFERENT_NONZERO_PATTERN;
   PetscFunctionReturn(0);
@@ -505,12 +526,21 @@ PETSC_EXTERN PetscErrorCode MatGetFactor_all_elemental(Mat A,MatFactorType ftype
   B->ops->choleskyfactornumeric  = MatCholeskyFactorNumeric_ElemSparse;
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatFactorGetSolverPackage_C",MatFactorGetSolverPackage_elemental);CHKERRQ(ierr);
 
-  /* Set Clique options */
-  ierr = PetscOptionsBegin(PetscObjectComm((PetscObject)A),((PetscObject)A)->prefix,"ElemSparse Options","Mat");CHKERRQ(ierr);
-  elem->cutoff      = 128;  /* maximum size of leaf node */
-  elem->numDistSeps = 1;    /* number of distributed separators to try */
-  elem->numSeqSeps  = 1;    /* number of sequential separators to try */
-  PetscOptionsEnd();
+  /* Set Elemental options */
+  ierr = PetscOptionsBegin(PetscObjectComm((PetscObject)A),((PetscObject)A)->prefix,"Elemental sparse solver options","Mat");CHKERRQ(ierr);
+  elem->use_metis = PETSC_FALSE;
+  ierr = PetscOptionsBool("-mat_elemsparse_usemetis","Use or not METIS/ParMETIS nested dissection","none",elem->use_metis,&elem->use_metis,NULL);CHKERRQ(ierr);
+  elem->seq_nd = PETSC_TRUE;
+  ierr = PetscOptionsBool("-mat_elemsparse_seqnd","Use or not a sequential algorithm for nested dissection","none",elem->seq_nd,&elem->seq_nd,NULL);CHKERRQ(ierr);
+  elem->selInv = PETSC_FALSE;
+  ierr = PetscOptionsBool("-mat_elemsparse_selinv","Use selective inversion","none",elem->selInv,&elem->selInv,NULL);CHKERRQ(ierr);
+  elem->intraPiv = PETSC_FALSE;
+  ierr = PetscOptionsBool("-mat_elemsparse_intrapiv","Use frontal pivoting","none",elem->intraPiv,&elem->intraPiv,NULL);CHKERRQ(ierr);
+  elem->cutoff = 128;  /* maximum size of leaf node */
+  ierr = PetscOptionsInt("-mat_elemsparse_cutoff","Maximum size of leaf node","none",elem->cutoff,&elem->cutoff,NULL);CHKERRQ(ierr);
+  elem->numSeps = 2;    /* number of separators to try */
+  ierr = PetscOptionsInt("-mat_elemsparse_nsep","Number of separators to try","none",elem->numSeps,&elem->numSeps,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   *F = B;
   PetscFunctionReturn(0);
