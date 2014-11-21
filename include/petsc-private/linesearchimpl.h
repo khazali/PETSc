@@ -17,8 +17,8 @@ struct _LineSearchOps {
   PetscErrorCode (*reset)(SNESLineSearch);
   PetscErrorCode (*destroy)(SNESLineSearch);
   PetscErrorCode (*setup)(SNESLineSearch);
-  PetscErrorCode (*snesobj)(SNES,Vec,PetscReal*);
   PetscErrorCode (*snesfunc)(SNES,Vec,Vec);
+  PetscErrorCode (*merit)(SNES,Vec,PetscReal*);
 };
 
 struct _p_LineSearch {
@@ -35,6 +35,8 @@ struct _p_LineSearch {
   Vec                 vec_func;
   Vec                 vec_func_new;
   Vec                 vec_update;
+
+  Vec                 fun_default; /* used to compute default merit function */
 
   PetscInt            nwork;
   Vec                 *work;

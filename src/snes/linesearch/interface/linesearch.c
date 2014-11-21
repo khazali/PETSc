@@ -50,6 +50,7 @@ PetscErrorCode SNESLineSearchCreate(MPI_Comm comm, SNESLineSearch *outlinesearch
   linesearch->vec_sol      = NULL;
   linesearch->vec_func     = NULL;
   linesearch->vec_update   = NULL;
+  linesearch->fun_default = NULL;
 
   linesearch->lambda       = 1.0;
   linesearch->fnorm        = 1.0;
@@ -100,8 +101,11 @@ PetscErrorCode SNESLineSearchCreate(MPI_Comm comm, SNESLineSearch *outlinesearch
 PetscErrorCode SNESLineSearchSetUp(SNESLineSearch linesearch)
 {
   PetscErrorCode ierr;
+  SNES           snes;
+
 
   PetscFunctionBegin;
+  ierr = SNESLineSearchGetSNES(linesearch,&snes);CHKERRQ(ierr);
   if (!((PetscObject)linesearch)->type_name) {
     ierr = SNESLineSearchSetType(linesearch,SNESLINESEARCHBASIC);CHKERRQ(ierr);
   }
@@ -116,7 +120,6 @@ PetscErrorCode SNESLineSearchSetUp(SNESLineSearch linesearch)
       ierr = (*linesearch->ops->setup)(linesearch);CHKERRQ(ierr);
     }
     if (!linesearch->ops->snesfunc) {ierr = SNESLineSearchSetFunction(linesearch,SNESComputeFunction);CHKERRQ(ierr);}
-    if (!linesearch->ops->snesobj) {ierr = SNESLineSearchSetObjective(linesearch,SNESComputeObjective);CHKERRQ(ierr);}
     linesearch->lambda      = linesearch->damping;
     linesearch->setupcalled = PETSC_TRUE;
   }
@@ -152,18 +155,18 @@ PetscErrorCode SNESLineSearchReset(SNESLineSearch linesearch)
 
   ierr = VecDestroy(&linesearch->vec_sol_new);CHKERRQ(ierr);
   ierr = VecDestroy(&linesearch->vec_func_new);CHKERRQ(ierr);
+  ierr = VecDestroy(&linesearch->fun_default);CHKERRQ(ierr);
 
   ierr = VecDestroyVecs(linesearch->nwork, &linesearch->work);CHKERRQ(ierr);
-
   linesearch->nwork       = 0;
   linesearch->setupcalled = PETSC_FALSE;
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "SNESLineSearchSetObjective"
+#define __FUNCT__ "SNESLineSearchSetMerit"
 /*@C
-   SNESLineSearchSetObjective - Sets the merit function evaluation used by the SNES line search
+   SNESLineSearchSetMerit - Sets the merit function evaluation used by the SNES line search
 
    Input Parameters:
 .  linesearch - the SNESLineSearch context
@@ -177,13 +180,14 @@ PetscErrorCode SNESLineSearchReset(SNESLineSearch linesearch)
 
 .seealso: SNESSetFunction()
 @*/
-PetscErrorCode  SNESLineSearchSetObjective(SNESLineSearch linesearch, PetscErrorCode (*merit_obj)(SNES,Vec,PetscReal*))
+PetscErrorCode  SNESLineSearchSetMerit(SNESLineSearch linesearch, PetscErrorCode (*merit_obj)(SNES,Vec,PetscReal*))
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(linesearch,SNESLINESEARCH_CLASSID,1);
-  linesearch->ops->snesobj = merit_obj;
+  linesearch->ops->merit = merit_obj;
   PetscFunctionReturn(0);
 }
+
 
 
 #undef __FUNCT__
@@ -830,6 +834,44 @@ PetscErrorCode SNESLineSearchView(SNESLineSearch linesearch, PetscViewer viewer)
     }
   }
   PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESLineSearchDefaultMerit"
+/*@C
+   SNESLineSearchDefaultMerit - The default merit function for the line
+   search (2-norm of function)
+
+   Collective on Vec
+
+   Input Parameters:
++  linesearch - linesearch context
+-  x - The location to compute the merit function
+
+   Output Parameters:
+.  merit_obj - the value of the merit function at x
+
+   Level: developer
+@*/
+PetscErrorCode SNESLineSearchDefaultMerit(SNES snes, Vec x, PetscReal *merit_obj)
+{
+  PetscErrorCode ierr;
+  SNESLineSearch linesearch;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  PetscValidHeaderSpecific(x,VEC_CLASSID,2);
+  PetscValidPointer(merit_obj,3);
+
+  PetscFunctionBegin;
+  ierr = SNESGetLineSearch(snes,&linesearch);CHKERRQ(ierr);
+  if (!linesearch->fun_default) {
+    ierr = VecDuplicate(x,&linesearch->fun_default);CHKERRQ(ierr);
+  }
+
+  ierr = SNESComputeFunction(snes,x,linesearch->fun_default);CHKERRQ(ierr);
+  ierr = VecNorm(linesearch->fun_default,NORM_2,merit_obj);CHKERRQ(ierr);
+
+  PetscFunctionReturn(0);
+
 }
 
 #undef __FUNCT__
