@@ -94,16 +94,16 @@ static PetscErrorCode SNESNEWTONASGather(SNES snes, Vec LS_X, Vec X, Vec Lambda)
   PetscFunctionReturn(0);
 }
 
-/*
+
 #undef __FUNCT__
 #define __FUNCT__ "SNESNEWTONASMeritFunction"
-static PetscErrorCode SNESNEWTONASMeritFunction(SNES snes, Vec X, Vec F)
+static PetscErrorCode SNESNEWTONASMeritFunction(SNES snes, Vec X, PetscReal *f)
 {
   SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)snes->data;
   Vec                workx = snes->work[0];
   Vec                workf = snes->work[1];
-  Vec                workg = newtas->lambda[2];
-  Vec                workl = newtas->lambda[3];
+  Vec                workl = newtas->lambda[2];
+  Vec                workl2 = newtas->lambda[3];
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
@@ -111,12 +111,14 @@ static PetscErrorCode SNESNEWTONASMeritFunction(SNES snes, Vec X, Vec F)
   ierr = SNESNEWTONASScatter(snes,X,workx,workl);CHKERRQ(ierr);
   ierr = SNESComputeFunction(snes,workx,workf);CHKERRQ(ierr);
 
-  // ...
-
-  ierr = SNESNEWTONASGather(snes,F,workf,workg);CHKERRQ(ierr);
+  // ||f - l*B||_2
+  ierr = MatMult(snes->jacobian_constrt,workl,workl2);CHKERRQ(ierr);
+  ierr = VecAXPY(workf,-1.0,workl2);CHKERRQ(ierr);
+  ierr = VecNorm(workf,NORM_2,f);CHKERRQ(ierr);
+  *f *= *f;
   PetscFunctionReturn(0);
 }
-*/
+
 
 /*
 #undef __FUNCT__
@@ -511,7 +513,8 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
   PetscErrorCode    ierr;
   PetscInt          xlo,xhi,llo,lhi;
   IS                is_x,is_l,is_full_x,is_full_l;
-  SNES_NEWTONAS *newtas = (SNES_NEWTONAS*) snes->data;
+  SNESLineSearch    linesearch;
+  SNES_NEWTONAS     *newtas = (SNES_NEWTONAS*) snes->data;
 
   PetscFunctionBegin;
   if (!newtas->type) {
@@ -554,6 +557,8 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
   ierr = ISDestroy(&is_full_x);CHKERRQ(ierr);
   ierr = ISDestroy(&is_full_l);CHKERRQ(ierr);
 
+  ierr = SNESGetLineSearch(snes,&linesearch);CHKERRQ(ierr);
+  ierr = SNESLineSearchSetMerit(linesearch,SNESNEWTONASMeritFunction);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
