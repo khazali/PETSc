@@ -572,6 +572,8 @@ PETSC_EXTERN PetscErrorCode SNESLineSearchSetTolerances(SNESLineSearch,PetscReal
 
 PETSC_EXTERN PetscErrorCode SNESLineSearchPreCheckPicard(SNESLineSearch,Vec,Vec,PetscBool*,void*);
 
+PETSC_EXTERN PetscErrorCode SNESLineSearchDefaultMerit(SNES snes, Vec x, PetscReal *merit_obj);
+
 PETSC_EXTERN PetscErrorCode SNESLineSearchGetLambda(SNESLineSearch,PetscReal*);
 PETSC_EXTERN PetscErrorCode SNESLineSearchSetLambda(SNESLineSearch,PetscReal);
 

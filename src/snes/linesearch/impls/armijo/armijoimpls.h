@@ -81,6 +81,7 @@ typedef struct {
 
   Vec x;        /* Maintain reference to variable vector to check for changes */
   Vec work;
+  Vec stepwork;
 } SNESLineSearch_ARMIJO;
 
 #endif
