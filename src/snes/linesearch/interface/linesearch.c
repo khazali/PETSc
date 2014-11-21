@@ -189,6 +189,30 @@ PetscErrorCode  SNESLineSearchSetMerit(SNESLineSearch linesearch, PetscErrorCode
 }
 
 
+//TODO getmerit
+
+//TODO docs here
+#undef __FUNCT__
+#define __FUNCT__ "SNESLineSearchComputeMerit"
+PetscErrorCode SNESLineSearchComputeMerit(SNESLineSearch linesearch, Vec X, PetscReal *merit)
+{
+  PetscErrorCode ierr;
+  SNES           snes;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(linesearch,SNESLINESEARCH_CLASSID,1);
+  PetscValidHeaderSpecific(X,VEC_CLASSID,2);
+  PetscValidPointer(merit,3);
+  ierr = SNESLineSearchGetSNES(linesearch,&snes);CHKERRQ(ierr);
+
+  if (linesearch->ops->merit) {
+    ierr = (linesearch->ops->merit)(snes,X,merit);CHKERRQ(ierr);
+  } else SETERRQ(PetscObjectComm((PetscObject)snes),PETSC_ERR_ARG_WRONGSTATE, "Must call SNESLineSearchSetMerit() before SNESLineSearchComputeMerit().");
+
+  PetscFunctionReturn(0);
+
+}
+
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESLineSearchSetFunction"

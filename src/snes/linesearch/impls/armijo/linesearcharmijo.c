@@ -156,13 +156,14 @@ static PetscErrorCode  SNESLineSearchApply_Armijo(SNESLineSearch linesearch)
   ierr = SNESLineSearchGetMonitor(linesearch, &monitor);CHKERRQ(ierr);
   ierr = SNESLineSearchGetTolerances(linesearch,&minlambda,&maxstep,NULL,NULL,NULL,&max_it);CHKERRQ(ierr);
   ierr = SNESGetTolerances(snes,NULL,NULL,&stol,NULL,NULL);CHKERRQ(ierr);
-  merit = linesearch->ops->merit;
-  if (!merit) {
-    merit = SNESLineSearchDefaultMerit;
+  if (!linesearch->ops->merit) {
+    SNESLineSearchSetMerit(linesearch,SNESLineSearchDefaultMerit);CHKERRQ(ierr);
     f = gnorm;
   } else {
-     ierr = (*merit)(snes,work,&f);CHKERRQ(ierr);
+     ierr = SNESLineSearchComputeMerit(linesearch,work,&f);CHKERRQ(ierr);
   }
+  merit = linesearch->ops->merit;
+
   if (!armP->work) {
     ierr = VecDuplicate(x,&armP->work);CHKERRQ(ierr);
     ierr = VecDuplicate(x,&armP->workstep);CHKERRQ(ierr);
