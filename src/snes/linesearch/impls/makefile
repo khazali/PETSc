@@ -1,7 +1,7 @@
 
 ALL: lib
 
-DIRS     = basic l2 cp shell bt armijo
+DIRS     = basic l2 cp shell bt btsd
 LOCDIR   = src/snes/linesearch/impls/
 
 include ${PETSC_DIR}/conf/variables

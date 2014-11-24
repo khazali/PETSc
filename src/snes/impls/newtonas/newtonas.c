@@ -557,6 +557,7 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
   ierr = ISDestroy(&is_full_l);CHKERRQ(ierr);
 
   ierr = SNESGetLineSearch(snes,&linesearch);CHKERRQ(ierr);
+  ierr = SNESLineSearchSetType(linesearch,SNESLINESEARCHBTSD);CHKERRQ(ierr);
   ierr = SNESLineSearchSetMerit(linesearch,SNESNEWTONASMeritFunction);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

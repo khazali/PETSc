@@ -516,7 +516,7 @@ typedef const char* SNESLineSearchType;
 #define SNESLINESEARCHBASIC              "basic"
 #define SNESLINESEARCHL2                 "l2"
 #define SNESLINESEARCHCP                 "cp"
-#define SNESLINESEARCHARMIJO             "armijo"
+#define SNESLINESEARCHBTSD               "btsd"
 #define SNESLINESEARCHSHELL              "shell"
 
 PETSC_EXTERN PetscBool         SNESRegisterAllCalled;

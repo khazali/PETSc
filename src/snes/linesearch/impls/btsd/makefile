@@ -2,12 +2,12 @@ ALL: lib
 
 CFLAGS   =
 FFLAGS   =
-SOURCEC  = linesearcharmijo.c
+SOURCEC  = linesearchbtsd.c
 SOURCEF  =
-SOURCEH  = armijoimpls.h
+SOURCEH  = 
 LIBBASE  = libpetscsnes
 MANSEC   = SNES
-LOCDIR   = src/snes/linesearch/impls/armijo/
+LOCDIR   = src/snes/linesearch/impls/btsd/
 
 include ${PETSC_DIR}/conf/variables
 include ${PETSC_DIR}/conf/rules
