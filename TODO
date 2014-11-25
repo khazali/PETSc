@@ -27,14 +27,13 @@
       : Likewise address the calling sequence issue for SNESConvergedXXX() and SNESMonitor().
       : Add boilerplate code for SNESNEWTONASSet/GetActiveConstraintBasis().
     . 'SKELETON':
-      : Produce the skeleton SNESNEWTONAS algorith that has all of the correct calls with the correct calling
+      : *Produce the skeleton SNESNEWTONAS algorith that has all of the correct calls with the correct calling
         sequences, even if it is to stubs.
   - Jason:
-      'WIRING':
-      : Make sure that SNESLineSearch_Armijo makes calls to the correct functions: 'merit', rather than 'objective',
-        and 'projectontoconstraints' rather than the 'viproject'.
-      'OPTIMIZATION':
-      : Implement SNESNEWTONASInitialActiveSet_Private() & SNESNESNEWTONASModifyActiveSet_Private()
+       'OPTIMIZATION':
+      : *Additional tests for SNESLineSearch_BTSD
+      : *Implement SNESNEWTONASInitialActiveSet_Private()
+      : *Implement SNESNESNEWTONASModifyActiveSet_Private() (a primitive version that barfs when the active set needs to be modified)
       : Implement the second SNESLineSearch_XXX (the one that doesn't use the gradient of the constraints?)
 */
 /*
