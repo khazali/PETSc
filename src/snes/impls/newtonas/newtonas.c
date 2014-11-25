@@ -39,16 +39,25 @@ static PetscErrorCode SNESNEWTONASComputeDistanceToBoundary(SNES snes,Vec x,Vec 
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESNEWTONASModifyActiveSet_Private"
-static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,Vec x,Vec l,Vec f,Vec g,Vec dx,Vec dl,IS active,IS *new_active,PetscReal *tbar)
+static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS *new_active,PetscReal *tbar)
 {
   /* Returns a modified IS based on the distance to constraint bounds, or NULL if no modification is necessary. */
   /*  PetscErrorCode     ierr; */
 
   PetscFunctionBegin;
-  /* TODO: implement */
   /*
-     Also compute \overline t -- the upper bound on the search step size. This is because upper bounds on the individual
-     constraints are examined here anyway.  tbar is only one _MPI reduction_ away.
+     Compute tbar -- the upper bound on the search step size.
+     tbar_i = largest t such that g_i(x + t*dx) - (l+t*dl)*Bt <= snes->vec_constru_i AND g_i(x+t*dx) - (l+t*dl)*Bt >= snes_vec_constl_i.
+     tbar = MPI_Allreduce(tbar_i).
+     If tbar == 0, BARF.
+
+     g(x) = snes->vec_constr.
+     Use snes->vec_constrd to store the results of the above cald.
+     B = snes->jacobian_constr, Bt = snes->jacobian_constrt.
+
+     x = snes->vec_sol,
+     f(x) = snes->vec_func
+     (dx,dl) = snes->vec_sol_update, which needs to be scattered.
   */
   *new_active = NULL;
   *tbar = 0.0;
@@ -110,7 +119,8 @@ static PetscErrorCode SNESNEWTONASMeritFunction(SNES snes, Vec X, PetscReal *f)
   ierr = SNESNEWTONASScatter(snes,X,workx,workl);CHKERRQ(ierr);
   ierr = SNESComputeFunction(snes,workx,workf);CHKERRQ(ierr);
 
-  // ||f - l*B||_2
+  /* ||f - l*B||_2 */
+  /* TODO: check if jacogian_constrt is NULL and use MatMultTranspose with snes->jacobian_constr instead, if necessary. */
   ierr = MatMult(snes->jacobian_constrt,workl,workl2);CHKERRQ(ierr);
   ierr = VecAXPY(workf,-1.0,workl2);CHKERRQ(ierr);
   ierr = VecNorm(workf,NORM_2,f);CHKERRQ(ierr);
@@ -343,10 +353,11 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
 	    active = new_active; new_active = NULL;
       }
       if (newtas->type == SNESNEWTONAS_PRIMAL) {
+	/* Need to shove x,l into vec_sol, dx, dl into vec_sol_update. */
 	ierr = SNESNEWTONASComputeSearchDirectionPrimal_Private(snes,x,l,f,snes->jacobian,snes->jacobian_pre,snes->jacobian_constr,snes->jacobian_constrt,active,dx,dl);CHKERRQ(ierr);
       }
       else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"SNESNEWTONAS solver type not yet supported: %s",newtas->type);
-      ierr = SNESNEWTONASModifyActiveSet_Private(snes,x,l,f,g,dx,dl,active,&new_active,&tbar);CHKERRQ(ierr);
+      ierr = SNESNEWTONASModifyActiveSet_Private(snes,active,&new_active,&tbar);CHKERRQ(ierr);
     } while (new_active);
 
 
