@@ -2796,9 +2796,9 @@ PetscErrorCode  SNESSetProjectOntoConstraints(SNES snes,PetscErrorCode (*f)(SNES
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "SNESSetProjectOntoConstraints"
+#define __FUNCT__ "SNESGetProjectOntoConstraints"
 /*@C
-   SNESSetProjectOntoConstraints -   sets the callback projecting vector onto the feasible set
+   SNESGetProjectOntoConstraints -   sets the callback projecting vector onto the feasible set
    defined by the constraints of the constrained nonlinear problem (variational inequality)
    being solved by SNES.
 
@@ -2816,7 +2816,7 @@ PetscErrorCode  SNESSetProjectOntoConstraints(SNES snes,PetscErrorCode (*f)(SNES
 
 .keywords: SNES, nonlinear, get, project, constraint, feasible
 
-.seealso: SNESGetProjectOntoConstraints(), SNESSetConstraintFunction(), SNESProjectOntoConstraints
+.seealso: SNESSetProjectOntoConstraints(), SNESSetConstraintFunction(), SNESProjectOntoConstraints()
 @*/
 PetscErrorCode  SNESGetProjectOntoConstraints(SNES snes,PetscErrorCode (**f)(SNES,Vec,Vec,void*),void **ctx)
 {
@@ -2827,6 +2827,53 @@ PetscErrorCode  SNESGetProjectOntoConstraints(SNES snes,PetscErrorCode (**f)(SNE
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESGetProjectOntoConstraints(dm,f,ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESProjectOntoConstraints"
+/*@C
+   SNESProjectOntoConstraints - project the given vector onto the constraints
+   if the application has provided this. If not, then x is copied to p.
+
+   Collective on SNES
+
+   Input Parameters:
++  snes - the SNES context
+-  x    - the vector to project
+
+   Output Parameter:
+.  p    - the projected vector
+
+   Level: advanced
+
+.keywords: SNES, constraint, feasible
+
+.seealso: SNESSetProjectOntoConstraints(), SNESetConstraintFunction()
+ @*/
+PetscErrorCode SNESProjectOntoConstraints(SNES snes, Vec x, Vec p)
+{
+  PetscErrorCode ierr;
+  DM             dm;
+  DMSNES         sdm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  PetscValidHeaderSpecific(x,VEC_CLASSID,2);
+  PetscValidHeaderSpecific(p,VEC_CLASSID,3);
+  PetscCheckSameComm(snes,1,x,2);
+  PetscCheckSameComm(snes,1,p,3);
+  ierr = VecValidValues(x,2,PETSC_TRUE);CHKERRQ(ierr);
+
+  ierr = SNESGetDM(snes,&dm);
+  ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
+  if (sdm->ops->projectontoconstraints) {
+    PetscStackPush("SNES user project onto constraints");
+    ierr = (*sdm->ops->projectontoconstraints)(snes,x,p,sdm->projectontoconstraintsctx);CHKERRQ(ierr);
+    ierr = VecValidValues(p,3,PETSC_FALSE);CHKERRQ(ierr);
+    PetscStackPop;
+  }
+  ierr = VecCopy(x,p);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

@@ -22,6 +22,7 @@ typedef struct {
 
   Vec x;        /* Maintain reference to variable vector to check for changes */
   Vec work;
+  Vec xtrial;
   Vec workstep;
 } SNESLineSearch_BTSD;
 
@@ -42,6 +43,7 @@ static PetscErrorCode SNESLineSearchDestroy_BTSD(SNESLineSearch ls)
   PetscFunctionBegin;
   ierr = PetscFree(btsdP->memory);CHKERRQ(ierr);
   ierr = VecDestroy(&btsdP->x);CHKERRQ(ierr);
+  ierr = VecDestroy(&btsdP->xtrial);CHKERRQ(ierr);
   ierr = VecDestroy(&btsdP->work);CHKERRQ(ierr);
   ierr = VecDestroy(&btsdP->workstep);CHKERRQ(ierr);
   ierr = PetscFree(ls->data);CHKERRQ(ierr);
@@ -136,7 +138,7 @@ static PetscErrorCode  SNESLineSearchApply_BTSD(SNESLineSearch linesearch)
   PetscBool      changed_y, changed_w;
   SNESLineSearch_BTSD *btsdP;
   //Vec            X, F, Y, W;
-  Vec            x,work,s,g,origs;
+  Vec            x,s,g,origs;
   SNES           snes;
   PetscReal      gnorm, xnorm, ynorm, lambda, minlambda, maxstep,f;
   PetscBool      domainerror;
@@ -149,30 +151,26 @@ static PetscErrorCode  SNESLineSearchApply_BTSD(SNESLineSearch linesearch)
 
   PetscFunctionBegin;
   btsdP = (SNESLineSearch_BTSD*)linesearch->data;
-  ierr = SNESLineSearchGetVecs(linesearch, &x, &g, &origs, &work, NULL);CHKERRQ(ierr);
+  ierr = SNESLineSearchGetVecs(linesearch, &x, &g, &origs, NULL, NULL);CHKERRQ(ierr);
   ierr = SNESLineSearchGetNorms(linesearch, &xnorm, &gnorm, &ynorm);CHKERRQ(ierr);
   ierr = SNESLineSearchGetLambda(linesearch, &lambda);CHKERRQ(ierr);
   ierr = SNESLineSearchGetSNES(linesearch, &snes);CHKERRQ(ierr);
   ierr = SNESLineSearchGetMonitor(linesearch, &monitor);CHKERRQ(ierr);
   ierr = SNESLineSearchGetTolerances(linesearch,&minlambda,&maxstep,NULL,NULL,NULL,&max_it);CHKERRQ(ierr);
   ierr = SNESGetTolerances(snes,NULL,NULL,&stol,NULL,NULL);CHKERRQ(ierr);
-  if (!linesearch->ops->merit) {
-    SNESLineSearchSetMerit(linesearch,SNESLineSearchDefaultMerit);CHKERRQ(ierr);
-    f = gnorm;
-  } else {
-     ierr = SNESLineSearchComputeMerit(linesearch,work,&f);CHKERRQ(ierr);
-  }
-  merit = linesearch->ops->merit;
 
   if (!btsdP->work) {
+    ierr = VecDuplicate(x,&btsdP->xtrial);CHKERRQ(ierr);
     ierr = VecDuplicate(x,&btsdP->work);CHKERRQ(ierr);
     ierr = VecDuplicate(x,&btsdP->workstep);CHKERRQ(ierr);
     btsdP->x = x;
     ierr = PetscObjectReference((PetscObject)btsdP->x);CHKERRQ(ierr);
   } else if (x != btsdP->x) {
     /* If x has changed, then recreate work */
+    ierr = VecDestroy(&btsdP->xtrial);CHKERRQ(ierr);
     ierr = VecDestroy(&btsdP->work);CHKERRQ(ierr);
     ierr = VecDestroy(&btsdP->workstep);CHKERRQ(ierr);
+    ierr = VecDuplicate(x,&btsdP->xtrial);CHKERRQ(ierr);
     ierr = VecDuplicate(x,&btsdP->work);CHKERRQ(ierr);
     ierr = VecDuplicate(x,&btsdP->workstep);CHKERRQ(ierr);
     ierr = PetscObjectDereference((PetscObject)btsdP->x);CHKERRQ(ierr);
@@ -180,14 +178,21 @@ static PetscErrorCode  SNESLineSearchApply_BTSD(SNESLineSearch linesearch)
     ierr = PetscObjectReference((PetscObject)btsdP->x);CHKERRQ(ierr);
   }
 
+  if (!linesearch->ops->merit) {
+    SNESLineSearchSetMerit(linesearch,SNESLineSearchDefaultMerit);CHKERRQ(ierr);
+    f = gnorm;
+  } else {
+     ierr = SNESLineSearchComputeMerit(linesearch,x,&f);CHKERRQ(ierr);
+  }
+  merit = linesearch->ops->merit;
+
+
   ierr = SNESLineSearchSetSuccess(linesearch, PETSC_TRUE);CHKERRQ(ierr);
 
   /* precheck */
   ierr = SNESLineSearchPreCheck(linesearch,x,origs,&changed_y);CHKERRQ(ierr);
 
-  /* update */
 
-  /* ABOVE HERE FROM BASIC */
   /* Check to see of the memory has been allocated.  If not, allocate
      the historical array and populate it with the initial function
      values. */
@@ -255,12 +260,11 @@ static PetscErrorCode  SNESLineSearchApply_BTSD(SNESLineSearch linesearch)
   }
   while (lambda >= minlambda && (snes->nfuncs < snes->max_funcs)) {
     /* Calculate iterate */
-    ierr = VecWAXPY(work,lambda,s,x);CHKERRQ(ierr);
+    ierr = VecWAXPY(btsdP->work,lambda,s,x);CHKERRQ(ierr);
 
-    /* TODO: add projection here */
-    
+    ierr = SNESProjectOntoConstraints(snes,btsdP->work,btsdP->xtrial);CHKERRQ(ierr);
     /* Calculate function at new iterate */
-    ierr = (*merit)(snes,work,&f);CHKERRQ(ierr);
+    ierr = (*merit)(snes,btsdP->xtrial,&f);CHKERRQ(ierr);
 
     if (monitor) {
       ierr = PetscViewerASCIIAddTab(monitor,((PetscObject)linesearch)->tablevel);CHKERRQ(ierr);
@@ -309,27 +313,15 @@ static PetscErrorCode  SNESLineSearchApply_BTSD(SNESLineSearch linesearch)
   }
 
 
-
-
-
-
-  /* BELOW HERE FROM BASIC */
-
-
-  if (linesearch->ops->viproject) {
-    ierr = (*linesearch->ops->viproject)(snes, work);CHKERRQ(ierr);
-  }
-
   /* postcheck */
-  ierr = SNESLineSearchPostCheck(linesearch,x,s,work,&changed_y,&changed_w);CHKERRQ(ierr);
+  ierr = SNESLineSearchPostCheck(linesearch,x,s,btsdP->xtrial,&changed_y,&changed_w);CHKERRQ(ierr);
   if (changed_y) {
-    ierr = VecWAXPY(work,-lambda,s,x);CHKERRQ(ierr);
-    if (linesearch->ops->viproject) {
-      ierr = (*linesearch->ops->viproject)(snes, work);CHKERRQ(ierr);
-    }
+    ierr = VecWAXPY(btsdP->xtrial,-lambda,s,x);CHKERRQ(ierr);
+    /* TODO: project again? */
   }
+
   if (linesearch->norms || snes->iter < max_it-1) {
-    ierr = (*linesearch->ops->snesfunc)(snes,work,g);CHKERRQ(ierr);
+    ierr = (*linesearch->ops->snesfunc)(snes,btsdP->xtrial,g);CHKERRQ(ierr);
     ierr = SNESGetFunctionDomainError(snes, &domainerror);CHKERRQ(ierr);
     if (domainerror) {
       ierr = SNESLineSearchSetSuccess(linesearch, PETSC_FALSE);CHKERRQ(ierr);
@@ -338,24 +330,16 @@ static PetscErrorCode  SNESLineSearchApply_BTSD(SNESLineSearch linesearch)
   }
 
   if (linesearch->norms) {
-    if (!linesearch->ops->vinorm) VecNormBegin(g, NORM_2, &linesearch->fnorm);
+    ierr = VecNormBegin(g, NORM_2, &linesearch->fnorm);CHKERRQ(ierr);
     ierr = VecNormBegin(s, NORM_2, &linesearch->ynorm);CHKERRQ(ierr);
-    ierr = VecNormBegin(work, NORM_2, &linesearch->xnorm);CHKERRQ(ierr);
-    if (!linesearch->ops->vinorm) VecNormEnd(g, NORM_2, &linesearch->fnorm);
+    ierr = VecNormBegin(btsdP->xtrial, NORM_2, &linesearch->xnorm);CHKERRQ(ierr);
+    ierr = VecNormEnd(g, NORM_2, &linesearch->fnorm);CHKERRQ(ierr);
     ierr = VecNormEnd(s, NORM_2, &linesearch->ynorm);CHKERRQ(ierr);
-    ierr = VecNormEnd(work, NORM_2, &linesearch->xnorm);CHKERRQ(ierr);
-
-    if (linesearch->ops->vinorm) {
-      linesearch->fnorm = gnorm;
-
-      ierr = (*linesearch->ops->vinorm)(snes, g, work, &linesearch->fnorm);CHKERRQ(ierr);
-    } else {
-      ierr = VecNorm(g,NORM_2,&linesearch->fnorm);CHKERRQ(ierr);
-    }
+    ierr = VecNormEnd(btsdP->xtrial, NORM_2, &linesearch->xnorm);CHKERRQ(ierr);
   }
 
   /* copy the solution over */
-  ierr = VecCopy(work, x);CHKERRQ(ierr);
+  ierr = VecCopy(btsdP->xtrial, x);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

@@ -899,7 +899,7 @@ PetscErrorCode DMSNESNEWTONASGetActiveConstraintBasis(DM dm,PetscErrorCode (**a)
    not. If DM took a more central role at some later date, this could become the primary method of setting the projection
    evaluation.
 
-.seealso: DMSNESSetContext(), SNESSetConstraintFunction(), DMSNESGetProjectOntoConstraints(), SNESProjectOntoConstraints
+.seealso: DMSNESSetContext(), SNESSetConstraintFunction(), DMSNESGetProjectOntoConstraints(), DMSNESProjectOntoConstraints()
 @*/
 PetscErrorCode DMSNESSetProjectOntoConstraints(DM dm,PetscErrorCode (*p)(SNES,Vec,Vec,void*),void *ctx)
 {
