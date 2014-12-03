@@ -10,13 +10,8 @@
 
 typedef struct {
   SNESNEWTONASType type;
-  Vec              *lambda;    /* lambda and dlambda */
-  Vec              workg;      /* constraints work vector */
-#if 0
-  /* These _might_ be needed in SNESNEWTONASLinearUpdate_Private() */
-  Vec              tdlambda;    /* \tilde \delta \lambda; this vec's size is changing depending on the active set */
-  Vec              tdlambdarhs; /* rhs for the linearized constraint equation; is a zero vector of the same size as vec_tdlambda */
-#endif
+  Vec              vec_lambda, vec_lambda_update; /* These are part of the solver's state and are expected to reflect the current solution or the computed update, not some intermediate stage. */
+  Vec              *workg;      /* constraint-related work vectors; same size as vec_constr or vec_lambda */
   Mat              Bb_pre;      /* preconditioning matrix for the basis of the active constraints (as columns) */
   Mat              Bbt_pre;     /* preconditioning matrix for the basis of the active constraints (as rows Bbt = Bb^T) */
   Vec              ls_x;
