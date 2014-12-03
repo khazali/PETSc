@@ -19,6 +19,7 @@
          :same concerns as above.
     'MISC'
      . Create SNESNEWTONASComputeConstraints() and similar wrappers for use in custom Merit functions?
+     . Check for DOMAIN_ERROR in the merit function.
   - Dmitry:
     . 'WIRING':
       : Make sure that SNESNEWTONASMeritXXX() has the right calling sequence so that the required parameters
