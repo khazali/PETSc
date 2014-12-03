@@ -29,6 +29,8 @@
     . 'SKELETON':
       : *Produce the skeleton SNESNEWTONAS algorith that has all of the correct calls with the correct calling
         sequences, even if it is to stubs.
+    . Linear solve
+      : *Implement SNESNEWTONASComputeSearchDirectionSaddle_Private() (assemble using MatConvert_Nest_MPIAIJ())
   - Jason:
        'OPTIMIZATION':
       : *Additional tests for SNESLineSearch_BTSD
