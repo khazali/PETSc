@@ -156,7 +156,6 @@ struct _p_SNES {
   Vec         vec_constr;       /* vector of constraints */
   Vec         vec_constrl;      /* lower bounds on the constraints */
   Vec         vec_constru;      /* upper bound on the constraints */
-  Vec         vec_constrd;      /* vector of distances to constraint bounds */
   Mat         jacobian_constr;  /* matrix to store the constraint Jacobian */
   Mat         jacobian_constrt; /* matrix to store the transpose of the constraint Jacobian */
 
