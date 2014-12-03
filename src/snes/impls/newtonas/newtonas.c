@@ -110,8 +110,8 @@ static PetscErrorCode SNESNEWTONASMeritFunction(SNES snes, Vec X, PetscReal *f)
   SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)snes->data;
   Vec                workx = snes->work[0];
   Vec                workf = snes->work[1];
-  Vec                workl = newtas->lambda[2];
-  Vec                workl2 = newtas->lambda[3];
+  Vec                workl = newtas->workg[0];
+  Vec                workl2 = newtas->workg[1];
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
@@ -263,8 +263,8 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
   f      = snes->vec_func;              /* residual vector */
   dx     = snes->vec_sol_update;        /* newton step */
   g      = snes->vec_constr;            /* constraints */
-  l      = newtas->lambda[0];           /* \lambda */
-  dl     = newtas->lambda[1];           /* \delta \lambda */
+  l      = newtas->vec_lambda;          /* \lambda */
+  dl     = newtas->vec_lambda_update;   /* \delta \lambda */
   //  h      = snes->work[0];               /* residual at the linesearch location */
   //  w      = snes->work[1];               /* linear update at the linesearch location */
 
@@ -530,9 +530,11 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
   if (!newtas->type) {
     ierr = SNESNEWTONASSetType(snes,SNESNEWTONAS_PRIMAL);CHKERRQ(ierr);
   }
-  if (newtas->lambda) {
-    ierr = VecDestroyVecs(4,&newtas->lambda);CHKERRQ(ierr);
-  }
+
+  ierr = VecDuplicate(snes->vec_constr,&newtas->vec_lambda);CHKERRQ(ierr);
+  ierr = VecDuplicate(snes->vec_constr,&newtas->vec_lambda_update);CHKERRQ(ierr);
+  ierr = VecDestroyVecs(2,&newtas->workg);CHKERRQ(ierr);
+
   /*
      QUESTION: Do we need to go through the public API to set private data structures?
      The rationale given in the docs is that this gives control to plugins, but wouldn't
@@ -540,14 +542,11 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
      A related question: why not let the impl allocated and clean up its own work vecs?
   */
   ierr = SNESSetWorkVecs(snes,4);CHKERRQ(ierr);
-  if (!newtas->lambda) {
-    ierr = PetscMalloc(2*sizeof(Vec),&newtas->lambda);CHKERRQ(ierr);
-  }
-  ierr = VecDuplicateVecs(snes->vec_constr,4,&newtas->lambda);CHKERRQ(ierr);
+  ierr = VecDuplicateVecs(snes->vec_constr,2,&newtas->workg);CHKERRQ(ierr);
 
   ierr = VecCreate(((PetscObject)snes)->comm,&newtas->ls_x);CHKERRQ(ierr);
   ierr = VecGetOwnershipRange(snes->vec_sol,&xlo,&xhi);CHKERRQ(ierr);
-  ierr = VecGetOwnershipRange(newtas->lambda[0],&llo,&lhi);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRange(newtas->vec_lambda,&llo,&lhi);CHKERRQ(ierr);
 
   ierr = VecSetSizes(newtas->ls_x,lhi-llo + xhi-xlo, PETSC_DETERMINE);CHKERRQ(ierr);
   ierr = VecSetType(newtas->ls_x,((PetscObject)(snes->vec_sol))->type_name);CHKERRQ(ierr);
@@ -561,7 +560,7 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
   ierr = ISCreateStride(PETSC_COMM_SELF,lhi-llo,xhi+llo,1,&is_full_l);CHKERRQ(ierr);
 
   ierr = VecScatterCreate(newtas->ls_x,is_full_x,snes->vec_sol,is_x,&newtas->scat_ls_to_x);CHKERRQ(ierr);
-  ierr = VecScatterCreate(newtas->ls_x,is_full_l,newtas->lambda[0],is_l,&newtas->scat_ls_to_lambda);CHKERRQ(ierr);
+  ierr = VecScatterCreate(newtas->ls_x,is_full_l,newtas->vec_lambda,is_l,&newtas->scat_ls_to_lambda);CHKERRQ(ierr);
   ierr = ISDestroy(&is_x);CHKERRQ(ierr);
   ierr = ISDestroy(&is_l);CHKERRQ(ierr);
   ierr = ISDestroy(&is_full_x);CHKERRQ(ierr);
@@ -581,11 +580,9 @@ PETSC_INTERN PetscErrorCode SNESDestroy_NEWTONAS(SNES snes)
   SNES_NEWTONAS     *newtas = (SNES_NEWTONAS*) snes->data;
 
   PetscFunctionBegin;
-  /* TODO: Tear things down. */
-  if (newtas->lambda) {
-    ierr = VecDestroyVecs(4,&newtas->lambda);CHKERRQ(ierr);
-  }
-  ierr = PetscFree(newtas->lambda);CHKERRQ(ierr);
+  ierr = VecDestroy(&newtas->vec_lambda);CHKERRQ(ierr);
+  ierr = VecDestroy(&newtas->vec_lambda_update);CHKERRQ(ierr);
+  ierr = VecDestroyVecs(2,&newtas->workg);CHKERRQ(ierr);
 
   ierr = VecDestroy(&newtas->ls_x);CHKERRQ(ierr);
   ierr = VecDestroy(&newtas->ls_f);CHKERRQ(ierr);
