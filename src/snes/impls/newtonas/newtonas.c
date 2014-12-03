@@ -5,6 +5,10 @@
 #include <petsc-private/dmimpl.h>
 #include <petsc-private/vecimpl.h>
 
+/* Users of SNES_NEWTONAS.workg:
+  - workg[0:1] SNESNEWTONASMeritFunction()
+  - workg[2]   SNESNEWTONASInitialActiveSet_Private()
+*/
 
 /* SNES NEWTONAS ALGORITHM SUBROUTINE STUBS BEGIN */
 
@@ -43,7 +47,7 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
      If tbar == 0, BARF.
 
      g(x) = snes->vec_constr.
-     Use newtas->workg to store the result of B*dx calls?  If not, need to make another work vector.
+     Use newtas->workg[3] to store the result of B*dx calls.
      B = snes->jacobian_constr.
 
      x = snes->vec_sol,
