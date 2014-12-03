@@ -586,6 +586,15 @@ PETSC_INTERN PetscErrorCode SNESDestroy_NEWTONAS(SNES snes)
     ierr = VecDestroyVecs(4,&newtas->lambda);CHKERRQ(ierr);
   }
   ierr = PetscFree(newtas->lambda);CHKERRQ(ierr);
+
+  ierr = VecDestroy(&newtas->ls_x);CHKERRQ(ierr);
+  ierr = VecDestroy(&newtas->ls_f);CHKERRQ(ierr);
+  ierr = VecDestroy(&newtas->ls_step);CHKERRQ(ierr);
+
+
+  ierr = VecScatterDestroy(&newtas->scat_ls_to_x);CHKERRQ(ierr);
+  ierr = VecScatterDestroy(&newtas->scat_ls_to_lambda);CHKERRQ(ierr);
+
   PetscFunctionReturn(0);
 }
 
