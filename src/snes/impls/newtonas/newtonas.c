@@ -26,17 +26,6 @@ static PetscErrorCode SNESNEWTONASInitialActiveSet_Private(SNES snes,Vec x,Vec l
   PetscFunctionReturn(0);
 }
 
-/*
-#undef __FUNCT__
-#define __FUNCT__ "SNESNEWTONASComputeDistanceToBoundary"
-static PetscErrorCode SNESNEWTONASComputeDistanceToBoundary(SNES snes,Vec x,Vec l,Vec dx,Vec dl,Mat B,Vec distg,Vec distl)
-{
-
-  PetscFunctionBegin;
-  PetscFunctionReturn(0);
-}
-*/
-
 #undef __FUNCT__
 #define __FUNCT__ "SNESNEWTONASModifyActiveSet_Private"
 static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS *new_active,PetscReal *tbar)
@@ -47,17 +36,23 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
   PetscFunctionBegin;
   /*
      Compute tbar -- the upper bound on the search step size.
-     tbar_i = largest t such that g_i(x + t*dx) - (l+t*dl)*Bt <= snes->vec_constru_i AND g_i(x+t*dx) - (l+t*dl)*Bt >= snes_vec_constl_i.
+     tbar_i = largest t such that g_i(x) + t*B_i*dx <= snes->vec_constru_i AND
+                                  g_i(x) + t*B_i*dx >= snes->vec_constrl_i AND
+				  l_i + t*dl_i >= 0
      tbar = MPI_Allreduce(tbar_i).
      If tbar == 0, BARF.
 
      g(x) = snes->vec_constr.
-     Use newtas->workg to store the result of (l+t*dl)*B calls?  If not, need to make another work vector.
-     B = snes->jacobian_constr, Bt = snes->jacobian_constrt.
+     Use newtas->workg to store the result of B*dx calls?  If not, need to make another work vector.
+     B = snes->jacobian_constr.
 
      x = snes->vec_sol,
      f(x) = snes->vec_func
      (dx,dl) = snes->vec_sol_update, which needs to be scattered.
+       - Actually, this is confusing, since snes->vec_sol is x only,
+         while snes->vec_sol_update is both dx and dl.
+       - Should we use ls_x for the combined update? Or introduce vec_lambda and vec_lambda_update,
+         and at the end of the linear solve scatter the update into those two?
   */
   *new_active = NULL;
   *tbar = 0.0;
@@ -712,38 +707,3 @@ PetscErrorCode  SNESNEWTONASSetActiveConstraintBasis(SNES snes,Mat Bb_pre, Mat B
   }
   PetscFunctionReturn(0);
 }
-
-/*MC
-    SNESNEWTONASActiveConstraints - callback function identifying the active constraints
-    at the current state vector x of the constrained nonlinear problem (variational inequality)
-    solved by SNESNEWTONAS
-
-     Synopsis:
-     #include <petscsnes.h>
-     SNESNEWTONASActiveConstraints(SNES snes,Vec x,Vec f,Vec g,Mat B,IS *active,void *ctx);
-
-     Input Parameters:
-+     snes - the SNES context
-.     x    - state at which to evaluate activities
-.     f    - function at x
-.     g    - constraints at x
-.     B    - constraint Jacobian at x
--     ctx  - optional user-defined function context, passed in with SNESSetActiveConstraints()
-
-     Output Parameters:
-.     active  - indices of active constraints
-
-
-     Notes:
-     Active constraints are essentially those that would be violated when moving along the direction of
-     the SNES function f.  The linearized constraints are the span of the rows of the constraint Jacobian B.
-     Active constraints (linearized or otherwise) are labled by the corresponding rows of the constraint
-     Jacobian.  The active constraint Jacobian is the submatrix B of the constraint Jacobian comprising
-     the active constraint rows. Output parameter 'active' is exactly the indices of the active Jacobian
-     rows.
-
-   Level: intermediate
-
-.seealso:   SNESNEWTONASSetAcitveConstraints(), SNESSetConstraintFunction(), SNESSetConstraintJacobian(), SNESConstraintFunction, SNESConstraintJacobian
-
- M*/
