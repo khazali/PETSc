@@ -52,7 +52,7 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
      If tbar == 0, BARF.
 
      g(x) = snes->vec_constr.
-     Use snes->vec_constrd to store the results of the above cald.
+     Use newtas->workg to store the result of (l+t*dl)*B calls?  If not, need to make another work vector.
      B = snes->jacobian_constr, Bt = snes->jacobian_constrt.
 
      x = snes->vec_sol,

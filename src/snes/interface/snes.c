@@ -2949,9 +2949,6 @@ PetscErrorCode  SNESSetUp(SNES snes)
     if (!snes->vec_constru) {
       ierr = VecDuplicate(snes->vec_constr,&snes->vec_constru);CHKERRQ(ierr);
     }
-    if (!snes->vec_constrd) {
-      ierr = VecDuplicate(snes->vec_constr,&snes->vec_constrd);CHKERRQ(ierr);
-    }
     if (!snes->jacobian_constr) SETERRQ(PetscObjectComm((PetscObject)snes),PETSC_ERR_ARG_WRONGSTATE, "No constraint Jacobian: call SNESSetConstraintJacobian() first.");
   }
   /*
