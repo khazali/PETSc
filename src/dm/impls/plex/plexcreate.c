@@ -1606,11 +1606,12 @@ PetscErrorCode DMPlexCreateFromDAG(DM dm, PetscInt depth, const PetscInt numPoin
 @*/
 PetscErrorCode DMPlexCreateFromFile(MPI_Comm comm, const char filename[], PetscBool interpolate, DM *dm)
 {
-  const char    *extGmsh   = ".msh";
-  const char    *extCGNS   = ".cgns";
-  const char    *extExodus = ".exo";
+  const char    *extGmsh     = ".msh";
+  const char    *extCGNS     = ".cgns";
+  const char    *extExodus   = ".exo";
+  const char    *extTriangle = ".node";
   size_t         len;
-  PetscBool      isGmsh, isCGNS, isExodus;
+  PetscBool      isGmsh, isCGNS, isExodus, isTriangle;
   PetscMPIInt    rank;
   PetscErrorCode ierr;
 
@@ -1620,15 +1621,22 @@ PetscErrorCode DMPlexCreateFromFile(MPI_Comm comm, const char filename[], PetscB
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
   ierr = PetscStrlen(filename, &len);CHKERRQ(ierr);
   if (!len) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Filename must be a valid path");
-  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extGmsh,   4, &isGmsh);CHKERRQ(ierr);
-  ierr = PetscStrncmp(&filename[PetscMax(0,len-5)], extCGNS,   5, &isCGNS);CHKERRQ(ierr);
-  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extExodus, 4, &isExodus);CHKERRQ(ierr);
+  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extGmsh,     4, &isGmsh);CHKERRQ(ierr);
+  ierr = PetscStrncmp(&filename[PetscMax(0,len-5)], extCGNS,     5, &isCGNS);CHKERRQ(ierr);
+  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extExodus,   4, &isExodus);CHKERRQ(ierr);
+  ierr = PetscStrncmp(&filename[PetscMax(0,len-5)], extTriangle, 5, &isTriangle);CHKERRQ(ierr);
   if (isGmsh) {
     ierr = DMPlexCreateGmshFromFile(comm, filename, interpolate, dm);CHKERRQ(ierr);
   } else if (isCGNS) {
     ierr = DMPlexCreateCGNSFromFile(comm, filename, interpolate, dm);CHKERRQ(ierr);
   } else if (isExodus) {
     ierr = DMPlexCreateExodusFromFile(comm, filename, interpolate, dm);CHKERRQ(ierr);
+  } else if (isTriangle) {
+    char *basename;
+    ierr = PetscMalloc1(len-4, &basename);CHKERRQ(ierr);
+    ierr = PetscStrncpy(basename, filename, len-4);CHKERRQ(ierr);
+    ierr = DMPlexCreateTriangleFromFile(comm, basename, interpolate, dm);CHKERRQ(ierr);
+    ierr = PetscFree(basename);CHKERRQ(ierr);
   } else SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Cannot load file %s: unrecognized extension", filename);
   PetscFunctionReturn(0);
 }
