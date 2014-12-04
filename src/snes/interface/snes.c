@@ -2613,8 +2613,10 @@ PetscErrorCode  SNESGetConstraintFunction(SNES snes,Vec *v,Vec *vl, Vec *vu,Pets
   if (vu) {
     *vu = snes->vec_constru;
   }
-  ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
-  ierr = DMSNESGetConstraintFunction(dm,g,ctx);CHKERRQ(ierr);
+  if (g) {
+    ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
+    ierr = DMSNESGetConstraintFunction(dm,g,ctx);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 

@@ -16,17 +16,50 @@
 #define __FUNCT__ "SNESNEWTONASInitialActiveSet_Private"
 static PetscErrorCode SNESNEWTONASInitialActiveSet_Private(SNES snes,Vec x,Vec l,Vec f,Vec g,IS *active)
 {
-  /*  PetscErrorCode     ierr; */
+  PetscErrorCode     ierr;
+  PetscInt           glo,ghi;
+  PetscInt           i;
+  Vec                gl,gu;
+  const PetscScalar  *la,*ua,*ga,*lam;
+  PetscInt           *indices,counter=0;
+  MPI_Comm           comm;
 
-  PetscFunctionBegin;
-  /* TODO: implement */
+
+  /* Assume that f(x) and g(x) have already been computed */
+
   /* A = \{i : (g_i(x) = g_i^l & \lambda_i > 0) | (g_i(x) = g_i^u & \lambda_i < 0)\} -- strongly active set. */
   /* TODO: check signs on \lambda in the foregoing def.*/
   /*
     This should use the distance to boundary computed in SNESNEWTONASComputeDistanceToBoundary().
      Should we just roll that subroutine into this one?  It's not used anywhere else.
   */
+  PetscFunctionBegin;
+
   *active = NULL;
+  ierr = SNESGetConstraintFunction(snes,NULL,&gl,&gu,NULL,NULL);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRange(l,&glo,&ghi);CHKERRQ(ierr);
+
+  ierr = VecGetArrayRead(gl,&la);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(gu,&ua);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(g,&ga);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(l,&lam);CHKERRQ(ierr);
+  ierr = PetscCalloc1(ghi-glo,&indices);CHKERRQ(ierr);
+  for (i=0;i<ghi-glo;i++) {
+    if (((PetscRealPart(ga[i]) <= PetscRealPart(la[i])) &&
+        (PetscRealPart(lam[i]) > 0)) ||
+        ((PetscRealPart(ga[i]) >= PetscRealPart(ua[i])) &&
+         (PetscRealPart(lam[i] < 0)))) {
+      indices[i] = i+glo; counter++;
+    }
+  }
+  ierr = VecRestoreArrayRead(gl,&la);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(gu,&ua);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(g,&ga);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(l,&lam);CHKERRQ(ierr);
+  if (counter > 0) {
+    ierr = PetscObjectGetComm((PetscObject)g,&comm);CHKERRQ(ierr);
+    ierr = ISCreateGeneral(comm,counter,indices,PETSC_OWN_POINTER,active);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
