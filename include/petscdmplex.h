@@ -267,7 +267,7 @@ PETSC_EXTERN PetscErrorCode DMPlexCreateCGNS(MPI_Comm, PetscInt, PetscBool, DM *
 PETSC_EXTERN PetscErrorCode DMPlexCreateCGNSFromFile(MPI_Comm, const char[], PetscBool, DM *);
 PETSC_EXTERN PetscErrorCode DMPlexCreateGmsh(MPI_Comm, PetscViewer, PetscBool, DM *);
 PETSC_EXTERN PetscErrorCode DMPlexCreateGmshFromFile(MPI_Comm, const char [], PetscBool, DM *);
-PETSC_EXTERN PetscErrorCode DMPlexCreateTriangle(MPI_Comm, PetscViewer, PetscViewer, PetscBool, DM *);
+PETSC_EXTERN PetscErrorCode DMPlexCreateTriangle(MPI_Comm, PetscInt, PetscViewer, PetscViewer, PetscViewer, PetscBool, DM *);
 PETSC_EXTERN PetscErrorCode DMPlexCreateTriangleFromFile(MPI_Comm, const char[], PetscBool, DM *);
 
 PETSC_EXTERN PetscErrorCode DMPlexConstructGhostCells(DM, const char [], PetscInt *, DM *);

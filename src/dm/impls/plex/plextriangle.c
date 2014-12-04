@@ -25,8 +25,13 @@ PetscErrorCode DMPlexCreateTriangleFromFile(MPI_Comm comm, const char basename[]
   size_t         len;
   const char    *extNode = ".node";
   const char    *extEle  = ".ele";
+  const char    *extEdge = ".edge";
+  const char    *extFace = ".face";
   char           fnameNode[PETSC_MAX_PATH_LEN], fnameEle[PETSC_MAX_PATH_LEN];
-  PetscViewer    vwrNode, vwrEle;
+  char           fnameEdge[PETSC_MAX_PATH_LEN], fnameFace[PETSC_MAX_PATH_LEN];
+  PetscViewer    vwrNode, vwrEle, vwrFacet = NULL;
+  PetscBool      exists;
+  PetscInt       dim = 2;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -40,6 +45,27 @@ PetscErrorCode DMPlexCreateTriangleFromFile(MPI_Comm comm, const char basename[]
   ierr = PetscViewerFileSetMode(vwrNode, FILE_MODE_READ);CHKERRQ(ierr);
   ierr = PetscViewerFileSetName(vwrNode, fnameNode);CHKERRQ(ierr);
 
+  ierr = PetscStrcpy(fnameEdge, basename);CHKERRQ(ierr);
+  ierr = PetscStrcat(fnameEdge, extEdge);CHKERRQ(ierr);
+  ierr = PetscTestFile(fnameEdge, 'r', &exists);CHKERRQ(ierr);
+  if (exists) {
+    ierr = PetscViewerCreate(comm, &vwrFacet);CHKERRQ(ierr);
+    ierr = PetscViewerSetType(vwrFacet, PETSCVIEWERASCII);CHKERRQ(ierr);
+    ierr = PetscViewerFileSetMode(vwrFacet, FILE_MODE_READ);CHKERRQ(ierr);
+    ierr = PetscViewerFileSetName(vwrFacet, fnameEdge);CHKERRQ(ierr);
+  }
+
+  ierr = PetscStrcpy(fnameFace, basename);CHKERRQ(ierr);
+  ierr = PetscStrcat(fnameFace, extFace);CHKERRQ(ierr);
+  ierr = PetscTestFile(fnameFace, 'r', &exists);CHKERRQ(ierr);
+  if (exists) {
+    dim = 3;
+    ierr = PetscViewerCreate(comm, &vwrFacet);CHKERRQ(ierr);
+    ierr = PetscViewerSetType(vwrFacet, PETSCVIEWERASCII);CHKERRQ(ierr);
+    ierr = PetscViewerFileSetMode(vwrFacet, FILE_MODE_READ);CHKERRQ(ierr);
+    ierr = PetscViewerFileSetName(vwrFacet, fnameFace);CHKERRQ(ierr);
+  }
+
   ierr = PetscStrcpy(fnameEle, basename);CHKERRQ(ierr);
   ierr = PetscStrcat(fnameEle, extEle);CHKERRQ(ierr);
   ierr = PetscViewerCreate(comm, &vwrEle);CHKERRQ(ierr);
@@ -47,10 +73,11 @@ PetscErrorCode DMPlexCreateTriangleFromFile(MPI_Comm comm, const char basename[]
   ierr = PetscViewerFileSetMode(vwrEle, FILE_MODE_READ);CHKERRQ(ierr);
   ierr = PetscViewerFileSetName(vwrEle, fnameEle);CHKERRQ(ierr);
 
-  ierr = DMPlexCreateTriangle(comm, vwrNode, vwrEle, interpolate, dm);CHKERRQ(ierr);
+  ierr = DMPlexCreateTriangle(comm, dim, vwrNode, vwrEle, vwrFacet, interpolate, dm);CHKERRQ(ierr);
 
   ierr = PetscViewerDestroy(&vwrNode);CHKERRQ(ierr);
   ierr = PetscViewerDestroy(&vwrEle);CHKERRQ(ierr);
+  ierr = PetscViewerDestroy(&vwrFacet);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -75,7 +102,7 @@ PetscErrorCode DMPlexCreateTriangleFromFile(MPI_Comm comm, const char basename[]
 
 .keywords: mesh, Triangle
 @*/
-PetscErrorCode DMPlexCreateTriangle(MPI_Comm comm, PetscViewer vwrNode, PetscViewer vwrEle, PetscBool interpolate, DM *dm)
+PetscErrorCode DMPlexCreateTriangle(MPI_Comm comm, PetscInt dim, PetscViewer vwrNode, PetscViewer vwrEle, PetscViewer vwrFacet, PetscBool interpolate, DM *dm)
 {
   PetscMPIInt    rank;
   char           line[PETSC_MAX_PATH_LEN];
@@ -126,8 +153,34 @@ PetscErrorCode DMPlexCreateTriangle(MPI_Comm comm, PetscViewer vwrNode, PetscVie
   ierr = MPI_Bcast(&numCellVertices, 1, MPIU_INT, 0, comm);CHKERRQ(ierr);
   ierr = MPI_Bcast(&vertexDim, 1, MPIU_INT, 0, comm);CHKERRQ(ierr);
 
-  /* Create the 2D mesh */
-  ierr = DMPlexCreateFromCellList(comm, 2, numCells, numVertices, numCellVertices, interpolate, cellList, vertexDim, coordinates, dm);CHKERRQ(ierr);
+  /* Create the mesh */
+  ierr = DMPlexCreateFromCellList(comm, dim, numCells, numVertices, numCellVertices, interpolate, cellList, vertexDim, coordinates, dm);CHKERRQ(ierr);
+
+  if (!rank && vwrFacet) {
+    PetscInt        e, joinSize, numFacetVertices = -1;
+    const PetscInt *join = NULL;
+    int             numEdges, edge, vertices[3], bid;
+    do {ierr = PetscViewerReadLine(vwrFacet, line);CHKERRQ(ierr);}
+    while (line[0] == '#');
+    snum = sscanf(line, "%d %d", &numEdges, &numBid);
+    if (snum != 2) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "File is not a valid Triangle .edge file");
+    /* Derive number of vertices per facet */
+    if (dim == 2 && numCellVertices == 3) numFacetVertices = 2;
+    else if (dim == 2 && numCellVertices == 4) numFacetVertices = 2;
+    else if (dim == 3 && numCellVertices == 4) numFacetVertices = 3;
+    else if (dim == 3 && numCellVertices == 8) numFacetVertices = 4;
+    for (e = 0; e < numEdges; e++) {
+      ierr = PetscViewerRead(vwrFacet, &edge, 1, PETSC_INT);CHKERRQ(ierr);
+      ierr = PetscViewerRead(vwrFacet, vertices, numFacetVertices, PETSC_INT);CHKERRQ(ierr);
+      ierr = PetscViewerRead(vwrFacet, &bid, 1, PETSC_INT);CHKERRQ(ierr);
+      /* Correct Fortran vertex numbering */
+      for (i = 0; i < numFacetVertices; i++) vertices[i] += numCells - 1;
+      ierr = DMPlexGetFullJoin(*dm, numFacetVertices, vertices, &joinSize, &join);CHKERRQ(ierr);
+      if (joinSize != 1) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Could not determine Plex facet for edge %d", edge);
+      ierr = DMPlexSetLabelValue(*dm, "Boundary Marker", join[0], bid);CHKERRQ(ierr);
+      ierr = DMPlexRestoreJoin(*dm, 2, vertices, &joinSize, &join);CHKERRQ(ierr);
+    }
+  }
 
   if (!rank) {ierr = PetscFree2(cellList, coordinates);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
