@@ -390,3 +390,35 @@ PetscErrorCode  PetscViewerRead(PetscViewer viewer, void *data, PetscInt count, 
   }
   PetscFunctionReturn(0);
 }
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscViewerReadLine"
+/*@C
+   PetscViewerReadLine - Reads a line of ASCII characters from file
+
+   Collective on MPI_Comm
+
+   Input Parameters:
++  viewer   - The viewer
+-  data     - Location to write the data
+
+   Level: beginner
+
+   Concepts: binary files, ascii files
+
+.seealso: PetscViewerRead(), PetscViewerASCIIRead(), PetscViewerBinaryRead()
+@*/
+PetscErrorCode PetscViewerReadLine(PetscViewer viewer, char *data)
+{
+  PetscInt       i = 0;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(viewer,PETSC_VIEWER_CLASSID,1);
+  /* Read strings one char at a time */
+  do {ierr = (*viewer->ops->read)(viewer, &(data[i++]), 1, PETSC_CHAR);CHKERRQ(ierr);}
+  while (data[i-1] != '\n');
+  /* Terminate final string */
+  data[i-1] = '\0';
+  PetscFunctionReturn(0);
+}
