@@ -68,14 +68,32 @@ static PetscErrorCode SNESNEWTONASInitialActiveSet_Private(SNES snes,Vec x,Vec l
 static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS *new_active,PetscReal *tbar)
 {
   /* Returns a modified IS based on the distance to constraint bounds, or NULL if no modification is necessary. */
-  /*  PetscErrorCode     ierr; */
+  SNES_NEWTONAS     *newtas  = (SNES_NEWTONAS*)snes->data;
+  Vec               dx=snes->vec_sol_update,dl=newtas->vec_lambda_update;
+  Vec               gl=snes->vec_constrl, gu=snes->vec_constru;
+  Vec               bx = newtas->workg[3];
+  PetscInt          i,c,lo,hi,inactive_size;
+  const PetscScalar *gl_v,*gu_v,*g_v,*l_v,*dl_v,*bx_v;
+  const PetscInt    *indices;
+  IS                inactive;
+  PetscReal         tilimit,val1,val2,val3;
+  PetscErrorCode    ierr;
 
   PetscFunctionBegin;
   /*
      Compute tbar -- the upper bound on the search step size.
-     tbar_i = largest t such that g_i(x) + t*B_i*dx <= snes->vec_constru_i AND
-                                  g_i(x) + t*B_i*dx >= snes->vec_constrl_i AND
-				  l_i + t*dl_i >= 0
+     tbar_i = largest t such that g_i(x) + t*(B*dx)_i <= snes->vec_constru_i AND
+                                  g_i(x) + t*(B*dx)_i >= snes->vec_constrl_i AND
+				  l_i + t*dl_i >= 0 for i in inactive set
+
+               this is equivalent to:
+     tbar_i = largest t such that:  t >= 0
+                                    t <= (g_i - l_i)/(Bdx_i)
+                                    t <= (u_i - g_i)/(Bdx_i)
+                                    t <= l_i / dl_i
+
+
+
      tbar = MPI_Allreduce(tbar_i).
      If tbar == 0, BARF.
 
@@ -93,6 +111,45 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
   */
   *new_active = NULL;
   *tbar = 0.0;
+
+  ierr = SNESGetConstraintFunction(snes,NULL,&gl,&gu,NULL,NULL);CHKERRQ(ierr);
+  ierr = MatMult(snes->jacobian_constrt,dx,bx);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRange(dl,&lo,&hi);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(gl,&gl_v);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(gu,&gu_v);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(snes->vec_constr,&g_v);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(newtas->vec_lambda,&l_v);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(dl,&dl_v);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(bx,&bx_v);CHKERRQ(ierr);
+  ierr = ISComplement(active,lo,hi,&inactive);CHKERRQ(ierr);
+  ierr = ISGetIndices(inactive,&indices);CHKERRQ(ierr);
+  ierr = ISGetLocalSize(inactive,&inactive_size);CHKERRQ(ierr);
+  tilimit = PETSC_INFINITY;
+  for (i=0;i<inactive_size;i++) {
+    c = indices[i];
+    val1 = PetscRealPart((g_v[c] - gl_v[c]) / bx_v[c]);
+    val2 = PetscRealPart((gu_v[c] - g_v[c]) / bx_v[c]);
+    val3 = PetscRealPart((l_v[c] / dl_v[c]));
+    tilimit = PetscMin(tilimit,val1);
+    tilimit = PetscMin(tilimit,val2);
+    tilimit = PetscMin(tilimit,val3);
+  }
+
+  ierr = VecRestoreArrayRead(gl,&gl_v);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(gu,&gu_v);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(snes->vec_constr,&g_v);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(newtas->vec_lambda,&l_v);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(dl,&dl_v);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(bx,&bx_v);CHKERRQ(ierr);
+
+  ierr = MPI_Allreduce(&tilimit,tbar,1,MPIU_REAL,MPIU_MIN,PetscObjectComm((PetscObject)snes->vec_constr));CHKERRQ(ierr);
+
+  if (*tbar <= 0) {
+    /*TODO - handle degeneracy */
+    SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_CONV_FAILED,"tbar (%g) <= 0 in SNESNEWTONASModifyActiveSet_Private\n",*tbar);
+  }
+  ierr = ISDestroy(&inactive);CHKERRQ(ierr);
+
   PetscFunctionReturn(0);
 }
 
