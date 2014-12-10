@@ -2643,6 +2643,8 @@ PetscErrorCode  SNESGetConstraintFunction(SNES snes,Vec *v,Vec *vl, Vec *vu,Pets
 .seealso:   SNESSetConstraintJacobian(), SNESGetConstraintJacobian()
 M*/
 
+/* FIXME: implement SNESSet/GetAugJacobian() */
+
 #undef __FUNCT__
 #define __FUNCT__ "SNESSetConstraintJacobian"
 /*@C
@@ -5036,6 +5038,135 @@ PetscErrorCode  SNESGetDM(SNES snes,DM *dm)
     snes->dmAuto = PETSC_TRUE;
   }
   *dm = snes->dm;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESSetConstraintDM"
+/*@
+   SNESSetConstraintDM - Sets the DM that describes the structure of the problem's constraints.
+   Logically Collective on SNES
+
+   Input Parameters:
++  snes - the solver context
+-  dm   - the constraint dm
+
+   Level: intermediate
+
+.seealso: SNESSetDM(), SNESGetConstraintDM()
+@*/
+PetscErrorCode  SNESSetConstraintDM(SNES snes,DM dm)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  /* Constraint DM isn't autoconstructed or associated with a KSP.
+     It can, however, be restricted (coarsened, etc.) to be used with
+     a restricted (coarsened) problem.
+  */
+  if (dm) {ierr = PetscObjectReference((PetscObject)dm);CHKERRQ(ierr);}
+  if (snes->dm_constr) {
+    ierr = DMDestroy(&snes->dm_constr);CHKERRQ(ierr);
+  }
+  snes->dm_constr = dm;
+
+  if (snes->pc) {
+    ierr = SNESSetConstraintDM(snes->pc, snes->dm_constr);CHKERRQ(ierr);
+    ierr = SNESSetNPCSide(snes,snes->pcside);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESGetConstraintDM"
+/*@
+   SNESGetConstraintDM - Gets the DM that describes the structure of the problem's constraints.
+
+   Not Collective but DM obtained is parallel on SNES
+
+   Input Parameter:
+. snes - the preconditioner context
+
+   Output Parameter:
+.  dm - the constraint dm
+
+   Level: intermediate
+
+.seealso: SNESGetDM(), SNESSetConstraintDM()
+@*/
+PetscErrorCode  SNESGetConstraintDM(SNES snes,DM *dm)
+{
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  /* Constraint DM is not auto-created. */
+  *dm = snes->dm_constr;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESSetAugDM"
+/*@
+   SNESSetAugDM - Sets the DM that describes the structure of the augmented problem incorporating constraints.
+   Logically Collective on SNES
+
+   Input Parameters:
++  snes - the solver context
+-  dm   - the augmented dm
+
+   Level: intermediate
+
+.seealso: SNESSetDM(), SNESSetConstraintDM(), SNESGetAugDM()
+@*/
+PetscErrorCode  SNESSetAugDM(SNES snes,DM dm)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  /* Aug DM isn't autoconstructd or associated with a KSP.
+     It can, however, be restricted (coarsened, etc.) to be used with
+     a restricted (coarsened) problem.
+  */
+  if (dm) {ierr = PetscObjectReference((PetscObject)dm);CHKERRQ(ierr);}
+  if (snes->dm_aug) {
+    ierr = DMDestroy(&snes->dm_aug);CHKERRQ(ierr);
+  }
+  snes->dm_aug = dm;
+
+  if (snes->pc) {
+    ierr = SNESSetAugDM(snes->pc, snes->dm_aug);CHKERRQ(ierr);
+    ierr = SNESSetNPCSide(snes,snes->pcside);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESGetAugDM"
+/*@
+   SNESGetAugDM - Gets the DM that describes the structure of the problem's constraints.
+
+   Not Collective but DM obtained is parallel on SNES
+
+   Input Parameter:
+. snes - the preconditioner context
+
+   Output Parameter:
+.  dm - the augmented dm
+
+   Level: intermediate
+
+.seealso: SNESGetDM(), SNESSetAugDM(), SNESGetConstraintDM()
+@*/
+PetscErrorCode  SNESGetAugDM(SNES snes,DM *dm)
+{
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  /* Augmented DM is not auto-created. */
+  /* TODO: should a DMComposite be created on demand? */
+  *dm = snes->dm_aug;
   PetscFunctionReturn(0);
 }
 

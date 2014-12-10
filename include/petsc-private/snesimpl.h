@@ -153,12 +153,14 @@ struct _p_SNES {
   PetscBool   usersetbounds;
   PetscInt    ntruebounds;      /* number of non-infinite bounds set on constraints */
 
+  DM          dm_constr;        /* constraint DM */
+  DM          dm_aug;           /* augmented DM incorporating information about constraints. This DM's type can be solver-type-specific. */
   Vec         vec_constr;       /* vector of constraints */
   Vec         vec_constrl;      /* lower bounds on the constraints */
   Vec         vec_constru;      /* upper bound on the constraints */
   Mat         jacobian_constr;  /* matrix to store the constraint Jacobian */
   Mat         jacobian_constrt; /* matrix to store the transpose of the constraint Jacobian */
-
+  PetscReal   merit;            /* current state's value of the merit function that measures progress to convergence both of the residual and the feasibility */
 
 };
 

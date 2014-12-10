@@ -32,7 +32,7 @@ General task list by category.
     - 'WIRING'
      . Replace scatter/gathers by VecNest/VecSubVec
     'MISC'
-     . Create SNESNEWTONASComputeConstraints() and similar wrappers for use in custom Merit functions?
+     . Create SNESNEWTONASComputeConstraints() and similar wrappers?
      . Check for DOMAIN_ERROR in the merit function.
 */
 /*
@@ -40,3 +40,32 @@ General task list by category.
    - How do we ensure that in the absence of true constraints (i.e., when all constraints are +/-Inf)
      the algorithm reduces to an efficient approximation of constraint-free SNES (e.g., similar to SNESNEWTONLS).
 */
+
+/* PETSc TODO discussion:
+   - Pass vectors rather than just norms to the monitor and convergence test.
+     . For the moment make SNESNEWTONASMonitor() and SNESNEWTONASConverged() in their own ops table?
+       : This has the problem of bifurcating the API and needs SNESNEWTONASSetMonitor(), etc.
+       :  Better change everything at once?
+     . On the other hand, the merit function isn't easily obtainable from the vectors.
+       : Pass it in addition?
+       : Have it extracted from SNES(NEWTONAS)?
+     .  Need to make merit a SNES-wide datamember.
+     .  Would be best to remove the norm from the monitor parameter list -- it is cheaply obtainable
+        from snes->vec_func.
+   - Let the convergence test/monitor extract EVERYTHING from SNES.
+     . That way we can write custom tests/monitors without changing the (depricated) API.
+     . This is because when monitoring/checking convergence we expect a consisten SNES state,
+         which includes all of the vectors -- soln and func -- which cache their norms.
+   - DMSNES now has constraint-specific callbacks; it is attached to snes->dm.
+     At the same time there could be up to 3 DMs associated with a SNESNEWTONAS:
+     dm, dm_constr, dm_aug. How should the constraint-specific DMSNES information be
+     shared among them?
+   - SNESLineSearch should consistently use 'merit' alongside the norms. 'objective' should
+     be reserved for optimization problems and even then 'merit' might be a different function
+     (albeit computed using 'objective' information).  We should avoid passing norms in and out
+     through the calling sequences, since this constrains the API (it is obvious now, when we
+     need to switch to using 'merit').  Norms. can be extracted from the vectors, where they are
+     cached.
+   - SNESConvergedXXX() needs to be augmented to allow for merit-based convergence.
+     Currently we are piggy-backing on the fnorm-based convergence passing 'merit' in place of 'fnorm'.
+ */
