@@ -1,43 +1,35 @@
 /* TODO:
-   - IMPLEMENTATION/API:
-    'OPTIMIZATION'
-     . SNESNEWTONASInitialActiveSet_Private()
-     . SNESNESNEWTONASModifyActiveSet_Private()
-     . SNESNEWTONASComputeMeritFunctionDefault()
-    'LINESEARCH'
-     . Two SNESLineSearch impls that work with and without projection.
-    'SADDLE-POINT'
+Invidividual task lists.
+  - Jason:
+    . *Fix SNESNEWTONASInitialActiveSet_Private():
+        : use a tolerance and declare a constraint active if g is within epsilon of the lower/upper bound (and the multiplier is positive/negative)
+	: allow the user to set it via -snes_newtonas_activity_tol
+        : the default is to be PETSC_SQRT_MACHINE_EPSILON
+    . *Fix SNESNESNEWTONASModifyActiveSet_Private() -- the tbar calculation
+        : When calculating tbar_i take into account the fact that bx_v[c] and dl_v[c]  might be negative, which might screw up the allowable interval
+	  calculation.
+    . *Add SNESLineSearchGetMerit() to retrieve the cached merit function from the final solution found by the linesearch.
+        : It would be best to add it to the list of things returned by SNESLineSearchGetNorms(), but that breaks the existing API.
+  - Dmitry:
+    . *Finish SNESSolve_NEWTONAS() with the linear solve as a stub, but all of the DM interaction in place.
+    .  Implement SNESNEWTONASComputeSearchDirectionSaddle_Private()
+        : *using a user-provided assembled augmented Jacobian
+        : by assembling the augmented Jacobian out of blocks using MatConvert_Nest_MPIAIJ
+   - Todd:
+    . *Pontificate
+General task list by category.
+    - 'ACTIVITY MANAGEMENT'
+     . SNESNESNEWTONASModifyActiveSet_Private() -- actually make this modify the active set, instead of throwing an error.
+       Otherwise we might be infeasible after the first iteration and will need projection.
+    - 'LINESEARCH'
+     . Derivative-based version of SNESLineSearch impls that work with and without projection.
+    - 'LINEAR SOLVE'
      . SNESNEWTONASComputeSearchDirectionPrimal_Private()
-    'WIRING'
-     . Adjust SNESMonitor() API: need to be able to pass in the merit function as well as l*B.
-         :need to make sure that this API is general enough to support future SNESVI methods (e.g., semi-smooth, IPM).
-         :need to maintain BACKWARD-compatibility.
-     . Adjust SNESConvergedDefault() API: need to pass in the merit function as well as l*B.
-         :same concerns as above
-     . Adjust SNESLineSearchApply() API: need to be able to pass in l and, perhaps, g?
-       [Presumably this has been fixed, at least temporarily, with the packing/unpacking (or scattering) of x & l and f & g?]
-         :same concerns as above.
+    - 'WIRING'
+     . Replace scatter/gathers by VecNest/VecSubVec
     'MISC'
      . Create SNESNEWTONASComputeConstraints() and similar wrappers for use in custom Merit functions?
      . Check for DOMAIN_ERROR in the merit function.
-  - Dmitry:
-    . 'WIRING':
-      : Make sure that SNESNEWTONASMeritXXX() has the right calling sequence so that the required parameters
-        can be passed in from all of its usual calling contexts (e.g., SNESLineSearch).
-      : Add get/set boilerplate for SNESNEWTONASMeritXXX()
-      : Likewise address the calling sequence issue for SNESConvergedXXX() and SNESMonitor().
-      : Add boilerplate code for SNESNEWTONASSet/GetActiveConstraintBasis().
-    . 'SKELETON':
-      : *Produce the skeleton SNESNEWTONAS algorith that has all of the correct calls with the correct calling
-        sequences, even if it is to stubs.
-    . Linear solve
-      : *Implement SNESNEWTONASComputeSearchDirectionSaddle_Private() (assemble using MatConvert_Nest_MPIAIJ())
-  - Jason:
-       'OPTIMIZATION':
-      : *Additional tests for SNESLineSearch_BTSD
-      : *Implement SNESNEWTONASInitialActiveSet_Private()
-      : *Implement SNESNESNEWTONASModifyActiveSet_Private() (a primitive version that barfs when the active set needs to be modified)
-      : Implement the second SNESLineSearch_XXX (the one that doesn't use the gradient of the constraints?)
 */
 /*
    QUESTIONS:

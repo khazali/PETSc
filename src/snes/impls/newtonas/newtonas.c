@@ -14,29 +14,23 @@
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESNEWTONASInitialActiveSet_Private"
-static PetscErrorCode SNESNEWTONASInitialActiveSet_Private(SNES snes,Vec x,Vec l,Vec f,Vec g,IS *active)
+static PetscErrorCode SNESNEWTONASInitialActiveSet_Private(SNES snes,IS *active)
 {
   PetscErrorCode     ierr;
+  SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)snes->data;
   PetscInt           glo,ghi;
   PetscInt           i;
-  Vec                gl,gu;
+  Vec                g,gl,gu;
   const PetscScalar  *la,*ua,*ga,*lam;
   PetscInt           *indices,counter=0;
+  Vec                x = snes->vec_sol,l = newtas->vec_lambda;
   MPI_Comm           comm;
 
-
-  /* Assume that f(x) and g(x) have already been computed */
-
-  /* A = \{i : (g_i(x) = g_i^l & \lambda_i > 0) | (g_i(x) = g_i^u & \lambda_i < 0)\} -- strongly active set. */
-  /* TODO: check signs on \lambda in the foregoing def.*/
-  /*
-    This should use the distance to boundary computed in SNESNEWTONASComputeDistanceToBoundary().
-     Should we just roll that subroutine into this one?  It's not used anywhere else.
-  */
   PetscFunctionBegin;
-
+  /* Assume that f(x) and g(x) have already been computed */
+  /* A = \{i : (g_i(x) <= g_i^l+epsilon & \lambda_i > 0) | (g_i(x) >= g_i^u-epsilon & \lambda_i < 0)\} -- strongly active set. */
   *active = NULL;
-  ierr = SNESGetConstraintFunction(snes,NULL,&gl,&gu,NULL,NULL);CHKERRQ(ierr);
+  ierr = SNESGetConstraintFunction(snes,&g,&gl,&gu,NULL,NULL);CHKERRQ(ierr);
   ierr = VecGetOwnershipRange(l,&glo,&ghi);CHKERRQ(ierr);
 
   ierr = VecGetArrayRead(gl,&la);CHKERRQ(ierr);
@@ -82,11 +76,12 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
   PetscFunctionBegin;
   /*
      Compute tbar -- the upper bound on the search step size.
-     tbar_i = largest t such that g_i(x) + t*(B*dx)_i <= snes->vec_constru_i AND
-                                  g_i(x) + t*(B*dx)_i >= snes->vec_constrl_i AND
+     tbar_i = largest t such that g_i(x) + t*(B*dx)_i <= gu_i AND
+                                  g_i(x) + t*(B*dx)_i >= gl_i AND
 				  l_i + t*dl_i >= 0 for i in inactive set
-
                this is equivalent to:
+     BE CAREFUL, what's below assumes all variables have positive values,
+     which isn't always true, which might change the direction of the inequality
      tbar_i = largest t such that:  t >= 0
                                     t <= (g_i - l_i)/(Bdx_i)
                                     t <= (u_i - g_i)/(Bdx_i)
@@ -97,17 +92,15 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
      tbar = MPI_Allreduce(tbar_i).
      If tbar == 0, BARF.
 
-     g(x) = snes->vec_constr.
+     g(x) = snes->vec_constr
+     gu   = snes->vec_constru
+     glu  = snes->vec_constrl
      Use newtas->workg[3] to store the result of B*dx calls.
      B = snes->jacobian_constr.
 
      x = snes->vec_sol,
      f(x) = snes->vec_func
-     (dx,dl) = snes->vec_sol_update, which needs to be scattered.
-       - Actually, this is confusing, since snes->vec_sol is x only,
-         while snes->vec_sol_update is both dx and dl.
-       - Should we use ls_x for the combined update? Or introduce vec_lambda and vec_lambda_update,
-         and at the end of the linear solve scatter the update into those two?
+     (dx,dl) = (snes->vec_sol_update,newtas->vec_lambda_update)
   */
   *new_active = NULL;
   *tbar = 0.0;
@@ -125,6 +118,10 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
   ierr = ISGetIndices(inactive,&indices);CHKERRQ(ierr);
   ierr = ISGetLocalSize(inactive,&inactive_size);CHKERRQ(ierr);
   tilimit = PETSC_INFINITY;
+  /* TODO: we might need to do the check for ALL indices, active and inactive.
+     This is because we assume the computed search direction is in the nullspace
+     of linearized constraints, which is only true if the linear solve is exact.
+  */
   for (i=0;i<inactive_size;i++) {
     c = indices[i];
     val1 = PetscRealPart((g_v[c] - gl_v[c]) / bx_v[c]);
@@ -434,7 +431,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
 
     /* TODO: compute the initial 'active'. */
     new_active = NULL;
-    ierr = SNESNEWTONASInitialActiveSet_Private(snes,x,l,f,g,&active);CHKERRQ(ierr);
+    ierr = SNESNEWTONASInitialActiveSet_Private(snes,&active);CHKERRQ(ierr);
     do {
       PetscReal tbar;
       if (new_active) { /* active set has been updated */
