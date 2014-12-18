@@ -336,7 +336,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
   PetscBool           lssucceed;
   PetscReal           fnorm,hnorm,xnorm,dxnorm;
   PetscBool           domainerror;
-  PetscReal           gnorm;
+  PetscReal           gnorm,tbar;
   SNESLineSearch      linesearch=snes->linesearch;
   IS                  active,new_active;
 
@@ -429,11 +429,9 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
     */
     ierr = dmsnes->ops->constraintjacobian(snes,x,snes->jacobian_constr,snes->jacobian_constrt,dmsnes->constraintjacobianctx);CHKERRQ(ierr);
 
-    /* TODO: compute the initial 'active'. */
     new_active = NULL;
     ierr = SNESNEWTONASInitialActiveSet_Private(snes,&active);CHKERRQ(ierr);
     do {
-      PetscReal tbar;
       if (new_active) { /* active set has been updated */
 	    ierr = ISDestroy(&active);CHKERRQ(ierr);
 	    active = new_active; new_active = NULL;
@@ -454,7 +452,8 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
     */
     hnorm = fnorm;
 
-    ierr = SNESNEWTONASGather(snes,newtas->ls_x,x,l);CHKERRQ(ierr);
+    ierr = SNESNEWTONASGather(snes,newtas->ls_step,x,l);CHKERRQ(ierr);
+    ierr = VecScale(newtas->ls_step,tbar);CHKERRQ(ierr);
     ierr  = SNESLineSearchApply(linesearch, newtas->ls_x, newtas->ls_f, &gnorm, newtas->ls_step);CHKERRQ(ierr);
     ierr = SNESNEWTONASScatter(snes,newtas->ls_f,x,l);CHKERRQ(ierr);
 

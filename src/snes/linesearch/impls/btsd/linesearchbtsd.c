@@ -193,45 +193,48 @@ static PetscErrorCode  SNESLineSearchApply_BTSD(SNESLineSearch linesearch)
   ierr = SNESLineSearchPreCheck(linesearch,x,origs,&changed_y);CHKERRQ(ierr);
 
 
-  /* Check to see of the memory has been allocated.  If not, allocate
+  if (btsdP->usememory) {
+    /* Check to see of the memory has been allocated.  If not, allocate
      the historical array and populate it with the initial function
      values. */
-  if (!btsdP->memory) {
-    ierr = PetscMalloc1(btsdP->memorySize, &btsdP->memory );CHKERRQ(ierr);
-  }
-
-  if (!btsdP->memorySetup) {
-    for (i = 0; i < btsdP->memorySize; i++) {
-      btsdP->memory[i] = btsdP->alpha*(f);
+    if (!btsdP->memory) {
+      ierr = PetscMalloc1(btsdP->memorySize, &btsdP->memory );CHKERRQ(ierr);
     }
 
-    btsdP->current = 0;
-    btsdP->lastReference = btsdP->memory[0];
-    btsdP->memorySetup=PETSC_TRUE;
-  }
+    if (!btsdP->memorySetup) {
+      for (i = 0; i < btsdP->memorySize; i++) {
+        btsdP->memory[i] = btsdP->alpha*(f);
+      }
 
-  /* Calculate reference value (MAX) */
-  ref = btsdP->memory[0];
-  idx = 0;
-
-  for (i = 1; i < btsdP->memorySize; i++) {
-    if (btsdP->memory[i] > ref) {
-      ref = btsdP->memory[i];
-      idx = i;
+      btsdP->current = 0;
+      btsdP->lastReference = btsdP->memory[0];
+      btsdP->memorySetup=PETSC_TRUE;
     }
-  }
 
-  if (btsdP->referencePolicy == REFERENCE_AVE) {
-    ref = 0;
-    for (i = 0; i < btsdP->memorySize; i++) {
-      ref += btsdP->memory[i];
+    /* Calculate reference value (MAX) */
+    ref = btsdP->memory[0];
+    idx = 0;
+
+    for (i = 1; i < btsdP->memorySize; i++) {
+      if (btsdP->memory[i] > ref) {
+        ref = btsdP->memory[i];
+        idx = i;
+      }
     }
-    ref = ref / btsdP->memorySize;
-    ref = PetscMax(ref, btsdP->memory[btsdP->current]);
-  } else if (btsdP->referencePolicy == REFERENCE_MEAN) {
-    ref = PetscMin(ref, 0.5*(btsdP->lastReference + btsdP->memory[btsdP->current]));
+    if (btsdP->referencePolicy == REFERENCE_AVE) {
+      ref = 0;
+      for (i = 0; i < btsdP->memorySize; i++) {
+        ref += btsdP->memory[i];
+      }
+      ref = ref / btsdP->memorySize;
+      ref = PetscMax(ref, btsdP->memory[btsdP->current]);
+    } else if (btsdP->referencePolicy == REFERENCE_MEAN) {
+      ref = PetscMin(ref, 0.5*(btsdP->lastReference + btsdP->memory[btsdP->current]));
+    }
+    ierr = VecDotRealPart(g,origs,&gdx);CHKERRQ(ierr);
+  } else {
+    ref = btsdP->alpha*(f);
   }
-  ierr = VecDotRealPart(g,origs,&gdx);CHKERRQ(ierr);
 
   if (PetscIsInfOrNanReal(gdx)) {
     ierr = PetscInfo1(linesearch,"Initial Line Search step * g is Inf or Nan (%g)\n",(double)gdx);CHKERRQ(ierr);
@@ -301,15 +304,17 @@ static PetscErrorCode  SNESLineSearchApply_BTSD(SNESLineSearch linesearch)
   }
 
   /* Successful termination, update memory */
-  btsdP->lastReference = ref;
-  if (btsdP->replacementPolicy == REPLACE_FIFO) {
-    btsdP->memory[btsdP->current++] = f;
-    if (btsdP->current >= btsdP->memorySize) {
-      btsdP->current = 0;
+  if (btsd->use_memory) {
+    btsdP->lastReference = ref;
+    if (btsdP->replacementPolicy == REPLACE_FIFO) {
+      btsdP->memory[btsdP->current++] = f;
+      if (btsdP->current >= btsdP->memorySize) {
+        btsdP->current = 0;
+      }
+    } else {
+      btsdP->current = idx;
+      btsdP->memory[idx] = f;
     }
-  } else {
-    btsdP->current = idx;
-    btsdP->memory[idx] = f;
   }
 
 
@@ -353,7 +358,7 @@ static PetscErrorCode  SNESLineSearchApply_BTSD(SNESLineSearch linesearch)
 .   -snes_linesearch_btsd_beta_inf<0.5> -  decrease constant one
 .   -snes_linesearch_btsd_beta<0.5> - decrease constant
 .   -snes_linesearch_btsd_sigma<1e-4> - acceptance constant
-.   -snes_linesearch_btsd_memory_size<1> - number of historical elements
+.   -snes_linesearch_btsd_memory_size<0> - number of historical elements to keep as references. Use nonzero only if the line search merit function never changes
 .   -snes_linesearch_btsd_reference_policy<1> - policy for updating reference value
 .   -snes_linesearch_btsd_replacement_policy<2> - policy for updating memory
 -   -snes_linesearch_btsd_nondescending<false> - Force nondescending
@@ -385,7 +390,7 @@ PETSC_EXTERN PetscErrorCode SNESLineSearchCreate_BTSD(SNESLineSearch linesearch)
   btsdP->beta = 0.5;
   btsdP->beta_inf = 0.5;
   btsdP->sigma = 1e-4;
-  btsdP->memorySize = 1;
+  btsdP->memorySize = 0;
   btsdP->referencePolicy = REFERENCE_MAX;
   btsdP->replacementPolicy = REPLACE_MRU;
   btsdP->nondescending=PETSC_FALSE;
