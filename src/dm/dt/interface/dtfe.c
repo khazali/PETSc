@@ -575,7 +575,7 @@ PetscErrorCode PetscSpaceGetDimension_Polynomial(PetscSpace sp, PetscInt *dim)
 
   Level: developer
 
-.seealso: 
+.seealso:
 */
 static PetscErrorCode LatticePoint_Internal(PetscInt len, PetscInt sum, PetscInt ind[], PetscInt tup[])
 {
@@ -615,7 +615,7 @@ static PetscErrorCode LatticePoint_Internal(PetscInt len, PetscInt sum, PetscInt
 
   Level: developer
 
-.seealso: 
+.seealso:
 */
 static PetscErrorCode TensorPoint_Internal(PetscInt len, PetscInt max, PetscInt ind[], PetscInt tup[])
 {
@@ -4298,18 +4298,6 @@ PetscErrorCode PetscFEOpenCLGenerateIntegrationCode(PetscFE fem, char **string_b
 "__kernel void integrateElementQuadrature(int N_cb, __global %s *coefficients, __global %s *coefficientsAux, __global %s *jacobianInverses, __global %s *jacobianDeterminants, __global %s *elemVec)\n"
 "{\n",
                        &count, numeric_str, numeric_str, numeric_str, numeric_str, numeric_str);STRING_ERROR_CHECK("Message to short");
-  /* Quadrature */
-  ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail,
-"  /* Quadrature points\n"
-"   - (x1,y1,x2,y2,...) */\n"
-"  const %s points[%d] = {\n",
-                       &count, numeric_str, N_q*dim);STRING_ERROR_CHECK("Message to short");
-  for (p = 0; p < N_q; ++p) {
-    for (d = 0; d < dim; ++d) {
-      ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail, "%g,\n", &count, q->points[p*dim+d]);STRING_ERROR_CHECK("Message to short");
-    }
-  }
-  ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail, "};\n", &count);STRING_ERROR_CHECK("Message to short");
   ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail,
 "  /* Quadrature weights\n"
 "   - (v1,v2,...) */\n"
