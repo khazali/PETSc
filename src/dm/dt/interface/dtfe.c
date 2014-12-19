@@ -4298,15 +4298,6 @@ PetscErrorCode PetscFEOpenCLGenerateIntegrationCode(PetscFE fem, char **string_b
 "__kernel void integrateElementQuadrature(int N_cb, __global %s *coefficients, __global %s *coefficientsAux, __global %s *jacobianInverses, __global %s *jacobianDeterminants, __global %s *elemVec)\n"
 "{\n",
                        &count, numeric_str, numeric_str, numeric_str, numeric_str, numeric_str);STRING_ERROR_CHECK("Message to short");
-  ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail,
-"  /* Quadrature weights\n"
-"   - (v1,v2,...) */\n"
-"  const %s weights[%d] = {\n",
-                       &count, numeric_str, N_q);STRING_ERROR_CHECK("Message to short");
-  for (p = 0; p < N_q; ++p) {
-    ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail, "%g,\n", &count, q->weights[p]);STRING_ERROR_CHECK("Message to short");
-  }
-  ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail, "};\n", &count);STRING_ERROR_CHECK("Message to short");
   /* Basis Functions */
   ierr = PetscFEGetDefaultTabulation(fem, &basis, &basisDer, NULL);CHKERRQ(ierr);
   ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail,
@@ -4409,10 +4400,20 @@ PetscErrorCode PetscFEOpenCLGenerateIntegrationCode(PetscFE fem, char **string_b
 "  %s                e_i;                 // Coefficient $e_i$ of the residual\n\n",
                             &count, numeric_str);STRING_ERROR_CHECK("Message to short");
   /* One-time loads */
+
+  ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail,
+"  /* Quadrature weights\n"
+"   - (v1,v2,...) */\n"
+"  /* Load quadrature weights */\n"
+"  switch (qidx) {\n",
+                       &count, numeric_str, N_q);STRING_ERROR_CHECK("Message to short");
+  for (p = 0; p < N_q; ++p) {
+    ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail, "  case %d: w = %g; break;\n", &count, p, q->weights[p]);STRING_ERROR_CHECK("Message to short");
+  }
+  ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail, "  };\n", &count);STRING_ERROR_CHECK("Message to short");
+
   ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail,
 "  /* These should be generated inline */\n"
-"  /* Load quadrature weights */\n"
-"  w = weights[qidx];\n"
 "  /* Load basis tabulation \\phi_i for this cell */\n"
 "  if (tidx < N_bt*N_q) {\n"
 "    phi_i[tidx]    = Basis[tidx];\n"
