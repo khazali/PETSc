@@ -23,7 +23,7 @@ static PetscErrorCode SNESNEWTONASInitialActiveSet_Private(SNES snes,IS *active)
   Vec                g,gl,gu;
   const PetscScalar  *la,*ua,*ga,*lam;
   PetscInt           *indices,counter=0;
-  Vec                x = snes->vec_sol,l = newtas->vec_lambda;
+  Vec                l = newtas->vec_lambda;
   MPI_Comm           comm;
 
   PetscFunctionBegin;
@@ -66,26 +66,52 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
   Vec               dx=snes->vec_sol_update,dl=newtas->vec_lambda_update;
   Vec               gl=snes->vec_constrl, gu=snes->vec_constru;
   Vec               bx = newtas->workg[3];
-  PetscInt          i,c,lo,hi,inactive_size;
+  PetscInt          i,lo,hi;
   const PetscScalar *gl_v,*gu_v,*g_v,*l_v,*dl_v,*bx_v;
-  const PetscInt    *indices;
-  IS                inactive;
-  PetscReal         tilimit,val1,val2,val3;
+  PetscReal         tlimit,tilimit,bdxi,umgi,lmgi,ldli;
   PetscErrorCode    ierr;
 
   PetscFunctionBegin;
   /*
      Compute tbar -- the upper bound on the search step size.
-     tbar_i = largest t such that g_i(x) + t*(B*dx)_i <= gu_i AND
+     tbar_i = largest t such that for i in inactive set
+                                  g_i(x) + t*(B*dx)_i <= gu_i AND
                                   g_i(x) + t*(B*dx)_i >= gl_i AND
-				  l_i + t*dl_i >= 0 for i in inactive set
+
+                                  for i in active set:
+                                  if at upper bound:
+                                       l_i + t*dl_i < 0
+                                  if at lower bound:
+                                       l_i + t*dl_i > 0
                this is equivalent to:
-     BE CAREFUL, what's below assumes all variables have positive values,
-     which isn't always true, which might change the direction of the inequality
      tbar_i = largest t such that:  t >= 0
-                                    t <= (g_i - l_i)/(Bdx_i)
-                                    t <= (u_i - g_i)/(Bdx_i)
-                                    t <= l_i / dl_i
+                                    if (Bdx_i > 0):
+                                        t >= (l_i - g_i)/(Bdx_i) (always neg)
+                                        t <= (u_i - g_i)/(Bdx_i) (always pos)
+                                    if (Bdx_i < 0):
+                                        t <= (l_i - g_i)/(Bdx_i) (always pos)
+                                        t >= (u_i - g_i)/(Bdx_i) (always neg)
+                                    if (g_i == l_i): (lower bound)
+                                        (make sure l>0)
+                                        if (dl_i > 0)
+                                           t > -l_i / dl_i (always neg)
+                                        else
+                                           t < -l_i / dl_i (always pos)
+                                    if (g_i == u_i): (upper bound)
+                                        (make sure l<0)
+                                        if (dl_i > 0)
+                                           t < -l_i / dl_i (always positive)
+                                        else
+                                           t > -l_i / dl_i (always negative)
+
+           Removing redundancies:
+        inactive  If Bdx_i > 0:               t <= (u_i - g_i)/Bdx_i
+        inactive  If Bdx_i < 0:               t <= (l_i - g_i)/Bdx_i
+         active   if g_i==l_i && dl_i>0
+                        OR                    t < -l_i / dl_i
+         active   if g_i==u_i && dl_i<0
+
+
 
 
 
@@ -114,22 +140,27 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
   ierr = VecGetArrayRead(newtas->vec_lambda,&l_v);CHKERRQ(ierr);
   ierr = VecGetArrayRead(dl,&dl_v);CHKERRQ(ierr);
   ierr = VecGetArrayRead(bx,&bx_v);CHKERRQ(ierr);
-  ierr = ISComplement(active,lo,hi,&inactive);CHKERRQ(ierr);
-  ierr = ISGetIndices(inactive,&indices);CHKERRQ(ierr);
-  ierr = ISGetLocalSize(inactive,&inactive_size);CHKERRQ(ierr);
-  tilimit = PETSC_INFINITY;
-  /* TODO: we might need to do the check for ALL indices, active and inactive.
-     This is because we assume the computed search direction is in the nullspace
-     of linearized constraints, which is only true if the linear solve is exact.
-  */
-  for (i=0;i<inactive_size;i++) {
-    c = indices[i];
-    val1 = PetscRealPart((g_v[c] - gl_v[c]) / bx_v[c]);
-    val2 = PetscRealPart((gu_v[c] - g_v[c]) / bx_v[c]);
-    val3 = PetscRealPart((l_v[c] / dl_v[c]));
-    tilimit = PetscMin(tilimit,val1);
-    tilimit = PetscMin(tilimit,val2);
-    tilimit = PetscMin(tilimit,val3);
+  tlimit = PETSC_INFINITY;
+
+  for (i=0;i<hi-lo;i++) {
+    umgi = PetscRealPart(gu_v[i] - g_v[i]);
+    lmgi = PetscRealPart(gl_v[i] - g_v[i]);
+
+    if (umgi < PETSC_SQRT_MACHINE_EPSILON ||
+        -lmgi < PETSC_SQRT_MACHINE_EPSILON ) {
+      ldli = -l_v[i] / dl_v[i];
+      tilimit = PetscRealPart(ldli);
+    } else {
+      bdxi = PetscRealPart(bx_v[i]);
+      if (bdxi > 0) {
+        tilimit = umgi/bdxi;
+      } else if (bdxi < 0) {
+        tilimit = lmgi/bdxi;
+      } else {
+        tilimit=0;
+      }
+    }
+    tlimit = PetscMin(tilimit,tlimit);
   }
 
   ierr = VecRestoreArrayRead(gl,&gl_v);CHKERRQ(ierr);
@@ -139,13 +170,12 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
   ierr = VecRestoreArrayRead(dl,&dl_v);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(bx,&bx_v);CHKERRQ(ierr);
 
-  ierr = MPI_Allreduce(&tilimit,tbar,1,MPIU_REAL,MPIU_MIN,PetscObjectComm((PetscObject)snes->vec_constr));CHKERRQ(ierr);
+  ierr = MPI_Allreduce(&tlimit,tbar,1,MPIU_REAL,MPIU_MIN,PetscObjectComm((PetscObject)snes->vec_constr));CHKERRQ(ierr);
 
   if (*tbar <= 0) {
     /*TODO - handle degeneracy */
     SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_CONV_FAILED,"tbar (%g) <= 0 in SNESNEWTONASModifyActiveSet_Private\n",*tbar);
   }
-  ierr = ISDestroy(&inactive);CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }
@@ -327,8 +357,8 @@ static PetscErrorCode SNESNEWTONASComputeSearchDirectionPrimal_Private(SNES snes
 #define __FUNCT__ "SNESSolve_NEWTONAS"
 PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
 {
-  PetscErrorCode     ierr;
-  Vec                x,dx,f,l,dl,g;/* h,w; */
+  PetscErrorCode      ierr;
+  Vec                 x,dx,f,l,dl;/* h,w; */
   SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)snes->data;
   DM                  dm;
   DMSNES              dmsnes;
@@ -348,11 +378,11 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
   x      = snes->vec_sol;               /* solution vector */
   f      = snes->vec_func;              /* residual vector */
   dx     = snes->vec_sol_update;        /* newton step */
-  g      = snes->vec_constr;            /* constraints */
   l      = newtas->vec_lambda;          /* \lambda */
   dl     = newtas->vec_lambda_update;   /* \delta \lambda */
-  //  h      = snes->work[0];               /* residual at the linesearch location */
-  //  w      = snes->work[1];               /* linear update at the linesearch location */
+  /* g      = snes->vec_constr;   */    /* constraints */
+  /*  h      = snes->work[0];      */   /* residual at the linesearch location */
+  /*  w      = snes->work[1];      */   /* linear update at the linesearch location */
 
 
   ierr       = PetscObjectSAWsTakeAccess((PetscObject)snes);CHKERRQ(ierr);

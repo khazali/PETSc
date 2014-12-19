@@ -18,6 +18,7 @@ typedef struct {
 
   PetscBool nondescending;
   PetscBool memorySetup;
+  PetscBool usememory;
 
 
   Vec x;        /* Maintain reference to variable vector to check for changes */
@@ -304,7 +305,7 @@ static PetscErrorCode  SNESLineSearchApply_BTSD(SNESLineSearch linesearch)
   }
 
   /* Successful termination, update memory */
-  if (btsd->use_memory) {
+  if (btsdP->usememory) {
     btsdP->lastReference = ref;
     if (btsdP->replacementPolicy == REPLACE_FIFO) {
       btsdP->memory[btsdP->current++] = f;
