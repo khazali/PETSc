@@ -47,6 +47,7 @@ struct _p_LineSearch {
   PetscReal           fnorm;
   PetscReal           ynorm;
   PetscReal           xnorm;
+  PetscReal           merit_value;
   PetscBool           success;
   PetscBool           keeplambda;
 
