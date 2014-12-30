@@ -357,7 +357,7 @@ static PetscErrorCode KSPFGMRESBuildSoln(PetscScalar *nrs,Vec vguess,Vec vdest,K
 
   /* solve the upper triangular system - RS is the right side and HH is
      the upper triangular matrix  - put soln in nrs */
-  if (*HH(it,it) != 0.0) {
+  if (*HH(it,it) != (PetscReal)0) {
     nrs[it] = *RS(it) / *HH(it,it);
   } else {
     nrs[it] = 0.0;
@@ -441,7 +441,7 @@ static PetscErrorCode KSPFGMRESUpdateHessenberg(KSP ksp,PetscInt it,PetscBool ha
 
   if (!hapend) {
     tt = PetscSqrtScalar(PetscConj(*hh) * *hh + PetscConj(*(hh+1)) * *(hh+1));
-    if (tt == 0.0) {
+    if (tt == (PetscReal)0) {
       ksp->reason = KSP_DIVERGED_NULL;
       PetscFunctionReturn(0);
     }

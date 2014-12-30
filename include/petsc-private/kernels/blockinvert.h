@@ -29,7 +29,7 @@ PETSC_EXTERN PetscErrorCode PetscKernel_A_gets_inverse_A_3(MatScalar*,PetscReal)
     MatScalar d, di; \
 \
     di       = mat[0]; \
-    mat[0]   = d = 1.0 / di; \
+    mat[0]   = d = (PetscReal)1 / di; \
     mat[4]  *= -d; \
     mat[8]  *= -d; \
     mat[12] *= -d; \
@@ -46,7 +46,7 @@ PETSC_EXTERN PetscErrorCode PetscKernel_A_gets_inverse_A_3(MatScalar*,PetscReal)
     mat[14] += mat[12] * mat[2] * di; \
     mat[15] += mat[12] * mat[3] * di; \
     di       = mat[5]; \
-    mat[5]   = d = 1.0 / di; \
+    mat[5]   = d = (PetscReal)1 / di; \
     mat[1]  *= -d; \
     mat[9]  *= -d; \
     mat[13] *= -d; \
@@ -63,7 +63,7 @@ PETSC_EXTERN PetscErrorCode PetscKernel_A_gets_inverse_A_3(MatScalar*,PetscReal)
     mat[14] += mat[13] * mat[6] * di; \
     mat[15] += mat[13] * mat[7] * di; \
     di       = mat[10]; \
-    mat[10]  = d = 1.0 / di; \
+    mat[10]  = d = (PetscReal)1 / di; \
     mat[2]  *= -d; \
     mat[6]  *= -d; \
     mat[14] *= -d; \
@@ -80,7 +80,7 @@ PETSC_EXTERN PetscErrorCode PetscKernel_A_gets_inverse_A_3(MatScalar*,PetscReal)
     mat[13] += mat[14] * mat[9] * di; \
     mat[15] += mat[14] * mat[11] * di; \
     di       = mat[15]; \
-    mat[15]  = d = 1.0 / di; \
+    mat[15]  = d = (PetscReal)1 / di; \
     mat[3]  *= -d; \
     mat[7]  *= -d; \
     mat[11] *= -d; \

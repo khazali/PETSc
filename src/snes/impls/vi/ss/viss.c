@@ -40,8 +40,8 @@ PETSC_STATIC_INLINE PetscScalar Phi(PetscScalar a,PetscScalar b)
 
 PETSC_STATIC_INLINE PetscScalar DPhi(PetscScalar a,PetscScalar b)
 {
-  if ((PetscAbsScalar(a) >= 1.e-6) || (PetscAbsScalar(b) >= 1.e-6)) return 1.0 - a/ PetscSqrtScalar(a*a + b*b);
-  else return .5;
+  if ((PetscAbsScalar(a) >= (PetscReal)1.e-6) || (PetscAbsScalar(b) >= (PetscReal)1.e-6)) return (PetscReal)1.0 - a/ PetscSqrtScalar(a*a + b*b);
+  else return (PetscReal).5;
 }
 
 /*

@@ -95,7 +95,7 @@ static PetscErrorCode  KSPSolve_BCGSL(KSP ksp)
     for (j=0; j<bcgsl->ell; j++) {
       /* rho1 <- r_j' * r_tilde */
       ierr = VecDot(VVR[j], VRT, &rho1);CHKERRQ(ierr);
-      if (rho1 == 0.0) {
+      if (rho1 == (PetscReal)0) {
         ksp->reason = KSP_DIVERGED_BREAKDOWN_BICG;
         PetscFunctionReturn(0);
       }
@@ -109,7 +109,7 @@ static PetscErrorCode  KSPSolve_BCGSL(KSP ksp)
       ierr = KSP_PCApplyBAorAB(ksp, VVU[j], VVU[j+1], VTM);CHKERRQ(ierr);
 
       ierr = VecDot(VVU[j+1], VRT, &sigma);CHKERRQ(ierr);
-      if (sigma == 0.0) {
+      if (sigma == (PetscReal)0) {
         ksp->reason = KSP_DIVERGED_BREAKDOWN_BICG;
         PetscFunctionReturn(0);
       }
@@ -268,8 +268,8 @@ static PetscErrorCode  KSPSolve_BCGSL(KSP ksp)
     }
 
     omega = AY0c[bcgsl->ell];
-    for (h=bcgsl->ell; h>0 && omega==0.0; h--) omega = AY0c[h];
-    if (omega==0.0) {
+    for (h=bcgsl->ell; h>0 && omega==(PetscReal)0; h--) omega = AY0c[h];
+    if (omega==(PetscReal)0) {
       ksp->reason = KSP_DIVERGED_BREAKDOWN;
       PetscFunctionReturn(0);
     }

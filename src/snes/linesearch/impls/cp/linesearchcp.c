@@ -66,10 +66,10 @@ static PetscErrorCode SNESLineSearchApply_CP(SNESLineSearch linesearch)
       }
       ierr = (*linesearch->ops->snesfunc)(snes,W,F);CHKERRQ(ierr);
       ierr = VecDot(F, Y, &fty_mid1);CHKERRQ(ierr);
-      s    = (3.*fty - 4.*fty_mid1 + fty_old) / delLambda;
+      s    = ((PetscReal)3*fty - (PetscReal)4*fty_mid1 + fty_old) / delLambda;
     } else {
       ierr = VecCopy(X, W);CHKERRQ(ierr);
-      ierr = VecAXPY(W, -0.5*(lambda + lambda_old), Y);CHKERRQ(ierr);
+      ierr = VecAXPY(W, -(PetscReal)0.5*(lambda + lambda_old), Y);CHKERRQ(ierr);
       if (linesearch->ops->viproject) {
         ierr = (*linesearch->ops->viproject)(snes, W);CHKERRQ(ierr);
       }
@@ -82,7 +82,7 @@ static PetscErrorCode SNESLineSearchApply_CP(SNESLineSearch linesearch)
       }
       ierr = (*linesearch->ops->snesfunc)(snes, W, F);CHKERRQ(ierr);
       ierr = VecDot(F, Y, &fty_mid2);CHKERRQ(ierr);
-      s    = (2.*fty_mid2 + 3.*fty - 6.*fty_mid1 + fty_old) / (3.*delLambda);
+      s    = ((PetscReal)2*fty_mid2 + (PetscReal)3*fty - (PetscReal)6*fty_mid1 + fty_old) / ((PetscReal)3*delLambda);
     }
     /* if the solve is going in the wrong direction, fix it */
     if (PetscRealPart(s) > 0.) s = -s;

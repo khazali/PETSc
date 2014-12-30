@@ -78,12 +78,12 @@ PetscErrorCode MatLUFactorNumeric_SeqBAIJ_5_inplace(Mat C,Mat A,const MatFactorI
       p15 = pc[14]; p16 = pc[15]; p17 = pc[16]; p18 = pc[17]; p19 = pc[18];
       p20 = pc[19]; p21 = pc[20]; p22 = pc[21]; p23 = pc[22]; p24 = pc[23];
       p25 = pc[24];
-      if (p1 != 0.0 || p2 != 0.0 || p3 != 0.0 || p4 != 0.0 || p5 != 0.0 ||
-          p6 != 0.0 || p7 != 0.0 || p8 != 0.0 || p9 != 0.0 || p10 != 0.0 ||
-          p11 != 0.0 || p12 != 0.0 || p13 != 0.0 || p14 != 0.0 || p15 != 0.0
-          || p16 != 0.0 || p17 != 0.0 || p18 != 0.0 || p19 != 0.0 ||
-          p20 != 0.0 || p21 != 0.0 || p22 != 0.0 || p23 != 0.0 ||
-          p24 != 0.0 || p25 != 0.0) {
+      if (p1 != (PetscReal)0 || p2 != (PetscReal)0 || p3 != (PetscReal)0 || p4 != (PetscReal)0 || p5 != (PetscReal)0 ||
+          p6 != (PetscReal)0 || p7 != (PetscReal)0 || p8 != (PetscReal)0 || p9 != (PetscReal)0 || p10 != (PetscReal)0 ||
+          p11 != (PetscReal)0 || p12 != (PetscReal)0 || p13 != (PetscReal)0 || p14 != (PetscReal)0 || p15 != (PetscReal)0
+          || p16 != (PetscReal)0 || p17 != (PetscReal)0 || p18 != (PetscReal)0 || p19 != (PetscReal)0 ||
+          p20 != (PetscReal)0 || p21 != (PetscReal)0 || p22 != (PetscReal)0 || p23 != (PetscReal)0 ||
+          p24 != (PetscReal)0 || p25 != (PetscReal)0) {
         pv    = ba + 25*diag_offset[row];
         pj    = bj + diag_offset[row] + 1;
         x1    = pv[0]; x2 = pv[1]; x3 = pv[2]; x4 = pv[3];
@@ -265,7 +265,7 @@ PetscErrorCode MatLUFactorNumeric_SeqBAIJ_5(Mat B,Mat A,const MatFactorInfo *inf
       row = bjtmp[k];
       pc  = rtmp + bs2*row;
       for (flg=0,j=0; j<bs2; j++) {
-        if (pc[j]!=0.0) {
+        if (pc[j]!=(PetscReal)0) {
           flg = 1;
           break;
         }
@@ -382,11 +382,11 @@ PetscErrorCode MatLUFactorNumeric_SeqBAIJ_5_NaturalOrdering_inplace(Mat C,Mat A,
       p15 = pc[14]; p16 = pc[15]; p17 = pc[16]; p18 = pc[17];
       p19 = pc[18]; p20 = pc[19]; p21 = pc[20]; p22 = pc[21]; p23 = pc[22];
       p24 = pc[23]; p25 = pc[24];
-      if (p1 != 0.0 || p2 != 0.0 || p3 != 0.0 || p4 != 0.0 || p5 != 0.0 ||
-          p6 != 0.0 || p7 != 0.0 || p8 != 0.0 || p9 != 0.0 || p10 != 0.0 ||
-          p11 != 0.0 || p12 != 0.0 || p13 != 0.0 || p14 != 0.0 || p15 != 0.0
-          || p16 != 0.0 || p17 != 0.0 || p18 != 0.0 || p19 != 0.0 || p20 != 0.0
-          || p21 != 0.0 || p22 != 0.0 || p23 != 0.0 || p24 != 0.0 || p25 != 0.0) {
+      if (p1 != (PetscReal)0 || p2 != (PetscReal)0 || p3 != (PetscReal)0 || p4 != (PetscReal)0 || p5 != (PetscReal)0 ||
+          p6 != (PetscReal)0 || p7 != (PetscReal)0 || p8 != (PetscReal)0 || p9 != (PetscReal)0 || p10 != (PetscReal)0 ||
+          p11 != (PetscReal)0 || p12 != (PetscReal)0 || p13 != (PetscReal)0 || p14 != (PetscReal)0 || p15 != (PetscReal)0
+          || p16 != (PetscReal)0 || p17 != (PetscReal)0 || p18 != (PetscReal)0 || p19 != (PetscReal)0 || p20 != (PetscReal)0
+          || p21 != (PetscReal)0 || p22 != (PetscReal)0 || p23 != (PetscReal)0 || p24 != (PetscReal)0 || p25 != (PetscReal)0) {
         pv    = ba + 25*diag_offset[row];
         pj    = bj + diag_offset[row] + 1;
         x1    = pv[0];  x2  = pv[1];  x3  = pv[2];  x4  = pv[3];
@@ -549,7 +549,7 @@ PetscErrorCode MatLUFactorNumeric_SeqBAIJ_5_NaturalOrdering(Mat B,Mat A,const Ma
       row = bjtmp[k];
       pc  = rtmp + bs2*row;
       for (flg=0,j=0; j<bs2; j++) {
-        if (pc[j]!=0.0) {
+        if (pc[j]!=(PetscReal)0) {
           flg = 1;
           break;
         }

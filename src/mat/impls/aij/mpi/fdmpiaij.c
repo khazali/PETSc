@@ -47,7 +47,7 @@ PetscErrorCode  MatFDColoringApply_BAIJ(Mat J,MatFDColoring coloring,Vec x1,void
         else if (PetscRealPart(dx) < 0.0 ) dx = -umin;
       }
       dx               *= epsilon;
-      vscale_array[col] = 1.0/dx;
+      vscale_array[col] = (PetscReal)1/dx;
     }
     ierr = VecRestoreArray(x1,&xx);CHKERRQ(ierr);
     ierr = VecRestoreArray(vscale,&vscale_array);CHKERRQ(ierr);
@@ -84,15 +84,15 @@ PetscErrorCode  MatFDColoringApply_BAIJ(Mat J,MatFDColoring coloring,Vec x1,void
       if (coloring->htype[0] == 'w') {
         for (l=0; l<ncolumns[k]; l++) {
           col            = i + bs*coloring->columns[k][l];  /* local column (in global index!) of the matrix we are probing for */
-          w3_array[col] += 1.0/dx;
-          if (i) w3_array[col-1] -= 1.0/dx; /* resume original w3[col-1] */
+          w3_array[col] += (PetscReal)1/dx;
+          if (i) w3_array[col-1] -= (PetscReal)1/dx; /* resume original w3[col-1] */
         }
       } else { /* htype == 'ds' */
         vscale_array -= cstart; /* shift pointer so global index can be used */
         for (l=0; l<ncolumns[k]; l++) {
           col = i + bs*coloring->columns[k][l]; /* local column (in global index!) of the matrix we are probing for */
-          w3_array[col] += 1.0/vscale_array[col];
-          if (i) w3_array[col-1] -=  1.0/vscale_array[col-1]; /* resume original w3[col-1] */
+          w3_array[col] += (PetscReal)1/vscale_array[col];
+          if (i) w3_array[col-1] -=  (PetscReal)1/vscale_array[col-1]; /* resume original w3[col-1] */
         }
         vscale_array += cstart;
       }
@@ -198,7 +198,7 @@ PetscErrorCode  MatFDColoringApply_AIJ(Mat J,MatFDColoring coloring,Vec x1,void 
         else if (PetscRealPart(dx) < 0.0 ) dx = -umin;
       }
       dx               *= epsilon;
-      vscale_array[col] = 1.0/dx;
+      vscale_array[col] = (PetscReal)1/dx;
     }
     ierr = VecRestoreArray(x1,&xx);CHKERRQ(ierr);
     ierr = VecRestoreArray(vscale,&vscale_array);CHKERRQ(ierr);
@@ -244,13 +244,13 @@ PetscErrorCode  MatFDColoringApply_AIJ(Mat J,MatFDColoring coloring,Vec x1,void 
         if (coloring->htype[0] == 'w') {
           for (l=0; l<ncolumns[k+i]; l++) {
             col = coloring->columns[k+i][l]; /* local column (in global index!) of the matrix we are probing for */
-            w3_array[col] += 1.0/dx;
+            w3_array[col] += (PetscReal)1/dx;
           }
         } else { /* htype == 'ds' */
           vscale_array -= cstart; /* shift pointer so global index can be used */
           for (l=0; l<ncolumns[k+i]; l++) {
             col = coloring->columns[k+i][l]; /* local column (in global index!) of the matrix we are probing for */
-            w3_array[col] += 1.0/vscale_array[col];
+            w3_array[col] += (PetscReal)1/vscale_array[col];
           }
           vscale_array += cstart;
         }
@@ -304,13 +304,13 @@ PetscErrorCode  MatFDColoringApply_AIJ(Mat J,MatFDColoring coloring,Vec x1,void 
       if (coloring->htype[0] == 'w') {
         for (l=0; l<ncolumns[k]; l++) {
           col = coloring->columns[k][l]; /* local column (in global index!) of the matrix we are probing for */
-          w3_array[col] += 1.0/dx;
+          w3_array[col] += (PetscReal)1/dx;
         }
       } else { /* htype == 'ds' */
         vscale_array -= cstart; /* shift pointer so global index can be used */
         for (l=0; l<ncolumns[k]; l++) {
           col = coloring->columns[k][l]; /* local column (in global index!) of the matrix we are probing for */
-          w3_array[col] += 1.0/vscale_array[col];
+          w3_array[col] += (PetscReal)1/vscale_array[col];
         }
         vscale_array += cstart;
       }

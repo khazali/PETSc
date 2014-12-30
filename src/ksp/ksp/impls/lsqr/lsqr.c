@@ -191,7 +191,7 @@ static PetscErrorCode KSPSolve_LSQR(KSP ksp)
     if (SE) {
       ierr = VecCopy(W,W2);CHKERRQ(ierr);
       ierr = VecSquare(W2);CHKERRQ(ierr);
-      ierr = VecScale(W2,1.0/(rho*rho));CHKERRQ(ierr);
+      ierr = VecScale(W2,(PetscReal)1/(rho*rho));CHKERRQ(ierr);
       ierr = VecAXPY(SE, 1.0, W2);CHKERRQ(ierr); /* SE <- SE + (w^2/rho^2) */
     }
     if (nopreconditioner) {

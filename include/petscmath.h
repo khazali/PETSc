@@ -486,7 +486,7 @@ M*/
 #  define PETSC_SMALL                   1.e-20
 #endif
 
-#define PETSC_INFINITY                PETSC_MAX_REAL/4.0
+#define PETSC_INFINITY                PETSC_MAX_REAL/(PetscReal)4
 #define PETSC_NINFINITY              -PETSC_INFINITY
 
 PETSC_EXTERN PetscErrorCode PetscIsInfOrNanScalar(PetscScalar);
@@ -531,7 +531,7 @@ PETSC_STATIC_INLINE PetscReal PetscPowRealInt(PetscReal base,PetscInt power)
   PetscReal result = 1;
   if (power < 0) {
     power = -power;
-    if (base != 0.0) base  = 1./base;
+    if (base != (PetscReal)0) base  = (PetscReal)1/base;
   }
   while (power) {
     if (power & 1) result *= base;
@@ -546,7 +546,7 @@ PETSC_STATIC_INLINE PetscScalar PetscPowScalarInt(PetscScalar base,PetscInt powe
   PetscScalar result = 1;
   if (power < 0) {
     power = -power;
-    if (base != 0.0) base  = 1./base;
+    if (base != (PetscReal)0) base  = (PetscReal)1/base;
   }
   while (power) {
     if (power & 1) result *= base;

@@ -158,8 +158,8 @@ PetscErrorCode  KSPSolve_FBCGSR(KSP ksp)
     xi4  = outsums[3];
 
     /* test denominator */
-    if (xi3 == 0.0) SETERRQ(PetscObjectComm((PetscObject)ksp),PETSC_ERR_PLIB,"Divide by zero");
-    if (sigma == 0.0) SETERRQ(PetscObjectComm((PetscObject)ksp),PETSC_ERR_PLIB,"Divide by zero");
+    if (xi3 == (PetscReal)0) SETERRQ(PetscObjectComm((PetscObject)ksp),PETSC_ERR_PLIB,"Divide by zero");
+    if (sigma == (PetscReal)0) SETERRQ(PetscObjectComm((PetscObject)ksp),PETSC_ERR_PLIB,"Divide by zero");
 
     /* scalar updates */
     omega = xi2 / xi3;

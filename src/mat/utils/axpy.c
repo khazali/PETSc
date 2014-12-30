@@ -67,7 +67,7 @@ PetscErrorCode MatAXPY_Basic(Mat Y,PetscScalar a,Mat X,MatStructure str)
   PetscFunctionBegin;
   ierr = MatGetSize(X,&m,&n);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(X,&start,&end);CHKERRQ(ierr);
-  if (a == 1.0) {
+  if (a == (PetscReal)1) {
     for (i = start; i < end; i++) {
       ierr = MatGetRow(X,i,&ncols,&row,&vals);CHKERRQ(ierr);
       ierr = MatSetValues(Y,1,&i,ncols,row,vals,ADD_VALUES);CHKERRQ(ierr);
@@ -103,7 +103,7 @@ PetscErrorCode MatAXPY_BasicWithPreallocation(Mat B,Mat Y,PetscScalar a,Mat X,Ma
   PetscFunctionBegin;
   ierr = MatGetSize(X,&m,&n);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(X,&start,&end);CHKERRQ(ierr);
-  if (a == 1.0) {
+  if (a == (PetscReal)1) {
     for (i = start; i < end; i++) {
       ierr = MatGetRow(Y,i,&ncols,&row,&vals);CHKERRQ(ierr);
       ierr = MatSetValues(B,1,&i,ncols,row,vals,ADD_VALUES);CHKERRQ(ierr);

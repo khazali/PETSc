@@ -33,7 +33,7 @@ PetscErrorCode PetscLINPACKgedi(MatScalar *a,PetscInt n,PetscInt *ipvt,MatScalar
   for (k = 1; k <= n; ++k) {
     kn      = k*n;
     knp1    = kn + k;
-    a[knp1] = 1.0 / a[knp1];
+    a[knp1] = (PetscReal)1 / a[knp1];
     t       = -a[knp1];
     i__2    = k - 1;
     aa      = &a[1 + kn];

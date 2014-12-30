@@ -128,7 +128,7 @@ PetscErrorCode  KSPSolve_CGNE(KSP ksp)
   do {
     ksp->its = i+1;
     ierr     = VecXDot(Z,R,&beta);CHKERRQ(ierr); /*     beta <- r'z     */
-    if (beta == 0.0) {
+    if (beta == (PetscReal)0) {
       ksp->reason = KSP_CONVERGED_ATOL;
       ierr        = PetscInfo(ksp,"converged due to beta = 0\n");CHKERRQ(ierr);
       break;
@@ -146,7 +146,7 @@ PetscErrorCode  KSPSolve_CGNE(KSP ksp)
       b = beta/betaold;
       if (eigs) {
         if (ksp->max_it != stored_max_it) SETERRQ(PetscObjectComm((PetscObject)ksp),PETSC_ERR_SUP,"Can not change maxit AND calculate eigenvalues");
-        e[i] = PetscSqrtReal(PetscAbsScalar(b))/a;
+        e[i] = (PetscReal)PetscSqrtReal(PetscAbsScalar(b))/a;
       }
       ierr = VecAYPX(P,b,Z);CHKERRQ(ierr);     /*     p <- z + b* p   */
     }
@@ -155,7 +155,7 @@ PetscErrorCode  KSPSolve_CGNE(KSP ksp)
     ierr    = MatMultTranspose(Amat,T,Z);CHKERRQ(ierr);
     ierr    = VecXDot(P,Z,&dpi);CHKERRQ(ierr);    /*     dpi <- z'p      */
     a       = beta/dpi;                            /*     a = beta/p'z    */
-    if (eigs) d[i] = PetscSqrtReal(PetscAbsScalar(b))*e[i] + 1.0/a;
+    if (eigs) d[i] = (PetscReal)PetscSqrtReal(PetscAbsScalar(b))*e[i] + (PetscReal)1/a;
     ierr = VecAXPY(X,a,P);CHKERRQ(ierr);           /*     x <- x + ap     */
     ierr = VecAXPY(R,-a,Z);CHKERRQ(ierr);                       /*     r <- r - az     */
     if (ksp->normtype == KSP_NORM_PRECONDITIONED) {

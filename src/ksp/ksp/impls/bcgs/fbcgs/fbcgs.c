@@ -96,7 +96,7 @@ static PetscErrorCode  KSPSolve_FBCGS(KSP ksp)
     ierr = MatMult(pc->mat,P2,V);CHKERRQ(ierr); /* v <- A p2 */
 
     ierr = VecDot(V,RP,&d1);CHKERRQ(ierr);
-    if (d1 == 0.0) SETERRQ(PetscObjectComm((PetscObject)ksp),PETSC_ERR_PLIB,"Divide by zero");
+    if (d1 == (PetscReal)0) SETERRQ(PetscObjectComm((PetscObject)ksp),PETSC_ERR_PLIB,"Divide by zero");
     alpha = rho / d1; /* alpha <- rho / (v,rp) */
     ierr  = VecWAXPY(S,-alpha,V,R);CHKERRQ(ierr); /* s <- r - alpha v */
 
@@ -107,7 +107,7 @@ static PetscErrorCode  KSPSolve_FBCGS(KSP ksp)
     if (d2 == 0.0) {
       /* t is 0. if s is 0, then alpha v == r, and hence alpha p may be our solution. Give it a try? */
       ierr = VecDot(S,S,&d1);CHKERRQ(ierr);
-      if (d1 != 0.0) {
+      if (d1 != (PetscReal)0) {
         ksp->reason = KSP_DIVERGED_BREAKDOWN;
         break;
       }
@@ -140,7 +140,7 @@ static PetscErrorCode  KSPSolve_FBCGS(KSP ksp)
     ierr = KSPMonitor(ksp,i+1,dp);CHKERRQ(ierr);
     ierr = (*ksp->converged)(ksp,i+1,dp,&ksp->reason,ksp->cnvP);CHKERRQ(ierr);
     if (ksp->reason) break;
-    if (rho == 0.0) {
+    if (rho == (PetscReal)0) {
       ksp->reason = KSP_DIVERGED_BREAKDOWN;
       break;
     }

@@ -223,7 +223,7 @@ PetscErrorCode  KSPFischerGuessUpdate_Method2(KSPFischerGuess_Method2 *itg,Vec x
     ierr      = KSP_MatMult(itg->ksp,itg->mat,x,itg->Ax);CHKERRQ(ierr); /* norm = sqrt(x'Ax) */
     ierr      = VecDot(x,itg->Ax,&norm);CHKERRQ(ierr);
     ierr      = VecCopy(x,itg->xtilde[0]);CHKERRQ(ierr);
-    ierr      = VecScale(itg->xtilde[0],1.0/PetscSqrtScalar(norm));CHKERRQ(ierr);
+    ierr      = VecScale(itg->xtilde[0],(PetscReal)1/PetscSqrtScalar(norm));CHKERRQ(ierr);
     itg->curl = 1;
   } else {
     if (!curl) {
@@ -239,7 +239,7 @@ PetscErrorCode  KSPFischerGuessUpdate_Method2(KSPFischerGuess_Method2 *itg,Vec x
     ierr = KSP_MatMult(itg->ksp,itg->mat,itg->xtilde[curl],itg->Ax);CHKERRQ(ierr); /* norm = sqrt(xtilde[curl]'Axtilde[curl]) */
     ierr = VecDot(itg->xtilde[curl],itg->Ax,&norm);CHKERRQ(ierr);
     if (PetscAbsScalar(norm) != 0.0) {
-      ierr = VecScale(itg->xtilde[curl],1.0/PetscSqrtScalar(norm));CHKERRQ(ierr);
+      ierr = VecScale(itg->xtilde[curl],(PetscReal)1/PetscSqrtScalar(norm));CHKERRQ(ierr);
       itg->curl++;
     } else {
       ierr = PetscInfo(itg->ksp,"Not increasing dimension of Fischer space because new direction is identical to previous");CHKERRQ(ierr);

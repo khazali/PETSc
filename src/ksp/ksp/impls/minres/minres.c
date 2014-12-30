@@ -81,7 +81,7 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
 
   ierr  = VecCopy(R,V);CHKERRQ(ierr);
   ierr  = VecCopy(Z,U);CHKERRQ(ierr);
-  ibeta = 1.0 / beta;
+  ibeta = (PetscReal)1 / beta;
   ierr  = VecScale(V,ibeta);CHKERRQ(ierr);        /*    v <- r / beta     */
   ierr  = VecScale(U,ibeta);CHKERRQ(ierr);        /*    u <- z / beta     */
 
@@ -144,7 +144,7 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
     ierr  = VecAXPY(W,mrho2,WOLD);CHKERRQ(ierr); /*  w <- w - rho2 w_old  */
     mrho3 = -rho3;
     ierr  = VecAXPY(W,mrho3,WOOLD);CHKERRQ(ierr); /*  w <- w - rho3 w_oold */
-    irho1 = 1.0 / rho1;
+    irho1 = (PetscReal)1 / rho1;
     ierr  = VecScale(W,irho1);CHKERRQ(ierr);     /*  w <- w / rho1        */
 
     ceta = c * eta;
@@ -155,7 +155,7 @@ PetscErrorCode  KSPSolve_MINRES(KSP ksp)
     ierr  = VecCopy(U,UOLD);CHKERRQ(ierr);
     ierr  = VecCopy(R,V);CHKERRQ(ierr);
     ierr  = VecCopy(Z,U);CHKERRQ(ierr);
-    ibeta = 1.0 / beta;
+    ibeta = (PetscReal)1 / beta;
     ierr  = VecScale(V,ibeta);CHKERRQ(ierr);     /*  v <- r / beta       */
     ierr  = VecScale(U,ibeta);CHKERRQ(ierr);     /*  u <- z / beta       */
 

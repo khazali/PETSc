@@ -87,14 +87,14 @@ PetscErrorCode MatFindZeroDiagonals_SeqAIJ_Private(Mat A,PetscInt *nrows,PetscIn
   ierr = MatMarkDiagonal_SeqAIJ(A);CHKERRQ(ierr);
   diag = a->diag;
   for (i=0; i<m; i++) {
-    if ((jj[diag[i]] != i) || (aa[diag[i]] == 0.0)) {
+    if ((jj[diag[i]] != i) || (aa[diag[i]] == (PetscReal)0)) {
       cnt++;
     }
   }
   ierr = PetscMalloc1(cnt,&rows);CHKERRQ(ierr);
   cnt  = 0;
   for (i=0; i<m; i++) {
-    if ((jj[diag[i]] != i) || (aa[diag[i]] == 0.0)) {
+    if ((jj[diag[i]] != i) || (aa[diag[i]] == (PetscReal)0)) {
       rows[cnt++] = i;
     }
   }
@@ -139,7 +139,7 @@ PetscErrorCode MatFindNonzeroRows_SeqAIJ(Mat A,IS *keptrows)
     }
     aa = a->a + ii[i];
     for (j=0; j<n; j++) {
-      if (aa[j] != 0.0) goto ok1;
+      if (aa[j] != (PetscReal)0) goto ok1;
     }
     cnt++;
 ok1:;
@@ -152,7 +152,7 @@ ok1:;
     if (!n) continue;
     aa = a->a + ii[i];
     for (j=0; j<n; j++) {
-      if (aa[j] != 0.0) {
+      if (aa[j] != (PetscReal)0) {
         rows[cnt++] = i;
         break;
       }
@@ -462,7 +462,7 @@ PetscErrorCode MatSetValues_SeqAIJ(Mat A,PetscInt m,const PetscInt im[],PetscInt
       } else {
         value = v[k + l*m];
       }
-      if ((value == 0.0 && ignorezeroentries) && (is == ADD_VALUES)) continue;
+      if ((value == (PetscReal)0 && ignorezeroentries) && (is == ADD_VALUES)) continue;
 
       if (col <= lastcol) low = 0;
       else high = nrow;
@@ -481,7 +481,7 @@ PetscErrorCode MatSetValues_SeqAIJ(Mat A,PetscInt m,const PetscInt im[],PetscInt
           goto noinsert;
         }
       }
-      if (value == 0.0 && ignorezeroentries) goto noinsert;
+      if (value == (PetscReal)0 && ignorezeroentries) goto noinsert;
       if (nonew == 1) goto noinsert;
       if (nonew == -1) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Inserting a new nonzero at (%D,%D) in the matrix",row,col);
       MatSeqXAIJReallocateAIJ(A,A->rmap->n,1,nrow,row,col,rmax,aa,ai,aj,rp,ap,imax,nonew,MatScalar);
@@ -796,11 +796,11 @@ PetscErrorCode MatView_SeqAIJ_ASCII(Mat A,PetscViewer viewer)
         j = a->diag[i];
 #if defined(PETSC_USE_COMPLEX)
         if (PetscImaginaryPart(a->a[j]) > 0.0) {
-          ierr = PetscViewerASCIIPrintf(viewer," (%D, %g + %g i)",a->j[j],(double)PetscRealPart(1.0/a->a[j]),(double)PetscImaginaryPart(1.0/a->a[j]));CHKERRQ(ierr);
+          ierr = PetscViewerASCIIPrintf(viewer," (%D, %g + %g i)",a->j[j],(double)PetscRealPart((PetscReal)1/a->a[j]),(double)PetscImaginaryPart((PetscReal)1/a->a[j]));CHKERRQ(ierr);
         } else if (PetscImaginaryPart(a->a[j]) < 0.0) {
-          ierr = PetscViewerASCIIPrintf(viewer," (%D, %g - %g i)",a->j[j],(double)PetscRealPart(1.0/a->a[j]),(double)(-PetscImaginaryPart(1.0/a->a[j])));CHKERRQ(ierr);
+          ierr = PetscViewerASCIIPrintf(viewer," (%D, %g - %g i)",a->j[j],(double)PetscRealPart((PetscReal)1/a->a[j]),(double)(-PetscImaginaryPart((PetscReal)1/a->a[j])));CHKERRQ(ierr);
         } else {
-          ierr = PetscViewerASCIIPrintf(viewer," (%D, %g) ",a->j[j],(double)PetscRealPart(1.0/a->a[j]));CHKERRQ(ierr);
+          ierr = PetscViewerASCIIPrintf(viewer," (%D, %g) ",a->j[j],(double)PetscRealPart((PetscReal)1/a->a[j]));CHKERRQ(ierr);
         }
 #else
         ierr = PetscViewerASCIIPrintf(viewer," (%D, %g) ",a->j[j],(double)(1.0/a->a[j]));CHKERRQ(ierr);
@@ -883,7 +883,7 @@ PetscErrorCode MatView_SeqAIJ_Draw_Zoom(PetscDraw draw,void *Aa)
       y_l = m - i - 1.0; y_r = y_l + 1.0;
       for (j=a->i[i]; j<a->i[i+1]; j++) {
         x_l = a->j[j]; x_r = x_l + 1.0;
-        if (a->a[j] !=  0.) continue;
+        if (a->a[j] !=  (PetscReal)0) continue;
         ierr = PetscDrawRectangle(draw,x_l,y_l,x_r,y_r,color,color,color,color);CHKERRQ(ierr);
       }
     }
@@ -1217,7 +1217,7 @@ PetscErrorCode MatGetDiagonal_SeqAIJ(Mat A,Vec v)
   if (A->factortype == MAT_FACTOR_ILU || A->factortype == MAT_FACTOR_LU) {
     PetscInt *diag=a->diag;
     ierr = VecGetArray(v,&x);CHKERRQ(ierr);
-    for (i=0; i<n; i++) x[i] = 1.0/aa[diag[i]];
+    for (i=0; i<n; i++) x[i] = (PetscReal)1/aa[diag[i]];
     ierr = VecRestoreArray(v,&x);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
@@ -1718,11 +1718,11 @@ PetscErrorCode  MatInvertDiagonal_SeqAIJ(Mat A,PetscScalar omega,PetscScalar fsh
   mdiag = a->mdiag;
   idiag = a->idiag;
 
-  if (omega == 1.0 && !PetscAbsScalar(fshift)) {
+  if (omega == (PetscReal)1 && !PetscAbsScalar(fshift)) {
     for (i=0; i<m; i++) {
       mdiag[i] = v[diag[i]];
       if (!PetscAbsScalar(mdiag[i])) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Zero diagonal on row %D",i);
-      idiag[i] = 1.0/v[diag[i]];
+      idiag[i] = (PetscReal)1/v[diag[i]];
     }
     ierr = PetscLogFlops(m);CHKERRQ(ierr);
   } else {
@@ -1873,7 +1873,7 @@ PetscErrorCode MatSOR_SeqAIJ(Mat A,Vec bb,PetscReal omega,MatSORType flag,PetscR
         idx = a->j + diag[i] + 1;
         v   = a->a + diag[i] + 1;
         PetscSparseDenseMinusDot(sum,x,v,idx,n);
-        x[i] = (1. - omega)*x[i] + sum*idiag[i]; /* omega in idiag */
+        x[i] = ((PetscReal)1 - omega)*x[i] + sum*idiag[i]; /* omega in idiag */
       }
       xb   = t;
       ierr = PetscLogFlops(2.0*a->nz);CHKERRQ(ierr);
@@ -1887,13 +1887,13 @@ PetscErrorCode MatSOR_SeqAIJ(Mat A,Vec bb,PetscReal omega,MatSORType flag,PetscR
           idx = a->j + a->i[i];
           v   = a->a + a->i[i];
           PetscSparseDenseMinusDot(sum,x,v,idx,n);
-          x[i] = (1. - omega)*x[i] + (sum + mdiag[i]*x[i])*idiag[i];
+          x[i] = ((PetscReal)1 - omega)*x[i] + (sum + mdiag[i]*x[i])*idiag[i];
         } else { /* lower-triangular part has been saved, so only apply upper-triangular */
           n   = a->i[i+1] - diag[i] - 1;
           idx = a->j + diag[i] + 1;
           v   = a->a + diag[i] + 1;
           PetscSparseDenseMinusDot(sum,x,v,idx,n);
-          x[i] = (1. - omega)*x[i] + sum*idiag[i];  /* omega in idiag */
+          x[i] = ((PetscReal)1 - omega)*x[i] + sum*idiag[i];  /* omega in idiag */
         }
       }
       if (xb == b) {
@@ -1963,7 +1963,7 @@ PetscErrorCode MatZeroRows_SeqAIJ(Mat A,PetscInt N,const PetscInt rows[],PetscSc
       if (rows[i] < 0 || rows[i] > m) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"row %D out of range", rows[i]);
       ierr = PetscMemzero(&a->a[a->i[rows[i]]],a->ilen[rows[i]]*sizeof(PetscScalar));CHKERRQ(ierr);
     }
-    if (diag != 0.0) {
+    if (diag != (PetscReal)0) {
       ierr = MatMissingDiagonal_SeqAIJ(A,&missing,&d);CHKERRQ(ierr);
       if (missing) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Matrix is missing diagonal entry in row %D",d);
       for (i=0; i<N; i++) {
@@ -1971,7 +1971,7 @@ PetscErrorCode MatZeroRows_SeqAIJ(Mat A,PetscInt N,const PetscInt rows[],PetscSc
       }
     }
   } else {
-    if (diag != 0.0) {
+    if (diag != (PetscReal)0) {
       for (i=0; i<N; i++) {
         if (rows[i] < 0 || rows[i] > m) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"row %D out of range", rows[i]);
         if (a->ilen[rows[i]] > 0) {
@@ -2033,7 +2033,7 @@ PetscErrorCode MatZeroRowsColumns_SeqAIJ(Mat A,PetscInt N,const PetscInt rows[],
     ierr = VecRestoreArray(b,&bb);CHKERRQ(ierr);
   }
   ierr = PetscFree(zeroed);CHKERRQ(ierr);
-  if (diag != 0.0) {
+  if (diag != (PetscReal)0) {
     ierr = MatMissingDiagonal_SeqAIJ(A,&missing,&d);CHKERRQ(ierr);
     if (missing) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Matrix is missing diagonal entry in row %D",d);
     for (i=0; i<N; i++) {
@@ -4691,7 +4691,7 @@ PETSC_EXTERN void PETSC_STDCALL matsetvaluesseqaij_(Mat *AA,PetscInt *mm,const P
       if (roworiented) value = v[l + k*n];
       else value = v[k + l*m];
 
-      if (value == 0.0 && ignorezeroentries && (is == ADD_VALUES)) continue;
+      if (value == (PetscReal)0 && ignorezeroentries && (is == ADD_VALUES)) continue;
 
       if (col <= lastcol) low = 0;
       else high = nrow;
@@ -4709,7 +4709,7 @@ PETSC_EXTERN void PETSC_STDCALL matsetvaluesseqaij_(Mat *AA,PetscInt *mm,const P
           goto noinsert;
         }
       }
-      if (value == 0.0 && ignorezeroentries) goto noinsert;
+      if (value == (PetscReal)0 && ignorezeroentries) goto noinsert;
       if (nonew == 1) goto noinsert;
       if (nonew == -1) SETERRABORT(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_OUTOFRANGE,"Inserting a new nonzero in the matrix");
       MatSeqXAIJReallocateAIJ(A,A->rmap->n,1,nrow,row,col,rmax,aa,ai,aj,rp,ap,imax,nonew,MatScalar);

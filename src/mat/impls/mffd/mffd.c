@@ -394,9 +394,9 @@ PetscErrorCode MatMult_MFFD(Mat mat,Vec a,Vec y)
   ierr = (*ctx->func)(ctx->funcctx,w,y);CHKERRQ(ierr);
 
   ierr = VecAXPY(y,-1.0,F);CHKERRQ(ierr);
-  ierr = VecScale(y,1.0/h);CHKERRQ(ierr);
+  ierr = VecScale(y,(PetscReal)1/h);CHKERRQ(ierr);
 
-  if ((ctx->vshift != 0.0) || (ctx->vscale != 1.0)) {
+  if ((ctx->vshift != (PetscReal)0) || (ctx->vscale != (PetscReal)1)) {
     ierr = VecAXPBY(y,ctx->vshift,ctx->vscale,a);CHKERRQ(ierr);
   }
   if (ctx->dlscale) {
@@ -446,7 +446,7 @@ PetscErrorCode MatGetDiagonal_MFFD(Mat mat,Vec a)
   for (i=rstart; i<rend; i++) {
     ierr = VecGetArray(w,&ww);CHKERRQ(ierr);
     h    = ww[i-rstart];
-    if (h == 0.0) h = 1.0;
+    if (h == (PetscReal)0) h = 1.0;
     if (PetscAbsScalar(h) < umin && PetscRealPart(h) >= 0.0)     h = umin;
     else if (PetscRealPart(h) < 0.0 && PetscAbsScalar(h) < umin) h = -umin;
     h *= epsilon;
@@ -457,7 +457,7 @@ PetscErrorCode MatGetDiagonal_MFFD(Mat mat,Vec a)
     aa[i-rstart]  = (v - aa[i-rstart])/h;
 
     /* possibly shift and scale result */
-    if ((ctx->vshift != 0.0) || (ctx->vscale != 1.0)) {
+    if ((ctx->vshift != (PetscReal)0) || (ctx->vscale != (PetscReal)1)) {
       aa[i - rstart] = ctx->vshift + ctx->vscale*aa[i-rstart];
     }
 
@@ -1256,7 +1256,7 @@ PetscErrorCode  MatMFFDCheckPositivity(void *dummy,Vec U,Vec a,PetscScalar *h)
   ierr   = VecGetArray(U,&u_vec);CHKERRQ(ierr);
   ierr   = VecGetArray(a,&a_vec);CHKERRQ(ierr);
   ierr   = VecGetLocalSize(U,&n);CHKERRQ(ierr);
-  minval = PetscAbsScalar(*h*1.01);
+  minval = PetscAbsScalar(*h*(PetscReal)1.01);
   for (i=0; i<n; i++) {
     if (PetscRealPart(u_vec[i] + *h*a_vec[i]) <= 0.0) {
       val = PetscAbsScalar(u_vec[i]/a_vec[i]);

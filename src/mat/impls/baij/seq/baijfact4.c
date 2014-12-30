@@ -48,7 +48,7 @@ PetscErrorCode MatLUFactorNumeric_SeqBAIJ_N_inplace(Mat C,Mat A,const MatFactorI
       pc = rtmp + bs2*row;
 /*      if (*pc) { */
       for (flg=0,k=0; k<bs2; k++) {
-        if (pc[k]!=0.0) {
+        if (pc[k]!=(PetscReal)0) {
           flg = 1;
           break;
         }

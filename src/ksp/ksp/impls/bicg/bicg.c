@@ -72,7 +72,7 @@ PetscErrorCode  KSPSolve_BiCG(KSP ksp)
   do {
     ierr = VecDot(Zr,Rl,&beta);CHKERRQ(ierr);       /*     beta <- r'z     */
     if (!i) {
-      if (beta == 0.0) {
+      if (beta == (PetscReal)0) {
         ksp->reason = KSP_DIVERGED_BREAKDOWN_BICG;
         PetscFunctionReturn(0);
       }

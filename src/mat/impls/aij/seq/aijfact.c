@@ -537,7 +537,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ(Mat B,Mat A,const MatFactorInfo *info)
       nzL   = bi[i+1] - bi[i];
       for (k=0; k < nzL; k++) {
         pc = rtmp + row;
-        if (*pc != 0.0) {
+        if (*pc != (PetscReal)0) {
           pv         = b->a + bdiag[row];
           multiplier = *pc * (*pv);
           *pc        = multiplier;
@@ -578,7 +578,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ(Mat B,Mat A,const MatFactorInfo *info)
 
       /* Mark diagonal and invert diagonal for simplier triangular solves */
       pv  = b->a + bdiag[i];
-      *pv = 1.0/rtmp[i];
+      *pv = (PetscReal)1/rtmp[i];
 
     } /* endof for (i=0; i<n; i++) { */
 
@@ -696,7 +696,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_inplace(Mat B,Mat A,const MatFactorInfo
       row = *bjtmp++;
       while  (row < i) {
         pc = rtmp + row;
-        if (*pc != 0.0) {
+        if (*pc != (PetscReal)0) {
           pv         = b->a + diag_offset[row];
           pj         = b->j + diag_offset[row] + 1;
           multiplier = *pc / *pv++;
@@ -741,7 +741,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_inplace(Mat B,Mat A,const MatFactorInfo
 
   /* invert diagonal entries for simplier triangular solves */
   for (i=0; i<n; i++) {
-    b->a[diag_offset[i]] = 1.0/b->a[diag_offset[i]];
+    b->a[diag_offset[i]] = (PetscReal)1/b->a[diag_offset[i]];
   }
   ierr = PetscFree(rtmp);CHKERRQ(ierr);
   ierr = ISRestoreIndices(isicol,&ic);CHKERRQ(ierr);
@@ -884,7 +884,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_InplaceWithPerm(Mat B,Mat A,const MatFa
       row = *ajtmp++;
       while  (row < i) {
         pc = rtmp + row;
-        if (*pc != 0.0) {
+        if (*pc != (PetscReal)0) {
           pv = a->a + diag[r[row]];
           pj = aj + diag[r[row]] + 1;
 
@@ -930,7 +930,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_InplaceWithPerm(Mat B,Mat A,const MatFa
 
   /* invert diagonal entries for simplier triangular solves */
   for (i=0; i<n; i++) {
-    a->a[diag[r[i]]] = 1.0/a->a[diag[r[i]]];
+    a->a[diag[r[i]]] = (PetscReal)1/a->a[diag[r[i]]];
   }
 
   ierr = PetscFree(rtmp);CHKERRQ(ierr);
@@ -2203,7 +2203,7 @@ PetscErrorCode MatCholeskyFactorNumeric_SeqAIJ(Mat B,Mat A,const MatFactorInfo *
       if (sctx.newshift) break;
       dk = sctx.pv;
 
-      ba[bdiag[k]] = 1.0/dk; /* U(k,k) */
+      ba[bdiag[k]] = (PetscReal)1/dk; /* U(k,k) */
     }
   } while (sctx.newshift);
 
@@ -2354,7 +2354,7 @@ PetscErrorCode MatCholeskyFactorNumeric_SeqAIJ_inplace(Mat B,Mat A,const MatFact
       dk = sctx.pv;
 
       /* copy data into U(k,:) */
-      ba[bi[k]] = 1.0/dk; /* U(k,k) */
+      ba[bi[k]] = (PetscReal)1/dk; /* U(k,k) */
       jmin      = bi[k]+1; jmax = bi[k+1];
       if (jmin < jmax) {
         for (j=jmin; j<jmax; j++) {
@@ -3459,11 +3459,11 @@ PetscErrorCode MatILUDTFactor_SeqAIJ(Mat A,IS isrow,IS iscol,const MatFactorInfo
     batmp            = ba + bdiag[i];
     *bjtmp           = i;
     *batmp           = diag_tmp; /* rtmp[i]; */
-    if (*batmp == 0.0) {
+    if (*batmp == (PetscReal)0) {
       *batmp = dt+shift;
       /* printf(" row %d add shift %g\n",i,shift); */
     }
-    *batmp = 1.0/(*batmp); /* invert diagonal entries for simplier triangular solves */
+    *batmp = (PetscReal)1/(*batmp); /* invert diagonal entries for simplier triangular solves */
     /* printf(" (%d,%g),",*bjtmp,*batmp); */
 
     bjtmp = bj + bdiag[i+1]+1;
@@ -3610,8 +3610,8 @@ PetscErrorCode  MatILUDTFactorNumeric_SeqAIJ(Mat fact,Mat A,const MatFactorInfo 
     }
 
     /* diagonal: invert diagonal entries for simplier triangular solves */
-    if (rtmp[i] == 0.0) rtmp[i] = dt+shift;
-    b->a[bdiag[i]] = 1.0/rtmp[i];
+    if (rtmp[i] == (PetscReal)0) rtmp[i] = dt+shift;
+    b->a[bdiag[i]] = (PetscReal)1/rtmp[i];
     /* printf(" (%d,%g),",i,b->a[bdiag[i]]); */
 
     /* U-part */

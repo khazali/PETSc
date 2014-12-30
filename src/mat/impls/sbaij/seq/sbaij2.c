@@ -1262,7 +1262,7 @@ PetscErrorCode MatGetDiagonal_SeqSBAIJ(Mat A,Vec v)
     aa   = a->a;
     ambs = a->mbs;
     ierr = VecGetArray(v,&x);CHKERRQ(ierr);
-    for (i=0; i<ambs; i++) x[i] = 1.0/aa[diag[i]];
+    for (i=0; i<ambs; i++) x[i] = (PetscReal)1/aa[diag[i]];
     ierr = VecRestoreArray(v,&x);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }

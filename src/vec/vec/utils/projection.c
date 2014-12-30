@@ -376,7 +376,7 @@ PetscErrorCode VecISAXPY(Vec vfull, IS is, PetscScalar alpha,Vec vreduced)
     if (m != n) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"IS local length not equal to Vec local length");
     ierr = VecGetOwnershipRange(vfull,&rstart,NULL);CHKERRQ(ierr);
     y -= rstart;
-    if (alpha == 1.0) {
+    if (alpha == (PetscReal)1) {
       for (i=0; i<n; i++) {
         y[id[i]] += x[i];
       }
@@ -730,20 +730,20 @@ PetscErrorCode VecPow(Vec v, PetscScalar p)
   ierr = VecGetArray(v, &v1);CHKERRQ(ierr);
   ierr = VecGetLocalSize(v, &n);CHKERRQ(ierr);
 
-  if (1.0 == p) {
-  } else if (-1.0 == p) {
+  if ((PetscReal)1 == p) {
+  } else if (-(PetscReal)1 == p) {
     for (i = 0; i < n; ++i){
-      v1[i] = 1.0 / v1[i];
+      v1[i] = (PetscReal)1 / v1[i];
     }
-  } else if (0.0 == p) {
+  } else if ((PetscReal)0 == p) {
     for (i = 0; i < n; ++i){
       /*  Not-a-number left alone
           Infinity set to one  */
       if (v1[i] == v1[i]) {
-        v1[i] = 1.0;
+        v1[i] = (PetscReal)1;
       }
     }
-  } else if (0.5 == p) {
+  } else if ((PetscReal)0.5 == p) {
     for (i = 0; i < n; ++i) {
       if (PetscRealPart(v1[i]) >= 0) {
         v1[i] = PetscSqrtScalar(v1[i]);
@@ -751,21 +751,21 @@ PetscErrorCode VecPow(Vec v, PetscScalar p)
         v1[i] = PETSC_INFINITY;
       }
     }
-  } else if (-0.5 == p) {
+  } else if (-(PetscReal)0.5 == p) {
     for (i = 0; i < n; ++i) {
       if (PetscRealPart(v1[i]) >= 0) {
-        v1[i] = 1.0 / PetscSqrtScalar(v1[i]);
+        v1[i] = (PetscReal)1 / PetscSqrtScalar(v1[i]);
       } else {
         v1[i] = PETSC_INFINITY;
       }
     }
-  } else if (2.0 == p) {
+  } else if ((PetscReal)2 == p) {
     for (i = 0; i < n; ++i){
       v1[i] *= v1[i];
     }
-  } else if (-2.0 == p) {
+  } else if (-(PetscReal)2 == p) {
     for (i = 0; i < n; ++i){
-      v1[i] = 1.0 / (v1[i] * v1[i]);
+      v1[i] = (PetscReal)1 / (v1[i] * v1[i]);
     }
   } else {
     for (i = 0; i < n; ++i) {

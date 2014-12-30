@@ -361,8 +361,8 @@ PETSC_STATIC_INLINE PetscErrorCode QuadJacobian_Private(SNES snes, Vec Xref, Mat
     const PetscInt    rows[2] = {0, 1};
     PetscScalar       values[4];
 
-    values[0] = (x1 - x0 + f_01*y) * 0.5; values[1] = (x3 - x0 + f_01*x) * 0.5;
-    values[2] = (y1 - y0 + g_01*y) * 0.5; values[3] = (y3 - y0 + g_01*x) * 0.5;
+    values[0] = (x1 - x0 + f_01*y) * (PetscReal)0.5; values[1] = (x3 - x0 + f_01*x) * (PetscReal)0.5;
+    values[2] = (y1 - y0 + g_01*y) * (PetscReal)0.5; values[3] = (y3 - y0 + g_01*x) * (PetscReal)0.5;
     ierr      = MatSetValues(J, 2, rows, 2, rows, values, INSERT_VALUES);CHKERRQ(ierr);
   }
   ierr = PetscLogFlops(30);CHKERRQ(ierr);
@@ -571,15 +571,15 @@ PETSC_STATIC_INLINE PetscErrorCode HexJacobian_Private(SNES snes, Vec Xref, Mat 
     const PetscInt    rows[3] = {0, 1, 2};
     PetscScalar       values[9];
 
-    values[0] = (x1 - x0 + f_xy*y + f_xz*z + f_xyz*y*z) / 2.0;
-    values[1] = (x3 - x0 + f_xy*x + f_yz*z + f_xyz*x*z) / 2.0;
-    values[2] = (x4 - x0 + f_yz*y + f_xz*x + f_xyz*x*y) / 2.0;
-    values[3] = (y1 - y0 + g_xy*y + g_xz*z + g_xyz*y*z) / 2.0;
-    values[4] = (y3 - y0 + g_xy*x + g_yz*z + g_xyz*x*z) / 2.0;
-    values[5] = (y4 - y0 + g_yz*y + g_xz*x + g_xyz*x*y) / 2.0;
-    values[6] = (z1 - z0 + h_xy*y + h_xz*z + h_xyz*y*z) / 2.0;
-    values[7] = (z3 - z0 + h_xy*x + h_yz*z + h_xyz*x*z) / 2.0;
-    values[8] = (z4 - z0 + h_yz*y + h_xz*x + h_xyz*x*y) / 2.0;
+    values[0] = (x1 - x0 + f_xy*y + f_xz*z + f_xyz*y*z) / (PetscReal)2;
+    values[1] = (x3 - x0 + f_xy*x + f_yz*z + f_xyz*x*z) / (PetscReal)2;
+    values[2] = (x4 - x0 + f_yz*y + f_xz*x + f_xyz*x*y) / (PetscReal)2;
+    values[3] = (y1 - y0 + g_xy*y + g_xz*z + g_xyz*y*z) / (PetscReal)2;
+    values[4] = (y3 - y0 + g_xy*x + g_yz*z + g_xyz*x*z) / (PetscReal)2;
+    values[5] = (y4 - y0 + g_yz*y + g_xz*x + g_xyz*x*y) / (PetscReal)2;
+    values[6] = (z1 - z0 + h_xy*y + h_xz*z + h_xyz*y*z) / (PetscReal)2;
+    values[7] = (z3 - z0 + h_xy*x + h_yz*z + h_xyz*x*z) / (PetscReal)2;
+    values[8] = (z4 - z0 + h_yz*y + h_xz*x + h_xyz*x*y) / (PetscReal)2;
 
     ierr = MatSetValues(J, 3, rows, 3, rows, values, INSERT_VALUES);CHKERRQ(ierr);
   }

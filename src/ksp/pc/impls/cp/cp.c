@@ -60,7 +60,7 @@ static PetscErrorCode PCSetUp_CP(PC pc)
   for (i=0; i<cp->n; i++) {  /* over columns */
     cp->d[i] = 0.;
     for (j=cp->i[i]; j<cp->i[i+1]; j++) cp->d[i] += cp->a[j]*cp->a[j]; /* over rows in column */
-    cp->d[i] = 1.0/cp->d[i];
+    cp->d[i] = (PetscReal)1/cp->d[i];
   }
   PetscFunctionReturn(0);
 }

@@ -163,7 +163,7 @@ PetscErrorCode MatSOR_SeqSBAIJ(Mat A,Vec bb,PetscReal omega,MatSORType flag,Pets
     if (!a->idiag) {
       ierr = PetscMalloc1(m,&a->idiag);CHKERRQ(ierr);
     }
-    for (i=0; i<a->mbs; i++) a->idiag[i] = 1.0/a->a[a->i[i]];
+    for (i=0; i<a->mbs; i++) a->idiag[i] = (PetscReal)1/a->a[a->i[i]];
     a->idiagvalid = PETSC_TRUE;
   }
 

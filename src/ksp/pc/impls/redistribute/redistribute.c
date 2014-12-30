@@ -211,7 +211,7 @@ static PetscErrorCode PCSetUp_Redistribute(PC pc)
   ierr = MatGetVecs(pc->pmat,&diag,NULL);CHKERRQ(ierr);
   ierr = MatGetDiagonal(pc->pmat,diag);CHKERRQ(ierr);
   ierr = VecGetArrayRead(diag,&d);CHKERRQ(ierr);
-  for (i=0; i<red->dcnt; i++) red->diag[i] = 1.0/d[red->drows[i]];
+  for (i=0; i<red->dcnt; i++) red->diag[i] = (PetscReal)1/d[red->drows[i]];
   ierr = VecRestoreArrayRead(diag,&d);CHKERRQ(ierr);
   ierr = VecDestroy(&diag);CHKERRQ(ierr);
   ierr = KSPSetUp(red->ksp);CHKERRQ(ierr);

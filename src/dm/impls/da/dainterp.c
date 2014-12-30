@@ -113,7 +113,7 @@ PetscErrorCode DMCreateInterpolation_DA_1D_Q1(DM dac,DM daf,Mat *A)
       /* one left and below; or we are right on it */
       col      = (i_c-i_start_ghost_c);
       cols[nc] = idx_c[col];
-      v[nc++]  = -x + 1.0;
+      v[nc++]  = -x + (PetscReal)1;
       /* one right? */
       if (i_c*ratio != i) {
         cols[nc] = idx_c[col+1];
@@ -131,7 +131,7 @@ PetscErrorCode DMCreateInterpolation_DA_1D_Q1(DM dac,DM daf,Mat *A)
     nxi  = ratio + 1;
     ierr = PetscMalloc(sizeof(PetscScalar)*nxi,&xi);CHKERRQ(ierr);
     for (li=0; li<nxi; li++) {
-      xi[li] = -1.0 + (PetscScalar)li*(2.0/(PetscScalar)(nxi-1));
+      xi[li] = -(PetscReal)1 + (PetscScalar)li*((PetscReal)2/(PetscScalar)(nxi-1));
     }
 
     for (i=i_start; i<i_start+m_f; i++) {
@@ -163,8 +163,8 @@ PetscErrorCode DMCreateInterpolation_DA_1D_Q1(DM dac,DM daf,Mat *A)
       cols[0] = idx_c[col]; /* one left and below; or we are right on it */
       cols[1] = idx_c[col+1];
 
-      Ni[0] = 0.5*(1.0-xi[li]);
-      Ni[1] = 0.5*(1.0+xi[li]);
+      Ni[0] = (PetscReal)0.5*((PetscReal)1-xi[li]);
+      Ni[1] = (PetscReal)0.5*((PetscReal)1+xi[li]);
       for (n=0; n<2; n++) {
         if (PetscAbsScalar(Ni[n])<1.0e-32) cols[n]=-1;
       }
@@ -241,7 +241,7 @@ PetscErrorCode DMCreateInterpolation_DA_1D_Q0(DM dac,DM daf,Mat *A)
     /* one left and below; or we are right on it */
     col      = (i_c-i_start_ghost_c);
     cols[nc] = idx_c[col];
-    v[nc++]  = -x + 1.0;
+    v[nc++]  = -x + (PetscReal)1;
     /* one right? */
     if (i_c*ratio != i) {
       cols[nc] = idx_c[col+1];
@@ -382,7 +382,7 @@ PetscErrorCode DMCreateInterpolation_DA_2D_Q1(DM dac,DM daf,Mat *A)
         /* one left and below; or we are right on it */
         col      = (m_ghost_c*(j_c-j_start_ghost_c) + (i_c-i_start_ghost_c));
         cols[nc] = col_shift + idx_c[col];
-        v[nc++]  = x*y - x - y + 1.0;
+        v[nc++]  = x*y - x - y + (PetscReal)1;
         /* one right and below */
         if (i_c*ratioi != i) {
           cols[nc] = col_shift + idx_c[col+1];
@@ -413,10 +413,10 @@ PetscErrorCode DMCreateInterpolation_DA_2D_Q1(DM dac,DM daf,Mat *A)
     ierr = PetscMalloc(sizeof(PetscScalar)*nxi,&xi);CHKERRQ(ierr);
     ierr = PetscMalloc(sizeof(PetscScalar)*neta,&eta);CHKERRQ(ierr);
     for (li=0; li<nxi; li++) {
-      xi[li] = -1.0 + (PetscScalar)li*(2.0/(PetscScalar)(nxi-1));
+      xi[li] = -(PetscReal)1 + (PetscScalar)li*((PetscReal)2/(PetscScalar)(nxi-1));
     }
     for (lj=0; lj<neta; lj++) {
-      eta[lj] = -1.0 + (PetscScalar)lj*(2.0/(PetscScalar)(neta-1));
+      eta[lj] = -(PetscReal)1 + (PetscScalar)lj*((PetscReal)2/(PetscScalar)(neta-1));
     }
 
     /* loop over local fine grid nodes setting interpolation for those*/
@@ -456,10 +456,10 @@ PetscErrorCode DMCreateInterpolation_DA_2D_Q1(DM dac,DM daf,Mat *A)
         cols[2] = col_shift + idx_c[col+m_ghost_c]; /* left, above */
         cols[3] = col_shift + idx_c[col+(m_ghost_c+1)]; /* right, above */
 
-        Ni[0] = 0.25*(1.0-xi[li])*(1.0-eta[lj]);
-        Ni[1] = 0.25*(1.0+xi[li])*(1.0-eta[lj]);
-        Ni[2] = 0.25*(1.0-xi[li])*(1.0+eta[lj]);
-        Ni[3] = 0.25*(1.0+xi[li])*(1.0+eta[lj]);
+        Ni[0] = (PetscReal)0.25*((PetscReal)1-xi[li])*((PetscReal)1-eta[lj]);
+        Ni[1] = (PetscReal)0.25*((PetscReal)1+xi[li])*((PetscReal)1-eta[lj]);
+        Ni[2] = (PetscReal)0.25*((PetscReal)1-xi[li])*((PetscReal)1+eta[lj]);
+        Ni[3] = (PetscReal)0.25*((PetscReal)1+xi[li])*((PetscReal)1+eta[lj]);
 
         nc = 0;
         if (PetscAbsScalar(Ni[0])<1.0e-32) cols[0]=-1;
@@ -871,41 +871,41 @@ PetscErrorCode DMCreateInterpolation_DA_3D_Q1(DM dac,DM daf,Mat *A)
           col = (m_ghost_c*n_ghost_c*(l_c-l_start_ghost_c)+m_ghost_c*(j_c-j_start_ghost_c)+(i_c-i_start_ghost_c));
 
           cols[nc] = idx_c[col];
-          v[nc++]  = .125*(1. - (2.0*x-1.))*(1. - (2.0*y-1.))*(1. - (2.0*z-1.));
+          v[nc++]  = (PetscReal).125*((PetscReal)1 - ((PetscReal)2*x-(PetscReal)1))*((PetscReal)1 - ((PetscReal)2*y-(PetscReal)1))*((PetscReal)1 - ((PetscReal)2*z-(PetscReal)1));
 
           if (i_c*ratioi != i) {
             cols[nc] = idx_c[col+1];
-            v[nc++]  = .125*(1. + (2.0*x-1.))*(1. - (2.0*y-1.))*(1. - (2.0*z-1.));
+            v[nc++]  = (PetscReal).125*((PetscReal)1 + ((PetscReal)2*x-(PetscReal)1))*((PetscReal)1 - ((PetscReal)2*y-(PetscReal)1))*((PetscReal)1 - ((PetscReal)2*z-(PetscReal)1));
           }
 
           if (j_c*ratioj != j) {
             cols[nc] = idx_c[col+m_ghost_c];
-            v[nc++]  = .125*(1. - (2.0*x-1.))*(1. + (2.0*y-1.))*(1. - (2.0*z-1.));
+            v[nc++]  = (PetscReal).125*((PetscReal)1 - ((PetscReal)2*x-(PetscReal)1))*((PetscReal)1 + ((PetscReal)2*y-(PetscReal)1))*((PetscReal)1 - ((PetscReal)2*z-(PetscReal)1));
           }
 
           if (l_c*ratiok != l) {
             cols[nc] = idx_c[col+m_ghost_c*n_ghost_c];
-            v[nc++]  = .125*(1. - (2.0*x-1.))*(1. - (2.0*y-1.))*(1. + (2.0*z-1.));
+            v[nc++]  = (PetscReal).125*((PetscReal)1 - ((PetscReal)2*x-(PetscReal)1))*((PetscReal)1 - ((PetscReal)2*y-(PetscReal)1))*((PetscReal)1 + ((PetscReal)2*z-(PetscReal)1));
           }
 
           if (j_c*ratioj != j && i_c*ratioi != i) {
             cols[nc] = idx_c[col+(m_ghost_c+1)];
-            v[nc++]  = .125*(1. + (2.0*x-1.))*(1. + (2.0*y-1.))*(1. - (2.0*z-1.));
+            v[nc++]  = (PetscReal).125*((PetscReal)1 + ((PetscReal)2*x-(PetscReal)1))*((PetscReal)1 + ((PetscReal)2*y-(PetscReal)1))*((PetscReal)1 - ((PetscReal)2*z-(PetscReal)1));
           }
 
           if (j_c*ratioj != j && l_c*ratiok != l) {
             cols[nc] = idx_c[col+(m_ghost_c*n_ghost_c+m_ghost_c)];
-            v[nc++]  = .125*(1. - (2.0*x-1.))*(1. + (2.0*y-1.))*(1. + (2.0*z-1.));
+            v[nc++]  = (PetscReal).125*((PetscReal)1 - ((PetscReal)2*x-(PetscReal)1))*((PetscReal)1 + ((PetscReal)2*y-(PetscReal)1))*((PetscReal)1 + ((PetscReal)2*z-(PetscReal)1));
           }
 
           if (i_c*ratioi != i && l_c*ratiok != l) {
             cols[nc] = idx_c[col+(m_ghost_c*n_ghost_c+1)];
-            v[nc++]  = .125*(1. + (2.0*x-1.))*(1. - (2.0*y-1.))*(1. + (2.0*z-1.));
+            v[nc++]  = (PetscReal).125*((PetscReal)1 + ((PetscReal)2*x-(PetscReal)1))*((PetscReal)1 - ((PetscReal)2*y-(PetscReal)1))*((PetscReal)1 + ((PetscReal)2*z-(PetscReal)1));
           }
 
           if (i_c*ratioi != i && l_c*ratiok != l && j_c*ratioj != j) {
             cols[nc] = idx_c[col+(m_ghost_c*n_ghost_c+m_ghost_c+1)];
-            v[nc++]  = .125*(1. + (2.0*x-1.))*(1. + (2.0*y-1.))*(1. + (2.0*z-1.));
+            v[nc++]  = (PetscReal).125*((PetscReal)1 + ((PetscReal)2*x-(PetscReal)1))*((PetscReal)1 + ((PetscReal)2*y-(PetscReal)1))*((PetscReal)1 + ((PetscReal)2*z-(PetscReal)1));
           }
           ierr = MatSetValues(mat,1,&row,nc,cols,v,INSERT_VALUES);CHKERRQ(ierr);
         }
@@ -924,9 +924,9 @@ PetscErrorCode DMCreateInterpolation_DA_3D_Q1(DM dac,DM daf,Mat *A)
     ierr  = PetscMalloc(sizeof(PetscScalar)*nxi,&xi);CHKERRQ(ierr);
     ierr  = PetscMalloc(sizeof(PetscScalar)*neta,&eta);CHKERRQ(ierr);
     ierr  = PetscMalloc(sizeof(PetscScalar)*nzeta,&zeta);CHKERRQ(ierr);
-    for (li=0; li<nxi; li++) xi[li] = -1.0 + (PetscScalar)li*(2.0/(PetscScalar)(nxi-1));
-    for (lj=0; lj<neta; lj++) eta[lj] = -1.0 + (PetscScalar)lj*(2.0/(PetscScalar)(neta-1));
-    for (lk=0; lk<nzeta; lk++) zeta[lk] = -1.0 + (PetscScalar)lk*(2.0/(PetscScalar)(nzeta-1));
+    for (li=0; li<nxi; li++) xi[li] = -(PetscReal)1 + (PetscScalar)li*((PetscReal)2/(PetscScalar)(nxi-1));
+    for (lj=0; lj<neta; lj++) eta[lj] = -(PetscReal)1 + (PetscScalar)lj*((PetscReal)2/(PetscScalar)(neta-1));
+    for (lk=0; lk<nzeta; lk++) zeta[lk] = -(PetscReal)1 + (PetscScalar)lk*((PetscReal)2/(PetscScalar)(nzeta-1));
 
     for (l=l_start; l<l_start+p_f; l++) {
       for (j=j_start; j<j_start+n_f; j++) {
@@ -976,15 +976,15 @@ PetscErrorCode DMCreateInterpolation_DA_3D_Q1(DM dac,DM daf,Mat *A)
           cols[6] = idx_c[col+(m_ghost_c*n_ghost_c+m_ghost_c)]; /* one left and above and front*/
           cols[7] = idx_c[col+(m_ghost_c*n_ghost_c+m_ghost_c+1)]; /* one right and above and front */
 
-          Ni[0] = 0.125*(1.0-xi[li])*(1.0-eta[lj])*(1.0-zeta[lk]);
-          Ni[1] = 0.125*(1.0+xi[li])*(1.0-eta[lj])*(1.0-zeta[lk]);
-          Ni[2] = 0.125*(1.0-xi[li])*(1.0+eta[lj])*(1.0-zeta[lk]);
-          Ni[3] = 0.125*(1.0+xi[li])*(1.0+eta[lj])*(1.0-zeta[lk]);
+          Ni[0] = (PetscReal)0.125*((PetscReal)1-xi[li])*((PetscReal)1-eta[lj])*((PetscReal)1-zeta[lk]);
+          Ni[1] = (PetscReal)0.125*((PetscReal)1+xi[li])*((PetscReal)1-eta[lj])*((PetscReal)1-zeta[lk]);
+          Ni[2] = (PetscReal)0.125*((PetscReal)1-xi[li])*((PetscReal)1+eta[lj])*((PetscReal)1-zeta[lk]);
+          Ni[3] = (PetscReal)0.125*((PetscReal)1+xi[li])*((PetscReal)1+eta[lj])*((PetscReal)1-zeta[lk]);
 
-          Ni[4] = 0.125*(1.0-xi[li])*(1.0-eta[lj])*(1.0+zeta[lk]);
-          Ni[5] = 0.125*(1.0+xi[li])*(1.0-eta[lj])*(1.0+zeta[lk]);
-          Ni[6] = 0.125*(1.0-xi[li])*(1.0+eta[lj])*(1.0+zeta[lk]);
-          Ni[7] = 0.125*(1.0+xi[li])*(1.0+eta[lj])*(1.0+zeta[lk]);
+          Ni[4] = (PetscReal)0.125*((PetscReal)1-xi[li])*((PetscReal)1-eta[lj])*((PetscReal)1+zeta[lk]);
+          Ni[5] = (PetscReal)0.125*((PetscReal)1+xi[li])*((PetscReal)1-eta[lj])*((PetscReal)1+zeta[lk]);
+          Ni[6] = (PetscReal)0.125*((PetscReal)1-xi[li])*((PetscReal)1+eta[lj])*((PetscReal)1+zeta[lk]);
+          Ni[7] = (PetscReal)0.125*((PetscReal)1+xi[li])*((PetscReal)1+eta[lj])*((PetscReal)1+zeta[lk]);
 
           for (n=0; n<8; n++) {
             if (PetscAbsScalar(Ni[n])<1.0e-32) cols[n]=-1;

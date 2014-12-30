@@ -86,19 +86,19 @@ PetscErrorCode MatLUFactorNumeric_SeqBAIJ_7_inplace(Mat C,Mat A,const MatFactorI
       p41 = pc[40]; p42 = pc[41]; p43 = pc[42]; p44 = pc[43];
       p45 = pc[44]; p46 = pc[45]; p47 = pc[46]; p48 = pc[47];
       p49 = pc[48];
-      if (p1  != 0.0 || p2  != 0.0 || p3  != 0.0 || p4  != 0.0 ||
-          p5  != 0.0 || p6  != 0.0 || p7  != 0.0 || p8  != 0.0 ||
-          p9  != 0.0 || p10 != 0.0 || p11 != 0.0 || p12 != 0.0 ||
-          p13 != 0.0 || p14 != 0.0 || p15 != 0.0 || p16 != 0.0 ||
-          p17 != 0.0 || p18 != 0.0 || p19 != 0.0 || p20 != 0.0 ||
-          p21 != 0.0 || p22 != 0.0 || p23 != 0.0 || p24 != 0.0 ||
-          p25 != 0.0 || p26 != 0.0 || p27 != 0.0 || p28 != 0.0 ||
-          p29 != 0.0 || p30 != 0.0 || p31 != 0.0 || p32 != 0.0 ||
-          p33 != 0.0 || p34 != 0.0 || p35 != 0.0 || p36 != 0.0 ||
-          p37 != 0.0 || p38 != 0.0 || p39 != 0.0 || p40 != 0.0 ||
-          p41 != 0.0 || p42 != 0.0 || p43 != 0.0 || p44 != 0.0 ||
-          p45 != 0.0 || p46 != 0.0 || p47 != 0.0 || p48 != 0.0 ||
-          p49 != 0.0) {
+      if (p1  != (PetscReal)0 || p2  != (PetscReal)0 || p3  != (PetscReal)0 || p4  != (PetscReal)0 ||
+          p5  != (PetscReal)0 || p6  != (PetscReal)0 || p7  != (PetscReal)0 || p8  != (PetscReal)0 ||
+          p9  != (PetscReal)0 || p10 != (PetscReal)0 || p11 != (PetscReal)0 || p12 != (PetscReal)0 ||
+          p13 != (PetscReal)0 || p14 != (PetscReal)0 || p15 != (PetscReal)0 || p16 != (PetscReal)0 ||
+          p17 != (PetscReal)0 || p18 != (PetscReal)0 || p19 != (PetscReal)0 || p20 != (PetscReal)0 ||
+          p21 != (PetscReal)0 || p22 != (PetscReal)0 || p23 != (PetscReal)0 || p24 != (PetscReal)0 ||
+          p25 != (PetscReal)0 || p26 != (PetscReal)0 || p27 != (PetscReal)0 || p28 != (PetscReal)0 ||
+          p29 != (PetscReal)0 || p30 != (PetscReal)0 || p31 != (PetscReal)0 || p32 != (PetscReal)0 ||
+          p33 != (PetscReal)0 || p34 != (PetscReal)0 || p35 != (PetscReal)0 || p36 != (PetscReal)0 ||
+          p37 != (PetscReal)0 || p38 != (PetscReal)0 || p39 != (PetscReal)0 || p40 != (PetscReal)0 ||
+          p41 != (PetscReal)0 || p42 != (PetscReal)0 || p43 != (PetscReal)0 || p44 != (PetscReal)0 ||
+          p45 != (PetscReal)0 || p46 != (PetscReal)0 || p47 != (PetscReal)0 || p48 != (PetscReal)0 ||
+          p49 != (PetscReal)0) {
         pv    = ba + 49*diag_offset[row];
         pj    = bj + diag_offset[row] + 1;
         x1    = pv[0];  x2  = pv[1];  x3  = pv[2];  x4  = pv[3];
@@ -342,7 +342,7 @@ PetscErrorCode MatLUFactorNumeric_SeqBAIJ_7(Mat B,Mat A,const MatFactorInfo *inf
       row = bjtmp[k];
       pc  = rtmp + bs2*row;
       for (flg=0,j=0; j<bs2; j++) {
-        if (pc[j]!=0.0) {
+        if (pc[j]!=(PetscReal)0) {
           flg = 1;
           break;
         }
@@ -479,19 +479,19 @@ PetscErrorCode MatLUFactorNumeric_SeqBAIJ_7_NaturalOrdering_inplace(Mat C,Mat A,
       p41 = pc[40]; p42 = pc[41]; p43 = pc[42]; p44 = pc[43];
       p45 = pc[44]; p46 = pc[45]; p47 = pc[46]; p48 = pc[47];
       p49 = pc[48];
-      if (p1  != 0.0 || p2  != 0.0 || p3  != 0.0 || p4  != 0.0 ||
-          p5  != 0.0 || p6  != 0.0 || p7  != 0.0 || p8  != 0.0 ||
-          p9  != 0.0 || p10 != 0.0 || p11 != 0.0 || p12 != 0.0 ||
-          p13 != 0.0 || p14 != 0.0 || p15 != 0.0 || p16 != 0.0 ||
-          p17 != 0.0 || p18 != 0.0 || p19 != 0.0 || p20 != 0.0 ||
-          p21 != 0.0 || p22 != 0.0 || p23 != 0.0 || p24 != 0.0 ||
-          p25 != 0.0 || p26 != 0.0 || p27 != 0.0 || p28 != 0.0 ||
-          p29 != 0.0 || p30 != 0.0 || p31 != 0.0 || p32 != 0.0 ||
-          p33 != 0.0 || p34 != 0.0 || p35 != 0.0 || p36 != 0.0 ||
-          p37 != 0.0 || p38 != 0.0 || p39 != 0.0 || p40 != 0.0 ||
-          p41 != 0.0 || p42 != 0.0 || p43 != 0.0 || p44 != 0.0 ||
-          p45 != 0.0 || p46 != 0.0 || p47 != 0.0 || p48 != 0.0 ||
-          p49 != 0.0) {
+      if (p1  != (PetscReal)0 || p2  != (PetscReal)0 || p3  != (PetscReal)0 || p4  != (PetscReal)0 ||
+          p5  != (PetscReal)0 || p6  != (PetscReal)0 || p7  != (PetscReal)0 || p8  != (PetscReal)0 ||
+          p9  != (PetscReal)0 || p10 != (PetscReal)0 || p11 != (PetscReal)0 || p12 != (PetscReal)0 ||
+          p13 != (PetscReal)0 || p14 != (PetscReal)0 || p15 != (PetscReal)0 || p16 != (PetscReal)0 ||
+          p17 != (PetscReal)0 || p18 != (PetscReal)0 || p19 != (PetscReal)0 || p20 != (PetscReal)0 ||
+          p21 != (PetscReal)0 || p22 != (PetscReal)0 || p23 != (PetscReal)0 || p24 != (PetscReal)0 ||
+          p25 != (PetscReal)0 || p26 != (PetscReal)0 || p27 != (PetscReal)0 || p28 != (PetscReal)0 ||
+          p29 != (PetscReal)0 || p30 != (PetscReal)0 || p31 != (PetscReal)0 || p32 != (PetscReal)0 ||
+          p33 != (PetscReal)0 || p34 != (PetscReal)0 || p35 != (PetscReal)0 || p36 != (PetscReal)0 ||
+          p37 != (PetscReal)0 || p38 != (PetscReal)0 || p39 != (PetscReal)0 || p40 != (PetscReal)0 ||
+          p41 != (PetscReal)0 || p42 != (PetscReal)0 || p43 != (PetscReal)0 || p44 != (PetscReal)0 ||
+          p45 != (PetscReal)0 || p46 != (PetscReal)0 || p47 != (PetscReal)0 || p48 != (PetscReal)0 ||
+          p49 != (PetscReal)0) {
         pv    = ba + 49*diag_offset[row];
         pj    = bj + diag_offset[row] + 1;
         x1    = pv[0];  x2  = pv[1];  x3  = pv[2];  x4  = pv[3];
@@ -727,7 +727,7 @@ PetscErrorCode MatLUFactorNumeric_SeqBAIJ_7_NaturalOrdering(Mat B,Mat A,const Ma
       row = bjtmp[k];
       pc  = rtmp + bs2*row;
       for (flg=0,j=0; j<bs2; j++) {
-        if (pc[j]!=0.0) {
+        if (pc[j]!=(PetscReal)0) {
           flg = 1;
           break;
         }

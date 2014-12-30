@@ -369,21 +369,21 @@ PetscErrorCode PCGAMGProlongator_Classical_Direct(PC pc, const Mat A, const Mat 
         ierr = MatRestoreRow(gA,i,&ncols,&rcol,&rval);CHKERRQ(ierr);
       }
 
-      if (g_neg == 0.) {
+      if (g_neg == (PetscReal)0) {
         alpha = 0.;
       } else {
         alpha = -a_neg/g_neg;
       }
 
-      if (g_pos == 0.) {
+      if (g_pos == (PetscReal)0) {
         diag += a_pos;
         beta = 0.;
       } else {
         beta = -a_pos/g_pos;
       }
-      if (diag == 0.) {
+      if (diag == (PetscReal)0) {
         invdiag = 0.;
-      } else invdiag = 1. / diag;
+      } else invdiag = (PetscReal)1 / diag;
       /* on */
       ierr = MatGetRow(lA,i,&ncols,&rcol,&rval);CHKERRQ(ierr);
       idx = 0;
@@ -682,7 +682,7 @@ PetscErrorCode PCGAMGProlongator_Classical_Standard(PC pc, const Mat A, const Ma
           }
         }
         for (j=0;j<ncols;j++) {
-          if (lcid[icol[j]] >= 0 && pcontrib[icol[j]] != 0.) {
+          if (lcid[icol[j]] >= 0 && pcontrib[icol[j]] != (PetscReal)0) {
             lni = lcid[icol[j]];
             if (lni >= cs && lni < ce) {
               lsparse[li]++;
@@ -695,7 +695,7 @@ PetscErrorCode PCGAMGProlongator_Classical_Standard(PC pc, const Mat A, const Ma
             ierr = MatRestoreRow(lA,i,&ncols,&icol,NULL);CHKERRQ(ierr);
             ierr = MatGetRow(lA,ci,&ncols,&icol,NULL);CHKERRQ(ierr);
             for (k=0;k<ncols;k++) {
-              if (lcid[icol[k]] >= 0 && pcontrib[icol[k]] != 0.) {
+              if (lcid[icol[k]] >= 0 && pcontrib[icol[k]] != (PetscReal)0) {
                 lni = lcid[icol[k]];
                 if (lni >= cs && lni < ce) {
                   lsparse[li]++;
@@ -778,7 +778,7 @@ PetscErrorCode PCGAMGProlongator_Classical_Standard(PC pc, const Mat A, const Ma
         if (diag != 0.) {
           diag = 1./diag;
           for (j=0;j<ncols;j++) {
-            if (lcid[icol[j]] >= 0 && pcontrib[icol[j]] != 0.) {
+            if (lcid[icol[j]] >= 0 && pcontrib[icol[j]] != (PetscReal)0) {
               /* the neighbor is a coarse node */
               if (PetscAbsScalar(pcontrib[icol[j]]) > 0.0) {
                 lni = lcid[icol[j]];
@@ -793,7 +793,7 @@ PetscErrorCode PCGAMGProlongator_Classical_Standard(PC pc, const Mat A, const Ma
               ierr = MatRestoreRow(lA,i,&ncols,&icol,&vcol);CHKERRQ(ierr);
               ierr = MatGetRow(lA,ci,&ncols,&icol,&vcol);CHKERRQ(ierr);
               for (k=0;k<ncols;k++) {
-                if (lcid[icol[k]] >= 0 && pcontrib[icol[k]] != 0.) {
+                if (lcid[icol[k]] >= 0 && pcontrib[icol[k]] != (PetscReal)0) {
                   if (PetscAbsScalar(pcontrib[icol[k]]) > 0.0) {
                     lni = lcid[icol[k]];
                     pvcol[pncols] = -pcontrib[icol[k]]*diag;
@@ -869,7 +869,7 @@ PetscErrorCode PCGAMGOptProl_Classical_Jacobi(PC pc,const Mat A,Mat *P)
     ierr = MatGetRow(*P,i,&ncols,&pcols,&pvals);CHKERRQ(ierr);
     /* assume, for now, that it's a coarse unknown if it has a single unit entry */
     if (ncols == 1) {
-      if (pvals[0] == 1.) {
+      if (pvals[0] == (PetscReal)1) {
         coarserows[idx] = i;
         idx++;
       }

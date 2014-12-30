@@ -156,12 +156,12 @@ PetscErrorCode  DMCoarsen_SNESVI(DM dm1,MPI_Comm comm,DM *dm2)
   ierr = VecGetOwnershipRange(coarsemarked,&rstart,NULL);CHKERRQ(ierr);
   ierr = VecGetArray(coarsemarked,&marked);CHKERRQ(ierr);
   for (k=0; k<n; k++) {
-    if (marked[k] != 0.0) cnt++;
+    if (marked[k] != (PetscReal)0) cnt++;
   }
   ierr = PetscMalloc1(cnt,&coarseindex);CHKERRQ(ierr);
   cnt  = 0;
   for (k=0; k<n; k++) {
-    if (marked[k] != 0.0) coarseindex[cnt++] = k + rstart;
+    if (marked[k] != (PetscReal)0) coarseindex[cnt++] = k + rstart;
   }
   ierr = VecRestoreArray(coarsemarked,&marked);CHKERRQ(ierr);
   ierr = ISCreateGeneral(PetscObjectComm((PetscObject)coarsemarked),cnt,coarseindex,PETSC_OWN_POINTER,&inactive);CHKERRQ(ierr);

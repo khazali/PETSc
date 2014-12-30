@@ -83,7 +83,7 @@ PetscErrorCode  KSPSolve_SYMMLQ(KSP ksp)
 
   ierr  = VecCopy(R,V);CHKERRQ(ierr); /* v <- r; */
   ierr  = VecCopy(Z,U);CHKERRQ(ierr); /* u <- z; */
-  ibeta = 1.0 / beta;
+  ibeta = (PetscReal)1 / beta;
   ierr  = VecScale(V,ibeta);CHKERRQ(ierr);    /* v <- ibeta*v; */
   ierr  = VecScale(U,ibeta);CHKERRQ(ierr);    /* u <- ibeta*u; */
   ierr  = VecCopy(U,Wbar);CHKERRQ(ierr);       /* w_bar <- u;   */
@@ -104,9 +104,9 @@ PetscErrorCode  KSPSolve_SYMMLQ(KSP ksp)
       ierr = VecCopy(U,UOLD);CHKERRQ(ierr);  /* u_old <- u; */
 
       ierr = VecCopy(R,V);CHKERRQ(ierr);
-      ierr = VecScale(V,1.0/beta);CHKERRQ(ierr); /* v <- ibeta*r; */
+      ierr = VecScale(V,(PetscReal)1/beta);CHKERRQ(ierr); /* v <- ibeta*r; */
       ierr = VecCopy(Z,U);CHKERRQ(ierr);
-      ierr = VecScale(U,1.0/beta);CHKERRQ(ierr); /* u <- ibeta*z; */
+      ierr = VecScale(U,(PetscReal)1/beta);CHKERRQ(ierr); /* u <- ibeta*z; */
 
       ierr = VecCopy(Wbar,W);CHKERRQ(ierr);
       ierr = VecScale(W,c);CHKERRQ(ierr);
@@ -157,7 +157,7 @@ PetscErrorCode  KSPSolve_SYMMLQ(KSP ksp)
     else ceta = -(rho2*ceta_old + rho3*ceta_oold)/rho1;
 
     s_prod = s_prod*PetscAbsScalar(s);
-    if (c == 0.0) np = s_prod*1.e16;
+    if (c == (PetscReal)0) np = s_prod*1.e16;
     else np = s_prod/PetscAbsScalar(c);       /* residual norm for xc_k (CGNORM) */
 
     ksp->rnorm = np;
@@ -169,7 +169,7 @@ PetscErrorCode  KSPSolve_SYMMLQ(KSP ksp)
   } while (i<ksp->max_it);
 
   /* move to the CG point: xc_(k+1) */
-  if (c == 0.0) ceta_bar = ceta*1.e15;
+  if (c == (PetscReal)0) ceta_bar = ceta*(PetscReal)1.e15;
   else ceta_bar = ceta/c;
 
   ierr = VecAXPY(X,ceta_bar,Wbar);CHKERRQ(ierr); /* x <- x + ceta_bar*w_bar */

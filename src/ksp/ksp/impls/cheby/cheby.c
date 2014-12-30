@@ -396,10 +396,10 @@ PetscErrorCode KSPSolve_Chebyshev(KSP ksp)
   scale = 2.0/(cheb->emax + cheb->emin);
 
   /*   -alpha <=  scale*lambda(B^{-1}A) <= alpha   */
-  alpha     = 1.0 - scale*(cheb->emin);
+  alpha     = (PetscReal)1 - scale*(cheb->emin);
   Gamma     = 1.0;
-  mu        = 1.0/alpha;
-  omegaprod = 2.0/alpha;
+  mu        = (PetscReal)1/alpha;
+  omegaprod = (PetscReal)2/alpha;
 
   c[km1] = 1.0;
   c[k]   = mu;
@@ -419,7 +419,7 @@ PetscErrorCode KSPSolve_Chebyshev(KSP ksp)
 
     ksp->its++;
     ierr   = PetscObjectSAWsGrantAccess((PetscObject)ksp);CHKERRQ(ierr);
-    c[kp1] = 2.0*mu*c[k] - c[km1];
+    c[kp1] = (PetscReal)2*mu*c[k] - c[km1];
     omega  = omegaprod*c[k]/c[kp1];
 
     ierr = KSP_MatMult(ksp,Amat,p[k],r);CHKERRQ(ierr);          /*  r = b - Ap[k]    */
@@ -444,7 +444,7 @@ PetscErrorCode KSPSolve_Chebyshev(KSP ksp)
     }
 
     /* y^{k+1} = omega(y^{k} - y^{k-1} + Gamma*r^{k}) + y^{k-1} */
-    ierr = VecAXPBYPCZ(p[kp1],1.0-omega,omega,omega*Gamma*scale,p[km1],p[k]);CHKERRQ(ierr);
+    ierr = VecAXPBYPCZ(p[kp1],(PetscReal)1-omega,omega,omega*Gamma*scale,p[km1],p[k]);CHKERRQ(ierr);
 
     ktmp = km1;
     km1  = k;

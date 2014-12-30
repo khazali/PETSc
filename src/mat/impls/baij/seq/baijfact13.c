@@ -53,8 +53,8 @@ PetscErrorCode MatLUFactorNumeric_SeqBAIJ_3_inplace(Mat C,Mat A,const MatFactorI
       pc = rtmp + 9*row;
       p1 = pc[0]; p2 = pc[1]; p3 = pc[2]; p4 = pc[3];
       p5 = pc[4]; p6 = pc[5]; p7 = pc[6]; p8 = pc[7]; p9 = pc[8];
-      if (p1 != 0.0 || p2 != 0.0 || p3 != 0.0 || p4 != 0.0 || p5 != 0.0 ||
-          p6 != 0.0 || p7 != 0.0 || p8 != 0.0 || p9 != 0.0) {
+      if (p1 != (PetscReal)0 || p2 != (PetscReal)0 || p3 != (PetscReal)0 || p4 != (PetscReal)0 || p5 != (PetscReal)0 ||
+          p6 != (PetscReal)0 || p7 != (PetscReal)0 || p8 != (PetscReal)0 || p9 != (PetscReal)0) {
         pv    = ba + 9*diag_offset[row];
         pj    = bj + diag_offset[row] + 1;
         x1    = pv[0]; x2 = pv[1]; x3 = pv[2]; x4 = pv[3];
@@ -181,7 +181,7 @@ PetscErrorCode MatLUFactorNumeric_SeqBAIJ_3(Mat B,Mat A,const MatFactorInfo *inf
       row = bjtmp[k];
       pc  = rtmp + bs2*row;
       for (flg=0,j=0; j<bs2; j++) {
-        if (pc[j]!=0.0) {
+        if (pc[j]!=(PetscReal)0) {
           flg = 1;
           break;
         }
@@ -282,8 +282,8 @@ PetscErrorCode MatLUFactorNumeric_SeqBAIJ_3_NaturalOrdering_inplace(Mat C,Mat A,
       pc = rtmp + 9*row;
       p1 = pc[0];  p2  = pc[1];  p3  = pc[2];  p4  = pc[3];
       p5 = pc[4];  p6  = pc[5];  p7  = pc[6];  p8  = pc[7];  p9  = pc[8];
-      if (p1 != 0.0 || p2 != 0.0 || p3 != 0.0 || p4 != 0.0 || p5 != 0.0 ||
-          p6 != 0.0 || p7 != 0.0 || p8 != 0.0 || p9 != 0.0) {
+      if (p1 != (PetscReal)0 || p2 != (PetscReal)0 || p3 != (PetscReal)0 || p4 != (PetscReal)0 || p5 != (PetscReal)0 ||
+          p6 != (PetscReal)0 || p7 != (PetscReal)0 || p8 != (PetscReal)0 || p9 != (PetscReal)0) {
         pv    = ba + 9*diag_offset[row];
         pj    = bj + diag_offset[row] + 1;
         x1    = pv[0];  x2  = pv[1];  x3  = pv[2];  x4  = pv[3];
@@ -402,7 +402,7 @@ PetscErrorCode MatLUFactorNumeric_SeqBAIJ_3_NaturalOrdering(Mat B,Mat A,const Ma
       row = bjtmp[k];
       pc  = rtmp + bs2*row;
       for (flg=0,j=0; j<bs2; j++) {
-        if (pc[j]!=0.0) {
+        if (pc[j]!=(PetscReal)0) {
           flg = 1;
           break;
         }

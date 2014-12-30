@@ -168,11 +168,11 @@ static PetscErrorCode TSGLSchemeCreate(PetscInt p,PetscInt q,PetscInt r,PetscInt
 
     /* column-major input */
     for (i=0; i<r-1; i++) {
-      for (j=0; j<r-1; j++) ImV[i+j*r] = 1.0*(i==j) - v[(i+1)*r+j+1];
+      for (j=0; j<r-1; j++) ImV[i+j*r] = (PetscReal)1*(i==j) - v[(i+1)*r+j+1];
     }
     /* Build right hand side for alpha (tp - glm.B(2:end,:)*(glm.c.^(p)./factorial(p))) */
     for (i=1; i<r; i++) {
-      scheme->alpha[i] = 1./Factorial(p+1-i);
+      scheme->alpha[i] = (PetscReal)1/Factorial(p+1-i);
       for (j=0; j<s; j++) scheme->alpha[i] -= b[i*s+j]*CPowF(c[j],p);
     }
     ierr = PetscBLASIntCast(r-1,&m);CHKERRQ(ierr);
@@ -183,7 +183,7 @@ static PetscErrorCode TSGLSchemeCreate(PetscInt p,PetscInt q,PetscInt r,PetscInt
 
     /* Build right hand side for beta (tp1 - glm.B(2:end,:)*(glm.c.^(p+1)./factorial(p+1)) - e.alpha) */
     for (i=1; i<r; i++) {
-      scheme->beta[i] = 1./Factorial(p+2-i) - scheme->alpha[i];
+      scheme->beta[i] = (PetscReal)1/Factorial(p+2-i) - scheme->alpha[i];
       for (j=0; j<s; j++) scheme->beta[i] -= b[i*s+j]*CPowF(c[j],p+1);
     }
     PetscStackCallBLAS("LAPACKgetrs",LAPACKgetrs_("No transpose",&m,&one,ImV,&n,ipiv,scheme->beta+1,&n,&info));
@@ -202,13 +202,13 @@ static PetscErrorCode TSGLSchemeCreate(PetscInt p,PetscInt q,PetscInt r,PetscInt
     /* alpha[0] (epsilon in B,J,W 2007)
            epsilon = 1/factorial(p+1) - B(1,:)*c.^p/factorial(p) + V(1,2:end)*e.alpha;
     */
-    scheme->alpha[0] = 1./Factorial(p+1);
+    scheme->alpha[0] = (PetscReal)1/Factorial(p+1);
     for (j=0; j<s; j++) scheme->alpha[0] -= b[0*s+j]*CPowF(c[j],p);
     for (j=1; j<r; j++) scheme->alpha[0] += v[0*r+j]*scheme->alpha[j];
 
     /* right hand side for gamma (glm.B(2:end,:)*e.xi - e.epsilon*eye(s-1,1)) */
     for (i=1; i<r; i++) {
-      scheme->gamma[i] = (i==1 ? -1. : 0)*scheme->alpha[0];
+      scheme->gamma[i] = (PetscReal)(i==1 ? -1 : 0)*scheme->alpha[0];
       for (j=0; j<s; j++) scheme->gamma[i] += b[i*s+j]*scheme->stage_error[j];
     }
     PetscStackCallBLAS("LAPACKgetrs",LAPACKgetrs_("No transpose",&m,&one,ImV,&n,ipiv,scheme->gamma+1,&n,&info));
@@ -220,7 +220,7 @@ static PetscErrorCode TSGLSchemeCreate(PetscInt p,PetscInt q,PetscInt r,PetscInt
             + glm.V(1,2:end)*e.beta;% - e.epsilon;
     % Note: The paper (B,J,W 2007) includes the last term in their definition
     * */
-    scheme->beta[0] = 1./Factorial(p+2);
+    scheme->beta[0] = (PetscReal)1/Factorial(p+2);
     for (j=0; j<s; j++) scheme->beta[0] -= b[0*s+j]*CPowF(c[j],p+1);
     for (j=1; j<r; j++) scheme->beta[0] += v[0*r+j]*scheme->beta[j];
 
@@ -296,13 +296,13 @@ static PetscErrorCode TSGLSchemeCreate(PetscInt p,PetscInt q,PetscInt r,PetscInt
   }
   /* Check which properties are satisfied */
   scheme->stiffly_accurate = PETSC_TRUE;
-  if (scheme->c[s-1] != 1.) scheme->stiffly_accurate = PETSC_FALSE;
+  if (scheme->c[s-1] != (PetscReal)1) scheme->stiffly_accurate = PETSC_FALSE;
   for (j=0; j<s; j++) if (a[(s-1)*s+j] != b[j]) scheme->stiffly_accurate = PETSC_FALSE;
   for (j=0; j<r; j++) if (u[(s-1)*r+j] != v[j]) scheme->stiffly_accurate = PETSC_FALSE;
   scheme->fsal = scheme->stiffly_accurate; /* FSAL is stronger */
-  for (j=0; j<s-1; j++) if (r>1 && b[1*s+j] != 0.) scheme->fsal = PETSC_FALSE;
-  if (b[1*s+r-1] != 1.) scheme->fsal = PETSC_FALSE;
-  for (j=0; j<r; j++) if (r>1 && v[1*r+j] != 0.) scheme->fsal = PETSC_FALSE;
+  for (j=0; j<s-1; j++) if (r>1 && b[1*s+j] != (PetscReal)0) scheme->fsal = PETSC_FALSE;
+  if (b[1*s+r-1] != (PetscReal)1) scheme->fsal = PETSC_FALSE;
+  for (j=0; j<r; j++) if (r>1 && v[1*r+j] != (PetscReal)0) scheme->fsal = PETSC_FALSE;
 
   *inscheme = scheme;
   PetscFunctionReturn(0);

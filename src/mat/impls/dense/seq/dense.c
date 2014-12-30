@@ -25,14 +25,14 @@ PETSC_EXTERN PetscErrorCode MatConvert_SeqDense_SeqAIJ(Mat A, MatType newtype,Ma
   ierr = MatSetType(B,MATSEQAIJ);CHKERRQ(ierr);
   ierr = PetscCalloc3(A->rmap->n,&rows,A->rmap->n,&nnz,A->rmap->n,&vals);CHKERRQ(ierr);
   for (j=0; j<A->cmap->n; j++) {
-    for (i=0; i<A->rmap->n; i++) if (aa[i] != 0.0 || i == j) ++nnz[i];
+    for (i=0; i<A->rmap->n; i++) if (aa[i] != (PetscReal)0 || i == j) ++nnz[i];
     aa += a->lda;
   }
   ierr = MatSeqAIJSetPreallocation(B,PETSC_DETERMINE,nnz);CHKERRQ(ierr);
   aa = a->v;
   for (j=0; j<A->cmap->n; j++) {
     PetscInt numRows = 0;
-    for (i=0; i<A->rmap->n; i++) if (aa[i] != 0.0 || i == j) {rows[numRows] = i; vals[numRows++] = aa[i];}
+    for (i=0; i<A->rmap->n; i++) if (aa[i] != (PetscReal)0 || i == j) {rows[numRows] = i; vals[numRows++] = aa[i];}
     ierr = MatSetValues(B,numRows,rows,1,&j,vals,INSERT_VALUES);CHKERRQ(ierr);
     aa  += a->lda;
   }
@@ -566,13 +566,13 @@ PetscErrorCode MatSOR_SeqDense(Mat A,Vec bb,PetscReal omega,MatSORType flag,Pets
     if (flag & SOR_FORWARD_SWEEP || flag & SOR_LOCAL_FORWARD_SWEEP) {
       for (i=0; i<m; i++) {
         PetscStackCallBLAS("BLASdot",xt   = b[i] - BLASdot_(&bm,v+i,&bm,x,&o));
-        x[i] = (1. - omega)*x[i] + omega*(xt+v[i + i*m]*x[i])/(v[i + i*m]+shift);
+        x[i] = ((PetscReal)1 - omega)*x[i] + omega*(xt+v[i + i*m]*x[i])/(v[i + i*m]+shift);
       }
     }
     if (flag & SOR_BACKWARD_SWEEP || flag & SOR_LOCAL_BACKWARD_SWEEP) {
       for (i=m-1; i>=0; i--) {
         PetscStackCallBLAS("BLASdot",xt   = b[i] - BLASdot_(&bm,v+i,&bm,x,&o));
-        x[i] = (1. - omega)*x[i] + omega*(xt+v[i + i*m]*x[i])/(v[i + i*m]+shift);
+        x[i] = ((PetscReal)1 - omega)*x[i] + omega*(xt+v[i + i*m]*x[i])/(v[i + i*m]+shift);
       }
     }
   }
@@ -1443,7 +1443,7 @@ PetscErrorCode MatZeroRows_SeqDense(Mat A,PetscInt N,const PetscInt rows[],Petsc
     slot = l->v + rows[i];
     for (j=0; j<n; j++) { *slot = 0.0; slot += m;}
   }
-  if (diag != 0.0) {
+  if (diag != (PetscReal)0) {
     if (A->rmap->n != A->cmap->n) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Only coded for square matrices");
     for (i=0; i<N; i++) {
       slot  = l->v + (m+1)*rows[i];

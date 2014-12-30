@@ -293,28 +293,28 @@ PetscErrorCode MatDFischer(Mat jac, Vec X, Vec Con, Vec XL, Vec XU, Vec T1, Vec 
         ai = fischnorm(1.0, PetscRealPart(t2[i]));
 
         da[i] = -1.0 / ai - 1.0;
-        db[i] = -t2[i] / ai - 1.0;
+        db[i] = -t2[i] / ai - (PetscReal)1;
       } else {
         bi = PetscRealPart(u[i]) - PetscRealPart(x[i]);
         ai = fischnorm(bi, PetscRealPart(f[i]));
         ai = PetscMax(PETSC_MACHINE_EPSILON, ai);
 
         da[i] = bi / ai - 1.0;
-        db[i] = -f[i] / ai - 1.0;
+        db[i] = -f[i] / ai - (PetscReal)1;
       }
     } else if (PetscRealPart(u[i]) >=  PETSC_INFINITY) {
       if (PetscRealPart(da[i]) >= 1) {
         ai = fischnorm(1.0, PetscRealPart(t2[i]));
 
         da[i] = 1.0 / ai - 1.0;
-        db[i] = t2[i] / ai - 1.0;
+        db[i] = t2[i] / ai - (PetscReal)1;
       } else {
         bi = PetscRealPart(x[i]) - PetscRealPart(l[i]);
         ai = fischnorm(bi, PetscRealPart(f[i]));
         ai = PetscMax(PETSC_MACHINE_EPSILON, ai);
 
         da[i] = bi / ai - 1.0;
-        db[i] = f[i] / ai - 1.0;
+        db[i] = f[i] / ai - (PetscReal)1;
       }
     } else if (PetscRealPart(l[i]) == PetscRealPart(u[i])) {
       da[i] = -1.0;

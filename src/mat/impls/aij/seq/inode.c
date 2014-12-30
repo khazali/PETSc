@@ -1303,7 +1303,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat B,Mat A,const MatFactorInfo *
         nzL   = bi[i+1] - bi[i];
         for (k=0; k < nzL; k++) {
           pc = rtmp1 + row;
-          if (*pc != 0.0) {
+          if (*pc != (PetscReal)0) {
             pv   = b->a + bdiag[row];
             mul1 = *pc * (*pv);
             *pc  = mul1;
@@ -1342,7 +1342,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat B,Mat A,const MatFactorInfo *
 
         /* Mark diagonal and invert diagonal for simplier triangular solves */
         pv  = b->a + bdiag[i];
-        *pv = 1.0/sctx.pv; /* sctx.pv = rtmp1[i]+shiftamount if shifttype==MAT_SHIFT_INBLOCKS */
+        *pv = (PetscReal)1/sctx.pv; /* sctx.pv = rtmp1[i]+shiftamount if shifttype==MAT_SHIFT_INBLOCKS */
         break;
 
       case 2:
@@ -1382,7 +1382,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat B,Mat A,const MatFactorInfo *
         for (k=0; k < nzL; k++) {
           pc1 = rtmp1 + row;
           pc2 = rtmp2 + row;
-          if (*pc1 != 0.0 || *pc2 != 0.0) {
+          if (*pc1 != (PetscReal)0 || *pc2 != (PetscReal)0) {
             pv   = b->a + bdiag[row];
             mul1 = *pc1*(*pv); mul2 = *pc2*(*pv);
             *pc1 = mul1;       *pc2 = mul2;
@@ -1424,11 +1424,11 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat B,Mat A,const MatFactorInfo *
         ierr    = MatPivotCheck(A,info,&sctx,i);CHKERRQ(ierr);
         if (sctx.newshift) break;
         pc1  = b->a + bdiag[i]; /* Mark diagonal */
-        *pc1 = 1.0/sctx.pv;
+        *pc1 = (PetscReal)1/sctx.pv;
 
         /* Now take care of diagonal 2x2 block. */
         pc2 = rtmp2 + i;
-        if (*pc2 != 0.0) {
+        if (*pc2 != (PetscReal)0) {
           mul1 = (*pc2)*(*pc1); /* *pc1=diag[i] is inverted! */
           *pc2 = mul1;          /* insert L entry */
           pj   = b->j + bdiag[i+1]+1;   /* beginning of U(i,:) */
@@ -1463,7 +1463,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat B,Mat A,const MatFactorInfo *
         ierr    = MatPivotCheck(A,info,&sctx,i+1);CHKERRQ(ierr);
         if (sctx.newshift) break;
         pc2  = b->a + bdiag[i+1];
-        *pc2 = 1.0/sctx.pv;
+        *pc2 = (PetscReal)1/sctx.pv;
         break;
 
       case 3:
@@ -1504,7 +1504,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat B,Mat A,const MatFactorInfo *
           pc1 = rtmp1 + row;
           pc2 = rtmp2 + row;
           pc3 = rtmp3 + row;
-          if (*pc1 != 0.0 || *pc2 != 0.0 || *pc3 != 0.0) {
+          if (*pc1 != (PetscReal)0 || *pc2 != (PetscReal)0 || *pc3 != (PetscReal)0) {
             pv   = b->a + bdiag[row];
             mul1 = *pc1*(*pv); mul2 = *pc2*(*pv); mul3 = *pc3*(*pv);
             *pc1 = mul1; *pc2 = mul2; *pc3 = mul3;
@@ -1547,12 +1547,12 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat B,Mat A,const MatFactorInfo *
         ierr    = MatPivotCheck(A,info,&sctx,i);CHKERRQ(ierr);
         if (sctx.newshift) break;
         pc1  = b->a + bdiag[i]; /* Mark diag[i] */
-        *pc1 = 1.0/sctx.pv;
+        *pc1 = (PetscReal)1/sctx.pv;
 
         /* Now take care of 1st column of diagonal 3x3 block. */
         pc2 = rtmp2 + i;
         pc3 = rtmp3 + i;
-        if (*pc2 != 0.0 || *pc3 != 0.0) {
+        if (*pc2 != (PetscReal)0 || *pc3 != (PetscReal)0) {
           mul2 = (*pc2)*(*pc1); *pc2 = mul2;
           mul3 = (*pc3)*(*pc1); *pc3 = mul3;
           pj   = b->j + bdiag[i+1]+1;   /* beginning of U(i,:) */
@@ -1589,11 +1589,11 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat B,Mat A,const MatFactorInfo *
         ierr    = MatPivotCheck(A,info,&sctx,i+1);CHKERRQ(ierr);
         if (sctx.newshift) break;
         pc2  = b->a + bdiag[i+1];
-        *pc2 = 1.0/sctx.pv; /* Mark diag[i+1] */
+        *pc2 = (PetscReal)1/sctx.pv; /* Mark diag[i+1] */
 
         /* Now take care of 2nd column of diagonal 3x3 block. */
         pc3 = rtmp3 + i+1;
-        if (*pc3 != 0.0) {
+        if (*pc3 != (PetscReal)0) {
           mul3 = (*pc3)*(*pc2); *pc3 = mul3;
           pj   = b->j + bdiag[i+2]+1;     /* beginning of U(i+1,:) */
           nz   = bdiag[i+1]-bdiag[i+2]-1; /* num of entries in U(i+1,:) excluding diag */
@@ -1628,7 +1628,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat B,Mat A,const MatFactorInfo *
         ierr    = MatPivotCheck(A,info,&sctx,i+2);CHKERRQ(ierr);
         if (sctx.newshift) break;
         pc3  = b->a + bdiag[i+2];
-        *pc3 = 1.0/sctx.pv; /* Mark diag[i+2] */
+        *pc3 = (PetscReal)1/sctx.pv; /* Mark diag[i+2] */
         break;
       case 4:
         /*----------*/
@@ -1669,7 +1669,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat B,Mat A,const MatFactorInfo *
           pc2 = rtmp2 + row;
           pc3 = rtmp3 + row;
           pc4 = rtmp4 + row;
-          if (*pc1 != 0.0 || *pc2 != 0.0 || *pc3 != 0.0 || *pc4 != 0.0) {
+          if (*pc1 != (PetscReal)0 || *pc2 != (PetscReal)0 || *pc3 != (PetscReal)0 || *pc4 != (PetscReal)0) {
             pv   = b->a + bdiag[row];
             mul1 = *pc1*(*pv); mul2 = *pc2*(*pv); mul3 = *pc3*(*pv); mul4 = *pc4*(*pv);
             *pc1 = mul1; *pc2 = mul2; *pc3 = mul3; *pc4 = mul4;
@@ -1713,13 +1713,13 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat B,Mat A,const MatFactorInfo *
         ierr    = MatPivotCheck(A,info,&sctx,i);CHKERRQ(ierr);
         if (sctx.newshift) break;
         pc1  = b->a + bdiag[i]; /* Mark diag[i] */
-        *pc1 = 1.0/sctx.pv;
+        *pc1 = (PetscReal)1/sctx.pv;
 
         /* Now take care of 1st column of diagonal 4x4 block. */
         pc2 = rtmp2 + i;
         pc3 = rtmp3 + i;
         pc4 = rtmp4 + i;
-        if (*pc2 != 0.0 || *pc3 != 0.0 || *pc4 != 0.0) {
+        if (*pc2 != (PetscReal)0 || *pc3 != (PetscReal)0 || *pc4 != (PetscReal)0) {
           mul2 = (*pc2)*(*pc1); *pc2 = mul2;
           mul3 = (*pc3)*(*pc1); *pc3 = mul3;
           mul4 = (*pc4)*(*pc1); *pc4 = mul4;
@@ -1758,12 +1758,12 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat B,Mat A,const MatFactorInfo *
         ierr    = MatPivotCheck(A,info,&sctx,i+1);CHKERRQ(ierr);
         if (sctx.newshift) break;
         pc2  = b->a + bdiag[i+1];
-        *pc2 = 1.0/sctx.pv; /* Mark diag[i+1] */
+        *pc2 = (PetscReal)1/sctx.pv; /* Mark diag[i+1] */
 
         /* Now take care of 2nd column of diagonal 4x4 block. */
         pc3 = rtmp3 + i+1;
         pc4 = rtmp4 + i+1;
-        if (*pc3 != 0.0 || *pc4 != 0.0) {
+        if (*pc3 != (PetscReal)0 || *pc4 != (PetscReal)0) {
           mul3 = (*pc3)*(*pc2); *pc3 = mul3;
           mul4 = (*pc4)*(*pc2); *pc4 = mul4;
           pj   = b->j + bdiag[i+2]+1;     /* beginning of U(i+1,:) */
@@ -1800,11 +1800,11 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat B,Mat A,const MatFactorInfo *
         ierr    = MatPivotCheck(A,info,&sctx,i+2);CHKERRQ(ierr);
         if (sctx.newshift) break;
         pc3  = b->a + bdiag[i+2];
-        *pc3 = 1.0/sctx.pv; /* Mark diag[i+2] */
+        *pc3 = (PetscReal)1/sctx.pv; /* Mark diag[i+2] */
 
         /* Now take care of 3rd column of diagonal 4x4 block. */
         pc4 = rtmp4 + i+2;
-        if (*pc4 != 0.0) {
+        if (*pc4 != (PetscReal)0) {
           mul4 = (*pc4)*(*pc3); *pc4 = mul4;
           pj   = b->j + bdiag[i+3]+1;     /* beginning of U(i+2,:) */
           nz   = bdiag[i+2]-bdiag[i+3]-1; /* num of entries in U(i+2,:) excluding diag */
@@ -1839,7 +1839,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat B,Mat A,const MatFactorInfo *
         ierr    = MatPivotCheck(A,info,&sctx,i+3);CHKERRQ(ierr);
         if (sctx.newshift) break;
         pc4  = b->a + bdiag[i+3];
-        *pc4 = 1.0/sctx.pv; /* Mark diag[i+3] */
+        *pc4 = (PetscReal)1/sctx.pv; /* Mark diag[i+3] */
         break;
 
       default:
@@ -2026,7 +2026,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode_inplace(Mat B,Mat A,const MatFact
         prow = *bjtmp++;
         while (prow < row) {
           pc1 = rtmp11 + prow;
-          if (*pc1 != 0.0) {
+          if (*pc1 != (PetscReal)0) {
             pv     = ba + bd[prow];
             pj     = nbj + bd[prow];
             mul1   = *pc1 * *pv++;
@@ -2045,7 +2045,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode_inplace(Mat B,Mat A,const MatFact
         pc1 = ba + bi[row];
 
         sctx.pv     = rtmp11[row];
-        rtmp11[row] = 1.0/rtmp11[row]; /* invert diag */
+        rtmp11[row] = (PetscReal)1/rtmp11[row]; /* invert diag */
         rs          = 0.0;
         for (j=0; j<nz; j++) {
           idx    = pj[j];
@@ -2082,7 +2082,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode_inplace(Mat B,Mat A,const MatFact
         while (prow < row) {
           pc1 = rtmp11 + prow;
           pc2 = rtmp22 + prow;
-          if (*pc1 != 0.0 || *pc2 != 0.0) {
+          if (*pc1 != (PetscReal)0 || *pc2 != (PetscReal)0) {
             pv   = ba + bd[prow];
             pj   = nbj + bd[prow];
             mul1 = *pc1 * *pv;
@@ -2118,7 +2118,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode_inplace(Mat B,Mat A,const MatFact
         ierr    = MatPivotCheck(A,info,&sctx,row);CHKERRQ(ierr);
         if (sctx.newshift) goto endofwhile;
 
-        if (*pc2 != 0.0) {
+        if (*pc2 != (PetscReal)0) {
           pj     = nbj + bd[prow];
           mul2   = (*pc2)/(*pc1); /* since diag is not yet inverted.*/
           *pc2   = mul2;
@@ -2137,8 +2137,8 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode_inplace(Mat B,Mat A,const MatFact
 
         sctx.pv       = rtmp22[row+1];
         rs            = 0.0;
-        rtmp11[row]   = 1.0/rtmp11[row];
-        rtmp22[row+1] = 1.0/rtmp22[row+1];
+        rtmp11[row]   = (PetscReal)1/rtmp11[row];
+        rtmp22[row+1] = (PetscReal)1/rtmp22[row+1];
         /* copy row entries from dense representation to sparse */
         for (j=0; j<nz; j++) {
           idx    = pj[j];
@@ -2181,7 +2181,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode_inplace(Mat B,Mat A,const MatFact
           pc1 = rtmp11 + prow;
           pc2 = rtmp22 + prow;
           pc3 = rtmp33 + prow;
-          if (*pc1 != 0.0 || *pc2 != 0.0 || *pc3 !=0.0) {
+          if (*pc1 != (PetscReal)0 || *pc2 != (PetscReal)0 || *pc3 !=(PetscReal)0) {
             pv   = ba  + bd[prow];
             pj   = nbj + bd[prow];
             mul1 = *pc1 * *pv;
@@ -2223,7 +2223,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode_inplace(Mat B,Mat A,const MatFact
         ierr    = MatPivotCheck(A,info,&sctx,row);CHKERRQ(ierr);
         if (sctx.newshift) goto endofwhile;
 
-        if (*pc2 != 0.0 || *pc3 != 0.0) {
+        if (*pc2 != (PetscReal)0 || *pc3 != (PetscReal)0) {
           mul2   = (*pc2)/(*pc1);
           mul3   = (*pc3)/(*pc1);
           *pc2   = mul2;
@@ -2253,7 +2253,7 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode_inplace(Mat B,Mat A,const MatFact
         ierr    = MatPivotCheck(A,info,&sctx,row+1);CHKERRQ(ierr);
         if (sctx.newshift) goto endofwhile;
 
-        if (*pc3 != 0.0) {
+        if (*pc3 != (PetscReal)0) {
           mul3   = (*pc3)/(*pc2);
           *pc3   = mul3;
           pj     = nbj + bd[prow];
@@ -2273,9 +2273,9 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode_inplace(Mat B,Mat A,const MatFact
 
         sctx.pv       = rtmp33[row+2];
         rs            = 0.0;
-        rtmp11[row]   = 1.0/rtmp11[row];
-        rtmp22[row+1] = 1.0/rtmp22[row+1];
-        rtmp33[row+2] = 1.0/rtmp33[row+2];
+        rtmp11[row]   = (PetscReal)1/rtmp11[row];
+        rtmp22[row+1] = (PetscReal)1/rtmp22[row+1];
+        rtmp33[row+2] = (PetscReal)1/rtmp33[row+2];
         /* copy row entries from dense representation to sparse */
         for (j=0; j<nz; j++) {
           idx    = pj[j];
@@ -2800,7 +2800,7 @@ PetscErrorCode MatSOR_SeqAIJ_Inode(Mat A,Vec bb,PetscReal omega,MatSORType flag,
       case 1:
         /* Create matrix data structure */
         if (PetscAbsScalar(ibdiag[cnt]) < zeropivot) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_MAT_LU_ZRPVT,"Zero pivot on row %D",row);
-        ibdiag[cnt] = 1.0/ibdiag[cnt];
+        ibdiag[cnt] = (PetscReal)1/ibdiag[cnt];
         break;
       case 2:
         ierr = PetscKernel_A_gets_inverse_A_2(ibdiag+cnt,shift);CHKERRQ(ierr);

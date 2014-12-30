@@ -5522,7 +5522,7 @@ static PetscErrorCode CellRefinerSetCoordinates(CellRefiner refiner, DM dm, Pets
       ierr = PetscSectionGetOffset(coordSectionNew, newv, &offnew);CHKERRQ(ierr);
       ierr = DMPlexLocalizeCoordinate_Internal(dm, spaceDim, &coords[offA], &coords[offB], &coordsNew[offnew]);CHKERRQ(ierr);
       for (d = 0; d < spaceDim; ++d) {
-        coordsNew[offnew+d] = 0.5*(coords[offA+d] + coordsNew[offnew+d]);
+        coordsNew[offnew+d] = (PetscReal)0.5*(coords[offA+d] + coordsNew[offnew+d]);
       }
     }
     /* Old vertices have the same coordinates */

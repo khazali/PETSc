@@ -191,7 +191,7 @@ PetscErrorCode  KSPSolve_CG(KSP ksp)
   i = 0;
   do {
     ksp->its = i+1;
-    if (beta == 0.0) {
+    if (beta == (PetscReal)0) {
       ksp->reason = KSP_CONVERGED_ATOL;
       ierr        = PetscInfo(ksp,"converged due to beta = 0\n");CHKERRQ(ierr);
       break;
@@ -209,7 +209,7 @@ PetscErrorCode  KSPSolve_CG(KSP ksp)
       b = beta/betaold;
       if (eigs) {
         if (ksp->max_it != stored_max_it) SETERRQ(PetscObjectComm((PetscObject)ksp),PETSC_ERR_SUP,"Can not change maxit AND calculate eigenvalues");
-        e[i] = PetscSqrtReal(PetscAbsScalar(b))/a;
+        e[i] = (PetscReal)PetscSqrtReal(PetscAbsScalar(b))/a;
       }
       ierr = VecAYPX(P,b,Z);CHKERRQ(ierr);    /*     p <- z + b* p   */
     }
@@ -230,13 +230,13 @@ PetscErrorCode  KSPSolve_CG(KSP ksp)
       }
     }
 
-    if ((dpi == 0.0) || ((i > 0) && (PetscRealPart(dpi*dpiold) <= 0.0))) {
+    if ((dpi == (PetscReal)0) || ((i > 0) && (PetscRealPart(dpi*dpiold) <= 0.0))) {
       ksp->reason = KSP_DIVERGED_INDEFINITE_MAT;
       ierr        = PetscInfo(ksp,"diverging due to indefinite or negative definite matrix\n");CHKERRQ(ierr);
       break;
     }
     a = beta/dpi;                                 /*     a = beta/p'w   */
-    if (eigs) d[i] = PetscSqrtReal(PetscAbsScalar(b))*e[i] + 1.0/a;
+    if (eigs) d[i] = (PetscReal)PetscSqrtReal(PetscAbsScalar(b))*e[i] + (PetscReal)1/a;
     ierr = VecAXPY(X,a,P);CHKERRQ(ierr);          /*     x <- x + ap     */
     ierr = VecAXPY(R,-a,W);CHKERRQ(ierr);                      /*     r <- r - aw    */
     if (ksp->normtype == KSP_NORM_PRECONDITIONED && ksp->chknorm < i+2) {

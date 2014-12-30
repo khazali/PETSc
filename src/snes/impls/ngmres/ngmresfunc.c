@@ -62,7 +62,7 @@ PetscErrorCode SNESNGMRESFormCombinedSolution_Private(SNES snes,PetscInt ivec,Pe
   }
   if (l == 1) {
     /* simply set alpha[0] = beta[0] / H[0, 0] */
-    if (H(0,0) != 0.) beta[0] = beta[0]/H(0,0);
+    if (H(0,0) != (PetscReal)0) beta[0] = beta[0]/H(0,0);
     else beta[0] = 0.;
   } else {
 #if defined(PETSC_MISSING_LAPACK_GELSS)
@@ -90,7 +90,7 @@ PetscErrorCode SNESNGMRESFormCombinedSolution_Private(SNES snes,PetscInt ivec,Pe
   for (i = 0; i < l; i++) alph_total += beta[i];
 
   ierr = VecCopy(XM,XA);CHKERRQ(ierr);
-  ierr = VecScale(XA,1.-alph_total);CHKERRQ(ierr);
+  ierr = VecScale(XA,(PetscReal)1-alph_total);CHKERRQ(ierr);
   ierr = VecMAXPY(XA,l,beta,Xdot);CHKERRQ(ierr);
   /* check the validity of the step */
   ierr = VecCopy(XA,Y);CHKERRQ(ierr);
@@ -105,7 +105,7 @@ PetscErrorCode SNESNGMRESFormCombinedSolution_Private(SNES snes,PetscInt ivec,Pe
   }
   else {
     ierr = VecCopy(FM,FA);CHKERRQ(ierr);
-    ierr = VecScale(FA,1.-alph_total);CHKERRQ(ierr);
+    ierr = VecScale(FA,(PetscReal)1-alph_total);CHKERRQ(ierr);
     ierr = VecMAXPY(FA,l,beta,Fdot);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);

@@ -439,7 +439,7 @@ PetscErrorCode spbas_incomplete_cholesky(Mat A, const PetscInt *rip, const Petsc
   for (i=0; i<nrows; i++) {
     r_nnz = retval.row_nnz[i];
 
-    retval.values[i][r_nnz-1] = 1.0 / diag[i];
+    retval.values[i][r_nnz-1] = (PetscReal)1 / diag[i];
     for (j=0; j<r_nnz-1; j++) {
       retval.values[i][j] *= -1;
     }

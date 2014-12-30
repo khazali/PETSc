@@ -45,8 +45,8 @@ PETSC_EXTERN PetscErrorCode PetscKernel_A_gets_inverse_A_3(MatScalar *a,PetscRea
     l        += k - 1;
     ipvt[k-1] = l;
 
-    if (a[l + k3] == 0.0) {
-      if (shift == 0.0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_MAT_LU_ZRPVT,"Zero pivot, row %D",k-1);
+    if (a[l + k3] == (PetscReal)0) {
+      if (shift == (PetscReal)0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_MAT_LU_ZRPVT,"Zero pivot, row %D",k-1);
       else {
         /* Shift is applied to single diagonal entry */
         a[l + k3] = shift;
@@ -62,7 +62,7 @@ PETSC_EXTERN PetscErrorCode PetscKernel_A_gets_inverse_A_3(MatScalar *a,PetscRea
 
 /*           compute multipliers */
 
-    stmp = -1. / a[k4];
+    stmp = -(PetscReal)1 / a[k4];
     i__2 = 3 - k;
     aa   = &a[1 + k4];
     for (ll=0; ll<i__2; ll++) aa[ll] *= stmp;
@@ -84,7 +84,7 @@ PETSC_EXTERN PetscErrorCode PetscKernel_A_gets_inverse_A_3(MatScalar *a,PetscRea
     }
   }
   ipvt[2] = 3;
-  if (a[12] == 0.0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_MAT_LU_ZRPVT,"Zero pivot, row %D",2);
+  if (a[12] == (PetscReal)0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_MAT_LU_ZRPVT,"Zero pivot, row %D",2);
 
   /*
        Now form the inverse
@@ -95,7 +95,7 @@ PETSC_EXTERN PetscErrorCode PetscKernel_A_gets_inverse_A_3(MatScalar *a,PetscRea
   for (k = 1; k <= 3; ++k) {
     k3    = 3*k;
     k4    = k3 + k;
-    a[k4] = 1.0 / a[k4];
+    a[k4] = (PetscReal)1 / a[k4];
     stmp  = -a[k4];
     i__2  = k - 1;
     aa    = &a[k3 + 1];

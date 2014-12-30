@@ -67,11 +67,11 @@ PetscErrorCode MatFindNonzeroRows_MPIAIJ(Mat M,IS *keptrows)
     }
     aa = a->a + ia[i];
     for (j=0; j<na; j++) {
-      if (aa[j] != 0.0) goto ok1;
+      if (aa[j] != (PetscReal)0) goto ok1;
     }
     bb = b->a + ib[i];
     for (j=0; j <nb; j++) {
-      if (bb[j] != 0.0) goto ok1;
+      if (bb[j] != (PetscReal)0) goto ok1;
     }
     cnt++;
 ok1:;
@@ -86,14 +86,14 @@ ok1:;
     if (!na && !nb) continue;
     aa = a->a + ia[i];
     for (j=0; j<na;j++) {
-      if (aa[j] != 0.0) {
+      if (aa[j] != (PetscReal)0) {
         rows[cnt++] = rstart + i;
         goto ok2;
       }
     }
     bb = b->a + ib[i];
     for (j=0; j<nb; j++) {
-      if (bb[j] != 0.0) {
+      if (bb[j] != (PetscReal)0) {
         rows[cnt++] = rstart + i;
         goto ok2;
       }
@@ -390,7 +390,7 @@ PetscErrorCode MatCreateColmap_MPIAIJ_Private(Mat mat)
           goto a_noinsert; \
         } \
       }  \
-      if (value == 0.0 && ignorezeroentries) {low1 = 0; high1 = nrow1;goto a_noinsert;} \
+      if (value == (PetscReal)0 && ignorezeroentries) {low1 = 0; high1 = nrow1;goto a_noinsert;} \
       if (nonew == 1) {low1 = 0; high1 = nrow1; goto a_noinsert;}                \
       if (nonew == -1) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Inserting a new nonzero (%D, %D) into matrix", row, col); \
       MatSeqXAIJReallocateAIJ(A,am,1,nrow1,row,col,rmax1,aa,ai,aj,rp1,ap1,aimax,nonew,MatScalar); \
@@ -426,7 +426,7 @@ PetscErrorCode MatCreateColmap_MPIAIJ_Private(Mat mat)
         goto b_noinsert;                                  \
       }                                                   \
     }                                                     \
-    if (value == 0.0 && ignorezeroentries) {low2 = 0; high2 = nrow2; goto b_noinsert;} \
+    if (value == (PetscReal)0 && ignorezeroentries) {low2 = 0; high2 = nrow2; goto b_noinsert;} \
     if (nonew == 1) {low2 = 0; high2 = nrow2; goto b_noinsert;}                        \
     if (nonew == -1) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Inserting a new nonzero (%D, %D) into matrix", row, col); \
     MatSeqXAIJReallocateAIJ(B,bm,1,nrow2,row,col,rmax2,ba,bi,bj,rp2,ap2,bimax,nonew,MatScalar); \
@@ -523,7 +523,7 @@ PetscErrorCode MatSetValues_MPIAIJ(Mat mat,PetscInt m,const PetscInt im[],PetscI
       for (j=0; j<n; j++) {
         if (roworiented) value = v[i*n+j];
         else             value = v[i+j*m];
-        if (ignorezeroentries && value == 0.0 && (addv == ADD_VALUES)) continue;
+        if (ignorezeroentries && value == (PetscReal)0 && (addv == ADD_VALUES)) continue;
         if (in[j] >= cstart && in[j] < cend) {
           col   = in[j] - cstart;
           nonew = a->nonew;
@@ -792,9 +792,9 @@ PetscErrorCode MatZeroRows_MPIAIJ(Mat A,PetscInt N,const PetscInt rows[],PetscSc
   }
   /* Must zero l->B before l->A because the (diag) case below may put values into l->B*/
   ierr = MatZeroRows(mat->B, len, lrows, 0.0, NULL, NULL);CHKERRQ(ierr);
-  if ((diag != 0.0) && (mat->A->rmap->N == mat->A->cmap->N)) {
+  if ((diag != (PetscReal)0) && (mat->A->rmap->N == mat->A->cmap->N)) {
     ierr = MatZeroRows(mat->A, len, lrows, diag, NULL, NULL);CHKERRQ(ierr);
-  } else if (diag != 0.0) {
+  } else if (diag != (PetscReal)0) {
     ierr = MatZeroRows(mat->A, len, lrows, 0.0, NULL, NULL);CHKERRQ(ierr);
     if (((Mat_SeqAIJ *) mat->A->data)->nonew) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_SUP, "MatZeroRows() on rectangular matrices cannot be used with the Mat options\nMAT_NEW_NONZERO_LOCATIONS,MAT_NEW_NONZERO_LOCATION_ERR,MAT_NEW_NONZERO_ALLOCATION_ERR");
     for (r = 0; r < len; ++r) {
@@ -5775,7 +5775,7 @@ PETSC_EXTERN void PETSC_STDCALL matsetvaluesmpiaij_(Mat *mmat,PetscInt *mm,const
         for (j=0; j<n; j++) {
           if (roworiented) value = v[i*n+j];
           else value = v[i+j*m];
-          if (ignorezeroentries && value == 0.0 && (addv == ADD_VALUES)) continue;
+          if (ignorezeroentries && value == (PetscReal)0 && (addv == ADD_VALUES)) continue;
           if (in[j] >= cstart && in[j] < cend) {
             col = in[j] - cstart;
             MatSetValues_SeqAIJ_A_Private(row,col,value,addv);

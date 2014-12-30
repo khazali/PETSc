@@ -756,7 +756,7 @@ PetscErrorCode TSRosWRegister(TSRosWType name,PetscInt order,PetscInt s,const Pe
   }
 
   switch (s) {
-  case 1: GammaInv[0] = 1./GammaInv[0]; break;
+  case 1: GammaInv[0] = (PetscReal)1/GammaInv[0]; break;
   case 2: ierr = PetscKernel_A_gets_inverse_A_2(GammaInv,0);CHKERRQ(ierr); break;
   case 3: ierr = PetscKernel_A_gets_inverse_A_3(GammaInv,0);CHKERRQ(ierr); break;
   case 4: ierr = PetscKernel_A_gets_inverse_A_4(GammaInv,0);CHKERRQ(ierr); break;

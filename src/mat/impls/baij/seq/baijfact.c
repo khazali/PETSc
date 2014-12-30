@@ -630,7 +630,7 @@ PetscErrorCode MatLUFactorNumeric_SeqBAIJ_1_inplace(Mat C,Mat A,const MatFactorI
     row = *ajtmp++;
     while (row < i) {
       pc = rtmp + row;
-      if (*pc != 0.0) {
+      if (*pc != (PetscReal)0) {
         pv         = ba + diag_offset[row];
         pj         = bj + diag_offset[row] + 1;
         multiplier = *pc * *pv++;
@@ -648,8 +648,8 @@ PetscErrorCode MatLUFactorNumeric_SeqBAIJ_1_inplace(Mat C,Mat A,const MatFactorI
     for (j=0; j<nz; j++) pv[j] = rtmp[pj[j]];
     diag = diag_offset[i] - bi[i];
     /* check pivot entry for current row */
-    if (pv[diag] == 0.0) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_MAT_LU_ZRPVT,"Zero pivot: row in original ordering %D in permuted ordering %D",r[i],i);
-    pv[diag] = 1.0/pv[diag];
+    if (pv[diag] == (PetscReal)0) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_MAT_LU_ZRPVT,"Zero pivot: row in original ordering %D in permuted ordering %D",r[i],i);
+    pv[diag] = (PetscReal)1/pv[diag];
   }
 
   ierr = PetscFree(rtmp);CHKERRQ(ierr);
@@ -828,7 +828,7 @@ PetscErrorCode MatCholeskyFactorNumeric_SeqBAIJ_N(Mat C,Mat A,const MatFactorInf
       dk = sctx.pv;
 
       /* copy data into U(k,:) */
-      ba[bi[k]] = 1.0/dk; /* U(k,k) */
+      ba[bi[k]] = (PetscReal)1/dk; /* U(k,k) */
       jmin      = bi[k]+1; jmax = bi[k+1];
       if (jmin < jmax) {
         for (j=jmin; j<jmax; j++) {
@@ -948,7 +948,7 @@ PetscErrorCode MatCholeskyFactorNumeric_SeqBAIJ_N_NaturalOrdering(Mat C,Mat A,co
       dk = sctx.pv;
 
       /* copy data into U(k,:) */
-      ba[bi[k]] = 1.0/dk;
+      ba[bi[k]] = (PetscReal)1/dk;
       jmin      = bi[k]+1;
       nz        = bi[k+1] - jmin;
       if (nz) {

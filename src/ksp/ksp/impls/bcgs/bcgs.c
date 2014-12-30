@@ -87,7 +87,7 @@ PetscErrorCode KSPSolve_BCGS(KSP ksp)
     ierr = VecAXPBYPCZ(P,1.0,-omegaold*beta,beta,R,V);CHKERRQ(ierr);  /* p <- r - omega * beta* v + beta * p */
     ierr = KSP_PCApplyBAorAB(ksp,P,V,T);CHKERRQ(ierr);  /*   v <- K p           */
     ierr = VecDot(V,RP,&d1);CHKERRQ(ierr);
-    if (d1 == 0.0) {
+    if (d1 == (PetscReal)0) {
       if (ksp->errorifnotconverged) SETERRQ(PetscObjectComm((PetscObject)ksp),PETSC_ERR_NOT_CONVERGED,"KSPSolve has not converged due to Nan or Inf inner product");
       else {
         ksp->reason = KSP_DIVERGED_NANORINF;
@@ -102,7 +102,7 @@ PetscErrorCode KSPSolve_BCGS(KSP ksp)
       /* t is 0.  if s is 0, then alpha v == r, and hence alpha p
          may be our solution.  Give it a try? */
       ierr = VecDot(S,S,&d1);CHKERRQ(ierr);
-      if (d1 != 0.0) {
+      if (d1 != (PetscReal)0) {
         ksp->reason = KSP_DIVERGED_BREAKDOWN;
         break;
       }
@@ -134,7 +134,7 @@ PetscErrorCode KSPSolve_BCGS(KSP ksp)
     ierr = KSPMonitor(ksp,i+1,dp);CHKERRQ(ierr);
     ierr = (*ksp->converged)(ksp,i+1,dp,&ksp->reason,ksp->cnvP);CHKERRQ(ierr);
     if (ksp->reason) break;
-    if (rho == 0.0) {
+    if (rho == (PetscReal)0) {
       ksp->reason = KSP_DIVERGED_BREAKDOWN;
       break;
     }

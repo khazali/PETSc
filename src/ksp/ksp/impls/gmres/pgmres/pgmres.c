@@ -101,7 +101,7 @@ static PetscErrorCode KSPPGMRESCycle(PetscInt *itcount,KSP ksp)
 
     if (it > 1) {
       /* normalize the base vector from two iterations ago, basis is complete up to here */
-      ierr = VecScale(VEC_VV(it-1),1./ *HH(it-1,it-2));CHKERRQ(ierr);
+      ierr = VecScale(VEC_VV(it-1),(PetscReal)1/ *HH(it-1,it-2));CHKERRQ(ierr);
 
       ierr       = KSPPGMRESUpdateHessenberg(ksp,it-2,&hapend,&res);CHKERRQ(ierr);
       pgmres->it = it-2;
@@ -126,9 +126,9 @@ static PetscErrorCode KSPPGMRESCycle(PetscInt *itcount,KSP ksp)
       if (!(it < pgmres->max_k+1 && ksp->its < ksp->max_it)) break;
 
       /* The it-2 column of H was not scaled when we computed Zcur, apply correction */
-      ierr = VecScale(Zcur,1./ *HH(it-1,it-2));CHKERRQ(ierr);
+      ierr = VecScale(Zcur,(PetscReal)1/ *HH(it-1,it-2));CHKERRQ(ierr);
       /* And Znext computed in this iteration was computed using the under-scaled Zcur */
-      ierr = VecScale(Znext,1./ *HH(it-1,it-2));CHKERRQ(ierr);
+      ierr = VecScale(Znext,(PetscReal)1/ *HH(it-1,it-2));CHKERRQ(ierr);
 
       /* In the previous iteration, we projected an unnormalized Zcur against the Krylov basis, so we need to fix the column of H resulting from that projection. */
       for (k=0; k<it; k++) *HH(k,it-1) /= *HH(it-1,it-2);
@@ -279,7 +279,7 @@ static PetscErrorCode KSPPGMRESBuildSoln(PetscScalar *nrs,Vec vguess,Vec vdest,K
 
   /* solve the upper triangular system - RS is the right side and HH is
      the upper triangular matrix  - put soln in nrs */
-  if (*HH(it,it) != 0.0) nrs[it] = *RS(it) / *HH(it,it);
+  if (*HH(it,it) != (PetscReal)0) nrs[it] = *RS(it) / *HH(it,it);
   else nrs[it] = 0.0;
 
   for (k=it-1; k>=0; k--) {

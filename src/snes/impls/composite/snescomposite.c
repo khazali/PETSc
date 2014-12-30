@@ -273,7 +273,7 @@ static PetscErrorCode SNESCompositeApply_AdditiveOptimal(SNES snes,Vec X,Vec B,V
     tot += jac->beta[i];
     total += PetscAbsScalar(jac->beta[i]);
   }
-  ierr = VecScale(X,(1. - tot));CHKERRQ(ierr);
+  ierr = VecScale(X,((PetscReal)1 - tot));CHKERRQ(ierr);
   ierr = VecMAXPY(X,jac->n,jac->beta,Xes);CHKERRQ(ierr);
   ierr = SNESComputeFunction(snes,X,F);CHKERRQ(ierr);
   ierr = VecNorm(F,NORM_2,fnorm);CHKERRQ(ierr);

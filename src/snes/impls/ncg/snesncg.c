@@ -189,7 +189,7 @@ PetscErrorCode SNESNCGComputeYtJtF_Private(SNES snes, Vec X, Vec F, Vec Y, Vec W
   PetscFunctionBegin;
   ierr   = VecDot(F, F, &ftf);CHKERRQ(ierr);
   ierr   = VecDot(F, Y, &fty);CHKERRQ(ierr);
-  h      = 1e-5*fty / fty;
+  h      = (PetscReal)1e-5*fty / fty;
   ierr   = VecCopy(X, W);CHKERRQ(ierr);
   ierr   = VecAXPY(W, -h, Y);CHKERRQ(ierr);          /* this is arbitrary */
   ierr   = SNESComputeFunction(snes, W, G);CHKERRQ(ierr);

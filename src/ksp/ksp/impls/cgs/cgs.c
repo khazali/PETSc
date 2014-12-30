@@ -76,7 +76,7 @@ static PetscErrorCode  KSPSolve_CGS(KSP ksp)
     ierr = VecGetArray(RP, &tmp_RP);CHKERRQ(ierr);
     ierr = VecGetLocalSize(RP, &numnp);CHKERRQ(ierr);
     for (i=0; i<numnp; i++) {
-      if (tmp_RP[i] == 0.0) tmp_RP[i] = vr0max;
+      if (tmp_RP[i] == (PetscReal)0) tmp_RP[i] = vr0max;
     }
     ierr = VecRestoreArray(RP, &tmp_RP);CHKERRQ(ierr);
   }

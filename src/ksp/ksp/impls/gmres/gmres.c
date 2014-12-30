@@ -327,7 +327,7 @@ static PetscErrorCode KSPGMRESBuildSoln(PetscScalar *nrs,Vec vs,Vec vdest,KSP ks
     ierr = VecCopy(vs,vdest);CHKERRQ(ierr); /* VecCopy() is smart, exists immediately if vguess == vdest */
     PetscFunctionReturn(0);
   }
-  if (*HH(it,it) != 0.0) {
+  if (*HH(it,it) != (PetscReal)0) {
     nrs[it] = *GRS(it) / *HH(it,it);
   } else {
     ksp->reason = KSP_DIVERGED_BREAKDOWN;
@@ -339,7 +339,7 @@ static PetscErrorCode KSPGMRESBuildSoln(PetscScalar *nrs,Vec vs,Vec vdest,KSP ks
     k  = it - ii;
     tt = *GRS(k);
     for (j=k+1; j<=it; j++) tt = tt - *HH(k,j) * nrs[j];
-    if (*HH(k,k) == 0.0) {
+    if (*HH(k,k) == (PetscReal)0) {
       ksp->reason = KSP_DIVERGED_BREAKDOWN;
 
       ierr = PetscInfo1(ksp,"Likely your matrix or preconditioner is singular. HH(k,k) is identically zero; k = %D",k);CHKERRQ(ierr);
@@ -393,7 +393,7 @@ static PetscErrorCode KSPGMRESUpdateHessenberg(KSP ksp,PetscInt it,PetscBool hap
   */
   if (!hapend) {
     tt = PetscSqrtScalar(PetscConj(*hh) * *hh + PetscConj(*(hh+1)) * *(hh+1));
-    if (tt == 0.0) {
+    if (tt == (PetscReal)0) {
       ksp->reason = KSP_DIVERGED_NULL;
       PetscFunctionReturn(0);
     }

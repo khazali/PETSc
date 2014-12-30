@@ -1282,7 +1282,7 @@ PetscErrorCode MatCholeskyFactorNumeric_SeqSBAIJ_1_inplace(Mat C,Mat A,const Mat
       dk = sctx.pv;
 
       /* copy data into U(k,:) */
-      ba[bi[k]] = 1.0/dk; /* U(k,k) */
+      ba[bi[k]] = (PetscReal)1/dk; /* U(k,k) */
       jmin      = bi[k]+1; jmax = bi[k+1];
       if (jmin < jmax) {
         for (j=jmin; j<jmax; j++) {
@@ -1436,7 +1436,7 @@ PetscErrorCode MatCholeskyFactorNumeric_SeqSBAIJ_1_NaturalOrdering(Mat B,Mat A,c
       if (sctx.newshift) break;
       dk = sctx.pv;
 
-      ba[bdiag[k]] = 1.0/dk; /* U(k,k) */
+      ba[bdiag[k]] = (PetscReal)1/dk; /* U(k,k) */
     }
   } while (sctx.newshift);
 
@@ -1563,7 +1563,7 @@ PetscErrorCode MatCholeskyFactorNumeric_SeqSBAIJ_1_NaturalOrdering_inplace(Mat C
       dk = sctx.pv;
 
       /* copy data into U(k,:) */
-      ba[bi[k]] = 1.0/dk;
+      ba[bi[k]] = (PetscReal)1/dk;
       jmin      = bi[k]+1;
       nz        = bi[k+1] - jmin;
       if (nz) {
