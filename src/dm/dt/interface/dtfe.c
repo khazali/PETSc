@@ -4926,7 +4926,7 @@ PetscErrorCode PetscFEIntegrateResidual_OpenCL(PetscFE fem, PetscDS prob, PetscI
       float   *elem;
       PetscInt c, b;
 
-      ierr = PetscFree4(f_coeff,f_coeffAux,f_invJ,f_detJ);CHKERRQ(ierr);
+      ierr = PetscFree6(f_basis,f_basisderivatives,f_coeff,f_coeffAux,f_invJ,f_detJ);CHKERRQ(ierr);
       ierr = PetscMalloc1(Ne*N_bt, &elem);CHKERRQ(ierr);
       ierr = clEnqueueReadBuffer(ocl->queue_id, o_elemVec, CL_TRUE, 0, Ne*N_bt * realSize, elem, 0, NULL, NULL);CHKERRQ(ierr);
       for (c = 0; c < Ne; ++c) {
@@ -4942,7 +4942,7 @@ PetscErrorCode PetscFEIntegrateResidual_OpenCL(PetscFE fem, PetscDS prob, PetscI
       double  *elem;
       PetscInt c, b;
 
-      ierr = PetscFree4(d_coeff,d_coeffAux,d_invJ,d_detJ);CHKERRQ(ierr);
+      ierr = PetscFree6(d_basis,d_basisderivatives,d_coeff,d_coeffAux,d_invJ,d_detJ);CHKERRQ(ierr);
       ierr = PetscMalloc1(Ne*N_bt, &elem);CHKERRQ(ierr);
       ierr = clEnqueueReadBuffer(ocl->queue_id, o_elemVec, CL_TRUE, 0, Ne*N_bt * realSize, elem, 0, NULL, NULL);CHKERRQ(ierr);
       for (c = 0; c < Ne; ++c) {
