@@ -5022,12 +5022,14 @@ M*/
 PETSC_EXTERN PetscErrorCode PetscFECreate_OpenCL(PetscFE fem)
 {
   PetscFE_OpenCL *ocl;
+  PetscBool       flg;
   cl_uint         num_platforms;
   cl_platform_id  platform_ids[42];
   cl_uint         num_devices;
   cl_device_id    device_ids[42];
   cl_int          ierr2;
   PetscErrorCode  ierr;
+  char            real_string[42];
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(fem, PETSCFE_CLASSID, 1);
@@ -5046,7 +5048,15 @@ PETSC_EXTERN PetscErrorCode PetscFECreate_OpenCL(PetscFE fem)
   ocl->ctx_id   = clCreateContext(0, 1, &(ocl->dev_id), NULL, NULL, &ierr2);CHKERRQ(ierr2);
   ocl->queue_id = clCreateCommandQueue(ocl->ctx_id, ocl->dev_id, CL_QUEUE_PROFILING_ENABLE, &ierr2);CHKERRQ(ierr2);
   /* Types */
-  ocl->realType = PETSC_FLOAT;
+  ierr = PetscObjectOptionsBegin((PetscObject)fem);CHKERRQ(ierr);
+  ierr = PetscOptionsString("-petscfe_opencl_real_type", "Real type to use for the OpenCL device ('float' or 'double')", NULL, "float", real_string, 42, &flg);CHKERRQ(ierr);
+  ierr = PetscOptionsEnd();CHKERRQ(ierr);
+  if (flg) {
+    ierr = PetscStrcasecmp("double", real_string, &flg);CHKERRQ(ierr);
+    ocl->realType = flg ? PETSC_DOUBLE : PETSC_FLOAT;
+  } else {
+    ocl->realType = PETSC_FLOAT;
+  }
   /* Register events */
   ierr = PetscLogEventRegister("OpenCL FEResidual", PETSCFE_CLASSID, &ocl->residualEvent);CHKERRQ(ierr);
   /* Equation handling */
