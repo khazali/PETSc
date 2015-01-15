@@ -211,6 +211,14 @@ PetscErrorCode SNESLineSearchComputeMerit(SNESLineSearch linesearch, Vec X, Pets
 
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "SNESLineSearchGetMeritValue"
+PetscErrorCode SNESLineSearchGetMeritValue(SNESLineSearch linesearch, PetscReal *merit_value)
+{
+  PetscFunctionBegin;
+  *merit_value = linesearch->merit_value;
+  PetscFunctionReturn(0);
+}
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESLineSearchSetFunction"
