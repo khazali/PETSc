@@ -239,6 +239,9 @@ ex65dm: ex65dm.o  chkopts
 ex633d_db: ex633D_DB.o  chkopts
 	-${CLINKER} -o ex633d_db ex633D_DB.o ${PETSC_SNES_LIB}
 	${RM} ex633d_db.o
+ex69: ex69.o  chkopts
+	-${CLINKER} -o ex69 ex69.o ${PETSC_SNES_LIB}
+	${RM} ex69.o
 ex70: ex70.o  chkopts
 	-${CLINKER} -o ex70 ex70.o ${PETSC_SNES_LIB}
 	${RM} ex70.o
@@ -1118,7 +1121,8 @@ TESTEXAMPLES_C		       = ex1.PETSc runex1 runex1_2 ex1.rm ex2.PETSc runex2  rune
                                  ex42.PETSc runex42 ex42.rm \
                                  ex46.PETSc runex46 runex46_ew_1 runex46_ew_2 runex46_ew_3 ex46.rm \
                                  ex48.PETSc runex48 runex48_2 runex48_3 runex48_4 runex48_5 ex48.rm ex54.PETSc ex54.rm ex55.PETSc ex55.rm\
-                                 ex58.PETSc runex58 runex58_2 ex58.rm ex70.PETSc ex70.rm
+                                 ex58.PETSc runex58 runex58_2 ex58.rm ex70.PETSc ex70.rm\
+                                 ex69.PETSc runex69 ex69.rm
 TESTEXAMPLES_C_X	       = ex1.PETSc runex1_X ex1.rm ex19.PETSc runex19_draw ex19.rm
 TESTEXAMPLES_F90_DATATYPES     = ex5f90t.PETSc runex5f90t ex5f90t.rm
 TESTEXAMPLES_FORTRAN	       = ex1f.PETSc runex1f ex1f.rm ex40f90.PETSc runex40f90 ex40f90.rm
