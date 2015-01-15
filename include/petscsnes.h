@@ -576,6 +576,7 @@ PETSC_EXTERN PetscErrorCode SNESLineSearchPreCheckPicard(SNESLineSearch,Vec,Vec,
 PETSC_EXTERN PetscErrorCode SNESLineSearchDefaultMerit(SNES,Vec,PetscReal*);
 PETSC_EXTERN PetscErrorCode SNESLineSearchSetMerit(SNESLineSearch,PetscErrorCode (*)(SNES,Vec,PetscReal*));
 PETSC_EXTERN PetscErrorCode SNESLineSearchComputeMerit(SNESLineSearch,Vec,PetscReal*);
+PETSC_EXTERN PetscErrorCode SNESLineSearchGetMeritValue(SNESLineSearch,PetscReal*);
 PETSC_EXTERN PetscErrorCode SNESLineSearchGetLambda(SNESLineSearch,PetscReal*);
 PETSC_EXTERN PetscErrorCode SNESLineSearchSetLambda(SNESLineSearch,PetscReal);
 
