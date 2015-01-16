@@ -1,5 +1,7 @@
 
 #include <petsc-private/matimpl.h>               /*I "petscmat.h" I*/
+#include <../src/mat/impls/aij/seq/aij.h>
+#include <../src/mat/impls/aij/mpi/mpiaij.h>
 
 /* Logging support */
 PetscClassId MAT_COARSEN_CLASSID;
@@ -72,6 +74,353 @@ PetscErrorCode  MatCoarsenGetType(MatCoarsen coarsen,MatCoarsenType *type)
   PetscFunctionReturn(0);
 }
 
+typedef PetscInt NState;
+static const NState NOT_DONE=-2;
+static const NState DELETED =-1;
+static const NState REMOVED =-3;
+#define IS_SELECTED(s) (s!=DELETED && s!=NOT_DONE && s!=REMOVED)
+
+/* -------------------------------------------------------------------------- */
+/*
+   smoothAggs - greedy grab of with G1 (unsquared graph) -- AIJ specific
+     - AGG-MG specific: clears singletons out of 'selected_2'
+
+   Input Parameter:
+   . Gmat_2 - glabal matrix of graph (data not defined)
+   . Gmat_1 - base graph to grab with
+   Input/Output Parameter:
+   . aggs_2 - linked list of aggs with gids)
+*/
+#undef __FUNCT__
+#define __FUNCT__ "smoothAggs"
+static PetscErrorCode smoothAggs(const Mat Gmat_2, /* base (squared) graph */
+                                 const Mat Gmat_1,  /* base graph */
+                                 /* const IS selected_2, [nselected local] selected vertices */
+                                 PetscCoarsenData *aggs_2)  /* [nselected local] global ID of aggregate */
+{
+  PetscErrorCode ierr;
+  PetscBool      isMPI;
+  Mat_SeqAIJ     *matA_1, *matB_1=0, *matA_2, *matB_2=0;
+  MPI_Comm       comm;
+  PetscMPIInt    rank,size;
+  PetscInt       lid,*ii,*idx,ix,Iend,my0,kk,n,j;
+  Mat_MPIAIJ     *mpimat_2 = 0, *mpimat_1=0;
+  const PetscInt nloc      = Gmat_2->rmap->n;
+  PetscScalar    *cpcol_1_state,*cpcol_2_state,*cpcol_2_par_orig,*lid_parent_gid;
+  PetscInt       *lid_cprowID_1;
+  NState         *lid_state;
+  Vec            ghost_par_orig2;
+
+  PetscFunctionBegin;
+  ierr = PetscObjectGetComm((PetscObject)Gmat_2,&comm);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &size);CHKERRQ(ierr);
+  ierr = MatGetOwnershipRange(Gmat_1,&my0,&Iend);CHKERRQ(ierr);
+
+  if (PETSC_FALSE) {
+    PetscViewer viewer; char fname[32]; static int llev=0;
+    sprintf(fname,"Gmat2_%d.m",llev++);
+    PetscViewerASCIIOpen(comm,fname,&viewer);
+    ierr = PetscViewerSetFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+    ierr = MatView(Gmat_2, viewer);CHKERRQ(ierr);
+    ierr = PetscViewerDestroy(&viewer);
+  }
+
+  /* get submatrices */
+  ierr = PetscObjectTypeCompare((PetscObject)Gmat_1, MATMPIAIJ, &isMPI);CHKERRQ(ierr);
+  if (isMPI) {
+    /* grab matrix objects */
+    mpimat_2 = (Mat_MPIAIJ*)Gmat_2->data;
+    mpimat_1 = (Mat_MPIAIJ*)Gmat_1->data;
+    matA_1   = (Mat_SeqAIJ*)mpimat_1->A->data;
+    matB_1   = (Mat_SeqAIJ*)mpimat_1->B->data;
+    matA_2   = (Mat_SeqAIJ*)mpimat_2->A->data;
+    matB_2   = (Mat_SeqAIJ*)mpimat_2->B->data;
+
+    /* force compressed row storage for B matrix in AuxMat */
+    ierr = MatCheckCompressedRow(mpimat_1->B,matB_1->nonzerorowcnt,&matB_1->compressedrow,matB_1->i,Gmat_1->rmap->n,-1.0);CHKERRQ(ierr);
+
+    ierr = PetscMalloc1(nloc, &lid_cprowID_1);CHKERRQ(ierr);
+    for (lid = 0; lid < nloc; lid++) lid_cprowID_1[lid] = -1;
+    for (ix=0; ix<matB_1->compressedrow.nrows; ix++) {
+      PetscInt lid = matB_1->compressedrow.rindex[ix];
+      lid_cprowID_1[lid] = ix;
+    }
+  } else {
+    matA_1        = (Mat_SeqAIJ*)Gmat_1->data;
+    matA_2        = (Mat_SeqAIJ*)Gmat_2->data;
+    lid_cprowID_1 = NULL;
+  }
+  if (nloc>0) {
+    if (!(matA_1 && !matA_1->compressedrow.use)) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"!(matA_1 && !matA_1->compressedrow.use)");
+    if (!(matB_1==0 || matB_1->compressedrow.use)) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"!(matB_1==0 || matB_1->compressedrow.use)");
+    if (!(matA_2 && !matA_2->compressedrow.use)) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"!(matA_2 && !matA_2->compressedrow.use)");
+    if (!(matB_2==0 || matB_2->compressedrow.use)) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"!(matB_2==0 || matB_2->compressedrow.use)");
+  }
+  /* get state of locals and selected gid for deleted */
+  ierr = PetscMalloc1(nloc, &lid_state);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nloc, &lid_parent_gid);CHKERRQ(ierr);
+  for (lid = 0; lid < nloc; lid++) {
+    lid_parent_gid[lid] = -1.0;
+    lid_state[lid]      = DELETED;
+  }
+
+  /* set lid_state */
+  for (lid = 0; lid < nloc; lid++) {
+    PetscCDPos pos;
+    ierr = PetscCDGetHeadPos(aggs_2,lid,&pos);CHKERRQ(ierr);
+    if (pos) {
+      PetscInt gid1;
+
+      ierr = PetscLLNGetID(pos, &gid1);CHKERRQ(ierr);
+      if (gid1 != lid+my0) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_PLIB,"gid1 %D != lid %D + my0 %D",gid1,lid,my0);
+      lid_state[lid] = gid1;
+    }
+  }
+
+  /* map local to selected local, DELETED means a ghost owns it */
+  for (lid=kk=0; lid<nloc; lid++) {
+    NState state = lid_state[lid];
+    if (IS_SELECTED(state)) {
+      PetscCDPos pos;
+      ierr = PetscCDGetHeadPos(aggs_2,lid,&pos);CHKERRQ(ierr);
+      while (pos) {
+        PetscInt gid1;
+        ierr = PetscLLNGetID(pos, &gid1);CHKERRQ(ierr);
+        ierr = PetscCDGetNextPos(aggs_2,lid,&pos);CHKERRQ(ierr);
+
+        if (gid1 >= my0 && gid1 < Iend) lid_parent_gid[gid1-my0] = (PetscScalar)(lid + my0);
+      }
+    }
+  }
+  /* get 'cpcol_1/2_state' & cpcol_2_par_orig - uses mpimat_1/2->lvec for temp space */
+  if (isMPI) {
+    Vec tempVec;
+    /* get 'cpcol_1_state' */
+    ierr = MatCreateVecs(Gmat_1, &tempVec, 0);CHKERRQ(ierr);
+    for (kk=0,j=my0; kk<nloc; kk++,j++) {
+      PetscScalar v = (PetscScalar)lid_state[kk];
+      ierr = VecSetValues(tempVec, 1, &j, &v, INSERT_VALUES);CHKERRQ(ierr);
+    }
+    ierr = VecAssemblyBegin(tempVec);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(tempVec);CHKERRQ(ierr);
+    ierr = VecScatterBegin(mpimat_1->Mvctx,tempVec, mpimat_1->lvec,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr =   VecScatterEnd(mpimat_1->Mvctx,tempVec, mpimat_1->lvec,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr = VecGetArray(mpimat_1->lvec, &cpcol_1_state);CHKERRQ(ierr);
+    /* get 'cpcol_2_state' */
+    ierr = VecScatterBegin(mpimat_2->Mvctx,tempVec, mpimat_2->lvec,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr =   VecScatterEnd(mpimat_2->Mvctx,tempVec, mpimat_2->lvec,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr = VecGetArray(mpimat_2->lvec, &cpcol_2_state);CHKERRQ(ierr);
+    /* get 'cpcol_2_par_orig' */
+    for (kk=0,j=my0; kk<nloc; kk++,j++) {
+      PetscScalar v = (PetscScalar)lid_parent_gid[kk];
+      ierr = VecSetValues(tempVec, 1, &j, &v, INSERT_VALUES);CHKERRQ(ierr);
+    }
+    ierr = VecAssemblyBegin(tempVec);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(tempVec);CHKERRQ(ierr);
+    ierr = VecDuplicate(mpimat_2->lvec, &ghost_par_orig2);CHKERRQ(ierr);
+    ierr = VecScatterBegin(mpimat_2->Mvctx,tempVec, ghost_par_orig2,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr =   VecScatterEnd(mpimat_2->Mvctx,tempVec, ghost_par_orig2,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr = VecGetArray(ghost_par_orig2, &cpcol_2_par_orig);CHKERRQ(ierr);
+
+    ierr = VecDestroy(&tempVec);CHKERRQ(ierr);
+  } /* ismpi */
+
+  /* doit */
+  for (lid=0; lid<nloc; lid++) {
+    NState state = lid_state[lid];
+    if (IS_SELECTED(state)) {
+      /* steal locals */
+      ii  = matA_1->i; n = ii[lid+1] - ii[lid];
+      idx = matA_1->j + ii[lid];
+      for (j=0; j<n; j++) {
+        PetscInt lidj   = idx[j], sgid;
+        NState   statej = lid_state[lidj];
+        if (statej==DELETED && (sgid=(PetscInt)PetscRealPart(lid_parent_gid[lidj])) != lid+my0) { /* steal local */
+          lid_parent_gid[lidj] = (PetscScalar)(lid+my0); /* send this if sgid is not local */
+          if (sgid >= my0 && sgid < Iend) {       /* I'm stealing this local from a local sgid */
+            PetscInt   hav=0,slid=sgid-my0,gidj=lidj+my0;
+            PetscCDPos pos,last=NULL;
+            /* looking for local from local so id_llist_2 works */
+            ierr = PetscCDGetHeadPos(aggs_2,slid,&pos);CHKERRQ(ierr);
+            while (pos) {
+              PetscInt gid;
+              ierr = PetscLLNGetID(pos, &gid);CHKERRQ(ierr);
+              if (gid == gidj) {
+                if (!last) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"last cannot be null");
+                ierr = PetscCDRemoveNextNode(aggs_2, slid, last);CHKERRQ(ierr);
+                ierr = PetscCDAppendNode(aggs_2, lid, pos);CHKERRQ(ierr);
+                hav  = 1;
+                break;
+              } else last = pos;
+
+              ierr = PetscCDGetNextPos(aggs_2,slid,&pos);CHKERRQ(ierr);
+            }
+            if (hav!=1) {
+              if (!hav) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"failed to find adj in 'selected' lists - structurally unsymmetric matrix");
+              SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"found node %d times???",hav);
+            }
+          } else {            /* I'm stealing this local, owned by a ghost */
+            if (sgid != -1) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Have un-symmetric graph (apparently). Use '-pc_gamg_sym_graph true' to symetrize the graph or '-pc_gamg_threshold 0.0' if the matrix is structurally symmetric.");
+            ierr = PetscCDAppendID(aggs_2, lid, lidj+my0);CHKERRQ(ierr);
+          }
+        }
+      } /* local neighbors */
+    } else if (state == DELETED && lid_cprowID_1) {
+      PetscInt sgidold = (PetscInt)PetscRealPart(lid_parent_gid[lid]);
+      /* see if I have a selected ghost neighbor that will steal me */
+      if ((ix=lid_cprowID_1[lid]) != -1) {
+        ii  = matB_1->compressedrow.i; n = ii[ix+1] - ii[ix];
+        idx = matB_1->j + ii[ix];
+        for (j=0; j<n; j++) {
+          PetscInt cpid   = idx[j];
+          NState   statej = (NState)PetscRealPart(cpcol_1_state[cpid]);
+          if (IS_SELECTED(statej) && sgidold != (PetscInt)statej) { /* ghost will steal this, remove from my list */
+            lid_parent_gid[lid] = (PetscScalar)statej; /* send who selected */
+            if (sgidold>=my0 && sgidold<Iend) { /* this was mine */
+              PetscInt   hav=0,oldslidj=sgidold-my0;
+              PetscCDPos pos,last=NULL;
+              /* remove from 'oldslidj' list */
+              ierr = PetscCDGetHeadPos(aggs_2,oldslidj,&pos);CHKERRQ(ierr);
+              while (pos) {
+                PetscInt gid;
+                ierr = PetscLLNGetID(pos, &gid);CHKERRQ(ierr);
+                if (lid+my0 == gid) {
+                  /* id_llist_2[lastid] = id_llist_2[flid];   /\* remove lid from oldslidj list *\/ */
+                  if (!last) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"last cannot be null");
+                  ierr = PetscCDRemoveNextNode(aggs_2, oldslidj, last);CHKERRQ(ierr);
+                  /* ghost (PetscScalar)statej will add this later */
+                  hav = 1;
+                  break;
+                } else last = pos;
+
+                ierr = PetscCDGetNextPos(aggs_2,oldslidj,&pos);CHKERRQ(ierr);
+              }
+              if (hav!=1) {
+                if (hav==0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"failed to find adj in 'selected' lists - structurally unsymmetric matrix");
+                SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"found node %d times???",hav);
+              }
+            } else {
+              /* ghosts remove this later */
+            }
+          }
+        }
+      }
+    } /* selected/deleted */
+  } /* node loop */
+
+  if (isMPI) {
+    PetscScalar   *cpcol_2_parent,*cpcol_2_gid;
+    Vec           tempVec,ghostgids2,ghostparents2;
+    PetscInt      cpid,nghost_2;
+    GAMGHashTable gid_cpid;
+
+    ierr = VecGetSize(mpimat_2->lvec, &nghost_2);CHKERRQ(ierr);
+    ierr = MatCreateVecs(Gmat_2, &tempVec, 0);CHKERRQ(ierr);
+
+    /* get 'cpcol_2_parent' */
+    for (kk=0,j=my0; kk<nloc; kk++,j++) {
+      ierr = VecSetValues(tempVec, 1, &j, &lid_parent_gid[kk], INSERT_VALUES);CHKERRQ(ierr);
+    }
+    ierr = VecAssemblyBegin(tempVec);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(tempVec);CHKERRQ(ierr);
+    ierr = VecDuplicate(mpimat_2->lvec, &ghostparents2);CHKERRQ(ierr);
+    ierr = VecScatterBegin(mpimat_2->Mvctx,tempVec, ghostparents2,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr = VecScatterEnd(mpimat_2->Mvctx,tempVec, ghostparents2,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr = VecGetArray(ghostparents2, &cpcol_2_parent);CHKERRQ(ierr);
+
+    /* get 'cpcol_2_gid' */
+    for (kk=0,j=my0; kk<nloc; kk++,j++) {
+      PetscScalar v = (PetscScalar)j;
+      ierr = VecSetValues(tempVec, 1, &j, &v, INSERT_VALUES);CHKERRQ(ierr);
+    }
+    ierr = VecAssemblyBegin(tempVec);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(tempVec);CHKERRQ(ierr);
+    ierr = VecDuplicate(mpimat_2->lvec, &ghostgids2);CHKERRQ(ierr);
+    ierr = VecScatterBegin(mpimat_2->Mvctx,tempVec, ghostgids2,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr =   VecScatterEnd(mpimat_2->Mvctx,tempVec, ghostgids2,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr = VecGetArray(ghostgids2, &cpcol_2_gid);CHKERRQ(ierr);
+
+    ierr = VecDestroy(&tempVec);CHKERRQ(ierr);
+
+    /* look for deleted ghosts and add to table */
+    ierr = GAMGTableCreate(2*nghost_2+1, &gid_cpid);CHKERRQ(ierr);
+    for (cpid = 0; cpid < nghost_2; cpid++) {
+      NState state = (NState)PetscRealPart(cpcol_2_state[cpid]);
+      if (state==DELETED) {
+        PetscInt sgid_new = (PetscInt)PetscRealPart(cpcol_2_parent[cpid]);
+        PetscInt sgid_old = (PetscInt)PetscRealPart(cpcol_2_par_orig[cpid]);
+        if (sgid_old == -1 && sgid_new != -1) {
+          PetscInt gid = (PetscInt)PetscRealPart(cpcol_2_gid[cpid]);
+          ierr = GAMGTableAdd(&gid_cpid, gid, cpid);CHKERRQ(ierr);
+        }
+      }
+    }
+
+    /* look for deleted ghosts and see if they moved - remove it */
+    for (lid=0; lid<nloc; lid++) {
+      NState state = lid_state[lid];
+      if (IS_SELECTED(state)) {
+        PetscCDPos pos,last=NULL;
+        /* look for deleted ghosts and see if they moved */
+        ierr = PetscCDGetHeadPos(aggs_2,lid,&pos);CHKERRQ(ierr);
+        while (pos) {
+          PetscInt gid;
+          ierr = PetscLLNGetID(pos, &gid);CHKERRQ(ierr);
+
+          if (gid < my0 || gid >= Iend) {
+            ierr = GAMGTableFind(&gid_cpid, gid, &cpid);CHKERRQ(ierr);
+            if (cpid != -1) {
+              /* a moved ghost - */
+              /* id_llist_2[lastid] = id_llist_2[flid];    /\* remove 'flid' from list *\/ */
+              ierr = PetscCDRemoveNextNode(aggs_2, lid, last);CHKERRQ(ierr);
+            } else last = pos;
+          } else last = pos;
+
+          ierr = PetscCDGetNextPos(aggs_2,lid,&pos);CHKERRQ(ierr);
+        } /* loop over list of deleted */
+      } /* selected */
+    }
+    ierr = GAMGTableDestroy(&gid_cpid);CHKERRQ(ierr);
+
+    /* look at ghosts, see if they changed - and it */
+    for (cpid = 0; cpid < nghost_2; cpid++) {
+      PetscInt sgid_new = (PetscInt)PetscRealPart(cpcol_2_parent[cpid]);
+      if (sgid_new >= my0 && sgid_new < Iend) { /* this is mine */
+        PetscInt   gid     = (PetscInt)PetscRealPart(cpcol_2_gid[cpid]);
+        PetscInt   slid_new=sgid_new-my0,hav=0;
+        PetscCDPos pos;
+        /* search for this gid to see if I have it */
+        ierr = PetscCDGetHeadPos(aggs_2,slid_new,&pos);CHKERRQ(ierr);
+        while (pos) {
+          PetscInt gidj;
+          ierr = PetscLLNGetID(pos, &gidj);CHKERRQ(ierr);
+          ierr = PetscCDGetNextPos(aggs_2,slid_new,&pos);CHKERRQ(ierr);
+
+          if (gidj == gid) { hav = 1; break; }
+        }
+        if (hav != 1) {
+          /* insert 'flidj' into head of llist */
+          ierr = PetscCDAppendID(aggs_2, slid_new, gid);CHKERRQ(ierr);
+        }
+      }
+    }
+
+    ierr = VecRestoreArray(mpimat_1->lvec, &cpcol_1_state);CHKERRQ(ierr);
+    ierr = VecRestoreArray(mpimat_2->lvec, &cpcol_2_state);CHKERRQ(ierr);
+    ierr = VecRestoreArray(ghostparents2, &cpcol_2_parent);CHKERRQ(ierr);
+    ierr = VecRestoreArray(ghostgids2, &cpcol_2_gid);CHKERRQ(ierr);
+    ierr = PetscFree(lid_cprowID_1);CHKERRQ(ierr);
+    ierr = VecDestroy(&ghostgids2);CHKERRQ(ierr);
+    ierr = VecDestroy(&ghostparents2);CHKERRQ(ierr);
+    ierr = VecDestroy(&ghost_par_orig2);CHKERRQ(ierr);
+  }
+
+  ierr = PetscFree(lid_parent_gid);CHKERRQ(ierr);
+  ierr = PetscFree(lid_state);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 #undef __FUNCT__
 #define __FUNCT__ "MatCoarsenApply"
 /*@
@@ -115,6 +464,9 @@ PetscErrorCode  MatCoarsenApply(MatCoarsen coarser)
   if (!coarser->ops->apply) SETERRQ(PetscObjectComm((PetscObject)coarser),PETSC_ERR_ARG_WRONGSTATE,"Must set type with MatCoarsenSetFromOptions() or MatCoarsenSetType()");
   ierr = PetscLogEventBegin(MAT_Coarsen,coarser,0,0,0);CHKERRQ(ierr);
   ierr = (*coarser->ops->apply)(coarser);CHKERRQ(ierr);
+  if (coarser->smoothgraph && coarser->smoothgraph != coarser->graph) {
+    ierr = smoothAggs(coarser->graph, coarser->smoothgraph, coarser->agg_lists);CHKERRQ(ierr);
+  }
   ierr = PetscLogEventEnd(MAT_Coarsen,coarser,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -490,6 +842,32 @@ PetscErrorCode MatCoarsenSetFromOptions(MatCoarsen coarser)
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "MatCoarsenSetSmoothingAdjacency"
+/*@
+   MatCoarsenSetSmoothingAdjacency - Sets the smoothing adjacency graph (matrix) of the thing to be
+      partitioned.  Edges in the smoothing adjacency graph should be a subset of the edges in the adjacency graph.
+
+   Collective on MatCoarsen and Mat
+
+   Input Parameters:
++  agg - the coarsen context
+-  adj - the smoothing adjacency matrix
+
+   Level: intermediate
+
+.keywords: Coarsen, adjacency
+
+.seealso: MatCoarsenCreate()
+@*/
+PetscErrorCode  MatCoarsenSetSmoothingAdjacency(MatCoarsen agg, Mat adj)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(agg,MAT_COARSEN_CLASSID,1);
+  PetscValidHeaderSpecific(adj,MAT_CLASSID,2);
+  agg->smoothgraph = adj;
+  PetscFunctionReturn(0);
+}
 
 
 

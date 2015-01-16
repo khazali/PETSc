@@ -1323,6 +1323,7 @@ typedef struct _PetscCoarsenData{
 PETSC_EXTERN PetscErrorCode MatCoarsenCreate(MPI_Comm,MatCoarsen*);
 PETSC_EXTERN PetscErrorCode MatCoarsenSetType(MatCoarsen,MatCoarsenType);
 PETSC_EXTERN PetscErrorCode MatCoarsenSetAdjacency(MatCoarsen,Mat);
+PETSC_EXTERN PetscErrorCode MatCoarsenSetSmoothingAdjacency(MatCoarsen,Mat);
 PETSC_EXTERN PetscErrorCode MatCoarsenSetGreedyOrdering(MatCoarsen,const IS);
 PETSC_EXTERN PetscErrorCode MatCoarsenSetStrictAggs(MatCoarsen,PetscBool);
 PETSC_EXTERN PetscErrorCode MatCoarsenSetVerbose(MatCoarsen,PetscInt);

@@ -383,6 +383,7 @@ struct _MatCoarsenOps {
 struct _p_MatCoarsen {
   PETSCHEADER(struct _MatCoarsenOps);
   Mat         graph;
+  Mat         smoothgraph;
   PetscInt    verbose;
   PetscInt    setupcalled;
   void        *subctx;
