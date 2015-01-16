@@ -921,6 +921,10 @@ PetscErrorCode PCGAMGgraph_AGG(PC pc,const Mat Amat,Mat *a_Gmat)
 
   *a_Gmat = Gmat;
 
+  if (Amat != Gmat) {
+    ierr = PetscObjectCompose((PetscObject)(*a_Gmat),"PCGAMGgraph_AGG_Amat",(PetscObject)Amat);CHKERRQ(ierr);
+  }
+
 #if defined PETSC_USE_LOG
   ierr = PetscLogEventEnd(PC_GAMGGgraph_AGG,0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -969,6 +973,8 @@ PetscErrorCode PCGAMGCoarsen_AGG(PC a_pc,Mat *a_Gmat1,PetscCoarsenData **agg_lis
   nloc = n/bs;
 
   if (pc_gamg_agg->square_graph) {
+    PetscObject Amat_obj;
+
     if (verbose > 1) PetscPrintf(comm,"[%d]%s square graph\n",rank,__FUNCT__);
     /* ierr = MatMatTransposeMult(Gmat1, Gmat1, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &Gmat2); */
     ierr = MatTransposeMatMult(Gmat1, Gmat1, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &Gmat2);CHKERRQ(ierr);
@@ -978,6 +984,13 @@ PetscErrorCode PCGAMGCoarsen_AGG(PC a_pc,Mat *a_Gmat1,PetscCoarsenData **agg_lis
       if (verbose > 4) {
 
       }
+    }
+    ierr = PetscObjectQuery((PetscObject)Gmat1,"PCGAMGgraph_AGG_Amat",&Amat_obj);CHKERRQ(ierr);
+    if (Amat_obj) {
+      ierr = PetscObjectCompose((PetscObject)Gmat2,"PCGAMGgraph_AGG_Amat",Amat_obj);CHKERRQ(ierr);
+    }
+    else {
+      ierr = PetscObjectCompose((PetscObject)Gmat2,"PCGAMGgraph_AGG_Amat",(PetscObject)Gmat1);CHKERRQ(ierr);
     }
   } else Gmat2 = Gmat1;
 
