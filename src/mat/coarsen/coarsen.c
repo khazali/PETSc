@@ -106,6 +106,7 @@ static PetscErrorCode smoothAggs(const Mat Gmat_2, /* base (squared) graph */
   PetscInt       lid,*ii,*idx,ix,Iend,my0,kk,n,j;
   Mat_MPIAIJ     *mpimat_2 = 0, *mpimat_1=0;
   const PetscInt nloc      = Gmat_2->rmap->n;
+  const PetscInt nglob     = Gmat_2->rmap->N;
   PetscScalar    *cpcol_1_state,*cpcol_2_state,*cpcol_2_par_orig,*lid_parent_gid;
   PetscInt       *lid_cprowID_1;
   NState         *lid_state;
@@ -313,7 +314,7 @@ static PetscErrorCode smoothAggs(const Mat Gmat_2, /* base (squared) graph */
     PetscScalar   *cpcol_2_parent,*cpcol_2_gid;
     Vec           tempVec,ghostgids2,ghostparents2;
     PetscInt      cpid,nghost_2;
-    GAMGHashTable gid_cpid;
+    PetscTable    gid_cpid;
 
     ierr = VecGetSize(mpimat_2->lvec, &nghost_2);CHKERRQ(ierr);
     ierr = MatCreateVecs(Gmat_2, &tempVec, 0);CHKERRQ(ierr);
@@ -344,7 +345,7 @@ static PetscErrorCode smoothAggs(const Mat Gmat_2, /* base (squared) graph */
     ierr = VecDestroy(&tempVec);CHKERRQ(ierr);
 
     /* look for deleted ghosts and add to table */
-    ierr = GAMGTableCreate(2*nghost_2+1, &gid_cpid);CHKERRQ(ierr);
+    ierr = PetscTableCreate(nghost_2,nglob,&gid_cpid);CHKERRQ(ierr);
     for (cpid = 0; cpid < nghost_2; cpid++) {
       NState state = (NState)PetscRealPart(cpcol_2_state[cpid]);
       if (state==DELETED) {
@@ -352,7 +353,8 @@ static PetscErrorCode smoothAggs(const Mat Gmat_2, /* base (squared) graph */
         PetscInt sgid_old = (PetscInt)PetscRealPart(cpcol_2_par_orig[cpid]);
         if (sgid_old == -1 && sgid_new != -1) {
           PetscInt gid = (PetscInt)PetscRealPart(cpcol_2_gid[cpid]);
-          ierr = GAMGTableAdd(&gid_cpid, gid, cpid);CHKERRQ(ierr);
+          /* PetscTable keys are 1:N inclusive, for some reason */
+          ierr = PetscTableAdd(gid_cpid, gid + 1, cpid + 1, INSERT_VALUES);CHKERRQ(ierr);
         }
       }
     }
@@ -369,7 +371,9 @@ static PetscErrorCode smoothAggs(const Mat Gmat_2, /* base (squared) graph */
           ierr = PetscLLNGetID(pos, &gid);CHKERRQ(ierr);
 
           if (gid < my0 || gid >= Iend) {
-            ierr = GAMGTableFind(&gid_cpid, gid, &cpid);CHKERRQ(ierr);
+            /* PetscTable keys are 1:N inclusive, for some reason */
+            ierr = PetscTableFind(gid_cpid, gid + 1,&cpid);CHKERRQ(ierr);
+            cpid--;
             if (cpid != -1) {
               /* a moved ghost - */
               /* id_llist_2[lastid] = id_llist_2[flid];    /\* remove 'flid' from list *\/ */
@@ -381,7 +385,7 @@ static PetscErrorCode smoothAggs(const Mat Gmat_2, /* base (squared) graph */
         } /* loop over list of deleted */
       } /* selected */
     }
-    ierr = GAMGTableDestroy(&gid_cpid);CHKERRQ(ierr);
+    ierr = PetscTableDestroy(&gid_cpid);CHKERRQ(ierr);
 
     /* look at ghosts, see if they changed - and it */
     for (cpid = 0; cpid < nghost_2; cpid++) {
@@ -860,7 +864,7 @@ PetscErrorCode MatCoarsenSetFromOptions(MatCoarsen coarser)
 
 .seealso: MatCoarsenCreate()
 @*/
-PetscErrorCode  MatCoarsenSetSmoothingAdjacency(MatCoarsen agg, Mat adj)
+PetscErrorCode MatCoarsenSetSmoothingAdjacency(MatCoarsen agg, Mat adj)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(agg,MAT_COARSEN_CLASSID,1);
