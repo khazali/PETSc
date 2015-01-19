@@ -130,6 +130,11 @@ PetscErrorCode DMPlexCreateTriangle(MPI_Comm comm, PetscInt dim, PetscViewer vwr
       /* Correct Fortran cell numbering */
       for (i = 0; i < numCellVertices; i++) cellList[c*numCellVertices+i]--;
       if (c != cell-1) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "File is not a valid Triangle .ele file");
+      /* Adjust vertex numbering for hex meshes */
+      if (dim == 3 && numCellVertices == 8) {
+        PetscInt mask[8] = {0, 1, 2, 3, 4, 7, 6, 5};
+        ierr = PetscSortIntWithArray(8, mask, &(cellList[c*numCellVertices]));CHKERRQ(ierr);
+      }
     }
     ierr = PetscFree(attrBuffer);CHKERRQ(ierr);
 
