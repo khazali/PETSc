@@ -646,6 +646,7 @@ PetscErrorCode PCGAMGCoarsen_AGG(PC a_pc,Mat *a_Gmat1,PetscCoarsenData **agg_lis
     else {
       ierr = PetscObjectCompose((PetscObject)Gmat2,"PCGAMGgraph_AGG_Amat",(PetscObject)Gmat1);CHKERRQ(ierr);
     }
+    ierr = PetscObjectCompose((PetscObject)Gmat2,"PCGAMGCoarsen_AGG_Gmat1",(PetscObject)Gmat1);CHKERRQ(ierr);
   } else Gmat2 = Gmat1;
 
   /* get MIS aggs */
@@ -671,6 +672,7 @@ PetscErrorCode PCGAMGCoarsen_AGG(PC a_pc,Mat *a_Gmat1,PetscCoarsenData **agg_lis
   if (verbose > 1) PetscPrintf(comm,"[%d]%s coarsen graph\n",rank,__FUNCT__);
 
   ierr = ISCreateGeneral(PETSC_COMM_SELF, nloc, permute, PETSC_USE_POINTER, &perm);CHKERRQ(ierr);
+  ierr = ISSetPermutation(perm);CHKERRQ(ierr);
 #if defined PETSC_GAMG_USE_LOG
   ierr = PetscLogEventBegin(petsc_gamg_setup_events[SET4],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -679,6 +681,9 @@ PetscErrorCode PCGAMGCoarsen_AGG(PC a_pc,Mat *a_Gmat1,PetscCoarsenData **agg_lis
   ierr = MatCoarsenSetFromOptions(crs);CHKERRQ(ierr);
   ierr = MatCoarsenSetGreedyOrdering(crs, perm);CHKERRQ(ierr);
   ierr = MatCoarsenSetAdjacency(crs, Gmat2);CHKERRQ(ierr);
+  if (Gmat1 != Gmat2) {
+    ierr = MatCoarsenSetSmoothingAdjacency(crs, Gmat1);CHKERRQ(ierr);
+  }
   ierr = MatCoarsenSetVerbose(crs, pc_gamg->verbose);CHKERRQ(ierr);
   ierr = MatCoarsenSetStrictAggs(crs, PETSC_TRUE);CHKERRQ(ierr);
   ierr = MatCoarsenApply(crs);CHKERRQ(ierr);
