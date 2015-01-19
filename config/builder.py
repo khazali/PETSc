@@ -45,7 +45,9 @@ regressionParameters = {'src/dm/impls/patch/examples/tests/ex1': [{'numProcs': 1
                                                                  {'numProcs': 1, 'args': '-filename %(meshes)s/square.msh -interpolate 1 -dm_view'},
                                                                  {'numProcs': 1, 'args': '-filename %(meshes)s/square_bin.msh -interpolate 1 -dm_view'},
                                                                  {'numProcs': 3, 'args': '-filename %(meshes)s/square.msh -interpolate 1 -dm_view'},
-                                                                 {'numProcs': 3, 'args': '-filename %(meshes)s/square_bin.msh -interpolate 1 -dm_view'}],
+                                                                 {'numProcs': 3, 'args': '-filename %(meshes)s/square_bin.msh -interpolate 1 -dm_view'},
+                                                                 {'numProcs': 1, 'args': '-filename %(meshes)s/square_quad.msh -interpolate 1 -dm_view'},
+                                                                 {'numProcs': 1, 'args': '-filename %(meshes)s/cube_quad.msh -interpolate 1 -dm_view'}],
                         'src/dm/impls/plex/examples/tests/ex3': [# 0-2 2D P_1 on a triangle
                                                                  {'numProcs': 1, 'args': '-petscspace_order 1 -num_comp 2 -qorder 1 -convergence'},
                                                                  {'numProcs': 1, 'args': '-petscspace_order 1 -num_comp 2 -qorder 1 -porder 1'},
