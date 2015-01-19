@@ -213,9 +213,10 @@ PetscErrorCode DMPlexCreateGmsh(MPI_Comm comm, PetscViewer viewer, PetscBool int
 
   if (!rank) {
     /* Apply boundary IDs by finding the relevant facets with vertex joins */
-    PetscInt pcone[8], corner, vStart, vEnd;
+    PetscInt pcone[8], corner, vStart, vEnd, fStart, fEnd;
 
     ierr = DMPlexGetDepthStratum(*dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
+    ierr = DMPlexGetHeightStratum(*dm, 1, &fStart, &fEnd);CHKERRQ(ierr);
     for (c = 0; c < numCells; ++c) {
       if (gmsh_elem[c].dim == dim-1) {
         PetscInt joinSize;
@@ -225,6 +226,7 @@ PetscErrorCode DMPlexCreateGmsh(MPI_Comm comm, PetscViewer viewer, PetscBool int
         }
         ierr = DMPlexGetFullJoin(*dm, gmsh_elem[c].numNodes, (const PetscInt *) pcone, &joinSize, &join);CHKERRQ(ierr);
         if (joinSize != 1) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Could not determine Plex facet for element %d", gmsh_elem[c].id);
+        if (fStart > join[0] || join[0] >= fEnd) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Gmsh element %d is not a valid facet", gmsh_elem[c].id);
         ierr = DMPlexSetLabelValue(*dm, "Face Sets", join[0], gmsh_elem[c].tags[0]);CHKERRQ(ierr);
         ierr = DMPlexRestoreJoin(*dm, gmsh_elem[c].numNodes, (const PetscInt *) pcone, &joinSize, &join);CHKERRQ(ierr);
       }
