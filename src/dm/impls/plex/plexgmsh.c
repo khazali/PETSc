@@ -194,6 +194,11 @@ PetscErrorCode DMPlexCreateGmsh(MPI_Comm comm, PetscViewer viewer, PetscBool int
         for (corner = 0; corner < gmsh_elem[c].numNodes; ++corner) {
           pcone[corner] = gmsh_elem[c].nodes[corner] + trueNumCells-1;
         }
+        /* Adjust Gmsh vertex numbering for hex meshes */
+        if (dim == 3 && gmsh_elem[c].numNodes == 8) {
+          PetscInt mask[8] = {0, 1, 2, 3, 4, 7, 6, 5};
+          ierr = PetscSortIntWithArray(8, mask, pcone);CHKERRQ(ierr);
+        }
         ierr = DMPlexSetCone(*dm, cell, pcone);CHKERRQ(ierr);
         cell++;
       }
