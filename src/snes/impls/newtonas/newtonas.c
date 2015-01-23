@@ -294,13 +294,19 @@ static PetscErrorCode SNESNEWTONASMeritFunction(SNES snes, Vec X, PetscReal *f)
 #define __FUNCT__ "SNESNEWTONASComputeSearchDirectionSaddle_Private"
 static PetscErrorCode SNESNEWTONASComputeSearchDirectionSaddle_Private(SNES snes,Vec x,Vec l,IS active,Vec dx,Vec dl,PetscInt *lits)
 {
-  /* Observe that only a subvector of dl defined by the active set is nonzero. */
-  /* PetscErrorCode     ierr; */
-  /* SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)(snes->data); */
-  /* Vec                tildedl; */ /* \tilde \delta \lambda */
-  /* Vec                q = snes->work[3]; */  /* q = -(f - B^T*l) */
+  PetscErrorCode     ierr;
+  SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)(snes->data);
+  Mat                Bt;
+  IS                 row[3],col[3];
 
   PetscFunctionBegin;
+  if (!newtas->jacobian_aug) {
+    ierr = MatCreate(PetscObjectComm((PetscObject)snes),&newtas->jacobian_aug);CHKERRQ(ierr); /* FIXME: destroy jacobian_aug in the d'tor. */
+    ierr = MatSetType(newtas->jacobian_aug,MATNEST);CHKERRQ(ierr);
+    if (!snes->jacobian_constrt) {
+      ierr = MatTranspose(snes->jacobian_constr,MAT_INITIAL_MATRIX,&Bt);CHKERRQ(ierr); /* FIXME: reuse the MatNest block, whenever possible. */
+    }
+  }
   PetscFunctionReturn(0);
 }
 
