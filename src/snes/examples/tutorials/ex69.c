@@ -20,6 +20,8 @@ typedef struct {
 
   Mat         J,B,Bt;
   DM          dm;                       /* distributed array data structure */
+  ISLocalToGlobalMapping isltog;        /* local-to-global mapping object */
+  ISLocalToGlobalMapping bisltog;        /* local-to-global mapping object for rows in B */
 
   /* problem parameters */
   PetscReal      bheight;                  /* Height of plate under the surface */
@@ -30,15 +32,16 @@ typedef struct {
 
 
   /* Working space */
-  Vec         localX, localV;           /* ghosted local vector */
-
+  Vec         X,localX, localV;           /* ghosted local vector */
+  VecScatter  XtoC;
+  Vec         plate,lb;
 } AppCtx;
 
 /* -------- User-defined Routines --------- */
 
 static PetscErrorCode MSA_BoundaryConditions(AppCtx*);
 static PetscErrorCode MSA_InitialPoint(AppCtx*,Vec);
-static PetscErrorCode MSA_Plate(Vec,Vec,void*);
+static PetscErrorCode MSA_Plate(void*);
 PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
 PetscErrorCode FormJacobian(SNES,Vec,Mat,Mat,void*);
 PetscErrorCode FormConstraints(SNES,Vec,Vec,void*);
@@ -53,10 +56,8 @@ int main( int argc, char **argv )
   PetscInt               Nx, Ny;               /* number of processors in x- and y- directions */
   PetscInt               m, N;                 /* number of local and global elements in vectors */
   Vec                    x,x0;                 /* solution vector */
-  Vec                    c,cl,cu;              /* constraint vectors */
   PetscBool              flg;                /* A return variable when checking for user options */
   SNES                    snes;                  /* SNES solver context */
-  ISLocalToGlobalMapping isltog;   /* local-to-global mapping object */
   SNESConvergedReason     reason;
   AppCtx                 user;                 /* user-defined work context */
 
@@ -105,9 +106,7 @@ int main( int argc, char **argv )
 
   ierr = VecDuplicate(x,&x0);CHKERRQ(ierr);
   ierr = VecCopy(x,x0);CHKERRQ(ierr);
-  ierr = VecDuplicate(x,&c);CHKERRQ(ierr);
-  ierr = VecDuplicate(c,&cl);CHKERRQ(ierr);
-  ierr = VecDuplicate(c,&cu);CHKERRQ(ierr);
+  user.X = x;
 
   ierr = SNESCreate(PETSC_COMM_WORLD,&snes);CHKERRQ(ierr);
   ierr = SNESSetType(snes,SNESNEWTONAS);CHKERRQ(ierr);
@@ -122,25 +121,23 @@ int main( int argc, char **argv )
   ierr = MatCreateAIJ(MPI_COMM_WORLD,m,m,N,N,7,NULL,3,NULL,&(user.J));CHKERRQ(ierr);
   ierr = MatSetOption(user.J,MAT_SYMMETRIC,PETSC_TRUE);CHKERRQ(ierr);
 
-  ierr = MatCreateAIJ(MPI_COMM_WORLD,m,m,N,N,1,NULL,1,NULL,&(user.B));CHKERRQ(ierr);
-  ierr = MatCreateAIJ(MPI_COMM_WORLD,m,m,N,N,1,NULL,1,NULL,&(user.Bt));CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMapping(user.dm,&isltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMapping(user.J,isltog,isltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMapping(user.B,isltog,isltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMapping(user.Bt,isltog,isltog);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(user.dm,&user.isltog);CHKERRQ(ierr);
+  ierr = MatSetLocalToGlobalMapping(user.J,user.isltog,user.isltog);CHKERRQ(ierr);
 
   ierr = SNESSetJacobian(snes,user.J,user.J,FormJacobian,&user);CHKERRQ(ierr);
 
   /* Set Variable bounds */
-  ierr = MSA_Plate(cl,cu,(void*)&user);CHKERRQ(ierr);
-  ierr = SNESSetConstraintFunction(snes,c,cl,NULL,FormConstraints,&user);CHKERRQ(ierr);
+  ierr = MSA_Plate((void*)&user);CHKERRQ(ierr);
+
+
+  ierr = SNESSetConstraintFunction(snes,user.plate,user.lb,NULL,FormConstraints,&user);CHKERRQ(ierr);
   ierr = SNESSetConstraintJacobian(snes,user.B,user.Bt,FormConstraintJacobian,&user);CHKERRQ(ierr);
 
   /* Check for any snes command line options */
   ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
 
   /* SOLVE THE APPLICATION */
-  ierr = SNESSolve(snes,x0,x);CHKERRQ(ierr);
+  ierr = SNESSolve(snes,NULL,x);CHKERRQ(ierr);
 
   /* Get ierrrmation on converged */
   ierr = SNESGetConvergedReason(snes,&reason);CHKERRQ(ierr);
@@ -154,9 +151,6 @@ int main( int argc, char **argv )
   /* Free PETSc data structures */
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = VecDestroy(&x0);CHKERRQ(ierr);
-  ierr = VecDestroy(&c);CHKERRQ(ierr);
-  ierr = VecDestroy(&cl);CHKERRQ(ierr);
-  ierr = VecDestroy(&cu);CHKERRQ(ierr);
   ierr = MatDestroy(&user.J);CHKERRQ(ierr);
   ierr = MatDestroy(&user.B);CHKERRQ(ierr);
   ierr = MatDestroy(&user.Bt);CHKERRQ(ierr);
@@ -166,6 +160,9 @@ int main( int argc, char **argv )
   ierr = VecDestroy(&user.Top);CHKERRQ(ierr);
   ierr = VecDestroy(&user.Left);CHKERRQ(ierr);
   ierr = VecDestroy(&user.Right);CHKERRQ(ierr);
+  ierr = VecDestroy(&user.lb);CHKERRQ(ierr);
+  ierr = VecDestroy(&user.plate);CHKERRQ(ierr);
+  ierr = VecScatterDestroy(&user.XtoC);CHKERRQ(ierr);
   ierr = DMDestroy(&user.dm);CHKERRQ(ierr);
   PetscFinalize();
   return 0;
@@ -603,9 +600,12 @@ PetscErrorCode FormJacobian(SNES snes,Vec X,Mat Hptr, Mat Jacobian, void *ptr)
 #define __FUNCT__ "FormConstraints"
 PetscErrorCode FormConstraints(SNES snes, Vec X, Vec C, void *ctx)
 {
+  AppCtx         *user = (AppCtx *) ctx;
   PetscErrorCode ierr;
+
   PetscFunctionBegin;
-  ierr = VecCopy(X,C);CHKERRQ(ierr);
+  ierr = VecScatterBegin(user->XtoC,X,C,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user->XtoC,X,C,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 #undef __FUNCT__
@@ -792,7 +792,7 @@ static PetscErrorCode MSA_BoundaryConditions(AppCtx * user)
    Output Parameter:
 .  user - user-defined application context
 */
-static PetscErrorCode MSA_Plate(Vec XL,Vec XU,void *ctx){
+static PetscErrorCode MSA_Plate(void *ctx){
 
   AppCtx         *user=(AppCtx *)ctx;
   PetscErrorCode ierr;
@@ -800,19 +800,21 @@ static PetscErrorCode MSA_Plate(Vec XL,Vec XU,void *ctx){
   PetscInt       xs,ys,xm,ym;
   PetscInt       mx=user->mx, my=user->my, bmy, bmx;
   PetscReal      t1,t2,t3;
-  PetscReal      *xl, lb=PETSC_NINFINITY, ub=PETSC_INFINITY;
   PetscBool      cylinder;
+  IS             is_plate,is_all;
+  PetscInt       *indices_plate,nlocalplate=0;
+  PetscInt       *indices_all,nindices=0,*indices_col,*indices_row;
+
 
   user->bmy = PetscMax(0,user->bmy);user->bmy = PetscMin(my,user->bmy);
   user->bmx = PetscMax(0,user->bmx);user->bmx = PetscMin(mx,user->bmx);
   bmy=user->bmy, bmx=user->bmx;
 
   ierr = DMDAGetCorners(user->dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
-
-  ierr = VecSet(XL, lb);CHKERRQ(ierr);
-  ierr = VecSet(XU, ub);CHKERRQ(ierr);
-
-  ierr = VecGetArray(XL,&xl);CHKERRQ(ierr);
+  ierr = PetscCalloc1(xm*ym,&indices_plate);CHKERRQ(ierr);
+  ierr = PetscCalloc1(xm*ym,&indices_all);CHKERRQ(ierr);
+  ierr = PetscCalloc1(xm*ym,&indices_col);CHKERRQ(ierr);
+  ierr = PetscCalloc1(xm*ym,&indices_row);CHKERRQ(ierr);
 
   ierr = PetscOptionsHasName(NULL,"-cylinder",&cylinder);CHKERRQ(ierr);
   /* Compute the optional lower box */
@@ -823,9 +825,14 @@ static PetscErrorCode MSA_Plate(Vec XL,Vec XU,void *ctx){
         t1=(2.0*i-mx)*bmy;
         t2=(2.0*j-my)*bmx;
         t3=bmx*bmx*bmy*bmy;
+        indices_all[nindices] = row;
         if ( t1*t1 + t2*t2 <= t3 ){
-          xl[row] = user->bheight;
+          indices_plate[nlocalplate] = row;
+          indices_row[nlocalplate] = nlocalplate;
+          indices_col[nlocalplate] = nindices;
+          ++nlocalplate;
         }
+        ++nindices;
       }
     }
   } else {
@@ -833,15 +840,47 @@ static PetscErrorCode MSA_Plate(Vec XL,Vec XU,void *ctx){
     for (i=xs; i< xs+xm; i++){
       for (j=ys; j<ys+ym; j++){
         row=(j-ys)*xm + (i-xs);
+        indices_all[nindices] = row;
         if (i>=(mx-bmx)/2 && i<mx-(mx-bmx)/2 &&
             j>=(my-bmy)/2 && j<my-(my-bmy)/2 ){
-          xl[row] = user->bheight;
+          indices_plate[nlocalplate] = row;
+          indices_row[nlocalplate] = nlocalplate;
+          indices_col[nlocalplate] = nindices;
+          ++nlocalplate;
         }
+        ++nindices;
       }
     }
   }
-    ierr = VecRestoreArray(XL,&xl);CHKERRQ(ierr);
+  ierr = ISCreateGeneral(PETSC_COMM_WORLD,nlocalplate,indices_plate,PETSC_COPY_VALUES,&is_plate);CHKERRQ(ierr);
+  ierr = ISCreateGeneral(PETSC_COMM_WORLD,nlocalplate,indices_plate,PETSC_COPY_VALUES,&is_all);CHKERRQ(ierr);
+  ierr = VecCreate(PETSC_COMM_WORLD,&user->plate);
+  ierr = VecSetType(user->plate,VECMPI);CHKERRQ(ierr);
+  ierr = VecSetSizes(user->plate,nlocalplate,PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = VecSetFromOptions(user->plate);CHKERRQ(ierr);
+  ierr = VecDuplicate(user->plate,&user->lb);CHKERRQ(ierr);
+  ierr = VecSet(user->lb,user->bheight);CHKERRQ(ierr);
+  ierr = VecScatterCreate(user->X,is_plate,user->plate,NULL,&user->XtoC);CHKERRQ(ierr);
 
+
+  ierr = MatCreateAIJ(MPI_COMM_WORLD,nlocalplate,mx*my,PETSC_DETERMINE,PETSC_DETERMINE,1,NULL,1,NULL,&(user->B));CHKERRQ(ierr);
+  ierr = MatCreateAIJ(MPI_COMM_WORLD,mx*my,nlocalplate,PETSC_DETERMINE,PETSC_DETERMINE,1,NULL,1,NULL,&(user->Bt));CHKERRQ(ierr);
+  ierr = MatSetFromOptions(user->B);CHKERRQ(ierr);
+  ierr = MatSetFromOptions(user->Bt);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingCreate(PETSC_COMM_WORLD,1,nlocalplate,indices_row,PETSC_COPY_VALUES,&user->bisltog);CHKERRQ(ierr);
+  ierr = MatSetLocalToGlobalMapping(user->B,user->bisltog,user->isltog);CHKERRQ(ierr);
+  ierr = MatSetLocalToGlobalMapping(user->Bt,user->isltog,user->bisltog);CHKERRQ(ierr);
+
+  for (i=0;i<nlocalplate;i++) {
+    const PetscScalar one=1.0;
+    ierr = MatSetValuesLocal(user->B,1,&indices_row[i],1,&indices_col[i],&one,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = MatSetValuesLocal(user->Bt,1,&indices_col[i],1,&indices_row[i],&one,INSERT_VALUES);CHKERRQ(ierr);
+  }
+
+  ierr = PetscFree(indices_plate);CHKERRQ(ierr);
+  ierr = PetscFree(indices_all);CHKERRQ(ierr);
+  ierr = PetscFree(indices_col);CHKERRQ(ierr);
+  ierr = PetscFree(indices_row);CHKERRQ(ierr);
   return 0;
 }
 
