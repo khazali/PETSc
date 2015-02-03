@@ -2563,8 +2563,8 @@ PetscErrorCode  SNESSetConstraintFunction(SNES snes,Vec v,Vec vl,Vec vu,PetscErr
     PetscValidHeaderSpecific(vu,VEC_CLASSID,2);
     PetscCheckSameComm(snes,1,vu,2);
     ierr = PetscObjectReference((PetscObject)vu);CHKERRQ(ierr);
-    ierr = VecDestroy(&snes->vec_constrl);CHKERRQ(ierr);
-    snes->vec_constrl = vu;
+    ierr = VecDestroy(&snes->vec_constru);CHKERRQ(ierr);
+    snes->vec_constru = vu;
   }
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESSetConstraintFunction(dm,g,ctx);CHKERRQ(ierr);
@@ -2947,9 +2947,11 @@ PetscErrorCode  SNESSetUp(SNES snes)
   } else {
     if (!snes->vec_constrl) {
       ierr = VecDuplicate(snes->vec_constr,&snes->vec_constrl);CHKERRQ(ierr);
+      ierr = VecSet(snes->vec_constrl,PETSC_NINFINITY);CHKERRQ(ierr);
     }
     if (!snes->vec_constru) {
       ierr = VecDuplicate(snes->vec_constr,&snes->vec_constru);CHKERRQ(ierr);
+      ierr = VecSet(snes->vec_constru,PETSC_INFINITY);CHKERRQ(ierr);
     }
     if (!snes->jacobian_constr) SETERRQ(PetscObjectComm((PetscObject)snes),PETSC_ERR_ARG_WRONGSTATE, "No constraint Jacobian: call SNESSetConstraintJacobian() first.");
   }

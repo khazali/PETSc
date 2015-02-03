@@ -64,6 +64,7 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
   /* Returns a modified IS based on the distance to constraint bounds, or NULL if no modification is necessary. */
   SNES_NEWTONAS     *newtas  = (SNES_NEWTONAS*)snes->data;
   Vec               dx=snes->vec_sol_update,dl=newtas->vec_lambda_update;
+  /*  TODO NOW: why is dx=0? */
   Vec               gl=snes->vec_constrl, gu=snes->vec_constru;
   Vec               bx = newtas->workg[3];
   PetscInt          i,lo,hi;
@@ -648,7 +649,7 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
 
   ierr = VecDuplicate(snes->vec_constr,&newtas->vec_lambda);CHKERRQ(ierr);
   ierr = VecDuplicate(snes->vec_constr,&newtas->vec_lambda_update);CHKERRQ(ierr);
-  ierr = VecDestroyVecs(2,&newtas->workg);CHKERRQ(ierr);
+  ierr = VecDestroyVecs(4,&newtas->workg);CHKERRQ(ierr);
 
   /*
      QUESTION: Do we need to go through the public API to set private data structures?
@@ -657,7 +658,7 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
      A related question: why not let the impl allocated and clean up its own work vecs?
   */
   ierr = SNESSetWorkVecs(snes,4);CHKERRQ(ierr);
-  ierr = VecDuplicateVecs(snes->vec_constr,2,&newtas->workg);CHKERRQ(ierr);
+  ierr = VecDuplicateVecs(snes->vec_constr,4,&newtas->workg);CHKERRQ(ierr);
 
   ierr = VecCreate(((PetscObject)snes)->comm,&newtas->ls_x);CHKERRQ(ierr);
   ierr = VecGetOwnershipRange(snes->vec_sol,&xlo,&xhi);CHKERRQ(ierr);

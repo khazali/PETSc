@@ -29,6 +29,7 @@ typedef struct {
   PetscInt       bmx,bmy;                  /* Size of plate under the surface */
   Vec            Bottom, Top, Left, Right; /* boundary values */
 
+  IS             is_plate;
 
 
   /* Working space */
@@ -612,40 +613,35 @@ PetscErrorCode FormConstraints(SNES snes, Vec X, Vec C, void *ctx)
 #define __FUNCT__ "FormConstraintJacobian"
 PetscErrorCode FormConstraintJacobian(SNES snes, Vec X, Mat B, Mat Bt, void *ctx)
 {
-  PetscErrorCode ierr;
+  /*  PetscErrorCode ierr;
   AppCtx         *user = (AppCtx *) ctx;
-  PetscInt       i,j,row;
+  const PetscInt *indices;
+  PetscInt       i,row,col,nlocalrows;
   PetscInt       xs,xm,gxs,gxm,ys,ym,gys,gym;
-  PetscReal      v;
-  PetscBool      assembled;
+   PetscBool      assembled;*/
 
   PetscFunctionBegin;
-  ierr = MatSetOption(B,MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr);
-  ierr = MatSetOption(Bt,MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr);
+  /* ierr = MatSetOption(B,MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr); */
+  /* ierr = MatSetOption(Bt,MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr); */
 
-  /* Initialize matrix entries to zero */
-  ierr = MatAssembled(B,&assembled);CHKERRQ(ierr);
-  if (assembled){ierr = MatZeroEntries(B);CHKERRQ(ierr);}
-  ierr = MatAssembled(Bt,&assembled);CHKERRQ(ierr);
-  if (assembled){ierr = MatZeroEntries(Bt);CHKERRQ(ierr);}
+  /* /\* Initialize matrix entries to zero *\/ */
+  /* ierr = MatAssembled(B,&assembled);CHKERRQ(ierr); */
+  /* if (assembled){ierr = MatZeroEntries(B);CHKERRQ(ierr);} */
+  /* ierr = MatAssembled(Bt,&assembled);CHKERRQ(ierr); */
+  /* if (assembled){ierr = MatZeroEntries(Bt);CHKERRQ(ierr);} */
 
-  /* Get local mesh boundaries */
-  ierr = DMDAGetCorners(user->dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
-  ierr = DMDAGetGhostCorners(user->dm,&gxs,&gys,NULL,&gxm,&gym,NULL);CHKERRQ(ierr);
+  /* /\* Get local mesh boundaries *\/ */
+  /* ierr = DMDAGetCorners(user->dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr); */
+  /* ierr = DMDAGetGhostCorners(user->dm,&gxs,&gys,NULL,&gxm,&gym,NULL);CHKERRQ(ierr); */
 
-  v = 1.0;
-  for (i=xs; i< xs+xm; i++){
-    for (j=ys; j<ys+ym; j++){
-      row=(j-gys)*gxm + (i-gxs);
-      /*
-         Set matrix values using local numbering, which was defined
-         earlier, in the main routine.
-      */
-      ierr = MatSetValuesLocal(B,1,&row,1,&row,&v,INSERT_VALUES);CHKERRQ(ierr);
-      ierr = MatSetValuesLocal(Bt,1,&row,1,&row,&v,INSERT_VALUES);CHKERRQ(ierr);
-
-    }
-  }
+  /* ierr = ISGetLocalSize(user->is_plate,&nlocalrows);CHKERRQ(ierr); */
+  /* ierr = ISGetIndices(user->is_plate,&indices);CHKERRQ(ierr); */
+  /* for (i=0;i<nlocalrows;i++){ */
+  /*   row = xs + indices[i]; */
+  /*   col = xs+i; */
+  /*   ierr = MatSetValue(B,row,col,1.0,INSERT_VALUES);CHKERRQ(ierr); */
+  /*   ierr = MatSetValue(Bt,col,row,1.0,INSERT_VALUES);CHKERRQ(ierr); */
+  /* } */
 
   PetscFunctionReturn(0);
 }
@@ -801,7 +797,6 @@ static PetscErrorCode MSA_Plate(void *ctx){
   PetscInt       mx=user->mx, my=user->my, bmy, bmx;
   PetscReal      t1,t2,t3;
   PetscBool      cylinder;
-  IS             is_plate,is_all;
   PetscInt       *indices_plate,nlocalplate=0;
   PetscInt       *indices_all,nindices=0,*indices_col,*indices_row;
 
@@ -852,15 +847,14 @@ static PetscErrorCode MSA_Plate(void *ctx){
       }
     }
   }
-  ierr = ISCreateGeneral(PETSC_COMM_WORLD,nlocalplate,indices_plate,PETSC_COPY_VALUES,&is_plate);CHKERRQ(ierr);
-  ierr = ISCreateGeneral(PETSC_COMM_WORLD,nlocalplate,indices_plate,PETSC_COPY_VALUES,&is_all);CHKERRQ(ierr);
+  ierr = ISCreateGeneral(PETSC_COMM_WORLD,nlocalplate,indices_plate,PETSC_COPY_VALUES,&user->is_plate);CHKERRQ(ierr);
   ierr = VecCreate(PETSC_COMM_WORLD,&user->plate);
   ierr = VecSetType(user->plate,VECMPI);CHKERRQ(ierr);
   ierr = VecSetSizes(user->plate,nlocalplate,PETSC_DETERMINE);CHKERRQ(ierr);
   ierr = VecSetFromOptions(user->plate);CHKERRQ(ierr);
   ierr = VecDuplicate(user->plate,&user->lb);CHKERRQ(ierr);
   ierr = VecSet(user->lb,user->bheight);CHKERRQ(ierr);
-  ierr = VecScatterCreate(user->X,is_plate,user->plate,NULL,&user->XtoC);CHKERRQ(ierr);
+  ierr = VecScatterCreate(user->X,user->is_plate,user->plate,NULL,&user->XtoC);CHKERRQ(ierr);
 
 
   ierr = MatCreateAIJ(MPI_COMM_WORLD,nlocalplate,mx*my,PETSC_DETERMINE,PETSC_DETERMINE,1,NULL,1,NULL,&(user->B));CHKERRQ(ierr);
@@ -870,12 +864,18 @@ static PetscErrorCode MSA_Plate(void *ctx){
   ierr = ISLocalToGlobalMappingCreate(PETSC_COMM_WORLD,1,nlocalplate,indices_row,PETSC_COPY_VALUES,&user->bisltog);CHKERRQ(ierr);
   ierr = MatSetLocalToGlobalMapping(user->B,user->bisltog,user->isltog);CHKERRQ(ierr);
   ierr = MatSetLocalToGlobalMapping(user->Bt,user->isltog,user->bisltog);CHKERRQ(ierr);
+  
+
 
   for (i=0;i<nlocalplate;i++) {
     const PetscScalar one=1.0;
     ierr = MatSetValuesLocal(user->B,1,&indices_row[i],1,&indices_col[i],&one,INSERT_VALUES);CHKERRQ(ierr);
     ierr = MatSetValuesLocal(user->Bt,1,&indices_col[i],1,&indices_row[i],&one,INSERT_VALUES);CHKERRQ(ierr);
   }
+  ierr = MatAssemblyBegin(user->B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(user->Bt,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(user->B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(user->Bt,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
   ierr = PetscFree(indices_plate);CHKERRQ(ierr);
   ierr = PetscFree(indices_all);CHKERRQ(ierr);
