@@ -2363,18 +2363,15 @@ PetscErrorCode MatGetSubMatrix_SeqAIJ(Mat A,IS isrow,IS iscol,PetscInt csize,Mat
   Mat_SeqAIJ     *a = (Mat_SeqAIJ*)A->data,*c;
   PetscErrorCode ierr;
   PetscInt       *smap,i,k,kstart,kend,oldcols = A->cmap->n,*lens;
-  PetscInt       row,mat_i,*mat_j,tcol,first,step,*mat_ilen,sum,lensi;
+  PetscInt       row,tcol,first,step,sum,lensi;
   const PetscInt *irow,*icol;
   PetscInt       nrows,ncols;
   PetscInt       *starts,*j_new,*i_new,*aj = a->j,*ai = a->i,ii,*ailen = a->ilen;
-  MatScalar      *a_new,*mat_a;
+  MatScalar      *a_new;
   Mat            C;
-  PetscBool      stride,sorted;
+  PetscBool      stride;
 
   PetscFunctionBegin;
-  ierr = ISSorted(iscol,&sorted);CHKERRQ(ierr);
-  if (!sorted) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"IScol is not sorted");
-
   ierr = ISGetIndices(isrow,&irow);CHKERRQ(ierr);
   ierr = ISGetLocalSize(isrow,&nrows);CHKERRQ(ierr);
   ierr = ISGetLocalSize(iscol,&ncols);CHKERRQ(ierr);
@@ -2444,6 +2441,9 @@ PetscErrorCode MatGetSubMatrix_SeqAIJ(Mat A,IS isrow,IS iscol,PetscInt csize,Mat
     }
     ierr = PetscFree2(lens,starts);CHKERRQ(ierr);
   } else {
+    PetscInt      maxLen, *thisRowInd;
+    PetscScalar  *thisRowVal;
+
     ierr = ISGetIndices(iscol,&icol);CHKERRQ(ierr);
     ierr = PetscCalloc1(oldcols,&smap);CHKERRQ(ierr);
     ierr = PetscMalloc1(1+nrows,&lens);CHKERRQ(ierr);
@@ -2455,6 +2455,7 @@ PetscErrorCode MatGetSubMatrix_SeqAIJ(Mat A,IS isrow,IS iscol,PetscInt csize,Mat
     }
 
     /* determine lens of each row */
+    maxLen = 0;
     for (i=0; i<nrows; i++) {
       kstart  = ai[irow[i]];
       kend    = kstart + a->ilen[irow[i]];
@@ -2464,6 +2465,7 @@ PetscErrorCode MatGetSubMatrix_SeqAIJ(Mat A,IS isrow,IS iscol,PetscInt csize,Mat
           lens[i]++;
         }
       }
+      maxLen = PetscMax(maxLen,lens[i]);
     }
     /* Create and fill new matrix */
     if (scall == MAT_REUSE_MATRIX) {
@@ -2485,25 +2487,24 @@ PetscErrorCode MatGetSubMatrix_SeqAIJ(Mat A,IS isrow,IS iscol,PetscInt csize,Mat
       ierr = MatSetType(C,((PetscObject)A)->type_name);CHKERRQ(ierr);
       ierr = MatSeqAIJSetPreallocation_SeqAIJ(C,0,lens);CHKERRQ(ierr);
     }
-    c = (Mat_SeqAIJ*)(C->data);
+    ierr = PetscMalloc2(maxLen,&thisRowVal,maxLen,&thisRowInd);CHKERRQ(ierr);
     for (i=0; i<nrows; i++) {
+      PetscInt rowOff = 0;
+
       row      = irow[i];
       kstart   = ai[row];
       kend     = kstart + a->ilen[row];
-      mat_i    = c->i[i];
-      mat_j    = c->j + mat_i;
-      mat_a    = c->a + mat_i;
-      mat_ilen = c->ilen + i;
       for (k=kstart; k<kend; k++) {
         if ((tcol=smap[a->j[k]])) {
-          *mat_j++ = tcol - 1;
-          *mat_a++ = a->a[k];
-          (*mat_ilen)++;
-
+          thisRowInd[rowOff]   = tcol - 1;
+          thisRowVal[rowOff++] = a->a[k];
         }
       }
+      ierr = PetscSortIntWithScalarArray (rowOff,thisRowInd,thisRowVal);CHKERRQ(ierr);
+      ierr = MatSetValues_SeqAIJ(C,1,&i,rowOff,thisRowInd,thisRowVal,INSERT_VALUES);CHKERRQ(ierr);
     }
     /* Free work space */
+    ierr = PetscFree2(thisRowVal,thisRowInd);CHKERRQ(ierr);
     ierr = ISRestoreIndices(iscol,&icol);CHKERRQ(ierr);
     ierr = PetscFree(smap);CHKERRQ(ierr);
     ierr = PetscFree(lens);CHKERRQ(ierr);
