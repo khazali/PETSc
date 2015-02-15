@@ -18,25 +18,22 @@ program main
   !
   use ex13f90aux
   implicit none
-#include <finclude/petscsysdef.h>
-#include <finclude/petscvecdef.h>
-#include <finclude/petscdmdef.h>
-#include <finclude/petscsys.h>
-#include <finclude/petscvec.h>
-#include <finclude/petscdmda.h>
-#include <finclude/petscvec.h90>
-#include <finclude/petscdmda.h90>
+#include <petsc-finclude/petscsys.h>
+#include <petsc-finclude/petscvec.h>
+#include <petsc-finclude/petscdmda.h>
+#include <petsc-finclude/petscvec.h90>
+#include <petsc-finclude/petscdmda.h90>
   PetscErrorCode   ierr
   PetscMPIInt      rank,size
   MPI_Comm         comm
-  Vec              Lvec,Gvec,coords
+  Vec              Lvec,coords
   DM               SolScal,CoordDM
-  DMDABoundaryType b_x,b_y,b_z
-  PetscScalar, pointer :: array(:,:,:,:)
-  double precision :: t,tend,dt,xmin,xmax,ymin,ymax,zmin,zmax,&
+  DMBoundaryType b_x,b_y,b_z
+  PetscReal, pointer :: array(:,:,:,:)
+  PetscReal :: t,tend,dt,xmin,xmax,ymin,ymax,zmin,zmax,&
           xgmin,xgmax,ygmin,ygmax,zgmin,zgmax
-  double precision, allocatable :: f(:,:,:,:), grid(:,:,:,:)
-  integer :: i,j,k,igmax,jgmax,kgmax,ib1,ibn,jb1,jbn,kb1,kbn,&
+  PetscReal, allocatable :: f(:,:,:,:), grid(:,:,:,:)
+  PetscInt :: i,j,k,igmax,jgmax,kgmax,ib1,ibn,jb1,jbn,kb1,kbn,&
              imax,jmax,kmax,itime,maxstep,nscreen,dof,stw,ndim
 
   ! Fire up PETSc:
@@ -74,20 +71,6 @@ program main
   call DMDASetUniformCoordinates(SolScal,xgmin,xgmax,ygmin,ygmax,zgmin,zgmax,&
                                  ierr)
   call DMCreateLocalVector(SolScal,Lvec,ierr)
-  call DMCreateGlobalVector(SolScal,Gvec,ierr)
-
-  ! Set up the time-stepping
-  t = 0.0
-  tend = 100.0
-  dt = 1e-3
-  maxstep=ceiling((tend-t)/dt)
-  nscreen = int(1.0/dt)+1 ! Write output every second (of simulation-time)
-    
-  ! Set initial condition using global vector
-  call DMDAVecGetArrayF90(SolScal,Gvec,array,ierr)
-  array(0,:,:,:) = 0.5
-  array(1,:,:,:) = 0.5
-  call DMDAVecRestoreArrayF90(SolScal,Gvec,array,ierr)
   
   ! Get ib1,imax,ibn etc. of the local grid. 
   ! Our convention is:
@@ -125,38 +108,52 @@ program main
   
   ! Note that we never use xmin,xmax in this example, but the preceding way of
   ! getting the local xmin,xmax etc. from PETSc for a structured uniform grid
-  ! is not documented in any other  examples I could find.
+  ! is not documented in any other examples I could find.
+
+  ! Set up the time-stepping
+  t = 0.0
+  tend = 100.0
+  dt = 1e-3
+  maxstep=ceiling((tend-t)/dt)
+  ! Write output every second (of simulation-time)
+  nscreen = int(1.0/dt)+1
+
+  ! Set initial condition
+  call DMDAVecGetArrayF90(SolScal,Lvec,array,ierr)
+  array(0,:,:,:) = 0.5
+  array(1,:,:,:) = 0.5
+  call DMDAVecRestoreArrayF90(SolScal,Lvec,array,ierr)
  
   ! Initial set-up finished.
   ! Time loop
   do itime=1,maxstep 
-    ! Communicate
-    call DMGlobalToLocalBegin(SolScal,Gvec,INSERT_VALUES,Lvec,ierr) 
-    call DMGlobalToLocalEnd(SolScal,Gvec,INSERT_VALUES,Lvec,ierr)
+
+    ! Communicate such that everyone has the correct values in ghost cells
+    call DMLocalToLocalBegin(SolScal,Lvec,INSERT_VALUES,Lvec,ierr)
+    call DMLocalToLocalEnd(SolScal,Lvec,INSERT_VALUES,Lvec,ierr)
     
-    ! Map to our coordinates 
+    ! Get the old solution from the PETSc data structures 
     call petsc_to_local(SolScal,Lvec,array,f,dof,stw)
     
     ! Do the time step
     call forw_euler(t,dt,ib1,ibn,jb1,jbn,kb1,kbn,imax,jmax,kmax,dof,f,dfdt_vdp)
     t=t+dt
 
-    ! Write result to screen (if main process)
+    ! Write result to screen (if main process and it's time to)
     if (rank == 0 .and. mod(itime,nscreen) == 0) then
       write(*,101) t,f(1,1,1,1),f(2,1,1,1)
     endif
     
-    ! Map to PETSc coordinates
+    ! Put our new solution in the PETSc data structures
     call local_to_petsc(SolScal,Lvec,array,f,dof,stw)
-    ! Communicate
-    call DMLocalToGlobalBegin(SolScal,Lvec,INSERT_VALUES,Gvec,ierr)
-    call DMLocalToGlobalEnd(SolScal,Lvec,INSERT_VALUES,Gvec,ierr)
   end do
   
   ! Deallocate and finalize
-  call DMRestoreGlobalVector(SolScal,Gvec,ierr)
   call DMRestoreLocalVector(SolScal,Lvec,ierr)
   call DMDestroy(SolScal,ierr)
   call PetscFinalize(ierr)
+
+  ! Format for writing output to screen
 101 format(F5.1,2F11.6)
+
 end program main
