@@ -68,6 +68,7 @@ T*/
 #import <PETSc/petscdmda.h>
 #else
 #include <petscsnes.h>
+#include <petscdm.h>
 #include <petscdmda.h>
 #endif
 
@@ -110,9 +111,9 @@ int main(int argc,char **argv)
       Create distributed array object to manage parallel grid and vectors
       for principal unknowns (x) and governing residuals (f)
   */
-  ierr = DMDACreate2d(PETSC_COMM_WORLD,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE,DMDA_STENCIL_STAR,-4,-4,PETSC_DECIDE,PETSC_DECIDE,4,1,0,0,&da);CHKERRQ(ierr);
+  ierr = DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DMDA_STENCIL_STAR,-4,-4,PETSC_DECIDE,PETSC_DECIDE,4,1,0,0,&da);CHKERRQ(ierr);
   ierr = SNESSetDM(snes,(DM)da);CHKERRQ(ierr);
-  ierr = SNESSetGS(snes, NonlinearGS, (void*)&user);CHKERRQ(ierr);
+  ierr = SNESSetNGS(snes, NonlinearGS, (void*)&user);CHKERRQ(ierr);
 
   ierr = DMDAGetInfo(da,0,&mx,&my,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,
                      PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE);CHKERRQ(ierr);
@@ -199,6 +200,7 @@ PetscErrorCode FormInitialGuess(AppCtx *user,DM da,Vec X)
   PetscReal      grashof,dx;
   Field          **x;
 
+  PetscFunctionBeginUser;
   grashof = user->grashof;
 
   ierr = DMDAGetInfo(da,0,&mx,0,0,0,0,0,0,0,0,0,0,0);CHKERRQ(ierr);
@@ -237,7 +239,7 @@ PetscErrorCode FormInitialGuess(AppCtx *user,DM da,Vec X)
      Restore vector
   */
   ierr = DMDAVecRestoreArray(da,X,&x);CHKERRQ(ierr);
-  return 0;
+  PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
@@ -403,8 +405,8 @@ PetscErrorCode NonlinearGS(SNES snes, Vec X, Vec B, void *ctx)
   prandtl = user->prandtl;
   lid     = user->lidvelocity;
   tot_its = 0;
-  ierr    = SNESGSGetTolerances(snes,&rtol,&atol,&stol,&max_its);CHKERRQ(ierr);
-  ierr    = SNESGSGetSweeps(snes,&sweeps);CHKERRQ(ierr);
+  ierr    = SNESNGSGetTolerances(snes,&rtol,&atol,&stol,&max_its);CHKERRQ(ierr);
+  ierr    = SNESNGSGetSweeps(snes,&sweeps);CHKERRQ(ierr);
   ierr    = SNESGetDM(snes,(DM*)&da);CHKERRQ(ierr);
   ierr    = DMGetLocalVector(da,&localX);CHKERRQ(ierr);
   if (B) {
@@ -423,7 +425,7 @@ PetscErrorCode NonlinearGS(SNES snes, Vec X, Vec B, void *ctx)
   ierr = DMDAGetLocalInfo(da,&info);CHKERRQ(ierr);
   ierr = DMDAVecGetArray(da,localX,&x);CHKERRQ(ierr);
   if (B) {
-    ierr = DMDAVecGetArray(da,localB,&b);CHKERRQ(ierr);
+    ierr = DMDAVecGetArrayRead(da,localB,&b);CHKERRQ(ierr);
   }
   /* looks like a combination of the formfunction / formjacobian routines */
   dhx   = (PetscReal)(info.mx-1);dhy   = (PetscReal)(info.my-1);
@@ -645,15 +647,11 @@ PetscErrorCode NonlinearGS(SNES snes, Vec X, Vec B, void *ctx)
   }
   ierr = DMDAVecRestoreArray(da,localX,&x);CHKERRQ(ierr);
   if (B) {
-    ierr = DMDAVecRestoreArray(da,localB,&b);CHKERRQ(ierr);
+    ierr = DMDAVecRestoreArrayRead(da,localB,&b);CHKERRQ(ierr);
   }
   ierr = DMLocalToGlobalBegin(da,localX,INSERT_VALUES,X);CHKERRQ(ierr);
   ierr = DMLocalToGlobalEnd(da,localX,INSERT_VALUES,X);CHKERRQ(ierr);
   ierr = PetscLogFlops(tot_its*(84.0 + 41.0 + 26.0));CHKERRQ(ierr);
-  if (B) {
-    ierr = DMLocalToGlobalBegin(da,localB,INSERT_VALUES,B);CHKERRQ(ierr);
-    ierr = DMLocalToGlobalEnd(da,localB,INSERT_VALUES,B);CHKERRQ(ierr);
-  }
   ierr = DMRestoreLocalVector(da,&localX);CHKERRQ(ierr);
   if (B) {
     ierr = DMRestoreLocalVector(da,&localB);CHKERRQ(ierr);

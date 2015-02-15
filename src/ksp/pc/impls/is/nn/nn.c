@@ -234,7 +234,7 @@ PetscErrorCode PCNNCreateCoarseMatrix(PC pc)
 
   PetscFunctionBegin;
   /* Allocate memory for mat (the +1 is to handle the case n_neigh equal to zero) */
-  ierr = PetscMalloc1((n_neigh*n_neigh+1),&mat);CHKERRQ(ierr);
+  ierr = PetscMalloc1(n_neigh*n_neigh+1,&mat);CHKERRQ(ierr);
 
   /* Allocate memory for DZ */
   /* Notice that DZ_OUT[0] is allocated some space that is never used. */
@@ -307,7 +307,7 @@ PetscErrorCode PCNNCreateCoarseMatrix(PC pc)
   /* Complete the sending. */
   if (n_neigh>1) {
     MPI_Status *stat;
-    ierr = PetscMalloc1((n_neigh-1),&stat);CHKERRQ(ierr);
+    ierr = PetscMalloc1(n_neigh-1,&stat);CHKERRQ(ierr);
     if (n_neigh-1) {ierr = MPI_Waitall(n_neigh-1,&(send_request[1]),stat);CHKERRQ(ierr);}
     ierr = PetscFree(stat);CHKERRQ(ierr);
   }
@@ -360,7 +360,7 @@ PetscErrorCode PCNNCreateCoarseMatrix(PC pc)
 
     ierr = KSPCreate(PetscObjectComm((PetscObject)pc),&pcnn->ksp_coarse);CHKERRQ(ierr);
     ierr = PetscObjectIncrementTabLevel((PetscObject)pcnn->ksp_coarse,(PetscObject)pc,2);CHKERRQ(ierr);
-    ierr = KSPSetOperators(pcnn->ksp_coarse,pcnn->coarse_mat,pcnn->coarse_mat,SAME_PRECONDITIONER);CHKERRQ(ierr);
+    ierr = KSPSetOperators(pcnn->ksp_coarse,pcnn->coarse_mat,pcnn->coarse_mat);CHKERRQ(ierr);
     ierr = KSPGetPC(pcnn->ksp_coarse,&pc_ctx);CHKERRQ(ierr);
     ierr = PCSetType(pc_ctx,PCREDUNDANT);CHKERRQ(ierr);
     ierr = KSPSetType(pcnn->ksp_coarse,KSPPREONLY);CHKERRQ(ierr);

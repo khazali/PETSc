@@ -14,7 +14,7 @@ int main(int argc,char **args)
   PetscScalar    v;
   IS             perm,iperm;
   Vec            x,u,b,y;
-  PetscReal      norm,tol=1.e-14;
+  PetscReal      norm,tol=PETSC_SMALL;
   MatFactorInfo  info;
   PetscMPIInt    size;
 
@@ -70,7 +70,6 @@ int main(int argc,char **args)
   info.pivotinblocks = 1.0;
 
   ierr = MatLUFactor(C,perm,iperm,&info);CHKERRQ(ierr);
-  ierr = MatView(C,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
 
   /* Test MatSolve */
   ierr = MatSolve(C,b,x);CHKERRQ(ierr);

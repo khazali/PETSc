@@ -1,6 +1,6 @@
 
 #include <petscdmda.h>   /*I "petscdmda.h" I*/
-#include <../src/ksp/pc/impls/mg/mgimpl.h>   /*I "petscksp.h" I*/
+#include <petsc-private/pcmgimpl.h>   /*I "petscksp.h" I*/
 #include <petscctable.h>
 
 typedef struct {
@@ -204,7 +204,7 @@ PetscErrorCode DMDAGetWireBasketInterpolation(DM da,PC_Exotic *exotic,Mat Agloba
     ierr = VecCreateSeqWithArray(PETSC_COMM_SELF,1,Nint,0,&x);CHKERRQ(ierr);
     ierr = MatDenseGetArray(Xint_tmp,&xint_tmp);CHKERRQ(ierr);
     ierr = VecCreateSeqWithArray(PETSC_COMM_SELF,1,Nint,0,&b);CHKERRQ(ierr);
-    ierr = KSPSetOperators(exotic->ksp,Aii,Aii,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+    ierr = KSPSetOperators(exotic->ksp,Aii,Aii);CHKERRQ(ierr);
     for (i=0; i<26; i++) {
       ierr = VecPlaceArray(x,xint+i*Nint);CHKERRQ(ierr);
       ierr = VecPlaceArray(b,xint_tmp+i*Nint);CHKERRQ(ierr);
@@ -487,7 +487,7 @@ PetscErrorCode DMDAGetFaceInterpolation(DM da,PC_Exotic *exotic,Mat Aglobal,MatR
     ierr = VecCreateSeqWithArray(PETSC_COMM_SELF,1,Nint,0,&x);CHKERRQ(ierr);
     ierr = MatDenseGetArray(Xint_tmp,&xint_tmp);CHKERRQ(ierr);
     ierr = VecCreateSeqWithArray(PETSC_COMM_SELF,1,Nint,0,&b);CHKERRQ(ierr);
-    ierr = KSPSetOperators(exotic->ksp,Aii,Aii,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+    ierr = KSPSetOperators(exotic->ksp,Aii,Aii);CHKERRQ(ierr);
     for (i=0; i<6; i++) {
       ierr = VecPlaceArray(x,xint+i*Nint);CHKERRQ(ierr);
       ierr = VecPlaceArray(b,xint_tmp+i*Nint);CHKERRQ(ierr);
@@ -667,7 +667,7 @@ PetscErrorCode PCSetUp_Exotic(PC pc)
 
   PetscFunctionBegin;
   if (!pc->dm) SETERRQ(PetscObjectComm((PetscObject)pc),PETSC_ERR_ARG_WRONGSTATE,"Need to call PCSetDM() before using this PC");
-  ierr = PCGetOperators(pc,NULL,&A,NULL);CHKERRQ(ierr);
+  ierr = PCGetOperators(pc,NULL,&A);CHKERRQ(ierr);
   if (ex->type == PC_EXOTIC_FACE) {
     ierr = DMDAGetFaceInterpolation(pc->dm,ex,A,reuse,&ex->P);CHKERRQ(ierr);
   } else if (ex->type == PC_EXOTIC_WIREBASKET) {
@@ -734,7 +734,7 @@ PetscErrorCode PCView_Exotic(PC pc,PetscViewer viewer)
 
 #undef __FUNCT__
 #define __FUNCT__ "PCSetFromOptions_Exotic"
-PetscErrorCode PCSetFromOptions_Exotic(PC pc)
+PetscErrorCode PCSetFromOptions_Exotic(PetscOptions *PetscOptionsObject,PC pc)
 {
   PetscErrorCode ierr;
   PetscBool      flg;
@@ -743,7 +743,7 @@ PetscErrorCode PCSetFromOptions_Exotic(PC pc)
   PC_Exotic      *ctx = (PC_Exotic*) mg->innerctx;
 
   PetscFunctionBegin;
-  ierr = PetscOptionsHead("Exotic coarse space options");CHKERRQ(ierr);
+  ierr = PetscOptionsHead(PetscOptionsObject,"Exotic coarse space options");CHKERRQ(ierr);
   ierr = PetscOptionsEnum("-pc_exotic_type","face or wirebasket","PCExoticSetType",PCExoticTypes,(PetscEnum)ctx->type,(PetscEnum*)&mgctype,&flg);CHKERRQ(ierr);
   if (flg) {
     ierr = PCExoticSetType(pc,mgctype);CHKERRQ(ierr);

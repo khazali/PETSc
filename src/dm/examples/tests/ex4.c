@@ -1,6 +1,7 @@
 
 static char help[] = "Tests various 2-dimensional DMDA routines.\n\n";
 
+#include <petscdm.h>
 #include <petscdmda.h>
 
 #undef __FUNCT__
@@ -15,7 +16,7 @@ int main(int argc,char **argv)
   const PetscInt   *ltog;
   PetscInt         *lx       = NULL,*ly = NULL;
   PetscBool        testorder = PETSC_FALSE,flg;
-  DMDABoundaryType bx        = DMDA_BOUNDARY_NONE,by= DMDA_BOUNDARY_NONE;
+  DMBoundaryType   bx        = DM_BOUNDARY_NONE,by= DM_BOUNDARY_NONE;
   DM               da;
   PetscViewer      viewer;
   Vec              local,global;
@@ -35,13 +36,13 @@ int main(int argc,char **argv)
   ierr = PetscOptionsGetInt(NULL,"-w",&w,NULL);CHKERRQ(ierr);
 
   flg  = PETSC_FALSE;
-  ierr = PetscOptionsGetBool(NULL,"-xperiodic",&flg,NULL);CHKERRQ(ierr); if (flg) bx = DMDA_BOUNDARY_PERIODIC;
+  ierr = PetscOptionsGetBool(NULL,"-xperiodic",&flg,NULL);CHKERRQ(ierr); if (flg) bx = DM_BOUNDARY_PERIODIC;
   flg  = PETSC_FALSE;
-  ierr = PetscOptionsGetBool(NULL,"-yperiodic",&flg,NULL);CHKERRQ(ierr); if (flg) by = DMDA_BOUNDARY_PERIODIC;
+  ierr = PetscOptionsGetBool(NULL,"-yperiodic",&flg,NULL);CHKERRQ(ierr); if (flg) by = DM_BOUNDARY_PERIODIC;
   flg  = PETSC_FALSE;
-  ierr = PetscOptionsGetBool(NULL,"-xghosted",&flg,NULL);CHKERRQ(ierr); if (flg) bx = DMDA_BOUNDARY_GHOSTED;
+  ierr = PetscOptionsGetBool(NULL,"-xghosted",&flg,NULL);CHKERRQ(ierr); if (flg) bx = DM_BOUNDARY_GHOSTED;
   flg  = PETSC_FALSE;
-  ierr = PetscOptionsGetBool(NULL,"-yghosted",&flg,NULL);CHKERRQ(ierr); if (flg) by = DMDA_BOUNDARY_GHOSTED;
+  ierr = PetscOptionsGetBool(NULL,"-yghosted",&flg,NULL);CHKERRQ(ierr); if (flg) by = DM_BOUNDARY_GHOSTED;
   flg  = PETSC_FALSE;
   ierr = PetscOptionsGetBool(NULL,"-star",&flg,NULL);CHKERRQ(ierr); if (flg) st = DMDA_STENCIL_STAR;
   flg  = PETSC_FALSE;
@@ -112,8 +113,12 @@ int main(int argc,char **argv)
 
   /* Tests mappings betweeen application/PETSc orderings */
   if (testorder) {
+    ISLocalToGlobalMapping ltogm;
+
+    ierr = DMGetLocalToGlobalMapping(da,&ltogm);CHKERRQ(ierr);
+    ierr = ISLocalToGlobalMappingGetSize(ltogm,&nloc);CHKERRQ(ierr);
+    ierr = ISLocalToGlobalMappingGetIndices(ltogm,&ltog);CHKERRQ(ierr);
     ierr = DMDAGetGhostCorners(da,&Xs,&Ys,NULL,&Xm,&Ym,NULL);CHKERRQ(ierr);
-    ierr = DMDAGetGlobalIndices(da,&nloc,&ltog);CHKERRQ(ierr);
     ierr = DMDAGetAO(da,&ao);CHKERRQ(ierr);
     ierr = PetscMalloc1(nloc,&iglobal);CHKERRQ(ierr);
 
@@ -151,7 +156,7 @@ int main(int argc,char **argv)
       }
     }
     ierr = PetscFree(iglobal);CHKERRQ(ierr);
-    ierr = DMDARestoreGlobalIndices(da,&nloc,&ltog);CHKERRQ(ierr);
+    ierr = ISLocalToGlobalMappingRestoreIndices(ltogm,&ltog);CHKERRQ(ierr);
   }
 
   /* Free memory */

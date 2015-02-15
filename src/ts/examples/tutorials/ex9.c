@@ -31,6 +31,7 @@ static const char help[] = "1D periodic Finite Volume solver in slope-limiter fo
   "The problem size should be set with -da_grid_x M\n\n";
 
 #include <petscts.h>
+#include <petscdm.h>
 #include <petscdmda.h>
 #include <petscdraw.h>
 
@@ -40,7 +41,7 @@ PETSC_STATIC_INLINE PetscReal Sgn(PetscReal a) { return (a<0) ? -1 : 1; }
 PETSC_STATIC_INLINE PetscReal Abs(PetscReal a) { return (a<0) ? 0 : a; }
 PETSC_STATIC_INLINE PetscReal Sqr(PetscReal a) { return a*a; }
 PETSC_STATIC_INLINE PetscReal MaxAbs(PetscReal a,PetscReal b) { return (PetscAbs(a) > PetscAbs(b)) ? a : b; }
-PETSC_STATIC_INLINE PetscReal MinAbs(PetscReal a,PetscReal b) { return (PetscAbs(a) < PetscAbs(b)) ? a : b; }
+PETSC_UNUSED PETSC_STATIC_INLINE PetscReal MinAbs(PetscReal a,PetscReal b) { return (PetscAbs(a) < PetscAbs(b)) ? a : b; }
 PETSC_STATIC_INLINE PetscReal MinMod2(PetscReal a,PetscReal b) { return (a*b<0) ? 0 : Sgn(a)*PetscMin(PetscAbs(a),PetscAbs(b)); }
 PETSC_STATIC_INLINE PetscReal MaxMod2(PetscReal a,PetscReal b) { return (a*b<0) ? 0 : Sgn(a)*PetscMax(PetscAbs(a),PetscAbs(b)); }
 PETSC_STATIC_INLINE PetscReal MinMod3(PetscReal a,PetscReal b,PetscReal c) {return (a*b<0 || a*c<0) ? 0 : Sgn(a)*PetscMin(PetscAbs(a),PetscMin(PetscAbs(b),PetscAbs(c))); }
@@ -679,7 +680,7 @@ typedef struct {
   PetscReal z;                  /* impedence: z = sqrt(rho*bulk) */
 } AcousticsCtx;
 
-PETSC_STATIC_INLINE void AcousticsFlux(AcousticsCtx *ctx,const PetscScalar *u,PetscScalar *f)
+PETSC_UNUSED PETSC_STATIC_INLINE void AcousticsFlux(AcousticsCtx *ctx,const PetscScalar *u,PetscScalar *f)
 {
   f[0] = ctx->c*ctx->z*u[1];
   f[1] = ctx->c/ctx->z*u[0];
@@ -1251,7 +1252,7 @@ static PetscErrorCode FVRHSFunction(TS ts,PetscReal time,Vec X,Vec F,void *vctx)
 
   ierr = VecZeroEntries(F);CHKERRQ(ierr);
 
-  ierr = DMDAVecGetArray(da,Xloc,&x);CHKERRQ(ierr);
+  ierr = DMDAVecGetArrayRead(da,Xloc,&x);CHKERRQ(ierr);
   ierr = DMDAVecGetArray(da,F,&f);CHKERRQ(ierr);
   ierr = DMDAGetArray(da,PETSC_TRUE,&slope);CHKERRQ(ierr);
 
@@ -1315,7 +1316,7 @@ static PetscErrorCode FVRHSFunction(TS ts,PetscReal time,Vec X,Vec F,void *vctx)
     }
   }
 
-  ierr = DMDAVecRestoreArray(da,Xloc,&x);CHKERRQ(ierr);
+  ierr = DMDAVecRestoreArrayRead(da,Xloc,&x);CHKERRQ(ierr);
   ierr = DMDAVecRestoreArray(da,F,&f);CHKERRQ(ierr);
   ierr = DMDARestoreArray(da,PETSC_TRUE,&slope);CHKERRQ(ierr);
   ierr = DMRestoreLocalVector(da,&Xloc);CHKERRQ(ierr);
@@ -1355,19 +1356,20 @@ static PetscErrorCode SmallMatMultADB(PetscScalar *C,PetscInt bs,const PetscScal
 
 #undef __FUNCT__
 #define __FUNCT__ "FVIJacobian"
-static PetscErrorCode FVIJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal shift,Mat *A,Mat *B,MatStructure *flg,void *vctx)
+static PetscErrorCode FVIJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal shift,Mat A,Mat B,void *vctx)
 {
-  FVCtx          *ctx = (FVCtx*)vctx;
-  PetscErrorCode ierr;
-  PetscInt       i,j,dof = ctx->physics.dof;
-  PetscScalar    *x,*J;
-  PetscReal      hx;
-  DM             da;
-  DMDALocalInfo  dainfo;
+  FVCtx             *ctx = (FVCtx*)vctx;
+  PetscErrorCode    ierr;
+  PetscInt          i,j,dof = ctx->physics.dof;
+  PetscScalar       *J;
+  const PetscScalar *x;
+  PetscReal         hx;
+  DM                da;
+  DMDALocalInfo     dainfo;
 
   PetscFunctionBeginUser;
   ierr = TSGetDM(ts,&da);CHKERRQ(ierr);
-  ierr = DMDAVecGetArray(da,X,&x);CHKERRQ(ierr);
+  ierr = DMDAVecGetArrayRead(da,X,&x);CHKERRQ(ierr);
   ierr = DMDAGetLocalInfo(da,&dainfo);CHKERRQ(ierr);
   hx   = (ctx->xmax - ctx->xmin)/dainfo.mx;
   ierr = PetscMalloc1(dof*dof,&J);CHKERRQ(ierr);
@@ -1376,16 +1378,16 @@ static PetscErrorCode FVIJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal shi
     for (j=0; j<dof; j++) ctx->speeds[j] = PetscAbs(ctx->speeds[j]);
     ierr = SmallMatMultADB(J,dof,ctx->R,ctx->speeds,ctx->Rinv);CHKERRQ(ierr);
     for (j=0; j<dof*dof; j++) J[j] = J[j]/hx + shift*(j/dof == j%dof);
-    ierr = MatSetValuesBlocked(*B,1,&i,1,&i,J,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = MatSetValuesBlocked(B,1,&i,1,&i,J,INSERT_VALUES);CHKERRQ(ierr);
   }
   ierr = PetscFree(J);CHKERRQ(ierr);
-  ierr = DMDAVecRestoreArray(da,X,&x);CHKERRQ(ierr);
+  ierr = DMDAVecRestoreArrayRead(da,X,&x);CHKERRQ(ierr);
 
-  ierr = MatAssemblyBegin(*B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatAssemblyEnd(*B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  if (*A != *B) {
-    ierr = MatAssemblyBegin(*A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = MatAssemblyEnd(*A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  if (A != B) {
+    ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -1438,7 +1440,7 @@ static PetscErrorCode SolutionStatsView(DM da,Vec X,PetscViewer viewer)
     ierr  = DMGetLocalVector(da,&Xloc);CHKERRQ(ierr);
     ierr  = DMGlobalToLocalBegin(da,X,INSERT_VALUES,Xloc);CHKERRQ(ierr);
     ierr  = DMGlobalToLocalEnd  (da,X,INSERT_VALUES,Xloc);CHKERRQ(ierr);
-    ierr  = DMDAVecGetArray(da,Xloc,&x);CHKERRQ(ierr);
+    ierr  = DMDAVecGetArrayRead(da,Xloc,&x);CHKERRQ(ierr);
     ierr  = DMDAGetCorners(da,&xs,0,0,&xm,0,0);CHKERRQ(ierr);
     ierr  = DMDAGetInfo(da,0, &Mx,0,0, 0,0,0, &dof,0,0,0,0,0);CHKERRQ(ierr);
     tvsum = 0;
@@ -1446,7 +1448,7 @@ static PetscErrorCode SolutionStatsView(DM da,Vec X,PetscViewer viewer)
       for (j=0; j<dof; j++) tvsum += PetscAbsScalar(x[i*dof+j] - x[(i-1)*dof+j]);
     }
     ierr = MPI_Allreduce(&tvsum,&tvgsum,1,MPIU_REAL,MPIU_MAX,PetscObjectComm((PetscObject)da));CHKERRQ(ierr);
-    ierr = DMDAVecRestoreArray(da,Xloc,&x);CHKERRQ(ierr);
+    ierr = DMDAVecRestoreArrayRead(da,Xloc,&x);CHKERRQ(ierr);
     ierr = DMRestoreLocalVector(da,&Xloc);CHKERRQ(ierr);
 
     ierr = VecMin(X,&imin,&xmin);CHKERRQ(ierr);
@@ -1558,7 +1560,7 @@ int main(int argc,char *argv[])
   }
 
   /* Create a DMDA to manage the parallel grid */
-  ierr = DMDACreate1d(comm,DMDA_BOUNDARY_PERIODIC,-50,ctx.physics.dof,2,NULL,&da);CHKERRQ(ierr);
+  ierr = DMDACreate1d(comm,DM_BOUNDARY_PERIODIC,-50,ctx.physics.dof,2,NULL,&da);CHKERRQ(ierr);
   /* Inform the DMDA of the field names provided by the physics. */
   /* The names will be shown in the title bars when run with -ts_monitor_draw_solution */
   for (i=0; i<ctx.physics.dof; i++) {

@@ -9,8 +9,8 @@ EXAMPLESF       =
 EXAMPLESFH      =
 MANSEC          = TS
 
-include ${PETSC_DIR}/conf/variables
-include ${PETSC_DIR}/conf/rules
+include ${PETSC_DIR}/lib/petsc-conf/variables
+include ${PETSC_DIR}/lib/petsc-conf/rules
 
 ex1: ex1.o  chkopts
 	-${CLINKER} -o ex1 ex1.o  ${PETSC_TS_LIB}
@@ -55,6 +55,14 @@ ex9: ex9.o  chkopts
 ex10: ex10.o  chkopts
 	-${CLINKER} -o ex10 ex10.o ${PETSC_TS_LIB}
 	${RM} ex10.o
+
+ex22: ex22.o  chkopts
+	-${CLINKER} -o ex22 ex22.o  ${PETSC_TS_LIB}
+	${RM} ex22.o
+
+ex23: ex23.o  chkopts
+	-${CLINKER} -o ex23 ex23.o  ${PETSC_TS_LIB}
+	${RM} ex23.o
 
 ex25: ex25.o  chkopts
 	-${CLINKER} -o ex25 ex25.o ${PETSC_TS_LIB}
@@ -147,4 +155,4 @@ TESTEXAMPLES_FORTRAN	  =
 TESTEXAMPLES_C_X_MPIUNI =
 TESTEXAMPLES_13		  = ex2.PETSc ex2.rm ex4.PETSc ex4.rm
 
-include ${PETSC_DIR}/conf/test
+include ${PETSC_DIR}/lib/petsc-conf/test

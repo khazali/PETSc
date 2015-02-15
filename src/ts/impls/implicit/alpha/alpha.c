@@ -171,14 +171,14 @@ static PetscErrorCode SNESTSFormFunction_Alpha(SNES snes,Vec x,Vec y,TS ts)
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESTSFormJacobian_Alpha"
-static PetscErrorCode SNESTSFormJacobian_Alpha(SNES snes,Vec x,Mat *A,Mat *B,MatStructure *str,TS ts)
+static PetscErrorCode SNESTSFormJacobian_Alpha(SNES snes,Vec x,Mat A,Mat B,TS ts)
 {
   TS_Alpha       *th = (TS_Alpha*)ts->data;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   /* A,B = Jacobian(ta,Xa,Va) */
-  ierr = TSComputeIJacobian(ts,th->stage_time,th->Xa,th->Va,th->shift,A,B,str,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = TSComputeIJacobian(ts,th->stage_time,th->Xa,th->Va,th->shift,A,B,PETSC_FALSE);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -201,13 +201,13 @@ static PetscErrorCode TSSetUp_Alpha(TS ts)
 
 #undef __FUNCT__
 #define __FUNCT__ "TSSetFromOptions_Alpha"
-static PetscErrorCode TSSetFromOptions_Alpha(TS ts)
+static PetscErrorCode TSSetFromOptions_Alpha(PetscOptions *PetscOptionsObject,TS ts)
 {
   TS_Alpha       *th = (TS_Alpha*)ts->data;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscOptionsHead("Alpha ODE solver options");CHKERRQ(ierr);
+  ierr = PetscOptionsHead(PetscOptionsObject,"Alpha ODE solver options");CHKERRQ(ierr);
   {
     PetscBool flag, adapt = PETSC_FALSE;
     PetscReal radius = 1.0;

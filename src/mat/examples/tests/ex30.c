@@ -60,7 +60,7 @@ int main(int argc,char **args)
   if (!flg) SETERRQ(PETSC_COMM_SELF,1,"C is non-symmetric");
 
   /* Create vectors for error checking */
-  ierr = MatGetVecs(C,&x,&b);CHKERRQ(ierr);
+  ierr = MatCreateVecs(C,&x,&b);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&y);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&ytmp);CHKERRQ(ierr);
   ierr = PetscRandomCreate(PETSC_COMM_SELF,&rdm);CHKERRQ(ierr);
@@ -105,15 +105,6 @@ int main(int argc,char **args)
     ierr = MatILUFactorSymbolic(A,C,row,col,&info);CHKERRQ(ierr);
   }
   ierr = MatLUFactorNumeric(A,C,&info);CHKERRQ(ierr);
-
-  if (MATDSPL) {
-    printf("factored matrix:\n");
-    ierr = PetscViewerPushFormat(PETSC_VIEWER_STDOUT_SELF,PETSC_VIEWER_ASCII_INFO);CHKERRQ(ierr);
-    ierr = MatView(A,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
-    ierr = PetscViewerPopFormat(PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
-    ierr = MatView(A,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
-    ierr = MatView(A,viewer2);CHKERRQ(ierr);
-  }
 
   /* Solve A*y = b, then check the error */
   ierr = MatSolve(A,b,y);CHKERRQ(ierr);

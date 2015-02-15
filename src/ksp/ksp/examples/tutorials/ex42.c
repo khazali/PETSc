@@ -9,8 +9,8 @@ all boundaries are free-slip, i.e. zero normal flow and zero tangential stress \
 
 /* Contributed by Dave May */
 
-#include "petscksp.h"
-#include "petscdmda.h"
+#include <petscksp.h>
+#include <petscdmda.h>
 
 #define PROFILE_TIMING
 #define ASSEMBLE_LOWER_TRIANGULAR
@@ -70,7 +70,7 @@ PetscErrorCode CellPropertiesCreate(DM da_stokes,CellProperties *C)
   cells->sey    = sey;
   cells->sez    = sez;
 
-  ierr = PetscMalloc(sizeof(GaussPointCoefficients)*mx*my*mz,&cells->gpc);CHKERRQ(ierr);
+  ierr = PetscMalloc1(mx*my*mz,&cells->gpc);CHKERRQ(ierr);
 
   *C = cells;
   PetscFunctionReturn(0);
@@ -94,10 +94,10 @@ PetscErrorCode CellPropertiesDestroy(CellProperties *C)
 
 #undef __FUNCT__
 #define __FUNCT__ "CellPropertiesGetCell"
-PetscErrorCode CellPropertiesGetCell(CellProperties C,PetscInt I,PetscInt J,PetscInt K,GaussPointCoefficients **G)
+PetscErrorCode CellPropertiesGetCell(CellProperties C,PetscInt II,PetscInt J,PetscInt K,GaussPointCoefficients **G)
 {
   PetscFunctionBeginUser;
-  *G = &C->gpc[(I-C->sex) + (J-C->sey)*C->mx + (K-C->sez)*C->mx*C->my];
+  *G = &C->gpc[(II-C->sex) + (J-C->sey)*C->mx + (K-C->sez)*C->mx*C->my];
   PetscFunctionReturn(0);
 }
 
@@ -481,32 +481,32 @@ static PetscInt ASS_MAP_wIwDI_uJuDJ(PetscInt wi,PetscInt wd,PetscInt w_NPE,Petsc
 #define __FUNCT__ "DMDASetValuesLocalStencil3D_ADD_VALUES"
 static PetscErrorCode DMDASetValuesLocalStencil3D_ADD_VALUES(StokesDOF ***fields_F,MatStencil u_eqn[],MatStencil p_eqn[],PetscScalar Fe_u[],PetscScalar Fe_p[])
 {
-  PetscInt n,I,J,K;
+  PetscInt n,II,J,K;
 
   PetscFunctionBeginUser;
   for (n = 0; n<NODES_PER_EL; n++) {
-    I = u_eqn[NSD*n].i;
+    II = u_eqn[NSD*n].i;
     J = u_eqn[NSD*n].j;
     K = u_eqn[NSD*n].k;
 
-    fields_F[K][J][I].u_dof = fields_F[K][J][I].u_dof+Fe_u[NSD*n];
+    fields_F[K][J][II].u_dof = fields_F[K][J][II].u_dof+Fe_u[NSD*n];
 
-    I = u_eqn[NSD*n+1].i;
+    II = u_eqn[NSD*n+1].i;
     J = u_eqn[NSD*n+1].j;
     K = u_eqn[NSD*n+1].k;
 
-    fields_F[K][J][I].v_dof = fields_F[K][J][I].v_dof+Fe_u[NSD*n+1];
+    fields_F[K][J][II].v_dof = fields_F[K][J][II].v_dof+Fe_u[NSD*n+1];
 
-    I = u_eqn[NSD*n+2].i;
+    II = u_eqn[NSD*n+2].i;
     J = u_eqn[NSD*n+2].j;
     K = u_eqn[NSD*n+2].k;
-    fields_F[K][J][I].w_dof = fields_F[K][J][I].w_dof+Fe_u[NSD*n+2];
+    fields_F[K][J][II].w_dof = fields_F[K][J][II].w_dof+Fe_u[NSD*n+2];
 
-    I = p_eqn[n].i;
+    II = p_eqn[n].i;
     J = p_eqn[n].j;
     K = p_eqn[n].k;
 
-    fields_F[K][J][I].p_dof = fields_F[K][J][I].p_dof+Fe_p[n];
+    fields_F[K][J][II].p_dof = fields_F[K][J][II].p_dof+Fe_p[n];
 
   }
   PetscFunctionReturn(0);
@@ -833,7 +833,6 @@ static PetscErrorCode AssembleA_Stokes(Mat A,DM stokes_da,CellProperties cell_pr
   GaussPointCoefficients *props;
   PetscScalar            *prop_eta;
   PetscInt               n,M,N,P;
-  PetscLogDouble         t0,t1;
   PetscErrorCode         ierr;
 
   PetscFunctionBeginUser;
@@ -1140,7 +1139,7 @@ static void evaluate_MS_FrankKamentski(PetscReal pos[],PetscReal v[],PetscReal *
 static PetscErrorCode DMDACreateManufacturedSolution(PetscInt mx,PetscInt my,PetscInt mz,DM *_da,Vec *_X)
 {
   DM             da,cda;
-  Vec            X,local_X;
+  Vec            X;
   StokesDOF      ***_stokes;
   Vec            coords;
   DMDACoor3d     ***_coords;
@@ -1148,7 +1147,7 @@ static PetscErrorCode DMDACreateManufacturedSolution(PetscInt mx,PetscInt my,Pet
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
-  ierr = DMDACreate3d(PETSC_COMM_WORLD,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE,DMDA_STENCIL_BOX,
+  ierr = DMDACreate3d(PETSC_COMM_WORLD,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DMDA_STENCIL_BOX,
                       mx+1,my+1,mz+1,PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,4,1,NULL,NULL,NULL,&da);CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,0,"anlytic_Vx");CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,1,"anlytic_Vy");CHKERRQ(ierr);
@@ -1162,10 +1161,9 @@ static PetscErrorCode DMDACreateManufacturedSolution(PetscInt mx,PetscInt my,Pet
   ierr = DMDAVecGetArray(cda,coords,&_coords);CHKERRQ(ierr);
 
   ierr = DMCreateGlobalVector(da,&X);CHKERRQ(ierr);
-  ierr = DMCreateLocalVector(da,&local_X);CHKERRQ(ierr);
-  ierr = DMDAVecGetArray(da,local_X,&_stokes);CHKERRQ(ierr);
+  ierr = DMDAVecGetArray(da,X,&_stokes);CHKERRQ(ierr);
 
-  ierr = DMDAGetGhostCorners(da,&si,&sj,&sk,&ei,&ej,&ek);CHKERRQ(ierr);
+  ierr = DMDAGetCorners(da,&si,&sj,&sk,&ei,&ej,&ek);CHKERRQ(ierr);
   for (k = sk; k < sk+ek; k++) {
     for (j = sj; j < sj+ej; j++) {
       for (i = si; i < si+ei; i++) {
@@ -1184,13 +1182,8 @@ static PetscErrorCode DMDACreateManufacturedSolution(PetscInt mx,PetscInt my,Pet
       }
     }
   }
-  ierr = DMDAVecRestoreArray(da,local_X,&_stokes);CHKERRQ(ierr);
+  ierr = DMDAVecRestoreArray(da,X,&_stokes);CHKERRQ(ierr);
   ierr = DMDAVecRestoreArray(cda,coords,&_coords);CHKERRQ(ierr);
-
-  ierr = DMLocalToGlobalBegin(da,local_X,INSERT_VALUES,X);CHKERRQ(ierr);
-  ierr = DMLocalToGlobalEnd(da,local_X,INSERT_VALUES,X);CHKERRQ(ierr);
-
-  ierr = VecDestroy(&local_X);CHKERRQ(ierr);
 
   *_da = da;
   *_X  = X;
@@ -1391,7 +1384,6 @@ PetscErrorCode DAView_3DVTK_StructuredGrid_appended(DM da,Vec FIELD,const char f
   PetscScalar    *_L_FIELD;
   PetscInt       memory_offset;
   PetscScalar    *buffer;
-  PetscLogDouble t0,t1;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
@@ -1454,7 +1446,7 @@ PetscErrorCode DAView_3DVTK_StructuredGrid_appended(DM da,Vec FIELD,const char f
   PetscFPrintf(PETSC_COMM_SELF,vtk_fp,"    </Piece>\n");
   PetscFPrintf(PETSC_COMM_SELF,vtk_fp,"  </StructuredGrid>\n");
 
-  ierr = PetscMalloc(sizeof(PetscScalar)*N,&buffer);CHKERRQ(ierr);
+  ierr = PetscMalloc1(N,&buffer);CHKERRQ(ierr);
   ierr = DMGetLocalVector(da,&l_FIELD);CHKERRQ(ierr);
   ierr = DMGlobalToLocalBegin(da, FIELD,INSERT_VALUES,l_FIELD);CHKERRQ(ierr);
   ierr = DMGlobalToLocalEnd(da,FIELD,INSERT_VALUES,l_FIELD);CHKERRQ(ierr);
@@ -1521,9 +1513,9 @@ PetscErrorCode DAViewVTK_write_PieceExtend(FILE *vtk_fp,PetscInt indent_level,DM
   ierr = DMDAGetOwnershipRanges(da,&lx,&ly,&lz);CHKERRQ(ierr);
 
   /* generate start,end list */
-  ierr = PetscMalloc(sizeof(PetscInt)*(pM+1),&olx);CHKERRQ(ierr);
-  ierr = PetscMalloc(sizeof(PetscInt)*(pN+1),&oly);CHKERRQ(ierr);
-  ierr = PetscMalloc(sizeof(PetscInt)*(pP+1),&olz);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pM+1,&olx);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pN+1,&oly);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pP+1,&olz);CHKERRQ(ierr);
   sum  = 0;
   for (i=0; i<pM; i++) {
     olx[i] = sum;
@@ -1543,12 +1535,12 @@ PetscErrorCode DAViewVTK_write_PieceExtend(FILE *vtk_fp,PetscInt indent_level,DM
   }
   olz[pP] = sum;
 
-  ierr = PetscMalloc(sizeof(PetscInt)*(pM),&osx);CHKERRQ(ierr);
-  ierr = PetscMalloc(sizeof(PetscInt)*(pN),&osy);CHKERRQ(ierr);
-  ierr = PetscMalloc(sizeof(PetscInt)*(pP),&osz);CHKERRQ(ierr);
-  ierr = PetscMalloc(sizeof(PetscInt)*(pM),&oex);CHKERRQ(ierr);
-  ierr = PetscMalloc(sizeof(PetscInt)*(pN),&oey);CHKERRQ(ierr);
-  ierr = PetscMalloc(sizeof(PetscInt)*(pP),&oez);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pM,&osx);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pN,&osy);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pP,&osz);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pM,&oex);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pN,&oey);CHKERRQ(ierr);
+  ierr = PetscMalloc1(pP,&oez);CHKERRQ(ierr);
   for (i=0; i<pM; i++) {
     osx[i] = olx[i] - stencil;
     oex[i] = olx[i] + lx[i] + stencil;
@@ -1692,8 +1684,8 @@ PetscErrorCode KSPMonitorStokesBlocks(KSP ksp,PetscInt n,PetscReal rnorm,void *d
   Mat            A;
 
   PetscFunctionBeginUser;
-  ierr = KSPGetOperators(ksp,&A,0,0);CHKERRQ(ierr);
-  ierr = MatGetVecs(A,&w,&v);CHKERRQ(ierr);
+  ierr = KSPGetOperators(ksp,&A,NULL);CHKERRQ(ierr);
+  ierr = MatCreateVecs(A,&w,&v);CHKERRQ(ierr);
 
   ierr = KSPBuildResidual(ksp,v,w,&Br);CHKERRQ(ierr);
 
@@ -1722,9 +1714,9 @@ static PetscErrorCode PCMGSetupViaCoarsen(PC pc,DM da_fine)
   nlevels = 1;
   PetscOptionsGetInt(NULL,"-levels",&nlevels,0);
 
-  ierr = PetscMalloc(sizeof(DM)*nlevels,&da_list);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nlevels,&da_list);CHKERRQ(ierr);
   for (k=0; k<nlevels; k++) da_list[k] = NULL;
-  ierr = PetscMalloc(sizeof(DM)*nlevels,&daclist);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nlevels,&daclist);CHKERRQ(ierr);
   for (k=0; k<nlevels; k++) daclist[k] = NULL;
 
   /* finest grid is nlevels - 1 */
@@ -1784,7 +1776,7 @@ static PetscErrorCode solve_stokes_3d_coupled(PetscInt mx,PetscInt my,PetscInt m
   p_dof         = P_DOFS; /* p - pressure */
   dof           = u_dof+p_dof;
   stencil_width = 1;
-  ierr          = DMDACreate3d(PETSC_COMM_WORLD,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE,DMDA_STENCIL_BOX,
+  ierr          = DMDACreate3d(PETSC_COMM_WORLD,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DMDA_STENCIL_BOX,
                                mx+1,my+1,mz+1,PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,dof,stencil_width,NULL,NULL,NULL,&da_Stokes);CHKERRQ(ierr);
   ierr = DMDASetFieldName(da_Stokes,0,"Vx");CHKERRQ(ierr);
   ierr = DMDASetFieldName(da_Stokes,1,"Vy");CHKERRQ(ierr);
@@ -1981,7 +1973,7 @@ static PetscErrorCode solve_stokes_3d_coupled(PetscInt mx,PetscInt my,PetscInt m
   /* SOLVE */
   ierr = KSPCreate(PETSC_COMM_WORLD,&ksp_S);CHKERRQ(ierr);
   ierr = KSPSetOptionsPrefix(ksp_S,"stokes_"); /* stokes */ CHKERRQ(ierr);
-  ierr = KSPSetOperators(ksp_S,A,B,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp_S,A,B);CHKERRQ(ierr);
   ierr = KSPSetFromOptions(ksp_S);CHKERRQ(ierr);
 
   {

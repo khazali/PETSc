@@ -95,8 +95,7 @@ PETSC_STATIC_INLINE PetscErrorCode RestorePointArray_Private(DM dm,PetscInt *rn,
 #define __FUNCT__ "DMDAGetTransitiveClosure"
 PetscErrorCode DMDAGetTransitiveClosure(DM dm, PetscInt p, PetscBool useClosure, PetscInt *closureSize, PetscInt **closure)
 {
-  DM_DA         *da = (DM_DA *) dm->data;
-  PetscInt       dim = da->dim;
+  PetscInt       dim = dm->dim;
   PetscInt       nVx, nVy, nVz, nxF, nXF, nyF, nYF, nzF, nZF;
   PetscInt       pStart, pEnd, cStart, cEnd, vStart, vEnd, fStart, fEnd, xfStart, xfEnd, yfStart;
   PetscErrorCode ierr;
@@ -221,8 +220,7 @@ PetscErrorCode DMDARestoreTransitiveClosure(DM dm, PetscInt p, PetscBool useClos
 #define __FUNCT__ "DMDAGetClosure"
 PetscErrorCode DMDAGetClosure(DM dm, PetscSection section, PetscInt p,PetscInt *n,const PetscInt **closure)
 {
-  DM_DA          *da = (DM_DA*) dm->data;
-  PetscInt       dim = da->dim;
+  PetscInt       dim = dm->dim;
   PetscInt       nVx, nVy, nxF, nXF, nyF, nYF, nzF, nZF;
   PetscInt       pStart, pEnd, cStart, cEnd, vStart, vEnd, fStart, fEnd, xfStart, xfEnd, yfStart;
   PetscErrorCode ierr;
@@ -333,8 +331,7 @@ PetscErrorCode DMDARestoreClosure(DM dm, PetscSection section, PetscInt p,PetscI
 #define __FUNCT__ "DMDAGetClosureScalar"
 PetscErrorCode DMDAGetClosureScalar(DM dm, PetscSection section, PetscInt p, PetscScalar *vArray, PetscInt *csize, PetscScalar **values)
 {
-  DM_DA          *da = (DM_DA*) dm->data;
-  PetscInt       dim = da->dim;
+  PetscInt       dim = dm->dim;
   PetscInt       nVx, nVy, nxF, nXF, nyF, nYF, nzF, nZF;
   PetscInt       pStart, pEnd, cStart, cEnd, vStart, vEnd, fStart, fEnd, xfStart, xfEnd, yfStart, yfEnd, zfStart;
   PetscErrorCode ierr;
@@ -373,11 +370,13 @@ PetscErrorCode DMDAGetClosureScalar(DM dm, PetscSection section, PetscInt p, Pet
       */
       PetscInt c  = p - cStart, cx = c % (nVx-1), cy = c / (nVx-1);
       PetscInt v  = cy*nVx + cx +  vStart;
-      PetscInt xf = cy*nxF + cx + xfStart;
+      PetscInt xf = cx*nxF + cy + xfStart;
       PetscInt yf = c + yfStart;
       PetscInt points[9];
 
-      points[0] = p; points[1] = yf; points[2] = xf+1; points[3] = yf+nyF; points[4] = xf+0; points[5] = v+0; points[6] = v+1; points[7] = v+nVx+1; points[8] = v+nVx+0;
+      points[0] = p;
+      points[1] = yf;  points[2] = xf+nxF; points[3] = yf+nyF;  points[4] = xf;
+      points[5] = v+0; points[6] = v+1;    points[7] = v+nVx+1; points[8] = v+nVx+0;
       ierr = FillClosureArray_Static(dm, section, 9, points, vArray, csize, values);CHKERRQ(ierr);
     } else {
       /* 6 faces, 8 vertices
@@ -491,8 +490,7 @@ PetscErrorCode DMDAVecRestoreClosure(DM dm, PetscSection section, Vec v, PetscIn
 #define __FUNCT__ "DMDASetClosureScalar"
 PetscErrorCode DMDASetClosureScalar(DM dm, PetscSection section, PetscInt p,PetscScalar *vArray, const PetscScalar *values, InsertMode mode)
 {
-  DM_DA          *da = (DM_DA*) dm->data;
-  PetscInt       dim = da->dim;
+  PetscInt       dim = dm->dim;
   PetscInt       nVx, nVy, nxF, nXF, nyF, nYF, nzF, nZF, nCx, nCy;
   PetscInt       pStart, pEnd, cStart, cEnd, vStart, vEnd, fStart, fEnd, xfStart, xfEnd, yfStart, yfEnd, zfStart;
   PetscErrorCode ierr;
@@ -530,12 +528,15 @@ PetscErrorCode DMDASetClosureScalar(DM dm, PetscSection section, PetscInt p,Pets
            |     |
            5--1--6
       */
-      PetscInt c = p - cStart, l = c/nCx;
+      PetscInt c = p - cStart, cx = c % (nVx-1), cy = c / (nVx-1);
+      PetscInt v  = cy*nVx + cx +  vStart;
+      PetscInt xf = cx*nxF + cy + xfStart;
+      PetscInt yf = c + yfStart;
       PetscInt points[9];
 
       points[0] = p;
-      points[1] = yfStart+c+0;  points[2] = xfStart+l+c+1; points[3] = yfStart+nyF+c+0;  points[4] = xfStart+l+c+0;
-      points[5] = vStart+l+c+0; points[6] = vStart+l+c+1;  points[7] = vStart+nVx+l+c+1; points[8] = vStart+nVx+l+c+0;
+      points[1] = yf;  points[2] = xf+nxF; points[3] = yf+nyF;  points[4] = xf;
+      points[5] = v+0; points[6] = v+1;    points[7] = v+nVx+1; points[8] = v+nVx+0;
       ierr      = FillClosureVec_Private(dm, section, 9, points, vArray, values, mode);CHKERRQ(ierr);
     } else {
       /* 6 faces, 8 vertices
@@ -623,7 +624,7 @@ PetscErrorCode DMDAVecSetClosure(DM dm, PetscSection section, Vec v, PetscInt p,
 
   Input Parameter:
 + da - the distributed array
-= s - A MatStencil giving (i,j,k)
+- s - A MatStencil giving (i,j,k)
 
   Output Parameter:
 . cell - the local cell number
@@ -635,7 +636,7 @@ PetscErrorCode DMDAVecSetClosure(DM dm, PetscSection section, Vec v, PetscInt p,
 PetscErrorCode DMDAConvertToCell(DM dm, MatStencil s, PetscInt *cell)
 {
   DM_DA          *da = (DM_DA*) dm->data;
-  const PetscInt dim = da->dim;
+  const PetscInt dim = dm->dim;
   const PetscInt mx  = (da->Xe - da->Xs)/da->w, my = da->Ye - da->Ys /*, mz = da->Ze - da->Zs*/;
   const PetscInt il  = s.i - da->Xs/da->w, jl = dim > 1 ? s.j - da->Ys : 0, kl = dim > 2 ? s.k - da->Zs : 0;
 
@@ -686,14 +687,15 @@ PetscErrorCode DMDAComputeCellGeometry_2D(DM dm, const PetscScalar vertices[], c
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMDAComputeCellGeometry"
-PetscErrorCode DMDAComputeCellGeometry(DM dm, PetscInt cell, PetscQuadrature *quad, PetscReal v0[], PetscReal J[], PetscReal invJ[], PetscReal detJ[])
+#define __FUNCT__ "DMDAComputeCellGeometryFEM"
+PetscErrorCode DMDAComputeCellGeometryFEM(DM dm, PetscInt cell, PetscQuadrature quad, PetscReal v0[], PetscReal J[], PetscReal invJ[], PetscReal detJ[])
 {
-  DM                 cdm;
-  Vec                coordinates;
-  PetscScalar       *vertices = NULL;
-  PetscInt           csize, dim, d, q;
-  PetscErrorCode     ierr;
+  DM               cdm;
+  Vec              coordinates;
+  const PetscReal *quadPoints;
+  PetscScalar     *vertices = NULL;
+  PetscInt         numQuadPoints, csize, dim, d, q;
+  PetscErrorCode   ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
@@ -704,8 +706,9 @@ PetscErrorCode DMDAComputeCellGeometry(DM dm, PetscInt cell, PetscQuadrature *qu
   for (d = 0; d < dim; ++d) v0[d] = PetscRealPart(vertices[d]);
   switch (dim) {
   case 2:
-    for (q = 0; q < quad->numPoints; ++q) {
-      ierr = DMDAComputeCellGeometry_2D(dm, vertices, &quad->points[q*dim], J, invJ, detJ);CHKERRQ(ierr);
+    ierr = PetscQuadratureGetData(quad, NULL, &numQuadPoints, &quadPoints, NULL);CHKERRQ(ierr);
+    for (q = 0; q < numQuadPoints; ++q) {
+      ierr = DMDAComputeCellGeometry_2D(dm, vertices, &quadPoints[q*dim], J, invJ, detJ);CHKERRQ(ierr);
     }
     break;
   default:

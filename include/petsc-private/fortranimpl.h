@@ -61,9 +61,8 @@ PETSC_EXTERN void (*PETSC_NULL_FUNCTION_Fortran)(void);
     while((n > 0) && (a[n-1] == ' ')) n--; \
     *ierr = PetscMalloc((n+1)*sizeof(char),&b); \
     if (*ierr) return; \
-    *ierr = PetscStrncpy(b,a,n); \
+    *ierr = PetscStrncpy(b,a,n+1); \
     if (*ierr) return; \
-    b[n] = 0; \
   } \
 }
 
@@ -138,13 +137,13 @@ PETSC_EXTERN void  *PETSCNULLPOINTERADDRESS;
 /*
     Variable type where we stash PETSc object pointers in Fortran.
 */
-typedef size_t PetscFortranAddr;
+typedef PETSC_UINTPTR_T PetscFortranAddr;
 
 /*
     These are used to support the default viewers that are
   created at run time, in C using the , trick.
 
-    The numbers here must match the numbers in include/finclude/petscsys.h
+    The numbers here must match the numbers in include/petsc-finclude/petscsys.h
 */
 #define PETSC_VIEWER_DRAW_WORLD_FORTRAN     4
 #define PETSC_VIEWER_DRAW_SELF_FORTRAN      5

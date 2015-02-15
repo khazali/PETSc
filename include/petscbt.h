@@ -60,7 +60,7 @@ PETSC_STATIC_INLINE PetscErrorCode PetscBTView(PetscInt m,const PetscBT bt,Petsc
   PetscInt       i;
   PetscErrorCode ierr;
 
-  ierr = PetscViewerASCIIGetStdout(PETSC_COMM_SELF,&viewer);CHKERRQ(ierr);
+  if (!viewer) {ierr = PetscViewerASCIIGetStdout(PETSC_COMM_SELF,&viewer);CHKERRQ(ierr);}
   ierr = PetscViewerASCIISynchronizedAllow(viewer,PETSC_TRUE);CHKERRQ(ierr);
   for (i=0; i<m; i++) {
     ierr = PetscViewerASCIISynchronizedPrintf(viewer,"%D %d\n",i,PetscBTLookup(bt,i));CHKERRQ(ierr);
@@ -72,7 +72,7 @@ PETSC_STATIC_INLINE PetscErrorCode PetscBTView(PetscInt m,const PetscBT bt,Petsc
 
 PETSC_STATIC_INLINE PetscErrorCode PetscBTCreate(PetscInt m,PetscBT *array)
 {
-  return (PetscMalloc(((m)/PETSC_BITS_PER_BYTE+1)*sizeof(char),array) || PetscBTMemzero(m,*array));
+  return (PetscMalloc1(m/PETSC_BITS_PER_BYTE+1,array) || PetscBTMemzero(m,*array));
 }
 
 PETSC_STATIC_INLINE char PetscBTLookupSet(PetscBT array,PetscInt index)
@@ -96,6 +96,15 @@ PETSC_STATIC_INLINE PetscErrorCode PetscBTSet(PetscBT array,PetscInt index)
   BT_c          = array[BT_idx];
   BT_mask       = (char)1 << ((index)%PETSC_BITS_PER_BYTE);
   array[BT_idx] = BT_c | BT_mask;
+  return 0;
+}
+
+PETSC_STATIC_INLINE PetscErrorCode PetscBTNegate(PetscBT array,PetscInt index)
+{
+  const PetscInt BT_idx  = (index)/PETSC_BITS_PER_BYTE;
+  const char     BT_mask = (char)1 << ((index)%PETSC_BITS_PER_BYTE);
+
+  array[BT_idx] ^= BT_mask;
   return 0;
 }
 

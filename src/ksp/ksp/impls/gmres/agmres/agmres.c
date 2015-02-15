@@ -129,7 +129,7 @@ static PetscErrorCode KSPComputeShifts_GMRES(KSP ksp)
   PC             pc;
   PetscInt       m;
   PetscScalar    *Rshift, *Ishift;
-  PetscBool      flg;
+
 
   PetscFunctionBegin;
   /* Perform one cycle of classical GMRES (with the Arnoldi process) to get the Hessenberg matrix
@@ -137,8 +137,8 @@ static PetscErrorCode KSPComputeShifts_GMRES(KSP ksp)
    linear system have been set in this ksp */
   ierr = KSPCreate(PetscObjectComm((PetscObject)ksp), &kspgmres);CHKERRQ(ierr);
   if (!ksp->pc) { ierr = KSPGetPC(ksp,&ksp->pc);CHKERRQ(ierr); }
-  ierr = PCGetOperators(ksp->pc, &Amat, &Pmat, &flag);CHKERRQ(ierr);
-  ierr = KSPSetOperators(kspgmres, Amat, Pmat, flag);CHKERRQ(ierr);
+  ierr = PCGetOperators(ksp->pc, &Amat, &Pmat);CHKERRQ(ierr);
+  ierr = KSPSetOperators(kspgmres, Amat, Pmat);CHKERRQ(ierr);
   ierr = KSPSetFromOptions(kspgmres);CHKERRQ(ierr);
   ierr = PetscOptionsHasName(NULL, "-ksp_view", &flg);CHKERRQ(ierr);
   if (flag) { ierr = PetscOptionsClearValue("-ksp_view");CHKERRQ(ierr); }
@@ -606,7 +606,7 @@ PetscErrorCode KSPSolve_AGMRES(KSP ksp)
     /* compute the eigenvectors to augment the subspace : use an adaptive strategy */
     res = ksp->rnorm;
     if (!ksp->reason && agmres->neig > 0) {
-      test = agmres->max_k * log(ksp->rtol/res) / log(res/res_old); /* estimate the remaining number of steps */
+      test = agmres->max_k * PetscLogReal(ksp->rtol/res) / PetscLogReal(res/res_old); /* estimate the remaining number of steps */
       if ((test > agmres->smv*(ksp->max_it-ksp->its)) || agmres->force) {
         if (!agmres->force && ((test > agmres->bgv*(ksp->max_it-ksp->its)) && ((agmres->r + 1) < agmres->max_neig))) {
           agmres->neig += 1; /* Augment the number of eigenvalues to deflate if the convergence is too slow */
@@ -704,16 +704,16 @@ PetscErrorCode KSPView_AGMRES(KSP ksp,PetscViewer viewer)
 
 #undef __FUNCT__
 #define __FUNCT__ "KSPSetFromOptions_AGMRES"
-PetscErrorCode KSPSetFromOptions_AGMRES(KSP ksp)
+PetscErrorCode KSPSetFromOptions_AGMRES(PetscOptions *PetscOptionsObject,KSP ksp)
 {
   PetscErrorCode ierr;
   PetscInt       neig;
   KSP_AGMRES     *agmres = (KSP_AGMRES*)ksp->data;
-  PetscBool      flg, Set;
+  PetscBool      flg;
 
   PetscFunctionBegin;
-  ierr = KSPSetFromOptions_DGMRES(ksp);  /* Set common options from DGMRES and GMRES */
-  ierr = PetscOptionsHead("KSP AGMRES Options");CHKERRQ(ierr);
+  ierr = KSPSetFromOptions_DGMRES(PetscOptionsObject,ksp);  /* Set common options from DGMRES and GMRES */
+  ierr = PetscOptionsHead(PetscOptionsObject,"KSP AGMRES Options");CHKERRQ(ierr);
   ierr = PetscOptionsInt("-ksp_agmres_eigen", "Number of eigenvalues to deflate", "KSPDGMRESSetEigen", agmres->neig, &neig, &flg);CHKERRQ(ierr);
   if (flg) {
     ierr      = KSPDGMRESSetEigen_DGMRES(ksp, neig);CHKERRQ(ierr);
@@ -722,14 +722,10 @@ PetscErrorCode KSPSetFromOptions_AGMRES(KSP ksp)
   ierr = PetscOptionsInt("-ksp_agmres_maxeigen", "Maximum number of eigenvalues to deflate", "KSPDGMRESSetMaxEigen", agmres->max_neig, &neig, &flg);CHKERRQ(ierr);
   if (flg) agmres->max_neig = neig+EIG_OFFSET;
   else agmres->max_neig = agmres->neig+EIG_OFFSET;
-  ierr                = PetscOptionsBool("-ksp_agmres_DeflPrecond", "Determine if the deflation should be applied as a preconditioner -- similar to KSP DGMRES", "KSPGMRESDeflPrecond", PETSC_FALSE, &Set, &flg);
-  agmres->DeflPrecond = flg;
-  ierr                = PetscOptionsBool("-ksp_agmres_ritz", "Compute the Ritz vectors instead of the Harmonic Ritz vectors ", "KSPGMRESHarmonic", PETSC_FALSE, &Set, &flg);
-  agmres->ritz        = flg;
-  ierr                = PetscOptionsReal("-ksp_agmres_MinRatio", "Relaxation parameter in the adaptive strategy; smallest multiple of the remaining number of steps allowed", "KSPGMRESSetMinRatio", 1, &(agmres->smv), &flg);
-  CHKERRQ(ierr);
-  ierr = PetscOptionsReal("-ksp_agmres_MaxRatio", "Relaxation parameter in the adaptive strategy; Largest multiple of the remaining number of steps allowed", "KSPGMRESSetMaxRatio", 1, &(agmres->bgv), &flg);
-  CHKERRQ(ierr);
+  ierr                = PetscOptionsBool("-ksp_agmres_DeflPrecond", "Determine if the deflation should be applied as a preconditioner -- similar to KSP DGMRES", "KSPGMRESDeflPrecond",agmres->DeflPrecond,&agmres->DeflPrecond,NULL);CHKERRQ(ierr);
+  ierr                = PetscOptionsBool("-ksp_agmres_ritz", "Compute the Ritz vectors instead of the Harmonic Ritz vectors ", "KSPGMRESHarmonic",agmres->ritz,&agmres->ritz ,&flg);CHKERRQ(ierr);
+  ierr                = PetscOptionsReal("-ksp_agmres_MinRatio", "Relaxation parameter in the adaptive strategy; smallest multiple of the remaining number of steps allowed", "KSPGMRESSetMinRatio", agrmes->smv, &agmres->smv, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-ksp_agmres_MaxRatio", "Relaxation parameter in the adaptive strategy; Largest multiple of the remaining number of steps allowed", "KSPGMRESSetMaxRatio",agmres->bgv,&agmres->bgv, &flg);CHKERRQ(ierr);
   ierr = PetscOptionsTail();CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -788,9 +784,9 @@ PETSC_EXTERN PetscErrorCode KSPCreate_AGMRES(KSP ksp)
   ierr      = PetscNewLog(ksp,&agmres);CHKERRQ(ierr);
   ksp->data = (void*)agmres;
 
-  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_PRECONDITIONED,PC_LEFT,2);
+  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_PRECONDITIONED,PC_LEFT,3);
   CHKERRQ(ierr);
-  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_UNPRECONDITIONED,PC_RIGHT,1);
+  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_UNPRECONDITIONED,PC_RIGHT,2);
   CHKERRQ(ierr);
   ksp->ops->buildsolution                = KSPBuildSolution_AGMRES;
   ksp->ops->setup                        = KSPSetUp_AGMRES;

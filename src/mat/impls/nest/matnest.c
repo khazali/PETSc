@@ -1,9 +1,9 @@
 
-#include "../src/mat/impls/nest/matnestimpl.h" /*I   "petscmat.h"   I*/
+#include <../src/mat/impls/nest/matnestimpl.h> /*I   "petscmat.h"   I*/
 #include <petscsf.h>
 
 static PetscErrorCode MatSetUp_NestIS_Private(Mat,PetscInt,const IS[],PetscInt,const IS[]);
-static PetscErrorCode MatGetVecs_Nest(Mat A,Vec *right,Vec *left);
+static PetscErrorCode MatCreateVecs_Nest(Mat A,Vec *right,Vec *left);
 
 /* private functions */
 #undef __FUNCT__
@@ -465,18 +465,27 @@ static PetscErrorCode MatDiagonalScale_Nest(Mat A,Vec l,Vec r)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscMalloc1(bA->nc,&br);CHKERRQ(ierr);
-  for (j=0; j<bA->nc; j++) {ierr = VecGetSubVector(r,bA->isglobal.col[j],&br[j]);CHKERRQ(ierr);}
+  ierr = PetscCalloc1(bA->nc,&br);CHKERRQ(ierr);
+  if (r) {
+    for (j=0; j<bA->nc; j++) {ierr = VecGetSubVector(r,bA->isglobal.col[j],&br[j]);CHKERRQ(ierr);}
+  }
+  bl = NULL;
   for (i=0; i<bA->nr; i++) {
-    ierr = VecGetSubVector(l,bA->isglobal.row[i],&bl);CHKERRQ(ierr);
+    if (l) {
+      ierr = VecGetSubVector(l,bA->isglobal.row[i],&bl);CHKERRQ(ierr);
+    }
     for (j=0; j<bA->nc; j++) {
       if (bA->m[i][j]) {
         ierr = MatDiagonalScale(bA->m[i][j],bl,br[j]);CHKERRQ(ierr);
       }
     }
-    ierr = VecRestoreSubVector(l,bA->isglobal.row[i],&bl);CHKERRQ(ierr);
+    if (l) {
+      ierr = VecRestoreSubVector(l,bA->isglobal.row[i],&bl);CHKERRQ(ierr);
+    }
   }
-  for (j=0; j<bA->nc; j++) {ierr = VecRestoreSubVector(r,bA->isglobal.col[j],&br[j]);CHKERRQ(ierr);}
+  if (r) {
+    for (j=0; j<bA->nc; j++) {ierr = VecRestoreSubVector(r,bA->isglobal.col[j],&br[j]);CHKERRQ(ierr);}
+  }
   ierr = PetscFree(br);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -517,8 +526,8 @@ static PetscErrorCode MatShift_Nest(Mat A,PetscScalar a)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "MatGetVecs_Nest"
-static PetscErrorCode MatGetVecs_Nest(Mat A,Vec *right,Vec *left)
+#define __FUNCT__ "MatCreateVecs_Nest"
+static PetscErrorCode MatCreateVecs_Nest(Mat A,Vec *right,Vec *left)
 {
   Mat_Nest       *bA = (Mat_Nest*)A->data;
   Vec            *L,*R;
@@ -530,12 +539,12 @@ static PetscErrorCode MatGetVecs_Nest(Mat A,Vec *right,Vec *left)
   ierr = PetscObjectGetComm((PetscObject)A,&comm);CHKERRQ(ierr);
   if (right) {
     /* allocate R */
-    ierr = PetscMalloc(sizeof(Vec) * bA->nc, &R);CHKERRQ(ierr);
+    ierr = PetscMalloc1(bA->nc, &R);CHKERRQ(ierr);
     /* Create the right vectors */
     for (j=0; j<bA->nc; j++) {
       for (i=0; i<bA->nr; i++) {
         if (bA->m[i][j]) {
-          ierr = MatGetVecs(bA->m[i][j],&R[j],NULL);CHKERRQ(ierr);
+          ierr = MatCreateVecs(bA->m[i][j],&R[j],NULL);CHKERRQ(ierr);
           break;
         }
       }
@@ -554,12 +563,12 @@ static PetscErrorCode MatGetVecs_Nest(Mat A,Vec *right,Vec *left)
 
   if (left) {
     /* allocate L */
-    ierr = PetscMalloc(sizeof(Vec) * bA->nr, &L);CHKERRQ(ierr);
+    ierr = PetscMalloc1(bA->nr, &L);CHKERRQ(ierr);
     /* Create the left vectors */
     for (i=0; i<bA->nr; i++) {
       for (j=0; j<bA->nc; j++) {
         if (bA->m[i][j]) {
-          ierr = MatGetVecs(bA->m[i][j],NULL,&L[i]);CHKERRQ(ierr);
+          ierr = MatCreateVecs(bA->m[i][j],NULL,&L[i]);CHKERRQ(ierr);
           break;
         }
       }
@@ -641,6 +650,26 @@ static PetscErrorCode MatZeroEntries_Nest(Mat A)
     for (j=0; j<bA->nc; j++) {
       if (!bA->m[i][j]) continue;
       ierr = MatZeroEntries(bA->m[i][j]);CHKERRQ(ierr);
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MatCopy_Nest"
+static PetscErrorCode MatCopy_Nest(Mat A,Mat B,MatStructure str)
+{
+  Mat_Nest       *bA = (Mat_Nest*)A->data,*bB = (Mat_Nest*)B->data;
+  PetscInt       i,j,nr = bA->nr,nc = bA->nc;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (nr != bB->nr || nc != bB->nc) SETERRQ4(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_INCOMP,"Cannot copy a Mat_Nest of block size (%D,%D) to a Mat_Nest of block size (%D,%D)",bB->nr,bB->nc,nr,nc);
+  for (i=0; i<nr; i++) {
+    for (j=0; j<nc; j++) {
+      if (bA->m[i][j] && bB->m[i][j]) {
+        ierr = MatCopy(bA->m[i][j],bB->m[i][j],str);CHKERRQ(ierr);
+      } else if (bA->m[i][j] || bB->m[i][j]) SETERRQ2(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_INCOMP,"Matrix block does not exist at %D,%D",i,j);
     }
   }
   PetscFunctionReturn(0);
@@ -878,7 +907,7 @@ static PetscErrorCode MatNestGetISs_Nest(Mat A,IS rows[],IS cols[])
 
 #undef __FUNCT__
 #define __FUNCT__ "MatNestGetISs"
-/*@C
+/*@
  MatNestGetISs - Returns the index sets partitioning the row and column spaces
 
  Not collective
@@ -961,7 +990,7 @@ PetscErrorCode  MatNestSetVecType_Nest(Mat A,VecType vtype)
   PetscFunctionBegin;
   ierr = PetscStrcmp(vtype,VECNEST,&flg);CHKERRQ(ierr);
   /* In reality, this only distinguishes VECNEST and "other" */
-  if (flg) A->ops->getvecs = MatGetVecs_Nest;
+  if (flg) A->ops->getvecs = MatCreateVecs_Nest;
   else A->ops->getvecs = (PetscErrorCode (*)(Mat,Vec*,Vec*)) 0;
   PetscFunctionReturn(0);
 }
@@ -969,7 +998,7 @@ PetscErrorCode  MatNestSetVecType_Nest(Mat A,VecType vtype)
 #undef __FUNCT__
 #define __FUNCT__ "MatNestSetVecType"
 /*@C
- MatNestSetVecType - Sets the type of Vec returned by MatGetVecs()
+ MatNestSetVecType - Sets the type of Vec returned by MatCreateVecs()
 
  Not collective
 
@@ -981,7 +1010,7 @@ PetscErrorCode  MatNestSetVecType_Nest(Mat A,VecType vtype)
 
  Level: developer
 
-.seealso: MatGetVecs()
+.seealso: MatCreateVecs()
 @*/
 PetscErrorCode  MatNestSetVecType(Mat A,VecType vtype)
 {
@@ -1005,9 +1034,9 @@ PetscErrorCode MatNestSetSubMats_Nest(Mat A,PetscInt nr,const IS is_row[],PetscI
   s->nc = nc;
 
   /* Create space for submatrices */
-  ierr = PetscMalloc(sizeof(Mat*)*nr,&s->m);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nr,&s->m);CHKERRQ(ierr);
   for (i=0; i<nr; i++) {
-    ierr = PetscMalloc(sizeof(Mat)*nc,&s->m[i]);CHKERRQ(ierr);
+    ierr = PetscMalloc1(nc,&s->m[i]);CHKERRQ(ierr);
   }
   for (i=0; i<nr; i++) {
     for (j=0; j<nc; j++) {
@@ -1020,8 +1049,8 @@ PetscErrorCode MatNestSetSubMats_Nest(Mat A,PetscInt nr,const IS is_row[],PetscI
 
   ierr = MatSetUp_NestIS_Private(A,nr,is_row,nc,is_col);CHKERRQ(ierr);
 
-  ierr = PetscMalloc(sizeof(PetscInt)*nr,&s->row_len);CHKERRQ(ierr);
-  ierr = PetscMalloc(sizeof(PetscInt)*nc,&s->col_len);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nr,&s->row_len);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nc,&s->col_len);CHKERRQ(ierr);
   for (i=0; i<nr; i++) s->row_len[i]=-1;
   for (j=0; j<nc; j++) s->col_len[j]=-1;
 
@@ -1073,7 +1102,7 @@ PetscErrorCode MatNestSetSubMats(Mat A,PetscInt nr,const IS is_row[],PetscInt nc
   if (nc < 0) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_OUTOFRANGE,"Number of columns cannot be negative");
   if (nc && is_col) {
     PetscValidPointer(is_col,5);
-    for (i=0; i<nr; i++) PetscValidHeaderSpecific(is_col[i],IS_CLASSID,5);
+    for (i=0; i<nc; i++) PetscValidHeaderSpecific(is_col[i],IS_CLASSID,5);
   }
   if (nr*nc) PetscValidPointer(a,6);
   ierr = PetscUseMethod(A,"MatNestSetSubMats_C",(Mat,PetscInt,const IS[],PetscInt,const IS[],const Mat[]),(A,nr,is_row,nc,is_col,a));CHKERRQ(ierr);
@@ -1082,7 +1111,7 @@ PetscErrorCode MatNestSetSubMats(Mat A,PetscInt nr,const IS is_row[],PetscInt nc
 
 #undef __FUNCT__
 #define __FUNCT__ "MatNestCreateAggregateL2G_Private"
-static PetscErrorCode MatNestCreateAggregateL2G_Private(Mat A,PetscInt n,const IS islocal[],const IS isglobal[],PetscBool colflg,ISLocalToGlobalMapping *ltog,ISLocalToGlobalMapping *ltogb)
+static PetscErrorCode MatNestCreateAggregateL2G_Private(Mat A,PetscInt n,const IS islocal[],const IS isglobal[],PetscBool colflg,ISLocalToGlobalMapping *ltog)
 {
   PetscErrorCode ierr;
   PetscBool      flg;
@@ -1145,11 +1174,9 @@ static PetscErrorCode MatNestCreateAggregateL2G_Private(Mat A,PetscInt n,const I
       ierr = VecScatterDestroy(&scat);CHKERRQ(ierr);
       m   += mi;
     }
-    ierr   = ISLocalToGlobalMappingCreate(PetscObjectComm((PetscObject)A),m,ix,PETSC_OWN_POINTER,ltog);CHKERRQ(ierr);
-    *ltogb = NULL;
+    ierr   = ISLocalToGlobalMappingCreate(PetscObjectComm((PetscObject)A),1,m,ix,PETSC_OWN_POINTER,ltog);CHKERRQ(ierr);
   } else {
     *ltog  = NULL;
-    *ltogb = NULL;
   }
   PetscFunctionReturn(0);
 }
@@ -1185,8 +1212,8 @@ static PetscErrorCode MatSetUp_NestIS_Private(Mat A,PetscInt nr,const IS is_row[
   Mat            sub = NULL;
 
   PetscFunctionBegin;
-  ierr = PetscMalloc(sizeof(IS)*nr,&vs->isglobal.row);CHKERRQ(ierr);
-  ierr = PetscMalloc(sizeof(IS)*nc,&vs->isglobal.col);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nr,&vs->isglobal.row);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nc,&vs->isglobal.col);CHKERRQ(ierr);
   if (is_row) { /* valid IS is passed in */
     /* refs on is[] are incremeneted */
     for (i=0; i<vs->nr; i++) {
@@ -1286,15 +1313,12 @@ static PetscErrorCode MatSetUp_NestIS_Private(Mat A,PetscInt nr,const IS is_row[
 
   /* Set up the aggregate ISLocalToGlobalMapping */
   {
-    ISLocalToGlobalMapping rmap,rmapb,cmap,cmapb;
-    ierr = MatNestCreateAggregateL2G_Private(A,vs->nr,vs->islocal.row,vs->isglobal.row,PETSC_FALSE,&rmap,&rmapb);CHKERRQ(ierr);
-    ierr = MatNestCreateAggregateL2G_Private(A,vs->nc,vs->islocal.col,vs->isglobal.col,PETSC_TRUE,&cmap,&cmapb);CHKERRQ(ierr);
+    ISLocalToGlobalMapping rmap,cmap;
+    ierr = MatNestCreateAggregateL2G_Private(A,vs->nr,vs->islocal.row,vs->isglobal.row,PETSC_FALSE,&rmap);CHKERRQ(ierr);
+    ierr = MatNestCreateAggregateL2G_Private(A,vs->nc,vs->islocal.col,vs->isglobal.col,PETSC_TRUE,&cmap);CHKERRQ(ierr);
     if (rmap && cmap) {ierr = MatSetLocalToGlobalMapping(A,rmap,cmap);CHKERRQ(ierr);}
-    if (rmapb && cmapb) {ierr = MatSetLocalToGlobalMappingBlock(A,rmapb,cmapb);CHKERRQ(ierr);}
     ierr = ISLocalToGlobalMappingDestroy(&rmap);CHKERRQ(ierr);
-    ierr = ISLocalToGlobalMappingDestroy(&rmapb);CHKERRQ(ierr);
     ierr = ISLocalToGlobalMappingDestroy(&cmap);CHKERRQ(ierr);
-    ierr = ISLocalToGlobalMappingDestroy(&cmapb);CHKERRQ(ierr);
   }
 
 #if defined(PETSC_USE_DEBUG)
@@ -1537,6 +1561,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_Nest(Mat A)
   A->ops->assemblybegin         = MatAssemblyBegin_Nest;
   A->ops->assemblyend           = MatAssemblyEnd_Nest;
   A->ops->zeroentries           = MatZeroEntries_Nest;
+  A->ops->copy                  = MatCopy_Nest;
   A->ops->duplicate             = MatDuplicate_Nest;
   A->ops->getsubmatrix          = MatGetSubMatrix_Nest;
   A->ops->destroy               = MatDestroy_Nest;
@@ -1550,7 +1575,6 @@ PETSC_EXTERN PetscErrorCode MatCreate_Nest(Mat A)
   A->ops->shift                 = MatShift_Nest;
 
   A->spptr        = 0;
-  A->same_nonzero = PETSC_FALSE;
   A->assembled    = PETSC_FALSE;
 
   /* expose Nest api's */

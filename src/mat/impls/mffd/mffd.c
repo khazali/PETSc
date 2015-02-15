@@ -546,7 +546,7 @@ PETSC_EXTERN PetscErrorCode MatMFFDSetBase_MFFD(Mat J,Vec U,Vec F)
     ctx->current_f           = F;
     ctx->current_f_allocated = PETSC_FALSE;
   } else if (!ctx->current_f_allocated) {
-    ierr = VecDuplicate(ctx->current_u, &ctx->current_f);CHKERRQ(ierr);
+    ierr = MatCreateVecs(J,NULL,&ctx->current_f);CHKERRQ(ierr);
 
     ctx->current_f_allocated = PETSC_TRUE;
   }
@@ -608,7 +608,7 @@ PetscErrorCode  MatMFFDSetOptionsPrefix(Mat mat,const char prefix[])
 
 #undef __FUNCT__
 #define __FUNCT__ "MatSetFromOptions_MFFD"
-PetscErrorCode  MatSetFromOptions_MFFD(Mat mat)
+PetscErrorCode  MatSetFromOptions_MFFD(PetscOptions *PetscOptionsObject,Mat mat)
 {
   MatMFFD        mfctx = (MatMFFD)mat->data;
   PetscErrorCode ierr;
@@ -633,7 +633,7 @@ PetscErrorCode  MatSetFromOptions_MFFD(Mat mat)
     ierr = MatMFFDSetCheckh(mat,MatMFFDCheckPositivity,0);CHKERRQ(ierr);
   }
   if (mfctx->ops->setfromoptions) {
-    ierr = (*mfctx->ops->setfromoptions)(mfctx);CHKERRQ(ierr);
+    ierr = (*mfctx->ops->setfromoptions)(PetscOptionsObject,mfctx);CHKERRQ(ierr);
   }
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -806,7 +806,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_MFFD(Mat A)
    preconditioner matrix
 
    The user can set the error_rel via MatMFFDSetFunctionError() and
-   umin via MatMFFDDSSetUmin(); see the <A href="../../docs/manual.pdf#nameddest=ch_snes">SNES chapter of the users manual</A> for details.
+   umin via MatMFFDDSSetUmin(); see Users-Manual: ch_snes for details.
 
    The user should call MatDestroy() when finished with the matrix-free
    matrix context.
@@ -878,9 +878,16 @@ PetscErrorCode  MatMFFDGetH(Mat mat,PetscScalar *h)
    Logically Collective on Mat
 
    Input Parameters:
-+  mat - the matrix free matrix created via MatCreateSNESMF()
++  mat - the matrix free matrix created via MatCreateSNESMF() or MatCreateMFFD()
 .  func - the function to use
 -  funcctx - optional function context passed to function
+
+   Calling Sequence of func:
+$     func (void *funcctx, Vec x, Vec f)
+
++  funcctx - user provided context
+.  x - input vector
+-  f - computed output function
 
    Level: advanced
 

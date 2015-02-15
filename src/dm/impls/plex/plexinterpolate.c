@@ -152,7 +152,7 @@ static PetscErrorCode DMPlexInterpolateFaces_Internal(DM dm, PetscInt cellDepth,
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = DMPlexGetDimension(dm, &cellDim);CHKERRQ(ierr);
+  ierr = DMGetDimension(dm, &cellDim);CHKERRQ(ierr);
   /* HACK: I need a better way to determine face dimension, or an alternative to GetFaces() */
   ierr = DMPlexGetSubpointMap(dm, &subpointMap);CHKERRQ(ierr);
   if (subpointMap) ++cellDim;
@@ -307,13 +307,14 @@ static PetscErrorCode DMPlexInterpolateFaces_Internal(DM dm, PetscInt cellDepth,
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexInterpolate"
-/*@
+/*@C
   DMPlexInterpolate - Take in a cell-vertex mesh and return one with all intermediate faces, edges, etc.
 
   Collective on DM
 
-  Input Parameter:
-. dm - The DMPlex object with only cells and vertices
+  Input Parameters:
++ dm - The DMPlex object with only cells and vertices
+- dmInt - If NULL a new DM is created, otherwise the interpolated DM is put into the given DM
 
   Output Parameter:
 . dmInt - The complete DMPlex object
@@ -332,16 +333,17 @@ PetscErrorCode DMPlexInterpolate(DM dm, DM *dmInt)
   PetscFunctionBegin;
   ierr = PetscLogEventBegin(DMPLEX_Interpolate,dm,0,0,0);CHKERRQ(ierr);
   ierr = DMPlexGetDepth(dm, &depth);CHKERRQ(ierr);
-  ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   if (dim <= 1) {
     ierr = PetscObjectReference((PetscObject) dm);CHKERRQ(ierr);
     idm  = dm;
   }
   for (d = 1; d < dim; ++d) {
     /* Create interpolated mesh */
-    ierr = DMCreate(PetscObjectComm((PetscObject)dm), &idm);CHKERRQ(ierr);
+    if ((d == dim-1) && *dmInt) {idm  = *dmInt;}
+    else                        {ierr = DMCreate(PetscObjectComm((PetscObject)dm), &idm);CHKERRQ(ierr);}
     ierr = DMSetType(idm, DMPLEX);CHKERRQ(ierr);
-    ierr = DMPlexSetDimension(idm, dim);CHKERRQ(ierr);
+    ierr = DMSetDimension(idm, dim);CHKERRQ(ierr);
     if (depth > 0) {ierr = DMPlexInterpolateFaces_Internal(odm, 1, idm);CHKERRQ(ierr);}
     if (odm != dm) {ierr = DMDestroy(&odm);CHKERRQ(ierr);}
     odm  = idm;
@@ -483,7 +485,7 @@ PetscErrorCode DMPlexUninterpolate(DM dm, DM *dmUnint)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = DMPlexGetDimension(dm, &dim);CHKERRQ(ierr);
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   if (dim <= 1) {
     ierr = PetscObjectReference((PetscObject) dm);CHKERRQ(ierr);
     *dmUnint = dm;
@@ -493,7 +495,7 @@ PetscErrorCode DMPlexUninterpolate(DM dm, DM *dmUnint)
   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = DMCreate(PetscObjectComm((PetscObject) dm), &udm);CHKERRQ(ierr);
   ierr = DMSetType(udm, DMPLEX);CHKERRQ(ierr);
-  ierr = DMPlexSetDimension(udm, dim);CHKERRQ(ierr);
+  ierr = DMSetDimension(udm, dim);CHKERRQ(ierr);
   ierr = DMPlexSetChart(udm, cStart, vEnd);CHKERRQ(ierr);
   for (c = cStart; c < cEnd; ++c) {
     PetscInt *closure = NULL, closureSize, cl, coneSize = 0;

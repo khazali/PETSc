@@ -70,7 +70,7 @@ PetscErrorCode test_solve(void)
   ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
   /* Create vectors */
-  ierr = MatGetVecs(A12, &h, &f);CHKERRQ(ierr);
+  ierr = MatCreateVecs(A12, &h, &f);CHKERRQ(ierr);
 
   ierr = VecSet(f, 1.0);CHKERRQ(ierr);
   ierr = VecSet(h, 0.0);CHKERRQ(ierr);
@@ -85,7 +85,7 @@ PetscErrorCode test_solve(void)
   ierr = VecDuplicate(b, &x);CHKERRQ(ierr);
 
   ierr = KSPCreate(PETSC_COMM_WORLD, &ksp);CHKERRQ(ierr);
-  ierr = KSPSetOperators(ksp, A, A, SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp, A, A);CHKERRQ(ierr);
   ierr = KSPSetType(ksp, "gmres");CHKERRQ(ierr);
   ierr = KSPGetPC(ksp, &pc);CHKERRQ(ierr);
   ierr = PCSetType(pc, "none");CHKERRQ(ierr);
@@ -186,7 +186,7 @@ PetscErrorCode test_solve_matgetvecs(void)
   ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
   /* Create vectors */
-  ierr = MatGetVecs(A, &b, &x);CHKERRQ(ierr);
+  ierr = MatCreateVecs(A, &b, &x);CHKERRQ(ierr);
   ierr = VecNestGetSubVecs(b,NULL,&tmp_x);CHKERRQ(ierr);
   f    = tmp_x[0];
   h    = tmp_x[1];
@@ -195,7 +195,7 @@ PetscErrorCode test_solve_matgetvecs(void)
   ierr = VecSet(h, 0.0);CHKERRQ(ierr);
 
   ierr = KSPCreate(PETSC_COMM_WORLD, &ksp);CHKERRQ(ierr);
-  ierr = KSPSetOperators(ksp, A, A, SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp, A, A);CHKERRQ(ierr);
   ierr = KSPGetPC(ksp, &pc);CHKERRQ(ierr);
   ierr = PCSetType(pc, PCNONE);CHKERRQ(ierr);
   ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);

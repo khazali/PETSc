@@ -32,7 +32,7 @@ $       ascii[:[filename][:[format][:append]]]    defaults to stdout - format ca
 $       binary[:[filename][:[format][:append]]]   defaults to the file binaryoutput
 $       draw[:drawtype}                           for example, draw:tikz  or draw:x
 $       socket[:port]                             defaults to the standard output port
-$       ams[:communicatorname]                    publishes object to the Scientific Application Webserver (SAWs)
+$       saws[:communicatorname]                    publishes object to the Scientific Application Webserver (SAWs)
 
    Use PetscViewerDestroy() after using the viewer, otherwise a memory leak will occur
 
@@ -64,7 +64,7 @@ PetscErrorCode  PetscOptionsGetViewer(MPI_Comm comm,const char pre[],const char 
     } else {
       char       *loc0_vtype,*loc1_fname,*loc2_fmt = NULL,*loc3_fmode = NULL;
       PetscInt   cnt;
-      const char *viewers[] = {PETSCVIEWERASCII,PETSCVIEWERBINARY,PETSCVIEWERDRAW,PETSCVIEWERSOCKET,PETSCVIEWERMATLAB,PETSCVIEWERSAWS,PETSCVIEWERVTK,0};
+      const char *viewers[] = {PETSCVIEWERASCII,PETSCVIEWERBINARY,PETSCVIEWERDRAW,PETSCVIEWERSOCKET,PETSCVIEWERMATLAB,PETSCVIEWERSAWS,PETSCVIEWERVTK,PETSCVIEWERHDF5,0};
 
       ierr = PetscStrallocpy(value,&loc0_vtype);CHKERRQ(ierr);
       ierr = PetscStrchr(loc0_vtype,':',&loc1_fname);CHKERRQ(ierr);
@@ -103,6 +103,11 @@ PetscErrorCode  PetscOptionsGetViewer(MPI_Comm comm,const char pre[],const char 
 #if defined(PETSC_HAVE_SAWS)
         case 5:
           if (!(*viewer = PETSC_VIEWER_SAWS_(comm))) CHKERRQ(PETSC_ERR_PLIB);
+          break;
+#endif
+#if defined(PETSC_HAVE_HDF5)
+        case 7:
+          if (!(*viewer = PETSC_VIEWER_HDF5_(comm))) CHKERRQ(PETSC_ERR_PLIB);
           break;
 #endif
         default: SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Unsupported viewer %s",loc0_vtype);
@@ -305,7 +310,7 @@ PetscErrorCode  PetscViewerSetFromOptions(PetscViewer viewer)
     ierr = PetscViewerSetType(viewer,PETSCVIEWERASCII);CHKERRQ(ierr);
   }
   if (viewer->ops->setfromoptions) {
-    ierr = (*viewer->ops->setfromoptions)(viewer);CHKERRQ(ierr);
+    ierr = (*viewer->ops->setfromoptions)(PetscOptionsObject,viewer);CHKERRQ(ierr);
   }
 
   /* process any options handlers added with PetscObjectAddOptionsHandler() */

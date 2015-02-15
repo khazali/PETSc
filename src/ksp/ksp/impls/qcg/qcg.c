@@ -110,7 +110,6 @@ PetscErrorCode KSPSolve_QCG(KSP ksp)
  */
 
   KSP_QCG        *pcgP = (KSP_QCG*)ksp->data;
-  MatStructure   pflag;
   Mat            Amat,Pmat;
   Vec            W,WA,WA2,R,P,ASP,BS,X,B;
   PetscScalar    scal,beta,rntrn,step;
@@ -147,7 +146,7 @@ PetscErrorCode KSPSolve_QCG(KSP ksp)
   /* Initialize variables */
   ierr = VecSet(W,0.0);CHKERRQ(ierr);  /* W = 0 */
   ierr = VecSet(X,0.0);CHKERRQ(ierr);  /* X = 0 */
-  ierr = PCGetOperators(pc,&Amat,&Pmat,&pflag);CHKERRQ(ierr);
+  ierr = PCGetOperators(pc,&Amat,&Pmat);CHKERRQ(ierr);
 
   /* Compute:  BS = D^{-1} B */
   ierr = PCApplySymmetricLeft(pc,B,BS);CHKERRQ(ierr);
@@ -341,7 +340,7 @@ static PetscErrorCode  KSPQCGGetQuadratic_QCG(KSP ksp,PetscReal *quadratic)
 
 #undef __FUNCT__
 #define __FUNCT__ "KSPSetFromOptions_QCG"
-PetscErrorCode KSPSetFromOptions_QCG(KSP ksp)
+PetscErrorCode KSPSetFromOptions_QCG(PetscOptions *PetscOptionsObject,KSP ksp)
 {
   PetscErrorCode ierr;
   PetscReal      delta;
@@ -349,7 +348,7 @@ PetscErrorCode KSPSetFromOptions_QCG(KSP ksp)
   PetscBool      flg;
 
   PetscFunctionBegin;
-  ierr = PetscOptionsHead("KSP QCG Options");CHKERRQ(ierr);
+  ierr = PetscOptionsHead(PetscOptionsObject,"KSP QCG Options");CHKERRQ(ierr);
   ierr = PetscOptionsReal("-ksp_qcg_trustregionradius","Trust Region Radius","KSPQCGSetTrustRegionRadius",cgP->delta,&delta,&flg);CHKERRQ(ierr);
   if (flg) { ierr = KSPQCGSetTrustRegionRadius(ksp,delta);CHKERRQ(ierr); }
   ierr = PetscOptionsTail();CHKERRQ(ierr);
@@ -412,7 +411,7 @@ PETSC_EXTERN PetscErrorCode KSPCreate_QCG(KSP ksp)
   KSP_QCG        *cgP;
 
   PetscFunctionBegin;
-  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_PRECONDITIONED,PC_SYMMETRIC,2);CHKERRQ(ierr);
+  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_PRECONDITIONED,PC_SYMMETRIC,3);CHKERRQ(ierr);
   ierr = PetscNewLog(ksp,&cgP);CHKERRQ(ierr);
 
   ksp->data                = (void*)cgP;

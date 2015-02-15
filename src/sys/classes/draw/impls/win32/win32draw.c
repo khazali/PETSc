@@ -269,7 +269,7 @@ static PetscErrorCode PetscDrawLineSetWidth_Win32(PetscDraw draw,PetscReal width
   PetscFunctionBegin;
   GetClientRect(windraw->hWnd,&rect);
   averagesize = ((rect.right - rect.left)+(rect.bottom - rect.top))/2;
-  finalwidth  = (int)floor(averagesize*width);
+  finalwidth  = (int)PetscFloorReal(averagesize*width);
   if (finalwidth < 1) finalwidth = 1; /* minimum size PetscDrawLine can except */
 
   windraw->linewidth = finalwidth;
@@ -331,7 +331,7 @@ static PetscErrorCode PetscDrawPointSetSize_Win32(PetscDraw draw,PetscReal width
   PetscFunctionBegin;
   GetClientRect(windraw->hWnd,&rect);
   averagesize = ((rect.right - rect.left)+(rect.bottom - rect.top))/2;
-  diameter    = (int)floor(averagesize*width);
+  diameter    = (int)PetscFloorReal(averagesize*width);
   if (diameter < 1) diameter = 1;
   windraw->pointdiameter = diameter;
   PetscFunctionReturn(0);
@@ -818,10 +818,9 @@ static PetscErrorCode PetscDrawGetPopup_Win32(PetscDraw draw,PetscDraw *popdraw)
   PetscFunctionReturn(0);
 }
 
-EXTERN_C_BEGIN
 #undef __FUNCT__
 #define __FUNCT__ "PetscDrawCreate_Win32"
-PetscErrorCode  PetscDrawCreate_Win32(PetscDraw draw)
+PETSC_EXTERN PetscErrorCode  PetscDrawCreate_Win32(PetscDraw draw)
 {
   PetscDraw_Win32 *windraw;
   HANDLE          hThread = NULL;
@@ -878,7 +877,6 @@ PetscErrorCode  PetscDrawCreate_Win32(PetscDraw draw)
   ReleaseMutex(g_hWindowListMutex);
   PetscFunctionReturn(0);
 }
-EXTERN_C_END
 
 
 /* FUNCTION: PetscWndProc(HWND, unsigned, WORD, LONG)

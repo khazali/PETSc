@@ -220,8 +220,7 @@ PetscErrorCode SNESMSRegister(SNESMSType name,PetscInt nstages,PetscInt nregiste
   PetscValidPointer(delta,5);
   PetscValidPointer(betasub,6);
 
-  ierr          = PetscMalloc(sizeof(*link),&link);CHKERRQ(ierr);
-  ierr          = PetscMemzero(link,sizeof(*link));CHKERRQ(ierr);
+  ierr          = PetscNew(&link);CHKERRQ(ierr);
   t             = &link->tab;
   ierr          = PetscStrallocpy(name,&t->name);CHKERRQ(ierr);
   t->nstages    = nstages;
@@ -293,11 +292,11 @@ static PetscErrorCode SNESSolve_MS(SNES snes)
   SNES_MS        *ms = (SNES_MS*)snes->data;
   Vec            X   = snes->vec_sol,F = snes->vec_func;
   PetscReal      fnorm;
-  MatStructure   mstruct;
   PetscInt       i;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ierr = PetscCitationsRegister(SNESCitation,&SNEScite);CHKERRQ(ierr);
   snes->reason = SNES_CONVERGED_ITERATING;
   ierr         = PetscObjectSAWsTakeAccess((PetscObject)snes);CHKERRQ(ierr);
   snes->iter   = 0;
@@ -312,8 +311,7 @@ static PetscErrorCode SNESSolve_MS(SNES snes)
   } else snes->vec_func_init_set = PETSC_FALSE;
 
   if (snes->jacobian) {         /* This method does not require a Jacobian, but it is usually preconditioned by PBJacobi */
-    ierr = SNESComputeJacobian(snes,snes->vec_sol,&snes->jacobian,&snes->jacobian_pre,&mstruct);CHKERRQ(ierr);
-    ierr = KSPSetOperators(snes->ksp,snes->jacobian,snes->jacobian_pre,mstruct);CHKERRQ(ierr);
+    ierr = SNESComputeJacobian(snes,snes->vec_sol,snes->jacobian,snes->jacobian_pre);CHKERRQ(ierr);
   }
   if (ms->norms) {
     ierr = VecNorm(F,NORM_2,&fnorm);CHKERRQ(ierr); /* fnorm <- ||F||  */
@@ -432,13 +430,13 @@ static PetscErrorCode SNESView_MS(SNES snes,PetscViewer viewer)
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESSetFromOptions_MS"
-static PetscErrorCode SNESSetFromOptions_MS(SNES snes)
+static PetscErrorCode SNESSetFromOptions_MS(PetscOptions *PetscOptionsObject,SNES snes)
 {
   SNES_MS        *ms = (SNES_MS*)snes->data;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscOptionsHead("SNES MS options");CHKERRQ(ierr);
+  ierr = PetscOptionsHead(PetscOptionsObject,"SNES MS options");CHKERRQ(ierr);
   {
     SNESMSTableauLink link;
     PetscInt          count,choice;

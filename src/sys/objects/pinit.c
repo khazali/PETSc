@@ -2,8 +2,8 @@
 /*
    This file defines the initialization of PETSc, including PetscInitialize()
 */
-#define PETSC_DESIRE_COMPLEX
 #include <petsc-private/petscimpl.h>        /*I  "petscsys.h"   I*/
+#include <petscvalgrind.h>
 #include <petscviewer.h>
 
 #if defined(PETSC_HAVE_CUDA)
@@ -438,7 +438,7 @@ PETSC_EXTERN PetscMPIInt PetscDataRep_write_conv_fn(void*, MPI_Datatype,PetscMPI
 
 int  PetscGlobalArgc   = 0;
 char **PetscGlobalArgs = 0;
-PetscSegBuffer PetscCitationsList; 
+PetscSegBuffer PetscCitationsList;
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscCitationsInitialize"
@@ -448,7 +448,7 @@ PetscErrorCode PetscCitationsInitialize()
 
   PetscFunctionBegin;
   ierr = PetscSegBufferCreate(1,10000,&PetscCitationsList);CHKERRQ(ierr);
-  ierr = PetscCitationsRegister("@TechReport{petsc-user-ref,\n  Author = {Satish Balay and Jed Brown and and Kris Buschelman and Victor Eijkhout\n            and William D.  Gropp and Dinesh Kaushik and Matthew G. Knepley\n            and Lois Curfman McInnes and Barry F. Smith and Hong Zhang},\n  Title = {{PETS}c Users Manual},\n  Number = {ANL-95/11 - Revision 3.4},\n  Institution = {Argonne National Laboratory},\n  Year = {2013}\n}\n",NULL);CHKERRQ(ierr);
+  ierr = PetscCitationsRegister("@TechReport{petsc-user-ref,\n  Author = {Satish Balay and Shrirang Abhyankar and Mark F. Adams and Jed Brown and Peter Brune\n            and Kris Buschelman and Victor Eijkhout and William D. Gropp\n            and Dinesh Kaushik and Matthew G. Knepley\n            and Lois Curfman McInnes and Karl Rupp and Barry F. Smith\n            and Hong Zhang},\n  Title = {{PETS}c Users Manual},\n  Number = {ANL-95/11 - Revision 3.5},\n  Institution = {Argonne National Laboratory},\n  Year = {2014}\n}\n",NULL);CHKERRQ(ierr);
   ierr = PetscCitationsRegister("@InProceedings{petsc-efficient,\n  Author = {Satish Balay and William D. Gropp and Lois Curfman McInnes and Barry F. Smith},\n  Title = {Efficient Management of Parallelism in Object Oriented Numerical Software Libraries},\n  Booktitle = {Modern Software Tools in Scientific Computing},\n  Editor = {E. Arge and A. M. Bruaset and H. P. Langtangen},\n  Pages = {163--202},\n  Publisher = {Birkh{\\\"{a}}user Press},\n  Year = {1997}\n}\n",NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -626,17 +626,17 @@ PetscErrorCode  PetscInitializeSAWs(const char help[])
     ierr = PetscGetVersion(version,sizeof(version));CHKERRQ(ierr);
     ierr = PetscSNPrintf(intro,introlen,"<body>\n"
                                     "<center><h2> <a href=\"http://www.mcs.anl.gov/petsc\">PETSc</a> Application Web server powered by <a href=\"https://bitbucket.org/saws/saws\">SAWs</a> </h2></center>\n"
-                                    "<center>This is the default PETSc application dashboard, from it you can access any published PETSc objects or logging data</center><br><center>%s configured at %s with %s</center><br>\n"
-                         "%s",version,petscconfigureruntime,petscconfigureoptions,appline);
+                                    "<center>This is the default PETSc application dashboard, from it you can access any published PETSc objects or logging data</center><br><center>%s configured with %s</center><br>\n"
+                                    "%s",version,petscconfigureoptions,appline);
     PetscStackCallSAWs(SAWs_Push_Body,("index.html",0,intro));
     ierr = PetscFree(intro);CHKERRQ(ierr);
     ierr = PetscFree(appline);CHKERRQ(ierr);
     PetscStackCallSAWs(SAWs_Initialize,());
-    ierr = PetscCitationsRegister("@TechReport{ saws,"
-                                  "Author = {Matt Otten and Jed Brown and Barry Smith},"
-                                  "Title  = {Scientific Application Web Server (SAWs) Users Manual},"
-                                  "Institution = {Argonne National Laboratory},"
-                                  "Year   = 2013}",NULL);CHKERRQ(ierr);
+    ierr = PetscCitationsRegister("@TechReport{ saws,\n"
+                                  "  Author = {Matt Otten and Jed Brown and Barry Smith},\n"
+                                  "  Title  = {Scientific Application Web Server (SAWs) Users Manual},\n"
+                                  "  Institution = {Argonne National Laboratory},\n"
+                                  "  Year   = 2013\n}\n",NULL);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -692,7 +692,7 @@ PetscErrorCode  PetscInitializeSAWs(const char help[])
 -  -memory_info - Print memory usage at end of run
 
    Options Database Keys for Profiling:
-   See the <a href="../../docs/manual.pdf#nameddest=ch_profiling">profiling chapter of the users manual</a> for details.
+   See Users-Manual: ch_profiling for details.
 +  -info <optional filename> - Prints verbose information to the screen
 .  -info_exclude <null,vec,mat,pc,ksp,snes,ts> - Excludes some of the verbose messages
 .  -log_sync - Log the synchronization in scatters, inner products and norms
@@ -731,7 +731,7 @@ $       call PetscInitialize(file,ierr)
    Important Fortran Note:
    In Fortran, you MUST use NULL_CHARACTER to indicate a
    null character string; you CANNOT just use NULL as
-   in the C version. See the <a href="../../docs/manual.pdf">users manual</a> for details.
+   in the C version. See Users-Manual: ch_fortran for details.
 
    If your main program is C but you call Fortran code that also uses PETSc you need to call PetscInitializeFortran() soon after
    calling PetscInitialize().
@@ -754,6 +754,11 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
   /* these must be initialized in a routine, not as a constant declaration*/
   PETSC_STDOUT = stdout;
   PETSC_STDERR = stderr;
+
+  /* on Windows - set printf to default to printing 2 digit exponents */
+#if defined(PETSC_HAVE__SET_OUTPUT_FORMAT)
+  _set_output_format(_TWO_DIGIT_EXPONENT);
+#endif
 
   ierr = PetscOptionsCreate();CHKERRQ(ierr);
 
@@ -897,6 +902,9 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
   ierr = PetscGetHostName(hostname,256);CHKERRQ(ierr);
   ierr = PetscInfo1(0,"Running on machine: %s\n",hostname);CHKERRQ(ierr);
 
+  /* Ensure that threadcomm-related keyval exists, so that PetscOptionsSetFromOptions can use PetscCommDuplicate. */
+  ierr = PetscThreadCommInitializePackage();CHKERRQ(ierr);
+
   ierr = PetscOptionsCheckInitial_Components();CHKERRQ(ierr);
   /* Check the options database for options related to the options database itself */
   ierr = PetscOptionsSetFromOptions();CHKERRQ(ierr);
@@ -929,8 +937,6 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
     PetscInitializeCalled = PETSC_TRUE;
     ierr = PetscPythonInitialize(NULL,NULL);CHKERRQ(ierr);
   }
-
-  ierr = PetscThreadCommInitializePackage();CHKERRQ(ierr);
 
   /*
       Setup building of stack frames for all function calls
@@ -1023,6 +1029,34 @@ PetscErrorCode  PetscFinalize(void)
   }
   ierr = PetscSegBufferDestroy(&PetscCitationsList);CHKERRQ(ierr);
 
+#if defined(PETSC_HAVE_SSL) && defined(PETSC_USE_SOCKET_VIEWER)
+  /* TextBelt is run for testing purposes only, please do not use this feature often */
+  {
+    PetscInt nmax = 2;
+    char     **buffs;
+    ierr = PetscMalloc1(2,&buffs);CHKERRQ(ierr);
+    ierr = PetscOptionsGetStringArray(NULL,"-textbelt",buffs,&nmax,&flg1);CHKERRQ(ierr);
+    if (flg1) {
+      if (!nmax) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_USER,"-textbelt requires either the phone number or number,\"message\"");
+      if (nmax == 1) {
+        ierr = PetscMalloc1(128,&buffs[1]);CHKERRQ(ierr);
+        ierr = PetscGetProgramName(buffs[1],32);CHKERRQ(ierr);
+        ierr = PetscStrcat(buffs[1]," has completed");CHKERRQ(ierr);
+      }
+      ierr = PetscTextBelt(PETSC_COMM_WORLD,buffs[0],buffs[1],NULL);CHKERRQ(ierr);
+      ierr = PetscFree(buffs[0]);CHKERRQ(ierr);
+      ierr = PetscFree(buffs[1]);CHKERRQ(ierr);
+    }
+    ierr = PetscFree(buffs);CHKERRQ(ierr);
+  }
+#endif
+  /*
+    It should be safe to cancel the options monitors, since we don't expect to be setting options
+    here (at least that are worth monitoring).  Monitors ought to be released so that they release
+    whatever memory was allocated there before -malloc_dump reports unfreed memory.
+  */
+  ierr = PetscOptionsMonitorCancel();CHKERRQ(ierr);
+
 #if defined(PETSC_SERIALIZE_FUNCTIONS)
   ierr = PetscFPTDestroy();CHKERRQ(ierr);
 #endif
@@ -1077,7 +1111,7 @@ PetscErrorCode  PetscFinalize(void)
 #endif
   mname[0] = 0;
 
-  ierr = PetscLogViewFromOptions();CHKERRQ(ierr);  
+  ierr = PetscLogViewFromOptions();CHKERRQ(ierr);
   ierr = PetscOptionsGetString(NULL,"-log_summary",mname,PETSC_MAX_PATH_LEN,&flg1);CHKERRQ(ierr);
   if (flg1) {
     PetscViewer viewer;
@@ -1121,11 +1155,12 @@ PetscErrorCode  PetscFinalize(void)
   /* preemptive call to avoid listing this option in options table as unused */
   ierr = PetscOptionsHasName(NULL,"-malloc_dump",&flg1);CHKERRQ(ierr);
   ierr = PetscOptionsHasName(NULL,"-objects_dump",&flg1);CHKERRQ(ierr);
-  ierr = PetscOptionsGetBool(NULL,"-options_table",&flg2,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL,"-options_view",&flg2,NULL);CHKERRQ(ierr);
 
   if (flg2) {
     PetscViewer viewer;
-    ierr = PetscViewerASCIIGetStdout(PETSC_COMM_WORLD,&viewer);CHKERRQ(ierr);
+    ierr = PetscViewerCreate(PETSC_COMM_WORLD,&viewer);CHKERRQ(ierr);
+    ierr = PetscViewerSetType(viewer,PETSCVIEWERASCII);CHKERRQ(ierr);
     ierr = PetscOptionsView(viewer);CHKERRQ(ierr);
     ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
   }
@@ -1140,7 +1175,8 @@ PetscErrorCode  PetscFinalize(void)
   if (flg3) {
     if (!flg2) { /* have not yet printed the options */
       PetscViewer viewer;
-      ierr = PetscViewerASCIIGetStdout(PETSC_COMM_WORLD,&viewer);CHKERRQ(ierr);
+      ierr = PetscViewerCreate(PETSC_COMM_WORLD,&viewer);CHKERRQ(ierr);
+      ierr = PetscViewerSetType(viewer,PETSCVIEWERASCII);CHKERRQ(ierr);
       ierr = PetscOptionsView(viewer);CHKERRQ(ierr);
       ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
     }
@@ -1207,14 +1243,14 @@ PetscErrorCode  PetscFinalize(void)
 #endif
 
   /*
+     Close any open dynamic libraries
+  */
+  ierr = PetscFinalize_DynamicLibraries();CHKERRQ(ierr);
+
+  /*
      Destroy any packages that registered a finalize
   */
   ierr = PetscRegisterFinalizeAll();CHKERRQ(ierr);
-
-  /*
-     Destroy all the function registration lists created
-  */
-  ierr = PetscFinalize_DynamicLibraries();CHKERRQ(ierr);
 
   /*
      Print PetscFunctionLists that have not been properly freed

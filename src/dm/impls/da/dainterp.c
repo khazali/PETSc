@@ -60,14 +60,14 @@ PetscErrorCode DMCreateInterpolation_DA_1D_Q1(DM dac,DM daf,Mat *A)
   PetscInt               i_c,i_start_c,i_start_ghost_c,cols[2],dof;
   PetscScalar            v[2],x;
   Mat                    mat;
-  DMDABoundaryType       bx;
+  DMBoundaryType         bx;
   ISLocalToGlobalMapping ltog_f,ltog_c;
 
 
   PetscFunctionBegin;
   ierr = DMDAGetInfo(dac,0,&Mx,0,0,0,0,0,0,0,&bx,0,0,0);CHKERRQ(ierr);
   ierr = DMDAGetInfo(daf,0,&mx,0,0,0,0,0,&dof,0,0,0,0,0);CHKERRQ(ierr);
-  if (bx == DMDA_BOUNDARY_PERIODIC) {
+  if (bx == DM_BOUNDARY_PERIODIC) {
     ratio = mx/Mx;
     if (ratio*Mx != mx) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: mx/Mx  must be integer: mx %D Mx %D",mx,Mx);
   } else {
@@ -77,13 +77,13 @@ PetscErrorCode DMCreateInterpolation_DA_1D_Q1(DM dac,DM daf,Mat *A)
 
   ierr = DMDAGetCorners(daf,&i_start,0,0,&m_f,0,0);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(daf,&i_start_ghost,0,0,&m_ghost,0,0);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(daf,&ltog_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(daf,&ltog_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
 
   ierr = DMDAGetCorners(dac,&i_start_c,0,0,&m_c,0,0);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(dac,&i_start_ghost_c,0,0,&m_ghost_c,0,0);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(dac,&ltog_c);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(dac,&ltog_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
 
   /* create interpolation matrix */
   ierr = MatCreate(PetscObjectComm((PetscObject)dac),&mat);CHKERRQ(ierr);
@@ -129,7 +129,7 @@ PetscErrorCode DMCreateInterpolation_DA_1D_Q1(DM dac,DM daf,Mat *A)
 
     /* compute local coordinate arrays */
     nxi  = ratio + 1;
-    ierr = PetscMalloc(sizeof(PetscScalar)*nxi,&xi);CHKERRQ(ierr);
+    ierr = PetscMalloc1(nxi,&xi);CHKERRQ(ierr);
     for (li=0; li<nxi; li++) {
       xi[li] = -1.0 + (PetscScalar)li*(2.0/(PetscScalar)(nxi-1));
     }
@@ -172,8 +172,8 @@ PetscErrorCode DMCreateInterpolation_DA_1D_Q1(DM dac,DM daf,Mat *A)
     }
     ierr = PetscFree(xi);CHKERRQ(ierr);
   }
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_f,&idx_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(mat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(mat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatCreateMAIJ(mat,dof,A);CHKERRQ(ierr);
@@ -194,12 +194,12 @@ PetscErrorCode DMCreateInterpolation_DA_1D_Q0(DM dac,DM daf,Mat *A)
   PetscInt               i_c,i_start_c,i_start_ghost_c,cols[2],dof;
   PetscScalar            v[2],x;
   Mat                    mat;
-  DMDABoundaryType       bx;
+  DMBoundaryType         bx;
 
   PetscFunctionBegin;
   ierr = DMDAGetInfo(dac,0,&Mx,0,0,0,0,0,0,0,&bx,0,0,0);CHKERRQ(ierr);
   ierr = DMDAGetInfo(daf,0,&mx,0,0,0,0,0,&dof,0,0,0,0,0);CHKERRQ(ierr);
-  if (bx == DMDA_BOUNDARY_PERIODIC) {
+  if (bx == DM_BOUNDARY_PERIODIC) {
     ratio = mx/Mx;
     if (ratio*Mx != mx) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: mx/Mx  must be integer: mx %D Mx %D",mx,Mx);
   } else {
@@ -209,13 +209,13 @@ PetscErrorCode DMCreateInterpolation_DA_1D_Q0(DM dac,DM daf,Mat *A)
 
   ierr = DMDAGetCorners(daf,&i_start,0,0,&m_f,0,0);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(daf,&i_start_ghost,0,0,&m_ghost,0,0);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(daf,&ltog_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(daf,&ltog_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
 
   ierr = DMDAGetCorners(dac,&i_start_c,0,0,&m_c,0,0);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(dac,&i_start_ghost_c,0,0,&m_ghost_c,0,0);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(dac,&ltog_c);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(dac,&ltog_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
 
   /* create interpolation matrix */
   ierr = MatCreate(PetscObjectComm((PetscObject)dac),&mat);CHKERRQ(ierr);
@@ -249,8 +249,8 @@ PetscErrorCode DMCreateInterpolation_DA_1D_Q0(DM dac,DM daf,Mat *A)
     }
     ierr = MatSetValues(mat,1,&row,nc,cols,v,INSERT_VALUES);CHKERRQ(ierr);
   }
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_f,&idx_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(mat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(mat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatCreateMAIJ(mat,dof,A);CHKERRQ(ierr);
@@ -273,19 +273,19 @@ PetscErrorCode DMCreateInterpolation_DA_2D_Q1(DM dac,DM daf,Mat *A)
   PetscMPIInt            size_c,size_f,rank_f;
   PetscScalar            v[4],x,y;
   Mat                    mat;
-  DMDABoundaryType       bx,by;
+  DMBoundaryType         bx,by;
 
   PetscFunctionBegin;
   ierr = DMDAGetInfo(dac,0,&Mx,&My,0,0,0,0,0,0,&bx,&by,0,0);CHKERRQ(ierr);
   ierr = DMDAGetInfo(daf,0,&mx,&my,0,0,0,0,&dof,0,0,0,0,0);CHKERRQ(ierr);
-  if (bx == DMDA_BOUNDARY_PERIODIC) {
+  if (bx == DM_BOUNDARY_PERIODIC) {
     ratioi = mx/Mx;
     if (ratioi*Mx != mx) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: mx/Mx  must be integer: mx %D Mx %D",mx,Mx);
   } else {
     ratioi = (mx-1)/(Mx-1);
     if (ratioi*(Mx-1) != mx-1) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: (mx - 1)/(Mx - 1) must be integer: mx %D Mx %D",mx,Mx);
   }
-  if (by == DMDA_BOUNDARY_PERIODIC) {
+  if (by == DM_BOUNDARY_PERIODIC) {
     ratioj = my/My;
     if (ratioj*My != my) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: my/My  must be integer: my %D My %D",my,My);
   } else {
@@ -296,13 +296,13 @@ PetscErrorCode DMCreateInterpolation_DA_2D_Q1(DM dac,DM daf,Mat *A)
 
   ierr = DMDAGetCorners(daf,&i_start,&j_start,0,&m_f,&n_f,0);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(daf,&i_start_ghost,&j_start_ghost,0,&m_ghost,&n_ghost,0);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(daf,&ltog_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(daf,&ltog_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
 
   ierr = DMDAGetCorners(dac,&i_start_c,&j_start_c,0,&m_c,&n_c,0);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(dac,&i_start_ghost_c,&j_start_ghost_c,0,&m_ghost_c,&n_ghost_c,0);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(dac,&ltog_c);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(dac,&ltog_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
 
   /*
    Used for handling a coarse DMDA that lives on 1/4 the processors of the fine DMDA.
@@ -410,8 +410,8 @@ PetscErrorCode DMCreateInterpolation_DA_2D_Q1(DM dac,DM daf,Mat *A)
     /* compute local coordinate arrays */
     nxi  = ratioi + 1;
     neta = ratioj + 1;
-    ierr = PetscMalloc(sizeof(PetscScalar)*nxi,&xi);CHKERRQ(ierr);
-    ierr = PetscMalloc(sizeof(PetscScalar)*neta,&eta);CHKERRQ(ierr);
+    ierr = PetscMalloc1(nxi,&xi);CHKERRQ(ierr);
+    ierr = PetscMalloc1(neta,&eta);CHKERRQ(ierr);
     for (li=0; li<nxi; li++) {
       xi[li] = -1.0 + (PetscScalar)li*(2.0/(PetscScalar)(nxi-1));
     }
@@ -473,8 +473,8 @@ PetscErrorCode DMCreateInterpolation_DA_2D_Q1(DM dac,DM daf,Mat *A)
     ierr = PetscFree(xi);CHKERRQ(ierr);
     ierr = PetscFree(eta);CHKERRQ(ierr);
   }
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_f,&idx_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(mat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(mat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatCreateMAIJ(mat,dof,A);CHKERRQ(ierr);
@@ -499,13 +499,13 @@ PetscErrorCode DMCreateInterpolation_DA_2D_Q0(DM dac,DM daf,Mat *A)
   PetscMPIInt            size_c,size_f,rank_f;
   PetscScalar            v[4];
   Mat                    mat;
-  DMDABoundaryType       bx,by;
+  DMBoundaryType         bx,by;
 
   PetscFunctionBegin;
   ierr = DMDAGetInfo(dac,0,&Mx,&My,0,0,0,0,0,0,&bx,&by,0,0);CHKERRQ(ierr);
   ierr = DMDAGetInfo(daf,0,&mx,&my,0,0,0,0,&dof,0,0,0,0,0);CHKERRQ(ierr);
-  if (bx == DMDA_BOUNDARY_PERIODIC) SETERRQ(PetscObjectComm((PetscObject)daf),PETSC_ERR_ARG_WRONG,"Cannot handle periodic grid in x");
-  if (by == DMDA_BOUNDARY_PERIODIC) SETERRQ(PetscObjectComm((PetscObject)daf),PETSC_ERR_ARG_WRONG,"Cannot handle periodic grid in y");
+  if (bx == DM_BOUNDARY_PERIODIC) SETERRQ(PetscObjectComm((PetscObject)daf),PETSC_ERR_ARG_WRONG,"Cannot handle periodic grid in x");
+  if (by == DM_BOUNDARY_PERIODIC) SETERRQ(PetscObjectComm((PetscObject)daf),PETSC_ERR_ARG_WRONG,"Cannot handle periodic grid in y");
   ratioi = mx/Mx;
   ratioj = my/My;
   if (ratioi*Mx != mx) SETERRQ(PetscObjectComm((PetscObject)daf),PETSC_ERR_ARG_WRONG,"Fine grid points must be multiple of coarse grid points in x");
@@ -515,13 +515,13 @@ PetscErrorCode DMCreateInterpolation_DA_2D_Q0(DM dac,DM daf,Mat *A)
 
   ierr = DMDAGetCorners(daf,&i_start,&j_start,0,&m_f,&n_f,0);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(daf,&i_start_ghost,&j_start_ghost,0,&m_ghost,&n_ghost,0);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(daf,&ltog_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(daf,&ltog_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
 
   ierr = DMDAGetCorners(dac,&i_start_c,&j_start_c,0,&m_c,&n_c,0);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(dac,&i_start_ghost_c,&j_start_ghost_c,0,&m_ghost_c,&n_ghost_c,0);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(dac,&ltog_c);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(dac,&ltog_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
 
   /*
      Used for handling a coarse DMDA that lives on 1/4 the processors of the fine DMDA.
@@ -589,8 +589,8 @@ PetscErrorCode DMCreateInterpolation_DA_2D_Q0(DM dac,DM daf,Mat *A)
       ierr = MatSetValues(mat,1,&row,nc,cols,v,INSERT_VALUES);CHKERRQ(ierr);
     }
   }
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_f,&idx_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(mat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(mat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatCreateMAIJ(mat,dof,A);CHKERRQ(ierr);
@@ -616,14 +616,14 @@ PetscErrorCode DMCreateInterpolation_DA_3D_Q0(DM dac,DM daf,Mat *A)
   PetscMPIInt            size_c,size_f,rank_f;
   PetscScalar            v[8];
   Mat                    mat;
-  DMDABoundaryType       bx,by,bz;
+  DMBoundaryType         bx,by,bz;
 
   PetscFunctionBegin;
   ierr = DMDAGetInfo(dac,0,&Mx,&My,&Mz,0,0,0,0,0,&bx,&by,&bz,0);CHKERRQ(ierr);
   ierr = DMDAGetInfo(daf,0,&mx,&my,&mz,0,0,0,&dof,0,0,0,0,0);CHKERRQ(ierr);
-  if (bx == DMDA_BOUNDARY_PERIODIC) SETERRQ(PetscObjectComm((PetscObject)daf),PETSC_ERR_ARG_WRONG,"Cannot handle periodic grid in x");
-  if (by == DMDA_BOUNDARY_PERIODIC) SETERRQ(PetscObjectComm((PetscObject)daf),PETSC_ERR_ARG_WRONG,"Cannot handle periodic grid in y");
-  if (bz == DMDA_BOUNDARY_PERIODIC) SETERRQ(PetscObjectComm((PetscObject)daf),PETSC_ERR_ARG_WRONG,"Cannot handle periodic grid in z");
+  if (bx == DM_BOUNDARY_PERIODIC) SETERRQ(PetscObjectComm((PetscObject)daf),PETSC_ERR_ARG_WRONG,"Cannot handle periodic grid in x");
+  if (by == DM_BOUNDARY_PERIODIC) SETERRQ(PetscObjectComm((PetscObject)daf),PETSC_ERR_ARG_WRONG,"Cannot handle periodic grid in y");
+  if (bz == DM_BOUNDARY_PERIODIC) SETERRQ(PetscObjectComm((PetscObject)daf),PETSC_ERR_ARG_WRONG,"Cannot handle periodic grid in z");
   ratioi = mx/Mx;
   ratioj = my/My;
   ratiol = mz/Mz;
@@ -636,13 +636,13 @@ PetscErrorCode DMCreateInterpolation_DA_3D_Q0(DM dac,DM daf,Mat *A)
 
   ierr = DMDAGetCorners(daf,&i_start,&j_start,&l_start,&m_f,&n_f,&p_f);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(daf,&i_start_ghost,&j_start_ghost,&l_start_ghost,&m_ghost,&n_ghost,&p_ghost);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(daf,&ltog_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(daf,&ltog_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
 
   ierr = DMDAGetCorners(dac,&i_start_c,&j_start_c,&l_start_c,&m_c,&n_c,&p_c);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(dac,&i_start_ghost_c,&j_start_ghost_c,&l_start_ghost_c,&m_ghost_c,&n_ghost_c,&p_ghost_c);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(dac,&ltog_c);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(dac,&ltog_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
 
   /*
      Used for handling a coarse DMDA that lives on 1/4 the processors of the fine DMDA.
@@ -718,8 +718,8 @@ PetscErrorCode DMCreateInterpolation_DA_3D_Q0(DM dac,DM daf,Mat *A)
       }
     }
   }
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_f,&idx_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(mat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(mat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatCreateMAIJ(mat,dof,A);CHKERRQ(ierr);
@@ -743,14 +743,14 @@ PetscErrorCode DMCreateInterpolation_DA_3D_Q1(DM dac,DM daf,Mat *A)
   PetscInt               l_start_ghost_c,p_ghost_c,l_c,*dnz,*onz;
   PetscScalar            v[8],x,y,z;
   Mat                    mat;
-  DMDABoundaryType       bx,by,bz;
+  DMBoundaryType         bx,by,bz;
 
   PetscFunctionBegin;
   ierr = DMDAGetInfo(dac,0,&Mx,&My,&Mz,0,0,0,0,0,&bx,&by,&bz,0);CHKERRQ(ierr);
   ierr = DMDAGetInfo(daf,0,&mx,&my,&mz,0,0,0,&dof,0,0,0,0,0);CHKERRQ(ierr);
   if (mx == Mx) {
     ratioi = 1;
-  } else if (bx == DMDA_BOUNDARY_PERIODIC) {
+  } else if (bx == DM_BOUNDARY_PERIODIC) {
     ratioi = mx/Mx;
     if (ratioi*Mx != mx) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: mx/Mx  must be integer: mx %D Mx %D",mx,Mx);
   } else {
@@ -759,7 +759,7 @@ PetscErrorCode DMCreateInterpolation_DA_3D_Q1(DM dac,DM daf,Mat *A)
   }
   if (my == My) {
     ratioj = 1;
-  } else if (by == DMDA_BOUNDARY_PERIODIC) {
+  } else if (by == DM_BOUNDARY_PERIODIC) {
     ratioj = my/My;
     if (ratioj*My != my) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: my/My  must be integer: my %D My %D",my,My);
   } else {
@@ -768,7 +768,7 @@ PetscErrorCode DMCreateInterpolation_DA_3D_Q1(DM dac,DM daf,Mat *A)
   }
   if (mz == Mz) {
     ratiok = 1;
-  } else if (bz == DMDA_BOUNDARY_PERIODIC) {
+  } else if (bz == DM_BOUNDARY_PERIODIC) {
     ratiok = mz/Mz;
     if (ratiok*Mz != mz) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: mz/Mz  must be integer: mz %D Mz %D",mz,Mz);
   } else {
@@ -778,13 +778,13 @@ PetscErrorCode DMCreateInterpolation_DA_3D_Q1(DM dac,DM daf,Mat *A)
 
   ierr = DMDAGetCorners(daf,&i_start,&j_start,&l_start,&m_f,&n_f,&p_f);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(daf,&i_start_ghost,&j_start_ghost,&l_start_ghost,&m_ghost,&n_ghost,&p_ghost);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(daf,&ltog_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(daf,&ltog_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
 
   ierr = DMDAGetCorners(dac,&i_start_c,&j_start_c,&l_start_c,&m_c,&n_c,&p_c);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(dac,&i_start_ghost_c,&j_start_ghost_c,&l_start_ghost_c,&m_ghost_c,&n_ghost_c,&p_ghost_c);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(dac,&ltog_c);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(dac,&ltog_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
 
   /* create interpolation matrix, determining exact preallocation */
   ierr = MatPreallocateInitialize(PetscObjectComm((PetscObject)dac),m_f*n_f*p_f,m_c*n_c*p_c,dnz,onz);CHKERRQ(ierr);
@@ -921,9 +921,9 @@ PetscErrorCode DMCreateInterpolation_DA_3D_Q1(DM dac,DM daf,Mat *A)
     nxi   = ratioi + 1;
     neta  = ratioj + 1;
     nzeta = ratiok + 1;
-    ierr  = PetscMalloc(sizeof(PetscScalar)*nxi,&xi);CHKERRQ(ierr);
-    ierr  = PetscMalloc(sizeof(PetscScalar)*neta,&eta);CHKERRQ(ierr);
-    ierr  = PetscMalloc(sizeof(PetscScalar)*nzeta,&zeta);CHKERRQ(ierr);
+    ierr  = PetscMalloc1(nxi,&xi);CHKERRQ(ierr);
+    ierr  = PetscMalloc1(neta,&eta);CHKERRQ(ierr);
+    ierr  = PetscMalloc1(nzeta,&zeta);CHKERRQ(ierr);
     for (li=0; li<nxi; li++) xi[li] = -1.0 + (PetscScalar)li*(2.0/(PetscScalar)(nxi-1));
     for (lj=0; lj<neta; lj++) eta[lj] = -1.0 + (PetscScalar)lj*(2.0/(PetscScalar)(neta-1));
     for (lk=0; lk<nzeta; lk++) zeta[lk] = -1.0 + (PetscScalar)lk*(2.0/(PetscScalar)(nzeta-1));
@@ -998,8 +998,8 @@ PetscErrorCode DMCreateInterpolation_DA_3D_Q1(DM dac,DM daf,Mat *A)
     ierr = PetscFree(eta);CHKERRQ(ierr);
     ierr = PetscFree(zeta);CHKERRQ(ierr);
   }
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_f,&idx_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(mat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(mat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
@@ -1014,7 +1014,7 @@ PetscErrorCode  DMCreateInterpolation_DA(DM dac,DM daf,Mat *A,Vec *scale)
 {
   PetscErrorCode   ierr;
   PetscInt         dimc,Mc,Nc,Pc,mc,nc,pc,dofc,sc,dimf,Mf,Nf,Pf,mf,nf,pf,doff,sf;
-  DMDABoundaryType bxc,byc,bzc,bxf,byf,bzf;
+  DMBoundaryType   bxc,byc,bzc,bxf,byf,bzf;
   DMDAStencilType  stc,stf;
   DM_DA            *ddc = (DM_DA*)dac->data;
 
@@ -1070,14 +1070,14 @@ PetscErrorCode DMCreateInjection_DA_1D(DM dac,DM daf,VecScatter *inject)
   PetscInt               row,i_start_ghost,mx,m_c,nc,ratioi;
   PetscInt               i_start_c,i_start_ghost_c;
   PetscInt               *cols;
-  DMDABoundaryType       bx;
+  DMBoundaryType         bx;
   Vec                    vecf,vecc;
   IS                     isf;
 
   PetscFunctionBegin;
   ierr = DMDAGetInfo(dac,0,&Mx,0,0,0,0,0,0,0,&bx,0,0,0);CHKERRQ(ierr);
   ierr = DMDAGetInfo(daf,0,&mx,0,0,0,0,0,&dof,0,0,0,0,0);CHKERRQ(ierr);
-  if (bx == DMDA_BOUNDARY_PERIODIC) {
+  if (bx == DM_BOUNDARY_PERIODIC) {
     ratioi = mx/Mx;
     if (ratioi*Mx != mx) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: mx/Mx  must be integer: mx %D Mx %D",mx,Mx);
   } else {
@@ -1087,8 +1087,8 @@ PetscErrorCode DMCreateInjection_DA_1D(DM dac,DM daf,VecScatter *inject)
 
   ierr = DMDAGetCorners(daf,&i_start,0,0,&m_f,0,0);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(daf,&i_start_ghost,0,0,&m_ghost,0,0);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(daf,&ltog_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(daf,&ltog_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
 
   ierr = DMDAGetCorners(dac,&i_start_c,0,0,&m_c,0,0);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(dac,&i_start_ghost_c,0,0,&m_ghost_c,0,0);CHKERRQ(ierr);
@@ -1108,7 +1108,7 @@ PetscErrorCode DMCreateInjection_DA_1D(DM dac,DM daf,VecScatter *inject)
     cols[nc++] = row;
   }
 
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
   ierr = ISCreateBlock(PetscObjectComm((PetscObject)daf),dof,nc,cols,PETSC_OWN_POINTER,&isf);CHKERRQ(ierr);
   ierr = DMGetGlobalVector(dac,&vecc);CHKERRQ(ierr);
   ierr = DMGetGlobalVector(daf,&vecf);CHKERRQ(ierr);
@@ -1131,21 +1131,21 @@ PetscErrorCode DMCreateInjection_DA_2D(DM dac,DM daf,VecScatter *inject)
   PetscInt               row,i_start_ghost,j_start_ghost,mx,m_c,my,nc,ratioi,ratioj;
   PetscInt               i_start_c,j_start_c,n_c,i_start_ghost_c,j_start_ghost_c;
   PetscInt               *cols;
-  DMDABoundaryType       bx,by;
+  DMBoundaryType         bx,by;
   Vec                    vecf,vecc;
   IS                     isf;
 
   PetscFunctionBegin;
   ierr = DMDAGetInfo(dac,0,&Mx,&My,0,0,0,0,0,0,&bx,&by,0,0);CHKERRQ(ierr);
   ierr = DMDAGetInfo(daf,0,&mx,&my,0,0,0,0,&dof,0,0,0,0,0);CHKERRQ(ierr);
-  if (bx == DMDA_BOUNDARY_PERIODIC) {
+  if (bx == DM_BOUNDARY_PERIODIC) {
     ratioi = mx/Mx;
     if (ratioi*Mx != mx) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: mx/Mx  must be integer: mx %D Mx %D",mx,Mx);
   } else {
     ratioi = (mx-1)/(Mx-1);
     if (ratioi*(Mx-1) != mx-1) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: (mx - 1)/(Mx - 1) must be integer: mx %D Mx %D",mx,Mx);
   }
-  if (by == DMDA_BOUNDARY_PERIODIC) {
+  if (by == DM_BOUNDARY_PERIODIC) {
     ratioj = my/My;
     if (ratioj*My != my) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: my/My  must be integer: my %D My %D",my,My);
   } else {
@@ -1155,13 +1155,13 @@ PetscErrorCode DMCreateInjection_DA_2D(DM dac,DM daf,VecScatter *inject)
 
   ierr = DMDAGetCorners(daf,&i_start,&j_start,0,&m_f,&n_f,0);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(daf,&i_start_ghost,&j_start_ghost,0,&m_ghost,&n_ghost,0);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(daf,&ltog_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(daf,&ltog_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
 
   ierr = DMDAGetCorners(dac,&i_start_c,&j_start_c,0,&m_c,&n_c,0);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(dac,&i_start_ghost_c,&j_start_ghost_c,0,&m_ghost_c,&n_ghost_c,0);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(dac,&ltog_c);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(dac,&ltog_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
 
   /* loop over local fine grid nodes setting interpolation for those*/
   nc   = 0;
@@ -1177,8 +1177,8 @@ PetscErrorCode DMCreateInjection_DA_2D(DM dac,DM daf,VecScatter *inject)
       cols[nc++] = row;
     }
   }
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_f,&idx_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
 
   ierr = ISCreateBlock(PetscObjectComm((PetscObject)daf),dof,nc,cols,PETSC_OWN_POINTER,&isf);CHKERRQ(ierr);
   ierr = DMGetGlobalVector(dac,&vecc);CHKERRQ(ierr);
@@ -1206,7 +1206,7 @@ PetscErrorCode DMCreateInjection_DA_3D(DM dac,DM daf,VecScatter *inject)
   const PetscInt         *idx_c,*idx_f;
   ISLocalToGlobalMapping ltog_f,ltog_c;
   PetscInt               *cols;
-  DMDABoundaryType       bx,by,bz;
+  DMBoundaryType         bx,by,bz;
   Vec                    vecf,vecc;
   IS                     isf;
 
@@ -1214,21 +1214,21 @@ PetscErrorCode DMCreateInjection_DA_3D(DM dac,DM daf,VecScatter *inject)
   ierr = DMDAGetInfo(dac,0,&Mx,&My,&Mz,0,0,0,0,0,&bx,&by,&bz,0);CHKERRQ(ierr);
   ierr = DMDAGetInfo(daf,0,&mx,&my,&mz,0,0,0,&dof,0,0,0,0,0);CHKERRQ(ierr);
 
-  if (bx == DMDA_BOUNDARY_PERIODIC) {
+  if (bx == DM_BOUNDARY_PERIODIC) {
     ratioi = mx/Mx;
     if (ratioi*Mx != mx) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: mx/Mx  must be integer: mx %D Mx %D",mx,Mx);
   } else {
     ratioi = (mx-1)/(Mx-1);
     if (ratioi*(Mx-1) != mx-1) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: (mx - 1)/(Mx - 1) must be integer: mx %D Mx %D",mx,Mx);
   }
-  if (by == DMDA_BOUNDARY_PERIODIC) {
+  if (by == DM_BOUNDARY_PERIODIC) {
     ratioj = my/My;
     if (ratioj*My != my) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: my/My  must be integer: my %D My %D",my,My);
   } else {
     ratioj = (my-1)/(My-1);
     if (ratioj*(My-1) != my-1) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: (my - 1)/(My - 1) must be integer: my %D My %D",my,My);
   }
-  if (bz == DMDA_BOUNDARY_PERIODIC) {
+  if (bz == DM_BOUNDARY_PERIODIC) {
     ratiok = mz/Mz;
     if (ratiok*Mz != mz) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Ratio between levels: mz/Mz  must be integer: mz %D My %D",mz,Mz);
   } else {
@@ -1238,13 +1238,13 @@ PetscErrorCode DMCreateInjection_DA_3D(DM dac,DM daf,VecScatter *inject)
 
   ierr = DMDAGetCorners(daf,&i_start,&j_start,&k_start,&m_f,&n_f,&p_f);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(daf,&i_start_ghost,&j_start_ghost,&k_start_ghost,&m_ghost,&n_ghost,&p_ghost);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(daf,&ltog_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(daf,&ltog_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
 
   ierr = DMDAGetCorners(dac,&i_start_c,&j_start_c,&k_start_c,&m_c,&n_c,&p_c);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(dac,&i_start_ghost_c,&j_start_ghost_c,&k_start_ghost_c,&m_ghost_c,&n_ghost_c,&p_ghost_c);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(dac,&ltog_c);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingGetIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(dac,&ltog_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
 
 
   /* loop over local fine grid nodes setting interpolation for those*/
@@ -1265,8 +1265,8 @@ PetscErrorCode DMCreateInjection_DA_3D(DM dac,DM daf,VecScatter *inject)
       }
     }
   }
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_f,&idx_f);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingRestoreIndices(ltog_c,&idx_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_f,&idx_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreBlockIndices(ltog_c,&idx_c);CHKERRQ(ierr);
 
   ierr = ISCreateBlock(PetscObjectComm((PetscObject)daf),dof,nc,cols,PETSC_OWN_POINTER,&isf);CHKERRQ(ierr);
   ierr = DMGetGlobalVector(dac,&vecc);CHKERRQ(ierr);
@@ -1280,17 +1280,18 @@ PetscErrorCode DMCreateInjection_DA_3D(DM dac,DM daf,VecScatter *inject)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMCreateInjection_DA"
-PetscErrorCode  DMCreateInjection_DA(DM dac,DM daf,VecScatter *inject)
+PetscErrorCode  DMCreateInjection_DA(DM dac,DM daf,Mat *mat)
 {
-  PetscErrorCode   ierr;
-  PetscInt         dimc,Mc,Nc,Pc,mc,nc,pc,dofc,sc,dimf,Mf,Nf,Pf,mf,nf,pf,doff,sf;
-  DMDABoundaryType bxc,byc,bzc,bxf,byf,bzf;
-  DMDAStencilType  stc,stf;
+  PetscErrorCode  ierr;
+  PetscInt        dimc,Mc,Nc,Pc,mc,nc,pc,dofc,sc,dimf,Mf,Nf,Pf,mf,nf,pf,doff,sf;
+  DMBoundaryType  bxc,byc,bzc,bxf,byf,bzf;
+  DMDAStencilType stc,stf;
+  VecScatter      inject = NULL;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dac,DM_CLASSID,1);
   PetscValidHeaderSpecific(daf,DM_CLASSID,2);
-  PetscValidPointer(inject,3);
+  PetscValidPointer(mat,3);
 
   ierr = DMDAGetInfo(dac,&dimc,&Mc,&Nc,&Pc,&mc,&nc,&pc,&dofc,&sc,&bxc,&byc,&bzc,&stc);CHKERRQ(ierr);
   ierr = DMDAGetInfo(daf,&dimf,&Mf,&Nf,&Pf,&mf,&nf,&pf,&doff,&sf,&bxf,&byf,&bzf,&stf);CHKERRQ(ierr);
@@ -1304,12 +1305,14 @@ PetscErrorCode  DMCreateInjection_DA(DM dac,DM daf,VecScatter *inject)
   if (dimc > 2 && Pc < 2) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Coarse grid requires at least 2 points in z direction");
 
   if (dimc == 1) {
-    ierr = DMCreateInjection_DA_1D(dac,daf,inject);CHKERRQ(ierr);
+    ierr = DMCreateInjection_DA_1D(dac,daf,&inject);CHKERRQ(ierr);
   } else if (dimc == 2) {
-    ierr = DMCreateInjection_DA_2D(dac,daf,inject);CHKERRQ(ierr);
+    ierr = DMCreateInjection_DA_2D(dac,daf,&inject);CHKERRQ(ierr);
   } else if (dimc == 3) {
-    ierr = DMCreateInjection_DA_3D(dac,daf,inject);CHKERRQ(ierr);
+    ierr = DMCreateInjection_DA_3D(dac,daf,&inject);CHKERRQ(ierr);
   }
+  ierr = MatCreateScatter(PetscObjectComm((PetscObject)inject), inject, mat);CHKERRQ(ierr);
+  ierr = VecScatterDestroy(&inject);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1317,25 +1320,26 @@ PetscErrorCode  DMCreateInjection_DA(DM dac,DM daf,VecScatter *inject)
 #define __FUNCT__ "DMCreateAggregates_DA"
 PetscErrorCode  DMCreateAggregates_DA(DM dac,DM daf,Mat *rest)
 {
-  PetscErrorCode   ierr;
-  PetscInt         dimc,Mc,Nc,Pc,mc,nc,pc,dofc,sc;
-  PetscInt         dimf,Mf,Nf,Pf,mf,nf,pf,doff,sf;
-  DMDABoundaryType bxc,byc,bzc,bxf,byf,bzf;
-  DMDAStencilType  stc,stf;
-  PetscInt         i,j,l;
-  PetscInt         i_start,j_start,l_start, m_f,n_f,p_f;
-  PetscInt         i_start_ghost,j_start_ghost,l_start_ghost,m_ghost,n_ghost,p_ghost;
-  const PetscInt   *idx_f;
-  PetscInt         i_c,j_c,l_c;
-  PetscInt         i_start_c,j_start_c,l_start_c, m_c,n_c,p_c;
-  PetscInt         i_start_ghost_c,j_start_ghost_c,l_start_ghost_c,m_ghost_c,n_ghost_c,p_ghost_c;
-  const PetscInt   *idx_c;
-  PetscInt         d;
-  PetscInt         a;
-  PetscInt         max_agg_size;
-  PetscInt         *fine_nodes;
-  PetscScalar      *one_vec;
-  PetscInt         fn_idx;
+  PetscErrorCode         ierr;
+  PetscInt               dimc,Mc,Nc,Pc,mc,nc,pc,dofc,sc;
+  PetscInt               dimf,Mf,Nf,Pf,mf,nf,pf,doff,sf;
+  DMBoundaryType         bxc,byc,bzc,bxf,byf,bzf;
+  DMDAStencilType        stc,stf;
+  PetscInt               i,j,l;
+  PetscInt               i_start,j_start,l_start, m_f,n_f,p_f;
+  PetscInt               i_start_ghost,j_start_ghost,l_start_ghost,m_ghost,n_ghost,p_ghost;
+  const PetscInt         *idx_f;
+  PetscInt               i_c,j_c,l_c;
+  PetscInt               i_start_c,j_start_c,l_start_c, m_c,n_c,p_c;
+  PetscInt               i_start_ghost_c,j_start_ghost_c,l_start_ghost_c,m_ghost_c,n_ghost_c,p_ghost_c;
+  const PetscInt         *idx_c;
+  PetscInt               d;
+  PetscInt               a;
+  PetscInt               max_agg_size;
+  PetscInt               *fine_nodes;
+  PetscScalar            *one_vec;
+  PetscInt               fn_idx;
+  ISLocalToGlobalMapping ltogmf,ltogmc;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dac,DM_CLASSID,1);
@@ -1361,11 +1365,15 @@ PetscErrorCode  DMCreateAggregates_DA(DM dac,DM daf,Mat *rest)
 
   ierr = DMDAGetCorners(daf,&i_start,&j_start,&l_start,&m_f,&n_f,&p_f);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(daf,&i_start_ghost,&j_start_ghost,&l_start_ghost,&m_ghost,&n_ghost,&p_ghost);CHKERRQ(ierr);
-  ierr = DMDAGetGlobalIndices(daf,NULL,&idx_f);CHKERRQ(ierr);
+
+  ierr = DMGetLocalToGlobalMapping(daf,&ltogmf);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetIndices(ltogmf,&idx_f);CHKERRQ(ierr);
 
   ierr = DMDAGetCorners(dac,&i_start_c,&j_start_c,&l_start_c,&m_c,&n_c,&p_c);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(dac,&i_start_ghost_c,&j_start_ghost_c,&l_start_ghost_c,&m_ghost_c,&n_ghost_c,&p_ghost_c);CHKERRQ(ierr);
-  ierr = DMDAGetGlobalIndices(dac,NULL,&idx_c);CHKERRQ(ierr);
+
+  ierr = DMGetLocalToGlobalMapping(dac,&ltogmc);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetIndices(ltogmc,&idx_c);CHKERRQ(ierr);
 
   /*
      Basic idea is as follows. Here's a 2D example, suppose r_x, r_y are the ratios
@@ -1412,8 +1420,8 @@ PetscErrorCode  DMCreateAggregates_DA(DM dac,DM daf,Mat *rest)
       }
     }
   }
-  ierr = DMDARestoreGlobalIndices(daf,NULL,&idx_f);CHKERRQ(ierr);
-  ierr = DMDARestoreGlobalIndices(dac,NULL,&idx_c);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreIndices(ltogmf,&idx_f);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreIndices(ltogmc,&idx_c);CHKERRQ(ierr);
   ierr = PetscFree2(one_vec,fine_nodes);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(*rest, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(*rest, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);

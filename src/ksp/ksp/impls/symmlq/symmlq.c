@@ -28,7 +28,6 @@ PetscErrorCode  KSPSolve_SYMMLQ(KSP ksp)
   PetscReal      np,s_prod;
   Vec            X,B,R,Z,U,V,W,UOLD,VOLD,Wbar;
   Mat            Amat,Pmat;
-  MatStructure   pflag;
   KSP_SYMMLQ     *symmlq = (KSP_SYMMLQ*)ksp->data;
   PetscBool      diagonalscale;
 
@@ -47,7 +46,7 @@ PetscErrorCode  KSPSolve_SYMMLQ(KSP ksp)
   VOLD = ksp->work[6];
   Wbar = ksp->work[7];
 
-  ierr = PCGetOperators(ksp->pc,&Amat,&Pmat,&pflag);CHKERRQ(ierr);
+  ierr = PCGetOperators(ksp->pc,&Amat,&Pmat);CHKERRQ(ierr);
 
   ksp->its = 0;
 
@@ -204,7 +203,7 @@ PETSC_EXTERN PetscErrorCode KSPCreate_SYMMLQ(KSP ksp)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_PRECONDITIONED,PC_LEFT,2);CHKERRQ(ierr);
+  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_PRECONDITIONED,PC_LEFT,3);CHKERRQ(ierr);
 
   ierr           = PetscNewLog(ksp,&symmlq);CHKERRQ(ierr);
   symmlq->haptol = 1.e-18;

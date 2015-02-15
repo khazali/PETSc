@@ -58,6 +58,7 @@ PetscErrorCode  PetscDrawView(PetscDraw indraw,PetscViewer viewer)
   PetscValidHeaderSpecific(viewer,PETSC_VIEWER_CLASSID,2);
   PetscCheckSameComm(indraw,1,viewer,2);
 
+  ierr = PetscObjectPrintClassNamePrefixType((PetscObject)indraw,viewer);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERDRAW,&isdraw);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_SAWS)
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERSAWS,&isams);CHKERRQ(ierr);
@@ -223,17 +224,12 @@ PetscErrorCode  PetscDrawSetType(PetscDraw draw,PetscDrawType type)
 #endif
   if (flg) type = PETSC_DRAW_NULL;
 
-  if (draw->data) {
-    /* destroy the old private PetscDraw context */
-    ierr               = (*draw->ops->destroy)(draw);CHKERRQ(ierr);
-    draw->ops->destroy = NULL;
-    draw->data         = 0;
-  }
-
   ierr =  PetscFunctionListFind(PetscDrawList,type,&r);CHKERRQ(ierr);
   if (!r) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_UNKNOWN_TYPE,"Unknown PetscDraw type given: %s",type);
+  if (draw->data) {ierr = (*draw->ops->destroy)(draw);CHKERRQ(ierr);}
+  draw->ops->destroy = NULL;
+  draw->data         = NULL;
   ierr       = PetscObjectChangeTypeName((PetscObject)draw,type);CHKERRQ(ierr);
-  draw->data = 0;
   ierr       = (*r)(draw);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

@@ -274,8 +274,11 @@ PetscErrorCode PetscObjectGetFortranCallback(PetscObject obj,PetscFortranCallbac
    Logically Collective on PetscViewer
 
    Input Parameter:
-+  viewer - must be an PETSCVIEWERASCII viewer
++  fd - file pointer
 -  all - by default only tries to display objects created explicitly by the user, if all is PETSC_TRUE then lists all outstanding objects
+
+   Options Database:
+.  -objects_dump <all>
 
    Level: advanced
 
@@ -607,6 +610,7 @@ PetscErrorCode  PetscObjectDereference(PetscObject obj)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (!obj) PetscFunctionReturn(0);
   PetscValidHeader(obj,1);
   if (obj->bops->destroy) {
     ierr = (*obj->bops->destroy)(&obj);CHKERRQ(ierr);
@@ -807,7 +811,7 @@ PetscErrorCode  PetscObjectQuery(PetscObject obj,const char name[],PetscObject *
    PetscObjectComposeFunction - Associates a function with a given PETSc object.
 
     Synopsis:
-    #include "petscsys.h"
+    #include <petscsys.h>
     PetscErrorCode PetscObjectComposeFunction(PetscObject obj,const char name[],void (*fptr)(void))
 
    Logically Collective on PetscObject
@@ -853,7 +857,7 @@ PetscErrorCode  PetscObjectComposeFunction_Private(PetscObject obj,const char na
    PetscObjectQueryFunction - Gets a function associated with a given object.
 
     Synopsis:
-    #include "petscsys.h"
+    #include <petscsys.h>
     PetscErrorCode PetscObjectQueryFunction(PetscObject obj,const char name[],void (**fptr)(void))
 
    Logically Collective on PetscObject

@@ -55,9 +55,14 @@ There are two compile-time options:
 
 */
 
+#if defined(PETSC_APPLE_FRAMEWORK)
+#import <PETSc/petscsnes.h>
+#import <PETSc/petsc-private/dmdaimpl.h>     /* There is not yet a public interface to manipulate dm->ops */
+#else
 #include <petscsnes.h>
-#include <ctype.h>              /* toupper() */
 #include <petsc-private/dmdaimpl.h>     /* There is not yet a public interface to manipulate dm->ops */
+#endif
+#include <ctype.h>              /* toupper() */
 
 #if !defined __STDC_VERSION__ || __STDC_VERSION__ < 199901L
 #  if defined __cplusplus       /* C++ restrict is nonstandard and compilers have inconsistent rules about where it can be used */
@@ -81,8 +86,8 @@ static PetscClassId THI_CLASSID;
 
 typedef enum {QUAD_GAUSS,QUAD_LOBATTO} QuadratureType;
 static const char      *QuadratureTypes[] = {"gauss","lobatto","QuadratureType","QUAD_",0};
-static const PetscReal HexQWeights[8]     = {1,1,1,1,1,1,1,1};
-static const PetscReal HexQNodes[]        = {-0.57735026918962573, 0.57735026918962573};
+PETSC_UNUSED static const PetscReal HexQWeights[8]     = {1,1,1,1,1,1,1,1};
+PETSC_UNUSED static const PetscReal HexQNodes[]        = {-0.57735026918962573, 0.57735026918962573};
 #define G 0.57735026918962573
 #define H (0.5*(1.+G))
 #define L (0.5*(1.-G))
@@ -254,9 +259,9 @@ struct _n_Units {
   PetscReal year;
 };
 
-static PetscErrorCode THIJacobianLocal_3D_Full(DMDALocalInfo*,Node***,Mat,Mat,MatStructure*,THI);
-static PetscErrorCode THIJacobianLocal_3D_Tridiagonal(DMDALocalInfo*,Node***,Mat,THI);
-static PetscErrorCode THIJacobianLocal_2D(DMDALocalInfo*,Node**,Mat,THI);
+static PetscErrorCode THIJacobianLocal_3D_Full(DMDALocalInfo*,Node***,Mat,Mat,THI);
+static PetscErrorCode THIJacobianLocal_3D_Tridiagonal(DMDALocalInfo*,Node***,Mat,Mat,THI);
+static PetscErrorCode THIJacobianLocal_2D(DMDALocalInfo*,Node**,Mat,Mat,THI);
 
 static void PrmHexGetZ(const PrmNode pn[],PetscInt k,PetscInt zm,PetscReal zn[])
 {
@@ -594,7 +599,7 @@ static PetscErrorCode THISetUpDM(THI thi,DM dm)
   ierr  = DMGetRefineLevel(dm,&refinelevel);CHKERRQ(ierr);
   ierr  = DMGetCoarsenLevel(dm,&coarsenlevel);CHKERRQ(ierr);
   level = refinelevel - coarsenlevel;
-  ierr  = DMDACreate2d(PetscObjectComm((PetscObject)thi),DMDA_BOUNDARY_PERIODIC,DMDA_BOUNDARY_PERIODIC,st,My,Mx,my,mx,sizeof(PrmNode)/sizeof(PetscScalar),s,0,0,&da2prm);CHKERRQ(ierr);
+  ierr  = DMDACreate2d(PetscObjectComm((PetscObject)thi),DM_BOUNDARY_PERIODIC,DM_BOUNDARY_PERIODIC,st,My,Mx,my,mx,sizeof(PrmNode)/sizeof(PetscScalar),s,0,0,&da2prm);CHKERRQ(ierr);
   ierr  = DMCreateLocalVector(da2prm,&X);CHKERRQ(ierr);
   {
     PetscReal Lx = thi->Lx / thi->units->meter,Ly = thi->Ly / thi->units->meter,Lz = thi->Lz / thi->units->meter;
@@ -947,12 +952,12 @@ static PetscErrorCode THISolveStatistics(THI thi,SNES snes,PetscInt coarsened,co
     ierr = PetscPrintf(comm,"%s: Number of SNES iterations = %D, total linear iterations = %D\n",SNESConvergedReasons[reason],its,lits);CHKERRQ(ierr);
   }
   {
-    PetscReal   nrm2,tmin[3]={1e100,1e100,1e100},tmax[3]={-1e100,-1e100,-1e100},min[3],max[3];
-    PetscInt    i,j,m;
-    PetscScalar *x;
+    PetscReal         nrm2,tmin[3]={1e100,1e100,1e100},tmax[3]={-1e100,-1e100,-1e100},min[3],max[3];
+    PetscInt          i,j,m;
+    const PetscScalar *x;
     ierr = VecNorm(X,NORM_2,&nrm2);CHKERRQ(ierr);
     ierr = VecGetLocalSize(X,&m);CHKERRQ(ierr);
-    ierr = VecGetArray(X,&x);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(X,&x);CHKERRQ(ierr);
     for (i=0; i<m; i+=2) {
       PetscReal u = PetscRealPart(x[i]),v = PetscRealPart(x[i+1]),c = PetscSqrtReal(u*u+v*v);
       tmin[0] = PetscMin(u,tmin[0]);
@@ -962,7 +967,7 @@ static PetscErrorCode THISolveStatistics(THI thi,SNES snes,PetscInt coarsened,co
       tmax[1] = PetscMax(v,tmax[1]);
       tmax[2] = PetscMax(c,tmax[2]);
     }
-    ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(X,&x);CHKERRQ(ierr);
     ierr = MPI_Allreduce(tmin,min,3,MPIU_REAL,MPIU_MIN,PetscObjectComm((PetscObject)thi));CHKERRQ(ierr);
     ierr = MPI_Allreduce(tmax,max,3,MPIU_REAL,MPIU_MAX,PetscObjectComm((PetscObject)thi));CHKERRQ(ierr);
     /* Dimensionalize to meters/year */
@@ -984,13 +989,12 @@ static PetscErrorCode THISolveStatistics(THI thi,SNES snes,PetscInt coarsened,co
     ierr = PetscPrintf(comm,"Global eta range   %g to %g converged range %g to %g\n",(double)thi->eta.min,(double)thi->eta.max,(double)thi->eta.cmin,(double)thi->eta.cmax);CHKERRQ(ierr);
     ierr = PetscPrintf(comm,"Global beta2 range %g to %g converged range %g to %g\n",(double)thi->beta2.min,(double)thi->beta2.max,(double)thi->beta2.cmin,(double)thi->beta2.cmax);CHKERRQ(ierr);
   }
-  ierr = PetscPrintf(comm,"\n");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "THIJacobianLocal_2D"
-static PetscErrorCode THIJacobianLocal_2D(DMDALocalInfo *info,Node **x,Mat B,THI thi)
+static PetscErrorCode THIJacobianLocal_2D(DMDALocalInfo *info,Node **x,Mat J,Mat B,THI thi)
 {
   PetscInt       xs,ys,xm,ym,i,j,q,l,ll;
   PetscReal      hx,hy;
@@ -1265,19 +1269,18 @@ static PetscErrorCode THIJacobianLocal_3D(DMDALocalInfo *info,Node ***x,Mat B,TH
 
 #undef __FUNCT__
 #define __FUNCT__ "THIJacobianLocal_3D_Full"
-static PetscErrorCode THIJacobianLocal_3D_Full(DMDALocalInfo *info,Node ***x,Mat A,Mat B,MatStructure *mstr,THI thi)
+static PetscErrorCode THIJacobianLocal_3D_Full(DMDALocalInfo *info,Node ***x,Mat A,Mat B,THI thi)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
   ierr  = THIJacobianLocal_3D(info,x,B,thi,THIASSEMBLY_FULL);CHKERRQ(ierr);
-  *mstr = SAME_NONZERO_PATTERN;
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "THIJacobianLocal_3D_Tridiagonal"
-static PetscErrorCode THIJacobianLocal_3D_Tridiagonal(DMDALocalInfo *info,Node ***x,Mat B,THI thi)
+static PetscErrorCode THIJacobianLocal_3D_Tridiagonal(DMDALocalInfo *info,Node ***x,Mat A,Mat B,THI thi)
 {
   PetscErrorCode ierr;
 
@@ -1310,7 +1313,7 @@ static PetscErrorCode DMRefineHierarchy_THI(DM dac0,PetscInt nlevels,DM hierarch
   if (dim != 2) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"This function can only refine 2D DMDAs");
 
   /* Creates a 3D DMDA with the same map-plane layout as the 2D one, with contiguous columns */
-  ierr = DMDACreate3d(PetscObjectComm((PetscObject)dac),DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_PERIODIC,DMDA_BOUNDARY_PERIODIC,st,thi->zlevels,N,M,1,n,m,dof,s,NULL,NULL,NULL,&daf);CHKERRQ(ierr);
+  ierr = DMDACreate3d(PetscObjectComm((PetscObject)dac),DM_BOUNDARY_NONE,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_PERIODIC,st,thi->zlevels,N,M,1,n,m,dof,s,NULL,NULL,NULL,&daf);CHKERRQ(ierr);
 
   daf->ops->creatematrix        = dac->ops->creatematrix;
   daf->ops->createinterpolation = dac->ops->createinterpolation;
@@ -1381,14 +1384,13 @@ static PetscErrorCode DMCreateMatrix_THI_Tridiagonal(DM da,Mat *J)
   PetscErrorCode         ierr;
   Mat                    A;
   PetscInt               xm,ym,zm,dim,dof = 2,starts[3],dims[3];
-  ISLocalToGlobalMapping ltog,ltogb;
+  ISLocalToGlobalMapping ltog;
 
   PetscFunctionBeginUser;
   ierr = DMDAGetInfo(da,&dim, 0,0,0, 0,0,0, 0,0,0,0,0,0);CHKERRQ(ierr);
   if (dim != 3) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"Expected DMDA to be 3D");
   ierr = DMDAGetCorners(da,0,0,0,&zm,&ym,&xm);CHKERRQ(ierr);
   ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(da,&ltogb);CHKERRQ(ierr);
   ierr = MatCreate(PetscObjectComm((PetscObject)da),&A);CHKERRQ(ierr);
   ierr = MatSetSizes(A,dof*xm*ym*zm,dof*xm*ym*zm,PETSC_DETERMINE,PETSC_DETERMINE);CHKERRQ(ierr);
   ierr = MatSetType(A,da->mattype);CHKERRQ(ierr);
@@ -1400,7 +1402,6 @@ static PetscErrorCode DMCreateMatrix_THI_Tridiagonal(DM da,Mat *J)
   ierr = MatSeqSBAIJSetPreallocation(A,2,2,NULL);CHKERRQ(ierr);
   ierr = MatMPISBAIJSetPreallocation(A,2,2,NULL,0,NULL);CHKERRQ(ierr);
   ierr = MatSetLocalToGlobalMapping(A,ltog,ltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMappingBlock(A,ltogb,ltogb);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(da,&starts[0],&starts[1],&starts[2],&dims[0],&dims[1],&dims[2]);CHKERRQ(ierr);
   ierr = MatSetStencil(A,dim,dims,starts,dof);CHKERRQ(ierr);
   *J   = A;
@@ -1411,14 +1412,14 @@ static PetscErrorCode DMCreateMatrix_THI_Tridiagonal(DM da,Mat *J)
 #define __FUNCT__ "THIDAVecView_VTK_XML"
 static PetscErrorCode THIDAVecView_VTK_XML(THI thi,DM da,Vec X,const char filename[])
 {
-  const PetscInt dof   = 2;
-  Units          units = thi->units;
-  MPI_Comm       comm;
-  PetscErrorCode ierr;
-  PetscViewer    viewer;
-  PetscMPIInt    rank,size,tag,nn,nmax;
-  PetscInt       mx,my,mz,r,range[6];
-  PetscScalar    *x;
+  const PetscInt    dof   = 2;
+  Units             units = thi->units;
+  MPI_Comm          comm;
+  PetscErrorCode    ierr;
+  PetscViewer       viewer;
+  PetscMPIInt       rank,size,tag,nn,nmax;
+  PetscInt          mx,my,mz,r,range[6];
+  const PetscScalar *x;
 
   PetscFunctionBeginUser;
   ierr = PetscObjectGetComm((PetscObject)thi,&comm);CHKERRQ(ierr);
@@ -1433,14 +1434,14 @@ static PetscErrorCode THIDAVecView_VTK_XML(THI thi,DM da,Vec X,const char filena
   ierr = PetscMPIIntCast(range[3]*range[4]*range[5]*dof,&nn);CHKERRQ(ierr);
   ierr = MPI_Reduce(&nn,&nmax,1,MPI_INT,MPI_MAX,0,comm);CHKERRQ(ierr);
   tag  = ((PetscObject) viewer)->tag;
-  ierr = VecGetArray(X,&x);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(X,&x);CHKERRQ(ierr);
   if (!rank) {
     PetscScalar *array;
     ierr = PetscMalloc1(nmax,&array);CHKERRQ(ierr);
     for (r=0; r<size; r++) {
-      PetscInt    i,j,k,xs,xm,ys,ym,zs,zm;
-      PetscScalar *ptr;
-      MPI_Status  status;
+      PetscInt          i,j,k,xs,xm,ys,ym,zs,zm;
+      const PetscScalar *ptr;
+      MPI_Status        status;
       if (r) {
         ierr = MPI_Recv(range,6,MPIU_INT,r,tag,comm,MPI_STATUS_IGNORE);CHKERRQ(ierr);
       }
@@ -1489,9 +1490,9 @@ static PetscErrorCode THIDAVecView_VTK_XML(THI thi,DM da,Vec X,const char filena
     ierr = PetscFree(array);CHKERRQ(ierr);
   } else {
     ierr = MPI_Send(range,6,MPIU_INT,0,tag,comm);CHKERRQ(ierr);
-    ierr = MPI_Send(x,nn,MPIU_SCALAR,0,tag,comm);CHKERRQ(ierr);
+    ierr = MPI_Send((PetscScalar*)x,nn,MPIU_SCALAR,0,tag,comm);CHKERRQ(ierr);
   }
-  ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(X,&x);CHKERRQ(ierr);
   ierr = PetscViewerASCIIPrintf(viewer,"  </StructuredGrid>\n");CHKERRQ(ierr);
   ierr = PetscViewerASCIIPrintf(viewer,"</VTKFile>\n");CHKERRQ(ierr);
   ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
@@ -1527,14 +1528,14 @@ int main(int argc,char *argv[])
     }
     ierr = PetscOptionsEnd();CHKERRQ(ierr);
     if (thi->coarse2d) {
-      ierr = DMDACreate2d(comm,DMDA_BOUNDARY_PERIODIC,DMDA_BOUNDARY_PERIODIC,DMDA_STENCIL_BOX,-N,-M,PETSC_DETERMINE,PETSC_DETERMINE,sizeof(Node)/sizeof(PetscScalar),1,0,0,&da);CHKERRQ(ierr);
+      ierr = DMDACreate2d(comm,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_PERIODIC,DMDA_STENCIL_BOX,-N,-M,PETSC_DETERMINE,PETSC_DETERMINE,sizeof(Node)/sizeof(PetscScalar),1,0,0,&da);CHKERRQ(ierr);
 
       da->ops->refinehierarchy     = DMRefineHierarchy_THI;
       da->ops->createinterpolation = DMCreateInterpolation_DA_THI;
 
       ierr = PetscObjectCompose((PetscObject)da,"THI",(PetscObject)thi);CHKERRQ(ierr);
     } else {
-      ierr = DMDACreate3d(comm,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_PERIODIC,DMDA_BOUNDARY_PERIODIC, DMDA_STENCIL_BOX,-P,-N,-M,1,PETSC_DETERMINE,PETSC_DETERMINE,sizeof(Node)/sizeof(PetscScalar),1,0,0,0,&da);CHKERRQ(ierr);
+      ierr = DMDACreate3d(comm,DM_BOUNDARY_NONE,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_PERIODIC, DMDA_STENCIL_BOX,-P,-N,-M,1,PETSC_DETERMINE,PETSC_DETERMINE,sizeof(Node)/sizeof(PetscScalar),1,0,0,0,&da);CHKERRQ(ierr);
     }
     ierr = DMDASetFieldName(da,0,"x-velocity");CHKERRQ(ierr);
     ierr = DMDASetFieldName(da,1,"y-velocity");CHKERRQ(ierr);

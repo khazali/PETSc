@@ -59,7 +59,7 @@ int main(int argc,char **args)
 
   /* Solve linear system */
   ierr = KSPCreate(PETSC_COMM_WORLD,&ksp);CHKERRQ(ierr);
-  ierr = KSPSetOperators(ksp,mat,mat,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp,mat,mat);CHKERRQ(ierr);
   ierr = KSPGMRESSetRestart(ksp,2*m);CHKERRQ(ierr);
   ierr = KSPSetTolerances(ksp,1.e-10,PETSC_DEFAULT,PETSC_DEFAULT,PETSC_DEFAULT);CHKERRQ(ierr);
   ierr = KSPSetType(ksp,KSPCG);CHKERRQ(ierr);
@@ -150,7 +150,7 @@ PetscErrorCode GetElasticityMatrix(PetscInt m,Mat *newmat)
   /* Exclude any superfluous rows and columns */
   nstart = 3*(2*m+1)*(2*m+1);
   ict    = 0;
-  ierr   = PetscMalloc1((N-nstart),&rowkeep);CHKERRQ(ierr);
+  ierr   = PetscMalloc1(N-nstart,&rowkeep);CHKERRQ(ierr);
   for (i=nstart; i<N; i++) {
     ierr = MatGetRow(mat,i,&nz,0,0);CHKERRQ(ierr);
     if (nz) rowkeep[ict++] = i;

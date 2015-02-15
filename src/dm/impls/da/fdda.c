@@ -31,7 +31,7 @@ static PetscErrorCode DMDASetBlockFills_Private(const PetscInt *dfill,PetscInt w
       if (dfill[w*i+j]) nz++;
     }
   }
-  ierr = PetscMalloc1((nz + w + 1),&fill);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nz + w + 1,&fill);CHKERRQ(ierr);
   /* construct modified CSR storage of nonzero structure */
   /*  fill[0 -- w] marks starts of each row of column indices (and end of last row)
    so fill[1] - fill[0] gives number of nonzeros in first row etc */
@@ -118,7 +118,7 @@ PetscErrorCode  DMCreateColoring_DA(DM da,ISColoringType ctype,ISColoring *color
 {
   PetscErrorCode   ierr;
   PetscInt         dim,m,n,p,nc;
-  DMDABoundaryType bx,by,bz;
+  DMBoundaryType bx,by,bz;
   MPI_Comm         comm;
   PetscMPIInt      size;
   PetscBool        isBAIJ;
@@ -155,7 +155,7 @@ PetscErrorCode  DMCreateColoring_DA(DM da,ISColoringType ctype,ISColoring *color
     if (size == 1) {
       ctype = IS_COLORING_GLOBAL;
     } else if (dim > 1) {
-      if ((m==1 && bx == DMDA_BOUNDARY_PERIODIC) || (n==1 && by == DMDA_BOUNDARY_PERIODIC) || (p==1 && bz == DMDA_BOUNDARY_PERIODIC)) {
+      if ((m==1 && bx == DM_BOUNDARY_PERIODIC) || (n==1 && by == DM_BOUNDARY_PERIODIC) || (p==1 && bz == DM_BOUNDARY_PERIODIC)) {
         SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"IS_COLORING_GHOSTED cannot be used for periodic boundary condition having both ends of the domain  on the same process");
       }
     }
@@ -206,7 +206,7 @@ PetscErrorCode DMCreateColoring_DA_2d_MPIAIJ(DM da,ISColoringType ctype,ISColori
   PetscInt         xs,ys,nx,ny,i,j,ii,gxs,gys,gnx,gny,m,n,M,N,dim,s,k,nc,col;
   PetscInt         ncolors;
   MPI_Comm         comm;
-  DMDABoundaryType bx,by;
+  DMBoundaryType bx,by;
   DMDAStencilType  st;
   ISColoringValue  *colors;
   DM_DA            *dd = (DM_DA*)da->data;
@@ -228,9 +228,9 @@ PetscErrorCode DMCreateColoring_DA_2d_MPIAIJ(DM da,ISColoringType ctype,ISColori
     ierr = DMCreateColoring_DA_2d_5pt_MPIAIJ(da,ctype,coloring);CHKERRQ(ierr);
   } else {
 
-    if (bx == DMDA_BOUNDARY_PERIODIC && (m % col)) SETERRQ2(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in X (%d) is divisible\n\
+    if (bx == DM_BOUNDARY_PERIODIC && (m % col)) SETERRQ2(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in X (%d) is divisible\n\
                                                             by 2*stencil_width + 1 (%d)\n", m, col);
-    if (by == DMDA_BOUNDARY_PERIODIC && (n % col)) SETERRQ2(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in Y (%d) is divisible\n\
+    if (by == DM_BOUNDARY_PERIODIC && (n % col)) SETERRQ2(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in Y (%d) is divisible\n\
                                                             by 2*stencil_width + 1 (%d)\n", n, col);
     if (ctype == IS_COLORING_GLOBAL) {
       if (!dd->localcoloring) {
@@ -244,7 +244,7 @@ PetscErrorCode DMCreateColoring_DA_2d_MPIAIJ(DM da,ISColoringType ctype,ISColori
           }
         }
         ncolors = nc + nc*(col-1 + col*(col-1));
-        ierr    = ISColoringCreate(comm,ncolors,nc*nx*ny,colors,&dd->localcoloring);CHKERRQ(ierr);
+        ierr    = ISColoringCreate(comm,ncolors,nc*nx*ny,colors,PETSC_OWN_POINTER,&dd->localcoloring);CHKERRQ(ierr);
       }
       *coloring = dd->localcoloring;
     } else if (ctype == IS_COLORING_GHOSTED) {
@@ -260,7 +260,7 @@ PetscErrorCode DMCreateColoring_DA_2d_MPIAIJ(DM da,ISColoringType ctype,ISColori
           }
         }
         ncolors = nc + nc*(col - 1 + col*(col-1));
-        ierr    = ISColoringCreate(comm,ncolors,nc*gnx*gny,colors,&dd->ghostedcoloring);CHKERRQ(ierr);
+        ierr    = ISColoringCreate(comm,ncolors,nc*gnx*gny,colors,PETSC_OWN_POINTER,&dd->ghostedcoloring);CHKERRQ(ierr);
         /* PetscIntView(ncolors,(PetscInt*)colors,0); */
 
         ierr = ISColoringSetType(dd->ghostedcoloring,IS_COLORING_GHOSTED);CHKERRQ(ierr);
@@ -282,7 +282,7 @@ PetscErrorCode DMCreateColoring_DA_3d_MPIAIJ(DM da,ISColoringType ctype,ISColori
   PetscInt         xs,ys,nx,ny,i,j,gxs,gys,gnx,gny,m,n,p,dim,s,k,nc,col,zs,gzs,ii,l,nz,gnz,M,N,P;
   PetscInt         ncolors;
   MPI_Comm         comm;
-  DMDABoundaryType bx,by,bz;
+  DMBoundaryType bx,by,bz;
   DMDAStencilType  st;
   ISColoringValue  *colors;
   DM_DA            *dd = (DM_DA*)da->data;
@@ -295,11 +295,11 @@ PetscErrorCode DMCreateColoring_DA_3d_MPIAIJ(DM da,ISColoringType ctype,ISColori
   */
   ierr = DMDAGetInfo(da,&dim,&m,&n,&p,&M,&N,&P,&nc,&s,&bx,&by,&bz,&st);CHKERRQ(ierr);
   col  = 2*s + 1;
-  if (bx == DMDA_BOUNDARY_PERIODIC && (m % col)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in X is divisible\n\
+  if (bx == DM_BOUNDARY_PERIODIC && (m % col)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in X is divisible\n\
                                                          by 2*stencil_width + 1\n");
-  if (by == DMDA_BOUNDARY_PERIODIC && (n % col)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in Y is divisible\n\
+  if (by == DM_BOUNDARY_PERIODIC && (n % col)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in Y is divisible\n\
                                                          by 2*stencil_width + 1\n");
-  if (bz == DMDA_BOUNDARY_PERIODIC && (p % col)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in Z is divisible\n\
+  if (bz == DM_BOUNDARY_PERIODIC && (p % col)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in Z is divisible\n\
                                                          by 2*stencil_width + 1\n");
 
   ierr = DMDAGetCorners(da,&xs,&ys,&zs,&nx,&ny,&nz);CHKERRQ(ierr);
@@ -321,7 +321,7 @@ PetscErrorCode DMCreateColoring_DA_3d_MPIAIJ(DM da,ISColoringType ctype,ISColori
         }
       }
       ncolors = nc + nc*(col-1 + col*(col-1)+ col*col*(col-1));
-      ierr    = ISColoringCreate(comm,ncolors,nc*nx*ny*nz,colors,&dd->localcoloring);CHKERRQ(ierr);
+      ierr    = ISColoringCreate(comm,ncolors,nc*nx*ny*nz,colors,PETSC_OWN_POINTER,&dd->localcoloring);CHKERRQ(ierr);
     }
     *coloring = dd->localcoloring;
   } else if (ctype == IS_COLORING_GHOSTED) {
@@ -339,7 +339,7 @@ PetscErrorCode DMCreateColoring_DA_3d_MPIAIJ(DM da,ISColoringType ctype,ISColori
         }
       }
       ncolors = nc + nc*(col-1 + col*(col-1)+ col*col*(col-1));
-      ierr    = ISColoringCreate(comm,ncolors,nc*gnx*gny*gnz,colors,&dd->ghostedcoloring);CHKERRQ(ierr);
+      ierr    = ISColoringCreate(comm,ncolors,nc*gnx*gny*gnz,colors,PETSC_OWN_POINTER,&dd->ghostedcoloring);CHKERRQ(ierr);
       ierr    = ISColoringSetType(dd->ghostedcoloring,IS_COLORING_GHOSTED);CHKERRQ(ierr);
     }
     *coloring = dd->ghostedcoloring;
@@ -358,7 +358,7 @@ PetscErrorCode DMCreateColoring_DA_1d_MPIAIJ(DM da,ISColoringType ctype,ISColori
   PetscInt         xs,nx,i,i1,gxs,gnx,l,m,M,dim,s,nc,col;
   PetscInt         ncolors;
   MPI_Comm         comm;
-  DMDABoundaryType bx;
+  DMBoundaryType bx;
   ISColoringValue  *colors;
   DM_DA            *dd = (DM_DA*)da->data;
 
@@ -371,7 +371,7 @@ PetscErrorCode DMCreateColoring_DA_1d_MPIAIJ(DM da,ISColoringType ctype,ISColori
   ierr = DMDAGetInfo(da,&dim,&m,0,0,&M,0,0,&nc,&s,&bx,0,0,0);CHKERRQ(ierr);
   col  = 2*s + 1;
 
-  if (bx == DMDA_BOUNDARY_PERIODIC && (m % col)) SETERRQ2(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points %d is divisible\n\
+  if (bx == DM_BOUNDARY_PERIODIC && (m % col)) SETERRQ2(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points %d is divisible\n\
                                                           by 2*stencil_width + 1 %d\n",(int)m,(int)col);
 
   ierr = DMDAGetCorners(da,&xs,0,0,&nx,0,0);CHKERRQ(ierr);
@@ -405,7 +405,7 @@ PetscErrorCode DMCreateColoring_DA_1d_MPIAIJ(DM da,ISColoringType ctype,ISColori
         }
         ncolors = nc + nc*(col-1);
       }
-      ierr = ISColoringCreate(comm,ncolors,nc*nx,colors,&dd->localcoloring);CHKERRQ(ierr);
+      ierr = ISColoringCreate(comm,ncolors,nc*nx,colors,PETSC_OWN_POINTER,&dd->localcoloring);CHKERRQ(ierr);
     }
     *coloring = dd->localcoloring;
   } else if (ctype == IS_COLORING_GHOSTED) {
@@ -419,7 +419,7 @@ PetscErrorCode DMCreateColoring_DA_1d_MPIAIJ(DM da,ISColoringType ctype,ISColori
         }
       }
       ncolors = nc + nc*(col-1);
-      ierr    = ISColoringCreate(comm,ncolors,nc*gnx,colors,&dd->ghostedcoloring);CHKERRQ(ierr);
+      ierr    = ISColoringCreate(comm,ncolors,nc*gnx,colors,PETSC_OWN_POINTER,&dd->ghostedcoloring);CHKERRQ(ierr);
       ierr    = ISColoringSetType(dd->ghostedcoloring,IS_COLORING_GHOSTED);CHKERRQ(ierr);
     }
     *coloring = dd->ghostedcoloring;
@@ -436,7 +436,7 @@ PetscErrorCode DMCreateColoring_DA_2d_5pt_MPIAIJ(DM da,ISColoringType ctype,ISCo
   PetscInt         xs,ys,nx,ny,i,j,ii,gxs,gys,gnx,gny,m,n,dim,s,k,nc;
   PetscInt         ncolors;
   MPI_Comm         comm;
-  DMDABoundaryType bx,by;
+  DMBoundaryType bx,by;
   ISColoringValue  *colors;
   DM_DA            *dd = (DM_DA*)da->data;
 
@@ -451,8 +451,8 @@ PetscErrorCode DMCreateColoring_DA_2d_5pt_MPIAIJ(DM da,ISColoringType ctype,ISCo
   ierr = DMDAGetGhostCorners(da,&gxs,&gys,0,&gnx,&gny,0);CHKERRQ(ierr);
   ierr = PetscObjectGetComm((PetscObject)da,&comm);CHKERRQ(ierr);
 
-  if (bx == DMDA_BOUNDARY_PERIODIC && (m % 5)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in X is divisible by 5\n");
-  if (by == DMDA_BOUNDARY_PERIODIC && (n % 5)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in Y is divisible by 5\n");
+  if (bx == DM_BOUNDARY_PERIODIC && (m % 5)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in X is divisible by 5\n");
+  if (by == DM_BOUNDARY_PERIODIC && (n % 5)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in Y is divisible by 5\n");
 
   /* create the coloring */
   if (ctype == IS_COLORING_GLOBAL) {
@@ -467,7 +467,7 @@ PetscErrorCode DMCreateColoring_DA_2d_5pt_MPIAIJ(DM da,ISColoringType ctype,ISCo
         }
       }
       ncolors = 5*nc;
-      ierr    = ISColoringCreate(comm,ncolors,nc*nx*ny,colors,&dd->localcoloring);CHKERRQ(ierr);
+      ierr    = ISColoringCreate(comm,ncolors,nc*nx*ny,colors,PETSC_OWN_POINTER,&dd->localcoloring);CHKERRQ(ierr);
     }
     *coloring = dd->localcoloring;
   } else if (ctype == IS_COLORING_GHOSTED) {
@@ -482,7 +482,7 @@ PetscErrorCode DMCreateColoring_DA_2d_5pt_MPIAIJ(DM da,ISColoringType ctype,ISCo
         }
       }
       ncolors = 5*nc;
-      ierr    = ISColoringCreate(comm,ncolors,nc*gnx*gny,colors,&dd->ghostedcoloring);CHKERRQ(ierr);
+      ierr    = ISColoringCreate(comm,ncolors,nc*gnx*gny,colors,PETSC_OWN_POINTER,&dd->ghostedcoloring);CHKERRQ(ierr);
       ierr    = ISColoringSetType(dd->ghostedcoloring,IS_COLORING_GHOSTED);CHKERRQ(ierr);
     }
     *coloring = dd->ghostedcoloring;
@@ -552,7 +552,7 @@ PetscErrorCode  MatView_MPI_DA(Mat A,PetscViewer viewer)
 
   ierr = DMDAGetAO(da,&ao);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(A,&rstart,&rend);CHKERRQ(ierr);
-  ierr = PetscMalloc1((rend-rstart),&petsc);CHKERRQ(ierr);
+  ierr = PetscMalloc1(rend-rstart,&petsc);CHKERRQ(ierr);
   for (i=rstart; i<rend; i++) petsc[i-rstart] = i;
   ierr = AOApplicationToPetsc(ao,rend-rstart,petsc);CHKERRQ(ierr);
   ierr = ISCreateGeneral(comm,rend-rstart,petsc,PETSC_OWN_POINTER,&is);CHKERRQ(ierr);
@@ -594,7 +594,7 @@ PetscErrorCode  MatLoad_MPI_DA(Mat A,PetscViewer viewer)
   /* Map natural ordering to application ordering and create IS */
   ierr = DMDAGetAO(da,&ao);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(Anatural,&rstart,&rend);CHKERRQ(ierr);
-  ierr = PetscMalloc1((rend-rstart),&app);CHKERRQ(ierr);
+  ierr = PetscMalloc1(rend-rstart,&app);CHKERRQ(ierr);
   for (i=rstart; i<rend; i++) app[i-rstart] = i;
   ierr = AOPetscToApplication(ao,rend-rstart,app);CHKERRQ(ierr);
   ierr = ISCreateGeneral(comm,rend-rstart,app,PETSC_OWN_POINTER,&is);CHKERRQ(ierr);
@@ -702,7 +702,7 @@ PetscErrorCode DMCreateMatrix_DA(DM da, Mat *J)
   M   = dd->M;
   N   = dd->N;
   P   = dd->P;
-  dim = dd->dim;
+  dim = da->dim;
   dof = dd->w;
   /* ierr = DMDAGetInfo(da,&dim,&M,&N,&P,0,0,0,&dof,0,0,0,0,0);CHKERRQ(ierr); */
   ierr = DMDAGetCorners(da,0,0,0,&nx,&ny,&nz);CHKERRQ(ierr);
@@ -772,12 +772,10 @@ PetscErrorCode DMCreateMatrix_DA(DM da, Mat *J)
       ierr = DMCreateMatrix_DA_3d_MPISBAIJ(da,A);CHKERRQ(ierr);
     } else SETERRQ3(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"Not implemented for %D dimension and Matrix Type: %s in %D dimension! Send mail to petsc-maint@mcs.anl.gov for code",dim,Atype,dim);
   } else {
-    ISLocalToGlobalMapping ltog,ltogb;
+    ISLocalToGlobalMapping ltog;
     ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
-    ierr = DMGetLocalToGlobalMappingBlock(da,&ltogb);CHKERRQ(ierr);
     ierr = MatSetUp(A);CHKERRQ(ierr);
     ierr = MatSetLocalToGlobalMapping(A,ltog,ltog);CHKERRQ(ierr);
-    ierr = MatSetLocalToGlobalMappingBlock(A,ltogb,ltogb);CHKERRQ(ierr);
   }
   ierr = DMDAGetGhostCorners(da,&starts[0],&starts[1],&starts[2],&dims[0],&dims[1],&dims[2]);CHKERRQ(ierr);
   ierr = MatSetStencil(A,dim,dims,starts,dof);CHKERRQ(ierr);
@@ -802,8 +800,8 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIAIJ(DM da,Mat J)
   PetscInt               lstart,lend,pstart,pend,*dnz,*onz;
   MPI_Comm               comm;
   PetscScalar            *values;
-  DMDABoundaryType       bx,by;
-  ISLocalToGlobalMapping ltog,ltogb;
+  DMBoundaryType         bx,by;
+  ISLocalToGlobalMapping ltog;
   DMDAStencilType        st;
 
   PetscFunctionBegin;
@@ -820,20 +818,20 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIAIJ(DM da,Mat J)
 
   ierr = PetscMalloc2(nc,&rows,col*col*nc*nc,&cols);CHKERRQ(ierr);
   ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(da,&ltogb);CHKERRQ(ierr);
 
+  ierr = MatSetBlockSize(J,nc);CHKERRQ(ierr);
   /* determine the matrix preallocation information */
   ierr = MatPreallocateInitialize(comm,nc*nx*ny,nc*nx*ny,dnz,onz);CHKERRQ(ierr);
   for (i=xs; i<xs+nx; i++) {
 
-    pstart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-    pend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+    pstart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+    pend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
 
     for (j=ys; j<ys+ny; j++) {
       slot = i - gxs + gnx*(j - gys);
 
-      lstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-      lend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+      lstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+      lend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
 
       cnt = 0;
       for (k=0; k<nc; k++) {
@@ -855,7 +853,6 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIAIJ(DM da,Mat J)
   ierr = MatPreallocateFinalize(dnz,onz);CHKERRQ(ierr);
 
   ierr = MatSetLocalToGlobalMapping(J,ltog,ltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMappingBlock(J,ltogb,ltogb);CHKERRQ(ierr);
 
   /*
     For each node in the grid: we get the neighbors in the local (on processor ordering
@@ -866,14 +863,14 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIAIJ(DM da,Mat J)
     ierr = PetscCalloc1(col*col*nc*nc,&values);CHKERRQ(ierr);
     for (i=xs; i<xs+nx; i++) {
 
-      pstart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-      pend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+      pstart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+      pend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
 
       for (j=ys; j<ys+ny; j++) {
         slot = i - gxs + gnx*(j - gys);
 
-        lstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-        lend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+        lstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+        lend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
 
         cnt = 0;
         for (k=0; k<nc; k++) {
@@ -892,6 +889,7 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIAIJ(DM da,Mat J)
     ierr = PetscFree(values);CHKERRQ(ierr);
     ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatSetOption(J,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
   }
   ierr = PetscFree2(rows,cols);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -903,14 +901,14 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIAIJ_Fill(DM da,Mat J)
 {
   PetscErrorCode         ierr;
   PetscInt               xs,ys,nx,ny,i,j,slot,gxs,gys,gnx,gny;
-  PetscInt               m,n,dim,s,*cols,k,nc,row,col,cnt,l,p;
+  PetscInt               m,n,dim,s,*cols,k,nc,row,col,cnt,maxcnt = 0,l,p;
   PetscInt               lstart,lend,pstart,pend,*dnz,*onz;
   DM_DA                  *dd = (DM_DA*)da->data;
   PetscInt               ifill_col,*ofill = dd->ofill, *dfill = dd->dfill;
   MPI_Comm               comm;
   PetscScalar            *values;
-  DMDABoundaryType       bx,by;
-  ISLocalToGlobalMapping ltog,ltogb;
+  DMBoundaryType         bx,by;
+  ISLocalToGlobalMapping ltog;
   DMDAStencilType        st;
 
   PetscFunctionBegin;
@@ -927,20 +925,20 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIAIJ_Fill(DM da,Mat J)
 
   ierr = PetscMalloc1(col*col*nc*nc,&cols);CHKERRQ(ierr);
   ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(da,&ltogb);CHKERRQ(ierr);
 
+  ierr = MatSetBlockSize(J,nc);CHKERRQ(ierr);  
   /* determine the matrix preallocation information */
   ierr = MatPreallocateInitialize(comm,nc*nx*ny,nc*nx*ny,dnz,onz);CHKERRQ(ierr);
   for (i=xs; i<xs+nx; i++) {
 
-    pstart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-    pend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+    pstart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+    pend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
 
     for (j=ys; j<ys+ny; j++) {
       slot = i - gxs + gnx*(j - gys);
 
-      lstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-      lend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+      lstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+      lend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
 
       for (k=0; k<nc; k++) {
         cnt = 0;
@@ -959,8 +957,9 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIAIJ_Fill(DM da,Mat J)
             }
           }
         }
-        row  = k + nc*(slot);
-        ierr = MatPreallocateSetLocal(ltog,1,&row,ltog,cnt,cols,dnz,onz);CHKERRQ(ierr);
+        row    = k + nc*(slot);
+        maxcnt = PetscMax(maxcnt,cnt);
+        ierr   = MatPreallocateSetLocal(ltog,1,&row,ltog,cnt,cols,dnz,onz);CHKERRQ(ierr);
       }
     }
   }
@@ -968,7 +967,6 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIAIJ_Fill(DM da,Mat J)
   ierr = MatMPIAIJSetPreallocation(J,0,dnz,0,onz);CHKERRQ(ierr);
   ierr = MatPreallocateFinalize(dnz,onz);CHKERRQ(ierr);
   ierr = MatSetLocalToGlobalMapping(J,ltog,ltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMappingBlock(J,ltogb,ltogb);CHKERRQ(ierr);
 
   /*
     For each node in the grid: we get the neighbors in the local (on processor ordering
@@ -976,17 +974,17 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIAIJ_Fill(DM da,Mat J)
     PETSc ordering.
   */
   if (!da->prealloc_only) {
-    ierr = PetscCalloc1(col*col*nc*nc,&values);CHKERRQ(ierr);
+    ierr = PetscCalloc1(maxcnt,&values);CHKERRQ(ierr);
     for (i=xs; i<xs+nx; i++) {
 
-      pstart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-      pend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+      pstart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+      pend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
 
       for (j=ys; j<ys+ny; j++) {
         slot = i - gxs + gnx*(j - gys);
 
-        lstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-        lend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+        lstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+        lend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
 
         for (k=0; k<nc; k++) {
           cnt = 0;
@@ -1013,6 +1011,7 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIAIJ_Fill(DM da,Mat J)
     ierr = PetscFree(values);CHKERRQ(ierr);
     ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatSetOption(J,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
   }
   ierr = PetscFree(cols);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1030,8 +1029,8 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIAIJ(DM da,Mat J)
   PetscInt               istart,iend,jstart,jend,kstart,kend,zs,nz,gzs,gnz,ii,jj,kk;
   MPI_Comm               comm;
   PetscScalar            *values;
-  DMDABoundaryType       bx,by,bz;
-  ISLocalToGlobalMapping ltog,ltogb;
+  DMBoundaryType         bx,by,bz;
+  ISLocalToGlobalMapping ltog;
   DMDAStencilType        st;
 
   PetscFunctionBegin;
@@ -1049,19 +1048,19 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIAIJ(DM da,Mat J)
 
   ierr = PetscMalloc2(nc,&rows,col*col*col*nc*nc,&cols);CHKERRQ(ierr);
   ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(da,&ltogb);CHKERRQ(ierr);
 
+  ierr = MatSetBlockSize(J,nc);CHKERRQ(ierr);  
   /* determine the matrix preallocation information */
   ierr = MatPreallocateInitialize(comm,nc*nx*ny*nz,nc*nx*ny*nz,dnz,onz);CHKERRQ(ierr);
   for (i=xs; i<xs+nx; i++) {
-    istart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-    iend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+    istart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+    iend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
     for (j=ys; j<ys+ny; j++) {
-      jstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-      jend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+      jstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+      jend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
       for (k=zs; k<zs+nz; k++) {
-        kstart = (bz == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
-        kend   = (bz == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
+        kstart = (bz == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
+        kend   = (bz == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
 
         slot = i - gxs + gnx*(j - gys) + gnx*gny*(k - gzs);
 
@@ -1087,7 +1086,6 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIAIJ(DM da,Mat J)
   ierr = MatMPIAIJSetPreallocation(J,0,dnz,0,onz);CHKERRQ(ierr);
   ierr = MatPreallocateFinalize(dnz,onz);CHKERRQ(ierr);
   ierr = MatSetLocalToGlobalMapping(J,ltog,ltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMappingBlock(J,ltogb,ltogb);CHKERRQ(ierr);
 
   /*
     For each node in the grid: we get the neighbors in the local (on processor ordering
@@ -1097,14 +1095,14 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIAIJ(DM da,Mat J)
   if (!da->prealloc_only) {
     ierr = PetscCalloc1(col*col*col*nc*nc*nc,&values);CHKERRQ(ierr);
     for (i=xs; i<xs+nx; i++) {
-      istart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-      iend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+      istart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+      iend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
       for (j=ys; j<ys+ny; j++) {
-        jstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-        jend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+        jstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+        jend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
         for (k=zs; k<zs+nz; k++) {
-          kstart = (bz == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
-          kend   = (bz == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
+          kstart = (bz == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
+          kend   = (bz == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
 
           slot = i - gxs + gnx*(j - gys) + gnx*gny*(k - gzs);
 
@@ -1128,6 +1126,7 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIAIJ(DM da,Mat J)
     ierr = PetscFree(values);CHKERRQ(ierr);
     ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatSetOption(J,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
   }
   ierr = PetscFree2(rows,cols);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1142,26 +1141,23 @@ PetscErrorCode DMCreateMatrix_DA_1d_MPIAIJ_Fill(DM da,Mat J)
   PetscErrorCode         ierr;
   DM_DA                  *dd = (DM_DA*)da->data;
   PetscInt               xs,nx,i,j,gxs,gnx,row,k,l;
-  PetscInt               m,dim,s,*cols = NULL,nc,col,cnt,*ocols;
+  PetscInt               m,dim,s,*cols = NULL,nc,cnt,maxcnt = 0,*ocols;
   PetscInt               *ofill = dd->ofill,*dfill = dd->dfill;
   PetscScalar            *values;
-  DMDABoundaryType       bx;
-  ISLocalToGlobalMapping ltog,ltogb;
+  DMBoundaryType         bx;
+  ISLocalToGlobalMapping ltog;
   PetscMPIInt            rank,size;
 
   PetscFunctionBegin;
-  if (dd->bx == DMDA_BOUNDARY_PERIODIC) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"With fill provided not implemented with periodic boundary conditions");
+  if (dd->bx == DM_BOUNDARY_PERIODIC) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"With fill provided not implemented with periodic boundary conditions");
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)da),&rank);CHKERRQ(ierr);
   ierr = MPI_Comm_size(PetscObjectComm((PetscObject)da),&size);CHKERRQ(ierr);
 
   /*
          nc - number of components per grid point
-         col - number of colors needed in one direction for single component problem
 
   */
   ierr = DMDAGetInfo(da,&dim,&m,0,0,0,0,0,&nc,&s,&bx,0,0,0);CHKERRQ(ierr);
-  col  = 2*s + 1;
-
   ierr = DMDAGetCorners(da,&xs,0,0,&nx,0,0);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(da,&gxs,0,0,&gnx,0,0);CHKERRQ(ierr);
 
@@ -1179,12 +1175,14 @@ PetscErrorCode DMCreateMatrix_DA_1d_MPIAIJ_Fill(DM da,Mat J)
     for (j=0; j<nc; j++) {
       ocols[cnt] = ((!rank) ? 0 : (s - i)*(ofill[j+1] - ofill[j]));
       cols[cnt]  = dfill[j+1] - dfill[j] + (s + i)*(ofill[j+1] - ofill[j]);
+      maxcnt = PetscMax(maxcnt,ocols[cnt]+cols[cnt]);
       cnt++;
     }
   }
   for (i=s; i<nx-s; i++) {
     for (j=0; j<nc; j++) {
       cols[cnt] = dfill[j+1] - dfill[j] + 2*s*(ofill[j+1] - ofill[j]);
+      maxcnt = PetscMax(maxcnt,ocols[cnt]+cols[cnt]);
       cnt++;
     }
   }
@@ -1193,6 +1191,7 @@ PetscErrorCode DMCreateMatrix_DA_1d_MPIAIJ_Fill(DM da,Mat J)
     for (j=0; j<nc; j++) {
       ocols[cnt] = ((rank == (size-1)) ? 0 : (i - nx + s + 1)*(ofill[j+1] - ofill[j]));
       cols[cnt]  = dfill[j+1] - dfill[j] + (s + nx - i - 1)*(ofill[j+1] - ofill[j]);
+      maxcnt = PetscMax(maxcnt,ocols[cnt]+cols[cnt]);
       cnt++;
     }
   }
@@ -1202,9 +1201,7 @@ PetscErrorCode DMCreateMatrix_DA_1d_MPIAIJ_Fill(DM da,Mat J)
   ierr = PetscFree2(cols,ocols);CHKERRQ(ierr);
 
   ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(da,&ltogb);CHKERRQ(ierr);
   ierr = MatSetLocalToGlobalMapping(J,ltog,ltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMappingBlock(J,ltogb,ltogb);CHKERRQ(ierr);
 
   /*
     For each node in the grid: we get the neighbors in the local (on processor ordering
@@ -1212,8 +1209,7 @@ PetscErrorCode DMCreateMatrix_DA_1d_MPIAIJ_Fill(DM da,Mat J)
     PETSc ordering.
   */
   if (!da->prealloc_only) {
-    ierr = PetscMalloc1(col*nc*nc,&cols);CHKERRQ(ierr);
-    ierr = PetscCalloc1(col*nc*nc,&values);CHKERRQ(ierr);
+    ierr = PetscCalloc2(maxcnt,&values,maxcnt,&cols);CHKERRQ(ierr);
 
     row = xs*nc;
     /* coupling with process to the left */
@@ -1288,10 +1284,10 @@ PetscErrorCode DMCreateMatrix_DA_1d_MPIAIJ_Fill(DM da,Mat J)
         row++;
       }
     }
-    ierr = PetscFree(values);CHKERRQ(ierr);
+    ierr = PetscFree2(values,cols);CHKERRQ(ierr);
     ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = PetscFree(cols);CHKERRQ(ierr);
+    ierr = MatSetOption(J,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -1307,8 +1303,8 @@ PetscErrorCode DMCreateMatrix_DA_1d_MPIAIJ(DM da,Mat J)
   PetscInt               m,dim,s,*cols = NULL,nc,*rows = NULL,col,cnt,l;
   PetscInt               istart,iend;
   PetscScalar            *values;
-  DMDABoundaryType       bx;
-  ISLocalToGlobalMapping ltog,ltogb;
+  DMBoundaryType         bx;
+  ISLocalToGlobalMapping ltog;
 
   PetscFunctionBegin;
   /*
@@ -1327,9 +1323,7 @@ PetscErrorCode DMCreateMatrix_DA_1d_MPIAIJ(DM da,Mat J)
   ierr = MatMPIAIJSetPreallocation(J,col*nc,0,col*nc,0);CHKERRQ(ierr);
 
   ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(da,&ltogb);CHKERRQ(ierr);
   ierr = MatSetLocalToGlobalMapping(J,ltog,ltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMappingBlock(J,ltogb,ltogb);CHKERRQ(ierr);
 
   /*
     For each node in the grid: we get the neighbors in the local (on processor ordering
@@ -1356,6 +1350,7 @@ PetscErrorCode DMCreateMatrix_DA_1d_MPIAIJ(DM da,Mat J)
     ierr = PetscFree(values);CHKERRQ(ierr);
     ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatSetOption(J,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
     ierr = PetscFree2(rows,cols);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
@@ -1371,9 +1366,9 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIBAIJ(DM da,Mat J)
   PetscInt               istart,iend,jstart,jend,ii,jj;
   MPI_Comm               comm;
   PetscScalar            *values;
-  DMDABoundaryType       bx,by;
+  DMBoundaryType         bx,by;
   DMDAStencilType        st;
-  ISLocalToGlobalMapping ltog,ltogb;
+  ISLocalToGlobalMapping ltog;
 
   PetscFunctionBegin;
   /*
@@ -1390,16 +1385,15 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIBAIJ(DM da,Mat J)
   ierr = PetscMalloc1(col*col*nc*nc,&cols);CHKERRQ(ierr);
 
   ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(da,&ltogb);CHKERRQ(ierr);
 
   /* determine the matrix preallocation information */
   ierr = MatPreallocateInitialize(comm,nx*ny,nx*ny,dnz,onz);CHKERRQ(ierr);
   for (i=xs; i<xs+nx; i++) {
-    istart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-    iend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+    istart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+    iend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
     for (j=ys; j<ys+ny; j++) {
-      jstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-      jend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+      jstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+      jend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
       slot   = i - gxs + gnx*(j - gys);
 
       /* Find block columns in block row */
@@ -1411,7 +1405,7 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIBAIJ(DM da,Mat J)
           }
         }
       }
-      ierr = MatPreallocateSetLocal(ltogb,1,&slot,ltogb,cnt,cols,dnz,onz);CHKERRQ(ierr);
+      ierr = MatPreallocateSetLocalBlock(ltog,1,&slot,ltog,cnt,cols,dnz,onz);CHKERRQ(ierr);
     }
   }
   ierr = MatSeqBAIJSetPreallocation(J,nc,0,dnz);CHKERRQ(ierr);
@@ -1419,7 +1413,6 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIBAIJ(DM da,Mat J)
   ierr = MatPreallocateFinalize(dnz,onz);CHKERRQ(ierr);
 
   ierr = MatSetLocalToGlobalMapping(J,ltog,ltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMappingBlock(J,ltogb,ltogb);CHKERRQ(ierr);
 
   /*
     For each node in the grid: we get the neighbors in the local (on processor ordering
@@ -1429,11 +1422,11 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIBAIJ(DM da,Mat J)
   if (!da->prealloc_only) {
     ierr = PetscCalloc1(col*col*nc*nc,&values);CHKERRQ(ierr);
     for (i=xs; i<xs+nx; i++) {
-      istart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-      iend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+      istart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+      iend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
       for (j=ys; j<ys+ny; j++) {
-        jstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-        jend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+        jstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+        jend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
         slot = i - gxs + gnx*(j - gys);
         cnt  = 0;
         for (ii=istart; ii<iend+1; ii++) {
@@ -1449,6 +1442,7 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIBAIJ(DM da,Mat J)
     ierr = PetscFree(values);CHKERRQ(ierr);
     ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatSetOption(J,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
   }
   ierr = PetscFree(cols);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1464,9 +1458,9 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIBAIJ(DM da,Mat J)
   PetscInt               istart,iend,jstart,jend,kstart,kend,zs,nz,gzs,gnz,ii,jj,kk;
   MPI_Comm               comm;
   PetscScalar            *values;
-  DMDABoundaryType       bx,by,bz;
+  DMBoundaryType         bx,by,bz;
   DMDAStencilType        st;
-  ISLocalToGlobalMapping ltog,ltogb;
+  ISLocalToGlobalMapping ltog;
 
   PetscFunctionBegin;
   /*
@@ -1484,19 +1478,18 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIBAIJ(DM da,Mat J)
   ierr = PetscMalloc1(col*col*col,&cols);CHKERRQ(ierr);
 
   ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(da,&ltogb);CHKERRQ(ierr);
 
   /* determine the matrix preallocation information */
   ierr = MatPreallocateInitialize(comm,nx*ny*nz,nx*ny*nz,dnz,onz);CHKERRQ(ierr);
   for (i=xs; i<xs+nx; i++) {
-    istart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-    iend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+    istart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+    iend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
     for (j=ys; j<ys+ny; j++) {
-      jstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-      jend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+      jstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+      jend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
       for (k=zs; k<zs+nz; k++) {
-        kstart = (bz == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
-        kend   = (bz == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
+        kstart = (bz == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
+        kend   = (bz == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
 
         slot = i - gxs + gnx*(j - gys) + gnx*gny*(k - gzs);
 
@@ -1511,7 +1504,7 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIBAIJ(DM da,Mat J)
             }
           }
         }
-        ierr = MatPreallocateSetLocal(ltogb,1,&slot,ltogb,cnt,cols,dnz,onz);CHKERRQ(ierr);
+        ierr = MatPreallocateSetLocalBlock(ltog,1,&slot,ltog,cnt,cols,dnz,onz);CHKERRQ(ierr);
       }
     }
   }
@@ -1520,7 +1513,6 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIBAIJ(DM da,Mat J)
   ierr = MatPreallocateFinalize(dnz,onz);CHKERRQ(ierr);
 
   ierr = MatSetLocalToGlobalMapping(J,ltog,ltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMappingBlock(J,ltogb,ltogb);CHKERRQ(ierr);
 
   /*
     For each node in the grid: we get the neighbors in the local (on processor ordering
@@ -1530,14 +1522,14 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIBAIJ(DM da,Mat J)
   if (!da->prealloc_only) {
     ierr = PetscCalloc1(col*col*col*nc*nc,&values);CHKERRQ(ierr);
     for (i=xs; i<xs+nx; i++) {
-      istart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-      iend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+      istart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+      iend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
       for (j=ys; j<ys+ny; j++) {
-        jstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-        jend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+        jstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+        jend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
         for (k=zs; k<zs+nz; k++) {
-          kstart = (bz == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
-          kend   = (bz == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
+          kstart = (bz == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
+          kend   = (bz == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
 
           slot = i - gxs + gnx*(j - gys) + gnx*gny*(k - gzs);
 
@@ -1558,6 +1550,7 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIBAIJ(DM da,Mat J)
     ierr = PetscFree(values);CHKERRQ(ierr);
     ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatSetOption(J,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
   }
   ierr = PetscFree(cols);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1575,8 +1568,8 @@ static PetscErrorCode L2GFilterUpperTriangular(ISLocalToGlobalMapping ltog,Petsc
   PetscInt       i,n;
 
   PetscFunctionBegin;
-  ierr = ISLocalToGlobalMappingApply(ltog,1,row,row);CHKERRQ(ierr);
-  ierr = ISLocalToGlobalMappingApply(ltog,*cnt,col,col);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingApplyBlock(ltog,1,row,row);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingApplyBlock(ltog,*cnt,col,col);CHKERRQ(ierr);
   for (i=0,n=0; i<*cnt; i++) {
     if (col[i] >= *row) col[n++] = col[i];
   }
@@ -1594,9 +1587,9 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPISBAIJ(DM da,Mat J)
   PetscInt               istart,iend,jstart,jend,ii,jj;
   MPI_Comm               comm;
   PetscScalar            *values;
-  DMDABoundaryType       bx,by;
+  DMBoundaryType         bx,by;
   DMDAStencilType        st;
-  ISLocalToGlobalMapping ltog,ltogb;
+  ISLocalToGlobalMapping ltog;
 
   PetscFunctionBegin;
   /*
@@ -1613,16 +1606,15 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPISBAIJ(DM da,Mat J)
   ierr = PetscMalloc1(col*col*nc*nc,&cols);CHKERRQ(ierr);
 
   ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(da,&ltogb);CHKERRQ(ierr);
 
   /* determine the matrix preallocation information */
   ierr = MatPreallocateInitialize(comm,nx*ny,nx*ny,dnz,onz);CHKERRQ(ierr);
   for (i=xs; i<xs+nx; i++) {
-    istart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-    iend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+    istart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+    iend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
     for (j=ys; j<ys+ny; j++) {
-      jstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-      jend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+      jstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+      jend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
       slot   = i - gxs + gnx*(j - gys);
 
       /* Find block columns in block row */
@@ -1634,8 +1626,8 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPISBAIJ(DM da,Mat J)
           }
         }
       }
-      ierr = L2GFilterUpperTriangular(ltogb,&slot,&cnt,cols);CHKERRQ(ierr);
-      ierr = MatPreallocateSymmetricSet(slot,cnt,cols,dnz,onz);CHKERRQ(ierr);
+      ierr = L2GFilterUpperTriangular(ltog,&slot,&cnt,cols);CHKERRQ(ierr);
+      ierr = MatPreallocateSymmetricSetBlock(slot,cnt,cols,dnz,onz);CHKERRQ(ierr);
     }
   }
   ierr = MatSeqSBAIJSetPreallocation(J,nc,0,dnz);CHKERRQ(ierr);
@@ -1643,7 +1635,6 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPISBAIJ(DM da,Mat J)
   ierr = MatPreallocateFinalize(dnz,onz);CHKERRQ(ierr);
 
   ierr = MatSetLocalToGlobalMapping(J,ltog,ltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMappingBlock(J,ltogb,ltogb);CHKERRQ(ierr);
 
   /*
     For each node in the grid: we get the neighbors in the local (on processor ordering
@@ -1653,11 +1644,11 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPISBAIJ(DM da,Mat J)
   if (!da->prealloc_only) {
     ierr = PetscCalloc1(col*col*nc*nc,&values);CHKERRQ(ierr);
     for (i=xs; i<xs+nx; i++) {
-      istart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-      iend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+      istart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+      iend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
       for (j=ys; j<ys+ny; j++) {
-        jstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-        jend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+        jstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+        jend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
         slot   = i - gxs + gnx*(j - gys);
 
         /* Find block columns in block row */
@@ -1669,13 +1660,14 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPISBAIJ(DM da,Mat J)
             }
           }
         }
-        ierr = L2GFilterUpperTriangular(ltogb,&slot,&cnt,cols);CHKERRQ(ierr);
+        ierr = L2GFilterUpperTriangular(ltog,&slot,&cnt,cols);CHKERRQ(ierr);
         ierr = MatSetValuesBlocked(J,1,&slot,cnt,cols,values,INSERT_VALUES);CHKERRQ(ierr);
       }
     }
     ierr = PetscFree(values);CHKERRQ(ierr);
     ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatSetOption(J,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
   }
   ierr = PetscFree(cols);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1691,9 +1683,9 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPISBAIJ(DM da,Mat J)
   PetscInt               istart,iend,jstart,jend,kstart,kend,zs,nz,gzs,gnz,ii,jj,kk;
   MPI_Comm               comm;
   PetscScalar            *values;
-  DMDABoundaryType       bx,by,bz;
+  DMBoundaryType         bx,by,bz;
   DMDAStencilType        st;
-  ISLocalToGlobalMapping ltog,ltogb;
+  ISLocalToGlobalMapping ltog;
 
   PetscFunctionBegin;
   /*
@@ -1711,19 +1703,18 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPISBAIJ(DM da,Mat J)
   ierr = PetscMalloc1(col*col*col,&cols);CHKERRQ(ierr);
 
   ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(da,&ltogb);CHKERRQ(ierr);
 
   /* determine the matrix preallocation information */
   ierr = MatPreallocateInitialize(comm,nx*ny*nz,nx*ny*nz,dnz,onz);CHKERRQ(ierr);
   for (i=xs; i<xs+nx; i++) {
-    istart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-    iend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+    istart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+    iend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
     for (j=ys; j<ys+ny; j++) {
-      jstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-      jend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+      jstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+      jend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
       for (k=zs; k<zs+nz; k++) {
-        kstart = (bz == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
-        kend   = (bz == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
+        kstart = (bz == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
+        kend   = (bz == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
 
         slot = i - gxs + gnx*(j - gys) + gnx*gny*(k - gzs);
 
@@ -1738,8 +1729,8 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPISBAIJ(DM da,Mat J)
             }
           }
         }
-        ierr = L2GFilterUpperTriangular(ltogb,&slot,&cnt,cols);CHKERRQ(ierr);
-        ierr = MatPreallocateSymmetricSet(slot,cnt,cols,dnz,onz);CHKERRQ(ierr);
+        ierr = L2GFilterUpperTriangular(ltog,&slot,&cnt,cols);CHKERRQ(ierr);
+        ierr = MatPreallocateSymmetricSetBlock(slot,cnt,cols,dnz,onz);CHKERRQ(ierr);
       }
     }
   }
@@ -1748,7 +1739,6 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPISBAIJ(DM da,Mat J)
   ierr = MatPreallocateFinalize(dnz,onz);CHKERRQ(ierr);
 
   ierr = MatSetLocalToGlobalMapping(J,ltog,ltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMappingBlock(J,ltogb,ltogb);CHKERRQ(ierr);
 
   /*
     For each node in the grid: we get the neighbors in the local (on processor ordering
@@ -1758,14 +1748,14 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPISBAIJ(DM da,Mat J)
   if (!da->prealloc_only) {
     ierr = PetscCalloc1(col*col*col*nc*nc,&values);CHKERRQ(ierr);
     for (i=xs; i<xs+nx; i++) {
-      istart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-      iend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+      istart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+      iend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
       for (j=ys; j<ys+ny; j++) {
-        jstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-        jend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+        jstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+        jend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
         for (k=zs; k<zs+nz; k++) {
-          kstart = (bz == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
-          kend   = (bz == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
+          kstart = (bz == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
+          kend   = (bz == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
 
           slot = i - gxs + gnx*(j - gys) + gnx*gny*(k - gzs);
 
@@ -1779,7 +1769,7 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPISBAIJ(DM da,Mat J)
               }
             }
           }
-          ierr = L2GFilterUpperTriangular(ltogb,&slot,&cnt,cols);CHKERRQ(ierr);
+          ierr = L2GFilterUpperTriangular(ltog,&slot,&cnt,cols);CHKERRQ(ierr);
           ierr = MatSetValuesBlocked(J,1,&slot,cnt,cols,values,INSERT_VALUES);CHKERRQ(ierr);
         }
       }
@@ -1787,6 +1777,7 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPISBAIJ(DM da,Mat J)
     ierr = PetscFree(values);CHKERRQ(ierr);
     ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatSetOption(J,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
   }
   ierr = PetscFree(cols);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1800,14 +1791,14 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIAIJ_Fill(DM da,Mat J)
 {
   PetscErrorCode         ierr;
   PetscInt               xs,ys,nx,ny,i,j,slot,gxs,gys,gnx,gny;
-  PetscInt               m,n,dim,s,*cols,k,nc,row,col,cnt,l,p,*dnz,*onz;
+  PetscInt               m,n,dim,s,*cols,k,nc,row,col,cnt, maxcnt = 0,l,p,*dnz,*onz;
   PetscInt               istart,iend,jstart,jend,kstart,kend,zs,nz,gzs,gnz,ii,jj,kk;
   DM_DA                  *dd = (DM_DA*)da->data;
   PetscInt               ifill_col,*dfill = dd->dfill,*ofill = dd->ofill;
   MPI_Comm               comm;
   PetscScalar            *values;
-  DMDABoundaryType       bx,by,bz;
-  ISLocalToGlobalMapping ltog,ltogb;
+  DMBoundaryType         bx,by,bz;
+  ISLocalToGlobalMapping ltog;
   DMDAStencilType        st;
 
   PetscFunctionBegin;
@@ -1818,11 +1809,11 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIAIJ_Fill(DM da,Mat J)
   */
   ierr = DMDAGetInfo(da,&dim,&m,&n,&p,0,0,0,&nc,&s,&bx,&by,&bz,&st);CHKERRQ(ierr);
   col  = 2*s + 1;
-  if (bx == DMDA_BOUNDARY_PERIODIC && (m % col)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in X is divisible\n\
+  if (bx == DM_BOUNDARY_PERIODIC && (m % col)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in X is divisible\n\
                  by 2*stencil_width + 1\n");
-  if (by == DMDA_BOUNDARY_PERIODIC && (n % col)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in Y is divisible\n\
+  if (by == DM_BOUNDARY_PERIODIC && (n % col)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in Y is divisible\n\
                  by 2*stencil_width + 1\n");
-  if (bz == DMDA_BOUNDARY_PERIODIC && (p % col)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in Z is divisible\n\
+  if (bz == DM_BOUNDARY_PERIODIC && (p % col)) SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"For coloring efficiency ensure number of grid points in Z is divisible\n\
                  by 2*stencil_width + 1\n");
 
   ierr = DMDAGetCorners(da,&xs,&ys,&zs,&nx,&ny,&nz);CHKERRQ(ierr);
@@ -1831,21 +1822,20 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIAIJ_Fill(DM da,Mat J)
 
   ierr = PetscMalloc1(col*col*col*nc,&cols);CHKERRQ(ierr);
   ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
-  ierr = DMGetLocalToGlobalMappingBlock(da,&ltogb);CHKERRQ(ierr);
 
   /* determine the matrix preallocation information */
   ierr = MatPreallocateInitialize(comm,nc*nx*ny*nz,nc*nx*ny*nz,dnz,onz);CHKERRQ(ierr);
 
-
+  ierr = MatSetBlockSize(J,nc);CHKERRQ(ierr);
   for (i=xs; i<xs+nx; i++) {
-    istart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-    iend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+    istart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+    iend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
     for (j=ys; j<ys+ny; j++) {
-      jstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-      jend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+      jstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+      jend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
       for (k=zs; k<zs+nz; k++) {
-        kstart = (bz == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
-        kend   = (bz == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
+        kstart = (bz == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
+        kend   = (bz == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
 
         slot = i - gxs + gnx*(j - gys) + gnx*gny*(k - gzs);
 
@@ -1869,6 +1859,7 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIAIJ_Fill(DM da,Mat J)
             }
           }
           row  = l + nc*(slot);
+          maxcnt = PetscMax(maxcnt,cnt);
           ierr = MatPreallocateSetLocal(ltog,1,&row,ltog,cnt,cols,dnz,onz);CHKERRQ(ierr);
         }
       }
@@ -1878,7 +1869,6 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIAIJ_Fill(DM da,Mat J)
   ierr = MatMPIAIJSetPreallocation(J,0,dnz,0,onz);CHKERRQ(ierr);
   ierr = MatPreallocateFinalize(dnz,onz);CHKERRQ(ierr);
   ierr = MatSetLocalToGlobalMapping(J,ltog,ltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMappingBlock(J,ltogb,ltogb);CHKERRQ(ierr);
 
   /*
     For each node in the grid: we get the neighbors in the local (on processor ordering
@@ -1886,16 +1876,16 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIAIJ_Fill(DM da,Mat J)
     PETSc ordering.
   */
   if (!da->prealloc_only) {
-    ierr = PetscCalloc1(col*col*col*nc*nc*nc,&values);CHKERRQ(ierr);
+    ierr = PetscCalloc1(maxcnt,&values);CHKERRQ(ierr);
     for (i=xs; i<xs+nx; i++) {
-      istart = (bx == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
-      iend   = (bx == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
+      istart = (bx == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-i));
+      iend   = (bx == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,m-i-1));
       for (j=ys; j<ys+ny; j++) {
-        jstart = (by == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
-        jend   = (by == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
+        jstart = (by == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-j));
+        jend   = (by == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,n-j-1));
         for (k=zs; k<zs+nz; k++) {
-          kstart = (bz == DMDA_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
-          kend   = (bz == DMDA_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
+          kstart = (bz == DM_BOUNDARY_PERIODIC) ? -s : (PetscMax(-s,-k));
+          kend   = (bz == DM_BOUNDARY_PERIODIC) ?  s : (PetscMin(s,p-k-1));
 
           slot = i - gxs + gnx*(j - gys) + gnx*gny*(k - gzs);
 
@@ -1927,6 +1917,7 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIAIJ_Fill(DM da,Mat J)
     ierr = PetscFree(values);CHKERRQ(ierr);
     ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatSetOption(J,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
   }
   ierr = PetscFree(cols);CHKERRQ(ierr);
   PetscFunctionReturn(0);

@@ -12,6 +12,7 @@ static const char help[] = "1D nonequilibrium radiation diffusion with Saha ioni
 */
 
 #include <petscts.h>
+#include <petscdm.h>
 #include <petscdmda.h>
 
 typedef enum {BC_DIRICHLET,BC_NEUMANN,BC_ROBIN} BCType;
@@ -107,7 +108,7 @@ static void RDMaterialEnergy_Saha(RD rd,const RDNode *n,PetscScalar *inEm,RDNode
               chi_t = -chi / T * T_t,
               a     = 1.,
               a_t   = 0,
-              b     = 4. * rd->m_p / rd->rho * PetscPowScalar(2. * PETSC_PI * rd->m_e * rd->I_H / PetscSqr(rd->h),1.5) * PetscExpScalar(-chi) * PetscPowScalar(chi,1.5), /* Eq 7 */
+              b     = 4. * rd->m_p / rd->rho * PetscPowScalarReal(2. * PETSC_PI * rd->m_e * rd->I_H / PetscSqr(rd->h),1.5) * PetscExpScalar(-chi) * PetscPowScalarReal(chi,1.5), /* Eq 7 */
               b_t   = -b*chi_t + 1.5*b/chi*chi_t,
               c     = -b,
               c_t   = -b_t;
@@ -179,22 +180,22 @@ static PetscErrorCode RDStateView(RD rd,Vec X,Vec Xdot,Vec F)
   PetscErrorCode ierr;
   DMDALocalInfo  info;
   PetscInt       i;
-  RDNode         *x,*xdot,*f;
+  const RDNode   *x,*xdot,*f;
   MPI_Comm       comm;
 
   PetscFunctionBeginUser;
   ierr = PetscObjectGetComm((PetscObject)rd->da,&comm);CHKERRQ(ierr);
   ierr = DMDAGetLocalInfo(rd->da,&info);CHKERRQ(ierr);
-  ierr = DMDAVecGetArray(rd->da,X,&x);CHKERRQ(ierr);
-  ierr = DMDAVecGetArray(rd->da,Xdot,&xdot);CHKERRQ(ierr);
-  ierr = DMDAVecGetArray(rd->da,F,&f);CHKERRQ(ierr);
+  ierr = DMDAVecGetArrayRead(rd->da,X,&x);CHKERRQ(ierr);
+  ierr = DMDAVecGetArrayRead(rd->da,Xdot,&xdot);CHKERRQ(ierr);
+  ierr = DMDAVecGetArrayRead(rd->da,F,&f);CHKERRQ(ierr);
   for (i=info.xs; i<info.xs+info.xm; i++) {
     ierr = PetscSynchronizedPrintf(comm,"x[%D] (%10.2G,%10.2G) (%10.2G,%10.2G) (%10.2G,%10.2G)\n",i,PetscRealPart(x[i].E),PetscRealPart(x[i].T),
                                    PetscRealPart(xdot[i].E),PetscRealPart(xdot[i].T), PetscRealPart(f[i].E),PetscRealPart(f[i].T));CHKERRQ(ierr);
   }
-  ierr = DMDAVecRestoreArray(rd->da,X,&x);CHKERRQ(ierr);
-  ierr = DMDAVecRestoreArray(rd->da,Xdot,&xdot);CHKERRQ(ierr);
-  ierr = DMDAVecRestoreArray(rd->da,F,&f);CHKERRQ(ierr);
+  ierr = DMDAVecRestoreArrayRead(rd->da,X,&x);CHKERRQ(ierr);
+  ierr = DMDAVecRestoreArrayRead(rd->da,Xdot,&xdot);CHKERRQ(ierr);
+  ierr = DMDAVecRestoreArrayRead(rd->da,F,&f);CHKERRQ(ierr);
   ierr = PetscSynchronizedFlush(comm,PETSC_STDOUT);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -411,7 +412,7 @@ static PetscErrorCode RDIFunction_FD(TS ts,PetscReal t,Vec X,Vec Xdot,Vec F,void
 
 #undef __FUNCT__
 #define __FUNCT__ "RDIJacobian_FD"
-static PetscErrorCode RDIJacobian_FD(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat *A,Mat *B,MatStructure *mstr,void *ctx)
+static PetscErrorCode RDIJacobian_FD(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat A,Mat B,void *ctx)
 {
   PetscErrorCode ierr;
   RD             rd = (RD)ctx;
@@ -426,7 +427,7 @@ static PetscErrorCode RDIJacobian_FD(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal 
   ierr = RDGetLocalArrays(rd,ts,X,Xdot,&Theta,&dt,&X0loc,&x0,&Xloc,&x,&Xloc_t,&xdot);CHKERRQ(ierr);
   ierr = DMDAGetLocalInfo(rd->da,&info);CHKERRQ(ierr);
   hx   = rd->L / (info.mx-1);
-  ierr = MatZeroEntries(*B);CHKERRQ(ierr);
+  ierr = MatZeroEntries(B);CHKERRQ(ierr);
 
   for (i=info.xs; i<info.xs+info.xm; i++) {
     PetscInt                  col[3];
@@ -507,16 +508,15 @@ static PetscErrorCode RDIJacobian_FD(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal 
     col[0] = i-1;
     col[1] = i;
     col[2] = i+1<info.mx ? i+1 : -1;
-    ierr   = MatSetValuesBlocked(*B,1,&i,3,col,&K[0][0],INSERT_VALUES);CHKERRQ(ierr);
+    ierr   = MatSetValuesBlocked(B,1,&i,3,col,&K[0][0],INSERT_VALUES);CHKERRQ(ierr);
   }
   ierr = RDRestoreLocalArrays(rd,&X0loc,&x0,&Xloc,&x,&Xloc_t,&xdot);CHKERRQ(ierr);
-  ierr = MatAssemblyBegin(*B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatAssemblyEnd(*B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  if (*A != *B) {
-    ierr = MatAssemblyBegin(*A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = MatAssemblyEnd(*A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  if (A != B) {
+    ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
-  *mstr = SAME_NONZERO_PATTERN;
   PetscFunctionReturn(0);
 }
 
@@ -683,7 +683,7 @@ static PetscErrorCode RDIFunction_FE(TS ts,PetscReal t,Vec X,Vec Xdot,Vec F,void
 
 #undef __FUNCT__
 #define __FUNCT__ "RDIJacobian_FE"
-static PetscErrorCode RDIJacobian_FE(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat *A,Mat *B,MatStructure *mstr,void *ctx)
+static PetscErrorCode RDIJacobian_FE(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat A,Mat B,void *ctx)
 {
   PetscErrorCode ierr;
   RD             rd = (RD)ctx;
@@ -700,14 +700,15 @@ static PetscErrorCode RDIJacobian_FE(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal 
   ierr = DMDAGetLocalInfo(rd->da,&info);CHKERRQ(ierr);
   hx   = rd->L / (info.mx-1);
   ierr = RDGetQuadrature(rd,hx,&nq,weight,interp,deriv);CHKERRQ(ierr);
-  ierr = MatZeroEntries(*B);CHKERRQ(ierr);
+  ierr = MatZeroEntries(B);CHKERRQ(ierr);
   for (i=info.xs; i<PetscMin(info.xs+info.xm,info.mx-1); i++) {
     PetscInt rc[2];
 
     rc[0] = i; rc[1] = i+1;
     ierr  = PetscMemzero(K,sizeof(K));CHKERRQ(ierr);
     for (q=0; q<nq; q++) {
-      PetscScalar D_R,PETSC_UNUSED rad;
+      PetscScalar D_R;
+      PetscScalar PETSC_UNUSED rad;
       RDNode      n,nx,nt,ntx,drad,dD_R,dxD_R,dEm;
       RDEvaluate(interp,deriv,q,x,i,&n,&nx);
       RDEvaluate(interp,deriv,q,xdot,i,&nt,&ntx);
@@ -725,7 +726,7 @@ static PetscErrorCode RDIJacobian_FE(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal 
         }
       }
     }
-    ierr = MatSetValuesBlocked(*B,2,rc,2,rc,&K[0][0],ADD_VALUES);CHKERRQ(ierr);
+    ierr = MatSetValuesBlocked(B,2,rc,2,rc,&K[0][0],ADD_VALUES);CHKERRQ(ierr);
   }
   if (info.xs == 0) {
     switch (rd->leftbc) {
@@ -741,7 +742,7 @@ static PetscErrorCode RDIJacobian_FE(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal 
       RDDiffusionCoefficient(rd,PETSC_TRUE,&n,&nx,&D_R,0,0);
       RDDiffusionCoefficient(rd,rd->bclimit,&n,&nx,&D_R_bc,0,0);
       ratio = PetscRealPart(D_R/D_R_bc);
-      ierr  = MatSetValue(*B,0,0,ratio*0.5,ADD_VALUES);CHKERRQ(ierr);
+      ierr  = MatSetValue(B,0,0,ratio*0.5,ADD_VALUES);CHKERRQ(ierr);
     } break;
     case BC_NEUMANN:
       /* homogeneous Neumann is the natural condition */
@@ -751,13 +752,12 @@ static PetscErrorCode RDIJacobian_FE(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal 
   }
 
   ierr = RDRestoreLocalArrays(rd,&X0loc,&x0,&Xloc,&x,&Xloc_t,&xdot);CHKERRQ(ierr);
-  ierr = MatAssemblyBegin(*B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatAssemblyEnd(*B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  if (*A != *B) {
-    ierr = MatAssemblyBegin(*A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = MatAssemblyEnd(*A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  if (A != B) {
+    ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
-  *mstr = SAME_NONZERO_PATTERN;
   PetscFunctionReturn(0);
 }
 
@@ -788,7 +788,7 @@ static PetscErrorCode RDInitialState(RD rd,Vec X)
       x[i].T = RDRadiationTemperature(rd,x[i].E);
       break;
     case 3:
-      x[i].E = 7.56e-2 * rd->unit.Joule / PetscPowScalar(rd->unit.meter,3);
+      x[i].E = 7.56e-2 * rd->unit.Joule / PetscPowScalarInt(rd->unit.meter,3);
       x[i].T = RDRadiationTemperature(rd,x[i].E);
       break;
     default: SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"No initial state %D",rd->initial);
@@ -804,7 +804,7 @@ static PetscErrorCode RDView(RD rd,Vec X,PetscViewer viewer)
 {
   PetscErrorCode ierr;
   Vec            Y;
-  RDNode         *x;
+  const RDNode   *x;
   PetscScalar    *y;
   PetscInt       i,m,M;
   const PetscInt *lx;
@@ -820,17 +820,17 @@ static PetscErrorCode RDView(RD rd,Vec X,PetscViewer viewer)
   ierr = DMDAGetInfo(rd->da,0, &M,0,0, 0,0,0, 0,0,0,0,0,0);CHKERRQ(ierr);
   ierr = DMDAGetOwnershipRanges(rd->da,&lx,0,0);CHKERRQ(ierr);
   ierr = PetscObjectGetComm((PetscObject)rd->da,&comm);CHKERRQ(ierr);
-  ierr = DMDACreate1d(comm,DMDA_BOUNDARY_NONE,M,1,0,lx,&da);CHKERRQ(ierr);
+  ierr = DMDACreate1d(comm,DM_BOUNDARY_NONE,M,1,0,lx,&da);CHKERRQ(ierr);
   ierr = DMDASetUniformCoordinates(da,0.,rd->L,0.,0.,0.,0.);CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,0,"T_rad");CHKERRQ(ierr);
   ierr = DMCreateGlobalVector(da,&Y);CHKERRQ(ierr);
 
   /* Compute the radiation temperature from the solution at each node */
   ierr = VecGetLocalSize(Y,&m);CHKERRQ(ierr);
-  ierr = VecGetArray(X,(PetscScalar**)&x);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(X,(const PetscScalar **)&x);CHKERRQ(ierr);
   ierr = VecGetArray(Y,&y);CHKERRQ(ierr);
   for (i=0; i<m; i++) y[i] = RDRadiationTemperature(rd,x[i].E);
-  ierr = VecRestoreArray(X,(PetscScalar**)&x);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(X,(const PetscScalar**)&x);CHKERRQ(ierr);
   ierr = VecRestoreArray(Y,&y);CHKERRQ(ierr);
 
   ierr = VecView(Y,viewer);CHKERRQ(ierr);
@@ -964,13 +964,13 @@ static PetscErrorCode RDCreate(MPI_Comm comm,RD *inrd)
     Joule    = rd->unit.Joule;
     Watt     = rd->unit.Watt;
 
-    ierr = PetscOptionsBool("-rd_monitor_residual","Display residuals every time they are evaluated","",rd->monitor_residual,&rd->monitor_residual,0);CHKERRQ(ierr);
-    ierr = PetscOptionsEnum("-rd_discretization","Discretization type","",DiscretizationTypes,(PetscEnum)rd->discretization,(PetscEnum*)&rd->discretization,0);CHKERRQ(ierr);
+    ierr = PetscOptionsBool("-rd_monitor_residual","Display residuals every time they are evaluated","",rd->monitor_residual,&rd->monitor_residual,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsEnum("-rd_discretization","Discretization type","",DiscretizationTypes,(PetscEnum)rd->discretization,(PetscEnum*)&rd->discretization,NULL);CHKERRQ(ierr);
     if (rd->discretization == DISCRETIZATION_FE) {
       rd->quadrature = QUADRATURE_GAUSS2;
-      ierr = PetscOptionsEnum("-rd_quadrature","Finite element quadrature","",QuadratureTypes,(PetscEnum)rd->quadrature,(PetscEnum*)&rd->quadrature,0);CHKERRQ(ierr);
+      ierr = PetscOptionsEnum("-rd_quadrature","Finite element quadrature","",QuadratureTypes,(PetscEnum)rd->quadrature,(PetscEnum*)&rd->quadrature,NULL);CHKERRQ(ierr);
     }
-    ierr = PetscOptionsEnum("-rd_jacobian","Type of finite difference Jacobian","",JacobianTypes,(PetscEnum)rd->jacobian,(PetscEnum*)&rd->jacobian,0);CHKERRQ(ierr);
+    ierr = PetscOptionsEnum("-rd_jacobian","Type of finite difference Jacobian","",JacobianTypes,(PetscEnum)rd->jacobian,(PetscEnum*)&rd->jacobian,NULL);CHKERRQ(ierr);
     switch (rd->initial) {
     case 1:
       rd->leftbc     = BC_ROBIN;
@@ -998,16 +998,16 @@ static PetscErrorCode RDCreate(MPI_Comm comm,RD *inrd)
       break;
     default: SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Initial %D",rd->initial);
     }
-    ierr = PetscOptionsEnum("-rd_leftbc","Left boundary condition","",BCTypes,(PetscEnum)rd->leftbc,(PetscEnum*)&rd->leftbc,0);CHKERRQ(ierr);
-    ierr = PetscOptionsReal("-rd_E_applied","Radiation flux at left end of domain","",rd->Eapplied,&rd->Eapplied,0);CHKERRQ(ierr);
-    ierr = PetscOptionsReal("-rd_beta","Thermal exponent for photon absorption","",rd->beta,&rd->beta,0);CHKERRQ(ierr);
-    ierr = PetscOptionsReal("-rd_gamma","Thermal exponent for diffusion coefficient","",rd->gamma,&rd->gamma,0);CHKERRQ(ierr);
-    ierr = PetscOptionsBool("-rd_view_draw","Draw final solution","",rd->view_draw,&rd->view_draw,0);CHKERRQ(ierr);
-    ierr = PetscOptionsBool("-rd_endpoint","Discretize using endpoints (like trapezoid rule) instead of midpoint","",rd->endpoint,&rd->endpoint,0);CHKERRQ(ierr);
-    ierr = PetscOptionsBool("-rd_bcmidpoint","Impose the boundary condition at the midpoint (Theta) of the interval","",rd->bcmidpoint,&rd->bcmidpoint,0);CHKERRQ(ierr);
-    ierr = PetscOptionsBool("-rd_bclimit","Limit diffusion coefficient in definition of Robin boundary condition","",rd->bclimit,&rd->bclimit,0);CHKERRQ(ierr);
-    ierr = PetscOptionsBool("-rd_test_diff","Test differentiation in constitutive relations","",rd->test_diff,&rd->test_diff,0);CHKERRQ(ierr);
-    ierr = PetscOptionsString("-rd_view_binary","File name to hold final solution","",rd->view_binary,rd->view_binary,sizeof(rd->view_binary),0);CHKERRQ(ierr);
+    ierr = PetscOptionsEnum("-rd_leftbc","Left boundary condition","",BCTypes,(PetscEnum)rd->leftbc,(PetscEnum*)&rd->leftbc,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsReal("-rd_E_applied","Radiation flux at left end of domain","",rd->Eapplied,&rd->Eapplied,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsReal("-rd_beta","Thermal exponent for photon absorption","",rd->beta,&rd->beta,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsReal("-rd_gamma","Thermal exponent for diffusion coefficient","",rd->gamma,&rd->gamma,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsBool("-rd_view_draw","Draw final solution","",rd->view_draw,&rd->view_draw,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsBool("-rd_endpoint","Discretize using endpoints (like trapezoid rule) instead of midpoint","",rd->endpoint,&rd->endpoint,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsBool("-rd_bcmidpoint","Impose the boundary condition at the midpoint (Theta) of the interval","",rd->bcmidpoint,&rd->bcmidpoint,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsBool("-rd_bclimit","Limit diffusion coefficient in definition of Robin boundary condition","",rd->bclimit,&rd->bclimit,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsBool("-rd_test_diff","Test differentiation in constitutive relations","",rd->test_diff,&rd->test_diff,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsString("-rd_view_binary","File name to hold final solution","",rd->view_binary,rd->view_binary,sizeof(rd->view_binary),NULL);CHKERRQ(ierr);
   }
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
@@ -1037,7 +1037,7 @@ static PetscErrorCode RDCreate(MPI_Comm comm,RD *inrd)
     break;
   }
 
-  ierr = DMDACreate1d(comm,DMDA_BOUNDARY_NONE,-20,sizeof(RDNode)/sizeof(PetscScalar),1,NULL,&rd->da);CHKERRQ(ierr);
+  ierr = DMDACreate1d(comm,DM_BOUNDARY_NONE,-20,sizeof(RDNode)/sizeof(PetscScalar),1,NULL,&rd->da);CHKERRQ(ierr);
   ierr = DMDASetFieldName(rd->da,0,"E");CHKERRQ(ierr);
   ierr = DMDASetFieldName(rd->da,1,"T");CHKERRQ(ierr);
   ierr = DMDASetUniformCoordinates(rd->da,0.,1.,0.,0.,0.,0.);CHKERRQ(ierr);

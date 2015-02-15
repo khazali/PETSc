@@ -5,6 +5,17 @@
 #include <petscmat.h>
 #include <petsc-private/petscimpl.h>
 
+PETSC_EXTERN PetscBool MatRegisterAllCalled;
+PETSC_EXTERN PetscBool MatOrderingRegisterAllCalled;
+PETSC_EXTERN PetscBool MatColoringRegisterAllCalled;
+PETSC_EXTERN PetscBool MatPartitioningRegisterAllCalled;
+PETSC_EXTERN PetscBool MatCoarsenRegisterAllCalled;
+PETSC_EXTERN PetscErrorCode MatRegisterAll(void);
+PETSC_EXTERN PetscErrorCode MatOrderingRegisterAll(void);
+PETSC_EXTERN PetscErrorCode MatColoringRegisterAll(void);
+PETSC_EXTERN PetscErrorCode MatPartitioningRegisterAll(void);
+PETSC_EXTERN PetscErrorCode MatCoarsenRegisterAll(void);
+
 /*
   This file defines the parts of the matrix data structure that are
   shared by all matrix types.
@@ -12,7 +23,7 @@
 
 /*
     If you add entries here also add them to the MATOP enum
-    in include/petscmat.h and include/finclude/petscmat.h
+    in include/petscmat.h and include/petsc-finclude/petscmat.h
 */
 typedef struct _MatOps *MatOps;
 struct _MatOps {
@@ -107,8 +118,8 @@ struct _MatOps {
   PetscErrorCode (*placeholder_73)(Mat,void*);
   /*74*/
   PetscErrorCode (*setvaluesadifor)(Mat,PetscInt,void*);
-  PetscErrorCode (*fdcoloringapply)(Mat,MatFDColoring,Vec,MatStructure*,void*);
-  PetscErrorCode (*setfromoptions)(Mat);
+  PetscErrorCode (*fdcoloringapply)(Mat,MatFDColoring,Vec,void*);
+  PetscErrorCode (*setfromoptions)(PetscOptions*,Mat);
   PetscErrorCode (*multconstrained)(Mat,Vec,Vec);
   PetscErrorCode (*multtransposeconstrained)(Mat,Vec,Vec);
   /*79*/
@@ -149,7 +160,7 @@ struct _MatOps {
   PetscErrorCode (*restorerowuppertriangular)(Mat);
   /*109*/
   PetscErrorCode (*matsolve)(Mat,Mat,Mat);
-  PetscErrorCode (*getredundantmatrix)(Mat,PetscInt,MPI_Comm,MatReuse,Mat*);
+  PetscErrorCode (*placeholder_110)(Mat);
   PetscErrorCode (*getrowmin)(Mat,Vec,PetscInt[]);
   PetscErrorCode (*getcolumnvector)(Mat,Vec,PetscInt);
   PetscErrorCode (*missingdiagonal)(Mat,PetscBool *,PetscInt*);
@@ -188,10 +199,14 @@ struct _MatOps {
   PetscErrorCode (*aypx)(Mat,PetscScalar,Mat,MatStructure);
   PetscErrorCode (*residual)(Mat,Vec,Vec,Vec);
   PetscErrorCode (*fdcoloringsetup)(Mat,ISColoring,MatFDColoring);
+  PetscErrorCode (*findoffblockdiagonalentries)(Mat,IS*);
+  /*144*/
+  PetscErrorCode (*creatempimatconcatenateseqmat)(MPI_Comm,Mat,PetscInt,MatReuse,Mat*);
+  
 };
 /*
     If you add MatOps entries above also add them to the MATOP enum
-    in include/petscmat.h and include/finclude/petscmat.h
+    in include/petscmat.h and include/petsc-finclude/petscmat.h
 */
 
 #include <petscsys.h>
@@ -213,7 +228,6 @@ PETSC_INTERN PetscErrorCode MatConvert_Basic(Mat, MatType,MatReuse,Mat*);
 PETSC_INTERN PetscErrorCode MatCopy_Basic(Mat,Mat,MatStructure);
 PETSC_INTERN PetscErrorCode MatHeaderMerge(Mat,Mat);
 PETSC_EXTERN PetscErrorCode MatHeaderReplace(Mat,Mat);
-PETSC_INTERN PetscErrorCode MatAXPYGetxtoy_Private(PetscInt,PetscInt*,PetscInt*,PetscInt*, PetscInt*,PetscInt*,PetscInt*, PetscInt**);
 PETSC_INTERN PetscErrorCode MatDiagonalSet_Default(Mat,Vec,InsertMode);
 
 #if defined(PETSC_USE_DEBUG)
@@ -299,6 +313,16 @@ typedef struct {
 } Mat_CompressedRow;
 PETSC_EXTERN PetscErrorCode MatCheckCompressedRow(Mat,PetscInt,Mat_CompressedRow*,PetscInt*,PetscInt,PetscReal);
 
+typedef struct { /* used by MatCreateRedundantMatrix() for reusing matredundant */
+  PetscInt     nzlocal,nsends,nrecvs;
+  PetscMPIInt  *send_rank,*recv_rank;
+  PetscInt     *sbuf_nz,*rbuf_nz,*sbuf_j,**rbuf_j;
+  PetscScalar  *sbuf_a,**rbuf_a;
+  MPI_Comm     subcomm;   /* when user does not provide a subcomm */
+  IS           isrow,iscol;
+  Mat          *matseq;
+} Mat_Redundant;
+
 struct _p_Mat {
   PETSCHEADER(struct _MatOps);
   PetscLayout            rmap,cmap;
@@ -307,7 +331,7 @@ struct _p_Mat {
   PetscBool              assembled;        /* is the matrix assembled? */
   PetscBool              was_assembled;    /* new values inserted into assembled mat */
   PetscInt               num_ass;          /* number of times matrix has been assembled */
-  PetscBool              same_nonzero;     /* matrix has same nonzero pattern as previous */
+  PetscObjectState       nonzerostate;     /* each time new nonzeros locations are introduced into the matrix this is updated */
   MatInfo                info;             /* matrix information */
   InsertMode             insertmode;       /* have values been inserted in matrix or added? */
   MatStash               stash,bstash;     /* used for assembling off-proc mat emements */
@@ -323,12 +347,13 @@ struct _p_Mat {
   PetscCUSPFlag          valid_GPU_matrix; /* flag pointing to the matrix on the gpu*/
 #endif
 #if defined(PETSC_HAVE_VIENNACL)
-  PetscViennaCLFlag          valid_GPU_matrix; /* flag pointing to the matrix on the gpu*/
+  PetscViennaCLFlag      valid_GPU_matrix; /* flag pointing to the matrix on the gpu*/
 #endif
   void                   *spptr;          /* pointer for special library like SuperLU */
   MatSolverPackage       solvertype;
   PetscBool              checksymmetryonassembly,checknullspaceonassembly;
   PetscReal              checksymmetrytol;
+  Mat_Redundant          *redundant;        /* used by MatCreateRedundantMatrix() */
   };
 
 PETSC_INTERN PetscErrorCode MatAXPY_Basic(Mat,PetscScalar,Mat,MatStructure);
@@ -340,7 +365,7 @@ PETSC_INTERN PetscErrorCode MatAXPY_BasicWithPreallocation(Mat,Mat,PetscScalar,M
 typedef struct _MatPartitioningOps *MatPartitioningOps;
 struct _MatPartitioningOps {
   PetscErrorCode (*apply)(MatPartitioning,IS*);
-  PetscErrorCode (*setfromoptions)(MatPartitioning);
+  PetscErrorCode (*setfromoptions)(PetscOptions*,MatPartitioning);
   PetscErrorCode (*destroy)(MatPartitioning);
   PetscErrorCode (*view)(MatPartitioning,PetscViewer);
 };
@@ -361,7 +386,7 @@ struct _p_MatPartitioning {
 typedef struct _MatCoarsenOps *MatCoarsenOps;
 struct _MatCoarsenOps {
   PetscErrorCode (*apply)(MatCoarsen);
-  PetscErrorCode (*setfromoptions)(MatCoarsen);
+  PetscErrorCode (*setfromoptions)(PetscOptions*,MatCoarsen);
   PetscErrorCode (*destroy)(MatCoarsen);
   PetscErrorCode (*view)(MatCoarsen,PetscViewer);
 };
@@ -478,18 +503,22 @@ struct  _p_MatFDColoring{
 typedef struct _MatColoringOps *MatColoringOps;
 struct _MatColoringOps {
   PetscErrorCode (*destroy)(MatColoring);
-  PetscErrorCode (*setfromoptions)(MatColoring);
+  PetscErrorCode (*setfromoptions)(PetscOptions*,MatColoring);
   PetscErrorCode (*view)(MatColoring,PetscViewer);
   PetscErrorCode (*apply)(MatColoring,ISColoring*);
+  PetscErrorCode (*weights)(MatColoring,PetscReal**,PetscInt**);
 };
 
 struct _p_MatColoring {
   PETSCHEADER(struct _MatColoringOps);
-  Mat        mat;
-  PetscInt   dist;      /* distance of the coloring */
-  PetscInt   maxcolors; /* the maximum number of colors returned, maxcolors=1 for MIS */
-  void       *data;     /* inner context */
-  PetscBool  valid;     /* check to see if what is produced is a valid coloring */
+  Mat                   mat;
+  PetscInt              dist;             /* distance of the coloring */
+  PetscInt              maxcolors;        /* the maximum number of colors returned, maxcolors=1 for MIS */
+  void                  *data;            /* inner context */
+  PetscBool             valid;            /* check to see if what is produced is a valid coloring */
+  MatColoringWeightType weight_type;      /* type of weight computation to be performed */
+  PetscReal             *user_weights;    /* custom weights and permutation */
+  PetscInt              *user_lperm;
 };
 
 struct  _p_MatTransposeColoring{
@@ -1512,9 +1541,9 @@ PETSC_EXTERN PetscLogEvent MAT_MultTransposeConstrained, MAT_MultTransposeAdd, M
 PETSC_EXTERN PetscLogEvent MAT_SolveTransposeAdd, MAT_SOR, MAT_ForwardSolve, MAT_BackwardSolve, MAT_LUFactor, MAT_LUFactorSymbolic;
 PETSC_EXTERN PetscLogEvent MAT_LUFactorNumeric, MAT_CholeskyFactor, MAT_CholeskyFactorSymbolic, MAT_CholeskyFactorNumeric, MAT_ILUFactor;
 PETSC_EXTERN PetscLogEvent MAT_ILUFactorSymbolic, MAT_ICCFactorSymbolic, MAT_Copy, MAT_Convert, MAT_Scale, MAT_AssemblyBegin;
-PETSC_EXTERN PetscLogEvent MAT_AssemblyEnd, MAT_SetValues, MAT_GetValues, MAT_GetRow, MAT_GetRowIJ, MAT_GetSubMatrices, MAT_GetColoring, MAT_GetOrdering, MAT_GetRedundantMatrix;
+PETSC_EXTERN PetscLogEvent MAT_AssemblyEnd, MAT_SetValues, MAT_GetValues, MAT_GetRow, MAT_GetRowIJ, MAT_GetSubMatrices, MAT_GetColoring, MAT_GetOrdering, MAT_RedundantMat;
 PETSC_EXTERN PetscLogEvent MAT_IncreaseOverlap, MAT_Partitioning, MAT_Coarsen, MAT_ZeroEntries, MAT_Load, MAT_View, MAT_AXPY, MAT_FDColoringCreate, MAT_TransposeColoringCreate;
-PETSC_EXTERN PetscLogEvent MAT_FDColoringSetUp, MAT_FDColoringApply, MAT_Transpose, MAT_FDColoringFunction;
+PETSC_EXTERN PetscLogEvent MAT_FDColoringSetUp, MAT_FDColoringApply, MAT_Transpose, MAT_FDColoringFunction,MAT_GetSubMatrix;
 PETSC_EXTERN PetscLogEvent MAT_MatMult, MAT_MatSolve,MAT_MatMultSymbolic, MAT_MatMultNumeric,MAT_Getlocalmatcondensed,MAT_GetBrowsOfAcols,MAT_GetBrowsOfAocols;
 PETSC_EXTERN PetscLogEvent MAT_PtAP, MAT_PtAPSymbolic, MAT_PtAPNumeric,MAT_Seqstompinum,MAT_Seqstompisym,MAT_Seqstompi,MAT_Getlocalmat;
 PETSC_EXTERN PetscLogEvent MAT_RARt, MAT_RARtSymbolic, MAT_RARtNumeric;
@@ -1529,6 +1558,6 @@ PETSC_EXTERN PetscLogEvent MAT_GetMultiProcBlock;
 PETSC_EXTERN PetscLogEvent MAT_CUSPCopyToGPU, MAT_CUSPARSECopyToGPU, MAT_SetValuesBatch, MAT_SetValuesBatchI, MAT_SetValuesBatchII, MAT_SetValuesBatchIII, MAT_SetValuesBatchIV;
 PETSC_EXTERN PetscLogEvent MAT_ViennaCLCopyToGPU;
 PETSC_EXTERN PetscLogEvent MAT_Merge,MAT_Residual;
-PETSC_EXTERN PetscLogEvent Mat_Coloring_Apply,Mat_Coloring_Comm,Mat_Coloring_Local,Mat_Coloring_ISCreate,Mat_Coloring_SetUp;
+PETSC_EXTERN PetscLogEvent Mat_Coloring_Apply,Mat_Coloring_Comm,Mat_Coloring_Local,Mat_Coloring_ISCreate,Mat_Coloring_SetUp,Mat_Coloring_Weights;
 
 #endif

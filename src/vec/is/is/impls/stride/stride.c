@@ -102,12 +102,16 @@ PetscErrorCode ISInvertPermutation_Stride(IS is,PetscInt nlocal,IS *perm)
 @*/
 PetscErrorCode  ISStrideGetInfo(IS is,PetscInt *first,PetscInt *step)
 {
-  IS_Stride *sub;
+  IS_Stride      *sub;
+  PetscBool      flg;
+  PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(is,IS_CLASSID,1);
   if (first) PetscValidIntPointer(first,2);
   if (step) PetscValidIntPointer(step,3);
+  ierr = PetscObjectTypeCompare((PetscObject)is,ISSTRIDE,&flg);CHKERRQ(ierr);
+  if (!flg) SETERRQ(PetscObjectComm((PetscObject)is),PETSC_ERR_ARG_WRONG,"IS must be of type ISSTRIDE");
 
   sub = (IS_Stride*)is->data;
   if (first) *first = sub->first;
@@ -279,11 +283,12 @@ static PetscErrorCode ISOnComm_Stride(IS is,MPI_Comm comm,PetscCopyMode mode,IS 
 #define __FUNCT__ "ISSetBlockSize_Stride"
 static PetscErrorCode ISSetBlockSize_Stride(IS is,PetscInt bs)
 {
-  IS_Stride *sub = (IS_Stride*)is->data;
+  IS_Stride     *sub = (IS_Stride*)is->data;
+  PetscErrorCode ierr;
 
   PetscFunctionBegin;
   if (sub->step != 1 && bs != 1) SETERRQ2(PetscObjectComm((PetscObject)is),PETSC_ERR_ARG_SIZ,"ISSTRIDE has stride %D, cannot be blocked of size %D",sub->step,bs);
-  is->bs = bs;
+  ierr = PetscLayoutSetBlockSize(is->map, bs);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -311,10 +316,12 @@ static struct _ISOps myops = { ISGetSize_Stride,
                                ISRestoreIndices_Stride,
                                ISInvertPermutation_Stride,
                                ISSort_Stride,
+                               ISSort_Stride,
                                ISSorted_Stride,
                                ISDuplicate_Stride,
                                ISDestroy_Stride,
                                ISView_Stride,
+                               ISLoad_Default,
                                ISIdentity_Stride,
                                ISCopy_Stride,
                                ISToGeneral_Stride,
@@ -430,7 +437,6 @@ PETSC_EXTERN PetscErrorCode ISCreate_Stride(IS is)
   PetscFunctionBegin;
   ierr = PetscMemcpy(is->ops,&myops,sizeof(myops));CHKERRQ(ierr);
   ierr = PetscNewLog(is,&sub);CHKERRQ(ierr);
-  is->bs   = 1;
   is->data = sub;
   ierr = PetscObjectComposeFunction((PetscObject)is,"ISStrideSetStride_C",ISStrideSetStride_Stride);CHKERRQ(ierr);
   PetscFunctionReturn(0);

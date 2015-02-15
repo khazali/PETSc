@@ -37,6 +37,42 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 };
 
 #undef __FUNCT__
+#define __FUNCT__ "CreateSimplex_1D"
+/* Two segments
+
+  2-------0-------3-------1-------4
+
+become
+
+  4---0---7---1---5---2---8---3---6
+
+*/
+PetscErrorCode CreateSimplex_1D(MPI_Comm comm, DM *dm)
+{
+  PetscInt       depth = 1;
+  PetscMPIInt    rank;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  if (!rank) {
+    PetscInt    numPoints[2]         = {3, 2};
+    PetscInt    coneSize[5]          = {2, 2, 0, 0, 0};
+    PetscInt    cones[4]             = {2, 3,  3, 4};
+    PetscInt    coneOrientations[16] = {0, 0,  0, 0};
+    PetscScalar vertexCoords[3]      = {-1.0, 0.0, 1.0};
+
+    ierr = DMPlexCreateFromDAG(*dm, depth, numPoints, coneSize, cones, coneOrientations, vertexCoords);CHKERRQ(ierr);
+  } else {
+    PetscInt numPoints[2] = {0, 0, 0};
+
+    ierr = DMPlexCreateFromDAG(*dm, depth, numPoints, NULL, NULL, NULL, NULL);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
 #define __FUNCT__ "CreateSimplex_2D"
 /* Two triangles
         4
@@ -107,7 +143,7 @@ PetscErrorCode CreateSimplex_2D(MPI_Comm comm, DM *dm)
 */
 PetscErrorCode CreateSimplexHybrid_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
 {
-  DM             idm, hdm;
+  DM             idm = NULL, hdm = NULL;
   DMLabel        faultLabel, hybridLabel;
   PetscInt       p;
   PetscMPIInt    rank;
@@ -210,6 +246,51 @@ PetscErrorCode CreateTensorProduct_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "CreateTensorProductHybrid_2D"
+PetscErrorCode CreateTensorProductHybrid_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
+{
+  DM             idm = NULL, hdm = NULL;
+  DMLabel        faultLabel, hybridLabel;
+  PetscInt       p;
+  PetscMPIInt    rank;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  if (!rank) {
+    PetscInt    numPoints[2]        = {6, 2};
+    PetscInt    coneSize[8]         = {4, 4, 0, 0, 0, 0, 0, 0};
+    PetscInt    cones[8]            = {2, 3, 4, 5,  3, 6, 7, 4,};
+    PetscInt    coneOrientations[8] = {0, 0, 0, 0,  0, 0, 0, 0};
+    PetscScalar vertexCoords[12]    = {-1.0, -0.5,  0.0, -0.5,  0.0, 0.5,  -1.0, 0.5,  1.0, -0.5,  1.0, 0.5};
+    PetscInt    faultPoints[2]      = {3, 4};
+
+    ierr = DMPlexCreateFromDAG(*dm, 1, numPoints, coneSize, cones, coneOrientations, vertexCoords);CHKERRQ(ierr);
+    for(p = 0; p < 2; ++p) {ierr = DMPlexSetLabelValue(*dm, "fault", faultPoints[p], 1);CHKERRQ(ierr);}
+    ierr = DMPlexCheckSymmetry(*dm);CHKERRQ(ierr);
+    ierr = DMPlexInterpolate(*dm, &idm);CHKERRQ(ierr);
+    ierr = DMPlexCopyCoordinates(*dm, idm);CHKERRQ(ierr);
+    ierr = DMViewFromOptions(idm, "in_", "-dm_view");CHKERRQ(ierr);
+    ierr = DMPlexCheckSymmetry(idm);CHKERRQ(ierr);
+    ierr = DMPlexGetLabel(*dm, "fault", &faultLabel);CHKERRQ(ierr);
+    ierr = DMPlexCreateHybridMesh(idm, faultLabel, &hybridLabel, &hdm);CHKERRQ(ierr);
+    ierr = DMLabelDestroy(&hybridLabel);CHKERRQ(ierr);
+  } else {
+    PetscInt numPoints[3] = {0, 0, 0};
+
+    ierr = DMPlexCreateFromDAG(*dm, 1, numPoints, NULL, NULL, NULL, NULL);CHKERRQ(ierr);
+    ierr = DMPlexInterpolate(*dm, &idm);CHKERRQ(ierr);
+    ierr = DMPlexCopyCoordinates(*dm, idm);CHKERRQ(ierr);
+    ierr = DMViewFromOptions(idm, "in_", "-dm_view");CHKERRQ(ierr);
+    ierr = DMPlexCreateHybridMesh(idm, NULL, NULL, &hdm);CHKERRQ(ierr);
+  }
+  ierr = DMDestroy(&idm);CHKERRQ(ierr);
+  ierr = DMDestroy(dm);CHKERRQ(ierr);
+  *dm  = hdm;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "CreateSimplex_3D"
 /* Two tetrahedrons
 
@@ -225,7 +306,7 @@ PetscErrorCode CreateTensorProduct_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
 */
 PetscErrorCode CreateSimplex_3D(MPI_Comm comm, PetscInt testNum, DM *dm)
 {
-  DM             idm;
+  DM             idm = NULL;
   PetscInt       depth = 3;
   PetscMPIInt    rank;
   PetscErrorCode ierr;
@@ -315,7 +396,7 @@ PetscErrorCode CreateSimplex_3D(MPI_Comm comm, PetscInt testNum, DM *dm)
 */
 PetscErrorCode CreateSimplexHybrid_3D(MPI_Comm comm, PetscInt testNum, DM *dm)
 {
-  DM             idm, hdm;
+  DM             idm = NULL, hdm = NULL;
   DMLabel        faultLabel, hybridLabel;
   PetscInt       p;
   PetscMPIInt    rank;
@@ -388,7 +469,7 @@ PetscErrorCode CreateSimplexHybrid_3D(MPI_Comm comm, PetscInt testNum, DM *dm)
 #define __FUNCT__ "CreateTensorProduct_3D"
 PetscErrorCode CreateTensorProduct_3D(MPI_Comm comm, PetscInt testNum, DM *dm)
 {
-  DM             idm;
+  DM             idm = NULL;
   PetscMPIInt    rank;
   PetscErrorCode ierr;
 
@@ -440,7 +521,7 @@ PetscErrorCode CreateTensorProduct_3D(MPI_Comm comm, PetscInt testNum, DM *dm)
 #define __FUNCT__ "CreateTensorProductHybrid_3D"
 PetscErrorCode CreateTensorProductHybrid_3D(MPI_Comm comm, PetscInt testNum, DM *dm)
 {
-  DM             idm, hdm;
+  DM             idm = NULL, hdm = NULL;
   DMLabel        faultLabel;
   PetscInt       p;
   PetscMPIInt    rank;
@@ -523,7 +604,6 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   PetscInt       numRefinements = user->numRefinements;
   PetscBool      cellHybrid     = user->cellHybrid;
   PetscBool      cellSimplex    = user->cellSimplex;
-  const char    *partitioner    = "chaco";
   PetscMPIInt    rank;
   PetscErrorCode ierr;
 
@@ -531,8 +611,12 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
   ierr = DMCreate(comm, dm);CHKERRQ(ierr);
   ierr = DMSetType(*dm, DMPLEX);CHKERRQ(ierr);
-  ierr = DMPlexSetDimension(*dm, dim);CHKERRQ(ierr);
+  ierr = DMSetDimension(*dm, dim);CHKERRQ(ierr);
   switch (dim) {
+  case 1:
+    if (cellHybrid) SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "Cannot make hybrid meshes for dimension %d", dim);
+    ierr = CreateSimplex_1D(comm, dm);CHKERRQ(ierr);
+    break;
   case 2:
     if (cellSimplex) {
       if (cellHybrid) {
@@ -542,7 +626,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
       }
     } else {
       if (cellHybrid) {
-        SETERRQ(comm, PETSC_ERR_ARG_OUTOFRANGE, "Cannot make hybrid meshes for quadrilaterals");
+        ierr = CreateTensorProductHybrid_2D(comm, user->testNum, dm);CHKERRQ(ierr);
       } else {
         ierr = CreateTensorProduct_2D(comm, user->testNum, dm);CHKERRQ(ierr);
       }
@@ -564,7 +648,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     }
     break;
   default:
-    SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "Cannot make hybrid meshes for dimension %d", dim);
+    SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "Cannot make meshes for dimension %d", dim);
   }
   {
     DM refinedMesh     = NULL;
@@ -572,7 +656,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     PetscInt r;
 
     /* Distribute mesh over processes */
-    ierr = DMPlexDistribute(*dm, partitioner, 0, NULL, &distributedMesh);CHKERRQ(ierr);
+    ierr = DMPlexDistribute(*dm, 0, NULL, &distributedMesh);CHKERRQ(ierr);
     if (distributedMesh) {
       ierr = DMViewFromOptions(distributedMesh, NULL, "-dm_view");CHKERRQ(ierr);
       ierr = DMDestroy(dm);CHKERRQ(ierr);

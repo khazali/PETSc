@@ -53,6 +53,7 @@ static const char help[] = "Steady-state 2D subduction flow, pressure and temper
   ------------------------------------------------------------------------F*/
 
 #include <petscsnes.h>
+#include <petscdm.h>
 #include <petscdmda.h>
 
 #define VISC_CONST   0
@@ -91,7 +92,7 @@ typedef struct { /* physical and miscelaneous parameters */
 } Parameter;
 
 typedef struct { /* grid parameters */
-  DMDABoundaryType bx,by;
+  DMBoundaryType   bx,by;
   DMDAStencilType  stencil;
   PetscInt         corner,ni,nj,jlid,jfault,inose;
   PetscInt         dof,stencil_width,mglevels;
@@ -166,7 +167,7 @@ int main(int argc,char **argv)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create user context, set problem data, create vector data structures.
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  ierr        = PetscMalloc(sizeof(AppCtx),&user);CHKERRQ(ierr);
+  ierr        = PetscNew(&user);CHKERRQ(ierr);
   user->param = &param;
   user->grid  = &grid;
   ierr        = DMSetApplicationContext(da,user);CHKERRQ(ierr);
@@ -841,8 +842,8 @@ PetscErrorCode SetParams(Parameter *param, GridInfo *grid)
   param->depth        = grid->dz*(grid->nj-2);                             /* km */
   grid->inose         = 0;                                          /* gridpoints*/
   ierr                = PetscOptionsGetInt(NULL,"-inose",&(grid->inose),NULL);CHKERRQ(ierr);
-  grid->bx            = DMDA_BOUNDARY_NONE;
-  grid->by            = DMDA_BOUNDARY_NONE;
+  grid->bx            = DM_BOUNDARY_NONE;
+  grid->by            = DM_BOUNDARY_NONE;
   grid->stencil       = DMDA_STENCIL_BOX;
   grid->dof           = 4;
   grid->stencil_width = 2;
