@@ -1475,8 +1475,9 @@ PetscErrorCode  KSPGetSolution(KSP ksp,Vec *v)
 #undef __FUNCT__
 #define __FUNCT__ "KSPSetPC"
 /*@
-   KSPSetPC - Sets the preconditioner to be used to calculate the
-   application of the preconditioner on a vector.
+   KSPSetPC - Sets the preconditioner to be used to calculate the application of the preconditioner on a vector.
+   Passing a NULL pointer for the preconditioner causes the existing preconditioner to be destroyed and a new one to
+   be created.
 
    Collective on KSP
 
@@ -1500,11 +1501,14 @@ PetscErrorCode  KSPSetPC(KSP ksp,PC pc)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ksp,KSP_CLASSID,1);
-  PetscValidHeaderSpecific(pc,PC_CLASSID,2);
-  PetscCheckSameComm(ksp,1,pc,2);
-  ierr    = PetscObjectReference((PetscObject)pc);CHKERRQ(ierr);
+  if (pc) {
+    PetscValidHeaderSpecific(pc,PC_CLASSID,2);
+    PetscCheckSameComm(ksp,1,pc,2);
+    ierr = PetscObjectReference((PetscObject)pc);CHKERRQ(ierr);
+  }
   ierr    = PCDestroy(&ksp->pc);CHKERRQ(ierr);
   ksp->pc = pc;
+  if (!ksp->pc) {ierr = KSPGetPC(ksp,&ksp->pc);CHKERRQ(ierr);}
   ierr    = PetscLogObjectParent((PetscObject)ksp,(PetscObject)ksp->pc);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
