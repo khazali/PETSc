@@ -67,8 +67,6 @@ static PetscErrorCode KSPChebyshevSetEstimateEigenvalues_Chebyshev(KSP ksp,Petsc
       ierr = KSPSetOptionsPrefix(cheb->kspest,((PetscObject)ksp)->prefix);CHKERRQ(ierr);
       ierr = KSPAppendOptionsPrefix(cheb->kspest,"est_");CHKERRQ(ierr);
 
-      ierr = KSPSetPC(cheb->kspest,ksp->pc);CHKERRQ(ierr);
-      
       ierr = KSPGetInitialGuessNonzero(ksp,&nonzero);CHKERRQ(ierr);
       ierr = KSPSetInitialGuessNonzero(cheb->kspest,nonzero);CHKERRQ(ierr);
       ierr = KSPSetComputeEigenvalues(cheb->kspest,PETSC_TRUE);CHKERRQ(ierr);
@@ -360,8 +358,12 @@ PetscErrorCode KSPSolve_Chebyshev(KSP ksp)
     } else {
       B = ksp->vec_rhs;
     }
+    /* Give ksp->pc to cheb->kspest, solve, then take it away */
+    ierr = KSPSetPC(cheb->kspest,ksp->pc);CHKERRQ(ierr); /* increments ksp->pc reference by 1 */
     ierr = KSPSolve(cheb->kspest,B,X);CHKERRQ(ierr);
-    
+    ierr = KSPSetPC(cheb->kspest,NULL);CHKERRQ(ierr);    /* decrements ksp->pc reference by 1 */
+    ierr = KSPSetPC(ksp,ksp->pc);CHKERRQ(ierr);          /* ensure any ksp->pc state referring to cheby->kspest (e.g. PetscLogObjectParent()) is undone */
+
     if (ksp->guess_zero) {
       ierr = VecZeroEntries(X);CHKERRQ(ierr);
     }
