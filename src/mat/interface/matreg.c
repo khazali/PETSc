@@ -103,6 +103,53 @@ PetscErrorCode  MatGetType(Mat mat,MatType *type)
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "MatReset"
+/*@
+   MatReset - Clears out the internal data structures, leaving the matrix type the same.
+
+   Logically Collective
+
+   Input Parameter:
+.  mat - the matrix
+
+   Level: intermediate
+
+   Notes: The resulting matrix is the same as a newly created matrix with the same
+$   communicator, sizes and options prefix as before the call.
+
+.keywords: Mat, MatType, set
+
+.seealso: MatSetType(), MatGetType()
+@*/
+PetscErrorCode  MatReset(Mat mat)
+{
+  PetscErrorCode ierr,(*r)(Mat);
+  MatType        type;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
+
+  type = ((PetscObject)mat)->type_name;
+  ierr =  PetscFunctionListFind(MatList,type,&r);CHKERRQ(ierr);
+  if (!r) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_UNKNOWN_TYPE,"Attempting to reset Mat of unknown type: %s",type);
+
+  /* free the old data structure if it existed */
+  if (mat->ops->destroy) {
+    ierr = (*mat->ops->destroy)(mat);CHKERRQ(ierr);
+
+    mat->ops->destroy = NULL;
+  }
+  mat->preallocated = PETSC_FALSE;
+
+  /* create the new data structure */
+  ierr = (*r)(mat);CHKERRQ(ierr);
+
+  PetscFunctionReturn(0);
+}
+
+
+
 
 #undef __FUNCT__
 #define __FUNCT__ "MatRegister"

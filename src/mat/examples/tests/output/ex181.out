@@ -1,0 +1,156 @@
+Original matrix
+Mat Object: 1 MPI processes
+  type: seqaij
+row 0: (0, 1) 
+row 1: (1, 1) 
+row 2: (2, 1) 
+row 3: (3, 1) 
+row 4: (4, 1) 
+row 5: (5, 1) 
+row 6: (6, 1) 
+row 7: (7, 1) 
+row 8: (8, 1) 
+row 9: (9, 1) 
+New matrix
+Mat Object: 1 MPI processes
+  type: seqaij
+row 0: (0, 1)  (4, 2) 
+row 1: (0, 2)  (1, 1) 
+row 2: (1, 2)  (2, 1) 
+row 3: (2, 2)  (3, 1) 
+row 4: (3, 2)  (4, 1) 
+row 5: (4, 2)  (5, 1) 
+row 6: (0, 2)  (6, 1) 
+row 7: (1, 2)  (7, 1) 
+row 8: (2, 2)  (8, 1) 
+row 9: (3, 2)  (9, 1) 
+Original matrix
+Mat Object: 2 MPI processes
+  type: mpiaij
+row 0: (0, 1) 
+row 1: (1, 1) 
+row 2: (2, 1) 
+row 3: (3, 1) 
+row 4: (4, 1) 
+row 5: (5, 1) 
+row 6: (6, 1) 
+row 7: (7, 1) 
+row 8: (8, 1) 
+row 9: (9, 1) 
+New matrix
+Mat Object:Mat_0x84000004_1 2 MPI processes
+  type: mpiaij
+row 0: (0, 1)  (4, 2) 
+row 1: (0, 2)  (1, 1) 
+row 2: (1, 2)  (2, 1) 
+row 3: (2, 2)  (3, 1) 
+row 4: (3, 2)  (4, 1) 
+row 5: (4, 2)  (5, 1) 
+row 6: (0, 2)  (6, 1) 
+row 7: (1, 2)  (7, 1) 
+row 8: (2, 2)  (8, 1) 
+row 9: (3, 2)  (9, 1) 
+Original matrix
+Mat Object: 1 MPI processes
+  type: seqbaij
+row 0: (0, 1) 
+row 1: (1, 1) 
+row 2: (2, 1) 
+row 3: (3, 1) 
+row 4: (4, 1) 
+row 5: (5, 1) 
+row 6: (6, 1) 
+row 7: (7, 1) 
+row 8: (8, 1) 
+row 9: (9, 1) 
+New matrix
+Mat Object: 1 MPI processes
+  type: seqbaij
+row 0: (0, 1)  (4, 2) 
+row 1: (0, 2)  (1, 1) 
+row 2: (1, 2)  (2, 1) 
+row 3: (2, 2)  (3, 1) 
+row 4: (3, 2)  (4, 1) 
+row 5: (4, 2)  (5, 1) 
+row 6: (0, 2)  (6, 1) 
+row 7: (1, 2)  (7, 1) 
+row 8: (2, 2)  (8, 1) 
+row 9: (3, 2)  (9, 1) 
+Original matrix
+Mat Object: 2 MPI processes
+  type: mpibaij
+row 0: (0, 1) 
+row 1: (1, 1) 
+row 2: (2, 1) 
+row 3: (3, 1) 
+row 4: (4, 1) 
+row 5: (5, 1) 
+row 6: (6, 1) 
+row 7: (7, 1) 
+row 8: (8, 1) 
+row 9: (9, 1) 
+New matrix
+Mat Object:Mat_0x84000004_1 2 MPI processes
+  type: mpibaij
+row 0: (0, 1)  (4, 2) 
+row 1: (0, 2)  (1, 1) 
+row 2: (1, 2)  (2, 1) 
+row 3: (2, 2)  (3, 1) 
+row 4: (3, 2)  (4, 1) 
+row 5: (4, 2)  (5, 1) 
+row 6: (0, 2)  (6, 1) 
+row 7: (1, 2)  (7, 1) 
+row 8: (2, 2)  (8, 1) 
+row 9: (3, 2)  (9, 1) 
+Original matrix
+Mat Object: 1 MPI processes
+  type: seqsbaij
+row 0: (0, 1) 
+row 1: (1, 1) 
+row 2: (2, 1) 
+row 3: (3, 1) 
+row 4: (4, 1) 
+row 5: (5, 1) 
+row 6: (6, 1) 
+row 7: (7, 1) 
+row 8: (8, 1) 
+row 9: (9, 1) 
+New matrix
+Mat Object: 1 MPI processes
+  type: seqsbaij
+row 0: (0, 1)  (4, 2) 
+row 1: (1, 1) 
+row 2: (2, 1) 
+row 3: (3, 1) 
+row 4: (4, 1) 
+row 5: (5, 1) 
+row 6: (6, 1) 
+row 7: (7, 1) 
+row 8: (8, 1) 
+row 9: (9, 1) 
+Original matrix
+Mat Object: 2 MPI processes
+  type: mpisbaij
+row 0: (0, 1) 
+row 1: (1, 1) 
+row 2: (2, 1) 
+row 3: (3, 1) 
+row 4: (4, 1) 
+row 5: (5, 1) 
+row 6: (6, 1) 
+row 7: (7, 1) 
+row 8: (8, 1) 
+row 9: (9, 1) 
+New matrix
+Mat Object:Mat_0x84000004_1 2 MPI processes
+  type: mpisbaij
+row 0: (0, 1)  (4, 2) 
+row 1: (0, 2)  (1, 1) 
+row 2: (2, 1) 
+row 3: (2, 2)  (3, 1) 
+row 4: (4, 1) 
+row 5: (4, 2)  (5, 1) 
+row 6: (6, 1) 
+row 7: (7, 1) 
+row 8: (8, 1) 
+row 9: (9, 1) 

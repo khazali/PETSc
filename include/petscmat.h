@@ -385,6 +385,7 @@ PETSC_EXTERN PetscErrorCode MatMultConstrained(Mat,Vec,Vec);
 PETSC_EXTERN PetscErrorCode MatMultTransposeConstrained(Mat,Vec,Vec);
 PETSC_EXTERN PetscErrorCode MatMatSolve(Mat,Mat,Mat);
 PETSC_EXTERN PetscErrorCode MatResidual(Mat,Vec,Vec,Vec);
+PETSC_EXTERN PetscErrorCode MatReset(Mat);
 
 /*E
     MatDuplicateOption - Indicates if a duplicated sparse matrix should have
@@ -1631,7 +1632,7 @@ PETSC_EXTERN PetscErrorCode MatSuperluSetILUDropTol(Mat,PetscReal);
 #ifdef PETSC_HAVE_CUDA
 /*E
     MatCUSPARSEStorageFormat - indicates the storage format for CUSPARSE (GPU)
-    matrices. 
+    matrices.
 
     Not Collective
 
@@ -1653,7 +1654,7 @@ PETSC_EXTERN const char *const MatCUSPARSEStorageFormats[];
 
 /*E
     MatCUSPARSEFormatOperation - indicates the operation of CUSPARSE (GPU)
-    matrices whose operation should use a particular storage format. 
+    matrices whose operation should use a particular storage format.
 
     Not Collective
 
@@ -1679,7 +1680,7 @@ PETSC_EXTERN PetscErrorCode MatCreateAIJCUSP(MPI_Comm,PetscInt,PetscInt,PetscInt
 
 /*E
     MatCUSPStorageFormat - indicates the storage format for CUSP (GPU)
-    matrices. 
+    matrices.
 
     Not Collective
 
@@ -1700,7 +1701,7 @@ PETSC_EXTERN const char *const MatCUSPStorageFormats[];
 
 /*E
     MatCUSPFormatOperation - indicates the operation of CUSP (GPU)
-    matrices whose operation should use a particular storage format. 
+    matrices whose operation should use a particular storage format.
 
     Not Collective
 
@@ -1739,7 +1740,7 @@ PETSC_EXTERN PetscErrorCode MatCreateVecsFFTW(Mat,Vec*,Vec*,Vec*);
 */
 #if defined(PETSC_HAVE_ELEMENTAL)
 #if defined(__cplusplus)
-#include <elemental.hpp> 
+#include <elemental.hpp>
 /* c++ prototypes requiring elemental datatypes. */
 PETSC_EXTERN PetscErrorCode MatElementalHermitianGenDefiniteEig(elem::HermitianGenDefiniteEigType,elem::UpperOrLower,Mat,Mat,Mat*,Mat*,PetscReal,PetscReal);
 #endif
