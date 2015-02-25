@@ -1,3 +1,4 @@
+#include <petsctao.h>
 #include <petsc-private/snesimpl.h>
 
 /*
@@ -10,9 +11,10 @@
 
 typedef struct {
   PetscErrorCode (*checkredundancy)(SNES,IS,IS*,void*);
-
+  TaoSubsetType subset_type;
   void *ctxP;           /* user defined check redundancy context */
   IS   IS_inact_prev;
+  IS   IS_inact;
 } SNES_VINEWTONRSLS;
 
 #endif
