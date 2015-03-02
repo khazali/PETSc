@@ -536,6 +536,18 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
   /* get basic dims */
   ierr = MatGetBlockSize(Pmat, &bs);CHKERRQ(ierr);
   ierr = MatGetSize(Pmat, &M, &qq);CHKERRQ(ierr);
+#if defined(PETSC_USE_LOG)
+  {
+    PetscInt NN = M;
+    MatInfo  info;
+
+    ierr = MatGetInfo(Pmat,MAT_GLOBAL_SUM,&info);CHKERRQ(ierr);
+    nnz0   = info.nz_used;
+    nnztot = info.nz_used;
+      ierr = PetscInfo7(pc,"level 0) N=%d, n data rows=%d, n data cols=%d, nzz alloc'ed=%.0f, nzz=%.0f, nnz/row (ave)=%.1f, np=%d\n",
+                        M,pc_gamg->data_cell_rows,pc_gamg->data_cell_cols,info.nz_allocated,info.nz_used,nnz0/(PetscReal)NN,size);CHKERRQ(ierr);
+  }
+#endif
 
   /* Get A_i and R_i */
   for (level=0, Aarr[0]=Pmat, nactivepe = size; /* hard wired stopping logic */
@@ -570,6 +582,18 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
 
         Parr[level1] = Prol11;
       } else Parr[level1] = NULL;
+
+#if defined(PETSC_USE_LOG)
+      {
+        PetscInt prolong_rows, prolong_cols;
+        MatInfo  info;
+
+        ierr = MatGetSize(Parr[level1], &prolong_rows, &prolong_cols);CHKERRQ(ierr);
+        ierr = MatGetInfo(Parr[level1], MAT_GLOBAL_SUM, &info);CHKERRQ(ierr);
+        ierr = PetscInfo5(pc,"Prolongator M=%d N=%d, nzz alloc'ed=%.0f, nzz=%.0f, nnz/row (ave)=%.1f\n",
+                          prolong_rows,prolong_cols,info.nz_allocated,info.nz_used,info.nz_used/(PetscReal)prolong_rows);CHKERRQ(ierr);
+      }
+#endif
 
       if (pc_gamg->use_aggs_in_gasm) {
         PetscInt bs;
@@ -607,6 +631,17 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
     ierr = PetscLogEventEnd(petsc_gamg_setup_events[SET2],0,0,0,0);CHKERRQ(ierr);
 #endif
     ierr = MatGetSize(Aarr[level1], &M, &qq);CHKERRQ(ierr);
+#if defined(PETSC_USE_INFO)
+    {
+      PetscInt NN = M;
+      MatInfo  info;
+
+      ierr = MatGetInfo(Aarr[level1], MAT_GLOBAL_SUM, &info);CHKERRQ(ierr);
+      nnztot += info.nz_used;
+      ierr = PetscInfo7(pc,"level %d) N=%d, n data cols=%d, nzz alloc'ed=%.0f, nzz=%.0f, nnz/row (ave)=%.1f, %d active pes\n",
+                        level1,M,pc_gamg->data_cell_cols,info.nz_allocated,info.nz_used,info.nz_used/(PetscReal)NN,nactivepe);CHKERRQ(ierr);
+    }
+#endif
 #if (defined PETSC_GAMG_USE_LOG && defined GAMG_STAGES)
     ierr = PetscLogStagePop();CHKERRQ(ierr);
 #endif
