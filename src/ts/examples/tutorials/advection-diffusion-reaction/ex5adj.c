@@ -151,12 +151,12 @@ int main(int argc,char **argv)
        - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
     ierr = VecDuplicate(x,&lambda[0]);CHKERRQ(ierr);
     /*   Reset initial conditions for the adjoint integration */
-    ierr = VecGetArray(lambda[0],&x_ptr);CHKERRQ(ierr);
     ierr = InitializeLambda(da,lambda[0],0.5,0.5);CHKERRQ(ierr);
     ierr = TSSetCostGradients(ts,1,lambda,NULL);CHKERRQ(ierr);
     ierr = TSAdjointSolve(ts);CHKERRQ(ierr);
     ierr = VecDestroy(&lambda[0]);CHKERRQ(ierr);
   }
+
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Free work space.  All PETSc objects should be destroyed when they
      are no longer needed.
