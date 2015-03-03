@@ -7,33 +7,18 @@ Invidividual task lists.
 	  part of the latest linesearch application.
     . *Add a test case by modifying an exisiting legacy SNESVI test.
   - Dmitry:
-    . *Fix f_aug that is passed to SNESLineSearchApply(): need to make sure a generic linesearch would do a reasonable job there.
-    . *Finish SNESSolve_NEWTONAS() with the linear solve as a stub, but all of the DM interaction in place.
-    . *Validate that SNESNEWTONASInitialActiveSet_Private() matches Todd's notes.
-        : use a tolerance and declare a constraint active if g is within epsilon of the lower/upper bound (and the multiplier is positive/negative)
-	: allow the user to set it via -snes_newtonas_activity_tol
-        : the default is to be PETSC_SQRT_MACHINE_EPSILON
-    . *Validate that SNESNESNEWTONASModifyActiveSet_Private() -- the tbar calculation -- matches Todd's notes
-        : When calculating tbar_i take into account the fact that bx_v[c] and dl_v[c]  might be negative, which might screw up the allowable interval
-	  calculation.
-    .  Implement SNESNEWTONASComputeSearchDirectionSaddle_Private()
-        : using a user-provided assembled augmented Jacobian from the saddle DM
-        : by assembling the augmented Jacobian out of blocks using MatConvert_Nest_MPIAIJ
+    . Finish SNESConstraintSetUpAugVectors(), implement SNESConstraintSetUpConstraintVectors(); move work vectors where they belong
+    . Clean up SNESSetUp_NEWTONAS (set up the necessary matrices); factor out common matrix set up routines?
+    . Implement SNESConstraintComputeFunctions(snes,x,func,constr,func_aug)
+    . Fix f_aug that is passed to SNESLineSearchApply(): need to make sure a generic linesearch would do a reasonable job there.
+    . Finish SNESNEWTONASComputeSearchDirectionSaddleFull_Private()
    - Todd:
     . *Update notes.
-General task list by category.
-    - 'ACTIVITY MANAGEMENT'
-     . SNESNESNEWTONASModifyActiveSet_Private() -- actually make this modify the active set, instead of throwing an error.
-       Otherwise we might be infeasible after the first iteration and will need projection.
-    - 'LINESEARCH'
-     . Derivative-based version of SNESLineSearch impls that work with and without projection.
-    - 'LINEAR SOLVE'
-     . SNESNEWTONASComputeSearchDirectionPrimal_Private()
-    - 'WIRING'
-     . Replace scatter/gathers by VecNest/VecSubVec
-    'MISC'
-     . Create SNESNEWTONASComputeConstraints() and similar wrappers?
-     . Check for DOMAIN_ERROR in the merit function.
+   - Other:
+    . Scatters should be xxx_to_aug, I think.
+    . Namespace all SNES constraint-related functions (SNESConstraintSetFunction() etc.)
+    . Create SNESNEWTONASComputeConstraints() and similar wrappers?
+    . Check for DOMAIN_ERROR in the merit function.
 */
 /*
    QUESTIONS:
@@ -57,9 +42,6 @@ General task list by category.
      . This is because when monitoring/checking convergence we expect a consisten SNES state,
          which includes all of the vectors -- soln and func -- which cache their norms.
    - DMSNES now has constraint-specific callbacks; it is attached to snes->dm.
-     At the same time there could be up to 3 DMs associated with a SNESNEWTONAS:
-     dm, dm_constr, dm_aug. How should the constraint-specific DMSNES information be
-     shared among them?
    - SNESLineSearch should consistently use 'merit' alongside the norms. 'objective' should
      be reserved for optimization problems and even then 'merit' might be a different function
      (albeit computed using 'objective' information).  We should avoid passing norms in and out

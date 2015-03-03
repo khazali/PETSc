@@ -52,14 +52,14 @@ typedef const char* SNESType;
     Determines the type of linear solver used to solve the bordered saddle-point-form
     linear system.
 
-    Available types: SNESNEWTONAS_PRIMAL, SNESNEWTONAS_SADDLE, SNESNEWTONAS_DUAL
+    Available types: SNESNEWTONAS_PRIMAL, SNESNEWTONAS_SADDLE_FULL, SNESNEWTONAS_SADDLE_REDUCED, SNESNEWTONAS_DUAL
 
     Options Database Keys: -snes_newtonas_type saddle|primal|dual
    Level: beginner
 
 .seealso: SNESNEWTONASSetType(), SNES, SNESCreate(), SNESDestroy(), SNESSetFromOptions()
 J*/
-typedef enum {SNESNEWTONAS_PRIMAL=0,SNESNEWTONAS_SADDLE,SNESNEWTONAS_DUAL} SNESNEWTONASType;
+typedef enum {SNESNEWTONAS_PRIMAL=0,SNESNEWTONAS_SADDLE_FULL,SNESNEWTONAS_SADDLE_REDUCED,SNESNEWTONAS_DUAL} SNESNEWTONASType;
 PETSC_EXTERN const char *const SNESNEWTONASTypes[];
 
 /* Logging support */
@@ -354,19 +354,14 @@ PETSC_EXTERN PetscErrorCode SNESSetObjective(SNES,PetscErrorCode (*)(SNES,Vec,Pe
 PETSC_EXTERN PetscErrorCode SNESGetObjective(SNES,PetscErrorCode (**)(SNES,Vec,PetscReal *,void*),void**);
 PETSC_EXTERN PetscErrorCode SNESComputeObjective(SNES,Vec,PetscReal *);
 
-PETSC_EXTERN PetscErrorCode SNESSetConstraintDM(SNES,DM);
-PETSC_EXTERN PetscErrorCode SNESGetConstraintDM(SNES,DM*);
-PETSC_EXTERN PetscErrorCode SNESSetAugDM(SNES,DM);
-PETSC_EXTERN PetscErrorCode SNESGetAugDM(SNES,DM*);
-
 PETSC_EXTERN PetscErrorCode SNESSetConstraintFunction(SNES,Vec,Vec,Vec,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
 PETSC_EXTERN PetscErrorCode SNESGetConstraintFunction(SNES,Vec*,Vec*,Vec*,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
 
 PETSC_EXTERN PetscErrorCode SNESSetConstraintJacobian(SNES,Mat,Mat,PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*),void*);
 PETSC_EXTERN PetscErrorCode SNESGetConstraintJacobian(SNES,Mat*,Mat*,PetscErrorCode (**)(SNES,Vec,Mat,Mat,void*),void**);
+PETSC_EXTERN PetscErrorCode SNESConstraintSetAugFunctionJacobian(SNES,Vec,Mat,Mat,IS,PetscErrorCode(*)(SNES,Vec,Vec,void*),PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*),void*);
+PETSC_EXTERN PetscErrorCode SNESConstraintGetAugFunctionJacobian(SNES,Vec*,Mat*,Mat*,IS*,PetscErrorCode(**)(SNES,Vec,Vec,void*),PetscErrorCode (**)(SNES,Vec,Mat,Mat,void*),void**);
 
-PETSC_EXTERN PetscErrorCode SNESSetAugJacobian(SNES,Mat,Mat,PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*),void*);
-PETSC_EXTERN PetscErrorCode SNESGetAugJacobian(SNES,Mat*,Mat*,PetscErrorCode (**)(SNES,Vec,Mat,Mat,void*),void**);
 
 PETSC_EXTERN PetscErrorCode SNESSetProjectOntoConstraints(SNES,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
 PETSC_EXTERN PetscErrorCode SNESGetProjectOntoConstraints(SNES,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
@@ -374,6 +369,9 @@ PETSC_EXTERN PetscErrorCode SNESProjectOntoConstraints(SNES,Vec,Vec);
 
 PETSC_EXTERN PetscErrorCode SNESNEWTONASSetType(SNES,SNESNEWTONASType);
 PETSC_EXTERN PetscErrorCode SNESNEWTONASGetType(SNES,SNESNEWTONASType*);
+
+
+
 
 /*E
     SNESNormSchedule - Frequency with which the norm is computed
@@ -676,6 +674,8 @@ PETSC_EXTERN PetscErrorCode DMSNESSetConstraintJacobian(DM,PetscErrorCode (*)(SN
 PETSC_EXTERN PetscErrorCode DMSNESGetConstraintJacobian(DM,PetscErrorCode (**)(SNES,Vec,Mat,Mat,void*),void**);
 PETSC_EXTERN PetscErrorCode DMSNESSetProjectOntoConstraints(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSNESGetProjectOntoConstraints(DM,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
+PETSC_EXTERN PetscErrorCode DMSNESConstraintSetAugFunctionJacobian(DM,PetscErrorCode (*)(SNES,Vec,Mat,Vec,void*),PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*),void**);
+
 
 PETSC_EXTERN PetscErrorCode DMSNESNEWTONASSetActiveConstraintBasis(DM,PetscErrorCode (*)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSNESNEWTONASGetActiveConstraintBasis(DM,PetscErrorCode (**)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void**);

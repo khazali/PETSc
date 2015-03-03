@@ -928,16 +928,144 @@ PetscErrorCode  DMCreateMatrix(DM dm,Mat *mat)
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   ierr = MatInitializePackage();CHKERRQ(ierr);
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  PetscValidPointer(mat,3);
+  PetscValidPointer(mat,2);
   ierr = (*dm->ops->creatematrix)(dm,mat);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMConstraintCreateMatrix"
+/*@
+    DMConstraintCreateMatrix - Creates an empty constraint Jacobian allocated according
+    to the underlying mesh connectivity.
+
+    Collective on DM
+
+    Input Parameter:
+.   dm - the DM object
+
+    Output Parameter:
+.   mat - the empty constraint Jacobian
+
+    Level: intermediate
+
+    Notes: This properly preallocates the number of nonzeros in the sparse matrix so you
+       do not need to do it yourself.
+
+       By default it also sets the nonzero structure and puts in the zero entries. To prevent setting
+       the nonzero pattern call DMSetMatrixPreallocateOnly().
+
+       Observe that even for structured problems the nature and the ordering of the constraint degrees
+       of freedom indexing the matrix rows can be rather complicated.
+
+
+.seealso DMDestroy(), DMView(), DMConstraintCreateVector(), DMConstraintCreateAugSystem()
+
+@*/
+PetscErrorCode  DMConstraintCreateMatrix(DM dm,Mat *mat)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = MatInitializePackage();CHKERRQ(ierr);
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  PetscValidPointer(mat,2);
+  *mat = NULL;
+  if (dm->ops->constraintcreatematrix) {
+    ierr = (*dm->ops->constraintcreatematrix)(dm,mat);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMConstraintCreateVector"
+/*@
+    DMConstraintCreateVector - Creates an empty constraint function vector laid out according
+    to the underlying mesh.
+
+    Collective on DM
+
+    Input Parameter:
+.   dm - the DM object
+
+    Output Parameter:
+.   vec - the empty constraint function vector
+
+    Level: intermediate
+
+
+.seealso DMDestroy(), DMView(), DMConstraintCreateMatrix(), DMConstraintCreateAugSystem()
+
+@*/
+PetscErrorCode  DMConstraintCreateVector(DM dm,Vec *vec)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  PetscValidPointer(vec,2);
+  *vec = NULL;
+  if (dm->ops->constraintcreatevector) {
+    ierr = (*dm->ops->constraintcreatevector)(dm,vec);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMConstraintCreateAugSystem"
+/*@
+    DMConstraintCreateAugSystem - Creates an empty augmented Jacobian and a corresponding vector
+    allocated according to the underlying mesh connectivity and constraint structure. The resulting
+    Jacobian is a logically 2x2 matrix J = [A B^T; B 0] where the location of rows of B in J is
+    defined by the emb IS.
+
+    Collective on DM
+
+    Input Parameter:
+.   dm - the DM object
+
+    Output Parameter:
++   mat - the empty augmented constraint Jacobian
+.   vec - the empty augmented consraint vector
+-   emb - the embedding of the constraint degrees of freedom into the augmented system
+
+    Level: intermediate
+
+    Notes: This properly preallocates the number of nonzeros in the sparse matrix so you
+       do not need to do it yourself.
+
+       By default it also sets the nonzero structure and puts in the zero entries. To prevent setting
+       the nonzero pattern call DMSetMatrixPreallocateOnly().
+
+       Observe that even for structured problems the nature and the ordering of the constraint degrees
+       of freedom indexing the matrix rows can be rather complicated.
+
+
+.seealso DMDestroy(), DMView(), DMConstraintCreateMatrix(), DMConstraintCreateVector()
+
+@*/
+PetscErrorCode  DMConstraintCreateAugSystem(DM dm,Mat *mat, Vec *vec, IS *emb)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = MatInitializePackage();CHKERRQ(ierr);
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  PetscValidPointer(mat,2);
+  PetscValidPointer(vec,3);
+  PetscValidPointer(emb,4);
+  if (dm->ops->constraintcreateaugsystem) {
+    ierr = (*dm->ops->constraintcreateaugsystem)(dm,mat,vec,emb);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "DMSetMatrixPreallocateOnly"
 /*@
-  DMSetMatrixPreallocateOnly - When DMCreateMatrix() is called the matrix will be properly
-    preallocated but the nonzero structure and zero values will not be set.
+  DMSetMatrixPreallocateOnly - When DMCreateMatrix(), DMConstraintCreateMatrix() or DMConstraintCreateAugSystem()
+    is called the matrix will be properly preallocated but the nonzero structure and zero values will not be set.
 
   Logically Collective on DMDA
 
@@ -946,7 +1074,7 @@ PetscErrorCode  DMCreateMatrix(DM dm,Mat *mat)
 - only - PETSC_TRUE if only want preallocation
 
   Level: developer
-.seealso DMCreateMatrix()
+.seealso DMCreateMatrix(), DMConstraintCreateMatrix(), DMConstraintCreateAugSystem()
 @*/
 PetscErrorCode DMSetMatrixPreallocateOnly(DM dm, PetscBool only)
 {

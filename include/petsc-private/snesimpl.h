@@ -153,15 +153,28 @@ struct _p_SNES {
   PetscBool   usersetbounds;
   PetscInt    ntruebounds;      /* number of non-infinite bounds set on constraints */
 
-  DM          dm_constr;        /* constraint DM */
-  DM          dm_aug;           /* augmented DM incorporating information about constraints. This DM's type can be solver-type-specific. */
+  /* ------------------------ Constrained solver support ---------------------- */
+  /* constrainded solver support */
   Vec         vec_constr;       /* vector of constraints */
   Vec         vec_constrl;      /* lower bounds on the constraints */
   Vec         vec_constru;      /* upper bound on the constraints */
+  Vec         vec_func_aug;     /* augmented function containing function and constraints */
+  PetscReal   merit;            /* current state's value of the merit function that measures progress to convergence both of the residual and the feasibility */
   Mat         jacobian_constr;  /* matrix to store the constraint Jacobian */
   Mat         jacobian_constrt; /* matrix to store the transpose of the constraint Jacobian */
-  PetscReal   merit;            /* current state's value of the merit function that measures progress to convergence both of the residual and the feasibility */
-
+  Mat         jacobian_aug;     /* augmented Jacobian, logically [jacobian,jacobian_constrt;jacobian_constr,0] */
+  Mat         jacobian_aug_pre; /* preconditioning matrix for augmented Jacobian */
+  Mat         jacobian_aug_nest;/* a temporary MatNest holding an "unassembled" augmented Jacobian before it's converted to a monolithic jacobian_aug*/
+  IS          is_constr_aug;    /* embedding of the constraint degrees of freedom into the augmented problem */
+  IS          is_func_aug;      /* embedding of the constraint degrees of freedom into the augmented problem */
+  VecScatter  aug_to_func;      /* scatter from a function vector to an augmented vector */
+  VecScatter  aug_to_constr;    /* scatter from a constraint vector to an augmented vector */
+  /* ------------------------ Constraint work-area management ---------------------- */
+  Vec         *work_constr;
+  PetscInt    nwork_constr;
+  Vec         *work_aug;
+  PetscInt    nwork_aug;
+  /* FIXME: tear down constraint-related data structures in d'tor */
 };
 
 typedef struct _p_DMSNES *DMSNES;
@@ -176,11 +189,14 @@ struct _DMSNESOps {
   /* constraints/bounds */
   PetscErrorCode (*constraintfunction)(SNES,Vec,Vec,void*);
   PetscErrorCode (*constraintjacobian)(SNES,Vec,Mat,Mat,void*);
+  PetscErrorCode (*constraintaugfunction)(SNES,Vec,Vec,void*);
+  PetscErrorCode (*constraintaugjacobian)(SNES,Vec,Mat,Mat,void*);
   PetscErrorCode (*projectontoconstraints)(SNES,Vec,Vec,void*);
+  PetscErrorCode (*merit)(SNES,Vec,Vec,Vec,Vec,Mat,Mat,PetscReal*,void*);
+
 
   /* Specific to SNESNEWTONAS or SNESNEWTONAS_PRIMAL.  QUESTION: how do we accommodate impl-specific callbacks and contexts? Different DMSNES impls? */
   PetscErrorCode (*activeconstraintbasis)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*);
-  PetscErrorCode (*merit)(SNES,Vec,Vec,Vec,Vec,Mat,Mat,PetscReal*,void*);
 
   /* Picard iteration functions */
   PetscErrorCode (*computepfunction)(SNES,Vec,Vec,void*);
@@ -203,10 +219,15 @@ struct _p_DMSNES {
 
   void *constraintfunctionctx;
   void *constraintjacobianctx;
+  void *constraintaugctx;
   void *projectontoconstraintsctx;
   void *meritctx;
 
-  /* Specific to SNESNEWTONAS_PRIMAL.  QUESTION: how do we accommodate impl-specific callbacks and contexts? Different DMSNES impls? */
+  /* Specific to SNESNEWTONAS_XXX. */
+  /*
+       TODO: how do we accommodate impl-specific callbacks and contexts? Different DMSNES impls?
+       The data pointer already used by DMXXXSNES impls.
+  */
   void *activeconstraintbasisctx;
 
   void *data;
@@ -270,6 +291,19 @@ PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*SNESVIComputeVariableBoundsFunctio
 PETSC_INTERN PetscErrorCode SNESVISetComputeVariableBounds_VI(SNES,SNESVIComputeVariableBoundsFunction);
 PETSC_INTERN PetscErrorCode SNESVISetVariableBounds_VI(SNES,Vec,Vec);
 PETSC_INTERN PetscErrorCode SNESConvergedDefault_VI(SNES,PetscInt,PetscReal,PetscReal,PetscReal,SNESConvergedReason*,void*);
+
+/* Constraint support: private methods */
+PETSC_INTERN PetscErrorCode SNESConstraintHaveConstraints(SNES,PetscBool*);
+PETSC_INTERN PetscErrorCode SNESConstraintSetUpConstraintVectors(SNES,PetscInt);
+PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugVectors(SNES,PetscInt);
+PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugEmbedding(SNES,PetscBool,PetscBool);
+PETSC_INTERN PetscErrorCode SNESConstraintSetUpConstraintMatrices(SNES);
+PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugMatrices(SNES);
+
+PETSC_INTERN PetscErrorCode SNESConstraintComputeFunctions(SNES,Vec,Vec,Vec,Vec);
+PETSC_INTERN PetscErrorCode SNESConstraintComputeJacobians(SNES,Vec,Mat,Mat,Mat);
+PETSC_INTERN PetscErrorCode SNESConstraintAugScatter(SNES,Vec,Vec,Vec);
+PETSC_INTERN PetscErrorCode SNESConstraintAugGather(SNES,Vec,Vec,Vec);
 
 PetscErrorCode SNESScaleStep_Private(SNES,Vec,PetscReal*,PetscReal*,PetscReal*,PetscReal*);
 

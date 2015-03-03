@@ -135,6 +135,12 @@ PETSC_EXTERN PetscErrorCode DMGetRefineLevel(DM,PetscInt*);
 PETSC_EXTERN PetscErrorCode DMGetCoarsenLevel(DM,PetscInt*);
 PETSC_EXTERN PetscErrorCode DMFinalizePackage(void);
 
+/* constraint support */
+PETSC_EXTERN PetscErrorCode DMConstraintCreateVector(DM,Vec*);
+PETSC_EXTERN PetscErrorCode DMConstraintCreateMatrix(DM,Mat*);
+PETSC_EXTERN PetscErrorCode DMConstraintCreateAugSystem(DM,Mat*,Vec*,IS*);
+
+
 PETSC_EXTERN PetscErrorCode VecGetDM(Vec, DM*);
 PETSC_EXTERN PetscErrorCode VecSetDM(Vec, DM);
 PETSC_EXTERN PetscErrorCode MatGetDM(Mat, DM*);

@@ -46,7 +46,7 @@ PetscErrorCode  PetscObjectSetOptionsPrefix(PetscObject obj,const char prefix[])
 
    Input Parameters:
 .  obj - any PETSc object, for example a Vec, Mat or KSP.
-.  prefix - the prefix string to prepend to option requests of the object.
+.  prefix - the prefix string to append to option requests of the object.
 
    Notes:
    A hyphen (-) must NOT be given at the beginning of the prefix name.

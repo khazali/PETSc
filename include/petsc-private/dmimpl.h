@@ -51,6 +51,10 @@ struct _DMOps {
 
   PetscErrorCode (*getdimpoints)(DM,PetscInt,PetscInt*,PetscInt*);
   PetscErrorCode (*locatepoints)(DM,Vec,IS*);
+
+  PetscErrorCode (*constraintcreatematrix)(DM,Mat*);
+  PetscErrorCode (*constraintcreatevector)(DM,Vec*);
+  PetscErrorCode (*constraintcreateaugsystem)(DM,Mat*,Vec*,IS*);
 };
 
 typedef struct _DMCoarsenHookLink *DMCoarsenHookLink;
