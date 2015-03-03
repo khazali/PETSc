@@ -6,6 +6,9 @@
 
 */
 #include <petsc-private/logimpl.h>  /*I    "petscsys.h"   I*/
+#if defined(PETSC_HAVE_SAWS)
+#include <petscviewersaws.h>
+#endif
 
 /*----------------------------------------------- Creation Functions -------------------------------------------------*/
 /* Note: these functions do not have prototypes in a public directory, so they are considered "internal" and not exported. */
@@ -33,7 +36,7 @@ PetscErrorCode EventRegLogCreate(PetscEventRegLog *eventLog)
   PetscFunctionBegin;
   ierr         = PetscNew(&l);CHKERRQ(ierr);
   l->numEvents = 0;
-  l->maxEvents = 100;
+  l->maxEvents = 250;
   ierr         = PetscMalloc1(l->maxEvents, &l->eventInfo);CHKERRQ(ierr);
   *eventLog    = l;
   PetscFunctionReturn(0);
@@ -61,6 +64,9 @@ PetscErrorCode EventRegLogDestroy(PetscEventRegLog eventLog)
 
   PetscFunctionBegin;
   for (e = 0; e < eventLog->numEvents; e++) {
+#if defined(PETSC_HAVE_SAWS)
+    SAWs_Delete("/PETSc/Profile/Events");
+#endif
     ierr = PetscFree(eventLog->eventInfo[e].name);CHKERRQ(ierr);
   }
   ierr = PetscFree(eventLog->eventInfo);CHKERRQ(ierr);
@@ -307,6 +313,9 @@ PetscErrorCode EventRegLogRegister(PetscEventRegLog eventLog, const char ename[]
   /* Should check classid I think */
   e = eventLog->numEvents++;
   if (eventLog->numEvents > eventLog->maxEvents) {
+#if defined(PETSC_HAVE_SAWS)
+    SAWs_Delete("/PETSc/Profile/Events");
+#endif
     ierr = PetscMalloc1(eventLog->maxEvents*2, &eventInfo);CHKERRQ(ierr);
     ierr = PetscMemcpy(eventInfo, eventLog->eventInfo, eventLog->maxEvents * sizeof(PetscEventRegInfo));CHKERRQ(ierr);
     ierr = PetscFree(eventLog->eventInfo);CHKERRQ(ierr);
@@ -317,6 +326,13 @@ PetscErrorCode EventRegLogRegister(PetscEventRegLog eventLog, const char ename[]
   ierr = PetscStrallocpy(ename, &str);CHKERRQ(ierr);
 
   eventLog->eventInfo[e].name    = str;
+#if defined(PETSC_HAVE_SAWS)
+  {
+  char dir[1024];
+  ierr = PetscSNPrintf(dir,1024,"/PETSc/Profile/Events/%d",e);CHKERRQ(ierr);
+  PetscStackCallSAWs(SAWs_Register,(dir,&eventLog->eventInfo[e].name,1,SAWs_READ,SAWs_STRING));
+  }
+#endif
   eventLog->eventInfo[e].classid = classid;
 #if defined(PETSC_HAVE_MPE)
   if (PetscLogPLB == PetscLogEventBeginMPE) {
