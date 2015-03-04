@@ -354,18 +354,19 @@ PETSC_EXTERN PetscErrorCode SNESSetObjective(SNES,PetscErrorCode (*)(SNES,Vec,Pe
 PETSC_EXTERN PetscErrorCode SNESGetObjective(SNES,PetscErrorCode (**)(SNES,Vec,PetscReal *,void*),void**);
 PETSC_EXTERN PetscErrorCode SNESComputeObjective(SNES,Vec,PetscReal *);
 
-PETSC_EXTERN PetscErrorCode SNESSetConstraintFunction(SNES,Vec,Vec,Vec,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
-PETSC_EXTERN PetscErrorCode SNESGetConstraintFunction(SNES,Vec*,Vec*,Vec*,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
 
-PETSC_EXTERN PetscErrorCode SNESSetConstraintJacobian(SNES,Mat,Mat,PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*),void*);
-PETSC_EXTERN PetscErrorCode SNESGetConstraintJacobian(SNES,Mat*,Mat*,PetscErrorCode (**)(SNES,Vec,Mat,Mat,void*),void**);
+PETSC_EXTERN PetscErrorCode SNESConstraintSetFunction(SNES,Vec,Vec,Vec,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode SNESConstraintGetFunction(SNES,Vec*,Vec*,Vec*,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
+PETSC_EXTERN PetscErrorCode SNESConstraintHaveConstraints(SNES,PetscBool*);
+
+PETSC_EXTERN PetscErrorCode SNESConstraintSetJacobian(SNES,Mat,Mat,PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*),void*);
+PETSC_EXTERN PetscErrorCode SNESConstraintGetJacobian(SNES,Mat*,Mat*,PetscErrorCode (**)(SNES,Vec,Mat,Mat,void*),void**);
 PETSC_EXTERN PetscErrorCode SNESConstraintSetAugFunctionJacobian(SNES,Vec,Mat,Mat,IS,PetscErrorCode(*)(SNES,Vec,Vec,void*),PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*),void*);
 PETSC_EXTERN PetscErrorCode SNESConstraintGetAugFunctionJacobian(SNES,Vec*,Mat*,Mat*,IS*,PetscErrorCode(**)(SNES,Vec,Vec,void*),PetscErrorCode (**)(SNES,Vec,Mat,Mat,void*),void**);
 
-
-PETSC_EXTERN PetscErrorCode SNESSetProjectOntoConstraints(SNES,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
-PETSC_EXTERN PetscErrorCode SNESGetProjectOntoConstraints(SNES,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
-PETSC_EXTERN PetscErrorCode SNESProjectOntoConstraints(SNES,Vec,Vec);
+PETSC_EXTERN PetscErrorCode SNESConstraintSetProjectOntoConstraints(SNES,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode SNESConstraintGetProjectOntoConstraints(SNES,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
+PETSC_EXTERN PetscErrorCode SNESConstraintProjectOntoConstraints(SNES,Vec,Vec);
 
 PETSC_EXTERN PetscErrorCode SNESNEWTONASSetType(SNES,SNESNEWTONASType);
 PETSC_EXTERN PetscErrorCode SNESNEWTONASGetType(SNES,SNESNEWTONASType*);
@@ -668,14 +669,14 @@ PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*DMDASNESFunction)(DMDALocalInfo*,v
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*DMDASNESJacobian)(DMDALocalInfo*,void*,Mat,Mat,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*DMDASNESObjective)(DMDALocalInfo*,void*,PetscReal*,void*);
 
-PETSC_EXTERN PetscErrorCode DMSNESSetConstraintFunction(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
-PETSC_EXTERN PetscErrorCode DMSNESGetConstraintFunction(DM,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
-PETSC_EXTERN PetscErrorCode DMSNESSetConstraintJacobian(DM,PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*),void*);
-PETSC_EXTERN PetscErrorCode DMSNESGetConstraintJacobian(DM,PetscErrorCode (**)(SNES,Vec,Mat,Mat,void*),void**);
-PETSC_EXTERN PetscErrorCode DMSNESSetProjectOntoConstraints(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
-PETSC_EXTERN PetscErrorCode DMSNESGetProjectOntoConstraints(DM,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
-PETSC_EXTERN PetscErrorCode DMSNESConstraintSetAugFunctionJacobian(DM,PetscErrorCode (*)(SNES,Vec,Mat,Vec,void*),PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*),void**);
-
+PETSC_EXTERN PetscErrorCode DMSNESConstraintSetFunction(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESConstraintGetFunction(DM,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
+PETSC_EXTERN PetscErrorCode DMSNESConstraintSetJacobian(DM,PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESConstraintGetJacobian(DM,PetscErrorCode (**)(SNES,Vec,Mat,Mat,void*),void**);
+PETSC_EXTERN PetscErrorCode DMSNESConstraintSetProjectOntoConstraints(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESConstraintGetProjectOntoConstraints(DM,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
+PETSC_EXTERN PetscErrorCode DMSNESConstraintSetAugFunctionJacobian(DM,PetscErrorCode (*)(SNES,Vec,Vec,void*),PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESConstraintGetAugFunctionJacobian(DM,PetscErrorCode (**)(SNES,Vec,Vec,void*),PetscErrorCode (**)(SNES,Vec,Mat,Mat,void*),void**);
 
 PETSC_EXTERN PetscErrorCode DMSNESNEWTONASSetActiveConstraintBasis(DM,PetscErrorCode (*)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSNESNEWTONASGetActiveConstraintBasis(DM,PetscErrorCode (**)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void**);

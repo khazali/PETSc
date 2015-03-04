@@ -131,6 +131,8 @@ struct _p_DM {
   DMRefineHookLink        refinehook;
   DMSubDomainHookLink     subdomainhook;
   DMGlobalToLocalHookLink gtolhook;
+  /* Constraints */
+  MatType                 mattype_constr,mattype_aug;
   /* Topology */
   PetscInt                dim;                  /* The topological dimension */
   /* Flexible communication */

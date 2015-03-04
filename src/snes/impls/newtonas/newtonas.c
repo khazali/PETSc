@@ -8,21 +8,21 @@
 #define SNES_NEWTONAS_WORK_N 3
 /*
    Uses of snes->work:
-   snes->work[0:3] - SNESNEWTONASMeritFunction(): x,f,B^T*l
+   snes->work[0:2]   - SNESNEWTONASMeritFunction(): x,f,B^T*l
    snes->work[0]   - SNESNEWTONASComputeSearchDirectionSaddleFull_Private(): g=B^T*l
  */
 
 #define SNES_NEWTONAS_WORK_CONSTR_N 1
 /*
-   Uses of newtas->work_constr:
-   newtas->work_constr[0] - SNESNEWTONASMeritFunction(): l
+   Uses of snes->work_constr:
+   snes->work_constr[0] - SNESNEWTONASMeritFunction(): l
  */
 
 #define SNES_NEWTONAS_WORK_AUG_N 3
 /*
-   Uses of newtas->work_aug:
-   newtas->work_aug[0:2] -  SNESSolve_NEWTONAS: x_aug,dx_aug,f_aug
-   newtas->work_aug[0:1] -  SNESNEWTONASComputeSearchDirectionSaddleFull_Private: dx_aug,f_aug.
+   Uses of snes->work_aug:
+   snes->work_aug[0:2] -  SNESSolve_NEWTONAS: x_aug,dx_aug,f_aug
+   snes->work_aug[0:1] -  SNESNEWTONASComputeSearchDirectionSaddleFull_Private: dx_aug,f_aug.
  */
 
 #undef __FUNCT__
@@ -52,11 +52,10 @@ PetscErrorCode  SNESNEWTONASMonitorDefault(SNES snes,PetscInt its,PetscReal fnor
 {
   PetscErrorCode ierr;
   PetscViewer    viewer = view ? (PetscViewer) view : PETSC_VIEWER_STDOUT_(PetscObjectComm((PetscObject)snes));
-  SNES_NEWTONAS  *newtas = (SNES_NEWTONAS*)snes->data;
 
   PetscFunctionBegin;
   ierr = PetscViewerASCIIAddTab(viewer,((PetscObject)snes)->tablevel);CHKERRQ(ierr);
-  ierr = PetscViewerASCIIPrintf(viewer,"%3D SNESNEWTONAS merit function %14.12e \n",its,(double)newtas->merit);CHKERRQ(ierr);
+  ierr = PetscViewerASCIIPrintf(viewer,"%3D SNESNEWTONAS merit function %14.12e \n",its,(double)snes->merit);CHKERRQ(ierr);
   ierr = PetscViewerASCIISubtractTab(viewer,((PetscObject)snes)->tablevel);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -79,7 +78,7 @@ static PetscErrorCode SNESNEWTONASInitialActiveSet_Private(SNES snes,IS *active)
   /* Assume that f(x) and g(x) have already been computed */
   /* A = \{i : (g_i(x) <= g_i^l+epsilon & \lambda_i > 0) | (g_i(x) >= g_i^u-epsilon & \lambda_i < 0)\} -- strongly active set. */
   *active = NULL;
-  ierr = SNESGetConstraintFunction(snes,&g,&gl,&gu,NULL,NULL);CHKERRQ(ierr);
+  ierr = SNESConstraintGetFunction(snes,&g,&gl,&gu,NULL,NULL);CHKERRQ(ierr);
   ierr = VecGetOwnershipRange(l,&glo,&ghi);CHKERRQ(ierr);
 
   ierr = VecGetArrayRead(gl,&la);CHKERRQ(ierr);
@@ -114,7 +113,7 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
   SNES_NEWTONAS     *newtas  = (SNES_NEWTONAS*)snes->data;
   Vec               dx=snes->vec_sol_update,dl=newtas->vec_sol_lambda_update;
   Vec               gl=snes->vec_constrl, gu=snes->vec_constru;
-  Vec               bx = newtas->work_constr[0];
+  Vec               bx = snes->work_constr[0];
   PetscInt          i,lo,hi;
   const PetscScalar *gl_v,*gu_v,*g_v,*l_v,*dl_v,*bx_v;
   PetscReal         tlimit,tilimit,bdxi,umgi,lmgi,ldli;
@@ -180,13 +179,13 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
   *new_active = NULL;
   *tbar = 0.0;
 
-  ierr = SNESGetConstraintFunction(snes,NULL,&gl,&gu,NULL,NULL);CHKERRQ(ierr);
+  ierr = SNESConstraintGetFunction(snes,NULL,&gl,&gu,NULL,NULL);CHKERRQ(ierr);
   ierr = MatMult(snes->jacobian_constrt,dx,bx);CHKERRQ(ierr);
   ierr = VecGetOwnershipRange(dl,&lo,&hi);CHKERRQ(ierr);
   ierr = VecGetArrayRead(gl,&gl_v);CHKERRQ(ierr);
   ierr = VecGetArrayRead(gu,&gu_v);CHKERRQ(ierr);
   ierr = VecGetArrayRead(snes->vec_constr,&g_v);CHKERRQ(ierr);
-  ierr = VecGetArrayRead(newtas->vec_lambda,&l_v);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(newtas->vec_sol_lambda,&l_v);CHKERRQ(ierr);
   ierr = VecGetArrayRead(dl,&dl_v);CHKERRQ(ierr);
   ierr = VecGetArrayRead(bx,&bx_v);CHKERRQ(ierr);
   tlimit = PETSC_INFINITY;
@@ -215,7 +214,7 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
   ierr = VecRestoreArrayRead(gl,&gl_v);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(gu,&gu_v);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(snes->vec_constr,&g_v);CHKERRQ(ierr);
-  ierr = VecRestoreArrayRead(newtas->vec_lambda,&l_v);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(newtas->vec_sol_lambda,&l_v);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(dl,&dl_v);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(bx,&bx_v);CHKERRQ(ierr);
 
@@ -235,11 +234,10 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
 /* QUESTION: static of PETSC_INTERNAL? */
 static PetscErrorCode SNESNEWTONASMeritFunction(SNES snes, Vec X, PetscReal *f)
 {
-  SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)snes->data;
   Vec                workx   = snes->work[0];
   Vec                workf   = snes->work[1];
   Vec                workBtl = snes->work[2];
-  Vec                workl   = newtas->work_constr[0];
+  Vec                workl   = snes->work_constr[0];
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
@@ -265,12 +263,11 @@ static PetscErrorCode SNESNEWTONASMeritFunction(SNES snes, Vec X, PetscReal *f)
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESNEWTONASComputeSearchDirectionSaddleFull_Private"
-static PetscErrorCode SNESNEWTONASComputeSearchDirectionSaddleFull_Private(SNES snes,Vec x,Vec l,Vec dx,Vec dl,PetscInt *lits)
+static PetscErrorCode SNESNEWTONASComputeSearchDirectionSaddleFull_Private(SNES snes,PetscInt *lits)
 {
   PetscErrorCode     ierr;
   SNES_NEWTONAS      *newtas = (SNES_NEWTONAS*)(snes->data);
-  Mat                Bt,submats[4]={snes->jacobian,NULL,snes->jacobian_constr,NULL};
-  Vec                dx_aug=newtas->work_aug[0],f_aug=newtas->work_aug[1],g=snes->work[0];
+  Vec                l=newtas->vec_sol_lambda,dx_aug=snes->work_aug[0],f_aug=snes->work_aug[1],g=snes->work[1],f=snes->vec_func;
   KSPConvergedReason kspreason;
 
   PetscFunctionBegin;
@@ -296,7 +293,7 @@ static PetscErrorCode SNESNEWTONASComputeSearchDirectionSaddleFull_Private(SNES 
   ierr = VecScale(g,-1.0);CHKERRQ(ierr);
   ierr = SNESConstraintAugGather(snes,f_aug,g,NULL);CHKERRQ(ierr);
   ierr = KSPSolve(newtas->ksp_aug,f_aug,dx_aug);CHKERRQ(ierr);
-  ierr = SNESConstraintAugScatter(snes,dx_aug,dx,dl);CHKERRQ(ierr);
+  ierr = SNESConstraintAugScatter(snes,dx_aug,snes->vec_sol_update,newtas->vec_sol_lambda_update);CHKERRQ(ierr);
   ierr = KSPGetConvergedReason(newtas->ksp_aug,&kspreason);CHKERRQ(ierr);
   if (kspreason < 0) {
     if (++snes->numLinearSolveFailures >= snes->maxLinearSolveFailures) {
@@ -309,7 +306,7 @@ static PetscErrorCode SNESNEWTONASComputeSearchDirectionSaddleFull_Private(SNES 
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESNEWTONASComputeSearchDirectionPrimal_Private"
-static PetscErrorCode SNESNEWTONASComputeSearchDirectionPrimal_Private(SNES snes,Vec x,Vec l,IS active,Vec dx,Vec dl,PetscInt *lits)
+PETSC_INTERN PetscErrorCode SNESNEWTONASComputeSearchDirectionPrimal_Private(SNES snes,Vec x,Vec l,IS active,Vec dx,Vec dl,PetscInt *lits)
 {
   /* Observe that only a subvector of dl defined by the active set is nonzero. */
   /* PetscErrorCode     ierr; */
@@ -414,12 +411,11 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
   Vec                 x,dx,f,l,dl,x_aug,dx_aug,f_aug;
   DM                  dm;
   DMSNES              dmsnes;
-  PetscInt            i,lits;
+  PetscInt            i,lits,nactive;
+  const PetscInt      *iactive;
   PetscReal           fnorm,xnorm,dxnorm,hnorm;
-  PetscReal           merit;
-  PetscBool           lssucceed;
-  PetscBool           domainerror;
-  PetscReal           tbar;
+  PetscReal           merit,*larray,tbar;
+  PetscBool           lssucceed,domainerror;
   SNESLineSearch      linesearch=snes->linesearch;
   IS                  active,new_active;
 
@@ -433,9 +429,9 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
   dx     = snes->vec_sol_update;            /* newton step */
   l      = newtas->vec_sol_lambda;          /* \lambda */
   dl     = newtas->vec_sol_lambda_update;   /* \delta \lambda */
-  x_aug  = newtas->work_aug[0];             /* augmented solution vector */
-  f_aug  = newtas->work_aug[1];             /* augmented residual vector */
-  dx_aug = newtas->work_aug[2];             /* augmented update vector */
+  f_aug  = snes->vec_func_aug;              /* augmented residual vector */
+  x_aug  = snes->work_aug[0];               /* augmented solution vector */
+  dx_aug = snes->work_aug[1];               /* augmented update vector */
 
 
   ierr            = PetscObjectSAWsTakeAccess((PetscObject)snes);CHKERRQ(ierr);
@@ -484,12 +480,14 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
   } else snes->vec_func_init_set = PETSC_FALSE;
   */
 
+  ierr          = SNESConstraintComputeFunctions(snes,x,snes->vec_func,snes->vec_constr,snes->vec_func_aug);CHKERRQ(ierr);
+  ierr          = VecZeroEntries(l);CHKERRQ(ierr);
   ierr          = SNESConstraintAugGather(snes,x_aug,x,l);CHKERRQ(ierr);
   ierr          = SNESNEWTONASMeritFunction(snes,x_aug,&merit);CHKERRQ(ierr);
   ierr          = VecNorm(f,NORM_2,&fnorm);CHKERRQ(ierr);
   ierr          = PetscObjectSAWsTakeAccess((PetscObject)snes);CHKERRQ(ierr);
   snes->norm    = fnorm;
-  newtas->merit = merit;
+  snes->merit   = merit;
   ierr          = PetscObjectSAWsGrantAccess((PetscObject)snes);CHKERRQ(ierr);
   /* TODO: should we log merit instead?  In addition? Is SNESLogConvergenceHistory() sensitive to the meaning of that argument? */
   ierr          = SNESLogConvergenceHistory(snes,merit,0);CHKERRQ(ierr);
@@ -510,7 +508,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
        TODO: nonlinear RIGHT PC application would go here.
     */
 
-
+    ierr = SNESConstraintComputeJacobians(snes,x,MAT_INITIAL_MATRIX,snes->jacobian,snes->jacobian_pre,snes->jacobian_constr,snes->jacobian_constrt,snes->jacobian_aug,snes->jacobian_aug_pre);CHKERRQ(ierr);
     new_active = NULL;
     ierr = SNESNEWTONASInitialActiveSet_Private(snes,&active);CHKERRQ(ierr);
     do {
@@ -520,8 +518,12 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
       }
       switch (newtas->type) {
       case SNESNEWTONAS_SADDLE_FULL:
-	/* Need to shove x,l into vec_sol, dx, dl into vec_sol_update. */
-	ierr = SNESNEWTONASComputeSearchDirectionSaddleFull_Private(snes,x,l,active,dx,dl,&lits);CHKERRQ(ierr);
+	ierr = ISGetLocalSize(active,&nactive);CHKERRQ(ierr);
+	ierr = ISGetIndices(active,&iactive);CHKERRQ(ierr);
+	ierr = VecGetArray(l,&larray);CHKERRQ(ierr);
+	for (i = 0; i < nactive;++i) larray[iactive[i]] = 0.0;
+	ierr = VecRestoreArray(l,&larray);CHKERRQ(ierr);
+	ierr = SNESNEWTONASComputeSearchDirectionSaddleFull_Private(snes,&lits);CHKERRQ(ierr);
 	break;
       default:
 	SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"SNESNEWTONAS solver type not yet supported: %s",newtas->type);
@@ -569,7 +571,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
         PetscFunctionReturn(0);
       }
       if (++snes->numFailures >= snes->maxFailures) {
-        PetscBool ismin=PETSC_FALSE;
+        /* PetscBool ismin=PETSC_FALSE; */
         snes->reason = SNES_DIVERGED_LINE_SEARCH;
         /*
 	   TODO: replace this with a NEWTONAS-specific check?
@@ -601,7 +603,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
       HACK:  Currently we substitute the merit function for the norm of the residual. We need to incorporate the merit function
              into the convergence test in a BACKWARD-compatible way.
     */
-    ierr = (*snes->ops->converged)(snes,snes->iter,xnorm,dxnorm,newtas->merit,&snes->reason,snes->cnvP);CHKERRQ(ierr);
+    ierr = (*snes->ops->converged)(snes,snes->iter,xnorm,dxnorm,snes->merit,&snes->reason,snes->cnvP);CHKERRQ(ierr);
     if (snes->reason) break;
   }
   if (i == snes->max_its) {
@@ -677,42 +679,6 @@ PetscErrorCode SNESNEWTONASGetType(SNES snes,SNESNEWTONASType *type)
   PetscFunctionReturn(0);
 }
 
-#undef  __FUNCT__
-#define __FUNCT__ "SNESNEWTONASSetAugJacobian"
-/*@C
-  SNESNEWTONASSetAugJacobian - sets the function that computes the full augmented saddle-point
-  Jacobian for the active-set Newton linesearch method solving the nonlinear inequality-constrained
-  (variational inequality) problem.
-
-  Logically collective on SNES.
-
-  Input Parameters:
-+ snes      - the SNES context
-. J_aug     - matrix of the augmented saddle-point linear system that includes all of the problem's constraints
-. J_aug_pre - matrix that the preconditioner for J_aug_pre is to be built from
-. jac       - function computing J_aug and J_aug_pre
-- ctx       - jac's context
-
-  Level: intermediate
-
-  Options Database Keys: -snes_newtonas_aug_jacobian type
-
-.keywords: SNES constraints, saddle-point
-
-.seealso: SNESSetType(), SNESNEWTONASGetType()
-@*/
-PetscErrorCode SNESNEWTONASSetType(SNES snes,SNESNEWTONASType type)
-{
-  /*PetscErrorCode    ierr; */
-  SNES_NEWTONAS     *newtas = (SNES_NEWTONAS*) snes->data;
-
-  PetscFunctionBegin;
-  newtas->type = type;
-  snes->ops->solve = SNESSolve_NEWTONAS;
-
-  PetscFunctionReturn(0);
-}
-
 #undef __FUNCT__
 #define __FUNCT__ "SNESActiveConstraints_Default"
 PETSC_INTERN PetscErrorCode SNESActiveConstraints_Default(SNES snes,Vec x,IS *active,IS *basis,void *ctx)
@@ -753,6 +719,8 @@ PETSC_INTERN PetscErrorCode SNESSetFromOptions_NEWTONAS(SNES snes)
 PETSC_INTERN PetscErrorCode SNESReset_NEWTONAS(SNES snes)
 {
   /* TODO */
+  PetscFunctionBegin;
+  PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
@@ -767,27 +735,15 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
   if (!newtas->type) {
     ierr = SNESNEWTONASSetType(snes,SNESNEWTONAS_SADDLE_FULL);CHKERRQ(ierr);
   }
-  /* TODO: prepend prefixes to vectors to control their options from the command line? */
-  /* Set up constraint and bound vectors, if not provided. */
-  if (!snes->vec_constr) {
-    if (snes->dm_constr) {
-      ierr = DMCreateGlobalVector(snes->dm_constr,&snes->vec_constr);CHKERRQ(ierr);
-    } else SETERRQ(PetscObjectComm((PetscObject)snes),PETSC_ERR_ARG_WRONGSTATE,"No constraint vector.  Call SNESSetConstraintFunction().");
-  }
+  ierr = SNESSetWorkVecs(snes,SNES_NEWTONAS_WORK_N);CHKERRQ(ierr);
+  ierr = SNESConstraintSetUpConstraintVectors(snes,SNES_NEWTONAS_WORK_CONSTR_N);CHKERRQ(ierr);
+  ierr = SNESConstraintSetUpAugVectors(snes,SNES_NEWTONAS_WORK_AUG_N);CHKERRQ(ierr);
+  ierr = SNESConstraintSetUpConstraintMatrices(snes,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = SNESConstraintSetUpAugMatrices(snes);CHKERRQ(ierr);
+
   /* FIXME: Set up bound vectors, if not provided (-Inf/Inf). */
   ierr = VecDuplicate(snes->vec_constr,&newtas->vec_sol_lambda);CHKERRQ(ierr);
   ierr = VecDuplicate(snes->vec_constr,&newtas->vec_sol_lambda_update);CHKERRQ(ierr);
-
-
-  /* Set up work vectors: primal, constraint and augmented. */
-  /*
-    QUESTION: Do we need to go through the public API to set private data structures?
-    The rationale given in the docs is that this gives control to plugins, but wouldn't
-    they have to go into the SNES data structures to make use of the work vecs?
-    Related: why not let the impl allocated and clean up its own work vecs?
-  */
-  ierr = SNESSetWorkVecs(snes,SNES_NEWTONAS_WORK_N);CHKERRQ(ierr);
-  ierr = VecDuplicateVecs(snes->vec_constr,SNES_NEWTONAS_WORK_CONSTR_N,&newtas->work_constr);CHKERRQ(ierr);
 
 
   ierr = SNESGetLineSearch(snes,&linesearch);CHKERRQ(ierr);
@@ -811,14 +767,7 @@ PETSC_INTERN PetscErrorCode SNESDestroy_NEWTONAS(SNES snes)
   ierr = VecDestroy(&newtas->vec_sol_lambda);CHKERRQ(ierr);
   ierr = VecDestroy(&newtas->vec_sol_lambda_update);CHKERRQ(ierr);
 
-  ierr = VecDestroyVecs(SNES_NEWTONAS_WORK_CONSTR_N,&newtas->work_constr);CHKERRQ(ierr);
-  ierr = VecDestroyVecs(SNES_NEWTONAS_WORK_AUG_N,&newtas->work_aug);CHKERRQ(ierr);
-
-  ierr = VecScatterDestroy(&newtas->aug_to_x);CHKERRQ(ierr);
-  ierr = VecScatterDestroy(&newtas->aug_to_lambda);CHKERRQ(ierr);
-
   ierr = KSPDestroy(&newtas->ksp_aug);CHKERRQ(ierr);
-  /* FIXME: clean up jacobians. */
 
   PetscFunctionReturn(0);
 }
@@ -840,8 +789,8 @@ PETSC_INTERN PetscErrorCode SNESDestroy_NEWTONAS(SNES snes)
      Applications, Optimization Methods and Software, 21 (2006).
 
 .seealso:  SNES, SNESCreate(), SNESSetType(), SNESLineSearchSet(),
-           SNESSetFunction(), SNESSetJacobian(), SNESSetConstraintFunction(), SNESSetConstraintJacobian(),
-           SNESSetActiveConstraints(), SNESSetProjectOntoConstraints(), SNESSetDistanceToConstraints(),
+           SNESSetFunction(), SNESSetJacobian(), SNESConstraintSetFunction(), SNESConstraintSetJacobian(),
+           SNESSetActiveConstraints(), SNESConstraintSetProjectOntoConstraints(), SNESSetDistanceToConstraints(),
            SNESNEWTONASSetType()
 
 M*/
@@ -899,7 +848,7 @@ const char *const SNESNEWTONASTypes[] = {"PRIMAL","SADDLE","DUAL","SNESNEWTONAST
 
    Level: intermediate
 
-.seealso:   SNESNEWTONASSetAcitveConstraintBasis(), SNESNEWTONASSetActiveConstraints(), SNESSetConstraintFunction(), SNESSetConstraintJacobian(), SNESConstraintFunction, SNESConstraintJacobian
+.seealso:   SNESNEWTONASSetAcitveConstraintBasis(), SNESNEWTONASSetActiveConstraints(), SNESConstraintSetFunction(), SNESConstraintSetJacobian(), SNESConstraintFunction, SNESConstraintJacobian
 
  M*/
 
@@ -922,7 +871,7 @@ const char *const SNESNEWTONASTypes[] = {"PRIMAL","SADDLE","DUAL","SNESNEWTONAST
 
 .keywords: SNES, nonlinear, set, active, constraint, function
 
-.seealso: SNESNEWTONASGetActiveConstraintBasiss(), SNESSetConstraintFunction(), SNESNEWTONASActiveConstraintBasis
+.seealso: SNESNEWTONASGetActiveConstraintBasiss(), SNESConstraintSetFunction(), SNESNEWTONASActiveConstraintBasis
 @*/
 PetscErrorCode  SNESNEWTONASSetActiveConstraintBasis(SNES snes,Mat Bb_pre, Mat Bbt_pre,PetscErrorCode (*f)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void *ctx)
 {

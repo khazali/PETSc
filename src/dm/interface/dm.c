@@ -565,14 +565,17 @@ PetscErrorCode  DMSetUp(DM dm)
 .   dm - the DM object to set options for
 
     Options Database:
-+   -dm_preallocate_only: Only preallocate the matrix for DMCreateMatrix(), but do not fill it with zeros
-.   -dm_vec_type <type>  type of vector to create inside DM
-.   -dm_mat_type <type>  type of matrix to create inside DM
++   -dm_preallocate_only               - only preallocate the matrix for DMCreateMatrix(), DMConstraintCreateMatrix() or DMConstraintCreateAugMatrix() but do not fill it with zeros
+.   -dm_vec_type <type>                - type of vector to create inside DM
+.   -dm_mat_type <type>                - type of matrix to create inside DM
+.   -dm_constraint_mat_type <type>     - type to use for the constraint Jacobian
+.   -dm_constraint_aug_mat_type <type> - type to use for the augmented Jacobian (default: MATNEST)
+
 -   -dm_coloring_type <global or ghosted>
 
     Level: developer
 
-.seealso DMView(), DMCreateGlobalVector(), DMCreateInterpolation(), DMCreateColoring(), DMCreateMatrix()
+.seealso DMView(), DMCreateGlobalVector(), DMCreateInterpolation(), DMCreateColoring(), DMCreateMatrix(), DMConstraintCreateMatrix(), DMConstraintCreateAugMatrix()
 
 @*/
 PetscErrorCode  DMSetFromOptions(DM dm)
@@ -592,6 +595,14 @@ PetscErrorCode  DMSetFromOptions(DM dm)
   ierr = PetscOptionsFList("-dm_mat_type","Matrix type used for created matrices","DMSetMatType",MatList,dm->mattype ? dm->mattype : typeName,typeName,sizeof(typeName),&flg);CHKERRQ(ierr);
   if (flg) {
     ierr = DMSetMatType(dm,typeName);CHKERRQ(ierr);
+  }
+  ierr = PetscOptionsFList("-dm_constraint_mat_type","Matrix type used for created constraint matrices","DMConstraintSetMatType",MatList,dm->mattype_constr ? dm->mattype_constr : typeName,typeName,sizeof(typeName),&flg);CHKERRQ(ierr);
+  if (flg) {
+    ierr = DMConstraintSetMatType(dm,typeName);CHKERRQ(ierr);
+  }
+  ierr = PetscOptionsFList("-dm_constraint_aug_mat_type","Matrix type used for created augmented matrices","DMConstraintSetAugMatType",MatList,dm->mattype_aug ? dm->mattype_aug : typeName,typeName,sizeof(typeName),&flg);CHKERRQ(ierr);
+  if (flg) {
+    ierr = DMConstraintSetAugMatType(dm,typeName);CHKERRQ(ierr);
   }
   ierr = PetscOptionsEnum("-dm_is_coloring_type","Global or local coloring of Jacobian","ISColoringType",ISColoringTypes,(PetscEnum)dm->coloringtype,(PetscEnum*)&dm->coloringtype,NULL);CHKERRQ(ierr);
   if (dm->ops->setfromoptions) {
@@ -1058,6 +1069,100 @@ PetscErrorCode  DMConstraintCreateAugSystem(DM dm,Mat *mat, Vec *vec, IS *emb)
   if (dm->ops->constraintcreateaugsystem) {
     ierr = (*dm->ops->constraintcreateaugsystem)(dm,mat,vec,emb);CHKERRQ(ierr);
   }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMConstraintSetMatType"
+/*@
+  DMConstraintSetMatType - set matrix type to use with DMConstraintCreateMatrix().
+
+  Logically Collective on DM
+
+  Input parameters:
++ dm      - the DM
+- mattype - type of matrix used when creating a constraint matrix
+
+  Level: advanced
+.seealso DMConstraintGetMatType(),DMSetMatType(),DMConstraintSetAugMatType(),DMConstraintCreateMatrix(), DMConstraintCreateAugSystem()
+@*/
+PetscErrorCode DMConstraintSetMatType(DM dm,MatType mattype)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  dm->mattype_constr = mattype;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMConstraintGetMatType"
+/*@
+  DMConstraintGetMatType - retrieve matrix type to use with DMConstraintCreateMatrix().
+
+  Logically Collective on DM
+
+  Input parameter:
+. dm      - the DM
+
+  Output paramter:
+. mattype - type of matrix used when creating a constraint matrix
+
+  Level: advanced
+.seealso DMConstraintSetMatType(),DMGetMatType(),DMConstraintSetAugMatType(),DMConstraintCreateMatrix(), DMConstraintCreateAugSystem()
+@*/
+PetscErrorCode DMConstraintGetMatType(DM dm,MatType *mattype)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  PetscValidPointer(mattype,2);
+  *mattype = dm->mattype_constr;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMConstraintSetAugMatType"
+/*@
+  DMConstraintSetAugMatType - set matrix type to use with DMConstraintCreateAugMatrix().
+
+  Logically Collective on DM
+
+  Input parameters:
++ dm      - the DM
+- mattype - type of matrix used when creating an augmented matrix
+
+  Level: advanced
+.seealso DMConstraintGetAugMatType(),DMSetMatType(),DMConstraintSetMatType(), DMConstraintCreateMatrix(), DMConstraintCreateAugSystem()
+@*/
+PetscErrorCode DMConstraintSetAugMatType(DM dm,MatType mattype)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  dm->mattype_aug = mattype;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMConstraintGetAugMatType"
+/*@
+  DMConstraintGetAugMatType - retrieve matrix type to use with DMConstraintCreateAugMatrix().
+
+  Logically Collective on DM
+
+  Input parameter:
+. dm      - the DM
+
+  Output parameter:
+. mattype - type of matrix used when creating an augmented matrix
+
+  Level: advanced
+.seealso DMConstraintSetAugMatType(),DMGetMatType(),DMConstraintSetMatType(), DMConstraintCreateMatrix(), DMConstraintCreateAugSystem()
+@*/
+PetscErrorCode DMConstraintGetAugMatType(DM dm,MatType *mattype)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  PetscValidPointer(mattype,2);
+  *mattype = dm->mattype_aug;
   PetscFunctionReturn(0);
 }
 

@@ -162,9 +162,10 @@ struct _p_SNES {
   PetscReal   merit;            /* current state's value of the merit function that measures progress to convergence both of the residual and the feasibility */
   Mat         jacobian_constr;  /* matrix to store the constraint Jacobian */
   Mat         jacobian_constrt; /* matrix to store the transpose of the constraint Jacobian */
+  MatType     jacobian_aug_type;
   Mat         jacobian_aug;     /* augmented Jacobian, logically [jacobian,jacobian_constrt;jacobian_constr,0] */
   Mat         jacobian_aug_pre; /* preconditioning matrix for augmented Jacobian */
-  Mat         jacobian_aug_nest;/* a temporary MatNest holding an "unassembled" augmented Jacobian before it's converted to a monolithic jacobian_aug*/
+  Mat         jacobian_aug_nest;/* a temporary work MATNEST holding an "unassembled" augmented Jacobian before it's converted to a monolithic jacobian_aug*/
   IS          is_constr_aug;    /* embedding of the constraint degrees of freedom into the augmented problem */
   IS          is_func_aug;      /* embedding of the constraint degrees of freedom into the augmented problem */
   VecScatter  aug_to_func;      /* scatter from a function vector to an augmented vector */
@@ -293,15 +294,14 @@ PETSC_INTERN PetscErrorCode SNESVISetVariableBounds_VI(SNES,Vec,Vec);
 PETSC_INTERN PetscErrorCode SNESConvergedDefault_VI(SNES,PetscInt,PetscReal,PetscReal,PetscReal,SNESConvergedReason*,void*);
 
 /* Constraint support: private methods */
-PETSC_INTERN PetscErrorCode SNESConstraintHaveConstraints(SNES,PetscBool*);
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpConstraintVectors(SNES,PetscInt);
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugVectors(SNES,PetscInt);
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugEmbedding(SNES,PetscBool,PetscBool);
-PETSC_INTERN PetscErrorCode SNESConstraintSetUpConstraintMatrices(SNES);
+PETSC_INTERN PetscErrorCode SNESConstraintSetUpConstraintMatrices(SNES,PetscBool);
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugMatrices(SNES);
 
 PETSC_INTERN PetscErrorCode SNESConstraintComputeFunctions(SNES,Vec,Vec,Vec,Vec);
-PETSC_INTERN PetscErrorCode SNESConstraintComputeJacobians(SNES,Vec,Mat,Mat,Mat);
+PETSC_INTERN PetscErrorCode SNESConstraintComputeJacobians(SNES,Vec,MatReuse,Mat,Mat,Mat,Mat,Mat,Mat);
 PETSC_INTERN PetscErrorCode SNESConstraintAugScatter(SNES,Vec,Vec,Vec);
 PETSC_INTERN PetscErrorCode SNESConstraintAugGather(SNES,Vec,Vec,Vec);
 

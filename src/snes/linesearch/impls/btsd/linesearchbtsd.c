@@ -117,7 +117,7 @@ PetscErrorCode SNESLineSearchSetup_BTSD (SNESLineSearch linesearch)
 {
   /*  PetscErrorCode ierr;
   PetscFunctionBegin;
-  // If this snes doesn't have an objective, then use the default 
+  // If this snes doesn't have an objective, then use the default
   PetscErrorCode (*usermerit)(Vec,PetscReal*,
   if (!linesearch->ops->merit) {
     ierr = SNESGetObjective(snes,&usermerit);CHKERRQ(ierr);
@@ -266,7 +266,7 @@ static PetscErrorCode  SNESLineSearchApply_BTSD(SNESLineSearch linesearch)
     /* Calculate iterate */
     ierr = VecWAXPY(btsdP->work,lambda,s,x);CHKERRQ(ierr);
 
-    ierr = SNESProjectOntoConstraints(snes,btsdP->work,btsdP->xtrial);CHKERRQ(ierr);
+    ierr = SNESConstraintProjectOntoConstraints(snes,btsdP->work,btsdP->xtrial);CHKERRQ(ierr);
     /* Calculate function at new iterate */
     ierr = (*merit)(snes,btsdP->xtrial,&f);CHKERRQ(ierr);
 
