@@ -1,8 +1,8 @@
 #include <../src/snes/impls/vi/rs/virsimpl.h> /*I "petscsnes.h" I*/
-#include <petsc/private/kspimpl.h>
-#include <petsc/private/matimpl.h>
-#include <petsc/private/dmimpl.h>
-#include <petsc/private/vecimpl.h>
+#include <petsc-private/kspimpl.h>
+#include <petsc-private/matimpl.h>
+#include <petsc-private/dmimpl.h>
+#include <petsc-private/vecimpl.h>
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESVIGetInactiveSet"
@@ -403,6 +403,7 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
       ierr = (*snes->ops->update)(snes, snes->iter);CHKERRQ(ierr);
     }
     ierr = SNESComputeJacobian(snes,X,snes->jacobian,snes->jacobian_pre);CHKERRQ(ierr);
+
     if (0) {
       Vec temp;
       ierr = VecDuplicate(F,&temp); CHKERRQ(ierr);CHKMEMQ;
@@ -480,7 +481,6 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
     ierr = SNESVISubVector(F,vi->IS_inact,vi->ismasked,&F_inact);CHKERRQ(ierr);
     ierr = SNESVISubVector(Y,vi->IS_inact,vi->ismasked,&Y_inact);CHKERRQ(ierr);
     ierr = SNESVISubVector(Y,IS_act,vi->ismasked,&Y_act);CHKERRQ(ierr);
-
     /* If active set has changed, then reset KSP (and PC) */
     ierr = ISEqual(vi->IS_inact_prev,vi->IS_inact,&isequal);CHKERRQ(ierr);
     if (!isequal) {
@@ -678,7 +678,6 @@ PetscErrorCode SNESSetUp_VINEWTONRSLS(SNES snes)
 
   PetscFunctionBegin;
   ierr = SNESSetUp_VI(snes);CHKERRQ(ierr);
-  ierr = PetscOptionsEnum("-tao_subset_type","subset type","",SubSetTypes,(PetscEnum)vi->subset_type,(PetscEnum*)&vi->subset_type,0);CHKERRQ(ierr);
 
   /* Set up previous active index set for the first snes solve
    vi->IS_inact_prev = 0,1,2,....N */

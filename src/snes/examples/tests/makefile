@@ -228,20 +228,17 @@ runex18f90:
 	   ${DIFF} output/ex18f90_1.out ex18f90_1.tmp || printf "${PWD}\nPossible problem with ex18f90, diffs above\n=========================================\n"; \
 	   ${RM} -f ex18f90_1.tmp
 
-<<<<<<< HEAD
 runex69:
 	-@${MPIEXEC} -n 1 ./ex69 -snes_converged_reason -ksp_converged_reason > ex69_1.tmp 2>&1; \
 	   ${DIFF} output/ex69_1.out ex69_1.tmp || printf "${PWD}\nPossible problem with ex69, diffs above\n=========================================\n"; \
 	   ${RM} -f ex69_1.tmp
-=======
+
 runex54mf:
 	-@${MPIEXEC} -n 2 ./ex54mf -snes_vi_monitor > ex54mf_1.tmp 2>&1; \
 	   ${DIFF} output/ex54mf_1.out ex54mf_1.tmp || printf "${PWD}\nPossible problem with ex54mf, diffs above\n=========================================\n"; \
 	   ${RM} -f ex54mf_1.tmp
 
 #
->>>>>>> add submatrix free
-
 runex69_2:
 	-@${MPIEXEC} -n 1 ./ex69 -snes_converged_reason -ksp_converged_reason -error_in_matmult > ex69_2.tmp 2>&1; \
 	   ${DIFF} output/ex69_2.out ex69_2.tmp || printf "${PWD}\nPossible problem with ex69, diffs above\n=========================================\n"; \
