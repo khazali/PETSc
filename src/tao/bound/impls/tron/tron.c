@@ -2,7 +2,6 @@
 #include <petsc/private/kspimpl.h>
 #include <petsc/private/matimpl.h>
 
-
 /* TRON Routines */
 static PetscErrorCode TronGradientProjections(Tao,TAO_TRON*);
 /*------------------------------------------------------------*/
