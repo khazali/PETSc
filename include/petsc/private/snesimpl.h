@@ -233,7 +233,7 @@ PETSC_STATIC_INLINE PetscErrorCode SNESLogConvergenceHistory(SNES snes,PetscReal
   ierr = PetscObjectSAWsGrantAccess((PetscObject)snes);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-
+PETSC_EXTERN PetscErrorCode SNESVIMaskVector(Vec,IS,PetscReal,Vec*);
 PETSC_EXTERN PetscErrorCode SNESVIProjectOntoBounds(SNES,Vec);
 PETSC_INTERN PetscErrorCode SNESVICheckLocalMin_Private(SNES,Mat,Vec,Vec,PetscReal,PetscBool*);
 PETSC_INTERN PetscErrorCode SNESReset_VI(SNES);

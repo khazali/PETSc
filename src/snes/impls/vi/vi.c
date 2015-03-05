@@ -537,6 +537,90 @@ PetscErrorCode SNESVISetVariableBounds_VI(SNES snes,Vec xl,Vec xu)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "SNESVISubVector"
+/*@
+  SNESVISubVector - Gets a subvector using the IS
+
+  Collective on X
+
+  Input Parameters:
++ full - the original vector
+. is - the index set for the subvector
+- mask - use masking instead of subvectors
+
+  Output Parameters:
+. sub - the sub vector. created if doesn't exist.
+
+  Notes:
+  uses valmasked to determine if masking or subvectors are used
+  maskvalue should usually be 0.0, unless a pointwise divide will be used.
+
+@*/
+PetscErrorCode SNESVISubVector(Vec full, IS is, PetscBool masking, Vec *sub)
+{
+  PetscErrorCode ierr;
+  PetscInt flow,fhigh,nlocal,i,nfull,nreduced;
+  PetscReal *fv,*rv;
+  const PetscInt *s;
+  PetscFunctionBegin;
+
+  ierr = VecGetSize(full, &nfull);CHKERRQ(ierr);
+  ierr = ISGetSize(is, &nreduced);CHKERRQ(ierr);
+
+  if (nreduced == nfull) {
+    ierr = VecDestroy(sub);CHKERRQ(ierr);
+    ierr = VecDuplicate(full,sub);CHKERRQ(ierr);
+    ierr = VecCopy(full,*sub);CHKERRQ(ierr);
+  } else if (masking) {
+    /* sub[i] = full[i]   if i is in 'is'
+       sub[i] = 0         otherwise */
+    if (*sub == NULL) {
+      ierr = VecDuplicate(full,sub);CHKERRQ(ierr);
+    }
+
+    ierr = VecSet(*sub,0.0);CHKERRQ(ierr);
+    ierr = ISGetLocalSize(is,&nlocal);CHKERRQ(ierr);
+    ierr = VecGetOwnershipRange(full,&flow,&fhigh);CHKERRQ(ierr);
+    ierr = VecGetArray(full,&fv);CHKERRQ(ierr);
+    ierr = VecGetArray(*sub,&rv);CHKERRQ(ierr);
+    ierr = ISGetIndices(is,&s);CHKERRQ(ierr);
+    if (nlocal > (fhigh-flow)) SETERRQ2(PETSC_COMM_WORLD,1,"IS local size %d > Vec local size %d",nlocal,fhigh-flow);
+    for (i=0;i<nlocal;i++) {
+      rv[s[i]-flow] = fv[s[i]-flow];
+    }
+    ierr = ISRestoreIndices(is,&s);CHKERRQ(ierr);
+    ierr = VecRestoreArray(full,&fv);CHKERRQ(ierr);
+    ierr = VecRestoreArray(*sub,&rv);CHKERRQ(ierr);
+  } else {
+    VecType vtype;
+    PetscInt rlow,rhigh,nreduced_local;
+    MPI_Comm comm;
+    IS       ident;
+    VecScatter scatter;
+    ierr = VecGetType(full,&vtype);CHKERRQ(ierr);
+    ierr = VecGetOwnershipRange(full,&flow,&fhigh);CHKERRQ(ierr);
+    ierr = ISGetLocalSize(is,&nreduced_local);CHKERRQ(ierr);
+    ierr = PetscObjectGetComm((PetscObject)full,&comm);CHKERRQ(ierr);
+    if (*sub) {
+      ierr = VecDestroy(sub);CHKERRQ(ierr);
+    }
+    ierr = VecCreate(comm,sub);CHKERRQ(ierr);
+    ierr = VecSetType(*sub,vtype);CHKERRQ(ierr);
+
+    ierr = VecSetSizes(*sub,nreduced_local,nreduced);CHKERRQ(ierr);
+    ierr = VecGetOwnershipRange(*sub,&rlow,&rhigh);CHKERRQ(ierr);
+    ierr = ISCreateStride(comm,nreduced_local,rlow,1,&ident);CHKERRQ(ierr);
+    ierr = VecScatterCreate(full,is,*sub,ident,&scatter);CHKERRQ(ierr);
+    ierr = VecScatterBegin(scatter,full,*sub,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr = VecScatterEnd(scatter,full,*sub,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr = VecScatterDestroy(&scatter);CHKERRQ(ierr);
+    ierr = ISDestroy(&ident);CHKERRQ(ierr);
+  }
+
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "SNESSetFromOptions_VI"
 PetscErrorCode SNESSetFromOptions_VI(PetscOptions *PetscOptionsObject,SNES snes)
 {

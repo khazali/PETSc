@@ -84,6 +84,7 @@ typedef const char* MatType;
 #define MATHYPRESTRUCT     "hyprestruct"
 #define MATHYPRESSTRUCT    "hypresstruct"
 #define MATSUBMATRIX       "submatrix"
+#define MATSUBMATRIXFREE   "submatrixfree"
 #define MATLOCALREF        "localref"
 #define MATNEST            "nest"
 
@@ -170,6 +171,7 @@ typedef enum {MAT_INITIAL_MATRIX,MAT_REUSE_MATRIX,MAT_IGNORE_MATRIX} MatReuse;
 E*/
 typedef enum {MAT_DO_NOT_GET_VALUES,MAT_GET_VALUES} MatGetSubMatrixOption;
 
+
 PETSC_EXTERN PetscErrorCode MatInitializePackage(void);
 
 PETSC_EXTERN PetscErrorCode MatCreate(MPI_Comm,Mat*);
@@ -249,6 +251,7 @@ PETSC_EXTERN PetscErrorCode MatCreateTranspose(Mat,Mat*);
 PETSC_EXTERN PetscErrorCode MatCreateHermitianTranspose(Mat,Mat*);
 PETSC_EXTERN PetscErrorCode MatCreateSubMatrix(Mat,IS,IS,Mat*);
 PETSC_EXTERN PetscErrorCode MatSubMatrixUpdate(Mat,Mat,IS,IS);
+PETSC_EXTERN PetscErrorCode MatCreateSubMatrixFree(Mat,IS,IS,Mat*);
 PETSC_EXTERN PetscErrorCode MatCreateLocalRef(Mat,IS,IS,Mat*);
 
 PETSC_EXTERN PetscErrorCode MatPythonSetType(Mat,const char[]);
