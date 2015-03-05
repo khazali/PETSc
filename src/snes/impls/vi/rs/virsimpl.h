@@ -15,7 +15,10 @@ typedef struct {
   void *ctxP;           /* user defined check redundancy context */
   IS   IS_inact_prev;
   IS   IS_inact;
+  PetscBool ismasked;
 } SNES_VINEWTONRSLS;
+
+PetscErrorCode SNESVISubVector(Vec,IS,PetscBool,Vec*);
 
 #endif
 

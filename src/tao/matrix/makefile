@@ -3,9 +3,9 @@ ALL: lib
 
 CFLAGS   =
 FFLAGS   =
-SOURCEC  = lmvmmat.c adamat.c submatfree.c
+SOURCEC  = lmvmmat.c adamat.c #submatfree.c
 SOURCEF  = 
-SOURCEH  = lmvmmat.h adamat.h submatfree.h
+SOURCEH  = lmvmmat.h adamat.h #submatfree.h
 LIBBASE  = libpetsctao
 MANSEC   = Tao
 LOCDIR   = src/tao/matrix/

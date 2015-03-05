@@ -7546,15 +7546,22 @@ PetscErrorCode  MatGetSubMatrix(Mat mat,IS isrow,IS iscol,MatReuse cll,Mat *newm
     PetscFunctionReturn(0);
   } else if (!mat->ops->getsubmatrix) {
     /* Create a new matrix type that implements the operation using the full matrix */
+    PetscBool isshell;
     ierr = PetscLogEventBegin(MAT_GetSubMatrix,mat,0,0,0);CHKERRQ(ierr);
-    switch (cll) {
-    case MAT_INITIAL_MATRIX:
-      ierr = MatCreateSubMatrix(mat,isrow,iscoltmp,newmat);CHKERRQ(ierr);
-      break;
-    case MAT_REUSE_MATRIX:
-      ierr = MatSubMatrixUpdate(*newmat,mat,isrow,iscoltmp);CHKERRQ(ierr);
-      break;
-    default: SETERRQ(PetscObjectComm((PetscObject)mat),PETSC_ERR_ARG_OUTOFRANGE,"Invalid MatReuse, must be either MAT_INITIAL_MATRIX or MAT_REUSE_MATRIX");
+
+    ierr = PetscObjectTypeCompare((PetscObject)mat,MATSHELL,&isshell);CHKERRQ(ierr);
+    if (isshell) {
+      ierr = MatCreateSubMatrixFree(mat,isrow,iscoltmp,newmat);CHKERRQ(ierr);
+    } else {
+      switch (cll) {
+      case MAT_INITIAL_MATRIX:
+        ierr = MatCreateSubMatrix(mat,isrow,iscoltmp,newmat);CHKERRQ(ierr);
+        break;
+      case MAT_REUSE_MATRIX:
+        ierr = MatSubMatrixUpdate(*newmat,mat,isrow,iscoltmp);CHKERRQ(ierr);
+        break;
+      default: SETERRQ(PetscObjectComm((PetscObject)mat),PETSC_ERR_ARG_OUTOFRANGE,"Invalid MatReuse, must be either MAT_INITIAL_MATRIX or MAT_REUSE_MATRIX");
+      }
     }
     ierr = PetscLogEventEnd(MAT_GetSubMatrix,mat,0,0,0);CHKERRQ(ierr);
     if (!iscol) {ierr = ISDestroy(&iscoltmp);CHKERRQ(ierr);}

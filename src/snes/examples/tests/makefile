@@ -4,7 +4,7 @@ FFLAGS	        =
 CPPFLAGS        =
 FPPFLAGS        =
 LOCDIR          = src/snes/examples/tests/
-EXAMPLESC       = ex1.c ex7.c ex8.c ex15.c ex16.c ex17.c ex68.c
+EXAMPLESC       = ex1.c ex7.c ex8.c ex15.c ex16.c ex17.c ex54mf.c ex68.c
 EXAMPLESF       = ex1f.F ex12f.F ex14f.F
 DIRS	        =
 MANSEC          = SNES
@@ -87,6 +87,10 @@ ex17: ex17.o chkopts
 ex18f90: ex18f90.o chkopts
 	-${FLINKER} -o ex18f90 ex18f90.o ${PETSC_SNES_LIB}
 	${RM} ex18f90.o
+
+ex54mf: ex54mf.o chkopts
+	-${CLINKER} -o ex54mf ex54mf.o ${PETSC_SNES_LIB}
+	${RM} ex54mf.o
 
 ex68: ex68.o chkopts
 	-${CLINKER} -o ex68 ex68.o ${PETSC_SNES_LIB}
@@ -220,6 +224,11 @@ runex18f90:
 	-@${MPIEXEC} -n 1 ./ex18f90 > ex18f90_1.tmp 2>&1; \
 	   ${DIFF} output/ex18f90_1.out ex18f90_1.tmp || printf "${PWD}\nPossible problem with ex18f90, diffs above\n=========================================\n"; \
 	   ${RM} -f ex18f90_1.tmp
+
+runex54mf:
+	-@${MPIEXEC} -n 2 ./ex54mf -snes_vi_monitor > ex54mf_1.tmp 2>&1; \
+	   ${DIFF} output/ex54mf_1.out ex54mf_1.tmp || printf "${PWD}\nPossible problem with ex54mf, diffs above\n=========================================\n"; \
+	   ${RM} -f ex54mf_1.tmp
 
 #
 
