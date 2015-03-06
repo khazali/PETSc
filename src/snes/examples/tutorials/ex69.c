@@ -133,8 +133,8 @@ int main( int argc, char **argv )
 
   /* Set Variable bounds */
   ierr = MSA_Plate(cl,cu,(void*)&user);CHKERRQ(ierr);
-  ierr = SNESSetConstraintFunction(snes,c,cl,NULL,FormConstraints,&user);CHKERRQ(ierr);
-  ierr = SNESSetConstraintJacobian(snes,user.B,user.Bt,FormConstraintJacobian,&user);CHKERRQ(ierr);
+  ierr = SNESConstraintSetFunction(snes,c,cl,NULL,FormConstraints,&user);CHKERRQ(ierr);
+  ierr = SNESConstraintSetJacobian(snes,user.B,user.Bt,FormConstraintJacobian,&user);CHKERRQ(ierr);
 
   /* Check for any snes command line options */
   ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
