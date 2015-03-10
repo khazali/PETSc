@@ -1063,9 +1063,9 @@ PetscErrorCode  DMConstraintCreateAugSystem(DM dm,Mat *mat, Vec *vec, IS *emb)
   PetscFunctionBegin;
   ierr = MatInitializePackage();CHKERRQ(ierr);
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  PetscValidPointer(mat,2);
-  PetscValidPointer(vec,3);
-  PetscValidPointer(emb,4);
+
+
+
   if (dm->ops->constraintcreateaugsystem) {
     ierr = (*dm->ops->constraintcreateaugsystem)(dm,mat,vec,emb);CHKERRQ(ierr);
   }
