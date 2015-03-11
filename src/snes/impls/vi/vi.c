@@ -538,7 +538,7 @@ PetscErrorCode SNESVISetVariableBounds_VI(SNES snes,Vec xl,Vec xu)
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESVISubVector"
-/*@
+/*@C
   SNESVISubVector - Gets a subvector using the IS
 
   Collective on X
@@ -555,6 +555,7 @@ PetscErrorCode SNESVISetVariableBounds_VI(SNES snes,Vec xl,Vec xu)
   uses valmasked to determine if masking or subvectors are used
   maskvalue should usually be 0.0, unless a pointwise divide will be used.
 
+  Level: developer
 @*/
 PetscErrorCode SNESVISubVector(Vec full, IS is, PetscBool masking, Vec *sub)
 {
