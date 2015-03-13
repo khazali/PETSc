@@ -5,7 +5,7 @@ static char help[] = "Test for hybrid meshing capabilities\n";
 typedef struct {
   PetscInt      dim;                          /* The topological mesh dimension */
   PetscBool     interpolate;                  /* Generate intermediate mesh elements */
-  char          hdf5file[PETSC_MAX_PATH_LEN];  /* Export mesh to file (HDF5) */
+  char          hdf5file[PETSC_MAX_PATH_LEN]; /* Export mesh to file (HDF5) */
 } AppCtx;
 
 
@@ -86,18 +86,73 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   ierr = DMViewFromOptions(*dm, NULL, "-dm_view");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+
+#undef __FUNCT__
+#define __FUNCT__ "WriteMesh"
+PetscErrorCode WriteMesh(MPI_Comm comm, AppCtx *user, DM *dm)
+{
+  PetscMPIInt    rank, numProcs;
+  const char    *filename        = user->hdf5file;
+  PetscViewer    viewer;
+  size_t         len;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &numProcs);CHKERRQ(ierr);
+  ierr = PetscStrlen(filename, &len);CHKERRQ(ierr);
+  if (!len) PetscFunctionReturn(0);
+
+  ierr = PetscViewerCreate(comm, &viewer);CHKERRQ(ierr);
+  ierr = PetscViewerSetType(viewer, PETSCVIEWERHDF5);CHKERRQ(ierr);
+  ierr = PetscViewerFileSetMode(viewer, FILE_MODE_WRITE);CHKERRQ(ierr);
+  ierr = PetscViewerFileSetName(viewer, filename);CHKERRQ(ierr);
+
+  /* Write DM */
+  ierr = DMView(*dm, viewer);CHKERRQ(ierr);
+
+  ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "LoadMesh"
+PetscErrorCode LoadMesh(MPI_Comm comm, AppCtx *user, DM *dm)
+{
+  PetscMPIInt    rank, numProcs;
+  const char    *filename        = user->hdf5file;
+  PetscViewer    viewer;
+  size_t         len;
+  PetscErrorCode ierr;
+
+  ierr = PetscViewerHDF5Open(comm, filename, FILE_MODE_READ, &viewer);CHKERRQ(ierr);
+  ierr = DMCreate(comm, dm);CHKERRQ(ierr);
+  ierr = DMSetType(*dm, DMPLEX);CHKERRQ(ierr);
+  ierr = DMLoad(*dm, viewer);CHKERRQ(ierr);
+  ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+
+  ierr = PetscObjectSetName((PetscObject) *dm, "Checkpoint Mesh");CHKERRQ(ierr);
+  ierr = DMViewFromOptions(*dm, NULL, "-dm_view");CHKERRQ(ierr);
+
+  ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 #undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc, char **argv)
 {
-  DM             dm;
+  DM             dm, cpdm;
   AppCtx         user;                 /* user-defined work context */
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
   ierr = ProcessOptions(PETSC_COMM_WORLD, &user);CHKERRQ(ierr);
   ierr = CreateMesh(PETSC_COMM_WORLD, &user, &dm);CHKERRQ(ierr);
+  ierr = WriteMesh(PETSC_COMM_WORLD, &user, &dm);CHKERRQ(ierr);
+  ierr = LoadMesh(PETSC_COMM_WORLD, &user, &cpdm);CHKERRQ(ierr);
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
+  ierr = DMDestroy(&cpdm);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return 0;
 }
