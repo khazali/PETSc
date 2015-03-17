@@ -57,6 +57,7 @@ int main(int argc,char **argv)
   Vec                 u;     /* solution */
   DMDALocalInfo       info;
   PetscReal           error1,errorinf;
+  PetscBool           flg = PETSC_FALSE;
 
   PetscInitialize(&argc,&argv,(char*)0,help);
 
@@ -90,21 +91,27 @@ int main(int argc,char **argv)
   ierr = DMDASNESSetJacobianLocal(da,(PetscErrorCode (*)(DMDALocalInfo*,void*,Mat,Mat,void*))FormJacobianLocal,&user);CHKERRQ(ierr);
 
   ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
+  ierr = DMDAGetLocalInfo(da,&info); CHKERRQ(ierr);
 
   /* report on setup */
-  ierr = DMDAGetLocalInfo(da,&info); CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"setup done: grid  Mx,My = %D,%D  with spacing  dx,dy = %.4f,%.4f\n",
-                     info.mx,info.my,4.0/(PetscReal)(info.mx-1),4.0/(PetscReal)(info.my-1));CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL,"-report_grid",&flg,NULL);CHKERRQ(ierr);
+  if (flg) {
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"grid:  Mx,My = %D,%D  with spacing  dx,dy = %.4f,%.4f\n",
+                       info.mx,info.my,4.0/(PetscReal)(info.mx-1),4.0/(PetscReal)(info.my-1));CHKERRQ(ierr);
+  }
 
   /* solve nonlinear system */
   ierr = SNESSolve(snes,NULL,u);CHKERRQ(ierr);
 
   /* compare to exact */
-  ierr = VecAXPY(u,-1.0,user.uexact);CHKERRQ(ierr); /* u <- u - uexact */
-  ierr = VecNorm(u,NORM_1,&error1);CHKERRQ(ierr);
-  error1 /= (PetscReal)info.mx * (PetscReal)info.my;
-  ierr = VecNorm(u,NORM_INFINITY,&errorinf);CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"errors:     av |u-uexact|  = %.3e    |u-uexact|_inf = %.3e\n",error1,errorinf);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL,"-report_errors",&flg,NULL);CHKERRQ(ierr);
+  if (flg) {
+    ierr = VecAXPY(u,-1.0,user.uexact);CHKERRQ(ierr); /* u <- u - uexact */
+    ierr = VecNorm(u,NORM_1,&error1);CHKERRQ(ierr);
+    error1 /= (PetscReal)info.mx * (PetscReal)info.my;
+    ierr = VecNorm(u,NORM_INFINITY,&errorinf);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"errors:  av |u-uexact| = %.3e,  max |u-uexact| = %.3e\n",error1,errorinf);CHKERRQ(ierr);
+  }
 
   /* Free work space.  */
   ierr = VecDestroy(&u);CHKERRQ(ierr);
