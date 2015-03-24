@@ -7489,6 +7489,7 @@ M*/
 PetscErrorCode  MatGetSubMatrix(Mat mat,IS isrow,IS iscol,MatReuse cll,Mat *newmat)
 {
   PetscErrorCode ierr;
+  PetscErrorCode matsubierr;
   PetscMPIInt    size;
   Mat            *local;
   IS             iscoltmp;
@@ -7544,9 +7545,17 @@ PetscErrorCode  MatGetSubMatrix(Mat mat,IS isrow,IS iscol,MatReuse cll,Mat *newm
     ierr    = PetscFree(local);CHKERRQ(ierr);
     if (!iscol) {ierr = ISDestroy(&iscoltmp);CHKERRQ(ierr);}
     PetscFunctionReturn(0);
-  } else if (!mat->ops->getsubmatrix) {
-    /* Create a new matrix type that implements the operation using the full matrix */
-    PetscBool isshell;
+  }
+
+  PetscBool isshell;
+  if (!mat->ops->getsubmatrix) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Mat type %s",((PetscObject)mat)->type_name);
+  ierr = PetscLogEventBegin(MAT_GetSubMatrix,mat,0,0,0);CHKERRQ(ierr);
+  matsubierr = (*mat->ops->getsubmatrix)(mat,isrow,iscoltmp,cll,newmat);
+  ierr = PetscLogEventEnd(MAT_GetSubMatrix,mat,0,0,0);CHKERRQ(ierr);
+
+  /* If that didn't work, or if we don't have a mat->ops->getsubmatrix,
+     then create a new matrix type that implements the operation using the full matrix */
+  if (matsubierr != 0 || !mat->ops->getsubmatrix) {
     ierr = PetscLogEventBegin(MAT_GetSubMatrix,mat,0,0,0);CHKERRQ(ierr);
 
     ierr = PetscObjectTypeCompare((PetscObject)mat,MATSHELL,&isshell);CHKERRQ(ierr);
@@ -7564,16 +7573,13 @@ PetscErrorCode  MatGetSubMatrix(Mat mat,IS isrow,IS iscol,MatReuse cll,Mat *newm
       }
     }
     ierr = PetscLogEventEnd(MAT_GetSubMatrix,mat,0,0,0);CHKERRQ(ierr);
-    if (!iscol) {ierr = ISDestroy(&iscoltmp);CHKERRQ(ierr);}
-    PetscFunctionReturn(0);
   }
 
-  if (!mat->ops->getsubmatrix) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Mat type %s",((PetscObject)mat)->type_name);
-  ierr = PetscLogEventBegin(MAT_GetSubMatrix,mat,0,0,0);CHKERRQ(ierr);
-  ierr = (*mat->ops->getsubmatrix)(mat,isrow,iscoltmp,cll,newmat);CHKERRQ(ierr);
-  ierr = PetscLogEventEnd(MAT_GetSubMatrix,mat,0,0,0);CHKERRQ(ierr);
   if (!iscol) {ierr = ISDestroy(&iscoltmp);CHKERRQ(ierr);}
-  if (*newmat && cll == MAT_INITIAL_MATRIX) {ierr = PetscObjectStateIncrease((PetscObject)*newmat);CHKERRQ(ierr);}
+
+  if (!matsubierr) {
+      if (*newmat && cll == MAT_INITIAL_MATRIX) {ierr = PetscObjectStateIncrease((PetscObject)*newmat);CHKERRQ(ierr);}
+  }
   PetscFunctionReturn(0);
 }
 
