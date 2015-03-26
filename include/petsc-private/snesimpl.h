@@ -297,7 +297,7 @@ PETSC_INTERN PetscErrorCode SNESVISetVariableBounds_VI(SNES,Vec,Vec);
 PETSC_INTERN PetscErrorCode SNESConvergedDefault_VI(SNES,PetscInt,PetscReal,PetscReal,PetscReal,SNESConvergedReason*,void*);
 
 /* Constraint support: private methods */
-PETSC_INTERN PetscErrorCode SNESConstraintSetUpVectors(SNES,PetscBool,PetscInt,PetscBool,PetscInt,PetscBool);
+PETSC_INTERN PetscErrorCode SNESConstraintSetUpVectors(SNES,PetscInt,PetscBool,PetscInt,PetscBool,PetscInt,PetscBool);
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpMatrices(SNES,PetscBool,PetscBool,PetscBool,PetscBool);
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugScatters(SNES,PetscBool);
 
