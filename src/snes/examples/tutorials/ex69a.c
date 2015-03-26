@@ -153,7 +153,7 @@ int main( int argc, char **argv )
   /* SOLVE THE APPLICATION */
   ierr = SNESSolve(snes,x0,x);CHKERRQ(ierr);
 
-  /* Get ierrrmation on converged */
+  /* Get information on converged */
   ierr = SNESGetConvergedReason(snes,&reason);CHKERRQ(ierr);
   ierr = SNESView(snes,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   if (reason <= 0){
