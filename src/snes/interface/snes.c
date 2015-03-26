@@ -667,7 +667,7 @@ PetscErrorCode SNESConstraintDestroyAugEmbeddings_Private(SNES snes,IS *is_func,
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESConstraintSetUpVectors"
-/*@
+/*@C
    SNESConstraintSetUpVectors - creates the constraint function vector and augmented function vector and
     the corresponding work vectors upon requests.
 
@@ -841,7 +841,7 @@ PetscErrorCode SNESConstraintSetUpAugScatters(SNES snes,PetscBool keep_embedding
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESConstraintSetUpMatrices"
-/*@
+/*@C
    SNESConstraintSetUpConstraintMatrices - creates constraint and augmented matrices to be used by the solver
 
    Collective
