@@ -615,7 +615,7 @@ PetscErrorCode SNESConstraintCreateAugEmbeddings_Private(SNES snes,IS *is_func,I
   if (create_constr_emb) {
     if (!snes->is_constr_aug) {
       ierr = DMConstraintCreateAugSystem(snes->dm,NULL,NULL,&snes->is_func_aug);CHKERRQ(ierr);
-      if (create_func_emb && !snes->is_func_aug) {
+      if (snes->is_constr_aug && create_func_emb && !snes->is_func_aug) {
 	ierr = ISComplement(snes->is_constr_aug,alo,ahi,&snes->is_func_aug);CHKERRQ(ierr);
       }
     }
@@ -776,7 +776,7 @@ PetscErrorCode SNESConstraintSetUpVectors(SNES snes,PetscInt nwork,PetscBool set
     if (!snes->vec_func_aug) { /* No luck with the DM. */
       Vec fvec = (snes->vec_func)?snes->vec_func:snes->vec_sol,gvec = snes->vec_constr;
       IS  emb  = snes->is_constr_aug;
-      if (fvec) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Primal vectors are NULL. Missing SNESSetFunction()?");
+      if (!fvec) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Primal vectors are NULL. Missing SNESSetFunction()?");
       PetscInt       fsize,gsize;
       VecType        type;
       ierr = VecGetLocalSize(fvec,&fsize);CHKERRQ(ierr);
@@ -907,6 +907,9 @@ PetscErrorCode SNESConstraintSetUpMatrices(SNES snes,PetscBool create_constraint
     }
     submats[1] = snes->jacobian_constrt;
     ierr = MatNestSetSubMats(Jaug_nest,2,iss,2,iss,submats);CHKERRQ(ierr);
+    ierr = MatSetUp(Jaug_nest);CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(Jaug_nest,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(Jaug_nest,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     /*
       TODO: even though DM can't create an augmented matrix, we still use DMConstraintGetAugMatType()
        to decide what type jacobian_aug should have. Is this a problem?

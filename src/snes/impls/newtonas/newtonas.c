@@ -739,7 +739,7 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
   }
   ierr = SNESConstraintSetUpVectors(snes,SNES_NEWTONAS_WORK_N,PETSC_TRUE,SNES_NEWTONAS_WORK_CONSTR_N,PETSC_TRUE,SNES_NEWTONAS_WORK_AUG_N,PETSC_TRUE);CHKERRQ(ierr);
   ierr = SNESConstraintSetUpAugScatters(snes,PETSC_TRUE);
-  ierr = SNESConstraintSetUpMatrices(snes,PETSC_TRUE,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = SNESConstraintSetUpMatrices(snes,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE,PETSC_FALSE);CHKERRQ(ierr);
 
   /* TODO: handle absence of one or both bounds vectors. */
   ierr = VecDuplicate(snes->vec_constr,&newtas->vec_sol_lambda);CHKERRQ(ierr);
