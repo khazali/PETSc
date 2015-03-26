@@ -40,8 +40,7 @@ typedef struct {
   Vec         localX, localV;           /* ghosted local vector */
   Vec         vaug;
   VecScatter  x_to_aug,c_to_aug;
-  IS          is_x_to_aug,is_c_to_aug;
-  IS          is_aug; /* indices of aug that correspond to x */
+  IS          is_aug_to_x; /* indices of aug that comprise x */
 } AppCtx;
 
 /* -------- User-defined Routines --------- */
@@ -120,12 +119,8 @@ int main( int argc, char **argv )
 
   ierr = VecGetOwnershipRange(x,&xlo,&xhi);CHKERRQ(ierr);
   ierr = VecGetOwnership(c,&clo,&chi);CHKERRQ(ierr);
-  ierr = ISCreateStride(PETSC_COMM_SELF,xhi-xlo,xlo,1,&is_allx);CHKERRQ(ierr);
-  ierr = ISCreateStride(PETSC_COMM_SELF,chi-clo,clo,1,&is_allc);CHKERRQ(ierr);
-  ierr = ISCreateStride(PETSC_COMM_SELF,xhi-xlo,xlo+clo,1,&user.is_x_to_aug);CHKERRQ(ierr);
-  ierr = ISCreateStride(PETSC_COMM_SELF,chi-clo,xhi+clo,1,&user.is_c_to_aug);CHKERRQ(ierr);
-   ierr = VecSetSizes(user.vaug,xhi-xlo+chi-clo);CHKERRQ(ierr); */
-  
+  ierr = ISCreateStride(PETSC_COMM_WORLD,xhi-xlo,xlo,1,&user.is_aug_to_x);CHKERRQ(ierr);
+
   ierr = SNESCreate(PETSC_COMM_WORLD,&snes);CHKERRQ(ierr);
   ierr = SNESSetType(snes,SNESNEWTONAS);CHKERRQ(ierr);
 
@@ -150,7 +145,7 @@ int main( int argc, char **argv )
 
   /* Set Variable bounds */
   ierr = MSA_Plate(cl,cu,(void*)&user);CHKERRQ(ierr);
-  ierr = SNESConstraintSetAugFunctionJacobian(snes,user.vaug,user.MAug,user.MAug,user.is_aug,FormAugFunction,FormAugJacobian,&user);CHKERRQ(ierr);
+  ierr = SNESConstraintSetAugFunctionJacobian(snes,user.vaug,user.MAug,user.MAug,user.is_aug_to_x,FormAugFunction,FormAugJacobian,&user);CHKERRQ(ierr);
 
   /* Check for any snes command line options */
   ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
@@ -183,6 +178,7 @@ int main( int argc, char **argv )
   ierr = VecDestroy(&user.Left);CHKERRQ(ierr);
   ierr = VecDestroy(&user.Right);CHKERRQ(ierr);
   ierr = DMDestroy(&user.dm);CHKERRQ(ierr);
+  ierr = ISDestroy(&user.is_aug_to_x);CHKERRQ(ierr);
   PetscFinalize();
   return 0;
 }
