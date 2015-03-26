@@ -358,7 +358,7 @@ PetscErrorCode FormFunction(SNES snes, Vec X, Vec F,void *userCtx)
     ft +=PetscSqrtScalar( 1.0 + d1*d1 + d2*d2);
   }
 
-  /* No longer care about objective value 
+  /* No longer care about objective value
 
   ft=ft*area;
   ierr = MPI_Allreduce(&ft,fcn,1,MPIU_REAL,MPIU_SUM,MPI_COMM_WORLD);CHKERRQ(ierr);
@@ -864,7 +864,7 @@ static PetscErrorCode MSA_Plate(void *ctx){
   ierr = ISLocalToGlobalMappingCreate(PETSC_COMM_WORLD,1,nlocalplate,indices_row,PETSC_COPY_VALUES,&user->bisltog);CHKERRQ(ierr);
   ierr = MatSetLocalToGlobalMapping(user->B,user->bisltog,user->isltog);CHKERRQ(ierr);
   ierr = MatSetLocalToGlobalMapping(user->Bt,user->isltog,user->bisltog);CHKERRQ(ierr);
-  
+
 
 
   for (i=0;i<nlocalplate;i++) {

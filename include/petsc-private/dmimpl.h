@@ -51,6 +51,10 @@ struct _DMOps {
 
   PetscErrorCode (*getdimpoints)(DM,PetscInt,PetscInt*,PetscInt*);
   PetscErrorCode (*locatepoints)(DM,Vec,IS*);
+
+  PetscErrorCode (*constraintcreatematrix)(DM,Mat*);
+  PetscErrorCode (*constraintcreatevector)(DM,Vec*);
+  PetscErrorCode (*constraintcreateaugsystem)(DM,Mat*,Vec*,IS*);
 };
 
 typedef struct _DMCoarsenHookLink *DMCoarsenHookLink;
@@ -127,6 +131,8 @@ struct _p_DM {
   DMRefineHookLink        refinehook;
   DMSubDomainHookLink     subdomainhook;
   DMGlobalToLocalHookLink gtolhook;
+  /* Constraints */
+  MatType                 mattype_constr,mattype_aug;
   /* Topology */
   PetscInt                dim;                  /* The topological dimension */
   /* Flexible communication */
