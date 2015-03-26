@@ -17,7 +17,7 @@ Invidividual task lists.
     . Create SNESNEWTONASComputeConstraints() and similar wrappers?
     . Check for DOMAIN_ERROR in the merit function.
 */
-/*
+/*e
    QUESTIONS:
    - How do we ensure that in the absence of true constraints (i.e., when all constraints are +/-Inf)
      the algorithm reduces to an efficient approximation of constraint-free SNES (e.g., similar to SNESNEWTONLS).

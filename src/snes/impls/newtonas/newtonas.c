@@ -112,7 +112,6 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
 {
   /* Returns a modified IS based on the distance to constraint bounds, or NULL if no modification is necessary. */
   SNES_NEWTONAS     *newtas  = (SNES_NEWTONAS*)snes->data;
-  Vec               dx=snes->vec_sol_update,dl=newtas->vec_lambda_update;
   /*  TODO NOW: why is dx=0? */
   Vec               dx=snes->vec_sol_update,dl=newtas->vec_sol_lambda_update;
   Vec               gl=snes->vec_constrl, gu=snes->vec_constru;
