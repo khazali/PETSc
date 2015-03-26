@@ -1056,7 +1056,7 @@ PetscErrorCode  DMConstraintCreateVector(DM dm,Vec *vec)
 .seealso DMDestroy(), DMView(), DMConstraintCreateMatrix(), DMConstraintCreateVector()
 
 @*/
-PetscErrorCode  DMConstraintCreateAugSystem(DM dm,Mat *mat, Vec *vec, IS *emb)
+PetscErrorCode  DMConstraintCreateAugSystem(DM dm,Mat *mat,Vec *vec,IS *emb)
 {
   PetscErrorCode ierr;
 
@@ -1065,7 +1065,9 @@ PetscErrorCode  DMConstraintCreateAugSystem(DM dm,Mat *mat, Vec *vec, IS *emb)
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
 
 
-
+  if (mat) *mat = NULL;
+  if (vec) *vec = NULL;
+  if (emb) *emb = NULL;
   if (dm->ops->constraintcreateaugsystem) {
     ierr = (*dm->ops->constraintcreateaugsystem)(dm,mat,vec,emb);CHKERRQ(ierr);
   }

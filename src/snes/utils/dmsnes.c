@@ -805,9 +805,9 @@ PetscErrorCode DMSNESConstraintGetJacobian(DM dm,PetscErrorCode (**J)(SNES,Vec,M
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMSNESConstraintSetAugFunctionJacobian"
+#define __FUNCT__ "DMSNESConstraintSetAugSystem"
 /*@C
-   DMSNESConstraintSetAugFunctionJacobian - sets SNES subroutine evaluating the augmented function f and
+   DMSNESConstraintSetAugSystem - sets SNES subroutine evaluating the augmented function f and
    augmented Jacobian J, respectively, which have the logical structure h = [f(x),g(x)]^T and J = [A B^T; B 0].
 
    Not Collective
@@ -821,13 +821,13 @@ PetscErrorCode DMSNESConstraintGetJacobian(DM dm,PetscErrorCode (**J)(SNES,Vec,M
    Level: advanced
 
    Note:
-   SNESConstraintSetAugFunctionJacobian() is normally used, but it calls this function internally because the user context is actually
+   SNESConstraintSetAugSystem() is normally used, but it calls this function internally because the user context is actually
    associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
    not. If DM took a more central role at some later date, this could become the primary method of setting the augmented systems.
 
 .seealso: DMSNESSetContext(), SNESSetFunction(), DMSNESConstraintGetFunction(), SNESConstraintSetJacobian(), SNESConstraintFunction
 @*/
-PetscErrorCode DMSNESConstraintSetAugFunctionJacobian(DM dm,PetscErrorCode (*augfunc)(SNES,Vec,Vec,void*),PetscErrorCode(*augjac)(SNES,Vec,Mat,Mat,void*),void *augctx)
+PetscErrorCode DMSNESConstraintSetAugSystem(DM dm,PetscErrorCode (*augfunc)(SNES,Vec,Vec,void*),PetscErrorCode(*augjac)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void *augctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -838,15 +838,15 @@ PetscErrorCode DMSNESConstraintSetAugFunctionJacobian(DM dm,PetscErrorCode (*aug
     ierr = DMGetDMSNESWrite(dm,&sdm);CHKERRQ(ierr);
   }
   if (augfunc) sdm->ops->constraintaugfunction = augfunc;
-  if (augjac) sdm->ops->constraintaugjacobian = augjac;
-  if (augctx) sdm->constraintaugctx = augctx;
+  if (augjac) sdm->ops->constraintaugjacobian  = augjac;
+  if (augctx) sdm->constraintaugctx            = augctx;
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMSNESConstraintGetAugFunctionJacobian"
+#define __FUNCT__ "DMSNESConstraintGetAugSystem"
 /*@C
-   DMSNESConstraintGetAugFunctionJacobian - retrieves SNES subroutine evaluating the augmented function h and
+   DMSNESConstraintGetAugSystem - retrieves SNES subroutine evaluating the augmented function h and
    augmented Jacobian J, respectively, which have the logical structure h = [f(x),g(x)]^T and J = [A B^T; B 0]
 
    Not Collective
@@ -862,13 +862,13 @@ PetscErrorCode DMSNESConstraintSetAugFunctionJacobian(DM dm,PetscErrorCode (*aug
    Level: advanced
 
    Note:
-   SNESConstraintGetAugFunctionJacobian() is normally used, but it calls this function internally because the user context is actually
+   SNESConstraintGetAugSystem() is normally used, but it calls this function internally because the user context is actually
    associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
    not. If DM took a more central role at some later date, this could become the primary method of retrieving the augmented systems.
 
-.seealso: SNESConstraintSetAugFunctionJacobian(), DMSNESConstraintGetFunction(), SNESConstraintGetJacobian(), SNESConstraintAugFunction, SNESConstraintAugJacobian
+.seealso: SNESConstraintSetAugSystem(), DMSNESConstraintGetFunction(), SNESConstraintGetJacobian(), SNESConstraintAugFunction, SNESConstraintAugJacobian
 @*/
-PetscErrorCode DMSNESConstraintGetAugFunctionJacobian(DM dm,PetscErrorCode (**augfunc)(SNES,Vec,Vec,void*),PetscErrorCode(**augjac)(SNES,Vec,Mat,Mat,void*),void **augctx)
+PetscErrorCode DMSNESConstraintGetAugSystem(DM dm,PetscErrorCode (**augfunc)(SNES,Vec,Vec,void*),PetscErrorCode(**augjac)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void **augctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;

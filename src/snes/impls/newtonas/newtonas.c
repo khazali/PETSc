@@ -1,5 +1,6 @@
 
 #include <../src/snes/impls/newtonas/newtonasimpl.h> /*I "petscsnes.h" I*/
+#include <petsc-private/snesimpl.h>
 #include <petsc-private/kspimpl.h>
 #include <petsc-private/matimpl.h>
 #include <petsc-private/dmimpl.h>
@@ -736,12 +737,11 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
     ierr = SNESNEWTONASSetType(snes,SNESNEWTONAS_SADDLE_FULL);CHKERRQ(ierr);
   }
   ierr = SNESSetWorkVecs(snes,SNES_NEWTONAS_WORK_N);CHKERRQ(ierr);
-  ierr = SNESConstraintSetUpConstraintVectors(snes,SNES_NEWTONAS_WORK_CONSTR_N);CHKERRQ(ierr);
-  ierr = SNESConstraintSetUpAugVectors(snes,SNES_NEWTONAS_WORK_AUG_N);CHKERRQ(ierr);
-  ierr = SNESConstraintSetUpConstraintMatrices(snes,PETSC_FALSE);CHKERRQ(ierr);
-  ierr = SNESConstraintSetUpAugMatrices(snes);CHKERRQ(ierr);
+  ierr = SNESConstraintSetUpVectors(snes,PETSC_TRUE,SNES_NEWTONAS_WORK_CONSTR_N,PETSC_TRUE,SNES_NEWTONAS_WORK_AUG_N,PETSC_TRUE);CHKERRQ(ierr);
+  ierr = SNESConstraintSetUpAugScatters(snes,PETSC_TRUE);
+  ierr = SNESConstraintSetUpMatrices(snes,PETSC_TRUE,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE);CHKERRQ(ierr);
 
-  /* FIXME: Set up bound vectors, if not provided (-Inf/Inf). */
+  /* TODO: handle absence of one or both bounds vectors. */
   ierr = VecDuplicate(snes->vec_constr,&newtas->vec_sol_lambda);CHKERRQ(ierr);
   ierr = VecDuplicate(snes->vec_constr,&newtas->vec_sol_lambda_update);CHKERRQ(ierr);
 
@@ -749,8 +749,6 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
   ierr = SNESGetLineSearch(snes,&linesearch);CHKERRQ(ierr);
   ierr = SNESLineSearchSetType(linesearch,SNESLINESEARCHBTSD);CHKERRQ(ierr);
   ierr = SNESLineSearchSetMerit(linesearch,SNESNEWTONASMeritFunction);CHKERRQ(ierr);
-
-  /* FIXME: set up jacobian_constr, jacobian_constrt, and jacobian_aug, if not provided. */
 
   PetscFunctionReturn(0);
 }
