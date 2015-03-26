@@ -58,6 +58,7 @@ int main( int argc, char **argv )
 {
   PetscErrorCode         ierr;                 /* used to check for functions returning nonzeros */
   PetscInt               m, N;                 /* number of local and global elements in vectors */
+  PetscInt               xlo,xhi,clo,chi;
   Vec                    x,x0;                 /* solution vector */
   Vec                    c,cl,cu;              /* constraint vectors */
   Vec                    vecs[2];
@@ -118,7 +119,7 @@ int main( int argc, char **argv )
   ierr = VecCreateNest(PETSC_COMM_WORLD,2,NULL,vecs,&user.vaug);CHKERRQ(ierr);
 
   ierr = VecGetOwnershipRange(x,&xlo,&xhi);CHKERRQ(ierr);
-  ierr = VecGetOwnership(c,&clo,&chi);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRange(c,&clo,&chi);CHKERRQ(ierr);
   ierr = ISCreateStride(PETSC_COMM_WORLD,xhi-xlo,xlo,1,&user.is_aug_to_x);CHKERRQ(ierr);
 
   ierr = SNESCreate(PETSC_COMM_WORLD,&snes);CHKERRQ(ierr);
