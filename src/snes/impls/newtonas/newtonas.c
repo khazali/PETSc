@@ -510,7 +510,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
        TODO: nonlinear RIGHT PC application would go here.
     */
 
-    ierr = SNESConstraintComputeJacobians(snes,x,MAT_INITIAL_MATRIX,snes->jacobian,snes->jacobian_pre,snes->jacobian_constr,snes->jacobian_constrt,snes->jacobian_aug,snes->jacobian_aug_pre);CHKERRQ(ierr);
+    ierr = SNESConstraintComputeJacobians(snes,x,MAT_INITIAL_MATRIX,snes->jacobian,snes->jacobian_pre,snes->jacobian_constr,snes->jacobian_constrt,snes->jacobian_aug,snes->jacobian_aug_pre,&snes->jacobian_aug_struct);CHKERRQ(ierr);
     new_active = NULL;
     ierr = SNESNEWTONASInitialActiveSet_Private(snes,&active);CHKERRQ(ierr);
     do {

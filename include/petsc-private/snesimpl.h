@@ -302,7 +302,7 @@ PETSC_INTERN PetscErrorCode SNESConstraintSetUpMatrices(SNES,PetscBool,PetscBool
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugScatters(SNES,PetscBool);
 
 PETSC_INTERN PetscErrorCode SNESConstraintComputeFunctions(SNES,Vec,Vec,Vec,Vec);
-PETSC_INTERN PetscErrorCode SNESConstraintComputeJacobians(SNES,Vec,MatReuse,Mat,Mat,Mat,Mat,Mat,Mat);
+PETSC_INTERN PetscErrorCode SNESConstraintComputeJacobians(SNES,Vec,MatReuse,Mat,Mat,Mat,Mat,Mat,Mat,SNESConstraintAugMatStruct*);
 PETSC_INTERN PetscErrorCode SNESConstraintAugScatter(SNES,Vec,Vec,Vec);
 PETSC_INTERN PetscErrorCode SNESConstraintAugGather(SNES,Vec,Vec,Vec);
 
