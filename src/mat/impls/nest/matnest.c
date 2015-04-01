@@ -1422,7 +1422,7 @@ PETSC_EXTERN PetscErrorCode MatConvert_Nest_AIJ(Mat A,MatType newtype,MatReuse r
     IS             bNis;
     PetscInt       bN;
     const PetscInt *bNindices;
-    /* Using global column indices and ISAllGather() is not scalable. */
+    /* TODO: Using global column indices and ISAllGather() is not scalable. */
     ierr = ISAllGather(nest->isglobal.col[j], &bNis);CHKERRQ(ierr);
     ierr = ISGetSize(bNis, &bN);CHKERRQ(ierr);
     ierr = ISGetIndices(bNis,&bNindices);CHKERRQ(ierr);
@@ -1484,10 +1484,10 @@ PETSC_EXTERN PetscErrorCode MatConvert_Nest_AIJ(Mat A,MatType newtype,MatReuse r
 
   /* Fill by row */
   for (j=0; j<nest->nc; ++j) {
-    /* Using global column indices and ISAllGather() is not scalable. */
     IS             bNis;
     PetscInt       bN;
     const PetscInt *bNindices;
+    /* TODO: Using global column indices and ISAllGather() is not scalable. */
     ierr = ISAllGather(nest->isglobal.col[j], &bNis);CHKERRQ(ierr);
     ierr = ISGetSize(bNis,&bN);CHKERRQ(ierr);
     ierr = ISGetIndices(bNis,&bNindices);CHKERRQ(ierr);
@@ -1586,6 +1586,8 @@ PETSC_EXTERN PetscErrorCode MatCreate_Nest(Mat A)
   ierr = PetscObjectComposeFunction((PetscObject)A,"MatNestGetLocalISs_C", MatNestGetLocalISs_Nest);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)A,"MatNestSetVecType_C",  MatNestSetVecType_Nest);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)A,"MatNestSetSubMats_C",  MatNestSetSubMats_Nest);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)B,"MatConvert_nest_seqaij_C",MatConvert_Nest_AIJ);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)B,"MatConvert_nest_mpiaij_C",MatConvert_Nest_AIJ);CHKERRQ(ierr);
 
   ierr = PetscObjectChangeTypeName((PetscObject)A,MATNEST);CHKERRQ(ierr);
   PetscFunctionReturn(0);
