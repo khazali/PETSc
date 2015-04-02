@@ -49,7 +49,7 @@ static PetscErrorCode MSA_BoundaryConditions(AppCtx*);
 static PetscErrorCode MSA_InitialPoint(AppCtx*,Vec);
 static PetscErrorCode MSA_Plate(Vec,Vec,void*);
 PetscErrorCode FormAugFunction(SNES,Vec,Vec,void*);
-PetscErrorCode FormAugJacobian(SNES,Vec,Mat,Mat,void*);
+PetscErrorCode FormAugJacobian(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*);
 
 
 #undef __FUNCT__
@@ -446,7 +446,7 @@ PetscErrorCode FormAugFunction(SNES snes, Vec XAug, Vec FAug,void *userCtx)
    Option (A) seems cleaner/easier in many cases, and is the procedure
    used in this example.
 */
-PetscErrorCode FormAugJacobian(SNES snes,Vec XAug,Mat JAug, Mat JAugPre, void *ptr)
+PetscErrorCode FormAugJacobian(SNES snes,Vec XAug,Mat JAug, Mat JAugPre, SNESConstraintAugMatStruct* augtype, void *ptr)
 {
   PetscErrorCode ierr;
   AppCtx         *user = (AppCtx *) ptr;
@@ -466,6 +466,7 @@ PetscErrorCode FormAugJacobian(SNES snes,Vec XAug,Mat JAug, Mat JAugPre, void *p
 
 
   /* Set various matrix options */
+  *augtype = SNES_CONSTRAINT_AUG_MAT_FULL;
   ierr = VecNestGetSubVec(XAug,0,&X);CHKERRQ(ierr);
   ierr = MatNestGetSubMat(JAug,0,0,&Jacobian);CHKERRQ(ierr);
   ierr = MatNestGetSubMat(JAug,1,0,&B);CHKERRQ(ierr);
