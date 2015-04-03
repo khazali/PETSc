@@ -39,10 +39,8 @@ typedef struct {
   /* Working space */
   Vec         localX, localV;           /* ghosted local vector */
   Vec         vaug;
-  Vec         X,fwork,cwork;
-  VecScatter  xscatter,cscatter;
+  VecScatter  x_to_aug,c_to_aug;
   IS          is_aug_to_x; /* indices of aug that comprise x */
-  IS          is_aug_to_c; /* indices of aug that comprise c */
 } AppCtx;
 
 /* -------- User-defined Routines --------- */
@@ -59,11 +57,12 @@ PetscErrorCode FormAugJacobian(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void
 int main( int argc, char **argv )
 {
   PetscErrorCode         ierr;                 /* used to check for functions returning nonzeros */
-  PetscInt               m;                 /* number of local and global elements in vectors */
-  PetscInt               xlo,xhi,clo,chi,localsize;
+  PetscInt               m, N;                 /* number of local and global elements in vectors */
+  PetscInt               xlo,xhi,clo,chi;
   Vec                    x,x0;                 /* solution vector */
   Vec                    c,cl,cu;              /* constraint vectors */
-
+  Vec                    vecs[2];
+  Mat                    mats[4];
   PetscBool              flg;                /* A return variable when checking for user options */
   SNES                    snes;                  /* SNES solver context */
   ISLocalToGlobalMapping isltog;   /* local-to-global mapping object */
@@ -95,6 +94,8 @@ int main( int argc, char **argv )
   ierr = PetscPrintf(PETSC_COMM_WORLD,"\n---- Minimum Surface Area With Plate Problem -----\n");CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"mx:%D, my:%D, bmx:%D, bmy:%D, height:%g\n",user.mx,user.my,user.bmx,user.bmy,(double)user.bheight);CHKERRQ(ierr);
 
+  /* Calculate any derived values from parameters */
+  N    = user.mx*user.my;
 
   /*
      Extract global and local vectors from DM; The local vectors are
@@ -102,30 +103,24 @@ int main( int argc, char **argv )
      gradient, and Hessian.  Duplicate for remaining vectors that are
      the same types.
   */
-  ierr = DMCreateGlobalVector(user.dm,&user.X);CHKERRQ(ierr); /* Solution */
+  ierr = DMCreateGlobalVector(user.dm,&x);CHKERRQ(ierr); /* Solution */
   ierr = DMCreateLocalVector(user.dm,&user.localX);CHKERRQ(ierr);
   ierr = VecDuplicate(user.localX,&user.localV);CHKERRQ(ierr);
 
-  ierr = VecDuplicate(user.X,&x0);CHKERRQ(ierr);
-  ierr = VecCopy(user.X,x0);CHKERRQ(ierr);
-  ierr = VecDuplicate(user.X,&c);CHKERRQ(ierr);
+  ierr = VecDuplicate(x,&x0);CHKERRQ(ierr);
+  ierr = VecCopy(x,x0);CHKERRQ(ierr);
+  ierr = VecDuplicate(x,&c);CHKERRQ(ierr);
   ierr = VecDuplicate(c,&cl);CHKERRQ(ierr);
   ierr = VecDuplicate(c,&cu);CHKERRQ(ierr);
-  ierr = VecDuplicate(user.X,&user.fwork);CHKERRQ(ierr);
-  ierr = VecDuplicate(user.X,&user.cwork);CHKERRQ(ierr);
 
   /* create augmented vector */
-  ierr = VecGetOwnershipRange(user.X,&xlo,&xhi);CHKERRQ(ierr);
+  vecs[0] = x;
+  vecs[1] = c;
+  ierr = VecCreateNest(PETSC_COMM_WORLD,2,NULL,vecs,&user.vaug);CHKERRQ(ierr);
+
+  ierr = VecGetOwnershipRange(x,&xlo,&xhi);CHKERRQ(ierr);
   ierr = VecGetOwnershipRange(c,&clo,&chi);CHKERRQ(ierr);
-  localsize=xhi-xlo+chi-clo;
   ierr = ISCreateStride(PETSC_COMM_WORLD,xhi-xlo,xlo,1,&user.is_aug_to_x);CHKERRQ(ierr);
-  ierr = ISCreateStride(PETSC_COMM_WORLD,chi-clo,clo,1,&user.is_aug_to_c);CHKERRQ(ierr);
-
-  ierr = VecCreateMPI(PETSC_COMM_WORLD,localsize,PETSC_DETERMINE,
-                      &user.vaug);CHKERRQ(ierr);
-  ierr = VecScatterCreate(user.vaug,user.is_aug_to_x,user.X,NULL,&user.xscatter);CHKERRQ(ierr);
-  ierr = VecScatterCreate(user.vaug,user.is_aug_to_c,c,NULL,&user.cscatter);CHKERRQ(ierr);
-
 
   ierr = SNESCreate(PETSC_COMM_WORLD,&snes);CHKERRQ(ierr);
   ierr = SNESSetType(snes,SNESNEWTONAS);CHKERRQ(ierr);
@@ -136,19 +131,22 @@ int main( int argc, char **argv )
 
   /* Set routines for function, gradient and hessian evaluation */
   ierr = VecGetLocalSize(x,&m);CHKERRQ(ierr);
+  ierr = MatCreateAIJ(PETSC_COMM_WORLD,m,m,N,N,7,NULL,3,NULL,&(user.J));CHKERRQ(ierr);
+  ierr = MatSetOption(user.J,MAT_SYMMETRIC,PETSC_TRUE);CHKERRQ(ierr);
 
+  ierr = MatCreateAIJ(PETSC_COMM_WORLD,m,m,N,N,1,NULL,1,NULL,&(user.B));CHKERRQ(ierr);
+  ierr = MatCreateAIJ(PETSC_COMM_WORLD,m,m,N,N,1,NULL,1,NULL,&(user.Bt));CHKERRQ(ierr);
   ierr = DMGetLocalToGlobalMapping(user.dm,&isltog);CHKERRQ(ierr);
   ierr = MatSetLocalToGlobalMapping(user.J,isltog,isltog);CHKERRQ(ierr);
   ierr = MatSetLocalToGlobalMapping(user.B,isltog,isltog);CHKERRQ(ierr);
   ierr = MatSetLocalToGlobalMapping(user.Bt,isltog,isltog);CHKERRQ(ierr);
-  ierr = MatCreateAIJ(PETSC_COMM_WORLD,localsize,localsize,PETSC_DETERMINE,PETSC_DETERMINE,localsize,NULL,2*localsize,NULL,&user.MAug);CHKERRQ(ierr);
-  ierr = MatGetSubMatrix(user.MAug,user.is_aug_to_x,user.is_aug_to_x,MAT_INITIAL_MATRIX,&user.J);CHKERRQ(ierr);
-  ierr = MatGetSubMatrix(user.MAug,user.is_aug_to_c,user.is_aug_to_x,MAT_INITIAL_MATRIX,&user.B);CHKERRQ(ierr);
-  ierr = MatGetSubMatrix(user.MAug,user.is_aug_to_x,user.is_aug_to_c,MAT_INITIAL_MATRIX,&user.Bt);CHKERRQ(ierr);
+  mats[0]=user.J; mats[1]=user.Bt;
+  mats[2]=user.B; mats[3]=NULL;
+  ierr = MatCreateNest(PETSC_COMM_WORLD,2,NULL,2,NULL,mats,&user.MAug);CHKERRQ(ierr);
 
   /* Set Variable bounds */
   ierr = MSA_Plate(cl,cu,(void*)&user);CHKERRQ(ierr);
-  ierr = SNESConstraintSetAugSystem(snes,user.vaug,user.MAug,user.MAug,user.is_aug_to_c,FormAugFunction,FormAugJacobian,&user);CHKERRQ(ierr);
+  ierr = SNESConstraintSetAugSystem(snes,user.vaug,user.MAug,user.MAug,user.is_aug_to_x,FormAugFunction,FormAugJacobian,&user);CHKERRQ(ierr);
 
   /* Check for any snes command line options */
   ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
@@ -181,10 +179,7 @@ int main( int argc, char **argv )
   ierr = VecDestroy(&user.Left);CHKERRQ(ierr);
   ierr = VecDestroy(&user.Right);CHKERRQ(ierr);
   ierr = DMDestroy(&user.dm);CHKERRQ(ierr);
-  ierr = ISDestroy(&user.is_aug_to_c);CHKERRQ(ierr);
   ierr = ISDestroy(&user.is_aug_to_x);CHKERRQ(ierr);
-  ierr = VecScatterDestroy(&user.xscatter);CHKERRQ(ierr);
-  ierr = VecScatterDestroy(&user.cscatter);CHKERRQ(ierr);
   PetscFinalize();
   return 0;
 }
@@ -215,6 +210,7 @@ PetscErrorCode FormAugFunction(SNES snes, Vec XAug, Vec FAug,void *userCtx)
 {
   AppCtx         *user = (AppCtx *) userCtx;
   PetscErrorCode ierr;
+  Vec            X,F,C;
   PetscInt       i,j,row;
   PetscInt       mx=user->mx, my=user->my;
   PetscInt       xs,xm,gxs,gxm,ys,ym,gys,gym;
@@ -226,20 +222,22 @@ PetscErrorCode FormAugFunction(SNES snes, Vec XAug, Vec FAug,void *userCtx)
   PetscReal      df1dxc,df2dxc,df3dxc,df4dxc,df5dxc,df6dxc;
   PetscReal      *g, *x,*left,*right,*bottom,*top;
   Vec            localX = user->localX, localF = user->localV;
+  
+  ierr = VecNestGetSubVec(XAug,0,&X);CHKERRQ(ierr);
+  ierr = VecNestGetSubVec(FAug,0,&F);CHKERRQ(ierr);
+  ierr = VecNestGetSubVec(FAug,1,&C);CHKERRQ(ierr);
 
-  ierr = VecScatterBegin(user->xscatter,XAug,user->X,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
-  ierr = VecScatterEnd(user->xscatter,XAug,user->X,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
 
   /* constraint function */
-  ierr = VecCopy(user->X,user->cwork);CHKERRQ(ierr);
+  ierr = VecCopy(X,C);CHKERRQ(ierr);
 
   /* Get local mesh boundaries */
   ierr = DMDAGetCorners(user->dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(user->dm,&gxs,&gys,NULL,&gxm,&gym,NULL);CHKERRQ(ierr);
 
   /* Scatter ghost points to local vector */
-  ierr = DMGlobalToLocalBegin(user->dm,user->X,INSERT_VALUES,localX);CHKERRQ(ierr);
-  ierr = DMGlobalToLocalEnd(user->dm,user->X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalBegin(user->dm,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalEnd(user->dm,X,INSERT_VALUES,localX);CHKERRQ(ierr);
 
   /* Initialize vector to zero */
   ierr = VecSet(localF, zero);CHKERRQ(ierr);
@@ -400,15 +398,8 @@ PetscErrorCode FormAugFunction(SNES snes, Vec XAug, Vec FAug,void *userCtx)
   ierr = VecRestoreArray(user->Right,&right);CHKERRQ(ierr);
 
   /* Scatter values to global vector */
-  ierr = DMLocalToGlobalBegin(user->dm,localF,INSERT_VALUES,user->fwork);CHKERRQ(ierr);
-  ierr = DMLocalToGlobalEnd(user->dm,localF,INSERT_VALUES,user->fwork);CHKERRQ(ierr);
-
-  ierr = VecScatterBegin(user->xscatter,user->fwork,FAug,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
-  ierr = VecScatterEnd(user->xscatter,user->fwork,FAug,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
-  ierr = VecScatterBegin(user->cscatter,user->cwork,FAug,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
-  ierr = VecScatterEnd(user->cscatter,user->cwork,FAug,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
-
-
+  ierr = DMLocalToGlobalBegin(user->dm,localF,INSERT_VALUES,F);CHKERRQ(ierr);
+  ierr = DMLocalToGlobalEnd(user->dm,localF,INSERT_VALUES,F);CHKERRQ(ierr);
 
   ierr = PetscLogFlops(70*xm*ym);CHKERRQ(ierr);
 
@@ -459,6 +450,8 @@ PetscErrorCode FormAugJacobian(SNES snes,Vec XAug,Mat JAug, Mat JAugPre, SNESCon
 {
   PetscErrorCode ierr;
   AppCtx         *user = (AppCtx *) ptr;
+  Mat            Jacobian,B,Bt;
+  Vec            X;
   PetscInt       i,j,k,row;
   PetscInt       mx=user->mx, my=user->my;
   PetscInt       xs,xm,gxs,gxm,ys,ym,gys,gym,col[7];
@@ -471,29 +464,26 @@ PetscErrorCode FormAugJacobian(SNES snes,Vec XAug,Mat JAug, Mat JAugPre, SNESCon
   Vec            localX = user->localX;
   PetscBool      assembled;
 
-  ierr = VecScatterBegin(user->xscatter,XAug,user->X,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
-  ierr = VecScatterEnd(user->xscatter,XAug,user->X,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
 
   /* Set various matrix options */
   *augtype = SNES_CONSTRAINT_AUG_MAT_FULL;
+  ierr = VecNestGetSubVec(XAug,0,&X);CHKERRQ(ierr);
+  ierr = MatNestGetSubMat(JAug,0,0,&Jacobian);CHKERRQ(ierr);
+  ierr = MatNestGetSubMat(JAug,1,0,&B);CHKERRQ(ierr);
+  ierr = MatNestGetSubMat(JAug,0,1,&Bt);CHKERRQ(ierr);
+  ierr = MatSetOption(Jacobian,MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr);
 
   /* Initialize matrix entries to zero */
-  ierr = MatAssembled(JAug,&assembled);CHKERRQ(ierr);
-  if (assembled){ierr = MatZeroEntries(JAug);CHKERRQ(ierr);}
-
-  ierr = MatGetSubMatrix(JAug,user->is_aug_to_x,user->is_aug_to_x,MAT_REUSE_MATRIX,&user->J);CHKERRQ(ierr);
-  ierr = MatGetSubMatrix(JAug,user->is_aug_to_c,user->is_aug_to_x,MAT_REUSE_MATRIX,&user->B);CHKERRQ(ierr);
-  ierr = MatGetSubMatrix(JAug,user->is_aug_to_x,user->is_aug_to_c,MAT_REUSE_MATRIX,&user->Bt);CHKERRQ(ierr);
-  /*ierr = MatSetOption(JAug,MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr);*/
-
+  ierr = MatAssembled(Jacobian,&assembled);CHKERRQ(ierr);
+  if (assembled){ierr = MatZeroEntries(Jacobian);CHKERRQ(ierr);}
 
   /* Get local mesh boundaries */
   ierr = DMDAGetCorners(user->dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(user->dm,&gxs,&gys,NULL,&gxm,&gym,NULL);CHKERRQ(ierr);
 
   /* Scatter ghost points to local vector */
-  ierr = DMGlobalToLocalBegin(user->dm,user->X,INSERT_VALUES,localX);CHKERRQ(ierr);
-  ierr = DMGlobalToLocalEnd(user->dm,user->X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalBegin(user->dm,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalEnd(user->dm,X,INSERT_VALUES,localX);CHKERRQ(ierr);
 
   /* Get pointers to vector data */
   ierr = VecGetArray(localX,&x);CHKERRQ(ierr);
@@ -617,7 +607,7 @@ PetscErrorCode FormAugJacobian(SNES snes,Vec XAug,Mat JAug, Mat JAugPre, SNESCon
          Set matrix values using local numbering, which was defined
          earlier, in the main routine.
       */
-      ierr = MatSetValuesLocal(user->J,1,&row,k,col,v,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = MatSetValuesLocal(Jacobian,1,&row,k,col,v,INSERT_VALUES);CHKERRQ(ierr);
 
     }
   }
@@ -629,10 +619,18 @@ PetscErrorCode FormAugJacobian(SNES snes,Vec XAug,Mat JAug, Mat JAugPre, SNESCon
   ierr = VecRestoreArray(user->Bottom,&bottom);CHKERRQ(ierr);
   ierr = VecRestoreArray(user->Right,&right);CHKERRQ(ierr);
 
-  ierr = MatSetOption(user->B,MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr);
-  ierr = MatSetOption(user->Bt,MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr);
+  /* Assemble the matrix */
+  ierr = MatAssemblyBegin(Jacobian,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(Jacobian,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
+  ierr = MatSetOption(B,MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr);
+  ierr = MatSetOption(Bt,MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr);
 
+  /* Initialize matrix entries to zero */
+  ierr = MatAssembled(B,&assembled);CHKERRQ(ierr);
+  if (assembled){ierr = MatZeroEntries(B);CHKERRQ(ierr);}
+  ierr = MatAssembled(Bt,&assembled);CHKERRQ(ierr);
+  if (assembled){ierr = MatZeroEntries(Bt);CHKERRQ(ierr);}
 
   /* Get local mesh boundaries */
   ierr = DMDAGetCorners(user->dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
@@ -646,16 +644,11 @@ PetscErrorCode FormAugJacobian(SNES snes,Vec XAug,Mat JAug, Mat JAugPre, SNESCon
          Set matrix values using local numbering, which was defined
          earlier, in the main routine.
       */
-      ierr = MatSetValuesLocal(user->B,1,&row,1,&row,v,INSERT_VALUES);CHKERRQ(ierr);
-      ierr = MatSetValuesLocal(user->Bt,1,&row,1,&row,v,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = MatSetValuesLocal(B,1,&row,1,&row,v,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = MatSetValuesLocal(Bt,1,&row,1,&row,v,INSERT_VALUES);CHKERRQ(ierr);
 
     }
   }
-
-  /* Assemble the matrix */
-  ierr = MatAssemblyBegin(JAug,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatAssemblyEnd(JAug,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-
 
   ierr = PetscLogFlops(199*xm*ym);CHKERRQ(ierr);
   return 0;

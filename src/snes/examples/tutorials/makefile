@@ -245,6 +245,9 @@ ex69: ex69.o  chkopts
 ex69a: ex69a.o  chkopts
 	-${CLINKER} -o ex69a ex69a.o ${PETSC_SNES_LIB}
 	${RM} ex69a.o
+ex69b: ex69b.o  chkopts
+	-${CLINKER} -o ex69b ex69b.o ${PETSC_SNES_LIB}
+	${RM} ex69b.o
 ex70: ex70.o  chkopts
 	-${CLINKER} -o ex70 ex70.o ${PETSC_SNES_LIB}
 	${RM} ex70.o
