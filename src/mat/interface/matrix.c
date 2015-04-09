@@ -7489,10 +7489,12 @@ M*/
 PetscErrorCode  MatGetSubMatrix(Mat mat,IS isrow,IS iscol,MatReuse cll,Mat *newmat)
 {
   PetscErrorCode ierr;
-  PetscErrorCode matsubierr;
+  PetscErrorCode matsubierr=0;
   PetscMPIInt    size;
   Mat            *local;
   IS             iscoltmp;
+  PetscBool      broken_sub;
+  PetscBool      isshell;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
@@ -7547,19 +7549,24 @@ PetscErrorCode  MatGetSubMatrix(Mat mat,IS isrow,IS iscol,MatReuse cll,Mat *newm
     PetscFunctionReturn(0);
   }
 
-  PetscBool isshell;
-  if (!mat->ops->getsubmatrix) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Mat type %s",((PetscObject)mat)->type_name);
-  ierr = PetscLogEventBegin(MAT_GetSubMatrix,mat,0,0,0);CHKERRQ(ierr);
-  matsubierr = (*mat->ops->getsubmatrix)(mat,isrow,iscoltmp,cll,newmat);
-  ierr = PetscLogEventEnd(MAT_GetSubMatrix,mat,0,0,0);CHKERRQ(ierr);
+  if (mat->ops->getsubmatrix) {
+    ierr = PetscLogEventBegin(MAT_GetSubMatrix,mat,0,0,0);CHKERRQ(ierr);
+    matsubierr = (*mat->ops->getsubmatrix)(mat,isrow,iscoltmp,cll,newmat);
+    if (matsubierr == PETSC_ERR_USER) {
+      broken_sub = PETSC_TRUE;
+    } else {
+      CHKERRQ(matsubierr);
+    }
+    ierr = PetscLogEventEnd(MAT_GetSubMatrix,mat,0,0,0);CHKERRQ(ierr);
+  }
 
   /* If that didn't work, or if we don't have a mat->ops->getsubmatrix,
      then create a new matrix type that implements the operation using the full matrix */
-  if (matsubierr != 0 || !mat->ops->getsubmatrix) {
+  if (!mat->ops->getsubmatrix || broken_sub) {
     ierr = PetscLogEventBegin(MAT_GetSubMatrix,mat,0,0,0);CHKERRQ(ierr);
 
     ierr = PetscObjectTypeCompare((PetscObject)mat,MATSHELL,&isshell);CHKERRQ(ierr);
-    if (isshell) {
+    if (isshell || broken_sub) {
       ierr = MatCreateSubMatrixFree(mat,isrow,iscoltmp,newmat);CHKERRQ(ierr);
     } else {
       switch (cll) {
