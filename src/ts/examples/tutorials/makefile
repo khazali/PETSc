@@ -1,4 +1,4 @@
-
+ADIC_RUNTIME    = -L/Users/hongzhang/Projects/adic_runtime/lib -lruntimedense 
 CFLAGS          =
 FFLAGS          =
 CPPFLAGS        =

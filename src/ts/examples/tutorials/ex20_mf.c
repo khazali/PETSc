@@ -1,3 +1,4 @@
+#include "vanderpol1/interface.h"
 
 static char help[] = "Solves the van der Pol equation.\n\
 Input parameters include:\n";
@@ -236,11 +237,38 @@ static PetscErrorCode MyMult(Mat A_shell,Vec X,Vec Y)
 {
   Mctx           mctx;
   PetscErrorCode ierr;
+  int            n=2;
+  Vec            F,dFdXdot;           
+  PetscScalar    *f,*mx,*mxdot,*xseed,*y,*dfdxdot;
 
   PetscFunctionBeginUser;
+  ierr = VecDuplicate(Y,&F);CHKERRQ(ierr);
+  ierr = VecDuplicate(Y,&dFdXdot);CHKERRQ(ierr);
+
   ierr = MatShellGetContext(A_shell,(void**)&mctx);CHKERRQ(ierr);
+  ierr = VecGetArray(mctx->X,&mx);CHKERRQ(ierr);
+  ierr = VecGetArray(mctx->Xdot,&mxdot);CHKERRQ(ierr);
+  ierr = VecGetArray(F,&f);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(X,&xseed);CHKERRQ(ierr);
+  ierr = VecGetArray(Y,&y);CHKERRQ(ierr);
+  ierr = VecGetArray(dFdXdot,&dfdxdot);CHKERRQ(ierr);
+ 
+  IFunction_forward_product(n,mctx->time,mx,mxdot,xseed,xseed,mctx->uctx,f,y,dfdxdot);
+
+  ierr = VecRestoreArray(mctx->X,&mx);CHKERRQ(ierr);
+  ierr = VecRestoreArray(mctx->Xdot,&mxdot);CHKERRQ(ierr);
+  ierr = VecRestoreArray(F,&f);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(X,&xseed);CHKERRQ(ierr);
+  ierr = VecRestoreArray(Y,&y);CHKERRQ(ierr);
+  ierr = VecRestoreArray(dFdXdot,&dfdxdot);CHKERRQ(ierr);
+
+  ierr = VecAXPY(Y,mctx->shift,dFdXdot);CHKERRQ(ierr);
+  /*
   ierr = IJacobian(mctx->ts,mctx->time,mctx->X,mctx->Xdot,mctx->shift,mctx->uctx->Jac,mctx->uctx->Jac,mctx->uctx);CHKERRQ(ierr);
   ierr = MatMult(mctx->uctx->Jac,X,Y);CHKERRQ(ierr);
+  */
+  ierr = VecDestroy(&F);CHKERRQ(ierr);  
+  ierr = VecDestroy(&dFdXdot);CHKERRQ(ierr);  
   PetscFunctionReturn(0);
 }
 
