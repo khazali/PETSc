@@ -156,11 +156,9 @@ static PetscErrorCode TaoSolve_TRON(Tao tao)
 
     }
     /* use free_local to mask/submat gradient, hessian, stepdirection */
-    ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,tao->subset_type,0.0,&tron->R);CHKERRQ(ierr);
-    ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,tao->subset_type,0.0,&tron->DXFree);CHKERRQ(ierr);
-    ierr = VecSet(tron->DXFree,0.0);CHKERRQ(ierr);
-    ierr = VecScale(tron->R, -1.0);CHKERRQ(ierr);
-    ierr = TaoMatGetSubMat(tao->hessian, tron->Free_Local, tron->diag, tao->subset_type, &tron->H_sub);CHKERRQ(ierr);
+    ierr = MatGetSubMatrix(tao->hessian, tron->Free_Local, tron->Free_Local, MAT_INITIAL_MATRIX, &tron->H_sub);CHKERRQ(ierr);
+    ierr = MatGetSize(tron->H_sub,&hsubm,&hsubn);CHKERRQ(ierr);
+    ierr = MatGetSize(tao->hessian,&hm,&hn);CHKERRQ(ierr);
     if (tao->hessian == tao->hessian_pre) {
       ierr = MatDestroy(&tron->Hpre_sub);CHKERRQ(ierr);
       ierr = PetscObjectReference((PetscObject)(tron->H_sub));CHKERRQ(ierr);
@@ -170,6 +168,12 @@ static PetscErrorCode TaoSolve_TRON(Tao tao)
     }
     ierr = KSPReset(tao->ksp);CHKERRQ(ierr);
     ierr = KSPSetOperators(tao->ksp, tron->H_sub, tron->Hpre_sub);CHKERRQ(ierr);
+    if (subm == 
+    ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,tao->subset_type,0.0,&tron->R);CHKERRQ(ierr);
+    ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,tao->subset_type,0.0,&tron->DXFree);CHKERRQ(ierr);
+    ierr = VecSet(tron->DXFree,0.0);CHKERRQ(ierr);
+    ierr = VecScale(tron->R, -1.0);CHKERRQ(ierr);
+    
     while (1) {
 
       /* Approximately solve the reduced linear system */
@@ -415,6 +419,11 @@ PETSC_EXTERN PetscErrorCode TaoCreate_TRON(Tao tao)
   ierr = KSPCreate(((PetscObject)tao)->comm, &tao->ksp);CHKERRQ(ierr);
   ierr = KSPSetOptionsPrefix(tao->ksp, tao->hdr.prefix);CHKERRQ(ierr);
   ierr = KSPSetType(tao->ksp,KSPSTCG);CHKERRQ(ierr);
+  {
+    PC pc;
+    ierr =KSPGetPC(tao->ksp,&pc);CHKERRQ(ierr);
+    ierr = PCSetType(pc,PCNONE);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 

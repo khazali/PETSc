@@ -551,9 +551,6 @@ PetscErrorCode SNESVISetVariableBounds_VI(SNES snes,Vec xl,Vec xu)
   Output Parameters:
 . sub - the sub vector. created if doesn't exist.
 
-  Notes:
-  uses valmasked to determine if masking or subvectors are used
-  maskvalue should usually be 0.0, unless a pointwise divide will be used.
 
   Level: developer
 @*/
