@@ -167,6 +167,7 @@ static PetscErrorCode TaoSolve_TRON(Tao tao)
     }
     ierr = KSPReset(tao->ksp);CHKERRQ(ierr);
     ierr = KSPSetOperators(tao->ksp, tron->H_sub, tron->Hpre_sub);CHKERRQ(ierr);
+<<<<<<< HEAD
     ierr = PetscObjectTypeCompare((PetscObject)tron->H_sub,MATSHELL,&usemask);CHKERRQ(ierr);
     ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,usemask,0.0,&tron->R);CHKERRQ(ierr);
     ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,usemask,0.0,&tron->DXFree);CHKERRQ(ierr);
@@ -174,6 +175,14 @@ static PetscErrorCode TaoSolve_TRON(Tao tao)
     ierr = VecSet(tron->DXFree,0.0);CHKERRQ(ierr);
     ierr = VecScale(tron->R, -1.0);CHKERRQ(ierr);
 
+=======
+    if (subm == 
+    ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,tao->subset_type,0.0,&tron->R);CHKERRQ(ierr);
+    ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,tao->subset_type,0.0,&tron->DXFree);CHKERRQ(ierr);
+    ierr = VecSet(tron->DXFree,0.0);CHKERRQ(ierr);
+    ierr = VecScale(tron->R, -1.0);CHKERRQ(ierr);
+    
+>>>>>>> start moving tao submats to petsc submat
     while (1) {
 
       /* Approximately solve the reduced linear system */
