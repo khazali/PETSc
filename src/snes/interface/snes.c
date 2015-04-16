@@ -720,14 +720,16 @@ PetscErrorCode SNESConstraintSetUpVectors(SNES snes,PetscInt nwork,PetscBool set
       ierr = VecSetSizes(snes->vec_constr,n,PETSC_DETERMINE);CHKERRQ(ierr);
       if (snes->vec_func_aug) {
 	ierr = VecGetType(snes->vec_func_aug,&type);CHKERRQ(ierr);
+	ierr = VecSetType(snes->vec_constr,type);CHKERRQ(ierr);
       } else if (snes->vec_func) {
 	ierr = VecGetType(snes->vec_func,&type);CHKERRQ(ierr);
+	ierr = VecSetType(snes->vec_constr,type);CHKERRQ(ierr);
       } else if (snes->vec_sol) {
 	ierr = VecGetType(snes->vec_func,&type);CHKERRQ(ierr);
+	ierr = VecSetType(snes->vec_constr,type);CHKERRQ(ierr);
       } else {
 	SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Cannot determine the type of constraint vector: neither primal nor augmented vectors are set up.");
       }
-      ierr = VecSetType(snes->vec_constr,type);CHKERRQ(ierr);
       ierr = PetscObjectAppendOptionsPrefix((PetscObject)snes->vec_constr,"constr_");CHKERRQ(ierr);
       ierr = VecSetFromOptions(snes->vec_constr);CHKERRQ(ierr);
     }
@@ -3564,23 +3566,19 @@ PetscErrorCode  SNESSetUp(SNES snes)
     ierr = SNESSetType(snes,SNESNEWTONLS);CHKERRQ(ierr);
   }
 
+  /* FIXME: need a more systematic way to do generic set up for either constrained or unconstrained solve. */
   ierr = SNESGetFunction(snes,&snes->vec_func,NULL,NULL);CHKERRQ(ierr);
-
 
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
-  if (!sdm->ops->computefunction) SETERRQ(PetscObjectComm((PetscObject)dm),PETSC_ERR_ARG_WRONGSTATE,"Function never provided to SNES object");
-  if (!sdm->ops->computejacobian) {
+  if (!sdm->ops->computefunction && !sdm->ops->constraintaugfunction) SETERRQ(PetscObjectComm((PetscObject)dm),PETSC_ERR_ARG_WRONGSTATE,"Neither function nor augmented function provided to SNES object");
+  if (!sdm->ops->computejacobian && !sdm->ops->constraintaugjacobian && sdm->ops->computefunction) {
     ierr = DMSNESSetJacobian(dm,SNESComputeJacobianDefaultColor,NULL);CHKERRQ(ierr);
   }
   if (!snes->vec_func) {
     ierr = DMCreateGlobalVector(dm,&snes->vec_func);CHKERRQ(ierr);
   }
 
-  /*
-    Constraint-related setup is done by solvers capable of handling constraints.
-    FIXME: should there be some check to make sure constraints can be handled and an error otherwise?
-  */
   if (!snes->ksp) {
     ierr = SNESGetKSP(snes, &snes->ksp);CHKERRQ(ierr);
   }
