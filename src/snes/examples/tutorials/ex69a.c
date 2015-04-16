@@ -139,13 +139,15 @@ int main( int argc, char **argv )
   ierr = VecGetLocalSize(x,&m);CHKERRQ(ierr);
 
   ierr = DMGetLocalToGlobalMapping(user.dm,&isltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMapping(user.J,isltog,isltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMapping(user.B,isltog,isltog);CHKERRQ(ierr);
-  ierr = MatSetLocalToGlobalMapping(user.Bt,isltog,isltog);CHKERRQ(ierr);
   ierr = MatCreateAIJ(PETSC_COMM_WORLD,localsize,localsize,PETSC_DETERMINE,PETSC_DETERMINE,localsize,NULL,2*localsize,NULL,&user.MAug);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(user.MAug,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(user.MAug,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatGetSubMatrix(user.MAug,user.is_aug_to_x,user.is_aug_to_x,MAT_INITIAL_MATRIX,&user.J);CHKERRQ(ierr);
   ierr = MatGetSubMatrix(user.MAug,user.is_aug_to_c,user.is_aug_to_x,MAT_INITIAL_MATRIX,&user.B);CHKERRQ(ierr);
   ierr = MatGetSubMatrix(user.MAug,user.is_aug_to_x,user.is_aug_to_c,MAT_INITIAL_MATRIX,&user.Bt);CHKERRQ(ierr);
+  ierr = MatSetLocalToGlobalMapping(user.J,isltog,isltog);CHKERRQ(ierr);
+  ierr = MatSetLocalToGlobalMapping(user.B,isltog,isltog);CHKERRQ(ierr);
+  ierr = MatSetLocalToGlobalMapping(user.Bt,isltog,isltog);CHKERRQ(ierr);
 
   /* Set Variable bounds */
   ierr = MSA_Plate(cl,cu,(void*)&user);CHKERRQ(ierr);
