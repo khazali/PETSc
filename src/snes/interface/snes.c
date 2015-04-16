@@ -615,9 +615,9 @@ PetscErrorCode SNESConstraintCreateAugEmbeddings_Private(SNES snes,IS *is_func,I
   if (create_constr_emb) {
     if (!snes->is_constr_aug) {
       ierr = DMConstraintCreateAugSystem(snes->dm,NULL,NULL,&snes->is_func_aug);CHKERRQ(ierr);
-      if (snes->is_constr_aug && create_func_emb && !snes->is_func_aug) {
-	ierr = ISComplement(snes->is_constr_aug,alo,ahi,&snes->is_func_aug);CHKERRQ(ierr);
-      }
+    }
+    if (snes->is_constr_aug && create_func_emb && !snes->is_func_aug) {
+      ierr = ISComplement(snes->is_constr_aug,alo,ahi,&snes->is_func_aug);CHKERRQ(ierr);
     }
     if (!snes->is_constr_aug) {
       ierr = ISCreateStride(comm,ghi-glo,alo+(fhi-flo),1,&snes->is_constr_aug);CHKERRQ(ierr);
