@@ -132,6 +132,7 @@ int main( int argc, char **argv )
 
   /* Set initial solution guess; */
   ierr = MSA_BoundaryConditions(&user);CHKERRQ(ierr);
+  ierr = VecDuplicate(user.X,&x);CHKERRQ(ierr);
   ierr = MSA_InitialPoint(&user,x);CHKERRQ(ierr);
 
   /* Set routines for function, gradient and hessian evaluation */
@@ -384,7 +385,7 @@ PetscErrorCode FormAugFunction(SNES snes, Vec XAug, Vec FAug,void *userCtx)
     ft +=PetscSqrtScalar( 1.0 + d1*d1 + d2*d2);
   }
 
-  /* No longer care about objective value 
+  /* No longer care about objective value
 
   ft=ft*area;
   ierr = MPI_Allreduce(&ft,fcn,1,MPIU_REAL,MPIU_SUM,PETSC_COMM_WORLD);CHKERRQ(ierr);
