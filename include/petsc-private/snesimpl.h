@@ -223,7 +223,8 @@ struct _p_DMSNES {
 
   void *constraintfunctionctx;
   void *constraintjacobianctx;
-  void *constraintaugctx;
+  void *constraintaugfuncctx;
+  void *constraintaugjacctx;
   void *projectontoconstraintsctx;
   void *meritctx;
 

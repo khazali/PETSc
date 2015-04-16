@@ -3262,34 +3262,27 @@ PetscErrorCode  SNESConstraintGetJacobian(SNES snes,Mat *B,Mat *Bt,PetscErrorCod
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "SNESConstraintSetAugSystem"
+#define __FUNCT__ "SNESConstraintSetAugFunction"
 /*@C
-   SNESConstraintSetAugSystem -   sets the callbacks computing the augmented
-   function and Jacobian matrix used by the SNES routines in solving constrained nonlinear systems
-   (variational inequalities).
+   SNESConstraintSetAugFunction -   sets the callbacks computing the augmented function
+   used by the SNES routines in solving constrained nonlinear systems (variational inequalities).
 
    Logically Collective on SNES
 
-   Input Parameter:
-+  snes    - the SNES context
-.  h       - vector storing the augmented function h; logically, h = [f,g]
-.  J       - matrix storing the augmented Jacobian (derivative of h); logically J = [A,B^T;B,0]
-.  J_pre   - matrix used to construct the preconditioner for J; usually same as J
-.  emb     - index set defining the embedding of constraints into the augmented system
-.  augfunc - routine computing h
-.  augjac  - routine computing J, J_pre
--  augctx  - user-defined context for private data for the augmented function and Jacobian evaluation
+   Input Parameters:
++  snes        - the SNES context
+.  h           - vector storing the augmented function h; logically, h = [f,g]
+.  augfunc     - routine computing h
+-  augfuncctx  - user-defined context for private data for the augmented function evaluation
 
    Level: intermediate
 
-   Notes: emb contains the indices of g within h, and of the rows of B and the columns of B^T within J.
-
 .keywords: SNES, nonlinear, get, constraint, augmented Jacobian
 
-.seealso: SNESConstraintSetJacobian(), SNESConstraintSetFunction(), SNESConstraintGetAugSystem(), SNESConstraintAugFunction, SNESConstraintAugJacobian
+.seealso: SNESConstraintSetJacobian(), SNESConstraintSetFunction(), SNESConstraintGetAugFunction(), SNESConstraintAugFunction, SNESConstraintAugJacobian
 @*/
-/* FIXME: write docs for SNESConstraintAugFunction, SNESConstraintAugJacobian */
-PetscErrorCode  SNESConstraintSetAugSystem(SNES snes,Vec h,Mat J,Mat J_pre,IS emb,PetscErrorCode(*augfunc)(SNES,Vec,Vec,void*),PetscErrorCode (*augjac)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void *augctx)
+/* FIXME: write docs for SNESConstraintAugFunction */
+PetscErrorCode  SNESConstraintSetAugFunction(SNES snes,Vec h,PetscErrorCode(*augfunc)(SNES,Vec,Vec,void*),void *augfuncctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -3302,6 +3295,78 @@ PetscErrorCode  SNESConstraintSetAugSystem(SNES snes,Vec h,Mat J,Mat J_pre,IS em
     ierr = VecDestroyVecs(snes->nwork_aug,&snes->work_aug);CHKERRQ(ierr);
     /* FIXME: destroy constraint work vectors as well? Reset setup flag? */
   }
+  ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
+  ierr = DMSNESConstraintSetAugFunction(dm,augfunc,augfuncctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESConstraintSetAugFunction"
+/*@C
+   SNESConstraintGetAugFunction -   retrieves the callbacks computing the augmented function
+   used by the SNES routines in solving constrained nonlinear systems (variational inequalities).
+
+   Logically Collective on SNES
+
+   Input ;arameter:
+.  snes        - the SNES context
+
+   Output parameters:
++  h           - vector storing the augmented function h; logically, h = [f,g]
+.  augfunc     - routine computing h
+-  augfuncctx  - user-defined context for private data for the augmented function evaluation
+
+   Level: intermediate
+
+.keywords: SNES, nonlinear, get, constraint, augmented Jacobian
+
+.seealso: SNESConstraintSetJacobian(), SNESConstraintSetFunction(), SNESConstraintGetAugFunction(), SNESConstraintAugFunction, SNESConstraintAugJacobian
+@*/
+PetscErrorCode  SNESConstraintGetAugFunction(SNES snes,Vec *h,PetscErrorCode(**augfunc)(SNES,Vec,Vec,void*),void **augfuncctx)
+{
+  PetscErrorCode ierr;
+  DM             dm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  if (h) {
+    *h = snes->vec_func_aug = h;
+  }
+  ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
+  ierr = DMSNESConstraintGetAugFunction(dm,augfunc,augfuncctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESConstraintSetAugJacobian"
+/*@C
+   SNESConstraintSetAugSystem -   sets the callbacks computing the augmented Jacobian
+   used by the SNES routines in solving constrained nonlinear systems (variational inequalities).
+
+   Logically Collective on SNES
+
+   Input Parameters:
++  snes       - the SNES context
+.  J          - matrix storing the augmented Jacobian (derivative of h); logically J = [A,B^T;B,0]
+.  J_pre      - matrix used to construct the preconditioner for J; usually same as J
+.  augjac     - routine computing J, J_pre
+-  augjacctx  - user-defined context for private data for the augmented Jacobian evaluation
+
+   Level: intermediate
+
+
+.keywords: SNES, nonlinear, get, constraint, augmented Jacobian
+
+.seealso: SNESConstraintSetJacobian(), SNESConstraintSetFunction(), SNESConstraintGetAugSystem(), SNESConstraintAugFunction, SNESConstraintAugJacobian
+@*/
+/* FIXME: write docs for SNESConstraintAugJacobian */
+PetscErrorCode  SNESConstraintSetAugSystem(SNES snes,Mat J,Mat J_pre,PetscErrorCode (*augjac)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void *augjacctx)
+{
+  PetscErrorCode ierr;
+  DM             dm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
   if (J) {
     ierr = MatDestroy(&snes->jacobian_aug);CHKERRQ(ierr);
     snes->jacobian_aug = J;
@@ -3310,68 +3375,123 @@ PetscErrorCode  SNESConstraintSetAugSystem(SNES snes,Vec h,Mat J,Mat J_pre,IS em
     ierr = MatDestroy(&snes->jacobian_aug_pre);CHKERRQ(ierr);
     snes->jacobian_aug_pre = J_pre;
   }
-  if (emb) {
-    ierr = ISDestroy(&snes->is_constr_aug);CHKERRQ(ierr);
-    snes->is_constr_aug    = emb;
-    snes->user_constr_emb  = PETSC_TRUE;
-    /* FIXME: does this affect aug vecs?  constr vecs? */
-  }
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
-  ierr = DMSNESConstraintSetAugSystem(dm,augfunc,augjac,augctx);CHKERRQ(ierr);
+  ierr = DMSNESConstraintSetAugJacobian(dm,augjac,augjacctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "SNESConstraintGetAugSystem"
+#define __FUNCT__ "SNESConstraintGetAugJacobian"
 /*@C
-   SNESConstraintGetAugSystem -   retrieves the callbacks computing the augmented
-   function and Jacobian matrix used by the SNES routines in solving constrained nonlinear systems
-   (variational inequalities).
+   SNESConstraintGetAugSystem -   retrieves the callbacks computing the augmented Jacobian
+   used by the SNES routines in solving constrained nonlinear systems (variational inequalities).
 
    Logically Collective on SNES
 
-   Input Parameter:
-.  snes     - the SNES context
+   Input parameter:
+.  snes       - the SNES context
 
-+  Output Parameters:
-.  h       - vector storing the augmented function h; logically, h = [f,g] (pass NULL, if not requested)
-.  J       - matrix storing the augmented Jacobian (derivative of h); logically J = [A,B^T;B,0]  (pass NULL, if not requested)
-.  J_pre   - matrix used to construct the preconditioner for J; usually same as J (pass NULL, if not requested)
-.  emb     - index set defining the embedding of constraints into the augmented system (pass NULL, if not requested)
-.  augfunc - routine computing h (pass NULL, if not requested)
-.  augjac  - routine computing J, J_pre (pass NULL, if not requested)
--  augctx  - user-defined context for private data for the augmented function and Jacobian evaluation (pass NULL, if not requested)
+   Output parameters:
++  J          - matrix storing the augmented Jacobian (derivative of h); logically J = [A,B^T;B,0]
+.  J_pre      - matrix used to construct the preconditioner for J; usually same as J
+.  augjac     - routine computing J, J_pre
+-  augjacctx  - user-defined context for private data for the augmented Jacobian evaluation
 
    Level: intermediate
 
-   Notes: emb contains the indices of g within h, and of the rows of B and the columns of B^T within J.
 
 .keywords: SNES, nonlinear, get, constraint, augmented Jacobian
 
-.seealso: SNESConstraintGetJacobian(), SNESConstraintGetFunction(), SNESConstraintSetAugFunctionJacoian(), SNESConstraintAugFunction, SNESConstraintAugJacobian
+.seealso: SNESConstraintSetJacobian(), SNESConstraintSetFunction(), SNESConstraintGetAugSystem(), SNESConstraintAugFunction, SNESConstraintAugJacobian
 @*/
-/* FIXME: write docs for SNESConstraintAugFunction, SNESConstraintAugJacobian */
-PetscErrorCode  SNESConstraintGetAugSystem(SNES snes,Vec *h,Mat *J,Mat *J_pre,IS *emb,PetscErrorCode(**augfunc)(SNES,Vec,Vec,void*),PetscErrorCode (**augjac)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void **augctx)
+PetscErrorCode  SNESConstraintGetAugEmbedding(SNES snes,Mat *J,Mat *J_pre,PetscErrorCode (**augjac)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void **augjacctx)
 {
   PetscErrorCode ierr;
   DM             dm;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
-  if (h) {
-    *h = snes->vec_func_aug;
-  }
   if (J) {
     *J = snes->jacobian_aug;
   }
   if (J_pre) {
     *J_pre = snes->jacobian_aug_pre;
   }
+  ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
+  ierr = DMSNESConstraintGetAugJacobian(dm,augjac,augjacctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESConstraintSetAugEmbedding"
+/*@C
+   SNESConstraintSetAugSystem -   sets the IS embedding the constraint vector into the augmented vector
+   used by the SNES routines in solving constrained nonlinear systems (variational inequalities).
+
+   Logically Collective on SNES
+
+   Input Parameters:
++  snes    - the SNES context
+-  emb     - index set defining the embedding of constraints into the augmented system
+
+
+   Level: intermediate
+
+   Notes: emb contains the indices of the constraint vector embedded in the augmented vector, and of the rows of B and the columns of B^T within J.
+
+.keywords: SNES, nonlinear, get, constraint, augmented Jacobian
+
+.seealso: SNESConstraintSetJacobian(), SNESConstraintSetFunction(), SNESConstraintGetAugEmbedding(), SNESConstraintAugFunction, SNESConstraintAugJacobian
+@*/
+PetscErrorCode  SNESConstraintSetAugEmbedding(SNES snes,IS emb)
+{
+  PetscErrorCode ierr;
+  DM             dm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  if (emb) {
+    ierr = ISDestroy(&snes->is_constr_aug);CHKERRQ(ierr);
+    snes->is_constr_aug    = emb;
+    snes->user_constr_emb  = PETSC_TRUE;
+    /* FIXME: does this affect aug vecs?  constr vecs? */
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESConstraintGetAugEmbedding"
+/*@C
+   SNESConstraintGetAugSystem -   retrieves the IS embedding the constraint vector into the augmented vector
+   used by the SNES routines in solving constrained nonlinear systems (variational inequalities).
+
+   Logically Collective on SNES
+
+   Input parameter:
+.  snes    - the SNES context
+
+   Output parameter:
+.  emb     - index set defining the embedding of constraints into the augmented system
+
+
+   Level: intermediate
+
+   Notes: emb contains the indices of the constraint vector embedded in the augmented vector, and of the rows of B and the columns of B^T within J.
+
+.keywords: SNES, nonlinear, get, constraint, augmented Jacobian
+
+.seealso: SNESConstraintSetJacobian(), SNESConstraintSetFunction(), SNESConstraintGetAugEmbedding(), SNESConstraintAugFunction, SNESConstraintAugJacobian
+@*/
+PetscErrorCode  SNESConstraintGetAugEmbedding(SNES snes,IS *emb)
+{
+  PetscErrorCode ierr;
+  DM             dm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
   if (emb) {
     *emb = snes->is_constr_aug;
   }
-  ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
-  ierr = DMSNESConstraintGetAugSystem(dm,augfunc,augjac,augctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
