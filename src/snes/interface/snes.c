@@ -3573,9 +3573,11 @@ PetscErrorCode  SNESSetUp(SNES snes)
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMGetDMSNES(dm,&sdm);CHKERRQ(ierr);
   if (!sdm->ops->computefunction && !sdm->ops->constraintaugfunction) SETERRQ(PetscObjectComm((PetscObject)dm),PETSC_ERR_ARG_WRONGSTATE,"Neither function nor augmented function provided to SNES object");
+  /* FIXME: if (!sdm->ops->computefunction && sdm->ops->constraintaugfunction) need to DMSNESSetFunction() using SNESComputeFunctionFromAug() */
   if (!sdm->ops->computejacobian && !sdm->ops->constraintaugjacobian && sdm->ops->computefunction) {
     ierr = DMSNESSetJacobian(dm,SNESComputeJacobianDefaultColor,NULL);CHKERRQ(ierr);
   }
+  /* FIXME: if (!sdm->ops->jacobian && sdm->ops->constraintaugjacobian) need to DMSNESSetJacobian() using SNESComputeJacobianFromAug() */
   if (!snes->vec_func) {
     ierr = DMCreateGlobalVector(dm,&snes->vec_func);CHKERRQ(ierr);
   }
