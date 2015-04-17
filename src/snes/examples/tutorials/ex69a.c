@@ -197,12 +197,12 @@ int main( int argc, char **argv )
 /*  FormAugFunction - Evaluates F(x) and C(x)
 
     Input Parameters:
-.   snes     - the SNES context
-.   X      - input vector
-.   userCtx - optional user-defined context, as set by SNESSetObjectiveAndGradientRoutine()
+.   snes    - the SNES context
+.   X       - input primal vector
+.   userCtx - optional user-defined context, as set by SNESConstraintSetAugFunction()
 
     Output Parameters:
-.   F      - vector containing the newly evaluated gradient
+.   F      - vector containing the evaluated augmented function -- the gradient and the constraints
 
    Notes:
    In this case, we discretize the domain and Create triangles. The
@@ -214,7 +214,7 @@ int main( int argc, char **argv )
    The numbering of points starts at the lower left and runs left to
    right, then bottom to top.
 */
-PetscErrorCode FormAugFunction(SNES snes, Vec XAug, Vec FAug,void *userCtx)
+PetscErrorCode FormAugFunction(SNES snes, Vec X, Vec FAug,void *userCtx)
 {
   AppCtx         *user = (AppCtx *) userCtx;
   PetscErrorCode ierr;
@@ -230,19 +230,17 @@ PetscErrorCode FormAugFunction(SNES snes, Vec XAug, Vec FAug,void *userCtx)
   PetscReal      *g, *x,*left,*right,*bottom,*top;
   Vec            localX = user->localX, localF = user->localV;
 
-  ierr = VecScatterBegin(user->xscatter,XAug,user->X,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
-  ierr = VecScatterEnd(user->xscatter,XAug,user->X,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
 
   /* constraint function */
-  ierr = VecCopy(user->X,user->cwork);CHKERRQ(ierr);
+  ierr = VecCopy(X,user->cwork);CHKERRQ(ierr);
 
   /* Get local mesh boundaries */
   ierr = DMDAGetCorners(user->dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(user->dm,&gxs,&gys,NULL,&gxm,&gym,NULL);CHKERRQ(ierr);
 
   /* Scatter ghost points to local vector */
-  ierr = DMGlobalToLocalBegin(user->dm,user->X,INSERT_VALUES,localX);CHKERRQ(ierr);
-  ierr = DMGlobalToLocalEnd(user->dm,user->X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalBegin(user->dm,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalEnd(user->dm,X,INSERT_VALUES,localX);CHKERRQ(ierr);
 
   /* Initialize vector to zero */
   ierr = VecSet(localF, zero);CHKERRQ(ierr);
@@ -458,7 +456,7 @@ PetscErrorCode FormAugFunction(SNES snes, Vec XAug, Vec FAug,void *userCtx)
    Option (A) seems cleaner/easier in many cases, and is the procedure
    used in this example.
 */
-PetscErrorCode FormAugJacobian(SNES snes,Vec XAug,Mat JAug, Mat JAugPre, SNESConstraintAugMatStruct* augtype, void *ptr)
+PetscErrorCode FormAugJacobian(SNES snes,Vec X,Mat JAug, Mat JAugPre, SNESConstraintAugMatStruct* augtype, void *ptr)
 {
   PetscErrorCode ierr;
   AppCtx         *user = (AppCtx *) ptr;
@@ -474,8 +472,6 @@ PetscErrorCode FormAugJacobian(SNES snes,Vec XAug,Mat JAug, Mat JAugPre, SNESCon
   Vec            localX = user->localX;
   PetscBool      assembled;
 
-  ierr = VecScatterBegin(user->xscatter,XAug,user->X,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
-  ierr = VecScatterEnd(user->xscatter,XAug,user->X,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
 
   /* Set various matrix options */
   *augtype = SNES_CONSTRAINT_AUG_MAT_FULL;
@@ -495,8 +491,8 @@ PetscErrorCode FormAugJacobian(SNES snes,Vec XAug,Mat JAug, Mat JAugPre, SNESCon
   ierr = DMDAGetGhostCorners(user->dm,&gxs,&gys,NULL,&gxm,&gym,NULL);CHKERRQ(ierr);
 
   /* Scatter ghost points to local vector */
-  ierr = DMGlobalToLocalBegin(user->dm,user->X,INSERT_VALUES,localX);CHKERRQ(ierr);
-  ierr = DMGlobalToLocalEnd(user->dm,user->X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalBegin(user->dm,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalEnd(user->dm,X,INSERT_VALUES,localX);CHKERRQ(ierr);
 
   /* Get pointers to vector data */
   ierr = VecGetArray(localX,&x);CHKERRQ(ierr);

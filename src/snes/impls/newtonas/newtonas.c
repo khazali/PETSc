@@ -401,8 +401,6 @@ PETSC_INTERN PetscErrorCode SNESNEWTONASComputeSearchDirectionPrimal_Private(SNE
   PetscFunctionReturn(0);
 }
 
-/* SNES NEWTONAS ALGORITHM SUBROUTINE STUBS BEGIN */
-
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESSolve_NEWTONAS"
@@ -470,7 +468,6 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
 
      QUESTION: the 'else' below is a puzzling clause: if snes->vec_func_init_set is true, set it to false?  Why?  For later iterations or subsolves?
   */
-  /* FIXME: need to evaluate the function and the constraint function */
   /*
   if (!snes->vec_func_init_set) {
     ierr = SNESComputeFunction(snes,x,f);CHKERRQ(ierr);

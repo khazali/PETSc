@@ -766,8 +766,9 @@ PetscErrorCode SNESConstraintSetUpVectors(SNES snes,PetscInt nwork,PetscBool set
       if (!snes->vec_sol_update) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"snes->vec_sol_update is unexpectedly non-NULL");
       ierr = VecDuplicate(snes->vec_sol,&snes->vec_sol_update);CHKERRQ(ierr);
     }
-
-    if (!snes->vec_func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Could not create function vector: calls to SNESSetFunction() and SNESConstraintSetAugSystem() both missing?");
+  }
+  if (!snes->vec_func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Could not create function vector: calls to SNESSetFunction() and SNESConstraintSetAugSystem() both missing?");
+  if (nwork) {
     ierr = SNESSetWorkVecs(snes,nwork);CHKERRQ(ierr);
   }
   /* aug */
@@ -972,16 +973,16 @@ PetscErrorCode SNESConstraintAugScatter(SNES snes,Vec f_aug,Vec f,Vec g)
 
   PetscFunctionBegin;
   if (f) {
-    ierr = VecScatterBegin(snes->aug_to_func,f_aug,f,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+    ierr = VecScatterBegin(snes->aug_to_func,f_aug,f,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
   }
   if (g) {
-    ierr = VecScatterBegin(snes->aug_to_constr,f_aug,g,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+    ierr = VecScatterBegin(snes->aug_to_constr,f_aug,g,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
   }
   if (f) {
-    ierr = VecScatterEnd(snes->aug_to_func,f_aug,f,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+    ierr = VecScatterEnd(snes->aug_to_func,f_aug,f,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
   }
   if (g) {
-    ierr = VecScatterEnd(snes->aug_to_constr,f_aug,g,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+    ierr = VecScatterEnd(snes->aug_to_constr,f_aug,g,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
