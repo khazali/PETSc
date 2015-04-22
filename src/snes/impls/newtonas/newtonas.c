@@ -13,10 +13,11 @@
    snes->work[0]   - SNESNEWTONASComputeSearchDirectionSaddleFull_Private(): g=B^T*l
  */
 
-#define SNES_NEWTONAS_WORK_CONSTR_N 1
+#define SNES_NEWTONAS_WORK_CONSTR_N 2
 /*
    Uses of snes->work_constr:
-   snes->work_constr[0] - SNESNEWTONASMeritFunction(): l
+   snes->work_constr[0] - SNESNEWTONASMeritFunction(): workl
+   snes->work_constr[1] - SNESNEWTONASMeritFunction(): workg
  */
 
 #define SNES_NEWTONAS_WORK_AUG_N 3
@@ -24,6 +25,7 @@
    Uses of snes->work_aug:
    snes->work_aug[0:2] -  SNESSolve_NEWTONAS: x_aug,dx_aug,f_aug
    snes->work_aug[0:1] -  SNESNEWTONASComputeSearchDirectionSaddleFull_Private: dx_aug,f_aug.
+   snes->work_aug[0]   -  SNESNEWTONASMeritFunction(): workaug
  */
 
 #undef __FUNCT__
@@ -240,13 +242,15 @@ static PetscErrorCode SNESNEWTONASMeritFunction(SNES snes, Vec X, PetscReal *f)
   Vec                workf   = snes->work[1];
   Vec                workBtl = snes->work[2];
   Vec                workl   = snes->work_constr[0];
+  Vec                workg   = snes->work_constr[1];
+  Vec                workaug = snes->work_aug[0];
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
 
   ierr = SNESConstraintAugScatter(snes,X,workx,workl);CHKERRQ(ierr);
   /* TODO: check vec_func_init_set here? */
-  ierr = SNESComputeFunction(snes,workx,workf);CHKERRQ(ierr);
+  ierr = SNESConstraintComputeFunctions(snes,workx,workf,workg,workaug);CHKERRQ(ierr);
 
   /* ||f - l*B||_2, if B == NULL, treat it as zero. */
   if (snes->jacobian_constrt || snes->jacobian_constr) {

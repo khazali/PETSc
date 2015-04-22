@@ -129,6 +129,7 @@ int main( int argc, char **argv )
 
   ierr = SNESCreate(PETSC_COMM_WORLD,&snes);CHKERRQ(ierr);
   ierr = SNESSetType(snes,SNESNEWTONAS);CHKERRQ(ierr);
+  ierr = SNESSetDM(snes,user.dm);CHKERRQ(ierr);
 
   /* Set initial solution guess; */
   ierr = MSA_BoundaryConditions(&user);CHKERRQ(ierr);
@@ -140,11 +141,16 @@ int main( int argc, char **argv )
 
   ierr = DMGetLocalToGlobalMapping(user.dm,&isltog);CHKERRQ(ierr);
   ierr = MatCreateAIJ(PETSC_COMM_WORLD,localsize,localsize,PETSC_DETERMINE,PETSC_DETERMINE,localsize,NULL,2*localsize,NULL,&user.MAug);CHKERRQ(ierr);
+
   ierr = MatAssemblyBegin(user.MAug,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(user.MAug,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatGetSubMatrix(user.MAug,user.is_aug_to_x,user.is_aug_to_x,MAT_INITIAL_MATRIX,&user.J);CHKERRQ(ierr);
   ierr = MatGetSubMatrix(user.MAug,user.is_aug_to_c,user.is_aug_to_x,MAT_INITIAL_MATRIX,&user.B);CHKERRQ(ierr);
   ierr = MatGetSubMatrix(user.MAug,user.is_aug_to_x,user.is_aug_to_c,MAT_INITIAL_MATRIX,&user.Bt);CHKERRQ(ierr);
+  /* Can I preallocate the submatrices?*/
+  ierr = MatSetOption(user.J, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE);
+  ierr = MatSetOption(user.B, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE);
+  ierr = MatSetOption(user.Bt, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE);
   ierr = MatSetLocalToGlobalMapping(user.J,isltog,isltog);CHKERRQ(ierr);
   ierr = MatSetLocalToGlobalMapping(user.B,isltog,isltog);CHKERRQ(ierr);
   ierr = MatSetLocalToGlobalMapping(user.Bt,isltog,isltog);CHKERRQ(ierr);
@@ -153,11 +159,12 @@ int main( int argc, char **argv )
   ierr = MSA_Plate(cl,cu,(void*)&user);CHKERRQ(ierr);
   ierr = SNESConstraintSetAugSystem(snes,user.vaug,user.MAug,user.MAug,user.is_aug_to_c,FormAugFunction,FormAugJacobian,&user);CHKERRQ(ierr);
 
+
   /* Check for any snes command line options */
   ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
 
   /* SOLVE THE APPLICATION */
-  ierr = SNESSolve(snes,x0,x);CHKERRQ(ierr);
+  ierr = SNESSolve(snes,x0,NULL);CHKERRQ(ierr);
 
   /* Get information on converged */
   ierr = SNESGetConvergedReason(snes,&reason);CHKERRQ(ierr);
@@ -184,8 +191,8 @@ int main( int argc, char **argv )
   ierr = VecDestroy(&user.Left);CHKERRQ(ierr);
   ierr = VecDestroy(&user.Right);CHKERRQ(ierr);
   ierr = DMDestroy(&user.dm);CHKERRQ(ierr);
-  ierr = ISDestroy(&user.is_aug_to_c);CHKERRQ(ierr);
-  ierr = ISDestroy(&user.is_aug_to_x);CHKERRQ(ierr);
+  /*ierr = ISDestroy(&user.is_aug_to_c);CHKERRQ(ierr);
+   ierr = ISDestroy(&user.is_aug_to_x);CHKERRQ(ierr);*/
   ierr = VecScatterDestroy(&user.xscatter);CHKERRQ(ierr);
   ierr = VecScatterDestroy(&user.cscatter);CHKERRQ(ierr);
   PetscFinalize();
