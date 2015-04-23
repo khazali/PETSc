@@ -484,6 +484,15 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
   */
 
   ierr          = SNESConstraintComputeFunctions(snes,x,snes->vec_func,snes->vec_constr,snes->vec_func_aug);CHKERRQ(ierr);
+  if (snes->vec_func) {
+    ierr          = VecViewFromOptions(snes->vec_func,((PetscObject)snes)->prefix,"-snes_newtonas_preview_func");CHKERRQ(ierr);
+  }
+  if (snes->vec_constr) {
+    ierr          = VecViewFromOptions(snes->vec_constr,((PetscObject)snes)->prefix,"-snes_newtonas_preview_constr");CHKERRQ(ierr);
+  }
+  if (snes->vec_func_aug) {
+    ierr          = VecViewFromOptions(snes->vec_func_aug,((PetscObject)snes)->prefix,"-snes_newtonas_preview_func_aug");CHKERRQ(ierr);
+  }
   ierr          = VecZeroEntries(l);CHKERRQ(ierr);
   ierr          = SNESConstraintAugGather(snes,x_aug,x,l);CHKERRQ(ierr);
   ierr          = SNESNEWTONASMeritFunction(snes,x_aug,&merit);CHKERRQ(ierr);
