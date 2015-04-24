@@ -386,6 +386,7 @@ PETSC_EXTERN PetscErrorCode SNESConstraintGetAugEmbedding(SNES,IS*);
 PETSC_EXTERN PetscErrorCode SNESConstraintSetProjectOntoConstraints(SNES,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
 PETSC_EXTERN PetscErrorCode SNESConstraintGetProjectOntoConstraints(SNES,PetscErrorCode (**)(SNES,Vec,Vec,void*),void**);
 PETSC_EXTERN PetscErrorCode SNESConstraintProjectOntoConstraints(SNES,Vec,Vec);
+PETSC_EXTERN PetscErrorCode SNESConstraintFindBoundsViolation(SNES,Vec,PetscInt*);
 
 PETSC_EXTERN PetscErrorCode SNESNEWTONASSetType(SNES,SNESNEWTONASType);
 PETSC_EXTERN PetscErrorCode SNESNEWTONASGetType(SNES,SNESNEWTONASType*);

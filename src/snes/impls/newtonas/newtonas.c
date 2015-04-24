@@ -415,11 +415,11 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
   Vec                 x,dx,f,l,dl,x_aug,dx_aug,f_aug;
   DM                  dm;
   DMSNES              dmsnes;
-  PetscInt            i,lits,nactive;
+  PetscInt            i,lits,nactive,idx;
   const PetscInt      *iactive;
   PetscReal           fnorm,xnorm,dxnorm,hnorm;
   PetscReal           merit,*larray,tbar;
-  PetscBool           lssucceed,domainerror;
+  PetscBool           lssucceed,domainerror,preview;
   SNESLineSearch      linesearch=snes->linesearch;
   IS                  active,new_active;
 
@@ -482,21 +482,34 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
     }
   } else snes->vec_func_init_set = PETSC_FALSE;
   */
+  ierr          = PetscOptionsHasName(((PetscObject)snes)->prefix,"-snes_newtonas_preview_sol",&preview);CHKERRQ(ierr);
+  if (preview) {
+    ierr          = PetscPrintf(PetscObjectComm((PetscObject)x),"Initial solution vector:\n");CHKERRQ(ierr);
+    ierr          = VecViewFromOptions(x,((PetscObject)snes)->prefix,"-snes_newtonas_preview_sol");CHKERRQ(ierr);
+  }
 
   ierr          = SNESConstraintComputeFunctions(snes,x,snes->vec_func,snes->vec_constr,snes->vec_func_aug);CHKERRQ(ierr);
-  ierr          = PetscPrintf(PetscObjectComm((PetscObject)x),"Initial solution vector:\n");CHKERRQ(ierr);
-  ierr          = VecViewFromOptions(x,((PetscObject)snes)->prefix,"-snes_newtonas_preview_sol");CHKERRQ(ierr);
+
   if (snes->vec_func) {
-    ierr          = PetscPrintf(PetscObjectComm((PetscObject)snes->vec_func),"Initial function vector:\n");CHKERRQ(ierr);
-    ierr          = VecViewFromOptions(snes->vec_func,((PetscObject)snes)->prefix,"-snes_newtonas_preview_func");CHKERRQ(ierr);
+    ierr          = PetscOptionsHasName(((PetscObject)snes)->prefix,"-snes_newtonas_preview_func",&preview);CHKERRQ(ierr);
+    if (preview) {
+      ierr          = PetscPrintf(PetscObjectComm((PetscObject)snes->vec_func),"Initial function vector:\n");CHKERRQ(ierr);
+      ierr          = VecViewFromOptions(snes->vec_func,((PetscObject)snes)->prefix,"-snes_newtonas_preview_func");CHKERRQ(ierr);
+    }
   }
   if (snes->vec_constr) {
-    ierr          = PetscPrintf(PetscObjectComm((PetscObject)snes->vec_constr),"Initial constraint vector:\n");CHKERRQ(ierr);
-    ierr          = VecViewFromOptions(snes->vec_constr,((PetscObject)snes)->prefix,"-snes_newtonas_preview_constr");CHKERRQ(ierr);
+    ierr          = PetscOptionsHasName(((PetscObject)snes)->prefix,"-snes_newtonas_preview_constr",&preview);CHKERRQ(ierr);
+    if (preview) {
+      ierr          = PetscPrintf(PetscObjectComm((PetscObject)snes->vec_constr),"Initial constraint vector:\n");CHKERRQ(ierr);
+      ierr          = VecViewFromOptions(snes->vec_constr,((PetscObject)snes)->prefix,"-snes_newtonas_preview_constr");CHKERRQ(ierr);
+    }
   }
   if (snes->vec_func_aug) {
-    ierr          = PetscPrintf(PetscObjectComm((PetscObject)snes->vec_func_aug),"Initial augmented function vector:\n");CHKERRQ(ierr);
-    ierr          = VecViewFromOptions(snes->vec_func_aug,((PetscObject)snes)->prefix,"-snes_newtonas_preview_func_aug");CHKERRQ(ierr);
+    ierr          = PetscOptionsHasName(((PetscObject)snes)->prefix,"-snes_newtonas_preview_func_aug",&preview);CHKERRQ(ierr);
+    if (preview) {
+      ierr          = PetscPrintf(PetscObjectComm((PetscObject)snes->vec_func_aug),"Initial augmented function vector:\n");CHKERRQ(ierr);
+      ierr          = VecViewFromOptions(snes->vec_func_aug,((PetscObject)snes)->prefix,"-snes_newtonas_preview_func_aug");CHKERRQ(ierr);
+    }
   }
   ierr          = VecZeroEntries(l);CHKERRQ(ierr);
   ierr          = SNESConstraintAugGather(snes,x_aug,x,l);CHKERRQ(ierr);
@@ -524,6 +537,15 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
     /*
        TODO: nonlinear RIGHT PC application would go here.
     */
+
+    /* Check whether the solution is feasible. */
+    ierr = SNESConstraintFindBoundsViolation(snes,x,&idx);CHKERRQ(ierr);
+    if (idx >= 0) {
+      PetscInt xlo;
+
+      ierr = VecGetOwnershipRange(x,&xlo,NULL);CHKERRQ(ierr);
+      SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"Infeasible state: constraint %D is outside bounds",idx+xlo);
+    }
 
     ierr = SNESConstraintComputeJacobians(snes,x,MAT_INITIAL_MATRIX,snes->jacobian,snes->jacobian_pre,snes->jacobian_constr,snes->jacobian_constrt,snes->jacobian_aug,snes->jacobian_aug_pre,&snes->jacobian_aug_struct);CHKERRQ(ierr);
     new_active = NULL;
@@ -747,6 +769,7 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
   PetscErrorCode    ierr;
   SNESLineSearch    linesearch;
   SNES_NEWTONAS     *newtas = (SNES_NEWTONAS*) snes->data;
+  PetscBool         flg;
 
   PetscFunctionBegin;
   if (!newtas->type) {
@@ -755,6 +778,22 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
   ierr = SNESConstraintSetUpVectors(snes,SNES_NEWTONAS_WORK_N,PETSC_TRUE,SNES_NEWTONAS_WORK_CONSTR_N,PETSC_TRUE,SNES_NEWTONAS_WORK_AUG_N,PETSC_TRUE);CHKERRQ(ierr);
   ierr = SNESConstraintSetUpAugScatters(snes,PETSC_TRUE);
   ierr = SNESConstraintSetUpMatrices(snes,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE,PETSC_FALSE);CHKERRQ(ierr);
+
+  if (snes->vec_constrl) {
+    ierr          = PetscOptionsHasName(((PetscObject)snes)->prefix,"-snes_newtonas_view_lower_bound",&flg);CHKERRQ(ierr);
+    if (flg) {
+      ierr        = PetscPrintf(PetscObjectComm((PetscObject)snes->vec_constrl),"Lower bound:\n");CHKERRQ(ierr);
+      ierr          = VecViewFromOptions(snes->vec_constrl,((PetscObject)snes)->prefix,"-snes_newtonas_view_lower_bound");CHKERRQ(ierr);
+    }
+  }
+
+  if (snes->vec_constru) {
+    ierr          = PetscOptionsHasName(((PetscObject)snes)->prefix,"-snes_newtonas_view_upper_bound",&flg);CHKERRQ(ierr);
+    if (flg) {
+      ierr        = PetscPrintf(PetscObjectComm((PetscObject)snes->vec_constru),"Upper bound:\n");CHKERRQ(ierr);
+      ierr          = VecViewFromOptions(snes->vec_constru,((PetscObject)snes)->prefix,"-snes_newtonas_view_upper_bound");CHKERRQ(ierr);
+    }
+  }
 
   /* TODO: handle absence of one or both bounds vectors. */
   ierr = VecDuplicate(snes->vec_constr,&newtas->vec_sol_lambda);CHKERRQ(ierr);

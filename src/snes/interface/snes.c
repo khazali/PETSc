@@ -3133,6 +3133,67 @@ PetscErrorCode  SNESConstraintGetFunction(SNES snes,Vec *v,Vec *vl, Vec *vu,Pets
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "SNESConstraintFindBoundsViolation"
+/*@C
+   SNESConstraintFindBoundsViolation - checks whether the constraint vector is within
+   the specified bounds.  Returns the smallest local index of the first local
+   constraint violating its bounds, or -1, if no violation is found.
+
+
+   Not collective
+
+   Input Parameters:
++  snes - the SNES context
+-  v    - vector with constraint values
+
+   Output Parameters:
+.  idx  - index of the first local constraint violating bounds, or -1
+
+
+   Level: intermediate
+
+.keywords: SNES, nonlinear, set, constraint, function
+
+.seealso: SNESConstraintGetFunction(), SNESConstraintSetJacobian(), SNESConstraintFunction
+@*/
+PetscErrorCode  SNESConstraintFindBoundsViolation(SNES snes,Vec v,PetscInt *idx)
+{
+  PetscErrorCode    ierr;
+  PetscInt          n,i;
+  const PetscScalar *varr,*vlarr,*vuarr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  PetscValidHeaderSpecific(v,VEC_CLASSID,2);
+  PetscValidPointer(idx,3);
+  ierr = VecGetLocalSize(v,&n);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(v,&varr);CHKERRQ(ierr);
+  if (snes->vec_constrl) {
+    ierr = VecGetArrayRead(snes->vec_constrl,&vlarr);CHKERRQ(ierr);
+  } else {
+    vlarr = NULL;
+  }
+  if (snes->vec_constru) {
+    ierr = VecGetArrayRead(snes->vec_constru,&vuarr);CHKERRQ(ierr);
+  } else {
+    vuarr = NULL;
+  }
+  *idx = -1;
+  for (i = 0; i < n; ++i) {
+    if (vlarr && vlarr[i] > varr[i]) {
+      *idx = i;
+      break;
+    }
+    if (vuarr && vuarr[i] < varr[i]) {
+      *idx = i;
+      break;
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
+
 /*MC
     SNESConstraintJacobian - callback function computing the constraint Jacobian
     and, optionally, its transpose, for the constrained nonlinear problem
