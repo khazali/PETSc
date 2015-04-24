@@ -146,7 +146,9 @@ int main( int argc, char **argv )
 
   /* Set Variable bounds */
   ierr = MSA_Plate(cl,cu,(void*)&user);CHKERRQ(ierr);
-  ierr = SNESConstraintSetAugSystem(snes,user.vaug,user.MAug,user.MAug,user.is_aug_to_x,FormAugFunction,FormAugJacobian,&user);CHKERRQ(ierr);
+  ierr = SNESConstraintSetAugFunction(snes,user.vaug,FormAugFunction,&user);CHKERRQ(ierr);
+  ierr = SNESConstraintSetAugJacobian(snes,user.MAug,user.MAug,FormAugJacobian,&user);CHKERRQ(ierr);
+  ierr = SNESConstraintSetAugEmbedding(snes,user.is_aug_to_x);CHKERRQ(ierr);
 
   /* Check for any snes command line options */
   ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
@@ -222,7 +224,7 @@ PetscErrorCode FormAugFunction(SNES snes, Vec XAug, Vec FAug,void *userCtx)
   PetscReal      df1dxc,df2dxc,df3dxc,df4dxc,df5dxc,df6dxc;
   PetscReal      *g, *x,*left,*right,*bottom,*top;
   Vec            localX = user->localX, localF = user->localV;
-  
+
   ierr = VecNestGetSubVec(XAug,0,&X);CHKERRQ(ierr);
   ierr = VecNestGetSubVec(FAug,0,&F);CHKERRQ(ierr);
   ierr = VecNestGetSubVec(FAug,1,&C);CHKERRQ(ierr);
@@ -382,7 +384,7 @@ PetscErrorCode FormAugFunction(SNES snes, Vec XAug, Vec FAug,void *userCtx)
     ft +=PetscSqrtScalar( 1.0 + d1*d1 + d2*d2);
   }
 
-  /* No longer care about objective value 
+  /* No longer care about objective value
 
   ft=ft*area;
   ierr = MPI_Allreduce(&ft,fcn,1,MPIU_REAL,MPIU_SUM,PETSC_COMM_WORLD);CHKERRQ(ierr);

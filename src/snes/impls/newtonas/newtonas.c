@@ -484,13 +484,18 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
   */
 
   ierr          = SNESConstraintComputeFunctions(snes,x,snes->vec_func,snes->vec_constr,snes->vec_func_aug);CHKERRQ(ierr);
+  ierr          = PetscPrintf(PetscObjectComm((PetscObject)x),"Initial solution vector:\n");CHKERRQ(ierr);
+  ierr          = VecViewFromOptions(x,((PetscObject)snes)->prefix,"-snes_newtonas_preview_sol");CHKERRQ(ierr);
   if (snes->vec_func) {
+    ierr          = PetscPrintf(PetscObjectComm((PetscObject)snes->vec_func),"Initial function vector:\n");CHKERRQ(ierr);
     ierr          = VecViewFromOptions(snes->vec_func,((PetscObject)snes)->prefix,"-snes_newtonas_preview_func");CHKERRQ(ierr);
   }
   if (snes->vec_constr) {
+    ierr          = PetscPrintf(PetscObjectComm((PetscObject)snes->vec_constr),"Initial constraint vector:\n");CHKERRQ(ierr);
     ierr          = VecViewFromOptions(snes->vec_constr,((PetscObject)snes)->prefix,"-snes_newtonas_preview_constr");CHKERRQ(ierr);
   }
   if (snes->vec_func_aug) {
+    ierr          = PetscPrintf(PetscObjectComm((PetscObject)snes->vec_func_aug),"Initial augmented function vector:\n");CHKERRQ(ierr);
     ierr          = VecViewFromOptions(snes->vec_func_aug,((PetscObject)snes)->prefix,"-snes_newtonas_preview_func_aug");CHKERRQ(ierr);
   }
   ierr          = VecZeroEntries(l);CHKERRQ(ierr);

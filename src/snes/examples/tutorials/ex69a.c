@@ -157,7 +157,9 @@ int main( int argc, char **argv )
 
   /* Set Variable bounds */
   ierr = MSA_Plate(cl,cu,(void*)&user);CHKERRQ(ierr);
-  ierr = SNESConstraintSetAugSystem(snes,user.vaug,user.MAug,user.MAug,user.is_aug_to_c,FormAugFunction,FormAugJacobian,&user);CHKERRQ(ierr);
+  ierr = SNESConstraintSetAugFunction(snes,user.vaug,FormAugFunction,&user);CHKERRQ(ierr);
+  ierr = SNESConstraintSetAugJacobian(snes,user.MAug,user.MAug,FormAugJacobian,&user);CHKERRQ(ierr);
+  ierr = SNESConstraintSetAugEmbedding(snes,user.is_aug_to_c);CHKERRQ(ierr);
 
 
   /* Check for any snes command line options */

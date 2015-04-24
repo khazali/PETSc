@@ -1004,7 +1004,7 @@ PetscErrorCode SNESConstraintComputeFunctions(SNES snes,Vec x,Vec f,Vec g,Vec f_
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMGetDMSNES(dm,&dmsnes);CHKERRQ(ierr);
   if (f_aug && dmsnes->ops->constraintaugfunction) {
-    ierr = (*dmsnes->ops->constraintaugfunction)(snes,x,f_aug,dmsnes->constraintaugctx);
+    ierr = (*dmsnes->ops->constraintaugfunction)(snes,x,f_aug,dmsnes->constraintaugfuncctx);
     ierr = SNESConstraintAugScatter(snes,f_aug,f,g);CHKERRQ(ierr);
   } else {
     if (f) {
@@ -1044,7 +1044,7 @@ PetscErrorCode SNESConstraintComputeJacobians(SNES snes,Vec x,MatReuse matreuse,
   /* Assume that J and J_pre are either both NULL or both are valid matrices, possibly, equal to each other. */
   *Jstruct = SNES_CONSTRAINT_AUG_MAT_NONE;
   if (J && dmsnes->ops->constraintaugjacobian) {
-    ierr = (*dmsnes->ops->constraintaugjacobian)(snes,x,J,J_pre,Jstruct,dmsnes->constraintaugctx);
+    ierr = (*dmsnes->ops->constraintaugjacobian)(snes,x,J,J_pre,Jstruct,dmsnes->constraintaugjacctx);
     if (!dmsnes->ops->computejacobian && snes->is_func_aug) {
       ierr = MatGetSubMatrix(J,snes->is_func_aug,snes->is_func_aug,matreuse,&A);CHKERRQ(ierr);
       if (A != A_pre) {
@@ -3264,7 +3264,7 @@ PetscErrorCode  SNESConstraintGetJacobian(SNES snes,Mat *B,Mat *Bt,PetscErrorCod
 #undef __FUNCT__
 #define __FUNCT__ "SNESConstraintSetAugFunction"
 /*@C
-   SNESConstraintSetAugFunction -   sets the callbacks computing the augmented function
+   SNESConstraintSetAugFunction -   sets the callback computing the augmented function
    used by the SNES routines in solving constrained nonlinear systems (variational inequalities).
 
    Logically Collective on SNES
@@ -3303,7 +3303,7 @@ PetscErrorCode  SNESConstraintSetAugFunction(SNES snes,Vec h,PetscErrorCode(*aug
 #undef __FUNCT__
 #define __FUNCT__ "SNESConstraintSetAugFunction"
 /*@C
-   SNESConstraintGetAugFunction -   retrieves the callbacks computing the augmented function
+   SNESConstraintGetAugFunction -   retrieves the callback computing the augmented function
    used by the SNES routines in solving constrained nonlinear systems (variational inequalities).
 
    Logically Collective on SNES
@@ -3330,7 +3330,7 @@ PetscErrorCode  SNESConstraintGetAugFunction(SNES snes,Vec *h,PetscErrorCode(**a
   PetscFunctionBegin;
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
   if (h) {
-    *h = snes->vec_func_aug = h;
+    *h = snes->vec_func_aug;
   }
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESConstraintGetAugFunction(dm,augfunc,augfuncctx);CHKERRQ(ierr);
@@ -3340,7 +3340,7 @@ PetscErrorCode  SNESConstraintGetAugFunction(SNES snes,Vec *h,PetscErrorCode(**a
 #undef __FUNCT__
 #define __FUNCT__ "SNESConstraintSetAugJacobian"
 /*@C
-   SNESConstraintSetAugSystem -   sets the callbacks computing the augmented Jacobian
+   SNESConstraintSetAugJacobian -   sets the callback computing the augmented Jacobian
    used by the SNES routines in solving constrained nonlinear systems (variational inequalities).
 
    Logically Collective on SNES
@@ -3360,7 +3360,7 @@ PetscErrorCode  SNESConstraintGetAugFunction(SNES snes,Vec *h,PetscErrorCode(**a
 .seealso: SNESConstraintSetJacobian(), SNESConstraintSetFunction(), SNESConstraintGetAugSystem(), SNESConstraintAugFunction, SNESConstraintAugJacobian
 @*/
 /* FIXME: write docs for SNESConstraintAugJacobian */
-PetscErrorCode  SNESConstraintSetAugSystem(SNES snes,Mat J,Mat J_pre,PetscErrorCode (*augjac)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void *augjacctx)
+PetscErrorCode  SNESConstraintSetAugJacobian(SNES snes,Mat J,Mat J_pre,PetscErrorCode (*augjac)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void *augjacctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -3383,7 +3383,7 @@ PetscErrorCode  SNESConstraintSetAugSystem(SNES snes,Mat J,Mat J_pre,PetscErrorC
 #undef __FUNCT__
 #define __FUNCT__ "SNESConstraintGetAugJacobian"
 /*@C
-   SNESConstraintGetAugSystem -   retrieves the callbacks computing the augmented Jacobian
+   SNESConstraintGetAugJacobian -   retrieves the callback computing the augmented Jacobian
    used by the SNES routines in solving constrained nonlinear systems (variational inequalities).
 
    Logically Collective on SNES
@@ -3404,7 +3404,7 @@ PetscErrorCode  SNESConstraintSetAugSystem(SNES snes,Mat J,Mat J_pre,PetscErrorC
 
 .seealso: SNESConstraintSetJacobian(), SNESConstraintSetFunction(), SNESConstraintGetAugSystem(), SNESConstraintAugFunction, SNESConstraintAugJacobian
 @*/
-PetscErrorCode  SNESConstraintGetAugEmbedding(SNES snes,Mat *J,Mat *J_pre,PetscErrorCode (**augjac)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void **augjacctx)
+PetscErrorCode  SNESConstraintGetAugJacobian(SNES snes,Mat *J,Mat *J_pre,PetscErrorCode (**augjac)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void **augjacctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -3446,7 +3446,6 @@ PetscErrorCode  SNESConstraintGetAugEmbedding(SNES snes,Mat *J,Mat *J_pre,PetscE
 PetscErrorCode  SNESConstraintSetAugEmbedding(SNES snes,IS emb)
 {
   PetscErrorCode ierr;
-  DM             dm;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
@@ -3462,7 +3461,7 @@ PetscErrorCode  SNESConstraintSetAugEmbedding(SNES snes,IS emb)
 #undef __FUNCT__
 #define __FUNCT__ "SNESConstraintGetAugEmbedding"
 /*@C
-   SNESConstraintGetAugSystem -   retrieves the IS embedding the constraint vector into the augmented vector
+   SNESConstraintGetAugEmbedding -   retrieves the IS embedding the constraint vector into the augmented vector
    used by the SNES routines in solving constrained nonlinear systems (variational inequalities).
 
    Logically Collective on SNES
@@ -3484,8 +3483,6 @@ PetscErrorCode  SNESConstraintSetAugEmbedding(SNES snes,IS emb)
 @*/
 PetscErrorCode  SNESConstraintGetAugEmbedding(SNES snes,IS *emb)
 {
-  PetscErrorCode ierr;
-  DM             dm;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);

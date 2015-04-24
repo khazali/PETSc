@@ -881,6 +881,44 @@ PetscErrorCode DMSNESConstraintGetAugFunction(DM dm,PetscErrorCode (**augfunc)(S
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "DMSNESConstraintSetAugJacobian"
+/*@C
+   DMSNESConstraintGetAugJacobian - sets SNES subroutine evaluating the augmented Jacobian
+   which has the logical structure h = [f(x),g(x)]^T and J = [A B^T; B 0].
+
+   Not Collective
+
+   Input arguments:
+.  dm          - DM to be used with SNES
++  augjac      - augmented Jacobian evaluation function
+-  augjacctx   - context for augmented Jacobian evaluation
+
+   Level: advanced
+
+   Note:
+   SNESConstraintSetAugJacobian() is normally used, but it calls this function internally because the user context is actually
+   associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
+   not. If DM took a more central role at some later date, this could become the primary method of setting the augmented systems.
+
+.seealso: DMSNESSetContext(), SNESSetFunction(), DMSNESConstraintGetFunction(), SNESConstraintSetJacobian(), SNESConstraintFunction
+@*/
+PetscErrorCode DMSNESConstraintSetAugJacobian(DM dm,PetscErrorCode(*augjac)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void *augjacctx)
+{
+  PetscErrorCode ierr;
+  DMSNES         sdm;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  if (augjac || augjacctx) {
+    ierr = DMGetDMSNESWrite(dm,&sdm);CHKERRQ(ierr);
+  }
+  if (augjac)    sdm->ops->constraintaugjacobian = augjac;
+  if (augjacctx) sdm->constraintaugjacctx = augjacctx;
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
 #define __FUNCT__ "DMSNESConstraintGetAugJacobian"
 /*@C
    DMSNESConstraintGetAugJacobian - retrieves SNES subroutine evaluating the augmented Jacobian
