@@ -17,4 +17,9 @@ DIRS            = phasefield advection-diffusion-reaction eimex power_grid netwo
 CLEANFILES      = SA-data/*
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
+
+ex20_mf: ex20_mf.o  chkopts
+	-${CLINKER} -o ex20_mf ex20_mf.o vanderpol1/build/driver.o vanderpol1/build/libhead_r_la-head_r.cn.xb.pp.o vanderpol1/build/libhead_f_la-head_f.cn.xb.pp.o ${PETSC_TS_LIB} ${ADIC_RUNTIME}
+	${RM} ex20_mf.o
+
 include ${PETSC_DIR}/lib/petsc/conf/test
