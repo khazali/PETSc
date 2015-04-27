@@ -35,6 +35,7 @@ typedef struct {
   Vec            Bottom, Top, Left, Right; /* boundary values */
 
 
+  Vec            cl,cu;                    /* lower,upper bounds */
 
   /* Working space */
   Vec         localX, localV;           /* ghosted local vector */
@@ -52,6 +53,7 @@ static PetscErrorCode MSA_InitialPoint(AppCtx*,Vec);
 static PetscErrorCode MSA_Plate(Vec,Vec,void*);
 PetscErrorCode FormAugFunction(SNES,Vec,Vec,void*);
 PetscErrorCode FormAugJacobian(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*);
+PetscErrorCode FormProjection(SNES,Vec,Vec,void*);
 
 
 #undef __FUNCT__
@@ -62,8 +64,7 @@ int main( int argc, char **argv )
   PetscInt               m;                 /* number of local and global elements in vectors */
   PetscInt               xlo,xhi,clo,chi,localsize;
   Vec                    x,x0;                 /* solution vector */
-  Vec                    c,cl,cu;              /* constraint vectors */
-
+  Vec                    c;
   PetscBool              flg;                /* A return variable when checking for user options */
   SNES                    snes;                  /* SNES solver context */
   ISLocalToGlobalMapping isltog;   /* local-to-global mapping object */
@@ -109,8 +110,8 @@ int main( int argc, char **argv )
   ierr = VecDuplicate(user.X,&x0);CHKERRQ(ierr);
   ierr = VecCopy(user.X,x0);CHKERRQ(ierr);
   ierr = VecDuplicate(user.X,&c);CHKERRQ(ierr);
-  ierr = VecDuplicate(c,&cl);CHKERRQ(ierr);
-  ierr = VecDuplicate(c,&cu);CHKERRQ(ierr);
+  ierr = VecDuplicate(c,&user.cl);CHKERRQ(ierr);
+  ierr = VecDuplicate(c,&user.cu);CHKERRQ(ierr);
   ierr = VecDuplicate(user.X,&user.fwork);CHKERRQ(ierr);
   ierr = VecDuplicate(user.X,&user.cwork);CHKERRQ(ierr);
 
@@ -156,10 +157,11 @@ int main( int argc, char **argv )
   ierr = MatSetLocalToGlobalMapping(user.Bt,isltog,isltog);CHKERRQ(ierr);
 
   /* Set Variable bounds */
-  ierr = MSA_Plate(cl,cu,(void*)&user);CHKERRQ(ierr);
+  ierr = MSA_Plate(user.cl,user.cu,(void*)&user);CHKERRQ(ierr);
   ierr = SNESConstraintSetAugFunction(snes,user.vaug,FormAugFunction,&user);CHKERRQ(ierr);
   ierr = SNESConstraintSetAugJacobian(snes,user.MAug,user.MAug,FormAugJacobian,&user);CHKERRQ(ierr);
   ierr = SNESConstraintSetAugEmbedding(snes,user.is_aug_to_c);CHKERRQ(ierr);
+  ierr = SNESConstraintSetProjectOntoConstraints(snes,FormProjection,&user);CHKERRQ(ierr);
 
 
   /* Check for any snes command line options */
@@ -181,8 +183,8 @@ int main( int argc, char **argv )
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = VecDestroy(&x0);CHKERRQ(ierr);
   ierr = VecDestroy(&c);CHKERRQ(ierr);
-  ierr = VecDestroy(&cl);CHKERRQ(ierr);
-  ierr = VecDestroy(&cu);CHKERRQ(ierr);
+  ierr = VecDestroy(&user.cl);CHKERRQ(ierr);
+  ierr = VecDestroy(&user.cu);CHKERRQ(ierr);
   ierr = MatDestroy(&user.J);CHKERRQ(ierr);
   ierr = MatDestroy(&user.B);CHKERRQ(ierr);
   ierr = MatDestroy(&user.Bt);CHKERRQ(ierr);
@@ -669,6 +671,18 @@ PetscErrorCode FormAugJacobian(SNES snes,Vec X,Mat JAug, Mat JAugPre, SNESConstr
   return 0;
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "FormProjection"
+PetscErrorCode FormProjection(SNES snes, Vec x, Vec p,void *ptr)
+{
+  PetscErrorCode ierr;
+  AppCtx         *user = (AppCtx *) ptr;
+
+  PetscFunctionBegin;
+  ierr = VecMedian(user->cl,x,user->cu,p);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+
+}
 
 /* ------------------------------------------------------------------- */
 #undef __FUNCT__
