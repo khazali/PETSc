@@ -36,7 +36,6 @@ typedef struct {
 
 
   Vec            cl,cu;                    /* lower,upper bounds */
-
   /* Working space */
   Vec         localX, localV;           /* ghosted local vector */
   Vec         vaug;
@@ -158,7 +157,7 @@ int main( int argc, char **argv )
 
   /* Set Variable bounds */
   ierr = MSA_Plate(user.cl,user.cu,(void*)&user);CHKERRQ(ierr);
-  ierr = SNESConstraintSetAugFunction(snes,user.vaug,FormAugFunction,&user);CHKERRQ(ierr);
+  ierr = SNESConstraintSetAugFunction(snes,user.vaug,user.cl,user.cu,FormAugFunction,&user);CHKERRQ(ierr);
   ierr = SNESConstraintSetAugJacobian(snes,user.MAug,user.MAug,FormAugJacobian,&user);CHKERRQ(ierr);
   ierr = SNESConstraintSetAugEmbedding(snes,user.is_aug_to_c);CHKERRQ(ierr);
   ierr = SNESConstraintSetProjectOntoConstraints(snes,FormProjection,&user);CHKERRQ(ierr);
@@ -875,7 +874,7 @@ static PetscErrorCode MSA_Plate(Vec XL,Vec XU,void *ctx){
       }
     }
   }
-    ierr = VecRestoreArray(XL,&xl);CHKERRQ(ierr);
+  ierr = VecRestoreArray(XL,&xl);CHKERRQ(ierr);
 
   return 0;
 }

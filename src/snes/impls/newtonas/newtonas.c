@@ -777,7 +777,7 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAS(SNES snes)
   }
   ierr = SNESConstraintSetUpVectors(snes,SNES_NEWTONAS_WORK_N,PETSC_TRUE,SNES_NEWTONAS_WORK_CONSTR_N,PETSC_TRUE,SNES_NEWTONAS_WORK_AUG_N,PETSC_TRUE);CHKERRQ(ierr);
   ierr = SNESConstraintSetUpAugScatters(snes,PETSC_TRUE);
-  ierr = SNESConstraintSetUpMatrices(snes,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = SNESConstraintSetUpMatrices(snes,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE,PETSC_TRUE);CHKERRQ(ierr);
 
   if (snes->vec_constrl) {
     ierr          = PetscOptionsHasName(((PetscObject)snes)->prefix,"-snes_newtonas_view_lower_bound",&flg);CHKERRQ(ierr);
