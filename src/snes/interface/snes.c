@@ -724,6 +724,10 @@ PetscErrorCode SNESConstraintSetUpVectors(SNES snes,PetscInt nwork,PetscBool set
   if (!setup_vec_constr) {
     ierr = VecDestroy(&snes->vec_constr);CHKERRQ(ierr);
   }
+  /* bounds */
+  /* Extract from aug, if it is set. FIXME: what if xl,xu, etc. are set already? */
+  /* For now assume that having snes->vec_augl trumps everything else. */
+
   /* func */
   if (!snes->vec_func) {
     if (snes->vec_func_aug) {
@@ -831,7 +835,7 @@ PetscErrorCode SNESConstraintSetUpAugScatters(SNES snes,PetscBool keep_embedding
 #undef __FUNCT__
 #define __FUNCT__ "SNESConstraintSetUpMatrices"
 /*@C
-   SNESConstraintSetUpConstraintMatrices - creates constraint and augmented matrices to be used by the solver
+   SNESConstraintSetUpMatrices - creates constraint and augmented matrices to be used by the solver
 
    Collective
 
@@ -3321,6 +3325,8 @@ PetscErrorCode  SNESConstraintGetJacobian(SNES snes,Mat *B,Mat *Bt,PetscErrorCod
    Input Parameters:
 +  snes        - the SNES context
 .  h           - vector storing the augmented function h; logically, h = [f,g]
+.  hl          - vector of augmented lower bounds [xl,gl] (xl are lower box constraints on variables).
+.  hu          - vector of augmented upper bounds [xu,gu] (xu are upper box constraints on variables).
 .  augfunc     - routine computing h
 -  augfuncctx  - user-defined context for private data for the augmented function evaluation
 
@@ -3331,7 +3337,7 @@ PetscErrorCode  SNESConstraintGetJacobian(SNES snes,Mat *B,Mat *Bt,PetscErrorCod
 .seealso: SNESConstraintSetJacobian(), SNESConstraintSetFunction(), SNESConstraintGetAugFunction(), SNESConstraintAugFunction, SNESConstraintAugJacobian
 @*/
 /* FIXME: write docs for SNESConstraintAugFunction */
-PetscErrorCode  SNESConstraintSetAugFunction(SNES snes,Vec h,PetscErrorCode(*augfunc)(SNES,Vec,Vec,void*),void *augfuncctx)
+PetscErrorCode  SNESConstraintSetAugFunction(SNES snes,Vec h,Vec hl,Vec hu,PetscErrorCode(*augfunc)(SNES,Vec,Vec,void*),void *augfuncctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -3340,9 +3346,20 @@ PetscErrorCode  SNESConstraintSetAugFunction(SNES snes,Vec h,PetscErrorCode(*aug
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
   if (h) {
     ierr = VecDestroy(&snes->vec_func_aug);CHKERRQ(ierr);
+    ierr = PetscObjectReference((PetscObject)h);CHKERRQ(ierr);
     snes->vec_func_aug = h;
     ierr = VecDestroyVecs(snes->nwork_aug,&snes->work_aug);CHKERRQ(ierr);
     /* FIXME: destroy constraint work vectors as well? Reset setup flag? */
+  }
+  if (hl) {
+    ierr = VecDestroy(&snes->vec_augl);CHKERRQ(ierr);
+    ierr = PetscObjectReference((PetscObject)hl);CHKERRQ(ierr);
+    snes->vec_augl = hl;
+  }
+  if (hu) {
+    ierr = VecDestroy(&snes->vec_augu);CHKERRQ(ierr);
+    ierr = PetscObjectReference((PetscObject)hu);CHKERRQ(ierr);
+    snes->vec_augu = hu;
   }
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESConstraintSetAugFunction(dm,augfunc,augfuncctx);CHKERRQ(ierr);
@@ -3362,6 +3379,8 @@ PetscErrorCode  SNESConstraintSetAugFunction(SNES snes,Vec h,PetscErrorCode(*aug
 
    Output parameters:
 +  h           - vector storing the augmented function h; logically, h = [f,g]
+.  hl          - vector of augmented lower bounds [xl,gl] (xl are lower box constraints on variables).
+.  hu          - vector of augmented upper bounds [xu,gu] (xu are upper box constraints on variables).
 .  augfunc     - routine computing h
 -  augfuncctx  - user-defined context for private data for the augmented function evaluation
 
@@ -3371,16 +3390,16 @@ PetscErrorCode  SNESConstraintSetAugFunction(SNES snes,Vec h,PetscErrorCode(*aug
 
 .seealso: SNESConstraintSetJacobian(), SNESConstraintSetFunction(), SNESConstraintGetAugFunction(), SNESConstraintAugFunction, SNESConstraintAugJacobian
 @*/
-PetscErrorCode  SNESConstraintGetAugFunction(SNES snes,Vec *h,PetscErrorCode(**augfunc)(SNES,Vec,Vec,void*),void **augfuncctx)
+PetscErrorCode  SNESConstraintGetAugFunction(SNES snes,Vec *h,Vec *hl,Vec *hu,PetscErrorCode(**augfunc)(SNES,Vec,Vec,void*),void **augfuncctx)
 {
   PetscErrorCode ierr;
   DM             dm;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
-  if (h) {
-    *h = snes->vec_func_aug;
-  }
+  if (h)   *h = snes->vec_func_aug;
+  if (hl) *hl = snes->vec_augl;
+  if (hu) *hu = snes->vec_augu;
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESConstraintGetAugFunction(dm,augfunc,augfuncctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);

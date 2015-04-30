@@ -365,7 +365,7 @@ PETSC_EXTERN PetscErrorCode SNESComputeObjective(SNES,Vec,PetscReal *);
 
    Level: intermediate
 
-.seealso: SNESConstraintSetAugSystem(), SNES, SNESCreate(), SNESDestroy(), SNESSetFromOptions()
+.seealso: SNESConstraintSetAugJacobian(), SNES, SNESCreate(), SNESDestroy(), SNESSetFromOptions()
 J*/
 typedef enum {SNES_CONSTRAINT_AUG_MAT_NONE=0,SNES_CONSTRAINT_AUG_MAT_LOWER=1,SNES_CONSTRAINT_AUG_MAT_UPPER=2,SNES_CONSTRAINT_AUG_MAT_FULL=3} SNESConstraintAugMatStruct;
 
@@ -375,8 +375,8 @@ PETSC_EXTERN PetscErrorCode SNESConstraintHaveConstraints(SNES,PetscBool*);
 
 PETSC_EXTERN PetscErrorCode SNESConstraintSetJacobian(SNES,Mat,Mat,PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*),void*);
 PETSC_EXTERN PetscErrorCode SNESConstraintGetJacobian(SNES,Mat*,Mat*,PetscErrorCode (**)(SNES,Vec,Mat,Mat,void*),void**);
-PETSC_EXTERN PetscErrorCode SNESConstraintSetAugFunction(SNES,Vec,PetscErrorCode(*)(SNES,Vec,Vec,void*),void*);
-PETSC_EXTERN PetscErrorCode SNESConstraintGetAugFunction(SNES,Vec*,PetscErrorCode(**)(SNES,Vec,Vec,void*),void**);
+PETSC_EXTERN PetscErrorCode SNESConstraintSetAugFunction(SNES,Vec,Vec,Vec,PetscErrorCode(*)(SNES,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode SNESConstraintGetAugFunction(SNES,Vec*,Vec*,Vec*,PetscErrorCode(**)(SNES,Vec,Vec,void*),void**);
 PETSC_EXTERN PetscErrorCode SNESConstraintSetAugJacobian(SNES,Mat,Mat,PetscErrorCode (*)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void*);
 PETSC_EXTERN PetscErrorCode SNESConstraintGetAugJacobian(SNES,Mat*,Mat*,PetscErrorCode (**)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void**);
 PETSC_EXTERN PetscErrorCode SNESConstraintSetAugEmbedding(SNES,IS);

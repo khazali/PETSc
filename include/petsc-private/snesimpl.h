@@ -159,6 +159,8 @@ struct _p_SNES {
   Vec         vec_constrl;      /* lower bounds on the constraints */
   Vec         vec_constru;      /* upper bound on the constraints */
   Vec         vec_func_aug;     /* augmented function containing function and constraints */
+  Vec         vec_augl;         /* augmented lower bounds vector: [xl,gl] -- lower "box" bounds on variables and lower bounds on constraints. */
+  Vec         vec_augu;         /* augmented upper bounds vector: [xu,gu] -- upper "box" bounds on variables and upper bounds on constraints. */
   PetscReal   merit;            /* current state's value of the merit function that measures progress to convergence both of the residual and the feasibility */
   Mat         jacobian_constr;  /* matrix to store the constraint Jacobian */
   Mat         jacobian_constrt; /* matrix to store the transpose of the constraint Jacobian */
