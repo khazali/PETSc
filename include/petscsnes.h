@@ -381,6 +381,7 @@ PETSC_EXTERN PetscErrorCode SNESConstraintSetAugJacobian(SNES,Mat,Mat,PetscError
 PETSC_EXTERN PetscErrorCode SNESConstraintGetAugJacobian(SNES,Mat*,Mat*,PetscErrorCode (**)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void**);
 PETSC_EXTERN PetscErrorCode SNESConstraintSetAugEmbedding(SNES,IS);
 PETSC_EXTERN PetscErrorCode SNESConstraintGetAugEmbedding(SNES,IS*);
+PETSC_EXTERN PetscErrorCode SNESConstraintDecomposeJacobians(SNES);
 
 
 PETSC_EXTERN PetscErrorCode SNESConstraintSetProjectOntoConstraints(SNES,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
