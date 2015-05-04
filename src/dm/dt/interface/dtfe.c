@@ -4278,6 +4278,7 @@ PetscErrorCode PetscFEOpenCLGenerateIntegrationCode(PetscFE fem, char **string_b
   ierr = PetscFEGetDimension(fem, &N_b);CHKERRQ(ierr);
   ierr = PetscFEGetNumComponents(fem, &N_c);CHKERRQ(ierr);
   ierr = PetscFEGetQuadrature(fem, &q);CHKERRQ(ierr);
+  if (N_c > 1) op = ELASTICITY;
   N_q  = q->numPoints;
   N_t  = N_b * N_c * N_q * N_bl;
   /* Enable device extension for double precision */
@@ -4525,6 +4526,7 @@ PetscErrorCode PetscFEOpenCLGenerateIntegrationCode(PetscFE fem, char **string_b
     switch (dim) {
     case 2:
       ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail,
+"      %s  lambda = 0.7, mu = 0.6; \n"
 "      switch (cidx) {\n"
 "      case 0:\n"
 "        f_1[fidx].x = lambda*(gradU[0].x + gradU[1].y) + mu*(gradU[0].x + gradU[0].x);\n"
@@ -4534,9 +4536,10 @@ PetscErrorCode PetscFEOpenCLGenerateIntegrationCode(PetscFE fem, char **string_b
 "        f_1[fidx].x = lambda*(gradU[0].x + gradU[1].y) + mu*(gradU[1].x + gradU[0].y);\n"
 "        f_1[fidx].y = lambda*(gradU[0].x + gradU[1].y) + mu*(gradU[1].y + gradU[1].y);\n"
 "      }\n",
-                           &count);STRING_ERROR_CHECK("Message to short");break;
+                           &count, numeric_str);STRING_ERROR_CHECK("Message to short");break;
     case 3:
       ierr = PetscSNPrintfCount(string_tail, end_of_buffer - string_tail,
+"      %s  lambda = 0.7, mu = 0.6; \n"
 "      switch (cidx) {\n"
 "      case 0:\n"
 "        f_1[fidx].x = lambda*(gradU[0].x + gradU[1].y + gradU[2].z) + mu*(gradU[0].x + gradU[0].x);\n"
@@ -4553,7 +4556,7 @@ PetscErrorCode PetscFEOpenCLGenerateIntegrationCode(PetscFE fem, char **string_b
 "        f_1[fidx].y = lambda*(gradU[0].x + gradU[1].y + gradU[2].z) + mu*(gradU[2].y + gradU[1].z);\n"
 "        f_1[fidx].z = lambda*(gradU[0].x + gradU[1].y + gradU[2].z) + mu*(gradU[2].y + gradU[2].z);\n"
 "      }\n",
-                           &count);STRING_ERROR_CHECK("Message to short");break;
+                           &count, numeric_str);STRING_ERROR_CHECK("Message to short");break;
     }}
     break;
   default:
@@ -4744,6 +4747,7 @@ PetscErrorCode PetscFEIntegrateResidual_OpenCL(PetscFE fem, PetscDS prob, PetscI
   ierr = PetscDSGetResidual(prob, field, &f0_func, &f1_func);CHKERRQ(ierr);
   ierr = PetscFEGetTileSizes(fem, NULL, &N_bl, &N_bc, &N_cb);CHKERRQ(ierr);
   ierr = PetscFEGetDefaultTabulation(fem, &basis, &basisDer, NULL);CHKERRQ(ierr);
+  if (N_comp > 1) ocl->op = ELASTICITY;
   N_bt  = N_b*N_comp;
   N_q   = q->numPoints;
   N_bst = N_bt*N_q;
