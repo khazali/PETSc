@@ -4641,9 +4641,9 @@ PetscErrorCode PetscFEOpenCLGetIntegrationKernel(PetscFE fem, PetscBool useAux, 
 
   PetscFunctionBegin;
   ierr = PetscFEGetSpatialDimension(fem, &dim);CHKERRQ(ierr);
-  ierr = PetscMalloc1(8192, &buffer);CHKERRQ(ierr);
+  ierr = PetscMalloc1(16384, &buffer);CHKERRQ(ierr);
   ierr = PetscFEGetTileSizes(fem, NULL, &N_bl, NULL, NULL);CHKERRQ(ierr);
-  ierr = PetscFEOpenCLGenerateIntegrationCode(fem, &buffer, 8192, useAux, N_bl);CHKERRQ(ierr);
+  ierr = PetscFEOpenCLGenerateIntegrationCode(fem, &buffer, 16384, useAux, N_bl);CHKERRQ(ierr);
   ierr = PetscOptionsHasName(fem->hdr.prefix, "-petscfe_opencl_kernel_print", &flg);CHKERRQ(ierr);
   if (flg) {ierr = PetscPrintf(PetscObjectComm((PetscObject) fem), "OpenCL FE Integration Kernel:\n%s\n", buffer);CHKERRQ(ierr);}
   len  = strlen(buffer);
