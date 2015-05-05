@@ -220,10 +220,13 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
 #undef __FUNCT__
 #define __FUNCT__ "simple_mass"
-static void simple_mass(const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[], const PetscReal x[], PetscScalar g0[])
+static void simple_mass(PetscInt dim, PetscInt Nf,
+                        const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                        const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                        const PetscReal t, const PetscReal u_tShift, const PetscReal x[], PetscScalar g0[])
 {
   PetscInt d, e;
-  for (d = 0, e = 0; d < spdim; d++, e+=spdim+1) {
+  for (d = 0, e = 0; d < dim; d++, e+=dim+1) {
     g0[e] = 1.;
   }
 }
@@ -231,10 +234,12 @@ static void simple_mass(const PetscScalar u[], const PetscScalar u_t[], const Pe
 /* < \nabla v, 1/2(\nabla u + {\nabla u}^T) > */
 #undef __FUNCT__
 #define __FUNCT__ "symmetric_gradient_inner_product"
-void symmetric_gradient_inner_product (const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[], const PetscReal x[], PetscScalar C[])
+void symmetric_gradient_inner_product (PetscInt dim, PetscInt Nf,
+                                       const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                                       const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                                       const PetscReal t, const PetscReal u_tShift, const PetscReal x[], PetscScalar C[])
 {
-  const PetscInt dim   = spdim;
-  const PetscInt Ncomp = spdim;
+  const PetscInt Ncomp = dim;
   PetscInt       compI, compJ, d, e;
 
   for (compI = 0; compI < Ncomp; ++compI) {
