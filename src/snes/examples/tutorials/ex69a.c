@@ -34,9 +34,9 @@ typedef struct {
   PetscInt       bmx,bmy;                  /* Size of plate under the surface */
   Vec            Bottom, Top, Left, Right; /* boundary values */
 
-
+  Vec            xl,xu;                    /* variable bounds */
   Vec            cl,cu;                    /* lower,upper bounds */
-
+  Vec            augl,augu;                    /* augmented bounds */
   /* Working space */
   Vec         localX, localV;           /* ghosted local vector */
   Vec         vaug;
@@ -108,6 +108,10 @@ int main( int argc, char **argv )
   ierr = VecDuplicate(user.localX,&user.localV);CHKERRQ(ierr);
 
   ierr = VecDuplicate(user.X,&x0);CHKERRQ(ierr);
+  ierr = VecDuplicate(user.X,&user.xl);CHKERRQ(ierr);
+  ierr = VecDuplicate(user.X,&user.xu);CHKERRQ(ierr);
+  ierr = VecSet(user.xl,PETSC_NINFINITY);CHKERRQ(ierr);
+  ierr = VecSet(user.xu,PETSC_INFINITY);CHKERRQ(ierr);
   ierr = VecCopy(user.X,x0);CHKERRQ(ierr);
   ierr = VecDuplicate(user.X,&c);CHKERRQ(ierr);
   ierr = VecDuplicate(c,&user.cl);CHKERRQ(ierr);
@@ -124,6 +128,8 @@ int main( int argc, char **argv )
 
   ierr = VecCreateMPI(PETSC_COMM_WORLD,localsize,PETSC_DETERMINE,
                       &user.vaug);CHKERRQ(ierr);
+  ierr = VecDuplicate(user.vaug,&user.augl);CHKERRQ(ierr);
+  ierr = VecDuplicate(user.vaug,&user.augu);CHKERRQ(ierr);
   ierr = VecScatterCreate(user.vaug,user.is_aug_to_x,user.X,NULL,&user.xscatter);CHKERRQ(ierr);
   ierr = VecScatterCreate(user.vaug,user.is_aug_to_c,c,NULL,&user.cscatter);CHKERRQ(ierr);
 
@@ -136,7 +142,7 @@ int main( int argc, char **argv )
   ierr = MSA_BoundaryConditions(&user);CHKERRQ(ierr);
   ierr = VecDuplicate(user.X,&x);CHKERRQ(ierr);
   ierr = MSA_InitialPoint(&user,x);CHKERRQ(ierr);
-
+  
   /* Set routines for function, gradient and hessian evaluation */
   ierr = VecGetLocalSize(x,&m);CHKERRQ(ierr);
 
@@ -158,7 +164,18 @@ int main( int argc, char **argv )
 
   /* Set Variable bounds */
   ierr = MSA_Plate(user.cl,user.cu,(void*)&user);CHKERRQ(ierr);
-  ierr = SNESConstraintSetAugFunction(snes,user.vaug,FormAugFunction,&user);CHKERRQ(ierr);
+  ierr = VecScatterBegin(user.xscatter,user.xl,user.augl,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user.xscatter,user.xl,user.augl,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterBegin(user.cscatter,user.cl,user.augl,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user.cscatter,user.cl,user.augl,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+
+  ierr = VecScatterBegin(user.xscatter,user.xu,user.augu,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user.xscatter,user.xu,user.augu,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterBegin(user.cscatter,user.cu,user.augu,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user.cscatter,user.cu,user.augu,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+
+
+  ierr = SNESConstraintSetAugFunction(snes,user.vaug,user.augl,user.augu,FormAugFunction,&user);CHKERRQ(ierr);
   ierr = SNESConstraintSetAugJacobian(snes,user.MAug,user.MAug,FormAugJacobian,&user);CHKERRQ(ierr);
   ierr = SNESConstraintSetAugEmbedding(snes,user.is_aug_to_c);CHKERRQ(ierr);
   ierr = SNESConstraintSetProjectOntoConstraints(snes,FormProjection,&user);CHKERRQ(ierr);
@@ -875,7 +892,7 @@ static PetscErrorCode MSA_Plate(Vec XL,Vec XU,void *ctx){
       }
     }
   }
-    ierr = VecRestoreArray(XL,&xl);CHKERRQ(ierr);
+  ierr = VecRestoreArray(XL,&xl);CHKERRQ(ierr);
 
   return 0;
 }

@@ -724,6 +724,10 @@ PetscErrorCode SNESConstraintSetUpVectors(SNES snes,PetscInt nwork,PetscBool set
   if (!setup_vec_constr) {
     ierr = VecDestroy(&snes->vec_constr);CHKERRQ(ierr);
   }
+  /* bounds */
+  /* Extract from aug, if it is set. FIXME: what if xl,xu, etc. are set already? */
+  /* For now assume that having snes->vec_augl trumps everything else. */
+
   /* func */
   if (!snes->vec_func) {
     if (snes->vec_func_aug) {
@@ -831,7 +835,7 @@ PetscErrorCode SNESConstraintSetUpAugScatters(SNES snes,PetscBool keep_embedding
 #undef __FUNCT__
 #define __FUNCT__ "SNESConstraintSetUpMatrices"
 /*@C
-   SNESConstraintSetUpConstraintMatrices - creates constraint and augmented matrices to be used by the solver
+   SNESConstraintSetUpMatrices - creates constraint and augmented matrices to be used by the solver
 
    Collective
 
@@ -865,10 +869,22 @@ PetscErrorCode SNESConstraintSetUpMatrices(SNES snes,PetscBool create_constraint
   if (!snes->jacobian_constr) {
     ierr = DMConstraintCreateMatrix(snes->dm,&snes->jacobian_constr);CHKERRQ(ierr);
   }
-  if (!snes->jacobian_constr && snes->jacobian_aug) {
-    ierr = SNESConstraintCreateAugEmbeddings_Private(snes,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
-    if (snes->is_constr_aug && snes->is_func_aug) {
+  if (snes->jacobian_aug) {
+    if (!snes->is_constr_aug || !snes->is_func_aug) {
+      ierr = SNESConstraintCreateAugEmbeddings_Private(snes,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
+    }
+    if (!snes->jacobian_constr) {
       ierr = MatGetSubMatrix(snes->jacobian_aug,snes->is_constr_aug,snes->is_func_aug,MAT_INITIAL_MATRIX,&snes->jacobian_constr);CHKERRQ(ierr);
+    }
+    if (!snes->jacobian) {
+      ierr = MatGetSubMatrix(snes->jacobian_aug,snes->is_func_aug,snes->is_func_aug,MAT_INITIAL_MATRIX,&snes->jacobian);CHKERRQ(ierr);
+    }
+  }
+  if (snes->jacobian_aug==snes->jacobian_aug_pre) {
+    snes->jacobian_pre = snes->jacobian;
+  } else {
+    if (!snes->jacobian) {
+      ierr = MatGetSubMatrix(snes->jacobian_aug_pre,snes->is_func_aug,snes->is_func_aug,MAT_INITIAL_MATRIX,&snes->jacobian_pre);CHKERRQ(ierr);
     }
   }
   /* TODO: which should take precedence: MatGetSubMatrix(Jaug,&Bt) or MatTranspose(B,Bt)?  We choose MatGetSubMatrix() since it is likely less communication. */
@@ -1011,6 +1027,47 @@ PetscErrorCode SNESConstraintComputeFunctions(SNES snes,Vec x,Vec f,Vec g,Vec f_
   PetscFunctionReturn(0);
 }
 
+
+#undef __FUNCT__
+#define __FUNCT__ "SNESConstraintDecomposeJacobians"
+/*
+   SNESConstraintDecomposeJacobians_Private  - If using an augmented system,
+   break up the augmented jacobian into the jacobian, jacobian_constr,
+   jacobian_constrt
+*/
+PetscErrorCode SNESConstraintDecomposeJacobians(SNES snes)
+{
+  PetscErrorCode ierr;
+  DM             dm;
+  DMSNES         dmsnes;
+  MatReuse       matreuse = MAT_REUSE_MATRIX; /* TODO: revisit */
+
+  PetscFunctionBegin;
+  /* Only applies for augmented systems */
+  if (snes->jacobian_aug) {
+    ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
+    ierr = DMGetDMSNES(dm,&dmsnes);CHKERRQ(ierr);
+
+    /* Get A Matrix */
+    ierr = MatGetSubMatrix(snes->jacobian_aug,snes->is_func_aug,snes->is_func_aug,matreuse,&snes->jacobian);CHKERRQ(ierr);
+    if (snes->jacobian_aug != snes->jacobian_aug_pre) {
+      ierr = MatGetSubMatrix(snes->jacobian_aug_pre,snes->is_func_aug,snes->is_func_aug,matreuse,&snes->jacobian_pre);CHKERRQ(ierr);
+    }
+
+    /* Get B Matrix */
+    ierr = MatGetSubMatrix(snes->jacobian_aug,snes->is_constr_aug,snes->is_func_aug,matreuse,&snes->jacobian_constr);CHKERRQ(ierr);
+
+    /* Get Bt Matrix */
+    if (snes->jacobian_aug_struct==SNES_CONSTRAINT_AUG_MAT_FULL) {
+      ierr = MatGetSubMatrix(snes->jacobian_aug,snes->is_func_aug,snes->is_constr_aug,matreuse,&snes->jacobian_constrt);CHKERRQ(ierr);
+    } else if (snes->jacobian_aug_struct==SNES_CONSTRAINT_AUG_MAT_LOWER) {
+      ierr = MatTranspose(snes->jacobian_constr,matreuse,&snes->jacobian_constrt);CHKERRQ(ierr);
+    }
+  }
+
+
+  PetscFunctionReturn(0);
+}
 #undef __FUNCT__
 #define __FUNCT__ "SNESConstraintComputeJacobians"
 /*
@@ -1023,9 +1080,7 @@ PetscErrorCode SNESConstraintComputeJacobians(SNES snes,Vec x,MatReuse matreuse,
   PetscErrorCode ierr;
   DM             dm;
   DMSNES         dmsnes;
-  PetscBool      A_built = PETSC_FALSE, B_built = PETSC_FALSE, Bt_built = PETSC_FALSE;
-  Mat            Jnest;
-
+ 
   PetscFunctionBegin;
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMGetDMSNES(dm,&dmsnes);CHKERRQ(ierr);
@@ -1033,79 +1088,16 @@ PetscErrorCode SNESConstraintComputeJacobians(SNES snes,Vec x,MatReuse matreuse,
   *Jstruct = SNES_CONSTRAINT_AUG_MAT_NONE;
   if (J && dmsnes->ops->constraintaugjacobian) {
     ierr = (*dmsnes->ops->constraintaugjacobian)(snes,x,J,J_pre,Jstruct,dmsnes->constraintaugjacctx);
-    if (!dmsnes->ops->computejacobian && snes->is_func_aug) {
-      ierr = MatGetSubMatrix(J,snes->is_func_aug,snes->is_func_aug,matreuse,&A);CHKERRQ(ierr);
-      if (A != A_pre) {
-	if (J_pre != J) {
-	  ierr = MatGetSubMatrix(J_pre,snes->is_func_aug,snes->is_func_aug,matreuse,&A_pre);CHKERRQ(ierr);
-	} else {
-	  if (matreuse == MAT_REUSE_MATRIX) {
-	    ierr = MatCopy(A,A_pre,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
-	  } else {
-	    ierr = MatCopy(A,A_pre,DIFFERENT_NONZERO_PATTERN);CHKERRQ(ierr);
-	  }
-	}
-      }
-      A_built = PETSC_TRUE;
-    }
-    if (B && !dmsnes->ops->constraintjacobian) {
-      if ((*Jstruct == SNES_CONSTRAINT_AUG_MAT_FULL || *Jstruct == SNES_CONSTRAINT_AUG_MAT_LOWER) && snes->is_func_aug && snes->is_constr_aug) {
-	ierr = MatGetSubMatrix(J,snes->is_constr_aug,snes->is_func_aug,matreuse,&B);CHKERRQ(ierr);
-	B_built = PETSC_TRUE;
-      }
-    }
-    if (Bt && !dmsnes->ops->constraintjacobian) {
-      if (*Jstruct == SNES_CONSTRAINT_AUG_MAT_UPPER || *Jstruct == SNES_CONSTRAINT_AUG_MAT_FULL) {
-	ierr = MatGetSubMatrix(J,snes->is_func_aug,snes->is_constr_aug,matreuse,&Bt);CHKERRQ(ierr);
-	Bt_built = PETSC_TRUE;
-      }
-    }
-  }
-  if (!A_built && !dmsnes->ops->computejacobian) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Primal matrix computation function not set and augmented Jacobian not built");
-  ierr = (*dmsnes->ops->computejacobian)(snes,x,A,A_pre,dmsnes->jacobianctx);CHKERRQ(ierr);
-  A_built = PETSC_TRUE;
-  if (!B_built && !dmsnes->ops->constraintjacobian) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Constraint matrix computation function not set and augmented Jacobian not built");
-  ierr = (*dmsnes->ops->constraintjacobian)(snes,x,B,Bt,dmsnes->constraintjacobianctx);CHKERRQ(ierr);
-  B_built = PETSC_TRUE;
-  if (*Jstruct == SNES_CONSTRAINT_AUG_MAT_NONE) {
-    PetscBool isnest;
-    Mat       Jsubmats[4] = {NULL,NULL,NULL,NULL}, Jpresubmats[4] = {NULL,NULL,NULL,NULL};
-    IS        iss[2] = {snes->is_func_aug,snes->is_constr_aug};
-    /* Build J and J_pre out pieces as a MATNEST and convert it later, if necessary. */
-    if (A_built)  {
-      Jsubmats[0] = A;  Jpresubmats[0] = A_pre;
-    } else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"A not built when attempting to assemble J out of blocks");
-    if (Bt_built) { Jsubmats[1] = Bt; Jpresubmats[1] = Bt;}
-    if (B_built)  { Jsubmats[2] = B;  Jpresubmats[2] = B;}
-    if (B_built && Bt_built) {
-      *Jstruct = SNES_CONSTRAINT_AUG_MAT_FULL;
-    } else if (B_built) {
-      *Jstruct = SNES_CONSTRAINT_AUG_MAT_LOWER;
-    } else {
-      *Jstruct = SNES_CONSTRAINT_AUG_MAT_UPPER;
-    }
-    ierr = PetscObjectTypeCompare((PetscObject)snes->jacobian_aug,MATNEST,&isnest);CHKERRQ(ierr);
-    if (isnest) {
-      ierr = MatNestSetSubMats(J,2,iss,2,iss,Jsubmats);CHKERRQ(ierr);
-    } else {
-      ierr = MatCreate(PetscObjectComm((PetscObject)snes),&Jnest);CHKERRQ(ierr);
-      ierr = MatSetType(Jnest,MATNEST);CHKERRQ(ierr);
-      ierr = MatNestSetSubMats(Jnest,2,iss,2,iss,Jsubmats);CHKERRQ(ierr);
-      ierr = MatConvert(Jnest,((PetscObject)snes->jacobian_aug)->type_name,MAT_REUSE_MATRIX,&snes->jacobian_aug);CHKERRQ(ierr);
-      ierr = MatDestroy(&Jnest);CHKERRQ(ierr);
-    }
-    ierr = PetscObjectTypeCompare((PetscObject)snes->jacobian_aug_pre,MATNEST,&isnest);CHKERRQ(ierr);
-    if (isnest) {
-      ierr = MatNestSetSubMats(J_pre,2,iss,2,iss,Jpresubmats);CHKERRQ(ierr);
-    } else {
-      ierr = MatCreate(PetscObjectComm((PetscObject)snes),&Jnest);CHKERRQ(ierr);
-      ierr = MatSetType(Jnest,MATNEST);CHKERRQ(ierr);
-      ierr = MatNestSetSubMats(Jnest,2,iss,2,iss,Jpresubmats);CHKERRQ(ierr);
-      ierr = MatConvert(Jnest,((PetscObject)snes->jacobian_aug_pre)->type_name,MAT_REUSE_MATRIX,&snes->jacobian_aug_pre);CHKERRQ(ierr);
-      ierr = MatDestroy(&Jnest);CHKERRQ(ierr);
-    }
+  } else {
+    if (A && dmsnes->ops->computejacobian) {
+      ierr = (*dmsnes->ops->computejacobian)(snes,x,A,A_pre,dmsnes->jacobianctx);
+    } else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Primal matrix computation function not set and augmented Jacobian not built");
+    if (B && dmsnes->ops->constraintjacobian) {
+      ierr = (*dmsnes->ops->constraintjacobian)(snes,x,B,Bt,dmsnes->constraintjacobianctx);CHKERRQ(ierr);
+    } else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Constraint matrix computation function not set and augmented Jacobian not built");
   }
   PetscFunctionReturn(0);
+
 }
 
 #undef __FUNCT__
@@ -3321,6 +3313,8 @@ PetscErrorCode  SNESConstraintGetJacobian(SNES snes,Mat *B,Mat *Bt,PetscErrorCod
    Input Parameters:
 +  snes        - the SNES context
 .  h           - vector storing the augmented function h; logically, h = [f,g]
+.  hl          - vector of augmented lower bounds [xl,gl] (xl are lower box constraints on variables).
+.  hu          - vector of augmented upper bounds [xu,gu] (xu are upper box constraints on variables).
 .  augfunc     - routine computing h
 -  augfuncctx  - user-defined context for private data for the augmented function evaluation
 
@@ -3331,7 +3325,7 @@ PetscErrorCode  SNESConstraintGetJacobian(SNES snes,Mat *B,Mat *Bt,PetscErrorCod
 .seealso: SNESConstraintSetJacobian(), SNESConstraintSetFunction(), SNESConstraintGetAugFunction(), SNESConstraintAugFunction, SNESConstraintAugJacobian
 @*/
 /* FIXME: write docs for SNESConstraintAugFunction */
-PetscErrorCode  SNESConstraintSetAugFunction(SNES snes,Vec h,PetscErrorCode(*augfunc)(SNES,Vec,Vec,void*),void *augfuncctx)
+PetscErrorCode  SNESConstraintSetAugFunction(SNES snes,Vec h,Vec hl,Vec hu,PetscErrorCode(*augfunc)(SNES,Vec,Vec,void*),void *augfuncctx)
 {
   PetscErrorCode ierr;
   DM             dm;
@@ -3340,9 +3334,20 @@ PetscErrorCode  SNESConstraintSetAugFunction(SNES snes,Vec h,PetscErrorCode(*aug
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
   if (h) {
     ierr = VecDestroy(&snes->vec_func_aug);CHKERRQ(ierr);
+    ierr = PetscObjectReference((PetscObject)h);CHKERRQ(ierr);
     snes->vec_func_aug = h;
     ierr = VecDestroyVecs(snes->nwork_aug,&snes->work_aug);CHKERRQ(ierr);
     /* FIXME: destroy constraint work vectors as well? Reset setup flag? */
+  }
+  if (hl) {
+    ierr = VecDestroy(&snes->vec_augl);CHKERRQ(ierr);
+    ierr = PetscObjectReference((PetscObject)hl);CHKERRQ(ierr);
+    snes->vec_augl = hl;
+  }
+  if (hu) {
+    ierr = VecDestroy(&snes->vec_augu);CHKERRQ(ierr);
+    ierr = PetscObjectReference((PetscObject)hu);CHKERRQ(ierr);
+    snes->vec_augu = hu;
   }
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESConstraintSetAugFunction(dm,augfunc,augfuncctx);CHKERRQ(ierr);
@@ -3362,6 +3367,8 @@ PetscErrorCode  SNESConstraintSetAugFunction(SNES snes,Vec h,PetscErrorCode(*aug
 
    Output parameters:
 +  h           - vector storing the augmented function h; logically, h = [f,g]
+.  hl          - vector of augmented lower bounds [xl,gl] (xl are lower box constraints on variables).
+.  hu          - vector of augmented upper bounds [xu,gu] (xu are upper box constraints on variables).
 .  augfunc     - routine computing h
 -  augfuncctx  - user-defined context for private data for the augmented function evaluation
 
@@ -3371,16 +3378,16 @@ PetscErrorCode  SNESConstraintSetAugFunction(SNES snes,Vec h,PetscErrorCode(*aug
 
 .seealso: SNESConstraintSetJacobian(), SNESConstraintSetFunction(), SNESConstraintGetAugFunction(), SNESConstraintAugFunction, SNESConstraintAugJacobian
 @*/
-PetscErrorCode  SNESConstraintGetAugFunction(SNES snes,Vec *h,PetscErrorCode(**augfunc)(SNES,Vec,Vec,void*),void **augfuncctx)
+PetscErrorCode  SNESConstraintGetAugFunction(SNES snes,Vec *h,Vec *hl,Vec *hu,PetscErrorCode(**augfunc)(SNES,Vec,Vec,void*),void **augfuncctx)
 {
   PetscErrorCode ierr;
   DM             dm;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
-  if (h) {
-    *h = snes->vec_func_aug;
-  }
+  if (h)   *h = snes->vec_func_aug;
+  if (hl) *hl = snes->vec_augl;
+  if (hu) *hu = snes->vec_augu;
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESConstraintGetAugFunction(dm,augfunc,augfuncctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
