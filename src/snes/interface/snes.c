@@ -750,7 +750,7 @@ PetscErrorCode SNESConstraintSetUpVectors(SNES snes,PetscInt nwork,PetscBool set
       ierr = VecDuplicate(snes->vec_sol,&snes->vec_sol_update);CHKERRQ(ierr);
     }
   }
-  if (!snes->vec_func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Could not create function vector: calls to SNESSetFunction() and SNESConstraintSetAugSystem() both missing?");
+  if (!snes->vec_func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Could not create function vector: calls to SNESSetFunction() and SNESConstraintSetAugFunction() both missing?");
   if (nwork) {
     ierr = SNESSetWorkVecs(snes,nwork);CHKERRQ(ierr);
   }
@@ -770,7 +770,7 @@ PetscErrorCode SNESConstraintSetUpVectors(SNES snes,PetscInt nwork,PetscBool set
 	ierr = VecGetLocalSize(gvec,&gsize);CHKERRQ(ierr);
       } else if (emb) {
 	ierr = ISGetLocalSize(emb,&gsize);CHKERRQ(ierr);
-      } else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Constraint Vec and embedding IS are NULL. Missing SNESConstraintSetFunction() or SNESConstraintSetAugSystem()?");
+      } else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Constraint Vec and embedding IS are NULL. Missing SNESConstraintSetFunction() or SNESConstraintSetAugFunction()?");
       ierr = VecCreate(((PetscObject)snes)->comm,&snes->vec_func_aug);CHKERRQ(ierr);
       ierr = VecSetSizes(snes->vec_func_aug,fsize+gsize, PETSC_DETERMINE);CHKERRQ(ierr);
       /* TODO: Which Vec type should the aug vector inherit?  primal or dual? */
