@@ -330,6 +330,14 @@ PetscErrorCode DMPlexCreateGmsh_ReadElement(PetscViewer viewer, PetscInt numCell
       dim = 3;
       numNodes = 8;
       break;
+    case 6: /* 6-node prism */
+      dim = 3;
+      numNodes = 6;
+      break;
+    case 7: /* 5-node pyramid */
+      dim = 3;
+      numNodes = 5;
+      break;
     case 15: /* 1-node vertex */
       dim = 0;
       numNodes = 1;
