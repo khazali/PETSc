@@ -124,7 +124,7 @@ int main( int argc, char **argv )
   ierr = VecGetOwnershipRange(c,&clo,&chi);CHKERRQ(ierr);
   localsize=xhi-xlo+chi-clo;
   ierr = ISCreateStride(PETSC_COMM_WORLD,xhi-xlo,xlo,1,&user.is_aug_to_x);CHKERRQ(ierr);
-  ierr = ISCreateStride(PETSC_COMM_WORLD,chi-clo,clo,1,&user.is_aug_to_c);CHKERRQ(ierr);
+  ierr = ISCreateStride(PETSC_COMM_WORLD,chi-clo,clo+xhi-xlo,1,&user.is_aug_to_c);CHKERRQ(ierr);
 
   ierr = VecCreateMPI(PETSC_COMM_WORLD,localsize,PETSC_DETERMINE,
                       &user.vaug);CHKERRQ(ierr);
