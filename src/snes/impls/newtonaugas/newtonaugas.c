@@ -73,7 +73,8 @@ static PetscErrorCode SNESNEWTONAUGASInitialActiveSet_Private(SNES snes,IS *acti
   PetscInt           glo,ghi;
   PetscInt           i;
   Vec                g,gl,gu;
-  const PetscScalar  *la,*ua,*ga,*lam;
+  const PetscScalar  *la,*ua,*ga;
+  PetscScalar        *lam;
   PetscInt           *indices,counter=0;
   Vec                l = newtas->vec_sol_lambda;
   MPI_Comm           comm;
@@ -81,7 +82,6 @@ static PetscErrorCode SNESNEWTONAUGASInitialActiveSet_Private(SNES snes,IS *acti
   PetscFunctionBegin;
   /* Assume that f(x) and g(x) have already been computed */
   /* A = \{i : (g_i(x) <= g_i^l+epsilon & \lambda_i > 0) | (g_i(x) >= g_i^u-epsilon & \lambda_i < 0)\} -- strongly active set. */
-  /* first time through don't worry about lambda */
 
   ierr = ISDestroy(active);CHKERRQ(ierr);
 
@@ -91,20 +91,31 @@ static PetscErrorCode SNESNEWTONAUGASInitialActiveSet_Private(SNES snes,IS *acti
   ierr = VecGetArrayRead(gl,&la);CHKERRQ(ierr);
   ierr = VecGetArrayRead(gu,&ua);CHKERRQ(ierr);
   ierr = VecGetArrayRead(g,&ga);CHKERRQ(ierr);
-  ierr = VecGetArrayRead(l,&lam);CHKERRQ(ierr);
+  ierr = VecGetArray(l,&lam);CHKERRQ(ierr);
   ierr = PetscCalloc1(ghi-glo,&indices);CHKERRQ(ierr);
-  for (i=0;i<ghi-glo;i++) {
-    if (((PetscRealPart(ga[i]) <= PetscRealPart(la[i])) &&
+  if (snes->iter==0) {
+    for (i=0;i<ghi-glo;i++) {
+      if (PetscRealPart(la[i]-ga[i]) >= 0) {
+        lam[i] = 1.0;
+      }
+      if (PetscRealPart(ga[i]-ua[i]) >= 0) {
+        lam[i] = -1.0;
+      }
+    }
+  } else {
+    for (i=0;i<ghi-glo;i++) {
+      if (((PetscRealPart(ga[i]) <= PetscRealPart(la[i])) &&
          ((PetscRealPart(lam[i]) > 0) || snes->iter==0)) ||
         ((PetscRealPart(ga[i]) >= PetscRealPart(ua[i])) &&
          (PetscRealPart(lam[i] < 0) || snes->iter==0))) {
-      indices[i] = i+glo; counter++;
+        indices[i] = i+glo; counter++;
+      }
     }
   }
   ierr = VecRestoreArrayRead(gl,&la);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(gu,&ua);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(g,&ga);CHKERRQ(ierr);
-  ierr = VecRestoreArrayRead(l,&lam);CHKERRQ(ierr);
+  ierr = VecRestoreArray(l,&lam);CHKERRQ(ierr);
 
   ierr = PetscObjectGetComm((PetscObject)g,&comm);CHKERRQ(ierr);
   ierr = ISCreateGeneral(comm,counter,indices,PETSC_OWN_POINTER,active);CHKERRQ(ierr);

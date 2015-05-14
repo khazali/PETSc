@@ -1124,7 +1124,7 @@ PetscErrorCode SNESConstraintDecomposeJacobians(SNES snes)
   PetscErrorCode ierr;
   DM             dm;
   DMSNES         dmsnes;
-  MatReuse       matreuse = MAT_REUSE_MATRIX; /* TODO: revisit */
+  MatReuse       matreuse = MAT_INITIAL_MATRIX; /* TODO: revisit */
 
   PetscFunctionBegin;
   /* Only applies for augmented systems */
@@ -1143,10 +1143,15 @@ PetscErrorCode SNESConstraintDecomposeJacobians(SNES snes)
 
     /* Get Bt Matrix */
     if (snes->jacobian_aug_struct==SNES_CONSTRAINT_AUG_MAT_FULL) {
-      ierr = MatGetSubMatrix(snes->jacobian_aug,snes->is_func_aug,snes->is_constr_aug,matreuse,&snes->jacobian_constrt);CHKERRQ(ierr);
-    } else if (snes->jacobian_aug_struct==SNES_CONSTRAINT_AUG_MAT_LOWER) {
-      ierr = MatTranspose(snes->jacobian_constr,matreuse,&snes->jacobian_constrt);CHKERRQ(ierr);
+      if (!snes->jacobian_constrt) {
+        ierr = MatGetSubMatrix(snes->jacobian_aug,snes->is_func_aug,snes->is_constr_aug,MAT_INITIAL_MATRIX,&snes->jacobian_constrt);CHKERRQ(ierr);
+      } else {
+        ierr = MatGetSubMatrix(snes->jacobian_aug,snes->is_func_aug,snes->is_constr_aug,matreuse,&snes->jacobian_constrt);CHKERRQ(ierr);
+      }
     }
+    /*    } else if (snes->jacobian_aug_struct==SNES_CONSTRAINT_AUG_MAT_LOWER) {
+     ierr = MatTranspose(snes->jacobian_constr,matreuse,&snes->jacobian_constrt);CHKERRQ(ierr);
+     }*/
   }
 
 
@@ -1172,6 +1177,7 @@ PetscErrorCode SNESConstraintComputeJacobians(SNES snes,Vec x,MatReuse matreuse,
   *Jstruct = SNES_CONSTRAINT_AUG_MAT_NONE;
   if (J && dmsnes->ops->constraintaugjacobian) {
     ierr = (*dmsnes->ops->constraintaugjacobian)(snes,x,J,J_pre,Jstruct,dmsnes->constraintaugjacctx);
+    ierr = SNESConstraintDecomposeJacobians(snes);CHKERRQ(ierr);
   } else {
     if (A && dmsnes->ops->computejacobian) {
       ierr = (*dmsnes->ops->computejacobian)(snes,x,A,A_pre,dmsnes->jacobianctx);
