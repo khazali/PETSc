@@ -80,7 +80,10 @@ static PetscErrorCode SNESNEWTONASInitialActiveSet_Private(SNES snes,IS *active)
   PetscFunctionBegin;
   /* Assume that f(x) and g(x) have already been computed */
   /* A = \{i : (g_i(x) <= g_i^l+epsilon & \lambda_i > 0) | (g_i(x) >= g_i^u-epsilon & \lambda_i < 0)\} -- strongly active set. */
-  *active = NULL;
+  /* first time through don't worry about lambda */
+
+  ierr = ISDestroy(active);CHKERRQ(ierr);
+
   ierr = SNESConstraintGetFunction(snes,&g,&gl,&gu,NULL,NULL);CHKERRQ(ierr);
   ierr = VecGetOwnershipRange(l,&glo,&ghi);CHKERRQ(ierr);
 
@@ -91,9 +94,9 @@ static PetscErrorCode SNESNEWTONASInitialActiveSet_Private(SNES snes,IS *active)
   ierr = PetscCalloc1(ghi-glo,&indices);CHKERRQ(ierr);
   for (i=0;i<ghi-glo;i++) {
     if (((PetscRealPart(ga[i]) <= PetscRealPart(la[i])) &&
-        (PetscRealPart(lam[i]) > 0)) ||
+         ((PetscRealPart(lam[i]) > 0) || snes->iter==0)) ||
         ((PetscRealPart(ga[i]) >= PetscRealPart(ua[i])) &&
-         (PetscRealPart(lam[i] < 0)))) {
+         (PetscRealPart(lam[i] < 0) || snes->iter==0))) {
       indices[i] = i+glo; counter++;
     }
   }
@@ -101,10 +104,10 @@ static PetscErrorCode SNESNEWTONASInitialActiveSet_Private(SNES snes,IS *active)
   ierr = VecRestoreArrayRead(gu,&ua);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(g,&ga);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(l,&lam);CHKERRQ(ierr);
-  if (counter > 0) {
-    ierr = PetscObjectGetComm((PetscObject)g,&comm);CHKERRQ(ierr);
-    ierr = ISCreateGeneral(comm,counter,indices,PETSC_OWN_POINTER,active);CHKERRQ(ierr);
-  }
+
+  ierr = PetscObjectGetComm((PetscObject)g,&comm);CHKERRQ(ierr);
+  ierr = ISCreateGeneral(comm,counter,indices,PETSC_OWN_POINTER,active);CHKERRQ(ierr);
+
   PetscFunctionReturn(0);
 }
 
@@ -184,7 +187,11 @@ static PetscErrorCode SNESNEWTONASModifyActiveSet_Private(SNES snes,IS active,IS
   *tbar = 0.0;
 
   ierr = SNESConstraintGetFunction(snes,NULL,&gl,&gu,NULL,NULL);CHKERRQ(ierr);
-  ierr = MatMult(snes->jacobian_constrt,dx,bx);CHKERRQ(ierr);
+  if (snes->jacobian_constrt) {
+    ierr = MatMult(snes->jacobian_constrt,dx,bx);CHKERRQ(ierr);
+  } else {
+    ierr = MatMultTranspose(snes->jacobian_constr,dx,bx);CHKERRQ(ierr);
+  }
   ierr = VecGetOwnershipRange(dl,&lo,&hi);CHKERRQ(ierr);
   ierr = VecGetArrayRead(gl,&gl_v);CHKERRQ(ierr);
   ierr = VecGetArrayRead(gu,&gu_v);CHKERRQ(ierr);
@@ -421,7 +428,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
   PetscReal           merit,*larray,tbar;
   PetscBool           lssucceed,domainerror,preview;
   SNESLineSearch      linesearch=snes->linesearch;
-  IS                  active,new_active;
+  IS                  active=NULL,new_active;
 
   PetscFunctionBegin;
   snes->numFailures            = 0;
