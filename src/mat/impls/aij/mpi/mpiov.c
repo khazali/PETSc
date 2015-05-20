@@ -556,11 +556,7 @@ PetscErrorCode MatGetSubMatrix_MPIAIJ_All(Mat A,MatGetSubMatrixOption flag,MatRe
       recvcounts[i] = A->rmap->range[i+1] - A->rmap->range[i];
       displs[i]     = A->rmap->range[i];
     }
-#if defined(PETSC_HAVE_MPI_IN_PLACE)
     ierr = MPI_Allgatherv(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,lens,recvcounts,displs,MPIU_INT,PetscObjectComm((PetscObject)A));CHKERRQ(ierr);
-#else
-    ierr = MPI_Allgatherv(lens+A->rmap->rstart,sendcount,MPIU_INT,lens,recvcounts,displs,MPIU_INT,PetscObjectComm((PetscObject)A));CHKERRQ(ierr);
-#endif
     /* ---------------------------------------------------------------
          Create the sequential matrix of the same type as the local block diagonal
     */
@@ -618,11 +614,7 @@ PetscErrorCode MatGetSubMatrix_MPIAIJ_All(Mat A,MatGetSubMatrixOption flag,MatRe
     for (i=1; i<size; i++) {
       displs[i] = displs[i-1] + recvcounts[i-1];
     }
-#if defined(PETSC_HAVE_MPI_IN_PLACE)
     ierr = MPI_Allgatherv(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,b->j,recvcounts,displs,MPIU_INT,PetscObjectComm((PetscObject)A));CHKERRQ(ierr);
-#else
-    ierr = MPI_Allgatherv(jsendbuf,sendcount,MPIU_INT,b->j,recvcounts,displs,MPIU_INT,PetscObjectComm((PetscObject)A));CHKERRQ(ierr);
-#endif
     /*--------------------------------------------------------------------
         Assemble the matrix into useable form (note numerical values not yet set)
     */
@@ -692,11 +684,7 @@ PetscErrorCode MatGetSubMatrix_MPIAIJ_All(Mat A,MatGetSubMatrixOption flag,MatRe
       displs[i] = displs[i-1] + recvcounts[i-1];
     }
     recvbuf = b->a;
-#if defined(PETSC_HAVE_MPI_IN_PLACE)
     ierr = MPI_Allgatherv(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,recvbuf,recvcounts,displs,MPIU_SCALAR,PetscObjectComm((PetscObject)A));CHKERRQ(ierr);
-#else
-    ierr = MPI_Allgatherv(sendbuf,sendcount,MPIU_SCALAR,recvbuf,recvcounts,displs,MPIU_SCALAR,PetscObjectComm((PetscObject)A));CHKERRQ(ierr);
-#endif
   }  /* endof (flag == MAT_GET_VALUES) */
   ierr = PetscFree2(recvcounts,displs);CHKERRQ(ierr);
 
