@@ -176,38 +176,6 @@ class Configure(config.package.Package):
     self.addMakeMacro('MPIEXEC', self.mpiexec)
     return
 
-  def configureMPI2(self):
-    '''Check for functions added to the interface in MPI-2'''
-    oldFlags = self.compilers.CPPFLAGS
-    oldLibs  = self.compilers.LIBS
-    self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
-    self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
-    if self.checkLink('#include <mpi.h>\n', 'int flag;if (MPI_Finalized(&flag));\n'):
-      self.haveFinalized = 1
-      self.addDefine('HAVE_MPI_FINALIZED', 1)
-    if self.checkLink('#include <mpi.h>\n', 'if (MPI_Allreduce(MPI_IN_PLACE,0, 1, MPI_INT, MPI_SUM, MPI_COMM_SELF));\n'):
-      self.haveInPlace = 1
-      self.addDefine('HAVE_MPI_IN_PLACE', 1)
-    if self.checkLink('#include <mpi.h>\n', 'int count=2; int blocklens[2]={0,1}; MPI_Aint indices[2]={0,1}; MPI_Datatype old_types[2]={0,1}; MPI_Datatype *newtype = 0;\n \
-                                             if (MPI_Type_create_struct(count, blocklens, indices, old_types, newtype));\n'):
-      self.haveTypeCreateStruct = 1
-    else:
-      self.haveTypeCreateStruct = 0
-      self.framework.addDefine('MPI_Type_create_struct(count,lens,displs,types,newtype)', 'MPI_Type_struct((count),(lens),(displs),(types),(newtype))')
-    if self.checkLink('#include <mpi.h>\n', 'MPI_Comm_errhandler_fn * p_err_fun = 0; MPI_Errhandler * p_errhandler = 0; if (MPI_Comm_create_errhandler(p_err_fun,p_errhandler));\n'):
-      self.haveCommCreateErrhandler = 1
-    else:
-      self.haveCommCreateErrhandler = 0
-      self.framework.addDefine('MPI_Comm_create_errhandler(p_err_fun,p_errhandler)', 'MPI_Errhandler_create((p_err_fun),(p_errhandler))')
-    if self.checkLink('#include <mpi.h>\n', 'if (MPI_Comm_set_errhandler(MPI_COMM_WORLD,MPI_ERRORS_RETURN));\n'):
-      self.haveCommSetErrhandler = 1
-    else:
-      self.haveCommSetErrhandler = 0
-      self.framework.addDefine('MPI_Comm_set_errhandler(comm,p_errhandler)', 'MPI_Errhandler_set((comm),(p_errhandler))')
-    self.compilers.CPPFLAGS = oldFlags
-    self.compilers.LIBS = oldLibs
-    return
-
   def configureConversion(self):
     '''Check for the functions which convert communicators between C and Fortran
        - Define HAVE_MPI_COMM_F2C and HAVE_MPI_COMM_C2F if they are present
@@ -471,7 +439,6 @@ class Configure(config.package.Package):
       self.argDB['with-'+self.package] = 1
     config.package.Package.configureLibrary(self)
     self.executeTest(self.configureConversion)
-    self.executeTest(self.configureMPI2)
     self.executeTest(self.configureTypes)
     self.executeTest(self.configureMPITypes)
     self.executeTest(self.configureMissingPrototypes)
@@ -481,14 +448,13 @@ class Configure(config.package.Package):
     self.executeTest(self.configureIO)
     self.executeTest(self.findMPIInc)
     self.executeTest(self.checkMPICHorOpenMPI)
-    if self.libraries.check(self.dlib, "MPI_Alltoallw") and self.libraries.check(self.dlib, "MPI_Type_create_indexed_block"):
-      self.addDefine('HAVE_MPI_ALLTOALLW',1)
-    if self.libraries.check(self.dlib, "MPI_Win_create"):
-      self.addDefine('HAVE_MPI_WIN_CREATE',1)
-      self.addDefine('HAVE_MPI_REPLACE',1) # MPI_REPLACE is strictly for use with the one-sided function MPI_Accumulate
-    funcs = '''MPI_Comm_spawn MPI_Type_get_envelope MPI_Type_get_extent MPI_Type_dup MPI_Init_thread
-      MPI_Iallreduce MPI_Ibarrier MPI_Finalized MPI_Exscan'''.split()
-    found, missing = self.libraries.checkClassify(self.dlib, funcs)
+    required_funcs = '''MPI_Alltoallw MPI_Win_create MPI_Type_get_envelope MPI_Type_get_extent MPI_Type_dup MPI_Type_create_struct
+    MPI_Comm_create_errhandler MPI_Comm_set_errhandler MPI_Init_thread MPI_Finalized'''.split()
+    found, missing = self.libraries.checkClassify(self.dlib, required_funcs)
+    if missing:
+      raise RuntimeError('MPI-2 or later required.  Missing functions: ' + ' '.join(missing))
+    optional_funcs = '''MPI_Comm_spawn MPI_Iallreduce MPI_Ibarrier MPI_Exscan'''.split()
+    found, missing = self.libraries.checkClassify(self.dlib, optional_funcs)
     for f in found:
       self.addDefine('HAVE_' + f.upper(),1)
     for f in ['MPIX_Iallreduce']: # Unlikely to be found

@@ -160,21 +160,19 @@ PetscErrorCode VecScatterDestroy_PtoP(VecScatter ctx)
     ierr = MPI_Waitall(to->n,to->rev_requests,to->rstatus);CHKERRQ(ierr);
   }
 
-#if defined(PETSC_HAVE_MPI_ALLTOALLW) && !defined(PETSC_USE_64BIT_INDICES)
+#if !defined(PETSC_USE_64BIT_INDICES)
   if (to->use_alltoallw) {
     ierr = PetscFree3(to->wcounts,to->wdispls,to->types);CHKERRQ(ierr);
     ierr = PetscFree3(from->wcounts,from->wdispls,from->types);CHKERRQ(ierr);
   }
 #endif
 
-#if defined(PETSC_HAVE_MPI_WIN_CREATE)
   if (to->use_window) {
     ierr = MPI_Win_free(&from->window);CHKERRQ(ierr);
     ierr = MPI_Win_free(&to->window);CHKERRQ(ierr);
     ierr = PetscFree(from->winstarts);CHKERRQ(ierr);
     ierr = PetscFree(to->winstarts);CHKERRQ(ierr);
   }
-#endif
 
   if (to->use_alltoallv) {
     ierr = PetscFree2(to->counts,to->displs);CHKERRQ(ierr);

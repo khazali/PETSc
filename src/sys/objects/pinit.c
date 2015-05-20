@@ -734,14 +734,10 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
   ierr = MPI_Initialized(&flag);CHKERRQ(ierr);
   if (!flag) {
     if (PETSC_COMM_WORLD != MPI_COMM_NULL) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"You cannot set PETSC_COMM_WORLD if you have not initialized MPI first");
-#if defined(PETSC_HAVE_MPI_INIT_THREAD)
     {
       PetscMPIInt provided;
       ierr = MPI_Init_thread(argc,args,MPI_THREAD_FUNNELED,&provided);CHKERRQ(ierr);
     }
-#else
-    ierr = MPI_Init(argc,args);CHKERRQ(ierr);
-#endif
     PetscBeganMPI = PETSC_TRUE;
   }
   if (argc && args) {
@@ -1359,11 +1355,9 @@ PetscErrorCode  PetscFinalize(void)
   ierr = MPI_Comm_free_keyval(&Petsc_OuterComm_keyval);CHKERRQ(ierr);
 
   if (PetscBeganMPI) {
-#if defined(PETSC_HAVE_MPI_FINALIZED)
     PetscMPIInt flag;
     ierr = MPI_Finalized(&flag);CHKERRQ(ierr);
     if (flag) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"MPI_Finalize() has already been called, even though MPI_Init() was called by PetscInitialize()");
-#endif
     ierr = MPI_Finalize();CHKERRQ(ierr);
   }
 /*

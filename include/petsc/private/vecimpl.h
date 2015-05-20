@@ -261,15 +261,12 @@ typedef struct {
   PetscMPIInt            *counts,*displs;
   /* for MPI_Alltoallw() approach */
   PetscBool              use_alltoallw;
-#if defined(PETSC_HAVE_MPI_ALLTOALLW)
   PetscMPIInt            *wcounts,*wdispls;
   MPI_Datatype           *types;
-#endif
+  /* for MPI windows */
   PetscBool              use_window;
-#if defined(PETSC_HAVE_MPI_WIN_CREATE)
   MPI_Win                window;
   PetscInt               *winstarts;    /* displacements in the processes I am putting to */
-#endif
 } VecScatter_MPI_General;
 
 
