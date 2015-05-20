@@ -54,13 +54,13 @@ PetscErrorCode PetscViewerDestroy_ASCII(PetscViewer viewer)
 
   /* remove the viewer from the list in the MPI Communicator */
   if (Petsc_Viewer_keyval == MPI_KEYVAL_INVALID) {
-    ierr = MPI_Keyval_create(MPI_NULL_COPY_FN,Petsc_DelViewer,&Petsc_Viewer_keyval,(void*)0);CHKERRQ(ierr);
+    ierr = MPI_Comm_create_keyval(MPI_COMM_NULL_COPY_FN,Petsc_DelViewer,&Petsc_Viewer_keyval,(void*)0);CHKERRQ(ierr);
   }
 
-  ierr = MPI_Attr_get(PetscObjectComm((PetscObject)viewer),Petsc_Viewer_keyval,(void**)&vlink,(PetscMPIInt*)&flg);CHKERRQ(ierr);
+  ierr = MPI_Comm_get_attr(PetscObjectComm((PetscObject)viewer),Petsc_Viewer_keyval,(void**)&vlink,(PetscMPIInt*)&flg);CHKERRQ(ierr);
   if (flg) {
     if (vlink && vlink->viewer == viewer) {
-      ierr = MPI_Attr_put(PetscObjectComm((PetscObject)viewer),Petsc_Viewer_keyval,vlink->next);CHKERRQ(ierr);
+      ierr = MPI_Comm_set_attr(PetscObjectComm((PetscObject)viewer),Petsc_Viewer_keyval,vlink->next);CHKERRQ(ierr);
       ierr = PetscFree(vlink);CHKERRQ(ierr);
     } else {
       while (vlink && vlink->next) {

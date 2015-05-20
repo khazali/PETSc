@@ -262,35 +262,36 @@ typedef void  (MPI_User_function)(void*, void *, int *, MPI_Datatype *);
   Note that this does not work for the MPIUni Fortran symbols which are explicitly in the
   PETSc libraries unless the flag MPIUNI_AVOID_MPI_NAMESPACE is set.
 */
-#define MPI_Abort         Petsc_MPI_Abort
-#define MPI_Attr_get      Petsc_MPI_Attr_get
-#define MPI_Keyval_free   Petsc_MPI_Keyval_free
-#define MPI_Attr_put      Petsc_MPI_Attr_put
-#define MPI_Attr_delete   Petsc_MPI_Attr_delete
-#define MPI_Keyval_create Petsc_MPI_Keyval_create
-#define MPI_Comm_free     Petsc_MPI_Comm_free
-#define MPI_Comm_dup      Petsc_MPI_Comm_dup
-#define MPI_Comm_create   Petsc_MPI_Comm_create
-#define MPI_Init          Petsc_MPI_Init
-#define MPI_Finalize      Petsc_MPI_Finalize
-#define MPI_Initialized   Petsc_MPI_Initialized
-#define MPI_Finalized     Petsc_MPI_Finalized
-#define MPI_Comm_size     Petsc_MPI_Comm_size
-#define MPI_Comm_rank     Petsc_MPI_Comm_rank
-#define MPI_Wtime         Petsc_MPI_Wtime
+#define MPI_Abort              Petsc_MPI_Abort
+#define MPI_Comm_get_attr      Petsc_MPI_Comm_get_attr
+#define MPI_Comm_free_keyval   Petsc_MPI_Comm_free_keyval
+#define MPI_Comm_set_attr      Petsc_MPI_Comm_set_attr
+#define MPI_Comm_delete_attr   Petsc_MPI_Comm_delete_attr
+#define MPI_Comm_create_keyval Petsc_MPI_Comm_create_keyval
+#define MPI_Comm_free          Petsc_MPI_Comm_free
+#define MPI_Comm_dup           Petsc_MPI_Comm_dup
+#define MPI_Comm_create        Petsc_MPI_Comm_create
+#define MPI_Init               Petsc_MPI_Init
+#define MPI_Finalize           Petsc_MPI_Finalize
+#define MPI_Initialized        Petsc_MPI_Initialized
+#define MPI_Finalized          Petsc_MPI_Finalized
+#define MPI_Comm_size          Petsc_MPI_Comm_size
+#define MPI_Comm_rank          Petsc_MPI_Comm_rank
+#define MPI_Wtime              Petsc_MPI_Wtime
 
 /* identical C bindings */
-#define MPI_Comm_create_keyval Petsc_MPI_Keyval_create
-#define MPI_Comm_free_keyval   Petsc_MPI_Keyval_free
-#define MPI_Comm_get_attr      Petsc_MPI_Attr_get
-#define MPI_Comm_set_attr      Petsc_MPI_Attr_put
+#define MPI_Keyval_create      Petsc_MPI_Comm_create_keyval
+#define MPI_Keyval_free        Petsc_MPI_Comm_free_keyval
+#define MPI_Attr_get           Petsc_MPI_Comm_get_attr
+#define MPI_Attr_put           Petsc_MPI_Comm_set_attr
+#define MPI_Attr_delete        Petsc_MPI_Comm_delete_attr
 
 MPIUni_PETSC_EXTERN int    MPI_Abort(MPI_Comm,int);
-MPIUni_PETSC_EXTERN int    MPI_Attr_get(MPI_Comm comm,int keyval,void *attribute_val,int *flag);
-MPIUni_PETSC_EXTERN int    MPI_Keyval_free(int*);
-MPIUni_PETSC_EXTERN int    MPI_Attr_put(MPI_Comm,int,void *);
-MPIUni_PETSC_EXTERN int    MPI_Attr_delete(MPI_Comm,int);
-MPIUni_PETSC_EXTERN int    MPI_Keyval_create(MPI_Copy_function *,MPI_Delete_function *,int *,void *);
+MPIUni_PETSC_EXTERN int    MPI_Comm_get_attr(MPI_Comm comm,int keyval,void *attribute_val,int *flag);
+MPIUni_PETSC_EXTERN int    MPI_Comm_free_keyval(int*);
+MPIUni_PETSC_EXTERN int    MPI_Comm_set_attr(MPI_Comm,int,void *);
+MPIUni_PETSC_EXTERN int    MPI_Comm_delete_attr(MPI_Comm,int);
+MPIUni_PETSC_EXTERN int    MPI_Comm_create_keyval(MPI_Copy_function *,MPI_Delete_function *,int *,void *);
 MPIUni_PETSC_EXTERN int    MPI_Comm_free(MPI_Comm*);
 MPIUni_PETSC_EXTERN int    MPI_Comm_dup(MPI_Comm,MPI_Comm *);
 MPIUni_PETSC_EXTERN int    MPI_Comm_create(MPI_Comm,MPI_Group,MPI_Comm *);
@@ -750,8 +751,8 @@ MPIUni_PETSC_EXTERN double MPI_Wtime(void);
 #define MPI_Wtick() 1.0
 #define MPI_Pcontrol(level) MPI_SUCCESS
 
-#define MPI_NULL_COPY_FN   0
-#define MPI_NULL_DELETE_FN 0
+#define MPI_COMM_NULL_COPY_FN   0
+#define MPI_COMM_NULL_DELETE_FN 0
 
   /* MPI-IO additions */
 

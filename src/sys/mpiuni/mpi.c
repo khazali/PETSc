@@ -69,7 +69,7 @@ static int Keyval_setup(void)
   return 0;
 }
 
-int MPI_Keyval_create(MPI_Copy_function *copy_fn,MPI_Delete_function *delete_fn,int *keyval,void *extra_state)
+int MPI_Comm_create_keyval(MPI_Copy_function *copy_fn,MPI_Delete_function *delete_fn,int *keyval,void *extra_state)
 {
   if (num_attr >= MAX_ATTR) MPI_Abort(MPI_COMM_WORLD,1);
 
@@ -88,7 +88,7 @@ int MPI_Keyval_free(int *keyval)
   return MPI_SUCCESS;
 }
 
-int MPI_Attr_put(MPI_Comm comm,int keyval,void *attribute_val)
+int MPI_Comm_set_attr(MPI_Comm comm,int keyval,void *attribute_val)
 {
   if (comm-1 < 0 || comm-1 > 3) return 1;
   attr[comm-1][keyval].active        = 1;
@@ -96,7 +96,7 @@ int MPI_Attr_put(MPI_Comm comm,int keyval,void *attribute_val)
   return MPI_SUCCESS;
 }
 
-int MPI_Attr_delete(MPI_Comm comm,int keyval)
+int MPI_Comm_delete_attr(MPI_Comm comm,int keyval)
 {
   if (comm-1 < 0 || comm-1 > 3) return 1;
   if (attr[comm-1][keyval].active && attr_keyval[keyval].del) {
@@ -108,7 +108,7 @@ int MPI_Attr_delete(MPI_Comm comm,int keyval)
   return MPI_SUCCESS;
 }
 
-int MPI_Attr_get(MPI_Comm comm,int keyval,void *attribute_val,int *flag)
+int MPI_Comm_get_attr(MPI_Comm comm,int keyval,void *attribute_val,int *flag)
 {
   if (comm-1 < 0 || comm-1 > 3) return 1;
   if (!keyval) Keyval_setup();

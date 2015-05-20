@@ -340,12 +340,12 @@ PetscErrorCode PetscSplitReductionGet(MPI_Comm comm,PetscSplitReduction **sr)
        the older version you will get a warning message about the next line;
        it is only a warning message and should do no harm.
     */
-    ierr = MPI_Keyval_create(MPI_NULL_COPY_FN,Petsc_DelReduction,&Petsc_Reduction_keyval,0);CHKERRQ(ierr);
+    ierr = MPI_Comm_create_keyval(MPI_COMM_NULL_COPY_FN,Petsc_DelReduction,&Petsc_Reduction_keyval,0);CHKERRQ(ierr);
   }
-  ierr = MPI_Attr_get(comm,Petsc_Reduction_keyval,(void**)sr,&flag);CHKERRQ(ierr);
+  ierr = MPI_Comm_get_attr(comm,Petsc_Reduction_keyval,(void**)sr,&flag);CHKERRQ(ierr);
   if (!flag) {  /* doesn't exist yet so create it and put it in */
     ierr = PetscSplitReductionCreate(comm,sr);CHKERRQ(ierr);
-    ierr = MPI_Attr_put(comm,Petsc_Reduction_keyval,*sr);CHKERRQ(ierr);
+    ierr = MPI_Comm_set_attr(comm,Petsc_Reduction_keyval,*sr);CHKERRQ(ierr);
     ierr = PetscInfo1(0,"Putting reduction data in an MPI_Comm %ld\n",(long)comm);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);

@@ -381,11 +381,11 @@ PETSC_EXTERN void PETSC_STDCALL petscinitialize_(CHAR filename PETSC_MIXED_LEN(l
   *ierr = MPI_Type_commit(&MPIU_2INT);
   if (*ierr) {(*PetscErrorPrintf)("PetscInitialize:Creating MPI types\n");return;}
 #endif
-  *ierr = MPI_Keyval_create(MPI_NULL_COPY_FN,Petsc_DelCounter,&Petsc_Counter_keyval,(void*)0);
+  *ierr = MPI_Comm_create_keyval(MPI_COMM_NULL_COPY_FN,Petsc_DelCounter,&Petsc_Counter_keyval,(void*)0);
   if (*ierr) {(*PetscErrorPrintf)("PetscInitialize:Creating MPI keyvals\n");return;}
-  *ierr = MPI_Keyval_create(MPI_NULL_COPY_FN,Petsc_DelComm_Outer,&Petsc_InnerComm_keyval,(void*)0);
+  *ierr = MPI_Comm_create_keyval(MPI_COMM_NULL_COPY_FN,Petsc_DelComm_Outer,&Petsc_InnerComm_keyval,(void*)0);
   if (*ierr) {(*PetscErrorPrintf)("PetscInitialize:Creating MPI keyvals\n");return;}
-  *ierr = MPI_Keyval_create(MPI_NULL_COPY_FN,Petsc_DelComm_Inner,&Petsc_OuterComm_keyval,(void*)0);
+  *ierr = MPI_Comm_create_keyval(MPI_COMM_NULL_COPY_FN,Petsc_DelComm_Inner,&Petsc_OuterComm_keyval,(void*)0);
   if (*ierr) {(*PetscErrorPrintf)("PetscInitialize:Creating MPI keyvals\n");return;}
 
   /*

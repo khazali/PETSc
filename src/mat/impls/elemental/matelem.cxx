@@ -1028,7 +1028,7 @@ static PetscErrorCode MatDestroy_Elemental(Mat A)
 
   El::mpi::Comm cxxcomm(PetscObjectComm((PetscObject)A));
   ierr = PetscCommDuplicate(cxxcomm.comm,&icomm,NULL);CHKERRQ(ierr);
-  ierr = MPI_Attr_get(icomm,Petsc_Elemental_keyval,(void**)&commgrid,(int*)&flg);CHKERRQ(ierr);
+  ierr = MPI_Comm_get_attr(icomm,Petsc_Elemental_keyval,(void**)&commgrid,(int*)&flg);CHKERRQ(ierr);
   /* printf("commgrid->grid_refct = %d, grid=%p\n",commgrid->grid_refct,commgrid->grid); -- memory leak revealed by valgrind? */
   if (--commgrid->grid_refct == 0) {
     delete commgrid->grid;
@@ -1373,10 +1373,10 @@ PETSC_EXTERN PetscErrorCode MatCreate_Elemental(Mat A)
 
   /* Grid needs to be shared between multiple Mats on the same communicator, implement by attribute caching on the MPI_Comm */
   if (Petsc_Elemental_keyval == MPI_KEYVAL_INVALID) {
-    ierr = MPI_Keyval_create(MPI_NULL_COPY_FN,MPI_NULL_DELETE_FN,&Petsc_Elemental_keyval,(void*)0);
+    ierr = MPI_Comm_create_keyval(MPI_COMM_NULL_COPY_FN,MPI_COMM_NULL_DELETE_FN,&Petsc_Elemental_keyval,(void*)0);
   }
   ierr = PetscCommDuplicate(cxxcomm.comm,&icomm,NULL);CHKERRQ(ierr);
-  ierr = MPI_Attr_get(icomm,Petsc_Elemental_keyval,(void**)&commgrid,(int*)&flg);CHKERRQ(ierr);
+  ierr = MPI_Comm_get_attr(icomm,Petsc_Elemental_keyval,(void**)&commgrid,(int*)&flg);CHKERRQ(ierr);
   if (!flg) {
     ierr = PetscNewLog(A,&commgrid);CHKERRQ(ierr);
 
@@ -1393,7 +1393,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_Elemental(Mat A)
       /* printf("new commgrid->grid = %p\n",commgrid->grid);  -- memory leak revealed by valgrind? */
     }
     commgrid->grid_refct = 1;
-    ierr = MPI_Attr_put(icomm,Petsc_Elemental_keyval,(void*)commgrid);CHKERRQ(ierr);
+    ierr = MPI_Comm_set_attr(icomm,Petsc_Elemental_keyval,(void*)commgrid);CHKERRQ(ierr);
     PetscOptionsEnd();
   } else {
     commgrid->grid_refct++;
