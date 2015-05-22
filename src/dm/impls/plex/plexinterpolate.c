@@ -119,6 +119,32 @@ PetscErrorCode DMPlexGetRawFaces_Internal(DM dm, PetscInt dim, PetscInt coneSize
       if (numFaces) *numFaces         = 4;
       if (faceSizes) {faceSizesTmp[0] = 3; faceSizesTmp[1] = 3; faceSizesTmp[2] = 3; faceSizesTmp[3] = 3;}
       break;
+    case 5:
+      /* Pyramid element */
+      if (faces) {
+        facesTmp[0]  = cone[0]; facesTmp[1]  = cone[1]; facesTmp[2]  = cone[4];
+        facesTmp[3]  = cone[1]; facesTmp[4]  = cone[2]; facesTmp[5]  = cone[4];
+        facesTmp[6]  = cone[2]; facesTmp[7]  = cone[4]; facesTmp[8]  = cone[4];
+        facesTmp[9]  = cone[3]; facesTmp[10] = cone[0]; facesTmp[11] = cone[4];
+        facesTmp[12] = cone[0]; facesTmp[13] = cone[1]; facesTmp[14] = cone[2]; facesTmp[15] = cone[3];
+        *faces = facesTmp;
+      }
+      if (numFaces) *numFaces         = 5;
+      if (faceSizes) {faceSizesTmp[0] = 3; faceSizesTmp[1] = 3; faceSizesTmp[2] = 3; faceSizesTmp[3] = 3; faceSizesTmp[4] = 4;}
+      break;
+    case 6:
+      /* Wedge element */
+      if (faces) {
+        facesTmp[0]  = cone[0]; facesTmp[1]  = cone[1]; facesTmp[2]  = cone[2];
+        facesTmp[3]  = cone[3]; facesTmp[4]  = cone[5]; facesTmp[5]  = cone[4];
+        facesTmp[6]  = cone[1]; facesTmp[7]  = cone[0]; facesTmp[8]  = cone[3]; facesTmp[9]  = cone[4];
+        facesTmp[10] = cone[5]; facesTmp[11] = cone[3]; facesTmp[12] = cone[0]; facesTmp[13] = cone[2];
+        facesTmp[14] = cone[5]; facesTmp[15] = cone[4]; facesTmp[16] = cone[1]; facesTmp[17] = cone[2];
+        *faces = facesTmp;
+      }
+      if (numFaces) *numFaces         = 5;
+      if (faceSizes) {faceSizesTmp[0] = 3; faceSizesTmp[1] = 3; faceSizesTmp[2] = 4; faceSizesTmp[3] = 4; faceSizesTmp[4] = 4;}
+      break;
     case 8:
       if (faces) {
         facesTmp[0]  = cone[0]; facesTmp[1]  = cone[1]; facesTmp[2]  = cone[2]; facesTmp[3]  = cone[3]; /* Bottom */
