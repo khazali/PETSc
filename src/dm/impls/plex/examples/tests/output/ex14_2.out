@@ -1,0 +1,20 @@
+DM Object:Hybrid Mesh 1 MPI processes
+  type: plex
+Hybrid Mesh in 3 dimensions:
+  0-cells: 113
+  1-cells: 446
+  2-cells: 554
+  3-cells: 181
+Labels:
+  Face Sets: 6 strata of sizes (21, 21, 21, 21, 18, 9)
+  depth: 4 strata of sizes (113, 446, 554, 181)
+DM Object:Checkpoint Mesh 1 MPI processes
+  type: plex
+Checkpoint Mesh in 3 dimensions:
+  0-cells: 113
+  1-cells: 446
+  2-cells: 554
+  3-cells: 181
+Labels:
+  Face Sets: 6 strata of sizes (9, 21, 21, 21, 21, 18)
+  depth: 4 strata of sizes (113, 446, 554, 181)
