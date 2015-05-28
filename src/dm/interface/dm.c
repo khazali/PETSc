@@ -1024,12 +1024,10 @@ PetscErrorCode  DMConstraintCreateVector(DM dm,Vec *vec)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMConstraintCreateAugSystem"
+#define __FUNCT__ "DMConstraintCreateAugVector"
 /*@
-    DMConstraintCreateAugSystem - Creates an empty augmented Jacobian and a corresponding vector
-    allocated according to the underlying mesh connectivity and constraint structure. The resulting
-    Jacobian is a logically 2x2 matrix J = [A B^T; B 0] where the location of rows of B in J is
-    defined by the emb IS.
+    DMConstraintCreateAugVector - Creates an augmented system for a problem with constraints
+    augmented vector.
 
     Collective on DM
 
@@ -1037,9 +1035,80 @@ PetscErrorCode  DMConstraintCreateVector(DM dm,Vec *vec)
 .   dm - the DM object
 
     Output Parameter:
-+   mat - the empty augmented constraint Jacobian
-.   vec - the empty augmented consraint vector
--   emb - the embedding of the constraint degrees of freedom into the augmented system
+.   vec - the augmented vector big enough to contain variables and constraints
+
+    Level: intermediate
+
+
+.seealso DMConstraintCreateAugMatrix(),DMConstraintCreateAugEmbedding()
+
+@*/
+PetscErrorCode  DMConstraintCreateAugVector(DM dm,Vec *vec)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  PetscValidPointer(vec,2);
+
+  if (vec) *vec = NULL;
+  if (dm->ops->constraintcreateaugvector) {
+    ierr = (*dm->ops->constraintcreateaugvector)(dm,vec);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
+#define __FUNCT__ "DMConstraintCreateAugEmbedding"
+/*@
+    DMConstraintCreateAugEmbedding - Creates an IS embedding constraint degrees of freedom into the
+    augmented vector.
+
+    Collective on DM
+
+    Input Parameter:
+.   dm - the DM object
+
+    Output Parameter:
+.   emb - the embedding of the constraint degrees of freedom into the augmented system
+
+    Level: intermediate
+
+
+.seealso DMConstraintCreateAugVector()
+
+@*/
+PetscErrorCode  DMConstraintCreateAugEmbedding(DM dm,IS *emb)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  PetscValidPointer(emb,2);
+
+  if (emb) *emb = NULL;
+  if (dm->ops->constraintcreateaugembedding) {
+    ierr = (*dm->ops->constraintcreateaugembedding)(dm,emb);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
+#define __FUNCT__ "DMConstraintCreateAugMatrix"
+/*@
+    DMConstraintCreateAugMatrix - Creates an empty augmented Jacobian allocated according to the underlying mesh
+    connectivity and constraint structure. The resulting Jacobian is a logically 2x2 matrix J = [A B^T; B 0] where
+    the location of rows of B in J defined by the embedding of constraints into the augmented system.
+
+    Collective on DM
+
+    Input Parameter:
+.   dm - the DM object
+
+    Output Parameter:
+.   mat - the empty augmented constraint Jacobian
 
     Level: intermediate
 
@@ -1053,23 +1122,22 @@ PetscErrorCode  DMConstraintCreateVector(DM dm,Vec *vec)
        of freedom indexing the matrix rows can be rather complicated.
 
 
-.seealso DMDestroy(), DMView(), DMConstraintCreateMatrix(), DMConstraintCreateVector()
+.seealso DMConstraintCreateAugVector(), DMConstraintCreateAugEmbedding()
 
 @*/
-PetscErrorCode  DMConstraintCreateAugSystem(DM dm,Mat *mat,Vec *vec,IS *emb)
+PetscErrorCode  DMConstraintCreateAugMatrix(DM dm,Mat *mat)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = MatInitializePackage();CHKERRQ(ierr);
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  PesscValidPointer(mat,2);
 
 
   if (mat) *mat = NULL;
-  if (vec) *vec = NULL;
-  if (emb) *emb = NULL;
-  if (dm->ops->constraintcreateaugsystem) {
-    ierr = (*dm->ops->constraintcreateaugsystem)(dm,mat,vec,emb);CHKERRQ(ierr);
+  if (dm->ops->constraintcreateaugmatrix) {
+    ierr = (*dm->ops->constraintcreateaugmatrix)(dm,mat);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }

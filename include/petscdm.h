@@ -142,7 +142,9 @@ PETSC_EXTERN PetscErrorCode DMConstraintSetAugMatType(DM,MatType);
 PETSC_EXTERN PetscErrorCode DMConstraintGetAugMatType(DM,MatType*);
 PETSC_EXTERN PetscErrorCode DMConstraintCreateVector(DM,Vec*);
 PETSC_EXTERN PetscErrorCode DMConstraintCreateMatrix(DM,Mat*);
-PETSC_EXTERN PetscErrorCode DMConstraintCreateAugSystem(DM,Mat*,Vec*,IS*);
+PETSC_EXTERN PetscErrorCode DMConstraintCreateAugVector(DM,Vec*);
+PETSC_EXTERN PetscErrorCode DMConstraintCreateAugMatrix(DM,Mat*);
+PETSC_EXTERN PetscErrorCode DMConstraintCreateAugEmbedding(DM,IS*);
 
 
 PETSC_EXTERN PetscErrorCode VecGetDM(Vec, DM*);
