@@ -45,22 +45,23 @@ typedef const char* SNESType;
 #define SNESANDERSON     "anderson"
 #define SNESASPIN        "aspin"
 #define SNESCOMPOSITE    "composite"
-#define SNESNEWTONAS     "newtonas"
+#define SNESNEWTONAUGAS  "newtonaugas"
 
+/* TODO: move to petscsnes.h */
 /*J
-    SNESNEWTONASType - String with the name of a PETSc SNES active-set method.
+    SNESNEWTONAUGASType - String with the name of a PETSc SNES active-set method.
     Determines the type of linear solver used to solve the bordered saddle-point-form
     linear system.
 
-    Available types: SNESNEWTONAS_PRIMAL, SNESNEWTONAS_SADDLE_FULL, SNESNEWTONAS_SADDLE_REDUCED, SNESNEWTONAS_DUAL
+    Available types: SNESNEWTONAUGAS_PRIMAL, SNESNEWTONAUGAS_SADDLE, SNESNEWTONAUGAS_DUAL
 
-    Options Database Keys: -snes_newtonas_type saddle|primal|dual
+    Options Database Keys: -snes_newtonaugas_type saddle|primal|dual
    Level: beginner
 
-.seealso: SNESNEWTONASSetType(), SNES, SNESCreate(), SNESDestroy(), SNESSetFromOptions()
+.seealso: SNESNEWTONAUGASSetType(), SNES, SNESCreate(), SNESDestroy(), SNESSetFromOptions()
 J*/
-typedef enum {SNESNEWTONAS_PRIMAL=0,SNESNEWTONAS_SADDLE_FULL,SNESNEWTONAS_SADDLE_REDUCED,SNESNEWTONAS_DUAL} SNESNEWTONASType;
-PETSC_EXTERN const char *const SNESNEWTONASTypes[];
+typedef enum {SNESNEWTONAUGAS_PRIMAL=0,SNESNEWTONAUGAS_SADDLE,SNESNEWTONAUGAS_DUAL} SNESNEWTONAUGASType;
+PETSC_EXTERN const char *const SNESNEWTONAUGASTypes[];
 
 /* Logging support */
 PETSC_EXTERN PetscClassId SNES_CLASSID;
@@ -381,7 +382,10 @@ PETSC_EXTERN PetscErrorCode SNESConstraintSetAugJacobian(SNES,Mat,Mat,PetscError
 PETSC_EXTERN PetscErrorCode SNESConstraintGetAugJacobian(SNES,Mat*,Mat*,PetscErrorCode (**)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void**);
 PETSC_EXTERN PetscErrorCode SNESConstraintSetAugEmbedding(SNES,IS);
 PETSC_EXTERN PetscErrorCode SNESConstraintGetAugEmbedding(SNES,IS*);
+
 PETSC_EXTERN PetscErrorCode SNESConstraintDecomposeJacobians(SNES);
+
+
 
 
 PETSC_EXTERN PetscErrorCode SNESConstraintSetProjectOntoConstraints(SNES,PetscErrorCode (*)(SNES,Vec,Vec,void*),void*);
@@ -389,8 +393,8 @@ PETSC_EXTERN PetscErrorCode SNESConstraintGetProjectOntoConstraints(SNES,PetscEr
 PETSC_EXTERN PetscErrorCode SNESConstraintProjectOntoConstraints(SNES,Vec,Vec);
 PETSC_EXTERN PetscErrorCode SNESConstraintFindBoundsViolation(SNES,Vec,PetscInt*);
 
-PETSC_EXTERN PetscErrorCode SNESNEWTONASSetType(SNES,SNESNEWTONASType);
-PETSC_EXTERN PetscErrorCode SNESNEWTONASGetType(SNES,SNESNEWTONASType*);
+PETSC_EXTERN PetscErrorCode SNESNEWTONAUGASSetType(SNES,SNESNEWTONAUGASType);
+PETSC_EXTERN PetscErrorCode SNESNEWTONAUGASGetType(SNES,SNESNEWTONAUGASType*);
 
 
 
@@ -701,8 +705,8 @@ PETSC_EXTERN PetscErrorCode DMSNESConstraintGetAugFunction(DM,PetscErrorCode (**
 PETSC_EXTERN PetscErrorCode DMSNESConstraintSetAugJacobian(DM,PetscErrorCode (*)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSNESConstraintGetAugJacobian(DM,PetscErrorCode (**)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void**);
 
-PETSC_EXTERN PetscErrorCode DMSNESNEWTONASSetActiveConstraintBasis(DM,PetscErrorCode (*)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void*);
-PETSC_EXTERN PetscErrorCode DMSNESNEWTONASGetActiveConstraintBasis(DM,PetscErrorCode (**)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void**);
+PETSC_EXTERN PetscErrorCode DMSNESNEWTONAUGASSetActiveConstraintBasis(DM,PetscErrorCode (*)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSNESNEWTONAUGASGetActiveConstraintBasis(DM,PetscErrorCode (**)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void**);
 
 PETSC_EXTERN PetscErrorCode DMDASNESSetFunctionLocal(DM,InsertMode,DMDASNESFunction,void*);
 PETSC_EXTERN PetscErrorCode DMDASNESSetJacobianLocal(DM,DMDASNESJacobian,void*);

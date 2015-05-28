@@ -155,9 +155,15 @@ struct _p_SNES {
 
   /* ------------------------ Constrained solver support ---------------------- */
   /* constrainded solver support */
+
   Vec         vec_constr;       /* vector of constraints */
   Vec         vec_constrl;      /* lower bounds on the constraints */
   Vec         vec_constru;      /* upper bound on the constraints */
+  /* If vec_func_aug is not NULL, the function and the solution are expected to be "augmented".
+     The function augmentation contains the constraints, while the solution augmentation contains
+     the Lagrange mulitpliers.  Only the solvers that can handle augmented systems (e.g., SNESNEWTONAUGAS)
+     are allowed when vec_func_aug is set.
+   */
   Vec         vec_func_aug;     /* augmented function containing function and constraints */
   Vec         vec_augl;         /* augmented lower bounds vector: [xl,gl] -- lower "box" bounds on variables and lower bounds on constraints. */
   Vec         vec_augu;         /* augmented upper bounds vector: [xu,gu] -- upper "box" bounds on variables and upper bounds on constraints. */
@@ -201,7 +207,7 @@ struct _DMSNESOps {
   PetscErrorCode (*merit)(SNES,Vec,Vec,Vec,Vec,Mat,Mat,PetscReal*,void*);
 
 
-  /* Specific to SNESNEWTONAS or SNESNEWTONAS_PRIMAL.  QUESTION: how do we accommodate impl-specific callbacks and contexts? Different DMSNES impls? */
+  /* Specific to SNESNEWTONAUGAS or SNESNEWTONAUGAS_PRIMAL.  QUESTION: how do we accommodate impl-specific callbacks and contexts? Different DMSNES impls? */
   PetscErrorCode (*activeconstraintbasis)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*);
 
   /* Picard iteration functions */
@@ -230,7 +236,7 @@ struct _p_DMSNES {
   void *projectontoconstraintsctx;
   void *meritctx;
 
-  /* Specific to SNESNEWTONAS_XXX. */
+  /* Specific to SNESNEWTONAUGAS_XXX. */
   /*
        TODO: how do we accommodate impl-specific callbacks and contexts? Different DMSNES impls?
        The data pointer already used by DMXXXSNES impls.

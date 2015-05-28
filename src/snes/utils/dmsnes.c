@@ -959,9 +959,9 @@ PetscErrorCode DMSNESConstraintGetAugJacobian(DM dm,PetscErrorCode(**augjac)(SNE
 
 
 #undef  __FUNCT__
-#define __FUNCT__ "DMSNESNEWTONASSetActiveConstraintBasis"
+#define __FUNCT__ "DMSNESNEWTONAUGASSetActiveConstraintBasis"
 /*@C
-   DMSNESNEWTONASSetActiveConstraintBasis - set SNES function to compute a basis for the active constraints
+   DMSNESNEWTONAUGASSetActiveConstraintBasis - set SNES function to compute a basis for the active constraints
 
    Not Collective
 
@@ -973,14 +973,14 @@ PetscErrorCode DMSNESConstraintGetAugJacobian(DM dm,PetscErrorCode(**augjac)(SNE
    Level: advanced
 
    Note:
-   SNESNEWTONASSetActiveConstraintBasis() is normally used, but it calls this function internally because the user context is actually
+   SNESNEWTONAUGASSetActiveConstraintBasis() is normally used, but it calls this function internally because the user context is actually
    associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
    not. If DM took a more central role at some later date, this could become the primary method of setting the active constraints
    evaluation.
 
-.seealso: DMSNESSetContext(), SNESConstraintSetFunction(), SNESConstraintGetFunction(), DMSNESNEWTONASGetActiveConstraintBasis(), SNESNEWTONASActiveConstraintBasis
+.seealso: DMSNESSetContext(), SNESConstraintSetFunction(), SNESConstraintGetFunction(), DMSNESNEWTONAUGASGetActiveConstraintBasis(), SNESNEWTONAUGASActiveConstraintBasis
 @*/
-PetscErrorCode DMSNESNEWTONASSetActiveConstraintBasis(DM dm,PetscErrorCode (*a)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void *ctx)
+PetscErrorCode DMSNESNEWTONAUGASSetActiveConstraintBasis(DM dm,PetscErrorCode (*a)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -995,9 +995,9 @@ PetscErrorCode DMSNESNEWTONASSetActiveConstraintBasis(DM dm,PetscErrorCode (*a)(
 
 
 #undef  __FUNCT__
-#define __FUNCT__ "DMSNESNEWTONASGetActiveConstraintBasis"
+#define __FUNCT__ "DMSNESNEWTONAUGASGetActiveConstraintBasis"
 /*@C
-   DMSNESNEWTONASGetActiveConstraintBasis - get function computing a basis for the active SNES constraints
+   DMSNESNEWTONAUGASGetActiveConstraintBasis - get function computing a basis for the active SNES constraints
 
    Not Collective
 
@@ -1011,14 +1011,14 @@ PetscErrorCode DMSNESNEWTONASSetActiveConstraintBasis(DM dm,PetscErrorCode (*a)(
    Level: advanced
 
    Note:
-   SNESNEWTONASGetActiveConstraintBasis() is normally used, but it calls this function internally because the user context is actually
+   SNESNEWTONAUGASGetActiveConstraintBasis() is normally used, but it calls this function internally because the user context is actually
    associated with the DM.  This makes the interface consistent regardless of whether the user interacts with a DM or
    not. If DM took a more central role at some later date, this could become the primary method of getting the active constraints
    evaluation.
 
-.seealso: DMSNESSetContext(), SNESConstraintSetFunction(), SNESConstraintGetFunction(), DMSNESNEWTONASSetActiveConstraintBasis(), SNESNEWTONASActiveConstraintBasis
+.seealso: DMSNESSetContext(), SNESConstraintSetFunction(), SNESConstraintGetFunction(), DMSNESNEWTONAUGASSetActiveConstraintBasis(), SNESNEWTONAUGASActiveConstraintBasis
 @*/
-PetscErrorCode DMSNESNEWTONASGetActiveConstraintBasis(DM dm,PetscErrorCode (**a)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void **ctx)
+PetscErrorCode DMSNESNEWTONAUGASGetActiveConstraintBasis(DM dm,PetscErrorCode (**a)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;

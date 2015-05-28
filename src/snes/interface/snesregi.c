@@ -67,7 +67,7 @@ PetscErrorCode  SNESRegisterAll(void)
   ierr = SNESRegister(SNESKSPONLY,      SNESCreate_KSPONLY);CHKERRQ(ierr);
   ierr = SNESRegister(SNESVINEWTONRSLS, SNESCreate_VINEWTONRSLS);CHKERRQ(ierr);
   ierr = SNESRegister(SNESVINEWTONSSLS, SNESCreate_VINEWTONSSLS);CHKERRQ(ierr);
-  ierr = SNESRegister(SNESNEWTONAS,     SNESCreate_NEWTONAS);CHKERRQ(ierr);
+  ierr = SNESRegister(SNESNEWTONAUGAS,     SNESCreate_NEWTONAS);CHKERRQ(ierr);
   ierr = SNESRegister(SNESNGMRES,       SNESCreate_NGMRES);CHKERRQ(ierr);
   ierr = SNESRegister(SNESQN,           SNESCreate_QN);CHKERRQ(ierr);
   ierr = SNESRegister(SNESSHELL,        SNESCreate_Shell);CHKERRQ(ierr);
