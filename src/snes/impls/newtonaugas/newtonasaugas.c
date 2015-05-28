@@ -286,18 +286,19 @@ static PetscErrorCode SNESNEWTONAUGASComputeSearchDirectionSaddle_Private(SNES s
 
   PetscFunctionBegin;
   /*
-    Conceptually, we are solving the full augmented system.
-    |A         B^T| | dx |   |-(f-B^T*l)|
-    |             | |    | = |          |
-    |B           0| | dl |   |    0     |
+    Conceptually, we are solving the reduced augmented system.
+    |A         \tilde B^T| | dx |   |-(f-\tilde B^T*l)|
+    |                    | |    | = |                 |
+    |\tilde B           0| | dl |   |    0            |
   */
-  if (!newtas->ksp_aug) {
-    ierr = KSPCreate(PetscObjectComm((PetscObject)snes),&newtas->ksp_aug);CHKERRQ(ierr);
-    ierr = PetscObjectPrependOptionsPrefix((PetscObject)newtas->ksp_aug,"newtonas_aug_");CHKERRQ(ierr);
-    ierr = KSPSetFromOptions(newtas->ksp_aug);CHKERRQ(ierr);
+  /* Create the reduced constraint Jacobian, reduced-augmented Jacobian and its preconditioning matrix. */
+  if (!newtas->ksp_raug) {
+    ierr = KSPCreate(PetscObjectComm((PetscObject)snes),&newtas->ksp_raug);CHKERRQ(ierr);
+    ierr = PetscObjectPrependOptionsPrefix((PetscObject)newtas->ksp_raug,"newtonas_raug_");CHKERRQ(ierr);
+    ierr = KSPSetFromOptions(newtas->ksp_raug);CHKERRQ(ierr);
   }
-  ierr = KSPSetOperators(newtas->ksp_aug,snes->jacobian_aug,snes->jacobian_aug_pre);CHKERRQ(ierr);
-  ierr = KSPSetUp(newtas->ksp_aug);CHKERRQ(ierr);
+  ierr = KSPSetOperators(newtas->ksp_raug,newtas->jacobian_raug,newtas->jacobian_raug_pre);CHKERRQ(ierr);
+  ierr = KSPSetUp(newtas->ksp_raug);CHKERRQ(ierr);
   if (snes->jacobian_constrt) {
     ierr = MatMult(snes->jacobian_constrt,l,g);CHKERRQ(ierr);
   } else {
