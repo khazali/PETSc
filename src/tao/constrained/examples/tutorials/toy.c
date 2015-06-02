@@ -98,9 +98,9 @@ PetscErrorCode main(int argc,char **argv)
   /* Analyze solution */
   ierr = TaoGetConvergedReason(tao,&reason);CHKERRQ(ierr);
   if (reason < 0) {
-    ierr = PetscPrintf(MPI_COMM_WORLD, "TAO failed to converge.\n");CHKERRQ(ierr);
+    ierr = PetscPrintf(MPI_COMM_WORLD, "TAO failed to converge due to %s.\n",TaoConvergedReasons[reason]);CHKERRQ(ierr);
   } else {
-    ierr = PetscPrintf(MPI_COMM_WORLD, "Optimization terminated with status %D.\n", reason);CHKERRQ(ierr);
+    ierr = PetscPrintf(MPI_COMM_WORLD, "Optimization terminated with status %s.\n",TaoConvergedReasons[reason]);CHKERRQ(ierr);
   }
 
   ierr = DestroyProblem(&user);CHKERRQ(ierr);
