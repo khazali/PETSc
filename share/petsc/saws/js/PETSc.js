@@ -9,6 +9,7 @@ var sawsInfo = {};
 //record if initialized the page (added appropriate divs for the diagrams and such)
 var init = false;
 
+var ind = 0;
 //record what iteration we are on (remove text on second iteration)
 var iteration = 0;
 
@@ -17,7 +18,7 @@ var colors = ["black","red","blue","green"];
 
 //This Function is called once (document).ready. The javascript for this was written by the PETSc code into index.html
 PETSc.getAndDisplayDirectory = function(names,divEntry){
-
+    console.log("New Page");
     if(!init) {
         $("head").append('<script src="js/parsePrefix.js"></script>');//reuse the code for parsing thru the prefix
         $("head").append('<script src="js/recordSawsData.js"></script>');//reuse the code for organizing data into sawsInfo
@@ -30,6 +31,11 @@ PETSc.getAndDisplayDirectory = function(names,divEntry){
         $(divEntry).appendTo("#leftDiv");
         $("body").append("<div id=\"diagram\"></div>");
 
+        //$("body").append("<div class=\"accordion\" id=\"accordion2\"><div class=\"accordion-group\"><div class=\"accordion-heading\"><a class=\"accordion-toggle\" data-toggle=\"collapse\" data-parent=\"#accordion2\" href=\"#collapseOne\">Collapsible Group Item #1</a></div><div id=\"collapseOne\" class=\"accordion-body collapse in\"><div class=\"accordion-inner\">Anim pariatur cliche...</div></div></div><div class=\"accordion-group\"><div class=\"accordion-heading\"><a class=\"accordion-toggle\" data-toggle=\"collapse\" data-parent=\"#accordion2\" href=\"#collapseTwo\">Collapsible Group Item #2</a></div><div id=\"collapseTwo\" class=\"accordion-body collapse\"><div class=\"accordion-inner\">Anim pariatur cliche...</div></div></div></div>");
+
+        //$("body").append("<button type=\"button\" class=\"btn btn-danger\" data-toggle=\"collapse\" data-target=\"#demo\">simple collapsible</button><div id=\"demo\" class=\"collapse in\">KLJLK</div>");
+ 
+
         init = true;
     }
 
@@ -40,16 +46,16 @@ PETSc.getAndDisplayDirectory = function(names,divEntry){
 PETSc.displayDirectory = function(sub,divEntry)
 {
     globaldirectory[divEntry] = sub;
-
+        
     iteration ++;
     if(iteration == 2) { //remove text
         for(var i=0; i<9; i++) {
-            $("body").children().first().remove();
+            //$("body").children().first().remove();
         }
     }
 
-    if($("#leftDiv").children(0).is("center")) //remove the title of the options if needed
-        $("#leftDiv").children().get(0).remove();
+    //if($("#leftDiv").children(0).is("center")) //remove the title of the options if needed
+        //$("#leftDiv").children().get(0).remove();
 
     console.log(sub);
 
@@ -80,9 +86,15 @@ PETSc.displayDirectory = function(sub,divEntry)
     PETSc.displayDirectoryRecursive(sub.directories,divEntry,0,"");//this method is recursive on itself and actually fills the div with text and dropdown lists
 
     if (sub.directories.SAWs_ROOT_DIRECTORY.variables.hasOwnProperty("__Block") && (sub.directories.SAWs_ROOT_DIRECTORY.variables.__Block.data[0] == "true")) {
-        jQuery(divEntry).after("<input type=\"button\" value=\"Continue\" id=\"continue\">");
+        console.log("divEntry");
+        console.log(divEntry);
+        //jQuery(divEntry).after("<input type=\"button\" value=\"Continue\" id=\"continue\">");
+
+        var newindex = ind - 1;
+        jQuery("#demo" + newindex).after("<input type=\"button\" value=\"Continue\" id=\"continue\">");
         $("#continue").after("<input type=\"button\" value=\"Finish\" id=\"finish\">");
         jQuery('#continue').on('click', function(){
+            console.log("COM");
             $("#continue").remove();//remove self immediately
             $("#finish").remove();
             SAWs.updateDirectoryFromDisplay(divEntry);
@@ -112,6 +124,9 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
 {
     jQuery.each(sub,function(key,value){
         fullkey = fullkey+key;//key contains things such as "PETSc" or "Options"
+
+        console.log(fullkey + " KEY");
+
         if(jQuery("#"+fullkey).length == 0){
             jQuery(divEntry).append("<div id =\""+fullkey+"\"></div>")
             if (key != "SAWs_ROOT_DIRECTORY") {
@@ -138,7 +153,10 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                         //options text is a link to the appropriate manual page
 
                         var manualDirectory = "all"; //this directory does not exist yet so links will not work for now
-                        $("#"+fullkey).append("<br><a href=\"http://www.mcs.anl.gov/petsc/petsc-dev/docs/manualpages/" +  manualDirectory + "/" + manualSave + ".html\" title=\"" + descriptionSave + "\" id=\"data"+fullkey+vKey+j+"\">"+vKey+"&nbsp</a>");
+                        console.log(ind);
+                        //$("#"+fullkey).append("<br><a href=\"http://www.mcs.anl.gov/petsc/petsc-dev/docs/manualpages/" +  manualDirectory + "/" + manualSave + ".html\" title=\"" + descriptionSave + "\" id=\"data"+fullkey+vKey+j+"\">"+vKey+"&nbsp</a>");
+                        var newindex = ind - 1;
+                        $("#demo" + newindex).append("<br><a href=\"http://www.mcs.anl.gov/petsc/petsc-dev/docs/manualpages/" +  manualDirectory + "/" + manualSave + ".html\" title=\"" + descriptionSave + "\" id=\"data"+fullkey+vKey+j+"\">"+vKey+"&nbsp</a>");
                     }
                 }
 
@@ -150,13 +168,20 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                     }
 
                     if(vKey.indexOf("title") != -1) {//display title in center
-                        $("#"+"leftDiv").prepend("<center>"+"<span style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\">"+sub[key].variables[vKey].data[j]+"</span>"+"</center>");//used to be ("#"+fullkey).append
+                        //$("#"+"leftDiv").prepend("<center>"+"<span style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\">"+sub[key].variables[vKey].data[j]+"</span>"+"</center>");//used to be ("#"+fullkey).append
+                        $("body").append("<br><div class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#demo" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"demo" + ind + "\" class=\"collapse in\"></div></div>");
+                        ind = ind + 1;
                         continue;
                     }
 
                     if(sub[key].variables[vKey].alternatives.length == 0) {//case where there are no alternatives
                         if(sub[key].variables[vKey].dtype == "SAWs_BOOLEAN") {
-                            $("#"+fullkey).append("<select id=\"data"+fullkey+vKey+j+"\">");//make the boolean dropdown list.
+                            var newindex = ind - 1;
+                            $("#demo" + newindex).append("<select id=\"data"+fullkey+vKey+j+"\">");//make the boolean dropdown list.
+                            //$("#"+fullkey).append("<select id=\"data"+fullkey+vKey+j+"\">");//make the boolean dropdown list.
+
+
+
                             $("#data"+fullkey+vKey+j).append("<option value=\"true\">True</option> <option value=\"false\">False</option>");
                             if(vKey == "ChangedMethod" || vKey == "StopAsking") {//do not show changedmethod nor stopasking to user
                                 $("#data"+fullkey+vKey+j).attr("hidden",true);
@@ -167,12 +192,19 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
 
                                 descriptionSave = sub[key].variables[vKey].data[j];
 
-                                if(vKey.indexOf("prefix") != -1) //data of prefix so dont do manual and use immediately
-                                    $("#"+fullkey).append("<a style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\">"+sub[key].variables[vKey].data[j]+"</a><br>");
+                                if(vKey.indexOf("prefix") != -1)  {
 
+                                   var newindex = ind - 1;
+                                   $("#demo" + newindex).append("<a style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\">"+sub[key].variables[vKey].data[j]+"</a><br>");
+                                    //$("#"+fullkey).append("<div class=\"container\"><h2><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#demo\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"demo\" class=\"collapse in\"></div></div>");
+
+                                }
                             }
                             else {//can be changed (append dropdown list)
-                                $("#"+fullkey).append("<input type=\"text\" style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>");
+                                var newindex = ind - 1;
+                                //$("#"+fullkey).append("<input type=\"text\" style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>");
+                                $("#demo" + newindex).append("<input type=\"text\" style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>");
+
                             }
                             jQuery("#data"+fullkey+vKey+j).keyup(function(obj) {
                                 console.log( "Key up called "+key+vKey );

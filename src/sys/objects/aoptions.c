@@ -13,10 +13,10 @@
 
 /*
     Keep a linked list of options that have been posted and we are waiting for
-   user selection. See the manual page for PetscOptionsBegin()
 
-    Eventually we'll attach this beast to a MPI_Comm
-*/
+    Eventually we'll attach this beast to a MPI_Commuser selection. See the manual page for PetscOptionsBegin()
+*/  
+
 
 
 #undef __FUNCT__
@@ -372,10 +372,11 @@ PetscErrorCode PetscOptionsSAWsDestroy(void)
   PetscFunctionReturn(0);
 }
 
-static const char *OptionsHeader = "<head>\n"
-                                   "<script type=\"text/javascript\" src=\"http://www.mcs.anl.gov/research/projects/saws/js/jquery-1.9.1.js\"></script>\n"
-                                   "<script type=\"text/javascript\" src=\"http://www.mcs.anl.gov/research/projects/saws/js/SAWs.js\"></script>\n"
+static const char *OptionsHeader = "<head><link rel=\"stylesheet\" type=\"text/css\" href=\"css/bootstrap.css\">\n"
+                                   "<script type=\"text/javascript\" src=\"js/jquery-1.9.1.js\"></script>\n"
+                                   "<script type=\"text/javascript\" src=\"js/SAWs.js\"></script>\n"
                                    "<script type=\"text/javascript\" src=\"js/PETSc.js\"></script>\n"
+                                   "<script type=\"text/javascript\" src=\"js/bootstrap.minX.js\"></script>\n"
                                    "<script>\n"
                                       "jQuery(document).ready(function() {\n"
                                          "PETSc.getAndDisplayDirectory(null,\"#variablesInfo\")\n"

@@ -573,16 +573,16 @@ PetscErrorCode  PetscInitializeSAWs(const char help[])
     }
     ierr = PetscOptionsGetAll(&options);CHKERRQ(ierr);
     if (rootlocal && help) {
-      ierr = PetscSNPrintf(appline,applinelen,"<center> Running <a href=\"%s.c.html\">%s</a> %s</center><br><center><pre>%s</pre></center><br>\n",programname,programname,options,help);
+      ierr = PetscSNPrintf(appline,applinelen,"<center> Running <a href=\"%s.c.html\">%s</a> %s</center><br><div class=\"container\"><div class=\"well\"><center><pre>%s</pre></center></div></div><br>\n",programname,programname,options,help);
     } else if (help) {
-      ierr = PetscSNPrintf(appline,applinelen,"<center>Running %s %s</center><br><center><pre>%s</pre></center><br>",programname,options,help);
+      ierr = PetscSNPrintf(appline,applinelen,"<center>Running %s %s</center><br><div class=\"container\"><div class=\"well\"><center><pre>%s</pre></center></div></div><br>",programname,options,help);
     } else {
       ierr = PetscSNPrintf(appline,applinelen,"<center> Running %s %s</center><br>\n",programname,options);
     }
     ierr = PetscFree(options);CHKERRQ(ierr);
     ierr = PetscGetVersion(version,sizeof(version));CHKERRQ(ierr);
     ierr = PetscSNPrintf(intro,introlen,"<body>\n"
-                                    "<center><h2> <a href=\"http://www.mcs.anl.gov/petsc\">PETSc</a> Application Web server powered by <a href=\"https://bitbucket.org/saws/saws\">SAWs</a> </h2></center>\n"
+                                    "<center><h2> <a href=\"http://www.mcs.anl.gov/petsc\">PETSc</a> (John O'Sullivan Edits) Application Web server powered by <a href=\"https://bitbucket.org/saws/saws\">SAWs</a> </h2></center>\n"
                                     "<center>This is the default PETSc application dashboard, from it you can access any published PETSc objects or logging data</center><br><center>%s configured with %s</center><br>\n"
                                     "%s",version,petscconfigureoptions,appline);
     PetscStackCallSAWs(SAWs_Push_Body,("index.html",0,intro));
