@@ -233,9 +233,9 @@ static PetscErrorCode TaoSolve_ASILS(Tao tao)
     if (!asls->w && (tao->subset_type == TAO_SUBSET_MASK || tao->subset_type == TAO_SUBSET_MATRIXFREE)) {
       ierr = VecDuplicate(tao->solution, &asls->w);CHKERRQ(ierr);
     }
-    ierr = TaoMatGetSubMat(tao->jacobian, asls->free, asls->w, tao->subset_type,&asls->J_sub);CHKERRQ(ierr);
+    ierr = MatGetSubMatrix(tao->jacobian, asls->free, asls->free, MAT_INITIAL_MATRIX, &asls->J_sub);CHKERRQ(ierr);
     if (tao->jacobian != tao->jacobian_pre) {
-      ierr = TaoMatGetSubMat(tao->jacobian_pre, asls->free, asls->w, tao->subset_type, &asls->Jpre_sub);CHKERRQ(ierr);
+      ierr = MatGetSubMatrix(tao->jacobian_pre, asls->free, asls->free, MAT_INITIAL_MATRIX, &asls->Jpre_sub);CHKERRQ(ierr);
     } else {
       ierr = MatDestroy(&asls->Jpre_sub);CHKERRQ(ierr);
       asls->Jpre_sub = asls->J_sub;

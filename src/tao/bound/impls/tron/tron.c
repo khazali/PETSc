@@ -92,6 +92,10 @@ static PetscErrorCode TaoSetup_TRON(Tao tao)
       ierr = VecDuplicate(tao->solution, &tao->XU);CHKERRQ(ierr);
       ierr = VecSet(tao->XU, PETSC_INFINITY);CHKERRQ(ierr);
   }
+  if (tao->subset_type != TAO_SUBSET_SUBVEC) {
+      ierr = VecDuplicate(tao->solution, &tron->DXFree);CHKERRQ(ierr);
+      ierr = VecDuplicate(tao->solution, &tron->R);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -103,10 +107,12 @@ static PetscErrorCode TaoSolve_TRON(Tao tao)
 {
   TAO_TRON                     *tron = (TAO_TRON *)tao->data;
   PetscErrorCode               ierr;
-  PetscInt                     its;
+  PetscInt                     iter=0,its,hm,hn,hsubm,hsubn;
   TaoConvergedReason           reason = TAO_CONTINUE_ITERATING;
   TaoLineSearchConvergedReason ls_reason = TAOLINESEARCH_CONTINUE_ITERATING;
   PetscReal                    prered,actred,delta,f,f_new,rhok,gdx,xdiff,stepsize;
+  PetscBool                    isshell;
+
 
   PetscFunctionBegin;
   tron->pgstepsize=1.0;
@@ -155,7 +161,7 @@ static PetscErrorCode TaoSolve_TRON(Tao tao)
       break;
 
     }
-    /* use free_local to mask/submat gradient, hessian, stepdirection */
+    /* use free_local to submat gradient, hessian, stepdirection */
     ierr = MatGetSubMatrix(tao->hessian, tron->Free_Local, tron->Free_Local, MAT_INITIAL_MATRIX, &tron->H_sub);CHKERRQ(ierr);
     ierr = MatGetSize(tron->H_sub,&hsubm,&hsubn);CHKERRQ(ierr);
     ierr = MatGetSize(tao->hessian,&hm,&hn);CHKERRQ(ierr);
@@ -164,29 +170,33 @@ static PetscErrorCode TaoSolve_TRON(Tao tao)
       ierr = PetscObjectReference((PetscObject)(tron->H_sub));CHKERRQ(ierr);
       tron->Hpre_sub = tron->H_sub;
     } else {
-      ierr = TaoMatGetSubMat(tao->hessian_pre, tron->Free_Local, tron->diag, tao->subset_type,&tron->Hpre_sub);CHKERRQ(ierr);
+      ierr = MatGetSubMatrix(tao->hessian_pre, tron->Free_Local, tron->Free_Local, MAT_INITIAL_MATRIX, &tron->Hpre_sub);CHKERRQ(ierr);
     }
     ierr = KSPReset(tao->ksp);CHKERRQ(ierr);
     ierr = KSPSetOperators(tao->ksp, tron->H_sub, tron->Hpre_sub);CHKERRQ(ierr);
-    if (subm == 
-    ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,tao->subset_type,0.0,&tron->R);CHKERRQ(ierr);
-    ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,tao->subset_type,0.0,&tron->DXFree);CHKERRQ(ierr);
+    ierr = PetscObjectTypeCompare((PetscObject)tron->H_sub,MATSHELL,&isshell);CHKERRQ(ierr);
+    if (tao->subset_type == TAO_SUBSET_SUBVEC || !isshell) {
+      ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,tao->subset_type,0.0,&tron->R);CHKERRQ(ierr);
+      ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,tao->subset_type,0.0,&tron->DXFree);CHKERRQ(ierr);
+    } else {
+      ierr = VecCopy(tao->gradient,tron->R);CHKERRQ(ierr);
+    }
     ierr = VecSet(tron->DXFree,0.0);CHKERRQ(ierr);
     ierr = VecScale(tron->R, -1.0);CHKERRQ(ierr);
-    
+
     while (1) {
 
       /* Approximately solve the reduced linear system */
       ierr = KSPSTCGSetRadius(tao->ksp,delta);CHKERRQ(ierr);
-
       ierr = KSPSolve(tao->ksp, tron->R, tron->DXFree);CHKERRQ(ierr);
+
       ierr = KSPGetIterationNumber(tao->ksp,&its);CHKERRQ(ierr);
       tao->ksp_its+=its;
       tao->ksp_tot_its+=its;
-      ierr = VecSet(tao->stepdirection,0.0);CHKERRQ(ierr);
-
       /* Add dxfree matrix to compute step direction vector */
       ierr = VecISAXPY(tao->stepdirection,tron->Free_Local,1.0,tron->DXFree);CHKERRQ(ierr);
+      ierr = VecSet(tao->stepdirection,0.0);CHKERRQ(ierr);
+
       if (0) {
         PetscReal rhs,stepnorm;
         ierr = VecNorm(tron->R,NORM_2,&rhs);CHKERRQ(ierr);
@@ -345,7 +355,6 @@ static PetscErrorCode TaoComputeDual_TRON(Tao tao, Vec DXL, Vec DXU) {
 
   Options Database Keys:
 + -tao_tron_maxgpits - maximum number of gradient projections per TRON iterate
-- -tao_subset_type - "subvec","mask","matrix-free", strategies for handling active-sets
 
   Level: beginner
 M*/

@@ -234,9 +234,9 @@ static PetscErrorCode TaoSolve_ASFLS(Tao tao)
     ierr = VecAXPY(asls->r2, -1.0, asls->r3);CHKERRQ(ierr);
 
     /* Calculate the reduced problem matrix and the direction */
-    ierr = TaoMatGetSubMat(tao->jacobian, asls->free, asls->w, tao->subset_type,&asls->J_sub);CHKERRQ(ierr);
+    ierr = MatGetSubMatrix(tao->jacobian, asls->free, asls->free, MAT_INITIAL_MATRIX, &asls->J_sub);CHKERRQ(ierr);
     if (tao->jacobian != tao->jacobian_pre) {
-      ierr = TaoMatGetSubMat(tao->jacobian_pre, asls->free, asls->w, tao->subset_type, &asls->Jpre_sub);CHKERRQ(ierr);
+    ierr = MatGetSubMatrix(tao->jacobian_pre, asls->free, asls->free, MAT_INITIAL_MATRIX, &asls->Jpre_sub);CHKERRQ(ierr);
     } else {
       ierr = MatDestroy(&asls->Jpre_sub);CHKERRQ(ierr);
       asls->Jpre_sub = asls->J_sub;
