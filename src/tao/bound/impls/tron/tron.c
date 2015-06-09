@@ -91,6 +91,10 @@ static PetscErrorCode TaoSetup_TRON(Tao tao)
       ierr = VecDuplicate(tao->solution, &tao->XU);CHKERRQ(ierr);
       ierr = VecSet(tao->XU, PETSC_INFINITY);CHKERRQ(ierr);
   }
+  if (tao->subset_type != TAO_SUBSET_SUBVEC) {
+      ierr = VecDuplicate(tao->solution, &tron->DXFree);CHKERRQ(ierr);
+      ierr = VecDuplicate(tao->solution, &tron->R);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -106,7 +110,7 @@ static PetscErrorCode TaoSolve_TRON(Tao tao)
   TaoConvergedReason           reason = TAO_CONTINUE_ITERATING;
   TaoLineSearchConvergedReason ls_reason = TAOLINESEARCH_CONTINUE_ITERATING;
   PetscReal                    prered,actred,delta,f,f_new,rhok,gdx,xdiff,stepsize;
-  PetscBool                    usemask;
+  PetscBool                    isshell;
 
 
   PetscFunctionBegin;
@@ -167,22 +171,16 @@ static PetscErrorCode TaoSolve_TRON(Tao tao)
     }
     ierr = KSPReset(tao->ksp);CHKERRQ(ierr);
     ierr = KSPSetOperators(tao->ksp, tron->H_sub, tron->Hpre_sub);CHKERRQ(ierr);
-<<<<<<< HEAD
-    ierr = PetscObjectTypeCompare((PetscObject)tron->H_sub,MATSHELL,&usemask);CHKERRQ(ierr);
-    ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,usemask,0.0,&tron->R);CHKERRQ(ierr);
-    ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,usemask,0.0,&tron->DXFree);CHKERRQ(ierr);
-
+    ierr = PetscObjectTypeCompare((PetscObject)tron->H_sub,MATSHELL,&isshell);CHKERRQ(ierr);
+    if (tao->subset_type == TAO_SUBSET_SUBVEC || !isshell) {
+      ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,tao->subset_type,0.0,&tron->R);CHKERRQ(ierr);
+      ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,tao->subset_type,0.0,&tron->DXFree);CHKERRQ(ierr);
+    } else {
+      ierr = VecCopy(tao->gradient,tron->R);CHKERRQ(ierr);
+    }
     ierr = VecSet(tron->DXFree,0.0);CHKERRQ(ierr);
     ierr = VecScale(tron->R, -1.0);CHKERRQ(ierr);
 
-=======
-    if (subm == 
-    ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,tao->subset_type,0.0,&tron->R);CHKERRQ(ierr);
-    ierr = TaoVecGetSubVec(tao->gradient,tron->Free_Local,tao->subset_type,0.0,&tron->DXFree);CHKERRQ(ierr);
-    ierr = VecSet(tron->DXFree,0.0);CHKERRQ(ierr);
-    ierr = VecScale(tron->R, -1.0);CHKERRQ(ierr);
-    
->>>>>>> start moving tao submats to petsc submat
     while (1) {
 
       /* Approximately solve the reduced linear system */
