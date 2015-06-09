@@ -59,18 +59,8 @@ PetscErrorCode  DMCreateGlobalVector_SNESVI(DM dm,Vec *vec)
   ierr = PetscObjectQuery((PetscObject)dm,"VI",(PetscObject*)&isnes);CHKERRQ(ierr);
   if (!isnes) SETERRQ(PetscObjectComm((PetscObject)dm),PETSC_ERR_PLIB,"Composed SNES is missing");
   ierr = PetscContainerGetPointer(isnes,(void**)&dmsnesvi);CHKERRQ(ierr);
-  if (0) {printf("creating dm global vector. nfull=%d, nreduced=%d\n",dmsnesvi->nfull,dmsnesvi->ninactive);}
-  if (0/*dmsnesvi->subset_type == TAO_SUBSET_SUBVEC*/) {
-    ierr = VecCreateMPI(PetscObjectComm((PetscObject)dm),dmsnesvi->ninactive,PETSC_DETERMINE,vec);CHKERRQ(ierr);
-  } else {
-    ierr = (*dmsnesvi->createglobalvector)(dm,vec);
-    if (0) {
-      PetscInt n;
-      ierr = VecGetSize(*vec,&n);CHKERRQ(ierr);
-      printf("created vector of size %d\n",n);
-    }
+  ierr = (*dmsnesvi->createglobalvector)(dm,vec);
 
-  }
   PetscFunctionReturn(0);
 }
 
@@ -89,7 +79,6 @@ PetscErrorCode  DMCreateInterpolation_SNESVI(DM dm1,DM dm2,Mat *mat,Vec *scaling
   Mat            interp;
 
   PetscFunctionBegin;
-  printf("INTERPOLATE\n");
   ierr = PetscObjectQuery((PetscObject)dm1,"VI",(PetscObject*)&isnes);CHKERRQ(ierr);
   if (!isnes) SETERRQ(PetscObjectComm((PetscObject)dm1),PETSC_ERR_PLIB,"Composed VI data structure is missing");
   ierr = PetscContainerGetPointer(isnes,(void**)&dmsnesvi1);CHKERRQ(ierr);
@@ -128,7 +117,6 @@ PetscErrorCode  DMCoarsen_SNESVI(DM dm1,MPI_Comm comm,DM *dm2)
   PetscScalar    *marked;
 
   PetscFunctionBegin;
-  printf("COARSEN\n");
   ierr = PetscObjectQuery((PetscObject)dm1,"VI",(PetscObject*)&isnes);CHKERRQ(ierr);
   if (!isnes) SETERRQ(PetscObjectComm((PetscObject)dm1),PETSC_ERR_PLIB,"Composed VI data structure is missing");
   ierr = PetscContainerGetPointer(isnes,(void**)&dmsnesvi1);CHKERRQ(ierr);
