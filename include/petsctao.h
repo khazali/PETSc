@@ -216,6 +216,5 @@ PETSC_EXTERN PetscErrorCode TaoMonitor(Tao, PetscInt, PetscReal, PetscReal, Pets
 
 
 PETSC_EXTERN PetscErrorCode TaoVecGetSubVec(Vec, IS, TaoSubsetType, PetscScalar, Vec*);
-PETSC_EXTERN PetscErrorCode TaoMatGetSubMat(Mat, IS, Vec, TaoSubsetType, Mat*);
 
 #endif

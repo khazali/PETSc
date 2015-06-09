@@ -203,14 +203,14 @@ static PetscErrorCode TaoSolve_GPCG(Tao tao)
       ierr = TaoVecGetSubVec(tao->stepdirection,gpcg->Free_Local,tao->subset_type, 0.0, &gpcg->DXFree);CHKERRQ(ierr);
       ierr = VecSet(gpcg->DXFree,0.0);CHKERRQ(ierr);
 
-      ierr = TaoMatGetSubMat(tao->hessian, gpcg->Free_Local, gpcg->Work, tao->subset_type, &gpcg->Hsub);CHKERRQ(ierr);
+      ierr = MatGetSubMatrix(tao->hessian, gpcg->Free_Local, gpcg->Free_Local, MAT_INITIAL_MATRIX, &gpcg->Hsub);CHKERRQ(ierr);
 
       if (tao->hessian_pre == tao->hessian) {
         ierr = MatDestroy(&gpcg->Hsub_pre);CHKERRQ(ierr);
         ierr = PetscObjectReference((PetscObject)gpcg->Hsub);CHKERRQ(ierr);
         gpcg->Hsub_pre = gpcg->Hsub;
       }  else {
-        ierr = TaoMatGetSubMat(tao->hessian, gpcg->Free_Local, gpcg->Work, tao->subset_type, &gpcg->Hsub_pre);CHKERRQ(ierr);
+        ierr = MatGetSubMatrix(tao->hessian_pre, gpcg->Free_Local, gpcg->Free_Local, MAT_INITIAL_MATRIX, &gpcg->Hsub_pre);CHKERRQ(ierr);
       }
 
       ierr = KSPReset(tao->ksp);CHKERRQ(ierr);
