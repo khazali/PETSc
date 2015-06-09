@@ -78,7 +78,6 @@ PetscErrorCode  DMCreateInterpolation_SNESVI(DM dm1,DM dm2,Mat *mat,Vec *scaling
   Mat            interp;
 
   PetscFunctionBegin;
-  printf("INTERPOLATE\n");
   ierr = PetscObjectQuery((PetscObject)dm1,"VI",(PetscObject*)&isnes);CHKERRQ(ierr);
   if (!isnes) SETERRQ(PetscObjectComm((PetscObject)dm1),PETSC_ERR_PLIB,"Composed VI data structure is missing");
   ierr = PetscContainerGetPointer(isnes,(void**)&dmsnesvi1);CHKERRQ(ierr);
@@ -117,7 +116,6 @@ PetscErrorCode  DMCoarsen_SNESVI(DM dm1,MPI_Comm comm,DM *dm2)
   PetscScalar    *marked;
 
   PetscFunctionBegin;
-  printf("COARSEN\n");
   ierr = PetscObjectQuery((PetscObject)dm1,"VI",(PetscObject*)&isnes);CHKERRQ(ierr);
   if (!isnes) SETERRQ(PetscObjectComm((PetscObject)dm1),PETSC_ERR_PLIB,"Composed VI data structure is missing");
   ierr = PetscContainerGetPointer(isnes,(void**)&dmsnesvi1);CHKERRQ(ierr);
