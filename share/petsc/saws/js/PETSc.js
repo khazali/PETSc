@@ -13,12 +13,15 @@ var ind = 0;
 //record what iteration we are on (remove text on second iteration)
 var iteration = 0;
 
+var title = "";
 //holds the colors used in the tree drawing
 var colors = ["black","red","blue","green"];
 
 //This Function is called once (document).ready. The javascript for this was written by the PETSc code into index.html
 PETSc.getAndDisplayDirectory = function(names,divEntry){
-    console.log("New Page");
+    console.log("sawsInfo");
+    console.log(sawsInfo);
+
     if(!init) {
         $("head").append('<script src="js/parsePrefix.js"></script>');//reuse the code for parsing thru the prefix
         $("head").append('<script src="js/recordSawsData.js"></script>');//reuse the code for organizing data into sawsInfo
@@ -45,6 +48,10 @@ PETSc.getAndDisplayDirectory = function(names,divEntry){
 
 PETSc.displayDirectory = function(sub,divEntry)
 {
+
+    divEntry = "#coldiv" + ind;
+
+
     globaldirectory[divEntry] = sub;
         
     iteration ++;
@@ -58,6 +65,7 @@ PETSc.displayDirectory = function(sub,divEntry)
         //$("#leftDiv").children().get(0).remove();
 
     console.log(sub);
+    console.log(divEntry);
 
     if(sub.directories.SAWs_ROOT_DIRECTORY.directories.PETSc.directories != undefined) {
 
@@ -83,18 +91,24 @@ PETSc.displayDirectory = function(sub,divEntry)
             $("#tree").html("<svg id=\"treeCanvas\" align=\"center\" width=\"" + sawsInfo["0"].total_size.width + "\" height=\"" + sawsInfo["0"].total_size.height + "\" viewBox=\"0 0 " + sawsInfo["0"].total_size.width + " " + sawsInfo["0"].total_size.height + "\">" + svgString + "</svg>");
         }
     }
+
+
     PETSc.displayDirectoryRecursive(sub.directories,divEntry,0,"");//this method is recursive on itself and actually fills the div with text and dropdown lists
 
     if (sub.directories.SAWs_ROOT_DIRECTORY.variables.hasOwnProperty("__Block") && (sub.directories.SAWs_ROOT_DIRECTORY.variables.__Block.data[0] == "true")) {
         console.log("divEntry");
         console.log(divEntry);
         //jQuery(divEntry).after("<input type=\"button\" value=\"Continue\" id=\"continue\">");
-
         var newindex = ind - 1;
-        jQuery("#demo" + newindex).after("<input type=\"button\" value=\"Continue\" id=\"continue\">");
+        jQuery("#coldiv" + newindex).after("<br><input type=\"button\" value=\"Continue\" id=\"continue\">");
         $("#continue").after("<input type=\"button\" value=\"Finish\" id=\"finish\">");
         jQuery('#continue').on('click', function(){
             console.log("COM");
+
+            $("#coldiv" + newindex).collapse({
+              toggle: true
+            })
+
             $("#continue").remove();//remove self immediately
             $("#finish").remove();
             SAWs.updateDirectoryFromDisplay(divEntry);
@@ -149,6 +163,8 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
 
                     if(vKey.indexOf("prefix") != -1) //prefix text
                         $("#"+fullkey).append(vKey + ":&nbsp;");
+                        //var newindex = ind - 1;
+                        //$("#demo" + newindex).append(vKey + ":&nbsp;");
                     else if(vKey.indexOf("ChangedMethod") == -1 && vKey.indexOf("StopAsking") == -1) { //options text
                         //options text is a link to the appropriate manual page
 
@@ -156,7 +172,7 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                         console.log(ind);
                         //$("#"+fullkey).append("<br><a href=\"http://www.mcs.anl.gov/petsc/petsc-dev/docs/manualpages/" +  manualDirectory + "/" + manualSave + ".html\" title=\"" + descriptionSave + "\" id=\"data"+fullkey+vKey+j+"\">"+vKey+"&nbsp</a>");
                         var newindex = ind - 1;
-                        $("#demo" + newindex).append("<br><a href=\"http://www.mcs.anl.gov/petsc/petsc-dev/docs/manualpages/" +  manualDirectory + "/" + manualSave + ".html\" title=\"" + descriptionSave + "\" id=\"data"+fullkey+vKey+j+"\">"+vKey+"&nbsp</a>");
+                        $("#coldiv" + newindex).append("<br><a href=\"http://www.mcs.anl.gov/petsc/petsc-dev/docs/manualpages/" +  manualDirectory + "/" + manualSave + ".html\" title=\"" + descriptionSave + "\" id=\"data"+fullkey+vKey+j+"\">"+vKey+"&nbsp</a>");
                     }
                 }
 
@@ -169,18 +185,35 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
 
                     if(vKey.indexOf("title") != -1) {//display title in center
                         //$("#"+"leftDiv").prepend("<center>"+"<span style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\">"+sub[key].variables[vKey].data[j]+"</span>"+"</center>");//used to be ("#"+fullkey).append
-                        $("body").append("<br><div class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#demo" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"demo" + ind + "\" class=\"collapse in\"></div></div>");
-                        ind = ind + 1;
+
+                        if (title != sub[key].variables[vKey].data[j]) {
+                            console.log("<-----------------------New div----------------------->");
+                            $("body").append("<br><div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
+                            ind = ind + 1;
+                            title = sub[key].variables[vKey].data[j];
+                        } else {
+                            var newindex = ind - 1;
+                            $("#buttonarea" + newindex).remove();
+                            $("body").append("<div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
+                            ind = ind + 1;
+                            title = sub[key].variables[vKey].data[j];
+                            console.log("In same div, refresh");
+                        }
+
+
                         continue;
                     }
-
+////////////
                     if(sub[key].variables[vKey].alternatives.length == 0) {//case where there are no alternatives
                         if(sub[key].variables[vKey].dtype == "SAWs_BOOLEAN") {
+                            console.log("A: " + fullkey)
                             var newindex = ind - 1;
-                            $("#demo" + newindex).append("<select id=\"data"+fullkey+vKey+j+"\">");//make the boolean dropdown list.
+                            $("#coldiv" + newindex).append("<select id=\"data"+fullkey+vKey+j+"\">");//make the boolean dropdown list.
                             //$("#"+fullkey).append("<select id=\"data"+fullkey+vKey+j+"\">");//make the boolean dropdown list.
 
 
+
+                            console.log("Test_Check:" + fullkey+vKey+j);
 
                             $("#data"+fullkey+vKey+j).append("<option value=\"true\">True</option> <option value=\"false\">False</option>");
                             if(vKey == "ChangedMethod" || vKey == "StopAsking") {//do not show changedmethod nor stopasking to user
@@ -195,7 +228,7 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                                 if(vKey.indexOf("prefix") != -1)  {
 
                                    var newindex = ind - 1;
-                                   $("#demo" + newindex).append("<a style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\">"+sub[key].variables[vKey].data[j]+"</a><br>");
+                                   $("#coldiv" + newindex).append("<a style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\">"+sub[key].variables[vKey].data[j]+"</a><br>");
                                     //$("#"+fullkey).append("<div class=\"container\"><h2><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#demo\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"demo\" class=\"collapse in\"></div></div>");
 
                                 }
@@ -203,7 +236,7 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                             else {//can be changed (append dropdown list)
                                 var newindex = ind - 1;
                                 //$("#"+fullkey).append("<input type=\"text\" style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>");
-                                $("#demo" + newindex).append("<input type=\"text\" style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>");
+                                $("#coldiv" + newindex).append("<input type=\"text\" style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>");
 
                             }
                             jQuery("#data"+fullkey+vKey+j).keyup(function(obj) {
@@ -220,6 +253,7 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                             });
                         }
                     } else {//case where there are alternatives
+                        /*
                         jQuery("#"+fullkey).append("<select id=\"data"+fullkey+vKey+j+"\">");
                         jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].data[j]+"\">"+sub[key].variables[vKey].data[j]+"</option>");
                         for(var l=0;l<sub[key].variables[vKey].alternatives.length;l++) {
@@ -235,6 +269,24 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                                 $("#continue").trigger("click");
                             }
                         });
+                        */
+                        var newindex = ind - 1;
+                        jQuery("#coldiv" + newindex).append("<select id=\"data"+fullkey+vKey+j+"\">");
+
+                                                jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].data[j]+"\">"+sub[key].variables[vKey].data[j]+"</option>");
+                                                for(var l=0;l<sub[key].variables[vKey].alternatives.length;l++) {
+                                                    jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].alternatives[l]+"\">"+sub[key].variables[vKey].alternatives[l]+"</option>");
+                                                }
+                                                jQuery("#coldiv" + newindex).append("</select>");
+
+                                                jQuery("#data"+fullkey+vKey+j).change(function(obj) {
+                                                    sub[key].variables[vKey].selected = 1;
+                                                    $("#data"+fullkey+"ChangedMethod0").find("option[value='true']").attr("selected","selected");//set changed to true automatically
+                                                    var id = "data"+fullkey+vKey+j;
+                                                    if(id.indexOf("type") != -1) {//if some type variable changed, then act as if continue button was clicked
+                                                        $("#continue").trigger("click");
+                                                    }
+                       });
                     }
                 }
             });
