@@ -100,7 +100,7 @@ PetscErrorCode  DMCreateInterpolation_SNESVI(DM dm1,DM dm2,Mat *mat,Vec *scaling
   ierr = (*dmsnesvi1->createinterpolation)(dm1,dm2,&interp,NULL);CHKERRQ(ierr);
   ierr = (*dmsnesvi2->createglobalvector)(dm2,&vec);CHKERRQ(ierr);
   ierr = (*dmsnesvi2->createglobalvector)(dm2,&workvec);CHKERRQ(ierr);
-  ierr = MatGetSubMatrix(interp,dmsnesvi2->inactive,dmsnesvi2->inactive,MAT_INITIAL_MATRIX,mat);CHKERRQ(ierr);
+  ierr = MatGetSubMatrix(interp,dmsnesvi2->inactive,dmsnesvi1->inactive,MAT_INITIAL_MATRIX,mat);CHKERRQ(ierr);
   ierr = MatDestroy(&interp);CHKERRQ(ierr);
   ierr = VecDestroy(&vec);CHKERRQ(ierr);
   *scaling = 0;
