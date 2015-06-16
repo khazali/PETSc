@@ -29,11 +29,18 @@ PETSc.getAndDisplayDirectory = function(names,divEntry){
         $("head").append('<script src="js/drawDiagrams.js"></script>');//contains the code to draw diagrams of the solver structure. in particular, fieldsplit and multigrid
         $("head").append('<script src="js/boxTree.js"></script>');//contains the code to draw the tree
         $("head").append('<script src="js/getCmdOptions.js"></script>');//contains the code to draw the tree
-        $("body").append("<div id=\"tree\" align=\"center\" style=\"background-color:#90C7E3\"></div");
+        $("body").append("<div id=\"tree\" align=\"center\"></div");
         $("body").append("<div id=\"leftDiv\" style=\"float:left;\"></div>");
         $(divEntry).appendTo("#leftDiv");
         $("body").append("<div id=\"diagram\"></div>");
+        $("body").append("<div id=\"optionarea\" class=\"container\"><div class=\"well\"><label>Please select your configuration set up: </label> <select><option value=\"basic\">Basic</option> <option value=\"all\">All</option></select> <input type=\"button\" value=\"Go!\" id=\"go\"></div></div>")
 
+
+        jQuery('#go').on('click', function(){
+
+                   console.log("GO");
+
+        });
         //$("body").append("<div class=\"accordion\" id=\"accordion2\"><div class=\"accordion-group\"><div class=\"accordion-heading\"><a class=\"accordion-toggle\" data-toggle=\"collapse\" data-parent=\"#accordion2\" href=\"#collapseOne\">Collapsible Group Item #1</a></div><div id=\"collapseOne\" class=\"accordion-body collapse in\"><div class=\"accordion-inner\">Anim pariatur cliche...</div></div></div><div class=\"accordion-group\"><div class=\"accordion-heading\"><a class=\"accordion-toggle\" data-toggle=\"collapse\" data-parent=\"#accordion2\" href=\"#collapseTwo\">Collapsible Group Item #2</a></div><div id=\"collapseTwo\" class=\"accordion-body collapse\"><div class=\"accordion-inner\">Anim pariatur cliche...</div></div></div></div>");
 
         //$("body").append("<button type=\"button\" class=\"btn btn-danger\" data-toggle=\"collapse\" data-target=\"#demo\">simple collapsible</button><div id=\"demo\" class=\"collapse in\">KLJLK</div>");
@@ -43,6 +50,9 @@ PETSc.getAndDisplayDirectory = function(names,divEntry){
     }
 
     jQuery(divEntry).html("");
+
+    console.log(names);
+
     SAWs.getDirectory(names,PETSc.displayDirectory,divEntry);
 }
 
@@ -100,8 +110,8 @@ PETSc.displayDirectory = function(sub,divEntry)
         console.log(divEntry);
         //jQuery(divEntry).after("<input type=\"button\" value=\"Continue\" id=\"continue\">");
         var newindex = ind - 1;
-        jQuery("#coldiv" + newindex).after("<br><input type=\"button\" value=\"Continue\" id=\"continue\">");
-        $("#continue").after("<input type=\"button\" value=\"Finish\" id=\"finish\">");
+        jQuery("#coldiv" + newindex).before(" <input type=\"button\" value=\"Continue\" id=\"continue\">");
+        $("#continue").after("  <input type=\"button\" value=\"Finish\" id=\"finish\">");
         jQuery('#continue').on('click', function(){
             console.log("COM");
 
@@ -184,37 +194,32 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                     }
 
                     if(vKey.indexOf("title") != -1) {//display title in center
-                        //$("#"+"leftDiv").prepend("<center>"+"<span style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\">"+sub[key].variables[vKey].data[j]+"</span>"+"</center>");//used to be ("#"+fullkey).append
 
                         if (title != sub[key].variables[vKey].data[j]) {
-                            console.log("<-----------------------New div----------------------->");
+                            console.log("<---------------------------------------------->");
                             $("body").append("<br><div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
                             ind = ind + 1;
                             title = sub[key].variables[vKey].data[j];
                         } else {
+                            console.log("<---------------------------------------------->");
                             var newindex = ind - 1;
                             $("#buttonarea" + newindex).remove();
                             $("body").append("<div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
                             ind = ind + 1;
                             title = sub[key].variables[vKey].data[j];
-                            console.log("In same div, refresh");
                         }
 
 
                         continue;
                     }
-////////////
+
                     if(sub[key].variables[vKey].alternatives.length == 0) {//case where there are no alternatives
                         if(sub[key].variables[vKey].dtype == "SAWs_BOOLEAN") {
+
                             console.log("A: " + fullkey)
                             var newindex = ind - 1;
                             $("#coldiv" + newindex).append("<select id=\"data"+fullkey+vKey+j+"\">");//make the boolean dropdown list.
-                            //$("#"+fullkey).append("<select id=\"data"+fullkey+vKey+j+"\">");//make the boolean dropdown list.
-
-
-
                             console.log("Test_Check:" + fullkey+vKey+j);
-
                             $("#data"+fullkey+vKey+j).append("<option value=\"true\">True</option> <option value=\"false\">False</option>");
                             if(vKey == "ChangedMethod" || vKey == "StopAsking") {//do not show changedmethod nor stopasking to user
                                 $("#data"+fullkey+vKey+j).attr("hidden",true);
@@ -229,13 +234,12 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
 
                                    var newindex = ind - 1;
                                    $("#coldiv" + newindex).append("<a style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\">"+sub[key].variables[vKey].data[j]+"</a><br>");
-                                    //$("#"+fullkey).append("<div class=\"container\"><h2><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#demo\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"demo\" class=\"collapse in\"></div></div>");
 
                                 }
                             }
                             else {//can be changed (append dropdown list)
                                 var newindex = ind - 1;
-                                //$("#"+fullkey).append("<input type=\"text\" style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>");
+
                                 $("#coldiv" + newindex).append("<input type=\"text\" style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>");
 
                             }
