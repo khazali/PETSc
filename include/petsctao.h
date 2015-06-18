@@ -8,31 +8,6 @@ PetscErrorCode VecSFischer(Vec, Vec, Vec, Vec, PetscReal, Vec);
 PetscErrorCode MatDFischer(Mat, Vec, Vec, Vec, Vec, Vec, Vec, Vec, Vec);
 PetscErrorCode MatDSFischer(Mat, Vec, Vec, Vec, Vec, PetscReal, Vec, Vec, Vec, Vec, Vec);
 
-
-/*E
-  TaoSubsetType - PetscInt representing the way TAO handles active sets
-
-+ TAO_SUBSET_SUBVEC - TAO uses PETSc's MatGetSubMatrix and VecGetSubVector
-. TAO_SUBSET_MASK - Matrices are zeroed out corresponding to active set entries
-- TAO_SUBSET_MATRIXFREE - Same as TAO_SUBSET_MASK, but can be applied to matrix-free operators
-
-  Options database keys:
-. -different_hessian - TAO will use a copy of the hessian operator for masking.  By default
-                       TAO will directly alter the hessian operator.
-  Level: intermediate
-
-E*/
-
-typedef enum {TAO_SUBSET_SUBVEC,TAO_SUBSET_MASK,TAO_SUBSET_MATRIXFREE} TaoSubsetType;
-PETSC_EXTERN const char *const TaoSubsetTypes[];
-/*S
-     Tao - Abstract PETSc object that manages nonlinear optimization solves
-
-   Level: advanced
-
-.seealso TaoCreate(), TaoDestroy(), TaoSetType(), TaoType
-S*/
-
 typedef struct _p_Tao*   Tao;
 
 /*J
@@ -220,6 +195,6 @@ PETSC_EXTERN PetscErrorCode TaoLCLSetStateDesignIS(Tao, IS, IS);
 PETSC_EXTERN PetscErrorCode TaoMonitor(Tao, PetscInt, PetscReal, PetscReal, PetscReal, PetscReal, TaoConvergedReason*);
 
 
-PETSC_EXTERN PetscErrorCode TaoVecGetSubVec(Vec, IS, TaoSubsetType, PetscScalar, Vec*);
+PETSC_EXTERN PetscErrorCode TaoVecGetSubVec(Vec, IS, PetscBool, PetscScalar, Vec*);
 
 #endif

@@ -7626,6 +7626,7 @@ PetscErrorCode  MatGetSubMatrix(Mat mat,IS isrow,IS iscol,MatReuse cll,Mat *newm
     PetscFunctionReturn(0);
   }
 
+  broken_sub=PETSC_FALSE;
   if (mat->ops->getsubmatrix) {
     ierr = PetscLogEventBegin(MAT_GetSubMatrix,mat,0,0,0);CHKERRQ(ierr);
     matsubierr = (*mat->ops->getsubmatrix)(mat,isrow,iscoltmp,cll,newmat);

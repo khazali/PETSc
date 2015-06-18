@@ -798,7 +798,6 @@ PetscErrorCode SNESView_VINEWTONRSLS(SNES snes,PetscViewer viewer)
 
   if (isascii) {
     ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIPrintf(viewer,"Active Set subset type: %s\n",SubSetTypes[vi->subset_type]);
    }*/
 
   PetscFunctionReturn(0);
