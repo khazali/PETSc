@@ -149,6 +149,7 @@ static PetscErrorCode TaoSolve_GPCG(Tao tao)
   PetscInt                     iter=0,its;
   PetscReal                    actred,f,f_new,gnorm,gdx,stepsize,xtb;
   PetscReal                    xtHx;
+  PetscBool                    usemask;
   TaoConvergedReason           reason = TAO_CONTINUE_ITERATING;
   TaoLineSearchConvergedReason ls_status = TAOLINESEARCH_CONTINUE_ITERATING;
 
@@ -193,14 +194,15 @@ static PetscErrorCode TaoSolve_GPCG(Tao tao)
     f=gpcg->f; gnorm=gpcg->gnorm;
 
     ierr = KSPReset(tao->ksp);CHKERRQ(ierr);
+    ierr = PetscObjectTypeCompare((PetscObject)tao->hessian,MATSHELL,&usemask);CHKERRQ(ierr);
 
     if (gpcg->n_free > 0){
       /* Create a reduced linear system */
       ierr = VecDestroy(&gpcg->R);CHKERRQ(ierr);
       ierr = VecDestroy(&gpcg->DXFree);CHKERRQ(ierr);
-      ierr = TaoVecGetSubVec(tao->gradient,gpcg->Free_Local, tao->subset_type, 0.0, &gpcg->R);CHKERRQ(ierr);
+      ierr = TaoVecGetSubVec(tao->gradient,gpcg->Free_Local, usemask, 0.0, &gpcg->R);CHKERRQ(ierr);
       ierr = VecScale(gpcg->R, -1.0);CHKERRQ(ierr);
-      ierr = TaoVecGetSubVec(tao->stepdirection,gpcg->Free_Local,tao->subset_type, 0.0, &gpcg->DXFree);CHKERRQ(ierr);
+      ierr = TaoVecGetSubVec(tao->stepdirection,gpcg->Free_Local, usemask, 0.0, &gpcg->DXFree);CHKERRQ(ierr);
       ierr = VecSet(gpcg->DXFree,0.0);CHKERRQ(ierr);
 
       ierr = MatGetSubMatrix(tao->hessian, gpcg->Free_Local, gpcg->Free_Local, MAT_INITIAL_MATRIX, &gpcg->Hsub);CHKERRQ(ierr);
@@ -324,8 +326,7 @@ static PetscErrorCode TaoComputeDual_GPCG(Tao tao, Vec DXL, Vec DXU)
         conjugate-gradient based method for bound-constrained minimization
 
   Options Database Keys:
-+ -tao_gpcg_maxpgits - maximum number of gradient projections for GPCG iterate
-- -tao_subset_type - "subvec","mask","matrix-free", strategies for handling active-sets
+. -tao_gpcg_maxpgits - maximum number of gradient projections for GPCG iterate
 
   Level: beginner
 M*/
@@ -371,7 +372,6 @@ PETSC_EXTERN PetscErrorCode TaoCreate_GPCG(Tao tao)
   gpcg->n_free = 0;
   gpcg->n_upper=0;
   gpcg->n_lower=0;
-  gpcg->subset_type = TAO_SUBSET_MASK;
   /* gpcg->ksp_type = GPCG_KSP_STCG; */
 
   ierr = KSPCreate(((PetscObject)tao)->comm, &tao->ksp);CHKERRQ(ierr);

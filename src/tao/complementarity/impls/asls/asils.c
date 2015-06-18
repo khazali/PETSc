@@ -141,6 +141,7 @@ static PetscErrorCode TaoSolve_ASILS(Tao tao)
   PetscErrorCode               ierr;
   TaoConvergedReason           reason;
   TaoLineSearchConvergedReason ls_reason;
+  PetscBool                    usemask;
 
   PetscFunctionBegin;
   /* Assume that Setup has been called!
@@ -183,6 +184,7 @@ static PetscErrorCode TaoSolve_ASILS(Tao tao)
        No one rule is guaranteed to work in all cases.  The following
        definition is based on the norm of the Jacobian matrix.  If the
        norm is large, the tolerance becomes smaller. */
+    ierr = PetscObjectTypeCompare((PetscObject)tao->jacobian,MATSHELL,&usemask);CHKERRQ(ierr);
     ierr = MatNorm(tao->jacobian,NORM_1,&asls->identifier);CHKERRQ(ierr);
     asls->identifier = PetscMin(asls->merit, 1e-2) / (1 + asls->identifier);
 
@@ -199,8 +201,8 @@ static PetscErrorCode TaoSolve_ASILS(Tao tao)
 
     /* We now have our partition.  Now calculate the direction in the
        fixed variable space. */
-    ierr = TaoVecGetSubVec(asls->ff, asls->fixed, tao->subset_type, 0.0, &asls->r1);
-    ierr = TaoVecGetSubVec(asls->da, asls->fixed, tao->subset_type, 1.0, &asls->r2);
+    ierr = TaoVecGetSubVec(asls->ff, asls->fixed, usemask, 0.0, &asls->r1);
+    ierr = TaoVecGetSubVec(asls->da, asls->fixed, usemask, 1.0, &asls->r2);
     ierr = VecPointwiseDivide(asls->r1,asls->r1,asls->r2);CHKERRQ(ierr);
     ierr = VecSet(tao->stepdirection,0.0);CHKERRQ(ierr);
     ierr = VecISAXPY(tao->stepdirection, asls->fixed,1.0,asls->r1);CHKERRQ(ierr);
@@ -210,9 +212,9 @@ static PetscErrorCode TaoSolve_ASILS(Tao tao)
        do this, we need to know the diagonal perturbation and the
        right hand side. */
 
-    ierr = TaoVecGetSubVec(asls->da, asls->free, tao->subset_type, 0.0, &asls->r1);CHKERRQ(ierr);
-    ierr = TaoVecGetSubVec(asls->ff, asls->free, tao->subset_type, 0.0, &asls->r2);CHKERRQ(ierr);
-    ierr = TaoVecGetSubVec(asls->db, asls->free, tao->subset_type, 1.0, &asls->r3);CHKERRQ(ierr);
+    ierr = TaoVecGetSubVec(asls->da, asls->free, usemask, 0.0, &asls->r1);CHKERRQ(ierr);
+    ierr = TaoVecGetSubVec(asls->ff, asls->free, usemask, 0.0, &asls->r2);CHKERRQ(ierr);
+    ierr = TaoVecGetSubVec(asls->db, asls->free, usemask, 1.0, &asls->r3);CHKERRQ(ierr);
     ierr = VecPointwiseDivide(asls->r1,asls->r1, asls->r3);CHKERRQ(ierr);
     ierr = VecPointwiseDivide(asls->r2,asls->r2, asls->r3);CHKERRQ(ierr);
 
@@ -225,11 +227,11 @@ static PetscErrorCode TaoSolve_ASILS(Tao tao)
        of t1 and modify r2. */
 
     ierr = MatMult(tao->jacobian, tao->stepdirection, asls->t1);CHKERRQ(ierr);
-    ierr = TaoVecGetSubVec(asls->t1,asls->free,tao->subset_type,0.0,&asls->r3);CHKERRQ(ierr);
+    ierr = TaoVecGetSubVec(asls->t1,asls->free,usemask,0.0,&asls->r3);CHKERRQ(ierr);
     ierr = VecAXPY(asls->r2, -1.0, asls->r3);CHKERRQ(ierr);
 
     /* Calculate the reduced problem matrix and the direction */
-    if (!asls->w && (tao->subset_type == TAO_SUBSET_MASK || tao->subset_type == TAO_SUBSET_MATRIXFREE)) {
+    if (!asls->w && usemask) {
       ierr = VecDuplicate(tao->solution, &asls->w);CHKERRQ(ierr);
     }
     ierr = MatGetSubMatrix(tao->jacobian, asls->free, asls->free, MAT_INITIAL_MATRIX, &asls->J_sub);CHKERRQ(ierr);
@@ -241,7 +243,7 @@ static PetscErrorCode TaoSolve_ASILS(Tao tao)
       ierr = PetscObjectReference((PetscObject)(asls->Jpre_sub));CHKERRQ(ierr);
     }
     ierr = MatDiagonalSet(asls->J_sub, asls->r1,ADD_VALUES);CHKERRQ(ierr);
-    ierr = TaoVecGetSubVec(tao->stepdirection, asls->free, tao->subset_type, 0.0, &asls->dxfree);CHKERRQ(ierr);
+    ierr = TaoVecGetSubVec(tao->stepdirection, asls->free, usemask, 0.0, &asls->dxfree);CHKERRQ(ierr);
     ierr = VecSet(asls->dxfree, 0.0);CHKERRQ(ierr);
 
     /* Calculate the reduced direction.  (Really negative of Newton
@@ -306,7 +308,6 @@ PETSC_EXTERN PetscErrorCode TaoCreate_ASILS(Tao tao)
   tao->ops->view = TaoView_SSLS;
   tao->ops->setfromoptions = TaoSetFromOptions_SSLS;
   tao->ops->destroy = TaoDestroy_ASILS;
-  tao->subset_type = TAO_SUBSET_SUBVEC;
   asls->delta = 1e-10;
   asls->rho = 2.1;
   asls->fixed = NULL;

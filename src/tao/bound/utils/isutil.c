@@ -11,8 +11,9 @@
   Input Parameters:
 + vfull - the full matrix
 . is - the index set for the subvector
-. reduced_type - the method TAO is using for subsetting (TAO_SUBSET_SUBVEC, TAO_SUBSET_MASK,  TAO_SUBSET_MATRIXFREE)
-- maskvalue - the value to set the unused vector elements to (for TAO_SUBSET_MASK or TAO_SUBSET_MATRIXFREE)
+. usemask - if true then don't take actual subvector, copy to new vector and set
+            values of indices not in the is to the maskvalue
+- maskvalue - the value to set the unused vector elements to (if usemask is True)
 
   Output Parameters:
 . vreduced - the subvector
@@ -21,7 +22,7 @@
   maskvalue should usually be 0.0, unless a pointwise divide will be used.
 
 @*/
-PetscErrorCode TaoVecGetSubVec(Vec vfull, IS is, TaoSubsetType reduced_type, PetscScalar maskvalue, Vec *vreduced)
+PetscErrorCode TaoVecGetSubVec(Vec vfull, IS is, PetscBool usemask, PetscScalar maskvalue, Vec *vreduced)
 {
   PetscErrorCode ierr;
   PetscInt       nfull,nreduced,nreduced_local,rlow,rhigh,flow,fhigh;
@@ -45,8 +46,27 @@ PetscErrorCode TaoVecGetSubVec(Vec vfull, IS is, TaoSubsetType reduced_type, Pet
     ierr = VecDuplicate(vfull,vreduced);CHKERRQ(ierr);
     ierr = VecCopy(vfull,*vreduced);CHKERRQ(ierr);
   } else {
-    switch (reduced_type) {
-    case TAO_SUBSET_SUBVEC:
+    if (usemask) {
+      /* vr[i] = vf[i]   if i in is
+       vr[i] = 0       otherwise */
+      if (*vreduced == NULL) {
+        ierr = VecDuplicate(vfull,vreduced);CHKERRQ(ierr);
+      }
+      ierr = VecSet(*vreduced,maskvalue);CHKERRQ(ierr);
+      ierr = ISGetLocalSize(is,&nlocal);CHKERRQ(ierr);
+      ierr = VecGetOwnershipRange(vfull,&flow,&fhigh);CHKERRQ(ierr);
+      ierr = VecGetArray(vfull,&fv);CHKERRQ(ierr);
+      ierr = VecGetArray(*vreduced,&rv);CHKERRQ(ierr);
+      ierr = ISGetIndices(is,&s);CHKERRQ(ierr);
+      if (nlocal > (fhigh-flow)) SETERRQ2(PETSC_COMM_WORLD,1,"IS local size %d > Vec local size %d",nlocal,fhigh-flow);
+      for (i=0;i<nlocal;i++) {
+        if (0) {printf("setting rv[%d] = fv[%d]\n",s[i]-flow,s[i]-flow);}
+        rv[s[i]-flow] = fv[s[i]-flow];
+      }
+      ierr = ISRestoreIndices(is,&s);CHKERRQ(ierr);
+      ierr = VecRestoreArray(vfull,&fv);CHKERRQ(ierr);
+      ierr = VecRestoreArray(*vreduced,&rv);CHKERRQ(ierr);
+    } else {
       ierr = VecGetType(vfull,&vtype);CHKERRQ(ierr);
       ierr = VecGetOwnershipRange(vfull,&flow,&fhigh);CHKERRQ(ierr);
       ierr = ISGetLocalSize(is,&nreduced_local);CHKERRQ(ierr);
@@ -65,41 +85,6 @@ PetscErrorCode TaoVecGetSubVec(Vec vfull, IS is, TaoSubsetType reduced_type, Pet
       ierr = VecScatterEnd(scatter,vfull,*vreduced,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
       ierr = VecScatterDestroy(&scatter);CHKERRQ(ierr);
       ierr = ISDestroy(&ident);CHKERRQ(ierr);
-      break;
-
-    case TAO_SUBSET_MASK:
-    case TAO_SUBSET_MATRIXFREE:
-      /* vr[i] = vf[i]   if i in is
-       vr[i] = 0       otherwise */
-      if (*vreduced == NULL) {
-        ierr = VecDuplicate(vfull,vreduced);CHKERRQ(ierr);
-      }
-      CHKMEMQ;
-      ierr = VecSet(*vreduced,maskvalue);CHKERRQ(ierr);
-      CHKMEMQ;
-      ierr = ISGetLocalSize(is,&nlocal);CHKERRQ(ierr);
-      CHKMEMQ;
-      ierr = VecGetOwnershipRange(vfull,&flow,&fhigh);CHKERRQ(ierr);
-      CHKMEMQ;
-      ierr = VecGetArray(vfull,&fv);CHKERRQ(ierr);
-      CHKMEMQ;
-      ierr = VecGetArray(*vreduced,&rv);CHKERRQ(ierr);
-      CHKMEMQ;
-      ierr = ISGetIndices(is,&s);CHKERRQ(ierr);
-      if (nlocal > (fhigh-flow)) SETERRQ2(PETSC_COMM_WORLD,1,"IS local size %d > Vec local size %d",nlocal,fhigh-flow);
-      for (i=0;i<nlocal;i++) {
-        if (0) {printf("setting rv[%d] = fv[%d]\n",s[i]-flow,s[i]-flow);}
-        rv[s[i]-flow] = fv[s[i]-flow];
-      }
-      CHKMEMQ;
-      ierr = ISRestoreIndices(is,&s);CHKERRQ(ierr);
-      CHKMEMQ;
-      ierr = VecRestoreArray(vfull,&fv);CHKERRQ(ierr);
-      CHKMEMQ;
-
-      ierr = VecRestoreArray(*vreduced,&rv);CHKERRQ(ierr);
-      CHKMEMQ;
-      break;
     }
   }
   PetscFunctionReturn(0);

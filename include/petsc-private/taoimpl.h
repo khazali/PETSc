@@ -149,7 +149,6 @@ struct _p_Tao {
     PetscBool viewhessian;
     PetscBool viewjacobian;
 
-    TaoSubsetType subset_type;
     PetscInt      hist_max;/* Number of iteration histories to keep */
     PetscReal     *hist_obj; /* obj value at each iteration */
     PetscReal     *hist_resid; /* residual at each iteration */
@@ -183,6 +182,5 @@ PETSC_STATIC_INLINE PetscErrorCode TaoLogConvergenceHistory(Tao tao, PetscReal o
   PetscFunctionReturn(0);
 }
 
-PETSC_INTERN PetscErrorCode TaoVecGetSubVec(Vec, IS, TaoSubsetType, PetscReal, Vec*);
 
 #endif
