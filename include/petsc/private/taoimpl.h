@@ -2,7 +2,7 @@
 #define __TAO_IMPL_H
 
 #include <petsctaolinesearch.h>
-#include <petsc/private/petscimpl.h>
+#include <petsc-private/petscimpl.h>
 #include <petscksp.h>
 
 PETSC_EXTERN PetscErrorCode TaoRegisterAll(void);
@@ -193,5 +193,4 @@ PETSC_STATIC_INLINE PetscErrorCode TaoLogConvergenceHistory(Tao tao, PetscReal o
   PetscFunctionReturn(0);
 }
 
-PETSC_INTERN PetscErrorCode TaoVecGetSubVec(Vec, IS, TaoSubsetType, PetscReal, Vec*);
 #endif

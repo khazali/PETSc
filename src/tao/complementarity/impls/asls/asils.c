@@ -202,8 +202,8 @@ static PetscErrorCode TaoSolve_ASILS(Tao tao)
 
     /* We now have our partition.  Now calculate the direction in the
        fixed variable space. */
-    ierr = TaoVecGetSubVec(asls->ff, asls->fixed, usemask, 0.0, &asls->r1);
-    ierr = TaoVecGetSubVec(asls->da, asls->fixed, usemask, 1.0, &asls->r2);
+    ierr = TaoVecGetSubVec(asls->ff, asls->fixed, usemask, 0.0, &asls->r1);CHKERRQ(ierr);
+    ierr = TaoVecGetSubVec(asls->da, asls->fixed, usemask, 1.0, &asls->r2);CHKERRQ(ierr);
     ierr = VecPointwiseDivide(asls->r1,asls->r1,asls->r2);CHKERRQ(ierr);
     ierr = VecSet(tao->stepdirection,0.0);CHKERRQ(ierr);
     ierr = VecISAXPY(tao->stepdirection, asls->fixed,1.0,asls->r1);CHKERRQ(ierr);
