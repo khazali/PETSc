@@ -138,7 +138,7 @@ static PetscErrorCode TaoSolve_ASFLS(Tao tao)
 {
   TAO_SSLS                     *asls = (TAO_SSLS *)tao->data;
   PetscReal                    psi,ndpsi, normd, innerd, t=0;
-  PetscInt                     iter=0, nf;
+  PetscInt                     nf;
   PetscBool                    usemask;
   PetscErrorCode               ierr;
   TaoConvergedReason           reason;

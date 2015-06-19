@@ -1,8 +1,8 @@
 #include <../src/snes/impls/vi/rs/virsimpl.h> /*I "petscsnes.h" I*/
-#include <petsc-private/kspimpl.h>
-#include <petsc-private/matimpl.h>
-#include <petsc-private/dmimpl.h>
-#include <petsc-private/vecimpl.h>
+#include <petsc/private/kspimpl.h>
+#include <petsc/private/matimpl.h>
+#include <petsc/private/dmimpl.h>
+#include <petsc/private/vecimpl.h>
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESVIGetInactiveSet"
@@ -362,12 +362,6 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
   /* project X onto bounds */
   ierr = VecMedian(snes->xl,X,snes->xu,X);CHKERRQ(ierr);
   ierr = SNESComputeFunction(snes,X,F);CHKERRQ(ierr);
-  if (0) {
-    Vec temp;
-    ierr = VecDuplicate(F,&temp); CHKERRQ(ierr);CHKMEMQ;
-    ierr = VecSet(temp,0.0);CHKERRQ(ierr);CHKMEMQ;
-  }
-
   if (snes->domainerror) {
     snes->reason = SNES_DIVERGED_FUNCTION_DOMAIN;
     PetscFunctionReturn(0);
