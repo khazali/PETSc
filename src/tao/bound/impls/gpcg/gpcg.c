@@ -205,6 +205,7 @@ static PetscErrorCode TaoSolve_GPCG(Tao tao)
       ierr = TaoVecGetSubVec(tao->stepdirection,gpcg->Free_Local, usemask, 0.0, &gpcg->DXFree);CHKERRQ(ierr);
       ierr = VecSet(gpcg->DXFree,0.0);CHKERRQ(ierr);
 
+      ierr = MatDestroy(&gpcg->Hsub);CHKERRQ(ierr);
       ierr = MatGetSubMatrix(tao->hessian, gpcg->Free_Local, gpcg->Free_Local, MAT_INITIAL_MATRIX, &gpcg->Hsub);CHKERRQ(ierr);
 
       if (tao->hessian_pre == tao->hessian) {

@@ -73,7 +73,7 @@ PetscErrorCode  DMCreateInterpolation_SNESVI(DM dm1,DM dm2,Mat *mat,Vec *scaling
 {
   PetscErrorCode ierr;
   PetscContainer isnes;
-  Vec            vec,workvec;
+  Vec            vec;
   DM_SNESVI      *dmsnesvi1,*dmsnesvi2;
   Mat            interp;
 
@@ -87,7 +87,6 @@ PetscErrorCode  DMCreateInterpolation_SNESVI(DM dm1,DM dm2,Mat *mat,Vec *scaling
 
   ierr = (*dmsnesvi1->createinterpolation)(dm1,dm2,&interp,NULL);CHKERRQ(ierr);
   ierr = (*dmsnesvi2->createglobalvector)(dm2,&vec);CHKERRQ(ierr);
-  ierr = (*dmsnesvi2->createglobalvector)(dm2,&workvec);CHKERRQ(ierr);
   ierr = MatGetSubMatrix(interp,dmsnesvi2->inactive,dmsnesvi1->inactive,MAT_INITIAL_MATRIX,mat);CHKERRQ(ierr);
   ierr = MatDestroy(&interp);CHKERRQ(ierr);
   ierr = VecDestroy(&vec);CHKERRQ(ierr);
@@ -396,19 +395,6 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
     }
     ierr = SNESComputeJacobian(snes,X,snes->jacobian,snes->jacobian_pre);CHKERRQ(ierr);
 
-    if (0) {
-      Vec temp;
-      ierr = VecDuplicate(F,&temp); CHKERRQ(ierr);CHKMEMQ;
-      ierr = VecSet(temp,0.0);CHKERRQ(ierr);CHKMEMQ;
-    }
-
-    if (0) {
-      Vec temp;
-      ierr = VecDuplicate(F,&temp); CHKERRQ(ierr);CHKMEMQ;
-      ierr = VecSet(temp,0.0);CHKERRQ(ierr);CHKMEMQ;
-    }
-
-
     /* Create active and inactive index sets */
     ierr = SNESVIGetActiveSetIS(snes,X,F,&IS_act);CHKERRQ(ierr);
 
@@ -424,12 +410,6 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
     } else {
       ierr = ISComplement(IS_act,X->map->rstart,X->map->rend,&vi->IS_inact);CHKERRQ(ierr);
     }
-    if (0) {
-      Vec temp;
-      ierr = VecDuplicate(F,&temp); CHKERRQ(ierr);CHKMEMQ;
-      ierr = VecSet(temp,0.0);CHKERRQ(ierr);CHKMEMQ;
-    }
-
 
     /* Create inactive set submatrix */
     ierr = MatGetSubMatrix(snes->jacobian,vi->IS_inact,vi->IS_inact,MAT_INITIAL_MATRIX,&jac_inact_inact);CHKERRQ(ierr);
@@ -440,39 +420,17 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
     } else {
       ierr = MatGetSubMatrix(snes->jacobian_pre,vi->IS_inact,vi->IS_inact,MAT_INITIAL_MATRIX,&prejac_inact_inact);CHKERRQ(ierr);
     }
-    if (0) {
-      Vec temp;
-      ierr = VecDuplicate(F,&temp); CHKERRQ(ierr);CHKMEMQ;
-      ierr = VecSet(temp,0.0);CHKERRQ(ierr);CHKMEMQ;
-    }
-
     ierr = DMSetVI(snes->dm,vi->IS_inact);CHKERRQ(ierr);
-    if (0) {
-      Vec temp;
-      ierr = VecDuplicate(F,&temp); CHKERRQ(ierr);CHKMEMQ;
-      ierr = VecSet(temp,0.0);CHKERRQ(ierr);CHKMEMQ;
-    }
 
     /* Get sizes of active and inactive sets */
     ierr = ISGetLocalSize(IS_act,&nis_act);CHKERRQ(ierr);
-    if (0) {
-      Vec temp;
-      ierr = VecDuplicate(F,&temp); CHKERRQ(ierr);CHKMEMQ;
-      ierr = VecSet(temp,0.0);CHKERRQ(ierr);CHKMEMQ;
-    }
-
     ierr = ISGetLocalSize(vi->IS_inact,&nis_inact);CHKERRQ(ierr);
 
     /* Create active and inactive set vectors */
-    if (0) {
-      Vec temp;
-      ierr = VecDuplicate(F,&temp); CHKERRQ(ierr);CHKMEMQ;
-      ierr = VecSet(temp,0.0);CHKERRQ(ierr);CHKMEMQ;
-    }
-
     ierr = SNESVISubVector(F,vi->IS_inact,vi->ismasked,&F_inact);CHKERRQ(ierr);
     ierr = SNESVISubVector(Y,vi->IS_inact,vi->ismasked,&Y_inact);CHKERRQ(ierr);
     ierr = SNESVISubVector(Y,IS_act,vi->ismasked,&Y_act);CHKERRQ(ierr);
+
     /* If active set has changed, then reset KSP (and PC) */
     ierr = ISEqual(vi->IS_inact_prev,vi->IS_inact,&isequal);CHKERRQ(ierr);
     if (!isequal) {
@@ -481,11 +439,6 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
 
     /* Active set direction = 0 */
     ierr = VecSet(Y_act,0);CHKERRQ(ierr);
-    if (0) {
-      PetscInt ny,nf;
-      ierr = VecGetLocalSize(F_inact,&nf); CHKERRQ(ierr);
-      ierr = VecGetLocalSize(Y_inact,&ny); CHKERRQ(ierr);
-    }
     ierr = KSPSetOperators(snes->ksp,jac_inact_inact,prejac_inact_inact);CHKERRQ(ierr);
     ierr = KSPSetUp(snes->ksp);CHKERRQ(ierr);
     ierr = KSPSolve(snes->ksp,F_inact,Y_inact);CHKERRQ(ierr);

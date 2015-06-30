@@ -47,22 +47,22 @@ runplate2_3:
         ${RM} -f plate2_3.tmp
 
 runplate2_4:
-	-@${MPIEXEC} -n 3 ./plate2 -tao_smonitor -mx 8 -my 12 -bmx 4 -bmy 10 -bheight 0.1 -tao_subset_type mask -tao_type tron > plate2_4.tmp 2>&1;\
+	-@${MPIEXEC} -n 3 ./plate2 -tao_smonitor -mx 8 -my 12 -bmx 4 -bmy 10 -bheight 0.1 -tao_type tron > plate2_4.tmp 2>&1;\
         ${DIFF} output/plate2_4.out plate2_4.tmp || printf '${PWD}\nPossible problem with plate2_4 stdout, diffs above \n=========================================\n';\
         ${RM} -f plate2_4.tmp
 
 runplate2_5:
-	-@${MPIEXEC} -n 3 ./plate2 -tao_smonitor -mx 8 -my 12 -bmx 4 -bmy 10 -bheight 0.1 -tao_subset_type matrixfree -matrixfree -pc_type none -tao_type tron > plate2_5.tmp 2>&1;\
+	-@${MPIEXEC} -n 3 ./plate2 -tao_smonitor -mx 8 -my 12 -bmx 4 -bmy 10 -bheight 0.1 -matrixfree -pc_type none -tao_type tron > plate2_5.tmp 2>&1;\
         ${DIFF} output/plate2_5.out plate2_5.tmp || printf '${PWD}\nPossible problem with plate2_5 stdout, diffs above \n=========================================\n';\
         ${RM} -f plate2_5.tmp
 
 runplate2_6:
-	-@${MPIEXEC} -n 3 ./plate2 -tao_smonitor -mx 8 -my 12 -bmx 4 -bmy 10 -bheight 0.1 -tao_subset_type matrixfree -matrixfree -pc_type none -tao_type blmvm > plate2_6.tmp 2>&1;\
+	-@${MPIEXEC} -n 3 ./plate2 -tao_smonitor -mx 8 -my 12 -bmx 4 -bmy 10 -bheight 0.1 -tao_type blmvm > plate2_6.tmp 2>&1;\
         ${DIFF} output/plate2_6.out plate2_6.tmp || printf '${PWD}\nPossible problem with plate2_6 stdout, diffs above \n=========================================\n';\
         ${RM} -f plate2_6.tmp
 
 runplate2_7:
-	-@${MPIEXEC} -n 3 ./plate2 -tao_smonitor -mx 8 -my 12 -bmx 4 -bmy 10 -bheight 0.1 -tao_subset_type matrixfree  -pc_type none -tao_type gpcg > plate2_7.tmp 2>&1;\
+	-@${MPIEXEC} -n 3 ./plate2 -tao_smonitor -mx 8 -my 12 -bmx 4 -bmy 10 -bheight 0.1  -pc_type none -tao_type gpcg > plate2_7.tmp 2>&1;\
         ${DIFF} output/plate2_7.out plate2_7.tmp || printf '${PWD}\nPossible problem with plate2_7 stdout, diffs above \n=========================================\n';\
         ${RM} -f plate2_7.tmp
 

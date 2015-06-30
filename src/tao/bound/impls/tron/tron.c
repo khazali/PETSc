@@ -157,9 +157,10 @@ static PetscErrorCode TaoSolve_TRON(Tao tao)
 
     }
     /* use free_local to submat gradient, hessian, stepdirection */
+    ierr = MatDestroy(&tron->H_sub);CHKERRQ(ierr);
+    ierr = MatDestroy(&tron->Hpre_sub);CHKERRQ(ierr);
     ierr = MatGetSubMatrix(tao->hessian, tron->Free_Local, tron->Free_Local, MAT_INITIAL_MATRIX, &tron->H_sub);CHKERRQ(ierr);
     if (tao->hessian == tao->hessian_pre) {
-      ierr = MatDestroy(&tron->Hpre_sub);CHKERRQ(ierr);
       ierr = PetscObjectReference((PetscObject)(tron->H_sub));CHKERRQ(ierr);
       tron->Hpre_sub = tron->H_sub;
     } else {
@@ -184,8 +185,8 @@ static PetscErrorCode TaoSolve_TRON(Tao tao)
       tao->ksp_its+=its;
       tao->ksp_tot_its+=its;
       /* Add dxfree matrix to compute step direction vector */
-      ierr = VecISAXPY(tao->stepdirection,tron->Free_Local,1.0,tron->DXFree);CHKERRQ(ierr);
       ierr = VecSet(tao->stepdirection,0.0);CHKERRQ(ierr);
+      ierr = VecISAXPY(tao->stepdirection,tron->Free_Local,1.0,tron->DXFree);CHKERRQ(ierr);
 
       if (0) {
         PetscReal rhs,stepnorm;
@@ -417,11 +418,6 @@ PETSC_EXTERN PetscErrorCode TaoCreate_TRON(Tao tao)
   ierr = KSPCreate(((PetscObject)tao)->comm, &tao->ksp);CHKERRQ(ierr);
   ierr = KSPSetOptionsPrefix(tao->ksp, tao->hdr.prefix);CHKERRQ(ierr);
   ierr = KSPSetType(tao->ksp,KSPSTCG);CHKERRQ(ierr);
-  {
-    PC pc;
-    ierr =KSPGetPC(tao->ksp,&pc);CHKERRQ(ierr);
-    ierr = PCSetType(pc,PCNONE);CHKERRQ(ierr);
-  }
   PetscFunctionReturn(0);
 }
 
