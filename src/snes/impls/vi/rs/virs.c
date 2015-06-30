@@ -347,7 +347,6 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
   X      = snes->vec_sol;               /* solution vector */
   F      = snes->vec_func;              /* residual vector */
   Y      = snes->work[0];               /* work vectors */
-  //ierr = VecDuplicate(X,&Y);CHKERRQ(ierr);
 
   ierr = SNESLineSearchSetVIFunctions(snes->linesearch, SNESVIProjectOntoBounds, SNESVIComputeInactiveSetFnorm);CHKERRQ(ierr);
   ierr = SNESLineSearchSetVecs(snes->linesearch, X, NULL, NULL, NULL, NULL);CHKERRQ(ierr);
@@ -383,7 +382,6 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
   for (i=0; i<maxits; i++) {
 
     IS         IS_act; /* _act -> active set */
-    IS         IS_redact; /* redundant active set */
     PetscInt   nis_act,nis_inact;
     Vec        Y_act=0,Y_inact=0,F_inact=0;
     Mat        jac_inact_inact=0,prejac_inact_inact=0;
@@ -398,18 +396,7 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
     /* Create active and inactive index sets */
     ierr = SNESVIGetActiveSetIS(snes,X,F,&IS_act);CHKERRQ(ierr);
 
-    if (vi->checkredundancy) {
-      (*vi->checkredundancy)(snes,IS_act,&IS_redact,vi->ctxP);CHKERRQ(ierr);
-      if (IS_redact) {
-        ierr = ISSort(IS_redact);CHKERRQ(ierr);
-        ierr = ISComplement(IS_redact,X->map->rstart,X->map->rend,&vi->IS_inact);CHKERRQ(ierr);
-        ierr = ISDestroy(&IS_redact);CHKERRQ(ierr);
-      } else {
-        ierr = ISComplement(IS_act,X->map->rstart,X->map->rend,&vi->IS_inact);CHKERRQ(ierr);
-      }
-    } else {
-      ierr = ISComplement(IS_act,X->map->rstart,X->map->rend,&vi->IS_inact);CHKERRQ(ierr);
-    }
+    ierr = ISComplement(IS_act,X->map->rstart,X->map->rend,&vi->IS_inact);CHKERRQ(ierr);
 
     /* Create inactive set submatrix */
     ierr = MatGetSubMatrix(snes->jacobian,vi->IS_inact,vi->IS_inact,MAT_INITIAL_MATRIX,&jac_inact_inact);CHKERRQ(ierr);
@@ -449,7 +436,8 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
         snes->reason = SNES_DIVERGED_LINEAR_SOLVE;
         break;
       }
-     }
+    }
+
     ierr = VecSet(Y,0.0);
     ierr = VecISAXPY(Y,IS_act,1.0,Y_act);CHKERRQ(ierr);
     ierr = VecISAXPY(Y,vi->IS_inact,1.0,Y_inact);CHKERRQ(ierr);
