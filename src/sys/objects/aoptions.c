@@ -492,7 +492,11 @@ PetscErrorCode PetscOptionsSAWsInput(PetscOptions *PetscOptionsObject)
   }
 
   /* wait until accessor has unlocked the memory */
+
+  PetscStackCallSAWs(SAWs_Enable_History,(1));
+
   PetscStackCallSAWs(SAWs_Push_Header,("index.html",OptionsHeader));
+
   PetscStackCallSAWs(SAWs_Push_Body,("index.html",2,OptionsBodyBottom));
   ierr = PetscSAWsBlock();CHKERRQ(ierr);
   PetscStackCallSAWs(SAWs_Pop_Header,("index.html"));

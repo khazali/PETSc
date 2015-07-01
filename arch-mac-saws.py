@@ -11,6 +11,7 @@ if __name__ == '__main__':
     '--with-fc=0',
     '--download-cmake',
     '--download-saws',
+    '--with-afterimage',
     'PETSC_ARCH=arch-mac-saws',
   ]
   configure.petsc_configure(configure_options)

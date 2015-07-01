@@ -17,6 +17,8 @@ var title = "";
 //holds the colors used in the tree drawing
 var colors = ["black","red","blue","green"];
 
+
+
 //This Function is called once (document).ready. The javascript for this was written by the PETSc code into index.html
 PETSc.getAndDisplayDirectory = function(names,divEntry){
     console.log("sawsInfo");
@@ -33,12 +35,25 @@ PETSc.getAndDisplayDirectory = function(names,divEntry){
         $("body").append("<div id=\"leftDiv\" style=\"float:left;\"></div>");
         $(divEntry).appendTo("#leftDiv");
         $("body").append("<div id=\"diagram\"></div>");
-        $("body").append("<div id=\"optionarea\" class=\"container\"><div class=\"well\"><label>Please select your configuration set up: </label> <select><option value=\"basic\">Basic</option> <option value=\"all\">All</option></select> <input type=\"button\" value=\"Go!\" id=\"go\"></div></div>")
+        $("body").append("<div id=\"optionarea\" class=\"container\"><h3>Step 1</h3><div class=\"well\"><label>Please select your configuration set up: </label> <select id=\"mode\"><option value=\"0\">Basic</option> <option value=\"1\">All</option></select> <input type=\"button\" value=\"Go!\" id=\"go\"></div></div>")
+
+        $("#optionarea").append("<br><br><button type=\"button\" name=\"history\" id=\"history\" class=\"btn btn-info btn-lg\">View History</button>");
+        $("#optionarea").append("<div class=\"modal fade\" id=\"myModal\" role=\"dialog\"> <div class\"modal-dialog\"><div class=\"modal-content\"><div class=\"modal-header\"><button type=\"button\" class=\"close\" data-dismiss=\"modal\">&times;</button><h4 class=\"modal-title\">History</h4></div><div class=\"modal-body\"><div id=\"dataS\"></div></div><div class=\"modal-footer\"><button type=\"button\" class=\"btn btn-default\" data-dismiss=\"modal\">Close</button></div></div></div></div>");
 
 
         jQuery('#go').on('click', function(){
 
-                   console.log("GO");
+
+                     var mode = $( "#mode" ).val();
+
+                     if (mode == 0) {
+                        console.log("Basic Options");
+                     } else if (mode == 1) {
+                        console.log("All Options");
+                        jQuery(divEntry).html("");
+                        SAWs.getDirectory(null,PETSc.displayDirectory,divEntry);
+                     }
+
 
         });
         //$("body").append("<div class=\"accordion\" id=\"accordion2\"><div class=\"accordion-group\"><div class=\"accordion-heading\"><a class=\"accordion-toggle\" data-toggle=\"collapse\" data-parent=\"#accordion2\" href=\"#collapseOne\">Collapsible Group Item #1</a></div><div id=\"collapseOne\" class=\"accordion-body collapse in\"><div class=\"accordion-inner\">Anim pariatur cliche...</div></div></div><div class=\"accordion-group\"><div class=\"accordion-heading\"><a class=\"accordion-toggle\" data-toggle=\"collapse\" data-parent=\"#accordion2\" href=\"#collapseTwo\">Collapsible Group Item #2</a></div><div id=\"collapseTwo\" class=\"accordion-body collapse\"><div class=\"accordion-inner\">Anim pariatur cliche...</div></div></div></div>");
@@ -47,13 +62,61 @@ PETSc.getAndDisplayDirectory = function(names,divEntry){
  
 
         init = true;
+    } else {
+                            jQuery(divEntry).html("");
+
+                            console.log(names);
+
+                            SAWs.getDirectory(null,PETSc.displayDirectory,divEntry);
+
     }
 
-    jQuery(divEntry).html("");
 
-    console.log(names);
 
-    SAWs.getDirectory(names,PETSc.displayDirectory,divEntry);
+
+
+
+    jQuery.getJSON('/SAWs/historyStatus',function(data){
+                                         console.log("RH: " + data);
+
+                                          if (data != 0) {
+                                              //jQuery("body").append("<br><br><h2>History Active</h2>");
+
+                                              jQuery('#history').on('click', function(){
+
+                                               $(".modal-body #dataS").html("");
+
+                                              $('#myModal').modal('show');
+                                                                                    console.log("Main History");
+
+                                                    for (i = 0; i < data; i++) {
+                                                       $(".modal-body #dataS").append("<button onclick=\"PETSc.history("+i+")\" id=\"buttonName" + i + "\" value=\"buttonValue\">" + i + "</button>");
+
+                                                    }
+
+
+                                              })
+
+                                          } else {
+
+                                          }
+
+                                       })
+
+
+}
+
+
+PETSc.history = function (field){
+
+//alert(field);
+
+ jQuery.getJSON('/SAWs/historyGet/' + field,function(data){
+                                                                    //alert("Action " + i + ": " + data);
+                                                                    console.log("History_" + field + ": " + data);
+                                                                })
+
+
 }
 
 PETSc.displayDirectory = function(sub,divEntry)
@@ -197,7 +260,11 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
 
                         if (title != sub[key].variables[vKey].data[j]) {
                             console.log("<---------------------------------------------->");
-                            $("body").append("<br><div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
+                            if (ind == 0) {
+                              $("body").append("<br><div id=\"buttonarea" + ind + "\" class=\"container\"><h3>Step 2</h3><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
+                            } else {
+                              $("body").append("<br><div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
+                            }
                             ind = ind + 1;
                             title = sub[key].variables[vKey].data[j];
                         } else {

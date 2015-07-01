@@ -73,6 +73,7 @@ int main(int argc,char **argv)
   appctx.gamma = .024;
   appctx.kappa = .06;
 
+
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create distributed array (DMDA) to manage parallel grid and vectors
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -109,6 +110,10 @@ int main(int argc,char **argv)
   ierr = TSSetDuration(ts,PETSC_DEFAULT,2000.0);CHKERRQ(ierr);
   ierr = TSSetInitialTimeStep(ts,0.0,.0001);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
+
+
+
+
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Solve ODE system

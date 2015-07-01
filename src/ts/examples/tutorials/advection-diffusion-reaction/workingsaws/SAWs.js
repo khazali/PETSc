@@ -66,9 +66,11 @@ SAWs.getDirectory = function(names,callback,callbackdata) {
 
   /*If names is null, get all*/
   if(names == null){
+
     jQuery.getJSON('/SAWs/*',function(data){
-                               if(typeof(callback) == typeof(Function)) callback(data,callbackdata)
-                             })
+                                       if(typeof(callback) == typeof(Function)) callback(data,callbackdata)
+                                    })
+
   } else {
     jQuery.getJSON('/SAWs/' + names,function(data){
                                        if(typeof(callback) == typeof(Function)) callback(data,callbackdata)
@@ -97,10 +99,53 @@ SAWs.getDirectory = function(names,callback,callbackdata) {
    SAWs.getAndDisplayDirectory(divEntry,names) - Gets the lastest values from the server and calls SAWs.displayDirectory() to display them
 */
 SAWs.getAndDisplayDirectory = function(names,divEntry){
-  $("head").append('<link rel="stylesheet" type="text/css" href="css/bootstrap.css">');//reuse the code for parsing thru the prefix
+  //$("head").append('<link rel="stylesheet" type="text/css" href="css/bootstrap.css">');//reuse the code for parsing thru the prefix
+
+
 
   jQuery(divEntry).html("")
   SAWs.getDirectory(names,SAWs.displayDirectory,divEntry)
+
+
+   jQuery.getJSON('/SAWs/historyStatus',function(data){
+                                     console.log("RH: " + data);
+
+                                      if (data != 0) {
+                                          //jQuery("body").append("<br><br><h2>History Active</h2>");
+                                          $("#variablesInfo").append("<br><br><button type=\"button\" name=\"history\" id=\"history\" class=\"btn btn-info btn-lg\">View History</button>");
+                                          $("#variablesInfo").append("<div class=\"modal fade\" id=\"myModal\" role=\"dialog\"> <div class\"modal-dialog\"><div class=\"modal-content\"><div class=\"modal-header\"><button type=\"button\" class=\"close\" data-dismiss=\"modal\">&times;</button><h4 class=\"modal-title\">History</h4></div><div class=\"modal-body\"><div id=\"dataS\"></div></div><div class=\"modal-footer\"><button type=\"button\" class=\"btn btn-default\" data-dismiss=\"modal\">Close</button></div></div></div></div>");
+
+                                          jQuery('#history').on('click', function(){
+
+                                           $(".modal-body #dataS").html("");
+
+                                          $('#myModal').modal('show');
+                                                                                console.log("Main History");
+
+                                                for (i = 0; i < data; i++) {
+                                                   $(".modal-body #dataS").append("<button onclick=\"SAWs.history("+i+")\" id=\"buttonName" + i + "\" value=\"buttonValue\">" + i + "</button>");
+/*
+                                                   $("#buttonName" + i).click( function()
+                                                              {
+                                                              var title=$(this).attr("value");
+                                                              alert(title);
+
+                                                                jQuery.getJSON('/SAWs/historyGet/' + i,function(data){
+                                                                    alert("Action " + i + ": " + data);
+                                                                })
+
+                                                              }
+                                                   );*/
+                                                }
+
+
+                                          })
+
+                                      } else {
+
+                                      }
+
+                                   })
 }
 
 /*
@@ -145,6 +190,18 @@ SAWs.tab = function(key,tab)
   }
 }
 
+SAWs.history = function (field){
+
+//alert(field);
+
+ jQuery.getJSON('/SAWs/historyGet/' + field,function(data){
+                                                                    //alert("Action " + i + ": " + data);
+                                                                    console.log("History_" + field + ": " + data);
+                                                                })
+
+
+}
+
 SAWs.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
 {
   jQuery.each(sub,function(key,value){
@@ -169,7 +226,7 @@ SAWs.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                                              jQuery("#"+fullkey).append("<select id=\"data"+fullkey+vKey+j+"\">")
                                              jQuery("#data"+fullkey+vKey+j).append("<option value=\"true\">True</option> <option value=\"false\">False</option>")
                                            } else {
-                                             jQuery("#"+fullkey).append("<input type=\"text\" style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>")
+                                             jQuery("#"+fullkey).append("<input type=\"text\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>")
                                              jQuery("#data"+fullkey+vKey+j).keyup(function(obj) {
                                                                                    console.log( "Key up called "+key+vKey );
                                                                                    sub[key].variables[vKey].selected = 1;

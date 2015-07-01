@@ -544,6 +544,7 @@ PetscErrorCode  PetscInitializeSAWs(const char help[])
     if (flg) {
       PetscStackCallSAWs(SAWs_Set_Document_Root,(root));CHKERRQ(ierr);
       ierr = PetscStrcmp(root,".",&rootlocal);CHKERRQ(ierr);
+      printf("Root: %c \n",rootlocal);
     } else {
       ierr = PetscOptionsHasName(NULL,"-saws_options",&flg);CHKERRQ(ierr);
       if (flg) {

@@ -21,6 +21,23 @@ struct _n_TSMonitorDrawCtx {
   int           color;
 };
 
+const char *NewHeader =            "<head><script type=\"text/javascript\" src=\"http://www.mcs.anl.gov/research/projects/saws/js/jquery-1.9.1.js\"></script>\n"
+                                   "<script type=\"text/javascript\" src=\"http://www.mcs.anl.gov/research/projects/saws/js/SAWs.js\"></script>\n"
+                                   "<link rel=\"stylesheet\" type=\"text/css\" href=\"https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css\">\n"
+                                   "<script>\n"
+                                   "jQuery(document).ready(function() {\n"
+                                   "jQuery('#postData').on('click', function(){SAWs.updateAndPostDirectory(\"#variablesInfo\")})\n"
+                                   "jQuery('#allDirectories').click(function(){SAWs.getAndDisplayDirectory(null,\"#variablesInfo\")})\n"
+                                   "SAWs.getAndDisplayDirectory(null,\"#variablesInfo\")\n"
+                                   "})\n"
+                                   "</script>\n"
+                                   "</head>\n";
+
+
+
+
+
+
 #undef __FUNCT__
 #define __FUNCT__ "TSSetFromOptions"
 /*@
@@ -1355,6 +1372,13 @@ PetscErrorCode  TSLoad(TS ts, PetscViewer viewer)
   PetscFunctionReturn(0);
 }
 
+
+
+
+
+
+
+
 #include <petscdraw.h>
 #if defined(PETSC_HAVE_SAWS)
 #include <petscviewersaws.h>
@@ -1480,6 +1504,8 @@ PetscErrorCode  TSView(TS ts,PetscViewer viewer)
     ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
     if (!((PetscObject)ts)->amsmem && !rank) {
       char       dir[1024];
+
+      PetscStackCallSAWs(SAWs_Enable_History,(1));
 
       ierr = PetscObjectViewSAWs((PetscObject)ts,viewer);CHKERRQ(ierr);
       ierr = PetscSNPrintf(dir,1024,"/PETSc/Objects/%s/time_step",name);CHKERRQ(ierr);

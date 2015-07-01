@@ -463,18 +463,19 @@ PetscErrorCode PetscDrawSave_X(PetscDraw draw)
     PetscAfterimage afterimage;
     size_t   len = 0;
 
+
     ierr = PetscAfterimageAdd(draw->savefilename,draw->savefilenameext,draw->savefilecount-1);CHKERRQ(ierr);
     afterimage  = afterimages;
     while (afterimage) {
       if (draw->savesinglefile) {
-        ierr = PetscSNPrintf(body+len,4086-len,"<img src=\"%s/%s%s\" alt=\"None\">",afterimage->filename,afterimage->filename,afterimage->ext);CHKERRQ(ierr);
+        ierr = PetscSNPrintf(body+len,4086-len,"<div class=\"container\"><center><img src=\"%s/%s%s\" align=\"middle\" alt=\"None\"></center></div>",afterimage->filename,afterimage->filename,afterimage->ext);CHKERRQ(ierr);
       } else {
-        ierr = PetscSNPrintf(body+len,4086-len,"<img src=\"%s/%s_%d%s\" alt=\"None\">",afterimage->filename,afterimage->filename,afterimage->cnt,afterimage->ext);CHKERRQ(ierr);
+        ierr = PetscSNPrintf(body+len,4086-len,"<div class=\"container\"><center><img src=\"%s/%s_%d%s\" align=\"middle\" alt=\"None\"></center></div>",afterimage->filename,afterimage->filename,afterimage->cnt,afterimage->ext);CHKERRQ(ierr);
       }
       ierr = PetscStrlen(body,&len);CHKERRQ(ierr);
       afterimage  = afterimage->next;
     }
-    ierr = PetscStrcat(body,"<br>\n");CHKERRQ(ierr);
+    ierr = PetscStrcat(body,"<br>");CHKERRQ(ierr);
     if (draw->savefilecount > 0) PetscStackCallSAWs(SAWs_Pop_Body,("index.html",1));
     PetscStackCallSAWs(SAWs_Push_Body,("index.html",1,body));
   }
