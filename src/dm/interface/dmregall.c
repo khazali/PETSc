@@ -1,6 +1,7 @@
 
 #include <petscdm.h>     /*I  "petscdm.h"  I*/
 #include <petscdmplex.h> /*I  "petscdmplex.h"  I*/
+#include <petscdmpicell.h> /*I  "petscdmpicell.h"  I*/
 #include <petsc/private/dmimpl.h>
 #include <petsc/private/dmpleximpl.h>
 #include <petsc/private/petscfeimpl.h>
@@ -12,6 +13,7 @@ PETSC_EXTERN PetscErrorCode DMCreate_Sliced(DM);
 PETSC_EXTERN PetscErrorCode DMCreate_Shell(DM);
 PETSC_EXTERN PetscErrorCode DMCreate_Redundant(DM);
 PETSC_EXTERN PetscErrorCode DMCreate_Plex(DM);
+PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM);
 PETSC_EXTERN PetscErrorCode DMCreate_Patch(DM);
 #if defined(PETSC_HAVE_MOAB)
 PETSC_EXTERN PetscErrorCode DMCreate_Moab(DM);
@@ -47,6 +49,7 @@ PetscErrorCode  DMRegisterAll()
   ierr = DMRegister(DMSHELL,      DMCreate_Shell);CHKERRQ(ierr);
   ierr = DMRegister(DMREDUNDANT,  DMCreate_Redundant);CHKERRQ(ierr);
   ierr = DMRegister(DMPLEX,       DMCreate_Plex);CHKERRQ(ierr);
+  ierr = DMRegister(DMPICELL,     DMCreate_PICell);CHKERRQ(ierr);
   ierr = DMRegister(DMPATCH,      DMCreate_Patch);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_MOAB)
   ierr = DMRegister(DMMOAB,       DMCreate_Moab);CHKERRQ(ierr);

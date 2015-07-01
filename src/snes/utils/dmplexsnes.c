@@ -1,5 +1,6 @@
 #include <petsc/private/dmpleximpl.h>   /*I "petscdmplex.h" I*/
 #include <petsc/private/snesimpl.h>     /*I "petscsnes.h"   I*/
+#include <petsc/private/dmpicellimpl.h>    /*I   "petscdmpicell.h"   I*/
 #include <petscds.h>
 #include <petsc/private/petscimpl.h>
 #include <petsc/private/petscfeimpl.h>
@@ -2271,5 +2272,24 @@ PetscErrorCode DMSNESCheckFromOptions(SNES snes, Vec u, PetscErrorCode (**exactF
   ierr = SNESSetSolution(snes, sol);CHKERRQ(ierr);
   ierr = DMSNESCheckFromOptions_Internal(snes, dm, u, sol, exactFuncs, ctxs);CHKERRQ(ierr);
   ierr = VecDestroy(&sol);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/************************** DMPICellSolve *******************************/
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPICellSolve"
+PetscErrorCode DMPICellSolve(DM dm)
+{
+  DM_PICell      *mesh = (DM_PICell *) dm->data;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+
+  /* solve for potential and zero density for next solve */
+
+
+  
   PetscFunctionReturn(0);
 }
