@@ -192,11 +192,26 @@ SAWs.tab = function(key,tab)
 
 SAWs.history = function (field){
 
-//alert(field);
-
  jQuery.getJSON('/SAWs/historyGet/' + field,function(data){
-                                                                    //alert("Action " + i + ": " + data);
+
                                                                     console.log("History_" + field + ": " + data);
+
+jQuery.each(data,function(key,value){
+
+        console.log("Key: " + key + " Value: " + value);
+
+        jQuery.each(data[key], function(vKey, vValue) {
+
+        console.log("Key: " + vKey + " Value: " + vValue);
+
+        })
+
+})
+
+
+
+
+
                                                                 })
 
 

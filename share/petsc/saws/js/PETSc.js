@@ -230,7 +230,7 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                 if (vKey.substring(0,2) == "__") // __Block variable
                     return;
                 //SAWs.tab(fullkey,tab+1);
-                if (vKey[0] != '_') {//this chunk of code adds the option name
+                if (vKey[0] != '_') {//this chunk  of code adds the option name
                     if(vKey.indexOf("prefix") != -1 && sub[key].variables[vKey].data[0] == "(null)")
                         return;//do not display (null) prefix
 
