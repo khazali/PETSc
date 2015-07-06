@@ -1,7 +1,3 @@
-
-#include <petscdm.h>     /*I  "petscdm.h"  I*/
-#include <petscdmplex.h> /*I  "petscdmplex.h"  I*/
-#include <petscdmpicell.h> /*I  "petscdmpicell.h"  I*/
 #include <petsc/private/dmimpl.h>
 #include <petsc/private/dmpleximpl.h>
 #include <petsc/private/petscfeimpl.h>

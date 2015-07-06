@@ -3,7 +3,7 @@ ALL: lib
 
 CFLAGS   =
 FFLAGS   =
-SOURCEC  = dmsnes.c dmdasnes.c dmlocalsnes.c dmplexsnes.c
+SOURCEC  = dmsnes.c dmdasnes.c dmlocalsnes.c dmplexsnes.c dmpicellsnes.c
 SOURCEF  =
 SOURCEH  =
 LIBBASE  = libpetscsnes
