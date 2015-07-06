@@ -160,8 +160,8 @@ PetscErrorCode DMPICellAddRho(DM dm, double r, double z, double phi, PetscReal v
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMPICellGetGrad"
-PetscErrorCode DMPICellGetGrad(DM dm, double r, double z, double phi, double gradphi[])
+#define __FUNCT__ "DMPICellGetGradPhi"
+PetscErrorCode DMPICellGetGradPhi(DM dm, double r, double z, double phi, double gradphi[])
 {
   DM_PICell      *mesh = (DM_PICell *) dm->data;
   PetscErrorCode ierr;
