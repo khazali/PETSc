@@ -144,8 +144,8 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMPICellAddDensity"
-PetscErrorCode DMPICellAddDensity(DM dm, double r, double z, double phi, PetscReal val)
+#define __FUNCT__ "DMPICellAddRho"
+PetscErrorCode DMPICellAddRho(DM dm, double r, double z, double phi, PetscReal val)
 {
   DM_PICell      *mesh = (DM_PICell *) dm->data;
   PetscErrorCode ierr;

@@ -10,7 +10,7 @@
 #include <petscfv.h>
 #include <petscsftypes.h>
 
-PETSC_EXTERN PetscErrorCode DMPICellAddDensity(DM, double, double, double, PetscReal);
-PETSC_EXTERN PetscErrorCode DMPICellGetGrad(DM, double, double, double, double[]);
+PETSC_EXTERN PetscErrorCode DMPICellAddRho(DM, double, double, double, PetscReal);
+PETSC_EXTERN PetscErrorCode DMPICellGetGradPhi(DM, double, double, double, double[]);
 
 #endif
