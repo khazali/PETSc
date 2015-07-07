@@ -44,10 +44,11 @@ PetscErrorCode  DMSetFromOptions_PICell(PetscOptions *PetscOptionsObject,DM dm)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   ierr = PetscOptionsHead(PetscOptionsObject,"DMPICell Options");CHKERRQ(ierr);
-  
+
   /* Handle DMPICell refinement */
   /* ierr = PetscOptionsInt("-dm_refine", "The number of uniform refinements", "DMCreate", refine, &refine, NULL);CHKERRQ(ierr); */
 
+  /* this does not work for prefix, this sub prefix can not have a prefix!!! */
   ierr = DMSetFromOptions(mesh->dmplex);CHKERRQ(ierr);
 
   ierr = PetscOptionsTail();CHKERRQ(ierr);
@@ -69,14 +70,14 @@ PetscErrorCode DMSetUp_PICell(DM dm)
   ierr = PetscObjectSetName((PetscObject) mesh->phi, "potential");CHKERRQ(ierr);
   ierr = VecDuplicate(mesh->phi, &mesh->rho);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) mesh->rho, "density");CHKERRQ(ierr);
-
   /* set up solver */
   {
     MPI_Comm       comm;
     ierr = PetscObjectGetComm((PetscObject)dm,&comm);CHKERRQ(ierr);
     ierr = SNESCreate(comm,&mesh->snes);CHKERRQ(ierr);
-    ierr = SNESSetDM(mesh->snes,dm);CHKERRQ(ierr);
+    ierr = SNESSetDM(mesh->snes,mesh->dmplex);CHKERRQ(ierr);
   }
+
   PetscFunctionReturn(0);
 }
 
@@ -144,33 +145,52 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMPICellAddRho"
-PetscErrorCode DMPICellAddRho(DM dm, double r, double z, double phi, PetscReal val)
+#define __FUNCT__ "DMPICellAddSource"
+PetscErrorCode DMPICellAddSource(DM dm, PetscReal *x, PetscReal val)
 {
   DM_PICell      *mesh = (DM_PICell *) dm->data;
   PetscErrorCode ierr;
+  PetscInt dim;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
 
 
 
-  
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMPICellGetGradPhi"
-PetscErrorCode DMPICellGetGradPhi(DM dm, double r, double z, double phi, double gradphi[])
+#define __FUNCT__ "DMPICellGetGradPotential"
+PetscErrorCode DMPICellGetGradPotential(DM dm, PetscReal *x, PetscReal *gradphi)
 {
   DM_PICell      *mesh = (DM_PICell *) dm->data;
   PetscErrorCode ierr;
+  PetscInt dim;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
 
 
 
-  
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPICellGetPotential"
+PetscErrorCode DMPICellGetPotential(DM dm, PetscReal *x, PetscReal *gradphi)
+{
+  DM_PICell      *mesh = (DM_PICell *) dm->data;
+  PetscErrorCode ierr;
+  PetscInt dim;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
+
+
+
   PetscFunctionReturn(0);
 }
