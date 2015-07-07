@@ -595,55 +595,142 @@ PetscErrorCode SNESSetUpMatrices(SNES snes)
   PetscFunctionReturn(0);
 }
 
+
 #undef __FUNCT__
-#define __FUNCT__ "SNESConstraintCreateAugEmbeddings_Private"
-PetscErrorCode SNESConstraintCreateAugEmbeddings_Private(SNES snes,PetscBool create_func_emb,PetscBool create_constr_emb)
+#define __FUNCT__ "SNESConstraintCreateAugEmbeddings"
+/*@
+   SNESConstraintCreateAugEmbeddings - creates a pair of ISs embedding function and constraint function
+                                       into an augmented vector.
+
+   Collective
+
+   Input Arguments:
+.  snes - snes configured for the problem with constraints
+
+   Output Arguments:
++  func_aug_emb   - IS embedding function into augmented vector (or NULL, if not requested)
+-  constr_aug_emb - IS embedding constraints into augmented vector (or NULL, if not requested)
+
+   Notes: if either of the ISs pointed to is non-NULL, it is not created. Constraint embedding
+   is obtained from the DM, if possible. If only one of the ISs is non-NULL, the other is created
+   as its complement. Failing all of the above, the embeddings are created locally contiguous based
+   on the sizes of the primal and constraint vectors.
+
+   Level: developer
+
+.seealso: SNESConstraintSetUpVectors(), SNESConstraintSetAugEmbedding()
+@*/
+PetscErrorCode SNESConstraintCreateAugEmbeddings(SNES snes,IS *func_aug_emg,IS *constr_aug_emb)
 {
-  Vec            fvec,gvec,avec;
+  Vec            fvec,gvec;
   PetscInt       alo,ahi,flo,fhi,glo,ghi;
   MPI_Comm       comm;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  /*
+   Primal vector and constraint embedding (possibly, from a DM) or a primal vector and a constraint
+   vector are used to construnct the embeddings. Aug vector is not used at all.
+   */
+  /*
+   We are trying to create the ISs with the minimum of assumptions, so we
+   check whether Vecs are non-NULL only when necessary.
+   */
   ierr = PetscObjectGetComm((PetscObject)snes,&comm);CHKERRQ(ierr);
   fvec = snes->vec_func?snes->vec_func:snes->vec_sol;
   gvec = snes->vec_constr;
-  avec = snes->vec_func_aug;
-  ierr = VecGetOwnershipRange(fvec,&flo,&fhi);CHKERRQ(ierr);
-  ierr = VecGetOwnershipRange(gvec,&glo,&ghi);CHKERRQ(ierr);
-  ierr = VecGetOwnershipRange(avec,&alo,&ahi);CHKERRQ(ierr);
-  if (create_constr_emb) {
-    if (!snes->is_constr_aug) {
-      ierr = DMConstraintCreateAugSystem(snes->dm,NULL,NULL,&snes->is_func_aug);CHKERRQ(ierr);
+  if (constr_aug_emb) {
+    if(!*constr_aug_emb) {
+      ierr = DMConstraintCreateAugEmbedding(snes->dm,constr_aug_emb);CHKERRQ(ierr);
     }
-    if (snes->is_constr_aug && create_func_emb && !snes->is_func_aug) {
-      ierr = ISComplement(snes->is_constr_aug,alo,ahi,&snes->is_func_aug);CHKERRQ(ierr);
+    if (*constr_aug_emb) goto func;
+    if (!fvec) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Primal vector is NULL");
+    if (!gvec) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Constraint vector is NULL");
+    ierr = VecGetOwnershipRange(fvec,&flo,&fhi);CHKERRQ(ierr);
+    ierr = VecGetOwnershipRange(gvec,&glo,&ghi);CHKERRQ(ierr);
+    alo = flo+glo; ahi = fhi+ghi;
+    if (func_aug_emb && *func_aug_emb) {
+      ierr = ISComplement(*func_aug_emb,alo,ahi,constr_aug_emb);CHKERRQ(ierr);
     }
-    if (!snes->is_constr_aug) {
-      ierr = ISCreateStride(comm,ghi-glo,alo+(fhi-flo),1,&snes->is_constr_aug);CHKERRQ(ierr);
-      if (create_func_emb && !snes->is_func_aug) {
-	ierr = ISCreateStride(comm,fhi-flo,alo,1,&snes->is_func_aug);CHKERRQ(ierr);
-      }
+    if (*constr_aug_emb) goto func;
+    ierr = ISCreateStride(comm,ghi-glo,alo+(fhi-flo),1,constr_aug_emb);CHKERRQ(ierr);
+  }
+  func:
+  if (func_aug_emb) {
+    if (*func_aug_emb) goto end;
+    if (!fvec) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Primal vector is NULL");
+    if (!gvec) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Constraint vector is NULL");
+    ierr = VecGetOwnershipRange(fvec,&flo,&fhi);CHKERRQ(ierr);
+    ierr = VecGetOwnershipRange(gvec,&glo,&ghi);CHKERRQ(ierr);
+    alo = flo+glo; ahi = fhi+ghi;
+    if (constr_aug_emb && *constr_aug_emb) {
+      ierr = ISComplement(*const_aug_emb,alo,ahi,func_aug_emb);CHKERRQ(ierr);
+    }
+    if (!*func_aug_emb) {
+      ierr = ISCreateStride(comm,fhi-flo,alo,1,func_aug_emb);CHKERRQ(ierr);
     }
   }
+  end:
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "SNESConstraintDestroyAugEmbeddings_Private"
-PetscErrorCode SNESConstraintDestroyAugEmbeddings_Private(SNES snes)
+#define __FUNCT__ "SNESConstraintSetWorkVecs"
+/*@C
+   SNESConstraintSetWorkVecs - creates the work vectors for constraints and augmented system.
+
+   Collective
+
+   Input Arguments:
++  snes               - snes that defines the problem with constraints
+.  nwork              - number of primal work vectors requested
+.  nwork_constr       - number of constraint work vectors requested
+.  nwork_aug          - number of augmented work vectors requested
+                        as part of the setup, it should be kept, and not destroyed
+
+   Level: developer
+
+   Notes: when using this routine, there is no need to call SNESSetWorkVecs().
+   Essentially the same effect is achieved by passing in the corresponding nwork.
+
+.seealso: SNESConstraintSetAugSystem(), SNESConstraintGetAugSystem(), SNESConstraintSetUpConstraintMatrices()
+@*/
+PetscErrorCode SNESConstraintSetWorkVecs(SNES snes,PetscInt nwork,PetscInt nwork_constr,PetscInt nwork_aug)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = ISDestroy(&snes->is_func_aug);CHKERRQ(ierr);
-  if (!snes->user_constr_emb) {
-    /*
-      Destroy is_constr_aug only if it wasn't supplied by the user.
-      We keep the user-supplied IS in case it is ever requested in SNESConstraintGetAugSystem().
-      It would be nice to be able to reconstruct it from the IS.
-    */
-    ierr = ISDestroy(&snes->is_constr_aug);CHKERRQ(ierr);
+  ierr = SNESSetWorkVecs(snes,nwork);CHKERRQ(ierr);
+  if (nwork_constr) {
+    if (!snes->vec_constr) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"No constraint vector to build work vectors from");
+    ierr = VecDestroyVecs(snes->nwork_constr,snes->work_constr);CHKERRQ(ierr);
+    ierr = VecDuplicateVecs(snes->vec_constr,nwork_constr,&snes->work_constr);CHKERRQ(ierr);
+    snes->nwork_constr = nwork_constr;
+  }
+
+  if (nwork_aug) {
+    ierr = VecDestroyVecs(snes->nwork_aug,snes->vec_func_aug);CHKERRQ(ierr);
+    if (snes->vec_func_aug) {
+      ierr = VecDuplicateVecs(snes->vec_func_aug,nwork_aug,&snes->work_aug);CHKERRQ(ierr);
+    } else {
+      Vec fvec,gvec;
+      PetscInt n1,n2;
+
+      fvec = snes->vec_func?snes->vec_func:snes->vec_sol;
+      gvec = snes->vec_constr;
+      if (!fvec) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Primal vector is NULL");
+      if (!gvec) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Constraint vector is NULL");
+      ierr = VecGetLocalSize(snes->vec_func,&n1);CHKERRQ(ierr);
+      ierr = VecGetLocalSize(snes->vec_constr,&n2);CHKERRQ(ierr);
+      ierr = PetscMalloc1(nwork_aug,&snes->work_aug);CHKERRQ(ierr);
+      ierr = VecSetSizes(snes->work_aug[0],n1+n2,PETSC_DETERMINE);CHKERRQ(ierr);
+      ierr = VecSetType(snes->work_aug[0],((PetscObject)fvec)->type_name);CHKERRQ(ierr);
+      ierr = VecSetFromOptions(snes->work_aug[0]);CHKERRQ(ierr);
+      for (i = 1; i < nwork_aug; ++i) {
+        ierr = VecDuplicate(snes->work_aug[0],snes->work_aug+i);CHKERRQ(ierr);
+      }
+    }
+    snes->nwork_aug = nwork_aug;
   }
   PetscFunctionReturn(0);
 }
@@ -651,36 +738,24 @@ PetscErrorCode SNESConstraintDestroyAugEmbeddings_Private(SNES snes)
 #undef __FUNCT__
 #define __FUNCT__ "SNESConstraintSetUpVectors"
 /*@C
-   SNESConstraintSetUpVectors - creates the constraint function vector and augmented function vector and
-    the corresponding work vectors upon requests.
+   SNESConstraintSetUpVectors - creates the function vector, constraint function vector, the corresponding solution vectors.
 
    Collective
 
    Input Arguments:
-+  snes               - snes that defines the problem with constraints
-.  nwork              - number of primal work vectors
-.  setup_vec_constr   - whether to set up the constraint function vector
-.  nwork_constr       - number of constraint work vectors requested
-.  setup_vec_func_aug - whether to set up the augmented function vector
-.  nwork_aug          - number of augmented work vectors requested
--  keep_embeddings    - signals that if an IS embedding constraints into augmented vector is constructed
-                        as part of the setup, it should be kept, and not destroyed
+.  snes               - snes that defines the problem with constraints
 
    Level: developer
 
-   Notes: this will internally call SNESSetUpWorkWorkVecs() for the primal work vectors, if necessary.
-          The reason primal vectors are set up here is that snes->vec_func and snes->vec_sol might need to be
-	  constructed from the augmented vector.
-
-.seealso: SNESConstraintSetAugSystem(), SNESConstraintGetAugSystem(), SNESConstraintSetUpConstraintMatrices()
+.seealso: SNESConstraintSetUpConstraintMatrices()
 @*/
-PetscErrorCode SNESConstraintSetUpVectors(SNES snes,PetscInt nwork,PetscBool setup_vec_constr,PetscInt nwork_constr,PetscBool setup_vec_func_aug,PetscInt nwork_aug,PetscBool keep_embeddings)
+PetscErrorCode SNESConstraintSetUpVectors(SNES snes)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   /* first try to set up the constraint vector, since it only requires an embedding, if duplication doesn't work. */
-  if ((setup_vec_constr || nwork_constr) && !snes->vec_constr) {
+  if (!snes->vec_constr) {
     if (snes->vec_constrl) {
       ierr = VecDuplicate(snes->vec_constrl,&snes->vec_constr);CHKERRQ(ierr);
     } else if (snes->vec_constru) {
@@ -689,44 +764,64 @@ PetscErrorCode SNESConstraintSetUpVectors(SNES snes,PetscInt nwork,PetscBool set
       ierr = DMConstraintCreateVector(snes->dm,&snes->vec_constr);CHKERRQ(ierr);
     }
     if (!snes->vec_constr) {
-      if (!snes->is_constr_aug) {
-	/* Create constr --> aug embedding IS.  We only need the size. */
-	ierr = SNESConstraintCreateAugEmbeddings_Private(snes,PETSC_FALSE,PETSC_TRUE);CHKERRQ(ierr);
-      }
       if (!snes->is_constr_aug) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Could not duplicate or construct constraint vector: no congruent vector nor embedding IS set.");
-      PetscInt n;
-      VecType  type;
-      MPI_Comm comm;
-      ierr = PetscObjectGetComm((PetscObject)snes,&comm);CHKERRQ(ierr);
-      ierr = ISGetLocalSize(snes->is_constr_aug,&n);CHKERRQ(ierr);
-      ierr = VecCreate(comm,&snes->vec_constr);CHKERRQ(ierr);
-      ierr = VecSetSizes(snes->vec_constr,n,PETSC_DETERMINE);CHKERRQ(ierr);
-      if (snes->vec_func_aug) {
-	ierr = VecGetType(snes->vec_func_aug,&type);CHKERRQ(ierr);
-	ierr = VecSetType(snes->vec_constr,type);CHKERRQ(ierr);
-      } else if (snes->vec_func) {
-	ierr = VecGetType(snes->vec_func,&type);CHKERRQ(ierr);
-	ierr = VecSetType(snes->vec_constr,type);CHKERRQ(ierr);
-      } else if (snes->vec_sol) {
-	ierr = VecGetType(snes->vec_func,&type);CHKERRQ(ierr);
-	ierr = VecSetType(snes->vec_constr,type);CHKERRQ(ierr);
-      } else {
-	SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Cannot determine the type of constraint vector: neither primal nor augmented vectors are set up.");
+      else {
+        PetscInt n;
+        VecType  type;
+        MPI_Comm comm;
+
+        ierr = PetscObjectGetComm((PetscObject)snes,&comm);CHKERRQ(ierr);
+        ierr = ISGetLocalSize(snes->is_constr_aug,&n);CHKERRQ(ierr);
+        ierr = VecCreate(comm,&snes->vec_constr);CHKERRQ(ierr);
+        ierr = VecSetSizes(snes->vec_constr,n,PETSC_DETERMINE);CHKERRQ(ierr);
+        if (snes->vec_func_aug) {
+          ierr = VecGetType(snes->vec_func_aug,&type);CHKERRQ(ierr);
+          ierr = VecSetType(snes->vec_constr,type);CHKERRQ(ierr);
+        } else if (snes->vec_func) {
+          ierr = VecGetType(snes->vec_func,&type);CHKERRQ(ierr);
+          ierr = VecSetType(snes->vec_constr,type);CHKERRQ(ierr);
+        } else if (snes->vec_sol) {
+          ierr = VecGetType(snes->vec_func,&type);CHKERRQ(ierr);
+          ierr = VecSetType(snes->vec_constr,type);CHKERRQ(ierr);
+        } else {
+          ierr = VecSetType(snes->vec_constr,VECMPI);CHKERRQ(ierr);
+        }
+        ierr = PetscObjectAppendOptionsPrefix((PetscObject)snes->vec_constr,"constr_");CHKERRQ(ierr);
+        ierr = VecSetFromOptions(snes->vec_constr);CHKERRQ(ierr);
       }
-      ierr = PetscObjectAppendOptionsPrefix((PetscObject)snes->vec_constr,"constr_");CHKERRQ(ierr);
-      ierr = VecSetFromOptions(snes->vec_constr);CHKERRQ(ierr);
     }
   }
-  if (nwork_constr) {
-    ierr = VecDuplicateVecs(snes->vec_constr,nwork_constr,&snes->work_constr);CHKERRQ(ierr);
-    snes->nwork_constr = nwork_constr;
-  }
-  if (!setup_vec_constr) {
-    ierr = VecDestroy(&snes->vec_constr);CHKERRQ(ierr);
-  }
   /* bounds */
-  /* Extract from aug, if it is set. FIXME: what if xl,xu, etc. are set already? */
-  /* For now assume that having snes->vec_augl trumps everything else. */
+  /* Extract from aug, only if the constraints aren't already set. */
+   if (!snes->vec_constrl) {
+     if (snes->vec_augl) {
+       if (!snes->constr_aug_emb) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Cannot extract bounds from augmented vector: no embedding found");
+       else {
+        PetscInt n;
+        VecType  type;
+        MPI_Comm comm;
+
+        ierr = PetscObjectGetComm((PetscObject)snes,&comm);CHKERRQ(ierr);
+        ierr = ISGetLocalSize(snes->is_constr_aug,&n);CHKERRQ(ierr);
+        ierr = VecCreate(comm,&snes->vec_constr);CHKERRQ(ierr);
+        ierr = VecSetSizes(snes->vec_constr,n,PETSC_DETERMINE);CHKERRQ(ierr);
+        if (snes->vec_func_aug) {
+          ierr = VecGetType(snes->vec_func_aug,&type);CHKERRQ(ierr);
+          ierr = VecSetType(snes->vec_constr,type);CHKERRQ(ierr);
+        } else if (snes->vec_func) {
+          ierr = VecGetType(snes->vec_func,&type);CHKERRQ(ierr);
+          ierr = VecSetType(snes->vec_constr,type);CHKERRQ(ierr);
+        } else if (snes->vec_sol) {
+          ierr = VecGetType(snes->vec_func,&type);CHKERRQ(ierr);
+          ierr = VecSetType(snes->vec_constr,type);CHKERRQ(ierr);
+        } else {
+          ierr = VecSetType(snes->vec_constr,VECMPI);CHKERRQ(ierr);
+        }
+        ierr = PetscObjectAppendOptionsPrefix((PetscObject)snes->vec_constr,"constr_");CHKERRQ(ierr);
+        ierr = VecSetFromOptions(snes->vec_constr);CHKERRQ(ierr);
+       }
+     }
+  }
 
   /* func */
   if (!snes->vec_func) {
@@ -755,11 +850,8 @@ PetscErrorCode SNESConstraintSetUpVectors(SNES snes,PetscInt nwork,PetscBool set
     }
   }
   if (!snes->vec_func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Could not create function vector: calls to SNESSetFunction() and SNESConstraintSetAugFunction() both missing?");
-  if (nwork) {
-    ierr = SNESSetWorkVecs(snes,nwork);CHKERRQ(ierr);
-  }
   /* aug */
-  if (setup_vec_func_aug || nwork_aug) {
+  if (setup_vec_func_aug) {
     if (!snes->vec_func_aug) {
       ierr = DMConstraintCreateAugSystem(snes->dm,NULL,&snes->vec_func_aug,NULL);CHKERRQ(ierr);
     }
@@ -784,10 +876,6 @@ PetscErrorCode SNESConstraintSetUpVectors(SNES snes,PetscInt nwork,PetscBool set
     }
     ierr = VecSetFromOptions(snes->vec_func_aug);CHKERRQ(ierr);
   }
-  if (nwork_aug) {
-    ierr = VecDuplicateVecs(snes->vec_func_aug,nwork_aug,&snes->work_aug);CHKERRQ(ierr);
-  }
-  snes->nwork_aug = nwork_aug;
   if (snes->vec_func_aug && !setup_vec_func_aug) {
     ierr = VecDestroy(&snes->vec_func_aug);CHKERRQ(ierr);
   }
@@ -800,11 +888,11 @@ PetscErrorCode SNESConstraintSetUpVectors(SNES snes,PetscInt nwork,PetscBool set
 
 /*
   Creates scatters from primal and constraint function vectors into the augmented function vector.
-  All of the relevant vectors are expected to exist.
+  All of the relevant vectors and ISs are expected to exist.
  */
 #undef __FUNCT__
 #define __FUNCT__ "SNESConstraintSetUpAugScatters"
-PetscErrorCode SNESConstraintSetUpAugScatters(SNES snes,PetscBool keep_embeddings)
+PetscErrorCode SNESConstraintSetUpAugScatters(SNES snes)
 {
   PetscErrorCode ierr;
   Vec            fvec,gvec,avec;
@@ -821,12 +909,8 @@ PetscErrorCode SNESConstraintSetUpAugScatters(SNES snes,PetscBool keep_embedding
   if (!avec) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Cannot obtain an augmented function vector.  Perhaps missing a call to SNESConstraintSetAugSystem() or SNESConstraintSetUpVectors()?");
   ierr = VecGetOwnershipRange(fvec,&flo,&fhi);CHKERRQ(ierr);
   ierr = VecGetOwnershipRange(gvec,&glo,&ghi);CHKERRQ(ierr);
-  ierr = SNESConstraintCreateAugEmbeddings_Private(snes,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
   ierr = VecScatterCreate(avec,snes->is_func_aug,fvec,NULL,&snes->aug_to_func);CHKERRQ(ierr);
   ierr = VecScatterCreate(avec,snes->is_constr_aug,gvec,NULL,&snes->aug_to_constr);CHKERRQ(ierr);
-  if (!keep_embeddings) {
-    ierr = SNESConstraintDestroyAugEmbeddings_Private(snes);CHKERRQ(ierr);
-  }
   PetscFunctionReturn(0);
 }
 
@@ -1080,7 +1164,7 @@ PetscErrorCode SNESConstraintComputeJacobians(SNES snes,Vec x,MatReuse matreuse,
   PetscErrorCode ierr;
   DM             dm;
   DMSNES         dmsnes;
- 
+
   PetscFunctionBegin;
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMGetDMSNES(dm,&dmsnes);CHKERRQ(ierr);
