@@ -54,7 +54,7 @@
    SAWs functions are all collect in the SAWs namespace
 */
 var SAWs = {}
-
+var ind = 0;
 
 /*
   SAWs.getDirectory grabs the directories and variables listed in names  from the server
@@ -113,7 +113,7 @@ SAWs.getAndDisplayDirectory = function(names,divEntry){
                                       if (data != 0) {
                                           //jQuery("body").append("<br><br><h2>History Active</h2>");
                                           $("#variablesInfo").append("<br><br><button type=\"button\" name=\"history\" id=\"history\" class=\"btn btn-info btn-lg\">View History</button>");
-                                          $("#variablesInfo").append("<div class=\"modal fade\" id=\"myModal\" role=\"dialog\"> <div class\"modal-dialog\"><div class=\"modal-content\"><div class=\"modal-header\"><button type=\"button\" class=\"close\" data-dismiss=\"modal\">&times;</button><h4 class=\"modal-title\">History</h4></div><div class=\"modal-body\"><div id=\"dataS\"></div></div><div class=\"modal-footer\"><button type=\"button\" class=\"btn btn-default\" data-dismiss=\"modal\">Close</button></div></div></div></div>");
+                                          $("#variablesInfo").append("<div class=\"modal fade\" id=\"myModal\" role=\"dialog\"> <div class\"modal-dialog\"><div class=\"modal-content\"><div class=\"modal-header\"><button type=\"button\" class=\"close\" data-dismiss=\"modal\">&times;</button><h4 class=\"modal-title\">History</h4></div><div class=\"modal-body\"><div id=\"dataS\"></div><div id=\"Info\"></div></div><div class=\"modal-footer\"><button type=\"button\" class=\"btn btn-default\" data-dismiss=\"modal\">Close</button></div></div></div></div>");
 
                                           jQuery('#history').on('click', function(){
 
@@ -193,28 +193,11 @@ SAWs.tab = function(key,tab)
 SAWs.history = function (field){
 
  jQuery.getJSON('/SAWs/historyGet/' + field,function(data){
-
+                                                                    //alert("Action " + i + ": " + data);
+                                                                    $("#Info").html("");
                                                                     console.log("History_" + field + ": " + data);
-
-jQuery.each(data,function(key,value){
-
-        console.log("Key: " + key + " Value: " + value);
-
-        jQuery.each(data[key], function(vKey, vValue) {
-
-        console.log("Key: " + vKey + " Value: " + vValue);
-
-        })
-
-})
-
-
-
-
-
+                                                                    SAWs.displayDirectoryAsString(data.directories,"",0,"Info");
                                                                 })
-
-
 }
 
 SAWs.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
@@ -341,3 +324,127 @@ SAWs.updateDirectoryFromDisplayRecursive = function(sub,fullkey) {
                      }
                    })
 }
+
+SAWs.displayDirectoryAsString = function(sub,divEntry,tab,fullkey)
+     {
+
+         jQuery.each(sub,function(key,value){
+                  fullkey = fullkey+key;//key contains things such as "PETSc" or "Options"
+
+                  console.log(fullkey + " KEY");
+
+                  if(jQuery("#"+fullkey).length == 0){
+                      jQuery(divEntry).append("<div id =\""+fullkey+"\"></div>")
+                      if (key != "SAWs_ROOT_DIRECTORY") {
+
+                      }
+
+                      var descriptionSave = "";//saved description string because although the data is fetched: "description, -option, value" we wish to display it: "-option, value, description"
+                      var manualSave = ""; //saved manual text
+                      var mg_encountered = false;//record whether or not we have encountered pc=multigrid
+
+                      jQuery.each(sub[key].variables, function(vKey, vValue) {//for each variable...
+
+                          if (vKey.substring(0,2) == "__") // __Block variable
+                              return;
+                          //SAWs.tab(fullkey,tab+1);
+                          if (vKey[0] != '_') {//this chunk  of code adds the option name
+                              if(vKey.indexOf("prefix") != -1 && sub[key].variables[vKey].data[0] == "(null)")
+                                  return;//do not display (null) prefix
+
+                              if(vKey.indexOf("prefix") != -1) //prefix text
+                                  $("#"+fullkey).append(vKey + ":&nbsp;");
+                                  //var newindex = ind - 1;
+                                  //$("#demo" + newindex).append(vKey + ":&nbsp;");
+                              else if(vKey.indexOf("ChangedMethod") == -1 && vKey.indexOf("StopAsking") == -1) { //options text
+                                  //options text is a link to the appropriate manual page
+
+                                  var manualDirectory = "all"; //this directory does not exist yet so links will not work for now
+                                  console.log(ind);
+                                  //$("#"+fullkey).append("<br><a href=\"http://www.mcs.anl.gov/petsc/petsc-dev/docs/manualpages/" +  manualDirectory + "/" + manualSave + ".html\" title=\"" + descriptionSave + "\" id=\"data"+fullkey+vKey+j+"\">"+vKey+"&nbsp</a>");
+                                  var newindex = ind - 1;
+                                  $("#coldiv" + newindex).append("<br><a href=\"http://www.mcs.anl.gov/petsc/petsc-dev/docs/manualpages/" +  manualDirectory + "/" + manualSave + ".html\" title=\"" + descriptionSave + "\" id=\"data"+fullkey+vKey+j+"\">"+vKey+"&nbsp</a>");
+                              }
+                          }
+
+                          for(j=0;j<sub[key].variables[vKey].data.length;j++){//vKey tells us a lot of information on what the data is. data.length is 1 most of the time. when it is more than 1, that results in 2 input boxes right next to each other
+
+                              if(vKey.indexOf("man") != -1) {//do not display manual, but record the text
+                                  manualSave = sub[key].variables[vKey].data[j];
+                                  continue;
+                              }
+
+                              if(vKey.indexOf("title") != -1) {//display title in center
+
+                                  if (title != sub[key].variables[vKey].data[j]) {
+
+                                      $("#Info").append("<br><div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
+
+                                      ind = ind + 1;
+                                  } else {
+                                      var newindex = ind - 1;
+                                      $("#buttonarea" + newindex).remove();
+                                      $("#Info").append("<div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
+                                      ind = ind + 1;
+                                  }
+
+
+                                  continue;
+                              }
+
+                              if(sub[key].variables[vKey].alternatives.length == 0) {//case where there are no alternatives
+                                  if(sub[key].variables[vKey].dtype == "SAWs_BOOLEAN") {
+
+                                      console.log("A: " + fullkey)
+                                      var newindex = ind - 1;
+                                      $("#coldiv" + newindex).append("<select id=\"data"+fullkey+vKey+j+"\">");//make the boolean dropdown list.
+                                      console.log("Test_Check:" + fullkey+vKey+j);
+                                      $("#data"+fullkey+vKey+j).append("<option value=\"true\">True</option> <option value=\"false\">False</option>");
+                                      if(vKey == "ChangedMethod" || vKey == "StopAsking") {//do not show changedmethod nor stopasking to user
+                                          $("#data"+fullkey+vKey+j).attr("hidden",true);
+                                      }
+
+                                  } else {
+                                      if(sub[key].variables[vKey].mtype != "SAWs_WRITE") {
+
+                                          descriptionSave = sub[key].variables[vKey].data[j];
+
+                                          if(vKey.indexOf("prefix") != -1)  {
+
+                                             var newindex = ind - 1;
+                                             $("#coldiv" + newindex).append("<a style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\">"+sub[key].variables[vKey].data[j]+"</a><br>");
+
+                                          }
+                                      }
+                                      else {//can be changed (append dropdown list)
+                                          var newindex = ind - 1;
+
+                                          $("#coldiv" + newindex).append("<input type=\"text\" style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>");
+
+                                      }
+                                      jQuery("#data"+fullkey+vKey+j).keyup(function(obj) {
+                                          console.log( "Key up called "+key+vKey );
+                                          sub[key].variables[vKey].selected = 1;
+                                          $("#data"+fullkey+"ChangedMethod0").find("option[value='true']").attr("selected","selected");//set changed to true automatically
+                                      });
+                                  }
+                                  jQuery("#data"+fullkey+vKey+j).val(sub[key].variables[vKey].data[j]);//set val from server
+                                  if(vKey != "ChangedMethod") {
+                                      jQuery("#data"+fullkey+vKey+j).change(function(obj) {
+                                          sub[key].variables[vKey].selected = 1;
+                                          $("#data"+fullkey+"ChangedMethod0").find("option[value='true']").attr("selected","selected");//set changed to true automatically
+                                      });
+                                  }
+                              } else {//case where there are alternatives
+
+                              }
+
+                          }
+                      });
+
+                      if(typeof sub[key].directories != 'undefined'){
+                          SAWs.displayDirectoryAsString(sub[key].directories,divEntry,tab+1,fullkey);
+                       }
+                  }
+              });
+          }

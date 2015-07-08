@@ -38,7 +38,7 @@ PETSc.getAndDisplayDirectory = function(names,divEntry){
         $("body").append("<div id=\"optionarea\" class=\"container\"><h3>Step 1</h3><div class=\"well\"><label>Please select your configuration set up: </label> <select id=\"mode\"><option value=\"0\">Basic</option> <option value=\"1\">All</option></select> <input type=\"button\" value=\"Go!\" id=\"go\"></div></div>")
 
         $("#optionarea").append("<br><br><button type=\"button\" name=\"history\" id=\"history\" class=\"btn btn-info btn-lg\">View History</button>");
-        $("#optionarea").append("<div class=\"modal fade\" id=\"myModal\" role=\"dialog\"> <div class\"modal-dialog\"><div class=\"modal-content\"><div class=\"modal-header\"><button type=\"button\" class=\"close\" data-dismiss=\"modal\">&times;</button><h4 class=\"modal-title\">History</h4></div><div class=\"modal-body\"><div id=\"dataS\"></div></div><div class=\"modal-footer\"><button type=\"button\" class=\"btn btn-default\" data-dismiss=\"modal\">Close</button></div></div></div></div>");
+        $("#optionarea").append("<div class=\"modal fade\" id=\"myModal\" role=\"dialog\"> <div class\"modal-dialog\"><div class=\"modal-content\"><div class=\"modal-header\"><button type=\"button\" class=\"close\" data-dismiss=\"modal\">&times;</button><h4 class=\"modal-title\">History</h4></div><div class=\"modal-body\"><div id=\"dataS\"></div><div id=\"Info\"></div></div><div class=\"modal-footer\"><button type=\"button\" class=\"btn btn-default\" data-dismiss=\"modal\">Close</button></div></div></div></div>");
 
 
         jQuery('#go').on('click', function(){
@@ -111,9 +111,14 @@ PETSc.history = function (field){
 
 //alert(field);
 
+
+
+
  jQuery.getJSON('/SAWs/historyGet/' + field,function(data){
                                                                     //alert("Action " + i + ": " + data);
+                                                                    $("#Info").html("");
                                                                     console.log("History_" + field + ": " + data);
+                                                                    PETSc.displayDirectoryAsString(data.directories,"",0,"Info");
                                                                 })
 
 
@@ -208,163 +213,280 @@ PETSc.displayDirectory = function(sub,divEntry)
  */
 
 PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
-{
-    jQuery.each(sub,function(key,value){
-        fullkey = fullkey+key;//key contains things such as "PETSc" or "Options"
+ {
+     jQuery.each(sub,function(key,value){
+         fullkey = fullkey+key;//key contains things such as "PETSc" or "Options"
 
-        console.log(fullkey + " KEY");
+         console.log(fullkey + " KEY");
 
-        if(jQuery("#"+fullkey).length == 0){
-            jQuery(divEntry).append("<div id =\""+fullkey+"\"></div>")
-            if (key != "SAWs_ROOT_DIRECTORY") {
-                //SAWs.tab(fullkey,tab);
-	        //jQuery("#"+fullkey).append("<b>"+ key +"<b><br>");//do not display "PETSc" nor "Options"
-            }
-
-            var descriptionSave = "";//saved description string because although the data is fetched: "description, -option, value" we wish to display it: "-option, value, description"
-            var manualSave = ""; //saved manual text
-            var mg_encountered = false;//record whether or not we have encountered pc=multigrid
-
-            jQuery.each(sub[key].variables, function(vKey, vValue) {//for each variable...
-
-                if (vKey.substring(0,2) == "__") // __Block variable
-                    return;
-                //SAWs.tab(fullkey,tab+1);
-                if (vKey[0] != '_') {//this chunk  of code adds the option name
-                    if(vKey.indexOf("prefix") != -1 && sub[key].variables[vKey].data[0] == "(null)")
-                        return;//do not display (null) prefix
-
-                    if(vKey.indexOf("prefix") != -1) //prefix text
-                        $("#"+fullkey).append(vKey + ":&nbsp;");
-                        //var newindex = ind - 1;
-                        //$("#demo" + newindex).append(vKey + ":&nbsp;");
-                    else if(vKey.indexOf("ChangedMethod") == -1 && vKey.indexOf("StopAsking") == -1) { //options text
-                        //options text is a link to the appropriate manual page
-
-                        var manualDirectory = "all"; //this directory does not exist yet so links will not work for now
-                        console.log(ind);
-                        //$("#"+fullkey).append("<br><a href=\"http://www.mcs.anl.gov/petsc/petsc-dev/docs/manualpages/" +  manualDirectory + "/" + manualSave + ".html\" title=\"" + descriptionSave + "\" id=\"data"+fullkey+vKey+j+"\">"+vKey+"&nbsp</a>");
-                        var newindex = ind - 1;
-                        $("#coldiv" + newindex).append("<br><a href=\"http://www.mcs.anl.gov/petsc/petsc-dev/docs/manualpages/" +  manualDirectory + "/" + manualSave + ".html\" title=\"" + descriptionSave + "\" id=\"data"+fullkey+vKey+j+"\">"+vKey+"&nbsp</a>");
-                    }
-                }
-
-                for(j=0;j<sub[key].variables[vKey].data.length;j++){//vKey tells us a lot of information on what the data is. data.length is 1 most of the time. when it is more than 1, that results in 2 input boxes right next to each other
-
-                    if(vKey.indexOf("man") != -1) {//do not display manual, but record the text
-                        manualSave = sub[key].variables[vKey].data[j];
-                        continue;
-                    }
-
-                    if(vKey.indexOf("title") != -1) {//display title in center
-
-                        if (title != sub[key].variables[vKey].data[j]) {
-                            console.log("<---------------------------------------------->");
-                            if (ind == 0) {
-                              $("body").append("<br><div id=\"buttonarea" + ind + "\" class=\"container\"><h3>Step 2</h3><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
-                            } else {
-                              $("body").append("<br><div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
-                            }
-                            ind = ind + 1;
-                            title = sub[key].variables[vKey].data[j];
-                        } else {
-                            console.log("<---------------------------------------------->");
-                            var newindex = ind - 1;
-                            $("#buttonarea" + newindex).remove();
-                            $("body").append("<div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
-                            ind = ind + 1;
-                            title = sub[key].variables[vKey].data[j];
-                        }
-
-
-                        continue;
-                    }
-
-                    if(sub[key].variables[vKey].alternatives.length == 0) {//case where there are no alternatives
-                        if(sub[key].variables[vKey].dtype == "SAWs_BOOLEAN") {
-
-                            console.log("A: " + fullkey)
-                            var newindex = ind - 1;
-                            $("#coldiv" + newindex).append("<select id=\"data"+fullkey+vKey+j+"\">");//make the boolean dropdown list.
-                            console.log("Test_Check:" + fullkey+vKey+j);
-                            $("#data"+fullkey+vKey+j).append("<option value=\"true\">True</option> <option value=\"false\">False</option>");
-                            if(vKey == "ChangedMethod" || vKey == "StopAsking") {//do not show changedmethod nor stopasking to user
-                                $("#data"+fullkey+vKey+j).attr("hidden",true);
-                            }
-
-                        } else {
-                            if(sub[key].variables[vKey].mtype != "SAWs_WRITE") {
-
-                                descriptionSave = sub[key].variables[vKey].data[j];
-
-                                if(vKey.indexOf("prefix") != -1)  {
-
-                                   var newindex = ind - 1;
-                                   $("#coldiv" + newindex).append("<a style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\">"+sub[key].variables[vKey].data[j]+"</a><br>");
-
-                                }
-                            }
-                            else {//can be changed (append dropdown list)
-                                var newindex = ind - 1;
-
-                                $("#coldiv" + newindex).append("<input type=\"text\" style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>");
-
-                            }
-                            jQuery("#data"+fullkey+vKey+j).keyup(function(obj) {
-                                console.log( "Key up called "+key+vKey );
-                                sub[key].variables[vKey].selected = 1;
-                                $("#data"+fullkey+"ChangedMethod0").find("option[value='true']").attr("selected","selected");//set changed to true automatically
-                            });
-                        }
-                        jQuery("#data"+fullkey+vKey+j).val(sub[key].variables[vKey].data[j]);//set val from server
-                        if(vKey != "ChangedMethod") {
-                            jQuery("#data"+fullkey+vKey+j).change(function(obj) {
-                                sub[key].variables[vKey].selected = 1;
-                                $("#data"+fullkey+"ChangedMethod0").find("option[value='true']").attr("selected","selected");//set changed to true automatically
-                            });
-                        }
-                    } else {//case where there are alternatives
-                        /*
-                        jQuery("#"+fullkey).append("<select id=\"data"+fullkey+vKey+j+"\">");
-                        jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].data[j]+"\">"+sub[key].variables[vKey].data[j]+"</option>");
-                        for(var l=0;l<sub[key].variables[vKey].alternatives.length;l++) {
-                            jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].alternatives[l]+"\">"+sub[key].variables[vKey].alternatives[l]+"</option>");
-                        }
-                        jQuery("#"+fullkey).append("</select>");
-
-                        jQuery("#data"+fullkey+vKey+j).change(function(obj) {
-                            sub[key].variables[vKey].selected = 1;
-                            $("#data"+fullkey+"ChangedMethod0").find("option[value='true']").attr("selected","selected");//set changed to true automatically
-                            var id = "data"+fullkey+vKey+j;
-                            if(id.indexOf("type") != -1) {//if some type variable changed, then act as if continue button was clicked
-                                $("#continue").trigger("click");
-                            }
-                        });
-                        */
-                        var newindex = ind - 1;
-                        jQuery("#coldiv" + newindex).append("<select id=\"data"+fullkey+vKey+j+"\">");
-
-                                                jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].data[j]+"\">"+sub[key].variables[vKey].data[j]+"</option>");
-                                                for(var l=0;l<sub[key].variables[vKey].alternatives.length;l++) {
-                                                    jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].alternatives[l]+"\">"+sub[key].variables[vKey].alternatives[l]+"</option>");
-                                                }
-                                                jQuery("#coldiv" + newindex).append("</select>");
-
-                                                jQuery("#data"+fullkey+vKey+j).change(function(obj) {
-                                                    sub[key].variables[vKey].selected = 1;
-                                                    $("#data"+fullkey+"ChangedMethod0").find("option[value='true']").attr("selected","selected");//set changed to true automatically
-                                                    var id = "data"+fullkey+vKey+j;
-                                                    if(id.indexOf("type") != -1) {//if some type variable changed, then act as if continue button was clicked
-                                                        $("#continue").trigger("click");
-                                                    }
-                       });
-                    }
-                }
-            });
-
-            if(typeof sub[key].directories != 'undefined'){
-                PETSc.displayDirectoryRecursive(sub[key].directories,divEntry,tab+1,fullkey);
+         if(jQuery("#"+fullkey).length == 0){
+             jQuery(divEntry).append("<div id =\""+fullkey+"\"></div>")
+             if (key != "SAWs_ROOT_DIRECTORY") {
+                 //SAWs.tab(fullkey,tab);
+ 	        //jQuery("#"+fullkey).append("<b>"+ key +"<b><br>");//do not display "PETSc" nor "Options"
              }
-        }
-    });
-}
+
+             var descriptionSave = "";//saved description string because although the data is fetched: "description, -option, value" we wish to display it: "-option, value, description"
+             var manualSave = ""; //saved manual text
+             var mg_encountered = false;//record whether or not we have encountered pc=multigrid
+
+             jQuery.each(sub[key].variables, function(vKey, vValue) {//for each variable...
+
+                 if (vKey.substring(0,2) == "__") // __Block variable
+                     return;
+                 //SAWs.tab(fullkey,tab+1);
+                 if (vKey[0] != '_') {//this chunk  of code adds the option name
+                     if(vKey.indexOf("prefix") != -1 && sub[key].variables[vKey].data[0] == "(null)")
+                         return;//do not display (null) prefix
+
+                     if(vKey.indexOf("prefix") != -1) //prefix text
+                         $("#"+fullkey).append(vKey + ":&nbsp;");
+                         //var newindex = ind - 1;
+                         //$("#demo" + newindex).append(vKey + ":&nbsp;");
+                     else if(vKey.indexOf("ChangedMethod") == -1 && vKey.indexOf("StopAsking") == -1) { //options text
+                         //options text is a link to the appropriate manual page
+
+                         var manualDirectory = "all"; //this directory does not exist yet so links will not work for now
+                         console.log(ind);
+                         //$("#"+fullkey).append("<br><a href=\"http://www.mcs.anl.gov/petsc/petsc-dev/docs/manualpages/" +  manualDirectory + "/" + manualSave + ".html\" title=\"" + descriptionSave + "\" id=\"data"+fullkey+vKey+j+"\">"+vKey+"&nbsp</a>");
+                         var newindex = ind - 1;
+                         $("#coldiv" + newindex).append("<br><a href=\"http://www.mcs.anl.gov/petsc/petsc-dev/docs/manualpages/" +  manualDirectory + "/" + manualSave + ".html\" title=\"" + descriptionSave + "\" id=\"data"+fullkey+vKey+j+"\">"+vKey+"&nbsp</a>");
+                     }
+                 }
+
+                 for(j=0;j<sub[key].variables[vKey].data.length;j++){//vKey tells us a lot of information on what the data is. data.length is 1 most of the time. when it is more than 1, that results in 2 input boxes right next to each other
+
+                     if(vKey.indexOf("man") != -1) {//do not display manual, but record the text
+                         manualSave = sub[key].variables[vKey].data[j];
+                         continue;
+                     }
+
+                     if(vKey.indexOf("title") != -1) {//display title in center
+
+                         if (title != sub[key].variables[vKey].data[j]) {
+                             console.log("<---------------------------------------------->");
+                             if (ind == 0) {
+                               $("body").append("<br><div id=\"buttonarea" + ind + "\" class=\"container\"><h3>Step 2</h3><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
+                             } else {
+                               $("body").append("<br><div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
+                             }
+                             ind = ind + 1;
+                             title = sub[key].variables[vKey].data[j];
+                         } else {
+                             console.log("<---------------------------------------------->");
+                             var newindex = ind - 1;
+                             $("#buttonarea" + newindex).remove();
+                             $("body").append("<div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
+                             ind = ind + 1;
+                             title = sub[key].variables[vKey].data[j];
+                         }
+
+
+                         continue;
+                     }
+
+                     if(sub[key].variables[vKey].alternatives.length == 0) {//case where there are no alternatives
+                         if(sub[key].variables[vKey].dtype == "SAWs_BOOLEAN") {
+
+                             console.log("A: " + fullkey)
+                             var newindex = ind - 1;
+                             $("#coldiv" + newindex).append("<select id=\"data"+fullkey+vKey+j+"\">");//make the boolean dropdown list.
+                             console.log("Test_Check:" + fullkey+vKey+j);
+                             $("#data"+fullkey+vKey+j).append("<option value=\"true\">True</option> <option value=\"false\">False</option>");
+                             if(vKey == "ChangedMethod" || vKey == "StopAsking") {//do not show changedmethod nor stopasking to user
+                                 $("#data"+fullkey+vKey+j).attr("hidden",true);
+                             }
+
+                         } else {
+                             if(sub[key].variables[vKey].mtype != "SAWs_WRITE") {
+
+                                 descriptionSave = sub[key].variables[vKey].data[j];
+
+                                 if(vKey.indexOf("prefix") != -1)  {
+
+                                    var newindex = ind - 1;
+                                    $("#coldiv" + newindex).append("<a style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\">"+sub[key].variables[vKey].data[j]+"</a><br>");
+
+                                 }
+                             }
+                             else {//can be changed (append dropdown list)
+                                 var newindex = ind - 1;
+
+                                 $("#coldiv" + newindex).append("<input type=\"text\" style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>");
+
+                             }
+                             jQuery("#data"+fullkey+vKey+j).keyup(function(obj) {
+                                 console.log( "Key up called "+key+vKey );
+                                 sub[key].variables[vKey].selected = 1;
+                                 $("#data"+fullkey+"ChangedMethod0").find("option[value='true']").attr("selected","selected");//set changed to true automatically
+                             });
+                         }
+                         jQuery("#data"+fullkey+vKey+j).val(sub[key].variables[vKey].data[j]);//set val from server
+                         if(vKey != "ChangedMethod") {
+                             jQuery("#data"+fullkey+vKey+j).change(function(obj) {
+                                 sub[key].variables[vKey].selected = 1;
+                                 $("#data"+fullkey+"ChangedMethod0").find("option[value='true']").attr("selected","selected");//set changed to true automatically
+                             });
+                         }
+                     } else {//case where there are alternatives
+                         /*
+                         jQuery("#"+fullkey).append("<select id=\"data"+fullkey+vKey+j+"\">");
+                         jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].data[j]+"\">"+sub[key].variables[vKey].data[j]+"</option>");
+                         for(var l=0;l<sub[key].variables[vKey].alternatives.length;l++) {
+                             jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].alternatives[l]+"\">"+sub[key].variables[vKey].alternatives[l]+"</option>");
+                         }
+                         jQuery("#"+fullkey).append("</select>");
+
+                         jQuery("#data"+fullkey+vKey+j).change(function(obj) {
+                             sub[key].variables[vKey].selected = 1;
+                             $("#data"+fullkey+"ChangedMethod0").find("option[value='true']").attr("selected","selected");//set changed to true automatically
+                             var id = "data"+fullkey+vKey+j;
+                             if(id.indexOf("type") != -1) {//if some type variable changed, then act as if continue button was clicked
+                                 $("#continue").trigger("click");
+                             }
+                         });
+                         */
+                         var newindex = ind - 1;
+                         jQuery("#coldiv" + newindex).append("<select id=\"data"+fullkey+vKey+j+"\">");
+
+                                                 jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].data[j]+"\">"+sub[key].variables[vKey].data[j]+"</option>");
+                                                 for(var l=0;l<sub[key].variables[vKey].alternatives.length;l++) {
+                                                     jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].alternatives[l]+"\">"+sub[key].variables[vKey].alternatives[l]+"</option>");
+                                                 }
+                                                 jQuery("#coldiv" + newindex).append("</select>");
+
+                                                 jQuery("#data"+fullkey+vKey+j).change(function(obj) {
+                                                     sub[key].variables[vKey].selected = 1;
+                                                     $("#data"+fullkey+"ChangedMethod0").find("option[value='true']").attr("selected","selected");//set changed to true automatically
+                                                     var id = "data"+fullkey+vKey+j;
+                                                     if(id.indexOf("type") != -1) {//if some type variable changed, then act as if continue button was clicked
+                                                         $("#continue").trigger("click");
+                                                     }
+                        });
+                     }
+                 }
+             });
+
+             if(typeof sub[key].directories != 'undefined'){
+                 PETSc.displayDirectoryRecursive(sub[key].directories,divEntry,tab+1,fullkey);
+              }
+         }
+     });
+ }
+
+
+PETSc.displayDirectoryAsString = function(sub,divEntry,tab,fullkey)
+ {
+
+     jQuery.each(sub,function(key,value){
+              fullkey = fullkey+key;
+              console.log(fullkey + " KEY");
+              if(jQuery("#"+fullkey).length == 0){
+                  jQuery(divEntry).append("<div id =\""+fullkey+"\"></div>")
+                  if (key != "SAWs_ROOT_DIRECTORY") {
+
+                  }
+
+                  var descriptionSave = ""; var manualSave = ""; var mg_encountered = false;
+                  jQuery.each(sub[key].variables, function(vKey, vValue) {
+
+                      if (vKey.substring(0,2) == "__") // __Block variable
+                          return;
+                      if (vKey[0] != '_') {
+                          if(vKey.indexOf("prefix") != -1 && sub[key].variables[vKey].data[0] == "(null)")
+                              return;
+
+                          if(vKey.indexOf("prefix") != -1)
+                              $("#"+fullkey).append(vKey + ":&nbsp;");
+
+                          else if(vKey.indexOf("ChangedMethod") == -1 && vKey.indexOf("StopAsking") == -1) {
+
+                              var manualDirectory = "all"; var newindex = ind - 1;
+                              $("#coldiv" + newindex).append("<br><a href=\"http://www.mcs.anl.gov/petsc/petsc-dev/docs/manualpages/" +  manualDirectory + "/" + manualSave + ".html\" title=\"" + descriptionSave + "\" id=\"data"+fullkey+vKey+j+"\">"+vKey+"&nbsp</a>");
+                          }
+                      }
+
+                      for(j=0;j<sub[key].variables[vKey].data.length;j++){
+                          if(vKey.indexOf("man") != -1) {
+                              manualSave = sub[key].variables[vKey].data[j];
+                              continue;
+                          }
+
+                          if(vKey.indexOf("title") != -1) {
+
+                              if (title != sub[key].variables[vKey].data[j]) {
+
+                                  $("#Info").append("<br><div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
+
+                                  ind = ind + 1;
+
+                              } else {
+                                  var newindex = ind - 1;
+                                  $("#buttonarea" + newindex).remove();
+                                  $("#Info").append("<div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
+                                  ind = ind + 1;
+                              }
+
+
+                              continue;
+                          }
+
+                          if(sub[key].variables[vKey].alternatives.length == 0) {//case where there are no alternatives
+                              if(sub[key].variables[vKey].dtype == "SAWs_BOOLEAN") {
+
+                                  console.log("A: " + fullkey)
+                                  var newindex = ind - 1;
+                                  $("#coldiv" + newindex).append("<select id=\"data"+fullkey+vKey+j+"\">");//make the boolean dropdown list.
+                                  console.log("Test_Check:" + fullkey+vKey+j);
+                                  $("#data"+fullkey+vKey+j).append("<option value=\"true\">True</option> <option value=\"false\">False</option>");
+                                  if(vKey == "ChangedMethod" || vKey == "StopAsking") {//do not show changedmethod nor stopasking to user
+                                      $("#data"+fullkey+vKey+j).attr("hidden",true);
+                                  }
+
+                              } else {
+                                  if(sub[key].variables[vKey].mtype != "SAWs_WRITE") {
+
+                                      descriptionSave = sub[key].variables[vKey].data[j];
+
+                                      if(vKey.indexOf("prefix") != -1)  {
+
+                                         var newindex = ind - 1;
+                                         $("#coldiv" + newindex).append("<a style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\">"+sub[key].variables[vKey].data[j]+"</a><br>");
+
+                                      }
+                                  }
+                                  else {//can be changed (append dropdown list)
+                                      var newindex = ind - 1;
+
+                                      $("#coldiv" + newindex).append("<input type=\"text\" style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>");
+
+                                  }
+
+                              }
+                              jQuery("#data"+fullkey+vKey+j).val(sub[key].variables[vKey].data[j]);//set val from server
+                              if(vKey != "ChangedMethod") {
+
+                              }
+                          } else {
+
+                              var newindex = ind - 1;
+                              jQuery("#coldiv" + newindex).append("<select id=\"data"+fullkey+vKey+j+"\">");
+
+                                                      jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].data[j]+"\">"+sub[key].variables[vKey].data[j]+"</option>");
+                                                      for(var l=0;l<sub[key].variables[vKey].alternatives.length;l++) {
+                                                          jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].alternatives[l]+"\">"+sub[key].variables[vKey].alternatives[l]+"</option>");
+                                                      }
+                                                      jQuery("#coldiv" + newindex).append("</select>");
+
+
+
+                          }
+                      }
+                  });
+
+                  if(typeof sub[key].directories != 'undefined'){
+                      PETSc.displayDirectoryAsString(sub[key].directories,divEntry,tab+1,fullkey);
+                   }
+              }
+          });
+      }
