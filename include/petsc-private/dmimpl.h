@@ -54,7 +54,7 @@ struct _DMOps {
 
   PetscErrorCode (*constraintcreatematrix)(DM,Mat*);
   PetscErrorCode (*constraintcreatevector)(DM,Vec*);
-  PetscErrorCode (*constraintcreateaugvec)(DM,Vec*);
+  PetscErrorCode (*constraintcreateaugvector)(DM,Vec*);
   PetscErrorCode (*constraintcreateaugmatrix)(DM,Mat*);
   PetscErrorCode (*constraintcreateaugembedding)(DM,IS*);
 };

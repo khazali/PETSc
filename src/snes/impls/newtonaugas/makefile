@@ -3,12 +3,12 @@ ALL: lib
 
 CFLAGS   =
 FFLAGS   =
-SOURCEC  = newtonas.c
+SOURCEC  = newtonaugas.c
 SOURCEF  =
-SOURCEH  = newtonasimpl.h
+SOURCEH  = newtonaugasimpl.h
 LIBBASE  = libpetscsnes
 MANSEC   = SNES
-LOCDIR   = src/snes/impls/newtonas/
+LOCDIR   = src/snes/impls/newtonaugas/
 
 include ${PETSC_DIR}/conf/variables
 include ${PETSC_DIR}/conf/rules

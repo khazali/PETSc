@@ -1,5 +1,5 @@
 
-#include <../src/snes/impls/newtonas/newtonasimpl.h> /*I "petscsnes.h" I*/
+#include <../src/snes/impls/newtonaugas/newtonaugasimpl.h> /*I "petscsnes.h" I*/
 #include <petsc-private/snesimpl.h>
 #include <petsc-private/kspimpl.h>
 #include <petsc-private/matimpl.h>
@@ -297,7 +297,7 @@ static PetscErrorCode SNESNEWTONAUGASComputeSearchDirectionSaddle_Private(SNES s
     ierr = PetscObjectPrependOptionsPrefix((PetscObject)newtas->ksp_raug,"newtonas_raug_");CHKERRQ(ierr);
     ierr = KSPSetFromOptions(newtas->ksp_raug);CHKERRQ(ierr);
   }
-  ierr = KSPSetOperators(newtas->ksp_raug,newtas->jacobian_raug,newtas->jacobian_raug_pre);CHKERRQ(ierr);
+  ierr = KSPSetOperators(newtas->ksp_raug,newtas->J_raug,newtas->J_raug_pre);CHKERRQ(ierr);
   ierr = KSPSetUp(newtas->ksp_raug);CHKERRQ(ierr);
   if (snes->jacobian_constrt) {
     ierr = MatMult(snes->jacobian_constrt,l,g);CHKERRQ(ierr);
@@ -307,9 +307,9 @@ static PetscErrorCode SNESNEWTONAUGASComputeSearchDirectionSaddle_Private(SNES s
   ierr = VecAXPY(g,1.0,f);CHKERRQ(ierr);
   ierr = VecScale(g,-1.0);CHKERRQ(ierr);
   ierr = SNESConstraintAugGather(snes,f_aug,g,NULL);CHKERRQ(ierr);
-  ierr = KSPSolve(newtas->ksp_aug,f_aug,dx_aug);CHKERRQ(ierr);
+  ierr = KSPSolve(newtas->ksp_raug,f_aug,dx_aug);CHKERRQ(ierr);
   ierr = SNESConstraintAugScatter(snes,dx_aug,snes->vec_sol_update,newtas->vec_sol_lambda_update);CHKERRQ(ierr);
-  ierr = KSPGetConvergedReason(newtas->ksp_aug,&kspreason);CHKERRQ(ierr);
+  ierr = KSPGetConvergedReason(newtas->ksp_raug,&kspreason);CHKERRQ(ierr);
   if (kspreason < 0) {
     if (++snes->numLinearSolveFailures >= snes->maxLinearSolveFailures) {
       ierr         = PetscInfo2(snes,"iter=%D, number linear solve failures %D greater than current SNES allowed, stopping solve\n",snes->iter,snes->numLinearSolveFailures);CHKERRQ(ierr);
@@ -565,7 +565,7 @@ PetscErrorCode SNESSolve_NEWTONAS(SNES snes)
 	    active = new_active; new_active = NULL;
       }
       switch (newtas->type) {
-      case SNESNEWTONAUGAS_SADDLE_FULL:
+      case SNESNEWTONAUGAS_SADDLE:
 	ierr = ISGetLocalSize(active,&nactive);CHKERRQ(ierr);
 	ierr = ISGetIndices(active,&iactive);CHKERRQ(ierr);
 	ierr = VecGetArray(l,&larray);CHKERRQ(ierr);
@@ -784,7 +784,8 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAUGAS(SNES snes)
   if (!newtas->type) {
     ierr = SNESNEWTONAUGASSetType(snes,SNESNEWTONAUGAS_SADDLE);CHKERRQ(ierr);
   }
-  ierr = SNESConstraintSetUpVectors(snes,SNES_NEWTONAS_WORK_N,PETSC_TRUE,SNES_NEWTONAS_WORK_CONSTR_N,PETSC_TRUE,SNES_NEWTONAS_WORK_AUG_N,PETSC_TRUE);CHKERRQ(ierr);
+  ierr = SNESConstraintSetUpVectors(snes);CHKERRQ(ierr);
+  /*SNES_NEWTONAS_WORK_N,PETSC_TRUE,SNES_NEWTONAS_WORK_CONSTR_N,PETSC_TRUE,SNES_NEWTONAS_WORK_AUG_N,PETSC_TRUE);CHKERRQ(ierr);*/
   ierr = SNESConstraintSetUpAugScatters(snes,PETSC_TRUE);
   ierr = SNESConstraintSetUpMatrices(snes,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE,PETSC_TRUE);CHKERRQ(ierr);
 

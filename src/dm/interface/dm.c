@@ -1132,7 +1132,7 @@ PetscErrorCode  DMConstraintCreateAugMatrix(DM dm,Mat *mat)
   PetscFunctionBegin;
   ierr = MatInitializePackage();CHKERRQ(ierr);
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  PesscValidPointer(mat,2);
+  PetscValidPointer(mat,2);
 
 
   if (mat) *mat = NULL;

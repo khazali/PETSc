@@ -620,7 +620,7 @@ PetscErrorCode SNESSetUpMatrices(SNES snes)
 
 .seealso: SNESConstraintSetUpVectors(), SNESConstraintSetAugEmbedding()
 @*/
-PetscErrorCode SNESConstraintCreateAugEmbeddings(SNES snes,IS *func_aug_emg,IS *constr_aug_emb)
+PetscErrorCode SNESConstraintCreateAugEmbeddings(SNES snes,IS *func_aug_emb,IS *constr_aug_emb)
 {
   Vec            fvec,gvec;
   PetscInt       alo,ahi,flo,fhi,glo,ghi;
@@ -664,7 +664,7 @@ PetscErrorCode SNESConstraintCreateAugEmbeddings(SNES snes,IS *func_aug_emg,IS *
     ierr = VecGetOwnershipRange(gvec,&glo,&ghi);CHKERRQ(ierr);
     alo = flo+glo; ahi = fhi+ghi;
     if (constr_aug_emb && *constr_aug_emb) {
-      ierr = ISComplement(*const_aug_emb,alo,ahi,func_aug_emb);CHKERRQ(ierr);
+      ierr = ISComplement(*constr_aug_emb,alo,ahi,func_aug_emb);CHKERRQ(ierr);
     }
     if (!*func_aug_emb) {
       ierr = ISCreateStride(comm,fhi-flo,alo,1,func_aug_emb);CHKERRQ(ierr);
@@ -703,18 +703,18 @@ PetscErrorCode SNESConstraintSetWorkVecs(SNES snes,PetscInt nwork,PetscInt nwork
   ierr = SNESSetWorkVecs(snes,nwork);CHKERRQ(ierr);
   if (nwork_constr) {
     if (!snes->vec_constr) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"No constraint vector to build work vectors from");
-    ierr = VecDestroyVecs(snes->nwork_constr,snes->work_constr);CHKERRQ(ierr);
+    ierr = VecDestroyVecs(snes->nwork_constr,&snes->work_constr);CHKERRQ(ierr);
     ierr = VecDuplicateVecs(snes->vec_constr,nwork_constr,&snes->work_constr);CHKERRQ(ierr);
     snes->nwork_constr = nwork_constr;
   }
 
   if (nwork_aug) {
-    ierr = VecDestroyVecs(snes->nwork_aug,snes->vec_func_aug);CHKERRQ(ierr);
+    ierr = VecDestroyVecs(snes->nwork_aug,&snes->work_aug);CHKERRQ(ierr);
     if (snes->vec_func_aug) {
       ierr = VecDuplicateVecs(snes->vec_func_aug,nwork_aug,&snes->work_aug);CHKERRQ(ierr);
     } else {
       Vec fvec,gvec;
-      PetscInt n1,n2;
+      PetscInt n1,n2,i;
 
       fvec = snes->vec_func?snes->vec_func:snes->vec_sol;
       gvec = snes->vec_constr;
@@ -749,7 +749,7 @@ PetscErrorCode SNESConstraintSetWorkVecs(SNES snes,PetscInt nwork,PetscInt nwork
 
 .seealso: SNESConstraintSetUpConstraintMatrices()
 @*/
-PetscErrorCode SNESConstraintSetUpVectors(SNES snes)
+PetscErrorCode SNESConstraintSetUpVectors(SNES snes);
 {
   PetscErrorCode ierr;
 
