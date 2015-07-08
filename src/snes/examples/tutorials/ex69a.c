@@ -151,8 +151,16 @@ int main( int argc, char **argv )
 
   ierr = MatAssemblyBegin(user.MAug,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(user.MAug,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-
-  ierr = MatSetOption(user.MAug, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE);
+  ierr = MatGetSubMatrix(user.MAug,user.is_aug_to_x,user.is_aug_to_x,MAT_INITIAL_MATRIX,&user.J);CHKERRQ(ierr);
+  ierr = MatGetSubMatrix(user.MAug,user.is_aug_to_c,user.is_aug_to_x,MAT_INITIAL_MATRIX,&user.B);CHKERRQ(ierr);
+  ierr = MatGetSubMatrix(user.MAug,user.is_aug_to_x,user.is_aug_to_c,MAT_INITIAL_MATRIX,&user.Bt);CHKERRQ(ierr);
+  /* Can I preallocate the submatrices?*/
+  ierr = MatSetOption(user.J, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE);
+  ierr = MatSetOption(user.B, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE);
+  ierr = MatSetOption(user.Bt, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE);
+  ierr = MatSetLocalToGlobalMapping(user.J,isltog,isltog);CHKERRQ(ierr);
+  ierr = MatSetLocalToGlobalMapping(user.B,isltog,isltog);CHKERRQ(ierr);
+  ierr = MatSetLocalToGlobalMapping(user.Bt,isltog,isltog);CHKERRQ(ierr);
 
   /* Set Variable bounds */
   ierr = MSA_Plate(user.cl,user.cu,(void*)&user);CHKERRQ(ierr);
@@ -490,7 +498,6 @@ PetscErrorCode FormAugJacobian(SNES snes,Vec X,Mat JAug, Mat JAugPre, SNESConstr
   PetscReal      *x,*left,*right,*bottom,*top;
   PetscReal      v[7];
   Vec            localX = user->localX;
-  PetscInt       offset;
   PetscBool      assembled;
 
 
@@ -500,6 +507,11 @@ PetscErrorCode FormAugJacobian(SNES snes,Vec X,Mat JAug, Mat JAugPre, SNESConstr
   /* Initialize matrix entries to zero */
   ierr = MatAssembled(JAug,&assembled);CHKERRQ(ierr);
   if (assembled){ierr = MatZeroEntries(JAug);CHKERRQ(ierr);}
+
+  ierr = MatGetSubMatrix(JAug,user->is_aug_to_x,user->is_aug_to_x,MAT_REUSE_MATRIX,&user->J);CHKERRQ(ierr);
+  ierr = MatGetSubMatrix(JAug,user->is_aug_to_c,user->is_aug_to_x,MAT_REUSE_MATRIX,&user->B);CHKERRQ(ierr);
+  ierr = MatGetSubMatrix(JAug,user->is_aug_to_x,user->is_aug_to_c,MAT_REUSE_MATRIX,&user->Bt);CHKERRQ(ierr);
+  /*ierr = MatSetOption(JAug,MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr);*/
 
 
   /* Get local mesh boundaries */
@@ -632,8 +644,7 @@ PetscErrorCode FormAugJacobian(SNES snes,Vec X,Mat JAug, Mat JAugPre, SNESConstr
          Set matrix values using local numbering, which was defined
          earlier, in the main routine.
       */
-      // TODO map local values to global
-      ierr = MatSetValues(JAug,1,&row,k,col,v,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = MatSetValuesLocal(user->J,1,&row,k,col,v,INSERT_VALUES);CHKERRQ(ierr);
 
     }
   }
@@ -645,26 +656,25 @@ PetscErrorCode FormAugJacobian(SNES snes,Vec X,Mat JAug, Mat JAugPre, SNESConstr
   ierr = VecRestoreArray(user->Bottom,&bottom);CHKERRQ(ierr);
   ierr = VecRestoreArray(user->Right,&right);CHKERRQ(ierr);
 
+  ierr = MatSetOption(user->B,MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr);
+  ierr = MatSetOption(user->Bt,MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr);
+
+
+
   /* Get local mesh boundaries */
   ierr = DMDAGetCorners(user->dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
   ierr = DMDAGetGhostCorners(user->dm,&gxs,&gys,NULL,&gxm,&gym,NULL);CHKERRQ(ierr);
 
-
-  ierr = VecGetSize(localX,&offset);CHKERRQ(ierr);
-  v[0]=1.0;
+  v[0] = 1.0;
   for (i=xs; i< xs+xm; i++){
     for (j=ys; j<ys+ym; j++){
-      row=(j-gys)*gxm + (i-gxs) + offset;
-      col[0]=(j-gys)*gxm + (i-gxs);
+      row=(j-gys)*gxm + (i-gxs);
       /*
          Set matrix values using local numbering, which was defined
          earlier, in the main routine.
       */
-      ierr = MatSetValues(JAug,1,&row,1,col,v,INSERT_VALUES);CHKERRQ(ierr);
-
-      row=(j-gys)*gxm + (i-gxs);
-      col[0]=(j-gys)*gxm + (i-gxs) + offset;
-      ierr = MatSetValues(JAug,1,&row,1,col,v,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = MatSetValuesLocal(user->B,1,&row,1,&row,v,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = MatSetValuesLocal(user->Bt,1,&row,1,&row,v,INSERT_VALUES);CHKERRQ(ierr);
 
     }
   }
@@ -683,22 +693,10 @@ PetscErrorCode FormAugJacobian(SNES snes,Vec X,Mat JAug, Mat JAugPre, SNESConstr
 PetscErrorCode FormProjection(SNES snes, Vec x, Vec p,void *ptr)
 {
   PetscErrorCode ierr;
-  PetscInt       sizex,sizec;
   AppCtx         *user = (AppCtx *) ptr;
 
   PetscFunctionBegin;
-  /* TODO: Need to project only x, not aug vector. this is temporary hack.*/
-  ierr = VecGetSize(x,&sizex);
-  ierr = VecGetSize(user->cl,&sizec);
-  if (sizec == sizex) {
-    ierr = VecMedian(user->cl,x,user->cu,p);CHKERRQ(ierr);
-  } else {
-    ierr = VecScatterBegin(user->xscatter,x,user->fwork,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
-    ierr = VecScatterEnd(user->xscatter,x,user->fwork,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
-    ierr = VecMedian(user->cl,user->fwork,user->cu,user->fwork);CHKERRQ(ierr);
-    ierr = VecScatterBegin(user->xscatter,user->fwork,p,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
-    ierr = VecScatterEnd(user->xscatter,user->fwork,p,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
-  }
+  ierr = VecMedian(user->cl,x,user->cu,p);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 
 }
