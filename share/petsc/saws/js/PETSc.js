@@ -10,6 +10,9 @@ var sawsInfo = {};
 var init = false;
 
 var ind = 0;
+
+var indhistory = 0;
+
 //record what iteration we are on (remove text on second iteration)
 var iteration = 0;
 
@@ -35,14 +38,13 @@ PETSc.getAndDisplayDirectory = function(names,divEntry){
         $("body").append("<div id=\"leftDiv\" style=\"float:left;\"></div>");
         $(divEntry).appendTo("#leftDiv");
         $("body").append("<div id=\"diagram\"></div>");
-        $("body").append("<div id=\"optionarea\" class=\"container\"><h3>Step 1</h3><div class=\"well\"><label>Please select your configuration set up: </label> <select id=\"mode\"><option value=\"0\">Basic</option> <option value=\"1\">All</option></select> <input type=\"button\" value=\"Go!\" id=\"go\"></div></div>")
+        $("body").append("<div id=\"optionarea\" class=\"container\"><h3>Step 1</h3><div class=\"well\"><label>Please select your configuration set up: </label> <select id=\"mode\"><option value=\"1\">All</option> <option value=\"0\">Basic</option></select> <input type=\"button\" value=\"Go!\" id=\"go\"></div></div>")
 
         $("#optionarea").append("<br><br><button type=\"button\" name=\"history\" id=\"history\" class=\"btn btn-info btn-lg\">View History</button>");
         $("#optionarea").append("<div class=\"modal fade\" id=\"myModal\" role=\"dialog\"> <div class\"modal-dialog\"><div class=\"modal-content\"><div class=\"modal-header\"><button type=\"button\" class=\"close\" data-dismiss=\"modal\">&times;</button><h4 class=\"modal-title\">History</h4></div><div class=\"modal-body\"><div id=\"dataS\"></div><div id=\"Info\"></div></div><div class=\"modal-footer\"><button type=\"button\" class=\"btn btn-default\" data-dismiss=\"modal\">Close</button></div></div></div></div>");
 
 
         jQuery('#go').on('click', function(){
-
 
                      var mode = $( "#mode" ).val();
 
@@ -109,13 +111,7 @@ PETSc.getAndDisplayDirectory = function(names,divEntry){
 
 PETSc.history = function (field){
 
-//alert(field);
-
-
-
-
  jQuery.getJSON('/SAWs/historyGet/' + field,function(data){
-                                                                    //alert("Action " + i + ": " + data);
                                                                     $("#Info").html("");
                                                                     console.log("History_" + field + ": " + data);
                                                                     PETSc.displayDirectoryAsString(data.directories,"",0,"Info");
@@ -379,20 +375,27 @@ PETSc.displayDirectoryAsString = function(sub,divEntry,tab,fullkey)
  {
 
      jQuery.each(sub,function(key,value){
+
               fullkey = fullkey+key;
-              console.log(fullkey + " KEY");
+
               if(jQuery("#"+fullkey).length == 0){
+
                   jQuery(divEntry).append("<div id =\""+fullkey+"\"></div>")
+
                   if (key != "SAWs_ROOT_DIRECTORY") {
 
                   }
 
                   var descriptionSave = ""; var manualSave = ""; var mg_encountered = false;
+
                   jQuery.each(sub[key].variables, function(vKey, vValue) {
 
-                      if (vKey.substring(0,2) == "__") // __Block variable
+                      if (vKey.substring(0,2) == "__")
+
                           return;
+
                       if (vKey[0] != '_') {
+
                           if(vKey.indexOf("prefix") != -1 && sub[key].variables[vKey].data[0] == "(null)")
                               return;
 
@@ -401,12 +404,14 @@ PETSc.displayDirectoryAsString = function(sub,divEntry,tab,fullkey)
 
                           else if(vKey.indexOf("ChangedMethod") == -1 && vKey.indexOf("StopAsking") == -1) {
 
-                              var manualDirectory = "all"; var newindex = ind - 1;
-                              $("#coldiv" + newindex).append("<br><a href=\"http://www.mcs.anl.gov/petsc/petsc-dev/docs/manualpages/" +  manualDirectory + "/" + manualSave + ".html\" title=\"" + descriptionSave + "\" id=\"data"+fullkey+vKey+j+"\">"+vKey+"&nbsp</a>");
+                              var manualDirectory = "all"; var newindex = indhistory - 1;
+                              $("#history" + newindex).append("<br><a href=\"http://www.mcs.anl.gov/petsc/petsc-dev/docs/manualpages/" +  manualDirectory + "/" + manualSave + ".html\" title=\"" + descriptionSave + "\" id=\"datahistory"+fullkey+vKey+j+"\">"+vKey+"&nbsp</a>");
                           }
+
                       }
 
                       for(j=0;j<sub[key].variables[vKey].data.length;j++){
+
                           if(vKey.indexOf("man") != -1) {
                               manualSave = sub[key].variables[vKey].data[j];
                               continue;
@@ -416,17 +421,17 @@ PETSc.displayDirectoryAsString = function(sub,divEntry,tab,fullkey)
 
                               if (title != sub[key].variables[vKey].data[j]) {
 
-                                  $("#Info").append("<br><div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
-
-                                  ind = ind + 1;
+                                  $("#Info").append("<br><div id=\"buttonareahistory" + indhistory + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#history" + indhistory + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"history" + indhistory + "\" class=\"collapse in\"></div></div>");
+                                  indhistory = indhistory + 1;
 
                               } else {
-                                  var newindex = ind - 1;
-                                  $("#buttonarea" + newindex).remove();
-                                  $("#Info").append("<div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
-                                  ind = ind + 1;
-                              }
 
+                                  var newindex = indhistory - 1;
+                                  $("#buttonareahistory" + newindex).remove();
+                                  $("#Info").append("<div id=\"buttonareahistory" + indhistory + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#history" + indhistory + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"history" + indhistory + "\" class=\"collapse in\"></div></div>");
+                                  indhistory = indhistory + 1;
+
+                              }
 
                               continue;
                           }
@@ -434,59 +439,66 @@ PETSc.displayDirectoryAsString = function(sub,divEntry,tab,fullkey)
                           if(sub[key].variables[vKey].alternatives.length == 0) {//case where there are no alternatives
                               if(sub[key].variables[vKey].dtype == "SAWs_BOOLEAN") {
 
-                                  console.log("A: " + fullkey)
-                                  var newindex = ind - 1;
-                                  $("#coldiv" + newindex).append("<select id=\"data"+fullkey+vKey+j+"\">");//make the boolean dropdown list.
-                                  console.log("Test_Check:" + fullkey+vKey+j);
-                                  $("#data"+fullkey+vKey+j).append("<option value=\"true\">True</option> <option value=\"false\">False</option>");
-                                  if(vKey == "ChangedMethod" || vKey == "StopAsking") {//do not show changedmethod nor stopasking to user
-                                      $("#data"+fullkey+vKey+j).attr("hidden",true);
+                                  var newindex = indhistory - 1;
+                                  $("#history" + newindex).append("<select id=\"datahistory"+fullkey+vKey+j+"\">");//make the boolean dropdown list.
+                                  $("#datahistory"+fullkey+vKey+j).append("<option value=\"true\">True</option> <option value=\"false\">False</option>");
+                                  if(vKey == "ChangedMethod" || vKey == "StopAsking") {
+                                      $("#datahistory"+fullkey+vKey+j).attr("hidden",true);
                                   }
 
                               } else {
+
                                   if(sub[key].variables[vKey].mtype != "SAWs_WRITE") {
 
                                       descriptionSave = sub[key].variables[vKey].data[j];
 
                                       if(vKey.indexOf("prefix") != -1)  {
 
-                                         var newindex = ind - 1;
-                                         $("#coldiv" + newindex).append("<a style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\">"+sub[key].variables[vKey].data[j]+"</a><br>");
+                                         var newindex = indhistory - 1;
+
+                                         $("#history" + newindex).append("<a style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"datahistory"+fullkey+vKey+j+"\">"+sub[key].variables[vKey].data[j]+"</a><br>");
 
                                       }
-                                  }
-                                  else {//can be changed (append dropdown list)
-                                      var newindex = ind - 1;
 
-                                      $("#coldiv" + newindex).append("<input type=\"text\" style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>");
+                                  }
+                                  else {
+
+                                      var newindex = indhistory - 1;
+
+                                      $("#history" + newindex).append("<input type=\"text\" style=\"font-family: Courier\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"datahistory"+fullkey+vKey+j+"\" name=\"data\" \\>");
 
                                   }
 
                               }
-                              jQuery("#data"+fullkey+vKey+j).val(sub[key].variables[vKey].data[j]);//set val from server
+                              jQuery("#datahistory"+fullkey+vKey+j).val(sub[key].variables[vKey].data[j]);
+
                               if(vKey != "ChangedMethod") {
 
                               }
                           } else {
 
-                              var newindex = ind - 1;
-                              jQuery("#coldiv" + newindex).append("<select id=\"data"+fullkey+vKey+j+"\">");
+                              var newindex = indhistory - 1;
 
-                                                      jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].data[j]+"\">"+sub[key].variables[vKey].data[j]+"</option>");
+                              jQuery("#history" + newindex).append("<select id=\"datahistory"+fullkey+vKey+j+"\">");
+
+                                                      jQuery("#datahistory"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].data[j]+"\">"+sub[key].variables[vKey].data[j]+"</option>");
+
                                                       for(var l=0;l<sub[key].variables[vKey].alternatives.length;l++) {
-                                                          jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].alternatives[l]+"\">"+sub[key].variables[vKey].alternatives[l]+"</option>");
+                                                          jQuery("#datahistory"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].alternatives[l]+"\">"+sub[key].variables[vKey].alternatives[l]+"</option>");
                                                       }
-                                                      jQuery("#coldiv" + newindex).append("</select>");
 
+                                                      jQuery("#history" + newindex).append("</select>");
 
+                              }
 
-                          }
                       }
                   });
 
                   if(typeof sub[key].directories != 'undefined'){
+
                       PETSc.displayDirectoryAsString(sub[key].directories,divEntry,tab+1,fullkey);
-                   }
+
+                  }
               }
           });
       }

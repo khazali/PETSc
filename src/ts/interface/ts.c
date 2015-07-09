@@ -1507,6 +1507,8 @@ PetscErrorCode  TSView(TS ts,PetscViewer viewer)
 
       PetscStackCallSAWs(SAWs_Enable_History,(1));
 
+      //PetscStackCallSAWs(SAWs_Set_Document_Root,("${PETSC_DIR}/share/petsc/saws"));CHKERRQ(ierr);
+
       ierr = PetscObjectViewSAWs((PetscObject)ts,viewer);CHKERRQ(ierr);
       ierr = PetscSNPrintf(dir,1024,"/PETSc/Objects/%s/time_step",name);CHKERRQ(ierr);
       PetscStackCallSAWs(SAWs_Register,(dir,&ts->steps,1,SAWs_READ,SAWs_INT));
