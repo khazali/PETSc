@@ -551,6 +551,9 @@ PetscErrorCode  PetscInitializeSAWs(const char help[])
         ierr = PetscStrreplace(PETSC_COMM_WORLD,"${PETSC_DIR}/share/petsc/saws",root,PETSC_MAX_PATH_LEN);CHKERRQ(ierr);
         PetscStackCallSAWs(SAWs_Set_Document_Root,(root));CHKERRQ(ierr);
       }
+
+
+
     }
     ierr = PetscOptionsHasName(NULL,"-saws_local",&flg2);CHKERRQ(ierr);
     if (flg2) {
