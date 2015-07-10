@@ -155,7 +155,6 @@ struct _p_SNES {
 
   /* ------------------------ Constrained solver support ---------------------- */
   /* constrainded solver support */
-
   Vec         vec_constr;       /* vector of constraints */
   Vec         vec_constrl;      /* lower bounds on the constraints */
   Vec         vec_constru;      /* upper bound on the constraints */
@@ -173,7 +172,7 @@ struct _p_SNES {
   MatType     jacobian_aug_type;
   Mat         jacobian_aug;     /* augmented Jacobian, logically [jacobian,jacobian_constrt;jacobian_constr,0] */
   Mat         jacobian_aug_pre; /* preconditioning matrix for augmented Jacobian */
-  SNESConstraintAugMatStruct    /* is jacobian_aug lower, upper or full? That is, is constraint Jacobian, its transpose, or are both present? */
+  SNESConstraintAugMatShape    /* is jacobian_aug lower, upper or full? That is, is constraint Jacobian, its transpose, or are both present? */
               jacobian_aug_struct;
 
   PetscBool   user_constr_emb;  /* Signals that user set the embedding, to it shouldn't be destroyed during Reset and such. */
@@ -202,7 +201,7 @@ struct _DMSNESOps {
   PetscErrorCode (*constraintfunction)(SNES,Vec,Vec,void*);
   PetscErrorCode (*constraintjacobian)(SNES,Vec,Mat,Mat,void*);
   PetscErrorCode (*constraintaugfunction)(SNES,Vec,Vec,void*);
-  PetscErrorCode (*constraintaugjacobian)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*);
+  PetscErrorCode (*constraintaugjacobian)(SNES,Vec,Mat,Mat,void*);
   PetscErrorCode (*projectontoconstraints)(SNES,Vec,Vec,void*);
   PetscErrorCode (*merit)(SNES,Vec,Vec,Vec,Vec,Mat,Mat,PetscReal*,void*);
 
@@ -306,12 +305,15 @@ PETSC_INTERN PetscErrorCode SNESVISetVariableBounds_VI(SNES,Vec,Vec);
 PETSC_INTERN PetscErrorCode SNESConvergedDefault_VI(SNES,PetscInt,PetscReal,PetscReal,PetscReal,SNESConvergedReason*,void*);
 
 /* Constraint support: private methods */
-PETSC_INTERN PetscErrorCode SNESConstraintSetUpVectors(SNES,PetscInt,PetscBool,PetscInt,PetscBool,PetscInt,PetscBool);
-PETSC_INTERN PetscErrorCode SNESConstraintSetUpMatrices(SNES,PetscBool,PetscBool,PetscBool,PetscBool);
-PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugScatters(SNES,PetscBool);
+PETSC_INTERN PetscErrorCode SNESConstraintSetUpWorkVecs(SNES,PetscInt,PetscInt,PetscInt);
+PETSC_INTERN PetscErrorCode SNESConstraintSetUpSplitVectors(SNES);
+PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugVectors(SNES);
+PETSC_INTERN PetscErrorCode SNESConstraintSetUpSplitMatrices(SNES);
+PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugMatrices(SNES);
+PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugScatters(SNES);
 
 PETSC_INTERN PetscErrorCode SNESConstraintComputeFunctions(SNES,Vec,Vec,Vec,Vec);
-PETSC_INTERN PetscErrorCode SNESConstraintComputeJacobians(SNES,Vec,MatReuse,Mat,Mat,Mat,Mat,Mat,Mat,SNESConstraintAugMatStruct*);
+PETSC_INTERN PetscErrorCode SNESConstraintComputeJacobians(SNES,Vec,MatReuse,Mat,Mat,SNESConstraintAugMatShape,Mat,Mat,Mat,Mat);
 PETSC_INTERN PetscErrorCode SNESConstraintAugScatter(SNES,Vec,Vec,Vec);
 PETSC_INTERN PetscErrorCode SNESConstraintAugGather(SNES,Vec,Vec,Vec);
 
