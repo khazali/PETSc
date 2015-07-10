@@ -24,8 +24,6 @@ var colors = ["black","red","blue","green"];
 
 //This Function is called once (document).ready. The javascript for this was written by the PETSc code into index.html
 PETSc.getAndDisplayDirectory = function(names,divEntry){
-    console.log("sawsInfo");
-    console.log(sawsInfo);
 
     if(!init) {
         $("head").append('<script src="js/parsePrefix.js"></script>');//reuse the code for parsing thru the prefix
@@ -67,8 +65,6 @@ PETSc.getAndDisplayDirectory = function(names,divEntry){
     } else {
                             jQuery(divEntry).html("");
 
-                            console.log(names);
-
                             SAWs.getDirectory(null,PETSc.displayDirectory,divEntry);
 
     }
@@ -79,7 +75,6 @@ PETSc.getAndDisplayDirectory = function(names,divEntry){
 
 
     jQuery.getJSON('/SAWs/historyStatus',function(data){
-                                         console.log("RH: " + data);
 
                                           if (data != 0) {
                                               //jQuery("body").append("<br><br><h2>History Active</h2>");
@@ -113,7 +108,6 @@ PETSc.history = function (field){
 
  jQuery.getJSON('/SAWs/historyGet/' + field,function(data){
                                                                     $("#Info").html("");
-                                                                    console.log("History_" + field + ": " + data);
                                                                     PETSc.displayDirectoryAsString(data.directories,"",0,"Info");
                                                                 })
 
@@ -138,8 +132,7 @@ PETSc.displayDirectory = function(sub,divEntry)
     //if($("#leftDiv").children(0).is("center")) //remove the title of the options if needed
         //$("#leftDiv").children().get(0).remove();
 
-    console.log(sub);
-    console.log(divEntry);
+
 
     if(sub.directories.SAWs_ROOT_DIRECTORY.directories.PETSc.directories != undefined) {
 
@@ -170,14 +163,11 @@ PETSc.displayDirectory = function(sub,divEntry)
     PETSc.displayDirectoryRecursive(sub.directories,divEntry,0,"");//this method is recursive on itself and actually fills the div with text and dropdown lists
 
     if (sub.directories.SAWs_ROOT_DIRECTORY.variables.hasOwnProperty("__Block") && (sub.directories.SAWs_ROOT_DIRECTORY.variables.__Block.data[0] == "true")) {
-        console.log("divEntry");
-        console.log(divEntry);
         //jQuery(divEntry).after("<input type=\"button\" value=\"Continue\" id=\"continue\">");
         var newindex = ind - 1;
         jQuery("#coldiv" + newindex).before(" <input type=\"button\" value=\"Continue\" id=\"continue\">");
         $("#continue").after("  <input type=\"button\" value=\"Finish\" id=\"finish\">");
         jQuery('#continue').on('click', function(){
-            console.log("COM");
 
             $("#coldiv" + newindex).collapse({
               toggle: true
@@ -213,7 +203,6 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
      jQuery.each(sub,function(key,value){
          fullkey = fullkey+key;//key contains things such as "PETSc" or "Options"
 
-         console.log(fullkey + " KEY");
 
          if(jQuery("#"+fullkey).length == 0){
              jQuery(divEntry).append("<div id =\""+fullkey+"\"></div>")
@@ -260,7 +249,6 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                      if(vKey.indexOf("title") != -1) {//display title in center
 
                          if (title != sub[key].variables[vKey].data[j]) {
-                             console.log("<---------------------------------------------->");
                              if (ind == 0) {
                                $("body").append("<br><div id=\"buttonarea" + ind + "\" class=\"container\"><h3>Step 2</h3><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
                              } else {
@@ -269,7 +257,6 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                              ind = ind + 1;
                              title = sub[key].variables[vKey].data[j];
                          } else {
-                             console.log("<---------------------------------------------->");
                              var newindex = ind - 1;
                              $("#buttonarea" + newindex).remove();
                              $("body").append("<div id=\"buttonarea" + ind + "\" class=\"container\"><button type=\"button\" class=\"btn btn-info\" data-toggle=\"collapse\" data-target=\"#coldiv" + ind + "\">"+sub[key].variables[vKey].data[j]+"</button><div id=\"coldiv" + ind + "\" class=\"collapse in\"></div></div>");
@@ -284,7 +271,6 @@ PETSc.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                      if(sub[key].variables[vKey].alternatives.length == 0) {//case where there are no alternatives
                          if(sub[key].variables[vKey].dtype == "SAWs_BOOLEAN") {
 
-                             console.log("A: " + fullkey)
                              var newindex = ind - 1;
                              $("#coldiv" + newindex).append("<select id=\"data"+fullkey+vKey+j+"\">");//make the boolean dropdown list.
                              console.log("Test_Check:" + fullkey+vKey+j);
