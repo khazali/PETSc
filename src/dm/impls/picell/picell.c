@@ -146,7 +146,7 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellAddSource"
-PetscErrorCode DMPICellAddSource(DM dm, PetscReal *x, PetscReal val)
+PetscErrorCode DMPICellAddSource(DM dm, PetscReal *x, PetscScalar val)
 {
   DM_PICell      *mesh = (DM_PICell *) dm->data;
   PetscErrorCode ierr;
@@ -163,7 +163,7 @@ PetscErrorCode DMPICellAddSource(DM dm, PetscReal *x, PetscReal val)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellGetGradPotential"
-PetscErrorCode DMPICellGetGradPotential(DM dm, PetscReal *x, PetscReal *gradphi)
+PetscErrorCode DMPICellGetGradPotential(DM dm, PetscReal *x, PetscScalar *gradphi)
 {
   DM_PICell      *mesh = (DM_PICell *) dm->data;
   PetscErrorCode ierr;
@@ -180,7 +180,7 @@ PetscErrorCode DMPICellGetGradPotential(DM dm, PetscReal *x, PetscReal *gradphi)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellGetPotential"
-PetscErrorCode DMPICellGetPotential(DM dm, PetscReal *x, PetscReal *gradphi)
+PetscErrorCode DMPICellGetPotential(DM dm, PetscReal *x, PetscScalar *gradphi)
 {
   DM_PICell      *mesh = (DM_PICell *) dm->data;
   PetscErrorCode ierr;
