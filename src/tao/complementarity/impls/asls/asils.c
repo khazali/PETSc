@@ -235,11 +235,8 @@ static PetscErrorCode TaoSolve_ASILS(Tao tao)
     if (!asls->w && usemask) {
       ierr = VecDuplicate(tao->solution, &asls->w);CHKERRQ(ierr);
     }
-<<<<<<< HEAD
     ierr = MatDestroy(&asls->J_sub);CHKERRQ(ierr);
     ierr = MatDestroy(&asls->Jpre_sub);CHKERRQ(ierr);
-=======
->>>>>>> f66f355516a98416d6aa4963f8babc6182ce9820
     ierr = MatGetSubMatrix(tao->jacobian, asls->free, asls->free, MAT_INITIAL_MATRIX, &asls->J_sub);CHKERRQ(ierr);
     if (tao->jacobian != tao->jacobian_pre) {
       ierr = MatGetSubMatrix(tao->jacobian_pre, asls->free, asls->free, MAT_INITIAL_MATRIX, &asls->Jpre_sub);CHKERRQ(ierr);
