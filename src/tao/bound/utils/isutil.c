@@ -21,10 +21,6 @@
   maskvalue should usually be 0.0, unless a pointwise divide will be used.
 
 @*/
-<<<<<<< HEAD
-
-=======
->>>>>>> set tao using matgetsubmatrix
 PetscErrorCode TaoVecGetSubVec(Vec vfull, IS is, PetscBool usemask, PetscScalar maskvalue, Vec *vreduced)
 {
   PetscErrorCode ierr;
