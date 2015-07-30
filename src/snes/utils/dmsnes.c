@@ -902,7 +902,7 @@ PetscErrorCode DMSNESConstraintGetAugFunction(DM dm,PetscErrorCode (**augfunc)(S
 
 .seealso: DMSNESSetContext(), SNESSetFunction(), DMSNESConstraintGetFunction(), SNESConstraintSetJacobian(), SNESConstraintFunction
 @*/
-PetscErrorCode DMSNESConstraintSetAugJacobian(DM dm,PetscErrorCode(*augjac)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void *augjacctx)
+PetscErrorCode DMSNESConstraintSetAugJacobian(DM dm,PetscErrorCode(*augjac)(SNES,Vec,Mat,Mat,void*),void *augjacctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -942,7 +942,7 @@ PetscErrorCode DMSNESConstraintSetAugJacobian(DM dm,PetscErrorCode(*augjac)(SNES
 
 .seealso: DMSNESSetContext(), SNESSetFunction(), DMSNESConstraintGetFunction(), SNESConstraintSetJacobian(), SNESConstraintFunction
 @*/
-PetscErrorCode DMSNESConstraintGetAugJacobian(DM dm,PetscErrorCode(**augjac)(SNES,Vec,Mat,Mat,SNESConstraintAugMatStruct*,void*),void **augjacctx)
+PetscErrorCode DMSNESConstraintGetAugJacobian(DM dm,PetscErrorCode(**augjac)(SNES,Vec,Mat,Mat,void*),void **augjacctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -980,7 +980,7 @@ PetscErrorCode DMSNESConstraintGetAugJacobian(DM dm,PetscErrorCode(**augjac)(SNE
 
 .seealso: DMSNESSetContext(), SNESConstraintSetFunction(), SNESConstraintGetFunction(), DMSNESNEWTONAUGASGetActiveConstraintBasis(), SNESNEWTONAUGASActiveConstraintBasis
 @*/
-PetscErrorCode DMSNESNEWTONAUGASSetActiveConstraintBasis(DM dm,PetscErrorCode (*a)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void *ctx)
+PetscErrorCode DMSNESNEWTONAUGASSetActiveConstraintBasis(DM dm,PetscErrorCode (*a)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat*,Mat*,void*),void *ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;
@@ -1018,7 +1018,7 @@ PetscErrorCode DMSNESNEWTONAUGASSetActiveConstraintBasis(DM dm,PetscErrorCode (*
 
 .seealso: DMSNESSetContext(), SNESConstraintSetFunction(), SNESConstraintGetFunction(), DMSNESNEWTONAUGASSetActiveConstraintBasis(), SNESNEWTONAUGASActiveConstraintBasis
 @*/
-PetscErrorCode DMSNESNEWTONAUGASGetActiveConstraintBasis(DM dm,PetscErrorCode (**a)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*),void **ctx)
+PetscErrorCode DMSNESNEWTONAUGASGetActiveConstraintBasis(DM dm,PetscErrorCode (**a)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat*,Mat*,void*),void **ctx)
 {
   PetscErrorCode ierr;
   DMSNES         sdm;

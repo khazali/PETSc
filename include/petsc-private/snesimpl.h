@@ -173,7 +173,7 @@ struct _p_SNES {
   Mat         jacobian_aug;     /* augmented Jacobian, logically [jacobian,jacobian_constrt;jacobian_constr,0] */
   Mat         jacobian_aug_pre; /* preconditioning matrix for augmented Jacobian */
   SNESConstraintAugMatShape    /* is jacobian_aug lower, upper or full? That is, is constraint Jacobian, its transpose, or are both present? */
-              jacobian_aug_struct;
+              jacobian_aug_shape;
 
   PetscBool   user_constr_emb;  /* Signals that user set the embedding, to it shouldn't be destroyed during Reset and such. */
   IS          is_constr_aug;    /* embedding of the constraint degrees of freedom into the augmented problem */
@@ -207,7 +207,7 @@ struct _DMSNESOps {
 
 
   /* Specific to SNESNEWTONAUGAS or SNESNEWTONAUGAS_PRIMAL.  QUESTION: how do we accommodate impl-specific callbacks and contexts? Different DMSNES impls? */
-  PetscErrorCode (*activeconstraintbasis)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat,Mat,void*);
+  PetscErrorCode (*activeconstraintbasis)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat*,Mat*,void*);
 
   /* Picard iteration functions */
   PetscErrorCode (*computepfunction)(SNES,Vec,Vec,void*);
@@ -308,6 +308,7 @@ PETSC_INTERN PetscErrorCode SNESConvergedDefault_VI(SNES,PetscInt,PetscReal,Pets
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpWorkVecs(SNES,PetscInt,PetscInt,PetscInt);
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpSplitVectors(SNES);
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugVectors(SNES);
+PETSC_INTERN PetscErrorCode SNESConstraintSetUpSplitBounds(SNES);
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpSplitMatrices(SNES);
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugMatrices(SNES);
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugScatters(SNES);

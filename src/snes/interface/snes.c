@@ -703,7 +703,7 @@ PetscErrorCode SNESConstraintCreateAugEmbeddings(SNES snes,IS *func_aug_emb,IS *
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESGetFunction(dm,&func,NULL);CHKERRQ(ierr);
   ierr = DMSNESConstraintGetAugFunction(dm,&afunc,NULL);CHKERRQ(ierr);
-  if (!func && !func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Neither function nor augmented function are set.");
+  if (!func && !afunc) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Neither function nor augmented function are set.");
   if (func && func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Both function and augmented function are set.");
   /*
    We are trying to create the ISs with the minimum of assumptions, so we
@@ -746,8 +746,8 @@ PetscErrorCode SNESConstraintCreateAugEmbeddings(SNES snes,IS *func_aug_emb,IS *
  All of the relevant vectors and ISs are expected to exist.
  */
 #undef __FUNCT__
-#define __FUNCT__ "SNESConstraintSetUpAugScatters"
-PetscErrorCode SNESConstraintSetUpAugScatters(SNES snes)
+#define __FUNCT__ "SNESConstraintCreateAugScatters"
+PetscErrorCode SNESConstraintCreateAugScatters(SNES snes)
 {
   PetscErrorCode ierr;
   Vec            fvec,gvec,avec;
@@ -793,7 +793,7 @@ PetscErrorCode SNESConstraintSetUpSplitVectors(SNES snes)
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESGetFunction(dm,&func,NULL);CHKERRQ(ierr);
   ierr = DMSNESConstraintGetAugFunction(dm,&afunc,NULL);CHKERRQ(ierr);
-  if (!func && !func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Neither function nor augmented function are set.");
+  if (!func && !afunc) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Neither function nor augmented function are set.");
   if (func && func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Both function and augmented function are set.");
 
   if (func) { /* The user is using a split system, not an aug system. */
@@ -872,6 +872,46 @@ PetscErrorCode SNESConstraintSetUpSplitVectors(SNES snes)
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "SNESConstraintSetUpSplitBounds"
+/*@C
+   SNESConstraintSetUpSplitBounds - extracts split bounds vectors from aug bounds vectors
+
+   Collective
+
+   Input Arguments:
+.  snes               - snes that defines the problem with constraints
+
+   Level: developer
+
+.seealso: SNESConstraintSetUpSplitVectors()
+@*/
+PetscErrorCode SNESConstraintSetUpSplitBounds(SNES snes)
+{
+  PetscErrorCode ierr;
+  DM             dm;
+  PetscErrorCode (*func)(SNES,Vec,Vec,void*), (*afunc)(SNES,Vec,Vec,void*);
+
+  PetscFunctionBegin;
+  ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
+  ierr = DMSNESGetFunction(dm,&func,NULL);CHKERRQ(ierr);
+  ierr = DMSNESConstraintGetAugFunction(dm,&afunc,NULL);CHKERRQ(ierr);
+  if (!func && !afunc) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Neither function nor augmented function are set.");
+  if (!snes->vec_constru && snes->vec_augu) {
+    if (!snes->aug_to_constr) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Cannot extract bounds from augmented vector: no constraint embedding found");
+    ierr = VecDuplicate(snes->vec_constr,&snes->vec_constru);CHKERRQ(ierr);
+    ierr = VecScatterBegin(snes->aug_to_constr,snes->vec_augu,snes->vec_constru,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr = VecScatterEnd(snes->aug_to_constr,snes->vec_augu,snes->vec_constru,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  }
+  if (!snes->vec_constrl && snes->vec_augl) {
+    if (!snes->aug_to_constr) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Cannot extract bounds from augmented vector: no constraint embedding found");
+    ierr = VecDuplicate(snes->vec_constr,&snes->vec_constrl);CHKERRQ(ierr);
+    ierr = VecScatterBegin(snes->aug_to_constr,snes->vec_augl,snes->vec_constrl,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr = VecScatterEnd(snes->aug_to_constr,snes->vec_augl,snes->vec_constrl,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESConstraintSetUpAugVectors"
@@ -897,7 +937,7 @@ PetscErrorCode SNESConstraintSetUpAugVectors(SNES snes)
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESGetFunction(dm,&func,NULL);CHKERRQ(ierr);
   ierr = DMSNESConstraintGetAugFunction(dm,&afunc,NULL);CHKERRQ(ierr);
-  if (!func && !func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Neither function nor augmented function are set.");
+  if (!func && !afunc) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Neither function nor augmented function are set.");
   if (func && func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Both function and augmented function are set.");
 
   if (afunc) {
@@ -956,7 +996,7 @@ PetscErrorCode SNESConstraintSetUpAugMatrices(SNES snes)
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESGetFunction(dm,&func,NULL);CHKERRQ(ierr);
   ierr = DMSNESConstraintGetAugFunction(dm,&afunc,NULL);CHKERRQ(ierr);
-  if (!func && !func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Neither function nor augmented function are set.");
+  if (!func && !afunc) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Neither function nor augmented function are set.");
   if (func && func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Both function and augmented function are set.");
 
   PetscFunctionBegin;
@@ -1002,7 +1042,7 @@ PetscErrorCode SNESConstraintSetUpSplitMatrices(SNES snes)
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESGetFunction(dm,&func,NULL);CHKERRQ(ierr);
   ierr = DMSNESConstraintGetAugFunction(dm,&afunc,NULL);CHKERRQ(ierr);
-  if (!func && !func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Neither function nor augmented function are set.");
+  if (!func && !afunc) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Neither function nor augmented function are set.");
   if (func && func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Both function and augmented function are set.");
 
   if (func) {
@@ -1031,12 +1071,12 @@ PetscErrorCode SNESConstraintSetUpSplitMatrices(SNES snes)
       }
     }
     if (!snes->jacobian_constr) {
-      if (snes->jacobian_aug_struct == SNES_CONSTRAINT_AUG_MAT_FULL || snes->jacobian_aug_struct == SNES_CONSTRAINT_AUG_MAT_LOWER) {
+      if (snes->jacobian_aug_shape == SNES_CONSTRAINT_AUG_MAT_FULL || snes->jacobian_aug_shape == SNES_CONSTRAINT_AUG_MAT_LOWER) {
         ierr = MatGetSubMatrix(snes->jacobian_aug,snes->is_constr_aug,snes->is_func_aug,MAT_INITIAL_MATRIX,&snes->jacobian_constr);CHKERRQ(ierr);
       }
     }
     if (!snes->jacobian_constrt) {
-      if (snes->jacobian_aug_struct == SNES_CONSTRAINT_AUG_MAT_FULL || snes->jacobian_aug_struct == SNES_CONSTRAINT_AUG_MAT_UPPER) {
+      if (snes->jacobian_aug_shape == SNES_CONSTRAINT_AUG_MAT_FULL || snes->jacobian_aug_shape == SNES_CONSTRAINT_AUG_MAT_UPPER) {
         ierr = MatGetSubMatrix(snes->jacobian_aug,snes->is_func_aug,snes->is_constr_aug,MAT_INITIAL_MATRIX,&snes->jacobian_constrt);CHKERRQ(ierr);
       }
     }
@@ -3558,7 +3598,7 @@ PetscErrorCode  SNESConstraintSetAugJacobian(SNES snes,Mat J,Mat J_pre,PetscErro
   if (J_pre) {
     snes->jacobian_aug_pre = J_pre;
   }
-  snes->jacobian_aug_struct = Jshape;
+  snes->jacobian_aug_shape = Jshape;
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESConstraintSetAugJacobian(dm,augjac,augjacctx);CHKERRQ(ierr);
 
@@ -3611,7 +3651,7 @@ PetscErrorCode  SNESConstraintGetAugJacobian(SNES snes,Mat *J,Mat *J_pre,PetscEr
   if (J_pre) {
     *J_pre = snes->jacobian_aug_pre;
   }
-  if (Jshape) *Jshape = snes->jacobian_aug_struct;
+  if (Jshape) *Jshape = snes->jacobian_aug_shape;
   ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
   ierr = DMSNESConstraintGetAugJacobian(dm,augjac,augjacctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -5796,6 +5836,7 @@ PetscErrorCode  SNESKSPGetParametersEW(SNES snes,PetscInt *version,PetscReal *rt
   PetscReal      rtol  = PETSC_DEFAULT,stol;
 
   PetscFunctionBegin;
+  /* CONTINUE: depending on whether augmented or split function is being used, the solution vector is either augmented or not. */
   if (!snes->ksp_ewconv) PetscFunctionReturn(0);
   if (!snes->iter) {
     rtol = kctx->rtol_0; /* first time in, so use the original user rtol */
