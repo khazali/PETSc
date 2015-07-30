@@ -1,0 +1,1086 @@
+#include <petscdmda.h>
+#include <petscsnes.h>
+#include <petscviewerhdf5.h>
+
+
+static  char help[] ="\
+This test only creates the matrix for testing the saddle point solve. The\n\
+entire example is in snes/examples/tutorials/ex69a.c\n\
+\n\
+\n\
+This example demonstrates use of the SNES package to \n\
+solve an unconstrained minimization problem.  This example is based on a \n\
+problem from the MINPACK-2 test suite.  Given a rectangular 2-D domain, \n\
+boundary values along the edges of the domain, and a plate represented by \n\
+lower boundary conditions, the objective is to find the\n\
+surface with the minimal area that satisfies the boundary conditions.\n\
+The command line options are:\n\
+  -da_grid_x <xg>, where <xg> = number of grid points in the 1st coordinate direction\n\
+  -da_grid_y <yg>, where <yg> = number of grid points in the 2nd coordinate direction\n\
+  -bmx <bxg>, where <bxg> = number of grid points under plate in 1st direction\n\
+  -bmy <byg>, where <byg> = number of grid points under plate in 2nd direction\n\
+  -bheight <ht>, where <ht> = height of the plate\n\
+  -start <st>, where <st> =0 for zero vector, <st> >0 for random start, and <st> <0 \n\
+               for an average of the boundary conditions\n\
+  -fileappendix <s>, where <s> is appended to the names of jacobians and rhs\n\
+  Differs from ex69 in that this example creates its own augmented system for\n\
+  the KSP solve:\n\
+\
+           J     B^T    *    [  dx ]     =    [ x ]\n\
+           B      0          [  dl ]          [ c ]\n\
+\n\n";
+typedef struct {
+
+  Mat         J,B,Ba;
+  Mat         MAug;
+  DM          dm;                       /* distributed array data structure */
+
+  /* problem parameters */
+  PetscReal      bheight;                  /* Height of plate under the surface */
+  PetscInt       mx, my;                   /* discretization in x, y directions */
+  PetscInt       bmx,bmy;                  /* Size of plate under the surface */
+  Vec            Bottom, Top, Left, Right; /* boundary values */
+
+  Vec            xl,xu;                    /* variable bounds */
+  Vec            cl,cu;                    /* lower,upper bounds */
+  Vec            augl,augu;                    /* augmented bounds */
+  /* Working space */
+  Vec         localX, localV;           /* ghosted local vector */
+  Vec         vaug;
+  Vec         X,F,fwork,cwork,rhs;
+  VecScatter  xscatter,cscatter;
+  IS          is_aug_to_x; /* indices of aug that comprise x */
+  IS          is_aug_to_c; /* indices of aug that comprise c */
+
+} AppCtx;
+
+/* -------- User-defined Routines --------- */
+
+static PetscErrorCode MSA_BoundaryConditions(AppCtx*);
+static PetscErrorCode MSA_InitialPoint(AppCtx*,Vec);
+static PetscErrorCode MSA_Plate(Vec,Vec,void*);
+PetscErrorCode FormAugFunction(SNES,Vec,Vec,void*);
+PetscErrorCode FormAugJacobian(SNES,Vec,Mat,Mat,SNESConstraintAugMatShape*,void*);
+PetscErrorCode FormProjection(SNES,Vec,Vec,void*);
+
+
+#undef __FUNCT__
+#define __FUNCT__ "main"
+int main( int argc, char **argv )
+{
+  PetscErrorCode         ierr;                 /* used to check for functions returning nonzeros */
+  PetscInt               m;                 /* number of local and global elements in vectors */
+  PetscInt               xlo,xhi,clo,chi,localsize;
+  Vec                    x,x0;                 /* solution vector */
+  Vec                    c;
+  PetscBool              flg;                /* A return variable when checking for user options */
+  SNES                    snes;                  /* SNES solver context */
+  ISLocalToGlobalMapping isltog;   /* local-to-global mapping object */
+  AppCtx                 user;                 /* user-defined work context */
+  IS                     active,basis;
+  PetscBool option_prefix;
+  PetscViewer Aviewer,Bviewer,RHSviewer,ISaviewer,ISbviewer;
+  char prefix[PETSC_MAX_PATH_LEN+3];
+  char Afilename[PETSC_MAX_PATH_LEN+3]={0};
+  char Bfilename[PETSC_MAX_PATH_LEN+3]={0};
+  char RHSfilename[PETSC_MAX_PATH_LEN+5]={0};
+  char ISbfilename[PETSC_MAX_PATH_LEN+4]={0};
+  char ISafilename[PETSC_MAX_PATH_LEN+4]={0};
+  PetscInt   glo,ghi;
+  const PetscReal   *ga,*la,*ua;
+  PetscInt    *indices,counter,i;
+  MPI_Comm    comm;
+  /* Initialize PETSc, SNES */
+  PetscInitialize( &argc, &argv,(char *)0,help );
+
+  /*
+     A two dimensional distributed array will help define this problem,
+     which derives from an elliptic PDE on two dimensional domain.  From
+     the distributed array, Create the vectors.
+  */
+  /* Specify default dimension of the problem */
+  user.mx = 10; user.my = 10; user.bheight=0.1;
+  ierr = DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,
+                      DMDA_STENCIL_BOX,user.mx,user.my,PETSC_DECIDE,PETSC_DECIDE,1,1,
+                      NULL,NULL,&user.dm);CHKERRQ(ierr);
+
+  ierr = DMDAGetInfo(user.dm,PETSC_IGNORE,&user.mx,&user.my,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE);CHKERRQ(ierr);
+
+  ierr = PetscOptionsGetReal(NULL,"-bheight",&user.bheight,&flg);CHKERRQ(ierr);
+
+  user.bmx = user.mx/2; user.bmy = user.my/2;
+  ierr = PetscOptionsGetInt(NULL,"-bmx",&user.bmx,&flg);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(NULL,"-bmy",&user.bmy,&flg);CHKERRQ(ierr);
+
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"\n---- Minimum Surface Area With Plate Problem -----\n");CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"mx:%D, my:%D, bmx:%D, bmy:%D, height:%g\n",user.mx,user.my,user.bmx,user.bmy,(double)user.bheight);CHKERRQ(ierr);
+
+
+  /*
+     Extract global and local vectors from DM; The local vectors are
+     used solely as work space for the evaluation of the function,
+     gradient, and Hessian.  Duplicate for remaining vectors that are
+     the same types.
+  */
+  ierr = DMCreateGlobalVector(user.dm,&user.X);CHKERRQ(ierr); /* Solution */
+  ierr = DMCreateLocalVector(user.dm,&user.localX);CHKERRQ(ierr);
+  ierr = VecDuplicate(user.localX,&user.localV);CHKERRQ(ierr);
+
+  ierr = VecDuplicate(user.X,&x0);CHKERRQ(ierr);
+  ierr = VecDuplicate(user.X,&user.F);CHKERRQ(ierr);
+  ierr = VecDuplicate(user.X,&user.xl);CHKERRQ(ierr);
+  ierr = VecDuplicate(user.X,&user.xu);CHKERRQ(ierr);
+  ierr = VecSet(user.xl,PETSC_NINFINITY);CHKERRQ(ierr);
+  ierr = VecSet(user.xu,PETSC_INFINITY);CHKERRQ(ierr);
+  ierr = VecCopy(user.X,x0);CHKERRQ(ierr);
+  ierr = VecDuplicate(user.X,&c);CHKERRQ(ierr);
+  ierr = VecDuplicate(c,&user.cl);CHKERRQ(ierr);
+  ierr = VecDuplicate(c,&user.cu);CHKERRQ(ierr);
+  ierr = VecDuplicate(c,&user.rhs);CHKERRQ(ierr);
+  ierr = VecDuplicate(user.X,&user.fwork);CHKERRQ(ierr);
+  ierr = VecDuplicate(user.X,&user.cwork);CHKERRQ(ierr);
+
+  /* create augmented vector */
+  ierr = VecGetOwnershipRange(user.X,&xlo,&xhi);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRange(c,&clo,&chi);CHKERRQ(ierr);
+  localsize=xhi-xlo+chi-clo;
+  ierr = ISCreateStride(PETSC_COMM_WORLD,xhi-xlo,xlo+clo,1,&user.is_aug_to_x);CHKERRQ(ierr);
+  ierr = ISCreateStride(PETSC_COMM_WORLD,chi-clo,clo+xhi,1,&user.is_aug_to_c);CHKERRQ(ierr);
+
+  ierr = VecCreateMPI(PETSC_COMM_WORLD,localsize,PETSC_DETERMINE,
+                      &user.vaug);CHKERRQ(ierr);
+  ierr = VecDuplicate(user.vaug,&user.augl);CHKERRQ(ierr);
+  ierr = VecDuplicate(user.vaug,&user.augu);CHKERRQ(ierr);
+  ierr = VecScatterCreate(user.vaug,user.is_aug_to_x,user.X,NULL,&user.xscatter);CHKERRQ(ierr);
+  ierr = VecScatterCreate(user.vaug,user.is_aug_to_c,c,NULL,&user.cscatter);CHKERRQ(ierr);
+
+
+  ierr = SNESCreate(PETSC_COMM_WORLD,&snes);CHKERRQ(ierr);
+  ierr = SNESSetType(snes,SNESNEWTONAUGAS);CHKERRQ(ierr);
+  ierr = SNESSetDM(snes,user.dm);CHKERRQ(ierr);
+
+  /* Set initial solution guess; */
+  ierr = MSA_BoundaryConditions(&user);CHKERRQ(ierr);
+  ierr = VecDuplicate(user.X,&x);CHKERRQ(ierr);
+  ierr = MSA_InitialPoint(&user,x);CHKERRQ(ierr);
+  
+  /* Set routines for function, gradient and hessian evaluation */
+  ierr = VecGetLocalSize(x,&m);CHKERRQ(ierr);
+
+  ierr = DMGetLocalToGlobalMapping(user.dm,&isltog);CHKERRQ(ierr);
+  ierr = MatCreateAIJ(PETSC_COMM_WORLD,localsize,m,PETSC_DETERMINE,PETSC_DETERMINE,localsize,NULL,2*localsize,NULL,&user.MAug);CHKERRQ(ierr);
+
+  ierr = MatAssemblyBegin(user.MAug,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(user.MAug,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+
+  ierr = MatSetOption(user.MAug, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE);
+
+  /* Set Variable bounds */
+  ierr = MSA_Plate(user.cl,user.cu,(void*)&user);CHKERRQ(ierr);
+
+
+  ierr = VecScatterBegin(user.xscatter,user.xl,user.augl,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user.xscatter,user.xl,user.augl,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterBegin(user.cscatter,user.cl,user.augl,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user.cscatter,user.cl,user.augl,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+
+  ierr = VecScatterBegin(user.xscatter,user.xu,user.augu,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user.xscatter,user.xu,user.augu,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterBegin(user.cscatter,user.cu,user.augu,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user.cscatter,user.cu,user.augu,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+
+  
+  //  ierr = SNESConstraintSetAugFunction(snes,user.vaug,user.augl,user.augu,FormAugFunction,&user);CHKERRQ(ierr);
+  //  ierr = SNESConstraintSetAugJacobian(snes,user.MAug,user.MAug,FormAugJacobian,&user);CHKERRQ(ierr);
+  //  ierr = SNESConstraintSetAugEmbedding(snes,user.is_aug_to_c);CHKERRQ(ierr);
+  //ierr = SNESConstraintSetProjectOntoConstraints(snes,FormProjection,&user);CHKERRQ(ierr);
+
+  ierr = FormProjection(snes,user.X,user.X,&user);CHKERRQ(ierr);
+
+  /* Get active set */
+
+  /* Assume that f(x) and g(x) have already been computed */
+  /* A = \{i : (g_i(x) <= g_i^l+epsilon & \lambda_i > 0) | (g_i(x) >= g_i^u-epsilon & \lambda_i < 0)\} -- strongly active set. */
+  
+
+  ierr = VecGetOwnershipRange(c,&glo,&ghi);CHKERRQ(ierr);
+
+  ierr = VecGetArrayRead(user.cl,&la);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(user.cu,&ua);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(c,&ga);CHKERRQ(ierr);
+  ierr = PetscCalloc1(ghi-glo,&indices);CHKERRQ(ierr);
+  for (i=0;i<ghi-glo;i++) {
+    if ((PetscRealPart(ga[i]) <= PetscRealPart(la[i]))
+        || (PetscRealPart(ga[i]) >= PetscRealPart(ua[i])) )
+    {
+      indices[counter] = i+glo; counter++;
+    }
+  }
+  ierr = VecRestoreArrayRead(user.cl,&la);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(user.cu,&ua);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(c,&ga);CHKERRQ(ierr);
+
+  ierr = PetscObjectGetComm((PetscObject)c,&comm);CHKERRQ(ierr);
+  ierr = ISCreateGeneral(comm,counter,indices,PETSC_OWN_POINTER,&active);CHKERRQ(ierr);
+
+  ierr = FormAugFunction(snes,user.X,user.vaug,&user);CHKERRQ(ierr);
+  ierr = FormAugJacobian(snes,user.X,user.MAug,user.MAug,NULL,&user);CHKERRQ(ierr);
+
+  /* Get A Matrix */
+  ierr = MatGetSubMatrix(user.MAug,user.is_aug_to_x,NULL,MAT_INITIAL_MATRIX,&user.J);CHKERRQ(ierr);
+
+  /* Get B Matrix */
+  ierr = MatGetSubMatrix(user.MAug,user.is_aug_to_c,NULL,MAT_INITIAL_MATRIX,&user.B);CHKERRQ(ierr);
+  ierr = MatGetSubMatrix(user.B,active,NULL,MAT_INITIAL_MATRIX,&user.Ba);CHKERRQ(ierr);
+  /*PetscPrintf(PETSC_COMM_WORLD,"J:\n");
+  ierr = MatView(user.J,PETSC_VIEWER_STDOUT_WORLD);
+  PetscPrintf(PETSC_COMM_WORLD,"B:\n");
+  ierr = MatView(user.B,PETSC_VIEWER_STDOUT_WORLD);
+  PetscPrintf(PETSC_COMM_WORLD,"Ba:\n");
+    ierr = MatView(user.Ba,PETSC_VIEWER_STDOUT_WORLD);
+    ierr = ISView(active,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+   */
+  ierr = ISDuplicate(active,&basis);CHKERRQ(ierr);
+  ierr = PetscOptionsGetString(NULL,"-prefix",prefix,PETSC_MAX_PATH_LEN,&option_prefix);CHKERRQ(ierr);
+
+  if (option_prefix) {
+    size_t plen;
+    ierr = PetscStrlen(prefix,&plen);CHKERRQ(ierr);
+    ierr = PetscStrncpy(Afilename,prefix,plen+1);CHKERRQ(ierr);
+    ierr = PetscStrncpy(Bfilename,prefix,plen+1);CHKERRQ(ierr);
+    ierr = PetscStrncpy(RHSfilename,prefix,plen+1);CHKERRQ(ierr);
+    ierr = PetscStrncpy(ISafilename,prefix,plen+1);CHKERRQ(ierr);
+    ierr = PetscStrncpy(ISbfilename,prefix,plen+1);CHKERRQ(ierr);
+  }
+
+  ierr = PetscStrncat(Afilename,"A",1);CHKERRQ(ierr);
+  ierr = PetscStrncat(Bfilename,"Ba",2);CHKERRQ(ierr);
+  ierr = PetscStrncat(RHSfilename,"RHS",3);CHKERRQ(ierr);
+  ierr = PetscStrncat(ISafilename,"ISa",3);CHKERRQ(ierr);
+  ierr = PetscStrncat(ISbfilename,"ISb",3);CHKERRQ(ierr);
+  
+  ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,Afilename,FILE_MODE_WRITE,&Aviewer);CHKERRQ(ierr);
+  ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,Bfilename,FILE_MODE_WRITE,&Bviewer);CHKERRQ(ierr);
+  ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,RHSfilename,FILE_MODE_WRITE,&RHSviewer);CHKERRQ(ierr);
+  PetscObjectSetName((PetscObject)active,"ISa");
+  PetscObjectSetName((PetscObject)basis,"ISb");
+  ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD,ISafilename,FILE_MODE_WRITE,&ISaviewer);CHKERRQ(ierr);
+  ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD,ISbfilename,FILE_MODE_WRITE,&ISbviewer);CHKERRQ(ierr);
+  ierr = MatView(user.J,Aviewer);CHKERRQ(ierr);
+  //  ierr = MatView(user.Ba,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  ierr = MatView(user.Ba,Bviewer);CHKERRQ(ierr);
+  ierr = VecSet(user.cwork,1.0);CHKERRQ(ierr);
+  ierr = MatMultTranspose(user.B,user.cwork,user.rhs);CHKERRQ(ierr);
+  ierr = VecAXPY(user.rhs,-1.0,user.X);CHKERRQ(ierr);
+  ierr = VecScale(user.rhs,-1.0);CHKERRQ(ierr);
+  ierr = VecView(user.rhs,RHSviewer);CHKERRQ(ierr);
+  ierr = ISView(active,ISaviewer);CHKERRQ(ierr);
+  ierr = ISView(active,ISbviewer);CHKERRQ(ierr);
+  ierr = PetscViewerDestroy(&Aviewer);CHKERRQ(ierr);
+  ierr = PetscViewerDestroy(&Bviewer);CHKERRQ(ierr);
+  ierr = PetscViewerDestroy(&RHSviewer);CHKERRQ(ierr);
+  ierr = PetscViewerDestroy(&ISaviewer);CHKERRQ(ierr);
+  ierr = PetscViewerDestroy(&ISbviewer);CHKERRQ(ierr);
+
+  ierr = SNESDestroy(&snes);CHKERRQ(ierr);
+
+  /* Free PETSc data structures */
+  ierr = VecDestroy(&x);CHKERRQ(ierr);
+  ierr = VecDestroy(&x0);CHKERRQ(ierr);
+  ierr = VecDestroy(&c);CHKERRQ(ierr);
+  ierr = VecDestroy(&user.cwork);CHKERRQ(ierr);
+  ierr = VecDestroy(&user.fwork);CHKERRQ(ierr);
+  ierr = VecDestroy(&user.rhs);CHKERRQ(ierr);
+  ierr = VecDestroy(&user.cl);CHKERRQ(ierr);
+  ierr = VecDestroy(&user.cu);CHKERRQ(ierr);
+  ierr = MatDestroy(&user.J);CHKERRQ(ierr);
+  ierr = MatDestroy(&user.B);CHKERRQ(ierr);
+  ierr = MatDestroy(&user.Ba);CHKERRQ(ierr);
+  ierr = VecDestroy(&user.localX);CHKERRQ(ierr);
+  ierr = VecDestroy(&user.localV);CHKERRQ(ierr);
+  ierr = VecDestroy(&user.Bottom);CHKERRQ(ierr);
+  ierr = VecDestroy(&user.Top);CHKERRQ(ierr);
+  ierr = VecDestroy(&user.Left);CHKERRQ(ierr);
+  ierr = VecDestroy(&user.Right);CHKERRQ(ierr);
+  ierr = DMDestroy(&user.dm);CHKERRQ(ierr);
+  ierr = VecScatterDestroy(&user.xscatter);CHKERRQ(ierr);
+  ierr = VecScatterDestroy(&user.cscatter);CHKERRQ(ierr);
+  ierr = ISDestroy(&active);CHKERRQ(ierr);
+  ierr = ISDestroy(&basis);CHKERRQ(ierr);
+  PetscFinalize();
+  return 0;
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "FormAugFunction"
+/*  FormAugFunction - Evaluates F(x) and C(x)
+
+    Input Parameters:
+.   snes    - the SNES context
+.   X       - input primal vector
+.   userCtx - optional user-defined context, as set by SNESConstraintSetAugFunction()
+
+    Output Parameters:
+.   F      - vector containing the evaluated augmented function -- the gradient and the constraints
+
+   Notes:
+   In this case, we discretize the domain and Create triangles. The
+   surface of each triangle is planar, whose surface area can be easily
+   computed.  The total surface area is found by sweeping through the grid
+   and computing the surface area of the two triangles that have their
+   right angle at the grid point.  The diagonal line segments on the
+   grid that define the triangles run from top left to lower right.
+   The numbering of points starts at the lower left and runs left to
+   right, then bottom to top.
+*/
+PetscErrorCode FormAugFunction(SNES snes, Vec X, Vec FAug,void *userCtx)
+{
+  AppCtx         *user = (AppCtx *) userCtx;
+  PetscErrorCode ierr;
+  PetscInt       i,j,row;
+  PetscInt       mx=user->mx, my=user->my;
+  PetscInt       xs,xm,gxs,gxm,ys,ym,gys,gym;
+  PetscReal      ft=0;
+  PetscReal      zero=0.0;
+  PetscReal      rhx=mx+1, rhy=my+1;
+  PetscReal      hx=1.0/(mx+1),hy=1.0/(my+1), hydhx=hy/hx, hxdhy=hx/hy;
+  PetscReal      f1,f2,f3,f4,f5,f6,d1,d2,d3,d4,d5,d6,d7,d8,xc,xl,xr,xt,xb,xlt,xrb;
+  PetscReal      df1dxc,df2dxc,df3dxc,df4dxc,df5dxc,df6dxc;
+  PetscReal      *g, *x,*left,*right,*bottom,*top;
+  Vec            localX = user->localX, localF = user->localV;
+
+
+  /* constraint function */
+  ierr = VecCopy(X,user->cwork);CHKERRQ(ierr);
+
+  /* Get local mesh boundaries */
+  ierr = DMDAGetCorners(user->dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+  ierr = DMDAGetGhostCorners(user->dm,&gxs,&gys,NULL,&gxm,&gym,NULL);CHKERRQ(ierr);
+
+  /* Scatter ghost points to local vector */
+  ierr = DMGlobalToLocalBegin(user->dm,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalEnd(user->dm,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+
+  /* Initialize vector to zero */
+  ierr = VecSet(localF, zero);CHKERRQ(ierr);
+
+  /* Get pointers to vector data */
+  ierr = VecGetArray(localX,&x);CHKERRQ(ierr);
+  ierr = VecGetArray(localF,&g);CHKERRQ(ierr);
+  ierr = VecGetArray(user->Top,&top);CHKERRQ(ierr);
+  ierr = VecGetArray(user->Bottom,&bottom);CHKERRQ(ierr);
+  ierr = VecGetArray(user->Left,&left);CHKERRQ(ierr);
+  ierr = VecGetArray(user->Right,&right);CHKERRQ(ierr);
+
+  /* Compute function over the locally owned part of the mesh */
+  for (j=ys; j<ys+ym; j++){
+    for (i=xs; i< xs+xm; i++){
+      row=(j-gys)*gxm + (i-gxs);
+
+      xc = x[row];
+      xlt=xrb=xl=xr=xb=xt=xc;
+
+      if (i==0){ /* left side */
+        xl= left[j-ys+1];
+        xlt = left[j-ys+2];
+      } else {
+        xl = x[row-1];
+      }
+
+      if (j==0){ /* bottom side */
+        xb=bottom[i-xs+1];
+        xrb = bottom[i-xs+2];
+      } else {
+        xb = x[row-gxm];
+      }
+
+      if (i+1 == gxs+gxm){ /* right side */
+        xr=right[j-ys+1];
+        xrb = right[j-ys];
+      } else {
+        xr = x[row+1];
+      }
+
+      if (j+1==gys+gym){ /* top side */
+        xt=top[i-xs+1];
+        xlt = top[i-xs];
+      }else {
+        xt = x[row+gxm];
+      }
+
+      if (i>gxs && j+1<gys+gym){
+        xlt = x[row-1+gxm];
+      }
+      if (j>gys && i+1<gxs+gxm){
+        xrb = x[row+1-gxm];
+      }
+
+      d1 = (xc-xl);
+      d2 = (xc-xr);
+      d3 = (xc-xt);
+      d4 = (xc-xb);
+      d5 = (xr-xrb);
+      d6 = (xrb-xb);
+      d7 = (xlt-xl);
+      d8 = (xt-xlt);
+
+      df1dxc = d1*hydhx;
+      df2dxc = ( d1*hydhx + d4*hxdhy );
+      df3dxc = d3*hxdhy;
+      df4dxc = ( d2*hydhx + d3*hxdhy );
+      df5dxc = d2*hydhx;
+      df6dxc = d4*hxdhy;
+
+      d1 *= rhx;
+      d2 *= rhx;
+      d3 *= rhy;
+      d4 *= rhy;
+      d5 *= rhy;
+      d6 *= rhx;
+      d7 *= rhy;
+      d8 *= rhx;
+
+      f1 = PetscSqrtScalar( 1.0 + d1*d1 + d7*d7);
+      f2 = PetscSqrtScalar( 1.0 + d1*d1 + d4*d4);
+      f3 = PetscSqrtScalar( 1.0 + d3*d3 + d8*d8);
+      f4 = PetscSqrtScalar( 1.0 + d3*d3 + d2*d2);
+      f5 = PetscSqrtScalar( 1.0 + d2*d2 + d5*d5);
+      f6 = PetscSqrtScalar( 1.0 + d4*d4 + d6*d6);
+
+      ft = ft + (f2 + f4);
+
+      df1dxc /= f1;
+      df2dxc /= f2;
+      df3dxc /= f3;
+      df4dxc /= f4;
+      df5dxc /= f5;
+      df6dxc /= f6;
+
+      g[row] = (df1dxc+df2dxc+df3dxc+df4dxc+df5dxc+df6dxc ) * 0.5;
+
+    }
+  }
+
+
+  /* Compute triangular areas along the border of the domain. */
+  if (xs==0){ /* left side */
+    for (j=ys; j<ys+ym; j++){
+      d3=(left[j-ys+1] - left[j-ys+2])*rhy;
+      d2=(left[j-ys+1] - x[(j-gys)*gxm])*rhx;
+      ft = ft+PetscSqrtScalar( 1.0 + d3*d3 + d2*d2);
+    }
+  }
+  if (ys==0){ /* bottom side */
+    for (i=xs; i<xs+xm; i++){
+      d2=(bottom[i+1-xs]-bottom[i-xs+2])*rhx;
+      d3=(bottom[i-xs+1]-x[i-gxs])*rhy;
+      ft = ft+PetscSqrtScalar( 1.0 + d3*d3 + d2*d2);
+    }
+  }
+
+  if (xs+xm==mx){ /* right side */
+    for (j=ys; j< ys+ym; j++){
+      d1=(x[(j+1-gys)*gxm-1]-right[j-ys+1])*rhx;
+      d4=(right[j-ys]-right[j-ys+1])*rhy;
+      ft = ft+PetscSqrtScalar( 1.0 + d1*d1 + d4*d4);
+    }
+  }
+  if (ys+ym==my){ /* top side */
+    for (i=xs; i<xs+xm; i++){
+      d1=(x[(gym-1)*gxm + i-gxs] - top[i-xs+1])*rhy;
+      d4=(top[i-xs+1] - top[i-xs])*rhx;
+      ft = ft+PetscSqrtScalar( 1.0 + d1*d1 + d4*d4);
+    }
+  }
+
+  if (ys==0 && xs==0){
+    d1=(left[0]-left[1])*rhy;
+    d2=(bottom[0]-bottom[1])*rhx;
+    ft +=PetscSqrtScalar( 1.0 + d1*d1 + d2*d2);
+  }
+  if (ys+ym == my && xs+xm == mx){
+    d1=(right[ym+1] - right[ym])*rhy;
+    d2=(top[xm+1] - top[xm])*rhx;
+    ft +=PetscSqrtScalar( 1.0 + d1*d1 + d2*d2);
+  }
+
+  /* No longer care about objective value
+
+  ft=ft*area;
+  ierr = MPI_Allreduce(&ft,fcn,1,MPIU_REAL,MPIU_SUM,PETSC_COMM_WORLD);CHKERRQ(ierr);
+   */
+
+
+  /* Restore vectors */
+  ierr = VecRestoreArray(localX,&x);CHKERRQ(ierr);
+  ierr = VecRestoreArray(localF,&g);CHKERRQ(ierr);
+  ierr = VecRestoreArray(user->Left,&left);CHKERRQ(ierr);
+  ierr = VecRestoreArray(user->Top,&top);CHKERRQ(ierr);
+  ierr = VecRestoreArray(user->Bottom,&bottom);CHKERRQ(ierr);
+  ierr = VecRestoreArray(user->Right,&right);CHKERRQ(ierr);
+
+  /* Scatter values to global vector */
+  ierr = DMLocalToGlobalBegin(user->dm,localF,INSERT_VALUES,user->fwork);CHKERRQ(ierr);
+  ierr = DMLocalToGlobalEnd(user->dm,localF,INSERT_VALUES,user->fwork);CHKERRQ(ierr);
+
+  ierr = VecScatterBegin(user->xscatter,user->fwork,FAug,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user->xscatter,user->fwork,FAug,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterBegin(user->cscatter,user->cwork,FAug,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user->cscatter,user->cwork,FAug,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+
+
+
+  ierr = PetscLogFlops(70*xm*ym);CHKERRQ(ierr);
+
+  return 0;
+}
+
+/* ------------------------------------------------------------------- */
+#undef __FUNCT__
+#define __FUNCT__ "FormAugJacobian"
+/*
+   FormJacobian - Evaluates Jacobian and Jacobian-of-constraints matrix.
+
+   Input Parameters:
+.  snes  - the SNES context
+.  x    - input vector
+.  ptr  - optional user-defined context, as set by SNESSetJacobian()
+
+   Output Parameters:
+.  A    - Jacobian matrix
+.  B    - optionally different preconditioning matrix
+
+   Notes:
+   Due to mesh point reordering with DMs, we must always work
+   with the local mesh points, and then transform them to the new
+   global numbering with the local-to-global mapping.  We cannot work
+   directly with the global numbers for the original uniprocessor mesh!
+
+   Two methods are available for imposing this transformation
+   when setting matrix entries:
+     (A) MatSetValuesLocal(), using the local ordering (including
+         ghost points!)
+         - Do the following two steps once, before calling SNESSolve()
+           - Use DMGetISLocalToGlobalMapping() to extract the
+             local-to-global map from the DM
+           - Associate this map with the matrix by calling
+             MatSetLocalToGlobalMapping()
+         - Then set matrix entries using the local ordering
+           by calling MatSetValuesLocal()
+     (B) MatSetValues(), using the global ordering
+         - Use DMGetGlobalIndices() to extract the local-to-global map
+         - Then apply this map explicitly yourself
+         - Set matrix entries using the global ordering by calling
+           MatSetValues()
+   Option (A) seems cleaner/easier in many cases, and is the procedure
+   used in this example.
+*/
+PetscErrorCode FormAugJacobian(SNES snes,Vec X,Mat JAug, Mat JAugPre, SNESConstraintAugMatShape* augtype, void *ptr)
+{
+  PetscErrorCode ierr;
+  AppCtx         *user = (AppCtx *) ptr;
+  PetscInt       i,j,k,row,prow;
+  PetscInt       mx=user->mx, my=user->my;
+  PetscInt       xs,xm,gxs,gxm,ys,ym,gys,gym,col[7],pcol[7];
+  PetscReal      hx=1.0/(mx+1), hy=1.0/(my+1), hydhx=hy/hx, hxdhy=hx/hy;
+  PetscReal      rhx=mx+1, rhy=my+1;
+  PetscReal      f1,f2,f3,f4,f5,f6,d1,d2,d3,d4,d5,d6,d7,d8,xc,xl,xr,xt,xb,xlt,xrb;
+  PetscReal      hl,hr,ht,hb,hc,htl,hbr;
+  PetscReal      *x,*left,*right,*bottom,*top;
+  PetscReal      v[7];
+  Vec            localX = user->localX;
+  PetscInt       offset,block;
+  PetscBool      assembled;
+  PetscMPIInt    mpisize;
+  PetscInt       *ranges;
+  ISLocalToGlobalMapping   ltog;
+
+  /* Set various matrix options */
+  //*augtype = SNES_CONSTRAINT_AUG_MAT_FULL;
+  ierr = MPI_Comm_size(PETSC_COMM_WORLD,&mpisize);CHKERRQ(ierr);
+  ierr = PetscCalloc1(mpisize,&ranges);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRanges(X,(void*)&ranges);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(user->dm,&ltog);CHKERRQ(ierr);
+  /* Initialize matrix entries to zero */
+  ierr = MatAssembled(JAug,&assembled);CHKERRQ(ierr);
+  if (assembled){ierr = MatZeroEntries(JAug);CHKERRQ(ierr);}
+
+  /* Get local mesh boundaries */
+  ierr = DMDAGetCorners(user->dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+  ierr = DMDAGetGhostCorners(user->dm,&gxs,&gys,NULL,&gxm,&gym,NULL);CHKERRQ(ierr);
+
+  /* Scatter ghost points to local vector */
+  ierr = DMGlobalToLocalBegin(user->dm,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalEnd(user->dm,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+
+  /* Get pointers to vector data */
+  ierr = VecGetArray(localX,&x);CHKERRQ(ierr);
+  ierr = VecGetArray(user->Top,&top);CHKERRQ(ierr);
+  ierr = VecGetArray(user->Bottom,&bottom);CHKERRQ(ierr);
+  ierr = VecGetArray(user->Left,&left);CHKERRQ(ierr);
+  ierr = VecGetArray(user->Right,&right);CHKERRQ(ierr);
+  
+  /* Compute Jacobian over the locally owned part of the mesh */
+
+  for (i=xs; i< xs+xm; i++){
+
+    for (j=ys; j<ys+ym; j++){
+
+      row=(j-gys)*gxm + (i-gxs);
+      xc = x[row];
+      xlt=xrb=xl=xr=xb=xt=xc;
+
+      /* Left side */
+      if (i==gxs){
+        xl= left[j-ys+1];
+        xlt = left[j-ys+2];
+      } else {
+        xl = x[row-1];
+      }
+
+      if (j==gys){
+        xb=bottom[i-xs+1];
+        xrb = bottom[i-xs+2];
+      } else {
+        xb = x[row-gxm];
+      }
+
+      if (i+1 == gxs+gxm){
+        xr=right[j-ys+1];
+        xrb = right[j-ys];
+      } else {
+        xr = x[row+1];
+      }
+
+      if (j+1==gys+gym){
+        xt=top[i-xs+1];
+        xlt = top[i-xs];
+      }else {
+        xt = x[row+gxm];
+      }
+
+      if (i>gxs && j+1<gys+gym){
+        xlt = x[row-1+gxm];
+      }
+      if (j>gys && i+1<gxs+gxm){
+        xrb = x[row+1-gxm];
+      }
+
+
+      d1 = (xc-xl)*rhx;
+      d2 = (xc-xr)*rhx;
+      d3 = (xc-xt)*rhy;
+      d4 = (xc-xb)*rhy;
+      d5 = (xrb-xr)*rhy;
+      d6 = (xrb-xb)*rhx;
+      d7 = (xlt-xl)*rhy;
+      d8 = (xlt-xt)*rhx;
+
+      f1 = PetscSqrtScalar( 1.0 + d1*d1 + d7*d7);
+      f2 = PetscSqrtScalar( 1.0 + d1*d1 + d4*d4);
+      f3 = PetscSqrtScalar( 1.0 + d3*d3 + d8*d8);
+      f4 = PetscSqrtScalar( 1.0 + d3*d3 + d2*d2);
+      f5 = PetscSqrtScalar( 1.0 + d2*d2 + d5*d5);
+      f6 = PetscSqrtScalar( 1.0 + d4*d4 + d6*d6);
+
+
+      hl = (-hydhx*(1.0+d7*d7)+d1*d7)/(f1*f1*f1)+
+        (-hydhx*(1.0+d4*d4)+d1*d4)/(f2*f2*f2);
+      hr = (-hydhx*(1.0+d5*d5)+d2*d5)/(f5*f5*f5)+
+        (-hydhx*(1.0+d3*d3)+d2*d3)/(f4*f4*f4);
+      ht = (-hxdhy*(1.0+d8*d8)+d3*d8)/(f3*f3*f3)+
+        (-hxdhy*(1.0+d2*d2)+d2*d3)/(f4*f4*f4);
+      hb = (-hxdhy*(1.0+d6*d6)+d4*d6)/(f6*f6*f6)+
+        (-hxdhy*(1.0+d1*d1)+d1*d4)/(f2*f2*f2);
+
+      hbr = -d2*d5/(f5*f5*f5) - d4*d6/(f6*f6*f6);
+      htl = -d1*d7/(f1*f1*f1) - d3*d8/(f3*f3*f3);
+
+      hc = hydhx*(1.0+d7*d7)/(f1*f1*f1) + hxdhy*(1.0+d8*d8)/(f3*f3*f3) +
+        hydhx*(1.0+d5*d5)/(f5*f5*f5) + hxdhy*(1.0+d6*d6)/(f6*f6*f6) +
+        (hxdhy*(1.0+d1*d1)+hydhx*(1.0+d4*d4)-2*d1*d4)/(f2*f2*f2) +
+        (hxdhy*(1.0+d2*d2)+hydhx*(1.0+d3*d3)-2*d2*d3)/(f4*f4*f4);
+
+      hl*=0.5; hr*=0.5; ht*=0.5; hb*=0.5; hbr*=0.5; htl*=0.5;  hc*=0.5;
+
+      k=0;
+      if (j>0){
+        v[k]=hb; col[k]=row - gxm; k++;
+      }
+
+      if (j>0 && i < mx -1){
+        v[k]=hbr; col[k]=row - gxm+1; k++;
+      }
+
+      if (i>0){
+        v[k]= hl; col[k]=row - 1; k++;
+      }
+
+      v[k]= hc; col[k]=row; k++;
+
+      if (i < mx-1 ){
+        v[k]= hr; col[k]=row+1; k++;
+      }
+
+      if (i>0 && j < my-1 ){
+        v[k]= htl; col[k] = row+gxm-1; k++;
+      }
+
+      if (j < my-1 ){
+        v[k]= ht; col[k] = row+gxm; k++;
+      }
+      /* get global index */
+      ierr = ISLocalToGlobalMappingApply(ltog,1,&row,&prow);CHKERRQ(ierr);
+      ierr = ISLocalToGlobalMappingApply(ltog,k,col,pcol);CHKERRQ(ierr);
+      offset=0;
+      for (block=0;prow>=ranges[block+1];block++) offset+=ranges[block+1]-ranges[block];
+      prow+=offset;
+
+      //      PetscPrintf(PETSC_COMM_SELF,"Setting A row #%d, prow #%d, col=%d\n",row,prow,pcol[0]);
+      ierr = MatSetValues(JAug,1,&prow,k,pcol,v,INSERT_VALUES);CHKERRQ(ierr);
+
+    }
+  }
+
+  /* Restore vectors */
+  ierr = VecRestoreArray(localX,&x);CHKERRQ(ierr);
+  ierr = VecRestoreArray(user->Left,&left);CHKERRQ(ierr);
+  ierr = VecRestoreArray(user->Top,&top);CHKERRQ(ierr);
+  ierr = VecRestoreArray(user->Bottom,&bottom);CHKERRQ(ierr);
+  ierr = VecRestoreArray(user->Right,&right);CHKERRQ(ierr);
+
+  /* Get local mesh boundaries */
+  ierr = DMDAGetCorners(user->dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+  ierr = DMDAGetGhostCorners(user->dm,&gxs,&gys,NULL,&gxm,&gym,NULL);CHKERRQ(ierr);
+
+
+  v[0]=1.0;
+  for (i=xs; i< xs+xm; i++){
+    for (j=ys; j<ys+ym; j++){
+      row=(j-gys)*gxm + (i-gxs);
+      /* get global indices */
+      ierr = ISLocalToGlobalMappingApply(ltog,1,&row,&prow);CHKERRQ(ierr);
+
+      col[0]=(j-gys)*gxm + (i-gxs);
+      ierr = ISLocalToGlobalMappingApply(ltog,1,col,pcol);CHKERRQ(ierr);
+      offset=ranges[1]-ranges[0];
+      for (block=0;prow>=ranges[block+1];block++) offset+=ranges[block+1]-ranges[block];
+      prow+=offset;
+
+
+      ierr = MatSetValues(JAug,1,&prow,1,pcol,v,INSERT_VALUES);CHKERRQ(ierr);
+    }
+  }
+
+  /* Assemble the matrix */
+  ierr = MatAssemblyBegin(JAug,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(JAug,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = PetscFree(ranges);CHKERRQ(ierr);
+
+  ierr = PetscLogFlops(199*xm*ym);CHKERRQ(ierr);
+  return 0;
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "FormProjection"
+PetscErrorCode FormProjection(SNES snes, Vec x, Vec p,void *ptr)
+{
+  PetscErrorCode ierr;
+  PetscInt       sizex,sizec;
+  AppCtx         *user = (AppCtx *) ptr;
+
+  PetscFunctionBegin;
+  /* TODO: Need to project only x, not aug vector. this is temporary hack.*/
+  ierr = VecGetSize(x,&sizex);
+  ierr = VecGetSize(user->cl,&sizec);
+  if (sizec == sizex) {
+    ierr = VecMedian(user->cl,x,user->cu,p);CHKERRQ(ierr);
+  } else {
+    ierr = VecScatterBegin(user->xscatter,x,user->fwork,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr = VecScatterEnd(user->xscatter,x,user->fwork,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+    ierr = VecMedian(user->cl,user->fwork,user->cu,user->fwork);CHKERRQ(ierr);
+    ierr = VecScatterBegin(user->xscatter,user->fwork,p,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+    ierr = VecScatterEnd(user->xscatter,user->fwork,p,INSERT_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+
+}
+
+/* ------------------------------------------------------------------- */
+#undef __FUNCT__
+#define __FUNCT__ "MSA_BoundaryConditions"
+/*
+   MSA_BoundaryConditions -  Calculates the boundary conditions for
+   the region.
+
+   Input Parameter:
+.  user - user-defined application context
+
+   Output Parameter:
+.  user - user-defined application context
+*/
+static PetscErrorCode MSA_BoundaryConditions(AppCtx * user)
+{
+  int        ierr;
+  PetscInt   i,j,k,maxits=5,limit=0;
+  PetscInt   xs,ys,xm,ym,gxs,gys,gxm,gym;
+  PetscInt   mx=user->mx,my=user->my;
+  PetscInt   bsize=0, lsize=0, tsize=0, rsize=0;
+  PetscReal  one=1.0, two=2.0, three=3.0, scl=1.0, tol=1e-10;
+  PetscReal  fnorm,det,hx,hy,xt=0,yt=0;
+  PetscReal  u1,u2,nf1,nf2,njac11,njac12,njac21,njac22;
+  PetscReal  b=-0.5, t=0.5, l=-0.5, r=0.5;
+  PetscReal  *boundary;
+  PetscBool  flg;
+  Vec        Bottom,Top,Right,Left;
+
+  /* Get local mesh boundaries */
+  ierr = DMDAGetCorners(user->dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+  ierr = DMDAGetGhostCorners(user->dm,&gxs,&gys,NULL,&gxm,&gym,NULL);CHKERRQ(ierr);
+
+
+  bsize=xm+2;
+  lsize=ym+2;
+  rsize=ym+2;
+  tsize=xm+2;
+
+  ierr = VecCreateMPI(PETSC_COMM_WORLD,bsize,PETSC_DECIDE,&Bottom);CHKERRQ(ierr);
+  ierr = VecCreateMPI(PETSC_COMM_WORLD,tsize,PETSC_DECIDE,&Top);CHKERRQ(ierr);
+  ierr = VecCreateMPI(PETSC_COMM_WORLD,lsize,PETSC_DECIDE,&Left);CHKERRQ(ierr);
+  ierr = VecCreateMPI(PETSC_COMM_WORLD,rsize,PETSC_DECIDE,&Right);CHKERRQ(ierr);
+
+  user->Top=Top;
+  user->Left=Left;
+  user->Bottom=Bottom;
+  user->Right=Right;
+
+  hx= (r-l)/(mx+1); hy=(t-b)/(my+1);
+
+  for (j=0; j<4; j++){
+    if (j==0){
+      yt=b;
+      xt=l+hx*xs;
+      limit=bsize;
+      VecGetArray(Bottom,&boundary);
+    } else if (j==1){
+      yt=t;
+      xt=l+hx*xs;
+      limit=tsize;
+      VecGetArray(Top,&boundary);
+    } else if (j==2){
+      yt=b+hy*ys;
+      xt=l;
+      limit=lsize;
+      VecGetArray(Left,&boundary);
+    } else if (j==3){
+      yt=b+hy*ys;
+      xt=r;
+      limit=rsize;
+      VecGetArray(Right,&boundary);
+    }
+
+    for (i=0; i<limit; i++){
+      u1=xt;
+      u2=-yt;
+      for (k=0; k<maxits; k++){
+        nf1=u1 + u1*u2*u2 - u1*u1*u1/three-xt;
+        nf2=-u2 - u1*u1*u2 + u2*u2*u2/three-yt;
+        fnorm=PetscSqrtScalar(nf1*nf1+nf2*nf2);
+        if (fnorm <= tol) break;
+        njac11=one+u2*u2-u1*u1;
+        njac12=two*u1*u2;
+        njac21=-two*u1*u2;
+        njac22=-one - u1*u1 + u2*u2;
+        det = njac11*njac22-njac21*njac12;
+        u1 = u1-(njac22*nf1-njac12*nf2)/det;
+        u2 = u2-(njac11*nf2-njac21*nf1)/det;
+      }
+
+      boundary[i]=u1*u1-u2*u2;
+      if (j==0 || j==1) {
+        xt=xt+hx;
+      } else if (j==2 || j==3){
+        yt=yt+hy;
+      }
+    }
+    if (j==0){
+      ierr = VecRestoreArray(Bottom,&boundary);CHKERRQ(ierr);
+    } else if (j==1){
+      ierr = VecRestoreArray(Top,&boundary);CHKERRQ(ierr);
+    } else if (j==2){
+      ierr = VecRestoreArray(Left,&boundary);CHKERRQ(ierr);
+    } else if (j==3){
+      ierr = VecRestoreArray(Right,&boundary);CHKERRQ(ierr);
+    }
+  }
+
+  /* Scale the boundary if desired */
+
+  ierr = PetscOptionsGetReal(NULL,"-bottom",&scl,&flg);CHKERRQ(ierr);
+  if (flg){
+    ierr = VecScale(Bottom, scl);CHKERRQ(ierr);
+  }
+  ierr = PetscOptionsGetReal(NULL,"-top",&scl,&flg);CHKERRQ(ierr);
+  if (flg){
+    ierr = VecScale(Top, scl);CHKERRQ(ierr);
+  }
+  ierr = PetscOptionsGetReal(NULL,"-right",&scl,&flg);CHKERRQ(ierr);
+  if (flg){
+    ierr = VecScale(Right, scl);CHKERRQ(ierr);
+  }
+
+  ierr = PetscOptionsGetReal(NULL,"-left",&scl,&flg);CHKERRQ(ierr);
+  if (flg){
+    ierr = VecScale(Left, scl);CHKERRQ(ierr);
+  }
+  return 0;
+}
+
+
+/* ------------------------------------------------------------------- */
+#undef __FUNCT__
+#define __FUNCT__ "MSA_Plate"
+/*
+   MSA_Plate -  Calculates an obstacle for surface to stretch over.
+
+   Input Parameter:
+.  user - user-defined application context
+
+   Output Parameter:
+.  user - user-defined application context
+*/
+static PetscErrorCode MSA_Plate(Vec XL,Vec XU,void *ctx){
+
+  AppCtx         *user=(AppCtx *)ctx;
+  PetscErrorCode ierr;
+  PetscInt       i,j,row;
+  PetscInt       xs,ys,xm,ym;
+  PetscInt       mx=user->mx, my=user->my, bmy, bmx;
+  PetscReal      t1,t2,t3;
+  PetscReal      *xl, lb=PETSC_NINFINITY, ub=PETSC_INFINITY;
+  PetscBool      cylinder;
+
+  user->bmy = PetscMax(0,user->bmy);user->bmy = PetscMin(my,user->bmy);
+  user->bmx = PetscMax(0,user->bmx);user->bmx = PetscMin(mx,user->bmx);
+  bmy=user->bmy, bmx=user->bmx;
+
+  ierr = DMDAGetCorners(user->dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+
+  ierr = VecSet(XL, lb);CHKERRQ(ierr);
+  ierr = VecSet(XU, ub);CHKERRQ(ierr);
+
+  ierr = VecGetArray(XL,&xl);CHKERRQ(ierr);
+
+  ierr = PetscOptionsHasName(NULL,"-cylinder",&cylinder);CHKERRQ(ierr);
+  /* Compute the optional lower box */
+  if (cylinder){
+    for (i=xs; i< xs+xm; i++){
+      for (j=ys; j<ys+ym; j++){
+        row=(j-ys)*xm + (i-xs);
+        t1=(2.0*i-mx)*bmy;
+        t2=(2.0*j-my)*bmx;
+        t3=bmx*bmx*bmy*bmy;
+        if ( t1*t1 + t2*t2 <= t3 ){
+          xl[row] = user->bheight;
+        }
+      }
+    }
+  } else {
+    /* Compute the optional lower box */
+    for (i=xs; i< xs+xm; i++){
+      for (j=ys; j<ys+ym; j++){
+        row=(j-ys)*xm + (i-xs);
+        if (i>=(mx-bmx)/2 && i<mx-(mx-bmx)/2 &&
+            j>=(my-bmy)/2 && j<my-(my-bmy)/2 ){
+          xl[row] = user->bheight;
+        }
+      }
+    }
+  }
+  ierr = VecRestoreArray(XL,&xl);CHKERRQ(ierr);
+
+  return 0;
+}
+
+
+/* ------------------------------------------------------------------- */
+#undef __FUNCT__
+#define __FUNCT__ "MSA_InitialPoint"
+/*
+   MSA_InitialPoint - Calculates the initial guess in one of three ways.
+
+   Input Parameters:
+.  user - user-defined application context
+.  X - vector for initial guess
+
+   Output Parameters:
+.  X - newly computed initial guess
+*/
+static PetscErrorCode MSA_InitialPoint(AppCtx * user, Vec X)
+{
+  PetscErrorCode ierr;
+  PetscInt       start=-1,i,j;
+  PetscReal      zero=0.0;
+  PetscBool      flg;
+
+  ierr = PetscOptionsGetInt(NULL,"-start",&start,&flg);CHKERRQ(ierr);
+  if (flg && start==0){ /* The zero vector is reasonable */
+    ierr = VecSet(X, zero);CHKERRQ(ierr);
+  } else if (flg && start>0){ /* Try a random start between -0.5 and 0.5 */
+    PetscRandom rctx;  PetscReal np5=-0.5;
+
+    ierr = PetscRandomCreate(PETSC_COMM_WORLD,&rctx);CHKERRQ(ierr);
+    for (i=0; i<start; i++){
+      ierr = VecSetRandom(X, rctx);CHKERRQ(ierr);
+    }
+    ierr = PetscRandomDestroy(&rctx);CHKERRQ(ierr);
+    ierr = VecShift(X, np5);
+
+  } else { /* Take an average of the boundary conditions */
+
+    PetscInt row,xs,xm,gxs,gxm,ys,ym,gys,gym;
+    PetscInt mx=user->mx,my=user->my;
+    PetscReal *x,*left,*right,*bottom,*top;
+    Vec    localX = user->localX;
+
+    /* Get local mesh boundaries */
+    ierr = DMDAGetCorners(user->dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+    ierr = DMDAGetGhostCorners(user->dm,&gxs,&gys,NULL,&gxm,&gym,NULL);CHKERRQ(ierr);
+
+    /* Get pointers to vector data */
+    ierr = VecGetArray(user->Top,&top);CHKERRQ(ierr);
+    ierr = VecGetArray(user->Bottom,&bottom);CHKERRQ(ierr);
+    ierr = VecGetArray(user->Left,&left);CHKERRQ(ierr);
+    ierr = VecGetArray(user->Right,&right);CHKERRQ(ierr);
+
+    ierr = VecGetArray(localX,&x);CHKERRQ(ierr);
+    /* Perform local computations */
+    for (j=ys; j<ys+ym; j++){
+      for (i=xs; i< xs+xm; i++){
+        row=(j-gys)*gxm + (i-gxs);
+        x[row] = ( (j+1)*bottom[i-xs+1]/my + (my-j+1)*top[i-xs+1]/(my+2)+
+                   (i+1)*left[j-ys+1]/mx + (mx-i+1)*right[j-ys+1]/(mx+2))/2.0;
+      }
+    }
+
+    /* Restore vectors */
+    ierr = VecRestoreArray(localX,&x);CHKERRQ(ierr);
+
+    ierr = VecRestoreArray(user->Left,&left);CHKERRQ(ierr);
+    ierr = VecRestoreArray(user->Top,&top);CHKERRQ(ierr);
+    ierr = VecRestoreArray(user->Bottom,&bottom);CHKERRQ(ierr);
+    ierr = VecRestoreArray(user->Right,&right);CHKERRQ(ierr);
+
+    /* Scatter values into global vector */
+    ierr = DMLocalToGlobalBegin(user->dm,localX,INSERT_VALUES,X);CHKERRQ(ierr);
+    ierr = DMLocalToGlobalEnd(user->dm,localX,INSERT_VALUES,X);CHKERRQ(ierr);
+
+  }
+  return 0;
+}
+
+
+
+
+
+

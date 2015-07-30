@@ -88,6 +88,14 @@ ex68: ex68.o chkopts
 	-${CLINKER} -o ex68 ex68.o ${PETSC_SNES_LIB}
 	${RM} ex68.o
 
+ex69a_reader: ex69a_reader.o chkopts
+	-${CLINKER} -o ex69a_reader ex69a_reader.o ${PETSC_SNES_LIB}
+	${RM} ex69a_reader.o
+
+ex69a_writer: ex69a_writer.o chkopts
+	-${CLINKER} -o ex69a_writer ex69a_writer.o ${PETSC_SNES_LIB}
+	${RM} ex69a_writer.o
+
 #--------------------------------------------------------------------------
 runex1:
 	-@${MPIEXEC} -n 1 ./ex1 -ksp_gmres_cgs_refinement_type refine_always > ex1_1.tmp 2>&1;	 \
