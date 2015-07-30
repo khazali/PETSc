@@ -685,8 +685,8 @@ PETSC_EXTERN PetscErrorCode DMSNESConstraintGetAugFunction(DM,PetscErrorCode (**
 PETSC_EXTERN PetscErrorCode DMSNESConstraintSetAugJacobian(DM,PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSNESConstraintGetAugJacobian(DM,PetscErrorCode (**)(SNES,Vec,Mat,Mat,void*),void**);
 
-PETSC_EXTERN PetscErrorCode SNESConstraintSetUpAugEmbeddings(SNES,IS*,IS*);
-PETSC_EXTERN PetscErrorCode SNESConstraintSetUpAugScatters(SNES);
+PETSC_EXTERN PetscErrorCode SNESConstraintCreateAugEmbeddings(SNES,IS*,IS*);
+PETSC_EXTERN PetscErrorCode SNESConstraintCreateAugScatters(SNES);
 PETSC_EXTERN PetscErrorCode SNESConstraintSetWorkVecs(SNES,PetscInt,PetscInt,PetscInt);
 
 PETSC_EXTERN PetscErrorCode DMSNESNEWTONAUGASSetActiveConstraintBasis(DM,PetscErrorCode (*)(SNES,Vec,Vec,Vec,Mat,IS,IS*,Mat*,Mat*,void*),void*);

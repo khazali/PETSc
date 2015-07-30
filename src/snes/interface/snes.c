@@ -3512,10 +3512,10 @@ PetscErrorCode  SNESConstraintSetAugFunction(SNES snes,Vec h,Vec hl,Vec hu,Petsc
   ierr = DMSNESConstraintSetAugFunction(dm,augfunc,augfuncctx);CHKERRQ(ierr);
 
   /* Assume the user is using an aug constraint system, so get rid of the split system, if there is any. */
-  ierr = SNESSetFunction(snes,NULL,NULL,NULL);CHKERRQ(ierr);
+  //ierr = SNESSetFunction(snes,NULL,NULL,NULL);CHKERRQ(ierr);
   ierr = VecDestroy(&snes->vec_sol);CHKERRQ(ierr);
   ierr = VecDestroy(&snes->vec_func);CHKERRQ(ierr);
-  ierr = SNESSetJacobian(snes,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+  //ierr = SNESSetJacobian(snes,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
   ierr = MatDestroy(&snes->jacobian);CHKERRQ(ierr);
   ierr = MatDestroy(&snes->jacobian_pre);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -3603,10 +3603,10 @@ PetscErrorCode  SNESConstraintSetAugJacobian(SNES snes,Mat J,Mat J_pre,PetscErro
   ierr = DMSNESConstraintSetAugJacobian(dm,augjac,augjacctx);CHKERRQ(ierr);
 
   /* Assume the user is using an aug constraint system, so get rid of the split system, if there is any. */
-  ierr = SNESSetFunction(snes,NULL,NULL,NULL);CHKERRQ(ierr);
+  //ierr = SNESSetFunction(snes,NULL,NULL,NULL);CHKERRQ(ierr);
   ierr = VecDestroy(&snes->vec_sol);CHKERRQ(ierr);
   ierr = VecDestroy(&snes->vec_func);CHKERRQ(ierr);
-  ierr = SNESSetJacobian(snes,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+  //ierr = SNESSetJacobian(snes,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
   ierr = MatDestroy(&snes->jacobian);CHKERRQ(ierr);
   ierr = MatDestroy(&snes->jacobian_pre);CHKERRQ(ierr);
 

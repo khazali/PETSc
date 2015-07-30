@@ -679,9 +679,9 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAUGAS(SNES snes)
    */
   if (afunc) {
     ierr = SNESConstraintSetUpAugVectors(snes);CHKERRQ(ierr);
-    ierr = SNESConstraintSetUpAugEmbeddings(snes,&snes->is_func_aug,&snes->is_constr_aug);CHKERRQ(ierr); /* Depends on the existence of aug vec. */
+    ierr = SNESConstraintCreateAugEmbeddings(snes,&snes->is_func_aug,&snes->is_constr_aug);CHKERRQ(ierr); /* Depends on the existence of aug vec. */
     ierr = SNESConstraintSetUpSplitVectors(snes);CHKERRQ(ierr); /* Depends on the existence of embeddings. */
-    ierr = SNESConstraintSetUpAugScatters(snes);CHKERRQ(ierr); /* Depends on the existence of aug and split vectors and embeddings. */
+    ierr = SNESConstraintCreateAugScatters(snes);CHKERRQ(ierr); /* Depends on the existence of aug and split vectors and embeddings. */
     ierr = SNESConstraintSetUpSplitBounds(snes);CHKERRQ(ierr);  /* Depends on the existence of scatters to extract split bounds. */
 
     ierr = SNESConstraintSetUpAugMatrices(snes);CHKERRQ(ierr);
@@ -690,8 +690,8 @@ PETSC_INTERN PetscErrorCode SNESSetUp_NEWTONAUGAS(SNES snes)
   if (func) {
     ierr = SNESConstraintSetUpSplitVectors(snes);CHKERRQ(ierr);
     ierr = SNESConstraintSetUpAugVectors(snes);CHKERRQ(ierr);    /* Depends on the existence of split vectors. */
-    ierr = SNESConstraintSetUpAugEmbeddings(snes,&snes->is_func_aug,&snes->is_constr_aug);CHKERRQ(ierr);    /* Depends on the existence of aug and split vectors. */
-    ierr = SNESConstraintSetUpScatters(snes);CHKERRQ(ierr);      /* Depends on the existence of aug and split vectors and embeddings. */
+    ierr = SNESConstraintCreateAugEmbeddings(snes,&snes->is_func_aug,&snes->is_constr_aug);CHKERRQ(ierr);    /* Depends on the existence of aug and split vectors. */
+    ierr = SNESConstraintCreateAugScatters(snes);CHKERRQ(ierr);      /* Depends on the existence of aug and split vectors and embeddings. */
 
     ierr = SNESConstraintSetUpSplitMatrices(snes);CHKERRQ(ierr);
     /* SNESConstraintSetUpAugMatrices() is a no-op if !afunc. */

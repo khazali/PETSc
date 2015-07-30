@@ -311,7 +311,7 @@ PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugVectors(SNES);
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpSplitBounds(SNES);
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpSplitMatrices(SNES);
 PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugMatrices(SNES);
-PETSC_INTERN PetscErrorCode SNESConstraintSetUpAugScatters(SNES);
+
 
 PETSC_INTERN PetscErrorCode SNESConstraintComputeFunctions(SNES,Vec,Vec,Vec,Vec);
 PETSC_INTERN PetscErrorCode SNESConstraintComputeJacobians(SNES,Vec,MatReuse,Mat,Mat,SNESConstraintAugMatShape,Mat,Mat,Mat,Mat);
