@@ -532,6 +532,22 @@ PetscErrorCode  PetscInitializeSAWs(const char help[])
         PetscStackCallSAWs(SAWs_Set_Use_Logfile,(NULL));
       }
     }
+
+    ierr = PetscOptionsHasName(NULL,"-saws_publish",&flg);CHKERRQ(ierr);
+    if (flg) {
+       ierr = PetscStrreplace(PETSC_COMM_WORLD,"${PETSC_DIR}/share/petsc/saws",root,PETSC_MAX_PATH_LEN);CHKERRQ(ierr);
+       PetscStackCallSAWs(SAWs_Set_Document_Root,(root));CHKERRQ(ierr);
+    }
+
+
+    ierr = PetscOptionsGetString(NULL,"-saws_publish",cert,PETSC_MAX_PATH_LEN,&flg);CHKERRQ(ierr);
+    if (flg) {
+          PetscStackCallSAWs(SAWs_Set_Document_Root,("."));CHKERRQ(ierr);
+
+          ierr = PetscStrreplace(PETSC_COMM_WORLD,"${PETSC_DIR}/share/petsc/saws",root,PETSC_MAX_PATH_LEN);CHKERRQ(ierr);
+          PetscStackCallSAWs(SAWs_Add_Document_Root,(root));CHKERRQ(ierr);
+    }
+
     ierr = PetscOptionsGetString(NULL,"-saws_https",cert,PETSC_MAX_PATH_LEN,&flg);CHKERRQ(ierr);
     if (flg) {
       PetscStackCallSAWs(SAWs_Set_Use_HTTPS,(cert));

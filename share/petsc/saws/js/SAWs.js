@@ -55,7 +55,9 @@
 */
 var SAWs = {}
 var ind = 0;
-
+var isMap = true;
+var map;
+var directionsDisplay;
 /*
   SAWs.getDirectory grabs the directories and variables listed in names  from the server
 
@@ -69,11 +71,13 @@ SAWs.getDirectory = function(names,callback,callbackdata) {
 
     jQuery.getJSON('/SAWs/*',function(data){
                                        if(typeof(callback) == typeof(Function)) callback(data,callbackdata)
+                                       console.log(data);
                                     })
 
   } else {
     jQuery.getJSON('/SAWs/' + names,function(data){
                                        if(typeof(callback) == typeof(Function)) callback(data,callbackdata)
+                                       console.log(data);
                                     })
 
  //   jQuery.each(names,function(key,value){
@@ -92,6 +96,8 @@ SAWs.getDirectory = function(names,callback,callbackdata) {
                  //        }
                    //   })
   }
+
+
 };
 
 
@@ -154,10 +160,15 @@ var globaldirectory = {}
 
 SAWs.displayDirectory = function(sub,divEntry)
 {
+
+  console.log(sub);
+
   globaldirectory[divEntry] = sub
   if (sub.directories.SAWs_ROOT_DIRECTORY.variables.hasOwnProperty("__Block") && (sub.directories.SAWs_ROOT_DIRECTORY.variables.__Block.data[0] == "true")) {
+
     jQuery(divEntry).append("<center><input type=\"button\" value=\"Continue\" id=\"continue\"></center>")
     jQuery('#continue').on('click', function(){
+                                      $('#map-canvas').remove();
                                       SAWs.updateDirectoryFromDisplay(divEntry)
                                       sub.directories.SAWs_ROOT_DIRECTORY.variables.__Block.data = ["false"];
                                       SAWs.postDirectory(sub);
@@ -165,6 +176,11 @@ SAWs.displayDirectory = function(sub,divEntry)
                                       window.setTimeout(SAWs.getAndDisplayDirectory,1000,null,divEntry);
                                     })
   }
+
+
+
+
+
   SAWs.displayDirectoryRecursive(sub.directories,divEntry,0,"")
 }
 
@@ -179,8 +195,15 @@ SAWs.history = function (field){
 
  jQuery.getJSON('/SAWs/historyGet/' + field,function(data){
                                                                     $("#Info").html("");
-                                                                    SAWs.displayDirectoryAsString(data.directories,"Info",0,"Info");
+                                                                    SAWs.displayDirectoryAsHistory(data.directories,"Info",0,"Info");
                                                                 })
+}
+
+
+SAWs.drawLine = function(long1,lat1,long2,lat2) {
+    var lineone = [ new google.maps.LatLng(long1, lat1), new google.maps.LatLng(long2, lat2)];
+    var line1 = new google.maps.Polyline({ path: lineone, geodesic: true, strokeColor: '#000000', strokeOpacity: 1.0, strokeWeight: 3 });
+    line1.setMap(map);
 }
 
 SAWs.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
@@ -202,6 +225,37 @@ SAWs.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
 				       for(j=0;j<sub[key].variables[vKey].data.length;j++){
 				        if (sub[key].variables[vKey].data[j].toString() != "(null)"){	     
                                          if(sub[key].variables[vKey].alternatives.length == 0){
+
+                                           if(sub[key].variables[vKey].dtype == "SAWs_MAP") {
+
+
+                                             if (isMap) {
+                                                                                          isMap = false;
+
+                                                  $("body").append("<div id=\"map-canvas\" style=\"height: 50%;margin: 50px;padding: 0px\"></div>");
+
+                                                                                                   var mapOptions = { zoom: 13, center: new google.maps.LatLng(41.696760, -87.948319), mapTypeId: google.maps.MapTypeId.ROADMAP };
+                                                                                                      directionsDisplay = new google.maps.DirectionsRenderer();
+                                                                                                      map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
+                                                                                                      directionsDisplay.setMap(map);
+                                             }
+
+
+
+                                             var res = sub[key].variables[vKey].data[0].split(":");
+
+                                             var set1 = res[0].split(",");
+                                             var set2 = res[1].split(",");
+
+
+
+
+
+                                              SAWs.drawLine(set1[0],set1[1],set2[0],set2[1]);
+
+
+                                           }
+
                                            if(sub[key].variables[vKey].dtype == "SAWs_BOOLEAN") {
                                              jQuery("#"+fullkey).append("<select id=\"data"+fullkey+vKey+j+"\">")
                                              jQuery("#data"+fullkey+vKey+j).append("<option value=\"true\">True</option> <option value=\"false\">False</option>")
@@ -246,6 +300,12 @@ SAWs.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                      }
                    }
                 })
+
+
+                if (isMap) {
+
+                }
+
 }
 
 
@@ -287,7 +347,13 @@ SAWs.updateDirectoryFromDisplayRecursive = function(sub,fullkey) {
                                                            var data1 = jQuery("#data"+ fullkey+vKey+k).val();
                     
                                                            /*Parse the data approriately*/
-                                                           if(sub[key].variables[vKey].dtype == "SAWs_INT"){     
+                                                           if(sub[key].variables[vKey].dtype == "SAWs_MAP"){
+
+                                                                console.log("HIHI");
+                                                           }
+
+                                                           if(sub[key].variables[vKey].dtype == "SAWs_INT"){
+
                                                              if(!isNaN(parseInt(data1))){
                                                                sub[key].variables[vKey].data[k] = parseInt(data1)
                                                              }                   
@@ -296,6 +362,7 @@ SAWs.updateDirectoryFromDisplayRecursive = function(sub,fullkey) {
                                                                sub[key].variables[vKey].data[k] = parseFloat(data1)
                                                              }
                                                            } else {
+
                                                              sub[key].variables[vKey].data[k] = data1
                                                            }
                                                          }
@@ -307,7 +374,7 @@ SAWs.updateDirectoryFromDisplayRecursive = function(sub,fullkey) {
                    })
 }
 
-SAWs.displayDirectoryAsString = function(sub,divEntry,tab,fullkey) {
+SAWs.displayDirectoryAsHistory = function(sub,divEntry,tab,fullkey) {
 
 
  jQuery.each(sub,function(key,value){
@@ -366,7 +433,7 @@ SAWs.displayDirectoryAsString = function(sub,divEntry,tab,fullkey) {
                                    })
                      if(typeof sub[key].directories != 'undefined'){
                        ++tab
-                       SAWs.displayDirectoryAsString(sub[key].directories,divEntry,tab,fullkey)
+                       SAWs.displayDirectoryAsHistory(sub[key].directories,divEntry,tab,fullkey)
                        --tab
                      }
                    }

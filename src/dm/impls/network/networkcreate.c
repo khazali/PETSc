@@ -12,6 +12,7 @@ PetscErrorCode  DMSetFromOptions_Network(PetscOptions *PetscOptionsObject,DM dm)
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   ierr = PetscOptionsHead(PetscOptionsObject,"DMNetwork Options");CHKERRQ(ierr);
   ierr = PetscOptionsTail();CHKERRQ(ierr);
+
   PetscFunctionReturn(0);
 }
 
@@ -85,6 +86,9 @@ PetscErrorCode DMInitialize_Network(DM dm)
   dm->ops->destroy                         = DMDestroy_Network;
   dm->ops->createsubdm                     = NULL;
   dm->ops->locatepoints                    = NULL;
+
+
+
   PetscFunctionReturn(0);
 }
 
@@ -134,6 +138,7 @@ PETSC_EXTERN PetscErrorCode DMCreate_Network(DM dm)
   network->nEdges         = -1;
 
   ierr = DMInitialize_Network(dm);CHKERRQ(ierr);
+
   PetscFunctionReturn(0);
 }
 
