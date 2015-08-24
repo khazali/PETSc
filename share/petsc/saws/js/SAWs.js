@@ -56,6 +56,7 @@
 var SAWs = {}
 var ind = 0;
 var isMap = true;
+var skipWrite = false;
 var map;
 var directionsDisplay;
 /*
@@ -253,6 +254,8 @@ SAWs.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
 
                                               SAWs.drawLine(set1[0],set1[1],set2[0],set2[1]);
 
+                                                skipWrite = true;
+
 
                                            }
 
@@ -260,11 +263,21 @@ SAWs.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                                              jQuery("#"+fullkey).append("<select id=\"data"+fullkey+vKey+j+"\">")
                                              jQuery("#data"+fullkey+vKey+j).append("<option value=\"true\">True</option> <option value=\"false\">False</option>")
                                            } else {
+
+                                             if (false) {
+                                                skipWrite = false;
+                                             } else {
+
+
                                              jQuery("#"+fullkey).append("<input type=\"text\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>")
+
                                              jQuery("#data"+fullkey+vKey+j).keyup(function(obj) {
                                                                                    console.log( "Key up called "+key+vKey );
                                                                                    sub[key].variables[vKey].selected = 1;
                                                                                   });
+
+
+                                             }
                                            }
                                            jQuery("#data"+fullkey+vKey+j).val(sub[key].variables[vKey].data[j])
                                            jQuery("#data"+fullkey+vKey+j).change(function(obj) {
