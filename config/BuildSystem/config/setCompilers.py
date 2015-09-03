@@ -1462,6 +1462,8 @@ if (dlclose(handle)) {
     if hasattr(self, 'CC'):
       self.addSubstitution('CC', self.CC)
       self.addSubstitution('CFLAGS', self.CFLAGS)
+      if hasattr(self,'CC_LINKER_FLAGS'):
+        self.addSubstitution('CC_LINKER_FLAGS', getattr(self,'CC_LINKER_FLAGS'))
       self.addMakeMacro('CC_LINKER_SLFLAG', self.CSharedLinkerFlag)
     if hasattr(self, 'CPP'):
       self.addSubstitution('CPP', self.CPP)
@@ -1472,11 +1474,15 @@ if (dlclose(handle)) {
     if hasattr(self, 'CUDAPP'):
       self.addSubstitution('CUDAPP', self.CUDAPP)
       self.addSubstitution('CUDAPPFLAGS', self.CUDAPPFLAGS)
+      if hasattr(self,'CUDAC_LINKER_FLAGS'):
+        self.addSubstitution('CUDAC_LINKER_FLAGS', getattr(self,'CUDAC_LINKER_FLAGS'))
     if hasattr(self, 'CXX'):
       self.addSubstitution('CXX', self.CXX)
       self.addSubstitution('CXX_CXXFLAGS', self.CXX_CXXFLAGS)
       self.addSubstitution('CXXFLAGS', self.CXXFLAGS)
-      self.addSubstitution('CXX_LINKER_SLFLAG', self.CxxSharedLinkerFlag)
+      if hasattr(self,'CXX_LINKER_FLAGS'):
+        self.addSubstitution('CXX_LINKER_FLAGS', getattr(self,'CXX_LINKER_FLAGS'))
+      self.addMakeMacro('CXX_LINKER_SLFLAG', self.CxxSharedLinkerFlag)
     else:
       self.addSubstitution('CXX', '')
     if hasattr(self, 'CXXCPP'):
@@ -1485,6 +1491,9 @@ if (dlclose(handle)) {
     if hasattr(self, 'FC'):
       self.addSubstitution('FC', self.FC)
       self.addSubstitution('FFLAGS', self.FFLAGS)
+      self.addSubstitution('FC_LINKER_FLAGS', self.FC_LINKER_FLAGS)
+      if hasattr(self,'FC_LINKER_FLAGS'):
+        self.addSubstitution('FC_LINKER_FLAGS', getattr(self,'FC_LINKER_FLAGS'))
       self.addMakeMacro('FC_LINKER_SLFLAG', self.FCSharedLinkerFlag)
     else:
       self.addSubstitution('FC', '')
