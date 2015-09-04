@@ -217,6 +217,7 @@ extern PetscFPT PetscFPTData;
 #if defined(PETSC_HAVE_SAWS)
 #include <petscviewersaws.h>
 extern PetscErrorCode  PetscInitializeSAWs(const char[]);
+extern PetscErrorCode  PetscSAWsSendWebSocket(int i);
 #endif
 
 /*

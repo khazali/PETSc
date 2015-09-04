@@ -491,6 +491,15 @@ PetscErrorCode  PetscGetArguments(char ***args)
 .seealso: PetscFinalize(), PetscInitializeFortran(), PetscGetArgs(), PetscGetArguments()
 
 @*/
+#undef __FUNCT__
+#define __FUNCT__ "PetscSAWsSendWebSocket"
+PetscErrorCode  PetscSAWsSendWebSocket(char * i)
+{
+  PetscStackCallSAWs(SAWs_Publish_Data,(i));
+
+  PetscFunctionReturn(0);
+}
+
 PetscErrorCode  PetscFreeArguments(char **args)
 {
   PetscInt       i = 0;
@@ -597,7 +606,7 @@ PetscErrorCode  PetscInitializeSAWs(const char help[])
     if (rootlocal && help) {
       ierr = PetscSNPrintf(appline,applinelen,"<center> Running <a href=\"%s.c.html\">%s</a> %s</center><br><div class=\"container\"><div class=\"well\"><center><pre>%s</pre></center></div></div><br>\n",programname,programname,options,help);
     } else if (help) {
-      ierr = PetscSNPrintf(appline,applinelen,"<center>Running %s %s</center><br><div class=\"container\"><div class=\"well\"><center><pre>%s</pre></center></div></div><br>",programname,options,help);
+      ierr = PetscSNPrintf(appline,applinelen,"<center> Running %s %s</center><br><div class=\"container\"><div class=\"well\"><center><pre>%s</pre></center></div></div><br>",programname,options,help);
     } else {
       ierr = PetscSNPrintf(appline,applinelen,"<center> Running %s %s</center><br>\n",programname,options);
     }
@@ -608,6 +617,9 @@ PetscErrorCode  PetscInitializeSAWs(const char help[])
                                     "<center>This is the default PETSc application dashboard, from it you can access any published PETSc objects or logging data</center><br><center>%s configured with %s</center><br>\n"
                                     "%s",version,petscconfigureoptions,appline);
     PetscStackCallSAWs(SAWs_Push_Body,("index.html",0,intro));
+
+
+
     ierr = PetscFree(intro);CHKERRQ(ierr);
     ierr = PetscFree(appline);CHKERRQ(ierr);
     PetscStackCallSAWs(SAWs_Initialize,());

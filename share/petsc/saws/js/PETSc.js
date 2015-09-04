@@ -20,7 +20,23 @@ var title = "";
 //holds the colors used in the tree drawing
 var colors = ["black","red","blue","green"];
 
+var ws;
 
+ws = new WebSocket("ws://localhost:8088/echo");
+
+ws.onopen = function() {
+
+console.log("Connection Created!");
+
+};
+
+ws.onerror = function() {
+                        console.log("Error webosocket closed");
+                    };
+
+                    ws.onmessage = function(event) {
+                        console.log("Data: " + event.data);
+                    };
 
 //This Function is called once (document).ready. The javascript for this was written by the PETSc code into index.html
 PETSc.getAndDisplayDirectory = function(names,divEntry){

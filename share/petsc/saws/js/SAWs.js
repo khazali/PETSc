@@ -65,6 +65,25 @@ var directionsDisplay;
   For each entry in names (or once if names is null) the callback is called with the received information for that entry
 
 */
+
+var ws;
+
+ws = new WebSocket("ws://localhost:8088/echo");
+
+ws.onopen = function() {
+
+console.log("Connection Created!");
+
+};
+
+ws.onerror = function() {
+                        console.log("Error webosocket closed");
+                    };
+
+                    ws.onmessage = function(event) {
+                        console.log("Data: " + event.data);
+                    };
+
 SAWs.getDirectory = function(names,callback,callbackdata) {
 
   /*If names is null, get all*/
@@ -221,7 +240,14 @@ SAWs.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                                      if (vKey[0] != '_' || vKey[1] != '_' ) {
                                        SAWs.tab(fullkey,tab+1)
                                        if (vKey[0] != '_') {
-                                         jQuery("#"+fullkey).append(vKey+":&nbsp;")
+
+
+
+                                            jQuery("#"+fullkey).append(vKey+":&nbsp;")
+
+
+
+
                                        }
 				       for(j=0;j<sub[key].variables[vKey].data.length;j++){
 				        if (sub[key].variables[vKey].data[j].toString() != "(null)"){	     
@@ -235,7 +261,7 @@ SAWs.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
 
                                                   $("body").append("<div id=\"map-canvas\" style=\"height: 50%;margin: 50px;padding: 0px\"></div>");
 
-                                                                                                   var mapOptions = { zoom: 13, center: new google.maps.LatLng(41.696760, -87.948319), mapTypeId: google.maps.MapTypeId.ROADMAP };
+                                                                                                      var mapOptions = { zoom: 13, center: new google.maps.LatLng(41.696760, -87.948319), mapTypeId: google.maps.MapTypeId.ROADMAP };
                                                                                                       directionsDisplay = new google.maps.DirectionsRenderer();
                                                                                                       map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
                                                                                                       directionsDisplay.setMap(map);
@@ -247,6 +273,7 @@ SAWs.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
 
                                              var set1 = res[0].split(",");
                                              var set2 = res[1].split(",");
+
 
 
 
@@ -268,6 +295,7 @@ SAWs.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                                                 skipWrite = false;
                                              } else {
 
+                                             //if(sub[key].variables[vKey].dtype =! "SAWs_MAP") {
 
                                              jQuery("#"+fullkey).append("<input type=\"text\" size=\""+(sub[key].variables[vKey].data[j].toString().length+1)+"\" id=\"data"+fullkey+vKey+j+"\" name=\"data\" \\>")
 
@@ -276,14 +304,25 @@ SAWs.displayDirectoryRecursive = function(sub,divEntry,tab,fullkey)
                                                                                    sub[key].variables[vKey].selected = 1;
                                                                                   });
 
-
                                              }
+
+
+                                             //}
                                            }
+
+                                           //if(sub[key].variables[vKey].dtype =! "SAWs_MAP") {
+
+
                                            jQuery("#data"+fullkey+vKey+j).val(sub[key].variables[vKey].data[j])
                                            jQuery("#data"+fullkey+vKey+j).change(function(obj) {
-                                                                                   console.log( "Change called"+key+vKey );
-                                                                                   sub[key].variables[vKey].selected = 1;
-                                                                                 });
+                                                                                                                              console.log( "Change called"+key+vKey );
+                                                                                                                              sub[key].variables[vKey].selected = 1;
+                                                                                                                            });
+
+
+                                           //}
+
+
                                          } else {
                                            jQuery("#"+fullkey).append("<select id=\"data"+fullkey+vKey+j+"\">")
                                            jQuery("#data"+fullkey+vKey+j).append("<option value=\""+sub[key].variables[vKey].data[j]+"\">"+sub[key].variables[vKey].data[j]+"</option>")
@@ -362,7 +401,6 @@ SAWs.updateDirectoryFromDisplayRecursive = function(sub,fullkey) {
                                                            /*Parse the data approriately*/
                                                            if(sub[key].variables[vKey].dtype == "SAWs_MAP"){
 
-                                                                console.log("HIHI");
                                                            }
 
                                                            if(sub[key].variables[vKey].dtype == "SAWs_INT"){
