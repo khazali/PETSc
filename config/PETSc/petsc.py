@@ -367,14 +367,16 @@ class Configure(config.base.Configure):
 
   def libraryGuesses(self, root = None):
     '''Return standard library name guesses for a given installation root'''
-    libs = ['ts', 'snes', 'ksp', 'dm', 'mat', 'vec', '']
+    libs = ['ts', 'snes', 'ksp', 'dm', 'mat', 'vec']
     if root:
-      d = os.path.join(root, 'lib', self.arch)
+      d = os.path.join(root, self.arch, 'lib')
       if not os.path.isdir(d):
         self.logPrint('', 3, 'petsc')
         return
+      yield [os.path.join(d, 'libpetsc.a')]
       yield [os.path.join(d, 'libpetsc'+lib+'.a') for lib in libs]
     else:
+      yield ['libpetsc.a']
       yield ['libpetsc'+lib+'.a' for lib in libs]
     return
 
