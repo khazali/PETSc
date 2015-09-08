@@ -188,7 +188,7 @@ SAWs.displayDirectory = function(sub,divEntry)
 
     jQuery(divEntry).append("<center><input type=\"button\" value=\"Continue\" id=\"continue\"></center>")
     jQuery('#continue').on('click', function(){
-                                      $('#map-canvas').remove();
+                                      //$('#map-canvas').remove();
                                       SAWs.updateDirectoryFromDisplay(divEntry)
                                       sub.directories.SAWs_ROOT_DIRECTORY.variables.__Block.data = ["false"];
                                       SAWs.postDirectory(sub);

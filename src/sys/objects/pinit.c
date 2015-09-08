@@ -493,9 +493,18 @@ PetscErrorCode  PetscGetArguments(char ***args)
 @*/
 #undef __FUNCT__
 #define __FUNCT__ "PetscSAWsSendWebSocket"
-PetscErrorCode  PetscSAWsSendWebSocket(char * i)
+PetscErrorCode  PetscSAWsSendWebSocket(unsigned char * i)
 {
   PetscStackCallSAWs(SAWs_Publish_Data,(i));
+
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscSAWsHistory"
+PetscErrorCode  PetscSAWsHistory(int i)
+{
+  PetscStackCallSAWs(SAWs_Enable_History,(i));
 
   PetscFunctionReturn(0);
 }
