@@ -65,7 +65,8 @@ class Configure(config.base.Configure):
     self.externalpackagesdir = framework.require('PETSc.options.externalpackagesdir',self)
     self.mpi           = framework.require('config.packages.MPI',self)
 
-    for utility in os.listdir(os.path.join('config','PETSc','options')):
+    thisDir = os.path.dirname(__file__)
+    for utility in os.listdir(os.path.join(thisDir,'options')):
       (utilityName, ext) = os.path.splitext(utility)
       if not utilityName.startswith('.') and not utilityName.startswith('#') and ext == '.py' and not utilityName == '__init__':
         utilityObj                    = self.framework.require('PETSc.options.'+utilityName, self)
@@ -76,7 +77,8 @@ class Configure(config.base.Configure):
         utilityObj.externalPackagesDirProvider = self.externalpackagesdir
         setattr(self, utilityName.lower(), utilityObj)
 
-    for utility in os.listdir(os.path.join('config','BuildSystem','config','utilities')):
+    bsConfDir = os.path.abspath(os.path.join(thisDir,os.pardir,'BuildSystem','config'))
+    for utility in os.listdir(os.path.join(bsConfDir,'utilities')):
       (utilityName, ext) = os.path.splitext(utility)
       if not utilityName.startswith('.') and not utilityName.startswith('#') and ext == '.py' and not utilityName == '__init__':
         utilityObj                    = self.framework.require('config.utilities.'+utilityName, self)
@@ -87,8 +89,8 @@ class Configure(config.base.Configure):
         utilityObj.externalPackagesDirProvider = self.externalpackagesdir
         setattr(self, utilityName.lower(), utilityObj)
 
-    if os.path.isdir(os.path.join('config', 'BuildSystem', 'config', 'packages')):
-      for package in os.listdir(os.path.join('config', 'BuildSystem', 'config', 'packages')):
+    if os.path.isdir(os.path.join(bsConfDir, 'packages')):
+      for package in os.listdir(os.path.join(bsConfDir, 'packages')):
         (packageName, ext) = os.path.splitext(package)
         if not packageName.startswith('.') and not packageName.startswith('#') and ext == '.py' and not packageName == '__init__' and not packageName == 'PETSc':
           packageObj                    = framework.require('config.packages.'+packageName, self)
