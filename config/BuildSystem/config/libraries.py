@@ -436,7 +436,7 @@ int checkInit(void) {
   int (*init)(int, char **);
   int (*checkInit)(void);
 
-  lib = dlopen("'''+lib1Name+'''", RTLD_LAZY);
+  lib = dlopen("'''+lib1Name+'''", RTLD_LAZY|RTLD_GLOBAL);
   if (!lib) {
     fprintf(stderr, "Could not open lib1.so: %s\\n", dlerror());
     exit(1);
@@ -450,7 +450,7 @@ int checkInit(void) {
     fprintf(stderr, "Could not initialize library\\n");
     exit(1);
   }
-  lib = dlopen("'''+lib2Name+'''", RTLD_LAZY);
+  lib = dlopen("'''+lib2Name+'''", RTLD_LAZY|RTLD_GLOBAL);
   if (!lib) {
     fprintf(stderr, "Could not open lib2.so: %s\\n", dlerror());
     exit(1);
