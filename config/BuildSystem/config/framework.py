@@ -933,22 +933,38 @@ class Framework(config.base.Configure, script.LanguageProcessor):
   def parallelQueueEvaluation(self, depGraph, numThreads = 1):
     import graph
     import Queue
-    from threading import Thread
+    from threading import Thread, Lock
 
     if numThreads < 1: raise RuntimeError('Parallel configure must use at least one thread')
     # TODO Insert a cycle check
     todo = Queue.Queue()
     done = Queue.Queue()
     numChildren = len(depGraph.vertices)
+    numLeft = [numChildren]
     for child in graph.DirectedGraph.getRoots(depGraph):
-      if not hasattr(child, '_configured'):
-        #self.logPrint('PUSH %s to   TODO' % child.__class__.__module__)
-        todo.put(child)
+      #self.logPrint('PUSH %s to   TODO' % child.__class__.__module__)
+      child._queued = 1
+      todo.put(child)
 
-    def processChildren(num, q):
+    lock = Lock()
+
+    def takeTicket(numLeft, lock):
+      workLeft = False
+      if lock.acquire(True): # block until we get access to the counter
+        try:
+          if numLeft[0] > 0:
+            workLeft = True
+            numLeft[0] = numLeft[0] - 1
+        finally:
+          lock.release()
+      return workLeft
+
+    def processChildren(num, q, numLeft, lock):
       emsg = ''
       while 1:
-        child = q.get() # Might have to indicate blocking
+        if not takeTicket(numLeft, lock):
+          break
+        child = q.get(True) # block: there should eventually be work, because we got a ticket
         ret = 1
         child.saveLog()
         try:
@@ -1019,7 +1035,7 @@ class Framework(config.base.Configure, script.LanguageProcessor):
 
     # Set up some threads to fetch the enclosures
     for i in range(numThreads):
-      worker = Thread(target = processChildren, args = (i, todo,))
+      worker = Thread(target = processChildren, args = (i, todo, numLeft, lock))
       worker.setDaemon(True)
       worker.start()
 
@@ -1033,6 +1049,8 @@ class Framework(config.base.Configure, script.LanguageProcessor):
         self.logWrite(emsg)
         raise RuntimeError(emsg)
       for child in depGraph.outEdges[vertex]:
+        if hasattr(child, '_queued'):
+          continue
         push = True
         for v in depGraph.inEdges[child]:
           if not hasattr(v, '_configured'):
@@ -1041,10 +1059,14 @@ class Framework(config.base.Configure, script.LanguageProcessor):
             break
         if push:
           #self.logPrint('PUSH %s to   TODO' % child.__class__.__module__)
+          child._queued = 1
           todo.put(child)
       done.task_done()
     todo.join()
     done.join()
+
+    for child in depGraph.vertices:
+      del child._queued
     return
 
   def serialEvaluation(self, depGraph):
