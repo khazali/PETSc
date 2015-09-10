@@ -1,6 +1,7 @@
 import args
 import sys
 import os
+from threading import RLock
 
 # Ugly stuff to have curses called ONLY once, instead of for each
 # new Configure object created (and flashing the screen)
@@ -35,6 +36,7 @@ class Logger(args.ArgumentProcessor):
     self.debugLevel    = debugLevel
     self.debugSections = debugSections
     self.debugIndent   = debugIndent
+    self.lock          = RLock()
     self.getRoot()
     return
 
@@ -51,6 +53,8 @@ class Logger(args.ArgumentProcessor):
         del d['out']
       else:
         d['out'] = None
+    if 'lock' in d:
+      del d['lock']
     return d
 
   def __setstate__(self, d):
@@ -61,6 +65,7 @@ class Logger(args.ArgumentProcessor):
     if not 'out' in d:
       self.out = Logger.defaultOut
     self.__dict__.update(d)
+    self.lock = Rlock()
     return
 
   def setupArguments(self, argDB):
@@ -133,12 +138,22 @@ class Logger(args.ArgumentProcessor):
       log = Logger.defaultLog
     return log
 
+  def acquire(self):
+    '''this should be used by dependendent config objects that need to change their parents, either temporarily (e.g., changing an attributed so that a check/output test can be run) or permanently (e.g., updating compiler flags'''
+    if not self.lock.acquire(True): # blocking
+      raise RuntimeError('Could not acquire lock')
+    return
+
+  def release(self):
+    return self.lock.release()
+
   def closeLog(self):
     '''Closes the log file'''
     self.log.close()
 
   def saveLog(self):
     import StringIO
+    self.acquire()
     self.logBkp = self.log
     self.log    = StringIO.StringIO()
 
@@ -147,6 +162,7 @@ class Logger(args.ArgumentProcessor):
     self.log.close()
     self.log = self.logBkp
     del(self.logBkp)
+    self.release()
     return s
 
   def getLinewidth(self):

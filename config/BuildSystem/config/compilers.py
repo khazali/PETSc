@@ -167,11 +167,13 @@ class Configure(config.base.Configure):
 
   def checkCLibraries(self):
     '''Determines the libraries needed to link with C'''
+    self.pushLanguage('C')
+    self.setCompilers.acquire()
     oldFlags = self.setCompilers.LDFLAGS
     self.setCompilers.LDFLAGS += ' -v'
-    self.pushLanguage('C')
     (output, returnCode) = self.outputLink('', '')
     self.setCompilers.LDFLAGS = oldFlags
+    self.setCompilers.release()
     self.popLanguage()
 
     # PGI: kill anything enclosed in single quotes
@@ -298,6 +300,7 @@ class Configure(config.base.Configure):
 
     self.logPrint('Libraries needed to link C code with another linker: '+str(self.clibs), 3, 'compilers')
 
+    self.setCompilers.acquire()
     if hasattr(self.setCompilers, 'FC') or hasattr(self.setCompilers, 'CXX'):
       self.logPrint('Check that C libraries can be used from Fortran', 4, 'compilers')
       oldLibs = self.setCompilers.LIBS
@@ -308,11 +311,11 @@ class Configure(config.base.Configure):
         self.setCompilers.checkCompiler('FC')
       except RuntimeError, e:
         self.setCompilers.LIBS = oldLibs
-        self.logWrite(self.setCompilers.restoreLog())
         self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
-        self.logWrite(self.setCompilers.restoreLog())
         raise RuntimeError('C libraries cannot directly be used from Fortran')
-      self.logWrite(self.setCompilers.restoreLog())
+      finally:
+        self.logWrite(self.setCompilers.restoreLog())
+    self.setCompilers.release()
     return
 
   def checkCFormatting(self):
@@ -345,6 +348,7 @@ class Configure(config.base.Configure):
     self.setCompilers.pushLanguage('Cxx')
     cxxObj = self.framework.getCompilerObject('Cxx')
     oldExt = cxxObj.sourceExtension
+    cxxObj.acquire()
     cxxObj.sourceExtension = self.framework.getCompilerObject('C').sourceExtension
     success=0
     for flag in ['', '-+', '-x cxx -tlocal', '-Kc++']:
@@ -362,6 +366,7 @@ class Configure(config.base.Configure):
         except RuntimeError:
           pass
     cxxObj.sourceExtension = oldExt
+    cxxObj.release()
     self.setCompilers.popLanguage()
     self.logWrite(self.setCompilers.restoreLog())
     return
@@ -426,11 +431,13 @@ class Configure(config.base.Configure):
 
   def checkCxxLibraries(self):
     '''Determines the libraries needed to link with C++'''
-    oldFlags = self.setCompilers.LDFLAGS
-    self.setCompilers.LDFLAGS += ' -v'
     self.pushLanguage('Cxx')
+    oldFlags = self.setCompilers.LDFLAGS
+    self.setCompilers.acquire()
+    self.setCompilers.LDFLAGS += ' -v'
     (output, returnCode) = self.outputLink('', '')
     self.setCompilers.LDFLAGS = oldFlags
+    self.setCompilers.release()
     self.popLanguage()
 
     # PGI: kill anything enclosed in single quotes
@@ -563,28 +570,30 @@ class Configure(config.base.Configure):
 
     self.logPrint('Check that Cxx libraries can be used from C', 4, 'compilers')
     oldLibs = self.setCompilers.LIBS
-    self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.cxxlibs])+' '+self.setCompilers.LIBS
     self.setCompilers.saveLog()
+    self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.cxxlibs])+' '+self.setCompilers.LIBS
     try:
       self.setCompilers.checkCompiler('C')
     except RuntimeError, e:
       self.logPrint('Cxx libraries cannot directly be used from C', 4, 'compilers')
       self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
-    self.setCompilers.LIBS = oldLibs
-    self.logWrite(self.setCompilers.restoreLog())
+    finally:
+      self.setCompilers.LIBS = oldLibs
+      self.logWrite(self.setCompilers.restoreLog())
 
     if hasattr(self.setCompilers, 'FC'):
       self.logPrint('Check that Cxx libraries can be used from Fortran', 4, 'compilers')
       oldLibs = self.setCompilers.LIBS
-      self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.cxxlibs])+' '+self.setCompilers.LIBS
       self.setCompilers.saveLog()
+      self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.cxxlibs])+' '+self.setCompilers.LIBS
       try:
         self.setCompilers.checkCompiler('FC')
       except RuntimeError, e:
         self.logPrint('Cxx libraries cannot directly be used from Fortran', 4, 'compilers')
         self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
-      self.setCompilers.LIBS = oldLibs
-      self.logWrite(self.setCompilers.restoreLog())
+      finally:
+        self.setCompilers.LIBS = oldLibs
+        self.logWrite(self.setCompilers.restoreLog())
     return
 
   def checkFortranTypeSizes(self):
@@ -594,12 +603,14 @@ class Configure(config.base.Configure):
     (output, error, returnCode) = self.outputCompile('', '      real*8 variable', 1)
     if (output+error).find('Type size specifiers are an extension to standard Fortran 95') >= 0:
       oldFlags = self.setCompilers.FFLAGS
+      self.setCompilers.acquire()
       self.setCompilers.FFLAGS += ' -w90 -w'
       (output, error, returnCode) = self.outputCompile('', '      real*8 variable', 1)
       if returnCode or (output+error).find('Type size specifiers are an extension to standard Fortran 95') >= 0:
         self.setCompilers.FFLAGS = oldFlags
       else:
         self.logPrint('Looks like ifc compiler, adding -w90 -w flags to avoid warnings about real*8 etc', 4, 'compilers')
+      self.setCompilers.release()
     self.popLanguage()
     return
 
@@ -636,11 +647,13 @@ class Configure(config.base.Configure):
     # Link the test object against a Fortran driver
     self.pushLanguage('FC')
     oldLIBS = self.setCompilers.LIBS
+    self.setCompilers.acquire()
     self.setCompilers.LIBS = cobj+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.clibs])+' '+self.setCompilers.LIBS
     if extraObjs:
       self.setCompilers.LIBS = ' '.join(extraObjs)+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.clibs])+' '+self.setCompilers.LIBS
     found = self.checkLink(None, ffunc)
     self.setCompilers.LIBS = oldLIBS
+    self.setCompilers.release()
     self.popLanguage()
     if os.path.isfile(cobj):
       os.remove(cobj)
@@ -703,7 +716,6 @@ class Configure(config.base.Configure):
         flagsArg = self.setCompilers.getCompilerFlagsArg()
         oldFlags = getattr(self.setCompilers, flagsArg)
         self.setCompilers.addCompilerFlag(flag, body = '#define dummy \n           dummy\n#ifndef dummy\n       fooey\n#endif')
-        setattr(self.setCompilers, flagsArg, oldFlags+' '+flag)
         self.fortranPreprocess = 1
         self.setCompilers.popLanguage()
         self.logPrint('Fortran uses CPP preprocessor', 3, 'compilers')
@@ -763,12 +775,14 @@ class Configure(config.base.Configure):
       return
     self.pushLanguage('FC')
     oldFlags = self.setCompilers.LDFLAGS
+    self.setCompilers.acquire()
     if config.setCompilers.Configure.isNAG(self.getCompiler(), self.log):
       self.setCompilers.LDFLAGS += ' --verbose'
     else:
       self.setCompilers.LDFLAGS += ' -v'
     (output, returnCode) = self.outputLink('', '')
     self.setCompilers.LDFLAGS = oldFlags
+    self.setCompilers.release()
     self.popLanguage()
 
     # replace \CR that ifc puts in each line of output
@@ -1037,58 +1051,62 @@ class Configure(config.base.Configure):
     # check that these monster libraries can be used from C
     self.logPrint('Check that Fortran libraries can be used from C', 4, 'compilers')
     oldLibs = self.setCompilers.LIBS
-    self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])+' '+self.setCompilers.LIBS
-    self.setCompilers.saveLog()
+    self.setCompilers.acquire()
     try:
-      self.setCompilers.checkCompiler('C')
-    except RuntimeError, e:
-      self.logPrint('Fortran libraries cannot directly be used from C, try without -lcrt2.o', 4, 'compilers')
-      self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
-      # try removing this one
-      if '-lcrt2.o' in self.flibs: self.flibs.remove('-lcrt2.o')
-      self.setCompilers.LIBS = oldLibs+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])
+      self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])+' '+self.setCompilers.LIBS
+      self.setCompilers.saveLog()
       try:
         self.setCompilers.checkCompiler('C')
       except RuntimeError, e:
-        self.logPrint('Fortran libraries still cannot directly be used from C, try without pgi.ld files', 4, 'compilers')
+        self.logPrint('Fortran libraries cannot directly be used from C, try without -lcrt2.o', 4, 'compilers')
         self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
-        tmpflibs = self.flibs
-        for lib in tmpflibs:
-          if lib.find('pgi.ld')>=0:
-            self.flibs.remove(lib)
+        # try removing this one
+        if '-lcrt2.o' in self.flibs: self.flibs.remove('-lcrt2.o')
         self.setCompilers.LIBS = oldLibs+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])
         try:
           self.setCompilers.checkCompiler('C')
-        except:
-          self.logPrint(str(e), 4, 'compilers')
-          self.logWrite(self.setCompilers.restoreLog())
-          raise RuntimeError('Fortran libraries cannot be used with C compiler')
-    self.logWrite(self.setCompilers.restoreLog())
+        except RuntimeError, e:
+          self.logPrint('Fortran libraries still cannot directly be used from C, try without pgi.ld files', 4, 'compilers')
+          self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
+          tmpflibs = self.flibs
+          for lib in tmpflibs:
+            if lib.find('pgi.ld')>=0:
+              self.flibs.remove(lib)
+          self.setCompilers.LIBS = oldLibs+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])
+          try:
+            self.setCompilers.checkCompiler('C')
+          except:
+            self.logPrint(str(e), 4, 'compilers')
+            raise RuntimeError('Fortran libraries cannot be used with C compiler')
+      finally:
+        self.logWrite(self.setCompilers.restoreLog())
 
-    # check these monster libraries work from C++
-    if hasattr(self.setCompilers, 'CXX'):
-      self.logPrint('Check that Fortran libraries can be used from C++', 4, 'compilers')
-      self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])+' '+oldLibs
-      self.setCompilers.saveLog()
-      try:
-        self.setCompilers.checkCompiler('Cxx')
-        self.logPrint('Fortran libraries can be used from C++', 4, 'compilers')
-      except RuntimeError, e:
-        self.logPrint(str(e), 4, 'compilers')
-        # try removing this one causes grief with gnu g++ and Intel Fortran
-        if '-lintrins' in self.flibs: self.flibs.remove('-lintrins')
-        self.setCompilers.LIBS = oldLibs+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])
+      # check these monster libraries work from C++
+      if hasattr(self.setCompilers, 'CXX'):
+        self.logPrint('Check that Fortran libraries can be used from C++', 4, 'compilers')
+        self.setCompilers.saveLog()
+        self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])+' '+oldLibs
         try:
           self.setCompilers.checkCompiler('Cxx')
+          self.logPrint('Fortran libraries can be used from C++', 4, 'compilers')
         except RuntimeError, e:
           self.logPrint(str(e), 4, 'compilers')
-          if str(e).find('INTELf90_dclock') >= 0:
-            self.logPrint('Intel 7.1 Fortran compiler cannot be used with g++ 3.2!', 2, 'compilers')
-        self.logWrite(self.setCompilers.restoreLog())
-        raise RuntimeError('Fortran libraries cannot be used with C++ compiler.\n Run with --with-fc=0 or --with-cxx=0')
-      self.logWrite(self.setCompilers.restoreLog())
+          # try removing this one causes grief with gnu g++ and Intel Fortran
+          if '-lintrins' in self.flibs: self.flibs.remove('-lintrins')
+          self.setCompilers.LIBS = oldLibs+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])
+          try:
+            self.setCompilers.checkCompiler('Cxx')
+          except RuntimeError, e:
+            self.logPrint(str(e), 4, 'compilers')
+            if str(e).find('INTELf90_dclock') >= 0:
+              self.logPrint('Intel 7.1 Fortran compiler cannot be used with g++ 3.2!', 2, 'compilers')
+          raise RuntimeError('Fortran libraries cannot be used with C++ compiler.\n Run with --with-fc=0 or --with-cxx=0')
+        finally:
+          self.logWrite(self.setCompilers.restoreLog())
 
-    self.setCompilers.LIBS = oldLibs
+    finally:
+      self.setCompilers.LIBS = oldLibs
+      self.setCompilers.release()
     return
 
   def checkFortranLinkingCxx(self):
@@ -1114,12 +1132,14 @@ class Configure(config.base.Configure):
       link = 1
     else:
       oldLibs = self.setCompilers.LIBS
+      self.setCompilers.acquire()
       self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.cxxlibs])+' '+self.setCompilers.LIBS
       if self.testMangling(cinc+cfunc, ffunc, 'Cxx', extraObjs = [cxxobj]):
         self.logPrint('Fortran can link C++ functions using the C++ compiler libraries', 3, 'compilers')
         link = 1
       else:
         self.setCompilers.LIBS = oldLibs
+      self.setCompilers.release()
     if os.path.isfile(cxxobj):
       os.remove(cxxobj)
     if not link:
@@ -1211,6 +1231,7 @@ class Configure(config.base.Configure):
     # Link the test object against a Fortran driver
     self.pushLanguage('FC')
     oldLIBS = self.setCompilers.LIBS
+    self.setCompilers.acquire()
     self.setCompilers.LIBS = cobj+' '+self.setCompilers.LIBS
     fcode = '''\
       Interface
@@ -1235,6 +1256,7 @@ class Configure(config.base.Configure):
 
     found = self.checkRun(None, fcode, defaultArg = 'f90-2ptr-arg')
     self.setCompilers.LIBS = oldLIBS
+    self.setCompilers.release()
     self.popLanguage()
     # Cleanup
     if os.path.isfile(cobj):
@@ -1248,7 +1270,9 @@ class Configure(config.base.Configure):
 
   def checkFortranModuleInclude(self):
     '''Figures out what flag is used to specify the include path for Fortran modules'''
+    self.setCompilers.acquire()
     self.setCompilers.fortranModuleIncludeFlag = None
+    self.setCompilers.release()
     if not self.fortranIsF90:
       self.logPrint('Not a Fortran90 compiler - hence skipping module include test')
       return
@@ -1291,6 +1315,7 @@ class Configure(config.base.Configure):
     self.pushLanguage('FC')
     oldFLAGS = self.setCompilers.FFLAGS
     oldLIBS  = self.setCompilers.LIBS
+    self.setCompilers.acquire()
     for flag in ['-I', '-p', '-M']:
       self.setCompilers.FFLAGS = flag+testdir+' '+self.setCompilers.FFLAGS
       self.setCompilers.LIBS   = modobj+' '+self.setCompilers.LIBS
@@ -1303,6 +1328,7 @@ class Configure(config.base.Configure):
       self.setCompilers.LIBS   = oldLIBS
       self.setCompilers.FFLAGS = oldFLAGS
       if found: break
+    self.setCompilers.release()
     self.popLanguage()
     if os.path.isfile(modobj):
       os.remove(modobj)
@@ -1314,7 +1340,9 @@ class Configure(config.base.Configure):
 
   def checkFortranModuleOutput(self):
     '''Figures out what flag is used to specify the include path for Fortran modules'''
+    self.setCompilers.acquire()
     self.setCompilers.fortranModuleOutputFlag = None
+    self.setCompilers.release()
     if not self.fortranIsF90:
       self.logPrint('Not a Fortran90 compiler - hence skipping module include test')
       return
@@ -1333,6 +1361,7 @@ class Configure(config.base.Configure):
     self.pushLanguage('FC')
     oldFLAGS = self.setCompilers.FFLAGS
     oldLIBS  = self.setCompilers.LIBS
+    self.setCompilers.acquire()
     for flag in ['-module ', '-module:', '-fmod=', '-J', '-M', '-p', '-qmoddir=', '-moddir=']:
       self.setCompilers.FFLAGS = flag+testdir+' '+self.setCompilers.FFLAGS
       self.setCompilers.LIBS   = modobj+' '+self.setCompilers.LIBS
@@ -1349,6 +1378,7 @@ class Configure(config.base.Configure):
       self.setCompilers.LIBS   = oldLIBS
       self.setCompilers.FFLAGS = oldFLAGS
       if found: break
+    self.setCompilers.release()
     self.popLanguage()
     if modname: os.remove(os.path.join(testdir, modname))
     os.rmdir(testdir)

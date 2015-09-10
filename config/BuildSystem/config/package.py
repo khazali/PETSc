@@ -542,24 +542,26 @@ class Package(config.base.Configure):
     raise RuntimeError('No custom installation implemented for package '+self.package+'\n')
 
   def checkInclude(self, incl, hfiles, otherIncludes = [], timeout = 600.0):
+    self.headers.saveLog()
     if self.cxx:
       self.headers.pushLanguage('C++')
     else:
       self.headers.pushLanguage(self.defaultLanguage)
-    self.headers.saveLog()
     ret = self.executeTest(self.headers.checkInclude, [incl, hfiles],{'otherIncludes' : otherIncludes, 'timeout': timeout})
-    self.logWrite(self.headers.restoreLog())
     self.headers.popLanguage()
+    self.logWrite(self.headers.restoreLog())
     return ret
 
   def checkPackageLink(self, includes, body, cleanup = 1, codeBegin = None, codeEnd = None, shared = 0):
     oldFlags = self.compilers.CPPFLAGS
     oldLibs  = self.compilers.LIBS
+    self.compilers.acquire()
     self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
     self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
     result = self.checkLink(includes, body, cleanup, codeBegin, codeEnd, shared)
     self.compilers.CPPFLAGS = oldFlags
     self.compilers.LIBS = oldLibs
+    self.compilers.release()
     return result
 
   def checkDependencies(self, libs = None, incls = None):
@@ -685,10 +687,12 @@ class Package(config.base.Configure):
     self.consistencyChecks()
     if self.argDB['with-'+self.package]:
       # If clanguage is c++, test external packages with the c++ compiler
+      self.libraries.acquire()
       self.libraries.pushLanguage(self.defaultLanguage)
       self.executeTest(self.configureLibrary)
       self.executeTest(self.checkSharedLibrary)
       self.libraries.popLanguage()
+      self.libraries.release()
     else:
       self.executeTest(self.alternateConfigureLibrary)
     return
@@ -720,11 +724,16 @@ class Package(config.base.Configure):
         mpifc = os.path.join(installDir,"bin",mpif77Name)
       if not os.path.isfile(mpifc): raise RuntimeError('Could not locate installed MPI compiler: '+mpifc)
     # redo compiler detection
+    self.setCompilers.acquire()
     self.setCompilers.updateMPICompilers(mpicc,mpicxx,mpifc)
+    self.setCompilers.release()
+    lock = self.compilers.lock
+    lock.acquire()
     self.compilers.__init__(self.framework)
     self.compilers.headerPrefix = self.headerPrefix
     self.compilers.saveLog()
     self.compilers.configure()
+    lock.release()
     self.logWrite(self.compilers.restoreLog())
     self.compilerFlags.saveLog()
     self.compilerFlags.configure()

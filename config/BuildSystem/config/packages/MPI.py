@@ -181,6 +181,7 @@ class Configure(config.package.Package):
     '''Check for functions added to the interface in MPI-2'''
     oldFlags = self.compilers.CPPFLAGS
     oldLibs  = self.compilers.LIBS
+    self.compilers.acquire()
     self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
     self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
     self.framework.saveLog()
@@ -208,6 +209,7 @@ class Configure(config.package.Package):
       self.framework.addDefine('MPI_Comm_set_errhandler(comm,p_errhandler)', 'MPI_Errhandler_set((comm),(p_errhandler))')
     self.compilers.CPPFLAGS = oldFlags
     self.compilers.LIBS = oldLibs
+    self.compilers.release()
     self.logWrite(self.framework.restoreLog())
     return
 
@@ -217,6 +219,7 @@ class Configure(config.package.Package):
        - Some older MPI 1 implementations are missing these'''
     oldFlags = self.compilers.CPPFLAGS
     oldLibs  = self.compilers.LIBS
+    self.compilers.acquire()
     self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
     self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
     if self.checkLink('#include <mpi.h>\n', 'if (MPI_Comm_f2c((MPI_Fint)0));\n'):
@@ -229,11 +232,13 @@ class Configure(config.package.Package):
       self.addDefine('HAVE_MPI_FINT', 1)
     self.compilers.CPPFLAGS = oldFlags
     self.compilers.LIBS = oldLibs
+    self.compilers.release()
     return
 
   def configureTypes(self):
     '''Checking for MPI types'''
     oldFlags = self.compilers.CPPFLAGS
+    self.compilers.acquire()
     self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
     self.framework.batchIncludeDirs.extend([self.headers.getIncludeArgument(inc) for inc in self.include])
     self.framework.addBatchLib(self.lib)
@@ -241,12 +246,14 @@ class Configure(config.package.Package):
     if 'HAVE_MPI_FINT' in self.defines:
       self.types.checkSizeof('MPI_Fint', 'mpi.h')
     self.compilers.CPPFLAGS = oldFlags
+    self.compilers.release()
     return
 
   def configureMPITypes(self):
     '''Checking for MPI Datatype handles'''
     oldFlags = self.compilers.CPPFLAGS
     oldLibs  = self.compilers.LIBS
+    self.compilers.acquire()
     self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
     self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
     mpitypes = [('MPI_LONG_DOUBLE', 'long-double'), ('MPI_INT64_T', 'int64_t')]
@@ -284,6 +291,7 @@ class Configure(config.package.Package):
 }''' % (datatype, name, name))
     self.compilers.CPPFLAGS = oldFlags
     self.compilers.LIBS = oldLibs
+    self.compilers.release()
     return
 
   def alternateConfigureLibrary(self):
@@ -352,6 +360,7 @@ class Configure(config.package.Package):
     '''Make sure C++ can compile and link'''
     if not hasattr(self.compilers, 'CXX'):
       return 0
+    self.libraries.acquire()
     self.libraries.pushLanguage('Cxx')
     oldFlags = self.compilers.CPPFLAGS
     self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
@@ -364,6 +373,7 @@ class Configure(config.package.Package):
       raise RuntimeError('C++ error! MPI_Finalize() could not be located!')
     self.compilers.CPPFLAGS = oldFlags
     self.libraries.popLanguage()
+    self.libraries.release()
     return
 
   def FortranMPICheck(self):
@@ -371,6 +381,7 @@ class Configure(config.package.Package):
     if not hasattr(self.compilers, 'FC'):
       return 0
     # Fortran compiler is being used - so make sure mpif.h exists
+    self.libraries.acquire()
     self.libraries.pushLanguage('FC')
     oldFlags = self.compilers.CPPFLAGS
     self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
@@ -389,6 +400,7 @@ class Configure(config.package.Package):
         self.addDefine('HAVE_MPI_F90MODULE', 1)
     self.compilers.CPPFLAGS = oldFlags
     self.libraries.popLanguage()
+    self.libraries.release()
     return 0
 
   def configureIO(self):
@@ -397,6 +409,7 @@ class Configure(config.package.Package):
        - Some older MPI 1 implementations are missing these'''
     oldFlags = self.compilers.CPPFLAGS
     oldLibs  = self.compilers.LIBS
+    self.compilers.acquire()
     self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
     self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
     if not self.checkLink('#include <mpi.h>\n', 'MPI_Aint lb, extent;\nif (MPI_Type_get_extent(MPI_INT, &lb, &extent));\n'):
@@ -426,6 +439,7 @@ class Configure(config.package.Package):
     self.addDefine('HAVE_MPIIO', 1)
     self.compilers.CPPFLAGS = oldFlags
     self.compilers.LIBS = oldLibs
+    self.compilers.release()
     return
 
   def checkMPICHorOpenMPI(self):
