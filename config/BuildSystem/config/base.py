@@ -79,7 +79,7 @@ class Configure(script.Script):
     self.language        = []
     if not tmpDir is None:
       self.tmpDir        = tmpDir
-    self.pushLanguage('C')
+    self.pushLanguage('C',lock=False)
     return
 
   def getTmpDir(self):
@@ -287,15 +287,26 @@ class Configure(script.Script):
 
   ###############################################
   # Preprocessor, Compiler, and Linker Operations
-  def pushLanguage(self, language):
+  def pushLanguage(self, language, lock=True):
     if language == 'C++': language = 'Cxx'
     self.logPrint('Pushing language '+language)
+    if lock:
+      #print >> sys.stderr, '%s WANTS    %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
+      #self.acquire(prnt=False)
+      self.acquire()
+      #if self.lock[1] == 1:
+      #      print >> sys.stderr, '%s ACQUIRES %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
     self.language.append(language)
     return self.language[-1]
 
   def popLanguage(self):
     self.logPrint('Popping language '+self.language[-1])
     self.language.pop()
+    #print >> sys.stderr, '%s DROPS    %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
+    #if self.lock[1] == 1:
+    #    print >> sys.stderr, '%s RELEASES %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
+    #self.release(prnt=False)
+    self.release()
     return self.language[-1]
 
   def getHeaders(self):

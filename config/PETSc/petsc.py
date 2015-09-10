@@ -232,6 +232,7 @@ class Configure(config.base.Configure):
        - TSCreate from libpetscts
        '''
     if not isinstance(libraries, list): libraries = [libraries]
+    self.compilers.acquire()
     oldLibs = self.compilers.LIBS
     self.libraries.pushLanguage(self.languages.clanguage)
     found   = (self.libraries.check(libraries, 'PetscInitializeNoArguments', otherLibs = self.otherLibs, prototype = 'int PetscInitializeNoArguments(void);') and
@@ -243,10 +244,12 @@ class Configure(config.base.Configure):
                self.libraries.check(libraries, 'TSDestroy', otherLibs = self.otherLibs, prototype = 'typedef struct _p_TS *TS;int TSDestroy(TS*);', call = 'TSDestroy((TS*) 0)'))
     self.libraries.popLanguage()
     self.compilers.LIBS = oldLibs
+    self.compilers.release()
     return found
 
   def checkInclude(self, includeDir):
     '''Check that petscsys.h is present'''
+    self.compilers.acquire()
     oldFlags = self.compilers.CPPFLAGS
     self.compilers.CPPFLAGS += ' '.join([self.headers.getIncludeArgument(inc) for inc in includeDir])
     if self.otherIncludes:
@@ -255,11 +258,13 @@ class Configure(config.base.Configure):
     found = self.checkPreprocess('#include <petscsys.h>\n')
     self.popLanguage()
     self.compilers.CPPFLAGS = oldFlags
+    self.compilers.release()
     return found
 
   def checkPETScLink(self, includes, body, cleanup = 1, codeBegin = None, codeEnd = None, shared = None):
     '''Analogous to checkLink(), but the PETSc includes and libraries are automatically provided'''
     success  = 0
+    self.compilers.acquire()
     oldFlags = self.compilers.CPPFLAGS
     self.compilers.CPPFLAGS += ' '.join([self.headers.getIncludeArgument(inc) for inc in self.getInclude(useTrial = 1)])
     if self.otherIncludes:
@@ -270,6 +275,7 @@ class Configure(config.base.Configure):
       success = 1
     self.compilers.CPPFLAGS = oldFlags
     self.compilers.LIBS     = oldLibs
+    self.compilers.release()
     return success
 
   def checkWorkingLink(self):

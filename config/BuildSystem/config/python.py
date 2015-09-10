@@ -68,15 +68,18 @@ class Configure(config.base.Configure):
 
   def checkInclude(self, includeDir):
     '''Check that Python.h is present'''
+    self.compilers.acquire()
     oldFlags = self.compilers.CPPFLAGS
     self.compilers.CPPFLAGS += ' '+' '.join([self.headers.getIncludeArgument(inc) for inc in includeDir])
     found = self.checkPreprocess('#include <Python.h>\n')
     self.compilers.CPPFLAGS = oldFlags
+    self.compilers.release()
     return found
 
   def checkPythonLink(self, includes, body, cleanup = 1, codeBegin = None, codeEnd = None, shared = 0):
     '''Analogous to checkLink(), but the Python includes and libraries are automatically provided'''
     success  = 0
+    self.compilers.acquire()
     oldFlags = self.compilers.CPPFLAGS
     oldLibs  = self.compilers.LIBS
     self.compilers.CPPFLAGS += ' '+' '.join([self.headers.getIncludeArgument(inc) for inc in self.include])
@@ -85,6 +88,7 @@ class Configure(config.base.Configure):
       success = 1
     self.compilers.CPPFLAGS = oldFlags
     self.compilers.LIBS = oldLibs
+    self.compilers.release()
     return success
 
   def configurePythonLibraries(self):

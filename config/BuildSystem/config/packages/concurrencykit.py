@@ -21,6 +21,7 @@ class Configure(config.package.GNUPackage):
   def checkForCorrectness(self):
     include = '#include <ck_spinlock.h>'
     body    = 'ck_spinlock_t ck_spinlock; ck_spinlock_init(&ck_spinlock);ck_spinlock_lock(&ck_spinlock);ck_spinlock_unlock(&ck_spinlock);'
+    self.compilers.acquire()
     oldFlags = self.compilers.CPPFLAGS
     oldLibs  = self.compilers.LIBS
     self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
@@ -31,6 +32,7 @@ class Configure(config.package.GNUPackage):
     self.popLanguage()
     self.compilers.CPPFLAGS = oldFlags
     self.compilers.LIBS = oldLibs
+    self.compilers.release()
 
   def configureLibrary(self):
     '''Calls the regular package configureLibrary and then does an additional test needed'''

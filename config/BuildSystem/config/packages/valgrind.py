@@ -38,11 +38,13 @@ class Configure(config.package.Package):
         self.libraries.pushLanguage(self.defaultLanguage)
       try:
         self.executeTest(self.configureLibrary)
+        self.compilers.acquire()
         oldFlags = self.compilers.CPPFLAGS
         self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
         if self.checkCompile('#include <valgrind/valgrind.h>', 'RUNNING_ON_VALGRIND;\n'):
           found = 1
         self.compilers.CPPFLAGS = oldFlags
+        self.compilers.release()
       except:
         pass
       if not found and self.setCompilers.isLinux(self.log):

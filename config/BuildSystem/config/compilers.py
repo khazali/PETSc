@@ -347,8 +347,8 @@ class Configure(config.base.Configure):
     self.setCompilers.saveLog()
     self.setCompilers.pushLanguage('Cxx')
     cxxObj = self.framework.getCompilerObject('Cxx')
-    oldExt = cxxObj.sourceExtension
     cxxObj.acquire()
+    oldExt = cxxObj.sourceExtension
     cxxObj.sourceExtension = self.framework.getCompilerObject('C').sourceExtension
     success=0
     for flag in ['', '-+', '-x cxx -tlocal', '-Kc++']:
@@ -432,8 +432,8 @@ class Configure(config.base.Configure):
   def checkCxxLibraries(self):
     '''Determines the libraries needed to link with C++'''
     self.pushLanguage('Cxx')
-    oldFlags = self.setCompilers.LDFLAGS
     self.setCompilers.acquire()
+    oldFlags = self.setCompilers.LDFLAGS
     self.setCompilers.LDFLAGS += ' -v'
     (output, returnCode) = self.outputLink('', '')
     self.setCompilers.LDFLAGS = oldFlags
@@ -569,8 +569,8 @@ class Configure(config.base.Configure):
     self.logPrint('Libraries needed to link Cxx code with another linker: '+str(self.cxxlibs), 3, 'compilers')
 
     self.logPrint('Check that Cxx libraries can be used from C', 4, 'compilers')
-    oldLibs = self.setCompilers.LIBS
     self.setCompilers.saveLog()
+    oldLibs = self.setCompilers.LIBS
     self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.cxxlibs])+' '+self.setCompilers.LIBS
     try:
       self.setCompilers.checkCompiler('C')
@@ -583,8 +583,8 @@ class Configure(config.base.Configure):
 
     if hasattr(self.setCompilers, 'FC'):
       self.logPrint('Check that Cxx libraries can be used from Fortran', 4, 'compilers')
-      oldLibs = self.setCompilers.LIBS
       self.setCompilers.saveLog()
+      oldLibs = self.setCompilers.LIBS
       self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.cxxlibs])+' '+self.setCompilers.LIBS
       try:
         self.setCompilers.checkCompiler('FC')
@@ -602,8 +602,8 @@ class Configure(config.base.Configure):
     # Check whether the compiler (ifc) bitches about real*8, if so try using -w90 -w to eliminate bitch
     (output, error, returnCode) = self.outputCompile('', '      real*8 variable', 1)
     if (output+error).find('Type size specifiers are an extension to standard Fortran 95') >= 0:
-      oldFlags = self.setCompilers.FFLAGS
       self.setCompilers.acquire()
+      oldFlags = self.setCompilers.FFLAGS
       self.setCompilers.FFLAGS += ' -w90 -w'
       (output, error, returnCode) = self.outputCompile('', '      real*8 variable', 1)
       if returnCode or (output+error).find('Type size specifiers are an extension to standard Fortran 95') >= 0:
@@ -646,8 +646,8 @@ class Configure(config.base.Configure):
     self.popLanguage()
     # Link the test object against a Fortran driver
     self.pushLanguage('FC')
-    oldLIBS = self.setCompilers.LIBS
     self.setCompilers.acquire()
+    oldLIBS = self.setCompilers.LIBS
     self.setCompilers.LIBS = cobj+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.clibs])+' '+self.setCompilers.LIBS
     if extraObjs:
       self.setCompilers.LIBS = ' '.join(extraObjs)+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.clibs])+' '+self.setCompilers.LIBS
@@ -774,8 +774,8 @@ class Configure(config.base.Configure):
     if not hasattr(self.setCompilers, 'CC') or not hasattr(self.setCompilers, 'FC'):
       return
     self.pushLanguage('FC')
-    oldFlags = self.setCompilers.LDFLAGS
     self.setCompilers.acquire()
+    oldFlags = self.setCompilers.LDFLAGS
     if config.setCompilers.Configure.isNAG(self.getCompiler(), self.log):
       self.setCompilers.LDFLAGS += ' --verbose'
     else:
@@ -1050,8 +1050,8 @@ class Configure(config.base.Configure):
     self.logPrint('Libraries needed to link Fortran main with the C linker: '+str(self.fmainlibs), 3, 'compilers')
     # check that these monster libraries can be used from C
     self.logPrint('Check that Fortran libraries can be used from C', 4, 'compilers')
-    oldLibs = self.setCompilers.LIBS
     self.setCompilers.acquire()
+    oldLibs = self.setCompilers.LIBS
     try:
       self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])+' '+self.setCompilers.LIBS
       self.setCompilers.saveLog()
@@ -1131,8 +1131,8 @@ class Configure(config.base.Configure):
       self.logPrint('Fortran can link C++ functions', 3, 'compilers')
       link = 1
     else:
-      oldLibs = self.setCompilers.LIBS
       self.setCompilers.acquire()
+      oldLibs = self.setCompilers.LIBS
       self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.cxxlibs])+' '+self.setCompilers.LIBS
       if self.testMangling(cinc+cfunc, ffunc, 'Cxx', extraObjs = [cxxobj]):
         self.logPrint('Fortran can link C++ functions using the C++ compiler libraries', 3, 'compilers')
@@ -1230,8 +1230,8 @@ class Configure(config.base.Configure):
     self.popLanguage()
     # Link the test object against a Fortran driver
     self.pushLanguage('FC')
-    oldLIBS = self.setCompilers.LIBS
     self.setCompilers.acquire()
+    oldLIBS = self.setCompilers.LIBS
     self.setCompilers.LIBS = cobj+' '+self.setCompilers.LIBS
     fcode = '''\
       Interface
@@ -1312,10 +1312,9 @@ class Configure(config.base.Configure):
       use configtest
 
       write(*,*) testint\n'''
-    self.pushLanguage('FC')
+    self.setCompilers.acquire()
     oldFLAGS = self.setCompilers.FFLAGS
     oldLIBS  = self.setCompilers.LIBS
-    self.setCompilers.acquire()
     for flag in ['-I', '-p', '-M']:
       self.setCompilers.FFLAGS = flag+testdir+' '+self.setCompilers.FFLAGS
       self.setCompilers.LIBS   = modobj+' '+self.setCompilers.LIBS
@@ -1359,9 +1358,9 @@ class Configure(config.base.Configure):
     if not os.path.isdir(testdir):
       os.mkdir(testdir)
     self.pushLanguage('FC')
+    self.setCompilers.acquire()
     oldFLAGS = self.setCompilers.FFLAGS
     oldLIBS  = self.setCompilers.LIBS
-    self.setCompilers.acquire()
     for flag in ['-module ', '-module:', '-fmod=', '-J', '-M', '-p', '-qmoddir=', '-moddir=']:
       self.setCompilers.FFLAGS = flag+testdir+' '+self.setCompilers.FFLAGS
       self.setCompilers.LIBS   = modobj+' '+self.setCompilers.LIBS

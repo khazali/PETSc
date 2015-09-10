@@ -1,7 +1,7 @@
 import args
 import sys
 import os
-from threading import RLock
+import threading
 
 # Ugly stuff to have curses called ONLY once, instead of for each
 # new Configure object created (and flashing the screen)
@@ -36,7 +36,7 @@ class Logger(args.ArgumentProcessor):
     self.debugLevel    = debugLevel
     self.debugSections = debugSections
     self.debugIndent   = debugIndent
-    self.lock          = RLock()
+    self.lock          = [threading.RLock(),0]
     self.getRoot()
     return
 
@@ -65,7 +65,7 @@ class Logger(args.ArgumentProcessor):
     if not 'out' in d:
       self.out = Logger.defaultOut
     self.__dict__.update(d)
-    self.lock = Rlock()
+    self.lock = [threading.RLock(),0]
     return
 
   def setupArguments(self, argDB):
@@ -138,14 +138,28 @@ class Logger(args.ArgumentProcessor):
       log = Logger.defaultLog
     return log
 
+  #def acquire(self,prnt=True):
   def acquire(self):
     '''this should be used by dependendent config objects that need to change their parents, either temporarily (e.g., changing an attributed so that a check/output test can be run) or permanently (e.g., updating compiler flags'''
-    if not self.lock.acquire(True): # blocking
+#    if prnt:
+#        print >> sys.stderr, '%s WANTS    %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
+    if not self.lock[0].acquire(True): # blocking
       raise RuntimeError('Could not acquire lock')
+#    if not self.lock[1]:
+#        if prnt:
+#            print >> sys.stderr, '%s ACQUIRES %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
+    self.lock[1] = self.lock[1] + 1
     return
 
-  def release(self):
-    return self.lock.release()
+  #def release(self,prnt=True):
+  def release(self,prnt=True):
+#    if prnt:
+#        print >> sys.stderr, '%s DROPS    %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
+    self.lock[1] = self.lock[1] - 1
+#    if not self.lock[1]:
+#        if prnt:
+#            print >> sys.stderr, '%s RELEASES %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
+    return self.lock[0].release()
 
   def closeLog(self):
     '''Closes the log file'''
@@ -153,7 +167,11 @@ class Logger(args.ArgumentProcessor):
 
   def saveLog(self):
     import StringIO
+#    print >> sys.stderr, '%s WANTS    %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
+#    self.acquire(prnt=False)
     self.acquire()
+#    if self.lock[1] == 1:
+#            print >> sys.stderr, '%s ACQUIRES %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
     self.logBkp = self.log
     self.log    = StringIO.StringIO()
 
@@ -162,6 +180,10 @@ class Logger(args.ArgumentProcessor):
     self.log.close()
     self.log = self.logBkp
     del(self.logBkp)
+#    print >> sys.stderr, '%s DROPS    %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
+#    if self.lock[1] == 1:
+#            print >> sys.stderr, '%s RELEASES %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
+#    self.release(prnt=False)
     self.release()
     return s
 

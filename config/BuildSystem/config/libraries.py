@@ -206,6 +206,7 @@ extern "C" {
 '''
     body = '\n'.join([genCall(f, fname) for f, fname in enumerate(funcs)])
     # Setup link line
+    self.setCompilers.acquire()
     oldLibs = self.setCompilers.LIBS
     if libDir:
       if not isinstance(libDir, list): libDir = [libDir]
@@ -232,8 +233,9 @@ extern "C" {
         for lib in libName:
           shortlib = self.getShortLibName(lib)
           if shortlib: self.addDefine(self.getDefineName(shortlib), 1)
-    self.setCompilers.LIBS = oldLibs
     self.popLanguage()
+    self.setCompilers.LIBS = oldLibs
+    self.setCompilers.release()
     return found
 
   def checkClassify(self, libName, funcs, libDir=None, otherLibs=[], prototype='', call='', fortranMangle=0, cxxMangle=0, cxxLink=0):
@@ -360,6 +362,7 @@ extern "C" {
         configObj = self
 
     # Fix these flags
+    self.setCompilers.acquire()
     oldFlags = self.setCompilers.LIBS
     self.setCompilers.LIBS = ' '+self.toString(libraries)+' '+self.setCompilers.LIBS
 
@@ -386,6 +389,7 @@ int init(int argc,  char *argv[]) {
     if not checkLink(includes, body, cleanup = 0, codeBegin = codeBegin, codeEnd = codeEnd, shared = 1):
       if os.path.isfile(configObj.compilerObj): os.remove(configObj.compilerObj)
       self.setCompilers.LIBS = oldFlags
+      self.setCompilers.release()
       raise RuntimeError('Could not complete shared library check')
     if os.path.isfile(configObj.compilerObj): os.remove(configObj.compilerObj)
     os.rename(configObj.linkerObj, lib1Name)
@@ -410,12 +414,14 @@ int checkInit(void) {
     if not checkLink(includes, body, cleanup = 0, codeBegin = codeBegin, codeEnd = codeEnd, shared = 1):
       if os.path.isfile(configObj.compilerObj): os.remove(configObj.compilerObj)
       self.setCompilers.LIBS = oldFlags
+      self.setCompilers.release()
       raise RuntimeError('Could not complete shared library check')
       return 0
     if os.path.isfile(configObj.compilerObj): os.remove(configObj.compilerObj)
     os.rename(configObj.linkerObj, lib2Name)
 
     self.setCompilers.LIBS = oldFlags
+    self.setCompilers.release()
 
     # Make an executable that dynamically loads and calls both libraries
     #   If the check returns true in the second library, the static data was shared
@@ -465,12 +471,14 @@ int checkInit(void) {
     exit(2);
   }
   '''
+    self.setCompilers.acquire()
     oldLibs = self.setCompilers.LIBS
     if self.haveLib('dl'):
       self.setCompilers.LIBS += ' -ldl'
     if self.checkRun(defaultIncludes, body, defaultArg = defaultArg, executor = executor):
       isShared = 1
     self.setCompilers.LIBS = oldLibs
+    self.setCompilers.release()
     if os.path.isfile(lib1Name) and self.framework.doCleanup: os.remove(lib1Name)
     if os.path.isfile(lib2Name) and self.framework.doCleanup: os.remove(lib2Name)
     if isShared:

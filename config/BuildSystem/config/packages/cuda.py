@@ -111,10 +111,12 @@ class Configure(config.package.Package):
         raise RuntimeError('CUDA version error '+self.argDB['known-cuda-version']+' < '+self.CUDAVersion+': PETSC currently requires CUDA version '+self.CUDAVersionStr+' or higher when compiling with CUDA')
     elif not self.argDB['with-batch']:
       self.pushLanguage('CUDA')
+      self.compilers.acquire()
       oldFlags = self.compilers.CUDAPPFLAGS
       if not self.checkRun('#include <cuda.h>\n#include <stdio.h>', 'if (CUDA_VERSION < ' + self.CUDAVersion +') {printf("Invalid version %d\\n", CUDA_VERSION); return 1;}'):
         raise RuntimeError('CUDA version error: PETSC currently requires CUDA version '+self.CUDAVersionStr+' or higher - when compiling with CUDA')
       self.compilers.CUDAPPFLAGS = oldFlags
+      self.compilers.release()
       self.popLanguage()
     else:
       raise RuntimeError('Batch configure does not work with CUDA\nOverride all CUDA configuration with options, such as --known-cuda-version')

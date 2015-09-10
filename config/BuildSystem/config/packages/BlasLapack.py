@@ -65,7 +65,6 @@ class Configure(config.package.Package):
 
   def checkBlas(self, blasLibrary, otherLibs, fortranMangle, routineIn = 'dot'):
     '''This checks the given library for the routine, dot by default'''
-    oldLibs = self.compilers.LIBS
     prototype = ''
     call      = ''
     routine   = self.mangleBlas(routineIn)
@@ -76,11 +75,9 @@ class Configure(config.package.Package):
     self.libraries.saveLog()
     found   = self.libraries.check(blasLibrary, routine, otherLibs = otherLibs, fortranMangle = fortranMangle, prototype = prototype, call = call)
     self.logWrite(self.libraries.restoreLog())
-    self.compilers.LIBS = oldLibs
     return found
 
   def checkLapack(self, lapackLibrary, otherLibs, fortranMangle, routinesIn = ['getrs', 'geev']):
-    oldLibs = self.compilers.LIBS
     routines = list(routinesIn)
     found   = 1
     prototypes = ['','']
@@ -98,7 +95,6 @@ class Configure(config.package.Package):
       found = found and self.libraries.check(lapackLibrary, routine, otherLibs = otherLibs, fortranMangle = fortranMangle, prototype = prototype, call = call)
       if not found: break
     self.logWrite(self.libraries.restoreLog())
-    self.compilers.LIBS = oldLibs
     return found
 
   def checkLib(self, lapackLibrary, blasLibrary = None):
@@ -445,13 +441,11 @@ class Configure(config.package.Package):
       mangleFunc = hasattr(self.compilers, 'FC') and not self.f2c
     routines = ['trsen','gerfs','gges','tgsen','gesvd','getrf','getrs','geev','gelss','syev','syevx','sygv','sygvx','potrf','potrs','stebz','pttrf','pttrs','stein','orgqr','geqrf','gesv','hseqr','steqr']
     self.libraries.saveLog()
-    oldLibs = self.compilers.LIBS
     found, missing = self.libraries.checkClassify(self.lapackLibrary, map(self.mangleBlas,routines), otherLibs = self.getOtherLibs(), fortranMangle = mangleFunc)
     for baseName in routines:
       if self.mangleBlas(baseName) in missing:
         self.missingRoutines.append(baseName)
         self.addDefine('MISSING_LAPACK_'+baseName.upper(), 1)
-    self.compilers.LIBS = oldLibs
     self.logWrite(self.libraries.restoreLog())
 
   def checklsame(self):
@@ -503,6 +497,7 @@ class Configure(config.package.Package):
       body = '''FILE *output = fopen("'''+filename+'''","w");\n'''+body
       if lib:
         if not isinstance(lib, list): lib = [lib]
+        self.compilers.acquire()
         oldLibs  = self.compilers.LIBS
         self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
       if self.checkRun(includes, body) and os.path.exists(filename):
@@ -514,6 +509,7 @@ class Configure(config.package.Package):
       self.popLanguage()
       if lib:
         self.compilers.LIBS = oldLibs
+        self.compilers.release()
       return result
 
   def checksdotreturnsdouble(self):

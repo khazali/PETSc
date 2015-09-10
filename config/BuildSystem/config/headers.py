@@ -92,12 +92,14 @@ class Configure(config.base.Configure):
       flagsArg = self.getPreprocessorFlagsArg()
       self.logPrint('Checking include with compiler flags var '+flagsArg+' '+str(incl+otherIncludes))
       #oldFlags = self.compilers.CPPFLAGS
+      self.compilers.acquire()
       oldFlags = getattr(self.compilers, flagsArg)
       #self.compilers.CPPFLAGS += ' '+' '.join([self.getIncludeArgument(inc) for inc in incl+otherIncludes])
       setattr(self.compilers, flagsArg, getattr(self.compilers, flagsArg)+' '+' '.join([self.getIncludeArgument(inc) for inc in incl+otherIncludes]))
       found = self.checkPreprocess('#include <' +hfile+ '>\n', timeout = timeout)
       #self.compilers.CPPFLAGS = oldFlags
       setattr(self.compilers, flagsArg, oldFlags)
+      self.compilers.release()
       if not found: return 0
     self.log.write('Found header files ' +str(hfiles)+ ' in '+str(incl)+'\n')
     return 1

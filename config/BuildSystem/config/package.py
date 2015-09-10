@@ -553,9 +553,9 @@ class Package(config.base.Configure):
     return ret
 
   def checkPackageLink(self, includes, body, cleanup = 1, codeBegin = None, codeEnd = None, shared = 0):
+    self.compilers.acquire()
     oldFlags = self.compilers.CPPFLAGS
     oldLibs  = self.compilers.LIBS
-    self.compilers.acquire()
     self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
     self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
     result = self.checkLink(includes, body, cleanup, codeBegin, codeEnd, shared)
@@ -687,12 +687,10 @@ class Package(config.base.Configure):
     self.consistencyChecks()
     if self.argDB['with-'+self.package]:
       # If clanguage is c++, test external packages with the c++ compiler
-      self.libraries.acquire()
       self.libraries.pushLanguage(self.defaultLanguage)
       self.executeTest(self.configureLibrary)
       self.executeTest(self.checkSharedLibrary)
       self.libraries.popLanguage()
-      self.libraries.release()
     else:
       self.executeTest(self.alternateConfigureLibrary)
     return

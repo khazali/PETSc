@@ -907,6 +907,7 @@ class Framework(config.base.Configure, script.LanguageProcessor):
       body.append('\nfclose(output);\n')
       body.append('chmod(reconfname,0744);')
 
+      self.compilers.acquire()
       oldFlags = self.compilers.CPPFLAGS
       oldLibs  = self.compilers.LIBS
       self.compilers.CPPFLAGS += ' ' + ' '.join(self.batchIncludeDirs)
@@ -920,6 +921,7 @@ class Framework(config.base.Configure, script.LanguageProcessor):
       shutil.copymode(os.path.join(self.tmpDir,'conftest'),confname)
       self.compilers.CPPFLAGS = oldFlags
       self.compilers.LIBS = oldLibs
+      self.compilers.release()
       self.logClear()
       print '=================================================================================\r'
       print '    Since your compute nodes require use of a batch system or mpiexec you must:  \r'
