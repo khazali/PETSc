@@ -475,6 +475,39 @@ PetscErrorCode  PetscGetArguments(char ***args)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscSAWsSendWebSocket"
+/*@C
+   PetscSAWsSendWebSocket - If the SAWs session is running, user could send data to web page without viewer having to refresh
+
+   Output Parameters:
+   data - pass in JSON object in form of string.
+
+@*/
+PetscErrorCode  PetscSAWsSendWebSocket(unsigned char * data)
+{
+  PetscFunctionBegin;
+  PetscStackCallSAWs(SAWs_Publish_Data,(data));
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscSAWsHistory"
+/*@C
+   PetscSAWsHistory - Provides the options of allowing the SAWs web server to record the JSON objects in the session
+
+   Output Parameters:
+   i - 1 to enable or 0 to disable (Default)
+
+@*/
+PetscErrorCode  PetscSAWsHistory(int i)
+{
+  PetscFunctionBegin;
+  PetscStackCallSAWs(SAWs_Enable_History,(i));
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscFreeArguments"
 /*@C
    PetscFreeArguments - Frees the memory obtained with PetscGetArguments()
@@ -491,24 +524,6 @@ PetscErrorCode  PetscGetArguments(char ***args)
 .seealso: PetscFinalize(), PetscInitializeFortran(), PetscGetArgs(), PetscGetArguments()
 
 @*/
-#undef __FUNCT__
-#define __FUNCT__ "PetscSAWsSendWebSocket"
-PetscErrorCode  PetscSAWsSendWebSocket(unsigned char * i)
-{
-  PetscStackCallSAWs(SAWs_Publish_Data,(i));
-
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "PetscSAWsHistory"
-PetscErrorCode  PetscSAWsHistory(int i)
-{
-  PetscStackCallSAWs(SAWs_Enable_History,(i));
-
-  PetscFunctionReturn(0);
-}
-
 PetscErrorCode  PetscFreeArguments(char **args)
 {
   PetscInt       i = 0;
