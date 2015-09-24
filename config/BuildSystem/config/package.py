@@ -92,7 +92,8 @@ class Package(config.base.Configure):
     self.programs      = framework.require('config.programs', self)
     self.sourceControl = framework.require('config.sourceControl',self)
     # All packages depend on make
-    self.make          = framework.require('config.packages.make',self)
+    if not self.package == 'make':
+      self.make        = framework.require('config.packages.make',self)
     if not self.isMPI and not self.package == 'make':
       # force MPI to be the first package configured since all other packages
       # may depend on its compilers defined here
