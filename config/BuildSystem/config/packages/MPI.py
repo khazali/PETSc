@@ -166,10 +166,9 @@ class Configure(config.package.Package):
       path.append(os.path.join(os.path.dirname(os.path.dirname(inc)),'mpd','bin'))
     for lib in self.lib:
       path.append(os.path.join(os.path.dirname(os.path.dirname(lib)), 'bin'))
-    self.pushLanguage('C')
-    if os.path.basename(self.getCompiler()) == 'mpicc' and os.path.dirname(self.getCompiler()):
-      path.append(os.path.dirname(self.getCompiler()))
-    self.popLanguage()
+    with self.maskLanguage('C'):
+      if os.path.basename(self.getCompiler()) == 'mpicc' and os.path.dirname(self.getCompiler()):
+        path.append(os.path.dirname(self.getCompiler()))
     if not self.getExecutable(mpiexecs, path = path, useDefaultPath = 1, resultName = 'mpiexec',setMakeMacro=0):
       if not self.getExecutable('/bin/false', path = [], useDefaultPath = 0, resultName = 'mpiexec',setMakeMacro=0):
         raise RuntimeError('Could not locate MPIEXEC - please specify --with-mpiexec option')
@@ -179,104 +178,86 @@ class Configure(config.package.Package):
 
   def configureMPI2(self):
     '''Check for functions added to the interface in MPI-2'''
-    self.compilers.acquire()
-    oldFlags = self.compilers.CPPFLAGS
-    oldLibs  = self.compilers.LIBS
-    self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
-    self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
-    self.framework.saveLog()
-    if self.checkLink('#include <mpi.h>\n', 'int flag;if (MPI_Finalized(&flag));\n'):
-      self.haveFinalized = 1
-      self.addDefine('HAVE_MPI_FINALIZED', 1)
-    if self.checkLink('#include <mpi.h>\n', 'if (MPI_Allreduce(MPI_IN_PLACE,0, 1, MPI_INT, MPI_SUM, MPI_COMM_SELF));\n'):
-      self.haveInPlace = 1
-      self.addDefine('HAVE_MPI_IN_PLACE', 1)
-    if self.checkLink('#include <mpi.h>\n', 'int count=2; int blocklens[2]={0,1}; MPI_Aint indices[2]={0,1}; MPI_Datatype old_types[2]={0,1}; MPI_Datatype *newtype = 0;\n \
-                                             if (MPI_Type_create_struct(count, blocklens, indices, old_types, newtype));\n'):
-      self.haveTypeCreateStruct = 1
-    else:
-      self.haveTypeCreateStruct = 0
-      self.framework.addDefine('MPI_Type_create_struct(count,lens,displs,types,newtype)', 'MPI_Type_struct((count),(lens),(displs),(types),(newtype))')
-    if self.checkLink('#include <mpi.h>\n', 'MPI_Comm_errhandler_fn * p_err_fun = 0; MPI_Errhandler * p_errhandler = 0; if (MPI_Comm_create_errhandler(p_err_fun,p_errhandler));\n'):
-      self.haveCommCreateErrhandler = 1
-    else:
-      self.haveCommCreateErrhandler = 0
-      self.framework.addDefine('MPI_Comm_create_errhandler(p_err_fun,p_errhandler)', 'MPI_Errhandler_create((p_err_fun),(p_errhandler))')
-    if self.checkLink('#include <mpi.h>\n', 'if (MPI_Comm_set_errhandler(MPI_COMM_WORLD,MPI_ERRORS_RETURN));\n'):
-      self.haveCommSetErrhandler = 1
-    else:
-      self.haveCommSetErrhandler = 0
-      self.framework.addDefine('MPI_Comm_set_errhandler(comm,p_errhandler)', 'MPI_Errhandler_set((comm),(p_errhandler))')
-    self.compilers.CPPFLAGS = oldFlags
-    self.compilers.LIBS = oldLibs
-    self.compilers.release()
-    self.logWrite(self.framework.restoreLog())
+    newFlags = self.compilers.CPPFLAGS+' '+self.headers.toString(self.include)
+    newLibs  = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
+    with self.compilers.mask('CPPFLAGS',newFlags,maskLog=self), self.compilers.mask('LIBS',newLibs):
+      if self.checkLink('#include <mpi.h>\n', 'int flag;if (MPI_Finalized(&flag));\n'):
+        self.haveFinalized = 1
+        self.addDefine('HAVE_MPI_FINALIZED', 1)
+      if self.checkLink('#include <mpi.h>\n', 'if (MPI_Allreduce(MPI_IN_PLACE,0, 1, MPI_INT, MPI_SUM, MPI_COMM_SELF));\n'):
+        self.haveInPlace = 1
+        self.addDefine('HAVE_MPI_IN_PLACE', 1)
+      if self.checkLink('#include <mpi.h>\n', 'int count=2; int blocklens[2]={0,1}; MPI_Aint indices[2]={0,1}; MPI_Datatype old_types[2]={0,1}; MPI_Datatype *newtype = 0;\n \
+                                               if (MPI_Type_create_struct(count, blocklens, indices, old_types, newtype));\n'):
+        self.haveTypeCreateStruct = 1
+      else:
+        self.haveTypeCreateStruct = 0
+        self.framework.addDefine('MPI_Type_create_struct(count,lens,displs,types,newtype)', 'MPI_Type_struct((count),(lens),(displs),(types),(newtype))')
+      if self.checkLink('#include <mpi.h>\n', 'MPI_Comm_errhandler_fn * p_err_fun = 0; MPI_Errhandler * p_errhandler = 0; if (MPI_Comm_create_errhandler(p_err_fun,p_errhandler));\n'):
+        self.haveCommCreateErrhandler = 1
+      else:
+        self.haveCommCreateErrhandler = 0
+        self.framework.addDefine('MPI_Comm_create_errhandler(p_err_fun,p_errhandler)', 'MPI_Errhandler_create((p_err_fun),(p_errhandler))')
+      if self.checkLink('#include <mpi.h>\n', 'if (MPI_Comm_set_errhandler(MPI_COMM_WORLD,MPI_ERRORS_RETURN));\n'):
+        self.haveCommSetErrhandler = 1
+      else:
+        self.haveCommSetErrhandler = 0
+        self.framework.addDefine('MPI_Comm_set_errhandler(comm,p_errhandler)', 'MPI_Errhandler_set((comm),(p_errhandler))')
     return
 
   def configureConversion(self):
     '''Check for the functions which convert communicators between C and Fortran
        - Define HAVE_MPI_COMM_F2C and HAVE_MPI_COMM_C2F if they are present
        - Some older MPI 1 implementations are missing these'''
-    self.compilers.acquire()
-    oldFlags = self.compilers.CPPFLAGS
-    oldLibs  = self.compilers.LIBS
-    self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
-    self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
-    if self.checkLink('#include <mpi.h>\n', 'if (MPI_Comm_f2c((MPI_Fint)0));\n'):
-      self.commf2c = 1
-      self.addDefine('HAVE_MPI_COMM_F2C', 1)
-    if self.checkLink('#include <mpi.h>\n', 'if (MPI_Comm_c2f(MPI_COMM_WORLD));\n'):
-      self.commc2f = 1
-      self.addDefine('HAVE_MPI_COMM_C2F', 1)
-    if self.checkLink('#include <mpi.h>\n', 'MPI_Fint a;\n'):
-      self.addDefine('HAVE_MPI_FINT', 1)
-    self.compilers.CPPFLAGS = oldFlags
-    self.compilers.LIBS = oldLibs
-    self.compilers.release()
+    newFlags = self.compilers.CPPFLAGS+' '+self.headers.toString(self.include)
+    newLibs  = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
+    with self.compilers.mask('CPPFLAGS',newFlags), self.compilers.mask('LIBS',newLibs):
+      if self.checkLink('#include <mpi.h>\n', 'if (MPI_Comm_f2c((MPI_Fint)0));\n'):
+        self.commf2c = 1
+        self.addDefine('HAVE_MPI_COMM_F2C', 1)
+      if self.checkLink('#include <mpi.h>\n', 'if (MPI_Comm_c2f(MPI_COMM_WORLD));\n'):
+        self.commc2f = 1
+        self.addDefine('HAVE_MPI_COMM_C2F', 1)
+      if self.checkLink('#include <mpi.h>\n', 'MPI_Fint a;\n'):
+        self.addDefine('HAVE_MPI_FINT', 1)
     return
 
   def configureTypes(self):
     '''Checking for MPI types'''
-    self.compilers.acquire()
-    oldFlags = self.compilers.CPPFLAGS
-    self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
-    self.framework.batchIncludeDirs.extend([self.headers.getIncludeArgument(inc) for inc in self.include])
-    self.framework.addBatchLib(self.lib)
-    self.types.checkSizeof('MPI_Comm', 'mpi.h')
-    if 'HAVE_MPI_FINT' in self.defines:
-      self.types.checkSizeof('MPI_Fint', 'mpi.h')
-    self.compilers.CPPFLAGS = oldFlags
-    self.compilers.release()
+    newFlags = self.compilers.CPPFLAGS+' '+self.headers.toString(self.include)
+    with self.compilers.mask('CPPFLAGS',newFlags):
+      self.framework.batchIncludeDirs.extend([self.headers.getIncludeArgument(inc) for inc in self.include])
+      self.framework.addBatchLib(self.lib)
+      self.types.checkSizeof('MPI_Comm', 'mpi.h')
+      if 'HAVE_MPI_FINT' in self.defines:
+        self.types.checkSizeof('MPI_Fint', 'mpi.h')
     return
 
   def configureMPITypes(self):
     '''Checking for MPI Datatype handles'''
-    self.compilers.acquire()
-    oldFlags = self.compilers.CPPFLAGS
-    oldLibs  = self.compilers.LIBS
-    self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
-    self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
+    newFlags = self.compilers.CPPFLAGS+' '+self.headers.toString(self.include)
+    newLibs  = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
     mpitypes = [('MPI_LONG_DOUBLE', 'long-double'), ('MPI_INT64_T', 'int64_t')]
     if self.getDefaultLanguage() == 'C': mpitypes.extend([('MPI_C_DOUBLE_COMPLEX', 'c-double-complex')])
-    for datatype, name in mpitypes:
-      includes = '#ifdef PETSC_HAVE_STDLIB_H\n  #include <stdlib.h>\n#endif\n#include <mpi.h>\n'
-      body     = 'MPI_Aint size;\nint ierr;\nMPI_Init(0,0);\nierr = MPI_Type_extent('+datatype+', &size);\nif(ierr || (size == 0)) exit(1);\nMPI_Finalize();\n'
-      if self.checkCompile(includes, body):
-        if 'known-mpi-'+name in self.argDB:
-          if int(self.argDB['known-mpi-'+name]):
-            self.addDefine('HAVE_'+datatype, 1)
-        elif not self.argDB['with-batch']:
-          self.pushLanguage('C')
-          if self.checkRun(includes, body, defaultArg = 'known-mpi-'+name):
-            self.addDefine('HAVE_'+datatype, 1)
-          self.popLanguage()
-        else:
-          if self.needBatchMPI:
-            self.framework.addBatchSetup('if (MPI_Init(&argc, &argv));')
-            self.framework.addBatchCleanup('if (MPI_Finalize());')
-            self.needBatchMPI = 0
-          self.framework.addBatchInclude(['#include <stdlib.h>', '#define MPICH_IGNORE_CXX_SEEK', '#define MPICH_SKIP_MPICXX 1', '#define OMPI_SKIP_MPICXX 1', '#include <mpi.h>'])
-          self.framework.addBatchBody('''
+    with self.compilers.mask('CPPFLAGS',newFlags), self.compilers.mask('LIBS',newLibs):
+      for datatype, name in mpitypes:
+        includes = '#ifdef PETSC_HAVE_STDLIB_H\n  #include <stdlib.h>\n#endif\n#include <mpi.h>\n'
+        body     = 'MPI_Aint size;\nint ierr;\nMPI_Init(0,0);\nierr = MPI_Type_extent('+datatype+', &size);\nif(ierr || (size == 0)) exit(1);\nMPI_Finalize();\n'
+        if self.checkCompile(includes, body):
+          if 'known-mpi-'+name in self.argDB:
+            if int(self.argDB['known-mpi-'+name]):
+              self.addDefine('HAVE_'+datatype, 1)
+          elif not self.argDB['with-batch']:
+            with self.maskLanguage('C'):
+              if self.checkRun(includes, body, defaultArg = 'known-mpi-'+name):
+                self.addDefine('HAVE_'+datatype, 1)
+          else:
+            if self.needBatchMPI:
+              self.framework.addBatchSetup('if (MPI_Init(&argc, &argv));')
+              self.framework.addBatchCleanup('if (MPI_Finalize());')
+              self.needBatchMPI = 0
+            self.framework.addBatchInclude(['#include <stdlib.h>', '#define MPICH_IGNORE_CXX_SEEK', '#define MPICH_SKIP_MPICXX 1', '#define OMPI_SKIP_MPICXX 1', '#include <mpi.h>'])
+            self.framework.addBatchBody('''
 {
   MPI_Aint size=0;
   int ierr=0;
@@ -288,10 +269,7 @@ class Configure(config.package.Package):
   } else {
     fprintf(output, "  \'--known-mpi-%s=0\',\\n");
   }
-}''' % (datatype, name, name))
-    self.compilers.CPPFLAGS = oldFlags
-    self.compilers.LIBS = oldLibs
-    self.compilers.release()
+}'''        % (datatype, name, name))
     return
 
   def alternateConfigureLibrary(self):
@@ -310,16 +288,15 @@ class Configure(config.package.Package):
     self.addDefine('HAVE_MPI_COMM_C2F', 1)
     self.addDefine('HAVE_MPI_FINT', 1)
     self.addDefine('HAVE_MPI_IN_PLACE', 1)
-    self.framework.saveLog()
-    self.framework.addDefine('MPI_Type_create_struct(count,lens,displs,types,newtype)', 'MPI_Type_struct((count),(lens),(displs),(types),(newtype))')
-    self.framework.addDefine('MPI_Comm_create_errhandler(p_err_fun,p_errhandler)', 'MPI_Errhandler_create((p_err_fun),(p_errhandler))')
-    self.framework.addDefine('MPI_Comm_set_errhandler(comm,p_errhandler)', 'MPI_Errhandler_set((comm),(p_errhandler))')
-    if not self.argDB['with-mpiuni-fortran-binding']:
-      self.framework.addDefine('MPIUNI_AVOID_MPI_NAMESPACE', 1)
-      self.usingMPIUniFortranBinding = 0
-    else:
-      self.usingMPIUniFortranBinding = 1
-    self.logWrite(self.framework.restoreLog())
+    with self.framework.maskLog(self):
+      self.framework.addDefine('MPI_Type_create_struct(count,lens,displs,types,newtype)', 'MPI_Type_struct((count),(lens),(displs),(types),(newtype))')
+      self.framework.addDefine('MPI_Comm_create_errhandler(p_err_fun,p_errhandler)', 'MPI_Errhandler_create((p_err_fun),(p_errhandler))')
+      self.framework.addDefine('MPI_Comm_set_errhandler(comm,p_errhandler)', 'MPI_Errhandler_set((comm),(p_errhandler))')
+      if not self.argDB['with-mpiuni-fortran-binding']:
+        self.framework.addDefine('MPIUNI_AVOID_MPI_NAMESPACE', 1)
+        self.usingMPIUniFortranBinding = 0
+      else:
+        self.usingMPIUniFortranBinding = 1
     if self.getDefaultLanguage == 'C': self.addDefine('HAVE_MPI_C_DOUBLE_COMPLEX', 1)
     self.commf2c = 1
     self.commc2f = 1
@@ -360,20 +337,16 @@ class Configure(config.package.Package):
     '''Make sure C++ can compile and link'''
     if not hasattr(self.compilers, 'CXX'):
       return 0
-    self.libraries.pushLanguage('Cxx')
-    self.compilers.acquire()
-    oldFlags = self.compilers.CPPFLAGS
-    self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
     self.log.write('Checking for header mpi.h\n')
-    if not self.libraries.checkCompile(includes = '#include <mpi.h>\n'):
-      raise RuntimeError('C++ error! mpi.h could not be located at: '+str(self.include))
-    # check if MPI_Finalize from c++ exists
-    self.log.write('Checking for C++ MPI_Finalize()\n')
-    if not self.libraries.check(self.lib, 'MPI_Finalize', prototype = '#include <mpi.h>', call = 'int ierr;\nierr = MPI_Finalize();', cxxMangle = 1):
-      raise RuntimeError('C++ error! MPI_Finalize() could not be located!')
-    self.compilers.CPPFLAGS = oldFlags
-    self.compilers.release()
-    self.libraries.popLanguage()
+    with self.libraries.maskLanguage('Cxx'):
+      newFlags = self.compilers.CPPFLAGS +' '+self.headers.toString(self.include)
+      with self.compilers.mask('CPPFLAGS',newFlags):
+        if not self.libraries.checkCompile(includes = '#include <mpi.h>\n'):
+          raise RuntimeError('C++ error! mpi.h could not be located at: '+str(self.include))
+        # check if MPI_Finalize from c++ exists
+        self.log.write('Checking for C++ MPI_Finalize()\n')
+        if not self.libraries.check(self.lib, 'MPI_Finalize', prototype = '#include <mpi.h>', call = 'int ierr;\nierr = MPI_Finalize();', cxxMangle = 1):
+          raise RuntimeError('C++ error! MPI_Finalize() could not be located!')
     return
 
   def FortranMPICheck(self):
@@ -381,71 +354,44 @@ class Configure(config.package.Package):
     if not hasattr(self.compilers, 'FC'):
       return 0
     # Fortran compiler is being used - so make sure mpif.h exists
-    self.libraries.pushLanguage('FC')
-    self.compilers.acquire()
-    oldFlags = self.compilers.CPPFLAGS
-    self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
     self.log.write('Checking for header mpif.h\n')
-    if not self.libraries.checkCompile(body = '#include "mpif.h"'):
-      raise RuntimeError('Fortran error! mpif.h could not be located at: '+str(self.include))
-    # check if mpi_init form fortran works
-    self.log.write('Checking for fortran mpi_init()\n')
-    if not self.libraries.check(self.lib,'', call = '#include "mpif.h"\n       integer ierr\n       call mpi_init(ierr)'):
-      raise RuntimeError('Fortran error! mpi_init() could not be located!')
-    # check if mpi.mod exists
-    if self.compilers.fortranIsF90:
-      self.log.write('Checking for mpi.mod\n')
-      if self.libraries.check(self.lib,'', call = '       use mpi\n       integer ierr,rank\n       call mpi_init(ierr)\n       call mpi_comm_rank(MPI_COMM_WORLD,rank,ierr)\n'):
-        self.havef90module = 1
-        self.addDefine('HAVE_MPI_F90MODULE', 1)
-    self.compilers.CPPFLAGS = oldFlags
-    self.compilers.release()
-    self.libraries.popLanguage()
+    with self.libraries.maskLanguage('FC'):
+      newFlags = self.compilers.CPPFLAGS +' '+self.headers.toString(self.include)
+      with self.compilers.mask('CPPFLAGS',newFlags):
+        if not self.libraries.checkCompile(body = '#include "mpif.h"'):
+          raise RuntimeError('Fortran error! mpif.h could not be located at: '+str(self.include))
+        # check if mpi_init form fortran works
+        self.log.write('Checking for fortran mpi_init()\n')
+        if not self.libraries.check(self.lib,'', call = '#include "mpif.h"\n       integer ierr\n       call mpi_init(ierr)'):
+          raise RuntimeError('Fortran error! mpi_init() could not be located!')
+        # check if mpi.mod exists
+        if self.compilers.fortranIsF90:
+          self.log.write('Checking for mpi.mod\n')
+          if self.libraries.check(self.lib,'', call = '       use mpi\n       integer ierr,rank\n       call mpi_init(ierr)\n       call mpi_comm_rank(MPI_COMM_WORLD,rank,ierr)\n'):
+            self.havef90module = 1
+            self.addDefine('HAVE_MPI_F90MODULE', 1)
     return 0
 
   def configureIO(self):
     '''Check for the functions in MPI/IO
        - Define HAVE_MPIIO if they are present
        - Some older MPI 1 implementations are missing these'''
-    self.compilers.acquire()
-    oldFlags = self.compilers.CPPFLAGS
-    oldLibs  = self.compilers.LIBS
-    self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
-    self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
-    if not self.checkLink('#include <mpi.h>\n', 'MPI_Aint lb, extent;\nif (MPI_Type_get_extent(MPI_INT, &lb, &extent));\n'):
-      self.compilers.CPPFLAGS = oldFlags
-      self.compilers.LIBS = oldLibs
-      self.compilers.release()
-      return
-    if not self.checkLink('#include <mpi.h>\n', 'MPI_File fh;\nvoid *buf;\nMPI_Status status;\nif (MPI_File_write_all(fh, buf, 1, MPI_INT, &status));\n'):
-      self.compilers.CPPFLAGS = oldFlags
-      self.compilers.LIBS = oldLibs
-      self.compilers.release()
-      return
-    if not self.checkLink('#include <mpi.h>\n', 'MPI_File fh;\nvoid *buf;\nMPI_Status status;\nif (MPI_File_read_all(fh, buf, 1, MPI_INT, &status));\n'):
-      self.compilers.CPPFLAGS = oldFlags
-      self.compilers.LIBS = oldLibs
-      self.compilers.release()
-      return
-    if not self.checkLink('#include <mpi.h>\n', 'MPI_File fh;\nMPI_Offset disp;\nMPI_Info info;\nif (MPI_File_set_view(fh, disp, MPI_INT, MPI_INT, "", info));\n'):
-      self.compilers.CPPFLAGS = oldFlags
-      self.compilers.LIBS = oldLibs
-      self.compilers.release()
-      return
-    if not self.checkLink('#include <mpi.h>\n', 'MPI_File fh;\nMPI_Info info;\nif (MPI_File_open(MPI_COMM_SELF, "", 0, info, &fh));\n'):
-      self.compilers.CPPFLAGS = oldFlags
-      self.compilers.LIBS = oldLibs
-      self.compilers.release()
-      return
-    if not self.checkLink('#include <mpi.h>\n', 'MPI_File fh;\nMPI_Info info;\nif (MPI_File_close(&fh));\n'):
-      self.compilers.CPPFLAGS = oldFlags
-      self.compilers.LIBS = oldLibs
-      self.compilers.release()
-      return
+    newFlags = self.compilers.CPPFLAGS+' '+self.headers.toString(self.include)
+    newLibs  = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
+    with self.compilers.mask('CPPFLAGS',newFlags), self.compilers.mask('LIBS',newLibs):
+      if not self.checkLink('#include <mpi.h>\n', 'MPI_Aint lb, extent;\nif (MPI_Type_get_extent(MPI_INT, &lb, &extent));\n'):
+        return
+      if not self.checkLink('#include <mpi.h>\n', 'MPI_File fh;\nvoid *buf;\nMPI_Status status;\nif (MPI_File_write_all(fh, buf, 1, MPI_INT, &status));\n'):
+        return
+      if not self.checkLink('#include <mpi.h>\n', 'MPI_File fh;\nvoid *buf;\nMPI_Status status;\nif (MPI_File_read_all(fh, buf, 1, MPI_INT, &status));\n'):
+        return
+      if not self.checkLink('#include <mpi.h>\n', 'MPI_File fh;\nMPI_Offset disp;\nMPI_Info info;\nif (MPI_File_set_view(fh, disp, MPI_INT, MPI_INT, "", info));\n'):
+        return
+      if not self.checkLink('#include <mpi.h>\n', 'MPI_File fh;\nMPI_Info info;\nif (MPI_File_open(MPI_COMM_SELF, "", 0, info, &fh));\n'):
+        return
+      if not self.checkLink('#include <mpi.h>\n', 'MPI_File fh;\nMPI_Info info;\nif (MPI_File_close(&fh));\n'):
+        return
     self.addDefine('HAVE_MPIIO', 1)
-    self.compilers.CPPFLAGS = oldFlags
-    self.compilers.LIBS = oldLibs
-    self.compilers.release()
     return
 
   def checkMPICHorOpenMPI(self):
@@ -527,14 +473,11 @@ class Configure(config.package.Package):
       if self.libraries.check(self.dlib, f):
         self.addDefine('HAVE_' + f.upper(),1)
 
-    self.compilers.acquire()
-    oldFlags = self.compilers.CPPFLAGS # Disgusting save and restore
-    self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
-    for combiner in ['MPI_COMBINER_DUP', 'MPI_COMBINER_CONTIGUOUS']:
-      if self.checkCompile('#include <mpi.h>', 'int combiner = %s;' % (combiner,)):
-        self.addDefine('HAVE_' + combiner,1)
-    self.compilers.CPPFLAGS = oldFlags
-    self.compilers.release()
+    newFlags = self.compilers.CPPFLAGS+' '+self.headers.toString(self.include)
+    with self.compilers.mask('CPPFLAGS',newFlags):
+      for combiner in ['MPI_COMBINER_DUP', 'MPI_COMBINER_CONTIGUOUS']:
+        if self.checkCompile('#include <mpi.h>', 'int combiner = %s;' % (combiner,)):
+          self.addDefine('HAVE_' + combiner,1)
 
     if self.libraries.check(self.dlib, "MPIDI_CH3I_sock_set"):
       self.addDefine('HAVE_MPICH_CH3_SOCK', 1)

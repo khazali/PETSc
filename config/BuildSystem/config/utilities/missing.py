@@ -126,10 +126,9 @@ if (getdomainname_ptr(test,10)) return 1;
     if not (self.checkCompile(head,code('size_t')) or self.checkCompile(head,code('int'))):
       self.addPrototype('#include <stddef.h>\nint getdomainname(char *, size_t);', 'C')
     if hasattr(self.compilers, 'CXX'):
-      self.pushLanguage('C++')
-      if not (self.checkLink(head,code('size_t')) or self.checkLink(head,code('int'))):
-        self.addPrototype('#include <stddef.h>\nint getdomainname(char *, size_t);', 'extern C')
-      self.popLanguage()
+      with self.maskLanguage('Cxx'):
+        if not (self.checkLink(head,code('size_t')) or self.checkLink(head,code('int'))):
+          self.addPrototype('#include <stddef.h>\nint getdomainname(char *, size_t);', 'extern C')
     return
 
   def configureMissingSrandPrototype(self):
@@ -149,11 +148,10 @@ if (drand48_ptr() > 0.5) return 1;
       self.addPrototype('double drand48(void);', 'C')
       self.addPrototype('void   srand48(long int);', 'C')
     if hasattr(self.compilers, 'CXX'):
-      self.pushLanguage('C++')
-      if not self.checkLink(head,code):
-        self.addPrototype('double drand48(void);', 'extern C')
-        self.addPrototype('void   srand48(long int);', 'extern C')
-      self.popLanguage()
+      with self.maskLanguage('Cxx'):
+        if not self.checkLink(head,code):
+          self.addPrototype('double drand48(void);', 'extern C')
+          self.addPrototype('void   srand48(long int);', 'extern C')
     return
 
   def configure(self):

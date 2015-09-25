@@ -20,18 +20,16 @@ class Configure(config.package.Package):
   def Install(self):
     import os
 
-    self.framework.pushLanguage('C')
     if self.blasLapack.mangling == 'underscore':   FTNOPT = ''
     elif self.blasLapack.mangling == 'caps': FTNOPT = ''
     else:                                          FTNOPT = '-DSP2'
-
-    args = 'CC = '+self.framework.getCompiler()+'\nCFLAGS = -DSPAI_USE_MPI '+FTNOPT+' '+self.framework.getCompilerFlags()+' '+self.headers.toString(self.mpi.include)+'\n'
+    with self.framework.maskLanguage('C'):
+      args = 'CC = '+self.framework.getCompiler()+'\nCFLAGS = -DSPAI_USE_MPI '+FTNOPT+' '+self.framework.getCompilerFlags()+' '+self.headers.toString(self.mpi.include)+'\n'
     args = args+'AR         = '+self.setCompilers.AR+'\n'
     args = args+'ARFLAGS    = '+self.setCompilers.AR_FLAGS+'\n'
 
     fd = file(os.path.join(self.packageDir,'lib','Makefile.in'),'w')
     fd.write(args)
-    self.framework.popLanguage()
     fd.close()
 
     if self.installNeeded('Makefile.in'):

@@ -36,9 +36,30 @@ class Logger(args.ArgumentProcessor):
     self.debugLevel    = debugLevel
     self.debugSections = debugSections
     self.debugIndent   = debugIndent
-    self.lock          = [threading.RLock(),0]
+    self.lock          = threading.RLock()
+    self.masked        = {}
+    self.threadMasks   = {}
     self.getRoot()
     return
+
+  def __getattr__(self, name):
+    '''We sometimes mask values for individual threads: if a value is masked,
+    we look for the masking value, otherwise look for the masked value'''
+    if name == 'masked' or name == 'threadMasks' or name == 'lock': # avoid recursion
+      raise AttributeError("'%s' object has no attribute '%s'" % (self.__class__.__name__,name))
+    try:
+      val = self.masked[name]
+    except KeyError:
+      raise AttributeError("'%s' object has no attribute '%s'" % (self.__class__.__name__,name))
+    if val[0]:
+      ident = threading.current_thread().ident
+      try:
+        # see if this thread has a mask for the name
+        masks = self.threadMasks[ident]
+        val = masks[name]
+      except KeyError:
+        pass
+    return val[-1]
 
   def __getstate__(self):
     '''We do not want to pickle the default log stream'''
@@ -55,6 +76,10 @@ class Logger(args.ArgumentProcessor):
         d['out'] = None
     if 'lock' in d:
       del d['lock']
+    if 'masked' in d:
+      del d['masked']
+    if 'threadMasks' in d:
+      del d['threadMasks']
     return d
 
   def __setstate__(self, d):
@@ -65,7 +90,9 @@ class Logger(args.ArgumentProcessor):
     if not 'out' in d:
       self.out = Logger.defaultOut
     self.__dict__.update(d)
-    self.lock = [threading.RLock(),0]
+    self.lock = threading.RLock()
+    self.masked = {}
+    self.threadMasks = {}
     return
 
   def setupArguments(self, argDB):
@@ -138,40 +165,93 @@ class Logger(args.ArgumentProcessor):
       log = Logger.defaultLog
     return log
 
-  #def acquire(self,prnt=True):
-  def acquire(self):
-    '''this should be used by dependendent config objects that need to change their parents, either temporarily (e.g., changing an attributed so that a check/output test can be run) or permanently (e.g., updating compiler flags'''
-#    if prnt:
-#        print >> sys.stderr, '%s WANTS    %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
-    if not self.lock[0].acquire(True): # blocking
-      raise RuntimeError('Could not acquire lock')
-#    if not self.lock[1]:
-#        if prnt:
-#            print >> sys.stderr, '%s ACQUIRES %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
-    self.lock[1] = self.lock[1] + 1
-    return
-
-  #def release(self,prnt=True):
-  def release(self,prnt=True):
-#    if prnt:
-#        print >> sys.stderr, '%s DROPS    %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
-    self.lock[1] = self.lock[1] - 1
-#    if not self.lock[1]:
-#        if prnt:
-#            print >> sys.stderr, '%s RELEASES %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
-    return self.lock[0].release()
-
   def closeLog(self):
     '''Closes the log file'''
     self.log.close()
 
+
+  class Mask(object):
+    def __init__(self,target,name,val,maskLog=None):
+      self.pushLog     = maskLog
+      self.pushLogMask = None
+      self.target      = target
+      self.name        = name
+      self.val         = val
+      return
+
+    def __enter__(self):
+      name    = self.name
+      pushLog = self.pushLog
+      target  = self.target
+      val     = self.val
+      if pushLog:
+        import StringIO
+        stringLog = StringIO.StringIO()
+        self.pushLogMask = Logger.Mask(target,'log',stringLog)
+        self.pushLogMask.__enter__()
+      if name:
+        ident = threading.current_thread().ident
+        self.ident = ident
+        # I don't need a lock before trying to get/create my masks: they are thread local
+        try:
+          masks = target.threadMasks[self.ident]
+        except KeyError:
+          masks = {}
+          target.threadMasks[ident] = masks
+        self.masks = masks
+        try:
+          stack = masks[name]
+        except KeyError:
+          stack = []
+          masks[name] = stack
+          masked = target.masked
+          # I do need a lock before trying to get/create masked: it is shared by all threads
+          with target.lock:
+            try:
+              pair = masked[name]
+            except KeyError:
+              pair = [0, None]
+              masked[name] = pair
+            if not pair[0]:
+              pair[1] = getattr(target,name)
+              delattr(target,name)
+            pair[0] += 1
+        self.stack = stack
+        stack.append(val)
+      return
+
+    def __exit__(self, exc_type, exc_value, traceback):
+      target = self.target
+      name   = self.name
+      if name:
+        stack = self.stack
+        masks = self.masks
+        ident = self.ident
+        stack.pop()
+        if not stack:
+          del masks[name]
+          with target.lock:
+            pair = target.masked[name]
+            pair[0] -= 1
+            if not pair[0]:
+              setattr(target,name,pair[1])
+          if not masks:
+            del target.threadMasks[self.ident]
+      if self.pushLogMask:
+        s = target.log.getvalue()
+        target.log.close()
+        self.pushLog.logWrite(s)
+        self.pushLogMask.__exit__(exc_type,exc_value,traceback)
+      return
+
+  def mask(self,name,val,maskLog = None):
+    return self.Mask(self,name,val,maskLog)
+
+  def maskLog(self,saver):
+    return self.Mask(self,None,None,maskLog=saver)
+
   def saveLog(self):
     import StringIO
-#    print >> sys.stderr, '%s WANTS    %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
-#    self.acquire(prnt=False)
-    self.acquire()
-#    if self.lock[1] == 1:
-#            print >> sys.stderr, '%s ACQUIRES %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
     self.logBkp = self.log
     self.log    = StringIO.StringIO()
 
@@ -180,11 +260,6 @@ class Logger(args.ArgumentProcessor):
     self.log.close()
     self.log = self.logBkp
     del(self.logBkp)
-#    print >> sys.stderr, '%s DROPS    %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
-#    if self.lock[1] == 1:
-#            print >> sys.stderr, '%s RELEASES %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
-#    self.release(prnt=False)
-    self.release()
     return s
 
   def getLinewidth(self):

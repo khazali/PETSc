@@ -64,13 +64,12 @@ class Configure(config.base.Configure):
       'long '+funcname+'() { return '+str(a.default)+'; }\n'
       ]
     if self.method is None:         # Determine which method of finding configuration variables, only runs the first time around
-      self.pushLanguage('C')
-      for m in range(len(methods)):
-        d = methods[m]
-        if self.checkCompile(d,''):
-          self.method = m
-          break
-      self.popLanguage()
+      with self.maskLanguage('C'):
+        for m in range(len(methods)):
+          d = methods[m]
+          if self.checkCompile(d,''):
+            self.method = m
+            break
     if self.method is None:
       raise RuntimeError("The C compiler does not work")
     return (funcname,methods[self.method])
@@ -91,18 +90,17 @@ class Configure(config.base.Configure):
         filename = 'conftestval'
         includes = '#include <stdio.h>\n'
         body = 'FILE *output = fopen("'+filename+'","w"); if (!output) return 1; fprintf(output,"%ld",'+fname+'()); fclose(output);'
-        self.pushLanguage('C')
-        if self.checkRun(includes+source, body) and os.path.exists(filename):
-          f = open(filename)
-          val = int(f.read())
-          if not a.valid(val):
-            self.log.write('Cannot use value returned for '+str(a.enum())+': '+str(val)+'\n')
-          f.close()
-          os.remove(filename)
-        else:
-          self.log.write('Could not determine '+str(a.enum())+', using default '+str(a.default)+'\n')
-          val = a.default
-        self.popLanguage()
+        with self.maskLanguage('C'):
+          if self.checkRun(includes+source, body) and os.path.exists(filename):
+            f = open(filename)
+            val = int(f.read())
+            if not a.valid(val):
+              self.log.write('Cannot use value returned for '+str(a.enum())+': '+str(val)+'\n')
+            f.close()
+            os.remove(filename)
+          else:
+            self.log.write('Could not determine '+str(a.enum())+', using default '+str(a.default)+'\n')
+            val = a.default
       self.addDefine(a.enum(), a.sanitize(val))
 
   def configure(self):

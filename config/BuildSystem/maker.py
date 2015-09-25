@@ -27,7 +27,7 @@ class Make(script.Script):
       self.framework = builder.framework
       self.framework.logName = self.logName
     self.configureMod = None
-    self.builder.pushLanguage('C')
+    self.builder.language = 'C'
     return
 
   def getMake(self, url):
@@ -420,14 +420,13 @@ class BasicMake(Make):
       languages = sets.Set(lib.src.keys())
       builder.pushConfiguration(lib.configuration)
       for language in languages:
-        builder.pushLanguage(language)
-        if hasattr(lib, 'flags'):
-          builder.setCompilerFlags(' '.join(lib.flags))
-        compiler = builder.getCompilerObject()
-        lib.includes = filter(lambda inc: inc, lib.includes)
-        self.logPrint('  Adding includes '+str(lib.includes))
-        compiler.includeDirectories.update(lib.includes)
-        builder.popLanguage()
+        with builder.maskLanguage(language):
+          if hasattr(lib, 'flags'):
+            builder.setCompilerFlags(' '.join(lib.flags))
+          compiler = builder.getCompilerObject()
+          lib.includes = filter(lambda inc: inc, lib.includes)
+          self.logPrint('  Adding includes '+str(lib.includes))
+          compiler.includeDirectories.update(lib.includes)
       linker = builder.getSharedLinkerObject()
       for l in lib.libs:
         if not l: continue
@@ -452,14 +451,13 @@ class BasicMake(Make):
       languages = sets.Set(lib.src.keys())
       builder.pushConfiguration(lib.configuration)
       for language in languages:
-        builder.pushLanguage(language)
-        if hasattr(lib, 'flags'):
-          builder.setCompilerFlags(' '.join(lib.flags))
-        compiler = builder.getCompilerObject()
-        lib.includes = filter(lambda inc: inc, lib.includes)
-        self.logPrint('  Adding includes '+str(lib.includes))
-        compiler.includeDirectories.update(lib.includes)
-        builder.popLanguage()
+        with builder.maskLanguage(language):
+          if hasattr(lib, 'flags'):
+            builder.setCompilerFlags(' '.join(lib.flags))
+          compiler = builder.getCompilerObject()
+          lib.includes = filter(lambda inc: inc, lib.includes)
+          self.logPrint('  Adding includes '+str(lib.includes))
+          compiler.includeDirectories.update(lib.includes)
       linker = builder.getDynamicLinkerObject()
       for l in lib.libs:
         if not l: continue
@@ -484,14 +482,13 @@ class BasicMake(Make):
       languages = sets.Set(bin.src.keys())
       builder.pushConfiguration(bin.configuration)
       for language in languages:
-        builder.pushLanguage(language)
-        if hasattr(bin, 'flags'):
-          builder.setCompilerFlags(' '.join(bin.flags))
-        compiler = builder.getCompilerObject()
-        bin.includes = filter(lambda inc: inc, bin.includes)
-        self.logPrint('  Adding includes '+str(bin.includes))
-        compiler.includeDirectories.update(bin.includes)
-        builder.popLanguage()
+        with builder.maskLanguage(language):
+          if hasattr(bin, 'flags'):
+            builder.setCompilerFlags(' '.join(bin.flags))
+          compiler = builder.getCompilerObject()
+          bin.includes = filter(lambda inc: inc, bin.includes)
+          self.logPrint('  Adding includes '+str(bin.includes))
+          compiler.includeDirectories.update(bin.includes)
       linker = builder.getLinkerObject()
       for l in bin.libs:
         if not l: continue
@@ -531,12 +528,11 @@ class BasicMake(Make):
       builder.pushConfiguration(lib.configuration)
       objects = []
       for language in lib.src:
-        builder.pushLanguage(language)
-        sources = [os.path.join(self.srcDir, self.srcDir[language], f) for f in lib.src[language]]
-        for f in sources:
-          builder.compile([f])
-        objects.extend([self.builder.getCompilerTarget(f) for f in sources if not self.builder.getCompilerTarget(f) is None])
-        builder.popLanguage()
+        with builder.maskLanguage(language):
+          sources = [os.path.join(self.srcDir, self.srcDir[language], f) for f in lib.src[language]]
+          for f in sources:
+            builder.compile([f])
+          objects.extend([self.builder.getCompilerTarget(f) for f in sources if not self.builder.getCompilerTarget(f) is None])
       builder.link(objects, os.path.join(self.libDir, lib.name+'.'+self.setCompilers.sharedLibraryExt), shared = 1)
       builder.popConfiguration()
     return
@@ -548,12 +544,11 @@ class BasicMake(Make):
       builder.pushConfiguration(lib.configuration)
       objects = []
       for language in lib.src:
-        builder.pushLanguage(language)
-        sources = [os.path.join(self.srcDir, self.srcDir[language], f) for f in lib.src[language]]
-        for f in sources:
-          builder.compile([f])
-        objects.extend([self.builder.getCompilerTarget(f) for f in sources if not self.builder.getCompilerTarget(f) is None])
-        builder.popLanguage()
+        with builder.maskLanguage(language):
+          sources = [os.path.join(self.srcDir, self.srcDir[language], f) for f in lib.src[language]]
+          for f in sources:
+            builder.compile([f])
+          objects.extend([self.builder.getCompilerTarget(f) for f in sources if not self.builder.getCompilerTarget(f) is None])
       builder.link(objects, os.path.join(self.libDir, lib.name+'.'+self.setCompilers.dynamicLibraryExt), shared = 'dynamic')
       builder.popConfiguration()
     return
@@ -564,11 +559,10 @@ class BasicMake(Make):
       source = []
       builder.pushConfiguration(bin.configuration)
       for language in bin.src:
-        builder.pushLanguage(language)
-        source.extend([os.path.join(self.srcDir, self.srcDir[language], f) for f in bin.src[language]])
-        for f in source:
-          builder.compile([f])
-        builder.popLanguage()
+        with builder.maskLanguage(language):
+          source.extend([os.path.join(self.srcDir, self.srcDir[language], f) for f in bin.src[language]])
+          for f in source:
+            builder.compile([f])
       # Note that we popLanguage before linking, since the linker is configure independently of the exe source language
       # If the executable is in Fortran, we need to add the appropriate runtime libs
       builder.link([builder.getCompilerTarget(f) for f in source], os.path.join(self.binDir, bin.name))

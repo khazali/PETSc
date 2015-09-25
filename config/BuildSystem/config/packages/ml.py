@@ -48,22 +48,19 @@ class Configure(config.package.GNUPackage):
     args.append('--disable-ml-examples')
     args.append('--disable-tests')
 
-    self.framework.pushLanguage('C')
-    args.append('--with-cflags="'+self.framework.getCompilerFlags()+' -DMPICH_SKIP_MPICXX -DOMPI_SKIP_MPICXX '+ self.headers.toStringNoDupes(self.mpi.include)+'"')
-    args.append('CPPFLAGS="'+self.headers.toStringNoDupes(self.mpi.include)+'"')
-    self.framework.popLanguage()
+    with self.framework.maskLanguage('C'):
+      args.append('--with-cflags="'+self.framework.getCompilerFlags()+' -DMPICH_SKIP_MPICXX -DOMPI_SKIP_MPICXX '+ self.headers.toStringNoDupes(self.mpi.include)+'"')
+      args.append('CPPFLAGS="'+self.headers.toStringNoDupes(self.mpi.include)+'"')
 
     if hasattr(self.compilers, 'FC'):
-      self.framework.pushLanguage('FC')
-      args.append('--with-fflags="'+self.framework.getCompilerFlags()+' '+ self.headers.toStringNoDupes(self.mpi.include)+'"')
-      self.framework.popLanguage()
+      with self.framework.maskLanguage('FC'):
+        args.append('--with-fflags="'+self.framework.getCompilerFlags()+' '+ self.headers.toStringNoDupes(self.mpi.include)+'"')
     else:
       args.append('F77=""')
 
     if hasattr(self.compilers, 'CXX'):
-      self.framework.pushLanguage('Cxx')
-      args.append('--with-cxxflags="'+self.framework.getCompilerFlags()+' -DMPICH_SKIP_MPICXX -DOMPI_SKIP_MPICXX '+ self.headers.toStringNoDupes(self.mpi.include)+'"')
-      self.framework.popLanguage()
+      with self.framework.maskLanguage('Cxx'):
+        args.append('--with-cxxflags="'+self.framework.getCompilerFlags()+' -DMPICH_SKIP_MPICXX -DOMPI_SKIP_MPICXX '+ self.headers.toStringNoDupes(self.mpi.include)+'"')
     else:
       raise RuntimeError('Error: ML requires C++ compiler. None specified')
 

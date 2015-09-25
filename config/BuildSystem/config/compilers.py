@@ -58,14 +58,13 @@ class Configure(config.base.Configure):
     names['CC_LD'] = 'No C linker found.'
     names['dynamicLinker'] = 'No dynamic linker found.'
     for language in ['C', 'CUDA', 'Cxx', 'FC']:
-      self.pushLanguage(language)
-      key = self.getCompilerFlagsName(language)
-      names[key] = 'No '+language+' compiler flags found.'
-      key = self.getCompilerFlagsName(language, 1)
-      names[key] = 'No '+language+' compiler flags found.'
-      key = self.getLinkerFlagsName(language)
-      names[key] = 'No '+language+' linker flags found.'
-      self.popLanguage()
+      with self.maskLanguage(language):
+        key = self.getCompilerFlagsName(language)
+        names[key] = 'No '+language+' compiler flags found.'
+        key = self.getCompilerFlagsName(language, 1)
+        names[key] = 'No '+language+' compiler flags found.'
+        key = self.getLinkerFlagsName(language)
+        names[key] = 'No '+language+' linker flags found.'
     names['CPPFLAGS'] = 'No preprocessor flags found.'
     names['CUDAPPFLAGS'] = 'No CUDA preprocessor flags found.'
     names['CXXCPPFLAGS'] = 'No C++ preprocessor flags found.'
@@ -92,7 +91,7 @@ class Configure(config.base.Configure):
         flags = getattr(self.setCompilers, name)
         if not isinstance(flags, list): flags = [flags]
         return ' '.join(flags)
-    raise AttributeError('Configure attribute not found: '+name)
+    return config.base.Configure.__getattr__(self,name)
 
   def __setattr__(self, name, value):
     if 'dispatchNames' in self.__dict__:
@@ -101,6 +100,36 @@ class Configure(config.base.Configure):
     config.base.Configure.__setattr__(self, name, value)
     return
 
+  class Mask(config.base.Configure.Mask):
+    def __init__(self, target, name, val, maskLog = None, maskLanguage = None):
+      config.base.Configure.Mask.__init__(self,target,name,val,maskLog=maskLog,maskLanguage=maskLanguage)
+      self.setCompilersMask = None
+      return
+
+    def __enter__(self):
+      name        = self.name
+      target      = self.target
+      val         = self.val
+      if 'dispatchNames' in target.__dict__:
+        if name and name in target.dispatchNames: # don't mask me, mask setCompilers
+          self.setCompilersMask = target.setCompilers.Mask(target.setCompilers,name,val)
+          self.name = None
+          self.val  = None
+          config.base.Configure.Mask.__enter__(self)
+          config.base.Configure.Mask.__enter__(self.setCompilersMask)
+          return
+      config.base.Configure.Mask.__enter__(self)
+      return
+
+    def __exit__(self,exc_type,exc_value,traceback):
+      if self.setCompilersMask:
+        self.setCompilersMask.__exit__(exc_type,exc_value,traceback)
+      config.base.Configure.Mask.__exit__(self,exc_type,exc_value,traceback)
+      return
+
+  def mask(self, name, val, maskLog = None, maskLanguage = None):
+    return self.Mask(self,name,val,maskLog=maskLog,maskLanguage=maskLanguage)
+
   # THIS SHOULD BE REWRITTEN AS checkDeclModifier()
   # checkCStaticInline & checkCxxStaticInline are pretty much the same code right now.
   # but they could be different (later) - and they also check/set different flags - hence
@@ -108,13 +137,12 @@ class Configure(config.base.Configure):
   def checkCStaticInline(self):
     '''Check for C keyword: static inline'''
     self.cStaticInlineKeyword = 'static'
-    self.pushLanguage('C')
-    for kw in ['static inline', 'static __inline']:
-      if self.checkCompile(kw+' int foo(int a) {return a;}','foo(1);'):
-        self.cStaticInlineKeyword = kw
-        self.logPrint('Set C StaticInline keyword to '+self.cStaticInlineKeyword , 4, 'compilers')
-        break
-    self.popLanguage()
+    with self.maskLanguage('C'):
+      for kw in ['static inline', 'static __inline']:
+        if self.checkCompile(kw+' int foo(int a) {return a;}','foo(1);'):
+          self.cStaticInlineKeyword = kw
+          self.logPrint('Set C StaticInline keyword to '+self.cStaticInlineKeyword , 4, 'compilers')
+          break
     if self.cStaticInlineKeyword == 'static':
       self.logPrint('No C StaticInline keyword. using static function', 4, 'compilers')
     self.addDefine('C_STATIC_INLINE', self.cStaticInlineKeyword)
@@ -122,13 +150,12 @@ class Configure(config.base.Configure):
   def checkCxxStaticInline(self):
     '''Check for C++ keyword: static inline'''
     self.cxxStaticInlineKeyword = 'static'
-    self.pushLanguage('C++')
-    for kw in ['static inline', 'static __inline']:
-      if self.checkCompile(kw+' int foo(int a) {return a;}','foo(1);'):
-        self.cxxStaticInlineKeyword = kw
-        self.logPrint('Set Cxx StaticInline keyword to '+self.cxxStaticInlineKeyword , 4, 'compilers')
-        break
-    self.popLanguage()
+    with self.maskLanguage('Cxx'):
+      for kw in ['static inline', 'static __inline']:
+        if self.checkCompile(kw+' int foo(int a) {return a;}','foo(1);'):
+          self.cxxStaticInlineKeyword = kw
+          self.logPrint('Set Cxx StaticInline keyword to '+self.cxxStaticInlineKeyword , 4, 'compilers')
+          break
     if self.cxxStaticInlineKeyword == 'static':
       self.logPrint('No Cxx StaticInline keyword. using static function', 4, 'compilers')
     self.addDefine('CXX_STATIC_INLINE', self.cxxStaticInlineKeyword)
@@ -145,36 +172,29 @@ class Configure(config.base.Configure):
       self.addDefine(language.upper()+'_RESTRICT', ' ')
       self.logPrint('PGI restrict word is broken cannot handle [restrict] '+str(language)+' restrict keyword', 4, 'compilers')
       return
-    self.pushLanguage(language)
-    for kw in ['restrict', ' __restrict__', '__restrict']:
-      if self.checkCompile('', 'float * '+kw+' x;'):
-        if language.lower() == 'c':
-          self.cRestrict = kw
-        elif language.lower() == 'cxx':
-          self.cxxRestrict = kw
-        else:
-          raise RuntimeError('Unknown Language :' + str(language))
-        self.logPrint('Set '+str(language)+' restrict keyword to '+kw, 4, 'compilers')
-        # Define to equivalent of C99 restrict keyword, or to nothing if this is not supported.
-        self.addDefine(language.upper()+'_RESTRICT', kw)
-        self.popLanguage()
-        return
+    with self.maskLanguage(language):
+      for kw in ['restrict', ' __restrict__', '__restrict']:
+        if self.checkCompile('', 'float * '+kw+' x;'):
+          if language.lower() == 'c':
+            self.cRestrict = kw
+          elif language.lower() == 'cxx':
+            self.cxxRestrict = kw
+          else:
+            raise RuntimeError('Unknown Language :' + str(language))
+          self.logPrint('Set '+str(language)+' restrict keyword to '+kw, 4, 'compilers')
+          # Define to equivalent of C99 restrict keyword, or to nothing if this is not supported.
+          self.addDefine(language.upper()+'_RESTRICT', kw)
+          return
     # did not find restrict
     self.addDefine(language.upper()+'_RESTRICT', ' ')
     self.logPrint('No '+str(language)+' restrict keyword', 4, 'compilers')
-    self.popLanguage()
     return
 
   def checkCLibraries(self):
     '''Determines the libraries needed to link with C'''
-    self.pushLanguage('C')
-    self.setCompilers.acquire()
-    oldFlags = self.setCompilers.LDFLAGS
-    self.setCompilers.LDFLAGS += ' -v'
-    (output, returnCode) = self.outputLink('', '')
-    self.setCompilers.LDFLAGS = oldFlags
-    self.setCompilers.release()
-    self.popLanguage()
+    newFlags = self.setCompilers.LDFLAGS
+    with self.setCompilers.mask('LDFLAGS',newFlags +' -v',maskLanguage='C'):
+      (output, returnCode) = self.outputLink('', '')
 
     # PGI: kill anything enclosed in single quotes
     if output.find('\'') >= 0:
@@ -300,22 +320,17 @@ class Configure(config.base.Configure):
 
     self.logPrint('Libraries needed to link C code with another linker: '+str(self.clibs), 3, 'compilers')
 
-    self.setCompilers.acquire()
     if hasattr(self.setCompilers, 'FC') or hasattr(self.setCompilers, 'CXX'):
       self.logPrint('Check that C libraries can be used from Fortran', 4, 'compilers')
-      oldLibs = self.setCompilers.LIBS
-      self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.clibs])+' '+self.setCompilers.LIBS
-    if hasattr(self.setCompilers, 'FC'):
-      self.setCompilers.saveLog()
-      try:
-        self.setCompilers.checkCompiler('FC')
-      except RuntimeError, e:
-        self.setCompilers.LIBS = oldLibs
-        self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
-        raise RuntimeError('C libraries cannot directly be used from Fortran')
-      finally:
-        self.logWrite(self.setCompilers.restoreLog())
-    self.setCompilers.release()
+      newLibs = ' '.join([self.libraries.getLibArgument(lib) for lib in self.clibs])+' '+self.setCompilers.LIBS
+      if hasattr(self.setCompilers, 'FC'):
+        with self.setCompilers.mask('LIBS',newLibs,maskLog=self):
+          try:
+            self.setCompilers.checkCompiler('FC')
+          except RuntimeError, e:
+            self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
+            raise RuntimeError('C libraries cannot directly be used from Fortran')
+      self.setCompilers.LIBS = newLibs
     return
 
   def checkCFormatting(self):
@@ -344,41 +359,33 @@ class Configure(config.base.Configure):
 
   def checkCxxOptionalExtensions(self):
     '''Check whether the C++ compiler (IBM xlC, OSF5) need special flag for .c files which contain C++'''
-    self.setCompilers.saveLog()
-    self.setCompilers.pushLanguage('Cxx')
     cxxObj = self.framework.getCompilerObject('Cxx')
-    cxxObj.acquire()
-    oldExt = cxxObj.sourceExtension
-    cxxObj.sourceExtension = self.framework.getCompilerObject('C').sourceExtension
-    success=0
-    for flag in ['', '-+', '-x cxx -tlocal', '-Kc++']:
-      try:
-        self.setCompilers.addCompilerFlag(flag, body = 'class somename { int i; };')
-        success=1
-        break
-      except RuntimeError:
-        pass
-    if success==0:
-      for flag in ['-TP','-P']:
+    newExt = self.framework.getCompilerObject('C').sourceExtension
+    with self.setCompilers.maskLanguage('Cxx',maskLog=self), cxxObj.mask('sourceExtension',newExt):
+      success=0
+      for flag in ['', '-+', '-x cxx -tlocal', '-Kc++']:
         try:
-          self.setCompilers.addCompilerFlag(flag, body = 'class somename { int i; };', compilerOnly = 1)
+          self.setCompilers.addCompilerFlag(flag, body = 'class somename { int i; };')
+          success=1
           break
         except RuntimeError:
           pass
-    cxxObj.sourceExtension = oldExt
-    cxxObj.release()
-    self.setCompilers.popLanguage()
-    self.logWrite(self.setCompilers.restoreLog())
+      if success==0:
+        for flag in ['-TP','-P']:
+          try:
+            self.setCompilers.addCompilerFlag(flag, body = 'class somename { int i; };', compilerOnly = 1)
+            break
+          except RuntimeError:
+            pass
     return
 
   def checkCxxNamespace(self):
     '''Checks that C++ compiler supports namespaces, and if it does defines HAVE_CXX_NAMESPACE'''
-    self.pushLanguage('C++')
-    self.cxxNamespace = 0
-    if self.checkCompile('namespace petsc {int dummy;}'):
-      if self.checkCompile('template <class dummy> struct a {};\nnamespace trouble{\ntemplate <class dummy> struct a : public ::a<dummy> {};\n}\ntrouble::a<int> uugh;\n'):
-        self.cxxNamespace = 1
-    self.popLanguage()
+    with self.maskLanguage('Cxx'):
+      self.cxxNamespace = 0
+      if self.checkCompile('namespace petsc {int dummy;}'):
+        if self.checkCompile('template <class dummy> struct a {};\nnamespace trouble{\ntemplate <class dummy> struct a : public ::a<dummy> {};\n}\ntrouble::a<int> uugh;\n'):
+          self.cxxNamespace = 1
     if self.cxxNamespace:
       self.logPrint('C++ has namespaces', 4, 'compilers')
       self.addDefine('HAVE_CXX_NAMESPACE', 1)
@@ -404,41 +411,31 @@ class Configure(config.base.Configure):
           std::normal_distribution<double> dist(0,1);
           const double x = dist(mt);
           """
-    self.setCompilers.saveLog()
-    self.setCompilers.pushLanguage('Cxx')
-    cxxdialect = self.argDB.get('with-cxx-dialect','').upper().replace('X','+')
-    flags_to_try = ['']
-    if cxxdialect == 'C++11':
-      flags_to_try += ['-std=c++11','-std=c++0x']
-    for flag in flags_to_try:
-      if self.setCompilers.checkCompilerFlag(flag, includes, body):
-        self.setCompilers.CXXCPPFLAGS += ' ' + flag
-        self.cxxdialect = 'C++11'
-        break
-    if cxxdialect == 'C++11':
-      if self.cxxdialect != 'C++11':
-        self.logWrite(self.setCompilers.restoreLog())
-        raise RuntimeError('Could not determine compiler flag for with-cxx-dialect=%s, use CXXFLAGS' % (self.argDB['with-cxx-dialect']))
-    elif cxxdialect in ['C++98', 'C++03', '']:
-      self.cxxdialect = cxxdialect
-      pass                    # The user can set CXXFLAGS if they want to be strict
-    else:
-      self.logWrite(self.setCompilers.restoreLog())
-      raise RuntimeError('Unknown C++ dialect: with-cxx-dialect=%s' % (self.argDB['with-cxx-dialect']))
-    self.setCompilers.popLanguage()
-    self.logWrite(self.setCompilers.restoreLog())
+    with self.setCompilers.maskLanguage('Cxx',maskLog=self):
+      cxxdialect = self.argDB.get('with-cxx-dialect','').upper().replace('X','+')
+      flags_to_try = ['']
+      if cxxdialect == 'C++11':
+        flags_to_try += ['-std=c++11','-std=c++0x']
+      for flag in flags_to_try:
+        if self.setCompilers.checkCompilerFlag(flag, includes, body):
+          self.setCompilers.CXXCPPFLAGS += ' ' + flag
+          self.cxxdialect = 'C++11'
+          break
+      if cxxdialect == 'C++11':
+        if self.cxxdialect != 'C++11':
+          raise RuntimeError('Could not determine compiler flag for with-cxx-dialect=%s, use CXXFLAGS' % (self.argDB['with-cxx-dialect']))
+      elif cxxdialect in ['C++98', 'C++03', '']:
+        self.cxxdialect = cxxdialect
+        pass                    # The user can set CXXFLAGS if they want to be strict
+      else:
+        raise RuntimeError('Unknown C++ dialect: with-cxx-dialect=%s' % (self.argDB['with-cxx-dialect']))
     return
 
   def checkCxxLibraries(self):
     '''Determines the libraries needed to link with C++'''
-    self.pushLanguage('Cxx')
-    self.setCompilers.acquire()
-    oldFlags = self.setCompilers.LDFLAGS
-    self.setCompilers.LDFLAGS += ' -v'
-    (output, returnCode) = self.outputLink('', '')
-    self.setCompilers.LDFLAGS = oldFlags
-    self.setCompilers.release()
-    self.popLanguage()
+    newFlags = self.setCompilers.LDFLAGS + ' -v'
+    with self.setCompilers.mask('LDFLAGS',newFlags,maskLanguage='Cxx'):
+      (output, returnCode) = self.outputLink('', '')
 
     # PGI: kill anything enclosed in single quotes
     if output.find('\'') >= 0:
@@ -569,49 +566,37 @@ class Configure(config.base.Configure):
     self.logPrint('Libraries needed to link Cxx code with another linker: '+str(self.cxxlibs), 3, 'compilers')
 
     self.logPrint('Check that Cxx libraries can be used from C', 4, 'compilers')
-    self.setCompilers.saveLog()
-    oldLibs = self.setCompilers.LIBS
-    self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.cxxlibs])+' '+self.setCompilers.LIBS
+    newLibs = ' '.join([self.libraries.getLibArgument(lib) for lib in self.cxxlibs])+' '+self.setCompilers.LIBS
     try:
-      self.setCompilers.checkCompiler('C')
+      with self.setCompilers.mask('LIBS',newLibs,maskLog=self):
+        self.setCompilers.checkCompiler('C')
     except RuntimeError, e:
       self.logPrint('Cxx libraries cannot directly be used from C', 4, 'compilers')
       self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
-    finally:
-      self.setCompilers.LIBS = oldLibs
-      self.logWrite(self.setCompilers.restoreLog())
 
     if hasattr(self.setCompilers, 'FC'):
       self.logPrint('Check that Cxx libraries can be used from Fortran', 4, 'compilers')
-      self.setCompilers.saveLog()
-      oldLibs = self.setCompilers.LIBS
-      self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.cxxlibs])+' '+self.setCompilers.LIBS
+      newLibs = ' '.join([self.libraries.getLibArgument(lib) for lib in self.cxxlibs])+' '+self.setCompilers.LIBS
       try:
-        self.setCompilers.checkCompiler('FC')
+        with self.setCompilers.mask('LIBS',newLibs,maskLog=self):
+          self.setCompilers.checkCompiler('FC')
       except RuntimeError, e:
         self.logPrint('Cxx libraries cannot directly be used from Fortran', 4, 'compilers')
         self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
-      finally:
-        self.setCompilers.LIBS = oldLibs
-        self.logWrite(self.setCompilers.restoreLog())
     return
 
   def checkFortranTypeSizes(self):
     '''Check whether real*8 is supported and suggest flags which will allow support'''
-    self.pushLanguage('FC')
-    # Check whether the compiler (ifc) bitches about real*8, if so try using -w90 -w to eliminate bitch
-    (output, error, returnCode) = self.outputCompile('', '      real*8 variable', 1)
-    if (output+error).find('Type size specifiers are an extension to standard Fortran 95') >= 0:
-      self.setCompilers.acquire()
-      oldFlags = self.setCompilers.FFLAGS
-      self.setCompilers.FFLAGS += ' -w90 -w'
+    with self.maskLanguage('FC'):
+      # Check whether the compiler (ifc) bitches about real*8, if so try using -w90 -w to eliminate bitch
       (output, error, returnCode) = self.outputCompile('', '      real*8 variable', 1)
-      if returnCode or (output+error).find('Type size specifiers are an extension to standard Fortran 95') >= 0:
-        self.setCompilers.FFLAGS = oldFlags
-      else:
-        self.logPrint('Looks like ifc compiler, adding -w90 -w flags to avoid warnings about real*8 etc', 4, 'compilers')
-      self.setCompilers.release()
-    self.popLanguage()
+      if (output+error).find('Type size specifiers are an extension to standard Fortran 95') >= 0:
+        newFlags = self.setCompilers.FFLAGS+' -w90 -w'
+        with self.setCompilers.mask('FFLAGS',newFlags):
+          (output, error, returnCode) = self.outputCompile('', '      real*8 variable', 1)
+        if (not returnCode) and (output+error).find('Type size specifiers are an extension to standard Fortran 95') < 0:
+          self.logPrint('Looks like ifc compiler, adding -w90 -w flags to avoid warnings about real*8 etc', 4, 'compilers')
+          self.setCompilers.FFLAGS = newFlags
     return
 
   def mangleFortranFunction(self, name):
@@ -633,30 +618,23 @@ class Configure(config.base.Configure):
     cobj = os.path.join(self.tmpDir, 'confc.o')
     found = 0
     # Compile the C test object
-    self.pushLanguage(clanguage)
-    if not self.checkCompile(cfunc, None, cleanup = 0):
-      self.logPrint('Cannot compile C function: '+cfunc, 3, 'compilers')
-      self.popLanguage()
-      return found
-    if not os.path.isfile(self.compilerObj):
-      self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
-      self.popLanguage()
-      return found
-    os.rename(self.compilerObj, cobj)
-    self.popLanguage()
+    with self.maskLanguage(clanguage):
+      if not self.checkCompile(cfunc, None, cleanup = 0):
+        self.logPrint('Cannot compile C function: '+cfunc, 3, 'compilers')
+        return found
+      if not os.path.isfile(self.compilerObj):
+        self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
+        return found
+      os.rename(self.compilerObj, cobj)
     # Link the test object against a Fortran driver
-    self.pushLanguage('FC')
-    self.setCompilers.acquire()
-    oldLIBS = self.setCompilers.LIBS
-    self.setCompilers.LIBS = cobj+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.clibs])+' '+self.setCompilers.LIBS
-    if extraObjs:
-      self.setCompilers.LIBS = ' '.join(extraObjs)+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.clibs])+' '+self.setCompilers.LIBS
-    found = self.checkLink(None, ffunc)
-    self.setCompilers.LIBS = oldLIBS
-    self.setCompilers.release()
-    self.popLanguage()
-    if os.path.isfile(cobj):
-      os.remove(cobj)
+    with self.maskLanguage('FC'):
+      newLIBS = cobj+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.clibs])+' '+self.setCompilers.LIBS
+      if extraObjs:
+        newLIBS = ' '.join(extraObjs)+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.clibs])+' '+newLIBS
+      with self.setCompilers.mask('LIBS',newLIBS):
+        found = self.checkLink(None, ffunc)
+      if os.path.isfile(cobj):
+        os.remove(cobj)
     return found
 
   def checkFortranNameMangling(self):
@@ -708,25 +686,18 @@ class Configure(config.base.Configure):
 
   def checkFortranPreprocessor(self):
     '''Determine if Fortran handles preprocessing properly'''
-    self.setCompilers.saveLog()
-    self.setCompilers.pushLanguage('FC')
-    # Does Fortran compiler need special flag for using CPP
-    for flag in ['', '-cpp', '-xpp=cpp', '-F', '-Cpp', '-fpp', '-fpp:-m']:
-      try:
-        flagsArg = self.setCompilers.getCompilerFlagsArg()
-        oldFlags = getattr(self.setCompilers, flagsArg)
-        self.setCompilers.addCompilerFlag(flag, body = '#define dummy \n           dummy\n#ifndef dummy\n       fooey\n#endif')
-        self.fortranPreprocess = 1
-        self.setCompilers.popLanguage()
-        self.logPrint('Fortran uses CPP preprocessor', 3, 'compilers')
-        self.logWrite(self.setCompilers.restoreLog())
-        return
-      except RuntimeError:
-        setattr(self.setCompilers, flagsArg, oldFlags)
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage('FC',maskLog=self):
+      # Does Fortran compiler need special flag for using CPP
+      for flag in ['', '-cpp', '-xpp=cpp', '-F', '-Cpp', '-fpp', '-fpp:-m']:
+        try:
+          self.setCompilers.addCompilerFlag(flag, body = '#define dummy \n           dummy\n#ifndef dummy\n       fooey\n#endif')
+          self.fortranPreprocess = 1
+          self.logPrint('Fortran uses CPP preprocessor', 3, 'compilers')
+          return
+        except RuntimeError:
+          pass
     self.fortranPreprocess = 0
     self.logPrint('Fortran does NOT use CPP preprocessor', 3, 'compilers')
-    self.logWrite(self.setCompilers.restoreLog())
     return
 
   def checkFortranDefineCompilerOption(self):
@@ -734,19 +705,14 @@ class Configure(config.base.Configure):
     self.FortranDefineCompilerOption = 0
     if not self.fortranPreprocess:
       return
-    self.setCompilers.saveLog()
-    self.setCompilers.pushLanguage('FC')
-    for flag in ['-D', '-WF,-D']:
-      if self.setCompilers.checkCompilerFlag(flag+'Testing', body = '#define dummy \n           dummy\n#ifndef Testing\n       fooey\n#endif'):
-        self.FortranDefineCompilerOption = flag
-        self.framework.addMakeMacro('FC_DEFINE_FLAG',self.FortranDefineCompilerOption)
-        self.setCompilers.popLanguage()
-        self.logPrint('Fortran uses '+flag+' for defining macro', 3, 'compilers')
-        self.logWrite(self.setCompilers.restoreLog())
-        return
-    self.setCompilers.popLanguage()
-    self.logPrint('Fortran does not support defining macro', 3, 'compilers')
-    self.logWrite(self.setCompilers.restoreLog())
+    with self.setCompilers.maskLanguage('FC',maskLog=self):
+      for flag in ['-D', '-WF,-D']:
+        if self.setCompilers.checkCompilerFlag(flag+'Testing', body = '#define dummy \n           dummy\n#ifndef Testing\n       fooey\n#endif'):
+          self.FortranDefineCompilerOption = flag
+          self.framework.addMakeMacro('FC_DEFINE_FLAG',self.FortranDefineCompilerOption)
+          self.logPrint('Fortran uses '+flag+' for defining macro', 3, 'compilers')
+          return
+      self.logPrint('Fortran does not support defining macro', 3, 'compilers')
     return
 
   def checkFortranLibraries(self):
@@ -773,17 +739,14 @@ class Configure(config.base.Configure):
     for writing this extremely useful macro.'''
     if not hasattr(self.setCompilers, 'CC') or not hasattr(self.setCompilers, 'FC'):
       return
-    self.pushLanguage('FC')
-    self.setCompilers.acquire()
-    oldFlags = self.setCompilers.LDFLAGS
-    if config.setCompilers.Configure.isNAG(self.getCompiler(), self.log):
-      self.setCompilers.LDFLAGS += ' --verbose'
-    else:
-      self.setCompilers.LDFLAGS += ' -v'
-    (output, returnCode) = self.outputLink('', '')
-    self.setCompilers.LDFLAGS = oldFlags
-    self.setCompilers.release()
-    self.popLanguage()
+    with self.maskLanguage('FC'):
+      newFlags = self.setCompilers.LDFLAGS
+      if config.setCompilers.Configure.isNAG(self.getCompiler(), self.log):
+        newFlags += ' --verbose'
+      else:
+        newFlags += ' -v'
+      with self.setCompilers.mask('LDFLAGS',newFlags):
+        (output, returnCode) = self.outputLink('', '')
 
     # replace \CR that ifc puts in each line of output
     output = output.replace('\\\n', '')
@@ -1039,74 +1002,66 @@ class Configure(config.base.Configure):
       if l.find('-L/sw/lib/gcc/powerpc-apple-darwin') >= 0:
         self.logWrite('Detected Apple Mac Fink libraries')
         appleLib = 'libcc_dynamic.so'
-        self.libraries.saveLog()
-        if self.libraries.check(appleLib, 'foo'):
-          self.flibs.append(self.libraries.getLibArgument(appleLib))
-          self.logWrite('Adding '+self.libraries.getLibArgument(appleLib)+' so that Fortran can work with C++')
-        self.logWrite(self.libraries.restoreLog())
+        with self.libraries.maskLog(self):
+          if self.libraries.check(appleLib, 'foo'):
+            self.flibs.append(self.libraries.getLibArgument(appleLib))
+            self.logWrite('Adding '+self.libraries.getLibArgument(appleLib)+' so that Fortran can work with C++')
         break
 
     self.logPrint('Libraries needed to link Fortran code with the C linker: '+str(self.flibs), 3, 'compilers')
     self.logPrint('Libraries needed to link Fortran main with the C linker: '+str(self.fmainlibs), 3, 'compilers')
     # check that these monster libraries can be used from C
     self.logPrint('Check that Fortran libraries can be used from C', 4, 'compilers')
-    self.setCompilers.acquire()
     oldLibs = self.setCompilers.LIBS
+    newLibs = ' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])+' '+oldLibs
     try:
-      self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])+' '+self.setCompilers.LIBS
-      self.setCompilers.saveLog()
-      try:
+      with self.setCompilers.mask('LIBS',newLibs,maskLog=self):
         self.setCompilers.checkCompiler('C')
-      except RuntimeError, e:
-        self.logPrint('Fortran libraries cannot directly be used from C, try without -lcrt2.o', 4, 'compilers')
-        self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
-        # try removing this one
-        if '-lcrt2.o' in self.flibs: self.flibs.remove('-lcrt2.o')
-        self.setCompilers.LIBS = oldLibs+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])
-        try:
+    except RuntimeError, e:
+      self.logPrint('Fortran libraries cannot directly be used from C, try without -lcrt2.o', 4, 'compilers')
+      self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
+      # try removing this one
+      if '-lcrt2.o' in self.flibs: self.flibs.remove('-lcrt2.o')
+      newLibs = oldLibs+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])
+      try:
+        with self.setCompilers.mask('LIBS',newLibs,maskLog=self):
           self.setCompilers.checkCompiler('C')
-        except RuntimeError, e:
-          self.logPrint('Fortran libraries still cannot directly be used from C, try without pgi.ld files', 4, 'compilers')
-          self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
-          tmpflibs = self.flibs
-          for lib in tmpflibs:
-            if lib.find('pgi.ld')>=0:
-              self.flibs.remove(lib)
-          self.setCompilers.LIBS = oldLibs+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])
-          try:
-            self.setCompilers.checkCompiler('C')
-          except:
-            self.logPrint(str(e), 4, 'compilers')
-            raise RuntimeError('Fortran libraries cannot be used with C compiler')
-      finally:
-        self.logWrite(self.setCompilers.restoreLog())
-
-      # check these monster libraries work from C++
-      if hasattr(self.setCompilers, 'CXX'):
-        self.logPrint('Check that Fortran libraries can be used from C++', 4, 'compilers')
-        self.setCompilers.saveLog()
-        self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])+' '+oldLibs
+      except RuntimeError, e:
+        self.logPrint('Fortran libraries still cannot directly be used from C, try without pgi.ld files', 4, 'compilers')
+        self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
+        tmpflibs = self.flibs
+        for lib in tmpflibs:
+          if lib.find('pgi.ld')>=0:
+            self.flibs.remove(lib)
+        newLibs = oldLibs+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])
         try:
+          with self.setCompilers.mask('LIBS',newLibs,maskLog=self):
+            self.setCompilers.checkCompiler('C')
+        except:
+          self.logPrint(str(e), 4, 'compilers')
+          raise RuntimeError('Fortran libraries cannot be used with C compiler')
+
+    # check these monster libraries work from C++
+    if hasattr(self.setCompilers, 'CXX'):
+      self.logPrint('Check that Fortran libraries can be used from C++', 4, 'compilers')
+      newLibs = ' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])+' '+oldLibs
+      try:
+        with self.setCompilers.mask('LIBS',newLibs,maskLog=self):
           self.setCompilers.checkCompiler('Cxx')
-          self.logPrint('Fortran libraries can be used from C++', 4, 'compilers')
+        self.logPrint('Fortran libraries can be used from C++', 4, 'compilers')
+      except RuntimeError, e:
+        self.logPrint(str(e), 4, 'compilers')
+        # try removing this one causes grief with gnu g++ and Intel Fortran
+        if '-lintrins' in self.flibs: self.flibs.remove('-lintrins')
+        newLibs = oldLibs+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])
+        try:
+          with self.setCompilers.mask('LIBS',newLibs,maskLog=self):
+            self.setCompilers.checkCompiler('Cxx')
         except RuntimeError, e:
           self.logPrint(str(e), 4, 'compilers')
-          # try removing this one causes grief with gnu g++ and Intel Fortran
-          if '-lintrins' in self.flibs: self.flibs.remove('-lintrins')
-          self.setCompilers.LIBS = oldLibs+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.flibs])
-          try:
-            self.setCompilers.checkCompiler('Cxx')
-          except RuntimeError, e:
-            self.logPrint(str(e), 4, 'compilers')
-            if str(e).find('INTELf90_dclock') >= 0:
-              self.logPrint('Intel 7.1 Fortran compiler cannot be used with g++ 3.2!', 2, 'compilers')
-          raise RuntimeError('Fortran libraries cannot be used with C++ compiler.\n Run with --with-fc=0 or --with-cxx=0')
-        finally:
-          self.logWrite(self.setCompilers.restoreLog())
-
-    finally:
-      self.setCompilers.LIBS = oldLibs
-      self.setCompilers.release()
+          if str(e).find('INTELf90_dclock') >= 0:
+            self.logPrint('Intel 7.1 Fortran compiler cannot be used with g++ 3.2!', 2, 'compilers')
+        raise RuntimeError('Fortran libraries cannot be used with C++ compiler.\n Run with --with-fc=0 or --with-cxx=0')
     return
 
   def checkFortranLinkingCxx(self):
@@ -1117,29 +1072,27 @@ class Configure(config.base.Configure):
 
     cxxCode = 'void foo(void){'+self.mangleFortranFunction('d1chk')+'();}'
     cxxobj  = os.path.join(self.tmpDir, 'cxxobj.o')
-    self.pushLanguage('Cxx')
-    if not self.checkCompile(cinc+cxxCode, None, cleanup = 0):
-      self.logPrint('Cannot compile Cxx function: '+cfunc, 3, 'compilers')
-      raise RuntimeError('Fortran could not successfully link C++ objects')
-    if not os.path.isfile(self.compilerObj):
-      self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
-      raise RuntimeError('Fortran could not successfully link C++ objects')
-    os.rename(self.compilerObj, cxxobj)
-    self.popLanguage()
+    with self.maskLanguage('Cxx'):
+      if not self.checkCompile(cinc+cxxCode, None, cleanup = 0):
+        self.logPrint('Cannot compile Cxx function: '+cfunc, 3, 'compilers')
+        raise RuntimeError('Fortran could not successfully link C++ objects')
+      if not os.path.isfile(self.compilerObj):
+        self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
+        raise RuntimeError('Fortran could not successfully link C++ objects')
+      os.rename(self.compilerObj, cxxobj)
 
     if self.testMangling(cinc+cfunc, ffunc, 'Cxx', extraObjs = [cxxobj]):
       self.logPrint('Fortran can link C++ functions', 3, 'compilers')
       link = 1
     else:
-      self.setCompilers.acquire()
-      oldLibs = self.setCompilers.LIBS
-      self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.cxxlibs])+' '+self.setCompilers.LIBS
-      if self.testMangling(cinc+cfunc, ffunc, 'Cxx', extraObjs = [cxxobj]):
-        self.logPrint('Fortran can link C++ functions using the C++ compiler libraries', 3, 'compilers')
-        link = 1
-      else:
-        self.setCompilers.LIBS = oldLibs
-      self.setCompilers.release()
+      with self.setCompilers.lock:
+        oldLibs = self.setCompilers.LIBS
+        self.setCompilers.LIBS = ' '.join([self.libraries.getLibArgument(lib) for lib in self.cxxlibs])+' '+self.setCompilers.LIBS
+        if self.testMangling(cinc+cfunc, ffunc, 'Cxx', extraObjs = [cxxobj]):
+          self.logPrint('Fortran can link C++ functions using the C++ compiler libraries', 3, 'compilers')
+          link = 1
+        else:
+          self.setCompilers.LIBS = oldLibs
     if os.path.isfile(cxxobj):
       os.remove(cxxobj)
     if not link:
@@ -1148,35 +1101,33 @@ class Configure(config.base.Configure):
 
   def checkFortran90(self):
     '''Determine whether the Fortran compiler handles F90'''
-    self.pushLanguage('FC')
-    if self.checkLink(body = '      INTEGER, PARAMETER :: int = SELECTED_INT_KIND(8)\n      INTEGER (KIND=int) :: ierr\n\n      ierr = 1'):
-      self.addDefine('USING_F90', 1)
-      self.fortranIsF90 = 1
-      self.logPrint('Fortran compiler supports F90')
-    else:
-      self.fortranIsF90 = 0
-      self.logPrint('Fortran compiler does not support F90')
-    self.popLanguage()
+    with self.maskLanguage('FC'):
+      if self.checkLink(body = '      INTEGER, PARAMETER :: int = SELECTED_INT_KIND(8)\n      INTEGER (KIND=int) :: ierr\n\n      ierr = 1'):
+        self.addDefine('USING_F90', 1)
+        self.fortranIsF90 = 1
+        self.logPrint('Fortran compiler supports F90')
+      else:
+        self.fortranIsF90 = 0
+        self.logPrint('Fortran compiler does not support F90')
     return
 
   def checkFortran2003(self):
     '''Determine whether the Fortran compiler handles F2003'''
-    self.pushLanguage('FC')
-    if self.checkLink(body = '''
-      use,intrinsic :: iso_c_binding
-      Type(C_Ptr),Dimension(:),Pointer :: CArray
-      character(kind=c_char),pointer   :: nullc => null()
-      character(kind=c_char,len=5),dimension(:),pointer::list1
+    with self.maskLanguage('FC'):
+      if self.checkLink(body = '''
+        use,intrinsic :: iso_c_binding
+        Type(C_Ptr),Dimension(:),Pointer :: CArray
+        character(kind=c_char),pointer   :: nullc => null()
+        character(kind=c_char,len=5),dimension(:),pointer::list1
 
-      allocate(list1(5))
-      CArray = (/(c_loc(list1(i)),i=1,5),c_loc(nullc)/)'''):
-      self.addDefine('USING_F2003', 1)
-      self.fortranIsF2003 = 1
-      self.logPrint('Fortran compiler supports F2003')
-    else:
-      self.fortranIsF2003 = 0
-      self.logPrint('Fortran compiler does not support F2003')
-    self.popLanguage()
+        allocate(list1(5))
+        CArray = (/(c_loc(list1(i)),i=1,5),c_loc(nullc)/)'''):
+        self.addDefine('USING_F2003', 1)
+        self.fortranIsF2003 = 1
+        self.logPrint('Fortran compiler supports F2003')
+      else:
+        self.fortranIsF2003 = 0
+        self.logPrint('Fortran compiler does not support F2003')
     return
 
   def checkFortran90Array(self):
@@ -1219,45 +1170,40 @@ class Configure(config.base.Configure):
   return;
 }\n'''
     cobj = os.path.join(self.tmpDir, 'fooobj.o')
-    self.pushLanguage('C')
-    if not self.checkCompile(cinc+ccode, None, cleanup = 0):
-      self.logPrint('Cannot compile C function: f90ptrtest', 3, 'compilers')
-      raise RuntimeError('Could not check Fortran pointer arguments')
-    if not os.path.isfile(self.compilerObj):
-      self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
-      raise RuntimeError('Could not check Fortran pointer arguments')
-    os.rename(self.compilerObj, cobj)
-    self.popLanguage()
+    with self.maskLanguage('C'):
+      if not self.checkCompile(cinc+ccode, None, cleanup = 0):
+        self.logPrint('Cannot compile C function: f90ptrtest', 3, 'compilers')
+        raise RuntimeError('Could not check Fortran pointer arguments')
+      if not os.path.isfile(self.compilerObj):
+        self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
+        raise RuntimeError('Could not check Fortran pointer arguments')
+      os.rename(self.compilerObj, cobj)
     # Link the test object against a Fortran driver
-    self.pushLanguage('FC')
-    self.setCompilers.acquire()
-    oldLIBS = self.setCompilers.LIBS
-    self.setCompilers.LIBS = cobj+' '+self.setCompilers.LIBS
-    fcode = '''\
-      Interface
-         Subroutine f90ptrtest(p1,p2,p3,i)
-         integer, pointer :: p1(:,:)
-         integer, pointer :: p2(:,:)
-         integer, pointer :: p3(:,:)
-         integer i
-         End Subroutine
-      End Interface
+    with self.maskLanguage('FC'):
+      newLIBS = cobj+' '+self.setCompilers.LIBS
+      fcode = '''\
+        Interface
+           Subroutine f90ptrtest(p1,p2,p3,i)
+           integer, pointer :: p1(:,:)
+           integer, pointer :: p2(:,:)
+           integer, pointer :: p3(:,:)
+           integer i
+           End Subroutine
+        End Interface
 
-      integer, pointer :: ptr1(:,:),ptr2(:,:)
-      integer, target  :: array(6:8,9:21)
-      integer  in
+        integer, pointer :: ptr1(:,:),ptr2(:,:)
+        integer, target  :: array(6:8,9:21)
+        integer  in
 
-      in   = 25
-      ptr1 => array
-      ptr2 => array
+        in   = 25
+        ptr1 => array
+        ptr2 => array
 
-      call f90arraytest(ptr1,ptr2,ptr1,in)
-      call f90ptrtest(ptr1,ptr2,ptr1,in)\n'''
+        call f90arraytest(ptr1,ptr2,ptr1,in)
+        call f90ptrtest(ptr1,ptr2,ptr1,in)\n'''
 
-    found = self.checkRun(None, fcode, defaultArg = 'f90-2ptr-arg')
-    self.setCompilers.LIBS = oldLIBS
-    self.setCompilers.release()
-    self.popLanguage()
+      with self.setCompilers.mask('LIBS',newLIBS):
+        found = self.checkRun(None, fcode, defaultArg = 'f90-2ptr-arg')
     # Cleanup
     if os.path.isfile(cobj):
       os.remove(cobj)
@@ -1270,9 +1216,7 @@ class Configure(config.base.Configure):
 
   def checkFortranModuleInclude(self):
     '''Figures out what flag is used to specify the include path for Fortran modules'''
-    self.setCompilers.acquire()
     self.setCompilers.fortranModuleIncludeFlag = None
-    self.setCompilers.release()
     if not self.fortranIsF90:
       self.logPrint('Not a Fortran90 compiler - hence skipping module include test')
       return
@@ -1285,50 +1229,42 @@ class Configure(config.base.Configure):
       parameter (testint = 42)
       end module configtest\n'''
     # Compile the Fortran test module
-    self.pushLanguage('FC')
-    if not self.checkCompile(modcode, None, cleanup = 0):
-      self.logPrint('Cannot compile Fortran module', 3, 'compilers')
-      self.popLanguage()
-      raise RuntimeError('Cannot determine Fortran module include flag')
-    if not os.path.isfile(self.compilerObj):
-      self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
-      self.popLanguage()
-      raise RuntimeError('Cannot determine Fortran module include flag')
-    if not os.path.isdir(testdir):
-      os.mkdir(testdir)
-    os.rename(self.compilerObj, modobj)
-    foundModule = 0
-    for f in [os.path.abspath('configtest.mod'), os.path.abspath('CONFIGTEST.mod'), os.path.join(os.path.dirname(self.compilerObj),'configtest.mod'), os.path.join(os.path.dirname(self.compilerObj),'CONFIGTEST.mod')]:
-      if os.path.isfile(f):
-        modname     = f
-        foundModule = 1
-        break
-    if not foundModule:
-      d = os.path.dirname(os.path.abspath('configtest.mod'))
-      self.logPrint('Directory '+d+' contents:\n'+str(os.listdir(d)))
-      raise RuntimeError('Fortran module was not created during the compile. %s/CONFIGTEST.mod not found' % os.path.abspath('configtest.mod'))
-    shutil.move(modname, os.path.join(testdir, os.path.basename(modname)))
-    fcode = '''\
-      use configtest
+    with self.maskLanguage('FC'):
+      if not self.checkCompile(modcode, None, cleanup = 0):
+        self.logPrint('Cannot compile Fortran module', 3, 'compilers')
+        raise RuntimeError('Cannot determine Fortran module include flag')
+      if not os.path.isfile(self.compilerObj):
+        self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
+        raise RuntimeError('Cannot determine Fortran module include flag')
+      if not os.path.isdir(testdir):
+        os.mkdir(testdir)
+      os.rename(self.compilerObj, modobj)
+      foundModule = 0
+      for f in [os.path.abspath('configtest.mod'), os.path.abspath('CONFIGTEST.mod'), os.path.join(os.path.dirname(self.compilerObj),'configtest.mod'), os.path.join(os.path.dirname(self.compilerObj),'CONFIGTEST.mod')]:
+        if os.path.isfile(f):
+          modname     = f
+          foundModule = 1
+          break
+      if not foundModule:
+        d = os.path.dirname(os.path.abspath('configtest.mod'))
+        self.logPrint('Directory '+d+' contents:\n'+str(os.listdir(d)))
+        raise RuntimeError('Fortran module was not created during the compile. %s/CONFIGTEST.mod not found' % os.path.abspath('configtest.mod'))
+      shutil.move(modname, os.path.join(testdir, os.path.basename(modname)))
+      fcode = '''\
+        use configtest
 
-      write(*,*) testint\n'''
-    self.setCompilers.acquire()
-    oldFLAGS = self.setCompilers.FFLAGS
-    oldLIBS  = self.setCompilers.LIBS
-    for flag in ['-I', '-p', '-M']:
-      self.setCompilers.FFLAGS = flag+testdir+' '+self.setCompilers.FFLAGS
-      self.setCompilers.LIBS   = modobj+' '+self.setCompilers.LIBS
-      if not self.checkLink(None, fcode):
-        self.logPrint('Fortran module include flag '+flag+' failed', 3, 'compilers')
-      else:
-        self.logPrint('Fortran module include flag '+flag+' found', 3, 'compilers')
-        self.setCompilers.fortranModuleIncludeFlag = flag
-        found = 1
-      self.setCompilers.LIBS   = oldLIBS
-      self.setCompilers.FFLAGS = oldFLAGS
-      if found: break
-    self.setCompilers.release()
-    self.popLanguage()
+        write(*,*) testint\n'''
+      for flag in ['-I', '-p', '-M']:
+        newFlags = flag+testdir+' '+self.setCompilers.FFLAGS
+        newLibs  = modobj+' '+self.setCompilers.LIBS
+        with self.setCompilers.mask('FFLAGS',newFlags), self.setCompilers.mask('LIBS',newLibs):
+          if not self.checkLink(None, fcode):
+            self.logPrint('Fortran module include flag '+flag+' failed', 3, 'compilers')
+          else:
+            self.logPrint('Fortran module include flag '+flag+' found', 3, 'compilers')
+            self.setCompilers.fortranModuleIncludeFlag = flag
+            found = 1
+        if found: break
     if os.path.isfile(modobj):
       os.remove(modobj)
     os.remove(os.path.join(testdir, os.path.basename(modname)))
@@ -1339,9 +1275,7 @@ class Configure(config.base.Configure):
 
   def checkFortranModuleOutput(self):
     '''Figures out what flag is used to specify the include path for Fortran modules'''
-    self.setCompilers.acquire()
     self.setCompilers.fortranModuleOutputFlag = None
-    self.setCompilers.release()
     if not self.fortranIsF90:
       self.logPrint('Not a Fortran90 compiler - hence skipping module include test')
       return
@@ -1357,28 +1291,22 @@ class Configure(config.base.Configure):
     # Compile the Fortran test module
     if not os.path.isdir(testdir):
       os.mkdir(testdir)
-    self.pushLanguage('FC')
-    self.setCompilers.acquire()
-    oldFLAGS = self.setCompilers.FFLAGS
-    oldLIBS  = self.setCompilers.LIBS
-    for flag in ['-module ', '-module:', '-fmod=', '-J', '-M', '-p', '-qmoddir=', '-moddir=']:
-      self.setCompilers.FFLAGS = flag+testdir+' '+self.setCompilers.FFLAGS
-      self.setCompilers.LIBS   = modobj+' '+self.setCompilers.LIBS
-      if not self.checkCompile(modcode, None, cleanup = 0):
-        self.logPrint('Fortran module output flag '+flag+' compile failed', 3, 'compilers')
-      elif os.path.isfile(os.path.join(testdir, 'configtest.mod')) or os.path.isfile(os.path.join(testdir, 'CONFIGTEST.mod')):
-        if os.path.isfile(os.path.join(testdir, 'configtest.mod')): modname = 'configtest.mod'
-        if os.path.isfile(os.path.join(testdir, 'CONFIGTEST.mod')): modname = 'CONFIGTEST.mod'
-        self.logPrint('Fortran module output flag '+flag+' found', 3, 'compilers')
-        self.setCompilers.fortranModuleOutputFlag = flag
-        found = 1
-      else:
-        self.logPrint('Fortran module output flag '+flag+' failed', 3, 'compilers')
-      self.setCompilers.LIBS   = oldLIBS
-      self.setCompilers.FFLAGS = oldFLAGS
-      if found: break
-    self.setCompilers.release()
-    self.popLanguage()
+    with self.maskLanguage('FC'):
+      for flag in ['-module ', '-module:', '-fmod=', '-J', '-M', '-p', '-qmoddir=', '-moddir=']:
+        newFlags = flag+testdir+' '+self.setCompilers.FFLAGS
+        newLibs  = modobj+' '+self.setCompilers.LIBS
+        with self.setCompilers.mask('FFLAGS',newFlags), self.setCompilers.mask('LIBS',newLibs):
+          if not self.checkCompile(modcode, None, cleanup = 0):
+            self.logPrint('Fortran module output flag '+flag+' compile failed', 3, 'compilers')
+          elif os.path.isfile(os.path.join(testdir, 'configtest.mod')) or os.path.isfile(os.path.join(testdir, 'CONFIGTEST.mod')):
+            if os.path.isfile(os.path.join(testdir, 'configtest.mod')): modname = 'configtest.mod'
+            if os.path.isfile(os.path.join(testdir, 'CONFIGTEST.mod')): modname = 'CONFIGTEST.mod'
+            self.logPrint('Fortran module output flag '+flag+' found', 3, 'compilers')
+            self.setCompilers.fortranModuleOutputFlag = flag
+            found = 1
+          else:
+            self.logPrint('Fortran module output flag '+flag+' failed', 3, 'compilers')
+        if found: break
     if modname: os.remove(os.path.join(testdir, modname))
     os.rmdir(testdir)
     # Flag not used by PETSc - do do not flag a runtime error
@@ -1402,34 +1330,31 @@ class Configure(config.base.Configure):
       languages.append('CUDA')
     for language in languages:
       self.generateDependencies[language] = 0
-      self.setCompilers.saveLog()
-      self.setCompilers.pushLanguage(language)
-      for testFlag in ['-MMD -MP', # GCC, Intel, Clang, Pathscale
-                       '-MMD',     # PGI
-                       '-xMMD',    # Sun
-                       '-qmakedep=gcc', # xlc
-                       '-MD',
-                       # Cray only supports -M, which writes to stdout
-                     ]:
-        try:
-          self.logPrint('Trying '+language+' compiler flag '+testFlag)
-          if self.setCompilers.checkCompilerFlag(testFlag, compilerOnly = 1):
-            depFilename = os.path.splitext(self.setCompilers.compilerObj)[0]+'.d'
-            if os.path.isfile(depFilename):
-              os.remove(depFilename)
-              #self.setCompilers.insertCompilerFlag(testFlag, compilerOnly = 1)
-              self.framework.addMakeMacro(language.upper()+'_DEPFLAGS',testFlag)
-              self.dependenciesGenerationFlag[language] = testFlag
-              self.generateDependencies[language]       = 1
-              break
+      with self.setCompilers.maskLanguage(language,maskLog=self):
+        for testFlag in ['-MMD -MP', # GCC, Intel, Clang, Pathscale
+                         '-MMD',     # PGI
+                         '-xMMD',    # Sun
+                         '-qmakedep=gcc', # xlc
+                         '-MD',
+                         # Cray only supports -M, which writes to stdout
+                       ]:
+          try:
+            self.logPrint('Trying '+language+' compiler flag '+testFlag)
+            if self.setCompilers.checkCompilerFlag(testFlag, compilerOnly = 1):
+              depFilename = os.path.splitext(self.setCompilers.compilerObj)[0]+'.d'
+              if os.path.isfile(depFilename):
+                os.remove(depFilename)
+                #self.setCompilers.insertCompilerFlag(testFlag, compilerOnly = 1)
+                self.framework.addMakeMacro(language.upper()+'_DEPFLAGS',testFlag)
+                self.dependenciesGenerationFlag[language] = testFlag
+                self.generateDependencies[language]       = 1
+                break
+              else:
+                self.logPrint('Rejected '+language+' compiler flag '+testFlag+' because no dependency file ('+depFilename+') was generated')
             else:
-              self.logPrint('Rejected '+language+' compiler flag '+testFlag+' because no dependency file ('+depFilename+') was generated')
-          else:
+              self.logPrint('Rejected '+language+' compiler flag '+testFlag)
+          except RuntimeError:
             self.logPrint('Rejected '+language+' compiler flag '+testFlag)
-        except RuntimeError:
-          self.logPrint('Rejected '+language+' compiler flag '+testFlag)
-      self.setCompilers.popLanguage()
-      self.logWrite(self.setCompilers.restoreLog())
     return
 
   def checkC99Flag(self):
@@ -1444,16 +1369,13 @@ class Configure(config.base.Configure):
       x[i] = i*j*y;
     }
     """
-    self.setCompilers.saveLog()
-    self.setCompilers.pushLanguage('C')
-    flags_to_try = ['','-std=c99','-std=gnu99','-std=c11''-std=gnu11']
-    for flag in flags_to_try:
-      if self.setCompilers.checkCompilerFlag(flag, includes, body):
-        self.c99flag = flag
-        self.framework.logPrint('Accepted C99 compile flag: '+flag)
-        break
-    self.setCompilers.popLanguage()
-    self.logWrite(self.setCompilers.restoreLog())
+    with self.setCompilers.maskLanguage('C',maskLog=self):
+      flags_to_try = ['','-std=c99','-std=gnu99','-std=c11''-std=gnu11']
+      for flag in flags_to_try:
+        if self.setCompilers.checkCompilerFlag(flag, includes, body):
+          self.c99flag = flag
+          self.framework.logPrint('Accepted C99 compile flag: '+flag)
+          break
     return
 
   def configure(self):

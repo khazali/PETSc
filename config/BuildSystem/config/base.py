@@ -30,9 +30,9 @@ return a success or failure indication based upon the status and output.
   outputLink(),       checkLink()
   outputRun(),        checkRun()
 
-  The language used for these operation is managed with a stack, similar to autoconf.
+  The language used for these operation is managed with a mask context:
 
-  pushLanguage(), popLanguage()
+  maskLanguage()
 
   We also provide special forms used to check for valid compiler and linker flags, optionally adding
 them to the defaults.
@@ -57,6 +57,7 @@ can be defined which applies to every substitution from the object. Typedefs and
 function prototypes are placed in a separate header in order to accomodate languges
 such as Fortran whose preprocessor can sometimes fail at these statements.
 '''
+import logger
 import script
 
 import os
@@ -76,10 +77,9 @@ class Configure(script.Script):
     self.prototypes      = {}
     self.subst           = {}
     self.argSubst        = {}
-    self.language        = []
+    self.language        = 'C'
     if not tmpDir is None:
       self.tmpDir        = tmpDir
-    self.pushLanguage('C',lock=False)
     return
 
   def getTmpDir(self):
@@ -287,27 +287,37 @@ class Configure(script.Script):
 
   ###############################################
   # Preprocessor, Compiler, and Linker Operations
-  def pushLanguage(self, language, lock=True):
-    if language == 'C++': language = 'Cxx'
-    self.logPrint('Pushing language '+language)
-    if lock:
-      #print >> sys.stderr, '%s WANTS    %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
-      #self.acquire(prnt=False)
-      self.acquire()
-      #if self.lock[1] == 1:
-      #      print >> sys.stderr, '%s ACQUIRES %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
-    self.language.append(language)
-    return self.language[-1]
+  class Mask(logger.Logger.Mask):
+    def __init__(self,target,name,val,maskLog = None,maskLanguage = None):
+      logger.Logger.Mask.__init__(self,target,name,val,maskLog=maskLog)
+      self.pushLanguage = maskLanguage
+      self.pushLanguageMask = None
+      return
 
-  def popLanguage(self):
-    self.logPrint('Popping language '+self.language[-1])
-    self.language.pop()
-    #print >> sys.stderr, '%s DROPS    %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
-    #if self.lock[1] == 1:
-    #    print >> sys.stderr, '%s RELEASES %s on %s:%s' % (threading.current_thread().ident,self.__module__,inspect.currentframe().f_back.f_code.co_filename,inspect.currentframe().f_back.f_lineno)
-    #self.release(prnt=False)
-    self.release()
-    return self.language[-1]
+    def __enter__(self):
+      logger.Logger.Mask.__enter__(self)
+      if self.pushLanguage:
+        if self.pushLanguage == 'C++':
+          self.pushLanguage == 'Cxx'
+        self.pushLanguageMask = logger.Logger.Mask(self.target,'language',self.pushLanguage)
+        self.pushLanguageMask.__enter__()
+        self.target.logPrint('Pushing language '+self.pushLanguage)
+      return
+
+    def __exit__(self,exc_type,exc_value,traceback):
+      if self.pushLanguageMask:
+        self.target.logPrint('Popping language '+self.pushLanguage)
+        self.pushLanguageMask.__exit__(exc_type, exc_value, traceback)
+      logger.Logger.Mask.__exit__(self,exc_type, exc_value, traceback)
+      return
+
+
+  def mask(self,name,val,maskLog = None,maskLanguage = None):
+    return self.Mask(self,name,val,maskLog=maskLog,maskLanguage=maskLanguage)
+
+  def maskLanguage(self,lang,maskLog=None):
+    return self.Mask(self,None,None,maskLog=maskLog,maskLanguage=lang)
+
 
   def getHeaders(self):
     self.compilerDefines = os.path.join(self.tmpDir, 'confdefs.h')
@@ -316,94 +326,94 @@ class Configure(script.Script):
 
   def getPreprocessor(self):
     self.getHeaders()
-    preprocessor       = self.framework.getPreprocessorObject(self.language[-1])
+    preprocessor       = self.framework.getPreprocessorObject(self.language)
     preprocessor.checkSetup()
     return preprocessor.getProcessor()
 
   def getCompiler(self):
     self.getHeaders()
-    compiler            = self.framework.getCompilerObject(self.language[-1])
+    compiler            = self.framework.getCompilerObject(self.language)
     compiler.checkSetup()
     self.compilerSource = os.path.join(self.tmpDir, 'conftest'+compiler.sourceExtension)
     self.compilerObj    = os.path.join(self.tmpDir, compiler.getTarget(self.compilerSource))
     return compiler.getProcessor()
 
   def getCompilerFlags(self):
-    return self.framework.getCompilerObject(self.language[-1]).getFlags()
+    return self.framework.getCompilerObject(self.language).getFlags()
 
   def getLinker(self):
     self.getHeaders()
-    linker            = self.framework.getLinkerObject(self.language[-1])
+    linker            = self.framework.getLinkerObject(self.language)
     linker.checkSetup()
     self.linkerSource = os.path.join(self.tmpDir, 'conftest'+linker.sourceExtension)
     self.linkerObj    = linker.getTarget(self.linkerSource, 0)
     return linker.getProcessor()
 
   def getLinkerFlags(self):
-    return self.framework.getLinkerObject(self.language[-1]).getFlags()
+    return self.framework.getLinkerObject(self.language).getFlags()
 
   def getSharedLinker(self):
     self.getHeaders()
-    linker            = self.framework.getSharedLinkerObject(self.language[-1])
+    linker            = self.framework.getSharedLinkerObject(self.language)
     linker.checkSetup()
     self.linkerSource = os.path.join(self.tmpDir, 'conftest'+linker.sourceExtension)
     self.linkerObj    = linker.getTarget(self.linkerSource, 1)
     return linker.getProcessor()
 
   def getSharedLinkerFlags(self):
-    return self.framework.getSharedLinkerObject(self.language[-1]).getFlags()
+    return self.framework.getSharedLinkerObject(self.language).getFlags()
 
   def getDynamicLinker(self):
     self.getHeaders()
-    linker            = self.framework.getDynamicLinkerObject(self.language[-1])
+    linker            = self.framework.getDynamicLinkerObject(self.language)
     linker.checkSetup()
     self.linkerSource = os.path.join(self.tmpDir, 'conftest'+linker.sourceExtension)
     self.linkerObj    = linker.getTarget(self.linkerSource, 1)
     return linker.getProcessor()
 
   def getDynamicLinkerFlags(self):
-    return self.framework.getDynamicLinkerObject(self.language[-1]).getFlags()
+    return self.framework.getDynamicLinkerObject(self.language).getFlags()
 
   def getPreprocessorCmd(self):
     self.getCompiler()
-    preprocessor = self.framework.getPreprocessorObject(self.language[-1])
+    preprocessor = self.framework.getPreprocessorObject(self.language)
     preprocessor.checkSetup()
     preprocessor.includeDirectories.add(self.tmpDir)
     return preprocessor.getCommand(self.compilerSource)
 
   def getCompilerCmd(self):
     self.getCompiler()
-    compiler = self.framework.getCompilerObject(self.language[-1])
+    compiler = self.framework.getCompilerObject(self.language)
     compiler.checkSetup()
     compiler.includeDirectories.add(self.tmpDir)
     return compiler.getCommand(self.compilerSource, self.compilerObj)
 
   def getLinkerCmd(self):
     self.getLinker()
-    linker = self.framework.getLinkerObject(self.language[-1])
+    linker = self.framework.getLinkerObject(self.language)
     linker.checkSetup()
     return linker.getCommand(self.linkerSource, self.linkerObj)
 
   def getFullLinkerCmd(self, objects, executable):
     self.getLinker()
-    linker = self.framework.getLinkerObject(self.language[-1])
+    linker = self.framework.getLinkerObject(self.language)
     linker.checkSetup()
     return linker.getCommand(objects, executable)
 
   def getSharedLinkerCmd(self):
     self.getSharedLinker()
-    linker = self.framework.getSharedLinkerObject(self.language[-1])
+    linker = self.framework.getSharedLinkerObject(self.language)
     linker.checkSetup()
     return linker.getCommand(self.linkerSource, self.linkerObj)
 
   def getDynamicLinkerCmd(self):
     self.getDynamicLinker()
-    linker = self.framework.getDynamicLinkerObject(self.language[-1])
+    linker = self.framework.getDynamicLinkerObject(self.language)
     linker.checkSetup()
     return linker.getCommand(self.linkerSource, self.linkerObj)
 
   def getCode(self, includes, body = None, codeBegin = None, codeEnd = None):
-    language = self.language[-1]
+    language = self.language
     if includes and not includes[-1] == '\n':
       includes += '\n'
     if language in ['C', 'CUDA', 'Cxx']:
@@ -475,7 +485,7 @@ class Configure(script.Script):
 
   def getPreprocessorFlagsArg(self):
     '''Return the name of the argument which holds the preprocessor flags for the current language'''
-    return self.getPreprocessorFlagsName(self.language[-1])
+    return self.getPreprocessorFlagsName(self.language)
 
   def filterCompileOutput(self, output):
     return self.framework.filterCompileOutput(output)
@@ -529,7 +539,7 @@ class Configure(script.Script):
 
   def getCompilerFlagsArg(self, compilerOnly = 0):
     '''Return the name of the argument which holds the compiler flags for the current language'''
-    return self.getCompilerFlagsName(self.language[-1], compilerOnly)
+    return self.getCompilerFlagsName(self.language, compilerOnly)
 
   def filterLinkOutput(self, output):
     return self.framework.filterLinkOutput(output)
@@ -547,18 +557,15 @@ class Configure(script.Script):
 
     cleanup = cleanup and self.framework.doCleanup
 
-    langPushed = 0
-    if linkLanguage is not None and linkLanguage != self.language[-1]:
-      self.pushLanguage(linkLanguage)
-      langPushed = 1
-    if shared == 'dynamic':
-      cmd = self.getDynamicLinkerCmd()
-    elif shared:
-      cmd = self.getSharedLinkerCmd()
-    else:
-      cmd = self.getLinkerCmd()
-    if langPushed:
-      self.popLanguage()
+    if not linkLanguage:
+      linkLanguage = self.language
+    with self.maskLanguage(linkLanguage):
+      if shared == 'dynamic':
+        cmd = self.getDynamicLinkerCmd()
+      elif shared:
+        cmd = self.getSharedLinkerCmd()
+      else:
+        cmd = self.getLinkerCmd()
 
     linkerObj = self.linkerObj
     def report(command, status, output, error):
@@ -590,7 +597,7 @@ class Configure(script.Script):
 
   def getLinkerFlagsArg(self):
     '''Return the name of the argument which holds the linker flags for the current language'''
-    return self.getLinkerFlagsName(self.language[-1])
+    return self.getLinkerFlagsName(self.language)
 
   def outputRun(self, includes, body, cleanup = 1, defaultOutputArg = '', executor = None):
     if not self.checkLink(includes, body, cleanup = 0): return ('', 1)

@@ -99,28 +99,27 @@ class PETScMaker(script.Script):
      langlist.append(('Cxx','CXX'))
    win32fe = None
    for petsclanguage,cmakelanguage in langlist:
-     self.setCompilers.pushLanguage(petsclanguage)
-     compiler = self.setCompilers.getCompiler()
-     if (cmakelanguage == 'CUDA'):
-       self.cuda = self.framework.require('config.packages.cuda',       None)
-       if (self.cuda.directory != None):
-         options.append('CUDA_TOOLKIT_ROOT_DIR ' + self.cuda.directory + ' CACHE FILEPATH')
-       options.append('CUDA_NVCC_FLAGS ' + self.setCompilers.getCompilerFlags() + ' CACHE STRING')
-     else:
-       flags = [self.setCompilers.getCompilerFlags(),
-                self.setCompilers.CPPFLAGS]
-       if compiler.split()[0].endswith('win32fe'): # Hack to support win32fe without changing the rest of configure
-         win32fe = compiler.split()[0] + '.exe'
-         compiler = ' '.join(compiler.split()[1:])
-       options.append('CMAKE_'+cmakelanguage+'_COMPILER ' + compiler + ' CACHE FILEPATH')
-       options.append('CMAKE_'+cmakelanguage+'_FLAGS "' + ''.join(flags) + '" CACHE STRING')
-       if (petsclanguage == self.languages.clanguage): #CUDA host compiler is fed with the flags for the standard host compiler
-         flagstring = ''
-         for flag in flags:
-           for f in flag.split():
-             flagstring += ',' + f
-         options.append('PETSC_CUDA_HOST_FLAGS ' + flagstring + ' CACHE STRING')
-       self.setCompilers.popLanguage()
+     with self.setCompilers.maskLanguage(petsclanguage):
+       compiler = self.setCompilers.getCompiler()
+       if (cmakelanguage == 'CUDA'):
+         self.cuda = self.framework.require('config.packages.cuda',       None)
+         if (self.cuda.directory != None):
+           options.append('CUDA_TOOLKIT_ROOT_DIR ' + self.cuda.directory + ' CACHE FILEPATH')
+         options.append('CUDA_NVCC_FLAGS ' + self.setCompilers.getCompilerFlags() + ' CACHE STRING')
+       else:
+         flags = [self.setCompilers.getCompilerFlags(),
+                  self.setCompilers.CPPFLAGS]
+         if compiler.split()[0].endswith('win32fe'): # Hack to support win32fe without changing the rest of configure
+           win32fe = compiler.split()[0] + '.exe'
+           compiler = ' '.join(compiler.split()[1:])
+         options.append('CMAKE_'+cmakelanguage+'_COMPILER ' + compiler + ' CACHE FILEPATH')
+         options.append('CMAKE_'+cmakelanguage+'_FLAGS "' + ''.join(flags) + '" CACHE STRING')
+         if (petsclanguage == self.languages.clanguage): #CUDA host compiler is fed with the flags for the standard host compiler
+           flagstring = ''
+           for flag in flags:
+             for f in flag.split():
+               flagstring += ',' + f
+           options.append('PETSC_CUDA_HOST_FLAGS ' + flagstring + ' CACHE STRING')
    options.append('CMAKE_AR '+self.setCompilers.AR + " CACHE FILEPATH")
    ranlib = shlex.split(self.setCompilers.RANLIB)[0]
    options.append('CMAKE_RANLIB '+ranlib + " CACHE FILEPATH")

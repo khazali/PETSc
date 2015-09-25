@@ -68,19 +68,20 @@ builtin and then its argument prototype would still apply. */
 #endif
 '''
     body = ''.join(map(genBody,funcs))
+    newLibs = self.compilers.LIBS
     if libraries:
-      oldLibs = self.compilers.LIBS
       if not isinstance(libraries, list):
         libraries = [libraries]
       for library in libraries:
         root,ext=os.path.splitext(library)
         if library.strip()[0] == '-' or ext == '.a' or ext == '.so' :
-          self.compilers.LIBS += ' '+library
+          newLibs += ' '+library
         else:
-          self.compilers.LIBS += ' -l'+library
-    found = self.checkLink(includes, body, examineOutput=examineOutput)
-    if libraries:
-      self.compilers.LIBS = oldLibs
+          newLibs += ' -l'+library
+    #import pdb
+    #pdb.set_trace()
+    with self.compilers.mask('LIBS',newLibs):
+      found = self.checkLink(includes, body, examineOutput=examineOutput)
     if found:
       for funcName in funcs:
         self.addDefine(self.getDefineName(funcName), 1)
@@ -174,14 +175,12 @@ builtin and then its argument prototype would still apply. */
     if self.check('_vsnprintf'):
       if hasattr(self.compilers, 'CXX'):
         # Cygwin shows the symbol to C, but chokes on the C++ link, so try the full link
-        self.pushLanguage('C++')
-        if not self.checkLink('#include <stdio.h>\n#include <stdarg.h>\n', 'va_list Argp;char str[6];\n_vsnprintf(str,5, "%d", Argp );\n'):
-          self.delDefine(self.getDefineName('_vsnprintf'))
-          self.popLanguage()
-          # removing _vsnprintf define - hence do not return. [Note: if _vsnprintf is accepted - then make sure to 'return' - and not do the next test]
-        else:
-          self.popLanguage()
-          return
+        with self.maskLanguage('Cxx'):
+          if not self.checkLink('#include <stdio.h>\n#include <stdarg.h>\n', 'va_list Argp;char str[6];\n_vsnprintf(str,5, "%d", Argp );\n'):
+            self.delDefine(self.getDefineName('_vsnprintf'))
+            # removing _vsnprintf define - hence do not return. [Note: if _vsnprintf is accepted - then make sure to 'return' - and not do the next test]
+          else:
+            return
       else:
         return
     self.check('vsnprintf')
@@ -191,12 +190,11 @@ builtin and then its argument prototype would still apply. */
 
   def checkSignalHandlerType(self):
     '''Checks the type of C++ signals handlers, and defines SIGNAL_CAST to the correct value'''
-    self.pushLanguage('C++')
-    if not self.checkLink('#include <signal.h>\nstatic void myhandler(int sig) {}\n', 'signal(SIGFPE,myhandler);\n'):
-      self.addDefine('SIGNAL_CAST', '(void (*)(int))')
-    else:
-      self.addDefine('SIGNAL_CAST', ' ')
-    self.popLanguage()
+    with self.maskLanguage('Cxx'):
+      if not self.checkLink('#include <signal.h>\nstatic void myhandler(int sig) {}\n', 'signal(SIGFPE,myhandler);\n'):
+        self.addDefine('SIGNAL_CAST', '(void (*)(int))')
+      else:
+        self.addDefine('SIGNAL_CAST', ' ')
     return
 
   def checkFreeReturnType(self):

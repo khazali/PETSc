@@ -36,18 +36,17 @@ class Configure(config.package.Package):
     g.write('EXEEXT      = \n')
     g.write('OBJEXT      = .o\n')
     g.write('LIBEXT      = .'+self.setCompilers.AR_LIB_SUFFIX+'\n')
-    self.setCompilers.pushLanguage('C')
-    g.write('CCPROG      = '+self.setCompilers.getCompiler()+'\n')
-    # common.c tries to use some silly clock_gettime() routine that Mac doesn't have unless this is set
-    if self.setCompilers.isDarwin(self.log):
-      cflags = ' -DX_ARCHi686_mac    '
-    else:
-      cflags = ''
-    if self.mpi.found:
-      g.write('CCFOPT      = '+self.setCompilers.getCompilerFlags()+' '+self.headers.toString(self.mpi.include)+' '+cflags+'\n')
-    else:
-      g.write('CCFOPT      = '+self.setCompilers.getCompilerFlags()+' '+cflags+'\n')
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage('C'):
+      g.write('CCPROG      = '+self.setCompilers.getCompiler()+'\n')
+      # common.c tries to use some silly clock_gettime() routine that Mac doesn't have unless this is set
+      if self.setCompilers.isDarwin(self.log):
+        cflags = ' -DX_ARCHi686_mac    '
+      else:
+        cflags = ''
+      if self.mpi.found:
+        g.write('CCFOPT      = '+self.setCompilers.getCompilerFlags()+' '+self.headers.toString(self.mpi.include)+' '+cflags+'\n')
+      else:
+        g.write('CCFOPT      = '+self.setCompilers.getCompilerFlags()+' '+cflags+'\n')
     g.write('CFPROG      = \n')
     g.write('CF90PROG    = \n')
     g.write('MCFPROG     = \n')

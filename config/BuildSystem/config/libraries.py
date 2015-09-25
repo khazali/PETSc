@@ -47,8 +47,8 @@ class Configure(config.base.Configure):
     if os.path.basename(library).startswith('lib'):
       name = self.getLibName(library)
       if ((len(library) > 2 and library[1] == ':') or os.path.isabs(library)):
-        flagName  = self.language[-1]+'SharedLinkerFlag'
-        flagSubst = self.language[-1].upper()+'_LINKER_SLFLAG'
+        flagName  = self.language+'SharedLinkerFlag'
+        flagSubst = self.language.upper()+'_LINKER_SLFLAG'
         dirname   = os.path.dirname(library).replace('\\ ',' ').replace(' ', '\\ ').replace('\\(','(').replace('(', '\\(').replace('\\)',')').replace(')', '\\)')
         if hasattr(self.setCompilers, flagName) and not getattr(self.setCompilers, flagName) is None:
           return [getattr(self.setCompilers, flagName)+dirname,'-L'+dirname,'-l'+name]
@@ -151,7 +151,7 @@ class Configure(config.base.Configure):
     if not isinstance(libName, list): libName = [libName]
     def genPreamble(f, funcName):
       # Construct prototype
-      if self.language[-1] == 'FC':
+      if self.language == 'FC':
         return ''
       if prototype:
         if isinstance(prototype, str):
@@ -165,7 +165,7 @@ class Configure(config.base.Configure):
       # calls to other library functions.
       return pre + '\nstatic void _check_%s() { %s }' % (funcName, genCall(f, funcName, pre=True))
     def genCall(f, funcName, pre=False):
-      if self.language[-1] != 'FC' and not pre:
+      if self.language != 'FC' and not pre:
         return '_check_' + fname + '();'
       # Construct function call
       if call:
@@ -175,7 +175,7 @@ class Configure(config.base.Configure):
           body = call[f]
       else:
         body = funcName+'()'
-      if self.language[-1] != 'FC':
+      if self.language != 'FC':
         body += ';'
       return body
     # Handle Fortran mangling
@@ -185,12 +185,12 @@ class Configure(config.base.Configure):
       self.logPrint('No functions to check for in library '+str(libName)+' '+str(otherLibs))
       return True
     self.logPrint('Checking for functions ['+' '.join(funcs)+'] in library '+str(libName)+' '+str(otherLibs))
-    if self.language[-1] == 'FC':
+    if self.language == 'FC':
       includes = ''
     else:
       includes = '/* Override any gcc2 internal prototype to avoid an error. */\n'
     # Handle C++ mangling
-    if self.language[-1] == 'Cxx' and not cxxMangle:
+    if self.language == 'Cxx' and not cxxMangle:
       includes += '''
 #ifdef __cplusplus
 extern "C" {
@@ -198,7 +198,7 @@ extern "C" {
 '''
     includes += '\n'.join([genPreamble(f, fname) for f, fname in enumerate(funcs)])
     # Handle C++ mangling
-    if self.language[-1] == 'Cxx' and not cxxMangle:
+    if self.language == 'Cxx' and not cxxMangle:
       includes += '''
 #ifdef __cplusplus
 }
@@ -206,36 +206,32 @@ extern "C" {
 '''
     body = '\n'.join([genCall(f, fname) for f, fname in enumerate(funcs)])
     # Setup link line
-    self.setCompilers.acquire()
-    oldLibs = self.setCompilers.LIBS
+    newLibs = self.setCompilers.LIBS
     if libDir:
       if not isinstance(libDir, list): libDir = [libDir]
       for dir in libDir:
-        self.setCompilers.LIBS += ' -L'+dir
+        newLibs += ' -L'+dir
     # new libs may/will depend on system libs so list new libs first!
     # Matt, do not change this without talking to me
     if libName and otherLibs:
-      self.setCompilers.LIBS = ' '+self.toString(libName+otherLibs) +' '+ self.setCompilers.LIBS
+      newLibs = ' '+self.toString(libName+otherLibs) +' '+ newLibs
     elif otherLibs:
-      self.setCompilers.LIBS = ' '+self.toString(otherLibs) +' '+ self.setCompilers.LIBS
+      newLibs = ' '+self.toString(otherLibs) +' '+ newLibs
     elif libName:
-      self.setCompilers.LIBS = ' '+self.toString(libName) +' '+ self.setCompilers.LIBS
+      newLibs = ' '+self.toString(libName) +' '+ newLibs
     if cxxMangle: compileLang = 'Cxx'
-    else:         compileLang = self.language[-1]
+    else:         compileLang = self.language
     if cxxLink: linklang = 'Cxx'
-    else: linklang = self.language[-1]
-    self.pushLanguage(compileLang)
+    else: linklang = self.language
     found = 0
-    if self.checkLink(includes, body, linkLanguage=linklang, examineOutput=examineOutput):
-      found = 1
-      # add to list of found libraries
-      if libName:
-        for lib in libName:
-          shortlib = self.getShortLibName(lib)
-          if shortlib: self.addDefine(self.getDefineName(shortlib), 1)
-    self.popLanguage()
-    self.setCompilers.LIBS = oldLibs
-    self.setCompilers.release()
+    with self.setCompilers.mask('LIBS',newLibs), self.maskLanguage(compileLang):
+      if self.checkLink(includes, body, linkLanguage=linklang, examineOutput=examineOutput):
+        found = 1
+        # add to list of found libraries
+        if libName:
+          for lib in libName:
+            shortlib = self.getShortLibName(lib)
+            if shortlib: self.addDefine(self.getDefineName(shortlib), 1)
     return found
 
   def checkClassify(self, libName, funcs, libDir=None, otherLibs=[], prototype='', call='', fortranMangle=0, cxxMangle=0, cxxLink=0):
@@ -362,66 +358,57 @@ extern "C" {
         configObj = self
 
     # Fix these flags
-    self.setCompilers.acquire()
-    oldFlags = self.setCompilers.LIBS
-    self.setCompilers.LIBS = ' '+self.toString(libraries)+' '+self.setCompilers.LIBS
-
-    # Make a library which calls initFunction(), and returns checkFunction()
-    lib1Name = os.path.join(self.tmpDir, 'lib1.'+self.setCompilers.sharedLibraryExt)
-    if noCheckArg:
-      checkCode = 'isInitialized = '+checkFunction+'();'
-    else:
-      checkCode = checkFunction+'(&isInitialized);'
-    codeBegin = '''
+    newLibs = ' '+self.toString(libraries)+' '+self.setCompilers.LIBS
+    with self.setCompilers.mask('LIBS',newLibs):
+      # Make a library which calls initFunction(), and returns checkFunction()
+      lib1Name = os.path.join(self.tmpDir, 'lib1.'+self.setCompilers.sharedLibraryExt)
+      if noCheckArg:
+        checkCode = 'isInitialized = '+checkFunction+'();'
+      else:
+        checkCode = checkFunction+'(&isInitialized);'
+      codeBegin = '''
 #ifdef __cplusplus
 extern "C"
 #endif
 int init(int argc,  char *argv[]) {
 '''
-    body      = '''
+      body      = '''
   %s isInitialized;
 
   %s(%s);
   %s
   return (int) isInitialized;
-''' % (boolType, initFunction, initArgs, checkCode)
-    codeEnd   = '\n}\n'
-    if not checkLink(includes, body, cleanup = 0, codeBegin = codeBegin, codeEnd = codeEnd, shared = 1):
+'''   % (boolType, initFunction, initArgs, checkCode)
+      codeEnd   = '\n}\n'
+      if not checkLink(includes, body, cleanup = 0, codeBegin = codeBegin, codeEnd = codeEnd, shared = 1):
+        if os.path.isfile(configObj.compilerObj): os.remove(configObj.compilerObj)
+        raise RuntimeError('Could not complete shared library check')
       if os.path.isfile(configObj.compilerObj): os.remove(configObj.compilerObj)
-      self.setCompilers.LIBS = oldFlags
-      self.setCompilers.release()
-      raise RuntimeError('Could not complete shared library check')
-    if os.path.isfile(configObj.compilerObj): os.remove(configObj.compilerObj)
-    os.rename(configObj.linkerObj, lib1Name)
+      os.rename(configObj.linkerObj, lib1Name)
 
-    # Make a library which calls checkFunction()
-    lib2Name = os.path.join(self.tmpDir, 'lib2.'+self.setCompilers.sharedLibraryExt)
-    codeBegin = '''
+      # Make a library which calls checkFunction()
+      lib2Name = os.path.join(self.tmpDir, 'lib2.'+self.setCompilers.sharedLibraryExt)
+      codeBegin = '''
 #ifdef __cplusplus
 extern "C"
 #endif
 int checkInit(void) {
 '''
-    body      = '''
+      body      = '''
   %s isInitialized;
 
   %s
-''' % (boolType, checkCode)
-    if finiFunction:
-      body += '  if (isInitialized) '+finiFunction+'();\n'
-    body += '  return (int) isInitialized;\n'
-    codeEnd   = '\n}\n'
-    if not checkLink(includes, body, cleanup = 0, codeBegin = codeBegin, codeEnd = codeEnd, shared = 1):
+'''   % (boolType, checkCode)
+      if finiFunction:
+        body += '  if (isInitialized) '+finiFunction+'();\n'
+      body += '  return (int) isInitialized;\n'
+      codeEnd   = '\n}\n'
+      if not checkLink(includes, body, cleanup = 0, codeBegin = codeBegin, codeEnd = codeEnd, shared = 1):
+        if os.path.isfile(configObj.compilerObj): os.remove(configObj.compilerObj)
+        raise RuntimeError('Could not complete shared library check')
+        return 0
       if os.path.isfile(configObj.compilerObj): os.remove(configObj.compilerObj)
-      self.setCompilers.LIBS = oldFlags
-      self.setCompilers.release()
-      raise RuntimeError('Could not complete shared library check')
-      return 0
-    if os.path.isfile(configObj.compilerObj): os.remove(configObj.compilerObj)
-    os.rename(configObj.linkerObj, lib2Name)
-
-    self.setCompilers.LIBS = oldFlags
-    self.setCompilers.release()
+      os.rename(configObj.linkerObj, lib2Name)
 
     # Make an executable that dynamically loads and calls both libraries
     #   If the check returns true in the second library, the static data was shared
@@ -471,14 +458,12 @@ int checkInit(void) {
     exit(2);
   }
   '''
-    self.setCompilers.acquire()
-    oldLibs = self.setCompilers.LIBS
+    newLibs = self.setCompilers.LIBS
     if self.haveLib('dl'):
-      self.setCompilers.LIBS += ' -ldl'
-    if self.checkRun(defaultIncludes, body, defaultArg = defaultArg, executor = executor):
-      isShared = 1
-    self.setCompilers.LIBS = oldLibs
-    self.setCompilers.release()
+      newLibs += ' -ldl'
+    with self.setCompilers.mask('LIBS',newLibs):
+      if self.checkRun(defaultIncludes, body, defaultArg = defaultArg, executor = executor):
+        isShared = 1
     if os.path.isfile(lib1Name) and self.framework.doCleanup: os.remove(lib1Name)
     if os.path.isfile(lib2Name) and self.framework.doCleanup: os.remove(lib2Name)
     if isShared:

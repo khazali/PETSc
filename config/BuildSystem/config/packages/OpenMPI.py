@@ -18,11 +18,10 @@ class Configure(config.package.GNUPackage):
     if not hasattr(self.compilers, 'CXX'):
       raise RuntimeError('Error: OpenMPI requires C++ compiler. None specified')
     if hasattr(self.compilers, 'FC'):
-      self.pushLanguage('FC')
-      if not self.compilers.fortranIsF90:
-        args.append('--disable-mpi-f90')
-        args.append('FC=""')
-      self.popLanguage()
+      with self.maskLanguage('FC'):
+        if not self.compilers.fortranIsF90:
+          args.append('--disable-mpi-f90')
+          args.append('FC=""')
     else:
       args.append('--disable-mpi-f77')
       args.append('--disable-mpi-f90')

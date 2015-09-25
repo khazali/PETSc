@@ -24,15 +24,13 @@ class Configure(config.package.Package):
     includeDir     = os.path.join(self.installDir, 'include')
 
     args = []
-    self.framework.pushLanguage('C')
-    args.append('CC="'+self.framework.getCompiler()+'"')
-    args.append('CFLAGS="'+self.framework.getCompilerFlags()+'"')
-    self.framework.popLanguage()
+    with self.framework.maskLanguage('C'):
+      args.append('CC="'+self.framework.getCompiler()+'"')
+      args.append('CFLAGS="'+self.framework.getCompilerFlags()+'"')
     if hasattr(self.compilers, 'CXX'):
-      self.framework.pushLanguage('Cxx')
-      args.append('CXX="'+self.framework.getCompiler()+'"')
-      args.append('CXXFLAGS="'+self.framework.getCompilerFlags()+'"')
-      self.framework.popLanguage()
+      with self.framework.maskLanguage('Cxx'):
+        args.append('CXX="'+self.framework.getCompiler()+'"')
+        args.append('CXXFLAGS="'+self.framework.getCompilerFlags()+'"')
     args = '\n'.join(args)
 
     conffile = os.path.join(self.packageDir, self.package)

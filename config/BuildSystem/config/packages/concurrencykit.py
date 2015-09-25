@@ -21,18 +21,11 @@ class Configure(config.package.GNUPackage):
   def checkForCorrectness(self):
     include = '#include <ck_spinlock.h>'
     body    = 'ck_spinlock_t ck_spinlock; ck_spinlock_init(&ck_spinlock);ck_spinlock_lock(&ck_spinlock);ck_spinlock_unlock(&ck_spinlock);'
-    self.compilers.acquire()
-    oldFlags = self.compilers.CPPFLAGS
-    oldLibs  = self.compilers.LIBS
-    self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
-    self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
-    self.pushLanguage('C')
-    if not self.checkLink(include, body):
-      raise RuntimeError('Concurrencykit cannot be used')
-    self.popLanguage()
-    self.compilers.CPPFLAGS = oldFlags
-    self.compilers.LIBS = oldLibs
-    self.compilers.release()
+    newFlags = self.compilers.CPPFLAGS+' '+self.headers.toString(self.include)
+    newLibs  = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
+    with self.maskLanguage('C'), self.compilers.mask('LIBS',newLibs), self.compilers.mask('CPPFLAGS',newFlags):
+      if not self.checkLink(include, body):
+        raise RuntimeError('Concurrencykit cannot be used')
 
   def configureLibrary(self):
     '''Calls the regular package configureLibrary and then does an additional test needed'''

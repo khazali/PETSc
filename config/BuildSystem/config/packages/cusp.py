@@ -54,15 +54,11 @@ class Configure(config.package.Package):
       if self.argDB['known-cusp-version'] < self.CUSPVersion:
         raise RuntimeError('CUSP version error '+self.argDB['known-cusp-version']+' < '+self.CUSPVersion+': PETSC currently requires CUSP version '+self.CUSPVersionStr+' or higher')
     elif not self.argDB['with-batch']:
-      self.pushLanguage('CUDA')
-      self.compilers.acquire()
-      oldFlags = self.compilers.CUDAPPFLAGS
-      self.compilers.CUDAPPFLAGS += ' '+self.headers.toString(self.include)
-      if not self.checkRun('#include <cusp/version.h>\n#include <stdio.h>', 'if (CUSP_VERSION < ' + self.CUSPVersion +') {printf("Invalid version %d\\n", CUSP_VERSION); return 1;}'):
-        raise RuntimeError('CUSP version error: PETSC currently requires CUSP version '+self.CUSPVersionStr+' or higher.')
-      self.compilers.CUDAPPFLAGS = oldFlags
-      self.compilers.release()
-      self.popLanguage()
+      with self.maskLanguage('CUDA'):
+        newFlags = self.compilers.CUDAPPFLAGS+' '+self.headers.toString(self.include)
+        with self.compilers.mask('CUDAPPFLAGS',newFlags):
+          if not self.checkRun('#include <cusp/version.h>\n#include <stdio.h>', 'if (CUSP_VERSION < ' + self.CUSPVersion +') {printf("Invalid version %d\\n", CUSP_VERSION); return 1;}'):
+            raise RuntimeError('CUSP version error: PETSC currently requires CUSP version '+self.CUSPVersionStr+' or higher.')
     else:
       raise RuntimeError('Batch configure does not work with CUDA\nOverride all CUDA configuration with options, such as --known-cusp-version')
     return

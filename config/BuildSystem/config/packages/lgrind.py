@@ -17,11 +17,9 @@ class Configure(config.package.Package):
   def Install(self):
     import os
     try:
-      self.framework.pushLanguage('C')
-      output,err,ret = config.package.Package.executeShellCommand('cd '+os.path.join(self.packageDir,'source')+' && make clean && make CC=\''+self.framework.getCompiler()+'\'',timeout=2500,log = self.log)
-      self.framework.popLanguage()
+      with self.framework.maskLanguage('C'):
+        output,err,ret = config.package.Package.executeShellCommand('cd '+os.path.join(self.packageDir,'source')+' && make clean && make CC=\''+self.framework.getCompiler()+'\'',timeout=2500,log = self.log)
     except RuntimeError, e:
-      self.framework.popLanguage()
       if self.argDB['with-batch']:
         self.logPrintBox('Batch build that could not generate lgrind, you may not be able to build all documentation')
         return

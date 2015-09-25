@@ -43,16 +43,14 @@ class Configure(config.package.Package):
     configOpts.append('AR="'+self.setCompilers.AR+' '+self.setCompilers.AR_FLAGS+'"')
     configOpts.append('NETCDF="'+self.installDir+'"')
 
-    self.setCompilers.pushLanguage('C')
-    configOpts.append('CC="'+self.setCompilers.getCompiler()+'"')
-    configOpts.append('CCOPTIONS="'+self.setCompilers.getCompilerFlags()+' -DADDC_ "')
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage('C'):
+      configOpts.append('CC="'+self.setCompilers.getCompiler()+'"')
+      configOpts.append('CCOPTIONS="'+self.setCompilers.getCompilerFlags()+' -DADDC_ "')
 
     if hasattr(self.setCompilers, 'FC'):
-      self.setCompilers.pushLanguage('FC')
-      configOpts.append('FC="'+self.setCompilers.getCompiler()+'"')
-      configOpts.append('F77OPTIONS="'+self.setCompilers.getCompilerFlags()+'"')
-      self.setCompilers.popLanguage()
+      with self.setCompilers.maskLanguage('FC'):
+        configOpts.append('FC="'+self.setCompilers.getCompiler()+'"')
+        configOpts.append('F77OPTIONS="'+self.setCompilers.getCompilerFlags()+'"')
 
     self.log.write(repr(dir(self.setCompilers)))
 

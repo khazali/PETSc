@@ -37,9 +37,8 @@ class Configure(config.package.Package):
 
   def getSearchDirectories(self):
     import os
-    self.pushLanguage('CUDA')
-    petscNvcc = self.getCompiler()
-    self.popLanguage()
+    with self.maskLanguage('CUDA'):
+      petscNvcc = self.getCompiler()
     self.getExecutable(petscNvcc,getFullPath=1,resultName='systemNvcc')
     if hasattr(self,'systemNvcc'):
       nvccDir = os.path.dirname(self.systemNvcc)
@@ -63,15 +62,14 @@ class Configure(config.package.Package):
     if 'known-cuda-sizeof-void-p' in self.argDB:
       size = self.argDB['known-cuda-sizeof-void-p']
     elif not self.argDB['with-batch']:
-      self.pushLanguage('CUDA')
-      if self.checkRun(includes, body) and os.path.exists(filename):
-        f    = file(filename)
-        size = int(f.read())
-        f.close()
-        os.remove(filename)
-      else:
-        raise RuntimeError('Error checking sizeof(void*) with CUDA')
-      self.popLanguage()
+      with self.maskLanguage('CUDA'):
+        if self.checkRun(includes, body) and os.path.exists(filename):
+          f    = file(filename)
+          size = int(f.read())
+          f.close()
+          os.remove(filename)
+        else:
+          raise RuntimeError('Error checking sizeof(void*) with CUDA')
     else:
       raise RuntimeError('Batch configure does not work with CUDA\nOverride all CUDA configuration with options, such as --known-cuda-sizeof-void-p')
     if size != self.types.sizes['known-sizeof-void-p']:
@@ -88,20 +86,19 @@ class Configure(config.package.Package):
     if not self.scalartypes.precision in ['double', 'single']:
       raise RuntimeError('Must use either single or double precision with CUDA')
     else:
-      self.setCompilers.pushLanguage('CUDA')
-#Not setting -arch if with-cuda-arch is not specified uses nvcc default architecture
-      if 'with-cuda-arch' in self.argDB:
-        if not self.argDB['with-cuda-arch'] in ['compute_10', 'compute_11', 'compute_12', 'compute_13', 'compute_20', 'compute_21', 'compute_30', 'compute_35', 'compute_50', 'sm_10', 'sm_11', 'sm_12', 'sm_13', 'sm_20', 'sm_21', 'sm_30', 'sm_35', 'sm_50']:
-          raise RuntimeError('CUDA Error: specified CUDA architecture invalid.  Example of valid architecture: \'-with-cuda-arch=sm_20\'')
-        else:
-          self.cudaArch = '-arch='+ self.argDB['with-cuda-arch']
-      else :
-        # default to sm_20 because cuda 6.5 emits deprecation warning for
-        # earlier architectures
-        self.cudaArch = '-arch=sm_20'
-      if self.cudaArch:
-        self.setCompilers.addCompilerFlag(self.cudaArch)
-      self.setCompilers.popLanguage()
+      with self.setCompilers.maskLanguage('CUDA'):
+        #Not setting -arch if with-cuda-arch is not specified uses nvcc default architecture
+        if 'with-cuda-arch' in self.argDB:
+          if not self.argDB['with-cuda-arch'] in ['compute_10', 'compute_11', 'compute_12', 'compute_13', 'compute_20', 'compute_21', 'compute_30', 'compute_35', 'compute_50', 'sm_10', 'sm_11', 'sm_12', 'sm_13', 'sm_20', 'sm_21', 'sm_30', 'sm_35', 'sm_50']:
+            raise RuntimeError('CUDA Error: specified CUDA architecture invalid.  Example of valid architecture: \'-with-cuda-arch=sm_20\'')
+          else:
+            self.cudaArch = '-arch='+ self.argDB['with-cuda-arch']
+        else :
+          # default to sm_20 because cuda 6.5 emits deprecation warning for
+          # earlier architectures
+          self.cudaArch = '-arch=sm_20'
+        if self.cudaArch:
+          self.setCompilers.addCompilerFlag(self.cudaArch)
     self.checkSizeofVoidP()
     return
 
@@ -110,14 +107,9 @@ class Configure(config.package.Package):
       if self.argDB['known-cuda-version'] < self.CUDAVersion:
         raise RuntimeError('CUDA version error '+self.argDB['known-cuda-version']+' < '+self.CUDAVersion+': PETSC currently requires CUDA version '+self.CUDAVersionStr+' or higher when compiling with CUDA')
     elif not self.argDB['with-batch']:
-      self.pushLanguage('CUDA')
-      self.compilers.acquire()
-      oldFlags = self.compilers.CUDAPPFLAGS
-      if not self.checkRun('#include <cuda.h>\n#include <stdio.h>', 'if (CUDA_VERSION < ' + self.CUDAVersion +') {printf("Invalid version %d\\n", CUDA_VERSION); return 1;}'):
-        raise RuntimeError('CUDA version error: PETSC currently requires CUDA version '+self.CUDAVersionStr+' or higher - when compiling with CUDA')
-      self.compilers.CUDAPPFLAGS = oldFlags
-      self.compilers.release()
-      self.popLanguage()
+      with self.maskLanguage('CUDA'):
+        if not self.checkRun('#include <cuda.h>\n#include <stdio.h>', 'if (CUDA_VERSION < ' + self.CUDAVersion +') {printf("Invalid version %d\\n", CUDA_VERSION); return 1;}'):
+          raise RuntimeError('CUDA version error: PETSC currently requires CUDA version '+self.CUDAVersionStr+' or higher - when compiling with CUDA')
     else:
       raise RuntimeError('Batch configure does not work with CUDA\nOverride all CUDA configuration with options, such as --known-cuda-version')
     return
@@ -127,24 +119,22 @@ class Configure(config.package.Package):
       if not self.argDB['known-cuda-align-double']:
         raise RuntimeError('CUDA error: PETSC currently requires that CUDA double alignment match the C compiler')
     elif not self.argDB['with-batch']:
-      self.pushLanguage('CUDA')
-      (outputCUDA,statusCUDA) = self.outputRun('#include <stdio.h>\n','''
-        struct {
-          double a;
-          int    b;
-          } teststruct;
-        printf("%d",sizeof(teststruct));
-        return 0;''')
-      self.popLanguage()
-      self.pushLanguage('C')
-      (outputC,statusC) = self.outputRun('#include <stdio.h>\n','''
-        struct {
-          double a;
-          int    b;
-          } teststruct;
-        printf("%d",sizeof(teststruct));
-        return 0;''')
-      self.popLanguage()
+      with self.maskLanguage('CUDA'):
+        (outputCUDA,statusCUDA) = self.outputRun('#include <stdio.h>\n','''
+          struct {
+            double a;
+            int    b;
+            } teststruct;
+          printf("%d",sizeof(teststruct));
+          return 0;''')
+      with self.maskLanguage('C'):
+        (outputC,statusC) = self.outputRun('#include <stdio.h>\n','''
+          struct {
+            double a;
+            int    b;
+            } teststruct;
+          printf("%d",sizeof(teststruct));
+          return 0;''')
       if (statusC or statusCUDA):
         raise RuntimeError('Error compiling check for memory alignment in CUDA')
       if outputC != outputCUDA:

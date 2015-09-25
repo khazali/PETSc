@@ -49,14 +49,13 @@ class Configure(config.package.Package):
     g.write('TRIANGLELIB      = libtriangle.$(AR_LIB_SUFFIX)\n')
     g.write('SHLIB            = libtriangle\n')
 
-    self.setCompilers.pushLanguage('C')
-    cflags = self.setCompilers.getCompilerFlags().replace('-Wall','').replace('-Wshadow','')
-    cflags += ' '+self.headers.toString('.')
-    cflags += ' -fPIC'
+    with self.setCompilers.maskLanguage('C'):
+      cflags = self.setCompilers.getCompilerFlags().replace('-Wall','').replace('-Wshadow','')
+      cflags += ' '+self.headers.toString('.')
+      cflags += ' -fPIC'
 
-    g.write('CC             = '+self.setCompilers.getCompiler()+'\n')
-    g.write('CFLAGS         = '+cflags+'\n')
-    self.setCompilers.popLanguage()
+      g.write('CC             = '+self.setCompilers.getCompiler()+'\n')
+      g.write('CFLAGS         = '+cflags+'\n')
 
     if self.sharedLibraries.useShared:
       import config.setCompilers

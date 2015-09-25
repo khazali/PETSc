@@ -141,37 +141,36 @@ class Configure(config.package.Package):
 
     # This make.inc stuff is completely unnecessary for compiling TetGen. It is
     # just here for comparing different PETSC_ARCH's
-    self.setCompilers.pushLanguage('C++')
-    g = open(makeinc,'w')
-    g.write('SHELL            = '+self.programs.SHELL+'\n')
-    g.write('CP               = '+self.programs.cp+'\n')
-    g.write('RM               = '+self.programs.RM+'\n')
-    g.write('MKDIR            = '+self.programs.mkdir+'\n')
-    g.write('OMAKE            = '+self.make.make+' '+self.make.noprintdirflag+'\n')
+    with self.setCompilers.maskLanguage('Cxx'):
+      g = open(makeinc,'w')
+      g.write('SHELL            = '+self.programs.SHELL+'\n')
+      g.write('CP               = '+self.programs.cp+'\n')
+      g.write('RM               = '+self.programs.RM+'\n')
+      g.write('MKDIR            = '+self.programs.mkdir+'\n')
+      g.write('OMAKE            = '+self.make.make+' '+self.make.noprintdirflag+'\n')
 
-    g.write('CLINKER          = '+self.setCompilers.getLinker()+'\n')
-    g.write('AR               = '+self.setCompilers.AR+'\n')
-    g.write('ARFLAGS          = '+self.setCompilers.AR_FLAGS+'\n')
-    g.write('AR_LIB_SUFFIX    = '+self.setCompilers.AR_LIB_SUFFIX+'\n')
-    g.write('RANLIB           = '+self.setCompilers.RANLIB+'\n')
-    g.write('SL_LINKER_SUFFIX = '+self.setCompilers.sharedLibraryExt+'\n')
+      g.write('CLINKER          = '+self.setCompilers.getLinker()+'\n')
+      g.write('AR               = '+self.setCompilers.AR+'\n')
+      g.write('ARFLAGS          = '+self.setCompilers.AR_FLAGS+'\n')
+      g.write('AR_LIB_SUFFIX    = '+self.setCompilers.AR_LIB_SUFFIX+'\n')
+      g.write('RANLIB           = '+self.setCompilers.RANLIB+'\n')
+      g.write('SL_LINKER_SUFFIX = '+self.setCompilers.sharedLibraryExt+'\n')
 
-    g.write('TETGEN_ROOT      = '+self.packageDir+'\n')
-    g.write('PREFIX           = '+self.installDir+'\n')
-    g.write('LIBDIR           = '+libDir+'\n')
-    g.write('INSTALL_LIB_DIR  = '+libDir+'\n')
-    g.write('TETGENLIB        = $(LIBDIR)/libtet.$(AR_LIB_SUFFIX)\n')
-    g.write('SHLIB            = libtet\n')
+      g.write('TETGEN_ROOT      = '+self.packageDir+'\n')
+      g.write('PREFIX           = '+self.installDir+'\n')
+      g.write('LIBDIR           = '+libDir+'\n')
+      g.write('INSTALL_LIB_DIR  = '+libDir+'\n')
+      g.write('TETGENLIB        = $(LIBDIR)/libtet.$(AR_LIB_SUFFIX)\n')
+      g.write('SHLIB            = libtet\n')
 
-    cflags = self.setCompilers.getCompilerFlags().replace('-Wall','').replace('-Wshadow','')
-    cflags += ' '+self.headers.toString('.')
-    cflags += ' -fPIC'
-    predcflags = '-O0 -fPIC'    # Need to compile without optimization
+      cflags = self.setCompilers.getCompilerFlags().replace('-Wall','').replace('-Wshadow','')
+      cflags += ' '+self.headers.toString('.')
+      cflags += ' -fPIC'
+      predcflags = '-O0 -fPIC'    # Need to compile without optimization
 
-    g.write('CC             = '+self.setCompilers.getCompiler()+'\n')
-    g.write('CFLAGS         = '+cflags+'\n')
-    g.write('PREDCXXFLAGS   = '+predcflags+'\n')
-    self.setCompilers.popLanguage()
+      g.write('CC             = '+self.setCompilers.getCompiler()+'\n')
+      g.write('CFLAGS         = '+cflags+'\n')
+      g.write('PREDCXXFLAGS   = '+predcflags+'\n')
     g.close()
 
     # I'd rather have this than to completely fork TetGen

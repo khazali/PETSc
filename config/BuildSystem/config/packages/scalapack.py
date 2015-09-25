@@ -47,18 +47,16 @@ class Configure(config.package.Package):
     else:
       blah = 'NoChange'
     g.write('CDEFS        =-D'+blah+'\n')
-    self.setCompilers.pushLanguage('FC')
-    g.write('FC           = '+self.setCompilers.getCompiler()+'\n')
-    g.write('FCFLAGS      = '+self.setCompilers.getCompilerFlags().replace('-Wall','').replace('-Wshadow','').replace('-Mfree','')+'\n')
-    g.write('FCLOADER     = '+self.setCompilers.getLinker()+'\n')
-    g.write('FCLOADFLAGS  = '+self.setCompilers.getLinkerFlags()+'\n')
-    self.setCompilers.popLanguage()
-    self.setCompilers.pushLanguage('C')
-    g.write('CC           = '+self.setCompilers.getCompiler()+'\n')
-    g.write('CCFLAGS      = '+self.setCompilers.getCompilerFlags().replace('-Wall','').replace('-Wshadow','')+' $(MPIINC)\n')
-    g.write('CCLOADER     = '+self.setCompilers.getLinker()+'\n')
-    g.write('CCLOADFLAGS  = '+self.setCompilers.getLinkerFlags()+'\n')
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage('FC'):
+      g.write('FC           = '+self.setCompilers.getCompiler()+'\n')
+      g.write('FCFLAGS      = '+self.setCompilers.getCompilerFlags().replace('-Wall','').replace('-Wshadow','').replace('-Mfree','')+'\n')
+      g.write('FCLOADER     = '+self.setCompilers.getLinker()+'\n')
+      g.write('FCLOADFLAGS  = '+self.setCompilers.getLinkerFlags()+'\n')
+    with self.setCompilers.maskLanguage('C'):
+      g.write('CC           = '+self.setCompilers.getCompiler()+'\n')
+      g.write('CCFLAGS      = '+self.setCompilers.getCompilerFlags().replace('-Wall','').replace('-Wshadow','')+' $(MPIINC)\n')
+      g.write('CCLOADER     = '+self.setCompilers.getLinker()+'\n')
+      g.write('CCLOADFLAGS  = '+self.setCompilers.getLinkerFlags()+'\n')
     g.write('ARCH         = '+self.setCompilers.AR+'\n')
     g.write('ARCHFLAGS    = '+self.setCompilers.AR_FLAGS+'\n')
     g.write('RANLIB       = '+self.setCompilers.RANLIB+'\n')

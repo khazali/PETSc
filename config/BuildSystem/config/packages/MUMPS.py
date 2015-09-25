@@ -82,19 +82,17 @@ class Configure(config.package.Package):
     g.write('IORDERINGSF = $(ISCOTCH)\n')
 
     g.write('RM = /bin/rm -f\n')
-    self.setCompilers.pushLanguage('C')
-    g.write('CC = '+self.setCompilers.getCompiler()+'\n')
-    g.write('OPTC    = ' + self.setCompilers.getCompilerFlags().replace('-Wall','').replace('-Wshadow','') +'\n')
-    g.write('OUTC = -o \n')
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage('C'):
+      g.write('CC = '+self.setCompilers.getCompiler()+'\n')
+      g.write('OPTC    = ' + self.setCompilers.getCompilerFlags().replace('-Wall','').replace('-Wshadow','') +'\n')
+      g.write('OUTC = -o \n')
     if not self.compilers.fortranIsF90:
       raise RuntimeError('Installing MUMPS requires a F90 compiler')
-    self.setCompilers.pushLanguage('FC')
-    g.write('FC = '+self.setCompilers.getCompiler()+'\n')
-    g.write('FL = '+self.setCompilers.getCompiler()+'\n')
-    g.write('OPTF    = ' + self.setCompilers.getCompilerFlags().replace('-Wall','').replace('-Wshadow','').replace('-Mfree','') +'\n')
-    g.write('OUTF = -o \n')
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage('FC'):
+      g.write('FC = '+self.setCompilers.getCompiler()+'\n')
+      g.write('FL = '+self.setCompilers.getCompiler()+'\n')
+      g.write('OPTF    = ' + self.setCompilers.getCompilerFlags().replace('-Wall','').replace('-Wshadow','').replace('-Mfree','') +'\n')
+      g.write('OUTF = -o \n')
 
     # set fortran name mangling
     # this mangling information is for both BLAS and the Fortran compiler so cannot use the BlasLapack mangling flag

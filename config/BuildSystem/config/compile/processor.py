@@ -130,7 +130,6 @@ class Processor(logger.Logger):
     cmd.extend(sourceFiles)
     cmd.append(self.extraArguments)
     if hasattr(self, 'libraries') and hasattr(self, 'configLibraries'):
-      self.configLibraries.pushLanguage(self.language)
-      cmd.extend([self.configLibraries.getLibArgument(lib) for lib in self.libraries])
-      self.configLibraries.popLanguage()
+      with self.configLibraries.maskLanguage(self.language):
+        cmd.extend([self.configLibraries.getLibArgument(lib) for lib in self.libraries])
     return ' '.join(cmd)

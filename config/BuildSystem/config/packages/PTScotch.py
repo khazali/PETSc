@@ -40,35 +40,34 @@ class Configure(config.package.Package):
     g.write('AR	        = '+self.setCompilers.AR+'\n')
     g.write('ARFLAGS	= '+self.setCompilers.AR_FLAGS+'\n')
     g.write('CAT	= cat\n')
-    self.setCompilers.pushLanguage('C')
-    g.write('CCS        = '+self.setCompilers.getCompiler()+'\n')
-    g.write('CCP        = '+self.setCompilers.getCompiler()+'\n')
-    g.write('CCD        = '+self.setCompilers.getCompiler()+'\n')
+    with self.setCompilers.maskLanguage('C'):
+      g.write('CCS        = '+self.setCompilers.getCompiler()+'\n')
+      g.write('CCP        = '+self.setCompilers.getCompiler()+'\n')
+      g.write('CCD        = '+self.setCompilers.getCompiler()+'\n')
 
-    # Building cflags/ldflags
-    self.cflags = self.setCompilers.getCompilerFlags()+' '+self.headers.toString(self.mpi.include)
-    ldflags = self.libraries.toString(self.mpi.lib)
-    if self.libraries.add('-lz','gzwrite'):
-      self.cflags = self.cflags + ' -DCOMMON_FILE_COMPRESS_GZ'
-      ldflags += ' -lz'
-    # OSX does not have pthread_barrierattr_t - so check for that
-    if self.libraries.add('-lpthread','pthread_barrierattr_t'):
-      self.cflags = self.cflags + ' -DCOMMON_PTHREAD'
-      ldflags += ' -lpthread'
-    if self.libraries.add('-lm','sin'): ldflags += ' -lm'
-    if self.libraries.add('-lrt','timer_create'): ldflags += ' -lrt'
-    self.cflags = self.cflags + ' -DCOMMON_RANDOM_FIXED_SEED'
-    # do not use -DSCOTCH_PTHREAD because requires MPI built for threads.
-    self.cflags = self.cflags + ' -DSCOTCH_RENAME -Drestrict="" '
-    # this is needed on the Mac, because common2.c includes common.h which DOES NOT include mpi.h because
-    # SCOTCH_PTSCOTCH is NOT defined above Mac does not know what clock_gettime() is!
-    if self.setCompilers.isDarwin(self.log):
-      self.cflags = self.cflags + ' -DCOMMON_TIMING_OLD'
-    if self.indexTypes.integerSize == 64:
-      self.cflags = self.cflags + ' -DINTSIZE64'
-    else:
-      self.cflags = self.cflags + ' -DINTSIZE32'
-    self.setCompilers.popLanguage()
+      # Building cflags/ldflags
+      self.cflags = self.setCompilers.getCompilerFlags()+' '+self.headers.toString(self.mpi.include)
+      ldflags = self.libraries.toString(self.mpi.lib)
+      if self.libraries.add('-lz','gzwrite'):
+        self.cflags = self.cflags + ' -DCOMMON_FILE_COMPRESS_GZ'
+        ldflags += ' -lz'
+      # OSX does not have pthread_barrierattr_t - so check for that
+      if self.libraries.add('-lpthread','pthread_barrierattr_t'):
+        self.cflags = self.cflags + ' -DCOMMON_PTHREAD'
+        ldflags += ' -lpthread'
+      if self.libraries.add('-lm','sin'): ldflags += ' -lm'
+      if self.libraries.add('-lrt','timer_create'): ldflags += ' -lrt'
+      self.cflags = self.cflags + ' -DCOMMON_RANDOM_FIXED_SEED'
+      # do not use -DSCOTCH_PTHREAD because requires MPI built for threads.
+      self.cflags = self.cflags + ' -DSCOTCH_RENAME -Drestrict="" '
+      # this is needed on the Mac, because common2.c includes common.h which DOES NOT include mpi.h because
+      # SCOTCH_PTSCOTCH is NOT defined above Mac does not know what clock_gettime() is!
+      if self.setCompilers.isDarwin(self.log):
+        self.cflags = self.cflags + ' -DCOMMON_TIMING_OLD'
+      if self.indexTypes.integerSize == 64:
+        self.cflags = self.cflags + ' -DINTSIZE64'
+      else:
+        self.cflags = self.cflags + ' -DINTSIZE32'
 
     g.write('CFLAGS	= '+self.cflags+'\n')
     g.write('LDFLAGS	= '+ldflags+'\n')

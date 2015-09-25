@@ -37,10 +37,9 @@ class Configure(config.package.Package):
 
     mkfile = 'SuiteSparse_config/SuiteSparse_config.mk'
     g = open(os.path.join(self.packageDir, mkfile), 'w')
-    self.setCompilers.pushLanguage('C')
-    g.write('CC           = '+self.setCompilers.getCompiler()+'\n')
-    g.write('CF           = '+self.setCompilers.getCompilerFlags()+'\n')
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage('C'):
+      g.write('CC           = '+self.setCompilers.getCompiler()+'\n')
+      g.write('CF           = '+self.setCompilers.getCompilerFlags()+'\n')
     g.write('MAKE         ='+self.make.make+'\n')
     g.write('RANLIB       = '+self.setCompilers.RANLIB+'\n')
     g.write('ARCHIVE      = '+self.setCompilers.AR+' '+self.setCompilers.AR_FLAGS+'\n')
@@ -63,9 +62,8 @@ class Configure(config.package.Package):
       if not self.framework.clArgDB.has_key('with-cuda') or not self.argDB['with-cuda']:
         raise RuntimeError('Run with --with-cuda to use allow SuiteSparse to compile using CUDA')
       # code taken from cuda.py
-      self.pushLanguage('CUDA')
-      petscNvcc = self.getCompiler()
-      self.popLanguage()
+      with self.maskLanguage('CUDA'):
+        petscNvcc = self.getCompiler()
       self.getExecutable(petscNvcc,getFullPath=1,resultName='systemNvcc')
       if hasattr(self,'systemNvcc'):
         nvccDir = os.path.dirname(self.systemNvcc)

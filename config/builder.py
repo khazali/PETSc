@@ -1412,26 +1412,25 @@ class PETScMaker(script.Script):
    if not len(source):
      self.logPrint('Nothing to build', debugSection = self.debugSection)
      return
-   self.configInfo.setCompilers.pushLanguage(language)
-   packageIncludes, packageLibs = self.getPackageInfo()
-   compiler = self.configInfo.setCompilers.getCompiler()
-   objects  = [self.sourceManager.getObjectName(s, objDir) for s in source]
-   includes = ['-I'+inc for inc in [os.path.join(self.petscDir, self.petscArch, 'include'), os.path.join(self.petscDir, 'include')]]
-   flags    = []
-   flags.append(self.configInfo.setCompilers.getCompilerFlags())                        # Add PCC_FLAGS
-   flags.extend([self.configInfo.setCompilers.CPPFLAGS]) # Add CPP_FLAGS
-   if self.configInfo.compilers.generateDependencies[language]:
-     flags.append(self.configInfo.compilers.dependenciesGenerationFlag[language])
-   cmd      = ' '.join([compiler]+['-c']+includes+[packageIncludes]+flags+source)
-   self.logWrite(cmd+'\n', debugSection = self.debugSection, forceScroll = True)
-   if not self.dryRun:
-     (output, error, status) = self.executeShellCommand(cmd, checkCommand = noCheckCommand, log=self.log)
-     if status:
-       self.operationFailed = True
-       [os.remove(o) for o in objects if os.path.isfile(o)]
-       self.logPrint('ERROR IN %s COMPILE ******************************' % language, debugSection='screen')
-       self.logPrint(output+error, debugSection='screen')
-   self.configInfo.setCompilers.popLanguage()
+   with self.configInfo.setCompilers.maskLanguage(language):
+     packageIncludes, packageLibs = self.getPackageInfo()
+     compiler = self.configInfo.setCompilers.getCompiler()
+     objects  = [self.sourceManager.getObjectName(s, objDir) for s in source]
+     includes = ['-I'+inc for inc in [os.path.join(self.petscDir, self.petscArch, 'include'), os.path.join(self.petscDir, 'include')]]
+     flags    = []
+     flags.append(self.configInfo.setCompilers.getCompilerFlags())                        # Add PCC_FLAGS
+     flags.extend([self.configInfo.setCompilers.CPPFLAGS]) # Add CPP_FLAGS
+     if self.configInfo.compilers.generateDependencies[language]:
+       flags.append(self.configInfo.compilers.dependenciesGenerationFlag[language])
+     cmd      = ' '.join([compiler]+['-c']+includes+[packageIncludes]+flags+source)
+     self.logWrite(cmd+'\n', debugSection = self.debugSection, forceScroll = True)
+     if not self.dryRun:
+       (output, error, status) = self.executeShellCommand(cmd, checkCommand = noCheckCommand, log=self.log)
+       if status:
+         self.operationFailed = True
+         [os.remove(o) for o in objects if os.path.isfile(o)]
+         self.logPrint('ERROR IN %s COMPILE ******************************' % language, debugSection='screen')
+         self.logPrint(output+error, debugSection='screen')
    objects = self.storeObjects(objects)
    deps    = [os.path.splitext(o)[0]+'.d' for o in objects if os.path.isfile(os.path.splitext(os.path.basename(o))[0]+'.d')]
    self.storeObjects(deps)
@@ -1468,22 +1467,21 @@ class PETScMaker(script.Script):
    if not len(source):
      self.logPrint('Nothing to build', debugSection = self.debugSection)
      return
-   self.configInfo.setCompilers.pushLanguage(language)
-   packageIncludes, packageLibs = self.getPackageInfo()
-   compiler = self.configInfo.setCompilers.getCompiler()
-   objects  = [self.sourceManager.getObjectName(s, objDir) for s in source]
-   includes = ['-I'+inc for inc in [os.path.join(self.petscDir, self.petscArch, 'include'), os.path.join(self.petscDir, 'include')]]
-   flags    = []
-   flags.append(self.configInfo.setCompilers.getCompilerFlags())                        # Add PCC_FLAGS
-   flags.extend([self.configInfo.setCompilers.CPPFLAGS]) # Add CPP_FLAGS
-   if self.configInfo.compilers.generateDependencies[language]:
-     flags.append(self.configInfo.compilers.dependenciesGenerationFlag[language])
-   cmd      = ' '.join([compiler]+['-c']+includes+[packageIncludes]+flags+source)
-   if not self.dryRun:
-     pipe = self.runShellCommandParallel(cmd)
-   else:
-     pipe = None
-   self.configInfo.setCompilers.popLanguage()
+   with self.configInfo.setCompilers.maskLanguage(language):
+     packageIncludes, packageLibs = self.getPackageInfo()
+     compiler = self.configInfo.setCompilers.getCompiler()
+     objects  = [self.sourceManager.getObjectName(s, objDir) for s in source]
+     includes = ['-I'+inc for inc in [os.path.join(self.petscDir, self.petscArch, 'include'), os.path.join(self.petscDir, 'include')]]
+     flags    = []
+     flags.append(self.configInfo.setCompilers.getCompilerFlags())                        # Add PCC_FLAGS
+     flags.extend([self.configInfo.setCompilers.CPPFLAGS]) # Add CPP_FLAGS
+     if self.configInfo.compilers.generateDependencies[language]:
+       flags.append(self.configInfo.compilers.dependenciesGenerationFlag[language])
+     cmd      = ' '.join([compiler]+['-c']+includes+[packageIncludes]+flags+source)
+     if not self.dryRun:
+       pipe = self.runShellCommandParallel(cmd)
+     else:
+       pipe = None
 
    def store():
      objs = self.storeObjects(objects)
@@ -1553,7 +1551,7 @@ class PETScMaker(script.Script):
 
  def linkShared(self, sharedLib, libDir, tmpDir):
    osName = sys.platform
-   self.logPrint('Making shared libraries for OS %s using language %s' % (osName, self.configInfo.setCompilers.language[-1]))
+   self.logPrint('Making shared libraries for OS %s using language %s' % (osName, self.configInfo.setCompilers.language))
    # PCC_LINKER PCC_LINKER_FLAGS
    linker      = self.configInfo.setCompilers.getSharedLinker()
    linkerFlags = self.configInfo.setCompilers.getLinkerFlags()
@@ -1635,26 +1633,25 @@ class PETScMaker(script.Script):
    '''${CLINKER} -o $@ $^ ${PETSC_LIB}
       ${DSYMUTIL} $@'''
    self.logWrite('Linking object '+str(objects)+' into '+executable+'\n', debugSection = self.debugSection, forceScroll = True)
-   self.configInfo.compilers.pushLanguage(language)
-   packageIncludes, packageLibs = self.getPackageInfo()
-   if self.argDB.get('with-single-library') == 0:
-       libpetsc = ' -lpetscts -lpetscsnes -lpetscksp -lpetscdm -lpetscmat -lpetscvec -lpetscsys '
-   else:
-       libpetsc = ' -lpetsc '
-   cmd = self.configInfo.compilers.getFullLinkerCmd(' '.join(objects)+' -L'+self.petscLibDir+libpetsc+packageLibs+' -L/usr/local/cuda/lib', executable)
-   if not self.dryRun:
-     (output, error, status) = self.executeShellCommand(cmd, checkCommand = noCheckCommand, log=self.log)
-     if status:
-       self.logPrint("ERROR IN LINK ******************************", debugSection='screen')
-       self.logPrint(output+error, debugSection='screen')
-     # TODO: Move dsymutil stuff from PETSc.options.debuggers to config.compilers
-     if hasattr(self.configInfo.debuggers, 'dsymutil'):
-       (output, error, status) = self.executeShellCommand(self.configInfo.debuggers.dsymutil+' '+executable, checkCommand = noCheckCommand, log=self.log)
+   with self.configInfo.compilers.maskLanguage(language):
+     packageIncludes, packageLibs = self.getPackageInfo()
+     if self.argDB.get('with-single-library') == 0:
+         libpetsc = ' -lpetscts -lpetscsnes -lpetscksp -lpetscdm -lpetscmat -lpetscvec -lpetscsys '
+     else:
+         libpetsc = ' -lpetsc '
+     cmd = self.configInfo.compilers.getFullLinkerCmd(' '.join(objects)+' -L'+self.petscLibDir+libpetsc+packageLibs+' -L/usr/local/cuda/lib', executable)
+     if not self.dryRun:
+       (output, error, status) = self.executeShellCommand(cmd, checkCommand = noCheckCommand, log=self.log)
        if status:
-         self.operationFailed = True
          self.logPrint("ERROR IN LINK ******************************", debugSection='screen')
          self.logPrint(output+error, debugSection='screen')
-   self.configInfo.compilers.popLanguage()
+       # TODO: Move dsymutil stuff from PETSc.options.debuggers to config.compilers
+       if hasattr(self.configInfo.debuggers, 'dsymutil'):
+         (output, error, status) = self.executeShellCommand(self.configInfo.debuggers.dsymutil+' '+executable, checkCommand = noCheckCommand, log=self.log)
+         if status:
+           self.operationFailed = True
+           self.logPrint("ERROR IN LINK ******************************", debugSection='screen')
+           self.logPrint(output+error, debugSection='screen')
    return [executable]
 
  def buildDir(self, dirname, files, objDir):

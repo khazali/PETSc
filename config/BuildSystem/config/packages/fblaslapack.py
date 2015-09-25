@@ -22,10 +22,9 @@ class Configure(config.package.Package):
     if not hasattr(self.compilers, 'FC'):
       raise RuntimeError('Cannot request fblaslapack without Fortran compiler, use --download-f2cblaslapack intead')
 
-    self.setCompilers.pushLanguage('FC')
-    if config.setCompilers.Configure.isNAG(self.setCompilers.getLinker(), self.log):
-      raise RuntimeError('Cannot compile fortran blaslapack with NAG compiler')
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage('FC'):
+      if config.setCompilers.Configure.isNAG(self.setCompilers.getLinker(), self.log):
+        raise RuntimeError('Cannot compile fortran blaslapack with NAG compiler')
 
     libdir = self.libDir
     confdir = self.confDir
@@ -39,14 +38,12 @@ class Configure(config.package.Package):
         cc = self.compilers.CC
         line = 'CC = '+cc+'\n'
       if line.startswith('COPTFLAGS '):
-        self.setCompilers.pushLanguage('C')
-        line = 'COPTFLAGS  = '+self.setCompilers.getCompilerFlags()
-        noopt = self.checkNoOptFlag()
-        self.setCompilers.popLanguage()
+        with self.setCompilers.maskLanguage('C'):
+          line = 'COPTFLAGS  = '+self.setCompilers.getCompilerFlags()
+          noopt = self.checkNoOptFlag()
       if line.startswith('CNOOPT'):
-        self.setCompilers.pushLanguage('C')
-        line = 'CNOOPT = '+noopt+ ' '+self.getSharedFlag(self.setCompilers.getCompilerFlags())+' '+self.getPointerSizeFlag(self.setCompilers.getCompilerFlags())+' '+self.getWindowsNonOptFlags(self.setCompilers.getCompilerFlags())
-        self.setCompilers.popLanguage()
+        with self.setCompilers.maskLanguage('C'):
+          line = 'CNOOPT = '+noopt+ ' '+self.getSharedFlag(self.setCompilers.getCompilerFlags())+' '+self.getPointerSizeFlag(self.setCompilers.getCompilerFlags())+' '+self.getWindowsNonOptFlags(self.setCompilers.getCompilerFlags())
       if line.startswith('FC  '):
         fc = self.compilers.FC
         if fc.find('f90') >= 0 or fc.find('f95') >=0:
@@ -57,14 +54,12 @@ class Configure(config.package.Package):
             self.log.write('Using IBM f90 compiler, switching to xlf for compiling BLAS/LAPACK\n')
         line = 'FC = '+fc+'\n'
       if line.startswith('FOPTFLAGS '):
-        self.setCompilers.pushLanguage('FC')
-        line = 'FOPTFLAGS  = '+self.setCompilers.getCompilerFlags().replace('-Mfree','')+'\n'
-        noopt = self.checkNoOptFlag()
-        self.setCompilers.popLanguage()
+        with self.setCompilers.maskLanguage('FC'):
+          line = 'FOPTFLAGS  = '+self.setCompilers.getCompilerFlags().replace('-Mfree','')+'\n'
+          noopt = self.checkNoOptFlag()
       if line.startswith('FNOOPT'):
-        self.setCompilers.pushLanguage('FC')
-        line = 'FNOOPT = '+noopt+' '+self.getSharedFlag(self.setCompilers.getCompilerFlags())+' '+self.getPointerSizeFlag(self.setCompilers.getCompilerFlags())+' '+self.getWindowsNonOptFlags(self.setCompilers.getCompilerFlags())+'\n'
-        self.setCompilers.popLanguage()
+        with self.setCompilers.maskLanguage('FC'):
+          line = 'FNOOPT = '+noopt+' '+self.getSharedFlag(self.setCompilers.getCompilerFlags())+' '+self.getPointerSizeFlag(self.setCompilers.getCompilerFlags())+' '+self.getWindowsNonOptFlags(self.setCompilers.getCompilerFlags())+'\n'
       if line.startswith('AR  '):
         line = 'AR      = '+self.setCompilers.AR+'\n'
       if line.startswith('AR_FLAGS  '):

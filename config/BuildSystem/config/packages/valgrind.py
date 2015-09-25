@@ -33,26 +33,23 @@ class Configure(config.package.Package):
     found = 0
     if self.argDB['with-'+self.package]:
       if self.cxx:
-        self.libraries.pushLanguage('C++')
+        lang = 'C++'
       else:
-        self.libraries.pushLanguage(self.defaultLanguage)
-      try:
-        self.executeTest(self.configureLibrary)
-        self.compilers.acquire()
-        oldFlags = self.compilers.CPPFLAGS
-        self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
-        if self.checkCompile('#include <valgrind/valgrind.h>', 'RUNNING_ON_VALGRIND;\n'):
-          found = 1
-        self.compilers.CPPFLAGS = oldFlags
-        self.compilers.release()
-      except:
-        pass
+        lang = self.defaultLanguage
+      with self.libraries.maskLanguage(lang):
+        try:
+          self.executeTest(self.configureLibrary)
+          newFlags = self.compilers.CPPFLAGS+' '+self.headers.toString(self.include)
+          with self.compilers.mask('CPPFLAGS',newFlags):
+            if self.checkCompile('#include <valgrind/valgrind.h>', 'RUNNING_ON_VALGRIND;\n'):
+              found = 1
+        except:
+          pass
       if not found and self.setCompilers.isLinux(self.log):
         self.logPrintBox('It appears you do not have valgrind installed on your system.\n\
 We HIGHLY recommend you install it from www.valgrind.org\n\
 Or install valgrind-devel or equivalent using your package manager.\n\
 Then rerun ./configure')
-      self.libraries.popLanguage()
     else:
       self.executeTest(self.alternateConfigureLibrary)
     return

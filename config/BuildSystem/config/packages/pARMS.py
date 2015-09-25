@@ -28,14 +28,13 @@ class Configure(config.package.Package):
     g.write('.SUFFIXES: .c .o .f .F\n')
 
     # C compiler
-    self.setCompilers.pushLanguage('C')
-    g.write('CC         = '+self.setCompilers.getCompiler()+'\n')
-    g.write('CFLAGS     = '+self.setCompilers.getCompilerFlags()+'-DUSE_MPI -DREAL=double -DHAS_BLAS ')
-    if self.scalartypes.scalartype == 'complex':
-      g.write('-DDBL_CMPLX\n')
-    else:
-      g.write('-DDBL\n')
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage('C'):
+      g.write('CC         = '+self.setCompilers.getCompiler()+'\n')
+      g.write('CFLAGS     = '+self.setCompilers.getCompilerFlags()+'-DUSE_MPI -DREAL=double -DHAS_BLAS ')
+      if self.scalartypes.scalartype == 'complex':
+        g.write('-DDBL_CMPLX\n')
+      else:
+        g.write('-DDBL\n')
 
     # BLAS mangling
     if self.blasLapack.mangling == 'underscore':

@@ -32,12 +32,11 @@ class Configure(config.package.Package):
     g.write('ARCH         = '+self.setCompilers.AR+'\n')
     g.write('ARCHFLAGS    = '+self.setCompilers.AR_FLAGS+'\n')
     g.write('RANLIB       = '+self.setCompilers.RANLIB+'\n')
-    self.setCompilers.pushLanguage('C')
-    g.write('CC           = '+self.setCompilers.getCompiler()+'\n')
-    g.write('CFLAGS       = '+self.setCompilers.getCompilerFlags()+'-D_OPENMP\n')
-    g.write('LOADER       = '+self.setCompilers.getLinker()+'\n')
-    g.write('LOADOPTS     = \n')
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage('C'):
+      g.write('CC           = '+self.setCompilers.getCompiler()+'\n')
+      g.write('CFLAGS       = '+self.setCompilers.getCompilerFlags()+'-D_OPENMP\n')
+      g.write('LOADER       = '+self.setCompilers.getLinker()+'\n')
+      g.write('LOADOPTS     = \n')
     # set blas/lapack name mangling
     if self.blasLapack.mangling == 'underscore':
       g.write('CDEFS   = -DAdd_')

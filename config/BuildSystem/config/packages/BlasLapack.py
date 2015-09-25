@@ -72,9 +72,8 @@ class Configure(config.package.Package):
       if routine=='ddot':
         prototype = 'double __stdcall DDOT(int*,double*,int*,double*,int*);'
         call      = 'DDOT(0,0,0,0,0);'
-    self.libraries.saveLog()
-    found   = self.libraries.check(blasLibrary, routine, otherLibs = otherLibs, fortranMangle = fortranMangle, prototype = prototype, call = call)
-    self.logWrite(self.libraries.restoreLog())
+    with self.libraries.maskLog(self):
+      found = self.libraries.check(blasLibrary, routine, otherLibs = otherLibs, fortranMangle = fortranMangle, prototype = prototype, call = call)
     return found
 
   def checkLapack(self, lapackLibrary, otherLibs, fortranMangle, routinesIn = ['getrs', 'geev']):
@@ -90,11 +89,10 @@ class Configure(config.package.Package):
                       'void __stdcall DGEEV(char*,int,char*,int,int*,double*,int*,double*,double*,double*,int*,double*,int*,double*,int*,int*);']
         calls      = ['DGETRS(0,0,0,0,0,0,0,0,0,0);',
                       'DGEEV(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);']
-    self.libraries.saveLog()
-    for routine, prototype, call in zip(routines, prototypes, calls):
-      found = found and self.libraries.check(lapackLibrary, routine, otherLibs = otherLibs, fortranMangle = fortranMangle, prototype = prototype, call = call)
-      if not found: break
-    self.logWrite(self.libraries.restoreLog())
+    with self.libraries.maskLog(self):
+      for routine, prototype, call in zip(routines, prototypes, calls):
+        found = found and self.libraries.check(lapackLibrary, routine, otherLibs = otherLibs, fortranMangle = fortranMangle, prototype = prototype, call = call)
+        if not found: break
     return found
 
   def checkLib(self, lapackLibrary, blasLibrary = None):
@@ -395,27 +393,23 @@ class Configure(config.package.Package):
 
   def checkESSL(self):
     '''Check for the IBM ESSL library'''
-    self.libraries.saveLog()
-    if self.libraries.check(self.lapackLibrary, 'iessl'):
-      self.addDefine('HAVE_ESSL',1)
-    self.logWrite(self.libraries.restoreLog())
+    with self.libraries.maskLog(self):
+      if self.libraries.check(self.lapackLibrary, 'iessl'):
+        self.addDefine('HAVE_ESSL',1)
     return
 
   def checkMKL(self):
     '''Check for Intel MKL library'''
-    self.libraries.saveLog()
-    if self.libraries.check(self.lapackLibrary, 'mkl_set_num_threads'):
-      self.mkl = 1
-    self.logWrite(self.libraries.restoreLog())
+    with self.libraries.maskLog(self):
+      if self.libraries.check(self.lapackLibrary, 'mkl_set_num_threads'):
+        self.mkl = 1
     return
 
   def checkPESSL(self):
     '''Check for the IBM PESSL library - and error out - if used instead of ESSL'''
-    self.libraries.saveLog()
-    if self.libraries.check(self.lapackLibrary, 'ipessl'):
-      self.logWrite(self.libraries.restoreLog())
-      raise RuntimeError('Cannot use PESSL instead of ESSL!')
-    self.logWrite(self.libraries.restoreLog())
+    with self.libraries.maskLog(self):
+      if self.libraries.check(self.lapackLibrary, 'ipessl'):
+        raise RuntimeError('Cannot use PESSL instead of ESSL!')
     return
 
   def mangleBlas(self, baseName):
@@ -440,13 +434,12 @@ class Configure(config.package.Package):
     if self.foundLapack:
       mangleFunc = hasattr(self.compilers, 'FC') and not self.f2c
     routines = ['trsen','gerfs','gges','tgsen','gesvd','getrf','getrs','geev','gelss','syev','syevx','sygv','sygvx','potrf','potrs','stebz','pttrf','pttrs','stein','orgqr','geqrf','gesv','hseqr','steqr']
-    self.libraries.saveLog()
-    found, missing = self.libraries.checkClassify(self.lapackLibrary, map(self.mangleBlas,routines), otherLibs = self.getOtherLibs(), fortranMangle = mangleFunc)
-    for baseName in routines:
-      if self.mangleBlas(baseName) in missing:
-        self.missingRoutines.append(baseName)
-        self.addDefine('MISSING_LAPACK_'+baseName.upper(), 1)
-    self.logWrite(self.libraries.restoreLog())
+    with self.libraries.maskLog(self):
+      found, missing = self.libraries.checkClassify(self.lapackLibrary, map(self.mangleBlas,routines), otherLibs = self.getOtherLibs(), fortranMangle = mangleFunc)
+      for baseName in routines:
+        if self.mangleBlas(baseName) in missing:
+          self.missingRoutines.append(baseName)
+          self.addDefine('MISSING_LAPACK_'+baseName.upper(), 1)
 
   def checklsame(self):
     ''' Do the BLAS/LAPACK libraries have a valid lsame() function with correction binding. Lion and xcode 4.2 do not'''
@@ -456,23 +449,21 @@ class Configure(config.package.Package):
         routine = routine + '_'
     else:
       routine = self.compilers.mangleFortranFunction(routine)
-    self.libraries.saveLog()
-    if not self.libraries.check(self.dlib,routine,fortranMangle = 0):
-      self.addDefine('MISSING_LAPACK_'+routine, 1)
-    self.logWrite(self.libraries.restoreLog())
+    with self.libraries.maskLog(self):
+      if not self.libraries.check(self.dlib,routine,fortranMangle = 0):
+        self.addDefine('MISSING_LAPACK_'+routine, 1)
 
   def checkForRoutine(self,routine):
     ''' used by other packages to see if a BLAS routine is available
         This is not really correct because other packages do not (usually) know about f2cblasLapack'''
-    self.libraries.saveLog()
-    if self.f2c:
-      if self.mangling == 'underscore':
-        ret = self.libraries.check(self.dlib,routine+'_')
+    with self.libraries.maskLog(self):
+      if self.f2c:
+        if self.mangling == 'underscore':
+          ret = self.libraries.check(self.dlib,routine+'_')
+        else:
+          ret = self.libraries.check(self.dlib,routine)
       else:
-        ret = self.libraries.check(self.dlib,routine)
-    else:
-      ret = self.libraries.check(self.dlib,routine,fortranMangle = hasattr(self.compilers, 'FC'))
-    self.logWrite(self.libraries.restoreLog())
+        ret = self.libraries.check(self.dlib,routine,fortranMangle = hasattr(self.compilers, 'FC'))
     return ret
 
   def check64BitBLASIndices(self):
@@ -492,24 +483,20 @@ class Configure(config.package.Package):
       return None
     else:
       result = None
-      self.pushLanguage('C')
-      filename = 'runtimetestoutput'
-      body = '''FILE *output = fopen("'''+filename+'''","w");\n'''+body
-      if lib:
-        if not isinstance(lib, list): lib = [lib]
-        self.compilers.acquire()
-        oldLibs  = self.compilers.LIBS
-        self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
-      if self.checkRun(includes, body) and os.path.exists(filename):
-        f    = file(filename)
-        out  = f.read()
-        f.close()
-        os.remove(filename)
-        result = out.split("=")[1].split("'")[0]
-      self.popLanguage()
-      if lib:
-        self.compilers.LIBS = oldLibs
-        self.compilers.release()
+      with self.maskLanguage('C'):
+        filename = 'runtimetestoutput'
+        body = '''FILE *output = fopen("'''+filename+'''","w");\n'''+body
+        newLibs = self.compilers.LIBS
+        if lib:
+          if not isinstance(lib, list): lib = [lib]
+          newLibs = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
+        with self.compilers.mask('LIBS',newLibs):
+          if self.checkRun(includes, body) and os.path.exists(filename):
+            f    = file(filename)
+            out  = f.read()
+            f.close()
+            os.remove(filename)
+            result = out.split("=")[1].split("'")[0]
       return result
 
   def checksdotreturnsdouble(self):

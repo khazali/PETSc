@@ -45,13 +45,11 @@ class Configure(config.package.Package):
     g.write('#OPT='+'\n')
     g.write('#PRECISION='+'\n')
     g.write('#PROFILE='+'\n')
-    self.framework.pushLanguage('Cxx')
-    g.write('CXX='+self.framework.getCompiler()+'\n')
-    g.write('MPICXX='+self.framework.getCompiler()+'\n')
-    self.framework.popLanguage()
-    self.framework.pushLanguage('FC')
-    g.write('FC='+self.framework.getCompiler()+'\n')
-    self.framework.popLanguage()
+    with self.framework.maskLanguage('Cxx'):
+      g.write('CXX='+self.framework.getCompiler()+'\n')
+      g.write('MPICXX='+self.framework.getCompiler()+'\n')
+    with self.framework.maskLanguage('FC'):
+      g.write('FC='+self.framework.getCompiler()+'\n')
     g.write('#OBJMODEL='+'\n')
     g.write('#XTRACONFIG='+'\n')
     g.write('#USE_64='+'\n')

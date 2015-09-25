@@ -116,35 +116,32 @@ void (*signal())();
 
   def checkCxxComplex(self):
     '''Check for complex numbers in namespace std'''
-    self.pushLanguage('C++')
-    includes = '#include <complex>\n'
-    body     = 'std::complex<double> x;\n'
-    if self.checkLink(includes, body):
-      self.addDefine('HAVE_CXX_COMPLEX', 1)
-      self.cxx_complex = 1
-    self.popLanguage()
+    with self.maskLanguage('Cxx'):
+      includes = '#include <complex>\n'
+      body     = 'std::complex<double> x;\n'
+      if self.checkLink(includes, body):
+        self.addDefine('HAVE_CXX_COMPLEX', 1)
+        self.cxx_complex = 1
     return
 
   def checkFortranStar(self):
     '''Checks whether integer*4, etc. is handled in Fortran, and if not defines MISSING_FORTRANSTAR'''
-    self.pushLanguage('FC')
-    body = '        integer*4 i\n        real*8 d\n'
-    if not self.checkCompile('', body):
-      self.addDefine('MISSING_FORTRANSTAR', 1)
-    self.popLanguage()
+    with self.maskLanguage('FC'):
+      body = '        integer*4 i\n        real*8 d\n'
+      if not self.checkCompile('', body):
+        self.addDefine('MISSING_FORTRANSTAR', 1)
     return
 
 # reverse of the above - but more standard thing to do for F90 compilers
   def checkFortranKind(self):
     '''Checks whether selected_int_kind etc work USE_FORTRANKIND'''
-    self.pushLanguage('FC')
-    body = '''
-        integer(kind=selected_int_kind(10)) i
-        real(kind=selected_real_kind(10)) d
-'''
-    if self.checkCompile('', body):
-      self.addDefine('USE_FORTRANKIND', 1)
-    self.popLanguage()
+    with self.maskLanguage('FC'):
+      body = '''
+          integer(kind=selected_int_kind(10)) i
+          real(kind=selected_real_kind(10)) d
+  '''
+      if self.checkCompile('', body):
+        self.addDefine('USE_FORTRANKIND', 1)
     return
 
   def checkConst(self):
@@ -238,12 +235,11 @@ void (*signal())();
           u.l = 1;
           exit(u.c[sizeof(long) - 1] == 1);
           '''
-          self.pushLanguage('C')
-          if self.checkRun('#include <stdlib.h>\n', body, defaultArg = 'isLittleEndian'):
-            endian = 'little'
-          else:
-            endian = 'big'
-          self.popLanguage()
+          with self.maskLanguage('C'):
+            if self.checkRun('#include <stdlib.h>\n', body, defaultArg = 'isLittleEndian'):
+              endian = 'little'
+            else:
+              endian = 'big'
         else:
           self.framework.addBatchBody(['{',
                                        '  union {long l; char c[sizeof(long)];} u;',
@@ -279,19 +275,18 @@ void (*signal())();
     typename = typeName.replace(' ', '-').replace('*', 'p')
     if not 'known-sizeof-'+typename in self.argDB:
       if not self.argDB['with-batch']:
-        self.pushLanguage('C')
-        if self.checkRun(includes, body) and os.path.exists(filename):
-          f    = file(filename)
-          size = int(f.read())
-          f.close()
-          os.remove(filename)
-        elif not typename == 'long-long':
-          msg = 'Cannot run executable to determine size of '+typeName+'. If this machine uses a batch system \nto submit jobs you will need to configure using ./configure with the additional option  --with-batch.\n Otherwise there is problem with the compilers. Can you compile and run code with your C/C++ (and maybe Fortran) compilers?\n'
-          raise RuntimeError(msg)
-        else:
-          self.log.write('Compiler does not support long long\n')
-          size = 0
-        self.popLanguage()
+        with self.maskLanguage('C'):
+          if self.checkRun(includes, body) and os.path.exists(filename):
+            f    = file(filename)
+            size = int(f.read())
+            f.close()
+            os.remove(filename)
+          elif not typename == 'long-long':
+            msg = 'Cannot run executable to determine size of '+typeName+'. If this machine uses a batch system \nto submit jobs you will need to configure using ./configure with the additional option  --with-batch.\n Otherwise there is problem with the compilers. Can you compile and run code with your C/C++ (and maybe Fortran) compilers?\n'
+            raise RuntimeError(msg)
+          else:
+            self.log.write('Compiler does not support long long\n')
+            size = 0
       else:
         self.framework.addBatchInclude(['#include <stdlib.h>', '#include <stdio.h>', '#include <sys/types.h>'])
         if otherInclude:

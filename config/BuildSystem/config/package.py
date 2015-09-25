@@ -545,26 +545,18 @@ class Package(config.base.Configure):
     raise RuntimeError('No custom installation implemented for package '+self.package+'\n')
 
   def checkInclude(self, incl, hfiles, otherIncludes = [], timeout = 600.0):
-    self.headers.saveLog()
+    lang = self.defaultLanguage
     if self.cxx:
-      self.headers.pushLanguage('C++')
-    else:
-      self.headers.pushLanguage(self.defaultLanguage)
-    ret = self.executeTest(self.headers.checkInclude, [incl, hfiles],{'otherIncludes' : otherIncludes, 'timeout': timeout})
-    self.headers.popLanguage()
-    self.logWrite(self.headers.restoreLog())
+      lang = 'C++'
+    with self.headers.maskLanguage(lang,maskLog=self):
+      ret = self.executeTest(self.headers.checkInclude, [incl, hfiles],{'otherIncludes' : otherIncludes, 'timeout': timeout})
     return ret
 
   def checkPackageLink(self, includes, body, cleanup = 1, codeBegin = None, codeEnd = None, shared = 0):
-    self.compilers.acquire()
-    oldFlags = self.compilers.CPPFLAGS
-    oldLibs  = self.compilers.LIBS
-    self.compilers.CPPFLAGS += ' '+self.headers.toString(self.include)
-    self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
-    result = self.checkLink(includes, body, cleanup, codeBegin, codeEnd, shared)
-    self.compilers.CPPFLAGS = oldFlags
-    self.compilers.LIBS = oldLibs
-    self.compilers.release()
+    newFlags = self.compilers.CPPFLAGS+' '+self.headers.toString(self.include)
+    newLibs  = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
+    with self.compilers.mask('CPPFLAGS',newFlags), self.compilers.mask('LIBS',newLibs):
+        result = self.checkLink(includes, body, cleanup, codeBegin, codeEnd, shared)
     return result
 
   def checkDependencies(self, libs = None, incls = None):
@@ -620,10 +612,10 @@ class Package(config.base.Configure):
         if directory: self.logPrint('Contents: '+str(os.listdir(directory)))
       else:
         self.logPrint('Not checking for library in '+location+': '+str(lib)+' because no functions given to check for')
-      self.libraries.saveLog()
-      if self.executeTest(self.libraries.check,[lib, self.functions],{'otherLibs' : libs, 'fortranMangle' : self.functionsFortran, 'cxxMangle' : self.functionsCxx[0], 'prototype' : self.functionsCxx[1], 'call' : self.functionsCxx[2], 'cxxLink': self.cxx}):
+      with self.libraries.maskLog(self):
+        success = self.executeTest(self.libraries.check,[lib, self.functions],{'otherLibs' : libs, 'fortranMangle' : self.functionsFortran, 'cxxMangle' : self.functionsCxx[0], 'prototype' : self.functionsCxx[1], 'call' : self.functionsCxx[2], 'cxxLink': self.cxx})
+      if success:
         self.lib = lib
-        self.logWrite(self.libraries.restoreLog())
         self.logPrint('Checking for headers '+location+': '+str(incl))
         if (not self.includes) or self.checkInclude(incl, self.includes, incls, timeout = 1800.0):
           if self.includes:
@@ -635,8 +627,6 @@ class Package(config.base.Configure):
           self.directory = directory
           self.framework.packages.append(self)
           return
-      else:
-        self.logWrite(self.libraries.restoreLog())
     if not self.lookforbydefault or (self.framework.clArgDB.has_key('with-'+self.package) and self.argDB['with-'+self.package]):
       raise RuntimeError('Could not find a functional '+self.name+'\n')
 
@@ -690,10 +680,9 @@ class Package(config.base.Configure):
     self.consistencyChecks()
     if self.argDB['with-'+self.package]:
       # If clanguage is c++, test external packages with the c++ compiler
-      self.libraries.pushLanguage(self.defaultLanguage)
-      self.executeTest(self.configureLibrary)
-      self.executeTest(self.checkSharedLibrary)
-      self.libraries.popLanguage()
+      with self.libraries.maskLanguage(self.defaultLanguage):
+        self.executeTest(self.configureLibrary)
+        self.executeTest(self.checkSharedLibrary)
     else:
       self.executeTest(self.alternateConfigureLibrary)
     return
@@ -725,20 +714,14 @@ class Package(config.base.Configure):
         mpifc = os.path.join(installDir,"bin",mpif77Name)
       if not os.path.isfile(mpifc): raise RuntimeError('Could not locate installed MPI compiler: '+mpifc)
     # redo compiler detection
-    self.setCompilers.acquire()
     self.setCompilers.updateMPICompilers(mpicc,mpicxx,mpifc)
-    self.setCompilers.release()
-    lock = self.compilers.lock
-    lock.acquire()
-    self.compilers.__init__(self.framework)
-    self.compilers.headerPrefix = self.headerPrefix
-    self.compilers.saveLog()
-    self.compilers.configure()
-    lock.release()
-    self.logWrite(self.compilers.restoreLog())
-    self.compilerFlags.saveLog()
-    self.compilerFlags.configure()
-    self.logWrite(self.compilerFlags.restoreLog())
+    with self.compilers.lock:
+      self.compilers.__init__(self.framework)
+      self.compilers.headerPrefix = self.headerPrefix
+      with self.compilers.maskLock(self):
+        self.compilers.configure()
+    with self.compilerFlags.maskLog(self):
+      self.compilerFlags.configure()
     return
 
 '''
@@ -1036,42 +1019,39 @@ class GNUPackage(Package):
     args.append('MAKE='+self.make.make)
     args.append('--libdir='+os.path.join(self.installDir,self.libdir))
     ## compiler args
-    self.pushLanguage('C')
-    compiler = self.getCompiler()
-    args.append('CC="'+self.getCompiler()+'"')
-    args.append('CFLAGS="'+self.removeWarningFlags(self.getCompilerFlags())+'"')
-    args.append('AR="'+self.setCompilers.AR+'"')
-    args.append('ARFLAGS="'+self.setCompilers.AR_FLAGS+'"')
-    self.popLanguage()
+    with self.maskLanguage('C'):
+      compiler = self.getCompiler()
+      args.append('CC="'+self.getCompiler()+'"')
+      args.append('CFLAGS="'+self.removeWarningFlags(self.getCompilerFlags())+'"')
+      args.append('AR="'+self.setCompilers.AR+'"')
+      args.append('ARFLAGS="'+self.setCompilers.AR_FLAGS+'"')
     if hasattr(self.compilers, 'CXX'):
-      self.pushLanguage('Cxx')
-      args.append('CXX="'+self.getCompiler()+'"')
-      args.append('CXXFLAGS="'+self.removeWarningFlags(self.getCompilerFlags())+'"')
-      self.popLanguage()
+      with self.maskLanguage('Cxx'):
+        args.append('CXX="'+self.getCompiler()+'"')
+        args.append('CXXFLAGS="'+self.removeWarningFlags(self.getCompilerFlags())+'"')
     else:
       args.append('--disable-cxx')
     if hasattr(self.compilers, 'FC'):
-      self.pushLanguage('FC')
-      fc = self.getCompiler()
-      if self.compilers.fortranIsF90:
-        try:
-          output, error, status = self.executeShellCommand(fc+' -v', log = self.log)
-          output += error
-        except:
-          output = ''
-        if output.find('IBM') >= 0:
-          fc = os.path.join(os.path.dirname(fc), 'xlf')
-          self.log.write('Using IBM f90 compiler, switching to xlf for compiling ' + self.PACKAGE + '\n')
-        # now set F90
-        args.append('F90="'+fc+'"')
-        args.append('F90FLAGS="'+self.removeWarningFlags(self.getCompilerFlags()).replace('-Mfree','')+'"')
-      else:
-        args.append('--disable-f90')
-      args.append('F77="'+fc+'"')
-      args.append('FFLAGS="'+self.removeWarningFlags(self.getCompilerFlags()).replace('-Mfree','')+'"')
-      args.append('FC="'+fc+'"')
-      args.append('FCFLAGS="'+self.removeWarningFlags(self.getCompilerFlags()).replace('-Mfree','')+'"')
-      self.popLanguage()
+      with self.maskLanguage('FC'):
+        fc = self.getCompiler()
+        if self.compilers.fortranIsF90:
+          try:
+            output, error, status = self.executeShellCommand(fc+' -v', log = self.log)
+            output += error
+          except:
+            output = ''
+          if output.find('IBM') >= 0:
+            fc = os.path.join(os.path.dirname(fc), 'xlf')
+            self.log.write('Using IBM f90 compiler, switching to xlf for compiling ' + self.PACKAGE + '\n')
+          # now set F90
+          args.append('F90="'+fc+'"')
+          args.append('F90FLAGS="'+self.removeWarningFlags(self.getCompilerFlags()).replace('-Mfree','')+'"')
+        else:
+          args.append('--disable-f90')
+        args.append('F77="'+fc+'"')
+        args.append('FFLAGS="'+self.removeWarningFlags(self.getCompilerFlags()).replace('-Mfree','')+'"')
+        args.append('FC="'+fc+'"')
+        args.append('FCFLAGS="'+self.removeWarningFlags(self.getCompilerFlags()).replace('-Mfree','')+'"')
     else:
       args.append('--disable-fortran')
       args.append('--disable-fc')
@@ -1149,25 +1129,22 @@ class CMakePackage(Package):
  
     args = ['-DCMAKE_INSTALL_PREFIX='+self.installDir]
     args.append('-DCMAKE_VERBOSE_MAKEFILE=1')
-    self.framework.pushLanguage('C')
-    args.append('-DCMAKE_C_COMPILER="'+self.framework.getCompiler()+'"')
-    args.append('-DCMAKE_AR='+self.setCompilers.AR)
-    ranlib = shlex.split(self.setCompilers.RANLIB)[0]
-    args.append('-DCMAKE_RANLIB='+ranlib)
-    cflags = self.removeWarningFlags(self.setCompilers.getCompilerFlags())
-    args.append('-DCMAKE_C_FLAGS:STRING="'+cflags+'"')
-    self.framework.popLanguage()
+    with self.framework.maskLanguage('C'):
+      args.append('-DCMAKE_C_COMPILER="'+self.framework.getCompiler()+'"')
+      args.append('-DCMAKE_AR='+self.setCompilers.AR)
+      ranlib = shlex.split(self.setCompilers.RANLIB)[0]
+      args.append('-DCMAKE_RANLIB='+ranlib)
+      cflags = self.removeWarningFlags(self.setCompilers.getCompilerFlags())
+      args.append('-DCMAKE_C_FLAGS:STRING="'+cflags+'"')
     if hasattr(self.compilers, 'CXX'):
-      self.framework.pushLanguage('Cxx')
-      args.append('-DCMAKE_CXX_COMPILER="'+self.framework.getCompiler()+'"')
-      args.append('-DCMAKE_CXX_FLAGS:STRING="'+self.removeWarningFlags(self.framework.getCompilerFlags())+'"')
-      self.framework.popLanguage()
+      with self.framework.maskLanguage('Cxx'):
+        args.append('-DCMAKE_CXX_COMPILER="'+self.framework.getCompiler()+'"')
+        args.append('-DCMAKE_CXX_FLAGS:STRING="'+self.removeWarningFlags(self.framework.getCompilerFlags())+'"')
 
     if hasattr(self.compilers, 'FC'):
-      self.framework.pushLanguage('FC')
-      args.append('-DCMAKE_Fortran_COMPILER="'+self.framework.getCompiler()+'"')
-      args.append('-DCMAKE_Fortran_FLAGS:STRING="'+self.removeWarningFlags(self.framework.getCompilerFlags())+'"')
-      self.framework.popLanguage()
+      with self.framework.maskLanguage('FC'):
+        args.append('-DCMAKE_Fortran_COMPILER="'+self.framework.getCompiler()+'"')
+        args.append('-DCMAKE_Fortran_FLAGS:STRING="'+self.removeWarningFlags(self.framework.getCompilerFlags())+'"')
     return args
 
   def Install(self):

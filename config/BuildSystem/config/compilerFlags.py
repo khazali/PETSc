@@ -80,47 +80,43 @@ class Configure(config.base.Configure):
     options = self.getOptionsObject()
     if not options:
       return
-    self.setCompilers.saveLog()
-    options.saveLog()
-    for language, compiler in [('C', 'CC'), ('Cxx', 'CXX'), ('FC', 'FC'), ('CUDA', 'CUDAC')]:
-      if not hasattr(self.setCompilers, compiler):
-        continue
-      self.setCompilers.pushLanguage(language)
-      flagsName = self.getCompilerFlagsName(language)
-      try:
-        self.version[language] = self.argDB[language.upper()+'_VERSION']
-        if self.version[language] == 'Unknown':
-          self.version[language] = options.getCompilerVersion(language, self.setCompilers.getCompiler())
-      except RuntimeError:
-        pass
-      try:
-        self.rejected[language] = []
-        for bopt in bopts:
-          if not bopt == '' and self.getOptionalFlagsName(language) in self.argDB:
-            # treat user supplied options as single option - as it could include options separated by spaces '-tp k8-64'
-            flags = [self.argDB[self.getOptionalFlagsName(language)]]
-          elif not bopt == '' and self.hasOptFlags(getattr(self.setCompilers,flagsName)):
-            self.logPrint('Optimization options found in '+flagsName+ '. Skipping setting defaults')
-            flags = []
-          elif bopt == '' and flagsName in self.argDB:
-            self.logPrint('Ignoring default options which were overridden using --'+flagsName+ ' ' + self.argDB[flagsName])
-            flags = []
-          else:
-            flags = options.getCompilerFlags(language, self.setCompilers.getCompiler(), bopt)
-          for testFlag in flags:
-            if isinstance(testFlag,tuple):
-              testFlag = ' '.join(testFlag)
-            try:
-              self.logPrint('Trying '+language+' compiler flag '+testFlag)
-              self.setCompilers.addCompilerFlag(testFlag)
-            except RuntimeError:
-              self.logPrint('Rejected '+language+' compiler flag '+testFlag)
-              self.rejected[language].append(testFlag)
-      except RuntimeError:
-        pass
-      self.setCompilers.popLanguage()
-    self.logWrite(self.setCompilers.restoreLog())
-    self.logWrite(options.restoreLog())
+    with options.maskLog(self):
+      for language, compiler in [('C', 'CC'), ('Cxx', 'CXX'), ('FC', 'FC'), ('CUDA', 'CUDAC')]:
+        if not hasattr(self.setCompilers, compiler):
+          continue
+        with self.setCompilers.maskLanguage(language,maskLog=self):
+          flagsName = self.getCompilerFlagsName(language)
+          try:
+            self.version[language] = self.argDB[language.upper()+'_VERSION']
+            if self.version[language] == 'Unknown':
+              self.version[language] = options.getCompilerVersion(language, self.setCompilers.getCompiler())
+          except RuntimeError:
+            pass
+          try:
+            self.rejected[language] = []
+            for bopt in bopts:
+              if not bopt == '' and self.getOptionalFlagsName(language) in self.argDB:
+                # treat user supplied options as single option - as it could include options separated by spaces '-tp k8-64'
+                flags = [self.argDB[self.getOptionalFlagsName(language)]]
+              elif not bopt == '' and self.hasOptFlags(getattr(self.setCompilers,flagsName)):
+                self.logPrint('Optimization options found in '+flagsName+ '. Skipping setting defaults')
+                flags = []
+              elif bopt == '' and flagsName in self.argDB:
+                self.logPrint('Ignoring default options which were overridden using --'+flagsName+ ' ' + self.argDB[flagsName])
+                flags = []
+              else:
+                flags = options.getCompilerFlags(language, self.setCompilers.getCompiler(), bopt)
+              for testFlag in flags:
+                if isinstance(testFlag,tuple):
+                  testFlag = ' '.join(testFlag)
+                try:
+                  self.logPrint('Trying '+language+' compiler flag '+testFlag)
+                  self.setCompilers.addCompilerFlag(testFlag)
+                except RuntimeError:
+                  self.logPrint('Rejected '+language+' compiler flag '+testFlag)
+                  self.rejected[language].append(testFlag)
+          except RuntimeError:
+            pass
     return
 
   def configure(self):

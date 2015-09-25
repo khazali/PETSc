@@ -26,25 +26,21 @@ class Configure(config.base.Configure):
   def __str__(self):
     desc = ['Compilers:']
     if hasattr(self, 'CC'):
-      self.pushLanguage('C')
-      desc.append('  C Compiler:         '+self.getCompiler()+' '+self.getCompilerFlags())
-      if not self.getLinker() == self.getCompiler(): desc.append('  C Linker:           '+self.getLinker()+' '+self.getLinkerFlags())
-      self.popLanguage()
+      with self.maskLanguage('C'):
+        desc.append('  C Compiler:         '+self.getCompiler()+' '+self.getCompilerFlags())
+        if not self.getLinker() == self.getCompiler(): desc.append('  C Linker:           '+self.getLinker()+' '+self.getLinkerFlags())
     if hasattr(self, 'CUDAC'):
-      self.pushLanguage('CUDA')
-      desc.append('  CUDA Compiler:      '+self.getCompiler()+' '+self.getCompilerFlags())
-      if not self.getLinker() == self.getCompiler(): desc.append('  CUDA Linker:        '+self.getLinker()+' '+self.getLinkerFlags())
-      self.popLanguage()
+      with self.maskLanguage('CUDA'):
+        desc.append('  CUDA Compiler:      '+self.getCompiler()+' '+self.getCompilerFlags())
+        if not self.getLinker() == self.getCompiler(): desc.append('  CUDA Linker:        '+self.getLinker()+' '+self.getLinkerFlags())
     if hasattr(self, 'CXX'):
-      self.pushLanguage('Cxx')
-      desc.append('  C++ Compiler:       '+self.getCompiler()+' '+self.getCompilerFlags())
-      if not self.getLinker() == self.getCompiler(): desc.append('  C++ Linker:         '+self.getLinker()+' '+self.getLinkerFlags())
-      self.popLanguage()
+      with self.maskLanguage('Cxx'):
+        desc.append('  C++ Compiler:       '+self.getCompiler()+' '+self.getCompilerFlags())
+        if not self.getLinker() == self.getCompiler(): desc.append('  C++ Linker:         '+self.getLinker()+' '+self.getLinkerFlags())
     if hasattr(self, 'FC'):
-      self.pushLanguage('FC')
-      desc.append('  Fortran Compiler:   '+self.getCompiler()+' '+self.getCompilerFlags())
-      if not self.getLinker() == self.getCompiler(): desc.append('  Fortran Linker:     '+self.getLinker()+' '+self.getLinkerFlags())
-      self.popLanguage()
+      with self.maskLanguage('FC'):
+        desc.append('  Fortran Compiler:   '+self.getCompiler()+' '+self.getCompilerFlags())
+        if not self.getLinker() == self.getCompiler(): desc.append('  Fortran Linker:     '+self.getLinker()+' '+self.getLinkerFlags())
     desc.append('Linkers:')
     if hasattr(self, 'staticLinker'):
       desc.append('  Static linker:   '+self.getSharedLinker()+' '+self.AR_FLAGS)
@@ -412,12 +408,11 @@ class Configure(config.base.Configure):
   def checkInitialFlags(self):
     '''Initialize the compiler and linker flags'''
     for language in ['C', 'CUDA', 'Cxx', 'FC']:
-      self.pushLanguage(language)
-      for flagsArg in [self.getCompilerFlagsName(language), self.getCompilerFlagsName(language, 1), self.getLinkerFlagsName(language)]:
-        if flagsArg in self.argDB: setattr(self, flagsArg, self.argDB[flagsArg])
-        else: setattr(self, flagsArg, '')
-        self.logPrint('Initialized '+flagsArg+' to '+str(getattr(self, flagsArg)))
-      self.popLanguage()
+      with self.maskLanguage(language):
+        for flagsArg in [self.getCompilerFlagsName(language), self.getCompilerFlagsName(language, 1), self.getLinkerFlagsName(language)]:
+          if flagsArg in self.argDB: setattr(self, flagsArg, self.argDB[flagsArg])
+          else: setattr(self, flagsArg, '')
+          self.logPrint('Initialized '+flagsArg+' to '+str(getattr(self, flagsArg)))
     for flagsArg in ['CPPFLAGS', 'CUDAPPFLAGS', 'CXXCPPFLAGS', 'CC_LINKER_FLAGS', 'CXX_LINKER_FLAGS', 'FC_LINKER_FLAGS', 'CUDAC_LINKER_FLAGS','sharedLibraryFlags', 'dynamicLibraryFlags']:
       if flagsArg in self.argDB: setattr(self, flagsArg, self.argDB[flagsArg])
       else: setattr(self, flagsArg, '')
@@ -430,36 +425,27 @@ class Configure(config.base.Configure):
 
   def checkCompiler(self, language):
     '''Check that the given compiler is functional, and if not raise an exception'''
-    self.pushLanguage(language)
-    if not self.checkCompile():
-      msg = 'Cannot compile '+language+' with '+self.getCompiler()+'.'
-      self.popLanguage()
-      raise RuntimeError(msg)
-    if language == 'CUDA': # do not check CUDA linker since it is never used (and is broken on Mac with -m64)
-      self.popLanguage()
-      return
-    if not self.checkLink():
-      msg = 'Cannot compile/link '+language+' with '+self.getCompiler()+'.'
-      self.popLanguage()
-      raise RuntimeError(msg)
-    oldlibs = self.LIBS
-    self.LIBS += ' -lpetsc-ufod4vtr9mqHvKIQiVAm'
-    if self.checkLink():
-      msg = language + ' compiler ' + self.getCompiler()+ ''' is broken! It is returning a zero error when the linking failed! Either
- 1) switch to another compiler suite or
- 2) report this entire error message to your compiler/linker suite vendor and ask for fix for this issue.'''
-      self.popLanguage()
-      self.LIBS = oldlibs
-      raise RuntimeError(msg)
-    self.LIBS = oldlibs
-    if not self.argDB['with-batch']:
-      if not self.checkRun():
-        msg = 'Cannot run executables created with '+language+'. If this machine uses a batch system \nto submit jobs you will need to configure using ./configure with the additional option  --with-batch.\n Otherwise there is problem with the compilers. Can you compile and run code with your compiler \''+ self.getCompiler()+'\'?\n'
-        if self.isIntel(self.getCompiler(), self.log):
-          msg = msg + 'See http://www.mcs.anl.gov/petsc/documentation/faq.html#libimf'
-        self.popLanguage()
-        raise OSError(msg)
-    self.popLanguage()
+    with self.maskLanguage(language):
+      if not self.checkCompile():
+        msg = 'Cannot compile '+language+' with '+self.getCompiler()+'.'
+        raise RuntimeError(msg)
+      if language == 'CUDA': # do not check CUDA linker since it is never used (and is broken on Mac with -m64)
+        return
+      if not self.checkLink():
+        msg = 'Cannot compile/link '+language+' with '+self.getCompiler()+'.'
+        raise RuntimeError(msg)
+      with self.mask('LIBS',self.LIBS+' -lpetsc-ufod4vtr9mqHvKIQiVAm'):
+        if self.checkLink():
+          msg = language + ' compiler ' + self.getCompiler()+ ''' is broken! It is returning a zero error when the linking failed! Either
+     1) switch to another compiler suite or
+     2) report this entire error message to your compiler/linker suite vendor and ask for fix for this issue.'''
+          raise RuntimeError(msg)
+      if not self.argDB['with-batch']:
+        if not self.checkRun():
+          msg = 'Cannot run executables created with '+language+'. If this machine uses a batch system \nto submit jobs you will need to configure using ./configure with the additional option  --with-batch.\n Otherwise there is problem with the compilers. Can you compile and run code with your compiler \''+ self.getCompiler()+'\'?\n'
+          if self.isIntel(self.getCompiler(), self.log):
+            msg = msg + 'See http://www.mcs.anl.gov/petsc/documentation/faq.html#libimf'
+          raise OSError(msg)
     return
 
   def generateCCompilerGuesses(self):
@@ -573,13 +559,12 @@ class Configure(config.base.Configure):
     for compiler in self.generateCPreprocessorGuesses():
       try:
         if self.getExecutable(compiler, resultName = 'CPP'):
-          self.pushLanguage('C')
-          if not self.checkPreprocess('#include <stdlib.h>\n'):
-            raise RuntimeError('Cannot preprocess C with '+self.CPP+'.')
-          self.popLanguage()
+          with self.maskLanguage('C'):
+            if not self.checkPreprocess('#include <stdlib.h>\n'):
+              raise RuntimeError('Cannot preprocess C with '+self.CPP+'.')
           return
       except RuntimeError, e:
-        self.popLanguage()
+        pass
     raise RuntimeError('Cannot find a C preprocessor')
     return
 
@@ -654,13 +639,12 @@ class Configure(config.base.Configure):
     for compiler in self.generateCUDAPreprocessorGuesses():
       try:
         if self.getExecutable(compiler, resultName = 'CUDAPP'):
-          self.pushLanguage('CUDA')
-          if not self.checkPreprocess('#include <stdlib.h>\n__global__ void testFunction() {return;};'):
-            raise RuntimeError('Cannot preprocess CUDA with '+self.CUDAPP+'.')
-          self.popLanguage()
+          with self.maskLanguage('CUDA'):
+            if not self.checkPreprocess('#include <stdlib.h>\n__global__ void testFunction() {return;};'):
+              raise RuntimeError('Cannot preprocess CUDA with '+self.CUDAPP+'.')
           return
       except RuntimeError, e:
-        self.popLanguage()
+        pass
     return
 
   def generateCxxCompilerGuesses(self):
@@ -806,17 +790,15 @@ class Configure(config.base.Configure):
     for compiler in self.generateCxxPreprocessorGuesses():
       try:
         if self.getExecutable(compiler, resultName = 'CXXCPP'):
-          self.pushLanguage('Cxx')
-          if not self.checkPreprocess('#include <cstdlib>\n'):
-            raise RuntimeError('Cannot preprocess Cxx with '+self.CXXCPP+'.')
-          self.popLanguage()
+          with self.maskLanguage('Cxx'):
+            if not self.checkPreprocess('#include <cstdlib>\n'):
+              raise RuntimeError('Cannot preprocess Cxx with '+self.CXXCPP+'.')
           break
       except RuntimeError, e:
         import os
 
         if os.path.basename(self.CXXCPP) in ['mpicxx', 'mpiCC']:
           self.logPrint('MPI installation '+self.getCompiler()+' is likely incorrect.\n  Use --with-mpi-dir to indicate an alternate MPI')
-        self.popLanguage()
         self.delMakeMacro('CCCPP')
         del self.CXXCPP
     return
@@ -939,11 +921,10 @@ class Configure(config.base.Configure):
 
   def checkFortranComments(self):
     '''Make sure fortran comment "!" works'''
-    self.pushLanguage('FC')
-    if not self.checkCompile('! comment'):
-      raise RuntimeError(self.getCompiler()+' cannot process fortran comments.')
-    self.logPrint('Fortran comments can use ! in column 1')
-    self.popLanguage()
+    with self.maskLanguage('FC'):
+      if not self.checkCompile('! comment'):
+        raise RuntimeError(self.getCompiler()+' cannot process fortran comments.')
+      self.logPrint('Fortran comments can use ! in column 1')
     return
 
   def containsInvalidFlag(self, output):
@@ -968,29 +949,27 @@ class Configure(config.base.Configure):
   def checkCompilerFlag(self, flag, includes = '', body = '', compilerOnly = 0):
     '''Determine whether the compiler accepts the given flag'''
     flagsArg = self.getCompilerFlagsArg(compilerOnly)
-    oldFlags = getattr(self, flagsArg)
-    setattr(self, flagsArg, oldFlags+' '+flag)
-    (output, error, status) = self.outputCompile(includes, body)
-    output += error
-    valid   = 1
-    # Please comment each entry and provide an example line
-    if status:
-      valid = 0
-      self.logPrint('Rejecting compiler flag '+flag+' due to nonzero status from link')
-    # Lahaye F95
-    if output.find('Invalid suboption') >= 0:
-      valid = 0
-    if self.containsInvalidFlag(output):
-      valid = 0
-      self.logPrint('Rejecting compiler flag '+flag+' due to \n'+output)
-    setattr(self, flagsArg, oldFlags)
+    with self.mask(flagsArg,getattr(self, flagsArg)+' '+flag):
+      (output, error, status) = self.outputCompile(includes, body)
+      output += error
+      valid   = 1
+      # Please comment each entry and provide an example line
+      if status:
+        valid = 0
+        self.logPrint('Rejecting compiler flag '+flag+' due to nonzero status from link')
+      # Lahaye F95
+      if output.find('Invalid suboption') >= 0:
+        valid = 0
+      if self.containsInvalidFlag(output):
+        valid = 0
+        self.logPrint('Rejecting compiler flag '+flag+' due to \n'+output)
     return valid
 
   def insertCompilerFlag(self, flag, compilerOnly):
     '''DANGEROUS: Put in the compiler flag without checking'''
     flagsArg = self.getCompilerFlagsArg(compilerOnly)
     setattr(self, flagsArg, getattr(self, flagsArg)+' '+flag)
-    self.log.write('Added '+self.language[-1]+' compiler flag '+flag+'\n')
+    self.log.write('Added '+self.language+' compiler flag '+flag+'\n')
     return
 
   def addCompilerFlag(self, flag, includes = '', body = '', extraflags = '', compilerOnly = 0):
@@ -1015,7 +994,7 @@ class Configure(config.base.Configure):
     '''Determine the PIC option for each compiler'''
     self.usePIC = 0
     useSharedLibraries = 'with-shared-libraries' in self.argDB and self.argDB['with-shared-libraries']
-    myLanguage = self.language[-1]
+    myLanguage = self.language
     if not self.argDB['with-pic'] and not useSharedLibraries:
       self.logPrint("Skip checking PIC options on user request")
       return
@@ -1025,29 +1004,26 @@ class Configure(config.base.Configure):
     if hasattr(self, 'FC'):
       languages.append('FC')
     for language in languages:
-      self.pushLanguage(language)
-      if language == 'C' or language == 'Cxx':
-        includeLine = 'void foo(void);\nvoid bar(void){foo();}\n'
-      else:
-        includeLine = '      function foo(a)\n      real:: a, bar\n      foo = bar(a)\n      end\n'
-      compilerFlagsArg = self.getCompilerFlagsArg(1) # compiler only
-      oldCompilerFlags = getattr(self, compilerFlagsArg)
-      for testFlag in self.generatePICGuesses():
-        self.logPrint('Trying '+language+' compiler flag '+testFlag)
-        acceptedPIC = 1
-        try:
-          self.addCompilerFlag(testFlag, compilerOnly = 1)
-          acceptedPIC = self.checkLink(includes = includeLine, codeBegin = '', codeEnd = '', cleanup = 1, shared = 1, linkLanguage = myLanguage)
-        except RuntimeError:
-          acceptedPIC = 0
-        if not acceptedPIC:
-          self.logPrint('Rejected '+language+' compiler flag '+testFlag+' because shared linker cannot handle it')
-          setattr(self, compilerFlagsArg, oldCompilerFlags)
-          continue
-        self.logPrint('Accepted '+language+' compiler flag '+testFlag)
-        self.isPIC = 1
-        break
-      self.popLanguage()
+      with self.maskLanguage(language):
+        if language == 'C' or language == 'Cxx':
+          includeLine = 'void foo(void);\nvoid bar(void){foo();}\n'
+        else:
+          includeLine = '      function foo(a)\n      real:: a, bar\n      foo = bar(a)\n      end\n'
+        compilerFlagsArg = self.getCompilerFlagsArg(1) # compiler only
+        for testFlag in self.generatePICGuesses():
+          self.logPrint('Trying '+language+' compiler flag '+testFlag)
+          acceptedPIC = 1
+          try:
+            self.addCompilerFlag(testFlag, compilerOnly = 1)
+            acceptedPIC = self.checkLink(includes = includeLine, codeBegin = '', codeEnd = '', cleanup = 1, shared = 1, linkLanguage = myLanguage)
+          except RuntimeError:
+            acceptedPIC = 0
+          if not acceptedPIC:
+            self.logPrint('Rejected '+language+' compiler flag '+testFlag+' because shared linker cannot handle it')
+            continue
+          self.logPrint('Accepted '+language+' compiler flag '+testFlag)
+          self.isPIC = 1
+          break
     return
 
   def checkLargeFileIO(self):
@@ -1058,15 +1034,14 @@ class Configure(config.base.Configure):
     if hasattr(self, 'CXX'):
       languages.append('Cxx')
     for language in languages:
-      self.pushLanguage(language)
-      if self.checkCompile('#include <unistd.h>','#ifndef _LFS64_LARGEFILE \n#error no largefile defines \n#endif'):
-        try:
-          self.addCompilerFlag('-D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64',compilerOnly=1)
-        except RuntimeError, e:
-          self.logPrint('Error adding ' +language+ ' flags -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64')
-      else:
-        self.logPrint('Rejected ' +language+ ' flags -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64')
-      self.popLanguage()
+      with self.maskLanguage(language):
+        if self.checkCompile('#include <unistd.h>','#ifndef _LFS64_LARGEFILE \n#error no largefile defines \n#endif'):
+          try:
+            self.addCompilerFlag('-D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64',compilerOnly=1)
+          except RuntimeError, e:
+            self.logPrint('Error adding ' +language+ ' flags -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64')
+        else:
+          self.logPrint('Rejected ' +language+ ' flags -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64')
     return
 
   def getArchiverFlags(self, archiver):
@@ -1168,52 +1143,48 @@ class Configure(config.base.Configure):
           os.remove(arcUnix)
         raise RuntimeError('Ranlib is not functional with your archiver.  Try --with-ranlib=true if ranlib is unnecessary.')
       return
-    oldLibs = self.LIBS
-    self.pushLanguage('C')
-    for (archiver, arflags, ranlib) in self.generateArchiverGuesses():
-      if not self.checkCompile('', 'int foo(int a) {\n  return a+1;\n}\n\n', cleanup = 0, codeBegin = '', codeEnd = ''):
-        raise RuntimeError('Compiler is not functional')
-      if os.path.isfile(objName):
-        os.remove(objName)
-      os.rename(self.compilerObj, objName)
-      if self.getExecutable(archiver, getFullPath = 1, resultName = 'AR'):
-        if self.getExecutable(ranlib, getFullPath = 1, resultName = 'RANLIB'):
-          arext = 'a'
-          try:
-            (output, error, status) = config.base.Configure.executeShellCommand(self.AR+' '+arflags+' '+arcUnix+' '+objName, checkCommand = checkArchive, log = self.log)
-            (output, error, status) = config.base.Configure.executeShellCommand(self.RANLIB+' '+arcUnix, checkCommand = checkRanlib, log = self.log)
-          except RuntimeError, e:
-            self.logPrint(str(e))
-            continue
-          self.LIBS = '-L'+self.tmpDir+' -lconf1 ' + oldLibs
-          success =  self.checkLink('extern int foo(int);', '  int b = foo(1);  if (b);\n')
-          os.rename(arcUnix, arcWindows)
-          if not success:
-            arext = 'lib'
-            success = self.checkLink('extern int foo(int);', '  int b = foo(1);  if (b);\n')
-            os.remove(arcWindows)
-            if success:
-              break
-          else:
-            os.remove(arcWindows)
-            break
-    else:
-      if os.path.isfile(objName):
-        os.remove(objName)
-      self.LIBS = oldLibs
-      self.popLanguage()
-      raise RuntimeError('Could not find a suitable archiver.  Use --with-ar to specify an archiver.')
-    self.AR_FLAGS      = arflags
-    self.AR_LIB_SUFFIX = arext
-    self.framework.addMakeMacro('AR_FLAGS', self.AR_FLAGS)
-    self.addMakeMacro('AR_LIB_SUFFIX', self.AR_LIB_SUFFIX)
-    os.remove(objName)
-    self.LIBS = oldLibs
-    self.popLanguage()
+    with self.maskLanguage('C'):
+      for (archiver, arflags, ranlib) in self.generateArchiverGuesses():
+        if not self.checkCompile('', 'int foo(int a) {\n  return a+1;\n}\n\n', cleanup = 0, codeBegin = '', codeEnd = ''):
+          raise RuntimeError('Compiler is not functional')
+        if os.path.isfile(objName):
+          os.remove(objName)
+        os.rename(self.compilerObj, objName)
+        if self.getExecutable(archiver, getFullPath = 1, resultName = 'AR'):
+          if self.getExecutable(ranlib, getFullPath = 1, resultName = 'RANLIB'):
+            arext = 'a'
+            try:
+              (output, error, status) = config.base.Configure.executeShellCommand(self.AR+' '+arflags+' '+arcUnix+' '+objName, checkCommand = checkArchive, log = self.log)
+              (output, error, status) = config.base.Configure.executeShellCommand(self.RANLIB+' '+arcUnix, checkCommand = checkRanlib, log = self.log)
+            except RuntimeError, e:
+              self.logPrint(str(e))
+              continue
+            newLibs = '-L'+self.tmpDir+' -lconf1 ' + self.LIBS
+            with self.mask('LIBS',newLibs):
+              success =  self.checkLink('extern int foo(int);', '  int b = foo(1);  if (b);\n')
+              os.rename(arcUnix, arcWindows)
+              if not success:
+                arext = 'lib'
+                success = self.checkLink('extern int foo(int);', '  int b = foo(1);  if (b);\n')
+                os.remove(arcWindows)
+                if success:
+                  break
+              else:
+                os.remove(arcWindows)
+                break
+      else:
+        if os.path.isfile(objName):
+          os.remove(objName)
+        raise RuntimeError('Could not find a suitable archiver.  Use --with-ar to specify an archiver.')
+      self.AR_FLAGS      = arflags
+      self.AR_LIB_SUFFIX = arext
+      self.framework.addMakeMacro('AR_FLAGS', self.AR_FLAGS)
+      self.addMakeMacro('AR_LIB_SUFFIX', self.AR_LIB_SUFFIX)
+      os.remove(objName)
     return
 
   def setStaticLinker(self):
-    language = self.language[-1]
+    language = self.language
     return self.framework.setSharedLinkerObject(language, self.framework.getLanguageModule(language).StaticLinker(self.argDB))
 
   def generateSharedLinkerGuesses(self):
@@ -1268,7 +1239,7 @@ class Configure(config.base.Configure):
       self.logPrint('Checking shared linker '+linker+' using flags '+str(flags))
       if self.getExecutable(linker, resultName = 'LD_SHARED'):
         for picFlag in self.generatePICGuesses():
-          self.logPrint('Trying '+self.language[-1]+' compiler flag '+picFlag)
+          self.logPrint('Trying '+self.language+' compiler flag '+picFlag)
           compilerFlagsArg = self.getCompilerFlagsArg(1) # compiler only
           oldCompilerFlags = getattr(self, compilerFlagsArg)
           accepted = 1
@@ -1285,16 +1256,15 @@ class Configure(config.base.Configure):
             # using printf appears to correctly identify non-pic code on X86_64
             if self.checkLink(includes = '#include <stdio.h>\nint '+testMethod+'(void) {printf("hello");\nreturn 0;}\n', codeBegin = '', codeEnd = '', cleanup = 0, shared = 1):
               oldLib  = self.linkerObj
-              oldLibs = self.LIBS
-              self.LIBS += ' -L'+self.tmpDir+' -lconftest'
-              accepted = self.checkLink(includes = 'int foo(void);', body = 'int ret = foo();\nif(ret);')
+              newLibs = self.LIBS+' -L'+self.tmpDir+' -lconftest'
+              with self.mask('LIBS',newLibs):
+                accepted = self.checkLink(includes = 'int foo(void);', body = 'int ret = foo();\nif(ret);')
               os.remove(oldLib)
-              self.LIBS = oldLibs
               if accepted:
                 self.sharedLibraries = 1
                 self.logPrint('Using shared linker '+self.sharedLinker+' with flags '+str(self.sharedLibraryFlags)+' and library extension '+self.sharedLibraryExt)
                 break
-          self.logPrint('Rejected '+self.language[-1]+' compiler flag '+picFlag+' because it was not compatible with shared linker '+linker+' using flags '+str(flags))
+          self.logPrint('Rejected '+self.language+' compiler flag '+picFlag+' because it was not compatible with shared linker '+linker+' using flags '+str(flags))
           setattr(self, compilerFlagsArg, oldCompilerFlags)
         if os.path.isfile(self.linkerObj): os.remove(self.linkerObj)
         if self.sharedLibraries: break
@@ -1307,18 +1277,17 @@ class Configure(config.base.Configure):
     '''Determine whether the linker accepts the given flag'''
     flagsArg = self.getLinkerFlagsArg()
     oldFlags = getattr(self, flagsArg)
-    setattr(self, flagsArg, oldFlags+' '+flag)
-    (output, status) = self.outputLink('', '')
-    valid = 1
-    if status:
-      valid = 0
-      self.logPrint('Rejecting linker flag '+flag+' due to nonzero status from link')
-    if self.containsInvalidFlag(output):
-      valid = 0
-      self.logPrint('Rejecting '+self.language[-1]+' linker flag '+flag+' due to \n'+output)
-    if valid:
-      self.logPrint('Valid '+self.language[-1]+' linker flag '+flag)
-    setattr(self, flagsArg, oldFlags)
+    with self.mask(flagsArg,oldFlags+' '+flag):
+      (output, status) = self.outputLink('', '')
+      valid = 1
+      if status:
+        valid = 0
+        self.logPrint('Rejecting linker flag '+flag+' due to nonzero status from link')
+      if self.containsInvalidFlag(output):
+        valid = 0
+        self.logPrint('Rejecting '+self.language+' linker flag '+flag+' due to \n'+output)
+      if valid:
+        self.logPrint('Valid '+self.language+' linker flag '+flag)
     return valid
 
   def addLinkerFlag(self, flag):
@@ -1338,15 +1307,14 @@ class Configure(config.base.Configure):
     if hasattr(self, 'FC'):
       languages.append('FC')
     for language in languages:
-      self.pushLanguage(language)
-      for testFlag in ['-Wl,-multiply_defined,suppress', '-Wl,-multiply_defined -Wl,suppress', '-Wl,-commons,use_dylibs', '-Wl,-search_paths_first']:
-        if self.checkLinkerFlag(testFlag):
-          # expand to CC_LINKER_FLAGS or CXX_LINKER_FLAGS or FC_LINKER_FLAGS
-	  linker_flag_var = langMap[language]+'_LINKER_FLAGS'
-          val = getattr(self,linker_flag_var)
-	  val.append(testFlag)
-	  setattr(self,linker_flag_var,val)
-      self.popLanguage()
+      with self.maskLanguage(language):
+        for testFlag in ['-Wl,-multiply_defined,suppress', '-Wl,-multiply_defined -Wl,suppress', '-Wl,-commons,use_dylibs', '-Wl,-search_paths_first']:
+          if self.checkLinkerFlag(testFlag):
+            # expand to CC_LINKER_FLAGS or CXX_LINKER_FLAGS or FC_LINKER_FLAGS
+            linker_flag_var = langMap[language]+'_LINKER_FLAGS'
+            val = getattr(self,linker_flag_var)
+            val.append(testFlag)
+            setattr(self,linker_flag_var,val)
     return
 
   def checkSharedLinkerPaths(self):
@@ -1364,23 +1332,22 @@ class Configure(config.base.Configure):
       languages.append('CUDA')
     for language in languages:
       flag = '-L'
-      self.pushLanguage(language)
-      # test '-R' before '-rpath' as sun compilers [c,fortran] don't give proper errors with wrong options.
-      if not Configure.isDarwin(self.log):
-        testFlags = ['-Wl,-rpath,', '-R','-rpath ' , '-Wl,-R,']
-      else:
-        testFlags = ['-Wl,-rpath,']
-      # test '-R' before '-Wl,-rpath' for SUN compilers [as cc on linux accepts -Wl,-rpath, but  f90 & CC do not.
-      if self.isSun(self.framework.getCompiler(), self.log):
-        testFlags.insert(0,'-R')
-      for testFlag in testFlags:
-        self.logPrint('Trying '+language+' linker flag '+testFlag)
-        if self.checkLinkerFlag(testFlag+os.path.abspath(os.getcwd())):
-          flag = testFlag
-          break
+      with self.maskLanguage(language):
+        # test '-R' before '-rpath' as sun compilers [c,fortran] don't give proper errors with wrong options.
+        if not Configure.isDarwin(self.log):
+          testFlags = ['-Wl,-rpath,', '-R','-rpath ' , '-Wl,-R,']
         else:
-          self.logPrint('Rejected '+language+' linker flag '+testFlag)
-      self.popLanguage()
+          testFlags = ['-Wl,-rpath,']
+        # test '-R' before '-Wl,-rpath' for SUN compilers [as cc on linux accepts -Wl,-rpath, but  f90 & CC do not.
+        if self.isSun(self.framework.getCompiler(), self.log):
+          testFlags.insert(0,'-R')
+        for testFlag in testFlags:
+          self.logPrint('Trying '+language+' linker flag '+testFlag)
+          if self.checkLinkerFlag(testFlag+os.path.abspath(os.getcwd())):
+            flag = testFlag
+            break
+          else:
+            self.logPrint('Rejected '+language+' linker flag '+testFlag)
       setattr(self, language+'SharedLinkerFlag', flag)
     return
 
@@ -1436,19 +1403,15 @@ class Configure(config.base.Configure):
   def checkDynamicLinker(self):
     '''Check that the linker can dynamicaly load shared libraries'''
     self.dynamicLibraries = 0
-    self.headers.saveLog()
-    if not self.headers.check('dlfcn.h'):
-      self.logWrite(self.headers.restoreLog())
-      self.logPrint('Dynamic loading disabled since dlfcn.h was missing')
-      return
-    self.logWrite(self.headers.restoreLog())
-    self.libraries.saveLog()
-    if not self.libraries.add('dl', ['dlopen', 'dlsym', 'dlclose']):
-      if not self.libraries.check('', ['dlopen', 'dlsym', 'dlclose']):
-        self.logWrite(self.libraries.restoreLog())
-        self.logPrint('Dynamic linking disabled since functions dlopen(), dlsym(), and dlclose() were not found')
+    with self.headers.maskLog(self):
+      if not self.headers.check('dlfcn.h'):
+        self.logPrint('Dynamic loading disabled since dlfcn.h was missing')
         return
-    self.logWrite(self.libraries.restoreLog())
+    with self.libraries.maskLog(self):
+      if not self.libraries.add('dl', ['dlopen', 'dlsym', 'dlclose']):
+        if not self.libraries.check('', ['dlopen', 'dlsym', 'dlclose']):
+          self.logPrint('Dynamic linking disabled since functions dlopen(), dlsym(), and dlclose() were not found')
+          return
     for linker, flags, ext in self.generateDynamicLinkerGuesses():
       self.logPrint('Checking dynamic linker '+linker+' using flags '+str(flags))
       if self.getExecutable(linker, resultName = 'dynamicLinker'):
@@ -1619,10 +1582,9 @@ if (dlclose(handle)) {
     import sys
     if not self.checkCompile(includes = 'char *'+symbol+'(void);\n',body = 'return '+symbol+'();\n', cleanup = 0, codeBegin = 'char* testroutine(void){', codeEnd = '}'):
       raise RuntimeError('Unable to compile test file with symbol: '+symbol)
-    oldLibs = self.LIBS
-    self.LIBS = self.libraries.toStringNoDupes(lib) + ' '+self.LIBS
-    ret = self.checkLink(includes = 'char *'+symbol+'(void);\n',body = 'return '+symbol+'();\n', cleanup = 0, codeBegin = 'char* testroutine(void){', codeEnd = '}',shared =1)
-    self.LIBS = oldLibs
+    newLibs = self.libraries.toStringNoDupes(lib) + ' '+self.LIBS
+    with self.mask('LIBS',newLibs):
+      ret = self.checkLink(includes = 'char *'+symbol+'(void);\n',body = 'return '+symbol+'();\n', cleanup = 0, codeBegin = 'char* testroutine(void){', codeEnd = '}',shared =1)
     return ret
 
   def configure(self):

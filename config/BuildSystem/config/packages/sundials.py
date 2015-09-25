@@ -21,39 +21,38 @@ class Configure(config.package.GNUPackage):
     import os
     args = config.package.GNUPackage.formGNUConfigureArgs(self)
 
-    self.framework.pushLanguage('C')
-    # use --with-mpi-root if we know it works
-    if self.mpi.directory and (os.path.realpath(self.framework.getCompiler())).find(os.path.realpath(self.mpi.directory)) >=0:
-      self.log.write('Sundials configure: using --with-mpi-root='+self.mpi.directory+'\n')
-      args.append('--with-mpi-root="'+self.mpi.directory+'"')
-    # else provide everything!
-    else:
-      #print a message if the previous check failed
-      if self.mpi.directory:
-        self.log.write('Sundials configure: --with-mpi-dir specified - but could not use it\n')
-        self.log.write(str(os.path.realpath(self.framework.getCompiler()))+' '+str(os.path.realpath(self.mpi.directory))+'\n')
-
-      if self.mpi.include:
-        args.append('--with-mpi-incdir="'+self.mpi.include[0]+'"')
+    with self.framework.maskLanguage('C'):
+      # use --with-mpi-root if we know it works
+      if self.mpi.directory and (os.path.realpath(self.framework.getCompiler())).find(os.path.realpath(self.mpi.directory)) >=0:
+        self.log.write('Sundials configure: using --with-mpi-root='+self.mpi.directory+'\n')
+        args.append('--with-mpi-root="'+self.mpi.directory+'"')
+      # else provide everything!
       else:
-        args.append('--with-mpi-incdir="/usr/include"')  # dummy case
+        #print a message if the previous check failed
+        if self.mpi.directory:
+          self.log.write('Sundials configure: --with-mpi-dir specified - but could not use it\n')
+          self.log.write(str(os.path.realpath(self.framework.getCompiler()))+' '+str(os.path.realpath(self.mpi.directory))+'\n')
 
-      if self.mpi.lib:
-        args.append('--with-mpi-libdir="'+os.path.dirname(self.mpi.lib[0])+'"')
-        libs = []
-        for l in self.mpi.lib:
-          ll = os.path.basename(l)
-          if ll.endswith('.a'): libs.append(ll[3:-2])
-          elif ll.endswith('.so'): libs.append(ll[3:-3])
-          elif ll.endswith('.dylib'): libs.append(ll[3:-6])
-          libs.append(ll[3:-2])
-        libs = '-l' + ' -l'.join(libs)
-        args.append('--with-mpi-libs="'+libs+'"')
-      else:
-        args.append('--with-mpi-libdir="/usr/lib"')  # dummy case
-        args.append('--with-mpi-libs="-lc"')
+        if self.mpi.include:
+          args.append('--with-mpi-incdir="'+self.mpi.include[0]+'"')
+        else:
+          args.append('--with-mpi-incdir="/usr/include"')  # dummy case
 
-    self.framework.popLanguage()
+        if self.mpi.lib:
+          args.append('--with-mpi-libdir="'+os.path.dirname(self.mpi.lib[0])+'"')
+          libs = []
+          for l in self.mpi.lib:
+            ll = os.path.basename(l)
+            if ll.endswith('.a'): libs.append(ll[3:-2])
+            elif ll.endswith('.so'): libs.append(ll[3:-3])
+            elif ll.endswith('.dylib'): libs.append(ll[3:-6])
+            libs.append(ll[3:-2])
+          libs = '-l' + ' -l'.join(libs)
+          args.append('--with-mpi-libs="'+libs+'"')
+        else:
+          args.append('--with-mpi-libdir="/usr/lib"')  # dummy case
+          args.append('--with-mpi-libs="-lc"')
+
     args.append('--without-mpif77')
     args.append('--disable-examples')
     args.append('--disable-cvodes')

@@ -36,10 +36,9 @@ class Configure(config.package.GNUPackage):
     args = config.package.GNUPackage.formGNUConfigureArgs(self)
     args.append('--enable-parallel')
     if hasattr(self.compilers, 'FC'):
-      self.setCompilers.pushLanguage('FC')
-      args.append('--enable-fortran')
-      args.append('F9X="'+self.setCompilers.getCompiler()+'"')
-      self.setCompilers.popLanguage()
+      with self.setCompilers.maskLanguage('FC'):
+        args.append('--enable-fortran')
+        args.append('F9X="'+self.setCompilers.getCompiler()+'"')
     return args
 
   def configureLibrary(self):

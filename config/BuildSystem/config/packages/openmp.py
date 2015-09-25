@@ -17,36 +17,33 @@ class Configure(config.package.Package):
     ''' Needs to check if OpenMP actually exists and works '''
     self.checkDependencies()
     self.found = 0    
-    self.setCompilers.pushLanguage('C')
-    #
-    for flag in ["-fopenmp", # Gnu
-                 "-qsmp=omp",# IBM XL C/C++
-                 "-h omp",   # Cray. Must come after XL because XL interprets this option as meaning "-soname omp"
-                 "-mp",      # Portland Group
-                 "-Qopenmp", # Intel windows
-                 "-openmp",  # Intel
-                 "-xopenmp", # Sun
-                 "+Oopenmp", # HP
-                 "/openmp"   # Microsoft Visual Studio
-                 #" ",        # Empty, if compiler automatically accepts openmp
-                 ]:
-      # here it should actually check if the OpenMP pragmas work here.
-      if self.setCompilers.checkCompilerFlag(flag):
-        ompflag = flag
-        self.found = 1
-        break
-    if not self.found:
-      raise RuntimeError('Compiler has no support for OpenMP')
-    self.setCompilers.addCompilerFlag(ompflag)
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage('C'):
+      #
+      for flag in ["-fopenmp", # Gnu
+                   "-qsmp=omp",# IBM XL C/C++
+                   "-h omp",   # Cray. Must come after XL because XL interprets this option as meaning "-soname omp"
+                   "-mp",      # Portland Group
+                   "-Qopenmp", # Intel windows
+                   "-openmp",  # Intel
+                   "-xopenmp", # Sun
+                   "+Oopenmp", # HP
+                   "/openmp"   # Microsoft Visual Studio
+                   #" ",        # Empty, if compiler automatically accepts openmp
+                   ]:
+        # here it should actually check if the OpenMP pragmas work here.
+        if self.setCompilers.checkCompilerFlag(flag):
+          ompflag = flag
+          self.found = 1
+          break
+      if not self.found:
+        raise RuntimeError('Compiler has no support for OpenMP')
+      self.setCompilers.addCompilerFlag(ompflag)
     if hasattr(self.compilers, 'FC'):
-      self.setCompilers.pushLanguage('FC')
-      self.setCompilers.addCompilerFlag(ompflag)
-      self.setCompilers.popLanguage()
+      with self.setCompilers.maskLanguage('FC'):
+        self.setCompilers.addCompilerFlag(ompflag)
     if hasattr(self.compilers, 'CXX'):
-      self.setCompilers.pushLanguage('Cxx')
-      self.setCompilers.addCompilerFlag(ompflag)
-      self.setCompilers.popLanguage()
+      with self.setCompilers.maskLanguage('Cxx'):
+        self.setCompilers.addCompilerFlag(ompflag)
     # register package since config.package.Package.configureLibrary(self) will not work since there is no library to find
     if not hasattr(self.framework, 'packages'):
       self.framework.packages = []

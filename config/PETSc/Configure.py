@@ -150,17 +150,14 @@ class Configure(config.base.Configure):
       fd.write('includedir=${prefix}/include\n')
     fd.write('libdir='+os.path.join(self.installdir.dir,'lib')+'\n')
 
-    self.setCompilers.pushLanguage('C')
-    fd.write('ccompiler='+self.setCompilers.getCompiler()+'\n')
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage('C'):
+      fd.write('ccompiler='+self.setCompilers.getCompiler()+'\n')
     if hasattr(self.compilers, 'C++'):
-      self.setCompilers.pushLanguage('C++')
-      fd.write('cxxcompiler='+self.setCompilers.getCompiler()+'\n')
-      self.setCompilers.popLanguage()
+      with self.setCompilers.maskLanguage('C++'):
+        fd.write('cxxcompiler='+self.setCompilers.getCompiler()+'\n')
     if hasattr(self.compilers, 'FC'):
-      self.setCompilers.pushLanguage('FC')
-      fd.write('fcompiler='+self.setCompilers.getCompiler()+'\n')
-      self.setCompilers.popLanguage()
+      with self.setCompilers.maskLanguage('FC'):
+        fd.write('fcompiler='+self.setCompilers.getCompiler()+'\n')
     fd.write('blaslapacklibs='+self.libraries.toStringNoDupes(self.blaslapack.lib)+'\n')
 
     fd.write('\n')
@@ -226,61 +223,55 @@ prepend-path PATH %s
 #-----------------------------------------------------------------------------------------------------
 
     # Sometimes we need C compiler, even if built with C++
-    self.setCompilers.pushLanguage('C')
-    self.addMakeMacro('CC_FLAGS',self.setCompilers.getCompilerFlags())
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage('C'):
+      self.addMakeMacro('CC_FLAGS',self.setCompilers.getCompilerFlags())
 
     # And sometimes we need a C++ compiler even when PETSc is built with C
     if hasattr(self.compilers, 'CXX'):
-      self.setCompilers.pushLanguage('Cxx')
-      self.addMakeMacro('CXX_FLAGS',self.setCompilers.getCompilerFlags())
-      self.setCompilers.popLanguage()
+      with self.setCompilers.maskLanguage('Cxx'):
+        self.addMakeMacro('CXX_FLAGS',self.setCompilers.getCompilerFlags())
 
     # C preprocessor values
     self.addMakeMacro('CPP_FLAGS',self.setCompilers.CPPFLAGS)
 
     # compiler values
-    self.setCompilers.pushLanguage(self.languages.clanguage)
-    self.addMakeMacro('PCC',self.setCompilers.getCompiler())
-    self.addMakeMacro('PCC_FLAGS',self.setCompilers.getCompilerFlags())
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage(self.languages.clanguage):
+      self.addMakeMacro('PCC',self.setCompilers.getCompiler())
+      self.addMakeMacro('PCC_FLAGS',self.setCompilers.getCompilerFlags())
     # .o or .obj
     self.addMakeMacro('CC_SUFFIX','o')
 
     # executable linker values
-    self.setCompilers.pushLanguage(self.languages.clanguage)
-    pcc_linker = self.setCompilers.getLinker()
-    self.addMakeMacro('PCC_LINKER',pcc_linker)
-    self.addMakeMacro('PCC_LINKER_FLAGS',self.setCompilers.getLinkerFlags())
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage(self.languages.clanguage):
+      pcc_linker = self.setCompilers.getLinker()
+      self.addMakeMacro('PCC_LINKER',pcc_linker)
+      self.addMakeMacro('PCC_LINKER_FLAGS',self.setCompilers.getLinkerFlags())
     # '' for Unix, .exe for Windows
     self.addMakeMacro('CC_LINKER_SUFFIX','')
 
     if hasattr(self.compilers, 'FC'):
-      self.setCompilers.pushLanguage('FC')
-      # need FPPFLAGS in config/setCompilers
-      self.addDefine('HAVE_FORTRAN','1')
-      self.addMakeMacro('FPP_FLAGS',self.setCompilers.CPPFLAGS)
+      with self.setCompilers.maskLanguage('FC'):
+        # need FPPFLAGS in config/setCompilers
+        self.addDefine('HAVE_FORTRAN','1')
+        self.addMakeMacro('FPP_FLAGS',self.setCompilers.CPPFLAGS)
 
-      # compiler values
-      self.addMakeMacro('FC_FLAGS',self.setCompilers.getCompilerFlags())
-      self.setCompilers.popLanguage()
+        # compiler values
+        self.addMakeMacro('FC_FLAGS',self.setCompilers.getCompilerFlags())
       # .o or .obj
       self.addMakeMacro('FC_SUFFIX','o')
 
       # executable linker values
-      self.setCompilers.pushLanguage('FC')
-      # Cannot have NAG f90 as the linker - so use pcc_linker as fc_linker
-      fc_linker = self.setCompilers.getLinker()
-      if config.setCompilers.Configure.isNAG(fc_linker, self.log):
-        self.addMakeMacro('FC_LINKER',pcc_linker)
-      else:
-        self.addMakeMacro('FC_LINKER',fc_linker)
-      self.addMakeMacro('FC_LINKER_FLAGS',self.setCompilers.getLinkerFlags())
-      # apple requires this shared library linker flag on SOME versions of the os
-      if self.setCompilers.getLinkerFlags().find('-Wl,-commons,use_dylibs') > -1:
-        self.addMakeMacro('DARWIN_COMMONS_USE_DYLIBS',' -Wl,-commons,use_dylibs ')
-      self.setCompilers.popLanguage()
+      with self.setCompilers.maskLanguage('FC'):
+        # Cannot have NAG f90 as the linker - so use pcc_linker as fc_linker
+        fc_linker = self.setCompilers.getLinker()
+        if config.setCompilers.Configure.isNAG(fc_linker, self.log):
+          self.addMakeMacro('FC_LINKER',pcc_linker)
+        else:
+          self.addMakeMacro('FC_LINKER',fc_linker)
+        self.addMakeMacro('FC_LINKER_FLAGS',self.setCompilers.getLinkerFlags())
+        # apple requires this shared library linker flag on SOME versions of the os
+        if self.setCompilers.getLinkerFlags().find('-Wl,-commons,use_dylibs') > -1:
+          self.addMakeMacro('DARWIN_COMMONS_USE_DYLIBS',' -Wl,-commons,use_dylibs ')
 
       # F90 Modules
       if self.setCompilers.fortranModuleIncludeFlag:
@@ -293,16 +284,14 @@ prepend-path PATH %s
       self.addMakeMacro('FC','')
 
     if hasattr(self.compilers, 'CUDAC'):
-      self.setCompilers.pushLanguage('CUDA')
-      self.addMakeMacro('CUDAC_FLAGS',self.setCompilers.getCompilerFlags())
-      self.setCompilers.popLanguage()
+      with self.setCompilers.maskLanguage('CUDA'):
+        self.addMakeMacro('CUDAC_FLAGS',self.setCompilers.getCompilerFlags())
 
     # shared library linker values
-    self.setCompilers.pushLanguage(self.languages.clanguage)
-    # need to fix BuildSystem to collect these separately
-    self.addMakeMacro('SL_LINKER',self.setCompilers.getLinker())
-    self.addMakeMacro('SL_LINKER_FLAGS','${PCC_LINKER_FLAGS}')
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage(self.languages.clanguage):
+      # need to fix BuildSystem to collect these separately
+      self.addMakeMacro('SL_LINKER',self.setCompilers.getLinker())
+      self.addMakeMacro('SL_LINKER_FLAGS','${PCC_LINKER_FLAGS}')
     # One of 'a', 'so', 'lib', 'dll', 'dylib' (perhaps others also?) depending on the library generator and architecture
     # Note: . is not included in this macro, consistent with AR_LIB_SUFFIX
     if self.setCompilers.sharedLibraryExt == self.setCompilers.AR_LIB_SUFFIX:
@@ -443,25 +432,21 @@ prepend-path PATH %s
     fd.write('\"Using PETSc arch: %s\\n\"\n' % (escape(self.arch.arch)))
     fd.write('\"-----------------------------------------\\n\";\n')
     fd.write('static const char *petsccompilerinfo = \"\\n\"\n')
-    self.setCompilers.pushLanguage(self.languages.clanguage)
-    fd.write('\"Using C compiler: %s %s ${COPTFLAGS} ${CFLAGS}\\n\"\n' % (escape(self.setCompilers.getCompiler()), escape(self.setCompilers.getCompilerFlags())))
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage(self.languages.clanguage):
+      fd.write('\"Using C compiler: %s %s ${COPTFLAGS} ${CFLAGS}\\n\"\n' % (escape(self.setCompilers.getCompiler()), escape(self.setCompilers.getCompilerFlags())))
     if hasattr(self.compilers, 'FC'):
-      self.setCompilers.pushLanguage('FC')
-      fd.write('\"Using Fortran compiler: %s %s ${FOPTFLAGS} ${FFLAGS} %s\\n\"\n' % (escape(self.setCompilers.getCompiler()), escape(self.setCompilers.getCompilerFlags()), escape(self.setCompilers.CPPFLAGS)))
-      self.setCompilers.popLanguage()
+      with self.setCompilers.maskLanguage('FC'):
+        fd.write('\"Using Fortran compiler: %s %s ${FOPTFLAGS} ${FFLAGS} %s\\n\"\n' % (escape(self.setCompilers.getCompiler()), escape(self.setCompilers.getCompilerFlags()), escape(self.setCompilers.CPPFLAGS)))
     fd.write('\"-----------------------------------------\\n\";\n')
     fd.write('static const char *petsccompilerflagsinfo = \"\\n\"\n')
     fd.write('\"Using include paths: %s %s %s\\n\"\n' % ('-I'+escape(os.path.join(self.petscdir.dir, self.arch.arch, 'include')), '-I'+escape(os.path.join(self.petscdir.dir, 'include')), escape(self.PETSC_CC_INCLUDES)))
     fd.write('\"-----------------------------------------\\n\";\n')
     fd.write('static const char *petsclinkerinfo = \"\\n\"\n')
-    self.setCompilers.pushLanguage(self.languages.clanguage)
-    fd.write('\"Using C linker: %s\\n\"\n' % (escape(self.setCompilers.getLinker())))
-    self.setCompilers.popLanguage()
+    with self.setCompilers.maskLanguage(self.languages.clanguage):
+      fd.write('\"Using C linker: %s\\n\"\n' % (escape(self.setCompilers.getLinker())))
     if hasattr(self.compilers, 'FC'):
-      self.setCompilers.pushLanguage('FC')
-      fd.write('\"Using Fortran linker: %s\\n\"\n' % (escape(self.setCompilers.getLinker())))
-      self.setCompilers.popLanguage()
+      with self.setCompilers.maskLanguage('FC'):
+        fd.write('\"Using Fortran linker: %s\\n\"\n' % (escape(self.setCompilers.getLinker())))
     if self.framework.argDB['with-single-library']:
       petsclib = '-lpetsc'
     else:
@@ -628,56 +613,55 @@ prepend-path PATH %s
     if config.setCompilers.Configure.isSolaris(self.log) or self.framework.argDB['with-ios'] or not self.framework.argDB['with-prefetch']:
       self.addDefine('Prefetch(a,b,c)', ' ')
       return
-    self.pushLanguage(self.languages.clanguage)
-    if self.checkLink('#include <xmmintrin.h>', 'void *v = 0;_mm_prefetch((const char*)v,_MM_HINT_NTA);\n'):
-      # The Intel Intrinsics manual [1] specifies the prototype
-      #
-      #   void _mm_prefetch(char const *a, int sel);
-      #
-      # but other vendors seem to insist on using subtly different
-      # prototypes, including void* for the pointer, and an enum for
-      # sel.  These are both reasonable changes, but negatively impact
-      # portability.
-      #
-      # [1] http://software.intel.com/file/6373
-      self.addDefine('HAVE_XMMINTRIN_H', 1)
-      self.addDefine('Prefetch(a,b,c)', '_mm_prefetch((const char*)(a),(c))')
-      self.addDefine('PREFETCH_HINT_NTA', '_MM_HINT_NTA')
-      self.addDefine('PREFETCH_HINT_T0',  '_MM_HINT_T0')
-      self.addDefine('PREFETCH_HINT_T1',  '_MM_HINT_T1')
-      self.addDefine('PREFETCH_HINT_T2',  '_MM_HINT_T2')
-    elif self.checkLink('#include <xmmintrin.h>', 'void *v = 0;_mm_prefetch(v,_MM_HINT_NTA);\n'):
-      self.addDefine('HAVE_XMMINTRIN_H', 1)
-      self.addDefine('Prefetch(a,b,c)', '_mm_prefetch((const void*)(a),(c))')
-      self.addDefine('PREFETCH_HINT_NTA', '_MM_HINT_NTA')
-      self.addDefine('PREFETCH_HINT_T0',  '_MM_HINT_T0')
-      self.addDefine('PREFETCH_HINT_T1',  '_MM_HINT_T1')
-      self.addDefine('PREFETCH_HINT_T2',  '_MM_HINT_T2')
-    elif self.checkLink('', 'void *v = 0;__builtin_prefetch(v,0,0);\n'):
-      # From GCC docs: void __builtin_prefetch(const void *addr,int rw,int locality)
-      #
-      #   The value of rw is a compile-time constant one or zero; one
-      #   means that the prefetch is preparing for a write to the memory
-      #   address and zero, the default, means that the prefetch is
-      #   preparing for a read. The value locality must be a compile-time
-      #   constant integer between zero and three. A value of zero means
-      #   that the data has no temporal locality, so it need not be left
-      #   in the cache after the access. A value of three means that the
-      #   data has a high degree of temporal locality and should be left
-      #   in all levels of cache possible. Values of one and two mean,
-      #   respectively, a low or moderate degree of temporal locality.
-      #
-      # Here we adopt Intel's x86/x86-64 naming scheme for the locality
-      # hints.  Using macros for these values in necessary since some
-      # compilers require an enum.
-      self.addDefine('Prefetch(a,b,c)', '__builtin_prefetch((a),(b),(c))')
-      self.addDefine('PREFETCH_HINT_NTA', '0')
-      self.addDefine('PREFETCH_HINT_T0',  '3')
-      self.addDefine('PREFETCH_HINT_T1',  '2')
-      self.addDefine('PREFETCH_HINT_T2',  '1')
-    else:
-      self.addDefine('Prefetch(a,b,c)', ' ')
-    self.popLanguage()
+    with self.maskLanguage(self.languages.clanguage):
+      if self.checkLink('#include <xmmintrin.h>', 'void *v = 0;_mm_prefetch((const char*)v,_MM_HINT_NTA);\n'):
+        # The Intel Intrinsics manual [1] specifies the prototype
+        #
+        #   void _mm_prefetch(char const *a, int sel);
+        #
+        # but other vendors seem to insist on using subtly different
+        # prototypes, including void* for the pointer, and an enum for
+        # sel.  These are both reasonable changes, but negatively impact
+        # portability.
+        #
+        # [1] http://software.intel.com/file/6373
+        self.addDefine('HAVE_XMMINTRIN_H', 1)
+        self.addDefine('Prefetch(a,b,c)', '_mm_prefetch((const char*)(a),(c))')
+        self.addDefine('PREFETCH_HINT_NTA', '_MM_HINT_NTA')
+        self.addDefine('PREFETCH_HINT_T0',  '_MM_HINT_T0')
+        self.addDefine('PREFETCH_HINT_T1',  '_MM_HINT_T1')
+        self.addDefine('PREFETCH_HINT_T2',  '_MM_HINT_T2')
+      elif self.checkLink('#include <xmmintrin.h>', 'void *v = 0;_mm_prefetch(v,_MM_HINT_NTA);\n'):
+        self.addDefine('HAVE_XMMINTRIN_H', 1)
+        self.addDefine('Prefetch(a,b,c)', '_mm_prefetch((const void*)(a),(c))')
+        self.addDefine('PREFETCH_HINT_NTA', '_MM_HINT_NTA')
+        self.addDefine('PREFETCH_HINT_T0',  '_MM_HINT_T0')
+        self.addDefine('PREFETCH_HINT_T1',  '_MM_HINT_T1')
+        self.addDefine('PREFETCH_HINT_T2',  '_MM_HINT_T2')
+      elif self.checkLink('', 'void *v = 0;__builtin_prefetch(v,0,0);\n'):
+        # From GCC docs: void __builtin_prefetch(const void *addr,int rw,int locality)
+        #
+        #   The value of rw is a compile-time constant one or zero; one
+        #   means that the prefetch is preparing for a write to the memory
+        #   address and zero, the default, means that the prefetch is
+        #   preparing for a read. The value locality must be a compile-time
+        #   constant integer between zero and three. A value of zero means
+        #   that the data has no temporal locality, so it need not be left
+        #   in the cache after the access. A value of three means that the
+        #   data has a high degree of temporal locality and should be left
+        #   in all levels of cache possible. Values of one and two mean,
+        #   respectively, a low or moderate degree of temporal locality.
+        #
+        # Here we adopt Intel's x86/x86-64 naming scheme for the locality
+        # hints.  Using macros for these values in necessary since some
+        # compilers require an enum.
+        self.addDefine('Prefetch(a,b,c)', '__builtin_prefetch((a),(b),(c))')
+        self.addDefine('PREFETCH_HINT_NTA', '0')
+        self.addDefine('PREFETCH_HINT_T0',  '3')
+        self.addDefine('PREFETCH_HINT_T1',  '2')
+        self.addDefine('PREFETCH_HINT_T2',  '1')
+      else:
+        self.addDefine('Prefetch(a,b,c)', ' ')
 
   def configureAtoll(self):
     '''Checks if atoll exists'''
@@ -689,12 +673,11 @@ prepend-path PATH %s
     if self.framework.argDB['with-ios']:
       self.addDefine('UNUSED', ' ')
       return
-    self.pushLanguage(self.languages.clanguage)
-    if self.checkLink('__attribute((unused)) static int myfunc(__attribute((unused)) void *name){ return 1;}', 'int i = 0;\nint j = myfunc(&i);\ntypedef void* atype;\n__attribute((unused))  atype a;\n'):
-      self.addDefine('UNUSED', '__attribute((unused))')
-    else:
-      self.addDefine('UNUSED', ' ')
-    self.popLanguage()
+    with self.maskLanguage(self.languages.clanguage):
+      if self.checkLink('__attribute((unused)) static int myfunc(__attribute((unused)) void *name){ return 1;}', 'int i = 0;\nint j = myfunc(&i);\ntypedef void* atype;\n__attribute((unused))  atype a;\n'):
+        self.addDefine('UNUSED', '__attribute((unused))')
+      else:
+        self.addDefine('UNUSED', ' ')
 
   def configureIsatty(self):
     '''Check if the Unix C function isatty() works correctly
@@ -704,30 +687,28 @@ prepend-path PATH %s
 
   def configureDeprecated(self):
     '''Check if __attribute((deprecated)) is supported'''
-    self.pushLanguage(self.languages.clanguage)
-    ## Recent versions of gcc and clang support __attribute((deprecated("string argument"))), which is very useful, but
-    ## Intel has conspired to make a supremely environment-sensitive compiler.  The Intel compiler looks at the gcc
-    ## executable in the environment to determine the language compatibility that it should attempt to emulate.  Some
-    ## important Cray installations have built PETSc using the Intel compiler, but with a newer gcc module loaded (e.g.,
-    ## 4.7).  Thus at PETSc configure time, the Intel compiler decides to support the string argument, but the gcc
-    ## found in the default user environment is older and does not support the argument.  If GCC and Intel were cool
-    ## like Clang and supported __has_attribute, we could avoid configure tests entirely, but they don't.  And that is
-    ## why we can't have nice things.
-    #
-    # if self.checkCompile("""__attribute((deprecated("Why you shouldn't use myfunc"))) static int myfunc(void) { return 1;}""", ''):
-    #   self.addDefine('DEPRECATED(why)', '__attribute((deprecated(why)))')
-    if self.checkCompile("""__attribute((deprecated)) static int myfunc(void) { return 1;}""", ''):
-      self.addDefine('DEPRECATED(why)', '__attribute((deprecated))')
-    else:
-      self.addDefine('DEPRECATED(why)', ' ')
-    self.popLanguage()
+    with self.maskLanguage(self.languages.clanguage):
+      ## Recent versions of gcc and clang support __attribute((deprecated("string argument"))), which is very useful, but
+      ## Intel has conspired to make a supremely environment-sensitive compiler.  The Intel compiler looks at the gcc
+      ## executable in the environment to determine the language compatibility that it should attempt to emulate.  Some
+      ## important Cray installations have built PETSc using the Intel compiler, but with a newer gcc module loaded (e.g.,
+      ## 4.7).  Thus at PETSc configure time, the Intel compiler decides to support the string argument, but the gcc
+      ## found in the default user environment is older and does not support the argument.  If GCC and Intel were cool
+      ## like Clang and supported __has_attribute, we could avoid configure tests entirely, but they don't.  And that is
+      ## why we can't have nice things.
+      #
+      # if self.checkCompile("""__attribute((deprecated("Why you shouldn't use myfunc"))) static int myfunc(void) { return 1;}""", ''):
+      #   self.addDefine('DEPRECATED(why)', '__attribute((deprecated(why)))')
+      if self.checkCompile("""__attribute((deprecated)) static int myfunc(void) { return 1;}""", ''):
+        self.addDefine('DEPRECATED(why)', '__attribute((deprecated))')
+      else:
+        self.addDefine('DEPRECATED(why)', ' ')
 
   def configureExpect(self):
     '''Sees if the __builtin_expect directive is supported'''
-    self.pushLanguage(self.languages.clanguage)
-    if self.checkLink('', 'if (__builtin_expect(0,1)) return 1;'):
-      self.addDefine('HAVE_BUILTIN_EXPECT', 1)
-    self.popLanguage()
+    with self.maskLanguage(self.languages.clanguage):
+      if self.checkLink('', 'if (__builtin_expect(0,1)) return 1;'):
+        self.addDefine('HAVE_BUILTIN_EXPECT', 1)
 
   def configureFunctionName(self):
     '''Sees if the compiler supports __func__ or a variant.  Falls back
@@ -736,12 +717,11 @@ prepend-path PATH %s
     variant is used.'''
     def getFunctionName(lang):
       name = '__FUNCT__'
-      self.pushLanguage(lang)
-      if self.checkLink('', "if (__func__[0] != 'm') return 1;"):
-        name = '__func__'
-      elif self.checkLink('', "if (__FUNCTION__[0] != 'm') return 1;"):
-        name = '__FUNCTION__'
-      self.popLanguage()
+      with self.maskLanguage(lang):
+        if self.checkLink('', "if (__func__[0] != 'm') return 1;"):
+          name = '__func__'
+        elif self.checkLink('', "if (__FUNCTION__[0] != 'm') return 1;"):
+          name = '__FUNCTION__'
       return name
     langs = []
 
@@ -758,20 +738,19 @@ prepend-path PATH %s
       # It should be okay to use an int that is too large, but it would be very unlikely for this to be the case
       return self.checkCompile(inc, ('#define STATIC_ASSERT(cond) char negative_length_if_false[2*(!!(cond))-1]\n'
                                      + 'STATIC_ASSERT(sizeof(void*) == sizeof(%s));'%typename))
-    self.pushLanguage(self.languages.clanguage)
-    if self.checkCompile('#include <stdint.h>', 'int x; uintptr_t i = (uintptr_t)&x;'):
-      self.addDefine('UINTPTR_T', 'uintptr_t')
-    elif staticAssertSizeMatchesVoidStar('','unsigned long long'):
-      self.addDefine('UINTPTR_T', 'unsigned long long')
-    elif staticAssertSizeMatchesVoidStar('#include <stdlib.h>','size_t') or staticAssertSizeMatchesVoidStar('#include <string.h>', 'size_t'):
-      self.addDefine('UINTPTR_T', 'size_t')
-    elif staticAssertSizeMatchesVoidStar('','unsigned long'):
-      self.addDefine('UINTPTR_T', 'unsigned long')
-    elif staticAssertSizeMatchesVoidStar('','unsigned'):
-      self.addDefine('UINTPTR_T', 'unsigned')
-    else:
-      raise RuntimeError('Could not find any unsigned integer type matching void*')
-    self.popLanguage()
+    with self.maskLanguage(self.languages.clanguage):
+      if self.checkCompile('#include <stdint.h>', 'int x; uintptr_t i = (uintptr_t)&x;'):
+        self.addDefine('UINTPTR_T', 'uintptr_t')
+      elif staticAssertSizeMatchesVoidStar('','unsigned long long'):
+        self.addDefine('UINTPTR_T', 'unsigned long long')
+      elif staticAssertSizeMatchesVoidStar('#include <stdlib.h>','size_t') or staticAssertSizeMatchesVoidStar('#include <string.h>', 'size_t'):
+        self.addDefine('UINTPTR_T', 'size_t')
+      elif staticAssertSizeMatchesVoidStar('','unsigned long'):
+        self.addDefine('UINTPTR_T', 'unsigned long')
+      elif staticAssertSizeMatchesVoidStar('','unsigned'):
+        self.addDefine('UINTPTR_T', 'unsigned')
+      else:
+        raise RuntimeError('Could not find any unsigned integer type matching void*')
 
   def configureRTLDDefault(self):
     if self.checkCompile('#include <dlfcn.h>\n void *ptr =  RTLD_DEFAULT;'):
@@ -782,7 +761,7 @@ prepend-path PATH %s
     '''Solaris specific stuff'''
     if os.path.isdir(os.path.join('/usr','ucblib')):
       try:
-        flag = getattr(self.setCompilers, self.language[-1]+'SharedLinkerFlag')
+        flag = getattr(self.setCompilers, self.language+'SharedLinkerFlag')
       except AttributeError:
         flag = None
       if flag is None:

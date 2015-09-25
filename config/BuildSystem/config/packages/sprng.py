@@ -25,17 +25,16 @@ class Configure(config.package.Package):
     g.write('AR_LIB_SUFFIX  = '+self.setCompilers.AR_LIB_SUFFIX+'\n')
     g.write('RANLIB         = '+self.setCompilers.RANLIB+'\n')
 
-    self.setCompilers.pushLanguage('C')
-    cflags = self.setCompilers.getCompilerFlags().replace('-Wall','').replace('-Wshadow','')
-    cflags += ' ' + self.headers.toString(self.mpi.include)+' '+self.headers.toString('.')
-    cflags += ' ' + '-DSPRNG_MPI' # either using MPI or MPIUNI
+    with self.setCompilers.maskLanguage('C'):
+      cflags = self.setCompilers.getCompilerFlags().replace('-Wall','').replace('-Wshadow','')
+      cflags += ' ' + self.headers.toString(self.mpi.include)+' '+self.headers.toString('.')
+      cflags += ' ' + '-DSPRNG_MPI' # either using MPI or MPIUNI
 
-    g.write('CC             = '+self.setCompilers.getCompiler()+'\n')
-    g.write('CFLAGS         = '+cflags+'\n')
-    g.write('CLD            = $(CC)\n')
-    g.write('MPICC          = $(CC)\n')
-    g.write('CPP            ='+self.framework.getPreprocessor()+'\n')
-    self.setCompilers.popLanguage()
+      g.write('CC             = '+self.setCompilers.getCompiler()+'\n')
+      g.write('CFLAGS         = '+cflags+'\n')
+      g.write('CLD            = $(CC)\n')
+      g.write('MPICC          = $(CC)\n')
+      g.write('CPP            ='+self.framework.getPreprocessor()+'\n')
 
     # extra unused options
     g.write('CLDFLAGS       = \n')

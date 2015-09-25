@@ -142,18 +142,15 @@ class Configure(config.package.CMakePackage):
     else:
       args.append('-DTPL_ENABLE_ExodusII:BOOL=OFF')
 
-    self.framework.pushLanguage('C')
-    args.append('-DMPI_C_COMPILER="'+self.framework.getCompiler()+'"')
-    self.framework.popLanguage()
+    with self.framework.maskLanguage('C'):
+      args.append('-DMPI_C_COMPILER="'+self.framework.getCompiler()+'"')
 
-    self.framework.pushLanguage('Cxx')
-    args.append('-DMPI_CXX_COMPILER="'+self.framework.getCompiler()+'"')
-    self.framework.popLanguage()
+    with self.framework.maskLanguage('Cxx'):
+      args.append('-DMPI_CXX_COMPILER="'+self.framework.getCompiler()+'"')
 
     if hasattr(self.setCompilers, 'FC'):
-      self.framework.pushLanguage('FC')
-      args.append('-DMPI_Fortran_COMPILER="'+self.framework.getCompiler()+'"')
-      self.framework.popLanguage()
+      with self.framework.maskLanguage('FC'):
+        args.append('-DMPI_Fortran_COMPILER="'+self.framework.getCompiler()+'"')
     else:
       args.append('-DTrilinos_ENABLE_Fortran=OFF')
 
