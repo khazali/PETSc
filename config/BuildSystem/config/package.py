@@ -330,6 +330,8 @@ class Package(config.base.Configure):
           continue
         for l in self.generateLibList(libdirpath):
           yield('Download '+self.PACKAGE, d, l, self.getIncludeDirs(d, self.includedir))
+      # the above for loop doesn't include the case of a library-less package
+      yield('Download '+self.PACKAGE, d, [], self.getIncludeDirs(d, self.includedir))
       raise RuntimeError('Downloaded '+self.package+' could not be used. Please check install in '+d+'\n')
 
     if 'with-'+self.package+'-pkg-config' in self.argDB:
@@ -1186,9 +1188,15 @@ class CMakePackage(Package):
         shutil.rmtree(folder)
       os.mkdir(folder)
 
+      # give the package the option of specifying a different top source directory relative to the package root directory
+      if hasattr(self,'cmakeTopRelPath'):
+        cmakePath = os.path.join('..',self.cmakeTopRelPath)
+      else:
+        cmakePath = '..'
+
       try:
         self.logPrintBox('Configuring '+self.PACKAGE+' with cmake, this may take several minutes')
-        output1,err1,ret1  = config.package.Package.executeShellCommand('cd '+folder+' && '+self.cmake.cmake+' .. '+args, timeout=900, log = self.log)
+        output1,err1,ret1  = config.package.Package.executeShellCommand('cd '+folder+' && '+self.cmake.cmake+' '+cmakePath+' '+args, timeout=900, log = self.log)
       except RuntimeError, e:
         raise RuntimeError('Error configuring '+self.PACKAGE+' with cmake '+str(e))
       try:
