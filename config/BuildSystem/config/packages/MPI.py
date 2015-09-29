@@ -338,9 +338,9 @@ class Configure(config.package.Package):
     if not hasattr(self.compilers, 'CXX'):
       return 0
     self.log.write('Checking for header mpi.h\n')
-    with self.libraries.maskLanguage('Cxx'):
+    with self.libraries.maskLanguage('Cxx',maskLog=self):
       newFlags = self.compilers.CPPFLAGS +' '+self.headers.toString(self.include)
-      with self.compilers.mask('CPPFLAGS',newFlags):
+      with self.compilers.mask('CPPFLAGS',newFlags,maskLog=self):
         if not self.libraries.checkCompile(includes = '#include <mpi.h>\n'):
           raise RuntimeError('C++ error! mpi.h could not be located at: '+str(self.include))
         # check if MPI_Finalize from c++ exists

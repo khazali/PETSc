@@ -967,6 +967,7 @@ class Framework(config.base.Configure, script.LanguageProcessor):
         child.saveLog()
         try:
           if not hasattr(child, '_configured'):
+            print child.__module__
             child.configure()
           else:
             child.no_configure()
