@@ -2,6 +2,7 @@ from __future__ import generators
 import config.base
 
 import os
+import errno
 
 try:
   from hashlib import md5 as new_md5
@@ -416,7 +417,11 @@ class Package(config.base.Configure):
           continue
         includedir = self.getIncludeDirs(d, self.includedir)
         for libdir in [self.libdir, self.altlibdir]:
-          libdirpath = os.path.join(d, libdir)
+          try:
+            libdirpath = os.path.join(d, libdir)
+          except AttributeError:
+            print ' '.join(libdir)
+            raise AttributeError
           if not os.path.isdir(libdirpath):
             self.logPrint(self.PACKAGE+': DirPath not found.. skipping: '+libdirpath)
             continue
@@ -477,8 +482,12 @@ class Package(config.base.Configure):
     '''Find the directory containing the package'''
     packages = self.externalPackagesDir
     if not os.path.isdir(packages):
-      os.makedirs(packages)
-      self.framework.actions.addArgument('Framework', 'Directory creation', 'Created the external packages directory: '+packages)
+      try:
+        os.makedirs(packages)
+        self.framework.actions.addArgument('Framework', 'Directory creation', 'Created the external packages directory: '+packages)
+      except OSError as exc:
+        if exc.ERRNO == errno.EEXIST and os.path.isdir(packages):
+          pass
     Dir = None
     self.logPrint('Looking for '+self.PACKAGE+' in directory starting with '+str(self.downloadfilename))
     for d in os.listdir(packages):
@@ -718,7 +727,7 @@ class Package(config.base.Configure):
     with self.compilers.lock:
       self.compilers.__init__(self.framework)
       self.compilers.headerPrefix = self.headerPrefix
-      with self.compilers.maskLock(self):
+      with self.compilers.maskLog(self):
         self.compilers.configure()
     with self.compilerFlags.maskLog(self):
       self.compilerFlags.configure()

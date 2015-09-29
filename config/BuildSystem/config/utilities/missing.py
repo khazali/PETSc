@@ -75,19 +75,21 @@ class Configure(config.base.Configure):
     if not self.functions.haveFunction('socket'):
       # solaris requires these two libraries for socket()
       if self.libraries.haveLib('socket') and self.libraries.haveLib('nsl'):
-        # check if it can find the function
-        if self.functions.check('socket',['-lsocket','-lnsl']):
-          self.addDefine('HAVE_SOCKET', 1)
-          self.compilers.LIBS += ' -lsocket -lnsl'
+        with self.functions.maskLog(self):
+          # check if it can find the function
+          if self.functions.check('socket',['-lsocket','-lnsl']):
+            self.addDefine('HAVE_SOCKET', 1)
+            self.compilers.LIBS += ' -lsocket -lnsl'
 
-      # Windows requires Ws2_32.lib for socket(), uses stdcall, and declspec prototype decoration
-      if self.libraries.add('Ws2_32.lib','socket',prototype='#include <Winsock2.h>',call='socket(0,0,0);'):
-        self.addDefine('HAVE_WINSOCK2_H',1)
-        self.addDefine('HAVE_SOCKET', 1)
-        if self.checkLink('#include <Winsock2.h>','closesocket(0)'):
-          self.addDefine('HAVE_CLOSESOCKET',1)
-        if self.checkLink('#include <Winsock2.h>','WSAGetLastError()'):
-          self.addDefine('HAVE_WSAGETLASTERROR',1)
+      with self.libraries.maskLog(self):
+        # Windows requires Ws2_32.lib for socket(), uses stdcall, and declspec prototype decoration
+        if self.libraries.add('Ws2_32.lib','socket',prototype='#include <Winsock2.h>',call='socket(0,0,0);'):
+          self.addDefine('HAVE_WINSOCK2_H',1)
+          self.addDefine('HAVE_SOCKET', 1)
+          if self.checkLink('#include <Winsock2.h>','closesocket(0)'):
+            self.addDefine('HAVE_CLOSESOCKET',1)
+          if self.checkLink('#include <Winsock2.h>','WSAGetLastError()'):
+            self.addDefine('HAVE_WSAGETLASTERROR',1)
     return
 
   def configureMissingSignals(self):

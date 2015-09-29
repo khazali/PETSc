@@ -615,17 +615,18 @@ class Configure(config.base.Configure):
 
   def testMangling(self, cfunc, ffunc, clanguage = 'C', extraObjs = []):
     '''Test a certain name mangling'''
-    cobj = os.path.join(self.tmpDir, 'confc.o')
+    cobj = self.buildDir.join('confc.o')
+    #cobj = os.path.join(self.tmpDir, 'confc.o')
     found = 0
     # Compile the C test object
     with self.maskLanguage(clanguage):
       if not self.checkCompile(cfunc, None, cleanup = 0):
         self.logPrint('Cannot compile C function: '+cfunc, 3, 'compilers')
         return found
-      if not os.path.isfile(self.compilerObj):
-        self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
+      if not os.path.isfile(str(self.compilerObj)):
+        self.logPrint('Cannot locate object file: '+os.path.abspath(str(self.compilerObj)), 3, 'compilers')
         return found
-      os.rename(self.compilerObj, cobj)
+      os.rename(str(self.compilerObj), cobj)
     # Link the test object against a Fortran driver
     with self.maskLanguage('FC'):
       newLIBS = cobj+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.clibs])+' '+self.setCompilers.LIBS
@@ -1071,15 +1072,16 @@ class Configure(config.base.Configure):
     cinc = 'extern "C" '+cinc+'\n'
 
     cxxCode = 'void foo(void){'+self.mangleFortranFunction('d1chk')+'();}'
-    cxxobj  = os.path.join(self.tmpDir, 'cxxobj.o')
+    cxxobj  = self.buildDir.join('cxxobj.o')
+    #cxxobj  = os.path.join(self.tmpDir, 'cxxobj.o')
     with self.maskLanguage('Cxx'):
       if not self.checkCompile(cinc+cxxCode, None, cleanup = 0):
         self.logPrint('Cannot compile Cxx function: '+cfunc, 3, 'compilers')
         raise RuntimeError('Fortran could not successfully link C++ objects')
-      if not os.path.isfile(self.compilerObj):
-        self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
+      if not os.path.isfile(str(self.compilerObj)):
+        self.logPrint('Cannot locate object file: '+os.path.abspath(str(self.compilerObj)), 3, 'compilers')
         raise RuntimeError('Fortran could not successfully link C++ objects')
-      os.rename(self.compilerObj, cxxobj)
+      os.rename(str(self.compilerObj), cxxobj)
 
     if self.testMangling(cinc+cfunc, ffunc, 'Cxx', extraObjs = [cxxobj]):
       self.logPrint('Fortran can link C++ functions', 3, 'compilers')
@@ -1169,15 +1171,16 @@ class Configure(config.base.Configure):
   }
   return;
 }\n'''
-    cobj = os.path.join(self.tmpDir, 'fooobj.o')
+    cobj = self.buildDir.join('fooobj.o')
+    #cobj = os.path.join(self.tmpDir, 'fooobj.o')
     with self.maskLanguage('C'):
       if not self.checkCompile(cinc+ccode, None, cleanup = 0):
         self.logPrint('Cannot compile C function: f90ptrtest', 3, 'compilers')
         raise RuntimeError('Could not check Fortran pointer arguments')
-      if not os.path.isfile(self.compilerObj):
-        self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
+      if not os.path.isfile(str(self.compilerObj)):
+        self.logPrint('Cannot locate object file: '+os.path.abspath(str(self.compilerObj)), 3, 'compilers')
         raise RuntimeError('Could not check Fortran pointer arguments')
-      os.rename(self.compilerObj, cobj)
+      os.rename(str(self.compilerObj), cobj)
     # Link the test object against a Fortran driver
     with self.maskLanguage('FC'):
       newLIBS = cobj+' '+self.setCompilers.LIBS
@@ -1221,8 +1224,10 @@ class Configure(config.base.Configure):
       self.logPrint('Not a Fortran90 compiler - hence skipping module include test')
       return
     found   = False
-    testdir = os.path.join(self.tmpDir, 'confdir')
-    modobj  = os.path.join(self.tmpDir, 'configtest.o')
+    testdir = self.buildDir.join('confdir')
+    modobj  = self.buildDir.join('configtest.o')
+    #testdir = os.path.join(self.tmpDir, 'confdir')
+    #modobj  = os.path.join(self.tmpDir, 'configtest.o')
     modcode = '''\
       module configtest
       integer testint
@@ -1233,14 +1238,14 @@ class Configure(config.base.Configure):
       if not self.checkCompile(modcode, None, cleanup = 0):
         self.logPrint('Cannot compile Fortran module', 3, 'compilers')
         raise RuntimeError('Cannot determine Fortran module include flag')
-      if not os.path.isfile(self.compilerObj):
-        self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
+      if not os.path.isfile(str(self.compilerObj)):
+        self.logPrint('Cannot locate object file: '+os.path.abspath(str(self.compilerObj)), 3, 'compilers')
         raise RuntimeError('Cannot determine Fortran module include flag')
       if not os.path.isdir(testdir):
         os.mkdir(testdir)
-      os.rename(self.compilerObj, modobj)
+      os.rename(str(self.compilerObj), modobj)
       foundModule = 0
-      for f in [os.path.abspath('configtest.mod'), os.path.abspath('CONFIGTEST.mod'), os.path.join(os.path.dirname(self.compilerObj),'configtest.mod'), os.path.join(os.path.dirname(self.compilerObj),'CONFIGTEST.mod')]:
+      for f in [os.path.abspath('configtest.mod'), os.path.abspath('CONFIGTEST.mod'), os.path.join(os.path.dirname(str(self.compilerObj)),'configtest.mod'), os.path.join(os.path.dirname(str(self.compilerObj)),'CONFIGTEST.mod')]:
         if os.path.isfile(f):
           modname     = f
           foundModule = 1
@@ -1280,8 +1285,10 @@ class Configure(config.base.Configure):
       self.logPrint('Not a Fortran90 compiler - hence skipping module include test')
       return
     found   = False
-    testdir = os.path.join(self.tmpDir, 'confdir')
-    modobj  = os.path.join(self.tmpDir, 'configtest.o')
+    testdir = self.buildDir.join('confdir')
+    modobj  = self.buildDir.join('configtest.o')
+    #testdir = os.path.join(self.tmpDir, 'confdir')
+    #modobj  = os.path.join(self.tmpDir, 'configtest.o')
     modcode = '''\
       module configtest
       integer testint
@@ -1341,7 +1348,7 @@ class Configure(config.base.Configure):
           try:
             self.logPrint('Trying '+language+' compiler flag '+testFlag)
             if self.setCompilers.checkCompilerFlag(testFlag, compilerOnly = 1):
-              depFilename = os.path.splitext(self.setCompilers.compilerObj)[0]+'.d'
+              depFilename = os.path.splitext(str(self.setCompilers.compilerObj))[0]+'.d'
               if os.path.isfile(depFilename):
                 os.remove(depFilename)
                 #self.setCompilers.insertCompilerFlag(testFlag, compilerOnly = 1)

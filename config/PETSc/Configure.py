@@ -778,41 +778,43 @@ prepend-path PATH %s
 
   def configureWin32(self):
     '''Win32 non-cygwin specific stuff'''
-    kernel32=0
-    if self.libraries.add('Kernel32.lib','GetComputerName',prototype='#include <Windows.h>', call='GetComputerName(NULL,NULL);'):
-      self.addDefine('HAVE_WINDOWS_H',1)
-      self.addDefine('HAVE_GETCOMPUTERNAME',1)
-      kernel32=1
-    elif self.libraries.add('kernel32','GetComputerName',prototype='#include <Windows.h>', call='GetComputerName(NULL,NULL);'):
-      self.addDefine('HAVE_WINDOWS_H',1)
-      self.addDefine('HAVE_GETCOMPUTERNAME',1)
-      kernel32=1
-    if kernel32:
-      if self.framework.argDB['with-windows-graphics']:
-        self.addDefine('USE_WINDOWS_GRAPHICS',1)
-      if self.checkLink('#include <Windows.h>','LoadLibrary(0)'):
-        self.addDefine('HAVE_LOADLIBRARY',1)
-      if self.checkLink('#include <Windows.h>','GetProcAddress(0,0)'):
-        self.addDefine('HAVE_GETPROCADDRESS',1)
-      if self.checkLink('#include <Windows.h>','FreeLibrary(0)'):
-        self.addDefine('HAVE_FREELIBRARY',1)
-      if self.checkLink('#include <Windows.h>','GetLastError()'):
-        self.addDefine('HAVE_GETLASTERROR',1)
-      if self.checkLink('#include <Windows.h>','SetLastError(0)'):
-        self.addDefine('HAVE_SETLASTERROR',1)
-      if self.checkLink('#include <Windows.h>\n','QueryPerformanceCounter(0);\n'):
-        self.addDefine('USE_MICROSOFT_TIME',1)
-    if self.libraries.add('Advapi32.lib','GetUserName',prototype='#include <Windows.h>', call='GetUserName(NULL,NULL);'):
-      self.addDefine('HAVE_GET_USER_NAME',1)
-    elif self.libraries.add('advapi32','GetUserName',prototype='#include <Windows.h>', call='GetUserName(NULL,NULL);'):
-      self.addDefine('HAVE_GET_USER_NAME',1)
+    with self.libraries.maskLog(self):
+      kernel32=0
+      if self.libraries.add('Kernel32.lib','GetComputerName',prototype='#include <Windows.h>', call='GetComputerName(NULL,NULL);'):
+        self.addDefine('HAVE_WINDOWS_H',1)
+        self.addDefine('HAVE_GETCOMPUTERNAME',1)
+        kernel32=1
+      elif self.libraries.add('kernel32','GetComputerName',prototype='#include <Windows.h>', call='GetComputerName(NULL,NULL);'):
+        self.addDefine('HAVE_WINDOWS_H',1)
+        self.addDefine('HAVE_GETCOMPUTERNAME',1)
+        kernel32=1
+      if kernel32:
+        if self.framework.argDB['with-windows-graphics']:
+          self.addDefine('USE_WINDOWS_GRAPHICS',1)
+        if self.checkLink('#include <Windows.h>','LoadLibrary(0)'):
+          self.addDefine('HAVE_LOADLIBRARY',1)
+        if self.checkLink('#include <Windows.h>','GetProcAddress(0,0)'):
+          self.addDefine('HAVE_GETPROCADDRESS',1)
+        if self.checkLink('#include <Windows.h>','FreeLibrary(0)'):
+          self.addDefine('HAVE_FREELIBRARY',1)
+        if self.checkLink('#include <Windows.h>','GetLastError()'):
+          self.addDefine('HAVE_GETLASTERROR',1)
+        if self.checkLink('#include <Windows.h>','SetLastError(0)'):
+          self.addDefine('HAVE_SETLASTERROR',1)
+        if self.checkLink('#include <Windows.h>\n','QueryPerformanceCounter(0);\n'):
+          self.addDefine('USE_MICROSOFT_TIME',1)
+      if self.libraries.add('Advapi32.lib','GetUserName',prototype='#include <Windows.h>', call='GetUserName(NULL,NULL);'):
+        self.addDefine('HAVE_GET_USER_NAME',1)
+      elif self.libraries.add('advapi32','GetUserName',prototype='#include <Windows.h>', call='GetUserName(NULL,NULL);'):
+        self.addDefine('HAVE_GET_USER_NAME',1)
 
-    if not self.libraries.add('User32.lib','GetDC',prototype='#include <Windows.h>',call='GetDC(0);'):
-      self.libraries.add('user32','GetDC',prototype='#include <Windows.h>',call='GetDC(0);')
-    if not self.libraries.add('Gdi32.lib','CreateCompatibleDC',prototype='#include <Windows.h>',call='CreateCompatibleDC(0);'):
-      self.libraries.add('gdi32','CreateCompatibleDC',prototype='#include <Windows.h>',call='CreateCompatibleDC(0);')
+      if not self.libraries.add('User32.lib','GetDC',prototype='#include <Windows.h>',call='GetDC(0);'):
+        self.libraries.add('user32','GetDC',prototype='#include <Windows.h>',call='GetDC(0);')
+      if not self.libraries.add('Gdi32.lib','CreateCompatibleDC',prototype='#include <Windows.h>',call='CreateCompatibleDC(0);'):
+        self.libraries.add('gdi32','CreateCompatibleDC',prototype='#include <Windows.h>',call='CreateCompatibleDC(0);')
 
-    self.types.check('int32_t', 'int')
+    with self.types.maskLog(self):
+      self.types.check('int32_t', 'int')
     if not self.checkCompile('#include <sys/types.h>\n','uid_t u;\n'):
       self.addTypedef('int', 'uid_t')
       self.addTypedef('int', 'gid_t')

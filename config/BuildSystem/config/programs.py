@@ -46,7 +46,8 @@ class Configure(config.base.Configure):
     self.autoreconf_flg = False
     if self.getExecutable(self.argDB['with-autoreconf'], getFullPath = 1,resultName = 'autoreconf',setMakeMacro = 0):
       import shutil,os
-      testdir = os.path.join(self.tmpDir, 'autoconfdir')
+      testdir = self.buildDir.join('autoconfdir')
+      #testdir = os.path.join(self.tmpDir, 'autoconfdir')
       acfile  = os.path.join(testdir,'configure.ac')
       if not os.path.isdir(testdir):
         os.mkdir(testdir)
@@ -70,7 +71,8 @@ class Configure(config.base.Configure):
     self.getExecutable('sed',  getFullPath = 1)
     if not hasattr(self, 'sed'): raise RuntimeError('Could not locate sed executable')
     # check if sed supports -i "" or -i option
-    sed1 = os.path.join(self.tmpDir,'sed1')
+    sed1 = self.buildDir.join('sed1')
+    #sed1 = os.path.join(self.tmpDir,'sed1')
     f = open(sed1, 'w')
     f.write('sed\n')
     f.close()
@@ -99,7 +101,8 @@ class Configure(config.base.Configure):
     if hasattr(self, 'diff'):
       # check if diff supports -w option for ignoring whitespace
       def mkfile(base,contents):
-        fname = os.path.join(self.tmpDir,base)
+        fname = self.buildDir.join(base)
+        #fname = os.path.join(self.tmpDir,base)
         f = open(fname,'w')
         f.write(contents)
         f.close

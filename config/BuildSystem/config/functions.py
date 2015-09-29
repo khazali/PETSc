@@ -78,8 +78,6 @@ builtin and then its argument prototype would still apply. */
           newLibs += ' '+library
         else:
           newLibs += ' -l'+library
-    #import pdb
-    #pdb.set_trace()
     with self.compilers.mask('LIBS',newLibs):
       found = self.checkLink(includes, body, examineOutput=examineOutput)
     if found:

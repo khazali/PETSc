@@ -13,7 +13,7 @@ class Configure(config.package.Package):
   def Install(self):
     import os
 
-    with open(os.path.join(self.packageDir,'make.inc'),'w') as g,self.setCompilers.maskLanguage('C'):
+    with open(os.path.join(self.packageDir,'make.inc'),'w') as g, self.setCompilers.maskLanguage('C'):
       g.write('CC = '+self.setCompilers.getCompiler()+' '+self.setCompilers.getCompilerFlags()+'\n')
 
     if self.installNeeded('make.inc'):

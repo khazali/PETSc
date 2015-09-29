@@ -48,15 +48,16 @@ class Configure(config.package.Package):
       # Building cflags/ldflags
       self.cflags = self.setCompilers.getCompilerFlags()+' '+self.headers.toString(self.mpi.include)
       ldflags = self.libraries.toString(self.mpi.lib)
-      if self.libraries.add('-lz','gzwrite'):
-        self.cflags = self.cflags + ' -DCOMMON_FILE_COMPRESS_GZ'
-        ldflags += ' -lz'
-      # OSX does not have pthread_barrierattr_t - so check for that
-      if self.libraries.add('-lpthread','pthread_barrierattr_t'):
-        self.cflags = self.cflags + ' -DCOMMON_PTHREAD'
-        ldflags += ' -lpthread'
-      if self.libraries.add('-lm','sin'): ldflags += ' -lm'
-      if self.libraries.add('-lrt','timer_create'): ldflags += ' -lrt'
+      with self.libraries.maskLog(self):
+        if self.libraries.add('-lz','gzwrite'):
+          self.cflags = self.cflags + ' -DCOMMON_FILE_COMPRESS_GZ'
+          ldflags += ' -lz'
+        # OSX does not have pthread_barrierattr_t - so check for that
+        if self.libraries.add('-lpthread','pthread_barrierattr_t'):
+          self.cflags = self.cflags + ' -DCOMMON_PTHREAD'
+          ldflags += ' -lpthread'
+        if self.libraries.add('-lm','sin'): ldflags += ' -lm'
+        if self.libraries.add('-lrt','timer_create'): ldflags += ' -lrt'
       self.cflags = self.cflags + ' -DCOMMON_RANDOM_FIXED_SEED'
       # do not use -DSCOTCH_PTHREAD because requires MPI built for threads.
       self.cflags = self.cflags + ' -DSCOTCH_RENAME -Drestrict="" '
@@ -79,6 +80,10 @@ class Configure(config.package.Package):
     g.write('RANLIB	= '+self.setCompilers.RANLIB+'\n')
     g.write('YACC	= '+self.programs.bison+' -y\n')
     g.close()
+
+    with open(os.path.join(self.packageDir,'src','Makefile.inc'),'w') as f:
+      for line in f:
+        self.logWrite(line)
 
     if self.installNeeded(os.path.join('src','Makefile.inc')):
       try:

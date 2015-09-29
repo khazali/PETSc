@@ -70,7 +70,7 @@ class Configure(config.base.Configure):
     '''Check that Python.h is present'''
     newFlags = self.compilers.CPPFLAGS+' '+' '.join([self.headers.getIncludeArgument(inc) for inc in includeDir])
     with self.compilers.mask('CPPFLAGS',newFlags):
-        found = self.checkPreprocess('#include <Python.h>\n')
+      found = self.checkPreprocess('#include <Python.h>\n')
     return found
 
   def checkPythonLink(self, includes, body, cleanup = 1, codeBegin = None, codeEnd = None, shared = 0):

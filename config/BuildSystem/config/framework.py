@@ -68,7 +68,7 @@ except NameError:
 
 class Framework(config.base.Configure, script.LanguageProcessor):
   '''This needs to manage configure information in itself just as Builder manages it for configurations'''
-  def __init__(self, clArgs = None, argDB = None, loadArgDB = 1, tmpDir = None):
+  def __init__(self, clArgs = None, argDB = None, loadArgDB = 1, buildDir = None):
     import graph
     import nargs
 
@@ -77,7 +77,8 @@ class Framework(config.base.Configure, script.LanguageProcessor):
 
       argDB = RDict.RDict(load = loadArgDB)
     # Storage for intermediate test results
-    self.tmpDir          = tmpDir
+    self.tmpDir          = buildDir
+    self.buildDir        = buildDir
     script.LanguageProcessor.__init__(self, clArgs, argDB)
     config.base.Configure.__init__(self, self)
     self.childGraph      = graph.DirectedGraph()
@@ -143,6 +144,31 @@ class Framework(config.base.Configure, script.LanguageProcessor):
             rest = None
           dirs.extend(self.listDirs(os.path.join(base, dir),rest ))
     return dirs
+
+  def getBuildDir(self):
+    if not hasattr(self, '_buildDir'):
+      if 'useThreads' in self.argDB and self.argDB['useThreads'] > 1:
+        self._buildDir = config.base.BuildDir(base=tempfile.mkdtemp(prefix = 'petsc-'),threadSafe=True)
+      else:
+        self._buildDir = config.base.BuildDir(base=tempfile.mkdtemp(prefix = 'petsc-'),threadSafe=False)
+      if not os.access(self._buildDir.base, os.X_OK):
+        raise RuntimeError('Cannot execute things in tmp directory '+self._buildDir.base+'. Consider setting TMPDIR to something else.')
+      if self._buildDir.threadSafe:
+        self.logPrint('All intermediate test results are stored in '+os.path.join(self._buildDir.base,'X')+' (X varies with thread)')
+      else:
+        self.logPrint('All intermediate test results are stored in '+os.path.join(self._buildDir.base))
+    return self._buildDir
+  def setBuildDir(self, temp):
+    if hasattr(self, '_buildDir'):
+      if os.path.isdir(self._buildDir.base):
+        import shutil
+        shutil.rmtree(self._buildDir.base)
+      if temp is None:
+        delattr(self, '_buildDir')
+    if not temp is None:
+      self._buildDir = temp
+    return
+  buildDir = property(getBuildDir, setBuildDir, doc = 'Temporary directory for test byproducts')
 
   def getTmpDir(self):
     if not hasattr(self, '_tmpDir'):
@@ -255,6 +281,7 @@ class Framework(config.base.Configure, script.LanguageProcessor):
   def cleanup(self):
     self.actions.output(self.log)
     self.tmpDir = None
+    self.buildDir = None
     return
 
   def printSummary(self):
@@ -916,8 +943,10 @@ class Framework(config.base.Configure, script.LanguageProcessor):
             sys.exit('Unable to generate test file for cross-compilers/batch-system\n')
           import shutil
           # Could use shutil.copy, but want an error if confname exists as a directory
-          shutil.copyfile(os.path.join(self.tmpDir,'conftest'),confname)
-          shutil.copymode(os.path.join(self.tmpDir,'conftest'),confname)
+          shutil.copyfile(self.buildDir.join('conftest'),confname)
+          shutil.copymode(self.buildDir.join('conftest'),confname)
+          #shutil.copyfile(os.path.join(self.tmpDir,'conftest'),confname)
+          #shutil.copymode(os.path.join(self.tmpDir,'conftest'),confname)
       self.logClear()
       print '=================================================================================\r'
       print '    Since your compute nodes require use of a batch system or mpiexec you must:  \r'
@@ -967,7 +996,6 @@ class Framework(config.base.Configure, script.LanguageProcessor):
         child.saveLog()
         try:
           if not hasattr(child, '_configured'):
-            print child.__module__
             child.configure()
           else:
             child.no_configure()

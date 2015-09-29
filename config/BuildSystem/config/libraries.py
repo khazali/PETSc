@@ -224,7 +224,12 @@ extern "C" {
     if cxxLink: linklang = 'Cxx'
     else: linklang = self.language
     found = 0
+    if funcs[0] == 'timer_create':
+      print 'newLibs: '+newLibs
     with self.setCompilers.mask('LIBS',newLibs), self.maskLanguage(compileLang):
+      if funcs[0] == 'timer_create':
+        print 'LIBS' in self.setCompilers.__dict__
+        print 'LIBS' in self.compilers.__dict__
       if self.checkLink(includes, body, linkLanguage=linklang, examineOutput=examineOutput):
         found = 1
         # add to list of found libraries
@@ -361,7 +366,8 @@ extern "C" {
     newLibs = ' '+self.toString(libraries)+' '+self.setCompilers.LIBS
     with self.setCompilers.mask('LIBS',newLibs):
       # Make a library which calls initFunction(), and returns checkFunction()
-      lib1Name = os.path.join(self.tmpDir, 'lib1.'+self.setCompilers.sharedLibraryExt)
+      lib1Name = self.buildDir.join('lib1.'+self.setCompilers.sharedLibraryExt)
+      #lib1Name = os.path.join(self.tmpDir, 'lib1.'+self.setCompilers.sharedLibraryExt)
       if noCheckArg:
         checkCode = 'isInitialized = '+checkFunction+'();'
       else:
@@ -381,13 +387,16 @@ int init(int argc,  char *argv[]) {
 '''   % (boolType, initFunction, initArgs, checkCode)
       codeEnd   = '\n}\n'
       if not checkLink(includes, body, cleanup = 0, codeBegin = codeBegin, codeEnd = codeEnd, shared = 1):
-        if os.path.isfile(configObj.compilerObj): os.remove(configObj.compilerObj)
+        if os.path.isfile(str(configObj.compilerObj)):
+          os.remove(str(configObj.compilerObj))
         raise RuntimeError('Could not complete shared library check')
-      if os.path.isfile(configObj.compilerObj): os.remove(configObj.compilerObj)
-      os.rename(configObj.linkerObj, lib1Name)
+      if os.path.isfile(str(configObj.compilerObj)):
+        os.remove(str(configObj.compilerObj))
+      os.rename(str(configObj.linkerObj), lib1Name)
 
       # Make a library which calls checkFunction()
-      lib2Name = os.path.join(self.tmpDir, 'lib2.'+self.setCompilers.sharedLibraryExt)
+      lib2Name = self.buildDir.join('lib2.'+self.setCompilers.sharedLibraryExt)
+      #lib2Name = os.path.join(self.tmpDir, 'lib2.'+self.setCompilers.sharedLibraryExt)
       codeBegin = '''
 #ifdef __cplusplus
 extern "C"
@@ -404,11 +413,13 @@ int checkInit(void) {
       body += '  return (int) isInitialized;\n'
       codeEnd   = '\n}\n'
       if not checkLink(includes, body, cleanup = 0, codeBegin = codeBegin, codeEnd = codeEnd, shared = 1):
-        if os.path.isfile(configObj.compilerObj): os.remove(configObj.compilerObj)
+        if os.path.isfile(str(configObj.compilerObj)):
+          os.remove(str(configObj.compilerObj))
         raise RuntimeError('Could not complete shared library check')
         return 0
-      if os.path.isfile(configObj.compilerObj): os.remove(configObj.compilerObj)
-      os.rename(configObj.linkerObj, lib2Name)
+      if os.path.isfile(str(configObj.compilerObj)):
+        os.remove(str(configObj.compilerObj))
+      os.rename(str(configObj.linkerObj), lib2Name)
 
     # Make an executable that dynamically loads and calls both libraries
     #   If the check returns true in the second library, the static data was shared

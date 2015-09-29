@@ -125,7 +125,7 @@ class Processor(logger.Logger):
     if not outputFile is None:
       cmd.extend([self.outputFlag, outputFile])
     if hasattr(self, 'includeDirectories'):
-      cmd.extend(['-I'+inc for inc in self.includeDirectories])
+      cmd.extend(['-I'+str(inc) for inc in self.includeDirectories])
     cmd.append(self.flags)
     cmd.extend(sourceFiles)
     cmd.append(self.extraArguments)

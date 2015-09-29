@@ -66,8 +66,89 @@ import time
 class ConfigureSetupError(Exception):
   pass
 
+class BuildDir(object):
+  ''' a build dir keeps tracks of file names in a directory used for building,
+  such as conftest files. 
+
+  It is initialized with a base directory,
+
+    b = BuildDir(base)
+
+  To get the path,
+
+    compilerDefines = b.join('confdefs.h') # compilerDefines = 'base/confdefs.h'
+
+  One can optionally specify the threadSafe flag,
+
+    b = BuildDir(base,threadSafe=True)
+
+  and then every thread gets its own directory,
+
+    compilerDefines = b.join('confdefs.h') # compilerDefines =
+                                           # 'base/X/confdefs.h',
+                                           # where X is unique to the current thread
+
+  Using b.path('confdefs.h') will return an object that can be converted to a
+  string at a later time (i.e., by another thread)
+  '''
+
+  _threadDir = {}
+  _threadCount = 0
+  import threading
+  _lock = threading.RLock()
+  def __init__(self,base=None,infix='',threadSafe=None):
+    if isinstance(base,BuildDir):
+      self.threadSafe = base.threadSafe
+      self.base = base.base
+      self.infix = base.infix
+    else:
+      self.threadSafe = False
+      self.base = str(base)
+      self.infix = ''
+    if infix:
+      self.infix = os.path.join(self.infix,infix)
+    if not threadSafe is None:
+      self.threadSafe = threadSafe
+    return
+
+  def __str__(self):
+    return self.join('')
+
+  def join(self,basename,mkdir=True):
+    if self.threadSafe:
+      import threading
+      ident = threading.current_thread().ident
+      try:
+        threadDir = BuildDir._threadDir[ident]
+      except KeyError:
+        with BuildDir._lock:
+          threadDir = str(BuildDir._threadCount)
+          BuildDir._threadCount += 1
+        BuildDir._threadDir[ident] = threadDir
+    else:
+      threadDir = ''
+    path = os.path.join(self.base,threadDir,self.infix,basename)
+    if mkdir:
+      if not os.path.isdir(os.path.dirname(path)):
+        os.makedirs(os.path.dirname(path))
+    return path
+
+  def path(self,basename):
+    if self.threadSafe:
+      return BuildPath(self,basename)
+    else:
+      return self.join(basename)
+
+class BuildPath(object):
+  def __init__(self,buildDir,basename):
+    self.buildDir = buildDir
+    self.basename = basename
+  def __str__(self):
+    return self.buildDir.join(self.basename,mkdir=False)
+
+
 class Configure(script.Script):
-  def __init__(self, framework, tmpDir = None):
+  def __init__(self, framework, buildDir = None):
     script.Script.__init__(self, framework.clArgs, framework.argDB)
     self.framework       = framework
     self.defines         = {}
@@ -78,9 +159,31 @@ class Configure(script.Script):
     self.subst           = {}
     self.argSubst        = {}
     self.language        = 'C'
-    if not tmpDir is None:
-      self.tmpDir        = tmpDir
+    if not buildDir is None:
+      self.buildDir      = BuildDir(buildDir)
+      self.tmpDir        = buildDir
     return
+
+  def getBuildDir(self):
+    if not hasattr(self, '_buildDir'):
+      self._buildDir = BuildDir(base=self.framework.buildDir,infix=self.__module__)
+      if self._buildDir.threadSafe:
+        self.logPrint('All intermediate test results are stored in ' + os.path.join(self._buildDir.base,'X',self._buildDir.infix) + ' (X varies by thread)')
+      else:
+        self.logPrint('All intermediate test results are stored in ' + os.path.join(self._buildDir.base,self._buildDir.infix))
+    return self._buildDir
+  def setBuildDir(self,temp):
+    if hasattr(self, '_buildDir'):
+      if os.path.isdir(self._buildDir.base):
+        import shutil
+        shutil.rmtree(self._buildDir.base)
+      if temp is None:
+        delattr(self, '_buildDir')
+    if not temp is None:
+      self._buildDir = temp
+    return
+  buildDir = property(getBuildDir, setBuildDir, doc = 'Temporary directory for test byproducts')
+
 
   def getTmpDir(self):
     if not hasattr(self, '_tmpDir'):
@@ -297,8 +400,8 @@ class Configure(script.Script):
     def __enter__(self):
       logger.Logger.Mask.__enter__(self)
       if self.pushLanguage:
-        if self.pushLanguage == 'C++':
-          self.pushLanguage == 'Cxx'
+        if self.pushLanguage == 'C++' or self.pushLanguage == 'CXX':
+          self.pushLanguage = 'Cxx'
         self.pushLanguageMask = logger.Logger.Mask(self.target,'language',self.pushLanguage)
         self.pushLanguageMask.__enter__()
         self.target.logPrint('Pushing language '+self.pushLanguage)
@@ -320,8 +423,8 @@ class Configure(script.Script):
 
 
   def getHeaders(self):
-    self.compilerDefines = os.path.join(self.tmpDir, 'confdefs.h')
-    self.compilerFixes   = os.path.join(self.tmpDir, 'conffix.h')
+    self.compilerDefines = self.buildDir.path('confdefs.h')
+    self.compilerFixes   = self.buildDir.path('conffix.h')
     return
 
   def getPreprocessor(self):
@@ -334,8 +437,9 @@ class Configure(script.Script):
     self.getHeaders()
     compiler            = self.framework.getCompilerObject(self.language)
     compiler.checkSetup()
-    self.compilerSource = os.path.join(self.tmpDir, 'conftest'+compiler.sourceExtension)
-    self.compilerObj    = os.path.join(self.tmpDir, compiler.getTarget(self.compilerSource))
+    conftestbase = 'conftest'+compiler.sourceExtension
+    self.compilerSource = self.buildDir.path(conftestbase)
+    self.compilerObj    = self.buildDir.path(compiler.getTarget(conftestbase))
     return compiler.getProcessor()
 
   def getCompilerFlags(self):
@@ -345,8 +449,9 @@ class Configure(script.Script):
     self.getHeaders()
     linker            = self.framework.getLinkerObject(self.language)
     linker.checkSetup()
-    self.linkerSource = os.path.join(self.tmpDir, 'conftest'+linker.sourceExtension)
-    self.linkerObj    = linker.getTarget(self.linkerSource, 0)
+    conftestbase = 'conftest'+linker.sourceExtension
+    self.linkerSource = self.buildDir.path(conftestbase)
+    self.linkerObj    = self.buildDir.path(linker.getTarget(conftestbase, 0))
     return linker.getProcessor()
 
   def getLinkerFlags(self):
@@ -356,8 +461,9 @@ class Configure(script.Script):
     self.getHeaders()
     linker            = self.framework.getSharedLinkerObject(self.language)
     linker.checkSetup()
-    self.linkerSource = os.path.join(self.tmpDir, 'conftest'+linker.sourceExtension)
-    self.linkerObj    = linker.getTarget(self.linkerSource, 1)
+    conftestbase = 'conftest'+linker.sourceExtension
+    self.linkerSource = self.buildDir.path(conftestbase)
+    self.linkerObj    = self.buildDir.path(linker.getTarget(conftestbase, 1))
     return linker.getProcessor()
 
   def getSharedLinkerFlags(self):
@@ -367,8 +473,9 @@ class Configure(script.Script):
     self.getHeaders()
     linker            = self.framework.getDynamicLinkerObject(self.language)
     linker.checkSetup()
-    self.linkerSource = os.path.join(self.tmpDir, 'conftest'+linker.sourceExtension)
-    self.linkerObj    = linker.getTarget(self.linkerSource, 1)
+    conftestbase = 'conftest'+linker.sourceExtension
+    self.linkerSource = self.buildDir.path(conftestbase)
+    self.linkerObj    = self.buildDir.path(linker.getTarget(conftestbase, 1))
     return linker.getProcessor()
 
   def getDynamicLinkerFlags(self):
@@ -378,21 +485,21 @@ class Configure(script.Script):
     self.getCompiler()
     preprocessor = self.framework.getPreprocessorObject(self.language)
     preprocessor.checkSetup()
-    preprocessor.includeDirectories.add(self.tmpDir)
-    return preprocessor.getCommand(self.compilerSource)
+    preprocessor.includeDirectories.add(self.buildDir)
+    return preprocessor.getCommand(str(self.compilerSource))
 
   def getCompilerCmd(self):
     self.getCompiler()
     compiler = self.framework.getCompilerObject(self.language)
     compiler.checkSetup()
-    compiler.includeDirectories.add(self.tmpDir)
-    return compiler.getCommand(self.compilerSource, self.compilerObj)
+    compiler.includeDirectories.add(self.buildDir)
+    return compiler.getCommand(str(self.compilerSource), str(self.compilerObj))
 
   def getLinkerCmd(self):
     self.getLinker()
     linker = self.framework.getLinkerObject(self.language)
     linker.checkSetup()
-    return linker.getCommand(self.linkerSource, self.linkerObj)
+    return linker.getCommand(str(self.linkerSource), str(self.linkerObj))
 
   def getFullLinkerCmd(self, objects, executable):
     self.getLinker()
@@ -404,13 +511,13 @@ class Configure(script.Script):
     self.getSharedLinker()
     linker = self.framework.getSharedLinkerObject(self.language)
     linker.checkSetup()
-    return linker.getCommand(self.linkerSource, self.linkerObj)
+    return linker.getCommand(str(self.linkerSource), str(self.linkerObj))
 
   def getDynamicLinkerCmd(self):
     self.getDynamicLinker()
     linker = self.framework.getDynamicLinkerObject(self.language)
     linker.checkSetup()
-    return linker.getCommand(self.linkerSource, self.linkerObj)
+    return linker.getCommand(str(self.linkerSource), str(self.linkerObj))
 
   def getCode(self, includes, body = None, codeBegin = None, codeEnd = None):
     language = self.language
@@ -418,7 +525,7 @@ class Configure(script.Script):
       includes += '\n'
     if language in ['C', 'CUDA', 'Cxx']:
       codeStr = ''
-      if self.compilerDefines: codeStr = '#include "'+os.path.basename(self.compilerDefines)+'"\n'
+      if str(self.compilerDefines): codeStr = '#include "'+os.path.basename(str(self.compilerDefines))+'"\n'
       codeStr += '#include "conffix.h"\n'+includes
       if not body is None:
         if codeBegin is None:
@@ -448,15 +555,16 @@ class Configure(script.Script):
         self.logWrite('Source:\n'+self.getCode(codeStr))
 
     command = self.getPreprocessorCmd()
-    if self.compilerDefines: self.framework.outputHeader(self.compilerDefines)
-    self.framework.outputCHeader(self.compilerFixes)
-    f = file(self.compilerSource, 'w')
+    if str(self.compilerDefines): self.framework.outputHeader(str(self.compilerDefines))
+    self.framework.outputCHeader(str(self.compilerFixes))
+    f = file(str(self.compilerSource), 'w')
     f.write(self.getCode(codeStr))
     f.close()
     (out, err, ret) = Configure.executeShellCommand(command, checkCommand = report, timeout = timeout, log = self.log, lineLimit = 100000)
     if self.cleanup:
-      for filename in [self.compilerDefines, self.compilerFixes, self.compilerSource]:
-        if os.path.isfile(filename): os.remove(filename)
+      for filename in [str(self.compilerDefines), str(self.compilerFixes), str(self.compilerSource)]:
+        if os.path.isfile(filename):
+          os.remove(filename)
     return (out, err, ret)
 
   def outputPreprocess(self, codeStr):
@@ -501,17 +609,19 @@ class Configure(script.Script):
 
     cleanup = cleanup and self.framework.doCleanup
     command = self.getCompilerCmd()
-    if self.compilerDefines: self.framework.outputHeader(self.compilerDefines)
-    self.framework.outputCHeader(self.compilerFixes)
-    f = file(self.compilerSource, 'w')
+    if str(self.compilerDefines): self.framework.outputHeader(str(self.compilerDefines))
+    self.framework.outputCHeader(str(self.compilerFixes))
+    f = file(str(self.compilerSource), 'w')
     f.write(self.getCode(includes, body, codeBegin, codeEnd))
     f.close()
     (out, err, ret) = Configure.executeShellCommand(command, checkCommand = report, log = self.log)
-    if not os.path.isfile(self.compilerObj):
+    if not os.path.isfile(str(self.compilerObj)):
       err += '\nPETSc Error: No output file produced'
     if cleanup:
-      for filename in [self.compilerDefines, self.compilerFixes, self.compilerSource, self.compilerObj]:
-        if os.path.isfile(filename): os.remove(filename)
+      for filename in [str(self.compilerDefines), str(self.compilerFixes), str(self.compilerSource), str(self.compilerObj)]:
+        if os.path.isfile(filename):
+          os.remove(filename)
+    #self.logWrite('outputCompile: '+str(self.compilerObj)+' '+str(os.path.isfile(str(self.compilerObj)))+'\n')
     return (out, err, ret)
 
   def checkCompile(self, includes = '', body = '', cleanup = 1, codeBegin = None, codeEnd = None):
@@ -555,6 +665,8 @@ class Configure(script.Script):
       self.linkerObj = ''
       return (out, ret)
 
+    #self.logWrite('outputLink: '+str(self.compilerObj)+' '+str(os.path.isfile(str(self.compilerObj)))+'\n')
+
     cleanup = cleanup and self.framework.doCleanup
 
     if not linkLanguage:
@@ -575,11 +687,15 @@ class Configure(script.Script):
       return
     (out, err, ret) = Configure.executeShellCommand(cmd, checkCommand = report, log = self.log)
     self.linkerObj = linkerObj
-    if os.path.isfile(self.compilerObj): os.remove(self.compilerObj)
+    if os.path.isfile(str(self.compilerObj)):
+      import threading
+      os.remove(str(self.compilerObj))
     if cleanup:
-      if os.path.isfile(self.linkerObj):os.remove(self.linkerObj)
-      pdbfile = os.path.splitext(self.linkerObj)[0]+'.pdb'
-      if os.path.isfile(pdbfile): os.remove(pdbfile)
+      if os.path.isfile(str(self.linkerObj)):
+        os.remove(str(self.linkerObj))
+      pdbfile = os.path.splitext(str(self.linkerObj))[0]+'.pdb'
+      if os.path.isfile(pdbfile):
+        os.remove(pdbfile)
     return (out+'\n'+err, ret)
 
   def checkLink(self, includes = '', body = '', cleanup = 1, codeBegin = None, codeEnd = None, shared = 0, linkLanguage=None, examineOutput=lambda ret,out,err:None):
@@ -601,12 +717,12 @@ class Configure(script.Script):
 
   def outputRun(self, includes, body, cleanup = 1, defaultOutputArg = '', executor = None):
     if not self.checkLink(includes, body, cleanup = 0): return ('', 1)
-    self.logWrite('Testing executable '+self.linkerObj+' to see if it can be run\n')
-    if not os.path.isfile(self.linkerObj):
-      self.logWrite('ERROR executable '+self.linkerObj+' does not exist\n')
+    self.logWrite('Testing executable '+str(self.linkerObj)+' to see if it can be run\n')
+    if not os.path.isfile(str(self.linkerObj)):
+      self.logWrite('ERROR executable '+str(self.linkerObj)+' does not exist\n')
       return ('', 1)
-    if not os.access(self.linkerObj, os.X_OK):
-      self.logWrite('ERROR while running executable: '+self.linkerObj+' is not executable\n')
+    if not os.access(str(self.linkerObj), os.X_OK):
+      self.logWrite('ERROR while running executable: '+str(self.linkerObj)+' is not executable\n')
       return ('', 1)
     if self.argDB['with-batch']:
       if defaultOutputArg:
@@ -618,9 +734,9 @@ class Configure(script.Script):
         raise ConfigureSetupError('Running executables on this system is not supported')
     cleanup = cleanup and self.framework.doCleanup
     if executor:
-      command = executor+' '+self.linkerObj
+      command = executor+' '+str(self.linkerObj)
     else:
-      command = self.linkerObj
+      command = str(self.linkerObj)
     output  = ''
     error   = ''
     status  = 1
@@ -629,15 +745,15 @@ class Configure(script.Script):
       (output, error, status) = Configure.executeShellCommand(command, log = self.log)
     except RuntimeError, e:
       self.logWrite('ERROR while running executable: '+str(e)+'\n')
-    if os.path.isfile(self.compilerObj):
+    if os.path.isfile(str(self.compilerObj)):
       try:
-        os.remove(self.compilerObj)
+        os.remove(str(self.compilerObj))
       except RuntimeError, e:
         self.logWrite('ERROR while removing object file: '+str(e)+'\n')
-    if cleanup and os.path.isfile(self.linkerObj):
+    if cleanup and os.path.isfile(str(self.linkerObj)):
       try:
         if os.path.exists('/usr/bin/cygcheck.exe'): time.sleep(1)
-        os.remove(self.linkerObj)
+        os.remove(str(self.linkerObj))
       except RuntimeError, e:
         self.logWrite('ERROR while removing executable file: '+str(e)+'\n')
     return (output+error, status)

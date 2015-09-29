@@ -86,7 +86,7 @@ class Configure(config.package.Package):
     if not self.scalartypes.precision in ['double', 'single']:
       raise RuntimeError('Must use either single or double precision with CUDA')
     else:
-      with self.setCompilers.maskLanguage('CUDA'):
+      with self.setCompilers.maskLanguage('CUDA',maskLog=self):
         #Not setting -arch if with-cuda-arch is not specified uses nvcc default architecture
         if 'with-cuda-arch' in self.argDB:
           if not self.argDB['with-cuda-arch'] in ['compute_10', 'compute_11', 'compute_12', 'compute_13', 'compute_20', 'compute_21', 'compute_30', 'compute_35', 'compute_50', 'sm_10', 'sm_11', 'sm_12', 'sm_13', 'sm_20', 'sm_21', 'sm_30', 'sm_35', 'sm_50']:

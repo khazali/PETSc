@@ -1126,9 +1126,12 @@ class Configure(config.base.Configure):
 
   def checkArchiver(self):
     '''Check that the archiver exists and can make a library usable by the compiler'''
-    objName    = os.path.join(self.tmpDir, 'conf1.o')
-    arcUnix    = os.path.join(self.tmpDir, 'libconf1.a')
-    arcWindows = os.path.join(self.tmpDir, 'libconf1.lib')
+    objName    = self.buildDir.join('conf1.o')
+    arcUnix    = self.buildDir.join('libconf1.a')
+    arcWindows = self.buildDir.join('libconf1.lib')
+    #objName    = os.path.join(self.tmpDir, 'conf1.o')
+    #arcUnix    = os.path.join(self.tmpDir, 'libconf1.a')
+    #arcWindows = os.path.join(self.tmpDir, 'libconf1.lib')
     def checkArchive(command, status, output, error):
       if error or status:
         self.logError('archiver', status, output, error)
@@ -1149,7 +1152,7 @@ class Configure(config.base.Configure):
           raise RuntimeError('Compiler is not functional')
         if os.path.isfile(objName):
           os.remove(objName)
-        os.rename(self.compilerObj, objName)
+        os.rename(str(self.compilerObj), objName)
         if self.getExecutable(archiver, getFullPath = 1, resultName = 'AR'):
           if self.getExecutable(ranlib, getFullPath = 1, resultName = 'RANLIB'):
             arext = 'a'
@@ -1159,7 +1162,8 @@ class Configure(config.base.Configure):
             except RuntimeError, e:
               self.logPrint(str(e))
               continue
-            newLibs = '-L'+self.tmpDir+' -lconf1 ' + self.LIBS
+            newLibs = '-L'+str(self.buildDir)+' -lconf1 ' + self.LIBS
+            #newLibs = '-L'+self.tmpDir+' -lconf1 ' + self.LIBS
             with self.mask('LIBS',newLibs):
               success =  self.checkLink('extern int foo(int);', '  int b = foo(1);  if (b);\n')
               os.rename(arcUnix, arcWindows)
@@ -1255,8 +1259,9 @@ class Configure(config.base.Configure):
             self.sharedLibraryExt = ext
             # using printf appears to correctly identify non-pic code on X86_64
             if self.checkLink(includes = '#include <stdio.h>\nint '+testMethod+'(void) {printf("hello");\nreturn 0;}\n', codeBegin = '', codeEnd = '', cleanup = 0, shared = 1):
-              oldLib  = self.linkerObj
-              newLibs = self.LIBS+' -L'+self.tmpDir+' -lconftest'
+              oldLib  = str(self.linkerObj)
+              newLibs = self.LIBS+' -L'+str(self.buildDir)+' -lconftest'
+              #newLibs = self.LIBS+' -L'+self.tmpDir+' -lconftest'
               with self.mask('LIBS',newLibs):
                 accepted = self.checkLink(includes = 'int foo(void);', body = 'int ret = foo();\nif(ret);')
               os.remove(oldLib)
@@ -1266,7 +1271,8 @@ class Configure(config.base.Configure):
                 break
           self.logPrint('Rejected '+self.language+' compiler flag '+picFlag+' because it was not compatible with shared linker '+linker+' using flags '+str(flags))
           setattr(self, compilerFlagsArg, oldCompilerFlags)
-        if os.path.isfile(self.linkerObj): os.remove(self.linkerObj)
+        if os.path.isfile(str(self.linkerObj)):
+          os.remove(str(self.linkerObj))
         if self.sharedLibraries: break
         self.delMakeMacro('LD_SHARED')
         del self.LD_SHARED
@@ -1357,22 +1363,18 @@ class Configure(config.base.Configure):
     self.explicitLibc = None
     if self.staticLibraries:
       return
-    tmpCompilerDefines   = self.compilerDefines
-    self.compilerDefines = ''
-    code = '#include <stdlib.h> \nint foo(void) {void *chunk = malloc(31); free(chunk); return 0;}\n'
-    if self.checkLink(includes = code, codeBegin = '', codeEnd = '', shared = 1):
-      self.logPrint('Shared linking does not require an explicit libc reference')
-      self.compilerDefines = tmpCompilerDefines
-      return
-    oldLibs = self.LIBS
-    self.LIBS += '-lc '
-    if self.checkLink(includes = code, codeBegin = '', codeEnd = '', shared = 1):
-      self.logPrint('Shared linking requires an explicit libc reference')
-      self.compilerDefines = tmpCompilerDefines
-      self.explicitLibc = ['libc.so']
-      return
-    self.LIBS = oldLibs
-    self.compilerDefines = tmpCompilerDefines
+    with self.mask('compilerDefines',''):
+      code = '#include <stdlib.h> \nint foo(void) {void *chunk = malloc(31); free(chunk); return 0;}\n'
+      if self.checkLink(includes = code, codeBegin = '', codeEnd = '', shared = 1):
+        self.logPrint('Shared linking does not require an explicit libc reference')
+        return
+      oldLibs = self.LIBS
+      self.LIBS += '-lc '
+      if self.checkLink(includes = code, codeBegin = '', codeEnd = '', shared = 1):
+        self.logPrint('Shared linking requires an explicit libc reference')
+        self.explicitLibc = ['libc.so']
+        return
+      self.LIBS = oldLibs
     self.logPrint('*** WARNING *** Shared linking may not function on this architecture')
     self.staticLibrary=1
     self.sharedLibrary=0
@@ -1421,7 +1423,7 @@ class Configure(config.base.Configure):
         self.dynamicLibraryExt = ext
         testMethod = 'foo'
         if self.checkLink(includes = '#include <stdio.h>\nint '+testMethod+'(void) {printf("test");return 0;}\n', codeBegin = '', codeEnd = '', cleanup = 0, shared = 'dynamic'):
-          oldLib  = self.linkerObj
+          oldLib  = str(self.linkerObj)
           code = '''
 void *handle = dlopen("%s", 0);
 int (*foo)(void) = (int (*)(void)) dlsym(handle, "foo");
@@ -1444,7 +1446,8 @@ if (dlclose(handle)) {
             self.dynamicLibraries = 1
             self.logPrint('Using dynamic linker '+self.dynamicLinker+' with flags '+str(self.dynamicLibraryFlags)+' and library extension '+self.dynamicLibraryExt)
             break
-        if os.path.isfile(self.linkerObj): os.remove(self.linkerObj)
+        if os.path.isfile(str(self.linkerObj)):
+          os.remove(str(self.linkerObj))
         del self.dynamicLinker
     return
 

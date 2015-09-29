@@ -57,9 +57,22 @@ class Logger(args.ArgumentProcessor):
         # see if this thread has a mask for the name
         masks = self.threadMasks[ident]
         val = masks[name]
+        if name == 'LIBS':
+          print str(ident)+' '+val[-1]
       except KeyError:
         pass
     return val[-1]
+
+  def __setattr__(self, name, val):
+    try:
+      with self.lock:
+        self.masked[name][1] = val
+    except AttributeError:
+      args.ArgumentProcessor.__setattr__(self,name,val)
+    except KeyError:
+      args.ArgumentProcessor.__setattr__(self,name,val)
+    return
+
 
   def __getstate__(self):
     '''We do not want to pickle the default log stream'''
@@ -184,6 +197,8 @@ class Logger(args.ArgumentProcessor):
       pushLog = self.pushLog
       target  = self.target
       val     = self.val
+      if name and name == 'LIBS' and val.startswith(' -lrt'):
+        print 'pushing...'
       if pushLog:
         import StringIO
         stringLog = StringIO.StringIO()
@@ -195,13 +210,21 @@ class Logger(args.ArgumentProcessor):
         # I don't need a lock before trying to get/create my masks: they are thread local
         try:
           masks = target.threadMasks[self.ident]
+          if name and name == 'LIBS' and val.startswith(' -lrt'):
+            print str(ident)+' masks: '+str(masks)
         except KeyError:
+          if name and name == 'LIBS' and val.startswith(' -lrt'):
+            print str(ident)+' no masks...'
           masks = {}
           target.threadMasks[ident] = masks
         self.masks = masks
         try:
           stack = masks[name]
+          if name and name == 'LIBS' and val.startswith(' -lrt'):
+            print str(ident)+' stack: '+str(stack)
         except KeyError:
+          if name and name == 'LIBS' and val.startswith(' -lrt'):
+            print str(ident)+' no stack...'
           stack = []
           masks[name] = stack
           masked = target.masked
@@ -209,12 +232,18 @@ class Logger(args.ArgumentProcessor):
           with target.lock:
             try:
               pair = masked[name]
+              if name and name == 'LIBS' and val.startswith(' -lrt'):
+                print str(ident)+' pair: '+' '.join([str(item) for item in pair])
             except KeyError:
+              if name and name == 'LIBS' and val.startswith(' -lrt'):
+                print str(ident)+' no pair...'
               pair = [0, None]
               masked[name] = pair
             if not pair[0]:
               pair[1] = getattr(target,name)
               delattr(target,name)
+            else:
+              assert(not name in target.__dict__)
             pair[0] += 1
         self.stack = stack
         stack.append(val)
@@ -223,6 +252,8 @@ class Logger(args.ArgumentProcessor):
     def __exit__(self, exc_type, exc_value, traceback):
       target = self.target
       name   = self.name
+      if name and name == 'LIBS' and self.val.startswith(' -lrt'):
+        print 'popping...'
       if name:
         stack = self.stack
         masks = self.masks

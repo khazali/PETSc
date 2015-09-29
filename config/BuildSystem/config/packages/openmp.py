@@ -17,7 +17,7 @@ class Configure(config.package.Package):
     ''' Needs to check if OpenMP actually exists and works '''
     self.checkDependencies()
     self.found = 0    
-    with self.setCompilers.maskLanguage('C'):
+    with self.setCompilers.maskLanguage('C',maskLog=self):
       #
       for flag in ["-fopenmp", # Gnu
                    "-qsmp=omp",# IBM XL C/C++
@@ -39,10 +39,10 @@ class Configure(config.package.Package):
         raise RuntimeError('Compiler has no support for OpenMP')
       self.setCompilers.addCompilerFlag(ompflag)
     if hasattr(self.compilers, 'FC'):
-      with self.setCompilers.maskLanguage('FC'):
+      with self.setCompilers.maskLanguage('FC',maskLog=self):
         self.setCompilers.addCompilerFlag(ompflag)
     if hasattr(self.compilers, 'CXX'):
-      with self.setCompilers.maskLanguage('Cxx'):
+      with self.setCompilers.maskLanguage('Cxx',maskLog=self):
         self.setCompilers.addCompilerFlag(ompflag)
     # register package since config.package.Package.configureLibrary(self) will not work since there is no library to find
     if not hasattr(self.framework, 'packages'):

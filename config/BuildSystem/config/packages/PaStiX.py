@@ -62,8 +62,9 @@ class Configure(config.package.Package):
     g.write('ARFLAGS     = '+self.setCompilers.AR_FLAGS+'\n')
     g.write('ARPROG      = '+self.setCompilers.AR+'\n')
     extralib = ''
-    if self.libraries.add('-lm','sin'): extralib += ' -lm'
-    if self.libraries.add('-lrt','timer_create'): extralib += ' -lrt'
+    with self.libraries.maskLog(self):
+      if self.libraries.add('-lm','sin'): extralib += ' -lm'
+      if self.libraries.add('-lrt','timer_create'): extralib += ' -lrt'
 
     g.write('EXTRALIB    = '+extralib+' \n')
     g.write('\n')
