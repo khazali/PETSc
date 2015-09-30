@@ -224,12 +224,7 @@ extern "C" {
     if cxxLink: linklang = 'Cxx'
     else: linklang = self.language
     found = 0
-    if funcs[0] == 'timer_create':
-      print 'newLibs: '+newLibs
     with self.setCompilers.mask('LIBS',newLibs), self.maskLanguage(compileLang):
-      if funcs[0] == 'timer_create':
-        print 'LIBS' in self.setCompilers.__dict__
-        print 'LIBS' in self.compilers.__dict__
       if self.checkLink(includes, body, linkLanguage=linklang, examineOutput=examineOutput):
         found = 1
         # add to list of found libraries

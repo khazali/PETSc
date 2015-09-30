@@ -612,7 +612,6 @@ class Configure(script.Script):
       for filename in [str(self.compilerDefines), str(self.compilerFixes), str(self.compilerSource), str(self.compilerObj)]:
         if os.path.isfile(filename):
           os.remove(filename)
-    #self.logWrite('outputCompile: '+str(self.compilerObj)+' '+str(os.path.isfile(str(self.compilerObj)))+'\n')
     return (out, err, ret)
 
   def checkCompile(self, includes = '', body = '', cleanup = 1, codeBegin = None, codeEnd = None):
@@ -655,8 +654,6 @@ class Configure(script.Script):
       self.logPrint('Compile failed inside link\n'+out)
       self.linkerObj = ''
       return (out, ret)
-
-    #self.logWrite('outputLink: '+str(self.compilerObj)+' '+str(os.path.isfile(str(self.compilerObj)))+'\n')
 
     cleanup = cleanup and self.framework.doCleanup
 
