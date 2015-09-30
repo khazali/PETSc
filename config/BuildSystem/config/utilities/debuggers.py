@@ -43,7 +43,8 @@ class Configure(config.base.Configure):
       import re
       if self.argDB['with-batch']: return
       self.addDefine('USE_DBX_DEBUGGER', 1)
-      f = file('conftest', 'w')
+      filename = self.buildDir.join('conftest')
+      f = file(filename, 'w')
       f.write('quit\n')
       f.close()
       foundOption = 0
@@ -55,7 +56,7 @@ class Configure(config.base.Configure):
           time.sleep(15)
           sys.exit()
         try:
-          (output, error, status) = config.base.Configure.executeShellCommand(self.dbx+' -c conftest -p '+str(pid), log = self.log)
+          (output, error, status) = config.base.Configure.executeShellCommand(self.dbx+' -c '+filename+' -p '+str(pid), log = self.log)
           if not status:
             for line in output:
               if re.match(r'Process '+str(pid), line):
@@ -65,7 +66,7 @@ class Configure(config.base.Configure):
         except RuntimeError: pass
       if not foundOption:
         try:
-          (output, error, status) = config.base.Configure.executeShellCommand(self.dbx+' -c conftest -a '+str(pid), log = self.log)
+          (output, error, status) = config.base.Configure.executeShellCommand(self.dbx+' -c '+filename+' -a '+str(pid), log = self.log)
           if not status:
             for line in output:
               if re.match(r'Process '+str(pid), line):
@@ -75,7 +76,7 @@ class Configure(config.base.Configure):
         except RuntimeError: pass
       if not foundOption:
         try:
-          (output, error, status) = config.base.Configure.executeShellCommand(self.dbx+' -c conftest -pid '+str(pid), log = self.log)
+          (output, error, status) = config.base.Configure.executeShellCommand(self.dbx+' -c '+filename+' -pid '+str(pid), log = self.log)
           if not status:
             for line in output:
               if re.match(r'Process '+str(pid), line):
@@ -83,7 +84,7 @@ class Configure(config.base.Configure):
                 foundOption = 1
                 break
         except RuntimeError: pass
-      os.remove('conftest')
+      os.remove(filename)
     elif hasattr(self, 'xdb'):
       self.addDefine('USE_XDB_DEBUGGER', 1)
       self.addDefine('USE_LARGEP_FOR_DEBUGGER', 1)

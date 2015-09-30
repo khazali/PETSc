@@ -81,10 +81,6 @@ class Configure(config.package.Package):
     g.write('YACC	= '+self.programs.bison+' -y\n')
     g.close()
 
-    with open(os.path.join(self.packageDir,'src','Makefile.inc'),'w') as f:
-      for line in f:
-        self.logWrite(line)
-
     if self.installNeeded(os.path.join('src','Makefile.inc')):
       try:
         self.logPrintBox('Compiling PTScotch; this may take several minutes')

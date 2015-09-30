@@ -50,7 +50,7 @@ class Configure(config.package.Package):
     '''Checks if the CUDA compiler agrees with the C compiler on what size of void * should be'''
     self.log.write('Checking if sizeof(void*) in CUDA is the same as with regular compiler\n')
     typeName = 'void*'
-    filename = 'conftestval'
+    filename = self.buildDir.join('conftestval')
     includes = '''
 #include <sys/types.h>
 #if STDC_HEADERS

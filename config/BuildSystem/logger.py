@@ -1,7 +1,8 @@
 import args
 import sys
 import os
-import threading
+from threading import RLock
+from thread import get_ident as thread_id
 
 # Ugly stuff to have curses called ONLY once, instead of for each
 # new Configure object created (and flashing the screen)
@@ -36,42 +37,53 @@ class Logger(args.ArgumentProcessor):
     self.debugLevel    = debugLevel
     self.debugSections = debugSections
     self.debugIndent   = debugIndent
-    self.lock          = threading.RLock()
-    self.masked        = {}
-    self.threadMasks   = {}
+    self.lock          = RLock()
+    #self.masked        = {}
+    self._thread_masks = {}
     self.getRoot()
     return
 
-  def __getattr__(self, name):
-    '''We sometimes mask values for individual threads: if a value is masked,
-    we look for the masking value, otherwise look for the masked value'''
-    if name == 'masked' or name == 'threadMasks' or name == 'lock': # avoid recursion
-      raise AttributeError("'%s' object has no attribute '%s'" % (self.__class__.__name__,name))
+  def __getattribute__(self, name):
     try:
-      val = self.masked[name]
-    except KeyError:
-      raise AttributeError("'%s' object has no attribute '%s'" % (self.__class__.__name__,name))
-    if val[0]:
-      ident = threading.current_thread().ident
-      try:
-        # see if this thread has a mask for the name
-        masks = self.threadMasks[ident]
-        val = masks[name]
-        if name == 'LIBS':
-          print str(ident)+' '+val[-1]
-      except KeyError:
-        pass
-    return val[-1]
-
-  def __setattr__(self, name, val):
-    try:
-      with self.lock:
-        self.masked[name][1] = val
+      _thread_masks = args.ArgumentProcessor.__getattribute__(self,'_thread_masks')
+      masks = _thread_masks[thread_id()]
+      stack = masks[name]
     except AttributeError:
-      args.ArgumentProcessor.__setattr__(self,name,val)
+      return args.ArgumentProcessor.__getattribute__(self,name)
     except KeyError:
-      args.ArgumentProcessor.__setattr__(self,name,val)
-    return
+      return args.ArgumentProcessor.__getattribute__(self,name)
+    return stack[-1]
+
+  #def __getattr__(self, name):
+  #  '''We sometimes mask values for individual threads: if a value is masked,
+  #  we look for the masking value, otherwise look for the masked value'''
+  #  if name == 'masked' or name == 'threadMasks' or name == 'lock': # avoid recursion
+  #    raise AttributeError("'%s' object has no attribute '%s'" % (self.__class__.__name__,name))
+  #  try:
+  #    val = self.masked[name]
+  #  except KeyError:
+  #    raise AttributeError("'%s' object has no attribute '%s'" % (self.__class__.__name__,name))
+  #  if val[0]:
+  #    ident = threading.current_thread().ident
+  #    try:
+  #      # see if this thread has a mask for the name
+  #      masks = self.threadMasks[ident]
+  #      val = masks[name]
+  #      if name == 'LIBS':
+  #        print str(ident)+' '+val[-1]
+  #    except KeyError:
+  #      pass
+  #  return val[-1]
+
+  #def __setattr__(self, name, val):
+  #  try:
+  #    with self.lock:
+  #      self.masked[name][1] = val
+  #  except AttributeError:
+  #    args.ArgumentProcessor.__setattr__(self,name,val)
+  #  except KeyError:
+  #    args.ArgumentProcessor.__setattr__(self,name,val)
+  #  return
 
 
   def __getstate__(self):
@@ -89,10 +101,8 @@ class Logger(args.ArgumentProcessor):
         d['out'] = None
     if 'lock' in d:
       del d['lock']
-    if 'masked' in d:
-      del d['masked']
-    if 'threadMasks' in d:
-      del d['threadMasks']
+    if '_thread_masks' in d:
+      del d['_thread_masks']
     return d
 
   def __setstate__(self, d):
@@ -103,9 +113,9 @@ class Logger(args.ArgumentProcessor):
     if not 'out' in d:
       self.out = Logger.defaultOut
     self.__dict__.update(d)
-    self.lock = threading.RLock()
-    self.masked = {}
-    self.threadMasks = {}
+    self.lock = RLock()
+    #self.masked = {}
+    self._thread_masks = {}
     return
 
   def setupArguments(self, argDB):
@@ -197,54 +207,26 @@ class Logger(args.ArgumentProcessor):
       pushLog = self.pushLog
       target  = self.target
       val     = self.val
-      if name and name == 'LIBS' and val.startswith(' -lrt'):
-        print 'pushing...'
       if pushLog:
         import StringIO
         stringLog = StringIO.StringIO()
         self.pushLogMask = Logger.Mask(target,'log',stringLog)
         self.pushLogMask.__enter__()
       if name:
-        ident = threading.current_thread().ident
+        ident = thread_id()
         self.ident = ident
-        # I don't need a lock before trying to get/create my masks: they are thread local
+        _thread_masks = target._thread_masks
         try:
-          masks = target.threadMasks[self.ident]
-          if name and name == 'LIBS' and val.startswith(' -lrt'):
-            print str(ident)+' masks: '+str(masks)
+          masks = _thread_masks[ident]
         except KeyError:
-          if name and name == 'LIBS' and val.startswith(' -lrt'):
-            print str(ident)+' no masks...'
           masks = {}
-          target.threadMasks[ident] = masks
+          _thread_masks[ident] = masks
         self.masks = masks
         try:
           stack = masks[name]
-          if name and name == 'LIBS' and val.startswith(' -lrt'):
-            print str(ident)+' stack: '+str(stack)
         except KeyError:
-          if name and name == 'LIBS' and val.startswith(' -lrt'):
-            print str(ident)+' no stack...'
           stack = []
           masks[name] = stack
-          masked = target.masked
-          # I do need a lock before trying to get/create masked: it is shared by all threads
-          with target.lock:
-            try:
-              pair = masked[name]
-              if name and name == 'LIBS' and val.startswith(' -lrt'):
-                print str(ident)+' pair: '+' '.join([str(item) for item in pair])
-            except KeyError:
-              if name and name == 'LIBS' and val.startswith(' -lrt'):
-                print str(ident)+' no pair...'
-              pair = [0, None]
-              masked[name] = pair
-            if not pair[0]:
-              pair[1] = getattr(target,name)
-              delattr(target,name)
-            else:
-              assert(not name in target.__dict__)
-            pair[0] += 1
         self.stack = stack
         stack.append(val)
       return
@@ -252,8 +234,6 @@ class Logger(args.ArgumentProcessor):
     def __exit__(self, exc_type, exc_value, traceback):
       target = self.target
       name   = self.name
-      if name and name == 'LIBS' and self.val.startswith(' -lrt'):
-        print 'popping...'
       if name:
         stack = self.stack
         masks = self.masks
@@ -261,16 +241,12 @@ class Logger(args.ArgumentProcessor):
         stack.pop()
         if not stack:
           del masks[name]
-          with target.lock:
-            pair = target.masked[name]
-            pair[0] -= 1
-            if not pair[0]:
-              setattr(target,name,pair[1])
           if not masks:
-            del target.threadMasks[self.ident]
+            del target._thread_masks[ident]
       if self.pushLogMask:
-        s = target.log.getvalue()
-        target.log.close()
+        log = target.log
+        s = log.getvalue()
+        log.close()
         self.pushLog.logWrite(s)
         self.pushLogMask.__exit__(exc_type,exc_value,traceback)
       return
