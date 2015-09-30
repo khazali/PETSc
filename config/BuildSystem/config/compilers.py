@@ -617,8 +617,7 @@ class Configure(config.base.Configure):
 
   def testMangling(self, cfunc, ffunc, clanguage = 'C', extraObjs = []):
     '''Test a certain name mangling'''
-    cobj = self.buildDir.join('confc.o')
-    #cobj = os.path.join(self.tmpDir, 'confc.o')
+    cobj = self.tmpDir.join('confc.o')
     found = 0
     # Compile the C test object
     with self.maskLanguage(clanguage):
@@ -1074,8 +1073,7 @@ class Configure(config.base.Configure):
     cinc = 'extern "C" '+cinc+'\n'
 
     cxxCode = 'void foo(void){'+self.mangleFortranFunction('d1chk')+'();}'
-    cxxobj  = self.buildDir.join('cxxobj.o')
-    #cxxobj  = os.path.join(self.tmpDir, 'cxxobj.o')
+    cxxobj  = self.tmpDir.join('cxxobj.o')
     with self.maskLanguage('Cxx'):
       if not self.checkCompile(cinc+cxxCode, None, cleanup = 0):
         self.logPrint('Cannot compile Cxx function: '+cfunc, 3, 'compilers')
@@ -1173,8 +1171,7 @@ class Configure(config.base.Configure):
   }
   return;
 }\n'''
-    cobj = self.buildDir.join('fooobj.o')
-    #cobj = os.path.join(self.tmpDir, 'fooobj.o')
+    cobj = self.tmpDir.join('fooobj.o')
     with self.maskLanguage('C'):
       if not self.checkCompile(cinc+ccode, None, cleanup = 0):
         self.logPrint('Cannot compile C function: f90ptrtest', 3, 'compilers')
@@ -1226,10 +1223,8 @@ class Configure(config.base.Configure):
       self.logPrint('Not a Fortran90 compiler - hence skipping module include test')
       return
     found   = False
-    testdir = self.buildDir.join('confdir')
-    modobj  = self.buildDir.join('configtest.o')
-    #testdir = os.path.join(self.tmpDir, 'confdir')
-    #modobj  = os.path.join(self.tmpDir, 'configtest.o')
+    testdir = self.tmpDir.join('confdir')
+    modobj  = self.tmpDir.join('configtest.o')
     modcode = '''\
       module configtest
       integer testint
@@ -1287,10 +1282,8 @@ class Configure(config.base.Configure):
       self.logPrint('Not a Fortran90 compiler - hence skipping module include test')
       return
     found   = False
-    testdir = self.buildDir.join('confdir')
-    modobj  = self.buildDir.join('configtest.o')
-    #testdir = os.path.join(self.tmpDir, 'confdir')
-    #modobj  = os.path.join(self.tmpDir, 'configtest.o')
+    testdir = self.tmpDir.join('confdir')
+    modobj  = self.tmpDir.join('configtest.o')
     modcode = '''\
       module configtest
       integer testint

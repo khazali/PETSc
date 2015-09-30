@@ -53,7 +53,7 @@ class Linker(config.compile.processor.Processor):
   '''The C linker'''
   def __init__(self, argDB):
     self.compiler        = Compiler(argDB, usePreprocessorFlags = False)
-    self.configLibraries = config.libraries.Configure(config.framework.Framework(clArgs = '', argDB = argDB, buildDir = os.getcwd()))
+    self.configLibraries = config.libraries.Configure(config.framework.Framework(clArgs = '', argDB = argDB, tmpDir = os.getcwd()))
     config.compile.processor.Processor.__init__(self, argDB, ['CC_LD', 'LD', self.compiler.name], ['LDFLAGS', 'CC_LINKER_FLAGS'], '.o', '.a')
     self.outputFlag = '-o'
     self.libraries  = sets.Set()
@@ -108,7 +108,7 @@ class SharedLinker(config.compile.processor.Processor):
   '''The C linker'''
   def __init__(self, argDB):
     self.compiler = Compiler(argDB, usePreprocessorFlags = False)
-    self.configLibraries = config.libraries.Configure(config.framework.Framework(clArgs = '', argDB = argDB, buildDir = os.getcwd()))
+    self.configLibraries = config.libraries.Configure(config.framework.Framework(clArgs = '', argDB = argDB, tmpDir = os.getcwd()))
     config.compile.processor.Processor.__init__(self, argDB, ['LD_SHARED', self.compiler.name], ['LDFLAGS', 'sharedLibraryFlags'], '.o', None)
     self.outputFlag = '-o'
     self.libraries  = sets.Set()
@@ -208,7 +208,7 @@ class DynamicLinker(config.compile.processor.Processor):
   '''The C linker'''
   def __init__(self, argDB):
     self.compiler = Compiler(argDB, usePreprocessorFlags = False)
-    self.configLibraries = config.libraries.Configure(config.framework.Framework(clArgs = '', argDB = argDB, buildDir = os.getcwd()))
+    self.configLibraries = config.libraries.Configure(config.framework.Framework(clArgs = '', argDB = argDB, tmpDir = os.getcwd()))
     config.compile.processor.Processor.__init__(self, argDB, ['dynamicLinker', self.compiler.name], ['LDFLAGS', 'dynamicLibraryFlags'], '.o', None)
     self.outputFlag = '-o'
     self.libraries  = sets.Set()

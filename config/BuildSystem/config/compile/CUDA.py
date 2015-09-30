@@ -47,7 +47,7 @@ class Linker(config.compile.C.Linker):
   '''The CUDA linker'''
   def __init__(self, argDB):
     self.compiler        = Compiler(argDB, usePreprocessorFlags = False)
-    self.configLibraries = config.libraries.Configure(config.framework.Framework(clArgs = '', argDB = argDB, buildDir = os.getcwd()))
+    self.configLibraries = config.libraries.Configure(config.framework.Framework(clArgs = '', argDB = argDB, tmpDir = os.getcwd()))
     config.compile.processor.Processor.__init__(self, argDB, [self.compiler.name], ['CUDAC_LINKER_FLAGS'], '.o', '.a')
     self.language   = 'CUDA'
     self.outputFlag = '-o'

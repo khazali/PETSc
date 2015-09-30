@@ -43,7 +43,7 @@ class Configure(config.base.Configure):
       import re
       if self.argDB['with-batch']: return
       self.addDefine('USE_DBX_DEBUGGER', 1)
-      filename = self.buildDir.join('conftest')
+      filename = self.tmpDir.join('conftest')
       f = file(filename, 'w')
       f.write('quit\n')
       f.close()

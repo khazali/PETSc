@@ -66,13 +66,13 @@ import time
 class ConfigureSetupError(Exception):
   pass
 
-class BuildDir(object):
-  ''' a build dir keeps tracks of file names in a directory used for building,
-  such as conftest files. 
+class TmpDir(object):
+  ''' a tmpdir keeps tracks of file names in a directory used for temporary
+  tests, such as conftest files. 
 
   It is initialized with a base directory,
 
-    b = BuildDir(base)
+    b = TmpDir(base)
 
   To get the path,
 
@@ -80,7 +80,7 @@ class BuildDir(object):
 
   One can optionally specify the threadSafe flag,
 
-    b = BuildDir(base,threadSafe=True)
+    b = TmpDir(base,threadSafe=True)
 
   and then every thread gets its own directory,
 
@@ -92,12 +92,14 @@ class BuildDir(object):
   string at a later time (i.e., by another thread)
   '''
 
-  _threadDir = {}
+  from thread import get_ident as thread_id
+  from threading import Lock
+  
+  _threadDir = {} # static table of the threads encountered, to convert their long id's to short numbers
   _threadCount = 0
-  import threading
-  _lock = threading.RLock()
+  _lock = Lock()
   def __init__(self,base=None,infix='',threadSafe=None):
-    if isinstance(base,BuildDir):
+    if isinstance(base,TmpDir):
       self.threadSafe = base.threadSafe
       self.base = base.base
       self.infix = base.infix
@@ -112,19 +114,21 @@ class BuildDir(object):
     return
 
   def __str__(self):
+    '''get the top of this thread's tmpDir for this config object'''
     return self.join('')
 
   def join(self,basename,mkdir=True):
+    '''Immediately get the path to basename in this thread's tmpDir, i.e.,
+    immediately convert to string'''
     if self.threadSafe:
-      import threading
-      ident = threading.current_thread().ident
+      ident = thread_id()
       try:
-        threadDir = BuildDir._threadDir[ident]
+        threadDir = TmpDir._threadDir[ident]
       except KeyError:
-        with BuildDir._lock:
-          threadDir = str(BuildDir._threadCount)
-          BuildDir._threadCount += 1
-        BuildDir._threadDir[ident] = threadDir
+        with TmpDir._lock:
+          threadDir = str(TmpDir._threadCount)
+          TmpDir._threadCount += 1
+        TmpDir._threadDir[ident] = threadDir
     else:
       threadDir = ''
     path = os.path.join(self.base,threadDir,self.infix,basename)
@@ -134,21 +138,24 @@ class BuildDir(object):
     return path
 
   def path(self,basename):
+    '''Return the path to basename in a hypothetical thread's tmpDir as an
+    object that can be stringified by any thread at a later time'''
     if self.threadSafe:
-      return BuildPath(self,basename)
+      return TmpPath(self,basename)
     else:
       return self.join(basename)
 
-class BuildPath(object):
-  def __init__(self,buildDir,basename):
-    self.buildDir = buildDir
+class TmpPath(object):
+  '''An object that can be converted to a path in any thread's tmpDir'''
+  def __init__(self,tmpDir,basename):
+    self.tmpDir = tmpDir
     self.basename = basename
   def __str__(self):
-    return self.buildDir.join(self.basename,mkdir=False)
+    return self.tmpDir.join(self.basename,mkdir=False)
 
 
 class Configure(script.Script):
-  def __init__(self, framework, buildDir = None):
+  def __init__(self, framework, tmpDir = None):
     script.Script.__init__(self, framework.clArgs, framework.argDB)
     self.framework       = framework
     self.defines         = {}
@@ -159,43 +166,23 @@ class Configure(script.Script):
     self.subst           = {}
     self.argSubst        = {}
     self.language        = 'C'
-    if not buildDir is None:
-      self.buildDir      = BuildDir(buildDir)
-      self.tmpDir        = buildDir
+    if not tmpDir is None:
+      self.tmpDir      = TmpDir(tmpDir)
     return
-
-  def getBuildDir(self):
-    if not hasattr(self, '_buildDir'):
-      self._buildDir = BuildDir(base=self.framework.buildDir,infix=self.__module__)
-      if self._buildDir.threadSafe:
-        self.logPrint('All intermediate test results are stored in ' + os.path.join(self._buildDir.base,'X',self._buildDir.infix) + ' (X varies by thread)')
-      else:
-        self.logPrint('All intermediate test results are stored in ' + os.path.join(self._buildDir.base,self._buildDir.infix))
-    return self._buildDir
-  def setBuildDir(self,temp):
-    if hasattr(self, '_buildDir'):
-      if os.path.isdir(self._buildDir.base):
-        import shutil
-        shutil.rmtree(self._buildDir.base)
-      if temp is None:
-        delattr(self, '_buildDir')
-    if not temp is None:
-      self._buildDir = temp
-    return
-  buildDir = property(getBuildDir, setBuildDir, doc = 'Temporary directory for test byproducts')
-
 
   def getTmpDir(self):
     if not hasattr(self, '_tmpDir'):
-      self._tmpDir = os.path.join(self.framework.tmpDir, self.__module__)
-      if not os.path.isdir(self._tmpDir): os.mkdir(self._tmpDir)
-      self.logPrint('All intermediate test results are stored in '+self._tmpDir)
+      self._tmpDir = TmpDir(base=self.framework.tmpDir,infix=self.__module__)
+      if self._tmpDir.threadSafe:
+        self.logPrint('All intermediate test results are stored in ' + os.path.join(self._tmpDir.base,'X',self._tmpDir.infix) + ' (X varies by thread)')
+      else:
+        self.logPrint('All intermediate test results are stored in ' + os.path.join(self._tmpDir.base,self._tmpDir.infix))
     return self._tmpDir
-  def setTmpDir(self, temp):
+  def setTmpDir(self,temp):
     if hasattr(self, '_tmpDir'):
-      if os.path.isdir(self._tmpDir):
+      if os.path.isdir(self._tmpDir.base):
         import shutil
-        shutil.rmtree(self._tmpDir)
+        shutil.rmtree(self._tmpDir.base)
       if temp is None:
         delattr(self, '_tmpDir')
     if not temp is None:
@@ -427,8 +414,8 @@ class Configure(script.Script):
   ###############################################
   # Preprocessor, Compiler, and Linker Operations
   def getHeaders(self):
-    self.compilerDefines = self.buildDir.path('confdefs.h')
-    self.compilerFixes   = self.buildDir.path('conffix.h')
+    self.compilerDefines = self.tmpDir.path('confdefs.h')
+    self.compilerFixes   = self.tmpDir.path('conffix.h')
     return
 
   def getPreprocessor(self):
@@ -442,8 +429,8 @@ class Configure(script.Script):
     compiler            = self.framework.getCompilerObject(self.language)
     compiler.checkSetup()
     conftestbase = 'conftest'+compiler.sourceExtension
-    self.compilerSource = self.buildDir.path(conftestbase)
-    self.compilerObj    = self.buildDir.path(compiler.getTarget(conftestbase))
+    self.compilerSource = self.tmpDir.path(conftestbase)
+    self.compilerObj    = self.tmpDir.path(compiler.getTarget(conftestbase))
     return compiler.getProcessor()
 
   def getCompilerFlags(self):
@@ -454,8 +441,8 @@ class Configure(script.Script):
     linker            = self.framework.getLinkerObject(self.language)
     linker.checkSetup()
     conftestbase = 'conftest'+linker.sourceExtension
-    self.linkerSource = self.buildDir.path(conftestbase)
-    self.linkerObj    = self.buildDir.path(linker.getTarget(conftestbase, 0))
+    self.linkerSource = self.tmpDir.path(conftestbase)
+    self.linkerObj    = self.tmpDir.path(linker.getTarget(conftestbase, 0))
     return linker.getProcessor()
 
   def getLinkerFlags(self):
@@ -466,8 +453,8 @@ class Configure(script.Script):
     linker            = self.framework.getSharedLinkerObject(self.language)
     linker.checkSetup()
     conftestbase = 'conftest'+linker.sourceExtension
-    self.linkerSource = self.buildDir.path(conftestbase)
-    self.linkerObj    = self.buildDir.path(linker.getTarget(conftestbase, 1))
+    self.linkerSource = self.tmpDir.path(conftestbase)
+    self.linkerObj    = self.tmpDir.path(linker.getTarget(conftestbase, 1))
     return linker.getProcessor()
 
   def getSharedLinkerFlags(self):
@@ -478,8 +465,8 @@ class Configure(script.Script):
     linker            = self.framework.getDynamicLinkerObject(self.language)
     linker.checkSetup()
     conftestbase = 'conftest'+linker.sourceExtension
-    self.linkerSource = self.buildDir.path(conftestbase)
-    self.linkerObj    = self.buildDir.path(linker.getTarget(conftestbase, 1))
+    self.linkerSource = self.tmpDir.path(conftestbase)
+    self.linkerObj    = self.tmpDir.path(linker.getTarget(conftestbase, 1))
     return linker.getProcessor()
 
   def getDynamicLinkerFlags(self):
@@ -489,14 +476,14 @@ class Configure(script.Script):
     self.getCompiler()
     preprocessor = self.framework.getPreprocessorObject(self.language)
     preprocessor.checkSetup()
-    preprocessor.includeDirectories.add(self.buildDir)
+    preprocessor.includeDirectories.add(self.tmpDir)
     return preprocessor.getCommand(str(self.compilerSource))
 
   def getCompilerCmd(self):
     self.getCompiler()
     compiler = self.framework.getCompilerObject(self.language)
     compiler.checkSetup()
-    compiler.includeDirectories.add(self.buildDir)
+    compiler.includeDirectories.add(self.tmpDir)
     return compiler.getCommand(str(self.compilerSource), str(self.compilerObj))
 
   def getLinkerCmd(self):

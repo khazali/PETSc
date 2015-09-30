@@ -366,8 +366,7 @@ extern "C" {
     newLibs = ' '+self.toString(libraries)+' '+self.setCompilers.LIBS
     with self.setCompilers.mask('LIBS',newLibs):
       # Make a library which calls initFunction(), and returns checkFunction()
-      lib1Name = self.buildDir.join('lib1.'+self.setCompilers.sharedLibraryExt)
-      #lib1Name = os.path.join(self.tmpDir, 'lib1.'+self.setCompilers.sharedLibraryExt)
+      lib1Name = self.tmpDir.join('lib1.'+self.setCompilers.sharedLibraryExt)
       if noCheckArg:
         checkCode = 'isInitialized = '+checkFunction+'();'
       else:
@@ -395,8 +394,7 @@ int init(int argc,  char *argv[]) {
       os.rename(str(configObj.linkerObj), lib1Name)
 
       # Make a library which calls checkFunction()
-      lib2Name = self.buildDir.join('lib2.'+self.setCompilers.sharedLibraryExt)
-      #lib2Name = os.path.join(self.tmpDir, 'lib2.'+self.setCompilers.sharedLibraryExt)
+      lib2Name = self.tmpDir.join('lib2.'+self.setCompilers.sharedLibraryExt)
       codeBegin = '''
 #ifdef __cplusplus
 extern "C"

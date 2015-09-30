@@ -87,7 +87,7 @@ class Configure(config.base.Configure):
         self.framework.addBatchBody(body)
         val = a.default
       else:
-        filename = self.buildDir.join('conftestval')
+        filename = self.tmpDir.join('conftestval')
         includes = '#include <stdio.h>\n'
         body = 'FILE *output = fopen("'+filename+'","w"); if (!output) return 1; fprintf(output,"%ld",'+fname+'()); fclose(output);'
         with self.maskLanguage('C'):

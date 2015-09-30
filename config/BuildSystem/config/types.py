@@ -255,7 +255,7 @@ void (*signal())();
   def checkSizeof(self, typeName, otherInclude = None):
     '''Determines the size of type "typeName", and defines SIZEOF_"typeName" to be the size'''
     self.log.write('Checking for size of type: '+typeName+'\n')
-    filename = self.buildDir.join('conftestval')
+    filename = self.tmpDir.join('conftestval')
     includes = '''
 #include <sys/types.h>
 #if STDC_HEADERS
@@ -304,7 +304,7 @@ void (*signal())();
 
   def checkBitsPerByte(self):
     '''Determine the nubmer of bits per byte and define BITS_PER_BYTE'''
-    filename = self.buildDir.join('conftestval')
+    filename = self.tmpDir.join('conftestval')
     includes = '''
 #if STDC_HEADERS
 #include <stdlib.h>

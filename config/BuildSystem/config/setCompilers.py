@@ -1126,12 +1126,9 @@ class Configure(config.base.Configure):
 
   def checkArchiver(self):
     '''Check that the archiver exists and can make a library usable by the compiler'''
-    objName    = self.buildDir.join('conf1.o')
-    arcUnix    = self.buildDir.join('libconf1.a')
-    arcWindows = self.buildDir.join('libconf1.lib')
-    #objName    = os.path.join(self.tmpDir, 'conf1.o')
-    #arcUnix    = os.path.join(self.tmpDir, 'libconf1.a')
-    #arcWindows = os.path.join(self.tmpDir, 'libconf1.lib')
+    objName    = self.tmpDir.join('conf1.o')
+    arcUnix    = self.tmpDir.join('libconf1.a')
+    arcWindows = self.tmpDir.join('libconf1.lib')
     def checkArchive(command, status, output, error):
       if error or status:
         self.logError('archiver', status, output, error)
@@ -1162,8 +1159,7 @@ class Configure(config.base.Configure):
             except RuntimeError, e:
               self.logPrint(str(e))
               continue
-            newLibs = '-L'+str(self.buildDir)+' -lconf1 ' + self.LIBS
-            #newLibs = '-L'+self.tmpDir+' -lconf1 ' + self.LIBS
+            newLibs = '-L'+str(self.tmpDir)+' -lconf1 ' + self.LIBS
             with self.mask('LIBS',newLibs):
               success =  self.checkLink('extern int foo(int);', '  int b = foo(1);  if (b);\n')
               os.rename(arcUnix, arcWindows)
@@ -1260,8 +1256,7 @@ class Configure(config.base.Configure):
             # using printf appears to correctly identify non-pic code on X86_64
             if self.checkLink(includes = '#include <stdio.h>\nint '+testMethod+'(void) {printf("hello");\nreturn 0;}\n', codeBegin = '', codeEnd = '', cleanup = 0, shared = 1):
               oldLib  = str(self.linkerObj)
-              newLibs = self.LIBS+' -L'+str(self.buildDir)+' -lconftest'
-              #newLibs = self.LIBS+' -L'+self.tmpDir+' -lconftest'
+              newLibs = self.LIBS+' -L'+str(self.tmpDir)+' -lconftest'
               with self.mask('LIBS',newLibs):
                 accepted = self.checkLink(includes = 'int foo(void);', body = 'int ret = foo();\nif(ret);')
               os.remove(oldLib)
