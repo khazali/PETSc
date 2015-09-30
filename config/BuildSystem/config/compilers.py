@@ -101,6 +101,8 @@ class Configure(config.base.Configure):
     return
 
   class Mask(config.base.Configure.Mask):
+    '''Because we are overriding the __getattr__ method to dispatch to setCompilers,
+    we have to dispatch the mask to setCompilers, too'''
     def __init__(self, target, name, val, maskLog = None, maskLanguage = None):
       config.base.Configure.Mask.__init__(self,target,name,val,maskLog=maskLog,maskLanguage=maskLanguage)
       self.setCompilersMask = None

@@ -388,9 +388,9 @@ class Configure(script.Script):
         return name
     return None
 
-  ###############################################
-  # Preprocessor, Compiler, and Linker Operations
   class Mask(logger.Logger.Mask):
+    '''To the Logger.Mask, we add the option of masking the
+    config object's language at the same time as another attribute'''
     def __init__(self,target,name,val,maskLog = None,maskLanguage = None):
       logger.Logger.Mask.__init__(self,target,name,val,maskLog=maskLog)
       self.pushLanguage = maskLanguage
@@ -414,14 +414,18 @@ class Configure(script.Script):
       logger.Logger.Mask.__exit__(self,exc_type, exc_value, traceback)
       return
 
-
   def mask(self,name,val,maskLog = None,maskLanguage = None):
+    '''Mask an attribute for this thread only, should only be used in a
+    with-statement: see the documentation for logger.Logger.Mask and
+    logger.Logger.mask'''
     return self.Mask(self,name,val,maskLog=maskLog,maskLanguage=maskLanguage)
 
   def maskLanguage(self,lang,maskLog=None):
+    '''Mask a config objects language'''
     return self.Mask(self,None,None,maskLog=maskLog,maskLanguage=lang)
 
-
+  ###############################################
+  # Preprocessor, Compiler, and Linker Operations
   def getHeaders(self):
     self.compilerDefines = self.buildDir.path('confdefs.h')
     self.compilerFixes   = self.buildDir.path('conffix.h')

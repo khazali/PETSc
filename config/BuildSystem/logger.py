@@ -38,12 +38,34 @@ class Logger(args.ArgumentProcessor):
     self.debugSections = debugSections
     self.debugIndent   = debugIndent
     self.lock          = RLock()
-    #self.masked        = {}
     self._thread_masks = {}
     self.getRoot()
     return
 
   def __getattribute__(self, name):
+    '''We allow threads to temporarily have private values for attributes.
+    These private values that mask the global values are introduced with a
+    with-statement context manager:
+
+      Thread 0
+      -------------------------------------------
+      self.var = 'global_value'
+
+      with self.mask('var','private_value'):
+        print self.var # 'private_value'
+
+      print self.var # 'global_value'
+
+      Thread 1
+      -------------------------------------------
+
+      print self.var # always 'global_value'
+
+    For a thread to have a private value without disturbing other threads, we
+    have to override the builting python getattr.  We have to use
+    __getattribute__, not __getattr__, because the latter is only called if an
+    attribute is not found by the default getattr (so, as long as the global
+    value is present, the private value will never be found.)'''
     try:
       _thread_masks = args.ArgumentProcessor.__getattribute__(self,'_thread_masks')
       masks = _thread_masks[thread_id()]
@@ -54,40 +76,8 @@ class Logger(args.ArgumentProcessor):
       return args.ArgumentProcessor.__getattribute__(self,name)
     return stack[-1]
 
-  #def __getattr__(self, name):
-  #  '''We sometimes mask values for individual threads: if a value is masked,
-  #  we look for the masking value, otherwise look for the masked value'''
-  #  if name == 'masked' or name == 'threadMasks' or name == 'lock': # avoid recursion
-  #    raise AttributeError("'%s' object has no attribute '%s'" % (self.__class__.__name__,name))
-  #  try:
-  #    val = self.masked[name]
-  #  except KeyError:
-  #    raise AttributeError("'%s' object has no attribute '%s'" % (self.__class__.__name__,name))
-  #  if val[0]:
-  #    ident = threading.current_thread().ident
-  #    try:
-  #      # see if this thread has a mask for the name
-  #      masks = self.threadMasks[ident]
-  #      val = masks[name]
-  #      if name == 'LIBS':
-  #        print str(ident)+' '+val[-1]
-  #    except KeyError:
-  #      pass
-  #  return val[-1]
-
-  #def __setattr__(self, name, val):
-  #  try:
-  #    with self.lock:
-  #      self.masked[name][1] = val
-  #  except AttributeError:
-  #    args.ArgumentProcessor.__setattr__(self,name,val)
-  #  except KeyError:
-  #    args.ArgumentProcessor.__setattr__(self,name,val)
-  #  return
-
-
   def __getstate__(self):
-    '''We do not want to pickle the default log stream'''
+    '''We do not want to pickle the default log stream, or the thread masks'''
     d = args.ArgumentProcessor.__getstate__(self)
     if 'log' in d:
       if d['log'] is Logger.defaultLog:
@@ -106,7 +96,7 @@ class Logger(args.ArgumentProcessor):
     return d
 
   def __setstate__(self, d):
-    '''We must create the default log stream'''
+    '''We must create the default log stream and the thread masks'''
     args.ArgumentProcessor.__setstate__(self, d)
     if not 'log' in d:
       self.log = self.createLog(None)
@@ -114,7 +104,6 @@ class Logger(args.ArgumentProcessor):
       self.out = Logger.defaultOut
     self.__dict__.update(d)
     self.lock = RLock()
-    #self.masked = {}
     self._thread_masks = {}
     return
 
@@ -192,8 +181,9 @@ class Logger(args.ArgumentProcessor):
     '''Closes the log file'''
     self.log.close()
 
-
   class Mask(object):
+    '''A context manager for allowing a thread to temporarily mask an
+    attribute with a private value'''
     def __init__(self,target,name,val,maskLog=None):
       self.pushLog     = maskLog
       self.pushLogMask = None
@@ -208,6 +198,7 @@ class Logger(args.ArgumentProcessor):
       target  = self.target
       val     = self.val
       if pushLog:
+        # create a buffer and use it to mask the log file
         import StringIO
         stringLog = StringIO.StringIO()
         self.pushLogMask = Logger.Mask(target,'log',stringLog)
@@ -216,17 +207,20 @@ class Logger(args.ArgumentProcessor):
         ident = thread_id()
         self.ident = ident
         _thread_masks = target._thread_masks
+        # get or create the masks for this thread
         try:
           masks = _thread_masks[ident]
         except KeyError:
           masks = {}
           _thread_masks[ident] = masks
         self.masks = masks
+        # get or create the stack for this attribute
         try:
           stack = masks[name]
         except KeyError:
           stack = []
           masks[name] = stack
+        # push this value on the stack
         self.stack = stack
         stack.append(val)
       return
@@ -238,23 +232,39 @@ class Logger(args.ArgumentProcessor):
         stack = self.stack
         masks = self.masks
         ident = self.ident
+        # remove this value from the stack
         stack.pop()
+        # delete the stack if it is empty
         if not stack:
           del masks[name]
+          # delete the masks if there are none
           if not masks:
             del target._thread_masks[ident]
       if self.pushLogMask:
         log = target.log
+        # buffer to string
         s = log.getvalue()
         log.close()
+        # push the output to the designated recipient
         self.pushLog.logWrite(s)
+        # restore the previous log
         self.pushLogMask.__exit__(exc_type,exc_value,traceback)
       return
 
   def mask(self,name,val,maskLog = None):
+    '''Mask an attribute with a value for this thread only.
+    Should only be called in a with statement, i.e.
+
+      with self.mask('CC',mpicc):
+        # work
+
+    One can optionally mask the log at the same time
+    '''
     return self.Mask(self,name,val,maskLog)
 
   def maskLog(self,saver):
+    '''Mask a log, writing the buffered output to the log of
+    another logger object at the end of a with-statement.'''
     return self.Mask(self,None,None,maskLog=saver)
 
   def saveLog(self):
