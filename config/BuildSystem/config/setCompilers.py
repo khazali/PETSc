@@ -1149,7 +1149,7 @@ class Configure(config.base.Configure):
           raise RuntimeError('Compiler is not functional')
         if os.path.isfile(objName):
           os.remove(objName)
-        os.rename(str(self.compilerObj), objName)
+        os.rename(self.compilerObj, objName)
         if self.getExecutable(archiver, getFullPath = 1, resultName = 'AR'):
           if self.getExecutable(ranlib, getFullPath = 1, resultName = 'RANLIB'):
             arext = 'a'
@@ -1233,62 +1233,65 @@ class Configure(config.base.Configure):
 
   def checkSharedLinker(self):
     '''Check that the linker can produce shared libraries'''
-    self.sharedLibraries = 0
-    self.staticLibraries = 0
-    for linker, flags, ext in self.generateSharedLinkerGuesses():
-      self.logPrint('Checking shared linker '+linker+' using flags '+str(flags))
-      if self.getExecutable(linker, resultName = 'LD_SHARED'):
-        for picFlag in self.generatePICGuesses():
-          self.logPrint('Trying '+self.language+' compiler flag '+picFlag)
-          compilerFlagsArg = self.getCompilerFlagsArg(1) # compiler only
-          oldCompilerFlags = getattr(self, compilerFlagsArg)
-          accepted = 1
-          try:
-            self.addCompilerFlag(picFlag,compilerOnly=1)
-          except RuntimeError:
-            accepted = 0
-          if accepted:
-            goodFlags = filter(self.checkLinkerFlag, flags)
-            testMethod = 'foo'
-            self.sharedLinker = self.LD_SHARED
-            self.sharedLibraryFlags = goodFlags
-            self.sharedLibraryExt = ext
-            # using printf appears to correctly identify non-pic code on X86_64
-            if self.checkLink(includes = '#include <stdio.h>\nint '+testMethod+'(void) {printf("hello");\nreturn 0;}\n', codeBegin = '', codeEnd = '', cleanup = 0, shared = 1):
-              oldLib  = str(self.linkerObj)
-              newLibs = self.LIBS+' -L'+str(self.tmpDir)+' -lconftest'
-              with self.mask('LIBS',newLibs):
-                accepted = self.checkLink(includes = 'int foo(void);', body = 'int ret = foo();\nif(ret);')
-              os.remove(oldLib)
-              if accepted:
-                self.sharedLibraries = 1
-                self.logPrint('Using shared linker '+self.sharedLinker+' with flags '+str(self.sharedLibraryFlags)+' and library extension '+self.sharedLibraryExt)
-                break
-          self.logPrint('Rejected '+self.language+' compiler flag '+picFlag+' because it was not compatible with shared linker '+linker+' using flags '+str(flags))
-          setattr(self, compilerFlagsArg, oldCompilerFlags)
-        if os.path.isfile(str(self.linkerObj)):
-          os.remove(str(self.linkerObj))
-        if self.sharedLibraries: break
-        self.delMakeMacro('LD_SHARED')
-        del self.LD_SHARED
-        del self.sharedLinker
+    with self.mask('_linkerTestMode','shared'):
+      self.sharedLibraries = 0
+      self.staticLibraries = 0
+      for linker, flags, ext in self.generateSharedLinkerGuesses():
+        self.logPrint('Checking shared linker '+linker+' using flags '+str(flags))
+        if self.getExecutable(linker, resultName = 'LD_SHARED'):
+          for picFlag in self.generatePICGuesses():
+            self.logPrint('Trying '+self.language+' compiler flag '+picFlag)
+            compilerFlagsArg = self.getCompilerFlagsArg(1) # compiler only
+            oldCompilerFlags = getattr(self, compilerFlagsArg)
+            accepted = 1
+            try:
+              self.addCompilerFlag(picFlag,compilerOnly=1)
+            except RuntimeError:
+              accepted = 0
+            if accepted:
+              goodFlags = filter(self.checkLinkerFlag, flags)
+              testMethod = 'foo'
+              self.sharedLinker = self.LD_SHARED
+              self.sharedLibraryFlags = goodFlags
+              self.sharedLibraryExt = ext
+              # using printf appears to correctly identify non-pic code on X86_64
+              if self.checkLink(includes = '#include <stdio.h>\nint '+testMethod+'(void) {printf("hello");\nreturn 0;}\n', codeBegin = '', codeEnd = '', cleanup = 0, shared = 1):
+                oldLib  = self.linkerObj
+                newLibs = self.LIBS+' -L'+str(self.tmpDir)+' -lconftest'
+                with self.mask('LIBS',newLibs):
+                  accepted = self.checkLink(includes = 'int foo(void);', body = 'int ret = foo();\nif(ret);')
+                if os.path.isfile(oldLib):
+                  os.remove(oldLib)
+                if accepted:
+                  self.sharedLibraries = 1
+                  self.logPrint('Using shared linker '+self.sharedLinker+' with flags '+str(self.sharedLibraryFlags)+' and library extension '+self.sharedLibraryExt)
+                  break
+            self.logPrint('Rejected '+self.language+' compiler flag '+picFlag+' because it was not compatible with shared linker '+linker+' using flags '+str(flags))
+            setattr(self, compilerFlagsArg, oldCompilerFlags)
+          if os.path.isfile(self.linkerObj):
+            os.remove(self.linkerObj)
+          if self.sharedLibraries: break
+          self.delMakeMacro('LD_SHARED')
+          del self.LD_SHARED
+          del self.sharedLinker
     return
 
   def checkLinkerFlag(self, flag):
     '''Determine whether the linker accepts the given flag'''
-    flagsArg = self.getLinkerFlagsArg()
-    oldFlags = getattr(self, flagsArg)
-    with self.mask(flagsArg,oldFlags+' '+flag):
-      (output, status) = self.outputLink('', '')
-      valid = 1
-      if status:
-        valid = 0
-        self.logPrint('Rejecting linker flag '+flag+' due to nonzero status from link')
-      if self.containsInvalidFlag(output):
-        valid = 0
-        self.logPrint('Rejecting '+self.language+' linker flag '+flag+' due to \n'+output)
-      if valid:
-        self.logPrint('Valid '+self.language+' linker flag '+flag)
+    with self.mask('_linkerTestMode','dynamic'):
+      flagsArg = self.getLinkerFlagsArg()
+      oldFlags = getattr(self, flagsArg)
+      with self.mask(flagsArg,oldFlags+' '+flag):
+        (output, status) = self.outputLink('', '')
+        valid = 1
+        if status:
+          valid = 0
+          self.logPrint('Rejecting linker flag '+flag+' due to nonzero status from link')
+        if self.containsInvalidFlag(output):
+          valid = 0
+          self.logPrint('Rejecting '+self.language+' linker flag '+flag+' due to \n'+output)
+        if valid:
+          self.logPrint('Valid '+self.language+' linker flag '+flag)
     return valid
 
   def addLinkerFlag(self, flag):
@@ -1418,7 +1421,7 @@ class Configure(config.base.Configure):
         self.dynamicLibraryExt = ext
         testMethod = 'foo'
         if self.checkLink(includes = '#include <stdio.h>\nint '+testMethod+'(void) {printf("test");return 0;}\n', codeBegin = '', codeEnd = '', cleanup = 0, shared = 'dynamic'):
-          oldLib  = str(self.linkerObj)
+          oldLib  = self.linkerObj
           code = '''
 void *handle = dlopen("%s", 0);
 int (*foo)(void) = (int (*)(void)) dlsym(handle, "foo");
@@ -1437,12 +1440,13 @@ if (dlclose(handle)) {
 }
 ''' % oldLib
           if self.checkLink(includes = '#include<dlfcn.h>', body = code):
-            os.remove(oldLib)
+            if os.path.isfile(oldLib):
+              os.remove(oldLib)
             self.dynamicLibraries = 1
             self.logPrint('Using dynamic linker '+self.dynamicLinker+' with flags '+str(self.dynamicLibraryFlags)+' and library extension '+self.dynamicLibraryExt)
             break
-        if os.path.isfile(str(self.linkerObj)):
-          os.remove(str(self.linkerObj))
+        if os.path.isfile(self.linkerObj):
+          os.remove(self.linkerObj)
         del self.dynamicLinker
     return
 

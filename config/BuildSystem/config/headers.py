@@ -98,6 +98,7 @@ class Configure(config.base.Configure):
     return 1
 
   def checkStdC(self):
+    '''Check for standard C library'''
     haveStdC = 0
     includes = '''
 #include <stdlib.h>

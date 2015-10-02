@@ -624,10 +624,10 @@ class Configure(config.base.Configure):
       if not self.checkCompile(cfunc, None, cleanup = 0):
         self.logPrint('Cannot compile C function: '+cfunc, 3, 'compilers')
         return found
-      if not os.path.isfile(str(self.compilerObj)):
-        self.logPrint('Cannot locate object file: '+os.path.abspath(str(self.compilerObj)), 3, 'compilers')
+      if not os.path.isfile(self.compilerObj):
+        self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
         return found
-      os.rename(str(self.compilerObj), cobj)
+      os.rename(self.compilerObj, cobj)
     # Link the test object against a Fortran driver
     with self.maskLanguage('FC'):
       newLIBS = cobj+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.clibs])+' '+self.setCompilers.LIBS
@@ -1078,10 +1078,10 @@ class Configure(config.base.Configure):
       if not self.checkCompile(cinc+cxxCode, None, cleanup = 0):
         self.logPrint('Cannot compile Cxx function: '+cfunc, 3, 'compilers')
         raise RuntimeError('Fortran could not successfully link C++ objects')
-      if not os.path.isfile(str(self.compilerObj)):
-        self.logPrint('Cannot locate object file: '+os.path.abspath(str(self.compilerObj)), 3, 'compilers')
+      if not os.path.isfile(self.compilerObj):
+        self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
         raise RuntimeError('Fortran could not successfully link C++ objects')
-      os.rename(str(self.compilerObj), cxxobj)
+      os.rename(self.compilerObj, cxxobj)
 
     if self.testMangling(cinc+cfunc, ffunc, 'Cxx', extraObjs = [cxxobj]):
       self.logPrint('Fortran can link C++ functions', 3, 'compilers')
@@ -1176,10 +1176,10 @@ class Configure(config.base.Configure):
       if not self.checkCompile(cinc+ccode, None, cleanup = 0):
         self.logPrint('Cannot compile C function: f90ptrtest', 3, 'compilers')
         raise RuntimeError('Could not check Fortran pointer arguments')
-      if not os.path.isfile(str(self.compilerObj)):
-        self.logPrint('Cannot locate object file: '+os.path.abspath(str(self.compilerObj)), 3, 'compilers')
+      if not os.path.isfile(self.compilerObj):
+        self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
         raise RuntimeError('Could not check Fortran pointer arguments')
-      os.rename(str(self.compilerObj), cobj)
+      os.rename(self.compilerObj, cobj)
     # Link the test object against a Fortran driver
     with self.maskLanguage('FC'):
       newLIBS = cobj+' '+self.setCompilers.LIBS
@@ -1235,14 +1235,14 @@ class Configure(config.base.Configure):
       if not self.checkCompile(modcode, None, cleanup = 0):
         self.logPrint('Cannot compile Fortran module', 3, 'compilers')
         raise RuntimeError('Cannot determine Fortran module include flag')
-      if not os.path.isfile(str(self.compilerObj)):
-        self.logPrint('Cannot locate object file: '+os.path.abspath(str(self.compilerObj)), 3, 'compilers')
+      if not os.path.isfile(self.compilerObj):
+        self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
         raise RuntimeError('Cannot determine Fortran module include flag')
       if not os.path.isdir(testdir):
         os.mkdir(testdir)
-      os.rename(str(self.compilerObj), modobj)
+      os.rename(self.compilerObj, modobj)
       foundModule = 0
-      for f in [os.path.abspath('configtest.mod'), os.path.abspath('CONFIGTEST.mod'), os.path.join(os.path.dirname(str(self.compilerObj)),'configtest.mod'), os.path.join(os.path.dirname(str(self.compilerObj)),'CONFIGTEST.mod')]:
+      for f in [os.path.abspath('configtest.mod'), os.path.abspath('CONFIGTEST.mod'), os.path.join(os.path.dirname(self.compilerObj),'configtest.mod'), os.path.join(os.path.dirname(self.compilerObj),'CONFIGTEST.mod')]:
         if os.path.isfile(f):
           modname     = f
           foundModule = 1
@@ -1343,7 +1343,7 @@ class Configure(config.base.Configure):
           try:
             self.logPrint('Trying '+language+' compiler flag '+testFlag)
             if self.setCompilers.checkCompilerFlag(testFlag, compilerOnly = 1):
-              depFilename = os.path.splitext(str(self.setCompilers.compilerObj))[0]+'.d'
+              depFilename = os.path.splitext(self.setCompilers.compilerObj)[0]+'.d'
               if os.path.isfile(depFilename):
                 os.remove(depFilename)
                 #self.setCompilers.insertCompilerFlag(testFlag, compilerOnly = 1)

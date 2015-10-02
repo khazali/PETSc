@@ -166,6 +166,7 @@ class Configure(script.Script):
     self.subst           = {}
     self.argSubst        = {}
     self.language        = 'C'
+    self._linkerTestMode = 'static' # 'static', 'shared' or 'dynamic'
     if not tmpDir is None:
       self.tmpDir      = TmpDir(tmpDir)
     return
@@ -413,61 +414,88 @@ class Configure(script.Script):
 
   ###############################################
   # Preprocessor, Compiler, and Linker Operations
-  def getHeaders(self):
-    self.compilerDefines = self.tmpDir.path('confdefs.h')
-    self.compilerFixes   = self.tmpDir.path('conffix.h')
-    return
+
+  def getCompilerDefines(self):
+    return self.tmpDir.join('confdefs.h')
+  compilerDefines = property(getCompilerDefines,None,'Definitions header file name for tests')
+
+  def getCompilerFixes(self):
+    return self.tmpDir.join('conffix.h')
+  compilerFixes = property(getCompilerFixes,None,'Fixes header file name for tests')
 
   def getPreprocessor(self):
-    self.getHeaders()
     preprocessor       = self.framework.getPreprocessorObject(self.language)
     preprocessor.checkSetup()
     return preprocessor.getProcessor()
 
   def getCompiler(self):
-    self.getHeaders()
     compiler            = self.framework.getCompilerObject(self.language)
     compiler.checkSetup()
-    conftestbase = 'conftest'+compiler.sourceExtension
-    self.compilerSource = self.tmpDir.path(conftestbase)
-    self.compilerObj    = self.tmpDir.path(compiler.getTarget(conftestbase))
     return compiler.getProcessor()
+
+  def getCompilerSource(self):
+    compiler            = self.framework.getCompilerObject(self.language)
+    compiler.checkSetup()
+    return self.tmpDir.join('conftest'+compiler.sourceExtension)
+  compilerSource = property(getCompilerSource,None,'Compiler source file name for tests')
+
+  def getCompilerObj(self):
+    compiler            = self.framework.getCompilerObject(self.language)
+    compiler.checkSetup()
+    return self.tmpDir.join(compiler.getTarget('conftest'+compiler.sourceExtension))
+  compilerObj = property(getCompilerObj,None,'Compiler object file name for tests')
 
   def getCompilerFlags(self):
     return self.framework.getCompilerObject(self.language).getFlags()
 
   def getLinker(self):
-    self.getHeaders()
     linker            = self.framework.getLinkerObject(self.language)
     linker.checkSetup()
-    conftestbase = 'conftest'+linker.sourceExtension
-    self.linkerSource = self.tmpDir.path(conftestbase)
-    self.linkerObj    = self.tmpDir.path(linker.getTarget(conftestbase, 0))
     return linker.getProcessor()
 
   def getLinkerFlags(self):
     return self.framework.getLinkerObject(self.language).getFlags()
 
   def getSharedLinker(self):
-    self.getHeaders()
     linker            = self.framework.getSharedLinkerObject(self.language)
     linker.checkSetup()
-    conftestbase = 'conftest'+linker.sourceExtension
-    self.linkerSource = self.tmpDir.path(conftestbase)
-    self.linkerObj    = self.tmpDir.path(linker.getTarget(conftestbase, 1))
     return linker.getProcessor()
 
   def getSharedLinkerFlags(self):
     return self.framework.getSharedLinkerObject(self.language).getFlags()
 
   def getDynamicLinker(self):
-    self.getHeaders()
     linker            = self.framework.getDynamicLinkerObject(self.language)
     linker.checkSetup()
-    conftestbase = 'conftest'+linker.sourceExtension
-    self.linkerSource = self.tmpDir.path(conftestbase)
-    self.linkerObj    = self.tmpDir.path(linker.getTarget(conftestbase, 1))
     return linker.getProcessor()
+
+  def getLinkerSource(self):
+    linker = None
+    if self._linkerTestMode == 'static':
+      linker = self.framework.getLinkerObject(self.language)
+    elif self._linkerTestMode == 'shared':
+      linker = self.framework.getSharedLinkerObject(self.language)
+    elif self._linkerTestMode == 'dynamic':
+      linker = self.framework.getDynamicLinkerObject(self.language)
+    linker.checkSetup()
+    return self.tmpDir.join('conftest'+linker.sourceExtension)
+  linkerSource = property(getLinkerSource,None,'Linker source file name for tests')
+
+  def getLinkerObj(self):
+    linker = None
+    mode = None
+    if self._linkerTestMode == 'static':
+      linker = self.framework.getLinkerObject(self.language)
+      mode = 0
+    elif self._linkerTestMode == 'shared':
+      linker = self.framework.getSharedLinkerObject(self.language)
+      mode = 1
+    elif self._linkerTestMode == 'dynamic':
+      linker = self.framework.getDynamicLinkerObject(self.language)
+      mode = 1
+    linker.checkSetup()
+    return self.tmpDir.join(linker.getTarget('conftest'+linker.sourceExtension,mode))
+  linkerObj = property(getLinkerObj,None,'Linker object file name for tests')
 
   def getDynamicLinkerFlags(self):
     return self.framework.getDynamicLinkerObject(self.language).getFlags()
@@ -477,20 +505,26 @@ class Configure(script.Script):
     preprocessor = self.framework.getPreprocessorObject(self.language)
     preprocessor.checkSetup()
     preprocessor.includeDirectories.add(self.tmpDir)
-    return preprocessor.getCommand(str(self.compilerSource))
+    return preprocessor.getCommand(self.compilerSource)
 
   def getCompilerCmd(self):
     self.getCompiler()
     compiler = self.framework.getCompilerObject(self.language)
     compiler.checkSetup()
     compiler.includeDirectories.add(self.tmpDir)
-    return compiler.getCommand(str(self.compilerSource), str(self.compilerObj))
+    return compiler.getCommand(self.compilerSource, self.compilerObj)
 
   def getLinkerCmd(self):
-    self.getLinker()
-    linker = self.framework.getLinkerObject(self.language)
+    mode = self._linkerTestMode
+    linker = None
+    if mode == 'static':
+      linker = self.framework.getLinkerObject(self.language)
+    elif mode == 'shared':
+      linker = self.framework.getSharedLinkerObject(self.language)
+    elif mode == 'dynamic':
+      linker = self.framework.getDynamicLinkerObject(self.language)
     linker.checkSetup()
-    return linker.getCommand(str(self.linkerSource), str(self.linkerObj))
+    return linker.getCommand(self.linkerSource, self.linkerObj)
 
   def getFullLinkerCmd(self, objects, executable):
     self.getLinker()
@@ -498,25 +532,13 @@ class Configure(script.Script):
     linker.checkSetup()
     return linker.getCommand(objects, executable)
 
-  def getSharedLinkerCmd(self):
-    self.getSharedLinker()
-    linker = self.framework.getSharedLinkerObject(self.language)
-    linker.checkSetup()
-    return linker.getCommand(str(self.linkerSource), str(self.linkerObj))
-
-  def getDynamicLinkerCmd(self):
-    self.getDynamicLinker()
-    linker = self.framework.getDynamicLinkerObject(self.language)
-    linker.checkSetup()
-    return linker.getCommand(str(self.linkerSource), str(self.linkerObj))
-
   def getCode(self, includes, body = None, codeBegin = None, codeEnd = None):
     language = self.language
     if includes and not includes[-1] == '\n':
       includes += '\n'
     if language in ['C', 'CUDA', 'Cxx']:
       codeStr = ''
-      if str(self.compilerDefines): codeStr = '#include "'+os.path.basename(str(self.compilerDefines))+'"\n'
+      if self.compilerDefines: codeStr = '#include "'+os.path.basename(self.compilerDefines)+'"\n'
       codeStr += '#include "conffix.h"\n'+includes
       if not body is None:
         if codeBegin is None:
@@ -546,14 +568,14 @@ class Configure(script.Script):
         self.logWrite('Source:\n'+self.getCode(codeStr))
 
     command = self.getPreprocessorCmd()
-    if str(self.compilerDefines): self.framework.outputHeader(str(self.compilerDefines))
-    self.framework.outputCHeader(str(self.compilerFixes))
-    f = file(str(self.compilerSource), 'w')
+    if self.compilerDefines: self.framework.outputHeader(self.compilerDefines)
+    self.framework.outputCHeader(self.compilerFixes)
+    f = file(self.compilerSource, 'w')
     f.write(self.getCode(codeStr))
     f.close()
     (out, err, ret) = Configure.executeShellCommand(command, checkCommand = report, timeout = timeout, log = self.log, lineLimit = 100000)
     if self.cleanup:
-      for filename in [str(self.compilerDefines), str(self.compilerFixes), str(self.compilerSource)]:
+      for filename in [self.compilerDefines, self.compilerFixes, self.compilerSource]:
         if os.path.isfile(filename):
           os.remove(filename)
     return (out, err, ret)
@@ -600,16 +622,16 @@ class Configure(script.Script):
 
     cleanup = cleanup and self.framework.doCleanup
     command = self.getCompilerCmd()
-    if str(self.compilerDefines): self.framework.outputHeader(str(self.compilerDefines))
-    self.framework.outputCHeader(str(self.compilerFixes))
-    f = file(str(self.compilerSource), 'w')
+    if self.compilerDefines: self.framework.outputHeader(self.compilerDefines)
+    self.framework.outputCHeader(self.compilerFixes)
+    f = file(self.compilerSource, 'w')
     f.write(self.getCode(includes, body, codeBegin, codeEnd))
     f.close()
     (out, err, ret) = Configure.executeShellCommand(command, checkCommand = report, log = self.log)
-    if not os.path.isfile(str(self.compilerObj)):
+    if not os.path.isfile(self.compilerObj):
       err += '\nPETSc Error: No output file produced'
     if cleanup:
-      for filename in [str(self.compilerDefines), str(self.compilerFixes), str(self.compilerSource), str(self.compilerObj)]:
+      for filename in [self.compilerDefines, self.compilerFixes, self.compilerSource, self.compilerObj]:
         if os.path.isfile(filename):
           os.remove(filename)
     return (out, err, ret)
@@ -652,38 +674,36 @@ class Configure(script.Script):
     out = self.filterCompileOutput(out+'\n'+err)
     if ret or len(out):
       self.logPrint('Compile failed inside link\n'+out)
-      self.linkerObj = ''
       return (out, ret)
 
     cleanup = cleanup and self.framework.doCleanup
 
     if not linkLanguage:
       linkLanguage = self.language
-    with self.maskLanguage(linkLanguage):
-      if shared == 'dynamic':
-        cmd = self.getDynamicLinkerCmd()
-      elif shared:
-        cmd = self.getSharedLinkerCmd()
-      else:
-        cmd = self.getLinkerCmd()
-
-    linkerObj = self.linkerObj
-    def report(command, status, output, error):
-      if error or status:
-        self.logError('linker', status, output, error)
-        examineOutput(status, output, error)
-      return
-    (out, err, ret) = Configure.executeShellCommand(cmd, checkCommand = report, log = self.log)
-    self.linkerObj = linkerObj
-    if os.path.isfile(str(self.compilerObj)):
-      import threading
-      os.remove(str(self.compilerObj))
-    if cleanup:
-      if os.path.isfile(str(self.linkerObj)):
-        os.remove(str(self.linkerObj))
-      pdbfile = os.path.splitext(str(self.linkerObj))[0]+'.pdb'
-      if os.path.isfile(pdbfile):
-        os.remove(pdbfile)
+    if shared == 'dynamic':
+      mode = 'dynamic'
+    elif shared == 'static':
+      mode = 'static'
+    elif shared:
+      mode = 'shared'
+    else:
+      mode = 'static'
+    with self.maskLanguage(linkLanguage), self.mask('_linkerTestMode',mode):
+      cmd = self.getLinkerCmd()
+      def report(command, status, output, error):
+        if error or status:
+          self.logError('linker', status, output, error)
+          examineOutput(status, output, error)
+        return
+      (out, err, ret) = Configure.executeShellCommand(cmd, checkCommand = report, log = self.log)
+      if os.path.isfile(self.compilerObj):
+        os.remove(self.compilerObj)
+      if cleanup:
+        if os.path.isfile(self.linkerObj):
+          os.remove(self.linkerObj)
+        pdbfile = os.path.splitext(self.linkerObj)[0]+'.pdb'
+        if os.path.isfile(pdbfile):
+          os.remove(pdbfile)
     return (out+'\n'+err, ret)
 
   def checkLink(self, includes = '', body = '', cleanup = 1, codeBegin = None, codeEnd = None, shared = 0, linkLanguage=None, examineOutput=lambda ret,out,err:None):
@@ -705,12 +725,12 @@ class Configure(script.Script):
 
   def outputRun(self, includes, body, cleanup = 1, defaultOutputArg = '', executor = None):
     if not self.checkLink(includes, body, cleanup = 0): return ('', 1)
-    self.logWrite('Testing executable '+str(self.linkerObj)+' to see if it can be run\n')
-    if not os.path.isfile(str(self.linkerObj)):
-      self.logWrite('ERROR executable '+str(self.linkerObj)+' does not exist\n')
+    self.logWrite('Testing executable '+self.linkerObj+' to see if it can be run\n')
+    if not os.path.isfile(self.linkerObj):
+      self.logWrite('ERROR executable '+self.linkerObj+' does not exist\n')
       return ('', 1)
-    if not os.access(str(self.linkerObj), os.X_OK):
-      self.logWrite('ERROR while running executable: '+str(self.linkerObj)+' is not executable\n')
+    if not os.access(self.linkerObj, os.X_OK):
+      self.logWrite('ERROR while running executable: '+self.linkerObj+' is not executable\n')
       return ('', 1)
     if self.argDB['with-batch']:
       if defaultOutputArg:
@@ -722,9 +742,9 @@ class Configure(script.Script):
         raise ConfigureSetupError('Running executables on this system is not supported')
     cleanup = cleanup and self.framework.doCleanup
     if executor:
-      command = executor+' '+str(self.linkerObj)
+      command = executor+' '+self.linkerObj
     else:
-      command = str(self.linkerObj)
+      command = self.linkerObj
     output  = ''
     error   = ''
     status  = 1
@@ -733,15 +753,15 @@ class Configure(script.Script):
       (output, error, status) = Configure.executeShellCommand(command, log = self.log)
     except RuntimeError, e:
       self.logWrite('ERROR while running executable: '+str(e)+'\n')
-    if os.path.isfile(str(self.compilerObj)):
+    if os.path.isfile(self.compilerObj):
       try:
-        os.remove(str(self.compilerObj))
+        os.remove(self.compilerObj)
       except RuntimeError, e:
         self.logWrite('ERROR while removing object file: '+str(e)+'\n')
-    if cleanup and os.path.isfile(str(self.linkerObj)):
+    if cleanup and os.path.isfile(self.linkerObj):
       try:
         if os.path.exists('/usr/bin/cygcheck.exe'): time.sleep(1)
-        os.remove(str(self.linkerObj))
+        os.remove(self.linkerObj)
       except RuntimeError, e:
         self.logWrite('ERROR while removing executable file: '+str(e)+'\n')
     return (output+error, status)

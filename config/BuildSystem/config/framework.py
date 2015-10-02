@@ -146,7 +146,7 @@ class Framework(config.base.Configure, script.LanguageProcessor):
 
   def getTmpDir(self):
     if not hasattr(self, '_tmpDir'):
-      if 'useThreads' in self.argDB and self.argDB['useThreads'] > 1:
+      if 'useThreads' in self.argDB and int(self.argDB['useThreads']) > 1:
         self._tmpDir = config.base.TmpDir(base=tempfile.mkdtemp(prefix = 'petsc-'),threadSafe=True)
       else:
         self._tmpDir = config.base.TmpDir(base=tempfile.mkdtemp(prefix = 'petsc-'),threadSafe=False)

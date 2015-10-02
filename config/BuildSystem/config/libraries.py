@@ -381,12 +381,13 @@ int init(int argc,  char *argv[]) {
 '''   % (boolType, initFunction, initArgs, checkCode)
       codeEnd   = '\n}\n'
       if not checkLink(includes, body, cleanup = 0, codeBegin = codeBegin, codeEnd = codeEnd, shared = 1):
-        if os.path.isfile(str(configObj.compilerObj)):
-          os.remove(str(configObj.compilerObj))
+        if os.path.isfile(configObj.compilerObj):
+          os.remove(configObj.compilerObj)
         raise RuntimeError('Could not complete shared library check')
-      if os.path.isfile(str(configObj.compilerObj)):
-        os.remove(str(configObj.compilerObj))
-      os.rename(str(configObj.linkerObj), lib1Name)
+      if os.path.isfile(configObj.compilerObj):
+        os.remove(configObj.compilerObj)
+      with configObj.mask('_linkerTestMode','shared'):
+        os.rename(configObj.linkerObj, lib1Name)
 
       # Make a library which calls checkFunction()
       lib2Name = self.tmpDir.join('lib2.'+self.setCompilers.sharedLibraryExt)
@@ -406,13 +407,14 @@ int checkInit(void) {
       body += '  return (int) isInitialized;\n'
       codeEnd   = '\n}\n'
       if not checkLink(includes, body, cleanup = 0, codeBegin = codeBegin, codeEnd = codeEnd, shared = 1):
-        if os.path.isfile(str(configObj.compilerObj)):
-          os.remove(str(configObj.compilerObj))
+        if os.path.isfile(configObj.compilerObj):
+          os.remove(configObj.compilerObj)
         raise RuntimeError('Could not complete shared library check')
         return 0
-      if os.path.isfile(str(configObj.compilerObj)):
-        os.remove(str(configObj.compilerObj))
-      os.rename(str(configObj.linkerObj), lib2Name)
+      if os.path.isfile(configObj.compilerObj):
+        os.remove(configObj.compilerObj)
+      with configObj.mask('_linkerTestMode','shared'):
+        os.rename(configObj.linkerObj, lib2Name)
 
     # Make an executable that dynamically loads and calls both libraries
     #   If the check returns true in the second library, the static data was shared
