@@ -63,6 +63,9 @@ import script
 import os
 import time
 
+from thread import get_ident as thread_id
+from threading import Lock
+  
 class ConfigureSetupError(Exception):
   pass
 
@@ -92,9 +95,6 @@ class TmpDir(object):
   string at a later time (i.e., by another thread)
   '''
 
-  from thread import get_ident as thread_id
-  from threading import Lock
-  
   _threadDir = {} # static table of the threads encountered, to convert their long id's to short numbers
   _threadCount = 0
   _lock = Lock()
