@@ -1,4 +1,5 @@
 #define PETSC_SKIP_COMPLEX
+#define PETSC_SKIP_SPINLOCK
 
 #include <petscconf.h>
 #include <../src/mat/impls/aij/mpi/mpiaij.h>   /*I "petscmat.h" I*/
@@ -143,6 +144,8 @@ PetscErrorCode MatSetFromOptions_MPIAIJCUSP(PetscOptions *PetscOptionsObject,Mat
   Mat_MPIAIJCUSP       *cuspStruct = (Mat_MPIAIJCUSP*)a->spptr;
 
   PetscFunctionBegin;
+  ierr = MatSetFromOptions_MPIAIJ(PetscOptionsObject,A);CHKERRQ(ierr);
+
   ierr = PetscOptionsHead(PetscOptionsObject,"MPIAIJCUSP options");CHKERRQ(ierr);
   ierr = PetscObjectOptionsBegin((PetscObject)A);
   if (A->factortype==MAT_FACTOR_NONE) {

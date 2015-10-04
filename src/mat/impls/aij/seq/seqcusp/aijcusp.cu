@@ -3,6 +3,7 @@
   matrix storage format.
 */
 #define PETSC_SKIP_COMPLEX
+#define PETSC_SKIP_SPINLOCK
 
 #include <petscconf.h>
 #include <../src/mat/impls/aij/seq/aij.h>          /*I "petscmat.h" I*/
@@ -555,8 +556,6 @@ PetscErrorCode MatDestroy_SeqAIJCUSP(Mat A)
 }
 
 extern PetscErrorCode MatSetValuesBatch_SeqAIJCUSP(Mat, PetscInt, PetscInt, PetscInt*,const PetscScalar*);
-
-PETSC_EXTERN PetscErrorCode MatFactorGetSolverPackage_seqaij_cusparse(Mat,const MatSolverPackage*);
 
 #undef __FUNCT__
 #define __FUNCT__ "MatCreate_SeqAIJCUSP"

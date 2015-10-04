@@ -3,7 +3,7 @@
 #include <petscds.h>
 
 PetscClassId  DM_CLASSID;
-PetscLogEvent DM_Convert, DM_GlobalToLocal, DM_LocalToGlobal, DM_LocalToLocal;
+PetscLogEvent DM_Convert, DM_GlobalToLocal, DM_LocalToGlobal, DM_LocalToLocal, DM_LocatePoints, DM_Coarsen, DM_CreateInterpolation;
 
 const char *const DMBoundaryTypes[] = {"NONE","GHOSTED","MIRROR","PERIODIC","TWIST","DM_BOUNDARY_",0};
 
@@ -25,7 +25,7 @@ const char *const DMBoundaryTypes[] = {"NONE","GHOSTED","MIRROR","PERIODIC","TWI
 
   Level: beginner
 
-.seealso: DMSetType(), DMDA, DMSLICED, DMCOMPOSITE
+.seealso: DMSetType(), DMDA, DMSLICED, DMCOMPOSITE, DMPLEX, DMMOAB, DMNETWORK
 @*/
 PetscErrorCode  DMCreate(MPI_Comm comm,DM *dm)
 {
@@ -131,7 +131,7 @@ PetscErrorCode DMClone(DM dm, DM *newdm)
 /*@C
        DMSetVecType - Sets the type of vector created with DMCreateLocalVector() and DMCreateGlobalVector()
 
-   Logically Collective on DMDA
+   Logically Collective on DM
 
    Input Parameter:
 +  da - initial distributed array
@@ -142,7 +142,7 @@ PetscErrorCode DMClone(DM dm, DM *newdm)
 
    Level: intermediate
 
-.seealso: DMDACreate1d(), DMDACreate2d(), DMDACreate3d(), DMDestroy(), DMDA, DMDAInterpolationType, VecType, DMGetVecType()
+.seealso: DMCreate(), DMDestroy(), DM, DMDAInterpolationType, VecType, DMGetVecType()
 @*/
 PetscErrorCode  DMSetVecType(DM da,VecType ctype)
 {
@@ -160,7 +160,7 @@ PetscErrorCode  DMSetVecType(DM da,VecType ctype)
 /*@C
        DMGetVecType - Gets the type of vector created with DMCreateLocalVector() and DMCreateGlobalVector()
 
-   Logically Collective on DMDA
+   Logically Collective on DM
 
    Input Parameter:
 .  da - initial distributed array
@@ -170,7 +170,7 @@ PetscErrorCode  DMSetVecType(DM da,VecType ctype)
 
    Level: intermediate
 
-.seealso: DMDACreate1d(), DMDACreate2d(), DMDACreate3d(), DMDestroy(), DMDA, DMDAInterpolationType, VecType
+.seealso: DMCreate(), DMDestroy(), DM, DMDAInterpolationType, VecType
 @*/
 PetscErrorCode  DMGetVecType(DM da,VecType *ctype)
 {
@@ -351,12 +351,12 @@ PetscErrorCode MatSetDM(Mat A, DM dm)
 #define __FUNCT__ "DMSetOptionsPrefix"
 /*@C
    DMSetOptionsPrefix - Sets the prefix used for searching for all
-   DMDA options in the database.
+   DM options in the database.
 
-   Logically Collective on DMDA
+   Logically Collective on DM
 
    Input Parameter:
-+  da - the DMDA context
++  da - the DM context
 -  prefix - the prefix to prepend to all option names
 
    Notes:
@@ -365,7 +365,7 @@ PetscErrorCode MatSetDM(Mat A, DM dm)
 
    Level: advanced
 
-.keywords: DMDA, set, options, prefix, database
+.keywords: DM, set, options, prefix, database
 
 .seealso: DMSetFromOptions()
 @*/
@@ -386,9 +386,74 @@ PetscErrorCode  DMSetOptionsPrefix(DM dm,const char prefix[])
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "DMAppendOptionsPrefix"
+/*@C
+   DMAppendOptionsPrefix - Appends to the prefix used for searching for all
+   DM options in the database.
+
+   Logically Collective on DM
+
+   Input Parameters:
++  dm - the DM context
+-  prefix - the prefix string to prepend to all DM option requests
+
+   Notes:
+   A hyphen (-) must NOT be given at the beginning of the prefix name.
+   The first character of all runtime options is AUTOMATICALLY the hyphen.
+
+   Level: advanced
+
+.keywords: DM, append, options, prefix, database
+
+.seealso: DMSetOptionsPrefix(), DMGetOptionsPrefix()
+@*/
+PetscErrorCode  DMAppendOptionsPrefix(DM dm,const char prefix[])
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = PetscObjectAppendOptionsPrefix((PetscObject)dm,prefix);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMGetOptionsPrefix"
+/*@C
+   DMGetOptionsPrefix - Gets the prefix used for searching for all
+   DM options in the database.
+
+   Not Collective
+
+   Input Parameters:
+.  dm - the DM context
+
+   Output Parameters:
+.  prefix - pointer to the prefix string used is returned
+
+   Notes: On the fortran side, the user should pass in a string 'prefix' of
+   sufficient length to hold the prefix.
+
+   Level: advanced
+
+.keywords: DM, set, options, prefix, database
+
+.seealso: DMSetOptionsPrefix(), DMAppendOptionsPrefix()
+@*/
+PetscErrorCode  DMGetOptionsPrefix(DM dm,const char *prefix[])
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = PetscObjectGetOptionsPrefix((PetscObject)dm,prefix);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "DMDestroy"
 /*@
-    DMDestroy - Destroys a vector packer or DMDA.
+    DMDestroy - Destroys a vector packer or DM.
 
     Collective on DM
 
@@ -675,7 +740,7 @@ PetscErrorCode  DMView(DM dm,PetscViewer v)
 #undef __FUNCT__
 #define __FUNCT__ "DMCreateGlobalVector"
 /*@
-    DMCreateGlobalVector - Creates a global vector from a DMDA or DMComposite object
+    DMCreateGlobalVector - Creates a global vector from a DM object
 
     Collective on DM
 
@@ -703,7 +768,7 @@ PetscErrorCode  DMCreateGlobalVector(DM dm,Vec *vec)
 #undef __FUNCT__
 #define __FUNCT__ "DMCreateLocalVector"
 /*@
-    DMCreateLocalVector - Creates a local vector from a DMDA or DMComposite object
+    DMCreateLocalVector - Creates a local vector from a DM object
 
     Not Collective
 
@@ -819,7 +884,7 @@ PetscErrorCode  DMGetBlockSize(DM dm,PetscInt *bs)
 #undef __FUNCT__
 #define __FUNCT__ "DMCreateInterpolation"
 /*@
-    DMCreateInterpolation - Gets interpolation matrix between two DMDA or DMComposite objects
+    DMCreateInterpolation - Gets interpolation matrix between two DM objects
 
     Collective on DM
 
@@ -850,14 +915,16 @@ PetscErrorCode  DMCreateInterpolation(DM dm1,DM dm2,Mat *mat,Vec *vec)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm1,DM_CLASSID,1);
   PetscValidHeaderSpecific(dm2,DM_CLASSID,2);
+  ierr = PetscLogEventBegin(DM_CreateInterpolation,dm1,dm2,0,0);CHKERRQ(ierr);
   ierr = (*dm1->ops->createinterpolation)(dm1,dm2,mat,vec);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(DM_CreateInterpolation,dm1,dm2,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "DMCreateInjection"
 /*@
-    DMCreateInjection - Gets injection matrix between two DMDA or DMComposite objects
+    DMCreateInjection - Gets injection matrix between two DM objects
 
     Collective on DM
 
@@ -920,7 +987,7 @@ PetscErrorCode  DMCreateColoring(DM dm,ISColoringType ctype,ISColoring *coloring
 #undef __FUNCT__
 #define __FUNCT__ "DMCreateMatrix"
 /*@
-    DMCreateMatrix - Gets empty Jacobian for a DMDA or DMComposite
+    DMCreateMatrix - Gets empty Jacobian for a DM
 
     Collective on DM
 
@@ -966,7 +1033,7 @@ PetscErrorCode  DMCreateMatrix(DM dm,Mat *mat)
   DMSetMatrixPreallocateOnly - When DMCreateMatrix() is called the matrix will be properly
     preallocated but the nonzero structure and zero values will not be set.
 
-  Logically Collective on DMDA
+  Logically Collective on DM
 
   Input Parameter:
 + dm - the DM
@@ -2114,6 +2181,7 @@ PetscErrorCode DMCoarsen(DM dm, MPI_Comm comm, DM *dmc)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = PetscLogEventBegin(DM_Coarsen,dm,0,0,0);CHKERRQ(ierr);
   ierr                      = (*dm->ops->coarsen)(dm, comm, dmc);CHKERRQ(ierr);
   if (!(*dmc)) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "NULL coarse mesh produced");
   (*dmc)->ops->creatematrix = dm->ops->creatematrix;
@@ -2125,6 +2193,7 @@ PetscErrorCode DMCoarsen(DM dm, MPI_Comm comm, DM *dmc)
   for (link=dm->coarsenhook; link; link=link->next) {
     if (link->coarsenhook) {ierr = (*link->coarsenhook)(dm,*dmc,link->ctx);CHKERRQ(ierr);}
   }
+  ierr = PetscLogEventEnd(DM_Coarsen,dm,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -4240,9 +4309,11 @@ PetscErrorCode DMLocatePoints(DM dm, Vec v, IS *cells)
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   PetscValidHeaderSpecific(v,VEC_CLASSID,2);
   PetscValidPointer(cells,3);
+  ierr = PetscLogEventBegin(DM_LocatePoints,dm,0,0,0);CHKERRQ(ierr);
   if (dm->ops->locatepoints) {
     ierr = (*dm->ops->locatepoints)(dm,v,cells);CHKERRQ(ierr);
   } else SETERRQ(PetscObjectComm((PetscObject)dm), PETSC_ERR_SUP, "Point location not available for this DM");
+  ierr = PetscLogEventEnd(DM_LocatePoints,dm,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
