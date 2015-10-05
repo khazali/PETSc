@@ -90,9 +90,6 @@ class TmpDir(object):
     compilerDefines = b.join('confdefs.h') # compilerDefines =
                                            # 'base/X/confdefs.h',
                                            # where X is unique to the current thread
-
-  Using b.path('confdefs.h') will return an object that can be converted to a
-  string at a later time (i.e., by another thread)
   '''
 
   _threadDir = {} # static table of the threads encountered, to convert their long id's to short numbers
@@ -136,22 +133,6 @@ class TmpDir(object):
       if not os.path.isdir(os.path.dirname(path)):
         os.makedirs(os.path.dirname(path))
     return path
-
-  def path(self,basename):
-    '''Return the path to basename in a hypothetical thread's tmpDir as an
-    object that can be stringified by any thread at a later time'''
-    if self.threadSafe:
-      return TmpPath(self,basename)
-    else:
-      return self.join(basename)
-
-class TmpPath(object):
-  '''An object that can be converted to a path in any thread's tmpDir'''
-  def __init__(self,tmpDir,basename):
-    self.tmpDir = tmpDir
-    self.basename = basename
-  def __str__(self):
-    return self.tmpDir.join(self.basename,mkdir=False)
 
 
 class Configure(script.Script):
