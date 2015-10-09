@@ -71,7 +71,7 @@ var ws;
 ws = new WebSocket("ws://localhost:8088/echo");
 
 ws.onopen = function() {
-  console.log("Connected!");
+  
 };
 
 ws.onerror = function() {
@@ -80,12 +80,9 @@ ws.onerror = function() {
 
 ws.onmessage = function(event) {
 
-  console.log(event);
-
     var d = jQuery.parseJSON(event.data);
 
     if (d.type == "MAP") {
-      console.log("SSSS");
 
       SAWs.drawLine(d.lat1,d.logn1,d.lat2,d.logn2);
 
