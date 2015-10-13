@@ -99,6 +99,7 @@
       <h4>General:</h4>
          PetscMemoryShowUsage() and -memory_info changed to PetscMemoryView() and -memory_view
       <h4>Configure/Build:</h4>
+         To temporarily change a BuildSystem module in order to perform a test, one should now use a with-statement and the new mask method, so that the temporary changes are only seen by one thread during a parallel build, e.g., `with self.setCompilers.mask('CPPFLAGS',testFlags): # run a test`
       <h4>IS:</h4>
       <h4>PetscDraw:</h4>
       <h4>PF:</h4>
