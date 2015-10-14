@@ -1,17 +1,5 @@
 static char help[] = "Tests non-conforming mesh manipulation\n\n";
 
-/*     11         20
-  3----------4----------5
-  |         / \         |
-  |         | |21  2    |19
-  |         | |         |
-12|   0   14| 9---------10
-  |         | |    17   |
-  |         | |18  1    |16
-  |         \ /         |
-  6----------7----------8
-       13         15
-*/
 
 #include <petscdmplex.h>
 
@@ -40,72 +28,117 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 {
   DM             dmDist = NULL;
+  DM             refTree = NULL;
   PetscInt       dim    = user->dim;
   PetscMPIInt    rank;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  ierr = DMCreate(comm, dm);CHKERRQ(ierr);
+  ierr = DMSetType(*dm, DMPLEX);CHKERRQ(ierr);
+  ierr = DMSetDimension(*dm, dim);CHKERRQ(ierr);
   /* Create the simplest nonconforming hex mesh */
   switch (dim) {
   case 2:
-    ierr = DMCreate(comm, dm);CHKERRQ(ierr);
-    ierr = DMSetType(*dm, DMPLEX);CHKERRQ(ierr);
-    ierr = DMSetDimension(*dm, dim);CHKERRQ(ierr);
     if (!rank) {
-      ierr = DMPlexSetChart(*dm, 0, 25);CHKERRQ(ierr);
-      ierr = DMPlexSetConeSize(*dm, 0, 4);CHKERRQ(ierr);
-      ierr = DMPlexSetConeSize(*dm, 1, 4);CHKERRQ(ierr);
-      ierr = DMPlexSetConeSize(*dm, 2, 4);CHKERRQ(ierr);
-      ierr = DMPlexSetConeSize(*dm, 11, 2);CHKERRQ(ierr);
-      ierr = DMPlexSetConeSize(*dm, 12, 2);CHKERRQ(ierr);
-      ierr = DMPlexSetConeSize(*dm, 13, 2);CHKERRQ(ierr);
-      ierr = DMPlexSetConeSize(*dm, 14, 2);CHKERRQ(ierr);
-      ierr = DMPlexSetConeSize(*dm, 15, 2);CHKERRQ(ierr);
-      ierr = DMPlexSetConeSize(*dm, 16, 2);CHKERRQ(ierr);
-      ierr = DMPlexSetConeSize(*dm, 17, 2);CHKERRQ(ierr);
-      ierr = DMPlexSetConeSize(*dm, 18, 2);CHKERRQ(ierr);
-      ierr = DMPlexSetConeSize(*dm, 19, 2);CHKERRQ(ierr);
-      ierr = DMPlexSetConeSize(*dm, 20, 2);CHKERRQ(ierr);
-      ierr = DMPlexSetConeSize(*dm, 21, 2);CHKERRQ(ierr);
-    }
-    ierr = DMSetUp(*dm);CHKERRQ(ierr);
-    if (!rank) {
-      PetscInt cone[4];
-      PetscInt ornt[4];
+      /*     11         20
+        3<---------4<---------5
+        |         / \         ^
+        |         ^ ^21  2    |19
+        |         | |         |
+      12|   0   14| 9<--------10
+        |         | ^    17   ^
+        |         | |18  1    |16
+        v         \ /         |
+        6--------->7--------->8
+             13         15
+      */
+      PetscInt numPoints[3] = {8, 11, 3}; /* vertices, edges, quads */
+      PetscInt coneSize[22] = {4, 4, 4,                          /* quads */
+                               0, 0, 0, 0, 0, 0, 0, 0,           /* vertices */
+                               2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}; /* edges */
+      PetscInt cones[34] = {11, 12, 13, 14, /* 0 */
+                            15, 16, 17, 18, /* 1 */
+                            17, 19, 20, 21, /* 2 */
+                            4,  3,          /* 11 */
+                            3,  6,          /* 12 */
+                            6,  7,          /* 13 */
+                            7,  4,          /* 14 */
+                            7,  8,          /* 15 */
+                            8,  10,         /* 16 */
+                            10, 9,          /* 17 */
+                            7,  9,          /* 18 */
+                            10, 5,          /* 19 */
+                            5,  4,          /* 20 */
+                            9,  4};         /* 21 */
+      PetscInt ornts[34] = { 0,  0,  0,  0, /* edges of 0 */
+                             0,  0,  0, -2, /* edges of 1: because 14 points from 7 to 4, 18 must point from 7 to 9 */
+                            -2,  0,  0, -2, /* edges of 2: because 14 points from 7 to 4, 21 must point from 9 to 4 */
+                            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; /* vertices have no orientation */
+      PetscScalar vertices[16] = {0.,2.,  /* 3 */
+                                  2.,2.,  /* 4 */
+                                  3.,2.,  /* 5 */
+                                  0.,0.,  /* 6 */
+                                  2.,0.,  /* 7 */
+                                  3.,0.,  /* 8 */
+                                  2.,1.,  /* 9 */
+                                  3.,1.}; /* 10 */
 
-      cone[0] = 11; cone[1] = 12; cone[2] = 13; cone[3] = 14;
-      ierr = DMPlexSetCone(*dm, 0, cone);CHKERRQ(ierr);
-      cone[0] = 15; cone[1] = 16; cone[2] = 17; cone[3] = 18;
-      ierr = DMPlexSetCone(*dm, 1, cone);CHKERRQ(ierr);
-      cone[0] = 17; cone[1] = 19; cone[2] = 20; cone[3] = 21;
-      ornt[0] = -2; ornt[1] = 0;  ornt[2] = 0;  ornt[3] = 0;
-      ierr = DMPlexSetCone(*dm, 2, cone);CHKERRQ(ierr);
-      ierr = DMPlexSetConeOrientation(*dm, 2, ornt);CHKERRQ(ierr);
-      cone[0] = 4; cone[1] = 3;
-      ierr = DMPlexSetCone(*dm, 11, cone);CHKERRQ(ierr);
-      cone[0] = 3; cone[1] = 6;
-      ierr = DMPlexSetCone(*dm, 12, cone);CHKERRQ(ierr);
-      cone[0] = 6; cone[1] = 7;
-      ierr = DMPlexSetCone(*dm, 13, cone);CHKERRQ(ierr);
-      cone[0] = 7; cone[1] = 4;
-      ierr = DMPlexSetCone(*dm, 14, cone);CHKERRQ(ierr);
-      cone[0] = 7; cone[1] = 8;
-      ierr = DMPlexSetCone(*dm, 15, cone);CHKERRQ(ierr);
-      cone[0] = 8; cone[1] = 10;
-      ierr = DMPlexSetCone(*dm, 16, cone);CHKERRQ(ierr);
-      cone[0] = 10; cone[1] = 9;
-      ierr = DMPlexSetCone(*dm, 17, cone);CHKERRQ(ierr);
-      cone[0] = 9; cone[1] = 7;
-      ierr = DMPlexSetCone(*dm, 18, cone);CHKERRQ(ierr);
-      cone[0] = 10; cone[1] = 5;
-      ierr = DMPlexSetCone(*dm, 19, cone);CHKERRQ(ierr);
-      cone[0] = 5; cone[1] = 5;
-      ierr = DMPlexSetCone(*dm, 20, cone);CHKERRQ(ierr);
-      cone[0] = 4; cone[1] = 9;
-      ierr = DMPlexSetCone(*dm, 21, cone);CHKERRQ(ierr);
+      ierr = DMPlexCreateFromDAG(*dm,3,numPoints,coneSize,cones,ornts,vertices);CHKERRQ(ierr);
     }
-    ierr = DMPlexSymmetrize(*dm);CHKERRQ(ierr);
+    else {
+      PetscInt numPoints[3] = {0, 0, 0};
+
+      ierr = DMPlexCreateFromDAG(*dm,3,numPoints,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+    }
+    break;
+  default: SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "No sample mesh for dimension %D", dim);
+  }
+  /* Create the reference tree describing the non-conforming interfaces */
+                                                  /* PETSC_FALSE = quad/hex */
+  ierr = DMPlexCreateDefaultReferenceTree(comm, dim, PETSC_FALSE, &refTree);CHKERRQ(ierr);
+  ierr = DMPlexSetReferenceTree(*dm,refTree);CHKERRQ(ierr);
+  ierr = DMDestroy(&refTree);CHKERRQ(ierr);
+  /* Create the hierarchy of points */
+  switch (dim) {
+  case 2:
+    {
+      PetscSection parentSection;
+      PetscInt     *parents, *childIDs, pStart, pEnd;
+
+      /* If we really wanted to we could chose a more restrictive chart */
+      ierr = DMPlexGetChart(*dm,&pStart,&pEnd);CHKERRQ(ierr);
+      ierr = PetscSectionCreate(comm,&parentSection);CHKERRQ(ierr);
+      ierr = PetscSectionSetChart(parentSection,pStart,pEnd);CHKERRQ(ierr);
+      if (!rank) {
+
+        /* Each of these points has a parent */
+        ierr = PetscSectionSetDof(parentSection,9, 1);CHKERRQ(ierr);
+        ierr = PetscSectionSetDof(parentSection,18,1);CHKERRQ(ierr);
+        ierr = PetscSectionSetDof(parentSection,21,1);CHKERRQ(ierr);
+        ierr = PetscMalloc2(3,&parents,3,&childIDs);CHKERRQ(ierr);
+        /* The parent of each of these points is 14 */
+        parents[0] = 14; /* 9  */
+        parents[1] = 14; /* 18 */
+        parents[2] = 14; /* 21 */
+        /* Now we have to tell DMPlex which part of the reference tree the non-conforming mesh looks like.  This is the
+         * least friendly part of setup */
+        /* 9 is to its parent (14) as 25 is to its parent (5) in the reference tree */
+        childIDs[0] = 25;
+        /* 18 is to its parent (14) as 9 is to its parent (5) in the reference tree */
+        childIDs[1] = 9;
+        /* 21 is to its parent (14) as 10 is to its parent (5) in the reference tree */
+        childIDs[1] = 10;
+      }
+      else {
+        ierr = PetscMalloc2(0,&parents,0,&childIDs);CHKERRQ(ierr);
+      }
+      ierr = PetscSectionSetUp(parentSection);CHKERRQ(ierr);
+      ierr = DMPlexSetTree(*dm,parentSection,parents,childIDs);CHKERRQ(ierr);
+      ierr = PetscSectionDestroy(&parentSection);CHKERRQ(ierr);
+      ierr = PetscFree2(parents,childIDs);CHKERRQ(ierr);
+    }
     break;
   default: SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "No sample mesh for dimension %D", dim);
   }
