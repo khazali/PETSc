@@ -8,15 +8,16 @@ class Configure(config.package.Package):
                             'http://ftp.mcs.anl.gov/pub/petsc/externalpackages/ViennaCL-1.7.0.tar.gz' ]
     self.downloadfilename = str('ViennaCL-1.7.0')
     self.includes        = ['viennacl/forwards.h']
-    self.cxx             = 1
+    self.forceLanguage   = 'CUDA'
+    self.cxx             = 0
     self.downloadonWindows = 1
     self.complex          = 0
     return
 
   def setupDependencies(self, framework):
     config.package.Package.setupDependencies(self, framework)
-    self.opencl  = framework.require('config.packages.opencl',self)
-    self.deps = [self.opencl]
+    self.cuda  = framework.require('config.packages.cuda',self)
+    self.deps = [self.cuda]
     return
 
   def Install(self):
@@ -40,3 +41,30 @@ class Configure(config.package.Package):
         raise RuntimeError('Error installing ViennaCL include files: '+str(e))
     return self.installDir
 
+  def checkCUSPVersion(self):
+    if 'known-cusp-version' in self.argDB:
+      if self.argDB['known-cusp-version'] < self.CUSPVersion:
+        raise RuntimeError('CUSP version error '+self.argDB['known-cusp-version']+' < '+self.CUSPVersion+': PETSC currently requires CUSP version '+self.CUSPVersionStr+' or higher')
+    elif not self.argDB['with-batch']:
+      self.pushLanguage('CUDA')
+      oldFlags = self.compilers.CUDAPPFLAGS
+      self.compilers.CUDAPPFLAGS += ' '+self.headers.toString(self.include)
+      if not self.checkRun('#include <cusp/version.h>\n#include <stdio.h>', 'if (CUSP_VERSION < ' + self.CUSPVersion +') {printf("Invalid version %d\\n", CUSP_VERSION); return 1;}'):
+        raise RuntimeError('CUSP version error: PETSC currently requires CUSP version '+self.CUSPVersionStr+' or higher.')
+      self.compilers.CUDAPPFLAGS = oldFlags
+      self.popLanguage()
+    else:
+      raise RuntimeError('Batch configure does not work with CUDA\nOverride all CUDA configuration with options, such as --known-cusp-version')
+    return
+
+  def configureLibrary(self):
+    '''Calls the regular package configureLibrary and then does a additional tests needed by ViennaCL'''
+    config.package.Package.configureLibrary(self)
+    self.pushLanguage('CUDA')
+    oldFlags = self.compilers.CUDAPPFLAGS
+    self.compilers.CUDAPPFLAGS += ' '+self.headers.toString(self.include)
+    if not self.checkRun('#include <viennacl/version.hpp>\n#include <stdio.h>', 'if (VIENNACL_MINOR_VERSION < 6) {printf("Invalid version %d\\n", VIENNACL_MINOR_VERSION); return 1;}'):
+      raise RuntimeError('ViennaCL version error: PETSC currently requires ViennaCL version 1.6.0 or higher.')
+    self.compilers.CUDAPPFLAGS = oldFlags
+    self.popLanguage()
+    return

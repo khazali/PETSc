@@ -4,7 +4,7 @@ ALL: lib
 
 CFLAGS   =
 FFLAGS   =
-SOURCECXX= vecviennacl.cxx
+SOURCECU = vecviennacl.cu
 SOURCEF  =
 SOURCEH  = viennaclvecimpl.h
 LIBBASE  = libpetscvec
