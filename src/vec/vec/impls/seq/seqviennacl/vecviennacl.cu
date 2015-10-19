@@ -13,8 +13,11 @@
 #include "viennacl/linalg/norm_1.hpp"
 #include "viennacl/linalg/norm_2.hpp"
 #include "viennacl/linalg/norm_inf.hpp"
-#include "viennacl/ocl/backend.hpp"
 
+/* OpenCL-management only required if OpenCL is enabled */
+#ifdef VIENNACL_WITH_OPENCL
+#include "viennacl/ocl/backend.hpp"
+#endif
 
 #undef __FUNCT__
 #define __FUNCT__ "VecViennaCLGetArrayReadWrite"
@@ -103,8 +106,8 @@ PETSC_EXTERN PetscErrorCode PetscObjectViennaCLSetFromOptions(PetscObject obj)
 
   PetscFunctionBegin;
   ierr = PetscObjectOptionsBegin(obj);
-
   ierr = PetscOptionsHasName(NULL,"-viennacl_device_cpu",&flg);CHKERRQ(ierr);
+#ifdef VIENNACL_WITH_OPENCL
   if (flg) {
     try {
       viennacl::ocl::set_context_device_type(0, CL_DEVICE_TYPE_CPU);
@@ -128,7 +131,7 @@ PETSC_EXTERN PetscErrorCode PetscObjectViennaCLSetFromOptions(PetscObject obj)
       SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"ViennaCL error: %s", ex.what());
     }
   }
-
+#endif
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
