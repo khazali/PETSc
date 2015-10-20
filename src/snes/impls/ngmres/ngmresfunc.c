@@ -3,41 +3,76 @@
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESNGMRESUpdateSubspace_Private"
-PetscErrorCode SNESNGMRESUpdateSubspace_Private(SNES snes,PetscInt ivec,PetscInt l,Vec F,PetscReal fnorm,Vec X)
+/*
+  SNESNGMRESUpdateSubspace_Private - Update the ivecth residual and solution vectors in the subspace
+
+  Input Parameters:
++ snes   - SNES object
+. ivec   - subspace vector to update
+. m      - subspace size
+. F      - residual
+. fnorm  - residual norm, ||F||
+- X      - approximate solution
+
+  Level: developer
+
+.seealso: SNESNGMRESFormCombinedSolution_Private(), SNESNGMRESNorms_Private()
+*/
+PetscErrorCode SNESNGMRESUpdateSubspace_Private(SNES snes, PetscInt ivec, PetscInt m, Vec F, PetscReal fnorm, Vec X)
 {
-  SNES_NGMRES    *ngmres = (SNES_NGMRES*) snes->data;
-  Vec            *Fdot   = ngmres->Fdot;
-  Vec            *Xdot   = ngmres->Xdot;
+  SNES_NGMRES   *ngmres = (SNES_NGMRES*) snes->data;
+  Vec           *Fdot   = ngmres->Fdot;
+  Vec           *Xdot   = ngmres->Xdot;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  if (ivec > l) SETERRQ2(PetscObjectComm((PetscObject)snes),PETSC_ERR_ARG_WRONGSTATE,"Cannot update vector %d with space size %d!",ivec,l);
-  ierr = VecCopy(F,Fdot[ivec]);CHKERRQ(ierr);
-  ierr = VecCopy(X,Xdot[ivec]);CHKERRQ(ierr);
-
+  if (m > ngmres->msize) SETERRQ2(PetscObjectComm((PetscObject) snes), PETSC_ERR_ARG_WRONGSTATE, "Subspace size %D cannot be greater than maximum %D!", m, ngmres->msize);
+  if (ivec > m)          SETERRQ2(PetscObjectComm((PetscObject) snes), PETSC_ERR_ARG_WRONGSTATE, "Cannot update vector %d with space size %d!", ivec, m);
+  ierr = VecCopy(F, Fdot[ivec]);CHKERRQ(ierr);
+  ierr = VecCopy(X, Xdot[ivec]);CHKERRQ(ierr);
   ngmres->fnorms[ivec] = fnorm;
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESNGMRESFormCombinedSolution_Private"
-PetscErrorCode SNESNGMRESFormCombinedSolution_Private(SNES snes,PetscInt ivec,PetscInt l,Vec XM,Vec FM,PetscReal fMnorm,Vec X,Vec XA,Vec FA)
+/*
+  SNESNGMRESFormCombinedSolution_Private - Solve linearized least-squares problem to update solution and residual
+
+  Input Parameters:
++ snes   - the SNES
+. ivec   - the subspace vector to update?
+. l      - subspace size
+. XM     - trial solution
+. FM     - trial residual, F(XM)
+. fMnorm - trial residual norm, ||F(XM)||
+- X      - prior solution
+
+  Output Parameters:
++ XA     - updated solution
+- FA     - updated residual (approximate if ngmres->approxfunc is true)
+
+  Note: The code and notation follows Oosterlee and Washio, SISC 21(5), 2000.
+
+  Level: developer
+
+.seealso: SNESNGMRESNorms_Private(), SNESNGMRESUpdateSubspace_Private()
+*/
+PetscErrorCode SNESNGMRESFormCombinedSolution_Private(SNES snes, PetscInt ivec, PetscInt l, Vec XM, Vec FM, PetscReal fMnorm, Vec X, Vec XA, Vec FA)
 {
-  SNES_NGMRES    *ngmres = (SNES_NGMRES*) snes->data;
-  PetscInt       i,j;
-  Vec            *Fdot      = ngmres->Fdot;
-  Vec            *Xdot      = ngmres->Xdot;
-  PetscScalar    *beta      = ngmres->beta;
-  PetscScalar    *xi        = ngmres->xi;
-  PetscScalar    alph_total = 0.;
-  PetscErrorCode ierr;
-  PetscReal      nu;
-  Vec            Y = snes->work[2];
-  PetscBool      changed_y,changed_w;
+  SNES_NGMRES    *ngmres     = (SNES_NGMRES*) snes->data;
+  Vec            *Fdot       = ngmres->Fdot;
+  Vec            *Xdot       = ngmres->Xdot;
+  PetscScalar    *beta       = ngmres->beta;
+  PetscScalar    *xi         = ngmres->xi;
+  PetscScalar     alph_total = 0.;
+  const PetscReal nu         = fMnorm*fMnorm;
+  Vec             Y = snes->work[2];
+  PetscBool       changed_y,changed_w;
+  PetscInt        i,j;
+  PetscErrorCode  ierr;
 
   PetscFunctionBegin;
-  nu = fMnorm*fMnorm;
-
   /* construct the right hand side and xi factors */
   if (l > 0) {
     ierr = VecMDotBegin(FM,l,Fdot,xi);CHKERRQ(ierr);
@@ -89,24 +124,23 @@ PetscErrorCode SNESNGMRESFormCombinedSolution_Private(SNES snes,PetscInt ivec,Pe
   alph_total = 0.;
   for (i = 0; i < l; i++) alph_total += beta[i];
 
-  ierr = VecCopy(XM,XA);CHKERRQ(ierr);
-  ierr = VecScale(XA,1.-alph_total);CHKERRQ(ierr);
-  ierr = VecMAXPY(XA,l,beta,Xdot);CHKERRQ(ierr);
+  ierr = VecCopy(XM, XA);CHKERRQ(ierr);
+  ierr = VecScale(XA, 1.0 - alph_total);CHKERRQ(ierr);
+  ierr = VecMAXPY(XA, l, beta, Xdot);CHKERRQ(ierr);
   /* check the validity of the step */
-  ierr = VecCopy(XA,Y);CHKERRQ(ierr);
-  ierr = VecAXPY(Y,-1.0,X);CHKERRQ(ierr);
+  ierr = VecCopy(XA, Y);CHKERRQ(ierr);
+  ierr = VecAXPY(Y, -1.0, X);CHKERRQ(ierr);
   ierr = SNESLineSearchPostCheck(snes->linesearch,X,Y,XA,&changed_y,&changed_w);CHKERRQ(ierr);
   if (!ngmres->approxfunc) {
     if (snes->pc && snes->pcside == PC_LEFT) {
-      ierr = SNESApplyNPC(snes,XA,NULL,FA);CHKERRQ(ierr);
+      ierr = SNESApplyNPC(snes, XA, NULL, FA);CHKERRQ(ierr);
     } else {
-      ierr =SNESComputeFunction(snes,XA,FA);CHKERRQ(ierr);
+      ierr = SNESComputeFunction(snes, XA, FA);CHKERRQ(ierr);
     }
-  }
-  else {
-    ierr = VecCopy(FM,FA);CHKERRQ(ierr);
-    ierr = VecScale(FA,1.-alph_total);CHKERRQ(ierr);
-    ierr = VecMAXPY(FA,l,beta,Fdot);CHKERRQ(ierr);
+  } else {
+    ierr = VecCopy(FM, FA);CHKERRQ(ierr);
+    ierr = VecScale(FA, 1.0 - alph_total);CHKERRQ(ierr);
+    ierr = VecMAXPY(FA, l, beta, Fdot);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
