@@ -6,7 +6,7 @@
 #undef __FUNCT__
 #define __FUNCT__ "SNESApplyNPC"
 /*@
-   SNESApplyNPC - Calls SNESSolve() on preconditioner for the SNES
+   SNESApplyNPC - Generates left-preconditioned residual by calls SNESSolve() with the preconditioner
 
    Collective on SNES
 
@@ -19,8 +19,9 @@
 .  y - function vector, as set by SNESSetFunction()
 
    Notes:
-   SNESComputeFunction() should be called on x before SNESApplyNPC() is called, as it is
-   with SNESComuteJacobian().
+   This computes x - M x, where M is the preconditioner solver.
+
+   In order to take advantage of the optimization which avoids recomputing F(x), SNESComputeFunction() should be called on x before SNESApplyNPC() is called, as it is with SNESComuteJacobian().
 
    Level: developer
 
