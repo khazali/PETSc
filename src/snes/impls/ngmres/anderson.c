@@ -46,15 +46,16 @@ PetscErrorCode SNESSolve_Anderson(SNES snes)
   Vec                 X,F,B,D;
   /* candidate linear combination answers */
   Vec                 XA,FA,XM,FM;
-
   /* coefficients and RHS to the minimization problem */
   PetscReal           fnorm,fMnorm,fAnorm;
   PetscReal           xnorm,ynorm;
-  PetscReal           dnorm,dminnorm=0.0,fminnorm;
-  PetscInt            restart_count=0;
-  PetscInt            k,k_restart,l,ivec;
+  PetscReal           dnorm,dminnorm = 0.0,fminnorm;
+  PetscInt            restart_count  = 0; /* Number of times the restart criteria are satisfied before restart occurs */
+  PetscInt            k_restart;          /* Iterates since last restart */
+  PetscInt            ivec;               /* subspace vector to update, k_restart % subspace size */
   PetscBool           selectRestart;
   SNESConvergedReason reason;
+  PetscInt            k, l;
   PetscErrorCode      ierr;
 
   PetscFunctionBegin;
@@ -84,8 +85,7 @@ PetscErrorCode SNESSolve_Anderson(SNES snes)
 
   /* initialization */
 
-  /* r = F(x) */
-
+  /* Compute the preconditioned residual r, which is either F(x) or x - M(x) */
   if (snes->pc && snes->pcside == PC_LEFT) {
     ierr = SNESApplyNPC(snes,X,NULL,F);CHKERRQ(ierr);
     ierr = SNESGetConvergedReason(snes->pc,&reason);CHKERRQ(ierr);
@@ -93,15 +93,13 @@ PetscErrorCode SNESSolve_Anderson(SNES snes)
       snes->reason = SNES_DIVERGED_INNER;
       PetscFunctionReturn(0);
     }
-    ierr = VecNorm(F,NORM_2,&fnorm);CHKERRQ(ierr);
   } else {
-    if (!snes->vec_func_init_set) {
-      ierr = SNESComputeFunction(snes,X,F);CHKERRQ(ierr);
-    } else snes->vec_func_init_set = PETSC_FALSE;
+    if (!snes->vec_func_init_set) {ierr = SNESComputeFunction(snes,X,F);CHKERRQ(ierr);}
+    else                           snes->vec_func_init_set = PETSC_FALSE;
 
-    ierr = VecNorm(F,NORM_2,&fnorm);CHKERRQ(ierr);
-    SNESCheckFunctionNorm(snes,fnorm);
   }
+  ierr = VecNorm(F,NORM_2,&fnorm);CHKERRQ(ierr);
+  SNESCheckFunctionNorm(snes,fnorm);
   fminnorm = fnorm;
 
   ierr       = PetscObjectSAWsTakeAccess((PetscObject)snes);CHKERRQ(ierr);
