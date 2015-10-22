@@ -10,8 +10,7 @@
 #include <petscfv.h>
 #include <petscsftypes.h>
 
-PETSC_EXTERN PetscErrorCode DMPICellAddSource(DM, PetscReal*, PetscScalar);
-PETSC_EXTERN PetscErrorCode DMPICellGetGradPotential(DM, PetscReal*, PetscScalar*);
-PETSC_EXTERN PetscErrorCode DMPICellGetPotential(DM, PetscReal*, PetscScalar*);
+PETSC_EXTERN PetscErrorCode DMPICellAddSource(DM, Vec, Vec);
+PETSC_EXTERN PetscErrorCode DMPICellGetJet(DM, Vec, PetscInt, Vec);
 
 #endif

@@ -146,7 +146,7 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellAddSource"
-PetscErrorCode DMPICellAddSource(DM dm, PetscReal *x, PetscScalar val)
+PetscErrorCode DMPICellAddSource(DM dm, Vec x, Vec rho)
 {
   DM_PICell      *mesh = (DM_PICell *) dm->data;
   PetscErrorCode ierr;
@@ -162,25 +162,8 @@ PetscErrorCode DMPICellAddSource(DM dm, PetscReal *x, PetscScalar val)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMPICellGetGradPotential"
-PetscErrorCode DMPICellGetGradPotential(DM dm, PetscReal *x, PetscScalar *gradphi)
-{
-  DM_PICell      *mesh = (DM_PICell *) dm->data;
-  PetscErrorCode ierr;
-  PetscInt dim;
-
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
-
-
-
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "DMPICellGetPotential"
-PetscErrorCode DMPICellGetPotential(DM dm, PetscReal *x, PetscScalar *gradphi)
+#define __FUNCT__ "DMPICellGetJet"
+PetscErrorCode  DMPICellGetJet(DM dm, Vec coord, PetscInt order, Vec jet)
 {
   DM_PICell      *mesh = (DM_PICell *) dm->data;
   PetscErrorCode ierr;
