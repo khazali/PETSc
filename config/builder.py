@@ -550,6 +550,8 @@ regressionParameters = {'src/dm/impls/patch/examples/tests/ex1': [{'numProcs': 1
                         'src/snes/examples/tutorials/ex75':   [# 2D serial P2/P1 tests 0-1
                                                                {'numProcs': 1, 'args': ''},
                                                                {'numProcs': 1, 'args': '-fem'}],
+                        'src/snes/examples/tutorials/ex76':   [# 2D spectral tests 0-
+                                                               {'numProcs': 1, 'args': '-l 41 -sol_view draw -da_grid_x 100 -da_grid_y 100 -geometry 0,0,700,700'}],
                         'src/ts/examples/tutorials/ex11':      [# 2D Advection 0-10
                                                                 {'numProcs': 1, 'args': '-ufv_vtk_interval 0 -f %(meshes)s/sevenside.exo'},
                                                                 {'numProcs': 1, 'args': '-ufv_vtk_interval 0 -f %(meshes)s/sevenside-quad-15.exo'},
