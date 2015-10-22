@@ -2037,7 +2037,7 @@ PetscErrorCode MatTranspose_MPIAIJ(Mat A,MatReuse reuse,Mat *matout)
   if (reuse == MAT_INITIAL_MATRIX || *matout != A) {
     *matout = B;
   } else {
-    ierr = MatHeaderMerge(A,B);CHKERRQ(ierr);
+    ierr = MatHeaderMerge(A,&B);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -2222,7 +2222,7 @@ PetscErrorCode MatAXPY_MPIAIJ(Mat Y,PetscScalar a,Mat X,MatStructure str)
     ierr = MatAXPYGetPreallocation_MPIAIJ(yy->B,yy->garray,xx->B,xx->garray,nnz_o);CHKERRQ(ierr);
     ierr = MatMPIAIJSetPreallocation(B,0,nnz_d,0,nnz_o);CHKERRQ(ierr);
     ierr = MatAXPY_BasicWithPreallocation(B,Y,a,X,str);CHKERRQ(ierr);
-    ierr = MatHeaderReplace(Y,B);CHKERRQ(ierr);
+    ierr = MatHeaderReplace(Y,&B);CHKERRQ(ierr);
     ierr = PetscFree(nnz_d);CHKERRQ(ierr);
     ierr = PetscFree(nnz_o);CHKERRQ(ierr);
   }
@@ -2539,7 +2539,9 @@ PetscErrorCode MatShift_MPIAIJ(Mat Y,PetscScalar a)
   if (!Y->preallocated) {
     ierr = MatMPIAIJSetPreallocation(Y,1,NULL,0,NULL);CHKERRQ(ierr);
   } else if (!aij->nz) {
+    PetscInt nonew = aij->nonew;
     ierr = MatSeqAIJSetPreallocation(maij->A,1,NULL);CHKERRQ(ierr);
+    aij->nonew = nonew;
   }
   ierr = MatShift_Basic(Y,a);CHKERRQ(ierr);
   PetscFunctionReturn(0);
