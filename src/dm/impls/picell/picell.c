@@ -75,6 +75,7 @@ PetscErrorCode DMSetUp_PICell(DM dm)
     MPI_Comm       comm;
     ierr = PetscObjectGetComm((PetscObject)dm,&comm);CHKERRQ(ierr);
     ierr = SNESCreate(comm,&mesh->snes);CHKERRQ(ierr);
+    ierr = SNESSetFromOptions(mesh->snes);CHKERRQ(ierr);
     ierr = SNESSetDM(mesh->snes,mesh->dmplex);CHKERRQ(ierr);
   }
 

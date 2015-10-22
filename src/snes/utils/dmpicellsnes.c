@@ -13,8 +13,7 @@ PetscErrorCode DMPICellSolve(DM dm)
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
 
   /* solve for potential and zero density for next solve */
+  ierr = SNESSolve(mesh->snes, mesh->rho, mesh->phi);CHKERRQ(ierr);
 
-
-  
   PetscFunctionReturn(0);
 }
