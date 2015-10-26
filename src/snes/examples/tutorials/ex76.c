@@ -44,7 +44,7 @@ We will also need the gradient of the Green function
 */
 
 /*
-  In 2D for Dirichlet conditions, we use exact solution:
+  Lets check that our Green function reproduces a single mode solution. In 2D for Dirichlet conditions, we use exact solution:
 
     u = \sin(j \pi x) \sin(k \pi y)
     f = -\pi^2 (j^2 + k^2) \sin(j \pi x) \sin(k \pi y)
@@ -62,6 +62,8 @@ We will also need the gradient of the Green function
     = \sin(j \pi x) \sin(k \pi y)
 */
 
+#undef __FUNCT__
+#define __FUNCT__ "quartic_sol_2d"
 /*
     \int_\Omega G(\vx, \vx') f(\vx')
     = -\frac{4}{\pi^2} \sum^\infty_{l, m = 1} \int^1_0 dx' \int^1_0 dy' \frac{\sin(l \pi x) \sin(l \pi x') \sin(m \pi y) \sin(m \pi y')}{l^2 + m^2} (-2 x' (1 - x') - 2 y' (1 - y'))
@@ -77,6 +79,7 @@ static PetscErrorCode quartic_sol_2d(PetscInt dim, const PetscReal x[], PetscInt
   PetscReal       sum = 0.0;
   PetscInt        j, k;
 
+  PetscFunctionBeginUser;
   for (j = 1; j <= l; j += 2) {
     const PetscReal jcube = PetscPowRealInt(j, 3);
 
@@ -88,7 +91,87 @@ static PetscErrorCode quartic_sol_2d(PetscInt dim, const PetscReal x[], PetscInt
     }
   }
   *u = fac*sum;
+  PetscFunctionReturn(0);
+}
+
+/*
+  Let us perturb the homogeneous Dirichlet condition on the right boundary by a harmonic of wave number k, so that
+
+  u(1, y) = sin(k \pi y)
+
+We are then led to use an exact solution
+
+  u = x sin(k \pi y)
+  f = k^2 \pi^2 x sin(k \pi y)
+
+so that
+
+  -\Delta u + f = -k^2 \pi^2 x sin(k \pi y) + k^2 \pi^2 x sin(k \pi y) = 0
+*/
+PetscErrorCode linear_u_2d(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+{
+  PetscInt k = *(PetscInt *) ctx;
+  *u = x[0]*PetscSinReal(k*PETSC_PI*x[1]);
   return 0;
+}
+
+PetscErrorCode linear_f_2d(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+{
+  PetscInt k = *(PetscInt *) ctx;
+  *u = PetscSqr(k*PETSC_PI)*x[0]*PetscSinReal(k*PETSC_PI*x[1]);
+  return 0;
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "linear_sol_h_2d"
+/*
+  The homogeneous solution for the manufactured solution above is given by
+
+    \int_\Omega G(\vx, \vx') f(\vx')
+    = -\frac{4}{\pi^2} \sum^\infty_{l, m = 1} \int^1_0 dx' \int^1_0 dy' \frac{\sin(l \pi x) \sin(l \pi x') \sin(m \pi y) \sin(m \pi y')}{l^2 + m^2} k^2 \pi^2 x' sin(k \pi y')
+    = -4 k^2 \sum^\infty_{l, m = 1} \frac{\sin(l \pi x) \sin(m \pi y)}{l^2 + m^2} \int^1_0 dx' x' \sin(l \pi x') \int^1_0 dy' \sin(m \pi y') sin(k \pi y')
+    = -4 k^2 \sum^\infty_{l, m = 1} \frac{\sin(l \pi x) \sin(m \pi y)}{l^2 + m^2} \frac{(-1)^{l+1}}{l \pi} \frac{\delta_{km}}{2}
+    = \frac{2 k^2}{\pi} \sin(k \pi y) \sum^\infty_{l=1} \frac{(-1)^l \sin(l \pi x)}{l^3 + l k^2}
+*/
+static PetscErrorCode linear_sol_h_2d(PetscInt dim, const PetscReal x[], PetscInt k, PetscInt l, PetscScalar *u, void *ctx)
+{
+  const PetscReal fac = (2.0*PetscSqr(k)*PetscSinReal(k*PETSC_PI*x[1]))/PETSC_PI;
+  PetscReal       sum = 0.0;
+  PetscInt        j;
+
+  PetscFunctionBeginUser;
+  for (j = 1; j <= l; ++j) {
+    PetscReal denom = -(PetscPowRealInt(j, 3) + j*k*k);
+
+    if (j%2) denom = -denom;
+    sum += PetscSinReal(j*PETSC_PI*x[0])/denom;
+  }
+  *u += fac*sum;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "linear_sol_p_2d"
+/*
+  The particular solution for the manufactured solution above is given by the series
+
+  -\sum^\infty_{l = 1} c_l \sinh(l \pi x) \sin(l \pi y)
+
+where the coefficient is given by
+
+  c_l = \frac{-2}{\sinh(l \pi)} \int^1_0 dy' g(y') \sin(l \pi y')
+      = \frac{-2}{\sinh(l \pi)} \int^1_0 dy' sin(k \pi y') \sin(l \pi y')
+      = \frac{-1}{\sinh(l \pi)} \delta_{kl}
+
+meaning that our particular solution becomes
+
+  \frac{\sinh(k \pi x) \sin(k \pi y)}{\sinh(k \pi)}
+*/
+static PetscErrorCode linear_sol_p_2d(PetscInt dim, const PetscReal x[], PetscInt k, PetscInt l, PetscScalar *u, void *ctx)
+{
+  PetscFunctionBeginUser;
+  *u += (PetscSinhReal(k*PETSC_PI*x[0])*PetscSinReal(k*PETSC_PI*x[1]))/PetscSinhReal(k*PETSC_PI);
+  PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
@@ -98,10 +181,11 @@ int main(int argc, char **argv)
   DM              da;
   const PetscReal x[2] = {0.5, 0.5};
   PetscScalar     u, uexact;
-  PetscInt        l = 1, j;
+  PetscInt        k = 5, l = 1, j;
   PetscErrorCode  ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(NULL, "-k", &k, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL, "-l", &l, NULL);CHKERRQ(ierr);
   /* Convergence of the bulk spectral solution at the center of our domain */
   ierr = quartic_u_2d(2, x, 1, &uexact, NULL);CHKERRQ(ierr);
@@ -136,6 +220,15 @@ int main(int argc, char **argv)
     ierr = DMDAVecRestoreArrayDOF(cdm, coordinates, &x);CHKERRQ(ierr);
     ierr = VecViewFromOptions(error, NULL, "-sol_view");CHKERRQ(ierr);
     ierr = DMRestoreGlobalVector(da, &error);CHKERRQ(ierr);
+  }
+  /* Convergence of the bulk spectral solution at the center of our domain */
+  ierr = linear_u_2d(2, x, 1, &uexact, &k);CHKERRQ(ierr);
+  for (j = 1; j <= l; j += 2) {
+    PetscReal u = 0.0;
+
+    ierr = linear_sol_p_2d(2, x, k, j, &u, NULL);CHKERRQ(ierr);
+    ierr = linear_sol_h_2d(2, x, k, j, &u, NULL);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "At (%g, %g), u(%D, %D) %g error %g\n", x[0], x[1], k, j, u, PetscAbsScalar(u - uexact));CHKERRQ(ierr);
   }
   ierr = DMDestroy(&da);CHKERRQ(ierr);
   ierr = PetscFinalize();
