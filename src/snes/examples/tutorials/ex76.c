@@ -118,14 +118,16 @@ so that
 */
 PetscErrorCode linear_u_2d(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
-  PetscInt k = *(PetscInt *) ctx;
+  SpectralCtx    *spc = (SpectralCtx *) ctx;
+  const PetscInt  k   = spc->k;
   *u = x[0]*PetscSinReal(k*PETSC_PI*x[1]);
   return 0;
 }
 
 PetscErrorCode linear_f_2d(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
-  PetscInt k = *(PetscInt *) ctx;
+  SpectralCtx    *spc = (SpectralCtx *) ctx;
+  const PetscInt  k   = spc->k;
   *u = PetscSqr(k*PETSC_PI)*x[0]*PetscSinReal(k*PETSC_PI*x[1]);
   return 0;
 }
