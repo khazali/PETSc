@@ -5,6 +5,11 @@ domain, using eignefunctions of the Laplacian to discretize it.\n\n\n";
 #include <petscsnes.h>
 #include <petscdmda.h>
 
+typedef struct {
+  PetscInt l, m, n; /* Max spectral modes in each dimension */
+  PetscInt k;       /* Wavenumber for perturbation */
+} SpectralCtx;
+
 /*
   In 2D for Dirichlet conditions, we use exact solution:
 
@@ -73,9 +78,12 @@ We will also need the gradient of the Green function
     = \frac{64}{\pi^6} \sum^\infty_{l, m = 1, odd} \sin(l \pi x) \sin(m \pi y) \frac{m^2 + l^2}{l^3 m^3 (l^2 + m^2)}
     = \frac{64}{\pi^6} \sum^\infty_{l, m = 1, odd} \sin(l \pi x) \sin(m \pi y) \frac{1}{l^3 m^3}
 */
-static PetscErrorCode quartic_sol_2d(PetscInt dim, const PetscReal x[], PetscInt l, PetscInt m, PetscScalar *u, void *ctx)
+static PetscErrorCode quartic_sol_2d(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
+  SpectralCtx    *spc = (SpectralCtx *) ctx;
   const PetscReal fac = 64.0/PetscPowRealInt(PETSC_PI, 6);
+  const PetscInt  l   = spc->l;
+  const PetscInt  m   = spc->m;
   PetscReal       sum = 0.0;
   PetscInt        j, k;
 
@@ -133,8 +141,11 @@ PetscErrorCode linear_f_2d(PetscInt dim, const PetscReal x[], PetscInt Nf, Petsc
     = -4 k^2 \sum^\infty_{l, m = 1} \frac{\sin(l \pi x) \sin(m \pi y)}{l^2 + m^2} \frac{(-1)^{l+1}}{l \pi} \frac{\delta_{km}}{2}
     = \frac{2 k^2}{\pi} \sin(k \pi y) \sum^\infty_{l=1} \frac{(-1)^l \sin(l \pi x)}{l^3 + l k^2}
 */
-static PetscErrorCode linear_sol_h_2d(PetscInt dim, const PetscReal x[], PetscInt k, PetscInt l, PetscScalar *u, void *ctx)
+static PetscErrorCode linear_sol_h_2d(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
+  SpectralCtx    *spc = (SpectralCtx *) ctx;
+  const PetscInt  l   = spc->l;
+  const PetscInt  k   = spc->k;
   const PetscReal fac = (2.0*PetscSqr(k)*PetscSinReal(k*PETSC_PI*x[1]))/PETSC_PI;
   PetscReal       sum = 0.0;
   PetscInt        j;
@@ -167,8 +178,12 @@ meaning that our particular solution becomes
 
   \frac{\sinh(k \pi x) \sin(k \pi y)}{\sinh(k \pi)}
 */
-static PetscErrorCode linear_sol_p_2d(PetscInt dim, const PetscReal x[], PetscInt k, PetscInt l, PetscScalar *u, void *ctx)
+static PetscErrorCode linear_sol_p_2d(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
+  SpectralCtx   *spc = (SpectralCtx *) ctx;
+  const PetscInt l   = spc->l;
+  const PetscInt k   = spc->k;
+
   PetscFunctionBeginUser;
   *u += (PetscSinhReal(k*PETSC_PI*x[0])*PetscSinReal(k*PETSC_PI*x[1]))/PetscSinhReal(k*PETSC_PI);
   PetscFunctionReturn(0);
@@ -179,6 +194,7 @@ static PetscErrorCode linear_sol_p_2d(PetscInt dim, const PetscReal x[], PetscIn
 int main(int argc, char **argv)
 {
   DM              da;
+  SpectralCtx     spc;
   const PetscReal x[2] = {0.5, 0.5};
   PetscScalar     u, uexact;
   PetscInt        k = 5, l = 1, j;
@@ -190,7 +206,8 @@ int main(int argc, char **argv)
   /* Convergence of the bulk spectral solution at the center of our domain */
   ierr = quartic_u_2d(2, x, 1, &uexact, NULL);CHKERRQ(ierr);
   for (j = 1; j <= l; j += 2) {
-    ierr = quartic_sol_2d(2, x, j, j, &u, NULL);CHKERRQ(ierr);
+    spc.l = spc.m = j;
+    ierr = quartic_sol_2d(2, x, 1, &u, &spc);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "At (%g, %g), u(%D, %D) %g error %g\n", x[0], x[1], j, j, u, PetscAbsScalar(u - uexact));CHKERRQ(ierr);
   }
   /* Plotting the error in the bulk spectral solution using a DMDA */
@@ -211,8 +228,9 @@ int main(int argc, char **argv)
     ierr = DMDAVecGetArrayDOF(cdm, coordinates, &x);CHKERRQ(ierr);
     for (j = info.ys; j < info.ys+info.ym; ++j) {
       for (i = info.xs; i < info.xs+info.xm; ++i) {
+        spc.l = spc.m = l;
         ierr = quartic_u_2d(2, x[j][i], 1, &uexact, NULL);CHKERRQ(ierr);
-        ierr = quartic_sol_2d(2, x[j][i], l, l, &u, NULL);CHKERRQ(ierr);
+        ierr = quartic_sol_2d(2, x[j][i], 1, &u, &spc);CHKERRQ(ierr);
         e[j][i] = PetscAbsScalar(u - uexact);
       }
     }
@@ -221,13 +239,15 @@ int main(int argc, char **argv)
     ierr = VecViewFromOptions(error, NULL, "-sol_view");CHKERRQ(ierr);
     ierr = DMRestoreGlobalVector(da, &error);CHKERRQ(ierr);
   }
-  /* Convergence of the bulk spectral solution at the center of our domain */
-  ierr = linear_u_2d(2, x, 1, &uexact, &k);CHKERRQ(ierr);
+  /* Convergence of the perturbed spectral solution at the center of our domain */
+  spc.k = k;
+  ierr = linear_u_2d(2, x, 1, &uexact, &spc);CHKERRQ(ierr);
   for (j = 1; j <= l; j += 2) {
     PetscReal u = 0.0;
 
-    ierr = linear_sol_p_2d(2, x, k, j, &u, NULL);CHKERRQ(ierr);
-    ierr = linear_sol_h_2d(2, x, k, j, &u, NULL);CHKERRQ(ierr);
+    spc.l = spc.m = j;
+    ierr = linear_sol_p_2d(2, x, 1, &u, &spc);CHKERRQ(ierr);
+    ierr = linear_sol_h_2d(2, x, 1, &u, &spc);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "At (%g, %g), u(%D, %D) %g error %g\n", x[0], x[1], k, j, u, PetscAbsScalar(u - uexact));CHKERRQ(ierr);
   }
   ierr = DMDestroy(&da);CHKERRQ(ierr);
