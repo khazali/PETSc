@@ -192,6 +192,85 @@ static PetscErrorCode linear_sol_p_2d(PetscInt dim, const PetscReal x[], PetscIn
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "linear_sol_2d"
+static PetscErrorCode linear_sol_2d(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  *u = 0.0;
+  ierr = linear_sol_h_2d(dim, x, Nf, u, ctx);CHKERRQ(ierr);
+  ierr = linear_sol_p_2d(dim, x, Nf, u, ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "ComputeError"
+static PetscErrorCode ComputeError(PetscReal h, PetscErrorCode (*f)(PetscInt, const PetscReal[], PetscInt, PetscScalar *, void *), void *fctx, PetscErrorCode (*g)(PetscInt, const PetscReal[], PetscInt, PetscScalar *, void *), void *gctx, NormType ntype, PetscReal *error)
+{
+  DM              dm, cdm;
+  DMDALocalInfo   info;
+  const PetscInt  M  = PetscCeilReal(1.0/h);
+  const PetscReal hx = 1.0/M;
+  const PetscReal dx = PetscSqr(hx);
+  Vec             coordinates, errv;
+  PetscScalar  ***x, **e;
+  PetscScalar     u1, u2;
+  PetscInt        i, j;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginUser;
+  ierr = DMDACreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DMDA_STENCIL_STAR, M, M, PETSC_DETERMINE, PETSC_DETERMINE, 1, 1, NULL, NULL, &dm);CHKERRQ(ierr);
+  ierr = DMDASetUniformCoordinates(dm, 0.5*hx, 1.0 - 0.5*hx, 0.5*hx, 1.0 - 0.5*hx, 0.5*hx, 1.0 - 0.5*hx);CHKERRQ(ierr);
+  ierr = DMGetGlobalVector(dm, &errv);CHKERRQ(ierr);
+  ierr = DMDAGetLocalInfo(dm, &info);CHKERRQ(ierr);
+  ierr = DMGetCoordinateDM(dm, &cdm);CHKERRQ(ierr);
+  ierr = DMGetCoordinates(dm, &coordinates);CHKERRQ(ierr);
+  ierr = DMDAVecGetArray(dm, errv, &e);CHKERRQ(ierr);
+  ierr = DMDAVecGetArrayDOF(cdm, coordinates, &x);CHKERRQ(ierr);
+  switch (ntype) {
+  case NORM_1:
+  case NORM_INFINITY:
+    for (j = info.ys; j < info.ys+info.ym; ++j) {
+      for (i = info.xs; i < info.xs+info.xm; ++i) {
+        ierr = (*f)(2, x[j][i], 1, &u1, fctx);CHKERRQ(ierr);
+        ierr = (*g)(2, x[j][i], 1, &u2, gctx);CHKERRQ(ierr);
+        e[j][i] = dx*PetscAbsReal(u1 - u2);
+      }
+    }
+    break;
+  case NORM_2:
+    for (j = info.ys; j < info.ys+info.ym; ++j) {
+      for (i = info.xs; i < info.xs+info.xm; ++i) {
+        ierr = (*f)(2, x[j][i], 1, &u1, fctx);CHKERRQ(ierr);
+        ierr = (*g)(2, x[j][i], 1, &u2, gctx);CHKERRQ(ierr);
+        e[j][i] = dx*PetscSqr(u1 - u2);
+      }
+    }
+    break;
+  default:
+    SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_ARG_WRONG, "Unsupported norm type %d", (int) ntype);
+  }
+  ierr = DMDAVecRestoreArray(dm, errv, &e);CHKERRQ(ierr);
+  ierr = DMDAVecRestoreArrayDOF(cdm, coordinates, &x);CHKERRQ(ierr);
+  ierr = VecViewFromOptions(errv, NULL, "-error_view");CHKERRQ(ierr);
+  switch (ntype) {
+  case NORM_1:
+    ierr = VecSum(errv, error);CHKERRQ(ierr);break;
+  case NORM_2:
+    ierr = VecSum(errv, error);CHKERRQ(ierr);
+    *error = PetscSqrtReal(*error);break;
+  case NORM_INFINITY:
+    ierr = VecMax(errv, NULL, error);CHKERRQ(ierr);break;
+  default:
+    SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_ARG_WRONG, "Unsupported norm type %d", (int) ntype);
+  }
+  ierr = DMRestoreGlobalVector(dm, &errv);CHKERRQ(ierr);
+  ierr = DMDestroy(&dm);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc, char **argv)
 {
@@ -211,6 +290,15 @@ int main(int argc, char **argv)
     spc.l = spc.m = j;
     ierr = quartic_sol_2d(2, x, 1, &u, &spc);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "At (%g, %g), u(%D, %D) %g error %g\n", x[0], x[1], j, j, u, PetscAbsScalar(u - uexact));CHKERRQ(ierr);
+  }
+  for (j = 1; j <= 4*l; j *= 2) {
+    PetscInt    pointsPerHalfPeriod = 5;
+    PetscReal   h = 1.0/(j*pointsPerHalfPeriod);
+    PetscScalar error;
+
+    spc.l = spc.m = j;
+    ierr = ComputeError(h, quartic_u_2d, NULL, quartic_sol_2d, &spc, NORM_2, &error);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "(%D, %D) error %g\n", j, j, error);CHKERRQ(ierr);
   }
   /* Plotting the error in the bulk spectral solution using a DMDA */
   ierr = DMDACreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DMDA_STENCIL_STAR, -4, -4, PETSC_DETERMINE, PETSC_DETERMINE, 1, 1, NULL, NULL, &da);CHKERRQ(ierr);
@@ -245,12 +333,20 @@ int main(int argc, char **argv)
   spc.k = k;
   ierr = linear_u_2d(2, x, 1, &uexact, &spc);CHKERRQ(ierr);
   for (j = 1; j <= l; j += 2) {
-    PetscReal u = 0.0;
+    PetscReal u;
 
     spc.l = spc.m = j;
-    ierr = linear_sol_p_2d(2, x, 1, &u, &spc);CHKERRQ(ierr);
-    ierr = linear_sol_h_2d(2, x, 1, &u, &spc);CHKERRQ(ierr);
+    ierr = linear_sol_2d(2, x, 1, &u, &spc);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "At (%g, %g), u(%D, %D) %g error %g\n", x[0], x[1], k, j, u, PetscAbsScalar(u - uexact));CHKERRQ(ierr);
+  }
+  for (j = 1; j <= 4*l; j *= 2) {
+    PetscInt    pointsPerHalfPeriod = 5;
+    PetscReal   h = 1.0/(j*pointsPerHalfPeriod);
+    PetscScalar error;
+
+    spc.l = spc.m = j;
+    ierr = ComputeError(h, linear_u_2d, &spc, linear_sol_2d, &spc, NORM_2, &error);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "(%D, %D) error %g\n", j, j, error);CHKERRQ(ierr);
   }
   ierr = DMDestroy(&da);CHKERRQ(ierr);
   ierr = PetscFinalize();
