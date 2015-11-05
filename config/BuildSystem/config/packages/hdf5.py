@@ -8,7 +8,12 @@ class Configure(config.package.CMakePackage):
                          'http://ftp.mcs.anl.gov/pub/petsc/externalpackages/hdf5-1.8.12.tar.gz']
     self.functions = ['H5T_init']
     self.includes  = ['hdf5.h']
-    self.liblist   = [['libhdf5_hl.a', 'libhdf5.a']]
+    self.liblist   = [["libhdf5_hl_fortran.a","libhdf5_hl_f90cstub.a","libhdf5_hl.a","libhdf5_fortran.a","libhdf5_f90cstub.a","libhdf5.a"],
+                      ["libhdf5_hl_fortran.a","libhdf5_hl.a","libhdf5_fortran.a","libhdf5.a"],['libhdf5_hl.a','libhdf5.a']]
+
+
+
+
     self.needsMath = 1
     self.needsCompression = 0
     self.complex          = 1
