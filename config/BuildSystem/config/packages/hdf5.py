@@ -16,6 +16,7 @@ class Configure(config.package.CMakePackage):
 
   def setupDependencies(self, framework):
     config.package.CMakePackage.setupDependencies(self, framework)
+    self.sharedLibraries = framework.require('PETSc.options.sharedLibraries', self)
     self.mpi  = framework.require('config.packages.MPI',self)
     self.deps = [self.mpi]
     return
@@ -40,6 +41,10 @@ class Configure(config.package.CMakePackage):
     if hasattr(self.compilers, 'FC'):
       args.append('-DHDF5_BUILD_FORTRAN=ON')
       args.append('-DHDF5_BUILD_HL_LIB=ON')
+    if self.sharedLibraries.useShared:
+      args.append('-DBUILD_SHARED_LIBS=ON')
+    else:
+      args.append('-DBUILD_SHARED_LIBS=OFF')
     return args
 
   def configureLibrary(self):
