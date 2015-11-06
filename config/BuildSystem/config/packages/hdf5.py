@@ -46,7 +46,7 @@ class Configure(config.package.CMakePackage):
     if hasattr(self.compilers, 'FC'):
       args.append('-DHDF5_BUILD_FORTRAN=ON')
       args.append('-DHDF5_BUILD_HL_LIB=ON')
-    if self.sharedLibraries.useShared:
+    if self.sharedLibraries.useShared and not self.setCompilers.isDarwin():
       args.append('-DBUILD_SHARED_LIBS=ON')
     else:
       args.append('-DBUILD_SHARED_LIBS=OFF')
