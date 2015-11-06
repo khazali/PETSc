@@ -59,23 +59,77 @@ var isMap = true;
 var skipWrite = false;
 var map;
 var directionsDisplay;
+var markersArray = [];
+var GPSPointsArray = [];
+
+
+
+function degrFrom_rad(rad) { return rad * 180 / Math.PI; }
+
+function radFrom_degr(degr) { return degr * Math.PI / 180; }
+
+function createMarkerInMap(icon, lat, lng) {
+    var location = new google.maps.LatLng(lat, lng);
+    var marker = new google.maps.Marker({ position: location, map: map, icon: icon });
+    var content = '<div id="infoWindow"><h2></h2></div>';
+    marker.info = new google.maps.InfoWindow({ content: content, disableAutoPan: true });
+    google.maps.event.addListener(marker, 'mouseover', function() { marker.info.open(map, marker); });
+    google.maps.event.addListener(marker, 'mouseout', function() { marker.info.close(); });
+    google.maps.event.addListener(marker, 'click', function() { markerClicked(lat, lng, icon); });
+    markersArray.push(marker);
+}
+
+function createMarkerInMapArrow(lat, lng, angle) {
+    var location = new google.maps.LatLng(lat, lng);
+    var marker = new google.maps.Marker({ position: location, map: map, icon: { path: google.maps.SymbolPath.FORWARD_OPEN_ARROW, scale: 4, rotation: angle } });
+    var content = '<div id="infoWindow"></div>';
+    marker.info = new google.maps.InfoWindow({ content: content, disableAutoPan: true });
+    google.maps.event.addListener(marker, 'mouseover', function() { marker.info.open(map, marker); });
+    google.maps.event.addListener(marker, 'mouseout', function() { marker.info.close(); });
+    google.maps.event.addListener(marker, 'click', function() { markerClicked(lat, lng, icon); });
+    markersArray.push(marker);
+}
+
+function getAngle(startLat,startLong,endLat,endLong){
+    startLat = radFrom_degr(startLat), startLong = radFrom_degr(startLong), endLat = radFrom_degr(endLat), endLong = radFrom_degr(endLong);
+    var x = endLong - startLong;
+    var a = Math.log(Math.tan(endLat/2.0+Math.PI/4.0)/Math.tan(startLat/2.0+Math.PI/4.0));
+    if (Math.abs(x) > Math.PI){ if (x > 0.0) { x = -(2.0 * Math.PI - x); } else {  x = (2.0 * Math.PI + x); } }
+    return (degrFrom_rad(Math.atan2(x, a)) + 360.0) % 360.0;
+}
+
+function findMidPoint(long1, lat1, long2, lat2) {
+    var data = [[long1, lat1],[long2, lat2]], sumOFX=0, sumOFY=0, sumOFZ=0, newlat, newlng;
+    for (var i = 0; i < data.length; i++) { newlat = radFrom_degr(data[i][0]), newlng = radFrom_degr(data[i][1]), sumOFX += Math.cos(newlat) * Math.cos(newlng), sumOFY += Math.cos(newlat) * Math.sin(newlng), sumOFZ += Math.sin(newlat); }
+    var avgX = sumOFX / data.length, avgY = sumOFY / data.length, avgZ = sumOFZ / data.length;
+    newlng = Math.atan2(avgY, avgX);
+    var newhyp = Math.sqrt(avgX * avgX + avgY * avgY);
+    newlat = Math.atan2(avgZ, newhyp);
+    return [degrFrom_rad(newlat), degrFrom_rad(newlng)]
+}
+
+function createArrowOnMidpoint(long1, lat1, long2, lat2) {
+    var middat1 = findMidPoint(long1, lat1,long2, lat2);
+    createMarkerInMapArrow(middat1[0],middat1[1],getAngle(long1, lat1,long2, lat2));
+}
+
 /*
   SAWs.getDirectory grabs the directories and variables listed in names  from the server
 
   For each entry in names (or once if names is null) the callback is called with the received information for that entry
 
 */
-
+/*
 var ws;
 
 ws = new WebSocket("ws://localhost:8088/echo");
 
 ws.onopen = function() {
-  
+  console.log("COnnected!");
 };
 
 ws.onerror = function() {
-
+console.log("EEECOnnected!");
 };
 
 ws.onmessage = function(event) {
@@ -89,7 +143,7 @@ ws.onmessage = function(event) {
     }
 
 };
-
+*/
 SAWs.getDirectory = function(names,callback,callbackdata) {
 
   /*If names is null, get all*/
