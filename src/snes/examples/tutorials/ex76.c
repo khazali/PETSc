@@ -6,6 +6,7 @@ domain, using eignefunctions of the Laplacian to discretize it.\n\n\n";
 #include <petscdmda.h>
 
 typedef struct {
+  PetscInt L;       /* Max wavenumber for testing */
   PetscInt l, m, n; /* Max spectral modes in each dimension */
   PetscInt k;       /* Wavenumber for perturbation */
 } SpectralCtx;
@@ -183,7 +184,6 @@ meaning that our particular solution becomes
 static PetscErrorCode linear_sol_p_2d(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
   SpectralCtx   *spc = (SpectralCtx *) ctx;
-  const PetscInt l   = spc->l;
   const PetscInt k   = spc->k;
 
   PetscFunctionBeginUser;
@@ -201,6 +201,23 @@ static PetscErrorCode linear_sol_2d(PetscInt dim, const PetscReal x[], PetscInt 
   *u = 0.0;
   ierr = linear_sol_h_2d(dim, x, Nf, u, ctx);CHKERRQ(ierr);
   ierr = linear_sol_p_2d(dim, x, Nf, u, ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "ProcessOptions"
+PetscErrorCode ProcessOptions(MPI_Comm comm, SpectralCtx *options)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  options->k = 5;
+  options->L = 1;
+
+  ierr = PetscOptionsBegin(comm, "", "Spectral Solver Options", "DMDA");CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-k", "Wavenumber for perturbation", "ex76.c", options->k, &options->k, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-l", "Max wavenumber for tests", "ex76.c", options->L, &options->L, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsEnd();
   PetscFunctionReturn(0);
 }
 
@@ -278,27 +295,26 @@ int main(int argc, char **argv)
   SpectralCtx     spc;
   const PetscReal x[2] = {0.5, 0.5};
   PetscScalar     u, uexact;
-  PetscInt        k = 5, l = 1, j;
+  PetscInt        l;
   PetscErrorCode  ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
-  ierr = PetscOptionsGetInt(NULL, "-k", &k, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetInt(NULL, "-l", &l, NULL);CHKERRQ(ierr);
+  ierr = ProcessOptions(PETSC_COMM_WORLD, &spc);CHKERRQ(ierr);
   /* Convergence of the bulk spectral solution at the center of our domain */
   ierr = quartic_u_2d(2, x, 1, &uexact, NULL);CHKERRQ(ierr);
-  for (j = 1; j <= l; j += 2) {
-    spc.l = spc.m = j;
+  for (l = 1; l <= spc.L; l += 2) {
+    spc.l = spc.m = l;
     ierr = quartic_sol_2d(2, x, 1, &u, &spc);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "At (%g, %g), u(%D, %D) %g error %g\n", x[0], x[1], j, j, u, PetscAbsScalar(u - uexact));CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "At (%g, %g), u(%D, %D) %g error %g\n", x[0], x[1], l, l, u, PetscAbsScalar(u - uexact));CHKERRQ(ierr);
   }
-  for (j = 1; j <= 4*l; j *= 2) {
+  for (l = 1; l <= 4*spc.L; l *= 2) {
     PetscInt    pointsPerHalfPeriod = 5;
-    PetscReal   h = 1.0/(j*pointsPerHalfPeriod);
+    PetscReal   h = 1.0/(l*pointsPerHalfPeriod);
     PetscScalar error;
 
-    spc.l = spc.m = j;
+    spc.l = spc.m = l;
     ierr = ComputeError(h, quartic_u_2d, NULL, quartic_sol_2d, &spc, NORM_2, &error);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "(%D, %D) error %g\n", j, j, error);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "(%D, %D) error %g\n", l, l, error);CHKERRQ(ierr);
   }
   /* Plotting the error in the bulk spectral solution using a DMDA */
   ierr = DMDACreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DMDA_STENCIL_STAR, -4, -4, PETSC_DETERMINE, PETSC_DETERMINE, 1, 1, NULL, NULL, &da);CHKERRQ(ierr);
@@ -318,7 +334,7 @@ int main(int argc, char **argv)
     ierr = DMDAVecGetArrayDOF(cdm, coordinates, &x);CHKERRQ(ierr);
     for (j = info.ys; j < info.ys+info.ym; ++j) {
       for (i = info.xs; i < info.xs+info.xm; ++i) {
-        spc.l = spc.m = l;
+        spc.l = spc.m = spc.L;
         ierr = quartic_u_2d(2, x[j][i], 1, &uexact, NULL);CHKERRQ(ierr);
         ierr = quartic_sol_2d(2, x[j][i], 1, &u, &spc);CHKERRQ(ierr);
         e[j][i] = PetscAbsScalar(u - uexact);
@@ -330,23 +346,22 @@ int main(int argc, char **argv)
     ierr = DMRestoreGlobalVector(da, &error);CHKERRQ(ierr);
   }
   /* Convergence of the perturbed spectral solution at the center of our domain */
-  spc.k = k;
   ierr = linear_u_2d(2, x, 1, &uexact, &spc);CHKERRQ(ierr);
-  for (j = 1; j <= l; j += 2) {
+  for (l = 1; l <= spc.L; l += 2) {
     PetscReal u;
 
-    spc.l = spc.m = j;
+    spc.l = spc.m = l;
     ierr = linear_sol_2d(2, x, 1, &u, &spc);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "At (%g, %g), u(%D, %D) %g error %g\n", x[0], x[1], k, j, u, PetscAbsScalar(u - uexact));CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "At (%g, %g), u(%D, %D) %g error %g\n", x[0], x[1], spc.k, l, u, PetscAbsScalar(u - uexact));CHKERRQ(ierr);
   }
-  for (j = 1; j <= 4*l; j *= 2) {
+  for (l = 1; l <= 4*spc.L; l *= 2) {
     PetscInt    pointsPerHalfPeriod = 5;
-    PetscReal   h = 1.0/(j*pointsPerHalfPeriod);
+    PetscReal   h = 1.0/(l*pointsPerHalfPeriod);
     PetscScalar error;
 
-    spc.l = spc.m = j;
+    spc.l = spc.m = l;
     ierr = ComputeError(h, linear_u_2d, &spc, linear_sol_2d, &spc, NORM_2, &error);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "(%D, %D) error %g\n", j, j, error);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "(%D, %D) error %g\n", l, l, error);CHKERRQ(ierr);
   }
   ierr = DMDestroy(&da);CHKERRQ(ierr);
   ierr = PetscFinalize();
