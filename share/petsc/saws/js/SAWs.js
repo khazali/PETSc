@@ -146,6 +146,29 @@ ws.onmessage = function(event) {
 */
 SAWs.getDirectory = function(names,callback,callbackdata) {
 
+  $("#variablesInfo").append("<div style=\"width: 50%\"><canvas id=\"canvas\" height=\"450\" width=\"600\"></canvas></div>")
+
+
+
+  var barChartData = {
+    labels : ["January","February","March","April","May","June","July"],
+    datasets : [
+      {
+        fillColor : "rgba(220,220,220,0.5)",
+        strokeColor : "rgba(220,220,220,0.8)",
+        highlightFill: "rgba(220,220,220,0.75)",
+        highlightStroke: "rgba(220,220,220,1)",
+        data : [10,20,30,40,50,60,70]
+      }
+    ]
+
+  }
+    var ctx = document.getElementById("canvas").getContext("2d");
+    window.myBar = new Chart(ctx).Bar(barChartData, {
+      responsive : true
+    });
+  
+
   /*If names is null, get all*/
   if(names == null){
 
