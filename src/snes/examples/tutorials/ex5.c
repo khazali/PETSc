@@ -84,7 +84,7 @@ int main(int argc,char **argv)
   PetscErrorCode ierr;
   PetscReal      bratu_lambda_max = 6.81;
   PetscReal      bratu_lambda_min = 0.;
-  PetscBool      flg              = PETSC_FALSE;
+  PetscBool      flg;
   DM             da;
 #if defined(PETSC_HAVE_MATLAB_ENGINE)
   Vec            r               = NULL;
@@ -127,14 +127,19 @@ int main(int argc,char **argv)
   ierr = DMCreateGlobalVector(da,&x);CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-     Set local function evaluation routine
+     Set evaluation routines
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  ierr = DMDASNESSetFunctionLocal(da,INSERT_VALUES,(DMDASNESFunction)FormFunctionLocal,&user);CHKERRQ(ierr);
-  ierr = PetscOptionsGetBool(NULL,"-fd",&flg,NULL);CHKERRQ(ierr);
-  if (!flg) {
+  flg = PETSC_TRUE;
+  ierr = PetscOptionsGetBool(NULL,"-fun",&flg,NULL);CHKERRQ(ierr);
+  if (flg) {
+    ierr = DMDASNESSetFunctionLocal(da,INSERT_VALUES,(DMDASNESFunction)FormFunctionLocal,&user);CHKERRQ(ierr);
+  }
+  flg = PETSC_TRUE;
+  ierr = PetscOptionsGetBool(NULL,"-jac",&flg,NULL);CHKERRQ(ierr);
+  if (flg) {
     ierr = DMDASNESSetJacobianLocal(da,(DMDASNESJacobian)FormJacobianLocal,&user);CHKERRQ(ierr);
   }
-
+  flg = PETSC_FALSE;
   ierr = PetscOptionsGetBool(NULL,"-obj",&flg,NULL);CHKERRQ(ierr);
   if (flg) {
     ierr = DMDASNESSetObjectiveLocal(da,(DMDASNESObjective)FormObjectiveLocal,&user);CHKERRQ(ierr);
