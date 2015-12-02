@@ -263,7 +263,7 @@ PetscErrorCode MatCholeskyFactorSymbolic_SeqSBAIJ(Mat fact,Mat A,IS perm,const M
   ierr = PetscLLCreate(mbs,mbs,nlnk,lnk,lnkbt);CHKERRQ(ierr);
 
   /* initial FreeSpace size is fill*(ai[mbs]+1) */
-  ierr          = PetscFreeSpaceGet((PetscInt)(fill*(ai[mbs]+1)),&free_space);CHKERRQ(ierr);
+  ierr          = PetscFreeSpaceGet(PetscRealIntMultTruncate(fill,ai[mbs]+1),&free_space);CHKERRQ(ierr);
   current_space = free_space;
 
   for (k=0; k<mbs; k++) {  /* for each active row k */
@@ -302,7 +302,7 @@ PetscErrorCode MatCholeskyFactorSymbolic_SeqSBAIJ(Mat fact,Mat A,IS perm,const M
     /* if free space is not available, make more free space */
     if (current_space->local_remaining<nzk) {
       i    = mbs - k + 1; /* num of unfactored rows */
-      i   *= PetscMin(nzk, i-1); /* i*nzk, i*(i-1): estimated and max additional space needed */
+      i    = PetscIntMultTruncate(i,PetscMin(nzk, i-1)); /* i*nzk, i*(i-1): estimated and max additional space needed */
       ierr = PetscFreeSpaceGet(i,&current_space);CHKERRQ(ierr);
       reallocs++;
     }
@@ -424,17 +424,7 @@ PetscErrorCode MatCholeskyFactorSymbolic_SeqSBAIJ_inplace(Mat fact,Mat A,IS perm
     a->permute = PETSC_FALSE;
 
     ai = a->i; aj = a->j;
-  } else {
-    SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Matrix reordering is not supported for sbaij matrix. Use aij format");
-#if 0
-    /* There are bugs for reordeing. Needs further work.
-       MatReordering for sbaij cannot be efficient. User should use aij formt! */
-    a->permute = PETSC_TRUE;
-
-    ierr = MatReorderingSeqSBAIJ(A,perm);CHKERRQ(ierr);
-    ai   = a->inew; aj = a->jnew;
-#endif
-  }
+  } else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Matrix reordering is not supported for sbaij matrix. Use aij format");
   ierr = ISGetIndices(perm,&rip);CHKERRQ(ierr);
 
   /* initialization */
@@ -453,7 +443,7 @@ PetscErrorCode MatCholeskyFactorSymbolic_SeqSBAIJ_inplace(Mat fact,Mat A,IS perm
   ierr = PetscLLCreate(mbs,mbs,nlnk,lnk,lnkbt);CHKERRQ(ierr);
 
   /* initial FreeSpace size is fill*(ai[mbs]+1) */
-  ierr          = PetscFreeSpaceGet((PetscInt)(fill*(ai[mbs]+1)),&free_space);CHKERRQ(ierr);
+  ierr          = PetscFreeSpaceGet(PetscRealIntMultTruncate(fill,ai[mbs]+1),&free_space);CHKERRQ(ierr);
   current_space = free_space;
 
   for (k=0; k<mbs; k++) {  /* for each active row k */
@@ -492,7 +482,7 @@ PetscErrorCode MatCholeskyFactorSymbolic_SeqSBAIJ_inplace(Mat fact,Mat A,IS perm
     /* if free space is not available, make more free space */
     if (current_space->local_remaining<nzk) {
       i    = mbs - k + 1; /* num of unfactored rows */
-      i    = PetscMin(i*nzk, i*(i-1)); /* i*nzk, i*(i-1): estimated and max additional space needed */
+      i    = PetscMin(PetscIntMultTruncate(i,nzk), PetscIntMultTruncate(i,i-1)); /* i*nzk, i*(i-1): estimated and max additional space needed */
       ierr = PetscFreeSpaceGet(i,&current_space);CHKERRQ(ierr);
       reallocs++;
     }
