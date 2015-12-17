@@ -2,7 +2,7 @@
 #define __PETSCVIENNACL_H
 
 
-#define VIENNACL_WITH_OPENCL
+#define VIENNACL_WITH_OPENMP
 
 #include <petscvec.h>
 #include <viennacl/forwards.h>

@@ -13,7 +13,10 @@
 #include "viennacl/linalg/norm_1.hpp"
 #include "viennacl/linalg/norm_2.hpp"
 #include "viennacl/linalg/norm_inf.hpp"
-#include "viennacl/ocl/backend.hpp"
+
+#if defined(VIENNACL_WITH_OPENCL)
+  #include "viennacl/ocl/backend.hpp"
+#endif
 
 
 #undef __FUNCT__
@@ -98,6 +101,7 @@ PETSC_EXTERN PetscErrorCode VecViennaCLRestoreArrayWrite(Vec v, ViennaCLVector *
 #define __FUNCT__ "PetscObjectViennaCLSetFromOptions"
 PETSC_EXTERN PetscErrorCode PetscObjectViennaCLSetFromOptions(PetscObject obj)
 {
+#if defined(VIENNACL_WITH_OPENCL)
   PetscErrorCode       ierr;
   PetscBool            flg;
 
@@ -130,6 +134,7 @@ PETSC_EXTERN PetscErrorCode PetscObjectViennaCLSetFromOptions(PetscObject obj)
   }
 
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
+#endif
   PetscFunctionReturn(0);
 }
 

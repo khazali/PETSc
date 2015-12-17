@@ -11,12 +11,7 @@ class Configure(config.package.Package):
     self.cxx             = 1
     self.downloadonWindows = 1
     self.complex          = 0
-    return
-
-  def setupDependencies(self, framework):
-    config.package.Package.setupDependencies(self, framework)
-    self.opencl  = framework.require('config.packages.opencl',self)
-    self.deps = [self.opencl]
+    self._defaultScalarType = "double"
     return
 
   def Install(self):
