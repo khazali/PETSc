@@ -90,7 +90,9 @@ struct _p_SNES {
   PetscInt    nfuncs;             /* number of function evaluations */
   PetscInt    iter;               /* global iteration number */
   PetscInt    linear_its;         /* total number of linear solver iterations */
+  PetscInt    iterRestart;        /* number of iterates since the last restart */
   PetscReal   norm;               /* residual norm of current iterate */
+  PetscReal   minnorm;            /* minimum residual norm over all iterates */
   PetscReal   rtol;               /* relative tolerance */
   PetscReal   abstol;             /* absolute tolerance */
   PetscReal   stol;               /* step length tolerance*/
@@ -248,6 +250,9 @@ PETSC_INTERN PetscErrorCode SNESConvergedDefault_VI(SNES,PetscInt,PetscReal,Pets
 
 PetscErrorCode SNESScaleStep_Private(SNES,Vec,PetscReal*,PetscReal*,PetscReal*,PetscReal*);
 PetscErrorCode DMSNESCheckFromOptions_Internal(SNES,DM,Vec,Vec,PetscErrorCode (**)(PetscInt,PetscReal,const PetscReal[],PetscInt,PetscScalar*,void*),void**);
+
+PetscErrorCode MSNESCheckLocalMin_Internal(SNES, Mat, Vec, PetscBool *);
+PetscErrorCode MSNESCheckConsistency_Internal(SNES, Mat, Vec, Vec);
 
 PETSC_EXTERN PetscLogEvent SNES_Solve, SNES_LineSearch, SNES_FunctionEval, SNES_JacobianEval, SNES_NGSEval, SNES_NGSFuncEval, SNES_NPCSolve, SNES_ObjectiveEval;
 

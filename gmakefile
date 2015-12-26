@@ -8,7 +8,7 @@ OBJDIR := $(PETSC_ARCH)/obj
 MODDIR := $(PETSC_ARCH)/include
 LIBDIR := $(abspath $(PETSC_ARCH)/lib)
 
-pkgs := sys vec mat dm ksp snes ts tao
+pkgs := sys vec mat dm ksp snes msnes ts tao
 
 # $(call SONAME_FUNCTION,libfoo,abiversion)
 SONAME_FUNCTION ?= $(1).$(SL_LINKER_SUFFIX).$(2)
@@ -131,8 +131,9 @@ $(call libname_function,$(LIBDIR)/libpetscmat)  : libdep := $(call libpkg,vec sy
 $(call libname_function,$(LIBDIR)/libpetscdm)   : libdep := $(call libpkg,mat vec sys)
 $(call libname_function,$(LIBDIR)/libpetscksp)  : libdep := $(call libpkg,dm mat vec sys)
 $(call libname_function,$(LIBDIR)/libpetscsnes) : libdep := $(call libpkg,ksp dm mat vec sys)
-$(call libname_function,$(LIBDIR)/libpetscts)   : libdep := $(call libpkg,snes ksp dm mat vec sys)
-$(call libname_function,$(LIBDIR)/libpetsctao)  : libdep := $(call libpkg,snes ksp dm mat vec sys)
+$(call libname_function,$(LIBDIR)/libpetscmsnes) : libdep := $(call libpkg,ksp dm mat vec sys)
+$(call libname_function,$(LIBDIR)/libpetscts)   : libdep := $(call libpkg,msnes snes ksp dm mat vec sys)
+$(call libname_function,$(LIBDIR)/libpetsctao)  : libdep := $(call libpkg,msnes snes ksp dm mat vec sys)
 
 # The package libraries technically depend on each other (not just in an order-only way), but only
 # ABI changes like new or removed symbols requires relinking the dependent libraries.  ABI should
