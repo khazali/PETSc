@@ -110,6 +110,19 @@ PetscErrorCode DMClone(DM dm, DM *newdm)
   ierr = DMSetPointSF(*newdm, sf);CHKERRQ(ierr);
   ierr = DMGetApplicationContext(dm, &ctx);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(*newdm, ctx);CHKERRQ(ierr);
+  if (dm->coordinateDM) {
+    DM           ncdm;
+    PetscSection cs;
+    PetscInt     pEnd = -1;
+
+    ierr = DMGetDefaultSection(dm->coordinateDM, &cs);CHKERRQ(ierr);
+    if (cs) {ierr = PetscSectionGetChart(cs, NULL, &pEnd);CHKERRQ(ierr);}
+    if (pEnd >= 0) {
+      ierr = DMClone(dm->coordinateDM, &ncdm);CHKERRQ(ierr);
+      ierr = DMSetCoordinateDM(*newdm, ncdm);CHKERRQ(ierr);
+      ierr = DMDestroy(&ncdm);CHKERRQ(ierr);
+    }
+  }
   ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
   if (coords) {
     ierr = DMSetCoordinatesLocal(*newdm, coords);CHKERRQ(ierr);
@@ -3102,7 +3115,7 @@ PetscErrorCode DMGetDefaultSection(DM dm, PetscSection *section)
   PetscValidPointer(section, 2);
   if (!dm->defaultSection && dm->ops->createdefaultsection) {
     ierr = (*dm->ops->createdefaultsection)(dm);CHKERRQ(ierr);
-    ierr = PetscObjectViewFromOptions((PetscObject) dm->defaultSection, NULL, "-dm_petscsection_view");CHKERRQ(ierr);
+    if (dm->defaultSection) {ierr = PetscObjectViewFromOptions((PetscObject) dm->defaultSection, NULL, "-dm_petscsection_view");CHKERRQ(ierr);}
   }
   *section = dm->defaultSection;
   PetscFunctionReturn(0);
