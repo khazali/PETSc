@@ -384,6 +384,8 @@ static PetscErrorCode SNESSetFromOptions_NEWTONLS(PetscOptionItems *PetscOptions
   PetscFunctionReturn(0);
 }
 
+extern PetscErrorCode MSNESComputeUpdate_Newton(SNES snes, Vec X, Vec F, Vec Y);
+
 /* -------------------------------------------------------------------------- */
 /*MC
       SNESNEWTONLS - Newton based nonlinear solver that uses a line search
@@ -420,6 +422,8 @@ PETSC_EXTERN PetscErrorCode SNESCreate_NEWTONLS(SNES snes)
   snes->ops->setfromoptions = SNESSetFromOptions_NEWTONLS;
   snes->ops->view           = SNESView_NEWTONLS;
   snes->ops->reset          = SNESReset_NEWTONLS;
+
+  snes->ops->solupdate      = MSNESComputeUpdate_Newton;
 
   snes->pcside  = PC_RIGHT;
   snes->usesksp = PETSC_TRUE;
