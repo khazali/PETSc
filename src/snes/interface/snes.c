@@ -3989,7 +3989,9 @@ PetscErrorCode  SNESSolve(SNES snes,Vec b,Vec x)
     if (snes->counters_reset) {snes->nfuncs = 0; snes->linear_its = 0; snes->numFailures = 0;}
 
     ierr = PetscLogEventBegin(SNES_Solve,snes,0,0,0);CHKERRQ(ierr);
-    ierr = (*snes->ops->solve)(snes);CHKERRQ(ierr);
+    ierr = PetscOptionsHasName(((PetscObject)snes)->options,((PetscObject)snes)->prefix,"-use_msnes",&flg);CHKERRQ(ierr);
+    if (!flg) {ierr = (*snes->ops->solve)(snes);CHKERRQ(ierr);}
+    else      {ierr = MSNESSolve(snes);CHKERRQ(ierr);}
     ierr = PetscLogEventEnd(SNES_Solve,snes,0,0,0);CHKERRQ(ierr);
     if (!snes->reason) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Internal error, solver returned without setting converged reason");
     snes->domainerror = PETSC_FALSE; /* clear the flag if it has been set */
