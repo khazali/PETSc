@@ -68,6 +68,9 @@ PetscErrorCode  SNESInitializePackage(void)
   ierr = PetscLogEventRegister("SNESJacobianEval",     SNES_CLASSID,&SNES_JacobianEval);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("SNESLineSearch",       SNESLINESEARCH_CLASSID,&SNESLineSearch_Apply);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("SNESNPCSolve",         SNES_CLASSID,&SNES_NPCSolve);CHKERRQ(ierr);
+
+  ierr = PetscLogEventRegister("MSNESSolUpdate",       SNES_CLASSID,&MSNES_SolUpdate);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("MSNESRestart",         SNES_CLASSID,&MSNES_Restart);CHKERRQ(ierr);
   /* Process info exclusions */
   ierr = PetscOptionsGetString(NULL,NULL, "-info_exclude", logList, 256, &opt);CHKERRQ(ierr);
   if (opt) {

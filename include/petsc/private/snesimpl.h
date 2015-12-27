@@ -28,6 +28,9 @@ struct _SNESOps {
   PetscErrorCode (*computepfunction)(SNES,Vec,Vec,void*);
   PetscErrorCode (*computepjacobian)(SNES,Vec,Mat,Mat,void*);
   PetscErrorCode (*load)(SNES,PetscViewer);
+
+  PetscErrorCode (*solupdate)(SNES,Vec,Vec,Vec);                /* One-step solution update, a component of solve() */
+  PetscErrorCode (*restart)(SNES,Vec,Vec,PetscInt*);            /* Iteration restart, a component of solve() */
 };
 
 /*
@@ -255,6 +258,7 @@ PetscErrorCode MSNESCheckLocalMin_Internal(SNES, Mat, Vec, PetscBool *);
 PetscErrorCode MSNESCheckConsistency_Internal(SNES, Mat, Vec, Vec);
 
 PETSC_EXTERN PetscLogEvent SNES_Solve, SNES_LineSearch, SNES_FunctionEval, SNES_JacobianEval, SNES_NGSEval, SNES_NGSFuncEval, SNES_NPCSolve, SNES_ObjectiveEval;
+PETSC_EXTERN PetscLogEvent MSNES_SolUpdate, MSNES_Restart;
 
 extern PetscBool SNEScite;
 extern const char SNESCitation[];

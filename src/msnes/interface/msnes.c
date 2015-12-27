@@ -1,6 +1,9 @@
 #include <petsc/private/snesimpl.h>      /*I "petscsnes.h"  I*/
 #include <petscblaslapack.h>
 
+/* Logging support */
+PetscLogEvent MSNES_SolUpdate, MSNES_Restart;
+
 #undef __FUNCT__
 #define __FUNCT__ "MSNESCheckLocalMin_Internal"
 /*
@@ -253,8 +256,16 @@ PetscErrorCode MSNESApplyNPCRight(SNES snes, Vec X, Vec B, Vec F, PetscReal *fno
 */
 PetscErrorCode MSNESComputeUpdate(SNES snes, Vec X, Vec F, Vec Y)
 {
+  PetscErrorCode ierr;
+
   PetscFunctionBegin;
-  /* Will dispatch to impl types */
+  PetscValidHeaderSpecific(snes, SNES_CLASSID, 1);
+  PetscValidHeaderSpecific(X, VEC_CLASSID, 2); PetscCheckSameComm(snes, 1, X, 2);
+  PetscValidHeaderSpecific(F, VEC_CLASSID, 3); PetscCheckSameComm(snes, 1, F, 3);
+  PetscValidHeaderSpecific(Y, VEC_CLASSID, 4); PetscCheckSameComm(snes, 1, Y, 4);
+  ierr = PetscLogEventBegin(MSNES_SolUpdate,snes,X,F,Y);CHKERRQ(ierr);
+  ierr = (*snes->ops->solupdate)(snes, X, F, Y);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(MSNES_SolUpdate,snes,X,F,Y);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -280,8 +291,19 @@ PetscErrorCode MSNESComputeUpdate(SNES snes, Vec X, Vec F, Vec Y)
 */
 PetscErrorCode MSNESRestart(SNES snes, Vec X, Vec F, PetscInt *restartCount)
 {
+  PetscErrorCode ierr;
+
   PetscFunctionBegin;
   /* Will dispatch to impl types */
+  PetscValidHeaderSpecific(snes, SNES_CLASSID, 1);
+  PetscValidHeaderSpecific(X, VEC_CLASSID, 2); PetscCheckSameComm(snes, 1, X, 2);
+  PetscValidHeaderSpecific(F, VEC_CLASSID, 3); PetscCheckSameComm(snes, 1, F, 3);
+  PetscValidPointer(restartCount, 4);
+  if (snes->ops->restart) {
+    ierr = PetscLogEventBegin(MSNES_Restart,snes,X,F,0);CHKERRQ(ierr);
+    ierr = (*snes->ops->restart)(snes, X, F, restartCount);CHKERRQ(ierr);
+    ierr = PetscLogEventEnd(MSNES_Restart,snes,X,F,0);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
