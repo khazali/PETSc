@@ -977,6 +977,7 @@ typedef const char* MatOrderingType;
 #define MATORDERINGWBM         "wbm"
 #define MATORDERINGSPECTRAL    "spectral"
 #define MATORDERINGAMD         "amd"            /* only works if UMFPACK is installed with PETSc */
+#define MATORDERINGSFC         "sfc"
 
 PETSC_EXTERN PetscErrorCode MatGetOrdering(Mat,MatOrderingType,IS*,IS*);
 PETSC_EXTERN PetscErrorCode MatGetOrderingList(PetscFunctionList*);

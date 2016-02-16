@@ -215,6 +215,7 @@ PETSC_EXTERN PetscErrorCode DMPlexGetAdjacencyUseAnchors(DM,PetscBool*);
 PETSC_EXTERN PetscErrorCode DMPlexGetAdjacency(DM, PetscInt, PetscInt *, PetscInt *[]);
 
 PETSC_EXTERN PetscErrorCode DMPlexGetOrdering(DM, MatOrderingType, DMLabel, IS *);
+PETSC_EXTERN PetscErrorCode DMPlexHilbertSFCReordering(PetscInt, PetscInt *, PetscInt *, PetscInt *);
 PETSC_EXTERN PetscErrorCode DMPlexPermute(DM, IS, DM *);
 
 PETSC_EXTERN PetscErrorCode DMPlexCreateProcessSF(DM, PetscSF, IS *, PetscSF *);

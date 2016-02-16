@@ -80,7 +80,7 @@ PetscErrorCode DMPlexGetOrdering(DM dm, MatOrderingType otype, DMLabel label, IS
 {
   PetscInt       numCells = 0, pStart, pEnd, c, i;
   PetscInt      *start = NULL, *adjacency = NULL, *cperm, *clperm, *invclperm;
-  PetscBool      isRCM = PETSC_FALSE, isND = PETSC_FALSE, is1WD = PETSC_FALSE, isQMD = PETSC_FALSE;
+  PetscBool      isRCM = PETSC_FALSE, isND = PETSC_FALSE, is1WD = PETSC_FALSE, isQMD = PETSC_FALSE, isSFC = PETSC_FALSE;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -90,12 +90,15 @@ PetscErrorCode DMPlexGetOrdering(DM dm, MatOrderingType otype, DMLabel label, IS
   ierr = PetscStrcmp(otype, MATORDERINGRCM, &isRCM);CHKERRQ(ierr);
   ierr = PetscStrcmp(otype, MATORDERING1WD, &is1WD);CHKERRQ(ierr);
   ierr = PetscStrcmp(otype, MATORDERINGQMD, &isQMD);CHKERRQ(ierr);
+  ierr = PetscStrcmp(otype, MATORDERINGSFC, &isSFC);CHKERRQ(ierr);
   ierr = DMPlexCreateNeighborCSR(dm, 0, &numCells, &start, &adjacency);CHKERRQ(ierr);
   ierr = PetscMalloc1(numCells, &cperm);CHKERRQ(ierr);
   if (numCells) {
-    /* Shift for Fortran numbering */
-    for (i = 0; i < start[numCells]; ++i) ++adjacency[i];
-    for (i = 0; i <= numCells; ++i)       ++start[i];
+    if (isRCM || isND || is1WD || isQMD) {
+      /* Shift for Fortran numbering */
+      for (i = 0; i < start[numCells]; ++i) ++adjacency[i];
+      for (i = 0; i <= numCells; ++i)       ++start[i];
+    }
     if (isRCM) {
       PetscInt *mask, *xls;
       ierr = PetscMalloc2(numCells, &mask, numCells*2, &xls);CHKERRQ(ierr);
@@ -122,12 +125,17 @@ PetscErrorCode DMPlexGetOrdering(DM dm, MatOrderingType otype, DMLabel label, IS
       ierr = PetscFree5(iperm, deg, marker, rchset, nbrhd);CHKERRQ(ierr);
       ierr = PetscFree2(qsize, qlink);CHKERRQ(ierr);
     }
+    else if (isSFC) {
+      ierr = DMPlexHilbertSFCReordering(numCells, start, adjacency, cperm);CHKERRQ(ierr);
+    }
     else {SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Unknown ordering type %s for DMPlex ordering", otype);}
   }
   ierr = PetscFree(start);CHKERRQ(ierr);
   ierr = PetscFree(adjacency);CHKERRQ(ierr);
-  /* Shift for Fortran numbering */
-  for (c = 0; c < numCells; ++c) --cperm[c];
+  if (isRCM || isND || is1WD || isQMD) {
+    /* Shift for Fortran numbering */
+    for (c = 0; c < numCells; ++c) --cperm[c];
+  }
   /* Segregate */
   if (label) {
     IS              valueIS;
@@ -308,5 +316,65 @@ PetscErrorCode DMPlexPermute(DM dm, IS perm, DM *pdm)
     }
     ierr = ISRestoreIndices(perm, &pperm);CHKERRQ(ierr);
   }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "HilbertSFC_rot"
+PETSC_STATIC_INLINE PetscErrorCode HilbertSFC_rot(PetscInt n, PetscInt *x, PetscInt *y, PetscInt rx, PetscInt ry) {
+  PetscInt t;
+  PetscFunctionBegin;
+  //rotate/flip a quadrant appropriately
+  if (ry == 0) {
+    if (rx == 1) {
+      *x = n-1 - *x;
+      *y = n-1 - *y;
+    }
+    //Swap x and y
+    t  = *x;
+    *x = *y;
+    *y = t;
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "HilbertSFC_xy2d"
+PETSC_STATIC_INLINE PetscErrorCode HilbertSFC_xy2d(PetscInt n, PetscInt x, PetscInt y, PetscInt *d)
+{
+  PetscInt rx, ry, s;
+  PetscFunctionBegin;
+  for (*d = 0, s = n / 2; s > 0; s /= 2) {
+    rx = (x & s) > 0;
+    ry = (y & s) > 0;
+    *d += s * s * ((3 * rx) ^ ry);
+    HilbertSFC_rot(s, &x, &y, rx, ry);
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexHilbertSFCReordering"
+PetscErrorCode DMPlexHilbertSFCReordering(PetscInt numCells, PetscInt *start, PetscInt *adjacency, PetscInt *perm)
+{
+  PetscInt       i, k, d, n = 2;
+  PetscInt      *d_min;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  while (n < numCells) n = n * 2;   /* Size of Hilbert matrix (must be power of 2) */
+  ierr = PetscMalloc1(numCells, &d_min);CHKERRQ(ierr);
+  for (i = 0; i < numCells; ++i) {d_min[i] = PETSC_MAX_INT; perm[i] = i;}
+  for (i = 0; i < numCells; ++i) {
+    for (k = start[i]; k < start[i+1]; ++k) {
+      /* Find minimum Hilbert coordinate for each cell */
+      const PetscInt j = adjacency[k];
+      HilbertSFC_xy2d(n, i, j, &d);
+      d_min[i] = PetscMin(d_min[i], d);
+      d_min[j] = PetscMin(d_min[j], d);
+    }
+  }
+  ierr = PetscSortIntWithArray(numCells, d_min, perm);CHKERRQ(ierr);
+  ierr = PetscFree(d_min);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
