@@ -78,20 +78,51 @@ $     MATORDERINGQMD - Quotient Minimum Degree
 @*/
 PetscErrorCode DMPlexGetOrdering(DM dm, MatOrderingType otype, DMLabel label, IS *perm)
 {
-  PetscInt       numCells = 0;
-  PetscInt      *start = NULL, *adjacency = NULL, *cperm, *clperm, *invclperm, *mask, *xls, pStart, pEnd, c, i;
+  PetscInt       numCells = 0, pStart, pEnd, c, i;
+  PetscInt      *start = NULL, *adjacency = NULL, *cperm, *clperm, *invclperm;
+  PetscBool      isRCM = PETSC_FALSE, isND = PETSC_FALSE, is1WD = PETSC_FALSE, isQMD = PETSC_FALSE;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidPointer(perm, 3);
+  ierr = PetscStrcmp(otype, MATORDERINGND, &isND);CHKERRQ(ierr);
+  ierr = PetscStrcmp(otype, MATORDERINGRCM, &isRCM);CHKERRQ(ierr);
+  ierr = PetscStrcmp(otype, MATORDERING1WD, &is1WD);CHKERRQ(ierr);
+  ierr = PetscStrcmp(otype, MATORDERINGQMD, &isQMD);CHKERRQ(ierr);
   ierr = DMPlexCreateNeighborCSR(dm, 0, &numCells, &start, &adjacency);CHKERRQ(ierr);
-  ierr = PetscMalloc3(numCells,&cperm,numCells,&mask,numCells*2,&xls);CHKERRQ(ierr);
+  ierr = PetscMalloc1(numCells, &cperm);CHKERRQ(ierr);
   if (numCells) {
     /* Shift for Fortran numbering */
     for (i = 0; i < start[numCells]; ++i) ++adjacency[i];
     for (i = 0; i <= numCells; ++i)       ++start[i];
-    ierr = SPARSEPACKgenrcm(&numCells, start, adjacency, cperm, mask, xls);CHKERRQ(ierr);
+    if (isRCM) {
+      PetscInt *mask, *xls;
+      ierr = PetscMalloc2(numCells, &mask, numCells*2, &xls);CHKERRQ(ierr);
+      ierr = SPARSEPACKgenrcm(&numCells, start, adjacency, cperm, mask, xls);CHKERRQ(ierr);
+      ierr = PetscFree2(mask, xls);CHKERRQ(ierr);
+    }
+    else if (isND) {
+      PetscInt *mask, *xls, *ls;
+      ierr = PetscMalloc3(numCells, &mask, numCells+1, &xls, numCells, &ls);CHKERRQ(ierr);
+      ierr = SPARSEPACKgennd(&numCells, start, adjacency, mask, cperm, xls, ls);CHKERRQ(ierr);
+      ierr = PetscFree3(mask, xls, ls);CHKERRQ(ierr);
+    }
+    else if (is1WD) {
+      PetscInt *mask, *xls, *ls, *xblk, nblks;
+      ierr = PetscMalloc4(numCells, &mask, numCells+1, &xls, numCells, &ls, numCells+1, &xblk);CHKERRQ(ierr);
+      ierr = SPARSEPACKgen1wd(&numCells, start, adjacency, mask, &nblks, xblk, cperm, xls, ls);CHKERRQ(ierr);
+      ierr = PetscFree4(mask, xls, ls, xblk);CHKERRQ(ierr);
+    }
+    else if (isQMD) {
+      PetscInt *iperm, *deg, *marker, *rchset, *nbrhd, *qsize, *qlink, nofsub;
+      ierr = PetscMalloc5(numCells, &iperm, numCells, &deg, numCells, &marker, numCells, &rchset, numCells, &nbrhd);CHKERRQ(ierr);
+      ierr = PetscMalloc2(numCells, &qsize, numCells, &qlink);CHKERRQ(ierr);
+      SPARSEPACKgenqmd(&numCells, start, adjacency, cperm, iperm, deg, marker, rchset, nbrhd, qsize, qlink, &nofsub);
+      ierr = PetscFree5(iperm, deg, marker, rchset, nbrhd);CHKERRQ(ierr);
+      ierr = PetscFree2(qsize, qlink);CHKERRQ(ierr);
+    }
+    else {SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Unknown ordering type %s for DMPlex ordering", otype);}
   }
   ierr = PetscFree(start);CHKERRQ(ierr);
   ierr = PetscFree(adjacency);CHKERRQ(ierr);
@@ -134,7 +165,7 @@ PetscErrorCode DMPlexGetOrdering(DM dm, MatOrderingType otype, DMLabel label, IS
   }
   /* Construct closure */
   ierr = DMPlexCreateOrderingClosure_Static(dm, numCells, cperm, &clperm, &invclperm);CHKERRQ(ierr);
-  ierr = PetscFree3(cperm,mask,xls);CHKERRQ(ierr);
+  ierr = PetscFree(cperm);CHKERRQ(ierr);
   ierr = PetscFree(clperm);CHKERRQ(ierr);
   /* Invert permutation */
   ierr = DMPlexGetChart(dm, &pStart, &pEnd);CHKERRQ(ierr);
