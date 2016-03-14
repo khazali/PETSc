@@ -9,7 +9,7 @@ PetscErrorCode DMView_PICell(DM dm, PetscViewer viewer)
 {
   PetscBool      iascii, ishdf5, isvtk;
   PetscErrorCode ierr;
-  DM_PICell      *mesh = (DM_PICell *) dm->data;
+  DM_PICell      *dmpi = (DM_PICell *) dm->data;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
@@ -18,11 +18,11 @@ PetscErrorCode DMView_PICell(DM dm, PetscViewer viewer)
   ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERVTK,   &isvtk);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERHDF5,  &ishdf5);CHKERRQ(ierr);
   if (iascii) {
-    ierr = DMView(mesh->dmplex, viewer);CHKERRQ(ierr);
+    ierr = DMView(dmpi->dmplex, viewer);CHKERRQ(ierr);
   } else if (ishdf5) {
 #if defined(PETSC_HAVE_HDF5)
     ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_HDF5_VIZ);CHKERRQ(ierr);
-    ierr = DMPlexView_HDF5(mesh->dmplex, viewer);CHKERRQ(ierr);
+    ierr = DMPlexView_HDF5(dmpi->dmplex, viewer);CHKERRQ(ierr);
     ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
 #else
     SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "HDF5 not supported in this build.\nPlease reconfigure using --download-hdf5");
@@ -36,10 +36,10 @@ PetscErrorCode DMView_PICell(DM dm, PetscViewer viewer)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMSetFromOptions_PICell"
-PetscErrorCode  DMSetFromOptions_PICell(PetscOptions *PetscOptionsObject,DM dm)
+PetscErrorCode  DMSetFromOptions_PICell(PetscOptionItems *PetscOptionsObject,DM dm)
 {
   PetscErrorCode ierr;
-  DM_PICell      *mesh = (DM_PICell *) dm->data;
+  DM_PICell      *dmpi = (DM_PICell *) dm->data;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
@@ -49,7 +49,7 @@ PetscErrorCode  DMSetFromOptions_PICell(PetscOptions *PetscOptionsObject,DM dm)
   /* ierr = PetscOptionsInt("-dm_refine", "The number of uniform refinements", "DMCreate", refine, &refine, NULL);CHKERRQ(ierr); */
 
   /* this does not work for prefix, this sub prefix can not have a prefix!!! */
-  ierr = DMSetFromOptions(mesh->dmplex);CHKERRQ(ierr);
+  ierr = DMSetFromOptions(dmpi->dmplex);CHKERRQ(ierr);
 
   ierr = PetscOptionsTail();CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -59,26 +59,25 @@ PetscErrorCode  DMSetFromOptions_PICell(PetscOptions *PetscOptionsObject,DM dm)
 #define __FUNCT__ "DMSetUp_PICell"
 PetscErrorCode DMSetUp_PICell(DM dm)
 {
-  DM_PICell      *mesh = (DM_PICell *) dm->data;
+  DM_PICell      *dmpi = (DM_PICell *) dm->data;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-
   /* We have built dmplex, now create vectors */
-  ierr = DMCreateGlobalVector(mesh->dmplex, &mesh->phi);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) mesh->phi, "potential");CHKERRQ(ierr);
-  ierr = VecDuplicate(mesh->phi, &mesh->rho);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) mesh->rho, "density");CHKERRQ(ierr);
+  ierr = DMSetUp(dmpi->dmplex);CHKERRQ(ierr); /* build a grid */
+  /* ierr = DMCreateGlobalVector(dmpi->dmplex, &dmpi->phi);CHKERRQ(ierr); */
+  /* ierr = PetscObjectSetName((PetscObject) dmpi->phi, "potential");CHKERRQ(ierr); */
+  /* ierr = VecDuplicate(dmpi->phi, &dmpi->rho);CHKERRQ(ierr); */
+  /* ierr = PetscObjectSetName((PetscObject) dmpi->rho, "density");CHKERRQ(ierr); */
   /* set up solver */
   {
     MPI_Comm       comm;
     ierr = PetscObjectGetComm((PetscObject)dm,&comm);CHKERRQ(ierr);
-    ierr = SNESCreate(comm,&mesh->snes);CHKERRQ(ierr);
-    ierr = SNESSetFromOptions(mesh->snes);CHKERRQ(ierr);
-    ierr = SNESSetDM(mesh->snes,mesh->dmplex);CHKERRQ(ierr);
+    ierr = SNESCreate(comm,&dmpi->snes);CHKERRQ(ierr);
+    ierr = SNESSetFromOptions(dmpi->snes);CHKERRQ(ierr);
+    ierr = SNESSetDM(dmpi->snes,dmpi->dmplex);CHKERRQ(ierr);
   }
-
   PetscFunctionReturn(0);
 }
 
@@ -86,15 +85,15 @@ PetscErrorCode DMSetUp_PICell(DM dm)
 #define __FUNCT__ "DMDestroy_PICell"
 PetscErrorCode DMDestroy_PICell(DM dm)
 {
-  DM_PICell      *mesh = (DM_PICell *) dm->data;
+  DM_PICell      *dmpi = (DM_PICell *) dm->data;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = SNESDestroy(&mesh->snes);CHKERRQ(ierr);
-  ierr = DMDestroy(&mesh->dmplex);CHKERRQ(ierr);
-  ierr = VecDestroy(&mesh->rho);CHKERRQ(ierr);
-  ierr = VecDestroy(&mesh->phi);CHKERRQ(ierr);
-  ierr = PetscFree(mesh);CHKERRQ(ierr);
+  ierr = SNESDestroy(&dmpi->snes);CHKERRQ(ierr);
+  /* ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr); THIS FAILS ????? */
+  /* ierr = VecDestroy(&dmpi->rho);CHKERRQ(ierr); */
+  /* ierr = VecDestroy(&dmpi->phi);CHKERRQ(ierr); */
+  ierr = PetscFree(dmpi);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -102,15 +101,15 @@ PetscErrorCode DMDestroy_PICell(DM dm)
 #define __FUNCT__ "DMCreate_PICell"
 PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 {
-  DM_PICell      *mesh;
+  DM_PICell      *dmpi;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  ierr     = PetscNewLog(dm,&mesh);CHKERRQ(ierr);
+  ierr     = PetscNewLog(dm,&dmpi);CHKERRQ(ierr);
 
   dm->dim  = 0;
-  dm->data = mesh;
+  dm->data = dmpi;
 
   dm->ops->view                            = DMView_PICell;
   dm->ops->load                            = NULL;
@@ -147,9 +146,10 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellAddSource"
-PetscErrorCode DMPICellAddSource(DM dm, Vec x, Vec rho)
+/* add density 'rho'[1] (vector of size 1) at 'coord'[dim] to global density vector */
+PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec rho)
 {
-  DM_PICell      *mesh = (DM_PICell *) dm->data;
+  DM_PICell      *dmpi = (DM_PICell *) dm->data;
   PetscErrorCode ierr;
   PetscInt dim;
 
@@ -166,7 +166,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec x, Vec rho)
 #define __FUNCT__ "DMPICellGetJet"
 PetscErrorCode  DMPICellGetJet(DM dm, Vec coord, PetscInt order, Vec jet)
 {
-  DM_PICell      *mesh = (DM_PICell *) dm->data;
+  DM_PICell      *dmpi = (DM_PICell *) dm->data;
   PetscErrorCode ierr;
   PetscInt dim;
 
@@ -174,6 +174,7 @@ PetscErrorCode  DMPICellGetJet(DM dm, Vec coord, PetscInt order, Vec jet)
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
 
+  /* get grad at coord, return on 'jet', which is a D^2 array */
 
 
   PetscFunctionReturn(0);
