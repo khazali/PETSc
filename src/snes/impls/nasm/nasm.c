@@ -173,7 +173,7 @@ PetscErrorCode SNESSetUp_NASM(SNES snes)
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESSetFromOptions_NASM"
-PetscErrorCode SNESSetFromOptions_NASM(PetscOptions *PetscOptionsObject,SNES snes)
+PetscErrorCode SNESSetFromOptions_NASM(PetscOptionItems *PetscOptionsObject,SNES snes)
 {
   PetscErrorCode    ierr;
   PCASMType         asmtype;
@@ -906,6 +906,10 @@ PetscErrorCode SNESSolve_NASM(SNES snes)
 -  -sub_pc_ - options prefix of the subdomain preconditioner
 
    Level: advanced
+
+   References:
+.  1. - Peter R. Brune, Matthew G. Knepley, Barry F. Smith, and Xuemin Tu, "Composing Scalable Nonlinear Algebraic Solvers",
+   SIAM Review, 57(4), 2015
 
 .seealso: SNESCreate(), SNES, SNESSetType(), SNESType (for list of available types)
 M*/

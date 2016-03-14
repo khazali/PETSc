@@ -26,11 +26,11 @@ int main(int argc,char **argv)
   xlabel = "X-axis Label";toplabel = "Top Label";ylabel = "Y-axis Label";
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr);
-  ierr = PetscOptionsGetInt(NULL,"-width",&width,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetInt(NULL,"-height",&height,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetInt(NULL,"-n",&n,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetInt(NULL,"-nports",&nports,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsHasName(NULL,"-nolabels",&flg);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(NULL,NULL,"-width",&width,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(NULL,NULL,"-height",&height,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(NULL,NULL,"-n",&n,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(NULL,NULL,"-nports",&nports,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsHasName(NULL,NULL,"-nolabels",&flg);CHKERRQ(ierr);
   if (flg) {
     toplabel = NULL; xlabel = NULL; ylabel = NULL;
   }
@@ -54,7 +54,7 @@ int main(int argc,char **argv)
   ierr = PetscDrawLGSetUseMarkers(lg,PETSC_TRUE);CHKERRQ(ierr);
   ierr = PetscDrawLGDraw(lg);CHKERRQ(ierr);
   ierr = PetscDrawString(draw,-3.,150.0,PETSC_DRAW_BLUE,"A legend");CHKERRQ(ierr);
-  ierr = PetscDrawSynchronizedFlush(draw);CHKERRQ(ierr);
+  ierr = PetscDrawFlush(draw);CHKERRQ(ierr);
 
   ierr = PetscDrawDestroy(&draw);CHKERRQ(ierr);
   ierr = PetscDrawLGDestroy(&lg);CHKERRQ(ierr);

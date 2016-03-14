@@ -310,7 +310,6 @@ class Configure(config.base.Configure):
         self.setCompilers.LIBS = oldLibs
         self.logWrite(self.setCompilers.restoreLog())
         self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
-        self.logWrite(self.setCompilers.restoreLog())
         raise RuntimeError('C libraries cannot directly be used from Fortran')
       self.logWrite(self.setCompilers.restoreLog())
     return
@@ -413,7 +412,7 @@ class Configure(config.base.Configure):
     if cxxdialect == 'C++11':
       if self.cxxdialect != 'C++11':
         self.logWrite(self.setCompilers.restoreLog())
-        raise RuntimeError('Could not determine compiler flag for with-cxx-dialect=%s, use CXXFLAGS' % (self.argDB['with-cxx-dialect']))
+        raise RuntimeError('Could not determine compiler flag for with-cxx-dialect=%s,\nIf you know the flag for turning on C++11 features set it with the CXXFLAGS variables\n for example, --with-cxx-dialect=C++11 CXXFLAGS="-std=c++0x"' % (self.argDB['with-cxx-dialect']))
     elif cxxdialect in ['C++98', 'C++03', '']:
       self.cxxdialect = cxxdialect
       pass                    # The user can set CXXFLAGS if they want to be strict
@@ -1405,10 +1404,10 @@ class Configure(config.base.Configure):
 
   def checkC99Flag(self):
     '''Check for -std=c99 or equivalent flag'''
-    includes = ""
+    includes = "#include <float.h>"
     body = """
-    int x[2],y;
-    y = 5;
+    float x[2],y;
+    y = FLT_ROUNDS;
     // c++ comment
     int j = 2;
     for (int i=0; i<2; i++){
@@ -1417,7 +1416,7 @@ class Configure(config.base.Configure):
     """
     self.setCompilers.saveLog()
     self.setCompilers.pushLanguage('C')
-    flags_to_try = ['','-std=c99','-std=gnu99','-std=c11''-std=gnu11']
+    flags_to_try = ['','-std=c99','-std=gnu99','-std=c11''-std=gnu11','-c99']
     for flag in flags_to_try:
       if self.setCompilers.checkCompilerFlag(flag, includes, body):
         self.c99flag = flag

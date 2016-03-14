@@ -5,7 +5,7 @@ const char *const SNESFASTypes[] = {"MULTIPLICATIVE","ADDITIVE","FULL","KASKADE"
 
 extern PetscErrorCode SNESDestroy_FAS(SNES snes);
 extern PetscErrorCode SNESSetUp_FAS(SNES snes);
-extern PetscErrorCode SNESSetFromOptions_FAS(PetscOptions *PetscOptionsObject,SNES snes);
+extern PetscErrorCode SNESSetFromOptions_FAS(PetscOptionItems *PetscOptionsObject,SNES snes);
 extern PetscErrorCode SNESView_FAS(SNES snes, PetscViewer viewer);
 extern PetscErrorCode SNESSolve_FAS(SNES snes);
 extern PetscErrorCode SNESReset_FAS(SNES snes);
@@ -41,6 +41,10 @@ Notes:
    The cycle SNES instance may be used for monitoring convergence on a particular level.
 
 Level: beginner
+
+   References:
+. 1. -  Peter R. Brune, Matthew G. Knepley, Barry F. Smith, and Xuemin Tu, "Composing Scalable Nonlinear Algebraic Solvers",
+   SIAM Review, 57(4), 2015
 
 .seealso: PCMG, SNESCreate(), SNES, SNESSetType(), SNESType (for list of available types)
 M*/
@@ -308,7 +312,7 @@ PetscErrorCode SNESSetUp_FAS(SNES snes)
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESSetFromOptions_FAS"
-PetscErrorCode SNESSetFromOptions_FAS(PetscOptions *PetscOptionsObject,SNES snes)
+PetscErrorCode SNESSetFromOptions_FAS(PetscOptionItems *PetscOptionsObject,SNES snes)
 {
   SNES_FAS       *fas   = (SNES_FAS*) snes->data;
   PetscInt       levels = 1;

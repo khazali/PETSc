@@ -10,15 +10,18 @@
 
 #undef __FUNCT__
 #define __FUNCT__ "MatInvertBlockDiagonal_SeqBAIJ"
-PetscErrorCode  MatInvertBlockDiagonal_SeqBAIJ(Mat A,const PetscScalar **values)
+PetscErrorCode MatInvertBlockDiagonal_SeqBAIJ(Mat A,const PetscScalar **values)
 {
   Mat_SeqBAIJ    *a = (Mat_SeqBAIJ*) A->data;
   PetscErrorCode ierr;
   PetscInt       *diag_offset,i,bs = A->rmap->bs,mbs = a->mbs,ipvt[5],bs2 = bs*bs,*v_pivots;
   MatScalar      *v    = a->a,*odiag,*diag,*mdiag,work[25],*v_work;
   PetscReal      shift = 0.0;
+  PetscBool      allowzeropivot,zeropivotdetected=PETSC_FALSE;
 
   PetscFunctionBegin;
+  allowzeropivot = PetscNot(A->erroriffailure);
+
   if (a->idiagvalid) {
     if (values) *values = a->idiag;
     PetscFunctionReturn(0);
@@ -39,6 +42,14 @@ PetscErrorCode  MatInvertBlockDiagonal_SeqBAIJ(Mat A,const PetscScalar **values)
       odiag    = v + 1*diag_offset[i];
       diag[0]  = odiag[0];
       mdiag[0] = odiag[0];
+      
+      if (PetscAbsScalar(diag[0] + shift) < PETSC_MACHINE_EPSILON) {
+        if (allowzeropivot) {
+          A->errortype = MAT_FACTOR_NUMERIC_ZEROPIVOT;
+          ierr = PetscInfo1(A,"Zero pivot, row %D\n",i);CHKERRQ(ierr);
+        } else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_MAT_LU_ZRPVT,"Zero pivot, row %D",i);
+      } 
+      
       diag[0]  = (PetscScalar)1.0 / (diag[0] + shift);
       diag    += 1;
       mdiag   += 1;
@@ -49,7 +60,8 @@ PetscErrorCode  MatInvertBlockDiagonal_SeqBAIJ(Mat A,const PetscScalar **values)
       odiag    = v + 4*diag_offset[i];
       diag[0]  = odiag[0]; diag[1] = odiag[1]; diag[2] = odiag[2]; diag[3] = odiag[3];
       mdiag[0] = odiag[0]; mdiag[1] = odiag[1]; mdiag[2] = odiag[2]; mdiag[3] = odiag[3];
-      ierr     = PetscKernel_A_gets_inverse_A_2(diag,shift);CHKERRQ(ierr);
+      ierr     = PetscKernel_A_gets_inverse_A_2(diag,shift,allowzeropivot,&zeropivotdetected);CHKERRQ(ierr);
+      if (zeropivotdetected) A->errortype = MAT_FACTOR_NUMERIC_ZEROPIVOT;
       diag    += 4;
       mdiag   += 4;
     }
@@ -63,7 +75,8 @@ PetscErrorCode  MatInvertBlockDiagonal_SeqBAIJ(Mat A,const PetscScalar **values)
       mdiag[0] = odiag[0]; mdiag[1] = odiag[1]; mdiag[2] = odiag[2]; mdiag[3] = odiag[3];
       mdiag[4] = odiag[4]; mdiag[5] = odiag[5]; mdiag[6] = odiag[6]; mdiag[7] = odiag[7];
       mdiag[8] = odiag[8];
-      ierr     = PetscKernel_A_gets_inverse_A_3(diag,shift);CHKERRQ(ierr);
+      ierr     = PetscKernel_A_gets_inverse_A_3(diag,shift,allowzeropivot,&zeropivotdetected);CHKERRQ(ierr);
+      if (zeropivotdetected) A->errortype = MAT_FACTOR_NUMERIC_ZEROPIVOT;
       diag    += 9;
       mdiag   += 9;
     }
@@ -73,7 +86,8 @@ PetscErrorCode  MatInvertBlockDiagonal_SeqBAIJ(Mat A,const PetscScalar **values)
       odiag  = v + 16*diag_offset[i];
       ierr   = PetscMemcpy(diag,odiag,16*sizeof(PetscScalar));CHKERRQ(ierr);
       ierr   = PetscMemcpy(mdiag,odiag,16*sizeof(PetscScalar));CHKERRQ(ierr);
-      ierr   = PetscKernel_A_gets_inverse_A_4(diag,shift);CHKERRQ(ierr);
+      ierr   = PetscKernel_A_gets_inverse_A_4(diag,shift,allowzeropivot,&zeropivotdetected);CHKERRQ(ierr);
+      if (zeropivotdetected) A->errortype = MAT_FACTOR_NUMERIC_ZEROPIVOT;
       diag  += 16;
       mdiag += 16;
     }
@@ -83,7 +97,8 @@ PetscErrorCode  MatInvertBlockDiagonal_SeqBAIJ(Mat A,const PetscScalar **values)
       odiag  = v + 25*diag_offset[i];
       ierr   = PetscMemcpy(diag,odiag,25*sizeof(PetscScalar));CHKERRQ(ierr);
       ierr   = PetscMemcpy(mdiag,odiag,25*sizeof(PetscScalar));CHKERRQ(ierr);
-      ierr   = PetscKernel_A_gets_inverse_A_5(diag,ipvt,work,shift);CHKERRQ(ierr);
+      ierr   = PetscKernel_A_gets_inverse_A_5(diag,ipvt,work,shift,allowzeropivot,&zeropivotdetected);CHKERRQ(ierr);
+      if (zeropivotdetected) A->errortype = MAT_FACTOR_NUMERIC_ZEROPIVOT;
       diag  += 25;
       mdiag += 25;
     }
@@ -93,7 +108,8 @@ PetscErrorCode  MatInvertBlockDiagonal_SeqBAIJ(Mat A,const PetscScalar **values)
       odiag  = v + 36*diag_offset[i];
       ierr   = PetscMemcpy(diag,odiag,36*sizeof(PetscScalar));CHKERRQ(ierr);
       ierr   = PetscMemcpy(mdiag,odiag,36*sizeof(PetscScalar));CHKERRQ(ierr);
-      ierr   = PetscKernel_A_gets_inverse_A_6(diag,shift);CHKERRQ(ierr);
+      ierr   = PetscKernel_A_gets_inverse_A_6(diag,shift,allowzeropivot,&zeropivotdetected);CHKERRQ(ierr);
+      if (zeropivotdetected) A->errortype = MAT_FACTOR_NUMERIC_ZEROPIVOT;
       diag  += 36;
       mdiag += 36;
     }
@@ -103,7 +119,8 @@ PetscErrorCode  MatInvertBlockDiagonal_SeqBAIJ(Mat A,const PetscScalar **values)
       odiag  = v + 49*diag_offset[i];
       ierr   = PetscMemcpy(diag,odiag,49*sizeof(PetscScalar));CHKERRQ(ierr);
       ierr   = PetscMemcpy(mdiag,odiag,49*sizeof(PetscScalar));CHKERRQ(ierr);
-      ierr   = PetscKernel_A_gets_inverse_A_7(diag,shift);CHKERRQ(ierr);
+      ierr   = PetscKernel_A_gets_inverse_A_7(diag,shift,allowzeropivot,&zeropivotdetected);CHKERRQ(ierr);
+      if (zeropivotdetected) A->errortype = MAT_FACTOR_NUMERIC_ZEROPIVOT;
       diag  += 49;
       mdiag += 49;
     }
@@ -114,7 +131,8 @@ PetscErrorCode  MatInvertBlockDiagonal_SeqBAIJ(Mat A,const PetscScalar **values)
       odiag  = v + bs2*diag_offset[i];
       ierr   = PetscMemcpy(diag,odiag,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
       ierr   = PetscMemcpy(mdiag,odiag,bs2*sizeof(PetscScalar));CHKERRQ(ierr);
-      ierr   = PetscKernel_A_gets_inverse_A(bs,diag,v_pivots,v_work);CHKERRQ(ierr);
+      ierr   = PetscKernel_A_gets_inverse_A(bs,diag,v_pivots,v_work,allowzeropivot,&zeropivotdetected);CHKERRQ(ierr);
+      if (zeropivotdetected) A->errortype = MAT_FACTOR_NUMERIC_ZEROPIVOT;
       diag  += bs2;
       mdiag += bs2;
     }
@@ -1582,12 +1600,13 @@ static PetscErrorCode MatView_SeqBAIJ_Draw_Zoom(PetscDraw draw,void *Aa)
   PetscFunctionBegin;
   ierr = PetscObjectQuery((PetscObject)A,"Zoomviewer",(PetscObject*)&viewer);CHKERRQ(ierr);
   ierr = PetscViewerGetFormat(viewer,&format);CHKERRQ(ierr);
-
   ierr = PetscDrawGetCoordinates(draw,&xl,&yl,&xr,&yr);CHKERRQ(ierr);
 
   /* loop over matrix elements drawing boxes */
 
   if (format != PETSC_VIEWER_DRAW_CONTOUR) {
+    ierr = PetscDrawCollectiveBegin(draw);CHKERRQ(ierr);
+    /* Blue for negative, Cyan for zero and  Red for positive */
     color = PETSC_DRAW_BLUE;
     for (i=0,row=0; i<mbs; i++,row+=bs) {
       for (j=a->i[i]; j<a->i[i+1]; j++) {
@@ -1630,20 +1649,21 @@ static PetscErrorCode MatView_SeqBAIJ_Draw_Zoom(PetscDraw draw,void *Aa)
         }
       }
     }
+    ierr = PetscDrawCollectiveEnd(draw);CHKERRQ(ierr);
   } else {
     /* use contour shading to indicate magnitude of values */
     /* first determine max of all nonzero values */
+    PetscReal minv = 0.0, maxv = 0.0;
     PetscDraw popup;
-    PetscReal scale,maxv = 0.0;
 
     for (i=0; i<a->nz*a->bs2; i++) {
       if (PetscAbsScalar(a->a[i]) > maxv) maxv = PetscAbsScalar(a->a[i]);
     }
-    scale = (245.0 - PETSC_DRAW_BASIC_COLORS)/maxv;
+    if (minv >= maxv) maxv = minv + PETSC_SMALL;
     ierr  = PetscDrawGetPopup(draw,&popup);CHKERRQ(ierr);
-    if (popup) {
-      ierr = PetscDrawScalePopup(popup,0.0,maxv);CHKERRQ(ierr);
-    }
+    if (popup) {ierr = PetscDrawScalePopup(popup,0.0,maxv);CHKERRQ(ierr);}
+
+    ierr = PetscDrawCollectiveBegin(draw);CHKERRQ(ierr);
     for (i=0,row=0; i<mbs; i++,row+=bs) {
       for (j=a->i[i]; j<a->i[i+1]; j++) {
         y_l = A->rmap->N - row - 1.0; y_r = y_l + 1.0;
@@ -1651,12 +1671,14 @@ static PetscErrorCode MatView_SeqBAIJ_Draw_Zoom(PetscDraw draw,void *Aa)
         aa  = a->a + j*bs2;
         for (k=0; k<bs; k++) {
           for (l=0; l<bs; l++) {
-            color = PETSC_DRAW_BASIC_COLORS + (PetscInt)(scale*PetscAbsScalar(*aa++));
+            MatScalar v = *aa++;
+            color = PetscDrawRealToColor(PetscAbsScalar(v),minv,maxv);
             ierr  = PetscDrawRectangle(draw,x_l+k,y_l-l,x_r+k,y_r-l,color,color,color,color);CHKERRQ(ierr);
           }
         }
       }
     }
+    ierr = PetscDrawCollectiveEnd(draw);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -1674,12 +1696,13 @@ static PetscErrorCode MatView_SeqBAIJ_Draw(Mat A,PetscViewer viewer)
   ierr = PetscViewerDrawGetDraw(viewer,0,&draw);CHKERRQ(ierr);
   ierr = PetscDrawIsNull(draw,&isnull);CHKERRQ(ierr); if (isnull) PetscFunctionReturn(0);
 
-  ierr = PetscObjectCompose((PetscObject)A,"Zoomviewer",(PetscObject)viewer);CHKERRQ(ierr);
   xr   = A->cmap->n; yr = A->rmap->N; h = yr/10.0; w = xr/10.0;
-  xr  += w;    yr += h;  xl = -w;     yl = -h;
+  xr  += w;          yr += h;        xl = -w;     yl = -h;
   ierr = PetscDrawSetCoordinates(draw,xl,yl,xr,yr);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject)A,"Zoomviewer",(PetscObject)viewer);CHKERRQ(ierr);
   ierr = PetscDrawZoom(draw,MatView_SeqBAIJ_Draw_Zoom,A);CHKERRQ(ierr);
   ierr = PetscObjectCompose((PetscObject)A,"Zoomviewer",NULL);CHKERRQ(ierr);
+  ierr = PetscDrawSave(draw);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

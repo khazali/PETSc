@@ -29,27 +29,13 @@ static PetscErrorCode TaoLineSearchDestroy_MT(TaoLineSearch ls)
 
 #undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchSetFromOptions_MT"
-static PetscErrorCode TaoLineSearchSetFromOptions_MT(PetscOptions *PetscOptionsObject,TaoLineSearch ls)
+static PetscErrorCode TaoLineSearchSetFromOptions_MT(PetscOptionItems *PetscOptionsObject,TaoLineSearch ls)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ls,TAOLINESEARCH_CLASSID,1);
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TaoLineSearchView_MT"
-static PetscErrorCode TaoLineSearchView_MT(TaoLineSearch ls, PetscViewer pv)
-{
-  PetscErrorCode ierr;
-  PetscBool      isascii;
-
-  PetscFunctionBegin;
-  ierr = PetscObjectTypeCompare((PetscObject)pv, PETSCVIEWERASCII, &isascii);CHKERRQ(ierr);
-  if (isascii) {
-    ierr = PetscViewerASCIIPrintf(pv,"  maxf=%D, ftol=%g, gtol=%g\n",ls->max_funcs,(double)ls->rtol,(double)ls->ftol);CHKERRQ(ierr);
-  }
-  PetscFunctionReturn(0);
-}
 
 #undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchApply_MT"
@@ -323,7 +309,6 @@ PETSC_EXTERN PetscErrorCode TaoLineSearchCreate_MT(TaoLineSearch ls)
   ls->ops->setup=0;
   ls->ops->reset=0;
   ls->ops->apply=TaoLineSearchApply_MT;
-  ls->ops->view =TaoLineSearchView_MT;
   ls->ops->destroy=TaoLineSearchDestroy_MT;
   ls->ops->setfromoptions=TaoLineSearchSetFromOptions_MT;
   PetscFunctionReturn(0);

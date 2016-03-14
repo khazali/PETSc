@@ -129,9 +129,9 @@ PetscErrorCode  PetscDrawCreate(MPI_Comm comm,const char display[],const char ti
   *indraw = 0;
   ierr = PetscHeaderCreate(draw,PETSC_DRAW_CLASSID,"Draw","Graphics","Draw",comm,PetscDrawDestroy,PetscDrawView);CHKERRQ(ierr);
 
-  draw->data    = 0;
-  ierr          = PetscStrallocpy(title,&draw->title);CHKERRQ(ierr);
+  draw->data    = NULL;
   ierr          = PetscStrallocpy(display,&draw->display);CHKERRQ(ierr);
+  ierr          = PetscStrallocpy(title,&draw->title);CHKERRQ(ierr);
   draw->x       = x;
   draw->y       = y;
   draw->w       = w;
@@ -147,11 +147,11 @@ PetscErrorCode  PetscDrawCreate(MPI_Comm comm,const char display[],const char ti
   draw->port_yr = 1.0;
   draw->popup   = NULL;
 
-  ierr = PetscOptionsGetReal(NULL,"-draw_pause",&dpause,&flag);CHKERRQ(ierr);
+  ierr = PetscOptionsGetReal(NULL,NULL,"-draw_pause",&dpause,&flag);CHKERRQ(ierr);
   if (flag) draw->pause = dpause;
   draw->savefilename  = NULL;
+  draw->savefilecount = 0;
   draw->savefilemovie = PETSC_FALSE;
-  draw->savefilecount = -1;
 
   ierr = PetscDrawSetCurrentPoint(draw,.5,.9);CHKERRQ(ierr);
 
@@ -206,7 +206,7 @@ PetscErrorCode  PetscDrawSetType(PetscDraw draw,PetscDrawType type)
   if (match) PetscFunctionReturn(0);
 
   /*  User requests no graphics */
-  ierr = PetscOptionsHasName(NULL,"-nox",&flg);CHKERRQ(ierr);
+  ierr = PetscOptionsHasName(((PetscObject)draw)->options,NULL,"-nox",&flg);CHKERRQ(ierr);
 
   /*
      This is not ideal, but it allows codes to continue to run if X graphics
@@ -219,7 +219,7 @@ PetscErrorCode  PetscDrawSetType(PetscDraw draw,PetscDrawType type)
     if (match) {
       PetscBool dontwarn = PETSC_TRUE;
       flg  = PETSC_TRUE;
-      ierr = PetscOptionsHasName(NULL,"-nox_warning",&dontwarn);CHKERRQ(ierr);
+      ierr = PetscOptionsHasName(NULL,NULL,"-nox_warning",&dontwarn);CHKERRQ(ierr);
       if (!dontwarn) (*PetscErrorPrintf)("PETSc installed without X windows on this machine\nproceeding without graphics\n");
     }
   }
@@ -230,8 +230,8 @@ PetscErrorCode  PetscDrawSetType(PetscDraw draw,PetscDrawType type)
   if (!r) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_UNKNOWN_TYPE,"Unknown PetscDraw type given: %s",type);
   if (draw->ops->destroy) {ierr = (*draw->ops->destroy)(draw);CHKERRQ(ierr);}
   ierr = PetscMemzero(draw->ops,sizeof(struct _PetscDrawOps));CHKERRQ(ierr);
-  ierr       = PetscObjectChangeTypeName((PetscObject)draw,type);CHKERRQ(ierr);
-  ierr       = (*r)(draw);CHKERRQ(ierr);
+  ierr = PetscObjectChangeTypeName((PetscObject)draw,type);CHKERRQ(ierr);
+  ierr = (*r)(draw);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -301,6 +301,34 @@ PetscErrorCode  PetscDrawRegister(const char *sname,PetscErrorCode (*function)(P
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscDrawSetOptionsPrefix"
+/*@C
+   PetscDrawSetOptionsPrefix - Sets the prefix used for searching for all
+   PetscDraw options in the database.
+
+   Logically Collective on PetscDraw
+
+   Input Parameter:
++  draw - the draw context
+-  prefix - the prefix to prepend to all option names
+
+   Level: advanced
+
+.keywords: PetscDraw, set, options, prefix, database
+
+.seealso: PetscDrawSetFromOptions()
+@*/
+PetscErrorCode  PetscDrawSetOptionsPrefix(PetscDraw draw,const char prefix[])
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(draw,PETSC_DRAW_CLASSID,1);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject)draw,prefix);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscDrawSetFromOptions"
 /*@
    PetscDrawSetFromOptions - Sets the graphics type from the options database.
@@ -319,8 +347,9 @@ PetscErrorCode  PetscDrawRegister(const char *sname,PetscErrorCode (*function)(P
 .   -draw_save [optional filename] - (X windows only) saves each image before it is cleared to a file
 .   -draw_save_final_image [optional filename] - (X windows only) saves the final image displayed in a window
 .   -draw_save_movie - converts image files to a movie  at the end of the run. See PetscDrawSetSave()
-.   -draw_save_on_flush - saves an image on each flush in addition to each clear
--   -draw_save_single_file - saves each new image in the same file, normally each new image is saved in a new file with filename_%d
+.   -draw_save_single_file - saves each new image in the same file, normally each new image is saved in a new file with 'filename/filename_%d.ext'
+.   -draw_save_on_clear - saves an image on each clear, mainly for debugging
+-   -draw_save_on_flush - saves an image on each flush, mainly for debugging
 
    Level: intermediate
 
@@ -350,7 +379,7 @@ PetscErrorCode  PetscDrawSetFromOptions(PetscDraw draw)
 
   if (((PetscObject)draw)->type_name) def = ((PetscObject)draw)->type_name;
   else {
-    ierr = PetscOptionsHasName(NULL,"-nox",&nox);CHKERRQ(ierr);
+    ierr = PetscOptionsHasName(((PetscObject)draw)->options,NULL,"-nox",&nox);CHKERRQ(ierr);
     def  = PETSC_DRAW_NULL;
 #if defined(PETSC_USE_WINDOWS_GRAPHICS)
     if (!nox) def = PETSC_DRAW_WIN32;
@@ -361,7 +390,7 @@ PetscErrorCode  PetscDrawSetFromOptions(PetscDraw draw)
 #elif defined(PETSC_HAVE_OPENGLES)
     if (!nox) def = PETSC_DRAW_OPENGLES;
 #else
-    ierr = PetscOptionsHasName(NULL,"-nox_warning",&warn);CHKERRQ(ierr);
+    ierr = PetscOptionsHasName(NULL,NULL,"-nox_warning",&warn);CHKERRQ(ierr);
     if (!nox && !warn) (*PetscErrorPrintf)("PETSc installed without X windows, Microsoft Graphics, OpenGL ES, or GLUT/OpenGL on this machine\nproceeding without graphics\n");
 #endif
   }
@@ -387,6 +416,7 @@ PetscErrorCode  PetscDrawSetFromOptions(PetscDraw draw)
     if (save) {
       ierr = PetscDrawSetSaveFinalImage(draw,filename);CHKERRQ(ierr);
     }
+    ierr = PetscOptionsBool("-draw_save_on_clear","Save graphics to file (X Windows only) on each clear","PetscDrawSetSave",draw->saveonclear,&draw->saveonclear,NULL);CHKERRQ(ierr);
     ierr = PetscOptionsBool("-draw_save_on_flush","Save graphics to file (X Windows only) on each flush","PetscDrawSetSave",draw->saveonflush,&draw->saveonflush,NULL);CHKERRQ(ierr);
   }
 #endif
@@ -394,129 +424,9 @@ PetscErrorCode  PetscDrawSetFromOptions(PetscDraw draw)
   ierr = PetscOptionsEnum("-draw_marker_type","Type of marker to use on plots","PetscDrawSetMarkerType",PetscDrawMarkerTypes,(PetscEnum)draw->markertype,(PetscEnum *)&draw->markertype,NULL);CHKERRQ(ierr);
 
   /* process any options handlers added with PetscObjectAddOptionsHandler() */
-  ierr = PetscObjectProcessOptionsHandlers((PetscObject)draw);CHKERRQ(ierr);
+  ierr = PetscObjectProcessOptionsHandlers(PetscOptionsObject,(PetscObject)draw);CHKERRQ(ierr);
 
   ierr = PetscDrawViewFromOptions(draw,NULL,"-draw_view");CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "PetscDrawSetSave"
-/*@C
-   PetscDrawSetSave - Saves images produced in a PetscDraw into a file as a Gif file using AfterImage
-
-   Collective on PetscDraw
-
-   Input Parameter:
-+  draw      - the graphics context
-.  filename  - name of the file, if .ext then uses name of draw object plus .ext using .ext to determine the image type, if NULL use .Gif image type
--  movie - produce a movie of all the images
-
-   Options Database Command:
-+  -draw_save  <filename> - filename could be name.ext or .ext (where .ext determines the type of graphics file to save, for example .Gif)
-.  -draw_save_movie
-.  -draw_save_final_image [optional filename] - (X windows only) saves the final image displayed in a window
-.  -draw_save_on_flush - saves an image on each flush in addition to each clear
--  -draw_save_single_file - saves each new image in the same file, normally each new image is saved in a new file with filename_%d
-
-   Level: intermediate
-
-   Concepts: X windows^graphics
-
-   Notes: You should call this BEFORE calling PetscDrawClear() and creating your image.
-
-   Requires that PETSc be configured with the option --with-afterimage to save the images and ffmpeg must be in your path to make the movie
-
-   The .ext formats that are supported depend on what formats AfterImage was configured with; on the Apple Mac both .Gif and .Jpeg are supported.
-
-   If X windows generates an error message about X_CreateWindow() failing then Afterimage was installed without X windows. Reinstall Afterimage using the
-   ./configure flags --x-includes=/pathtoXincludes --x-libraries=/pathtoXlibraries   For example under Mac OS X Mountain Lion --x-includes=/opt/X11/include -x-libraries=/opt/X11/lib
-
-
-.seealso: PetscDrawSetFromOptions(), PetscDrawCreate(), PetscDrawDestroy(), PetscDrawSetSaveFinalImage()
-@*/
-PetscErrorCode  PetscDrawSetSave(PetscDraw draw,const char *filename,PetscBool movie)
-{
-  PetscErrorCode ierr;
-  char           *ext;
-
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(draw,PETSC_DRAW_CLASSID,1);
-  ierr = PetscFree(draw->savefilename);CHKERRQ(ierr);
-
-  /* determine extension of filename */
-  if (filename && filename[0]) {
-    ierr = PetscStrchr(filename,'.',&ext);CHKERRQ(ierr);
-    if (!ext) SETERRQ1(PetscObjectComm((PetscObject)draw),PETSC_ERR_ARG_INCOMP,"Filename %s should end with graphics extension (for example .Gif)",filename);
-  } else {
-    ext = (char *)".Gif";
-  }
-  if (ext == filename) filename = NULL;
-  ierr = PetscStrallocpy(ext,&draw->savefilenameext);CHKERRQ(ierr);
-
-  draw->savefilemovie = movie;
-  if (filename && filename[0]) {
-    size_t  l1,l2;
-    ierr = PetscStrlen(filename,&l1);CHKERRQ(ierr);
-    ierr = PetscStrlen(ext,&l2);CHKERRQ(ierr);
-    ierr = PetscMalloc1(l1-l2+1,&draw->savefilename);CHKERRQ(ierr);
-    ierr = PetscStrncpy(draw->savefilename,filename,l1-l2+1);CHKERRQ(ierr);
-  } else {
-    const char *name;
-
-    ierr = PetscObjectGetName((PetscObject)draw,&name);CHKERRQ(ierr);
-    ierr = PetscStrallocpy(name,&draw->savefilename);CHKERRQ(ierr);
-  }
-  ierr = PetscInfo2(NULL,"Will save images to file %s%s\n",draw->savefilename,draw->savefilenameext);CHKERRQ(ierr);
-  if (draw->ops->setsave) {
-    ierr = (*draw->ops->setsave)(draw,draw->savefilename);CHKERRQ(ierr);
-  }
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "PetscDrawSetSaveFinalImage"
-/*@C
-   PetscDrawSetSaveFinalImage - Saves the finale image produced in a PetscDraw into a file as a Gif file using AfterImage
-
-   Collective on PetscDraw
-
-   Input Parameter:
-+  draw      - the graphics context
--  filename  - name of the file, if NULL uses name of draw object
-
-   Options Database Command:
-.  -draw_save_final_image  <filename>
-
-   Level: intermediate
-
-   Concepts: X windows^graphics
-
-   Notes: You should call this BEFORE calling PetscDrawClear() and creating your image.
-
-   Requires that PETSc be configured with the option --with-afterimage to save the images and ffmpeg must be in your path to make the movie
-
-   If X windows generates an error message about X_CreateWindow() failing then Afterimage was installed without X windows. Reinstall Afterimage using the
-   ./configure flags --x-includes=/pathtoXincludes --x-libraries=/pathtoXlibraries   For example under Mac OS X Mountain Lion --x-includes=/opt/X11/include -x-libraries=/opt/X11/lib
-
-
-.seealso: PetscDrawSetFromOptions(), PetscDrawCreate(), PetscDrawDestroy(), PetscDrawSetSave()
-@*/
-PetscErrorCode  PetscDrawSetSaveFinalImage(PetscDraw draw,const char *filename)
-{
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(draw,PETSC_DRAW_CLASSID,1);
-  ierr = PetscFree(draw->savefinalfilename);CHKERRQ(ierr);
-
-  if (filename && filename[0]) {
-    ierr = PetscStrallocpy(filename,&draw->savefinalfilename);CHKERRQ(ierr);
-  } else {
-    const char *name;
-    ierr = PetscObjectGetName((PetscObject)draw,&name);CHKERRQ(ierr);
-    ierr = PetscStrallocpy(name,&draw->savefinalfilename);CHKERRQ(ierr);
-  }
   PetscFunctionReturn(0);
 }

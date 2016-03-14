@@ -55,7 +55,7 @@ static PetscErrorCode TaoLineSearchDestroy_OWArmijo(TaoLineSearch ls)
 
 #undef __FUNCT__
 #define __FUNCT__ "TaoLineSearchSetFromOptions_OWArmijo"
-static PetscErrorCode TaoLineSearchSetFromOptions_OWArmijo(PetscOptions *PetscOptionsObject,TaoLineSearch ls)
+static PetscErrorCode TaoLineSearchSetFromOptions_OWArmijo(PetscOptionItems *PetscOptionsObject,TaoLineSearch ls)
 {
   TaoLineSearch_OWARMIJO *armP = (TaoLineSearch_OWARMIJO *)ls->data;
   PetscErrorCode         ierr;
@@ -85,7 +85,6 @@ static PetscErrorCode TaoLineSearchView_OWArmijo(TaoLineSearch ls, PetscViewer p
   PetscFunctionBegin;
   ierr = PetscObjectTypeCompare((PetscObject)pv, PETSCVIEWERASCII, &isascii);CHKERRQ(ierr);
   if (isascii) {
-    ierr = PetscViewerASCIIPrintf(pv,"  maxf=%D, ftol=%g, gtol=%g\n",ls->max_funcs, (double)ls->rtol, (double)ls->ftol);CHKERRQ(ierr);
     ierr=PetscViewerASCIIPrintf(pv,"  OWArmijo linesearch",armP->alpha);CHKERRQ(ierr);
     if (armP->nondescending) {
       ierr = PetscViewerASCIIPrintf(pv, " (nondescending)");CHKERRQ(ierr);

@@ -1678,10 +1678,12 @@ PetscErrorCode MatSetOption_MPIBAIJ(Mat A,MatOption op,PetscBool flg)
   case MAT_UNUSED_NONZERO_LOCATION_ERR:
   case MAT_KEEP_NONZERO_PATTERN:
   case MAT_NEW_NONZERO_LOCATION_ERR:
+    MatCheckPreallocated(A,1);
     ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
     ierr = MatSetOption(a->B,op,flg);CHKERRQ(ierr);
     break;
   case MAT_ROW_ORIENTED:
+    MatCheckPreallocated(A,1);
     a->roworiented = flg;
 
     ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
@@ -1700,6 +1702,7 @@ PetscErrorCode MatSetOption_MPIBAIJ(Mat A,MatOption op,PetscBool flg)
   case MAT_STRUCTURALLY_SYMMETRIC:
   case MAT_HERMITIAN:
   case MAT_SYMMETRY_ETERNAL:
+    MatCheckPreallocated(A,1);
     ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
     break;
   default:
@@ -2652,13 +2655,14 @@ PetscErrorCode MatGetColumnNorms_MPIBAIJ(Mat A,NormType type,PetscReal *norms)
 
 #undef __FUNCT__
 #define __FUNCT__ "MatInvertBlockDiagonal_MPIBAIJ"
-PetscErrorCode  MatInvertBlockDiagonal_MPIBAIJ(Mat A,const PetscScalar **values)
+PetscErrorCode MatInvertBlockDiagonal_MPIBAIJ(Mat A,const PetscScalar **values)
 {
   Mat_MPIBAIJ    *a = (Mat_MPIBAIJ*) A->data;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = MatInvertBlockDiagonal(a->A,values);CHKERRQ(ierr);
+  A->errortype = a->A->errortype;
   PetscFunctionReturn(0);
 }
 
@@ -3107,7 +3111,7 @@ PETSC_EXTERN PetscErrorCode MatConvert_MPIBAIJ_MPIAIJ(Mat A,MatType newtype,MatR
   ierr = MatAssemblyEnd(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  if (reuse == MAT_REUSE_MATRIX) {
+  if (reuse == MAT_INPLACE_MATRIX) {
     ierr = MatHeaderReplace(A,&B);CHKERRQ(ierr);
   } else {
    *newmat = B;

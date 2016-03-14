@@ -1,4 +1,3 @@
-
 /*
        Provides the calling sequences for all the basic PetscDraw routines.
 */
@@ -7,9 +6,9 @@
 #undef __FUNCT__
 #define __FUNCT__ "PetscDrawFlush"
 /*@
-   PetscDrawFlush - Flushs graphical output.
+   PetscDrawFlush - Flushes graphical output.
 
-   Not collective (Use PetscDrawSynchronizedFlush() for collective)
+   Collective on PetscDraw
 
    Input Parameters:
 .  draw - the drawing context
@@ -18,7 +17,7 @@
 
    Concepts: flushing^graphics
 
-.seealso: PetscDrawSynchronizedFlush()
+.seealso: PetscDrawClear()
 @*/
 PetscErrorCode  PetscDrawFlush(PetscDraw draw)
 {

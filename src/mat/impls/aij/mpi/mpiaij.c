@@ -1382,7 +1382,8 @@ PetscErrorCode MatView_MPIAIJ_ASCIIorDraworSocket(Mat mat,PetscViewer viewer)
     PetscDraw draw;
     PetscBool isnull;
     ierr = PetscViewerDrawGetDraw(viewer,0,&draw);CHKERRQ(ierr);
-    ierr = PetscDrawIsNull(draw,&isnull);CHKERRQ(ierr); if (isnull) PetscFunctionReturn(0);
+    ierr = PetscDrawIsNull(draw,&isnull);CHKERRQ(ierr);
+    if (isnull) PetscFunctionReturn(0);
   }
 
   {
@@ -1563,6 +1564,8 @@ PetscErrorCode MatSOR_MPIAIJ(Mat matin,Vec bb,PetscReal omega,MatSORType flag,Pe
   } else SETERRQ(PetscObjectComm((PetscObject)matin),PETSC_ERR_SUP,"Parallel SOR not supported");
 
   ierr = VecDestroy(&bb1);CHKERRQ(ierr);
+
+  matin->errortype = mat->A->errortype;
   PetscFunctionReturn(0);
 }
 
@@ -1755,6 +1758,7 @@ PetscErrorCode MatSetOption_MPIAIJ(Mat A,MatOption op,PetscBool flg)
     ierr = MatSetOption(a->B,op,flg);CHKERRQ(ierr);
     break;
   case MAT_ROW_ORIENTED:
+    MatCheckPreallocated(A,1);
     a->roworiented = flg;
 
     ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
@@ -1777,15 +1781,19 @@ PetscErrorCode MatSetOption_MPIAIJ(Mat A,MatOption op,PetscBool flg)
     }
     break;
   case MAT_SYMMETRIC:
+    MatCheckPreallocated(A,1);
     ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
     break;
   case MAT_STRUCTURALLY_SYMMETRIC:
+    MatCheckPreallocated(A,1);
     ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
     break;
   case MAT_HERMITIAN:
+    MatCheckPreallocated(A,1);
     ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
     break;
   case MAT_SYMMETRY_ETERNAL:
+    MatCheckPreallocated(A,1);
     ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
     break;
   default:
@@ -2459,6 +2467,7 @@ PetscErrorCode  MatInvertBlockDiagonal_MPIAIJ(Mat A,const PetscScalar **values)
 
   PetscFunctionBegin;
   ierr = MatInvertBlockDiagonal(a->A,values);CHKERRQ(ierr);
+  A->errortype = a->A->errortype;
   PetscFunctionReturn(0);
 }
 
@@ -2498,6 +2507,8 @@ PetscErrorCode MatMPIAIJSetUseScalableIncreaseOverlap_MPIAIJ(Mat A,PetscBool sc)
 +    A - the matrix
 -    sc - PETSC_TRUE indicates use the scalable algorithm (default is not to use the scalable algorithm)
 
+ Level: advanced
+
 @*/
 PetscErrorCode MatMPIAIJSetUseScalableIncreaseOverlap(Mat A,PetscBool sc)
 {
@@ -2510,7 +2521,7 @@ PetscErrorCode MatMPIAIJSetUseScalableIncreaseOverlap(Mat A,PetscBool sc)
 
 #undef __FUNCT__
 #define __FUNCT__ "MatSetFromOptions_MPIAIJ"
-PetscErrorCode MatSetFromOptions_MPIAIJ(PetscOptions *PetscOptionsObject,Mat A)
+PetscErrorCode MatSetFromOptions_MPIAIJ(PetscOptionItems *PetscOptionsObject,Mat A)
 {
   PetscErrorCode       ierr;
   PetscBool            sc = PETSC_FALSE,flg;
@@ -4253,7 +4264,7 @@ PetscErrorCode  MatCreateMPIAIJSumSeqAIJSymbolic(MPI_Comm comm,Mat seqmat,PetscI
 
   /* initial FreeSpace size is 2*(num of local nnz(seqmat)) */
   len  = ai[owners[rank+1]] - ai[owners[rank]];
-  ierr = PetscFreeSpaceGet((PetscInt)(2*len+1),&free_space);CHKERRQ(ierr);
+  ierr = PetscFreeSpaceGet(PetscIntMultTruncate(2,len)+1,&free_space);CHKERRQ(ierr);
 
   current_space = free_space;
 
@@ -4291,7 +4302,7 @@ PetscErrorCode  MatCreateMPIAIJSumSeqAIJSymbolic(MPI_Comm comm,Mat seqmat,PetscI
 
     /* if free space is not available, make more free space */
     if (current_space->local_remaining<bnzi) {
-      ierr = PetscFreeSpaceGet(bnzi+current_space->total_array_size,&current_space);CHKERRQ(ierr);
+      ierr = PetscFreeSpaceGet(PetscIntSumTruncate(bnzi,current_space->total_array_size),&current_space);CHKERRQ(ierr);
       nspacedouble++;
     }
     /* copy data into free space, then initialize lnk */
@@ -4784,10 +4795,11 @@ PetscErrorCode  MatGetBrowsOfAoCols_MPIAIJ(Mat A,Mat B,MatReuse scall,PetscInt *
     k         = 0;
     for (i=0; i<nrecvs; i++) {
       rowlen = (PetscInt*)rvalues + rstarts[i]*rbs;
-      nrows  = rbs*(rstarts[i+1]-rstarts[i]); /* num of rows to be recieved */
+      nrows  = rbs*(rstarts[i+1]-rstarts[i]); /* num of rows to be received */
       for (j=0; j<nrows; j++) {
         b_othi[k+1] = b_othi[k] + rowlen[j];
-        len        += rowlen[j]; k++;
+        ierr = PetscIntSumError(rowlen[j],len,&len);
+        k++;
       }
       rstartsj[i+1] = len; /* starting point of (i+1)-th incoming msg in bufj and bufa */
     }

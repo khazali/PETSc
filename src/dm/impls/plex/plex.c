@@ -71,7 +71,7 @@ PetscErrorCode VecView_Plex_Local(Vec v, PetscViewer viewer)
       ierr = DMGetField(dm, 0, &fe);CHKERRQ(ierr);
       if (fe->classid == PETSCFE_CLASSID) fem = PETSC_TRUE;
     }
-    if (fem) {ierr = DMPlexInsertBoundaryValues(dm, v, 0.0, NULL, NULL, NULL);CHKERRQ(ierr);}
+    if (fem) {ierr = DMPlexInsertBoundaryValues(dm, PETSC_TRUE, v, 0.0, NULL, NULL, NULL);CHKERRQ(ierr);}
   }
   if (isvtk) {
     PetscSection            section;
@@ -396,7 +396,7 @@ PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
     ierr = PetscViewerASCIIPopSynchronized(viewer);CHKERRQ(ierr);
     ierr = PetscSectionGetChart(coordSection, &pStart, NULL);CHKERRQ(ierr);
     if (pStart >= 0) {ierr = PetscSectionVecView(coordSection, coordinates, viewer);CHKERRQ(ierr);}
-    ierr = DMPlexGetLabel(dm, "marker", &markers);CHKERRQ(ierr);
+    ierr = DMGetLabel(dm, "marker", &markers);CHKERRQ(ierr);
     ierr = DMLabelView(markers,viewer);CHKERRQ(ierr);
     if (size > 1) {
       PetscSF sf;
@@ -419,21 +419,21 @@ PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
 
     ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
     ierr = DMPlexGetDepth(dm, &depth);CHKERRQ(ierr);
-    ierr = DMPlexGetNumLabels(dm, &numLabels);CHKERRQ(ierr);
+    ierr = DMGetNumLabels(dm, &numLabels);CHKERRQ(ierr);
     numLabels  = PetscMax(numLabels, 10);
     numColors  = 10;
     numLColors = 10;
     ierr = PetscCalloc3(numLabels, &names, numColors, &colors, numLColors, &lcolors);CHKERRQ(ierr);
-    ierr = PetscOptionsGetReal(((PetscObject) viewer)->prefix, "-dm_plex_view_scale", &scale, NULL);CHKERRQ(ierr);
-    ierr = PetscOptionsGetBool(((PetscObject) viewer)->prefix, "-dm_plex_view_numbers", &useNumbers, NULL);CHKERRQ(ierr);
-    ierr = PetscOptionsGetStringArray(((PetscObject) viewer)->prefix, "-dm_plex_view_labels", names, &numLabels, &useLabels);CHKERRQ(ierr);
+    ierr = PetscOptionsGetReal(((PetscObject) viewer)->options,((PetscObject) viewer)->prefix, "-dm_plex_view_scale", &scale, NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsGetBool(((PetscObject) viewer)->options,((PetscObject) viewer)->prefix, "-dm_plex_view_numbers", &useNumbers, NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsGetStringArray(((PetscObject) viewer)->options,((PetscObject) viewer)->prefix, "-dm_plex_view_labels", names, &numLabels, &useLabels);CHKERRQ(ierr);
     if (!useLabels) numLabels = 0;
-    ierr = PetscOptionsGetStringArray(((PetscObject) viewer)->prefix, "-dm_plex_view_colors", colors, &numColors, &useColors);CHKERRQ(ierr);
+    ierr = PetscOptionsGetStringArray(((PetscObject) viewer)->options,((PetscObject) viewer)->prefix, "-dm_plex_view_colors", colors, &numColors, &useColors);CHKERRQ(ierr);
     if (!useColors) {
       numColors = 3;
       for (c = 0; c < numColors; ++c) {ierr = PetscStrallocpy(defcolors[c], &colors[c]);CHKERRQ(ierr);}
     }
-    ierr = PetscOptionsGetStringArray(((PetscObject) viewer)->prefix, "-dm_plex_view_lcolors", lcolors, &numLColors, &useColors);CHKERRQ(ierr);
+    ierr = PetscOptionsGetStringArray(((PetscObject) viewer)->options,((PetscObject) viewer)->prefix, "-dm_plex_view_lcolors", lcolors, &numLColors, &useColors);CHKERRQ(ierr);
     if (!useColors) {
       numLColors = 4;
       for (c = 0; c < numLColors; ++c) {ierr = PetscStrallocpy(deflcolors[c], &lcolors[c]);CHKERRQ(ierr);}
@@ -485,7 +485,7 @@ PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
       color = colors[rank%numColors];
       for (l = 0; l < numLabels; ++l) {
         PetscInt val;
-        ierr = DMPlexGetLabelValue(dm, names[l], v, &val);CHKERRQ(ierr);
+        ierr = DMGetLabelValue(dm, names[l], v, &val);CHKERRQ(ierr);
         if (val >= 0) {color = lcolors[l%numLColors]; isLabeled = PETSC_TRUE; break;}
       }
       if (useNumbers) {
@@ -525,7 +525,7 @@ PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
         color = colors[rank%numColors];
         for (l = 0; l < numLabels; ++l) {
           PetscInt val;
-          ierr = DMPlexGetLabelValue(dm, names[l], v, &val);CHKERRQ(ierr);
+          ierr = DMGetLabelValue(dm, names[l], v, &val);CHKERRQ(ierr);
           if (val >= 0) {color = lcolors[l%numLColors]; break;}
         }
         ierr = PetscViewerASCIISynchronizedPrintf(viewer, ") node(%D_%d) [draw,shape=circle,color=%s] {%D} --\n", e, rank, color, e);CHKERRQ(ierr);
@@ -542,7 +542,7 @@ PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
         color = colors[rank%numColors];
         for (l = 0; l < numLabels; ++l) {
           PetscInt val;
-          ierr = DMPlexGetLabelValue(dm, names[l], e, &val);CHKERRQ(ierr);
+          ierr = DMGetLabelValue(dm, names[l], e, &val);CHKERRQ(ierr);
           if (val >= 0) {color = lcolors[l%numLColors]; break;}
         }
         ierr = DMPlexGetCone(dm, e, &cone);CHKERRQ(ierr);
@@ -625,7 +625,7 @@ PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
       }
     }
     ierr = PetscFree2(sizes,hybsizes);CHKERRQ(ierr);
-    ierr = DMPlexGetNumLabels(dm, &numLabels);CHKERRQ(ierr);
+    ierr = DMGetNumLabels(dm, &numLabels);CHKERRQ(ierr);
     if (numLabels) {ierr = PetscViewerASCIIPrintf(viewer, "Labels:\n");CHKERRQ(ierr);}
     for (l = 0; l < numLabels; ++l) {
       DMLabel         label;
@@ -634,8 +634,8 @@ PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
       const PetscInt *values;
       PetscInt        numValues, v;
 
-      ierr = DMPlexGetLabelName(dm, l, &name);CHKERRQ(ierr);
-      ierr = DMPlexGetLabel(dm, name, &label);CHKERRQ(ierr);
+      ierr = DMGetLabelName(dm, l, &name);CHKERRQ(ierr);
+      ierr = DMGetLabel(dm, name, &label);CHKERRQ(ierr);
       ierr = DMLabelGetNumValues(label, &numValues);CHKERRQ(ierr);
       ierr = PetscViewerASCIIPrintf(viewer, "  %s: %D strata of sizes (", name, numValues);CHKERRQ(ierr);
       ierr = DMLabelGetValueIS(label, &valueIS);CHKERRQ(ierr);
@@ -651,7 +651,7 @@ PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
       ierr = ISRestoreIndices(valueIS, &values);CHKERRQ(ierr);
       ierr = ISDestroy(&valueIS);CHKERRQ(ierr);
     }
-    ierr = DMPlexGetCoarseDM(dm, &cdm);CHKERRQ(ierr);
+    ierr = DMGetCoarseDM(dm, &cdm);CHKERRQ(ierr);
     if (cdm) {
       ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
       ierr = DMPlexView_Ascii(cdm, viewer);CHKERRQ(ierr);
@@ -714,34 +714,12 @@ PetscErrorCode DMLoad_Plex(DM dm, PetscViewer viewer)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "BoundaryDestroy"
-static PetscErrorCode BoundaryDestroy(DMBoundary *boundary)
-{
-  DMBoundary     b, next;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  if (!boundary) PetscFunctionReturn(0);
-  b = *boundary;
-  *boundary = NULL;
-  for (; b; b = next) {
-    next = b->next;
-    ierr = PetscFree(b->comps);CHKERRQ(ierr);
-    ierr = PetscFree(b->ids);CHKERRQ(ierr);
-    ierr = PetscFree(b->name);CHKERRQ(ierr);
-    ierr = PetscFree(b->labelname);CHKERRQ(ierr);
-    ierr = PetscFree(b);CHKERRQ(ierr);
-  }
-  PetscFunctionReturn(0);
-}
 
 #undef __FUNCT__
 #define __FUNCT__ "DMDestroy_Plex"
 PetscErrorCode DMDestroy_Plex(DM dm)
 {
   DM_Plex       *mesh = (DM_Plex*) dm->data;
-  PlexLabel      next = mesh->labels;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -755,18 +733,9 @@ PetscErrorCode DMDestroy_Plex(DM dm)
   ierr = PetscFree(mesh->tetgenOpts);CHKERRQ(ierr);
   ierr = PetscFree(mesh->triangleOpts);CHKERRQ(ierr);
   ierr = PetscPartitionerDestroy(&mesh->partitioner);CHKERRQ(ierr);
-  while (next) {
-    PlexLabel tmp = next->next;
-
-    ierr = DMLabelDestroy(&next->label);CHKERRQ(ierr);
-    ierr = PetscFree(next);CHKERRQ(ierr);
-    next = tmp;
-  }
-  ierr = DMDestroy(&mesh->coarseMesh);CHKERRQ(ierr);
   ierr = DMLabelDestroy(&mesh->subpointMap);CHKERRQ(ierr);
   ierr = ISDestroy(&mesh->globalVertexNumbers);CHKERRQ(ierr);
   ierr = ISDestroy(&mesh->globalCellNumbers);CHKERRQ(ierr);
-  ierr = BoundaryDestroy(&mesh->boundary);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&mesh->anchorSection);CHKERRQ(ierr);
   ierr = ISDestroy(&mesh->anchorIS);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&mesh->parentSection);CHKERRQ(ierr);
@@ -1880,7 +1849,7 @@ PetscErrorCode DMPlexSymmetrize(DM dm)
   same grade, and this function calculates the strata. This grade can be seen as the height (or depth) of the point in
   the DAG.
 
-  Not collective
+  Collective on dm
 
   Input Parameter:
 . mesh - The DMPlex
@@ -1890,7 +1859,7 @@ PetscErrorCode DMPlexSymmetrize(DM dm)
   Notes:
   Concretely, DMPlexStratify() creates a new label named "depth" containing the dimension of each element: 0 for vertices,
   1 for edges, and so on.  The depth label can be accessed through DMPlexGetDepthLabel() or DMPlexGetDepthStratum(), or
-  manually via DMPlexGetLabel().  The height is defined implicitly by height = maxDimension - depth, and can be accessed
+  manually via DMGetLabel().  The height is defined implicitly by height = maxDimension - depth, and can be accessed
   via DMPlexGetHeightStratum().  For example, cells have height 0 and faces have height 1.
 
   DMPlexStratify() should be called after all calls to DMPlexSymmetrize()
@@ -1912,7 +1881,7 @@ PetscErrorCode DMPlexStratify(DM dm)
   ierr = PetscLogEventBegin(DMPLEX_Stratify,dm,0,0,0);CHKERRQ(ierr);
   /* Calculate depth */
   ierr = DMPlexGetChart(dm, &pStart, &pEnd);CHKERRQ(ierr);
-  ierr = DMPlexCreateLabel(dm, "depth");CHKERRQ(ierr);
+  ierr = DMCreateLabel(dm, "depth");CHKERRQ(ierr);
   ierr = DMPlexGetDepthLabel(dm, &label);CHKERRQ(ierr);
   /* Initialize roots and count leaves */
   for (p = pStart; p < pEnd; ++p) {
@@ -1971,6 +1940,16 @@ PetscErrorCode DMPlexStratify(DM dm)
     }
     ierr = ISDestroy(&pointIS);CHKERRQ(ierr);
   }
+  { /* just in case there is an empty process */
+    PetscInt numValues, maxValues = 0, v;
+
+    ierr = DMLabelGetNumValues(label,&numValues);CHKERRQ(ierr);
+    ierr = MPI_Allreduce(&numValues,&maxValues,1,MPIU_INT,MPIU_MAX,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
+    for (v = numValues; v < maxValues; v++) {
+      DMLabelAddStratum(label,v);CHKERRQ(ierr);
+    }
+  }
+
   ierr = DMLabelGetState(label, &mesh->depthState);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(DMPLEX_Stratify,dm,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -2565,216 +2544,6 @@ PetscErrorCode DMPlexGetNumFaceVertices(DM dm, PetscInt cellDim, PetscInt numCor
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMPlexLocalizeCoordinate"
-/*@
-  DMPlexLocalizeCoordinate - If a mesh is periodic (a torus with lengths L_i, some of which can be infinite), project the coordinate onto [0, L_i) in each dimension.
-
-  Input Parameters:
-+ dm     - The DM
-- in     - The input coordinate point (dim numbers)
-
-  Output Parameter:
-. out - The localized coordinate point
-
-  Level: developer
-
-.seealso: DMPlexLocalizeCoordinates(), DMPlexLocalizeAddCoordinate()
-@*/
-PetscErrorCode DMPlexLocalizeCoordinate(DM dm, const PetscScalar in[], PetscScalar out[])
-{
-  PetscInt       dim, d;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
-  if (!dm->maxCell) {
-    for (d = 0; d < dim; ++d) out[d] = in[d];
-  } else {
-    for (d = 0; d < dim; ++d) {
-      out[d] = in[d] - dm->L[d]*floor(PetscRealPart(in[d])/dm->L[d]);
-    }
-  }
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "DMPlexLocalizeCoordinate_Internal"
-/*
-  DMPlexLocalizeCoordinate_Internal - If a mesh is periodic, and the input point is far from the anchor, pick the coordinate sheet of the torus which moves it closer.
-
-  Input Parameters:
-+ dm     - The DM
-. dim    - The spatial dimension
-. anchor - The anchor point, the input point can be no more than maxCell away from it
-- in     - The input coordinate point (dim numbers)
-
-  Output Parameter:
-. out - The localized coordinate point
-
-  Level: developer
-
-  Note: This is meant to get a set of coordinates close to each other, as in a cell. The anchor is usually the one of the vertices on a containing cell
-
-.seealso: DMPlexLocalizeCoordinates(), DMPlexLocalizeAddCoordinate()
-*/
-PetscErrorCode DMPlexLocalizeCoordinate_Internal(DM dm, PetscInt dim, const PetscScalar anchor[], const PetscScalar in[], PetscScalar out[])
-{
-  PetscInt d;
-
-  PetscFunctionBegin;
-  if (!dm->maxCell) {
-    for (d = 0; d < dim; ++d) out[d] = in[d];
-  } else {
-    for (d = 0; d < dim; ++d) {
-      if (PetscAbsScalar(anchor[d] - in[d]) > dm->maxCell[d]) {
-        out[d] = PetscRealPart(anchor[d]) > PetscRealPart(in[d]) ? dm->L[d] + in[d] : in[d] - dm->L[d];
-      } else {
-        out[d] = in[d];
-      }
-    }
-  }
-  PetscFunctionReturn(0);
-}
-#undef __FUNCT__
-#define __FUNCT__ "DMPlexLocalizeCoordinateReal_Internal"
-PetscErrorCode DMPlexLocalizeCoordinateReal_Internal(DM dm, PetscInt dim, const PetscReal anchor[], const PetscReal in[], PetscReal out[])
-{
-  PetscInt d;
-
-  PetscFunctionBegin;
-  if (!dm->maxCell) {
-    for (d = 0; d < dim; ++d) out[d] = in[d];
-  } else {
-    for (d = 0; d < dim; ++d) {
-      if (PetscAbsReal(anchor[d] - in[d]) > dm->maxCell[d]) {
-        out[d] = anchor[d] > in[d] ? dm->L[d] + in[d] : in[d] - dm->L[d];
-      } else {
-        out[d] = in[d];
-      }
-    }
-  }
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "DMPlexLocalizeAddCoordinate_Internal"
-/*
-  DMPlexLocalizeAddCoordinate_Internal - If a mesh is periodic, and the input point is far from the anchor, pick the coordinate sheet of the torus which moves it closer.
-
-  Input Parameters:
-+ dm     - The DM
-. dim    - The spatial dimension
-. anchor - The anchor point, the input point can be no more than maxCell away from it
-. in     - The input coordinate delta (dim numbers)
-- out    - The input coordinate point (dim numbers)
-
-  Output Parameter:
-. out    - The localized coordinate in + out
-
-  Level: developer
-
-  Note: This is meant to get a set of coordinates close to each other, as in a cell. The anchor is usually the one of the vertices on a containing cell
-
-.seealso: DMPlexLocalizeCoordinates(), DMPlexLocalizeCoordinate()
-*/
-PetscErrorCode DMPlexLocalizeAddCoordinate_Internal(DM dm, PetscInt dim, const PetscScalar anchor[], const PetscScalar in[], PetscScalar out[])
-{
-  PetscInt d;
-
-  PetscFunctionBegin;
-  if (!dm->maxCell) {
-    for (d = 0; d < dim; ++d) out[d] += in[d];
-  } else {
-    for (d = 0; d < dim; ++d) {
-      if (PetscAbsScalar(anchor[d] - in[d]) > dm->maxCell[d]) {
-        out[d] += PetscRealPart(anchor[d]) > PetscRealPart(in[d]) ? dm->L[d] + in[d] : in[d] - dm->L[d];
-      } else {
-        out[d] += in[d];
-      }
-    }
-  }
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "DMPlexLocalizeCoordinates"
-/*@
-  DMPlexLocalizeCoordinates - If a mesh is periodic, create local coordinates for each cell
-
-  Input Parameter:
-. dm - The DM
-
-  Level: developer
-
-.seealso: DMPlexLocalizeCoordinate(), DMPlexLocalizeAddCoordinate()
-@*/
-PetscErrorCode DMPlexLocalizeCoordinates(DM dm)
-{
-  PetscSection   coordSection, cSection;
-  Vec            coordinates,  cVec;
-  PetscScalar   *coords, *coords2, *anchor;
-  PetscInt       Nc, cStart, cEnd, c, vStart, vEnd, v, dof, d, off, off2, bs, coordSize;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  if (!dm->maxCell) PetscFunctionReturn(0);
-  ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
-  ierr = DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
-  ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
-  ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
-  ierr = PetscSectionCreate(PetscObjectComm((PetscObject) dm), &cSection);CHKERRQ(ierr);
-  ierr = PetscSectionSetNumFields(cSection, 1);CHKERRQ(ierr);
-  ierr = PetscSectionGetFieldComponents(coordSection, 0, &Nc);CHKERRQ(ierr);
-  ierr = PetscSectionSetFieldComponents(cSection, 0, Nc);CHKERRQ(ierr);
-  ierr = PetscSectionSetChart(cSection, cStart, vEnd);CHKERRQ(ierr);
-  for (v = vStart; v < vEnd; ++v) {
-    ierr = PetscSectionGetDof(coordSection, v, &dof);CHKERRQ(ierr);
-    ierr = PetscSectionSetDof(cSection,     v,  dof);CHKERRQ(ierr);
-    ierr = PetscSectionSetFieldDof(cSection, v, 0, dof);CHKERRQ(ierr);
-  }
-  for (c = cStart; c < cEnd; ++c) {
-    ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, c, &dof, NULL);CHKERRQ(ierr);
-    ierr = PetscSectionSetDof(cSection, c, dof);CHKERRQ(ierr);
-    ierr = PetscSectionSetFieldDof(cSection, c, 0, dof);CHKERRQ(ierr);
-  }
-  ierr = PetscSectionSetUp(cSection);CHKERRQ(ierr);
-  ierr = PetscSectionGetStorageSize(cSection, &coordSize);CHKERRQ(ierr);
-  ierr = VecCreate(PetscObjectComm((PetscObject) dm), &cVec);CHKERRQ(ierr);
-  ierr = VecGetBlockSize(coordinates, &bs);CHKERRQ(ierr);
-  ierr = VecSetBlockSize(cVec,         bs);CHKERRQ(ierr);
-  ierr = VecSetSizes(cVec, coordSize, PETSC_DETERMINE);CHKERRQ(ierr);
-  ierr = VecSetType(cVec,VECSTANDARD);CHKERRQ(ierr);
-  ierr = VecGetArray(coordinates, &coords);CHKERRQ(ierr);
-  ierr = VecGetArray(cVec,        &coords2);CHKERRQ(ierr);
-  for (v = vStart; v < vEnd; ++v) {
-    ierr = PetscSectionGetDof(coordSection, v, &dof);CHKERRQ(ierr);
-    ierr = PetscSectionGetOffset(coordSection, v, &off);CHKERRQ(ierr);
-    ierr = PetscSectionGetOffset(cSection,     v, &off2);CHKERRQ(ierr);
-    for (d = 0; d < dof; ++d) coords2[off2+d] = coords[off+d];
-  }
-  ierr = DMGetWorkArray(dm, 3, PETSC_SCALAR, &anchor);CHKERRQ(ierr);
-  for (c = cStart; c < cEnd; ++c) {
-    PetscScalar *cellCoords = NULL;
-    PetscInt     b;
-
-    ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, c, &dof, &cellCoords);CHKERRQ(ierr);
-    ierr = PetscSectionGetOffset(cSection, c, &off2);CHKERRQ(ierr);
-    for (b = 0; b < bs; ++b) anchor[b] = cellCoords[b];
-    for (d = 0; d < dof/bs; ++d) {ierr = DMPlexLocalizeCoordinate_Internal(dm, bs, anchor, &cellCoords[d*bs], &coords2[off2+d*bs]);CHKERRQ(ierr);}
-    ierr = DMPlexVecRestoreClosure(dm, coordSection, coordinates, c, &dof, &cellCoords);CHKERRQ(ierr);
-  }
-  ierr = DMRestoreWorkArray(dm, 3, PETSC_SCALAR, &anchor);CHKERRQ(ierr);
-  ierr = VecRestoreArray(coordinates, &coords);CHKERRQ(ierr);
-  ierr = VecRestoreArray(cVec,        &coords2);CHKERRQ(ierr);
-  ierr = DMSetCoordinateSection(dm, PETSC_DETERMINE, cSection);CHKERRQ(ierr);
-  ierr = DMSetCoordinatesLocal(dm, cVec);CHKERRQ(ierr);
-  ierr = VecDestroy(&cVec);CHKERRQ(ierr);
-  ierr = PetscSectionDestroy(&cSection);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
 #define __FUNCT__ "DMPlexGetDepthLabel"
 /*@
   DMPlexGetDepthLabel - Get the DMLabel recording the depth of each point
@@ -2794,14 +2563,13 @@ PetscErrorCode DMPlexLocalizeCoordinates(DM dm)
 @*/
 PetscErrorCode DMPlexGetDepthLabel(DM dm, DMLabel *depthLabel)
 {
-  DM_Plex       *mesh = (DM_Plex*) dm->data;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidPointer(depthLabel, 2);
-  if (!mesh->depthLabel) {ierr = DMPlexGetLabel(dm, "depth", &mesh->depthLabel);CHKERRQ(ierr);}
-  *depthLabel = mesh->depthLabel;
+  if (!dm->depthLabel) {ierr = DMGetLabel(dm, "depth", &dm->depthLabel);CHKERRQ(ierr);}
+  *depthLabel = dm->depthLabel;
   PetscFunctionReturn(0);
 }
 
@@ -3228,7 +2996,8 @@ PetscErrorCode DMPlexCreateSection(DM dm, PetscInt dim, PetscInt numFields,const
 #define __FUNCT__ "DMCreateCoordinateDM_Plex"
 PetscErrorCode DMCreateCoordinateDM_Plex(DM dm, DM *cdm)
 {
-  PetscSection   section;
+  PetscSection   section, s;
+  Mat            m;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -3236,6 +3005,11 @@ PetscErrorCode DMCreateCoordinateDM_Plex(DM dm, DM *cdm)
   ierr = PetscSectionCreate(PetscObjectComm((PetscObject)dm), &section);CHKERRQ(ierr);
   ierr = DMSetDefaultSection(*cdm, section);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&section);CHKERRQ(ierr);
+  ierr = PetscSectionCreate(PETSC_COMM_SELF, &s);CHKERRQ(ierr);
+  ierr = MatCreate(PETSC_COMM_SELF, &m);CHKERRQ(ierr);
+  ierr = DMSetDefaultConstraints(*cdm, s, m);CHKERRQ(ierr);
+  ierr = PetscSectionDestroy(&s);CHKERRQ(ierr);
+  ierr = MatDestroy(&m);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -4190,7 +3964,7 @@ PetscErrorCode indicesPointFields_private(PetscSection section, PetscInt point, 
         }
       }
     }
-    foff     += fdof - cfdof;
+    foff     += (setBC ? fdof : (fdof - cfdof));
     foffs[f] += fdof;
   }
   PetscFunctionReturn(0);
@@ -4198,7 +3972,7 @@ PetscErrorCode indicesPointFields_private(PetscSection section, PetscInt point, 
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexAnchorsModifyMat"
-static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscInt numPoints, PetscInt numIndices, const PetscInt points[], const PetscScalar values[], PetscInt *outNumPoints, PetscInt *outNumIndices, PetscInt *outPoints[], PetscScalar *outValues[], PetscInt offsets[])
+PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscInt numPoints, PetscInt numIndices, const PetscInt points[], const PetscScalar values[], PetscInt *outNumPoints, PetscInt *outNumIndices, PetscInt *outPoints[], PetscScalar *outValues[], PetscInt offsets[], PetscBool multiplyLeft)
 {
   Mat             cMat;
   PetscSection    aSec, cSec;
@@ -4213,7 +3987,7 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
   PetscInt        *pointMatOffsets[32];
   PetscInt        *newPointOffsets[32];
   PetscScalar     *pointMat[32];
-  PetscScalar     *newValues,*tmpValues;
+  PetscScalar     *newValues=NULL,*tmpValues;
   PetscBool       anyConstrained = PETSC_FALSE;
   PetscErrorCode  ierr;
 
@@ -4233,8 +4007,12 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
      * into the global matrix anyway) */
     for (p = 0; p < 2*numPoints; p+=2) {
       PetscInt b    = points[p];
-      PetscInt bDof = 0;
+      PetscInt bDof = 0, bSecDof;
 
+      ierr = PetscSectionGetDof(section,b,&bSecDof);CHKERRQ(ierr);
+      if (!bSecDof) {
+        continue;
+      }
       if (b >= aStart && b < aEnd) {
         ierr = PetscSectionGetDof(aSec,b,&bDof);CHKERRQ(ierr);
       }
@@ -4263,8 +4041,7 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
       else {
         /* this point is not constrained */
         newNumPoints++;
-        ierr           = PetscSectionGetDof(section,b,&bDof);CHKERRQ(ierr);
-        newNumIndices += bDof;
+        newNumIndices += bSecDof;
         for (f = 0; f < numFields; ++f) {
           PetscInt fDof;
 
@@ -4283,18 +4060,26 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
     PetscFunctionReturn(0);
   }
 
+  if (outNumPoints)  *outNumPoints  = newNumPoints;
+  if (outNumIndices) *outNumIndices = newNumIndices;
+
   for (f = 1; f < numFields; ++f) newOffsets[f+1] += newOffsets[f];
+
+  if (!outPoints && !outValues) {
+    if (offsets) {
+      for (f = 0; f <= numFields; f++) {
+        offsets[f] = newOffsets[f];
+      }
+    }
+    if (aSec) {ierr = ISRestoreIndices(aIS,&anchors);CHKERRQ(ierr);}
+    PetscFunctionReturn(0);
+  }
 
   if (numFields && newOffsets[numFields] != newNumIndices) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Invalid size for closure %D should be %D", newOffsets[numFields], newNumIndices);
 
   ierr = DMGetDefaultConstraints(dm, &cSec, &cMat);CHKERRQ(ierr);
 
-  /* output arrays */
-  ierr = DMGetWorkArray(dm,2*newNumPoints,PETSC_INT,&newPoints);CHKERRQ(ierr);
-  ierr = DMGetWorkArray(dm,newNumIndices*newNumIndices,PETSC_SCALAR,&newValues);CHKERRQ(ierr);
-
   /* workspaces */
-  ierr = DMGetWorkArray(dm,newNumIndices*numIndices,PETSC_SCALAR,&tmpValues);CHKERRQ(ierr);
   if (numFields) {
     for (f = 0; f < numFields; f++) {
       ierr = DMGetWorkArray(dm,numPoints+1,PETSC_INT,&pointMatOffsets[f]);CHKERRQ(ierr);
@@ -4308,10 +4093,20 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
 
   /* get workspaces for the point-to-point matrices */
   if (numFields) {
+    PetscInt totalOffset, totalMatOffset;
+
     for (p = 0; p < numPoints; p++) {
       PetscInt b    = points[2*p];
-      PetscInt bDof = 0;
+      PetscInt bDof = 0, bSecDof;
 
+      ierr = PetscSectionGetDof(section,b,&bSecDof);CHKERRQ(ierr);
+      if (!bSecDof) {
+        for (f = 0; f < numFields; f++) {
+          newPointOffsets[f][p + 1] = 0;
+          pointMatOffsets[f][p + 1] = 0;
+        }
+        continue;
+      }
       if (b >= aStart && b < aEnd) {
         ierr = PetscSectionGetDof(aSec, b, &bDof);CHKERRQ(ierr);
       }
@@ -4342,28 +4137,35 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
         }
       }
     }
-    for (f = 0; f < numFields; f++) {
-      newPointOffsets[f][0] = 0;
-      pointMatOffsets[f][0] = 0;
+    for (f = 0, totalOffset = 0, totalMatOffset = 0; f < numFields; f++) {
+      newPointOffsets[f][0] = totalOffset;
+      pointMatOffsets[f][0] = totalMatOffset;
       for (p = 0; p < numPoints; p++) {
         newPointOffsets[f][p+1] += newPointOffsets[f][p];
         pointMatOffsets[f][p+1] += pointMatOffsets[f][p];
       }
+      totalOffset    = newPointOffsets[f][numPoints];
+      totalMatOffset = pointMatOffsets[f][numPoints];
       ierr = DMGetWorkArray(dm,pointMatOffsets[f][numPoints],PETSC_SCALAR,&pointMat[f]);CHKERRQ(ierr);
     }
   }
   else {
     for (p = 0; p < numPoints; p++) {
       PetscInt b    = points[2*p];
-      PetscInt bDof = 0;
+      PetscInt bDof = 0, bSecDof;
 
+      ierr = PetscSectionGetDof(section,b,&bSecDof);CHKERRQ(ierr);
+      if (!bSecDof) {
+        newPointOffsets[0][p + 1] = 0;
+        pointMatOffsets[0][p + 1] = 0;
+        continue;
+      }
       if (b >= aStart && b < aEnd) {
         ierr = PetscSectionGetDof(aSec, b, &bDof);CHKERRQ(ierr);
       }
       if (bDof) {
-        PetscInt dof, bOff, q, allDof = 0;
+        PetscInt bOff, q, allDof = 0;
 
-        ierr = PetscSectionGetDof(section, b, &dof);CHKERRQ(ierr);
         ierr = PetscSectionGetOffset(aSec, b, &bOff);CHKERRQ(ierr);
         for (q = 0; q < bDof; q++) {
           PetscInt a = anchors[bOff + q], aDof;
@@ -4372,13 +4174,10 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
           allDof += aDof;
         }
         newPointOffsets[0][p+1] = allDof;
-        pointMatOffsets[0][p+1] = dof * allDof;
+        pointMatOffsets[0][p+1] = bSecDof * allDof;
       }
       else {
-        PetscInt dof;
-
-        ierr = PetscSectionGetDof(section, b, &dof);CHKERRQ(ierr);
-        newPointOffsets[0][p+1] = dof;
+        newPointOffsets[0][p+1] = bSecDof;
         pointMatOffsets[0][p+1] = 0;
       }
     }
@@ -4391,6 +4190,9 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
     ierr = DMGetWorkArray(dm,pointMatOffsets[0][numPoints],PETSC_SCALAR,&pointMat[0]);CHKERRQ(ierr);
   }
 
+  /* output arrays */
+  ierr = DMGetWorkArray(dm,2*newNumPoints,PETSC_INT,&newPoints);CHKERRQ(ierr);
+
   /* get the point-to-point matrices; construct newPoints */
   ierr = PetscSectionGetMaxDof(aSec, &maxAnchor);CHKERRQ(ierr);
   ierr = PetscSectionGetMaxDof(section, &maxDof);CHKERRQ(ierr);
@@ -4400,8 +4202,12 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
     for (p = 0, newP = 0; p < numPoints; p++) {
       PetscInt b    = points[2*p];
       PetscInt o    = points[2*p+1];
-      PetscInt bDof = 0;
+      PetscInt bDof = 0, bSecDof;
 
+      ierr = PetscSectionGetDof(section, b, &bSecDof);CHKERRQ(ierr);
+      if (!bSecDof) {
+        continue;
+      }
       if (b >= aStart && b < aEnd) {
         ierr = PetscSectionGetDof(aSec, b, &bDof);CHKERRQ(ierr);
       }
@@ -4428,7 +4234,7 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
           fAnchorStart[f+1] = fAnchorStart[f] + fDof;
           fAnchorEnd[f+1]   = fAnchorStart[f + 1];
         }
-        ierr = PetscSectionGetOffset (aSec, b, &bOff);CHKERRQ(ierr);
+        ierr = PetscSectionGetOffset(aSec, b, &bOff);CHKERRQ(ierr);
         for (q = 0; q < bDof; q++) {
           PetscInt a = anchors[bOff + q], aOff;
 
@@ -4440,9 +4246,11 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
         }
         newP += bDof;
 
-        /* get the point-to-point submatrix */
-        for (f = 0; f < numFields; f++) {
-          ierr = MatGetValues(cMat,fEnd[f]-fStart[f],indices + fStart[f],fAnchorEnd[f] - fAnchorStart[f],newIndices + fAnchorStart[f],pointMat[f] + pointMatOffsets[f][p]);CHKERRQ(ierr);
+        if (outValues) {
+          /* get the point-to-point submatrix */
+          for (f = 0; f < numFields; f++) {
+            ierr = MatGetValues(cMat,fEnd[f]-fStart[f],indices + fStart[f],fAnchorEnd[f] - fAnchorStart[f],newIndices + fAnchorStart[f],pointMat[f] + pointMatOffsets[f][p]);CHKERRQ(ierr);
+          }
         }
       }
       else {
@@ -4455,8 +4263,12 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
     for (p = 0; p < numPoints; p++) {
       PetscInt b    = points[2*p];
       PetscInt o    = points[2*p+1];
-      PetscInt bDof = 0;
+      PetscInt bDof = 0, bSecDof;
 
+      ierr = PetscSectionGetDof(section, b, &bSecDof);CHKERRQ(ierr);
+      if (!bSecDof) {
+        continue;
+      }
       if (b >= aStart && b < aEnd) {
         ierr = PetscSectionGetDof(aSec, b, &bDof);CHKERRQ(ierr);
       }
@@ -4480,7 +4292,9 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
         newP += bDof;
 
         /* get the point-to-point submatrix */
-        ierr = MatGetValues(cMat,bEnd,indices,bAnchorEnd,newIndices,pointMat[0] + pointMatOffsets[0][p]);CHKERRQ(ierr);
+        if (outValues) {
+          ierr = MatGetValues(cMat,bEnd,indices,bAnchorEnd,newIndices,pointMat[0] + pointMatOffsets[0][p]);CHKERRQ(ierr);
+        }
       }
       else {
         newPoints[2 * newP]     = b;
@@ -4490,22 +4304,63 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
     }
   }
 
-  ierr = PetscMemzero(tmpValues,newNumIndices*numIndices*sizeof(*tmpValues));CHKERRQ(ierr);
-  /* multiply constraints on the right */
-  if (numFields) {
-    for (f = 0; f < numFields; f++) {
-      PetscInt oldOff = offsets[f];
+  if (outValues) {
+    ierr = DMGetWorkArray(dm,newNumIndices*numIndices,PETSC_SCALAR,&tmpValues);CHKERRQ(ierr);
+    ierr = PetscMemzero(tmpValues,newNumIndices*numIndices*sizeof(*tmpValues));CHKERRQ(ierr);
+    /* multiply constraints on the right */
+    if (numFields) {
+      for (f = 0; f < numFields; f++) {
+        PetscInt oldOff = offsets[f];
 
+        for (p = 0; p < numPoints; p++) {
+          PetscInt cStart = newPointOffsets[f][p];
+          PetscInt b      = points[2 * p];
+          PetscInt c, r, k;
+          PetscInt dof;
+
+          ierr = PetscSectionGetFieldDof(section,b,f,&dof);CHKERRQ(ierr);
+          if (!dof) {
+            continue;
+          }
+          if (pointMatOffsets[f][p] < pointMatOffsets[f][p + 1]) {
+            PetscInt nCols         = newPointOffsets[f][p+1]-cStart;
+            const PetscScalar *mat = pointMat[f] + pointMatOffsets[f][p];
+
+            for (r = 0; r < numIndices; r++) {
+              for (c = 0; c < nCols; c++) {
+                for (k = 0; k < dof; k++) {
+                  tmpValues[r * newNumIndices + cStart + c] += mat[k * nCols + c] * values[r * numIndices + oldOff + k];
+                }
+              }
+            }
+          }
+          else {
+            /* copy this column as is */
+            for (r = 0; r < numIndices; r++) {
+              for (c = 0; c < dof; c++) {
+                tmpValues[r * newNumIndices + cStart + c] = values[r * numIndices + oldOff + c];
+              }
+            }
+          }
+          oldOff += dof;
+        }
+      }
+    }
+    else {
+      PetscInt oldOff = 0;
       for (p = 0; p < numPoints; p++) {
-        PetscInt cStart = newPointOffsets[f][p];
+        PetscInt cStart = newPointOffsets[0][p];
         PetscInt b      = points[2 * p];
         PetscInt c, r, k;
         PetscInt dof;
 
-        ierr = PetscSectionGetFieldDof(section,b,f,&dof);CHKERRQ(ierr);
-        if (pointMatOffsets[f][p] < pointMatOffsets[f][p + 1]) {
-          PetscInt nCols         = newPointOffsets[f][p+1]-cStart;
-          const PetscScalar *mat = pointMat[f] + pointMatOffsets[f][p];
+        ierr = PetscSectionGetDof(section,b,&dof);CHKERRQ(ierr);
+        if (!dof) {
+          continue;
+        }
+        if (pointMatOffsets[0][p] < pointMatOffsets[0][p + 1]) {
+          PetscInt nCols         = newPointOffsets[0][p+1]-cStart;
+          const PetscScalar *mat = pointMat[0] + pointMatOffsets[0][p];
 
           for (r = 0; r < numIndices; r++) {
             for (c = 0; c < nCols; c++) {
@@ -4526,114 +4381,91 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
         oldOff += dof;
       }
     }
-  }
-  else {
-    PetscInt oldOff = 0;
-    for (p = 0; p < numPoints; p++) {
-      PetscInt cStart = newPointOffsets[0][p];
-      PetscInt b      = points[2 * p];
-      PetscInt c, r, k;
-      PetscInt dof;
 
-      ierr = PetscSectionGetDof(section,b,&dof);CHKERRQ(ierr);
-      if (pointMatOffsets[0][p] < pointMatOffsets[0][p + 1]) {
-        PetscInt nCols         = newPointOffsets[0][p+1]-cStart;
-        const PetscScalar *mat = pointMat[0] + pointMatOffsets[0][p];
+    if (multiplyLeft) {
+      ierr = DMGetWorkArray(dm,newNumIndices*newNumIndices,PETSC_SCALAR,&newValues);CHKERRQ(ierr);
+      ierr = PetscMemzero(newValues,newNumIndices*newNumIndices*sizeof(*newValues));CHKERRQ(ierr);
+      /* multiply constraints transpose on the left */
+      if (numFields) {
+        for (f = 0; f < numFields; f++) {
+          PetscInt oldOff = offsets[f];
 
-        for (r = 0; r < numIndices; r++) {
-          for (c = 0; c < nCols; c++) {
-            for (k = 0; k < dof; k++) {
-              tmpValues[r * newNumIndices + cStart + c] += mat[k * nCols + c] * values[r * numIndices + oldOff + k];
+          for (p = 0; p < numPoints; p++) {
+            PetscInt rStart = newPointOffsets[f][p];
+            PetscInt b      = points[2 * p];
+            PetscInt c, r, k;
+            PetscInt dof;
+
+            ierr = PetscSectionGetFieldDof(section,b,f,&dof);CHKERRQ(ierr);
+            if (pointMatOffsets[f][p] < pointMatOffsets[f][p + 1]) {
+              PetscInt nRows                        = newPointOffsets[f][p+1]-rStart;
+              const PetscScalar *PETSC_RESTRICT mat = pointMat[f] + pointMatOffsets[f][p];
+
+              for (r = 0; r < nRows; r++) {
+                for (c = 0; c < newNumIndices; c++) {
+                  for (k = 0; k < dof; k++) {
+                    newValues[(rStart + r) * newNumIndices + c] += mat[k * nRows + r] * tmpValues[(oldOff + k) * newNumIndices + c];
+                  }
+                }
+              }
             }
+            else {
+              /* copy this row as is */
+              for (r = 0; r < dof; r++) {
+                for (c = 0; c < newNumIndices; c++) {
+                  newValues[(rStart + r) * newNumIndices + c] = tmpValues[(oldOff + r) * newNumIndices + c];
+                }
+              }
+            }
+            oldOff += dof;
           }
         }
       }
       else {
-        /* copy this column as is */
-        for (r = 0; r < numIndices; r++) {
-          for (c = 0; c < dof; c++) {
-            tmpValues[r * newNumIndices + cStart + c] = values[r * numIndices + oldOff + c];
-          }
-        }
-      }
-      oldOff += dof;
-    }
-  }
+        PetscInt oldOff = 0;
 
-  ierr = PetscMemzero(newValues,newNumIndices*newNumIndices*sizeof(*newValues));CHKERRQ(ierr);
-  /* multiply constraints transpose on the left */
-  if (numFields) {
-    for (f = 0; f < numFields; f++) {
-      PetscInt oldOff = offsets[f];
+        for (p = 0; p < numPoints; p++) {
+          PetscInt rStart = newPointOffsets[0][p];
+          PetscInt b      = points[2 * p];
+          PetscInt c, r, k;
+          PetscInt dof;
 
-      for (p = 0; p < numPoints; p++) {
-        PetscInt rStart = newPointOffsets[f][p];
-        PetscInt b      = points[2 * p];
-        PetscInt c, r, k;
-        PetscInt dof;
+          ierr = PetscSectionGetDof(section,b,&dof);CHKERRQ(ierr);
+          if (pointMatOffsets[0][p] < pointMatOffsets[0][p + 1]) {
+            PetscInt nRows                        = newPointOffsets[0][p+1]-rStart;
+            const PetscScalar *PETSC_RESTRICT mat = pointMat[0] + pointMatOffsets[0][p];
 
-        ierr = PetscSectionGetFieldDof(section,b,f,&dof);CHKERRQ(ierr);
-        if (pointMatOffsets[f][p] < pointMatOffsets[f][p + 1]) {
-          PetscInt nRows                        = newPointOffsets[f][p+1]-rStart;
-          const PetscScalar *PETSC_RESTRICT mat = pointMat[f] + pointMatOffsets[f][p];
-
-          for (r = 0; r < nRows; r++) {
-            for (c = 0; c < newNumIndices; c++) {
-              for (k = 0; k < dof; k++) {
-                newValues[(rStart + r) * newNumIndices + c] += mat[k * nRows + r] * tmpValues[(oldOff + k) * newNumIndices + c];
+            for (r = 0; r < nRows; r++) {
+              for (c = 0; c < newNumIndices; c++) {
+                for (k = 0; k < dof; k++) {
+                  newValues[(rStart + r) * newNumIndices + c] += mat[k * nRows + r] * tmpValues[(oldOff + k) * newNumIndices + c];
+                }
               }
             }
           }
-        }
-        else {
-          /* copy this row as is */
-          for (r = 0; r < dof; r++) {
-            for (c = 0; c < newNumIndices; c++) {
-              newValues[(rStart + r) * newNumIndices + c] = tmpValues[(oldOff + r) * newNumIndices + c];
+          else {
+            /* copy this row as is */
+            for (r = 0; r < dof; c++) {
+              for (c = 0; c < newNumIndices; c++) {
+                newValues[(rStart + r) * newNumIndices + c] = tmpValues[(oldOff + r) * newNumIndices + c];
+              }
             }
           }
+          oldOff += dof;
         }
-        oldOff += dof;
       }
+
+      ierr = DMRestoreWorkArray(dm,newNumIndices*numIndices,PETSC_SCALAR,&tmpValues);CHKERRQ(ierr);
     }
-  }
-  else {
-    PetscInt oldOff = 0;
-
-    for (p = 0; p < numPoints; p++) {
-      PetscInt rStart = newPointOffsets[0][p];
-      PetscInt b      = points[2 * p];
-      PetscInt c, r, k;
-      PetscInt dof;
-
-      ierr = PetscSectionGetDof(section,b,&dof);CHKERRQ(ierr);
-      if (pointMatOffsets[0][p] < pointMatOffsets[0][p + 1]) {
-        PetscInt nRows                        = newPointOffsets[0][p+1]-rStart;
-        const PetscScalar *PETSC_RESTRICT mat = pointMat[0] + pointMatOffsets[0][p];
-
-        for (r = 0; r < nRows; r++) {
-          for (c = 0; c < newNumIndices; c++) {
-            for (k = 0; k < dof; k++) {
-              newValues[(rStart + r) * newNumIndices + c] += mat[k * nRows + r] * tmpValues[(oldOff + k) * newNumIndices + c];
-            }
-          }
-        }
-      }
-      else {
-        /* copy this row as is */
-        for (r = 0; r < dof; c++) {
-          for (c = 0; c < newNumIndices; c++) {
-            newValues[(rStart + r) * newNumIndices + c] = tmpValues[(oldOff + r) * newNumIndices + c];
-          }
-        }
-      }
-      oldOff += dof;
+    else {
+      newValues = tmpValues;
     }
   }
 
   /* clean up */
   ierr = DMRestoreWorkArray(dm,maxDof,PETSC_INT,&indices);CHKERRQ(ierr);
   ierr = DMRestoreWorkArray(dm,maxAnchor*maxDof,PETSC_INT,&newIndices);CHKERRQ(ierr);
+
   if (numFields) {
     for (f = 0; f < numFields; f++) {
       ierr = DMRestoreWorkArray(dm,pointMatOffsets[f][numPoints],PETSC_SCALAR,&pointMat[f]);CHKERRQ(ierr);
@@ -4646,15 +4478,19 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
     ierr = DMRestoreWorkArray(dm,numPoints+1,PETSC_INT,&pointMatOffsets[0]);CHKERRQ(ierr);
     ierr = DMRestoreWorkArray(dm,numPoints+1,PETSC_INT,&newPointOffsets[0]);CHKERRQ(ierr);
   }
-  ierr = DMRestoreWorkArray(dm,newNumIndices*numIndices,PETSC_SCALAR,&tmpValues);CHKERRQ(ierr);
   ierr = ISRestoreIndices(aIS,&anchors);CHKERRQ(ierr);
 
   /* output */
-  *outNumPoints  = newNumPoints;
-  *outNumIndices = newNumIndices;
-  *outPoints     = newPoints;
-  *outValues     = newValues;
-  for (f = 0; f < numFields; f++) {
+  if (outPoints) {
+    *outPoints = newPoints;
+  }
+  else {
+    ierr = DMRestoreWorkArray(dm,2*newNumPoints,PETSC_INT,&newPoints);CHKERRQ(ierr);
+  }
+  if (outValues) {
+    *outValues = newValues;
+  }
+  for (f = 0; f <= numFields; f++) {
     offsets[f] = newOffsets[f];
   }
   PetscFunctionReturn(0);
@@ -4662,7 +4498,7 @@ static PetscErrorCode DMPlexAnchorsModifyMat(DM dm, PetscSection section, PetscI
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexGetClosureIndices"
-PetscErrorCode DMPlexGetClosureIndices(DM dm, PetscSection section, PetscSection globalSection, PetscInt point, PetscInt *numIndices, PetscInt **indices)
+PetscErrorCode DMPlexGetClosureIndices(DM dm, PetscSection section, PetscSection globalSection, PetscInt point, PetscInt *numIndices, PetscInt **indices, PetscInt *outOffsets)
 {
   PetscSection    clSection;
   IS              clPoints;
@@ -4722,7 +4558,7 @@ PetscErrorCode DMPlexGetClosureIndices(DM dm, PetscSection section, PetscSection
   if (Nf && offsets[Nf] != Nind) SETERRQ2(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "Invalid size for closure %d should be %d", offsets[Nf], Nind);
   /* Correct for hanging node constraints */
   {
-    ierr = DMPlexAnchorsModifyMat(dm, section, numPoints, Nind, points, NULL, &numPointsNew, &NindNew, &pointsNew, NULL, offsets);CHKERRQ(ierr);
+    ierr = DMPlexAnchorsModifyMat(dm, section, numPoints, Nind, points, NULL, &numPointsNew, &NindNew, &pointsNew, NULL, offsets, PETSC_TRUE);CHKERRQ(ierr);
     if (numPointsNew) {
       if (!clPoints) {ierr = DMPlexRestoreTransitiveClosure(dm, point, PETSC_TRUE, &numPoints, &points);CHKERRQ(ierr);}
       else           {ierr = ISRestoreIndices(clPoints, &clp);CHKERRQ(ierr);}
@@ -4734,6 +4570,13 @@ PetscErrorCode DMPlexGetClosureIndices(DM dm, PetscSection section, PetscSection
   /* Calculate indices */
   ierr = DMGetWorkArray(dm, Nind, PETSC_INT, indices);CHKERRQ(ierr);
   if (Nf) {
+    if (outOffsets) {
+      PetscInt f;
+
+      for (f = 0; f <= Nf; f++) {
+        outOffsets[f] = offsets[f];
+      }
+    }
     for (p = 0; p < numPoints*2; p += 2) {
       PetscInt o = points[p+1];
       ierr = PetscSectionGetOffset(globalSection, points[p], &globalOff);CHKERRQ(ierr);
@@ -4759,7 +4602,7 @@ PetscErrorCode DMPlexGetClosureIndices(DM dm, PetscSection section, PetscSection
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexRestoreClosureIndices"
-PetscErrorCode DMPlexRestoreClosureIndices(DM dm, PetscSection section, PetscSection globalSection, PetscInt point, PetscInt *numIndices, PetscInt **indices)
+PetscErrorCode DMPlexRestoreClosureIndices(DM dm, PetscSection section, PetscSection globalSection, PetscInt point, PetscInt *numIndices, PetscInt **indices,PetscInt *outOffsets)
 {
   PetscErrorCode ierr;
 
@@ -4851,7 +4694,7 @@ PetscErrorCode DMPlexMatSetClosure(DM dm, PetscSection section, PetscSection glo
   for (f = 1; f < numFields; ++f) offsets[f+1] += offsets[f];
 
   if (numFields && offsets[numFields] != numIndices) SETERRQ2(PetscObjectComm((PetscObject)dm), PETSC_ERR_PLIB, "Invalid size for closure %d should be %d", offsets[numFields], numIndices);
-  ierr = DMPlexAnchorsModifyMat(dm,section,numPoints,numIndices,points,values,&newNumPoints,&newNumIndices,&newPoints,&newValues,offsets);CHKERRQ(ierr);
+  ierr = DMPlexAnchorsModifyMat(dm,section,numPoints,numIndices,points,values,&newNumPoints,&newNumIndices,&newPoints,&newValues,offsets,PETSC_TRUE);CHKERRQ(ierr);
   if (newNumPoints) {
     if (!clPoints) {
       ierr = DMPlexRestoreTransitiveClosure(dm, point, PETSC_TRUE, &numPoints, &points);CHKERRQ(ierr);
@@ -5361,94 +5204,6 @@ PetscErrorCode DMPlexCreatePointNumbering(DM dm, IS *globalPointNumbers)
   PetscFunctionReturn(0);
 }
 
-
-#undef __FUNCT__
-#define __FUNCT__ "PetscSectionCreateGlobalSectionLabel"
-/*@C
-  PetscSectionCreateGlobalSectionLabel - Create a section describing the global field layout using
-  the local section and an SF describing the section point overlap.
-
-  Input Parameters:
-  + s - The PetscSection for the local field layout
-  . sf - The SF describing parallel layout of the section points
-  . includeConstraints - By default this is PETSC_FALSE, meaning that the global field vector will not possess constrained dofs
-  . label - The label specifying the points
-  - labelValue - The label stratum specifying the points
-
-  Output Parameter:
-  . gsection - The PetscSection for the global field layout
-
-  Note: This gives negative sizes and offsets to points not owned by this process
-
-  Level: developer
-
-.seealso: PetscSectionCreate()
-@*/
-PetscErrorCode PetscSectionCreateGlobalSectionLabel(PetscSection s, PetscSF sf, PetscBool includeConstraints, DMLabel label, PetscInt labelValue, PetscSection *gsection)
-{
-  PetscInt      *neg = NULL, *tmpOff = NULL;
-  PetscInt       pStart, pEnd, p, dof, cdof, off, globalOff = 0, nroots;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  ierr = PetscSectionCreate(PetscObjectComm((PetscObject) s), gsection);CHKERRQ(ierr);
-  ierr = PetscSectionGetChart(s, &pStart, &pEnd);CHKERRQ(ierr);
-  ierr = PetscSectionSetChart(*gsection, pStart, pEnd);CHKERRQ(ierr);
-  ierr = PetscSFGetGraph(sf, &nroots, NULL, NULL, NULL);CHKERRQ(ierr);
-  if (nroots >= 0) {
-    if (nroots < pEnd-pStart) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "PetscSF nroots %d < %d section size", nroots, pEnd-pStart);
-    ierr = PetscCalloc1(nroots, &neg);CHKERRQ(ierr);
-    if (nroots > pEnd-pStart) {
-      ierr = PetscCalloc1(nroots, &tmpOff);CHKERRQ(ierr);
-    } else {
-      tmpOff = &(*gsection)->atlasDof[-pStart];
-    }
-  }
-  /* Mark ghost points with negative dof */
-  for (p = pStart; p < pEnd; ++p) {
-    PetscInt value;
-
-    ierr = DMLabelGetValue(label, p, &value);CHKERRQ(ierr);
-    if (value != labelValue) continue;
-    ierr = PetscSectionGetDof(s, p, &dof);CHKERRQ(ierr);
-    ierr = PetscSectionSetDof(*gsection, p, dof);CHKERRQ(ierr);
-    ierr = PetscSectionGetConstraintDof(s, p, &cdof);CHKERRQ(ierr);
-    if (!includeConstraints && cdof > 0) {ierr = PetscSectionSetConstraintDof(*gsection, p, cdof);CHKERRQ(ierr);}
-    if (neg) neg[p] = -(dof+1);
-  }
-  ierr = PetscSectionSetUpBC(*gsection);CHKERRQ(ierr);
-  if (nroots >= 0) {
-    ierr = PetscSFBcastBegin(sf, MPIU_INT, neg, tmpOff);CHKERRQ(ierr);
-    ierr = PetscSFBcastEnd(sf, MPIU_INT, neg, tmpOff);CHKERRQ(ierr);
-    if (nroots > pEnd-pStart) {
-      for (p = pStart; p < pEnd; ++p) {if (tmpOff[p] < 0) (*gsection)->atlasDof[p-pStart] = tmpOff[p];}
-    }
-  }
-  /* Calculate new sizes, get proccess offset, and calculate point offsets */
-  for (p = 0, off = 0; p < pEnd-pStart; ++p) {
-    cdof = (!includeConstraints && s->bc) ? s->bc->atlasDof[p] : 0;
-    (*gsection)->atlasOff[p] = off;
-    off += (*gsection)->atlasDof[p] > 0 ? (*gsection)->atlasDof[p]-cdof : 0;
-  }
-  ierr       = MPI_Scan(&off, &globalOff, 1, MPIU_INT, MPI_SUM, PetscObjectComm((PetscObject) s));CHKERRQ(ierr);
-  globalOff -= off;
-  for (p = 0, off = 0; p < pEnd-pStart; ++p) {
-    (*gsection)->atlasOff[p] += globalOff;
-    if (neg) neg[p] = -((*gsection)->atlasOff[p]+1);
-  }
-  /* Put in negative offsets for ghost points */
-  if (nroots >= 0) {
-    ierr = PetscSFBcastBegin(sf, MPIU_INT, neg, tmpOff);CHKERRQ(ierr);
-    ierr = PetscSFBcastEnd(sf, MPIU_INT, neg, tmpOff);CHKERRQ(ierr);
-    if (nroots > pEnd-pStart) {
-      for (p = pStart; p < pEnd; ++p) {if (tmpOff[p] < 0) (*gsection)->atlasOff[p-pStart] = tmpOff[p];}
-    }
-  }
-  if (nroots >= 0 && nroots > pEnd-pStart) {ierr = PetscFree(tmpOff);CHKERRQ(ierr);}
-  ierr = PetscFree(neg);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexCheckSymmetry"
 /*@
@@ -5690,7 +5445,7 @@ PetscErrorCode DMCreateInterpolation_Plex(DM dmCoarse, DM dmFine, Mat *interpola
   ierr = MatSetType(*interpolation, dmCoarse->mattype);CHKERRQ(ierr);
   ierr = DMGetApplicationContext(dmFine, &ctx);CHKERRQ(ierr);
 
-  ierr = DMPlexGetCoarseDM(dmFine, &cdm);CHKERRQ(ierr);
+  ierr = DMGetCoarseDM(dmFine, &cdm);CHKERRQ(ierr);
   ierr = DMPlexGetRegularRefinement(dmFine, &regular);CHKERRQ(ierr);
   if (regular && cdm == dmCoarse) {ierr = DMPlexComputeInterpolatorNested(dmCoarse, dmFine, *interpolation, ctx);CHKERRQ(ierr);}
   else                            {ierr = DMPlexComputeInterpolatorGeneral(dmCoarse, dmFine, *interpolation, ctx);CHKERRQ(ierr);}
@@ -5728,6 +5483,7 @@ PetscErrorCode DMCreateDefaultSection_Plex(DM dm)
 
   PetscFunctionBegin;
   ierr = DMGetNumFields(dm, &numFields);CHKERRQ(ierr);
+  if (!numFields) PetscFunctionReturn(0);
   /* FE and FV boundary conditions are handled slightly differently */
   ierr = PetscMalloc1(numFields, &isFE);CHKERRQ(ierr);
   for (f = 0; f < numFields; ++f) {
@@ -5745,12 +5501,12 @@ PetscErrorCode DMCreateDefaultSection_Plex(DM dm)
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = DMPlexGetHybridBounds(dm, &cEndInterior, NULL, NULL, NULL);CHKERRQ(ierr);
-  ierr = DMPlexGetNumBoundary(dm, &numBd);CHKERRQ(ierr);
+  ierr = DMGetNumBoundary(dm, &numBd);CHKERRQ(ierr);
   for (bd = 0; bd < numBd; ++bd) {
     PetscInt  field;
     PetscBool isEssential;
 
-    ierr = DMPlexGetBoundary(dm, bd, &isEssential, NULL, NULL, &field, NULL, NULL, NULL, NULL, NULL, NULL);CHKERRQ(ierr);
+    ierr = DMGetBoundary(dm, bd, &isEssential, NULL, NULL, &field, NULL, NULL, NULL, NULL, NULL, NULL);CHKERRQ(ierr);
     if (isFE[field] && isEssential) ++numBC;
   }
   /* Add ghost cell boundaries for FVM */
@@ -5775,19 +5531,19 @@ PetscErrorCode DMCreateDefaultSection_Plex(DM dm)
     PetscInt        bd2, field, numComps, numValues;
     PetscBool       isEssential, duplicate = PETSC_FALSE;
 
-    ierr = DMPlexGetBoundary(dm, bd, &isEssential, NULL, &bdLabel, &field, &numComps, &comps, NULL, &numValues, &values, NULL);CHKERRQ(ierr);
+    ierr = DMGetBoundary(dm, bd, &isEssential, NULL, &bdLabel, &field, &numComps, &comps, NULL, &numValues, &values, NULL);CHKERRQ(ierr);
     if (!isFE[field]) continue;
-    ierr = DMPlexGetLabel(dm, bdLabel, &label);CHKERRQ(ierr);
+    ierr = DMGetLabel(dm, bdLabel, &label);CHKERRQ(ierr);
     /* Only want to modify label once */
     for (bd2 = 0; bd2 < bd; ++bd2) {
       const char *bdname;
-      ierr = DMPlexGetBoundary(dm, bd2, NULL, NULL, &bdname, NULL, NULL, NULL, NULL, NULL, NULL, NULL);CHKERRQ(ierr);
+      ierr = DMGetBoundary(dm, bd2, NULL, NULL, &bdname, NULL, NULL, NULL, NULL, NULL, NULL, NULL);CHKERRQ(ierr);
       ierr = PetscStrcmp(bdname, bdLabel, &duplicate);CHKERRQ(ierr);
       if (duplicate) break;
     }
     if (!duplicate && (isFE[field])) {
+      /* don't complete cells, which are just present to give orientation to the boundary */
       ierr = DMPlexLabelComplete(dm, label);CHKERRQ(ierr);
-      ierr = DMPlexLabelAddCells(dm, label);CHKERRQ(ierr);
     }
     /* Filter out cells, if you actually want to constrain cells you need to do things by hand right now */
     if (isEssential) {
@@ -5800,7 +5556,7 @@ PetscErrorCode DMCreateDefaultSection_Plex(DM dm)
         IS              tmp;
         const PetscInt *idx;
 
-        ierr = DMPlexGetStratumIS(dm, bdLabel, values[v], &tmp);CHKERRQ(ierr);
+        ierr = DMGetStratumIS(dm, bdLabel, values[v], &tmp);CHKERRQ(ierr);
         if (!tmp) continue;
         ierr = ISGetLocalSize(tmp, &n);CHKERRQ(ierr);
         ierr = ISGetIndices(tmp, &idx);CHKERRQ(ierr);
@@ -5818,7 +5574,7 @@ PetscErrorCode DMCreateDefaultSection_Plex(DM dm)
         IS              tmp;
         const PetscInt *idx;
 
-        ierr = DMPlexGetStratumIS(dm, bdLabel, values[v], &tmp);CHKERRQ(ierr);
+        ierr = DMGetStratumIS(dm, bdLabel, values[v], &tmp);CHKERRQ(ierr);
         if (!tmp) continue;
         ierr = ISGetLocalSize(tmp, &n);CHKERRQ(ierr);
         ierr = ISGetIndices(tmp, &idx);CHKERRQ(ierr);
@@ -5875,58 +5631,6 @@ PetscErrorCode DMCreateDefaultSection_Plex(DM dm)
   ierr = PetscFree3(bcFields,bcPoints,bcComps);CHKERRQ(ierr);
   ierr = PetscFree2(numComp,numDof);CHKERRQ(ierr);
   ierr = PetscFree(isFE);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "DMPlexGetCoarseDM"
-/*@
-  DMPlexGetCoarseDM - Get the coarse mesh from which this was obtained by refinement
-
-  Input Parameter:
-. dm - The DMPlex object
-
-  Output Parameter:
-. cdm - The coarse DM
-
-  Level: intermediate
-
-.seealso: DMPlexSetCoarseDM()
-@*/
-PetscErrorCode DMPlexGetCoarseDM(DM dm, DM *cdm)
-{
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  PetscValidPointer(cdm, 2);
-  *cdm = ((DM_Plex *) dm->data)->coarseMesh;
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "DMPlexSetCoarseDM"
-/*@
-  DMPlexSetCoarseDM - Set the coarse mesh from which this was obtained by refinement
-
-  Input Parameters:
-+ dm - The DMPlex object
-- cdm - The coarse DM
-
-  Level: intermediate
-
-.seealso: DMPlexGetCoarseDM()
-@*/
-PetscErrorCode DMPlexSetCoarseDM(DM dm, DM cdm)
-{
-  DM_Plex       *mesh;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  if (cdm) PetscValidHeaderSpecific(cdm, DM_CLASSID, 2);
-  mesh = (DM_Plex *) dm->data;
-  ierr = DMDestroy(&mesh->coarseMesh);CHKERRQ(ierr);
-  mesh->coarseMesh = cdm;
-  ierr = PetscObjectReference((PetscObject) mesh->coarseMesh);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -6105,7 +5809,15 @@ static PetscErrorCode DMPlexCreateConstraintSection_Anchors(DM dm, PetscSection 
   ierr = PetscSectionCreate(PETSC_COMM_SELF,cSec);CHKERRQ(ierr);
   ierr = PetscSectionGetNumFields(section,&numFields);CHKERRQ(ierr);
   if (numFields) {
+    PetscInt f;
     ierr = PetscSectionSetNumFields(*cSec,numFields);CHKERRQ(ierr);
+
+    for (f = 0; f < numFields; f++) {
+      PetscInt numComp;
+
+      ierr = PetscSectionGetFieldComponents(section,f,&numComp);CHKERRQ(ierr);
+      ierr = PetscSectionSetFieldComponents(*cSec,f,numComp);CHKERRQ(ierr);
+    }
   }
   ierr = PetscSectionGetChart(anchorSection,&pStart,&pEnd);CHKERRQ(ierr);
   ierr = PetscSectionGetChart(section,&sStart,&sEnd);CHKERRQ(ierr);
@@ -6154,14 +5866,16 @@ static PetscErrorCode DMPlexCreateConstraintMatrix_Anchors(DM dm, PetscSection s
   i[0] = 0;
   ierr = PetscSectionGetNumFields(section,&numFields);CHKERRQ(ierr);
   for (p = pStart; p < pEnd; p++) {
-    ierr = PetscSectionGetDof(aSec,p,&dof);CHKERRQ(ierr);
-    if (!dof) continue;
-    ierr = PetscSectionGetOffset(aSec,p,&off);CHKERRQ(ierr);
+    PetscInt rDof, rOff, r;
+
+    ierr = PetscSectionGetDof(aSec,p,&rDof);CHKERRQ(ierr);
+    if (!rDof) continue;
+    ierr = PetscSectionGetOffset(aSec,p,&rOff);CHKERRQ(ierr);
     if (numFields) {
       for (f = 0; f < numFields; f++) {
         annz = 0;
-        for (q = 0; q < dof; q++) {
-          a = anchors[off + q];
+        for (r = 0; r < rDof; r++) {
+          a = anchors[rOff + r];
           ierr = PetscSectionGetFieldDof(section,a,f,&aDof);CHKERRQ(ierr);
           annz += aDof;
         }

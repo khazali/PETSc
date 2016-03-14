@@ -74,7 +74,7 @@ PetscErrorCode  TSMonitorSPEigCtxCreate(MPI_Comm comm,const char host[],const ch
   (*ctx)->howoften          = howoften;
   (*ctx)->computeexplicitly = PETSC_FALSE;
 
-  ierr = PetscOptionsGetBool(NULL,"-ts_monitor_sp_eig_explicitly",&(*ctx)->computeexplicitly,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL,NULL,"-ts_monitor_sp_eig_explicitly",&(*ctx)->computeexplicitly,NULL);CHKERRQ(ierr);
 
   (*ctx)->comm = comm;
   (*ctx)->xmin = -2.1;
@@ -173,13 +173,13 @@ PetscErrorCode TSMonitorSPEig(TS ts,PetscInt step,PetscReal ptime,Vec v,void *mo
       ierr = PetscDrawSetPause(draw,0.0);CHKERRQ(ierr);
       ierr = PetscDrawSPDraw(drawsp,PETSC_TRUE);CHKERRQ(ierr);
       ierr = PetscDrawSetPause(draw,pause);CHKERRQ(ierr);
-
       if (ts->ops->linearstability) {
         ierr = PetscDrawSPGetAxis(drawsp,&axis);CHKERRQ(ierr);
         ierr = PetscDrawAxisGetLimits(axis,&xmin,&xmax,&ymin,&ymax);CHKERRQ(ierr);
         ierr = PetscDrawIndicatorFunction(draw,xmin,xmax,ymin,ymax,PETSC_DRAW_CYAN,(PetscErrorCode (*)(void*,PetscReal,PetscReal,PetscBool*))TSLinearStabilityIndicator,ts);CHKERRQ(ierr);
         ierr = PetscDrawSPDraw(drawsp,PETSC_FALSE);CHKERRQ(ierr);
       }
+      ierr = PetscDrawSPSave(drawsp);CHKERRQ(ierr);
     }
     ierr = MatDestroy(&B);CHKERRQ(ierr);
   }

@@ -13,7 +13,7 @@ int main(int argc,char **argv)
   
   PetscInitialize(&argc,&argv,(char*)0,help);
   ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
-  ierr = PetscOptionsGetInt(NULL,"-bs",&bs,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(NULL,NULL,"-bs",&bs,NULL);CHKERRQ(ierr);
 
   /* Create seqaij matrices of size (n+rank) by n */
   ierr = MatCreate(PETSC_COMM_SELF,&seqmat);CHKERRQ(ierr);
@@ -53,8 +53,8 @@ int main(int argc,char **argv)
   }
   ierr = MatAssemblyBegin(seqmat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(seqmat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  if (rank == 1) {
-    printf("[%d] seqmat:\n",rank);
+  if (!rank) {
+    ierr = PetscPrintf(PETSC_COMM_SELF,"[%d] seqmat:\n",rank);
     ierr = MatView(seqmat,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
   }
 

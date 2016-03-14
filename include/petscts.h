@@ -196,10 +196,11 @@ M*/
 $  TS_EXACTFINALTIME_STEPOVER    - Don't do anything if final time is exceeded
 $  TS_EXACTFINALTIME_INTERPOLATE - Interpolate back to final time
 $  TS_EXACTFINALTIME_MATCHSTEP - Adapt final time step to match the final time
+
 .seealso: TSGetConvergedReason(), TSSetExactFinalTime()
 
 E*/
-typedef enum {TS_EXACTFINALTIME_STEPOVER=0,TS_EXACTFINALTIME_INTERPOLATE=1,TS_EXACTFINALTIME_MATCHSTEP=2} TSExactFinalTimeOption;
+typedef enum {TS_EXACTFINALTIME_UNSPECIFIED=0,TS_EXACTFINALTIME_STEPOVER=1,TS_EXACTFINALTIME_INTERPOLATE=2,TS_EXACTFINALTIME_MATCHSTEP=3} TSExactFinalTimeOption;
 PETSC_EXTERN const char *const TSExactFinalTimeOptions[];
 
 
@@ -255,6 +256,7 @@ J*/
 typedef const char* TSTrajectoryType;
 #define TSTRAJECTORYBASIC      "basic"
 #define TSTRAJECTORYSINGLEFILE "singlefile"
+#define TSTRAJECTORYMEMORY     "memory"
 
 PETSC_EXTERN PetscFunctionList TSTrajectoryList;
 PETSC_EXTERN PetscClassId      TSTRAJECTORY_CLASSID;
@@ -264,15 +266,16 @@ PETSC_EXTERN PetscErrorCode TSSetSaveTrajectory(TS);
 
 PETSC_EXTERN PetscErrorCode TSTrajectoryCreate(MPI_Comm,TSTrajectory*);
 PETSC_EXTERN PetscErrorCode TSTrajectoryDestroy(TSTrajectory*);
-PETSC_EXTERN PetscErrorCode TSTrajectorySetType(TSTrajectory,const TSTrajectoryType);
+PETSC_EXTERN PetscErrorCode TSTrajectorySetType(TSTrajectory,TS,const TSTrajectoryType);
 PETSC_EXTERN PetscErrorCode TSTrajectorySet(TSTrajectory,TS,PetscInt,PetscReal,Vec);
 PETSC_EXTERN PetscErrorCode TSTrajectoryGet(TSTrajectory,TS,PetscInt,PetscReal*);
-PETSC_EXTERN PetscErrorCode TSTrajectorySetFromOptions(TSTrajectory);
+PETSC_EXTERN PetscErrorCode TSTrajectorySetFromOptions(TSTrajectory,TS);
 PETSC_EXTERN PetscErrorCode TSTrajectoryRegisterAll(void);
+PETSC_EXTERN PetscErrorCode TSTrajectorySetUp(TSTrajectory,TS);
 
 PETSC_EXTERN PetscErrorCode TSSetCostGradients(TS,PetscInt,Vec*,Vec*);
 PETSC_EXTERN PetscErrorCode TSGetCostGradients(TS,PetscInt*,Vec**,Vec**);
-PETSC_EXTERN PetscErrorCode TSSetCostIntegrand(TS,PetscInt,PetscErrorCode (*)(TS,PetscReal,Vec,Vec,void*),PetscErrorCode (*)(TS,PetscReal,Vec,Vec*,void*),PetscErrorCode (*)(TS,PetscReal,Vec,Vec*,void*),void*);
+PETSC_EXTERN PetscErrorCode TSSetCostIntegrand(TS,PetscInt,PetscErrorCode (*)(TS,PetscReal,Vec,Vec,void*),PetscErrorCode (*)(TS,PetscReal,Vec,Vec*,void*),PetscErrorCode (*)(TS,PetscReal,Vec,Vec*,void*),PetscBool,void*);
 PETSC_EXTERN PetscErrorCode TSGetCostIntegral(TS,Vec*);
 
 PETSC_EXTERN PetscErrorCode TSAdjointSetRHSJacobian(TS,Mat,PetscErrorCode(*)(TS,PetscReal,Vec,Mat,void*),void*);
@@ -285,6 +288,8 @@ PETSC_EXTERN PetscErrorCode TSAdjointSetUp(TS);
 PETSC_EXTERN PetscErrorCode TSAdjointComputeDRDPFunction(TS,PetscReal,Vec,Vec*);
 PETSC_EXTERN PetscErrorCode TSAdjointComputeDRDYFunction(TS,PetscReal,Vec,Vec*);
 PETSC_EXTERN PetscErrorCode TSAdjointComputeCostIntegrand(TS,PetscReal,Vec,Vec);
+PETSC_EXTERN PetscErrorCode TSAdjointCostIntegral(TS);
+PETSC_EXTERN PetscErrorCode TSForwardCostIntegral(TS);
 
 PETSC_EXTERN PetscErrorCode TSSetDuration(TS,PetscInt,PetscReal);
 PETSC_EXTERN PetscErrorCode TSGetDuration(TS,PetscInt*,PetscReal*);
@@ -302,7 +307,7 @@ PETSC_EXTERN PetscErrorCode TSMonitorDrawError(TS,PetscInt,PetscReal,Vec,void*);
 PETSC_EXTERN PetscErrorCode TSAdjointMonitorDefault(TS,PetscInt,PetscReal,Vec,PetscInt,Vec*,Vec*,void *);
 PETSC_EXTERN PetscErrorCode TSAdjointMonitorDrawSensi(TS,PetscInt,PetscReal,Vec,PetscInt,Vec*,Vec*,void*);
 
-PETSC_EXTERN PetscErrorCode TSMonitorSolutionBinary(TS,PetscInt,PetscReal,Vec,void*);
+PETSC_EXTERN PetscErrorCode TSMonitorSolution(TS,PetscInt,PetscReal,Vec,void*);
 PETSC_EXTERN PetscErrorCode TSMonitorSolutionVTK(TS,PetscInt,PetscReal,Vec,void*);
 PETSC_EXTERN PetscErrorCode TSMonitorSolutionVTKDestroy(void*);
 
@@ -402,6 +407,7 @@ PETSC_EXTERN PetscErrorCode TSComputeLinearStability(TS,PetscReal,PetscReal,Pets
 
 PETSC_EXTERN PetscErrorCode TSVISetVariableBounds(TS,Vec,Vec);
 
+PETSC_EXTERN PetscErrorCode DMTSSetBoundaryLocal(DM, PetscErrorCode (*)(DM, PetscReal, Vec, Vec, void *), void *);
 PETSC_EXTERN PetscErrorCode DMTSSetRHSFunction(DM,TSRHSFunction,void*);
 PETSC_EXTERN PetscErrorCode DMTSGetRHSFunction(DM,TSRHSFunction*,void**);
 PETSC_EXTERN PetscErrorCode DMTSSetRHSJacobian(DM,TSRHSJacobian,void*);
@@ -416,7 +422,7 @@ PETSC_EXTERN PetscErrorCode DMTSSetForcingFunction(DM,PetscErrorCode (*)(TS,Pets
 PETSC_EXTERN PetscErrorCode DMTSGetForcingFunction(DM,PetscErrorCode (**)(TS,PetscReal,Vec,void*),void**);
 PETSC_EXTERN PetscErrorCode DMTSGetMinRadius(DM,PetscReal*);
 PETSC_EXTERN PetscErrorCode DMTSSetMinRadius(DM,PetscReal);
-PETSC_EXTERN PetscErrorCode DMTSCheckFromOptions(TS, Vec, PetscErrorCode (**)(PetscInt, const PetscReal[], PetscInt, PetscScalar *, void *), void **);
+PETSC_EXTERN PetscErrorCode DMTSCheckFromOptions(TS, Vec, PetscErrorCode (**)(PetscInt, PetscReal, const PetscReal[], PetscInt, PetscScalar *, void *), void **);
 
 PETSC_EXTERN PetscErrorCode DMTSSetIFunctionLocal(DM,PetscErrorCode (*)(DM,PetscReal,Vec,Vec,Vec,void*),void*);
 PETSC_EXTERN PetscErrorCode DMTSSetIJacobianLocal(DM,PetscErrorCode (*)(DM,PetscReal,Vec,Vec,PetscReal,Mat,Mat,void*),void*);
@@ -462,7 +468,7 @@ PETSC_EXTERN PetscErrorCode TSGetKSP(TS,KSP*);
 PETSC_EXTERN PetscErrorCode TSView(TS,PetscViewer);
 PETSC_EXTERN PetscErrorCode TSLoad(TS,PetscViewer);
 PETSC_STATIC_INLINE PetscErrorCode TSViewFromOptions(TS A,PetscObject obj,const char name[]) {return PetscObjectViewFromOptions((PetscObject)A,obj,name);}
-
+PETSC_STATIC_INLINE PetscErrorCode TSTrajectoryViewFromOptions(TSTrajectory A,PetscObject obj,const char name[]) {return PetscObjectViewFromOptions((PetscObject)A,obj,name);}
 
 #define TS_FILE_CLASSID 1211225
 
@@ -551,7 +557,7 @@ PETSC_EXTERN PetscErrorCode TSAdaptChoose(TSAdapt,TS,PetscReal,PetscInt*,PetscRe
 PETSC_EXTERN PetscErrorCode TSAdaptCheckStage(TSAdapt,TS,PetscReal,Vec,PetscBool*);
 PETSC_EXTERN PetscErrorCode TSAdaptView(TSAdapt,PetscViewer);
 PETSC_EXTERN PetscErrorCode TSAdaptLoad(TSAdapt,PetscViewer);
-PETSC_EXTERN PetscErrorCode TSAdaptSetFromOptions(PetscOptions*,TSAdapt);
+PETSC_EXTERN PetscErrorCode TSAdaptSetFromOptions(PetscOptionItems*,TSAdapt);
 PETSC_EXTERN PetscErrorCode TSAdaptReset(TSAdapt);
 PETSC_EXTERN PetscErrorCode TSAdaptDestroy(TSAdapt*);
 PETSC_EXTERN PetscErrorCode TSAdaptSetMonitor(TSAdapt,PetscBool);
@@ -590,7 +596,7 @@ PETSC_EXTERN PetscErrorCode TSGLAdaptSetType(TSGLAdapt,TSGLAdaptType);
 PETSC_EXTERN PetscErrorCode TSGLAdaptSetOptionsPrefix(TSGLAdapt,const char[]);
 PETSC_EXTERN PetscErrorCode TSGLAdaptChoose(TSGLAdapt,PetscInt,const PetscInt[],const PetscReal[],const PetscReal[],PetscInt,PetscReal,PetscReal,PetscInt*,PetscReal*,PetscBool *);
 PETSC_EXTERN PetscErrorCode TSGLAdaptView(TSGLAdapt,PetscViewer);
-PETSC_EXTERN PetscErrorCode TSGLAdaptSetFromOptions(PetscOptions*,TSGLAdapt);
+PETSC_EXTERN PetscErrorCode TSGLAdaptSetFromOptions(PetscOptionItems*,TSGLAdapt);
 PETSC_EXTERN PetscErrorCode TSGLAdaptDestroy(TSGLAdapt*);
 
 /*J

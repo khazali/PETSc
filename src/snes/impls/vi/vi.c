@@ -400,8 +400,9 @@ PetscErrorCode SNESSetUp_VI(SNES snes)
   if (!snes->ops->computevariablebounds && snes->dm) {
     PetscBool flag;
     ierr = DMHasVariableBounds(snes->dm, &flag);CHKERRQ(ierr);
-
-    snes->ops->computevariablebounds = SNESVIDMComputeVariableBounds;
+    if (flag) {
+      snes->ops->computevariablebounds = SNESVIDMComputeVariableBounds;
+    }
   }
   if (!snes->usersetbounds) {
     if (snes->ops->computevariablebounds) {
@@ -459,7 +460,7 @@ PetscErrorCode SNESDestroy_VI(SNES snes)
 
   /* clear composed functions */
   ierr = PetscObjectComposeFunction((PetscObject)snes,"SNESLineSearchSet_C",NULL);CHKERRQ(ierr);
-  ierr = PetscObjectComposeFunction((PetscObject)snes,"SNESLineSearchSetMonitor_C",NULL);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)snes,"SNESLineSearchSetDefaultMonitor_C",NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -536,7 +537,7 @@ PetscErrorCode SNESVISetVariableBounds_VI(SNES snes,Vec xl,Vec xu)
 
 #undef __FUNCT__
 #define __FUNCT__ "SNESSetFromOptions_VI"
-PetscErrorCode SNESSetFromOptions_VI(PetscOptions *PetscOptionsObject,SNES snes)
+PetscErrorCode SNESSetFromOptions_VI(PetscOptionItems *PetscOptionsObject,SNES snes)
 {
   PetscErrorCode ierr;
   PetscBool      flg = PETSC_FALSE;

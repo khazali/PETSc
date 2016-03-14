@@ -3,7 +3,7 @@
 
 #undef __FUNCT__
 #define __FUNCT__ "DMSetFromOptions_DA"
-PetscErrorCode  DMSetFromOptions_DA(PetscOptions *PetscOptionsObject,DM da)
+PetscErrorCode  DMSetFromOptions_DA(PetscOptionItems *PetscOptionsObject,DM da)
 {
   PetscErrorCode ierr;
   DM_DA          *dd    = (DM_DA*)da->data;
@@ -61,18 +61,18 @@ PetscErrorCode  DMSetFromOptions_DA(PetscOptions *PetscOptionsObject,DM da)
     refz[i] = refz[0];
   }
   n    = maxnlevels;
-  ierr = PetscOptionsGetIntArray(((PetscObject)da)->prefix,"-da_refine_hierarchy_x",refx,&n,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsIntArray("-da_refine_hierarchy_x","Refinement factor for each level","None",refx,&n,NULL);CHKERRQ(ierr);
   if (da->levelup - da->leveldown >= 0) dd->refine_x = refx[da->levelup - da->leveldown];
   if (da->levelup - da->leveldown >= 1) dd->coarsen_x = refx[da->levelup - da->leveldown - 1];
   if (dim > 1) {
     n    = maxnlevels;
-    ierr = PetscOptionsGetIntArray(((PetscObject)da)->prefix,"-da_refine_hierarchy_y",refy,&n,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsIntArray("-da_refine_hierarchy_y","Refinement factor for each level","None",refy,&n,NULL);CHKERRQ(ierr);
     if (da->levelup - da->leveldown >= 0) dd->refine_y = refy[da->levelup - da->leveldown];
     if (da->levelup - da->leveldown >= 1) dd->coarsen_y = refy[da->levelup - da->leveldown - 1];
   }
   if (dim > 2) {
     n    = maxnlevels;
-    ierr = PetscOptionsGetIntArray(((PetscObject)da)->prefix,"-da_refine_hierarchy_z",refz,&n,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsIntArray("-da_refine_hierarchy_z","Refinement factor for each level","None",refz,&n,NULL);CHKERRQ(ierr);
     if (da->levelup - da->leveldown >= 0) dd->refine_z = refz[da->levelup - da->leveldown];
     if (da->levelup - da->leveldown >= 1) dd->coarsen_z = refz[da->levelup - da->leveldown - 1];
   }
@@ -331,6 +331,10 @@ static PetscErrorCode DMGetDimPoints_DA(DM dm, PetscInt dim, PetscInt *pStart, P
 .seealso: DMType, DMCOMPOSITE, DMDACreate(), DMCreate(), DMSetType()
 M*/
 
+extern PetscErrorCode DMProjectFunctionLocal_DA(DM, PetscReal, PetscErrorCode (**)(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *), void **, InsertMode, Vec);
+extern PetscErrorCode DMComputeL2Diff_DA(DM, PetscReal, PetscErrorCode (**)(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *), void **, Vec, PetscReal *);
+extern PetscErrorCode DMComputeL2GradientDiff_DA(DM, PetscReal, PetscErrorCode (**)(PetscInt, PetscReal, const PetscReal [], const PetscReal [],PetscInt, PetscScalar *, void *), void **, Vec,const PetscReal [], PetscReal *);
+
 
 #undef __FUNCT__
 #define __FUNCT__ "DMCreate_DA"
@@ -423,6 +427,9 @@ PETSC_EXTERN PetscErrorCode DMCreate_DA(DM da)
   da->ops->createdomaindecomposition   = DMCreateDomainDecomposition_DA;
   da->ops->createddscatters            = DMCreateDomainDecompositionScatters_DA;
   da->ops->getdimpoints                = DMGetDimPoints_DA;
+  da->ops->projectfunctionlocal        = DMProjectFunctionLocal_DA;
+  da->ops->computel2diff               = DMComputeL2Diff_DA;
+  da->ops->computel2gradientdiff       = DMComputeL2GradientDiff_DA;
   PetscFunctionReturn(0);
 }
 

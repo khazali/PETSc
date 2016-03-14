@@ -1,6 +1,6 @@
 ALL: lib
 
-DIRS     = da sliced composite redundant plex picell shell patch moab network
+DIRS     = da sliced composite redundant plex shell patch moab network forest picell
 LOCDIR   = src/dm/impls/
 MANSEC   = DM
 

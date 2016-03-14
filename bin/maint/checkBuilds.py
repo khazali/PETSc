@@ -176,6 +176,7 @@ class BuildChecker(script.Script):
   def addLineBlameDict(self,line,filename,ln,petscdir,commit,arch,logfile):
     # avoid solaris compiler errors
     if re.search(r'warning: loop not entered at top',line): return
+    if re.search(r'linker scope was specified more than once',line): return
     if re.search(r'warning: statement not reached',line): return
     # avoid C++ instantiation sequences
     if re.search(r'instantiated from here',line):      return
@@ -185,6 +186,8 @@ class BuildChecker(script.Script):
     # avoid MPI argument checks that cannot handle long long * vs long *
     if re.search(r"\(aka 'long \*'\) doesn't match specified 'MPI' type tag that requires 'long long \*",line): return
     if re.search(r"\(aka 'const long \*'\) doesn't match specified 'MPI' type tag that requires 'long long \*",line): return
+    # avoid Microsoft VC's dubious macro-expansion warnings: http://stackoverflow.com/questions/10684169/ */
+    if re.search(r"warning C4003: not enough actual parameters for macro",line): return
     if self.argDB['ignoreDeprecated'] and re.search(r'deprecated',line):  return
     if self.argDB['ignorePragma'] and re.search(r'unrecognized #pragma',line):  return
     message = line.rstrip()

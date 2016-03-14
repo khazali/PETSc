@@ -783,7 +783,7 @@ PetscErrorCode MatAssemblyEnd_MPISBAIJ(Mat mat,MatAssemblyType mode)
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatView_SeqSBAIJ_ASCII(Mat,PetscViewer);
+extern PetscErrorCode MatView_SeqSBAIJ(Mat,PetscViewer);
 extern PetscErrorCode MatSetValues_MPIBAIJ(Mat,PetscInt,const PetscInt[],PetscInt,const PetscInt[],const PetscScalar[],InsertMode);
 #include <petscdraw.h>
 #undef __FUNCT__
@@ -898,7 +898,7 @@ static PetscErrorCode MatView_MPISBAIJ_ASCIIorDraworSocket(Mat mat,PetscViewer v
     ierr = PetscObjectGetName((PetscObject)mat,&matname);CHKERRQ(ierr);
     if (!rank) {
       ierr = PetscObjectSetName((PetscObject)((Mat_MPISBAIJ*)(A->data))->A,matname);CHKERRQ(ierr);
-      ierr = MatView_SeqSBAIJ_ASCII(((Mat_MPISBAIJ*)(A->data))->A,sviewer);CHKERRQ(ierr);
+      ierr = MatView_SeqSBAIJ(((Mat_MPISBAIJ*)(A->data))->A,sviewer);CHKERRQ(ierr);
     }
     ierr = PetscViewerRestoreSubViewer(viewer,PETSC_COMM_SELF,&sviewer);CHKERRQ(ierr);
     ierr = PetscViewerFlush(viewer);CHKERRQ(ierr);
@@ -1470,10 +1470,12 @@ PetscErrorCode MatSetOption_MPISBAIJ(Mat A,MatOption op,PetscBool flg)
   case MAT_UNUSED_NONZERO_LOCATION_ERR:
   case MAT_KEEP_NONZERO_PATTERN:
   case MAT_NEW_NONZERO_LOCATION_ERR:
+    MatCheckPreallocated(A,1);
     ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
     ierr = MatSetOption(a->B,op,flg);CHKERRQ(ierr);
     break;
   case MAT_ROW_ORIENTED:
+    MatCheckPreallocated(A,1);
     a->roworiented = flg;
 
     ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
@@ -1489,6 +1491,7 @@ PetscErrorCode MatSetOption_MPISBAIJ(Mat A,MatOption op,PetscBool flg)
     a->ht_flag = flg;
     break;
   case MAT_HERMITIAN:
+    MatCheckPreallocated(A,1);
     if (!A->assembled) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call MatAssemblyEnd() first");
     ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
 
@@ -1505,9 +1508,11 @@ PetscErrorCode MatSetOption_MPISBAIJ(Mat A,MatOption op,PetscBool flg)
     }
     break;
   case MAT_SYMMETRIC:
+    MatCheckPreallocated(A,1);
     ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
     break;
   case MAT_STRUCTURALLY_SYMMETRIC:
+    MatCheckPreallocated(A,1);
     ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
     break;
   case MAT_SYMMETRY_ETERNAL:

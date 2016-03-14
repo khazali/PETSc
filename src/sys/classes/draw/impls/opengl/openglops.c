@@ -148,7 +148,7 @@ static PetscErrorCode InitializeColors(void)
   gcolor[PETSC_DRAW_PLUM]            = 160;
   bcolor[PETSC_DRAW_PLUM]            = 221;
 
-  ierr = PetscDrawUtilitySetCmapHue(rcolor+PETSC_DRAW_BASIC_COLORS,gcolor+PETSC_DRAW_BASIC_COLORS,bcolor+PETSC_DRAW_BASIC_COLORS,256-PETSC_DRAW_BASIC_COLORS);CHKERRQ(ierr);
+  ierr = PetscDrawUtilitySetCmap(NULL,256-PETSC_DRAW_BASIC_COLORS,rcolor+PETSC_DRAW_BASIC_COLORS,gcolor+PETSC_DRAW_BASIC_COLORS,bcolor+PETSC_DRAW_BASIC_COLORS);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -423,7 +423,7 @@ static PetscErrorCode PetscDrawDestroy_OpenGL(PetscDraw draw)
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
-  ierr = PetscDrawSynchronizedClear(draw);CHKERRQ(ierr);
+  ierr = PetscDrawClear(draw);CHKERRQ(ierr);
   ierr = PetscDrawDestroy(&draw->popup);CHKERRQ(ierr);
   glutDestroyWindow(win->win);
   ierr = PetscFree(draw->data);CHKERRQ(ierr);
@@ -680,17 +680,6 @@ static PetscErrorCode PetscDrawGetMouseButton_OpenGL(PetscDraw draw,PetscDrawBut
 #endif
 
 /* -----------------------------------------------------------------------*/
-#undef __FUNCT__
-#define __FUNCT__ "PetscDrawSynchronizedFlush_OpenGL"
-static PetscErrorCode PetscDrawSynchronizedFlush_OpenGL(PetscDraw draw)
-{
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  /* currently on sequential support */
-  ierr = PetscDrawFlush(draw);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscDrawClear_OpenGL_Base"
@@ -762,18 +751,6 @@ PetscErrorCode PetscDrawClear_OpenGL_Base(PetscDraw draw)
   glDeleteBuffers(1, &positionBufferObject);
   glDeleteBuffers(1, &colorBufferObject);
   ierr = PetscDrawFlush(draw);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "PetscDrawSynchronizedClear_OpenGL"
-static PetscErrorCode PetscDrawSynchronizedClear_OpenGL(PetscDraw draw)
-{
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  /* currently only sequential support */
-  ierr = PetscDrawClear(draw);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1004,14 +981,9 @@ static PetscErrorCode PetscDrawPause_OpenGL(PetscDraw draw)
   PetscFunctionBegin;
   if (draw->pause > 0) PetscSleep(draw->pause);
   else if (draw->pause == -1) {
-    PetscDrawButton button;
-    PetscMPIInt     rank;
-    ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)draw),&rank);CHKERRQ(ierr);
-    if (!rank) {
-      ierr = PetscDrawGetMouseButton(draw,&button,0,0,0,0);CHKERRQ(ierr);
-      if (button == PETSC_BUTTON_CENTER) draw->pause = 0;
-    }
-    ierr = MPI_Bcast(&draw->pause,1,MPI_INT,0,PetscObjectComm((PetscObject)draw));CHKERRQ(ierr);
+    PetscDrawButton button = PETSC_BUTTON_NONE;
+    ierr = PetscDrawGetMouseButton(draw,&button,0,0,0,0);CHKERRQ(ierr);
+    if (button == PETSC_BUTTON_CENTER) draw->pause = 0;
   }
   PetscFunctionReturn(0);
 }
@@ -1030,13 +1002,11 @@ static struct _PetscDrawOps DvOps = { 0,
                                       PetscDrawStringGetSize_OpenGL,
                                       0, /* PetscDrawSetViewport_OpenGL,*/
                                       PetscDrawClear_OpenGL,
-                                      PetscDrawSynchronizedFlush_OpenGL,
                                       PetscDrawRectangle_OpenGL,
                                       PetscDrawTriangle_OpenGL,
                                       0, /* PetscDrawEllipse_OpenGL,*/
                                       PetscDrawGetMouseButton_OpenGL,
                                       PetscDrawPause_OpenGL,
-                                      PetscDrawSynchronizedClear_OpenGL,
                                       0,
                                       0,
                                       PetscDrawGetPopup_OpenGL,
@@ -1221,6 +1191,9 @@ PETSC_EXTERN PetscErrorCode PetscDrawCreate_GLUT(PetscDraw draw)
 .  -draw_pause <pause> - Sets time (in seconds) that the
        program pauses after PetscDrawPause() has been called
        (0 is default, -1 implies until user input).
+.  -draw_cmap <name> - Sets the colormap to use.
+.  -draw_cmap_reverse - Reverses the colormap.
+-  -draw_cmap_brighten - Brighten (0 < beta < 1) or darken (-1 < beta < 0) the colormap.
 
    Level: beginner
 
@@ -1236,7 +1209,7 @@ PETSC_EXTERN PetscErrorCode PetscDrawCreate_GLUT(PetscDraw draw)
 
    Concepts: OpenGL^drawing to
 
-.seealso: PetscDrawSynchronizedFlush(), PetscDrawDestroy(), PetscDrawOpenX(), PetscDrawCreate()
+.seealso: PetscDrawFlush(), PetscDrawDestroy(), PetscDrawOpenX(), PetscDrawCreate()
 @*/
 PetscErrorCode  PetscDrawOpenGLUT(MPI_Comm comm,const char display[],const char title[],int x,int y,int w,int h,PetscDraw *draw)
 {

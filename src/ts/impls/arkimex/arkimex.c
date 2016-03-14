@@ -66,7 +66,7 @@ typedef struct {
      This method has one explicit stage and one implicit stage.
 
      References:
-     U. Ascher, S. Ruuth, R. J. Spiteri, Implicit-explicit Runge-Kutta methods for time dependent Partial Differential Equations. Appl. Numer. Math. 25, (1997), pp. 151-167.
+.   1. -  U. Ascher, S. Ruuth, R. J. Spiteri, Implicit explicit Runge Kutta methods for time dependent Partial Differential Equations. Appl. Numer. Math. 25, (1997).
 
      Level: advanced
 
@@ -87,7 +87,7 @@ M*/
      This method has two implicit stages, and L-stable implicit scheme.
 
     References:
-     L. Pareschi, G. Russo, Implicit-Explicit Runge-Kutta schemes and applications to hyperbolic systems with relaxations. Journal of Scientific Computing Volume: 25, Issue: 1, October, 2005, pp. 129-155
+.   1. -  L. Pareschi, G. Russo, Implicit Explicit Runge Kutta schemes and applications to hyperbolic systems with relaxations. Journal of Scientific Computing Volume: 25, Issue: 1, October, 2005.
 
      Level: advanced
 
@@ -135,7 +135,7 @@ M*/
      This method has three implicit stages.
 
      References:
-     L. Pareschi, G. Russo, Implicit-Explicit Runge-Kutta schemes and applications to hyperbolic systems with relaxations. Journal of Scientific Computing Volume: 25, Issue: 1, October, 2005, pp. 129-155
+.   1. -  L. Pareschi, G. Russo, Implicit Explicit Runge Kutta schemes and applications to hyperbolic systems with relaxations. Journal of Scientific Computing Volume: 25, Issue: 1, October, 2005.
 
      This method is referred to as SSP2-(3,3,2) in http://arxiv.org/abs/1110.4375
 
@@ -149,7 +149,7 @@ M*/
      This method has one explicit stage and three implicit stages.
 
      References:
-     Kennedy and Carpenter 2003.
+.   1. -  Kennedy and Carpenter 2003.
 
      Level: advanced
 
@@ -161,9 +161,8 @@ M*/
      This method has one explicit stage and four implicit stages.
 
      References:
-     U. Ascher, S. Ruuth, R. J. Spiteri, Implicit-explicit Runge-Kutta methods for time dependent Partial Differential Equations. Appl. Numer. Math. 25, (1997), pp. 151-167.
-
-     This method is referred to as ARS(4,4,3) in http://arxiv.org/abs/1110.4375
++   1. -  U. Ascher, S. Ruuth, R. J. Spiteri, Implicit explicit Runge Kutta methods for time dependent Partial Differential Equations. Appl. Numer. Math. 25, (1997).
+-   2. -  This method is referred to as ARS(4,4,3) in http://arxiv.org/abs/1110.4375
 
      Level: advanced
 
@@ -175,7 +174,7 @@ M*/
      This method has one explicit stage and four implicit stages.
 
      References:
-     This method is referred to as ARK3 in http://arxiv.org/abs/1110.4375
+ .    This method is referred to as ARK3 in http://arxiv.org/abs/1110.4375
 
      Level: advanced
 
@@ -187,7 +186,7 @@ M*/
      This method has one explicit stage and four implicit stages.
 
      References:
-     Kennedy and Carpenter 2003.
+.     Kennedy and Carpenter 2003.
 
      Level: advanced
 
@@ -199,7 +198,7 @@ M*/
      This method has one explicit stage and five implicit stages.
 
      References:
-     Kennedy and Carpenter 2003.
+.     Kennedy and Carpenter 2003.
 
      Level: advanced
 
@@ -661,7 +660,7 @@ static PetscErrorCode TSEvaluateStep_ARKIMEX(TS ts,PetscInt order,Vec X,PetscBoo
   }
 unavailable:
   if (done) *done = PETSC_FALSE;
-  else SETERRQ3(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"ARKIMEX '%s' of order %D cannot evaluate step at order %D",tab->name,tab->order,order);
+  else SETERRQ3(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"ARKIMEX '%s' of order %D cannot evaluate step at order %D. Consider using -ts_adapt_type none or a different method that has an embedded estimate.",tab->name,tab->order,order);
   PetscFunctionReturn(0);
 }
 
@@ -706,6 +705,7 @@ static PetscErrorCode TSStep_ARKIMEX(TS ts)
   PetscReal       next_time_step;
   PetscBool       accept;
   PetscErrorCode  ierr;
+  SNESConvergedReason snes_reason;
 
   PetscFunctionBegin;
   if (ts->equation_type >= TS_EQ_IMPLICIT && tab->explicit_first_stage && (!ts->event || (ts->event && ts->event->status != TSEVENT_PROCESSING))) {
@@ -721,6 +721,7 @@ static PetscErrorCode TSStep_ARKIMEX(TS ts)
       ierr = TSSetSolution(ts_start,ts->vec_sol);CHKERRQ(ierr);
       ierr = TSSetTime(ts_start,ts->ptime);CHKERRQ(ierr);
       ierr = TSSetDuration(ts_start,1,ts->ptime+ts->time_step);CHKERRQ(ierr);
+      ierr = TSSetExactFinalTime(ts_start,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
       ierr = TSSetTimeStep(ts_start,ts->time_step);CHKERRQ(ierr);
       ierr = TSSetType(ts_start,TSARKIMEX);CHKERRQ(ierr);
       ierr = TSARKIMEXSetFullyImplicit(ts_start,PETSC_TRUE);CHKERRQ(ierr);
@@ -852,7 +853,11 @@ static PetscErrorCode TSStep_ARKIMEX(TS ts)
     }
 reject_step: continue;
   }
-  if (ark->status != TS_STEP_COMPLETE && !ts->reason) ts->reason = TS_DIVERGED_STEP_REJECTED;
+  if (ark->status != TS_STEP_COMPLETE && !ts->reason){
+    ierr=SNESGetConvergedReason(snes,&snes_reason);CHKERRQ(ierr);
+    if(snes_reason<0) ts->reason = TS_DIVERGED_NONLINEAR_SOLVE;
+    else ts->reason = TS_DIVERGED_STEP_REJECTED;
+  }
   PetscFunctionReturn(0);
 }
 
@@ -1162,7 +1167,7 @@ static PetscErrorCode TSSetUp_ARKIMEX(TS ts)
 
 #undef __FUNCT__
 #define __FUNCT__ "TSSetFromOptions_ARKIMEX"
-static PetscErrorCode TSSetFromOptions_ARKIMEX(PetscOptions *PetscOptionsObject,TS ts)
+static PetscErrorCode TSSetFromOptions_ARKIMEX(PetscOptionItems *PetscOptionsObject,TS ts)
 {
   TS_ARKIMEX     *ark = (TS_ARKIMEX*)ts->data;
   PetscErrorCode ierr;

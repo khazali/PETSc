@@ -600,7 +600,7 @@ PETSC_EXTERN PetscErrorCode MatColoringApply_Greedy(MatColoring mc,ISColoring *i
 
 #undef __FUNCT__
 #define __FUNCT__ "MatColoringSetFromOptions_Greedy"
-PetscErrorCode MatColoringSetFromOptions_Greedy(PetscOptions *PetscOptionsObject, MatColoring mc)
+PetscErrorCode MatColoringSetFromOptions_Greedy(PetscOptionItems *PetscOptionsObject, MatColoring mc)
 {
   MC_Greedy     *gr = (MC_Greedy *) mc->data;
   PetscErrorCode ierr;
@@ -631,10 +631,8 @@ PetscErrorCode MatColoringSetFromOptions_Greedy(PetscOptions *PetscOptionsObject
    this is done until each column has received a valid color.
 
    References:
-
-   Bozdag et al. "A Parallel Distance-2 Graph Coloring Algorithm for Distributed Memory Computers"
+.  1. - Bozdag et al. "A Parallel Distance 2 Graph Coloring Algorithm for Distributed Memory Computers"
    HPCC'05 Proceedings of the First international conference on High Performance Computing and Communications
-   Pages 796--806
 
 .seealso: MatColoringCreate(), MatColoring, MatColoringSetType()
 M*/

@@ -1,4 +1,3 @@
-
 /*
        Provides the calling sequences for all the basic PetscDraw routines.
 */
@@ -7,18 +6,18 @@
 #undef __FUNCT__
 #define __FUNCT__ "PetscDrawClear"
 /*@
-   PetscDrawClear - Clears graphical output.
+   PetscDrawClear - Clears graphical output. All processors must call this routine.
+   Does not return until the draw in context is clear.
 
-   Not collective (Use PetscDrawSynchronizedClear() for collective)
+   Collective on PetscDraw
 
-   Input Parameter:
+   Input Parameters:
 .  draw - the drawing context
 
-   Level: beginner
+   Level: intermediate
 
    Concepts: clear^window
 
-.seealso: PetscDrawBOP(), PetscDrawEOP(), PetscDrawSynchronizedClear()
 @*/
 PetscErrorCode  PetscDrawClear(PetscDraw draw)
 {
@@ -82,4 +81,3 @@ PetscErrorCode  PetscDrawEOP(PetscDraw draw)
   }
   PetscFunctionReturn(0);
 }
-

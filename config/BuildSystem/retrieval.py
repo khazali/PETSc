@@ -41,9 +41,9 @@ class Retriever(logger.Logger):
     if not authUrl:
       raise RuntimeError('Url is empty')
     (scheme, location, path, parameters, query, fragment) = urlparse.urlparse(authUrl)
-    return self.executeShellCommand('echo "quit" | ssh -oBatchMode=yes '+location)
+    return self.executeShellCommand('echo "quit" | ssh -oBatchMode=yes '+location, log = self.log)
 
-  def genericRetrieve(self, url, root, name, gitcommit = None):
+  def genericRetrieve(self, url, root, package):
     '''Fetch the gzipped tarfile indicated by url and expand it into root
        - All the logic for removing old versions, updating etc. must move'''
 
@@ -66,16 +66,74 @@ class Retriever(logger.Logger):
       if os.path.isdir(dir):
         if not os.path.isdir(os.path.join(dir,'.git')): raise RuntimeError('Url begins with git:// and is a directory but but does not have a .git subdirectory')
 
-      newgitrepo = os.path.join(root,name)
+      newgitrepo = os.path.join(root,'git.'+package)
       if os.path.isdir(newgitrepo): shutil.rmtree(newgitrepo)
       if os.path.isfile(newgitrepo): os.unlink(newgitrepo)
 
-      config.base.Configure.executeShellCommand(self.sourceControl.git+' clone '+dir+' '+newgitrepo)
-      if gitcommit:
-        try:
-          config.base.Configure.executeShellCommand([self.sourceControl.git, 'checkout', '-f', gitcommit], cwd=newgitrepo, log = self.log)
-        except:
-          raise RuntimeError('Unable to checkout commit id '+gitcommit+' in repository '+newgitrepo)
+      try:
+        config.base.Configure.executeShellCommand(self.sourceControl.git+' clone '+dir+' '+newgitrepo, log = self.log)
+      except  RuntimeError, e:
+        self.logPrint('ERROR: '+str(e))
+        err = str(e)
+        failureMessage = '''\
+Unable to download package %s from: %s
+* If URL specified manually - perhaps there is a typo?
+* If your network is disconnected - please reconnect and rerun ./configure
+* Or perhaps you have a firewall blocking the download
+* You can run with --with-packages-dir=/adirectory and ./configure will instruct you what packages to download manually
+* or you can download the above URL manually, to /yourselectedlocation
+  and use the configure option:
+  --download-%s=/yourselectedlocation
+''' % (package.upper(), url, package)
+        raise RuntimeError('Unable to download '+package+'\n'+err+failureMessage)
+      return
+
+    if url.startswith('hg://'):
+      if not hasattr(self.sourceControl, 'hg'): return
+
+      newgitrepo = os.path.join(root,'hg.'+package)
+      if os.path.isdir(newgitrepo): shutil.rmtree(newgitrepo)
+      if os.path.isfile(newgitrepo): os.unlink(newgitrepo)
+      try:
+        config.base.Configure.executeShellCommand(self.sourceControl.hg+' clone '+url[5:]+' '+newgitrepo)
+      except  RuntimeError, e:
+        self.logPrint('ERROR: '+str(e))
+        err = str(e)
+        failureMessage = '''\
+Unable to download package %s from: %s
+* If URL specified manually - perhaps there is a typo?
+* If your network is disconnected - please reconnect and rerun ./configure
+* Or perhaps you have a firewall blocking the download
+* You can run with --with-packages-dir=/adirectory and ./configure will instruct you what packages to download manually
+* or you can download the above URL manually, to /yourselectedlocation
+  and use the configure option:
+  --download-%s=/yourselectedlocation
+''' % (package.upper(), url, package)
+        raise RuntimeError('Unable to download '+package+'\n'+err+failureMessage)
+      return
+
+    if url.startswith('ssh://hg@'):
+      if not hasattr(self.sourceControl, 'hg'): return
+
+      newgitrepo = os.path.join(root,'hg.'+package)
+      if os.path.isdir(newgitrepo): shutil.rmtree(newgitrepo)
+      if os.path.isfile(newgitrepo): os.unlink(newgitrepo)
+      try:
+        config.base.Configure.executeShellCommand(self.sourceControl.hg+' clone '+url+' '+newgitrepo)
+      except  RuntimeError, e:
+        self.logPrint('ERROR: '+str(e))
+        err = str(e)
+        failureMessage = '''\
+Unable to download package %s from: %s
+* If URL specified manually - perhaps there is a typo?
+* If your network is disconnected - please reconnect and rerun ./configure
+* Or perhaps you have a firewall blocking the download
+* You can run with --with-packages-dir=/adirectory and ./configure will instruct you what packages to download manually
+* or you can download the above URL manually, to /yourselectedlocation
+  and use the configure option:
+  --download-%s=/yourselectedlocation
+''' % (package.upper(), url, package)
+        raise RuntimeError('Unable to download '+package+'\n'+err+failureMessage)
       return
 
     # get the tarball file name from the URL
@@ -100,10 +158,11 @@ Unable to download package %s from: %s
 * If URL specified manually - perhaps there is a typo?
 * If your network is disconnected - please reconnect and rerun ./configure
 * Or perhaps you have a firewall blocking the download
-* Alternatively, you can download the above URL manually, to /yourselectedlocation/%s
+* You can run with --with-packages-dir=/adirectory and ./configure will instruct you what packages to download manually
+* or you can download the above URL manually, to /yourselectedlocation/%s
   and use the configure option:
   --download-%s=/yourselectedlocation/%s
-''' % (name, url, filename, name.lower(), filename)
+''' % (package.upper(), url, filename, package, filename)
       raise RuntimeError(failureMessage)
 
     self.logPrint('Extracting '+localFile)
@@ -117,10 +176,11 @@ Downloaded package %s from: %s is not a tarball.
 [or installed python cannot process compressed files]
 * If you are behind a firewall - please fix your proxy and rerun ./configure
   For example at LANL you may need to set the environmental variable http_proxy (or HTTP_PROXY?) to  http://proxyout.lanl.gov
-* Alternatively, you can download the above URL manually, to /yourselectedlocation/%s
+* You can run with --with-packages-dir=/adirectory and ./configure will instruct you what packages to download manually
+* or you can download the above URL manually, to /yourselectedlocation/%s
   and use the configure option:
   --download-%s=/yourselectedlocation/%s
-''' % (name, url, filename, name.lower(), filename)
+''' % (package.upper(), url, filename, package, filename)
       import tarfile
       try:
         tf  = tarfile.open(os.path.join(root, localFile))
@@ -174,7 +234,7 @@ Downloaded package %s from: %s is not a tarball.
       raise RuntimeError('Cannot retrieve a SVN repository since svn was not found')
     self.logPrint('Retrieving '+url+' --> '+os.path.join(root, name)+' via svn', 3, 'install')
     try:
-      config.base.Configure.executeShellCommand(self.sourceControl.svn+' checkout http'+url[3:]+' '+os.path.join(root, name))
+      config.base.Configure.executeShellCommand(self.sourceControl.svn+' checkout http'+url[3:]+' '+os.path.join(root, name), log = self.log)
     except RuntimeError:
       pass
 

@@ -59,15 +59,16 @@ static PetscErrorCode MatFDColoringView_Draw(MatFDColoring fd,PetscViewer viewer
 
   PetscFunctionBegin;
   ierr = PetscViewerDrawGetDraw(viewer,0,&draw);CHKERRQ(ierr);
-  ierr = PetscDrawIsNull(draw,&isnull);CHKERRQ(ierr); if (isnull) PetscFunctionReturn(0);
-
-  ierr = PetscObjectCompose((PetscObject)fd,"Zoomviewer",(PetscObject)viewer);CHKERRQ(ierr);
+  ierr = PetscDrawIsNull(draw,&isnull);CHKERRQ(ierr);
+  if (isnull) PetscFunctionReturn(0);
 
   xr   = fd->N; yr  = fd->M; h = yr/10.0; w = xr/10.0;
   xr  += w;     yr += h;    xl = -w;     yl = -h;
   ierr = PetscDrawSetCoordinates(draw,xl,yl,xr,yr);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject)fd,"Zoomviewer",(PetscObject)viewer);CHKERRQ(ierr);
   ierr = PetscDrawZoom(draw,MatFDColoringView_Draw_Zoom,fd);CHKERRQ(ierr);
   ierr = PetscObjectCompose((PetscObject)fd,"Zoomviewer",NULL);CHKERRQ(ierr);
+  ierr = PetscDrawSave(draw);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -386,7 +387,7 @@ PetscErrorCode  MatFDColoringSetFromOptions(MatFDColoring matfd)
   }
 
   /* process any options handlers added with PetscObjectAddOptionsHandler() */
-  ierr = PetscObjectProcessOptionsHandlers((PetscObject)matfd);CHKERRQ(ierr);
+  ierr = PetscObjectProcessOptionsHandlers(PetscOptionsObject,(PetscObject)matfd);CHKERRQ(ierr);
   PetscOptionsEnd();CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -594,7 +595,7 @@ PetscErrorCode  MatFDColoringApply(Mat J,MatFDColoring coloring,Vec x1,void *sct
   if (!coloring->setupcalled) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call MatFDColoringSetUp()");
 
   ierr = MatSetUnfactored(J);CHKERRQ(ierr);
-  ierr = PetscOptionsGetBool(NULL,"-mat_fd_coloring_dont_rezero",&flg,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(((PetscObject)coloring)->options,NULL,"-mat_fd_coloring_dont_rezero",&flg,NULL);CHKERRQ(ierr);
   if (flg) {
     ierr = PetscInfo(coloring,"Not calling MatZeroEntries()\n");CHKERRQ(ierr);
   } else {

@@ -34,7 +34,7 @@ struct _TaoOps {
     PetscErrorCode (*setup)(Tao);
     PetscErrorCode (*solve)(Tao);
     PetscErrorCode (*view)(Tao, PetscViewer);
-    PetscErrorCode (*setfromoptions)(PetscOptions*,Tao);
+    PetscErrorCode (*setfromoptions)(PetscOptionItems*,Tao);
     PetscErrorCode (*destroy)(Tao);
 };
 
@@ -82,6 +82,11 @@ struct _p_Tao {
     Mat gradient_norm;
     Vec gradient_norm_tmp;
     Vec sep_objective;
+    Vec sep_weights_v;
+    PetscInt sep_weights_n;
+    PetscInt *sep_weights_rows;
+    PetscInt *sep_weights_cols;
+    PetscReal *sep_weights_w;
     Vec constraints;
     Vec constraints_equality;
     Vec constraints_inequality;
@@ -134,8 +139,6 @@ struct _p_Tao {
     PetscReal trust0; /* initial trust region radius */
     PetscReal trust;  /* Current trust region */
 
-    PetscReal fatol;
-    PetscReal frtol;
     PetscReal gatol;
     PetscReal grtol;
     PetscReal gttol;
@@ -145,8 +148,6 @@ struct _p_Tao {
     PetscReal fmin;
     PetscBool max_funcs_changed;
     PetscBool max_it_changed;
-    PetscBool fatol_changed;
-    PetscBool frtol_changed;
     PetscBool gatol_changed;
     PetscBool grtol_changed;
     PetscBool gttol_changed;
