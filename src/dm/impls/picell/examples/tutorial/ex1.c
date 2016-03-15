@@ -5,14 +5,10 @@ static char help[] = "A partical in cell code for tokamac plasmas using PICell.\
 #ifdef H5PART
 #include <H5Part.h>
 #endif
-#include <petscdmpicell.h>
-#include <petscts.h>
-#include <petscds.h>
-#include <petscdmplex.h>
 #include <petsc/private/dmpicellimpl.h>    /*I   "petscdmpicell.h"   I*/
 #include <assert.h>
-#include <petscdmforest.h>
-#include <petscoptions.h>
+/* #include <petscdmforest.h> */
+/* #include <petscoptions.h> */
 
 /* particle grid, not PETSc ? */
 typedef struct {
@@ -1146,8 +1142,8 @@ int main(int argc, char **argv)
   PetscBool      flg;
   DM_PICell      *dmpi;
   DM             dm,cdm;
-  /* PetscInt       dim; */
-  /* PetscFE        fe;  *//* FV might be better */
+  PetscInt       dim;
+  PetscFE        fe; /* FV might be better */
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
 #if defined(PETSC_USE_LOG)
   ctx.currevent = 0;
@@ -1185,7 +1181,7 @@ int main(int argc, char **argv)
   ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);
   CHKERRQ(ierr);
   ctx.BCFuncs[0] = zero;
-  /* ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr); */
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   /* ierr = PetscFECreateDefault(dm, dim, 1, PETSC_FALSE, NULL, -1, &fe);CHKERRQ(ierr); */
   /* ierr = PetscObjectSetName((PetscObject) fe, "potential");CHKERRQ(ierr); */
   /* cdm = dm; */
@@ -1203,7 +1199,7 @@ int main(int argc, char **argv)
   /*   ierr = DMGetCoarseDM(cdm, &cdm);CHKERRQ(ierr); */
   /* } */
   /* ierr = PetscFEDestroy(&fe);CHKERRQ(ierr); */
-  /* setup particles */
+   /* setup particles */
   ierr = createParticles( &ctx );CHKERRQ(ierr);
   ierr = PetscLogEventEnd(ctx.events[3],0,0,0,0);CHKERRQ(ierr);
 
