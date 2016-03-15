@@ -19,7 +19,6 @@ typedef struct {
   PetscReal  rMajor;
   PetscReal  rMinor;
 } X2GridParticle;
-PetscMPIInt X2GridParticleGetProc(X2GridParticle *, PetscReal, PetscReal, PetscReal);
 /* X2Species */
 #define X2_NION 1
 typedef struct {
@@ -40,27 +39,12 @@ typedef struct { /* ptl_type */
   PetscReal f0;
   long long gid; /* diagnostic */
 } X2Particle;
-/* PetscErrorCode X2ParticleCreate(X2Particle *p, PetscInt gid, PetscReal r, PetscReal z, PetscReal phi, PetscReal rho); */
-/* PetscErrorCode X2ParticleCopy(X2Particle *p, X2Particle); */
-/* PetscErrorCode X2ParticleRead(X2Particle*, void*); */
-/* PetscErrorCode X2ParticleWrite(X2Particle*, void*); */
 /* X2PList */
 typedef PetscInt X2PListPos;
 typedef struct {
   X2Particle *data;
   PetscInt    data_size, size, hole, top;
 } X2PList;
-/* PetscErrorCode X2PListCreate(X2PList *l, PetscInt msz); */
-/* PetscErrorCode X2PListDestroy(X2PList *l); */
-/* PetscErrorCode X2PListAdd( X2PList*, X2Particle*); /\* copy data *\/ */
-/* PetscErrorCode X2PListGetHead(X2PList*, X2PListPos*); */
-/* PetscErrorCode X2PListGetNext(X2PList*, X2Particle *, X2PListPos*); /\* get pointer to data in list *\/ */
-/* PetscErrorCode X2PListRemoveAt( X2PList*, X2PListPos); */
-/* PetscErrorCode X2PListSetAt(X2PList*, X2PListPos, X2Particle *); */
-/* PetscErrorCode X2PListClear( X2PList*); */
-/* PetscErrorCode X2PListCompress( X2PList*); */
-/* PetscInt X2PListMaxSize(X2PList *l); */
-/* PetscInt X2PListSize(X2PList *l); */
 /* send particle list */
 typedef struct X2SendList_TAG{
   X2PList plist[X2_NION+1];
@@ -77,11 +61,11 @@ typedef struct X2ISend_TAG{
   General parameters and context
 */
 typedef struct {
-  PetscInt      debug;   /* The debugging level */
+  PetscInt      debug;   /* The debugging level, not used */
   PetscLogEvent events[10];
   PetscInt      currevent;
-  PetscInt      tablesize,tablecount;
-  PetscInt      useBSPchuncksize;
+  PetscInt      tablesize,tablecount; /* hash table meta-data for proc-send list table */
+  PetscInt      bsp_chuncksize;
   /* MPI parallel data */
   MPI_Comm      particlePlaneComm,wComm;
   PetscMPIInt   rank,npe,npe_particlePlane,particlePlaneRank,ParticlePlaneIdx;
@@ -105,7 +89,7 @@ typedef struct {
   PetscInt  partBuffSize;
   PetscBool useElectrons;
   PetscInt  collisionPeriod;
-  PetscReal maxparvel;
+  PetscReal max_vpar;
   X2PList   partlists[X2_NION+1]; /* 0: electron, 1:N ions */
 } X2Ctx;
 
@@ -326,8 +310,6 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   /* general */
   ierr = MPI_Comm_rank(ctx->wComm, &ctx->rank);CHKERRQ(ierr);
   ierr = MPI_Comm_size(ctx->wComm, &ctx->npe);CHKERRQ(ierr);
-  ctx->debug     = 0;
-  ctx->tablesize = 197;
   ctx->tablecount = 0;
 
   /* physics */
@@ -348,27 +330,26 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->particleGrid.nradius    = 1;
   ctx->particleGrid.ntheta     = 1;
 
-  ierr = PetscOptionsBegin(ctx->wComm, "", "Poisson Problem Options", "XGC2");CHKERRQ(ierr);
+  ierr = PetscOptionsBegin(ctx->wComm, "", "Poisson Problem Options", "X2");CHKERRQ(ierr);
   /* general options */
-  ierr = PetscOptionsInt("-debug", "The debugging level", "xgc2.c", ctx->debug, &ctx->debug, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-chuncksize", "Size of particle list to chunk sends", "xgc2.c", s_chunksize, &s_chunksize, NULL);CHKERRQ(ierr);
-  ctx->useBSPchuncksize = 32768;
-  ierr = PetscOptionsInt("-useBSPchuncksize", "Size of chucks for PETSc's TwoSide communication (0 for use non-BSP)", "xgc2.c", ctx->useBSPchuncksize, &ctx->useBSPchuncksize, NULL);CHKERRQ(ierr);
-  if (ctx->useBSPchuncksize<0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB," invalid chuck size = %D",ctx->useBSPchuncksize);
-
-  /* run  = ctx->runType; */
-  /* ierr = PetscOptionsEList("-run_type", "The run type", "xgc2.c", runTypes, 3, runTypes[ctx->runType], &run, NULL);CHKERRQ(ierr); */
-  /* ctx->runType = (RunType) run; */
+  ctx->debug = 0;
+  ierr = PetscOptionsInt("-debug", "The debugging level", "x2.c", ctx->debug, &ctx->debug, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-chuncksize", "Size of particle list to chunk sends", "x2.c", s_chunksize, &s_chunksize, NULL);CHKERRQ(ierr);
+  ctx->bsp_chuncksize = 0; /* 32768; */
+  ierr = PetscOptionsInt("-bsp_chuncksize", "Size of chucks for PETSc's TwoSide communication (0 to use 'nonblocking consensus')", "x2.c", ctx->bsp_chuncksize, &ctx->bsp_chuncksize, NULL);CHKERRQ(ierr);
+  if (ctx->bsp_chuncksize<0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB," invalid chuck size = %D",ctx->bsp_chuncksize);
+  ctx->tablesize = 200; /* hash table size of processors to send to */
+  ierr = PetscOptionsInt("-proc_send_table_size", "Size of hash table proc->send_list", "x2.c",ctx->tablesize = 200, &ctx->tablesize, NULL);CHKERRQ(ierr);
 
   /* Domain and mesh definition */
-  ierr = PetscOptionsReal("-rMajor", "Major radius of torus", "xgc2.c", ctx->particleGrid.rMajor, &ctx->particleGrid.rMajor, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsReal("-rMinor", "Minor radius of torus", "xgc2.c", ctx->particleGrid.rMinor, &ctx->particleGrid.rMinor, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsReal("-refinement_limit", "The largest allowable cell volume", "xgc2.c", refinement_limit, &refinement_limit, NULL); /* not used!!! */
+  ierr = PetscOptionsReal("-rMajor", "Major radius of torus", "x2.c", ctx->particleGrid.rMajor, &ctx->particleGrid.rMajor, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-rMinor", "Minor radius of torus", "x2.c", ctx->particleGrid.rMinor, &ctx->particleGrid.rMinor, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-refinement_limit", "The largest allowable cell volume", "x2.c", refinement_limit, &refinement_limit, NULL); /* not used!!! */
   CHKERRQ(ierr);
 
-  ierr = PetscOptionsInt("-nphi_particles", "Number of planes for particle mesh", "xgc2.c", ctx->particleGrid.nphi, &ctx->particleGrid.nphi, &phiFlag);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-nradius_particles", "Number of radial cells for particle mesh", "xgc2.c", ctx->particleGrid.nradius, &ctx->particleGrid.nradius, &radFlag);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-ntheta_particles", "Number of theta cells for particle mesh", "xgc2.c", ctx->particleGrid.ntheta, &ctx->particleGrid.ntheta, &thetaFlag);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-nphi_particles", "Number of planes for particle mesh", "x2.c", ctx->particleGrid.nphi, &ctx->particleGrid.nphi, &phiFlag);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-nradius_particles", "Number of radial cells for particle mesh", "x2.c", ctx->particleGrid.nradius, &ctx->particleGrid.nradius, &radFlag);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-ntheta_particles", "Number of theta cells for particle mesh", "x2.c", ctx->particleGrid.ntheta, &ctx->particleGrid.ntheta, &thetaFlag);CHKERRQ(ierr);
   ctx->npe_particlePlane = -1;
   if (ctx->particleGrid.nphi*ctx->particleGrid.nradius*ctx->particleGrid.ntheta != ctx->npe) { /* recover from inconsistant grid/procs */
     if (thetaFlag && radFlag && phiFlag) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"over constrained number of particle processes npe (%D) != %D",ctx->npe,ctx->particleGrid.nphi*ctx->particleGrid.nradius*ctx->particleGrid.ntheta);
@@ -415,28 +396,28 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
 
   /* time integrator */
   ctx->msteps = 1;
-  ierr = PetscOptionsInt("-mstep", "Maximum number of time steps", "xgc2.c", ctx->msteps, &ctx->msteps, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-mstep", "Maximum number of time steps", "x2.c", ctx->msteps, &ctx->msteps, NULL);CHKERRQ(ierr);
   ctx->maxTime = 1000000000.;
-  ierr = PetscOptionsReal("-maxTime", "Maximum time", "xgc2.c",ctx->maxTime,&ctx->maxTime,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-maxTime", "Maximum time", "x2.c",ctx->maxTime,&ctx->maxTime,NULL);CHKERRQ(ierr);
   ctx->dt = 1.;
-  ierr = PetscOptionsReal("-dt","Time step","xgc2.c",ctx->dt,&ctx->dt,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-dt","Time step","x2.c",ctx->dt,&ctx->dt,NULL);CHKERRQ(ierr);
   /* particles */
   ctx->npart_cell = 10; ctx->partBuffSize = 15;
-  ierr = PetscOptionsInt("-npart_cell", "Number of particles local (not cell!!!)", "xgc2.c", ctx->npart_cell, &ctx->npart_cell, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-partBuffSize", "Number of z cells for solver mesh", "xgc2.c", ctx->partBuffSize, &ctx->partBuffSize, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-npart_cell", "Number of particles local (not cell!!!)", "x2.c", ctx->npart_cell, &ctx->npart_cell, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-partBuffSize", "Number of z cells for solver mesh", "x2.c", ctx->partBuffSize, &ctx->partBuffSize, NULL);CHKERRQ(ierr);
   if (ctx->partBuffSize<10*ctx->npart_cell/9) ctx->partBuffSize = 3*ctx->npart_cell/2; /* hack */
-  ctx->collisionPeriod = 1;
-  ierr = PetscOptionsInt("-collisionPeriod", "Period between collision operators", "xgc2.c", ctx->collisionPeriod, &ctx->collisionPeriod, NULL);CHKERRQ(ierr);
+  ctx->collisionPeriod = 10;
+  ierr = PetscOptionsInt("-collisionPeriod", "Period between collision operators", "x2.c", ctx->collisionPeriod, &ctx->collisionPeriod, NULL);CHKERRQ(ierr);
   if (ctx->partBuffSize < ctx->npart_cell) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"partBuffSize (%D) < npart_cell (%D)",ctx->partBuffSize,ctx->npart_cell);
   ctx->useElectrons = PETSC_FALSE;
-  ierr = PetscOptionsBool("-use_electrons", "Include electrons", "xgc2.c", ctx->useElectrons, &ctx->useElectrons, NULL);CHKERRQ(ierr);
-  ctx->maxparvel = 1.;
-  ierr = PetscOptionsReal("-maxparvel", "Maximum parallel velocity", "xgc2.c",ctx->maxparvel,&ctx->maxparvel,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-use_electrons", "Include electrons", "x2.c", ctx->useElectrons, &ctx->useElectrons, NULL);CHKERRQ(ierr);
+  ctx->max_vpar = 1.;
+  ierr = PetscOptionsReal("-max_vpar", "Maximum parallel velocity", "x2.c",ctx->max_vpar,&ctx->max_vpar,NULL);CHKERRQ(ierr);
 
   /* model/equations */
   /* (sizeof(a)/sizeof((a)[0])) */
   /* run = (sizeof(ctx->B0eqFilename)/sizeof((ctx->B0eqFilename)[0])); */
-  /* ierr = PetscOptionsStringArray("-B0eqFilename", "Name of equilibrium B field file", "xgc2.c", ctx->B0eqFilename, &run, &flg);CHKERRQ(ierr); */
+  /* ierr = PetscOptionsStringArray("-b0_filename", "Name of equilibrium B field file", "x2.c", ctx->b0_filename, &ctx->b0_filename, &flg);CHKERRQ(ierr); */
   /* if (!flg) *ctx->B0eqFilename = fname; */
 
   ierr = PetscOptionsEnd();
@@ -490,6 +471,34 @@ PetscErrorCode cylindrical2Cart(PetscReal a_R, PetscReal a_Z, PetscReal a_phi, P
   a_cart[1] = a_R*sin(a_phi);
   a_cart[2] = a_Z;
   PetscFunctionReturn(0);
+}
+
+/* X2GridParticleGetProc_FluxTube: find processor flux tube that this point is in
+    Input:
+     - grid: the particle grid
+     - radius: r in [r,theta] coordinates
+     - theta:
+     - phi: toroidal angle
+   Output:
+     - return process ID
+*/
+#undef __FUNCT__
+#define __FUNCT__ "X2GridParticleGetProc_FluxTube"
+PetscMPIInt X2GridParticleGetProc_FluxTube(X2GridParticle *grid, PetscReal psi, PetscReal theta, PetscReal phi)
+{
+  const PetscReal rminor=grid->rMinor;
+  const PetscReal dphi=2.*M_PI/(PetscReal)grid->nphi;
+  const PetscReal dth=2.*M_PI/(PetscReal)grid->ntheta;
+
+  PetscMPIInt pe,planeIdx,irs,iths;
+
+  PetscFunctionBeginUser;
+  theta = fmod( theta - qsafty(psi/rminor)*phi + 20.*M_PI, 2.*M_PI);  /* pull back to referance grid */
+  planeIdx = (PetscMPIInt)(phi/dphi)*grid->nradius*grid->ntheta; /* assumeing one particle cell per PE */
+  iths = (PetscMPIInt)(theta/dth);                               assert(iths<grid->ntheta);
+  irs = (PetscMPIInt)((PetscReal)grid->nradius*psi*psi/(rminor*rminor)); assert(irs<grid->nradius);
+  pe = planeIdx + irs*grid->ntheta + iths;
+  PetscFunctionReturn(pe);
 }
 
 #undef __FUNCT__
@@ -551,7 +560,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 	for ( ii = 0, theta0 = th1 + (PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG*dth2;
 	      ii < NN && np<ctx->npart_cell ;
 	      ii++, theta0 += dth2, np++ ) {
-	  PetscReal zmax,maxe=ctx->maxparvel*ctx->maxparvel,zdum,mass=1.,b=1.,charge=1.,t=1.;
+	  PetscReal zmax,maxe=ctx->max_vpar*ctx->max_vpar,zdum,mass=1.,b=1.,charge=1.,t=1.;
           PetscScalar v=1.,vpar;
           const PetscReal phi = phi1 + (PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG*dphi;
 	  const PetscReal thetap = theta0 + qsaf*phi; /* push forward to follow fieldlines */
@@ -572,7 +581,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 	  /* add density to RHS */
 	  ierr = cylindrical2Cart(particle.r, particle.z, particle.phi, x);CHKERRQ(ierr);
 	  ierr = DMPICellAddSource(ctx->dm, xVec, vVec);CHKERRQ(ierr);
-	  if((j=X2GridParticleGetProc(&ctx->particleGrid,psi,thetap,phi)) != ctx->rank){
+	  if((j=X2GridParticleGetProc_FluxTube(&ctx->particleGrid,psi,thetap,phi)) != ctx->rank){
 	    PetscPrintf(PETSC_COMM_SELF,"[%D] ERROR proc %d r=%e:%e:%e theta=%e:%e:%e phi=%e:%e:%e\n",ctx->rank,j,r1,psi,r1+dr,th1,thetap,th1+dth,phi1,phi,phi1+dphi);
 	    SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB," created particle for proc %D",j);
 	  }
@@ -660,7 +669,7 @@ PetscErrorCode X2PListWrite( X2PList *l, int rank, int npe, MPI_Comm comm, char 
       y[nparticles] = part.r*sin(part.phi);
       z[nparticles] = part.z;
       v[nparticles] = part.vpar;
-      id[nparticles] = part.gid; /* rank */
+      id[nparticles] = part.gid;
       nparticles++;
     }
   }
@@ -684,7 +693,7 @@ PetscErrorCode X2PListWrite( X2PList *l, int rank, int npe, MPI_Comm comm, char 
   ierr = H5PartWriteDataFloat64(file2, "y", y);
   ierr = H5PartWriteDataFloat64(file2, "z", z);
   ierr = H5PartWriteDataFloat64(file2, "v", v);
-  ierr = H5PartWriteDataInt64(file2, "gid", id);
+  ierr = H5PartWriteDataInt64(file2, "rank", id);
 
   if (x) {
     free(x); free(y); free(z); free(id); free(v);
@@ -696,151 +705,23 @@ PetscErrorCode X2PListWrite( X2PList *l, int rank, int npe, MPI_Comm comm, char 
 }
 #endif
 
-/* X2GridParticleGetProc: find processor that this point belongs
+/* shiftParticles: send particles
     Input:
-     - grid: the particle grid
-     - radius: r in r,theta coordinates
-     - theta:
-     _ phi: toroidal angle
+     - ctx: global data
+     - isp: species index into sendLTabPtr
+     - nIsend: number of sends so far
+     - tag: MPI tag to send with
+   Input/Output:
+     - sendLTabPtr: send list hash table array, emptied but meta-data kept
+     - particlelist: the list of particle lists to add to
+     - slists: array of non blocking send caches (!ctx->bsp_chuncksize only), cleared
    Output:
-     - return proccess ID
+
 */
 #undef __FUNCT__
-#define __FUNCT__ "X2GridParticleGetProc"
-PetscMPIInt X2GridParticleGetProc(X2GridParticle *grid, PetscReal psi, PetscReal theta, PetscReal phi)
-{
-  const PetscReal rminor=grid->rMinor;
-  const PetscReal dphi=2.*M_PI/(PetscReal)grid->nphi;
-  const PetscReal dth=2.*M_PI/(PetscReal)grid->ntheta;
-
-  PetscMPIInt pe,planeIdx,irs,iths;
-
-  PetscFunctionBeginUser;
-  theta = fmod( theta - qsafty(psi/rminor)*phi + 20.*M_PI, 2.*M_PI);  /* pull back to referance grid */
-  planeIdx = (PetscMPIInt)(phi/dphi)*grid->nradius*grid->ntheta; /* assumeing one particle cell per PE */
-  iths = (PetscMPIInt)(theta/dth);                               assert(iths<grid->ntheta);
-  irs = (PetscMPIInt)((PetscReal)grid->nradius*psi*psi/(rminor*rminor)); assert(irs<grid->nradius);
-  pe = planeIdx + irs*grid->ntheta + iths;
-  PetscFunctionReturn(pe);
-}
-
-/* processParticle: */
-#undef __FUNCT__
-#define __FUNCT__ "processParticles"
-static PetscErrorCode processParticles( X2Ctx *ctx, X2PList *list, X2GridParticle *grid, PetscInt isp,
-					PetscReal dt, X2SendList *sendLTabPtr, PetscInt tag,
-					X2ISend slist[], int irk, int *slistIdx, int *nmoved )
-{
-  PetscReal   r,z,psi,theta,dphi,rmaj=grid->rMajor,rminor=grid->rMinor;
-  PetscMPIInt pe,hash,ii;
-  X2Particle  part;
-  X2PListPos  pos;
-  PetscErrorCode ierr;
-  const int part_dsize = sizeof(X2Particle)/sizeof(double);
-  DM_PICell *dmpi;
-  DM dm;
-  Vec gradVec,xVec,vVec;
-  PetscScalar *x,*grad,rone=1.;
-  PetscInt dim,order=1,one=1;
-  PetscFunctionBeginUser;
-
-  /* ierr = X2PListCompress( list );CHKERRQ(ierr); */
-  dmpi = (DM_PICell *) ctx->dm->data;
-  dm = dmpi->dmplex;
-  /* ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr); */dim = 3;
-  ierr = VecCreateSeq(PETSC_COMM_SELF,dim,&gradVec);CHKERRQ(ierr);
-  ierr = VecGetArray(gradVec,&grad);CHKERRQ(ierr);
-  ierr = VecCreateSeq(PETSC_COMM_SELF,dim,&xVec);CHKERRQ(ierr);
-  ierr = VecGetArray(xVec,&x);CHKERRQ(ierr);
-  ierr = VecCreateSeq(PETSC_COMM_SELF,one,&vVec);CHKERRQ(ierr);
-  ierr = VecSet(vVec,rone);CHKERRQ(ierr); /* dummy density now */
-
-  /* for (pos=0 ; pos < list->size ; pos++) { */
-  /* part = list->data[pos]; */
-  ierr = X2PListGetHead( list, &pos );CHKERRQ(ierr);
-  while ( !X2PListGetNext(list, &part, &pos) ) {
-    /* get E */
-    ierr = cylindrical2Cart(part.r, part.z, part.phi, x);CHKERRQ(ierr);
-    ierr = DMPICellGetJet(ctx->dm, xVec, order, gradVec);CHKERRQ(ierr); /* not used */
-
-    /* simple push: theta = theta + q*dphi .... grad not used */
-    ierr = cylindrical2polPlane( part.r - rmaj, part.z, &psi, &theta );CHKERRQ(ierr);
-
-    dphi = (dt*part.vpar)/(2.*M_PI*part.r);  /* toroidal step */
-    part.phi += dphi;
-    part.phi = fmod( part.phi + 20.*M_PI, 2.*M_PI);
-
-    theta += qsafty(psi/rminor)*dphi;  /* twist */
-    theta = fmod( theta + 20.*M_PI, 2.*M_PI);
-
-    ierr = polPlane2cylindrical( psi, theta, &r, &z);CHKERRQ(ierr); /* time spent here */
-    part.r = rmaj + r;
-    part.z = z;
-
-    /* see if need communication, add density if not, add to communication list if so */
-    if (irk==0 || !sendLTabPtr || (pe=X2GridParticleGetProc(grid, psi, theta, part.phi))==ctx->rank) { /* don't move */
-      /* add density to RHS */
-      ierr = cylindrical2Cart(part.r, part.z, part.phi, x);CHKERRQ(ierr);
-      ierr = DMPICellAddSource(ctx->dm, xVec, vVec);CHKERRQ(ierr);
-      if (irk==1) {
-	ierr = X2PListSetAt( list, pos, &part );CHKERRQ(ierr); /* not moved and final step so write back */
-      }
-    }
-    else { /* move: irk==1 && off proc */
-#if defined(PETSC_USE_LOG)
-      ierr = PetscLogEventBegin(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
-#endif
-      /* add to list to send, find list with manual has table lookup, send full lists */
-      hash = (pe*(17*ctx->tablesize+3))%ctx->tablesize; /* hash function */
-      for (ii=0;ii<ctx->tablesize;ii++){
-	if (sendLTabPtr[hash].plist[isp].data_size==0) {
-	  ierr = X2PListCreate(&sendLTabPtr[hash].plist[isp],s_chunksize);CHKERRQ(ierr);
-	  sendLTabPtr[hash].proc = pe;
-	  ctx->tablecount++;
-	}
-	if (sendLTabPtr[hash].proc==pe) { /* found hash table entry */
-	  if (X2PListSize(&sendLTabPtr[hash].plist[isp])==s_chunksize) {
-	    if (ctx->useBSPchuncksize) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"cache too small (%D) for BSP TwoSided communication",s_chunksize);
-	    /* send and reset - we can just send this because it is dense, but no species data */
-	    if (*slistIdx==X2PROCLISTSIZE) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"process send table too small (%D)",X2PROCLISTSIZE);
-
-	    slist[*slistIdx].data = sendLTabPtr[hash].plist[isp].data; /* cache data */
-	    sendLTabPtr[hash].plist[isp].data = 0; /* clear for safty, make ready for more */
-	    slist[*slistIdx].proc = pe;
-	    ierr = MPI_Isend( (void*)slist[*slistIdx].data,s_chunksize*part_dsize,MPI_DOUBLE,pe,tag,ctx->wComm,&slist[*slistIdx].request );
-	    CHKERRQ(ierr);
-	    /* ready for more */
-	    ierr = X2PListCreate(&sendLTabPtr[hash].plist[isp],s_chunksize);CHKERRQ(ierr);
-
-	    (*slistIdx)++;
-	  }
-	  /* add to list - pass this in as a function to a function? */
-	  ierr = X2PListAdd(&sendLTabPtr[hash].plist[isp],&part);CHKERRQ(ierr);assert(part.gid>0);
-	  ierr = X2PListRemoveAt(list,pos);CHKERRQ(ierr);
-	  (*nmoved)++;
-	  break;
-	}
-	if (++hash == ctx->tablesize) hash=0;
-      }
-      if (ii==ctx->tablesize) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"processor table (%D) not large enough, need to alloc",ctx->tablesize);
-#if defined(PETSC_USE_LOG)
-      ierr = PetscLogEventEnd(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
-#endif
-    }
-  }
-  VecRestoreArray(gradVec,&grad);
-  VecDestroy(&gradVec);
-  VecRestoreArray(xVec,&x);
-  VecDestroy(&xVec);
-  VecDestroy(&vVec);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
 #define __FUNCT__ "shiftParticles"
-PetscErrorCode shiftParticles(X2Ctx *ctx, X2SendList *sendLTabPtr, PetscInt isp,
-			      PetscInt numGlobalISends, PetscInt nIsend,
-			      X2PList *particlelist, X2ISend slist[], PetscInt tag )
+PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendLTabPtr, PetscInt isp, PetscInt nIsend,
+                               X2PList *particlelist, X2ISend slist[], PetscInt tag )
 {
   PetscErrorCode ierr;
   const int part_dsize = sizeof(X2Particle)/sizeof(double);
@@ -859,11 +740,11 @@ PetscErrorCode shiftParticles(X2Ctx *ctx, X2SendList *sendLTabPtr, PetscInt isp,
   ierr = VecSet(vVec,rone);CHKERRQ(ierr); /* dummy density now */
   ierr = VecCreateSeq(PETSC_COMM_SELF,dim,&xVec);CHKERRQ(ierr);
   ierr = VecGetArray(xVec,&x);CHKERRQ(ierr);
+
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventBegin(ctx->events[1],0,0,0,0);CHKERRQ(ierr);
 #endif
-
-  if ( ctx->useBSPchuncksize ) { /* use BSP */
+  if ( ctx->bsp_chuncksize ) { /* use BSP */
     PetscMPIInt  nto,*fromranks,chucksz=s_chunksize;
     PetscMPIInt *toranks;
     X2Particle  *fromdata,*todata,*pp;
@@ -877,8 +758,7 @@ PetscErrorCode shiftParticles(X2Ctx *ctx, X2SendList *sendLTabPtr, PetscInt isp,
 	}
       }
     }
-
-    /* make toranks & data */
+    /* make to ranks & data */
     ierr = PetscMalloc1(nto, &toranks);CHKERRQ(ierr);
     ierr = PetscMalloc1(s_chunksize*nto, &todata);CHKERRQ(ierr);
     for (ii=0,nto=0,pp=todata;ii<ctx->tablesize;ii++) {
@@ -896,7 +776,7 @@ PetscErrorCode shiftParticles(X2Ctx *ctx, X2SendList *sendLTabPtr, PetscInt isp,
 	    pp->gid = 0;
 	    pp++;
 	  }
-	  /* get ready for next round */
+          /* get ready for next round */
 	  ierr = X2PListDestroy( &sendLTabPtr[ii].plist[isp] );CHKERRQ(ierr);
 	} /* a list */
       }
@@ -928,14 +808,16 @@ PetscErrorCode shiftParticles(X2Ctx *ctx, X2SendList *sendLTabPtr, PetscInt isp,
     ierr = PetscFree(fromdata);CHKERRQ(ierr);
     ierr = PetscFree(toranks);CHKERRQ(ierr);
   }
-  else {
+  else { /* nonblocking consensus */
     X2Particle *data;
     PetscBool   done=PETSC_FALSE,bar_act=PETSC_FALSE;
     MPI_Request ib_request;
     PetscInt    numSent/* , numIrecv=nIsend,Irecvcount=nIsend */;
     MPI_Status  status;
     int flag;
-
+#if defined(PETSC_USE_LOG)
+    ierr = PetscLogEventBegin(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
+#endif
     /* send lists */
     for (ii=0;ii<ctx->tablesize;ii++) {
       if (sendLTabPtr[ii].plist[isp].data_size != 0) {
@@ -947,8 +829,8 @@ PetscErrorCode shiftParticles(X2Ctx *ctx, X2SendList *sendLTabPtr, PetscInt isp,
 	  ierr = MPI_Isend((void*)slist[nIsend].data,sz*part_dsize,MPI_DOUBLE,slist[nIsend].proc,tag,ctx->wComm,&slist[nIsend].request);
 	  CHKERRQ(ierr);
 	  nIsend++;
-
-	  ierr = X2PListClear( &sendLTabPtr[ii].plist[isp] );CHKERRQ(ierr); /* ready for next round */
+          /* ready for next round, save meta-data  */
+	  ierr = X2PListClear( &sendLTabPtr[ii].plist[isp] );CHKERRQ(ierr);
 	  assert(sendLTabPtr[ii].plist[isp].data_size == s_chunksize);
 	  ierr = PetscMalloc1(s_chunksize, &sendLTabPtr[ii].plist[isp].data);CHKERRQ(ierr);
 	  assert(!(sendLTabPtr[ii].plist[isp].data_size != 0 && (sz=X2PListSize(&sendLTabPtr[ii].plist[isp]) ) > 0));
@@ -957,7 +839,10 @@ PetscErrorCode shiftParticles(X2Ctx *ctx, X2SendList *sendLTabPtr, PetscInt isp,
       /* else - empty list  */
     }
     numSent = nIsend; /* size of send array */
-    /* process recieves - nonblocking consensus */
+#if defined(PETSC_USE_LOG)
+    ierr = PetscLogEventEnd(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
+#endif
+    /* process receives - nonblocking consensus */
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventBegin(ctx->events[2],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -1019,23 +904,190 @@ PetscErrorCode shiftParticles(X2Ctx *ctx, X2SendList *sendLTabPtr, PetscInt isp,
   PetscFunctionReturn(0);
 }
 
+/* processParticle: move particles if (sendLTabPtr) , push if (irk>=0)
+    Input:
+     - dt: time step
+     - tag: MPI tag to send with
+     - irk: RK stage (<0 for send only)
+     - get_proc: function to get processor of point
+   Input/Output:
+     - ctx: global data
+     - lists: list of particle lists
+   Output:
+     - sendLTabPtr: send list hash table, null if not sending (irk==0)
+*/
 #undef __FUNCT__
-#define __FUNCT__ "go"
-PetscErrorCode go(X2Ctx *ctx)
+#define __FUNCT__ "processParticles"
+static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendList *sendLTabPtr, const PetscInt tag,
+					const int irk, const int istep, PetscMPIInt (*get_proc)(X2GridParticle *, PetscReal, PetscReal, PetscReal))
 {
+  X2GridParticle *grid = &ctx->particleGrid;
+  PetscReal   r,z,psi,theta,dphi,rmaj=grid->rMajor,rminor=grid->rMinor;
+  PetscMPIInt pe,hash,ii;
+  X2Particle  part;
+  X2PListPos  pos;
   PetscErrorCode ierr;
-  PetscInt       istep,isp,tag;
-  int            irk,nmoved,idx;
-  PetscReal      time,dt;
-#ifdef H5PART
-  char           fname1[256],fname2[256];
-#endif
-  X2SendList    *sendListTable,*sendLTabPtr;
-  X2ISend        slist[X2PROCLISTSIZE];
+  const int part_dsize = sizeof(X2Particle)/sizeof(double);
+  Vec gradVec,xVec,vVec;
+  PetscScalar *x,*grad,rone=1.;
+  PetscInt isp,order=1,one=1,nslist,nlistsTot;
+  int origNlocal,nmoved;
+  X2ISend slist[X2PROCLISTSIZE];
   PetscFunctionBeginUser;
 
-  ierr = PetscMalloc1(ctx->tablesize,&sendListTable);CHKERRQ(ierr);
+  nslist = 0;
+  nmoved = 0;
 
+  /* ierr = X2PListCompress( list );CHKERRQ(ierr); */
+  if (irk>=0) {
+    PetscInt dim;
+    DM_PICell *dmpi = (DM_PICell *) ctx->dm->data;
+    DM dm = dmpi->dmplex;
+    /* ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr); */
+    dim = 3;
+    ierr = VecCreateSeq(PETSC_COMM_SELF,dim,&gradVec);CHKERRQ(ierr);
+    ierr = VecGetArray(gradVec,&grad);CHKERRQ(ierr);
+    ierr = VecCreateSeq(PETSC_COMM_SELF,dim,&xVec);CHKERRQ(ierr);
+    ierr = VecGetArray(xVec,&x);CHKERRQ(ierr);
+    ierr = VecCreateSeq(PETSC_COMM_SELF,one,&vVec);CHKERRQ(ierr);
+    ierr = VecSet(vVec,rone);CHKERRQ(ierr); /* dummy density now */
+  }
+
+  nlistsTot = origNlocal = 0;
+  for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
+    X2PList *list = &ctx->partlists[isp];
+    origNlocal += X2PListSize(list);
+    /* for (pos=0 ; pos < list->size ; pos++) { */
+    /* part = list->data[pos]; */
+    ierr = X2PListGetHead( list, &pos );CHKERRQ(ierr);
+    while ( !X2PListGetNext(list, &part, &pos) ) {
+      if (irk>=0) { /* push */
+        /* get E */
+        ierr = cylindrical2Cart(part.r, part.z, part.phi, x);CHKERRQ(ierr);
+        ierr = DMPICellGetJet(ctx->dm, xVec, order, gradVec);CHKERRQ(ierr); /* not used */
+        /* simple push: theta = theta + q*dphi .... grad not used */
+        ierr = cylindrical2polPlane( part.r - rmaj, part.z, &psi, &theta );CHKERRQ(ierr);
+        dphi = (dt*part.vpar)/(2.*M_PI*part.r);  /* toroidal step */
+        part.phi += dphi;
+        part.phi = fmod( part.phi + 20.*M_PI, 2.*M_PI);
+        theta += qsafty(psi/rminor)*dphi;  /* twist */
+        theta = fmod( theta + 20.*M_PI, 2.*M_PI);
+        ierr = polPlane2cylindrical( psi, theta, &r, &z);CHKERRQ(ierr); /* time spent here */
+        part.r = rmaj + r;
+        part.z = z;
+      }
+      /* else -- just communicate */
+      /* see if need communication, add density if not, add to communication list if so */
+      if (!sendLTabPtr || (pe=get_proc(grid, psi, theta, part.phi))==ctx->rank) { /* don't move */
+        /* add density to RHS */
+        if (irk>=0) {
+          ierr = cylindrical2Cart(part.r, part.z, part.phi, x);CHKERRQ(ierr);
+          ierr = DMPICellAddSource(ctx->dm, xVec, vVec);CHKERRQ(ierr);
+        }
+        if (sendLTabPtr) {
+          ierr = X2PListSetAt( list, pos, &part );CHKERRQ(ierr); /* not moved and final step so write back */
+        }
+      }
+      else { /* move: irk==1 || irk<0 && off proc */
+        assert(sendLTabPtr);
+#if defined(PETSC_USE_LOG)
+        ierr = PetscLogEventBegin(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
+#endif
+        /* add to list to send, find list with manual has table lookup, send full lists */
+        hash = (pe*593)%ctx->tablesize; /* hash function */
+        for (ii=0;ii<ctx->tablesize;ii++){
+          if (sendLTabPtr[hash].plist[isp].data_size==0) {
+            ierr = X2PListCreate(&sendLTabPtr[hash].plist[isp],s_chunksize);CHKERRQ(ierr);
+            sendLTabPtr[hash].proc = pe;
+            ctx->tablecount++;
+            if (ctx->tablecount==ctx->tablesize) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Hash table too small (%D) - need to rehash!!!",ctx->tablesize);
+          }
+          if (sendLTabPtr[hash].proc==pe) { /* found hash table entry */
+            if (X2PListSize(&sendLTabPtr[hash].plist[isp])==s_chunksize) {
+              if (ctx->bsp_chuncksize) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"cache too small (%D) for BSP TwoSided communication",s_chunksize);
+              /* send and reset - we can just send this because it is dense, but no species data */
+              if (nslist==X2PROCLISTSIZE) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"process send table too small (%D)",X2PROCLISTSIZE);
+              slist[nslist].data = sendLTabPtr[hash].plist[isp].data; /* cache data */
+              sendLTabPtr[hash].plist[isp].data = 0; /* clear for safty, make ready for more */
+              slist[nslist].proc = pe;
+              ierr = MPI_Isend( (void*)slist[nslist].data,s_chunksize*part_dsize,MPI_DOUBLE,pe,tag+isp,ctx->wComm,&slist[nslist].request );
+              CHKERRQ(ierr);
+              /* ready for more */
+              ierr = X2PListCreate(&sendLTabPtr[hash].plist[isp],s_chunksize);CHKERRQ(ierr);
+              nslist++;
+            }
+            /* add to list - pass this in as a function to a function? */
+            ierr = X2PListAdd(&sendLTabPtr[hash].plist[isp],&part);CHKERRQ(ierr);assert(part.gid>0);
+            ierr = X2PListRemoveAt(list,pos);CHKERRQ(ierr);
+            nmoved++;
+            break;
+          }
+          if (++hash == ctx->tablesize) hash=0;
+        }
+      }
+#if defined(PETSC_USE_LOG)
+      ierr = PetscLogEventEnd(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
+#endif
+    }
+    nlistsTot += nslist;
+
+    /* finish sends */
+    if (sendLTabPtr) {
+      /* send recv */
+      ierr = shiftParticles(ctx, sendLTabPtr, isp, nslist, &ctx->partlists[isp], slist, tag+isp );CHKERRQ(ierr);
+      nslist = 0;
+    } /* final RK stage send: irk==1 */
+  } /* isp */
+  /* diagnostics */
+  if (sendLTabPtr) {
+    MPI_Datatype mtype;
+    PetscInt rb[3], sb[3] = {origNlocal, nmoved, nlistsTot};
+    PetscDataTypeToMPIDataType(PETSC_INT,&mtype);
+    ierr = MPI_Allreduce(sb, rb, 3, mtype, MPI_SUM, ctx->wComm);CHKERRQ(ierr);
+    PetscPrintf(ctx->wComm,
+                "%d) processed %D local particles, %D global, %g %% particles moved, %D MPI_Isends total (to %D processors local) \n",
+                istep, origNlocal, rb[0], 100.*(double)rb[1]/(double)rb[0], rb[2], ctx->tablecount);
+#ifdef H5PART
+    if (irk>=0) {
+      for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) {
+        char  fname1[256],fname2[256];
+        /* hdf5 output */
+        sprintf(fname1,"particles_sp%d_time%05d.h5part",isp,istep+1);
+        sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",isp,istep+1);
+        /* write */
+        ierr = X2PListWrite(&ctx->partlists[isp], ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
+      }
+    }
+#endif
+  }
+  else PetscPrintf(ctx->wComm,"%d) processed %D local particles\n",istep,origNlocal);
+
+  if (irk>=0) {
+    VecRestoreArray(gradVec,&grad);
+    VecDestroy(&gradVec);
+    VecRestoreArray(xVec,&x);
+    VecDestroy(&xVec);
+    VecDestroy(&vVec);
+    PetscFunctionReturn(0);
+  }
+
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
+#define __FUNCT__ "go"
+PetscErrorCode go( X2Ctx *ctx )
+{
+  PetscErrorCode ierr;
+  PetscInt       istep,tag;
+  int            irk,idx,isp;
+  PetscReal      time,dt;
+  X2SendList    *sendListTable,*sendLTabPtr;
+  PetscFunctionBeginUser;
+
+  /* init send tables */
+  ierr = PetscMalloc1(ctx->tablesize,&sendListTable);CHKERRQ(ierr);
   for (idx=0;idx<ctx->tablesize;idx++) {
     for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) {
       sendListTable[idx].plist[isp].data_size = 0; /* init */
@@ -1045,6 +1097,7 @@ PetscErrorCode go(X2Ctx *ctx)
   /* hdf5 output - init */
 #ifdef H5PART
   for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
+    char  fname1[256],fname2[256];
     sprintf(fname1,"particles_sp%d_time%05d.h5part",isp,0);
     sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",isp,0);
     /* write */
@@ -1057,53 +1110,28 @@ PetscErrorCode go(X2Ctx *ctx)
 	istep < ctx->msteps && time < ctx->maxTime;
 	istep++, time += ctx->dt, tag += X2_NION + (ctx->useElectrons ? 1 : 0) ) {
 
+    /* do collisions */
     if (((istep+1)%ctx->collisionPeriod)==0) {
 
 
     }
 
+    /* very crude explict RK2 */
     for (irk=0;irk<2;irk++){
       sendLTabPtr = &sendListTable[0];
+      if (irk < 2-1) sendLTabPtr = 0; /* only send on last RK step */
       if (irk==0) dt = ctx->dt/2.;
       else dt = ctx->dt;
 
-      /* solve for potential, desity being assembled is an invarient */
+      /* solve for potential, density being assembled is an invariant */
       ierr = DMPICellSolve(ctx->dm);CHKERRQ(ierr);
 
 #if defined(PETSC_USE_LOG)
       ierr = PetscLogEventBegin(ctx->events[0],0,0,0,0);CHKERRQ(ierr);
 #endif
-      for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
-	const PetscInt origNlocal = X2PListSize(&ctx->partlists[isp]);
-	/* fused loop for particle processing: */
-	idx = 0;
-	nmoved = 0;
-	processParticles( ctx, &ctx->partlists[isp], &ctx->particleGrid, isp, dt, sendLTabPtr, tag+isp,
-			  slist, irk, &idx, &nmoved);
-	assert(idx==0 || irk==1);
-	/* finish sends */
-	if (irk==1 && sendLTabPtr) {
-	  /* test */
-	  MPI_Datatype mtype;
-	  PetscInt rb[3], sb[3] = {origNlocal, nmoved, idx};
-	  PetscDataTypeToMPIDataType(PETSC_INT,&mtype);
-	  ierr = MPI_Allreduce(sb, rb, 3, mtype, MPI_SUM, ctx->wComm);CHKERRQ(ierr);
-	  PetscPrintf(ctx->wComm,"%d.%d) go: %s processed %D local particles, %D global, %g %% particles moved, %D MPI_Isends total (to %d processors local) \n",
-		      istep,irk,isp==0?"electrons":"ions",origNlocal,rb[0],100.*(double)rb[1]/(double)rb[0], rb[2],ctx->tablecount);
-
-	  /* send recv */
-	  ierr = shiftParticles(ctx, sendLTabPtr, isp, rb[2], idx, &ctx->partlists[isp], slist, tag+isp );CHKERRQ(ierr);
-
-#ifdef H5PART
-	  /* hdf5 output */
-	  sprintf(fname1,"particles_sp%d_time%05d.h5part",isp,istep+1);
-	  sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",isp,istep+1);
-	  /* write */
-	  ierr = X2PListWrite(&ctx->partlists[isp], ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
-#endif
-	} /* final RK stage send: irk==1 */
-	else PetscPrintf(ctx->wComm,"%d.%d) go: %s processed %D local particles\n",istep,irk,isp==0?"electrons":"ions",X2PListSize(&ctx->partlists[isp]));
-      } /* species */
+      /* fused loop for particle processing: */
+      processParticles(ctx, dt, sendLTabPtr, tag, irk, istep, X2GridParticleGetProc_FluxTube);
+      tag += X2_NION + (ctx->useElectrons ? 1 : 0);
 #if defined(PETSC_USE_LOG)
       ierr = PetscLogEventEnd(ctx->events[0],0,0,0,0);CHKERRQ(ierr);
 #endif
