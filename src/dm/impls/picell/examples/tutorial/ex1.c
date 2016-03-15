@@ -714,7 +714,7 @@ PetscErrorCode X2PListWrite( X2PList *l, int rank, int npe, MPI_Comm comm, char 
    Input/Output:
      - sendLTabPtr: send list hash table array, emptied but meta-data kept
      - particlelist: the list of particle lists to add to
-     - slists: array of non blocking send caches (!ctx->bsp_chuncksize only), cleared
+     - slists: array of non-blocking send caches (!ctx->bsp_chuncksize only), cleared
    Output:
 
 */
@@ -808,7 +808,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendLTabPtr, PetscI
     ierr = PetscFree(fromdata);CHKERRQ(ierr);
     ierr = PetscFree(toranks);CHKERRQ(ierr);
   }
-  else { /* nonblocking consensus */
+  else { /* non-blocking consensus, buggy on my OSX */
     X2Particle *data;
     PetscBool   done=PETSC_FALSE,bar_act=PETSC_FALSE;
     MPI_Request ib_request;
@@ -842,11 +842,11 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendLTabPtr, PetscI
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventEnd(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
 #endif
-    /* process receives - nonblocking consensus */
+    /* process receives - non-blocking consensus */
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventBegin(ctx->events[2],0,0,0,0);CHKERRQ(ierr);
 #endif
-    /* process recieves - nonblocking consensus */
+    /* process recieves - non-blocking consensus */
     ierr = PetscMalloc1(s_chunksize, &data);CHKERRQ(ierr);
     while (!done) {
       /* probe for incoming */
@@ -887,7 +887,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendLTabPtr, PetscI
 	  ierr = MPI_Ibarrier(ctx->wComm, &ib_request);CHKERRQ(ierr);
 	}
       }
-    } /* nonblocking consensus */
+    } /* non-blocking consensus */
     ierr = PetscFree(data);CHKERRQ(ierr);
 
 #if defined(PETSC_USE_LOG)

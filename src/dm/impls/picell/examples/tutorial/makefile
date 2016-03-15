@@ -17,6 +17,7 @@ ex1: ex1.o chkopts
 	${RM} -f ex1.o
 runex1:
 	-@${MPIEXEC} -n 8 ./ex1 -dm_type forest -dm_forest_topology tokamac -dm_view vtk:tokamac.vtu -use_electrons true -npart_cell 10000 -mstep 10
+#-bsp_chuncksize 32000
 
 #--------------------------------------------------------------------------
 
