@@ -1,6 +1,6 @@
 /* M. Adams, April 2015 */
 
-static char help[] = "A partical in cell code for tokamac plasmas using PICell.\n";
+static char help[] = "X2: A partical in cell code for tokamac plasmas using PICell.\n";
 
 #ifdef H5PART
 #include <H5Part.h>
@@ -40,36 +40,27 @@ typedef struct { /* ptl_type */
   PetscReal f0;
   long long gid; /* diagnostic */
 } X2Particle;
-PetscErrorCode X2ParticleCreate(X2Particle *p, PetscInt gid, PetscReal r, PetscReal z, PetscReal phi, PetscReal rho);
-PetscErrorCode X2ParticleCopy(X2Particle *p, X2Particle);
-PetscErrorCode X2ParticleRead(X2Particle*, void*);
-PetscErrorCode X2ParticleWrite(X2Particle*, void*);
+/* PetscErrorCode X2ParticleCreate(X2Particle *p, PetscInt gid, PetscReal r, PetscReal z, PetscReal phi, PetscReal rho); */
+/* PetscErrorCode X2ParticleCopy(X2Particle *p, X2Particle); */
+/* PetscErrorCode X2ParticleRead(X2Particle*, void*); */
+/* PetscErrorCode X2ParticleWrite(X2Particle*, void*); */
 /* X2PList */
 typedef PetscInt X2PListPos;
 typedef struct {
   X2Particle *data;
   PetscInt    data_size, size, hole, top;
 } X2PList;
-PetscErrorCode X2PListCreate(X2PList *l, PetscInt msz);
-PetscErrorCode X2PListDestroy(X2PList *l);
-PetscErrorCode X2PListAdd( X2PList*, X2Particle*); /* copy data */
-PetscErrorCode X2PListGetHead(X2PList*, X2PListPos*);
-PetscErrorCode X2PListGetNext(X2PList*, X2Particle *, X2PListPos*); /* get pointer to data in list */
-PetscErrorCode X2PListRemoveAt( X2PList*, X2PListPos);
-PetscErrorCode X2PListSetAt(X2PList*, X2PListPos, X2Particle *);
-PetscErrorCode X2PListClear( X2PList*);
-PetscErrorCode X2PListCompress( X2PList*);
-PetscInt X2PListMaxSize(X2PList *l);
-PetscInt X2PListSize(X2PList *l);
-/* linked list node of particles list at a cell on my plane */
-/* typedef struct X2LinkList_TAG{  */
-/*   X2PList  plist; */
-/*   PetscInt ir; /\* cell index in particle plane *\/ */
-/*   PetscInt iz; */
-/*   struct X2LinkList_TAG *next; */
-/* } X2LinkPList; */
-/* PetscErrorCode X2LinkPListCreate(X2LinkPList *, PetscInt); */
-/* PetscErrorCode X2LinkPListDestroy(X2LinkPList *); */
+/* PetscErrorCode X2PListCreate(X2PList *l, PetscInt msz); */
+/* PetscErrorCode X2PListDestroy(X2PList *l); */
+/* PetscErrorCode X2PListAdd( X2PList*, X2Particle*); /\* copy data *\/ */
+/* PetscErrorCode X2PListGetHead(X2PList*, X2PListPos*); */
+/* PetscErrorCode X2PListGetNext(X2PList*, X2Particle *, X2PListPos*); /\* get pointer to data in list *\/ */
+/* PetscErrorCode X2PListRemoveAt( X2PList*, X2PListPos); */
+/* PetscErrorCode X2PListSetAt(X2PList*, X2PListPos, X2Particle *); */
+/* PetscErrorCode X2PListClear( X2PList*); */
+/* PetscErrorCode X2PListCompress( X2PList*); */
+/* PetscInt X2PListMaxSize(X2PList *l); */
+/* PetscInt X2PListSize(X2PList *l); */
 /* send particle list */
 typedef struct X2SendList_TAG{
   X2PList plist[X2_NION+1];
