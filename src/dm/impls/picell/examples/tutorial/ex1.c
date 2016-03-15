@@ -31,7 +31,7 @@ typedef struct {
 typedef struct { /* ptl_type */
   /* phase (4D) */
   PetscReal r;   /* r from center */
-  PetscReal z;   /* vertical coorinate */
+  PetscReal z;   /* vertical coordinate */
   PetscReal phi; /* toroidal coordinate */
   PetscReal vpar; /* toroidal velocity */
   /* const */
@@ -308,13 +308,6 @@ PetscErrorCode X2PListDestroy(X2PList *l)
   return ierr;
 }
 
-#include <petscdmforest.h>
-#include <petscoptions.h>
-#ifdef H5PART
-#include <H5Part.h>
-#endif
-
-
 #define X2PROCLISTSIZE 4096
 static PetscInt s_chunksize = 32768;
 /*
@@ -432,11 +425,11 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsInt("-npart_cell", "Number of particles local (not cell!!!)", "xgc2.c", ctx->npart_cell, &ctx->npart_cell, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-partBuffSize", "Number of z cells for solver mesh", "xgc2.c", ctx->partBuffSize, &ctx->partBuffSize, NULL);CHKERRQ(ierr);
   if (ctx->partBuffSize<10*ctx->npart_cell/9) ctx->partBuffSize = 3*ctx->npart_cell/2; /* hack */
-  ctx->collisionPeriod = 10;
+  ctx->collisionPeriod = 1;
   ierr = PetscOptionsInt("-collisionPeriod", "Period between collision operators", "xgc2.c", ctx->collisionPeriod, &ctx->collisionPeriod, NULL);CHKERRQ(ierr);
   if (ctx->partBuffSize < ctx->npart_cell) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"partBuffSize (%D) < npart_cell (%D)",ctx->partBuffSize,ctx->npart_cell);
   ctx->useElectrons = PETSC_FALSE;
-  ierr = PetscOptionsBool("-useElectrons", "Include electrons", "xgc2.c", ctx->useElectrons, &ctx->useElectrons, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-use_electrons", "Include electrons", "xgc2.c", ctx->useElectrons, &ctx->useElectrons, NULL);CHKERRQ(ierr);
   ctx->maxparvel = 1.;
   ierr = PetscOptionsReal("-maxparvel", "Maximum parallel velocity", "xgc2.c",ctx->maxparvel,&ctx->maxparvel,NULL);CHKERRQ(ierr);
 
@@ -667,7 +660,7 @@ PetscErrorCode X2PListWrite( X2PList *l, int rank, int npe, MPI_Comm comm, char 
       y[nparticles] = part.r*sin(part.phi);
       z[nparticles] = part.z;
       v[nparticles] = part.vpar;
-      id[nparticles] = rank; // part.id;
+      id[nparticles] = part.gid; /* rank */
       nparticles++;
     }
   }
@@ -675,18 +668,25 @@ PetscErrorCode X2PListWrite( X2PList *l, int rank, int npe, MPI_Comm comm, char 
   ierr = H5PartWriteDataFloat64(file1, "x", x);
   ierr = H5PartWriteDataFloat64(file1, "y", y);
   ierr = H5PartWriteDataFloat64(file1, "z", z);
-  ierr = H5PartWriteDataInt64(file1, "id", id);
+  ierr = H5PartWriteDataInt64(file1, "gid", id);
 
-  if (rank!=npe-1 && rank!=npe-2) nparticles = 0; /* just write last proc(s) */
-  /* if (rank!=1 && rank!=0) nparticles = 0; */ /* just write first proc(s) */
-  ierr = H5PartSetNumParticles(file2, nparticles);
+  if (rank!=npe-1 && rank!=npe-2) nparticles = 0; /* just write last (two) proc(s) */
+  else {
+    nparticles = 0;
+    ierr = X2PListGetHead( l, &pos );CHKERRQ(ierr);
+    while ( !X2PListGetNext( l, &part, &pos) ) {
+      id[nparticles] = rank;
+      nparticles++;
+    }
+  }
+  ierr = H5PartSetNumParticles( file2, nparticles);
   ierr = H5PartWriteDataFloat64(file2, "x", x);
   ierr = H5PartWriteDataFloat64(file2, "y", y);
   ierr = H5PartWriteDataFloat64(file2, "z", z);
   ierr = H5PartWriteDataFloat64(file2, "v", v);
-  ierr = H5PartWriteDataInt64(file2, "rank", id);
+  ierr = H5PartWriteDataInt64(file2, "gid", id);
 
-  if (nparticles) {
+  if (x) {
     free(x); free(y); free(z); free(id); free(v);
   }
   ierr = H5PartCloseFile(file1);
@@ -784,7 +784,6 @@ static PetscErrorCode processParticles( X2Ctx *ctx, X2PList *list, X2GridParticl
       ierr = DMPICellAddSource(ctx->dm, xVec, vVec);CHKERRQ(ierr);
       if (irk==1) {
 	ierr = X2PListSetAt( list, pos, &part );CHKERRQ(ierr); /* not moved and final step so write back */
-	/* deposit to collision RHS, Amper'es ... */
       }
     }
     else { /* move: irk==1 && off proc */
@@ -978,7 +977,6 @@ PetscErrorCode shiftParticles(X2Ctx *ctx, X2SendList *sendLTabPtr, PetscInt isp,
 	    /* add density to RHS */
 	    ierr = cylindrical2Cart(data[jj].r, data[jj].z, data[jj].phi, x);CHKERRQ(ierr);
 	    ierr = DMPICellAddSource(ctx->dm, xVec, vVec);CHKERRQ(ierr);
-	    /* deposit to collision RHS, Amper'es ... */
 	  }
 	}
       } while (flag);
@@ -1059,9 +1057,13 @@ PetscErrorCode go(X2Ctx *ctx)
 	istep < ctx->msteps && time < ctx->maxTime;
 	istep++, time += ctx->dt, tag += X2_NION + (ctx->useElectrons ? 1 : 0) ) {
 
+    if (((istep+1)%ctx->collisionPeriod)==0) {
+
+
+    }
+
     for (irk=0;irk<2;irk++){
       sendLTabPtr = &sendListTable[0];
-      if (((istep+1)%ctx->collisionPeriod)) sendLTabPtr = NULL;
       if (irk==0) dt = ctx->dt/2.;
       else dt = ctx->dt;
 
