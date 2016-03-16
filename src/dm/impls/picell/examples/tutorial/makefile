@@ -22,7 +22,7 @@ runex1:
 #-bsp_chuncksize 32000
 
 val: ex1
-	-${MPIEXEC} -n 3 valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex1 -dm_type p8est -dm_forest_topology shell -dm_view vtk:tokamac.vtu -use_electrons true -npart_cell 10 -mstep 10000 -nphi_particles 3
+	-${MPIEXEC} -n 3 valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex1 -dm_type p8est -dm_forest_topology shell -use_electrons true -npart_cell 10 -mstep 10000 -nphi_particles 3
 
 
 include ${PETSC_DIR}/lib/petsc/conf/test
