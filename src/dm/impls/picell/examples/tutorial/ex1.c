@@ -1282,14 +1282,16 @@ int main(int argc, char **argv)
   ierr = createParticles( &ctx );CHKERRQ(ierr);
   ierr = PetscLogEventEnd(ctx.events[3],0,0,0,0);CHKERRQ(ierr);
 
+#if 0
   ierr = PetscOptionsGetViewer(PETSC_COMM_WORLD,NULL,"-dm_view",&viewer,NULL,&flg);CHKERRQ(ierr);
   if (flg) {
     ierr = DMView(dm,viewer);CHKERRQ(ierr);
   }
+  ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+#endif
 
   ierr = go( &ctx );CHKERRQ(ierr);
 
-  ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
   ierr = PetscCommDestroy(&ctx.wComm);CHKERRQ(ierr);
   ierr = CtxDestroy(&ctx);CHKERRQ(ierr);
