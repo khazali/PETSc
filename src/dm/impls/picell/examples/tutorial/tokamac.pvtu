@@ -13,5 +13,6 @@
     </PPointData>
     <Piece Source="shell_0000.vtu"/>
     <Piece Source="shell_0001.vtu"/>
+    <Piece Source="shell_0002.vtu"/>
   </PUnstructuredGrid>
 </VTKFile>

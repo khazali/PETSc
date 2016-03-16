@@ -73,6 +73,7 @@ PetscErrorCode DMSetUp_PICell(DM dm)
   /* set up solver */
   {
     MPI_Comm       comm;
+    printf("[%d] create SNES\n",-1);
     ierr = PetscObjectGetComm((PetscObject)dm,&comm);CHKERRQ(ierr);
     ierr = SNESCreate(comm,&dmpi->snes);CHKERRQ(ierr);
     ierr = SNESSetFromOptions(dmpi->snes);CHKERRQ(ierr);
