@@ -640,18 +640,17 @@ PetscErrorCode X2PListWrite( X2PList *l, int rank, int npe, MPI_Comm comm, char 
      - ctx: global data
      - isp: species index into sendListTable
      - irk: flag for deposit charge (>=0), or just move (<0)
-     - nIsend: number of sends so far
      - tag: MPI tag to send with
    Input/Output:
+     - nIsend: number of sends so far
      - sendListTable: send list hash table array, emptied but meta-data kept
      - particlelist: the list of particle lists to add to
      - slists: array of non-blocking send caches (!ctx->bsp_chuncksize only), cleared
    Output:
-
 */
 #undef __FUNCT__
 #define __FUNCT__ "shiftParticles"
-PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendListTable, const PetscInt isp, const PetscInt irk, PetscInt nIsend,
+PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendListTable, const PetscInt isp, const PetscInt irk, PetscInt *const nIsend,
                                X2PList *particlelist, X2ISend slist[], PetscInt tag )
 {
   PetscErrorCode ierr;
@@ -748,7 +747,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendListTable, cons
     X2Particle *data;
     PetscBool   done=PETSC_FALSE,bar_act=PETSC_FALSE;
     MPI_Request ib_request;
-    PetscInt    numSent/* , numIrecv=nIsend,Irecvcount=nIsend */;
+    PetscInt    numSent;
     MPI_Status  status;
     int flag;
 #if defined(PETSC_USE_LOG)
@@ -758,13 +757,13 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendListTable, cons
     for (ii=0;ii<ctx->tablesize;ii++) {
       if (sendListTable[ii].plist[isp].data_size != 0) {
 	if ((sz=X2PListSize(&sendListTable[ii].plist[isp])) > 0) {
-	  if (nIsend==X2PROCLISTSIZE) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"process send table too small (%D)",X2PROCLISTSIZE);
-	  slist[nIsend].proc = sendListTable[ii].proc;
-	  slist[nIsend].data = sendListTable[ii].plist[isp].data; /* cache data */
+	  if (*nIsend==X2PROCLISTSIZE) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"process send table too small (%D)",X2PROCLISTSIZE);
+	  slist[*nIsend].proc = sendListTable[ii].proc;
+	  slist[*nIsend].data = sendListTable[ii].plist[isp].data; /* cache data */
 	  /* send and reset - we can just send this because it is dense */
-	  ierr = MPI_Isend((void*)slist[nIsend].data,sz*part_dsize,MPI_DOUBLE,slist[nIsend].proc,tag,ctx->wComm,&slist[nIsend].request);
+	  ierr = MPI_Isend((void*)slist[*nIsend].data,sz*part_dsize,MPI_DOUBLE,slist[*nIsend].proc,tag,ctx->wComm,&slist[*nIsend].request);
 	  CHKERRQ(ierr);
-	  nIsend++;
+	  (*nIsend)++;
           /* ready for next round, save meta-data  */
 	  ierr = X2PListClear( &sendListTable[ii].plist[isp] );CHKERRQ(ierr);
 	  assert(sendListTable[ii].plist[isp].data_size == s_chunksize);
@@ -774,7 +773,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendListTable, cons
       }
       /* else - empty list  */
     }
-    numSent = nIsend; /* size of send array */
+    numSent = *nIsend; /* size of send array */
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventEnd(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -968,14 +967,14 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendLi
       ierr = PetscLogEventEnd(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
 #endif
     }
-    nlistsTot += nslist;
-
     /* finish sends */
     if (sendListTable) {
       /* send recv */
-      ierr = shiftParticles(ctx, sendListTable, isp, irk, nslist, &ctx->partlists[isp], slist, tag+isp );CHKERRQ(ierr);
-      nslist = 0;
-    } /* final RK stage send */
+      ierr = shiftParticles(ctx, sendListTable, isp, irk, &nslist, &ctx->partlists[isp], slist, tag+isp );CHKERRQ(ierr);
+    }
+
+    nlistsTot += nslist;
+    nslist = 0;
   } /* isp */
   /* diagnostics */
   if (sendListTable) {
