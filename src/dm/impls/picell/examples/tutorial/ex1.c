@@ -1197,6 +1197,7 @@ int main(int argc, char **argv)
   ierr = DMSetFromOptions(dm);CHKERRQ(ierr); /* get file name from -dm_forest_topology */
   ierr = PetscObjectSetName((PetscObject) dm, "Mesh");CHKERRQ(ierr);
   ierr = DMSetUp(ctx.dm);CHKERRQ(ierr); /* set all up & build initial grid */
+  ierr = DMViewFromOptions(dm, NULL, "-dm_view");CHKERRQ(ierr);
 
   /* setup Discretization */
   ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);
