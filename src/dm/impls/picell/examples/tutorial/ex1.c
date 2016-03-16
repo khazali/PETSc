@@ -7,7 +7,7 @@ static char help[] = "X2: A partical in cell code for tokamac plasmas using PICe
 #endif
 #include <petsc/private/dmpicellimpl.h>    /*I   "petscdmpicell.h"   I*/
 #include <assert.h>
-/* #include <petscdmforest.h> */
+#include <petscds.h>
 /* #include <petscoptions.h> */
 
 /* particle grid, not PETSc ? */
@@ -543,7 +543,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
   /* Create vector and get pointer to data space */
   dmpi = (DM_PICell *) ctx->dm->data;
   dm = dmpi->dmplex;
-  /* ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr); */dim = 3;
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   if (dim!=3) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"wrong dimension (3) = %D",dim);
   ierr = VecCreateSeq(PETSC_COMM_SELF,one,&vVec);CHKERRQ(ierr);
   ierr = VecSet(vVec,rone);CHKERRQ(ierr); /* dummy density now */
@@ -758,7 +758,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendLTabPtr, const 
   dmpi = (DM_PICell *) ctx->dm->data;
   dm = dmpi->dmplex;
   if (irk>=0) {
-    /* ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr); */ dim = 3;
+    ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
     ierr = VecCreateSeq(PETSC_COMM_SELF,one,&vVec);CHKERRQ(ierr);
     ierr = VecSet(vVec,rone);CHKERRQ(ierr); /* dummy density now */
     ierr = VecCreateSeq(PETSC_COMM_SELF,dim,&xVec);CHKERRQ(ierr);
@@ -972,8 +972,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendLi
   /* ierr = X2PListCompress( list );CHKERRQ(ierr); */
   if (irk>=0) {
     PetscInt dim;
-    /* ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr); */
-    dim = 3;
+    ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
     ierr = VecCreateSeq(PETSC_COMM_SELF,dim,&gradVec);CHKERRQ(ierr);
     ierr = VecGetArray(gradVec,&grad);CHKERRQ(ierr);
     ierr = VecCreateSeq(PETSC_COMM_SELF,dim,&xVec);CHKERRQ(ierr);
@@ -1228,30 +1227,29 @@ int main(int argc, char **argv)
   /* setup DM */
   ierr = DMSetFromOptions(ctx.dm);CHKERRQ(ierr); /* get file name from -dm_forest_topology */
   ierr = DMSetUp(ctx.dm);CHKERRQ(ierr); /* set all up & build initial grid */
-  ierr = DMViewFromOptions(dm, NULL, "-dm_view");CHKERRQ(ierr);
 
   /* setup Discretization */
   ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);
   CHKERRQ(ierr);
   ctx.BCFuncs[0] = zero;
-  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
-  /* ierr = PetscFECreateDefault(dm, dim, 1, PETSC_FALSE, NULL, -1, &fe);CHKERRQ(ierr); */
-  /* ierr = PetscObjectSetName((PetscObject) fe, "potential");CHKERRQ(ierr); */
-  /* cdm = dm; */
-  /* while (cdm) { */
-  /*   DMLabel label; */
-  /*   PetscDS prob; */
-  /*   PetscInt id = 1; */
-  /*   ierr = DMGetDS(cdm, &prob);CHKERRQ(ierr); */
-  /*   ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) fe);CHKERRQ(ierr); */
-  /*   ierr = DMCreateLabel(cdm, "boundary");CHKERRQ(ierr); */
-  /*   ierr = DMGetLabel(cdm, "boundary", &label);CHKERRQ(ierr); */
-  /*   ierr = DMPlexMarkBoundaryFaces(cdm, label);CHKERRQ(ierr); */
-  /*   ierr = DMAddBoundary(cdm, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx.BCFuncs, 1, &id, &ctx); */
-  /*   CHKERRQ(ierr); */
-  /*   ierr = DMGetCoarseDM(cdm, &cdm);CHKERRQ(ierr); */
-  /* } */
-  /* ierr = PetscFEDestroy(&fe);CHKERRQ(ierr); */
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr); assert(dim==3);
+  ierr = PetscFECreateDefault(dm, dim, 1, PETSC_FALSE, NULL, -1, &fe);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) fe, "potential");CHKERRQ(ierr);
+  cdm = dm;
+  while (cdm) {
+    DMLabel label;
+    PetscDS prob;
+    PetscInt id = 1;
+    ierr = DMGetDS(cdm, &prob);CHKERRQ(ierr);
+    ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) fe);CHKERRQ(ierr);
+    ierr = DMCreateLabel(cdm, "boundary");CHKERRQ(ierr);
+    ierr = DMGetLabel(cdm, "boundary", &label);CHKERRQ(ierr);
+    ierr = DMPlexMarkBoundaryFaces(cdm, label);CHKERRQ(ierr);
+    ierr = DMAddBoundary(cdm, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx.BCFuncs, 1, &id, &ctx);
+    CHKERRQ(ierr);
+    ierr = DMGetCoarseDM(cdm, &cdm);CHKERRQ(ierr);
+  }
+  ierr = PetscFEDestroy(&fe);CHKERRQ(ierr);
    /* setup particles */
   ierr = createParticles( &ctx );CHKERRQ(ierr);
   ierr = PetscLogEventEnd(ctx.events[3],0,0,0,0);CHKERRQ(ierr);
