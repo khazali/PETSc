@@ -522,102 +522,6 @@ PetscMPIInt X2GridParticleGetProc_Solver(DM dm, X2GridParticle *d, PetscReal psi
   PetscFunctionReturn(pe);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "createParticles"
-static PetscErrorCode createParticles(X2Ctx *ctx)
-{
-  PetscErrorCode ierr;
-  PetscInt isp,nCellsLoc,my0,irs,iths,gid,ii,np,j,dim,one=1;
-  const PetscReal dth=(2.*M_PI)/(PetscReal)ctx->particleGrid.ntheta,rone=1.;
-  const PetscReal dphi=2.*M_PI/(PetscReal)ctx->particleGrid.nphi,rmin=ctx->particleGrid.rMinor;
-  const PetscReal phi1 = (PetscReal)ctx->ParticlePlaneIdx*dphi + 1.e-8,rmaj=ctx->particleGrid.rMajor;
-  const PetscInt  nPartCells_plane = ctx->particleGrid.ntheta*ctx->particleGrid.nradius; /* nPartCells_plane == ctx->npe_particlePlane */
-  const PetscReal dx = pow( (M_PI*rmin*rmin/4.0) * rmaj*2.*M_PI / (PetscReal)(ctx->npe*ctx->npart_cell), 0.333); /* lenth of a particle, approx. */
-  X2Particle particle;
-  Vec vVec,xVec;
-  PetscScalar *x;
-  DM dm;
-  DM_PICell *dmpi;
-  PetscFunctionBeginUser;
-
-  /* Create vector and get pointer to data space */
-  dmpi = (DM_PICell *) ctx->dm->data;
-  dm = dmpi->dmplex;
-  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
-  if (dim!=3) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"wrong dimension (3) = %D",dim);
-  ierr = VecCreateSeq(PETSC_COMM_SELF,one,&vVec);CHKERRQ(ierr);
-  ierr = VecSet(vVec,rone);CHKERRQ(ierr); /* dummy density now */
-  ierr = VecCreateSeq(PETSC_COMM_SELF,dim,&xVec);CHKERRQ(ierr);
-  ierr = VecGetArray(xVec,&x);CHKERRQ(ierr);
-
-  /* setup particles - lexigraphic partition of cells (np local cells) */
-  nCellsLoc = nPartCells_plane/ctx->npe_particlePlane; /* = 1; nPartCells_plane == ctx->npe_particlePlane */
-  my0 = ctx->particlePlaneRank*nCellsLoc;              /* cell index in plane == particlePlaneRank */
-  gid = (my0 + ctx->ParticlePlaneIdx*nPartCells_plane)*ctx->npart_cell; /* based particle ID */
-  if (ctx->ParticlePlaneIdx == ctx->npe_particlePlane-1){
-    nCellsLoc = nPartCells_plane - nCellsLoc*(ctx->npe_particlePlane-1);
-  }
-  assert(nCellsLoc==1);
-  /* my first cell idex */
-  srand(ctx->rank);
-  for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) {
-    iths = my0%ctx->particleGrid.ntheta;
-    irs = my0/ctx->particleGrid.ntheta;
-    {
-      const PetscReal r1 = sqrt(((PetscReal)irs      /(PetscReal)ctx->particleGrid.nradius)*rmin*rmin) +       1.e-12*rmin;
-      const PetscReal dr = sqrt((((PetscReal)irs+1.0)/(PetscReal)ctx->particleGrid.nradius)*rmin*rmin) - (r1 - 1.e-12*rmin);
-      const PetscReal th1 = (PetscReal)iths*dth + 1.e-12*dth;
-      /* create list */
-      ierr = X2PListCreate(&ctx->partlists[isp],ctx->partBuffSize);CHKERRQ(ierr);
-#define X2NDIG 100000
-      /* create each particle */
-      //for (int i=0;i<ctx->npart_cell;i++) {
-      for (np=0 ; np<ctx->npart_cell; /* void */ ) {
-	PetscReal theta0,r,z;
-	const PetscReal psi = r1 + (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dr;
-	const PetscReal qsaf = qsafty(psi/ctx->particleGrid.rMinor);
-	const PetscInt NN = (PetscInt)(dth*psi/dx) + 1;
-	const PetscReal dth2 = dth/(PetscReal)NN - 1.e-12*dth;
-	for ( ii = 0, theta0 = th1 + (PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG*dth2;
-	      ii < NN && np<ctx->npart_cell ;
-	      ii++, theta0 += dth2, np++ ) {
-	  PetscReal zmax,maxe=ctx->max_vpar*ctx->max_vpar,zdum,mass=1.,b=1.,charge=1.,t=1.;
-          PetscScalar v=1.,vpar;
-          const PetscReal phi = phi1 + (PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG*dphi;
-	  const PetscReal thetap = theta0 + qsaf*phi; /* push forward to follow fieldlines */
-	  ierr = polPlane2cylindrical(psi, thetap, &r, &z);CHKERRQ(ierr);
-	  r += rmaj;
-
-	  /* v_parallel from random number */
-	  zmax = 1.0 - exp(-maxe);
-	  zdum = zmax*(PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG;
-	  v= sqrt(-2.0/mass*log(1.0-zdum)*t);
-	  v= v*cos(M_PI*(PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG);
-	  /* vshift= v + up ! shift of velocity */
-	  vpar = v/b*mass/charge;
-	  vpar *= 208.3333; /* fudge factor to get it to fit input */
-
-	  ierr = X2ParticleCreate(&particle,++gid,r,z,phi,vpar);CHKERRQ(ierr);
-	  ierr = X2PListAdd(&ctx->partlists[isp],&particle);CHKERRQ(ierr);
-	  /* add density to RHS */
-	  ierr = cylindrical2Cart(particle.r, particle.z, particle.phi, x);CHKERRQ(ierr);
-	  ierr = DMPICellAddSource(ctx->dm, xVec, vVec);CHKERRQ(ierr);
-	  if((j=X2GridParticleGetProc_FluxTube(NULL,&ctx->particleGrid,psi,thetap,phi)) != ctx->rank){
-	    PetscPrintf(PETSC_COMM_SELF,"[%D] ERROR proc %d r=%e:%e:%e theta=%e:%e:%e phi=%e:%e:%e\n",ctx->rank,j,r1,psi,r1+dr,th1,thetap,th1+dth,phi1,phi,phi1+dphi);
-	    SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB," created particle for proc %D",j);
-	  }
-	} /* theta */
-      }
-      iths++;
-      if (iths==ctx->particleGrid.ntheta) { iths = 0; irs++; }
-    } /* cells */
-  } /* species */
-  VecDestroy(&vVec);
-  VecRestoreArray(xVec,&x);
-  VecDestroy(&xVec);
-  PetscFunctionReturn(0);
-}
-
 PetscErrorCode zero(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
   int i;
@@ -669,20 +573,18 @@ PetscErrorCode X2PListWrite( X2PList *l, int rank, int npe, MPI_Comm comm, char 
   H5PartFile    *file1,*file2;
   PetscFunctionBeginUser;
 
-  file1 = H5PartOpenFileParallel(fname1,H5PART_WRITE,comm);
-  file2 = H5PartOpenFileParallel(fname2,H5PART_WRITE,comm);
-  ierr = H5PartFileIsValid(file1);CHKERRQ(ierr);
-  ierr = H5PartSetStep(file1, 0);CHKERRQ(ierr);
-  ierr = H5PartFileIsValid(file2);CHKERRQ(ierr);
-  ierr = H5PartSetStep(file2, 0);CHKERRQ(ierr);
-
   nparticles = X2PListSize(l);
-  if (nparticles) {
+  if (nparticles && (fname1 || fname2)) {
     x=(double*)malloc(nparticles*sizeof(double));
     y=(double*)malloc(nparticles*sizeof(double));
     z=(double*)malloc(nparticles*sizeof(double));
     v=(double*)malloc(nparticles*sizeof(double));
     id=(h5part_int64_t*)malloc(nparticles*sizeof(h5part_int64_t));
+  }
+  if (fname1) {
+    file1 = H5PartOpenFileParallel(fname1,H5PART_WRITE,comm);
+    ierr = H5PartFileIsValid(file1);CHKERRQ(ierr);
+    ierr = H5PartSetStep(file1, 0);CHKERRQ(ierr);
     nparticles = 0;
     ierr = X2PListGetHead( l, &pos );CHKERRQ(ierr);
     while ( !X2PListGetNext( l, &part, &pos) ) {
@@ -693,34 +595,41 @@ PetscErrorCode X2PListWrite( X2PList *l, int rank, int npe, MPI_Comm comm, char 
       id[nparticles] = part.gid;
       nparticles++;
     }
+    ierr = H5PartSetNumParticles(file1, nparticles);
+    ierr = H5PartWriteDataFloat64(file1, "x", x);
+    ierr = H5PartWriteDataFloat64(file1, "y", y);
+    ierr = H5PartWriteDataFloat64(file1, "z", z);
+    ierr = H5PartWriteDataInt64(file1, "gid", id);
+    ierr = H5PartCloseFile(file1);
   }
-  ierr = H5PartSetNumParticles(file1, nparticles);
-  ierr = H5PartWriteDataFloat64(file1, "x", x);
-  ierr = H5PartWriteDataFloat64(file1, "y", y);
-  ierr = H5PartWriteDataFloat64(file1, "z", z);
-  ierr = H5PartWriteDataInt64(file1, "gid", id);
-
-  if (rank!=npe-1 && rank!=npe-2) nparticles = 0; /* just write last (two) proc(s) */
-  else {
-    nparticles = 0;
-    ierr = X2PListGetHead( l, &pos );CHKERRQ(ierr);
-    while ( !X2PListGetNext( l, &part, &pos) ) {
-      id[nparticles] = rank;
-      nparticles++;
+  if (fname2) {
+    file2 = H5PartOpenFileParallel(fname2,H5PART_WRITE,comm);
+    ierr = H5PartFileIsValid(file2);CHKERRQ(ierr);
+    ierr = H5PartSetStep(file2, 0);CHKERRQ(ierr);
+    if (rank!=npe-1 && rank!=npe-2) nparticles = 0; /* just write last (two) proc(s) */
+    else {
+      nparticles = 0;
+      ierr = X2PListGetHead( l, &pos );CHKERRQ(ierr);
+      while ( !X2PListGetNext( l, &part, &pos) ) {
+        x[nparticles] = part.r*cos(part.phi);
+        y[nparticles] = part.r*sin(part.phi);
+        z[nparticles] = part.z;
+        v[nparticles] = part.vpar;
+        id[nparticles] = rank;
+        nparticles++;
+      }
     }
+    ierr = H5PartSetNumParticles( file2, nparticles);
+    ierr = H5PartWriteDataFloat64(file2, "x", x);
+    ierr = H5PartWriteDataFloat64(file2, "y", y);
+    ierr = H5PartWriteDataFloat64(file2, "z", z);
+    ierr = H5PartWriteDataFloat64(file2, "v", v);
+    ierr = H5PartWriteDataInt64(file2, "rank", id);
+    ierr = H5PartCloseFile(file2);
   }
-  ierr = H5PartSetNumParticles( file2, nparticles);
-  ierr = H5PartWriteDataFloat64(file2, "x", x);
-  ierr = H5PartWriteDataFloat64(file2, "y", y);
-  ierr = H5PartWriteDataFloat64(file2, "z", z);
-  ierr = H5PartWriteDataFloat64(file2, "v", v);
-  ierr = H5PartWriteDataInt64(file2, "rank", id);
-
   if (x) {
     free(x); free(y); free(z); free(id); free(v);
   }
-  ierr = H5PartCloseFile(file1);
-  ierr = H5PartCloseFile(file2);
 
   PetscFunctionReturn(0);
 }
@@ -1017,7 +926,6 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendLi
         }
       }
       else { /* move: sendLTabPtr && off proc */
-if(irk<0)PetscPrintf(PETSC_COMM_SELF,"[%D] ERROR comm only: to %D\n",ctx->rank,pe);
         assert(sendLTabPtr);
 #if defined(PETSC_USE_LOG)
         ierr = PetscLogEventBegin(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
@@ -1075,7 +983,7 @@ if(irk<0)PetscPrintf(PETSC_COMM_SELF,"[%D] ERROR comm only: to %D\n",ctx->rank,p
     ierr = MPI_Allreduce(sb, rb, 3, mtype, MPI_SUM, ctx->wComm);CHKERRQ(ierr);
     PetscPrintf(ctx->wComm,
                 "%d) %s %D local particles, %D global, %g %% particles moved, %D MPI_Isends total (to %D processors local) \n",
-                istep,irk<0 ? "moved" : "processed", origNlocal, rb[0], 100.*(double)rb[1]/(double)rb[0], rb[2], ctx->tablecount);
+                istep+1,irk<0 ? "processed" : "pushed", origNlocal, rb[0], 100.*(double)rb[1]/(double)rb[0], rb[2], ctx->tablecount);
 #ifdef H5PART
     if (irk>=0) {
       for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) {
@@ -1089,7 +997,7 @@ if(irk<0)PetscPrintf(PETSC_COMM_SELF,"[%D] ERROR comm only: to %D\n",ctx->rank,p
     }
 #endif
   }
-  else PetscPrintf(ctx->wComm,"%d) %s %D local particles\n",istep,irk<0 ? "moved" : "processed",origNlocal);
+  else PetscPrintf(ctx->wComm,"%d) %s %D local particles\n",istep+1,irk<0 ? "processed" : "pushed",origNlocal);
 
   if (irk>=0) {
     VecRestoreArray(gradVec,&grad);
@@ -1103,6 +1011,114 @@ if(irk<0)PetscPrintf(PETSC_COMM_SELF,"[%D] ERROR comm only: to %D\n",ctx->rank,p
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "createParticles"
+static PetscErrorCode createParticles(X2Ctx *ctx)
+{
+  PetscErrorCode ierr;
+  PetscInt isp,nCellsLoc,my0,irs,iths,gid,ii,np,j,dim,one=1;
+  const PetscReal dth=(2.*M_PI)/(PetscReal)ctx->particleGrid.ntheta,rone=1.;
+  const PetscReal dphi=2.*M_PI/(PetscReal)ctx->particleGrid.nphi,rmin=ctx->particleGrid.rMinor;
+  const PetscReal phi1 = (PetscReal)ctx->ParticlePlaneIdx*dphi + 1.e-8,rmaj=ctx->particleGrid.rMajor;
+  const PetscInt  nPartCells_plane = ctx->particleGrid.ntheta*ctx->particleGrid.nradius; /* nPartCells_plane == ctx->npe_particlePlane */
+  const PetscReal dx = pow( (M_PI*rmin*rmin/4.0) * rmaj*2.*M_PI / (PetscReal)(ctx->npe*ctx->npart_cell), 0.333); /* lenth of a particle, approx. */
+  X2Particle particle;
+  Vec vVec,xVec;
+  PetscScalar *x;
+  DM dm;
+  DM_PICell *dmpi;
+  PetscFunctionBeginUser;
+
+  /* Create vector and get pointer to data space */
+  dmpi = (DM_PICell *) ctx->dm->data;
+  dm = dmpi->dmplex;
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
+  if (dim!=3) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"wrong dimension (3) = %D",dim);
+  ierr = VecCreateSeq(PETSC_COMM_SELF,one,&vVec);CHKERRQ(ierr);
+  ierr = VecSet(vVec,rone);CHKERRQ(ierr); /* dummy density now */
+  ierr = VecCreateSeq(PETSC_COMM_SELF,dim,&xVec);CHKERRQ(ierr);
+  ierr = VecGetArray(xVec,&x);CHKERRQ(ierr);
+
+  /* setup particles - lexigraphic partition of cells (np local cells) */
+  nCellsLoc = nPartCells_plane/ctx->npe_particlePlane; /* = 1; nPartCells_plane == ctx->npe_particlePlane */
+  my0 = ctx->particlePlaneRank*nCellsLoc;              /* cell index in plane == particlePlaneRank */
+  gid = (my0 + ctx->ParticlePlaneIdx*nPartCells_plane)*ctx->npart_cell; /* based particle ID */
+  if (ctx->ParticlePlaneIdx == ctx->npe_particlePlane-1){
+    nCellsLoc = nPartCells_plane - nCellsLoc*(ctx->npe_particlePlane-1);
+  }
+  assert(nCellsLoc==1);
+  /* my first cell idex */
+  srand(ctx->rank);
+  for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) {
+    iths = my0%ctx->particleGrid.ntheta;
+    irs = my0/ctx->particleGrid.ntheta;
+    {
+      const PetscReal r1 = sqrt(((PetscReal)irs      /(PetscReal)ctx->particleGrid.nradius)*rmin*rmin) +       1.e-12*rmin;
+      const PetscReal dr = sqrt((((PetscReal)irs+1.0)/(PetscReal)ctx->particleGrid.nradius)*rmin*rmin) - (r1 - 1.e-12*rmin);
+      const PetscReal th1 = (PetscReal)iths*dth + 1.e-12*dth;
+      /* create list */
+      ierr = X2PListCreate(&ctx->partlists[isp],ctx->partBuffSize);CHKERRQ(ierr);
+#define X2NDIG 100000
+      /* create each particle */
+      //for (int i=0;i<ctx->npart_cell;i++) {
+      for (np=0 ; np<ctx->npart_cell; /* void */ ) {
+	PetscReal theta0,r,z;
+	const PetscReal psi = r1 + (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dr;
+	const PetscReal qsaf = qsafty(psi/ctx->particleGrid.rMinor);
+	const PetscInt NN = (PetscInt)(dth*psi/dx) + 1;
+	const PetscReal dth2 = dth/(PetscReal)NN - 1.e-12*dth;
+	for ( ii = 0, theta0 = th1 + (PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG*dth2;
+	      ii < NN && np<ctx->npart_cell ;
+	      ii++, theta0 += dth2, np++ ) {
+	  PetscReal zmax,maxe=ctx->max_vpar*ctx->max_vpar,zdum,mass=1.,b=1.,charge=1.,t=1.;
+          PetscScalar v=1.,vpar;
+          const PetscReal phi = phi1 + (PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG*dphi;
+	  const PetscReal thetap = theta0 + qsaf*phi; /* push forward to follow fieldlines */
+	  ierr = polPlane2cylindrical(psi, thetap, &r, &z);CHKERRQ(ierr);
+	  r += rmaj;
+
+	  /* v_parallel from random number */
+	  zmax = 1.0 - exp(-maxe);
+	  zdum = zmax*(PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG;
+	  v= sqrt(-2.0/mass*log(1.0-zdum)*t);
+	  v= v*cos(M_PI*(PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG);
+	  /* vshift= v + up ! shift of velocity */
+	  vpar = v/b*mass/charge;
+	  vpar *= 208.3333; /* fudge factor to get it to fit input */
+	  ierr = X2ParticleCreate(&particle,++gid,r,z,phi,vpar);CHKERRQ(ierr);
+	  ierr = X2PListAdd(&ctx->partlists[isp],&particle);CHKERRQ(ierr);
+          /* debug, particles are created in a flux tube */
+	  if((j=X2GridParticleGetProc_FluxTube(NULL,&ctx->particleGrid,psi,thetap,phi)) != ctx->rank){
+	    PetscPrintf(PETSC_COMM_SELF,"[%D] ERROR proc %d r=%e:%e:%e theta=%e:%e:%e phi=%e:%e:%e\n",ctx->rank,j,r1,psi,r1+dr,th1,thetap,th1+dth,phi1,phi,phi1+dphi);
+	    SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB," created particle for proc %D",j);
+	  }
+	} /* theta */
+      }
+      iths++;
+      if (iths==ctx->particleGrid.ntheta) { iths = 0; irs++; }
+    } /* cells */
+  } /* species */
+  /* move back to solver space and make density vector */
+  {
+    PetscInt tag = 90, istep=-1, idx;
+    X2SendList *sendListTable;
+    /* init send tables */
+    ierr = PetscMalloc1(ctx->tablesize,&sendListTable);CHKERRQ(ierr);
+    for (idx=0;idx<ctx->tablesize;idx++) {
+      for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) {
+        sendListTable[idx].plist[isp].data_size = 0; /* init */
+      }
+    }
+    /* fake time step will add density to RHS */
+    ierr = processParticles(ctx, 0.0, sendListTable, tag, 0, istep, X2GridParticleGetProc_Solver);
+    CHKERRQ(ierr);
+    ierr = PetscFree(sendListTable);CHKERRQ(ierr);
+  }
+  VecDestroy(&vVec);
+  VecRestoreArray(xVec,&x);
+  VecDestroy(&xVec);
+  PetscFunctionReturn(0);
+}
 
 #undef __FUNCT__
 #define __FUNCT__ "go"
@@ -1141,9 +1157,21 @@ PetscErrorCode go( X2Ctx *ctx )
 
     /* do collisions */
     if (((istep+1)%ctx->collisionPeriod)==0) {
-      processParticles(ctx, dt, sendListTable, tag,                                         -1, istep, X2GridParticleGetProc_FluxTube);
+      /* move to flux tube space */
+      ierr = processParticles(ctx, dt, sendListTable, tag,                                         -1, istep, X2GridParticleGetProc_FluxTube);
+      CHKERRQ(ierr);
       /* call collision method - todo */
-      processParticles(ctx, dt, sendListTable, tag + X2_NION + (ctx->useElectrons ? 1 : 0), -1, istep, X2GridParticleGetProc_Solver);
+#ifdef H5PART
+      for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
+        char  fname1[256];
+        sprintf(fname1,"particles_sp%d_time%05d_fluxtube.h5part",isp,istep);
+        /* write */
+        ierr = X2PListWrite(&ctx->partlists[isp], ctx->rank, ctx->npe, ctx->wComm, fname1, NULL);CHKERRQ(ierr);
+      }
+#endif
+      /* move back to solver space */
+      ierr = processParticles(ctx, dt, sendListTable, tag + X2_NION + (ctx->useElectrons ? 1 : 0), -1, istep, X2GridParticleGetProc_Solver);
+      CHKERRQ(ierr);
     }
 
     /* very crude explicit RK */
@@ -1158,7 +1186,8 @@ PetscErrorCode go( X2Ctx *ctx )
     ierr = PetscLogEventBegin(ctx->events[0],0,0,0,0);CHKERRQ(ierr);
 #endif
     /* process particles: push, move */
-    processParticles(ctx, dt, sendLTabPtr, tag, irk, istep, X2GridParticleGetProc_FluxTube); /* X2GridParticleGetProc_Solver */
+    ierr = processParticles(ctx, dt, sendLTabPtr, tag, irk, istep, X2GridParticleGetProc_Solver);
+    CHKERRQ(ierr);
     tag += X2_NION + (ctx->useElectrons ? 1 : 0);
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventEnd(ctx->events[0],0,0,0,0);CHKERRQ(ierr);
@@ -1224,10 +1253,6 @@ int main(int argc, char **argv)
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
   ierr = DMSetType(dm,(DMType) typeString);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dm, "Mesh");CHKERRQ(ierr);
-  /* setup DM */
-  ierr = DMSetFromOptions(ctx.dm);CHKERRQ(ierr); /* get file name from -dm_forest_topology */
-  ierr = DMSetUp(ctx.dm);CHKERRQ(ierr); /* set all up & build initial grid */
-
   /* setup Discretization */
   ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);
   CHKERRQ(ierr);
@@ -1236,20 +1261,23 @@ int main(int argc, char **argv)
   ierr = PetscFECreateDefault(dm, dim, 1, PETSC_FALSE, NULL, -1, &fe);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe, "potential");CHKERRQ(ierr);
   cdm = dm;
-  while (cdm) {
-    DMLabel label;
-    PetscDS prob;
-    PetscInt id = 1;
-    ierr = DMGetDS(cdm, &prob);CHKERRQ(ierr);
-    ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) fe);CHKERRQ(ierr);
-    ierr = DMCreateLabel(cdm, "boundary");CHKERRQ(ierr);
-    ierr = DMGetLabel(cdm, "boundary", &label);CHKERRQ(ierr);
-    ierr = DMPlexMarkBoundaryFaces(cdm, label);CHKERRQ(ierr);
-    ierr = DMAddBoundary(cdm, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx.BCFuncs, 1, &id, &ctx);
-    CHKERRQ(ierr);
-    ierr = DMGetCoarseDM(cdm, &cdm);CHKERRQ(ierr);
-  }
+  /* while (cdm) { */
+  /*   DMLabel label; */
+  /*   PetscDS prob; */
+  /*   PetscInt id = 1; */
+  /*   ierr = DMGetDS(cdm, &prob);CHKERRQ(ierr); */
+  /*   ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) fe);CHKERRQ(ierr); */
+  /*   ierr = DMCreateLabel(cdm, "boundary");CHKERRQ(ierr); */
+  /*   ierr = DMGetLabel(cdm, "boundary", &label);CHKERRQ(ierr); */
+  /*   ierr = DMPlexMarkBoundaryFaces(cdm, label);CHKERRQ(ierr); */
+  /*   ierr = DMAddBoundary(cdm, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx.BCFuncs, 1, &id, &ctx); */
+  /*   CHKERRQ(ierr); */
+  /*   ierr = DMGetCoarseDM(cdm, &cdm);CHKERRQ(ierr); */
+  /* } */
   ierr = PetscFEDestroy(&fe);CHKERRQ(ierr);
+  /* setup DM */
+  ierr = DMSetFromOptions(ctx.dm);CHKERRQ(ierr); /* get file name from -dm_forest_topology */
+  ierr = DMSetUp(ctx.dm);CHKERRQ(ierr); /* set all up & build initial grid */
    /* setup particles */
   ierr = createParticles( &ctx );CHKERRQ(ierr);
   ierr = PetscLogEventEnd(ctx.events[3],0,0,0,0);CHKERRQ(ierr);

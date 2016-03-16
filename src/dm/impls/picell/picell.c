@@ -90,7 +90,7 @@ PetscErrorCode DMDestroy_PICell(DM dm)
 
   PetscFunctionBegin;
   ierr = SNESDestroy(&dmpi->snes);CHKERRQ(ierr);
-  /* ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr); THIS FAILS ????? */
+  ierr = DMDestroy(dmpi->dmplex);CHKERRQ(ierr);
   /* ierr = VecDestroy(&dmpi->rho);CHKERRQ(ierr); */
   /* ierr = VecDestroy(&dmpi->phi);CHKERRQ(ierr); */
   ierr = PetscFree(dmpi);CHKERRQ(ierr);
