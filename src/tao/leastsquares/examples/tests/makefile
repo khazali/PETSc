@@ -21,6 +21,10 @@ chwirut2: chwirut2.o chkopts
 	-${CLINKER} -o chwirut2 chwirut2.o ${PETSC_TAO_LIB}
 	${RM} chwirut2.o
 
+box1: box1.o chkopts
+	-${CLINKER} -o box1 box1.o ${PETSC_TAO_LIB}
+	${RM} box1.o
+
 runchwirut1:
 	-@${MPIEXEC} -n 1 ./chwirut1 -tao_smonitor -tao_max_it 100 -tao_type pounders > chwirut1_1.tmp 2>&1;\
 	${DIFF} output/chwirut1_1.out chwirut1_1.tmp || printf '${PWD}\nPossible problem with chwirut1_1 stdout, diffs above \n=====================================\n';\
@@ -51,9 +55,13 @@ runchwirut2_3:
         ${DIFF} output/chwirut2_1.out chwirut2_1.tmp || printf '${PWD}\nPossible problem with chwirut2_3 stdout, diffs above \n=====================================\n';\
 	${RM} -f chwirut2_3.tmp
 
+runbox1:
+	-@${MPIEXEC} -n 1 ./box1 -tao_smonitor -tao_max_it 100 -tao_type pounders > box1_1.tmp 2>&1;\
+	${DIFF} output/box1_1.out box1_1.tmp || printf '${PWD}\nPossible problem with box1_1 stdout, diffs above \n=====================================\n';\
+	${RM} -f box1_1.tmp
 
 
-TESTEXAMPLES_C             = chwirut1.PETSc runchwirut1 chwirut1.rm chwirut2.PETSc runchwirut2 chwirut.rm
+TESTEXAMPLES_C             = chwirut1.PETSc runchwirut1 chwirut1.rm chwirut2.PETSc runchwirut2 chwirut.rm box1.PETSc runbox1 box1.rm box2.PETSc runbox2 box.rm
 TESTEXAMPLES_C_X_MPIUNI    = chwirut1.PETSc runchwirut1 chwirut1.rm
 
 
