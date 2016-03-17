@@ -543,18 +543,6 @@ static PetscErrorCode destroyParticles(X2Ctx *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "CtxDestroy"
-PetscErrorCode CtxDestroy(X2Ctx *ctx)
-{
-  PetscErrorCode ierr;
-  PetscFunctionBeginUser;
-  ierr = DMDestroy(&ctx->dm);CHKERRQ(ierr);
-  ierr = destroyParticles(ctx);CHKERRQ(ierr);
-  ierr = PetscFree(ctx->BCFuncs);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
 #ifdef H5PART
 #undef __FUNCT__
 #define __FUNCT__ "X2PListWrite"
@@ -822,7 +810,6 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendListTable, cons
       }
     } /* non-blocking consensus */
     ierr = PetscFree(data);CHKERRQ(ierr);
-
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventEnd(ctx->events[2],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -961,10 +948,10 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendLi
           }
           if (++hash == ctx->tablesize) hash=0;
         }
-      }
 #if defined(PETSC_USE_LOG)
-      ierr = PetscLogEventEnd(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
+        ierr = PetscLogEventEnd(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
 #endif
+      }
     }
     /* finish sends */
     if (sendListTable) {
@@ -1113,7 +1100,6 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
     ierr = processParticles(ctx, 0.0, sendListTable, tag, 0, istep, X2GridParticleGetProc_Solver);
     CHKERRQ(ierr);
     ierr = PetscFree(sendListTable);CHKERRQ(ierr);
-    PetscPrintf(ctx->wComm,"[%D] createParticles done\n",ctx->rank);
   }
   VecDestroy(&vVec);
   VecRestoreArray(xVec,&x);
@@ -1291,9 +1277,10 @@ int main(int argc, char **argv)
 #endif
 
   ierr = go( &ctx );CHKERRQ(ierr);
-  ierr = DMDestroy(&dm);CHKERRQ(ierr);
+  ierr = destroyParticles(&ctx);CHKERRQ(ierr);
+  ierr = DMDestroy(&ctx.dm);CHKERRQ(ierr);
+  ierr = PetscFree(ctx.BCFuncs);CHKERRQ(ierr);
   ierr = PetscCommDestroy(&ctx.wComm);CHKERRQ(ierr);
-  ierr = CtxDestroy(&ctx);CHKERRQ(ierr);
   ierr = PetscFinalize();CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

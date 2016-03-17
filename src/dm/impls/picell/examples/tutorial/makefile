@@ -17,10 +17,11 @@ ex1: ex1.o chkopts
 	${RM} -f ex1.o
 
 runex1:
-	-@${MPIEXEC} -n 3 ./ex1 -dm_type p8est -dm_forest_topology shell -dm_view vtk:tokamac.vtu:VTK_VTU -use_electrons true -npart_cell 1000 -mstep 100 -nphi_particles 3 -bsp_chuncksize 0
+	-@${MPIEXEC} -n 8 ./ex1 -dm_type p8est -dm_forest_topology shell -dm_view vtk:tokamac.vtu:VTK_VTU -use_electrons true -npart_cell 100000 -mstep 20 -bsp_chuncksize 0
+# -nphi_particles 2
 
 val: ex1
-	-${MPIEXEC} -n 1 valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex1 -dm_type p8est -dm_forest_topology shell -use_electrons true -npart_cell 10 -mstep 100 -nphi_particles 1
+	-${MPIEXEC} -n 1 valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex1 -dm_type p8est -dm_forest_topology shell -use_electrons true -npart_cell 10000 -mstep 10 -nphi_particles 1
 
 
 include ${PETSC_DIR}/lib/petsc/conf/test
