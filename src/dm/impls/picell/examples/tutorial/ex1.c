@@ -495,7 +495,7 @@ PetscMPIInt X2GridParticleGetProc_FluxTube(DM d, X2GridParticle *grid, PetscReal
   theta = fmod( theta - qsafty(psi/rminor)*phi + 20.*M_PI, 2.*M_PI);  /* pull back to referance grid */
   planeIdx = (PetscMPIInt)(phi/dphi)*grid->nradius*grid->ntheta; /* assumeing one particle cell per PE */
   iths = (PetscMPIInt)(theta/dth);                               assert(iths<grid->ntheta);
-  irs = (PetscMPIInt)((PetscReal)grid->nradius*psi*psi/(rminor*rminor)); assert(irs<grid->nradius);
+  irs = (PetscMPIInt)((PetscReal)grid->nradius*psi*psi/(rminor*rminor));assert(irs<grid->nradius);
   pe = planeIdx + irs*grid->ntheta + iths;
 
   PetscFunctionReturn(pe);
@@ -549,13 +549,9 @@ PetscErrorCode CtxDestroy(X2Ctx *ctx)
 {
   PetscErrorCode ierr;
   PetscFunctionBeginUser;
-
   ierr = DMDestroy(&ctx->dm);CHKERRQ(ierr);
-
   ierr = destroyParticles(ctx);CHKERRQ(ierr);
-
   ierr = PetscFree(ctx->BCFuncs);CHKERRQ(ierr);
-
   PetscFunctionReturn(0);
 }
 
@@ -913,6 +909,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendLi
         ierr = polPlane2cylindrical( psi, theta, &r, &z);CHKERRQ(ierr); /* time spent here */
         part.r = rmaj + r;
         part.z = z;
+      }
+      else {
+        ierr = cylindrical2polPlane( part.r - rmaj, part.z, &psi, &theta );CHKERRQ(ierr);
       }
       /* else -- just communicate */
       /* see if need communication, add density if not, add to communication list if so */
@@ -1292,7 +1291,6 @@ int main(int argc, char **argv)
 #endif
 
   ierr = go( &ctx );CHKERRQ(ierr);
-
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
   ierr = PetscCommDestroy(&ctx.wComm);CHKERRQ(ierr);
   ierr = CtxDestroy(&ctx);CHKERRQ(ierr);
