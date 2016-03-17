@@ -590,7 +590,8 @@ PetscErrorCode X2PListWrite( X2PList *l, int rank, int npe, MPI_Comm comm, char 
     file2 = H5PartOpenFileParallel(fname2,H5PART_WRITE,comm);
     ierr = H5PartFileIsValid(file2);CHKERRQ(ierr);
     ierr = H5PartSetStep(file2, 0);CHKERRQ(ierr);
-    if (rank!=npe-1 && rank!=npe-2) nparticles = 0; /* just write last (two) proc(s) */
+    // if (rank!=npe-1 && rank!=npe-2) nparticles = 0; /* just write last (two) proc(s) */
+    if (rank>=npe/2) nparticles = 0; /* just write last (two) proc(s) */
     else {
       nparticles = 0;
       ierr = X2PListGetHead( l, &pos );CHKERRQ(ierr);
@@ -973,13 +974,15 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendLi
                 istep+1,irk<0 ? "processed" : "pushed", origNlocal, rb[0], 100.*(double)rb[1]/(double)rb[0], rb[2], ctx->tablecount[1]);
 #ifdef H5PART
     if (irk>=0) {
-      for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) {
-        char  fname1[256],fname2[256];
-        /* hdf5 output */
-        sprintf(fname1,"particles_sp%d_time%05d.h5part",isp,istep+1);
-        sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",isp,istep+1);
-        /* write */
-        ierr = X2PListWrite(&ctx->partlists[isp], ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
+      if (ctx->debug>1) {
+        for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) {
+          char  fname1[256],fname2[256];
+          /* hdf5 output */
+          sprintf(fname1,"particles_sp%d_time%05d.h5part",isp,istep+1);
+          sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",isp,istep+1);
+          /* write */
+          ierr = X2PListWrite(&ctx->partlists[isp], ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
+        }
       }
     }
 #endif
@@ -1128,12 +1131,14 @@ PetscErrorCode go( X2Ctx *ctx )
 
   /* hdf5 output - init */
 #ifdef H5PART
-  for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
-    char  fname1[256],fname2[256];
-    sprintf(fname1,"particles_sp%d_time%05d.h5part",isp,0);
-    sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",isp,0);
-    /* write */
-    ierr = X2PListWrite(&ctx->partlists[isp], ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
+  if (ctx->debug>1) {
+    for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
+      char  fname1[256],fname2[256];
+      sprintf(fname1,"particles_sp%d_time%05d.h5part",isp,0);
+      sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",isp,0);
+      /* write */
+      ierr = X2PListWrite(&ctx->partlists[isp], ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
+    }
   }
 #endif
   /* main time step loop */
@@ -1149,11 +1154,14 @@ PetscErrorCode go( X2Ctx *ctx )
       CHKERRQ(ierr);
       /* call collision method - todo */
 #ifdef H5PART
-      for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
-        char  fname1[256];
-        sprintf(fname1,"particles_sp%d_time%05d_fluxtube.h5part",isp,istep);
-        /* write */
-        ierr = X2PListWrite(&ctx->partlists[isp], ctx->rank, ctx->npe, ctx->wComm, fname1, NULL);CHKERRQ(ierr);
+      if (ctx->debug>0) {
+        for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
+          char  fname1[256], fname2[256];
+          sprintf(fname1,         "particles_sp%d_time%05d_fluxtube.h5part",isp,istep);
+          sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",isp,istep);
+          /* write */
+          ierr = X2PListWrite(&ctx->partlists[isp], ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
+        }
       }
 #endif
       /* move back to solver space */
