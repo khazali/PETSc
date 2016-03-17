@@ -1202,6 +1202,97 @@ PetscErrorCode go( X2Ctx *ctx )
   PetscFunctionReturn(0);
 }
 
+/* == Defining a base plex for a torus, which looks like a rectilinear donut, and a mapping that turns it into a conventional round donut == */
+
+typedef struct
+{
+  PetscReal rMajor;
+  PetscReal rMinor;
+  PetscReal innerMult;
+  PetscInt  numMajor;
+}
+PICellTorus;
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexCreatePICellTorus"
+PetscErrorCode DMPlexCreatePICellTorus (MPI_Comm comm, PICellTorus *params, DM *dm)
+{
+  PetscInt       numCells;
+  PetscReal      rMajor   = params->rMajor;
+  PetscReal      rMinor   = params->rMinor;
+  PetscReal      innerMult = params->innerMult;
+  PetscInt       numMajor = params->numMajor;
+  PetscInt       numVerts;
+  PetscInt       *flatCells;
+  double         *flatCoords;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  numCells = numMajor * 5;
+  numVerts = numMajor * 8;
+  ierr = PetscMalloc2(numCells * 8,&flatCells,numVerts * 3,&flatCoords);CHKERRQ(ierr);
+  {
+    double (*coords)[8][3] = (double (*) [8][3]) flatCoords;
+    PetscInt i;
+
+    for (i = 0; i < numMajor; i++) {
+      PetscInt j;
+      double cosphi, sinphi;
+
+      cosphi = cos(2 * M_PI * i / numMajor);
+      sinphi = sin(2 * M_PI * i / numMajor);
+
+      for (j = 0; j < 8; j++) {
+        double r, z;
+        double mult = (j < 4) ? innerMult : 1.;
+
+        r = rMajor + mult * rMinor * cos(j * M_PI_2);
+        z = mult * rMinor * sin(j * M_PI_2);
+
+        coords[i][j][0] = cosphi * r;
+        coords[i][j][1] = sinphi * r;
+        coords[i][j][2] = z;
+      }
+    }
+  }
+  {
+    PetscInt (*cells)[5][8] = (PetscInt (*) [5][8]) flatCells;
+    PetscInt i;
+
+    for (i = 0; i < numMajor; i++) {
+      PetscInt j;
+
+      for (j = 0; j < 5; j++) {
+        PetscInt k;
+
+        if (j < 4) {
+          for (k = 0; k < 8; k++) {
+            PetscInt l = k % 4;
+
+            cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + ((l % 3) ? 0 : 4) + ((l < 2) ? j : ((j + 1) % 4))) % numVerts;
+          }
+        }
+        else {
+          for (k = 0; k < 8; k++) {
+            PetscInt l = k % 4;
+
+            cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + (4 - l)) % numVerts;
+          }
+        }
+        {
+          PetscInt swap = cells[i][j][1];
+
+          cells[i][j][1] = cells[i][j][3];
+          cells[i][j][3] = swap;
+        }
+      }
+    }
+  }
+  ierr = DMPlexCreateFromCellList(comm,3,numCells,numVerts,8,PETSC_TRUE,flatCells,3,flatCoords,dm);CHKERRQ(ierr);
+  ierr = PetscFree2(flatCells,flatCoords);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 #undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc, char **argv)
@@ -1236,14 +1327,26 @@ int main(int argc, char **argv)
   ierr = DMSetType(ctx.dm, DMPICELL);CHKERRQ(ierr); /* creates (DM_PICell *) dm->data */
   /* setup solver grid */
   dmpi = (DM_PICell *) ctx.dm->data;
-  ierr = DMCreate(ctx.wComm, &dmpi->dmplex);CHKERRQ(ierr);
+  if (1) {
+    PICellTorus torus;
+
+    torus.rMajor    = ctx.particleGrid.rMajor;
+    torus.rMinor    = ctx.particleGrid.rMinor;
+    torus.innerMult = 0.414;
+    torus.numMajor  = 4;
+
+    ierr = DMPlexCreatePICellTorus(ctx.wComm,&torus,&dmpi->dmplex);CHKERRQ(ierr);
+  }
+  else {
+    ierr = DMCreate(ctx.wComm, &dmpi->dmplex);CHKERRQ(ierr);
+    ierr = PetscStrncpy(typeString,DMFOREST,256);CHKERRQ(ierr);
+    ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"DM Forest example options",NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsString("-dm_type","The type of the dm for solver",NULL,DMFOREST,typeString,sizeof(typeString),NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsEnd();CHKERRQ(ierr);
+    ierr = DMSetType(dm,(DMType) typeString);CHKERRQ(ierr);
+  }
   dm   = dmpi->dmplex;
   ierr = DMSetApplicationContext(dm, &ctx);CHKERRQ(ierr);
-  ierr = PetscStrncpy(typeString,DMFOREST,256);CHKERRQ(ierr);
-  ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"DM Forest example options",NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsString("-dm_type","The type of the dm for solver",NULL,DMFOREST,typeString,sizeof(typeString),NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsEnd();CHKERRQ(ierr);
-  ierr = DMSetType(dm,(DMType) typeString);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dm, "Mesh");CHKERRQ(ierr);
   /* setup Discretization */
   ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);
