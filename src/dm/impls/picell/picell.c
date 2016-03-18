@@ -40,14 +40,14 @@ PetscErrorCode  DMSetFromOptions_PICell(PetscOptionItems *PetscOptionsObject,DM 
 {
   PetscErrorCode ierr;
   DM_PICell      *dmpi = (DM_PICell *) dm->data;
-  const char *prefix;
+  /* const char *prefix; */
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   ierr = PetscOptionsHead(PetscOptionsObject,"DMPICell Options");CHKERRQ(ierr);
 
-  ierr = PetscObjectGetOptionsPrefix((PetscObject)dm,&prefix);CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject)dmpi->dmplex,prefix);CHKERRQ(ierr);
+  /* ierr = PetscObjectGetOptionsPrefix((PetscObject)dm,&prefix);CHKERRQ(ierr); */
+  /* ierr = PetscObjectSetOptionsPrefix((PetscObject)dmpi->dmplex,prefix);CHKERRQ(ierr); */
   ierr = DMSetFromOptions(dmpi->dmplex);CHKERRQ(ierr);
 
   ierr = PetscOptionsTail();CHKERRQ(ierr);

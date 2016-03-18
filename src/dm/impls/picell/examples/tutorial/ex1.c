@@ -576,7 +576,7 @@ PetscErrorCode X2PListWrite( X2PList *l, int rank, int npe, MPI_Comm comm, char 
     id=(h5part_int64_t*)malloc(nparticles*sizeof(h5part_int64_t));
   }
   if (fname1) {
-    file1 = H5PartOpenFileParallel(fname1,H5PART_WRITE,comm);
+    file1 = H5PartOpenFileParallel(fname1,H5PART_WRITE,comm);assert(file1);
     ierr = H5PartFileIsValid(file1);CHKERRQ(ierr);
     ierr = H5PartSetStep(file1, 0);CHKERRQ(ierr);
     nparticles = 0;
@@ -589,17 +589,17 @@ PetscErrorCode X2PListWrite( X2PList *l, int rank, int npe, MPI_Comm comm, char 
       id[nparticles] = part.gid;
       nparticles++;
     }
-    ierr = H5PartSetNumParticles(file1, nparticles);
-    ierr = H5PartWriteDataFloat64(file1, "x", x);
-    ierr = H5PartWriteDataFloat64(file1, "y", y);
-    ierr = H5PartWriteDataFloat64(file1, "z", z);
-    ierr = H5PartWriteDataInt64(file1, "gid", id);
-    ierr = H5PartCloseFile(file1);
+    ierr = H5PartSetNumParticles(file1, nparticles);assert(ierr==H5PART_SUCCESS);
+    ierr = H5PartWriteDataFloat64(file1, "x", x);assert(ierr==H5PART_SUCCESS);
+    ierr = H5PartWriteDataFloat64(file1, "y", y);assert(ierr==H5PART_SUCCESS);
+    ierr = H5PartWriteDataFloat64(file1, "z", z);assert(ierr==H5PART_SUCCESS);
+    ierr = H5PartWriteDataInt64(file1, "gid", id);assert(ierr==H5PART_SUCCESS);
+    ierr = H5PartCloseFile(file1);assert(ierr==H5PART_SUCCESS);
   }
   if (fname2) {
-    file2 = H5PartOpenFileParallel(fname2,H5PART_WRITE,comm);
-    ierr = H5PartFileIsValid(file2);CHKERRQ(ierr);
-    ierr = H5PartSetStep(file2, 0);CHKERRQ(ierr);
+    file2 = H5PartOpenFileParallel(fname2,H5PART_WRITE,comm);assert(file2);
+    ierr = H5PartFileIsValid(file2);CHKERRQ(ierr);assert(ierr==H5PART_SUCCESS);
+    ierr = H5PartSetStep(file2, 0);CHKERRQ(ierr);assert(ierr==H5PART_SUCCESS);
     // if (rank!=npe-1 && rank!=npe-2) nparticles = 0; /* just write last (two) proc(s) */
     if (rank>=npe/2) nparticles = 0; /* just write last (two) proc(s) */
     else {
@@ -614,13 +614,13 @@ PetscErrorCode X2PListWrite( X2PList *l, int rank, int npe, MPI_Comm comm, char 
         nparticles++;
       }
     }
-    ierr = H5PartSetNumParticles( file2, nparticles);
-    ierr = H5PartWriteDataFloat64(file2, "x", x);
-    ierr = H5PartWriteDataFloat64(file2, "y", y);
-    ierr = H5PartWriteDataFloat64(file2, "z", z);
-    ierr = H5PartWriteDataFloat64(file2, "v", v);
-    ierr = H5PartWriteDataInt64(file2, "rank", id);
-    ierr = H5PartCloseFile(file2);
+    ierr = H5PartSetNumParticles( file2, nparticles);assert(ierr==H5PART_SUCCESS);
+    ierr = H5PartWriteDataFloat64(file2, "x", x);assert(ierr==H5PART_SUCCESS);
+    ierr = H5PartWriteDataFloat64(file2, "y", y);assert(ierr==H5PART_SUCCESS);
+    ierr = H5PartWriteDataFloat64(file2, "z", z);assert(ierr==H5PART_SUCCESS);
+    ierr = H5PartWriteDataFloat64(file2, "v", v);assert(ierr==H5PART_SUCCESS);
+    ierr = H5PartWriteDataInt64(file2, "rank", id);assert(ierr==H5PART_SUCCESS);
+    ierr = H5PartCloseFile(file2);assert(ierr==H5PART_SUCCESS);
   }
   if (x) {
     free(x); free(y); free(z); free(id); free(v);
@@ -1481,6 +1481,10 @@ int main(int argc, char **argv)
     }
   }
   dmpi = (DM_PICell *) ctx.dm->data;
+  /* setup DM */
+  dmpi->dmplex = dm;
+  ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr);
+  ierr = DMSetUp( ctx.dm );CHKERRQ(ierr); /* set all up & build initial grid */
   /* create SNESS */
   ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
   ierr = SNESSetDM( dmpi->snes, dm);CHKERRQ(ierr);
@@ -1491,11 +1495,7 @@ int main(int argc, char **argv)
   ierr = DMCreateMatrix(dm, &J);CHKERRQ(ierr);
   ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
   ierr = SNESSetUp( dmpi->snes );CHKERRQ(ierr);
-  /* setup DM */
-  dmpi->dmplex = dm;
-  ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr);
-  ierr = DMSetUp( ctx.dm );CHKERRQ(ierr); /* set all up & build initial grid */
-   /* setup particles */
+  /* setup particles */
   ierr = createParticles( &ctx );CHKERRQ(ierr);
   ierr = PetscLogEventEnd(ctx.events[3],0,0,0,0);CHKERRQ(ierr);
   {
