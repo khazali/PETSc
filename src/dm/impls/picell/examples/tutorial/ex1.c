@@ -1434,14 +1434,14 @@ int main(int argc, char **argv)
   ierr = DMCreate(ctx.wComm, &ctx.dm);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(ctx.dm, &ctx);CHKERRQ(ierr);
   ierr = DMSetType(ctx.dm, DMPICELL);CHKERRQ(ierr); /* creates (DM_PICell *) dm->data */
-  /* setup solver grid */
+  /* setup solver grid, this should go in DMCreate_PICell? */
   ierr = DMPlexCreatePICellTorus(ctx.wComm,&ctx.particleGrid,&dm);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(dm, &ctx);CHKERRQ(ierr);
   /* setup Discretization */
   ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);
   CHKERRQ(ierr);
   ctx.BCFuncs[0] = zero;
-  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr); assert(dim==3);
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = PetscFECreateDefault(dm, dim, 1, PETSC_FALSE, NULL, -1, &fe);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe, "potential");CHKERRQ(ierr);
   {
@@ -1460,18 +1460,15 @@ int main(int argc, char **argv)
   {
     char      convType[256];
     PetscBool flg;
-
     ierr = PetscOptionsBegin(ctx.wComm, "", "Mesh conversion options", "DMPLEX");CHKERRQ(ierr);
     ierr = PetscOptionsFList("-torus_dm_type","Convert DMPlex to another format","x2.c",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
     ierr = PetscOptionsEnd();
     if (flg) {
       DM dmConv;
-
-      ierr = DMConvert(dm,convType,&dmConv);CHKERRQ(ierr);
+       ierr = DMConvert(dm,convType,&dmConv);CHKERRQ(ierr);
       if (dmConv) {
         const char *prefix;
         PetscBool isForest;
-
         ierr = PetscObjectGetOptionsPrefix((PetscObject)dm,&prefix);CHKERRQ(ierr);
         ierr = PetscObjectSetOptionsPrefix((PetscObject)dmConv,prefix);CHKERRQ(ierr);
         ierr = DMDestroy(&dm);CHKERRQ(ierr);
@@ -1484,32 +1481,34 @@ int main(int argc, char **argv)
     }
   }
   dmpi = (DM_PICell *) ctx.dm->data;
-  dmpi->dmplex = dm;
-  ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr);
   /* create SNESS */
-  ierr = SNESCreate(ctx.wComm,&dmpi->snes);CHKERRQ(ierr);
-  ierr = SNESSetFromOptions(dmpi->snes);CHKERRQ(ierr);
-  ierr = SNESSetDM(dmpi->snes,dmpi->dmplex);CHKERRQ(ierr);
-  ierr = DMSetMatType(dm,MATAIJ);CHKERRQ(ierr);
-  ierr = DMCreateMatrix(dm, &J);CHKERRQ(ierr);
+  ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
+  ierr = SNESSetDM( dmpi->snes, dm);CHKERRQ(ierr);
   ierr = DMSNESSetFunctionLocal(dm,  (PetscErrorCode (*)(DM,Vec,Vec,void*))DMPlexSNESComputeResidualFEM,&ctx);CHKERRQ(ierr);
   ierr = DMSNESSetJacobianLocal(dm,  (PetscErrorCode (*)(DM,Vec,Mat,Mat,void*))DMPlexSNESComputeJacobianFEM,&ctx);CHKERRQ(ierr);
+  ierr = DMSetMatType(dm,MATAIJ);CHKERRQ(ierr);
+  ierr = SNESSetFromOptions(dmpi->snes);CHKERRQ(ierr);
+  ierr = DMCreateMatrix(dm, &J);CHKERRQ(ierr);
   ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
+  ierr = SNESSetUp( dmpi->snes );CHKERRQ(ierr);
   /* setup DM */
-  ierr = DMSetUp(ctx.dm);CHKERRQ(ierr); /* set all up & build initial grid */
+  dmpi->dmplex = dm;
+  ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr);
+  ierr = DMSetUp( ctx.dm );CHKERRQ(ierr); /* set all up & build initial grid */
    /* setup particles */
   ierr = createParticles( &ctx );CHKERRQ(ierr);
   ierr = PetscLogEventEnd(ctx.events[3],0,0,0,0);CHKERRQ(ierr);
-#if 1
-  PetscViewer    viewer = NULL;
-  PetscBool      flg;
-  ierr = PetscOptionsGetViewer(ctx.wComm,NULL,"-torus_dm_view",&viewer,NULL,&flg);CHKERRQ(ierr);
-  if (flg) {
-    ierr = DMView(dm,viewer);CHKERRQ(ierr);
+  {
+    PetscViewer    viewer = NULL;
+    PetscBool      flg;
+    ierr = PetscOptionsGetViewer(ctx.wComm,NULL,"-torus_dm_view",&viewer,NULL,&flg);CHKERRQ(ierr);
+    if (flg) {
+      ierr = DMView(dm,viewer);CHKERRQ(ierr);
+    }
+    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
   }
-  ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-#endif
 
+  /* do it */
   ierr = go( &ctx );CHKERRQ(ierr);
 
   ierr = MatDestroy(&J);CHKERRQ(ierr);
