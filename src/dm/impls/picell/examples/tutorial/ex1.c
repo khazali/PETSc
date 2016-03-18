@@ -8,6 +8,7 @@ static char help[] = "X2: A partical in cell code for tokamac plasmas using PICe
 #include <petsc/private/dmpicellimpl.h>    /*I   "petscdmpicell.h"   I*/
 #include <assert.h>
 #include <petscds.h>
+#include <petscdmforest.h>
 /* #include <petscoptions.h> */
 
 /* particle grid, not PETSc ? */
@@ -18,6 +19,8 @@ typedef struct {
   /* tokamac geometry  */
   PetscReal  rMajor;
   PetscReal  rMinor;
+  PetscInt   numMajor; /* number of cells per major circle in the torus */
+  PetscReal  innerMult; /* (0,1) percent of the total radius taken by the inner square */
 } X2GridParticle;
 /* X2Species */
 #define X2_NION 1
@@ -326,6 +329,8 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->particleGrid.nphi = 1;
   ctx->particleGrid.nradius    = 1;
   ctx->particleGrid.ntheta     = 1;
+  ctx->particleGrid.numMajor   = 4;
+  ctx->particleGrid.innerMult  = M_SQRT2 - 1.;
 
   ierr = PetscOptionsBegin(ctx->wComm, "", "Poisson Problem Options", "X2");CHKERRQ(ierr);
   /* general options */
@@ -341,6 +346,8 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   /* Domain and mesh definition */
   ierr = PetscOptionsReal("-rMajor", "Major radius of torus", "x2.c", ctx->particleGrid.rMajor, &ctx->particleGrid.rMajor, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-rMinor", "Minor radius of torus", "x2.c", ctx->particleGrid.rMinor, &ctx->particleGrid.rMinor, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-numMajor", "Number of cells per major circle", "x2.c", ctx->particleGrid.numMajor, &ctx->particleGrid.numMajor, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-innerMult", "Percent of minor radius taken by inner square", "x2.c", ctx->particleGrid.innerMult, &ctx->particleGrid.innerMult, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-refinement_limit", "The largest allowable cell volume", "x2.c", refinement_limit, &refinement_limit, NULL); /* not used!!! */
   CHKERRQ(ierr);
 
@@ -1204,18 +1211,9 @@ PetscErrorCode go( X2Ctx *ctx )
 
 /* == Defining a base plex for a torus, which looks like a rectilinear donut, and a mapping that turns it into a conventional round donut == */
 
-typedef struct
-{
-  PetscReal rMajor;
-  PetscReal rMinor;
-  PetscReal innerMult;
-  PetscInt  numMajor;
-}
-PICellTorus;
-
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexCreatePICellTorus"
-PetscErrorCode DMPlexCreatePICellTorus (MPI_Comm comm, PICellTorus *params, DM *dm)
+static PetscErrorCode DMPlexCreatePICellTorus (MPI_Comm comm, X2GridParticle *params, DM *dm)
 {
   PetscInt       numCells;
   PetscReal      rMajor   = params->rMajor;
@@ -1276,7 +1274,7 @@ PetscErrorCode DMPlexCreatePICellTorus (MPI_Comm comm, PICellTorus *params, DM *
           for (k = 0; k < 8; k++) {
             PetscInt l = k % 4;
 
-            cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + (4 - l)) % numVerts;
+            cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + (3 - l)) % numVerts;
           }
         }
         {
@@ -1290,6 +1288,118 @@ PetscErrorCode DMPlexCreatePICellTorus (MPI_Comm comm, PICellTorus *params, DM *
   }
   ierr = DMPlexCreateFromCellList(comm,3,numCells,numVerts,8,PETSC_TRUE,flatCells,3,flatCoords,dm);CHKERRQ(ierr);
   ierr = PetscFree2(flatCells,flatCoords);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) *dm, "torus");CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) *dm, "torus_");CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static void PICellCircleInflate(PetscReal r, PetscReal innerMult, PetscReal x, PetscReal y,
+                                PetscReal *outX, PetscReal *outY)
+{
+  PetscReal l       = x + y;
+  PetscReal rfrac   = l / r;
+
+  if (rfrac >= innerMult) {
+    PetscReal phifrac = l ? (y / l) : 0.5;
+    PetscReal phi     = phifrac * M_PI_2;
+    PetscReal cosphi  = cos(phi);
+    PetscReal sinphi  = sin(phi);
+    PetscReal isect   = innerMult / (cosphi + sinphi);
+    PetscReal outfrac = (1. - rfrac) / (1. - innerMult);
+
+    rfrac = pow(innerMult,outfrac);
+
+    outfrac = (1. - rfrac) / (1. - innerMult);
+
+    *outX = r * (outfrac * isect + (1. - outfrac)) * cosphi;
+    *outY = r * (outfrac * isect + (1. - outfrac)) * sinphi;
+  }
+  else {
+    PetscReal halfdiffl  = (r * innerMult - l) / 2.;
+    PetscReal phifrac    = (y + halfdiffl) / (r * innerMult);
+    PetscReal phi        = phifrac * M_PI_2;
+    PetscReal m          = y - x;
+    PetscReal halfdiffm  = (r * innerMult - m) / 2.;
+    PetscReal thetafrac  = (y + halfdiffm) / (r * innerMult);
+    PetscReal theta      = thetafrac * M_PI_2;
+    PetscReal cosphi     = cos(phi);
+    PetscReal sinphi     = sin(phi);
+    PetscReal ymxcoord   = sinphi / (cosphi + sinphi);
+    PetscReal costheta   = cos(theta);
+    PetscReal sintheta   = sin(theta);
+    PetscReal xpycoord   = sintheta / (costheta + sintheta);
+
+    *outX = r * innerMult * (xpycoord - ymxcoord);
+    *outY = r * innerMult * (ymxcoord + xpycoord - 1.);
+  }
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "GeometryPICellTorus"
+static PetscErrorCode GeometryPICellTorus(PetscInt dim, const PetscReal abc[], PetscReal xyz[], void *ctx)
+{
+  X2GridParticle *params = (X2GridParticle *) ctx;
+  PetscReal rMajor    = params->rMajor;
+  PetscReal rMinor    = params->rMinor;
+  PetscReal innerMult = params->innerMult;
+  PetscInt  numMajor  = params->numMajor;
+  PetscInt  i;
+  PetscReal a, b, z;
+  PetscReal inPhi, outPhi;
+  PetscReal midPhi, leftPhi;
+  PetscReal cosOutPhi, sinOutPhi;
+  PetscReal cosMidPhi, sinMidPhi;
+  PetscReal cosLeftPhi, sinLeftPhi;
+  PetscReal secHalf;
+  PetscReal r, rhat, dist, fulldist;
+
+  PetscFunctionBegin;
+  a = abc[0];
+  b = abc[1];
+  z = abc[2];
+  inPhi = atan2(b,a);
+  inPhi = (inPhi < 0.) ? (inPhi + 2. * M_PI) : inPhi;
+  i = (inPhi * numMajor) / (2. * M_PI);
+  i = PetscMin(i,numMajor - 1);
+  leftPhi =  (i *        2. * M_PI) / numMajor;
+  midPhi  = ((i + 0.5) * 2. * M_PI) / numMajor;
+  cosMidPhi  = cos(midPhi);
+  sinMidPhi  = sin(midPhi);
+  cosLeftPhi = cos(leftPhi);
+  sinLeftPhi = sin(leftPhi);
+  secHalf    = 1. / cos(M_PI / numMajor);
+
+  rhat = (a * cosMidPhi + b * sinMidPhi);
+  r    = secHalf * rhat;
+  dist = secHalf * (-a * sinLeftPhi + b * cosLeftPhi);
+  fulldist = 2. * sin(M_PI / numMajor) * r;
+  outPhi = ((i + (dist/fulldist)) * 2. * M_PI) / numMajor;
+  /* solve r * (cosLeftPhi * _i + sinLeftPhi * _j) + dist * (nx * _i + ny * _j) = a * _i + b * _j;
+   *
+   * (r * cosLeftPhi + dist * nx) = a;
+   * (r * sinLeftPhi + dist * ny) = b;
+   *
+   * r    = idet * ( a * ny         - b * nx);
+   * dist = idet * (-a * sinLeftPhi + b * cosLeftPhi);
+   * idet = 1./(cosLeftPhi * ny - sinLeftPhi * nx) = sec(Pi/numMajor);
+   */
+  r -= rMajor; /* now centered inside torus */
+  {
+    PetscReal absR, absZ;
+
+    absR = PetscAbsReal(r);
+    absZ = PetscAbsReal(z);
+    PICellCircleInflate(rMinor,innerMult,absR,absZ,&absR,&absZ);
+    r = (r > 0) ? absR : -absR;
+    z = (z > 0) ? absZ : -absZ;
+  }
+  r += rMajor; /* centered back at the origin */
+
+  cosOutPhi = cos(outPhi);
+  sinOutPhi = sin(outPhi);
+  xyz[0] = r * cosOutPhi;
+  xyz[1] = r * sinOutPhi;
+  xyz[2] = z;
   PetscFunctionReturn(0);
 }
 
@@ -1299,9 +1409,8 @@ int main(int argc, char **argv)
 {
   X2Ctx          ctx; /* user-defined work context */
   PetscErrorCode ierr;
-  char           typeString[256] = {'\0'};
   DM_PICell      *dmpi;
-  DM             dm,cdm;
+  DM             dm;
   PetscInt       dim;
   PetscFE        fe; /* FV might be better */
   PetscFunctionBeginUser;
@@ -1326,28 +1435,8 @@ int main(int argc, char **argv)
   ierr = DMSetApplicationContext(ctx.dm, &ctx);CHKERRQ(ierr);
   ierr = DMSetType(ctx.dm, DMPICELL);CHKERRQ(ierr); /* creates (DM_PICell *) dm->data */
   /* setup solver grid */
-  dmpi = (DM_PICell *) ctx.dm->data;
-  if (1) {
-    PICellTorus torus;
-
-    torus.rMajor    = ctx.particleGrid.rMajor;
-    torus.rMinor    = ctx.particleGrid.rMinor;
-    torus.innerMult = 0.414;
-    torus.numMajor  = 4;
-
-    ierr = DMPlexCreatePICellTorus(ctx.wComm,&torus,&dmpi->dmplex);CHKERRQ(ierr);
-  }
-  else {
-    ierr = DMCreate(ctx.wComm, &dmpi->dmplex);CHKERRQ(ierr);
-    ierr = PetscStrncpy(typeString,DMFOREST,256);CHKERRQ(ierr);
-    ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"DM Forest example options",NULL);CHKERRQ(ierr);
-    ierr = PetscOptionsString("-dm_type","The type of the dm for solver",NULL,DMFOREST,typeString,sizeof(typeString),NULL);CHKERRQ(ierr);
-    ierr = PetscOptionsEnd();CHKERRQ(ierr);
-    ierr = DMSetType(dm,(DMType) typeString);CHKERRQ(ierr);
-  }
-  dm   = dmpi->dmplex;
+  ierr = DMPlexCreatePICellTorus(ctx.wComm,&ctx.particleGrid,&dm);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(dm, &ctx);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) dm, "Mesh");CHKERRQ(ierr);
   /* setup Discretization */
   ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);
   CHKERRQ(ierr);
@@ -1355,21 +1444,47 @@ int main(int argc, char **argv)
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr); assert(dim==3);
   ierr = PetscFECreateDefault(dm, dim, 1, PETSC_FALSE, NULL, -1, &fe);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe, "potential");CHKERRQ(ierr);
-  cdm = dm;
-  /* while (cdm) { */
-  /*   DMLabel label; */
-  /*   PetscDS prob; */
-  /*   PetscInt id = 1; */
-  /*   ierr = DMGetDS(cdm, &prob);CHKERRQ(ierr); */
-  /*   ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) fe);CHKERRQ(ierr); */
-  /*   ierr = DMCreateLabel(cdm, "boundary");CHKERRQ(ierr); */
-  /*   ierr = DMGetLabel(cdm, "boundary", &label);CHKERRQ(ierr); */
-  /*   ierr = DMPlexMarkBoundaryFaces(cdm, label);CHKERRQ(ierr); */
-  /*   ierr = DMAddBoundary(cdm, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx.BCFuncs, 1, &id, &ctx); */
-  /*   CHKERRQ(ierr); */
-  /*   ierr = DMGetCoarseDM(cdm, &cdm);CHKERRQ(ierr); */
-  /* } */
+  {
+    DMLabel label;
+    PetscDS prob;
+    PetscInt id = 1;
+    ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
+    ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) fe);CHKERRQ(ierr);
+    ierr = DMCreateLabel(dm, "boundary");CHKERRQ(ierr);
+    ierr = DMGetLabel(dm, "boundary", &label);CHKERRQ(ierr);
+    ierr = DMPlexMarkBoundaryFaces(dm, label);CHKERRQ(ierr);
+    ierr = DMAddBoundary(dm, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx.BCFuncs, 1, &id, &ctx);
+    CHKERRQ(ierr);
+  }
   ierr = PetscFEDestroy(&fe);CHKERRQ(ierr);
+  {
+    char      convType[256];
+    PetscBool flg;
+
+    ierr = PetscOptionsBegin(ctx.wComm, "", "Mesh conversion options", "DMPLEX");CHKERRQ(ierr);
+    ierr = PetscOptionsFList("-torus_dm_type","Convert DMPlex to another format","x2.c",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
+    ierr = PetscOptionsEnd();
+    if (flg) {
+      DM dmConv;
+
+      ierr = DMConvert(dm,convType,&dmConv);CHKERRQ(ierr);
+      if (dmConv) {
+        const char *prefix;
+        PetscBool isForest;
+
+        ierr = PetscObjectGetOptionsPrefix((PetscObject)dm,&prefix);CHKERRQ(ierr);
+        ierr = PetscObjectSetOptionsPrefix((PetscObject)dmConv,prefix);CHKERRQ(ierr);
+        ierr = DMDestroy(&dm);CHKERRQ(ierr);
+        dm   = dmConv;
+        ierr = DMIsForest(dm,&isForest);CHKERRQ(ierr);
+        if (isForest) {
+          ierr = DMForestSetBaseCoordinateMapping(dm,GeometryPICellTorus,&ctx.particleGrid);CHKERRQ(ierr);
+        }
+      }
+    }
+  }
+  dmpi = (DM_PICell *) ctx.dm->data;
+  dmpi->dmplex = dm;
   /* setup DM */
   ierr = DMSetFromOptions(ctx.dm);CHKERRQ(ierr); /* get file name from -dm_forest_topology */
   ierr = DMSetUp(ctx.dm);CHKERRQ(ierr); /* set all up & build initial grid */
@@ -1377,10 +1492,10 @@ int main(int argc, char **argv)
   ierr = createParticles( &ctx );CHKERRQ(ierr);
   ierr = PetscLogEventEnd(ctx.events[3],0,0,0,0);CHKERRQ(ierr);
 
-#if 0
+#if 1
   PetscViewer    viewer = NULL;
   PetscBool      flg;
-  ierr = PetscOptionsGetViewer(PETSC_COMM_WORLD,NULL,"-dm_view",&viewer,NULL,&flg);CHKERRQ(ierr);
+  ierr = PetscOptionsGetViewer(ctx.wComm,NULL,"-torus_dm_view",&viewer,NULL,&flg);CHKERRQ(ierr);
   if (flg) {
     ierr = DMView(dm,viewer);CHKERRQ(ierr);
   }
