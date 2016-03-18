@@ -11,8 +11,8 @@ static char help[] = "X2: A partical in cell code for tokamac plasmas using PICe
 #include <petscdmforest.h>
 /* #include <petscoptions.h> */
 
-/* particle grid, not PETSc ? */
 typedef struct {
+  /* particle grid sizes */
   PetscInt nradius;
   PetscInt ntheta;
   PetscInt nphi;
@@ -21,6 +21,8 @@ typedef struct {
   PetscReal  rMinor;
   PetscInt   numMajor; /* number of cells per major circle in the torus */
   PetscReal  innerMult; /* (0,1) percent of the total radius taken by the inner square */
+  /* particle geometry */
+  PetscReal  rMinorParticles;
 } X2GridParticle;
 /* X2Species */
 #define X2_NION 1
@@ -325,6 +327,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
  /* mesh */
   ctx->particleGrid.rMajor = 620.0; /* cm of ITER */
   ctx->particleGrid.rMinor = 200.0; /* cm of ITER */
+  ctx->particleGrid.rMinorParticles = 180.0; /* inside rMinor because of grid effects */
   ctx->particleGrid.nphi = 1;
   ctx->particleGrid.nradius    = 1;
   ctx->particleGrid.ntheta     = 1;
@@ -347,6 +350,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsReal("-rMinor", "Minor radius of torus", "x2.c", ctx->particleGrid.rMinor, &ctx->particleGrid.rMinor, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-numMajor", "Number of cells per major circle", "x2.c", ctx->particleGrid.numMajor, &ctx->particleGrid.numMajor, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-innerMult", "Percent of minor radius taken by inner square", "x2.c", ctx->particleGrid.innerMult, &ctx->particleGrid.innerMult, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-rMinorParticles", "Minor radius of plasma particles initialization", "x2.c", ctx->particleGrid.rMinorParticles, &ctx->particleGrid.rMinorParticles, NULL);CHKERRQ(ierr);
 
   ierr = PetscOptionsInt("-nphi_particles", "Number of planes for particle mesh", "x2.c", ctx->particleGrid.nphi, &ctx->particleGrid.nphi, &phiFlag);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-nradius_particles", "Number of radial cells for particle mesh", "x2.c", ctx->particleGrid.nradius, &ctx->particleGrid.nradius, &radFlag);CHKERRQ(ierr);
@@ -489,14 +493,14 @@ PetscErrorCode cylindrical2Cart(PetscReal a_R, PetscReal a_Z, PetscReal a_phi, P
 #define __FUNCT__ "X2GridParticleGetProc_FluxTube"
 PetscMPIInt X2GridParticleGetProc_FluxTube(DM d, X2GridParticle *grid, PetscReal psi, PetscReal theta, PetscReal phi)
 {
-  const PetscReal rminor=grid->rMinor;
+  const PetscReal rminor=grid->rMinorParticles;
   const PetscReal dphi=2.*M_PI/(PetscReal)grid->nphi;
   const PetscReal dth=2.*M_PI/(PetscReal)grid->ntheta;
 
   PetscMPIInt pe,planeIdx,irs,iths;
 
   PetscFunctionBeginUser;
-  theta = fmod( theta - qsafty(psi/rminor)*phi + 20.*M_PI, 2.*M_PI);  /* pull back to referance grid */
+  theta = fmod( theta - qsafty(psi/grid->rMinor)*phi + 20.*M_PI, 2.*M_PI);  /* pull back to referance grid */
   planeIdx = (PetscMPIInt)(phi/dphi)*grid->nradius*grid->ntheta; /* assumeing one particle cell per PE */
   iths = (PetscMPIInt)(theta/dth);                               assert(iths<grid->ntheta);
   irs = (PetscMPIInt)((PetscReal)grid->nradius*psi*psi/(rminor*rminor));assert(irs<grid->nradius);
@@ -1012,7 +1016,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
   PetscErrorCode ierr;
   PetscInt isp,nCellsLoc,my0,irs,iths,gid,ii,np,j,dim,one=1;
   const PetscReal dth=(2.*M_PI)/(PetscReal)ctx->particleGrid.ntheta,rone=1.;
-  const PetscReal dphi=2.*M_PI/(PetscReal)ctx->particleGrid.nphi,rmin=ctx->particleGrid.rMinor;
+  const PetscReal dphi=2.*M_PI/(PetscReal)ctx->particleGrid.nphi,rmin=ctx->particleGrid.rMinorParticles; /* rmin for particles < rmin */
   const PetscReal phi1 = (PetscReal)ctx->ParticlePlaneIdx*dphi + 1.e-8,rmaj=ctx->particleGrid.rMajor;
   const PetscInt  nPartCells_plane = ctx->particleGrid.ntheta*ctx->particleGrid.nradius; /* nPartCells_plane == ctx->npe_particlePlane */
   const PetscReal dx = pow( (M_PI*rmin*rmin/4.0) * rmaj*2.*M_PI / (PetscReal)(ctx->npe*ctx->npart_cell), 0.333); /* lenth of a particle, approx. */
@@ -1083,7 +1087,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 	  ierr = X2PListAdd(&ctx->partlists[isp],&particle);CHKERRQ(ierr);
           /* debug, particles are created in a flux tube */
 	  if((j=X2GridParticleGetProc_FluxTube(NULL,&ctx->particleGrid,psi,thetap,phi)) != ctx->rank){
-	    PetscPrintf(PETSC_COMM_SELF,"[%D] ERROR proc %d r=%e:%e:%e theta=%e:%e:%e phi=%e:%e:%e\n",ctx->rank,j,r1,psi,r1+dr,th1,thetap,th1+dth,phi1,phi,phi1+dphi);
+	    PetscPrintf(PETSC_COMM_SELF,"[%D] ERROR particle in proc %d r=%e:%e:%e theta=%e:%e:%e phi=%e:%e:%e\n",ctx->rank,j,r1,psi,r1+dr,th1,thetap,th1+dth,phi1,phi,phi1+dphi);
 	    SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB," created particle for proc %D",j);
 	  }
 	} /* theta */

@@ -17,7 +17,7 @@ ex1: ex1.o chkopts
 	${RM} -f ex1.o
 
 runex1:
-	-@${MPIEXEC} -n 8 ./ex1 -torus_dm_type p8est -torus_dm_view vtk:tokamac.vtu -torus_dm_forest_initial_refinement 2 -rMajor 600. -rMinor 99. -numMajor 12 -use_electrons true -npart_cell 1000 -mstep 20 -bsp_chuncksize 0 -debug 1
+	-@${MPIEXEC} -n 8 ./ex1 -torus_dm_type p8est -torus_dm_view vtk:tokamac.vtu -torus_dm_forest_initial_refinement 2 -numMajor 12 -use_electrons true -npart_cell 1000 -mstep 20 -bsp_chuncksize 0 -debug 1 -rMinor 200 -rMinorParticles 180
 # -nphi_particles 2
 
 val: ex1
