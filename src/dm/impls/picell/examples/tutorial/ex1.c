@@ -324,7 +324,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->species[0].charge=ctx->eChargeEu*x2ECharge;
 
  /* mesh */
-  ctx->particleGrid.rMajor = 621.0; /* cm of ITER */
+  ctx->particleGrid.rMajor = 620.0; /* cm of ITER */
   ctx->particleGrid.rMinor = 200.0; /* cm of ITER */
   ctx->particleGrid.nphi = 1;
   ctx->particleGrid.nradius    = 1;
