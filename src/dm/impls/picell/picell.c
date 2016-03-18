@@ -40,15 +40,14 @@ PetscErrorCode  DMSetFromOptions_PICell(PetscOptionItems *PetscOptionsObject,DM 
 {
   PetscErrorCode ierr;
   DM_PICell      *dmpi = (DM_PICell *) dm->data;
+  const char *prefix;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   ierr = PetscOptionsHead(PetscOptionsObject,"DMPICell Options");CHKERRQ(ierr);
 
-  /* Handle DMPICell refinement */
-  /* ierr = PetscOptionsInt("-dm_refine", "The number of uniform refinements", "DMCreate", refine, &refine, NULL);CHKERRQ(ierr); */
-
-  /* this does not work for prefix, this sub prefix can not have a prefix!!! */
+  ierr = PetscObjectGetOptionsPrefix((PetscObject)dm,&prefix);CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject)dmpi->dmplex,prefix);CHKERRQ(ierr);
   ierr = DMSetFromOptions(dmpi->dmplex);CHKERRQ(ierr);
 
   ierr = PetscOptionsTail();CHKERRQ(ierr);
@@ -68,16 +67,9 @@ PetscErrorCode DMSetUp_PICell(DM dm)
   ierr = DMSetUp(dmpi->dmplex);CHKERRQ(ierr); /* build a grid */
   ierr = DMCreateGlobalVector(dmpi->dmplex, &dmpi->phi);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->phi, "potential");CHKERRQ(ierr);
+  ierr = VecZeroEntries(dmpi->phi);CHKERRQ(ierr);
   ierr = VecDuplicate(dmpi->phi, &dmpi->rho);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->rho, "density");CHKERRQ(ierr);
-  /* set up solver */
-  {
-    MPI_Comm       comm;
-    ierr = PetscObjectGetComm((PetscObject)dm,&comm);CHKERRQ(ierr);
-    ierr = SNESCreate(comm,&dmpi->snes);CHKERRQ(ierr);
-    ierr = SNESSetFromOptions(dmpi->snes);CHKERRQ(ierr);
-    ierr = SNESSetDM(dmpi->snes,dmpi->dmplex);CHKERRQ(ierr);
-  }
   PetscFunctionReturn(0);
 }
 
@@ -146,36 +138,36 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellAddSource"
-/* add density 'rho'[1] (vector of size 1) at 'coord'[dim] to global density vector */
+/* add density 'rho'[1] (vector of size 1) at 'coord'[dim] to global density vector (dmpi->rho) */
 PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec rho)
 {
   DM_PICell      *dmpi = (DM_PICell *) dm->data;
+  Vec globalrho = dmpi->rho;
   PetscErrorCode ierr;
-  PetscInt dim;
-
+  PetscScalar rone=1.;
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
 
-
+  /* Matt */
+  ierr = VecSet(globalrho,rone);CHKERRQ(ierr); /* dummy density now */
 
   PetscFunctionReturn(0);
 }
 
+/* get gradient at point 'coord' and put it in D vector 'jet' */
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellGetJet"
 PetscErrorCode  DMPICellGetJet(DM dm, Vec coord, PetscInt order, Vec jet)
 {
   DM_PICell      *dmpi = (DM_PICell *) dm->data;
+  Vec globalpot = dmpi->phi;
   PetscErrorCode ierr;
-  PetscInt dim;
-
+  PetscScalar rone=1.;
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
 
-  /* get grad at coord, return on 'jet', which is a D^2 array */
-
+  /* Matt */
+  ierr = VecSet(jet,rone);CHKERRQ(ierr); /* dummy grad now */
 
   PetscFunctionReturn(0);
 }

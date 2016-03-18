@@ -1176,7 +1176,7 @@ PetscErrorCode go( X2Ctx *ctx )
     dt = ctx->dt;
 
     /* solve for potential, density being assembled is an invariant */
-    ierr = DMPICellSolve(ctx->dm);CHKERRQ(ierr);
+    ierr = DMPICellSolve( ctx->dm );CHKERRQ(ierr);
 
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventBegin(ctx->events[0],0,0,0,0);CHKERRQ(ierr);
@@ -1412,6 +1412,7 @@ int main(int argc, char **argv)
   DM             dm;
   PetscInt       dim;
   PetscFE        fe; /* FV might be better */
+  Mat            J;
   PetscFunctionBeginUser;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
@@ -1484,13 +1485,21 @@ int main(int argc, char **argv)
   }
   dmpi = (DM_PICell *) ctx.dm->data;
   dmpi->dmplex = dm;
+  ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr);
+  /* create SNESS */
+  ierr = SNESCreate(ctx.wComm,&dmpi->snes);CHKERRQ(ierr);
+  ierr = SNESSetFromOptions(dmpi->snes);CHKERRQ(ierr);
+  ierr = SNESSetDM(dmpi->snes,dmpi->dmplex);CHKERRQ(ierr);
+  ierr = DMSetMatType(dm,MATAIJ);CHKERRQ(ierr);
+  ierr = DMCreateMatrix(dm, &J);CHKERRQ(ierr);
+  ierr = DMSNESSetFunctionLocal(dm,  (PetscErrorCode (*)(DM,Vec,Vec,void*))DMPlexSNESComputeResidualFEM,&ctx);CHKERRQ(ierr);
+  ierr = DMSNESSetJacobianLocal(dm,  (PetscErrorCode (*)(DM,Vec,Mat,Mat,void*))DMPlexSNESComputeJacobianFEM,&ctx);CHKERRQ(ierr);
+  ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
   /* setup DM */
-  ierr = DMSetFromOptions(ctx.dm);CHKERRQ(ierr); /* get file name from -dm_forest_topology */
   ierr = DMSetUp(ctx.dm);CHKERRQ(ierr); /* set all up & build initial grid */
    /* setup particles */
   ierr = createParticles( &ctx );CHKERRQ(ierr);
   ierr = PetscLogEventEnd(ctx.events[3],0,0,0,0);CHKERRQ(ierr);
-
 #if 1
   PetscViewer    viewer = NULL;
   PetscBool      flg;
@@ -1502,6 +1511,8 @@ int main(int argc, char **argv)
 #endif
 
   ierr = go( &ctx );CHKERRQ(ierr);
+
+  ierr = MatDestroy(&J);CHKERRQ(ierr);
   ierr = destroyParticles(&ctx);CHKERRQ(ierr);
   ierr = DMDestroy(&ctx.dm);CHKERRQ(ierr);
   ierr = PetscFree(ctx.BCFuncs);CHKERRQ(ierr);
