@@ -673,7 +673,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendListTable, cons
     PetscMPIInt  nto,*fromranks,chucksz=s_chunksize;
     PetscMPIInt *toranks;
     X2Particle  *fromdata,*todata,*pp;
-    PetscInt     nfrom;
+    PetscMPIInt  nfrom;
 
     /* count send  */
     for (ii=0,nto=0;ii<ctx->tablesize;ii++) {
@@ -1217,7 +1217,7 @@ static PetscErrorCode DMPlexCreatePICellTorus (MPI_Comm comm, X2GridParticle *pa
   PetscReal      rMinor   = params->rMinor;
   PetscReal      innerMult = params->innerMult;
   PetscInt       numMajor = params->numMajor;
-  PetscInt       *flatCells = NULL;
+  int           *flatCells = NULL;
   double         *flatCoords = NULL;
   PetscErrorCode ierr;
 
@@ -1252,7 +1252,7 @@ static PetscErrorCode DMPlexCreatePICellTorus (MPI_Comm comm, X2GridParticle *pa
       }
     }
     {
-      PetscInt (*cells)[5][8] = (PetscInt (*) [5][8]) flatCells;
+      int (*cells)[5][8] = (int (*) [5][8]) flatCells;
       PetscInt i;
 
       for (i = 0; i < numMajor; i++) {
