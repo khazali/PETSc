@@ -524,7 +524,7 @@ PetscErrorCode X2GridParticleGetProc_FluxTube(DM d, const X2GridParticle *grid, 
 */
 #undef __FUNCT__
 #define __FUNCT__ "X2GridParticleGetProc_Solver"
-PetscErrorCode X2GridParticleGetProc_Solver(DM dm, const X2GridParticle *d, PetscReal psi, PetscReal theta, PetscReal phi, PetscReal coord[], PetscMPIInt *pe, PetscInt *elem)
+PetscErrorCode X2GridParticleGetProc_Solver(DM dm, const X2GridParticle *d, PetscReal d1, PetscReal d2, PetscReal d3, PetscReal coord[], PetscMPIInt *pe, PetscInt *elem)
 {
   PetscMPIInt rank;
   PetscErrorCode ierr;
