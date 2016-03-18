@@ -66,10 +66,10 @@ PetscErrorCode DMSetUp_PICell(DM dm)
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   /* We have built dmplex, now create vectors */
   ierr = DMSetUp(dmpi->dmplex);CHKERRQ(ierr); /* build a grid */
-  /* ierr = DMCreateGlobalVector(dmpi->dmplex, &dmpi->phi);CHKERRQ(ierr); */
-  /* ierr = PetscObjectSetName((PetscObject) dmpi->phi, "potential");CHKERRQ(ierr); */
-  /* ierr = VecDuplicate(dmpi->phi, &dmpi->rho);CHKERRQ(ierr); */
-  /* ierr = PetscObjectSetName((PetscObject) dmpi->rho, "density");CHKERRQ(ierr); */
+  ierr = DMCreateGlobalVector(dmpi->dmplex, &dmpi->phi);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) dmpi->phi, "potential");CHKERRQ(ierr);
+  ierr = VecDuplicate(dmpi->phi, &dmpi->rho);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) dmpi->rho, "density");CHKERRQ(ierr);
   /* set up solver */
   {
     MPI_Comm       comm;
@@ -91,8 +91,8 @@ PetscErrorCode DMDestroy_PICell(DM dm)
   PetscFunctionBegin;
   ierr = SNESDestroy(&dmpi->snes);CHKERRQ(ierr);
   ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
-  /* ierr = VecDestroy(&dmpi->rho);CHKERRQ(ierr); */
-  /* ierr = VecDestroy(&dmpi->phi);CHKERRQ(ierr); */
+  ierr = VecDestroy(&dmpi->rho);CHKERRQ(ierr);
+  ierr = VecDestroy(&dmpi->phi);CHKERRQ(ierr);
   ierr = PetscFree(dmpi);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
