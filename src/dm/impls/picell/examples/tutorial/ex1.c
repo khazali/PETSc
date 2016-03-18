@@ -486,7 +486,6 @@ PetscErrorCode cylindricalToCart(PetscReal a_R, PetscReal a_Z, PetscReal a_phi, 
      - psi: r in [r,theta] coordinates
      - theta:
      - phi: toroidal angle
-     - coord: Cartesian coordinates
    Output:
     - pe: process ID
     - elem: element ID
@@ -514,9 +513,6 @@ PetscErrorCode X2GridParticleGetProc_FluxTube(DM d, const X2GridParticle *grid, 
 /* X2GridParticleGetProc_Solver: find processor and element in solver grid that this point is in
     Input:
      - dm: solver dm
-     - psi: r in [r,theta] coordinates
-     - theta:
-     - phi: toroidal angle
      - coord: Cartesian coordinates
    Output:
      - pe: process ID
