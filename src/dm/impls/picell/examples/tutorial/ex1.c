@@ -525,6 +525,7 @@ PetscErrorCode X2GridParticleGetProc_Solver(DM dm, const X2GridParticle *d, Pets
   PetscMPIInt rank;
   PetscErrorCode ierr;
   PetscFunctionBeginUser;
+  /* Matt do your thing here */
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)dm), &rank);
   *pe = rank; /* noop */
   *elem = 0;
