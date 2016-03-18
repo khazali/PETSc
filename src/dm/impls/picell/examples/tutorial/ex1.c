@@ -1215,73 +1215,77 @@ PetscErrorCode go( X2Ctx *ctx )
 #define __FUNCT__ "DMPlexCreatePICellTorus"
 static PetscErrorCode DMPlexCreatePICellTorus (MPI_Comm comm, X2GridParticle *params, DM *dm)
 {
-  PetscInt       numCells;
+  PetscMPIInt    rank;
+  PetscInt       numCells = 0;
+  PetscInt       numVerts = 0;
   PetscReal      rMajor   = params->rMajor;
   PetscReal      rMinor   = params->rMinor;
   PetscReal      innerMult = params->innerMult;
   PetscInt       numMajor = params->numMajor;
-  PetscInt       numVerts;
-  PetscInt       *flatCells;
-  double         *flatCoords;
+  PetscInt       *flatCells = NULL;
+  double         *flatCoords = NULL;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  numCells = numMajor * 5;
-  numVerts = numMajor * 8;
-  ierr = PetscMalloc2(numCells * 8,&flatCells,numVerts * 3,&flatCoords);CHKERRQ(ierr);
-  {
-    double (*coords)[8][3] = (double (*) [8][3]) flatCoords;
-    PetscInt i;
+  ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
+  if (!rank) {
+    numCells = numMajor * 5;
+    numVerts = numMajor * 8;
+    ierr = PetscMalloc2(numCells * 8,&flatCells,numVerts * 3,&flatCoords);CHKERRQ(ierr);
+    {
+      double (*coords)[8][3] = (double (*) [8][3]) flatCoords;
+      PetscInt i;
 
-    for (i = 0; i < numMajor; i++) {
-      PetscInt j;
-      double cosphi, sinphi;
+      for (i = 0; i < numMajor; i++) {
+        PetscInt j;
+        double cosphi, sinphi;
 
-      cosphi = cos(2 * M_PI * i / numMajor);
-      sinphi = sin(2 * M_PI * i / numMajor);
+        cosphi = cos(2 * M_PI * i / numMajor);
+        sinphi = sin(2 * M_PI * i / numMajor);
 
-      for (j = 0; j < 8; j++) {
-        double r, z;
-        double mult = (j < 4) ? innerMult : 1.;
+        for (j = 0; j < 8; j++) {
+          double r, z;
+          double mult = (j < 4) ? innerMult : 1.;
 
-        r = rMajor + mult * rMinor * cos(j * M_PI_2);
-        z = mult * rMinor * sin(j * M_PI_2);
+          r = rMajor + mult * rMinor * cos(j * M_PI_2);
+          z = mult * rMinor * sin(j * M_PI_2);
 
-        coords[i][j][0] = cosphi * r;
-        coords[i][j][1] = sinphi * r;
-        coords[i][j][2] = z;
+          coords[i][j][0] = cosphi * r;
+          coords[i][j][1] = sinphi * r;
+          coords[i][j][2] = z;
+        }
       }
     }
-  }
-  {
-    PetscInt (*cells)[5][8] = (PetscInt (*) [5][8]) flatCells;
-    PetscInt i;
+    {
+      PetscInt (*cells)[5][8] = (PetscInt (*) [5][8]) flatCells;
+      PetscInt i;
 
-    for (i = 0; i < numMajor; i++) {
-      PetscInt j;
+      for (i = 0; i < numMajor; i++) {
+        PetscInt j;
 
-      for (j = 0; j < 5; j++) {
-        PetscInt k;
+        for (j = 0; j < 5; j++) {
+          PetscInt k;
 
-        if (j < 4) {
-          for (k = 0; k < 8; k++) {
-            PetscInt l = k % 4;
+          if (j < 4) {
+            for (k = 0; k < 8; k++) {
+              PetscInt l = k % 4;
 
-            cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + ((l % 3) ? 0 : 4) + ((l < 2) ? j : ((j + 1) % 4))) % numVerts;
+              cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + ((l % 3) ? 0 : 4) + ((l < 2) ? j : ((j + 1) % 4))) % numVerts;
+            }
           }
-        }
-        else {
-          for (k = 0; k < 8; k++) {
-            PetscInt l = k % 4;
+          else {
+            for (k = 0; k < 8; k++) {
+              PetscInt l = k % 4;
 
-            cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + (3 - l)) % numVerts;
+              cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + (3 - l)) % numVerts;
+            }
           }
-        }
-        {
-          PetscInt swap = cells[i][j][1];
+          {
+            PetscInt swap = cells[i][j][1];
 
-          cells[i][j][1] = cells[i][j][3];
-          cells[i][j][3] = swap;
+            cells[i][j][1] = cells[i][j][3];
+            cells[i][j][3] = swap;
+          }
         }
       }
     }
