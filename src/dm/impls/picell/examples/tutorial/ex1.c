@@ -601,7 +601,7 @@ PetscErrorCode X2PListWrite( X2PList *l, int rank, int npe, MPI_Comm comm, char 
     ierr = H5PartFileIsValid(file2);CHKERRQ(ierr);assert(ierr==H5PART_SUCCESS);
     ierr = H5PartSetStep(file2, 0);CHKERRQ(ierr);assert(ierr==H5PART_SUCCESS);
     // if (rank!=npe-1 && rank!=npe-2) nparticles = 0; /* just write last (two) proc(s) */
-    if (rank>=npe/2) nparticles = 0; /* just write last (two) proc(s) */
+    if (rank>=(npe+1)/2) nparticles = 0; /* just write last (two) proc(s) */
     else {
       nparticles = 0;
       ierr = X2PListGetHead( l, &pos );CHKERRQ(ierr);

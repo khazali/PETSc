@@ -149,7 +149,6 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec rho)
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
 
   /* Matt */
-  ierr = VecSet(globalrho,rone);CHKERRQ(ierr); /* dummy density now */
 
   PetscFunctionReturn(0);
 }
