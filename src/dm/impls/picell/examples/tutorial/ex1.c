@@ -1,6 +1,6 @@
 /* M. Adams, April 2015 */
 
-static char help[] = "X2: A partical in cell code for tokamac plasmas using PICell.\n";
+static char help[] = "X2: A partical in cell code for tokamak plasmas using PICell.\n";
 
 #ifdef H5PART
 #include <H5Part.h>
@@ -16,7 +16,7 @@ typedef struct {
   PetscInt nradius;
   PetscInt ntheta;
   PetscInt nphi; /* toroidal direction */
-  /* tokamac geometry  */
+  /* tokamak geometry  */
   PetscReal  rMajor;
   PetscReal  rMinor;
   PetscInt   numMajor; /* number of cells per major circle in the torus */
@@ -1303,6 +1303,7 @@ static void PICellCircleInflate(PetscReal r, PetscReal innerMult, PetscReal x, P
     PetscReal phi     = phifrac * M_PI_2;
     PetscReal cosphi  = cos(phi);
     PetscReal sinphi  = sin(phi);
+    /* get real rt = d/rMinor from phi tokamak */
     PetscReal isect   = innerMult / (cosphi + sinphi);
     PetscReal outfrac = (1. - rfrac) / (1. - innerMult);
 
@@ -1312,6 +1313,8 @@ static void PICellCircleInflate(PetscReal r, PetscReal innerMult, PetscReal x, P
 
     *outX = r * (outfrac * isect + (1. - outfrac)) * cosphi;
     *outY = r * (outfrac * isect + (1. - outfrac)) * sinphi;
+    /* *outX = r * (outfrac * isect + (1. - outfrac)*rt) * cosphi; */
+    /* *outY = r * (outfrac * isect + (1. - outfrac)*rt) * sinphi; */
   }
   else {
     PetscReal halfdiffl  = (r * innerMult - l) / 2.;
@@ -1465,7 +1468,7 @@ int main(int argc, char **argv)
     ierr = PetscOptionsEnd();
     if (flg) {
       DM dmConv;
-       ierr = DMConvert(dm,convType,&dmConv);CHKERRQ(ierr);
+      ierr = DMConvert(dm,convType,&dmConv);CHKERRQ(ierr);
       if (dmConv) {
         const char *prefix;
         PetscBool isForest;
