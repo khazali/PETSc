@@ -38,6 +38,12 @@ class Configure(config.package.CMakePackage):
     # also requires the ./configure option --with-cxx-dialect=C++11
     return
 
+  def Install(self):
+    config.package.CMakePackage.Install(self)
+    self.addDefine('HAVE_ML',1)
+    self.addDefine('HAVE_ML_ZOLTAN',1)
+    return self.installDir
+
   def formCMakeConfigureArgs(self):
     # Check for 64bit pointers
     if self.types.sizes['known-sizeof-void-p'] != 8:
