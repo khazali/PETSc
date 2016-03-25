@@ -72,13 +72,14 @@ We have several general requirements for an extreme-scale fusion plasmas PIC app
 \item Distributed memory data models for particles and grids with good data locality
 \begin{enumerate}
 \item Data locality for the deposit-solve-push process in the evolution of Vlasov's equation and the collision operator
-\item Independent partitioning of particles, or \Order(1) redundant storage of cells,
+\item Independent partitioning of particles, or \Order{1} redundant storage of cells,
 \begin{itemize}
 \item For example, flux tube particle partitions for the collision operator
 \end{itemize}
 \end{enumerate}
 \item Hierarchical grids for fast geometric multigrid solvers, adaptive mesh refinement, and the ``particle search" method to determine the address space of a particle after a push.
 \item Grids abstracted form applications scientists so that multiple types of grids and discretizations can be supported and selected at run time.
+\item Nonlinear solver for implicit PIC solvers \cite{BruneKnepleySmithTu15}
 \begin{itemize}
 \item This allows incremental problems development, allowing for debugging and verification on Cartesian grids and ramping up to full tokamak wall geometries 
 \end{itemize}
@@ -125,7 +126,7 @@ Note, the coarse grids of SITAR are unstructured and can accommodate a real toka
    \centering
    \includegraphics[width=75mm]{half_grid.jpeg} 
     \includegraphics[width=75mm]{half_grid_mesh.jpeg} 
-   \caption{Half 2x2x2 flux tube particle partition of torus (left); corresponding coarse grid solver mesh (right)}
+   \caption{Half of  2x2x2 flux tube particle partition of torus (left); corresponding coarse grid solver mesh (right)}
    \label{fig:cross}
 \end{figure}
 The fuzzy edges of Figure \ref{fig:cross} (left) are due to the finite number of particles, each particle is drawn with the color of the partition to which it belongs.
