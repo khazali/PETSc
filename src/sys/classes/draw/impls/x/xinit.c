@@ -13,7 +13,7 @@
 
 #include <../src/sys/classes/draw/impls/x/ximpl.h>
 
-extern PetscErrorCode PetscDrawSetColormap_X(PetscDraw_X*,Colormap);
+PETSC_INTERN PetscErrorCode PetscDrawSetColormap_X(PetscDraw_X*,Colormap);
 
 /*
   PetscDrawXiOpenDisplay - Open and setup a display
@@ -278,6 +278,19 @@ PetscErrorCode PetscDrawXiQuickPixmap(PetscDraw_X* XiWin)
   PetscDrawXiSetPixVal(XiWin,XiWin->background);
   XFillRectangle(XiWin->disp,XiWin->drw,XiWin->gc.set,0,0,XiWin->w,XiWin->h);
   XSync(XiWin->disp,False);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscDrawXiResizeWindow"
+PetscErrorCode PetscDrawXiResizeWindow(PetscDraw_X* XiWin,int w,int h)
+{
+  XEvent event;
+  PetscFunctionBegin;
+  XSelectInput(XiWin->disp,XiWin->win,StructureNotifyMask);
+  XResizeWindow(XiWin->disp,XiWin->win,(unsigned int)w,(unsigned int)h);
+  XWindowEvent(XiWin->disp,XiWin->win,StructureNotifyMask,&event);
+  XSelectInput(XiWin->disp,XiWin->win,NoEventMask);
   PetscFunctionReturn(0);
 }
 

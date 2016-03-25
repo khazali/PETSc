@@ -13,7 +13,7 @@ int main(int argc,char **argv)
   PetscErrorCode ierr;
   int            x = 0,y = 0,width = 256,height = 256,i;
 
-  ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr);
+  ierr = PetscInitialize(&argc,&argv,NULL,help);CHKERRQ(ierr);
   ierr = PetscDrawCreate(PETSC_COMM_WORLD,0,"Title",x,y,width,height,&draw);CHKERRQ(ierr);
   ierr = PetscDrawSetFromOptions(draw);CHKERRQ(ierr);
   ierr = MPI_Comm_size(PETSC_COMM_WORLD,&size);CHKERRQ(ierr);
@@ -24,6 +24,7 @@ int main(int argc,char **argv)
   }
   ierr = PetscDrawFlush(draw);CHKERRQ(ierr);
   ierr = PetscDrawPause(draw);CHKERRQ(ierr);
+  ierr = PetscDrawSave(draw);CHKERRQ(ierr);
   ierr = PetscDrawDestroy(&draw);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return 0;

@@ -222,16 +222,17 @@ PetscErrorCode  TSSetFromOptions(TS ts)
     PetscInt       howoften = 1;
 
     ierr = PetscOptionsInt("-ts_monitor_lg_solution","Monitor solution graphically","TSMonitorLGSolution",howoften,&howoften,NULL);CHKERRQ(ierr);
-    ierr = TSMonitorLGCtxCreate(PETSC_COMM_SELF,0,0,PETSC_DECIDE,PETSC_DECIDE,600,400,howoften,&ctx);CHKERRQ(ierr);
+    ierr = TSMonitorLGCtxCreate(PETSC_COMM_SELF,0,0,PETSC_DECIDE,PETSC_DECIDE,400,300,howoften,&ctx);CHKERRQ(ierr);
     ierr = TSMonitorSet(ts,TSMonitorLGSolution,ctx,(PetscErrorCode (*)(void**))TSMonitorLGCtxDestroy);CHKERRQ(ierr);
   }
+
   ierr = PetscOptionsName("-ts_monitor_lg_error","Monitor error graphically","TSMonitorLGError",&opt);CHKERRQ(ierr);
   if (opt) {
     TSMonitorLGCtx ctx;
     PetscInt       howoften = 1;
 
     ierr = PetscOptionsInt("-ts_monitor_lg_error","Monitor error graphically","TSMonitorLGError",howoften,&howoften,NULL);CHKERRQ(ierr);
-    ierr = TSMonitorLGCtxCreate(PETSC_COMM_SELF,0,0,PETSC_DECIDE,PETSC_DECIDE,600,400,howoften,&ctx);CHKERRQ(ierr);
+    ierr = TSMonitorLGCtxCreate(PETSC_COMM_SELF,0,0,PETSC_DECIDE,PETSC_DECIDE,400,300,howoften,&ctx);CHKERRQ(ierr);
     ierr = TSMonitorSet(ts,TSMonitorLGError,ctx,(PetscErrorCode (*)(void**))TSMonitorLGCtxDestroy);CHKERRQ(ierr);
   }
 
@@ -241,7 +242,7 @@ PetscErrorCode  TSSetFromOptions(TS ts)
     PetscInt       howoften = 1;
 
     ierr = PetscOptionsInt("-ts_monitor_lg_timestep","Monitor timestep size graphically","TSMonitorLGTimeStep",howoften,&howoften,NULL);CHKERRQ(ierr);
-    ierr = TSMonitorLGCtxCreate(PetscObjectComm((PetscObject)ts),NULL,NULL,PETSC_DECIDE,PETSC_DECIDE,300,300,howoften,&ctx);CHKERRQ(ierr);
+    ierr = TSMonitorLGCtxCreate(PetscObjectComm((PetscObject)ts),NULL,NULL,PETSC_DECIDE,PETSC_DECIDE,400,300,howoften,&ctx);CHKERRQ(ierr);
     ierr = TSMonitorSet(ts,TSMonitorLGTimeStep,ctx,(PetscErrorCode (*)(void**))TSMonitorLGCtxDestroy);CHKERRQ(ierr);
   }
   ierr = PetscOptionsName("-ts_monitor_lg_snes_iterations","Monitor number nonlinear iterations for each timestep graphically","TSMonitorLGSNESIterations",&opt);CHKERRQ(ierr);
@@ -250,7 +251,7 @@ PetscErrorCode  TSSetFromOptions(TS ts)
     PetscInt       howoften = 1;
 
     ierr = PetscOptionsInt("-ts_monitor_lg_snes_iterations","Monitor number nonlinear iterations for each timestep graphically","TSMonitorLGSNESIterations",howoften,&howoften,NULL);CHKERRQ(ierr);
-    ierr = TSMonitorLGCtxCreate(PetscObjectComm((PetscObject)ts),NULL,NULL,PETSC_DECIDE,PETSC_DECIDE,300,300,howoften,&ctx);CHKERRQ(ierr);
+    ierr = TSMonitorLGCtxCreate(PetscObjectComm((PetscObject)ts),NULL,NULL,PETSC_DECIDE,PETSC_DECIDE,400,300,howoften,&ctx);CHKERRQ(ierr);
     ierr = TSMonitorSet(ts,TSMonitorLGSNESIterations,ctx,(PetscErrorCode (*)(void**))TSMonitorLGCtxDestroy);CHKERRQ(ierr);
   }
   ierr = PetscOptionsName("-ts_monitor_lg_ksp_iterations","Monitor number nonlinear iterations for each timestep graphically","TSMonitorLGKSPIterations",&opt);CHKERRQ(ierr);
@@ -259,7 +260,7 @@ PetscErrorCode  TSSetFromOptions(TS ts)
     PetscInt       howoften = 1;
 
     ierr = PetscOptionsInt("-ts_monitor_lg_ksp_iterations","Monitor number nonlinear iterations for each timestep graphically","TSMonitorLGKSPIterations",howoften,&howoften,NULL);CHKERRQ(ierr);
-    ierr = TSMonitorLGCtxCreate(PetscObjectComm((PetscObject)ts),NULL,NULL,PETSC_DECIDE,PETSC_DECIDE,300,300,howoften,&ctx);CHKERRQ(ierr);
+    ierr = TSMonitorLGCtxCreate(PetscObjectComm((PetscObject)ts),NULL,NULL,PETSC_DECIDE,PETSC_DECIDE,400,300,howoften,&ctx);CHKERRQ(ierr);
     ierr = TSMonitorSet(ts,TSMonitorLGKSPIterations,ctx,(PetscErrorCode (*)(void**))TSMonitorLGCtxDestroy);CHKERRQ(ierr);
   }
   ierr = PetscOptionsName("-ts_monitor_sp_eig","Monitor eigenvalues of linearized operator graphically","TSMonitorSPEig",&opt);CHKERRQ(ierr);
@@ -1835,9 +1836,12 @@ PetscErrorCode  TSGetTimeStep(TS ts,PetscReal *dt)
    Output Parameter:
 .  v - the vector containing the solution
 
+   Note: If you used TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP); this does not return the solution at the requested
+   final time. It returns the solution at the next timestep.
+
    Level: intermediate
 
-.seealso: TSGetTimeStep()
+.seealso: TSGetTimeStep(), TSGetTime(), TSGetSolveTime()
 
 .keywords: TS, timestep, get, solution
 @*/
@@ -2164,9 +2168,8 @@ PetscErrorCode  TSDestroy(TS *ts)
   ierr = TSTrajectoryDestroy(&(*ts)->trajectory);CHKERRQ(ierr);
 
   ierr = TSAdaptDestroy(&(*ts)->adapt);CHKERRQ(ierr);
-  if ((*ts)->event) {
-    ierr = TSEventMonitorDestroy(&(*ts)->event);CHKERRQ(ierr);
-  }
+  ierr = TSEventDestroy(&(*ts)->event);CHKERRQ(ierr);
+
   ierr = SNESDestroy(&(*ts)->snes);CHKERRQ(ierr);
   ierr = DMDestroy(&(*ts)->dm);CHKERRQ(ierr);
   ierr = TSMonitorCancel((*ts));CHKERRQ(ierr);
@@ -3020,8 +3023,7 @@ PetscErrorCode  TSPostStep(TS ts)
 $    int monitor(TS ts,PetscInt steps,PetscReal time,Vec u,void *mctx)
 
 +    ts - the TS context
-.    steps - iteration number (after the final time step the monitor routine is called with a step of -1, this is at the final time which may have
-                               been interpolated to)
+.    steps - iteration number (after the final time step the monitor routine may be called with a step of -1, this indicates the solution has been interpolated to this time)
 .    time - current time
 .    u - current iterate
 -    mctx - [optional] monitoring context
@@ -3093,7 +3095,7 @@ PetscErrorCode  TSMonitorCancel(TS ts)
 
 .keywords: TS, set, monitor
 
-.seealso: TSMonitorDefault(), TSMonitorSet()
+.seealso:  TSMonitorSet()
 @*/
 PetscErrorCode TSMonitorDefault(TS ts,PetscInt step,PetscReal ptime,Vec v,void *dummy)
 {
@@ -3107,7 +3109,11 @@ PetscErrorCode TSMonitorDefault(TS ts,PetscInt step,PetscReal ptime,Vec v,void *
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERBINARY,&ibinary);CHKERRQ(ierr);
   if (iascii) {
     ierr = PetscViewerASCIIAddTab(viewer,((PetscObject)ts)->tablevel);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIPrintf(viewer,"%D TS dt %g time %g%s",step,(double)ts->time_step,(double)ptime,ts->steprollback ? " (r)\n" : "\n");CHKERRQ(ierr);
+    if (step == -1){ /* this indicates it is an interpolated solution */
+      ierr = PetscViewerASCIIPrintf(viewer,"Interpolated solution at time %g between steps %D and %D\n",(double)ptime,ts->steps-1,ts->steps);CHKERRQ(ierr);
+    } else {
+      ierr = PetscViewerASCIIPrintf(viewer,"%D TS dt %g time %g%s",step,(double)ts->time_step,(double)ptime,ts->steprollback ? " (r)\n" : "\n");CHKERRQ(ierr);
+    }
     ierr = PetscViewerASCIISubtractTab(viewer,((PetscObject)ts)->tablevel);CHKERRQ(ierr);
   } else if (ibinary) {
     PetscMPIInt rank;
@@ -3494,7 +3500,8 @@ PetscErrorCode TSForwardCostIntegral(TS ts)
 
    Input Parameter:
 +  ts - the TS context obtained from TSCreate()
--  u - the solution vector  (can be null if TSSetSolution() was used, otherwise must contain the initial conditions)
+-  u - the solution vector  (can be null if TSSetSolution() was used and TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP) was not used,
+                             otherwise must contain the initial conditions and will contain the solution at the final requested time
 
    Level: beginner
 
@@ -3505,7 +3512,7 @@ PetscErrorCode TSForwardCostIntegral(TS ts)
 
 .keywords: TS, timestep, solve
 
-.seealso: TSCreate(), TSSetSolution(), TSStep()
+.seealso: TSCreate(), TSSetSolution(), TSStep(), TSGetTime(), TSGetSolveTime()
 @*/
 PetscErrorCode TSSolve(TS ts,Vec u)
 {
@@ -3517,7 +3524,7 @@ PetscErrorCode TSSolve(TS ts,Vec u)
   if (u) PetscValidHeaderSpecific(u,VEC_CLASSID,2);
   if (ts->exact_final_time == TS_EXACTFINALTIME_UNSPECIFIED) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_ARG_WRONGSTATE,"You must call TSSetExactFinalTime() or use -ts_exact_final_time <stepover,interpolate,matchstep> before calling TSSolve()");
   if (ts->exact_final_time == TS_EXACTFINALTIME_MATCHSTEP && !ts->adapt) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Since TS is not adaptive you cannot use TS_EXACTFINALTIME_MATCHSTEP, suggest TS_EXACTFINALTIME_INTERPOLATE");
-    
+
   if (ts->exact_final_time == TS_EXACTFINALTIME_INTERPOLATE) {   /* Need ts->vec_sol to be distinct so it is not overwritten when we interpolate at the end */
     PetscValidHeaderSpecific(u,VEC_CLASSID,2);
     if (!ts->vec_sol || u == ts->vec_sol) {
@@ -3555,38 +3562,36 @@ PetscErrorCode TSSolve(TS ts,Vec u)
     if (ts->steps >= ts->max_steps)     ts->reason = TS_CONVERGED_ITS;
     else if (ts->ptime >= ts->max_time) ts->reason = TS_CONVERGED_TIME;
     ierr = TSTrajectorySet(ts->trajectory,ts,ts->steps,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
-    if(ts->event) {
-      ierr = TSEventMonitorInitialize(ts);CHKERRQ(ierr);
-    }
+    ierr = TSEventInitialize(ts->event,ts,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
+
     while (!ts->reason) {
       ierr = TSMonitor(ts,ts->steps,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
       ierr = TSStep(ts);CHKERRQ(ierr);
       if (!ts->steprollback && ts->vec_costintegral && ts->costintegralfwd) {
         ierr = TSForwardCostIntegral(ts);CHKERRQ(ierr);
       }
-      if (ts->event) {
-        ierr = TSEventMonitor(ts);CHKERRQ(ierr);
-      }
+      ierr = TSEventHandler(ts);CHKERRQ(ierr);
       if(!ts->steprollback) {
         ierr = TSTrajectorySet(ts->trajectory,ts,ts->steps,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
         ierr = TSPostStep(ts);CHKERRQ(ierr);
       }
     }
+    ierr = TSMonitor(ts,ts->steps,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
+
     if (ts->exact_final_time == TS_EXACTFINALTIME_INTERPOLATE && ts->ptime > ts->max_time) {
       ierr = TSInterpolate(ts,ts->max_time,u);CHKERRQ(ierr);
       ts->solvetime = ts->max_time;
       solution = u;
+      ierr = TSMonitor(ts,-1,ts->solvetime,solution);CHKERRQ(ierr);
     } else {
       if (u) {ierr = VecCopy(ts->vec_sol,u);CHKERRQ(ierr);}
       ts->solvetime = ts->ptime;
       solution = ts->vec_sol;
     }
-    ierr = TSMonitor(ts,ts->steps,ts->solvetime,solution);CHKERRQ(ierr);
-    ierr = VecViewFromOptions(solution,(PetscObject) ts,"-ts_view_solution");CHKERRQ(ierr);
   }
 
   ierr = TSViewFromOptions(ts,NULL,"-ts_view");CHKERRQ(ierr);
-  ierr = VecViewFromOptions(ts->vec_sol,NULL,"-ts_view_solution");CHKERRQ(ierr);
+  ierr = VecViewFromOptions(solution,NULL,"-ts_view_solution");CHKERRQ(ierr);
   ierr = PetscObjectSAWsBlock((PetscObject)ts);CHKERRQ(ierr);
   if (ts->adjoint_solve) {
     ierr = TSAdjointSolve(ts);CHKERRQ(ierr);
@@ -3666,9 +3671,7 @@ PetscErrorCode TSAdjointSolve(TS ts)
   while (!ts->reason) {
     ierr = TSTrajectoryGet(ts->trajectory,ts,ts->total_steps,&ts->ptime);CHKERRQ(ierr);
     ierr = TSAdjointMonitor(ts,ts->total_steps,ts->ptime,ts->vec_sol,ts->numcost,ts->vecs_sensi,ts->vecs_sensip);CHKERRQ(ierr);
-    if (ts->event) {
-      ierr = TSAdjointEventMonitor(ts);CHKERRQ(ierr);
-    }
+    ierr = TSAdjointEventHandler(ts);CHKERRQ(ierr);
     ierr = TSAdjointStep(ts);CHKERRQ(ierr);
     if (ts->vec_costintegral && !ts->costintegralfwd) {
       ierr = TSAdjointCostIntegral(ts);CHKERRQ(ierr);
@@ -3677,7 +3680,7 @@ PetscErrorCode TSAdjointSolve(TS ts)
   ierr = TSTrajectoryGet(ts->trajectory,ts,ts->total_steps,&ts->ptime);CHKERRQ(ierr);
   ierr = TSAdjointMonitor(ts,ts->total_steps,ts->ptime,ts->vec_sol,ts->numcost,ts->vecs_sensi,ts->vecs_sensip);CHKERRQ(ierr);
   ts->solvetime = ts->ptime;
-  ierr = TSTrajectoryViewFromOptions(ts->trajectory,NULL,"-tstrajectory_view");CHKERRQ(ierr);
+  ierr = TSTrajectoryViewFromOptions(ts->trajectory,NULL,"-ts_trajectory_view");CHKERRQ(ierr);
   ierr = VecViewFromOptions(ts->vecs_sensi[0],(PetscObject) ts, "-ts_adjoint_view_solution");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -3698,6 +3701,8 @@ PetscErrorCode TSAdjointSolve(TS ts)
    Notes:
    TSMonitor() is typically used automatically within the time stepping implementations.
    Users would almost never call this routine directly.
+
+   A step of -1 indicates that the monitor is being called on a solution obtained by interpolating from computed solutions
 
    Level: developer
 
@@ -3819,7 +3824,6 @@ PetscErrorCode  TSMonitorLGCtxCreate(MPI_Comm comm,const char host[],const char 
   ierr = PetscDrawCreate(comm,host,label,x,y,m,n,&draw);CHKERRQ(ierr);
   ierr = PetscDrawSetFromOptions(draw);CHKERRQ(ierr);
   ierr = PetscDrawLGCreate(draw,1,&(*ctx)->lg);CHKERRQ(ierr);
-  ierr = PetscDrawLGSetUseMarkers((*ctx)->lg,PETSC_TRUE);CHKERRQ(ierr);
   ierr = PetscDrawLGSetFromOptions((*ctx)->lg);CHKERRQ(ierr);
   ierr = PetscDrawDestroy(&draw);CHKERRQ(ierr);
   (*ctx)->howoften = howoften;
@@ -3835,6 +3839,7 @@ PetscErrorCode TSMonitorLGTimeStep(TS ts,PetscInt step,PetscReal ptime,Vec v,voi
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (step < 0) PetscFunctionReturn(0); /* -1 indicates an interpolated solution */
   if (!step) {
     PetscDrawAxis axis;
     ierr = PetscDrawLGGetAxis(ctx->lg,&axis);CHKERRQ(ierr);
@@ -3895,7 +3900,7 @@ PetscErrorCode  TSMonitorLGCtxDestroy(TSMonitorLGCtx *ctx)
 .  ts - the TS context obtained from TSCreate()
 
    Output Parameter:
-.  t  - the current time
+.  t  - the current time. This time may not corresponds to the final time set with TSSetDuration(), use TSGetSolveTime().
 
    Level: beginner
 
@@ -3903,7 +3908,7 @@ PetscErrorCode  TSMonitorLGCtxDestroy(TSMonitorLGCtx *ctx)
    When called during time step evaluation (e.g. during residual evaluation or via hooks set using TSSetPreStep(),
    TSSetPreStage(), TSSetPostStage(), or TSSetPostStep()), the time is the time at the start of the step being evaluated.
 
-.seealso: TSSetInitialTimeStep(), TSGetTimeStep()
+.seealso: TSSetInitialTimeStep(), TSGetTimeStep(), TSGetSolveTime()
 
 .keywords: TS, get, time
 @*/
@@ -4876,7 +4881,7 @@ PetscErrorCode  TSSetConvergedReason(TS ts,TSConvergedReason reason)
 .  ts - the TS context
 
    Output Parameter:
-.  ftime - the final time. This time should correspond to the final time set with TSSetDuration()
+.  ftime - the final time. This time corresponds to the final time set with TSSetDuration()
 
    Level: beginner
 
@@ -5206,6 +5211,7 @@ PetscErrorCode TSMonitorSolutionVTK(TS ts,PetscInt step,PetscReal ptime,Vec u,vo
   PetscViewer    viewer;
 
   PetscFunctionBegin;
+  if (step < 0) PetscFunctionReturn(0); /* -1 indicates interpolated solution */
   ierr = PetscSNPrintf(filename,sizeof(filename),(const char*)filenametemplate,step);CHKERRQ(ierr);
   ierr = PetscViewerVTKOpen(PetscObjectComm((PetscObject)ts),filename,FILE_MODE_WRITE,&viewer);CHKERRQ(ierr);
   ierr = VecView(u,viewer);CHKERRQ(ierr);
@@ -5992,6 +5998,7 @@ PetscErrorCode  TSMonitorLGSolution(TS ts,PetscInt step,PetscReal ptime,Vec u,vo
   Vec               v;
 
   PetscFunctionBegin;
+  if (step < 0) PetscFunctionReturn(0); /* -1 indicates interpolated solution */
   if (!step) {
     PetscDrawAxis axis;
     PetscInt      dim;
@@ -6379,6 +6386,7 @@ PetscErrorCode TSMonitorLGSNESIterations(TS ts,PetscInt n,PetscReal ptime,Vec v,
   PetscInt       its;
 
   PetscFunctionBegin;
+  if (n < 0) PetscFunctionReturn(0); /* -1 indicates interpolated solution */
   if (!n) {
     PetscDrawAxis axis;
     ierr = PetscDrawLGGetAxis(ctx->lg,&axis);CHKERRQ(ierr);
@@ -6407,6 +6415,7 @@ PetscErrorCode TSMonitorLGKSPIterations(TS ts,PetscInt n,PetscReal ptime,Vec v,v
   PetscInt       its;
 
   PetscFunctionBegin;
+  if (n < 0) PetscFunctionReturn(0); /* -1 indicates interpolated solution */
   if (!n) {
     PetscDrawAxis axis;
     ierr = PetscDrawLGGetAxis(ctx->lg,&axis);CHKERRQ(ierr);

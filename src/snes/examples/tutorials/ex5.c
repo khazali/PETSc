@@ -432,8 +432,8 @@ PetscErrorCode FormFunctionLocalMMS1(DMDALocalInfo *info,PetscScalar **vx,PetscS
   ierr = DMGetCoordinateDM(info->da, &coordDA);CHKERRQ(ierr);
   ierr = DMGetCoordinates(info->da, &coordinates);CHKERRQ(ierr);
   ierr = DMDAVecGetArray(coordDA, coordinates, &coords);CHKERRQ(ierr);
-  hx     = info->xm ? coords[info->ys][info->xs+1].x - coords[info->ys][info->xs].x : 1.0;
-  hy     = info->ym ? coords[info->ys+1][info->xs].y - coords[info->ys][info->xs].y : 1.0;
+  hx     = info->xm > 1 ? PetscRealPart(coords[info->ys][info->xs+1].x) - PetscRealPart(coords[info->ys][info->xs].x) : 1.0;
+  hy     = info->ym > 1 ? PetscRealPart(coords[info->ys+1][info->xs].y) - PetscRealPart(coords[info->ys][info->xs].y) : 1.0;
   hxdhy  = hx/hy;
   hydhx  = hy/hx;
   ierr = DMGetNamedLocalVector(info->da, "_petsc_boundary_conditions_", &bcv);CHKERRQ(ierr);
@@ -492,8 +492,8 @@ PetscErrorCode FormFunctionLocalMMS2(DMDALocalInfo *info,PetscScalar **vx,PetscS
   ierr = DMGetCoordinateDM(info->da, &coordDA);CHKERRQ(ierr);
   ierr = DMGetCoordinates(info->da, &coordinates);CHKERRQ(ierr);
   ierr = DMDAVecGetArray(coordDA, coordinates, &coords);CHKERRQ(ierr);
-  hx     = info->xm ? coords[info->ys][info->xs+1].x - coords[info->ys][info->xs].x : 1.0;
-  hy     = info->ym ? coords[info->ys+1][info->xs].y - coords[info->ys][info->xs].y : 1.0;
+  hx     = info->xm > 1 ? PetscRealPart(coords[info->ys][info->xs+1].x) - PetscRealPart(coords[info->ys][info->xs].x) : 1.0;
+  hy     = info->ym > 1 ? PetscRealPart(coords[info->ys+1][info->xs].y) - PetscRealPart(coords[info->ys][info->xs].y) : 1.0;
   hxdhy  = hx/hy;
   hydhx  = hy/hx;
   ierr = DMGetNamedLocalVector(info->da, "_petsc_boundary_conditions_", &bcv);CHKERRQ(ierr);
@@ -594,14 +594,22 @@ PetscErrorCode FormJacobianLocal(DMDALocalInfo *info,PetscScalar **x,Mat jac,Mat
   PetscInt       i,j,k;
   MatStencil     col[5],row;
   PetscScalar    lambda,v[5],hx,hy,hxdhy,hydhx,sc;
+  DM             coordDA;
+  Vec            coordinates;
+  DMDACoor2d   **coords;
 
   PetscFunctionBeginUser;
   lambda = user->param;
-  hx     = 1.0/(PetscReal)(info->mx-1);
-  hy     = 1.0/(PetscReal)(info->my-1);
-  sc     = hx*hy*lambda;
+  /* Extract coordinates */
+  ierr = DMGetCoordinateDM(info->da, &coordDA);CHKERRQ(ierr);
+  ierr = DMGetCoordinates(info->da, &coordinates);CHKERRQ(ierr);
+  ierr = DMDAVecGetArray(coordDA, coordinates, &coords);CHKERRQ(ierr);
+  hx     = info->xm > 1 ? PetscRealPart(coords[info->ys][info->xs+1].x) - PetscRealPart(coords[info->ys][info->xs].x) : 1.0;
+  hy     = info->ym > 1 ? PetscRealPart(coords[info->ys+1][info->xs].y) - PetscRealPart(coords[info->ys][info->xs].y) : 1.0;
+  ierr = DMDAVecRestoreArray(coordDA, coordinates, &coords);CHKERRQ(ierr);
   hxdhy  = hx/hy;
   hydhx  = hy/hx;
+  sc     = hx*hy*lambda;
 
 
   /*

@@ -640,6 +640,7 @@ PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
       ierr = PetscViewerASCIIPrintf(viewer, "  %s: %D strata of sizes (", name, numValues);CHKERRQ(ierr);
       ierr = DMLabelGetValueIS(label, &valueIS);CHKERRQ(ierr);
       ierr = ISGetIndices(valueIS, &values);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIUseTabs(viewer, PETSC_FALSE);CHKERRQ(ierr);
       for (v = 0; v < numValues; ++v) {
         PetscInt size;
 
@@ -648,6 +649,7 @@ PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
         ierr = PetscViewerASCIIPrintf(viewer, "%D", size);CHKERRQ(ierr);
       }
       ierr = PetscViewerASCIIPrintf(viewer, ")\n");CHKERRQ(ierr);
+      ierr = PetscViewerASCIIUseTabs(viewer, PETSC_TRUE);CHKERRQ(ierr);
       ierr = ISRestoreIndices(valueIS, &values);CHKERRQ(ierr);
       ierr = ISDestroy(&valueIS);CHKERRQ(ierr);
     }
@@ -1944,7 +1946,7 @@ PetscErrorCode DMPlexStratify(DM dm)
     PetscInt numValues, maxValues = 0, v;
 
     ierr = DMLabelGetNumValues(label,&numValues);CHKERRQ(ierr);
-    ierr = MPI_Allreduce(&numValues,&maxValues,1,MPIU_INT,MPIU_MAX,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
+    ierr = MPI_Allreduce(&numValues,&maxValues,1,MPIU_INT,MPI_MAX,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
     for (v = numValues; v < maxValues; v++) {
       DMLabelAddStratum(label,v);CHKERRQ(ierr);
     }

@@ -3,7 +3,7 @@ import config.package
 class Configure(config.package.CMakePackage):
   def __init__(self, framework):
     config.package.CMakePackage.__init__(self, framework)
-    self.download          = ['http://ftp.mcs.anl.gov/pub/petsc/externalpackages/metis-5.1.0-p2.tar.gz']
+    self.download          = ['http://ftp.mcs.anl.gov/pub/petsc/externalpackages/metis-5.1.0-p3.tar.gz']
     self.functions         = ['METIS_PartGraphKway']
     self.includes          = ['metis.h']
     self.liblist           = [['libmetis.a']]
@@ -25,7 +25,7 @@ class Configure(config.package.CMakePackage):
 
     args = config.package.CMakePackage.formCMakeConfigureArgs(self)
     args.append('-DGKLIB_PATH=../GKlib') 
-    if self.sharedLibraries.useShared:
+    if self.checkSharedLibrariesEnabled():
       args.append('-DSHARED=1')
     if self.compilerFlags.debugging:
       args.append('-DDEBUG=1')

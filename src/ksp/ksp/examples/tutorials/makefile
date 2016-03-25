@@ -8,7 +8,7 @@ EXAMPLESC        = ex1.c ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c ex9.c \
                 ex25.c ex27.c ex28.c ex29.c ex30.c ex31.c ex32.c ex34.c \
                 ex41.c ex42.c ex43.c \
                 ex45.c ex46.c  ex49.c ex50.c ex51.c ex52.c ex53.c \
-                ex54.c ex55.c ex56.c ex58.c ex62.c ex63.cxx ex64.c
+                ex54.c ex55.c ex56.c ex58.c ex62.c ex63.cxx ex64.c ex65.c
 EXAMPLESF        = ex1f.F ex2f.F ex6f.F ex11f.F ex13f90.F ex14f.F ex15f.F ex21f.F ex22f.F ex44f.F90 ex45f.F \
                    ex52f.F ex54f.F ex61f.F90
 MANSEC           = KSP
@@ -309,7 +309,11 @@ ex63: ex63.o  chkopts
 
 ex64: ex64.o  chkopts
 	-${CLINKER} -o ex64 ex64.o  ${PETSC_KSP_LIB}
-	${RM} ex64.o
+	${RM} ex64.
+
+ex65: ex65.o  chkopts
+	-${CLINKER} -o ex65 ex65.o  ${PETSC_KSP_LIB}
+	${RM} ex65.o
 
 #----------------------------------------------------------------------------
 runex1:
@@ -1038,7 +1042,7 @@ runex29_2:
 	   ${RM} -f ex29_2.tmp
 
 runex29_telescope:
-	-@${MPIEXEC} -n 4 ./ex29 -ksp_monitor_short -da_grid_x 257 -da_grid_y 257 -pc_type mg -pc_mg_galerkin -pc_mg_levels 4 -ksp_type richardson -mg_levels_ksp_type chebyshev -mg_levels_pc_type jacobi -mg_coarse_pc_type telescope -mg_coarse_telescope_pc_type mg -mg_coarse_telescope_pc_mg_galerkin -mg_coarse_telescope_pc_mg_levels 3 -mg_coarse_telescope_mg_levels_ksp_type chebyshev -mg_coarse_telescope_mg_levels_pc_type jacobi -mg_coarse_pc_telescope_reduction_factor 4 > ex29_telescope.tmp 2>&1;	  \
+	-@${MPIEXEC} -n 4 ./ex29 -ksp_monitor_short -da_grid_x 257 -da_grid_y 257 -pc_type mg -pc_mg_galerkin -pc_mg_levels 4 -ksp_type richardson -mg_levels_ksp_type chebyshev -mg_levels_pc_type jacobi -mg_coarse_pc_type telescope -mg_coarse_pc_telescope_ignore_kspcomputeoperators -mg_coarse_telescope_pc_type mg -mg_coarse_telescope_pc_mg_galerkin -mg_coarse_telescope_pc_mg_levels 3 -mg_coarse_telescope_mg_levels_ksp_type chebyshev -mg_coarse_telescope_mg_levels_pc_type jacobi -mg_coarse_pc_telescope_reduction_factor 4 > ex29_telescope.tmp 2>&1;	  \
 	   if (${DIFF} output/ex29_telescope.out ex29_telescope.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex29_telescope, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex29_telescope.tmp
@@ -1126,10 +1130,18 @@ runex45_2:
 	-@${MPIEXEC} -n 4 ./ex45 -ksp_monitor_short -da_grid_x 21 -da_grid_y 21 -da_grid_z 21 -pc_type mg -pc_mg_levels 3 -mg_levels_ksp_type richardson -mg_levels_ksp_max_it 1 -mg_levels_pc_type bjacobi > ex45_2.tmp 2>&1; \
 	   ${DIFF} output/ex45_2.out ex45_2.tmp || printf "${PWD}\nPossible problem with ex45_2, diffs above\n=========================================\n"; \
 	   ${RM} -f ex45_2.tmp
+
 runex45_telescope:
-	-@${MPIEXEC} -n 4 ./ex45 -ksp_type fgmres -ksp_monitor_short -pc_type mg -mg_levels_ksp_type richardson -mg_levels_pc_type jacobi  -pc_mg_levels 2 -da_grid_x 65 -da_grid_y 65 -da_grid_z 65 -mg_coarse_pc_type telescope -mg_coarse_pc_telescope_reduction_factor 4 -mg_coarse_telescope_pc_type mg -mg_coarse_telescope_pc_mg_galerkin -mg_coarse_telescope_pc_mg_levels 3 -mg_coarse_telescope_mg_levels_ksp_type richardson -mg_coarse_telescope_mg_levels_pc_type jacobi   -mg_levels_ksp_type richardson -mg_coarse_telescope_mg_levels_ksp_type richardson -ksp_rtol 1.0e-4  > ex45_telescope.tmp 2>&1; \
+	-@${MPIEXEC} -n 4 ./ex45 -ksp_type fgmres -ksp_monitor_short -pc_type mg -mg_levels_ksp_type richardson -mg_levels_pc_type jacobi  -pc_mg_levels 2 -da_grid_x 65 -da_grid_y 65 -da_grid_z 65 -mg_coarse_pc_type telescope -mg_coarse_pc_telescope_ignore_kspcomputeoperators -mg_coarse_pc_telescope_reduction_factor 4 -mg_coarse_telescope_pc_type mg -mg_coarse_telescope_pc_mg_galerkin -mg_coarse_telescope_pc_mg_levels 3 -mg_coarse_telescope_mg_levels_ksp_type richardson -mg_coarse_telescope_mg_levels_pc_type jacobi   -mg_levels_ksp_type richardson -mg_coarse_telescope_mg_levels_ksp_type richardson -ksp_rtol 1.0e-4  > ex45_telescope.tmp 2>&1; \
 	   ${DIFF} output/ex45_telescope.out ex45_telescope.tmp || printf "${PWD}\nPossible problem with ex45_telescope, diffs above\n=========================================\n"; \
 	   ${RM} -f ex45_telescope.tmp
+
+runex45_telescope_2:
+	-@${MPIEXEC} -n 4 ./ex45 -ksp_type fgmres -ksp_monitor_short -pc_type mg -mg_levels_ksp_type richardson -mg_levels_pc_type jacobi  -pc_mg_levels 2 -da_grid_x 65 -da_grid_y 65 -da_grid_z 65 -mg_coarse_pc_type telescope -mg_coarse_pc_telescope_reduction_factor 2 -mg_coarse_telescope_pc_type mg -mg_coarse_telescope_pc_mg_galerkin -mg_coarse_telescope_pc_mg_levels 3 -mg_coarse_telescope_mg_levels_ksp_type richardson -mg_coarse_telescope_mg_levels_pc_type jacobi   -mg_levels_ksp_type richardson -mg_coarse_telescope_mg_levels_ksp_type richardson -ksp_rtol 1.0e-4  > ex45_telescope_2.tmp 2>&1; \
+	   ${DIFF} output/ex45_telescope_2.out ex45_telescope_2.tmp || printf "${PWD}\nPossible problem with ex45_telescope_2, diffs above\n=========================================\n"; \
+	   ${RM} -f ex45_telescope_2.tmp
+
+
 runex45f:
 	-@${MPIEXEC} -n 4 ./ex45f -ksp_monitor_short -da_refine 5 -pc_type mg -pc_mg_levels 5 -mg_levels_ksp_type chebyshev -mg_levels_ksp_max_it 2 -mg_levels_pc_type jacobi -ksp_pc_side right > ex45f_1.tmp 2>&1; \
 	   ${DIFF} output/ex45f_1.out ex45f_1.tmp || printf "${PWD}\nPossible problem with ex45f_1, diffs above\n=========================================\n"; \
@@ -1476,6 +1488,11 @@ runex64:
 	   else printf "${PWD}\nPossible problem with with ex64, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex64.tmp	   
 
+runex65:
+	-@${MPIEXEC} -n 4 ./ex65  -ksp_monitor -pc_type mg -da_refine 3 > ex65.tmp 2>&1;	  \
+	   if (${DIFF} output/ex65.out ex65.tmp) then true; \
+	   else printf "${PWD}\nPossible problem with with ex65, diffs above\n=========================================\n"; fi; \
+	   ${RM} -f ex65.tmp	   
 
 
 
@@ -1493,14 +1510,14 @@ TESTEXAMPLES_C		       = ex1.PETSc runex1 runex1_2 runex1_3 ex1.rm ex2.PETSc run
                                  ex27.PETSc ex27.rm ex28.PETSc ex28.rm ex29.PETSc runex29_telescope ex29.rm \
                                  ex31.PETSc ex31.rm ex32.PETSc runex32 ex32.rm ex34.PETSc runex34 ex34.rm ex42.PETSc ex42.rm \
                                  ex43.PETSc runex43 runex43_2 runex43_bjacobi runex43_bjacobi_baij runex43_nested_gmg runex43_3 ex43.rm \
-                                 ex45.PETSc runex45 runex45_2 runex45_telescope ex45.rm \
+                                 ex45.PETSc runex45 runex45_2 runex45_telescope runex45_telescope_2 ex45.rm \
                                  ex49.PETSc runex49 runex49_2 runex49_3 runex49_5 ex49.rm \
                                  ex53.PETSc runex53 ex53.rm \
                                  ex54.PETSc runex54 runex54_Classical ex54.rm ex55.PETSc runex55 runex55_Classical runex55_NC ex55.rm\
                                  ex56.PETSc runex56_nns runex56 ex56.rm ex59.PETSc runex59 runex59_2 runex59_3 ex59.rm \
                                  ex58.PETSc runex58 runex58_baij runex58_sbaij ex58.rm \
                                  ex60.PETSc runex60 runex60_2 runex60_3 ex60.rm \
-                                 ex62.PETSc runex62_2D_1 runex62_2D_2 runex62_2D_3 ex62.rm
+                                 ex62.PETSc runex62_2D_1 runex62_2D_2 runex62_2D_3 ex62.rm ex65.PETSc runex65 ex65.rm
 TESTEXAMPLES_C_NOTSINGLE       = ex43.PETSc runex43_3 ex43.rm
 TESTEXAMPLES_C_NOCOMPLEX       = ex54.PETSc ex54.rm ex10.PETSc runex10 ex10.rm
 TESTEXAMPLES_C_NOCOMPLEX_NOTSINGLE = ex23.PETSc runex23_3 ex23.rm \
