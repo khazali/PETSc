@@ -39,7 +39,8 @@ PIC algorithms require three types of processing: 1) particle processing (e.g., 
 Pure particle processing, such as the ``push" of particles use relatively simple array processing and each particle can be processed concurrently.
 Particle-grid interactions are challenging because the data structures and natural data decompositions are different, but are tightly coupled algorithmically.
 The physics community has avoided some of this complexity by redundantly storing the entire grid field data on each MPI process or address space.
-This data model is not tenable as we move to the exa-scale levels of parallelism required for engineering relevant ITER simulations; distributing grids will be very disruptive to the code base of fusion PIC applications and we must prepare for this transition now.
+This data model is not tenable as we move to the exa-scale levels of parallelism required for engineering relevant ITER simulations.
+Distributing grids will be very disruptive to the code base of fusion PIC applications and we must prepare for this transition now.
 
 %The accurate and efficient simulations of these problems, to be of engineering relevance, for say the design and operation of ITER, is an extremely challenging problem.
 The physics community has developed a large body of research and experience in using PIC methods for fusion plasmas and they are one of the largest users in DOE leadership class compute facilities.
@@ -106,14 +107,15 @@ We have several general requirements for an extreme-scale fusion plasmas PIC app
 The development proposed herein takes place in a branch in the PETSc repository (mark/feature-picell) and a driver application named X2 (src/dm/impls/picell/examples/tutorials/ex1.c).
 Code will likely migrate from X2 into the PETSc library as development progresses.
 X2 is intended to be used to gather initial performance data on modern architectures to guide further data model developments, and to verify the PETSc library code.
-Our initial approach is to exploit the fact that particle distributions, at least from a computational point of view, are relatively uniformly distributed over the domain and our grids are quasi-uniform; this allows for particle distributions that are simply attached to cells of the solver grid, but load is balanced by using a weighted cell partitioning.
+Our initial approach is to exploit the fact that particle distributions, at least from a computational point of view, are relatively uniformly distributed over the domain and our grids are quasi-uniform.
+This allows for particle distributions that are simply attached to cells of the solver grid, but load is balanced by using a weighted cell partitioning.
 We are not, for instance, supporting multiple processes within an individual cell, but we could imagine this would be useful in the future.
 We currently use guide center particles only (i.e., only a parallel velocity, resulting in a 4D method) to simplify charge deposition.
 These two simplifications allow us to reuse particle infrastructure that has been developed for other PETSc PIC users \cite{may2014ptatin} that attach particle to solver cells in the particle push kernel.
 More complex data models with extended halo regions to accommodate gyrokinetic methods (finite shape) and high order (explicit) time integrators, without the use of multiple copies of particle lists, will be required in the near future.
 
 The collision operator, on the right hand side of Vlasov's equation, is a computational intensive nonlinear solve in velocity space on each particle collision cell.
-Flux tubes are a natural choice for these collision cells; these are long, thin subdomains that follow the twisting magnetic field lines around the torus.
+Flux tubes are a natural choice for these collision cells, these are long, thin subdomains that follow the twisting magnetic field lines around the torus.
 We simplify this process by partitioning particles into non-overlapping subdomains and compute collisions within these sets.
 We do not attempt more sophisticated overlapping particle partitions, which would allow for more accurate particle-particle interactions (e.g., two of our particles could be arbitrarily close to each other and not interact in the collision operator with our current algorithm).
 We currently explicitly repartition particles, which in the limit requires all particles be communicated at the collision frequency.
@@ -126,7 +128,7 @@ Note, the coarse grids of SITAR are unstructured and can accommodate a real toka
    \centering
    \includegraphics[width=75mm]{half_grid.jpeg} 
     \includegraphics[width=75mm]{half_grid_mesh.jpeg} 
-   \caption{Half of  2x2x2 flux tube particle partition of torus (left); corresponding coarse grid solver mesh (right)}
+   \caption{Half of  2x2x2 flux tube particle partition of torus (left), corresponding coarse grid solver mesh (right)}
    \label{fig:cross}
 \end{figure}
 The fuzzy edges of Figure \ref{fig:cross} (left) are due to the finite number of particles, each particle is drawn with the color of the partition to which it belongs.
