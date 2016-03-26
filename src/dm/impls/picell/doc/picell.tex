@@ -19,26 +19,24 @@
 \maketitle
 
 The simulation of highly magnetized fusion plasmas presents significant challenges in both mathematical modeling and discretization, and in efficient implementation on emerging architectures at extreme-scale.
-The Vlasov-Maxwell or similar system, with a collision operator on the right hand side, is a 6D phase space set of equations and is the basis of numerical methods in plasma physics.
+The Vlasov-Maxwell, or similar, system, with a collision operator on the right hand side, is a 6D phase space set of equations and is the basis of numerical methods in plasma physics.
 The gyrokinetic approximation is a common technique to reduce this to a 5D system.
-The high dimensionality of these problems lend themselves to particle-in-cell (PIC) methods, although Eulerian mesh components are often at least hybridized with PIC in, for instance, the collision operator.
+The high dimensionality of these problems lend themselves to particle-in-cell (PIC) methods, although Eulerian methods are often at least hybridized with PIC in, for instance, the collision operator.
 The strong magnetic guide fields in tokamaks dominates the dynamics of fusion plasmas and leads to highly anisotropic models with a wide range of both time and length scales.
 Simulating highly magnetized fusion plasmas at the scale of the multi-tens of billion USD fusion device ITER, with enough accuracy to be relevant to ITER's design and operation, is one of the great computational challenges of today.
 
 We propose to contribution to this effort by developing efficient methods for PIC simulations in general, and for fusion plasmas in particular, and by deploying optimized implementations of these methods in the PETSc numerical library.
-We focus on the PDE solvers and data models for the efficient processing of particle-cell interactions and particle data communication, as well as fast solvers in the, for instance, Poisson, Ampere's law and implicit PIC nonlinear solvers.
-The PETSc community has extensive expertise in solution methods for PDEs (discretizations, meshing,  nonlinear solvers, time integrators, optimization solvers, etc.) and their large-scale library deployment.
-This document describes the critical computational challenges for extreme-scale PIC simulations on emerging architectures and the solutions currently under development in PETSc.
-We build on the Solver Integrated Tree-based Adaptive Refinement (SITAR) infrastructure in PETSc, for fast PDE solvers, by adding PIC specific methods and useful abstractions for PIC applications.
-To drive this work, we propose to develop an extreme-scale PIC code that is designed from the ground up for scalability and extensibility to emerging architectures, and embodies our philosophy of well engineered and verified numerical methods.
+We focus on data distribution models for the efficient processing of particle-cell interactions and to minimize particle data communication, as well as fast solvers for, for example, Poisson's equation, Ampere's law, and the nonlinear solvers of implicit PIC methods \cite{DBLP:journals/cphysics/ChenC15}.
+The PETSc community has extensive experience in solution methods for PDEs (discretizations, meshing,  nonlinear solvers, time integrators, optimization solvers, etc.) and in the deployment of optimized implementations of these methods to the public as a library.
+This document describes the critical computational challenges for extreme-scale PIC simulations on emerging architectures and solutions for these challenges under development in PETSc.
+We build on the Solver Integrated Tree-based Adaptive Refinement (SITAR) infrastructure in PETSc, for fast PDE solvers, by adding PIC specific methods and data models and useful abstractions for application developers.
+To drive this work, we develop an extreme-scale PIC code that is designed from the ground up for scalability and extensibility to emerging architectures.
 
 \section{Background}
 
 Particle-in-cell methods are popular in discretizing high dimensional problems in a variety of fields because of their low cost relative to full grid or Eulerian methods on such problems.
 PIC algorithms require three types of processing: 1) particle processing (e.g., the evolution of Vlasov's equation), 2) grid processing (e.g., solvers), and 3) particle-grid interactions (e.g., particle charge deposition and gradients of potentials for particle pushing).
-Most, say well over $99\%$, of the data in a PIC simulation of a fusion devises is in the particles.
-Pure grid work, such as the Poisson solver, have abundant computational resources available and, for instance, can be run entirely on the CPU of accelerated architectures, or on a reduced set of cores on symmetric systems.
-Pure particle processing, such as the ``push" of particles use relatively simple array processing and each particle can be processed concurently.
+Pure particle processing, such as the ``push" of particles use relatively simple array processing and each particle can be processed concurrently.
 Particle-grid interactions are challenging because the data structures and natural data decompositions are different, but are tightly coupled algorithmically.
 The physics community has avoided some of this complexity by redundantly storing the entire grid field data on each MPI process or address space.
 This data model is not tenable as we move to the exa-scale levels of parallelism required for engineering relevant ITER simulations; distributing grids will be very disruptive to the code base of fusion PIC applications and we must prepare for this transition now.
@@ -46,24 +44,26 @@ This data model is not tenable as we move to the exa-scale levels of parallelism
 %The accurate and efficient simulations of these problems, to be of engineering relevance, for say the design and operation of ITER, is an extremely challenging problem.
 The physics community has developed a large body of research and experience in using PIC methods for fusion plasmas and they are one of the largest users in DOE leadership class compute facilities.
 The applied math, engineering, computational science, and physics communities have developed a great deal of expertise in discretization and solver methods for extreme-scale computing, but these advanced methods are not widely used in the fusion community.
-The continued advancement of fusion simulations within DOE and the global community, especially as we move from reproducing known physics to engineering relevant predictive analysis, requires that both modern numerical methods, distributed data decompositions, and parallel computing techniques, as well as reliable software engineering methodologies, be employed.
+The continued advancement of fusion simulations within DOE and the global community, especially as we move from reproducing known physics to -- engineering relevant -- predictive analysis, requires that both modern numerical methods, distributed data decompositions, and parallel computing techniques, as well as reliable software engineering methodologies, be employed.
 
-The work proposed herein amortizes both the development costs and the intellectual resources required to develop and deploy extreme-scale PIC applications.
+The work proposed herein is intended to amortize both the development costs and the intellectual resources required to develop and deploy extreme-scale PIC applications.
 This work builds on the SITAR framework in PETSc, which provides both fast solvers, tightly integrated meshing and discretizations, and optimized implementation for emerging architectures \cite{KnepleyBrownMcInnesSmithRuppAdams2015}.
-SITAR is bases on the highly scalable algorithms in the p4est distributed tree library \cite{DBLP:journals/siamsc/IsaacBWG15,Rudi:2015:EIS:2807591.2807675,Stadler1033}.
+SITAR is built on the highly scalable algorithms in the p4est distributed tree library \cite{DBLP:journals/siamsc/IsaacBWG15,Rudi:2015:EIS:2807591.2807675,Stadler1033}.
 
 \section{Design Issues for Extreme-Scale PIC on Emerging Architectures}
 
 The importance of particle-grid processing in the cost of PIC methods demands careful distribution of particles and cells to maximize data locality and minimize data movement.
+Most, say well over $99\%$, of the data in a PIC simulation of a fusion devises is in the particles.
+Pure grid work, such as the Poisson solver, have abundant computational resources available and, for instance, can be run entirely on the CPU of accelerated architectures, or on a reduced set of cores on symmetric systems.
 Our approach is to allow for flexible particle and grid partitioning, and strike an efficient balance, on any given architecture, between explicit particle communication and redundant (\Order{1}) grid storage.
-This is a challenge because fusion plasma numerical methods use two distinct grids, the Poisson solver grid and the collision solver grid (Figure \ref{fig:cross}), and the optimal particle distribution for each, with respect to data locality, is very different.
+This is a challenge because fusion plasma numerical methods use two distinct grids: the Poisson or Ampere's law solver grid and the collision solver grid (see Figure \ref{fig:cross}).
+The optimal particle distribution for each, with respect to data locality, is very different, which results in many parameters that need to be optimized in any given algorithm.
 
-The primary design principle in this work is to develop the most efficient algorithms and data decompositions for PIC processes and to deploy them in PETSc.
-An additional design principle is to provide a natural and productive library interface for the application scientist.
-To this end, we provide a high level interface where the application scientist never touches grid entities like cells directly and instead only adds, and queries for, data with an opaque object.
-Additionally, we provide lower level interfaces for users to have direct control over the grids and particles.
+The primary design principles in this work are to develop the most efficient algorithms and data decompositions for PIC processes, to deploy them in PETSc, to develop a well engineered and verified development environment for application scientists and engineers.
+To this end, we provide a high level interface where the application scientist never touches grid entities like cells directly and instead only adds, and queries an opaque object for, data at (particle) points.
+Additionally, we provide lower level interfaces for users that want direct control over the grids and particles.
 The lowest level interface allow the user to iterate over grid entities, like cells or vertices, but hides details of the grid and discretization for maximum flexibility.
-This allows different grids, such as Cartesian, unstructured or SITAR grids to be selected at run time, without recompiling the application.
+This abstraction allows different grids, such as Cartesian, unstructured or SITAR grids to be selected at run time, without recompiling the application, because the application code never interacts directly with the grid data structures.
 
 \section{General Requirements}
 
@@ -103,25 +103,25 @@ We have several general requirements for an extreme-scale fusion plasmas PIC app
 \section{Initial Experiments with an Extreme-Scale PIC Code for ITER Plasmas}
 \label{sec:x2}
 
-The development proposed herein takes place in a branch in the PETSc repository (in the mark/feature-picell branch) and a driver application named X2 (src/dm/impls/picell/examples/tutorials/ex1.c).
-Code will likely migrate from X2 into the library as development progresses.
-X2 is used to gather initial performance data on modern architectures to guide further data model developments, and to verify the implementations.
+The development proposed herein takes place in a branch in the PETSc repository (mark/feature-picell) and a driver application named X2 (src/dm/impls/picell/examples/tutorials/ex1.c).
+Code will likely migrate from X2 into the PETSc library as development progresses.
+X2 is intended to be used to gather initial performance data on modern architectures to guide further data model developments, and to verify the PETSc library code.
 Our initial approach is to exploit the fact that particle distributions, at least from a computational point of view, are relatively uniformly distributed over the domain and our grids are quasi-uniform; this allows for particle distributions that are simply attached to cells of the solver grid, but load is balanced by using a weighted cell partitioning.
-We are not, for instance, supporting multiple processors participating in an individual collision cell, but we could imagine this would be useful eventually.
+We are not, for instance, supporting multiple processes within an individual cell, but we could imagine this would be useful in the future.
 We currently use guide center particles only (i.e., only a parallel velocity, resulting in a 4D method) to simplify charge deposition.
 These two simplifications allow us to reuse particle infrastructure that has been developed for other PETSc PIC users \cite{may2014ptatin} that attach particle to solver cells in the particle push kernel.
+More complex data models with extended halo regions to accommodate gyrokinetic methods (finite shape) and high order (explicit) time integrators, without the use of multiple copies of particle lists, will be required in the near future.
 
-The collision operator, on the right hand side of Vlasov's equation, is a computational intensive non-linear solve in velocity space on each particle cell.
-Flux tubes are a natural choice for these particle cells; these are long, thin subdomains that follow the twisting magnetic field lines around the torus.
+The collision operator, on the right hand side of Vlasov's equation, is a computational intensive nonlinear solve in velocity space on each particle collision cell.
+Flux tubes are a natural choice for these collision cells; these are long, thin subdomains that follow the twisting magnetic field lines around the torus.
 We simplify this process by partitioning particles into non-overlapping subdomains and compute collisions within these sets.
-We do not attempt more sophisticated overlapping particle partitions, which would allow for more accurate particle-particle interactions (e.g., two of our particles could be arbitrarily close to each other and not interact in the collision operator).
+We do not attempt more sophisticated overlapping particle partitions, which would allow for more accurate particle-particle interactions (e.g., two of our particles could be arbitrarily close to each other and not interact in the collision operator with our current algorithm).
 We currently explicitly repartition particles, which in the limit requires all particles be communicated at the collision frequency.
-This simplifies the implementation, because we can reuse the communications kernels used for the left hand side of Vlasov's equation, but future optimizations will most likely involve using some redundant grid storage to reduce communication costs.
-Note, one purpose of this development is to experiment with data models, to base design decisions and optimizations on performance data from modern machines, and not rely on one's intuition about machine models.
+This simplifies the implementation, but future optimizations will most likely involve using some redundant grid storage to reduce particle communication costs, at the expense of more grid communication.
+One purpose of this development is to develop performance models for PIC codes and experiment with algorithms, to base design decisions on performance models as well as data from modern machines.
 
-\clearpage
-Figure \ref{fig:cross} (left) shows an example of four flux tubes on a half torus and Figure \ref{fig:cross} (right) shows an example of half a coarse grid.
-Note, the coarse grids of SITAR are unstructured and can accommodate a real tokamak geometry, but we have not yet generated these grids.
+Figure \ref{fig:cross} (left) shows an example of four flux tubes on a half torus and Figure \ref{fig:cross} (right) shows an example of half a coarse solve grid.
+Note, the coarse grids of SITAR are unstructured and can accommodate a real tokamak geometry, but we have not yet implemented this.
 \begin{figure}[h!]
    \centering
    \includegraphics[width=75mm]{half_grid.jpeg} 
@@ -133,24 +133,25 @@ The fuzzy edges of Figure \ref{fig:cross} (left) are due to the finite number of
 
 In addition to equations solvers, PETSc provides advanced time integrators \cite{KnepleyBrownMcInnesSmithRuppAdams2015b}.
 Fully integrating PETSc's time integrators into X2 is a long term goal.
-This would require a relatively tight integration with PETSc.
+This would require a relatively tight integration of the application with PETSc.
 
-X2 uses Q2 finite element discretization in this initial implementations.
-High order elements are attractive because of their high accuracy for smooth solutions and they provide for larger elements, which are used for data management in X2.
-The solutions of say the Poisson solve in fusion applications, with turbulence, are smooth with respect to the (known) Larmore radius and, in fact, physicists often smooth the results of low order Poisson solvers.
-Our plan is to move to discontinuous Galerkin (DG) methods in the future because they have nice mathematical properties, such as having rigorous theory like finite elements and being conservative line finite volume.
-DG results in systems with many degrees of freedom, a common criticism of these methods, but fusion PIC solvers are highly over provisioned with processing resources, because the grid uses a small amount of the memory relative to the particles.
+X2 currently uses Q2 finite elements to discretized the PDEs.
+High order elements are attractive because of their high accuracy for smooth solutions and they use larger elements, because they in effect are composed of multiple ``cells" and their high accuracy allows them to be larger in physical space.
+We use these elements for data locality in X2 and larger elements results in larger cell particles lists for better vectorization.
+Additionally, the solutions of say the Poisson solve in fusion applications, with turbulence, are smooth with respect to the (known) Larmore radius and, in fact, physicists often smooth the results of low order Poisson solvers to reduce ``noise".
+We plan to move to discontinuous Galerkin (DG) methods in the future because they have attactive mathematical properties, such as having rigorous theory like finite elements and being conservative like finite volume.
+DG results in systems with many degrees of freedom, a common problem of these methods, but fusion PIC solvers are highly over provisioned with processing resources, thus, local work and storage complexity are not critical for these solves.
 
 \section{Incremental Development}
 
 The realization of an engineering relevant full plasma simulation of ITER is a significant multi-year undertaking.
 The development plans for this project are to be both incrementally relevant and engaged with the physics community.
-To this end, early deliverables are important, to encourage physicists to participate and to stay grounded in the real engineering demands of this enterprise.
+To this end, early deliverables are important, to encourage physicists to participate with us and for us to stay grounded in the real engineering demands of this enterprise.
 To this end we see several early areas that our project can contribute:
 \begin{itemize}
-\item Explore data decompositions and collect performance data to help further refine effective distributed data models for fusion PIC applications
-\item Cross code verification of existing fusion PIC codes, without full physics, but with full ITER wall geometries
-\item Performance Verification: Develop performance models of idioms in PIC codes (e.g., equation solvers, particle communications, particle pushing) to help application scientist verify that codes are performing correctly, by understanding the the relative costs of different processes and their sensitivities (derivatives with respect to) machine metrics.
+\item Distributed data model exploration. Explore data decompositions and collect performance data to help further refine effective distributed data models for fusion PIC applications
+\item Code verification. Cross code verification of existing fusion PIC codes, on somewhat simple model problems, but with full ITER wall geometries
+\item Performance Verification.  Develop performance models of idioms in PIC codes (e.g., equation solvers, particle communications, particle pushing) to help application scientist verify that codes are performing correctly, by understanding the the relative costs of different processes and their sensitivities (derivatives with respect to) machine metrics
 \end{itemize}
  
 \bibliographystyle{siamplain}
