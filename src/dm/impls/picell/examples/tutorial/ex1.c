@@ -61,15 +61,13 @@ typedef struct X2ISend_TAG{
   PetscMPIInt proc;
   MPI_Request request;
 } X2ISend;
-
 /*
   General parameters and context
 */
 typedef struct {
   PetscInt      debug;   /* The debugging level, not used */
-  PetscLogEvent events[10];
+  PetscLogEvent events[12];
   PetscInt      currevent;
-  PetscInt      tablesize,tablecount[X2_NION+1]; /* hash table meta-data for proc-send list table */
   PetscInt      bsp_chuncksize;
   /* MPI parallel data */
   MPI_Comm      particlePlaneComm,wComm;
@@ -83,12 +81,10 @@ typedef struct {
   PetscReal dt;
   /* physics */
   PetscErrorCode (**BCFuncs)(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
-  /* char *B0eqFilename[256]; */
   PetscReal massAu; /* =2D0  !mass ratio to proton */
   PetscReal eMassAu; /* =2D-2 */
   PetscReal chargeEu; /* =1D0  ! charge number */
   PetscReal eChargeEu; /* =-1D0 */
-  X2Species species[X2_NION+1]; /* 0: electron, 1:N ions */
   /* particles */
   PetscInt  npart_cell;
   PetscInt  partBuffSize;
@@ -96,6 +92,12 @@ typedef struct {
   PetscInt  collisionPeriod;
   PetscReal max_vpar;
   X2PList   partlists[X2_NION+1]; /* 0: electron, 1:N ions */
+  X2Species species[X2_NION+1]; /* 0: electron, 1:N ions */
+  PetscInt  tablesize,tablecount[X2_NION+1]; /* hash table meta-data for proc-send list table */
+  char      wall_file[128];
+#define X2_WALL_ARRAY_MAX 68 /* ITER file is 67 */
+  float wallEdges[X2_WALL_ARRAY_MAX][2];
+  int   numWallEdges;
 } X2Ctx;
 
 static const PetscReal x2ECharge=1.6022e-19;  /* electron charge (MKS) */
@@ -419,11 +421,20 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->max_vpar = 1.;
   ierr = PetscOptionsReal("-max_vpar", "Maximum parallel velocity", "x2.c",ctx->max_vpar,&ctx->max_vpar,NULL);CHKERRQ(ierr);
 
-  /* model/equations */
-  /* (sizeof(a)/sizeof((a)[0])) */
-  /* run = (sizeof(ctx->B0eqFilename)/sizeof((ctx->B0eqFilename)[0])); */
-  /* ierr = PetscOptionsStringArray("-b0_filename", "Name of equilibrium B field file", "x2.c", ctx->b0_filename, &ctx->b0_filename, &flg);CHKERRQ(ierr); */
-  /* if (!flg) *ctx->B0eqFilename = fname; */
+  {
+    size_t sz; FILE *fp;
+    ierr = PetscStrcpy(ctx->wall_file,"ITER-wall-geo-67.txt");CHKERRQ(ierr);
+    sz = (sizeof(ctx->wall_file)/sizeof((ctx->wall_file)[0]));
+    ierr = PetscOptionsString("-wall_file", "Name of wall .txt file", "x2.c", ctx->wall_file, ctx->wall_file, sz, NULL);CHKERRQ(ierr);
+    fp = fopen(ctx->wall_file, "r");
+    if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Wall file %s not found, use -wall_file FILE_NAME",ctx->wall_file);
+    for (sz=0;sz<X2_WALL_ARRAY_MAX;sz++) {
+      int c = fscanf(fp,"%e %e\n",&ctx->wallEdges[sz][0],&ctx->wallEdges[sz][1]);
+      if (c==EOF) break;
+    }
+    if (sz==X2_WALL_ARRAY_MAX) PetscPrintf(ctx->wComm,"Warning: wall file too large %d, maybe\n",sz);
+    ctx->numWallEdges = sz;
+  }
 
   for (isp = ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) ctx->tablecount[isp] = 0;
 
