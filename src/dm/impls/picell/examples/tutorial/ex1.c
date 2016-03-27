@@ -21,8 +21,6 @@ typedef struct {
   PetscReal  rMinor;
   PetscInt   numMajor; /* number of cells per major circle in the torus */
   PetscReal  innerMult; /* (0,1) percent of the total radius taken by the inner square */
-  /* particle geometry */
-  PetscReal  rMinorParticles;
 } X2GridParticle;
 /* X2Species */
 #define X2_NION 1
@@ -327,9 +325,8 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->species[0].charge=ctx->eChargeEu*x2ECharge;
 
  /* mesh */
-  ctx->particleGrid.rMajor = 620.0; /* cm of ITER */
-  ctx->particleGrid.rMinor = 200.0; /* cm of ITER */
-  ctx->particleGrid.rMinorParticles = 180.0; /* inside rMinor because of grid effects */
+  ctx->particleGrid.rMajor = 6.2; /* cm of ITER */
+  ctx->particleGrid.rMinor = 2.0; /* cm of ITER */
   ctx->particleGrid.nphi = 1;
   ctx->particleGrid.nradius    = 1;
   ctx->particleGrid.ntheta     = 1;
@@ -352,7 +349,6 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsReal("-rMinor", "Minor radius of torus", "x2.c", ctx->particleGrid.rMinor, &ctx->particleGrid.rMinor, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-numMajor", "Number of cells per major circle", "x2.c", ctx->particleGrid.numMajor, &ctx->particleGrid.numMajor, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-innerMult", "Percent of minor radius taken by inner square", "x2.c", ctx->particleGrid.innerMult, &ctx->particleGrid.innerMult, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsReal("-rMinorParticles", "Minor radius of plasma particles initialization", "x2.c", ctx->particleGrid.rMinorParticles, &ctx->particleGrid.rMinorParticles, NULL);CHKERRQ(ierr);
 
   ierr = PetscOptionsInt("-nphi_particles", "Number of planes for particle mesh", "x2.c", ctx->particleGrid.nphi, &ctx->particleGrid.nphi, &phiFlag);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-nradius_particles", "Number of radial cells for particle mesh", "x2.c", ctx->particleGrid.nradius, &ctx->particleGrid.nradius, &radFlag);CHKERRQ(ierr);
@@ -505,7 +501,7 @@ PetscErrorCode cylindricalToCart(PetscReal a_R, PetscReal a_Z, PetscReal a_phi, 
 #define __FUNCT__ "X2GridParticleGetProc_FluxTube"
 PetscErrorCode X2GridParticleGetProc_FluxTube(DM d, const X2GridParticle *grid, PetscReal psi, PetscReal theta, PetscReal phi, PetscReal c[], PetscMPIInt *pe, PetscInt *elem)
 {
-  const PetscReal rminor=grid->rMinorParticles;
+  const PetscReal rminor=grid->rMinor;
   const PetscReal dphi=2.*M_PI/(PetscReal)grid->nphi;
   const PetscReal dth=2.*M_PI/(PetscReal)grid->ntheta;
   PetscMPIInt planeIdx,irs,iths;
@@ -1019,7 +1015,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
   PetscErrorCode ierr;
   PetscInt isp,nCellsLoc,my0,irs,iths,gid,ii,np,dim,one=1;
   const PetscReal dth=(2.*M_PI)/(PetscReal)ctx->particleGrid.ntheta,rone=1.;
-  const PetscReal dphi=2.*M_PI/(PetscReal)ctx->particleGrid.nphi,rmin=ctx->particleGrid.rMinorParticles; /* rmin for particles < rmin */
+  const PetscReal dphi=2.*M_PI/(PetscReal)ctx->particleGrid.nphi,rmin=ctx->particleGrid.rMinor; /* rmin for particles < rmin */
   const PetscReal phi1 = (PetscReal)ctx->ParticlePlaneIdx*dphi + 1.e-8,rmaj=ctx->particleGrid.rMajor;
   const PetscInt  nPartCells_plane = ctx->particleGrid.ntheta*ctx->particleGrid.nradius; /* nPartCells_plane == ctx->npe_particlePlane */
   const PetscReal dx = pow( (M_PI*rmin*rmin/4.0) * rmaj*2.*M_PI / (PetscReal)(ctx->npe*ctx->npart_cell), 0.333); /* lenth of a particle, approx. */
@@ -1303,8 +1299,16 @@ static PetscErrorCode DMPlexCreatePICellTorus (MPI_Comm comm, X2GridParticle *pa
   PetscFunctionReturn(0);
 }
 
+static PetscReal findWallPoint(const float wallEdges[][2], const int numWallEdges)
+{
+  PetscReal rt = 2;
+
+
+  return rt;
+}
+
 static void PICellCircleInflate(PetscReal r, PetscReal innerMult, PetscReal x, PetscReal y,
-                                PetscReal *outX, PetscReal *outY)
+                                PetscReal *outX, PetscReal *outY, PetscReal rMinor, const float wallEdges[][2], const int numWallEdges)
 {
   PetscReal l       = x + y;
   PetscReal rfrac   = l / r;
@@ -1315,6 +1319,7 @@ static void PICellCircleInflate(PetscReal r, PetscReal innerMult, PetscReal x, P
     PetscReal cosphi  = cos(phi);
     PetscReal sinphi  = sin(phi);
     /* get real rt = d/rMinor from phi tokamak */
+    PetscReal rt = findWallPoint(wallEdges, numWallEdges)/rMinor;
     PetscReal isect   = innerMult / (cosphi + sinphi);
     PetscReal outfrac = (1. - rfrac) / (1. - innerMult);
 
@@ -1322,10 +1327,10 @@ static void PICellCircleInflate(PetscReal r, PetscReal innerMult, PetscReal x, P
 
     outfrac = (1. - rfrac) / (1. - innerMult);
 
-    *outX = r * (outfrac * isect + (1. - outfrac)) * cosphi;
-    *outY = r * (outfrac * isect + (1. - outfrac)) * sinphi;
-    /* *outX = r * (outfrac * isect + (1. - outfrac)*rt) * cosphi; */
-    /* *outY = r * (outfrac * isect + (1. - outfrac)*rt) * sinphi; */
+    /* *outX = r * (outfrac * isect + (1. - outfrac)) * cosphi; */
+    /* *outY = r * (outfrac * isect + (1. - outfrac)) * sinphi; */
+    *outX = r * (outfrac * isect + (1. - outfrac)*rt) * cosphi;
+    *outY = r * (outfrac * isect + (1. - outfrac)*rt) * sinphi;
   }
   else {
     PetscReal halfdiffl  = (r * innerMult - l) / 2.;
@@ -1349,9 +1354,10 @@ static void PICellCircleInflate(PetscReal r, PetscReal innerMult, PetscReal x, P
 
 #undef __FUNCT__
 #define __FUNCT__ "GeometryPICellTorus"
-static PetscErrorCode GeometryPICellTorus(PetscInt dim, const PetscReal abc[], PetscReal xyz[], void *ctx)
+static PetscErrorCode GeometryPICellTorus(PetscInt dim, const PetscReal abc[], PetscReal xyz[], void *a_ctx)
 {
-  X2GridParticle *params = (X2GridParticle *) ctx;
+  X2Ctx *ctx = (X2Ctx*)a_ctx;
+  X2GridParticle *params = &ctx->particleGrid;
   PetscReal rMajor    = params->rMajor;
   PetscReal rMinor    = params->rMinor;
   PetscReal innerMult = params->innerMult;
@@ -1402,7 +1408,7 @@ static PetscErrorCode GeometryPICellTorus(PetscInt dim, const PetscReal abc[], P
 
     absR = PetscAbsReal(r);
     absZ = PetscAbsReal(z);
-    PICellCircleInflate(rMinor,innerMult,absR,absZ,&absR,&absZ);
+    PICellCircleInflate(rMinor,innerMult,absR,absZ,&absR,&absZ,rMinor,ctx->wallEdges,ctx->numWallEdges);
     r = (r > 0) ? absR : -absR;
     z = (z > 0) ? absZ : -absZ;
   }
@@ -1489,7 +1495,7 @@ int main(int argc, char **argv)
         dm   = dmConv;
         ierr = DMIsForest(dm,&isForest);CHKERRQ(ierr);
         if (isForest) {
-          ierr = DMForestSetBaseCoordinateMapping(dm,GeometryPICellTorus,&ctx.particleGrid);CHKERRQ(ierr);
+          ierr = DMForestSetBaseCoordinateMapping(dm,GeometryPICellTorus,&ctx);CHKERRQ(ierr);
         }
       }
     }
