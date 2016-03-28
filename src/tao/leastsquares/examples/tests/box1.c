@@ -72,6 +72,9 @@ int main(int argc,char **argv)
   PetscInt       w_row[NOBSERVATIONS]; /* explicit weights */
   PetscInt       w_col[NOBSERVATIONS];
   PetscReal      w_vals[NOBSERVATIONS];
+  PetscInt       w2_row[NOBSERVATIONS*NOBSERVATIONS]; /* explicit weights */
+  PetscInt       w2_col[NOBSERVATIONS*NOBSERVATIONS];
+  PetscReal      w2_vals[NOBSERVATIONS*NOBSERVATIONS];
   PetscBool      flg;
   AppCtx         user;               /* user-defined work context */
 
@@ -90,6 +93,18 @@ int main(int argc,char **argv)
   for (i=0;i<NOBSERVATIONS;i++) {
     w_row[i]=i; w_col[i]=i; w_vals[i]=1.0;
   }
+  w2_row[0]=w2_row[1]=w2_row[2]=0;
+  w2_row[3]=w2_row[4]=1;
+  w2_row[5]=w2_row[6]=2;
+
+  w2_col[0]=w2_col[3]=w2_col[5]=0;
+  w2_col[1]=w2_col[4]=1;
+  w2_col[2]=w2_col[6]=2;
+
+  w2_vals[0]=4; w2_vals[1]=2; w2_vals[2]=1;
+  w2_vals[3]=2; w2_vals[4]=4;
+  w2_vals[5]=1; w2_vals[6]=2;
+
 
   /* Create the Jacobian matrix. */
   ierr = MatCreateSeqDense(MPI_COMM_SELF,NOBSERVATIONS,NPARAMETERS,NULL,&J);CHKERRQ(ierr);
@@ -110,6 +125,8 @@ int main(int argc,char **argv)
     ierr = TaoSetSeparableObjectiveWeights(tao,w,0,NULL,NULL,NULL);CHKERRQ(ierr);
   } else if (wtype == 2) {
     ierr = TaoSetSeparableObjectiveWeights(tao,NULL,NOBSERVATIONS,w_row,w_col,w_vals);CHKERRQ(ierr);
+  } else if (wtype == 3) {
+    ierr = TaoSetSeparableObjectiveWeights(tao,NULL,7,w2_row,w2_col,w2_vals);CHKERRQ(ierr);
   }
 
   /* Check for any TAO command line arguments */
@@ -138,22 +155,26 @@ int main(int argc,char **argv)
 PetscErrorCode EvaluateFunction(Tao tao, Vec X, Vec F, void *ptr)
 {
   PetscInt       i;
-  PetscReal      *x,*f;
+  PetscReal      *x,*f,Xm[3],Fm[3];
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = VecGetArray(X,&x);CHKERRQ(ierr);
   ierr = VecGetArray(F,&f);CHKERRQ(ierr);
+  Xm[0]=1; Xm[1]=10; Xm[2]=1;
+  for (i=0;i<NOBSERVATIONS;i++) {
+    Fm[0] = exp(-0.1*Xm[0]) - exp(-0.1*Xm[1]) - Xm[2]*(exp(-0.1) + exp(-1.0));
+    Fm[1] = exp(-0.2*Xm[0]) - exp(-0.2*Xm[1]) - Xm[2]*(exp(-0.2) + exp(-2.0));
+    Fm[2] = exp(-0.3*Xm[0]) - exp(-0.3*Xm[1]) - Xm[2]*(exp(-0.3) + exp(-3.0));
+  }
 
   for (i=0;i<NOBSERVATIONS;i++) {
-    f[0] = exp(-0.1*x[0]) - exp(-0.1*x[1]) - x[2]*(exp(-0.1) + exp(-1.0));
-    f[1] = exp(-0.2*x[0]) - exp(-0.2*x[1]) - x[2]*(exp(-0.2) + exp(-2.0));
-    f[2] = exp(-0.3*x[0]) - exp(-0.3*x[1]) - x[2]*(exp(-0.3) + exp(-3.0));
+    f[0] = exp(-0.1*x[0]) - exp(-0.1*x[1]) - x[2]*(exp(-0.1) + exp(-1.0))-Fm[0];
+    f[1] = exp(-0.2*x[0]) - exp(-0.2*x[1]) - x[2]*(exp(-0.2) + exp(-2.0))-Fm[1];
+    f[2] = exp(-0.3*x[0]) - exp(-0.3*x[1]) - x[2]*(exp(-0.3) + exp(-3.0))-Fm[2];
   }
   ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
   ierr = VecRestoreArray(F,&f);CHKERRQ(ierr);
-  ierr = VecView(F,0);
-
   PetscFunctionReturn(0);
 }
 
@@ -167,9 +188,9 @@ PetscErrorCode FormStartingPoint(Vec X)
 
   PetscFunctionBegin;
   ierr = VecGetArray(X,&x);CHKERRQ(ierr);
-  x[0]=1.0;
-  x[1]=10.0;
-  x[2]=1.0;
+  x[0]=8.0;
+  x[1]=8.0;
+  x[2]=8.0;
   ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
