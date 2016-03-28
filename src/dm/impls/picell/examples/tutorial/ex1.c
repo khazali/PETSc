@@ -10,6 +10,11 @@ static char help[] = "X2: A partical in cell code for tokamak plasmas using PICe
 #include <petscds.h>
 #include <petscdmforest.h>
 /* #include <petscoptions.h> */
+static PetscReal s_mesh_origin[2];
+static char      s_wall_file[128];
+#define X2_WALL_ARRAY_MAX 68 /* ITER file is 67 */
+static float     s_wallEdges[X2_WALL_ARRAY_MAX][2];
+static int       s_numWallEdges;
 
 typedef struct {
   /* particle grid sizes */
@@ -92,10 +97,6 @@ typedef struct {
   X2PList   partlists[X2_NION+1]; /* 0: electron, 1:N ions */
   X2Species species[X2_NION+1]; /* 0: electron, 1:N ions */
   PetscInt  tablesize,tablecount[X2_NION+1]; /* hash table meta-data for proc-send list table */
-  char      wall_file[128];
-#define X2_WALL_ARRAY_MAX 68 /* ITER file is 67 */
-  float wallEdges[X2_WALL_ARRAY_MAX][2];
-  int   numWallEdges;
 } X2Ctx;
 
 static const PetscReal x2ECharge=1.6022e-19;  /* electron charge (MKS) */
@@ -324,7 +325,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->species[0].mass=ctx->eMassAu*x2ProtMass;
   ctx->species[0].charge=ctx->eChargeEu*x2ECharge;
 
- /* mesh */
+  /* mesh */
   ctx->particleGrid.rMajor = 6.2; /* cm of ITER */
   ctx->particleGrid.rMinor = 2.0; /* cm of ITER */
   ctx->particleGrid.nphi = 1;
@@ -418,18 +419,28 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsReal("-max_vpar", "Maximum parallel velocity", "x2.c",ctx->max_vpar,&ctx->max_vpar,NULL);CHKERRQ(ierr);
 
   {
-    size_t sz; FILE *fp;
-    ierr = PetscStrcpy(ctx->wall_file,"ITER-wall-geo-67.txt");CHKERRQ(ierr);
-    sz = (sizeof(ctx->wall_file)/sizeof((ctx->wall_file)[0]));
-    ierr = PetscOptionsString("-wall_file", "Name of wall .txt file", "x2.c", ctx->wall_file, ctx->wall_file, sz, NULL);CHKERRQ(ierr);
-    fp = fopen(ctx->wall_file, "r");
-    if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Wall file %s not found, use -wall_file FILE_NAME",ctx->wall_file);
+    size_t sz,k; FILE *fp; PetscInt two = 2; char str[256],str2[256];
+    ierr = PetscStrcpy(s_wall_file,"ITER-wall-geo-67.txt");CHKERRQ(ierr);
+    sz = (sizeof(s_wall_file)/sizeof((s_wall_file)[0]));
+    ierr = PetscOptionsString("-wall_file", "Name of wall .txt file", "x2.c", s_wall_file, s_wall_file, sz, NULL);CHKERRQ(ierr);
+    fp = fopen(s_wall_file, "r");
+    if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Wall file %s not found, use -wall_file FILE_NAME",s_wall_file);
     for (sz=0;sz<X2_WALL_ARRAY_MAX;sz++) {
-      int c = fscanf(fp,"%e %e\n",&ctx->wallEdges[sz][0],&ctx->wallEdges[sz][1]);
-      if (c==EOF) break;
+      if (!fgets(str,256,fp)) break;
+      k = sscanf(str,"%e %e %s\n",&s_wallEdges[sz][0],&s_wallEdges[sz][1],str2);
+      s_wallEdges[sz][0] -= ctx->particleGrid.rMajor;
+      if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading wall file",k);
+      if (k==3) {
+        PetscBool flg;
+        PetscStrcmp("skip",str2,&flg);
+        if (flg) sz--; /* skip this line */
+      }
     }
     if (sz==X2_WALL_ARRAY_MAX) PetscPrintf(ctx->wComm,"Warning: wall file too large %d, maybe\n",sz);
-    ctx->numWallEdges = sz;
+    s_numWallEdges = sz;
+    s_mesh_origin[0] = .0;
+    s_mesh_origin[1] = .0;
+    PetscOptionsRealArray("-mesh_origin","Offset of origin of mesh","x2.c",s_mesh_origin,&two,NULL);
   }
 
   for (isp = ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) ctx->tablecount[isp] = 0;
@@ -1250,7 +1261,12 @@ static PetscErrorCode DMPlexCreatePICellTorus (MPI_Comm comm, X2GridParticle *pa
           double mult = (j < 4) ? innerMult : 1.;
 
           r = rMajor + mult * rMinor * cos(j * M_PI_2);
-          z = mult * rMinor * sin(j * M_PI_2);
+          z = mult * rMinor * sin(j * M_PI_2)         ;
+
+          if (j < 4) { /* just shift center block */
+            r += s_mesh_origin[0];
+            z += s_mesh_origin[1];
+          }
 
           coords[i][j][0] = cosphi * r;
           coords[i][j][1] = sinphi * r;
@@ -1299,57 +1315,38 @@ static PetscErrorCode DMPlexCreatePICellTorus (MPI_Comm comm, X2GridParticle *pa
   PetscFunctionReturn(0);
 }
 
-static PetscReal findWallPoint(const float wallEdges[][2], const int numWallEdges)
+static PetscErrorCode findWallPoint( const PetscReal X, const PetscReal Y, PetscReal *outX, PetscReal *outY)
 {
-  PetscReal rt = 2;
-
-
-  return rt;
-}
-
-static void PICellCircleInflate(PetscReal r, PetscReal innerMult, PetscReal x, PetscReal y,
-                                PetscReal *outX, PetscReal *outY, PetscReal rMinor, const float wallEdges[][2], const int numWallEdges)
-{
-  PetscReal l       = x + y;
-  PetscReal rfrac   = l / r;
-
-  if (rfrac >= innerMult) {
-    PetscReal phifrac = l ? (y / l) : 0.5;
-    PetscReal phi     = phifrac * M_PI_2;
-    PetscReal cosphi  = cos(phi);
-    PetscReal sinphi  = sin(phi);
-    /* get real rt = d/rMinor from phi tokamak */
-    PetscReal rt = findWallPoint(wallEdges, numWallEdges)/rMinor;
-    PetscReal isect   = innerMult / (cosphi + sinphi);
-    PetscReal outfrac = (1. - rfrac) / (1. - innerMult);
-
-    rfrac = pow(innerMult,outfrac);
-
-    outfrac = (1. - rfrac) / (1. - innerMult);
-
-    /* *outX = r * (outfrac * isect + (1. - outfrac)) * cosphi; */
-    /* *outY = r * (outfrac * isect + (1. - outfrac)) * sinphi; */
-    *outX = r * (outfrac * isect + (1. - outfrac)*rt) * cosphi;
-    *outY = r * (outfrac * isect + (1. - outfrac)*rt) * sinphi;
+  PetscInt ii;
+  const PetscReal theta = atan2(Y,X);
+  PetscFunctionBeginUser;
+  /* PetscPrintf(PETSC_COMM_WORLD,"[%D]findWallPoint: X=%g Y=%g\n",-1,*outX,*outY); */
+  for (ii=0;ii<s_numWallEdges-1;ii++) {
+    PetscReal x1 = s_wallEdges[ii  ][0] - s_mesh_origin[0], y1 = s_wallEdges[ii  ][1] - s_mesh_origin[1];
+    PetscReal x2 = s_wallEdges[ii+1][0] - s_mesh_origin[0], y2 = s_wallEdges[ii+1][1] - s_mesh_origin[1];
+    PetscReal theta1 = atan2(y1, x1);
+    PetscReal theta2 = atan2(y2, x2);
+    if ( theta1-theta2 > M_PI-theta1 ) theta2 += 2.*M_PI; /* gone around */
+    /* PetscPrintf(PETSC_COMM_WORLD,"\t[%D]findWallPoint: %3d) theta1=%g theta=%g theta2=%g\n",-1,ii+1,theta1*180./M_PI,theta*180./M_PI,theta2*180./M_PI); */
+    if (theta1 >= theta2) {
+      // PetscPrintf(PETSC_COMM_WORLD,"\t[%D] ERROR theta1 > theta2: theta1 = %g theta2 = %g\n",-1,theta1*180./M_PI,theta2*180./M_PI);
+    }
+    else if (theta >= theta1 && theta < theta2) {
+      /* intersection of two lines (orig,[r,z]) and (x1,x2) */
+      /* PetscPrintf(PETSC_COMM_WORLD,"\t[%D]findWallPoint: found %3d) theta1=%g theta=%g theta2=%g\n",-1,ii+2,theta1*180./M_PI,theta*180./M_PI,theta2*180./M_PI); */
+      PetscReal x3 = s_mesh_origin[0], y3 = s_mesh_origin[1];
+      /* PetscReal x3 = 0., y3 = 0.; */
+      PetscReal x4 = X, y4 = Y;
+      PetscReal t1 = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4);
+      *outX = ((x1*y2-y1*x2)*(x3-x4) - (x1-x2)*(x3*y4 - y3*x4))/t1;
+      *outY = ((x1*y2-y1*x2)*(y3-y4) - (y1-y2)*(x3*y4 - y3*x4))/t1;
+      break;
+    }
   }
-  else {
-    PetscReal halfdiffl  = (r * innerMult - l) / 2.;
-    PetscReal phifrac    = (y + halfdiffl) / (r * innerMult);
-    PetscReal phi        = phifrac * M_PI_2;
-    PetscReal m          = y - x;
-    PetscReal halfdiffm  = (r * innerMult - m) / 2.;
-    PetscReal thetafrac  = (y + halfdiffm) / (r * innerMult);
-    PetscReal theta      = thetafrac * M_PI_2;
-    PetscReal cosphi     = cos(phi);
-    PetscReal sinphi     = sin(phi);
-    PetscReal ymxcoord   = sinphi / (cosphi + sinphi);
-    PetscReal costheta   = cos(theta);
-    PetscReal sintheta   = sin(theta);
-    PetscReal xpycoord   = sintheta / (costheta + sintheta);
-
-    *outX = r * innerMult * (xpycoord - ymxcoord);
-    *outY = r * innerMult * (ymxcoord + xpycoord - 1.);
-  }
+  if (ii==s_numWallEdges) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"findWallPoint: Point not found");
+  PetscPrintf(PETSC_COMM_WORLD,"\t\t[%D]findWallPoint: (%g, %g) --> (%g, %g)\n",-1,X,Y,*outX,*outY);
+  /* PetscSleep(1); exit(12); */
+  PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
@@ -1404,13 +1401,49 @@ static PetscErrorCode GeometryPICellTorus(PetscInt dim, const PetscReal abc[], P
    */
   r -= rMajor; /* now centered inside torus */
   {
-    PetscReal absR, absZ;
-
+    PetscReal absR,absZ,l,rfrac;
     absR = PetscAbsReal(r);
     absZ = PetscAbsReal(z);
-    PICellCircleInflate(rMinor,innerMult,absR,absZ,&absR,&absZ,rMinor,ctx->wallEdges,ctx->numWallEdges);
-    r = (r > 0) ? absR : -absR;
-    z = (z > 0) ? absZ : -absZ;
+    l = absR + absZ;
+    rfrac = l / rMinor;
+    if (rfrac >= innerMult) { /* inflate */
+      if (1) {
+        PetscErrorCode ierr = findWallPoint(r, z, &r, &z);CHKERRQ(ierr);
+      }
+      else {
+        PetscReal phifrac = l ? (absZ / l) : 0.5;
+        PetscReal phi     = phifrac * M_PI_2;
+        PetscReal cosphi  = cos(phi);
+        PetscReal sinphi  = sin(phi);
+        PetscReal isect   = innerMult / (cosphi + sinphi);
+        PetscReal outfrac = (1. - rfrac) / (1. - innerMult);
+        rfrac = pow(innerMult,outfrac);
+        outfrac = (1. - rfrac) / (1. - innerMult);
+        absR = rMinor * (outfrac * isect + (1. - outfrac)) * cosphi;
+        absZ = rMinor * (outfrac * isect + (1. - outfrac)) * sinphi;
+        r = (r > 0) ? absR : -absR;
+        z = (z > 0) ? absZ : -absZ;
+      }
+    }
+    else {
+      PetscReal halfdiffl  = (rMinor * innerMult - l) / 2.;
+      PetscReal phifrac    = (absZ + halfdiffl) / (rMinor * innerMult);
+      PetscReal phi        = phifrac * M_PI_2;
+      PetscReal m          = absZ - absR;
+      PetscReal halfdiffm  = (rMinor * innerMult - m) / 2.;
+      PetscReal thetafrac  = (absZ + halfdiffm) / (rMinor * innerMult);
+      PetscReal theta      = thetafrac * M_PI_2;
+      PetscReal cosphi     = cos(phi);
+      PetscReal sinphi     = sin(phi);
+      PetscReal ymxcoord   = sinphi / (cosphi + sinphi);
+      PetscReal costheta   = cos(theta);
+      PetscReal sintheta   = sin(theta);
+      PetscReal xpycoord   = sintheta / (costheta + sintheta);
+      absR = rMinor * innerMult * (xpycoord - ymxcoord);
+      absZ = rMinor * innerMult * (ymxcoord + xpycoord - 1.);
+      r = (r > 0) ? absR : -absR;
+      z = (z > 0) ? absZ : -absZ;
+    }
   }
   r += rMajor; /* centered back at the origin */
 
