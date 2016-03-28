@@ -640,11 +640,11 @@ matrices.
 \subsection{Nonlinear Least Squares}\label{sec:evalsof}
 For nonlinear least squares applications, we are solving
 the optimization problem
-\[
-\begin{array}{ll}
-\displaystyle \min_{x} & \displaystyle \sum_i (f_i(x) - d_i)^2.
-\end{array}
-\]
+\begin{equation}
+\displaystyle \min_{x} \displaystyle \sum_i (f_i(x) - d_i)^2.
+\label{eq:noweights}
+\end{equation}
+
 For these problems, the objective function value should be computed as a 
 vector of residuals, $f_i(x) - d_i$, for better algorithmic results using 
 a separable objective function, computed with a function of the form
@@ -674,11 +674,43 @@ This function can be registered with TAO by using the function
 The first argument is the TAO solver object, the second and third arguments
 are the Mat object where the Jacobian will be stored and the Mat object
 that will be used for the preconditioning (they may be the same). The
-fourth 
-argument is the function that evaluates the Jacobian, 
+fourth
+argument is the function that evaluates the Jacobian,
 and the fifth argument is a pointer to a user defined context,
 cast as a {\tt void*} pointer.
 \end{comment}
+
+There is also an option for setting the weights on the residuals used, either
+solving the optimization problem
+\begin{equation}
+\displaystyle \min_{x} \displaystyle \sum_i \left( \frac{f_i(x) - d_i}{\sigma_i}\right)^2.
+\label{eq:diagweights}
+\end{equation}
+
+or more generally,
+\begin{equation}
+\displaystyle \min_{x} \displaystyle \sum_{i,j} \frac{(f_i(x) - d_i)(f_j(x)- d_j)}{\sigma_i \sigma_j}.
+\label{eq:generalweights}
+\end{equation}
+
+
+The weights ($\sigma$) can be specified in the first case with a vector, or in
+the second case with arrays of indices and values using the
+\findex{TaoSetSeparableObjectiveWeights()}
+\begin{verbatim}
+  TaoSetSeparableObjectiveWeights(Tao, Vec, PetscInt,
+                         PetscInt*, PetscInt*, PetscReal *);
+\end{verbatim}
+routine.
+The first argument is the TAO solver object, other arguments depend on which
+version of weights is being used.
+If solving \ref{eq:diagweights}, the second argument is the vector
+of weights desired for computing the residuals, the other arguments should be \texttt{NULL}.
+If solving \ref{eq:generalweights}, the second argument should be
+\texttt{NULL}, the third argument will be the number of nonzero weights, the fourth and fifth will be the arrays of $i$ and $j$ indices used for identifying the nonzero $\sigma_{i,j}$, and the sixth argument will be a one-dimensional array of the $\sigma$ values.
+
+Note that solving \ref{eq:noweights}, solving \ref{eq:diagweights} using a weight vector of all ones, and solving \ref{eq:generalweights} using an identity
+matrix for weights will be equivalent problems.
 
 
 
