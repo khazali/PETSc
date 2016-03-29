@@ -1312,35 +1312,47 @@ static PetscErrorCode DMPlexCreatePICellTorus (MPI_Comm comm, X2GridParticle *pa
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode findWallPoint( const PetscReal X, const PetscReal Y, PetscReal *outX, PetscReal *outY)
+static PetscErrorCode findWallPoint( const PetscReal rfrac, const PetscReal inner, const PetscReal X, const PetscReal Y, PetscReal *outX, PetscReal *outY)
 {
   PetscInt ii;
-  const PetscReal theta = atan2(Y,X);
+  PetscReal theta = atan2(Y,X);
   PetscFunctionBeginUser;
-  PetscPrintf(PETSC_COMM_WORLD,"[%D]findWallPoint: X=%g Y=%g\n",-1,*outX,*outY);
+  if (theta < 0. ) theta += 2.*M_PI; /* 0 <= theta < 2pi */
+  /* PetscMPIInt rank; */
+  /* MPI_Comm_rank(PETSC_COMM_WORLD, &rank); */
+  /* PetscPrintf(PETSC_COMM_WORLD,"[%D]findWallPoint: X=%g Y=%g\n",rank,*outX,*outY); */
   for (ii=0;ii<s_numWallEdges-1;ii++) {
     PetscReal x1 = s_wallEdges[ii  ][0], y1 = s_wallEdges[ii  ][1];
     PetscReal x2 = s_wallEdges[ii+1][0], y2 = s_wallEdges[ii+1][1];
     PetscReal theta1 = atan2(y1, x1);
     PetscReal theta2 = atan2(y2, x2);
     if ( theta1-theta2 > M_PI-theta1 ) theta2 += 2.*M_PI; /* gone around */
-    PetscPrintf(PETSC_COMM_WORLD,"\t[%D]findWallPoint: %3d) theta1=%g theta=%g theta2=%g\n",-1,ii+1,theta1*180./M_PI,theta*180./M_PI,theta2*180./M_PI);
-    if (theta1 >= theta2) {
-      PetscPrintf(PETSC_COMM_WORLD,"\t[%D] %d) ERROR theta1 > theta2: theta1 = %g theta2 = %g\n",-1,ii+1,theta1*180./M_PI,theta2*180./M_PI);
+    if (theta1 < 0. ) {
+      theta1 += 2.*M_PI; theta2 += 2.*M_PI; /* 0 <= theta < 2pi */
     }
-    else if (theta >= theta1 && theta < theta2) {
+    /* PetscPrintf(PETSC_COMM_WORLD,"\t[%D]findWallPoint: %3d) theta1=%g theta=%g theta2=%g\n",rank,ii+1,theta1*180./M_PI,theta*180./M_PI,theta2*180./M_PI); */
+    if (theta1 >= theta2) {
+      PetscPrintf(PETSC_COMM_WORLD,"\t\t[%D] %d) ERROR theta1 > theta2: theta1 = %g theta2 = %g\n",-1,ii+1,theta1*180./M_PI,theta2*180./M_PI);
+    }
+    else if (theta >= theta1 && theta <= theta2) {
       /* intersection of two lines (orig,[r,z]) and (x1,x2) */
-      PetscPrintf(PETSC_COMM_WORLD,"\t[%D]findWallPoint: %3d) FOUND theta1=%g theta=%g theta2=%g\n",-1,ii+2,theta1*180./M_PI,theta*180./M_PI,theta2*180./M_PI);
+      /* PetscPrintf(PETSC_COMM_WORLD,"\t\t\t[%D]findWallPoint: %3d) FOUND theta1=%g theta=%g theta2=%g\n",rank,ii+2,theta1*180./M_PI,theta*180./M_PI,theta2*180./M_PI); */
       PetscReal x3 = 0., y3 = 0.;
       PetscReal x4 = X, y4 = Y;
       PetscReal t1 = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4), t2 = (x3*y4 - y3*x4), t3 = (x1*y2-y1*x2);
-      *outX = (t3*(x3-x4) - (x1-x2)*t2)/t1;
-      *outY = (t3*(y3-y4) - (y1-y2)*t2)/t1;
+      PetscReal wallx = (t3*(x3-x4) - (x1-x2)*t2)/t1;
+      PetscReal wally = (t3*(y3-y4) - (y1-y2)*t2)/t1;
+      PetscReal radius = sqrt(wallx*wallx + wally*wally), f = (inner + (radius-inner)*rfrac)/radius;
+      *outX = f*wallx;
+      *outY = f*wally;
       break;
     }
   }
-  if (ii==s_numWallEdges-1) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"findWallPoint: Point not found");
-  PetscPrintf(PETSC_COMM_WORLD,"\t\t[%D]findWallPoint: (%g, %g) --> (%g, %g) (idx:%d/%d)\n",-1,X,Y,*outX,*outY,ii,s_numWallEdges);
+  if (ii==s_numWallEdges-1) {
+    SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"findWallPoint: Point not found");
+    /* PetscPrintf(PETSC_COMM_WORLD,"\t\t\t\t[%D] %d) ERROR Point not found: theta = %g\n",rank,ii+1,theta*180./M_PI); */
+  }
+  /* PetscPrintf(PETSC_COMM_WORLD,"\t\t\t\t[%D]findWallPoint: (%g, %g) --> (%g, %g) (idx:%d/%d)\n",rank,X,Y,*outX,*outY,ii,s_numWallEdges); */
   /* PetscSleep(1); exit(12); */
   PetscFunctionReturn(0);
 }
@@ -1402,23 +1414,32 @@ static PetscErrorCode GeometryPICellTorus(PetscInt dim, const PetscReal abc[], P
     absZ = PetscAbsReal(z);
     l = absR + absZ;
     rfrac = l / rMinor;
-    if (rfrac > innerMult*1.0000001) { /* inflate */
-      if (0) {
-        PetscPrintf(PETSC_COMM_WORLD,"***[%D]GeometryPICellTorus: rfrac-innerMult=%g rfrac=%g innerMult=%g\n",-1,rfrac-innerMult,rfrac,innerMult);
-        PetscErrorCode ierr = findWallPoint(r, z, &r, &z);CHKERRQ(ierr);
+    if (rfrac > innerMult*1.0000001) { /* inflate, skip square == innerMult */
+      PetscReal phifrac = l ? (absZ / l) : 0.5;
+      PetscReal phi     = phifrac * M_PI_2;
+      PetscReal cosphi  = cos(phi);
+      PetscReal outfrac = (1. - rfrac) / (1. - innerMult);
+      PetscReal rfrac2 = pow(innerMult,outfrac);
+      outfrac = (1. - rfrac2) / (1. - innerMult);
+      if (1) {
+        /* PetscReal oz=z,or=r; */
+        PetscReal x1 = 0.,               y1 = rMinor*innerMult; /* edge of inner box */
+        PetscReal x2 = rMinor*innerMult, y2 = 0.;
+        PetscReal x3 = 0.,   y3 = 0.;    /* vector to wall */
+        PetscReal x4 = absR, y4 = absZ;
+        PetscReal t1 = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4), t2 = (x3*y4 - y3*x4), t3 = (x1*y2-y1*x2);
+        PetscReal px = (t3*(x3-x4) - (x1-x2)*t2)/t1;
+        PetscReal py = (t3*(y3-y4) - (y1-y2)*t2)/t1;
+        PetscReal inner = sqrt(px*px + py*py);
+        PetscErrorCode ierr = findWallPoint(1. - outfrac, inner, r, z, &r, &z);CHKERRQ(ierr);
+        /* PetscPrintf(PETSC_COMM_WORLD,"[%D]GeometryPICellTorus: (%g, %g) --> (%g, %g) phi=%g inner=%g px=%g py=%g fact=%g innerMult=%g absR=%g\n",-1,or,oz,r,z,phi*180./M_PI,inner,px,py,1. - outfrac,innerMult,absR); */
       }
       else {
-        PetscReal phifrac = l ? (absZ / l) : 0.5;
-        PetscReal phi     = phifrac * M_PI_2;
-        PetscReal cosphi  = cos(phi);
         PetscReal sinphi  = sin(phi);
         PetscReal isect   = innerMult / (cosphi + sinphi);
-        PetscReal outfrac = (1. - rfrac) / (1. - innerMult);
-        rfrac = pow(innerMult,outfrac);
-        outfrac = (1. - rfrac) / (1. - innerMult);
         absR = rMinor * (outfrac * isect + (1. - outfrac)) * cosphi;
         absZ = rMinor * (outfrac * isect + (1. - outfrac)) * sinphi;
-PetscPrintf(PETSC_COMM_WORLD,"\t\t[%D]GeometryPICellTorus: no ITER (%g, %g) --> (%g, %g)\n",-1,r,z,(r > 0) ? absR : -absR,(z > 0) ? absZ : -absZ);
+        PetscPrintf(PETSC_COMM_WORLD,"\t\t[%D]GeometryPICellTorus: no ITER (%g, %g) --> (%g, %g)\n",-1,r,z,(r > 0) ? absR : -absR,(z > 0) ? absZ : -absZ);
         r = (r > 0) ? absR : -absR;
         z = (z > 0) ? absZ : -absZ;
       }
