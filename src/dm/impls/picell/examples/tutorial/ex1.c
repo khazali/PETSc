@@ -10,8 +10,6 @@ static char help[] = "X2: A partical in cell code for tokamak plasmas using PICe
 #include <petscds.h>
 #include <petscdmforest.h>
 /* #include <petscoptions.h> */
-static PetscReal s_mesh_origin[2];
-static char      s_wall_file[128];
 #define X2_WALL_ARRAY_MAX 68 /* ITER file is 67 */
 static float     s_wallEdges[X2_WALL_ARRAY_MAX][2];
 static int       s_numWallEdges;
@@ -420,15 +418,22 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
 
   {
     size_t sz,k; FILE *fp; PetscInt two = 2; char str[256],str2[256];
-    ierr = PetscStrcpy(s_wall_file,"ITER-wall-geo-67.txt");CHKERRQ(ierr);
-    sz = (sizeof(s_wall_file)/sizeof((s_wall_file)[0]));
-    ierr = PetscOptionsString("-wall_file", "Name of wall .txt file", "x2.c", s_wall_file, s_wall_file, sz, NULL);CHKERRQ(ierr);
-    fp = fopen(s_wall_file, "r");
-    if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Wall file %s not found, use -wall_file FILE_NAME",s_wall_file);
+    PetscReal edge_shift[2];
+    char wall_file[256];
+    edge_shift[0] = .0;
+    edge_shift[1] = .0;
+    PetscOptionsRealArray("-edge_shift","Shift of edge list","x2.c",edge_shift,&two,NULL);
+    ierr = PetscStrcpy(wall_file,"ITER-wall-geo-67.txt");CHKERRQ(ierr);
+    sz = (sizeof(wall_file)/sizeof((wall_file)[0]));
+    ierr = PetscOptionsString("-wall_file", "Name of wall .txt file", "x2.c", wall_file, wall_file, sz, NULL);CHKERRQ(ierr);
+    fp = fopen(wall_file, "r");
+    if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Wall file %s not found, use -wall_file FILE_NAME",wall_file);
     for (sz=0;sz<X2_WALL_ARRAY_MAX;sz++) {
       if (!fgets(str,256,fp)) break;
       k = sscanf(str,"%e %e %s\n",&s_wallEdges[sz][0],&s_wallEdges[sz][1],str2);
       s_wallEdges[sz][0] -= ctx->particleGrid.rMajor;
+      s_wallEdges[sz][0] += edge_shift[0];
+      s_wallEdges[sz][1] += edge_shift[1];
       if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading wall file",k);
       if (k==3) {
         PetscBool flg;
@@ -438,9 +443,6 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     }
     if (sz==X2_WALL_ARRAY_MAX) PetscPrintf(ctx->wComm,"Warning: wall file too large %d, maybe\n",sz);
     s_numWallEdges = sz;
-    s_mesh_origin[0] = .0;
-    s_mesh_origin[1] = .0;
-    PetscOptionsRealArray("-mesh_origin","Offset of origin of mesh","x2.c",s_mesh_origin,&two,NULL);
   }
 
   for (isp = ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) ctx->tablecount[isp] = 0;
@@ -1263,11 +1265,6 @@ static PetscErrorCode DMPlexCreatePICellTorus (MPI_Comm comm, X2GridParticle *pa
           r = rMajor + mult * rMinor * cos(j * M_PI_2);
           z = mult * rMinor * sin(j * M_PI_2)         ;
 
-          if (j < 4) { /* just shift center block */
-            r += s_mesh_origin[0];
-            z += s_mesh_origin[1];
-          }
-
           coords[i][j][0] = cosphi * r;
           coords[i][j][1] = sinphi * r;
           coords[i][j][2] = z;
@@ -1320,31 +1317,30 @@ static PetscErrorCode findWallPoint( const PetscReal X, const PetscReal Y, Petsc
   PetscInt ii;
   const PetscReal theta = atan2(Y,X);
   PetscFunctionBeginUser;
-  /* PetscPrintf(PETSC_COMM_WORLD,"[%D]findWallPoint: X=%g Y=%g\n",-1,*outX,*outY); */
+  PetscPrintf(PETSC_COMM_WORLD,"[%D]findWallPoint: X=%g Y=%g\n",-1,*outX,*outY);
   for (ii=0;ii<s_numWallEdges-1;ii++) {
-    PetscReal x1 = s_wallEdges[ii  ][0] - s_mesh_origin[0], y1 = s_wallEdges[ii  ][1] - s_mesh_origin[1];
-    PetscReal x2 = s_wallEdges[ii+1][0] - s_mesh_origin[0], y2 = s_wallEdges[ii+1][1] - s_mesh_origin[1];
+    PetscReal x1 = s_wallEdges[ii  ][0], y1 = s_wallEdges[ii  ][1];
+    PetscReal x2 = s_wallEdges[ii+1][0], y2 = s_wallEdges[ii+1][1];
     PetscReal theta1 = atan2(y1, x1);
     PetscReal theta2 = atan2(y2, x2);
     if ( theta1-theta2 > M_PI-theta1 ) theta2 += 2.*M_PI; /* gone around */
-    /* PetscPrintf(PETSC_COMM_WORLD,"\t[%D]findWallPoint: %3d) theta1=%g theta=%g theta2=%g\n",-1,ii+1,theta1*180./M_PI,theta*180./M_PI,theta2*180./M_PI); */
+    PetscPrintf(PETSC_COMM_WORLD,"\t[%D]findWallPoint: %3d) theta1=%g theta=%g theta2=%g\n",-1,ii+1,theta1*180./M_PI,theta*180./M_PI,theta2*180./M_PI);
     if (theta1 >= theta2) {
-      // PetscPrintf(PETSC_COMM_WORLD,"\t[%D] ERROR theta1 > theta2: theta1 = %g theta2 = %g\n",-1,theta1*180./M_PI,theta2*180./M_PI);
+      PetscPrintf(PETSC_COMM_WORLD,"\t[%D] %d) ERROR theta1 > theta2: theta1 = %g theta2 = %g\n",-1,ii+1,theta1*180./M_PI,theta2*180./M_PI);
     }
     else if (theta >= theta1 && theta < theta2) {
       /* intersection of two lines (orig,[r,z]) and (x1,x2) */
-      /* PetscPrintf(PETSC_COMM_WORLD,"\t[%D]findWallPoint: found %3d) theta1=%g theta=%g theta2=%g\n",-1,ii+2,theta1*180./M_PI,theta*180./M_PI,theta2*180./M_PI); */
-      PetscReal x3 = s_mesh_origin[0], y3 = s_mesh_origin[1];
-      /* PetscReal x3 = 0., y3 = 0.; */
+      PetscPrintf(PETSC_COMM_WORLD,"\t[%D]findWallPoint: %3d) FOUND theta1=%g theta=%g theta2=%g\n",-1,ii+2,theta1*180./M_PI,theta*180./M_PI,theta2*180./M_PI);
+      PetscReal x3 = 0., y3 = 0.;
       PetscReal x4 = X, y4 = Y;
-      PetscReal t1 = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4);
-      *outX = ((x1*y2-y1*x2)*(x3-x4) - (x1-x2)*(x3*y4 - y3*x4))/t1;
-      *outY = ((x1*y2-y1*x2)*(y3-y4) - (y1-y2)*(x3*y4 - y3*x4))/t1;
+      PetscReal t1 = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4), t2 = (x3*y4 - y3*x4), t3 = (x1*y2-y1*x2);
+      *outX = (t3*(x3-x4) - (x1-x2)*t2)/t1;
+      *outY = (t3*(y3-y4) - (y1-y2)*t2)/t1;
       break;
     }
   }
-  if (ii==s_numWallEdges) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"findWallPoint: Point not found");
-  PetscPrintf(PETSC_COMM_WORLD,"\t\t[%D]findWallPoint: (%g, %g) --> (%g, %g)\n",-1,X,Y,*outX,*outY);
+  if (ii==s_numWallEdges-1) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"findWallPoint: Point not found");
+  PetscPrintf(PETSC_COMM_WORLD,"\t\t[%D]findWallPoint: (%g, %g) --> (%g, %g) (idx:%d/%d)\n",-1,X,Y,*outX,*outY,ii,s_numWallEdges);
   /* PetscSleep(1); exit(12); */
   PetscFunctionReturn(0);
 }
@@ -1406,8 +1402,9 @@ static PetscErrorCode GeometryPICellTorus(PetscInt dim, const PetscReal abc[], P
     absZ = PetscAbsReal(z);
     l = absR + absZ;
     rfrac = l / rMinor;
-    if (rfrac >= innerMult) { /* inflate */
-      if (1) {
+    if (rfrac > innerMult*1.0000001) { /* inflate */
+      if (0) {
+        PetscPrintf(PETSC_COMM_WORLD,"***[%D]GeometryPICellTorus: rfrac-innerMult=%g rfrac=%g innerMult=%g\n",-1,rfrac-innerMult,rfrac,innerMult);
         PetscErrorCode ierr = findWallPoint(r, z, &r, &z);CHKERRQ(ierr);
       }
       else {
@@ -1421,6 +1418,7 @@ static PetscErrorCode GeometryPICellTorus(PetscInt dim, const PetscReal abc[], P
         outfrac = (1. - rfrac) / (1. - innerMult);
         absR = rMinor * (outfrac * isect + (1. - outfrac)) * cosphi;
         absZ = rMinor * (outfrac * isect + (1. - outfrac)) * sinphi;
+PetscPrintf(PETSC_COMM_WORLD,"\t\t[%D]GeometryPICellTorus: no ITER (%g, %g) --> (%g, %g)\n",-1,r,z,(r > 0) ? absR : -absR,(z > 0) ? absZ : -absZ);
         r = (r > 0) ? absR : -absR;
         z = (z > 0) ? absZ : -absZ;
       }
