@@ -304,9 +304,11 @@ static PetscInt s_chunksize = 32768;
 #define __FUNCT__ "ProcessOptions"
 PetscErrorCode ProcessOptions( X2Ctx *ctx )
 {
-  PetscErrorCode ierr,isp;
+  PetscErrorCode ierr,isp,k;
+  FILE *fp;
+  PetscInt two = 2;
   PetscBool phiFlag,radFlag,thetaFlag,flg;
-  char fname[256];
+  char str[256],str2[256],fname[256];
 
   PetscFunctionBeginUser;
   /* general */
@@ -420,37 +422,49 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscStrcpy(fname,"torus");CHKERRQ(ierr);
   ierr = PetscOptionsString("-run_type", "Type of run (iter or torus)", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
   PetscStrcmp("iter",fname,&flg);
-  if (flg) ctx->run_type = X2_ITER;
+  if (flg) {
+    ctx->run_type = X2_ITER;
+    ierr = PetscStrcpy(fname,"ITER-14vertex.txt");CHKERRQ(ierr);
+    ierr = PetscOptionsString("-iter_vertex_file", "Name of vertex .txt file of ITER (14) vertices", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
+    fp = fopen(fname, "r");
+    if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"ITER file %s not found, use -fname FILE_NAME",fname);
+    for (isp=0;isp<14;isp++) {
+      if (!fgets(str,256,fp)) break;
+      k = sscanf(str,"%e %e %s\n",&s_wallEdges[isp][0],&s_wallEdges[isp][1],str2);
+      if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file",k);
+      if (k==3) {
+        PetscStrcmp("skip",str2,&flg);
+        if (flg) isp--; /* skip this line - not used!!! */
+      }
+    }
+    s_numWallEdges = 14;
+  }
   else {
+    PetscReal edge_shift[2];
     PetscStrcmp("torus",fname,&flg);
     if (flg) ctx->run_type = X2_TORUS;
     else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Unknown run type %s",fname);
-  }
-
-  if (ctx->run_type == X2_TORUS) {
-    size_t ii,k; FILE *fp; PetscInt two = 2; char str[256],str2[256];
-    PetscReal edge_shift[2];
-    edge_shift[0] = .0;
+    edge_shift[0] = .05; /* keeps it "convex" */
     edge_shift[1] = .0;
     PetscOptionsRealArray("-edge_shift","Shift of edge list","x2.c",edge_shift,&two,NULL);
-    ierr = PetscStrcpy(fname,"ITER-wall-geo-67.txt");CHKERRQ(ierr);
+    ierr = PetscStrcpy(fname,"ITER-wall-geo-xx.txt");CHKERRQ(ierr);
     ierr = PetscOptionsString("-wall_file", "Name of wall .txt file", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
     fp = fopen(fname, "r");
     if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Wall file %s not found, use -fname FILE_NAME",fname);
-    for (ii=0;ii<X2_WALL_ARRAY_MAX;ii++) {
+    for (isp=0;isp<X2_WALL_ARRAY_MAX;isp++) {
       if (!fgets(str,256,fp)) break;
-      k = sscanf(str,"%e %e %s\n",&s_wallEdges[ii][0],&s_wallEdges[ii][1],str2);
-      s_wallEdges[ii][0] -= ctx->particleGrid.rMajor;
-      s_wallEdges[ii][0] += edge_shift[0];
-      s_wallEdges[ii][1] += edge_shift[1];
+      k = sscanf(str,"%e %e %s\n",&s_wallEdges[isp][0],&s_wallEdges[isp][1],str2);
+      s_wallEdges[isp][0] -= ctx->particleGrid.rMajor;
+      s_wallEdges[isp][0] += edge_shift[0];
+      s_wallEdges[isp][1] += edge_shift[1];
       if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading wall file",k);
       if (k==3) {
         PetscStrcmp("skip",str2,&flg);
-        if (flg) ii--; /* skip this line */
+        if (flg) isp--; /* skip this line */
       }
     }
-    if (ii==X2_WALL_ARRAY_MAX) PetscPrintf(ctx->wComm,"Warning: wall file too large %d, maybe\n",ii);
-    s_numWallEdges = ii;
+    if (isp==X2_WALL_ARRAY_MAX) PetscPrintf(ctx->wComm,"Warning: wall file too large %d, maybe\n",isp);
+    s_numWallEdges = isp;
   }
 
   for (isp = ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) ctx->tablecount[isp] = 0;
