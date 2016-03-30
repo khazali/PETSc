@@ -13,7 +13,7 @@ static char help[] = "X2: A partical in cell code for tokamak plasmas using PICe
 #define X2_WALL_ARRAY_MAX 68 /* ITER file is 67 */
 static float     s_wallEdges[X2_WALL_ARRAY_MAX][2];
 static int       s_numWallEdges;
-
+typedef enum {X2_ITER,X2_TORUS} runType;
 typedef struct {
   /* particle grid sizes */
   PetscInt nradius;
@@ -66,10 +66,11 @@ typedef struct X2ISend_TAG{
   General parameters and context
 */
 typedef struct {
-  PetscInt      debug;   /* The debugging level, not used */
+  PetscInt      debug;   /* The debugging level */
   PetscLogEvent events[12];
   PetscInt      currevent;
   PetscInt      bsp_chuncksize;
+  runType       run_type;
   /* MPI parallel data */
   MPI_Comm      particlePlaneComm,wComm;
   PetscMPIInt   rank,npe,npe_particlePlane,particlePlaneRank,ParticlePlaneIdx;
@@ -304,8 +305,8 @@ static PetscInt s_chunksize = 32768;
 PetscErrorCode ProcessOptions( X2Ctx *ctx )
 {
   PetscErrorCode ierr,isp;
-  PetscBool phiFlag,radFlag,thetaFlag;
-  /* static char fname[] = "B0.eqd"; */
+  PetscBool phiFlag,radFlag,thetaFlag,flg;
+  char fname[256];
 
   PetscFunctionBeginUser;
   /* general */
@@ -324,8 +325,8 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->species[0].charge=ctx->eChargeEu*x2ECharge;
 
   /* mesh */
-  ctx->particleGrid.rMajor = 6.2; /* cm of ITER */
-  ctx->particleGrid.rMinor = 2.0; /* cm of ITER */
+  ctx->particleGrid.rMajor = 6.2; /* m of ITER */
+  ctx->particleGrid.rMinor = 2.0; /* m of ITER */
   ctx->particleGrid.nphi = 1;
   ctx->particleGrid.nradius    = 1;
   ctx->particleGrid.ntheta     = 1;
@@ -416,33 +417,40 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->max_vpar = 1.;
   ierr = PetscOptionsReal("-max_vpar", "Maximum parallel velocity", "x2.c",ctx->max_vpar,&ctx->max_vpar,NULL);CHKERRQ(ierr);
 
-  {
-    size_t sz,k; FILE *fp; PetscInt two = 2; char str[256],str2[256];
+  ierr = PetscStrcpy(fname,"torus");CHKERRQ(ierr);
+  ierr = PetscOptionsString("-run_type", "Type of run (iter or torus)", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
+  PetscStrcmp("iter",fname,&flg);
+  if (flg) ctx->run_type = X2_ITER;
+  else {
+    PetscStrcmp("torus",fname,&flg);
+    if (flg) ctx->run_type = X2_TORUS;
+    else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Unknown run type %s",fname);
+  }
+
+  if (ctx->run_type == X2_TORUS) {
+    size_t ii,k; FILE *fp; PetscInt two = 2; char str[256],str2[256];
     PetscReal edge_shift[2];
-    char wall_file[256];
     edge_shift[0] = .0;
     edge_shift[1] = .0;
     PetscOptionsRealArray("-edge_shift","Shift of edge list","x2.c",edge_shift,&two,NULL);
-    ierr = PetscStrcpy(wall_file,"ITER-wall-geo-67.txt");CHKERRQ(ierr);
-    sz = (sizeof(wall_file)/sizeof((wall_file)[0]));
-    ierr = PetscOptionsString("-wall_file", "Name of wall .txt file", "x2.c", wall_file, wall_file, sz, NULL);CHKERRQ(ierr);
-    fp = fopen(wall_file, "r");
-    if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Wall file %s not found, use -wall_file FILE_NAME",wall_file);
-    for (sz=0;sz<X2_WALL_ARRAY_MAX;sz++) {
+    ierr = PetscStrcpy(fname,"ITER-wall-geo-67.txt");CHKERRQ(ierr);
+    ierr = PetscOptionsString("-wall_file", "Name of wall .txt file", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
+    fp = fopen(fname, "r");
+    if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Wall file %s not found, use -fname FILE_NAME",fname);
+    for (ii=0;ii<X2_WALL_ARRAY_MAX;ii++) {
       if (!fgets(str,256,fp)) break;
-      k = sscanf(str,"%e %e %s\n",&s_wallEdges[sz][0],&s_wallEdges[sz][1],str2);
-      s_wallEdges[sz][0] -= ctx->particleGrid.rMajor;
-      s_wallEdges[sz][0] += edge_shift[0];
-      s_wallEdges[sz][1] += edge_shift[1];
+      k = sscanf(str,"%e %e %s\n",&s_wallEdges[ii][0],&s_wallEdges[ii][1],str2);
+      s_wallEdges[ii][0] -= ctx->particleGrid.rMajor;
+      s_wallEdges[ii][0] += edge_shift[0];
+      s_wallEdges[ii][1] += edge_shift[1];
       if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading wall file",k);
       if (k==3) {
-        PetscBool flg;
         PetscStrcmp("skip",str2,&flg);
-        if (flg) sz--; /* skip this line */
+        if (flg) ii--; /* skip this line */
       }
     }
-    if (sz==X2_WALL_ARRAY_MAX) PetscPrintf(ctx->wComm,"Warning: wall file too large %d, maybe\n",sz);
-    s_numWallEdges = sz;
+    if (ii==X2_WALL_ARRAY_MAX) PetscPrintf(ctx->wComm,"Warning: wall file too large %d, maybe\n",ii);
+    s_numWallEdges = ii;
   }
 
   for (isp = ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) ctx->tablecount[isp] = 0;
@@ -1224,6 +1232,94 @@ PetscErrorCode go( X2Ctx *ctx )
   PetscFunctionReturn(0);
 }
 
+/* == Defining a base plex for ITER, which looks like a rectilinearish donut */
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexCreatePICellITER"
+static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *params, DM *dm)
+{
+  PetscMPIInt    rank;
+  PetscInt       numCells = 0;
+  PetscInt       numVerts = 0;
+  PetscReal      rMajor   = params->rMajor;
+  PetscReal      rMinor   = params->rMinor;
+  PetscReal      innerMult = params->innerMult;
+  PetscInt       numMajor = params->numMajor;
+  int           *flatCells = NULL;
+  double        *flatCoords = NULL;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
+  if (!rank) {
+    numCells = numMajor * 5;
+    numVerts = numMajor * 8;
+    ierr = PetscMalloc2(numCells * 8,&flatCells,numVerts * 3,&flatCoords);CHKERRQ(ierr);
+    {
+      double (*coords)[8][3] = (double (*) [8][3]) flatCoords;
+      PetscInt i;
+
+      for (i = 0; i < numMajor; i++) {
+        PetscInt j;
+        double cosphi, sinphi;
+
+        cosphi = cos(2 * M_PI * i / numMajor);
+        sinphi = sin(2 * M_PI * i / numMajor);
+
+        for (j = 0; j < 8; j++) {
+          double r, z;
+          double mult = (j < 4) ? innerMult : 1.;
+
+          r = rMajor + mult * rMinor * cos(j * M_PI_2);
+          z = mult * rMinor * sin(j * M_PI_2)         ;
+
+          coords[i][j][0] = cosphi * r;
+          coords[i][j][1] = sinphi * r;
+          coords[i][j][2] = z;
+        }
+      }
+    }
+    {
+      int (*cells)[5][8] = (int (*) [5][8]) flatCells;
+      PetscInt i;
+
+      for (i = 0; i < numMajor; i++) {
+        PetscInt j;
+
+        for (j = 0; j < 5; j++) {
+          PetscInt k;
+
+          if (j < 4) {
+            for (k = 0; k < 8; k++) {
+              PetscInt l = k % 4;
+
+              cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + ((l % 3) ? 0 : 4) + ((l < 2) ? j : ((j + 1) % 4))) % numVerts;
+            }
+          }
+          else {
+            for (k = 0; k < 8; k++) {
+              PetscInt l = k % 4;
+
+              cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + (3 - l)) % numVerts;
+            }
+          }
+          {
+            PetscInt swap = cells[i][j][1];
+
+            cells[i][j][1] = cells[i][j][3];
+            cells[i][j][3] = swap;
+          }
+        }
+      }
+    }
+  }
+  ierr = DMPlexCreateFromCellList(comm,3,numCells,numVerts,8,PETSC_TRUE,flatCells,3,flatCoords,dm);CHKERRQ(ierr);
+  ierr = PetscFree2(flatCells,flatCoords);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) *dm, "torus");CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) *dm, "torus_");CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /* == Defining a base plex for a torus, which looks like a rectilinear donut, and a mapping that turns it into a conventional round donut == */
 
 #undef __FUNCT__
@@ -1496,6 +1592,7 @@ int main(int argc, char **argv)
   ierr = PetscLogEventRegister("CreateMesh", DM_CLASSID, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 3 */
   ierr = PetscLogEventRegister("TwoSides", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 4 */
   ierr = PetscLogEventRegister("Aux", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 5 */
+  assert(sizeof(ctx.events)/sizeof(ctx.events[0]) >= ctx.currevent);
 #endif
 
   ierr = PetscCommDuplicate(PETSC_COMM_WORLD,&ctx.wComm,NULL);CHKERRQ(ierr);
@@ -1506,8 +1603,14 @@ int main(int argc, char **argv)
   ierr = DMCreate(ctx.wComm, &ctx.dm);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(ctx.dm, &ctx);CHKERRQ(ierr);
   ierr = DMSetType(ctx.dm, DMPICELL);CHKERRQ(ierr); /* creates (DM_PICell *) dm->data */
-  /* setup solver grid, this should go in DMCreate_PICell? */
-  ierr = DMPlexCreatePICellTorus(ctx.wComm,&ctx.particleGrid,&dm);CHKERRQ(ierr);
+  /* setup solver grid */
+  if (ctx.run_type == X2_ITER) {
+    ierr = DMPlexCreatePICellITER(ctx.wComm,&ctx.particleGrid,&dm);CHKERRQ(ierr);
+  }
+  else {
+    ierr = DMPlexCreatePICellTorus(ctx.wComm,&ctx.particleGrid,&dm);CHKERRQ(ierr);
+    assert(ctx.run_type == X2_TORUS);
+  }
   ierr = DMSetApplicationContext(dm, &ctx);CHKERRQ(ierr);
   /* setup Discretization */
   ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);
