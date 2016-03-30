@@ -18,11 +18,11 @@ ex1: ex1.o chkopts
 
 runex1:
 	-echo ${MPIEXEC}
-	-${MPIEXEC} -n 2 ./ex1 -torus_dm_type p8est -torus_dm_view vtk:tokamac.vtu -torus_dm_forest_initial_refinement 0 -numMajor 3 -use_electrons true -npart_cell 10 -mstep 20 -debug 1 -snes_monitor -snes_converged_reason -bsp_chuncksize 3000 -collisionPeriod 10
+	-${MPIEXEC} -n 2 ./ex1 -torus_dm_type p8est -torus_dm_view vtk:tokamac.vtu -torus_dm_forest_initial_refinement 0 -numMajor 4 -use_electrons true -npart_cell 10 -mstep 20 -debug 1 -snes_monitor -snes_converged_reason -bsp_chuncksize 3000 -collisionPeriod 10
 # -nphi_particles 2
 
 val: ex1
-	-${MPIEXEC} -n 1 valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex1 -torus_dm_type p8est -torus_dm_view vtk:tokamac.vtu -torus_dm_forest_initial_refinement 0 -numMajor 12 -use_electrons true -npart_cell 10 -mstep 1 -snes_converged_reason
+	-${MPIEXEC} -n 2 valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex1 -torus_dm_type p8est -torus_dm_view vtk:tokamac.vtu -torus_dm_forest_initial_refinement 0 -numMajor 4 -use_electrons true -npart_cell 10 -mstep 2
 
 debug:
 	-@gdb --args ./ex1 -torus_dm_type p8est -torus_dm_view vtk:tokamac.vtu -torus_dm_forest_initial_refinement 1 -numMajor 12 -use_electrons true -npart_cell 1000 -mstep 20 -debug 2 -snes_monitor -snes_converged_reason -bsp_chuncksize 3000

@@ -13,6 +13,7 @@ static char help[] = "X2: A partical in cell code for tokamak plasmas using PICe
 #define X2_WALL_ARRAY_MAX 68 /* ITER file is 67 */
 static float     s_wallEdges[X2_WALL_ARRAY_MAX][2];
 static int       s_numWallEdges;
+static int       s_quad_vertex[6][4];
 typedef enum {X2_ITER,X2_TORUS} runType;
 typedef struct {
   /* particle grid sizes */
@@ -419,7 +420,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->max_vpar = 1.;
   ierr = PetscOptionsReal("-max_vpar", "Maximum parallel velocity", "x2.c",ctx->max_vpar,&ctx->max_vpar,NULL);CHKERRQ(ierr);
 
-  ierr = PetscStrcpy(fname,"torus");CHKERRQ(ierr);
+  ierr = PetscStrcpy(fname,"iter");CHKERRQ(ierr);
   ierr = PetscOptionsString("-run_type", "Type of run (iter or torus)", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
   PetscStrcmp("iter",fname,&flg);
   if (flg) {
@@ -438,6 +439,18 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
       }
     }
     s_numWallEdges = 14;
+    /* cell ids */
+    for (isp=0;isp<6;isp++) {
+      if (!fgets(str,256,fp)) break;
+      k = sscanf(str,"%d %d %d %d %s\n",&s_quad_vertex[isp][0],&s_quad_vertex[isp][1],
+                 &s_quad_vertex[isp][2],&s_quad_vertex[isp][3],str2);
+      if (k<4) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file",k);
+      if (k==5) {
+        PetscStrcmp("skip",str2,&flg);
+        if (flg) isp--; /* skip this line */
+      }
+    }
+    fclose(fp);
   }
   else {
     PetscReal edge_shift[2];
@@ -465,6 +478,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     }
     if (isp==X2_WALL_ARRAY_MAX) PetscPrintf(ctx->wComm,"Warning: wall file too large %d, maybe\n",isp);
     s_numWallEdges = isp;
+    fclose(fp);
   }
 
   for (isp = ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) ctx->tablecount[isp] = 0;
@@ -1246,7 +1260,7 @@ PetscErrorCode go( X2Ctx *ctx )
   PetscFunctionReturn(0);
 }
 
-/* == Defining a base plex for ITER, which looks like a rectilinearish donut */
+/* == Defining a base plex for ITER, which looks like a rectilinear (sort of) donut */
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexCreatePICellITER"
@@ -1256,8 +1270,6 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
   PetscInt       numCells = 0;
   PetscInt       numVerts = 0;
   PetscReal      rMajor   = params->rMajor;
-  PetscReal      rMinor   = params->rMinor;
-  PetscReal      innerMult = params->innerMult;
   PetscInt       numMajor = params->numMajor;
   int           *flatCells = NULL;
   double        *flatCoords = NULL;
@@ -1266,11 +1278,11 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
   if (!rank) {
-    numCells = numMajor * 5;
-    numVerts = numMajor * 8;
+    numCells = numMajor * 6;
+    numVerts = numMajor * 14;
     ierr = PetscMalloc2(numCells * 8,&flatCells,numVerts * 3,&flatCoords);CHKERRQ(ierr);
     {
-      double (*coords)[8][3] = (double (*) [8][3]) flatCoords;
+      double (*coords)[14][3] = (double (*) [14][3]) flatCoords;
       PetscInt i;
 
       for (i = 0; i < numMajor; i++) {
@@ -1280,57 +1292,57 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
         cosphi = cos(2 * M_PI * i / numMajor);
         sinphi = sin(2 * M_PI * i / numMajor);
 
-        for (j = 0; j < 8; j++) {
+        for (j = 0; j < 14; j++) {
           double r, z;
-          double mult = (j < 4) ? innerMult : 1.;
 
-          r = rMajor + mult * rMinor * cos(j * M_PI_2);
-          z = mult * rMinor * sin(j * M_PI_2)         ;
+          r = rMajor + s_wallEdges[j][0];
+          z =          s_wallEdges[j][1];
 
           coords[i][j][0] = cosphi * r;
           coords[i][j][1] = sinphi * r;
           coords[i][j][2] = z;
         }
       }
+      PetscPrintf(PETSC_COMM_WORLD,"[%D]DMPlexCreatePICellITER: cooords",rank);
+      for (i = 0; i < numVerts*3; i++) {
+        if (i%3==0) PetscPrintf(PETSC_COMM_WORLD,"\n");
+        PetscPrintf(PETSC_COMM_WORLD," %e",flatCoords[i]);
+      }
+      PetscPrintf(PETSC_COMM_WORLD,"\n");
     }
     {
-      int (*cells)[5][8] = (int (*) [5][8]) flatCells;
+      int (*cells)[6][8] = (int (*) [6][8]) flatCells;
       PetscInt i;
 
       for (i = 0; i < numMajor; i++) {
         PetscInt j;
 
-        for (j = 0; j < 5; j++) {
+        for (j = 0; j < 6; j++) {
           PetscInt k;
-
-          if (j < 4) {
-            for (k = 0; k < 8; k++) {
-              PetscInt l = k % 4;
-
-              cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + ((l % 3) ? 0 : 4) + ((l < 2) ? j : ((j + 1) % 4))) % numVerts;
-            }
-          }
-          else {
-            for (k = 0; k < 8; k++) {
-              PetscInt l = k % 4;
-
-              cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + (3 - l)) % numVerts;
-            }
+          for (k = 0; k < 8; k++) {
+            PetscInt l = k % 4, off = k/4;
+            if (i==numMajor-1 && off) off = 1-numMajor;
+            cells[i][j][k] = i*14 + off*14 + (s_quad_vertex[j][l]-1);
           }
           {
             PetscInt swap = cells[i][j][1];
-
             cells[i][j][1] = cells[i][j][3];
             cells[i][j][3] = swap;
           }
         }
       }
+      PetscPrintf(PETSC_COMM_WORLD,"[%D]DMPlexCreatePICellITER: cells",rank);
+      for (i = 0; i < numCells*8; i++) {
+        if (i%8==0) PetscPrintf(PETSC_COMM_WORLD,"\n");
+        PetscPrintf(PETSC_COMM_WORLD," %d",flatCells[i]);
+      }
+      PetscPrintf(PETSC_COMM_WORLD,"\n");
     }
   }
   ierr = DMPlexCreateFromCellList(comm,3,numCells,numVerts,8,PETSC_TRUE,flatCells,3,flatCoords,dm);CHKERRQ(ierr);
   ierr = PetscFree2(flatCells,flatCoords);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) *dm, "torus");CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) *dm, "torus_");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) *dm, "iter");CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) *dm, "iter_");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1664,7 +1676,12 @@ int main(int argc, char **argv)
         dm   = dmConv;
         ierr = DMIsForest(dm,&isForest);CHKERRQ(ierr);
         if (isForest) {
-          ierr = DMForestSetBaseCoordinateMapping(dm,GeometryPICellTorus,&ctx);CHKERRQ(ierr);
+          if (ctx.run_type == X2_ITER) {
+            ierr = DMForestSetBaseCoordinateMapping(dm,NULL,&ctx);CHKERRQ(ierr);
+          }
+          else {
+            ierr = DMForestSetBaseCoordinateMapping(dm,GeometryPICellTorus,&ctx);CHKERRQ(ierr);
+          }
         }
       }
     }
