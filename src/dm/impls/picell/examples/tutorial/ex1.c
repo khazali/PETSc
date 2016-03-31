@@ -1303,12 +1303,6 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
           coords[i][j][2] = z;
         }
       }
-      PetscPrintf(PETSC_COMM_WORLD,"[%D]DMPlexCreatePICellITER: cooords",rank);
-      for (i = 0; i < numVerts*3; i++) {
-        if (i%3==0) PetscPrintf(PETSC_COMM_WORLD,"\n");
-        PetscPrintf(PETSC_COMM_WORLD," %e",flatCoords[i]);
-      }
-      PetscPrintf(PETSC_COMM_WORLD,"\n");
     }
     {
       int (*cells)[6][8] = (int (*) [6][8]) flatCells;
@@ -1331,18 +1325,75 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
           }
         }
       }
-      PetscPrintf(PETSC_COMM_WORLD,"[%D]DMPlexCreatePICellITER: cells",rank);
-      for (i = 0; i < numCells*8; i++) {
-        if (i%8==0) PetscPrintf(PETSC_COMM_WORLD,"\n");
-        PetscPrintf(PETSC_COMM_WORLD," %d",flatCells[i]);
-      }
-      PetscPrintf(PETSC_COMM_WORLD,"\n");
     }
   }
   ierr = DMPlexCreateFromCellList(comm,3,numCells,numVerts,8,PETSC_TRUE,flatCells,3,flatCoords,dm);CHKERRQ(ierr);
   ierr = PetscFree2(flatCells,flatCoords);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) *dm, "iter");CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) *dm, "iter_");CHKERRQ(ierr);
+PetscPrintf(PETSC_COMM_WORLD,"==== DMPlexCreatePICellITER done %d %d\n",numCells,numVerts);
+  PetscFunctionReturn(0);
+}
+#undef __FUNCT__
+#define __FUNCT__ "GeometryPICellITER"
+static PetscErrorCode GeometryPICellITER(PetscInt dim, const PetscReal abc[], PetscReal xyz[], void *a_ctx)
+{
+  X2Ctx *ctx = (X2Ctx*)a_ctx;
+  X2GridParticle *params = &ctx->particleGrid;
+  PetscReal rMajor    = params->rMajor;
+  PetscInt  numMajor  = params->numMajor;
+  PetscInt  i;
+  PetscReal a, b, z;
+  PetscReal inPhi, outPhi;
+  PetscReal midPhi, leftPhi;
+  PetscReal cosOutPhi, sinOutPhi;
+  PetscReal cosMidPhi, sinMidPhi;
+  PetscReal cosLeftPhi, sinLeftPhi;
+  PetscReal secHalf;
+  PetscReal r, rhat, dist, fulldist;
+
+  PetscFunctionBegin;
+  a = abc[0];
+  b = abc[1];
+  z = abc[2];
+  inPhi = atan2(b,a);
+  inPhi = (inPhi < 0.) ? (inPhi + 2. * M_PI) : inPhi;
+  i = (inPhi * numMajor) / (2. * M_PI);
+  i = PetscMin(i,numMajor - 1);
+  leftPhi =  (i *        2. * M_PI) / numMajor;
+  midPhi  = ((i + 0.5) * 2. * M_PI) / numMajor;
+  cosMidPhi  = cos(midPhi);
+  sinMidPhi  = sin(midPhi);
+  cosLeftPhi = cos(leftPhi);
+  sinLeftPhi = sin(leftPhi);
+  secHalf    = 1. / cos(M_PI / numMajor);
+
+  rhat = (a * cosMidPhi + b * sinMidPhi);
+  r    = secHalf * rhat;
+  dist = secHalf * (-a * sinLeftPhi + b * cosLeftPhi);
+  fulldist = 2. * sin(M_PI / numMajor) * r;
+  outPhi = ((i + (dist/fulldist)) * 2. * M_PI) / numMajor;
+  /* solve r * (cosLeftPhi * _i + sinLeftPhi * _j) + dist * (nx * _i + ny * _j) = a * _i + b * _j;
+   *
+   * (r * cosLeftPhi + dist * nx) = a;
+   * (r * sinLeftPhi + dist * ny) = b;
+   *
+   * r    = idet * ( a * ny         - b * nx);
+   * dist = idet * (-a * sinLeftPhi + b * cosLeftPhi);
+   * idet = 1./(cosLeftPhi * ny - sinLeftPhi * nx) = sec(Pi/numMajor);
+   */
+  r -= rMajor; /* now centered inside torus */
+  {
+
+  }
+  r += rMajor; /* centered back at the origin */
+
+  cosOutPhi = cos(outPhi);
+  sinOutPhi = sin(outPhi);
+  xyz[0] = r * cosOutPhi;
+  xyz[1] = r * sinOutPhi;
+  xyz[2] = z;
+PetscPrintf(PETSC_COMM_WORLD,"ooooo GeometryPICelITER z=%g r=%g xyz=%g %g %g abc=%g %g %g\n",z,r,xyz[0],xyz[1],xyz[2],abc[0],abc[1],abc[2]);
   PetscFunctionReturn(0);
 }
 
@@ -1677,7 +1728,7 @@ int main(int argc, char **argv)
         ierr = DMIsForest(dmpi->dmplex,&isForest);CHKERRQ(ierr);
         if (isForest) {
           if (ctx.run_type == X2_ITER) {
-            ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,NULL,&ctx);CHKERRQ(ierr);
+            ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,GeometryPICellITER,&ctx);CHKERRQ(ierr);
           }
           else {
             ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,GeometryPICellTorus,&ctx);CHKERRQ(ierr);
