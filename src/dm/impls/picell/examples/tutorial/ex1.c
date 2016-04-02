@@ -576,10 +576,19 @@ PetscErrorCode X2GridParticleGetProc_FluxTube(DM d, const X2GridParticle *grid, 
 */
 #undef __FUNCT__
 #define __FUNCT__ "X2GridParticleGetProc_Solver"
+/*
+  dm - The DM
+  d - Particle grid information
+  d1, d2, d3 - Position in cylindrical coordinates
+
+  pe - Rank of process owning the grid cell containing the particle, -1 if not found
+  elem - Local cell number on rank pe containing the particle, -1 if not found
+*/
 PetscErrorCode X2GridParticleGetProc_Solver(DM dm, const X2GridParticle *d, PetscReal d1, PetscReal d2, PetscReal d3, PetscReal coord[], PetscMPIInt *pe, PetscInt *elem)
 {
   PetscMPIInt rank;
   PetscErrorCode ierr;
+
   PetscFunctionBeginUser;
   /* Matt do your thing here */
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)dm), &rank);
