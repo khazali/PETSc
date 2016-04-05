@@ -18,8 +18,8 @@ ex1: ex1.o chkopts
 
 runex1:
 	-echo ${MPIEXEC}
-	-${MPIEXEC} -n 2 ./ex1 -torus_dm_type p8est -torus_dm_view vtk:tokamac.vtu -torus_dm_forest_initial_refinement 0 -numMajor 4 -use_electrons true -npart_cell 10 -mstep 20 -debug 1 -snes_monitor -snes_converged_reason -bsp_chuncksize 3000 -collisionPeriod 10
-#-run_type torus
+	-${MPIEXEC} -n 1 ./ex1 -torus_dm_type p8est -torus_dm_view vtk:tokamac.vtu -torus_dm_forest_initial_refinement 0 -numMajor 4 -use_electrons true -npart_cell 10 -mstep 20 -debug 1 -snes_monitor -snes_converged_reason -bsp_chuncksize 3000 -collisionPeriod 10
+# -run_type torus
 # -nphi_particles 2
 
 val: ex1
