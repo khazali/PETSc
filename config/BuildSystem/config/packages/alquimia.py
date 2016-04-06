@@ -64,14 +64,32 @@ class Configure(config.package.CMakePackage):
     args.append('-DTPL_PFLOTRAN_INCLUDE_DIRS='+self.pflotran.include[0])
     if not self.argDB['with-shared-libraries']:
       args.append('-DCMAKE_SKIP_INSTALL_RPATH=YES')
+    import socket
+    hostname=socket.getfqdn()
+    if hostname.find('mira')>=0 and hostname.find('alcf.anl.gov')>=0:
+      args.append('-DCMAKE_FIND_LIBRARY_SUFFIXES=.a')
+      args.append('-DCMAKE_CROSSCOMPILING=TRUE')
+      args.append('-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER')
+      args.append('-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY')
+      args.append('-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY')
+      args.append('-DCMAKE_EXE_LINK_DYNAMIC_C_FLAGS=""')
+      args.append('-DCMAKE_EXE_LINK_DYNAMIC_CXX_FLAGS=""')
+      args.append('-DCMAKE_EXE_LINK_DYNAMIC_FORTRAN_FLAGS=""')
+      args.append('-DCMAKE_SHARED_LIBRARY_LINK_DYNAMIC_C_FLAGS=""')
+      args.append('-DCMAKE_SHARED_LIBRARY_LINK_DYNAMIC_CXX_FLAGS=""')
+      args.append('-DCMAKE_SHARED_LIBRARY_LINK_DYNAMIC_FORTRAN_FLAGS=""')
+      args.append('-DMULTIPASS_TEST_3_petsc_works_alllibraries_EXITCODE=0)
+
     return args
 
   def postProcess(self):
     #alquimia cmake requires PETSc environmental variables
     os.environ['PETSC_DIR']  = self.petscdir.dir
     os.environ['PETSC_ARCH'] = self.arch
+
     try:
-      output,err,ret  = config.package.CMakePackage.executeShellCommand('cp /projects/OSCon/sarich/FindPETSc.cmake '+os.path.join(self.packageDir,'cmake','Modules'),timeout=50, log = self.log)
+      import shutil
+      output,err,ret  = config.package.CMakePackage.executeShellCommand(' /projects/OSCon/sarich/FindPETSc.cmake '+os.path.join(self.packageDir,'cmake','Modules'),timeout=50, log = self.log)
       output = output+err
       self.log.write(output)
     except RuntimeError, e:
