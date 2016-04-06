@@ -78,7 +78,7 @@ class Configure(config.package.CMakePackage):
       args.append('-DCMAKE_SHARED_LIBRARY_LINK_DYNAMIC_C_FLAGS=""')
       args.append('-DCMAKE_SHARED_LIBRARY_LINK_DYNAMIC_CXX_FLAGS=""')
       args.append('-DCMAKE_SHARED_LIBRARY_LINK_DYNAMIC_FORTRAN_FLAGS=""')
-      args.append('-DMULTIPASS_TEST_3_petsc_works_alllibraries_EXITCODE=0)
+      args.append('-DMULTIPASS_TEST_3_petsc_works_alllibraries_EXITCODE=0')
 
     return args
 
