@@ -239,7 +239,7 @@ PetscErrorCode  PCMGSetLevels(PC pc,PetscInt levels,MPI_Comm *comms)
     ierr = KSPGetPC(mglevels[i]->smoothd,&ipc);CHKERRQ(ierr);
     ierr = PCSetType(ipc,PCSOR);CHKERRQ(ierr);
     ierr = PetscObjectIncrementTabLevel((PetscObject)mglevels[i]->smoothd,(PetscObject)pc,levels-i);CHKERRQ(ierr);
-    ierr = KSPSetTolerances(mglevels[i]->smoothd,PETSC_DEFAULT,PETSC_DEFAULT,PETSC_DEFAULT, i ? mg->default_smoothd : 1);CHKERRQ(ierr);
+    if (i != 0) ierr = KSPSetTolerances(mglevels[i]->smoothd,PETSC_DEFAULT,PETSC_DEFAULT,PETSC_DEFAULT, mg->default_smoothd);CHKERRQ(ierr);
     ierr = KSPSetOptionsPrefix(mglevels[i]->smoothd,prefix);CHKERRQ(ierr);
     ierr = PetscObjectComposedDataSetInt((PetscObject) mglevels[i]->smoothd, PetscMGLevelId, mglevels[i]->level);CHKERRQ(ierr);
 
