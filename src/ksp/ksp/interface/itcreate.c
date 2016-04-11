@@ -793,6 +793,7 @@ PetscErrorCode  KSPSetType(KSP ksp, KSPType type)
 {
   PetscErrorCode ierr,(*r)(KSP);
   PetscBool      match;
+  KSPNormType    normtype;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ksp,KSP_CLASSID,1);
@@ -816,7 +817,16 @@ PetscErrorCode  KSPSetType(KSP ksp, KSPType type)
   /* Call the KSPCreate_XXX routine for this particular Krylov solver */
   ksp->setupstage = KSP_SETUP_NEW;
   ierr            = PetscObjectChangeTypeName((PetscObject)ksp,type);CHKERRQ(ierr);
+  ksp->normtype   = ksp->normtype_set = KSP_NORM_DEFAULT;
   ierr            = (*r)(ksp);CHKERRQ(ierr);
+  ierr = KSPGetNormType(ksp,&normtype);CHKERRQ(ierr);
+  if (normtype != KSP_NORM_NONE) {
+    void *ctx;
+
+    ierr = KSPConvergedDefaultCreate(&ctx);CHKERRQ(ierr);
+    ierr = KSPSetConvergenceTest(ksp,KSPConvergedDefault,ctx,KSPConvergedDefaultDestroy);CHKERRQ(ierr);
+  }
+  ierr = KSPSetNormType(ksp,normtype);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
