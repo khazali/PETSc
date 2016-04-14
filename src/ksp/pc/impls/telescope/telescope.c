@@ -81,7 +81,7 @@ PetscErrorCode PCTelescopeSetUp_default(PC pc,PC_Telescope sred)
     ierr = VecSetSizes(xred,PETSC_DECIDE,M);CHKERRQ(ierr);
     ierr = VecSetBlockSize(xred,bs);CHKERRQ(ierr);
     ierr = VecSetFromOptions(xred);CHKERRQ(ierr);
-    ierr = VecGetLocalSize(xred,&m);
+    ierr = VecGetLocalSize(xred,&m);CHKERRQ(ierr);
   }
 
   yred = NULL;
@@ -159,15 +159,15 @@ PetscErrorCode PCTelescopeMatNullSpaceCreate_default(PC pc,PC_Telescope sred,Mat
   MatNullSpace     nullspace,sub_nullspace;
   Mat              A,B;
   PetscBool        has_const;
-  PetscInt         i,k,n;
+  PetscInt         i,k,n = 0;
   const Vec        *vecs;
-  Vec              *sub_vecs;
+  Vec              *sub_vecs = NULL;
   MPI_Comm         subcomm;
 
   PetscFunctionBegin;
   ierr = PCGetOperators(pc,&A,&B);CHKERRQ(ierr);
   ierr = MatGetNullSpace(B,&nullspace);CHKERRQ(ierr);
-  if (!nullspace) return(0);
+  if (!nullspace) PetscFunctionReturn(0);
 
   ierr = PetscInfo(pc,"PCTelescope: generating nullspace (default)\n");CHKERRQ(ierr);
   subcomm = PetscSubcommChild(sred->psubcomm);
@@ -656,7 +656,7 @@ PetscErrorCode PCTelescopeGetKSP(PC pc,KSP *subksp)
 {
   PetscErrorCode ierr;
   PetscFunctionBegin;
-  ierr = PetscTryMethod(pc,"PCTelescopeGetKSP_C",(PC,KSP*),(pc,subksp));CHKERRQ(ierr);
+  ierr = PetscUseMethod(pc,"PCTelescopeGetKSP_C",(PC,KSP*),(pc,subksp));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -679,7 +679,7 @@ PetscErrorCode PCTelescopeGetReductionFactor(PC pc,PetscInt *fact)
 {
   PetscErrorCode ierr;
   PetscFunctionBegin;
-  ierr = PetscTryMethod(pc,"PCTelescopeGetReductionFactor_C",(PC,PetscInt*),(pc,fact));CHKERRQ(ierr);
+  ierr = PetscUseMethod(pc,"PCTelescopeGetReductionFactor_C",(PC,PetscInt*),(pc,fact));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -725,7 +725,7 @@ PetscErrorCode PCTelescopeGetIgnoreDM(PC pc,PetscBool *v)
 {
   PetscErrorCode ierr;
   PetscFunctionBegin;
-  ierr = PetscTryMethod(pc,"PCTelescopeGetIgnoreDM_C",(PC,PetscBool*),(pc,v));CHKERRQ(ierr);
+  ierr = PetscUseMethod(pc,"PCTelescopeGetIgnoreDM_C",(PC,PetscBool*),(pc,v));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -771,7 +771,7 @@ PetscErrorCode PCTelescopeGetIgnoreKSPComputeOperators(PC pc,PetscBool *v)
 {
   PetscErrorCode ierr;
   PetscFunctionBegin;
-  ierr = PetscTryMethod(pc,"PCTelescopeGetIgnoreKSPComputeOperators_C",(PC,PetscBool*),(pc,v));CHKERRQ(ierr);
+  ierr = PetscUseMethod(pc,"PCTelescopeGetIgnoreKSPComputeOperators_C",(PC,PetscBool*),(pc,v));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -817,7 +817,7 @@ PetscErrorCode PCTelescopeGetDM(PC pc,DM *subdm)
 {
   PetscErrorCode ierr;
   PetscFunctionBegin;
-  ierr = PetscTryMethod(pc,"PCTelescopeGetDM_C",(PC,DM*),(pc,subdm));CHKERRQ(ierr);
+  ierr = PetscUseMethod(pc,"PCTelescopeGetDM_C",(PC,DM*),(pc,subdm));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

@@ -147,10 +147,7 @@ static PetscErrorCode DMPlexReferenceTreeGetChildSymmetry_Default(DM dm, PetscIn
     oAvert     = (parentOrientA >= 0) ? parentOrientA : -((-parentOrientA % coneSize) + 1);
     oBvert     = (parentOrientB >= 0) ? parentOrientB : -((-parentOrientB % coneSize) + 1);
     ABswapVert = DihedralSwap(coneSize, oAvert, oBvert);
-  }
-  else {
-    oAvert     = parentOrientA;
-    oBvert     = parentOrientB;
+  } else {
     ABswapVert = ABswap;
   }
   if (childB) {
@@ -1756,7 +1753,7 @@ static PetscErrorCode DMPlexComputeAnchorMatrix_Tree_FromReference(DM dm, PetscS
       if (!pointDof) continue;
       ierr = DMPlexGetTransitiveClosure(dm,parent,PETSC_TRUE,&closureSize,&closure);CHKERRQ(ierr);
       for (f = 0; f < numFields; f++) {
-        PetscInt cDof, cOff, numCols, numFillCols, i, r, fComp, matOffset, offset;
+        PetscInt cDof, cOff, numCols, numFillCols, i, r, fComp = -1, matOffset, offset;
         PetscScalar *pointMat;
         PetscObject disc;
         PetscClassId id;
@@ -1772,6 +1769,9 @@ static PetscErrorCode DMPlexComputeAnchorMatrix_Tree_FromReference(DM dm, PetscS
         else if (id == PETSCFV_CLASSID) {
           fv = (PetscFV) disc;
           ierr = PetscFVGetNumComponents(fv,&fComp);CHKERRQ(ierr);
+        }
+        else {
+          SETERRQ(PetscObjectComm((PetscObject)disc),PETSC_ERR_SUP,"Unsupported discretization");
         }
 
         if (numFields > 1) {

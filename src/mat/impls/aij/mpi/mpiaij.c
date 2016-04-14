@@ -3771,9 +3771,13 @@ PetscErrorCode  MatCreateAIJ(MPI_Comm comm,PetscInt m,PetscInt n,PetscInt M,Pets
 #define __FUNCT__ "MatMPIAIJGetSeqAIJ"
 PetscErrorCode  MatMPIAIJGetSeqAIJ(Mat A,Mat *Ad,Mat *Ao,const PetscInt *colmap[])
 {
-  Mat_MPIAIJ *a = (Mat_MPIAIJ*)A->data;
-
+  Mat_MPIAIJ     *a = (Mat_MPIAIJ*)A->data;
+  PetscBool      flg;
+  PetscErrorCode ierr;
+  
   PetscFunctionBegin;
+  ierr = PetscObjectTypeCompare((PetscObject)A,MATMPIAIJ,&flg);CHKERRQ(ierr);
+  if (!flg) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_SUP,"This function requires a MPIAIJ matrix as input");
   if (Ad)     *Ad     = a->A;
   if (Ao)     *Ao     = a->B;
   if (colmap) *colmap = a->garray;
@@ -4798,7 +4802,7 @@ PetscErrorCode  MatGetBrowsOfAoCols_MPIAIJ(Mat A,Mat B,MatReuse scall,PetscInt *
       nrows  = rbs*(rstarts[i+1]-rstarts[i]); /* num of rows to be received */
       for (j=0; j<nrows; j++) {
         b_othi[k+1] = b_othi[k] + rowlen[j];
-        ierr = PetscIntSumError(rowlen[j],len,&len);
+        ierr = PetscIntSumError(rowlen[j],len,&len);CHKERRQ(ierr);
         k++;
       }
       rstartsj[i+1] = len; /* starting point of (i+1)-th incoming msg in bufj and bufa */

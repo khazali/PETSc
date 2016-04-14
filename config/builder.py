@@ -52,8 +52,8 @@ regressionParameters = {'src/dm/impls/patch/examples/tests/ex1': [{'numProcs': 1
                                                                  # Fluent mesh reader tests 21-24
                                                                  {'numProcs': 1, 'args': '-filename %(meshes)s/square.cas -interpolate 1 -dm_view'},
                                                                  {'numProcs': 3, 'args': '-filename %(meshes)s/square.cas -interpolate 1 -dm_view'},
-                                                                 {'numProcs': 1, 'args': '-filename %(meshes)s/cube_5tets_ascii.cas -interpolate 1 -dm_view', 'requires': ['cgns', 'Broken']},
-                                                                 {'numProcs': 1, 'args': '-filename %(meshes)s/cube_5tets.cas -interpolate 1 -dm_view', 'requires': ['cgns', 'Broken']},
+                                                                 {'numProcs': 1, 'args': '-filename %(meshes)s/cube_5tets_ascii.cas -interpolate 1 -dm_view'},
+                                                                 {'numProcs': 1, 'args': '-filename %(meshes)s/cube_5tets.cas -interpolate 1 -dm_view', 'requires': 'Broken'},
                                                                  ],
                         'src/dm/impls/plex/examples/tests/ex3': [# 2D P_1 on a triangle
                                                                  {'num': 'p1_2d_0', 'numProcs': 1, 'args': '-petscspace_order 1 -num_comp 2 -qorder 1 -convergence'},
@@ -571,6 +571,8 @@ regressionParameters = {'src/dm/impls/patch/examples/tests/ex1': [{'numProcs': 1
                         'src/snes/examples/tutorials/ex75':   [# 2D serial P2/P1 tests 0-1
                                                                {'numProcs': 1, 'args': ''},
                                                                {'numProcs': 1, 'args': '-fem'}],
+                        'src/snes/examples/tutorials/ex77':   [# Test from Sander
+                                                               {'numProcs': 1, 'args': '-run_type full -dim 3 -dm_refine 3 -interpolate 1 -def_petscspace_order 2 -pres_petscspace_order 1 -elastMat_petscspace_order 0 -bd_def_petscspace_order 2 -bd_pres_petscspace_order 1 -snes_rtol 1e-05 -ksp_type fgmres -ksp_rtol 1e-10 -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_factorization_type upper -fieldsplit_deformation_ksp_type preonly -fieldsplit_deformation_pc_type lu -fieldsplit_pressure_ksp_rtol 1e-10 -fieldsplit_pressure_pc_type jacobi -snes_monitor -ksp_monitor -snes_converged_reason -ksp_converged_reason -show_solution 0', 'parser': 'Solver'}],
                         'src/ts/examples/tutorials/ex11':      [# 2D Advection 0-10
                                                                 {'numProcs': 1, 'args': '-ufv_vtk_interval 0 -f %(meshes)s/sevenside.exo','requires': ['exodusii']},
                                                                 {'numProcs': 1, 'args': '-ufv_vtk_interval 0 -f %(meshes)s/sevenside-quad-15.exo','requires': ['exodusii']},

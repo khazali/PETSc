@@ -966,7 +966,7 @@ static PetscErrorCode TSEvaluateStep_RosW(TS ts,PetscInt order,Vec U,PetscBool *
 
 #undef __FUNCT__
 #define __FUNCT__ "TSRollBack_RosW"
-PetscErrorCode TSRollBack_RosW(TS ts)
+static PetscErrorCode TSRollBack_RosW(TS ts)
 {
   TS_RosW        *ros = (TS_RosW*)ts->data;
   RosWTableau    tab = ros->tableau;
@@ -1010,7 +1010,6 @@ static PetscErrorCode TSStep_RosW(TS ts)
 
   for (reject=0; reject<ts->max_reject && !ts->reason; reject++,ts->reject++) {
     const PetscReal h = ts->time_step;
-    ierr = TSPreStep(ts);CHKERRQ(ierr);
     ierr = VecCopy(ts->vec_sol,ros->VecSolPrev);CHKERRQ(ierr); /*move this at the end*/
     for (i=0; i<s; i++) {
       ros->stage_time = ts->ptime + h*ASum[i];
@@ -1588,7 +1587,7 @@ PetscErrorCode TSRosWSetRecomputeJacobian(TS ts,PetscBool flg)
 
 #undef __FUNCT__
 #define __FUNCT__ "TSRosWGetType_RosW"
-PetscErrorCode  TSRosWGetType_RosW(TS ts,TSRosWType *rostype)
+static PetscErrorCode  TSRosWGetType_RosW(TS ts,TSRosWType *rostype)
 {
   TS_RosW        *ros = (TS_RosW*)ts->data;
   PetscErrorCode ierr;
@@ -1601,7 +1600,7 @@ PetscErrorCode  TSRosWGetType_RosW(TS ts,TSRosWType *rostype)
 
 #undef __FUNCT__
 #define __FUNCT__ "TSRosWSetType_RosW"
-PetscErrorCode  TSRosWSetType_RosW(TS ts,TSRosWType rostype)
+static PetscErrorCode  TSRosWSetType_RosW(TS ts,TSRosWType rostype)
 {
   TS_RosW         *ros = (TS_RosW*)ts->data;
   PetscErrorCode  ierr;
@@ -1627,7 +1626,7 @@ PetscErrorCode  TSRosWSetType_RosW(TS ts,TSRosWType rostype)
 
 #undef __FUNCT__
 #define __FUNCT__ "TSRosWSetRecomputeJacobian_RosW"
-PetscErrorCode  TSRosWSetRecomputeJacobian_RosW(TS ts,PetscBool flg)
+static PetscErrorCode  TSRosWSetRecomputeJacobian_RosW(TS ts,PetscBool flg)
 {
   TS_RosW *ros = (TS_RosW*)ts->data;
 

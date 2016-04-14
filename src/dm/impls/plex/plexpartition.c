@@ -75,7 +75,7 @@ PetscErrorCode DMPlexCreatePartitionerGraph(DM dm, PetscInt height, PetscInt *nu
   ierr = DMPlexGetAdjacencyUseClosure(dm, &useClosure);CHKERRQ(ierr);
   ierr = DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE);CHKERRQ(ierr);
   ierr = DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE);CHKERRQ(ierr);
-  ierr = DMPlexGetCellNumbering(dm, &cellNumbering);CHKERRQ(ierr);
+  ierr = DMPlexCreateCellNumbering_Internal(dm, PETSC_TRUE, &cellNumbering);CHKERRQ(ierr);
   ierr = ISGetIndices(cellNumbering, &cellNum);CHKERRQ(ierr);
   for (*numVertices = 0, p = pStart; p < pEnd; p++) {
     /* Skip non-owned cells in parallel (ParMetis expects no overlap) */
@@ -119,6 +119,7 @@ PetscErrorCode DMPlexCreatePartitionerGraph(DM dm, PetscInt height, PetscInt *nu
     ierr = ISLocalToGlobalMappingRestoreIndices(ltogCells, (const PetscInt**)&cells_arr);CHKERRQ(ierr);
     ierr = ISLocalToGlobalMappingApplyBlock(ltogCells, vOffsets[*numVertices], graph, graph);CHKERRQ(ierr);
     ierr = ISLocalToGlobalMappingDestroy(&ltogCells);CHKERRQ(ierr);
+    ierr = ISDestroy(&cellNumbering);CHKERRQ(ierr);
   }
   if (adjacency) *adjacency = graph;
   /* Clean up */
@@ -858,7 +859,7 @@ PetscErrorCode PetscPartitionerPartition_Simple(PetscPartitioner part, DM dm, Pe
     PetscMPIInt rank;
     PetscInt nvGlobal, *offsets, myFirst, myLast;
 
-    ierr = PetscMalloc1(size+1,&offsets);
+    ierr = PetscMalloc1(size+1,&offsets);CHKERRQ(ierr);
     offsets[0] = 0;
     ierr = MPI_Allgather(&numVertices,1,MPIU_INT,&offsets[1],1,MPIU_INT,comm);CHKERRQ(ierr);
     for (np = 2; np <= size; np++) {
@@ -1322,7 +1323,7 @@ PetscErrorCode PetscPartitionerPartition_ParMetis(PetscPartitioner part, DM dm, 
   ubvec[0] = 1.05;
 
   if (nparts == 1) {
-    ierr = PetscMemzero(assignment, nvtxs * sizeof(PetscInt));
+    ierr = PetscMemzero(assignment, nvtxs * sizeof(PetscInt));CHKERRQ(ierr);
   } else {
     if (vtxdist[1] == vtxdist[nparts]) {
       if (!rank) {
