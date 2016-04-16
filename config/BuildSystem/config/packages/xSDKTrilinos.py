@@ -4,7 +4,7 @@ import os
 class Configure(config.package.CMakePackage):
   def __init__(self, framework):
     config.package.CMakePackage.__init__(self, framework)
-    self.gitcommit         = 'master'
+    self.gitcommit         = 'origin/master'
     self.download          = ['git://https://github.com/trilinos/xSDKTrilinos.git']
     self.downloaddirname   = 'xSDKTrilinos'
     self.includes          = []
@@ -18,9 +18,14 @@ class Configure(config.package.CMakePackage):
 
   def setupDependencies(self, framework):
     config.package.CMakePackage.setupDependencies(self, framework)
-    self.petscdir       = framework.require('PETSc.options.petscdir', self.setCompilers)
+    self.arch            = framework.require('PETSc.options.arch', self.setCompilers)
+    self.petscdir        = framework.require('PETSc.options.petscdir', self.setCompilers)
+    self.installdir      = framework.require('PETSc.options.installDir',  self)
     self.trilinos        = framework.require('config.packages.Trilinos',self)
     self.hypre           = framework.require('config.packages.hypre',self)
+    self.x               = framework.require('config.packages.X',self)
+    self.ssl             = framework.require('config.packages.ssl',self)
+    self.exodusii        = framework.require('config.packages.exodusii',self)
     #
     # also requires the ./configure option --with-cxx-dialect=C++11
     return
@@ -58,10 +63,31 @@ class Configure(config.package.CMakePackage):
       args.append('-DTPL_ENABLE_HYPRE=ON')
       args.append('-DTPL_HYPRE_LIBRARIES="'+self.libraries.toStringNoDupes(self.hypre.lib)+'"')
       args.append('-DTPL_HYPRE_INCLUDE_DIRS='+self.headers.toStringNoDupes(self.hypre.include)[2:])
-    args.append('-DTPL_ENABLE_PETSC=ON')
-    args.append('-DPETSC_LIBRARY_DIRS='+os.path.join(self.petscdir.dir,'lib'))
-    args.append('-DPETSC_INCLUDE_DIRS='+os.path.join(self.petscdir.dir,'include'))
 
+    args.append('-DTPL_ENABLE_PETSC=ON')
+    # These are packages that PETSc may be using that Trilinos is not be using 
+    plibs = self.exodusii.dlib+self.ssl.lib+self.x.lib
+
+    if self.framework.argDB['prefix']:
+       idir = os.path.join(self.installdir.dir,'lib')
+    else:
+       idir = os.path.join(self.petscdir.dir,self.arch,'lib')
+    if self.framework.argDB['with-single-library']:
+      plibs = self.libraries.toStringNoDupes(['-L'+idir,' -lpetsc']+plibs)
+    else:
+      plibs = self.libraries.toStringNoDupes(['-L'+idir,'-lpetscts -lpetscsnes -lpetscksp -lpetscdm -lpetscmat -lpetscvec -lpetscsys']+plibs)
+
+    args.append('-DTPL_PETSC_LIBRARIES="'+plibs+'"')
+    args.append('-DTPL_PETSC_INCLUDE_DIRS='+os.path.join(self.petscdir.dir,'include'))
+
+    if self.compilerFlags.debugging:
+      args.append('-DCMAKE_BUILD_TYPE=DEBUG')
+      args.append('-DxSDKTrilinos_ENABLE_DEBUG=YES')
+    else:
+      args.append('-DCMAKE_BUILD_TYPE=RELEASE')
+      args.append('-DxSDKTrilinos_ENABLE_DEBUG=NO')
+
+    args.append('-DxSDKTrilinos_EXTRA_LINK_FLAGS="'+self.libraries.toStringNoDupes(self.libraries.math+self.compilers.flibs+self.compilers.cxxlibs)+' '+self.compilers.LIBS+'"')
     args.append('-DxSDKTrilinos_ENABLE_TESTS=ON')
     return args
 
