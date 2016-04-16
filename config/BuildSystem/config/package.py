@@ -34,6 +34,7 @@ class Package(config.base.Configure):
     self.gitcommit        = None # Git commit to use for downloads (used in preference to tarball downloads)
     self.download         = []   # list of URLs where repository or tarballs may be found
     self.deps             = []   # other packages whose dlib or include we depend on, usually we also use self.framework.require()
+    self.odeps            = []   # dependent packages that are optional
     self.defaultLanguage  = 'C'  # The language in which to run tests
     self.liblist          = [[]] # list of libraries we wish to check for (override with your own generateLibList())
     self.extraLib         = []   # additional libraries needed to link
@@ -72,6 +73,7 @@ class Package(config.base.Configure):
     self.hastests         = 0 # indicates that PETSc make alltests has tests for this package
     self.hastestsdatafiles= 0 # indicates that PETSc make all tests has tests for this package that require DATAFILESPATH to be set
     self.makerulename     = '' # some packages do too many things with the make stage; this allows a package to limit to, for example, just building the libraries
+    self.installedpetsc   = 0
     return
 
   def __str__(self):
@@ -86,15 +88,16 @@ class Package(config.base.Configure):
 
   def setupDependencies(self, framework):
     config.base.Configure.setupDependencies(self, framework)
-    self.setCompilers  = framework.require('config.setCompilers', self)
-    self.compilers     = framework.require('config.compilers', self)
-    self.compilerFlags = framework.require('config.compilerFlags', self)
-    self.types         = framework.require('config.types', self)
-    self.headers       = framework.require('config.headers', self)
-    self.libraries     = framework.require('config.libraries', self)
-    self.programs      = framework.require('config.programs', self)
-    self.sourceControl = framework.require('config.sourceControl',self)
+    self.setCompilers    = framework.require('config.setCompilers', self)
+    self.compilers       = framework.require('config.compilers', self)
+    self.compilerFlags   = framework.require('config.compilerFlags', self)
+    self.types           = framework.require('config.types', self)
+    self.headers         = framework.require('config.headers', self)
+    self.libraries       = framework.require('config.libraries', self)
+    self.programs        = framework.require('config.programs', self)
+    self.sourceControl   = framework.require('config.sourceControl',self)
     self.sharedLibraries = framework.require('PETSc.options.sharedLibraries', self)
+    self.petscdir        = framework.require('PETSc.options.petscdir', self.setCompilers)
     # All packages depend on make
     self.make          = framework.require('config.packages.make',self)
     if not self.isMPI and not self.package == 'make':
@@ -649,6 +652,7 @@ class Package(config.base.Configure):
           str = ''
           if package.download: str = ' or --download-'+package.package
           raise RuntimeError('Did not find package '+package.PACKAGE+' needed by '+self.name+'.\nEnable the package using --with-'+package.package+str)
+    for package in self.deps + self.odeps:
       if hasattr(package, 'dlib')    and not libs  is None: libs  += package.dlib
       if hasattr(package, 'include') and not incls is None: incls += package.include
     return
@@ -825,6 +829,33 @@ class Package(config.base.Configure):
       return False
     else:
       return True
+
+  def compilePETSc(self):
+    try:
+      self.logPrintBox('Compiling PETSc; this may take several minutes')
+      output,err,ret  = config.package.Package.executeShellCommand('cd '+self.petscdir.dir+' && '+self.make.make+' all PETSC_DIR='+self.petscdir.dir+' PETSC_ARCH='+self.arch,timeout=1000, log = self.log)
+      self.log.write(output+err)
+    except RuntimeError, e:
+      raise RuntimeError('Error running make all on PETSc: '+str(e))
+    if self.framework.argDB['prefix']:
+      try:
+        self.logPrintBox('Installing PETSc; this may take several minutes')
+        output,err,ret  = config.package.Package.executeShellCommand('cd '+self.petscdir.dir+' && '+self.installDirProvider.installSudo+self.make.make+' install PETSC_DIR='+self.petscdir.dir+' PETSC_ARCH='+self.arch,timeout=50, log = self.log)
+        self.log.write(output+err)
+      except RuntimeError, e:
+        raise RuntimeError('Error running make install on PETSc: '+str(e))
+    elif not self.argDB['with-batch']:
+      try:
+        self.logPrintBox('Testing PETSc; this may take several minutes')
+        output,err,ret  = config.package.Package.executeShellCommand('cd '+self.petscdir.dir+' && '+self.make.make+' test PETSC_DIR='+self.petscdir.dir+' PETSC_ARCH='+self.arch,timeout=50, log = self.log)
+        output = output+err
+        self.log.write(output)
+        if output.find('error') > -1 or output.find('Error') > -1:
+          raise RuntimeError('Error running make test on PETSc: '+output)
+      except RuntimeError, e:
+        raise RuntimeError('Error running make test on PETSc: '+str(e))
+    self.installedpetsc = 1
+
 
 '''
 config.package.GNUPackage is a helper class whose intent is to simplify writing configure modules
@@ -1088,10 +1119,7 @@ Brief overview of how BuildSystem\'s configuration of packages works.
         self.downloadversion
     - override setupHelp to declare command-line arguments that can be used anywhere below
       (GNUPackage takes care of some of the basic args, including the download version)
-    - override setupDependencies to "require" dependent objects and to set up the following instance veriables
-        self.deps
-        self.odeps
-      as appropriate
+    - override setupDependencies to process self.odeps and enable this optional package feature in the current externalpackage.
     - override setupDownload to control the precise download URL and/or
     - override setupDownloadVersion to control the self.downloadversion string inserted into self.download between self.downloadpath and self.downloadext
 '''
@@ -1105,11 +1133,7 @@ class GNUPackage(Package):
     config.package.Package.setupHelp(self,help)
     import nargs
     help.addArgument(self.PACKAGE, '-download-'+self.package+'-shared=<bool>',     nargs.ArgBool(None, 0, 'Install '+self.PACKAGE+' with shared libraries'))
-
-  def setupDependencies(self,framework):
-    config.package.Package.setupDependencies(self, framework)
-    # optional dependencies, that will be turned off in GNU configure, if they are absent
-    self.odeps = []
+    help.addArgument(self.PACKAGE, '-download-'+self.package+'-configure-arguments=string', nargs.ArgString(None, 0, 'Additional GNU autoconf configure arguments for the build'+self.name))
 
   def formGNUConfigureArgs(self):
     '''This sets up the prefix, compiler flags, shared flags, and other generic arguments
@@ -1168,6 +1192,9 @@ class GNUPackage(Package):
       args.append('--enable-shared')
     else:
       args.append('--disable-shared')
+
+    if self.download and self.argDB['download-'+self.downloadname.lower()+'-configure-arguments']:
+       args.append(self.argDB['download-'+self.downloadname.lower()+'-configure-arguments'])
     return args
 
   def Install(self):
@@ -1220,11 +1247,7 @@ class GNUPackage(Package):
       if not package.found:
         if self.argDB['with-'+package.package] == 1:
           raise RuntimeError('Package '+package.PACKAGE+' needed by '+self.name+' failed to configure.\nMail configure.log to petsc-maint@mcs.anl.gov.')
-      if hasattr(package, 'dlib')    and not libs  is None: libs  += package.dlib
-      if hasattr(package, 'include') and not incls is None: incls += package.include
     return
-
-
 
 class CMakePackage(Package):
   def __init__(self, framework):

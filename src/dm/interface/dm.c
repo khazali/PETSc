@@ -1580,6 +1580,7 @@ PetscErrorCode DMCreateDomainDecomposition(DM dm, PetscInt *len, char ***namelis
     ierr = (*dm->ops->createdomaindecomposition)(dm,&l,namelist,innerislist,outerislist,dmlist);CHKERRQ(ierr);
     /* copy subdomain hooks and context over to the subdomain DMs */
     if (dmlist) {
+      if (!*dmlist) SETERRQ(PetscObjectComm((PetscObject)dm),PETSC_ERR_POINTER,"Method mapped to dm->ops->createdomaindecomposition must allocate at least one DM");
       for (i = 0; i < l; i++) {
         for (link=dm->subdomainhook; link; link=link->next) {
           if (link->ddhook) {ierr = (*link->ddhook)(dm,(*dmlist)[i],link->ctx);CHKERRQ(ierr);}
@@ -6046,7 +6047,7 @@ PetscErrorCode DMGetBoundary(DM dm, PetscInt bd, PetscBool *isEssential, const c
     b = b->next;
     ++n;
   }
-  if (n != bd) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Boundary %d is not in [0, %d)", bd, n);
+  if (!b) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Boundary %d is not in [0, %d)", bd, n);
   if (isEssential) {
     PetscValidPointer(isEssential, 3);
     *isEssential = b->essential;

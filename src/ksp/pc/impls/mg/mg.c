@@ -252,16 +252,11 @@ PetscErrorCode  PCMGSetLevels(PC pc,PetscInt levels,MPI_Comm *comms)
       ierr = KSPGetPC(mglevels[0]->smoothd,&ipc);CHKERRQ(ierr);
       ierr = MPI_Comm_size(comm,&size);CHKERRQ(ierr);
       if (size > 1) {
-        KSP innerksp;
-        PC  innerpc;
         ierr = PCSetType(ipc,PCREDUNDANT);CHKERRQ(ierr);
-        ierr = PCRedundantGetKSP(ipc,&innerksp);CHKERRQ(ierr);
-        ierr = KSPGetPC(innerksp,&innerpc);CHKERRQ(ierr);
-        ierr = PCFactorSetShiftType(innerpc,MAT_SHIFT_INBLOCKS);CHKERRQ(ierr);
       } else {
         ierr = PCSetType(ipc,PCLU);CHKERRQ(ierr);
-        ierr = PCFactorSetShiftType(ipc,MAT_SHIFT_INBLOCKS);CHKERRQ(ierr);
       }
+      ierr = PCFactorSetShiftType(ipc,MAT_SHIFT_INBLOCKS);CHKERRQ(ierr);
     } else {
       char tprefix[128];
       sprintf(tprefix,"mg_levels_%d_",(int)i);
@@ -367,7 +362,7 @@ PetscErrorCode PCSetFromOptions_MG(PetscOptionItems *PetscOptionsObject,PC pc)
   PetscInt       m,levels = 1,cycles;
   PetscBool      flg,set;
   PC_MG          *mg        = (PC_MG*)pc->data;
-  PC_MG_Levels   **mglevels = mg->levels;
+  PC_MG_Levels   **mglevels;
   PCMGType       mgtype;
   PCMGCycleType  mgctype;
 
@@ -1202,7 +1197,7 @@ PetscErrorCode  PCMGSetNumberSmoothUp(PC pc,PetscInt n)
 
    Options Database Keys:
 +  -pc_mg_levels <nlevels> - number of levels including finest
-.  -pc_mg_cycles <v,w> -
+.  -pc_mg_cycle_type <v,w> - 
 .  -pc_mg_smoothup <n> - number of smoothing steps after interpolation
 .  -pc_mg_smoothdown <n> - number of smoothing steps before applying restriction operator
 .  -pc_mg_type <additive,multiplicative,full,kaskade> - multiplicative is the default
