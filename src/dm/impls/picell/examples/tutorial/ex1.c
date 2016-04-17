@@ -423,7 +423,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscStrcpy(fname,"iter");CHKERRQ(ierr);
   ierr = PetscOptionsString("-run_type", "Type of run (iter or torus)", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
   PetscStrcmp("iter",fname,&flg);
-  if (flg) {
+  if (flg) { /* ITER */
     ctx->run_type = X2_ITER;
     ierr = PetscStrcpy(fname,"ITER-14vertex.txt");CHKERRQ(ierr);
     ierr = PetscOptionsString("-iter_vertex_file", "Name of vertex .txt file of ITER (14) vertices", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
@@ -433,12 +433,9 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
       if (!fgets(str,256,fp)) break;
       k = sscanf(str,"%e %e %s\n",&s_wallEdges[isp][0],&s_wallEdges[isp][1],str2);
       if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file",k);
-      if (k==3) {
-        PetscStrcmp("skip",str2,&flg);
-        if (flg) isp--; /* skip this line - not used!!! */
-      }
+      s_wallEdges[isp][0] -= ctx->particleGrid.rMajor;
     }
-    s_numWallEdges = 14;
+    s_numWallEdges = isp;
     /* cell ids */
     for (isp=0;isp<6;isp++) {
       if (!fgets(str,256,fp)) break;
@@ -452,7 +449,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     }
     fclose(fp);
   }
-  else {
+  else { /* torus pushed out to wall of ITER */
     PetscReal edge_shift[2];
     PetscStrcmp("torus",fname,&flg);
     if (flg) ctx->run_type = X2_TORUS;
@@ -463,7 +460,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     ierr = PetscStrcpy(fname,"ITER-wall-geo-xx.txt");CHKERRQ(ierr);
     ierr = PetscOptionsString("-wall_file", "Name of wall .txt file", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
     fp = fopen(fname, "r");
-    if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Wall file %s not found, use -fname FILE_NAME",fname);
+    if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Wall file %s not found, use -wall_file FILE_NAME",fname);
     for (isp=0;isp<X2_WALL_ARRAY_MAX;isp++) {
       if (!fgets(str,256,fp)) break;
       k = sscanf(str,"%e %e %s\n",&s_wallEdges[isp][0],&s_wallEdges[isp][1],str2);
@@ -1340,7 +1337,7 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
   ierr = PetscFree2(flatCells,flatCoords);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) *dm, "iter");CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) *dm, "iter_");CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_WORLD,"==== DMPlexCreatePICellITER done %d %d\n",numCells,numVerts);
+
   PetscFunctionReturn(0);
 }
 #undef __FUNCT__
