@@ -56,10 +56,10 @@ Particle-grid interactions are challenging because the data structures and natur
 This tight coupling, and the ever increasing importance of data locality generally, make the data model critical in the current and future extreme-scale PIC applications.
 
 The critical importance of data placement for the efficient processing of PIC methods requires that highly optimal, and potentially complex, data models be developed.
-The fusion PIC community has avoided much of this complexity by replicating all grid data on each MPI process or address space.
-This approach does of course solve this problem of data layout by simply replicating it everywhere, but it also removes a powerful design space of algorithms to optimize extreme-scale PIC codes.
-Distributing grids will be very disruptive to the code base of fusion PIC applications, but many future optimization in the context of this obsolete data model will not be applicable, or necessary, on distributed grids.
- It behooves the fusion PIC community to move to distributed data models as soon as possible.
+One can avoid much of this code complexity by replicating grid data on each MPI process or address space.
+This approach does simplify the data model considerably, however it also removes the most fundamentally important optimization opportunity for extreme-scale PIC codes on emerging architectures.
+Distributing grids will be very disruptive to the code base of fusion PIC applications, but many future optimization in the context of this replication data model will not be applicable, or necessary, on distributed grids.
+%It behooves the fusion PIC community to move to distributed data models early to begin their optimization.
 
 The physics community has developed a large body of research and experience in using PIC methods for fusion plasmas and they are one of the largest users in DOE leadership class compute facilities.
 The applied math, engineering, and physics communities have developed powerful discretization and solver methods for extreme-scale computing in just the past ten years and stretching back to the 1960s, but these modern methods are not widely used in the fusion PIC community.
@@ -111,7 +111,7 @@ To this end we see several early areas that our project can contribute:
 \end{itemize}
  
 
-\section{Current Development}
+\section{Current and Future Development}
 \label{sec:x2}
 
 The development proposed herein takes place in a branch in the PETSc repository (mark/feature-picell) and a driver application named X2 (DMPICell ex1.c).
@@ -129,7 +129,7 @@ Flux tubes are a natural choice for these collision cells, these are long, narro
 We decouple the grid partitioning from the flux tube partitioning and implement a full ``transpose" of particles between these two partitions.
 Aligning the solver partitioning with flux tubes, to minimize communication, is a potential future optimization.
 
-Figure \ref{fig:cross} (left) shows an example of four flux tubes on a half torus and Figure \ref{fig:cross} (right) shows an example of half a coarse grid of ITER.
+Figure \ref{fig:cross} (left) shows an example of four flux tubes on a half torus and Figure \ref{fig:cross} (right) shows a current draft of half the coarse grid for ITER.
 \begin{figure}[h!]
    \centering
    \includegraphics[width=75mm]{half_grid.jpeg} 
@@ -139,11 +139,18 @@ Figure \ref{fig:cross} (left) shows an example of four flux tubes on a half toru
 \end{figure}
 The fuzzy edges of Figure \ref{fig:cross} (left) are due to the finite number of particles, each particle is drawn with the color of the partition to which it belongs.
 
-We currently use trilinear elements, as can be seen in Figure \ref{fig:cross} (right), and intend on using Q2 elements, to resolve the domain more accurately, in the future.
+\subsection{High Order}
+\label{sec:ho}
+
+The mesh in Figure \ref{fig:cross} (right) has what would be six (high order) Q2 elements per plane, but we currently use trilinear elements, which results in 24 elements per plane.
 High order elements are attractive because of their high accuracy for smooth solutions should allow for fewer vertices and hence larger ``cells".
 Furthermore, because order elements are in effect composed of multiple cells they are still larger in physical space.
 Large elements are useful because we use these elements for data locality, larger elements results in larger element particle lists, which are used for vectorization.
 Additionally, the solutions of say the Poisson solve in fusion applications, with turbulence, are smooth at the scale of the (known) Larmore radius and, in fact, physicists often smooth the results of low order Poisson solvers to reduce high frequency components.
+Q2 elements can also capture curved surface mech better than linear elements.
+For instance, the middle vertex on the bottom of the mesh in Figure \ref{fig:cross} (right) and its neighbors above, would be moved up to be able to represent the dome more accurately.
+Note, the importance of the diverter region has lead us to statically refine the region at the bottom of the mesh.
+
 We plan to move to discontinuous Galerkin (DG) methods in the future because they have attractive mathematical properties, such as having rigorous theory like finite elements and being conservative like finite volume, which would be useful for flux surface averaging projections.
 DG results in systems with many degrees of freedom, a common problem of these methods, but fusion PIC solvers are highly over provisioned with processing resources, thus, local work and storage complexity are not critical for these solves.
 \bibliographystyle{siamplain}
