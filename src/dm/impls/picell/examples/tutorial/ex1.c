@@ -448,10 +448,14 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     }
     fclose(fp);
   }
-  else { /* torus pushed out to wall of ITER */
+  else {
     PetscStrcmp("torus",fname,&flg);
     if (flg) ctx->run_type = X2_TORUS;
-    else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Unknown run type %s",fname);
+    else {
+      PetscStrcmp("boxtorus",fname,&flg);
+      if (flg) ctx->run_type = X2_BOXTORUS;
+      else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Unknown run type %s",fname);
+    }
   }
 
   for (isp = ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) ctx->tablecount[isp] = 0;
@@ -1398,11 +1402,11 @@ static PetscErrorCode DMPlexCreatePICellBoxTorus (MPI_Comm comm, X2GridParticle 
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
   if (!rank) {
-    numCells = numMajor * 5;
-    numVerts = numMajor * 8;
+    numCells = numMajor * 1;
+    numVerts = numMajor * 4;
     ierr = PetscMalloc2(numCells * 8,&flatCells,numVerts * 3,&flatCoords);CHKERRQ(ierr);
     {
-      double (*coords)[8][3] = (double (*) [8][3]) flatCoords;
+      double (*coords)[4][3] = (double (*) [4][3]) flatCoords;
       PetscInt i;
 
       for (i = 0; i < numMajor; i++) {
@@ -1412,12 +1416,11 @@ static PetscErrorCode DMPlexCreatePICellBoxTorus (MPI_Comm comm, X2GridParticle 
         cosphi = cos(2 * M_PI * i / numMajor);
         sinphi = sin(2 * M_PI * i / numMajor);
 
-        for (j = 0; j < 8; j++) {
+        for (j = 0; j < 4; j++) {
           double r, z;
-          double mult = (j < 4) ? innerMult : 1.;
 
-          r = rMajor + mult * rMinor * cos(j * M_PI_2);
-          z = mult * rMinor * sin(j * M_PI_2)         ;
+          r = rMajor + rMinor * ( (j==1 || j==2)        ? -1. :  1.);
+          z =          rMinor * ( (j < 2) ?  1. : -1. );
 
           coords[i][j][0] = cosphi * r;
           coords[i][j][1] = sinphi * r;
@@ -1426,39 +1429,24 @@ static PetscErrorCode DMPlexCreatePICellBoxTorus (MPI_Comm comm, X2GridParticle 
       }
     }
     {
-      int (*cells)[5][8] = (int (*) [5][8]) flatCells;
-      PetscInt i;
+      int (*cells)[1][8] = (int (*) [1][8]) flatCells;
+      PetscInt k, i, j = 0;
 
       for (i = 0; i < numMajor; i++) {
-        PetscInt j;
+        for (k = 0; k < 8; k++) {
+          PetscInt l = k % 4;
 
-        for (j = 0; j < 5; j++) {
-          PetscInt k;
-
-          if (j < 4) {
-            for (k = 0; k < 8; k++) {
-              PetscInt l = k % 4;
-
-              cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + ((l % 3) ? 0 : 4) + ((l < 2) ? j : ((j + 1) % 4))) % numVerts;
-            }
-          }
-          else {
-            for (k = 0; k < 8; k++) {
-              PetscInt l = k % 4;
-
-              cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + (3 - l)) % numVerts;
-            }
-          }
-          {
-            PetscInt swap = cells[i][j][1];
-
-            cells[i][j][1] = cells[i][j][3];
-            cells[i][j][3] = swap;
-          }
+          cells[i][j][k] = (4 * ((k < 4) ? i : (i + 1)) + (3 - l)) % numVerts;
+        }
+        {
+          PetscInt swap = cells[i][j][1];
+          cells[i][j][1] = cells[i][j][3];
+          cells[i][j][3] = swap;
         }
       }
     }
   }
+
   ierr = DMPlexCreateFromCellList(comm,3,numCells,numVerts,8,PETSC_TRUE,flatCells,3,flatCoords,dm);CHKERRQ(ierr);
   ierr = PetscFree2(flatCells,flatCoords);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) *dm, "torus");CHKERRQ(ierr);
@@ -1700,9 +1688,12 @@ int main(int argc, char **argv)
   if (ctx.run_type == X2_ITER) {
     ierr = DMPlexCreatePICellITER(ctx.wComm,&ctx.particleGrid,&dmpi->dmplex);CHKERRQ(ierr);
   }
-  else {
+  else if (ctx.run_type == X2_TORUS) {
     ierr = DMPlexCreatePICellTorus(ctx.wComm,&ctx.particleGrid,&dmpi->dmplex);CHKERRQ(ierr);
-    assert(ctx.run_type == X2_TORUS);
+  }
+  else {
+    ierr = DMPlexCreatePICellBoxTorus(ctx.wComm,&ctx.particleGrid,&dmpi->dmplex);CHKERRQ(ierr);
+    assert(ctx.run_type == X2_BOXTORUS);
   }
   ierr = DMSetApplicationContext(dmpi->dmplex, &ctx);CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dmplex, "x2_");CHKERRQ(ierr);
@@ -1748,8 +1739,11 @@ int main(int argc, char **argv)
             /* ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,GeometryPICellITER,&ctx);CHKERRQ(ierr); */
             ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,NULL,&ctx);CHKERRQ(ierr);
           }
-          else {
+          else if (ctx.run_type == X2_TORUS) {
             ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,GeometryPICellTorus,&ctx);CHKERRQ(ierr);
+          }
+          else {
+            ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,NULL,&ctx);CHKERRQ(ierr);
           }
         }
       }
