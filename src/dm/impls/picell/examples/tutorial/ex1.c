@@ -1336,7 +1336,6 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
   ierr = DMPlexCreateFromCellList(comm,3,numCells,numVerts,8,PETSC_TRUE,flatCells,3,flatCoords,dm);CHKERRQ(ierr);
   ierr = PetscFree2(flatCells,flatCoords);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) *dm, "iter");CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) *dm, "iter_");CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }
@@ -1487,10 +1486,11 @@ static PetscErrorCode DMPlexCreatePICellTorus (MPI_Comm comm, X2GridParticle *pa
   ierr = DMPlexCreateFromCellList(comm,3,numCells,numVerts,8,PETSC_TRUE,flatCells,3,flatCoords,dm);CHKERRQ(ierr);
   ierr = PetscFree2(flatCells,flatCoords);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) *dm, "torus");CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) *dm, "torus_");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "findWallPoint"
 static PetscErrorCode findWallPoint( const PetscReal rfrac, const PetscReal inner, const PetscReal X, const PetscReal Y, PetscReal *outX, PetscReal *outY)
 {
   PetscInt ii;
@@ -1695,6 +1695,7 @@ int main(int argc, char **argv)
     assert(ctx.run_type == X2_TORUS);
   }
   ierr = DMSetApplicationContext(dmpi->dmplex, &ctx);CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dmplex, "x2_");CHKERRQ(ierr);
   /* setup Discretization */
   ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);
   CHKERRQ(ierr);
@@ -1719,7 +1720,7 @@ int main(int argc, char **argv)
     char      convType[256];
     PetscBool flg;
     ierr = PetscOptionsBegin(ctx.wComm, "", "Mesh conversion options", "DMPLEX");CHKERRQ(ierr);
-    ierr = PetscOptionsFList("-torus_dm_type","Convert DMPlex to another format","x2.c",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
+    ierr = PetscOptionsFList("-x2_dm_type","Convert DMPlex to another format","x2.c",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
     ierr = PetscOptionsEnd();
     if (flg) {
       DM dmConv;
@@ -1763,7 +1764,7 @@ int main(int argc, char **argv)
   {
     PetscViewer    viewer = NULL;
     PetscBool      flg;
-    ierr = PetscOptionsGetViewer(ctx.wComm,NULL,"-torus_dm_view",&viewer,NULL,&flg);CHKERRQ(ierr);
+    ierr = PetscOptionsGetViewer(ctx.wComm,NULL,"-x2_dm_view",&viewer,NULL,&flg);CHKERRQ(ierr);
     if (flg) {
       ierr = DMView(dmpi->dmplex,viewer);CHKERRQ(ierr);
     }
