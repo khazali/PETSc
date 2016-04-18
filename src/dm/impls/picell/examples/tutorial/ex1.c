@@ -14,7 +14,7 @@ static char help[] = "X2: A partical in cell code for tokamak plasmas using PICe
 static float     s_wallEdges[X2_WALL_ARRAY_MAX][2];
 static int       s_numWallEdges;
 static int       s_quad_vertex[6][4];
-typedef enum {X2_ITER,X2_TORUS} runType;
+typedef enum {X2_ITER,X2_TORUS,X2_BOXTORUS} runType;
 typedef struct {
   /* particle grid sizes */
   PetscInt nradius;
@@ -307,7 +307,6 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
 {
   PetscErrorCode ierr,isp,k;
   FILE *fp;
-  PetscInt two = 2;
   PetscBool phiFlag,radFlag,thetaFlag,flg;
   char str[256],str2[256],fname[256];
 
@@ -450,32 +449,9 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     fclose(fp);
   }
   else { /* torus pushed out to wall of ITER */
-    PetscReal edge_shift[2];
     PetscStrcmp("torus",fname,&flg);
     if (flg) ctx->run_type = X2_TORUS;
     else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Unknown run type %s",fname);
-    edge_shift[0] = .05; /* keeps it "convex" */
-    edge_shift[1] = .0;
-    PetscOptionsRealArray("-edge_shift","Shift of edge list","x2.c",edge_shift,&two,NULL);
-    ierr = PetscStrcpy(fname,"ITER-wall-geo-xx.txt");CHKERRQ(ierr);
-    ierr = PetscOptionsString("-wall_file", "Name of wall .txt file", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
-    fp = fopen(fname, "r");
-    if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Wall file %s not found, use -wall_file FILE_NAME",fname);
-    for (isp=0;isp<X2_WALL_ARRAY_MAX;isp++) {
-      if (!fgets(str,256,fp)) break;
-      k = sscanf(str,"%e %e %s\n",&s_wallEdges[isp][0],&s_wallEdges[isp][1],str2);
-      s_wallEdges[isp][0] -= ctx->particleGrid.rMajor;
-      s_wallEdges[isp][0] += edge_shift[0];
-      s_wallEdges[isp][1] += edge_shift[1];
-      if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading wall file",k);
-      if (k==3) {
-        PetscStrcmp("skip",str2,&flg);
-        if (flg) isp--; /* skip this line */
-      }
-    }
-    if (isp==X2_WALL_ARRAY_MAX) PetscPrintf(ctx->wComm,"Warning: wall file too large %d, maybe\n",isp);
-    s_numWallEdges = isp;
-    fclose(fp);
   }
 
   for (isp = ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) ctx->tablecount[isp] = 0;
@@ -1402,6 +1378,93 @@ PetscPrintf(PETSC_COMM_WORLD,"ooooo GeometryPICelITER z=%g r=%g xyz=%g %g %g abc
   PetscFunctionReturn(0);
 }
 
+/* == Defining a base plex for a torus, which looks like a rectilinear donut */
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexCreatePICellBoxTorus"
+static PetscErrorCode DMPlexCreatePICellBoxTorus (MPI_Comm comm, X2GridParticle *params, DM *dm)
+{
+  PetscMPIInt    rank;
+  PetscInt       numCells = 0;
+  PetscInt       numVerts = 0;
+  PetscReal      rMajor   = params->rMajor;
+  PetscReal      rMinor   = params->rMinor;
+  PetscReal      innerMult = params->innerMult;
+  PetscInt       numMajor = params->numMajor;
+  int           *flatCells = NULL;
+  double         *flatCoords = NULL;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
+  if (!rank) {
+    numCells = numMajor * 5;
+    numVerts = numMajor * 8;
+    ierr = PetscMalloc2(numCells * 8,&flatCells,numVerts * 3,&flatCoords);CHKERRQ(ierr);
+    {
+      double (*coords)[8][3] = (double (*) [8][3]) flatCoords;
+      PetscInt i;
+
+      for (i = 0; i < numMajor; i++) {
+        PetscInt j;
+        double cosphi, sinphi;
+
+        cosphi = cos(2 * M_PI * i / numMajor);
+        sinphi = sin(2 * M_PI * i / numMajor);
+
+        for (j = 0; j < 8; j++) {
+          double r, z;
+          double mult = (j < 4) ? innerMult : 1.;
+
+          r = rMajor + mult * rMinor * cos(j * M_PI_2);
+          z = mult * rMinor * sin(j * M_PI_2)         ;
+
+          coords[i][j][0] = cosphi * r;
+          coords[i][j][1] = sinphi * r;
+          coords[i][j][2] = z;
+        }
+      }
+    }
+    {
+      int (*cells)[5][8] = (int (*) [5][8]) flatCells;
+      PetscInt i;
+
+      for (i = 0; i < numMajor; i++) {
+        PetscInt j;
+
+        for (j = 0; j < 5; j++) {
+          PetscInt k;
+
+          if (j < 4) {
+            for (k = 0; k < 8; k++) {
+              PetscInt l = k % 4;
+
+              cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + ((l % 3) ? 0 : 4) + ((l < 2) ? j : ((j + 1) % 4))) % numVerts;
+            }
+          }
+          else {
+            for (k = 0; k < 8; k++) {
+              PetscInt l = k % 4;
+
+              cells[i][j][k] = (8 * ((k < 4) ? i : (i + 1)) + (3 - l)) % numVerts;
+            }
+          }
+          {
+            PetscInt swap = cells[i][j][1];
+
+            cells[i][j][1] = cells[i][j][3];
+            cells[i][j][3] = swap;
+          }
+        }
+      }
+    }
+  }
+  ierr = DMPlexCreateFromCellList(comm,3,numCells,numVerts,8,PETSC_TRUE,flatCells,3,flatCoords,dm);CHKERRQ(ierr);
+  ierr = PetscFree2(flatCells,flatCoords);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) *dm, "torus");CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /* == Defining a base plex for a torus, which looks like a rectilinear donut, and a mapping that turns it into a conventional round donut == */
 
 #undef __FUNCT__
@@ -1489,51 +1552,45 @@ static PetscErrorCode DMPlexCreatePICellTorus (MPI_Comm comm, X2GridParticle *pa
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "findWallPoint"
-static PetscErrorCode findWallPoint( const PetscReal rfrac, const PetscReal inner, const PetscReal X, const PetscReal Y, PetscReal *outX, PetscReal *outY)
+static void PICellCircleInflate(PetscReal r, PetscReal innerMult, PetscReal x, PetscReal y,
+                                PetscReal *outX, PetscReal *outY)
 {
-  PetscInt ii;
-  PetscReal theta = atan2(Y,X);
-  PetscFunctionBeginUser;
-  if (theta < 0. ) theta += 2.*M_PI; /* 0 <= theta < 2pi */
-  /* PetscMPIInt rank; */
-  /* MPI_Comm_rank(PETSC_COMM_WORLD, &rank); */
-  /* PetscPrintf(PETSC_COMM_WORLD,"[%D]findWallPoint: X=%g Y=%g\n",rank,*outX,*outY); */
-  for (ii=0;ii<s_numWallEdges-1;ii++) {
-    PetscReal x1 = s_wallEdges[ii  ][0], y1 = s_wallEdges[ii  ][1];
-    PetscReal x2 = s_wallEdges[ii+1][0], y2 = s_wallEdges[ii+1][1];
-    PetscReal theta1 = atan2(y1, x1);
-    PetscReal theta2 = atan2(y2, x2);
-    if ( theta1-theta2 > M_PI-theta1 ) theta2 += 2.*M_PI; /* gone around */
-    if (theta1 < 0. ) {
-      theta1 += 2.*M_PI; theta2 += 2.*M_PI; /* 0 <= theta < 2pi */
-    }
-    /* PetscPrintf(PETSC_COMM_WORLD,"\t[%D]findWallPoint: %3d) theta1=%g theta=%g theta2=%g\n",rank,ii+1,theta1*180./M_PI,theta*180./M_PI,theta2*180./M_PI); */
-    if (theta1 >= theta2) {
-      PetscPrintf(PETSC_COMM_WORLD,"\t\t[%D] %d) ERROR theta1 > theta2: theta1 = %g theta2 = %g\n",-1,ii+1,theta1*180./M_PI,theta2*180./M_PI);
-    }
-    else if (theta >= theta1 && theta <= theta2) {
-      /* intersection of two lines (orig,[r,z]) and (x1,x2) */
-      /* PetscPrintf(PETSC_COMM_WORLD,"\t\t\t[%D]findWallPoint: %3d) FOUND theta1=%g theta=%g theta2=%g\n",rank,ii+2,theta1*180./M_PI,theta*180./M_PI,theta2*180./M_PI); */
-      PetscReal x3 = 0., y3 = 0.;
-      PetscReal x4 = X, y4 = Y;
-      PetscReal t1 = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4), t2 = (x3*y4 - y3*x4), t3 = (x1*y2-y1*x2);
-      PetscReal wallx = (t3*(x3-x4) - (x1-x2)*t2)/t1;
-      PetscReal wally = (t3*(y3-y4) - (y1-y2)*t2)/t1;
-      PetscReal radius = sqrt(wallx*wallx + wally*wally), f = (inner + (radius-inner)*rfrac)/radius;
-      *outX = f*wallx;
-      *outY = f*wally;
-      break;
-    }
+  PetscReal l       = x + y;
+  PetscReal rfrac   = l / r;
+
+  if (rfrac >= innerMult) {
+    PetscReal phifrac = l ? (y / l) : 0.5;
+    PetscReal phi     = phifrac * M_PI_2;
+    PetscReal cosphi  = cos(phi);
+    PetscReal sinphi  = sin(phi);
+    PetscReal isect   = innerMult / (cosphi + sinphi);
+    PetscReal outfrac = (1. - rfrac) / (1. - innerMult);
+
+    rfrac = pow(innerMult,outfrac);
+
+    outfrac = (1. - rfrac) / (1. - innerMult);
+
+    *outX = r * (outfrac * isect + (1. - outfrac)) * cosphi;
+    *outY = r * (outfrac * isect + (1. - outfrac)) * sinphi;
   }
-  if (ii==s_numWallEdges-1) {
-    SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"findWallPoint: Point not found");
-    /* PetscPrintf(PETSC_COMM_WORLD,"\t\t\t\t[%D] %d) ERROR Point not found: theta = %g\n",rank,ii+1,theta*180./M_PI); */
+  else {
+    PetscReal halfdiffl  = (r * innerMult - l) / 2.;
+    PetscReal phifrac    = (y + halfdiffl) / (r * innerMult);
+    PetscReal phi        = phifrac * M_PI_2;
+    PetscReal m          = y - x;
+    PetscReal halfdiffm  = (r * innerMult - m) / 2.;
+    PetscReal thetafrac  = (y + halfdiffm) / (r * innerMult);
+    PetscReal theta      = thetafrac * M_PI_2;
+    PetscReal cosphi     = cos(phi);
+    PetscReal sinphi     = sin(phi);
+    PetscReal ymxcoord   = sinphi / (cosphi + sinphi);
+    PetscReal costheta   = cos(theta);
+    PetscReal sintheta   = sin(theta);
+    PetscReal xpycoord   = sintheta / (costheta + sintheta);
+
+    *outX = r * innerMult * (xpycoord - ymxcoord);
+    *outY = r * innerMult * (ymxcoord + xpycoord - 1.);
   }
-  /* PetscPrintf(PETSC_COMM_WORLD,"\t\t\t\t[%D]findWallPoint: (%g, %g) --> (%g, %g) (idx:%d/%d)\n",rank,X,Y,*outX,*outY,ii,s_numWallEdges); */
-  /* PetscSleep(1); exit(12); */
-  PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
@@ -1588,60 +1645,13 @@ static PetscErrorCode GeometryPICellTorus(PetscInt dim, const PetscReal abc[], P
    */
   r -= rMajor; /* now centered inside torus */
   {
-    PetscReal absR,absZ,l,rfrac;
+    PetscReal absR, absZ;
+
     absR = PetscAbsReal(r);
     absZ = PetscAbsReal(z);
-    l = absR + absZ;
-    rfrac = l / rMinor;
-    if (rfrac > innerMult*1.0000001) { /* inflate, skip square == innerMult */
-      PetscReal phifrac = l ? (absZ / l) : 0.5;
-      PetscReal phi     = phifrac * M_PI_2;
-      PetscReal cosphi  = cos(phi);
-      PetscReal outfrac = (1. - rfrac) / (1. - innerMult);
-      PetscReal rfrac2 = pow(innerMult,outfrac);
-      outfrac = (1. - rfrac2) / (1. - innerMult);
-      if (1) {
-        /* PetscReal oz=z,or=r; */
-        PetscReal x1 = 0.,               y1 = rMinor*innerMult; /* edge of inner box */
-        PetscReal x2 = rMinor*innerMult, y2 = 0.;
-        PetscReal x3 = 0.,   y3 = 0.;    /* vector to wall */
-        PetscReal x4 = absR, y4 = absZ;
-        PetscReal t1 = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4), t2 = (x3*y4 - y3*x4), t3 = (x1*y2-y1*x2);
-        PetscReal px = (t3*(x3-x4) - (x1-x2)*t2)/t1;
-        PetscReal py = (t3*(y3-y4) - (y1-y2)*t2)/t1;
-        PetscReal inner = sqrt(px*px + py*py);
-        PetscErrorCode ierr = findWallPoint(1. - outfrac, inner, r, z, &r, &z);CHKERRQ(ierr);
-        /* PetscPrintf(PETSC_COMM_WORLD,"[%D]GeometryPICellTorus: (%g, %g) --> (%g, %g) phi=%g inner=%g px=%g py=%g fact=%g innerMult=%g absR=%g\n",-1,or,oz,r,z,phi*180./M_PI,inner,px,py,1. - outfrac,innerMult,absR); */
-      }
-      else {
-        PetscReal sinphi  = sin(phi);
-        PetscReal isect   = innerMult / (cosphi + sinphi);
-        absR = rMinor * (outfrac * isect + (1. - outfrac)) * cosphi;
-        absZ = rMinor * (outfrac * isect + (1. - outfrac)) * sinphi;
-        PetscPrintf(PETSC_COMM_WORLD,"\t\t[%D]GeometryPICellTorus: no ITER (%g, %g) --> (%g, %g)\n",-1,r,z,(r > 0) ? absR : -absR,(z > 0) ? absZ : -absZ);
-        r = (r > 0) ? absR : -absR;
-        z = (z > 0) ? absZ : -absZ;
-      }
-    }
-    else {
-      PetscReal halfdiffl  = (rMinor * innerMult - l) / 2.;
-      PetscReal phifrac    = (absZ + halfdiffl) / (rMinor * innerMult);
-      PetscReal phi        = phifrac * M_PI_2;
-      PetscReal m          = absZ - absR;
-      PetscReal halfdiffm  = (rMinor * innerMult - m) / 2.;
-      PetscReal thetafrac  = (absZ + halfdiffm) / (rMinor * innerMult);
-      PetscReal theta      = thetafrac * M_PI_2;
-      PetscReal cosphi     = cos(phi);
-      PetscReal sinphi     = sin(phi);
-      PetscReal ymxcoord   = sinphi / (cosphi + sinphi);
-      PetscReal costheta   = cos(theta);
-      PetscReal sintheta   = sin(theta);
-      PetscReal xpycoord   = sintheta / (costheta + sintheta);
-      absR = rMinor * innerMult * (xpycoord - ymxcoord);
-      absZ = rMinor * innerMult * (ymxcoord + xpycoord - 1.);
-      r = (r > 0) ? absR : -absR;
-      z = (z > 0) ? absZ : -absZ;
-    }
+    PICellCircleInflate(rMinor,innerMult,absR,absZ,&absR,&absZ);
+    r = (r > 0) ? absR : -absR;
+    z = (z > 0) ? absZ : -absZ;
   }
   r += rMajor; /* centered back at the origin */
 
