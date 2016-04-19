@@ -13,10 +13,8 @@ static char help[] = "X2: A partical in cell code for tokamak plasmas using PICe
 #define X2_WALL_ARRAY_MAX 68 /* ITER file is 67 */
 static float     s_wallEdges[X2_WALL_ARRAY_MAX][2];
 #define X2_NUM_MOVE 12
-static float     s_move_src[X2_NUM_MOVE][2];
-static float     s_move_dst[X2_NUM_MOVE][2];
 static int       s_numWallEdges;
-static int       s_quad_vertex[6][4];
+static int       s_quad_vertex[6][9];
 typedef enum {X2_ITER,X2_TORUS,X2_BOXTORUS} runType;
 typedef struct {
   /* particle grid sizes */
@@ -427,11 +425,11 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   PetscStrcmp("iter",fname,&flg);
   if (flg) { /* ITER */
     ctx->run_type = X2_ITER;
-    ierr = PetscStrcpy(fname,"ITER-14vertex.txt");CHKERRQ(ierr);
+    ierr = PetscStrcpy(fname,"ITER-26vertex-quad.txt");CHKERRQ(ierr);
     ierr = PetscOptionsString("-iter_vertex_file", "Name of vertex .txt file of ITER (14) vertices", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
     fp = fopen(fname, "r");
     if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"ITER file %s not found, use -fname FILE_NAME",fname);
-    for (isp=0;isp<14;isp++) {
+    for (isp=0;isp<26;isp++) {
       if (!fgets(str,256,fp)) break;
       k = sscanf(str,"%e %e %s\n",&s_wallEdges[isp][0],&s_wallEdges[isp][1],str2);
       if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file %d words",k);
@@ -442,41 +440,18 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     /* cell ids */
     for (isp=0;isp<6;isp++) {
       if (!fgets(str,256,fp)) break;
-      k = sscanf(str,"%d %d %d %d %s\n",&s_quad_vertex[isp][0],&s_quad_vertex[isp][1],
-                 &s_quad_vertex[isp][2],&s_quad_vertex[isp][3],str2);
-      if (k<4) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file",k);
-      if (k==5) {
+      k = sscanf(str,"%d %d %d %d %d %d %d %d %d %s\n",
+                 &s_quad_vertex[isp][0],&s_quad_vertex[isp][1],&s_quad_vertex[isp][2],
+                 &s_quad_vertex[isp][3],&s_quad_vertex[isp][4],&s_quad_vertex[isp][5],
+                 &s_quad_vertex[isp][6],&s_quad_vertex[isp][7],&s_quad_vertex[isp][8],
+                 str2);
+      if (k<9) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file",k);
+      if (k==10) {
         PetscStrcmp("skip",str2,&flg);
         if (flg) isp--; /* skip this line */
       }
     }
     fclose(fp);
-    /* form move list */
-    s_move_src[0][0] = (s_wallEdges[9][0]+s_wallEdges[10][0])/2.;s_move_src[0][1] = (s_wallEdges[9][1]+s_wallEdges[10][1])/2.;
-    s_move_src[1][0] = (s_wallEdges[8][0]+s_wallEdges[9][0])/2.; s_move_src[1][1] = (s_wallEdges[8][1]+s_wallEdges[9][1])/2.;
-    s_move_src[2][0] = (s_wallEdges[7][0]+s_wallEdges[8][0])/2.; s_move_src[2][1] = (s_wallEdges[7][1]+s_wallEdges[8][1])/2.;
-    s_move_src[3][0] = (s_wallEdges[6][0]+s_wallEdges[5][0])/2.; s_move_src[3][1] = (s_wallEdges[6][1]+s_wallEdges[5][1])/2.;
-    s_move_src[4][0] = (s_wallEdges[4][0]+s_wallEdges[5][0])/2.; s_move_src[4][1] = (s_wallEdges[4][1]+s_wallEdges[5][1])/2.;
-    s_move_src[5][0] = (s_wallEdges[2][0]+s_wallEdges[3][0])/2.; s_move_src[5][1] = (s_wallEdges[2][1]+s_wallEdges[3][1])/2.;
-    s_move_src[6][0] = (s_wallEdges[1][0]+s_wallEdges[4][0])/2.; s_move_src[6][1] = (s_wallEdges[1][1]+s_wallEdges[4][1])/2.;
-    s_move_src[7][0] = (s_wallEdges[0][0]+s_wallEdges[5][0])/2.; s_move_src[7][1] = (s_wallEdges[0][1]+s_wallEdges[5][1])/2.;
-    s_move_src[8][0] = (s_wallEdges[0][0]+s_wallEdges[1][0])/2.; s_move_src[8][1] = (s_wallEdges[0][1]+s_wallEdges[1][1])/2.;
-    s_move_src[9][0] = (s_wallEdges[8][0]+s_wallEdges[11][0])/2.;s_move_src[9][1] = (s_wallEdges[8][1]+s_wallEdges[11][1])/2.;
-    s_move_src[10][0] = (s_wallEdges[1][0]+s_wallEdges[2][0]+s_wallEdges[3][0]+s_wallEdges[4][0])/4.;s_move_src[10][1] = (s_wallEdges[1][1]+s_wallEdges[2][1]+s_wallEdges[3][1]+s_wallEdges[4][1])/4.;
-    s_move_src[11][0] = (s_wallEdges[1][0]+s_wallEdges[0][0]+s_wallEdges[5][0]+s_wallEdges[4][0])/4.;s_move_src[11][1] = (s_wallEdges[1][1]+s_wallEdges[0][1]+s_wallEdges[5][1]+s_wallEdges[4][1])/4.;
-    /* destination point */
-    s_move_dst[0][0] = 4.307400 - ctx->particleGrid.rMajor; s_move_dst[0][1] = 4.299300; /* 10-11 */
-    s_move_dst[1][0] = 6.571600 - ctx->particleGrid.rMajor; s_move_dst[1][1] = 3.872600; /* 9-10 */
-    s_move_dst[2][0] = 8.204600 - ctx->particleGrid.rMajor; s_move_dst[2][1] = 1.669800; /* 8-9 */
-    s_move_dst[3][0] = 7.287700 - ctx->particleGrid.rMajor; s_move_dst[3][1] = -2.271500; /* 6-7 */
-    s_move_dst[4][0] = 5.611100 - ctx->particleGrid.rMajor; s_move_dst[4][1] =-3.627400; /* 5-6 */
-    s_move_dst[5][0] = 5.034400 - ctx->particleGrid.rMajor; s_move_dst[5][1] =-3.761400; /* 3-4 */
-    s_move_dst[6][0] =-1.243+.18;    s_move_dst[6][1] =-3.78695+.27; /* 2-5 */
-    s_move_dst[7][0] =-1.03965+.2;  s_move_dst[7][1] =-2.87195+.7; /* 1-6 */
-    s_move_dst[8][0] = 4.398800 - ctx->particleGrid.rMajor; s_move_dst[8][1] =-2.754200; /* 1-2 */
-    s_move_dst[9][0] =-0.2371;   s_move_dst[9][1]  = 2.22585; /* 9-12 */
-    s_move_dst[10][0]=-1.28775+.18;  s_move_dst[10][1] =-4.0018+.36; /* 2-3 - 4-5 */
-    s_move_dst[11][0]=-1.141325+.1; s_move_dst[11][1] =-3.32945+.6; /* 1-2 - 5-6 */
   }
   else {
     PetscStrcmp("torus",fname,&flg);
@@ -1352,7 +1327,7 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
 /* PetscErrorCode(*)(DM,PetscInt,PetscInt,const PetscReal[],PetscReal[],void*) */
 #undef __FUNCT__
 #define __FUNCT__ "GeometryPICellITER"
-static PetscErrorCode GeometryPICellITER(DM dm, PetscInt aa, PetscInt bb, const PetscReal abc[], PetscReal xyz[], void *a_ctx)
+static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, const PetscReal abc[], PetscReal xyz[], void *a_ctx)
 {
   X2Ctx *ctx = (X2Ctx*)a_ctx;
   X2GridParticle *params = &ctx->particleGrid;
@@ -1397,12 +1372,90 @@ static PetscErrorCode GeometryPICellITER(DM dm, PetscInt aa, PetscInt bb, const 
    * idet = 1./(cosLeftPhi * ny - sinLeftPhi * nx) = sec(Pi/numMajor);
    */
   r -= rMajor; /* now centered inside torus */
-  if (0) { /* this only works for one grid */
-    for (i=0;i<X2_NUM_MOVE;i++) {
-      if(fabs(r - s_move_src[i][0])<1.e-6 && fabs(z - s_move_src[i][1])<1.e-6) {
-        r = s_move_dst[i][0]; z = s_move_dst[i][1];
-        break;
+  {
+    PetscInt crossQuad = point % 6;
+    int      *vertices = &s_quad_vertex[crossQuad][0];
+    PetscReal eta[2] = {-1., -1.};
+    PetscReal vertCoords[9][2];
+    PetscReal shape[9];
+
+    for (i=0; i < 4; i++) { /* read in corners of quad */
+      vertCoords[i][0] = s_wallEdges[vertices[i]][0];
+      vertCoords[i][1] = s_wallEdges[vertices[i]][1];
+    }
+    for (; i < 8; i++) { /* read in mid edge vertices: if not present, average */
+      if (vertices[i] >= 0) {
+        vertCoords[i][0] = s_wallEdges[vertices[i]][0];
+        vertCoords[i][1] = s_wallEdges[vertices[i]][1];
       }
+      else {
+        vertCoords[i][0] = (vertCoords[i - 4][0] + vertCoords[(i - 4 + 1) % 4][0])/2.;
+        vertCoords[i][1] = (vertCoords[i - 4][1] + vertCoords[(i - 4 + 1) % 4][1])/2.;
+      }
+    }
+    for (; i < 9; i++) { /* read in middle vertex: if not present, average edge vertices*/
+      if (vertices[i] >= 0) {
+        vertCoords[i][0] = s_wallEdges[vertices[i]][0];
+        vertCoords[i][1] = s_wallEdges[vertices[i]][1];
+      }
+      else {
+        vertCoords[i][0] = (vertCoords[i - 4][0] + vertCoords[i - 3][0] + vertCoords[i - 2][0] + vertCoords[i - 1][0])/4.;
+        vertCoords[i][1] = (vertCoords[i - 4][1] + vertCoords[i - 3][1] + vertCoords[i - 2][1] + vertCoords[i - 1][1])/4.;
+      }
+    }
+
+    /* convert (r,z) to eta (i.e., refToReal for bilinear elements) */
+    {
+      PetscReal v0[2] = {vertCoords[0][0], vertCoords[0][1]};
+      PetscReal v2[2] = {vertCoords[2][0], vertCoords[2][1]};
+      PetscReal J0[2][2] = {{vertCoords[1][0], vertCoords[3][0]},{vertCoords[1][1], vertCoords[3][1]}};
+      PetscReal J0det;
+      PetscReal J0inv[2][2];
+      PetscReal x[2], y[2];
+      PetscReal a, b, c;
+
+      J0[0][0] -= v0[0];
+      J0[0][1] -= v0[0];
+      J0[1][0] -= v0[1];
+      J0[1][1] -= v0[1];
+      J0det = J0[0][0] * J0[1][1] - J0[0][1] * J0[1][0];
+      J0inv[0][0] = J0[1][1] / J0det;
+      J0inv[1][1] = J0[0][0] / J0det;
+      J0inv[1][0] = -J0[1][0] / J0det;
+      J0inv[0][1] = -J0[0][1] / J0det;
+      x[0] = (r - v0[0]) * J0inv[0][0] + (z - v0[1]) * J0inv[0][1];
+      x[1] = (r - v0[0]) * J0inv[1][0] + (z - v0[1]) * J0inv[1][1];
+      y[0] = (v2[0] - v0[0]) * J0inv[0][0] + (v2[1] - v0[1]) * J0inv[0][1];
+      y[1] = (v2[0] - v0[0]) * J0inv[1][0] + (v2[1] - v0[1]) * J0inv[1][1];
+      a = (1. - y[1]);
+      b = (x[1] - y[0]*x[1] - 1. - x[0] - x[0]*y[1]);
+      c = x[0];
+      if (fabs(a) > PETSC_SMALL) {
+        eta[0] = (-b + PetscSqrtReal(b*b-4.* a * c)) / (2. * a);
+        if (eta[0] < 0. || eta[0] > 1.) {
+          eta[0] = (-b - PetscSqrtReal(b*b-4.* a * c)) / (2. * a);
+        }
+      }
+      else {
+        eta[0] = -c / b;
+      }
+      eta[1] = x[1] / (1. - eta[0] + eta[0] * y[1]);
+    }
+    /* evaluate quadratic functions at eta */
+    for (i = 0; i < 4; i++) {
+      shape[i] = ((i == 0 || i == 3) ? (2. * (0.5 - eta[0]) * (1. - eta[0])) : (2. * eta[0] * (eta[0] - 0.5))) *
+                 ((i == 0 || i == 1) ? (2. * (0.5 - eta[1]) * (1. - eta[1])) : (2. * eta[1] * (eta[1] - 0.5)));
+    }
+    for (; i < 8; i++) {
+      shape[i] = ((i == 4 || i == 6) ? (eta[0] * (1. - eta[0])) : ((i == 5) ? (2. * eta[0] * (eta[0] - 0.5)) : (2. * (0.5 - eta[0]) * (1. - eta[0])))) *
+                 ((i == 5 || i == 7) ? (eta[1] * (1. - eta[1])) : ((i == 4) ? (2. * (0.5 - eta[1]) * (1. - eta[1])) : (2. * eta[1] * (eta[1] - 0.5))));
+    }
+    shape[8] = eta[0] * (1. - eta[0]) * eta[1] * (1. - eta[1]);
+    r = 0.;
+    z = 0.;
+    for (i = 0; i < 8; i++) {
+      r += shape[i] * s_wallEdges[vertices[i]][0];
+      z += shape[i] * s_wallEdges[vertices[i]][1];
     }
   }
   r += rMajor; /* centered back at the origin */
@@ -1616,7 +1669,7 @@ static void PICellCircleInflate(PetscReal r, PetscReal innerMult, PetscReal x, P
 
 #undef __FUNCT__
 #define __FUNCT__ "GeometryPICellTorus"
-static PetscErrorCode GeometryPICellTorus(DM dm, PetscInt aa, PetscInt bb, const PetscReal abc[], PetscReal xyz[], void *a_ctx)
+static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim, const PetscReal abc[], PetscReal xyz[], void *a_ctx)
 {
   X2Ctx *ctx = (X2Ctx*)a_ctx;
   X2GridParticle *params = &ctx->particleGrid;
