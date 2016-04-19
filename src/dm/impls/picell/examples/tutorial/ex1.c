@@ -1345,7 +1345,7 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
   }
   ierr = DMPlexCreateFromCellList(comm,3,numCells,numVerts,8,PETSC_TRUE,flatCells,3,flatCoords,dm);CHKERRQ(ierr);
   ierr = PetscFree2(flatCells,flatCoords);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) *dm, "iter");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) *dm, "ITER");CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }
@@ -1398,9 +1398,10 @@ static PetscErrorCode GeometryPICellITER(PetscInt dim, const PetscReal abc[], Pe
    * idet = 1./(cosLeftPhi * ny - sinLeftPhi * nx) = sec(Pi/numMajor);
    */
   r -= rMajor; /* now centered inside torus */
-  {
+  if (0) { /* this only works for one grid */
     for (i=0;i<X2_NUM_MOVE;i++) {
       if(fabs(r - s_move_src[i][0])<1.e-6 && fabs(z - s_move_src[i][1])<1.e-6) {
+        if (i==11) PetscPrintf(PETSC_COMM_WORLD,"GeometryPICelITER %d) have x=%20.13g z=%20.13g --> %20.13g %20.13g\n",i,r,z,s_move_dst[i][0],s_move_dst[i][1]);
         r = s_move_dst[i][0]; z = s_move_dst[i][1];
         break;
       }
