@@ -1349,9 +1349,10 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
 
   PetscFunctionReturn(0);
 }
+/* PetscErrorCode(*)(DM,PetscInt,PetscInt,const PetscReal[],PetscReal[],void*) */
 #undef __FUNCT__
 #define __FUNCT__ "GeometryPICellITER"
-static PetscErrorCode GeometryPICellITER(PetscInt dim, const PetscReal abc[], PetscReal xyz[], void *a_ctx)
+static PetscErrorCode GeometryPICellITER(DM dm, PetscInt aa, PetscInt bb, const PetscReal abc[], PetscReal xyz[], void *a_ctx)
 {
   X2Ctx *ctx = (X2Ctx*)a_ctx;
   X2GridParticle *params = &ctx->particleGrid;
@@ -1366,7 +1367,6 @@ static PetscErrorCode GeometryPICellITER(PetscInt dim, const PetscReal abc[], Pe
   PetscReal cosLeftPhi, sinLeftPhi;
   PetscReal secHalf;
   PetscReal r, rhat, dist, fulldist;
-
   PetscFunctionBegin;
   a = abc[0];
   b = abc[1];
@@ -1382,7 +1382,6 @@ static PetscErrorCode GeometryPICellITER(PetscInt dim, const PetscReal abc[], Pe
   cosLeftPhi = cos(leftPhi);
   sinLeftPhi = sin(leftPhi);
   secHalf    = 1. / cos(M_PI / numMajor);
-
   rhat = (a * cosMidPhi + b * sinMidPhi);
   r    = secHalf * rhat;
   dist = secHalf * (-a * sinLeftPhi + b * cosLeftPhi);
@@ -1401,7 +1400,6 @@ static PetscErrorCode GeometryPICellITER(PetscInt dim, const PetscReal abc[], Pe
   if (0) { /* this only works for one grid */
     for (i=0;i<X2_NUM_MOVE;i++) {
       if(fabs(r - s_move_src[i][0])<1.e-6 && fabs(z - s_move_src[i][1])<1.e-6) {
-        if (i==11) PetscPrintf(PETSC_COMM_WORLD,"GeometryPICelITER %d) have x=%20.13g z=%20.13g --> %20.13g %20.13g\n",i,r,z,s_move_dst[i][0],s_move_dst[i][1]);
         r = s_move_dst[i][0]; z = s_move_dst[i][1];
         break;
       }
@@ -1618,7 +1616,7 @@ static void PICellCircleInflate(PetscReal r, PetscReal innerMult, PetscReal x, P
 
 #undef __FUNCT__
 #define __FUNCT__ "GeometryPICellTorus"
-static PetscErrorCode GeometryPICellTorus(PetscInt dim, const PetscReal abc[], PetscReal xyz[], void *a_ctx)
+static PetscErrorCode GeometryPICellTorus(DM dm, PetscInt aa, PetscInt bb, const PetscReal abc[], PetscReal xyz[], void *a_ctx)
 {
   X2Ctx *ctx = (X2Ctx*)a_ctx;
   X2GridParticle *params = &ctx->particleGrid;
