@@ -12,6 +12,9 @@ static char help[] = "X2: A partical in cell code for tokamak plasmas using PICe
 /* #include <petscoptions.h> */
 #define X2_WALL_ARRAY_MAX 68 /* ITER file is 67 */
 static float     s_wallEdges[X2_WALL_ARRAY_MAX][2];
+#define X2_NUM_MOVE 12
+static float     s_move_src[X2_NUM_MOVE][2];
+static float     s_move_dst[X2_NUM_MOVE][2];
 static int       s_numWallEdges;
 static int       s_quad_vertex[6][4];
 typedef enum {X2_ITER,X2_TORUS,X2_BOXTORUS} runType;
@@ -410,13 +413,13 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->npart_cell = 10; ctx->partBuffSize = 15;
   ierr = PetscOptionsInt("-npart_cell", "Number of particles local (not cell!!!)", "x2.c", ctx->npart_cell, &ctx->npart_cell, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-partBuffSize", "Number of z cells for solver mesh", "x2.c", ctx->partBuffSize, &ctx->partBuffSize, NULL);CHKERRQ(ierr);
-  if (ctx->partBuffSize<10*ctx->npart_cell/9) ctx->partBuffSize = 3*ctx->npart_cell/2; /* hack */
+  if (ctx->partBuffSize<3*ctx->npart_cell/2+10) ctx->partBuffSize = 3*ctx->npart_cell/2+10; /* hack */
   ctx->collisionPeriod = 10;
   ierr = PetscOptionsInt("-collisionPeriod", "Period between collision operators", "x2.c", ctx->collisionPeriod, &ctx->collisionPeriod, NULL);CHKERRQ(ierr);
   if (ctx->partBuffSize < ctx->npart_cell) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"partBuffSize (%D) < npart_cell (%D)",ctx->partBuffSize,ctx->npart_cell);
   ctx->useElectrons = PETSC_FALSE;
   ierr = PetscOptionsBool("-use_electrons", "Include electrons", "x2.c", ctx->useElectrons, &ctx->useElectrons, NULL);CHKERRQ(ierr);
-  ctx->max_vpar = 1.;
+  ctx->max_vpar = .1;
   ierr = PetscOptionsReal("-max_vpar", "Maximum parallel velocity", "x2.c",ctx->max_vpar,&ctx->max_vpar,NULL);CHKERRQ(ierr);
 
   ierr = PetscStrcpy(fname,"iter");CHKERRQ(ierr);
@@ -431,10 +434,11 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     for (isp=0;isp<14;isp++) {
       if (!fgets(str,256,fp)) break;
       k = sscanf(str,"%e %e %s\n",&s_wallEdges[isp][0],&s_wallEdges[isp][1],str2);
-      if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file",k);
+      if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file %d words",k);
       s_wallEdges[isp][0] -= ctx->particleGrid.rMajor;
     }
     s_numWallEdges = isp;
+    if (s_numWallEdges!=14) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file, %d lines",s_numWallEdges);
     /* cell ids */
     for (isp=0;isp<6;isp++) {
       if (!fgets(str,256,fp)) break;
@@ -447,6 +451,32 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
       }
     }
     fclose(fp);
+    /* form move list */
+    s_move_src[0][0] = (s_wallEdges[9][0]+s_wallEdges[10][0])/2.;s_move_src[0][1] = (s_wallEdges[9][1]+s_wallEdges[10][1])/2.;
+    s_move_src[1][0] = (s_wallEdges[8][0]+s_wallEdges[9][0])/2.; s_move_src[1][1] = (s_wallEdges[8][1]+s_wallEdges[9][1])/2.;
+    s_move_src[2][0] = (s_wallEdges[7][0]+s_wallEdges[8][0])/2.; s_move_src[2][1] = (s_wallEdges[7][1]+s_wallEdges[8][1])/2.;
+    s_move_src[3][0] = (s_wallEdges[6][0]+s_wallEdges[5][0])/2.; s_move_src[3][1] = (s_wallEdges[6][1]+s_wallEdges[5][1])/2.;
+    s_move_src[4][0] = (s_wallEdges[4][0]+s_wallEdges[5][0])/2.; s_move_src[4][1] = (s_wallEdges[4][1]+s_wallEdges[5][1])/2.;
+    s_move_src[5][0] = (s_wallEdges[2][0]+s_wallEdges[3][0])/2.; s_move_src[5][1] = (s_wallEdges[2][1]+s_wallEdges[3][1])/2.;
+    s_move_src[6][0] = (s_wallEdges[1][0]+s_wallEdges[4][0])/2.; s_move_src[6][1] = (s_wallEdges[1][1]+s_wallEdges[4][1])/2.;
+    s_move_src[7][0] = (s_wallEdges[0][0]+s_wallEdges[5][0])/2.; s_move_src[7][1] = (s_wallEdges[0][1]+s_wallEdges[5][1])/2.;
+    s_move_src[8][0] = (s_wallEdges[0][0]+s_wallEdges[1][0])/2.; s_move_src[8][1] = (s_wallEdges[0][1]+s_wallEdges[1][1])/2.;
+    s_move_src[9][0] = (s_wallEdges[8][0]+s_wallEdges[11][0])/2.;s_move_src[9][1] = (s_wallEdges[8][1]+s_wallEdges[11][1])/2.;
+    s_move_src[10][0] = (s_wallEdges[1][0]+s_wallEdges[2][0]+s_wallEdges[3][0]+s_wallEdges[4][0])/4.;s_move_src[10][1] = (s_wallEdges[1][1]+s_wallEdges[2][1]+s_wallEdges[3][1]+s_wallEdges[4][1])/4.;
+    s_move_src[11][0] = (s_wallEdges[1][0]+s_wallEdges[0][0]+s_wallEdges[5][0]+s_wallEdges[4][0])/4.;s_move_src[11][1] = (s_wallEdges[1][1]+s_wallEdges[0][1]+s_wallEdges[5][1]+s_wallEdges[4][1])/4.;
+    /* destination point */
+    s_move_dst[0][0] = 4.307400 - ctx->particleGrid.rMajor; s_move_dst[0][1] = 4.299300; /* 10-11 */
+    s_move_dst[1][0] = 6.571600 - ctx->particleGrid.rMajor; s_move_dst[1][1] = 3.872600; /* 9-10 */
+    s_move_dst[2][0] = 8.204600 - ctx->particleGrid.rMajor; s_move_dst[2][1] = 1.669800; /* 8-9 */
+    s_move_dst[3][0] = 7.287700 - ctx->particleGrid.rMajor; s_move_dst[3][1] = -2.271500; /* 6-7 */
+    s_move_dst[4][0] = 5.611100 - ctx->particleGrid.rMajor; s_move_dst[4][1] =-3.627400; /* 5-6 */
+    s_move_dst[5][0] = 5.034400 - ctx->particleGrid.rMajor; s_move_dst[5][1] =-3.761400; /* 3-4 */
+    s_move_dst[6][0] =-1.243+.18;    s_move_dst[6][1] =-3.78695+.27; /* 2-5 */
+    s_move_dst[7][0] =-1.03965+.2;  s_move_dst[7][1] =-2.87195+.7; /* 1-6 */
+    s_move_dst[8][0] = 4.398800 - ctx->particleGrid.rMajor; s_move_dst[8][1] =-2.754200; /* 1-2 */
+    s_move_dst[9][0] =-0.2371;   s_move_dst[9][1]  = 2.22585; /* 9-12 */
+    s_move_dst[10][0]=-1.28775+.18;  s_move_dst[10][1] =-4.0018+.36; /* 2-3 - 4-5 */
+    s_move_dst[11][0]=-1.141325+.1; s_move_dst[11][1] =-3.32945+.6; /* 1-2 - 5-6 */
   }
   else {
     PetscStrcmp("torus",fname,&flg);
@@ -1327,7 +1357,7 @@ static PetscErrorCode GeometryPICellITER(PetscInt dim, const PetscReal abc[], Pe
   X2GridParticle *params = &ctx->particleGrid;
   PetscReal rMajor    = params->rMajor;
   PetscInt  numMajor  = params->numMajor;
-  PetscInt  i;
+  PetscInt  i,idxPhi;
   PetscReal a, b, z;
   PetscReal inPhi, outPhi;
   PetscReal midPhi, leftPhi;
@@ -1343,10 +1373,10 @@ static PetscErrorCode GeometryPICellITER(PetscInt dim, const PetscReal abc[], Pe
   z = abc[2];
   inPhi = atan2(b,a);
   inPhi = (inPhi < 0.) ? (inPhi + 2. * M_PI) : inPhi;
-  i = (inPhi * numMajor) / (2. * M_PI);
-  i = PetscMin(i,numMajor - 1);
-  leftPhi =  (i *        2. * M_PI) / numMajor;
-  midPhi  = ((i + 0.5) * 2. * M_PI) / numMajor;
+  idxPhi = (inPhi * numMajor) / (2. * M_PI);
+  idxPhi = PetscMin(idxPhi,numMajor - 1);
+  leftPhi =  (idxPhi *        2. * M_PI) / numMajor;
+  midPhi  = ((idxPhi + 0.5) * 2. * M_PI) / numMajor;
   cosMidPhi  = cos(midPhi);
   sinMidPhi  = sin(midPhi);
   cosLeftPhi = cos(leftPhi);
@@ -1357,7 +1387,7 @@ static PetscErrorCode GeometryPICellITER(PetscInt dim, const PetscReal abc[], Pe
   r    = secHalf * rhat;
   dist = secHalf * (-a * sinLeftPhi + b * cosLeftPhi);
   fulldist = 2. * sin(M_PI / numMajor) * r;
-  outPhi = ((i + (dist/fulldist)) * 2. * M_PI) / numMajor;
+  outPhi = ((idxPhi + (dist/fulldist)) * 2. * M_PI) / numMajor;
   /* solve r * (cosLeftPhi * _i + sinLeftPhi * _j) + dist * (nx * _i + ny * _j) = a * _i + b * _j;
    *
    * (r * cosLeftPhi + dist * nx) = a;
@@ -1369,7 +1399,12 @@ static PetscErrorCode GeometryPICellITER(PetscInt dim, const PetscReal abc[], Pe
    */
   r -= rMajor; /* now centered inside torus */
   {
-
+    for (i=0;i<X2_NUM_MOVE;i++) {
+      if(fabs(r - s_move_src[i][0])<1.e-6 && fabs(z - s_move_src[i][1])<1.e-6) {
+        r = s_move_dst[i][0]; z = s_move_dst[i][1];
+        break;
+      }
+    }
   }
   r += rMajor; /* centered back at the origin */
 
@@ -1378,7 +1413,7 @@ static PetscErrorCode GeometryPICellITER(PetscInt dim, const PetscReal abc[], Pe
   xyz[0] = r * cosOutPhi;
   xyz[1] = r * sinOutPhi;
   xyz[2] = z;
-  if (fabs(outPhi-inPhi)>1.e12)PetscPrintf(PETSC_COMM_SELF,"ooooo GeometryPICelITER z=%g r=%g outPhi=%g inPhi=%g\n",z,r,outPhi,inPhi);
+
   PetscFunctionReturn(0);
 }
 
