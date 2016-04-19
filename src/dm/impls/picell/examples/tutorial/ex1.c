@@ -1378,7 +1378,7 @@ static PetscErrorCode GeometryPICellITER(PetscInt dim, const PetscReal abc[], Pe
   xyz[0] = r * cosOutPhi;
   xyz[1] = r * sinOutPhi;
   xyz[2] = z;
-PetscPrintf(PETSC_COMM_WORLD,"ooooo GeometryPICelITER z=%g r=%g xyz=%g %g %g abc=%g %g %g\n",z,r,xyz[0],xyz[1],xyz[2],abc[0],abc[1],abc[2]);
+  if (fabs(outPhi-inPhi)>1.e12)PetscPrintf(PETSC_COMM_SELF,"ooooo GeometryPICelITER z=%g r=%g outPhi=%g inPhi=%g\n",z,r,outPhi,inPhi);
   PetscFunctionReturn(0);
 }
 
@@ -1393,7 +1393,6 @@ static PetscErrorCode DMPlexCreatePICellBoxTorus (MPI_Comm comm, X2GridParticle 
   PetscInt       numVerts = 0;
   PetscReal      rMajor   = params->rMajor;
   PetscReal      rMinor   = params->rMinor;
-  PetscReal      innerMult = params->innerMult;
   PetscInt       numMajor = params->numMajor;
   int           *flatCells = NULL;
   double         *flatCoords = NULL;
@@ -1736,8 +1735,8 @@ int main(int argc, char **argv)
         ierr = DMIsForest(dmpi->dmplex,&isForest);CHKERRQ(ierr);
         if (isForest) {
           if (ctx.run_type == X2_ITER) {
-            /* ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,GeometryPICellITER,&ctx);CHKERRQ(ierr); */
-            ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,NULL,&ctx);CHKERRQ(ierr);
+            ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,GeometryPICellITER,&ctx);CHKERRQ(ierr);
+            /* ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,NULL,&ctx);CHKERRQ(ierr); */
           }
           else if (ctx.run_type == X2_TORUS) {
             ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,GeometryPICellTorus,&ctx);CHKERRQ(ierr);
