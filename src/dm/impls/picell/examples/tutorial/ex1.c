@@ -425,18 +425,18 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   PetscStrcmp("iter",fname,&flg);
   if (flg) { /* ITER */
     ctx->run_type = X2_ITER;
-    ierr = PetscStrcpy(fname,"ITER-26vertex-quad.txt");CHKERRQ(ierr);
-    ierr = PetscOptionsString("-iter_vertex_file", "Name of vertex .txt file of ITER (14) vertices", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
+    ierr = PetscStrcpy(fname,"ITER-39vertex-quad.txt");CHKERRQ(ierr);
+    ierr = PetscOptionsString("-iter_vertex_file", "Name of vertex .txt file of ITER (39) vertices", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
     fp = fopen(fname, "r");
     if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"ITER file %s not found, use -fname FILE_NAME",fname);
-    for (isp=0;isp<26;isp++) {
+    for (isp=0;isp<39;isp++) {
       if (!fgets(str,256,fp)) break;
       k = sscanf(str,"%e %e %s\n",&s_wallEdges[isp][0],&s_wallEdges[isp][1],str2);
       if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file %d words",k);
       s_wallEdges[isp][0] -= ctx->particleGrid.rMajor;
     }
     s_numWallEdges = isp;
-    if (s_numWallEdges!=14) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file, %d lines",s_numWallEdges);
+    if (s_numWallEdges!=39) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file, %d lines",s_numWallEdges);
     /* cell ids */
     for (isp=0;isp<6;isp++) {
       if (!fgets(str,256,fp)) break;
@@ -1374,12 +1374,15 @@ static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, 
   r -= rMajor; /* now centered inside torus */
   {
     PetscInt crossQuad = point % 6;
-    int      *vertices = &s_quad_vertex[crossQuad][0];
+    int       vertices[9];
     PetscReal eta[2] = {-1., -1.};
     PetscReal vertCoords[9][2];
     PetscReal shape[9];
 
-    for (i=0; i < 4; i++) { /* read in corners of quad */
+    for (i = 0; i < 9; i++) {
+      vertices[i] = s_quad_vertex[crossQuad][i] -1;
+    }
+    for (i = 0; i < 4; i++) { /* read in corners of quad */
       vertCoords[i][0] = s_wallEdges[vertices[i]][0];
       vertCoords[i][1] = s_wallEdges[vertices[i]][1];
     }
@@ -1428,7 +1431,7 @@ static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, 
       y[0] = (v2[0] - v0[0]) * J0inv[0][0] + (v2[1] - v0[1]) * J0inv[0][1];
       y[1] = (v2[0] - v0[0]) * J0inv[1][0] + (v2[1] - v0[1]) * J0inv[1][1];
       a = (1. - y[1]);
-      b = (x[1] - y[0]*x[1] - 1. - x[0] - x[0]*y[1]);
+      b = (x[1] - x[0] + x[0]*y[1] - x[1]*y[0] - 1.);
       c = x[0];
       if (fabs(a) > PETSC_SMALL) {
         eta[0] = (-b + PetscSqrtReal(b*b-4.* a * c)) / (2. * a);
@@ -1447,13 +1450,13 @@ static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, 
                  ((i == 0 || i == 1) ? (2. * (0.5 - eta[1]) * (1. - eta[1])) : (2. * eta[1] * (eta[1] - 0.5)));
     }
     for (; i < 8; i++) {
-      shape[i] = ((i == 4 || i == 6) ? (eta[0] * (1. - eta[0])) : ((i == 5) ? (2. * eta[0] * (eta[0] - 0.5)) : (2. * (0.5 - eta[0]) * (1. - eta[0])))) *
-                 ((i == 5 || i == 7) ? (eta[1] * (1. - eta[1])) : ((i == 4) ? (2. * (0.5 - eta[1]) * (1. - eta[1])) : (2. * eta[1] * (eta[1] - 0.5))));
+      shape[i] = ((i == 4 || i == 6) ? (4. * eta[0] * (1. - eta[0])) : ((i == 5) ? (2. * eta[0] * (eta[0] - 0.5)) : (2. * (0.5 - eta[0]) * (1. - eta[0])))) *
+                 ((i == 5 || i == 7) ? (4. * eta[1] * (1. - eta[1])) : ((i == 4) ? (2. * (0.5 - eta[1]) * (1. - eta[1])) : (2. * eta[1] * (eta[1] - 0.5))));
     }
-    shape[8] = eta[0] * (1. - eta[0]) * eta[1] * (1. - eta[1]);
+    shape[8] = 16. * eta[0] * (1. - eta[0]) * eta[1] * (1. - eta[1]);
     r = 0.;
     z = 0.;
-    for (i = 0; i < 8; i++) {
+    for (i = 0; i < 9; i++) {
       r += shape[i] * s_wallEdges[vertices[i]][0];
       z += shape[i] * s_wallEdges[vertices[i]][1];
     }
