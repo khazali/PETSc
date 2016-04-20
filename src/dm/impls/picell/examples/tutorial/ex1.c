@@ -14,6 +14,7 @@ static char help[] = "X2: A partical in cell code for tokamak plasmas using PICe
 static float     s_wallEdges[X2_WALL_ARRAY_MAX][2];
 #define X2_NUM_MOVE 12
 static int       s_numWallEdges;
+static int       s_numQuads;
 static int       s_quad_vertex[6][9];
 typedef enum {X2_ITER,X2_TORUS,X2_BOXTORUS} runType;
 typedef struct {
@@ -306,7 +307,7 @@ static PetscInt s_chunksize = 32768;
 #define __FUNCT__ "ProcessOptions"
 PetscErrorCode ProcessOptions( X2Ctx *ctx )
 {
-  PetscErrorCode ierr,isp,k;
+  PetscErrorCode ierr,isp,k,sz;
   FILE *fp;
   PetscBool phiFlag,radFlag,thetaFlag,flg;
   char str[256],str2[256],fname[256];
@@ -426,32 +427,37 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   if (flg) { /* ITER */
     ctx->run_type = X2_ITER;
     ierr = PetscStrcpy(fname,"ITER-39vertex-quad.txt");CHKERRQ(ierr);
-    ierr = PetscOptionsString("-iter_vertex_file", "Name of vertex .txt file of ITER (39) vertices", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsString("-iter_vertex_file", "Name of vertex .txt file of ITER vertices", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
     fp = fopen(fname, "r");
     if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"ITER file %s not found, use -fname FILE_NAME",fname);
-    for (isp=0;isp<39;isp++) {
+    if (!fgets(str,256,fp)) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file");
+    k = sscanf(str,"%d\n",&sz);
+    if (k<1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file %d words",k);
+    for (isp=0;isp<sz;isp++) {
       if (!fgets(str,256,fp)) break;
       k = sscanf(str,"%e %e %s\n",&s_wallEdges[isp][0],&s_wallEdges[isp][1],str2);
       if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file %d words",k);
       s_wallEdges[isp][0] -= ctx->particleGrid.rMajor;
     }
     s_numWallEdges = isp;
-    if (s_numWallEdges!=39) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file, %d lines",s_numWallEdges);
+    if (s_numWallEdges!=sz) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file, %d lines",s_numWallEdges);
     /* cell ids */
-    for (isp=0;isp<6;isp++) {
+    for (isp=0;isp<1000;isp++) {
       if (!fgets(str,256,fp)) break;
       k = sscanf(str,"%d %d %d %d %d %d %d %d %d %s\n",
                  &s_quad_vertex[isp][0],&s_quad_vertex[isp][1],&s_quad_vertex[isp][2],
                  &s_quad_vertex[isp][3],&s_quad_vertex[isp][4],&s_quad_vertex[isp][5],
                  &s_quad_vertex[isp][6],&s_quad_vertex[isp][7],&s_quad_vertex[isp][8],
                  str2);
-      if (k<9) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file",k);
+      if (k==-1) break;
+      if (k<9) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file, read %d terms != 9",k);
       if (k==10) {
         PetscStrcmp("skip",str2,&flg);
         if (flg) isp--; /* skip this line */
       }
     }
     fclose(fp);
+    s_numQuads = isp;
   }
   else {
     PetscStrcmp("torus",fname,&flg);
@@ -1269,11 +1275,12 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
   if (!rank) {
-    numCells = numMajor * 6;
-    numVerts = numMajor * 14;
+    const int numQuadVtx = 2*s_numQuads + 2;
+    numCells = numMajor * s_numQuads;
+    numVerts = numMajor * numQuadVtx;
     ierr = PetscMalloc2(numCells * 8,&flatCells,numVerts * 3,&flatCoords);CHKERRQ(ierr);
     {
-      double (*coords)[14][3] = (double (*) [14][3]) flatCoords;
+      double (*coords)[numQuadVtx][3] = (double (*) [numQuadVtx][3]) flatCoords;
       PetscInt i;
 
       for (i = 0; i < numMajor; i++) {
@@ -1283,7 +1290,7 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
         cosphi = cos(2 * M_PI * i / numMajor);
         sinphi = sin(2 * M_PI * i / numMajor);
 
-        for (j = 0; j < 14; j++) {
+        for (j = 0; j < numQuadVtx; j++) {
           double r, z;
 
           r = rMajor + s_wallEdges[j][0];
@@ -1296,18 +1303,18 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
       }
     }
     {
-      int (*cells)[6][8] = (int (*) [6][8]) flatCells;
+      int (*cells)[s_numQuads][8] = (int (*) [s_numQuads][8]) flatCells;
       PetscInt i;
 
       for (i = 0; i < numMajor; i++) {
         PetscInt j;
 
-        for (j = 0; j < 6; j++) {
+        for (j = 0; j < s_numQuads; j++) {
           PetscInt k;
           for (k = 0; k < 8; k++) {
             PetscInt l = k % 4, off = k/4;
             if (i==numMajor-1 && off) off = 1-numMajor;
-            cells[i][j][k] = i*14 + off*14 + (s_quad_vertex[j][l]-1);
+            cells[i][j][k] = i*numQuadVtx + off*numQuadVtx + (s_quad_vertex[j][l]-1);
           }
           {
             PetscInt swap = cells[i][j][1];
