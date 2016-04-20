@@ -18,8 +18,7 @@ ex1: ex1.o chkopts
 
 runex1:
 	-echo ${MPIEXEC}
-	-${MPIEXEC} -n 4 ./ex1 -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -x2_dm_forest_initial_refinement 0 -numMajor 4 -npart_cell 10 -mstep 20 -debug 1 -snes_monitor -snes_converged_reason -collisionPeriod 10
-# -iter_vertex_file ITER-51vertex-quad.txt
+	-${MPIEXEC} -n 4 ./ex1 -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -x2_dm_forest_initial_refinement 0 -numMajor 4 -npart_cell 10 -mstep 20 -debug 1 -snes_monitor -snes_converged_reason -collisionPeriod 10 -iter_vertex_file ITER-51vertex-quad.txt
 # -run_type boxtorus  -bsp_chuncksize 3000
 # -nphi_particles 2
 
