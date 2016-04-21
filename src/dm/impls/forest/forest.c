@@ -138,9 +138,7 @@ PetscErrorCode DMForestTemplate(DM dm, MPI_Comm comm, DM *tdm)
   DMForestTopology topology;
   PetscInt         dim, overlap, ref, factor;
   DMForestAdaptivityStrategy strat;
-  PetscDS          ds;
-  void             *ctx;
-  PetscErrorCode   (*map) (PetscInt, const PetscReal[], PetscReal[], void *);
+  PetscErrorCode   (*map) (DM, PetscInt, PetscInt, const PetscReal[], PetscReal[], void *);
   void             *mapCtx;
   PetscErrorCode   ierr;
 
