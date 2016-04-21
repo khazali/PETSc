@@ -11,11 +11,11 @@ static char help[] = "X2: A partical in cell code for tokamak plasmas using PICe
 #include <petscdmforest.h>
 /* #include <petscoptions.h> */
 #define X2_WALL_ARRAY_MAX 68 /* ITER file is 67 */
-static float     s_wallEdges[X2_WALL_ARRAY_MAX][2];
+static float s_wallVtx[X2_WALL_ARRAY_MAX][2];
 #define X2_NUM_MOVE 12
-static int       s_numWallEdges;
-static int       s_numQuads;
-static int       s_quad_vertex[6][9];
+static int s_numWallPtx;
+static int s_numQuads;
+static int s_quad_vertex[X2_WALL_ARRAY_MAX][9];
 typedef enum {X2_ITER,X2_TORUS,X2_BOXTORUS} runType;
 typedef struct {
   /* particle grid sizes */
@@ -426,21 +426,22 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   PetscStrcmp("iter",fname,&flg);
   if (flg) { /* ITER */
     ctx->run_type = X2_ITER;
-    ierr = PetscStrcpy(fname,"ITER-39vertex-quad.txt");CHKERRQ(ierr);
+    ierr = PetscStrcpy(fname,"ITER-51vertex-quad.txt");CHKERRQ(ierr);
     ierr = PetscOptionsString("-iter_vertex_file", "Name of vertex .txt file of ITER vertices", "x2.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
     fp = fopen(fname, "r");
     if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"ITER file %s not found, use -fname FILE_NAME",fname);
     if (!fgets(str,256,fp)) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file");
     k = sscanf(str,"%d\n",&sz);
     if (k<1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file %d words",k);
+    if (sz>X2_WALL_ARRAY_MAX) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Too Many vertices %d > %d",sz,X2_WALL_ARRAY_MAX);
     for (isp=0;isp<sz;isp++) {
       if (!fgets(str,256,fp)) break;
-      k = sscanf(str,"%e %e %s\n",&s_wallEdges[isp][0],&s_wallEdges[isp][1],str2);
+      k = sscanf(str,"%e %e %s\n",&s_wallVtx[isp][0],&s_wallVtx[isp][1],str2);
       if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file %d words",k);
-      s_wallEdges[isp][0] -= ctx->particleGrid.rMajor;
+      s_wallVtx[isp][0] -= ctx->particleGrid.rMajor;
     }
-    s_numWallEdges = isp;
-    if (s_numWallEdges!=sz) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file, %d lines",s_numWallEdges);
+    s_numWallPtx = isp;
+    if (s_numWallPtx!=sz) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file, %d lines",s_numWallPtx);
     /* cell ids */
     for (isp=0;isp<1000;isp++) {
       if (!fgets(str,256,fp)) break;
@@ -451,13 +452,11 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
                  str2);
       if (k==-1) break;
       if (k<9) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file, read %d terms != 9",k);
-      if (k==10) {
-        PetscStrcmp("skip",str2,&flg);
-        if (flg) isp--; /* skip this line */
-      }
+      if (isp>X2_WALL_ARRAY_MAX) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Too Many Elements %d",X2_WALL_ARRAY_MAX);
     }
     fclose(fp);
     s_numQuads = isp;
+    PetscPrintf(PETSC_COMM_WORLD,"ProcessOptions:  numQuads=%d, numWallPtx=%d\n",s_numQuads,s_numWallPtx);
   }
   else {
     PetscStrcmp("torus",fname,&flg);
@@ -470,7 +469,6 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   }
 
   for (isp = ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) ctx->tablecount[isp] = 0;
-
   ierr = PetscOptionsEnd();
 
   PetscFunctionReturn(0);
@@ -1275,8 +1273,9 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
   if (!rank) {
-    const int numQuadVtx = 2*s_numQuads + 2;
-    numCells = numMajor * s_numQuads;
+    const int numQuads = s_numQuads;
+    const int numQuadVtx = 2*numQuads + 2; /* kind of a hack to get the number of vertices in the quads */
+    numCells = numMajor * numQuads;
     numVerts = numMajor * numQuadVtx;
     ierr = PetscMalloc2(numCells * 8,&flatCells,numVerts * 3,&flatCoords);CHKERRQ(ierr);
     {
@@ -1293,8 +1292,8 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
         for (j = 0; j < numQuadVtx; j++) {
           double r, z;
 
-          r = rMajor + s_wallEdges[j][0];
-          z =          s_wallEdges[j][1];
+          r = rMajor + s_wallVtx[j][0];
+          z =          s_wallVtx[j][1];
 
           coords[i][j][0] = cosphi * r;
           coords[i][j][1] = sinphi * r;
@@ -1303,13 +1302,13 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
       }
     }
     {
-      int (*cells)[s_numQuads][8] = (int (*) [s_numQuads][8]) flatCells;
+      int (*cells)[numQuads][8] = (int (*) [numQuads][8]) flatCells;
       PetscInt i;
 
       for (i = 0; i < numMajor; i++) {
         PetscInt j;
 
-        for (j = 0; j < s_numQuads; j++) {
+        for (j = 0; j < numQuads; j++) {
           PetscInt k;
           for (k = 0; k < 8; k++) {
             PetscInt l = k % 4, off = k/4;
@@ -1380,7 +1379,7 @@ static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, 
    */
   r -= rMajor; /* now centered inside torus */
   {
-    PetscInt crossQuad = point % 6;
+    PetscInt crossQuad = point % s_numQuads;
     int       vertices[9];
     PetscReal eta[2] = {-1., -1.};
     PetscReal vertCoords[9][2];
@@ -1390,27 +1389,29 @@ static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, 
       vertices[i] = s_quad_vertex[crossQuad][i] -1;
     }
     for (i = 0; i < 4; i++) { /* read in corners of quad */
-      vertCoords[i][0] = s_wallEdges[vertices[i]][0];
-      vertCoords[i][1] = s_wallEdges[vertices[i]][1];
+      vertCoords[i][0] = s_wallVtx[vertices[i]][0];
+      vertCoords[i][1] = s_wallVtx[vertices[i]][1];
     }
     for (; i < 8; i++) { /* read in mid edge vertices: if not present, average */
       if (vertices[i] >= 0) {
-        vertCoords[i][0] = s_wallEdges[vertices[i]][0];
-        vertCoords[i][1] = s_wallEdges[vertices[i]][1];
+        vertCoords[i][0] = s_wallVtx[vertices[i]][0];
+        vertCoords[i][1] = s_wallVtx[vertices[i]][1];
       }
       else {
         vertCoords[i][0] = (vertCoords[i - 4][0] + vertCoords[(i - 4 + 1) % 4][0])/2.;
         vertCoords[i][1] = (vertCoords[i - 4][1] + vertCoords[(i - 4 + 1) % 4][1])/2.;
+PetscPrintf(PETSC_COMM_SELF,"edge vertCoords=%g %g\n",vertCoords[i][0]+rMajor,vertCoords[i][1]);
       }
     }
     for (; i < 9; i++) { /* read in middle vertex: if not present, average edge vertices*/
       if (vertices[i] >= 0) {
-        vertCoords[i][0] = s_wallEdges[vertices[i]][0];
-        vertCoords[i][1] = s_wallEdges[vertices[i]][1];
+        vertCoords[i][0] = s_wallVtx[vertices[i]][0];
+        vertCoords[i][1] = s_wallVtx[vertices[i]][1];
       }
       else {
         vertCoords[i][0] = (vertCoords[i - 4][0] + vertCoords[i - 3][0] + vertCoords[i - 2][0] + vertCoords[i - 1][0])/4.;
         vertCoords[i][1] = (vertCoords[i - 4][1] + vertCoords[i - 3][1] + vertCoords[i - 2][1] + vertCoords[i - 1][1])/4.;
+PetscPrintf(PETSC_COMM_SELF,"corner vertCoords=%g %g\n",vertCoords[i][0]+rMajor,vertCoords[i][1]);
       }
     }
 
@@ -1464,8 +1465,8 @@ static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, 
     r = 0.;
     z = 0.;
     for (i = 0; i < 9; i++) {
-      r += shape[i] * s_wallEdges[vertices[i]][0];
-      z += shape[i] * s_wallEdges[vertices[i]][1];
+      r += shape[i] * s_wallVtx[vertices[i]][0];
+      z += shape[i] * s_wallVtx[vertices[i]][1];
     }
   }
   r += rMajor; /* centered back at the origin */
