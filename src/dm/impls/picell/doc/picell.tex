@@ -35,7 +35,7 @@ Balancing this cost with the rest of the computation is a common tradeoff in com
 
 The PETSc community has extensive experience in extreme-scale solution methods for PDEs (discretizations, meshing,  nonlinear solvers, time integrators, optimization solvers, etc.) and in the deployment of optimized implementations of these methods to the public.
 Fast solvers also require careful data placement for optimal performance, but PIC methods add new sets of constraints and opportunities for optimizing algorithms for extreme-scale emerging architectures.
-To this end, we focus on grid management to support the development of optimal data decomposition and algorithms, or data models,  for the efficient processing of particle-cell interactions, as well as fast solvers for, for example, Poisson's equation, Ampere's law, and the magnetohydrodymaic  solvers of implicit PIC methods \cite{DBLP:journals/cphysics/ChenC15}.
+To this end, we focus on grid management to support the development of optimal data decomposition and algorithms, or data models,  for the efficient processing of particle-cell interactions, as well as fast solvers for, for example, Poisson's equation, Ampere's law, and the magnetohydrodymaic  solvers of implicit PIC methods \cite{DBLP:journals/cphysics/ChenC15,Adams-10a}.
 
 This document describes the support for extreme-scale PIC simulations on emerging architectures under development in PETSc.
 We build on the Solver Integrated Tree-based Adaptive Refinement (SITAR) infrastructure in PETSc, for fast and accurate PDE discretizations, meshing, and solvers.
@@ -58,12 +58,12 @@ This tight coupling, and the ever increasing importance of data locality general
 The critical importance of data placement for the efficient processing of PIC methods requires that highly optimal, and potentially complex, data models be developed.
 One can avoid much of this code complexity by replicating grid data on each MPI process or address space.
 This approach does simplify the data model considerably, however it also removes the most fundamentally important optimization opportunity for extreme-scale PIC codes on emerging architectures.
-Distributing grids will be very disruptive to the code base of fusion PIC applications, but many future optimization in the context of this replication data model will not be applicable, or necessary, on distributed grids.
+Distributing grids will be very disruptive to the code base of fusion PIC applications, but many of the optimizations in the context of replicated data will not be applicable, or necessary, on distributed grids.
 %It behooves the fusion PIC community to move to distributed data models early to begin their optimization.
 
 The physics community has developed a large body of research and experience in using PIC methods for fusion plasmas and they are one of the largest users in DOE leadership class compute facilities.
 The applied math, engineering, and physics communities have developed powerful discretization and solver methods for extreme-scale computing in just the past ten years and stretching back to the 1960s, but these modern methods are not widely used in the fusion PIC community.
-The continued advancement of computational fusion physics within DOE, and the global community, especially as we move from only verifying computational results with theory to reliable predictive analysis, requires that both modern numerical methods and parallel computing techniques, as well as reliable software engineering methodologies, be employed.
+The continued advancement of computational fusion physics within DOE, and the global community, especially as we move from qualitative reproduction of theory to quantitative predictive analysis, requires that both modern numerical methods and parallel computing techniques, as well as reliable software engineering methodologies, be employed.
 
 The engineering complexity required to develop a flexible infrastructure that allows for the expression of the most optimal algorithms demands a higher level of software quality assurance processes than is often present in the codes that are driven by academic reward systems, such as number of journal publications, as opposed to the demands for reliable predictive analysis that drives the commercial sector.
 Commercial grad software engineering takes both skill and time that is not available to most academic physics code projects and is not seen as worth to cost due to their academic reward structure.
@@ -117,45 +117,57 @@ To this end we see several early areas that our project can contribute:
 The development proposed herein takes place in a branch in the PETSc repository (mark/feature-picell) and a driver application named X2 (DMPICell ex1.c).
 Code will likely migrate from X2 into the PETSc library as development progresses.
 X2 is intended to be used to gather initial performance data on modern architectures to guide further data model developments, and to verify the PETSc library code.
-Our approach is to exploit the fact that particle distributions, at least from a computational point of view, are relatively uniformly distributed over the domain and our grids are quasi-uniform.
-This allows for particle distributions that are simply attached to cells of the solver grid, but load is balanced by using a weighted cell partitioning.
+Our approach is to exploit the fact that particle distributions, at least from a computational point of view, are relatively uniformly distributed over the domain.
+This allows for particle distributions that are simply attached to cells of the solver grid, but load is balanced by using a weighted cell partitioning, because we use unstructured AMR.
+Note, SITAR supports tree-based AMR in addition to unstructured AMR, but we plan on using uniform refinement for the foreseeable future.
 
 We currently use guide center particles only (i.e., only a parallel velocity, resulting in a 4D method), which simplifies charge deposition.
-These two simplifications allow us to reuse particle infrastructure that has been developed for other PETSc PIC users \cite{may2014ptatin} that attach particle to solver cells in the particle push kernel.
-More complex data models with extended halo regions to accommodate gyrokinetic methods (finite shape) and high order (explicit) time integrators will be likely developments in the future.
+This allow us to reuse particle infrastructure that has been developed for other PETSc PIC users \cite{may2014ptatin} that attach particle to solver cells in the particle push kernel.
+More complex data models with extended halo regions to accommodate gyrokinetic methods (finite shape) and high order time integrators will likely be required in the future.
 
 The collision operator is a computational intensive nonlinear solve in velocity space on each particle collision cell.
-Flux tubes are a natural choice for these collision cells, these are long, narrow subdomains that follow the twisting magnetic field lines around the torus.
+Flux tubes are a natural choice for these collision cells.
+Flux tubes are long, narrow subdomains that follow the twisting magnetic field lines in a tokamak.
 We decouple the grid partitioning from the flux tube partitioning and implement a full ``transpose" of particles between these two partitions.
-Aligning the solver partitioning with flux tubes, to minimize communication, is a potential future optimization.
+Aligning the solver partitioning with flux tubes, to minimize communication, is a probable future optimization.
 
-Figure \ref{fig:cross} (left) shows an example of half 64 a flux tube particle mesh and Figure \ref{fig:cross} (right) shows an example of (half) a coarse grid for ITER, colored with the condition number of the elements.
+Figure \ref{fig:cross} (left) shows an example of half 64 a flux tube particle mesh and Figure \ref{fig:cross} (right) shows an example of (half) a coarse grid with ITER geometry.
 \begin{figure}[h!]
    \centering
    \includegraphics[width=70mm]{half_fluxtubes_64.jpeg} 
     \includegraphics[width=80mm]{half_grid_mesh.jpeg} 
-   \caption{Half of  2x2x2 flux tube particle partition of torus (left), corresponding coarse ITER grid solver mesh (right)}
+   \caption{Half of  2x2x2 flux tube particle partition of torus (left), corresponding coarse ITER grid solver mesh (right), colored by condition number of the elements}
    \label{fig:cross}
 \end{figure}
 The fuzzy edges of Figure \ref{fig:cross} (left) are due to the finite number of particles, each particle is colored with the rank of the partition to which it belongs.
 
+X2's design principles are modeled on those of PETSc, in terms of extensibility and flexibility.
+The X2 kernels are mesh independent, which allows the meshes to be selected at run time.
+This allows us to incrementally develop and verify new capabilities on simpler problems before moving to more realistic geometries.
+This is critical in continuously verify the code and an effective develop, debug, and verify code cycle.
+To this end we currently support Cartesian grids  (e.g., Figure \ref{fig:grids}, left) and circular cross section toruses (e.g., Figure \ref{fig:grids}, right).
+\begin{figure}[h!]
+   \centering
+   \includegraphics[width=70mm]{half_box_torus.jpeg} 
+    \includegraphics[width=80mm]{half_torus.jpeg} 
+   \caption{Half of a Cartesian cross section torus (left), and circular cross section tokamak (right), colored by condition number of the elements}
+   \label{fig:grids}
+\end{figure}
+
 \subsection{High Order}
 \label{sec:ho}
 
-The mesh in Figure \ref{fig:cross} (right) has what would be six (high order) Q2 elements per plane, but we currently use trilinear elements, which results in 24 elements per plane.
+The mesh in Figure \ref{fig:cross} (right) is generated with seven (high order) Q2 elements per plane on a coarse grid and is refined three times in this figure.
+%We currently use trilinear elements, which results in 28 elements per plane on the coarse grid.
 High order elements are attractive because of their high accuracy for smooth solutions should allow for fewer vertices and hence larger ``cells".
-Furthermore, because order elements are in effect composed of multiple cells they are still larger in physical space.
-Large elements are useful because we use these elements for data locality, larger elements results in larger element particle lists, which are used for vectorization.
+Furthermore, because order elements are in effect composed of multiple cells they are even larger in physical space.
+Large elements are useful because we build the particle data structure around them, larger elements results in larger element particle lists, which is benificial for vectorization.
 Additionally, the solutions of say the Poisson solve in fusion applications, with turbulence, are smooth at the scale of the (known) Larmore radius and, in fact, physicists often smooth the results of low order Poisson solvers to reduce high frequency components.
-Q2 elements can also capture curved surface mech better than linear elements.
-For instance, the middle vertex on the bottom of the mesh in Figure \ref{fig:cross} (right) and its neighbors above, would be moved up to be able to represent the dome more accurately.
-Note, the importance of the diverter region has lead us to statically refine the region at the bottom of the mesh.
+Q2 elements can also capture curved surface mech better than linear elements (Figure \ref{fig:cross}, right).
 
 We plan to move to discontinuous Galerkin (DG) methods in the future because they have attractive mathematical properties, such as having rigorous theory like finite elements and being conservative like finite volume, which would be useful for flux surface averaging projections.
 DG results in systems with many degrees of freedom, a common problem of these methods, but fusion PIC solvers are highly over provisioned with processing resources, thus, local work and storage complexity are not critical for these solves.
+
 \bibliographystyle{siamplain}
-\bibliography{./bib}
-
-
- 
+\bibliography{./bib} 
 \end{document}  
