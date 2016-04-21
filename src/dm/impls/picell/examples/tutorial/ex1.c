@@ -1278,6 +1278,7 @@ static PetscErrorCode DMPlexCreatePICellITER (MPI_Comm comm, X2GridParticle *par
     numCells = numMajor * numQuads;
     numVerts = numMajor * numQuadVtx;
     ierr = PetscMalloc2(numCells * 8,&flatCells,numVerts * 3,&flatCoords);CHKERRQ(ierr);
+    PetscPrintf(PETSC_COMM_WORLD,"DMPlexCreatePICellITER: numCells=%d\n",numCells);
     {
       double (*coords)[numQuadVtx][3] = (double (*) [numQuadVtx][3]) flatCoords;
       PetscInt i;
