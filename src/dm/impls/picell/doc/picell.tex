@@ -12,7 +12,7 @@
 
 
 \title{Algorithms and software for extreme-scale particle-in-cell simulations of highly magnetized plasmas}
-\author{Mark F. Adams\and Tobin Issac\and Mathew Knepley}
+\author{Mark F. Adams\and Mathew Knepley\and Tobin Issac}
 \nolinenumbers
 \begin{document}
 \maketitle
@@ -27,7 +27,7 @@ We propose to contribution to this effort by developing efficient methods for PI
 \section{Introduction}
 
 The high degree of concurrency of emerging architectures at extreme-scale, and the high relative cost of data movement, requires careful data placement to efficiently utilize computational resources.
-The importance of data locality is not new, the pressures on memory systems have been building for decades, because floating point processing speeds increase faster than data movement speeds, but the massive concurrency of emerging architectures is further exacerbating the need for careful data layout in extreme-scale computing.
+The importance of data locality is not new, the pressures on memory systems have been building for decades because floating point processing speeds increase faster than data movement speeds, but the massive concurrency of emerging architectures is further exacerbating the need for careful data layout in extreme-scale computing.
 This is a challenge for PIC codes because they process data in two very different data structures, which interact in particle-cell kernels such as charge deposition to the grid and particle gradient computation from the grid.
 Additionally, optimal data decompositions of different computational components can be very different.
 For instance, the collision operator and the deposit, solve, push phase have inherently different natural data partitionings, and a ``transpose" to move particle between these partitions has a cost.
@@ -63,7 +63,7 @@ Distributing grids will be very disruptive to the code base of fusion PIC applic
 
 The physics community has developed a large body of research and experience in using PIC methods for fusion plasmas and they are one of the largest users in DOE leadership class compute facilities.
 The applied math, engineering, and physics communities have developed powerful discretization and solver methods for extreme-scale computing in just the past ten years and stretching back to the 1960s, but these modern methods are not widely used in the fusion PIC community.
-The continued advancement of computational fusion physics within DOE, and the global community, especially as we move from qualitative reproduction of theory to quantitative predictive analysis, requires that both modern numerical methods and parallel computing techniques, as well as reliable software engineering methodologies, be employed.
+The continued advancement of computational fusion physics within DOE, and the global community, especially as we move to simulations relevant to the design and operation of ITER, will benefit from both modern numerical methods and parallel computing techniques, and commercial grade software engineering methodologies.
 
 The engineering complexity required to develop a flexible infrastructure that allows for the expression of the most optimal algorithms demands a higher level of software quality assurance processes than is often present in the codes that are driven by academic reward systems, such as number of journal publications, as opposed to the demands for reliable predictive analysis that drives the commercial sector.
 Commercial grad software engineering takes both skill and time that is not available to most academic physics code projects and is not seen as worth to cost due to their academic reward structure.
@@ -118,7 +118,7 @@ The development proposed herein takes place in a branch in the PETSc repository 
 Code will likely migrate from X2 into the PETSc library as development progresses.
 X2 is intended to be used to gather initial performance data on modern architectures to guide further data model developments, and to verify the PETSc library code.
 Our approach is to exploit the fact that particle distributions, at least from a computational point of view, are relatively uniformly distributed over the domain.
-This allows for particle distributions that are simply attached to cells of the solver grid, but load is balanced by using a weighted cell partitioning, because we use unstructured AMR.
+This allows for particle distributions that are simply attached to cells of the solver grid, but load is balanced by using a weighted cell partitioning because we use unstructured AMR.
 Note, SITAR supports tree-based AMR in addition to unstructured AMR, but we plan on using uniform refinement for the foreseeable future.
 
 We currently use guide center particles only (i.e., only a parallel velocity, resulting in a 4D method), which simplifies charge deposition.
