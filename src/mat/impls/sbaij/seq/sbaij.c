@@ -214,8 +214,6 @@ PetscErrorCode MatSetOption_SeqSBAIJ(Mat A,MatOption op,PetscBool flg)
     } else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"No support for Hermitian with block size greater than 1");
     break;
   case MAT_SPD:
-    /* These options are handled directly by MatSetOption() */
-    break;
   case MAT_SYMMETRIC:
   case MAT_STRUCTURALLY_SYMMETRIC:
   case MAT_SYMMETRY_ETERNAL:

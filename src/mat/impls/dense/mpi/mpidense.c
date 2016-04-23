@@ -839,6 +839,8 @@ PetscErrorCode MatSetOption_MPIDense(Mat A,MatOption op,PetscBool flg)
   case MAT_IGNORE_OFF_PROC_ENTRIES:
     a->donotstash = flg;
     break;
+  case MAT_SPD:
+    break;
   case MAT_SYMMETRIC:
   case MAT_STRUCTURALLY_SYMMETRIC:
   case MAT_HERMITIAN:

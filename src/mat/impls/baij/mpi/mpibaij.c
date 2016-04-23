@@ -1697,6 +1697,9 @@ PetscErrorCode MatSetOption_MPIBAIJ(Mat A,MatOption op,PetscBool flg)
   case MAT_USE_HASH_TABLE:
     a->ht_flag = flg;
     break;
+  case MAT_SPD:
+    /* These options are handled directly by MatSetOption() */
+    break;
   case MAT_SYMMETRIC:
   case MAT_STRUCTURALLY_SYMMETRIC:
   case MAT_HERMITIAN:

@@ -1771,27 +1771,11 @@ PetscErrorCode MatSetOption_MPIAIJ(Mat A,MatOption op,PetscBool flg)
     a->donotstash = flg;
     break;
   case MAT_SPD:
-    A->spd_set = PETSC_TRUE;
-    A->spd     = flg;
-    if (flg) {
-      A->symmetric                  = PETSC_TRUE;
-      A->structurally_symmetric     = PETSC_TRUE;
-      A->symmetric_set              = PETSC_TRUE;
-      A->structurally_symmetric_set = PETSC_TRUE;
-    }
+    /* These options are handled directly by MatSetOption() */
     break;
   case MAT_SYMMETRIC:
-    MatCheckPreallocated(A,1);
-    ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
-    break;
   case MAT_STRUCTURALLY_SYMMETRIC:
-    MatCheckPreallocated(A,1);
-    ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
-    break;
   case MAT_HERMITIAN:
-    MatCheckPreallocated(A,1);
-    ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
-    break;
   case MAT_SYMMETRY_ETERNAL:
     MatCheckPreallocated(A,1);
     ierr = MatSetOption(a->A,op,flg);CHKERRQ(ierr);
