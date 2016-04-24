@@ -16,10 +16,11 @@ class Configure(config.package.Package):
     ''' Checks for -fopenmp compiler flag'''
     ''' Needs to check if OpenMP actually exists and works '''
     self.checkDependencies()
-    self.found = 0    
+    self.found = 0
     self.setCompilers.pushLanguage('C')
     #
-    for flag in ["-fopenmp", # Gnu
+    for flag in ["-Kopenmp", # Fujitsu
+                 "-fopenmp", # Gnu
                  "-qsmp=omp",# IBM XL C/C++
                  "-h omp",   # Cray. Must come after XL because XL interprets this option as meaning "-soname omp"
                  "-mp",      # Portland Group

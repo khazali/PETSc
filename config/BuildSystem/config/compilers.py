@@ -167,8 +167,13 @@ class Configure(config.base.Configure):
 
   def checkCLibraries(self):
     '''Determines the libraries needed to link with C'''
+    self.pushLanguage('C')
+    if checkLinkerFlag(self, '-###'): flag = ' -###'
+    else:                             flag = ' -v'
+    self.popLanguage()
+
     oldFlags = self.setCompilers.LDFLAGS
-    self.setCompilers.LDFLAGS += ' -v'
+    self.setCompilers.LDFLAGS += flag
     self.pushLanguage('C')
     (output, returnCode) = self.outputLink('', '')
     self.setCompilers.LDFLAGS = oldFlags
@@ -425,8 +430,13 @@ class Configure(config.base.Configure):
 
   def checkCxxLibraries(self):
     '''Determines the libraries needed to link with C++'''
+    self.pushLanguage('Cxx')
+    if checkLinkerFlag(self, '-###'): flag = ' -###'
+    else:                             flag = ' -v'
+    self.popLanguage()
+
     oldFlags = self.setCompilers.LDFLAGS
-    self.setCompilers.LDFLAGS += ' -v'
+    self.setCompilers.LDFLAGS += flag
     self.pushLanguage('Cxx')
     (output, returnCode) = self.outputLink('', '')
     self.setCompilers.LDFLAGS = oldFlags

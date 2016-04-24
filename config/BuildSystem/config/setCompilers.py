@@ -1022,9 +1022,9 @@ class Configure(config.base.Configure):
     elif config.setCompilers.Configure.isGNU(self.getCompiler(), self.log):
       yield '-fPIC'
     else:
+      yield '-KPIC'
       yield '-PIC'
       yield '-fPIC'
-      yield '-KPIC'
       yield '-qpic'
     return
 
