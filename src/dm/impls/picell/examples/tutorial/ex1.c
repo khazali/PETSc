@@ -172,8 +172,8 @@ PetscErrorCode X2PListCreate(X2PList *l, PetscInt msz)
   l->size=0;
   l->top=0;
   l->hole=-1;
-  l->data_size=msz;
-  ierr = PetscMalloc1(msz, &l->data); /* malloc each for struct-of-arrays */
+  l->data_size = msz;
+  ierr = PetscMalloc1(l->data_size, &l->data);CHKERRQ(ierr); /* malloc each for struct-of-arrays */
   return ierr;
 }
 PetscErrorCode X2PListClear(X2PList *l)
@@ -201,7 +201,6 @@ PetscErrorCode X2PListCompress(X2PList *l) /* not used */
       else {
 	while (l->data[l->top].gid <= 0) l->top--; /* data */
 	l->data[ii] = l->data[l->top]; /* now above, copy! */
-	/* PetscPrintf(PETSC_COMM_SELF,"\tfilled ii %d, with %d from top (%d), size=%d\n",ii,l->data[ii].gid,l->top,l->size); */
       }
     }
   }
@@ -241,7 +240,16 @@ PetscErrorCode X2PListGetNext(X2PList *l, X2Particle *p, X2PListPos *pos)
 
 PetscErrorCode X2PListAdd( X2PList *l, X2Particle *p)
 {
-  if (l->size==l->data_size) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"X2PListAdd: list full (%D), we should reallocate",l->size);
+  if (l->size==l->data_size) {
+    X2Particle *data2; /* make this arrays of X2Particle members for struct-of-arrays */
+    int i;PetscErrorCode ierr;
+    l->data_size *= 2;
+    ierr = PetscMalloc1(l->data_size, &data2);CHKERRQ(ierr);
+    for (i=0;i<l->size;i++) data2[i] = l->data[i];
+    ierr = PetscFree(l->data);CHKERRQ(ierr);
+    l->data = data2;
+    assert(l->hole == -1);
+  }
   if (l->hole != -1) { /* have a hole - fill it */
     X2PListPos idx = l->hole; assert(idx<l->data_size);
     if (l->data[idx].gid == 0) l->hole = -1; /* filled last hole */
@@ -253,7 +261,7 @@ PetscErrorCode X2PListAdd( X2PList *l, X2Particle *p)
     l->data[l->top++] = *p; /* struct copy! */
   }
   l->size++;
-  assert(l->top >= l->size);
+  assert(l->top >= l->size); /* no holes? */
   return 0;
 }
 PetscErrorCode X2PListRemoveAt( X2PList *l, X2PListPos pos)
