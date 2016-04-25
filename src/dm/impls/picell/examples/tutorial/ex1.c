@@ -51,7 +51,7 @@ typedef struct { /* ptl_type */
 /* X2PList */
 typedef PetscInt X2PListPos;
 typedef struct {
-  X2Particle *data;
+  X2Particle *data; /* make this arrays of X2Particle members for struct-of-arrays */
   PetscInt    data_size, size, hole, top;
 } X2PList;
 /* send particle list */
@@ -121,7 +121,7 @@ PetscErrorCode X2ParticleCreate(X2Particle *p, PetscInt gid, PetscReal r, PetscR
 }
 PetscErrorCode X2ParticleCopy(X2Particle *p, X2Particle p2)
 {
-  if (p2.gid <= 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"X2ParticleCreate: gid <= 0");
+  if (p2.gid <= 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"X2ParticleCopy: gid <= 0");
   p->r = p2.r;
   p->z = p2.z;
   p->phi = p2.phi;
@@ -173,7 +173,7 @@ PetscErrorCode X2PListCreate(X2PList *l, PetscInt msz)
   l->top=0;
   l->hole=-1;
   l->data_size=msz;
-  ierr = PetscMalloc1(msz, &l->data);
+  ierr = PetscMalloc1(msz, &l->data); /* malloc each for struct-of-arrays */
   return ierr;
 }
 PetscErrorCode X2PListClear(X2PList *l)
@@ -186,13 +186,13 @@ PetscErrorCode X2PListClear(X2PList *l)
 
 PetscErrorCode X2PListSetAt(X2PList *l, X2PListPos pos, X2Particle *part)
 {
-  l->data[pos] = *part;
+  l->data[pos] = *part; /* copy to parts for struct-of-arrays */
   return 0;
 }
 
-PetscErrorCode X2PListCompress(X2PList *l)
+PetscErrorCode X2PListCompress(X2PList *l) /* not used */
 {
-  PetscInt ii;
+  PetscInt ii; assert(0);
   /* fill holes with end of list */
   for ( ii = 0 ; ii < l->top && l->top > l->size ; ii++) {
     if (l->data[ii].gid <= 0) {
@@ -200,7 +200,7 @@ PetscErrorCode X2PListCompress(X2PList *l)
       if (ii == l->top) /* pop */ ;
       else {
 	while (l->data[l->top].gid <= 0) l->top--; /* data */
-	l->data[ii] = l->data[l->top]; /* now above */
+	l->data[ii] = l->data[l->top]; /* now above, copy! */
 	/* PetscPrintf(PETSC_COMM_SELF,"\tfilled ii %d, with %d from top (%d), size=%d\n",ii,l->data[ii].gid,l->top,l->size); */
       }
     }
@@ -223,7 +223,6 @@ PetscErrorCode X2PListGetHead(X2PList *l, X2PListPos *pos)
   else {
     X2PListPos idx=0;
     while (l->data[idx].gid <= 0) idx++;
-
     *pos = idx - 1; /* eg -1 */
   }
   return 0;
@@ -235,23 +234,23 @@ PetscErrorCode X2PListGetNext(X2PList *l, X2Particle *p, X2PListPos *pos)
   (*pos)++; /* get next position */
   if (*pos >= l->data_size || *pos >= l->top) return 1; /* hit end, can go past if list is just drained */
   while(l->data[*pos].gid <= 0 && *pos < l->data_size && *pos < l->top) (*pos)++; /* skip holes */
-  *p = l->data[*pos]; /* return copy */
+  *p = l->data[*pos]; /* return copy! */
 
   return 0;
 }
 
 PetscErrorCode X2PListAdd( X2PList *l, X2Particle *p)
 {
-  if (l->size==l->data_size) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"X2PListAdd: list full (%D) - todo",l->size);
+  if (l->size==l->data_size) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"X2PListAdd: list full (%D), we should reallocate",l->size);
   if (l->hole != -1) { /* have a hole - fill it */
     X2PListPos idx = l->hole; assert(idx<l->data_size);
     if (l->data[idx].gid == 0) l->hole = -1; /* filled last hole */
     else if (l->data[idx].gid>=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"X2PListAdd: hole with non-neg gid!!!",l->data[idx].gid);
     else l->hole = (X2PListPos)(-l->data[idx].gid - 1); /* use gid as pointer */
-    l->data[idx] = *p; /* struct copy */
+    l->data[idx] = *p; /* struct copy! */
   }
   else {
-    l->data[l->top++] = *p; /* struct copy */
+    l->data[l->top++] = *p; /* struct copy! */
   }
   l->size++;
   assert(l->top >= l->size);
@@ -289,7 +288,7 @@ PetscInt X2PListSize(X2PList *l) {
 PetscErrorCode X2PListDestroy(X2PList *l)
 {
   PetscErrorCode ierr;
-  ierr = PetscFree(l->data);CHKERRQ(ierr);
+  ierr = PetscFree(l->data);CHKERRQ(ierr); /* free each for struct-of-arrays */
   l->size=0;
   l->top=0;
   l->hole=-1;
@@ -298,7 +297,7 @@ PetscErrorCode X2PListDestroy(X2PList *l)
   return ierr;
 }
 
-#define X2PROCLISTSIZE 4096
+#define X2PROCLISTSIZE 256
 static PetscInt s_chunksize = 32768;
 /*
    ProcessOptions: set parameters from input, setup w/o allocation, called first, no DM here
@@ -548,7 +547,7 @@ PetscErrorCode X2GridParticleGetProc_FluxTube(DM d, const X2GridParticle *grid, 
   iths = (PetscMPIInt)(theta/dth);                               assert(iths<grid->ntheta);
   irs = (PetscMPIInt)((PetscReal)grid->nradius*psi*psi/(rminor*rminor));assert(irs<grid->nradius);
   *pe = planeIdx + irs*grid->ntheta + iths;
-  *elem = 0;
+  *elem = 0; /* only one cell per process */
   PetscFunctionReturn(0);
 }
 
@@ -778,12 +777,12 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendListTable, cons
           if (irk>=0) {
             PetscInt elemID; /* todo!!!! */
             ierr = cylindricalToCart(pp->r, pp->z, pp->phi, x);CHKERRQ(ierr);
-            ierr = DMPICellAddSource(ctx->dm, xVec, vVec,elemID);CHKERRQ(ierr);
+            /* Matt x[3] here has the position for you to do a local search and get 'elemID' */
+            ierr = DMPICellAddSource(ctx->dm, xVec, vVec, elemID);CHKERRQ(ierr);
           }
         }
       }
     }
-
     ierr = PetscFree(todata);CHKERRQ(ierr);
     ierr = PetscFree(fromranks);CHKERRQ(ierr);
     ierr = PetscFree(fromdata);CHKERRQ(ierr);
@@ -903,9 +902,11 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendListTable, cons
 #undef __FUNCT__
 #define __FUNCT__ "processParticles"
 static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendList *sendListTable, const PetscInt tag,
-					const int irk, const int istep, PetscErrorCode (*get_proc)(DM, const X2GridParticle *, PetscReal, PetscReal, PetscReal, PetscReal[], PetscMPIInt *, PetscInt *))
+					const int irk, const int istep,
+                                        PetscErrorCode (*get_proc)( DM, const X2GridParticle *, PetscReal, PetscReal, PetscReal,
+                                                                    PetscReal[], PetscMPIInt *, PetscInt *))
 {
-  X2GridParticle *grid = &ctx->particleGrid;
+  X2GridParticle *grid = &ctx->particleGrid; assert(sendListTable); /* always used now */
   DM_PICell *dmpi = (DM_PICell *) ctx->dm->data;
   DM dm = dmpi->dmplex;
   PetscReal   r,z,psi,theta,dphi,rmaj=grid->rMajor,rminor=grid->rMinor;
@@ -958,13 +959,12 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendLi
       else { /* irk < 0: just moving particles, no push */
         ierr = cylindricalToPolPlane( part.r - rmaj, part.z, &psi, &theta );CHKERRQ(ierr); /* not needed for solver move */
       }
-      /* else -- just communicate */
       /* see if need communication, add density if not, add to communication list if so */
       ierr = get_proc(dm, grid, psi, theta, part.phi, x, &pe, &idx);CHKERRQ(ierr);
       if (!sendListTable || pe==ctx->rank) { /* don't move */
         /* add density to RHS */
         if (irk>=0) {
-          PetscInt elemID; /* todo!!!! */
+          PetscInt elemID; /* todo!!!! - I have will have this one someplace! */
           ierr = cylindricalToCart(part.r, part.z, part.phi, x);CHKERRQ(ierr);
           ierr = DMPICellAddSource(ctx->dm, xVec, vVec, elemID);CHKERRQ(ierr);
           if (sendListTable) {
@@ -1055,6 +1055,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendLi
   PetscFunctionReturn(0);
 }
 
+/* create particles in flux tubes, create particle lists, move particles to element lists */
 #undef __FUNCT__
 #define __FUNCT__ "createParticles"
 static PetscErrorCode createParticles(X2Ctx *ctx)
@@ -1128,7 +1129,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 	  /* vshift= v + up ! shift of velocity */
 	  vpar = v/b*mass/charge;
 	  vpar *= 208.3333; /* fudge factor to get it to fit input */
-	  ierr = X2ParticleCreate(&particle,++gid,r,z,phi,vpar);CHKERRQ(ierr);
+	  ierr = X2ParticleCreate(&particle,++gid,r,z,phi,vpar);CHKERRQ(ierr); /* only time this is called! */
 	  ierr = X2PListAdd(&ctx->partlists[isp],&particle);CHKERRQ(ierr);
           /* debug, particles are created in a flux tube */
           {
