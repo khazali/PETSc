@@ -1837,7 +1837,6 @@ int main(int argc, char **argv)
         if (isForest) {
           if (ctx.run_type == X2_ITER) {
             ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,GeometryPICellITER,&ctx);CHKERRQ(ierr);
-            /* ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,NULL,&ctx);CHKERRQ(ierr); */
           }
           else if (ctx.run_type == X2_TORUS) {
             ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,GeometryPICellTorus,&ctx);CHKERRQ(ierr);
@@ -1852,6 +1851,8 @@ int main(int argc, char **argv)
   /* setup DM */
   ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr);
   ierr = DMSetUp( ctx.dm );CHKERRQ(ierr); /* set all up & build initial grid */
+  /* setup particles */
+  ierr = createParticles( &ctx );CHKERRQ(ierr);
   /* create SNESS */
   ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
   ierr = SNESSetDM( dmpi->snes, dmpi->dmplex);CHKERRQ(ierr);
@@ -1862,8 +1863,6 @@ int main(int argc, char **argv)
   ierr = DMCreateMatrix(dmpi->dmplex, &J);CHKERRQ(ierr);
   ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
   ierr = SNESSetUp( dmpi->snes );CHKERRQ(ierr);
-  /* setup particles */
-  ierr = createParticles( &ctx );CHKERRQ(ierr);
   ierr = PetscLogEventEnd(ctx.events[3],0,0,0,0);CHKERRQ(ierr);
   {
     PetscViewer    viewer = NULL;

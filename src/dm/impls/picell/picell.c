@@ -60,13 +60,16 @@ PetscErrorCode  DMSetFromOptions_PICell(PetscOptionItems *PetscOptionsObject,DM 
 PetscErrorCode DMSetUp_PICell(DM dm)
 {
   DM_PICell      *dmpi = (DM_PICell *) dm->data;
+  DM cdm;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   /* We have built dmplex, now create vectors */
   ierr = DMSetUp(dmpi->dmplex);CHKERRQ(ierr); /* build a grid */
-  ierr = DMCreateGlobalVector(dmpi->dmplex, &dmpi->phi);CHKERRQ(ierr);
+  ierr = DMGetCoordinateDM(dmpi->dmplex,&cdm);
+  ierr = DMCreateGlobalVector(cdm, &dmpi->phi);CHKERRQ(ierr);
+  ierr = DMDestroy(&cdm);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->phi, "potential");CHKERRQ(ierr);
   ierr = VecZeroEntries(dmpi->phi);CHKERRQ(ierr);
   ierr = VecDuplicate(dmpi->phi, &dmpi->rho);CHKERRQ(ierr);
