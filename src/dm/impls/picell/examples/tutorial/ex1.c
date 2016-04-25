@@ -776,8 +776,9 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendListTable, cons
 	  ierr = X2PListAdd( particlelist, pp);CHKERRQ(ierr);
 	  /* add density to RHS */
           if (irk>=0) {
+            PetscInt elemID; /* todo!!!! */
             ierr = cylindricalToCart(pp->r, pp->z, pp->phi, x);CHKERRQ(ierr);
-            ierr = DMPICellAddSource(ctx->dm, xVec, vVec);CHKERRQ(ierr);
+            ierr = DMPICellAddSource(ctx->dm, xVec, vVec,elemID);CHKERRQ(ierr);
           }
         }
       }
@@ -841,8 +842,9 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendListTable, cons
             ierr = X2PListAdd( particlelist, &data[jj]);CHKERRQ(ierr);
 	    /* add density to RHS */
             if (irk>=0) {
+              PetscInt elemID; /* todo!!!! */
               ierr = cylindricalToCart(data[jj].r, data[jj].z, data[jj].phi, x);CHKERRQ(ierr);
-              ierr = DMPICellAddSource(ctx->dm, xVec, vVec);CHKERRQ(ierr);
+              ierr = DMPICellAddSource(ctx->dm, xVec, vVec, elemID);CHKERRQ(ierr);
             }
           }
 	}
@@ -962,8 +964,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendLi
       if (!sendListTable || pe==ctx->rank) { /* don't move */
         /* add density to RHS */
         if (irk>=0) {
+          PetscInt elemID; /* todo!!!! */
           ierr = cylindricalToCart(part.r, part.z, part.phi, x);CHKERRQ(ierr);
-          ierr = DMPICellAddSource(ctx->dm, xVec, vVec);CHKERRQ(ierr);
+          ierr = DMPICellAddSource(ctx->dm, xVec, vVec, elemID);CHKERRQ(ierr);
           if (sendListTable) {
             ierr = X2PListSetAt( list, pos, &part );CHKERRQ(ierr); /* not moved and final step so write back */
           }
@@ -1757,7 +1760,6 @@ int main(int argc, char **argv)
   PetscErrorCode ierr;
   DM_PICell      *dmpi;
   PetscInt       dim;
-  PetscFE        fe; /* FV might be better */
   Mat            J;
   PetscFunctionBeginUser;
 
@@ -1800,21 +1802,20 @@ int main(int argc, char **argv)
   CHKERRQ(ierr);
   ctx.BCFuncs[0] = zero;
   ierr = DMGetDimension(dmpi->dmplex, &dim);CHKERRQ(ierr);
-  ierr = PetscFECreateDefault(dmpi->dmplex, dim, 1, PETSC_FALSE, NULL, -1, &fe);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) fe, "potential");CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dmpi->dmplex, dim, 1, PETSC_FALSE, NULL, -1, &dmpi->fem);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) dmpi->fem, "potential");CHKERRQ(ierr);
   {
     DMLabel label;
     PetscDS prob;
     PetscInt id = 1;
     ierr = DMGetDS(dmpi->dmplex, &prob);CHKERRQ(ierr);
-    ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) fe);CHKERRQ(ierr);
+    ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
     ierr = DMCreateLabel(dmpi->dmplex, "boundary");CHKERRQ(ierr);
     ierr = DMGetLabel(dmpi->dmplex, "boundary", &label);CHKERRQ(ierr);
     ierr = DMPlexMarkBoundaryFaces(dmpi->dmplex, label);CHKERRQ(ierr);
     ierr = DMAddBoundary(dmpi->dmplex, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx.BCFuncs, 1, &id, &ctx);
     CHKERRQ(ierr);
   }
-  ierr = PetscFEDestroy(&fe);CHKERRQ(ierr);
   {
     char      convType[256];
     PetscBool flg;
@@ -1876,6 +1877,7 @@ int main(int argc, char **argv)
   /* do it */
   ierr = go( &ctx );CHKERRQ(ierr);
 
+  ierr = PetscFEDestroy(&dmpi->fem);CHKERRQ(ierr);
   ierr = MatDestroy(&J);CHKERRQ(ierr);
   ierr = destroyParticles(&ctx);CHKERRQ(ierr);
   ierr = DMDestroy(&ctx.dm);CHKERRQ(ierr);
