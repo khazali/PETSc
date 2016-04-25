@@ -10,7 +10,7 @@
 #include <petscfv.h>
 #include <petscsftypes.h>
 
-PETSC_EXTERN PetscErrorCode DMPICellAddSource(DM, Vec, Vec);
+PETSC_EXTERN PetscErrorCode DMPICellAddSource(DM, Vec, Vec, PetscInt);
 PETSC_EXTERN PetscErrorCode DMPICellGetJet(DM, Vec, PetscInt, Vec);
 
 #endif

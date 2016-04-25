@@ -1,5 +1,6 @@
 #define PETSCDM_DLL
 #include <petsc/private/dmpicellimpl.h>    /*I   "petscdmpicell.h"   I*/
+#include <petsc/private/petscfeimpl.h>    /*I   "petscfe.h"   I*/
 /* #include <petscdmda.h> */
 /* #include <petscsf.h> */
 PETSC_EXTERN PetscErrorCode DMPlexView_HDF5(DM, PetscViewer);
@@ -139,17 +140,51 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellAddSource"
 /* add density 'rho'[1] (vector of size 1) at 'coord'[dim] to global density vector (dmpi->rho) */
-PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec rho)
+PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec rho, PetscInt cell)
 {
   DM_PICell      *dmpi = (DM_PICell *) dm->data;
-  Vec globalrho = dmpi->rho;
+  Vec globalrho = dmpi->rho, refCoord;
+  PetscScalar rone=1.0, *x, *xi, *elemVec;
+  PetscDS prob;
+  PetscReal *B = NULL;
+  PetscReal v0[3], J[9], invJ[9], detJ;
+  PetscInt totDim,p,N,dim,b;
   PetscErrorCode ierr;
-  PetscScalar rone=1.;
+
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  PetscValidHeaderSpecific(coord, VEC_CLASSID, 2);
+  PetscValidHeaderSpecific(rho, VEC_CLASSID, 3);
 
-  /* Matt */
-
+  ierr = VecDuplicate(coord, &refCoord);CHKERRQ(ierr);
+  ierr = VecGetBlockSize(coord, &dim);CHKERRQ(ierr);
+  ierr = VecGetLocalSize(coord, &N);CHKERRQ(ierr);
+  N   /= dim;
+  ierr = VecGetArray(coord, &x);CHKERRQ(ierr);
+  ierr = VecGetArray(refCoord, &xi);CHKERRQ(ierr);
+  /* Affine approximation for reference coordinates */
+  ierr = DMPlexComputeCellGeometryFEM(dmpi->dmplex, cell, dmpi->fem, v0, J, invJ, &detJ);CHKERRQ(ierr);
+  for (p = 0; p < N; ++p) {
+    CoordinatesRealToRef(dim, dim, v0, invJ, &x[p*dim], &xi[p*dim]);
+  }
+  ierr = VecRestoreArray(coord, &x);CHKERRQ(ierr);
+  ierr = PetscFEGetTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
+  ierr = VecRestoreArray(refCoord, &xi);CHKERRQ(ierr);
+  ierr = VecDestroy(&refCoord);CHKERRQ(ierr);
+  ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
+  ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
+  ierr = DMGetWorkArray(dm, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
+  ierr = PetscMemzero(elemVec, totDim * sizeof(PetscScalar));CHKERRQ(ierr);
+  ierr = VecGetArray(rho, &x);CHKERRQ(ierr);
+  for (b = 0; b < totDim; ++b) {
+    for (p = 0; p < N; ++p) {
+      elemVec[b] += B[b*N + p] * x[p];
+    }
+  }
+  ierr = VecRestoreArray(rho, &x);CHKERRQ(ierr);
+  ierr = DMPlexVecSetClosure(dm, NULL, dmpi->rho, cell, elemVec, ADD_ALL_VALUES);CHKERRQ(ierr);
+  ierr = DMRestoreWorkArray(dm, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
+  ierr = PetscFERestoreTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

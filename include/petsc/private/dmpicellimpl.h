@@ -19,6 +19,7 @@ typedef struct {
   Vec  rho;
   /* Vec grad; */
   SNES snes;
+  PetscFE fem;
 } DM_PICell;
 
 #endif /* _PICELLIMPL_H */
