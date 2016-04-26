@@ -1,6 +1,7 @@
 #define PETSCDM_DLL
 #include <petsc/private/dmpicellimpl.h>    /*I   "petscdmpicell.h"   I*/
 #include <petsc/private/petscfeimpl.h>    /*I   "petscfe.h"   I*/
+#include "petscdmforest.h" 
 /* #include <petscdmda.h> */
 /* #include <petscsf.h> */
 PETSC_EXTERN PetscErrorCode DMPlexView_HDF5(DM, PetscViewer);
@@ -139,19 +140,18 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 
   PetscFunctionReturn(0);
 }
-
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellAddSource"
 /* add density 'rho'[1] (vector of size 1) at 'coord'[dim] to global density vector (dmpi->rho) */
 PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec rho, PetscInt cell)
 {
-  DM_PICell      *dmpi = (DM_PICell *) dm->data;
-  Vec globalrho = dmpi->rho, refCoord;
-  PetscScalar rone=1.0, *x, *xi, *elemVec;
-  PetscDS prob;
-  PetscReal *B = NULL;
-  PetscReal v0[3], J[9], invJ[9], detJ;
-  PetscInt totDim,p,N,dim,b;
+  DM_PICell    *dmpi = (DM_PICell *) dm->data;
+  Vec          refCoord;
+  PetscScalar  *x, *xi, *elemVec;
+  PetscDS      prob;
+  PetscReal    *B = NULL;
+  PetscReal    v0[3], J[9], invJ[9], detJ;
+  PetscInt     totDim,p,N,dim,b;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -194,17 +194,37 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec rho, PetscInt cell)
 /* get gradient at point 'coord' and put it in D vector 'jet' */
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellGetJet"
-PetscErrorCode  DMPICellGetJet(DM dm, Vec coord, PetscInt order, Vec jet)
+PetscErrorCode  DMPICellGetJet(DM a_dm, Vec coord, PetscInt order, Vec jet)
 {
-  DM_PICell      *dmpi = (DM_PICell *) dm->data;
-  Vec globalpot = dmpi->phi;
+  DM_PICell      *dmpi = (DM_PICell *) a_dm->data;
   PetscErrorCode ierr;
   PetscScalar rone=1.;
+  DM dm;
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  PetscValidHeaderSpecific(a_dm, DM_CLASSID, 1);
 
-  /* Matt */
   ierr = VecSet(jet,rone);CHKERRQ(ierr); /* dummy grad now */
 
+  /* Matt */
+  dm  = dmpi->dmplex; /* the DM for the mesh (not really a plex!) */
+
+  PetscFunctionReturn(0);
+}
+#undef __FUNCT__
+#define __FUNCT__ "DMGetCellChart"
+PetscErrorCode DMGetCellChart(DM dm, PetscInt *cStart, PetscInt *cEnd)
+{
+  DM_PICell      *dmpi = (DM_PICell *) dm->data;
+  PetscErrorCode ierr;
+  PetscBool isForest;
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  ierr = DMIsForest(dmpi->dmplex,&isForest);CHKERRQ(ierr);
+  if (isForest) {
+    ierr = DMForestGetCellChart(dmpi->dmplex, cStart, cEnd);CHKERRQ(ierr);
+  }
+  else {
+    ierr = DMPlexGetHeightStratum(dmpi->dmplex, 0, cStart, cEnd);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
