@@ -206,7 +206,7 @@ PetscErrorCode  DMPICellGetJet(DM a_dm, Vec coord, PetscInt order, Vec jet)
   ierr = VecSet(jet,rone);CHKERRQ(ierr); /* dummy grad now */
 
   /* Matt */
-  dm  = dmpi->dmplex; /* the DM for the mesh (not really a plex!) */
+  dm = dmpi->dmplex; /* the DM for the mesh (not really a plex!) */
 
   PetscFunctionReturn(0);
 }
@@ -214,17 +214,33 @@ PetscErrorCode  DMPICellGetJet(DM a_dm, Vec coord, PetscInt order, Vec jet)
 #define __FUNCT__ "DMGetCellChart"
 PetscErrorCode DMGetCellChart(DM dm, PetscInt *cStart, PetscInt *cEnd)
 {
-  DM_PICell      *dmpi = (DM_PICell *) dm->data;
   PetscErrorCode ierr;
   PetscBool isForest;
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  ierr = DMIsForest(dmpi->dmplex,&isForest);CHKERRQ(ierr);
+  ierr = DMIsForest(dm,&isForest);CHKERRQ(ierr);
   if (isForest) {
-    ierr = DMForestGetCellChart(dmpi->dmplex, cStart, cEnd);CHKERRQ(ierr);
+    ierr = DMForestGetCellChart(dm, cStart, cEnd);CHKERRQ(ierr);
   }
   else {
-    ierr = DMPlexGetHeightStratum(dmpi->dmplex, 0, cStart, cEnd);CHKERRQ(ierr);
+    ierr = DMPlexGetHeightStratum(dm, 0, cStart, cEnd);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+#undef __FUNCT__
+#define __FUNCT__ "DMLocateProcess"
+PetscErrorCode DMLocateProcess(DM dm, Vec points, PetscInt *cEnd)
+{
+  PetscErrorCode ierr;
+  PetscBool isForest;
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  ierr = DMIsForest(dm,&isForest);CHKERRQ(ierr);
+  if (isForest) {
+    ierr = DMForestGetCellChart(dm, cStart, cEnd);CHKERRQ(ierr);
+  }
+  else {
+    ierr = DMPlexGetHeightStratum(dm, 0, cStart, cEnd);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
