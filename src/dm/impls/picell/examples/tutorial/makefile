@@ -25,7 +25,7 @@ runex1:
 # -nphi_particles 2
 
 val: ex1
-	-${MPIEXEC} -n 1 valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex1 -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 5 -numMajor 4 -npart_flux_tube 10 -debug 1 -mstep 2 -collisionPeriod 1
+	-${MPIEXEC} -n 2 valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex1 -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 5 -numMajor 4 -npart_flux_tube 10 -debug 1 -mstep 2 -collisionPeriod 1
 
 debug:
 	-@gdb --args ./ex1 -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 1 -numMajor 4 -npart_flux_tube 10 -mstep 2 -debug 1 -snes_monitor -snes_converged_reason -collisionPeriod 1

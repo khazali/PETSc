@@ -2,36 +2,43 @@
 #include <petsc/private/dmpicellimpl.h>    /*I   "petscdmpicell.h"   I*/
 #include <petsc/private/petscfeimpl.h>    /*I   "petscfe.h"   I*/
 #include "petscdmforest.h"
-/* #include <petscdmda.h> */
-/* #include <petscsf.h> */
+#include <petscdmda.h>
+#include <petscsf.h>
 PETSC_EXTERN PetscErrorCode DMPlexView_HDF5(DM, PetscViewer);
 #undef __FUNCT__
 #define __FUNCT__ "DMView_PICell"
-PetscErrorCode DMView_PICell(DM dm, PetscViewer viewer)
+PetscErrorCode DMView_PICell(DM a_dm, PetscViewer viewer)
 {
   PetscBool      iascii, ishdf5, isvtk;
   PetscErrorCode ierr;
-  DM_PICell      *dmpi = (DM_PICell *) dm->data;
-
+  DM_PICell      *dmpi = (DM_PICell *) a_dm->data;
+  DM dm;
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  PetscValidHeaderSpecific(a_dm, DM_CLASSID, 1);
   PetscValidHeaderSpecific(viewer, PETSC_VIEWER_CLASSID, 2);
+  dm = dmpi->dmgrid;
   ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERASCII, &iascii);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERVTK,   &isvtk);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERHDF5,  &ishdf5);CHKERRQ(ierr);
   if (iascii) {
-    ierr = DMView(dmpi->dmgrid, viewer);CHKERRQ(ierr);
+    ierr = DMView(dm, viewer);CHKERRQ(ierr);
   } else if (ishdf5) {
 #if defined(PETSC_HAVE_HDF5)
+    ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dm);CHKERRQ(ierr);
     ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_HDF5_VIZ);CHKERRQ(ierr);
-    ierr = DMPlexView_HDF5(dmpi->dmgrid, viewer);CHKERRQ(ierr);
+    ierr = DMPlexView_HDF5(dm, viewer);CHKERRQ(ierr);
     ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
+    ierr = DMDestroy(&dm);CHKERRQ(ierr);
 #else
     SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "HDF5 not supported in this build.\nPlease reconfigure using --download-hdf5");
 #endif
   }
   else if (isvtk) {
+    SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "VTK not supported in this build");
     /* ierr = DMPICellVTKWriteAll((PetscObject) dm,viewer);CHKERRQ(ierr); */
+  }
+  else {
+    SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Unknown viewer type");
   }
   PetscFunctionReturn(0);
 }
@@ -139,10 +146,10 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 }
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellAddSource"
-/* add density 'rho'[1] (vector of size 1) at 'coord'[dim] to global density vector (dmpi->rho) */
-PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec rho, PetscInt cell)
+/* add densities 'rho' at 'coord' to global density vector (dmpi->rho) */
+PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec rho, PetscInt cell)
 {
-  DM_PICell    *dmpi = (DM_PICell *) dm->data;
+  DM_PICell    *dmpi = (DM_PICell *) a_dm->data;
   Vec          refCoord;
   PetscScalar  *x, *xi, *elemVec;
   PetscDS      prob;
@@ -150,12 +157,13 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec rho, PetscInt cell)
   PetscReal    v0[3], J[9], invJ[9], detJ;
   PetscInt     totDim,p,N,dim,b;
   PetscErrorCode ierr;
-
+  DM       dm;
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  PetscValidHeaderSpecific(a_dm, DM_CLASSID, 1);
   PetscValidHeaderSpecific(coord, VEC_CLASSID, 2);
   PetscValidHeaderSpecific(rho, VEC_CLASSID, 3);
 
+  ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dm);CHKERRQ(ierr); /* low overhead, cached */
   ierr = VecDuplicate(coord, &refCoord);CHKERRQ(ierr);
   ierr = VecGetBlockSize(coord, &dim);CHKERRQ(ierr);
   ierr = VecGetLocalSize(coord, &N);CHKERRQ(ierr);
@@ -163,9 +171,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec rho, PetscInt cell)
   ierr = VecGetArray(coord, &x);CHKERRQ(ierr);
   ierr = VecGetArray(refCoord, &xi);CHKERRQ(ierr);
   /* Affine approximation for reference coordinates */
-  PetscPrintf(PETSC_COMM_SELF,"ooooo[%D]DMPICellAddSource: cell=%D call DMPlexComputeCellGeometryFEM. FEM view:\n",-1,cell);
-  ierr = PetscFEView(dmpi->fem,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-  ierr = DMPlexComputeCellGeometryFEM(dmpi->dmgrid, cell, dmpi->fem, v0, J, invJ, &detJ);CHKERRQ(ierr);
+  ierr = DMPlexComputeCellGeometryFEM(dm, cell, dmpi->fem, v0, J, invJ, &detJ);CHKERRQ(ierr);
   for (p = 0; p < N; ++p) {
     CoordinatesRealToRef(dim, dim, v0, invJ, &x[p*dim], &xi[p*dim]);
   }
@@ -186,6 +192,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec rho, PetscInt cell)
   ierr = VecRestoreArray(rho, &x);CHKERRQ(ierr);
   ierr = DMPlexVecSetClosure(dm, NULL, dmpi->rho, cell, elemVec, ADD_ALL_VALUES);CHKERRQ(ierr);
   ierr = DMRestoreWorkArray(dm, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
+  ierr = DMDestroy(&dm);CHKERRQ(ierr);
   ierr = PetscFERestoreTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -193,7 +200,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec rho, PetscInt cell)
 /* get gradient at point 'coord' and put it in D vector 'jet' */
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellGetJet"
-PetscErrorCode  DMPICellGetJet(DM a_dm, Vec coord, PetscInt order, Vec jet)
+PetscErrorCode  DMPICellGetJet(DM a_dm, Vec coord, PetscInt order, Vec jet, PetscInt cell)
 {
   DM_PICell      *dmpi = (DM_PICell *) a_dm->data;
   PetscErrorCode ierr;
