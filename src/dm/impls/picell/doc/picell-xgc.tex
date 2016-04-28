@@ -39,7 +39,7 @@ The key observation that motivates our design is that while AMG methods are very
 GMG is not widely because it is difficult to deploy flexible and efficient GMG equation solvers in a library, to amortize their cost of development, because they are inherently tied to the meshing and discretizations.
 We at PETSc believe we have a solution to this deployment problem.
 First, modern grid hybrid structured and unstructured adaptive mesh refinement (AMR) discretization methods have been developed in the p4est distributed tree library \cite{DBLP:journals/siamsc/IsaacBWG15,Rudi:2015:EIS:2807591.2807675,Stadler1033}, and are being added to PETSc (DMForest object) in our Solver Integrated Tree-based Adaptive Refinement (SITAR) infrastructure in the DMPICell object.
-Second, modern commercial grade software engineering practices and mesh abstraction layers in PETSc make the relatively tight coupling with applications practical for high value applications, if not for the masses of PETSc users \cite{KnepleyBrownMcInnesSmithRuppAdams2015b}.
+Second, modern commercial-grade software engineering practices and mesh abstraction layers in PETSc make the relatively tight coupling with applications practical for high value applications, if not for the masses of PETSc users \cite{KnepleyBrownMcInnesSmithRuppAdams2015b}.
 We propose to continue, and accelerate, the development PICell solvers specialized for the particular demands of extreme-scale anisotropic PIC methods in general and XGC in particular.
 
 \section{Budget and Milestones}
@@ -57,7 +57,7 @@ The following tasks are proposed for this project by Professor Knepley's team [K
 \item Point location in grid (done for flux tubes)
 \item Point gradient (cell to particle methods)
 \item Point deposition (particle to cell method)
-\item Algebraic multigrid Poisson solver with non-constant material coefficients 
+\item Algebraic multigrid Poisson equation solver with non-constant material coefficients 
 \end{enumerate}
 \item Optimize a kernel (e.g., deposition) for KNL with IPCC to better understand primary performance issues [A: FY16 Q4]
 \begin{itemize}
@@ -69,11 +69,11 @@ The following tasks are proposed for this project by Professor Knepley's team [K
 \end{itemize}
 \item Add $B_0$ point interpolation [A: FY17 Q2]
 \item Add ghost cells and particle deposition communication, as needed, for gyrokinetics, and begin optimizing data models [A,K: FY17 Q2]
-\item Q2 elements [K: FY17 Q2]
+\item Add Q2 elements [K: FY17 Q2]
 \item Begin to develop performance models with physics to prepare for particular exa-scale physics campaigns [A,K: FY17 Q2]
 \item Improve visualization with combined particles and grid [A: FY17 Q3]
-\item Finite particle form factors or density smoothing [A: FY17 Q4]
-\item Fast geometric multigrid Poisson solver [A: FY17 Q4]
+\item Finite particle form factors or density smoothing [A: FY17 Q3]
+\item Fast geometric multigrid Poisson equation solver [A: FY17 Q4]
 \end{itemize}
 \vskip .1cm 
 We intend to seek funding for a second year for the following work.
@@ -127,11 +127,11 @@ Distributing grids will be very disruptive to the code base of fusion PIC applic
 
 The physics community has developed a large body of research and experience in using PIC methods for fusion plasmas and they are one of the largest users in DOE leadership class compute facilities.
 The applied math, engineering, and physics communities have developed powerful discretization and solver methods for extreme-scale computing in just the past ten years and stretching back to the 1960s, but these modern methods are not widely used in the fusion PIC community.
-The continued advancement of computational fusion physics in XGC, and the global community, especially as we move to simulations relevant to the design and operation of ITER, will benefit from both modern numerical methods and parallel computing techniques, and commercial grade software engineering methodologies.
+The continued advancement of computational fusion physics in XGC, and the global community, especially as we move to simulations relevant to the design and operation of ITER, will benefit from both modern numerical methods and parallel computing techniques, and commercial-grade software engineering methodologies.
 
 The engineering complexity required to develop a flexible infrastructure that allows for the expression of the most optimal algorithms demands a higher level of software quality assurance processes than is often present in the codes that are driven by academic reward systems, such as number of journal publications, as opposed to the demands for reliable predictive analysis that drives the commercial sector.
-Commercial grad software engineering takes both skill and time that is not available to most academic physics code projects and is not seen as worth to cost due to their academic reward structure.
-PETSc employs commercial grade software engineering processes and some of our users, even those that work in academia, follow our practices because in the long term it leads to higher productivity even by the standards of their academic field. 
+Commercial-grade software engineering takes both skill and time that is not available to most academic physics code projects and is not seen as worth to cost due to their academic reward structure.
+PETSc employs commercial-grade software engineering processes and some of our users, even those that work in academia, follow our practices because in the long term it leads to higher productivity even by the standards of their academic field. 
 This project provides fusion PIC codes with solid infrastructure on which to build their physics, to allow for the full use of their theoretical expertise without the demands of implementing, verifying, and maintaining the increasing software stack required to effectively use modern hardware.
 
 This work amortizes both the development costs and the intellectual resources required to develop and deploy support for extreme-scale PIC applications.
@@ -147,7 +147,7 @@ Our methodology has the following desired features:
 \item flexible local grids to allow for particle-grid interaction with non-local parts of the grid;
 \item hierarchical grids for fast geometric multigrid solvers, AMR, and the ``particle search" method to determine the address space of a particle;
 \item grids abstracted from application scientists to allow multiple types of grids and discretizations to be supported and selected at run time;
-\item fast linear and nonlinear solvers for Poisson and Ampere's law solvers, and implicit PIC methods (magnetohydrodymaic);
+\item fast linear and nonlinear equation solvers for Poisson and Ampere's law solvers, and implicit PIC methods (magnetohydrodymaic);
 \item incremental problem development for debugging and verification on Cartesian grids and ramping up to full tokamak wall geometries;
 \item finite particle form factors, or density smoothing, to allow for arbitrary mesh resolution without increasing particle count to avoid particle noise;
 \begin{itemize}
@@ -178,7 +178,7 @@ To this end we see several early areas that our project can contribute to the XG
 \section{Current and Future Development}
 \label{sec:x2}
 
-The development proposed herein takes place in a branch in the PETSc repository (mark/feature-picell) and a driver application named X2 (DMPICell ex1.c).
+The development proposed herein takes place in a branch in the PETSc repository (mark/feature-picell) and a driver application named X2 (DMPICell src/dm/impls/picell/examples/tutorial/ex1.c).
 Code will likely migrate from X2 into the PETSc library as development progresses.
 X2 is used to gather initial performance data on modern architectures to guide further data model developments, and to verify the PETSc library code.
 Our approach is to exploit the fact that particle distributions, at least from a computational point of view, are relatively uniformly distributed over the domain.
@@ -208,7 +208,7 @@ The fuzzy edges of Figure \ref{fig:cross} (left) are due to the finite number of
 X2's design principles are modeled on those of PETSc, in terms of extensibility and flexibility.
 The X2 kernels are mesh independent, which allows the meshes to be selected at run time.
 This allows us to incrementally develop and verify new capabilities on simpler problems before moving to more realistic geometries.
-This is critical in continuously verify the code and an effective develop, debug, and verify code cycle.
+This is critical to continuously verify the code and for an effective develop, debug, and verify code cycle.
 To this end we currently support Cartesian grids  (e.g., Figure \ref{fig:grids}, left) and circular cross section toruses (e.g., Figure \ref{fig:grids}, right).
 \begin{figure}[h!]
    \centering
@@ -226,7 +226,7 @@ The mesh in Figure \ref{fig:cross} (right) is generated with seven (high order) 
 High order elements are attractive because of their high accuracy for smooth solutions should allow for fewer vertices and hence larger ``cells".
 Furthermore, because order elements are in effect composed of multiple cells they are even larger in physical space.
 Large elements are useful because we build the particle data structure around them, larger elements results in larger element particle lists, which is beneficial for vectorization.
-Additionally, the solutions of say the Poisson solve in fusion applications, with turbulence, are smooth at the scale of the (known) Larmore radius and, in fact, physicists often smooth the results of low order Poisson solvers to reduce high frequency components.
+Additionally, the solutions of say the Poisson solve in fusion applications, with turbulence, are smooth at the scale of the (known) Larmor radius and, in fact, physicists often smooth the results of low order Poisson solvers to reduce high frequency components.
 Q2 elements can also capture curved surface better than linear elements (Figure \ref{fig:cross}, right).
 We plan to move to discontinuous Galerkin (DG) methods in the future because they have attractive mathematical properties, such as having rigorous theory like finite elements and being conservative like finite volume, which would be useful for flux surface averaging projections.
 %DG results in systems with many degrees of freedom, a common problem of these methods, but fusion PIC solvers are highly over provisioned with processing resources, thus, local work and storage complexity are not critical for these solves.
