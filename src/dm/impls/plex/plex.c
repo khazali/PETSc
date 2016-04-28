@@ -3362,6 +3362,297 @@ PetscErrorCode DMPlexVecRestoreClosure(DM dm, PetscSection section, Vec v, Petsc
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexVecGetStar_Depth1_Static"
+PETSC_STATIC_INLINE PetscErrorCode DMPlexVecGetStar_Depth1_Static(DM dm, PetscSection section, Vec v, PetscInt point, PetscInt *ssize, PetscScalar *values[])
+{
+  PetscScalar    *array, *vArray;
+  const PetscInt *support;
+  PetscInt        pStart, pEnd, p, numPoints, size = 0, offset = 0;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginHot;
+  ierr = PetscSectionGetChart(section, &pStart, &pEnd);CHKERRQ(ierr);
+  ierr = DMPlexGetSupportSize(dm, point, &numPoints);CHKERRQ(ierr);
+  ierr = DMPlexGetSupport(dm, point, &support);CHKERRQ(ierr);
+  if (!values || !*values) {
+    if ((point >= pStart) && (point < pEnd)) {
+      PetscInt dof;
+
+      ierr = PetscSectionGetDof(section, point, &dof);CHKERRQ(ierr);
+      size += dof;
+    }
+    for (p = 0; p < numPoints; ++p) {
+      const PetscInt sp = support[p];
+      PetscInt       dof;
+
+      if ((sp < pStart) || (sp >= pEnd)) continue;
+      ierr = PetscSectionGetDof(section, sp, &dof);CHKERRQ(ierr);
+      size += dof;
+    }
+    if (!values) {
+      if (ssize) *ssize = size;
+      PetscFunctionReturn(0);
+    }
+    ierr = DMGetWorkArray(dm, size, PETSC_SCALAR, &array);CHKERRQ(ierr);
+  } else {
+    array = *values;
+  }
+  size = 0;
+  ierr = VecGetArray(v, &vArray);CHKERRQ(ierr);
+  if ((point >= pStart) && (point < pEnd)) {
+    PetscInt     dof, off, d;
+    PetscScalar *varr;
+
+    ierr = PetscSectionGetDof(section, point, &dof);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(section, point, &off);CHKERRQ(ierr);
+    varr = &vArray[off];
+    for (d = 0; d < dof; ++d, ++offset) {
+      array[offset] = varr[d];
+    }
+    size += dof;
+  }
+  for (p = 0; p < numPoints; ++p) {
+    const PetscInt cp = support[p];
+    PetscInt       dof, off, d;
+    PetscScalar   *varr;
+
+    if ((cp < pStart) || (cp >= pEnd)) continue;
+    ierr = PetscSectionGetDof(section, cp, &dof);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(section, cp, &off);CHKERRQ(ierr);
+    varr = &vArray[off];
+    for (d = 0; d < dof; ++d, ++offset) {
+      array[offset] = varr[d];
+    }
+    size += dof;
+  }
+  ierr = VecRestoreArray(v, &vArray);CHKERRQ(ierr);
+  if (!*values) {
+    if (ssize) *ssize = size;
+    *values = array;
+  } else {
+    if (size > *ssize) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Size of input array %d < actual size %d", *ssize, size);
+    *ssize = size;
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexVecGetStar_Static"
+PETSC_STATIC_INLINE PetscErrorCode DMPlexVecGetStar_Static(PetscSection section, PetscInt numPoints, const PetscInt points[], const PetscScalar vArray[], PetscInt *size, PetscScalar array[])
+{
+  PetscInt       offset = 0, p;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginHot;
+  *size = 0;
+  for (p = 0; p < numPoints*2; p += 2) {
+    const PetscInt point = points[p];
+    PetscInt       dof, off, d;
+    const PetscScalar *varr;
+
+    ierr = PetscSectionGetDof(section, point, &dof);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(section, point, &off);CHKERRQ(ierr);
+    varr = &vArray[off];
+    for (d = 0; d < dof; ++d, ++offset)    array[offset] = varr[d];
+  }
+  *size = offset;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexVecGetStar_Fields_Static"
+PETSC_STATIC_INLINE PetscErrorCode DMPlexVecGetStar_Fields_Static(PetscSection section, PetscInt numPoints, const PetscInt points[], PetscInt numFields, const PetscScalar vArray[], PetscInt *size, PetscScalar array[])
+{
+  PetscInt       offset = 0, f;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginHot;
+  *size = 0;
+  for (f = 0; f < numFields; ++f) {
+    PetscInt fcomp, p;
+
+    ierr = PetscSectionGetFieldComponents(section, f, &fcomp);CHKERRQ(ierr);
+    for (p = 0; p < numPoints*2; p += 2) {
+      const PetscInt point = points[p];
+      PetscInt       fdof, foff, d;
+      const PetscScalar *varr;
+
+      ierr = PetscSectionGetFieldDof(section, point, f, &fdof);CHKERRQ(ierr);
+      ierr = PetscSectionGetFieldOffset(section, point, f, &foff);CHKERRQ(ierr);
+      varr = &vArray[foff];
+      for (d = 0; d < fdof; ++d, ++offset) array[offset] = varr[d];
+    }
+  }
+  *size = offset;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexVecGetStar"
+/*@C
+  DMPlexVecGetStar - Get an array of the values on the downward, star closure of 'point'
+
+  Not collective
+
+  Input Parameters:
++ dm - The DM
+. section - The section describing the layout in v, or NULL to use the default section
+. v - The local vector
+- point - The sieve point in the DM
+
+  Output Parameters:
++ ssize - The number of values in the star closure, or NULL
+- values - The array of values, which is a borrowed array and should not be freed
+
+  Fortran Notes:
+  Since it returns an array, this routine is only available in Fortran 90, and you must
+  include petsc.h90 in your code.
+
+  The ssize argument is not present in the Fortran 90 binding since it is internal to the array.
+
+  Level: intermediate
+
+.seealso DMPlexVecRestoreStar(), DMPlexVecSetStar()
+@*/
+PetscErrorCode DMPlexVecGetStar(DM dm, PetscSection section, Vec v, PetscInt point, PetscInt *ssize, PetscScalar *values[])
+{
+#if 0
+  PetscSection    clSection;
+#endif
+  IS              clPoints;
+  PetscScalar    *array, *vArray;
+  PetscInt       *points = NULL;
+  const PetscInt *clp;
+  PetscInt        depth, numFields, numPoints, size;
+  PetscInt        fStart, fEnd;
+  PetscBool       isHeight1 = PETSC_FALSE;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginHot;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  if (!section) {ierr = DMGetDefaultSection(dm, &section);CHKERRQ(ierr);}
+  PetscValidHeaderSpecific(section, PETSC_SECTION_CLASSID, 2);
+  PetscValidHeaderSpecific(v, VEC_CLASSID, 3);
+  ierr = DMPlexGetDepth(dm, &depth);CHKERRQ(ierr);
+  if (depth) {
+    ierr = DMPlexGetHeightStratum(dm,1,&fStart,&fEnd);CHKERRQ(ierr);
+    if (fStart <= point && point < fEnd) {
+      isHeight1 = PETSC_TRUE;
+    }
+  }
+  ierr = PetscSectionGetNumFields(section, &numFields);CHKERRQ(ierr);
+  if (isHeight1 && numFields < 2) {
+    ierr = DMPlexVecGetStar_Depth1_Static(dm, section, v, point, ssize, values);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
+  }
+#if 0
+  /* Get points */
+  /* We can add PetscSectionGetStarIndex() if we need to optimize */
+  ierr = PetscSectionGetClosureIndex(section, (PetscObject) dm, &clSection, &clPoints);CHKERRQ(ierr);
+#else
+  clPoints = NULL;
+#endif
+  if (!clPoints) {
+    PetscInt pStart, pEnd, p, q;
+
+    ierr = PetscSectionGetChart(section, &pStart, &pEnd);CHKERRQ(ierr);
+    ierr = DMPlexGetTransitiveClosure(dm, point, PETSC_FALSE, &numPoints, &points);CHKERRQ(ierr);
+    /* Compress out points not in the section */
+    for (p = 0, q = 0; p < numPoints*2; p += 2) {
+      if ((points[p] >= pStart) && (points[p] < pEnd)) {
+        points[q*2]   = points[p];
+        points[q*2+1] = points[p+1];
+        ++q;
+      }
+    }
+    numPoints = q;
+  } else {
+#if 0
+    PetscInt dof, off;
+
+    ierr = PetscSectionGetDof(clSection, point, &dof);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(clSection, point, &off);CHKERRQ(ierr);
+    ierr = ISGetIndices(clPoints, &clp);CHKERRQ(ierr);
+    numPoints = dof/2;
+    points    = (PetscInt *) &clp[off];
+#else
+    SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"cached star indices not implemented");
+#endif
+  }
+  /* Get array */
+  if (!values || !*values) {
+    PetscInt asize = 0, dof, p;
+
+    for (p = 0; p < numPoints*2; p += 2) {
+      ierr = PetscSectionGetDof(section, points[p], &dof);CHKERRQ(ierr);
+      asize += dof;
+    }
+    if (!values) {
+      if (!clPoints) {ierr = DMPlexRestoreTransitiveClosure(dm, point, PETSC_TRUE, &numPoints, &points);CHKERRQ(ierr);}
+      else           {ierr = ISRestoreIndices(clPoints, &clp);CHKERRQ(ierr);}
+      if (ssize) *ssize = asize;
+      PetscFunctionReturn(0);
+    }
+    ierr = DMGetWorkArray(dm, asize, PETSC_SCALAR, &array);CHKERRQ(ierr);
+  } else {
+    array = *values;
+  }
+  ierr = VecGetArray(v, &vArray);CHKERRQ(ierr);
+  /* Get values */
+  if (numFields > 0) {ierr = DMPlexVecGetStar_Fields_Static(section, numPoints, points, numFields, vArray, &size, array);CHKERRQ(ierr);}
+  else               {ierr = DMPlexVecGetStar_Static(section, numPoints, points, vArray, &size, array);CHKERRQ(ierr);}
+  /* Cleanup points */
+  if (!clPoints) {ierr = DMPlexRestoreTransitiveClosure(dm, point, PETSC_FALSE, &numPoints, &points);CHKERRQ(ierr);}
+  else           {ierr = ISRestoreIndices(clPoints, &clp);CHKERRQ(ierr);}
+  /* Cleanup array */
+  ierr = VecRestoreArray(v, &vArray);CHKERRQ(ierr);
+  if (!*values) {
+    if (ssize) *ssize = size;
+    *values = array;
+  } else {
+    if (size > *ssize) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Size of input array %D < actual size %D", *ssize, size);
+    *ssize = size;
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexVecRestoreStar"
+/*@C
+  DMPlexVecRestoreStar - Restore the array of the values on the downward, star closure of 'point'
+
+  Not collective
+
+  Input Parameters:
++ dm - The DM
+. section - The section describing the layout in v, or NULL to use the default section
+. v - The local vector
+. point - The sieve point in the DM
+. ssize - The number of values in the closure, or NULL
+- values - The array of values, which is a borrowed array and should not be freed
+
+  Fortran Notes:
+  Since it returns an array, this routine is only available in Fortran 90, and you must
+  include petsc.h90 in your code.
+
+  The csize argument is not present in the Fortran 90 binding since it is internal to the array.
+
+  Level: intermediate
+
+.seealso DMPlexVecGetStar(), DMPlexVecSetStar()
+@*/
+PetscErrorCode DMPlexVecRestoreStar(DM dm, PetscSection section, Vec v, PetscInt point, PetscInt *ssize, PetscScalar *values[])
+{
+  PetscInt       size = 0;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  /* Should work without recalculating size */
+  ierr = DMRestoreWorkArray(dm, size, PETSC_SCALAR, (void*) values);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 PETSC_STATIC_INLINE void add   (PetscScalar *x, PetscScalar y) {*x += y;}
 PETSC_STATIC_INLINE void insert(PetscScalar *x, PetscScalar y) {*x  = y;}
 
