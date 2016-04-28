@@ -1176,7 +1176,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
   ierr = DMGetCellChart(dm, &cStart, &cEnd);CHKERRQ(ierr);
   ctx->nPartLists = PetscMax(1,cEnd-cStart);CHKERRQ(ierr);
 
-  /* setup particles - lexigraphic partition of cells (np local cells) */
+  /* setup particles - lexigraphic partition of -- flux tube -- cells */
   nCellsLoc = nPartCells_plane/ctx->npe_particlePlane; /* = 1; nPartCells_plane == ctx->npe_particlePlane */
   my0 = ctx->particlePlaneRank*nCellsLoc;              /* cell index in plane == particlePlaneRank */
   gid = (my0 + ctx->ParticlePlaneIdx*nPartCells_plane)*ctx->npart_flux_tube; /* based particle ID */
@@ -1184,7 +1184,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
     nCellsLoc = nPartCells_plane - nCellsLoc*(ctx->npe_particlePlane-1);
   }
   assert(nCellsLoc==1);
-  PetscPrintf(PETSC_COMM_SELF,"++++[%D]createParticles: num elements = %D. start=%d end=%D\n",ctx->rank,ctx->nPartLists,cStart,cEnd);
+
   /* my first cell index */
   srand(ctx->rank);
   for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) {
@@ -1256,8 +1256,8 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
         sendListTable[idx].plist[isp].data_size = 0; /* init */
       }
     }
-    /* fake time step will add density to RHS */
-    ierr = processParticles(ctx, 0.0, sendListTable, tag, -1, istep, PETSC_TRUE);
+    /* fake time step (irk>=0) will add density to RHS */
+    ierr = processParticles(ctx, 0.0, sendListTable, tag, 0, istep, PETSC_TRUE);
     CHKERRQ(ierr);
     ierr = PetscFree(sendListTable);CHKERRQ(ierr);
   }
@@ -1950,27 +1950,6 @@ int main(int argc, char **argv)
   /* setup DM */
   ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr);
   ierr = DMSetUp( ctx.dm );CHKERRQ(ierr); /* set all up & build initial grid */
-  {
-    Vec          v;
-    PetscInt     numComp[] = {1};
-    PetscInt     dof[]     = {1,0,0,0};
-    PetscInt     N;
-    PetscInt     bcField[] = {0};
-    IS           bcPointIS[1];
-    PetscSection section;
-    ierr = DMGetStratumIS(dmpi->dmgrid,"boundary", 1, &bcPointIS[0]);CHKERRQ(ierr);
-    ierr = DMGetStratumSize(dmpi->dmgrid,"boundary", 1, &N);CHKERRQ(ierr);
-    PetscPrintf(PETSC_COMM_SELF,"DMGetStratumSize = %d\n",N);
-    /* ierr = DMPlexCreateSection(dmpi->dmgrid, dim, 1, numComp, dof, 1, bcField, NULL, bcPointIS, NULL, &section);CHKERRQ(ierr); */
-    /* ierr = DMSetDefaultSection(dmpi->dmgrid, section);CHKERRQ(ierr); */
-    /* ierr = PetscSectionDestroy(&section);CHKERRQ(ierr); */
-    ierr = DMCreateGlobalVector(dmpi->dmgrid, &v);CHKERRQ(ierr);
-    ierr = VecGetSize(v, &N);CHKERRQ(ierr);
-    ierr = DMView(dmpi->dmgrid, PETSC_VIEWER_STDOUT_(ctx.wComm));CHKERRQ(ierr);
-    PetscPrintf(PETSC_COMM_SELF,"\t\t**** %d dof in vector\n",N);
-    ierr = VecDestroy(&v);CHKERRQ(ierr);
-  }
-
   /* create SNESS */
   ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
   ierr = SNESSetDM( dmpi->snes, dmpi->dmgrid);CHKERRQ(ierr);

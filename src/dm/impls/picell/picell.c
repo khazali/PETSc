@@ -61,17 +61,13 @@ PetscErrorCode  DMSetFromOptions_PICell(PetscOptionItems *PetscOptionsObject,DM 
 PetscErrorCode DMSetUp_PICell(DM dm)
 {
   DM_PICell      *dmpi = (DM_PICell *) dm->data;
-  DM cdm;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   /* We have built dmplex, now create vectors */
   ierr = DMSetUp(dmpi->dmgrid);CHKERRQ(ierr); /* build a grid */
-  ierr = DMGetCoordinateDM(dmpi->dmgrid,&cdm);
-  ierr = DMCreateGlobalVector(cdm, &dmpi->phi);CHKERRQ(ierr);
-  /* ierr = DMCreateGlobalVector(dmpi->dmgrid, &dmpi->phi);CHKERRQ(ierr); */
-  ierr = DMDestroy(&cdm);CHKERRQ(ierr);
+  ierr = DMCreateGlobalVector(dmpi->dmgrid, &dmpi->phi);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->phi, "potential");CHKERRQ(ierr);
   ierr = VecZeroEntries(dmpi->phi);CHKERRQ(ierr);
   ierr = VecDuplicate(dmpi->phi, &dmpi->rho);CHKERRQ(ierr);
@@ -167,6 +163,8 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec rho, PetscInt cell)
   ierr = VecGetArray(coord, &x);CHKERRQ(ierr);
   ierr = VecGetArray(refCoord, &xi);CHKERRQ(ierr);
   /* Affine approximation for reference coordinates */
+  PetscPrintf(PETSC_COMM_SELF,"ooooo[%D]DMPICellAddSource: cell=%D call DMPlexComputeCellGeometryFEM. FEM view:\n",-1,cell);
+  ierr = PetscFEView(dmpi->fem,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   ierr = DMPlexComputeCellGeometryFEM(dmpi->dmgrid, cell, dmpi->fem, v0, J, invJ, &detJ);CHKERRQ(ierr);
   for (p = 0; p < N; ++p) {
     CoordinatesRealToRef(dim, dim, v0, invJ, &x[p*dim], &xi[p*dim]);
