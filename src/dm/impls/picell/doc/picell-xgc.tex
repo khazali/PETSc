@@ -12,22 +12,32 @@
 \DeclareGraphicsRule{.tif}{png}{.png}{`convert #1 `dirname #1`/`basename #1 .tif`.png}
 \newcommand{\Order}[1]{\ensuremath{\mathcal{O}(#1)}}    % big O notation
 
-
-\title{Algorithms and software for extreme-scale solvers in XGC}
-\author{Mark F. Adams\and Mathew Knepley\and Tobin Issac}
+\title{Algorithms and software for extreme-scale solvers in XGC\footnote{White paper submitted to R. Laviolette at DOE-ASCR}}
+\author{Mark F. Adams}
 \nolinenumbers
 \begin{document}
 \maketitle
 
-{\centering
-  \$150,000 per year\par}
-\vskip .5cm 
+{ \bf
+We propose to address the challenges of extreme-scale solvers on emerging architectures for anisotropic particle-in-cell (PIC) methods in general and XGC in particular with new field solver algorithms and data decompositions deployed in the PETSc numerical library and driven by an extreme-scale tokamak PIC code X2.
+}
+\vskip .1cm 
+{ \noindent
+Requested budget: \$150,000
+
+\noindent
+Execution period: FY2016-17
+
+\noindent
+Other personnel: M. Knepley, T. Issac%, A. Christlieb and J. Verboncoeur
+}
+\vskip .2cm 
 
 Simulating highly magnetized fusion plasmas, with the discretization and model accuracy necessary to be relevant to ITER's design and operation, is one of the great computational science challenges of today and is of significant programmatic  importance to the DOE.
 XGC is the DOE's flagship code for full plasma modeling and it has the potential for engineering relevance to ITER \cite{Chang09}.
 While the mesh, discretization, and equation solver methods, the ``solvers" herein, in XGC have been effective for over a decade, the newer numerical methods, such as implicit time integrators, are placing higher demands on accuracy and robustness.
 For instance, some of these methods require 3D solvers, which are much more demanding than the current 2D finite element Poisson solvers on fairly isotropic grids.
-XGC currently uses highly stretched grids, required to reduce the memory footprint because the full grid data is replicated in each address space.
+XGC currently uses highly stretched grids, required to reduce the memory footprint because the full grid data is replicated in each address space \cite{Adams-07a}.
 Stretched grids are not accurate and are difficult to solve efficiently with iterative equation solvers, i.e., algebraic multigrid (AMG).
 XGC uses low order accurate discretizations, finite differencing in the parallel direction and finite elements in the perpendicular plane.
 These low order discretizations, combined with memory constraints, limit the accuracy of the XGC solvers.
@@ -35,7 +45,7 @@ Additionally, the challenges of emerging architectures are changing the balance 
 
 We propose to address these challenges by redesigning the solver algorithms and data partitioning and algorithms (data models) for XGC.
 There are several facets to this proposal.
-The key observation that motivates our design is that while AMG methods are very successful, and will continue to be widely use for the foreseeable future because of their ease of interfacing with application codes, they are not well suited to emerging architectures and they are in fact mathematically weaker than classical geometric multigrid (GMG) methods \cite{Brandt-77}.
+The key observation that motivates our design is that while AMG methods are very successful, and will continue to be widely use for the foreseeable future because of their ease of interfacing with application codes, they are not well suited to emerging architectures and they are in fact mathematically weaker than classical geometric multigrid (GMG) methods \cite{Brandt-77,Adams-10a}.
 GMG is not widely because it is difficult to deploy flexible and efficient GMG equation solvers in a library, to amortize their cost of development, because they are inherently tied to the meshing and discretizations.
 We at PETSc believe we have a solution to this deployment problem.
 First, modern grid hybrid structured and unstructured adaptive mesh refinement (AMR) discretization methods have been developed in the p4est distributed tree library \cite{DBLP:journals/siamsc/IsaacBWG15,Rudi:2015:EIS:2807591.2807675,Stadler1033}, and are being added to PETSc (DMForest object) in our Solver Integrated Tree-based Adaptive Refinement (SITAR) infrastructure in the DMPICell object.
@@ -46,10 +56,10 @@ We propose to continue, and accelerate, the development PICell solvers specializ
 \label{sec:mile}
 
 %This section lists the capabilities that need to be added to PETSc and X2 to first understand, drive, and verify the algorithms and implementations in PETSc, and second to build up the capabilities in X2 to be potentially useful for some physics campaigns for which very accurate and scalable solvers are necessary. 
-This work leverages projects in the ASCR base program, the DOE FASTMath institute, and an Intel Parallel Processing Center (IPPC), which funds Dr. Tobin Issac.
+This work leverages projects in the ASCR base program, the DOE FASTMath institute, and an Intel Parallel Processing Center (IPPC), which funds Dr. Issac.
 The work propose here takes place in the PETSc library and a tokamak PIC code, X2 (\S\ref{sec:x2}), to develop data models, verify, and otherwise drive, the PETSc development.
-Professor Matthew Knepley at Rice University (\$75,000 per year) and his student will work on the PETSc development and Dr. Mark Adams (\$75,000 per year) will work with Professors Christlieb and Verboncoeur at Michigan State University, East Lansing, and a plasma science student, on the X2 work.
-The following tasks are proposed for this project by Professor Knepley's team [K] and Dr. Adams' team [A], with the quarter of completion unless otherwise stated.
+Professor Matthew Knepley at Rice University (\$75,000 per year) will work on the PETSc development and Dr. Mark Adams (\$75,000 per year) will work on the X2 development.
+The following tasks are proposed for this project by Professor Knepley's team [K], including Dr. Issac, and Dr. Adams' team [A].
 \vskip .1cm 
 \begin{itemize}
 \item Complete core PIC functionality in DMPICell and add to X2 [A,K: FY16 Q3]:
@@ -230,6 +240,7 @@ Additionally, the solutions of say the Poisson solve in fusion applications, wit
 Q2 elements can also capture curved surface better than linear elements (Figure \ref{fig:cross}, right).
 We plan to move to discontinuous Galerkin (DG) methods in the future because they have attractive mathematical properties, such as having rigorous theory like finite elements and being conservative like finite volume, which would be useful for flux surface averaging projections.
 %DG results in systems with many degrees of freedom, a common problem of these methods, but fusion PIC solvers are highly over provisioned with processing resources, thus, local work and storage complexity are not critical for these solves.
+%\pagebreak
 
 \bibliographystyle{siamplain}
 \bibliography{./bib} 
