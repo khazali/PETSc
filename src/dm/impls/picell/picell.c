@@ -1,7 +1,7 @@
 #define PETSCDM_DLL
 #include <petsc/private/dmpicellimpl.h>    /*I   "petscdmpicell.h"   I*/
 #include <petsc/private/petscfeimpl.h>    /*I   "petscfe.h"   I*/
-#include "petscdmforest.h" 
+#include "petscdmforest.h"
 /* #include <petscdmda.h> */
 /* #include <petscsf.h> */
 PETSC_EXTERN PetscErrorCode DMPlexView_HDF5(DM, PetscViewer);
@@ -20,11 +20,11 @@ PetscErrorCode DMView_PICell(DM dm, PetscViewer viewer)
   ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERVTK,   &isvtk);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERHDF5,  &ishdf5);CHKERRQ(ierr);
   if (iascii) {
-    ierr = DMView(dmpi->dmplex, viewer);CHKERRQ(ierr);
+    ierr = DMView(dmpi->dmgrid, viewer);CHKERRQ(ierr);
   } else if (ishdf5) {
 #if defined(PETSC_HAVE_HDF5)
     ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_HDF5_VIZ);CHKERRQ(ierr);
-    ierr = DMPlexView_HDF5(dmpi->dmplex, viewer);CHKERRQ(ierr);
+    ierr = DMPlexView_HDF5(dmpi->dmgrid, viewer);CHKERRQ(ierr);
     ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
 #else
     SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "HDF5 not supported in this build.\nPlease reconfigure using --download-hdf5");
@@ -49,8 +49,8 @@ PetscErrorCode  DMSetFromOptions_PICell(PetscOptionItems *PetscOptionsObject,DM 
   ierr = PetscOptionsHead(PetscOptionsObject,"DMPICell Options");CHKERRQ(ierr);
 
   /* ierr = PetscObjectGetOptionsPrefix((PetscObject)dm,&prefix);CHKERRQ(ierr); */
-  /* ierr = PetscObjectSetOptionsPrefix((PetscObject)dmpi->dmplex,prefix);CHKERRQ(ierr); */
-  ierr = DMSetFromOptions(dmpi->dmplex);CHKERRQ(ierr);
+  /* ierr = PetscObjectSetOptionsPrefix((PetscObject)dmpi->dmgrid,prefix);CHKERRQ(ierr); */
+  ierr = DMSetFromOptions(dmpi->dmgrid);CHKERRQ(ierr);
 
   ierr = PetscOptionsTail();CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -67,9 +67,10 @@ PetscErrorCode DMSetUp_PICell(DM dm)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   /* We have built dmplex, now create vectors */
-  ierr = DMSetUp(dmpi->dmplex);CHKERRQ(ierr); /* build a grid */
-  ierr = DMGetCoordinateDM(dmpi->dmplex,&cdm);
+  ierr = DMSetUp(dmpi->dmgrid);CHKERRQ(ierr); /* build a grid */
+  ierr = DMGetCoordinateDM(dmpi->dmgrid,&cdm);
   ierr = DMCreateGlobalVector(cdm, &dmpi->phi);CHKERRQ(ierr);
+  /* ierr = DMCreateGlobalVector(dmpi->dmgrid, &dmpi->phi);CHKERRQ(ierr); */
   ierr = DMDestroy(&cdm);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->phi, "potential");CHKERRQ(ierr);
   ierr = VecZeroEntries(dmpi->phi);CHKERRQ(ierr);
@@ -87,7 +88,7 @@ PetscErrorCode DMDestroy_PICell(DM dm)
 
   PetscFunctionBegin;
   ierr = SNESDestroy(&dmpi->snes);CHKERRQ(ierr);
-  ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
+  ierr = DMDestroy(&dmpi->dmgrid);CHKERRQ(ierr);
   ierr = VecDestroy(&dmpi->rho);CHKERRQ(ierr);
   ierr = VecDestroy(&dmpi->phi);CHKERRQ(ierr);
   ierr = PetscFree(dmpi);CHKERRQ(ierr);
@@ -166,7 +167,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec rho, PetscInt cell)
   ierr = VecGetArray(coord, &x);CHKERRQ(ierr);
   ierr = VecGetArray(refCoord, &xi);CHKERRQ(ierr);
   /* Affine approximation for reference coordinates */
-  ierr = DMPlexComputeCellGeometryFEM(dmpi->dmplex, cell, dmpi->fem, v0, J, invJ, &detJ);CHKERRQ(ierr);
+  ierr = DMPlexComputeCellGeometryFEM(dmpi->dmgrid, cell, dmpi->fem, v0, J, invJ, &detJ);CHKERRQ(ierr);
   for (p = 0; p < N; ++p) {
     CoordinatesRealToRef(dim, dim, v0, invJ, &x[p*dim], &xi[p*dim]);
   }
@@ -206,7 +207,7 @@ PetscErrorCode  DMPICellGetJet(DM a_dm, Vec coord, PetscInt order, Vec jet)
   ierr = VecSet(jet,rone);CHKERRQ(ierr); /* dummy grad now */
 
   /* Matt */
-  dm = dmpi->dmplex; /* the DM for the mesh (not really a plex!) */
+  dm = dmpi->dmgrid; /* the DM for the mesh (not really a plex!) */
 
   PetscFunctionReturn(0);
 }
@@ -237,10 +238,10 @@ PetscErrorCode DMLocateProcess(DM dm, Vec points, PetscInt *cEnd)
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   ierr = DMIsForest(dm,&isForest);CHKERRQ(ierr);
   if (isForest) {
-    ierr = DMForestGetCellChart(dm, cStart, cEnd);CHKERRQ(ierr);
+
   }
   else {
-    ierr = DMPlexGetHeightStratum(dm, 0, cStart, cEnd);CHKERRQ(ierr);
+
   }
   PetscFunctionReturn(0);
 }

@@ -14,7 +14,7 @@
 PETSC_EXTERN PetscLogEvent DMPICELL_Add, DMPICELL_GetGrad, DMPICELL_Create;
 
 typedef struct {
-  DM   dmplex;
+  DM   dmgrid;
   Vec  phi;
   Vec  rho;
   /* Vec grad; */
