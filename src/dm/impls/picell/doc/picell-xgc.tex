@@ -7,6 +7,8 @@
 \usepackage{graphicx}
 \usepackage{amssymb}
 \usepackage{epstopdf}
+%\usepackage{color}
+
 \DeclareGraphicsRule{.tif}{png}{.png}{`convert #1 `dirname #1`/`basename #1 .tif`.png}
 \newcommand{\Order}[1]{\ensuremath{\mathcal{O}(#1)}}    % big O notation
 
@@ -39,6 +41,49 @@ We at PETSc believe we have a solution to this deployment problem.
 First, modern grid and adaptive mesh refinement (AMR) discretization methods have been developed in the p4est distributed tree library \cite{DBLP:journals/siamsc/IsaacBWG15,Rudi:2015:EIS:2807591.2807675,Stadler1033}, and are being added to PETSc in our Solver Integrated Tree-based Adaptive Refinement (SITAR) infrastructure in the DMPICell object.
 Second, modern commercial grade software engineering practices and mesh abstraction layers in PETSc make the relatively tight coupling with applications practical for high value applications, if not for the masses of PETSc users \cite{KnepleyBrownMcInnesSmithRuppAdams2015b}.
 We propose to continue, and accelerate, the development PICell solvers specialized for the particular demands of extremes scale anisotropic PIC methods in general and XGC in particular.
+
+\section{Budget and Milestones}
+\label{sec:mile}
+
+%This section lists the capabilities that need to be added to PETSc and X2 to first understand, drive, and verify the algorithms and implementations in PETSc, and second to build up the capabilities in X2 to be potentially useful for some physics campaigns for which very accurate and scalable solvers are necessary. 
+This work leverages projects in the ASCR base program, the DOE FASTMath institute, and an Intel Parallel Processing Center (IPPC), which funds Dr. Tobin Issac.
+The work propose here takes place in the PETSc library and a tokamak PIC code, X2 (\S\ref{sec:x2}), to develop data models, verify, and otherwise drive, the PETSc development.
+Professor Matthew Knepley at Rice University (\$75,000 per year) and his student will work on the PETSc development and Dr. Mark Adams (\$75,000 per year) will work with Professors Christlieb and Verboncoeur at Michigan State University, East Lansing, and a plasma science student, on the X2 work.
+The following tasks are proposed for this project by Professor Knepley's team [K] and Dr. Adams' team [A], with the quarter of completion unless otherwise stated.
+\vskip .1cm 
+\begin{itemize}
+\item Complete core PIC functionality in DMPICell and add to X2 [A,K: FY16 Q3]:
+\begin{enumerate}
+\item Point location in grid (done for flux tubes)
+\item Point gradient (cell to particle methods)
+\item Point deposition (particle to cell method)
+\item Poisson solver with non-constant material coefficients 
+\end{enumerate}
+\item Optimize a kernel (e.g., deposition) for KNL with IPCC to better understand primary performance issues [A: FY16 Q4]
+\begin{itemize}
+\item Similarly optimize kernel for GPUs depending on resources and interest
+\end{itemize}
+\item Add adiabatic electron, electrostatic, gyrokinetic capability [A: FY17 Q2]
+\begin{itemize}
+\item Begin investigating accuracy requirements in grid methods (e.g., gradients) 
+\end{itemize}
+\item Add $B_0$ point interpolation [A: FY17 Q2]
+\item Add ghost cells and particle deposition communication, as needed, for gyrokinetics, and begin optimizing data models [A,K: FY17 Q2]
+\item Q2 elements [K: FY17 Q2]
+\item Begin to develop performance models with physics to prepare for particular exa-scale physics campaigns [A,K: FY17 Q2]
+\item Improve visualization with combined particles and grid [A: FY17 Q3]
+\item Finite particle form factors or density smoothing [A: FY17 Q4]
+\end{itemize}
+\vskip .1cm 
+We intend to seek funding for a second year for the following work.
+\vskip .1cm 
+\begin{itemize}
+\item Begin convergence studies for verification on model problem (e.g., Cyclone benchmark with adiabatic electrons and electro-statics) [A: FY18 Q1]
+\item Begin code to code verification with XGC1 [A: FY18 Q2]
+\item Continue adding physics, verifying accuracy, optimizing code, and optimizing data models [A,K: FY18 Q4]
+%\item Work with RPI team in evaluating data models and performance models [FY18]
+\end{itemize}
+%\pagebreak
 
 \section{Introduction}
 
@@ -103,7 +148,7 @@ Our methodology has the following desired features:
 \item incremental problem development for debugging and verification on Cartesian grids and ramping up to full tokamak wall geometries;
 \item finite particle form factors, or density smoothing, to allow for arbitrary mesh resolution without increasing particle count to avoid particle noise;
 \begin{itemize}
-\item allows decoupling grid spacing from particle form factor and facilitates AMR and convergence test verification;
+\item allows decoupling grid spacing from the particle form factor and facilitates AMR and convergence test verification;
 \end{itemize}
 \item finite volume (FV), discontinuous Galerkin(DG), and finite element (FE) discretizations;
 \begin{itemize}
@@ -182,48 +227,6 @@ Additionally, the solutions of say the Poisson solve in fusion applications, wit
 Q2 elements can also capture curved surface better than linear elements (Figure \ref{fig:cross}, right).
 We plan to move to discontinuous Galerkin (DG) methods in the future because they have attractive mathematical properties, such as having rigorous theory like finite elements and being conservative like finite volume, which would be useful for flux surface averaging projections.
 %DG results in systems with many degrees of freedom, a common problem of these methods, but fusion PIC solvers are highly over provisioned with processing resources, thus, local work and storage complexity are not critical for these solves.
-
-\section{Budget and Milestones}
-\label{sec:mile}
-
-%This section lists the capabilities that need to be added to PETSc and X2 to first understand, drive, and verify the algorithms and implementations in PETSc, and second to build up the capabilities in X2 to be potentially useful for some physics campaigns for which very accurate and scalable solvers are necessary. 
-This work leverages development work by the authors funded by the ASCR base program, the DOE FASTMath institute, and an Intel Parallel Processing Center (IPPC), which funds Dr. Tobin Issac.
-Professor Matthew Knepley at Rice University (\$75,000 per year) and his student will work on the PETSc development and Dr. Mark Adams (\$75,000 per year) will hire a physicist and work with them on the X2 work.
-The following tasks are proposed for this project by Professor Knepley's team [K] and Dr. Adams' team [A], with completion quarter unless otherwise stated.
-\vskip .1cm 
-\begin{itemize}
-\item Complete core PIC functionality in DMPICell and add to X2 [A,K: FY16 Q3]:
-\begin{enumerate}
-\item Point location in grid (done for flux tubes)
-\item Point gradient (cell to particle methods)
-\item Point deposition (particle to cell method)
-\item Poisson solver with non-constant material coefficients 
-\end{enumerate}
-\item Optimize a kernel (e.g., deposition) for KNL with IPCC to better understand primary performance issues [A: FY16 Q4]
-\begin{itemize}
-\item Similarly optimize kernel for GPUs depending on resources and interest
-\end{itemize}
-\item Add adiabatic electron, electrostatic, gyrokinetic capability [A: FY17 Q2]
-\begin{itemize}
-\item Begin investigating accuracy requirements in grid methods (e.g., gradients) 
-\end{itemize}
-\item Add $B_0$ point interpolation [A: FY17 Q2]
-\item Add ghost cells and particle deposition communication, as needed, for gyrokinetics, and begin optimizing data models [A,K: FY17 Q2]
-\item Q2 elements [K: FY17 Q2]
-\item Begin to develop performance models with physics to prepare for particular exa-scale physics campaigns [A,K: FY17 Q2]
-\item Finite particle form factors, or density smoothing [A: FY17 Q3]
-\item Improve visualization with combined particles and grid [A: FY17 Q3]
-\end{itemize}
-\vskip .1cm 
-We intend to seek additional funding for a second year for the following work.
-\vskip .1cm 
-\begin{itemize}
-\item Begin code to code verification with XGC1 [A: FY18 Q1]
-\item Begin convergence studies for verification on model problem (e.g., Cyclone benchmark with adiabatic electrons and electro-statics) [A: FY18 Q2]
-\item Continue adding physics, verifying accuracy, optimizing code, and optimizing data models [A,K: FY18 Q4]
-%\item Work with RPI team in evaluating data models and performance models [FY18]
-\end{itemize}
-\pagebreak
 
 \bibliographystyle{siamplain}
 \bibliography{./bib} 
