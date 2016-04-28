@@ -1858,7 +1858,6 @@ int main(int argc, char **argv)
   DM_PICell      *dmpi;
   PetscInt       dim = 3;
   Mat            J;
-  PetscSection section;
   PetscFunctionBeginUser;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
@@ -1958,6 +1957,7 @@ int main(int argc, char **argv)
     PetscInt     N;
     PetscInt     bcField[] = {0};
     IS           bcPointIS[1];
+    PetscSection section;
     ierr = DMGetStratumIS(dmpi->dmgrid,"boundary", 1, &bcPointIS[0]);CHKERRQ(ierr);
     ierr = DMGetStratumSize(dmpi->dmgrid,"boundary", 1, &N);CHKERRQ(ierr);
     PetscPrintf(PETSC_COMM_SELF,"DMGetStratumSize = %d\n",N);
@@ -1998,7 +1998,6 @@ int main(int argc, char **argv)
   ierr = go( &ctx );CHKERRQ(ierr);
 
   /* Cleanup */
-  ierr = PetscSectionDestroy(&section);CHKERRQ(ierr);
   ierr = PetscFEDestroy(&dmpi->fem);CHKERRQ(ierr);
   ierr = MatDestroy(&J);CHKERRQ(ierr);
   ierr = destroyParticles(&ctx);CHKERRQ(ierr);
