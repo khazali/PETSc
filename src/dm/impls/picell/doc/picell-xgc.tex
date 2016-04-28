@@ -38,7 +38,7 @@ There are several facets to this proposal.
 The key observation that motivates our design is that while AMG methods are very successful, and will continue to be widely use for the foreseeable future because of their ease of interfacing with application codes, they are not well suited to emerging architectures and they are in fact mathematically weaker than classical geometric multigrid (GMG) methods \cite{Brandt-77}.
 GMG is not widely because it is difficult to deploy flexible and efficient GMG equation solvers in a library, to amortize their cost of development, because they are inherently tied to the meshing and discretizations.
 We at PETSc believe we have a solution to this deployment problem.
-First, modern grid and adaptive mesh refinement (AMR) discretization methods have been developed in the p4est distributed tree library \cite{DBLP:journals/siamsc/IsaacBWG15,Rudi:2015:EIS:2807591.2807675,Stadler1033}, and are being added to PETSc in our Solver Integrated Tree-based Adaptive Refinement (SITAR) infrastructure in the DMPICell object.
+First, modern grid hybrid structured and unstructured adaptive mesh refinement (AMR) discretization methods have been developed in the p4est distributed tree library \cite{DBLP:journals/siamsc/IsaacBWG15,Rudi:2015:EIS:2807591.2807675,Stadler1033}, and are being added to PETSc (DMForest object) in our Solver Integrated Tree-based Adaptive Refinement (SITAR) infrastructure in the DMPICell object.
 Second, modern commercial grade software engineering practices and mesh abstraction layers in PETSc make the relatively tight coupling with applications practical for high value applications, if not for the masses of PETSc users \cite{KnepleyBrownMcInnesSmithRuppAdams2015b}.
 We propose to continue, and accelerate, the development PICell solvers specialized for the particular demands of extremes scale anisotropic PIC methods in general and XGC in particular.
 
@@ -57,7 +57,7 @@ The following tasks are proposed for this project by Professor Knepley's team [K
 \item Point location in grid (done for flux tubes)
 \item Point gradient (cell to particle methods)
 \item Point deposition (particle to cell method)
-\item Poisson solver with non-constant material coefficients 
+\item Algebraic multigrid Poisson solver with non-constant material coefficients 
 \end{enumerate}
 \item Optimize a kernel (e.g., deposition) for KNL with IPCC to better understand primary performance issues [A: FY16 Q4]
 \begin{itemize}
@@ -73,6 +73,7 @@ The following tasks are proposed for this project by Professor Knepley's team [K
 \item Begin to develop performance models with physics to prepare for particular exa-scale physics campaigns [A,K: FY17 Q2]
 \item Improve visualization with combined particles and grid [A: FY17 Q3]
 \item Finite particle form factors or density smoothing [A: FY17 Q4]
+\item Fast geometric multigrid Poisson solver [A: FY17 Q4]
 \end{itemize}
 \vskip .1cm 
 We intend to seek funding for a second year for the following work.
