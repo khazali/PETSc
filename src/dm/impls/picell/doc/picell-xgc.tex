@@ -17,6 +17,10 @@
 \begin{document}
 \maketitle
 
+{\centering
+  \$400,000, two years\par}
+\vskip .5cm 
+
 Simulating highly magnetized fusion plasmas, with the discretization and model accuracy necessary to be relevant to ITER's design and operation, is one of the great computational science challenges of today and is of significant programmatic  importance to the DOE.
 XGC is the DOE's flagship code for full plasma modeling and it has the potential for engineering relevance to ITER \cite{Chang09}.
 While the mesh, discretization, and equation solver methods, the ``solvers" herein, in XGC have been effective for over a decade, the newer numerical methods, such as implicit time integrators, are placing higher demands on accuracy and robustness.
@@ -50,15 +54,15 @@ Fast solvers also require careful data placement for optimal performance, but PI
 To this end, we focus on grid management to support the development of optimal data decomposition and algorithms, or data models,  for the efficient processing of particle-cell interactions, as well as fast solvers for, for example, Poisson's equation, Ampere's law, and the magnetohydrodymaic  solvers of implicit PIC methods \cite{DBLP:journals/cphysics/ChenC15,Adams-10a}.
 
 We propose to support extreme-scale PIC simulations on emerging architectures in PETS to enable XGC to continue its preeminence for decades to come.
-We build on the Solver Integrated Tree-based Adaptive Refinement (SITAR) infrastructure in PETSc, for fast and accurate PDE discretizations, meshing, and solvers.
-We extend SITAR with methods and features to support the development of efficient and scalable data models and algorithms for engineering relevant simulations of fusion plasmas by the computational plasma physics community.
+%We build on the Solver Integrated Tree-based Adaptive Refinement (SITAR) infrastructure in PETSc, for fast and accurate PDE discretizations, meshing, and solvers.
+%We extend SITAR with methods and features to support the development of efficient and scalable data models and algorithms for engineering relevant simulations of fusion plasmas by the computational plasma physics community.
 In addition to this PETSc library work, this document describes a tokamak PIC code, X2 (\S\ref{sec:x2}).
 X2 is designed from the ground up for extreme scalability and extensibility to emerging architectures and is modeled on the particle methods in XGC.
 X2 is used to drive the library development and explore the algorithmic space of modern extreme scale PIC methods, and to provide data on the potential usefulness of these PETSc resources for XGC.
 
 \section{Background}
 
-PIC methods are popular for discretizing high dimensional problems in a variety of fields because of their low cost relative to full grid or Eulerian methods on such problems, although Eulerian methods are often at least hybridized with PIC in, for instance, the collision operator in XGC.
+PIC methods are popular for discretizing high dimensional problems because of their low cost relative to full grid or Eulerian methods on such problems, although Eulerian methods are often at least hybridized with PIC in, for instance, the collision operator in XGC.
 PIC methods do have disadvantages, including more complex data algorithms because of its two distinct data types, particles and cells.
 PIC algorithms require three types of processing: 1) particle processing (e.g., the evolution of Vlasov's equation), 2) grid processing (e.g., solvers), and 3) particle-grid interactions (e.g., particle charge deposition and gradients of potentials for particle pushing).
 Pure particle processing, such as the ``push" of particles use relatively simple arrays and each particle can be processed concurrently.
@@ -176,39 +180,45 @@ Furthermore, because order elements are in effect composed of multiple cells the
 Large elements are useful because we build the particle data structure around them, larger elements results in larger element particle lists, which is beneficial for vectorization.
 Additionally, the solutions of say the Poisson solve in fusion applications, with turbulence, are smooth at the scale of the (known) Larmore radius and, in fact, physicists often smooth the results of low order Poisson solvers to reduce high frequency components.
 Q2 elements can also capture curved surface better than linear elements (Figure \ref{fig:cross}, right).
-
 We plan to move to discontinuous Galerkin (DG) methods in the future because they have attractive mathematical properties, such as having rigorous theory like finite elements and being conservative like finite volume, which would be useful for flux surface averaging projections.
-DG results in systems with many degrees of freedom, a common problem of these methods, but fusion PIC solvers are highly over provisioned with processing resources, thus, local work and storage complexity are not critical for these solves.
+%DG results in systems with many degrees of freedom, a common problem of these methods, but fusion PIC solvers are highly over provisioned with processing resources, thus, local work and storage complexity are not critical for these solves.
 
-\section{Milestones}
+\section{Budget and Milestones}
 \label{sec:mile}
 
-This section lists the capabilities that need to be added to PETSc and X2 to first understand, drive, and verify the algorithms and implementations in PETSc, and second to build up the capabilities in X2 to be potentially useful for some physics campaigns for which very accurate and scalable solvers are necessary. This work leverages development work by the authors funded by the ASCR base program, the DOE FASTMath institute, and an Intel Parallel Processing Center (IPPC).
-The timeline for these activities depends on funding, staffing and leveraged activities, and are approximate.
+%This section lists the capabilities that need to be added to PETSc and X2 to first understand, drive, and verify the algorithms and implementations in PETSc, and second to build up the capabilities in X2 to be potentially useful for some physics campaigns for which very accurate and scalable solvers are necessary. 
+This work leverages development work by the authors funded by the ASCR base program, the DOE FASTMath institute, and an Intel Parallel Processing Center (IPPC), which funds Dr. Tobin Issac.
+Professor Matthew Knepley at Rice University (\$100,000 per year) and his student will work on the PETSc development and Dr. Mark Adams (\$100,000 per year) will hire a physicist and work with them on the X2 work.
+The following tasks are proposed for this project by Professor Knepley's team [K] and Dr. Adams' team [A], with completion quarter unless otherwise stated.
+\vskip .1cm 
 \begin{itemize}
-\item Complete core PIC functionality in DMPICell and add to X2 [FY16 Q3]:
+\item Complete core PIC functionality in DMPICell and add to X2 [A,K: FY16 Q3]:
 \begin{enumerate}
 \item Point location in grid (done for flux tubes)
 \item Point gradient (cell to particle methods)
 \item Point deposition (particle to cell method)
-\item Poisson solver with non-constant material coeficients 
+\item Poisson solver with non-constant material coefficients 
 \end{enumerate}
-\item Optimize a kernel (e.g., deposition) for KNL with IPCC to better understand primary performance issues [FY16 Q4]
+\item Optimize a kernel (e.g., deposition) for KNL with IPCC to better understand primary performance issues [A: FY16 Q4]
 \begin{itemize}
 \item Similarly optimize kernel for GPUs depending on resources and interest
 \end{itemize}
-\item Involve physicist to add real dynamics to particle push and begin investigating accuracy requirements in grid methods (e.g., gradients) [FY16 Q4]
-\item Q2 elements [FY17 Q1]
-\item Finite particle form factors, or density smoothing [FY17 Q1]
-\item Add $B_0$ point interpolation [FY17 Q1]
-\item Add ghost cells and particle deposition communication, as needed, for gyrokinetics, and otherwise begin optimizing data models [FY17 Q2]
-\item Begin to develop performance models with physics to prepare for particular exa-scale physics campaigns [FY17 Q2]
-\item Begin convergence studies for verification on model problem (e.g., Cyclone benchmark with adiabatic electrons and electro-statics) [FY17 Q2]
-\item Improve visualization with combined particles and grid [FY17 Q3]
-\item Begin code to code verification with XGC1 [FY17 Q3]
-%\item Continue adding physics, verifying accuracy, optimizing code, and optimizing data models [FY17 Q3+]
-\item Work with RPI team in evaluating data models and performance models
+\item Add adiabatic electron, electrostatic, gyrokinetic capability [A: FY17 Q2]
+\begin{itemize}
+\item Begin investigating accuracy requirements in grid methods (e.g., gradients) 
 \end{itemize}
+\item Add $B_0$ point interpolation [A: FY17 Q2]
+\item Add ghost cells and particle deposition communication, as needed, for gyrokinetics, and begin optimizing data models [A,K: FY17 Q2]
+\item Q2 elements [K: FY17 Q2]
+\item Begin to develop performance models with physics to prepare for particular exa-scale physics campaigns [A,K: FY17 Q2]
+\item Finite particle form factors, or density smoothing [A: FY17 Q3]
+\item Improve visualization with combined particles and grid [A: FY17 Q3]
+\item Begin code to code verification with XGC1 [A: FY18 Q1]
+\item Begin convergence studies for verification on model problem (e.g., Cyclone benchmark with adiabatic electrons and electro-statics) [A: FY18 Q2]
+\item Continue adding physics, verifying accuracy, optimizing code, and optimizing data models [A,K: FY18 Q4]
+%\item Work with RPI team in evaluating data models and performance models [FY18]
+\end{itemize}
+\pagebreak
 
 \bibliographystyle{siamplain}
 \bibliography{./bib} 
