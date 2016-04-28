@@ -40,7 +40,7 @@ GMG is not widely because it is difficult to deploy flexible and efficient GMG e
 We at PETSc believe we have a solution to this deployment problem.
 First, modern grid hybrid structured and unstructured adaptive mesh refinement (AMR) discretization methods have been developed in the p4est distributed tree library \cite{DBLP:journals/siamsc/IsaacBWG15,Rudi:2015:EIS:2807591.2807675,Stadler1033}, and are being added to PETSc (DMForest object) in our Solver Integrated Tree-based Adaptive Refinement (SITAR) infrastructure in the DMPICell object.
 Second, modern commercial grade software engineering practices and mesh abstraction layers in PETSc make the relatively tight coupling with applications practical for high value applications, if not for the masses of PETSc users \cite{KnepleyBrownMcInnesSmithRuppAdams2015b}.
-We propose to continue, and accelerate, the development PICell solvers specialized for the particular demands of extremes scale anisotropic PIC methods in general and XGC in particular.
+We propose to continue, and accelerate, the development PICell solvers specialized for the particular demands of extreme-scale anisotropic PIC methods in general and XGC in particular.
 
 \section{Budget and Milestones}
 \label{sec:mile}
@@ -106,7 +106,7 @@ We propose to support extreme-scale PIC simulations on emerging architectures in
 %We extend SITAR with methods and features to support the development of efficient and scalable data models and algorithms for engineering relevant simulations of fusion plasmas by the computational plasma physics community.
 In addition to this PETSc library work, this document describes a tokamak PIC code, X2 (\S\ref{sec:x2}).
 X2 is designed from the ground up for extreme scalability and extensibility to emerging architectures and is modeled on the particle methods in XGC.
-X2 is used to drive the library development and explore the algorithmic space of modern extreme scale PIC methods, and to provide data on the potential usefulness of these PETSc resources for XGC.
+X2 is used to drive the library development and explore the algorithmic space of modern extreme-scale PIC methods, and to provide data on the potential usefulness of these PETSc resources for XGC.
 
 \section{Background}
 
