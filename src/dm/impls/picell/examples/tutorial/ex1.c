@@ -73,7 +73,7 @@ typedef struct {
 } X2PList;
 /* send particle list */
 typedef struct X2SendList_TAG{
-  X2PList plist[X2_NION+1]; /* make this just one list!!! */
+  X2PList plist;
   PetscMPIInt proc;
 } X2SendList;
 /* MPI Isend particle list */
@@ -760,8 +760,8 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendListTable, cons
 
     /* count send  */
     for (ii=0,nto=0;ii<ctx->tablesize;ii++) {
-      if (sendListTable[ii].plist[isp].data_size != 0) {
-	if ((sz=X2PListSize(&sendListTable[ii].plist[isp])) > 0) {
+      if (sendListTable[ii].plist.data_size != 0) {
+	if ((sz=X2PListSize(&sendListTable[ii].plist)) > 0) {
 	  for (jj=0 ; jj<sz ; jj += chucksz) nto++;
 	}
       }
@@ -770,13 +770,13 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendListTable, cons
     ierr = PetscMalloc1(nto, &toranks);CHKERRQ(ierr);
     ierr = PetscMalloc1(s_chunksize*nto, &todata);CHKERRQ(ierr);
     for (ii=0,nto=0,pp=todata;ii<ctx->tablesize;ii++) {
-      if (sendListTable[ii].plist[isp].data_size != 0) {
-	if ((sz=X2PListSize(&sendListTable[ii].plist[isp])) > 0) {
+      if (sendListTable[ii].plist.data_size != 0) {
+	if ((sz=X2PListSize(&sendListTable[ii].plist)) > 0) {
 	  /* empty list */
 	  for (jj=0, mm=0 ; jj<sz ; jj += chucksz) {
 	    toranks[nto++] = sendListTable[ii].proc;
 	    for (kk=0 ; kk<chucksz && mm < sz; kk++, mm++) {
-	      *pp++ = sendListTable[ii].plist[isp].data[mm];
+	      *pp++ = sendListTable[ii].plist.data[mm];
 	    }
 	  }
 	  assert(mm==sz);
@@ -785,9 +785,9 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendListTable, cons
 	    pp++;
 	  }
           /* get ready for next round */
-	  ierr = X2PListClear( &sendListTable[ii].plist[isp] );CHKERRQ(ierr);
-          assert(X2PListSize(&sendListTable[ii].plist[isp])==0);
-          assert(sendListTable[ii].plist[isp].data_size);
+	  ierr = X2PListClear( &sendListTable[ii].plist );CHKERRQ(ierr);
+          assert(X2PListSize(&sendListTable[ii].plist)==0);
+          assert(sendListTable[ii].plist.data_size);
 	} /* a list */
       }
     }
@@ -832,20 +832,20 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2SendList *sendListTable, cons
 #endif
     /* send lists */
     for (ii=0;ii<ctx->tablesize;ii++) {
-      if (sendListTable[ii].plist[isp].data_size != 0) {
-	if ((sz=X2PListSize(&sendListTable[ii].plist[isp])) > 0) {
+      if (sendListTable[ii].plist.data_size != 0) {
+	if ((sz=X2PListSize(&sendListTable[ii].plist)) > 0) {
 	  if (*nIsend==X2PROCLISTSIZE) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"process send table too small (%D)",X2PROCLISTSIZE);
 	  slist[*nIsend].proc = sendListTable[ii].proc;
-	  slist[*nIsend].data = sendListTable[ii].plist[isp].data; /* cache data */
+	  slist[*nIsend].data = sendListTable[ii].plist.data; /* cache data */
 	  /* send and reset - we can just send this because it is dense */
 	  ierr = MPI_Isend((void*)slist[*nIsend].data,sz*part_dsize,MPI_DOUBLE,slist[*nIsend].proc,tag,ctx->wComm,&slist[*nIsend].request);
 	  CHKERRQ(ierr);
 	  (*nIsend)++;
           /* ready for next round, save meta-data  */
-	  ierr = X2PListClear( &sendListTable[ii].plist[isp] );CHKERRQ(ierr);
-	  assert(sendListTable[ii].plist[isp].data_size == s_chunksize);
-	  ierr = PetscMalloc1(s_chunksize, &sendListTable[ii].plist[isp].data);CHKERRQ(ierr);
-	  assert(!(sendListTable[ii].plist[isp].data_size != 0 && (sz=X2PListSize(&sendListTable[ii].plist[isp]) ) > 0));
+	  ierr = X2PListClear( &sendListTable[ii].plist );CHKERRQ(ierr);
+	  assert(sendListTable[ii].plist.data_size == s_chunksize);
+	  ierr = PetscMalloc1(s_chunksize, &sendListTable[ii].plist.data);CHKERRQ(ierr);
+	  assert(!(sendListTable[ii].plist.data_size != 0 && (sz=X2PListSize(&sendListTable[ii].plist) ) > 0));
 	}
       }
       /* else - empty list  */
@@ -1056,29 +1056,29 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendLi
           /* add to list to send, find list with table lookup, send full lists */
           hash = (pe*593)%ctx->tablesize; /* hash */
           for (ii=0;ii<ctx->tablesize;ii++){
-            if (sendListTable[hash].plist[isp].data_size==0) {
-              ierr = X2PListCreate(&sendListTable[hash].plist[isp],s_chunksize);CHKERRQ(ierr);
+            if (sendListTable[hash].plist.data_size==0) {
+              ierr = X2PListCreate(&sendListTable[hash].plist,s_chunksize);CHKERRQ(ierr);
               sendListTable[hash].proc = pe;
               ctx->tablecount[isp]++;
               if (ctx->tablecount[isp]==ctx->tablesize) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Table too small (%D)",ctx->tablesize);
             }
             if (sendListTable[hash].proc==pe) { /* found hash table entry */
-              if (X2PListSize(&sendListTable[hash].plist[isp])==s_chunksize) {
+              if (X2PListSize(&sendListTable[hash].plist)==s_chunksize) {
                 if (ctx->bsp_chuncksize) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"cache too small (%D) for BSP TwoSided communication",s_chunksize);
                 /* send and reset - we can just send this because it is dense, but no species data */
                 if (nslist==X2PROCLISTSIZE) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"process send table too small (%D)",X2PROCLISTSIZE);
-                slist[nslist].data = sendListTable[hash].plist[isp].data; /* cache data */
-                sendListTable[hash].plist[isp].data = 0; /* clear for safty, make ready for more */
+                slist[nslist].data = sendListTable[hash].plist.data; /* cache data */
+                sendListTable[hash].plist.data = 0; /* clear for safty, make ready for more */
                 slist[nslist].proc = pe;
                 ierr = MPI_Isend( (void*)slist[nslist].data,s_chunksize*part_dsize,MPI_DOUBLE,pe,tag+isp,ctx->wComm,&slist[nslist].request);
                 CHKERRQ(ierr);
                 nslist++;
                 /* ready for more */
-                ierr = X2PListCreate(&sendListTable[hash].plist[isp],s_chunksize);CHKERRQ(ierr);
-                assert(sendListTable[hash].plist[isp].data_size == s_chunksize);
+                ierr = X2PListCreate(&sendListTable[hash].plist,s_chunksize);CHKERRQ(ierr);
+                assert(sendListTable[hash].plist.data_size == s_chunksize);
               }
               /* add to list - pass this in as a function to a function? */
-              ierr = X2PListAdd(&sendListTable[hash].plist[isp],&part);CHKERRQ(ierr);assert(part.gid>0);
+              ierr = X2PListAdd(&sendListTable[hash].plist,&part);CHKERRQ(ierr);assert(part.gid>0);
               ierr = X2PListRemoveAt(list,pos);CHKERRQ(ierr);
               nmoved++;
               break;
@@ -1300,7 +1300,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
     ierr = PetscMalloc1(ctx->tablesize,&sendListTable);CHKERRQ(ierr);
     for (idx=0;idx<ctx->tablesize;idx++) {
       for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) {
-        sendListTable[idx].plist[isp].data_size = 0; /* init */
+        sendListTable[idx].plist.data_size = 0; /* init */
       }
     }
     /* fake time step (irk>=0) will add density to RHS */
@@ -1326,7 +1326,7 @@ PetscErrorCode go( X2Ctx *ctx )
   ierr = PetscMalloc1(ctx->tablesize,&sendListTable);CHKERRQ(ierr);
   for (idx=0;idx<ctx->tablesize;idx++) {
     for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) {
-      sendListTable[idx].plist[isp].data_size = 0; /* init */
+      sendListTable[idx].plist.data_size = 0; /* init */
     }
   }
 
@@ -1392,8 +1392,8 @@ PetscErrorCode go( X2Ctx *ctx )
   /* clean up */
   for (idx=0;idx<ctx->tablesize;idx++) {
     for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) {
-      if (sendListTable[idx].plist[isp].data_size != 0 ) {
-	ierr = X2PListDestroy( &sendListTable[idx].plist[isp] );CHKERRQ(ierr);
+      if (sendListTable[idx].plist.data_size != 0 ) {
+	ierr = X2PListDestroy( &sendListTable[idx].plist );CHKERRQ(ierr);
       }
     }
   }
