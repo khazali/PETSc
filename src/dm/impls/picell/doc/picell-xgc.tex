@@ -19,7 +19,7 @@
 \maketitle
 
 { \bf
-We propose to address the challenges of extreme-scale solvers on emerging architectures for anisotropic particle-in-cell (PIC) methods in general and XGC in particular with new field solver algorithms and data decompositions deployed in the PETSc numerical library and driven by an extreme-scale tokamak PIC code X2.
+We propose to address the challenges of extreme-scale solvers on emerging architectures for anisotropic particle-in-cell (PIC) methods in general and XGC in particular with new field solver algorithms and data decompositions deployed in the PETSc numerical library and driven by the extreme-scale tokamak PIC code X2.
 }
 \vskip .1cm 
 { \noindent
@@ -36,21 +36,21 @@ Other personnel: M. Knepley, T. Issac%, A. Christlieb and J. Verboncoeur
 Simulating highly magnetized fusion plasmas, with the discretization and model accuracy necessary to be relevant to ITER's design and operation, is one of the great computational science challenges of today and is of significant programmatic  importance to the DOE.
 XGC is the DOE's flagship code for full plasma modeling and it has the potential for engineering relevance to ITER \cite{Chang09}.
 While the mesh, discretization, and equation solver methods, the ``solvers" herein, in XGC have been effective for over a decade, the newer numerical methods, such as implicit time integrators, are placing higher demands on accuracy and robustness.
-For instance, some of these methods require 3D solvers, which are much more demanding than the current 2D finite element Poisson solvers on fairly isotropic grids.
-XGC currently uses highly stretched grids, required to reduce the memory footprint because the full grid data is replicated in each address space \cite{Adams-07a}.
-Stretched grids are not accurate and are difficult to solve efficiently with iterative equation solvers, i.e., algebraic multigrid (AMG).
-XGC uses low order accurate discretizations, finite differencing in the parallel direction and finite elements in the perpendicular plane.
-These low order discretizations, combined with memory constraints, limit the accuracy of the XGC solvers.
+For instance, some of these methods require 3D magnetohydrodynamics solvers, which are more demanding than the current 2D finite element Poisson solvers, because the 3D solvers are on stretched grids and the 2D solvers are on fairly isotropic grids.
+Magnetohydrodynamics solvers are very challenging in their own right even on structured isotropic grids \cite{Chacon08,Adams-10a}.
+XGC uses unstructured stretched grids, to reduce the memory footprint because the full grid data is replicated in each address space.
+The replicated data problem is also being addressed by the RPI team and we have experience in addressing this problem in the predecessor to XGC, GTC \cite{Adams-07a}.
+Highly stretched grids are not accurate if the solution is not carefully aligned with the mesh, and are difficult to solve efficiently with iterative equation solvers, i.e., algebraic multigrid (AMG).
 Additionally, the challenges of emerging architectures are changing the balance of costs from flops to memory movement, which does not favor AMG methods because they have low arithmetic intensity.
 
-We propose to address these challenges by redesigning the solver algorithms and data partitioning and algorithms (data models) for XGC.
+We propose to address these challenges by redesigning the solver algorithms and data partitioning and algorithms (data models) for extreme-scale tokamak PIC methods.
 There are several facets to this proposal.
 The key observation that motivates our design is that while AMG methods are very successful, and will continue to be widely use for the foreseeable future because of their ease of interfacing with application codes, they are not well suited to emerging architectures and they are in fact mathematically weaker than classical geometric multigrid (GMG) methods \cite{Brandt-77,Adams-10a}.
-GMG is not widely because it is difficult to deploy flexible and efficient GMG equation solvers in a library, to amortize their cost of development, because they are inherently tied to the meshing and discretizations.
+GMG is not widely used because it is difficult to deploy flexible and efficient GMG equation solvers in a library, to amortize their cost of development, because they are inherently tied to the meshing and discretizations.
 We at PETSc believe we have a solution to this deployment problem.
 First, modern grid hybrid structured and unstructured adaptive mesh refinement (AMR) discretization methods have been developed in the p4est distributed tree library \cite{DBLP:journals/siamsc/IsaacBWG15,Rudi:2015:EIS:2807591.2807675,Stadler1033}, and are being added to PETSc (DMForest object) in our Solver Integrated Tree-based Adaptive Refinement (SITAR) infrastructure in the DMPICell object.
 Second, modern commercial-grade software engineering practices and mesh abstraction layers in PETSc make the relatively tight coupling with applications practical for high value applications, if not for the masses of PETSc users \cite{KnepleyBrownMcInnesSmithRuppAdams2015b}.
-We propose to continue, and accelerate, the development PICell solvers specialized for the particular demands of extreme-scale anisotropic PIC methods in general and XGC in particular.
+We propose to continue, and accelerate, the development PICell solvers specialized for the particular demands of XGC.
 
 \section{Budget and Milestones}
 \label{sec:mile}
@@ -111,10 +111,10 @@ The PETSc community has extensive experience in extreme-scale solution methods f
 Fast solvers also require careful data placement for optimal performance, but PIC methods add new sets of constraints and opportunities for optimizing algorithms for extreme-scale emerging architectures.
 To this end, we focus on grid management to support the development of optimal data decomposition and algorithms, or data models,  for the efficient processing of particle-cell interactions, as well as fast solvers for, for example, Poisson's equation, Ampere's law, and the magnetohydrodymaic  solvers of implicit PIC methods \cite{DBLP:journals/cphysics/ChenC15,Adams-10a}.
 
-We propose to support extreme-scale PIC simulations on emerging architectures in PETS to enable XGC to continue its preeminence for decades to come.
+We propose to support extreme-scale PIC simulations on emerging architectures in PETSc to enable XGC to continue its preeminence for decades to come.
 %We build on the Solver Integrated Tree-based Adaptive Refinement (SITAR) infrastructure in PETSc, for fast and accurate PDE discretizations, meshing, and solvers.
 %We extend SITAR with methods and features to support the development of efficient and scalable data models and algorithms for engineering relevant simulations of fusion plasmas by the computational plasma physics community.
-In addition to this PETSc library work, this document describes a tokamak PIC code, X2 (\S\ref{sec:x2}).
+In addition to the PETSc library work, this document describes a tokamak PIC code, X2 (\S\ref{sec:x2}).
 X2 is designed from the ground up for extreme scalability and extensibility to emerging architectures and is modeled on the particle methods in XGC.
 X2 is used to drive the library development and explore the algorithmic space of modern extreme-scale PIC methods, and to provide data on the potential usefulness of these PETSc resources for XGC.
 
@@ -136,17 +136,18 @@ Distributing grids will be very disruptive to the code base of fusion PIC applic
 %It behooves the fusion PIC community to move to distributed data models early to begin their optimization.
 
 The physics community has developed a large body of research and experience in using PIC methods for fusion plasmas and they are one of the largest users in DOE leadership class compute facilities.
-The applied math, engineering, and physics communities have developed powerful discretization and solver methods for extreme-scale computing in just the past ten years and stretching back to the 1960s, but these modern methods are not widely used in the fusion PIC community.
+The applied math, engineering, and physics communities have developed powerful discretization and solver methods for extreme-scale computing, but more modern methods are not widely used in the fusion PIC community.
+For instance, XGC uses second order accurate finite differencing in the parallel direction and second order accurate linear finite elements in the perpendicular plane, which were in wide spread use by the 1960s.
 The continued advancement of computational fusion physics in XGC, and the global community, especially as we move to simulations relevant to the design and operation of ITER, will benefit from both modern numerical methods and parallel computing techniques, and commercial-grade software engineering methodologies.
 
 The engineering complexity required to develop a flexible infrastructure that allows for the expression of the most optimal algorithms demands a higher level of software quality assurance processes than is often present in the codes that are driven by academic reward systems, such as number of journal publications, as opposed to the demands for reliable predictive analysis that drives the commercial sector.
 Commercial-grade software engineering takes both skill and time that is not available to most academic physics code projects and is not seen as worth to cost due to their academic reward structure.
-PETSc employs commercial-grade software engineering processes and some of our users, even those that work in academia, follow our practices because in the long term it leads to higher productivity even by the standards of their academic field. 
-This project provides fusion PIC codes with solid infrastructure on which to build their physics, to allow for the full use of their theoretical expertise without the demands of implementing, verifying, and maintaining the increasing software stack required to effectively use modern hardware.
+PETSc employs commercial-grade software engineering processes and some of our users, even those that work in academia, follow our practices because in the long term it leads to higher productivity. 
+This project provides fusion PIC codes with solid infrastructure on which to build their physics, to allow for the full use of their theoretical expertise without the demands of implementing, verifying, and maintaining the increasing complex software stack required to effectively use modern hardware.
 
 This work amortizes both the development costs and the intellectual resources required to develop and deploy support for extreme-scale PIC applications.
 This work builds on the SITAR framework in PETSc, which provides both fast solvers, tightly integrated meshing and discretizations, and optimized implementation for emerging architectures \cite{KnepleyBrownMcInnesSmithRuppAdams2015}.
-SITAR is built on the highly scalable algorithms and implementations in the {\tt p4est} distributed tree library \cite{DBLP:journals/siamsc/IsaacBWG15,Rudi:2015:EIS:2807591.2807675,Stadler1033}.
+SITAR is built on the highly scalable algorithms and implementations in the p4est distributed tree library \cite{DBLP:journals/siamsc/IsaacBWG15,Rudi:2015:EIS:2807591.2807675,Stadler1033}.
 
 \section{Methodology}
 
@@ -165,7 +166,7 @@ Our methodology has the following desired features:
 \end{itemize}
 \item finite volume (FV), discontinuous Galerkin(DG), and finite element (FE) discretizations;
 \begin{itemize}
-\item conservative discretizations (FV and DG) are useful for flux surface averaging projections although we are beginning with FE;
+\item conservative discretizations (FV and DG) are useful for flux surface averaging projections;
 \end{itemize}
 \item architecture specific computational kernels for emerging architectures \cite{KnepleyBrownMcInnesSmithRuppAdams2015};
 \item incremental contributions to the plasma physics community (\S\ref{sec:id}).
