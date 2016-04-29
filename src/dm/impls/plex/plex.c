@@ -4133,6 +4133,311 @@ PetscErrorCode DMPlexVecSetFieldClosure_Internal(DM dm, PetscSection section, Ve
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "DMPlexVecSetStar_Static"
+PETSC_STATIC_INLINE PetscErrorCode DMPlexVecSetStar_Static(DM dm, PetscSection section, Vec v, PetscInt point, const PetscScalar values[], InsertMode mode)
+{
+  PetscScalar    *array;
+  const PetscInt *support;
+  PetscInt        pStart, pEnd, p, numPoints, off, dof;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginHot;
+  ierr = PetscSectionGetChart(section, &pStart, &pEnd);CHKERRQ(ierr);
+  ierr = DMPlexGetSupportSize(dm, point, &numPoints);CHKERRQ(ierr);
+  ierr = DMPlexGetSupport(dm, point, &support);CHKERRQ(ierr);
+  ierr = VecGetArray(v, &array);CHKERRQ(ierr);
+  for (p = 0, off = 0; p <= numPoints; ++p, off += dof) {
+    const PetscInt sp = !p ? point : support[p-1];
+
+    if ((sp < pStart) || (sp >= pEnd)) {dof = 0; continue;}
+    ierr = PetscSectionGetDof(section, sp, &dof);CHKERRQ(ierr);
+    /* ADD_VALUES */
+    {
+      const PetscInt *cdofs; /* The indices of the constrained dofs on this point */
+      PetscScalar    *a;
+      PetscInt        cdof, coff, cind = 0, k;
+
+      ierr = PetscSectionGetConstraintDof(section, sp, &cdof);CHKERRQ(ierr);
+      ierr = PetscSectionGetOffset(section, sp, &coff);CHKERRQ(ierr);
+      a    = &array[coff];
+      if (!cdof) {
+        for (k = 0; k < dof; ++k) {
+          a[k] += values[off+k];
+        }
+      } else {
+        ierr = PetscSectionGetConstraintIndices(section, sp, &cdofs);CHKERRQ(ierr);
+        for (k = 0; k < dof; ++k) {
+          if ((cind < cdof) && (k == cdofs[cind])) {++cind; continue;}
+          a[k] += values[off+k];
+        }
+      }
+    }
+  }
+  ierr = VecRestoreArray(v, &array);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexVecSetStar"
+/*@C
+  DMPlexVecSetStar - Set an array of the values on the downward, star closure of 'point'
+
+  Not collective
+
+  Input Parameters:
++ dm - The DM
+. section - The section describing the layout in v, or NULL to use the default section
+. v - The local vector
+. point - The sieve point in the DM
+. values - The array of values
+- mode - The insert mode, where INSERT_ALL_VALUES and ADD_ALL_VALUES also overwrite boundary conditions
+
+  Fortran Notes:
+  This routine is only available in Fortran 90, and you must include petsc.h90 in your code.
+
+  Level: intermediate
+
+.seealso DMPlexVecGetStar()
+@*/
+PetscErrorCode DMPlexVecSetStar(DM dm, PetscSection section, Vec v, PetscInt point, const PetscScalar values[], InsertMode mode)
+{
+  PetscSection    clSection;
+  IS              clPoints;
+  PetscScalar    *array;
+  PetscInt       *points = NULL;
+  const PetscInt *clp;
+  PetscInt        depth, numFields, numPoints, p;
+  PetscBool       isHeight1 = PETSC_FALSE;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginHot;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  if (!section) {ierr = DMGetDefaultSection(dm, &section);CHKERRQ(ierr);}
+  PetscValidHeaderSpecific(section, PETSC_SECTION_CLASSID, 2);
+  PetscValidHeaderSpecific(v, VEC_CLASSID, 3);
+  ierr = DMPlexGetDepth(dm, &depth);CHKERRQ(ierr);
+  ierr = PetscSectionGetNumFields(section, &numFields);CHKERRQ(ierr);
+  if (depth) {
+    PetscInt fStart, fEnd;
+
+    ierr = DMPlexGetHeightStratum(dm,1,&fStart,&fEnd);CHKERRQ(ierr);
+    if (fStart <= point && point < fEnd) {
+      isHeight1 = PETSC_TRUE;
+    }
+  }
+  if (isHeight1 && numFields < 2 && mode == ADD_VALUES) {
+    ierr = DMPlexVecSetStar_Static(dm, section, v, point, values, mode);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
+  }
+  /* Get points */
+#if 0
+  ierr = PetscSectionGetClosureIndex(section, (PetscObject) dm, &clSection, &clPoints);CHKERRQ(ierr);
+#else
+  clPoints  = NULL;
+  clSection = NULL;
+#endif
+  if (!clPoints) {
+    PetscInt pStart, pEnd, q;
+
+    ierr = PetscSectionGetChart(section, &pStart, &pEnd);CHKERRQ(ierr);
+    ierr = DMPlexGetTransitiveClosure(dm, point, PETSC_FALSE, &numPoints, &points);CHKERRQ(ierr);
+    /* Compress out points not in the section */
+    for (p = 0, q = 0; p < numPoints*2; p += 2) {
+      if ((points[p] >= pStart) && (points[p] < pEnd)) {
+        points[q*2]   = points[p];
+        points[q*2+1] = points[p+1];
+        ++q;
+      }
+    }
+    numPoints = q;
+  } else {
+    PetscInt dof, off;
+
+    ierr = PetscSectionGetDof(clSection, point, &dof);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(clSection, point, &off);CHKERRQ(ierr);
+    ierr = ISGetIndices(clPoints, &clp);CHKERRQ(ierr);
+    numPoints = dof/2;
+    points    = (PetscInt *) &clp[off];
+  }
+  /* Get array */
+  ierr = VecGetArray(v, &array);CHKERRQ(ierr);
+  /* Get values */
+  if (numFields > 0) {
+    PetscInt offset = 0, fcomp, f;
+    for (f = 0; f < numFields; ++f) {
+      ierr = PetscSectionGetFieldComponents(section, f, &fcomp);CHKERRQ(ierr);
+      switch (mode) {
+      case INSERT_VALUES:
+        for (p = 0; p < numPoints*2; p += 2) {
+          const PetscInt point = points[p];
+          updatePointFields_private(section, point, 0, f, fcomp, insert, PETSC_FALSE, values, &offset, array);
+        } break;
+      case INSERT_ALL_VALUES:
+        for (p = 0; p < numPoints*2; p += 2) {
+          const PetscInt point = points[p];
+          updatePointFields_private(section, point, 0, f, fcomp, insert, PETSC_TRUE, values, &offset, array);
+        } break;
+      case INSERT_BC_VALUES:
+        for (p = 0; p < numPoints*2; p += 2) {
+          const PetscInt point = points[p];
+          updatePointFieldsBC_private(section, point, 0, f, fcomp, insert, values, &offset, array);
+        } break;
+      case ADD_VALUES:
+        for (p = 0; p < numPoints*2; p += 2) {
+          const PetscInt point = points[p];
+          updatePointFields_private(section, point, 0, f, fcomp, add, PETSC_FALSE, values, &offset, array);
+        } break;
+      case ADD_ALL_VALUES:
+        for (p = 0; p < numPoints*2; p += 2) {
+          const PetscInt point = points[p];
+          updatePointFields_private(section, point, 0, f, fcomp, add, PETSC_TRUE, values, &offset, array);
+        } break;
+      default:
+        SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_OUTOFRANGE, "Invalid insert mode %d", mode);
+      }
+    }
+  } else {
+    PetscInt dof, off;
+
+    switch (mode) {
+    case INSERT_VALUES:
+      for (p = 0, off = 0; p < numPoints*2; p += 2, off += dof) {
+        ierr = PetscSectionGetDof(section, points[p], &dof);CHKERRQ(ierr);
+        updatePoint_private(section, points[p], dof, insert, PETSC_FALSE, 0, &values[off], array);
+      } break;
+    case INSERT_ALL_VALUES:
+      for (p = 0, off = 0; p < numPoints*2; p += 2, off += dof) {
+        ierr = PetscSectionGetDof(section, points[p], &dof);CHKERRQ(ierr);
+        updatePoint_private(section, points[p], dof, insert, PETSC_TRUE,  0, &values[off], array);
+      } break;
+    case INSERT_BC_VALUES:
+      for (p = 0, off = 0; p < numPoints*2; p += 2, off += dof) {
+        ierr = PetscSectionGetDof(section, points[p], &dof);CHKERRQ(ierr);
+        updatePointBC_private(section, points[p], dof, insert,  0, &values[off], array);
+      } break;
+    case ADD_VALUES:
+      for (p = 0, off = 0; p < numPoints*2; p += 2, off += dof) {
+        ierr = PetscSectionGetDof(section, points[p], &dof);CHKERRQ(ierr);
+        updatePoint_private(section, points[p], dof, add,    PETSC_FALSE, 0, &values[off], array);
+      } break;
+    case ADD_ALL_VALUES:
+      for (p = 0, off = 0; p < numPoints*2; p += 2, off += dof) {
+        ierr = PetscSectionGetDof(section, points[p], &dof);CHKERRQ(ierr);
+        updatePoint_private(section, points[p], dof, add,    PETSC_TRUE,  0, &values[off], array);
+      } break;
+    default:
+      SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_OUTOFRANGE, "Invalid insert mode %d", mode);
+    }
+  }
+  /* Cleanup points */
+  if (!clPoints) {ierr = DMPlexRestoreTransitiveClosure(dm, point, PETSC_TRUE, &numPoints, &points);CHKERRQ(ierr);}
+  else           {ierr = ISRestoreIndices(clPoints, &clp);CHKERRQ(ierr);}
+  /* Cleanup array */
+  ierr = VecRestoreArray(v, &array);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexVecSetFieldStar_Internal"
+PetscErrorCode DMPlexVecSetFieldStar_Internal(DM dm, PetscSection section, Vec v, PetscBool fieldActive[], PetscInt point, const PetscScalar values[], InsertMode mode)
+{
+  PetscSection    clSection;
+  IS              clPoints;
+  PetscScalar    *array;
+  PetscInt       *points = NULL;
+  const PetscInt *clp;
+  PetscInt        numFields, numPoints, p;
+  PetscInt        offset = 0, fcomp, f;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginHot;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  if (!section) {ierr = DMGetDefaultSection(dm, &section);CHKERRQ(ierr);}
+  PetscValidHeaderSpecific(section, PETSC_SECTION_CLASSID, 2);
+  PetscValidHeaderSpecific(v, VEC_CLASSID, 3);
+  ierr = PetscSectionGetNumFields(section, &numFields);CHKERRQ(ierr);
+  /* Get points */
+#if 0
+  ierr = PetscSectionGetClosureIndex(section, (PetscObject) dm, &clSection, &clPoints);CHKERRQ(ierr);
+#else
+  clPoints  = NULL;
+  clSection = NULL;
+#endif
+  if (!clPoints) {
+    PetscInt pStart, pEnd, q;
+
+    ierr = PetscSectionGetChart(section, &pStart, &pEnd);CHKERRQ(ierr);
+    ierr = DMPlexGetTransitiveClosure(dm, point, PETSC_FALSE, &numPoints, &points);CHKERRQ(ierr);
+    /* Compress out points not in the section */
+    for (p = 0, q = 0; p < numPoints*2; p += 2) {
+      if ((points[p] >= pStart) && (points[p] < pEnd)) {
+        points[q*2]   = points[p];
+        points[q*2+1] = points[p+1];
+        ++q;
+      }
+    }
+    numPoints = q;
+  } else {
+    PetscInt dof, off;
+
+    ierr = PetscSectionGetDof(clSection, point, &dof);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(clSection, point, &off);CHKERRQ(ierr);
+    ierr = ISGetIndices(clPoints, &clp);CHKERRQ(ierr);
+    numPoints = dof/2;
+    points    = (PetscInt *) &clp[off];
+  }
+  /* Get array */
+  ierr = VecGetArray(v, &array);CHKERRQ(ierr);
+  /* Get values */
+  for (f = 0; f < numFields; ++f) {
+    ierr = PetscSectionGetFieldComponents(section, f, &fcomp);CHKERRQ(ierr);
+    if (!fieldActive[f]) {
+      for (p = 0; p < numPoints*2; p += 2) {
+        PetscInt fdof;
+        ierr = PetscSectionGetFieldDof(section, points[p], f, &fdof);CHKERRQ(ierr);
+        offset += fdof;
+      }
+      continue;
+    }
+    switch (mode) {
+    case INSERT_VALUES:
+      for (p = 0; p < numPoints*2; p += 2) {
+        const PetscInt point = points[p];
+        updatePointFields_private(section, point, 0, f, fcomp, insert, PETSC_FALSE, values, &offset, array);
+      } break;
+    case INSERT_ALL_VALUES:
+      for (p = 0; p < numPoints*2; p += 2) {
+        const PetscInt point = points[p];
+        updatePointFields_private(section, point, 0, f, fcomp, insert, PETSC_TRUE, values, &offset, array);
+        } break;
+    case INSERT_BC_VALUES:
+      for (p = 0; p < numPoints*2; p += 2) {
+        const PetscInt point = points[p];
+        updatePointFieldsBC_private(section, point, 0, f, fcomp, insert, values, &offset, array);
+      } break;
+    case ADD_VALUES:
+      for (p = 0; p < numPoints*2; p += 2) {
+        const PetscInt point = points[p];
+        updatePointFields_private(section, point, 0, f, fcomp, add, PETSC_FALSE, values, &offset, array);
+      } break;
+    case ADD_ALL_VALUES:
+      for (p = 0; p < numPoints*2; p += 2) {
+        const PetscInt point = points[p];
+        updatePointFields_private(section, point, 0, f, fcomp, add, PETSC_TRUE, values, &offset, array);
+      } break;
+    default:
+      SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_OUTOFRANGE, "Invalid insert mode %d", mode);
+    }
+  }
+  /* Cleanup points */
+  if (!clPoints) {ierr = DMPlexRestoreTransitiveClosure(dm, point, PETSC_TRUE, &numPoints, &points);CHKERRQ(ierr);}
+  else           {ierr = ISRestoreIndices(clPoints, &clp);CHKERRQ(ierr);}
+  /* Cleanup array */
+  ierr = VecRestoreArray(v, &array);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "DMPlexPrintMatSetValues"
 PetscErrorCode DMPlexPrintMatSetValues(PetscViewer viewer, Mat A, PetscInt point, PetscInt numRIndices, const PetscInt rindices[], PetscInt numCIndices, const PetscInt cindices[], const PetscScalar values[])
 {
