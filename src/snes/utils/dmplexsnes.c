@@ -1450,37 +1450,34 @@ PetscErrorCode DMPlexReconstructGradients_Internal(DM dm, PetscInt fStart, Petsc
   ierr = VecGetArrayRead(locX, &x);CHKERRQ(ierr);
   ierr = VecGetDM(grad, &dmGrad);CHKERRQ(ierr);
   ierr = VecZeroEntries(grad);CHKERRQ(ierr);
-  ierr = VecGetArray(grad, &gr);CHKERRQ(ierr);
+  ierr = DMGetWorkArray(dmGrad, 2 * totDim * dim, PETSC_SCALAR, &gr);CHKERRQ(ierr);
   /* Reconstruct gradients */
   for (face = fStart; face < fEnd; ++face) {
-    const PetscInt        *cells;
     PetscFVFaceGeom       *fg;
-    PetscScalar           *cx[2];
-    PetscScalar           *cgrad[2];
+    PetscScalar           *cx = NULL;
     PetscBool              boundary;
-    PetscInt               ghost, c, pd, d, numChildren, numCells;
+    PetscInt               ghost, pd, d, numChildren, nx;
 
     ierr = DMLabelGetValue(ghostLabel, face, &ghost);CHKERRQ(ierr);
     ierr = DMIsBoundaryPoint(dm, face, &boundary);CHKERRQ(ierr);
     ierr = DMPlexGetTreeChildren(dm, face, &numChildren, NULL);CHKERRQ(ierr);
     if (ghost >= 0 || boundary || numChildren) continue;
-    ierr = DMPlexGetSupportSize(dm, face, &numCells);CHKERRQ(ierr);
-    if (numCells != 2) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "facet %d has %d support points: expected 2",face,numCells);
-    ierr = DMPlexGetSupport(dm, face, &cells);CHKERRQ(ierr);
+    ierr = DMPlexVecGetStar(dm, NULL, locX, face, &nx, &cx);CHKERRQ(ierr);
     ierr = DMPlexPointLocalRead(dmFace, face, facegeom, &fg);CHKERRQ(ierr);
-    for (c = 0; c < 2; ++c) {
-      ierr = DMPlexPointLocalRead(dm, cells[c], x, &cx[c]);CHKERRQ(ierr);
-      ierr = DMPlexPointGlobalRef(dmGrad, cells[c], gr, &cgrad[c]);CHKERRQ(ierr);
-    }
+    if (nx != 2 * totDim) SETERRQ3(PETSC_COMM_SELF, PETSC_ERR_PLIB, "facet %d has %d support dofs: expected %d",face,nx,2 * totDim);
     for (pd = 0; pd < totDim; ++pd) {
-      PetscScalar delta = cx[1][pd] - cx[0][pd];
+      PetscScalar delta = cx[totDim + pd] - cx[pd];
 
       for (d = 0; d < dim; ++d) {
-        if (cgrad[0]) cgrad[0][pd*dim+d] += fg->grad[0][d] * delta;
-        if (cgrad[1]) cgrad[1][pd*dim+d] -= fg->grad[1][d] * delta;
+        gr[pd * dim + d]                =  fg->grad[0][d] * delta;
+        gr[totDim * dim + pd * dim + d] = -fg->grad[1][d] * delta;
       }
     }
+    ierr = DMPlexVecSetStar(dmGrad, NULL, grad, face, gr, ADD_VALUES);CHKERRQ(ierr);
+    ierr = DMPlexVecRestoreStar(dm, NULL, locX, face, &nx, &cx);CHKERRQ(ierr);
   }
+  ierr = DMRestoreWorkArray(dmGrad, 2 * totDim * dim, PETSC_SCALAR, &gr);CHKERRQ(ierr);
+  ierr = VecGetArray(grad,&gr);CHKERRQ(ierr);
   /* Limit interior gradients (using cell-based loop because it generalizes better to vector limiters) */
   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = DMPlexGetHybridBounds(dm, &cEndInterior, NULL, NULL, NULL);CHKERRQ(ierr);
