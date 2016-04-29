@@ -12,7 +12,6 @@ static char help[] = "X2: A partical in cell code for tokamak plasmas using PICe
 /* #include <petscoptions.h> */
 #define X2_WALL_ARRAY_MAX 68 /* ITER file is 67 */
 static float s_wallVtx[X2_WALL_ARRAY_MAX][2];
-#define X2_NUM_MOVE 12
 static int s_numWallPtx;
 static int s_numQuads;
 static int s_quad_vertex[X2_WALL_ARRAY_MAX][9];
@@ -48,10 +47,28 @@ typedef struct { /* ptl_type */
   PetscReal f0;
   long long gid; /* diagnostic */
 } X2Particle;
+#define X2_V_LEN 8
+/* #define X2_S_OF_V */
+typedef struct { /* ptl_type */
+  /* phase (4D) */
+  PetscReal *r;   /* r from center */
+  PetscReal *z;   /* vertical coordinate */
+  PetscReal *phi; /* toroidal coordinate */
+  PetscReal *vpar; /* toroidal velocity */
+  /* const */
+  PetscReal *mu; /* 5th D */
+  PetscReal *w0;
+  PetscReal *f0;
+  long long *gid; /* diagnostic */
+} X2Particle_v;
 /* X2PList */
 typedef PetscInt X2PListPos;
 typedef struct {
+#ifdef X2_S_OF_V
+  X2Particle_v data_v;
+#else
   X2Particle *data; /* make this arrays of X2Particle members for struct-of-arrays */
+#endif
   PetscInt    data_size, size, hole, top;
 } X2PList;
 /* send particle list */
@@ -180,7 +197,7 @@ PetscErrorCode X2PListCreate(X2PList *l, PetscInt msz)
   l->size=0;
   l->top=0;
   l->hole=-1;
-  l->data_size = msz;
+  l->data_size = (X2_V_LEN*msz)/X2_V_LEN;
   ierr = PetscMalloc1(l->data_size, &l->data);CHKERRQ(ierr); /* malloc each for struct-of-arrays */
   return ierr;
 }
@@ -315,7 +332,7 @@ PetscErrorCode X2PListDestroy(X2PList *l)
 }
 
 #define X2PROCLISTSIZE 256
-static PetscInt s_chunksize = 32768;
+static PetscInt s_chunksize = 1*X2_V_LEN;
 /*
    ProcessOptions: set parameters from input, setup w/o allocation, called first, no DM here
 */
@@ -357,7 +374,8 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   /* general options */
   ctx->debug = 0;
   ierr = PetscOptionsInt("-debug", "The debugging level", "x2.c", ctx->debug, &ctx->debug, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-chuncksize", "Size of particle list to chunk sends", "x2.c", s_chunksize, &s_chunksize, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-chuncksize", "Size of particle list to chunk sends", "x2.c", s_chunksize, &s_chunksize,&flg);CHKERRQ(ierr);
+  if (flg) s_chunksize = (X2_V_LEN*s_chunksize)/X2_V_LEN;
   ctx->bsp_chuncksize = 0; /* 32768; */
   ierr = PetscOptionsInt("-bsp_chuncksize", "Size of chucks for PETSc's TwoSide communication (0 to use 'nonblocking consensus')", "x2.c", ctx->bsp_chuncksize, &ctx->bsp_chuncksize, NULL);CHKERRQ(ierr);
   if (ctx->bsp_chuncksize<0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB," invalid chuck size = %D",ctx->bsp_chuncksize);
@@ -579,8 +597,6 @@ PetscErrorCode X2GridParticleGetProc_FluxTube( DM d, const X2GridParticle *grid,
      - pe: process ID
      - elem: element ID
 */
-#undef __FUNCT__
-#define __FUNCT__ "X2GridParticleGetProc_Solver"
 /*
   dm - The DM
   x - Cartesian coordinate
@@ -588,6 +604,8 @@ PetscErrorCode X2GridParticleGetProc_FluxTube( DM d, const X2GridParticle *grid,
   pe - Rank of process owning the grid cell containing the particle, -1 if not found
   elem - Local cell number on rank pe containing the particle, -1 if not found
 */
+#undef __FUNCT__
+#define __FUNCT__ "X2GridParticleGetProc_Solver"
 PetscErrorCode X2GridParticleGetProc_Solver(DM dm, PetscReal coord[], PetscMPIInt *pe, PetscInt *elem)
 {
   PetscMPIInt rank;
@@ -929,7 +947,6 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendLi
   int origNlocal,nmoved;
   X2ISend slist[X2PROCLISTSIZE];
   PetscFunctionBeginUser;
-
   nslist = 0;
   nmoved = 0;
   nlistsTot = origNlocal = 0;
@@ -937,7 +954,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendLi
   for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) {
     if (solver) {
       /* count max */
-      for (elid=0;elid<ctx->nElems;elid++) {
+      for (maxsz=elid=0;elid<ctx->nElems;elid++) {
         X2PList *list = &ctx->partlists[isp][elid];
         if (X2PListSize(list)>maxsz) maxsz = X2PListSize(list);
         ierr = X2PListCompress(list);CHKERRQ(ierr);
@@ -1087,17 +1104,15 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendLi
       ierr = VecDestroy(&xVec);CHKERRQ(ierr);
       ierr = VecDestroy(&vVec);CHKERRQ(ierr);
     }
-
     /* finish sends and receive new particles for this species */
     ierr = shiftParticles(ctx, sendListTable, isp, irk, &nslist, ctx->partlists[isp], slist, tag+isp, solver );CHKERRQ(ierr);
-
     nlistsTot += nslist;
     nslist = 0;
     /* add density (while in cache, by species at least) */
     if (irk>=0) {
       assert(solver);
       /* count max */
-      for (elid=0;elid<ctx->nElems;elid++) {
+      for (maxsz=elid=0;elid<ctx->nElems;elid++) {
         X2PList *list = &ctx->partlists[isp][elid];
         if (X2PListSize(list)>maxsz) maxsz = X2PListSize(list);
         ierr = X2PListCompress(list);CHKERRQ(ierr);
@@ -1132,12 +1147,15 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2SendLi
           *vv = part.w0;
           vv++;
         }
+PetscPrintf(PETSC_COMM_SELF,"[%d] processParticles 4444 %d %d\n",ctx->rank,vv-vv0,maxsz);        
         ierr = VecRestoreArray(txVec,&xx0);CHKERRQ(ierr);
         ierr = VecRestoreArray(tvVec,&vv0);CHKERRQ(ierr);
 #if defined(PETSC_USE_LOG)
         ierr = PetscLogEventEnd(ctx->events[7],0,0,0,0);CHKERRQ(ierr);
 #endif
+PetscPrintf(PETSC_COMM_SELF,"[%d] processParticles 5555elid=%d\n",ctx->rank,elid);        
         ierr = DMPICellAddSource(ctx->dm, txVec, tvVec, elid);CHKERRQ(ierr);
+PetscPrintf(PETSC_COMM_SELF,"[%d] processParticles 6666\n",ctx->rank);        
         ierr = VecDestroy(&txVec);CHKERRQ(ierr);
         ierr = VecDestroy(&tvVec);CHKERRQ(ierr);
       }
@@ -1530,7 +1548,7 @@ static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, 
       else {
         vertCoords[i][0] = (vertCoords[i - 4][0] + vertCoords[(i - 4 + 1) % 4][0])/2.;
         vertCoords[i][1] = (vertCoords[i - 4][1] + vertCoords[(i - 4 + 1) % 4][1])/2.;
-PetscPrintf(PETSC_COMM_SELF,"edge vertCoords=%g %g\n",vertCoords[i][0]+rMajor,vertCoords[i][1]);
+        PetscPrintf(PETSC_COMM_SELF,"edge vertCoords=%g %g\n",vertCoords[i][0]+rMajor,vertCoords[i][1]);
       }
     }
     for (; i < 9; i++) { /* read in middle vertex: if not present, average edge vertices*/
@@ -1541,7 +1559,7 @@ PetscPrintf(PETSC_COMM_SELF,"edge vertCoords=%g %g\n",vertCoords[i][0]+rMajor,ve
       else {
         vertCoords[i][0] = (vertCoords[i - 4][0] + vertCoords[i - 3][0] + vertCoords[i - 2][0] + vertCoords[i - 1][0])/4.;
         vertCoords[i][1] = (vertCoords[i - 4][1] + vertCoords[i - 3][1] + vertCoords[i - 2][1] + vertCoords[i - 1][1])/4.;
-PetscPrintf(PETSC_COMM_SELF,"corner vertCoords=%g %g\n",vertCoords[i][0]+rMajor,vertCoords[i][1]);
+        PetscPrintf(PETSC_COMM_SELF,"corner vertCoords=%g %g\n",vertCoords[i][0]+rMajor,vertCoords[i][1]);
       }
     }
 
@@ -1982,13 +2000,15 @@ int main(int argc, char **argv)
   /* create SNESS */
   ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
   ierr = SNESSetDM( dmpi->snes, dmpi->dmgrid);CHKERRQ(ierr);
-  ierr = DMSNESSetFunctionLocal(dmpi->dmgrid,  (PetscErrorCode (*)(DM,Vec,Vec,void*))DMPlexSNESComputeResidualFEM,&ctx);CHKERRQ(ierr);
-  ierr = DMSNESSetJacobianLocal(dmpi->dmgrid,  (PetscErrorCode (*)(DM,Vec,Mat,Mat,void*))DMPlexSNESComputeJacobianFEM,&ctx);CHKERRQ(ierr);
   ierr = DMSetMatType(dmpi->dmgrid,MATAIJ);CHKERRQ(ierr);
   ierr = SNESSetFromOptions(dmpi->snes);CHKERRQ(ierr);
-  ierr = DMCreateMatrix(dmpi->dmgrid, &J);CHKERRQ(ierr);
-  ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
+  ierr = DMSNESSetFunctionLocal(dmpi->dmgrid,  (PetscErrorCode (*)(DM,Vec,Vec,void*))DMPlexSNESComputeResidualFEM,&ctx);CHKERRQ(ierr);
+  ierr = DMSNESSetJacobianLocal(dmpi->dmgrid,  (PetscErrorCode (*)(DM,Vec,Mat,Mat,void*))DMPlexSNESComputeJacobianFEM,&ctx);CHKERRQ(ierr);
   ierr = SNESSetUp( dmpi->snes );CHKERRQ(ierr);
+  ierr = DMCreateMatrix(dmpi->dmgrid, &J);CHKERRQ(ierr);
+  ierr = DMPlexSNESComputeJacobianFEM(dmpi->dmgrid, dmpi->phi, J, J, (void*)&ctx);CHKERRQ(ierr);
+  ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
+  ierr = MatView(J,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   /* setup particles */
   ierr = createParticles( &ctx );CHKERRQ(ierr);
   ierr = PetscLogEventEnd(ctx.events[3],0,0,0,0);CHKERRQ(ierr);
@@ -2004,7 +2024,7 @@ int main(int argc, char **argv)
 
   /* do it */
   ierr = go( &ctx );CHKERRQ(ierr);
-
+  PetscPrintf(ctx.wComm,"[%D] done - cleanup\n",ctx.rank);
   /* Cleanup */
   ierr = PetscFEDestroy(&dmpi->fem);CHKERRQ(ierr);
   ierr = MatDestroy(&J);CHKERRQ(ierr);
