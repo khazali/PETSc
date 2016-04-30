@@ -157,13 +157,13 @@ PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec rho, PetscInt cell)
   PetscInt     totDim,p,N,dim,b;
   PetscErrorCode ierr;
   PetscFunctionBegin;
-PetscPrintf(PETSC_COMM_SELF,"\t[%d] DMPICellAddSource 0000\n",-1);
   PetscValidHeaderSpecific(a_dm, DM_CLASSID, 1);
   PetscValidHeaderSpecific(coord, VEC_CLASSID, 2);
   PetscValidHeaderSpecific(rho, VEC_CLASSID, 3);
   ierr = VecDuplicate(coord, &refCoord);CHKERRQ(ierr);
   ierr = VecGetBlockSize(coord, &dim);CHKERRQ(ierr);
   ierr = VecGetLocalSize(coord, &N);CHKERRQ(ierr);
+  if (N%dim) SETERRQ2(PetscObjectComm((PetscObject) dmpi->dmgrid), PETSC_ERR_SUP, "N=%D dim=%D",N,dim);
   N   /= dim;
   ierr = VecGetArray(coord, &x);CHKERRQ(ierr);
   ierr = VecGetArray(refCoord, &xi);CHKERRQ(ierr);
@@ -186,16 +186,10 @@ PetscPrintf(PETSC_COMM_SELF,"\t[%d] DMPICellAddSource 0000\n",-1);
       elemVec[b] += B[b*N + p] * x[p];
     }
   }
-PetscPrintf(PETSC_COMM_SELF,"\t[%d] DMPICellAddSource 3333\n",-1);
   ierr = VecRestoreArray(rho, &x);CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_SELF,"\t[%d] DMPICellAddSource 444\n",-1);
   ierr = DMPlexVecSetClosure(dmpi->dmplex, NULL, dmpi->rho, cell, elemVec, ADD_ALL_VALUES);CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_SELF,"\t[%d] DMPICellAddSource 555\n",-1);
   ierr = DMRestoreWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_SELF,"\t[%d] DMPICellAddSource 6666\n",-1);
-PetscPrintf(PETSC_COMM_SELF,"\t[%d] DMPICellAddSource 777\n",-1);
   ierr = PetscFERestoreTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_SELF,"\t[%d] DMPICellAddSource 999\n",-1);
   PetscFunctionReturn(0);
 }
 
