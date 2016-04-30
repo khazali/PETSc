@@ -62,7 +62,7 @@ Professor Matthew Knepley at Rice University (\$75,000 per year) will work on th
 The following tasks are proposed for this project by Professor Knepley's team [K], including Dr. Issac, and Dr. Adams' team [A].
 \vskip .1cm 
 \begin{itemize}
-\item Complete core PIC functionality in DMPICell and add to X2 [A,K: FY16 Q3]:
+\item Core PIC functionality in DMPICell and add to X2 [A,K: FY16 Q4]:
 \begin{enumerate}
 \item Point location in grid (done for flux tubes)
 \item Point gradient (cell to particle methods)
@@ -73,27 +73,31 @@ The following tasks are proposed for this project by Professor Knepley's team [K
 \begin{itemize}
 \item Similarly optimize kernel for GPUs depending on resources and interest
 \end{itemize}
-\item Add adiabatic electron, electrostatic, gyrokinetic capability [A: FY17 Q2]
+\item H(curl) finite elements for curl operators [K: FY17 Q1]
+\item Start adiabatic electron, electrostatic, gyrokinetic capability [A: FY17 Q2]
 \begin{itemize}
 \item Begin investigating accuracy requirements in grid methods (e.g., gradients) 
 \end{itemize}
-\item Add $B_0$ point interpolation [A: FY17 Q2]
-\item Add ghost cells and particle deposition communication, as needed, for gyrokinetics, and begin optimizing data models [A,K: FY17 Q2]
-\item Add Q2 elements [K: FY17 Q2]
+\item $B_0$ point interpolation [A: FY17 Q2]
+\item Ghost cells and particle deposition communication, as needed, for gyrokinetics, and begin optimizing data models [A,K: FY17 Q2]
 \item Begin to develop performance models with physics to prepare for particular exa-scale physics campaigns [A,K: FY17 Q2]
-\item Improve visualization with combined particles and grid [A: FY17 Q3]
+\item Q2 and high order H(curl) finite elements (optional) [K: FY17 Q3]
+\item Improve visualization with combined particles and grid [A,K: FY17 Q3]
 \item Finite particle form factors or density smoothing [A: FY17 Q3]
 \item Fast geometric multigrid Poisson equation solver [A: FY17 Q4]
+\item Functional adiabatic electron, electrostatic, (gyrokinetic) core tokamak capability [A,K: FY17 Q4]
 \end{itemize}
 \vskip .1cm 
 We intend to seek funding for a second year for the following work.
 \vskip .1cm 
 \begin{itemize}
 \item Begin working with RPI team in evaluating data models and performance models as appropriate [A: FY18 Q1]
+\item Begin full geometry (ITER), with separatrix capability [A: FY18 Q1]
 \item Add high order explicit time integrators [A: FY18 Q1]
 \item Begin convergence studies for verification on model problem (e.g., Cyclone benchmark with adiabatic electrons and electro-statics) [A: FY18 Q1]
+\item Full geometry (ITER), with separatrix capability [A: FY18 Q2]
 \item Begin code to code verification with XGC [A: FY18 Q3]
-\item Continue extending model capabilities, verifying accuracy, optimizing code, and optimizing data models [A,K: FY18 Q4]
+\item Continue extending model capabilities, verifying and optimizing code, and optimizing data models [A,K: FY18 Q4]
 \item Convergence studies verification and code to code verification with XGC [A: FY18 Q4]
 \end{itemize}
 %\pagebreak
@@ -232,7 +236,7 @@ To this end we currently support Cartesian grids  (e.g., Figure \ref{fig:grids},
 \subsection{High Order}
 \label{sec:ho}
 
-The mesh in Figure \ref{fig:cross} (right) is generated with seven (high order) Q2 elements per plane on a coarse grid and is refined three times in this figure.
+The mesh in Figure \ref{fig:cross} (right) is generated with seven (high order) Q2 (high order H(curl) finite elements) elements per plane on a coarse grid and is refined three times in this figure.
 %We currently use trilinear elements, which results in 28 elements per plane on the coarse grid.
 High order elements are attractive because of their high accuracy for smooth solutions should allow for fewer vertices and hence larger ``cells".
 Furthermore, because order elements are in effect composed of multiple cells they are even larger in physical space.
