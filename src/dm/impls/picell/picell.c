@@ -178,7 +178,7 @@ PetscPrintf(PETSC_COMM_SELF,"\t[%d] DMPICellAddSource 0000\n",-1);
   ierr = VecDestroy(&refCoord);CHKERRQ(ierr);
   ierr = DMGetDS(dmpi->dmgrid, &prob);CHKERRQ(ierr);
   ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
-  ierr = DMGetWorkArray(dmpi->dmgrid, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr); /* use dmplex here? */
+  ierr = DMGetWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr); /* use dmplex or dmgrid here? */
   ierr = PetscMemzero(elemVec, totDim * sizeof(PetscScalar));CHKERRQ(ierr);
   ierr = VecGetArray(rho, &x);CHKERRQ(ierr);
   for (b = 0; b < totDim; ++b) {
@@ -191,7 +191,7 @@ PetscPrintf(PETSC_COMM_SELF,"\t[%d] DMPICellAddSource 3333\n",-1);
 PetscPrintf(PETSC_COMM_SELF,"\t[%d] DMPICellAddSource 444\n",-1);
   ierr = DMPlexVecSetClosure(dmpi->dmplex, NULL, dmpi->rho, cell, elemVec, ADD_ALL_VALUES);CHKERRQ(ierr);
 PetscPrintf(PETSC_COMM_SELF,"\t[%d] DMPICellAddSource 555\n",-1);
-  ierr = DMRestoreWorkArray(dmpi->dmgrid, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
+  ierr = DMRestoreWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
 PetscPrintf(PETSC_COMM_SELF,"\t[%d] DMPICellAddSource 6666\n",-1);
 PetscPrintf(PETSC_COMM_SELF,"\t[%d] DMPICellAddSource 777\n",-1);
   ierr = PetscFERestoreTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
