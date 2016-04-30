@@ -2120,7 +2120,7 @@ int main(int argc, char **argv)
   ierr = DMSNESSetJacobianLocal(dmpi->dmgrid,  (PetscErrorCode (*)(DM,Vec,Mat,Mat,void*))DMPlexSNESComputeJacobianFEM,&ctx);CHKERRQ(ierr);
   ierr = SNESSetUp( dmpi->snes );CHKERRQ(ierr);
   ierr = DMCreateMatrix(dmpi->dmgrid, &J);CHKERRQ(ierr);
-  /* ierr = DMPlexSNESComputeJacobianFEM(dmpi->dmgrid, dmpi->phi, J, J, (void*)&ctx);CHKERRQ(ierr); */
+  ierr = DMPlexSNESComputeJacobianFEM(dmpi->dmgrid, dmpi->phi, J, J, (void*)&ctx);CHKERRQ(ierr);
   ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
   ierr = MatView(J,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   /* setup particles */
