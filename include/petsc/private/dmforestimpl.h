@@ -14,10 +14,10 @@ typedef struct {
   PetscErrorCode             (*createcellsf)(DM,PetscSF*);
   PetscErrorCode             (*destroy)(DM);
   PetscErrorCode             (*ftemplate)(DM,DM);
-  PetscErrorCode             (*mapcoordinates)(DM,PetscInt,PetscInt,const PetscReal[],PetscReal[],void*);
-  void                       *mapcoordinatesctx;
   PetscBool                  setfromoptionscalled;
   PetscBool                  computeAdaptSF;
+  PetscErrorCode             (*mapcoordinates)(DM,PetscInt,PetscInt,const PetscReal[],PetscReal[],void*);
+  void                       *mapcoordinatesctx;
   DMForestTopology           topology;
   DM                         base;
   DM                         adapt;

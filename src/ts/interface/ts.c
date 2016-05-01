@@ -1488,7 +1488,7 @@ PetscErrorCode TSGetI2Function(TS ts,Vec *r,TSI2Function *fun,void **ctx)
 #undef __FUNCT__
 #define __FUNCT__ "TSSetI2Jacobian"
 /*@C
-   TSSetIJacobian - Set the function to compute the matrix dF/dU + v*dF/dU_t  + a*dF/dU_tt
+   TSSetI2Jacobian - Set the function to compute the matrix dF/dU + v*dF/dU_t  + a*dF/dU_tt
         where F(t,U,U_t,U_tt) is the function you provided with TSSetI2Function().
 
    Logically Collective on TS
@@ -1501,7 +1501,7 @@ PetscErrorCode TSGetI2Function(TS ts,Vec *r,TSI2Function *fun,void **ctx)
 -  ctx - user-defined context for private data for the Jacobian evaluation routine (may be NULL)
 
    Calling sequence of jac:
-$  jac(TS ts,PetscReal t,Vec U,Vec U_t,Vec U_tt,PetscReal v,PetscReal a,Mat *J,Mat *P,MatStructure *m,void *ctx);
+$  jac(TS ts,PetscReal t,Vec U,Vec U_t,Vec U_tt,PetscReal v,PetscReal a,Mat J,Mat P,void *ctx);
 
 +  t    - time at step/stage being solved
 .  U    - state vector
@@ -1511,8 +1511,6 @@ $  jac(TS ts,PetscReal t,Vec U,Vec U_t,Vec U_tt,PetscReal v,PetscReal a,Mat *J,M
 .  a    - shift for U_tt
 .  J    - Jacobian of G(U) = F(t,U,W+v*U,W'+a*U), equivalent to dF/dU + v*dF/dU_t  + a*dF/dU_tt
 .  P    - preconditioning matrix for J, may be same as J
-.  m    - flag indicating information about the preconditioner matrix
-          structure (same as flag in KSPSetOperators())
 -  ctx  - [optional] user-defined context for matrix evaluation routine
 
    Notes:
@@ -1521,7 +1519,7 @@ $  jac(TS ts,PetscReal t,Vec U,Vec U_t,Vec U_tt,PetscReal v,PetscReal a,Mat *J,M
    The matrix dF/dU + v*dF/dU_t + a*dF/dU_tt you provide turns out to be
    the Jacobian of G(U) = F(t,U,W+v*U,W'+a*U) where F(t,U,U_t,U_tt) = 0 is the DAE to be solved.
    The time integrator internally approximates U_t by W+v*U and U_tt by W'+a*U  where the positive "shift"
-   parameters 'a' and 'b' and vectors W, W' depend on the integration method, step size, and past states.
+   parameters 'v' and 'a' and vectors W, W' depend on the integration method, step size, and past states.
 
    Level: beginner
 
@@ -3510,6 +3508,13 @@ PetscErrorCode TSMonitorDefault(TS ts,PetscInt step,PetscReal ptime,Vec v,PetscV
     PetscMPIInt rank;
     ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)viewer),&rank);CHKERRQ(ierr);
     if (!rank) {
+      PetscBool skipHeader;
+      PetscInt  classid = REAL_FILE_CLASSID;
+
+      ierr = PetscViewerBinaryGetSkipHeader(viewer,&skipHeader);CHKERRQ(ierr);
+      if (!skipHeader) {
+         ierr = PetscViewerBinaryWrite(viewer,&classid,1,PETSC_INT,PETSC_FALSE);CHKERRQ(ierr);
+       }
       ierr = PetscRealView(1,&ptime,viewer);CHKERRQ(ierr);
     } else {
       ierr = PetscRealView(0,&ptime,viewer);CHKERRQ(ierr);
@@ -6411,6 +6416,23 @@ PetscErrorCode  TSMonitorLGSolution(TS ts,PetscInt step,PetscReal ptime,Vec u,vo
     PetscInt      dim;
     ierr = PetscDrawLGGetAxis(ctx->lg,&axis);CHKERRQ(ierr);
     ierr = PetscDrawAxisSetLabels(axis,"Solution as function of time","Time","Solution");CHKERRQ(ierr);
+    if (!ctx->names) {
+      PetscBool flg;
+      /* user provides names of variables to plot but no names has been set so assume names are integer values */
+      ierr = PetscOptionsHasName(((PetscObject)ts)->options,((PetscObject)ts)->prefix,"-ts_monitor_lg_solution_variables",&flg);CHKERRQ(ierr);
+      if (flg) {
+        PetscInt i,n;
+        char     **names;
+        ierr = VecGetSize(u,&n);CHKERRQ(ierr);
+        ierr = PetscMalloc1(n+1,&names);CHKERRQ(ierr);
+        for (i=0; i<n; i++) {
+          ierr = PetscMalloc1(5,&names[i]);CHKERRQ(ierr);
+          ierr = PetscSNPrintf(names[i],5,"%D",i);CHKERRQ(ierr);
+        }
+        names[n] = NULL;
+        ctx->names = names;
+      }
+    }
     if (ctx->names && !ctx->displaynames) {
       char      **displaynames;
       PetscBool flg;
