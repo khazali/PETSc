@@ -97,6 +97,7 @@ typedef struct {
   /* grids & solver */
   DM             dm;
   X2GridParticle particleGrid;
+  PetscBool      inflate_torus;
   /* time */
   PetscInt  msteps;
   PetscReal maxTime;
@@ -1910,11 +1911,11 @@ static void PICellCircleInflate(PetscReal r, PetscReal innerMult, PetscReal x, P
 static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim, const PetscReal abc[], PetscReal xyz[], void *a_ctx)
 {
   X2Ctx *ctx = (X2Ctx*)a_ctx;
-  X2GridParticle *params = &ctx->particleGrid;
-  PetscReal rMajor    = params->rMajor;
-  PetscReal rMinor    = params->rMinor;
-  PetscReal innerMult = params->innerMult;
-  PetscInt  numMajor  = params->numMajor;
+  X2GridParticle *grid = &ctx->particleGrid;
+  PetscReal rMajor    = grid->rMajor;
+  PetscReal rMinor    = grid->rMinor;
+  PetscReal innerMult = grid->innerMult;
+  PetscInt  numMajor  = grid->numMajor;
   PetscInt  i;
   PetscReal a, b, z;
   PetscReal inPhi, outPhi;
@@ -1956,7 +1957,7 @@ static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim,
    * idet = 1./(cosLeftPhi * ny - sinLeftPhi * nx) = sec(Pi/numMajor);
    */
   r -= rMajor; /* now centered inside torus */
-  {
+  if (ctx->inflate_torus) {
     PetscReal absR, absZ;
 
     absR = PetscAbsReal(r);
@@ -2044,9 +2045,11 @@ int main(int argc, char **argv)
   }
   else if (ctx.run_type == X2_TORUS) {
     ierr = DMPlexCreatePICellTorus(ctx.wComm,&ctx.particleGrid,&dmpi->dmgrid);CHKERRQ(ierr);
+    ctx.inflate_torus = PETSC_TRUE;
   }
   else {
     ierr = DMPlexCreatePICellBoxTorus(ctx.wComm,&ctx.particleGrid,&dmpi->dmgrid);CHKERRQ(ierr);
+    ctx.inflate_torus = PETSC_FALSE;
     assert(ctx.run_type == X2_BOXTORUS);
   }
   ierr = DMSetApplicationContext(dmpi->dmgrid, &ctx);CHKERRQ(ierr);
@@ -2096,7 +2099,8 @@ int main(int argc, char **argv)
             ierr = DMForestSetBaseCoordinateMapping(dmpi->dmgrid,GeometryPICellTorus,&ctx);CHKERRQ(ierr);
           }
           else {
-            ierr = DMForestSetBaseCoordinateMapping(dmpi->dmgrid,NULL,&ctx);CHKERRQ(ierr);
+            ierr = DMForestSetBaseCoordinateMapping(dmpi->dmgrid,GeometryPICellTorus,&ctx);CHKERRQ(ierr);
+            assert(ctx.run_type == X2_BOXTORUS);
           }
         }
       }
