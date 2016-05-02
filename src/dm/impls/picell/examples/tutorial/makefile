@@ -22,23 +22,23 @@ H5PART_LIB = /Users/markadams/Codes/H5Part-1.6.6/src/.libs/libH5Part.a
 endif
 
 ex1: ex1.o chkopts
-	-${CLINKER} -o ex1 ex1.o ${PETSC_DM_LIB} ${H5PART_LIB}
+	-${CLINKER} -o ex1.${PETSC_ARCH} ex1.o ${PETSC_DM_LIB} ${H5PART_LIB}
 #	${RM} -f ex1.o
 
 runex1:
 	-echo ${MPIEXEC}
-	-${MPIEXEC} -n ${NP} ./ex1 -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 1 -numMajor 4 -npart_flux_tube 10 -mstep 2 -debug 1 -snes_monitor -snes_converged_reason -collisionPeriod 1 -run_type boxtorus
+	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 1 -numMajor 4 -npart_flux_tube 10 -mstep 2 -debug 1 -snes_monitor -snes_converged_reason -collisionPeriod 1 -run_type boxtorus
 # -iter_vertex_file ITER-51vertex-quad-tri.txt
 # -run_type boxtorus  -bsp_chuncksize 3000
 # -nphi_particles 2
 
-val: ex1
-	-${MPIEXEC} -n ${NP} valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=yes ./ex1 -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 1 -numMajor 4 -npart_flux_tube 10 -mstep 2 -debug 1 -snes_monitor -snes_converged_reason -collisionPeriod 1 -run_type boxtorus
+val:
+	-${MPIEXEC} -n ${NP} valgrind --suppressions=file.supp --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex1.${PETSC_ARCH} -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 1 -numMajor 4 -npart_flux_tube 10 -mstep 2 -debug 1 -snes_monitor -snes_converged_reason -collisionPeriod 1 -run_type boxtorus
 # --vgdb-error=0 
 
 debug:
 #	-${MPIEXEC} -n ${NP} ./ex1  -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 2 -numMajor 4 -npart_flux_tube 10 -mstep 2 -debug 1 -snes_monitor -snes_converged_reason -collisionPeriod 1 -start_in_debugger
-	-@gdb --args ./ex1 -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 2 -numMajor 4 -npart_flux_tube 10 -mstep 2 -debug 1 -snes_monitor -snes_converged_reason -collisionPeriod 1 -start_in_debugger -run_type boxtorus
+	-@gdb --args ./ex1.${PETSC_ARCH} -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 2 -numMajor 4 -npart_flux_tube 10 -mstep 2 -debug 1 -snes_monitor -snes_converged_reason -collisionPeriod 1 -start_in_debugger -run_type boxtorus
 
 
 
