@@ -68,7 +68,8 @@ PetscErrorCode DMSetUp_PICell(DM dm)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  /* We have built dmplex, now create vectors */
+  ierr = DMSetUp(dmpi->dmplex);CHKERRQ(ierr);
+  /* We have built dmgrid, now create vectors */
   ierr = DMSetUp(dmpi->dmgrid);CHKERRQ(ierr); /* build a grid */
   ierr = DMCreateGlobalVector(dmpi->dmgrid, &dmpi->phi);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->phi, "potential");CHKERRQ(ierr);
@@ -163,7 +164,7 @@ PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec rho, PetscInt cell)
   ierr = VecDuplicate(coord, &refCoord);CHKERRQ(ierr);
   ierr = VecGetBlockSize(coord, &dim);CHKERRQ(ierr);
   ierr = VecGetLocalSize(coord, &N);CHKERRQ(ierr);
-  if (N%dim) SETERRQ2(PetscObjectComm((PetscObject) dmpi->dmgrid), PETSC_ERR_SUP, "N=%D dim=%D",N,dim);
+  if (N%dim) SETERRQ2(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_SUP, "N=%D dim=%D",N,dim);
   N   /= dim;
   ierr = VecGetArray(coord, &x);CHKERRQ(ierr);
   ierr = VecGetArray(refCoord, &xi);CHKERRQ(ierr);
@@ -176,7 +177,7 @@ PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec rho, PetscInt cell)
   ierr = PetscFEGetTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
   ierr = VecRestoreArray(refCoord, &xi);CHKERRQ(ierr);
   ierr = VecDestroy(&refCoord);CHKERRQ(ierr);
-  ierr = DMGetDS(dmpi->dmgrid, &prob);CHKERRQ(ierr);
+  ierr = DMGetDS(dmpi->dmplex, &prob);CHKERRQ(ierr);
   ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
   ierr = DMGetWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr); /* use dmplex or dmgrid here? */
   ierr = PetscMemzero(elemVec, totDim * sizeof(PetscScalar));CHKERRQ(ierr);

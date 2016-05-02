@@ -2012,7 +2012,8 @@ int main(int argc, char **argv)
   DM_PICell      *dmpi;
   PetscInt       dim = 3;
   Mat            J;
-  DM             dmConv=0;
+  PetscDS        prob;
+  DMLabel label;
   PetscFunctionBeginUser;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
@@ -2041,55 +2042,42 @@ int main(int argc, char **argv)
   dmpi = (DM_PICell *) ctx.dm->data; assert(dmpi);
   /* setup solver grid */
   if (ctx.run_type == X2_ITER) {
-    ierr = DMPlexCreatePICellITER(ctx.wComm,&ctx.particleGrid,&dmpi->dmgrid);CHKERRQ(ierr);
+    ierr = DMPlexCreatePICellITER(ctx.wComm,&ctx.particleGrid,&dmpi->dmplex);CHKERRQ(ierr);
   }
   else if (ctx.run_type == X2_TORUS) {
-    ierr = DMPlexCreatePICellTorus(ctx.wComm,&ctx.particleGrid,&dmpi->dmgrid);CHKERRQ(ierr);
+    ierr = DMPlexCreatePICellTorus(ctx.wComm,&ctx.particleGrid,&dmpi->dmplex);CHKERRQ(ierr);
     ctx.inflate_torus = PETSC_TRUE;
   }
   else {
-    ierr = DMPlexCreatePICellBoxTorus(ctx.wComm,&ctx.particleGrid,&dmpi->dmgrid);CHKERRQ(ierr);
+    ierr = DMPlexCreatePICellBoxTorus(ctx.wComm,&ctx.particleGrid,&dmpi->dmplex);CHKERRQ(ierr);
     ctx.inflate_torus = PETSC_FALSE;
     assert(ctx.run_type == X2_BOXTORUS);
   }
-  ierr = DMSetApplicationContext(dmpi->dmgrid, &ctx);CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dmgrid, "x2_");CHKERRQ(ierr);
-  /* setup Discretization */
-  ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);
-  CHKERRQ(ierr);
-  ctx.BCFuncs[0] = zero;
-  ierr = DMGetDimension(dmpi->dmgrid, &dim);CHKERRQ(ierr);
-  ierr = PetscFECreateDefault(dmpi->dmgrid, dim, 1, PETSC_FALSE, NULL, -1, &dmpi->fem);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) dmpi->fem, "potential");CHKERRQ(ierr);
+  ierr = DMSetApplicationContext(dmpi->dmplex, &ctx);CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dmplex, "x2_");CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) ctx.dm, "x2_");CHKERRQ(ierr);
+  /* add BCs */
   {
-    DMLabel label;
-    PetscDS prob;
     PetscInt id = 1;
-    ierr = DMGetDS(dmpi->dmgrid, &prob);CHKERRQ(ierr);
-    ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
-    ierr = PetscDSSetResidual(prob, 0, f0_u, f1_u);CHKERRQ(ierr);
-    ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
-    ierr = DMCreateLabel(dmpi->dmgrid, "boundary");CHKERRQ(ierr);
-    ierr = DMGetLabel(dmpi->dmgrid, "boundary", &label);CHKERRQ(ierr);
-    ierr = DMPlexMarkBoundaryFaces(dmpi->dmgrid, label);CHKERRQ(ierr);
-    ierr = DMAddBoundary(dmpi->dmgrid, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx.BCFuncs, 1, &id, &ctx);
-    CHKERRQ(ierr);
+    ierr = DMCreateLabel(dmpi->dmplex, "boundary");CHKERRQ(ierr);
+    ierr = DMGetLabel(dmpi->dmplex, "boundary", &label);CHKERRQ(ierr);
+    ierr = DMPlexMarkBoundaryFaces(dmpi->dmplex, label);CHKERRQ(ierr);
+    ierr = DMAddBoundary(dmpi->dmplex, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx.BCFuncs, 1, &id, &ctx);CHKERRQ(ierr);
+    PetscPrintf(ctx.wComm,"[%D] added BC id=%d\n",ctx.rank,id);
   }
-  {
+  { /* convert to p4est */
     char      convType[256];
     PetscBool flg;
     ierr = PetscOptionsBegin(ctx.wComm, "", "Mesh conversion options", "DMPLEX");CHKERRQ(ierr);
     ierr = PetscOptionsFList("-x2_dm_type","Convert DMPlex to another format (should not be Plex!)","x2.c",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
     ierr = PetscOptionsEnd();
     if (flg) {
-      ierr = DMConvert(dmpi->dmgrid,convType,&dmConv);CHKERRQ(ierr);
-      if (dmConv) {
+      ierr = DMConvert(dmpi->dmplex,convType,&dmpi->dmgrid);CHKERRQ(ierr);
+      if (dmpi->dmgrid) {
         const char *prefix;
         PetscBool isForest;
-        ierr = PetscObjectGetOptionsPrefix((PetscObject)dmpi->dmgrid,&prefix);CHKERRQ(ierr);
-        ierr = PetscObjectSetOptionsPrefix((PetscObject)dmConv,prefix);CHKERRQ(ierr);
-        ierr = DMDestroy(&dmpi->dmgrid);CHKERRQ(ierr);
-        dmpi->dmgrid   = dmConv;
+        ierr = PetscObjectGetOptionsPrefix((PetscObject)dmpi->dmplex,&prefix);CHKERRQ(ierr);
+        ierr = PetscObjectSetOptionsPrefix((PetscObject)dmpi->dmgrid,prefix);CHKERRQ(ierr);
         ierr = DMIsForest(dmpi->dmgrid,&isForest);CHKERRQ(ierr);
         if (isForest) {
           if (ctx.run_type == X2_ITER) {
@@ -2103,18 +2091,32 @@ int main(int argc, char **argv)
             assert(ctx.run_type == X2_BOXTORUS);
           }
         }
+        else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Converted to non Forest?");
       }
+      else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Convert failed?");
     }
+    else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "No Convert to p4est?");
   }
+  /* setup Discretization */
+  ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);
+  CHKERRQ(ierr);
+  ctx.BCFuncs[0] = zero;
+  ierr = DMGetDimension(dmpi->dmgrid, &dim);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dmpi->dmgrid, dim, 1, PETSC_FALSE, NULL, -1, &dmpi->fem);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) dmpi->fem, "potential");CHKERRQ(ierr);
+  /* FEM prob */
+  ierr = DMGetDS(dmpi->dmgrid, &prob);CHKERRQ(ierr);
+  ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
+  ierr = PetscDSSetResidual(prob, 0, f0_u, f1_u);CHKERRQ(ierr);
+  ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
   /* setup DM */
   ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr);
   ierr = DMSetUp( ctx.dm );CHKERRQ(ierr); /* set all up & build initial grid */
-  if (dmConv) {
-    ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); /* low overhead, cached */
-  }
-  else {
-    dmpi->dmplex = 0; assert(0);
-  }
+  ierr = DMView(dmpi->dmgrid,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  /* convert to plex - using the origina plex has a problem */
+  ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
+  ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); /* low overhead, cached */
+  ierr = DMView(dmpi->dmplex,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   /* create SNESS */
   ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
   ierr = SNESSetDM( dmpi->snes, dmpi->dmgrid);CHKERRQ(ierr);
@@ -2124,9 +2126,9 @@ int main(int argc, char **argv)
   ierr = DMSNESSetJacobianLocal(dmpi->dmgrid,  (PetscErrorCode (*)(DM,Vec,Mat,Mat,void*))DMPlexSNESComputeJacobianFEM,&ctx);CHKERRQ(ierr);
   ierr = SNESSetUp( dmpi->snes );CHKERRQ(ierr);
   ierr = DMCreateMatrix(dmpi->dmgrid, &J);CHKERRQ(ierr);
-  ierr = DMPlexSNESComputeJacobianFEM(dmpi->dmgrid, dmpi->phi, J, J, (void*)&ctx);CHKERRQ(ierr);
   ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
-  ierr = MatView(J,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  /* ierr = DMPlexSNESComputeJacobianFEM(dmpi->dmplex, dmpi->phi, J, J, (void*)&ctx);CHKERRQ(ierr); */
+  /* ierr = MatView(J,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
   /* setup particles */
   ierr = createParticles( &ctx );CHKERRQ(ierr);
   ierr = PetscLogEventEnd(ctx.events[3],0,0,0,0);CHKERRQ(ierr);
@@ -2142,6 +2144,7 @@ int main(int argc, char **argv)
 
   /* do it */
   ierr = go( &ctx );CHKERRQ(ierr);
+  ierr = MatView(J,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   PetscPrintf(ctx.wComm,"[%D] done - cleanup\n",ctx.rank);
   /* Cleanup */
   ierr = PetscFEDestroy(&dmpi->fem);CHKERRQ(ierr);
