@@ -757,7 +757,7 @@ static PetscErrorCode destroyParticles(X2Ctx *ctx)
 #ifdef H5PART
 #undef __FUNCT__
 #define __FUNCT__ "X2PListWrite"
-PetscErrorCode X2PListWrite( X2PList l[], PetscInt nLists, PetscMPIInt rank, PetscMPIInt npe, MPI_Comm comm, char fname1[], char fname2[])
+PetscErrorCode X2PListWrite(X2PList l[], PetscInt nLists, PetscMPIInt rank, PetscMPIInt npe, MPI_Comm comm, char fname1[], char fname2[])
 {
   /* PetscErrorCode ierr; */
   double *x=0,*y=0,*z=0,*v=0;
@@ -768,7 +768,7 @@ PetscErrorCode X2PListWrite( X2PList l[], PetscInt nLists, PetscMPIInt rank, Pet
   H5PartFile    *file1,*file2;
   PetscInt       elid;
   PetscFunctionBeginUser;
-  for (nparticles=0,elid=0;elid<ctx->nElems;elid++) {
+  for (nparticles=0,elid=0;elid<nLists;elid++) {
     nparticles += X2PListSize(&l[elid]);
   }
   if (nparticles && (fname1 || fname2)) {
@@ -782,7 +782,7 @@ PetscErrorCode X2PListWrite( X2PList l[], PetscInt nLists, PetscMPIInt rank, Pet
     file1 = H5PartOpenFileParallel(fname1,H5PART_WRITE,comm);assert(file1);
     ierr = H5PartFileIsValid(file1);CHKERRQ(ierr);
     ierr = H5PartSetStep(file1, 0);CHKERRQ(ierr);
-    for (nparticles=0,elid=0;elid<ctx->nElems;elid++) {
+    for (nparticles=0,elid=0;elid<nLists;elid++) {
       ierr = X2PListGetHead( &l[elid], &pos );CHKERRQ(ierr);
       while ( !X2PListGetNext( &l[elid], &part, &pos) ) {
         x[nparticles] = part.r*cos(part.phi);
@@ -807,7 +807,7 @@ PetscErrorCode X2PListWrite( X2PList l[], PetscInt nLists, PetscMPIInt rank, Pet
     // if (rank!=npe-1 && rank!=npe-2) nparticles = 0; /* just write last (two) proc(s) */
     if (rank>=(npe+1)/2) nparticles = 0; /* just write last (two) proc(s) */
     else {
-      for (nparticles=0,elid=0;elid<ctx->nElems;elid++) {
+      for (nparticles=0,elid=0;elid<nLists;elid++) {
         ierr = X2PListGetHead( &l[elid], &pos );CHKERRQ(ierr);
         while ( !X2PListGetNext( &l[elid], &part, &pos) ) {
           x[nparticles] = part.r*cos(part.phi);
@@ -1266,7 +1266,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           sprintf(fname1,"particles_sp%d_time%05d.h5part",isp,istep+1);
           sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",isp,istep+1);
           /* write */
-          ierr = X2PListWrite( &ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
+          ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
         }
       }
     }
