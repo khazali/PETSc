@@ -855,7 +855,8 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
 {
   PetscErrorCode ierr;
   const int part_dsize = sizeof(X2Particle)/sizeof(double);
-  PetscInt sz,ii,jj,kk,mm,idx,elid;
+  PetscInt ii,jj,kk,mm,idx,elid;
+  int sz;
   DM dm;
   DM_PICell *dmpi;
   PetscFunctionBeginUser;
