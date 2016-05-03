@@ -18,7 +18,6 @@ typedef struct {
   DM   dmplex;
   Vec  phi;
   Vec  rho;
-  /* Vec grad; */
   SNES snes;
   PetscFE fem;
 } DM_PICell;
