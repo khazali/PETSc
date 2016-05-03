@@ -2013,7 +2013,6 @@ int main(int argc, char **argv)
   DM_PICell      *dmpi;
   PetscInt       dim = 3;
   Mat            J;
-  PetscDS        prob;
   DMLabel label;
   PetscFunctionBeginUser;
 
@@ -2106,10 +2105,10 @@ int main(int argc, char **argv)
   ierr = PetscFECreateDefault(dmpi->dmgrid, dim, 1, PETSC_FALSE, NULL, -1, &dmpi->fem);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->fem, "potential");CHKERRQ(ierr);
   /* FEM prob */
-  ierr = DMGetDS(dmpi->dmgrid, &prob);CHKERRQ(ierr);
-  ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
-  ierr = PetscDSSetResidual(prob, 0, f0_u, f1_u);CHKERRQ(ierr);
-  ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
+  ierr = DMGetDS(dmpi->dmgrid, &dmpi->prob);CHKERRQ(ierr);
+  ierr = PetscDSSetDiscretization(dmpi->prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
+  ierr = PetscDSSetResidual(dmpi->prob, 0, f0_u, f1_u);CHKERRQ(ierr);
+  ierr = PetscDSSetJacobian(dmpi->prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
   /* setup DM */
   ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr);
   ierr = DMSetUp( ctx.dm );CHKERRQ(ierr); /* set all up & build initial grid */
@@ -2117,7 +2116,9 @@ int main(int argc, char **argv)
   /* convert to plex - using the origina plex has a problem */
   ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
   ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); /* low overhead, cached */
-  ierr = DMView(dmpi->dmplex,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  /* get section */
+  ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &dmpi->section);CHKERRQ(ierr);
+  ierr = PetscSectionView(dmpi->section,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   /* create SNESS */
   ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
   ierr = SNESSetDM( dmpi->snes, dmpi->dmgrid);CHKERRQ(ierr);

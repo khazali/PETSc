@@ -20,6 +20,8 @@ typedef struct {
   Vec  rho;
   SNES snes;
   PetscFE fem;
+  PetscSection section;
+  PetscDS        prob;
 } DM_PICell;
 
 #endif /* _PICELLIMPL_H */

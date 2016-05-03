@@ -37,7 +37,7 @@ val:
 # --vgdb-error=0
 
 debug:
-#	-${MPIEXEC} -n ${NP} ./ex1  -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 2 -numMajor 4 -npart_flux_tube 10 -mstep 2 -debug 1 -snes_monitor -snes_converged_reason -collisionPeriod 1 -start_in_debugger
+#	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH}  -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 2 -numMajor 4 -npart_flux_tube 10 -mstep 2 -debug 1 -snes_monitor -snes_converged_reason -collisionPeriod 1 -start_in_debugger
 	-@gdb --args ./ex1.${PETSC_ARCH} -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 2 -numMajor 4 -npart_flux_tube 10 -mstep 2 -debug 1 -snes_monitor -snes_converged_reason -collisionPeriod 1 -start_in_debugger -run_type boxtorus
 
 

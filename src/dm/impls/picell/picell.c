@@ -151,12 +151,10 @@ PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec src, PetscInt cell)
   DM_PICell    *dmpi = (DM_PICell *) a_dm->data;
   Vec          refCoord;
   PetscScalar  *x, *xi, *elemVec;
-  PetscDS      prob;
   PetscReal    *B = NULL;
   PetscReal    v0[3], J[9], invJ[9], detJ;
   PetscInt     totDim,p,N,dim,b;
   PetscErrorCode ierr;
-  PetscSection section;
   PetscFunctionBegin;
   PetscValidHeaderSpecific(a_dm, DM_CLASSID, 1);
   PetscValidHeaderSpecific(coord, VEC_CLASSID, 2);
@@ -177,9 +175,8 @@ PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec src, PetscInt cell)
   ierr = PetscFEGetTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
   ierr = VecRestoreArray(refCoord, &xi);CHKERRQ(ierr);
   ierr = VecDestroy(&refCoord);CHKERRQ(ierr);
-  ierr = DMGetDS(dmpi->dmplex, &prob);CHKERRQ(ierr);
-  ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
-  ierr = DMGetWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
+  ierr = PetscDSGetTotalDimension(dmpi->prob, &totDim);CHKERRQ(ierr);
+  ierr = DMGetWorkArray(dmpi->dmgrid, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscMemzero(elemVec, totDim * sizeof(PetscScalar));CHKERRQ(ierr);
   ierr = VecGetArray(src, &x);CHKERRQ(ierr);
   for (b = 0; b < totDim; ++b) {
@@ -188,9 +185,8 @@ PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec src, PetscInt cell)
     }
   }
   ierr = VecRestoreArray(src, &x);CHKERRQ(ierr);
-  ierr = DMGetDefaultGlobalSection(dmpi->dmplex, &section);CHKERRQ(ierr);
-  ierr = DMPlexVecSetClosure(dmpi->dmplex, section, dmpi->rho, cell, elemVec, ADD_ALL_VALUES);CHKERRQ(ierr);
-  ierr = DMRestoreWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
+  ierr = DMPlexVecSetClosure(dmpi->dmplex, dmpi->section, dmpi->rho, cell, elemVec, ADD_VALUES);CHKERRQ(ierr);
+  ierr = DMRestoreWorkArray(dmpi->dmgrid, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscFERestoreTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
