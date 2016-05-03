@@ -21,7 +21,8 @@ typedef struct {
   SNES snes;
   PetscFE fem;
   PetscSection section;
-  PetscDS        prob;
+  PetscDS prob;
+  PetscInt debug;   /* The debugging level */
 } DM_PICell;
 
 #endif /* _PICELLIMPL_H */

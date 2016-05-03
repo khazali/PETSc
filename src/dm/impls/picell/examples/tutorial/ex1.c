@@ -15,6 +15,7 @@ static float s_wallVtx[X2_WALL_ARRAY_MAX][2];
 static int s_numWallPtx;
 static int s_numQuads;
 static int s_quad_vertex[X2_WALL_ARRAY_MAX][9];
+static PetscInt s_debug;
 typedef enum {X2_ITER,X2_TORUS,X2_BOXTORUS} runType;
 typedef struct {
   /* particle grid sizes */
@@ -86,7 +87,6 @@ typedef struct X2ISend_TAG{
   General parameters and context
 */
 typedef struct {
-  PetscInt      debug;   /* The debugging level */
   PetscLogEvent events[12];
   PetscInt      currevent;
   PetscInt      bsp_chuncksize;
@@ -484,8 +484,8 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
 
   ierr = PetscOptionsBegin(ctx->wComm, "", "Poisson Problem Options", "X2");CHKERRQ(ierr);
   /* general options */
-  ctx->debug = 0;
-  ierr = PetscOptionsInt("-debug", "The debugging level", "x2.c", ctx->debug, &ctx->debug, NULL);CHKERRQ(ierr);
+  s_debug = 0;
+  ierr = PetscOptionsInt("-debug", "The debugging level", "x2.c", s_debug, &s_debug, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-chuncksize", "Size of particle list to chunk sends", "x2.c", s_chunksize, &s_chunksize,&flg);CHKERRQ(ierr);
   if (flg) s_chunksize = (X2_V_LEN*s_chunksize)/X2_V_LEN;
   ctx->bsp_chuncksize = 0; /* 32768; */
@@ -1260,7 +1260,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
                 istep+1,irk<0 ? "processed" : "pushed", origNlocal, rb[0], 100.*(double)rb[1]/(double)rb[0], rb[2], ctx->tablecount[1]);
 #ifdef H5PART
     if (irk>=0) {
-      if (ctx->debug>1) {
+      if (s_debug>1) {
         for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) {
           char  fname1[256],fname2[256];
           /* hdf5 output */
@@ -1413,7 +1413,7 @@ PetscErrorCode go( X2Ctx *ctx )
 
   /* hdf5 output - init */
 #ifdef H5PART
-  if (ctx->debug>1) {
+  if (s_debug>1) {
     for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
       char  fname1[256],fname2[256];
       sprintf(fname1,"particles_sp%d_time%05d.h5part",isp,0);
@@ -1436,7 +1436,7 @@ PetscErrorCode go( X2Ctx *ctx )
       CHKERRQ(ierr);
       /* call collision method */
 #ifdef H5PART
-      if (ctx->debug>0) {
+      if (s_debug>0) {
         for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
           char  fname1[256], fname2[256];
           sprintf(fname1,         "particles_sp%d_time%05d_fluxtube.h5part",isp,istep);
@@ -2040,6 +2040,7 @@ int main(int argc, char **argv)
   ierr = DMSetApplicationContext(ctx.dm, &ctx);CHKERRQ(ierr);
   ierr = DMSetType(ctx.dm, DMPICELL);CHKERRQ(ierr); /* creates (DM_PICell *) dm->data */
   dmpi = (DM_PICell *) ctx.dm->data; assert(dmpi);
+  dmpi->debug = s_debug;
   /* setup solver grid */
   if (ctx.run_type == X2_ITER) {
     ierr = DMPlexCreatePICellITER(ctx.wComm,&ctx.particleGrid,&dmpi->dmplex);CHKERRQ(ierr);
@@ -2112,13 +2113,17 @@ int main(int argc, char **argv)
   /* setup DM */
   ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr);
   ierr = DMSetUp( ctx.dm );CHKERRQ(ierr); /* set all up & build initial grid */
-  ierr = DMView(dmpi->dmgrid,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  if (dmpi->debug>0) {
+    ierr = DMView(dmpi->dmgrid,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  }
   /* convert to plex - using the origina plex has a problem */
   ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
   ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); /* low overhead, cached */
   /* get section */
   ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &dmpi->section);CHKERRQ(ierr);
-  ierr = PetscSectionView(dmpi->section,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  if (dmpi->debug>1) {
+    ierr = PetscSectionView(dmpi->section,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  }
   /* create SNESS */
   ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
   ierr = SNESSetDM( dmpi->snes, dmpi->dmgrid);CHKERRQ(ierr);
@@ -2146,7 +2151,9 @@ int main(int argc, char **argv)
 
   /* do it */
   ierr = go( &ctx );CHKERRQ(ierr);
-  ierr = MatView(J,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  if (dmpi->debug>1) {
+    ierr = MatView(J,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  }
   PetscPrintf(ctx.wComm,"[%D] done - cleanup\n",ctx.rank);
   /* Cleanup */
   ierr = PetscFEDestroy(&dmpi->fem);CHKERRQ(ierr);
