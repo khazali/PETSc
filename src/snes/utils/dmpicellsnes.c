@@ -14,7 +14,6 @@ PetscErrorCode DMPICellSolve(DM dm)
 
   /* solve for potential and zero density for next solve */
   ierr = SNESSolve(dmpi->snes, dmpi->rho, dmpi->phi);CHKERRQ(ierr);
-  ierr = VecZeroEntries(dmpi->rho);CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }

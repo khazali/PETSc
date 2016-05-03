@@ -1062,6 +1062,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
   nslist = 0;
   nmoved = 0;
   nlistsTot = origNlocal = 0;
+  if (irk>=0) {
+    ierr = VecZeroEntries(dmpi->rho);CHKERRQ(ierr); /* zero density to get ready for next deposition */
+  }
   /* push particles, if necc., and make send lists */
   for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) {
     /* loop over element particle lists */
