@@ -1995,7 +1995,7 @@ void f0_u(PetscInt dim, PetscInt Nf, PetscInt NfAux,
           const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
           PetscReal t, const PetscReal x[], PetscScalar f0[])
 {
-  f0[0] = 4.0;
+  f0[0] = 4.;
 }
 /* gradU[comp*dim+d] = {u_x, u_y} or {u_x, u_y, u_z} */
 void f1_u(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -2067,7 +2067,6 @@ int main(int argc, char **argv)
     ierr = DMGetLabel(dmpi->dmplex, "boundary", &label);CHKERRQ(ierr);
     ierr = DMPlexMarkBoundaryFaces(dmpi->dmplex, label);CHKERRQ(ierr);
     ierr = DMAddBoundary(dmpi->dmplex, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx.BCFuncs, 1, &id, &ctx);CHKERRQ(ierr);
-    PetscPrintf(ctx.wComm,"[%D] added BC id=%d\n",ctx.rank,id);
   }
   { /* convert to p4est */
     char      convType[256];
@@ -2106,7 +2105,8 @@ int main(int argc, char **argv)
   CHKERRQ(ierr);
   ctx.BCFuncs[0] = zero;
   ierr = DMGetDimension(dmpi->dmgrid, &dim);CHKERRQ(ierr);
-  ierr = PetscFECreateDefault(dmpi->dmgrid, dim, 1, PETSC_FALSE, NULL, -1, &dmpi->fem);CHKERRQ(ierr);
+  /* PetscFECreateDefault(DM dm, PetscInt dim, PetscInt numComp, PetscBool isSimplex, const char prefix[], PetscInt qorder, PetscFE *fem) */
+  ierr = PetscFECreateDefault(dmpi->dmgrid, dim, 1, PETSC_FALSE, NULL, 1, &dmpi->fem);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->fem, "potential");CHKERRQ(ierr);
   /* FEM prob */
   ierr = DMGetDS(dmpi->dmgrid, &dmpi->prob);CHKERRQ(ierr);
