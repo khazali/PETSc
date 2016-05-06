@@ -6232,6 +6232,112 @@ PetscErrorCode DMProjectFieldLocal(DM dm, Vec localU,
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "DMProjectFunctionLabel"
+/*@C
+  DMProjectFunctionLabel - This projects the given function into the function space provided, but only affects values associated with points in a given label
+
+  Input Parameters:
++ dm      - The DM
+. time    - The time
+. label   - The label
+. numIds  - The number of label values that define the region of projection
+. ids     - The label values that define the region of projection: points outside of this region are not affected (and must be initialized separately)
+. funcs   - The coordinate functions to evaluate, one per field
+. ctxs    - Optional array of contexts to pass to each coordinate function.  ctxs itself may be null.
+- mode    - The insertion mode for values
+
+  Output Parameter:
+. X - vector
+
+   Calling sequence of func:
+$    func(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar u[], void *ctx);
+
++  dim - The spatial dimension
+.  x   - The coordinates
+.  Nf  - The number of fields
+.  u   - The output field values
+-  ctx - optional user-defined function context
+
+  Level: developer
+
+.seealso: DMComputeL2Diff()
+@*/
+PetscErrorCode DMProjectFunctionLabel(DM dm, PetscReal time, DMLabel label, PetscInt numIds, const PetscInt ids[], PetscErrorCode (**funcs)(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *), void **ctxs, InsertMode mode, Vec X)
+{
+  Vec            localX;
+  IS             domainIS;
+  const PetscInt *domain;
+  const PetscInt *leaves;
+  PetscInt       domainSize, nleaves;
+  PetscSF        defaultSF, embeddedSF = NULL;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (!numIds) PetscFunctionReturn(0);
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  ierr = DMGetLocalVector(dm, &localX);CHKERRQ(ierr);
+  ierr = VecSet(localX, 0.0);CHKERRQ(ierr);
+  ierr = DMProjectFunctionLabelLocal(dm, time, label, numIds, ids, funcs, ctxs, mode, localX);CHKERRQ(ierr);
+
+  /* we need to ensure that only the values in the local vector that are in the label are transfered to the global
+   * vector */
+  ierr = DMLabelGetStratumIS(label, ids[0], &domainIS);CHKERRQ(ierr);
+  if (numIds > 1) {
+    PetscInt i;
+
+    for (i = 1; i < numIds; i++) {
+      IS valueIS, unionIS;
+
+      ierr = DMLabelGetStratumIS(label,ids[i],&valueIS);CHKERRQ(ierr);
+      ierr = ISSum(domainIS,valueIS,&unionIS);CHKERRQ(ierr);
+      ierr = ISDestroy(&domainIS);CHKERRQ(ierr);
+      ierr = ISDestroy(&valueIS);CHKERRQ(ierr);
+
+      domainIS = unionIS;
+    }
+  }
+  defaultSF = dm->defaultSF;
+
+  ierr = ISGetLocalSize(domainIS,&domainSize);CHKERRQ(ierr);
+  ierr = ISGetIndices(domainIS,&domain);CHKERRQ(ierr);
+  ierr = PetscSFSetUp(defaultSF);CHKERRQ(ierr);
+  ierr = PetscSFGetGraph(defaultSF,NULL,&nleaves,&leaves,NULL);CHKERRQ(ierr);
+  if (nleaves >= 0) {
+    PetscInt nIsect, *isect, i;
+    IS       isectIS;
+
+    ierr = PetscMalloc1(domainSize,&isect);CHKERRQ(ierr);
+    for (i = 0, nIsect = 0; i < nleaves; i++) {
+      PetscInt location, leaf = leaves ? leaves[i] : i;
+
+      ierr = PetscFindInt(leaf, domainSize, domain, &location);CHKERRQ(ierr);
+      if (location >= 0) isect[nIsect++] = leaf;
+    }
+    ierr = ISCreateGeneral(PETSC_COMM_SELF,nIsect,isect,PETSC_COPY_VALUES,&isectIS);CHKERRQ(ierr);
+    ierr = PetscFree(isect);CHKERRQ(ierr);
+    ierr = ISDestroy(&domainIS);CHKERRQ(ierr);
+
+    domainIS = isectIS;
+
+    ierr = ISGetLocalSize(domainIS,&domainSize);CHKERRQ(ierr);
+    ierr = ISGetIndices(domainIS,&domain);CHKERRQ(ierr);
+    ierr = PetscSFCreateEmbeddedLeafSF(dm->defaultSF,domainSize,domain,&embeddedSF);CHKERRQ(ierr);
+    ierr = ISRestoreIndices(domainIS,&domain);CHKERRQ(ierr);
+
+    dm->defaultSF = embeddedSF;
+  }
+  ierr = DMLocalToGlobalBegin(dm, localX, mode, X);CHKERRQ(ierr);
+  ierr = DMLocalToGlobalEnd(dm, localX, mode, X);CHKERRQ(ierr);
+  ierr = DMRestoreLocalVector(dm, &localX);CHKERRQ(ierr);
+
+  dm->defaultSF = defaultSF;
+
+  ierr = PetscSFDestroy(&embeddedSF);CHKERRQ(ierr);
+  ierr = ISDestroy(&domainIS);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "DMProjectFunctionLabelLocal"
 PetscErrorCode DMProjectFunctionLabelLocal(DM dm, PetscReal time, DMLabel label, PetscInt numIds, const PetscInt ids[], PetscErrorCode (**funcs)(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *), void **ctxs, InsertMode mode, Vec localX)
 {
