@@ -6268,8 +6268,9 @@ PetscErrorCode DMProjectFunctionLabel(DM dm, PetscReal time, DMLabel label, Pets
   IS             domainIS;
   const PetscInt *domain;
   const PetscInt *leaves;
-  PetscInt       domainSize, nleaves;
+  PetscInt       domainSize, nleaves, maxDof, layoutSize, pStart, pEnd, nIsect, *isect, i;
   PetscSF        defaultSF, embeddedSF = NULL;
+  PetscSection   section;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -6296,44 +6297,48 @@ PetscErrorCode DMProjectFunctionLabel(DM dm, PetscReal time, DMLabel label, Pets
       domainIS = unionIS;
     }
   }
-  defaultSF = dm->defaultSF;
+  ierr = DMGetDefaultSF(dm,&defaultSF);CHKERRQ(ierr);
+  ierr = DMGetDefaultSection(dm,&section);CHKERRQ(ierr);
+  ierr = PetscSectionGetMaxDof(section,&maxDof);CHKERRQ(ierr);
+  ierr = PetscSectionGetStorageSize(section,&layoutSize);CHKERRQ(ierr);
+  ierr = PetscSectionGetChart(section,&pStart,&pEnd);CHKERRQ(ierr);
 
   ierr = ISGetLocalSize(domainIS,&domainSize);CHKERRQ(ierr);
   ierr = ISGetIndices(domainIS,&domain);CHKERRQ(ierr);
   ierr = PetscSFSetUp(defaultSF);CHKERRQ(ierr);
   ierr = PetscSFGetGraph(defaultSF,NULL,&nleaves,&leaves,NULL);CHKERRQ(ierr);
-  if (nleaves >= 0) {
-    PetscInt nIsect, *isect, i;
-    IS       isectIS;
+  ierr = PetscMalloc1(PetscMin(domainSize*maxDof,layoutSize),&isect);CHKERRQ(ierr);
+  for (i = 0, nIsect = 0; i < domainSize; i++) {
+    PetscInt point = domain[i], dof, off, j;
 
-    ierr = PetscMalloc1(domainSize,&isect);CHKERRQ(ierr);
-    for (i = 0, nIsect = 0; i < nleaves; i++) {
-      PetscInt location, leaf = leaves ? leaves[i] : i;
+    ierr = PetscSectionGetDof(section,point,&dof);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(section,point,&off);CHKERRQ(ierr);
+    for (j = 0; j < dof; j++) {
+      PetscInt idx = off + j;
+      PetscInt location;
 
-      ierr = PetscFindInt(leaf, domainSize, domain, &location);CHKERRQ(ierr);
-      if (location >= 0) isect[nIsect++] = leaf;
+      if (leaves) {
+        ierr = PetscFindInt(idx, nleaves, leaves, &location);CHKERRQ(ierr);
+      }
+      else {
+        location = idx > nleaves ? -2 : idx;
+      }
+      if (location >= 0) isect[nIsect++] = location;
     }
-    ierr = ISCreateGeneral(PETSC_COMM_SELF,nIsect,isect,PETSC_COPY_VALUES,&isectIS);CHKERRQ(ierr);
-    ierr = PetscFree(isect);CHKERRQ(ierr);
-    ierr = ISDestroy(&domainIS);CHKERRQ(ierr);
-
-    domainIS = isectIS;
-
-    ierr = ISGetLocalSize(domainIS,&domainSize);CHKERRQ(ierr);
-    ierr = ISGetIndices(domainIS,&domain);CHKERRQ(ierr);
-    ierr = PetscSFCreateEmbeddedLeafSF(dm->defaultSF,domainSize,domain,&embeddedSF);CHKERRQ(ierr);
-    ierr = ISRestoreIndices(domainIS,&domain);CHKERRQ(ierr);
-
-    dm->defaultSF = embeddedSF;
   }
+  ierr = ISRestoreIndices(domainIS,&domain);CHKERRQ(ierr);
+  ierr = ISDestroy(&domainIS);CHKERRQ(ierr);
+  ierr = PetscSFCreateEmbeddedLeafSF(defaultSF,nIsect,isect,&embeddedSF);CHKERRQ(ierr);
+
+  dm->defaultSF = embeddedSF;
+
   ierr = DMLocalToGlobalBegin(dm, localX, mode, X);CHKERRQ(ierr);
   ierr = DMLocalToGlobalEnd(dm, localX, mode, X);CHKERRQ(ierr);
-  ierr = DMRestoreLocalVector(dm, &localX);CHKERRQ(ierr);
 
   dm->defaultSF = defaultSF;
 
   ierr = PetscSFDestroy(&embeddedSF);CHKERRQ(ierr);
-  ierr = ISDestroy(&domainIS);CHKERRQ(ierr);
+  ierr = DMRestoreLocalVector(dm, &localX);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
