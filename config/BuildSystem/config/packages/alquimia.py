@@ -4,7 +4,7 @@ import os
 class Configure(config.package.CMakePackage):
   def __init__(self, framework):
     config.package.CMakePackage.__init__(self, framework)
-    self.gitcommit         = 'v1.0.2'
+    self.gitcommit         = 'v1.0.3'
     self.download          = ['https://github.com/LBL-EESA/alquimia-dev/archive/'+self.gitcommit+'.tar.gz','git://https://github.com/LBL-EESA/alquimia-dev.git']
     self.functions         = []
     self.includes          = []
@@ -18,11 +18,22 @@ class Configure(config.package.CMakePackage):
   def setupDependencies(self, framework):
     config.package.CMakePackage.setupDependencies(self, framework)
     self.compilerFlags = framework.require('config.compilerFlags', self)
+    self.sharedLibraries = framework.require('PETSc.options.sharedLibraries', self)
     self.installdir    = framework.require('PETSc.options.installDir',  self)
     self.petscdir      = framework.require('PETSc.options.petscdir', self.setCompilers)
     self.mpi           = framework.require('config.packages.MPI', self)
     self.hdf5          = framework.require('config.packages.hdf5', self)
     self.pflotran      = framework.require('config.packages.pflotran', self)
+    self.hypre         = framework.require('config.packages.hypre', self)
+    self.x             = framework.require('config.packages.X', self)
+    self.ssl           = framework.require('config.packages.ssl', self)
+    self.exodusii      = framework.require('config.packages.exodusii', self)
+    self.blasLapack    = framework.require('config.packages.BlasLapack', self)
+    self.superludist   = framework.require('config.packages.SuperLU_DIST', self)
+    self.metis         = framework.require('config.packages.metis', self)
+    self.parmetis      = framework.require('config.packages.parmetis', self)
+    self.trilinos      = framework.require('config.packages.Trilinos', self)
+    self.netcdf        = framework.require('config.packages.netcdf', self)
     self.deps          = [self.mpi, self.hdf5, self.pflotran]
     return
 
@@ -60,8 +71,9 @@ class Configure(config.package.CMakePackage):
       args.append('-DCMAKE_BUILD_TYPE=RELEASE')
       args.append('-DXSDK_ENABLE_DEBUG=NO')
 
+    plibs = self.exodusii.lib+self.superludist.lib+self.trilinos.lib+self.parmetis.lib+self.metis.lib+self.hypre.lib+self.hdf5.lib+self.netcdf.lib+self.blasLapack.lib+self.ssl.lib+self.x.lib
+    plibs.append(self.compilers.LIBS)
 
-    plibs = self.hdf5.lib
     if self.framework.argDB['prefix']:
        idir = os.path.join(self.installdir.dir,'lib')
     else:
@@ -70,7 +82,7 @@ class Configure(config.package.CMakePackage):
       plibs = self.libraries.toStringNoDupes(['-L'+idir,' -lpetsc']+plibs)
     else:
       plibs = self.libraries.toStringNoDupes(['-L'+idir,'-lpetscts -lpetscsnes -lpetscksp -lpetscdm -lpetscmat -lpetscvec -lpetscsys']+plibs)
-
+    self.dlib = plibs
     args.append('-DTPL_PETSC_LDFLAGS="'+plibs+'"')
     args.append('-DTPL_PETSC_INCLUDE_DIRS="'+os.path.join(self.petscdir.dir,'include')+';'+';'.join(self.hdf5.include)+'"')
 
@@ -83,6 +95,7 @@ class Configure(config.package.CMakePackage):
     #alquimia cmake requires PETSc environmental variables
     os.environ['PETSC_DIR']  = self.petscdir.dir
     os.environ['PETSC_ARCH'] = self.arch
+
     config.package.CMakePackage.Install(self)
     if not self.argDB['with-batch']:
       try:
