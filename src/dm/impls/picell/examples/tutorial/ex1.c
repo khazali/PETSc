@@ -2114,8 +2114,8 @@ int main(int argc, char **argv)
   ierr = PetscDSSetResidual(dmpi->prob, 0, f0_u, f1_u);CHKERRQ(ierr);
   ierr = PetscDSSetJacobian(dmpi->prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
   /* setup DM */
-  ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr);
-  ierr = DMSetUp( ctx.dm );CHKERRQ(ierr); /* set all up & build initial grid */
+  ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr); /* refinement done here */
+  ierr = DMSetUp( ctx.dm );CHKERRQ(ierr);
   if (dmpi->debug>0) {
     ierr = DMView(dmpi->dmgrid,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
