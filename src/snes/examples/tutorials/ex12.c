@@ -270,6 +270,15 @@ static PetscErrorCode quadratic_u_3d(PetscInt dim, PetscReal time, const PetscRe
   return 0;
 }
 
+static PetscErrorCode obstacle_2d(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+{
+  const PetscReal r = PetscSqr(x[0]) + PetscSqr(x[1]);
+
+  if (r < 1.0) {u[0] = 1 - r;}
+  else         {u[0] = 0.0;}
+  return 0;
+}
+
 #undef __FUNCT__
 #define __FUNCT__ "ProcessOptions"
 static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
@@ -750,7 +759,7 @@ int main(int argc, char **argv)
   JacActionCtx   userJ;       /* context for Jacobian MF action */
   PetscInt       its;         /* iterations for convergence */
   PetscReal      error = 0.0; /* L_2 error in the solution */
-  PetscBool      isFAS;
+  PetscBool      isFAS, isVI;
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL,help);if (ierr) return ierr;
@@ -799,6 +808,22 @@ int main(int argc, char **argv)
 
   ierr = DMPlexSetSNESLocalFEM(dm,&user,&user,&user);CHKERRQ(ierr);
   ierr = SNESSetJacobian(snes, A, J, NULL, NULL);CHKERRQ(ierr);
+
+  /* -snes_type vinewtonrsls */
+  ierr = PetscObjectTypeCompare(snes, SNESVINEWTONRSLS, &isVI);CHKERRQ(ierr);
+  if (isVI) {
+    PetscErrorCode (*funcs[1])(PetscInt,PetscReal,const PetscReal[],PetscInt,PetscScalar,void*) = {obstacle_2d};
+    void            *ctxs[1] = {NULL};
+    Vec              lower, upper;
+
+    ierr = DMCreateGlobalVector(dm, &lower);CHKERRQ(ierr);
+    ierr = DMCreateGlobalVector(dm, &upper);CHKERRQ(ierr);
+    ierr = DMProjectFunction(dm, 0.0, funcs, ctxs, INSERT_VALUES, lower);CHKERRQ(ierr);
+    ierr = VecSet(upper, PETSC_INFINITY);CHKERRQ(ierr);
+    ierr = SNESVISetVariableBounds(snes, lower, upper);CHKERRQ(ierr);
+    ierr = VecDestroy(&lower);CHKERRQ(ierr);
+    ierr = VecDestroy(&upper);CHKERRQ(ierr);
+  }
 
   ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
 
