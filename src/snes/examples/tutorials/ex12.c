@@ -810,9 +810,9 @@ int main(int argc, char **argv)
   ierr = SNESSetJacobian(snes, A, J, NULL, NULL);CHKERRQ(ierr);
 
   /* -snes_type vinewtonrsls */
-  ierr = PetscObjectTypeCompare(snes, SNESVINEWTONRSLS, &isVI);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject) snes, SNESVINEWTONRSLS, &isVI);CHKERRQ(ierr);
   if (isVI) {
-    PetscErrorCode (*funcs[1])(PetscInt,PetscReal,const PetscReal[],PetscInt,PetscScalar,void*) = {obstacle_2d};
+    PetscErrorCode (*funcs[1])(PetscInt,PetscReal,const PetscReal[],PetscInt,PetscScalar*,void*) = {obstacle_2d};
     void            *ctxs[1] = {NULL};
     Vec              lower, upper;
 
