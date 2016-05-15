@@ -759,7 +759,7 @@ int main(int argc, char **argv)
   JacActionCtx   userJ;       /* context for Jacobian MF action */
   PetscInt       its;         /* iterations for convergence */
   PetscReal      error = 0.0; /* L_2 error in the solution */
-  PetscBool      isFAS, isVI;
+  PetscBool      isFAS, isVIRS, isVISS;
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL,help);if (ierr) return ierr;
@@ -810,8 +810,9 @@ int main(int argc, char **argv)
   ierr = SNESSetJacobian(snes, A, J, NULL, NULL);CHKERRQ(ierr);
 
   /* -snes_type vinewtonrsls */
-  ierr = PetscObjectTypeCompare((PetscObject) snes, SNESVINEWTONRSLS, &isVI);CHKERRQ(ierr);
-  if (isVI) {
+  ierr = PetscObjectTypeCompare((PetscObject) snes, SNESVINEWTONRSLS, &isVIRS);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject) snes, SNESVINEWTONSSLS, &isVISS);CHKERRQ(ierr);
+  if (isVIRS || isVISS) {
     PetscErrorCode (*funcs[1])(PetscInt,PetscReal,const PetscReal[],PetscInt,PetscScalar*,void*) = {obstacle_2d};
     void            *ctxs[1] = {NULL};
     Vec              lower, upper;
