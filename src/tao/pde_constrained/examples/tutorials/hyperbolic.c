@@ -125,9 +125,8 @@ int main(int argc, char **argv)
 #if defined(PETSC_USE_LOG)
   PetscLogStage      stages[1];
 #endif
-  
-  PetscInitialize(&argc, &argv, (char*)0,help);
 
+  ierr = PetscInitialize(&argc, &argv, (char*)0,help);if (ierr) return ierr;
   user.mx = 32;
   ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,NULL,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-mx","Number of grid points in each direction","",user.mx,&user.mx,NULL);CHKERRQ(ierr);
@@ -198,11 +197,8 @@ int main(int argc, char **argv)
   ierr = TaoSetObjectiveRoutine(tao, FormFunction, (void *)&user);CHKERRQ(ierr);
   ierr = TaoSetGradientRoutine(tao, FormGradient, (void *)&user);CHKERRQ(ierr);
   ierr = TaoSetConstraintsRoutine(tao, user.c, FormConstraints, (void *)&user);CHKERRQ(ierr);
-
   ierr = TaoSetJacobianStateRoutine(tao, user.Js, user.Js, user.JsInv, FormJacobianState, (void *)&user);CHKERRQ(ierr);
-
   ierr = TaoSetJacobianDesignRoutine(tao, user.Jd, FormJacobianDesign, (void *)&user);CHKERRQ(ierr);
-
   ierr = TaoSetFromOptions(tao);CHKERRQ(ierr);
   ierr = TaoSetStateDesignIS(tao,user.s_is,user.d_is);CHKERRQ(ierr);
 
@@ -224,7 +220,7 @@ int main(int argc, char **argv)
   ierr = PetscPrintf(PETSC_COMM_WORLD,"KSP iterations within initialization: ");CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"%D\n",user.ksp_its_initial);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"Total KSP iterations over %D trial(s): ",ntests);CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"%D\n",user.ksp_its);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"%D\n",user.ksp_its);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"KSP iterations per trial: ");CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"%D\n",(user.ksp_its-user.ksp_its_initial)/ntests);CHKERRQ(ierr);
 
@@ -561,7 +557,7 @@ PetscErrorCode StateMatInvMult(Mat J_shell, Vec X, Vec Y)
   }
   ierr = Scatter_yi(X,user->yi,user->yi_scatter,user->nt);CHKERRQ(ierr);
   ierr = Scatter_yi(Y,user->yiwork,user->yi_scatter,user->nt);CHKERRQ(ierr);
-  ierr = Scatter_uxi_uyi(user->u,user->uxi,user->uxi_scatter,user->uyi,user->uyi_scatter,user->nt);
+  ierr = Scatter_uxi_uyi(user->u,user->uxi,user->uxi_scatter,user->uyi,user->uyi_scatter,user->nt);CHKERRQ(ierr);
 
   user->block_index = 0;
   ierr = KSPSolve(user->solver,user->yi[0],user->yiwork[0]);CHKERRQ(ierr);
@@ -865,7 +861,7 @@ PetscErrorCode HyperbolicInitialize(AppCtx *user)
   ierr = MatAssemblyEnd(user->Gradxy[1],MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
   /* Generate Div matrix */
-  ierr = MatTranspose(user->Grad,MAT_INITIAL_MATRIX,&user->Div);
+  ierr = MatTranspose(user->Grad,MAT_INITIAL_MATRIX,&user->Div);CHKERRQ(ierr);
   ierr = MatTranspose(user->Gradxy[0],MAT_INITIAL_MATRIX,&user->Divxy[0]);CHKERRQ(ierr);
   ierr = MatTranspose(user->Gradxy[1],MAT_INITIAL_MATRIX,&user->Divxy[1]);CHKERRQ(ierr);
 
@@ -980,7 +976,7 @@ PetscErrorCode HyperbolicInitialize(AppCtx *user)
 
   /* Create scatter from y to y_1,y_2,...,y_nt */
   /*  TODO: Reorder for better parallelism. (This will require reordering Q and L as well.) */
-  ierr = PetscMalloc1(user->nt*user->mx*user->mx,&user->yi_scatter);
+  ierr = PetscMalloc1(user->nt*user->mx*user->mx,&user->yi_scatter);CHKERRQ(ierr);
   ierr = VecCreate(PETSC_COMM_WORLD,&yi);CHKERRQ(ierr);
   ierr = VecSetSizes(yi,PETSC_DECIDE,user->mx*user->mx);CHKERRQ(ierr);
   ierr = VecSetFromOptions(yi);CHKERRQ(ierr);
@@ -1091,7 +1087,7 @@ PetscErrorCode HyperbolicInitialize(AppCtx *user)
   ierr = MatSetFromOptions(user->LT);CHKERRQ(ierr);
   ierr = MatMPIAIJSetPreallocation(user->LT,1,NULL,1,NULL);CHKERRQ(ierr);
   ierr = MatSeqAIJSetPreallocation(user->LT,1,NULL);CHKERRQ(ierr);
-  ierr = MatGetOwnershipRange(user->LT,&istart,&iend);
+  ierr = MatGetOwnershipRange(user->LT,&istart,&iend);CHKERRQ(ierr);
 
   for (i=istart; i<iend; i++){
     iblock = (i+n) / (2*n);
@@ -1183,7 +1179,7 @@ PetscErrorCode HyperbolicInitialize(AppCtx *user)
   ierr = VecSetSizes(user->ytrue,PETSC_DECIDE,n*user->nt);CHKERRQ(ierr);
   ierr = VecSetFromOptions(user->ytrue);CHKERRQ(ierr);
   user->c_formed = PETSC_TRUE;
-  ierr = VecCopy(user->utrue,user->u); /*  Set u=utrue temporarily for StateMatInv */
+  ierr = VecCopy(user->utrue,user->u);CHKERRQ(ierr); /*  Set u=utrue temporarily for StateMatInv */
   ierr = VecSet(user->ytrue,0.0);CHKERRQ(ierr); /*  Initial guess */
   ierr = StateMatInvMult(user->Js,user->q,user->ytrue);CHKERRQ(ierr);
   ierr = VecCopy(user->ur,user->u);CHKERRQ(ierr); /*  Reset u=ur */

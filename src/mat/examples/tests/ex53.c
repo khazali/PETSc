@@ -22,7 +22,7 @@ int main(int argc,char **args)
   const PetscScalar *v1,*v2;
   PetscBool         flg;
 
-  PetscInitialize(&argc,&args,(char*)0,help);
+  ierr = PetscInitialize(&argc,&args,(char*)0,help);if (ierr) return ierr;
   ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
   ierr = MPI_Comm_size(PETSC_COMM_WORLD,&size);CHKERRQ(ierr);
 
@@ -152,7 +152,7 @@ int main(int argc,char **args)
 
   /* Test MatGetRow()/ MatRestoreRow() */
   for (ct=0; ct<100; ct++) {
-    ierr = PetscRandomGetValue(rand,&v);
+    ierr = PetscRandomGetValue(rand,&v);CHKERRQ(ierr);
     row  = rstart + (int)(PetscRealPart(v)*m);
     ierr = MatGetRow(A,row,&ncols1,&cols1,&v1);CHKERRQ(ierr);
     ierr = MatGetRow(B,row,&ncols2,&cols2,&v2);CHKERRQ(ierr);
