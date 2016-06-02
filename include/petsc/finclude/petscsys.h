@@ -257,6 +257,7 @@
 #define PETSCRAND 'rand'
 #define PETSCRAND48 'rand48'
 #define PETSCSPRNG 'sprng'
+#define PETSCRANDER48 'rander48'
 !
 !
 !
@@ -292,3 +293,11 @@
       parameter (PETSC_BUILDTWOSIDED_IBARRIER = 1)
       parameter (PETSC_BUILDTWOSIDED_REDSCATTER = 2)
 !
+!     PetscSubcommType
+!
+      PetscEnum PETSC_SUBCOMM_GENERAL
+      PetscEnum PETSC_SUBCOMM_CONTIGUOUS
+      PetscEnum PETSC_SUBCOMM_INTERLACED
+      parameter(PETSC_SUBCOMM_GENERAL=0)
+      parameter(PETSC_SUBCOMM_CONTIGUOUS=1)
+      parameter(PETSC_SUBCOMM_INTERLACED=2)

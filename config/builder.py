@@ -33,27 +33,27 @@ regressionParameters = {'src/dm/impls/patch/examples/tests/ex1': [{'numProcs': 1
                                                                  {'numProcs': 1, 'args': '-dim 2 -cell_simplex 0 -dm_refine 1 -dm_view ::ascii_info_detail'},
                                                                  {'numProcs': 2, 'args': '-dim 2 -cell_simplex 0 -dm_refine 1 -interpolate 1 -dm_view ::ascii_info_detail'},
                                                                  {'numProcs': 2, 'args': '-dim 2 -cell_simplex 0 -dm_refine 1 -interpolate 1 -test_partition -dm_view ::ascii_latex'},
-                                                                 # CGNS tests 10-11 (need to find smaller test meshes)
-                                                                 {'numProcs': 1, 'args': '-filename %(meshes)s/tut21.cgns -interpolate 1 -dm_view', 'requires': ['cgns']},
-                                                                 {'numProcs': 1, 'args': '-filename %(meshes)s/StaticMixer.cgns -interpolate 1 -dm_view', 'requires': ['cgns', 'Broken']},
-                                                                 # Gmsh test 12
-                                                                 {'numProcs': 1, 'args': '-filename %(meshes)s/doublet-tet.msh -interpolate 1 -dm_view'},
-                                                                 # Parallel refinement tests with overlap 13-14
-                                                                 {'numProcs': 2, 'args': '-dim 2 -cell_simplex 1 -dm_refine 1 -interpolate 1 -test_partition -overlap 1 -dm_view ::ascii_info_detail'},
-                                                                 {'numProcs': 8, 'args': '-dim 2 -cell_simplex 1 -dm_refine 1 -interpolate 1 -test_partition -overlap 1 -dm_view ::ascii_info_detail'},
-                                                                 # Gmsh mesh reader tests 15-18
-                                                                 {'numProcs': 1, 'args': '-filename %(meshes)s/square.msh -interpolate 1 -dm_view'},
-                                                                 {'numProcs': 1, 'args': '-filename %(meshes)s/square_bin.msh -interpolate 1 -dm_view'},
-                                                                 {'numProcs': 3, 'args': '-filename %(meshes)s/square.msh -interpolate 1 -dm_view'},
-                                                                 {'numProcs': 3, 'args': '-filename %(meshes)s/square_bin.msh -interpolate 1 -dm_view'},
-                                                                 # Parallel simple partitioner tests 19-20
-                                                                 {'numProcs': 2, 'args': '-dim 2 -cell_simplex 1 -dm_refine 0 -interpolate 0 -petscpartitioner_type simple -partition_view -dm_view ::ascii_info_detail'},
-                                                                 {'numProcs': 8, 'args': '-dim 2 -cell_simplex 1 -dm_refine 1 -interpolate 1 -petscpartitioner_type simple -partition_view -dm_view ::ascii_info_detail'},
-                                                                 # Fluent mesh reader tests 21-24
-                                                                 {'numProcs': 1, 'args': '-filename %(meshes)s/square.cas -interpolate 1 -dm_view'},
-                                                                 {'numProcs': 3, 'args': '-filename %(meshes)s/square.cas -interpolate 1 -dm_view'},
-                                                                 {'numProcs': 1, 'args': '-filename %(meshes)s/cube_5tets_ascii.cas -interpolate 1 -dm_view'},
-                                                                 {'numProcs': 1, 'args': '-filename %(meshes)s/cube_5tets.cas -interpolate 1 -dm_view', 'requires': 'Broken'},
+                                                                 # Parallel refinement tests with overlap
+                                                                 {'num' : 'refine_overlap_0', 'numProcs': 2, 'args': '-dim 2 -cell_simplex 1 -dm_refine 1 -interpolate 1 -test_partition -overlap 1 -dm_view ::ascii_info_detail'},
+                                                                 {'num' : 'refine_overlap_1', 'numProcs': 8, 'args': '-dim 2 -cell_simplex 1 -dm_refine 1 -interpolate 1 -test_partition -overlap 1 -dm_view ::ascii_info_detail'},
+                                                                 # Parallel simple partitioner tests
+                                                                 {'num' : 'part_simple_0', 'numProcs': 2, 'args': '-dim 2 -cell_simplex 1 -dm_refine 0 -interpolate 0 -petscpartitioner_type simple -partition_view -dm_view ::ascii_info_detail'},
+                                                                 {'num' : 'part_simple_1', 'numProcs': 8, 'args': '-dim 2 -cell_simplex 1 -dm_refine 1 -interpolate 1 -petscpartitioner_type simple -partition_view -dm_view ::ascii_info_detail'},
+                                                                 # CGNS reader tests 10-11 (need to find smaller test meshes)
+                                                                 {'num' : 'cgns_0', 'numProcs': 1, 'args': '-filename %(meshes)s/tut21.cgns -interpolate 1 -dm_view', 'requires': ['cgns']},
+                                                                 {'num' : 'cgns_1', 'numProcs': 1, 'args': '-filename %(meshes)s/StaticMixer.cgns -interpolate 1 -dm_view', 'requires': ['cgns', 'Broken']},
+                                                                 # Gmsh mesh reader tests
+                                                                 {'num' : 'gmsh_0', 'numProcs': 1, 'args': '-filename %(meshes)s/doublet-tet.msh -interpolate 1 -dm_view'},
+                                                                 {'num' : 'gmsh_1', 'numProcs': 1, 'args': '-filename %(meshes)s/square.msh -interpolate 1 -dm_view'},
+                                                                 {'num' : 'gmsh_2', 'numProcs': 1, 'args': '-filename %(meshes)s/square_bin.msh -interpolate 1 -dm_view'},
+                                                                 {'num' : 'gmsh_3', 'numProcs': 3, 'args': '-filename %(meshes)s/square.msh -interpolate 1 -dm_view'},
+                                                                 {'num' : 'gmsh_4', 'numProcs': 3, 'args': '-filename %(meshes)s/square_bin.msh -interpolate 1 -dm_view'},
+                                                                 {'num' : 'gmsh_5', 'numProcs': 1, 'args': '-filename %(meshes)s/square_quad.msh -interpolate 1 -dm_view'},
+                                                                 # Fluent mesh reader tests
+                                                                 {'num' : 'fluent_0', 'numProcs': 1, 'args': '-filename %(meshes)s/square.cas -interpolate 1 -dm_view'},
+                                                                 {'num' : 'fluent_1', 'numProcs': 3, 'args': '-filename %(meshes)s/square.cas -interpolate 1 -dm_view'},
+                                                                 {'num' : 'fluent_2', 'numProcs': 1, 'args': '-filename %(meshes)s/cube_5tets_ascii.cas -interpolate 1 -dm_view'},
+                                                                 {'num' : 'fluent_3', 'numProcs': 1, 'args': '-filename %(meshes)s/cube_5tets.cas -interpolate 1 -dm_view', 'requires': 'Broken'},
                                                                  ],
                         'src/dm/impls/plex/examples/tests/ex3': [# 2D P_1 on a triangle
                                                                  {'num': 'p1_2d_0', 'numProcs': 1, 'args': '-petscspace_order 1 -num_comp 2 -qorder 1 -convergence'},
@@ -299,6 +299,17 @@ regressionParameters = {'src/dm/impls/patch/examples/tests/ex1': [{'numProcs': 1
                                                                   ],
                         'src/dm/impls/plex/examples/tests/ex17': [{'numProcs': 1, 'args': '-test_partition 0 -dm_view ascii::ascii_info_detail'},
                                                                   ],
+                        'src/dm/impls/plex/examples/tests/ex18': [{'numProcs': 2, 'args': '-dm_view ascii::ascii_info_detail'},
+                                                                  {'numProcs': 2, 'args': '-interpolate -dm_view ascii::ascii_info_detail'},
+                                                                  {'numProcs': 3, 'args': '-testnum 1 -interpolate -dm_view ascii::ascii_info_detail'},
+                                                                  {'numProcs': 2, 'args': '-dim 3 -dm_view ascii::ascii_info_detail'},
+                                                                  {'numProcs': 2, 'args': '-dim 3 -interpolate -dm_view ascii::ascii_info_detail'},
+                                                                  ],
+                        'src/dm/impls/plex/examples/tests/ex19': [{'numProcs': 1, 'args': '-dim 2 -nbrVerEdge 5 -dm_plex_separate_marker 0 -met 2 -init_dm_view -adapt_dm_view', 'requires': ['pragmatic']},
+                                                                  {'numProcs': 1, 'args': '-dim 2 -nbrVerEdge 5 -dm_plex_separate_marker 1 -bdLabel marker -met 2 -init_dm_view -adapt_dm_view', 'requires': ['pragmatic']},
+                                                                  {'numProcs': 1, 'args': '-dim 3 -nbrVerEdge 5 -met 2 -init_dm_view -adapt_dm_view', 'requires': ['pragmatic']},
+                                                                  {'numProcs': 1, 'args': '-dim 3 -nbrVerEdge 5 -bdLabel marker -met 2 -init_dm_view -adapt_dm_view', 'requires': ['pragmatic']}
+                                                                  ],
                         'src/dm/impls/plex/examples/tests/ex1f90': [{'numProcs': 1, 'args': ''}],
                         'src/dm/impls/plex/examples/tests/ex2f90': [{'numProcs': 1, 'args': ''}],
                         'src/dm/impls/plex/examples/tutorials/ex1': [{'numProcs': 1, 'args': ''},
@@ -405,6 +416,8 @@ regressionParameters = {'src/dm/impls/patch/examples/tests/ex1': [{'numProcs': 1
                                                                {'num': 'fas_newton_coarse_0', 'numProcs': 1, 'args': '-run_type full -dm_refine 2 -variable_coefficient nonlinear -interpolate 1 -petscspace_order 1 -snes_type fas -snes_fas_levels 2 -pc_type svd -ksp_rtol 1.0e-10 -fas_coarse_pc_type svd -fas_coarse_ksp_rtol 1.0e-10 -fas_coarse_snes_monitor_short -snes_monitor_short -snes_linesearch_type basic -fas_coarse_snes_linesearch_type basic -snes_converged_reason -dm_coarsen_hierarchy 1 -snes_view -fas_levels_1_snes_type newtonls -fas_levels_1_pc_type svd -fas_levels_1_ksp_rtol 1.0e-10 -fas_levels_1_snes_monitor_short',
                                                                 'requires': ['pragmatic']},
                                                                {'num': 'mg_newton_coarse_0', 'numProcs': 1, 'args': '-run_type full -dm_refine 3 -interpolate 1 -petscspace_order 1 -snes_monitor_short -ksp_monitor_true_residual -snes_linesearch_type basic -snes_converged_reason -dm_coarsen_hierarchy 3 -snes_view -dm_view -ksp_type richardson -pc_type mg  -pc_mg_levels 4 -snes_atol 1.0e-8 -ksp_atol 1.0e-8 -snes_rtol 0.0 -ksp_rtol 0.0 -ksp_norm_type unpreconditioned -mg_levels_ksp_type gmres -mg_levels_pc_type ilu -mg_levels_ksp_max_it 10',
+                                                                'requires': ['pragmatic']},
+                                                                {'num': 'mg_newton_coarse_1', 'numProcs': 1, 'args': '-run_type full -dm_refine 5 -interpolate 1 -petscspace_order 1 -dm_coarsen_hierarchy 5 -dm_plex_hash_location -dm_plex_separate_marker -dm_plex_coarsen_bd_label marker -dm_plex_remesh_bd -ksp_type richardson -ksp_rtol 1.0e-12 -pc_type mg -pc_mg_levels 3 -mg_levels_ksp_max_it 2 -mg_levels_ksp_chebyshev_esteig_random -snes_monitor -ksp_monitor_true_residual -mg_levels_ksp_monitor_true_residual -dm_view -ksp_view',
                                                                 'requires': ['pragmatic']},
                                                                # Full runs with simplices
                                                                #   ASM
@@ -600,7 +613,7 @@ regressionParameters = {'src/dm/impls/patch/examples/tests/ex1': [{'numProcs': 1
                                                                 {'numProcs': 2, 'args': '-ufv_vtk_interval 0 -f %(meshes)s/sevenside.exo','requires': ['exodusii']},
                                                                 {'numProcs': 2, 'args': '-ufv_vtk_interval 0 -f %(meshes)s/sevenside-quad-15.exo','requires': ['exodusii']},
                                                                 {'numProcs': 8, 'args': '-ufv_vtk_interval 0 -f %(meshes)s/sevenside-quad.exo','requires': ['exodusii']},
-                                                                {'numProcs': 1, 'args': '-ufv_vtk_interval 0 -f %(meshes)s/sevenside.exo -ts_type rosw','requires': ['exodusii']},
+                                                                {'numProcs': 1, 'args': '-ufv_vtk_interval 0 -f %(meshes)s/sevenside.exo -ts_type rosw -ts_adapt_basic_reject_safety 1','requires': ['exodusii']},
                                                                 {'numProcs': 1, 'args': '-ufv_vtk_interval 0 -f %(meshes)s/squaremotor-30.exo -ufv_split_faces','requires': ['exodusii']},
                                                                 {'numProcs': 1, 'args': '-ufv_vtk_interval 0 -f %(meshes)s/sevenside-quad-15.exo -dm_refine 1','requires': ['exodusii']},
                                                                 {'numProcs': 2, 'args': '-ufv_vtk_interval 0 -f %(meshes)s/sevenside-quad-15.exo -dm_refine 2','requires': ['exodusii']},

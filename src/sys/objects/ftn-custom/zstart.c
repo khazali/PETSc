@@ -15,6 +15,8 @@
 
 #if defined(PETSC_HAVE_CUDA)
 #include <cublas_v2.h>
+
+extern cublasHandle_t cublasv2handle;
 #endif
 
 #if defined(PETSC_HAVE_FORTRAN_CAPS)
@@ -226,10 +228,10 @@ extern PetscFPT PetscFPTData;
 #endif
 
 #if defined(PETSC_HAVE_THREADSAFETY)
-PetscSpinlock PetscViewerASCIISpinLockOpen;
-PetscSpinlock PetscViewerASCIISpinLockStdout;
-PetscSpinlock PetscViewerASCIISpinLockStderr;
-PetscSpinlock PetscCommSpinLock;
+extern PetscSpinlock PetscViewerASCIISpinLockOpen;
+extern PetscSpinlock PetscViewerASCIISpinLockStdout;
+extern PetscSpinlock PetscViewerASCIISpinLockStderr;
+extern PetscSpinlock PetscCommSpinLock;
 #endif
 
 /* -----------------------------------------------------------------------------------------------*/
@@ -493,7 +495,7 @@ PETSC_EXTERN void PETSC_STDCALL petscfinalize_(PetscErrorCode *ierr)
   *ierr = PetscFinalize();
 }
 
-void PETSC_STDCALL petscend_(PetscErrorCode *ierr)
+PETSC_EXTERN void PETSC_STDCALL petscend_(PetscErrorCode *ierr)
 {
 #if defined(PETSC_HAVE_SUNMATHPRO)
   extern void standard_arithmetic();
