@@ -238,10 +238,13 @@ PetscErrorCode X2PListDestroy(X2PList *l)
   l->top=0;
   l->hole=-1;
   l->data_size = 0;
-  return ierr;
+  return 0;
 }
+#undef __FUNCT__
+#define __FUNCT__ "X2PListAdd"
 PetscErrorCode X2PListAdd( X2PList *l, X2Particle *p)
 {
+  PetscFunctionBeginUser;
   if (l->size==l->data_size) {
 #ifdef X2_S_OF_V
     X2Particle_v data2;
@@ -288,7 +291,7 @@ PetscErrorCode X2PListAdd( X2PList *l, X2Particle *p)
   }
   l->size++;
   assert(l->top >= l->size); /* no holes */
-  return 0;
+  PetscFunctionReturn(0);
 }
 PetscErrorCode X2PListSetAt(X2PList *l, X2PListPos pos, X2Particle *part)
 {
@@ -305,6 +308,7 @@ PetscErrorCode X2PListCompress(X2PList *l)
   PetscInt ii;
   /* fill holes with end of list */
   for ( ii = 0 ; ii < l->top && l->top > l->size ; ii++) {
+    SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"X2PListCompress is needed (%D)",l->top - l->size);
 #ifdef X2_S_OF_V
     if (l->data_v.gid[ii] <= 0)
 #else
@@ -336,7 +340,8 @@ PetscErrorCode X2PListCompress(X2PList *l)
 */
 PetscErrorCode X2PListGetHead(X2PList *l, X2PListPos *pos)
 {
-  if (l->size==0) {
+ PetscFunctionBeginUser;
+ if (l->size==0) {
     *pos = 0; /* past end */
   }
   else {
@@ -348,7 +353,7 @@ PetscErrorCode X2PListGetHead(X2PList *l, X2PListPos *pos)
 #endif
     *pos = idx - 1; /* eg -1 */
   }
-  return 0;
+  PetscFunctionReturn(0);
 }
 
 PetscErrorCode X2PListGetNext(X2PList *l, X2Particle *p, X2PListPos *pos)
@@ -358,16 +363,17 @@ PetscErrorCode X2PListGetNext(X2PList *l, X2Particle *p, X2PListPos *pos)
   if (*pos >= l->data_size || *pos >= l->top) return 1; /* hit end, can go past if list is just drained */
 #ifdef X2_S_OF_V
   while(l->data_v.gid[*pos] <= 0 && *pos < l->data_size && *pos < l->top) (*pos)++; /* skip holes */
-  X2V2P(p,l->data_v,*pos);
+  X2V2P(p,l->data_v,*pos); /* return copy */
 #else
   while(l->data[*pos].gid <= 0 && *pos < l->data_size && *pos < l->top) (*pos)++; /* skip holes */
-  *p = l->data[*pos]; /* return */
+  *p = l->data[*pos]; /* return copy */
 #endif
   return 0;
 }
 
 PetscErrorCode X2PListRemoveAt( X2PList *l, X2PListPos pos)
 {
+  PetscFunctionBeginUser;
   if(pos >= l->data_size) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"X2PListRemoveAt past end of data %d %d",pos,l->data_size);
   if(pos >= l->top) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"X2PListRemoveAt past end of top pointer %d %d",pos,l->top);
 
@@ -390,7 +396,7 @@ PetscErrorCode X2PListRemoveAt( X2PList *l, X2PListPos pos)
     l->top = 0;
   }
   assert(l->top >= l->size);
-  return 0;
+  PetscFunctionReturn(0);
 }
 
 PetscInt X2PListMaxSize(X2PList *l) {
@@ -429,6 +435,7 @@ PetscErrorCode X2PSendListDestroy(X2PSendList *l)
 }
 PetscErrorCode X2PSendListAdd( X2PSendList *l, X2Particle *p)
 {
+  PetscFunctionBeginUser;
   if (l->size==l->data_size) {
     X2Particle *data2; /* make this arrays of X2Particle members for struct-of-arrays */
     int i;PetscErrorCode ierr;
@@ -440,7 +447,7 @@ PetscErrorCode X2PSendListAdd( X2PSendList *l, X2Particle *p)
     l->data = data2;
   }
   l->data[l->size++] = *p;
-  return 0;
+  PetscFunctionReturn(0);
 }
 
 #define X2PROCLISTSIZE 256
@@ -531,7 +538,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     if (ctx->particleGrid.nphi*ctx->particleGrid.nradius*ctx->particleGrid.ntheta != ctx->npe) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"particle grids do not work npe (%D) != %D",ctx->npe,ctx->particleGrid.nphi*ctx->particleGrid.nradius*ctx->particleGrid.ntheta);
   }
 
-  PetscPrintf(ctx->wComm,"[%D] npe=%D part=[%D,%D,%D]\n",ctx->rank,ctx->npe,ctx->particleGrid.nphi,ctx->particleGrid.ntheta,ctx->particleGrid.nradius);
+  if (s_debug>0) PetscPrintf(ctx->wComm,"[%D] npe=%D part=[%D,%D,%D]\n",ctx->rank,ctx->npe,ctx->particleGrid.nphi,ctx->particleGrid.ntheta,ctx->particleGrid.nradius);
 
   /* particle grids: <= npe, <= num solver planes */
   if (ctx->npe < ctx->particleGrid.nphi) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"num particle planes nphi (%D) > npe (%D)",ctx->particleGrid.nphi,ctx->npe);
@@ -1062,6 +1069,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
   nslist = 0;
   nmoved = 0;
   nlistsTot = origNlocal = 0;
+  if (!dmpi) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"DM_PICell data not created");
   if (irk>=0) {
     ierr = VecZeroEntries(dmpi->rho);CHKERRQ(ierr); /* zero density to get ready for next deposition */
   }
@@ -1085,13 +1093,19 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         ierr = VecSetBlockSize(jetVec,three);CHKERRQ(ierr);
         /* make coordinates array to get gradients */
         ierr = VecGetArray(xVec,&xx0);CHKERRQ(ierr); xx = xx0;
-        ierr = X2PListGetHead( list, &pos );CHKERRQ(ierr);
-        while ( !X2PListGetNext(list, &part, &pos) ) {
-          /* for (pos=0 ; pos < list->size ; pos++, xvec += 3) { */
-          /*   X2Particle *part = &list->data[pos]; */
-          ierr = cylindricalToCart(part.r, part.z, part.phi, xx);CHKERRQ(ierr);
+#ifdef X2_S_OF_V
+	for (pos=0 ; pos < list->size ; pos++, xx += 3) {
+	  // X2Particle *ppart = &list->data[pos];
+	  ierr = cylindricalToCart(list->data_v.r[pos], list->data_v.z[pos], list->data_v.phi[pos], xx);CHKERRQ(ierr);
           xx += 3;
         }
+#else
+	ierr = X2PListGetHead( list, &pos );CHKERRQ(ierr);
+	while ( !X2PListGetNext(list, &part, &pos) ) {
+	  ierr = cylindricalToCart(part.r, part.z, part.phi, xx);CHKERRQ(ierr);
+          xx += 3;
+        }
+#endif
         ierr = VecRestoreArray(xVec,&xx0);CHKERRQ(ierr);
 #if defined(PETSC_USE_LOG)
         ierr = PetscLogEventEnd(ctx->events[7],0,0,0,0);CHKERRQ(ierr);
@@ -1104,11 +1118,12 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         ierr = PetscLogEventBegin(ctx->events[8],0,0,0,0);CHKERRQ(ierr); /* timer on particle list */
 #endif
         /* get E, should set size of vecs for true size? */
-        ierr = DMPICellGetJet(dmpi->dmgrid, xVec, order, jetVec, elid);CHKERRQ(ierr); /* dmplex? */
+        ierr = DMPICellGetJet(dmpi->dmgrid, xVec, order, jetVec, elid);CHKERRQ(ierr);
         /* vectorize (todo) push: theta = theta + q*dphi .... grad not used */
         ierr = VecGetArray(xVec,&xx0);CHKERRQ(ierr); xx = xx0;
         ierr = VecGetArray(jetVec,&jj0);CHKERRQ(ierr); jj = jj0;
         for (pos=0 ; pos < list->size ; pos++, xx += 3, jj += 3 ) {
+	  /* push particle, real data, could do it on copy for non-final stage of TS */
 #ifdef X2_S_OF_V
           ierr = cylindricalToPolPlane( list->data_v.r[pos] - rmaj, list->data_v.z[pos], &psi, &theta );CHKERRQ(ierr);
           dphi = (dt*list->data_v.vpar[pos])/(2.*M_PI*list->data_v.r[pos]);  /* toroidal step */
@@ -1120,16 +1135,16 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           list->data_v.r[pos] = rmaj + r;
           list->data_v.z[pos] = z;
 #else
-          X2Particle *part = &list->data[pos];
-          ierr = cylindricalToPolPlane( part->r - rmaj, part->z, &psi, &theta );CHKERRQ(ierr);
-          dphi = (dt*part->vpar)/(2.*M_PI*part->r);  /* toroidal step */
-          part->phi += dphi;
-          part->phi = fmod( part->phi + 20.*M_PI, 2.*M_PI);
+          X2Particle *ppart = &list->data[pos];
+          ierr = cylindricalToPolPlane( ppart->r - rmaj, ppart->z, &psi, &theta );CHKERRQ(ierr);
+          dphi = (dt*ppart->vpar)/(2.*M_PI*ppart->r);  /* toroidal step */
+          ppart->phi += dphi;
+          ppart->phi = fmod( ppart->phi + 20.*M_PI, 2.*M_PI);
           theta += qsafty(psi/rminor)*dphi;  /* twist */
           theta = fmod( theta + 20.*M_PI, 2.*M_PI);
           ierr = polPlaneToCylindrical( psi, theta, &r, &z);CHKERRQ(ierr); /* time spent here */
-          part->r = rmaj + r;
-          part->z = z;
+          ppart->r = rmaj + r;
+          ppart->z = z;
 #endif
         }
         ierr = VecRestoreArray(xVec,&xx0);
@@ -1146,9 +1161,14 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       if (solver) {
         ierr = VecGetArray(xVec,&xx0);CHKERRQ(ierr); xx = xx0;
       }
+#ifdef X2_S_OF_V
+      for (pos=0 ; pos < list->size ; pos++) {
+	X2V2P((&part),list->data_v,pos); /* copy */
+#else
       ierr = X2PListGetHead( list, &pos );CHKERRQ(ierr);
       while ( !X2PListGetNext(list, &part, &pos) ) {
-        /* see if need communication, add density if not, add to communication list if so */
+#endif
+        /* see if need communication? no: add density, yes: add to communication list */
         if (solver) {
           ierr = X2GridParticleGetProc_Solver(dmpi->dmgrid, xx, &pe, &idx);CHKERRQ(ierr);
         }
@@ -1157,12 +1177,11 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           ierr = X2GridParticleGetProc_FluxTube(grid, psi, theta, part.phi, &pe, &idx);CHKERRQ(ierr);
           assert(idx==0);
         }
-        /* ierr = get_proc(dm, grid, &partpsi, theta, part.phi, x, &pe, &idx);CHKERRQ(ierr); */
         if (pe==ctx->rank && idx==elid) { /* don't move and don't add */
-          /* ierr = X2PListSetAt(list, pos, &part );CHKERRQ(ierr); */ /* not moved and final step so write back */
+          /* noop */
         }
         else { /* move: sendListTable && off proc */
-          /* add to list to send, find list with table lookup, send full lists */
+          /* add to list to send, find list with table lookup, send full lists - no vectorization */
           hash = (pe*593)%ctx->tablesize; /* hash */
           for (ii=0;ii<ctx->tablesize;ii++){
             if (sendListTable[hash].data_size==0) {
@@ -1200,8 +1219,8 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       if (solver) {
         ierr = VecRestoreArray(xVec,&xx0);
         /* done with these, need new ones after communication */
-        ierr = VecDestroy(&jetVec);CHKERRQ(ierr);
         ierr = VecDestroy(&xVec);CHKERRQ(ierr);
+        ierr = VecDestroy(&jetVec);CHKERRQ(ierr);
       }
 #if defined(PETSC_USE_LOG)
       ierr = PetscLogEventEnd(ctx->events[5],0,0,0,0);CHKERRQ(ierr);
@@ -2116,8 +2135,13 @@ int main(int argc, char **argv)
   /* setup DM */
   ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr); /* refinement done here */
   ierr = DMSetUp( ctx.dm );CHKERRQ(ierr);
-  if (dmpi->debug>0) {
+  if (dmpi->debug>2) {
     ierr = DMView(dmpi->dmgrid,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  }
+  if (dmpi->debug>1) {
+    PetscInt n;
+    ierr = VecGetSize(dmpi->rho,&n);CHKERRQ(ierr);
+    PetscPrintf(ctx.wComm,"[%D] N=%D\n",ctx.rank,n);
   }
   /* convert to plex - using the origina plex has a problem */
   ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
@@ -2157,7 +2181,7 @@ int main(int argc, char **argv)
   if (dmpi->debug>1) {
     ierr = MatView(J,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
-  PetscPrintf(ctx.wComm,"[%D] done - cleanup\n",ctx.rank);
+  if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] done - cleanup\n",ctx.rank);
   /* Cleanup */
   ierr = PetscFEDestroy(&dmpi->fem);CHKERRQ(ierr);
   ierr = MatDestroy(&J);CHKERRQ(ierr);
