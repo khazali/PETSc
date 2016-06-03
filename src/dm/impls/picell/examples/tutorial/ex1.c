@@ -123,6 +123,8 @@ typedef struct {
 /* dummy DMPlexFindLocalCellID */
 PetscErrorCode DMPlexFindLocalCellID(DM dm, PetscReal x[], PetscInt *elemID)
 {
+  /* Matt */
+  
   *elemID = 0;
   return 0;
 }
@@ -308,7 +310,6 @@ PetscErrorCode X2PListCompress(X2PList *l)
   PetscInt ii;
   /* fill holes with end of list */
   for ( ii = 0 ; ii < l->top && l->top > l->size ; ii++) {
-    SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"X2PListCompress is needed (%D)",l->top - l->size);
 #ifdef X2_S_OF_V
     if (l->data_v.gid[ii] <= 0)
 #else
@@ -338,6 +339,8 @@ PetscErrorCode X2PListCompress(X2PList *l)
   gid = 0 : sentinal
   gid > 0 : real
 */
+#undef __FUNCT__
+#define __FUNCT__ "X2PListGetHead"
 PetscErrorCode X2PListGetHead(X2PList *l, X2PListPos *pos)
 {
  PetscFunctionBeginUser;
@@ -370,7 +373,8 @@ PetscErrorCode X2PListGetNext(X2PList *l, X2Particle *p, X2PListPos *pos)
 #endif
   return 0;
 }
-
+#undef __FUNCT__
+#define __FUNCT__ "X2PListRemoveAt"
 PetscErrorCode X2PListRemoveAt( X2PList *l, X2PListPos pos)
 {
   PetscFunctionBeginUser;
@@ -433,6 +437,8 @@ PetscErrorCode X2PSendListDestroy(X2PSendList *l)
   l->data_size = 0;
   return ierr;
 }
+#undef __FUNCT__
+#define __FUNCT__ "X2PSendListAdd"
 PetscErrorCode X2PSendListAdd( X2PSendList *l, X2Particle *p)
 {
   PetscFunctionBeginUser;
@@ -694,12 +700,10 @@ PetscErrorCode X2GridParticleGetProc_FluxTube( const X2GridParticle *grid, /* X2
   const PetscReal rminor=grid->rMinor;
   const PetscReal dphi=2.*M_PI/(PetscReal)grid->nphi;
   const PetscReal dth=2.*M_PI/(PetscReal)grid->ntheta;
-
   PetscMPIInt planeIdx,irs,iths;
   PetscFunctionBeginUser;
 
-  PetscFunctionBeginUser;
-  theta = fmod( theta - qsafty(psi/grid->rMinor)*phi + 20.*M_PI, 2.*M_PI);  /* pull back to referance grid */
+  theta = fmod( theta - qsafty(psi/grid->rMinor)*phi + 20.*M_PI, 2.*M_PI);  /* pull back to reference grid */
   planeIdx = (PetscMPIInt)(phi/dphi)*grid->nradius*grid->ntheta; /* assumeing one particle cell per PE */
   iths = (PetscMPIInt)(theta/dth);                               assert(iths<grid->ntheta);
   irs = (PetscMPIInt)((PetscReal)grid->nradius*psi*psi/(rminor*rminor));assert(irs<grid->nradius);
@@ -1097,7 +1101,6 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 	for (pos=0 ; pos < list->size ; pos++, xx += 3) {
 	  // X2Particle *ppart = &list->data[pos];
 	  ierr = cylindricalToCart(list->data_v.r[pos], list->data_v.z[pos], list->data_v.phi[pos], xx);CHKERRQ(ierr);
-          xx += 3;
         }
 #else
 	ierr = X2PListGetHead( list, &pos );CHKERRQ(ierr);
@@ -2135,21 +2138,28 @@ int main(int argc, char **argv)
   /* setup DM */
   ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr); /* refinement done here */
   ierr = DMSetUp( ctx.dm );CHKERRQ(ierr);
-  if (dmpi->debug>2) {
-    ierr = DMView(dmpi->dmgrid,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-  }
-  if (dmpi->debug>1) {
-    PetscInt n;
-    ierr = VecGetSize(dmpi->rho,&n);CHKERRQ(ierr);
-    PetscPrintf(ctx.wComm,"[%D] N=%D\n",ctx.rank,n);
-  }
   /* convert to plex - using the origina plex has a problem */
   ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
   ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); /* low overhead, cached */
   /* get section */
   ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &dmpi->section);CHKERRQ(ierr);
-  if (dmpi->debug>1) {
+  if (dmpi->debug>3) {
     ierr = PetscSectionView(dmpi->section,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  }
+  if (dmpi->debug>1) {
+    ierr = DMView(dmpi->dmplex,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  }
+  {
+    PetscInt n,cStart,cEnd;
+    ierr = VecGetSize(dmpi->rho,&n);CHKERRQ(ierr);
+    if (!n) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "No dofs");
+    ierr = DMPlexGetHeightStratum(dmpi->dmplex, 0, &cStart, &cEnd);CHKERRQ(ierr);
+    if (dmpi->debug>0 || !cEnd) {
+      ierr = PetscPrintf((dmpi->debug>1 || !cEnd) ? PETSC_COMM_SELF : ctx.wComm,"[%D] %D global equations, %d local cells, (cEnd=%d), debug=%D\n",ctx.rank,n,cEnd-cStart,cEnd,dmpi->debug);
+    }
+    if (!cEnd) {
+      SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "No cells");
+    }
   }
   /* create SNESS */
   ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
@@ -2161,8 +2171,6 @@ int main(int argc, char **argv)
   ierr = SNESSetUp( dmpi->snes );CHKERRQ(ierr);
   ierr = DMCreateMatrix(dmpi->dmgrid, &J);CHKERRQ(ierr);
   ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
-  /* ierr = DMPlexSNESComputeJacobianFEM(dmpi->dmplex, dmpi->phi, J, J, (void*)&ctx);CHKERRQ(ierr); */
-  /* ierr = MatView(J,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
   /* setup particles */
   ierr = createParticles( &ctx );CHKERRQ(ierr);
   ierr = PetscLogEventEnd(ctx.events[3],0,0,0,0);CHKERRQ(ierr);
@@ -2178,7 +2186,7 @@ int main(int argc, char **argv)
 
   /* do it */
   ierr = go( &ctx );CHKERRQ(ierr);
-  if (dmpi->debug>1) {
+  if (dmpi->debug>3) {
     ierr = MatView(J,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
   if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] done - cleanup\n",ctx.rank);
