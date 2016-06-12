@@ -2,6 +2,8 @@
 
 static char help[] = "X2: A partical in cell code for tokamak plasmas using PICell.\n";
 
+#include "advisor-annotate.h"  // Add to each module that contains Intel Advisor annotations
+
 #ifdef H5PART
 #include <H5Part.h>
 #endif
@@ -1077,6 +1079,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
   if (irk>=0) {
     ierr = VecZeroEntries(dmpi->rho);CHKERRQ(ierr); /* zero density to get ready for next deposition */
   }
+
   /* push particles, if necc., and make send lists */
   for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) {
     /* loop over element particle lists */
@@ -1085,6 +1088,17 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       if (X2PListSize(list)==0)continue;
       ierr = X2PListCompress(list);CHKERRQ(ierr);
       origNlocal += X2PListSize(list);
+
+
+      // Place before the loop control statement for the first task in the call graph to begin a parallel code region (parallel site):
+      // ANNOTATE_SITE_BEGIN( MySite1 );
+      // loop control statement
+      // Use the task-begin and task-end annotations for sites with multiple loop tasks, or if a loop task does not use the entire loop body
+      //  ANNOTATE_TASK_BEGIN( MyTask1 );  // Repeat task begin/end annotations for each task
+      // loop body
+      // ANNOTATE_TASK_END();
+      // ANNOTATE_SITE_END();  // End the parallel code region, after task execution complete
+      
       /* get Cartesian coordinates (not used for flux tube move) */
       if (solver) {
 #if defined(PETSC_USE_LOG)
@@ -1098,10 +1112,13 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         /* make coordinates array to get gradients */
         ierr = VecGetArray(xVec,&xx0);CHKERRQ(ierr); xx = xx0;
 #ifdef X2_S_OF_V
+	ANNOTATE_SITE_BEGIN( PushSite );
 	for (pos=0 ; pos < list->size ; pos++, xx += 3) {
-	  // X2Particle *ppart = &list->data[pos];
+	  //ANNOTATE_TASK_BEGIN( GetXTask );  // Repeat task begin/end annotations for each task
 	  ierr = cylindricalToCart(list->data_v.r[pos], list->data_v.z[pos], list->data_v.phi[pos], xx);CHKERRQ(ierr);
+	  //ANNOTATE_TASK_END();
         }
+	ANNOTATE_SITE_END();
 #else
 	ierr = X2PListGetHead( list, &pos );CHKERRQ(ierr);
 	while ( !X2PListGetNext(list, &part, &pos) ) {
@@ -1270,7 +1287,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         ierr = VecDestroy(&vVec);CHKERRQ(ierr);
       }
     }
-  } /* isp */
+    } /* isp */
   /* diagnostics */
   {
     MPI_Datatype mtype;
