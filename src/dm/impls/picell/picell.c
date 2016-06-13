@@ -73,7 +73,9 @@ PetscErrorCode DMSetUp_PICell(DM dm)
   ierr = DMCreateGlobalVector(dmpi->dmgrid, &dmpi->phi);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->phi, "potential");CHKERRQ(ierr);
   ierr = VecZeroEntries(dmpi->phi);CHKERRQ(ierr);
-  ierr = VecDuplicate(dmpi->phi, &dmpi->rho);CHKERRQ(ierr);
+  /* ierr = VecDuplicate(dmpi->phi, &dmpi->rho);CHKERRQ(ierr); */
+  ierr = DMCreateGlobalVector(dmpi->dmgrid, &dmpi->rho);CHKERRQ(ierr);
+  ierr = VecZeroEntries(dmpi->rho);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->rho, "density");CHKERRQ(ierr);
   ierr = VecZeroEntries(dmpi->rho);CHKERRQ(ierr);
   ierr = VecZeroEntries(dmpi->phi);CHKERRQ(ierr);

@@ -35,7 +35,7 @@ runex1:
 # -nphi_particles 2
 
 val:
-	-${MPIEXEC} -n ${NP} valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex1.${PETSC_ARCH} -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -debug 2 -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 1 -numMajor 8 -npart_flux_tube 10 -mstep 2 -debug 2 -snes_monitor -snes_converged_reason -collisionPeriod 1 -petscpartitioner_type parmetis -run_type boxtorus
+	-${MPIEXEC} -n ${NP} valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex1.${PETSC_ARCH} -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -debug 2 -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 1 -numMajor 3 -npart_flux_tube 10 -mstep 2 -debug 2 -snes_monitor -snes_converged_reason -collisionPeriod 1 -petscpartitioner_type parmetis -run_type boxtorus
 # --vgdb-error=0
 
 debug:
