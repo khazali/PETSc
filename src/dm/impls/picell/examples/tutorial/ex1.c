@@ -2137,7 +2137,10 @@ int main(int argc, char **argv)
       }
       else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Convert failed?");
     }
-    else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "No Convert to p4est?");
+    else {
+      /* SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "No Convert to p4est?"); */
+      dmpi->dmgrid = dmpi->dmplex;
+    }
   }
   /* setup Discretization */
   ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);
@@ -2155,9 +2158,23 @@ int main(int argc, char **argv)
   /* setup DM */
   ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr); /* refinement done here */
   ierr = DMSetUp( ctx.dm );CHKERRQ(ierr);
-  /* convert to plex - using the origina plex has a problem */
-  ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
-  ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); /* low overhead, cached */
+  if (dmpi->dmgrid != dmpi->dmplex) {
+    /* convert to plex - using the origina plex has a problem */
+    ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
+    ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); /* low overhead, cached */
+  }
+  else {
+    PetscInt n=1;
+    ierr = PetscOptionsGetInt(NULL,NULL,"-x2_dm_forest_initial_refinement",&n,NULL);CHKERRQ(ierr);
+    PetscPrintf(ctx.wComm,"[%D] No p4estm refine manualy N=%D\n",ctx.rank,n);
+    while (n--) {
+      ierr = DMRefine(dmpi->dmgrid, ctx.wComm, &dmpi->dmplex);CHKERRQ(ierr);
+      ierr = DMDestroy(&dmpi->dmgrid);CHKERRQ(ierr);
+      dmpi->dmgrid = dmpi->dmplex;  
+      if (n<0) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "bad -x2_dm_forest_initial_refinement");
+      PetscPrintf(ctx.wComm,"\t[%D] No p4estm refine manualy N=%D\n",ctx.rank,n);
+    }
+  }
   /* get section */
   ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &dmpi->section);CHKERRQ(ierr);
   if (dmpi->debug>3) {

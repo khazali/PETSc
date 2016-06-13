@@ -29,7 +29,7 @@ ex1: ex1.o chkopts
 
 runex1:
 	-echo ${MPIEXEC}
-	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -x2_dm_type p8est -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 1 -numMajor 8 -npart_flux_tube 1000 -mstep 2 -debug 2 -ksp_monitor -snes_monitor -snes_converged_reason -collisionPeriod 1 -run_type boxtorus -petscpartitioner_type chaco
+	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 1 -numMajor 8 -npart_flux_tube 1000 -mstep 2 -debug 2 -ksp_monitor -snes_monitor -snes_converged_reason -collisionPeriod 1 -run_type boxtorus -petscpartitioner_type chaco
 # -iter_vertex_file ITER-51vertex-quad-tri.txt -x2_dm_view 
 # -run_type boxtorus  -bsp_chuncksize 3000 -gtool "advixe-cl -collect survey:2,3" 
 # -nphi_particles 2

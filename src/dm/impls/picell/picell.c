@@ -88,9 +88,7 @@ PetscErrorCode DMDestroy_PICell(DM dm)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  if (dmpi->dmplex) {
-    ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
-  }
+  ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
   ierr = SNESDestroy(&dmpi->snes);CHKERRQ(ierr);
   ierr = DMDestroy(&dmpi->dmgrid);CHKERRQ(ierr);
   ierr = VecDestroy(&dmpi->rho);CHKERRQ(ierr);
