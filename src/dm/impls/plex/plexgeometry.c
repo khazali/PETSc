@@ -59,6 +59,35 @@ static PetscErrorCode DMPlexLocatePoint_Simplex_2D_Internal(DM dm, const PetscSc
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "DMPlexClosestPoint_Simplex_2D_Internal"
+static PetscErrorCode DMPlexClosestPoint_Simplex_2D_Internal(DM dm, const PetscScalar point[], PetscInt c, PetscReal cpoint[])
+{
+  const PetscInt  embedDim = 2;
+  PetscReal       x        = PetscRealPart(point[0]);
+  PetscReal       y        = PetscRealPart(point[1]);
+  PetscReal       v0[2], J[4], invJ[4], detJ;
+  PetscReal       xi, eta, r;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBegin;
+  ierr = DMPlexComputeCellGeometryFEM(dm, c, NULL, v0, J, invJ, &detJ);CHKERRQ(ierr);
+  xi  = invJ[0*embedDim+0]*(x - v0[0]) + invJ[0*embedDim+1]*(y - v0[1]);
+  eta = invJ[1*embedDim+0]*(x - v0[0]) + invJ[1*embedDim+1]*(y - v0[1]);
+
+  xi  = PetscMax(xi,  0.0);
+  eta = PetscMax(eta, 0.0);
+  r   = (xi + eta)/2.0;
+  if (xi + eta > 2.0) {
+    r    = (xi + eta)/2.0;
+    xi  /= r;
+    eta /= r;
+  }
+  cpoint[0] = J[0*embedDim+0]*xi + J[0*embedDim+1]*eta + v0[0];
+  cpoint[1] = J[1*embedDim+0]*xi + J[1*embedDim+1]*eta + v0[1];
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "DMPlexLocatePoint_General_2D_Internal"
 static PetscErrorCode DMPlexLocatePoint_General_2D_Internal(DM dm, const PetscScalar point[], PetscInt c, PetscInt *cell)
 {
@@ -207,6 +236,20 @@ PetscErrorCode PetscGridHashEnlarge(PetscGridHash box, const PetscScalar point[]
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscGridHashSetGrid"
+/*
+  PetscGridHashSetGrid - Divide the grid into boxes
+
+  Not collective
+
+  Input Parameters:
++ box - The grid hash object
+. n   - The number of boxes in each dimension, or PETSC_DETERMINE
+- h   - The box size in each dimension, only used if n[d] == PETSC_DETERMINE
+
+  Level: developer
+
+.seealso: PetscGridHashCreate()
+*/
 PetscErrorCode PetscGridHashSetGrid(PetscGridHash box, const PetscInt n[], const PetscReal h[])
 {
   PetscInt d;
@@ -227,6 +270,24 @@ PetscErrorCode PetscGridHashSetGrid(PetscGridHash box, const PetscInt n[], const
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscGridHashGetEnclosingBox"
+/*
+  PetscGridHashGetEnclosingBox - Find the grid boxes containing each input point
+
+  Not collective
+
+  Input Parameters:
++ box       - The grid hash object
+. numPoints - The number of input points
+- points    - The input point coordinates
+
+  Output Parameters:
++ dboxes    - An array of numPoints*dim integers expressing the enclosing box as (i_0, i_1, ..., i_dim)
+- boxes     - An array of numPoints integers expressing the enclosing box as single number, or NULL
+
+  Level: developer
+
+.seealso: PetscGridHashCreate()
+*/
 PetscErrorCode PetscGridHashGetEnclosingBox(PetscGridHash box, PetscInt numPoints, const PetscScalar points[], PetscInt dboxes[], PetscInt boxes[])
 {
   const PetscReal *lower = box->lower;
@@ -309,7 +370,70 @@ PetscErrorCode DMPlexLocatePoint_Internal(DM dm, PetscInt dim, const PetscScalar
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "DMPlexClosestPoint_Internal"
+/*
+  DMPlexClosestPoint_Internal - Returns the closest point in the cell to the given point
+*/
+PetscErrorCode DMPlexClosestPoint_Internal(DM dm, PetscInt dim, const PetscScalar point[], PetscInt cell, PetscReal cpoint[])
+{
+  PetscInt       coneSize;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  switch (dim) {
+  case 2:
+    ierr = DMPlexGetConeSize(dm, cell, &coneSize);CHKERRQ(ierr);
+    switch (coneSize) {
+    case 3:
+      ierr = DMPlexClosestPoint_Simplex_2D_Internal(dm, point, cell, cpoint);CHKERRQ(ierr);
+      break;
+#if 0
+    case 4:
+      ierr = DMPlexClosestPoint_General_2D_Internal(dm, point, cell, cpoint);CHKERRQ(ierr);
+      break;
+#endif
+    default:
+      SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_OUTOFRANGE, "No closest point location for cell with cone size %D", coneSize);
+    }
+    break;
+#if 0
+  case 3:
+    ierr = DMPlexGetConeSize(dm, cell, &coneSize);CHKERRQ(ierr);
+    switch (coneSize) {
+    case 4:
+      ierr = DMPlexClosestPoint_Simplex_3D_Internal(dm, point, cell, cpoint);CHKERRQ(ierr);
+      break;
+    case 6:
+      ierr = DMPlexClosestPoint_General_3D_Internal(dm, point, cell, cpoint);CHKERRQ(ierr);
+      break;
+    default:
+      SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_OUTOFRANGE, "No closest point location for cell with cone size %D", coneSize);
+    }
+    break;
+#endif
+  default:
+    SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_OUTOFRANGE, "No closest point location for mesh dimension %D", dim);
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "DMPlexComputeGridHash_Internal"
+/*
+  DMPlexComputeGridHash_Internal - Create a grid hash structure covering the Plex
+
+  Collective on DM
+
+  Input Parameter:
+. dm - The Plex
+
+  Output Parameter:
+. localBox - The grid hash object
+
+  Level: developer
+
+.seealso: PetscGridHashCreate(), PetscGridHashGetEnclosingBox()
+*/
 PetscErrorCode DMPlexComputeGridHash_Internal(DM dm, PetscGridHash *localBox)
 {
   MPI_Comm           comm;
@@ -426,7 +550,7 @@ PetscErrorCode DMPlexComputeGridHash_Internal(DM dm, PetscGridHash *localBox)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMLocatePoints_Plex"
-PetscErrorCode DMLocatePoints_Plex(DM dm, Vec v, PetscSF cellSF)
+PetscErrorCode DMLocatePoints_Plex(DM dm, Vec v, DMPointLocationType ltype, PetscSF cellSF)
 {
   DM_Plex        *mesh = (DM_Plex *) dm->data;
   PetscBool       hash = mesh->useHashLocation;
@@ -439,6 +563,7 @@ PetscErrorCode DMLocatePoints_Plex(DM dm, Vec v, PetscSF cellSF)
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
+  if (ltype == DM_POINTLOCATION_NEAREST && !hash) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Nearest point location only supported with grid hashing.");
   ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
   ierr = VecGetBlockSize(v, &bs);CHKERRQ(ierr);
   ierr = MPI_Comm_compare(PetscObjectComm((PetscObject)cellSF),PETSC_COMM_SELF,&result);CHKERRQ(ierr);
@@ -492,9 +617,36 @@ PetscErrorCode DMLocatePoints_Plex(DM dm, Vec v, PetscSF cellSF)
     }
   }
   if (hash) {ierr = ISRestoreIndices(mesh->lbox->cells, &boxCells);CHKERRQ(ierr);}
+  if (ltype == DM_POINTLOCATION_NEAREST && hash && numFound < numPoints) {
+    for (p = 0; p < numPoints; p++) {
+      const PetscScalar *point = &a[p*bs];
+      PetscReal          cpoint[3], diff[3], dist, distMax = PETSC_MAX_REAL;
+      PetscInt           dbin[3], bin, cellOffset, d;
+
+      if (cells[p].rank < 0) {
+        ++numFound;
+        ierr = PetscGridHashGetEnclosingBox(mesh->lbox, 1, point, dbin, &bin);CHKERRQ(ierr);
+        ierr = PetscSectionGetDof(mesh->lbox->cellSection, bin, &numCells);CHKERRQ(ierr);
+        ierr = PetscSectionGetOffset(mesh->lbox->cellSection, bin, &cellOffset);CHKERRQ(ierr);
+        for (c = cellOffset; c < cellOffset + numCells; ++c) {
+          ierr = DMPlexClosestPoint_Internal(dm, dim, point, boxCells[c], cpoint);CHKERRQ(ierr);
+          for (d = 0; d < dim; ++d) diff[d] = cpoint[d] - PetscRealPart(point[d]);
+          dist = DMPlex_NormD_Internal(dim, diff);
+          if (dist < distMax) {
+            for (d = 0; d < dim; ++d) a[p*bs+d] = cpoint[d];
+            cells[p].rank  = 0;
+            cells[p].index = boxCells[c];
+            distMax = dist;
+            break;
+          }
+        }
+      }
+    }
+  }
+  /* This code is only be relevant when interfaced to parallel point location */
   /* Check for highest numbered proc that claims a point (do we care?) */
-  ierr = VecRestoreArray(v, &a);CHKERRQ(ierr);
   if (numFound < numPoints) {
+    if (ltype == DM_POINTLOCATION_NEAREST) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Nearest point location does not support parallel point location.");
     ierr = PetscMalloc1(numFound,&found);CHKERRQ(ierr);
     for (p = 0, numFound = 0; p < numPoints; p++) {
       if (cells[p].rank >= 0 && cells[p].index >= 0) {
@@ -505,16 +657,30 @@ PetscErrorCode DMLocatePoints_Plex(DM dm, Vec v, PetscSF cellSF)
       }
     }
   }
+  ierr = VecRestoreArray(v, &a);CHKERRQ(ierr);
   ierr = PetscSFSetGraph(cellSF, cEnd - cStart, numFound, found, PETSC_OWN_POINTER, cells, PETSC_OWN_POINTER);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMPlexComputeProjection2Dto1D_Internal"
-/*
-  DMPlexComputeProjection2Dto1D_Internal - Rewrite coordinates to be the 1D projection of the 2D
-*/
-PetscErrorCode DMPlexComputeProjection2Dto1D_Internal(PetscScalar coords[], PetscReal R[])
+#define __FUNCT__ "DMPlexComputeProjection2Dto1D"
+/*@C
+  DMPlexComputeProjection2Dto1D - Rewrite coordinates to be the 1D projection of the 2D coordinates
+
+  Not collective
+
+  Input Parameter:
+. coords - The coordinates of a segment
+
+  Output Parameters:
++ coords - The new y-coordinate, and 0 for x
+- R - The rotation which accomplishes the projection
+
+  Level: developer
+
+.seealso: DMPlexComputeProjection3Dto1D(), DMPlexComputeProjection3Dto2D()
+@*/
+PetscErrorCode DMPlexComputeProjection2Dto1D(PetscScalar coords[], PetscReal R[])
 {
   const PetscReal x = PetscRealPart(coords[2] - coords[0]);
   const PetscReal y = PetscRealPart(coords[3] - coords[1]);
@@ -529,16 +695,26 @@ PetscErrorCode DMPlexComputeProjection2Dto1D_Internal(PetscScalar coords[], Pets
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMPlexComputeProjection3Dto1D_Internal"
-/*
-  DMPlexComputeProjection3Dto1D_Internal - Rewrite coordinates to be the 1D projection of the 3D
+#define __FUNCT__ "DMPlexComputeProjection3Dto1D"
+/*@C
+  DMPlexComputeProjection3Dto1D - Rewrite coordinates to be the 1D projection of the 3D coordinates
 
-  This uses the basis completion described by Frisvad,
+  Not collective
 
-  http://www.imm.dtu.dk/~jerf/papers/abstracts/onb.html
-  DOI:10.1080/2165347X.2012.689606
-*/
-PetscErrorCode DMPlexComputeProjection3Dto1D_Internal(PetscScalar coords[], PetscReal R[])
+  Input Parameter:
+. coords - The coordinates of a segment
+
+  Output Parameters:
++ coords - The new y-coordinate, and 0 for x and z
+- R - The rotation which accomplishes the projection
+
+  Note: This uses the basis completion described by Frisvad in http://www.imm.dtu.dk/~jerf/papers/abstracts/onb.html, DOI:10.1080/2165347X.2012.689606
+
+  Level: developer
+
+.seealso: DMPlexComputeProjection2Dto1D(), DMPlexComputeProjection3Dto2D()
+@*/
+PetscErrorCode DMPlexComputeProjection3Dto1D(PetscScalar coords[], PetscReal R[])
 {
   PetscReal      x    = PetscRealPart(coords[3] - coords[0]);
   PetscReal      y    = PetscRealPart(coords[4] - coords[1]);
@@ -568,11 +744,24 @@ PetscErrorCode DMPlexComputeProjection3Dto1D_Internal(PetscScalar coords[], Pets
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "DMPlexComputeProjection3Dto2D_Internal"
-/*
-  DMPlexComputeProjection3Dto2D_Internal - Rewrite coordinates to be the 2D projection of the 3D
-*/
-PetscErrorCode DMPlexComputeProjection3Dto2D_Internal(PetscInt coordSize, PetscScalar coords[], PetscReal R[])
+#define __FUNCT__ "DMPlexComputeProjection3Dto2D"
+/*@
+  DMPlexComputeProjection3Dto2D - Rewrite coordinates to be the 2D projection of the 3D coordinates
+
+  Not collective
+
+  Input Parameter:
+. coords - The coordinates of a segment
+
+  Output Parameters:
++ coords - The new y- and z-coordinates, and 0 for x
+- R - The rotation which accomplishes the projection
+
+  Level: developer
+
+.seealso: DMPlexComputeProjection2Dto1D(), DMPlexComputeProjection3Dto1D()
+@*/
+PetscErrorCode DMPlexComputeProjection3Dto2D(PetscInt coordSize, PetscScalar coords[], PetscReal R[])
 {
   PetscReal      x1[3],  x2[3], n[3], norm;
   PetscReal      x1p[3], x2p[3], xnp[3];
@@ -762,7 +951,7 @@ static PetscErrorCode DMPlexComputeLineGeometry_Internal(DM dm, PetscInt e, Pets
     PetscReal      R[9], J0;
 
     if (v0)   {for (d = 0; d < dim; d++) v0[d] = PetscRealPart(coords[d]);}
-    ierr = DMPlexComputeProjection3Dto1D_Internal(coords, R);CHKERRQ(ierr);
+    ierr = DMPlexComputeProjection3Dto1D(coords, R);CHKERRQ(ierr);
     if (J)    {
       J0   = 0.5*PetscRealPart(coords[1]);
       J[0] = R[0]*J0; J[1] = R[1]; J[2] = R[2];
@@ -776,7 +965,7 @@ static PetscErrorCode DMPlexComputeLineGeometry_Internal(DM dm, PetscInt e, Pets
     PetscReal      R[4], J0;
 
     if (v0)   {for (d = 0; d < dim; d++) v0[d] = PetscRealPart(coords[d]);}
-    ierr = DMPlexComputeProjection2Dto1D_Internal(coords, R);CHKERRQ(ierr);
+    ierr = DMPlexComputeProjection2Dto1D(coords, R);CHKERRQ(ierr);
     if (J)    {
       J0   = 0.5*PetscRealPart(coords[1]);
       J[0] = R[0]*J0; J[1] = R[1];
@@ -819,7 +1008,7 @@ static PetscErrorCode DMPlexComputeTriangleGeometry_Internal(DM dm, PetscInt e, 
     PetscReal      R[9], J0[9] = {1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0};
 
     if (v0)   {for (d = 0; d < dim; d++) v0[d] = PetscRealPart(coords[d]);}
-    ierr = DMPlexComputeProjection3Dto2D_Internal(numCoords, coords, R);CHKERRQ(ierr);
+    ierr = DMPlexComputeProjection3Dto2D(numCoords, coords, R);CHKERRQ(ierr);
     if (J)    {
       const PetscInt pdim = 2;
 
@@ -883,7 +1072,7 @@ static PetscErrorCode DMPlexComputeRectangleGeometry_Internal(DM dm, PetscInt e,
     PetscReal      R[9], J0[9] = {1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0};
 
     if (v0)   {for (d = 0; d < dim; d++) v0[d] = PetscRealPart(coords[d]);}
-    ierr = DMPlexComputeProjection3Dto2D_Internal(numCoords, coords, R);CHKERRQ(ierr);
+    ierr = DMPlexComputeProjection3Dto2D(numCoords, coords, R);CHKERRQ(ierr);
     if (J)    {
       const PetscInt pdim = 2;
 
@@ -1237,7 +1426,7 @@ static PetscErrorCode DMPlexComputeGeometryFVM_2D_Internal(DM dm, PetscInt dim, 
       for (d = 0; d < dim; ++d) normal[d] = 0.0;
     }
   }
-  if (dim == 3) {ierr = DMPlexComputeProjection3Dto2D_Internal(coordSize, coords, R);CHKERRQ(ierr);}
+  if (dim == 3) {ierr = DMPlexComputeProjection3Dto2D(coordSize, coords, R);CHKERRQ(ierr);}
   for (p = 0; p < numCorners; ++p) {
     /* Need to do this copy to get types right */
     for (d = 0; d < tdim; ++d) {

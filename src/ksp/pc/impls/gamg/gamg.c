@@ -239,6 +239,9 @@ static PetscErrorCode PCGAMGCreateLevel_GAMG(PC pc,Mat Amat_fine,PetscInt cr_bs,
         *a_Amat_crs = Cmat; /* output - no repartitioning or reduction, bail out because nested here */
         ierr        = PetscFree(counts);CHKERRQ(ierr);
         ierr = PetscInfo2(pc,"Aggregate processors noop: new_size=%D, neq(loc)=%D\n",new_size,ncrs_eq);CHKERRQ(ierr);
+#if defined PETSC_GAMG_USE_LOG
+        ierr = PetscLogEventEnd(petsc_gamg_setup_events[SET12],0,0,0,0);CHKERRQ(ierr);
+#endif
         PetscFunctionReturn(0);
       }
 
@@ -1294,7 +1297,7 @@ PetscErrorCode PCGAMGInitializePackage(void)
   ierr = PetscLogEventRegister("  MIS/Agg", PC_CLASSID, &petsc_gamg_setup_events[SET4]);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("  geo: growSupp", PC_CLASSID, &petsc_gamg_setup_events[SET5]);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("  geo: triangle", PC_CLASSID, &petsc_gamg_setup_events[SET6]);CHKERRQ(ierr);
-  ierr = PetscLogEventRegister("    search&set", PC_CLASSID, &petsc_gamg_setup_events[FIND_V]);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("    search-set", PC_CLASSID, &petsc_gamg_setup_events[FIND_V]);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("  SA: col data", PC_CLASSID, &petsc_gamg_setup_events[SET7]);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("  SA: frmProl0", PC_CLASSID, &petsc_gamg_setup_events[SET8]);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("  SA: smooth", PC_CLASSID, &petsc_gamg_setup_events[SET9]);CHKERRQ(ierr);

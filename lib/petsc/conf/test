@@ -52,6 +52,7 @@ testexamples_MUMPS: ${TESTEXAMPLES_MUMPS}
 testexamples_MUMPS_DATAFILESPATH: ${TESTEXAMPLES_MUMPS_DATAFILESPATH}
 testexamples_SUPERLU: ${TESTEXAMPLES_SUPERLU}
 testexamples_SUPERLU_DATAFILESPATH: ${TESTEXAMPLES_SUPERLU_DATAFILESPATH}
+testexamples_STRUMPACK: ${TESTEXAMPLES_STRUMPACK}
 testexamples_PARMETIS_DATAFILESPATH: ${TESTEXAMPLES_PARMETIS_DATAFILESPATH}
 testexamples_ELEMENTAL: ${TESTEXAMPLES_ELEMENTAL}
 testexamples_SUNDIALS: ${TESTEXAMPLES_SUNDIALS}
@@ -171,6 +172,8 @@ buildexamples_MUMPS:
 	-@${OMAKE} testexamples_MUMPS TESTEXAMPLES_MUMPS=`echo ${TESTEXAMPLES_MUMPS} | sed s/runex[0-9]*[a-z0-9_]*//g`
 buildexamples_SUPERLU:
 	-@${OMAKE} testexamples_SUPERLU TESTEXAMPLES_SUPERLU=`echo ${TESTEXAMPLES_SUPERLU} | sed s/runex[0-9]*[a-z0-9_]*//g`
+buildexamples_STRUMPACK:
+	-@${OMAKE} testexamples_STRUMPACK TESTEXAMPLES_STRUMPACK=`echo ${TESTEXAMPLES_STRUMPACK} | sed s/runex[0-9]*[a-z0-9_]*//g`
 buildexamples_SUNDIALS:
 	-@${OMAKE} testexamples_SUNDIALS TESTEXAMPLES_SUNDIALS=`echo ${TESTEXAMPLES_SUNDIALS} | sed s/runex[0-9]*[a-z0-9_]*//g`
 buildexamples_SUITESPARSE:
@@ -232,6 +235,8 @@ buildexamples_OPENMP:
 
 TESTMODE = testexamples
 
+ALLTESTS_PRINT_PROGRESS = no
+
 alltests:
 	-@${RM} ${PETSC_ARCH}/lib/petsc/conf/alltests.log alltests.log
 	-@ln -s ${PETSC_ARCH}/lib/petsc/conf/alltests.log alltests.log
@@ -241,7 +246,8 @@ alltest:
 	-@date
 	-@for i in ${TEST_RUNS} ; do \
           echo "******* Testing: ${TESTMODE}_$$i *******"; \
-	  ${OMAKE} PETSC_ARCH=${PETSC_ARCH} PETSC_DIR=${PETSC_DIR} ACTION=${TESTMODE}_$$i MPIEXEC="${MPIEXEC}" NO_PRINT_DIR=yes tree ; \
+	  ${OMAKE} PETSC_ARCH=${PETSC_ARCH} PETSC_DIR=${PETSC_DIR} ACTION=${TESTMODE}_$$i MPIEXEC="${MPIEXEC}" PRINT_PROGRESS=${ALLTESTS_PRINT_PROGRESS} tree ; \
+	  if [ ${ALLTESTS_PRINT_PROGRESS}foo = dotfoo ] ; then printf "\n"; fi; \
 	done
 	-@date
 
