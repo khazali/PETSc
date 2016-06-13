@@ -2,8 +2,9 @@
 
 static char help[] = "X2: A partical in cell code for tokamak plasmas using PICell.\n";
 
+#ifdef X2_HAVE_ADVISOR
 #include "advisor-annotate.h"  // Add to each module that contains Intel Advisor annotations
-
+#endif
 #ifdef H5PART
 #include <H5Part.h>
 #endif
@@ -1098,7 +1099,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       // loop body
       // ANNOTATE_TASK_END();
       // ANNOTATE_SITE_END();  // End the parallel code region, after task execution complete
-      
+
       /* get Cartesian coordinates (not used for flux tube move) */
       if (solver) {
 #if defined(PETSC_USE_LOG)
@@ -1112,13 +1113,17 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         /* make coordinates array to get gradients */
         ierr = VecGetArray(xVec,&xx0);CHKERRQ(ierr); xx = xx0;
 #ifdef X2_S_OF_V
+#ifdef X2_HAVE_ADVISOR
 	ANNOTATE_SITE_BEGIN( PushSite );
+#endif
 	for (pos=0 ; pos < list->size ; pos++, xx += 3) {
 	  //ANNOTATE_TASK_BEGIN( GetXTask );  // Repeat task begin/end annotations for each task
 	  ierr = cylindricalToCart(list->data_v.r[pos], list->data_v.z[pos], list->data_v.phi[pos], xx);CHKERRQ(ierr);
 	  //ANNOTATE_TASK_END();
         }
+#ifdef X2_HAVE_ADVISOR
 	ANNOTATE_SITE_END();
+#endif
 #else
 	ierr = X2PListGetHead( list, &pos );CHKERRQ(ierr);
 	while ( !X2PListGetNext(list, &part, &pos) ) {
@@ -2053,7 +2058,7 @@ int main(int argc, char **argv)
   X2Ctx          ctx; /* user-defined work context */
   PetscErrorCode ierr;
   DM_PICell      *dmpi;
-  PetscInt       dim = 3;
+  PetscInt       dim;
   Mat            J;
   DMLabel label;
   PetscFunctionBeginUser;
@@ -2147,7 +2152,6 @@ int main(int argc, char **argv)
   CHKERRQ(ierr);
   ctx.BCFuncs[0] = zero;
   ierr = DMGetDimension(dmpi->dmgrid, &dim);CHKERRQ(ierr);
-  /* PetscFECreateDefault(DM dm, PetscInt dim, PetscInt numComp, PetscBool isSimplex, const char prefix[], PetscInt qorder, PetscFE *fem) */
   ierr = PetscFECreateDefault(dmpi->dmgrid, dim, 1, PETSC_FALSE, NULL, 1, &dmpi->fem);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->fem, "potential");CHKERRQ(ierr);
   /* FEM prob */
@@ -2170,10 +2174,15 @@ int main(int argc, char **argv)
     while (n--) {
       ierr = DMRefine(dmpi->dmgrid, ctx.wComm, &dmpi->dmplex);CHKERRQ(ierr);
       ierr = DMDestroy(&dmpi->dmgrid);CHKERRQ(ierr);
-      dmpi->dmgrid = dmpi->dmplex;  
+      dmpi->dmgrid = dmpi->dmplex;
       if (n<0) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "bad -x2_dm_forest_initial_refinement");
       PetscPrintf(ctx.wComm,"\t[%D] No p4estm refine manualy N=%D\n",ctx.rank,n);
     }
+    /* PetscSection   s; */
+    /* PetscInt one=1,numComp[1]={1},const PetscInt numDof[] */
+    /* ierr = DMPlexCreateSection(dmpi->dmgrid, dim, one, 1, 1, 0, NULL, NULL, NULL, NULL, &s);CHKERRQ(ierr); */
+    /* ierr = DMSetDefaultSection(dmpi->dmgrid, s);CHKERRQ(ierr); */
+    /* ierr = PetscSectionDestroy(&s);CHKERRQ(ierr); */
   }
   /* get section */
   ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &dmpi->section);CHKERRQ(ierr);
