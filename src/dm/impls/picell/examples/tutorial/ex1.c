@@ -2170,6 +2170,7 @@ int main(int argc, char **argv)
   ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
   ierr = PetscDSSetResidual(prob, 0, f0_u, f1_u);CHKERRQ(ierr);
   ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
+  ierr = DMSetUp( ctx.dm );CHKERRQ(ierr);
   if (dmpi->dmgrid == dmpi->dmplex) {
     ierr = DMGetDefaultSection(dmpi->dmplex, &s);CHKERRQ(ierr);
     ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &s);CHKERRQ(ierr);
@@ -2181,7 +2182,7 @@ int main(int argc, char **argv)
     /* get section */
     ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &s);CHKERRQ(ierr);
   }
-  ierr = DMSetUp( ctx.dm );CHKERRQ(ierr);
+
   if (dmpi->debug>3) { /* this shows a bug with crap in the section */
     ierr = PetscSectionView(s,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
