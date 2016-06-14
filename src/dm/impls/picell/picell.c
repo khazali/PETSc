@@ -112,6 +112,7 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 
   dm->dim  = 0;
   dm->data = dmpi;
+  dmpi->dmgrid = 0;
 
   dm->ops->view                            = DMView_PICell;
   dm->ops->load                            = NULL;

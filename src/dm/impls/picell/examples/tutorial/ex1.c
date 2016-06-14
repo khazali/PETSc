@@ -2167,26 +2167,19 @@ int main(int argc, char **argv)
     ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
     ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); /* low overhead, cached */
   }
-  else {
-    PetscInt n=1;
-    ierr = PetscOptionsGetInt(NULL,NULL,"-x2_dm_forest_initial_refinement",&n,NULL);CHKERRQ(ierr);
-    PetscPrintf(ctx.wComm,"[%D] No p4estm refine manualy N=%D\n",ctx.rank,n);
-    while (n--) {
-      ierr = DMRefine(dmpi->dmgrid, ctx.wComm, &dmpi->dmplex);CHKERRQ(ierr);
-      ierr = DMDestroy(&dmpi->dmgrid);CHKERRQ(ierr);
-      dmpi->dmgrid = dmpi->dmplex;
-      if (n<0) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "bad -x2_dm_forest_initial_refinement");
-      PetscPrintf(ctx.wComm,"\t[%D] No p4estm refine manualy N=%D\n",ctx.rank,n);
-    }
-    /* PetscSection   s; */
-    /* PetscInt one=1,numComp[1]={1},const PetscInt numDof[] */
-    /* ierr = DMPlexCreateSection(dmpi->dmgrid, dim, one, 1, 1, 0, NULL, NULL, NULL, NULL, &s);CHKERRQ(ierr); */
-    /* ierr = DMSetDefaultSection(dmpi->dmgrid, s);CHKERRQ(ierr); */
-    /* ierr = PetscSectionDestroy(&s);CHKERRQ(ierr); */
+  else if (ctx.npe > 1) {
+    PetscSection s;
+    if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] No p4est\n",ctx.rank);
+    ierr = DMPlexDistribute(dmpi->dmplex, 0, NULL, &dmpi->dmgrid);CHKERRQ(ierr);
+    ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
+    dmpi->dmplex = dmpi->dmgrid;
+    ierr = DMGetDefaultSection(dmpi->dmplex, &s);CHKERRQ(ierr);
+    if (!s) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "DMGetDefaultSection return NULL");
+    ierr = PetscSectionView(s, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
   /* get section */
   ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &dmpi->section);CHKERRQ(ierr);
-  if (dmpi->debug>-3) {
+  if (dmpi->debug>3) { /* this shows a bug with crap in the section */
     ierr = PetscSectionView(dmpi->section,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
   if (dmpi->debug>1) {
@@ -2197,8 +2190,8 @@ int main(int argc, char **argv)
     ierr = VecGetSize(dmpi->rho,&n);CHKERRQ(ierr);
     if (!n) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "No dofs");
     ierr = DMPlexGetHeightStratum(dmpi->dmplex, 0, &cStart, &cEnd);CHKERRQ(ierr);
-    if (dmpi->debug>0 || !cEnd) {
-      ierr = PetscPrintf((dmpi->debug>1 || !cEnd) ? PETSC_COMM_SELF : ctx.wComm,"[%D] %D global equations, %d local cells, (cEnd=%d), debug=%D\n",ctx.rank,n,cEnd-cStart,cEnd,dmpi->debug);
+    if (dmpi->debug>0 && !cEnd) {
+      ierr = PetscPrintf((dmpi->debug>1 || !cEnd) ? PETSC_COMM_SELF : ctx.wComm,"[%D] ERROR %D global equations, %d local cells, (cEnd=%d), debug=%D\n",ctx.rank,n,cEnd-cStart,cEnd,dmpi->debug);
     }
     if (!cEnd) {
       SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "No cells");
