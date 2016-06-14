@@ -20,8 +20,6 @@ typedef struct {
   Vec  rho;
   SNES snes;
   PetscFE fem;
-  PetscSection section;
-  PetscDS prob;
   PetscInt debug;   /* The debugging level */
 } DM_PICell;
 

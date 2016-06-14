@@ -53,7 +53,11 @@ PetscErrorCode  DMSetFromOptions_PICell(PetscOptionItems *PetscOptionsObject,DM 
 
   /* ierr = PetscObjectGetOptionsPrefix((PetscObject)dm,&prefix);CHKERRQ(ierr); */
   /* ierr = PetscObjectSetOptionsPrefix((PetscObject)dmpi->dmgrid,prefix);CHKERRQ(ierr); */
+  if (!dmpi->dmgrid) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "dmgrid not created");
   ierr = DMSetFromOptions(dmpi->dmgrid);CHKERRQ(ierr);
+  if (dmpi->dmplex && dmpi->dmplex != dmpi->dmgrid) {
+    ierr = DMSetFromOptions(dmpi->dmplex);CHKERRQ(ierr);
+  }
 
   ierr = PetscOptionsTail();CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -69,7 +73,11 @@ PetscErrorCode DMSetUp_PICell(DM dm)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   /* We have built dmgrid, now create vectors */
+  if (!dmpi->dmgrid) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "dmgrid not created");
   ierr = DMSetUp(dmpi->dmgrid);CHKERRQ(ierr); /* build a grid */
+  if (dmpi->dmplex && dmpi->dmplex != dmpi->dmgrid) {
+    ierr = DMSetUp(dmpi->dmplex);CHKERRQ(ierr);
+  }
   ierr = DMCreateGlobalVector(dmpi->dmgrid, &dmpi->phi);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->phi, "potential");CHKERRQ(ierr);
   ierr = VecZeroEntries(dmpi->phi);CHKERRQ(ierr);
@@ -113,6 +121,10 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
   dm->dim  = 0;
   dm->data = dmpi;
   dmpi->dmgrid = 0;
+  dmpi->dmplex = 0;
+  dmpi->phi = 0;
+  dmpi->rho = 0;
+  dmpi->snes = 0;
 
   dm->ops->view                            = DMView_PICell;
   dm->ops->load                            = NULL;
@@ -149,6 +161,7 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellAddSource"
 /* add densities 'src' at 'coord' to global density vector (dmpi->rho) */
+/* use dmplex here and not dmgrid (p4est) */
 PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec src, PetscInt cell)
 {
   DM_PICell    *dmpi = (DM_PICell *) a_dm->data;
@@ -158,14 +171,18 @@ PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec src, PetscInt cell)
   PetscReal    v0[3], J[9], invJ[9], detJ;
   PetscInt     totDim,p,N,dim,b;
   PetscErrorCode ierr;
+  PetscDS        prob;
+  PetscSection   s;
   PetscFunctionBegin;
+
   PetscValidHeaderSpecific(a_dm, DM_CLASSID, 1);
   PetscValidHeaderSpecific(coord, VEC_CLASSID, 2);
   PetscValidHeaderSpecific(src, VEC_CLASSID, 3);
   ierr = VecDuplicate(coord, &refCoord);CHKERRQ(ierr);
   ierr = VecGetBlockSize(coord, &dim);CHKERRQ(ierr);
   ierr = VecGetLocalSize(coord, &N);CHKERRQ(ierr);
-  if (N%dim) SETERRQ2(PetscObjectComm((PetscObject) dmpi->dmgrid), PETSC_ERR_SUP, "N=%D dim=%D",N,dim);
+  ierr = DMGetDefaultGlobalSection(dmpi->dmplex, &s);CHKERRQ(ierr);
+  if (N%dim) SETERRQ2(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_SUP, "N=%D dim=%D",N,dim);
   N   /= dim;
   ierr = VecGetArray(coord, &x);CHKERRQ(ierr);
   ierr = VecGetArray(refCoord, &xi);CHKERRQ(ierr);
@@ -178,8 +195,9 @@ PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec src, PetscInt cell)
   ierr = PetscFEGetTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
   ierr = VecRestoreArray(refCoord, &xi);CHKERRQ(ierr);
   ierr = VecDestroy(&refCoord);CHKERRQ(ierr);
-  ierr = PetscDSGetTotalDimension(dmpi->prob, &totDim);CHKERRQ(ierr);
-  ierr = DMGetWorkArray(dmpi->dmgrid, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
+  ierr = DMGetDS(dmpi->dmplex, &prob);CHKERRQ(ierr);
+  ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
+  ierr = DMGetWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscMemzero(elemVec, totDim * sizeof(PetscScalar));CHKERRQ(ierr);
   ierr = VecGetArray(src, &x);CHKERRQ(ierr);
   for (b = 0; b < totDim; ++b) {
@@ -188,8 +206,8 @@ PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec src, PetscInt cell)
     }
   }
   ierr = VecRestoreArray(src, &x);CHKERRQ(ierr);
-  ierr = DMPlexVecSetClosure(dmpi->dmplex, dmpi->section, dmpi->rho, cell, elemVec, ADD_VALUES);CHKERRQ(ierr);
-  ierr = DMRestoreWorkArray(dmpi->dmgrid, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
+  ierr = DMPlexVecSetClosure(dmpi->dmplex, s, dmpi->rho, cell, elemVec, ADD_VALUES);CHKERRQ(ierr);
+  ierr = DMRestoreWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscFERestoreTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

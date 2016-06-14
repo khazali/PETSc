@@ -2060,7 +2060,9 @@ int main(int argc, char **argv)
   DM_PICell      *dmpi;
   PetscInt       dim;
   Mat            J;
-  DMLabel label;
+  DMLabel        label;
+  PetscDS        prob;
+  PetscSection   s;
   PetscFunctionBeginUser;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
@@ -2147,6 +2149,22 @@ int main(int argc, char **argv)
       dmpi->dmgrid = dmpi->dmplex;
     }
   }
+  /* setup DM */
+  ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr); /* refinement done here */
+  if (dmpi->dmgrid != dmpi->dmplex) {
+    /* convert to plex - using the origina plex has a problem */
+    ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
+    ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); /* low overhead, cached */
+    /* get section */
+    ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &s);CHKERRQ(ierr);
+  }
+  else if (ctx.npe > 1) { /* dmpi->dmgrid == dmpi->dmplex */
+    /* plex does not distribute by implicitly, so do it */
+    if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] No p4est\n",ctx.rank);
+    ierr = DMPlexDistribute(dmpi->dmplex, 0, NULL, &dmpi->dmgrid);CHKERRQ(ierr);
+    ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
+    dmpi->dmplex = dmpi->dmgrid;
+  }
   /* setup Discretization */
   ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);
   CHKERRQ(ierr);
@@ -2155,32 +2173,18 @@ int main(int argc, char **argv)
   ierr = PetscFECreateDefault(dmpi->dmgrid, dim, 1, PETSC_FALSE, NULL, 1, &dmpi->fem);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->fem, "potential");CHKERRQ(ierr);
   /* FEM prob */
-  ierr = DMGetDS(dmpi->dmgrid, &dmpi->prob);CHKERRQ(ierr);
-  ierr = PetscDSSetDiscretization(dmpi->prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
-  ierr = PetscDSSetResidual(dmpi->prob, 0, f0_u, f1_u);CHKERRQ(ierr);
-  ierr = PetscDSSetJacobian(dmpi->prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
-  /* setup DM */
-  ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr); /* refinement done here */
-  ierr = DMSetUp( ctx.dm );CHKERRQ(ierr);
-  if (dmpi->dmgrid != dmpi->dmplex) {
-    /* convert to plex - using the origina plex has a problem */
-    ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
-    ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); /* low overhead, cached */
-  }
-  else if (ctx.npe > 1) {
-    PetscSection s;
-    if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] No p4est\n",ctx.rank);
-    ierr = DMPlexDistribute(dmpi->dmplex, 0, NULL, &dmpi->dmgrid);CHKERRQ(ierr);
-    ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
-    dmpi->dmplex = dmpi->dmgrid;
+  ierr = DMGetDS(dmpi->dmgrid, &prob);CHKERRQ(ierr);
+  ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
+  ierr = PetscDSSetResidual(prob, 0, f0_u, f1_u);CHKERRQ(ierr);
+  ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
+  if (dmpi->dmgrid == dmpi->dmplex) {
     ierr = DMGetDefaultSection(dmpi->dmplex, &s);CHKERRQ(ierr);
+    ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &s);CHKERRQ(ierr);
     if (!s) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "DMGetDefaultSection return NULL");
-    ierr = PetscSectionView(s, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
-  /* get section */
-  ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &dmpi->section);CHKERRQ(ierr);
+  ierr = DMSetUp( ctx.dm );CHKERRQ(ierr);
   if (dmpi->debug>3) { /* this shows a bug with crap in the section */
-    ierr = PetscSectionView(dmpi->section,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    ierr = PetscSectionView(s,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
   if (dmpi->debug>1) {
     ierr = DMView(dmpi->dmplex,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
