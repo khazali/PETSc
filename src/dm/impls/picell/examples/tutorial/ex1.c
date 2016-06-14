@@ -2151,14 +2151,7 @@ int main(int argc, char **argv)
   }
   /* setup DM */
   ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr); /* refinement done here */
-  if (dmpi->dmgrid != dmpi->dmplex) {
-    /* convert to plex - using the origina plex has a problem */
-    ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
-    ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); /* low overhead, cached */
-    /* get section */
-    ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &s);CHKERRQ(ierr);
-  }
-  else if (ctx.npe > 1) { /* dmpi->dmgrid == dmpi->dmplex */
+  if (dmpi->dmgrid == dmpi->dmplex && ctx.npe > 1) {
     /* plex does not distribute by implicitly, so do it */
     if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] No p4est\n",ctx.rank);
     ierr = DMPlexDistribute(dmpi->dmplex, 0, NULL, &dmpi->dmgrid);CHKERRQ(ierr);
@@ -2181,6 +2174,12 @@ int main(int argc, char **argv)
     ierr = DMGetDefaultSection(dmpi->dmplex, &s);CHKERRQ(ierr);
     ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &s);CHKERRQ(ierr);
     if (!s) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "DMGetDefaultSection return NULL");
+  }
+  else { /* convert to plex - using the origina plex has a problem */
+    ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
+    ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); /* low overhead, cached */
+    /* get section */
+    ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &s);CHKERRQ(ierr);
   }
   ierr = DMSetUp( ctx.dm );CHKERRQ(ierr);
   if (dmpi->debug>3) { /* this shows a bug with crap in the section */
