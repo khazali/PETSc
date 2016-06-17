@@ -1231,7 +1231,11 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
     nslist = 0;
     /* add density (while in cache, by species at least) */
     if (irk>=0) {
+      Vec locrho;
+
       assert(solver);
+      ierr = DMGetLocalVector(dmpi->dmplex, &locrho);CHKERRQ(ierr);
+      ierr = VecSet(locrho, 0.0);CHKERRQ(ierr);
       for (elid=0;elid<ctx->nElems;elid++) {
         X2PList *list = &ctx->partlists[isp][elid];
         if (X2PListSize(list)==0)continue;
@@ -1260,10 +1264,13 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #if defined(PETSC_USE_LOG)
         ierr = PetscLogEventEnd(ctx->events[7],0,0,0,0);CHKERRQ(ierr);
 #endif
-        ierr = DMPICellAddSource(ctx->dm, xVec, vVec, elid);CHKERRQ(ierr);
+        ierr = DMPICellAddSource(ctx->dm, xVec, vVec, elid, locrho);CHKERRQ(ierr);
         ierr = VecDestroy(&xVec);CHKERRQ(ierr);
         ierr = VecDestroy(&vVec);CHKERRQ(ierr);
       }
+      ierr = DMLocalToGlobalBegin(dmpi->dmplex, locrho, ADD_VALUES, dmpi->rho);CHKERRQ(ierr);
+      ierr = DMLocalToGlobalEnd(dmpi->dmplex, locrho, ADD_VALUES, dmpi->rho);CHKERRQ(ierr);
+      ierr = DMRestoreLocalVector(dmpi->dmplex, &locrho);CHKERRQ(ierr);
     }
     } /* isp */
   /* diagnostics */
@@ -2157,6 +2164,7 @@ int main(int argc, char **argv)
     ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &s);CHKERRQ(ierr);
   }
 
+  ierr = PetscSectionViewFromOptions(s, NULL, "-section_view");CHKERRQ(ierr);
   if (dmpi->debug>3) { /* this shows a bug with crap in the section */
     ierr = PetscSectionView(s,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
