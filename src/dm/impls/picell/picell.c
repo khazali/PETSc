@@ -160,9 +160,9 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 }
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellAddSource"
-/* add densities 'src' at 'coord' to global density vector (dmpi->rho) */
+/* add densities 'src' at 'coord' to local density vector 'locrho' */
 /* use dmplex here and not dmgrid (p4est) */
-PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec src, PetscInt cell)
+PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec src, PetscInt cell, Vec locrho)
 {
   DM_PICell    *dmpi = (DM_PICell *) a_dm->data;
   Vec          refCoord;
@@ -178,10 +178,10 @@ PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec src, PetscInt cell)
   PetscValidHeaderSpecific(a_dm, DM_CLASSID, 1);
   PetscValidHeaderSpecific(coord, VEC_CLASSID, 2);
   PetscValidHeaderSpecific(src, VEC_CLASSID, 3);
+  PetscValidHeaderSpecific(locrho, VEC_CLASSID, 5);
   ierr = VecDuplicate(coord, &refCoord);CHKERRQ(ierr);
   ierr = VecGetBlockSize(coord, &dim);CHKERRQ(ierr);
   ierr = VecGetLocalSize(coord, &N);CHKERRQ(ierr);
-  ierr = DMGetDefaultGlobalSection(dmpi->dmplex, &s);CHKERRQ(ierr);
   if (N%dim) SETERRQ2(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_SUP, "N=%D dim=%D",N,dim);
   N   /= dim;
   ierr = VecGetArray(coord, &x);CHKERRQ(ierr);
@@ -206,7 +206,7 @@ PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec src, PetscInt cell)
     }
   }
   ierr = VecRestoreArray(src, &x);CHKERRQ(ierr);
-  ierr = DMPlexVecSetClosure(dmpi->dmplex, s, dmpi->rho, cell, elemVec, ADD_VALUES);CHKERRQ(ierr);
+  ierr = DMPlexVecSetClosure(dmpi->dmplex, NULL, locrho, cell, elemVec, ADD_VALUES);CHKERRQ(ierr);
   ierr = DMRestoreWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscFERestoreTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
