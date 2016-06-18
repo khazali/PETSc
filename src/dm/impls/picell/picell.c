@@ -81,12 +81,9 @@ PetscErrorCode DMSetUp_PICell(DM dm)
   ierr = DMCreateGlobalVector(dmpi->dmgrid, &dmpi->phi);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->phi, "potential");CHKERRQ(ierr);
   ierr = VecZeroEntries(dmpi->phi);CHKERRQ(ierr);
-  /* ierr = VecDuplicate(dmpi->phi, &dmpi->rho);CHKERRQ(ierr); */
-  ierr = DMCreateGlobalVector(dmpi->dmgrid, &dmpi->rho);CHKERRQ(ierr);
+  ierr = VecDuplicate(dmpi->phi, &dmpi->rho);CHKERRQ(ierr);
   ierr = VecZeroEntries(dmpi->rho);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->rho, "density");CHKERRQ(ierr);
-  ierr = VecZeroEntries(dmpi->rho);CHKERRQ(ierr);
-  ierr = VecZeroEntries(dmpi->phi);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -98,11 +95,13 @@ PetscErrorCode DMDestroy_PICell(DM dm)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
-  ierr = SNESDestroy(&dmpi->snes);CHKERRQ(ierr);
-  ierr = DMDestroy(&dmpi->dmgrid);CHKERRQ(ierr);
   ierr = VecDestroy(&dmpi->rho);CHKERRQ(ierr);
   ierr = VecDestroy(&dmpi->phi);CHKERRQ(ierr);
+  if (dmpi->dmplex != dmpi->dmgrid) {
+    ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
+  }
+  ierr = DMDestroy(&dmpi->dmgrid);CHKERRQ(ierr);
+  ierr = SNESDestroy(&dmpi->snes);CHKERRQ(ierr);
   ierr = PetscFree(dmpi);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -172,7 +171,6 @@ PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec src, PetscInt cell, Vec
   PetscInt     totDim,p,N,dim,b;
   PetscErrorCode ierr;
   PetscDS        prob;
-  PetscSection   s;
   PetscFunctionBegin;
 
   PetscValidHeaderSpecific(a_dm, DM_CLASSID, 1);

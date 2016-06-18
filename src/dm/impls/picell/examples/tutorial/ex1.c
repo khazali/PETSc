@@ -640,36 +640,29 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
 /* q: safty factor, should be parameterized */
 #define qsafty(psi) (3.*pow(psi,2.0))
 
-
 /* coordinate transformation - simple radial coordinates. Not really cylindrical as r_Minor is radius from plane axis */
-#define cylindricalToPolPlane(a_rMinor,a_Z,a_psi,a_theta) { \
-  PetscReal psi,theta; \
-  PetscFunctionBeginUser; \
-  psi = sqrt(a_rMinor*a_rMinor + a_Z*a_Z); \
-  if (psi==0.) theta = 0.; \
+#define cylindricalToPolPlane(__rMinor,__Z,__psi,__theta) { \
+  __psi = sqrt(__rMinor*__rMinor + __Z*__Z); \
+  if (__psi==0.) __theta = 0.; \
   else { \
-    theta = a_Z > 0. ? asin(a_Z/psi) : -asin(-a_Z/psi); \
-    if (a_rMinor < 0) theta = M_PI - theta; \
-    else if (theta < 0.) theta = theta + 2.*M_PI; \
+    __theta = __Z > 0. ? asin(__Z/__psi) : -asin(-__Z/__psi); \
+    if (__rMinor < 0) __theta = M_PI - __theta; \
+    else if (__theta < 0.) __theta = __theta + 2.*M_PI; \
   } \
-  a_psi = psi; \
-  a_theta = theta; \
-  PetscFunctionReturn(0); \
-} \
+}
 
-
-#define polPlaneToCylindrical( a_psi, a_theta, a_rMinor,a_Z) \
+#define polPlaneToCylindrical( __psi, __theta, __rMinor, __Z) \
 {\
-  a_rMinor = a_psi*cos(a_theta);\
-  a_Z = a_psi*sin(a_theta);\
-}\
+  __rMinor = __psi*cos(__theta);\
+  __Z = __psi*sin(__theta);\
+}
 
-#define cylindricalToCart( a_R,  a_Z,  a_phi, a_cart) \
+#define cylindricalToCart( __R,  __Z,  __phi, __cart) \
 { \
-  a_cart[0] = a_R*cos(a_phi); \
-  a_cart[1] = a_R*sin(a_phi); \
-  a_cart[2] = a_Z; \
-} \
+  __cart[0] = __R*cos(__phi); \
+  __cart[1] = __R*sin(__phi); \
+  __cart[2] = __Z; \
+}
 
 /* X2GridParticleGetProc_FluxTube: find processor and local flux tube that this point is in
     Input:
@@ -1047,8 +1040,8 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 {
   X2GridParticle *grid = &ctx->particleGrid;         assert(sendListTable); /* always used now */
   DM_PICell *dmpi = (DM_PICell *) ctx->dm->data;     assert(solver || irk<0); /* don't push flux tubes */
-  PetscReal   r,z,psi,theta,dphi,rmaj=grid->rMajor,rminor=grid->rMinor;
-  PetscMPIInt pe,hash,ii,nloops,nleft,outi,ini;
+  PetscReal   psi,theta,dphi,rmaj=grid->rMajor,rminor=grid->rMinor;
+  PetscMPIInt pe,hash,ii;
   X2Particle  part;
   X2PListPos  pos;
   PetscErrorCode ierr;
@@ -1092,7 +1085,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #pragma simd vectorlengthfor(PetscScalar)
 	for (pos=0 ; pos < list->size ; pos++, xx += 3) {
 	  PetscReal r=list->data_v.r[pos], z=list->data_v.z[pos], phi=list->data_v.phi[pos];
-	  cylindricalToCart(r, z, phi, xx);	  
+	  cylindricalToCart(r, z, phi, xx);
 	}
 #else
 	ierr = X2PListGetHead( list, &pos );CHKERRQ(ierr);
@@ -1132,7 +1125,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           list->data_v.z[pos] = z;
 #else
           X2Particle *ppart = &list->data[pos];
-          cylindricalToPolPlane( ppart->r - rmaj, ppart->z, psi, theta );
+          cylindricalToPolPlane( (ppart->r - rmaj), ppart->z, psi, theta );
           dphi = (dt*ppart->vpar)/(2.*M_PI*ppart->r);  /* toroidal step */
           ppart->phi += dphi;
           ppart->phi = fmod( ppart->phi + 20.*M_PI, 2.*M_PI);
@@ -1169,7 +1162,8 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           ierr = X2GridParticleGetProc_Solver(dmpi->dmgrid, xx, &pe, &idx);CHKERRQ(ierr);
         }
         else {
-          cylindricalToPolPlane( part.r - rmaj, part.z, psi, theta );
+          PetscReal r = part.r - rmaj;
+          cylindricalToPolPlane( r, part.z, psi, theta );
           ierr = X2GridParticleGetProc_FluxTube(grid, psi, theta, part.phi, &pe, &idx);CHKERRQ(ierr);
           assert(idx==0);
         }
