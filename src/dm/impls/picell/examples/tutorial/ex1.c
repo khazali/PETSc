@@ -990,6 +990,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
             }
             else elid = 0; /* non-solvers just put in element 0's list */
             ierr = X2PListAdd( &particlelist[elid], &data[jj], NULL);CHKERRQ(ierr);
+if (!ctx->rank && !solver && data[jj].phi>3.1415926) PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%d] ERROR in shift, gid=%d, phi=%g\n",ctx->rank,data[jj].gid,data[jj].phi);
           }
 	}
       }while (flag);
