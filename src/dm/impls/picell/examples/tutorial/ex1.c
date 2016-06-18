@@ -816,7 +816,6 @@ PetscErrorCode X2PListWrite(X2PList l[], PetscInt nLists, PetscMPIInt rank, Pets
           v[nparticles] = part.vpar;
           id[nparticles] = rank;
           nparticles++;
-if (!rank && part.phi>3.1415926) PetscPrintf(PETSC_COMM_SELF,"\t\t\t\t[%d] ******* ERROR X2PListWrite error gid %d phi=%g\n",rank,part.gid,part.phi);
         }
       }
     }
@@ -990,7 +989,6 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
             }
             else elid = 0; /* non-solvers just put in element 0's list */
             ierr = X2PListAdd( &particlelist[elid], &data[jj], NULL);CHKERRQ(ierr);
-if (!ctx->rank && !solver && data[jj].phi>3.1415926) PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%d] ERROR in shift, gid=%d, phi=%g\n",ctx->rank,data[jj].gid,data[jj].phi);
           }
 	}
       }while (flag);
@@ -1198,8 +1196,6 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           cylindricalToPolPlane( r, part.z, psi, theta );
           ierr = X2GridParticleGetProc_FluxTube(grid, psi, theta, part.phi, &pe, &idx);CHKERRQ(ierr);
           assert(idx==0);
-if (!ctx->rank && part.phi>3.1415926) PetscPrintf(PETSC_COMM_SELF,"\t\t[%d] processParts, gid=%d, phi=%g, pe=%d\n",ctx->rank,part.gid,part.phi,pe);
-else if (!ctx->rank && part.gid==95) PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%d] processParts, gid=%d, phi=%g, pe=%d\n",ctx->rank,part.gid,part.phi,pe);
         }
 	/* do something with the particle */
         if (pe==ctx->rank && idx==elid) { /* don't move and don't add */
@@ -1322,8 +1318,8 @@ if (!solver && !ctx->rank) assert(part.phi < 3.1415927);
           char  fname1[256],fname2[256];
           X2PListPos pos1,pos2;
           /* hdf5 output */
-          sprintf(fname1,"particles_sp%d_time%05d.h5part",isp,istep+1);
-          sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",isp,istep+1);
+          sprintf(fname1,"particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
+          sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
           /* write */
           prewrite(ctx, &ctx->partlists[isp][0], &pos1, &pos2);
           //ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
@@ -1478,8 +1474,8 @@ PetscErrorCode go( X2Ctx *ctx )
     for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
       char  fname1[256],fname2[256];
       X2PListPos pos1,pos2;
-      sprintf(fname1,"particles_sp%d_time%05d.h5part",isp,0);
-      sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",isp,0);
+      sprintf(fname1,"particles_sp%d_time%05d.h5part",(int)isp,0);
+      sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",(int)isp,0);
       /* write */
       prewrite(ctx, &ctx->partlists[isp][0], &pos1, &pos2);
       // ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
@@ -1504,8 +1500,8 @@ PetscErrorCode go( X2Ctx *ctx )
         for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
           char fname1[256], fname2[256];
           X2PListPos pos1,pos2;
-          sprintf(fname1,         "particles_sp%d_time%05d_fluxtube.h5part",isp,istep);
-          sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",isp,istep);
+          sprintf(fname1,         "particles_sp%d_time%05d_fluxtube.h5part",(int)isp,(int)istep);
+          sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",(int)isp,(int)istep);
           /* write */
           prewrite(ctx, &ctx->partlists[isp][0], &pos1, &pos2);
           ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
