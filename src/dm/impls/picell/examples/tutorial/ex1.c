@@ -1283,7 +1283,6 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           xx += 3;
           *vv = part.w0;
           vv++;
-if (!solver && !ctx->rank) assert(part.phi < 3.1415927);
         }
         ierr = VecRestoreArray(xVec,&xx0);CHKERRQ(ierr);
         ierr = VecRestoreArray(vVec,&vv0);CHKERRQ(ierr);
