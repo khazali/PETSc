@@ -1486,7 +1486,7 @@ PetscErrorCode go( X2Ctx *ctx )
   ierr = MPI_Barrier(ctx->wComm);CHKERRQ(ierr);
   for ( istep=0, time=0., tag = 100;
 	istep < ctx->msteps && time < ctx->maxTime;
-	istep++, time += ctx->dt, tag += 2*(X2_NION + (ctx->useElectrons ? 1 : 0)) ) {
+	istep++, time += ctx->dt, tag += 3*(X2_NION + 1) ) {
 
     /* do collisions */
     if (((istep+1)%ctx->collisionPeriod)==0) {
@@ -1509,7 +1509,7 @@ PetscErrorCode go( X2Ctx *ctx )
       }
 #endif
       /* move back to solver space */
-      ierr = processParticles(ctx, 0.0, sendListTable, tag + X2_NION + (ctx->useElectrons ? 1 : 0), -1, istep, PETSC_TRUE);
+      ierr = processParticles(ctx, 0.0, sendListTable, tag + X2_NION + 1, -1, istep, PETSC_TRUE);
       CHKERRQ(ierr);
     }
 
@@ -1524,7 +1524,7 @@ PetscErrorCode go( X2Ctx *ctx )
 #endif
     /* process particles: push, move */
     irk=0;
-    ierr = processParticles(ctx, dt, sendListTable, tag, irk, istep, PETSC_TRUE);
+    ierr = processParticles(ctx, dt, sendListTable, tag + 2*(X2_NION + 1), irk, istep, PETSC_TRUE);
     CHKERRQ(ierr);
     tag += X2_NION + (ctx->useElectrons ? 1 : 0);
 #if defined(PETSC_USE_LOG)
