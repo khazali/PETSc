@@ -15,7 +15,7 @@ NP=1
 UNAME := $(shell uname)
 ifeq ($(UNAME), Linux)
 # do something Linux-y
-CPP_FLAGS = -I${ADVISOR_XE_2016_DIR}/include -DX2_HAVE_ADVISOR
+#CPP_FLAGS = -I${ADVISOR_XE_2016_DIR}/include -DX2_HAVE_ADVISOR
 H5PART_LIB = -Wl,-u__errno_location
 endif
 ifeq ($(UNAME), Darwin)
