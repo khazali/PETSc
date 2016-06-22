@@ -954,6 +954,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
           /* send and reset - we can just send this because it is dense */
 	  ierr = MPI_Isend((void*)slist[*nIsend].data,sz*part_dsize,mtype,slist[*nIsend].proc,tag,ctx->wComm,&slist[*nIsend].request);
 	  CHKERRQ(ierr);
+          /* PetscPrintf(PETSC_COMM_SELF,"\t[%D] (1) send proc %d, %d particles\n",ctx->rank,slist[*nIsend].proc,sz); */
 	  (*nIsend)++;
           /* ready for next round, save meta-data  */
 	  ierr = X2PSendListClear( &sendListTable[ii] );CHKERRQ(ierr);
@@ -975,26 +976,6 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
     /* process recieves - non-blocking consensus */
     ierr = PetscMalloc1(ctx->chunksize, &data);CHKERRQ(ierr);
     while (!done) {
-      /* probe for incoming */
-      do {
-	ierr = MPI_Iprobe(MPI_ANY_SOURCE, tag, ctx->wComm, &flag, &status);CHKERRQ(ierr);
-	if (flag) {
-	  MPI_Get_count(&status, mtype, &sz); assert(sz<=ctx->chunksize*part_dsize && sz%part_dsize==0);
-	  ierr = MPI_Recv((void*)data,sz,mtype,status.MPI_SOURCE,tag,ctx->wComm,&status);CHKERRQ(ierr);
-	  MPI_Get_count(&status, mtype, &sz1); assert(sz1<=ctx->chunksize*part_dsize && sz1%part_dsize==0); assert(sz==sz1);
-	  sz = sz/part_dsize;
-	  for (jj=0;jj<sz;jj++) {
-            if (solver) {
-              PetscReal x[3];
-	      cylindricalToCart(data[jj].r, data[jj].z, data[jj].phi, x);
-              ierr = DMPlexFindLocalCellID(dm, x, &elid);CHKERRQ(ierr);
-            }
-            else elid = 0; /* non-solvers just put in element 0's list */
-            ierr = X2PListAdd( &particlelist[elid], &data[jj], NULL);CHKERRQ(ierr);
-          }
-	}
-      }while (flag);
-
       if (bar_act) {
 	ierr = MPI_Test(&ib_request, &flag, &status);CHKERRQ(ierr);
 	if (flag) done = PETSC_TRUE;
@@ -1013,9 +994,35 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
 	}
 	if (idx==numSent) {
 	  bar_act = PETSC_TRUE;
-	  ierr = MPI_Ibarrier(ctx->wComm, &ib_request);CHKERRQ(ierr);
+          if (0) { /* non-blocking consensus not working? bad MPI? */
+            ierr = MPI_Ibarrier(ctx->wComm, &ib_request);CHKERRQ(ierr);
+          }
+          else {
+            ierr = MPI_Barrier(ctx->wComm);CHKERRQ(ierr);
+            done = PETSC_TRUE;
+          }
 	}
       }
+      /* probe for incoming */
+      do {
+	ierr = MPI_Iprobe(MPI_ANY_SOURCE, tag, ctx->wComm, &flag, &status);CHKERRQ(ierr);
+	if (flag) {
+	  MPI_Get_count(&status, mtype, &sz); assert(sz<=ctx->chunksize*part_dsize && sz%part_dsize==0);
+	  ierr = MPI_Recv((void*)data,sz,mtype,status.MPI_SOURCE,tag,ctx->wComm,&status);CHKERRQ(ierr);
+	  MPI_Get_count(&status, mtype, &sz1); assert(sz1<=ctx->chunksize*part_dsize && sz1%part_dsize==0); assert(sz==sz1);
+	  sz = sz/part_dsize;
+          /* PetscPrintf(PETSC_COMM_SELF,"\t\t[%D] recv from proc %d, %d particles\n",ctx->rank,status.MPI_SOURCE,sz); */
+	  for (jj=0;jj<sz;jj++) {
+            if (solver) {
+              PetscReal x[3];
+	      cylindricalToCart(data[jj].r, data[jj].z, data[jj].phi, x);
+              ierr = DMPlexFindLocalCellID(dm, x, &elid);CHKERRQ(ierr);
+            }
+            else elid = 0; /* non-solvers just put in element 0's list */
+            ierr = X2PListAdd( &particlelist[elid], &data[jj], NULL);CHKERRQ(ierr);
+          }
+	}
+      } while (flag);
     } /* non-blocking consensus */
     ierr = PetscFree(data);CHKERRQ(ierr);
 #if defined(PETSC_USE_LOG)
@@ -1234,6 +1241,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
                 slist[nslist].proc = pe;
                 ierr = MPI_Isend( (void*)slist[nslist].data,ctx->chunksize*part_dsize,mtype,pe,tag+isp,ctx->wComm,&slist[nslist].request);
                 CHKERRQ(ierr);
+PetscPrintf(PETSC_COMM_SELF,"[%D] (0) send proc %d, %d particles\n",ctx->rank,pe,ctx->chunksize);
                 nslist++;
                 /* ready for more */
                 ierr = X2PSendListCreate(&sendListTable[hash],ctx->chunksize);CHKERRQ(ierr);
