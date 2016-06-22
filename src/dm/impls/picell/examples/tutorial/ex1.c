@@ -851,7 +851,7 @@ PetscErrorCode X2PListWrite(X2PList l[], PetscInt nLists, PetscMPIInt rank, Pets
 #undef __FUNCT__
 #define __FUNCT__ "shiftParticles"
 PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, const PetscInt isp, const PetscInt irk, PetscInt *const nIsend,
-                               X2PList particlelist[], X2ISend slist[], PetscInt tag, PetscBool solver )
+                               X2PList particlelist[], X2ISend slist[], PetscMPIInt tag, PetscBool solver )
 {
   PetscErrorCode ierr;
   const int part_dsize = sizeof(X2Particle)/sizeof(double); assert(sizeof(X2Particle)%sizeof(double)==0);
@@ -934,7 +934,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
     ierr = PetscFree(fromdata);CHKERRQ(ierr);
     ierr = PetscFree(toranks);CHKERRQ(ierr);
   }
-  else { /* non-blocking consensus, buggy on my OSX */
+  else { /* non-blocking consensus */
     X2Particle *data;
     PetscBool   done=PETSC_FALSE,bar_act=PETSC_FALSE;
     MPI_Request ib_request;
@@ -1076,7 +1076,7 @@ static void postwrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *pp
 */
 #undef __FUNCT__
 #define __FUNCT__ "processParticles"
-static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendList *sendListTable, const PetscInt tag,
+static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendList *sendListTable, const PetscMPIInt tag,
 					const int irk, const int istep, PetscBool solver)
 {
   X2GridParticle *grid = &ctx->particleGrid;         assert(sendListTable); /* always used now */
@@ -1455,7 +1455,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
   } /* species */
   /* move back to solver space and make density vector */
   {
-    PetscInt tag = 99, istep=-1, idx;
+    PetscMPIInt tag = 99, istep=-1, idx;
     X2PSendList *sendListTable;
     /* init send tables */
     ierr = PetscMalloc1(ctx->tablesize,&sendListTable);CHKERRQ(ierr);
@@ -1477,7 +1477,8 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 PetscErrorCode go( X2Ctx *ctx )
 {
   PetscErrorCode ierr;
-  PetscInt       istep,tag;
+  PetscInt       istep;
+  PetscMPIInt    tag;
   int            irk,idx,isp;
   PetscReal      time,dt;
   X2PSendList    *sendListTable;
@@ -1507,8 +1508,9 @@ PetscErrorCode go( X2Ctx *ctx )
   }
 #endif
   /* main time step loop */
-  ierr = MPI_Barrier(ctx->wComm);CHKERRQ(ierr);
-  for ( istep=0, time=0., tag = 100;
+  ierr = PetscCommGetNewTag(ctx->wComm,&tag);CHKERRQ(ierr);
+  /* ierr = MPI_Barrier(ctx->wComm);CHKERRQ(ierr); */
+  for ( istep=0, time=0.;
 	istep < ctx->msteps && time < ctx->maxTime;
 	istep++, time += ctx->dt, tag += 3*(X2_NION + 1) ) {
 
