@@ -1,6 +1,7 @@
 
 #include <petsc/private/dmdaimpl.h>
 #include <petsc/private/dmpleximpl.h>
+#include <petsc/private/dmpicellimpl.h>
 #include <petsc/private/petscdsimpl.h>
 #include <petsc/private/petscfeimpl.h>
 #include <petsc/private/petscfvimpl.h>
@@ -100,6 +101,13 @@ PetscErrorCode  DMInitializePackage(void)
   ierr = PetscLogEventRegister("DMPlexInjectorFE",       DM_CLASSID,&DMPLEX_InjectorFEM);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPlexIntegralFEM",      DM_CLASSID,&DMPLEX_IntegralFEM);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPlexCreateGmsh",       DM_CLASSID,&DMPLEX_CreateGmsh);CHKERRQ(ierr);
+
+  ierr = PetscLogEventRegister("DMPICell_Solve",         DM_CLASSID,&DMPICell_Solve);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("DMPICell_SetUp",         DM_CLASSID,&DMPICell_SetUp);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("DMPICell_Add",           DM_CLASSID,&DMPICell_AddSource);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("DMPICell_Locate",        DM_CLASSID,&DMPICell_LocateProcess);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("DMPICell_GetJet",        DM_CLASSID,&DMPICell_GetJet);CHKERRQ(ierr);
+
   /* Process info exclusions */
   ierr = PetscOptionsGetString(NULL,NULL, "-info_exclude", logList, 256, &opt);CHKERRQ(ierr);
   if (opt) {

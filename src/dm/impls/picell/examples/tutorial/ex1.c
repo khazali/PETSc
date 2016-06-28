@@ -2125,6 +2125,7 @@ int main(int argc, char **argv)
   ierr = PetscLogEventRegister("Diagnostics", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 6 */
   ierr = PetscLogEventRegister("Pre Push", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 7 */
   ierr = PetscLogEventRegister("Push", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 8 */
+  ierr = PetscLogEventRegister("  Deposition", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 9 */
   assert(sizeof(ctx.events)/sizeof(ctx.events[0]) >= ctx.currevent);
 #endif
 

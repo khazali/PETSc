@@ -11,7 +11,7 @@
 #include <petsc/private/isimpl.h>     /* for inline access to atlasOff */
 #include <../src/sys/utils/hash.h>
 
-PETSC_EXTERN PetscLogEvent DMPICELL_Add, DMPICELL_GetGrad, DMPICELL_Create;
+PETSC_EXTERN PetscLogEvent DMPICell_Solve, DMPICell_SetUp, DMPICell_AddSource, DMPICell_LocateProcess, DMPICell_GetJet;
 
 typedef struct {
   DM   dmgrid;

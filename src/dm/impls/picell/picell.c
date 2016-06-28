@@ -4,6 +4,10 @@
 #include "petscdmforest.h"
 #include <petscdmda.h>
 #include <petscsf.h>
+
+/* Logging support */
+PetscLogEvent DMPICell_Solve, DMPICell_SetUp, DMPICell_AddSource, DMPICell_LocateProcess, DMPICell_GetJet;
+
 PETSC_EXTERN PetscErrorCode DMPlexView_HDF5(DM, PetscViewer);
 #undef __FUNCT__
 #define __FUNCT__ "DMView_PICell"
@@ -72,6 +76,8 @@ PetscErrorCode DMSetUp_PICell(DM dm)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  ierr = PetscLogEventBegin(DMPICell_SetUp,dm,0,0,0);CHKERRQ(ierr);
+
   /* We have built dmgrid, now create vectors */
   if (!dmpi->dmgrid) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "dmgrid not created");
   ierr = DMSetUp(dmpi->dmgrid);CHKERRQ(ierr); /* build a grid */
@@ -84,6 +90,8 @@ PetscErrorCode DMSetUp_PICell(DM dm)
   ierr = VecDuplicate(dmpi->phi, &dmpi->rho);CHKERRQ(ierr);
   ierr = VecZeroEntries(dmpi->rho);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->rho, "density");CHKERRQ(ierr);
+
+  ierr = PetscLogEventEnd(DMPICell_SetUp,dm,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -161,9 +169,9 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 #define __FUNCT__ "DMPICellAddSource"
 /* add densities 'src' at 'coord' to local density vector 'locrho' */
 /* use dmplex here and not dmgrid (p4est) */
-PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec src, PetscInt cell, Vec locrho)
+PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec src, PetscInt cell, Vec locrho)
 {
-  DM_PICell    *dmpi = (DM_PICell *) a_dm->data;
+  DM_PICell    *dmpi = (DM_PICell *) dm->data;
   Vec          refCoord;
   PetscScalar  *x, *xi, *elemVec;
   PetscReal    *B = NULL;
@@ -173,10 +181,11 @@ PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec src, PetscInt cell, Vec
   PetscDS        prob;
   PetscFunctionBegin;
 
-  PetscValidHeaderSpecific(a_dm, DM_CLASSID, 1);
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidHeaderSpecific(coord, VEC_CLASSID, 2);
   PetscValidHeaderSpecific(src, VEC_CLASSID, 3);
   PetscValidHeaderSpecific(locrho, VEC_CLASSID, 5);
+  ierr = PetscLogEventBegin(DMPICell_AddSource,dm,0,0,0);CHKERRQ(ierr);
   ierr = VecDuplicate(coord, &refCoord);CHKERRQ(ierr);
   ierr = VecGetBlockSize(coord, &dim);CHKERRQ(ierr);
   ierr = VecGetLocalSize(coord, &N);CHKERRQ(ierr);
@@ -207,6 +216,8 @@ PetscErrorCode DMPICellAddSource(DM a_dm, Vec coord, Vec src, PetscInt cell, Vec
   ierr = DMPlexVecSetClosure(dmpi->dmplex, NULL, locrho, cell, elemVec, ADD_VALUES);CHKERRQ(ierr);
   ierr = DMRestoreWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscFERestoreTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(DMPICell_AddSource,dm,0,0,0);CHKERRQ(ierr);
+
   PetscFunctionReturn(0);
 }
 
@@ -223,11 +234,14 @@ PetscErrorCode  DMPICellGetJet(DM a_dm, Vec coord, PetscInt order, Vec jet, Pets
   PetscValidHeaderSpecific(a_dm, DM_CLASSID, 1);
   PetscValidHeaderSpecific(coord, VEC_CLASSID, 2);
   PetscValidHeaderSpecific(jet, VEC_CLASSID, 4);
+  ierr = PetscLogEventBegin(DMPICell_GetJet,a_dm,0,0,0);CHKERRQ(ierr);
 
   ierr = VecSet(jet,rone);CHKERRQ(ierr); /* dummy grad now */
 
   /* Matt */
   dm = dmpi->dmgrid; /* the DM for the mesh (not really a plex!) */
+
+  ierr = PetscLogEventEnd(DMPICell_GetJet,a_dm,0,0,0);CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }
@@ -256,6 +270,8 @@ PetscErrorCode DMLocateProcess(DM dm, Vec points, PetscInt *cEnd)
   PetscBool isForest;
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  ierr = PetscLogEventBegin(DMPICell_LocateProcess,dm,0,0,0);CHKERRQ(ierr);
+
   ierr = DMIsForest(dm,&isForest);CHKERRQ(ierr);
   if (isForest) {
 
@@ -263,5 +279,7 @@ PetscErrorCode DMLocateProcess(DM dm, Vec points, PetscInt *cEnd)
   else {
 
   }
+  ierr = PetscLogEventEnd(DMPICell_LocateProcess,dm,0,0,0);CHKERRQ(ierr);
+
   PetscFunctionReturn(0);
 }
