@@ -262,24 +262,3 @@ PetscErrorCode DMGetCellChart(DM dm, PetscInt *cStart, PetscInt *cEnd)
   }
   PetscFunctionReturn(0);
 }
-#undef __FUNCT__
-#define __FUNCT__ "DMLocateProcess"
-PetscErrorCode DMLocateProcess(DM dm, Vec points, PetscInt *cEnd)
-{
-  PetscErrorCode ierr;
-  PetscBool isForest;
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  ierr = PetscLogEventBegin(DMPICell_LocateProcess,dm,0,0,0);CHKERRQ(ierr);
-
-  ierr = DMIsForest(dm,&isForest);CHKERRQ(ierr);
-  if (isForest) {
-
-  }
-  else {
-
-  }
-  ierr = PetscLogEventEnd(DMPICell_LocateProcess,dm,0,0,0);CHKERRQ(ierr);
-
-  PetscFunctionReturn(0);
-}
