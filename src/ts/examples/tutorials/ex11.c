@@ -1394,7 +1394,7 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
     ierr = VecGetArrayRead(X,&x);CHKERRQ(ierr);
     for (c = cStart; c < cEndInterior; ++c) {
       const PetscFVCellGeom *cg;
-      const PetscScalar     *cx;
+      const PetscScalar     *cx=0;
       /* not that these two routines as currently implemented work for any dm with a
        * defaultSection/defaultGlobalSection */
       ierr = DMPlexPointLocalRead(dmCell,c,cgeom,&cg);CHKERRQ(ierr);
