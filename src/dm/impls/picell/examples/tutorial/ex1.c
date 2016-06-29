@@ -128,8 +128,21 @@ typedef struct {
 /* dummy DMPlexFindLocalCellID */
 PetscErrorCode DMPlexFindLocalCellID(DM dm, PetscReal x[], PetscInt *elemID)
 {
-  /* Matt */
-  *elemID = 0;
+  PetscErrorCode ierr;
+  PetscBool isForest;
+  PetscFunctionBeginUser;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  ierr = PetscLogEventBegin(DMPICell_LocateProcess,dm,0,0,0);CHKERRQ(ierr);
+
+  ierr = DMIsForest(dm,&isForest);CHKERRQ(ierr);
+  if (isForest) {
+
+  }
+  else {
+    /* Matt */
+    *elemID = 0;
+  }
+  ierr = PetscLogEventEnd(DMPICell_LocateProcess,dm,0,0,0);CHKERRQ(ierr);
   return 0;
 }
 
@@ -721,7 +734,8 @@ PetscErrorCode X2GridParticleGetProc_FluxTube( const X2GridParticle *grid, /* X2
 PetscErrorCode X2GridParticleGetProc_Solver(DM dm, PetscReal coord[], PetscMPIInt *pe, PetscInt *elem)
 {
   PetscMPIInt rank;
-  PetscErrorCode ierr;PetscBool isForest;
+  PetscErrorCode ierr;
+  PetscBool isForest;
   PetscFunctionBeginUser;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   ierr = PetscLogEventBegin(DMPICell_LocateProcess,dm,0,0,0);CHKERRQ(ierr);
