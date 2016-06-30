@@ -234,14 +234,14 @@ PetscErrorCode  DMPICellGetJet(DM a_dm, Vec coord, PetscInt order, Vec jet, Pets
   PetscValidHeaderSpecific(a_dm, DM_CLASSID, 1);
   PetscValidHeaderSpecific(coord, VEC_CLASSID, 2);
   PetscValidHeaderSpecific(jet, VEC_CLASSID, 4);
-  ierr = PetscLogEventBegin(DMPICell_GetJet,a_dm,0,0,0);CHKERRQ(ierr);
+  /* ierr = PetscLogEventBegin(DMPICell_GetJet,a_dm,0,0,0);CHKERRQ(ierr); */
 
   ierr = VecSet(jet,rone);CHKERRQ(ierr); /* dummy grad now */
 
   /* Matt */
   dm = dmpi->dmgrid; /* the DM for the mesh (not really a plex!) */
 
-  ierr = PetscLogEventEnd(DMPICell_GetJet,a_dm,0,0,0);CHKERRQ(ierr);
+  /* ierr = PetscLogEventEnd(DMPICell_GetJet,a_dm,0,0,0);CHKERRQ(ierr); */
 
   PetscFunctionReturn(0);
 }

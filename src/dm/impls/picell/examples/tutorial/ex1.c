@@ -738,7 +738,7 @@ PetscErrorCode X2GridParticleGetProc_Solver(DM dm, PetscReal coord[], PetscMPIIn
   PetscBool isForest;
   PetscFunctionBeginUser;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  ierr = PetscLogEventBegin(DMPICell_LocateProcess,dm,0,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(DMPICell_GetJet,dm,0,0,0);CHKERRQ(ierr);
 
   ierr = DMIsForest(dm,&isForest);CHKERRQ(ierr);
   if (isForest) {
@@ -750,7 +750,7 @@ PetscErrorCode X2GridParticleGetProc_Solver(DM dm, PetscReal coord[], PetscMPIIn
     *pe = rank; /* noop -- need to add a local lookup for 'elem' if (*pe == rank) */
     *elem = 0;
   }
-  ierr = PetscLogEventEnd(DMPICell_LocateProcess,dm,0,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(DMPICell_GetJet,dm,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
