@@ -15,7 +15,7 @@ NP=1
 UNAME := $(shell uname)
 ifeq ($(UNAME), Linux)
 # do something Linux-y
-#CPP_FLAGS = -I${ADVISOR_XE_2016_DIR}/include -DX2_HAVE_ADVISOR
+CPP_FLAGS = -I${ADVISOR_XE_2016_DIR}/include -DX2_HAVE_ADVISOR # -DH5PART -I/usr/common/software/h5part/include/
 H5PART_LIB = -Wl,-u__errno_location
 endif
 ifeq ($(UNAME), Darwin)
@@ -28,7 +28,7 @@ ex1: ex1.o chkopts
 	${RM} -f ex1.o
 
 runex1:
-	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 1 -x2_dm_refine 1 -numMajor 8 -npart_flux_tube 100 -mstep 20 -debug 2 -snes_monitor -snes_converged_reason -collisionPeriod 1 -run_type boxtorus -petscpartitioner_type parmetis
+	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -x2_dm_view vtk:tokamac.vtu -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 1 -x2_dm_refine 2 -numMajor 8 -npart_flux_tube 100 -mstep 20 -debug 2 -snes_monitor -snes_converged_reason -collisionPeriod 1 -run_type boxtorus -petscpartitioner_type parmetis
 # -iter_vertex_file ITER-51vertex-quad-tri.txt -x2_dm_view -x2_dm_type p8est
 # -run_type boxtorus  -bsp_chunksize 3000 -gtool "advixe-cl -collect survey:2,3"
 # -nphi_particles 2
