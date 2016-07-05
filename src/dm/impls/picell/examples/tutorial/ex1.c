@@ -975,7 +975,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
     MPI_Request ib_request;
     PetscInt    numSent;
     MPI_Status  status;
-    int flag,sz,sz1;
+    PetscMPIInt flag,sz,sz1;
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventBegin(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -1008,7 +1008,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventBegin(ctx->events[2],0,0,0,0);CHKERRQ(ierr);
 #endif
-    /* process recieves - non-blocking consensus */
+    /* process receives - non-blocking consensus */
     ierr = PetscMalloc1(ctx->chunksize, &data);CHKERRQ(ierr);
     while (!done) {
       if (bar_act) {
@@ -1029,7 +1029,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
 	}
 	if (idx==numSent) {
 	  bar_act = PETSC_TRUE;
-          if (0) { /* non-blocking consensus not working? bad MPI? */
+          if (0) { /* non-blocking consensus not working */
             ierr = MPI_Ibarrier(ctx->wComm, &ib_request);CHKERRQ(ierr);
           }
           else {
@@ -1046,7 +1046,6 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
 	  ierr = MPI_Recv((void*)data,sz,mtype,status.MPI_SOURCE,tag,ctx->wComm,&status);CHKERRQ(ierr);
 	  MPI_Get_count(&status, mtype, &sz1); assert(sz1<=ctx->chunksize*part_dsize && sz1%part_dsize==0); assert(sz==sz1);
 	  sz = sz/part_dsize;
-          /* PetscPrintf(PETSC_COMM_SELF,"\t\t[%D] recv from proc %d, %d particles\n",ctx->rank,status.MPI_SOURCE,sz); */
 	  for (jj=0;jj<sz;jj++) {
             if (solver) {
               PetscReal x[3];
@@ -1063,14 +1062,6 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventEnd(ctx->events[2],0,0,0,0);CHKERRQ(ierr);
 #endif
-    { /* debug */
-      MPI_Barrier(ctx->wComm);
-      ierr = MPI_Iprobe(MPI_ANY_SOURCE, tag, ctx->wComm, &flag, &status);CHKERRQ(ierr);
-      if (flag) {
-	MPI_Get_count(&status, mtype, &sz); assert(sz%part_dsize==0);
-	SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"found %D extra particles from %d",sz/part_dsize,status.MPI_SOURCE);
-      }
-    }
   } /* switch for BPS */
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventEnd(ctx->events[1],0,0,0,0);CHKERRQ(ierr);
@@ -1306,7 +1297,17 @@ PetscPrintf(PETSC_COMM_SELF,"[%D] ******** send proc %d, %d particles to %d, tag
 #endif
     } /* particle lists */
     /* finish sends and receive new particles for this species */
-    ierr = shiftParticles(ctx, sendListTable, isp, irk, &nslist, ctx->partlists[isp], slist, tag+isp, solver );CHKERRQ(ierr);
+      ierr = shiftParticles(ctx, sendListTable, isp, irk, &nslist, ctx->partlists[isp], slist, tag+isp, solver );CHKERRQ(ierr);
+    { /* debug */
+      PetscMPIInt flag,sz; MPI_Status  status; MPI_Datatype mtype;
+      ierr = MPI_Iprobe(MPI_ANY_SOURCE, tag+isp, ctx->wComm, &flag, &status);CHKERRQ(ierr);
+      if (flag) {
+        PetscDataTypeToMPIDataType(PETSC_REAL,&mtype);
+	MPI_Get_count(&status, mtype, &sz); assert(sz%part_dsize==0);
+	SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"found %D extra particles from %d",sz/part_dsize,status.MPI_SOURCE);
+      }
+      MPI_Barrier(ctx->wComm);
+    }
 
     nlistsTot += nslist;
     nslist = 0;
