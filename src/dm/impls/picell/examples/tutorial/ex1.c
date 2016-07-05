@@ -312,11 +312,11 @@ PetscErrorCode X2PListAdd( X2PList *l, X2Particle *p, X2PListPos *ppos)
     if (ppos) *ppos = idx;
   }
   else {
-#ifdef X2_S_OF_V
     X2PListPos i = l->top++;
+#ifdef X2_S_OF_V
     X2P2V(p,l->data_v,i);
 #else
-    l->data[l->top++] = *p;
+    l->data[i] = *p;
 #endif
     if (ppos) *ppos = i;
   }
@@ -478,7 +478,7 @@ PetscErrorCode X2PSendListAdd( X2PSendList *l, X2Particle *p)
   if (l->size==l->data_size) {
     X2Particle *data2; /* make this arrays of X2Particle members for struct-of-arrays */
     int i;PetscErrorCode ierr;
-    PetscPrintf(PETSC_COMM_SELF,"X2PSendListAdd expanded list %d --> %d%d\n",l->data_size,2*l->data_size);
+    PetscPrintf(PETSC_COMM_SELF," *** X2PSendListAdd expanded list %d --> %d%d\n",l->data_size,2*l->data_size);
     l->data_size *= 2;
     ierr = PetscMalloc1(l->data_size, &data2);CHKERRQ(ierr);
     for (i=0;i<l->size;i++) data2[i] = l->data[i];
@@ -753,7 +753,7 @@ PetscErrorCode X2GridParticleGetProc_Solver(DM dm, PetscReal coord[], PetscMPIIn
 
   ierr = DMIsForest(dm,&isForest);CHKERRQ(ierr);
   if (isForest) {
-
+    SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Forest not used");
   }
   else {
     /* Matt do your thing here */
@@ -1208,7 +1208,8 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           list->data_v.z[pos] = z;
 #else
           X2Particle *ppart = &list->data[pos];
-          cylindricalToPolPlane( (ppart->r - rmaj), ppart->z, psi, theta );
+          PetscReal r = ppart->r - rmaj, z = ppart->z;
+          cylindricalToPolPlane( r, z, psi, theta );
           dphi = (dt*ppart->vpar)/(2.*M_PI*ppart->r);  /* toroidal step */
           ppart->phi += dphi;
           ppart->phi = fmod( ppart->phi + 20.*M_PI, 2.*M_PI);
@@ -1274,9 +1275,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
                 slist[nslist].data = sendListTable[hash].data; /* cache data */
                 sendListTable[hash].data = 0; /* clear for safty, make ready for more */
                 slist[nslist].proc = pe;
+PetscPrintf(PETSC_COMM_SELF,"[%D] ******** send proc %d, %d particles to %d, tag %d, part_dsize=%d\n",ctx->rank,pe,ctx->chunksize,pe,tag+isp,part_dsize);
                 ierr = MPI_Isend( (void*)slist[nslist].data,ctx->chunksize*part_dsize,mtype,pe,tag+isp,ctx->wComm,&slist[nslist].request);
                 CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_SELF,"[%D] (0) send proc %d, %d particles\n",ctx->rank,pe,ctx->chunksize);
                 nslist++;
                 /* ready for more */
                 ierr = X2PSendListCreate(&sendListTable[hash],ctx->chunksize);CHKERRQ(ierr);
