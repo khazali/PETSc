@@ -125,7 +125,9 @@ typedef struct {
   PetscInt  tablesize,tablecount[X2_NION+1]; /* hash table meta-data for proc-send list table */
 } X2Ctx;
 
-/* dummy DMPlexFindLocalCellID */
+/* DMPlexFindLocalCellID */
+#undef __FUNCT__
+#define __FUNCT__ "DMPlexFindLocalCellID"
 PetscErrorCode DMPlexFindLocalCellID(DM dm, PetscReal x[], PetscInt *elemID)
 {
   PetscErrorCode ierr;
@@ -222,7 +224,10 @@ PetscErrorCode X2ParticleWrite(X2Particle *p, void *buf)
 #define X2P2V(p,d,i)         { d.r[i] = p->r;         d.z[i] = p->z;         d.phi[i] = p->phi;         d.vpar[i] = p->vpar;         d.mu[i] = p->mu;         d.w0[i] = p->w0;         d.f0[i] = p->f0;         d.gid[i] = p->gid;}
 #define X2V2V(src,dst,is,id) { dst.r[id] = src.r[is]; dst.z[id] = src.z[is]; dst.phi[id] = src.phi[is]; dst.vpar[id] = src.vpar[is]; dst.mu[id] = src.mu[is]; dst.w0[id] = src.w0[is]; dst.f0[id] = src.f0[is]; dst.gid[id] = src.gid[is];}
 #define X2V2P(p,d,i)         { p->r = d.r[i];         p->z = d.z[i];         p->phi = d.phi[i];         p->vpar = d.vpar[i];         p->mu = d.mu[i];         p->w0 = d.w0[i];         p->f0 = d.f0[i];         p->gid = d.gid[i];}
+
 /* particle list */
+#undef __FUNCT__
+#define __FUNCT__ "X2PListCreate"
 PetscErrorCode X2PListCreate(X2PList *l, PetscInt msz)
 {
   PetscErrorCode ierr;
@@ -244,6 +249,8 @@ PetscErrorCode X2PListClear(X2PList *l)
   l->hole=-1;
   return 0;
 }
+#undef __FUNCT__
+#define __FUNCT__ "X2PListDestroy"
 PetscErrorCode X2PListDestroy(X2PList *l)
 {
   PetscErrorCode ierr;
@@ -437,6 +444,8 @@ PetscInt X2PListSize(X2PList *l) {
 PetscInt X2PSendListSize(X2PSendList *l) {
   return l->size;
 }
+#undef __FUNCT__
+#define __FUNCT__ "X2PSendListCreate"
 PetscErrorCode X2PSendListCreate(X2PSendList *l, PetscInt msz)
 {
   PetscErrorCode ierr;
@@ -450,6 +459,8 @@ PetscErrorCode X2PSendListClear(X2PSendList *l)
   l->size=0; /* keep memory but kill data */
   return 0;
 }
+#undef __FUNCT__
+#define __FUNCT__ "X2PSendListDestroy"
 PetscErrorCode X2PSendListDestroy(X2PSendList *l)
 {
   PetscErrorCode ierr;
