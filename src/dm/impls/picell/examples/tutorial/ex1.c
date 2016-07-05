@@ -753,7 +753,9 @@ PetscErrorCode X2GridParticleGetProc_Solver(DM dm, PetscReal coord[], PetscMPIIn
 
   ierr = DMIsForest(dm,&isForest);CHKERRQ(ierr);
   if (isForest) {
-    SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Forest not used");
+    ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)dm), &rank);
+    *pe = rank; /* noop -- need to add a local lookup for 'elem' if (*pe == rank) */
+    *elem = 0;
   }
   else {
     /* Matt do your thing here */
@@ -1602,6 +1604,23 @@ PetscErrorCode go( X2Ctx *ctx )
     /* solve for potential, density being assembled is an invariant */
     ierr = DMPICellSolve( ctx->dm );CHKERRQ(ierr);
 
+    if (1) {
+      PetscViewer    viewer = NULL;
+      PetscBool      flg;
+      DM_PICell *dmpi = (DM_PICell *) ctx->dm->data;
+      ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-dm_view",&viewer,NULL,&flg);CHKERRQ(ierr);
+      if (flg) {
+        ierr = DMView(dmpi->dmgrid,viewer);CHKERRQ(ierr);
+      }
+      ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+      ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-vec_view",&viewer,NULL,&flg);CHKERRQ(ierr);
+      if (flg) {
+        ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);
+        ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
+      }
+      ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+    }
+
     /* process particles: push, move */
     irk=0;
     ierr = processParticles(ctx, dt, sendListTable, tag + 2*(X2_NION + 1), irk, istep, PETSC_TRUE);
@@ -2256,7 +2275,7 @@ int main(int argc, char **argv)
   ctx.BCFuncs[0] = zero;
   ierr = DMGetDimension(dmpi->dmgrid, &dim);CHKERRQ(ierr);
   ierr = PetscFECreateDefault(dmpi->dmgrid, dim, 1, PETSC_FALSE, NULL, 1, &dmpi->fem);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) dmpi->fem, "potential");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) dmpi->fem, "poisson");CHKERRQ(ierr);
   /* FEM prob */
   ierr = DMGetDS(dmpi->dmgrid, &prob);CHKERRQ(ierr);
   ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
@@ -2294,6 +2313,7 @@ int main(int argc, char **argv)
       SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "No cells");
     }
   }
+
   /* create SNESS */
   ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
   ierr = SNESSetDM( dmpi->snes, dmpi->dmgrid);CHKERRQ(ierr);
@@ -2307,18 +2327,10 @@ int main(int argc, char **argv)
   /* setup particles */
   ierr = createParticles( &ctx );CHKERRQ(ierr);
   ierr = PetscLogEventEnd(ctx.events[0],0,0,0,0);CHKERRQ(ierr);
-  {
-    PetscViewer    viewer = NULL;
-    PetscBool      flg;
-    ierr = PetscOptionsGetViewer(ctx.wComm,NULL,"-x2_dm_view",&viewer,NULL,&flg);CHKERRQ(ierr);
-    if (flg) {
-      ierr = DMView(dmpi->dmgrid,viewer);CHKERRQ(ierr);
-    }
-    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-  }
 
   /* do it */
   ierr = go( &ctx );CHKERRQ(ierr);
+
   if (dmpi->debug>3) {
     ierr = MatView(J,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
