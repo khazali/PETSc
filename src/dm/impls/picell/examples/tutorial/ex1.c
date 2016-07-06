@@ -1313,7 +1313,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       }
       MPI_Barrier(ctx->wComm);
     }
-    
+
     nlistsTot += nslist;
     nslist = 0;
     /* add density (while in cache, by species at least) */
@@ -1353,7 +1353,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
 #if defined(PETSC_USE_LOG)
         ierr = PetscLogEventBegin(ctx->events[6],0,0,0,0);CHKERRQ(ierr); /* timer on particle list */
-#endif	
+#endif
         ierr = DMPICellAddSource(ctx->dm, xVec, vVec, elid, locrho);CHKERRQ(ierr);
         ierr = VecDestroy(&xVec);CHKERRQ(ierr);
         ierr = VecDestroy(&vVec);CHKERRQ(ierr);
@@ -1495,7 +1495,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 	  ierr = X2ParticleCreate(&particle,++gid,r,z,phi,vpar);CHKERRQ(ierr); /* only time this is called! */
 	  ierr = X2PListAdd(&ctx->partlists[isp][0],&particle, NULL);CHKERRQ(ierr);
           /* debug, particles are created in a flux tube */
-          {
+          if (0) {
             PetscMPIInt pe; PetscInt id;
             ierr = X2GridParticleGetProc_FluxTube(&ctx->particleGrid,psi,thetap,phi,&pe,&id);CHKERRQ(ierr);
             if(pe != ctx->rank){
@@ -1542,6 +1542,7 @@ PetscErrorCode go( X2Ctx *ctx )
   int            irk,idx,isp;
   PetscReal      time,dt;
   X2PSendList    *sendListTable;
+  DM_PICell      *dmpi = (DM_PICell *) ctx->dm->data;
   PetscFunctionBeginUser;
 
   /* init send tables */
@@ -1604,10 +1605,9 @@ PetscErrorCode go( X2Ctx *ctx )
     /* solve for potential, density being assembled is an invariant */
     ierr = DMPICellSolve( ctx->dm );CHKERRQ(ierr);
 
-    if (1) {
+    if (dmpi->debug>1) {
       PetscViewer    viewer = NULL;
       PetscBool      flg;
-      DM_PICell *dmpi = (DM_PICell *) ctx->dm->data;
       ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-dm_view",&viewer,NULL,&flg);CHKERRQ(ierr);
       if (flg) {
         ierr = DMView(dmpi->dmgrid,viewer);CHKERRQ(ierr);
