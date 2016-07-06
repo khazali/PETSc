@@ -1524,12 +1524,12 @@ PetscErrorCode DMCreateFieldDecomposition(DM dm, PetscInt *len, char ***namelist
   Not collective
 
   Input Parameters:
-+ dm - the DM object
++ dm        - the DM object
 . numFields - number of fields in this subproblem
-- len       - The number of subproblems in the decomposition (or NULL if not requested)
+- fields    - The field indices
 
   Output Parameters:
-. is - The global indices for the subproblem
++ is - The global indices for the subproblem
 - dm - The DM for the subproblem
 
   Level: intermediate
