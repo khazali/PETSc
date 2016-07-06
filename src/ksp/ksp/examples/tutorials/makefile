@@ -462,7 +462,7 @@ runex5_2:
 	   else printf "${PWD}\nPossible problem with ex5_2, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex5_2.tmp
 runex5_5:
-	-@${MPIEXEC} -n 2 ./ex5 -ksp_gmres_cgs_refinement_type refine_always > ex5_5.tmp 2>&1; \
+	-@${MPIEXEC} -n 2 ./ex5 -ksp_gmres_cgs_refinement_type refine_always -ksp_monitor_lg_residualnorm -ksp_monitor_lg_true_residualnorm  > ex5_5.tmp 2>&1; \
 	   if (${DIFF} output/ex5_5.out ex5_5.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex5_5, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex5_5.tmp
@@ -581,6 +581,16 @@ runex10:
 	   ${RM} -f ex10_1.tmp
 
 # See http://www.mcs.anl.gov/petsc/documentation/faq.html#datafiles for how to obtain the datafiles used below
+runex10_xxt:
+	-@${MPIEXEC} -n 8 ./ex10 -f0 ${DATAFILESPATH}/matrices/poisson1 -check_symmetry -ksp_type cg -pc_type tfs -ksp_monitor_short -ksp_view > ex10_xxt.tmp 2>&1; \
+	   if (${DIFF} output/ex10_xxt.out ex10_xxt.tmp) then true; \
+	   else printf "${PWD}\nPossible problem with ex10_xxt, diffs above\n=========================================\n"; fi; \
+	   ${RM} -f ex10_xxt.tmp
+runex10_xyt:
+	-@${MPIEXEC} -n 8 ./ex10 -f0 ${DATAFILESPATH}/matrices/arco1 -ksp_type gmres -pc_type tfs -ksp_monitor_short -ksp_view > ex10_xyt.tmp 2>&1; \
+	   if (${DIFF} output/ex10_xyt.out ex10_xyt.tmp) then true; \
+	   else printf "${PWD}\nPossible problem with ex10_xyt, diffs above\n=========================================\n"; fi; \
+	   ${RM} -f ex10_xyt.tmp
 runex10_2:
 	-@${MPIEXEC} -n 2 ./ex10 -ksp_type bicg \
 	   -f0 ${DATAFILESPATH}/matrices/medium > ex10_2.tmp 2>&1; \
@@ -728,7 +738,16 @@ runex10_boomeramg_euclid_bj:
 	   if (${DIFF} output/ex10_boomeramg_euclid_bj.out ex10_boomeramg_euclid_bj.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex10_boomeramg_euclid_bj, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex10_boomeramg_euclid_bj.tmp
-
+runex10_cr:
+	-@${MPIEXEC} -n 1 ./ex10 -f0 ${DATAFILESPATH}/matrices/poisson2.gz -ksp_type cr -ksp_monitor_short -pc_type icc > ex10_cr.tmp 2>&1; \
+	   if (${DIFF} output/ex10_cr.out ex10_cr.tmp) then true; \
+	   else printf "${PWD}\nPossible problem with ex10_cr, diffs above\n=========================================\n"; fi; \
+	   ${RM} -f ex10_cr.tmp
+runex10_lcd:
+	-@${MPIEXEC} -n 1 ./ex10 -f0 ${DATAFILESPATH}/matrices/poisson2.gz -ksp_type lcd -ksp_monitor_short -pc_type icc > ex10_lcd.tmp 2>&1; \
+	   if (${DIFF} output/ex10_lcd.out ex10_lcd.tmp) then true; \
+	   else printf "${PWD}\nPossible problem with ex10_lcd, diffs above\n=========================================\n"; fi; \
+	   ${RM} -f ex10_lcd.tmp
 # See http://www.mcs.anl.gov/petsc/documentation/faq.html#datafiles for how to obtain the datafiles used below
 LEVELS = 0 2 4
 runex10_19:
@@ -1328,9 +1347,11 @@ runex54_Classical:
        ${RM} -f ex.tmp
 
 runex54f:
-	-@${MPIEXEC} -n 4 ./ex54f -ne 39 -theta 30.0 -epsilon 1.e-1 -blob_center 0.,0. -ksp_type cg -pc_type gamg -pc_gamg_type agg -pc_gamg_agg_nsmooths 1 -mg_levels_ksp_chebyshev_esteig 0,0.05,0,1.05 -mat_coarsen_type hem -pc_gamg_square_graph 0 -ksp_monitor_short -mg_levels_esteig_ksp_type cg > ex.tmp 2>&1; \
-         ${DIFF} output/ex54f.out ex.tmp || printf "${PWD}\nPossible problem with ex54f.out, diffs above\n======================================\n"; \
-        ${RM} -f ex.tmp
+	-@x="bad"; ${MPIEXEC}  -n 4 ./ex54f -ne 39 -theta 30.0 -epsilon 1.e-1 -blob_center 0.,0. -ksp_type cg -pc_type gamg -pc_gamg_type agg -pc_gamg_agg_nsmooths 1 -mg_levels_ksp_chebyshev_esteig 0,0.05,0,1.05 -mat_coarsen_type hem -pc_gamg_square_graph 0 -ksp_monitor_short -mg_levels_esteig_ksp_type cg  > ex54f_1.tmp 2>&1; \
+	   if (${DIFF} output/ex54f.out ex54f_1.tmp > /dev/null 2>&1) then x='good'; fi ;\
+	   if (${DIFF} output/ex54f_1_alt.out ex54f_1.tmp > /dev/null 2>&1) then x='good'; fi; \
+	   if [ "$$x" = "bad" ]; then ${DIFF} output/ex54f.out ex54f_1.tmp ; ${DIFF} output/ex54f_1_alt.out ex54f_1.tmp ; printf "${PWD}\nPossible problem with ex54f_1, diffs above\n=========================================\n"; fi; \
+	   ${RM} -f ex54f_1.tmp
 
 runex55_geo:
 	-@${MPIEXEC} -n 4 ./ex55 -ne 29 -alpha 1.e-3 -ksp_type cg -pc_type gamg -pc_gamg_type geo -use_coordinates -ksp_monitor_short -mg_levels_esteig_ksp_type cg -ksp_type cg -ksp_norm_type unpreconditioned > ex.tmp 2>&1;	  \
@@ -1390,11 +1411,11 @@ runex59:
 	${DIFF} output/ex59_1.out ex59.tmp || printf "${PWD}\nPossible problem with ex59, diffs above\n=========================================\n"; \
 	${RM} -f ex59.tmp
 runex59_2:
-	-@${MPIEXEC} -n 4 ./ex59 -npx 2 -npy 2 -nex 6 -ney 6 -ksp_max_it 3 > ex59_2.tmp 2>&1;         \
+	-@${MPIEXEC} -n 4 ./ex59 -npx 2 -npy 2 -nex 6 -ney 6 -fluxes_ksp_max_it 4 -physical_ksp_max_it 4 > ex59_2.tmp 2>&1;         \
 	${DIFF} output/ex59_2.out ex59_2.tmp || printf "${PWD}\nPossible problem with ex59_2, diffs above\n=========================================\n"; \
 	${RM} -f ex59_2.tmp
 runex59_3:
-	-@${MPIEXEC} -n 4 ./ex59 -npx 2 -npy 2 -npz 1 -nex 6 -ney 6 -nez 1 -ksp_max_it 4 > ex59_3.tmp 2>&1;         \
+	-@${MPIEXEC} -n 4 ./ex59 -npx 2 -npy 2 -npz 1 -nex 6 -ney 6 -nez 1 -fluxes_ksp_max_it 4 -physical_ksp_max_it 4 > ex59_3.tmp 2>&1;         \
 	${DIFF} output/ex59_3.out ex59_3.tmp || printf "${PWD}\nPossible problem with ex59_3, diffs above\n=========================================\n"; \
 	${RM} -f ex59_3.tmp
 runex59_approximate:
@@ -1586,15 +1607,15 @@ TESTEXAMPLES_C_NOCOMPLEX_NOTSINGLE = ex23.PETSc runex23_3 ex23.rm  ex15.PETSc ru
 TESTEXAMPLES_C_X	       = ex2.PETSc runex2_5 ex2.rm ex5.PETSc runex5_5 ex5.rm ex8.PETSc ex8.rm ex28.PETSc runex28 ex28.rm
 TESTEXAMPLES_FORTRAN	       = ex1f.PETSc runex1f ex1f.rm ex2f.PETSc runex2f runex2f_2 ex2f.rm ex6f.PETSc ex6f.rm \
                                  ex15f.PETSc runex15f ex15f.rm \
-                                  ex45f.PETSc runex45f ex45f.rm
+                                  ex45f.PETSc runex45f ex45f.rm ex54f.PETSc runex54f ex54f.rm
 TESTEXAMPLES_FORTRAN_NOTSINGLE  = ex14f.PETSc runex14f  ex14f.rm  ex22f.PETSc runex22f ex22f.rm ex21f.PETSc runex21f ex21f.rm
 TESTEXAMPLES_FORTRAN_MPIUNI    = ex1f.PETSc runex1f ex1f.rm ex6f.PETSc runex6f ex6f.rm
 TESTEXAMPLES_C_X_MPIUNI      = ex1.PETSc runex1 runex1_2 runex1_3 ex1.rm ex2.PETSc runex2 runex2_3 ex2.rm \
                                  ex7.PETSc ex7.rm ex5.PETSc ex5.rm  ex9.PETSc runex9 ex9.rm \
                                  ex23.PETSc runex23 ex23.rm
 TESTEXAMPLES_C_COMPLEX	       = ex10.PETSc ex10.rm ex11.PETSc runex11 ex11.rm
-TESTEXAMPLES_DATAFILESPATH     = ex10.PETSc runex10_2 runex10_3 runex10_4 runex10_5 runex10_6 runex10_7 runex10_8 \
-                                 runex10_9 runex10_10 runex10_19  runex10_ILU runex10_ILUBAIJ runex10_cg \
+TESTEXAMPLES_DATAFILESPATH     = ex10.PETSc runex10_xxt runex10_xyt runex10_2 runex10_3 runex10_4 runex10_5 runex10_6 runex10_7 runex10_8 \
+                                 runex10_9 runex10_10 runex10_19  runex10_ILU runex10_ILUBAIJ runex10_cg runex10_cr runex10_lcd \
                                  runex10_cg_singlereduction runex10_seqaijcrl runex10_mpiaijcrl runex10_seqaijperm runex10_mpiaijperm ex10.rm \
                                  ex27.PETSc runex27 ex27.rm
 # even though ex10.c is -pc_mg_smoothdown na C example to run with -mat_type lusol requires a Fortran compiler, hence

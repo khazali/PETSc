@@ -50,7 +50,7 @@ PetscErrorCode DMInterpolationCreate(MPI_Comm comm, DMInterpolationInfo *ctx)
 
   PetscFunctionBegin;
   PetscValidPointer(ctx, 2);
-  ierr = PetscMalloc(sizeof(struct _DMInterpolationInfo), ctx);CHKERRQ(ierr);
+  ierr = PetscNew(ctx);CHKERRQ(ierr);
 
   (*ctx)->comm   = comm;
   (*ctx)->dim    = -1;
@@ -178,13 +178,13 @@ PetscErrorCode DMInterpolationSetUp(DMInterpolationInfo ctx, DM dm, PetscBool re
 #endif
   ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, ctx->dim, N*ctx->dim, globalPointsScalar, &pointVec);CHKERRQ(ierr);
   ierr = PetscMalloc2(N,&foundProcs,N,&globalProcs);CHKERRQ(ierr);
+  for (p = 0; p < N; ++p) {foundProcs[p] = size;}
   cellSF = NULL;
   ierr = DMLocatePoints(dm, pointVec, DM_POINTLOCATION_NONE, &cellSF);CHKERRQ(ierr);
   ierr = PetscSFGetGraph(cellSF,NULL,&numFound,&foundPoints,&foundCells);CHKERRQ(ierr);
 #endif
   for (p = 0; p < numFound; ++p) {
     if (foundCells[p].index >= 0) foundProcs[foundPoints ? foundPoints[p] : p] = rank;
-    else foundProcs[foundPoints ? foundPoints[p] : p] = size;
   }
   /* Let the lowest rank process own each point */
   ierr   = MPIU_Allreduce(foundProcs, globalProcs, N, MPI_INT, MPI_MIN, comm);CHKERRQ(ierr);
@@ -1392,7 +1392,7 @@ PetscErrorCode DMPlexComputeBdResidual_Internal(DM dm, Vec locX, Vec locX_t, Pet
     PetscObject     obj;
     PetscClassId    id;
 
-    ierr = DMGetBoundary(dm, bd, &isEssential, NULL, &bdLabel, &field, NULL, NULL, NULL, &numValues, &values, NULL);CHKERRQ(ierr);
+    ierr = PetscDSGetBoundary(dm->prob, bd, &isEssential, NULL, &bdLabel, &field, NULL, NULL, NULL, &numValues, &values, NULL);CHKERRQ(ierr);
     ierr = DMGetField(dm, field, &obj);CHKERRQ(ierr);
     ierr = PetscObjectGetClassId(obj, &id);CHKERRQ(ierr);
     if ((id != PETSCFE_CLASSID) || isEssential) continue;
@@ -1645,6 +1645,12 @@ PetscErrorCode DMPlexComputeResidual_Internal(DM dm, PetscInt cStart, PetscInt c
       /* Add elemVec to locX */
       for (cell = cS; cell < cE; ++cell) {
         if (mesh->printFEM > 1) {ierr = DMPrintCellVector(cell, name, totDim, &elemVec[cell*totDim]);CHKERRQ(ierr);}
+        if (ghostLabel) {
+          PetscInt ghostVal;
+
+          ierr = DMLabelGetValue(ghostLabel,cell,&ghostVal);CHKERRQ(ierr);
+          if (ghostVal > 0) continue;
+        }
         ierr = DMPlexVecSetClosure(dm, section, locF, cell, &elemVec[cell*totDim], ADD_ALL_VALUES);CHKERRQ(ierr);
       }
     }
@@ -1668,7 +1674,7 @@ PetscErrorCode DMPlexComputeResidual_Internal(DM dm, PetscInt cStart, PetscInt c
         /* Accumulate fluxes to cells */
         for (face = fS, iface = 0; face < fE; ++face) {
           const PetscInt *cells;
-          PetscScalar    *fL, *fR;
+          PetscScalar    *fL = NULL, *fR = NULL;
           PetscInt        ghost, d, nsupp, nchild;
 
           ierr = DMLabelGetValue(ghostLabel, face, &ghost);CHKERRQ(ierr);
@@ -1676,8 +1682,10 @@ PetscErrorCode DMPlexComputeResidual_Internal(DM dm, PetscInt cStart, PetscInt c
           ierr = DMPlexGetTreeChildren(dm, face, &nchild, NULL);CHKERRQ(ierr);
           if (ghost >= 0 || nsupp > 2 || nchild > 0) continue;
           ierr = DMPlexGetSupport(dm, face, &cells);CHKERRQ(ierr);
-          ierr = DMPlexPointGlobalFieldRef(dm, cells[0], f, fa, &fL);CHKERRQ(ierr);
-          ierr = DMPlexPointGlobalFieldRef(dm, cells[1], f, fa, &fR);CHKERRQ(ierr);
+          ierr = DMLabelGetValue(ghostLabel,cells[0],&ghost);CHKERRQ(ierr);
+          if (ghost <= 0) {ierr = DMPlexPointLocalFieldRef(dm, cells[0], f, fa, &fL);CHKERRQ(ierr);}
+          ierr = DMLabelGetValue(ghostLabel,cells[1],&ghost);CHKERRQ(ierr);
+          if (ghost <= 0) {ierr = DMPlexPointLocalFieldRef(dm, cells[1], f, fa, &fR);CHKERRQ(ierr);}
           for (d = 0; d < pdim; ++d) {
             if (fL) fL[d] -= fluxL[iface*totDim+foff+d];
             if (fR) fR[d] += fluxR[iface*totDim+foff+d];
@@ -1707,6 +1715,12 @@ PetscErrorCode DMPlexComputeResidual_Internal(DM dm, PetscInt cStart, PetscInt c
         for (cell = cS; cell < cE; ++cell) {
           PetscScalar *u_t, *r;
 
+          if (ghostLabel) {
+            PetscInt ghostVal;
+
+            ierr = DMLabelGetValue(ghostLabel,cell,&ghostVal);CHKERRQ(ierr);
+            if (ghostVal > 0) continue;
+          }
           ierr = DMPlexPointLocalFieldRead(dm, cell, f, x_t, &u_t);CHKERRQ(ierr);
           ierr = DMPlexPointLocalFieldRef(dm, cell, f, fa, &r);CHKERRQ(ierr);
           for (d = 0; d < pdim; ++d) r[d] += u_t[d];
@@ -1991,20 +2005,24 @@ PetscErrorCode DMPlexComputeJacobian_Internal(DM dm, PetscInt cStart, PetscInt c
   Vec               A, cellgeom;
   PetscDS           prob, probAux = NULL;
   PetscQuadrature   quad;
-  PetscSection      section, globalSection, sectionAux;
+  PetscSection      section, globalSection, subSection, sectionAux;
   PetscFECellGeom  *cgeom = NULL;
   PetscScalar      *cgeomScal;
   PetscScalar      *elemMat, *elemMatP, *elemMatD, *u, *u_t, *a = NULL;
   PetscInt          dim, Nf, f, fieldI, fieldJ, numCells, c;
   PetscInt          totDim, totDimBd, totDimAux, numBd, bd;
-  PetscBool         isShell, hasJac, hasPrec, hasDyn, hasFV = PETSC_FALSE;
+  PetscBool         isMatIS, isMatISP, isShell, hasJac, hasPrec, hasDyn, hasFV = PETSC_FALSE;
   PetscErrorCode    ierr;
 
   PetscFunctionBegin;
   ierr = PetscLogEventBegin(DMPLEX_JacobianFEM,dm,0,0,0);CHKERRQ(ierr);
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = DMGetDefaultSection(dm, &section);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject) JacP, MATIS, &isMatISP);CHKERRQ(ierr);
   ierr = DMGetDefaultGlobalSection(dm, &globalSection);CHKERRQ(ierr);
+  if (isMatISP) {
+    ierr = DMPlexGetSubdomainSection(dm, &subSection);CHKERRQ(ierr);
+  }
   ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
   ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
   ierr = PetscDSGetTotalBdDimension(prob, &totDimBd);CHKERRQ(ierr);
@@ -2131,17 +2149,45 @@ PetscErrorCode DMPlexComputeJacobian_Internal(DM dm, PetscInt cStart, PetscInt c
     /* No allocated space for FV stuff, so ignore the zero entries */
     ierr = MatSetOption(JacP, MAT_IGNORE_ZERO_ENTRIES, PETSC_TRUE);CHKERRQ(ierr);
   }
+  isMatIS = PETSC_FALSE;
+  if (hasPrec && hasJac) {
+    ierr = PetscObjectTypeCompare((PetscObject) JacP, MATIS, &isMatIS);CHKERRQ(ierr);
+  }
+  if (isMatIS && !subSection) {
+    ierr = DMPlexGetSubdomainSection(dm, &subSection);CHKERRQ(ierr);
+  }
   for (c = cStart; c < cEnd; ++c) {
     if (hasPrec) {
       if (hasJac) {
         if (mesh->printFEM > 1) {ierr = DMPrintCellMatrix(c, name, totDim, totDim, &elemMat[(c-cStart)*totDim*totDim]);CHKERRQ(ierr);}
-        ierr = DMPlexMatSetClosure(dm, section, globalSection, Jac, c, &elemMat[(c-cStart)*totDim*totDim], ADD_VALUES);CHKERRQ(ierr);
+        if (!isMatIS) {
+          ierr = DMPlexMatSetClosure(dm, section, globalSection, Jac, c, &elemMat[(c-cStart)*totDim*totDim], ADD_VALUES);CHKERRQ(ierr);
+        } else {
+          Mat lJ;
+
+          ierr = MatISGetLocalMat(Jac,&lJ);CHKERRQ(ierr);
+          ierr = DMPlexMatSetClosure(dm, section, subSection, lJ, c, &elemMat[(c-cStart)*totDim*totDim], ADD_VALUES);CHKERRQ(ierr);
+        }
       }
       if (mesh->printFEM > 1) {ierr = DMPrintCellMatrix(c, name, totDim, totDim, &elemMatP[(c-cStart)*totDim*totDim]);CHKERRQ(ierr);}
-      ierr = DMPlexMatSetClosure(dm, section, globalSection, JacP, c, &elemMatP[(c-cStart)*totDim*totDim], ADD_VALUES);CHKERRQ(ierr);
+      if (!isMatISP) {
+        ierr = DMPlexMatSetClosure(dm, section, globalSection, JacP, c, &elemMatP[(c-cStart)*totDim*totDim], ADD_VALUES);CHKERRQ(ierr);
+      } else {
+        Mat lJ;
+
+        ierr = MatISGetLocalMat(JacP,&lJ);CHKERRQ(ierr);
+        ierr = DMPlexMatSetClosure(dm, section, subSection, lJ, c, &elemMatP[(c-cStart)*totDim*totDim], ADD_VALUES);CHKERRQ(ierr);
+      }
     } else {
       if (mesh->printFEM > 1) {ierr = DMPrintCellMatrix(c, name, totDim, totDim, &elemMat[(c-cStart)*totDim*totDim]);CHKERRQ(ierr);}
-      ierr = DMPlexMatSetClosure(dm, section, globalSection, JacP, c, &elemMat[(c-cStart)*totDim*totDim], ADD_VALUES);CHKERRQ(ierr);
+      if (!isMatISP) {
+        ierr = DMPlexMatSetClosure(dm, section, globalSection, JacP, c, &elemMat[(c-cStart)*totDim*totDim], ADD_VALUES);CHKERRQ(ierr);
+      } else {
+        Mat lJ;
+
+        ierr = MatISGetLocalMat(JacP,&lJ);CHKERRQ(ierr);
+        ierr = DMPlexMatSetClosure(dm, section, subSection, lJ, c, &elemMat[(c-cStart)*totDim*totDim], ADD_VALUES);CHKERRQ(ierr);
+      }
     }
   }
   if (hasFV) {ierr = MatSetOption(JacP, MAT_IGNORE_ZERO_ENTRIES, PETSC_FALSE);CHKERRQ(ierr);}
@@ -2171,7 +2217,7 @@ PetscErrorCode DMPlexComputeJacobian_Internal(DM dm, PetscInt cStart, PetscInt c
     PetscObject     obj;
     PetscClassId    id;
 
-    ierr = DMGetBoundary(dm, bd, &isEssential, NULL, &bdLabel, &field, NULL, NULL, NULL, &numValues, &values, NULL);CHKERRQ(ierr);
+    ierr = PetscDSGetBoundary(dm->prob, bd, &isEssential, NULL, &bdLabel, &field, NULL, NULL, NULL, &numValues, &values, NULL);CHKERRQ(ierr);
     ierr = DMGetField(dm, field, &obj);CHKERRQ(ierr);
     ierr = PetscObjectGetClassId(obj, &id);CHKERRQ(ierr);
     if ((id != PETSCFE_CLASSID) || isEssential) continue;
@@ -2239,7 +2285,14 @@ PetscErrorCode DMPlexComputeJacobian_Internal(DM dm, PetscInt cStart, PetscInt c
         ierr = DMLabelGetValue(depth, point, &dep);CHKERRQ(ierr);
         if (dep != dim-1) continue;
         if (mesh->printFEM > 1) {ierr = DMPrintCellMatrix(point, "BdJacobian", totDimBd, totDimBd, &elemMat[f*totDimBd*totDimBd]);CHKERRQ(ierr);}
-        ierr = DMPlexMatSetClosure(dm, section, globalSection, JacP, point, &elemMat[f*totDimBd*totDimBd], ADD_VALUES);CHKERRQ(ierr);
+        if (!isMatISP) {
+          ierr = DMPlexMatSetClosure(dm, section, globalSection, JacP, point, &elemMat[f*totDimBd*totDimBd], ADD_VALUES);CHKERRQ(ierr);
+        } else {
+          Mat lJ;
+
+          ierr = MatISGetLocalMat(JacP,&lJ);CHKERRQ(ierr);
+          ierr = DMPlexMatSetClosure(dm, section, subSection, lJ, point, &elemMat[f*totDimBd*totDimBd], ADD_VALUES);CHKERRQ(ierr);
+        }
         ++f;
       }
       ierr = ISRestoreIndices(pointIS, &points);CHKERRQ(ierr);
@@ -2495,7 +2548,7 @@ PetscErrorCode DMPlexSNESComputeJacobianActionFEM(DM dm, Vec X, Vec Y, Vec Z, vo
 
   Input Parameters:
 + dm - The DM object
-. boundaryctx - the user context that will be passed to pointwise evaluation of boundary values (see DMAddBoundary())
+. boundaryctx - the user context that will be passed to pointwise evaluation of boundary values (see PetscDSAddBoundary())
 . residualctx - the user context that will be passed to pointwise evaluation of finite element residual computations (see PetscDSSetResidual())
 - jacobianctx - the user context that will be passed to pointwise evaluation of finite element Jacobian construction (see PetscDSSetJacobian())
 

@@ -208,7 +208,7 @@ $      testing with -pc_type lu to eliminate the linear solver as the cause of t
 
    Developer Notes: this must match petsc/finclude/petscsnes.h
 
-       The string versions of these are in SNESConvergedReason, if you change any value here you must
+       The string versions of these are in SNESConvergedReasons, if you change any value here you must
      also adjust that array.
 
    Each reason has its own manual page.
@@ -469,6 +469,9 @@ PETSC_EXTERN PetscErrorCode SNESNGSSetTolerances(SNES,PetscReal,PetscReal,PetscR
 PETSC_EXTERN PetscErrorCode SNESNGSGetTolerances(SNES,PetscReal*,PetscReal*,PetscReal*,PetscInt*);
 
 PETSC_EXTERN PetscErrorCode SNESUpdateCheckJacobian(SNES,PetscInt);
+
+PETSC_EXTERN PetscErrorCode SNESSetAlwaysComputesFinalResidual(SNES,PetscBool);
+PETSC_EXTERN PetscErrorCode SNESGetAlwaysComputesFinalResidual(SNES,PetscBool*);
 
 PETSC_EXTERN PetscErrorCode SNESShellGetContext(SNES,void**);
 PETSC_EXTERN PetscErrorCode SNESShellSetContext(SNES,void*);

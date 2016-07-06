@@ -833,7 +833,13 @@ PetscErrorCode MatZeroRows_MPIAIJ(Mat A,PetscInt N,const PetscInt rows[],PetscSc
   }
   /* Must zero l->B before l->A because the (diag) case below may put values into l->B*/
   ierr = MatZeroRows(mat->B, len, lrows, 0.0, NULL, NULL);CHKERRQ(ierr);
-  if ((diag != 0.0) && (mat->A->rmap->N == mat->A->cmap->N)) {
+  if (A->congruentlayouts == -1) { /* first time we compare rows and cols layouts */
+    PetscBool cong;
+    ierr = PetscLayoutCompare(A->rmap,A->cmap,&cong);CHKERRQ(ierr);
+    if (cong) A->congruentlayouts = 1;
+    else      A->congruentlayouts = 0;
+  }
+  if ((diag != 0.0) && A->congruentlayouts) {
     ierr = MatZeroRows(mat->A, len, lrows, diag, NULL, NULL);CHKERRQ(ierr);
   } else if (diag != 0.0) {
     ierr = MatZeroRows(mat->A, len, lrows, 0.0, NULL, NULL);CHKERRQ(ierr);
@@ -2879,6 +2885,7 @@ PetscErrorCode MatLoad_MPIAIJ(Mat newMat, PetscViewer viewer)
   if (!rank) {
     ierr = PetscBinaryRead(fd,(char*)header,4,PETSC_INT);CHKERRQ(ierr);
     if (header[0] != MAT_FILE_CLASSID) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_FILE_UNEXPECTED,"not matrix object");
+    if (header[3] < 0) SETERRQ(PetscObjectComm((PetscObject)newMat),PETSC_ERR_FILE_UNEXPECTED,"Matrix stored in special format on disk,cannot load as MPIAIJ");
   }
 
   ierr = PetscOptionsBegin(comm,NULL,"Options for loading MPIAIJ matrix","Mat");CHKERRQ(ierr);

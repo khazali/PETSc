@@ -237,6 +237,13 @@ PETSC_EXTERN MPI_Datatype MPIU_ENUM PetscAttrMPITypeTag(PetscEnum);
 #if defined(PETSC_HAVE_STDINT_H)
 #include <stdint.h>
 #endif
+#if defined (PETSC_HAVE_INTTYPES_H)
+#define __STDC_FORMAT_MACROS /* required for using PRId64 from c++ */
+#include <inttypes.h>
+# if !defined(PRId64)
+# define PRId64 "ld"
+# endif
+#endif
 
 /*MC
     PetscInt - PETSc type that represents integer - used primarily to
@@ -247,24 +254,29 @@ PETSC_EXTERN MPI_Datatype MPIU_ENUM PetscAttrMPITypeTag(PetscEnum);
 
 .seealso: PetscScalar, PetscBLASInt, PetscMPIInt
 M*/
-#if defined(PETSC_HAVE_STDINT_H) && defined(PETSC_HAVE_MPI_INT64_T) /* MPI_INT64_T is not guaranteed to be a macro */
+#if defined(PETSC_HAVE_STDINT_H) && defined(PETSC_HAVE_INTTYPES_H) && defined(PETSC_HAVE_MPI_INT64_T) /* MPI_INT64_T is not guaranteed to be a macro */
 typedef int64_t PetscInt64;
 # define MPIU_INT64 MPI_INT64_T
+# define PetscInt64_FMT PRId64
 #elif (PETSC_SIZEOF_LONG_LONG == 8)
 typedef long long PetscInt64;
 # define MPIU_INT64 MPI_LONG_LONG_INT
+# define PetscInt64_FMT "lld"
 #elif defined(PETSC_HAVE___INT64)
 typedef __int64 PetscInt64;
 # define MPIU_INT64 MPI_INT64_T
+# define PetscInt64_FMT "ld"
 #else
 #error "cannot determine PetscInt64 type"
 #endif
 #if defined(PETSC_USE_64BIT_INDICES)
 typedef PetscInt64 PetscInt;
 #define MPIU_INT MPIU_INT64
+#define PetscInt_FMT PetscInt64_FMT
 #else
 typedef int PetscInt;
 #define MPIU_INT MPI_INT
+#define PetscInt_FMT "d"
 #endif
 
 /*MC
@@ -559,7 +571,7 @@ PETSC_EXTERN PetscErrorCode PetscCommDuplicate(MPI_Comm,MPI_Comm*,int*);
 PETSC_EXTERN PetscErrorCode PetscCommDestroy(MPI_Comm*);
 
 /*MC
-   PetscMalloc - Allocates memory, One should use PetscMalloc1() or PetscCalloc1() usually instead of this
+   PetscMalloc - Allocates memory, One should use PetscNew(), PetscMalloc1() or PetscCalloc1() usually instead of this
 
    Synopsis:
     #include <petscsys.h>
@@ -1821,20 +1833,6 @@ PETSC_EXTERN PetscErrorCode PetscPrintf(MPI_Comm,const char[],...);
 PETSC_EXTERN PetscErrorCode PetscSNPrintf(char*,size_t,const char [],...);
 PETSC_EXTERN PetscErrorCode PetscSNPrintfCount(char*,size_t,const char [],size_t*,...);
 
-/* These are used internally by PETSc ASCII IO routines*/
-#include <stdarg.h>
-PETSC_EXTERN PetscErrorCode PetscVSNPrintf(char*,size_t,const char[],size_t*,va_list);
-PETSC_EXTERN PetscErrorCode (*PetscVFPrintf)(FILE*,const char[],va_list);
-PETSC_EXTERN PetscErrorCode PetscVFPrintfDefault(FILE*,const char[],va_list);
-
-#if defined(PETSC_HAVE_MATLAB_ENGINE)
-PETSC_EXTERN PetscErrorCode PetscVFPrintf_Matlab(FILE*,const char[],va_list);
-#endif
-
-#if defined(PETSC_HAVE_CLOSURES)
-PETSC_EXTERN PetscErrorCode PetscVFPrintfSetClosure(int (^)(const char*));
-#endif
-
 PETSC_EXTERN PetscErrorCode PetscErrorPrintfDefault(const char [],...);
 PETSC_EXTERN PetscErrorCode PetscErrorPrintfNone(const char [],...);
 PETSC_EXTERN PetscErrorCode PetscHelpPrintfDefault(MPI_Comm,const char [],...);
@@ -2930,6 +2928,34 @@ PETSC_EXTERN PetscErrorCode PetscPushJSONValue(char[],const char[],const char[],
    Verify that all processes in the communicator have called this from the same line of code
  */
 PETSC_EXTERN PetscErrorCode PetscAllreduceBarrierCheck(MPI_Comm,PetscMPIInt,int,const char*,const char *);
+
+/*MC
+   MPIU_Allreduce - a PETSc replacement for MPI_Allreduce() that tries to determine if the call from all the MPI processes occur from the
+                    same place in the PETSc code. This helps to detect bugs where different MPI processes follow different code paths
+                    resulting in inconsistent and incorrect calls to MPI_Allreduce().
+
+   Collective on MPI_Comm
+
+   Synopsis:
+     #include <petscsys.h>
+     PetscErrorCode MPIU_Allreduce(void *indata,void *outdata,PetscMPIInt count,MPI_Datatype datatype, MPI_Op op, MPI_Comm comm);
+
+   Input Parameters:
++  indata - pointer to the input data to be reduced
+.  count - the number of MPI data items in indata and outdata
+.  datatype - the MPI datatype, for example MPI_INT
+.  op - the MPI operation, for example MPI_SUM
+-  comm - the MPI communicator on which the operation occurs
+
+   Output Parameter:
+.  outdata - the reduced values
+
+   Notes: In optimized mode this directly calls MPI_Allreduce()
+
+   Level: developer
+
+.seealso: MPI_Allreduce()
+M*/
 #define MPIU_Allreduce(a,b,c,d,e,fcomm) (PetscAllreduceBarrierCheck(fcomm,c,__LINE__,__FUNCT__,__FILE__) || MPI_Allreduce(a,b,c,d,e,fcomm))
 #else
 #define MPIU_Allreduce(a,b,c,d,e,fcomm) MPI_Allreduce(a,b,c,d,e,fcomm)

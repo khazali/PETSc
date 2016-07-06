@@ -55,7 +55,7 @@ typedef struct _n_Model *Model;
 /* 'User' implements a discretization of a continuous model. */
 typedef struct _n_User *User;
 typedef PetscErrorCode (*SolutionFunction)(Model,PetscReal,const PetscReal*,PetscScalar*,void*);
-typedef PetscErrorCode (*SetUpBCFunction)(DM,Physics);
+typedef PetscErrorCode (*SetUpBCFunction)(PetscDS,Physics);
 typedef PetscErrorCode (*FunctionalFunction)(Model,PetscReal,const PetscReal*,const PetscScalar*,PetscReal*,void*);
 typedef PetscErrorCode (*SetupFields)(Physics,PetscSection);
 static PetscErrorCode ModelSolutionSetDefault(Model,SolutionFunction,void*);
@@ -256,14 +256,15 @@ static PetscErrorCode PhysicsFunctional_Advect(Model mod,PetscReal time,const Pe
 
 #undef __FUNCT__
 #define __FUNCT__ "SetUpBC_Advect"
-static PetscErrorCode SetUpBC_Advect(DM dm, Physics phys)
+static PetscErrorCode SetUpBC_Advect(PetscDS prob, Physics phys)
 {
   PetscErrorCode ierr;
   const PetscInt inflowids[] = {100,200,300},outflowids[] = {101};
+
   PetscFunctionBeginUser;
   /* Register "canned" boundary conditions and defaults for where to apply. */
-  ierr = DMAddBoundary(dm, PETSC_TRUE, "inflow",  "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_Advect_Inflow,  ALEN(inflowids),  inflowids,  phys);CHKERRQ(ierr);
-  ierr = DMAddBoundary(dm, PETSC_FALSE, "outflow", "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_Advect_Outflow, ALEN(outflowids), outflowids, phys);CHKERRQ(ierr);
+  ierr = PetscDSAddBoundary(prob, PETSC_TRUE, "inflow",  "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_Advect_Inflow,  ALEN(inflowids),  inflowids,  phys);CHKERRQ(ierr);
+  ierr = PetscDSAddBoundary(prob, PETSC_FALSE, "outflow", "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_Advect_Outflow, ALEN(outflowids), outflowids, phys);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -431,12 +432,12 @@ static PetscErrorCode PhysicsFunctional_SW(Model mod,PetscReal time,const PetscR
 
 #undef __FUNCT__
 #define __FUNCT__ "SetUpBC_SW"
-static PetscErrorCode SetUpBC_SW(DM dm,Physics phys)
+static PetscErrorCode SetUpBC_SW(PetscDS prob,Physics phys)
 {
   PetscErrorCode ierr;
   const PetscInt wallids[] = {100,101,200,300};
   PetscFunctionBeginUser;
-  ierr = DMAddBoundary(dm, PETSC_FALSE, "wall", "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_SW_Wall, ALEN(wallids), wallids, phys);CHKERRQ(ierr);
+  ierr = PetscDSAddBoundary(prob, PETSC_FALSE, "wall", "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_SW_Wall, ALEN(wallids), wallids, phys);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -707,17 +708,17 @@ static PetscErrorCode PhysicsFunctional_Euler(Model mod,PetscReal time,const Pet
 
 #undef __FUNCT__
 #define __FUNCT__ "SetUpBC_Euler"
-static PetscErrorCode SetUpBC_Euler(DM dm,Physics phys)
+static PetscErrorCode SetUpBC_Euler(PetscDS prob,Physics phys)
 {
   PetscErrorCode  ierr;
   Physics_Euler   *eu = phys->data;
   if (eu->type == EULER_LINEAR_WAVE) {
     const PetscInt wallids[] = {100,101};
-    ierr = DMAddBoundary(dm, PETSC_FALSE, "wall", "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_Euler_Wall, ALEN(wallids), wallids, phys);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, PETSC_FALSE, "wall", "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_Euler_Wall, ALEN(wallids), wallids, phys);CHKERRQ(ierr);
   }
   else {
     const PetscInt wallids[] = {100,101,200,300};
-    ierr = DMAddBoundary(dm, PETSC_FALSE, "wall", "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_Euler_Wall, ALEN(wallids), wallids, phys);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, PETSC_FALSE, "wall", "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_Euler_Wall, ALEN(wallids), wallids, phys);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -969,7 +970,7 @@ PetscErrorCode SplitFaces(DM *dmSplit, const char labelName[], User user)
   ierr = DMSetUp(sdm);CHKERRQ(ierr);
   /* Set cones and supports */
   ierr = DMPlexGetMaxSizes(dm, &maxConeSize, &maxSupportSize);CHKERRQ(ierr);
-  ierr = PetscMalloc(PetscMax(maxConeSize, maxSupportSize) * sizeof(PetscInt), &newpoints);CHKERRQ(ierr);
+  ierr = PetscMalloc1(PetscMax(maxConeSize, maxSupportSize), &newpoints);CHKERRQ(ierr);
   ierr = DMPlexGetChart(dm, &pStart, &pEnd);CHKERRQ(ierr);
   for (p = pStart; p < pEnd; ++p) {
     const PetscInt *points, *orientations;
@@ -1490,7 +1491,7 @@ static PetscErrorCode adaptToleranceFVM(PetscFV fvm, TS ts, Vec sol, PetscReal r
   DM                dm, gradDM, plex, cellDM, adaptedDM = NULL;
   Vec               cellGeom, faceGeom;
   PetscBool         isForest, computeGradient;
-  Vec               grad, locX;
+  Vec               grad, locGrad, locX;
   PetscInt          cStart, cEnd, cEndInterior, c, dim;
   PetscReal         minMaxInd[2] = {PETSC_MAX_REAL, PETSC_MIN_REAL}, minMaxIndGlobal[2], minInd, maxInd, time;
   const PetscScalar *pointVals;
@@ -1502,23 +1503,25 @@ static PetscErrorCode adaptToleranceFVM(PetscFV fvm, TS ts, Vec sol, PetscReal r
   ierr = TSGetTime(ts,&time);CHKERRQ(ierr);
   ierr = VecGetDM(sol, &dm);CHKERRQ(ierr);
   ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
-  ierr = DMPlexTSGetGeometryFVM(dm, &faceGeom, &cellGeom, NULL);CHKERRQ(ierr);
   ierr = PetscFVGetComputeGradients(fvm,&computeGradient);CHKERRQ(ierr);
   ierr = PetscFVSetComputeGradients(fvm,PETSC_TRUE);CHKERRQ(ierr);
-  ierr = DMPlexTSGetGradientDM(dm,fvm,&gradDM);CHKERRQ(ierr);
   ierr = DMIsForest(dm, &isForest);CHKERRQ(ierr);
   ierr = DMConvert(dm, DMPLEX, &plex);CHKERRQ(ierr);
-  ierr = DMPlexComputeGradientFVM(plex,fvm,faceGeom,cellGeom,&gradDM);CHKERRQ(ierr);
+  ierr = DMPlexGetDataFVM(plex, fvm, &cellGeom, &faceGeom, &gradDM);CHKERRQ(ierr);
   ierr = DMCreateLocalVector(plex,&locX);CHKERRQ(ierr);
   ierr = DMPlexInsertBoundaryValues(plex, PETSC_TRUE, locX, 0.0, faceGeom, cellGeom, NULL);CHKERRQ(ierr);
   ierr = DMGlobalToLocalBegin(plex, sol, INSERT_VALUES, locX);CHKERRQ(ierr);
   ierr = DMGlobalToLocalEnd  (plex, sol, INSERT_VALUES, locX);CHKERRQ(ierr);
   ierr = DMCreateGlobalVector(gradDM, &grad);CHKERRQ(ierr);
   ierr = DMPlexReconstructGradientsFVM(plex, locX, grad);CHKERRQ(ierr);
+  ierr = DMCreateLocalVector(gradDM, &locGrad);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalBegin(gradDM, grad, INSERT_VALUES, locGrad);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalEnd(gradDM, grad, INSERT_VALUES, locGrad);CHKERRQ(ierr);
+  ierr = VecDestroy(&grad);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(plex,0,&cStart,&cEnd);CHKERRQ(ierr);
   ierr = DMPlexGetHybridBounds(plex,&cEndInterior,NULL,NULL,NULL);CHKERRQ(ierr);
   cEnd = (cEndInterior < 0) ? cEnd : cEndInterior;
-  ierr = VecGetArrayRead(grad,&pointGrads);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(locGrad,&pointGrads);CHKERRQ(ierr);
   ierr = VecGetArrayRead(cellGeom,&pointGeom);CHKERRQ(ierr);
   ierr = VecGetArrayRead(locX,&pointVals);CHKERRQ(ierr);
   ierr = VecGetDM(cellGeom,&cellDM);CHKERRQ(ierr);
@@ -1526,7 +1529,7 @@ static PetscErrorCode adaptToleranceFVM(PetscFV fvm, TS ts, Vec sol, PetscReal r
     DMLabel adaptLabel;
 
     ierr = DMRemoveLabel(dm,"adapt",&adaptLabel);CHKERRQ(ierr);
-    ierr = PetscFree(adaptLabel);CHKERRQ(ierr);
+    ierr = DMLabelDestroy(&adaptLabel);CHKERRQ(ierr);
     ierr = DMCreateLabel(dm,"adapt");CHKERRQ(ierr);
   }
 
@@ -1552,8 +1555,8 @@ static PetscErrorCode adaptToleranceFVM(PetscFV fvm, TS ts, Vec sol, PetscReal r
   }
   ierr = VecRestoreArrayRead(locX,&pointVals);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(cellGeom,&pointGeom);CHKERRQ(ierr);
-  ierr = VecRestoreArrayRead(grad,&pointGrads);CHKERRQ(ierr);
-  ierr = VecDestroy(&grad);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(locGrad,&pointGrads);CHKERRQ(ierr);
+  ierr = VecDestroy(&locGrad);CHKERRQ(ierr);
   ierr = VecDestroy(&locX);CHKERRQ(ierr);
   ierr = DMDestroy(&plex);CHKERRQ(ierr);
   ierr = PetscFVSetComputeGradients(fvm,computeGradient);CHKERRQ(ierr);
@@ -1739,7 +1742,7 @@ int main(int argc, char **argv)
 
   /* set up BCs, functions, tags */
   ierr = DMCreateLabel(dm, "Face Sets");CHKERRQ(ierr);
-  ierr = (*mod->setupbc)(dm,phys);CHKERRQ(ierr);
+
   mod->errorIndicator = ErrorIndicator_Simple;
 
   {
@@ -1767,26 +1770,7 @@ int main(int argc, char **argv)
   if (splitFaces) {ierr = ConstructCellBoundary(dm, user);CHKERRQ(ierr);}
   ierr = SplitFaces(&dm, "split faces", user);CHKERRQ(ierr);
 
-  {
-    char      convType[256];
-    PetscBool flg;
-
-    ierr = PetscOptionsBegin(comm, "", "Mesh conversion options", "DMPLEX");CHKERRQ(ierr);
-    ierr = PetscOptionsFList("-dm_type","Convert DMPlex to another format","ex12",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
-    ierr = PetscOptionsEnd();
-    if (flg) {
-      DM dmConv;
-
-      ierr = DMConvert(dm,convType,&dmConv);CHKERRQ(ierr);
-      if (dmConv) {
-        ierr = DMViewFromOptions(dmConv, NULL, "-dm_conv_view");CHKERRQ(ierr);
-        ierr = DMDestroy(&dm);CHKERRQ(ierr);
-        dm   = dmConv;
-        ierr = DMSetFromOptions(dm);CHKERRQ(ierr);
-      }
-    }
-  }
-
+  ierr = PetscDSCreate(PetscObjectComm((PetscObject)dm),&prob);CHKERRQ(ierr);
   ierr = PetscFVCreate(comm, &fvm);CHKERRQ(ierr);
   ierr = PetscFVSetFromOptions(fvm);CHKERRQ(ierr);
   ierr = PetscFVSetNumComponents(fvm, phys->dof);CHKERRQ(ierr);
@@ -1813,11 +1797,33 @@ int main(int argc, char **argv)
       dof += newDof;
     }
   }
-  ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
   /* FV is now structured with one field having all physics as components */
   ierr = PetscDSAddDiscretization(prob, (PetscObject) fvm);CHKERRQ(ierr);
   ierr = PetscDSSetRiemannSolver(prob, 0, user->model->physics->riemann);CHKERRQ(ierr);
   ierr = PetscDSSetContext(prob, 0, user->model->physics);CHKERRQ(ierr);
+  ierr = (*mod->setupbc)(prob,phys);CHKERRQ(ierr);
+  ierr = PetscDSSetFromOptions(prob);CHKERRQ(ierr);
+  ierr = DMSetDS(dm,prob);CHKERRQ(ierr);
+  ierr = PetscDSDestroy(&prob);CHKERRQ(ierr);
+  {
+    char      convType[256];
+    PetscBool flg;
+
+    ierr = PetscOptionsBegin(comm, "", "Mesh conversion options", "DMPLEX");CHKERRQ(ierr);
+    ierr = PetscOptionsFList("-dm_type","Convert DMPlex to another format","ex12",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
+    ierr = PetscOptionsEnd();
+    if (flg) {
+      DM dmConv;
+
+      ierr = DMConvert(dm,convType,&dmConv);CHKERRQ(ierr);
+      if (dmConv) {
+        ierr = DMViewFromOptions(dmConv, NULL, "-dm_conv_view");CHKERRQ(ierr);
+        ierr = DMDestroy(&dm);CHKERRQ(ierr);
+        dm   = dmConv;
+        ierr = DMSetFromOptions(dm);CHKERRQ(ierr);
+      }
+    }
+  }
 
   ierr = initializeTS(dm, user, &ts);CHKERRQ(ierr);
 
@@ -1909,9 +1915,9 @@ int main(int argc, char **argv)
 
   /* collect max maxspeed from all processes -- todo */
   ierr = DMPlexTSGetGeometryFVM(dm, NULL, NULL, &minRadius);CHKERRQ(ierr);
-  mod->maxspeed = phys->maxspeed;
+  ierr = MPI_Allreduce(&phys->maxspeed,&mod->maxspeed,1,MPIU_REAL,MPI_MAX,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
   if (mod->maxspeed <= 0) SETERRQ1(comm,PETSC_ERR_ARG_WRONGSTATE,"Physics '%s' did not set maxspeed",physname);
-  dt   = cfl * minRadius / user->model->maxspeed;
+  dt   = cfl * minRadius / mod->maxspeed;
   ierr = TSSetInitialTimeStep(ts,0.0,dt);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   if (!useAMR) {
@@ -1954,9 +1960,9 @@ int main(int argc, char **argv)
         ierr = VecGetDM(X,&dm);CHKERRQ(ierr);
         ierr = PetscObjectReference((PetscObject)dm);CHKERRQ(ierr);
         ierr = DMPlexTSGetGeometryFVM(dm, NULL, NULL, &minRadius);CHKERRQ(ierr);
-        mod->maxspeed = phys->maxspeed;
+        ierr = MPI_Allreduce(&phys->maxspeed,&mod->maxspeed,1,MPIU_REAL,MPI_MAX,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
         if (mod->maxspeed <= 0) SETERRQ1(comm,PETSC_ERR_ARG_WRONGSTATE,"Physics '%s' did not set maxspeed",physname);
-        dt   = cfl * minRadius / user->model->maxspeed;
+        dt   = cfl * minRadius / mod->maxspeed;
         ierr = TSSetInitialTimeStep(ts,ftime,dt);CHKERRQ(ierr);
       }
       else {

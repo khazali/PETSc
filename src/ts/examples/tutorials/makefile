@@ -404,10 +404,10 @@ runex11_euler:
 #[-dm_plex_convert_type p4est]
 
 runex11_euler_p4est:
-	-@${MPIEXEC} -n 1 ./ex11 -ufv_vtk_interval 1 -monitor density,energy -f -grid_size 2,1 -grid_bounds -1,1.,0.,1 -bc_wall 1,2,3,4 \
-          -dm_type p4est -dm_forest_maximum_refinement 6 -dm_forest_minimum_refinement 2 -dm_forest_initial_refinement 2 -physics euler -eu_type iv_shock -ufv_cfl 10 -eu_alpha 60. -grid_skew_60 -eu_gamma 1.4 -eu_amach 2.02 -eu_rho2 3. -ts_final_time 1 \
+	-@${MPIEXEC} -n 4 ./ex11 -ufv_vtk_interval 1 -monitor density,energy -f -grid_size 2,1 -grid_bounds -1,1.,0.,1 -bc_wall 1,2,3,4 \
+          -dm_type p4est -dm_forest_partition_overlap 1 -dm_forest_maximum_refinement 6 -dm_forest_minimum_refinement 2 -dm_forest_initial_refinement 2 -physics euler -eu_type iv_shock -ufv_cfl 10 -eu_alpha 60. -grid_skew_60 -eu_gamma 1.4 -eu_amach 2.02 -eu_rho2 3. -ts_final_time 1 \
           -ts_ssp_type rks2 -ts_ssp_nstages 10 -petscfv_type leastsquares -petscfv_compute_gradients 0 -petsclimiter_type minmod \
-					-ufv_use_amr -ufv_view_initial_refinement -ufv_refine_tol 0.5 -ufv_coarsen_tol 1.e-2
+					-ufv_use_amr -ufv_view_initial_refinement -ufv_refine_tol 0.5 -ufv_coarsen_tol 1.e-2 -ts_final_time 0.1
 
 runex12:
 	-@${MPIEXEC} -n 1 ./ex12 -da_grid_x 20 -ts_final_time 3 -ts_dt 1e-1 -ts_theta_initial_guess_extrapolate 0 \
@@ -696,7 +696,7 @@ runex35_2:
 	   ${DIFF} output/ex35_2.out ex35_2.tmp || printf "${PWD}\nPossible problem with ex35_2, diffs above\n=========================================\n"; \
 	   ${RM} -f ex35_2.tmp
 
-runex40: runex40_a runex40_b runex40_c runex40_d
+runex40: runex40_a runex40_b runex40_c runex40_d runex40_e
 
 runex40_a:
 	-@${MPIEXEC} -n 1 ./ex40 -snes_stol 1e-4 > ex40.tmp 2>&1; \
@@ -718,7 +718,12 @@ runex40_d:
 	   ${DIFF} output/ex40.out ex40.tmp || printf "${PWD}\nPossible problem with ex40_d, diffs above\n=========================================\n"; \
 	   ${RM} -f ex40.tmp
 
-runex41: runex41_a runex41_b runex41_c runex41_d
+runex40_e:
+	-@${MPIEXEC} -n 1 ./ex40 -ts_type bdf -ts_bdf_adapt -ts_adapt_dt_max 0.025 -ts_max_steps 1500 > ex40.tmp 2>&1; \
+	   ${DIFF} output/ex40.out ex40.tmp || printf "${PWD}\nPossible problem with ex40_e, diffs above\n=========================================\n"; \
+	   ${RM} -f ex40.tmp
+
+runex41: runex41_a runex41_b runex41_c runex41_d runex41_e
 
 runex41_a:
 	-@${MPIEXEC} -n 2 ./ex41 -snes_stol 1e-4 > ex41.tmp 2>&1; \
@@ -738,6 +743,11 @@ runex41_c:
 runex41_d:
 	-@${MPIEXEC} -n 2 ./ex41 -ts_type alpha -ts_alpha_adapt -ts_atol 1e-1 -snes_stol 1e-4 > ex41.tmp 2>&1; \
 	   ${DIFF} output/ex41.out ex41.tmp || printf "${PWD}\nPossible problem with ex41_d, diffs above\n=========================================\n"; \
+	   ${RM} -f ex41.tmp
+
+runex41_e:
+	-@${MPIEXEC} -n 2 ./ex41 -ts_type bdf -ts_bdf_adapt -ts_adapt_dt_max 0.015 -ts_max_steps 3000 > ex41.tmp 2>&1; \
+	   ${DIFF} output/ex41.out ex41.tmp || printf "${PWD}\nPossible problem with ex41_e, diffs above\n=========================================\n"; \
 	   ${RM} -f ex41.tmp
 
 runex42:
@@ -772,7 +782,7 @@ runex44_2:
 	   ${DIFF} output/ex44_2.out ex44_2.tmp || printf "${PWD}\nPossible problem with ex44_2, diffs above\n=========================================\n"; \
 	   ${RM} -f ex44_2.tmp
 
-TESTEXAMPLES_C		  = ex1.PETSc runex1 runex1_2 ex1.rm ex3.PETSc runex3 runex3_2 ex3.rm \
+TESTEXAMPLES_C		  = ex1.PETSc runex1 runex1_2 ex1.rm ex3.PETSc runex3 runex3_2 runex3_3 runex3_4 runex3_5 ex3.rm \
                             ex4.PETSc runex4 runex4_2 runex4_3 runex4_4 ex4.rm ex5.PETSc runex5_nox ex5.rm\
                             ex6.PETSc runex6 ex6.rm ex7.PETSc runex7 runex7_2 runex7_3 ex7.rm \
                             ex8.PETSc runex8 ex8.rm \

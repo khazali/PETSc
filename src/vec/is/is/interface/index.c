@@ -414,6 +414,55 @@ PetscErrorCode  ISGetMinMax(IS is,PetscInt *min,PetscInt *max)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "ISLocate"
+/*@
+  ISLocate - determine the location of an index within the local component of an index set
+
+  Not Collective
+
+  Input Parameter:
++ is - the index set
+- key - the search key
+
+  Output Parameter:
+. location - if >= 0, a location within the index set that is equal to the key, otherwise the key is not in the index set
+
+  Level: intermediate
+@*/
+PetscErrorCode ISLocate(IS is, PetscInt key, PetscInt *location)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (is->ops->locate) {
+    ierr = (*is->ops->locate)(is,key,location);CHKERRQ(ierr);
+  } else {
+    PetscInt       numIdx;
+    PetscBool      sorted;
+    const PetscInt *idx;
+
+    ierr = ISGetLocalSize(is,&numIdx);CHKERRQ(ierr);
+    ierr = ISGetIndices(is,&idx);CHKERRQ(ierr);
+    ierr = ISSorted(is,&sorted);CHKERRQ(ierr);
+    if (sorted) {
+      ierr = PetscFindInt(key,numIdx,idx,location);CHKERRQ(ierr);
+    } else {
+      PetscInt i;
+
+      *location = -1;
+      for (i = 0; i < numIdx; i++) {
+        if (idx[i] == key) {
+          *location = i;
+          break;
+        }
+      }
+    }
+    ierr = ISRestoreIndices(is,&idx);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "ISRestoreIndices"
 /*@C
    ISRestoreIndices - Restores an index set to a usable state after a call
@@ -618,7 +667,7 @@ PetscErrorCode  ISGetNonlocalIndices(IS is, const PetscInt *indices[])
     }
     ierr = ISGetLocalSize(is,&n);CHKERRQ(ierr);
     ierr = ISGetSize(is,&N);CHKERRQ(ierr);
-    ierr = PetscMalloc(sizeof(PetscInt)*(N-n), &(is->nonlocal));CHKERRQ(ierr);
+    ierr = PetscMalloc1(N-n, &(is->nonlocal));CHKERRQ(ierr);
     ierr = PetscMemcpy(is->nonlocal, is->total, sizeof(PetscInt)*is->local_offset);CHKERRQ(ierr);
     ierr = PetscMemcpy(is->nonlocal+is->local_offset, is->total+is->local_offset+n, sizeof(PetscInt)*(N - is->local_offset - n));CHKERRQ(ierr);
     *indices = is->nonlocal;
