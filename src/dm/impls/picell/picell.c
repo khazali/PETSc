@@ -85,11 +85,11 @@ PetscErrorCode DMSetUp_PICell(DM dm)
     ierr = DMSetUp(dmpi->dmplex);CHKERRQ(ierr);
   }
   ierr = DMCreateGlobalVector(dmpi->dmgrid, &dmpi->phi);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) dmpi->phi, "potential");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) dmpi->phi, "phi");CHKERRQ(ierr);
   ierr = VecZeroEntries(dmpi->phi);CHKERRQ(ierr);
   ierr = VecDuplicate(dmpi->phi, &dmpi->rho);CHKERRQ(ierr);
   ierr = VecZeroEntries(dmpi->rho);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) dmpi->rho, "density");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) dmpi->rho, "rho");CHKERRQ(ierr);
 
   ierr = PetscLogEventEnd(DMPICell_SetUp,dm,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
