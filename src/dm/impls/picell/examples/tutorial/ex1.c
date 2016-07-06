@@ -1606,17 +1606,17 @@ PetscErrorCode go( X2Ctx *ctx )
     ierr = DMPICellSolve( ctx->dm );CHKERRQ(ierr);
 
     if (dmpi->debug>1) {
-      PetscViewer    viewer = NULL;
-      PetscBool      flg;
-      ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-dm_view",&viewer,NULL,&flg);CHKERRQ(ierr);
+      PetscViewer       viewer = NULL;
+      PetscBool         flg;
+      PetscViewerFormat fmt;
+
+      ierr = DMViewFromOptions(dmpi->dmgrid,NULL,"-dm_view");CHKERRQ(ierr);
+      ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
       if (flg) {
-        ierr = DMView(dmpi->dmgrid,viewer);CHKERRQ(ierr);
-      }
-      ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-      ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-vec_view",&viewer,NULL,&flg);CHKERRQ(ierr);
-      if (flg) {
+        ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
         ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);
         ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
+        ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
       }
       ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
     }
@@ -2217,13 +2217,15 @@ int main(int argc, char **argv)
   ierr = DMSetApplicationContext(dmpi->dmplex, &ctx);CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dmplex, "x2_");CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) ctx.dm, "x2_");CHKERRQ(ierr);
+  ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);CHKERRQ(ierr);
+  ctx.BCFuncs[0] = zero;
   /* add BCs */
   {
     PetscInt id = 1;
     ierr = DMCreateLabel(dmpi->dmplex, "boundary");CHKERRQ(ierr);
     ierr = DMGetLabel(dmpi->dmplex, "boundary", &label);CHKERRQ(ierr);
     ierr = DMPlexMarkBoundaryFaces(dmpi->dmplex, label);CHKERRQ(ierr);
-    ierr = DMAddBoundary(dmpi->dmplex, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx.BCFuncs, 1, &id, &ctx);CHKERRQ(ierr);
+    ierr = DMAddBoundary(dmpi->dmplex, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx.BCFuncs[0], 1, &id, &ctx);CHKERRQ(ierr);
   }
   { /* convert to p4est */
     char      convType[256];
@@ -2270,9 +2272,6 @@ int main(int argc, char **argv)
     dmpi->dmplex = dmpi->dmgrid;
   }
   /* setup Discretization */
-  ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);
-  CHKERRQ(ierr);
-  ctx.BCFuncs[0] = zero;
   ierr = DMGetDimension(dmpi->dmgrid, &dim);CHKERRQ(ierr);
   ierr = PetscFECreateDefault(dmpi->dmgrid, dim, 1, PETSC_FALSE, NULL, 1, &dmpi->fem);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->fem, "poisson");CHKERRQ(ierr);
