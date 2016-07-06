@@ -1611,7 +1611,7 @@ PetscErrorCode go( X2Ctx *ctx )
       PetscViewerFormat fmt;
 
       ierr = DMViewFromOptions(dmpi->dmgrid,NULL,"-dm_view");CHKERRQ(ierr);
-      ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
+      ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
       if (flg) {
         ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
         ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);
