@@ -130,22 +130,27 @@ typedef struct {
 #define __FUNCT__ "DMPlexFindLocalCellID"
 PetscErrorCode DMPlexFindLocalCellID(DM dm, PetscReal x[], PetscInt *elemID)
 {
+  PetscSF        cellSF;
+  Vec            coords;
+  const PetscSFNode *foundCells;
+  PetscInt       dim;
+  PetscMPIInt    rank;
   PetscErrorCode ierr;
-  PetscBool isForest;
+
   PetscFunctionBeginUser;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  ierr = PetscLogEventBegin(DMPICell_LocateProcess,dm,0,0,0);CHKERRQ(ierr);
-
-  ierr = DMIsForest(dm,&isForest);CHKERRQ(ierr);
-  if (isForest) {
-
-  }
-  else {
-    /* Matt */
-    *elemID = 0;
-  }
-  ierr = PetscLogEventEnd(DMPICell_LocateProcess,dm,0,0,0);CHKERRQ(ierr);
-  return 0;
+  PetscValidPointer(x, 2);
+  PetscValidPointer(elemID, 3);
+  ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
+  ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
+  ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, x, &coords);CHKERRQ(ierr);
+  ierr = DMLocatePoints(dm, coords, DM_POINTLOCATION_NONE, &cellSF);CHKERRQ(ierr);
+  ierr = VecDestroy(&coords);CHKERRQ(ierr);
+  ierr = PetscSFGetGraph(cellSF, NULL, NULL, NULL, &foundCells);CHKERRQ(ierr);
+  if (foundCells[0].rank == rank) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Point found on wrong rank %d != %d", foundCells[0].rank, rank);
+  *elemID = foundCells[0].index;
+  ierr = PetscSFDestroy(&cellSF);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
 }
 
 static const PetscReal x2ECharge=1.6022e-19;  /* electron charge (MKS) */
