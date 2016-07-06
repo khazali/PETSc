@@ -719,7 +719,7 @@ PetscErrorCode X2GridParticleGetProc_FluxTube( const X2GridParticle *grid, /* X2
 */
 #undef __FUNCT__
 #define __FUNCT__ "X2GridParticleGetProc_Solver"
-PetscErrorCode X2GridParticleGetProc_Solver(DM dm, PetscReal x[], PetscMPIInt *pe, PetscInt *elemID)
+PetscErrorCode X2GridParticleGetProc_Solver(DM dm, PetscReal x[], MPI_Comm comm, PetscMPIInt *pe, PetscInt *elemID)
 {
   PetscSF        cellSF;
   Vec            coords;
@@ -734,7 +734,7 @@ PetscErrorCode X2GridParticleGetProc_Solver(DM dm, PetscReal x[], PetscMPIInt *p
   PetscValidPointer(elemID, 3);
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
   ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
-  ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, x, &coords);CHKERRQ(ierr);
+  ierr = VecCreateSeqWithArray(comm, dim, dim, x, &coords);CHKERRQ(ierr);
 printf("\t\tX2GridParticleGetProc_Solver: call DMLocatePoints dim=%D %g,%g,%g\n",dim,x[0],x[1],x[2]);
   ierr = DMLocatePoints(dm, coords, DM_POINTLOCATION_NONE, &cellSF);CHKERRQ(ierr);
   ierr = VecDestroy(&coords);CHKERRQ(ierr);
@@ -935,7 +935,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
           if (solver) {
             PetscReal x[3];
 	    cylindricalToCart(pp->r, pp->z, pp->phi, x);
-            ierr = X2GridParticleGetProc_Solver(dm, x, &pe, &elid);CHKERRQ(ierr);
+            ierr = X2GridParticleGetProc_Solver(dmpi->dmplex, x, PETSC_COMM_SELF, &pe, &elid);CHKERRQ(ierr);
             if (pe!=ctx->rank) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not local (pe=%D)",pe);
           }
           else elid = 0; /* non-solvers just put in element 0's list */
@@ -1026,7 +1026,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
             if (solver) {
               PetscReal x[3];
 	      cylindricalToCart(data[jj].r, data[jj].z, data[jj].phi, x);
-              ierr = X2GridParticleGetProc_Solver(dm, x, &pe, &elid);CHKERRQ(ierr);
+              ierr = X2GridParticleGetProc_Solver(dmpi->dmplex, x, PETSC_COMM_SELF, &pe, &elid);CHKERRQ(ierr);
               if (pe!=ctx->rank) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not local (pe=%D)",pe);
             }
             else elid = 0; /* non-solvers just put in element 0's list */
@@ -1214,7 +1214,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
         /* see if need communication? no: add density, yes: add to communication list */
         if (solver) {
-          ierr = X2GridParticleGetProc_Solver(dmpi->dmgrid, xx, &pe, &idx);CHKERRQ(ierr);
+          ierr = X2GridParticleGetProc_Solver(dmpi->dmplex, xx, ctx->wComm, &pe, &idx);CHKERRQ(ierr);
         }
         else {
           PetscReal r = part.r - rmaj;
