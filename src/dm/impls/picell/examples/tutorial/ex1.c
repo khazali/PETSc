@@ -1215,6 +1215,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         /* see if need communication? no: add density, yes: add to communication list */
         if (solver) {
           ierr = X2GridParticleGetProc_Solver(dmpi->dmplex, xx, ctx->wComm, &pe, &idx);CHKERRQ(ierr);
+printf("\t[%d] pe=%D idx=%D\n",ctx->rank,pe,idx);
         }
         else {
           PetscReal r = part.r - rmaj;

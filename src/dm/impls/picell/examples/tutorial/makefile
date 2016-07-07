@@ -15,16 +15,14 @@ NP=1
 UNAME := $(shell uname)
 ifeq ($(UNAME), Linux)
 # do something Linux-y
-CPP_FLAGS = -I${ADVISOR_XE_2016_DIR}/include -DX2_HAVE_ADVISOR -DH5PART -DPARALLEL_IO -DMPICH_IGNORE_CXX_SEEK -I/usr/common/software/h5part-parallel/1.6.6/include/
-H5PART_LIB = -Wl,-u__errno_location -L/usr/common/software/h5part-parallel/1.6.6/lib -lH5Part
 endif
 ifeq ($(UNAME), Darwin)
-CPP_FLAGS = -I/Users/markadams/Codes/H5Part-1.6.6/src -I. -DH5PART -DPARALLEL_IO -DMPICH_IGNORE_CXX_SEEK
-H5PART_LIB = /Users/markadams/Codes/H5Part-1.6.6/src/.libs/libH5Part.a
+EX1_LIB = /Users/markadams/Codes/H5Part-1.6.6/src/.libs/libH5Part.a
 endif
+CPP_FLAGS = ${EX1_INC}
 
 ex1: ex1.o chkopts
-	-${CLINKER} -o ex1.${PETSC_ARCH} ex1.o ${PETSC_DM_LIB} ${H5PART_LIB}
+	-${CLINKER} -o ex1.${PETSC_ARCH} ex1.o ${PETSC_DM_LIB} ${EX1_LIB}
 	${RM} -f ex1.o
 
 runex1:
