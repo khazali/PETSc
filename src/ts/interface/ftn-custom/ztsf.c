@@ -25,6 +25,8 @@
 #define tsmonitordefault_                    TSMONITORDEFAULT
 #define tssetprestep_                        TSSETPRESTEP
 #define tssetpoststep_                       TSSETPOSTSTEP
+#define tssetprestage_                       TSSETPRESTAGE
+#define tssetpoststage_                      TSSETPOSTSTAGE
 #elif !defined(PETSC_HAVE_FORTRAN_UNDERSCORE)
 #define tsmonitorlgsettransform_             tsmonitorlgsettransform
 #define tssetrhsfunction_                    tssetrhsfunction
@@ -47,11 +49,15 @@
 #define tsmonitordefault_                    tsmonitordefault
 #define tssetprestep_                        tssetprestep
 #define tssetpoststep_                       tssetpoststep
+#define tssetprestage_                       tssetprestage
+#define tssetpoststage_                      tssetpoststage
 #endif
 
 static struct {
   PetscFortranCallbackId prestep;
   PetscFortranCallbackId poststep;
+  PetscFortranCallbackId prestage;
+  PetscFortranCallbackId poststage;
   PetscFortranCallbackId rhsfunction;
   PetscFortranCallbackId rhsjacobian;
   PetscFortranCallbackId ifunction;
@@ -80,6 +86,24 @@ static PetscErrorCode ourpoststep(TS ts)
   PetscObjectGetFortranCallback((PetscObject)ts,PETSC_FORTRAN_CALLBACK_CLASS,_cb.function_pgiptr,NULL,&ptr);
 #endif
   PetscObjectUseFortranCallback(ts,_cb.poststep,(TS*,PetscErrorCode* /* PETSC_F90_2PTR_PROTO_NOVAR */),(&ts,&ierr /* PETSC_F90_2PTR_PARAM(ptr) */));
+  return 0;
+}
+static PetscErrorCode ourprestage(TS ts, PetscReal stagetime)
+{
+#if defined(PETSC_HAVE_F90_2PTR_ARG) && defined(foo)
+  void* ptr;
+  PetscObjectGetFortranCallback((PetscObject)ts,PETSC_FORTRAN_CALLBACK_CLASS,_cb.function_pgiptr,NULL,&ptr);
+#endif
+  PetscObjectUseFortranCallback(ts,_cb.prestage,(TS*,PetscReal*,PetscErrorCode* /* PETSC_F90_2PTR_PROTO_NOVAR */),(&ts,&stagetime,&ierr /* PETSC_F90_2PTR_PARAM(ptr) */));
+  return 0;
+}
+static PetscErrorCode ourpoststage(TS ts, PetscReal stagetime, PetscInt stageindex, Vec *Y)
+{
+#if defined(PETSC_HAVE_F90_2PTR_ARG) && defined(foo)
+  void* ptr;
+  PetscObjectGetFortranCallback((PetscObject)ts,PETSC_FORTRAN_CALLBACK_CLASS,_cb.function_pgiptr,NULL,&ptr);
+#endif
+  PetscObjectUseFortranCallback(ts,_cb.poststage,(TS*,PetscReal*,PetscInt*,Vec*,PetscErrorCode* /* PETSC_F90_2PTR_PROTO_NOVAR */),(&ts,&stagetime,&stageindex,Y,&ierr /* PETSC_F90_2PTR_PARAM(ptr) */));
   return 0;
 }
 static PetscErrorCode ourrhsfunction(TS ts,PetscReal d,Vec x,Vec f,void *ctx)
@@ -158,6 +182,18 @@ PETSC_EXTERN void PETSC_STDCALL tssetpoststep_(TS *ts,PetscErrorCode (PETSC_STDC
 {
   *ierr = TSSetPostStep(*ts,ourpoststep);if (*ierr) return;
   *ierr = PetscObjectSetFortranCallback((PetscObject)*ts,PETSC_FORTRAN_CALLBACK_CLASS,&_cb.poststep,(PetscVoidFunction)f,NULL);
+}
+
+PETSC_EXTERN void PETSC_STDCALL tssetprestage_(TS *ts,PetscErrorCode (PETSC_STDCALL*f)(TS*,PetscReal*,PetscErrorCode*),PetscErrorCode *ierr)
+{
+  *ierr = TSSetPreStage(*ts,ourprestage);if (*ierr) return;
+  *ierr = PetscObjectSetFortranCallback((PetscObject)*ts,PETSC_FORTRAN_CALLBACK_CLASS,&_cb.prestage,(PetscVoidFunction)f,NULL);
+}
+
+PETSC_EXTERN void PETSC_STDCALL tssetpoststage_(TS *ts,PetscErrorCode (PETSC_STDCALL *f)(TS*,PetscReal*,PetscInt*,Vec*,PetscErrorCode*),PetscErrorCode *ierr)
+{
+  *ierr = TSSetPostStage(*ts,ourpoststage);if (*ierr) return;
+  *ierr = PetscObjectSetFortranCallback((PetscObject)*ts,PETSC_FORTRAN_CALLBACK_CLASS,&_cb.poststage,(PetscVoidFunction)f,NULL);
 }
 
 PETSC_EXTERN void tscomputerhsfunctionlinear_(TS *ts,PetscReal *t,Vec *X,Vec *F,void *ctx,PetscErrorCode *ierr)
