@@ -1191,7 +1191,7 @@ PetscErrorCode  DMCreateMatrix(DM dm,Mat *mat)
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   ierr = MatInitializePackage();CHKERRQ(ierr);
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  PetscValidPointer(mat,3);
+  PetscValidPointer(mat,2);
   ierr = (*dm->ops->creatematrix)(dm,mat);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -4918,11 +4918,11 @@ PetscErrorCode DMLocatePoints(DM dm, Vec v, DMPointLocationType ltype, PetscSF *
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   PetscValidHeaderSpecific(v,VEC_CLASSID,2);
-  PetscValidPointer(cellSF,3);
+  PetscValidPointer(cellSF,4);
   if (*cellSF) {
     PetscMPIInt result;
 
-    PetscValidHeaderSpecific(cellSF,PETSCSF_CLASSID,3);
+    PetscValidHeaderSpecific(*cellSF,PETSCSF_CLASSID,4);
     ierr = MPI_Comm_compare(PetscObjectComm((PetscObject)v),PetscObjectComm((PetscObject)cellSF),&result);CHKERRQ(ierr);
     if (result != MPI_IDENT && result != MPI_CONGRUENT) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"cellSF must have a communicator congruent to v's");
   }
@@ -5069,7 +5069,7 @@ PetscErrorCode DMOutputSequenceLoad(DM dm, PetscViewer viewer, const char *name,
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   PetscValidHeaderSpecific(viewer,PETSC_VIEWER_CLASSID,2);
-  PetscValidPointer(val,4);
+  PetscValidPointer(val,5);
   ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERHDF5, &ishdf5);CHKERRQ(ierr);
   if (ishdf5) {
 #if defined(PETSC_HAVE_HDF5)
