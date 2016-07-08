@@ -735,14 +735,12 @@ PetscErrorCode X2GridParticleGetProc_Solver(DM dm, PetscReal x[], MPI_Comm comm,
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
   ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
   ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, x, &coords);CHKERRQ(ierr);
-printf("\t\tX2GridParticleGetProc_Solver: call DMLocatePoints dim=%d %g,%g,%g\n",dim,x[0],x[1],x[2]);
   ierr = DMLocatePoints(dm, coords, DM_POINTLOCATION_NONE, &cellSF);CHKERRQ(ierr);
   ierr = VecDestroy(&coords);CHKERRQ(ierr);
   ierr = PetscSFGetGraph(cellSF, NULL, NULL, NULL, &foundCells);CHKERRQ(ierr);
   *elemID = foundCells[0].index;
   *pe = foundCells[0].rank;
   ierr = PetscSFDestroy(&cellSF);CHKERRQ(ierr);
-printf("\t\tX2GridParticleGetProc_Solver: elemID=%d\n",*elemID);
   PetscFunctionReturn(0);
 }
 
@@ -1045,7 +1043,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
 
   PetscFunctionReturn(0);
 }
-
+#ifdef H5PART
 /* add corners to get bounding box */
 static void prewrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *ppos2)
 {
@@ -1070,7 +1068,7 @@ static void postwrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *pp
     X2PListRemoveAt(l,*ppos1);
   }
 }
-
+#endif
 /* processParticle: move particles if (sendListTable) , push if (irk>=0)
     Input:
      - dt: time step
@@ -1214,7 +1212,6 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         /* see if need communication? no: add density, yes: add to communication list */
         if (solver) {
           ierr = X2GridParticleGetProc_Solver(dmpi->dmplex, xx, ctx->wComm, &pe, &idx);CHKERRQ(ierr);
-printf("\t[%d] pe=%d idx=%d\n",ctx->rank,pe,idx);
         }
         else {
           PetscReal r = part.r - rmaj;
