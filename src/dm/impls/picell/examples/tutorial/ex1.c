@@ -111,7 +111,7 @@ typedef struct {
   /* physics */
   PetscErrorCode (**BCFuncs)(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
   PetscReal massAu; /* =2D0  !mass ratio to proton */
-  PetscReal eMassAu; /* =2D-2 */
+  /* PetscReal eMassAu; /\* =2D-2 *\/ */
   PetscReal chargeEu; /* =1D0  ! charge number */
   PetscReal eChargeEu; /* =-1D0 */
   /* particles */
@@ -125,10 +125,15 @@ typedef struct {
   PetscInt  tablesize,tablecount[X2_NION+1]; /* hash table meta-data for proc-send list table */
 } X2Ctx;
 
-static const PetscReal x2ECharge=1.6022e-19;  /* electron charge (MKS) */
+/* static const PetscReal x2ECharge=1.6022e-19;  /\* electron charge (MKS) *\/ */
 /* static const PetscReal x2Epsilon0=8.8542e-12; /\* permittivity of free space (MKS) *\/ */
-static const PetscReal x2ProtMass=1.6720e-27; /* proton mass (MKS) */
+/* static const PetscReal x2ProtMass=1.6720e-27; /\* proton mass (MKS) *\/ */
 /* static const PetscReal x2ElecMass=9.1094e-31; /\* electron mass (MKS) *\/ */
+
+static const PetscReal x2ECharge=1.;  /* electron charge */
+static const PetscReal x2ProtMass=1.; /* proton mass */
+static const PetscReal x2ElecMass=0.01; /* electron mass */
+
 /* particle */
 PetscErrorCode X2ParticleCreate(X2Particle *p, PetscInt gid, PetscReal r, PetscReal z, PetscReal phi, PetscReal vpar)
 {
@@ -484,13 +489,13 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
 
   /* physics */
   ctx->massAu=2;  /* mass ratio to proton */
-  ctx->eMassAu=2e-2; /* mass of electron?? */
-  ctx->chargeEu=1;   /* charge number */
-  ctx->eChargeEu=-1;
+  /* ctx->eMassAu=2e-2; /\* mass of electron?? *\/ */
+  ctx->chargeEu=1;    /* charge number */
+  ctx->eChargeEu=-1;  /* negative electron */
 
   ctx->species[1].mass=ctx->massAu*x2ProtMass;
   ctx->species[1].charge=ctx->chargeEu*x2ECharge;
-  ctx->species[0].mass=ctx->eMassAu*x2ProtMass;
+  ctx->species[0].mass=x2ElecMass/* ctx->eMassAu*x2ProtMass */;
   ctx->species[0].charge=ctx->eChargeEu*x2ECharge;
 
   /* mesh */
@@ -1260,7 +1265,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
               /* add to list - pass this in as a function to a function? */
               ierr = X2PSendListAdd(&sendListTable[hash],&part);CHKERRQ(ierr);assert(part.gid>0);
               ierr = X2PListRemoveAt(list,pos);CHKERRQ(ierr);
-              nmoved++;
+              /* if (pe!=ctx->rank) */ nmoved++;
               break;
             }
             if (++hash == ctx->tablesize) hash=0;
@@ -1321,7 +1326,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           /*   X2Particle *part = &list->data[pos]; */
 	  cylindricalToCart(part.r, part.z, part.phi, xx);
           xx += 3;
-          *vv = part.w0;
+          *vv = part.w0*ctx->species[isp].charge;
           vv++;
         }
         ierr = VecRestoreArray(xVec,&xx0);CHKERRQ(ierr);
@@ -1442,6 +1447,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
       const PetscReal r1 = sqrt(((PetscReal)irs      /(PetscReal)ctx->particleGrid.npradius)*rmin*rmin) +       1.e-12*rmin;
       const PetscReal dr = sqrt((((PetscReal)irs+1.0)/(PetscReal)ctx->particleGrid.npradius)*rmin*rmin) - (r1 - 1.e-12*rmin);
       const PetscReal th1 = (PetscReal)iths*dth + 1.e-12*dth;
+      const PetscReal maxe=ctx->max_vpar*ctx->max_vpar,mass=ctx->species[isp].mass,charge=ctx->species[isp].charge;
       /* create list for element 0 and add all to it */
       ierr = X2PListCreate(&ctx->partlists[isp][0],ctx->chunksize);CHKERRQ(ierr);
       /* create each particle */
@@ -1455,8 +1461,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 	for ( ii = 0, theta0 = th1 + (PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG*dth2;
 	      ii < NN && np<ctx->npart_flux_tube;
 	      ii++, theta0 += dth2, np++ ) {
-	  PetscReal zmax,maxe=ctx->max_vpar*ctx->max_vpar,zdum,mass=1.,b=1.,charge=1.,t=1.;
-          PetscScalar v=1.,vpar;
+	  PetscReal zmax,zdum,v,vpar;
           const PetscReal phi = phi1 + (PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG*dphi;
 	  const PetscReal thetap = theta0 + qsaf*phi; /* push forward to follow fieldlines */
 	  polPlaneToCylindrical(psi, thetap, r, z);
@@ -1465,15 +1470,14 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 	  /* v_parallel from random number */
 	  zmax = 1.0 - exp(-maxe);
 	  zdum = zmax*(PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG;
-	  v= sqrt(-2.0/mass*log(1.0-zdum)*t);
+	  v= sqrt(-2.0/mass*log(1.0-zdum));
 	  v= v*cos(M_PI*(PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG);
 	  /* vshift= v + up ! shift of velocity */
-	  vpar = v/b*mass/charge;
-	  vpar *= 208.3333; /* fudge factor to get it to fit input */
-	  ierr = X2ParticleCreate(&particle,++gid,r,z,phi,vpar);CHKERRQ(ierr); /* only time this is called! */
+	  vpar = v*mass/charge;
+          ierr = X2ParticleCreate(&particle,++gid,r,z,phi,vpar);CHKERRQ(ierr); /* only time this is called! */
 	  ierr = X2PListAdd(&ctx->partlists[isp][0],&particle, NULL);CHKERRQ(ierr);
           /* debug, particles are created in a flux tube */
-          if (0) {
+          if (1) {
             PetscMPIInt pe; PetscInt id;
             ierr = X2GridParticleGetProc_FluxTube(&ctx->particleGrid,psi,thetap,phi,&pe,&id);CHKERRQ(ierr);
             if(pe != ctx->rank){
@@ -2282,6 +2286,7 @@ int main(int argc, char **argv)
     PetscInt n,cStart,cEnd;
     ierr = VecGetSize(dmpi->rho,&n);CHKERRQ(ierr);
     if (!n) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "No dofs");
+    if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] %D equations on %D processors\n",ctx.rank,n,ctx.npe);
     ierr = DMPlexGetHeightStratum(dmpi->dmplex, 0, &cStart, &cEnd);CHKERRQ(ierr);
     if (dmpi->debug>0 && !cEnd) {
       ierr = PetscPrintf((dmpi->debug>1 || !cEnd) ? PETSC_COMM_SELF : ctx.wComm,"[%D] ERROR %D global equations, %d local cells, (cEnd=%d), debug=%D\n",ctx.rank,n,cEnd-cStart,cEnd,dmpi->debug);
