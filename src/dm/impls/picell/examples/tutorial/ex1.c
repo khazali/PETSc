@@ -721,7 +721,7 @@ PetscErrorCode X2GridParticleGetProc_FluxTube( const X2GridParticle *grid, /* X2
 #define __FUNCT__ "X2GridParticleGetProc_Solver"
 PetscErrorCode X2GridParticleGetProc_Solver(DM dm, PetscReal x[], MPI_Comm comm, PetscMPIInt *pe, PetscInt *elemID)
 {
-  PetscSF        cellSF;
+  PetscSF        cellSF = NULL;
   Vec            coords;
   const PetscSFNode *foundCells;
   PetscInt       dim;
@@ -734,15 +734,15 @@ PetscErrorCode X2GridParticleGetProc_Solver(DM dm, PetscReal x[], MPI_Comm comm,
   PetscValidPointer(elemID, 3);
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
   ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
-  ierr = VecCreateSeqWithArray(comm, dim, dim, x, &coords);CHKERRQ(ierr);
-printf("\t\tX2GridParticleGetProc_Solver: call DMLocatePoints dim=%D %g,%g,%g\n",dim,x[0],x[1],x[2]);
+  ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, x, &coords);CHKERRQ(ierr);
+printf("\t\tX2GridParticleGetProc_Solver: call DMLocatePoints dim=%d %g,%g,%g\n",dim,x[0],x[1],x[2]);
   ierr = DMLocatePoints(dm, coords, DM_POINTLOCATION_NONE, &cellSF);CHKERRQ(ierr);
   ierr = VecDestroy(&coords);CHKERRQ(ierr);
   ierr = PetscSFGetGraph(cellSF, NULL, NULL, NULL, &foundCells);CHKERRQ(ierr);
   *elemID = foundCells[0].index;
   *pe = foundCells[0].rank;
   ierr = PetscSFDestroy(&cellSF);CHKERRQ(ierr);
-printf("\t\tX2GridParticleGetProc_Solver: elemID=%D\n",*elemID);
+printf("\t\tX2GridParticleGetProc_Solver: elemID=%d\n",*elemID);
   PetscFunctionReturn(0);
 }
 
@@ -971,7 +971,6 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
           /* send and reset - we can just send this because it is dense */
 	  ierr = MPI_Isend((void*)slist[*nIsend].data,sz*part_dsize,mtype,slist[*nIsend].proc,tag,ctx->wComm,&slist[*nIsend].request);
 	  CHKERRQ(ierr);
-          /* PetscPrintf(PETSC_COMM_SELF,"\t[%D] (1) send proc %d, %d particles\n",ctx->rank,slist[*nIsend].proc,sz); */
 	  (*nIsend)++;
           /* ready for next round, save meta-data  */
 	  ierr = X2PSendListClear( &sendListTable[ii] );CHKERRQ(ierr);
@@ -1215,7 +1214,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         /* see if need communication? no: add density, yes: add to communication list */
         if (solver) {
           ierr = X2GridParticleGetProc_Solver(dmpi->dmplex, xx, ctx->wComm, &pe, &idx);CHKERRQ(ierr);
-printf("\t[%d] pe=%D idx=%D\n",ctx->rank,pe,idx);
+printf("\t[%d] pe=%d idx=%d\n",ctx->rank,pe,idx);
         }
         else {
           PetscReal r = part.r - rmaj;
