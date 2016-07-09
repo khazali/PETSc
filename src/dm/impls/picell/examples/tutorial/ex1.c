@@ -356,17 +356,20 @@ PetscErrorCode X2PListGetHead(X2PList *l, X2Particle *p, X2PListPos *pos)
 {
   PetscErrorCode ierr;
   PetscFunctionBeginUser;
+  PetscValidPointer(l, 1);
+  PetscValidPointer(p, 2);
+  PetscValidPointer(pos, 3);
   if (l->size==0) {
     /* *pos = 0; */ /* past end */
     ierr = 1;
   }
   else {
-    pos = 0; /* go past any holes */
+    *pos = 0; /* go past any holes */
 #ifdef X2_S_OF_V
-    while (l->data_v.gid[*pos] <= 0) pos++;
+    while (l->data_v.gid[*pos] <= 0) (*pos)++;
     X2V2P(p,l->data_v,*pos); /* return copy */
 #else
-    while (l->data[*pos].gid <= 0) pos++;
+    while (l->data[*pos].gid <= 0) (*pos)++;
     *p = l->data[*pos]; /* return copy */
 #endif
     ierr = 0;
