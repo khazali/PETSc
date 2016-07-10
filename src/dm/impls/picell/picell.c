@@ -213,6 +213,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec src, PetscInt cell, Vec l
     }
   }
   ierr = VecRestoreArray(src, &x);CHKERRQ(ierr);
+  /* PetscPrintf(PETSC_COMM_SELF,"\t\t\t\tDMPICellAddSource elem %d, add v=(%g,%g,%g,%g,%g,%g,%g,%g)\n",cell,elemVec[0],elemVec[1],elemVec[2],elemVec[3],elemVec[4],elemVec[5],elemVec[6],elemVec[7]); */
   ierr = DMPlexVecSetClosure(dmpi->dmplex, NULL, locrho, cell, elemVec, ADD_VALUES);CHKERRQ(ierr);
   ierr = DMRestoreWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscFERestoreTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
