@@ -91,8 +91,9 @@ typedef struct X2ISend_TAG{
 /*
   General parameters and context
 */
+PetscLogEvent s_events[22];
 typedef struct {
-  PetscLogEvent events[12];
+  PetscLogEvent *events;
   PetscInt      currevent;
   PetscInt      bsp_chunksize;
   PetscInt      chunksize;
@@ -614,8 +615,14 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsInt("-npart_flux_tube", "Number of particles local (flux tube cell)", "x2.c", ctx->npart_flux_tube, &ctx->npart_flux_tube, NULL);CHKERRQ(ierr);
   if (!chunkFlag) ctx->chunksize = X2_V_LEN*((ctx->npart_flux_tube/80+1)/X2_V_LEN); /* an intelegent message chunk size */
   if (ctx->chunksize<64 && !chunkFlag) ctx->chunksize = 64; /* 4K messages minumum */
-
-  if (s_debug>0) PetscPrintf(ctx->wComm,"[%D] npe=%D part=[%D,%D,%D], send size (chunksize) is %d particles.\n",ctx->rank,ctx->npe,ctx->particleGrid.npphi,ctx->particleGrid.nptheta,ctx->particleGrid.npradius,ctx->chunksize);
+  
+  if (s_debug>0) PetscPrintf(ctx->wComm,"[%D] npe=%D part=[%D,%D,%D], send size (chunksize) is %d particles. %s\n",ctx->rank,ctx->npe,ctx->particleGrid.npphi,ctx->particleGrid.nptheta,ctx->particleGrid.npradius,ctx->chunksize,
+#ifdef X2_S_OF_V
+			     "Use struct of arrays"
+#else
+			     "Use of array structs"
+#endif
+			     );
 
   ctx->collisionPeriod = 10;
   ierr = PetscOptionsInt("-collisionPeriod", "Period between collision operators", "x2.c", ctx->collisionPeriod, &ctx->collisionPeriod, NULL);CHKERRQ(ierr);
@@ -722,14 +729,20 @@ PetscErrorCode X2GridFluxTubeLocatePoint( const X2GridParticle *grid,
   const PetscReal dphi=2.*M_PI/(PetscReal)grid->npphi;
   const PetscReal dth=2.*M_PI/(PetscReal)grid->nptheta;
   PetscMPIInt planeIdx,irs,iths;
+  PetscErrorCode ierr;
   PetscFunctionBeginUser;
-
+#if defined(PETSC_USE_LOG)
+  ierr = PetscLogEventBegin(s_events[10],0,0,0,0);CHKERRQ(ierr);
+#endif
   theta = fmod( theta - qsafty(psi/grid->rMinor)*phi + 20.*M_PI, 2.*M_PI);  /* pull back to reference grid */
   planeIdx = (PetscMPIInt)(phi/dphi)*grid->npradius*grid->nptheta; /* assumeing one particle cell per PE */
   iths = (PetscMPIInt)(theta/dth);                               assert(iths<grid->nptheta);
   irs = (PetscMPIInt)((PetscReal)grid->npradius*psi*psi/(rminor*rminor));assert(irs<grid->npradius);
   *pe = planeIdx + irs*grid->nptheta + iths;
   *elem = 0; /* only one cell per process */
+#if defined(PETSC_USE_LOG)
+    ierr = PetscLogEventEnd(s_events[10],0,0,0,0);CHKERRQ(ierr);
+#endif
   PetscFunctionReturn(0);
 }
 
@@ -763,6 +776,9 @@ PetscErrorCode X2GridSolverLocatePoint(DM dm, PetscReal x[], MPI_Comm comm, Pets
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidPointer(x, 2);
   PetscValidPointer(elemID, 3);
+#if defined(PETSC_USE_LOG)
+  ierr = PetscLogEventBegin(s_events[9],0,0,0,0);CHKERRQ(ierr);
+#endif
   ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
   ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, x, &coords);CHKERRQ(ierr);
   ierr = DMLocatePoints(dm, coords, DM_POINTLOCATION_NONE, &cellSF);CHKERRQ(ierr);
@@ -774,6 +790,9 @@ PetscErrorCode X2GridSolverLocatePoint(DM dm, PetscReal x[], MPI_Comm comm, Pets
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
   *pe = rank; /* dummy - no move until have global search */
   ierr = PetscSFDestroy(&cellSF);CHKERRQ(ierr);
+#if defined(PETSC_USE_LOG)
+    ierr = PetscLogEventEnd(s_events[9],0,0,0,0);CHKERRQ(ierr);
+#endif
   PetscFunctionReturn(0);
 }
 
@@ -1390,7 +1409,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
     MPI_Datatype mtype;
     PetscInt rb1[4], rb2[4], sb[4], nloc;
 #if defined(PETSC_USE_LOG)
-    ierr = PetscLogEventBegin(ctx->events[9],0,0,0,0);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(ctx->events[11],0,0,0,0);CHKERRQ(ierr);
 #endif
     /* count particles */
     for (isp=ctx->useElectrons ? 0 : 1, nloc = 0 ; isp <= X2_NION ; isp++) {
@@ -1429,7 +1448,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
 #if defined(PETSC_USE_LOG)
     MPI_Barrier(ctx->wComm);
-    ierr = PetscLogEventEnd(ctx->events[9],0,0,0,0);CHKERRQ(ierr);
+    ierr = PetscLogEventEnd(ctx->events[11],0,0,0,0);CHKERRQ(ierr);
 #endif
   }
   PetscFunctionReturn(0);
@@ -2171,26 +2190,31 @@ int main(int argc, char **argv)
   PetscFunctionBeginUser;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
+  ctx.events = s_events;
 #if defined(PETSC_USE_LOG)
   ctx.currevent = 0;
   ierr = PetscLogEventRegister("+CreateMesh", DM_CLASSID, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 0 */
   ierr = PetscLogEventRegister("+Process parts",0,&ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 1 */
   ierr = PetscLogEventRegister(" -shiftParticles",0,&ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 2 */
-  ierr = PetscLogEventRegister("   *N.B. consensus",0,&ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 3 */
-  ierr = PetscLogEventRegister("     +Part. Send", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 4 */
+  ierr = PetscLogEventRegister("   +N.B. consensus",0,&ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 3 */
+  ierr = PetscLogEventRegister("     *Part. Send", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 4 */
   ierr = PetscLogEventRegister(" -Move parts", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 5 */
   ierr = PetscLogEventRegister(" -AddSource", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 6 */
   ierr = PetscLogEventRegister(" -Pre Push", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 7 */
   ierr = PetscLogEventRegister(" -Push (Jet)", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 8 */
-  ierr = PetscLogEventRegister("+Diagnostics", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 9 */
-  assert(sizeof(ctx.events)/sizeof(ctx.events[0]) >= ctx.currevent);
+  ierr = PetscLogEventRegister("   +Part find (s)", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 9 */
+  ierr = PetscLogEventRegister("   +Part find (p)", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 10 */
+  ierr = PetscLogEventRegister("+Diagnostics", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 11 */
+  assert(sizeof(s_events)/sizeof(ctx.events[0]) >= ctx.currevent);
 #endif
 
   ierr = PetscCommDuplicate(PETSC_COMM_WORLD,&ctx.wComm,NULL);CHKERRQ(ierr);
   ierr = ProcessOptions( &ctx );CHKERRQ(ierr);
 
   /* construct DMs */
+#if defined(PETSC_USE_LOG)
   ierr = PetscLogEventBegin(ctx.events[0],0,0,0,0);CHKERRQ(ierr);
+#endif
   ierr = DMCreate(ctx.wComm, &ctx.dm);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(ctx.dm, &ctx);CHKERRQ(ierr);
   ierr = DMSetType(ctx.dm, DMPICELL);CHKERRQ(ierr); /* creates (DM_PICell *) dm->data */
@@ -2321,8 +2345,9 @@ int main(int argc, char **argv)
   ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
   /* setup particles */
   ierr = createParticles( &ctx );CHKERRQ(ierr);
+#if defined(PETSC_USE_LOG)
   ierr = PetscLogEventEnd(ctx.events[0],0,0,0,0);CHKERRQ(ierr);
-
+#endif
   /* do it */
   ierr = go( &ctx );CHKERRQ(ierr);
 
