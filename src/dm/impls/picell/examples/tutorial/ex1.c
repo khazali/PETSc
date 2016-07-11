@@ -94,7 +94,6 @@ typedef struct X2ISend_TAG{
 PetscLogEvent s_events[22];
 typedef struct {
   PetscLogEvent *events;
-  PetscInt      currevent;
   PetscInt      bsp_chunksize;
   PetscInt      chunksize;
   runType       run_type;
@@ -615,7 +614,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsInt("-npart_flux_tube", "Number of particles local (flux tube cell)", "x2.c", ctx->npart_flux_tube, &ctx->npart_flux_tube, NULL);CHKERRQ(ierr);
   if (!chunkFlag) ctx->chunksize = X2_V_LEN*((ctx->npart_flux_tube/80+1)/X2_V_LEN); /* an intelegent message chunk size */
   if (ctx->chunksize<64 && !chunkFlag) ctx->chunksize = 64; /* 4K messages minumum */
-  
+
   if (s_debug>0) PetscPrintf(ctx->wComm,"[%D] npe=%D part=[%D,%D,%D], send size (chunksize) is %d particles. %s\n",ctx->rank,ctx->npe,ctx->particleGrid.npphi,ctx->particleGrid.nptheta,ctx->particleGrid.npradius,ctx->chunksize,
 #ifdef X2_S_OF_V
 			     "Use struct of arrays"
@@ -1409,7 +1408,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
     MPI_Datatype mtype;
     PetscInt rb1[4], rb2[4], sb[4], nloc;
 #if defined(PETSC_USE_LOG)
-    ierr = PetscLogEventBegin(ctx->events[11],0,0,0,0);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(ctx->events[sizeof(s_events)/sizeof(s_events[0])-1],0,0,0,0);CHKERRQ(ierr);
 #endif
     /* count particles */
     for (isp=ctx->useElectrons ? 0 : 1, nloc = 0 ; isp <= X2_NION ; isp++) {
@@ -1448,7 +1447,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
 #if defined(PETSC_USE_LOG)
     MPI_Barrier(ctx->wComm);
-    ierr = PetscLogEventEnd(ctx->events[11],0,0,0,0);CHKERRQ(ierr);
+    ierr = PetscLogEventEnd(ctx->events[sizeof(s_events)/sizeof(s_events[0])-1],0,0,0,0);CHKERRQ(ierr);
 #endif
   }
   PetscFunctionReturn(0);
@@ -1575,12 +1574,18 @@ PetscErrorCode go( X2Ctx *ctx )
     for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
       char  fname1[256],fname2[256];
       X2PListPos pos1,pos2;
+#if defined(PETSC_USE_LOG)
+      ierr = PetscLogEventBegin(ctx->events[sizeof(s_events)/sizeof(s_events[0])-1],0,0,0,0);CHKERRQ(ierr);
+#endif
       sprintf(fname1,"particles_sp%d_time%05d.h5part",(int)isp,0);
       sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",(int)isp,0);
       /* write */
       prewrite(ctx, &ctx->partlists[isp][0], &pos1, &pos2);
       ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
       postwrite(ctx, &ctx->partlists[isp][0], &pos1, &pos2);
+#if defined(PETSC_USE_LOG)
+      ierr = PetscLogEventEnd(ctx->events[sizeof(s_events)/sizeof(s_events[0])-1],0,0,0,0);CHKERRQ(ierr);
+#endif
     }
   }
 #endif
@@ -1603,12 +1608,18 @@ PetscErrorCode go( X2Ctx *ctx )
         for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
           char fname1[256], fname2[256];
           X2PListPos pos1,pos2;
+#if defined(PETSC_USE_LOG)
+          ierr = PetscLogEventBegin(ctx->events[sizeof(s_events)/sizeof(s_events[0])-1],0,0,0,0);CHKERRQ(ierr);
+#endif
           sprintf(fname1,         "particles_sp%d_time%05d_fluxtube.h5part",(int)isp,(int)istep);
           sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",(int)isp,(int)istep);
           /* write */
           prewrite(ctx, &ctx->partlists[isp][0], &pos1, &pos2);
           ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
           postwrite(ctx, &ctx->partlists[isp][0], &pos1, &pos2);
+#if defined(PETSC_USE_LOG)
+          ierr = PetscLogEventEnd(ctx->events[sizeof(s_events)/sizeof(s_events[0])-1],0,0,0,0);CHKERRQ(ierr);
+#endif
         }
       }
 #endif
@@ -1618,15 +1629,21 @@ PetscErrorCode go( X2Ctx *ctx )
 
     /* very crude explicit RK */
     dt = ctx->dt;
-
+#if defined(PETSC_USE_LOG)
+    ierr = PetscLogEventBegin(ctx->events[11],0,0,0,0);CHKERRQ(ierr);
+#endif
     /* solve for potential, density being assembled is an invariant */
     ierr = DMPICellSolve( ctx->dm );CHKERRQ(ierr);
-
+#if defined(PETSC_USE_LOG)
+    ierr = PetscLogEventEnd(ctx->events[11],0,0,0,0);CHKERRQ(ierr);
+#endif
     if (dmpi->debug>1) {
       PetscViewer       viewer = NULL;
       PetscBool         flg;
       PetscViewerFormat fmt;
-
+#if defined(PETSC_USE_LOG)
+      ierr = PetscLogEventBegin(ctx->events[sizeof(s_events)/sizeof(s_events[0])-1],0,0,0,0);CHKERRQ(ierr);
+#endif
       ierr = DMViewFromOptions(dmpi->dmgrid,NULL,"-dm_view");CHKERRQ(ierr);
       ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
       if (flg) {
@@ -1636,6 +1653,9 @@ PetscErrorCode go( X2Ctx *ctx )
         ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
       }
       ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+#if defined(PETSC_USE_LOG)
+      ierr = PetscLogEventEnd(ctx->events[sizeof(s_events)/sizeof(s_events[0])-1],0,0,0,0);CHKERRQ(ierr);
+#endif
     }
 
     /* process particles: push, move */
@@ -2192,20 +2212,23 @@ int main(int argc, char **argv)
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
   ctx.events = s_events;
 #if defined(PETSC_USE_LOG)
-  ctx.currevent = 0;
-  ierr = PetscLogEventRegister("+CreateMesh", DM_CLASSID, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 0 */
-  ierr = PetscLogEventRegister("+Process parts",0,&ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 1 */
-  ierr = PetscLogEventRegister(" -shiftParticles",0,&ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 2 */
-  ierr = PetscLogEventRegister("   +N.B. consensus",0,&ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 3 */
-  ierr = PetscLogEventRegister("     *Part. Send", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 4 */
-  ierr = PetscLogEventRegister(" -Move parts", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 5 */
-  ierr = PetscLogEventRegister(" -AddSource", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 6 */
-  ierr = PetscLogEventRegister(" -Pre Push", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 7 */
-  ierr = PetscLogEventRegister(" -Push (Jet)", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 8 */
-  ierr = PetscLogEventRegister("   +Part find (s)", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 9 */
-  ierr = PetscLogEventRegister("   +Part find (p)", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 10 */
-  ierr = PetscLogEventRegister("+Diagnostics", 0, &ctx.events[ctx.currevent++]);CHKERRQ(ierr); /* 11 */
-  assert(sizeof(s_events)/sizeof(ctx.events[0]) >= ctx.currevent);
+  {
+    PetscInt currevent = 0;
+    ierr = PetscLogEventRegister("+CreateMesh", DM_CLASSID, &ctx.events[currevent++]);CHKERRQ(ierr); /* 0 */
+    ierr = PetscLogEventRegister("+Process parts",0,&ctx.events[currevent++]);CHKERRQ(ierr); /* 1 */
+    ierr = PetscLogEventRegister(" -shiftParticles",0,&ctx.events[currevent++]);CHKERRQ(ierr); /* 2 */
+    ierr = PetscLogEventRegister("   =N.B. consensus",0,&ctx.events[currevent++]);CHKERRQ(ierr); /* 3 */
+    ierr = PetscLogEventRegister("     *Part. Send", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 4 */
+    ierr = PetscLogEventRegister(" -Move parts", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 5 */
+    ierr = PetscLogEventRegister(" -AddSource", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 6 */
+    ierr = PetscLogEventRegister(" -Pre Push", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 7 */
+    ierr = PetscLogEventRegister(" -Push (Jet)", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 8 */
+    ierr = PetscLogEventRegister("   =Part find (s)", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 9 */
+    ierr = PetscLogEventRegister("   =Part find (p)", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 10 */
+    ierr = PetscLogEventRegister("+Poisson Solve", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 11 */
+    ierr = PetscLogEventRegister("+Diagnostics", 0, &ctx.events[sizeof(s_events)/sizeof(s_events[0])-1]);CHKERRQ(ierr); /* N-1 */
+    assert(sizeof(s_events)/sizeof(s_events[0]) > currevent);
+  }
 #endif
 
   ierr = PetscCommDuplicate(PETSC_COMM_WORLD,&ctx.wComm,NULL);CHKERRQ(ierr);
