@@ -700,6 +700,8 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
 /* q: safty factor, should be parameterized */
 #define qsafty(psi) (3.*pow(psi,2.0))
 
+#define x2_coef(x) (1.0)
+
 /* coordinate transformation - simple radial coordinates. Not really cylindrical as r_Minor is radius from plane axis */
 #define cylindricalToPolPlane(__rMinor,__Z,__psi,__theta) { \
     __psi = sqrt((__rMinor)*(__rMinor) + (__Z)*(__Z));	    \
@@ -2155,14 +2157,15 @@ void g3_uu(PetscInt dim, PetscInt Nf, PetscInt NfAux,
            PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g3[])
 {
   PetscInt d;
-  for (d = 0; d < dim; ++d) g3[d*dim+d] = 1.0;
+  PetscScalar coef = x2_coef(x);
+  for (d = 0; d < dim; ++d) g3[d*dim+d] = coef;
 }
 void f0_u(PetscInt dim, PetscInt Nf, PetscInt NfAux,
           const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
           const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
           PetscReal t, const PetscReal x[], PetscScalar f0[])
 {
-  f0[0] = 4.;
+  f0[0] = 4./0.; /* added source terms, not used */
 }
 /* gradU[comp*dim+d] = {u_x, u_y} or {u_x, u_y, u_z} */
 void f1_u(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -2304,7 +2307,7 @@ int main(int argc, char **argv)
   /* FEM prob */
   ierr = DMGetDS(dmpi->dmgrid, &prob);CHKERRQ(ierr);
   ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
-  ierr = PetscDSSetResidual(prob, 0, f0_u, f1_u);CHKERRQ(ierr);
+  ierr = PetscDSSetResidual(prob, 0, 0, f1_u);CHKERRQ(ierr);
   ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
   ierr = DMSetUp( ctx.dm );CHKERRQ(ierr);
   if (dmpi->dmgrid == dmpi->dmplex) {
