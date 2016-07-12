@@ -20,6 +20,7 @@ static int s_numQuads;
 static int s_quad_vertex[X2_WALL_ARRAY_MAX][9];
 static PetscInt s_debug;
 static PetscInt s_rank;
+static int fluxtubeelem=5000;
 typedef enum {X2_ITER,X2_TORUS,X2_BOXTORUS} runType;
 typedef struct {
   /* particle grid sizes */
@@ -92,6 +93,7 @@ typedef struct X2ISend_TAG{
   General parameters and context
 */
 PetscLogEvent s_events[22];
+static const int diag_event_id = sizeof(s_events)/sizeof(s_events[0])-1;
 typedef struct {
   PetscLogEvent *events;
   PetscInt      bsp_chunksize;
@@ -629,13 +631,13 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   if (!chunkFlag) ctx->chunksize = X2_V_LEN*((ctx->npart_flux_tube/80+1)/X2_V_LEN); /* an intelegent message chunk size */
   if (ctx->chunksize<64 && !chunkFlag) ctx->chunksize = 64; /* 4K messages minumum */
 
-  if (s_debug>0) PetscPrintf(ctx->wComm,"[%D] npe=%D part=[%D,%D,%D], send size (chunksize) is %d particles. %s\n",ctx->rank,ctx->npe,ctx->particleGrid.npphi,ctx->particleGrid.nptheta,ctx->particleGrid.npradius,ctx->chunksize,
+  if (s_debug>0) PetscPrintf(ctx->wComm,"[%D] npe=%D part=[%D,%D,%D], send size (chunksize) is %d particles. %s.\n",ctx->rank,ctx->npe,ctx->particleGrid.npphi,ctx->particleGrid.nptheta,ctx->particleGrid.npradius,ctx->chunksize,
 #ifdef X2_S_OF_V
 			     "Use struct of arrays"
 #else
 			     "Use of array structs"
 #endif
-			     );
+                             );
 
   ctx->collisionPeriod = 10;
   ierr = PetscOptionsInt("-collisionPeriod", "Period between collision operators", "x2.c", ctx->collisionPeriod, &ctx->collisionPeriod, NULL);CHKERRQ(ierr);
@@ -752,7 +754,7 @@ PetscErrorCode X2GridFluxTubeLocatePoint( const X2GridParticle *grid,
   iths = (PetscMPIInt)(theta/dth);                               assert(iths<grid->nptheta);
   irs = (PetscMPIInt)((PetscReal)grid->npradius*psi*psi/(rminor*rminor));assert(irs<grid->npradius);
   *pe = planeIdx + irs*grid->nptheta + iths;
-  *elem = 1000; /* DEBUG only one cell per process */
+  *elem = fluxtubeelem; /* only one cell per process */
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventEnd(s_events[10],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -1009,7 +1011,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
             ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, PETSC_COMM_SELF, &pe, &elid);CHKERRQ(ierr);
             if (pe!=ctx->rank) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not local (pe=%D)",pe);
           }
-          else elid = 0; /* non-solvers just put in element 0's list */
+          else elid = fluxtubeelem; /* non-solvers just put in element 0's list */
 	  ierr = X2PListAdd( &particlelist[elid], pp, NULL);CHKERRQ(ierr);
         }
       }
@@ -1101,7 +1103,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
               ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, PETSC_COMM_SELF, &pe, &elid);CHKERRQ(ierr);
               if (pe!=ctx->rank) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not local (pe=%D)",pe);
             }
-            else elid = 0; /* non-solvers just put in element 0's list */
+            else elid = fluxtubeelem; /* non-solvers just put in element 0's list */
             ierr = X2PListAdd( &particlelist[elid], &data[jj], NULL);CHKERRQ(ierr);
           }
 	}
@@ -1129,11 +1131,11 @@ static void prewrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *ppo
     r = 1.414213562373095*(ctx->particleGrid.rMajor + ctx->particleGrid.rMinor);
     z = ctx->particleGrid.rMinor;
     phi = M_PI/4.;
-    X2ParticleCreate(&part,99999999,r,z,phi,0.);
+    X2ParticleCreate(&part,1,r,z,phi,0.);
     ierr = X2PListAdd(l,&part,ppos1); assert(!ierr);
     z = -z;
     phi += M_PI;
-    X2ParticleCreate(&part,88888888,r,z,phi,0.);
+    X2ParticleCreate(&part,2,r,z,phi,0.);
     ierr = X2PListAdd(l,&part,ppos2); assert(!ierr);
   }
 }
@@ -1452,9 +1454,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           sprintf(fname1,"particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
           sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
           /* write */
-          prewrite(ctx, &ctx->partlists[isp][0], &pos1, &pos2);
+          prewrite(ctx, &ctx->partlists[isp][fluxtubeelem], &pos1, &pos2);
           ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
-          postwrite(ctx, &ctx->partlists[isp][0], &pos1, &pos2);
+          postwrite(ctx, &ctx->partlists[isp][fluxtubeelem], &pos1, &pos2);
         }
       }
     }
@@ -1513,7 +1515,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
       const PetscReal th1 = (PetscReal)iths*dth + 1.e-12*dth;
       const PetscReal maxe=ctx->max_vpar*ctx->max_vpar,mass=ctx->species[isp].mass,charge=ctx->species[isp].charge;
       /* create list for element 0 and add all to it */
-      ierr = X2PListCreate(&ctx->partlists[isp][1000],ctx->chunksize);CHKERRQ(ierr); // debug
+      ierr = X2PListCreate(&ctx->partlists[isp][fluxtubeelem],ctx->chunksize);CHKERRQ(ierr);
       /* create each particle */
       //for (int i=0;i<ctx->npart_flux_tube;i++) {
       for (np=0 ; np<ctx->npart_flux_tube; /* void */ ) {
@@ -1539,7 +1541,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 	  /* vshift= v + up ! shift of velocity */
 	  vpar = v*mass/charge;
           ierr = X2ParticleCreate(&particle,++gid,r,z,phi,vpar);CHKERRQ(ierr); /* only time this is called! */
-	  ierr = X2PListAdd(&ctx->partlists[isp][1000],&particle, NULL);CHKERRQ(ierr); // debug
+	  ierr = X2PListAdd(&ctx->partlists[isp][fluxtubeelem],&particle, NULL);CHKERRQ(ierr);
           /* debug, particles are created in a flux tube */
 #ifdef PETSC_USE_DEBUG
           {
@@ -1557,8 +1559,9 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
       if (iths==ctx->particleGrid.nptheta) { iths = 0; irs++; }
     } /* cells */
     /* finish off list creates for rest of elements */
-    for (elid=1;elid<ctx->nElems;elid++) {
-      ierr = X2PListCreate(&ctx->partlists[isp][elid],ctx->chunksize);CHKERRQ(ierr); /* this will get expanded, chunksize used for message chunk size and initial list size! */
+    for (elid=0;elid<ctx->nElems;elid++) {
+      if (elid!=fluxtubeelem) //
+        ierr = X2PListCreate(&ctx->partlists[isp][elid],ctx->chunksize);CHKERRQ(ierr); /* this will get expanded, chunksize used for message chunk size and initial list size! */
     }
   } /* species */
   PetscFunctionReturn(0);
@@ -1594,9 +1597,9 @@ PetscErrorCode go( X2Ctx *ctx )
       sprintf(fname1,"particles_sp%d_time%05d.h5part",(int)isp,0);
       sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",(int)isp,0);
       /* write */
-      prewrite(ctx, &ctx->partlists[isp][1000], &pos1, &pos2); // debug
+      prewrite(ctx, &ctx->partlists[isp][fluxtubeelem], &pos1, &pos2);
       ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
-      postwrite(ctx, &ctx->partlists[isp][1000], &pos1, &pos2);
+      postwrite(ctx, &ctx->partlists[isp][fluxtubeelem], &pos1, &pos2);
 #if defined(PETSC_USE_LOG)
       ierr = PetscLogEventEnd(ctx->events[sizeof(s_events)/sizeof(s_events[0])-1],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -1628,9 +1631,9 @@ PetscErrorCode go( X2Ctx *ctx )
           sprintf(fname1,         "particles_sp%d_time%05d_fluxtube.h5part",(int)isp,(int)istep);
           sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",(int)isp,(int)istep);
           /* write */
-          prewrite(ctx, &ctx->partlists[isp][1000], &pos1, &pos2); // debug
+          prewrite(ctx, &ctx->partlists[isp][fluxtubeelem], &pos1, &pos2);
           ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
-          postwrite(ctx, &ctx->partlists[isp][1000], &pos1, &pos2);
+          postwrite(ctx, &ctx->partlists[isp][fluxtubeelem], &pos1, &pos2);
 #if defined(PETSC_USE_LOG)
           ierr = PetscLogEventEnd(ctx->events[sizeof(s_events)/sizeof(s_events[0])-1],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -1651,7 +1654,7 @@ PetscErrorCode go( X2Ctx *ctx )
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventEnd(ctx->events[11],0,0,0,0);CHKERRQ(ierr);
 #endif
-    if (dmpi->debug>1) {
+    {
       PetscViewer       viewer = NULL;
       PetscBool         flg;
       PetscViewerFormat fmt;
@@ -2362,14 +2365,17 @@ int main(int argc, char **argv)
     PetscInt n,cStart,cEnd;
     ierr = VecGetSize(dmpi->rho,&n);CHKERRQ(ierr);
     if (!n) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "No dofs");
-    if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] %D equations on %D processors\n",ctx.rank,n,ctx.npe);
     ierr = DMPlexGetHeightStratum(dmpi->dmplex, 0, &cStart, &cEnd);CHKERRQ(ierr);
+    if (cStart) SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_USER, "cStart != 0. %D",cStart);
     if (dmpi->debug>0 && !cEnd) {
-      ierr = PetscPrintf((dmpi->debug>1 || !cEnd) ? PETSC_COMM_SELF : ctx.wComm,"[%D] ERROR %D global equations, %d local cells, (cEnd=%d), debug=%D\n",ctx.rank,n,cEnd-cStart,cEnd,dmpi->debug);
+      ierr = PetscPrintf((dmpi->debug>1 || !cEnd) ? PETSC_COMM_SELF : ctx.wComm,"[%D] ERROR %D local cells, %d local cells, (cEnd=%d), debug=%D\n",ctx.rank,n,cEnd-cStart,cEnd,dmpi->debug);
     }
     if (!cEnd) {
       SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "No cells");
     }
+    fluxtubeelem = cEnd/2;
+    if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] %D equations on %D processors, %D local cells, Flux tube element %D\n",
+                                   ctx.rank,n,ctx.npe,cEnd,fluxtubeelem);
   }
 
   /* create SNESS */
