@@ -20,7 +20,8 @@ static int s_numQuads;
 static int s_quad_vertex[X2_WALL_ARRAY_MAX][9];
 static PetscInt s_debug;
 static PetscInt s_rank;
-static int fluxtubeelem=5000;
+static int s_fluxtubeelem=5000;
+static PetscReal s_rminor_inflate = 1.7;
 typedef enum {X2_ITER,X2_TORUS,X2_BOXTORUS} runType;
 typedef struct {
   /* particle grid sizes */
@@ -571,6 +572,14 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsReal("-rMajor", "Major radius of torus", "x2.c", ctx->particleGrid.rMajor, &ctx->particleGrid.rMajor, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-rMinor", "Minor radius of torus", "x2.c", ctx->particleGrid.rMinor, &ctx->particleGrid.rMinor, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-numMajor", "Number of cells per major circle", "x2.c", ctx->particleGrid.numMajor, &ctx->particleGrid.numMajor, NULL);CHKERRQ(ierr);
+  {
+    PetscReal t; PetscInt idx;
+    /* hack to get grid expansion factor */
+    ierr = PetscOptionsGetInt(NULL,"x2_","-dm_forest_initial_refinement", &idx, &flg);CHKERRQ(ierr);
+    if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-x2_dm_forest_initial_refinement not found?");
+    t = ctx->particleGrid.numMajor*pow(2,idx);
+    s_rminor_inflate    = ((ctx->particleGrid.rMajor + ctx->particleGrid.rMinor) / cos(M_PI / t) - ctx->particleGrid.rMajor) / ctx->particleGrid.rMinor;
+  }
   ierr = PetscOptionsReal("-innerMult", "Percent of minor radius taken by inner square", "x2.c", ctx->particleGrid.innerMult, &ctx->particleGrid.innerMult, NULL);CHKERRQ(ierr);
 
   ierr = PetscOptionsInt("-npphi_particles", "Number of planes for particle mesh", "x2.c", ctx->particleGrid.npphi, &ctx->particleGrid.npphi, &phiFlag);CHKERRQ(ierr);
@@ -751,12 +760,12 @@ PetscErrorCode X2GridFluxTubeLocatePoint( const X2GridParticle *grid,
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventBegin(s_events[10],0,0,0,0);CHKERRQ(ierr);
 #endif
-  theta = fmod( theta - qsafty(psi/grid->rMinor)*phi + 20.*M_PI, 2.*M_PI);  /* pull back to reference grid */
+  theta = fmod( theta - qsafty(psi/rminor)*phi + 20.*M_PI, 2.*M_PI);  /* pull back to reference grid */
   planeIdx = (PetscMPIInt)(phi/dphi)*grid->npradius*grid->nptheta; /* assumeing one particle cell per PE */
   iths = (PetscMPIInt)(theta/dth);                               assert(iths<grid->nptheta);
   irs = (PetscMPIInt)((PetscReal)grid->npradius*psi*psi/(rminor*rminor));assert(irs<grid->npradius);
   *pe = planeIdx + irs*grid->nptheta + iths;
-  *elem = fluxtubeelem; /* only one cell per process */
+  *elem = s_fluxtubeelem; /* only one cell per process */
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventEnd(s_events[10],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -803,7 +812,8 @@ PetscErrorCode X2GridSolverLocatePoint(DM dm, PetscReal x[], MPI_Comm comm, Pets
   ierr = PetscSFGetGraph(cellSF, NULL, NULL, NULL, &foundCells);CHKERRQ(ierr);
   *elemID = foundCells[0].index;
   /* *pe = foundCells[0].rank; */
-  if (*elemID == -1) *elemID = 0; /* not working */
+  if (*elemID == -1) SETERRQ3(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "We are not supporting out of domain points. %g %g %g",x[0],x[1],x[2]);
+  // *elemID = 0; /* not working */
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
   *pe = rank; /* dummy - no move until have global search */
   ierr = PetscSFDestroy(&cellSF);CHKERRQ(ierr);
@@ -1013,7 +1023,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
             ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, PETSC_COMM_SELF, &pe, &elid);CHKERRQ(ierr);
             if (pe!=ctx->rank) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not local (pe=%D)",pe);
           }
-          else elid = fluxtubeelem; /* non-solvers just put in element 0's list */
+          else elid = s_fluxtubeelem; /* non-solvers just put in element 0's list */
 	  ierr = X2PListAdd( &particlelist[elid], pp, NULL);CHKERRQ(ierr);
         }
       }
@@ -1105,7 +1115,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
               ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, PETSC_COMM_SELF, &pe, &elid);CHKERRQ(ierr);
               if (pe!=ctx->rank) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not local (pe=%D)",pe);
             }
-            else elid = fluxtubeelem; /* non-solvers just put in element 0's list */
+            else elid = s_fluxtubeelem; /* non-solvers just put in element 0's list */
             ierr = X2PListAdd( &particlelist[elid], &data[jj], NULL);CHKERRQ(ierr);
           }
 	}
@@ -1456,9 +1466,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           sprintf(fname1,"particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
           sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
           /* write */
-          prewrite(ctx, &ctx->partlists[isp][fluxtubeelem], &pos1, &pos2);
+          prewrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
           ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
-          postwrite(ctx, &ctx->partlists[isp][fluxtubeelem], &pos1, &pos2);
+          postwrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
         }
       }
     }
@@ -1517,7 +1527,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
       const PetscReal th1 = (PetscReal)iths*dth + 1.e-12*dth;
       const PetscReal maxe=ctx->max_vpar*ctx->max_vpar,mass=ctx->species[isp].mass,charge=ctx->species[isp].charge;
       /* create list for element 0 and add all to it */
-      ierr = X2PListCreate(&ctx->partlists[isp][fluxtubeelem],ctx->chunksize);CHKERRQ(ierr);
+      ierr = X2PListCreate(&ctx->partlists[isp][s_fluxtubeelem],ctx->chunksize);CHKERRQ(ierr);
       /* create each particle */
       //for (int i=0;i<ctx->npart_flux_tube;i++) {
       for (np=0 ; np<ctx->npart_flux_tube; /* void */ ) {
@@ -1543,7 +1553,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 	  /* vshift= v + up ! shift of velocity */
 	  vpar = v*mass/charge;
           ierr = X2ParticleCreate(&particle,++gid,r,z,phi,vpar);CHKERRQ(ierr); /* only time this is called! */
-	  ierr = X2PListAdd(&ctx->partlists[isp][fluxtubeelem],&particle, NULL);CHKERRQ(ierr);
+	  ierr = X2PListAdd(&ctx->partlists[isp][s_fluxtubeelem],&particle, NULL);CHKERRQ(ierr);
           /* debug, particles are created in a flux tube */
 #ifdef PETSC_USE_DEBUG
           {
@@ -1562,7 +1572,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
     } /* cells */
     /* finish off list creates for rest of elements */
     for (elid=0;elid<ctx->nElems;elid++) {
-      if (elid!=fluxtubeelem) //
+      if (elid!=s_fluxtubeelem) //
         ierr = X2PListCreate(&ctx->partlists[isp][elid],ctx->chunksize);CHKERRQ(ierr); /* this will get expanded, chunksize used for message chunk size and initial list size! */
     }
   } /* species */
@@ -1603,9 +1613,9 @@ PetscErrorCode go( X2Ctx *ctx )
           sprintf(fname1,         "particles_sp%d_time%05d_fluxtube.h5part",(int)isp,(int)istep+1);
           sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",(int)isp,(int)istep+1);
           /* write */
-          prewrite(ctx, &ctx->partlists[isp][fluxtubeelem], &pos1, &pos2);
+          prewrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
           ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
-          postwrite(ctx, &ctx->partlists[isp][fluxtubeelem], &pos1, &pos2);
+          postwrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
 #if defined(PETSC_USE_LOG)
           ierr = PetscLogEventEnd(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -1891,7 +1901,7 @@ static PetscErrorCode DMPlexCreatePICellBoxTorus(MPI_Comm comm, X2GridParticle *
   PetscInt       numCells = 0;
   PetscInt       numVerts = 0;
   PetscReal      rMajor   = params->rMajor;
-  PetscReal      rMinor   = params->rMinor;
+  PetscReal      rMinor   = params->rMinor*s_rminor_inflate;
   PetscInt       numMajor = params->numMajor;
   int           *flatCells = NULL;
   double         *flatCoords = NULL;
@@ -1961,7 +1971,7 @@ static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X2GridParticle *par
   PetscInt       numCells = 0;
   PetscInt       numVerts = 0;
   PetscReal      rMajor   = params->rMajor;
-  PetscReal      rMinor   = params->rMinor;
+  PetscReal      rMinor   = params->rMinor*s_rminor_inflate;
   PetscReal      innerMult = params->innerMult;
   PetscInt       numMajor = params->numMajor;
   int           *flatCells = NULL;
@@ -2086,7 +2096,7 @@ static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim,
   X2Ctx *ctx = (X2Ctx*)a_ctx;
   X2GridParticle *grid = &ctx->particleGrid;
   PetscReal rMajor    = grid->rMajor;
-  PetscReal rMinor    = grid->rMinor;
+  PetscReal rMinor    = grid->rMinor*s_rminor_inflate;
   PetscReal innerMult = grid->innerMult;
   PetscInt  numMajor  = grid->numMajor;
   PetscInt  i;
@@ -2289,6 +2299,7 @@ int main(int argc, char **argv)
     else {
       if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] No p4est\n",ctx.rank);
       dmpi->dmgrid = dmpi->dmplex;
+      s_rminor_inflate    = 1. / cos(M_PI / ctx.particleGrid.numMajor);
     }
   }
   if (sizeof(long long)!=sizeof(PetscReal)) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "sizeof(long long)!=sizeof(PetscReal)");
@@ -2341,9 +2352,9 @@ int main(int argc, char **argv)
     if (!cEnd) {
       SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "No cells");
     }
-    fluxtubeelem = cEnd/2;
+    s_fluxtubeelem = cEnd/2;
     if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] %D equations on %D processors, %D local cells, Flux tube element %D\n",
-                                   ctx.rank,n,ctx.npe,cEnd,fluxtubeelem);
+                                   ctx.rank,n,ctx.npe,cEnd,s_fluxtubeelem);
   }
 
   /* create SNESS */
@@ -2377,9 +2388,9 @@ int main(int argc, char **argv)
       sprintf(fname1,"particles_sp%d_time%05d_fluxtube.h5part",(int)isp,0);
       sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",(int)isp,0);
       /* write */
-      prewrite(&ctx, &ctx.partlists[isp][fluxtubeelem], &pos1, &pos2);
+      prewrite(&ctx, &ctx.partlists[isp][s_fluxtubeelem], &pos1, &pos2);
       ierr = X2PListWrite(ctx.partlists[isp], ctx.nElems, ctx.rank, ctx.npe, ctx.wComm, fname1, fname2);CHKERRQ(ierr);
-      postwrite(&ctx, &ctx.partlists[isp][fluxtubeelem], &pos1, &pos2);
+      postwrite(&ctx, &ctx.partlists[isp][s_fluxtubeelem], &pos1, &pos2);
 #if defined(PETSC_USE_LOG)
       ierr = PetscLogEventEnd(ctx.events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -2405,7 +2416,13 @@ int main(int argc, char **argv)
   ierr = go( &ctx );CHKERRQ(ierr);
 
   if (dmpi->debug>3) {
-    ierr = MatView(J,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    /* ierr = MatView(J,PETSC_VIEWER_MATLAB_WORLD);CHKERRQ(ierr); */
+    PetscViewer viewer;
+    PetscViewerASCIIOpen(ctx.wComm, "Amat.m", &viewer);
+    PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
+    MatView(J,viewer);
+    PetscViewerPopFormat(viewer);
+    PetscViewerDestroy(&viewer);
   }
   if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] done - cleanup\n",ctx.rank);
   /* Particle STREAM test */
