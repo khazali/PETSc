@@ -210,6 +210,12 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec src, PetscInt cell, Vec l
   for (b = 0; b < totDim; ++b) {
     for (p = 0; p < N; ++p) {
       elemVec[b] += B[b*N + p] * x[p];
+#ifdef PETSC_USE_DEBUG
+      if (B[b*N + p] < -.01) {
+        PetscPrintf(PETSC_COMM_SELF,"DMPICellAddSource ERROR elem %d, add v=(%g,%g,%g,%g,%g,%g,%g,%g)\n",cell,B[b*N + 0],B[b*N + 1],B[b*N + 2],B[b*N + 3],B[b*N + 4],B[b*N + 5],B[b*N + 6],B[b*N + 7]);
+        SETERRQ(PetscObjectComm((PetscObject) dmpi->dmgrid), PETSC_ERR_SUP, "negative interpolant");
+      }
+#endif
     }
   }
   ierr = VecRestoreArray(src, &x);CHKERRQ(ierr);
