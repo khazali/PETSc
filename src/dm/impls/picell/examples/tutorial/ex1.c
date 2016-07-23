@@ -573,21 +573,20 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsReal("-rMinor", "Minor radius of torus", "x2.c", ctx->particleGrid.rMinor, &ctx->particleGrid.rMinor, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-numMajor", "Number of cells per major circle", "x2.c", ctx->particleGrid.numMajor, &ctx->particleGrid.numMajor, NULL);CHKERRQ(ierr);
   {
-    PetscReal t; PetscInt idx;
+    PetscReal t;
     char      convType[256];
     /* hack to get grid expansion factor */
     ierr = PetscOptionsFList("-x2_dm_type","Convert DMPlex to another format (should not be Plex!)","x2.c",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
     if (flg) {
+      PetscInt idx;
       ierr = PetscOptionsGetInt(NULL,"x2_","-dm_forest_initial_refinement", &idx, &flg);CHKERRQ(ierr);
       if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-x2_dm_forest_initial_refinement not found?");
+      if (idx<1) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "refine must be greater than 0");
       t = ctx->particleGrid.numMajor*pow(2,idx);
     }
     else {
-      ierr = PetscOptionsGetInt(NULL,"x2_","-dm_refine", &idx, &flg);CHKERRQ(ierr);
-      if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-x2_dm_refine not found?");
       t = ctx->particleGrid.numMajor;
     }
-    if (idx<1) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "refine must be greater than 0");
     s_rminor_inflate = 1.00001*((ctx->particleGrid.rMajor + ctx->particleGrid.rMinor) / cos(M_PI / t) - ctx->particleGrid.rMajor) / ctx->particleGrid.rMinor;
   }
   ierr = PetscOptionsReal("-innerMult", "Percent of minor radius taken by inner square", "x2.c", ctx->particleGrid.innerMult, &ctx->particleGrid.innerMult, NULL);CHKERRQ(ierr);
