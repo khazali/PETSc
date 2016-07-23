@@ -2299,7 +2299,6 @@ int main(int argc, char **argv)
     else {
       if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] No p4est\n",ctx.rank);
       dmpi->dmgrid = dmpi->dmplex;
-      s_rminor_inflate    = 1. / cos(M_PI / ctx.particleGrid.numMajor);
     }
   }
   if (sizeof(long long)!=sizeof(PetscReal)) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "sizeof(long long)!=sizeof(PetscReal)");
