@@ -2,6 +2,28 @@
     <title>TAO Hands On</title>
 </head><body>
 
+<h3> ALCF Vesta instructions</h3>
+Setup initial environment on Vesta
+<ul>
+  <li>Copy over TAO examples [perhaps along with the other FASTMath package examples] to your home dir from:
+  <pre>/projects/FASTMath/ATPESC-2016/examples/petsc</pre></li>
+  <li> Set the following environment variable (for eg: bash)
+    <pre>export PETSC_DIR=/projects/FASTMath/ATPESC-2016/installs/petsc/3.7.3/ppc64-bgq-rhel6-gcc4.4/</pre>
+  </li>
+  <li> Prebuilt example binaries are provided. However to redo compiles (optional) - <a href="https://redmine.scorec.rpi.edu/anonsvn/fastmath/docs/ATPESC_2016/Exercises/developing.html">setup gnu compilers in your ~/.soft </a></p>
+  </li>
+</ul>
+
+For each TAO example - the run command is provided in 3 forms. Please use the appropriate qsub or runjob format for vesta.
+<ul>
+  <li>mpiexec: generic notation [does not work on vesta]</li>
+  <li>qsub: should work as is. This schedules the job in a batch mode. The stdout from
+  the job is available in the JOBID.output file after job completion</li>
+  <li>runjob: should work if you've already reserved a node block for interactive use with "qsub -I". For eg:
+   <pre>qsub -I -n 32 -t 30 -q training -A ATPESC2016</pre></li>
+</ul>
+
+
 <center>
 <h2>TAO Hands On</h2>
 </center>
@@ -44,21 +66,31 @@ TAO algorithms. These examples can be found in
   <li>Run the example with the default solver options, using the first order quasi-newton solver lmvm
     <pre>
       mpiexec -n 1 ./rosenbrock1 -tao_monitor -tao_view  <a href="../src/tao/unconstrained/examples/tutorials/output/rosenbrock1_tut_1.out.html">[Expected output]</a>
+      qsub -t 10 -q training -A ATPESC2016 --mode c16 -n 1 --proccount 1 ./rosenbrock1 -tao_monitor -tao_view
+      runjob --block $COBALT_PARTNAME -p 16 --np 1 : ./rosenbrock1 -tao_monitor -tao_view
     </pre>
   </li>
   <li>Run the example again using an algorithm that requires hessian evaluations (Newton line search)
     <pre>
      mpiexec -n 1 ./rosenbrock1 -tao_monitor -tao_view -tao_type nls  <a href="../src/tao/unconstrained/examples/tutorials/output/rosenbrock1_tut_2.out.html">[Expected output]</a>
+     qsub -t 10 -q training -A ATPESC2016 --mode c16 -n 1 --proccount 1 ./rosenbrock1 -tao_monitor -tao_view -tao_type nls
+     runjob --block $COBALT_PARTNAME -p 16 --np 1 : ./rosenbrock1 -tao_monitor -tao_view -tao_type nls
     </pre>
   </li>
   <li>Run the example again using no derivatives, both using a derivative-free algorithm (Nelder-Mead) and with a finite difference approximation. Finite difference approximations may be suitable for this example because the number of variables is small, but higher dimensional applications will find this approach much less practical.
 <p>Notice in the output that (as should be expected) the derivative-free method (nm) takes many more iterations than methods that use derivatives, and that using finite differences has little affect on the iteration count but a large affect on the number of function evaluations.
     <pre>
       mpiexec -n 1 ./rosenbrock1 -tao_monitor -tao_view -tao_type nm <a href="../src/tao/unconstrained/examples/tutorials/output/rosenbrock1_tut_3.out.html">[Expected output]</a>
+      qsub -t 10 -q training -A ATPESC2016 --mode c16 -n 1 --proccount 1 ./rosenbrock1 -tao_monitor -tao_view -tao_type nm
+      runjob --block $COBALT_PARTNAME -p 16 --np 1 : ./rosenbrock1 -tao_monitor -tao_view -tao_type nm
 
       mpiexec -n 1 ./rosenbrock1 -tao_monitor -tao_view -tao_type cg <a href="../src/tao/unconstrained/examples/tutorials/output/rosenbrock1_tut_4.out.html">[Expected output]</a>
+      qsub -t 10 -q training -A ATPESC2016 --mode c16 -n 1 --proccount 1 ./rosenbrock1 -tao_monitor -tao_view -tao_type cg
+      runjob --block $COBALT_PARTNAME -p 16 --np 1 : ./rosenbrock1 -tao_monitor -tao_view -tao_type cg
 
       mpiexec -n 1 ./rosenbrock1 -tao_monitor -tao_view -tao_type cg -tao_fd_gradient <a href="../src/tao/unconstrained/examples/tutorials/output/rosenbrock1_tut_5.out.html">[Expected output]</a>
+      qsub -t 10 -q training -A ATPESC2016 --mode c16 -n 1 --proccount 1 ./rosenbrock1 -tao_monitor -tao_view -tao_type cg -tao_fd_gradient
+      runjob --block $COBALT_PARTNAME -p 16 --np 1 : ./rosenbrock1 -tao_monitor -tao_view -tao_type cg -tao_fd_gradient
     </pre>
   </li>
 </ul>
@@ -97,16 +129,24 @@ TAO algorithms. These examples can be found in
   <li>Run on 1 process on a 32x32 structured mesh
     <pre>
       mpiexec -n 1 ./jbearing2 -mx 32 -my 32 -tao_monitor -tao_view -tao_type blmvm <a href="../src/tao/bound/examples/tutorials/output/jbearing2_tut_1.out.html">[Expected output]</a>
+      qsub -t 10 -q training -A ATPESC2016 --mode c16 -n 1 --proccount 1 ./jbearing2 -mx 32 -my 32 -tao_monitor -tao_view -tao_type blmvm
+      runjob --block $COBALT_PARTNAME -p 16 --np 1 : ./jbearing2 -mx 32 -my 32 -tao_monitor -tao_view -tao_type blmvm
     </pre>
   </li>
   <li>
       Run on 16 processes using more grid points
     <pre>
       mpiexec -n 16 ./jbearing2 -mx 256 -my 256 -tao_monitor -tao_view -tao_type blmvm <a href="../src/tao/bound/examples/tutorials/output/jbearing2_tut_2.out.html">[Expected output]</a>
+      qsub -t 10 -q training -A ATPESC2016 --mode c16 -n 1 --proccount 16 ./jbearing2 -mx 256 -my 256 -tao_monitor -tao_view -tao_type blmvm
+      runjob --block $COBALT_PARTNAME -p 16 --np 16 : ./jbearing2 -mx 256 -my 256 -tao_monitor -tao_view -tao_type blmvm
 
       mpiexec -n 16 ./jbearing2 -mx 256 -my 256 -tao_monitor -tao_view -tao_type tron <a href="../src/tao/bound/examples/tutorials/output/jbearing2_tut_3.out.html">[Expected output]</a>
+      qsub -t 10 -q training -A ATPESC2016 --mode c16 -n 1 --proccount 16 ./jbearing2 -mx 256 -my 256 -tao_monitor -tao_view -tao_type tron
+      runjob --block $COBALT_PARTNAME -p 16 --np 16 : ./jbearing2 -mx 256 -my 256 -tao_monitor -tao_view -tao_type tron
 
       mpiexec -n 16 ./jbearing2 -mx 256 -my 256 -tao_monitor -tao_view -tao_type gpcg <a href="../src/tao/bound/examples/tutorials/output/jbearing2_tut_4.out.html">[Expected output]</a>
+      qsub -t 10 -q training -A ATPESC2016 --mode c16 -n 1 --proccount 16 ./jbearing2 -mx 256 -my 256 -tao_monitor -tao_view -tao_type gpcg
+      runjob --block $COBALT_PARTNAME -p 16 --np 16 : ./jbearing2 -mx 256 -my 256 -tao_monitor -tao_view -tao_type gpcg
     </pre>
 
      Notice that the gpcg algorithm assumes the application's objective function
@@ -144,16 +184,22 @@ is quadratic, so the hessian does not need to be explicitly computed after the f
   <li>Run a 16-process on a 32x32 structured mesh using the quasi-Newton lmvm algorithm
     <pre>
       mpiexec -n 16 ./minsurf2 -mx 32 -my 32 -tao_type lmvm <a href="../src/tao/unconstrained/examples/tutorials/output/minsurf2_tut_1.out.html">[Expected output]</a>
+      qsub -t 10 -q training -A ATPESC2016 --mode c16 -n 1 --proccount 16 ./minsurf2 -mx 32 -my 32 -tao_type lmvm
+      runjob --block $COBALT_PARTNAME -p 16 --np 16 : ./minsurf2 -mx 32 -my 32 -tao_type lmvm
 </pre>
    </li>
   <li>
     <p>Now try running the same application using the derivative-free Nelder-Mead algorithm (nm). Notice that when we used this algorithm on the two-variable Rosenbrock example previously, the performance was worse than lmvm but not unusable. Increasing the number of variables past 100 makes this algorithm unusable for most purposes. This example fails to converge after a function evaluation budget of 4000 (This budget can be lifted using the command line option -tao_max_funcs n) compared to only around 20 function evaluations needed for lmvm.
     <pre>
       mpiexec -n 16 ./minsurf2 -mx 32 -my 32 -tao_type nm <a href="../src/tao/unconstrained/examples/tutorials/output/minsurf2_tut_2.out.html">[Expected output]</a>
+      qsub -t 10 -q training -A ATPESC2016 --mode c16 -n 1 --proccount 16 ./minsurf2 -mx 32 -my 32 -tao_type nm
+      runjob --block $COBALT_PARTNAME -p 16 --np 16 : ./minsurf2 -mx 32 -my 32 -tao_type nm
   </li>
      <li>Likewise, using a finite difference approximation to the gradient will also become a problem with higher dimensional problems:
     <pre>
       mpiexec -n 16 ./minsurf2 -mx 32 -my 32 -tao_type lmvm -tao_fd_gradient <a href="../src/tao/unconstrained/examples/tutorials/output/minsurf2_tut_3.out.html">[Expected output]</a>
+      qsub -t 10 -q training -A ATPESC2016 --mode c16 -n 1 --proccount 16 ./minsurf2 -mx 32 -my 32 -tao_type lmvm -tao_fd_gradient
+      runjob --block $COBALT_PARTNAME -p 16 --np 16 : ./minsurf2 -mx 32 -my 32 -tao_type lmvm -tao_fd_gradient
     </pre>
      </li>
   <li>However, there is still a good reason for using finite difference approximations in higher dimensional problems. By far the most common reason for a TAO algorithm to fail to converge is that there is an error in the user-provided gradient routine. Errors in the Hessian are less drastic and will usually only slow down the convergence rate. TAO (as well as PETSc) have devices for testing whether or not the user-provided gradients and hessians are "correct" by comparing the computations of the user-provided routines against results obtained through using finite difference approximations.
@@ -161,6 +207,8 @@ is quadratic, so the hessian does not need to be explicitly computed after the f
 Test the accuracy of the user-provided gradient routine in the lmvm function. This will not solve the minimization problem, but only compute the user-provided gradient and a finite-difference approximation to the gradient at several vectrs in the solution space.
     <pre>
       mpiexec -n 16 ./minsurf2 -mx 32 -my 32 -tao_type test <a href="../src/tao/unconstrained/examples/tutorials/output/minsurf2_tut_4.out.html">[Expected output]</a>
+      qsub -t 10 -q training -A ATPESC2016 --mode c16 -n 1 --proccount 16 ./minsurf2 -mx 32 -my 32 -tao_type test
+      runjob --block $COBALT_PARTNAME -p 16 --np 16 : ./minsurf2 -mx 32 -my 32 -tao_type test
     </pre>
   </li>
 </ul>
