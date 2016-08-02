@@ -661,7 +661,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsInt("-collisionPeriod", "Period between collision operators", "x2.c", ctx->collisionPeriod, &ctx->collisionPeriod, NULL);CHKERRQ(ierr);
   ctx->useElectrons = PETSC_FALSE;
   ierr = PetscOptionsBool("-use_electrons", "Include electrons", "x2.c", ctx->useElectrons, &ctx->useElectrons, NULL);CHKERRQ(ierr);
-  ctx->max_vpar = .03;
+  ctx->max_vpar = 30.;
   ierr = PetscOptionsReal("-max_vpar", "Maximum parallel velocity", "x2.c",ctx->max_vpar,&ctx->max_vpar,NULL);CHKERRQ(ierr);
 
   ierr = PetscStrcpy(fname,"iter");CHKERRQ(ierr);
@@ -804,7 +804,7 @@ PetscErrorCode X2GridSolverLocatePoint(DM dm, PetscReal x[], MPI_Comm comm, Pets
   Vec            coords;
   const PetscSFNode *foundCells;
   PetscInt       dim;
-  PetscMPIInt    rank;
+  PetscMPIInt    npe,rank;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
@@ -821,8 +821,9 @@ PetscErrorCode X2GridSolverLocatePoint(DM dm, PetscReal x[], MPI_Comm comm, Pets
   ierr = PetscSFGetGraph(cellSF, NULL, NULL, NULL, &foundCells);CHKERRQ(ierr);
   *elemID = foundCells[0].index;
   /* *pe = foundCells[0].rank; */
-  if (*elemID == -1) SETERRQ3(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "We are not supporting out of domain points. %g %g %g",x[0],x[1],x[2]);
-  // *elemID = 0; /* not working */
+  ierr = MPI_Comm_size(PetscObjectComm((PetscObject) dm), &npe);CHKERRQ(ierr);
+  if (*elemID == -1 && npe==1) SETERRQ3(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "We are not supporting out of domain points. %g %g %g",x[0],x[1],x[2]);
+  else if (*elemID == -1) *elemID = 0; /* not working in parallel */
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
   *pe = rank; /* dummy - no move until have global search */
   ierr = PetscSFDestroy(&cellSF);CHKERRQ(ierr);
@@ -1299,9 +1300,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       /* move particles - not vectorizable */
       ierr = X2PListGetHead( list, &part, &pos );CHKERRQ(ierr);
       do {
-        xx = xx0 + pos*3; assert(part.gid>0);
         /* get pe & element id */
-        if (solver) {
+        if (solver && 0) { /* lets just keep in flux tubes */
+          xx = xx0 + pos*3;
           /* see if need communication? no: add density, yes: add to communication list */
           ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, ctx->wComm, &pe, &idx);CHKERRQ(ierr);
         } else {
@@ -1634,8 +1635,7 @@ PetscErrorCode go( X2Ctx *ctx )
       /* move back to solver space */
       ierr = processParticles(ctx, 0.0, ctx->sendListTable, tag + X2_NION + 1, -1, istep, PETSC_TRUE);CHKERRQ(ierr);
     }
-
-    /* very crude explicit RK */
+    /* crude TS */
     dt = ctx->dt;
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventBegin(ctx->events[11],0,0,0,0);CHKERRQ(ierr);
@@ -1645,31 +1645,30 @@ PetscErrorCode go( X2Ctx *ctx )
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventEnd(ctx->events[11],0,0,0,0);CHKERRQ(ierr);
 #endif
-    {
-      PetscViewer       viewer = NULL;
-      PetscBool         flg;
-      PetscViewerFormat fmt;
-#if defined(PETSC_USE_LOG)
-      ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
-#endif
-      ierr = DMViewFromOptions(dmpi->dmgrid,NULL,"-dm_view");CHKERRQ(ierr);
-      ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
-      if (flg) {
-        ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
-        ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);
-        ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
-        ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
-      }
-      ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-#if defined(PETSC_USE_LOG)
-      ierr = PetscLogEventEnd(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
-#endif
-    }
-
     /* process particles: push, move */
     irk=0;
     ierr = processParticles(ctx, dt, ctx->sendListTable, tag + 2*(X2_NION + 1), irk, istep, PETSC_TRUE);CHKERRQ(ierr);
   } /* time step */
+  {
+    PetscViewer       viewer = NULL;
+    PetscBool         flg;
+    PetscViewerFormat fmt;
+#if defined(PETSC_USE_LOG)
+    ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
+#endif
+    ierr = DMViewFromOptions(dmpi->dmgrid,NULL,"-dm_view");CHKERRQ(ierr);
+    ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
+    if (flg) {
+      ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
+      ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);
+      ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
+      ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
+    }
+    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+#if defined(PETSC_USE_LOG)
+    ierr = PetscLogEventEnd(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
+#endif
+  }
 
   PetscFunctionReturn(0);
 }
@@ -2276,7 +2275,7 @@ int main(int argc, char **argv)
     ierr = DMAddBoundary(dmpi->dmplex, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx.BCFuncs[0], 1, &id, &ctx);CHKERRQ(ierr);
   }
   { /* convert to p4est */
-    char      convType[256];
+    char convType[256];
     PetscBool flg;
     ierr = PetscOptionsBegin(ctx.wComm, "", "Mesh conversion options", "DMPLEX");CHKERRQ(ierr);
     ierr = PetscOptionsFList("-x2_dm_type","Convert DMPlex to another format (should not be Plex!)","x2.c",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
@@ -2313,12 +2312,19 @@ int main(int argc, char **argv)
   if (sizeof(long long)!=sizeof(PetscReal)) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "sizeof(long long)!=sizeof(PetscReal)");
   /* setup DM */
   ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr); /* refinement done here */
-  if (dmpi->dmgrid == dmpi->dmplex && ctx.npe > 1) {
-    /* plex does not distribute by implicitly, so do it */
+  if (dmpi->dmgrid == dmpi->dmplex && ctx.npe > 1) { /* not using p4est */
+    const char *prefix;
+    ierr = PetscObjectGetOptionsPrefix((PetscObject)dmpi->dmplex,&prefix);CHKERRQ(ierr);
+    /* plex does not distribute by implicitly, so do it. But p4est partitioning is different. if != should get distribution from p4est */
     ierr = DMPlexDistribute(dmpi->dmplex, 0, NULL, &dmpi->dmgrid);CHKERRQ(ierr);
     ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
     dmpi->dmplex = dmpi->dmgrid;
+    ierr = PetscObjectSetOptionsPrefix((PetscObject)dmpi->dmgrid,prefix);CHKERRQ(ierr);
   }
+  /* else if (ctx.npe > 1) { /\* p4est - get the distribution in dmplex *\/ */
+  /*   ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr); */
+  /*   ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); THIS FAILS */
+  /* } */
   /* setup Discretization */
   ierr = DMGetDimension(dmpi->dmgrid, &dim);CHKERRQ(ierr);
   ierr = PetscFECreateDefault(dmpi->dmgrid, dim, 1, PETSC_FALSE, NULL, 1, &dmpi->fem);CHKERRQ(ierr);
@@ -2361,7 +2367,7 @@ int main(int argc, char **argv)
       SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "No cells");
     }
     s_fluxtubeelem = cEnd/2;
-    if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] %D equations on %D processors, %D local cells, Flux tube element %D\n",
+    if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] %D equations on %D processors, %D local cells, (element %D used for flux tube list)\n",
                                    ctx.rank,n,ctx.npe,cEnd,s_fluxtubeelem);
   }
 
