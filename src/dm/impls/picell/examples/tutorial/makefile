@@ -38,7 +38,7 @@ runex2:
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex2.h5
 
 runex1_p4:
-	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -x2_dm_type p8est -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 3 -numMajor 3 -x2_dm_refine 0 -npart_flux_tube 10 -mstep 10 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -collisionPeriod 1 -run_type boxtorus -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append
+	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -x2_dm_type p8est -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 2 -numMajor 3 -x2_dm_refine 0 -npart_flux_tube 10 -mstep 10 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -collisionPeriod 1 -run_type boxtorus -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5
 
 # -iter_vertex_file ITER-51vertex-quad-tri.txt -x2_dm_view -x2_dm_type p8est
