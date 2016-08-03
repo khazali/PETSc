@@ -649,7 +649,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   if (!chunkFlag) ctx->chunksize = X2_V_LEN*((ctx->npart_flux_tube/80+1)/X2_V_LEN); /* an intelegent message chunk size */
   if (ctx->chunksize<64 && !chunkFlag) ctx->chunksize = 64; /* 4K messages minumum */
 
-  if (s_debug>0) PetscPrintf(ctx->wComm,"[%D] npe=%D part=[%D,%D,%D], send size (chunksize) is %d particles. %s.\n",ctx->rank,ctx->npe,ctx->particleGrid.npphi,ctx->particleGrid.nptheta,ctx->particleGrid.npradius,ctx->chunksize,
+  if (s_debug>0) PetscPrintf(ctx->wComm,"[%D] npe=%D; %D x %D x %D flux tube grid; mpi_send size (chunksize) has %d particles. %s.\n",ctx->rank,ctx->npe,ctx->particleGrid.npphi,ctx->particleGrid.nptheta,ctx->particleGrid.npradius,ctx->chunksize,
 #ifdef X2_S_OF_V
 			     "Use struct of arrays"
 #else
@@ -2361,7 +2361,7 @@ int main(int argc, char **argv)
     ierr = DMPlexGetHeightStratum(dmpi->dmplex, 0, &cStart, &cEnd);CHKERRQ(ierr);
     if (cStart) SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_USER, "cStart != 0. %D",cStart);
     if (dmpi->debug>0 && !cEnd) {
-      ierr = PetscPrintf((dmpi->debug>1 || !cEnd) ? PETSC_COMM_SELF : ctx.wComm,"[%D] ERROR %D local cells, %d local cells, (cEnd=%d), debug=%D\n",ctx.rank,n,cEnd-cStart,cEnd,dmpi->debug);
+      ierr = PetscPrintf((dmpi->debug>1 || !cEnd) ? PETSC_COMM_SELF : ctx.wComm,"[%D] ERROR %D global equations, %d local cells, (cEnd=%d), debug=%D\n",ctx.rank,n,cEnd-cStart,cEnd,dmpi->debug);
     }
     if (!cEnd) {
       SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "No cells");
