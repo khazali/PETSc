@@ -773,7 +773,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #if defined(PETSC_USE_LOG)
       ierr = PetscLogEventBegin(ctx->events[5],0,0,0,0);CHKERRQ(ierr);
 #endif
-      if (solver) {
+      if (solver && 0) { /* keep in flux tubes */
         ierr = VecGetArray(xVec,&xx0);CHKERRQ(ierr);
       }
       /* move particles - not vectorizable */
@@ -850,7 +850,8 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
     } /* element list */
     /* finish sends and receive new particles for this species */
-    ierr = shiftParticles(ctx, sendListTable, irk, &nslist, ctx->partlists[isp], slist, tag+isp, solver);CHKERRQ(ierr);
+    ierr = shiftParticles(ctx, sendListTable, irk, &nslist, ctx->partlists[isp], slist, tag+isp, /* solver */ PETSC_FALSE); /* keep in flux tubes */
+    CHKERRQ(ierr);
 #ifdef PETSC_USE_DEBUG
     { /* debug */
       PetscMPIInt flag,sz; MPI_Status  status; MPI_Datatype mtype;
@@ -1089,7 +1090,7 @@ PetscErrorCode go( X2Ctx *ctx )
     /* do collisions */
     if (((istep+1)%ctx->collisionPeriod)==0) {
       /* move to flux tube space */
-      ierr = processParticles(ctx, 0.0, ctx->sendListTable, tag, -1, istep, PETSC_FALSE);CHKERRQ(ierr);
+      /* ierr = processParticles(ctx, 0.0, ctx->sendListTable, tag, -1, istep, PETSC_FALSE);CHKERRQ(ierr); */
       /* call collision method */
 #ifdef H5PART
       if (ctx->plot) {
@@ -1112,7 +1113,7 @@ PetscErrorCode go( X2Ctx *ctx )
       }
 #endif
       /* move back to solver space */
-      ierr = processParticles(ctx, 0.0, ctx->sendListTable, tag + X2_NION + 1, -1, istep, PETSC_TRUE);CHKERRQ(ierr);
+      /* ierr = processParticles(ctx, 0.0, ctx->sendListTable, tag + X2_NION + 1, -1, istep, PETSC_TRUE);CHKERRQ(ierr); */
     }
     /* crude TS */
     dt = ctx->dt;
