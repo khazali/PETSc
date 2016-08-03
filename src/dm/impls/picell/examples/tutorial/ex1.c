@@ -17,8 +17,8 @@ static char help[] = "X2: A partical in cell code for tokamak plasmas using PICe
 PetscLogEvent s_events[22];
 static const int diag_event_id = sizeof(s_events)/sizeof(s_events[0])-1;
 
-#include <x2_particle_array.h>
-#include <x2_physics.h>
+#include "x2_particle_array.h"
+#include "x2_physics.h"
 
 #define X2_WALL_ARRAY_MAX 68 /* ITER file is 67 */
 static float s_wallVtx[X2_WALL_ARRAY_MAX][2];
@@ -1129,6 +1129,7 @@ PetscErrorCode go( X2Ctx *ctx )
     ierr = processParticles(ctx, dt, ctx->sendListTable, tag + 2*(X2_NION + 1), irk, istep, PETSC_TRUE);CHKERRQ(ierr);
   } /* time step */
   {
+#ifdef H5PART
     PetscViewer       viewer = NULL;
     PetscBool         flg;
     PetscViewerFormat fmt;
@@ -1146,6 +1147,7 @@ PetscErrorCode go( X2Ctx *ctx )
     ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventEnd(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
+#endif
 #endif
   }
 
