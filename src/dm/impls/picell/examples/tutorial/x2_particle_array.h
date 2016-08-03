@@ -448,3 +448,65 @@ PetscErrorCode X2PListWrite(X2PList l[], PetscInt nLists, PetscMPIInt rank, Pets
   PetscFunctionReturn(0);
 }
 #endif
+
+
+/* send particle list */
+typedef struct X2PSendList_TAG{
+  X2Particle *data;
+  PetscInt    data_size, size;
+  PetscMPIInt proc;
+} X2PSendList;
+/* MPI Isend particle list */
+typedef struct X2ISend_TAG{
+  X2Particle *data;
+  PetscMPIInt proc;
+  MPI_Request request;
+} X2ISend;
+/* particle send list, non-vector simple array list */
+PetscInt X2PSendListSize(X2PSendList *l) {
+  return l->size;
+}
+#undef __FUNCT__
+#define __FUNCT__ "X2PSendListCreate"
+PetscErrorCode X2PSendListCreate(X2PSendList *l, PetscInt msz)
+{
+  PetscErrorCode ierr;
+  l->size=0;
+  l->data_size = msz;
+  ierr = PetscMalloc1(l->data_size, &l->data);CHKERRQ(ierr);
+  return ierr;
+}
+PetscErrorCode X2PSendListClear(X2PSendList *l)
+{
+  l->size=0; /* keep memory but kill data */
+  return 0;
+}
+#undef __FUNCT__
+#define __FUNCT__ "X2PSendListDestroy"
+PetscErrorCode X2PSendListDestroy(X2PSendList *l)
+{
+  PetscErrorCode ierr;
+  ierr = PetscFree(l->data);CHKERRQ(ierr);
+  l->data = 0;
+  l->size = 0;
+  l->data_size = 0;
+  return ierr;
+}
+#undef __FUNCT__
+#define __FUNCT__ "X2PSendListAdd"
+PetscErrorCode X2PSendListAdd( X2PSendList *l, X2Particle *p)
+{
+  PetscFunctionBeginUser;
+  if (l->size==l->data_size) {
+    X2Particle *data2; /* make this arrays of X2Particle members for struct-of-arrays */
+    int i;PetscErrorCode ierr;
+    PetscPrintf(PETSC_COMM_SELF," *** X2PSendListAdd expanded list %d --> %d%d\n",l->data_size,2*l->data_size);
+    l->data_size *= 2;
+    ierr = PetscMalloc1(l->data_size, &data2);CHKERRQ(ierr);
+    for (i=0;i<l->size;i++) data2[i] = l->data[i];
+    ierr = PetscFree(l->data);CHKERRQ(ierr);
+    l->data = data2;
+  }
+  l->data[l->size++] = *p;
+  PetscFunctionReturn(0);
+}

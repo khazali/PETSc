@@ -25,13 +25,21 @@ ex1: ex1.o chkopts
 	-${CLINKER} -o ex1.${PETSC_ARCH} ex1.o ${PETSC_DM_LIB} ${EX1_LIB}
 	${RM} -f ex1.o
 
+ex2: ex2.o chkopts
+	-${CLINKER} -o ex2.${PETSC_ARCH} ex2.o ${PETSC_DM_LIB} ${EX1_LIB}
+	${RM} -f ex2.o
+
 runex1:
-	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 2 -numMajor 4 -npart_flux_tube 10 -mstep 10 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -collisionPeriod 1 -run_type boxtorus -x2_dm_view hdf5:x2.h5 -x2_vec_view hdf5:x2.h5::append -petscpartitioner_type chaco
-	-${PETSC_DIR}/bin/petsc_gen_xdmf.py x2.h5
+	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 2 -numMajor 4 -npart_flux_tube 10 -mstep 10 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -collisionPeriod 1 -run_type boxtorus -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -petscpartitioner_type chaco
+	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5
+
+runex2:
+	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 2 -npart_flux_tube 10 -mstep 10 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -collisionPeriod 1 -x2_dm_view hdf5:ex2.h5 -x2_vec_view hdf5:ex2.h5::append -petscpartitioner_type chaco
+	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex2.h5
 
 runex1_p4:
-	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -x2_dm_type p8est -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 3 -numMajor 3 -x2_dm_refine 0 -npart_flux_tube 10 -mstep 10 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -collisionPeriod 1 -run_type boxtorus -x2_dm_view hdf5:x2.h5 -x2_vec_view hdf5:x2.h5::append
-	-${PETSC_DIR}/bin/petsc_gen_xdmf.py x2.h5
+	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -x2_dm_type p8est -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 3 -numMajor 3 -x2_dm_refine 0 -npart_flux_tube 10 -mstep 10 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -collisionPeriod 1 -run_type boxtorus -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append
+	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5
 
 # -iter_vertex_file ITER-51vertex-quad-tri.txt -x2_dm_view -x2_dm_type p8est
 # -run_type boxtorus  -bsp_chunksize 3000 -gtool "advixe-cl -collect survey:2,3"
