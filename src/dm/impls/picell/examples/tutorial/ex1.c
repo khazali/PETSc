@@ -774,14 +774,14 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #if defined(PETSC_USE_LOG)
       ierr = PetscLogEventBegin(ctx->events[5],0,0,0,0);CHKERRQ(ierr);
 #endif
-      if (solver && 0) { /* keep in flux tubes */
+      if (solver) {
         ierr = VecGetArray(xVec,&xx0);CHKERRQ(ierr);
       }
       /* move particles - not vectorizable */
       ierr = X2PListGetHead( list, &part, &pos );CHKERRQ(ierr);
       do {
         /* get pe & element id */
-        if (solver) {
+        if (solver && 0) { /* keep particles in flux tubes */
           xx = xx0 + pos*3;
           /* see if need communication? no: add density, yes: add to communication list */
           ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, ctx->wComm, &pe, &idx);CHKERRQ(ierr);
@@ -868,7 +868,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
     nlistsTot += nslist;
     /* add density (while in cache, by species at least) */
     if (irk>=0) {
-      Vec locrho;        assert(solver);
+      Vec locrho;
       ierr = DMGetLocalVector(dmpi->dmplex, &locrho);CHKERRQ(ierr);
       ierr = VecSet(locrho, 0.0);CHKERRQ(ierr);
       for (elid=0;elid<ctx->nElems;elid++) {
