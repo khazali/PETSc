@@ -1129,7 +1129,6 @@ PetscErrorCode go( X2Ctx *ctx )
     ierr = processParticles(ctx, dt, ctx->sendListTable, tag + 2*(X2_NION + 1), irk, istep, PETSC_TRUE);CHKERRQ(ierr);
   } /* time step */
   {
-#ifdef H5PART
     PetscViewer       viewer = NULL;
     PetscBool         flg;
     PetscViewerFormat fmt;
@@ -1147,7 +1146,6 @@ PetscErrorCode go( X2Ctx *ctx )
     ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventEnd(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
-#endif
 #endif
   }
 
