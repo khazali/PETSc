@@ -146,8 +146,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
 	if (pp->gid > 0) {
           PetscInt elid;
           if (solver) {
-            PetscReal xx[3] = {pp->r, pp->z, pp->phi};
-            ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, PETSC_COMM_SELF, &pe, &elid);CHKERRQ(ierr);
+             ierr = X2GridSolverLocatePoint(dmpi->dmplex, pp->x, PETSC_COMM_SELF, &pe, &elid);CHKERRQ(ierr);
             if (pe!=ctx->rank) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not local (pe=%D)",pe);
           }
           else elid = s_fluxtubeelem; /* non-solvers just put in element 0's list */
@@ -237,8 +236,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
 	  for (jj=0;jj<sz;jj++) {
             PetscInt elid;
             if (solver) {
-              PetscReal xx[3] = {data[jj].r, data[jj].z, data[jj].phi};
-              ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, PETSC_COMM_SELF, &pe, &elid);CHKERRQ(ierr);
+              ierr = X2GridSolverLocatePoint(dmpi->dmplex, data[jj].x, PETSC_COMM_SELF, &pe, &elid);CHKERRQ(ierr);
               if (pe!=ctx->rank) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not local (pe=%D)",pe);
             }
             else elid = s_fluxtubeelem; /* non-solvers just put in element 0's list */
@@ -291,9 +289,10 @@ void f1_u(PetscInt dim, PetscInt Nf, PetscInt NfAux,
 
 static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendList *sendListTable, const PetscMPIInt tag,
                                         const int irk, const int istep, PetscBool solver);
+#ifdef H5PART
 static void prewrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *ppos2);
 static void postwrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *ppos2);
-
+#endif
 #undef __FUNCT__
 #define __FUNCT__ "go"
 PetscErrorCode go( X2Ctx *ctx )
@@ -305,7 +304,6 @@ PetscErrorCode go( X2Ctx *ctx )
   PetscReal      time,dt;
   DM_PICell      *dmpi = (DM_PICell *) ctx->dm->data;
   PetscFunctionBeginUser;
-
   /* main time step loop */
   ierr = PetscCommGetNewTag(ctx->wComm,&tag);CHKERRQ(ierr);
   for ( istep=0, time=0.;

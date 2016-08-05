@@ -2,6 +2,7 @@
 /* X2Particle */
 typedef struct { /* ptl_type */
   /* phase (4D) */
+  PetscReal x[0]; /* array of coordinates */
   PetscReal r;   /* r from center */
   PetscReal z;   /* vertical coordinate */
   PetscReal phi; /* toroidal coordinate */
@@ -170,6 +171,7 @@ PetscErrorCode X2PListAdd( X2PList *l, X2Particle *p, X2PListPos *ppos)
 {
   PetscFunctionBeginUser;
   if (!l->data_size) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"List not created?");
+if (p->z>2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"z=%g",p->z);
   if (l->size==l->data_size) {
 #ifdef X2_S_OF_V
     X2Particle_v data2;

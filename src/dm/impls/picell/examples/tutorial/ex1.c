@@ -42,10 +42,34 @@ typedef struct {
   PetscReal  innerMult; /* (0,1) percent of the total radius taken by the inner square */
 } X2GridParticle;
 
+/* coordinate transformation - simple radial coordinates. Not really cylindrical as r_Minor is radius from plane axis */
+#define cylindricalToPolPlane(__rMinor,__Z,__psi,__theta) { \
+    __psi = sqrt((__rMinor)*(__rMinor) + (__Z)*(__Z));	    \
+  if (__psi==0.) __theta = 0.; \
+  else { \
+    __theta = (__Z) > 0. ? asin((__Z)/__psi) : -asin(-(__Z)/__psi);	\
+    if ((__rMinor) < 0) __theta = M_PI - __theta;			\
+    else if (__theta < 0.) __theta = __theta + 2.*M_PI; \
+  } \
+}
+
+#define polPlaneToCylindrical( __psi, __theta, __rMinor, __Z) \
+{\
+  __rMinor = (__psi)*cos(__theta);		\
+  __Z = (__psi)*sin(__theta);			\
+}
+
+#define cylindricalToCart( __R,  __Z,  __phi, __cart) \
+{ \
+ __cart[0] = (__R)*cos(__phi);			\
+ __cart[1] = (__R)*sin(__phi);			\
+ __cart[2] = __Z;				\
+}
+
 /* X2GridSolverLocatePoint: find processor and element in solver grid that this point is in
     Input:
      - dm: solver dm
-     - x: Cartesian coordinates
+     - x: Cylindrical coordinate (native data)
    Output:
      - pe: process ID
      - elemID: element ID
@@ -66,25 +90,26 @@ PetscErrorCode X2GridSolverLocatePoint(DM dm, PetscReal x[], MPI_Comm comm, Pets
   const PetscSFNode *foundCells;
   PetscInt       dim;
   PetscMPIInt    npe,rank;
+  PetscReal      xx[3];
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidPointer(x, 2);
   PetscValidPointer(elemID, 3);
-  SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "We are not supporting solver locate");
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventBegin(s_events[9],0,0,0,0);CHKERRQ(ierr);
 #endif
+  cylindricalToCart(x[0], x[1], x[2], xx); /* get into Cartesion coords */
   ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
-  ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, x, &coords);CHKERRQ(ierr);
+  ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, xx, &coords);CHKERRQ(ierr);
   ierr = DMLocatePoints(dm, coords, DM_POINTLOCATION_NONE, &cellSF);CHKERRQ(ierr);
   ierr = VecDestroy(&coords);CHKERRQ(ierr);
   ierr = PetscSFGetGraph(cellSF, NULL, NULL, NULL, &foundCells);CHKERRQ(ierr);
   *elemID = foundCells[0].index;
   /* *pe = foundCells[0].rank; */
   ierr = MPI_Comm_size(PetscObjectComm((PetscObject) dm), &npe);CHKERRQ(ierr);
-  if (*elemID == -1 && npe==1) SETERRQ3(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "We are not supporting out of domain points. %g %g %g",x[0],x[1],x[2]);
+  if (*elemID == -1 && npe==1) SETERRQ6(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "We are not supporting out of domain points. cylindrical: r=%g z=%g phi=%g.  x=%g y=%g z=%g",x[0],x[1],x[2],xx[0],xx[1],xx[2]);
   else if (*elemID == -1) *elemID = 0; /* not working in parallel */
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
   *pe = rank; /* dummy - no move until have global search */
@@ -242,7 +267,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
 #endif
                              );
 
-  ctx->collisionPeriod = 10;
+  ctx->collisionPeriod = 10000;
   ierr = PetscOptionsInt("-collisionPeriod", "Period between collision operators", "ex1.c", ctx->collisionPeriod, &ctx->collisionPeriod, NULL);CHKERRQ(ierr);
   ctx->useElectrons = PETSC_FALSE;
   ierr = PetscOptionsBool("-use_electrons", "Include electrons", "ex1.c", ctx->useElectrons, &ctx->useElectrons, NULL);CHKERRQ(ierr);
@@ -303,34 +328,10 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
 /* q: safty factor, should be parameterized */
 #define qsafty(psi) (3.*pow(psi,2.0))
 
-/* coordinate transformation - simple radial coordinates. Not really cylindrical as r_Minor is radius from plane axis */
-#define cylindricalToPolPlane(__rMinor,__Z,__psi,__theta) { \
-    __psi = sqrt((__rMinor)*(__rMinor) + (__Z)*(__Z));	    \
-  if (__psi==0.) __theta = 0.; \
-  else { \
-    __theta = (__Z) > 0. ? asin((__Z)/__psi) : -asin(-(__Z)/__psi);	\
-    if ((__rMinor) < 0) __theta = M_PI - __theta;			\
-    else if (__theta < 0.) __theta = __theta + 2.*M_PI; \
-  } \
-}
-
-#define polPlaneToCylindrical( __psi, __theta, __rMinor, __Z) \
-{\
-  __rMinor = (__psi)*cos(__theta);		\
-  __Z = (__psi)*sin(__theta);			\
-}
-
-#define cylindricalToCart( __R,  __Z,  __phi, __cart) \
-{ \
- __cart[0] = (__R)*cos(__phi);			\
- __cart[1] = (__R)*sin(__phi);			\
- __cart[2] = __Z;				\
-}
-
 /* X2GridFluxTubeLocatePoint: find processor and local flux tube that this point is in
     Input:
      - grid: the particle grid
-     - psi: r in [r,theta] coordinates
+     - psi: r in [r,theta] coordinates (poliodal coordinates)
      - theta:
      - phi: toroidal angle
    Output:
@@ -339,23 +340,22 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
 */
 #undef __FUNCT__
 #define __FUNCT__ "X2GridFluxTubeLocatePoint"
-PetscErrorCode X2GridFluxTubeLocatePoint( const X2GridParticle *grid,
-                                          PetscReal psi, PetscReal theta, PetscReal phi,
+PetscErrorCode X2GridFluxTubeLocatePoint( const X2GridParticle *grid, PetscReal x[3],
                                           PetscMPIInt *pe, PetscInt *elem)
 {
   const PetscReal rminor=grid->rMinor;
   const PetscReal dphi=2.*M_PI/(PetscReal)grid->npphi;
   const PetscReal dth=2.*M_PI/(PetscReal)grid->nptheta;
+  PetscReal psi = x[0], theta = x[1], phi = x[2];
   PetscMPIInt planeIdx,irs,iths;
-  /* PetscErrorCode ierr; */
   PetscFunctionBeginUser;
 /* #if defined(PETSC_USE_LOG) */
 /*   ierr = PetscLogEventBegin(s_events[10],0,0,0,0);CHKERRQ(ierr); */
 /* #endif */
   theta = fmod( theta - qsafty(psi/rminor)*phi + 20.*M_PI, 2.*M_PI);  /* pull back to reference grid */
-  planeIdx = (PetscMPIInt)(phi/dphi)*grid->npradius*grid->nptheta; /* assumeing one particle cell per PE */
+  planeIdx = (PetscMPIInt)(phi/dphi)*grid->npradius*grid->nptheta;    /* assuming one particle cell per PE */
   iths = (PetscMPIInt)(theta/dth);                               assert(iths<grid->nptheta);
-  irs = (PetscMPIInt)((PetscReal)grid->npradius*psi*psi/(rminor*rminor));assert(irs<grid->npradius);
+  irs = (PetscMPIInt)((PetscReal)grid->npradius*psi*psi/(rminor*rminor)); assert(irs<grid->npradius);
   *pe = planeIdx + irs*grid->nptheta + iths;
   *elem = s_fluxtubeelem; /* only one cell per process */
 /* #if defined(PETSC_USE_LOG) */
@@ -427,7 +427,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
   ierr = PetscLogEventBegin(ctx->events[1],0,0,0,0);CHKERRQ(ierr);
 #endif
   if (!dmpi) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"DM_PICell data not created");
-  if (irk>=0) {
+  if (solver) {
     ierr = VecZeroEntries(dmpi->rho);CHKERRQ(ierr); /* zero density to get ready for next deposition */
   }
   /* push particles, if necessary, and make send lists */
@@ -467,45 +467,62 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         ierr = PetscLogEventEnd(ctx->events[7],0,0,0,0);CHKERRQ(ierr);
 #endif
       }
-      if (irk>=0) {
-        /* push */
+      if (solver) {
+        /* push, and collect x */
 #if defined(PETSC_USE_LOG)
         ierr = PetscLogEventBegin(ctx->events[8],0,0,0,0);CHKERRQ(ierr); /* timer on particle list */
 #endif
         /* get E, should set size of vecs for true size? */
-        ierr = DMPICellGetJet(dmpi->dmgrid, xVec, order, jetVec, elid);CHKERRQ(ierr);
+        if (irk>=0) {
+          ierr = DMPICellGetJet(dmpi->dmgrid, xVec, order, jetVec, elid);CHKERRQ(ierr);
+          ierr = VecGetArray(jetVec,&jj0);CHKERRQ(ierr); jj = jj0;
+        }
         /* vectorize (todo) push: theta = theta + q*dphi .... grad not used */
         ierr = VecGetArray(xVec,&xx0);CHKERRQ(ierr); xx = xx0;
-        ierr = VecGetArray(jetVec,&jj0);CHKERRQ(ierr); jj = jj0;
+
         for (pos=0 ; pos < list->vec_top ; pos++, xx += 3, jj += 3 ) {
-	  /* push particle, real data, could do it on copy for non-final stage of TS */
+	  /* push particle, real data, could do it on copy for non-final stage of TS, copy new coordinate to xx */
+          if (irk>=0) {
 #ifdef X2_S_OF_V
-	  PetscReal r=list->data_v.r[pos] - rmaj, z=list->data_v.z[pos];
-          cylindricalToPolPlane(r, z, psi, theta );
-          dphi = (dt*list->data_v.vpar[pos])/(2.*M_PI*list->data_v.r[pos]);  /* toroidal step */
-          list->data_v.phi[pos] += dphi;
-          list->data_v.phi[pos] = fmod( list->data_v.phi[pos] + 20.*M_PI, 2.*M_PI);
-          theta += qsafty(psi/rminor)*dphi;  /* twist */
-          theta = fmod( theta + 20.*M_PI, 2.*M_PI);
-          polPlaneToCylindrical( psi, theta, r, z); /* time spent here */
-          list->data_v.r[pos] = rmaj + r;
-          list->data_v.z[pos] = z;
+            PetscReal r=list->data_v.r[pos] - rmaj, z=list->data_v.z[pos];
+            cylindricalToPolPlane(r, z, psi, theta );
+            dphi = (dt*list->data_v.vpar[pos])/(2.*M_PI*list->data_v.r[pos]);  /* toroidal step */
+            list->data_v.phi[pos] += dphi;
+            xx[2] = list->data_v.phi[pos] = fmod( list->data_v.phi[pos] + 20.*M_PI, 2.*M_PI);
+            theta += qsafty(psi/rminor)*dphi;  /* twist */
+            theta = fmod( theta + 20.*M_PI, 2.*M_PI);
+            polPlaneToCylindrical( psi, theta, r, z); /* time spent here */
+            xx[0] = list->data_v.r[pos] = rmaj + r;
+            xx[1] = list->data_v.z[pos] = z;
 #else
-          X2Particle *ppart = &list->data[pos];
-          PetscReal r = ppart->r - rmaj, z = ppart->z;
-          cylindricalToPolPlane( r, z, psi, theta );
-          dphi = (dt*ppart->vpar)/(2.*M_PI*ppart->r);  /* toroidal step */
-          ppart->phi += dphi;
-          ppart->phi = fmod( ppart->phi + 20.*M_PI, 2.*M_PI);
-          theta += qsafty(psi/rminor)*dphi;  /* twist */
-          theta = fmod( theta + 20.*M_PI, 2.*M_PI);
-          polPlaneToCylindrical( psi, theta, r, z); /* time spent here */
-          ppart->r = rmaj + r;
-          ppart->z = z;
+            X2Particle *ppart = &list->data[pos];
+            PetscReal r = ppart->r - rmaj, z = ppart->z;
+            cylindricalToPolPlane( r, z, psi, theta );
+            dphi = (dt*ppart->vpar)/(2.*M_PI*ppart->r);  /* toroidal step */
+            ppart->phi += dphi;
+            xx[2] = ppart->phi = fmod( ppart->phi + 20.*M_PI, 2.*M_PI);
+            theta += qsafty(psi/rminor)*dphi;  /* twist */
+            theta = fmod( theta + 20.*M_PI, 2.*M_PI);
+            polPlaneToCylindrical( psi, theta, r, z); /* time spent here */
+            xx[0] = ppart->r = rmaj + r;
+            xx[1] = ppart->z = z;
 #endif
+          } else {
+#ifdef X2_S_OF_V
+            xx[2] = list->data_v.phi[pos];
+            xx[0] = list->data_v.r[pos];
+            xx[1] = list->data_v.z[pos];
+#else
+            xx[2] = ppart->phi;
+            xx[0] = ppart->r;
+            xx[1] = ppart->z;
+#endif
+          }
         }
         ierr = VecRestoreArray(xVec,&xx0);
-        ierr = VecRestoreArray(jetVec,&jj0);
+        if (irk>=0) {
+          ierr = VecRestoreArray(jetVec,&jj0);
+        }
 #if defined(PETSC_USE_LOG)
         ierr = PetscLogEventEnd(ctx->events[8],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -521,14 +538,15 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       ierr = X2PListGetHead( list, &part, &pos );CHKERRQ(ierr);
       do {
         /* get pe & element id */
-        if (solver && 0) { /* keep particles in flux tubes */
+        if (solver) {
           xx = xx0 + pos*3;
           /* see if need communication? no: add density, yes: add to communication list */
           ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, ctx->wComm, &pe, &idx);CHKERRQ(ierr);
         } else {
-          PetscReal r = part.r - rmaj;
-          cylindricalToPolPlane( r, part.z, psi, theta );
-          ierr = X2GridFluxTubeLocatePoint(grid, psi, theta, part.phi, &pe, &idx);CHKERRQ(ierr);
+          PetscReal r = part.r - rmaj, x[3];
+          cylindricalToPolPlane( r, part.z, x[0], x[1]);
+          x[2] = part.phi;
+          ierr = X2GridFluxTubeLocatePoint(grid, x, &pe, &idx);CHKERRQ(ierr);
         }
         /* move particles - not vectorizable */
         if (pe==ctx->rank && idx==elid) { /* don't move and don't add */
@@ -591,7 +609,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
     } /* element list */
     /* finish sends and receive new particles for this species */
-    ierr = shiftParticles(ctx, sendListTable, irk, &nslist, ctx->partlists[isp], slist, tag+isp, /* solver */ PETSC_FALSE); /* keep in flux tubes */
+    ierr = shiftParticles(ctx, sendListTable, irk, &nslist, ctx->partlists[isp], slist, tag+isp, solver );
     CHKERRQ(ierr);
 #ifdef PETSC_USE_DEBUG
     { /* debug */
@@ -607,7 +625,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
     nlistsTot += nslist;
     /* add density (while in cache, by species at least) */
-    if (irk>=0) {
+    if (solver) {
       Vec locrho;
       ierr = DMGetLocalVector(dmpi->dmplex, &locrho);CHKERRQ(ierr);
       ierr = VecSet(locrho, 0.0);CHKERRQ(ierr);
@@ -679,7 +697,6 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         nloc += X2PListSize(&ctx->partlists[isp][elid]);
       }
     }
-    /* if (irk>=0 && nloc != ndeposit) PetscPrintf(ctx->wComm,"\t[0]%d ERROR deposits, %d local particles\n",ndeposit,nloc); */
     sb[0] = origNlocal;
     sb[1] = nmoved;
     sb[2] = nlistsTot;
@@ -692,19 +709,17 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
                 istep+1,irk<0 ? "processed" : "pushed", origNlocal, rb1[0], rb1[3], 100.*(double)rb1[1]/(double)rb1[0], rb1[2], ctx->tablecount,(double)rb2[3]/((double)rb1[3]/(double)ctx->npe));
     if (rb1[0] != rb1[3]) SETERRQ2(PETSC_COMM_WORLD,PETSC_ERR_PLIB,"Number of partilces %D --> %D",rb1[0],rb1[3]);
 #ifdef H5PART
-    if (irk>=0) {
-      if (ctx->plot) {
-        for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) {
-          char  fname1[256],fname2[256];
-          X2PListPos pos1,pos2;
-          /* hdf5 output */
-          sprintf(fname1,"particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
-          sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
-          /* write */
-          prewrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
-          ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
-          postwrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
-        }
+    if (irk>=0 && ctx->plot) {
+      for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) {
+        char  fname1[256],fname2[256];
+        X2PListPos pos1,pos2;
+        /* hdf5 output */
+        sprintf(fname1,"particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
+        sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
+        /* write */
+        prewrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
+        ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
+        postwrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
       }
     }
 #endif
@@ -779,7 +794,6 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 	  const PetscReal thetap = theta0 + qsaf*phi; /* push forward to follow field-lines */
 	  polPlaneToCylindrical(psi, thetap, r, z);
 	  r += rmaj;
-
 	  /* v_parallel from random number */
 	  zmax = 1.0 - exp(-maxe);
 	  zdum = zmax*(PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG;
@@ -793,7 +807,8 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 #ifdef PETSC_USE_DEBUG
           {
             PetscMPIInt pe; PetscInt id;
-            ierr = X2GridFluxTubeLocatePoint(&ctx->particleGrid,psi,thetap,phi,&pe,&id);CHKERRQ(ierr);
+            PetscReal xx[] = {psi,thetap,phi};
+            ierr = X2GridFluxTubeLocatePoint(&ctx->particleGrid,xx,&pe,&id);CHKERRQ(ierr);
             if(pe != ctx->rank){
               PetscPrintf(PETSC_COMM_SELF,"[%D] ERROR particle in proc %d r=%e:%e:%e theta=%e:%e:%e phi=%e:%e:%e\n",ctx->rank,pe,r1,psi,r1+dr,th1,thetap,th1+dth,phi1,phi,phi1+dphi);
               SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB," created particle for proc %D",pe);
@@ -1050,7 +1065,6 @@ static PetscErrorCode DMPlexCreatePICellBoxTorus(MPI_Comm comm, X2GridParticle *
   PetscInt       numCells = 0;
   PetscInt       numVerts = 0;
   PetscReal      rMajor   = params->rMajor;
-  PetscReal      rMinor   = params->rMinor*s_rminor_inflate;
   PetscInt       numMajor = params->numMajor;
   int           *flatCells = NULL;
   double         *flatCoords = NULL;
@@ -1076,8 +1090,8 @@ static PetscErrorCode DMPlexCreatePICellBoxTorus(MPI_Comm comm, X2GridParticle *
         for (j = 0; j < 4; j++) {
           double r, z;
 
-          r = rMajor + rMinor * ( (j==1 || j==2)        ? -1. :  1.);
-          z =          rMinor * ( (j < 2) ?  1. : -1. );
+          r = rMajor + params->rMinor*s_rminor_inflate * ( (j==1 || j==2)        ? -1. :  1.);
+          z =  params->rMinor * ( (j < 2) ?  1. : -1. );
 
           coords[i][j][0] = cosphi * r;
           coords[i][j][1] = sinphi * r;
@@ -1425,14 +1439,14 @@ int main(int argc, char **argv)
   if (sizeof(long long)!=sizeof(PetscReal)) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "sizeof(long long)!=sizeof(PetscReal)");
   /* setup DM */
   ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr); /* refinement done here */
-  if (dmpi->dmgrid == dmpi->dmplex && ctx.npe > 1) { /* not using p4est */
+  if (dmpi->dmgrid == dmpi->dmplex && ctx.npe>1) { /* not using p4est */
     const char *prefix;
     ierr = PetscObjectGetOptionsPrefix((PetscObject)dmpi->dmplex,&prefix);CHKERRQ(ierr);
     /* plex does not distribute by implicitly, so do it. But p4est partitioning is different. if != should get distribution from p4est */
     ierr = DMPlexDistribute(dmpi->dmplex, 0, NULL, &dmpi->dmgrid);CHKERRQ(ierr);
+    ierr = PetscObjectSetOptionsPrefix((PetscObject)dmpi->dmgrid,prefix);CHKERRQ(ierr);
     ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
     dmpi->dmplex = dmpi->dmgrid;
-    ierr = PetscObjectSetOptionsPrefix((PetscObject)dmpi->dmgrid,prefix);CHKERRQ(ierr);
   }
   /* else if (ctx.npe > 1) { /\* p4est - get the distribution in dmplex *\/ */
   /*   ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr); */
@@ -1459,7 +1473,6 @@ int main(int argc, char **argv)
     /* get section */
     ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &s);CHKERRQ(ierr);
   }
-
   ierr = PetscSectionViewFromOptions(s, NULL, "-section_view");CHKERRQ(ierr);
   if (dmpi->debug>3) { /* this shows a bug with crap in the section */
     ierr = PetscSectionView(s,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
@@ -1483,7 +1496,6 @@ int main(int argc, char **argv)
     if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] %D equations on %D processors, %D local cells, (element %D used for flux tube list)\n",
                                    ctx.rank,n,ctx.npe,cEnd,s_fluxtubeelem);
   }
-
   /* create SNESS */
   ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
   ierr = SNESSetDM( dmpi->snes, dmpi->dmgrid);CHKERRQ(ierr);
@@ -1526,7 +1538,7 @@ int main(int argc, char **argv)
 #endif
   /* move back to solver space and make density vector */
   ierr = processParticles(&ctx, 0.0, ctx.sendListTable, 99, 0, -1, PETSC_TRUE);CHKERRQ(ierr);
-  /* setup solver */
+  /* setup solver, dummy solve to really setup */
   {
     KSP ksp; PetscReal krtol,katol,kdtol; PetscInt kmit,one=1;
     ierr = SNESGetKSP(dmpi->snes, &ksp);CHKERRQ(ierr);
