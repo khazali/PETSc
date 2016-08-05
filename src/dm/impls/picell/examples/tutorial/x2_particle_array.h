@@ -1,3 +1,4 @@
+/* M. Adams, August 2016 */
 /* X2Particle */
 typedef struct { /* ptl_type */
   /* phase (4D) */
@@ -11,7 +12,7 @@ typedef struct { /* ptl_type */
   PetscReal f0;
   long long gid; /* diagnostic, should be size of double */
 } X2Particle;
-#define X2_V_LEN 32
+#define X2_V_LEN 16
 #define X2_S_OF_V
 typedef struct { /* ptl_type */
   /* phase (4D) */
@@ -33,13 +34,19 @@ typedef struct {
 #else
   X2Particle *data;
 #endif
-  PetscInt    data_size, size, hole, top;
+  PetscInt    data_size;
+  PetscInt    size;
+  PetscInt    hole;
+  PetscInt    top;
+  PetscInt    vec_top;
 } X2PList;
 
 /* particle */
+#undef __FUNCT__
+#define __FUNCT__ "X2ParticleCreate"
 PetscErrorCode X2ParticleCreate(X2Particle *p, PetscInt gid, PetscReal r, PetscReal z, PetscReal phi, PetscReal vpar)
 {
-  if (gid <= 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"X2ParticleCreate: gid <= 0");
+  if (gid <= 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"gid <= 0");
   p->r = r;
   p->z = z;
   p->phi = phi;
@@ -120,14 +127,16 @@ PetscErrorCode X2ParticleWrite(X2Particle *p, void *buf)
 PetscErrorCode X2PListCreate(X2PList *l, PetscInt msz)
 {
   PetscErrorCode ierr;
+  if (msz <= 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"msz <= 0");
   l->size=0;
   l->top=0;
+  l->vec_top=-1;
   l->hole=-1;
   l->data_size = X2_V_LEN*(msz/X2_V_LEN);
 #ifdef X2_S_OF_V
-  X2ALLOCV(l->data_size,l->data_v);
+  X2ALLOCV(l->data_size+X2_V_LEN,l->data_v);
 #else
-  ierr = PetscMalloc1(l->data_size, &l->data);CHKERRQ(ierr);
+  ierr = PetscMalloc1(l->data_size+X2_V_LEN, &l->data);CHKERRQ(ierr);
 #endif
   return ierr;
 }
@@ -255,6 +264,21 @@ PetscErrorCode X2PListCompress(X2PList *l)
   }
   l->hole = -1;
   l->top = l->size;
+  /* pad end for vectorization */
+  if (l->top%X2_V_LEN==0) l->vec_top=l->top;
+  else {
+    PetscInt vtop = (l->top/X2_V_LEN + 1)*X2_V_LEN;
+    for ( ii = l->top ; ii < vtop ; ii++) {
+#ifdef X2_S_OF_V
+      X2V2V(l->data_v,l->data_v,l->top-1,ii);
+      l->data_v.w0[ii] = 0;
+#else
+      l->data[ii] = l->data[l->top-1];
+      l->data[ii].w0 = 0;
+#endif
+    }
+    l->vec_top=vtop;
+  }
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventEnd(s_events[13],0,0,0,0);CHKERRQ(ierr);
 #endif

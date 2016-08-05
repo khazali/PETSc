@@ -1,3 +1,4 @@
+/* M. Adams, August 2016 */
 /* X2Species */
 #define X2_NION 1
 typedef struct {

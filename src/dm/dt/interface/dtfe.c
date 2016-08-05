@@ -3370,6 +3370,7 @@ PetscErrorCode PetscFEGetTabulation_Basic(PetscFE fem, PetscInt npoints, const P
         PetscInt       c;
 
         B[i] = 0.0;
+#pragma simd vectorlengthfor(PetscReal)
         for (k = 0; k < pdim; ++k) {
           B[i] += fem->invV[k*pdim+j] * tmpB[p*pdim + k];
         }
