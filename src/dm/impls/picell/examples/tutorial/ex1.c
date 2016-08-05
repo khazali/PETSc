@@ -213,7 +213,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   /* particles */
   ctx->npart_flux_tube = 10;
   ierr = PetscOptionsInt("-npart_flux_tube", "Number of particles local (flux tube cell)", "ex1.c", ctx->npart_flux_tube, &ctx->npart_flux_tube, NULL);CHKERRQ(ierr);
-  if (!chunkFlag) ctx->chunksize = X2_V_LEN*((ctx->npart_flux_tube/80+1)/X2_V_LEN); /* an intelegent message chunk size */
+  if (!chunkFlag) ctx->chunksize = X2_V_LEN*((ctx->npart_flux_tube/80+1)/X2_V_LEN + 1); /* an intelegent message chunk size */
   if (ctx->chunksize<64 && !chunkFlag) ctx->chunksize = 64; /* 4K messages minumum */
 
   if (s_debug>0) PetscPrintf(ctx->wComm,"[%D] npe=%D; %D x %D x %D flux tube grid; mpi_send size (chunksize) has %d particles. %s.\n",ctx->rank,ctx->npe,ctx->particleGrid.npphi,ctx->particleGrid.nptheta,ctx->particleGrid.npradius,ctx->chunksize,
@@ -895,7 +895,11 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           PetscReal r=list->data[pos].r, z=list->data[pos].z, phi=list->data[pos].phi;
 #endif
           cylindricalToCart(r, z, phi, xx);
-          *vv = part.w0*ctx->species[isp].charge;
+#ifdef X2_S_OF_V
+          *vv = list->data_v.w0[pos]*ctx->species[isp].charge;
+#else
+          *vv = list->data[pos].w0*ctx->species[isp].charge;
+#endif
           ndeposit++;
         }
         /* } while ( !X2PListGetNext(list, &part, &pos) ); */
