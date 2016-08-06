@@ -17,6 +17,7 @@ typedef struct { /* ptl_type */
 #define X2_S_OF_V
 typedef struct { /* ptl_type */
   /* phase (4D) */
+  PetscReal *x[0]; /* array of coordinates */
   PetscReal *r;   /* r from center */
   PetscReal *z;   /* vertical coordinate */
   PetscReal *phi; /* toroidal coordinate */
@@ -171,7 +172,6 @@ PetscErrorCode X2PListAdd( X2PList *l, X2Particle *p, X2PListPos *ppos)
 {
   PetscFunctionBeginUser;
   if (!l->data_size) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"List not created?");
-if (p->z>2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"z=%g",p->z);
   if (l->size==l->data_size) {
 #ifdef X2_S_OF_V
     X2Particle_v data2;
@@ -183,7 +183,6 @@ if (p->z>2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"z=%g",p->z);
     l->data_size *= 2;
 #ifdef X2_S_OF_V
     X2ALLOCV(l->data_size,data2);
-#pragma simd vectorlengthfor(PetscScalar)
     for (i=0;i<l->size;i++) {
       X2V2V(l->data_v,data2,i,i);
     }
@@ -199,19 +198,19 @@ if (p->z>2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"z=%g",p->z);
     assert(l->hole == -1);
   }
   if (l->hole != -1) { /* have a hole - fill it */
-    X2PListPos idx = l->hole; assert(idx<l->data_size);
+    X2PListPos i = l->hole; assert(i<l->data_size);
 #ifdef X2_S_OF_V
-    if (l->data_v.gid[idx] == 0) l->hole = -1; /* filled last hole */
-    else if (l->data_v.gid[idx]>=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"hole with non-neg gid %d",l->data_v.gid[idx]);
-    else l->hole = (X2PListPos)(-l->data_v.gid[idx] - 1); /* use gid as pointer */
-    X2P2V(p,l->data_v,idx);
+    if (l->data_v.gid[i] == 0) l->hole = -1; /* filled last hole */
+    else if (l->data_v.gid[i]>=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"hole with non-neg gid %d",l->data_v.gid[i]);
+    else l->hole = (X2PListPos)(-l->data_v.gid[i] - 1); /* use gid as pointer */
+    X2P2V(p,l->data_v,i);
 #else
-    if (l->data[idx].gid == 0) l->hole = -1; /* filled last hole */
-    else if (l->data[idx].gid>=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"hole with non-neg gid %d",l->data[idx].gid);
-    else l->hole = (X2PListPos)(-l->data[idx].gid - 1); /* use gid as pointer */
-    l->data[idx] = *p;
+    if (l->data[i].gid == 0) l->hole = -1; /* filled last hole */
+    else if (l->data[i].gid>=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"hole with non-neg gid %d",l->data[i].gid);
+    else l->hole = (X2PListPos)(-l->data[i].gid - 1); /* use gid as pointer */
+    l->data[i] = *p;
 #endif
-    if (ppos) *ppos = idx;
+    if (ppos) *ppos = i;
   }
   else {
     X2PListPos i = l->top++;
@@ -420,9 +419,11 @@ PetscErrorCode X2PListWrite(X2PList l[], PetscInt nLists, PetscMPIInt rank, Pets
       if (!ierr) {
         do {
           if (part.gid > 0) {
-            x[nparticles] = part.r*cos(part.phi);
-            y[nparticles] = part.r*sin(part.phi);
-            z[nparticles] = part.z;
+            PetscReal xx[3];
+            cylindricalToCart(part.r, part.z, part.phi, xx);
+            x[nparticles] = xx[0];
+            y[nparticles] = xx[1];
+            z[nparticles] = xx[2];
             v[nparticles] = part.vpar;
             id[nparticles] = part.gid;
             nparticles++;
@@ -449,9 +450,11 @@ PetscErrorCode X2PListWrite(X2PList l[], PetscInt nLists, PetscMPIInt rank, Pets
         if (!ierr) {
           do {
             if (part.gid > 0) {
-              x[nparticles] = part.r*cos(part.phi);
-              y[nparticles] = part.r*sin(part.phi);
-              z[nparticles] = part.z;
+              PetscReal xx[3];
+              cylindricalToCart(part.r, part.z, part.phi, xx);
+              x[nparticles] = xx[0];
+              y[nparticles] = xx[1];
+              z[nparticles] = xx[2];
               v[nparticles] = part.vpar;
               id[nparticles] = rank;
               nparticles++;

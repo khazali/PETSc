@@ -12,8 +12,33 @@ static char help[] = "X2: A partical in cell code for slab plasmas using PICell.
 PetscLogEvent s_events[22];
 static const int diag_event_id = sizeof(s_events)/sizeof(s_events[0])-1;
 
+/* copy to fit with viz outpout in array class */
+#define cylindricalToCart( __R,  __Z,  __phi, __cart) \
+{ \
+ __cart[0] = __R;  \
+ __cart[1] = __Z;  \
+ __cart[2] = __phi;\
+}
+
 #include "x2_particle_array.h"
 #include "x2_physics.h"
+
+typedef struct {
+  /* particle grid, flux tube, sizes */
+  PetscInt ft_np[3];
+  PetscInt ft_rank[3];
+  /* solver grid sizes */
+  PetscInt solver_np[3];
+  PetscInt solver_proc_idx[3];
+  /* geometry  */
+  PetscReal dom_lo[3], dom_hi[3];
+  PetscReal b0[3];
+  /* context */
+  void *ctx;
+} X2GridParticle;
+typedef enum {X2_DUMMY} runType;
+
+#include "x2_ctx.h"
 
 #define X2_IDX(i,j,k,np)  (np[1]*np[2]*i + np[2]*j + k)
 #define X2_IDX_X(rank,np) (rank/(np[1]*np[2]))
@@ -24,18 +49,6 @@ static PetscInt s_debug;
 static PetscInt s_rank;
 static int s_fluxtubeelem=0;
 #define X2PROCLISTSIZE 256
-typedef struct {
-  /* particle grid, flux tube, sizes */
-  PetscInt ft_np[3];
-  PetscInt ft_rank[3];
-  /* solver grid sizes */
-  PetscInt solver_np[3];
-  /* geometry  */
-  PetscReal dom_lo[3], dom_hi[3];
-  PetscReal b0[3];
-  /* context */
-  void *ctx;
-} X2GridParticle;
 
 /* X2GridSolverLocatePoint: find processor and element in solver grid that this one point is in
     Input:
@@ -54,43 +67,55 @@ typedef struct {
 */
 #undef __FUNCT__
 #define __FUNCT__ "X2GridSolverLocatePoint"
-PetscErrorCode X2GridSolverLocatePoint(DM dm, PetscReal x[], MPI_Comm comm, PetscMPIInt *pe, PetscInt *elemID)
+PetscErrorCode X2GridSolverLocatePoint(DM dm, PetscReal x[], const X2Ctx *ctx, PetscMPIInt *pe, PetscInt *elemID)
 {
-  PetscSF        cellSF = NULL;
-  Vec            coords;
-  const PetscSFNode *foundCells;
-  PetscInt       dim;
-  PetscMPIInt    npe,rank;
+  PetscInt       i,ii[3];
+  const PetscInt *np = ctx->particleGrid.solver_np;
+  const PetscReal *dlo = ctx->particleGrid.dom_lo, *dhi = ctx->particleGrid.dom_hi;
   PetscErrorCode ierr;
-
   PetscFunctionBeginUser;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidPointer(x, 2);
   PetscValidPointer(elemID, 3);
-  SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "We are not supporting solver locate");
 /* #if defined(PETSC_USE_LOG) */
 /*   ierr = PetscLogEventBegin(s_events[9],0,0,0,0);CHKERRQ(ierr); */
 /* #endif */
-  ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
-  ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, x, &coords);CHKERRQ(ierr);
-  ierr = DMLocatePoints(dm, coords, DM_POINTLOCATION_NONE, &cellSF);CHKERRQ(ierr);
-  ierr = VecDestroy(&coords);CHKERRQ(ierr);
-  ierr = PetscSFGetGraph(cellSF, NULL, NULL, NULL, &foundCells);CHKERRQ(ierr);
-  *elemID = foundCells[0].index;
-  /* *pe = foundCells[0].rank; */
-  ierr = MPI_Comm_size(PetscObjectComm((PetscObject) dm), &npe);CHKERRQ(ierr);
-  if (*elemID == -1 && npe==1) SETERRQ3(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "We are not supporting out of domain points. %g %g %g",x[0],x[1],x[2]);
-  else if (*elemID == -1) *elemID = 0; /* not working in parallel */
-  ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
-  *pe = rank; /* dummy - no move until have global search */
-  ierr = PetscSFDestroy(&cellSF);CHKERRQ(ierr);
+  /* find processor */
+  if (x[0]<dlo[0] || x[0]>dhi[0] || x[1]<dlo[1] ||
+      x[1]>dhi[1] || x[2]<dlo[2] || x[2]>dhi[2])
+    SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_PLIB,"point out of bounds %g %g %g",x[0],x[1],x[2]);
+  for (i=0;i<3;i++) {
+    ii[i] = (PetscInt)((x[i]-dlo[i])/(dhi[i]-dlo[i])*(double)np[i]);
+  }
+  *pe = X2_IDX(ii[0],ii[1],ii[2],np);
+  {
+    PetscSF            cellSF = NULL;
+    Vec                coords;
+    const PetscSFNode *foundCells;
+    PetscInt           dim;
+    PetscReal          xx[3];
+    for (i=0;i<3;i++) {
+      PetscReal dx = (dhi[i]-dlo[i])/np[i];
+      PetscReal x0 = x[i] - dlo[i] - ii[i]*dx; assert(x0 >= 0 && x0 <= dx); /* local coord */
+      xx[i] = x0 + dlo[i] + ctx->particleGrid.solver_proc_idx[i]*dx; /* my fake coordinate */
+    }
+/* PetscPrintf(PETSC_COMM_SELF,"[%D] my fake xx: %g %g %g\n",ctx->rank,xx[0],xx[1],xx[2]); */
+    ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
+    ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, xx, &coords);CHKERRQ(ierr);
+    ierr = DMLocatePoints(dm, coords, DM_POINTLOCATION_NONE, &cellSF);CHKERRQ(ierr);
+    ierr = VecDestroy(&coords);CHKERRQ(ierr);
+    ierr = PetscSFGetGraph(cellSF, NULL, NULL, NULL, &foundCells);CHKERRQ(ierr);
+    *elemID = foundCells[0].index;
+    /* *pe = foundCells[0].rank; */
+    if (*elemID<0) SETERRQ6(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "missed point: %g %g %g (local: %g %g %g)",x[0],x[1],x[2],xx[0],xx[1],xx[2]);
+    ierr = PetscSFDestroy(&cellSF);CHKERRQ(ierr);
+  }
 /* #if defined(PETSC_USE_LOG) */
 /*     ierr = PetscLogEventEnd(s_events[9],0,0,0,0);CHKERRQ(ierr); */
 /* #endif */
   PetscFunctionReturn(0);
 }
 
-typedef enum {X2_DUMMY} runType;
 #include "x2_common.h"
 
 /*
@@ -157,6 +182,8 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   /* Domain and mesh definition */
   ierr = PetscOptionsRealArray("-dom_hi", "Domain size", "ex2.c", ctx->particleGrid.dom_hi, &three, NULL);CHKERRQ(ierr);
   three = 3;
+  ierr = PetscOptionsRealArray("-dom_lo", "Domain size", "ex2.c", ctx->particleGrid.dom_lo, &three, NULL);CHKERRQ(ierr);
+  three = 3;
   ierr = PetscOptionsIntArray("-ft_np", "Number of (flux tube) processor in each dimension", "ex2.c", ctx->particleGrid.ft_np, &three, &npflag);CHKERRQ(ierr);
   if ( (k=ctx->particleGrid.ft_np[0]*ctx->particleGrid.ft_np[1]*ctx->particleGrid.ft_np[2]) != ctx->npe) { /* recover from inconsistant grid/procs */
     if (npflag && three==3) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"over constrained number of particle processes npe (%D) != %D",ctx->npe,k);
@@ -207,6 +234,23 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     }
     if ( (k=ctx->particleGrid.solver_np[0]*ctx->particleGrid.solver_np[1]*ctx->particleGrid.solver_np[2]) != ctx->npe) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"particle grids do not work npe (%D) != %D",ctx->npe,k);
   }
+  { /* solver_proc_idx */
+    int i,j,k;
+    ctx->particleGrid.solver_proc_idx[0] = -1;
+    for (i=0;i<ctx->particleGrid.solver_np[0] && ctx->particleGrid.solver_proc_idx[0] == -1;i++) {
+    for (j=0;j<ctx->particleGrid.solver_np[1] && ctx->particleGrid.solver_proc_idx[0] == -1;j++) {
+    for (k=0;k<ctx->particleGrid.solver_np[2] && ctx->particleGrid.solver_proc_idx[0] == -1;k++) {
+      if (X2_IDX(i,j,k,ctx->particleGrid.solver_np) == ctx->rank) {
+        ctx->particleGrid.solver_proc_idx[0] = i;
+        ctx->particleGrid.solver_proc_idx[1] = j;
+        ctx->particleGrid.solver_proc_idx[2] = k;
+      }
+    }}}
+    assert(ctx->particleGrid.solver_proc_idx[0] != -1);
+    assert(X2_IDX_X(s_rank,ctx->particleGrid.solver_np) == ctx->particleGrid.solver_proc_idx[0]);
+    assert(X2_IDX_Y(s_rank,ctx->particleGrid.solver_np) == ctx->particleGrid.solver_proc_idx[1]);
+    assert(X2_IDX_Z(s_rank,ctx->particleGrid.solver_np) == ctx->particleGrid.solver_proc_idx[2]);
+  }
   three = 3;
   ierr = PetscOptionsRealArray("-b0", "B_0 vector", "ex2.c", ctx->particleGrid.b0, &three, NULL);CHKERRQ(ierr);
   {
@@ -227,7 +271,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsInt("-npart_flux_tube", "Number of particles local (flux tube cell)", "ex2.c", ctx->npart_flux_tube, &ctx->npart_flux_tube, NULL);CHKERRQ(ierr);
   if (!chunkFlag) ctx->chunksize = X2_V_LEN*((ctx->npart_flux_tube/80+1)/X2_V_LEN+1); /* an intelegent message chunk size */
 
-  if (s_debug>0) PetscPrintf(ctx->wComm,"[%D] npe=%D; %D x %D x %D flux tube grid; mpi_send size (chunksize) has %d particles. %s.\n",ctx->rank,ctx->npe,ctx->particleGrid.solver_np[0],ctx->particleGrid.solver_np[1],ctx->particleGrid.solver_np[2],ctx->chunksize,
+  if (s_debug>0) PetscPrintf(ctx->wComm,"npe=%D; %D x %D x %D flux tube grid; mpi_send size (chunksize) has %d particles. %s.\n",ctx->npe,ctx->particleGrid.solver_np[0],ctx->particleGrid.solver_np[1],ctx->particleGrid.solver_np[2],ctx->chunksize,
 #ifdef X2_S_OF_V
 			     "Use struct of arrays"
 #else
@@ -237,7 +281,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
 
   ctx->collisionPeriod = 10000;
   ierr = PetscOptionsInt("-collisionPeriod", "Period between collision operators", "ex2.c", ctx->collisionPeriod, &ctx->collisionPeriod, NULL);CHKERRQ(ierr);
-  ctx->useElectrons = PETSC_TRUE; /* need neutral because periodic domain */
+  ctx->useElectrons = PETSC_FALSE; /* need neutral because periodic domain */
   ierr = PetscOptionsBool("-use_electrons", "Include electrons", "ex2.c", ctx->useElectrons, &ctx->useElectrons, NULL);CHKERRQ(ierr);
   ctx->max_vpar = 30.;
   ierr = PetscOptionsReal("-max_vpar", "Maximum parallel velocity", "ex2.c",ctx->max_vpar,&ctx->max_vpar,NULL);CHKERRQ(ierr);
@@ -284,17 +328,16 @@ static void prewrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *ppo
   if (ctx->rank==0) {
     X2Particle part;
     PetscReal r,z,phi;
-    PetscErrorCode ierr;
+    r   = ctx->particleGrid.dom_lo[0];
+    z   = ctx->particleGrid.dom_lo[1];
+    phi = ctx->particleGrid.dom_lo[2];
+    X2ParticleCreate(&part,1,r,z,phi,0.);
+    X2PListAdd(l,&part,ppos2);
     r   = ctx->particleGrid.dom_hi[0];
     z   = ctx->particleGrid.dom_hi[1];
     phi = ctx->particleGrid.dom_hi[2];
     X2ParticleCreate(&part,1,r,z,phi,0.);
-    ierr = X2PListAdd(l,&part,ppos1); assert(!ierr);
-    r   = ctx->particleGrid.dom_lo[0];
-    z   = ctx->particleGrid.dom_lo[1];
-    phi = ctx->particleGrid.dom_lo[2];
-    X2ParticleCreate(&part,2,r,z,phi,0.);
-    ierr = X2PListAdd(l,&part,ppos2); assert(!ierr);
+    X2PListAdd(l,&part,ppos1);
   }
 }
 static void postwrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *ppos2)
@@ -381,9 +424,10 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       }
       if (solver) {
         /* push, and collect x */
-        PetscReal l0 = ctx->particleGrid.dom_hi[0]-ctx->particleGrid.dom_lo[0];
-        PetscReal l1 = ctx->particleGrid.dom_hi[1]-ctx->particleGrid.dom_lo[1];
-        PetscReal l2 = ctx->particleGrid.dom_hi[2]-ctx->particleGrid.dom_lo[2];
+        PetscReal l[] = { ctx->particleGrid.dom_hi[0]-ctx->particleGrid.dom_lo[0],
+                          ctx->particleGrid.dom_hi[1]-ctx->particleGrid.dom_lo[1],
+                          ctx->particleGrid.dom_hi[2]-ctx->particleGrid.dom_lo[2]};
+        const PetscReal *dlo = ctx->particleGrid.dom_lo, *b0 = ctx->particleGrid.b0;
 #if defined(PETSC_USE_LOG)
         ierr = PetscLogEventBegin(ctx->events[8],0,0,0,0);CHKERRQ(ierr); /* timer on particle list */
 #endif
@@ -399,21 +443,16 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           if (irk>=0) {
 #ifdef X2_S_OF_V
             PetscReal r = dt*list->data_v.vpar[pos];
-            list->data_v.r[pos] += r*ctx->particleGrid.b0[0];
-            xx[0] = list->data_v.r[pos] = ctx->particleGrid.dom_lo[0] + fmod(list->data_v.r[pos]-ctx->particleGrid.dom_lo[0] + 20.*l0, l0);
-            list->data_v.z[pos] += r*ctx->particleGrid.b0[1];
-            xx[1] = list->data_v.z[pos] = ctx->particleGrid.dom_lo[1] + fmod(list->data_v.z[pos]-ctx->particleGrid.dom_lo[1] + 20.*l1, l1);
-            list->data_v.phi[pos] += r*ctx->particleGrid.b0[2];
-            xx[2] = list->data_v.phi[pos] = ctx->particleGrid.dom_lo[2] + fmod(list->data_v.phi[pos]-ctx->particleGrid.dom_lo[2] + 20.*l2, l2);
+            for(ii=0;ii<3;ii++) {
+              list->data_v.x[ii][pos] += r*b0[ii];
+              xx[ii] = list->data_v.x[ii][pos] = dlo[ii] + fmod(list->data_v.x[ii][pos] - dlo[ii] + 20.*l[ii], l[ii]);
+            }
 #else
-            X2Particle *ppart = &list->data[pos];
-            PetscReal r = dt*ppart->vpar;
-            ppart->r += r*ctx->particleGrid.b0[0];
-            xx[0] = ppart->r = ctx->particleGrid.dom_lo[0] + fmod(ppart->r-ctx->particleGrid.dom_lo[0] + 10.*l0, l0);
-            ppart->z += r*ctx->particleGrid.b0[1];
-            xx[1] = ppart->z = ctx->particleGrid.dom_lo[1] + fmod(ppart->z-ctx->particleGrid.dom_lo[1] + 10.*l1, l1);
-            ppart->phi += r*ctx->particleGrid.b0[2];
-            xx[2] = ppart->phi = ctx->particleGrid.dom_lo[2] + fmod(ppart->phi-ctx->particleGrid.dom_lo[2] + 10.*l2, l2);
+            PetscReal r = dt*list->data[pos].vpar;
+            for(ii=0;ii<3;ii++) {
+              list->data[pos].x[ii] += r*b0[ii];
+              xx[ii] = list->data[pos].x[ii] = dlo[ii] +  fmod(list->data[pos].x[ii]   - dlo[ii] + 10.*l[ii], l[ii]);
+            }
 #endif
           } else {
 #ifdef X2_S_OF_V
@@ -449,7 +488,8 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         if (solver) {
           xx = xx0 + pos*3;
           /* see if need communication? no: add density, yes: add to communication list */
-          ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, ctx->wComm, &pe, &idx);CHKERRQ(ierr);
+          ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, ctx, &pe, &idx);
+          CHKERRQ(ierr);
         } else {
           ierr = X2GridFluxTubeLocatePoint(grid, part.x, &pe, &idx);CHKERRQ(ierr);
         }
@@ -760,7 +800,7 @@ int main(int argc, char **argv)
   dmpi->debug = s_debug;
   /* setup solver grid */
   {
-    PetscInt cells[3] = {1, 1, 1}; /* coarse mesh is one cell; refine from there */
+    PetscInt cells[3] = {4, 4, 4}; /* coarse mesh is one cell; refine from there */
     PetscInt dimEmbed, i;
     PetscInt nCoords;
     PetscScalar *coords;
@@ -847,8 +887,8 @@ int main(int argc, char **argv)
       SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "No cells");
     }
     s_fluxtubeelem = cEnd/2;
-    if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] %D equations on %D processors, %D local cells, (element %D used for flux tube list)\n",
-                                   ctx.rank,n,ctx.npe,cEnd,s_fluxtubeelem);
+    if (dmpi->debug>0) PetscPrintf(ctx.wComm,"%D equations on %D processors, %D local cells, (element %D used for flux tube list)\n",
+                                   n,ctx.npe,cEnd,s_fluxtubeelem);
   }
 
   /* create SNESS */

@@ -17,31 +17,6 @@ static char help[] = "X2: A partical in cell code for tokamak plasmas using PICe
 PetscLogEvent s_events[22];
 static const int diag_event_id = sizeof(s_events)/sizeof(s_events[0])-1;
 
-#include "x2_particle_array.h"
-#include "x2_physics.h"
-
-#define X2_WALL_ARRAY_MAX 68 /* ITER file is 67 */
-static float s_wallVtx[X2_WALL_ARRAY_MAX][2];
-static int s_numWallPtx;
-static int s_numQuads;
-static int s_quad_vertex[X2_WALL_ARRAY_MAX][9];
-static PetscInt s_debug;
-static PetscInt s_rank;
-static int s_fluxtubeelem=5000;
-static PetscReal s_rminor_inflate = 1.7;
-#define X2PROCLISTSIZE 256
-typedef struct {
-  /* particle grid sizes */
-  PetscInt npradius;
-  PetscInt nptheta;
-  PetscInt npphi; /* toroidal direction */
-  /* tokamak geometry  */
-  PetscReal  rMajor;
-  PetscReal  rMinor;
-  PetscInt   numMajor; /* number of cells per major circle in the torus */
-  PetscReal  innerMult; /* (0,1) percent of the total radius taken by the inner square */
-} X2GridParticle;
-
 /* coordinate transformation - simple radial coordinates. Not really cylindrical as r_Minor is radius from plane axis */
 #define cylindricalToPolPlane(__rMinor,__Z,__psi,__theta) { \
     __psi = sqrt((__rMinor)*(__rMinor) + (__Z)*(__Z));	    \
@@ -66,6 +41,35 @@ typedef struct {
  __cart[2] = __Z;				\
 }
 
+#include "x2_particle_array.h"
+#include "x2_physics.h"
+
+typedef enum {X2_ITER,X2_TORUS,X2_BOXTORUS} runType;
+typedef struct {
+  /* particle grid sizes */
+  PetscInt npradius;
+  PetscInt nptheta;
+  PetscInt npphi; /* toroidal direction */
+  /* tokamak geometry  */
+  PetscReal  rMajor;
+  PetscReal  rMinor;
+  PetscInt   numMajor; /* number of cells per major circle in the torus */
+  PetscReal  innerMult; /* (0,1) percent of the total radius taken by the inner square */
+} X2GridParticle;
+
+#include "x2_ctx.h"
+
+#define X2_WALL_ARRAY_MAX 68 /* ITER file is 67 */
+static float s_wallVtx[X2_WALL_ARRAY_MAX][2];
+static int s_numWallPtx;
+static int s_numQuads;
+static int s_quad_vertex[X2_WALL_ARRAY_MAX][9];
+static PetscInt s_debug;
+static PetscInt s_rank;
+static int s_fluxtubeelem=5000;
+static PetscReal s_rminor_inflate = 1.7;
+#define X2PROCLISTSIZE 256
+
 /* X2GridSolverLocatePoint: find processor and element in solver grid that this point is in
     Input:
      - dm: solver dm
@@ -83,7 +87,7 @@ typedef struct {
 */
 #undef __FUNCT__
 #define __FUNCT__ "X2GridSolverLocatePoint"
-PetscErrorCode X2GridSolverLocatePoint(DM dm, PetscReal x[], MPI_Comm comm, PetscMPIInt *pe, PetscInt *elemID)
+PetscErrorCode X2GridSolverLocatePoint(DM dm, PetscReal x[], const void *ctx_dum, PetscMPIInt *pe, PetscInt *elemID)
 {
   PetscSF        cellSF = NULL;
   Vec            coords;
@@ -120,7 +124,6 @@ PetscErrorCode X2GridSolverLocatePoint(DM dm, PetscReal x[], MPI_Comm comm, Pets
   PetscFunctionReturn(0);
 }
 
-typedef enum {X2_ITER,X2_TORUS,X2_BOXTORUS} runType;
 #include "x2_common.h"
 
 /*
@@ -541,7 +544,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         if (solver) {
           xx = xx0 + pos*3;
           /* see if need communication? no: add density, yes: add to communication list */
-          ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, ctx->wComm, &pe, &idx);CHKERRQ(ierr);
+          ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, ctx, &pe, &idx);CHKERRQ(ierr);
         } else {
           PetscReal r = part.r - rmaj, x[3];
           cylindricalToPolPlane( r, part.z, x[0], x[1]);
