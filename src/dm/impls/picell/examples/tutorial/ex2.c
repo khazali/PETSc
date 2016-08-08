@@ -41,6 +41,7 @@ typedef enum {X2_DUMMY} runType;
 #include "x2_ctx.h"
 
 #define X2_IDX(i,j,k,np)  (np[1]*np[2]*i + np[2]*j + k)
+#define X2_IDX3(ii,np)  (np[1]*np[2]*ii[0] + np[2]*ii[1] + ii[2])
 #define X2_IDX_X(rank,np) (rank/(np[1]*np[2]))
 #define X2_IDX_Y(rank,np) (rank%(np[1]*np[2])/np[2])
 #define X2_IDX_Z(rank,np) (rank%np[2])
@@ -395,10 +396,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       X2PList *list = &ctx->partlists[isp][elid];
       if (X2PListSize(list)==0) continue;
       origNlocal += X2PListSize(list);
-
       /* get Cartesian coordinates (not used for flux tube move) */
+      ierr = X2PListCompress(list);CHKERRQ(ierr); /* allows for simpler vectorization */
       if (solver) {
-        ierr = X2PListCompress(list);CHKERRQ(ierr); /* allows for simpler vectorization */
 #if defined(PETSC_USE_LOG)
         ierr = PetscLogEventBegin(ctx->events[7],0,0,0,0);CHKERRQ(ierr); /* timer on particle list */
 #endif
@@ -486,7 +486,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       do {
         /* get pe & element id */
         if (solver) {
-          xx = xx0 + pos*3;
+          xx = xx0 + pos*3; /* assumes compressed! */
           /* see if need communication? no: add density, yes: add to communication list */
           ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, ctx, &pe, &idx);
           CHKERRQ(ierr);
@@ -553,8 +553,10 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       ierr = PetscLogEventEnd(ctx->events[5],0,0,0,0);CHKERRQ(ierr);
 #endif
     } /* element list */
+
     /* finish sends and receive new particles for this species */
     ierr = shiftParticles(ctx, sendListTable, irk, &nslist, ctx->partlists[isp], slist, tag+isp, solver);CHKERRQ(ierr);
+
 #ifdef PETSC_USE_DEBUG
     { /* debug */
       PetscMPIInt flag,sz; MPI_Status  status; MPI_Datatype mtype;
@@ -592,10 +594,14 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         /* do { */
         for (pos=0 ; pos < list->vec_top ; pos++, xx += 3, vv++) { /* this has holes, but few and zero weight - vectorizable */
 #ifdef X2_S_OF_V
-          xx[0]=list->data_v.r[pos], xx[1]=list->data_v.z[pos], xx[2]=list->data_v.phi[pos];
+          xx[0]=list->data_v.r[pos];
+          xx[1]=list->data_v.z[pos];
+          xx[2]=list->data_v.phi[pos];
           *vv = list->data_v.w0[pos]*ctx->species[isp].charge;
 #else
-          xx[0]=list->data[pos].r, xx[1]=list->data[pos].z, xx[2]=list->data[pos].phi;
+          xx[0]=list->data[pos].r;
+          xx[1]=list->data[pos].z;
+          xx[2]=list->data[pos].phi;
           *vv = list->data[pos].w0*ctx->species[isp].charge;
 #endif
           ndeposit++;
@@ -800,13 +806,12 @@ int main(int argc, char **argv)
   dmpi->debug = s_debug;
   /* setup solver grid */
   {
-    PetscInt cells[3] = {4, 4, 4}; /* coarse mesh is one cell; refine from there */
     PetscInt dimEmbed, i;
     PetscInt nCoords;
     PetscScalar *coords;
     Vec coordinates;
     dim = 3;
-    ierr = DMPlexCreateHexBoxMesh(ctx.wComm, dim, cells, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, &dmpi->dmplex);CHKERRQ(ierr);
+    ierr = DMPlexCreateHexBoxMesh(ctx.wComm, dim, ctx.particleGrid.solver_np, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, &dmpi->dmplex);CHKERRQ(ierr);
     /* set domain size */
     ierr = DMGetCoordinatesLocal(dmpi->dmplex,&coordinates);CHKERRQ(ierr);
     ierr = DMGetCoordinateDim(dmpi->dmplex,&dimEmbed);CHKERRQ(ierr);
@@ -829,7 +834,7 @@ int main(int argc, char **argv)
   ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);CHKERRQ(ierr);
   ctx.BCFuncs[0] = zero;
   /* add BCs */
-  {
+  if (1) {
     PetscInt id = 1;
     ierr = DMCreateLabel(dmpi->dmplex, "boundary");CHKERRQ(ierr);
     ierr = DMGetLabel(dmpi->dmplex, "boundary", &label);CHKERRQ(ierr);
@@ -840,7 +845,37 @@ int main(int argc, char **argv)
   /* setup DM */
   dmpi->dmgrid = dmpi->dmplex;
   dmpi->dmplex = 0; /* turn off for setup */
-  ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr); /* refinement done here */
+  /* set a simple partitioner */
+  {
+    PetscInt  *sizes = NULL;
+    PetscInt  *points = NULL;
+    PetscPartitioner part;
+    if (!ctx.rank) {
+      PetscInt cEnd,c,*cs,*cp,ii[3],i;
+      const PetscReal *dlo = ctx.particleGrid.dom_lo, *dhi = ctx.particleGrid.dom_hi;
+      const PetscInt *np = ctx.particleGrid.solver_np;
+      ierr = DMPlexGetHeightStratum(dmpi->dmgrid, 0, NULL, &cEnd);CHKERRQ(ierr);
+      if (cEnd && cEnd!=ctx.npe) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_USER, "cEnd=%d != %d",cEnd,ctx.npe);
+      if (cEnd!=ctx.npe) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_USER, "cEnd=%d != %d",cEnd,ctx.npe);
+      ierr = PetscMalloc2(ctx.npe, &sizes, ctx.npe, &points);CHKERRQ(ierr);
+      for (c=0,cs=sizes,cp=points;c<ctx.npe;c++,cs++,cp++) {
+        PetscReal x[3];
+        *cs = 1; // points[c] = c;
+        ierr = DMPlexComputeCellGeometryFVM(dmpi->dmgrid, c, NULL, x, NULL);CHKERRQ(ierr);
+        for(i=0;i<3;i++) {
+          ii[i] = (PetscInt)((x[i]-dlo[i])/(dhi[i]-dlo[i])*(double)np[i]);
+        }
+        *cp = X2_IDX3(ii,np);
+        PetscPrintf(PETSC_COMM_SELF,"[%D]%s put cell %d on proc %d\n",s_rank,__FUNCT__,c,*cp);
+      }
+    }
+    ierr = DMPlexGetPartitioner(dmpi->dmgrid, &part);CHKERRQ(ierr);
+    ierr = PetscPartitionerSetType(part, PETSCPARTITIONERSHELL);CHKERRQ(ierr);
+    ierr = PetscPartitionerShellSetPartition(part, ctx.npe, sizes, points);CHKERRQ(ierr);
+    if (sizes) {
+      ierr = PetscFree2(sizes,points);CHKERRQ(ierr);
+    }
+  }
   {
     const char *prefix;
     ierr = PetscObjectGetOptionsPrefix((PetscObject)dmpi->dmgrid,&prefix);CHKERRQ(ierr);
@@ -849,10 +884,11 @@ int main(int argc, char **argv)
       ierr = PetscObjectSetOptionsPrefix((PetscObject)dmpi->dmplex,prefix);CHKERRQ(ierr);
       ierr = DMDestroy(&dmpi->dmgrid);CHKERRQ(ierr);
       dmpi->dmgrid = dmpi->dmplex;
-
     }
     else dmpi->dmplex = dmpi->dmgrid;
   }
+  /* set from options: refinement done here */
+  ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr);
   /* setup Discretization */
   ierr = DMGetDimension(dmpi->dmgrid, &dim);CHKERRQ(ierr);
   ierr = PetscFECreateDefault(dmpi->dmgrid, dim, 1, PETSC_FALSE, NULL, 1, &dmpi->fem);CHKERRQ(ierr);
@@ -932,7 +968,8 @@ int main(int argc, char **argv)
   }
 #endif
   /* move back to solver space and make density vector */
-  ierr = processParticles(&ctx, 0.0, ctx.sendListTable, 99, 0, -1, PETSC_TRUE);CHKERRQ(ierr);
+  ierr = processParticles(&ctx, 0.0, ctx.sendListTable, 99, -1, -1, PETSC_TRUE);CHKERRQ(ierr);
+
   /* setup solver, dummy solve to really setup */
   {
     KSP ksp; PetscReal krtol,katol,kdtol; PetscInt kmit,one=1;
@@ -950,7 +987,6 @@ int main(int argc, char **argv)
   ierr = go( &ctx );CHKERRQ(ierr);
 
   if (dmpi->debug>3) {
-    /* ierr = MatView(J,PETSC_VIEWER_MATLAB_WORLD);CHKERRQ(ierr); */
     PetscViewer viewer;
     PetscViewerASCIIOpen(ctx.wComm, "Amat.m", &viewer);
     PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);

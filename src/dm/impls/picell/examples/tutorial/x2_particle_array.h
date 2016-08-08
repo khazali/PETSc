@@ -13,7 +13,7 @@ typedef struct { /* ptl_type */
   PetscReal f0;
   long long gid; /* diagnostic, should be size of double */
 } X2Particle;
-#define X2_V_LEN 16
+#define X2_V_LEN 1
 #define X2_S_OF_V
 typedef struct { /* ptl_type */
   /* phase (4D) */

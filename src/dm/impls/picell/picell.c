@@ -173,7 +173,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec src, PetscInt cell, Vec l
 {
   DM_PICell    *dmpi = (DM_PICell *) dm->data;
   Vec          refCoord;
-  PetscScalar  *x, *xi, *elemVec;
+  PetscScalar  *rho, *xx, *xi, *elemVec;
   PetscReal    *B = NULL;
   PetscReal    v0[3], J[9], invJ[9], detJ;
   PetscInt     totDim,p,N,dim,b;
@@ -191,14 +191,14 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec src, PetscInt cell, Vec l
   ierr = VecGetLocalSize(coord, &N);CHKERRQ(ierr);
   if (N%dim) SETERRQ2(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_SUP, "N=%D dim=%D",N,dim);
   N   /= dim;
-  ierr = VecGetArray(coord, &x);CHKERRQ(ierr);
+  ierr = VecGetArray(coord, &xx);CHKERRQ(ierr);
   ierr = VecGetArray(refCoord, &xi);CHKERRQ(ierr);
   /* Affine approximation for reference coordinates */
   ierr = DMPlexComputeCellGeometryFEM(dmpi->dmplex, cell, dmpi->fem, v0, J, invJ, &detJ);CHKERRQ(ierr);
   for (p = 0; p < N; ++p) {
-    CoordinatesRealToRef(dim, dim, v0, invJ, &x[p*dim], &xi[p*dim]);
+    CoordinatesRealToRef(dim, dim, v0, invJ, &xx[p*dim], &xi[p*dim]);
   }
-  ierr = VecRestoreArray(coord, &x);CHKERRQ(ierr);
+  ierr = VecRestoreArray(coord, &xx);CHKERRQ(ierr);
   ierr = PetscFEGetTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
   ierr = VecRestoreArray(refCoord, &xi);CHKERRQ(ierr);
   ierr = VecDestroy(&refCoord);CHKERRQ(ierr);
@@ -206,10 +206,10 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec src, PetscInt cell, Vec l
   ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
   ierr = DMGetWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscMemzero(elemVec, totDim * sizeof(PetscScalar));CHKERRQ(ierr);
-  ierr = VecGetArray(src, &x);CHKERRQ(ierr);
+  ierr = VecGetArray(src, &rho);CHKERRQ(ierr);
   for (b = 0; b < totDim; ++b) {
     for (p = 0; p < N; ++p) {
-      elemVec[b] += B[b*N + p] * x[p];
+      elemVec[b] += B[b*N + p] * rho[p];
 /* #ifdef PETSC_USE_DEBUG */
 /*       if (B[b*N + p] < -.01) { */
 /*         PetscPrintf(PETSC_COMM_SELF,"DMPICellAddSource ERROR elem %d, p=%d, add v=(%g,%g,%g,%g,%g,%g,%g,%g)\n",cell,p,B[b*N + 0],B[b*N + 1],B[b*N + 2],B[b*N + 3],B[b*N + 4],B[b*N + 5],B[b*N + 6],B[b*N + 7]); */
@@ -218,7 +218,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec src, PetscInt cell, Vec l
 /* #endif */
     }
   }
-  ierr = VecRestoreArray(src, &x);CHKERRQ(ierr);
+  ierr = VecRestoreArray(src, &rho);CHKERRQ(ierr);
   /* PetscPrintf(PETSC_COMM_SELF,"\t\t\t\tDMPICellAddSource elem %d, add v=(%g,%g,%g,%g,%g,%g,%g,%g)\n",cell,elemVec[0],elemVec[1],elemVec[2],elemVec[3],elemVec[4],elemVec[5],elemVec[6],elemVec[7]); */
   ierr = DMPlexVecSetClosure(dmpi->dmplex, NULL, locrho, cell, elemVec, ADD_VALUES);CHKERRQ(ierr);
   ierr = DMRestoreWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
