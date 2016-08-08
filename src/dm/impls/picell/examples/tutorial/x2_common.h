@@ -108,7 +108,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
 	if (pp->gid > 0) {
           PetscInt elid;
           if (solver) {
-             ierr = X2GridSolverLocatePoint(dmpi->dmplex, pp->x, ctx, &pe, &elid);CHKERRQ(ierr);
+             ierr = X2GridSolverLocatePoint(dmpi->dmgrid, pp->x, ctx, &pe, &elid);CHKERRQ(ierr);
             if (pe!=ctx->rank) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not local (pe=%D)",pe);
           }
           else elid = s_fluxtubeelem; /* non-solvers just put in element 0's list */
@@ -198,7 +198,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
 	  for (jj=0;jj<sz;jj++) {
             PetscInt elid;
             if (solver) {
-              ierr = X2GridSolverLocatePoint(dmpi->dmplex, data[jj].x, ctx, &pe, &elid);CHKERRQ(ierr);
+              ierr = X2GridSolverLocatePoint(dmpi->dmgrid, data[jj].x, ctx, &pe, &elid);CHKERRQ(ierr);
               if (pe!=ctx->rank) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not local (pe=%D)",pe);
             }
             else elid = s_fluxtubeelem; /* non-solvers just put in element 0's list */

@@ -11,13 +11,13 @@ PetscLogEvent DMPICell_Solve, DMPICell_SetUp, DMPICell_AddSource, DMPICell_Locat
 PETSC_EXTERN PetscErrorCode DMPlexView_HDF5(DM, PetscViewer);
 #undef __FUNCT__
 #define __FUNCT__ "DMView_PICell"
-PetscErrorCode DMView_PICell(DM a_dm, PetscViewer viewer)
+PetscErrorCode DMView_PICell(DM dm, PetscViewer viewer)
 {
   PetscBool      iascii, ishdf5, isvtk;
   PetscErrorCode ierr;
-  DM_PICell      *dmpi = (DM_PICell *) a_dm->data;
+  DM_PICell      *dmpi = (DM_PICell *) dm->data;
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(a_dm, DM_CLASSID, 1);
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidHeaderSpecific(viewer, PETSC_VIEWER_CLASSID, 2);
   ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERASCII, &iascii);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERVTK,   &isvtk);CHKERRQ(ierr);
@@ -55,8 +55,6 @@ PetscErrorCode  DMSetFromOptions_PICell(PetscOptionItems *PetscOptionsObject,DM 
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   ierr = PetscOptionsHead(PetscOptionsObject,"DMPICell Options");CHKERRQ(ierr);
 
-  /* ierr = PetscObjectGetOptionsPrefix((PetscObject)dm,&prefix);CHKERRQ(ierr); */
-  /* ierr = PetscObjectSetOptionsPrefix((PetscObject)dmpi->dmgrid,prefix);CHKERRQ(ierr); */
   if (!dmpi->dmgrid) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "dmgrid not created");
   ierr = DMSetFromOptions(dmpi->dmgrid);CHKERRQ(ierr);
   if (dmpi->dmplex && dmpi->dmplex != dmpi->dmgrid) {
@@ -105,7 +103,7 @@ PetscErrorCode DMDestroy_PICell(DM dm)
   PetscFunctionBegin;
   ierr = VecDestroy(&dmpi->rho);CHKERRQ(ierr);
   ierr = VecDestroy(&dmpi->phi);CHKERRQ(ierr);
-  if (dmpi->dmplex != dmpi->dmgrid) {
+  if (dmpi->dmplex && dmpi->dmplex != dmpi->dmgrid) {
     ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
   }
   ierr = DMDestroy(&dmpi->dmgrid);CHKERRQ(ierr);
@@ -167,13 +165,13 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 }
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellAddSource"
-/* add densities 'src' at 'coord' to local density vector 'locrho' */
+/* add densities 'densities' at 'coord' to density vector 'rho' */
 /* use dmplex here and not dmgrid (p4est) */
-PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec src, PetscInt cell, Vec locrho)
+PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell, Vec rho)
 {
   DM_PICell    *dmpi = (DM_PICell *) dm->data;
   Vec          refCoord;
-  PetscScalar  *rho, *xx, *xi, *elemVec;
+  PetscScalar  *lrho, *xx, *xi, *elemVec;
   PetscReal    *B = NULL;
   PetscReal    v0[3], J[9], invJ[9], detJ;
   PetscInt     totDim,p,N,dim,b;
@@ -183,8 +181,8 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec src, PetscInt cell, Vec l
 
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidHeaderSpecific(coord, VEC_CLASSID, 2);
-  PetscValidHeaderSpecific(src, VEC_CLASSID, 3);
-  PetscValidHeaderSpecific(locrho, VEC_CLASSID, 5);
+  PetscValidHeaderSpecific(densities, VEC_CLASSID, 3);
+  PetscValidHeaderSpecific(rho, VEC_CLASSID, 5);
   ierr = PetscLogEventBegin(DMPICell_AddSource,dm,0,0,0);CHKERRQ(ierr);
   ierr = VecDuplicate(coord, &refCoord);CHKERRQ(ierr);
   ierr = VecGetBlockSize(coord, &dim);CHKERRQ(ierr);
@@ -206,21 +204,20 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec src, PetscInt cell, Vec l
   ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
   ierr = DMGetWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscMemzero(elemVec, totDim * sizeof(PetscScalar));CHKERRQ(ierr);
-  ierr = VecGetArray(src, &rho);CHKERRQ(ierr);
+  ierr = VecGetArray(densities, &lrho);CHKERRQ(ierr);
   for (b = 0; b < totDim; ++b) {
     for (p = 0; p < N; ++p) {
-      elemVec[b] += B[b*N + p] * rho[p];
-/* #ifdef PETSC_USE_DEBUG */
-/*       if (B[b*N + p] < -.01) { */
-/*         PetscPrintf(PETSC_COMM_SELF,"DMPICellAddSource ERROR elem %d, p=%d, add v=(%g,%g,%g,%g,%g,%g,%g,%g)\n",cell,p,B[b*N + 0],B[b*N + 1],B[b*N + 2],B[b*N + 3],B[b*N + 4],B[b*N + 5],B[b*N + 6],B[b*N + 7]); */
-/*         SETERRQ(PetscObjectComm((PetscObject) dmpi->dmgrid), PETSC_ERR_SUP, "negative interpolant"); */
-/*       } */
-/* #endif */
+      elemVec[b] += B[b*N + p] * lrho[p];
+#ifdef PETSC_USE_DEBUG
+      if (B[b*N + p] < -.01) {
+        PetscPrintf(PETSC_COMM_SELF,"DMPICellAddSource ERROR elem %d, p=%d, add v=(%g,%g,%g,%g,%g,%g,%g,%g)\n",cell,p,B[b*N + 0],B[b*N + 1],B[b*N + 2],B[b*N + 3],B[b*N + 4],B[b*N + 5],B[b*N + 6],B[b*N + 7]);
+        SETERRQ(PetscObjectComm((PetscObject) dmpi->dmgrid), PETSC_ERR_SUP, "negative interpolant");
+      }
+#endif
     }
   }
-  ierr = VecRestoreArray(src, &rho);CHKERRQ(ierr);
-  /* PetscPrintf(PETSC_COMM_SELF,"\t\t\t\tDMPICellAddSource elem %d, add v=(%g,%g,%g,%g,%g,%g,%g,%g)\n",cell,elemVec[0],elemVec[1],elemVec[2],elemVec[3],elemVec[4],elemVec[5],elemVec[6],elemVec[7]); */
-  ierr = DMPlexVecSetClosure(dmpi->dmplex, NULL, locrho, cell, elemVec, ADD_VALUES);CHKERRQ(ierr);
+  ierr = VecRestoreArray(densities, &lrho);CHKERRQ(ierr);
+  ierr = DMPlexVecSetClosure(dmpi->dmplex, NULL, rho, cell, elemVec, ADD_VALUES);CHKERRQ(ierr);
   ierr = DMRestoreWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscFERestoreTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(DMPICell_AddSource,dm,0,0,0);CHKERRQ(ierr);
@@ -231,22 +228,19 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec src, PetscInt cell, Vec l
 /* get gradient at point 'coord' and put it in D vector 'jet' */
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellGetJet"
-PetscErrorCode  DMPICellGetJet(DM a_dm, Vec coord, PetscInt order, Vec jet, PetscInt cell)
+PetscErrorCode  DMPICellGetJet(DM dm, Vec coord, PetscInt order, Vec jet, PetscInt cell)
 {
-  DM_PICell      *dmpi = (DM_PICell *) a_dm->data;
+  /* DM_PICell      *dmpi = (DM_PICell *) dm->data; */
   PetscErrorCode ierr;
   PetscScalar rone=1.;
-  DM dm;
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(a_dm, DM_CLASSID, 1);
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidHeaderSpecific(coord, VEC_CLASSID, 2);
   PetscValidHeaderSpecific(jet, VEC_CLASSID, 4);
   /* ierr = PetscLogEventBegin(DMPICell_GetJet,a_dm,0,0,0);CHKERRQ(ierr); */
 
-  ierr = VecSet(jet,rone);CHKERRQ(ierr); /* dummy grad now */
-
   /* Matt */
-  dm = dmpi->dmgrid; /* the DM for the mesh (not really a plex!) */
+  ierr = VecSet(jet,rone);CHKERRQ(ierr); /* dummy grad now */
 
   /* ierr = PetscLogEventEnd(DMPICell_GetJet,a_dm,0,0,0);CHKERRQ(ierr); */
 
