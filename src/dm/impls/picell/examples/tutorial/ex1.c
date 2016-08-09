@@ -89,14 +89,9 @@ static PetscReal s_rminor_inflate = 1.7;
 #define __FUNCT__ "X2GridSolverLocatePoint"
 PetscErrorCode X2GridSolverLocatePoint(DM dm, PetscReal x[], const void *ctx_dum, PetscMPIInt *pe, PetscInt *elemID)
 {
-  PetscSF        cellSF = NULL;
-  Vec            coords;
-  const PetscSFNode *foundCells;
-  PetscInt       dim;
-  PetscMPIInt    npe,rank;
-  PetscReal      xx[3];
   PetscErrorCode ierr;
-
+  PetscBool isForest;
+  PetscMPIInt    npe,rank;
   PetscFunctionBeginUser;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidPointer(x, 2);
@@ -104,20 +99,33 @@ PetscErrorCode X2GridSolverLocatePoint(DM dm, PetscReal x[], const void *ctx_dum
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventBegin(s_events[9],0,0,0,0);CHKERRQ(ierr);
 #endif
-  cylindricalToCart(x[0], x[1], x[2], xx); /* get into Cartesion coords */
-  ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
-  ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, xx, &coords);CHKERRQ(ierr);
-  ierr = DMLocatePoints(dm, coords, DM_POINTLOCATION_NONE, &cellSF);CHKERRQ(ierr);
-  ierr = VecDestroy(&coords);CHKERRQ(ierr);
-  ierr = PetscSFGetGraph(cellSF, NULL, NULL, NULL, &foundCells);CHKERRQ(ierr);
-  *elemID = foundCells[0].index;
-  /* *pe = foundCells[0].rank; */
-  ierr = MPI_Comm_size(PetscObjectComm((PetscObject) dm), &npe);CHKERRQ(ierr);
-  if (*elemID == -1 && npe==1) SETERRQ6(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "We are not supporting out of domain points. cylindrical: r=%g z=%g phi=%g.  x=%g y=%g z=%g",x[0],x[1],x[2],xx[0],xx[1],xx[2]);
-  else if (*elemID == -1) *elemID = 0; /* not working in parallel */
-  ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
-  *pe = rank; /* dummy - no move until have global search */
-  ierr = PetscSFDestroy(&cellSF);CHKERRQ(ierr);
+  ierr = DMIsForest(dm,&isForest);CHKERRQ(ierr);
+  if (isForest) {
+    ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
+    *pe = rank;
+    *elemID = 0;
+    SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_USER, "P4est does not supporting locate\n");
+  } else {
+    PetscSF        cellSF = NULL;
+    Vec            coords;
+    const PetscSFNode *foundCells;
+    PetscInt       dim;
+    PetscReal      xx[3];
+    cylindricalToCart(x[0], x[1], x[2], xx); /* get into Cartesion coords */
+    ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
+    ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, xx, &coords);CHKERRQ(ierr);
+    ierr = DMLocatePoints(dm, coords, DM_POINTLOCATION_NONE, &cellSF);CHKERRQ(ierr);
+    ierr = VecDestroy(&coords);CHKERRQ(ierr);
+    ierr = PetscSFGetGraph(cellSF, NULL, NULL, NULL, &foundCells);CHKERRQ(ierr);
+    *elemID = foundCells[0].index;
+    /* *pe = foundCells[0].rank; */
+    ierr = MPI_Comm_size(PetscObjectComm((PetscObject) dm), &npe);CHKERRQ(ierr);
+    if (*elemID == -1 && npe==1) SETERRQ6(PetscObjectComm((PetscObject) dm), PETSC_ERR_USER, "We are not supporting out of domain points. cylindrical: r=%g z=%g phi=%g.  x=%g y=%g z=%g",x[0],x[1],x[2],xx[0],xx[1],xx[2]);
+    else if (*elemID == -1) *elemID = 0; /* not working in parallel */
+    ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
+    *pe = rank; /* dummy - no move until have global search */
+    ierr = PetscSFDestroy(&cellSF);CHKERRQ(ierr);
+  }
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventEnd(s_events[9],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -174,10 +182,10 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->chunksize = X2_V_LEN; /* too small */
   ierr = PetscOptionsInt("-chunksize", "Size of particle list to chunk sends", "ex1.c", ctx->chunksize, &ctx->chunksize,&chunkFlag);CHKERRQ(ierr);
   if (chunkFlag) ctx->chunksize = X2_V_LEN*(ctx->chunksize/X2_V_LEN);
-  if (ctx->chunksize<=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB," invalid chuck size = %D",ctx->chunksize);
+  if (ctx->chunksize<=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," invalid chuck size = %D",ctx->chunksize);
   ctx->bsp_chunksize = 0; /* 32768; */
   ierr = PetscOptionsInt("-bsp_chunksize", "Size of chucks for PETSc's TwoSide communication (0 to use 'nonblocking consensus')", "ex1.c", ctx->bsp_chunksize, &ctx->bsp_chunksize, NULL);CHKERRQ(ierr);
-  if (ctx->bsp_chunksize<0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB," invalid BSP chuck size = %D",ctx->bsp_chunksize);
+  if (ctx->bsp_chunksize<0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," invalid BSP chuck size = %D",ctx->bsp_chunksize);
   ctx->tablesize = ((ctx->npe>100) ? 100 + (ctx->npe-100)/10 : ctx->npe) + 1; /* hash table size of processors to send to */
   ierr = PetscOptionsInt("-proc_send_table_size", "Size of hash table proc->send_list", "ex1.c",ctx->tablesize, &ctx->tablesize, NULL);CHKERRQ(ierr);
 
@@ -209,7 +217,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsInt("-nptheta_particles", "Number of theta cells for particle mesh", "ex1.c", ctx->particleGrid.nptheta, &ctx->particleGrid.nptheta, &thetaFlag);CHKERRQ(ierr);
   ctx->npe_particlePlane = -1;
   if (ctx->particleGrid.npphi*ctx->particleGrid.npradius*ctx->particleGrid.nptheta != ctx->npe) { /* recover from inconsistant grid/procs */
-    if (thetaFlag && radFlag && phiFlag) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"over constrained number of particle processes npe (%D) != %D",ctx->npe,ctx->particleGrid.npphi*ctx->particleGrid.npradius*ctx->particleGrid.nptheta);
+    if (thetaFlag && radFlag && phiFlag) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"over constrained number of particle processes npe (%D) != %D",ctx->npe,ctx->particleGrid.npphi*ctx->particleGrid.npradius*ctx->particleGrid.nptheta);
 
     if (!thetaFlag && radFlag && phiFlag) ctx->particleGrid.nptheta = ctx->npe/(ctx->particleGrid.npphi*ctx->particleGrid.npradius);
     else if (thetaFlag && !radFlag && phiFlag) ctx->particleGrid.npradius = ctx->npe/(ctx->particleGrid.npphi*ctx->particleGrid.nptheta);
@@ -232,18 +240,18 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
       else {
       }
     }
-    if (ctx->particleGrid.npphi*ctx->particleGrid.npradius*ctx->particleGrid.nptheta != ctx->npe) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"particle grids do not work npe (%D) != %D",ctx->npe,ctx->particleGrid.npphi*ctx->particleGrid.npradius*ctx->particleGrid.nptheta);
+    if (ctx->particleGrid.npphi*ctx->particleGrid.npradius*ctx->particleGrid.nptheta != ctx->npe) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"particle grids do not work npe (%D) != %D",ctx->npe,ctx->particleGrid.npphi*ctx->particleGrid.npradius*ctx->particleGrid.nptheta);
   }
 
   /* particle grids: <= npe, <= num solver planes */
-  if (ctx->npe < ctx->particleGrid.npphi) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"num particle planes npphi (%D) > npe (%D)",ctx->particleGrid.npphi,ctx->npe);
-  if (ctx->npe%ctx->particleGrid.npphi) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"np=%D not divisible by number of particle planes (npphi) %D",ctx->npe,ctx->particleGrid.npphi);
+  if (ctx->npe < ctx->particleGrid.npphi) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"num particle planes npphi (%D) > npe (%D)",ctx->particleGrid.npphi,ctx->npe);
+  if (ctx->npe%ctx->particleGrid.npphi) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"np=%D not divisible by number of particle planes (npphi) %D",ctx->npe,ctx->particleGrid.npphi);
 
   if (ctx->npe_particlePlane == -1) ctx->npe_particlePlane = ctx->npe/ctx->particleGrid.npphi;
-  if (ctx->npe_particlePlane != ctx->npe/ctx->particleGrid.npphi) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Inconsistant number planes (%D), pes (%D), and pe/plane (%D) requested",ctx->particleGrid.npphi,ctx->npe,ctx->npe_particlePlane);
+  if (ctx->npe_particlePlane != ctx->npe/ctx->particleGrid.npphi) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_USER,"Inconsistant number planes (%D), pes (%D), and pe/plane (%D) requested",ctx->particleGrid.npphi,ctx->npe,ctx->npe_particlePlane);
 
-  if (ctx->particleGrid.nptheta*ctx->particleGrid.npradius != ctx->npe_particlePlane) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"%D particle cells/plane != %D pe/plane",ctx->particleGrid.nptheta*ctx->particleGrid.npradius,ctx->npe_particlePlane);
-  if (ctx->particleGrid.nptheta*ctx->particleGrid.npradius*ctx->particleGrid.npphi != ctx->npe) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"%D particle cells != %D npe",ctx->particleGrid.nptheta*ctx->particleGrid.npradius*ctx->particleGrid.npphi,ctx->npe);
+  if (ctx->particleGrid.nptheta*ctx->particleGrid.npradius != ctx->npe_particlePlane) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"%D particle cells/plane != %D pe/plane",ctx->particleGrid.nptheta*ctx->particleGrid.npradius,ctx->npe_particlePlane);
+  if (ctx->particleGrid.nptheta*ctx->particleGrid.npradius*ctx->particleGrid.npphi != ctx->npe) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"%D particle cells != %D npe",ctx->particleGrid.nptheta*ctx->particleGrid.npradius*ctx->particleGrid.npphi,ctx->npe);
   ctx->ParticlePlaneIdx = ctx->rank/ctx->npe_particlePlane;
   ctx->particlePlaneRank = ctx->rank%ctx->npe_particlePlane;
 
@@ -257,9 +265,9 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->dt = 1.;
   ierr = PetscOptionsReal("-dt","Time step","ex1.c",ctx->dt,&ctx->dt,NULL);CHKERRQ(ierr);
   /* particles */
-  ctx->npart_flux_tube = 10;
-  ierr = PetscOptionsInt("-npart_flux_tube", "Number of particles local (flux tube cell)", "ex1.c", ctx->npart_flux_tube, &ctx->npart_flux_tube, NULL);CHKERRQ(ierr);
-  if (!chunkFlag) ctx->chunksize = X2_V_LEN*((ctx->npart_flux_tube/80+1)/X2_V_LEN + 1); /* an intelegent message chunk size */
+  ctx->npart_proc = 10;
+  ierr = PetscOptionsInt("-npart_proc", "Number of particles local (flux tube cell)", "ex1.c", ctx->npart_proc, &ctx->npart_proc, NULL);CHKERRQ(ierr);
+  if (!chunkFlag) ctx->chunksize = X2_V_LEN*((ctx->npart_proc/80+1)/X2_V_LEN + 1); /* an intelegent message chunk size */
   if (ctx->chunksize<64 && !chunkFlag) ctx->chunksize = 64; /* 4K messages minumum */
 
   if (s_debug>0) PetscPrintf(ctx->wComm,"[%D] npe=%D; %D x %D x %D flux tube grid; mpi_send size (chunksize) has %d particles. %s.\n",ctx->rank,ctx->npe,ctx->particleGrid.npphi,ctx->particleGrid.nptheta,ctx->particleGrid.npradius,ctx->chunksize,
@@ -269,6 +277,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
 			     "Use of array structs"
 #endif
                              );
+  if (ctx->npe>1) PetscPrintf(ctx->wComm,"[%D] **** Warning ****, no global point location. multiple processors (%D) not supported\n",ctx->rank,ctx->npe);
 
   ctx->collisionPeriod = 10000;
   ierr = PetscOptionsInt("-collisionPeriod", "Period between collision operators", "ex1.c", ctx->collisionPeriod, &ctx->collisionPeriod, NULL);CHKERRQ(ierr);
@@ -285,19 +294,19 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     ierr = PetscStrcpy(fname,"ITER-51vertex-quad.txt");CHKERRQ(ierr);
     ierr = PetscOptionsString("-iter_vertex_file", "Name of vertex .txt file of ITER vertices", "ex1.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
     fp = fopen(fname, "r");
-    if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"ITER file %s not found, use -fname FILE_NAME",fname);
-    if (!fgets(str,256,fp)) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file");
+    if (!fp) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"ITER file %s not found, use -fname FILE_NAME",fname);
+    if (!fgets(str,256,fp)) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"Error reading ITER file");
     k = sscanf(str,"%d\n",&sz);
-    if (k<1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file %d words",k);
-    if (sz>X2_WALL_ARRAY_MAX) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Too Many vertices %d > %d",sz,X2_WALL_ARRAY_MAX);
+    if (k<1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Error reading ITER file %d words",k);
+    if (sz>X2_WALL_ARRAY_MAX) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"Too Many vertices %d > %d",sz,X2_WALL_ARRAY_MAX);
     for (isp=0;isp<sz;isp++) {
       if (!fgets(str,256,fp)) break;
       k = sscanf(str,"%e %e %s\n",&s_wallVtx[isp][0],&s_wallVtx[isp][1],str2);
-      if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file %d words",k);
+      if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Error reading ITER file %d words",k);
       s_wallVtx[isp][0] -= ctx->particleGrid.rMajor;
     }
     s_numWallPtx = isp;
-    if (s_numWallPtx!=sz) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file, %d lines",s_numWallPtx);
+    if (s_numWallPtx!=sz) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Error reading ITER file, %d lines",s_numWallPtx);
     /* cell ids */
     for (isp=0;isp<1000;isp++) {
       if (!fgets(str,256,fp)) break;
@@ -307,8 +316,8 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
                  &s_quad_vertex[isp][6],&s_quad_vertex[isp][7],&s_quad_vertex[isp][8],
                  str2);
       if (k==-1) break;
-      if (k<9) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error reading ITER file, read %d terms != 9",k);
-      if (isp>X2_WALL_ARRAY_MAX) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Too Many Elements %d",X2_WALL_ARRAY_MAX);
+      if (k<9) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Error reading ITER file, read %d terms != 9",k);
+      if (isp>X2_WALL_ARRAY_MAX) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Too Many Elements %d",X2_WALL_ARRAY_MAX);
     }
     fclose(fp);
     s_numQuads = isp;
@@ -320,7 +329,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     else {
       PetscStrcmp("boxtorus",fname,&flg);
       if (flg) ctx->run_type = X2_BOXTORUS;
-      else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Unknown run type %s",fname);
+      else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Unknown run type %s",fname);
     }
   }
   ierr = PetscOptionsEnd();
@@ -429,7 +438,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventBegin(ctx->events[1],0,0,0,0);CHKERRQ(ierr);
 #endif
-  if (!dmpi) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"DM_PICell data not created");
+  if (!dmpi) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"DM_PICell data not created");
   if (solver) {
     ierr = VecZeroEntries(dmpi->rho);CHKERRQ(ierr); /* zero density to get ready for next deposition */
   }
@@ -562,7 +571,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
               ierr = X2PSendListCreate(&sendListTable[hash],ctx->chunksize);CHKERRQ(ierr);
               sendListTable[hash].proc = pe;
               ctx->tablecount++;
-              if (ctx->tablecount==ctx->tablesize) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Table too small (%D)",ctx->tablesize);
+              if (ctx->tablecount==ctx->tablesize) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Table too small (%D)",ctx->tablesize);
             }
             if (sendListTable[hash].proc==pe) { /* found hash table entry */
               if (X2PSendListSize(&sendListTable[hash])==ctx->chunksize) { /* not vectorizable */
@@ -571,10 +580,10 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
                 ierr = PetscLogEventBegin(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
 #endif
                 PetscDataTypeToMPIDataType(PETSC_REAL,&mtype);
-                if (ctx->bsp_chunksize) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"cache too small (%D) for BSP TwoSided communication",ctx->chunksize);
+                if (ctx->bsp_chunksize) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"cache too small (%D) for BSP TwoSided communication",ctx->chunksize);
                 /* send and reset - we can just send this because it is dense, but no species data */
                 if (nslist==X2PROCLISTSIZE) {
-                  SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"process send table too small (%D) == snlist(%D)",nslist,(PetscInt)X2PROCLISTSIZE);
+                  SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"process send table too small (%D) == snlist(%D)",nslist,(PetscInt)X2PROCLISTSIZE);
                 }
                 slist[nslist].data = sendListTable[hash].data; /* cache data */
                 slist[nslist].proc = pe;
@@ -612,7 +621,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
     } /* element list */
     /* finish sends and receive new particles for this species */
-    ierr = shiftParticles(ctx, sendListTable, irk, &nslist, ctx->partlists[isp], slist, tag+isp, solver );
+    ierr = shiftParticles(ctx, sendListTable, &nslist, ctx->partlists[isp], slist, tag+isp, solver );
     CHKERRQ(ierr);
 #ifdef PETSC_USE_DEBUG
     { /* debug */
@@ -621,7 +630,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       if (flag) {
         PetscDataTypeToMPIDataType(PETSC_REAL,&mtype);
         MPI_Get_count(&status, mtype, &sz); assert(sz%part_dsize==0);
-        SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"found %D extra particles from %d",sz/part_dsize,status.MPI_SOURCE);
+        SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"found %D extra particles from %d",sz/part_dsize,status.MPI_SOURCE);
       }
       MPI_Barrier(ctx->wComm);
     }
@@ -672,7 +681,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #if defined(PETSC_USE_LOG)
         ierr = PetscLogEventBegin(ctx->events[6],0,0,0,0);CHKERRQ(ierr); /* timer on particle list */
 #endif
-        ierr = DMPICellAddSource(ctx->dm, xVec, vVec, elid, locrho);CHKERRQ(ierr); /* not vectorizable!!!, data share */
+        ierr = DMPICellAddSource(ctx->dm, xVec, vVec, elid, locrho);CHKERRQ(ierr);
         ierr = VecDestroy(&xVec);CHKERRQ(ierr);
         ierr = VecDestroy(&vVec);CHKERRQ(ierr);
 #if defined(PETSC_USE_LOG)
@@ -710,7 +719,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
     PetscPrintf(ctx->wComm,
                 "%d) %s %D local particles, %D/%D global, %g %% total particles moved in %D messages total (to %D processors local), %g load imbalance factor\n",
                 istep+1,irk<0 ? "processed" : "pushed", origNlocal, rb1[0], rb1[3], 100.*(double)rb1[1]/(double)rb1[0], rb1[2], ctx->tablecount,(double)rb2[3]/((double)rb1[3]/(double)ctx->npe));
-    if (rb1[0] != rb1[3]) SETERRQ2(PETSC_COMM_WORLD,PETSC_ERR_PLIB,"Number of partilces %D --> %D",rb1[0],rb1[3]);
+    if (rb1[0] != rb1[3]) SETERRQ2(PETSC_COMM_WORLD,PETSC_ERR_USER,"Number of partilces %D --> %D",rb1[0],rb1[3]);
 #ifdef H5PART
     if (irk>=0 && ctx->plot) {
       for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) {
@@ -745,7 +754,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
   const PetscReal dphi=2.*M_PI/(PetscReal)ctx->particleGrid.npphi,rmin=ctx->particleGrid.rMinor; /* rmin for particles < rmin */
   const PetscReal phi1 = (PetscReal)ctx->ParticlePlaneIdx*dphi + 1.e-8,rmaj=ctx->particleGrid.rMajor;
   const PetscInt  nPartProcss_plane = ctx->particleGrid.nptheta*ctx->particleGrid.npradius; /* nPartProcss_plane == ctx->npe_particlePlane */
-  const PetscReal dx = pow( (M_PI*rmin*rmin/4.0) * rmaj*2.*M_PI / (PetscReal)(ctx->npe*ctx->npart_flux_tube), 0.333); /* lenth of a particle, approx. */
+  const PetscReal dx = pow( (M_PI*rmin*rmin/4.0) * rmaj*2.*M_PI / (PetscReal)(ctx->npe*ctx->npart_proc), 0.333); /* lenth of a particle, approx. */
   X2Particle particle;
   DM dm;
   DM_PICell *dmpi;
@@ -755,14 +764,14 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
   dmpi = (DM_PICell *) ctx->dm->data;
   dm = dmpi->dmgrid;
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
-  if (dim!=3) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"wrong dimension (3) = %D",dim);
+  if (dim!=3) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"wrong dimension (3) = %D",dim);
   ierr = DMGetCellChart(dm, &cStart, &cEnd);CHKERRQ(ierr);
   ctx->nElems = PetscMax(1,cEnd-cStart);CHKERRQ(ierr);
 
   /* setup particles - lexicographic partition of -- flux tube -- cells */
   nCellsLoc = nPartProcss_plane/ctx->npe_particlePlane; /* = 1; nPartProcss_plane == ctx->npe_particlePlane */
   my0 = ctx->particlePlaneRank*nCellsLoc;              /* cell index in plane == particlePlaneRank */
-  gid = (my0 + ctx->ParticlePlaneIdx*nPartProcss_plane)*ctx->npart_flux_tube; /* based particle ID */
+  gid = (my0 + ctx->ParticlePlaneIdx*nPartProcss_plane)*ctx->npart_proc; /* based particle ID */
   if (ctx->ParticlePlaneIdx == ctx->npe_particlePlane-1){
     nCellsLoc = nPartProcss_plane - nCellsLoc*(ctx->npe_particlePlane-1);
   }
@@ -782,15 +791,15 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
       /* create list for element 0 and add all to it */
       ierr = X2PListCreate(&ctx->partlists[isp][s_fluxtubeelem],ctx->chunksize);CHKERRQ(ierr);
       /* create each particle */
-      //for (int i=0;i<ctx->npart_flux_tube;i++) {
-      for (np=0 ; np<ctx->npart_flux_tube; /* void */ ) {
+      //for (int i=0;i<ctx->npart_proc;i++) {
+      for (np=0 ; np<ctx->npart_proc; /* void */ ) {
 	PetscReal theta0,r,z;
 	const PetscReal psi = r1 + (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dr;
 	const PetscReal qsaf = qsafty(psi/ctx->particleGrid.rMinor);
 	const PetscInt NN = (PetscInt)(dth*psi/dx) + 1;
 	const PetscReal dth2 = dth/(PetscReal)NN - 1.e-12*dth;
 	for ( ii = 0, theta0 = th1 + (PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG*dth2;
-	      ii < NN && np<ctx->npart_flux_tube;
+	      ii < NN && np<ctx->npart_proc;
 	      ii++, theta0 += dth2, np++ ) {
 	  PetscReal zmax,zdum,v,vpar;
           const PetscReal phi = phi1 + (PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG*dphi;
@@ -814,7 +823,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
             ierr = X2GridFluxTubeLocatePoint(&ctx->particleGrid,xx,&pe,&id);CHKERRQ(ierr);
             if(pe != ctx->rank){
               PetscPrintf(PETSC_COMM_SELF,"[%D] ERROR particle in proc %d r=%e:%e:%e theta=%e:%e:%e phi=%e:%e:%e\n",ctx->rank,pe,r1,psi,r1+dr,th1,thetap,th1+dth,phi1,phi,phi1+dphi);
-              SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB," created particle for proc %D",pe);
+              SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," created particle for proc %D",pe);
             }
           }
 #endif
@@ -1336,7 +1345,7 @@ int main(int argc, char **argv)
   Mat            J;
   DMLabel        label;
   PetscDS        prob;
-  PetscSection   s;
+  PetscSection   section;
   PetscLogStage  setup_stage;
   PetscFunctionBeginUser;
 
@@ -1440,21 +1449,22 @@ int main(int argc, char **argv)
     }
   }
   if (sizeof(long long)!=sizeof(PetscReal)) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "sizeof(long long)!=sizeof(PetscReal)");
-  /* setup DM */
+
+  /* setup DM, refine, distribute */
   ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr); /* refinement done here */
-  if (dmpi->dmgrid == dmpi->dmplex && ctx.npe>1) { /* not using p4est */
+  if (dmpi->dmgrid == dmpi->dmplex) { /* not using p4est, distribute */
     const char *prefix;
+    DM dm;
     ierr = PetscObjectGetOptionsPrefix((PetscObject)dmpi->dmplex,&prefix);CHKERRQ(ierr);
     /* plex does not distribute by implicitly, so do it. But p4est partitioning is different. if != should get distribution from p4est */
-    ierr = DMPlexDistribute(dmpi->dmplex, 0, NULL, &dmpi->dmgrid);CHKERRQ(ierr);
-    ierr = PetscObjectSetOptionsPrefix((PetscObject)dmpi->dmgrid,prefix);CHKERRQ(ierr);
-    ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
-    dmpi->dmplex = dmpi->dmgrid;
+    ierr = DMPlexDistribute(dmpi->dmplex, 0, NULL, &dm);CHKERRQ(ierr);
+    if (dm) {
+      ierr = PetscObjectSetOptionsPrefix((PetscObject)dm,prefix);CHKERRQ(ierr);
+      ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
+      dmpi->dmplex = dmpi->dmgrid = dm;
+    }
   }
-  /* else if (ctx.npe > 1) { /\* p4est - get the distribution in dmplex *\/ */
-  /*   ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr); */
-  /*   ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); THIS FAILS */
-  /* } */
+
   /* setup Discretization */
   ierr = DMGetDimension(dmpi->dmgrid, &dim);CHKERRQ(ierr);
   ierr = PetscFECreateDefault(dmpi->dmgrid, dim, 1, PETSC_FALSE, NULL, 1, &dmpi->fem);CHKERRQ(ierr);
@@ -1464,21 +1474,24 @@ int main(int argc, char **argv)
   ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
   ierr = PetscDSSetResidual(prob, 0, 0, f1_u);CHKERRQ(ierr);
   ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
+
   ierr = DMSetUp( ctx.dm );CHKERRQ(ierr);
+
+  /* convert and get section */
   if (dmpi->dmgrid == dmpi->dmplex) {
-    ierr = DMGetDefaultSection(dmpi->dmplex, &s);CHKERRQ(ierr);
-    ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &s);CHKERRQ(ierr);
-    if (!s) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "DMGetDefaultSection return NULL");
-  }
-  else { /* convert to plex - using the origina plex has a problem */
+    ierr = DMGetDefaultSection(dmpi->dmplex, &section);CHKERRQ(ierr);
+    if (!section) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "DMGetDefaultSection return NULL");
+    ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &section);CHKERRQ(ierr);
+    if (!section) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "DMGetDefaultSection return NULL");
+  } else { /* convert forest to plex - original plex not refined with -x2_dm_forest_initial_refinement */
     ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
     ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); /* low overhead, cached */
     /* get section */
-    ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &s);CHKERRQ(ierr);
+    ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &section);CHKERRQ(ierr);
   }
-  ierr = PetscSectionViewFromOptions(s, NULL, "-section_view");CHKERRQ(ierr);
+  ierr = PetscSectionViewFromOptions(section, NULL, "-section_view");CHKERRQ(ierr);
   if (dmpi->debug>3) { /* this shows a bug with crap in the section */
-    ierr = PetscSectionView(s,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    ierr = PetscSectionView(section,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
   if (dmpi->debug>2) {
     ierr = DMView(dmpi->dmplex,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
@@ -1499,18 +1512,18 @@ int main(int argc, char **argv)
     if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] %D equations on %D processors, %D local cells, (element %D used for flux tube list)\n",
                                    ctx.rank,n,ctx.npe,cEnd,s_fluxtubeelem);
   }
+
   /* create SNESS */
   ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
   ierr = SNESSetDM( dmpi->snes, dmpi->dmgrid);CHKERRQ(ierr);
-  ierr = DMSetMatType(dmpi->dmgrid,MATAIJ);CHKERRQ(ierr);
-  ierr = SNESSetFromOptions(dmpi->snes);CHKERRQ(ierr);
-  ierr = DMSNESSetFunctionLocal(dmpi->dmgrid,  (PetscErrorCode (*)(DM,Vec,Vec,void*))DMPlexSNESComputeResidualFEM,&ctx);CHKERRQ(ierr);
-  ierr = DMSNESSetJacobianLocal(dmpi->dmgrid,  (PetscErrorCode (*)(DM,Vec,Mat,Mat,void*))DMPlexSNESComputeJacobianFEM,&ctx);CHKERRQ(ierr);
-  ierr = SNESSetUp( dmpi->snes );CHKERRQ(ierr);
+  ierr = DMPlexSetSNESLocalFEM(dmpi->dmgrid,&ctx,&ctx,&ctx);CHKERRQ(ierr);
   ierr = DMCreateMatrix(dmpi->dmgrid, &J);CHKERRQ(ierr);
   ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
+  ierr = SNESSetFromOptions(dmpi->snes);CHKERRQ(ierr);
+
   /* setup particles */
   ierr = createParticles( &ctx );CHKERRQ(ierr);
+
   /* init send tables */
   ierr = PetscMalloc1(ctx.tablesize,&ctx.sendListTable);CHKERRQ(ierr);
   for (idx=0;idx<ctx.tablesize;idx++) {
@@ -1540,7 +1553,8 @@ int main(int argc, char **argv)
   }
 #endif
   /* move back to solver space and make density vector */
-  ierr = processParticles(&ctx, 0.0, ctx.sendListTable, 99, 0, -1, PETSC_TRUE);CHKERRQ(ierr);
+  ierr = processParticles(&ctx, 0.0, ctx.sendListTable, 99, -1, -1, PETSC_TRUE);CHKERRQ(ierr);
+
   /* setup solver, dummy solve to really setup */
   {
     KSP ksp; PetscReal krtol,katol,kdtol; PetscInt kmit,one=1;

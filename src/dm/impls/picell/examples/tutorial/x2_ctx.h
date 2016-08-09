@@ -26,7 +26,7 @@ typedef struct {
   PetscReal chargeEu; /* =1D0  ! charge number */
   PetscReal eChargeEu; /* =-1D0 */
   /* particles */
-  PetscInt  npart_flux_tube;
+  PetscInt  npart_proc;
   PetscBool useElectrons;
   PetscInt  collisionPeriod;
   PetscReal max_vpar;

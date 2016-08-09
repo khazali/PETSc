@@ -23,22 +23,22 @@ PetscErrorCode DMView_PICell(DM dm, PetscViewer viewer)
   ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERVTK,   &isvtk);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERHDF5,  &ishdf5);CHKERRQ(ierr);
   if (iascii) {
-    ierr = DMView(dmpi->dmgrid, viewer);CHKERRQ(ierr);
+    ierr = DMView(dmpi->dmplex, viewer);CHKERRQ(ierr);
   } else if (ishdf5) {
 #if defined(PETSC_HAVE_HDF5)
     ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_HDF5_VIZ);CHKERRQ(ierr);
     ierr = DMPlexView_HDF5(dmpi->dmplex, viewer);CHKERRQ(ierr);
     ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
 #else
-    SETERRQ(PetscObjectComm((PetscObject) dmpi->dmgrid), PETSC_ERR_SUP, "HDF5 not supported in this build.\nPlease reconfigure using --download-hdf5");
+    SETERRQ(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_SUP, "HDF5 not supported in this build.\nPlease reconfigure using --download-hdf5");
 #endif
   }
   else if (isvtk) {
-    SETERRQ(PetscObjectComm((PetscObject) dmpi->dmgrid), PETSC_ERR_SUP, "VTK not supported in this build");
+    SETERRQ(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_SUP, "VTK not supported in this build");
     /* ierr = DMPICellVTKWriteAll((PetscObject) dm,viewer);CHKERRQ(ierr); */
   }
   else {
-    SETERRQ(PetscObjectComm((PetscObject) dmpi->dmgrid), PETSC_ERR_SUP, "Unknown viewer type");
+    SETERRQ(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_SUP, "Unknown viewer type");
   }
   PetscFunctionReturn(0);
 }
@@ -55,10 +55,10 @@ PetscErrorCode  DMSetFromOptions_PICell(PetscOptionItems *PetscOptionsObject,DM 
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   ierr = PetscOptionsHead(PetscOptionsObject,"DMPICell Options");CHKERRQ(ierr);
 
-  if (!dmpi->dmgrid) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "dmgrid not created");
-  ierr = DMSetFromOptions(dmpi->dmgrid);CHKERRQ(ierr);
-  if (dmpi->dmplex && dmpi->dmplex != dmpi->dmgrid) {
-    ierr = DMSetFromOptions(dmpi->dmplex);CHKERRQ(ierr);
+  if (!dmpi->dmplex) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "dmplex not created");
+  ierr = DMSetFromOptions(dmpi->dmplex);CHKERRQ(ierr);
+  if (dmpi->dmgrid && dmpi->dmplex != dmpi->dmgrid) {
+    ierr = DMSetFromOptions(dmpi->dmgrid);CHKERRQ(ierr);
   }
 
   ierr = PetscOptionsTail();CHKERRQ(ierr);
@@ -76,13 +76,13 @@ PetscErrorCode DMSetUp_PICell(DM dm)
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   ierr = PetscLogEventBegin(DMPICell_SetUp,dm,0,0,0);CHKERRQ(ierr);
 
-  /* We have built dmgrid, now create vectors */
-  if (!dmpi->dmgrid) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "dmgrid not created");
-  ierr = DMSetUp(dmpi->dmgrid);CHKERRQ(ierr); /* build a grid */
-  if (dmpi->dmplex && dmpi->dmplex != dmpi->dmgrid) {
-    ierr = DMSetUp(dmpi->dmplex);CHKERRQ(ierr);
+  /* We have built dmplex, now create vectors */
+  if (!dmpi->dmplex) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "dmplex not created");
+  ierr = DMSetUp(dmpi->dmplex);CHKERRQ(ierr); /* build a grid */
+  if (dmpi->dmgrid && dmpi->dmplex != dmpi->dmgrid) {
+    ierr = DMSetUp(dmpi->dmgrid);CHKERRQ(ierr);
   }
-  ierr = DMCreateGlobalVector(dmpi->dmgrid, &dmpi->phi);CHKERRQ(ierr);
+  ierr = DMCreateGlobalVector(dmpi->dmgrid, &dmpi->phi);CHKERRQ(ierr); /* plex not good yet with p4est */
   ierr = PetscObjectSetName((PetscObject) dmpi->phi, "phi");CHKERRQ(ierr);
   ierr = VecZeroEntries(dmpi->phi);CHKERRQ(ierr);
   ierr = VecDuplicate(dmpi->phi, &dmpi->rho);CHKERRQ(ierr);
@@ -103,10 +103,10 @@ PetscErrorCode DMDestroy_PICell(DM dm)
   PetscFunctionBegin;
   ierr = VecDestroy(&dmpi->rho);CHKERRQ(ierr);
   ierr = VecDestroy(&dmpi->phi);CHKERRQ(ierr);
-  if (dmpi->dmplex && dmpi->dmplex != dmpi->dmgrid) {
-    ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
+  if (dmpi->dmgrid && dmpi->dmplex != dmpi->dmgrid) {
+    ierr = DMDestroy(&dmpi->dmgrid);CHKERRQ(ierr);
   }
-  ierr = DMDestroy(&dmpi->dmgrid);CHKERRQ(ierr);
+  ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
   ierr = SNESDestroy(&dmpi->snes);CHKERRQ(ierr);
   ierr = PetscFree(dmpi);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -187,7 +187,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   ierr = VecDuplicate(coord, &refCoord);CHKERRQ(ierr);
   ierr = VecGetBlockSize(coord, &dim);CHKERRQ(ierr);
   ierr = VecGetLocalSize(coord, &N);CHKERRQ(ierr);
-  if (N%dim) SETERRQ2(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_SUP, "N=%D dim=%D",N,dim);
+  if (N%dim) SETERRQ2(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_PLIB, "N=%D dim=%D",N,dim);
   N   /= dim;
   ierr = VecGetArray(coord, &xx);CHKERRQ(ierr);
   ierr = VecGetArray(refCoord, &xi);CHKERRQ(ierr);
@@ -209,9 +209,9 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
     for (p = 0; p < N; ++p) {
       elemVec[b] += B[b*N + p] * lrho[p];
 #ifdef PETSC_USE_DEBUG
-      if (B[b*N + p] < -.01) {
-        PetscPrintf(PETSC_COMM_SELF,"DMPICellAddSource ERROR elem %d, p=%d, add v=(%g,%g,%g,%g,%g,%g,%g,%g)\n",cell,p,B[b*N + 0],B[b*N + 1],B[b*N + 2],B[b*N + 3],B[b*N + 4],B[b*N + 5],B[b*N + 6],B[b*N + 7]);
-        SETERRQ(PetscObjectComm((PetscObject) dmpi->dmgrid), PETSC_ERR_SUP, "negative interpolant");
+      if (B[b*N + p] < -.1) {
+        PetscPrintf(PETSC_COMM_SELF,"DMPICellAddSource ERROR (Plex LocatePoint not great with coarse grids) elem %d, p=%d/%d, add v=(%g). all interps: %g %g %g %g %g %g %g %g\n",cell,p,N,B[b*N + p],B[0],B[1],B[2],B[3],B[4],B[5],B[6],B[7]);
+        SETERRQ1(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_PLIB, "negative interpolant %g, Plex LocatePoint not great with coarse grids",B[b*N + p]);
       }
 #endif
     }
@@ -221,7 +221,6 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   ierr = DMRestoreWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscFERestoreTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(DMPICell_AddSource,dm,0,0,0);CHKERRQ(ierr);
-
   PetscFunctionReturn(0);
 }
 

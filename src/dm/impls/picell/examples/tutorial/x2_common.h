@@ -28,7 +28,6 @@ static PetscErrorCode destroyParticles(X2Ctx *ctx)
 /* shiftParticles: send particles
     Input:
      - ctx: global data
-     - irk: flag for deposit charge (>=0), or just move (<0)
      - tag: MPI tag to send with
      - solver: use solver partitioning to get processor of point?
    Input/Output:
@@ -40,7 +39,7 @@ static PetscErrorCode destroyParticles(X2Ctx *ctx)
 */
 #undef __FUNCT__
 #define __FUNCT__ "shiftParticles"
-PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, const PetscInt irk, PetscInt *const nIsend,
+PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, PetscInt *const nIsend,
                                X2PList particlelist[], X2ISend slist[], PetscMPIInt tag, PetscBool solver)
 {
   PetscErrorCode ierr;
@@ -108,7 +107,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
 	if (pp->gid > 0) {
           PetscInt elid;
           if (solver) {
-             ierr = X2GridSolverLocatePoint(dmpi->dmgrid, pp->x, ctx, &pe, &elid);CHKERRQ(ierr);
+             ierr = X2GridSolverLocatePoint(dmpi->dmplex, pp->x, ctx, &pe, &elid);CHKERRQ(ierr);
             if (pe!=ctx->rank) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not local (pe=%D)",pe);
           }
           else elid = s_fluxtubeelem; /* non-solvers just put in element 0's list */
@@ -198,7 +197,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, con
 	  for (jj=0;jj<sz;jj++) {
             PetscInt elid;
             if (solver) {
-              ierr = X2GridSolverLocatePoint(dmpi->dmgrid, data[jj].x, ctx, &pe, &elid);CHKERRQ(ierr);
+              ierr = X2GridSolverLocatePoint(dmpi->dmplex, data[jj].x, ctx, &pe, &elid);CHKERRQ(ierr);
               if (pe!=ctx->rank) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not local (pe=%D)",pe);
             }
             else elid = s_fluxtubeelem; /* non-solvers just put in element 0's list */
@@ -237,7 +236,13 @@ void f0_u(PetscInt dim, PetscInt Nf, PetscInt NfAux,
           const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
           PetscReal t, const PetscReal x[], PetscScalar f0[])
 {
-  f0[0] = 4./0.; /* added source terms, not used */
+  PetscBool in = PETSC_TRUE;
+  PetscInt i;
+  for (i=0;i<dim;i++) {
+    if (x[i] < -0.5 || x[i] > 0.5) in = PETSC_FALSE;
+  }
+  if (in && PETSC_FALSE) f0[0] = 1.0;
+  else    f0[0] = .0;
 }
 /* gradU[comp*dim+d] = {u_x, u_y} or {u_x, u_y, u_z} */
 void f1_u(PetscInt dim, PetscInt Nf, PetscInt NfAux,
