@@ -52,7 +52,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
   PetscFunctionBeginUser;
   PetscDataTypeToMPIDataType(PETSC_REAL,&mtype);
   dmpi = (DM_PICell *) ctx->dm->data;
-  dm = dmpi->dmgrid;
+  dm = dmpi->dmplex;
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventBegin(ctx->events[2],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -326,7 +326,7 @@ PetscErrorCode go( X2Ctx *ctx )
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
-    ierr = DMViewFromOptions(dmpi->dmgrid,NULL,"-dm_view");CHKERRQ(ierr);
+    ierr = DMViewFromOptions(dmpi->dmplex,NULL,"-dm_view");CHKERRQ(ierr);
     ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
     if (flg) {
       ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
