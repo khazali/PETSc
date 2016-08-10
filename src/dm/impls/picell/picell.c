@@ -82,7 +82,7 @@ PetscErrorCode DMSetUp_PICell(DM dm)
   if (dmpi->dmgrid && dmpi->dmplex != dmpi->dmgrid) {
     ierr = DMSetUp(dmpi->dmgrid);CHKERRQ(ierr);
   }
-  ierr = DMCreateGlobalVector(dmpi->dmgrid, &dmpi->phi);CHKERRQ(ierr); /* plex not good yet with p4est */
+  ierr = DMCreateGlobalVector(dmpi->dmplex, &dmpi->phi);CHKERRQ(ierr); /* plex not good yet with p4est */
   ierr = PetscObjectSetName((PetscObject) dmpi->phi, "phi");CHKERRQ(ierr);
   ierr = VecZeroEntries(dmpi->phi);CHKERRQ(ierr);
   ierr = VecDuplicate(dmpi->phi, &dmpi->rho);CHKERRQ(ierr);
@@ -208,12 +208,12 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   for (b = 0; b < totDim; ++b) {
     for (p = 0; p < N; ++p) {
       elemVec[b] += B[b*N + p] * lrho[p];
-#ifdef PETSC_USE_DEBUG
+      //#ifdef PETSC_USE_DEBUG
       if (B[b*N + p] < -.1) {
         PetscPrintf(PETSC_COMM_SELF,"DMPICellAddSource ERROR (Plex LocatePoint not great with coarse grids) elem %d, p=%d/%d, add v=(%g). all interps: %g %g %g %g %g %g %g %g\n",cell,p,N,B[b*N + p],B[0],B[1],B[2],B[3],B[4],B[5],B[6],B[7]);
         SETERRQ1(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_PLIB, "negative interpolant %g, Plex LocatePoint not great with coarse grids",B[b*N + p]);
       }
-#endif
+      //#endif
     }
   }
   ierr = VecRestoreArray(densities, &lrho);CHKERRQ(ierr);

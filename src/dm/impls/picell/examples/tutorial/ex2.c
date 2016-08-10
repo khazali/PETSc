@@ -451,7 +451,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
         if (irk>=0) {
           /* get E, should set size of vecs for true size? */
-          ierr = DMPICellGetJet(dmpi->dmgrid, xVec, order, jetVec, elid);CHKERRQ(ierr);
+          ierr = DMPICellGetJet(dmpi->dmplex, xVec, order, jetVec, elid);CHKERRQ(ierr);
           ierr = VecGetArray(jetVec,&jj0);CHKERRQ(ierr); jj = jj0;
         }
         /* vectorize (todo) push: theta = theta + q*dphi .... grad not used */
@@ -506,7 +506,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         if (solver) {
           xx = xx0 + pos*3; /* assumes compressed! */
           /* see if need communication? no: add density, yes: add to communication list */
-          ierr = X2GridSolverLocatePoint(dmpi->dmgrid, xx, ctx, &pe, &idx);
+          ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, ctx, &pe, &idx);
           CHKERRQ(ierr);
         } else {
           ierr = X2GridFluxTubeLocatePoint(grid, part.x, &pe, &idx);CHKERRQ(ierr);
@@ -591,7 +591,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
     /* add density (while in cache, by species at least) */
     if (solver) {
       Vec locrho;        assert(solver);
-      ierr = DMGetLocalVector(dmpi->dmgrid, &locrho);CHKERRQ(ierr);
+      ierr = DMGetLocalVector(dmpi->dmplex, &locrho);CHKERRQ(ierr);
       ierr = VecSet(locrho, 0.0);CHKERRQ(ierr);
       for (elid=0;elid<ctx->nElems;elid++) {
         X2PList *list = &ctx->partlists[isp][elid];
@@ -640,9 +640,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         ierr = PetscLogEventEnd(ctx->events[6],0,0,0,0);CHKERRQ(ierr);
 #endif
       }
-      ierr = DMLocalToGlobalBegin(dmpi->dmgrid, locrho, ADD_VALUES, dmpi->rho);CHKERRQ(ierr);
-      ierr = DMLocalToGlobalEnd(dmpi->dmgrid, locrho, ADD_VALUES, dmpi->rho);CHKERRQ(ierr);
-      ierr = DMRestoreLocalVector(dmpi->dmgrid, &locrho);CHKERRQ(ierr);
+      ierr = DMLocalToGlobalBegin(dmpi->dmplex, locrho, ADD_VALUES, dmpi->rho);CHKERRQ(ierr);
+      ierr = DMLocalToGlobalEnd(dmpi->dmplex, locrho, ADD_VALUES, dmpi->rho);CHKERRQ(ierr);
+      ierr = DMRestoreLocalVector(dmpi->dmplex, &locrho);CHKERRQ(ierr);
     }
   } /* isp */
 #if defined(PETSC_USE_LOG)
@@ -716,9 +716,9 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 
   /* Create vector and get pointer to data space */
   dmpi = (DM_PICell *) ctx->dm->data;
-  ierr = DMGetDimension(dmpi->dmgrid, &dim);CHKERRQ(ierr);
+  ierr = DMGetDimension(dmpi->dmplex, &dim);CHKERRQ(ierr);
   if (dim!=3) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"wrong dimension (3) = %D",dim);
-  ierr = DMGetCellChart(dmpi->dmgrid, &cStart, &cEnd);CHKERRQ(ierr);
+  ierr = DMGetCellChart(dmpi->dmplex, &cStart, &cEnd);CHKERRQ(ierr);
   ctx->nElems = PetscMax(1,cEnd-cStart);CHKERRQ(ierr);
   /* setup particles - lexicographic partition of -- flux tube -- cells */
   gid = ctx->rank*ctx->npart_proc;
@@ -968,13 +968,13 @@ int main(int argc, char **argv)
   /* setup Discretization */
   ierr = SetupDiscretization(&ctx);CHKERRQ(ierr);
 
-  dmpi->dmgrid = dmpi->dmplex; /* done with setup but some methods in picell.c (still) need a plex DM */
+  // dmpi->dmplex = dmpi->dmplex; /* done with setup but some methods in picell.c (still) need a plex DM */
 
   /* create SNESS */
   ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
-  ierr = SNESSetDM( dmpi->snes, dmpi->dmgrid);CHKERRQ(ierr);
+  ierr = SNESSetDM( dmpi->snes, dmpi->dmplex);CHKERRQ(ierr);
   ierr = DMPlexSetSNESLocalFEM(dmpi->dmplex,&ctx,&ctx,&ctx);CHKERRQ(ierr);
-  ierr = DMCreateMatrix(dmpi->dmgrid, &J);CHKERRQ(ierr);
+  ierr = DMCreateMatrix(dmpi->dmplex, &J);CHKERRQ(ierr);
   ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
   ierr = SNESSetFromOptions(dmpi->snes);CHKERRQ(ierr);
   if (dmpi->debug>3) {

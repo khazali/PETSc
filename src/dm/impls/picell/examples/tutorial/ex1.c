@@ -1475,8 +1475,6 @@ int main(int argc, char **argv)
   ierr = PetscDSSetResidual(prob, 0, 0, f1_u);CHKERRQ(ierr);
   ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
 
-  ierr = DMSetUp( ctx.dm );CHKERRQ(ierr);
-
   /* convert and get section */
   if (dmpi->dmgrid == dmpi->dmplex) {
     ierr = DMGetDefaultSection(dmpi->dmplex, &section);CHKERRQ(ierr);
@@ -1485,6 +1483,7 @@ int main(int argc, char **argv)
     if (!section) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "DMGetDefaultSection return NULL");
   } else { /* convert forest to plex - original plex not refined with -x2_dm_forest_initial_refinement */
     ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
+    ierr = DMSetUp(dmpi->dmgrid);CHKERRQ(ierr);
     ierr = DMConvert(dmpi->dmgrid,DMPLEX,&dmpi->dmplex);CHKERRQ(ierr); /* low overhead, cached */
     /* get section */
     ierr = DMGetDefaultGlobalSection(dmpi->dmgrid, &section);CHKERRQ(ierr);
@@ -1496,6 +1495,9 @@ int main(int argc, char **argv)
   if (dmpi->debug>2) {
     ierr = DMView(dmpi->dmplex,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
+
+  ierr = DMSetUp( ctx.dm );CHKERRQ(ierr);
+  
   {
     PetscInt n,cStart,cEnd;
     ierr = VecGetSize(dmpi->rho,&n);CHKERRQ(ierr);
