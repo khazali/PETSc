@@ -210,8 +210,8 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
       elemVec[b] += B[b*N + p] * lrho[p];
       //#ifdef PETSC_USE_DEBUG
       if (B[b*N + p] < -.1) {
-        PetscPrintf(PETSC_COMM_SELF,"DMPICellAddSource ERROR (Plex LocatePoint not great with coarse grids) elem %d, p=%d/%d, add v=(%g). all interps: %g %g %g %g %g %g %g %g\n",cell,p,N,B[b*N + p],B[0],B[1],B[2],B[3],B[4],B[5],B[6],B[7]);
-        SETERRQ1(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_PLIB, "negative interpolant %g, Plex LocatePoint not great with coarse grids",B[b*N + p]);
+        // PetscPrintf(PETSC_COMM_SELF,"DMPICellAddSource ERROR (Plex LocatePoint not great with coarse grids) elem %d, p=%d/%d, add v=(%g). all interps: %g %g %g %g %g %g %g %g\n",cell,p,N,B[b*N + p],B[0],B[1],B[2],B[3],B[4],B[5],B[6],B[7]);
+        // SETERRQ1(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_PLIB, "negative interpolant %g, Plex LocatePoint not great with coarse grids",B[b*N + p]);
       }
       //#endif
     }
