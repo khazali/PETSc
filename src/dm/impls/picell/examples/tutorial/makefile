@@ -30,7 +30,7 @@ ex2: ex2.o chkopts
 	${RM} -f ex2.o
 
 runex1:
-	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 4 -numMajor 4 -npart_proc 10 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -run_type boxtorus -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -collisionPeriod 1 -max_vpar 30.
+	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 3 -numMajor 4 -npart_proc 10 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -run_type boxtorus -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -collisionPeriod 1 -max_vpar 30.
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5
 
 runex2:
