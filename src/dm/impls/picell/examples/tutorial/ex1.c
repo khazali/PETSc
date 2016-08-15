@@ -1497,7 +1497,7 @@ int main(int argc, char **argv)
   }
 
   ierr = DMSetUp( ctx.dm );CHKERRQ(ierr);
-  
+
   {
     PetscInt n,cStart,cEnd;
     ierr = VecGetSize(dmpi->rho,&n);CHKERRQ(ierr);

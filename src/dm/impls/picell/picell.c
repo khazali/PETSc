@@ -173,10 +173,12 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   Vec          refCoord;
   PetscScalar  *lrho, *xx, *xi, *elemVec;
   PetscReal    *B = NULL;
-  PetscReal    v0[3], J[9], invJ[9], detJ;
-  PetscInt     totDim,p,N,dim,b;
+  PetscReal    v0[24], J[72], invJ[72], detJ[8];
+  const PetscReal *weights;
+  PetscInt     totDim,p,N,dim,b,Nq,qdim,q,d,e;
   PetscErrorCode ierr;
   PetscDS        prob;
+  PetscQuadrature  quad;
   PetscFunctionBegin;
 
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
@@ -191,10 +193,24 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   N   /= dim;
   ierr = VecGetArray(coord, &xx);CHKERRQ(ierr);
   ierr = VecGetArray(refCoord, &xi);CHKERRQ(ierr);
+  ierr = PetscFEGetQuadrature(dmpi->fem, &quad);CHKERRQ(ierr);
+  ierr = PetscQuadratureGetData(quad, &qdim, &Nq, NULL, &weights);CHKERRQ(ierr);
+  if (qdim != dim) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Point dimension %d != quadrature dimension %d", dim, qdim);
+  if (Nq != 8) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Nq != 8 %d", Nq);
   /* Affine approximation for reference coordinates */
-  ierr = DMPlexComputeCellGeometryFEM(dmpi->dmplex, cell, dmpi->fem, v0, J, invJ, &detJ);CHKERRQ(ierr);
+  ierr = DMPlexComputeCellGeometryFEM(dmpi->dmplex, cell, dmpi->fem, v0, J, invJ, detJ);CHKERRQ(ierr);
   for (p = 0; p < N; ++p) {
-    CoordinatesRealToRef(dim, dim, v0, invJ, &xx[p*dim], &xi[p*dim]);
+    for (e = 0; e < dim; ++e) xi[p*dim + e] = 0;
+    for (q = 0; q < Nq; ++q) {
+      PetscReal x0[3], *pinvJ = &invJ[dim*dim*q], *pv0 = &v0[dim*q], *pxx = &xx[dim*p];
+      for (d = 0; d < dim; ++d) {
+        x0[d] = 0;
+        for (e = 0; e < dim; ++e) {
+          x0[d] += pinvJ[d*dim+e]*(pxx[e] - pv0[e]);
+        }
+      }
+      for (e = 0; e < dim; ++e) xi[p*dim + e] += weights[q]*x0[e]/Nq;
+    }
   }
   ierr = VecRestoreArray(coord, &xx);CHKERRQ(ierr);
   ierr = PetscFEGetTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
@@ -205,15 +221,15 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   ierr = DMGetWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscMemzero(elemVec, totDim * sizeof(PetscScalar));CHKERRQ(ierr);
   ierr = VecGetArray(densities, &lrho);CHKERRQ(ierr);
-  for (b = 0; b < totDim; ++b) {
-    for (p = 0; p < N; ++p) {
-      elemVec[b] += B[b*N + p] * lrho[p];
-      //#ifdef PETSC_USE_DEBUG
-      if (B[b*N + p] < -.1) {
-        // PetscPrintf(PETSC_COMM_SELF,"DMPICellAddSource ERROR (Plex LocatePoint not great with coarse grids) elem %d, p=%d/%d, add v=(%g). all interps: %g %g %g %g %g %g %g %g\n",cell,p,N,B[b*N + p],B[0],B[1],B[2],B[3],B[4],B[5],B[6],B[7]);
-        // SETERRQ1(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_PLIB, "negative interpolant %g, Plex LocatePoint not great with coarse grids",B[b*N + p]);
+  for (p = 0; p < N; ++p) {
+    for (b = 0; b < totDim; ++b) {
+      elemVec[b] += B[p*totDim + b] * lrho[p];
+#ifdef PETSC_USE_DEBUG
+      if (B[p*totDim + b] < -.1) {
+        PetscPrintf(PETSC_COMM_SELF,"DMPICellAddSource ERROR (Plex LocatePoint not great with coarse grids) elem %d, p=%d/%d, add B[%d]. B = %g %g %g %g %g %g %g %g ... \n",cell,p,N,p*totDim + b,B[p*totDim + b],B[0],B[1],B[2],B[3],B[4],B[5],B[6],B[7]);
+        SETERRQ1(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_PLIB, "negative interpolant %g, Plex LocatePoint not great with coarse grids",B[b*N + p]);
       }
-      //#endif
+#endif
     }
   }
   ierr = VecRestoreArray(densities, &lrho);CHKERRQ(ierr);

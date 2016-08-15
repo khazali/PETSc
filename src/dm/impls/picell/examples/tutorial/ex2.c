@@ -157,9 +157,9 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->particleGrid.dom_lo[0]  = 0;
   ctx->particleGrid.dom_lo[1]  = 0;
   ctx->particleGrid.dom_lo[2]  = 0;
-  ctx->particleGrid.b0[0]  = 0;
-  ctx->particleGrid.b0[1]  = 0;
-  ctx->particleGrid.b0[2]  = 1; /* mostly in z */
+  ctx->particleGrid.b0[0]  = .1;
+  ctx->particleGrid.b0[1]  = .2;
+  ctx->particleGrid.b0[2]  =  1; /* mostly in z */
 
   ctx->tablecount = 0;
 
