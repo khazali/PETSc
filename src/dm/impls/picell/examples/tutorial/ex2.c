@@ -292,7 +292,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
 
   ctx->collisionPeriod = 10000;
   ierr = PetscOptionsInt("-collisionPeriod", "Period between collision operators", "ex2.c", ctx->collisionPeriod, &ctx->collisionPeriod, NULL);CHKERRQ(ierr);
-  ctx->useElectrons = PETSC_FALSE; /* need neutral because periodic domain */
+  ctx->useElectrons = PETSC_TRUE; /* need neutral because periodic domain */
   ierr = PetscOptionsBool("-use_electrons", "Include electrons", "ex2.c", ctx->useElectrons, &ctx->useElectrons, NULL);CHKERRQ(ierr);
   ctx->max_vpar = 1.;
   ierr = PetscOptionsReal("-max_vpar", "Maximum parallel velocity", "ex2.c",ctx->max_vpar,&ctx->max_vpar,NULL);CHKERRQ(ierr);
@@ -866,7 +866,7 @@ static PetscErrorCode SetupDiscretization(X2Ctx *ctx)
   PetscFunctionBeginUser;
 
   ierr = DMGetDimension(dmpi->dmplex, &dim);CHKERRQ(ierr);
-  ierr = PetscFECreateDefault(dmpi->dmplex, dim, 1, PETSC_FALSE, NULL, 1, &dmpi->fem);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dmpi->dmplex, dim, 1, PETSC_FALSE, NULL, 2, &dmpi->fem);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->fem, "poisson");CHKERRQ(ierr);
   /* FEM prob */
   ierr = DMGetDS(dmpi->dmplex, &prob);CHKERRQ(ierr);

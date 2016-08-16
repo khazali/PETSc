@@ -122,6 +122,7 @@ PetscErrorCode X2GridSolverLocatePoint(DM dm, PetscReal x[], const void *ctx_dum
     ierr = MPI_Comm_size(PetscObjectComm((PetscObject) dm), &npe);CHKERRQ(ierr);
     if (*elemID == -1 && npe==1) SETERRQ6(PetscObjectComm((PetscObject) dm), PETSC_ERR_USER, "We are not supporting out of domain points. cylindrical: r=%g z=%g phi=%g.  x=%g y=%g z=%g",x[0],x[1],x[2],xx[0],xx[1],xx[2]);
     else if (*elemID == -1) *elemID = 0; /* not working in parallel */
+    else if (*elemID < 0) SETERRQ7(PetscObjectComm((PetscObject) dm), PETSC_ERR_USER, "ERROR point not found with element %d, r=%g z=%g phi=%g. x=%g y=%g z=%g",*elemID,x[0],x[1],x[2],xx[0],xx[1],xx[2]);
     ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
     *pe = rank; /* dummy - no move until have global search */
     ierr = PetscSFDestroy(&cellSF);CHKERRQ(ierr);
@@ -163,8 +164,8 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->species[0].charge=ctx->eChargeEu*x2ECharge;
 
   /* mesh */
-  ctx->particleGrid.rMajor = 6.2; /* m of ITER */
-  ctx->particleGrid.rMinor = 2.0; /* m of ITER */
+  ctx->particleGrid.rMajor = 6.2; /* 6.2 m of ITER */
+  ctx->particleGrid.rMinor = 2.0; /* 2.0 m of ITER */
   ctx->particleGrid.npphi  = 1;
   ctx->particleGrid.npradius = 1;
   ctx->particleGrid.nptheta  = 1;
@@ -208,7 +209,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     else {
       t = ctx->particleGrid.numMajor;
     }
-    s_rminor_inflate = 1.00001*((ctx->particleGrid.rMajor + ctx->particleGrid.rMinor) / cos(M_PI / t) - ctx->particleGrid.rMajor) / ctx->particleGrid.rMinor;
+    s_rminor_inflate = 1.01*((ctx->particleGrid.rMajor + ctx->particleGrid.rMinor) / cos(M_PI / t) - ctx->particleGrid.rMajor) / ctx->particleGrid.rMinor;
   }
   ierr = PetscOptionsReal("-innerMult", "Percent of minor radius taken by inner square", "ex1.c", ctx->particleGrid.innerMult, &ctx->particleGrid.innerMult, NULL);CHKERRQ(ierr);
 
@@ -267,6 +268,10 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   /* particles */
   ctx->npart_proc = 10;
   ierr = PetscOptionsInt("-npart_proc", "Number of particles local (flux tube cell)", "ex1.c", ctx->npart_proc, &ctx->npart_proc, NULL);CHKERRQ(ierr);
+  if (ctx->npart_proc<0) {
+    if (!ctx->rank) ctx->npart_proc = -ctx->npart_proc;
+    else  ctx->npart_proc = 0;
+  }
   if (!chunkFlag) ctx->chunksize = X2_V_LEN*((ctx->npart_proc/80+1)/X2_V_LEN + 1); /* an intelegent message chunk size */
   if (ctx->chunksize<64 && !chunkFlag) ctx->chunksize = 64; /* 4K messages minumum */
 
@@ -791,7 +796,6 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
       /* create list for element 0 and add all to it */
       ierr = X2PListCreate(&ctx->partlists[isp][s_fluxtubeelem],ctx->chunksize);CHKERRQ(ierr);
       /* create each particle */
-      //for (int i=0;i<ctx->npart_proc;i++) {
       for (np=0 ; np<ctx->npart_proc; /* void */ ) {
 	PetscReal theta0,r,z;
 	const PetscReal psi = r1 + (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dr;
@@ -1467,7 +1471,7 @@ int main(int argc, char **argv)
 
   /* setup Discretization */
   ierr = DMGetDimension(dmpi->dmgrid, &dim);CHKERRQ(ierr);
-  ierr = PetscFECreateDefault(dmpi->dmgrid, dim, 1, PETSC_FALSE, NULL, 1, &dmpi->fem);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dmpi->dmgrid, dim, 1, PETSC_FALSE, NULL, 2, &dmpi->fem);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->fem, "poisson");CHKERRQ(ierr);
   /* FEM prob */
   ierr = DMGetDS(dmpi->dmgrid, &prob);CHKERRQ(ierr);

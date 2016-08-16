@@ -198,7 +198,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
             if (solver) {
               ierr = X2GridSolverLocatePoint(dmpi->dmplex, data[jj].x, ctx, &pe, &elid);CHKERRQ(ierr);
               if (pe!=ctx->rank) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not local (pe=%D)",pe);
-              if (elid<0) SETERRQ2(PETSC_COMM_WORLD, PETSC_ERR_USER, "No element found %d, pe=%d",elid,pe);
+              if (elid<0) SETERRQ5(PETSC_COMM_WORLD, PETSC_ERR_USER, "No element found %d, pe=%d, x = %g %g %g",elid,pe,data[jj].x[0],data[jj].x[1],data[jj].x[2]);
             }
             else elid = s_fluxtubeelem; /* non-solvers just put in element 0's list */
             ierr = X2PListAdd( &particlelist[elid], &data[jj], NULL);CHKERRQ(ierr);

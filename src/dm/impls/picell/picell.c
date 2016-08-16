@@ -173,7 +173,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   Vec          refCoord;
   PetscScalar  *lrho, *xx, *xi, *elemVec;
   PetscReal    *B = NULL;
-  PetscReal    v0[24], J[72], invJ[72], detJ[8];
+  PetscReal    v0[81], J[243], invJ[243], detJ[27], J0inv[9],v00[3], d3 = 8;
   const PetscReal *weights;
   PetscInt     totDim,p,N,dim,b,Nq,qdim,q,d,e;
   PetscErrorCode ierr;
@@ -188,28 +188,39 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   ierr = PetscLogEventBegin(DMPICell_AddSource,dm,0,0,0);CHKERRQ(ierr);
   ierr = VecDuplicate(coord, &refCoord);CHKERRQ(ierr);
   ierr = VecGetBlockSize(coord, &dim);CHKERRQ(ierr);
+  d3 = pow(2,dim);
   ierr = VecGetLocalSize(coord, &N);CHKERRQ(ierr);
   if (N%dim) SETERRQ2(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_PLIB, "N=%D dim=%D",N,dim);
-  N   /= dim;
+  N /= dim;
   ierr = VecGetArray(coord, &xx);CHKERRQ(ierr);
   ierr = VecGetArray(refCoord, &xi);CHKERRQ(ierr);
   ierr = PetscFEGetQuadrature(dmpi->fem, &quad);CHKERRQ(ierr);
   ierr = PetscQuadratureGetData(quad, &qdim, &Nq, NULL, &weights);CHKERRQ(ierr);
   if (qdim != dim) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Point dimension %d != quadrature dimension %d", dim, qdim);
-  if (Nq != 8) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Nq != 8 %d", Nq);
+  if (Nq > 27) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Nq > 27", Nq);
   /* Affine approximation for reference coordinates */
   ierr = DMPlexComputeCellGeometryFEM(dmpi->dmplex, cell, dmpi->fem, v0, J, invJ, detJ);CHKERRQ(ierr);
-  for (p = 0; p < N; ++p) {
-    for (e = 0; e < dim; ++e) xi[p*dim + e] = 0;
-    for (q = 0; q < Nq; ++q) {
-      PetscReal x0[3], *pinvJ = &invJ[dim*dim*q], *pv0 = &v0[dim*q], *pxx = &xx[dim*p];
+  /* get average for now */
+  for (e = 0; e < dim; ++e) v00[e] = 0;
+  for (e = 0; e < dim*dim; ++e) J0inv[e] = 0;
+  for (q = 0, xi = &invJ[0]; q < Nq; ++q, xi += dim*dim) {
+    for (e = 0; e < dim; ++e) {
+      v00[e] += weights[q]*v0[q*dim + e];
       for (d = 0; d < dim; ++d) {
-        x0[d] = 0;
-        for (e = 0; e < dim; ++e) {
-          x0[d] += pinvJ[d*dim+e]*(pxx[e] - pv0[e]);
-        }
+        J0inv[e*dim + d] += weights[q]*xi[e*dim + d];
       }
-      for (e = 0; e < dim; ++e) xi[p*dim + e] += weights[q]*x0[e]/Nq;
+    }
+  }
+  for (e = 0; e < dim; ++e) v00[e] /= d3;
+  for (e = 0; e < dim*dim; ++e) J0inv[e] /= d3;
+  /* apply xi = J^-1 * (x - v0) */
+  for (p = 0; p < N; ++p) {
+    PetscReal *pxx = &xx[dim*p], *pxi = &xi[dim*p];
+    for (e = 0; e < dim; ++e) {
+      pxi[e] = 0;
+      for (d = 0; d < dim; ++d) {
+        pxi[e] += J0inv[e*dim + d]*(pxx[d] - v00[d]);
+      }
     }
   }
   ierr = VecRestoreArray(coord, &xx);CHKERRQ(ierr);
