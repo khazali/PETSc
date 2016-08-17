@@ -530,7 +530,6 @@ PETSC_STATIC_INLINE PetscErrorCode X2PSendListAdd( X2PSendList *l, X2Particle *p
   if (l->size==l->data_size) {
     X2Particle *data2; /* make this arrays of X2Particle members for struct-of-arrays */
     int i;PetscErrorCode ierr;
-    PetscPrintf(PETSC_COMM_SELF," *** X2PSendListAdd expanded list %D --> %D\n",l->data_size,2*l->data_size);
     l->data_size *= 2;
     ierr = PetscMalloc1(l->data_size, &data2);CHKERRQ(ierr);
     for (i=0;i<l->size;i++) data2[i] = l->data[i];

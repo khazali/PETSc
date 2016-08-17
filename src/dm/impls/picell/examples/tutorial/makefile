@@ -43,10 +43,10 @@ runex1_p4:
 
 # -iter_vertex_file ITER-51vertex-quad-tri.txt -x2_dm_view -x2_dm_type p8est
 # -run_type boxtorus  -bsp_chunksize 3000 -gtool "advixe-cl -collect survey:2,3"
-# -nphi_particles 2 -x2_dm_view vtk:tokamac.vtu -ft_np 1,1,1 -bsp_chunksize 4096 -chunksize 165536 
+# -nphi_particles 2 -x2_dm_view vtk:tokamac.vtu -ft_np 1,1,1 -bsp_chunksize 4096 -chunksize 165536
 
 val:
-	-${MPIEXEC} -n ${NP} valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 2 -numMajor 4 -num_particles_proc 100 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -run_type boxtorus -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -collisionPeriod 1 -max_vpar 30.
+	-${MPIEXEC} -n ${NP} valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 2 -numMajor 4 -num_particles_proc 100 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -run_type boxtorus -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -collision_period 1 -max_vpar 30.
 # --vgdb-error=0 -x2_dm_type p8est
 
 debug:
