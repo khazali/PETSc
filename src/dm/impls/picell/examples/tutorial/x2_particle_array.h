@@ -132,7 +132,7 @@ PetscErrorCode X2PListCreate(X2PList *l, PetscInt msz)
   if (msz <= 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"msz <= 0");
   l->size=0;
   l->top=0;
-  l->vec_top=-1;
+  l->vec_top=0;
   l->hole=-1;
   l->data_size = X2_V_LEN*(msz/X2_V_LEN);
 #ifdef X2_S_OF_V
@@ -168,7 +168,7 @@ PetscErrorCode X2PListDestroy(X2PList *l)
 }
 #undef __FUNCT__
 #define __FUNCT__ "X2PListAdd"
-PetscErrorCode X2PListAdd( X2PList *l, X2Particle *p, X2PListPos *ppos)
+PETSC_STATIC_INLINE PetscErrorCode X2PListAdd( X2PList *l, X2Particle *p, X2PListPos *ppos)
 {
   PetscFunctionBeginUser;
   if (!l->data_size) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"List not created?");
@@ -221,6 +221,7 @@ PetscErrorCode X2PListAdd( X2PList *l, X2Particle *p, X2PListPos *ppos)
 #endif
     if (ppos) *ppos = i;
   }
+  if (l->size == l->vec_top) { l->vec_top += X2_V_LEN; assert(l->vec_top<=l->data_size); }
   l->size++;
   assert(l->top >= l->size);
   PetscFunctionReturn(0);
@@ -269,16 +270,16 @@ PetscErrorCode X2PListCompress(X2PList *l)
   if (l->top%X2_V_LEN==0) l->vec_top=l->top;
   else {
     PetscInt vtop = (l->top/X2_V_LEN + 1)*X2_V_LEN;
+    l->vec_top = vtop;
     for ( ii = l->top ; ii < vtop ; ii++) {
 #ifdef X2_S_OF_V
-      X2V2V(l->data_v,l->data_v,l->top-1,ii);
-      l->data_v.w0[ii] = 0;
+      X2V2V(l->data_v,l->data_v,l->top-1,ii); /* use any valid coordinate */ 
+      l->data_v.w0[ii] = 0; /* zero weight so it does nothing in deposition, etc */
 #else
       l->data[ii] = l->data[l->top-1];
       l->data[ii].w0 = 0;
 #endif
     }
-    l->vec_top=vtop;
   }
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventEnd(s_events[13],0,0,0,0);CHKERRQ(ierr);
@@ -347,7 +348,7 @@ PetscErrorCode X2PListGetNext(X2PList *l, X2Particle *p, X2PListPos *pos)
 }
 #undef __FUNCT__
 #define __FUNCT__ "X2PListRemoveAt"
-PetscErrorCode X2PListRemoveAt( X2PList *l, const X2PListPos pos)
+PETSC_STATIC_INLINE PetscErrorCode X2PListRemoveAt( X2PList *l, const X2PListPos pos)
 {
   PetscFunctionBeginUser;
 #ifdef PETSC_USE_DEBUG
@@ -371,20 +372,18 @@ PetscErrorCode X2PListRemoveAt( X2PList *l, const X2PListPos pos)
   }
   else l->hole = pos; /* head of linked list of holes */
   assert(l->top >= l->size);
-#ifdef X2_S_OF_V
-  l->data_v.w0[pos] = 0; /* zero to add in vector */
-#else
-  l->data[pos].w0 = 0;
-#endif
   PetscFunctionReturn(0);
 }
 
-PetscInt X2PListMaxSize(X2PList *l) {
+PETSC_STATIC_INLINE PetscInt X2PListMaxSize(X2PList *l) {
   return l->data_size;
 }
 
-PetscInt X2PListSize(X2PList *l) {
+PETSC_STATIC_INLINE PetscInt X2PListSize(X2PList *l) {
   return l->size;
+}
+PETSC_STATIC_INLINE PetscBool X2PListIsEmpty(X2PList *l) {
+  return (PetscBool)(l->size==0);
 }
 #ifdef H5PART
 #undef __FUNCT__
@@ -478,7 +477,6 @@ PetscErrorCode X2PListWrite(X2PList l[], PetscInt nLists, PetscMPIInt rank, Pets
 }
 #endif
 
-
 /* send particle list */
 typedef struct X2PSendList_TAG{
   X2Particle *data;
@@ -492,8 +490,11 @@ typedef struct X2ISend_TAG{
   MPI_Request request;
 } X2ISend;
 /* particle send list, non-vector simple array list */
-PetscInt X2PSendListSize(X2PSendList *l) {
+PETSC_STATIC_INLINE PetscInt X2PSendListSize(X2PSendList *l) {
   return l->size;
+}
+PETSC_STATIC_INLINE PetscInt X2PSendListMaxSize(X2PSendList *l) {
+  return l->data_size;
 }
 #undef __FUNCT__
 #define __FUNCT__ "X2PSendListCreate"
@@ -523,13 +524,13 @@ PetscErrorCode X2PSendListDestroy(X2PSendList *l)
 }
 #undef __FUNCT__
 #define __FUNCT__ "X2PSendListAdd"
-PetscErrorCode X2PSendListAdd( X2PSendList *l, X2Particle *p)
+PETSC_STATIC_INLINE PetscErrorCode X2PSendListAdd( X2PSendList *l, X2Particle *p)
 {
   PetscFunctionBeginUser;
   if (l->size==l->data_size) {
     X2Particle *data2; /* make this arrays of X2Particle members for struct-of-arrays */
     int i;PetscErrorCode ierr;
-    PetscPrintf(PETSC_COMM_SELF," *** X2PSendListAdd expanded list %d --> %d%d\n",l->data_size,2*l->data_size);
+    PetscPrintf(PETSC_COMM_SELF," *** X2PSendListAdd expanded list %D --> %D\n",l->data_size,2*l->data_size);
     l->data_size *= 2;
     ierr = PetscMalloc1(l->data_size, &data2);CHKERRQ(ierr);
     for (i=0;i<l->size;i++) data2[i] = l->data[i];

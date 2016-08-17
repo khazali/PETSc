@@ -4,7 +4,7 @@
 */
 typedef struct {
   PetscLogEvent *events;
-  PetscInt      bsp_chunksize;
+  PetscInt      use_bsp;
   PetscInt      chunksize;
   runType       run_type;
   PetscBool     plot;
@@ -26,13 +26,13 @@ typedef struct {
   PetscReal chargeEu; /* =1D0  ! charge number */
   PetscReal eChargeEu; /* =-1D0 */
   /* particles */
-  PetscInt  npart_proc;
-  PetscBool useElectrons;
-  PetscInt  collisionPeriod;
+  PetscInt  num_particles_proc;
+  PetscBool use_electrons;
+  PetscInt  collision_period;
   PetscReal max_vpar;
   PetscInt  nElems; /* size of array of particle lists */
   X2PList  *partlists[X2_NION+1]; /* 0: electron, 1:N ions */
   X2Species species[X2_NION+1]; /* 0: electron, 1:N ions */
-  PetscInt  tablesize,tablecount; /* hash table meta-data for proc-send list table */
+  PetscInt  proc_send_table_size,tablecount; /* hash table meta-data for proc-send list table */
   X2PSendList *sendListTable;
 } X2Ctx;

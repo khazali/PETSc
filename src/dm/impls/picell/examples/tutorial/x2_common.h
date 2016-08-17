@@ -1,6 +1,6 @@
 /* M. Adams, August 2016 */
 
-PetscErrorCode zero(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+PETSC_STATIC_INLINE PetscErrorCode zero(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
   int i;
   for (i = 0 ; i < dim ; i++) u[i] = 0.;
@@ -15,7 +15,7 @@ static PetscErrorCode destroyParticles(X2Ctx *ctx)
   PetscInt       isp,elid;
   PetscFunctionBeginUser;
   /* idiom for iterating over particle lists */
-  for (isp = ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) { // for each species
+  for (isp = ctx->use_electrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) { // for each species
     for (elid=0;elid<ctx->nElems;elid++) {
       ierr = X2PListDestroy(&ctx->partlists[isp][elid]);CHKERRQ(ierr);
     }
@@ -34,7 +34,7 @@ static PetscErrorCode destroyParticles(X2Ctx *ctx)
      - nIsend: number of sends so far
      - sendListTable: send list hash table array, emptied but meta-data kept
      - particlelist: array of the lists of particle lists to add to
-     - slists: array of non-blocking send caches (!ctx->bsp_chunksize only), cleared
+     - slists: array of non-blocking send caches (!ctx->use_bsp only), cleared
    Output:
 */
 #undef __FUNCT__
@@ -54,7 +54,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventBegin(ctx->events[2],0,0,0,0);CHKERRQ(ierr);
 #endif
-  if ( ctx->bsp_chunksize ) { /* use BSP */
+  if ( ctx->use_bsp ) { /* use BSP */
     PetscMPIInt  nto,*fromranks;
     PetscMPIInt *toranks;
     X2Particle  *fromdata,*todata,*pp;
@@ -64,7 +64,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
     ierr = PetscLogEventBegin(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
 #endif
     /* count send  */
-    for (ii=0,nto=0;ii<ctx->tablesize;ii++) {
+    for (ii=0,nto=0;ii<ctx->proc_send_table_size;ii++) {
       if (sendListTable[ii].data_size != 0) {
 	sz = X2PSendListSize(&sendListTable[ii]);
 	for (jj=0 ; jj<sz ; jj += ctx->chunksize) nto++; /* can just figure this out */
@@ -73,7 +73,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
     /* make to ranks & data */
     ierr = PetscMalloc1(nto, &toranks);CHKERRQ(ierr);
     ierr = PetscMalloc1(ctx->chunksize*nto, &todata);CHKERRQ(ierr);
-    for (ii=0,nto=0,pp=todata;ii<ctx->tablesize;ii++) {
+    for (ii=0,nto=0,pp=todata;ii<ctx->proc_send_table_size;ii++) {
       if (sendListTable[ii].data_size) {
 	if ((sz=X2PSendListSize(&sendListTable[ii])) > 0) {
 	  /* empty the list */
@@ -130,29 +130,27 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
     MPI_Status  status;
     PetscMPIInt flag,sz,sz1,pe;
     /* send lists */
-    for (ii=0;ii<ctx->tablesize;ii++) {
-      if (sendListTable[ii].data_size != 0) {
-	if ((sz=X2PSendListSize(&sendListTable[ii])) > 0) {
-	  if (*nIsend==X2PROCLISTSIZE) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"process send table too small (%D)",X2PROCLISTSIZE);
+    for (ii=0;ii<ctx->proc_send_table_size;ii++) {
+      if (sendListTable[ii].data_size != 0 && (sz=X2PSendListSize(&sendListTable[ii])) > 0) {
+	if (*nIsend==X2PROCLISTSIZE) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"process send table too small (%D)",X2PROCLISTSIZE);
 #if defined(PETSC_USE_LOG)
-	  ierr = PetscLogEventBegin(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
+	ierr = PetscLogEventBegin(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
 #endif
-	  slist[*nIsend].proc = sendListTable[ii].proc;
-          slist[*nIsend].data = sendListTable[ii].data; /* cache data */
-          /* send and reset - we can just send this because it is dense */
-	  ierr = MPI_Isend((void*)slist[*nIsend].data,sz*part_dsize,mtype,slist[*nIsend].proc,tag,ctx->wComm,&slist[*nIsend].request);
-	  CHKERRQ(ierr);
-	  (*nIsend)++;
-          /* ready for next round, save meta-data  */
-	  ierr = X2PSendListClear( &sendListTable[ii] );CHKERRQ(ierr);
-	  assert(sendListTable[ii].data_size == ctx->chunksize);
-          sendListTable[ii].data = 0;
-	  ierr = PetscMalloc1(ctx->chunksize, &sendListTable[ii].data);CHKERRQ(ierr);
-          assert(sendListTable[ii].data_size==ctx->chunksize);
+	slist[*nIsend].proc = sendListTable[ii].proc;
+	slist[*nIsend].data = sendListTable[ii].data; /* cache data */
+	/* send and reset - we can just send this because it is dense */
+	ierr = MPI_Isend((void*)slist[*nIsend].data,sz*part_dsize,mtype,slist[*nIsend].proc,tag,ctx->wComm,&slist[*nIsend].request);
+	CHKERRQ(ierr);
+	(*nIsend)++;
+	/* ready for next round, save meta-data  */
+	ierr = X2PSendListClear( &sendListTable[ii] );CHKERRQ(ierr);
+	assert(sendListTable[ii].data_size == ctx->chunksize);
+	sendListTable[ii].data = 0;
+	ierr = PetscMalloc1(ctx->chunksize, &sendListTable[ii].data);CHKERRQ(ierr);
+	assert(sendListTable[ii].data_size==ctx->chunksize);
 #if defined(PETSC_USE_LOG)
-	  ierr = PetscLogEventEnd(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
+	ierr = PetscLogEventEnd(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
 #endif
-	}
       }
       /* else - an empty list */
     }
@@ -278,13 +276,13 @@ PetscErrorCode go( X2Ctx *ctx )
 	istep++, time += ctx->dt, tag += 3*(X2_NION + 1) ) {
 
     /* do collisions */
-    if (((istep+1)%ctx->collisionPeriod)==0) {
+    if (((istep+1)%ctx->collision_period)==0) {
       /* move to flux tube space */
       ierr = processParticles(ctx, 0.0, ctx->sendListTable, tag, -1, istep, PETSC_FALSE);CHKERRQ(ierr);
       /* call collision method */
 #ifdef H5PART
       if (ctx->plot) {
-        for (isp=ctx->useElectrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
+        for (isp=ctx->use_electrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
           char fname1[256], fname2[256];
           X2PListPos pos1,pos2;
 #if defined(PETSC_USE_LOG)
