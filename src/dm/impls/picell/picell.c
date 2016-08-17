@@ -171,7 +171,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
 {
   DM_PICell    *dmpi = (DM_PICell *) dm->data;
   Vec          refCoord;
-  PetscScalar  *lrho, *xx, *xi, *elemVec;
+  PetscScalar  *lrho, *xx, *xi, *elemVec, *piJ;
   PetscReal    *B = NULL;
   PetscReal    v0[81], J[243], invJ[243], detJ[27], J0inv[9],v00[3], d3 = 8;
   const PetscReal *weights;
@@ -203,11 +203,11 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   /* get average for now */
   for (e = 0; e < dim; ++e) v00[e] = 0;
   for (e = 0; e < dim*dim; ++e) J0inv[e] = 0;
-  for (q = 0, xi = &invJ[0]; q < Nq; ++q, xi += dim*dim) {
+  for (q = 0, piJ = &invJ[0]; q < Nq; ++q, piJ += dim*dim) {
     for (e = 0; e < dim; ++e) {
       v00[e] += weights[q]*v0[q*dim + e];
       for (d = 0; d < dim; ++d) {
-        J0inv[e*dim + d] += weights[q]*xi[e*dim + d];
+        J0inv[e*dim + d] += weights[q]*piJ[e*dim + d];
       }
     }
   }
@@ -215,7 +215,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   for (e = 0; e < dim*dim; ++e) J0inv[e] /= d3;
   /* apply xi = J^-1 * (x - v0) */
   for (p = 0; p < N; ++p) {
-    PetscReal *pxx = &xx[dim*p], *pxi = &xi[dim*p];
+    PetscScalar *pxx = &xx[dim*p], *pxi = &xi[dim*p];
     for (e = 0; e < dim; ++e) {
       pxi[e] = 0;
       for (d = 0; d < dim; ++d) {
