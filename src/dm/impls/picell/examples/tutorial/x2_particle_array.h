@@ -13,7 +13,7 @@ typedef struct { /* ptl_type */
   PetscReal f0;
   long long gid; /* diagnostic, should be size of double */
 } X2Particle;
-#define X2_V_LEN 1
+#define X2_V_LEN 8
 #define X2_S_OF_V
 typedef struct { /* ptl_type */
   /* phase (4D) */
@@ -134,11 +134,11 @@ PetscErrorCode X2PListCreate(X2PList *l, PetscInt msz)
   l->top=0;
   l->vec_top=0;
   l->hole=-1;
-  l->data_size = X2_V_LEN*(msz/X2_V_LEN);
+  l->data_size = X2_V_LEN*(msz/X2_V_LEN + 1);
 #ifdef X2_S_OF_V
-  X2ALLOCV(l->data_size+X2_V_LEN,l->data_v);
+  X2ALLOCV(l->data_size,l->data_v);
 #else
-  ierr = PetscMalloc1(l->data_size+X2_V_LEN, &l->data);CHKERRQ(ierr);
+  ierr = PetscMalloc1(l->data_size, &l->data);CHKERRQ(ierr);
 #endif
   return ierr;
 }

@@ -268,7 +268,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->dt = 1.;
   ierr = PetscOptionsReal("-dt","Time step","ex2.c",ctx->dt,&ctx->dt,NULL);CHKERRQ(ierr);
   /* particles */
-  ctx->num_particles_proc = 10;
+  ctx->num_particles_proc = X2_V_LEN;
   ierr = PetscOptionsInt("-num_particles_proc", "Number of particles local (flux tube cell)", "ex2.c", ctx->num_particles_proc, &ctx->num_particles_proc, NULL);CHKERRQ(ierr);
   if (ctx->num_particles_proc<0) {
     if (ctx->rank==ctx->npe-1) ctx->num_particles_proc = -ctx->num_particles_proc;
@@ -276,14 +276,14 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   }
   if (!chunkFlag) ctx->chunksize = X2_V_LEN*((ctx->num_particles_proc/80+1)/X2_V_LEN+1); /* an intelegent message chunk size */
 
-  if (s_debug>0) PetscPrintf(ctx->wComm,"npe=%D; %D x %D x %D flux tube grid; mpi_send size (chunksize) has %d particles. %s.\n",ctx->npe,ctx->particleGrid.solver_np[0],ctx->particleGrid.solver_np[1],ctx->particleGrid.solver_np[2],ctx->chunksize,
+  if (s_debug>0) PetscPrintf(ctx->wComm,"npe=%D; %D x %D x %D flux tube grid; mpi_send size (chunksize) equal %d particles. %s. %s\n",
+                             ctx->npe,ctx->particleGrid.solver_np[0],ctx->particleGrid.solver_np[1],ctx->particleGrid.solver_np[2],ctx->chunksize,
 #ifdef X2_S_OF_V
-			     "Use struct of arrays"
+			     "Use struct of arrays",
 #else
-			     "Use of array structs"
+			     "Use of array structs",
 #endif
-                             );
-
+                             ctx->use_bsp ? "BSP communication" : "Non-blocking consensus communication");
   ctx->collision_period = 10000;
   ierr = PetscOptionsInt("-collision_period", "Period between collision operators", "ex2.c", ctx->collision_period, &ctx->collision_period, NULL);CHKERRQ(ierr);
   ctx->use_electrons = PETSC_TRUE; /* need neutral because periodic domain */
@@ -540,7 +540,12 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 	hash = (pe*593)%ctx->proc_send_table_size; /* hash */
 	for (ii=0;ii<ctx->proc_send_table_size;ii++){
 	  if (sendListTable[hash].data_size==0) {
-	    ierr = X2PSendListCreate(&sendListTable[hash],ctx->chunksize);CHKERRQ(ierr);
+            int np = ctx->num_particles_proc, cs = ctx->chunksize; /* lots of local movement */
+            if (pe==ctx->rank) {
+              ierr = X2PSendListCreate(&sendListTable[hash], cs*(np/cs + np/cs/64 + 1) );CHKERRQ(ierr);
+            } else {
+              ierr = X2PSendListCreate(&sendListTable[hash], cs*(np/cs/ctx->nElems + np/cs/ctx->nElems/8 + 1));CHKERRQ(ierr);
+            }
 	    sendListTable[hash].proc = pe;
 	    ctx->tablecount++;
 	    if (ctx->tablecount==ctx->proc_send_table_size) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Table too small (%D)",ctx->proc_send_table_size);
@@ -591,10 +596,10 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       ierr = PetscLogEventEnd(ctx->events[5],0,0,0,0);CHKERRQ(ierr);
 #endif
     } /* element list */
-    
+
     /* finish sends and receive new particles for this species */
     ierr = shiftParticles(ctx, sendListTable, &nslist, ctx->partlists[isp], slist, tag+isp, solver);CHKERRQ(ierr);
-    
+
 #ifdef PETSC_USE_DEBUG
     { /* debug */
       PetscMPIInt flag,sz; MPI_Status  status; MPI_Datatype mtype;
@@ -749,7 +754,9 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
     const PetscReal maxe=ctx->max_vpar*ctx->max_vpar,mass=ctx->species[isp].mass,charge=ctx->species[isp].charge;
     ierr = PetscMalloc1(ctx->nElems,&ctx->partlists[isp]);CHKERRQ(ierr);
     /* create list for element 0 and add all to it */
-    ierr = X2PListCreate(&ctx->partlists[isp][s_fluxtubeelem],ctx->chunksize);CHKERRQ(ierr); assert(ctx->chunksize>0);
+    ierr = X2PListCreate(&ctx->partlists[isp][s_fluxtubeelem],
+                         ctx->chunksize*(ctx->num_particles_proc/ctx->chunksize + ctx->num_particles_proc/ctx->chunksize/64 + 1));
+    CHKERRQ(ierr);
     /* create each particle */
     for (i=0 ; i<ctx->num_particles_proc; i++ ) {
       PetscReal xx[] = { x1 + (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dx,
@@ -778,8 +785,10 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
     }
     /* finish off list creates for rest of elements */
     for (elid=0;elid<ctx->nElems;elid++) {
-      if (elid!=s_fluxtubeelem) //
-        ierr = X2PListCreate(&ctx->partlists[isp][elid],ctx->chunksize);CHKERRQ(ierr); /* this will get expanded, chunksize used for message chunk size and initial list size! */
+      if (elid!=s_fluxtubeelem) {
+        int np = ctx->num_particles_proc, cs = ctx->chunksize, b = cs*(np/cs/ctx->nElems + np/cs/ctx->nElems/8 + 1);
+        ierr = X2PListCreate(&ctx->partlists[isp][elid],b);CHKERRQ(ierr); /* this will get expanded, chunksize used for message chunk size and initial list size! */
+      }
     }
   } /* species */
   PetscFunctionReturn(0);

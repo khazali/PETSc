@@ -34,7 +34,7 @@ static PetscErrorCode destroyParticles(X2Ctx *ctx)
      - nIsend: number of sends so far
      - sendListTable: send list hash table array, emptied but meta-data kept
      - particlelist: array of the lists of particle lists to add to
-     - slists: array of non-blocking send caches (!ctx->use_bsp only), cleared
+     - slists: array of non-blocking send caches (not used when ctx->use_bsp), cleared
    Output:
 */
 #undef __FUNCT__
@@ -43,13 +43,13 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
                                X2PList particlelist[], X2ISend slist[], PetscMPIInt tag, PetscBool solver)
 {
   PetscErrorCode ierr;
-  const int part_dsize = sizeof(X2Particle)/sizeof(double); assert(sizeof(X2Particle)%sizeof(double)==0);
+  const int part_dsize = sizeof(X2Particle)/sizeof(PetscReal); assert(sizeof(X2Particle)%sizeof(PetscReal)==0);
   PetscInt ii,jj,kk,mm,idx;
   DM_PICell *dmpi;
-  MPI_Datatype mtype;
+  MPI_Datatype real_type;
 
   PetscFunctionBeginUser;
-  PetscDataTypeToMPIDataType(PETSC_REAL,&mtype);
+  PetscDataTypeToMPIDataType(PETSC_REAL,&real_type);
   dmpi = (DM_PICell *) ctx->dm->data;
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventBegin(ctx->events[2],0,0,0,0);CHKERRQ(ierr);
@@ -97,7 +97,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
     }
 
     /* do it */
-    ierr = PetscCommBuildTwoSided( ctx->wComm, ctx->chunksize*part_dsize, mtype, nto, toranks, (double*)todata,
+    ierr = PetscCommBuildTwoSided( ctx->wComm, ctx->chunksize*part_dsize, real_type, nto, toranks, (double*)todata,
 				   &nfrom, &fromranks, &fromdata);
     CHKERRQ(ierr);
     for (ii=0, pp = fromdata ; ii<nfrom ; ii++) {
@@ -123,12 +123,11 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
 #endif
   }
   else { /* non-blocking consensus */
-    X2Particle *data;
     PetscBool   done=PETSC_FALSE,bar_act=PETSC_FALSE;
     MPI_Request ib_request;
     PetscInt    numSent;
     MPI_Status  status;
-    PetscMPIInt flag,sz,sz1,pe;
+    PetscMPIInt flag,sz,pe;
     /* send lists */
     for (ii=0;ii<ctx->proc_send_table_size;ii++) {
       if (sendListTable[ii].data_size != 0 && (sz=X2PSendListSize(&sendListTable[ii])) > 0) {
@@ -139,15 +138,13 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
 	slist[*nIsend].proc = sendListTable[ii].proc;
 	slist[*nIsend].data = sendListTable[ii].data; /* cache data */
 	/* send and reset - we can just send this because it is dense */
-	ierr = MPI_Isend((void*)slist[*nIsend].data,sz*part_dsize,mtype,slist[*nIsend].proc,tag,ctx->wComm,&slist[*nIsend].request);
+	ierr = MPI_Isend((void*)slist[*nIsend].data,sz*part_dsize,real_type,slist[*nIsend].proc,tag,ctx->wComm,&slist[*nIsend].request);
 	CHKERRQ(ierr);
 	(*nIsend)++;
 	/* ready for next round, save meta-data  */
 	ierr = X2PSendListClear( &sendListTable[ii] );CHKERRQ(ierr);
-	assert(sendListTable[ii].data_size == ctx->chunksize);
 	sendListTable[ii].data = 0;
-	ierr = PetscMalloc1(ctx->chunksize, &sendListTable[ii].data);CHKERRQ(ierr);
-	assert(sendListTable[ii].data_size==ctx->chunksize);
+	ierr = PetscMalloc1(sendListTable[ii].data_size, &sendListTable[ii].data);CHKERRQ(ierr);
 #if defined(PETSC_USE_LOG)
 	ierr = PetscLogEventEnd(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -160,7 +157,6 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
     ierr = PetscLogEventBegin(ctx->events[3],0,0,0,0);CHKERRQ(ierr);
 #endif
     /* process receives - non-blocking consensus */
-    ierr = PetscMalloc1(ctx->chunksize, &data);CHKERRQ(ierr);
     while (!done) {
       if (bar_act) {
 	ierr = MPI_Test(&ib_request, &flag, &status);CHKERRQ(ierr);
@@ -187,9 +183,10 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
       do {
 	ierr = MPI_Iprobe(MPI_ANY_SOURCE, tag, ctx->wComm, &flag, &status);CHKERRQ(ierr);
 	if (flag) {
-	  MPI_Get_count(&status, mtype, &sz); assert(sz<=ctx->chunksize*part_dsize && sz%part_dsize==0);
-	  ierr = MPI_Recv((void*)data,sz,mtype,status.MPI_SOURCE,tag,ctx->wComm,&status);CHKERRQ(ierr);
-	  MPI_Get_count(&status, mtype, &sz1); assert(sz1<=ctx->chunksize*part_dsize && sz1%part_dsize==0); assert(sz==sz1);
+          X2Particle *data;
+	  MPI_Get_count(&status, real_type, &sz); assert(sz%part_dsize==0);
+          ierr = PetscMalloc1(sz, &data);CHKERRQ(ierr);
+          ierr = MPI_Recv((void*)data,sz,real_type,status.MPI_SOURCE,tag,ctx->wComm,&status);CHKERRQ(ierr);
 	  sz = sz/part_dsize;
 	  for (jj=0;jj<sz;jj++) {
             PetscInt elid;
@@ -201,10 +198,10 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
             else elid = s_fluxtubeelem; /* non-solvers just put in element 0's list */
             ierr = X2PListAdd( &particlelist[elid], &data[jj], NULL);CHKERRQ(ierr);
           }
+          ierr = PetscFree(data);CHKERRQ(ierr);
 	}
       } while (flag);
     } /* non-blocking consensus */
-    ierr = PetscFree(data);CHKERRQ(ierr);
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventEnd(ctx->events[3],0,0,0,0);CHKERRQ(ierr);
 #endif
