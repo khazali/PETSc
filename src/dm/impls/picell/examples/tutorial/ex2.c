@@ -527,7 +527,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       ierr = PetscLogEventEnd(s_events[9],0,0,0,0);CHKERRQ(ierr);
 #endif
       /* move particles, not vectorizable */
-      for (pos=0 ; pos < list->vec_top ; pos++ ) {
+      for (pos=0 ; pos < list->top ; pos++ ) {
 	pe = pes[pos];
 	elid2 = pelid[pos]; /* we can not just move to new list because it might get pushed again, so use MPI (local) buffer pretty big as a cache */
 	if (pe==ctx->rank && elid2==elid) continue; /* don't move */
