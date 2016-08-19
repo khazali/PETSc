@@ -14,7 +14,7 @@ typedef struct { /* ptl_type */
   long long gid; /* diagnostic, should be size of double */
 } X2Particle;
 #define X2_V_LEN 8
-#define X2_S_OF_V
+//#define X2_S_OF_V
 typedef struct { /* ptl_type */
   /* phase (4D) */
   PetscReal *x[0]; /* array of coordinates */
@@ -118,9 +118,9 @@ PetscErrorCode X2ParticleWrite(X2Particle *p, void *buf)
 #define X2V2V(src,dst,is,id) { dst.r[id] = src.r[is]; dst.z[id] = src.z[is]; dst.phi[id] = src.phi[is]; dst.vpar[id] = src.vpar[is]; dst.mu[id] = src.mu[is]; dst.w0[id] = src.w0[is]; dst.f0[id] = src.f0[is]; dst.gid[id] = src.gid[is];}
 #define X2V2P(p,d,i)         { p->r = d.r[i];         p->z = d.z[i];         p->phi = d.phi[i];         p->vpar = d.vpar[i];         p->mu = d.mu[i];         p->w0 = d.w0[i];         p->f0 = d.f0[i];         p->gid = d.gid[i];}
 #ifdef X2_S_OF_V
-#define X2PAXPY(a,s,d,i) { d.r += a*s->data_v.r[i]; d.z += a*s->data_v.z[i]; d.phi += a*s->data_v.phi[i]; d.vpar += a*s->data_v.vpar[i]; d.mu += a*s->data_v.mu[i]; d.w0 += a*s->data_v.w0[i]; d.f0 += a*s->data_v.f0[i]; d.gid += s->data_v.gid[i];}
+#define X2PAXPY(a,s,d,i) { d.r += a*s->data_v.r[i]; d.z += a*s->data_v.z[i]; d.phi += a*s->data_v.phi[i]; d.vpar += a*s->data_v.vpar[i]; d.mu += a*s->data_v.mu[i]; d.w0 += a*s->data_v.w0[i]; d.f0 += a*s->data_v.f0[i]; /* d.gid += s->data_v.gid[i]; */}
 #else
-#define X2PAXPY(a,s,d,i) { d.r += a*s->data[i].r;   d.z += a*s->data[i].z;   d.phi += a*s->data[i].phi;   d.vpar += a*s->data[i].vpar;   d.mu += a*s->data[i].mu;   d.w0 += a*s->data[i].w0 ;  d.f0 += a*s->data[i].f0;   d.gid += s[i].gid;}
+#define X2PAXPY(a,s,d,i) { d.r += a*s->data[i].r;   d.z += a*s->data[i].z;   d.phi += a*s->data[i].phi;   d.vpar += a*s->data[i].vpar;   d.mu += a*s->data[i].mu;   d.w0 += a*s->data[i].w0 ;  d.f0 += a*s->data[i].f0;   /* d.gid += a*s->data[i].gid; */}
 #endif
 
 /* particle list */
@@ -285,7 +285,11 @@ PetscErrorCode X2PListCompress(X2PList *l)
   ierr = PetscLogEventEnd(s_events[13],0,0,0,0);CHKERRQ(ierr);
 #endif
 #ifdef PETSC_USE_DEBUG
+#ifdef X2_S_OF_V
   for (ii=0;ii<l->size;ii++) assert(l->data_v.gid[ii]>0);
+#else
+  for (ii=0;ii<l->size;ii++) assert(l->data[ii].gid>0);
+#endif
 #endif
   return 0;
 }

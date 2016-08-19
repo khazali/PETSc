@@ -469,9 +469,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
             xx[0] = list->data_v.r[pos];
             xx[1] = list->data_v.z[pos];
 #else
-            xx[2] = ppart->phi;
-            xx[0] = ppart->r;
-            xx[1] = ppart->z;
+            xx[2] = list->data[pos].x[2];
+            xx[0] = list->data[pos].x[0];
+            xx[1] = list->data[pos].x[1];
 #endif
           }
         }
