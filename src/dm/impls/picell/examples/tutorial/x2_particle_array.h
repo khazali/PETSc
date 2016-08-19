@@ -14,7 +14,7 @@ typedef struct { /* ptl_type */
   long long gid; /* diagnostic, should be size of double */
 } X2Particle;
 #define X2_V_LEN 8
-//#define X2_S_OF_V
+#define X2_S_OF_V
 typedef struct { /* ptl_type */
   /* phase (4D) */
   PetscReal *x[0]; /* array of coordinates */
@@ -375,7 +375,11 @@ PETSC_STATIC_INLINE PetscErrorCode X2PListRemoveAt( X2PList *l, const X2PListPos
     l->top = 0;
   }
   else l->hole = pos; /* head of linked list of holes */
-  assert(l->top >= l->size);
+#ifdef X2_S_OF_V
+  l->data_v.w0[pos] = 0; /* zero out so we can vectorize deposition with holes */
+#else
+  l->data[pos].w0 = 0;
+#endif
   PetscFunctionReturn(0);
 }
 

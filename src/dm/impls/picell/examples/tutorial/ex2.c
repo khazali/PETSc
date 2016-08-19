@@ -51,13 +51,14 @@ static PetscInt s_rank;
 static int s_fluxtubeelem=0;
 #define X2PROCLISTSIZE 256
 
-/* X2GridSolverLocatePoint: find processor and element in solver grid that this one point is in
+/* X2GridSolverLocatePoints: find processor and element in solver grid that this one point is in
     Input:
      - dm: solver dm
-     - x: Cartesian coordinates (native data)
+     - ctx: context
+     - xvec: Cartesian coordinates (native data), clobbers with fake local
    Output:
-     - pe: process ID
-     - elemID: element ID
+     - pes: process IDs
+     - elemIDs: element IDs
 */
 /*
   dm - The DM
@@ -67,46 +68,55 @@ static int s_fluxtubeelem=0;
   elemID - Local cell number on rank pe containing the particle, -1 if not found
 */
 #undef __FUNCT__
-#define __FUNCT__ "X2GridSolverLocatePoint"
-PetscErrorCode X2GridSolverLocatePoint(DM dm, PetscReal x[], const X2Ctx *ctx, PetscMPIInt *pe, PetscInt *elemID)
+#define __FUNCT__ "X2GridSolverLocatePoints"
+PetscErrorCode X2GridSolverLocatePoints(DM dm,  Vec xvec, const X2Ctx *ctx,  IS *pes, IS *elemIDs)
 {
-  PetscInt       i,ii[3];
+  PetscInt       i,idxs[3],n,nn,dim,ii;
   const PetscInt *np = ctx->particleGrid.solver_np;
   const PetscReal *dlo = ctx->particleGrid.dom_lo, *dhi = ctx->particleGrid.dom_hi;
   PetscErrorCode ierr;
+  PetscScalar *xx,*xx0;
+  PetscInt *peidxs,*elemidxs;
+  PetscSF            cellSF = NULL;
+  const PetscSFNode *foundCells;
   PetscFunctionBeginUser;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  PetscValidPointer(x, 2);
-  PetscValidPointer(elemID, 3);
+  PetscValidHeaderSpecific(xvec, VEC_CLASSID, 2);
+  PetscValidPointer(pes, 2);
+  PetscValidPointer(elemIDs, 3);
   /* find processor */
-  if (x[0]<dlo[0] || x[0]>dhi[0] || x[1]<dlo[1] ||
-      x[1]>dhi[1] || x[2]<dlo[2] || x[2]>dhi[2])
-    SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_PLIB,"point out of bounds %g %g %g",x[0],x[1],x[2]);
-  for (i=0;i<3;i++) {
-    ii[i] = (PetscInt)((x[i]-dlo[i])/(dhi[i]-dlo[i])*(double)np[i]);
-  }
-  *pe = X2_IDX(ii[0],ii[1],ii[2],np);
-  {
-    PetscSF            cellSF = NULL;
-    Vec                coords;
-    const PetscSFNode *foundCells;
-    PetscInt           dim;
-    PetscReal          xx[3];
+  ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
+  ierr = VecGetLocalSize(xvec,&n);CHKERRQ(ierr);
+  if (n%dim) SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_USER, "n%dim n=%D",n);
+  nn = n/dim;
+  ierr = PetscMalloc2(nn,&peidxs,nn,&elemidxs);CHKERRQ(ierr);
+  ierr = VecGetArray(xvec,&xx0);CHKERRQ(ierr); xx = xx0;
+  for (ii=0;ii<nn;ii++,xx+=dim) {
+    if (xx[0]<dlo[0] || xx[0]>dhi[0] || xx[1]<dlo[1] ||
+        xx[1]>dhi[1] || xx[2]<dlo[2] || xx[2]>dhi[2])
+      SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_PLIB,"point out of bounds %g %g %g",xx[0],xx[1],xx[2]);
     for (i=0;i<3;i++) {
+      idxs[i] = (PetscInt)((xx[i]-dlo[i])/(dhi[i]-dlo[i])*(double)np[i]);
+    }
+    peidxs[ii] = X2_IDX(idxs[0],idxs[1],idxs[2],np); /* get pe */
+    for (i=0;i<3;i++) { /* make fake coord for find */
       PetscReal dx = (dhi[i]-dlo[i])/np[i];
-      PetscReal x0 = x[i] - dlo[i] - ii[i]*dx; assert(x0 >= 0 && x0 <= dx); /* local coord */
+      PetscReal x0 = xx[i] - dlo[i] - idxs[i]*dx; assert(x0 >= 0 && x0 <= dx); /* local coord */
       xx[i] = x0 + dlo[i] + ctx->particleGrid.solver_proc_idx[i]*dx; /* my fake coordinate */
     }
-    ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
-    ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, xx, &coords);CHKERRQ(ierr);
-    ierr = DMLocatePoints(dm, coords, DM_POINTLOCATION_NONE, &cellSF);CHKERRQ(ierr);
-    ierr = VecDestroy(&coords);CHKERRQ(ierr);
-    ierr = PetscSFGetGraph(cellSF, NULL, NULL, NULL, &foundCells);CHKERRQ(ierr);
-    *elemID = foundCells[0].index;
-    /* *pe = foundCells[0].rank; */
-    if (*elemID<0) SETERRQ6(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "missed point: %g %g %g (local: %g %g %g)",x[0],x[1],x[2],xx[0],xx[1],xx[2]);
-    ierr = PetscSFDestroy(&cellSF);CHKERRQ(ierr);
   }
+  ierr = VecRestoreArray(xvec,&xx0);CHKERRQ(ierr);
+  ierr = DMLocatePoints(dm, xvec, DM_POINTLOCATION_NONE, &cellSF);CHKERRQ(ierr);
+  ierr = PetscSFGetGraph(cellSF, NULL, NULL, NULL, &foundCells);CHKERRQ(ierr);
+  for (ii=0;ii<nn;ii++) {
+    elemidxs[ii] = foundCells[ii].index;
+    /* *pe = foundCells[0].rank; */
+    if (elemidxs[ii]<0) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "missed point");
+  }
+  ierr = ISCreateGeneral(PETSC_COMM_SELF,nn,peidxs,PETSC_COPY_VALUES,pes);CHKERRQ(ierr);
+  ierr = ISCreateGeneral(PETSC_COMM_SELF,nn,elemidxs,PETSC_COPY_VALUES,elemIDs);CHKERRQ(ierr);
+  ierr = PetscSFDestroy(&cellSF);CHKERRQ(ierr);
+  ierr = PetscFree2(peidxs,elemidxs);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -286,7 +296,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
                              ctx->use_bsp ? "BSP communication" : "Non-blocking consensus communication");
   ctx->collision_period = 10000;
   ierr = PetscOptionsInt("-collision_period", "Period between collision operators", "ex2.c", ctx->collision_period, &ctx->collision_period, NULL);CHKERRQ(ierr);
-  ctx->use_electrons = PETSC_TRUE; /* need neutral because periodic domain */
+  ctx->use_electrons = PETSC_FALSE; /* need neutral because periodic domain */
   ierr = PetscOptionsBool("-use_electrons", "Include electrons", "ex2.c", ctx->use_electrons, &ctx->use_electrons, NULL);CHKERRQ(ierr);
   ctx->max_vpar = 1.;
   ierr = PetscOptionsReal("-max_vpar", "Maximum parallel velocity", "ex2.c",ctx->max_vpar,&ctx->max_vpar,NULL);CHKERRQ(ierr);
@@ -381,9 +391,12 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
   const int part_dsize = sizeof(X2Particle)/sizeof(double);
   Vec          jetVec,xVec,vVec;
   PetscScalar *xx=0,*jj=0,*vv=0,*xx0=0,*jj0=0,*vv0=0;
-  PetscInt isp,order=1,nslist,nlistsTot,elid,elid2,one=1,three=3,ndeposit,npts;
+  PetscInt isp,order=1,nslist,nlistsTot,elid,elid2,one=1,three=3,ndeposit;
   int origNlocal,nmoved;
   X2ISend slist[X2PROCLISTSIZE];
+  IS pes,elems;
+  const PetscInt *cpeidxs,*celemidxs;
+  PetscInt *peidxs,*elemidxs;
   PetscFunctionBeginUser;
   MPI_Barrier(ctx->wComm);
 #if defined(PETSC_USE_LOG)
@@ -400,10 +413,6 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
     /* loop over element particle lists */
     for (elid=0;elid<ctx->nElems;elid++) {
       X2PList *list = &ctx->partlists[isp][elid];
-      PetscInt *pes,*pelid;
-      if (X2PListIsEmpty(list)) continue;
-      npts = list->vec_top; assert(npts>0);/* this is so we can vectorize - needed? */
-      ierr = PetscMalloc2(npts, &pes, npts, &pelid);CHKERRQ(ierr);
       origNlocal += X2PListSize(list);
       /* get Cartesian coordinates (not used for flux tube move) */
       ierr = X2PListCompress(list);CHKERRQ(ierr); /* allows for simpler vectorization */
@@ -452,7 +461,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           if (irk>=0) {
 #ifdef X2_S_OF_V
             PetscReal r = dt*list->data_v.vpar[pos];
-            for(ii=0;ii<3;ii++) {
+            for(ii=0;ii<3;ii++) { /* we could use jet here */
               list->data_v.x[ii][pos] += r*b0[ii];
               xx[ii] = list->data_v.x[ii][pos] = dlo[ii] + fmod(list->data_v.x[ii][pos] - dlo[ii] + 20.*l[ii], l[ii]);
             }
@@ -487,30 +496,15 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #if defined(PETSC_USE_LOG)
       ierr = PetscLogEventBegin(ctx->events[5],0,0,0,0);CHKERRQ(ierr);
 #endif
-      if (solver) {
-        ierr = VecGetArray(xVec,&xx0);CHKERRQ(ierr);
-      }
 #if defined(PETSC_USE_LOG)
       ierr = PetscLogEventBegin(s_events[9],0,0,0,0);CHKERRQ(ierr);
 #endif
       /* get pe & element id - vectorize!!! */
-      npts = 0;
       if (solver) {
-	for (pos=0 ; pos < list->vec_top ; pos++ ) {
-#ifdef X2_S_OF_V
-	  X2V2P((&part),list->data_v,pos); /* return copy */
-#else
-	  part = list->data[pos]; /* return copy */
-#endif
-          xx = xx0 + pos*3; /* assumes compressed! */
-          /* see if need communication? no: add density, yes: add to communication list */
-          ierr = X2GridSolverLocatePoint(dmpi->dmplex, xx, ctx, &pe, &elid2);
-          CHKERRQ(ierr);
-	  pes[npts] = pe;
-	  pelid[npts] = elid2;
-	  npts++;
-	}
+        /* see if need communication? no: add density, yes: add to communication list */
+        ierr = X2GridSolverLocatePoints(dmpi->dmplex, xVec, ctx, &pes, &elems);CHKERRQ(ierr);
       } else {
+        ierr = PetscMalloc2(list->vec_top,&peidxs,list->vec_top,&elemidxs);CHKERRQ(ierr);
 	for (pos=0 ; pos < list->vec_top ; pos++ ) {
 #ifdef X2_S_OF_V
 	  X2V2P((&part),list->data_v,pos); /* return copy */
@@ -518,18 +512,22 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 	  part = list->data[pos]; /* return copy */
 #endif
 	  ierr = X2GridFluxTubeLocatePoint(grid, part.x, &pe, &elid2);CHKERRQ(ierr);
-	  pes[npts] = pe;
-	  pelid[npts] = elid2;
-	  npts++;
+	  peidxs[pos] = pe;
+	  elemidxs[pos] = elid2;
 	}
+        ierr = ISCreateGeneral(PETSC_COMM_SELF,list->vec_top,peidxs,PETSC_COPY_VALUES,&pes);CHKERRQ(ierr);
+        ierr = ISCreateGeneral(PETSC_COMM_SELF,list->vec_top,elemidxs,PETSC_COPY_VALUES,&elems);CHKERRQ(ierr);
+        ierr = PetscFree2(peidxs,elemidxs);CHKERRQ(ierr);
       }
 #if defined(PETSC_USE_LOG)
       ierr = PetscLogEventEnd(s_events[9],0,0,0,0);CHKERRQ(ierr);
 #endif
       /* move particles, not vectorizable */
+      ierr = ISGetIndices(pes,&cpeidxs);CHKERRQ(ierr);
+      ierr = ISGetIndices(elems,&celemidxs);CHKERRQ(ierr);
       for (pos=0 ; pos < list->top ; pos++ ) {
-	pe = pes[pos];
-	elid2 = pelid[pos]; /* we can not just move to new list because it might get pushed again, so use MPI (local) buffer pretty big as a cache */
+	pe = cpeidxs[pos];
+	elid2 = celemidxs[pos]; /* we can not just move to new list because it might get pushed again, so use MPI (local) buffer pretty big as a cache */
 	if (pe==ctx->rank && elid2==elid) continue; /* don't move */
 #ifdef X2_S_OF_V
 	X2V2P((&part),list->data_v,pos); /* return copy */
@@ -585,9 +583,11 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 	}
 	assert(ii!=ctx->proc_send_table_size);
       }
-      ierr = PetscFree2(pes,pelid);CHKERRQ(ierr);
+      ierr = ISRestoreIndices(pes,&cpeidxs);CHKERRQ(ierr);
+      ierr = ISRestoreIndices(elems,&celemidxs);CHKERRQ(ierr);
+      ierr = ISDestroy(&pes);CHKERRQ(ierr);
+      ierr = ISDestroy(&elems);CHKERRQ(ierr);
       if (solver) {
-	ierr = VecRestoreArray(xVec,&xx0);
 	/* done with these, need new ones after communication */
 	ierr = VecDestroy(&xVec);CHKERRQ(ierr);
 	ierr = VecDestroy(&jetVec);CHKERRQ(ierr);

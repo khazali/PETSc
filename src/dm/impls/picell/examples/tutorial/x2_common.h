@@ -103,11 +103,26 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
     for (ii=0, pp = fromdata ; ii<nfrom ; ii++) {
       for (jj=0 ; jj<ctx->chunksize ; jj++, pp++) {
 	if (pp->gid > 0) {
-          PetscInt elid;
-          if (solver) {
-             ierr = X2GridSolverLocatePoint(dmpi->dmplex, pp->x, ctx, &pe, &elid);CHKERRQ(ierr);
+          PetscInt elid, dim=3;
+          if (solver) { /* should vectorize this */
+            Vec vec;
+            IS pes,elems;
+            const PetscInt *peidxs,*elemidxs;
+            PetscScalar xx[3];
+            for (kk=0;kk<dim;kk++) xx[kk] = pp->x[kk];
+            ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, xx, &vec);CHKERRQ(ierr);
+            ierr = X2GridSolverLocatePoints(dmpi->dmplex, vec, ctx, &pes, &elems);CHKERRQ(ierr);
+            ierr = VecDestroy(&vec);CHKERRQ(ierr);
+            ierr = ISGetIndices(pes,&peidxs);CHKERRQ(ierr);
+            ierr = ISGetIndices(elems,&elemidxs);CHKERRQ(ierr);
+            pe = peidxs[0];
+            elid = elemidxs[0];
             if (pe!=ctx->rank) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not local (pe=%D)",pe);
             if (elid<0) SETERRQ2(PETSC_COMM_WORLD, PETSC_ERR_USER, "No element found %d, pe=%d",elid,pe);
+            ierr = ISRestoreIndices(pes,&peidxs);CHKERRQ(ierr);
+            ierr = ISRestoreIndices(elems,&elemidxs);CHKERRQ(ierr);
+            ierr = ISDestroy(&pes);CHKERRQ(ierr);
+            ierr = ISDestroy(&elems);CHKERRQ(ierr);
           }
           else elid = s_fluxtubeelem; /* non-solvers just put in element 0's list */
 	  ierr = X2PListAdd( &particlelist[elid], pp, NULL);CHKERRQ(ierr);
@@ -189,11 +204,26 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
           ierr = MPI_Recv((void*)data,sz,real_type,status.MPI_SOURCE,tag,ctx->wComm,&status);CHKERRQ(ierr);
 	  sz = sz/part_dsize;
 	  for (jj=0;jj<sz;jj++) {
-            PetscInt elid;
+            PetscInt elid, dim=3;
             if (solver) {
-              ierr = X2GridSolverLocatePoint(dmpi->dmplex, data[jj].x, ctx, &pe, &elid);CHKERRQ(ierr);
+              Vec vec;
+              IS pes,elems;
+              const PetscInt *peidxs,*elemidxs;
+              PetscScalar xx[3];
+              for (kk=0;kk<dim;kk++) xx[kk] = data[jj].x[kk];
+              ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, xx, &vec);CHKERRQ(ierr);
+              ierr = X2GridSolverLocatePoints(dmpi->dmplex, vec, ctx, &pes, &elems);CHKERRQ(ierr);
+              ierr = VecDestroy(&vec);CHKERRQ(ierr);
+              ierr = ISGetIndices(pes,&peidxs);CHKERRQ(ierr);
+              ierr = ISGetIndices(elems,&elemidxs);CHKERRQ(ierr);
+              pe = peidxs[0];
+              elid = elemidxs[0];
               if (pe!=ctx->rank) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not local (pe=%D)",pe);
-              if (elid<0) SETERRQ5(PETSC_COMM_WORLD, PETSC_ERR_USER, "No element found %d, pe=%d, x = %g %g %g",elid,pe,data[jj].x[0],data[jj].x[1],data[jj].x[2]);
+              if (elid<0) SETERRQ2(PETSC_COMM_WORLD, PETSC_ERR_USER, "No element found %d, pe=%d",elid,pe);
+              ierr = ISRestoreIndices(pes,&peidxs);CHKERRQ(ierr);
+              ierr = ISRestoreIndices(elems,&elemidxs);CHKERRQ(ierr);
+              ierr = ISDestroy(&pes);CHKERRQ(ierr);
+              ierr = ISDestroy(&elems);CHKERRQ(ierr);
             }
             else elid = s_fluxtubeelem; /* non-solvers just put in element 0's list */
             ierr = X2PListAdd( &particlelist[elid], &data[jj], NULL);CHKERRQ(ierr);
