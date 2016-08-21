@@ -427,7 +427,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         ierr = VecSetBlockSize(jetVec,three);CHKERRQ(ierr);
         /* make coordinates array to get gradients */
         ierr = VecGetArray(xVec,&xx0);CHKERRQ(ierr); xx = xx0;
-#pragma simd vectorlengthfor(PetscScalar)
+/* #pragma simd vectorlengthfor(PetscScalar) */
 	for (pos=0 ; pos < list->vec_top ; pos++, xx += 3) {
 #ifdef X2_S_OF_V
           xx[0] = list->data_v.r[pos], xx[1] = list->data_v.z[pos], xx[2] = list->data_v.phi[pos];
@@ -958,7 +958,7 @@ int main(int argc, char **argv)
   {
     PetscInt currevent = 0;
     PetscLogStage  setup_stage;
-    ierr = PetscLogEventRegister("X2CreateMesh", DM_CLASSID, &ctx.events[currevent++]);CHKERRQ(ierr); /* 0 */
+    ierr = PetscLogEventRegister("X2Setup", DM_CLASSID, &ctx.events[currevent++]);CHKERRQ(ierr); /* 0 */
     ierr = PetscLogEventRegister("X2Process parts",0,&ctx.events[currevent++]);CHKERRQ(ierr); /* 1 */
     ierr = PetscLogEventRegister(" -shiftParticles",0,&ctx.events[currevent++]);CHKERRQ(ierr); /* 2 */
     ierr = PetscLogEventRegister("  =Non-block con",0,&ctx.events[currevent++]);CHKERRQ(ierr); /* 3 */
@@ -967,15 +967,15 @@ int main(int argc, char **argv)
     ierr = PetscLogEventRegister(" -AddSource", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 6 */
     ierr = PetscLogEventRegister(" -Pre Push", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 7 */
     ierr = PetscLogEventRegister(" -Push (Jet)", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 8 */
-    ierr = PetscLogEventRegister("  =Part find (s)", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 9 */
-    ierr = PetscLogEventRegister(" -not used", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 10 */
+    ierr = PetscLogEventRegister("  =Point Locate", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 9 */
+    ierr = PetscLogEventRegister(" -create Particles", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 10 */
     ierr = PetscLogEventRegister("X2Poisson Solve", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 11 */
     ierr = PetscLogEventRegister("X2Part AXPY", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 12 */
     ierr = PetscLogEventRegister("X2Compress array", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 13 */
     ierr = PetscLogEventRegister("X2Diagnostics", 0, &ctx.events[diag_event_id]);CHKERRQ(ierr); /* N-1 */
     assert(sizeof(s_events)/sizeof(s_events[0]) > currevent);
-    ierr = PetscLogStageRegister("Setup", &setup_stage);CHKERRQ(ierr);
-    ierr = PetscLogStagePush(setup_stage);CHKERRQ(ierr);
+/*     ierr = PetscLogStageRegister("Setup", &setup_stage);CHKERRQ(ierr); */
+/*     ierr = PetscLogStagePush(setup_stage);CHKERRQ(ierr); */
   }
 #endif
 
@@ -1014,9 +1014,14 @@ int main(int argc, char **argv)
     PetscViewerPopFormat(viewer);
     PetscViewerDestroy(&viewer);
   }
-
+#if defined(PETSC_USE_LOG)
+  ierr = PetscLogEventBegin(ctx.events[10],0,0,0,0);CHKERRQ(ierr);
+#endif
   /* setup particles */
   ierr = createParticles( &ctx );CHKERRQ(ierr);
+#if defined(PETSC_USE_LOG)
+  ierr = PetscLogEventEnd(ctx.events[10],0,0,0,0);CHKERRQ(ierr);
+#endif
 
   /* init send tables */
   ierr = PetscMalloc1(ctx.proc_send_table_size,&ctx.sendListTable);CHKERRQ(ierr);
@@ -1061,7 +1066,7 @@ int main(int argc, char **argv)
   }
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventEnd(ctx.events[0],0,0,0,0);CHKERRQ(ierr);
-  ierr = PetscLogStagePop();CHKERRQ(ierr);
+  /* ierr = PetscLogStagePop();CHKERRQ(ierr); */
 #endif
 
   /* do it */
