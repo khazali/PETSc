@@ -3,7 +3,13 @@
 #undef __FUNCT__
 #define __FUNCT__ "TaoSetHessianRoutine"
 /*@C
-   TaoSetHessianRoutine - Sets the function to compute the Hessian as well as the location to store the matrix.
+   TaoSetHessianRoutine - Sets the function to compute the Hessian of the Lagrangian as well 
+     as the location to store the matrix.  The Lagrangian is defined as
+
+       L(x,lambda,mu) = f(x) - lambda'*g(x) - mu'*h(x)
+
+     where f(x) is the objective function, g(x) is the equality constraints, and h(x) is
+     the inequality constraints.  
 
    Logically collective on Tao
 
@@ -11,12 +17,12 @@
 +  tao - the Tao context
 .  H - Matrix used for the hessian
 .  Hpre - Matrix that will be used operated on by preconditioner, can be same as H
-.  hess - Hessian evaluation routine
+.  hess - Hessian of the Lagrangian evaluation routine
 -  ctx - [optional] user-defined context for private data for the
          Hessian evaluation routine (may be NULL)
 
    Calling sequence of hess:
-$    hess (Tao tao,Vec x,Mat H,Mat Hpre,void *ctx);
+$    hess (Tao tao,Vec x,Vec lambda,Vect mu,Mat H,Mat Hpre,void *ctx);
 
 +  tao - the Tao  context
 .  x - input vector
@@ -27,7 +33,7 @@ $    hess (Tao tao,Vec x,Mat H,Mat Hpre,void *ctx);
    Level: beginner
 
 @*/
-PetscErrorCode TaoSetHessianRoutine(Tao tao, Mat H, Mat Hpre, PetscErrorCode (*func)(Tao, Vec, Mat, Mat, void*), void *ctx)
+PetscErrorCode TaoSetHessianRoutine(Tao tao, Mat H, Mat Hpre, PetscErrorCode (*func)(Tao,Vec,Vec,Vec,Mat, Mat,void*), void *ctx)
 {
   PetscErrorCode ierr;
 
@@ -63,7 +69,7 @@ PetscErrorCode TaoSetHessianRoutine(Tao tao, Mat H, Mat Hpre, PetscErrorCode (*f
 #undef __FUNCT__
 #define __FUNCT__ "TaoComputeHessian"
 /*@C
-   TaoComputeHessian - Computes the Hessian matrix that has been
+   TaoComputeHessian - Computes the Hessian of the Lagrangian matrix that has been
    set with TaoSetHessianRoutine().
 
    Collective on Tao
@@ -71,6 +77,8 @@ PetscErrorCode TaoSetHessianRoutine(Tao tao, Mat H, Mat Hpre, PetscErrorCode (*f
    Input Parameters:
 +  solver - the Tao solver context
 -  xx - input vector
+-  lambda - input vector of multipliers on equality constraints
+-  mu - input vector of multipliers on inequality constraints
 
    Output Parameters:
 +  H - Hessian matrix
@@ -89,7 +97,7 @@ PetscErrorCode TaoSetHessianRoutine(Tao tao, Mat H, Mat Hpre, PetscErrorCode (*f
 .seealso:  TaoComputeObjective(), TaoComputeObjectiveAndGradient(), TaoSetHessian()
 
 @*/
-PetscErrorCode TaoComputeHessian(Tao tao, Vec X, Mat H, Mat Hpre)
+PetscErrorCode TaoComputeHessian(Tao tao, Vec X, Vec Lambda, Vec Mu, Mat H, Mat Hpre)
 {
   PetscErrorCode ierr;
 
@@ -102,7 +110,7 @@ PetscErrorCode TaoComputeHessian(Tao tao, Vec X, Mat H, Mat Hpre)
   ++tao->nhess;
   ierr = PetscLogEventBegin(Tao_HessianEval,tao,X,H,Hpre);CHKERRQ(ierr);
   PetscStackPush("Tao user Hessian function");
-  ierr = (*tao->ops->computehessian)(tao,X,H,Hpre,tao->user_hessP);CHKERRQ(ierr);
+  ierr = (*tao->ops->computehessian)(tao,X,Lambda,Mu,H,Hpre,tao->user_hessP);CHKERRQ(ierr);
   PetscStackPop;
   ierr = PetscLogEventEnd(Tao_HessianEval,tao,X,H,Hpre);CHKERRQ(ierr);
   PetscFunctionReturn(0);
