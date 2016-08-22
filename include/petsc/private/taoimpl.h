@@ -14,7 +14,7 @@ struct _TaoOps {
     PetscErrorCode (*computeobjective)(Tao, Vec, PetscReal*, void*);
     PetscErrorCode (*computeobjectiveandgradient)(Tao, Vec, PetscReal*, Vec, void*);
     PetscErrorCode (*computegradient)(Tao, Vec, Vec, void*);
-    PetscErrorCode (*computehessian)(Tao, Vec, Mat, Mat,  void*);
+    PetscErrorCode (*computehessian)(Tao,Vec,Vec,Vec,Mat,Mat,void*);
     PetscErrorCode (*computeseparableobjective)(Tao, Vec, Vec, void*);
     PetscErrorCode (*computeconstraints)(Tao, Vec, Vec, void*);
     PetscErrorCode (*computeinequalityconstraints)(Tao, Vec, Vec, void*);
