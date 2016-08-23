@@ -895,7 +895,7 @@ static PetscErrorCode SetupDiscretization(X2Ctx *ctx)
   PetscFunctionBeginUser;
 
   ierr = DMGetDimension(dmpi->dmplex, &dim);CHKERRQ(ierr);
-  ierr = PetscFECreateDefault(dmpi->dmplex, dim, 1, PETSC_FALSE, NULL, 2, &dmpi->fem);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dmpi->dmplex, dim, 1, PETSC_FALSE, NULL, 1, &dmpi->fem);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->fem, "poisson");CHKERRQ(ierr);
   /* FEM prob */
   ierr = DMGetDS(dmpi->dmplex, &prob);CHKERRQ(ierr);
