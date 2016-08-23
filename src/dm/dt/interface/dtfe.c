@@ -730,6 +730,8 @@ PetscErrorCode PetscSpaceEvaluate_Polynomial(PetscSpace sp, PetscInt npoints, co
       ierr = PetscMemzero(ind, dim * sizeof(PetscInt));CHKERRQ(ierr);
       while (ind[0] >= 0) {
         ierr = TensorPoint_Internal(dim, sp->order+1, ind, tup);CHKERRQ(ierr);
+        // #pragma simd vectorlengthfor(PetscReal)
+#pragma unroll_and_jam
         for (p = 0; p < npoints; ++p) {
           B[p*pdim + i] = 1.0;
           for (d = 0; d < dim; ++d) {
@@ -3750,15 +3752,22 @@ PetscErrorCode PetscFEGetTabulation_Basic(PetscFE fem, PetscInt npoints, const P
   if (H) {ierr = DMGetWorkArray(dm, npoints*pdim*dim*dim, PETSC_REAL, &tmpH);CHKERRQ(ierr);}
   ierr = PetscSpaceEvaluate(fem->basisSpace, npoints, points, B ? tmpB : NULL, D ? tmpD : NULL, H ? tmpH : NULL);CHKERRQ(ierr);
   /* Translate to the nodal basis */
-  for (p = 0; p < npoints; ++p) {
-    if (B) {
+  if (B) {
+#if defined(PETSC_HAVE_MEMALIGN)
+    PetscPrintf(PETSC_COMM_WORLD, "%s PETSC_MEMALIGN: %d, n=%d %d, B=%p, B.mod.64=%d pdim=%d\n",__FUNCT__,PETSC_MEMALIGN,npoints,npoints%8,B,((long int)B)%64,pdim);
+    __assume_aligned(B,PETSC_MEMALIGN);
+    __assume(npoints%8==0);
+    __assume(pdim==8);
+#endif
+    for (p = 0; p < npoints; ++p) {
       /* Multiply by V^{-1} (pdim x pdim) */
+#pragma simd vectorlengthfor(PetscReal) 
       for (j = 0; j < pdim; ++j) {
         const PetscInt i = (p*pdim + j)*comp;
         PetscInt       c;
-
         B[i] = 0.0;
-        // #pragma simd vectorlengthfor(PetscReal)
+        //#pragma unroll (8)
+#pragma simd vectorlengthfor(PetscReal) 
         for (k = 0; k < pdim; ++k) {
           B[i] += fem->invV[k*pdim+j] * tmpB[p*pdim + k];
         }
@@ -3767,7 +3776,10 @@ PetscErrorCode PetscFEGetTabulation_Basic(PetscFE fem, PetscInt npoints, const P
         }
       }
     }
-    if (D) {
+    //}
+  }
+  if (D) {
+    for (p = 0; p < npoints; ++p) {
       /* Multiply by V^{-1} (pdim x pdim) */
       for (j = 0; j < pdim; ++j) {
         for (d = 0; d < dim; ++d) {
@@ -3784,7 +3796,9 @@ PetscErrorCode PetscFEGetTabulation_Basic(PetscFE fem, PetscInt npoints, const P
         }
       }
     }
-    if (H) {
+  }
+  if (H) {
+    for (p = 0; p < npoints; ++p) {
       /* Multiply by V^{-1} (pdim x pdim) */
       for (j = 0; j < pdim; ++j) {
         for (d = 0; d < dim*dim; ++d) {
