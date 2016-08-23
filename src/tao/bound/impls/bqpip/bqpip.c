@@ -297,7 +297,7 @@ static PetscErrorCode TaoSolve_BQPIP(Tao tao)
   ierr = VecPointwiseMin(qp->XU,qp->XU,tao->XU);CHKERRQ(ierr);
 
   ierr = TaoComputeObjectiveAndGradient(tao,tao->solution,&qp->c,qp->C0);CHKERRQ(ierr);
-  ierr = TaoComputeHessian(tao,tao->solution,tao->hessian,tao->hessian_pre);CHKERRQ(ierr);
+  ierr = TaoComputeHessian(tao,tao->solution,PETSC_NULL,PETSC_NULL,tao->hessian,tao->hessian_pre);CHKERRQ(ierr);
   ierr = MatMult(tao->hessian,tao->solution,qp->Work);CHKERRQ(ierr);
   ierr = VecDot(tao->solution,qp->Work,&d1);CHKERRQ(ierr);
   ierr = VecAXPY(qp->C0,-1.0,qp->Work);CHKERRQ(ierr);

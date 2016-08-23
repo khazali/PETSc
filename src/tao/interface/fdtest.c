@@ -7,7 +7,7 @@ typedef struct {
 } Tao_Test;
 
 /*
-     TaoSolve_Test - Tests whether a hand computed Hessian
+     TaoSolve_Test - Tests whether a hand computed Hessian of the Lagrangian
      matches one compute via finite differences.
 */
 #undef __FUNCT__
@@ -71,8 +71,8 @@ PetscErrorCode TaoSolve_Test(Tao tao)
   if (fd->check_hessian) {
     if (A != tao->hessian_pre) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"Cannot test with alternative preconditioner");
 
-    ierr = PetscPrintf(comm,"Testing hand-coded Hessian (hc) against finite difference Hessian (fd). If the ratio is\n");CHKERRQ(ierr);
-    ierr = PetscPrintf(comm,"O (1.e-8), the hand-coded Hessian is probably correct.\n");CHKERRQ(ierr);
+    ierr = PetscPrintf(comm,"Testing hand-coded Hessian of the Lagrangian (hc) against finite difference Hessian of the Lagrangian (fd). If the ratio is\n");CHKERRQ(ierr);
+    ierr = PetscPrintf(comm,"O (1.e-8), the hand-coded is probably correct.\n");CHKERRQ(ierr);
 
     if (!fd->complete_print) {
       ierr = PetscPrintf(comm,"Run with -tao_test_display to show difference\n");CHKERRQ(ierr);
@@ -80,9 +80,9 @@ PetscErrorCode TaoSolve_Test(Tao tao)
     }
     for (i=0;i<3;i++) {
       /* compute both versions of Hessian */
-      ierr = TaoComputeHessian(tao,x,A,A);CHKERRQ(ierr);
+      ierr = TaoComputeHessian(tao,x,PETSC_NULL,PETSC_NULL,A,A);CHKERRQ(ierr);
       if (!i) {ierr = MatConvert(A,MATSAME,MAT_INITIAL_MATRIX,&B);CHKERRQ(ierr);}
-      ierr = TaoDefaultComputeHessian(tao,x,B,B,tao->user_hessP);CHKERRQ(ierr);
+      ierr = TaoDefaultComputeHessian(tao,x,PETSC_NULL,PETSC_NULL,B,B,tao->user_hessP);CHKERRQ(ierr);
       if (fd->complete_print) {
         MPI_Comm    bcomm;
         PetscViewer viewer;
@@ -134,7 +134,7 @@ static PetscErrorCode TaoSetFromOptions_Test(PetscOptionItems *PetscOptionsObjec
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscOptionsHead(PetscOptionsObject,"Hand-coded Hessian tester options");CHKERRQ(ierr);
+  ierr = PetscOptionsHead(PetscOptionsObject,"Hand-coded Hessian of the Lagrangian tester options");CHKERRQ(ierr);
   ierr = PetscOptionsBool("-tao_test_display","Display difference between hand-coded and finite difference Hessians","None",fd->complete_print,&fd->complete_print,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-tao_test_gradient","Test Hand-coded gradient against finite-difference gradient","None",fd->check_gradient,&fd->check_gradient,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-tao_test_hessian","Test Hand-coded hessian against finite-difference hessian","None",fd->check_hessian,&fd->check_hessian,NULL);CHKERRQ(ierr);
@@ -153,6 +153,13 @@ static PetscErrorCode TaoSetFromOptions_Test(PetscOptionItems *PetscOptionsObjec
 .    -tao_test_display  Display difference between approximate and hand-coded Hessian
 
    Level: intermediate
+
+   Notes:
+   This routine does not currently support finite difference calculation of
+   the second-order derivatives for constraints.
+
+   This routine does not currently support finite difference calculations
+   for problems in Hilbert spaces.
 
 .seealso:  TaoCreate(), TaoSetType()
 

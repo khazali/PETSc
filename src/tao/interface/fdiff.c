@@ -102,13 +102,15 @@ PetscErrorCode TaoDefaultComputeGradient(Tao tao,Vec X,Vec G,void *dummy)
 #undef __FUNCT__
 #define __FUNCT__ "TaoDefaultComputeHessian"
 /*@C
-   TaoDefaultComputeHessian - Computes the Hessian using finite differences.
+   TaoDefaultComputeHessian - Computes the Hessian of the Lagrangian using finite differences.
 
    Collective on Tao
 
    Input Parameters:
 +  tao - the Tao context
-.  V - compute Hessian at this point
+.  X - compute Hessian at this point
+.  Mu - Lagrange multiplier on equality constraints
+.  Nu - Lagrange multiplier on inequality constraints
 -  dummy - not used
 
    Output Parameters:
@@ -122,16 +124,21 @@ PetscErrorCode TaoDefaultComputeGradient(Tao tao,Vec X,Vec G,void *dummy)
    Level: advanced
 
    Notes:
-   This routine is slow and expensive, and is not currently optimized
-   to take advantage of sparsity in the problem.  Although
-   TaoDefaultComputeHessian() is not recommended for general use
-   in large-scale applications, It can be useful in checking the
-   correctness of a user-provided Hessian.
+   This routine is slow and expensive, and is not currently optimized to take 
+   advantage of sparsity.  Although TaoDefaultComputeHessian() is not 
+   recommended for general use in large-scale applications, it can be 
+   useful for checking the correctness of a user-provided Hessian.
+
+   This routine does not currently support finite difference calculation of
+   the second-order derivatives for constraints.
+
+   This routine does not currently support finite difference calculations
+   for problems in Hilbert spaces.
 
 .seealso: TaoSetHessianRoutine(), TaoDefaultComputeHessianColor(), SNESComputeJacobianDefault(), TaoSetGradientRoutine(), TaoDefaultComputeGradient()
 
 @*/
-PetscErrorCode TaoDefaultComputeHessian(Tao tao,Vec V,Mat H,Mat B,void *dummy)
+PetscErrorCode TaoDefaultComputeHessian(Tao tao,Vec X,Vec Mu,Vec Nu,Mat H,Mat B,void *dummy)
 {
   PetscErrorCode       ierr;
   MPI_Comm             comm;
@@ -139,18 +146,18 @@ PetscErrorCode TaoDefaultComputeHessian(Tao tao,Vec V,Mat H,Mat B,void *dummy)
   SNES                 snes;
 
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(V,VEC_CLASSID,2);
-  ierr = VecDuplicate(V,&G);CHKERRQ(ierr);
+  PetscValidHeaderSpecific(X,VEC_CLASSID,2);
+  ierr = VecDuplicate(X,&G);CHKERRQ(ierr);
 
-  ierr = PetscInfo(tao,"TAO Using finite differences w/o coloring to compute Hessian matrix\n");CHKERRQ(ierr);
+  ierr = PetscInfo(tao,"TAO using finite differences without coloring to compute Hessian of the Lagrangian\n");CHKERRQ(ierr);
 
-  ierr = TaoComputeGradient(tao,V,G);CHKERRQ(ierr);
+  ierr = TaoComputeGradient(tao,X,G);CHKERRQ(ierr);
 
   ierr = PetscObjectGetComm((PetscObject)H,&comm);CHKERRQ(ierr);
   ierr = SNESCreate(comm,&snes);CHKERRQ(ierr);
 
   ierr = SNESSetFunction(snes,G,Fsnes,tao);CHKERRQ(ierr);
-  ierr = SNESComputeJacobianDefault(snes,V,H,B,tao);CHKERRQ(ierr);
+  ierr = SNESComputeJacobianDefault(snes,X,H,B,tao);CHKERRQ(ierr);
   ierr = SNESDestroy(&snes);CHKERRQ(ierr);
   ierr = VecDestroy(&G);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -159,13 +166,15 @@ PetscErrorCode TaoDefaultComputeHessian(Tao tao,Vec V,Mat H,Mat B,void *dummy)
 #undef __FUNCT__
 #define __FUNCT__ "TaoDefaultComputeHessianColor"
 /*@C
-   TaoDefaultComputeHessianColor - Computes the Hessian using colored finite differences.
+   TaoDefaultComputeHessianColor - Computes the Hessian of the Lagrangian using colored finite differences.
 
    Collective on Tao
 
    Input Parameters:
 +  tao - the Tao context
-.  V - compute Hessian at this point
+.  X - compute Hessian at this point
+.  Mu - Lagrange multiplier on equality constraints
+.  Nu - Lagrange multiplier on inequality constraints
 -  ctx - the PetscColoring object (must be of type MatFDColoring)
 
    Output Parameters:
@@ -174,24 +183,32 @@ PetscErrorCode TaoDefaultComputeHessian(Tao tao,Vec V,Mat H,Mat B,void *dummy)
 
    Level: advanced
 
+   Notes:
+   This routine does not currently support finite difference calculation of
+   the second-order derivatives for constraints.
+
+   This routine does not currently support finite difference calculations
+   for problems in Hilbert spaces.
 
 .seealso: TaoSetHessianRoutine(), TaoDefaultComputeHessian(),SNESComputeJacobianDefaultColor(), TaoSetGradientRoutine()
 
 @*/
-PetscErrorCode TaoDefaultComputeHessianColor(Tao tao, Vec V, Mat H,Mat B,void *ctx)
+PetscErrorCode TaoDefaultComputeHessianColor(Tao tao,Vec X,Vec Mu,Vec Nu,Mat H,Mat B,void *ctx)
 {
   PetscErrorCode      ierr;
   MatFDColoring       coloring = (MatFDColoring)ctx;
 
   PetscFunctionBegin;
+  PetscValidHeaderSpecific(X,VEC_CLASSID,2);
   PetscValidHeaderSpecific(ctx,MAT_FDCOLORING_CLASSID,6);
-  ierr=PetscInfo(tao,"TAO computing matrix using finite differences Hessian and coloring\n");CHKERRQ(ierr);
-  ierr = MatFDColoringApply(B,coloring,V,ctx);CHKERRQ(ierr);
+
+  ierr = PetscInfo(tao,"TAO using finite differences with coloring to compute Hessian of the Lagrangian\n");CHKERRQ(ierr);
+
+  ierr = MatFDColoringApply(B,coloring,X,ctx);CHKERRQ(ierr);
   if (H != B) {
     ierr = MatAssemblyBegin(H, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(H, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
-
 

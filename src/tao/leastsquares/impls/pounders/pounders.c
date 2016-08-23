@@ -2,7 +2,7 @@
 
 #undef __FUNCT__
 #define __FUNCT__ "pounders_h"
-static PetscErrorCode pounders_h(Tao subtao, Vec v, Mat H, Mat Hpre, void *ctx)
+static PetscErrorCode pounders_h(Tao subtao, Vec v, Vec mu, Vec nu, Mat H, Mat Hpre, void *ctx)
 {
   PetscFunctionBegin;
   PetscFunctionReturn(0);

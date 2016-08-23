@@ -655,7 +655,7 @@ PetscErrorCode IPMEvaluate(Tao tao)
 
   PetscFunctionBegin;
   ierr = TaoComputeObjectiveAndGradient(tao,tao->solution,&ipmP->kkt_f,tao->gradient);CHKERRQ(ierr);
-  ierr = TaoComputeHessian(tao,tao->solution,tao->hessian,tao->hessian_pre);CHKERRQ(ierr);
+  ierr = TaoComputeHessian(tao,tao->solution,PETSC_NULL,PETSC_NULL,tao->hessian,tao->hessian_pre);CHKERRQ(ierr);
   if (ipmP->me > 0) {
     ierr = TaoComputeEqualityConstraints(tao,tao->solution,tao->constraints_equality);CHKERRQ(ierr);
     ierr = TaoComputeJacobianEquality(tao,tao->solution,tao->jacobian_equality,tao->jacobian_equality_pre);CHKERRQ(ierr);
@@ -1092,7 +1092,12 @@ PetscErrorCode IPMScatterStep(Tao tao, Vec STEP, Vec X1, Vec X2, Vec X3, Vec X4)
 +   -tao_ipm_pushnu - parameter to push initial dual variables away from bounds
 .   -tao_ipm_pushs - parameter to push initial slack variables away from bounds
 
-  Notes: This algorithm is more of a place-holder for future constrained optimization algorithms and should not yet be used for large problems or production code.
+  Notes: 
+  This algorithm is more of a place-holder for future constrained optimization algorithms 
+  and should not yet be used for large problems or production code.
+
+  This code supports only linear constraints.
+
   Level: beginner
 
 M*/

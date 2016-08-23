@@ -136,7 +136,7 @@ static PetscErrorCode TaoSolve_TRON(Tao tao)
     ierr = TronGradientProjections(tao,tron);CHKERRQ(ierr);
     f=tron->f; delta=tao->trust;
     tron->n_free_last = tron->n_free;
-    ierr = TaoComputeHessian(tao,tao->solution,tao->hessian,tao->hessian_pre);CHKERRQ(ierr);
+    ierr = TaoComputeHessian(tao,tao->solution,PETSC_NULL,PETSC_NULL,tao->hessian,tao->hessian_pre);CHKERRQ(ierr);
 
     ierr = ISGetSize(tron->Free_Local, &tron->n_free);CHKERRQ(ierr);
 

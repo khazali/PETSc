@@ -101,11 +101,11 @@ static PetscErrorCode ourtaoobjectiveandgradientroutine(Tao tao, Vec x, PetscRea
     return 0;
 }
 
-static PetscErrorCode ourtaohessianroutine(Tao tao, Vec x, Mat H, Mat Hpre, void *ctx)
+static PetscErrorCode ourtaohessianroutine(Tao tao, Vec x, Vec mu, Vec nu, Mat H, Mat Hpre, void *ctx)
 {
     PetscErrorCode ierr = 0;
-    (*(void (PETSC_STDCALL *)(Tao*,Vec*,Mat*,Mat*,void*,PetscErrorCode*))
-     (((PetscObject)tao)->fortran_func_pointers[HESS]))(&tao,&x,&H,&Hpre,ctx,&ierr); CHKERRQ(ierr);
+    (*(void (PETSC_STDCALL *)(Tao*,Vec*,Vec*,Vec*,Mat*,Mat*,void*,PetscErrorCode*))
+     (((PetscObject)tao)->fortran_func_pointers[HESS]))(&tao,&x,&mu,&nu,&H,&Hpre,ctx,&ierr); CHKERRQ(ierr);
     return 0;
 }
 
@@ -316,7 +316,7 @@ PETSC_EXTERN void PETSC_STDCALL taosetjacobiandesignroutine_(Tao *tao, Mat *J, v
 }
 
 
-PETSC_EXTERN void PETSC_STDCALL taosethessianroutine_(Tao *tao, Mat *J, Mat *Jp, void (PETSC_STDCALL *func)(Tao*, Vec *, Mat *, Mat *,void *, PetscErrorCode *), void *ctx, PetscErrorCode *ierr)
+PETSC_EXTERN void PETSC_STDCALL taosethessianroutine_(Tao *tao, Mat *J, Mat *Jp, void (PETSC_STDCALL *func)(Tao*, Vec *, Vec *, Vec *, Mat *, Mat *,void *, PetscErrorCode *), void *ctx, PetscErrorCode *ierr)
 {
     CHKFORTRANNULLOBJECT(ctx);
     PetscObjectAllocateFortranPointers(*tao,NFUNCS);
