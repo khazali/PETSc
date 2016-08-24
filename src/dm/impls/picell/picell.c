@@ -6,7 +6,7 @@
 #include <petscsf.h>
 
 /* Logging support */
-PetscLogEvent DMPICell_Solve, DMPICell_SetUp, DMPICell_AddSource, DMPICell_LocateProcess, DMPICell_GetJet;
+PetscLogEvent DMPICell_Solve, DMPICell_SetUp, DMPICell_AddSource, DMPICell_LocateProcess, DMPICell_GetJet, DMPICell_Add1, DMPICell_Add2, DMPICell_Add3;
 
 PETSC_EXTERN PetscErrorCode DMPlexView_HDF5(DM, PetscViewer);
 #undef __FUNCT__
@@ -185,7 +185,10 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   PetscValidHeaderSpecific(coord, VEC_CLASSID, 2);
   PetscValidHeaderSpecific(densities, VEC_CLASSID, 3);
   PetscValidHeaderSpecific(rho, VEC_CLASSID, 5);
+#if defined(PETSC_USE_LOG)
   ierr = PetscLogEventBegin(DMPICell_AddSource,dm,0,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(DMPICell_Add1,dm,0,0,0);CHKERRQ(ierr);
+#endif
   ierr = VecDuplicate(coord, &refCoord);CHKERRQ(ierr);
   ierr = VecGetBlockSize(coord, &dim);CHKERRQ(ierr);
   d3 = pow(2,dim);
@@ -216,23 +219,48 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   /* apply xi = J^-1 * (x - v0) */
   for (p = 0; p < N; ++p) {
     PetscScalar *pxx = &xx[dim*p], *pxi = &xi[dim*p];
+#if defined(X2_HAVE_INTEL)
+#pragma simd vectorlengthfor(PetscReal)
+#endif
     for (e = 0; e < dim; ++e) {
       pxi[e] = 0;
+#if defined(X2_HAVE_INTEL)
+#pragma simd vectorlengthfor(PetscReal)
+#endif
       for (d = 0; d < dim; ++d) {
         pxi[e] += J0inv[e*dim + d]*(pxx[d] - v00[d]);
       }
     }
   }
   ierr = VecRestoreArray(coord, &xx);CHKERRQ(ierr);
+#if defined(PETSC_USE_LOG)
+  ierr = PetscLogEventEnd(DMPICell_Add1,dm,0,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(DMPICell_Add2,dm,0,0,0);CHKERRQ(ierr);
+#endif
   ierr = PetscFEGetTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
+#if defined(PETSC_USE_LOG)
+  ierr = PetscLogEventEnd(DMPICell_Add2,dm,0,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(DMPICell_Add3,dm,0,0,0);CHKERRQ(ierr);
+#endif
   ierr = VecRestoreArray(refCoord, &xi);CHKERRQ(ierr);
   ierr = VecDestroy(&refCoord);CHKERRQ(ierr);
   ierr = DMGetDS(dmpi->dmplex, &prob);CHKERRQ(ierr);
   ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
+  if (totDim!=8) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "totDim!=8",totDim);
   ierr = DMGetWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscMemzero(elemVec, totDim * sizeof(PetscScalar));CHKERRQ(ierr);
   ierr = VecGetArray(densities, &lrho);CHKERRQ(ierr);
+#if defined(PETSC_HAVE_MEMALIGN) && (PETSC_MEMALIGN==64)
+  __assume_aligned(B,PETSC_MEMALIGN);
+#endif
+#if defined(X2_HAVE_INTEL)
+  __assume(N%8==0);
+  __assume(totDim==8);
+#endif
   for (p = 0; p < N; ++p) {
+#if defined(X2_HAVE_INTEL)
+#pragma simd vectorlengthfor(PetscReal)
+#endif
     for (b = 0; b < totDim; ++b) {
       elemVec[b] += B[p*totDim + b] * lrho[p];
 #ifdef PETSC_USE_DEBUG
@@ -249,7 +277,10 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   ierr = DMPlexVecSetClosure(dmpi->dmplex, NULL, rho, cell, elemVec, ADD_VALUES);CHKERRQ(ierr);
   ierr = DMRestoreWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscFERestoreTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
+#if defined(PETSC_USE_LOG)
+  ierr = PetscLogEventEnd(DMPICell_Add3,dm,0,0,0);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(DMPICell_AddSource,dm,0,0,0);CHKERRQ(ierr);
+#endif
   PetscFunctionReturn(0);
 }
 

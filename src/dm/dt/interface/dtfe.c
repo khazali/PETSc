@@ -3728,7 +3728,7 @@ PetscErrorCode PetscFEGetDimension_Basic(PetscFE fem, PetscInt *dim)
   ierr = PetscDualSpaceGetDimension(fem->dualSpace, dim);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-
+extern PetscLogEvent x2_kernel_event;
 #undef __FUNCT__
 #define __FUNCT__ "PetscFEGetTabulation_Basic"
 PetscErrorCode PetscFEGetTabulation_Basic(PetscFE fem, PetscInt npoints, const PetscReal points[], PetscReal *B, PetscReal *D, PetscReal *H)
@@ -3753,21 +3753,28 @@ PetscErrorCode PetscFEGetTabulation_Basic(PetscFE fem, PetscInt npoints, const P
   ierr = PetscSpaceEvaluate(fem->basisSpace, npoints, points, B ? tmpB : NULL, D ? tmpD : NULL, H ? tmpH : NULL);CHKERRQ(ierr);
   /* Translate to the nodal basis */
   if (B) {
-#if defined(PETSC_HAVE_MEMALIGN)
-    PetscPrintf(PETSC_COMM_WORLD, "%s PETSC_MEMALIGN: %d, n=%d %d, B=%p, B.mod.64=%d pdim=%d\n",__FUNCT__,PETSC_MEMALIGN,npoints,npoints%8,B,((long int)B)%64,pdim);
+#if defined(PETSC_HAVE_MEMALIGN) && (PETSC_MEMALIGN==64)
     __assume_aligned(B,PETSC_MEMALIGN);
+#endif
+#if defined(X2_HAVE_INTEL)
     __assume(npoints%8==0);
     __assume(pdim==8);
 #endif
+#if defined(PETSC_USE_LOG)
+    ierr = PetscLogEventBegin(x2_kernel_event,fem,0,0,0);CHKERRQ(ierr);
+#endif
     for (p = 0; p < npoints; ++p) {
       /* Multiply by V^{-1} (pdim x pdim) */
-#pragma simd vectorlengthfor(PetscReal) 
+#if defined(X2_HAVE_INTEL)
+#pragma simd vectorlengthfor(PetscReal)
+#endif
       for (j = 0; j < pdim; ++j) {
         const PetscInt i = (p*pdim + j)*comp;
         PetscInt       c;
         B[i] = 0.0;
-        //#pragma unroll (8)
-#pragma simd vectorlengthfor(PetscReal) 
+#if defined(X2_HAVE_INTEL)
+#pragma simd vectorlengthfor(PetscReal)
+#endif
         for (k = 0; k < pdim; ++k) {
           B[i] += fem->invV[k*pdim+j] * tmpB[p*pdim + k];
         }
@@ -3776,7 +3783,9 @@ PetscErrorCode PetscFEGetTabulation_Basic(PetscFE fem, PetscInt npoints, const P
         }
       }
     }
-    //}
+#if defined(PETSC_USE_LOG)
+    ierr = PetscLogEventEnd(x2_kernel_event,fem,0,0,0);CHKERRQ(ierr);
+#endif
   }
   if (D) {
     for (p = 0; p < npoints; ++p) {

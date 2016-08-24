@@ -107,6 +107,9 @@ PetscErrorCode  DMInitializePackage(void)
   ierr = PetscLogEventRegister("DMPICell_Solve",         DM_CLASSID,&DMPICell_Solve);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPICell_SetUp",         DM_CLASSID,&DMPICell_SetUp);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPICell_Add",           DM_CLASSID,&DMPICell_AddSource);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("  DMPICell_Add-1",           DM_CLASSID,&DMPICell_Add1);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("  DMPICell_Add-2",           DM_CLASSID,&DMPICell_Add2);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("  DMPICell_Add-3",           DM_CLASSID,&DMPICell_Add3);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPICell_Locate",        DM_CLASSID,&DMPICell_LocateProcess);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPICell_GetJet",        DM_CLASSID,&DMPICell_GetJet);CHKERRQ(ierr);
 
