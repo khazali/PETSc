@@ -100,6 +100,11 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
     ierr = PetscCommBuildTwoSided( ctx->wComm, ctx->chunksize*part_dsize, real_type, nto, toranks, (double*)todata,
 				   &nfrom, &fromranks, &fromdata);
     CHKERRQ(ierr);
+#if defined(PETSC_USE_LOG)
+    ierr = PetscLogEventEnd(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
+    ierr = PetscLogEventEnd(ctx->events[2],0,0,0,0);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(ctx->events[9],0,0,0,0);CHKERRQ(ierr);
+#endif
     for (ii=0, pp = fromdata ; ii<nfrom ; ii++) {
       for (jj=0 ; jj<ctx->chunksize ; jj++, pp++) {
 	if (pp->gid > 0) {
@@ -129,13 +134,14 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
         }
       }
     }
+#if defined(PETSC_USE_LOG)
+    ierr = PetscLogEventEnd(ctx->events[9],0,0,0,0);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(ctx->events[2],0,0,0,0);CHKERRQ(ierr);
+#endif
     ierr = PetscFree(todata);CHKERRQ(ierr);
     ierr = PetscFree(fromranks);CHKERRQ(ierr);
     ierr = PetscFree(fromdata);CHKERRQ(ierr);
     ierr = PetscFree(toranks);CHKERRQ(ierr);
-#if defined(PETSC_USE_LOG)
-    ierr = PetscLogEventEnd(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
-#endif
   }
   else { /* non-blocking consensus */
     PetscBool   done=PETSC_FALSE,bar_act=PETSC_FALSE;
@@ -171,7 +177,6 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventBegin(ctx->events[3],0,0,0,0);CHKERRQ(ierr);
 #endif
-    /* process receives - non-blocking consensus */
     while (!done) {
       if (bar_act) {
 	ierr = MPI_Test(&ib_request, &flag, &status);CHKERRQ(ierr);
@@ -199,6 +204,11 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
 	ierr = MPI_Iprobe(MPI_ANY_SOURCE, tag, ctx->wComm, &flag, &status);CHKERRQ(ierr);
 	if (flag) {
           X2Particle *data;
+#if defined(PETSC_USE_LOG)
+          ierr = PetscLogEventEnd(ctx->events[3],0,0,0,0);CHKERRQ(ierr);
+          ierr = PetscLogEventEnd(ctx->events[2],0,0,0,0);CHKERRQ(ierr);
+          ierr = PetscLogEventBegin(ctx->events[9],0,0,0,0);CHKERRQ(ierr);
+#endif
 	  MPI_Get_count(&status, real_type, &sz); assert(sz%part_dsize==0);
           ierr = PetscMalloc1(sz, &data);CHKERRQ(ierr);
           ierr = MPI_Recv((void*)data,sz,real_type,status.MPI_SOURCE,tag,ctx->wComm,&status);CHKERRQ(ierr);
@@ -229,6 +239,11 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
             ierr = X2PListAdd( &particlelist[elid], &data[jj], NULL);CHKERRQ(ierr);
           }
           ierr = PetscFree(data);CHKERRQ(ierr);
+#if defined(PETSC_USE_LOG)
+          ierr = PetscLogEventEnd(ctx->events[9],0,0,0,0);CHKERRQ(ierr);
+          ierr = PetscLogEventBegin(ctx->events[2],0,0,0,0);CHKERRQ(ierr);
+          ierr = PetscLogEventBegin(ctx->events[3],0,0,0,0);CHKERRQ(ierr);
+#endif
 	}
       } while (flag);
     } /* non-blocking consensus */

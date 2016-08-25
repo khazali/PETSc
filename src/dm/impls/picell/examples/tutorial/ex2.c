@@ -9,7 +9,7 @@ static char help[] = "X2: A partical in cell code for slab plasmas using PICell.
 #include <assert.h>
 #include <petscds.h>
 
-PetscLogEvent s_events[22];
+PetscLogEvent s_events[22],x2_kernel_event;
 static const int diag_event_id = sizeof(s_events)/sizeof(s_events[0])-1;
 
 /* copy to fit with viz outpout in array class */
@@ -178,7 +178,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   if (chunkFlag) ctx->chunksize = X2_V_LEN*(ctx->chunksize/X2_V_LEN);
   if (ctx->chunksize<=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB," invalid chuck size = %D",ctx->chunksize);
   ctx->use_bsp = 0;
-  ierr = PetscOptionsInt("-use_bsp", "Size of chucks for PETSc's TwoSide communication (0 to use 'nonblocking consensus')", "ex2.c", ctx->use_bsp, &ctx->use_bsp, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-use_bsp", "Size of chucks for PETSc's TwoSide communication (0 to use 'non-blocking consensus')", "ex2.c", ctx->use_bsp, &ctx->use_bsp, NULL);CHKERRQ(ierr);
   if (ctx->use_bsp<0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB," invalid BSP chuck size = %D",ctx->use_bsp);
   ctx->proc_send_table_size = ((ctx->npe>10) ? 10 + (ctx->npe-10)/10 : ctx->npe) + 1; /* hash table size of processors to send to */
   ierr = PetscOptionsInt("-proc_send_table_size", "Size of hash table proc->send_list", "ex2.c",ctx->proc_send_table_size, &ctx->proc_send_table_size, NULL);CHKERRQ(ierr);
@@ -417,6 +417,10 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       /* get Cartesian coordinates (not used for flux tube move) */
       ierr = X2PListCompress(list);CHKERRQ(ierr); /* allows for simpler vectorization */
       if (solver) {
+        PetscReal l[] = { ctx->particleGrid.dom_hi[0]-ctx->particleGrid.dom_lo[0],
+                          ctx->particleGrid.dom_hi[1]-ctx->particleGrid.dom_lo[1],
+                          ctx->particleGrid.dom_hi[2]-ctx->particleGrid.dom_lo[2]};
+        const PetscReal *dlo = ctx->particleGrid.dom_lo, *b0 = ctx->particleGrid.b0;
 #if defined(PETSC_USE_LOG)
         ierr = PetscLogEventBegin(ctx->events[7],0,0,0,0);CHKERRQ(ierr); /* timer on particle list */
 #endif
@@ -438,17 +442,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         ierr = VecRestoreArray(xVec,&xx0);CHKERRQ(ierr);
 #if defined(PETSC_USE_LOG)
         ierr = PetscLogEventEnd(ctx->events[7],0,0,0,0);CHKERRQ(ierr);
-#endif
-      }
-      if (solver) {
-        /* push, and collect x */
-        PetscReal l[] = { ctx->particleGrid.dom_hi[0]-ctx->particleGrid.dom_lo[0],
-                          ctx->particleGrid.dom_hi[1]-ctx->particleGrid.dom_lo[1],
-                          ctx->particleGrid.dom_hi[2]-ctx->particleGrid.dom_lo[2]};
-        const PetscReal *dlo = ctx->particleGrid.dom_lo, *b0 = ctx->particleGrid.b0;
-#if defined(PETSC_USE_LOG)
         ierr = PetscLogEventBegin(ctx->events[8],0,0,0,0);CHKERRQ(ierr); /* timer on particle list */
 #endif
+        /* push, and collect x */
         if (irk>=0) {
           /* get E, should set size of vecs for true size? */
           ierr = DMPICellGetJet(dmpi->dmplex, xVec, order, jetVec, elid);CHKERRQ(ierr);
@@ -494,10 +490,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       }
       /* collect pes to communicate - not vectorizable */
 #if defined(PETSC_USE_LOG)
-      ierr = PetscLogEventBegin(ctx->events[5],0,0,0,0);CHKERRQ(ierr);
-#endif
-#if defined(PETSC_USE_LOG)
-      ierr = PetscLogEventBegin(s_events[9],0,0,0,0);CHKERRQ(ierr);
+      ierr = PetscLogEventBegin(ctx->events[9],0,0,0,0);CHKERRQ(ierr);
 #endif
       /* get pe & element id - vectorize!!! */
       if (solver) {
@@ -520,7 +513,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         ierr = PetscFree2(peidxs,elemidxs);CHKERRQ(ierr);
       }
 #if defined(PETSC_USE_LOG)
-      ierr = PetscLogEventEnd(s_events[9],0,0,0,0);CHKERRQ(ierr);
+      ierr = PetscLogEventEnd(ctx->events[9],0,0,0,0);CHKERRQ(ierr);
+
+      ierr = PetscLogEventBegin(ctx->events[5],0,0,0,0);CHKERRQ(ierr);
 #endif
       /* move particles, not vectorizable */
       ierr = ISGetIndices(pes,&cpeidxs);CHKERRQ(ierr);
@@ -958,21 +953,22 @@ int main(int argc, char **argv)
   {
     PetscInt currevent = 0;
     PetscLogStage  setup_stage;
-    ierr = PetscLogEventRegister("X2Setup", DM_CLASSID, &ctx.events[currevent++]);CHKERRQ(ierr); /* 0 */
+    ierr = PetscLogEventRegister("X2Setup*", DM_CLASSID, &ctx.events[currevent++]);CHKERRQ(ierr); /* 0 */
     ierr = PetscLogEventRegister("X2Process parts",0,&ctx.events[currevent++]);CHKERRQ(ierr); /* 1 */
     ierr = PetscLogEventRegister(" -shiftParticles",0,&ctx.events[currevent++]);CHKERRQ(ierr); /* 2 */
-    ierr = PetscLogEventRegister("  =Non-block con",0,&ctx.events[currevent++]);CHKERRQ(ierr); /* 3 */
-    ierr = PetscLogEventRegister("  =Part. Send", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 4 */
+    ierr = PetscLogEventRegister("  =N-blk consensus",0,&ctx.events[currevent++]);CHKERRQ(ierr); /* 3 */
+    ierr = PetscLogEventRegister("  =Part. Send/BSP", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 4 */
     ierr = PetscLogEventRegister(" -Move parts", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 5 */
     ierr = PetscLogEventRegister(" -AddSource", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 6 */
     ierr = PetscLogEventRegister(" -Pre Push", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 7 */
     ierr = PetscLogEventRegister(" -Push (Jet)", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 8 */
-    ierr = PetscLogEventRegister("  =Point Locate", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 9 */
-    ierr = PetscLogEventRegister(" -create Particles", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 10 */
+    ierr = PetscLogEventRegister(" -Point Locate", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 9 */
+    ierr = PetscLogEventRegister(" *create Particles", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 10 */
     ierr = PetscLogEventRegister("X2Poisson Solve", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 11 */
     ierr = PetscLogEventRegister("X2Part AXPY", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 12 */
     ierr = PetscLogEventRegister("X2Compress array", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 13 */
     ierr = PetscLogEventRegister("X2Diagnostics", 0, &ctx.events[diag_event_id]);CHKERRQ(ierr); /* N-1 */
+    ierr = PetscLogEventRegister("Tabulation kernel", 0, &x2_kernel_event);CHKERRQ(ierr);
     assert(sizeof(s_events)/sizeof(s_events[0]) > currevent);
 /*     ierr = PetscLogStageRegister("Setup", &setup_stage);CHKERRQ(ierr); */
 /*     ierr = PetscLogStagePush(setup_stage);CHKERRQ(ierr); */
@@ -1073,6 +1069,12 @@ int main(int argc, char **argv)
   ierr = go( &ctx );CHKERRQ(ierr);
 
   if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] done - cleanup\n",ctx.rank);
+#if defined(X2_HAVE_INTEL)
+  PetscPrintf(ctx.wComm,"[%D] X2_HAVE_INTEL\n",ctx.rank);
+#endif
+#if defined(PETSC_HAVE_MEMALIGN) && (PETSC_MEMALIGN==64)
+  PetscPrintf(ctx.wComm,"[%D] defined(PETSC_HAVE_MEMALIGN) && (PETSC_MEMALIGN==64)\n",ctx.rank);
+#endif
   /* Particle STREAM test */
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventBegin(ctx.events[12],0,0,0,0);CHKERRQ(ierr); /* timer on particle list */
