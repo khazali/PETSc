@@ -253,10 +253,6 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
 #if defined(PETSC_HAVE_MEMALIGN) && (PETSC_MEMALIGN==64)
   __assume_aligned(B,PETSC_MEMALIGN);
 #endif
-#if defined(X2_HAVE_INTEL)
-  __assume(N%8==0);
-  __assume(totDim==8);
-#endif
   for (p = 0; p < N; ++p) {
 #if defined(X2_HAVE_INTEL)
 #pragma simd vectorlengthfor(PetscReal)

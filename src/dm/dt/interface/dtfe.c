@@ -3728,9 +3728,6 @@ PetscErrorCode PetscFEGetDimension_Basic(PetscFE fem, PetscInt *dim)
   ierr = PetscDualSpaceGetDimension(fem->dualSpace, dim);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-#if defined(X2_HAVE_INTEL)
-extern PetscLogEvent x2_kernel_event;
-#endif
 #undef __FUNCT__
 #define __FUNCT__ "PetscFEGetTabulation_Basic"
 PetscErrorCode PetscFEGetTabulation_Basic(PetscFE fem, PetscInt npoints, const PetscReal points[], PetscReal *B, PetscReal *D, PetscReal *H)
@@ -3758,13 +3755,6 @@ PetscErrorCode PetscFEGetTabulation_Basic(PetscFE fem, PetscInt npoints, const P
 #if defined(PETSC_HAVE_MEMALIGN) && (PETSC_MEMALIGN==64)
     __assume_aligned(B,PETSC_MEMALIGN);
 #endif
-#if defined(X2_HAVE_INTEL)
-    __assume(npoints%8==0);
-    __assume(pdim==8);
-#endif
-#if defined(PETSC_USE_LOG) && defined(X2_HAVE_INTEL)
-    ierr = PetscLogEventBegin(x2_kernel_event,fem,0,0,0);CHKERRQ(ierr);
-#endif
     for (p = 0; p < npoints; ++p) {
       /* Multiply by V^{-1} (pdim x pdim) */
 #if defined(X2_HAVE_INTEL)
@@ -3785,9 +3775,6 @@ PetscErrorCode PetscFEGetTabulation_Basic(PetscFE fem, PetscInt npoints, const P
         }
       }
     }
-#if defined(PETSC_USE_LOG) && defined(X2_HAVE_INTEL)
-    ierr = PetscLogEventEnd(x2_kernel_event,fem,0,0,0);CHKERRQ(ierr);
-#endif
   }
   if (D) {
     for (p = 0; p < npoints; ++p) {

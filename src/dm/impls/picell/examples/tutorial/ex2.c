@@ -965,7 +965,7 @@ int main(int argc, char **argv)
     ierr = PetscLogEventRegister("X2Part AXPY", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 12 */
     ierr = PetscLogEventRegister("X2Compress array", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 13 */
     ierr = PetscLogEventRegister("X2Diagnostics", 0, &ctx.events[diag_event_id]);CHKERRQ(ierr); /* N-1 */
-    ierr = PetscLogEventRegister("Tabulation kernel", 0, &x2_kernel_event);CHKERRQ(ierr);
+    /* ierr = PetscLogEventRegister("Tabulation kernel", 0, &x2_kernel_event);CHKERRQ(ierr); */
     assert(sizeof(s_events)/sizeof(s_events[0]) > currevent);
 /*     ierr = PetscLogStageRegister("Setup", &setup_stage);CHKERRQ(ierr); */
 /*     ierr = PetscLogStagePush(setup_stage);CHKERRQ(ierr); */
