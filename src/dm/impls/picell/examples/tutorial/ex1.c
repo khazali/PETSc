@@ -2,9 +2,6 @@
 
 static char help[] = "X2: A partical in cell code for tokamak plasmas using PICell.\n";
 
-#ifdef X2_HAVE_ADVISOR
-#include "advisor-annotate.h"  // Add to each module that contains Intel Advisor annotations
-#endif
 #ifdef H5PART
 #include <H5Part.h>
 #endif
@@ -12,10 +9,6 @@ static char help[] = "X2: A partical in cell code for tokamak plasmas using PICe
 #include <assert.h>
 #include <petscds.h>
 #include <petscdmforest.h>
-/* #include <petscoptions.h> */
-
-PetscLogEvent s_events[22];
-static const int diag_event_id = sizeof(s_events)/sizeof(s_events[0])-1;
 
 /* coordinate transformation - simple radial coordinates. Not really cylindrical as r_Minor is radius from plane axis */
 #define cylindricalToPolPlane(__rMinor,__Z,__psi,__theta) { \

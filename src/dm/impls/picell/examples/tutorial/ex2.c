@@ -9,9 +9,6 @@ static char help[] = "X2: A partical in cell code for slab plasmas using PICell.
 #include <assert.h>
 #include <petscds.h>
 
-PetscLogEvent s_events[22],x2_kernel_event;
-static const int diag_event_id = sizeof(s_events)/sizeof(s_events[0])-1;
-
 /* copy to fit with viz outpout in array class */
 #define cylindricalToCart( __R,  __Z,  __phi, __cart) \
 { \
@@ -952,7 +949,7 @@ int main(int argc, char **argv)
 #if defined(PETSC_USE_LOG)
   {
     PetscInt currevent = 0;
-    PetscLogStage  setup_stage;
+    /* PetscLogStage  setup_stage; */
     ierr = PetscLogEventRegister("X2Setup*", DM_CLASSID, &ctx.events[currevent++]);CHKERRQ(ierr); /* 0 */
     ierr = PetscLogEventRegister("X2Process parts",0,&ctx.events[currevent++]);CHKERRQ(ierr); /* 1 */
     ierr = PetscLogEventRegister(" -shiftParticles",0,&ctx.events[currevent++]);CHKERRQ(ierr); /* 2 */

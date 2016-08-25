@@ -1,4 +1,8 @@
 /* M. Adams, August 2016 */
+
+PetscLogEvent s_events[22], x2_kernel_event;
+static const int diag_event_id = sizeof(s_events)/sizeof(s_events[0])-1;
+
 /* X2Particle */
 typedef struct { /* ptl_type */
   /* phase (4D) */
