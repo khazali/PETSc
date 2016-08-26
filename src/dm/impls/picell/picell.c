@@ -250,7 +250,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   ierr = DMGetWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscMemzero(elemVec, totDim * sizeof(PetscScalar));CHKERRQ(ierr);
   ierr = VecGetArray(densities, &lrho);CHKERRQ(ierr);
-#if defined(PETSC_HAVE_MEMALIGN) && (PETSC_MEMALIGN==64)
+#if defined(PETSC_HAVE_MEMALIGN)
   __assume_aligned(B,PETSC_MEMALIGN);
 #endif
   for (p = 0; p < N; ++p) {

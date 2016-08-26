@@ -3752,7 +3752,7 @@ PetscErrorCode PetscFEGetTabulation_Basic(PetscFE fem, PetscInt npoints, const P
   ierr = PetscSpaceEvaluate(fem->basisSpace, npoints, points, B ? tmpB : NULL, D ? tmpD : NULL, H ? tmpH : NULL);CHKERRQ(ierr);
   /* Translate to the nodal basis */
   if (B) {
-#if defined(PETSC_HAVE_MEMALIGN) && (PETSC_MEMALIGN==64)
+#if defined(PETSC_HAVE_MEMALIGN)
     __assume_aligned(B,PETSC_MEMALIGN);
 #endif
     for (p = 0; p < npoints; ++p) {
