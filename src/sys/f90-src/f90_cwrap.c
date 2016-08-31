@@ -224,7 +224,7 @@ PetscErrorCode  F90Array2dDestroy(F90Array2d *ptr,PetscDataType type PETSC_F90_2
 #define f90array3ddestroyfortranaddr_     f90array3ddestroyfortranaddr
 #endif
 
-PETSC_EXTERN void PETSC_STDCALL f90array3dcreatescalar_(void *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,F90Array3d * PETSC_F90_2PTR_PROTO_NOVAR);
+PETSC_EXTERN void PETSC_STDCALL f90array3dcreatescalar_(void *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,F90Array3d *, long long int, long long int, long long int, long long int, long long int, long long int, long long int PETSC_F90_2PTR_PROTO_NOVAR);
 PETSC_EXTERN void PETSC_STDCALL f90array3daccessscalar_(F90Array3d*,void** PETSC_F90_2PTR_PROTO_NOVAR);
 PETSC_EXTERN void PETSC_STDCALL f90array3ddestroyscalar_(F90Array3d *ptr PETSC_F90_2PTR_PROTO_NOVAR);
 PETSC_EXTERN void PETSC_STDCALL f90array3dcreatereal_(void *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,F90Array3d * PETSC_F90_2PTR_PROTO_NOVAR);
@@ -243,7 +243,7 @@ PetscErrorCode F90Array3dCreate(void *array,PetscDataType type,PetscInt start1,P
 {
   PetscFunctionBegin;
   if (type == PETSC_SCALAR) {
-    f90array3dcreatescalar_(array,&start1,&len1,&start2,&len2,&start3,&len3,ptr PETSC_F90_2PTR_PARAM(ptrd));
+    f90array3dcreatescalar_(array,&start1,&len1,&start2,&len2,&start3,&len3,ptr, (long long int) 0, (long long int) 0, (long long int) 0, (long long int) 0, (long long int) 0, (long long int) 0, (long long int) 0 PETSC_F90_2PTR_PARAM(ptrd));
   } else if (type == PETSC_REAL) {
     f90array3dcreatereal_(array,&start1,&len1,&start2,&len2,&start3,&len3,ptr PETSC_F90_2PTR_PARAM(ptrd));
   } else if (type == PETSC_INT) {
