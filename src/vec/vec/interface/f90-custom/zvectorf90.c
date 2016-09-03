@@ -18,7 +18,7 @@
 #define vecdestroyvecsf90_         vecdestroyvecsf90
 #endif
 
-PETSC_EXTERN void PETSC_STDCALL vecgetarrayf90_(Vec *x,F90Array1d *ptr,int *__ierr PETSC_F90_2PTR_PROTO(ptrd))
+PETSC_EXTERN void PETSC_STDCALL vecgetarrayf90_(Vec *x,F90Array1d *ptr,int *__ierr, void *d1 PETSC_F90_2PTR_PROTO(ptrd), void *d3)
 {
   PetscScalar *fa;
   PetscInt    len;
@@ -30,7 +30,7 @@ PETSC_EXTERN void PETSC_STDCALL vecgetarrayf90_(Vec *x,F90Array1d *ptr,int *__ie
   *__ierr = VecGetLocalSize(*x,&len); if (*__ierr) return;
   *__ierr = F90Array1dCreate(fa,PETSC_SCALAR,1,len,ptr PETSC_F90_2PTR_PARAM(ptrd));
 }
-PETSC_EXTERN void PETSC_STDCALL vecrestorearrayf90_(Vec *x,F90Array1d *ptr,int *__ierr PETSC_F90_2PTR_PROTO(ptrd))
+PETSC_EXTERN void PETSC_STDCALL vecrestorearrayf90_(Vec *x,F90Array1d *ptr,int *__ierr, void *d1 PETSC_F90_2PTR_PROTO(ptrd), void *d3)
 {
   PetscScalar *fa;
   *__ierr = F90Array1dAccess(ptr,PETSC_SCALAR,(void**)&fa PETSC_F90_2PTR_PARAM(ptrd));if (*__ierr) return;

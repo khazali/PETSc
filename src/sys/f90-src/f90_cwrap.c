@@ -30,7 +30,7 @@
 #define f90array1ddestroyfortranaddr_     f90array1ddestroyfortranaddr
 #endif
 
-PETSC_EXTERN void PETSC_STDCALL f90array1dcreatescalar_(void *,PetscInt *,PetscInt *,F90Array1d * PETSC_F90_2PTR_PROTO_NOVAR);
+PETSC_EXTERN void PETSC_STDCALL f90array1dcreatescalar_(void *,PetscInt *,PetscInt *,F90Array1d *, long long int, long long int, long long int PETSC_F90_2PTR_PROTO_NOVAR);
 PETSC_EXTERN void PETSC_STDCALL f90array1daccessscalar_(F90Array1d*,void** PETSC_F90_2PTR_PROTO_NOVAR);
 PETSC_EXTERN void PETSC_STDCALL f90array1ddestroyscalar_(F90Array1d *ptr PETSC_F90_2PTR_PROTO_NOVAR);
 PETSC_EXTERN void PETSC_STDCALL f90array1dcreatereal_(void *,PetscInt *,PetscInt *,F90Array1d * PETSC_F90_2PTR_PROTO_NOVAR);
@@ -50,7 +50,7 @@ PetscErrorCode F90Array1dCreate(void *array,PetscDataType type,PetscInt start,Pe
   PetscFunctionBegin;
   if (type == PETSC_SCALAR) {
     if (!len) array = PETSC_NULL_SCALAR_Fortran;
-    f90array1dcreatescalar_(array,&start,&len,ptr PETSC_F90_2PTR_PARAM(ptrd));
+    f90array1dcreatescalar_(array,&start,&len,ptr, (long long int) 0, (long long int) 0, (long long int) 0 PETSC_F90_2PTR_PARAM(ptrd));
   } else if (type == PETSC_REAL) {
     if (!len) array = PETSC_NULL_REAL_Fortran;
     f90array1dcreatereal_(array,&start,&len,ptr PETSC_F90_2PTR_PARAM(ptrd));
