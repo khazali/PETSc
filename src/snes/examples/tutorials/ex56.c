@@ -400,7 +400,7 @@ int main(int argc,char **args)
     ierr = PetscLogStagePush(stage[1]);CHKERRQ(ierr);
     ierr = SNESSolve(snes, bb, xx);CHKERRQ(ierr);
     ierr = PetscLogStagePop();CHKERRQ(ierr);
-    ierr = VecNorm(xx,NORM_INFINITY,&mdisp[iter]);CHKERRQ(ierr);
+    ierr = VecStrideNorm(xx,1,NORM_INFINITY,&mdisp[iter]);CHKERRQ(ierr);
     ierr = DMViewFromOptions(dm, NULL, "-dm_view");CHKERRQ(ierr);
     {
       PetscViewer       viewer = NULL;
