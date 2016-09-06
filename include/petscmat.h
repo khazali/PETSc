@@ -990,6 +990,7 @@ S*/
 typedef enum {MAT_FACTOR_NOERROR,MAT_FACTOR_STRUCT_ZEROPIVOT,MAT_FACTOR_NUMERIC_ZEROPIVOT,MAT_FACTOR_OUTMEMORY,MAT_FACTOR_OTHER} MatFactorError;
 
 PETSC_EXTERN PetscErrorCode MatFactorGetError(Mat,MatFactorError*);
+PETSC_EXTERN PetscErrorCode MatFactorClearError(Mat);
 
 /*S
    MatFactorInfo - Data passed into the matrix factorization routines, and information about the resulting factorization
@@ -1322,7 +1323,7 @@ typedef enum { MATOP_SET_VALUES=0,
                MATOP_SETUP_PREALLOCATION=29,
                MATOP_ILUFACTOR_SYMBOLIC=30,
                MATOP_ICCFACTOR_SYMBOLIC=31,
-               /* MATOP_PLACEHOLDER_32=32, */
+               MATOP_GET_DIAGONAL_BLOCK=32,
                /* MATOP_PLACEHOLDER_33=33, */
                MATOP_DUPLICATE=34,
                MATOP_FORWARD_SOLVE=35,
