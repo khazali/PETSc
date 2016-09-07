@@ -846,6 +846,26 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 }
 #undef __FUNCT__
 #define __FUNCT__ "CreateMesh"
+static PetscErrorCode setupDiscretization(X2Ctx *ctx, PetscInt dim)
+{
+  PetscErrorCode ierr;
+  DM_PICell *dmpi = (DM_PICell *) ctx->dm->data;
+  PetscDS prob;
+  PetscFunctionBeginUser;
+  /* fem */
+  ierr = PetscFEDestroy(&dmpi->fem);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dmpi->dmplex, dim, 1, PETSC_FALSE, NULL, PETSC_DECIDE, &dmpi->fem);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) dmpi->fem, "poisson");CHKERRQ(ierr);
+  /* FEM prob */
+  ierr = DMGetDS(dmpi->dmplex, &prob);CHKERRQ(ierr);
+  ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
+  ierr = PetscDSSetResidual(prob, 0, f0_u, f1_u);CHKERRQ(ierr);
+  ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
+
+  PetscFunctionReturn(0);
+}
+#undef __FUNCT__
+#define __FUNCT__ "CreateMesh"
 static PetscErrorCode CreateMesh(X2Ctx *ctx)
 {
   PetscErrorCode ierr;
@@ -859,7 +879,6 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   PetscInt  *sizes = NULL;
   PetscInt  *points = NULL;
   PetscPartitioner part;
-  PetscDS    prob;
   PetscSection   s;
   PetscFunctionBeginUser;
 
@@ -896,6 +915,8 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   ierr = DMAddBoundary(dmpi->dmplex, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx->BCFuncs[0], 1, &id, &ctx);CHKERRQ(ierr);
   if (sizeof(long long)!=sizeof(PetscReal)) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "sizeof(long long)!=sizeof(PetscReal)");
 
+  ierr = setupDiscretization( ctx, dim );CHKERRQ(ierr);
+
   /* set a simple partitioner - needed to make my indexing work for point locate */
   if (!ctx->rank) {
     PetscInt cEnd,c,*cs,*cp,ii[3],i;
@@ -908,25 +929,23 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
     for (c=0,cs=sizes,cp=points;c<ctx->npe;c++,cs++,cp++) {
       PetscReal x[3];
       *cs = 1; // points[c] = c;
-      ierr = DMPlexComputeCellGeometryFVM(dmpi->dmplex, c, NULL, x, NULL);CHKERRQ(ierr);
-      for(i=0;i<3;i++) {
-        ii[i] = (PetscInt)((x[i]-dlo[i])/(dhi[i]-dlo[i])*(double)np[i]);
+      if (1) {
+        ierr = DMPlexComputeCellGeometryFVM(dmpi->dmplex, c, NULL, x, NULL);CHKERRQ(ierr);
+      } else {
+        PetscReal v0[81];
+        PetscQuadrature quad;
+        PetscInt qdim,Nq,j;
+        ierr = PetscFEGetQuadrature(dmpi->fem, &quad);CHKERRQ(ierr);
+        ierr = PetscQuadratureGetData(quad, &qdim, &Nq, NULL, NULL);CHKERRQ(ierr);
+        ierr = DMPlexComputeCellGeometryFEM(dmpi->dmplex, c, dmpi->fem, v0, NULL, NULL, NULL);CHKERRQ(ierr);
+        for(i=0;i<3;i++) x[i] = 0;
+        for (j=0;j<Nq;j++) {
+          for(i=0;i<3;i++) x[i] += v0[3*j+i];
+        }
+        for(i=0;i<3;i++) x[i] /= Nq;
       }
+      for(i=0;i<3;i++) ii[i] = (PetscInt)((x[i]-dlo[i])/(dhi[i]-dlo[i])*(double)np[i]);
       *cp = X2_IDX3(ii,np);
-
-
-/*       PetscReal v0[81]; */
-/*       PetscQuadrature quad; */
-/*       PetscInt qdim,Nq,j; */
-/*       ierr = PetscFEGetQuadrature(dmpi->fem, &quad);CHKERRQ(ierr); */
-/*       ierr = PetscQuadratureGetData(quad, &qdim, &Nq, NULL, NULL);CHKERRQ(ierr); */
-/* PetscPrintf(PETSC_COMM_SELF,"[%D]%s elem %d, qdim=%D Nq=%D\n",s_rank,__FUNCT__,c,qdim,Nq); */
-/*       ierr = DMPlexComputeCellGeometryFEM(dmpi->dmplex, c, dmpi->fem, v0, NULL, NULL, NULL);CHKERRQ(ierr); */
-/*       for (j=0;j<Nq;j++) { */
-/*         PetscPrintf(PETSC_COMM_SELF,"%s %D) elem %d, v0 = %g %g %g\n",__FUNCT__,j,c,v0[3*j+0],v0[3*j+1],v0[3*j+2]); */
-/*       } */
-
-
     }
   }
   ierr = DMPlexGetPartitioner(dmpi->dmplex, &part);CHKERRQ(ierr);
@@ -948,14 +967,7 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   /* set from options: refinement done here */
   ierr = DMSetFromOptions( ctx->dm );CHKERRQ(ierr);
 
-  /* fem */
-  ierr = PetscFECreateDefault(dmpi->dmplex, dim, 1, PETSC_FALSE, NULL, PETSC_DECIDE, &dmpi->fem);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) dmpi->fem, "poisson");CHKERRQ(ierr);
-  /* FEM prob */
-  ierr = DMGetDS(dmpi->dmplex, &prob);CHKERRQ(ierr);
-  ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
-  ierr = PetscDSSetResidual(prob, 0, f0_u, f1_u);CHKERRQ(ierr);
-  ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
+  ierr = setupDiscretization( ctx, dim );CHKERRQ(ierr);
 
   ierr = DMSetUp( ctx->dm );CHKERRQ(ierr); /* create vectors */
 
