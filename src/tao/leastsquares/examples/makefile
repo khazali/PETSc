@@ -2,7 +2,7 @@
 ALL:
 
 LOCDIR	 = src/tao/leastsquares/examples/
-DIRS	 = tutorials
+DIRS	 = tests tutorials
 
 
 include ${PETSC_DIR}/lib/petsc/conf/variables
