@@ -106,7 +106,7 @@ PetscErrorCode X2GridSolverLocatePoints(DM dm,  Vec xvec, const X2Ctx *ctx,  IS 
   ierr = DMLocatePoints(dm, xvec, DM_POINTLOCATION_NONE, &cellSF);CHKERRQ(ierr);
   ierr = PetscSFGetGraph(cellSF, NULL, NULL, NULL, &foundCells);CHKERRQ(ierr);
   for (ii=0;ii<nn;ii++) {
-    elemidxs[ii] = foundCells[ii].index;
+    elemidxs[ii] = foundCells[ii].index; /* asssumes all processors have same element layout */
     /* *pe = foundCells[0].rank; */
     if (elemidxs[ii]<0) {
       PetscPrintf(PETSC_COMM_SELF,"\t[%D]%s ERROR miseed index-1 %D/%D\n",s_rank,__FUNCT__,ii+1,nn);
@@ -158,9 +158,9 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->particleGrid.dom_hi[0]  = 1;
   ctx->particleGrid.dom_hi[1]  = 1;
   ctx->particleGrid.dom_hi[2]  = 1;
-  ctx->particleGrid.dom_lo[0]  = 0;
-  ctx->particleGrid.dom_lo[1]  = 0;
-  ctx->particleGrid.dom_lo[2]  = 0;
+  ctx->particleGrid.dom_lo[0]  = -1;
+  ctx->particleGrid.dom_lo[1]  = -1;
+  ctx->particleGrid.dom_lo[2]  = -1;
   ctx->particleGrid.b0[0]  = .1;
   ctx->particleGrid.b0[1]  = .2;
   ctx->particleGrid.b0[2]  =  1; /* mostly in z */
@@ -272,10 +272,11 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   three = 3;
   ierr = PetscOptionsRealArray("-b0", "B_0 vector", "ex2.c", ctx->particleGrid.b0, &three, NULL);CHKERRQ(ierr);
   {
-    PetscReal len = ctx->particleGrid.b0[0]*ctx->particleGrid.b0[0] + ctx->particleGrid.b0[1]*ctx->particleGrid.b0[1] + ctx->particleGrid.b0[2]*ctx->particleGrid.b0[2];
+    PetscReal *b0 = ctx->particleGrid.b0, len = b0[0]*b0[0] + b0[1]*b0[1] + b0[2]*b0[2]; /* normalize - why? */
+    if (b0[2]==0.) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Bad B_0 vector: must have z(2) component: %g %g %g",b0[0],b0[1],b0[2]);
     len = sqrt(len);
-    if (len==0) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Bad B_0 vector length %g %g %g",ctx->particleGrid.b0[0],ctx->particleGrid.b0[1],ctx->particleGrid.b0[2]);
-    ctx->particleGrid.b0[0] /= len; ctx->particleGrid.b0[1] /= len; ctx->particleGrid.b0[2] /= len;
+    if (len==0) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Bad B_0 vector length %g %g %g",b0[0],b0[1],b0[2]);
+    for (k=0;k<3;k++) b0[k] /= len;
   }
   /* time integrator */
   ctx->msteps = 1;
@@ -315,7 +316,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   PetscFunctionReturn(0);
 }
 
-/* X2GridFluxTubeLocatePoint: find flux tube (pe:element=0) for this point
+/* X2GridFluxTubeLocatePoint: find z(2) flux tube for this point (should vectorize)
     Input:
      - grid: the particle grid
      - x:
@@ -330,19 +331,26 @@ PetscErrorCode X2GridFluxTubeLocatePoint( const X2GridParticle *grid, PetscReal 
   PetscInt       i,ii[3];
   X2Ctx *ctx = (X2Ctx*)grid->ctx;
   const PetscInt *np = ctx->particleGrid.ft_np;
-  const PetscReal *dlo = ctx->particleGrid.dom_lo, *dhi = ctx->particleGrid.dom_hi;
+  const PetscReal *dlo = ctx->particleGrid.dom_lo, *dhi = ctx->particleGrid.dom_hi, *b0 = ctx->particleGrid.b0;
+  PetscReal dx[3],xstar[3],deltaz;
   /* PetscErrorCode ierr; */
   PetscFunctionBeginUser;
   PetscValidPointer(x, 2);
   PetscValidPointer(pe, 3);
   PetscValidPointer(elem, 4);
-  /* find processor */
   if (x[0]<dlo[0] || x[0]>dhi[0] || x[1]<dlo[1] ||
-      x[1]>dhi[1] || x[2]<dlo[2] || x[2]>dhi[2])
+      x[1]>dhi[1] || x[2]<dlo[2] || x[2]>dhi[2]) {
     SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_PLIB,"point out of bounds %g %g %g",x[0],x[1],x[2]);
-  for (i=0;i<3;i++) {
-    ii[i] = (PetscInt)((x[i]-dlo[i])/(dhi[i]-dlo[i])*(double)np[i]);
   }
+  /* find processor's flux tube for x */
+  for (i=0;i<3;i++) dx[i] = (dhi[i]-dlo[i])/(PetscReal)np[i];
+  for (i=0;i<3;i++) ii[i] = (PetscInt)((x[i]-dlo[i])/dx[i]);
+  deltaz = x[2] - dlo[2] - ii[2]*dx[2];
+  for (i=0;i<3;i++) xstar[i] = x[i] - b0[i]/b0[2]*deltaz + 1.e-14; /* keep in same z plane */
+  for (i=0;i<2;i++) {
+    while (xstar[i] < dlo[i]) xstar[i] += (dhi[i]-dlo[i]); /* assumes b0_i > 0 */
+  }
+  for (i=0;i<3;i++) ii[i] = (PetscInt)((xstar[i]-dlo[i])/dx[i]);
   *pe = X2_IDX3(ii,np);
   *elem = s_fluxtubeelem; /* 0 */
   PetscFunctionReturn(0);
@@ -765,7 +773,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
   PetscErrorCode ierr;
   PetscInt isp,gid,i,dim,cStart,cEnd,elid;
   const PetscInt  *np = ctx->particleGrid.ft_np;
-  const PetscReal *dlo = ctx->particleGrid.dom_lo, *dhi = ctx->particleGrid.dom_hi;
+  const PetscReal *dlo = ctx->particleGrid.dom_lo, *dhi = ctx->particleGrid.dom_hi, *b0 = ctx->particleGrid.b0;
   const PetscReal dx=(dhi[0]-dlo[0])/(PetscReal)np[0];
   const PetscReal x1=dlo[0] + dx*X2_IDX_X(ctx->rank,np);
   const PetscReal dy=(dhi[1]-dlo[1])/(PetscReal)np[1];
@@ -796,10 +804,23 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
     CHKERRQ(ierr);
     /* create each particle */
     for (i=0 ; i<ctx->num_particles_proc; i++ ) {
-      PetscReal xx[] = { x1 + (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dx,
-                         y1 + (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dy,
-                         z1 + (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dz };
+      PetscReal xx[3],deltaz;
       PetscReal zmax,v,zdum,vpar;
+      deltaz = (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dz;
+      xx[2] = z1 + deltaz;
+      xx[0] = x1 + (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dx + b0[0]/b0[2]*deltaz;
+      while (xx[0] > dhi[0]) xx[0] -= (dhi[0]-dlo[0]);
+      xx[1] = y1 + (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dy + b0[1]/b0[2]*deltaz;
+      while (xx[1] > dhi[1]) xx[1] -= (dhi[1]-dlo[1]);
+#ifdef PETSC_USE_DEBUG
+      {
+        PetscMPIInt pe; PetscInt id;
+        ierr = X2GridFluxTubeLocatePoint(&ctx->particleGrid,xx,&pe,&id);CHKERRQ(ierr);
+        if(pe != ctx->rank){
+          SETERRQ4(PETSC_COMM_SELF,PETSC_ERR_PLIB," created particle for proc %D, %g %g %g",pe,xx[0],xx[1],xx[2]);
+        }
+      }
+#endif
       /* v_parallel from random number */
       zmax = 1.0 - exp(-maxe);
       zdum = zmax*(PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG;
@@ -810,15 +831,6 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
       ierr = X2ParticleCreate(&particle,++gid,xx[0],xx[1],xx[2],vpar);CHKERRQ(ierr); /* only time this is called! */
       ierr = X2PListAdd(&ctx->partlists[isp][s_fluxtubeelem],&particle, NULL);CHKERRQ(ierr);
       /* debug, particles are created in a flux tube */
-#ifdef PETSC_USE_DEBUG
-      {
-        PetscMPIInt pe; PetscInt id;
-        ierr = X2GridFluxTubeLocatePoint(&ctx->particleGrid,xx,&pe,&id);CHKERRQ(ierr);
-        if(pe != ctx->rank){
-          SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB," created particle for proc %D",pe);
-        }
-      }
-#endif
     }
     /* finish off list creates for rest of elements */
     for (elid=0;elid<ctx->nElems;elid++) {
