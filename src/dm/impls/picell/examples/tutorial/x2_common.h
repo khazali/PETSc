@@ -294,7 +294,7 @@ void f1_u(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   for (d = 0; d < dim; ++d) f1[d] = u_x[d];
 }
 
-static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendList *sendListTable, const PetscMPIInt tag,
+static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendList **sendListTable, const PetscMPIInt tag,
                                         const int irk, const int istep, PetscBool solver);
 #ifdef H5PART
 static void prewrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *ppos2);
@@ -320,7 +320,7 @@ PetscErrorCode go( X2Ctx *ctx )
     /* do collisions */
     if (((istep+1)%ctx->collision_period)==0) {
       /* move to flux tube space */
-      ierr = processParticles(ctx, 0.0, ctx->sendListTable, tag, -1, istep, PETSC_FALSE);CHKERRQ(ierr);
+      ierr = processParticles(ctx, 0.0, &ctx->sendListTable, tag, -1, istep, PETSC_FALSE);CHKERRQ(ierr);
       /* call collision method */
 #ifdef H5PART
       if (ctx->plot) {
@@ -343,7 +343,7 @@ PetscErrorCode go( X2Ctx *ctx )
       }
 #endif
       /* move back to solver space */
-      ierr = processParticles(ctx, 0.0, ctx->sendListTable, tag + X2_NION + 1, -1, istep, PETSC_TRUE);CHKERRQ(ierr);
+      ierr = processParticles(ctx, 0.0, &ctx->sendListTable, tag + X2_NION + 1, -1, istep, PETSC_TRUE);CHKERRQ(ierr);
     }
     /* crude TS */
     dt = ctx->dt;
@@ -357,7 +357,7 @@ PetscErrorCode go( X2Ctx *ctx )
 #endif
     /* process particles: push, move */
     irk=0;
-    ierr = processParticles(ctx, dt, ctx->sendListTable, tag + 2*(X2_NION + 1), irk, istep, PETSC_TRUE);CHKERRQ(ierr);
+    ierr = processParticles(ctx, dt, &ctx->sendListTable, tag + 2*(X2_NION + 1), irk, istep, PETSC_TRUE);CHKERRQ(ierr);
   } /* time step */
   {
     PetscViewer       viewer = NULL;

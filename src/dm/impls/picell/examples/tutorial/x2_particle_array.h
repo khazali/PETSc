@@ -180,7 +180,7 @@ PETSC_STATIC_INLINE PetscErrorCode X2PListAdd( X2PList *l, X2Particle *p, X2PLis
 #ifdef X2_S_OF_V
     X2Particle_v data2;
 #else
-    X2Particle *data2; /* make this arrays of X2Particle members for struct-of-arrays */
+    X2Particle *data2;
 #endif
     int i;
     PetscErrorCode ierr;
