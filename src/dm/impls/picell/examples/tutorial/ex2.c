@@ -849,18 +849,18 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 static PetscErrorCode CreateMesh(X2Ctx *ctx)
 {
   PetscErrorCode ierr;
-  PetscInt dimEmbed, i;
+  PetscInt dimEmbed, i, id;
   PetscInt nCoords,dim;
   PetscScalar *coords;
   Vec coordinates;
   DM_PICell *dmpi = (DM_PICell *) ctx->dm->data;
-  const char *prefix;
   DM dm;
   DMLabel label;
   PetscInt  *sizes = NULL;
   PetscInt  *points = NULL;
   PetscPartitioner part;
-
+  PetscDS    prob;
+  PetscSection   s;
   PetscFunctionBeginUser;
 
   /* setup solver grid */
@@ -885,7 +885,6 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
 
   ierr = DMSetApplicationContext(dmpi->dmplex, &ctx);CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dmplex, "x2_");CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) ctx->dm, "x2_");CHKERRQ(ierr);
   ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx->BCFuncs);CHKERRQ(ierr);
   ctx->BCFuncs[0] = zero;
   /* add BCs */
@@ -893,11 +892,10 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   ierr = DMGetLabel(dmpi->dmplex, "boundary", &label);CHKERRQ(ierr);
   ierr = DMPlexMarkBoundaryFaces(dmpi->dmplex, label);CHKERRQ(ierr);
   ierr = DMPlexLabelComplete(dmpi->dmplex, label);CHKERRQ(ierr);
-  if (1) {
-    PetscInt id = 1;
-    ierr = DMAddBoundary(dmpi->dmplex, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx->BCFuncs[0], 1, &id, &ctx);CHKERRQ(ierr);
-  }
+  id = 1;
+  ierr = DMAddBoundary(dmpi->dmplex, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx->BCFuncs[0], 1, &id, &ctx);CHKERRQ(ierr);
   if (sizeof(long long)!=sizeof(PetscReal)) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "sizeof(long long)!=sizeof(PetscReal)");
+
   /* set a simple partitioner - needed to make my indexing work for point locate */
   if (!ctx->rank) {
     PetscInt cEnd,c,*cs,*cp,ii[3],i;
@@ -915,6 +913,20 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
         ii[i] = (PetscInt)((x[i]-dlo[i])/(dhi[i]-dlo[i])*(double)np[i]);
       }
       *cp = X2_IDX3(ii,np);
+
+
+/*       PetscReal v0[81]; */
+/*       PetscQuadrature quad; */
+/*       PetscInt qdim,Nq,j; */
+/*       ierr = PetscFEGetQuadrature(dmpi->fem, &quad);CHKERRQ(ierr); */
+/*       ierr = PetscQuadratureGetData(quad, &qdim, &Nq, NULL, NULL);CHKERRQ(ierr); */
+/* PetscPrintf(PETSC_COMM_SELF,"[%D]%s elem %d, qdim=%D Nq=%D\n",s_rank,__FUNCT__,c,qdim,Nq); */
+/*       ierr = DMPlexComputeCellGeometryFEM(dmpi->dmplex, c, dmpi->fem, v0, NULL, NULL, NULL);CHKERRQ(ierr); */
+/*       for (j=0;j<Nq;j++) { */
+/*         PetscPrintf(PETSC_COMM_SELF,"%s %D) elem %d, v0 = %g %g %g\n",__FUNCT__,j,c,v0[3*j+0],v0[3*j+1],v0[3*j+2]); */
+/*       } */
+
+
     }
   }
   ierr = DMPlexGetPartitioner(dmpi->dmplex, &part);CHKERRQ(ierr);
@@ -923,31 +935,20 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   if (sizes) {
     ierr = PetscFree2(sizes,points);CHKERRQ(ierr);
   }
-  ierr = PetscObjectGetOptionsPrefix((PetscObject)dmpi->dmplex,&prefix);CHKERRQ(ierr);
+
+  /* distribute */
   ierr = DMPlexDistribute(dmpi->dmplex, 0, NULL, &dm);CHKERRQ(ierr);
   if (dm) {
-    ierr = PetscObjectSetOptionsPrefix((PetscObject)dm,prefix);CHKERRQ(ierr);
+    ierr = PetscObjectSetOptionsPrefix((PetscObject)dm,"x2_");CHKERRQ(ierr);
     ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
     dmpi->dmplex = dm;
   }
   else assert(ctx->npe==1);
+
   /* set from options: refinement done here */
   ierr = DMSetFromOptions( ctx->dm );CHKERRQ(ierr);
 
-  PetscFunctionReturn(0);
-}
-#undef __FUNCT__
-#define __FUNCT__ "SetupDiscretization"
-static PetscErrorCode SetupDiscretization(X2Ctx *ctx)
-{
-  PetscErrorCode ierr;
-  DM_PICell *dmpi = (DM_PICell *) ctx->dm->data;
-  PetscDS    prob;
-  PetscInt   dim;
-  PetscSection   s;
-  PetscFunctionBeginUser;
-
-  ierr = DMGetDimension(dmpi->dmplex, &dim);CHKERRQ(ierr);
+  /* fem */
   ierr = PetscFECreateDefault(dmpi->dmplex, dim, 1, PETSC_FALSE, NULL, PETSC_DECIDE, &dmpi->fem);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->fem, "poisson");CHKERRQ(ierr);
   /* FEM prob */
@@ -955,15 +956,13 @@ static PetscErrorCode SetupDiscretization(X2Ctx *ctx)
   ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
   ierr = PetscDSSetResidual(prob, 0, f0_u, f1_u);CHKERRQ(ierr);
   ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
-  if (0) {
-    PetscInt id = 1;
-    ierr = PetscDSAddBoundary(prob, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)())  ctx->BCFuncs[0], 1, &id, &ctx);CHKERRQ(ierr);
-  }
+
   ierr = DMSetUp( ctx->dm );CHKERRQ(ierr); /* create vectors */
 
-  /* diagnostics */
-  ierr = DMGetDefaultSection(dmpi->dmplex, &s);CHKERRQ(ierr);
+  ierr = DMGetDefaultSection(dmpi->dmplex, &s);CHKERRQ(ierr); /* needed???? */
   ierr = DMGetDefaultGlobalSection(dmpi->dmplex, &s);CHKERRQ(ierr);
+
+  /* diagnostics */
   if (!s) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "DMGetDefaultSection return NULL");
 
   ierr = PetscSectionViewFromOptions(s, NULL, "-section_view");CHKERRQ(ierr);
@@ -1044,9 +1043,6 @@ int main(int argc, char **argv)
   dmpi->debug = s_debug;
 
   ierr = CreateMesh(&ctx);CHKERRQ(ierr);
-
-  /* setup Discretization */
-  ierr = SetupDiscretization(&ctx);CHKERRQ(ierr);
 
   // dmpi->dmplex = dmpi->dmplex; /* done with setup but some methods in picell.c (still) need a plex DM */
 
