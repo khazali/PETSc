@@ -348,7 +348,8 @@ PetscErrorCode X2GridFluxTubeLocatePoint( const X2GridParticle *grid, PetscReal 
   deltaz = x[2] - dlo[2] - ii[2]*dx[2];
   for (i=0;i<3;i++) xstar[i] = x[i] - b0[i]/b0[2]*deltaz + 1.e-14; /* keep in same z plane */
   for (i=0;i<2;i++) {
-    while (xstar[i] < dlo[i]) xstar[i] += (dhi[i]-dlo[i]); /* assumes b0_i > 0 */
+    while (xstar[i] < dlo[i]) xstar[i] += (dhi[i]-dlo[i]);
+    while (xstar[i] > dhi[i]) xstar[i] -= (dhi[i]-dlo[i]);
   }
   for (i=0;i<3;i++) ii[i] = (PetscInt)((xstar[i]-dlo[i])/dx[i]);
   *pe = X2_IDX3(ii,np);
@@ -694,7 +695,6 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
           ndeposit++;
         }
-        /* } while ( !X2PListGetNext(list, &part, &pos) ); */
         ierr = VecRestoreArray(xVec,&xx0);CHKERRQ(ierr);
         ierr = VecRestoreArray(vVec,&vv0);CHKERRQ(ierr);
 #if defined(PETSC_USE_LOG)
@@ -771,7 +771,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 static PetscErrorCode createParticles(X2Ctx *ctx)
 {
   PetscErrorCode ierr;
-  PetscInt isp,gid,i,dim,cStart,cEnd,elid;
+  PetscInt isp,gid,i,j,dim,cStart,cEnd,elid;
   const PetscInt  *np = ctx->particleGrid.ft_np;
   const PetscReal *dlo = ctx->particleGrid.dom_lo, *dhi = ctx->particleGrid.dom_hi, *b0 = ctx->particleGrid.b0;
   const PetscReal dx=(dhi[0]-dlo[0])/(PetscReal)np[0];
@@ -809,9 +809,11 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
       deltaz = (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dz;
       xx[2] = z1 + deltaz;
       xx[0] = x1 + (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dx + b0[0]/b0[2]*deltaz;
-      while (xx[0] > dhi[0]) xx[0] -= (dhi[0]-dlo[0]);
       xx[1] = y1 + (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dy + b0[1]/b0[2]*deltaz;
-      while (xx[1] > dhi[1]) xx[1] -= (dhi[1]-dlo[1]);
+      for (j=0;j<2;j++) {
+        while (xx[j] > dhi[j]) xx[j] -= (dhi[j]-dlo[j]);
+        while (xx[j] < dlo[j]) xx[j] += (dhi[j]-dlo[j]);
+      }
 #ifdef PETSC_USE_DEBUG
       {
         PetscMPIInt pe; PetscInt id;

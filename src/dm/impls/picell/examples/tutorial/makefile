@@ -34,7 +34,7 @@ runex1:
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5
 
 runex2:
-	-${MPIEXEC} -n ${NP}  ./ex2.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 2 -num_particles_proc 1000 -mstep 2 -debug 3 -snes_monitor -ksp_monitor -snes_converged_reason -x2_dm_view hdf5:ex2.h5 -x2_vec_view hdf5:ex2.h5::append -collision_period 1 -max_vpar 1.1 -snes_type ksponly -use_bsp 1 -petscpartitioner_type simple -solver_np 2,2,1 -ft_np 2,2,1
+	-${MPIEXEC} -n ${NP}  ./ex2.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 3 -num_particles_proc 10000 -mstep 2 -debug 3 -snes_monitor -ksp_monitor -snes_converged_reason -x2_dm_view hdf5:ex2.h5 -x2_vec_view hdf5:ex2.h5::append -collision_period 1 -max_vpar 1.1 -snes_type ksponly -use_bsp 1 -petscpartitioner_type simple -solver_np 2,2,1 -ft_np 2,2,1 -dom_lo -1,-1,-2 -dom_hi 1,1,2 -b0 -.1,.1,1 -use_electrons false
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex2.h5
 # -solver_np 2,1,1 -ft_np 1,2,1 -dom_lo -2,-2,-2 -dom_hi 2,2,2 -b0 .2,.2,1.5 
 runex1_p4:
