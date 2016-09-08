@@ -21,6 +21,15 @@ static char help[] = "X2: A partical in cell code for tokamak plasmas using PICe
   } \
 }
 
+/* q: safty factor */
+#define qsafty(psi) (3.*pow(psi,2.0))
+
+/* b0 dot jj at (psi,theta,phi) -- todo */
+#define getB0DotX(__R,__psi,__theta,__phi,__jj,__b0dotx)                  \
+{                                                                     \
+  __b0dotx = -(__R)*sin(__phi)*qsafty(__psi)*__jj[0]*1.e-10 + (__R)*cos(__phi)*qsafty(__psi)*1.e-10; \
+}
+
 #define polPlaneToCylindrical( __psi, __theta, __rMinor, __Z) \
 {\
   __rMinor = (__psi)*cos(__theta);		\
@@ -346,9 +355,6 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   PetscFunctionReturn(0);
 }
 
-/* q: safty factor, should be parameterized */
-#define qsafty(psi) (3.*pow(psi,2.0))
-
 /* X2GridFluxTubeLocatePoint: find processor and local flux tube that this point is in
     Input:
      - grid: the particle grid
@@ -440,7 +446,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
   const int part_dsize = sizeof(X2Particle)/sizeof(double);
   Vec          jetVec,xVec,vVec;
   PetscScalar *xx=0,*jj=0,*vv=0,*xx0=0,*jj0=0,*vv0=0;
-  PetscInt isp,order=1,nslist,nlistsTot,elid,elid2,one=1,three=3,ndeposit;
+  PetscInt isp,nslist,nlistsTot,elid,elid2,one=1,three=3,ndeposit;
   int origNlocal,nmoved;
   X2ISend slist[X2PROCLISTSIZE];
   IS pes,elems;
@@ -459,6 +465,8 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
   for (isp=ctx->use_electrons ? 0 : 1, ndeposit = 0, nslist = 0, nmoved = 0, nlistsTot = 0, origNlocal = 0;
        isp <= X2_NION ;
        isp++) {
+    const PetscReal mass = ctx->species[isp].mass;
+    const PetscReal charge = ctx->species[isp].charge;
     /* loop over element particle lists */
     for (elid=0;elid<ctx->nElems;elid++) {
       X2PList *list = &ctx->partlists[isp][elid];
@@ -473,9 +481,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
         /* make vectors for this element */
         ierr = VecCreateSeq(PETSC_COMM_SELF,three*list->vec_top, &xVec);CHKERRQ(ierr);
-        ierr = VecCreateSeq(PETSC_COMM_SELF,three*list->vec_top, &jetVec);CHKERRQ(ierr);
         ierr = VecSetBlockSize(xVec,three);CHKERRQ(ierr);
-        ierr = VecSetBlockSize(jetVec,three);CHKERRQ(ierr);
         /* make coordinates array to get gradients */
         ierr = VecGetArray(xVec,&xx0);CHKERRQ(ierr); xx = xx0;
 #pragma simd vectorlengthfor(PetscScalar)
@@ -499,17 +505,20 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
         /* get E, should set size of vecs for true size? */
         if (irk>=0) {
-          ierr = DMPICellGetJet(dmpi->dmgrid, xVec, order, jetVec, elid);CHKERRQ(ierr);
+          ierr = DMPICellGetJet(ctx->dm, xVec, elid, &jetVec);CHKERRQ(ierr);
           ierr = VecGetArray(jetVec,&jj0);CHKERRQ(ierr); jj = jj0;
         }
         /* vectorize (todo) push: theta = theta + q*dphi .... grad not used */
         ierr = VecGetArray(xVec,&xx0);CHKERRQ(ierr); xx = xx0;
         for (pos=0 ; pos < list->vec_top ; pos++, xx += 3, jj += 3 ) {
 	  /* push particle, real data, could do it on copy for non-final stage of TS, copy new coordinate to xx */
-          if (irk>=0) { /* we could use jet here */
+          if (irk>=0) {
+            PetscReal b0dotgrad;
 #ifdef X2_S_OF_V
             PetscReal r=list->data_v.r[pos] - rmaj, z=list->data_v.z[pos];
             cylindricalToPolPlane(r, z, psi, theta );
+            getB0DotX( list->data_v.r[pos], psi, theta, list->data_v.phi[pos], jj, b0dotgrad );
+            list->data_v.vpar[pos] += -dt*b0dotgrad*charge/mass;
             dphi = (dt*list->data_v.vpar[pos])/(2.*M_PI*list->data_v.r[pos]);  /* toroidal step */
             list->data_v.phi[pos] += dphi;
             xx[2] = list->data_v.phi[pos] = fmod( list->data_v.phi[pos] + 20.*M_PI, 2.*M_PI);
@@ -522,6 +531,8 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
             X2Particle *ppart = &list->data[pos];
             PetscReal r = ppart->r - rmaj, z = ppart->z;
             cylindricalToPolPlane( r, z, psi, theta );
+            getB0DotX( psi, theta, ppart->phi, jj, b0 );
+            ppart->vpar += -dt*b0dotgrad*charge/mass;
             dphi = (dt*ppart->vpar)/(2.*M_PI*ppart->r);  /* toroidal step */
             ppart->phi += dphi;
             xx[2] = ppart->phi = fmod( ppart->phi + 20.*M_PI, 2.*M_PI);
@@ -675,7 +686,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       if (solver) {
         /* done with these, need new ones after communication */
         ierr = VecDestroy(&xVec);CHKERRQ(ierr);
-        ierr = VecDestroy(&jetVec);CHKERRQ(ierr);
+        if (irk>=0) {
+          ierr = VecDestroy(&jetVec);CHKERRQ(ierr);
+        }
       }
 #if defined(PETSC_USE_LOG)
       ierr = PetscLogEventEnd(ctx->events[5],0,0,0,0);CHKERRQ(ierr);

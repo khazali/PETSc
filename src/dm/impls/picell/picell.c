@@ -204,7 +204,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   if (Nq > 27) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Nq > 27", Nq);
   /* Affine approximation for reference coordinates */
   ierr = DMPlexComputeCellGeometryFEM(dmpi->dmplex, cell, dmpi->fem, v0, J, invJ, detJ);CHKERRQ(ierr);
-  /* get average for now */
+  /* get average for now -- fix!! with Toby */
   for (e = 0; e < dim; ++e) v00[e] = 0;
   for (e = 0; e < dim*dim; ++e) J0inv[e] = 0;
   for (q = 0, piJ = &invJ[0]; q < Nq; ++q, piJ += dim*dim) {
@@ -243,8 +243,6 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   ierr = PetscLogEventEnd(DMPICell_Add2,dm,0,0,0);CHKERRQ(ierr);
   ierr = PetscLogEventBegin(DMPICell_Add3,dm,0,0,0);CHKERRQ(ierr);
 #endif
-  ierr = VecRestoreArray(refCoord, &xi);CHKERRQ(ierr);
-  ierr = VecDestroy(&refCoord);CHKERRQ(ierr);
   ierr = DMGetDS(dmpi->dmplex, &prob);CHKERRQ(ierr);
   ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
   if (totDim!=8) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "totDim!=8",totDim);
@@ -274,6 +272,8 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   ierr = DMPlexVecSetClosure(dmpi->dmplex, NULL, rho, cell, elemVec, ADD_VALUES);CHKERRQ(ierr);
   ierr = DMRestoreWorkArray(dmpi->dmplex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscFERestoreTabulation(dmpi->fem, N, xi, &B, NULL, NULL);CHKERRQ(ierr);
+  ierr = VecRestoreArray(refCoord, &xi);CHKERRQ(ierr);
+  ierr = VecDestroy(&refCoord);CHKERRQ(ierr);
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventEnd(DMPICell_Add3,dm,0,0,0);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(DMPICell_AddSource,dm,0,0,0);CHKERRQ(ierr);
@@ -284,22 +284,104 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
 /* get gradient at point 'coord' and put it in D vector 'jet' */
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellGetJet"
-PetscErrorCode  DMPICellGetJet(DM dm, Vec coord, PetscInt order, Vec jet, PetscInt cell)
+PetscErrorCode  DMPICellGetJet(DM dm, Vec coord, PetscInt cell, Vec *jet)
 {
-  /* DM_PICell      *dmpi = (DM_PICell *) dm->data; */
+  DM_PICell    *dmpi = (DM_PICell *) dm->data;
+  Vec          refCoord;
+  PetscScalar  *ljet, *xx, *xi, *piJ;
+  PetscReal    *D = NULL, *B = NULL;
+  PetscReal    v0[81], J[243], invJ[243], detJ[27], J0inv[9],v00[3], d3 = 8;
+  const PetscReal *weights;
+  PetscInt     totDim,p,N,dim,b,Nq,qdim,q,d,e;
   PetscErrorCode ierr;
-  PetscScalar rone=1.;
+  PetscDS        prob;
+  PetscQuadrature  quad;
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidHeaderSpecific(coord, VEC_CLASSID, 2);
-  PetscValidHeaderSpecific(jet, VEC_CLASSID, 4);
-  /* ierr = PetscLogEventBegin(DMPICell_GetJet,a_dm,0,0,0);CHKERRQ(ierr); */
+  PetscValidPointer(jet, 4);
+#if defined(PETSC_USE_LOG)
+  ierr = PetscLogEventBegin(DMPICell_GetJet,dm,0,0,0);CHKERRQ(ierr);
+#endif
+  ierr = VecDuplicate(coord, &refCoord);CHKERRQ(ierr);
+  ierr = VecGetBlockSize(coord, &dim);CHKERRQ(ierr);
+  d3 = pow(2,dim);
+  ierr = VecGetLocalSize(coord, &N);CHKERRQ(ierr);
+  if (N%dim) SETERRQ2(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_PLIB, "N=%D dim=%D",N,dim);
+  N /= dim;
+  ierr = VecGetArray(coord, &xx);CHKERRQ(ierr);
+  ierr = VecGetArray(refCoord, &xi);CHKERRQ(ierr);
+  ierr = PetscFEGetQuadrature(dmpi->fem, &quad);CHKERRQ(ierr);
+  ierr = PetscQuadratureGetData(quad, &qdim, &Nq, NULL, &weights);CHKERRQ(ierr);
+  if (qdim != dim) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Point dimension %d != quadrature dimension %d", dim, qdim);
+  if (Nq > 27) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Nq > 27", Nq);
+  /* Affine approximation for reference coordinates */
+  ierr = DMPlexComputeCellGeometryFEM(dmpi->dmplex, cell, dmpi->fem, v0, J, invJ, detJ);CHKERRQ(ierr);
+  /* get average for now -- fix!! with Toby */
+  for (e = 0; e < dim; ++e) v00[e] = 0;
+  for (e = 0; e < dim*dim; ++e) J0inv[e] = 0;
+  for (q = 0, piJ = &invJ[0]; q < Nq; ++q, piJ += dim*dim) {
+    for (e = 0; e < dim; ++e) {
+      v00[e] += weights[q]*v0[q*dim + e];
+      for (d = 0; d < dim; ++d) {
+        J0inv[e*dim + d] += weights[q]*piJ[e*dim + d];
+      }
+    }
+  }
+  for (e = 0; e < dim; ++e) v00[e] /= d3;
+  for (e = 0; e < dim*dim; ++e) J0inv[e] /= d3;
+  /* apply xi = J^-1 * (x - v0) */
+  for (p = 0; p < N; ++p) {
+    PetscScalar *pxx = &xx[dim*p], *pxi = &xi[dim*p];
+#if defined(X2_HAVE_INTEL)
+#pragma simd vectorlengthfor(PetscReal)
+#endif
+    for (e = 0; e < dim; ++e) {
+      pxi[e] = 0;
+#if defined(X2_HAVE_INTEL)
+#pragma simd vectorlengthfor(PetscReal)
+#endif
+      for (d = 0; d < dim; ++d) {
+        pxi[e] += J0inv[e*dim + d]*(pxx[d] - v00[d]);
+      }
+    }
+  }
+  ierr = VecRestoreArray(coord, &xx);CHKERRQ(ierr);
 
-  /* Matt */
-  ierr = VecSet(jet,rone);CHKERRQ(ierr); /* dummy grad now */
+  ierr = PetscFEGetTabulation(dmpi->fem, N, xi, &B, &D, NULL);CHKERRQ(ierr);
 
-  /* ierr = PetscLogEventEnd(DMPICell_GetJet,a_dm,0,0,0);CHKERRQ(ierr); */
+  ierr = DMGetDS(dmpi->dmplex, &prob);CHKERRQ(ierr);
+  ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
+  ierr = PetscDualSpaceGetDimension(dmpi->fem->dualSpace, &e);CHKERRQ(ierr);
+  if (totDim!=8) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "totDim!=8 =%d",totDim);
+  if (totDim!=e) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "totDim != e=%g",e);
 
+  ierr = VecCreateSeq(PETSC_COMM_SELF,N*dim,jet);CHKERRQ(ierr);
+  ierr = VecGetArray(*jet, &ljet);CHKERRQ(ierr);
+#if defined(PETSC_HAVE_MEMALIGN)
+  __assume_aligned(B,PETSC_MEMALIGN);
+#endif
+  /* D[N][totDim][dim] */
+  for (p = 0; p < N; ++p) {
+    const PetscReal *DD = &D[p*totDim*dim];
+    const PetscReal *BB = &B[p*totDim];
+    PetscReal *Jet = &ljet[p*dim];
+    for (e = 0; e < dim; ++e) Jet[e] = 0;
+#if defined(X2_HAVE_INTEL)
+#pragma simd vectorlengthfor(PetscReal)
+#endif
+    for (b = 0; b < totDim; ++b) {
+      const PetscReal *DDD = &DD[b*dim];
+      for (e = 0; e < dim; ++e) Jet[e] += BB[b] * DDD[e];
+    }
+  }
+  ierr = VecRestoreArray(*jet, &ljet);CHKERRQ(ierr);
+  ierr = PetscFERestoreTabulation(dmpi->fem, N, xi, &B, &D, NULL);CHKERRQ(ierr);
+  ierr = VecRestoreArray(refCoord, &xi);CHKERRQ(ierr);
+  ierr = VecDestroy(&refCoord);CHKERRQ(ierr);
+#if defined(PETSC_USE_LOG)
+  ierr = PetscLogEventEnd(DMPICell_GetJet,dm,0,0,0);CHKERRQ(ierr);
+#endif
   PetscFunctionReturn(0);
 }
 #undef __FUNCT__
