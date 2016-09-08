@@ -300,8 +300,11 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsBool("-use_electrons", "Include electrons", "ex2.c", ctx->use_electrons, &ctx->use_electrons, NULL);CHKERRQ(ierr);
   ctx->max_vpar = 1.;
   ierr = PetscOptionsReal("-max_vpar", "Maximum parallel velocity", "ex2.c",ctx->max_vpar,&ctx->max_vpar,NULL);CHKERRQ(ierr);
+  npflag2 = PETSC_FALSE;
+  ierr = PetscOptionsBool("-periodic_domain", "Periodic domain", "ex2.c", npflag2, &npflag2, &npflag1);CHKERRQ(ierr);
+  if (npflag1 && npflag2) ctx->dtype = X2_PERIODIC;
+  else ctx->dtype = X2_DIRI;
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
-
   if (s_debug>0) PetscPrintf(ctx->wComm,"npe=%D; %Dx%Dx%D solver grid; %Dx%Dx%D particle grid grid; mpi_send size (chunksize) equal %d particles. %s, %s, %s\n",
                              ctx->npe,ctx->particleGrid.solver_np[0],ctx->particleGrid.solver_np[1],ctx->particleGrid.solver_np[2],ctx->particleGrid.ft_np[0],
                              ctx->particleGrid.ft_np[1],ctx->particleGrid.ft_np[2],ctx->chunksize,
@@ -684,8 +687,6 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         /* make coordinates array and density */
         ierr = VecGetArray(xVec,&xx0);CHKERRQ(ierr); xx = xx0;
         ierr = VecGetArray(vVec,&vv0);CHKERRQ(ierr); vv = vv0;
-        /* ierr = X2PListGetHead( list, &part, &pos );CHKERRQ(ierr); */
-        /* do { */
         for (pos=0 ; pos < list->vec_top ; pos++, xx += 3, vv++) { /* this has holes, but few and zero weight - vectorizable */
 #ifdef X2_S_OF_V
           xx[0]=list->data_v.r[pos];
@@ -698,6 +699,18 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           xx[2]=list->data[pos].phi;
           *vv = list->data[pos].w0*ctx->species[isp].charge;
 #endif
+          /* debug - manufactured solution */
+          if (ctx->dtype == X2_PERIODIC) {
+            const PetscReal *dlo = ctx->particleGrid.dom_lo, *dhi = ctx->particleGrid.dom_hi;
+            ii = 2;
+            *vv *= sin(2*M_PI*(xx[ii]-dlo[ii])/(dhi[ii]-dlo[ii]));
+          } else {
+            const PetscReal *dlo = ctx->particleGrid.dom_lo, *dhi = ctx->particleGrid.dom_hi;
+            for(ii=0;ii<3;ii++) {
+              PetscReal x = (xx[ii]-dlo[ii])/(dhi[ii]-dlo[ii]);
+              *vv *= (x*x*x*x - x*x);
+            }
+          }
           ndeposit++;
         }
         ierr = VecRestoreArray(xVec,&xx0);CHKERRQ(ierr);
@@ -889,8 +902,12 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
 
   /* setup solver grid */
   dim = 3;
-  /* ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->particleGrid.solver_np, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &dmpi->dmplex);CHKERRQ(ierr); */
-  ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->particleGrid.solver_np, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, &dmpi->dmplex);CHKERRQ(ierr);
+  if (ctx->dtype == X2_PERIODIC) {
+    ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->particleGrid.solver_np, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &dmpi->dmplex);CHKERRQ(ierr);
+  }
+  else {
+    ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->particleGrid.solver_np, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, &dmpi->dmplex);CHKERRQ(ierr);
+  }
   /* set domain size */
   ierr = DMGetCoordinatesLocal(dmpi->dmplex,&coordinates);CHKERRQ(ierr);
   ierr = DMGetCoordinateDim(dmpi->dmplex,&dimEmbed);CHKERRQ(ierr);
@@ -1018,6 +1035,7 @@ int main(int argc, char **argv)
   DM_PICell      *dmpi;
   PetscInt idx,isp;
   Mat            J;
+  KSP ksp;
   PetscFunctionBeginUser;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
@@ -1069,6 +1087,13 @@ int main(int argc, char **argv)
   ierr = DMPlexSetSNESLocalFEM(dmpi->dmplex,&ctx,&ctx,&ctx);CHKERRQ(ierr);
   ierr = DMCreateMatrix(dmpi->dmplex, &J);CHKERRQ(ierr);
   ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
+  ierr = SNESGetKSP(dmpi->snes, &ksp);CHKERRQ(ierr);
+  if (ctx.dtype == X2_PERIODIC) {
+    MatNullSpace   nullsp;
+    ierr = MatNullSpaceCreate(ctx.wComm, PETSC_TRUE, 0, NULL, &nullsp);CHKERRQ(ierr);
+    ierr = MatSetNullSpace(J, nullsp);CHKERRQ(ierr);
+    ierr = MatNullSpaceDestroy(&nullsp);CHKERRQ(ierr);
+  }
   ierr = SNESSetFromOptions(dmpi->snes);CHKERRQ(ierr);
   if (dmpi->debug>3) {
     PetscViewer viewer;
@@ -1119,8 +1144,7 @@ int main(int argc, char **argv)
 
   /* setup solver, dummy solve to really setup */
   {
-    KSP ksp; PetscReal krtol,katol,kdtol; PetscInt kmit,one=1;
-    ierr = SNESGetKSP(dmpi->snes, &ksp);CHKERRQ(ierr);
+    PetscReal krtol,katol,kdtol; PetscInt kmit,one=1;
     ierr = KSPGetTolerances(ksp,&krtol,&katol,&kdtol,&kmit);CHKERRQ(ierr);
     ierr = KSPSetTolerances(ksp,krtol,katol,kdtol,one);CHKERRQ(ierr);
     ierr = DMPICellSolve( ctx.dm );CHKERRQ(ierr);
