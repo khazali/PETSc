@@ -521,7 +521,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
             list->data_v.vpar[pos] += -dt*b0dotgrad*charge/mass;
             dphi = (dt*list->data_v.vpar[pos])/(2.*M_PI*list->data_v.r[pos]);  /* toroidal step */
             list->data_v.phi[pos] += dphi;
-            xx[2] = list->data_v.phi[pos] = fmod( list->data_v.phi[pos] + 20.*M_PI, 2.*M_PI);
+            xx[2] = list->data_v.phi[pos] = fmod( list->data_v.phi[pos] + 20.*M_PI, 2.*M_PI); /* is fmod ok? */
             theta += qsafty(psi/rminor)*dphi;  /* twist */
             theta = fmod( theta + 20.*M_PI, 2.*M_PI);
             polPlaneToCylindrical( psi, theta, r, z); /* time spent here */
@@ -800,8 +800,13 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         char  fname1[256],fname2[256];
         X2PListPos pos1,pos2;
         /* hdf5 output */
-        sprintf(fname1,"particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
-        sprintf(fname2,"sub_rank_particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
+        if (!isp) {
+          sprintf(fname1,         "x2_particles_electrons_time%05d.h5part",(int)istep+1);
+          sprintf(fname2,"x2_sub_rank_particles_electrons_time%05d.h5part",(int)istep+1);
+        } else {
+          sprintf(fname1,         "x2_particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
+          sprintf(fname2,"x2_sub_rank_particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
+        }
         /* write */
         prewrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
         ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
@@ -1615,8 +1620,13 @@ int main(int argc, char **argv)
 #if defined(PETSC_USE_LOG)
       ierr = PetscLogEventBegin(ctx.events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
-      sprintf(fname1,"particles_sp%d_time%05d_fluxtube.h5part",(int)isp,0);
-      sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",(int)isp,0);
+      if (!isp) {
+        sprintf(fname1,         "particles_electrons_time%05d_fluxtube.h5part",(int)istep+1);
+        sprintf(fname2,"sub_rank_particles_electrons_time%05d_fluxtube.h5part",(int)istep+1);
+      } else {
+        sprintf(fname1,         "particles_sp%d_time%05d_fluxtube.h5part",(int)isp,0);
+        sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",(int)isp,0);
+      }
       /* write */
       prewrite(&ctx, &ctx.partlists[isp][s_fluxtubeelem], &pos1, &pos2);
       ierr = X2PListWrite(ctx.partlists[isp], ctx.nElems, ctx.rank, ctx.npe, ctx.wComm, fname1, fname2);CHKERRQ(ierr);

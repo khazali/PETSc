@@ -38,4 +38,6 @@ typedef struct {
   X2PSendList *sendListTable;
   /* prob type  */
   domainType dtype;
+  PetscBool use_mms;
+  PetscBool use_v_update;
 } X2Ctx;

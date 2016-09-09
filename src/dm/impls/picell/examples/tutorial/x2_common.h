@@ -330,8 +330,13 @@ PetscErrorCode go( X2Ctx *ctx )
 #if defined(PETSC_USE_LOG)
           ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
-          sprintf(fname1,         "particles_sp%d_time%05d_fluxtube.h5part",(int)isp,(int)istep+1);
-          sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",(int)isp,(int)istep+1);
+          if (!isp) {
+            sprintf(fname1,         "particles_electrons_time%05d_fluxtube.h5part",(int)istep+1);
+            sprintf(fname2,"sub_rank_particles_electrons_time%05d_fluxtube.h5part",(int)istep+1);
+          } else {
+            sprintf(fname1,         "particles_sp%d_time%05d_fluxtube.h5part",(int)isp,(int)istep+1);
+            sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",(int)isp,(int)istep+1);
+          }
           /* write */
           prewrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
           ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);

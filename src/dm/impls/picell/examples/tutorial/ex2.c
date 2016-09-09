@@ -272,7 +272,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   three = 3;
   ierr = PetscOptionsRealArray("-b0", "B_0 vector", "ex2.c", ctx->particleGrid.b0, &three, NULL);CHKERRQ(ierr);
   {
-    PetscReal *b0 = ctx->particleGrid.b0, len = b0[0]*b0[0] + b0[1]*b0[1] + b0[2]*b0[2]; /* normalize - why? */
+    PetscReal *b0 = ctx->particleGrid.b0, len = b0[0]*b0[0] + b0[1]*b0[1] + b0[2]*b0[2];
     if (b0[2]==0.) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Bad B_0 vector: must have z(2) component: %g %g %g",b0[0],b0[1],b0[2]);
     len = sqrt(len);
     if (len==0) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Bad B_0 vector length %g %g %g",b0[0],b0[1],b0[2]);
@@ -289,7 +289,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->num_particles_proc = X2_V_LEN;
   ierr = PetscOptionsInt("-num_particles_proc", "Number of particles local (flux tube cell)", "ex2.c", ctx->num_particles_proc, &ctx->num_particles_proc, NULL);CHKERRQ(ierr);
   if (ctx->num_particles_proc<0) {
-    if (ctx->rank==ctx->npe-1) ctx->num_particles_proc = -ctx->num_particles_proc;
+    if (ctx->rank==0) ctx->num_particles_proc = -ctx->num_particles_proc;
     else ctx->num_particles_proc = 0;
   }
   if (!chunkFlag) ctx->chunksize = X2_V_LEN*((ctx->num_particles_proc/80+1)/X2_V_LEN+1); /* an intelegent message chunk size */
@@ -304,6 +304,10 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsBool("-periodic_domain", "Periodic domain", "ex2.c", npflag2, &npflag2, &npflag1);CHKERRQ(ierr);
   if (npflag1 && npflag2) ctx->dtype = X2_PERIODIC;
   else ctx->dtype = X2_DIRI;
+  ctx->use_mms = PETSC_FALSE;
+  ierr = PetscOptionsBool("-use_mms", "Us a manufactured RHS for particle weight", "ex2.c", ctx->use_mms, &ctx->use_mms, NULL);CHKERRQ(ierr);
+  ctx->use_v_update = PETSC_FALSE;
+  ierr = PetscOptionsBool("-use_v_update", "Update the particle velocity with the E field", "ex2.c", ctx->use_v_update, &ctx->use_v_update, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
   if (s_debug>0) PetscPrintf(ctx->wComm,"npe=%D; %Dx%Dx%D solver grid; %Dx%Dx%D particle grid grid; mpi_send size (chunksize) equal %d particles. %s, %s, %s\n",
                              ctx->npe,ctx->particleGrid.solver_np[0],ctx->particleGrid.solver_np[1],ctx->particleGrid.solver_np[2],ctx->particleGrid.ft_np[0],
@@ -420,8 +424,11 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
   IS pes,elems;
   const PetscInt *cpeidxs,*celemidxs;
   PetscInt *peidxs,*elemidxs;
+  const PetscReal *dlo = ctx->particleGrid.dom_lo, *dhi = ctx->particleGrid.dom_hi, *b0 = ctx->particleGrid.b0;
+  PetscReal dlen[3];
   PetscFunctionBeginUser;
   MPI_Barrier(ctx->wComm);
+  for(ii=0;ii<3;ii++) dlen[ii] = dhi[ii] - dlo[ii];
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventBegin(ctx->events[1],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -443,10 +450,6 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       /* get Cartesian coordinates (not used for flux tube move) */
       ierr = X2PListCompress(list);CHKERRQ(ierr); /* allows for simpler vectorization */
       if (solver) {
-        PetscReal l[] = { ctx->particleGrid.dom_hi[0]-ctx->particleGrid.dom_lo[0],
-                          ctx->particleGrid.dom_hi[1]-ctx->particleGrid.dom_lo[1],
-                          ctx->particleGrid.dom_hi[2]-ctx->particleGrid.dom_lo[2]};
-        const PetscReal *dlo = ctx->particleGrid.dom_lo, *b0 = ctx->particleGrid.b0;
 #if defined(PETSC_USE_LOG)
         ierr = PetscLogEventBegin(ctx->events[7],0,0,0,0);CHKERRQ(ierr); /* timer on particle list */
 #endif
@@ -481,18 +484,22 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           if (irk>=0) {
             PetscReal r, b0dotgrad = jj[0]*b0[0] + jj[1]*b0[1] + jj[2]*b0[2];
 #ifdef X2_S_OF_V
-            list->data_v.vpar[pos] += -dt*b0dotgrad*charge/mass;
-            r = dt*list->data_v.vpar[pos];
+            if (ctx->use_v_update) list->data_v.vpar[pos] += -dt*b0dotgrad*charge/mass;
+            r = dt*list->data_v.vpar[pos]; /* could use average of this and the updated velocity */
             for(ii=0;ii<3;ii++) {
               list->data_v.x[ii][pos] += r*b0[ii];
-              xx[ii] = list->data_v.x[ii][pos] = dlo[ii] + fmod(list->data_v.x[ii][pos] - dlo[ii] + 20.*l[ii], l[ii]);
+              while (list->data_v.x[ii][pos] > dhi[ii]) list->data_v.x[ii][pos] -= dlen[ii];
+              while (list->data_v.x[ii][pos] < dlo[ii]) list->data_v.x[ii][pos] += dlen[ii];
+              xx[ii] = list->data_v.x[ii][pos];
             }
 #else
-            list->data[pos].vpar += -dt*b0dotgrad*charge/mass;
-            r = dt*list->data[pos].vpar;
+            if (ctx->use_v_update) list->data[pos].vpar += -dt*b0dotgrad*charge/mass;
+            r = dt*list->data[pos].vpar; /* could use average of this and the updated velocity */
             for(ii=0;ii<3;ii++) {
               list->data[pos].x[ii] += r*b0[ii];
-              xx[ii] = list->data[pos].x[ii] = dlo[ii] +  fmod(list->data[pos].x[ii]   - dlo[ii] + 10.*l[ii], l[ii]);
+              while (list->data[pos].x[ii] > dhi[ii]) list->data[pos].x[ii] -= dlen[ii];
+              while (list->data[pos].x[ii] < dlo[ii]) list->data[pos].x[ii] += dlen[ii];
+              xx[ii] = list->data[pos].x[ii];
             }
 #endif
           } else {
@@ -669,7 +676,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
     nlistsTot += nslist;
     /* add density (while in cache, by species at least) */
     if (solver) {
-      Vec locrho;        assert(solver);
+      Vec locrho;
       ierr = DMGetLocalVector(dmpi->dmplex, &locrho);CHKERRQ(ierr);
       ierr = VecSet(locrho, 0.0);CHKERRQ(ierr);
       for (elid=0;elid<ctx->nElems;elid++) {
@@ -699,16 +706,16 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           xx[2]=list->data[pos].phi;
           *vv = list->data[pos].w0*ctx->species[isp].charge;
 #endif
-          /* debug - manufactured solution */
-          if (ctx->dtype == X2_PERIODIC) {
-            const PetscReal *dlo = ctx->particleGrid.dom_lo, *dhi = ctx->particleGrid.dom_hi;
-            ii = 2;
-            *vv *= sin(2*M_PI*(xx[ii]-dlo[ii])/(dhi[ii]-dlo[ii]));
-          } else {
-            const PetscReal *dlo = ctx->particleGrid.dom_lo, *dhi = ctx->particleGrid.dom_hi;
-            for(ii=0;ii<3;ii++) {
-              PetscReal x = (xx[ii]-dlo[ii])/(dhi[ii]-dlo[ii]);
-              *vv *= (x*x*x*x - x*x);
+          if (ctx->use_mms) {
+            /* manufactured solution, scale by a function */
+            if (ctx->dtype == X2_PERIODIC) {
+              ii = 2;
+              *vv *= sin(2*M_PI*(xx[ii]-dlo[ii])/dlen[ii]);
+            } else {
+              for(ii=0;ii<3;ii++) {
+                PetscReal x = (xx[ii]-dlo[ii])/dlen[ii];
+                *vv *= (x*x*x*x - x*x);
+              }
             }
           }
           ndeposit++;
@@ -766,8 +773,13 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         char  fname1[256],fname2[256];
         X2PListPos pos1,pos2;
         /* hdf5 output */
-        sprintf(fname1,"ex2_particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
-        sprintf(fname2,"ex2_sub_rank_particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
+        if (!isp) {
+          sprintf(fname1,         "ex2_particles_electrons_time%05d.h5part",(int)istep+1);
+          sprintf(fname2,"ex2_sub_rank_particles_electrons_time%05d.h5part",(int)istep+1);
+        } else {
+          sprintf(fname1,         "ex2_particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
+          sprintf(fname2,"ex2_sub_rank_particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
+        }
         /* write */
         prewrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
         ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
@@ -814,7 +826,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
   /* my first cell index */
   srand(ctx->rank);
   for (isp=ctx->use_electrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) {
-    const PetscReal maxe=ctx->max_vpar*ctx->max_vpar,mass=ctx->species[isp].mass,charge=ctx->species[isp].charge;
+    const PetscReal maxe=ctx->max_vpar*ctx->max_vpar,mass=ctx->species[isp].mass,charge=ctx->species[isp].charge,zmax=1.0 - exp(-maxe);
     ierr = PetscMalloc1(ctx->nElems,&ctx->partlists[isp]);CHKERRQ(ierr);
     /* create list for element 0 and add all to it */
     ierr = X2PListCreate(&ctx->partlists[isp][s_fluxtubeelem],
@@ -823,7 +835,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
     /* create each particle */
     for (i=0 ; i<ctx->num_particles_proc; i++ ) {
       PetscReal xx[3],deltaz;
-      PetscReal zmax,v,zdum,vpar;
+      PetscReal v,zdum,vpar;
       deltaz = (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dz;
       xx[2] = z1 + deltaz;
       xx[0] = x1 + (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dx + b0[0]/b0[2]*deltaz;
@@ -842,10 +854,9 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
       }
 #endif
       /* v_parallel from random number */
-      zmax = 1.0 - exp(-maxe);
       zdum = zmax*(PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG;
-      v= sqrt(-2.0/mass*log(1.0-zdum));
-      v= v*cos(M_PI*(PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG);
+      v = sqrt(-2.0/mass*log(1.0-zdum));
+      v = v*cos(M_PI*(PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG);
       /* vshift= v + up ! shift of velocity */
       vpar = v*mass/charge;
       ierr = X2ParticleCreate(&particle,++gid,xx[0],xx[1],xx[2],vpar);CHKERRQ(ierr); /* only time this is called! */
@@ -1127,8 +1138,13 @@ int main(int argc, char **argv)
 #if defined(PETSC_USE_LOG)
       ierr = PetscLogEventBegin(ctx.events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
-      sprintf(fname1,"particles_sp%d_time%05d_fluxtube.h5part",(int)isp,0);
-      sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",(int)isp,0);
+      if (!isp) {
+        sprintf(fname1,         "particles_electrons_time%05d_fluxtube.h5part",0);
+        sprintf(fname2,"sub_rank_particles_electrons_time%05d_fluxtube.h5part",0);
+      } else {
+        sprintf(fname1,         "particles_sp%d_time%05d_fluxtube.h5part",(int)isp,0);
+        sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",(int)isp,0);
+      }
       /* write */
       prewrite(&ctx, &ctx.partlists[isp][s_fluxtubeelem], &pos1, &pos2);
       ierr = X2PListWrite(ctx.partlists[isp], ctx.nElems, ctx.rank, ctx.npe, ctx.wComm, fname1, fname2);CHKERRQ(ierr);
