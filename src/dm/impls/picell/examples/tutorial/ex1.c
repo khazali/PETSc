@@ -70,7 +70,6 @@ static PetscInt s_debug;
 static PetscInt s_rank;
 static int s_fluxtubeelem=5000;
 static PetscReal s_rminor_inflate = 1.7;
-#define X2PROCLISTSIZE 256
 
 /* X2GridSolverLocatePoints: find processor and element in solver grid that this point is in
     Input:
@@ -430,6 +429,7 @@ static void postwrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *pp
    Output:
      - sendListTable: send list hash table, null if not sending (irk==0)
 */
+#define X2PROCLISTSIZE 256
 #undef __FUNCT__
 #define __FUNCT__ "processParticles"
 static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendList **sendListTable_in, const PetscMPIInt tag,
@@ -695,7 +695,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
     } /* element list */
     /* finish sends and receive new particles for this species */
-    ierr = shiftParticles(ctx, sendListTable, &nslist, ctx->partlists[isp], slist, tag+isp, solver );
+    ierr = shiftParticles(ctx, sendListTable, ctx->partlists[isp], &nslist, X2PROCLISTSIZE, slist, tag+isp, solver );
     CHKERRQ(ierr);
 #ifdef PETSC_USE_DEBUG
     { /* debug */

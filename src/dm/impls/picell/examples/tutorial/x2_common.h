@@ -39,8 +39,8 @@ static PetscErrorCode destroyParticles(X2Ctx *ctx)
 */
 #undef __FUNCT__
 #define __FUNCT__ "shiftParticles"
-PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, PetscInt *const nIsend,
-                               X2PList particlelist[], X2ISend slist[], PetscMPIInt tag, PetscBool solver)
+PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, X2PList particlelist[],
+                               PetscInt *const nIsend, const PetscInt slist_size, X2ISend slist[], PetscMPIInt tag, PetscBool solver)
 {
   PetscErrorCode ierr;
   const int part_dsize = sizeof(X2Particle)/sizeof(PetscReal); assert(sizeof(X2Particle)%sizeof(PetscReal)==0);
@@ -152,14 +152,15 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, Pet
     /* send lists */
     for (ii=0;ii<ctx->proc_send_table_size;ii++) {
       if (sendListTable[ii].data_size != 0 && (sz=X2PSendListSize(&sendListTable[ii])) > 0) {
-	if (*nIsend==X2PROCLISTSIZE) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"process send table too small (%D)",X2PROCLISTSIZE);
+	if (*nIsend==slist_size) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"process send table too small (%D)",slist_size);
 #if defined(PETSC_USE_LOG)
 	ierr = PetscLogEventBegin(ctx->events[4],0,0,0,0);CHKERRQ(ierr);
 #endif
 	slist[*nIsend].proc = sendListTable[ii].proc;
 	slist[*nIsend].data = sendListTable[ii].data; /* cache data */
 	/* send and reset - we can just send this because it is dense */
-	ierr = MPI_Isend((void*)slist[*nIsend].data,sz*part_dsize,real_type,slist[*nIsend].proc,tag,ctx->wComm,&slist[*nIsend].request);
+      	ierr = MPI_Isend((void*)slist[*nIsend].data,sz*part_dsize,real_type,slist[*nIsend].proc,tag,ctx->wComm,&slist[*nIsend].request);
+        if (ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"MPI_Isend error (%D)",ierr);
 	CHKERRQ(ierr);
 	(*nIsend)++;
 	/* ready for next round, save meta-data  */
@@ -305,18 +306,16 @@ static void postwrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *pp
 PetscErrorCode go( X2Ctx *ctx )
 {
   PetscErrorCode ierr;
-  PetscInt       istep;
+  int            istep;
   PetscMPIInt    tag;
-  int            irk,isp;
   PetscReal      time,dt;
-  DM_PICell      *dmpi = (DM_PICell *) ctx->dm->data;
   PetscFunctionBeginUser;
   /* main time step loop */
   ierr = PetscCommGetNewTag(ctx->wComm,&tag);CHKERRQ(ierr);
   for ( istep=0, time=0.;
 	istep < ctx->msteps && time < ctx->maxTime;
 	istep++, time += ctx->dt, tag += 3*(X2_NION + 1) ) {
-
+    int irk;
     /* do collisions */
     if (((istep+1)%ctx->collision_period)==0) {
       /* move to flux tube space */
@@ -324,19 +323,15 @@ PetscErrorCode go( X2Ctx *ctx )
       /* call collision method */
 #ifdef H5PART
       if (ctx->plot) {
+        int isp;
         for (isp=ctx->use_electrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
           char fname1[256], fname2[256];
           X2PListPos pos1,pos2;
 #if defined(PETSC_USE_LOG)
           ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
-          if (!isp) {
-            sprintf(fname1,         "particles_electrons_time%05d_fluxtube.h5part",(int)istep+1);
-            sprintf(fname2,"sub_rank_particles_electrons_time%05d_fluxtube.h5part",(int)istep+1);
-          } else {
-            sprintf(fname1,         "particles_sp%d_time%05d_fluxtube.h5part",(int)isp,(int)istep+1);
-            sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",(int)isp,(int)istep+1);
-          }
+          sprintf(fname1,         "particles_sp%d_time%05d_fluxtube.h5part",isp,istep+1);
+          sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",isp,istep+1);
           /* write */
           prewrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
           ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
@@ -368,6 +363,7 @@ PetscErrorCode go( X2Ctx *ctx )
     PetscViewer       viewer = NULL;
     PetscBool         flg;
     PetscViewerFormat fmt;
+    DM_PICell      *dmpi = (DM_PICell *) ctx->dm->data;
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
