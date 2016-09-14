@@ -423,8 +423,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
   const int        part_dsize = sizeof(X2Particle)/sizeof(double);
   Vec              jetVec,xVec,vVec;
   PetscScalar      *xx=0,*jj=0,*vv=0,*xx0=0,*jj0=0,*vv0=0;
-  PetscInt         isp,nslist,nlistsTot,elid,elid2,one=1,three=3,ndeposit,hash,ii;
-  int              origNlocal,nmoved;
+  PetscInt         nslist,nlistsTot,elid,elid2,one=1,three=3,ndeposit;
+  long int         hash;
+  int              ii,isp,origNlocal,nmoved;
   IS               pes,elems;
   const PetscInt   *cpeidxs,*celemidxs;
   PetscInt         *peidxs,*elemidxs;
@@ -577,7 +578,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           for (jjj=0;jjj<oldsize;jjj++) {
             if (sendListTable[jjj].data_size) { /* an entry */
               PetscMPIInt pe2 = sendListTable[jjj].proc;
-              PetscInt hash2 = X2_HASH(pe2); /* new hash */
+              long int hash2 = X2_HASH(pe2); /* new hash */
               for (iii=0;iii<ctx->proc_send_table_size;iii++){
                 if (newdata[hash2].data_size==0) {
                   newdata[hash2].data      = sendListTable[jjj].data;
@@ -779,7 +780,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         X2PListPos pos1,pos2;
         /* hdf5 output */
         if (!isp) {
-          sprintf(fname1,         "ex2_particles_electrons_time%05d.h5part",)istep+1);
+          sprintf(fname1,         "ex2_particles_electrons_time%05d.h5part",istep+1);
           sprintf(fname2,"ex2_sub_rank_particles_electrons_time%05d.h5part",istep+1);
         } else {
           sprintf(fname1,         "ex2_particles_sp%d_time%05d.h5part",isp,istep+1);
