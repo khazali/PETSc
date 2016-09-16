@@ -139,7 +139,7 @@ static PetscErrorCode ReadData2D(DM dm, Vec u, AppCtx *user)
   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   for (cell = cStart; cell < cEnd; ++cell) {
     PetscScalar *closure = NULL;
-    PetscInt     closureSize, ki, kj, f, c, foff = 0, o = 0;
+    PetscInt     closureSize, ki, kj, f, c, foff = 0;
 
     ierr = DMPlexVecGetClosure(dm, NULL, u, cell, &closureSize, &closure);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_SELF, "Cell %D\n", cell);CHKERRQ(ierr);
@@ -175,7 +175,7 @@ static PetscErrorCode ReadData3D(DM dm, Vec u, AppCtx *user)
   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   for (cell = cStart; cell < cEnd; ++cell) {
     PetscScalar *closure = NULL;
-    PetscInt     closureSize, ki, kj, kk, f, c, foff = 0, o = 0;
+    PetscInt     closureSize, ki, kj, kk, f, c, foff = 0;
 
     ierr = DMPlexVecGetClosure(dm, NULL, u, cell, &closureSize, &closure);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_SELF, "Cell %D\n", cell);CHKERRQ(ierr);
@@ -347,7 +347,7 @@ int main(int argc, char **argv)
   Vec            u;
   AppCtx         user;
   PetscInt       cells[3] = {2, 2, 2};
-  PetscInt       size = 0, cStart, cEnd, cell, c, f, i, j;
+  PetscInt       size = 0, f;
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL,help);if (ierr) return ierr;

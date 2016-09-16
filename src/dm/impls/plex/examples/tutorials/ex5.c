@@ -1,6 +1,7 @@
 static char help[] = "Load and save the mesh and fields to HDF5 and ExodusII\n\n";
 
 #include <petscdmplex.h>
+#include <petscsf.h>
 #include <petscviewerhdf5.h>
 
 typedef struct {
