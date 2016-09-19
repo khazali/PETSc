@@ -567,7 +567,7 @@ static PetscErrorCode MatIncreaseOverlap_MPIAIJ_Once(Mat C,PetscInt imax,IS is[]
   /* Memory for doing local proc's work */
   {
     ierr = PetscCalloc5(imax,&table, imax,&data, imax,&isz, M*imax,&d_p, (M/PETSC_BITS_PER_BYTE+1)*imax,&t_p);CHKERRQ(ierr);
-
+    if ((M/PETSC_BITS_PER_BYTE+1)*imax > M*imax) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Might have integer overflow, try 64 bit integers");
     for (i=0; i<imax; i++) {
       table[i] = t_p + (M/PETSC_BITS_PER_BYTE+1)*i;
       data[i]  = d_p + M*i;
