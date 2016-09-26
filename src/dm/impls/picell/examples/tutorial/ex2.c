@@ -307,7 +307,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsBool("-periodic_domain", "Periodic domain", "ex2.c", npflag2, &npflag2, &npflag1);CHKERRQ(ierr);
   if (npflag1 && npflag2) ctx->dtype = X2_PERIODIC;
   else ctx->dtype = X2_DIRI;
-  ctx->use_mms = PETSC_FALSE;
+  ctx->use_mms = PETSC_TRUE;
   ierr = PetscOptionsBool("-use_mms", "Us a manufactured RHS for particle weight", "ex2.c", ctx->use_mms, &ctx->use_mms, NULL);CHKERRQ(ierr);
   ctx->use_v_update = PETSC_FALSE;
   ierr = PetscOptionsBool("-use_v_update", "Update the particle velocity with the E field", "ex2.c", ctx->use_v_update, &ctx->use_v_update, NULL);CHKERRQ(ierr);
@@ -713,7 +713,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           *vv = list->data[pos].w0*ctx->species[isp].charge;
 #endif
           if (ctx->use_mms) {
-            /* manufactured solution, scale by a function */
+            *vv *= (double)ctx->nElems/(double)ctx->num_particles_proc;
             if (ctx->dtype == X2_PERIODIC) {
               ii = 2;
               *vv *= sin(2*M_PI*(xx[ii]-dlo[ii])/dlen[ii]);
@@ -914,7 +914,6 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   PetscInt         *sizes = NULL;
   PetscInt         *points = NULL;
   PetscPartitioner part;
-  PetscSection     s;
   PetscFunctionBeginUser;
 
   /* setup solver grid */
@@ -943,7 +942,8 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
 
   ierr = DMSetApplicationContext(dmpi->dmplex, &ctx);CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dmplex, "x2_");CHKERRQ(ierr);
-  ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx->BCFuncs);CHKERRQ(ierr);
+  ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx->BCFuncs);
+  CHKERRQ(ierr);
   ctx->BCFuncs[0] = zero;
   /* add BCs */
   ierr = DMCreateLabel(dmpi->dmplex, "boundary");CHKERRQ(ierr);
@@ -1005,20 +1005,17 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
 
   /* set from options: refinement done here */
   ierr = DMSetFromOptions( ctx->dm );CHKERRQ(ierr);
-
   ierr = setupDiscretization( ctx, dim );CHKERRQ(ierr);
-
   ierr = DMSetUp( ctx->dm );CHKERRQ(ierr); /* create vectors */
 
-  ierr = DMGetDefaultSection(dmpi->dmplex, &s);CHKERRQ(ierr); /* needed???? */
-  ierr = DMGetDefaultGlobalSection(dmpi->dmplex, &s);CHKERRQ(ierr);
-
-  /* diagnostics */
-  if (!s) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "DMGetDefaultSection return NULL");
-
-  ierr = PetscSectionViewFromOptions(s, NULL, "-section_view");CHKERRQ(ierr);
   if (dmpi->debug>3) { /* this shows a bug with crap in the section */
-    ierr = PetscSectionView(s,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    PetscSection     sec;
+    /* ierr = DMGetDefaultSection(dmpi->dmplex, &sec);CHKERRQ(ierr); */
+    ierr = DMGetDefaultGlobalSection(dmpi->dmplex, &sec);CHKERRQ(ierr);
+    /* diagnostics */
+    if (!sec) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "DMGetDefaultSection return NULL");
+    /* ierr = PetscSectionViewFromOptions(sec, NULL, "-section_view");CHKERRQ(ierr); */
+    ierr = PetscSectionView(sec,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
   if (dmpi->debug>2) {
     ierr = DMView(dmpi->dmplex,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
@@ -1029,9 +1026,6 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
     if (!n) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "No dofs");
     ierr = DMPlexGetHeightStratum(dmpi->dmplex, 0, &cStart, &cEnd);CHKERRQ(ierr); /* DMGetCellChart */
     if (cStart) SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_USER, "cStart != 0. %D",cStart);
-    if (dmpi->debug>0 && !cEnd) {
-      ierr = PetscPrintf((dmpi->debug>1 || !cEnd) ? PETSC_COMM_SELF : ctx->wComm,"[%D] ERROR %D global equations, %d local cells, (cEnd=%d), debug=%D\n",ctx->rank,n,cEnd-cStart,cEnd,dmpi->debug);
-    }
     if (!cEnd) {
       SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "No cells");
     }
@@ -1189,42 +1183,38 @@ int main(int argc, char **argv)
     ierr = KSPSetTolerances(ksp,krtol,katol,kdtol,kmit);CHKERRQ(ierr);
   }
   if (ctx.use_mms) {
-    PetscReal nphi,nrho;
-    X2Ctx *ctxArray[1];
-    PetscErrorCode (**exactFuncs)(PetscInt, PetscReal, const PetscReal[], PetscInt, PetscScalar *, void *);
-    ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt, PetscReal, const PetscReal[], PetscInt, PetscScalar *, void *)),&exactFuncs);
+    X2Ctx             *ctxArray[1];
+    PetscErrorCode    (**exactFuncs)(PetscInt, PetscReal, const PetscReal[], PetscInt, PetscScalar *, void *);
+    PetscViewer       viewer = NULL;
+    PetscBool         flg;
+    PetscViewerFormat fmt;
+    PetscReal         norm;
+    ierr = PetscMalloc(sizeof(PetscErrorCode (*)(PetscInt, PetscReal,const PetscReal[],PetscInt,PetscScalar*,void*)),&exactFuncs);
     CHKERRQ(ierr);
     ctxArray[0] = &ctx;
     exactFuncs[0] = u_x4_op;
     ierr = DMProjectFunction(dmpi->dmplex, 0.0, exactFuncs, (void **)ctxArray, INSERT_ALL_VALUES, dmpi->phi);CHKERRQ(ierr);
     ierr = PetscFree(exactFuncs);CHKERRQ(ierr);
-    {
-      PetscViewer       viewer = NULL;
-      PetscBool         flg;
-      PetscViewerFormat fmt;
-      ierr = DMViewFromOptions(dmpi->dmplex,NULL,"-dm_view");CHKERRQ(ierr);
-      ierr = PetscOptionsGetViewer(ctx.wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
-      ierr = VecNorm(dmpi->rho,NORM_1,&nrho);CHKERRQ(ierr); /* normalize to 1 */
-      ierr = VecScale(dmpi->rho,1./nrho);CHKERRQ(ierr);
-      ierr = VecNorm(dmpi->phi,NORM_1,&nphi);CHKERRQ(ierr);
-      ierr = VecScale(dmpi->phi,1./nphi);CHKERRQ(ierr);
-      if (flg) {
-        ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
-        ierr = PetscObjectSetName((PetscObject) dmpi->phi,"exact-RHS");CHKERRQ(ierr);
-        ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);
-        ierr = PetscObjectSetName((PetscObject) dmpi->rho,"pic-RHS");CHKERRQ(ierr);
-        ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
-      }
-      ierr = VecAXPY(dmpi->rho,-1,dmpi->phi);CHKERRQ(ierr); /* error */
-      if (flg) {
-        ierr = PetscObjectSetName((PetscObject) dmpi->rho,"error-RHS");CHKERRQ(ierr);
-        ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
-        ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
-      }
-      ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+    ierr = DMViewFromOptions(dmpi->dmplex,NULL,"-dm_view");CHKERRQ(ierr);
+    ierr = PetscOptionsGetViewer(ctx.wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
+    if (flg) {
+      ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
+      ierr = PetscObjectSetName((PetscObject) dmpi->phi,"exact-RHS");CHKERRQ(ierr);
+      ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);
+      ierr = PetscObjectSetName((PetscObject) dmpi->phi,"phi");CHKERRQ(ierr);
+      ierr = PetscObjectSetName((PetscObject) dmpi->rho,"pic-RHS");CHKERRQ(ierr);
+      ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
+      ierr = PetscObjectSetName((PetscObject) dmpi->rho,"rho");CHKERRQ(ierr);
     }
-    ierr = VecNorm(dmpi->rho,NORM_INFINITY,&nrho);CHKERRQ(ierr);
-    PetscPrintf(ctx.wComm,"\tDeposition error |exact rho - deposited rho| = %g (plot exact rho in 'phi' and error in 'rho')\n",nrho);
+    ierr = VecAXPY(dmpi->rho,-1.,dmpi->phi);CHKERRQ(ierr); /* error */
+    if (flg) {
+      ierr = PetscObjectSetName((PetscObject) dmpi->rho,"error-RHS");CHKERRQ(ierr);
+      ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
+      ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
+    }
+    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+    ierr = VecNorm(dmpi->rho,NORM_INFINITY,&norm);CHKERRQ(ierr);
+    PetscPrintf(ctx.wComm,"\tDeposition error |exact rho - deposited rho|_inf = %g\n",norm);
     ctx.use_mms = PETSC_FALSE; /* just do this once */
   }
 #if defined(PETSC_USE_LOG)
