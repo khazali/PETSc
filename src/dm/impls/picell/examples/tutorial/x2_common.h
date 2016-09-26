@@ -359,7 +359,7 @@ PetscErrorCode go( X2Ctx *ctx )
     irk=0;
     ierr = processParticles(ctx, dt, &ctx->sendListTable, tag + 2*(X2_NION + 1), irk, istep, PETSC_TRUE);CHKERRQ(ierr);
   } /* time step */
-  {
+  if (ctx->plot) {
     PetscViewer       viewer = NULL;
     PetscBool         flg;
     PetscViewerFormat fmt;

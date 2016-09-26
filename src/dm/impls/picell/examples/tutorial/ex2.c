@@ -175,7 +175,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   s_debug = 0;
   ierr = PetscOptionsInt("-debug", "The debugging level", "ex2.c", s_debug, &s_debug, NULL);CHKERRQ(ierr);
   ctx->plot = PETSC_TRUE;
-  ierr = PetscOptionsBool("-plot", "Write plot files (particles)", "ex2.c", ctx->plot, &ctx->plot, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-plot", "Write plot files", "ex2.c", ctx->plot, &ctx->plot, NULL);CHKERRQ(ierr);
   ctx->chunksize = X2_V_LEN; /* too small */
   ierr = PetscOptionsInt("-chunksize", "Size of particle list to chunk sends", "ex2.c", ctx->chunksize, &ctx->chunksize,&chunkFlag);CHKERRQ(ierr);
   if (chunkFlag) ctx->chunksize = X2_V_LEN*(ctx->chunksize/X2_V_LEN);
@@ -720,7 +720,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
             } else {
               for(ii=0;ii<3;ii++) {
                 PetscReal x = (xx[ii]-dlo[ii])/dlen[ii];
-                *vv *= (x*x*x*x - x*x);
+                *vv *= (x*x - x*x*x*x);
               }
             }
           }
@@ -1043,6 +1043,24 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   PetscFunctionReturn(0);
 }
 
+PetscErrorCode u_x4_op(PetscInt dim, PetscReal time, const PetscReal xx[], PetscInt Nf, PetscScalar *u, void *a_ctx)
+{
+  X2Ctx *ctx = (X2Ctx*)a_ctx;
+  PetscInt comp,i;
+  const PetscReal  *dlo = ctx->particleGrid.dom_lo, *dhi = ctx->particleGrid.dom_hi;
+  PetscReal dlen[3];
+  PetscFunctionBeginUser;
+  for(i=0;i<dim;i++) dlen[i] = dhi[i] - dlo[i];
+  for (comp = 0; comp < Nf; ++comp) {
+    u[comp] = 1;
+    for (i = 0; i < dim; ++i) {
+      PetscReal x = (xx[i]-dlo[i])/dlen[i];
+      u[comp] *= (x*x - x*x*x*x);
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
 #undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc, char **argv)
@@ -1095,8 +1113,6 @@ int main(int argc, char **argv)
   dmpi->debug = s_debug;
 
   ierr = CreateMesh(&ctx);CHKERRQ(ierr);
-
-  // dmpi->dmplex = dmpi->dmplex; /* done with setup but some methods in picell.c (still) need a plex DM */
 
   /* create SNESS */
   ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
@@ -1172,9 +1188,47 @@ int main(int argc, char **argv)
     ierr = DMPICellSolve( ctx.dm );CHKERRQ(ierr);
     ierr = KSPSetTolerances(ksp,krtol,katol,kdtol,kmit);CHKERRQ(ierr);
   }
+  if (ctx.use_mms) {
+    PetscReal nphi,nrho;
+    X2Ctx *ctxArray[1];
+    PetscErrorCode (**exactFuncs)(PetscInt, PetscReal, const PetscReal[], PetscInt, PetscScalar *, void *);
+    ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt, PetscReal, const PetscReal[], PetscInt, PetscScalar *, void *)),&exactFuncs);
+    CHKERRQ(ierr);
+    ctxArray[0] = &ctx;
+    exactFuncs[0] = u_x4_op;
+    ierr = DMProjectFunction(dmpi->dmplex, 0.0, exactFuncs, (void **)ctxArray, INSERT_ALL_VALUES, dmpi->phi);CHKERRQ(ierr);
+    ierr = PetscFree(exactFuncs);CHKERRQ(ierr);
+    {
+      PetscViewer       viewer = NULL;
+      PetscBool         flg;
+      PetscViewerFormat fmt;
+      ierr = DMViewFromOptions(dmpi->dmplex,NULL,"-dm_view");CHKERRQ(ierr);
+      ierr = PetscOptionsGetViewer(ctx.wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
+      ierr = VecNorm(dmpi->rho,NORM_1,&nrho);CHKERRQ(ierr); /* normalize to 1 */
+      ierr = VecScale(dmpi->rho,1./nrho);CHKERRQ(ierr);
+      ierr = VecNorm(dmpi->phi,NORM_1,&nphi);CHKERRQ(ierr);
+      ierr = VecScale(dmpi->phi,1./nphi);CHKERRQ(ierr);
+      if (flg) {
+        ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
+        ierr = PetscObjectSetName((PetscObject) dmpi->phi,"exact-RHS");CHKERRQ(ierr);
+        ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);
+        ierr = PetscObjectSetName((PetscObject) dmpi->rho,"pic-RHS");CHKERRQ(ierr);
+        ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
+      }
+      ierr = VecAXPY(dmpi->rho,-1,dmpi->phi);CHKERRQ(ierr); /* error */
+      if (flg) {
+        ierr = PetscObjectSetName((PetscObject) dmpi->rho,"error-RHS");CHKERRQ(ierr);
+        ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
+        ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
+      }
+      ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+    }
+    ierr = VecNorm(dmpi->rho,NORM_INFINITY,&nrho);CHKERRQ(ierr);
+    PetscPrintf(ctx.wComm,"\tDeposition error |exact rho - deposited rho| = %g (plot exact rho in 'phi' and error in 'rho')\n",nrho);
+    ctx.use_mms = PETSC_FALSE; /* just do this once */
+  }
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventEnd(ctx.events[0],0,0,0,0);CHKERRQ(ierr);
-  /* ierr = PetscLogStagePop();CHKERRQ(ierr); */
 #endif
 
   /* do it */
