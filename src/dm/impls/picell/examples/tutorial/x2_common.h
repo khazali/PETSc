@@ -342,7 +342,7 @@ PetscErrorCode go( X2Ctx *ctx )
         }
       }
 #endif
-      /* move back to solver space */
+      /* move back to solver space, and deposit (deposit not needed, should add a flag, could check for no change) */
       ierr = processParticles(ctx, 0.0, &ctx->sendListTable, tag + X2_NION + 1, -1, istep, PETSC_TRUE);CHKERRQ(ierr);
     }
     /* crude TS */

@@ -30,11 +30,11 @@ ex2: ex2.o chkopts
 	${RM} -f ex2.o
 
 runex1:
-	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 2 -numMajor 8 -num_particles_proc 100 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -run_type boxtorus -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -collision_period 1 -max_vpar 30. -use_bsp 1  -petscpartitioner_type simple
+	-${MPIEXEC} -n 1 ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 2 -numMajor 8 -num_particles_proc 100 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -run_type boxtorus -collision_period 1 -max_vpar 30. -use_bsp 1  -petscpartitioner_type simple -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5
 
 runex2:
-	-${MPIEXEC} -n ${NP} ./ex2.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 1 -num_particles_proc 100 -mstep 2 -debug 3 -snes_monitor -ksp_monitor -snes_converged_reason -x2_dm_view hdf5:ex2.h5 -x2_vec_view hdf5:ex2.h5::append -collision_period 1 -max_vpar .05 -snes_type ksponly -use_bsp 1 -petscpartitioner_type simple -use_electrons false -periodic_domain false -use_mms false -use_v_update true
+	-${MPIEXEC} -n ${NP} ./ex2.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 1 -num_particles_proc 100 -mstep 2 -debug 3 -snes_monitor -ksp_monitor -snes_converged_reason -collision_period 1 -max_vpar .05 -snes_type ksponly -use_bsp 1 -petscpartitioner_type simple -use_electrons false -periodic_domain false -use_mms false -use_v_update true -x2_dm_view hdf5:ex2.h5 -x2_vec_view hdf5:ex2.h5::append
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex2.h5
 # -solver_np 2,2,1 -ft_np 2,2,1 -dom_lo -2,-2,-2 -dom_hi 2,2,2 -b0 .2,.2,1.5
 
