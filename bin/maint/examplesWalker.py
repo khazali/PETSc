@@ -1,9 +1,11 @@
 #!/usr/bin/env python
+import glob
 import sys
 import os
 import stat
 import types
 import optparse
+import string
 
 """
 Quick start
@@ -12,11 +14,13 @@ Quick start
 Architecture independent (just analyze makefiles):
 
   ./examplesWalker.py -f examplesAnalyze src
+     Show tests source files and tests as organized by type (TESTEXAMPLES*), 
      Output: 
         MakefileAnalysis-tests.txt      MakefileSummary-tests.txt
         MakefileAnalysis-tutorials.txt  MakefileSummary-tutorials.txt
 
   ./examplesWalker.py -f examplesConsistency src
+     Show consistency between the EXAMPLES* variables and TESTEXAMPLES* variables
      Output: 
         ConsistencyAnalysis-tests.txt      ConsistencySummary-tests.txt
         ConsistencyAnalysis-tutorials.txt  ConsistencySummary-tutorials.txt
@@ -24,12 +28,19 @@ Architecture independent (just analyze makefiles):
 Architecture dependent (need to modify files and run tests - see below):
 
   ./examplesWalker.py -f getFileSizes src
+     Give the example file sizes for the tests (see below)
      Output:  FileSizes.txt
 
   ./examplesWalker.py -m <output of make alltests>
+     Show examples that are run
      Output:  
         RunArchAnalysis-tests.txt      RunArchSummary-tests.txt
         RunArchAnalysis-tutorials.txt  RunArchSummary-tutorials.txt
+
+  ./examplesWalker.py -f genRunFiles -m <output of make alltests>
+     Generate run files as shell scripts in each test/examples directory
+     Output:  
+        Shell scripts in each directory
 
 Description
 ------------------
@@ -83,6 +94,7 @@ testtypes.append("TESTEXAMPLES_FORTRAN_NOCOMPLEX")
 testtypes.append("TESTEXAMPLES_C_X")
 testtypes.append("TESTEXAMPLES_FORTRAN_MPIUNI")
 testtypes.append("TESTEXAMPLES_C_X_MPIUNI")
+testtypes.append("TESTEXAMPLES_C_NOTSINGLE")
 # These reuse the executables
 specific_tests=['CUDA','CUSP','CUSPARSE','HYPRE','MUMPS','SUPERLU','SUPERLU_DIST','MKL_PARDISO']
 testtypes.append("TESTEXAMPLES_CUDA")
@@ -97,6 +109,122 @@ testtypes.append("TESTEXAMPLES_MKL_PARDISO")
 #testtypes.append("TESTEXAMPLES_THREADCOMM")
 
 ptNaming=True
+
+def fixScript(scriptStr):
+  """
+  makefile is commands are not proper bash so need to fix that
+  Our naming scheme is slightly different as well, so fix that
+  Simple replaces done here -- this is not sophisticated
+  """
+  scriptStr=scriptStr.replace("then","; then")
+  #scriptStr=scriptStr.strip().replace("\\","")
+  # Need to generalize
+  scriptStr=scriptStr.replace("${MPIEXEC}","mpiexec") 
+  scriptStr=scriptStr.replace("${NP}","1") # See ksp/ksp/makefile
+  scriptStr=scriptStr.replace("${MDOMAINS}","2") # See ksp/ksp/makefile
+  scriptStr=scriptStr.replace("${NDOMAINS}","2") # See ksp/ksp/makefile
+  scriptStr=scriptStr.replace("${BREAKPOINT}","") # See ksp/ksp/makefile
+  scriptStr=scriptStr.replace("${DATAFILESPATH}/matrices","data")
+  scriptStr=scriptStr.replace("${DIFF}","ndiff")
+  scriptStr=scriptStr.replace("${SED}","sed")
+  # General makefile fixes
+  scriptStr=scriptStr.replace("; \\","\n")
+  scriptStr=scriptStr.replace("do\\","do\n")
+  scriptStr=scriptStr.replace("do \\","do\n")
+  scriptStr=scriptStr.replace("done;\\","done\n")
+  # Note the comment out -- I like to see the output
+  scriptStr=scriptStr.replace("${RM}","#/bin/rm")
+  scriptStr=scriptStr.replace("-@","")
+  # Thsi is for ts_eimex*.sh
+  scriptStr=scriptStr.replace("$$","$")
+  if 'for' in scriptStr:
+    scriptStr=scriptStr.replace("$(seq","")
+    scriptStr=scriptStr.replace(");",";")
+  # Do plain diffs to let CTest capture the error message
+  if '(diff' in scriptStr:
+    scriptStr=scriptStr.split("(")[1]
+    scriptStr=scriptStr.split(")")[0]
+    tmpscriptStr=sh.readscriptStr()
+  if 'diff' in scriptStr and '||' in scriptStr:
+    scriptStr=scriptStr.split("||")[0].strip()
+  return scriptStr
+
+def insertScriptIntoSrc(runexName,newShStr,basedir):
+  """
+  This is a little bit tricky because figuring out the source file
+  associated with a run file is not done by order in TEST* variables.
+  Rather than try and parse that logic, we will try to 
+  """
+  startdir=os.path.realpath(os.path.curdir)
+  os.chdir(basedir)
+  exBase=runexName[3:].split("_")[0]
+  if exBase.endswith("f") or exBase.endswith("f90"):
+    found=False
+    for ext in ["F","F90"]:
+      exSrc=exBase+"."+ext
+      if os.path.exists(exSrc): 
+        found=True
+        break
+  else:
+    found=False
+    for ext in ["c","cxx","cuda"]:
+      exSrc=exBase+"."+ext
+      if os.path.exists(exSrc): 
+        found=True
+        break
+  if not found: 
+    print "Cannot find source file for ", runexName, " in ", basedir
+    os.chdir(startdir)
+    return
+
+  # For now we are writing out to a new file
+  newExSrc="new_"+exSrc
+  if os.path.exists(newExSrc): exSrc=newExSrc
+
+  # Get the file into a string
+  sh=open(exSrc,"r"); fileStr=sh.read(); sh.close()
+
+  # Insert the run file
+  firstPart=fileStr.split("#include")[0]
+  secndPart=fileStr[len(firstPart):]
+  newFileStr=firstPart+"\n/*TEST\n"+newShStr+"\nTEST*/\n"+secndPart
+
+  # Write it out
+  sh=open(newExSrc,"w"); sh.write(newFileStr); sh.close()
+
+  os.chdir(startdir)
+  return 
+
+def extractRunFile(fh,line,mkfile):
+  """
+  Given the file handle which points to the location in the file where
+  a runex: has just been read in, write it out to the file in the
+  directory where mkfile is located
+  """
+  insertIntoSrc=True
+  runexName=line.split(":")[0].strip()
+  #print mkfile, runexName
+  alphabet=tuple(string.ascii_letters)
+  shStr=""
+  basedir=os.path.dirname(mkfile)
+  shName=os.path.join(basedir,runexName+".sh")
+  while 1:
+    last_pos=fh.tell()
+    line=fh.readline()
+    # If it has xterm in it, then remove because we 
+    # do not want to test for that
+    if not line: break
+    if line.startswith(alphabet): 
+      fh.seek(last_pos)  # might be grabbing next script so rewind
+      break
+    shStr=shStr+" "+line
+  newShStr=fixScript(shStr)
+  shh=open(shName,"w")
+  shh.write(newShStr)
+  shh.close()
+  if insertIntoSrc: insertScriptIntoSrc(runexName,newShStr,basedir)
+  os.chmod(shName,0777)
+  return shName
 
 def nameSpace(srcfile,srcdir):
   """
@@ -172,13 +300,16 @@ def parseline(fh,line,srcdir):
       line=line.strip().rstrip("\\")+" "+fh.readline().strip()
     else:
       break
+  if debug: print "       parseline> line ", line
   # Clean up the lines to only have a dot-c name
   justfiles=line.split("=")[1].strip()
   justfiles=justfiles.split("#")[0].strip() # Remove comments
+  if len(justfiles.strip())==0: return [],[]
   examplesList=justfiles.split(" ")
   # Now parse the line and put into lists
   srcList=[]; testList=[]; removeList=[]
   for exmpl in examplesList:
+    if len(exmpl.strip())==0: continue
     if exmpl.endswith(".PETSc"): 
       srcfile=getSourceFileName(exmpl,srcdir)
       srcList.append(nameSpace(srcfile,srcdir))
@@ -189,6 +320,7 @@ def parseline(fh,line,srcdir):
     else:
       srcList.append(nameSpace(exmpl,srcdir))
   if debug: print "       parseline> ", srcList, testList
+  #if "pde_constrained" in srcdir: raise ValueError('Testing')
   return srcList, testList
  
  
@@ -387,7 +519,9 @@ def examplesAnalyze_summarize(dataDict):
       if not type in mkfile: continue
       nsrcs=0; ntsts=0
       fh.write(mkfile+"\n")
+      runexFiles=dataDict[mkfile]['runexFiles']
       for extype in dataDict[mkfile]:
+        if extype == "runexFiles": continue
         fh.write(indent+extype+"\n")
         allTests=dataDict[mkfile][extype]['tsts']
         for exfile in dataDict[mkfile][extype]['srcs']:
@@ -400,9 +534,17 @@ def examplesAnalyze_summarize(dataDict):
            else:
              tests=" ".join(testList)
              fh.write(indent*2+exfile+": "+tests+"\n")
+             for t in testList: 
+               if t in runexFiles: runexFiles.remove(t)
         fh.write("\n")
+      nrunex=len(runexFiles)
+      if nrunex>0:
+       runexStr=" ".join(runexFiles)
+       fh.write(indent+"RUNEX SCRIPTS NOT USED: "+runexStr+"\n")
       fh.write("\n")
-      gh.write(mkfile+": "+str(nsrcs)+" srcfiles; "+str(ntsts)+" tests\n")
+      sumStr=str(nsrcs)+" srcfiles; "+str(ntsts)+" tests"
+      if nrunex>0: sumStr=sumStr+"; "+str(nrunex)+" tests not used"
+      gh.write(mkfile+": "+sumStr+"\n")
       nallsrcs=nallsrcs+nsrcs; nalltsts=nalltsts+ntsts
     fh.close()
     gh.write("-----------------------------------\n")
@@ -425,21 +567,89 @@ def examplesAnalyze(root,dirs,files,dataDict):
   fh=open(fullmake,"r")
   dataDict[fullmake]={}
   i=0
+  allRunex=[]
   if debug: print fullmake
   while 1:
     line=fh.readline()
     if not line: break
+    if line.startswith("runex"): allRunex.append(line.split(":")[0])
     if not "=" in line:  continue  # Just looking at variables
     var=line.split("=")[0].strip()
     if " " in var: continue        # eliminate bash commands that appear as variables
     if var in testtypes:
+      if debug: print "  >", var
       sfiles,tests=parseline(fh,line,root)
       if len(sfiles)>0: 
         dataDict[fullmake][var]={}
         dataDict[fullmake][var]['srcs']=sfiles
         dataDict[fullmake][var]['tsts']=tests
       continue
+  dataDict[fullmake]['runexFiles']=allRunex
   fh.close()
+  #if "pde_constrained" in root: raise ValueError('Testing')
+  #print root,files
+  return
+
+def cleanAllRunFiles_summarize(dataDict):
+  """
+  Required routine
+  """
+  return
+
+def cleanAllRunFiles(root,dirs,files,dataDict):
+  """
+  Cleanup from genAllRunFiles
+  """
+  for runfile in glob.glob(root+"/run*"): os.remove(runfile)
+  for newfile in glob.glob(root+"/new_*"): os.remove(newfile)
+  for tstfile in glob.glob(root+"/TEST*.sh"): os.remove(tstfile)
+  return
+
+def genAllRunFiles_summarize(dataDict):
+  """
+   For all of the TESTEXAMPLES* find
+  """
+  fhname="GenAllRunFiles_summarize.txt"
+  fh=open(fhname,"w")
+  print "See ", fhname
+  for mkfile in dataDict:
+    for runex in dataDict[mkfile]['runexFiles']:
+      fh.write("  "+ runex+"\n")
+    fh.write("\n")
+  return
+
+def genAllRunFiles(root,dirs,files,dataDict):
+  """
+   For all of the TESTEXAMPLES* find
+  """
+  debug=False
+  # Go through and parse the makefiles
+  fullmake=os.path.join(root,"makefile")
+  fh=open(fullmake,"r")
+  dataDict[fullmake]={}
+  i=0
+  allRunex=[]
+  if debug: print fullmake
+  while 1:
+    line=fh.readline()
+    if not line: break
+    if line.startswith("run"): 
+      runex=extractRunFile(fh,line,fullmake)
+      allRunex.append(runex)
+  dataDict[fullmake]['runexFiles']=allRunex
+  fh.close()
+  # Use examplesAnalyze to get the TEST*scripts
+  anlzDict={}
+  examplesAnalyze(root,dirs,files,anlzDict)
+  for var in anlzDict[fullmake]:
+    if var == "runexFiles": continue
+    varScript=os.path.join(root,var+".sh")
+    vh=open(varScript,"w")
+    for t in anlzDict[fullmake][var]['tsts']:
+      scriptName=t.split("-")[1]+".sh"
+      vh.write(scriptName+"\n")
+    os.chmod(varScript,0777)
+
   #print root,files
   return
 
