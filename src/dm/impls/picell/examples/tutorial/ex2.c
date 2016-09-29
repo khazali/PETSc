@@ -309,8 +309,8 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   else ctx->dtype = X2_DIRI;
   ctx->use_mms = PETSC_TRUE;
   ierr = PetscOptionsBool("-use_mms", "Us a manufactured RHS for particle weight", "ex2.c", ctx->use_mms, &ctx->use_mms, NULL);CHKERRQ(ierr);
-  ctx->use_v_update = PETSC_FALSE;
-  ierr = PetscOptionsBool("-use_v_update", "Update the particle velocity with the E field", "ex2.c", ctx->use_v_update, &ctx->use_v_update, NULL);CHKERRQ(ierr);
+  ctx->use_vel_update = PETSC_FALSE;
+  ierr = PetscOptionsBool("-use_vel_update", "Update the particle velocity with the E field", "ex2.c", ctx->use_vel_update, &ctx->use_vel_update, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
   if (s_debug>0) PetscPrintf(ctx->wComm,"npe=%D; %Dx%Dx%D solver grid; %Dx%Dx%D particle grid grid; mpi_send size (chunksize) equal %d particles. %s, %s, %s\n",
                              ctx->npe,ctx->particleGrid.solver_np[0],ctx->particleGrid.solver_np[1],ctx->particleGrid.solver_np[2],ctx->particleGrid.ft_np[0],
@@ -491,7 +491,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           if (irk>=0) {
             PetscReal r, b0dotgrad = jj[0]*b0[0] + jj[1]*b0[1] + jj[2]*b0[2];
 #ifdef X2_S_OF_V
-            if (ctx->use_v_update) list->data_v.vpar[pos] += -dt*b0dotgrad*charge/mass;
+            if (ctx->use_vel_update) list->data_v.vpar[pos] += -dt*b0dotgrad*charge/mass;
             r = dt*list->data_v.vpar[pos]; /* could use average of this and the updated velocity */
             for(ii=0;ii<3;ii++) {
               list->data_v.x[ii][pos] += r*b0[ii];
@@ -500,7 +500,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
               xx[ii] = list->data_v.x[ii][pos];
             }
 #else
-            if (ctx->use_v_update) list->data[pos].vpar += -dt*b0dotgrad*charge/mass;
+            if (ctx->use_vel_update) list->data[pos].vpar += -dt*b0dotgrad*charge/mass;
             r = dt*list->data[pos].vpar; /* could use average of this and the updated velocity */
             for(ii=0;ii<3;ii++) {
               list->data[pos].x[ii] += r*b0[ii];

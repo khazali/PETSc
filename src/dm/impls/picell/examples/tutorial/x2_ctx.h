@@ -39,5 +39,5 @@ typedef struct {
   /* prob type  */
   domainType dtype;
   PetscBool use_mms;
-  PetscBool use_v_update;
+  PetscBool use_vel_update;
 } X2Ctx;
