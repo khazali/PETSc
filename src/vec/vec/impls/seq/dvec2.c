@@ -660,7 +660,7 @@ PetscErrorCode VecMAXPY_Seq(Vec xin, PetscInt nv,const PetscScalar *alpha,Vec *y
     alpha2 = alpha[2];
     alpha3 = alpha[3];
     alpha += 4;
-
+    #pragma simd
     PetscKernelAXPY4(xx,alpha0,alpha1,alpha2,alpha3,yy0,yy1,yy2,yy3,n);
     ierr = VecRestoreArrayRead(y[0],&yy0);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(y[1],&yy1);CHKERRQ(ierr);
@@ -668,6 +668,7 @@ PetscErrorCode VecMAXPY_Seq(Vec xin, PetscInt nv,const PetscScalar *alpha,Vec *y
     ierr = VecRestoreArrayRead(y[3],&yy3);CHKERRQ(ierr);
     y   += 4;
   }
+ 
   ierr = VecRestoreArray(xin,&xx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

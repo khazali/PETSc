@@ -1370,9 +1370,13 @@ PetscErrorCode MatLUFactorNumeric_SeqAIJ_Inode(Mat B,Mat A,const MatFactorInfo *
             pv = b->a + bdiag[row+1]+1;
             nz = bdiag[row]-bdiag[row+1]-1; /* num of entries in U(row,:) excluding diag */
             for (j=0; j<nz; j++) {
+              rtmp1[pj[j]] -= mul1 * pv[j];
+              rtmp2[pj[j]] -= mul2 * pv[j];
+              /*
               col         = pj[j];
               rtmp1[col] -= mul1 * pv[j];
               rtmp2[col] -= mul2 * pv[j];
+              */
             }
             ierr = PetscLogFlops(2+4*nz);CHKERRQ(ierr);
           }
