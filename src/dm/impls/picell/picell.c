@@ -284,22 +284,24 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
 /* get gradient at point 'coord' and put it in D vector 'jet' */
 #undef __FUNCT__
 #define __FUNCT__ "DMPICellGetJet"
-PetscErrorCode  DMPICellGetJet(DM dm, Vec coord, PetscInt cell, Vec *jet)
+PetscErrorCode  DMPICellGetJet(DM dm, Vec coord, Vec philoc, PetscInt cell, Vec jet)
 {
-  DM_PICell    *dmpi = (DM_PICell *) dm->data;
-  Vec          refCoord;
-  PetscScalar  *ljet, *xx, *xi, *piJ;
-  PetscReal    *D = NULL, *B = NULL;
-  PetscReal    v0[81], J[243], invJ[243], detJ[27], J0inv[9],v00[3], d3 = 8;
+  DM_PICell       *dmpi = (DM_PICell *) dm->data;
+  Vec             refCoord;
+  PetscScalar     *ljet, *xx, *xi, *piJ;
+  PetscReal       *D = NULL, *B = NULL;
+  PetscReal       v0[81], J[243], invJ[243], detJ[27], J0inv[9],v00[3], d3 = 8;
+  PetscScalar     *values = NULL;
   const PetscReal *weights;
-  PetscInt     totDim,p,N,dim,b,Nq,qdim,q,d,e;
-  PetscErrorCode ierr;
-  PetscDS        prob;
-  PetscQuadrature  quad;
+  PetscInt        totDim,p,N,dim,b,Nq,qdim,q,d,e,nloc=27;
+  PetscErrorCode  ierr;
+  PetscDS         prob;
+  PetscQuadrature quad;
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidHeaderSpecific(coord, VEC_CLASSID, 2);
-  PetscValidPointer(jet, 4);
+  PetscValidHeaderSpecific(philoc, VEC_CLASSID, 3);
+  PetscValidHeaderSpecific(jet, VEC_CLASSID, 5);
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventBegin(DMPICell_GetJet,dm,0,0,0);CHKERRQ(ierr);
 #endif
@@ -353,29 +355,30 @@ PetscErrorCode  DMPICellGetJet(DM dm, Vec coord, PetscInt cell, Vec *jet)
   ierr = DMGetDS(dmpi->dmplex, &prob);CHKERRQ(ierr);
   ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
   ierr = PetscDualSpaceGetDimension(dmpi->fem->dualSpace, &e);CHKERRQ(ierr);
-  if (totDim!=8) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "totDim!=8 =%d",totDim);
+  if (totDim!=8) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "totDim!=8 =%D",totDim);
   if (totDim!=e) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "totDim != e=%g",e);
-
-  ierr = VecCreateSeq(PETSC_COMM_SELF,N*dim,jet);CHKERRQ(ierr);
-  ierr = VecGetArray(*jet, &ljet);CHKERRQ(ierr);
-#if defined(PETSC_HAVE_MEMALIGN)
-  __assume_aligned(B,PETSC_MEMALIGN);
-#endif
+  ierr = DMPlexVecGetClosure(dmpi->dmplex, NULL, philoc, cell, &nloc, &values);CHKERRQ(ierr);
+  if (totDim!=nloc) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "totDim!=nloc nloc=%D",nloc);
+  ierr = VecGetArray(jet, &ljet);CHKERRQ(ierr);
+/* #if defined(PETSC_HAVE_MEMALIGN) */
+/*   __assume_aligned(B,PETSC_MEMALIGN); */
+/* #endif */
   /* D[N][totDim][dim] */
   for (p = 0; p < N; ++p) {
     const PetscReal *DD = &D[p*totDim*dim];
     const PetscReal *BB = &B[p*totDim];
     PetscReal *Jet = &ljet[p*dim];
     for (e = 0; e < dim; ++e) Jet[e] = 0;
-#if defined(X2_HAVE_INTEL)
-#pragma simd vectorlengthfor(PetscReal)
-#endif
+/* #if defined(X2_HAVE_INTEL) */
+/* #pragma simd vectorlengthfor(PetscReal) */
+/* #endif */
     for (b = 0; b < totDim; ++b) {
       const PetscReal *DDD = &DD[b*dim];
-      for (e = 0; e < dim; ++e) Jet[e] += BB[b] * DDD[e];
+      for (e = 0; e < dim; ++e) Jet[e] += BB[b] * DDD[e] * values[b];
     }
   }
-  ierr = VecRestoreArray(*jet, &ljet);CHKERRQ(ierr);
+  ierr = DMPlexVecRestoreClosure(dmpi->dmplex, NULL, philoc, cell, &nloc, &values);CHKERRQ(ierr);
+  ierr = VecRestoreArray(jet, &ljet);CHKERRQ(ierr);
   ierr = PetscFERestoreTabulation(dmpi->fem, N, xi, &B, &D, NULL);CHKERRQ(ierr);
   ierr = VecRestoreArray(refCoord, &xi);CHKERRQ(ierr);
   ierr = VecDestroy(&refCoord);CHKERRQ(ierr);

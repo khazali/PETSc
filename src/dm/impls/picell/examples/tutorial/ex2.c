@@ -421,7 +421,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
   X2PListPos       pos;
   PetscErrorCode   ierr;
   const int        part_dsize = sizeof(X2Particle)/sizeof(double);
-  Vec              jetVec,xVec,vVec;
+  Vec              jVec,xVec,vVec;
   PetscScalar      *xx=0,*jj=0,*vv=0,*xx0=0,*jj0=0,*vv0=0;
   PetscInt         nslist,nlistsTot,elid,elid2,one=1,three=3,ndeposit;
   long int         hash;
@@ -480,9 +480,15 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
         /* push, and collect x */
         if (irk>=0) {
+          Vec locphi;
+          ierr = DMGetLocalVector(dmpi->dmplex, &locphi);CHKERRQ(ierr);
+          ierr = DMGlobalToLocalBegin(dmpi->dmplex, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
+          ierr = DMGlobalToLocalEnd(dmpi->dmplex, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
           /* get E, should set size of vecs for true size? */
-          ierr = DMPICellGetJet(ctx->dm, xVec, elid, &jetVec);CHKERRQ(ierr);
-          ierr = VecGetArray(jetVec,&jj0);CHKERRQ(ierr); jj = jj0;
+          ierr = VecCreateSeq(PETSC_COMM_SELF,three*list->vec_top,&jVec);CHKERRQ(ierr);
+          ierr = DMPICellGetJet(ctx->dm, xVec, locphi, elid, jVec);CHKERRQ(ierr);
+          ierr = DMRestoreLocalVector(dmpi->dmplex, &locphi);CHKERRQ(ierr);
+          ierr = VecGetArray(jVec,&jj0);CHKERRQ(ierr); jj = jj0;
         }
         /* vectorize (todo) push: theta = theta + q*dphi .... grad not used */
         ierr = VecGetArray(xVec,&xx0);CHKERRQ(ierr); xx = xx0;
@@ -521,9 +527,10 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
           }
         }
-        ierr = VecRestoreArray(xVec,&xx0);
+        ierr = VecRestoreArray(xVec,&xx0);CHKERRQ(ierr);
         if (irk>=0) {
-          ierr = VecRestoreArray(jetVec,&jj0);
+          ierr = VecRestoreArray(jVec,&jj0);CHKERRQ(ierr);
+          ierr = VecDestroy(&jVec);CHKERRQ(ierr);
         }
 #if defined(PETSC_USE_LOG)
         ierr = PetscLogEventEnd(ctx->events[8],0,0,0,0);CHKERRQ(ierr);
@@ -655,9 +662,6 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       if (solver) {
 	/* done with these, need new ones after communication */
 	ierr = VecDestroy(&xVec);CHKERRQ(ierr);
-        if (irk>=0) {
-          ierr = VecDestroy(&jetVec);CHKERRQ(ierr);
-        }
       }
 #if defined(PETSC_USE_LOG)
       ierr = PetscLogEventEnd(ctx->events[5],0,0,0,0);CHKERRQ(ierr);
@@ -680,7 +684,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
     }
 #endif
     nlistsTot += nslist;
-    /* add density (while in cache, by species at least) */
+    /* add density (while in cache, by species at least) irk<0 first time to get rho */
     if (solver) {
       Vec locrho;
       ierr = DMGetLocalVector(dmpi->dmplex, &locrho);CHKERRQ(ierr);
@@ -1037,6 +1041,8 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "u_x4_op"
 PetscErrorCode u_x4_op(PetscInt dim, PetscReal time, const PetscReal xx[], PetscInt Nf, PetscScalar *u, void *a_ctx)
 {
   X2Ctx *ctx = (X2Ctx*)a_ctx;
@@ -1171,17 +1177,16 @@ int main(int argc, char **argv)
     }
   }
 #endif
-  /* move back to solver space and make density vector */
-  ierr = processParticles(&ctx, 0.0, &ctx.sendListTable, 99, -1, -1, PETSC_TRUE);CHKERRQ(ierr);
 
   /* setup solver, dummy solve to really setup */
   {
-    PetscReal krtol,katol,kdtol; PetscInt kmit,one=1;
-    ierr = KSPGetTolerances(ksp,&krtol,&katol,&kdtol,&kmit);CHKERRQ(ierr);
-    ierr = KSPSetTolerances(ksp,krtol,katol,kdtol,one);CHKERRQ(ierr);
+    ierr = VecZeroEntries(dmpi->rho);CHKERRQ(ierr); /* zero density to make solver do nothing */
     ierr = DMPICellSolve( ctx.dm );CHKERRQ(ierr);
-    ierr = KSPSetTolerances(ksp,krtol,katol,kdtol,kmit);CHKERRQ(ierr);
   }
+
+  /* move back to solver space and make density vector */
+  ierr = processParticles(&ctx, 0.0, &ctx.sendListTable, 99, -1, -1, PETSC_TRUE);CHKERRQ(ierr);
+
   if (ctx.use_mms) {
     X2Ctx             *ctxArray[1];
     PetscErrorCode    (**exactFuncs)(PetscInt, PetscReal, const PetscReal[], PetscInt, PetscScalar *, void *);
@@ -1217,6 +1222,7 @@ int main(int argc, char **argv)
     PetscPrintf(ctx.wComm,"\tDeposition error |exact rho - deposited rho|_inf = %g\n",norm);
     ctx.use_mms = PETSC_FALSE; /* just do this once */
   }
+
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventEnd(ctx.events[0],0,0,0,0);CHKERRQ(ierr);
 #endif

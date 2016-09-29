@@ -11,7 +11,7 @@
 #include <petscsftypes.h>
 
 PETSC_EXTERN PetscErrorCode DMPICellAddSource(DM, Vec, Vec, PetscInt, Vec);
-PETSC_EXTERN PetscErrorCode DMPICellGetJet(DM, Vec, PetscInt, Vec *);
+PETSC_EXTERN PetscErrorCode DMPICellGetJet(DM, Vec, Vec, PetscInt, Vec);
 PETSC_EXTERN PetscErrorCode DMGetCellChart(DM dm, PetscInt *cStart, PetscInt *cEnd); /* this does not belong here! */
 
 #endif
