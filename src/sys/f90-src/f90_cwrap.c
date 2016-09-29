@@ -317,7 +317,7 @@ PetscErrorCode  F90Array3dDestroy(F90Array3d *ptr,PetscDataType type PETSC_F90_2
 #define f90array4ddestroyfortranaddr_     f90array4ddestroyfortranaddr
 #endif
 
-PETSC_EXTERN void PETSC_STDCALL f90array4dcreatescalar_(void *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,PetscInt*,PetscInt*,F90Array4d * PETSC_F90_2PTR_PROTO_NOVAR);
+PETSC_EXTERN void PETSC_STDCALL f90array4dcreatescalar_(void *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,PetscInt*,PetscInt*,F90Array4d *, long long int, long long int, long long int, long long int, long long int, long long int, long long int, long long int, long long int PETSC_F90_2PTR_PROTO_NOVAR);
 PETSC_EXTERN void PETSC_STDCALL f90array4daccessscalar_(F90Array4d*,void** PETSC_F90_2PTR_PROTO_NOVAR);
 PETSC_EXTERN void PETSC_STDCALL f90array4ddestroyscalar_(F90Array4d *ptr PETSC_F90_2PTR_PROTO_NOVAR);
 PETSC_EXTERN void PETSC_STDCALL f90array4dcreatereal_(void *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,PetscInt *,PetscInt*,PetscInt*,F90Array4d * PETSC_F90_2PTR_PROTO_NOVAR);
@@ -336,7 +336,7 @@ PetscErrorCode F90Array4dCreate(void *array,PetscDataType type,PetscInt start1,P
 {
   PetscFunctionBegin;
   if (type == PETSC_SCALAR) {
-    f90array4dcreatescalar_(array,&start1,&len1,&start2,&len2,&start3,&len3,&start4,&len4,ptr PETSC_F90_2PTR_PARAM(ptrd));
+    f90array4dcreatescalar_(array,&start1,&len1,&start2,&len2,&start3,&len3,&start4,&len4,ptr, (long long int) 0, (long long int) 0, (long long int) 0, (long long int) 0, (long long int) 0, (long long int) 0, (long long int) 0, (long long int) 0, (long long int) 0 PETSC_F90_2PTR_PARAM(ptrd));
   } else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"unsupported PetscDataType: %d",(PetscInt)type);
   PetscFunctionReturn(0);
 }
