@@ -94,6 +94,54 @@ PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
 PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
 {
   PetscErrorCode    ierr;
+  PetscInt          n = xin->map->n,i,j;
+  PetscScalar       sum0,sum1;
+  const PetscScalar *y0,*y1,*x,*xbase;
+  Vec               *yy;
+
+  PetscFunctionBegin;
+  yy   = (Vec*)yin;
+  ierr = VecGetArrayRead(xin,&xbase);CHKERRQ(ierr);
+
+  for (i=0;i<nv-1;i+=2) {
+    ierr = VecGetArrayRead(yy[0],&y0);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[1],&y1);CHKERRQ(ierr);
+    x    = xbase;
+    sum0 = 0;
+    sum1 = 0;
+    for (j=0;j<n;j++) {
+      sum0 += *x*PetscConj(y0[j]);
+      sum1 += *x*PetscConj(y1[j]);
+      x++;
+    }
+    z[0] = sum0;
+    z[1] = sum1;
+    ierr = VecRestoreArrayRead(yy[0],&y0);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[1],&y1);CHKERRQ(ierr);
+    yy  += 2;
+    z   += 2;
+  }
+  if (i==nv-1) {
+    ierr = VecGetArrayRead(yy[0],&y0);CHKERRQ(ierr);
+    x    = xbase;
+    sum0 = 0;
+    for (j=0;j<n;j++) {
+      sum0 += *x++*PetscConj(*y0++);
+    }
+    z[0] = sum0;
+    ierr = VecRestoreArrayRead(yy[0],&y0);CHKERRQ(ierr);
+  }
+
+  ierr = VecRestoreArrayRead(xin,&xbase);CHKERRQ(ierr);
+  ierr = PetscLogFlops(PetscMax(nv*(2.0*xin->map->n-1),0.0));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+/*
+#undef __FUNCT__
+#define __FUNCT__ "VecMDot_Seq"
+PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
+{
+  PetscErrorCode    ierr;
   PetscInt          n = xin->map->n,i,j,nv_rem,j_rem;
   PetscScalar       sum0,sum1,sum2,sum3,x0,x1,x2,x3;
   const PetscScalar *yy0,*yy1,*yy2,*yy3,*x,*xbase;
@@ -288,6 +336,7 @@ PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
   ierr = PetscLogFlops(PetscMax(nv*(2.0*xin->map->n-1),0.0));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+*/
 #endif
 
 /* ----------------------------------------------------------------------------*/

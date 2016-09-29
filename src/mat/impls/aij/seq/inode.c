@@ -2367,6 +2367,12 @@ PetscErrorCode MatSolve_SeqAIJ_Inode(Mat A,Vec bb,Vec xx)
       sum2 = b[r[row+1]];
       v2   = aa + ai[row+1];
 
+      for (j=0;j<nz;j++) {
+        tmp0  = tmps[vi[j]];
+        sum1 -= v1[j]*tmp0;
+        sum2 -= v2[j]*tmp0;
+      }
+      /*
       for (j=0; j<nz-1; j+=2) {
         i0    = vi[j];
         i1    = vi[j+1];
@@ -2380,6 +2386,7 @@ PetscErrorCode MatSolve_SeqAIJ_Inode(Mat A,Vec bb,Vec xx)
         sum1 -= v1[j] *tmp0;
         sum2 -= v2[j] *tmp0;
       }
+      */
       sum2     -= v2[nz] * sum1;
       tmp[row++]=sum1;
       tmp[row++]=sum2;
@@ -2540,6 +2547,13 @@ PetscErrorCode MatSolve_SeqAIJ_Inode(Mat A,Vec bb,Vec xx)
       sum1 = tmp[row];
       sum2 = tmp[row-1];
       v2   = aa + ad[row] + 1;
+
+      for (j=0;j<nz;j++) {
+        tmp0  = tmps[vi[j]];
+        sum1 -= v1[j]*tmp0;
+        sum2 -= v2[j+1]*tmp0;
+      }
+      /*
       for (j=0; j<nz-1; j+=2) {
         i0    = vi[j];
         i1    = vi[j+1];
@@ -2553,7 +2567,7 @@ PetscErrorCode MatSolve_SeqAIJ_Inode(Mat A,Vec bb,Vec xx)
         sum1 -= v1[j]* tmp0;
         sum2 -= v2[j+1]* tmp0;
       }
-
+      */
       tmp0      = x[c[row]] = tmp[row] = sum1*v1[nz]; row--;
       sum2     -= v2[0] * tmp0;
       x[c[row]] = tmp[row] = sum2*v2[nz+1]; row--;
