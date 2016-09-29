@@ -464,20 +464,14 @@ PetscErrorCode ISLocalToGlobalMappingApply(ISLocalToGlobalMapping mapping,PetscI
   if (bs == 1) {
     const PetscInt *idx = mapping->indices;
     for (i=0; i<N; i++) {
-      if (in[i] < 0) {
-        out[i] = in[i];
-        continue;
-      }
-      out[i] = idx[in[i]];
+      if (in[i] < 0) out[i] = in[i];
+      else out[i] = idx[in[i]];
     }
   } else {
     const PetscInt *idx = mapping->indices;
     for (i=0; i<N; i++) {
-      if (in[i] < 0) {
-        out[i] = in[i];
-        continue;
-      }
-      out[i] = idx[in[i]/bs]*bs + (in[i] % bs);
+      if (in[i] < 0) out[i] = in[i];
+      else out[i] = idx[in[i]/bs]*bs + (in[i] % bs);
     }
   }
   PetscFunctionReturn(0);

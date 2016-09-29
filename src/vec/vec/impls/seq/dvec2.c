@@ -605,7 +605,7 @@ PetscErrorCode VecSet_Seq(Vec xin,PetscScalar alpha)
 PetscErrorCode VecMAXPY_Seq(Vec xin, PetscInt nv,const PetscScalar *alpha,Vec *y)
 {
   PetscErrorCode    ierr;
-  PetscInt          n = xin->map->n,j,j_rem;
+  PetscInt          n = xin->map->n,j,j_rem,i;
   const PetscScalar *yy0,*yy1,*yy2,*yy3;
   PetscScalar       *xx,alpha0,alpha1,alpha2,alpha3;
 
@@ -660,8 +660,12 @@ PetscErrorCode VecMAXPY_Seq(Vec xin, PetscInt nv,const PetscScalar *alpha,Vec *y
     alpha2 = alpha[2];
     alpha3 = alpha[3];
     alpha += 4;
-    #pragma simd
+    PetscKernelAXPY2(xx,alpha0,alpha1,yy0,yy1,n);
+    PetscKernelAXPY2(xx,alpha2,alpha3,yy2,yy3,n);
+    /*
+    for (i=0;i<n;i++) xx[i]+=alpha0*yy0[i]+alpha1*yy1[i]+alpha2*yy2[i]+alpha3*yy3[i];
     PetscKernelAXPY4(xx,alpha0,alpha1,alpha2,alpha3,yy0,yy1,yy2,yy3,n);
+    */
     ierr = VecRestoreArrayRead(y[0],&yy0);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(y[1],&yy1);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(y[2],&yy2);CHKERRQ(ierr);
