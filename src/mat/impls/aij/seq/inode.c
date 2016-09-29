@@ -431,6 +431,12 @@ static PetscErrorCode MatMult_SeqAIJ_Inode(Mat A,Vec xx,Vec yy)
       sum2 = 0.;
       v2   = v1 + n;
 
+      for (n=0;n<sz;n++) {
+        tmp0 = x[*idx++];
+        sum1 += *v1++ *tmp0;
+        sum2 += *v2++ *tmp0;
+      }
+      /*
       for (n = 0; n< sz-1; n+=2) {
         i1    = idx[0];
         i2    = idx[1];
@@ -445,6 +451,7 @@ static PetscErrorCode MatMult_SeqAIJ_Inode(Mat A,Vec xx,Vec yy)
         sum1 += *v1++ * tmp0;
         sum2 += *v2++ * tmp0;
       }
+      */
       y[row++]=sum1;
       y[row++]=sum2;
       v1      =v2;              /* Since the next block to be processed starts there*/
