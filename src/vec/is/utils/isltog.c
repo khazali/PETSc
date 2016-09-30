@@ -450,7 +450,7 @@ PetscErrorCode  ISLocalToGlobalMappingApplyIS(ISLocalToGlobalMapping mapping,IS 
 
     Concepts: mapping^local to global
 @*/
-PetscErrorCode ISLocalToGlobalMappingApply(ISLocalToGlobalMapping mapping,PetscInt N,const PetscInt in[],PetscInt out[])
+PetscErrorCode ISLocalToGlobalMappingApply(ISLocalToGlobalMapping mapping,PetscInt N,const PetscInt in[PETSC_RESTRICT],PetscInt out[PETSC_RESTRICT])
 {
   PetscInt i,bs,Nmax;
 

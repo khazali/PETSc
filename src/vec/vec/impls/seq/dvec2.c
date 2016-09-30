@@ -91,6 +91,9 @@ PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
 }
 
 #else
+/*
+#undef __FUNCT__
+#define __FUNCT__ "VecMDot_Seq"
 PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
 {
   PetscErrorCode    ierr;
@@ -136,7 +139,7 @@ PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
   ierr = PetscLogFlops(PetscMax(nv*(2.0*xin->map->n-1),0.0));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-/*
+*/
 #undef __FUNCT__
 #define __FUNCT__ "VecMDot_Seq"
 PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
@@ -336,7 +339,6 @@ PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
   ierr = PetscLogFlops(PetscMax(nv*(2.0*xin->map->n-1),0.0));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-*/
 #endif
 
 /* ----------------------------------------------------------------------------*/
@@ -606,7 +608,7 @@ PetscErrorCode VecMAXPY_Seq(Vec xin, PetscInt nv,const PetscScalar *alpha,Vec *y
 {
   PetscErrorCode    ierr;
   PetscInt          n = xin->map->n,j,j_rem,i;
-  const PetscScalar *yy0,*yy1,*yy2,*yy3;
+  const PetscScalar *PETSC_RESTRICT yy0,*PETSC_RESTRICT yy1,*PETSC_RESTRICT yy2,*PETSC_RESTRICT yy3,*PETSC_RESTRICT x;
   PetscScalar       *xx,alpha0,alpha1,alpha2,alpha3;
 
 #if defined(PETSC_HAVE_PRAGMA_DISJOINT)
@@ -660,10 +662,12 @@ PetscErrorCode VecMAXPY_Seq(Vec xin, PetscInt nv,const PetscScalar *alpha,Vec *y
     alpha2 = alpha[2];
     alpha3 = alpha[3];
     alpha += 4;
+    /*
     PetscKernelAXPY2(xx,alpha0,alpha1,yy0,yy1,n);
     PetscKernelAXPY2(xx,alpha2,alpha3,yy2,yy3,n);
-    /*
+    */
     for (i=0;i<n;i++) xx[i]+=alpha0*yy0[i]+alpha1*yy1[i]+alpha2*yy2[i]+alpha3*yy3[i];
+    /*
     PetscKernelAXPY4(xx,alpha0,alpha1,alpha2,alpha3,yy0,yy1,yy2,yy3,n);
     */
     ierr = VecRestoreArrayRead(y[0],&yy0);CHKERRQ(ierr);
