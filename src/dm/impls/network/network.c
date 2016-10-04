@@ -446,7 +446,7 @@ PetscErrorCode DMNetworkGetEdgeOffset(DM dm,PetscInt p,PetscInt *offset)
 #undef __FUNCT__
 #define __FUNCT__ "DMNetworkGetVertexOffset"
 /*@
-  DMNetworkGetEdgeOffset - Get the offset for accessing the variable associated with the given vertex from the local subvector.
+  DMNetworkGetVertexOffset - Get the offset for accessing the variable associated with the given vertex from the local subvector.
 
   Not Collective
 
