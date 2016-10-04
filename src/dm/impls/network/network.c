@@ -757,13 +757,13 @@ PetscErrorCode DMNetworkDistribute(DM oldDM, PetscInt overlap,DM *distDM)
   /* create structures for vertex */
   ierr = DMNetworkSetSubMap_private(newDMnetwork->vStart,newDMnetwork->vEnd,&newDMnetwork->vertex.mapping);CHKERRQ(ierr);
   ierr = DMNetworkGetSubSection_private(newDMnetwork->DofSection,newDMnetwork->vStart,newDMnetwork->vEnd,&newDMnetwork->vertex.DofSection);CHKERRQ(ierr); 
-  ierr = DMNetworkGetSubSF(newDMnetwork->plex->sf, newDMnetwork->vertex.mapping, &newDMnetwork->vertex.sf);CHKERRQ(ierr); 
+  ierr = PetscSFGetSubSF(newDMnetwork->plex->sf, newDMnetwork->vertex.mapping, &newDMnetwork->vertex.sf);CHKERRQ(ierr); 
   ierr = PetscSectionCreateGlobalSection(newDMnetwork->vertex.DofSection, newDMnetwork->vertex.sf, PETSC_FALSE, PETSC_FALSE, &newDMnetwork->vertex.GlobalDofSection);CHKERRQ(ierr);
 
   /* create structures for edge */
   ierr = DMNetworkSetSubMap_private(newDMnetwork->eStart,newDMnetwork->eEnd,&newDMnetwork->edge.mapping);CHKERRQ(ierr);
   ierr = DMNetworkGetSubSection_private(newDMnetwork->DofSection,newDMnetwork->eStart,newDMnetwork->eEnd,&newDMnetwork->edge.DofSection);CHKERRQ(ierr);
-  ierr = DMNetworkGetSubSF(newDMnetwork->plex->sf, newDMnetwork->edge.mapping, &newDMnetwork->edge.sf);CHKERRQ(ierr); 
+  ierr = PetscSFGetSubSF(newDMnetwork->plex->sf, newDMnetwork->edge.mapping, &newDMnetwork->edge.sf);CHKERRQ(ierr); 
   ierr = PetscSectionCreateGlobalSection(newDMnetwork->edge.DofSection, newDMnetwork->edge.sf, PETSC_FALSE, PETSC_FALSE, &newDMnetwork->edge.GlobalDofSection);CHKERRQ(ierr);
   
 #if 0
@@ -784,9 +784,9 @@ PetscErrorCode DMNetworkDistribute(DM oldDM, PetscInt overlap,DM *distDM)
 }
 
 #undef __FUNCT__ 
-#define __FUNCT__ "DMNetworkGetSubSF"
+#define __FUNCT__ "PetscSFGetSubSF"
 /*@C
-  DMNetworkGetSubSF - Returns an SF for a specific subset of points. Leaves are re-numbered to reflect the new ordering.
+  PetscSFGetSubSF - Returns an SF for a specific subset of points. Leaves are re-numbered to reflect the new ordering.
 
   Input Parameters:
 . masterSF - the original SF structure
@@ -796,7 +796,7 @@ PetscErrorCode DMNetworkDistribute(DM oldDM, PetscInt overlap,DM *distDM)
 . subSF    - a subset of the masterSF for the desired subset.
 */
 
-PetscErrorCode DMNetworkGetSubSF(PetscSF mastersf, ISLocalToGlobalMapping map, PetscSF *subSF) {
+PetscErrorCode PetscSFGetSubSF(PetscSF mastersf, ISLocalToGlobalMapping map, PetscSF *subSF) {
 
   PetscErrorCode        ierr;
   PetscInt              nroots, nleaves, *ilocal_sub;
