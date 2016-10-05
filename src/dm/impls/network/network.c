@@ -673,8 +673,10 @@ PetscErrorCode DMNetworkSetSubMap_private(PetscInt pstart, PetscInt pend, ISLoca
 /*@ 
   DMNetworkAssembleGraphStructures - Assembles vertex and edge data structures. Must be called after DMNetworkDistribute.
 
+  Collective
+
   Input Parameters:
-+ dm   - The DMNetworkObject
+. dm   - The DMNetworkObject
 
   Level: intermediate
 
@@ -707,7 +709,6 @@ PetscErrorCode DMNetworkAssembleGraphStructures(DM dm)
   } else {
   /* create structures for vertex */
   ierr = PetscSectionClone(network->vertex.DofSection,&network->vertex.GlobalDofSection);CHKERRQ(ierr);
-  
   /* create structures for edge */
   ierr = PetscSectionClone(network->edge.DofSection,&network->edge.GlobalDofSection);CHKERRQ(ierr);
   }
@@ -791,8 +792,8 @@ PetscErrorCode DMNetworkDistribute(DM oldDM, PetscInt overlap,DM *distDM)
   PetscSFGetSubSF - Returns an SF for a specific subset of points. Leaves are re-numbered to reflect the new ordering.
 
   Input Parameters:
-. masterSF - the original SF structure
-. map      - a ISLocalToGlobal mapping that contains the subset of points
++ masterSF - the original SF structure
+- map      - a ISLocalToGlobal mapping that contains the subset of points
 
   Output Parameters:
 . subSF    - a subset of the masterSF for the desired subset.
@@ -815,9 +816,7 @@ PetscErrorCode PetscSFGetSubSF(PetscSF mastersf, ISLocalToGlobalMapping map, Pet
   ierr = PetscMalloc1(nleaves,&ilocal_map);CHKERRQ(ierr);
   ierr = ISGlobalToLocalMappingApply(map,IS_GTOLM_MASK,nleaves,ilocal,NULL,ilocal_map);CHKERRQ(ierr);
   for (i = 0; i < nleaves; i++) {
-    if (ilocal_map[i] != -1) {
-      nleaves_sub += 1;
-    }
+    if (ilocal_map[i] != -1) nleaves_sub += 1;
   }
   /* Re-number ilocal with subset numbering. Need information from roots */
   ierr = PetscMalloc2(nroots,&local_points,nroots,&remote_points);CHKERRQ(ierr);
@@ -1212,7 +1211,6 @@ PetscErrorCode CreateSubGlobalToLocalMapping_private(PetscSection globalsec, Pet
   PetscInt       *glob2loc;
 
   PetscFunctionBegin;
-    
   ierr = PetscSectionGetStorageSize(localsec,&size);CHKERRQ(ierr); 
   ierr = PetscMalloc1(size,&glob2loc);CHKERRQ(ierr);
 
