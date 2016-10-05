@@ -713,6 +713,12 @@ PetscErrorCode DMNetworkAssembleGraphStructures(DM dm)
   }
 
 
+  /* Add viewers */
+  ierr = PetscObjectSetName((PetscObject)network->edge.GlobalDofSection,"Global edge dof section");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)network->vertex.GlobalDofSection,"Global vertex dof section");CHKERRQ(ierr);
+  ierr = PetscSectionViewFromOptions(network->edge.GlobalDofSection, NULL, "-edge_global_section_view");CHKERRQ(ierr);
+  ierr = PetscSectionViewFromOptions(network->vertex.GlobalDofSection, NULL, "-vertex_global_section_view");CHKERRQ(ierr);
+
   PetscFunctionReturn(0);
 }
 #undef __FUNCT__
@@ -772,28 +778,6 @@ PetscErrorCode DMNetworkDistribute(DM oldDM, PetscInt overlap,DM *distDM)
   ierr = DMSetDefaultSection(newDMnetwork->plex,newDMnetwork->DofSection);CHKERRQ(ierr);
   ierr = DMGetDefaultGlobalSection(newDMnetwork->plex,&newDMnetwork->GlobalDofSection);CHKERRQ(ierr);
   
-  /* create structures for vertex */
-  //ierr = DMNetworkSetSubMap_private(newDMnetwork->vStart,newDMnetwork->vEnd,&newDMnetwork->vertex.mapping);CHKERRQ(ierr);
-  //ierr = DMNetworkGetSubSection_private(newDMnetwork->DofSection,newDMnetwork->vStart,newDMnetwork->vEnd,&newDMnetwork->vertex.DofSection);CHKERRQ(ierr); 
-  //ierr = PetscSFGetSubSF(newDMnetwork->plex->sf, newDMnetwork->vertex.mapping, &newDMnetwork->vertex.sf);CHKERRQ(ierr); 
-  //ierr = PetscSectionCreateGlobalSection(newDMnetwork->vertex.DofSection, newDMnetwork->vertex.sf, PETSC_FALSE, PETSC_FALSE, &newDMnetwork->vertex.GlobalDofSection);CHKERRQ(ierr);
-
-  /* create structures for edge */
-  //ierr = DMNetworkSetSubMap_private(newDMnetwork->eStart,newDMnetwork->eEnd,&newDMnetwork->edge.mapping);CHKERRQ(ierr);
-  //ierr = DMNetworkGetSubSection_private(newDMnetwork->DofSection,newDMnetwork->eStart,newDMnetwork->eEnd,&newDMnetwork->edge.DofSection);CHKERRQ(ierr);
-  //ierr = PetscSFGetSubSF(newDMnetwork->plex->sf, newDMnetwork->edge.mapping, &newDMnetwork->edge.sf);CHKERRQ(ierr); 
-  //ierr = PetscSectionCreateGlobalSection(newDMnetwork->edge.DofSection, newDMnetwork->edge.sf, PETSC_FALSE, PETSC_FALSE, &newDMnetwork->edge.GlobalDofSection);CHKERRQ(ierr);
-  
-#if 0
-  ierr = PetscSFView(newDMnetwork->plex->sf,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-  ierr = PetscSFView(newDMnetwork->vertex.sf,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-  ierr = PetscSectionView(newDMnetwork->GlobalDofSection, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-  ierr = PetscSectionView(newDMnetwork->vertex.DofSection, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-  ierr = PetscSectionView(newDMnetwork->vertex.GlobalDofSection, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-  ierr = PetscSectionView(newDMnetwork->edge.DofSection, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-  ierr = PetscSectionView(newDMnetwork->edge.GlobalDofSection, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-#endif
-
   /* Destroy point SF */
   ierr = PetscSFDestroy(&pointsf);CHKERRQ(ierr);
   
