@@ -284,6 +284,7 @@ int main(int argc,char ** argv)
   DM                networkdm;
   Vec               x, b;
   Mat               A;
+  PC                pc;
   KSP               ksp;
   int               *edgelist;
   int               componentkey[2];
@@ -374,14 +375,21 @@ int main(int argc,char ** argv)
 
   ierr = DMSetMatType(networkdm, MATNEST);
   ierr = DMCreateMatrix(networkdm,&A);CHKERRQ(ierr);
-  
+ 
+  IS isg[2];
+  ierr = MatNestGetISs(A,isg,PETSC_NULL);CHKERRQ(ierr);
+
   /* Assembly system of equations */
   ierr = FormOperator(networkdm,A,b);CHKERRQ(ierr);
 
   ierr = KSPCreate(PETSC_COMM_WORLD, &ksp);CHKERRQ(ierr);
   ierr = KSPSetOperators(ksp, A, A);CHKERRQ(ierr);
   ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
+  ierr = KSPGetPC(ksp, &pc);CHKERRQ(ierr);
+  ierr = PCFieldSplitSetIS(pc, "edges", isg[0]);CHKERRQ(ierr);
+  ierr = PCFieldSplitSetIS(pc, "vertices", isg[1]);CHKERRQ(ierr);
   ierr = KSPSolve(ksp, b, x);CHKERRQ(ierr);
+  
   ierr = VecView(x, 0);
 
   ierr = VecDestroy(&x);CHKERRQ(ierr);
