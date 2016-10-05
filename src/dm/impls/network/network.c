@@ -671,7 +671,7 @@ PetscErrorCode DMNetworkSetSubMap_private(PetscInt pstart, PetscInt pend, ISLoca
 #undef __FUNCT__
 #define __FUNCT__ "DMNetworkAssembleGraphStructures"
 /*@ 
-  DMNetworkAssembleGraphStructures - Assembles vertex and edge data structures. Must be called before DMNetworkDistribute.
+  DMNetworkAssembleGraphStructures - Assembles vertex and edge data structures. Must be called after DMNetworkDistribute.
 
   Input Parameters:
 + dm   - The DMNetworkObject
@@ -682,18 +682,36 @@ PetscErrorCode DMNetworkSetSubMap_private(PetscInt pstart, PetscInt pend, ISLoca
 PetscErrorCode DMNetworkAssembleGraphStructures(DM dm)
 {
   PetscErrorCode ierr;
+  MPI_Comm               comm;
+  PetscMPIInt            rank, numProcs;
   DM_Network     *network = (DM_Network*)dm->data;
   PetscFunctionBegin;
 
-  /* create structures for vertex */
+  ierr = PetscObjectGetComm((PetscObject)dm,&comm);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &numProcs);CHKERRQ(ierr);
+ 
+  /* Create maps for vertices and edges */
   ierr = DMNetworkSetSubMap_private(network->vStart,network->vEnd,&network->vertex.mapping);CHKERRQ(ierr);
+  ierr = DMNetworkSetSubMap_private(network->eStart,network->eEnd,&network->edge.mapping);CHKERRQ(ierr);
+  
+  /* Create local sub-sections */
   ierr = DMNetworkGetSubSection_private(network->DofSection,network->vStart,network->vEnd,&network->vertex.DofSection);CHKERRQ(ierr);
+  ierr = DMNetworkGetSubSection_private(network->DofSection,network->eStart,network->eEnd,&network->edge.DofSection);CHKERRQ(ierr);
+
+  if (numProcs > 1) {
+    ierr = PetscSFGetSubSF(network->plex->sf, network->vertex.mapping, &network->vertex.sf);CHKERRQ(ierr); 
+    ierr = PetscSectionCreateGlobalSection(network->vertex.DofSection, network->vertex.sf, PETSC_FALSE, PETSC_FALSE, &network->vertex.GlobalDofSection);CHKERRQ(ierr);
+  ierr = PetscSFGetSubSF(network->plex->sf, network->edge.mapping, &network->edge.sf);CHKERRQ(ierr); 
+  ierr = PetscSectionCreateGlobalSection(network->edge.DofSection, network->edge.sf, PETSC_FALSE, PETSC_FALSE, &network->edge.GlobalDofSection);CHKERRQ(ierr);
+  } else {
+  /* create structures for vertex */
   ierr = PetscSectionClone(network->vertex.DofSection,&network->vertex.GlobalDofSection);CHKERRQ(ierr);
   
   /* create structures for edge */
-  ierr = DMNetworkSetSubMap_private(network->eStart,network->eEnd,&network->edge.mapping);CHKERRQ(ierr);
-  ierr = DMNetworkGetSubSection_private(network->DofSection,network->eStart,network->eEnd,&network->edge.DofSection);CHKERRQ(ierr);
   ierr = PetscSectionClone(network->edge.DofSection,&network->edge.GlobalDofSection);CHKERRQ(ierr);
+  }
+
 
   PetscFunctionReturn(0);
 }
@@ -755,16 +773,16 @@ PetscErrorCode DMNetworkDistribute(DM oldDM, PetscInt overlap,DM *distDM)
   ierr = DMGetDefaultGlobalSection(newDMnetwork->plex,&newDMnetwork->GlobalDofSection);CHKERRQ(ierr);
   
   /* create structures for vertex */
-  ierr = DMNetworkSetSubMap_private(newDMnetwork->vStart,newDMnetwork->vEnd,&newDMnetwork->vertex.mapping);CHKERRQ(ierr);
-  ierr = DMNetworkGetSubSection_private(newDMnetwork->DofSection,newDMnetwork->vStart,newDMnetwork->vEnd,&newDMnetwork->vertex.DofSection);CHKERRQ(ierr); 
-  ierr = PetscSFGetSubSF(newDMnetwork->plex->sf, newDMnetwork->vertex.mapping, &newDMnetwork->vertex.sf);CHKERRQ(ierr); 
-  ierr = PetscSectionCreateGlobalSection(newDMnetwork->vertex.DofSection, newDMnetwork->vertex.sf, PETSC_FALSE, PETSC_FALSE, &newDMnetwork->vertex.GlobalDofSection);CHKERRQ(ierr);
+  //ierr = DMNetworkSetSubMap_private(newDMnetwork->vStart,newDMnetwork->vEnd,&newDMnetwork->vertex.mapping);CHKERRQ(ierr);
+  //ierr = DMNetworkGetSubSection_private(newDMnetwork->DofSection,newDMnetwork->vStart,newDMnetwork->vEnd,&newDMnetwork->vertex.DofSection);CHKERRQ(ierr); 
+  //ierr = PetscSFGetSubSF(newDMnetwork->plex->sf, newDMnetwork->vertex.mapping, &newDMnetwork->vertex.sf);CHKERRQ(ierr); 
+  //ierr = PetscSectionCreateGlobalSection(newDMnetwork->vertex.DofSection, newDMnetwork->vertex.sf, PETSC_FALSE, PETSC_FALSE, &newDMnetwork->vertex.GlobalDofSection);CHKERRQ(ierr);
 
   /* create structures for edge */
-  ierr = DMNetworkSetSubMap_private(newDMnetwork->eStart,newDMnetwork->eEnd,&newDMnetwork->edge.mapping);CHKERRQ(ierr);
-  ierr = DMNetworkGetSubSection_private(newDMnetwork->DofSection,newDMnetwork->eStart,newDMnetwork->eEnd,&newDMnetwork->edge.DofSection);CHKERRQ(ierr);
-  ierr = PetscSFGetSubSF(newDMnetwork->plex->sf, newDMnetwork->edge.mapping, &newDMnetwork->edge.sf);CHKERRQ(ierr); 
-  ierr = PetscSectionCreateGlobalSection(newDMnetwork->edge.DofSection, newDMnetwork->edge.sf, PETSC_FALSE, PETSC_FALSE, &newDMnetwork->edge.GlobalDofSection);CHKERRQ(ierr);
+  //ierr = DMNetworkSetSubMap_private(newDMnetwork->eStart,newDMnetwork->eEnd,&newDMnetwork->edge.mapping);CHKERRQ(ierr);
+  //ierr = DMNetworkGetSubSection_private(newDMnetwork->DofSection,newDMnetwork->eStart,newDMnetwork->eEnd,&newDMnetwork->edge.DofSection);CHKERRQ(ierr);
+  //ierr = PetscSFGetSubSF(newDMnetwork->plex->sf, newDMnetwork->edge.mapping, &newDMnetwork->edge.sf);CHKERRQ(ierr); 
+  //ierr = PetscSectionCreateGlobalSection(newDMnetwork->edge.DofSection, newDMnetwork->edge.sf, PETSC_FALSE, PETSC_FALSE, &newDMnetwork->edge.GlobalDofSection);CHKERRQ(ierr);
   
 #if 0
   ierr = PetscSFView(newDMnetwork->plex->sf,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);

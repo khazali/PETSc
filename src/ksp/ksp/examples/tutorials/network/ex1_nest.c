@@ -332,7 +332,6 @@ int main(int argc,char ** argv)
   /* Set up DM for use */
   ierr = DMSetUp(networkdm);CHKERRQ(ierr);
 
-  ierr = DMNetworkAssembleGraphStructures(networkdm);CHKERRQ(ierr);
   
   if (size > 1) {
     DM distnetworkdm;
@@ -342,6 +341,7 @@ int main(int argc,char ** argv)
     networkdm = distnetworkdm;
   }
 
+  ierr = DMNetworkAssembleGraphStructures(networkdm);CHKERRQ(ierr);
   
   /* Print some info */
   
