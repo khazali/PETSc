@@ -31,6 +31,9 @@ class convertExamples(PETScExamples):
   def __init__(self,replaceSource):
     super(convertExamples, self).__init__()
     self.replaceSource=replaceSource
+    self.writeScripts=True
+    #self.scriptsSubdir=""
+    self.scriptsSubdir="from_makefile"
     return
 
   def fixScript(self,scriptStr,varVal):
@@ -273,10 +276,16 @@ class convertExamples(PETScExamples):
       shStr=shStr+" "+line
     if not shStr.strip(): return "",""
     newShStr=self.fixScript(shStr,varVal)
-    shh=open(shName,"w")
-    shh.write(newShStr)
-    shh.close()
-    os.chmod(shName,0777)
+    # 
+    if self.writeScripts:
+      if self.scriptsSubdir: 
+        subdir=os.path.join(basedir,self.scriptsSubdir)
+        if not os.path.isdir(subdir): os.mkdir(subdir)
+        shName=os.path.join(subdir,runexName+".sh")
+      shh=open(shName,"w")
+      shh.write(newShStr)
+      shh.close()
+      os.chmod(shName,0777)
     return shName, newShStr
 
   def cleanAllRunFiles_summarize(self,dataDict):
@@ -289,7 +298,10 @@ class convertExamples(PETScExamples):
     """
     Cleanup from genAllRunFiles
     """
-    for runfile in glob.glob(root+"/run*"): os.remove(runfile)
+    if self.writeScripts:
+      globstr=root+"/new_*"
+      if self.scriptsSubdir:  globstr=root+"/"+self.scriptsSubdir+"/run*"
+      for runfile in glob.glob(globstr): os.remove(runfile)
     for newfile in glob.glob(root+"/new_*"): os.remove(newfile)
     for tstfile in glob.glob(root+"/TEST*.sh"): os.remove(tstfile)
     return
