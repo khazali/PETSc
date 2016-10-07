@@ -7,254 +7,159 @@ import logging
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 from cmakegen import Mistakes, stripsplit, AUTODIRS, SKIPDIRS
 from cmakegen import defaultdict # collections.defaultdict, with fallback for python-2.4
+from gmakegen import *
 
 import inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-maintdir=os.path.join(os.path.join(os.path.basename(currentdir),'bin'),'maint')
+maintdir=os.path.join(os.path.join(os.path.dirname(currentdir),'bin'),'maint')
 sys.path.insert(0,maintdir) 
 from examplesWalker import *
 
-PKGS = 'sys vec mat dm ksp snes ts tao'.split()
-LANGS = dict(c='C', cxx='CXX', cu='CU', F='F')
-
-try:
-    all([True, True])
-except NameError:               # needs python-2.5
-    def all(iterable):
-        for i in iterable:
-            if not i:
-                return False
-        return True
-
-try:
-    os.path.relpath             # needs python-2.6
-except AttributeError:
-    def _relpath(path, start=os.path.curdir):
-        """Return a relative version of a path"""
-
-        from os.path import curdir, abspath, commonprefix, sep, pardir, join
-        if not path:
-            raise ValueError("no path specified")
-
-        start_list = [x for x in abspath(start).split(sep) if x]
-        path_list = [x for x in abspath(path).split(sep) if x]
-
-        # Work out how much of the filepath is shared by start and path.
-        i = len(commonprefix([start_list, path_list]))
-
-        rel_list = [pardir] * (len(start_list)-i) + path_list[i:]
-        if not rel_list:
-            return curdir
-        return join(*rel_list)
-    os.path.relpath = _relpath
-
-class debuglogger(object):
-    def __init__(self, log):
-        self._log = log
-
-    def write(self, string):
-        self._log.debug(string)
-
-class Petsc(object):
-    def __init__(self, petsc_dir=None, petsc_arch=None, verbose=False):
-        if petsc_dir is None:
-            petsc_dir = os.environ.get('PETSC_DIR')
-            if petsc_dir is None:
-                try:
-                    petsc_dir = parse_makefile(os.path.join('lib','petsc','conf', 'petscvariables')).get('PETSC_DIR')
-                finally:
-                    if petsc_dir is None:
-                        raise RuntimeError('Could not determine PETSC_DIR, please set in environment')
-        if petsc_arch is None:
-            petsc_arch = os.environ.get('PETSC_ARCH')
-            if petsc_arch is None:
-                try:
-                    petsc_arch = parse_makefile(os.path.join(petsc_dir, 'lib','petsc','conf', 'petscvariables')).get('PETSC_ARCH')
-                finally:
-                    if petsc_arch is None:
-                        raise RuntimeError('Could not determine PETSC_ARCH, please set in environment')
-        self.petsc_dir = petsc_dir
-        self.petsc_arch = petsc_arch
-        self.read_conf()
-        logging.basicConfig(filename=self.arch_path('lib','petsc','conf', 'gmake.log'), level=logging.DEBUG)
-        self.log = logging.getLogger('gmakegen')
-        self.mistakes = Mistakes(debuglogger(self.log), verbose=verbose)
-        self.gendeps = []
-
-    def arch_path(self, *args):
-        return os.path.join(self.petsc_dir, self.petsc_arch, *args)
-
-    def read_conf(self):
-        self.conf = dict()
-        for line in open(self.arch_path('include', 'petscconf.h')):
-            if line.startswith('#define '):
-                define = line[len('#define '):]
-                space = define.find(' ')
-                key = define[:space]
-                val = define[space+1:]
-                self.conf[key] = val
-        self.conf.update(parse_makefile(self.arch_path('lib','petsc','conf', 'petscvariables')))
-        self.have_fortran = int(self.conf.get('PETSC_HAVE_FORTRAN', '0'))
-
-    def inconf(self, key, val):
-        if key in ['package', 'function', 'define']:
-            return self.conf.get(val)
-        elif key == 'precision':
-            return val == self.conf['PETSC_PRECISION']
-        elif key == 'scalar':
-            return val == self.conf['PETSC_SCALAR']
-        elif key == 'language':
-            return val == self.conf['PETSC_LANGUAGE']
-        raise RuntimeError('Unknown conf check: %s %s' % (key, val))
-
-    def relpath(self, root, src):
-        return os.path.relpath(os.path.join(root, src), self.petsc_dir)
-
-    def get_sources(self, makevars):
-        """Return dict {lang: list_of_source_files}"""
-        source = dict()
-        for lang, sourcelang in LANGS.items():
-            source[lang] = [f for f in makevars.get('SOURCE'+sourcelang,'').split() if f.endswith(lang)]
-        return source
-
-    def gen_pkg(self, pkg):
-        pkgsrcs = dict()
-        for lang in LANGS:
-            pkgsrcs[lang] = []
-        for root, dirs, files in os.walk(os.path.join(self.petsc_dir, 'src', pkg)):
-            makefile = os.path.join(root,'makefile')
-            if not os.path.exists(makefile):
-                dirs[:] = []
-                continue
-            mklines = open(makefile)
-            conditions = set(tuple(stripsplit(line)) for line in mklines if line.startswith('#requires'))
-            mklines.close()
-            if not all(self.inconf(key, val) for key, val in conditions):
-                dirs[:] = []
-                continue
-            makevars = parse_makefile(makefile)
-            mdirs = makevars.get('DIRS','').split() # Directories specified in the makefile
-            self.mistakes.compareDirLists(root, mdirs, dirs) # diagnostic output to find unused directories
-            candidates = set(mdirs).union(AUTODIRS).difference(SKIPDIRS)
-            dirs[:] = list(candidates.intersection(dirs))
-            allsource = []
-            def mkrel(src):
-                return self.relpath(root, src)
-            source = self.get_sources(makevars)
-            for lang, s in source.items():
-                pkgsrcs[lang] += map(mkrel, s)
-                allsource += s
-            self.mistakes.compareSourceLists(root, allsource, files) # Diagnostic output about unused source files
-            self.gendeps.append(self.relpath(root, 'makefile'))
-        return pkgsrcs
-
-    def gen_gnumake(self, fd):
-        def write(stem, srcs):
-            fd.write('%s :=\n' % stem)
-            for lang in LANGS:
-                fd.write('%(stem)s.%(lang)s := %(srcs)s\n' % dict(stem=stem, lang=lang, srcs=' '.join(srcs[lang])))
-                fd.write('%(stem)s += $(%(stem)s.%(lang)s)\n' % dict(stem=stem, lang=lang))
-        for pkg in PKGS:
-            srcs = self.gen_pkg(pkg)
-            write('srcs-' + pkg, srcs)
-        return self.gendeps
-
-    def gen_ninja(self, fd):
-        libobjs = []
-        for pkg in PKGS:
-            srcs = self.gen_pkg(pkg)
-            for lang in LANGS:
-                for src in srcs[lang]:
-                    obj = '$objdir/%s.o' % src
-                    fd.write('build %(obj)s : %(lang)s_COMPILE %(src)s\n' % dict(obj=obj, lang=lang.upper(), src=os.path.join(self.petsc_dir,src)))
-                    libobjs.append(obj)
-        fd.write('\n')
-        fd.write('build $libdir/libpetsc.so : %s_LINK_SHARED %s\n\n' % ('CF'[self.have_fortran], ' '.join(libobjs)))
-        fd.write('build petsc : phony || $libdir/libpetsc.so\n\n')
-
-    def summary(self):
-        self.mistakes.summary()
-
-def WriteGnuMake(petsc):
-    arch_files = petsc.arch_path('lib','petsc','conf', 'files')
-    fd = open(arch_files, 'w')
-    gendeps = petsc.gen_gnumake(fd)
-    fd.write('\n')
-    fd.write('# Dependency to regenerate this file\n')
-    fd.write('%s : %s %s\n' % (os.path.relpath(arch_files, petsc.petsc_dir),
-                               os.path.relpath(__file__, os.path.realpath(petsc.petsc_dir)),
-                               ' '.join(gendeps)))
-    fd.write('\n')
-    fd.write('# Dummy dependencies in case makefiles are removed\n')
-    fd.write(''.join([dep + ':\n' for dep in gendeps]))
-    fd.close()
-
-def WriteNinja(petsc):
-    conf = dict()
-    parse_makefile(os.path.join(petsc.petsc_dir, 'lib', 'petsc','conf', 'variables'), conf)
-    parse_makefile(petsc.arch_path('lib','petsc','conf', 'petscvariables'), conf)
-    build_ninja = petsc.arch_path('build.ninja')
-    fd = open(build_ninja, 'w')
-    fd.write('objdir = obj-ninja\n')
-    fd.write('libdir = lib\n')
-    fd.write('c_compile = %(PCC)s\n' % conf)
-    fd.write('c_flags = %(PETSC_CC_INCLUDES)s %(PCC_FLAGS)s %(CCPPFLAGS)s\n' % conf)
-    fd.write('c_link = %(PCC_LINKER)s\n' % conf)
-    fd.write('c_link_flags = %(PCC_LINKER_FLAGS)s\n' % conf)
-    if petsc.have_fortran:
-        fd.write('f_compile = %(FC)s\n' % conf)
-        fd.write('f_flags = %(PETSC_FC_INCLUDES)s %(FC_FLAGS)s %(FCPPFLAGS)s\n' % conf)
-        fd.write('f_link = %(FC_LINKER)s\n' % conf)
-        fd.write('f_link_flags = %(FC_LINKER_FLAGS)s\n' % conf)
-    fd.write('petsc_external_lib = %(PETSC_EXTERNAL_LIB_BASIC)s\n' % conf)
-    fd.write('python = %(PYTHON)s\n' % conf)
-    fd.write('\n')
-    fd.write('rule C_COMPILE\n'
-             '  command = $c_compile -MMD -MF $out.d $c_flags -c $in -o $out\n'
-             '  description = CC $out\n'
-             '  depfile = $out.d\n'
-             # '  deps = gcc\n') # 'gcc' is default, 'msvc' only recognized by newer versions of ninja
-             '\n')
-    fd.write('rule C_LINK_SHARED\n'
-             '  command = $c_link $c_link_flags -shared -o $out $in $petsc_external_lib\n'
-             '  description = CLINK_SHARED $out\n'
-             '\n')
-    if petsc.have_fortran:
-        fd.write('rule F_COMPILE\n'
-                 '  command = $f_compile -MMD -MF $out.d $f_flags -c $in -o $out\n'
-                 '  description = FC $out\n'
-                 '  depfile = $out.d\n'
-                 '\n')
-        fd.write('rule F_LINK_SHARED\n'
-                 '  command = $f_link $f_link_flags -shared -o $out $in $petsc_external_lib\n'
-                 '  description = FLINK_SHARED $out\n'
-                 '\n')
-    fd.write('rule GEN_NINJA\n'
-             '  command = $python $in --output=ninja\n'
-             '  generator = 1\n'
-             '\n')
-    petsc.gen_ninja(fd)
-    fd.write('\n')
-    fd.write('build %s : GEN_NINJA | %s %s %s %s\n' % (build_ninja,
-                                                       os.path.abspath(__file__),
-                                                       os.path.join(petsc.petsc_dir, 'lib','petsc','conf', 'variables'),
-                                                       petsc.arch_path('lib','petsc','conf', 'petscvariables'),
-                                                       ' '.join(os.path.join(petsc.petsc_dir, dep) for dep in petsc.gendeps)))
-
-
 class generateExamples(Petsc,PETScExamples):
-  def __init__(self):
-    super(generateExamples, self).__init__()
+  """
+  Why dual inheritance:
+    gmakegen.py has basic structure for finding the files, writing out
+      the dependencies, etc.
+     exampleWalker has the logic for migrating the tests, analyzing the tests, etc.
+     Rather than use the os.walk from gmakegen, gmakegentest re-uses the
+     exampleWalker functionality
+  """
+  def __init__(self,petsc_dir=None, petsc_arch=None, verbose=False, single_ex=False):
+    super(generateExamples, self).__init__(petsc_dir=None, petsc_arch=None, verbose=False)
+    self.single_ex=single_ex
+
+    # Language for requirements
+    self.precision_types="single double quad int32".split()
+    self.languages="fortran cuda cxx".split()    # Always requires C so do not list
     return
+
+  def parseExampleFile(self,srcfile,basedir,srcDict):
+    """
+    Parse the example files and store the relevant information into a
+    dictionary to process later
+    """
+    curdir=os.path.realpath(os.path.curdir)
+    os.chdir(basedir)
+
+    basename=os.path.splitext(srcfile)[0]
+    srcext=os.path.splitext(srcfile)[-1]
+    langReq=""
+    if srcext in "F F90 f f90".split(): langReq="fortran"
+    if srcext in "cu".split(): langReq="cuda"
+    if srcext in "cxx".split(): langReq="cxx"
+
+    sh=open(srcfile,"r"); fileStr=sh.read(); sh.close()
+    fsplit=fileStr.split("/*TEST")[1:]
+    if len(fsplit)==0: return False
+    srcTests=[]
+    for t in fsplit[1:]: 
+      srcTests.append(t.split("TEST*/")[0].strip())
+
+    # Now take the strings and put them into a dictionary
+    for test in srcTests:
+
+      # The dictionary key is determined by output_suffix.
+      # Allow anywhere in the file so need to grab it first
+      testname="run"+basename
+      for line in test.split("\n"):
+        if not ":" in line: continue  # This shouldn't happen
+        var=line.split(":")[0].strip()
+        val=line.split(":")[1].strip()
+        if var=="output_suffix":
+          if len(val)>0:
+            testname=testname+"_"+val
+
+      # If folks keep forgetting to put output_suffix, problems
+      if srcDict.has_key(testname):
+        print "Duplicate test name detected in file "+srcfile+" in "+basedir
+        print "  Check output_suffix in tests"
+        continue
+      srcDict[testname]={}
+      
+      i=-1
+      for line in test.split("\n"):
+        if not ":" in line: continue  # This shouldn't happen
+        i=i+1
+        var=line.split(":")[0].strip()
+        val=line.split(":")[1].strip()
+        # requires is comma delimited list so make list
+        if var=="requires": 
+          val=val.split(",")
+          if langReq: val.append(langReq)
+        # do assume that script is the last entry
+        # so that parsing doesn't cause problems
+        if var=="script": val=test.split("script:")[1].strip()
+
+        srcDict[testname][var]=val
+        if var=="script": break
+         
+    os.chdir(curdir)
+    return True
+
+  def  genRunScript(self,exfile,root,srcDict):
+    """
+      Generate the bash script
+    """
+    return
+
+  def  genScriptsAndInfo(self,exfile,root,srcDict):
+    """
+    For every test in the exfile with info in the srcDict:
+      1. Determine if it needs to be run for this arch
+      2. Generate the script
+      3. Generate the data needed to write out the makefile in a
+         convenient way
+    """
+    for test in srcDict:
+      isrun=self.determineIfRun(test,srcDict[test])
+      if isrun:
+        self.genRunScript(test,root,srcDict[test])
+    return
+
+  def determineIfRun(self,testName,testDict):
+    """
+    Based on the requirements listed in the src file and the petscconf.h
+    info, determine whether this test should be run or not.
+    """
+    isrun=True
+    # MPI requirements
+    if testDict.has_key('nsize'):
+      if testDict[nsize]>1 and self.conf['MPI_IS_MPIUNI']==1: return False
+ 
+    if testDict.has_key('requires'):
+      for requirement in testDict['requires']:
+        isNull=False
+        if requirement.startswith("!"):
+          requirement=requirement[1:]; isNull=True
+        # Language requirement
+        if requirement in self.languages:
+          if self.conf['PETSC_LANGUAGE']:
+            pass # To Do
+        # Scalar requirement
+        if requirement=="complex":
+          if self.conf['PETSC_SCALAR']=='complex':
+            if isNull: return False
+          else:
+            return False
+        # Precision requirement
+        # TODO: int32 is special -- need to figure out
+        if requirement in self.precision_types:
+          if self.conf['PETSC_PRECISION']==requirement:
+            if isNull: return False
+          else:
+            return False
+        # Defines
+        if "define(" in requirement:
+          pass
+        # Rest should be packages
+
+
+    return isrun
 
   def genPetscTests_summarize(self,dataDict):
     """
     Required method to state what happened
     """
-    indent="  "
-    fhname="GenPETSCtests_summarize.txt"
-    fh=open(fhname,"w")
-    print "See ", fhname
     return
 
   def genPetscTests(self,root,dirs,files,dataDict):
@@ -263,15 +168,26 @@ class generateExamples(Petsc,PETScExamples):
      the examples based on the metadata contained in the source files
     """
     debug=False
+    # Use examplesAnalyze to get what the makefles think are sources
+    #self.examplesAnalyze(root,dirs,files,anlzDict)
 
-    #print root,files
+    dataDict[root]={}
+
+    for exfile in files:
+      #TST: Until we replace files, still leaving the orginals as is
+      if not exfile.startswith("new_"+"ex"): continue
+      dataDict[root][exfile]={}
+      self.parseExampleFile(exfile,root,dataDict[root][exfile])
+      self.genScriptsAndInfo(exfile,root,dataDict[root][exfile])
+
     return
 
 
-def main(petsc_dir=None, petsc_arch=None, output=None, verbose=False):
+def main(petsc_dir=None, petsc_arch=None, output=None, verbose=False, single_ex=False):
     if output is None:
         output = 'gnumake'
-    pEx=generateExamples(petsc_dir=petsc_dir, petsc_arch=petsc_arch, verbose=verbose)
+    pEx=generateExamples(petsc_dir=petsc_dir, petsc_arch=petsc_arch, verbose=verbose, single_ex=single_ex)
+    startdir=os.path.realpath(os.path.curdir)
     pEx.walktree(startdir,action="genPetscTests")
 
 if __name__ == '__main__':
@@ -280,9 +196,10 @@ if __name__ == '__main__':
     parser.add_option('--verbose', help='Show mismatches between makefiles and the filesystem', action='store_true', default=False)
     parser.add_option('--petsc-arch', help='Set PETSC_ARCH different from environment', default=os.environ.get('PETSC_ARCH'))
     parser.add_option('--output', help='Location to write output file', default=None)
+    parser.add_option('-s', '--singe_executable', dest='single_executable', action="store_false", help='Whether there should be single executable per src subdir.  Default is false')
     opts, extra_args = parser.parse_args()
     if extra_args:
         import sys
         sys.stderr.write('Unknown arguments: %s\n' % ' '.join(extra_args))
         exit(1)
-    main(petsc_arch=opts.petsc_arch, output=opts.output, verbose=opts.verbose)
+    main(petsc_arch=opts.petsc_arch, output=opts.output, verbose=opts.verbose, single_ex=opts.single_executable)
