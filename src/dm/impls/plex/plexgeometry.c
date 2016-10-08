@@ -1334,13 +1334,14 @@ static PetscErrorCode DMPlexComputeIsoparametricGeometry_Internal(DM dm, PetscFE
             J[r*cdim+c] = r == c ? 1.0 : 0.0;
       }
       if (!detJ && !invJ) continue;
+      detJt = 0.;
       switch (cdim) {
       case 3:
         DMPlex_Det3D_Internal(&detJt, &J[q*cdim*dim]);
         if (invJ) {DMPlex_Invert3D_Internal(&invJ[q*cdim*dim], &J[q*cdim*dim], detJt);}
         break;
       case 2:
-        DMPlex_Det2D_Internal(detJ, &J[q*cdim*dim]);
+        DMPlex_Det2D_Internal(&detJt, &J[q*cdim*dim]);
         if (invJ) {DMPlex_Invert2D_Internal(&invJ[q*cdim*dim], &J[q*cdim*dim], detJt);}
         break;
       case 1:

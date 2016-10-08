@@ -1121,7 +1121,7 @@ PetscErrorCode  DMCreateInjection(DM dm1,DM dm2,Mat *mat)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm1,DM_CLASSID,1);
   PetscValidHeaderSpecific(dm2,DM_CLASSID,2);
-  if (!*dm1->ops->getinjection) SETERRQ(PetscObjectComm((PetscObject)dm1),PETSC_ERR_SUP,"DMCreateInjection not implemented for this type");
+  if (!dm1->ops->getinjection) SETERRQ(PetscObjectComm((PetscObject)dm1),PETSC_ERR_SUP,"DMCreateInjection not implemented for this type");
   ierr = (*dm1->ops->getinjection)(dm1,dm2,mat);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -1175,7 +1175,7 @@ PetscErrorCode  DMCreateColoring(DM dm,ISColoringType ctype,ISColoring *coloring
        do not need to do it yourself.
 
        By default it also sets the nonzero structure and puts in the zero entries. To prevent setting
-       the nonzero pattern call DMDASetMatPreallocateOnly()
+       the nonzero pattern call DMSetMatrixPreallocateOnly()
 
        For structured grid problems, when you call MatView() on this matrix it is displayed using the global natural ordering, NOT in the ordering used
        internally by PETSc.
@@ -1607,8 +1607,7 @@ PetscErrorCode DMCreateDomainDecomposition(DM dm, PetscInt *len, char ***namelis
   if (dm->ops->createdomaindecomposition) {
     ierr = (*dm->ops->createdomaindecomposition)(dm,&l,namelist,innerislist,outerislist,dmlist);CHKERRQ(ierr);
     /* copy subdomain hooks and context over to the subdomain DMs */
-    if (dmlist) {
-      if (!*dmlist) SETERRQ(PetscObjectComm((PetscObject)dm),PETSC_ERR_POINTER,"Method mapped to dm->ops->createdomaindecomposition must allocate at least one DM");
+    if (dmlist && *dmlist) {
       for (i = 0; i < l; i++) {
         for (link=dm->subdomainhook; link; link=link->next) {
           if (link->ddhook) {ierr = (*link->ddhook)(dm,(*dmlist)[i],link->ctx);CHKERRQ(ierr);}
