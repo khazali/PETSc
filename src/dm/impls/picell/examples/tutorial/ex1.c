@@ -49,15 +49,16 @@ static char help[] = "X2: A partical in cell code for tokamak plasmas using PICe
 typedef enum {X2_ITER,X2_TORUS,X2_BOXTORUS} runType;
 typedef struct {
   /* particle grid sizes */
-  PetscInt npradius;
-  PetscInt nptheta;
-  PetscInt npphi; /* toroidal direction */
+  PetscInt np_radius;
+  PetscInt np_theta;
+  PetscInt np_phi; /* toroidal direction */
   /* tokamak geometry  */
-  PetscReal  rMajor;
-  PetscReal  rMinor;
+  PetscReal  radius_major;
+  PetscReal  radius_minor;
   PetscInt   numMajor; /* number of cells per major circle in the torus */
-  PetscReal  innerMult; /* (0,1) percent of the total radius taken by the inner square */
-} X2GridParticle;
+  PetscReal  inner_mult; /* (0,1) percent of the total radius taken by the inner square */
+  PetscReal  section_pi; /* (0,1) percent of the total radius taken by the inner square */
+} X2Grid;
 
 #include "x2_ctx.h"
 
@@ -70,6 +71,7 @@ static PetscInt s_debug;
 static PetscInt s_rank;
 static int s_fluxtubeelem=5000;
 static PetscReal s_rminor_inflate = 1.7;
+static PetscReal s_section_pi;
 
 /* X2GridSolverLocatePoints: find processor and element in solver grid that this point is in
     Input:
@@ -156,9 +158,9 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
 {
   PetscErrorCode ierr,isp,k,sz;
   FILE *fp;
-  PetscBool phiFlag,radFlag,thetaFlag,flg,chunkFlag;
+  PetscBool phiFlag,radFlag,thetaFlag,flg,chunkFlag,secFlg,rMajFlg;
   char str[256],str2[256],fname[256];
-
+  PetscReal t;
   PetscFunctionBeginUser;
   /* general */
   ierr = MPI_Comm_rank(ctx->wComm, &ctx->rank);CHKERRQ(ierr);
@@ -176,13 +178,14 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->species[0].charge=ctx->eChargeEu*x2ECharge;
 
   /* mesh */
-  ctx->particleGrid.rMajor = 6.2; /* 6.2 m of ITER */
-  ctx->particleGrid.rMinor = 2.0; /* 2.0 m of ITER */
-  ctx->particleGrid.npphi  = 1;
-  ctx->particleGrid.npradius = 1;
-  ctx->particleGrid.nptheta  = 1;
-  ctx->particleGrid.numMajor = 4; /* number of poloidal planes (before refinement) */
-  ctx->particleGrid.innerMult= M_SQRT2 - 1.;
+  ctx->grid.radius_major = 6.2; /* 6.2 m of ITER */
+  ctx->grid.radius_minor = 2.0; /* 2.0 m of ITER */
+  ctx->grid.section_pi = 2.0;   /* 2 pi, whole torus */
+  ctx->grid.np_phi  = 1;
+  ctx->grid.np_radius = 1;
+  ctx->grid.np_theta  = 1;
+  ctx->grid.numMajor = 4; /* number of poloidal planes (before refinement) */
+  ctx->grid.inner_mult= M_SQRT2 - 1.;
 
   ctx->tablecount = 0;
 
@@ -203,72 +206,72 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsInt("-proc_send_table_size", "Size of hash table proc->send_list", "ex1.c",ctx->proc_send_table_size, &ctx->proc_send_table_size, NULL);CHKERRQ(ierr);
 
   /* Domain and mesh definition */
-  ierr = PetscOptionsReal("-rMajor", "Major radius of torus", "ex1.c", ctx->particleGrid.rMajor, &ctx->particleGrid.rMajor, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsReal("-rMinor", "Minor radius of torus", "ex1.c", ctx->particleGrid.rMinor, &ctx->particleGrid.rMinor, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-numMajor", "Number of cells per major circle", "ex1.c", ctx->particleGrid.numMajor, &ctx->particleGrid.numMajor, NULL);CHKERRQ(ierr);
-  {
-    PetscReal t;
-    char      convType[256];
-    /* hack to get grid expansion factor */
-    ierr = PetscOptionsFList("-x2_dm_type","Convert DMPlex to another format (should not be Plex!)","ex1.c",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
-    if (flg) {
-      PetscInt idx;
-      ierr = PetscOptionsGetInt(NULL,"x2_","-dm_forest_initial_refinement", &idx, &flg);CHKERRQ(ierr);
-      if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-x2_dm_forest_initial_refinement not found?");
-      if (idx<1) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "refine must be greater than 0");
-      t = ctx->particleGrid.numMajor*pow(2,idx);
-    }
-    else {
-      t = ctx->particleGrid.numMajor;
-    }
-    s_rminor_inflate = 1.01*((ctx->particleGrid.rMajor + ctx->particleGrid.rMinor) / cos(M_PI / t) - ctx->particleGrid.rMajor) / ctx->particleGrid.rMinor;
-  }
-  ierr = PetscOptionsReal("-innerMult", "Percent of minor radius taken by inner square", "ex1.c", ctx->particleGrid.innerMult, &ctx->particleGrid.innerMult, NULL);CHKERRQ(ierr);
-
-  ierr = PetscOptionsInt("-npphi_particles", "Number of planes for particle mesh", "ex1.c", ctx->particleGrid.npphi, &ctx->particleGrid.npphi, &phiFlag);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-npradius_particles", "Number of radial cells for particle mesh", "ex1.c", ctx->particleGrid.npradius, &ctx->particleGrid.npradius, &radFlag);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-nptheta_particles", "Number of theta cells for particle mesh", "ex1.c", ctx->particleGrid.nptheta, &ctx->particleGrid.nptheta, &thetaFlag);CHKERRQ(ierr);
-  ctx->npe_particlePlane = -1;
-  if (ctx->particleGrid.npphi*ctx->particleGrid.npradius*ctx->particleGrid.nptheta != ctx->npe) { /* recover from inconsistant grid/procs */
-    if (thetaFlag && radFlag && phiFlag) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"over constrained number of particle processes npe (%D) != %D",ctx->npe,ctx->particleGrid.npphi*ctx->particleGrid.npradius*ctx->particleGrid.nptheta);
-
-    if (!thetaFlag && radFlag && phiFlag) ctx->particleGrid.nptheta = ctx->npe/(ctx->particleGrid.npphi*ctx->particleGrid.npradius);
-    else if (thetaFlag && !radFlag && phiFlag) ctx->particleGrid.npradius = ctx->npe/(ctx->particleGrid.npphi*ctx->particleGrid.nptheta);
-    else if (thetaFlag && radFlag && !phiFlag) ctx->particleGrid.npphi = ctx->npe/(ctx->particleGrid.npradius*ctx->particleGrid.nptheta);
-    else if (!thetaFlag && !radFlag && !phiFlag) {
-      ctx->npe_particlePlane = (int)pow((double)ctx->npe,0.6667);
-      ctx->particleGrid.npphi = ctx->npe/ctx->npe_particlePlane;
-      ctx->particleGrid.npradius = (int)(sqrt((double)ctx->npe_particlePlane)+0.5);
-      ctx->particleGrid.nptheta = ctx->npe_particlePlane/ctx->particleGrid.npradius;
-      if (ctx->particleGrid.npphi*ctx->particleGrid.npradius*ctx->particleGrid.nptheta != ctx->npe) {
-	ctx->particleGrid.npphi = ctx->npe;
+  ierr = PetscOptionsReal("-radius_major", "Major radius of torus", "ex1.c", ctx->grid.radius_major, &ctx->grid.radius_major, &rMajFlg);CHKERRQ(ierr);
+    /* section of the torus, adjust major radius as needed */
+  ierr = PetscOptionsReal("-section_pi", "Number of pi radians of torus section, phi direction (0 < section_pi <= 2) ", "ex1.c", ctx->grid.section_pi, &ctx->grid.section_pi,&secFlg);CHKERRQ(ierr);
+  if (ctx->grid.section_pi <= 0 || ctx->grid.section_pi > 2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"invalide -section_pi %g: (0,2]",ctx->grid.section_pi);
+  t = 1.;
+  ierr = PetscOptionsReal("-section_length", "Length if section (cylinder)", "ex1.c", t, &t,&flg);CHKERRQ(ierr);
+  if (flg || secFlg) {
+    if(secFlg && flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-section_length with -section_pi not allowed, over constrained specification");
+    else if(secFlg) {
+      /* section of torus */
+    } else {
+      /* cylindrical flux tube, with L (section_length) specified */
+      if (!rMajFlg) {
+        ctx->grid.radius_major = t*1e3; /* inf */
+        ctx->grid.section_pi = atan(t/ctx->grid.radius_major);
       }
     }
-    else if (ctx->particleGrid.npphi*ctx->particleGrid.npradius*ctx->particleGrid.nptheta != ctx->npe) { /* recover */
-      if (!ctx->npe%ctx->particleGrid.npphi) {
-	ctx->npe_particlePlane = ctx->npe/ctx->particleGrid.npphi;
-	ctx->particleGrid.npradius = (int)(sqrt((double)ctx->npe_particlePlane)+0.5);
-	ctx->particleGrid.nptheta = ctx->npe_particlePlane/ctx->particleGrid.npradius;
+  }
+  s_section_pi = ctx->grid.section_pi;
+  ierr = PetscOptionsReal("-radius_minor", "Minor radius of torus", "ex1.c", ctx->grid.radius_minor, &ctx->grid.radius_minor, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-numMajor", "Number of cells per major circle", "ex1.c", ctx->grid.numMajor, &ctx->grid.numMajor, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-inner_mult", "Fraction of minor radius taken by inner square", "ex1.c", ctx->grid.inner_mult, &ctx->grid.inner_mult, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-np_phi", "Number of planes for particle mesh", "ex1.c", ctx->grid.np_phi, &ctx->grid.np_phi, &phiFlag);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-np_radius", "Number of radial cells for particle mesh", "ex1.c", ctx->grid.np_radius, &ctx->grid.np_radius, &radFlag);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-np_theta", "Number of theta cells for particle mesh", "ex1.c", ctx->grid.np_theta, &ctx->grid.np_theta, &thetaFlag);CHKERRQ(ierr);
+  ctx->npe_particlePlane = -1;
+  if (ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta != ctx->npe) { /* recover from inconsistant grid/procs */
+    if (thetaFlag && radFlag && phiFlag) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"over constrained number of particle processes npe (%D) != %D",ctx->npe,ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta);
+
+    if (!thetaFlag && radFlag && phiFlag) ctx->grid.np_theta = ctx->npe/(ctx->grid.np_phi*ctx->grid.np_radius);
+    else if (thetaFlag && !radFlag && phiFlag) ctx->grid.np_radius = ctx->npe/(ctx->grid.np_phi*ctx->grid.np_theta);
+    else if (thetaFlag && radFlag && !phiFlag) ctx->grid.np_phi = ctx->npe/(ctx->grid.np_radius*ctx->grid.np_theta);
+    else if (!thetaFlag && !radFlag && !phiFlag) {
+      ctx->npe_particlePlane = (int)pow((double)ctx->npe,0.6667);
+      ctx->grid.np_phi = ctx->npe/ctx->npe_particlePlane;
+      ctx->grid.np_radius = (int)(sqrt((double)ctx->npe_particlePlane)+0.5);
+      ctx->grid.np_theta = ctx->npe_particlePlane/ctx->grid.np_radius;
+      if (ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta != ctx->npe) {
+	ctx->grid.np_phi = ctx->npe;
+      }
+    }
+    else if (ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta != ctx->npe) { /* recover */
+      if (!ctx->npe%ctx->grid.np_phi) {
+	ctx->npe_particlePlane = ctx->npe/ctx->grid.np_phi;
+	ctx->grid.np_radius = (int)(sqrt((double)ctx->npe_particlePlane)+0.5);
+	ctx->grid.np_theta = ctx->npe_particlePlane/ctx->grid.np_radius;
       }
       else {
       }
     }
-    if (ctx->particleGrid.npphi*ctx->particleGrid.npradius*ctx->particleGrid.nptheta != ctx->npe) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"particle grids do not work npe (%D) != %D",ctx->npe,ctx->particleGrid.npphi*ctx->particleGrid.npradius*ctx->particleGrid.nptheta);
+    if (ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta != ctx->npe) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"particle grids do not work npe (%D) != %D",ctx->npe,ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta);
   }
 
   /* particle grids: <= npe, <= num solver planes */
-  if (ctx->npe < ctx->particleGrid.npphi) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"num particle planes npphi (%D) > npe (%D)",ctx->particleGrid.npphi,ctx->npe);
-  if (ctx->npe%ctx->particleGrid.npphi) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"np=%D not divisible by number of particle planes (npphi) %D",ctx->npe,ctx->particleGrid.npphi);
+  if (ctx->npe < ctx->grid.np_phi) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"num particle planes np_phi (%D) > npe (%D)",ctx->grid.np_phi,ctx->npe);
+  if (ctx->npe%ctx->grid.np_phi) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"np=%D not divisible by number of particle planes (np_phi) %D",ctx->npe,ctx->grid.np_phi);
 
-  if (ctx->npe_particlePlane == -1) ctx->npe_particlePlane = ctx->npe/ctx->particleGrid.npphi;
-  if (ctx->npe_particlePlane != ctx->npe/ctx->particleGrid.npphi) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_USER,"Inconsistant number planes (%D), pes (%D), and pe/plane (%D) requested",ctx->particleGrid.npphi,ctx->npe,ctx->npe_particlePlane);
+  if (ctx->npe_particlePlane == -1) ctx->npe_particlePlane = ctx->npe/ctx->grid.np_phi;
+  if (ctx->npe_particlePlane != ctx->npe/ctx->grid.np_phi) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_USER,"Inconsistant number planes (%D), pes (%D), and pe/plane (%D) requested",ctx->grid.np_phi,ctx->npe,ctx->npe_particlePlane);
 
-  if (ctx->particleGrid.nptheta*ctx->particleGrid.npradius != ctx->npe_particlePlane) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"%D particle cells/plane != %D pe/plane",ctx->particleGrid.nptheta*ctx->particleGrid.npradius,ctx->npe_particlePlane);
-  if (ctx->particleGrid.nptheta*ctx->particleGrid.npradius*ctx->particleGrid.npphi != ctx->npe) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"%D particle cells != %D npe",ctx->particleGrid.nptheta*ctx->particleGrid.npradius*ctx->particleGrid.npphi,ctx->npe);
+  if (ctx->grid.np_theta*ctx->grid.np_radius != ctx->npe_particlePlane) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"%D particle cells/plane != %D pe/plane",ctx->grid.np_theta*ctx->grid.np_radius,ctx->npe_particlePlane);
+  if (ctx->grid.np_theta*ctx->grid.np_radius*ctx->grid.np_phi != ctx->npe) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"%D particle cells != %D npe",ctx->grid.np_theta*ctx->grid.np_radius*ctx->grid.np_phi,ctx->npe);
   ctx->ParticlePlaneIdx = ctx->rank/ctx->npe_particlePlane;
   ctx->particlePlaneRank = ctx->rank%ctx->npe_particlePlane;
 
-  /* PetscPrintf(PETSC_COMM_SELF,"[%D] pe/plane=%D, my plane=%D, my local rank=%D, npphi=%D\n",ctx->rank,ctx->npe_particlePlane,ctx->ParticlePlaneIdx,ctx->particlePlaneRank,ctx->particleGrid.npphi);    */
+  /* PetscPrintf(PETSC_COMM_SELF,"[%D] pe/plane=%D, my plane=%D, my local rank=%D, np_phi=%D\n",ctx->rank,ctx->npe_particlePlane,ctx->ParticlePlaneIdx,ctx->particlePlaneRank,ctx->grid.np_phi);    */
 
   /* time integrator */
   ctx->msteps = 1;
@@ -287,13 +290,13 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   if (!chunkFlag) ctx->chunksize = X2_V_LEN*((ctx->num_particles_proc/80+1)/X2_V_LEN + 1); /* an intelegent message chunk size */
   if (ctx->chunksize<64 && !chunkFlag) ctx->chunksize = 64; /* 4K messages minumum */
 
-  if (s_debug>0) PetscPrintf(ctx->wComm,"[%D] npe=%D; %D x %D x %D flux tube grid; mpi_send size (chunksize) has %d particles. %s. %s, %s\n",ctx->rank,ctx->npe,ctx->particleGrid.npphi,ctx->particleGrid.nptheta,ctx->particleGrid.npradius,ctx->chunksize,
+  if (s_debug>0) PetscPrintf(ctx->wComm,"[%D] npe=%D; %D x %D x %D flux tube grid; mpi_send size (chunksize) has %d particles. %s. %s, %s, section = %g PI\n",ctx->rank,ctx->npe,ctx->grid.np_phi,ctx->grid.np_theta,ctx->grid.np_radius,ctx->chunksize,
 #ifdef X2_S_OF_V
 			     "Use struct of arrays"
 #else
 			     "Use of array structs"
 #endif
-                             , ctx->use_electrons ? "use electrons" : "ions only", ctx->use_bsp ? "BSP communication" : "Non-blocking consensus communication");
+                             , ctx->use_electrons ? "use electrons" : "ions only", ctx->use_bsp ? "BSP communication" : "Non-blocking consensus communication",ctx->grid.section_pi);
   if (ctx->npe>1) PetscPrintf(ctx->wComm,"[%D] **** Warning ****, no global point location. multiple processors (%D) not supported\n",ctx->rank,ctx->npe);
 
   ctx->collision_period = 10000;
@@ -307,6 +310,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsString("-run_type", "Type of run (iter or torus)", "ex1.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
   PetscStrcmp("iter",fname,&flg);
   if (flg) { /* ITER */
+    if (ctx->grid.section_pi != 2) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"section of ITER not supported");
     ctx->run_type = X2_ITER;
     ierr = PetscStrcpy(fname,"ITER-51vertex-quad.txt");CHKERRQ(ierr);
     ierr = PetscOptionsString("-iter_vertex_file", "Name of vertex .txt file of ITER vertices", "ex1.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
@@ -320,7 +324,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
       if (!fgets(str,256,fp)) break;
       k = sscanf(str,"%e %e %s\n",&s_wallVtx[isp][0],&s_wallVtx[isp][1],str2);
       if (k<2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Error reading ITER file %d words",k);
-      s_wallVtx[isp][0] -= ctx->particleGrid.rMajor;
+      s_wallVtx[isp][0] -= ctx->grid.radius_major;
     }
     s_numWallPtx = isp;
     if (s_numWallPtx!=sz) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Error reading ITER file, %d lines",s_numWallPtx);
@@ -341,6 +345,20 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     if (s_debug>0) PetscPrintf(PETSC_COMM_WORLD,"ProcessOptions:  numQuads=%d, numWallPtx=%d\n",s_numQuads,s_numWallPtx);
   }
   else {
+    char      convType[256];
+    /* hack to get grid expansion factor for torus */
+    ierr = PetscOptionsFList("-x2_dm_type","Convert DMPlex to another format (should not be Plex!)","ex1.c",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
+    if (flg) {
+      PetscInt idx;
+      ierr = PetscOptionsGetInt(NULL,"x2_","-dm_forest_initial_refinement", &idx, &flg);CHKERRQ(ierr);
+      if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-x2_dm_forest_initial_refinement not found?");
+      if (idx<1) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "refine must be greater than 0");
+      t = ctx->grid.numMajor*pow(2,idx);
+    }
+    else {
+      t = ctx->grid.numMajor;
+    }
+    s_rminor_inflate = 1.01*((ctx->grid.radius_major + ctx->grid.radius_minor) / cos(M_PI / t) - ctx->grid.radius_major) / ctx->grid.radius_minor;
     PetscStrcmp("torus",fname,&flg);
     if (flg) ctx->run_type = X2_TORUS;
     else {
@@ -366,12 +384,12 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
 */
 #undef __FUNCT__
 #define __FUNCT__ "X2GridFluxTubeLocatePoint"
-PetscErrorCode X2GridFluxTubeLocatePoint( const X2GridParticle *grid, PetscReal x[3],
+PetscErrorCode X2GridFluxTubeLocatePoint( const X2Grid *grid, PetscReal x[3],
                                           PetscMPIInt *pe, PetscInt *elem)
 {
-  const PetscReal rminor=grid->rMinor;
-  const PetscReal dphi=2.*M_PI/(PetscReal)grid->npphi;
-  const PetscReal dth=2.*M_PI/(PetscReal)grid->nptheta;
+  const PetscReal rminor=grid->radius_minor;
+  const PetscReal dphi=2.*M_PI/(PetscReal)grid->np_phi;
+  const PetscReal dth=2.*M_PI/(PetscReal)grid->np_theta;
   PetscReal psi = x[0], theta = x[1], phi = x[2];
   PetscMPIInt planeIdx,irs,iths;
   PetscFunctionBeginUser;
@@ -379,10 +397,10 @@ PetscErrorCode X2GridFluxTubeLocatePoint( const X2GridParticle *grid, PetscReal 
 /*   ierr = PetscLogEventBegin(s_events[10],0,0,0,0);CHKERRQ(ierr); */
 /* #endif */
   theta = fmod( theta - qsafty(psi/rminor)*phi + 20.*M_PI, 2.*M_PI);  /* pull back to reference grid */
-  planeIdx = (PetscMPIInt)(phi/dphi)*grid->npradius*grid->nptheta;    /* assuming one particle cell per PE */
-  iths = (PetscMPIInt)(theta/dth);                               assert(iths<grid->nptheta);
-  irs = (PetscMPIInt)((PetscReal)grid->npradius*psi*psi/(rminor*rminor)); assert(irs<grid->npradius);
-  *pe = planeIdx + irs*grid->nptheta + iths;
+  planeIdx = (PetscMPIInt)(phi/dphi)*grid->np_radius*grid->np_theta;    /* assuming one particle cell per PE */
+  iths = (PetscMPIInt)(theta/dth);                               assert(iths<grid->np_theta);
+  irs = (PetscMPIInt)((PetscReal)grid->np_radius*psi*psi/(rminor*rminor)); assert(irs<grid->np_radius);
+  *pe = planeIdx + irs*grid->np_theta + iths;
   *elem = s_fluxtubeelem; /* only one cell per process */
 /* #if defined(PETSC_USE_LOG) */
 /*     ierr = PetscLogEventEnd(s_events[10],0,0,0,0);CHKERRQ(ierr); */
@@ -398,8 +416,8 @@ static void prewrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *ppo
     X2Particle part;
     PetscReal r,z,phi;
     PetscErrorCode ierr;
-    r = 1.414213562373095*(ctx->particleGrid.rMajor + ctx->particleGrid.rMinor);
-    z = ctx->particleGrid.rMinor;
+    r = 1.414213562373095*(ctx->grid.radius_major + ctx->grid.radius_minor);
+    z = ctx->grid.radius_minor;
     phi = M_PI/4.;
     X2ParticleCreate(&part,1,r,z,phi,0.);
     ierr = X2PListAdd(l,&part,ppos1); assert(!ierr);
@@ -435,10 +453,10 @@ static void postwrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *pp
 static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendList **sendListTable_in, const PetscMPIInt tag,
 					const int irk, const int istep, PetscBool solver)
 {
-  X2GridParticle *grid = &ctx->particleGrid;
+  X2Grid *grid = &ctx->grid;
   X2PSendList *sendListTable = *sendListTable_in;
   DM_PICell *dmpi = (DM_PICell *) ctx->dm->data;     assert(solver || irk<0); /* don't push flux tubes */
-  PetscReal   psi,theta,dphi,rmaj=grid->rMajor,rminor=grid->rMinor;
+  PetscReal   psi,theta,dphi,rmaj=grid->radius_major,rminor=grid->radius_minor;
   PetscMPIInt pe,hash,ii;
   X2Particle  part;
   X2PListPos  pos;
@@ -834,10 +852,10 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 {
   PetscErrorCode ierr;
   PetscInt isp,nCellsLoc,my0,irs,iths,gid,ii,np,dim,cStart,cEnd,elid;
-  const PetscReal dth=(2.*M_PI)/(PetscReal)ctx->particleGrid.nptheta;
-  const PetscReal dphi=2.*M_PI/(PetscReal)ctx->particleGrid.npphi,rmin=ctx->particleGrid.rMinor; /* rmin for particles < rmin */
-  const PetscReal phi1 = (PetscReal)ctx->ParticlePlaneIdx*dphi + 1.e-8,rmaj=ctx->particleGrid.rMajor;
-  const PetscInt  nPartProcss_plane = ctx->particleGrid.nptheta*ctx->particleGrid.npradius; /* nPartProcss_plane == ctx->npe_particlePlane */
+  const PetscReal dth=(2.*M_PI)/(PetscReal)ctx->grid.np_theta;
+  const PetscReal dphi=2.*M_PI/(PetscReal)ctx->grid.np_phi,rmin=ctx->grid.radius_minor; /* rmin for particles < rmin */
+  const PetscReal phi1 = (PetscReal)ctx->ParticlePlaneIdx*dphi + 1.e-8,rmaj=ctx->grid.radius_major;
+  const PetscInt  nPartProcss_plane = ctx->grid.np_theta*ctx->grid.np_radius; /* nPartProcss_plane == ctx->npe_particlePlane */
   const PetscReal dx = pow( (M_PI*rmin*rmin/4.0) * rmaj*2.*M_PI / (PetscReal)(ctx->npe*ctx->num_particles_proc), 0.333); /* lenth of a particle, approx. */
   X2Particle particle;
   DM dm;
@@ -864,12 +882,12 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
   /* my first cell index */
   srand(ctx->rank);
   for (isp=ctx->use_electrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) {
-    iths = my0%ctx->particleGrid.nptheta;
-    irs = my0/ctx->particleGrid.nptheta;
+    iths = my0%ctx->grid.np_theta;
+    irs = my0/ctx->grid.np_theta;
     ierr = PetscMalloc1(ctx->nElems,&ctx->partlists[isp]);CHKERRQ(ierr);
     {
-      const PetscReal r1 = sqrt(((PetscReal)irs      /(PetscReal)ctx->particleGrid.npradius)*rmin*rmin) +       1.e-12*rmin;
-      const PetscReal dr = sqrt((((PetscReal)irs+1.0)/(PetscReal)ctx->particleGrid.npradius)*rmin*rmin) - (r1 - 1.e-12*rmin);
+      const PetscReal r1 = sqrt(((PetscReal)irs      /(PetscReal)ctx->grid.np_radius)*rmin*rmin) +       1.e-12*rmin;
+      const PetscReal dr = sqrt((((PetscReal)irs+1.0)/(PetscReal)ctx->grid.np_radius)*rmin*rmin) - (r1 - 1.e-12*rmin);
       const PetscReal th1 = (PetscReal)iths*dth + 1.e-12*dth;
       const PetscReal maxe=ctx->max_vpar*ctx->max_vpar,mass=ctx->species[isp].mass,charge=ctx->species[isp].charge;
       /* create list for element 0 and add all to it */
@@ -878,7 +896,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
       for (np=0 ; np<ctx->num_particles_proc; /* void */ ) {
 	PetscReal theta0,r,z;
 	const PetscReal psi = r1 + (PetscReal)(rand()%X2NDIG+1)/(PetscReal)(X2NDIG+1)*dr;
-	const PetscReal qsaf = qsafty(psi/ctx->particleGrid.rMinor);
+	const PetscReal qsaf = qsafty(psi/ctx->grid.radius_minor);
 	const PetscInt NN = (PetscInt)(dth*psi/dx) + 1;
 	const PetscReal dth2 = dth/(PetscReal)NN - 1.e-12*dth;
 	for ( ii = 0, theta0 = th1 + (PetscReal)(rand()%X2NDIG)/(PetscReal)X2NDIG*dth2;
@@ -903,7 +921,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
           {
             PetscMPIInt pe; PetscInt id;
             PetscReal xx[] = {psi,thetap,phi};
-            ierr = X2GridFluxTubeLocatePoint(&ctx->particleGrid,xx,&pe,&id);CHKERRQ(ierr);
+            ierr = X2GridFluxTubeLocatePoint(&ctx->grid,xx,&pe,&id);CHKERRQ(ierr);
             if(pe != ctx->rank){
               PetscPrintf(PETSC_COMM_SELF,"[%D] ERROR particle in proc %d r=%e:%e:%e theta=%e:%e:%e phi=%e:%e:%e\n",ctx->rank,pe,r1,psi,r1+dr,th1,thetap,th1+dth,phi1,phi,phi1+dphi);
               SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," created particle for proc %D",pe);
@@ -913,7 +931,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 	} /* theta */
       }
       iths++;
-      if (iths==ctx->particleGrid.nptheta) { iths = 0; irs++; }
+      if (iths==ctx->grid.np_theta) { iths = 0; irs++; }
     } /* cells */
     /* finish off list creates for rest of elements */
     for (elid=0;elid<ctx->nElems;elid++) {
@@ -928,12 +946,12 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexCreatePICellITER"
-static PetscErrorCode DMPlexCreatePICellITER(MPI_Comm comm, X2GridParticle *params, DM *dm)
+static PetscErrorCode DMPlexCreatePICellITER(MPI_Comm comm, X2Grid *params, DM *dm)
 {
   PetscMPIInt    rank;
   PetscInt       numCells = 0;
   PetscInt       numVerts = 0;
-  PetscReal      rMajor   = params->rMajor;
+  PetscReal      radius_major   = params->radius_major;
   PetscInt       numMajor = params->numMajor;
   int           *flatCells = NULL;
   double        *flatCoords = NULL;
@@ -962,7 +980,7 @@ static PetscErrorCode DMPlexCreatePICellITER(MPI_Comm comm, X2GridParticle *para
         for (j = 0; j < numQuadVtx; j++) {
           double r, z;
 
-          r = rMajor + s_wallVtx[j][0];
+          r = radius_major + s_wallVtx[j][0];
           z =          s_wallVtx[j][1];
 
           coords[i][j][0] = cosphi * r;
@@ -1006,8 +1024,8 @@ static PetscErrorCode DMPlexCreatePICellITER(MPI_Comm comm, X2GridParticle *para
 static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, const PetscReal abc[], PetscReal xyz[], void *a_ctx)
 {
   X2Ctx *ctx = (X2Ctx*)a_ctx;
-  X2GridParticle *params = &ctx->particleGrid;
-  PetscReal rMajor    = params->rMajor;
+  X2Grid *params = &ctx->grid;
+  PetscReal radius_major    = params->radius_major;
   PetscInt  numMajor  = params->numMajor;
   PetscInt  i,idxPhi;
   PetscReal a, b, z;
@@ -1047,7 +1065,7 @@ static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, 
    * dist = idet * (-a * sinLeftPhi + b * cosLeftPhi);
    * idet = 1./(cosLeftPhi * ny - sinLeftPhi * nx) = sec(Pi/numMajor);
    */
-  r -= rMajor; /* now centered inside torus */
+  r -= radius_major; /* now centered inside torus */
   {
     PetscInt crossQuad = point % s_numQuads;
     int       vertices[9];
@@ -1070,7 +1088,7 @@ static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, 
       else {
         vertCoords[i][0] = (vertCoords[i - 4][0] + vertCoords[(i - 4 + 1) % 4][0])/2.;
         vertCoords[i][1] = (vertCoords[i - 4][1] + vertCoords[(i - 4 + 1) % 4][1])/2.;
-        PetscPrintf(PETSC_COMM_SELF,"edge vertCoords=%g %g\n",vertCoords[i][0]+rMajor,vertCoords[i][1]);
+        PetscPrintf(PETSC_COMM_SELF,"edge vertCoords=%g %g\n",vertCoords[i][0]+radius_major,vertCoords[i][1]);
       }
     }
     for (; i < 9; i++) { /* read in middle vertex: if not present, average edge vertices*/
@@ -1081,7 +1099,7 @@ static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, 
       else {
         vertCoords[i][0] = (vertCoords[i - 4][0] + vertCoords[i - 3][0] + vertCoords[i - 2][0] + vertCoords[i - 1][0])/4.;
         vertCoords[i][1] = (vertCoords[i - 4][1] + vertCoords[i - 3][1] + vertCoords[i - 2][1] + vertCoords[i - 1][1])/4.;
-        PetscPrintf(PETSC_COMM_SELF,"corner vertCoords=%g %g\n",vertCoords[i][0]+rMajor,vertCoords[i][1]);
+        PetscPrintf(PETSC_COMM_SELF,"corner vertCoords=%g %g\n",vertCoords[i][0]+radius_major,vertCoords[i][1]);
       }
     }
 
@@ -1139,7 +1157,7 @@ static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, 
       z += shape[i] * s_wallVtx[vertices[i]][1];
     }
   }
-  r += rMajor; /* centered back at the origin */
+  r += radius_major; /* centered back at the origin */
 
   cosOutPhi = cos(outPhi);
   sinOutPhi = sin(outPhi);
@@ -1154,12 +1172,12 @@ static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, 
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexCreatePICellBoxTorus"
-static PetscErrorCode DMPlexCreatePICellBoxTorus(MPI_Comm comm, X2GridParticle *params, DM *dm)
+static PetscErrorCode DMPlexCreatePICellBoxTorus(MPI_Comm comm, X2Grid *params, DM *dm)
 {
   PetscMPIInt    rank;
   PetscInt       numCells = 0;
   PetscInt       numVerts = 0;
-  PetscReal      rMajor   = params->rMajor;
+  PetscReal      radius_major   = params->radius_major;
   PetscInt       numMajor = params->numMajor;
   int           *flatCells = NULL;
   double         *flatCoords = NULL;
@@ -1185,8 +1203,8 @@ static PetscErrorCode DMPlexCreatePICellBoxTorus(MPI_Comm comm, X2GridParticle *
         for (j = 0; j < 4; j++) {
           double r, z;
 
-          r = rMajor + params->rMinor*s_rminor_inflate * ( (j==1 || j==2)        ? -1. :  1.);
-          z =  params->rMinor * ( (j < 2) ?  1. : -1. );
+          r = radius_major + params->radius_minor*s_rminor_inflate * ( (j==1 || j==2)        ? -1. :  1.);
+          z =  params->radius_minor * ( (j < 2) ?  1. : -1. );
 
           coords[i][j][0] = cosphi * r;
           coords[i][j][1] = sinphi * r;
@@ -1223,15 +1241,15 @@ static PetscErrorCode DMPlexCreatePICellBoxTorus(MPI_Comm comm, X2GridParticle *
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexCreatePICellTorus"
-static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X2GridParticle *params, DM *dm)
+static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X2Grid *params, DM *dm)
 {
   PetscMPIInt    rank;
+  const PetscInt numMajor = params->numMajor, nelems = (s_section_pi == 2) ? numMajor : numMajor /* -1 */;
   PetscInt       numCells = 0;
   PetscInt       numVerts = 0;
-  PetscReal      rMajor   = params->rMajor;
-  PetscReal      rMinor   = params->rMinor*s_rminor_inflate;
-  PetscReal      innerMult = params->innerMult;
-  PetscInt       numMajor = params->numMajor;
+  PetscReal      radius_major   = params->radius_major;
+  PetscReal      radius_minor   = params->radius_minor*s_rminor_inflate;
+  PetscReal      inner_mult = params->inner_mult;
   int           *flatCells = NULL;
   double         *flatCoords = NULL;
   PetscErrorCode ierr;
@@ -1239,7 +1257,7 @@ static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X2GridParticle *par
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
   if (!rank) {
-    numCells = numMajor * 5;
+    numCells = nelems * 5;
     numVerts = numMajor * 8;
     ierr = PetscMalloc2(numCells * 8,&flatCells,numVerts * 3,&flatCoords);CHKERRQ(ierr);
     {
@@ -1250,15 +1268,15 @@ static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X2GridParticle *par
         PetscInt j;
         double cosphi, sinphi;
 
-        cosphi = cos(2 * M_PI * i / numMajor);
-        sinphi = sin(2 * M_PI * i / numMajor);
+        cosphi = cos(2/* s_section_pi */ * M_PI * i / numMajor);
+        sinphi = sin(2/* s_section_pi */ * M_PI * i / numMajor);
 
         for (j = 0; j < 8; j++) {
           double r, z;
-          double mult = (j < 4) ? innerMult : 1.;
+          double mult = (j < 4) ? inner_mult : 1.;
 
-          r = rMajor + mult * rMinor * cos(j * M_PI_2);
-          z = mult * rMinor * sin(j * M_PI_2)         ;
+          r = radius_major + mult * radius_minor * cos(j * M_PI_2);
+          z = mult * radius_minor * sin(j * M_PI_2)         ;
 
           coords[i][j][0] = cosphi * r;
           coords[i][j][1] = sinphi * r;
@@ -1270,7 +1288,7 @@ static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X2GridParticle *par
       int (*cells)[5][8] = (int (*) [5][8]) flatCells;
       PetscInt i;
 
-      for (i = 0; i < numMajor; i++) {
+      for (i = 0; i < nelems; i++) {
         PetscInt j;
 
         for (j = 0; j < 5; j++) {
@@ -1306,34 +1324,34 @@ static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X2GridParticle *par
   PetscFunctionReturn(0);
 }
 
-static void PICellCircleInflate(PetscReal r, PetscReal innerMult, PetscReal x, PetscReal y,
+static void PICellCircleInflate(PetscReal r, PetscReal inner_mult, PetscReal x, PetscReal y,
                                 PetscReal *outX, PetscReal *outY)
 {
   PetscReal l       = x + y;
   PetscReal rfrac   = l / r;
 
-  if (rfrac >= innerMult) {
+  if (rfrac >= inner_mult) {
     PetscReal phifrac = l ? (y / l) : 0.5;
     PetscReal phi     = phifrac * M_PI_2;
     PetscReal cosphi  = cos(phi);
     PetscReal sinphi  = sin(phi);
-    PetscReal isect   = innerMult / (cosphi + sinphi);
-    PetscReal outfrac = (1. - rfrac) / (1. - innerMult);
+    PetscReal isect   = inner_mult / (cosphi + sinphi);
+    PetscReal outfrac = (1. - rfrac) / (1. - inner_mult);
 
-    rfrac = pow(innerMult,outfrac);
+    rfrac = pow(inner_mult,outfrac);
 
-    outfrac = (1. - rfrac) / (1. - innerMult);
+    outfrac = (1. - rfrac) / (1. - inner_mult);
 
     *outX = r * (outfrac * isect + (1. - outfrac)) * cosphi;
     *outY = r * (outfrac * isect + (1. - outfrac)) * sinphi;
   }
   else {
-    PetscReal halfdiffl  = (r * innerMult - l) / 2.;
-    PetscReal phifrac    = (y + halfdiffl) / (r * innerMult);
+    PetscReal halfdiffl  = (r * inner_mult - l) / 2.;
+    PetscReal phifrac    = (y + halfdiffl) / (r * inner_mult);
     PetscReal phi        = phifrac * M_PI_2;
     PetscReal m          = y - x;
-    PetscReal halfdiffm  = (r * innerMult - m) / 2.;
-    PetscReal thetafrac  = (y + halfdiffm) / (r * innerMult);
+    PetscReal halfdiffm  = (r * inner_mult - m) / 2.;
+    PetscReal thetafrac  = (y + halfdiffm) / (r * inner_mult);
     PetscReal theta      = thetafrac * M_PI_2;
     PetscReal cosphi     = cos(phi);
     PetscReal sinphi     = sin(phi);
@@ -1342,8 +1360,8 @@ static void PICellCircleInflate(PetscReal r, PetscReal innerMult, PetscReal x, P
     PetscReal sintheta   = sin(theta);
     PetscReal xpycoord   = sintheta / (costheta + sintheta);
 
-    *outX = r * innerMult * (xpycoord - ymxcoord);
-    *outY = r * innerMult * (ymxcoord + xpycoord - 1.);
+    *outX = r * inner_mult * (xpycoord - ymxcoord);
+    *outY = r * inner_mult * (ymxcoord + xpycoord - 1.);
   }
 }
 
@@ -1351,11 +1369,11 @@ static void PICellCircleInflate(PetscReal r, PetscReal innerMult, PetscReal x, P
 #define __FUNCT__ "GeometryPICellTorus"
 static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim, const PetscReal abc[], PetscReal xyz[], void *a_ctx)
 {
-  X2Ctx *ctx = (X2Ctx*)a_ctx;
-  X2GridParticle *grid = &ctx->particleGrid;
-  PetscReal rMajor    = grid->rMajor;
-  PetscReal rMinor    = grid->rMinor*s_rminor_inflate;
-  PetscReal innerMult = grid->innerMult;
+  X2Ctx     *ctx = (X2Ctx*)a_ctx;
+  X2Grid    *grid = &ctx->grid;
+  PetscReal radius_major    = grid->radius_major;
+  PetscReal radius_minor    = grid->radius_minor*s_rminor_inflate;
+  PetscReal inner_mult = grid->inner_mult;
   PetscInt  numMajor  = grid->numMajor;
   PetscInt  i;
   PetscReal a, b, z;
@@ -1397,17 +1415,17 @@ static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim,
    * dist = idet * (-a * sinLeftPhi + b * cosLeftPhi);
    * idet = 1./(cosLeftPhi * ny - sinLeftPhi * nx) = sec(Pi/numMajor);
    */
-  r -= rMajor; /* now centered inside torus */
+  r -= radius_major; /* now centered inside torus */
   if (ctx->inflate_torus) {
     PetscReal absR, absZ;
 
     absR = PetscAbsReal(r);
     absZ = PetscAbsReal(z);
-    PICellCircleInflate(rMinor,innerMult,absR,absZ,&absR,&absZ);
+    PICellCircleInflate(radius_minor,inner_mult,absR,absZ,&absR,&absZ);
     r = (r > 0) ? absR : -absR;
     z = (z > 0) ? absZ : -absZ;
   }
-  r += rMajor; /* centered back at the origin */
+  r += radius_major; /* centered back at the origin */
 
   cosOutPhi = cos(outPhi);
   sinOutPhi = sin(outPhi);
@@ -1472,14 +1490,14 @@ int main(int argc, char **argv)
   dmpi->debug = s_debug;
   /* setup solver grid */
   if (ctx.run_type == X2_ITER) {
-    ierr = DMPlexCreatePICellITER(ctx.wComm,&ctx.particleGrid,&dmpi->dmplex);CHKERRQ(ierr);
+    ierr = DMPlexCreatePICellITER(ctx.wComm,&ctx.grid,&dmpi->dmplex);CHKERRQ(ierr);
   }
   else if (ctx.run_type == X2_TORUS) {
-    ierr = DMPlexCreatePICellTorus(ctx.wComm,&ctx.particleGrid,&dmpi->dmplex);CHKERRQ(ierr);
+    ierr = DMPlexCreatePICellTorus(ctx.wComm,&ctx.grid,&dmpi->dmplex);CHKERRQ(ierr);
     ctx.inflate_torus = PETSC_TRUE;
   }
   else {
-    ierr = DMPlexCreatePICellBoxTorus(ctx.wComm,&ctx.particleGrid,&dmpi->dmplex);CHKERRQ(ierr);
+    ierr = DMPlexCreatePICellBoxTorus(ctx.wComm,&ctx.grid,&dmpi->dmplex);CHKERRQ(ierr);
     ctx.inflate_torus = PETSC_FALSE;
     assert(ctx.run_type == X2_BOXTORUS);
   }

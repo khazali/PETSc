@@ -13,13 +13,13 @@ typedef struct {
   MPI_Comm      particlePlaneComm,wComm;
   PetscMPIInt   rank,npe,npe_particlePlane,particlePlaneRank,ParticlePlaneIdx;
   /* grids & solver */
-  DM             dm;
-  X2GridParticle particleGrid;
-  PetscBool      inflate_torus;
+  DM            dm;
+  X2Grid        grid;
+  PetscBool     inflate_torus;
   /* time */
-  PetscInt  msteps;
-  PetscReal maxTime;
-  PetscReal dt;
+  PetscInt      msteps;
+  PetscReal     maxTime;
+  PetscReal     dt;
   /* physics */
   PetscErrorCode (**BCFuncs)(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
   PetscReal massAu; /* =2D0  !mass ratio to proton */
