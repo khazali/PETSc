@@ -30,7 +30,7 @@ ex2: ex2.o chkopts
 	${RM} -f ex2.o
 
 runex1:
-	-${MPIEXEC} -n 1 ./ex1.${PETSC_ARCH} -x2_dm_type p8est  -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 1 -numMajor 3 -num_particles_proc 1000 -mstep 20 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -run_type torus -max_vpar 30. -use_bsp 1  -petscpartitioner_type simple -collision_period 1000 -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -section_length 10 -radius_major 1000
+	-${MPIEXEC} -n 1 ./ex1.${PETSC_ARCH} -x2_dm_type p8est -petscspace_poly_tensor -petscspace_order 1 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -run_type torus -max_vpar 30. -use_bsp 1  -petscpartitioner_type simple -collision_period 1000 -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -x2_dm_forest_initial_refinement 3 -num_phi_cells 1 -num_particles_proc 1000 -section_length 10 -radius_major 1000 # -section_phi 1
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5
 
 runex2:
@@ -39,7 +39,7 @@ runex2:
 # -solver_np 2,2,1 -ft_np 2,2,1 -dom_lo -2,-2,-2 -dom_hi 2,2,2 -b0 .2,.2,1.5
 
 runex1_plex:
-	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 1 -numMajor 8 -num_particles_proc 100 -mstep 2 -debug 3 -snes_monitor -ksp_monitor -snes_converged_reason -run_type iter -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -use_bsp 1
+	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 1 -num_phi_cells 8 -num_particles_proc 100 -mstep 2 -debug 3 -snes_monitor -ksp_monitor -snes_converged_reason -run_type iter -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -use_bsp 1
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5  -petscpartitioner_type simple
 
 # -iter_vertex_file ITER-51vertex-quad-tri.txt -x2_dm_view -x2_dm_type p8est
@@ -47,9 +47,9 @@ runex1_plex:
 # -nphi_particles 2 -x2_dm_view vtk:tokamac.vtu -ft_np 1,1,1 -chunksize 165536
 
 val:
-	-${MPIEXEC} -n 1 valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex1.${PETSC_ARCH} -x2_dm_type p8est  -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 1 -numMajor 3 -num_particles_proc 10 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -run_type torus -max_vpar 30. -petscpartitioner_type simple -collision_period 1000 -section_length 10 -radius_major 1000
+	-${MPIEXEC} -n 1 valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex1.${PETSC_ARCH} -x2_dm_type p8est  -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 1 -num_phi_cells 3 -num_particles_proc 10 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -run_type torus -max_vpar 30. -petscpartitioner_type simple -collision_period 1000 -section_length 10 -radius_major 1000
 
 debug:
-	-@gdb --args ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 0 -x2_dm_refine 2 -numMajor 8 -num_particles_proc 20 -mstep 2 -debug 2 -snes_monitor -snes_converged_reason -start_in_debugger -run_type boxtorus -petscpartitioner_type simple
+	-@gdb --args ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_forest_initial_refinement 0 -x2_dm_refine 2 -num_phi_cells 8 -num_particles_proc 20 -mstep 2 -debug 2 -snes_monitor -snes_converged_reason -start_in_debugger -run_type boxtorus -petscpartitioner_type simple
 
 include ${PETSC_DIR}/lib/petsc/conf/test
