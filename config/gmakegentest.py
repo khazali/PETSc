@@ -167,12 +167,16 @@ class generateExamples(Petsc,PETScExamples):
       subst['EXEC']=testDict['execname']
       subst['ARGS']=(testDict['args'] if testDict.has_key('args') else " ")
       subst['TESTNAME']=testname
+      subst['SRCDIR']=os.path.join(self.petsc_dir,'src')
       subst['DIFF']=self.conf['DIFF']
       subst['RM']=self.conf['RM']
       testStr=self.templateStr
       for subkey in subst:
-        patt="r\${"+subkey+"}"
+        patt="\${"+subkey+"}"
+        print  patt, subst[subkey]
         testStr=re.sub(patt,subst[subkey],testStr)
+      print root, testname, testStr
+      sys.exit()
       fh.write(testStr+"\n")
     else:
       fh.write(testDict['script']+"\n")
