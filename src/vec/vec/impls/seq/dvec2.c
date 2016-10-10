@@ -260,10 +260,14 @@ PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
       break;
     }
     while (j>0) {
-      sum0 += x[0]*PetscConj(yy0[0]) + x[1]*PetscConj(yy0[1])
-            + x[2]*PetscConj(yy0[2]) + x[3]*PetscConj(yy0[3]);
-      yy0  +=4;
-      j    -= 4; x+=4;
+      x0 = x[0];
+      x1 = x[1];
+      x2 = x[2];
+      x3 = x[3];
+      x += 4;
+
+      sum0 += x0*PetscConj(yy0[0]) + x1*PetscConj(yy0[1]) + x2*PetscConj(yy0[2]) + x3*PetscConj(yy0[3]); yy0+=4;
+      j    -= 4;
     }
     z[0] = sum0;
 
@@ -277,6 +281,32 @@ PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
   yy += nv_rem;
 
   while (i >0) {
+    ierr = VecGetArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[2],&yy2);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[3],&yy3);CHKERRQ(ierr);
+    sum0 = 0;
+    sum1 = 0;
+    sum2 = 0;
+    sum3 = 0;
+    for (j=0;j<n;j++) {
+      sum0 += xbase[j]*PetscConj(yy0[j]);
+      sum1 += xbase[j]*PetscConj(yy1[j]);
+      sum2 += xbase[j]*PetscConj(yy2[j]);
+      sum3 += xbase[j]*PetscConj(yy3[j]);
+    }
+    z[0] = sum0;
+    z[1] = sum1;
+    z[2] = sum2;
+    z[3] = sum3;
+    z   += 4;
+    ierr = VecRestoreArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[2],&yy2);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[3],&yy3);CHKERRQ(ierr);
+    yy  += 4;
+    i   -= 4;
+/*
     sum0 = 0.;
     sum1 = 0.;
     sum2 = 0.;
@@ -334,6 +364,7 @@ PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
     ierr = VecRestoreArrayRead(yy[2],&yy2);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(yy[3],&yy3);CHKERRQ(ierr);
     yy  += 4;
+*/
   }
   ierr = VecRestoreArrayRead(xin,&xbase);CHKERRQ(ierr);
   ierr = PetscLogFlops(PetscMax(nv*(2.0*xin->map->n-1),0.0));CHKERRQ(ierr);
