@@ -5593,7 +5593,7 @@ static PetscErrorCode CellRefinerSetCoordinates(CellRefiner refiner, DM dm, Pets
       ierr = PetscSectionGetOffset(coordSection, cone[0], &offA);CHKERRQ(ierr);
       ierr = PetscSectionGetOffset(coordSection, cone[1], &offB);CHKERRQ(ierr);
       ierr = PetscSectionGetOffset(coordSectionNew, newv, &offnew);CHKERRQ(ierr);
-      ierr = DMLocalizeCoordinate_Internal(dm, spaceDim, &coords[offA], &coords[offB], &coordsNew[offnew]);CHKERRQ(ierr);
+      ierr = DMLocalizeCoordinate_Internal(dm, spaceDim, &coords[offA], &coords[offB], &coordsNew[offnew],NULL);CHKERRQ(ierr); /* need to add context and use opt */
       for (d = 0; d < spaceDim; ++d) {
         coordsNew[offnew+d] = 0.5*(coords[offA+d] + coordsNew[offnew+d]);
       }
@@ -5621,8 +5621,9 @@ static PetscErrorCode CellRefinerSetCoordinates(CellRefiner refiner, DM dm, Pets
   if (dm->maxCell) {
     const PetscReal *maxCell, *L;
     const DMBoundaryType *bd;
-    ierr = DMGetPeriodicity(dm,  &maxCell, &L, &bd);CHKERRQ(ierr);
-    ierr = DMSetPeriodicity(rdm,  maxCell,  L,  bd);CHKERRQ(ierr);
+    PetscErrorCode (*lc)(DM, PetscInt, PetscReal [], const PetscReal [], PetscReal [], void *);
+    ierr = DMGetPeriodicity(dm,  &maxCell, &L, &bd, &lc);CHKERRQ(ierr);
+    ierr = DMSetPeriodicity(rdm,  maxCell,  L,  bd, lc);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }

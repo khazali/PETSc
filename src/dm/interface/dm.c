@@ -147,8 +147,10 @@ PetscErrorCode DMClone(DM dm, DM *newdm)
   if (dm->maxCell) {
     const PetscReal *maxCell, *L;
     const DMBoundaryType *bd;
-    ierr = DMGetPeriodicity(dm,     &maxCell, &L, &bd);CHKERRQ(ierr);
-    ierr = DMSetPeriodicity(*newdm,  maxCell,  L,  bd);CHKERRQ(ierr);
+    PetscErrorCode (*lc)(DM, PetscInt, PetscReal [], const PetscReal [], PetscReal [], void *);
+
+    ierr = DMGetPeriodicity(dm,     &maxCell, &L, &bd, &lc);CHKERRQ(ierr);
+    ierr = DMSetPeriodicity(*newdm,  maxCell,  L,  bd, lc);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -3149,8 +3151,10 @@ foundconv:
     if (dm->maxCell) {
       const PetscReal *maxCell, *L;
       const DMBoundaryType *bd;
-      ierr = DMGetPeriodicity(dm, &maxCell, &L, &bd);CHKERRQ(ierr);
-      ierr = DMSetPeriodicity(*M,  maxCell,  L,  bd);CHKERRQ(ierr);
+      PetscErrorCode (*lc)(DM, PetscInt, PetscReal [], const PetscReal [], PetscReal [], void *);
+
+      ierr = DMGetPeriodicity(dm, &maxCell, &L, &bd, &lc);CHKERRQ(ierr);
+      ierr = DMSetPeriodicity(*M,  maxCell,  L,  bd, lc);CHKERRQ(ierr);
     }
     ierr = PetscLogEventEnd(DM_Convert,dm,0,0,0);CHKERRQ(ierr);
   }
@@ -4488,18 +4492,20 @@ PetscErrorCode DMSetCoordinateSection(DM dm, PetscInt dim, PetscSection section)
 . maxCell - Over distances greater than this, we can assume a point has crossed over to another sheet, when trying to localize cell coordinates
 . L       - If we assume the mesh is a torus, this is the length of each coordinate
 - bd      - This describes the type of periodicity in each topological dimension
+- lc      - function to move off domain coordinate to domain
 
   Level: developer
 
 .seealso: DMGetPeriodicity()
 @*/
-PetscErrorCode DMGetPeriodicity(DM dm, const PetscReal **maxCell, const PetscReal **L, const DMBoundaryType **bd)
+PetscErrorCode DMGetPeriodicity(DM dm, const PetscReal **maxCell, const PetscReal **L, const DMBoundaryType **bd, PetscErrorCode (**lc)(DM, PetscInt, PetscReal [], const PetscReal [], PetscReal [], void *))
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   if (L)       *L       = dm->L;
   if (maxCell) *maxCell = dm->maxCell;
   if (bd)      *bd      = dm->bdtype;
+  if (lc)      *lc      = dm->ops->localizecoordinate;
   PetscFunctionReturn(0);
 }
 
@@ -4513,12 +4519,13 @@ PetscErrorCode DMGetPeriodicity(DM dm, const PetscReal **maxCell, const PetscRea
 . maxCell - Over distances greater than this, we can assume a point has crossed over to another sheet, when trying to localize cell coordinates
 . L       - If we assume the mesh is a torus, this is the length of each coordinate
 - bd      - This describes the type of periodicity in each topological dimension
+- lc      - function to move off domain coordinate to domain
 
   Level: developer
 
 .seealso: DMGetPeriodicity()
 @*/
-PetscErrorCode DMSetPeriodicity(DM dm, const PetscReal maxCell[], const PetscReal L[], const DMBoundaryType bd[])
+PetscErrorCode DMSetPeriodicity(DM dm, const PetscReal maxCell[], const PetscReal L[], const DMBoundaryType bd[], PetscErrorCode (*lc)(DM, PetscInt, PetscReal [], const PetscReal [], PetscReal [], void *))
 {
   PetscInt       dim, d;
   PetscErrorCode ierr;
@@ -4530,6 +4537,7 @@ PetscErrorCode DMSetPeriodicity(DM dm, const PetscReal maxCell[], const PetscRea
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = PetscMalloc3(dim,&dm->L,dim,&dm->maxCell,dim,&dm->bdtype);CHKERRQ(ierr);
   for (d = 0; d < dim; ++d) {dm->L[d] = L[d]; dm->maxCell[d] = maxCell[d]; dm->bdtype[d] = bd[d];}
+  if (lc) dm->ops->localizecoordinate = lc;
   PetscFunctionReturn(0);
 }
 
@@ -4575,6 +4583,7 @@ PetscErrorCode DMLocalizeCoordinate(DM dm, const PetscScalar in[], PetscScalar o
 + dm     - The DM
 . dim    - The spatial dimension
 . anchor - The anchor point, the input point can be no more than maxCell away from it
+. ctx    - Optional context to pass
 - in     - The input coordinate point (dim numbers)
 
   Output Parameter:
@@ -4586,7 +4595,7 @@ PetscErrorCode DMLocalizeCoordinate(DM dm, const PetscScalar in[], PetscScalar o
 
 .seealso: DMLocalizeCoordinates(), DMLocalizeAddCoordinate()
 */
-PetscErrorCode DMLocalizeCoordinate_Internal(DM dm, PetscInt dim, const PetscScalar anchor[], const PetscScalar in[], PetscScalar out[])
+PetscErrorCode DMLocalizeCoordinate_Internal(DM dm, PetscInt dim, const PetscScalar anchor[], const PetscScalar in[], PetscScalar out[], void *ctx)
 {
   PetscInt d;
 
@@ -4606,7 +4615,7 @@ PetscErrorCode DMLocalizeCoordinate_Internal(DM dm, PetscInt dim, const PetscSca
 }
 #undef __FUNCT__
 #define __FUNCT__ "DMLocalizeCoordinateReal_Internal"
-PetscErrorCode DMLocalizeCoordinateReal_Internal(DM dm, PetscInt dim, const PetscReal anchor[], const PetscReal in[], PetscReal out[])
+PetscErrorCode DMLocalizeCoordinateReal_Internal(DM dm, PetscInt dim, const PetscReal anchor[], const PetscReal in[], PetscReal out[], void *ctx)
 {
   PetscInt d;
 
@@ -4744,6 +4753,7 @@ PetscErrorCode DMGetCoordinatesLocalized(DM dm,PetscBool *areLocalized)
 PetscErrorCode DMLocalizeCoordinates(DM dm)
 {
   DM             cdm;
+  void          *ctx=NULL;
   PetscSection   coordSection, cSection;
   Vec            coordinates,  cVec;
   PetscScalar   *coords, *coords2, *anchor, *localized;
@@ -4756,6 +4766,8 @@ PetscErrorCode DMLocalizeCoordinates(DM dm)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   if (!dm->maxCell) PetscFunctionReturn(0);
+  ierr = DMGetApplicationContext(dm, &ctx);CHKERRQ(ierr);
+  if (!dm->ops->localizecoordinate) SETERRQ(PetscObjectComm((PetscObject)dm), PETSC_ERR_SUP, "dm->ops->localizecoordinate not set");
   /* We need some generic way of refering to cells/vertices */
   ierr = DMGetCoordinateDM(dm, &cdm);CHKERRQ(ierr);
   {
@@ -4801,7 +4813,7 @@ PetscErrorCode DMLocalizeCoordinates(DM dm)
       ierr = DMPlexVecGetClosure(cdm, coordSection, coordinates, c, &dof, &cellCoords);CHKERRQ(ierr);
       for (b = 0; b < bs; ++b) anchor[b] = cellCoords[b];
       for (d = 0; d < dof/bs; ++d) {
-        ierr = DMLocalizeCoordinate_Internal(dm, bs, anchor, &cellCoords[d*bs], localized);CHKERRQ(ierr);
+        ierr = (*dm->ops->localizecoordinate)(dm, bs, anchor, &cellCoords[d*bs], localized, ctx);CHKERRQ(ierr);
         for (b = 0; b < bs; b++) {
           if (cellCoords[d*bs + b] != localized[b]) break;
         }
@@ -4859,7 +4871,7 @@ PetscErrorCode DMLocalizeCoordinates(DM dm)
       ierr = DMPlexVecGetClosure(cdm, coordSection, coordinates, c, &dof, &cellCoords);CHKERRQ(ierr);
       ierr = PetscSectionGetOffset(cSection, c, &off2);CHKERRQ(ierr);
       for (b = 0; b < bs; ++b) anchor[b] = cellCoords[b];
-      for (d = 0; d < dof/bs; ++d) {ierr = DMLocalizeCoordinate_Internal(dm, bs, anchor, &cellCoords[d*bs], &coords2[off2+d*bs]);CHKERRQ(ierr);}
+      for (d = 0; d < dof/bs; ++d) {ierr = (*dm->ops->localizecoordinate)(dm, bs, anchor, &cellCoords[d*bs], &coords2[off2+d*bs], ctx);CHKERRQ(ierr);}
       ierr = DMPlexVecRestoreClosure(cdm, coordSection, coordinates, c, &dof, &cellCoords);CHKERRQ(ierr);
     }
   }

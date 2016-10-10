@@ -1408,7 +1408,7 @@ static PetscErrorCode DMPlexComputeGeometryFVM_1D_Internal(DM dm, PetscInt dim, 
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
   ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, cell, &coordSize, &coords);CHKERRQ(ierr);
   if (dim != 2) SETERRQ(PetscObjectComm((PetscObject)dm), PETSC_ERR_SUP, "We only support 2D edges right now");
-  ierr = DMLocalizeCoordinate_Internal(dm, dim, coords, &coords[dim], tmp);CHKERRQ(ierr);
+  ierr = DMLocalizeCoordinate_Internal(dm, dim, coords, &coords[dim], tmp, NULL);CHKERRQ(ierr); /* need to add context and use opt */
   if (centroid) {
     centroid[0] = 0.5*PetscRealPart(coords[0] + tmp[0]);
     centroid[1] = 0.5*PetscRealPart(coords[1] + tmp[1]);
@@ -1778,8 +1778,8 @@ PetscErrorCode DMPlexComputeGeometryFVM(DM dm, Vec *cellgeom, Vec *facegeom)
       else {
         rcentroid = fg->centroid;
       }
-      ierr = DMLocalizeCoordinateReal_Internal(dm, dim, fg->centroid, lcentroid, l);CHKERRQ(ierr);
-      ierr = DMLocalizeCoordinateReal_Internal(dm, dim, fg->centroid, rcentroid, r);CHKERRQ(ierr);
+      ierr = DMLocalizeCoordinateReal_Internal(dm, dim, fg->centroid, lcentroid, l, NULL);CHKERRQ(ierr); /* need to add context and use opt */
+      ierr = DMLocalizeCoordinateReal_Internal(dm, dim, fg->centroid, rcentroid, r, NULL);CHKERRQ(ierr); /* need to add context and use opt */
       DMPlex_WaxpyD_Internal(dim, -1, l, r, v);
       if (DMPlex_DotRealD_Internal(dim, fg->normal, v) < 0) {
         for (d = 0; d < dim; ++d) fg->normal[d] = -fg->normal[d];

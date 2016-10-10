@@ -385,9 +385,10 @@ static PetscErrorCode DMConvert_plex_pforest(DM dm, DMType newtype, DM *pforest)
   if (dm->maxCell) {
     const PetscReal      *maxCell, *L;
     const DMBoundaryType *bd;
+    PetscErrorCode (*lc)(DM, PetscInt, PetscReal [], const PetscReal [], PetscReal [], void *);
 
-    ierr = DMGetPeriodicity(dm,&maxCell,&L,&bd);CHKERRQ(ierr);
-    ierr = DMSetPeriodicity(*pforest,maxCell,L,bd);CHKERRQ(ierr);
+    ierr = DMGetPeriodicity(dm,&maxCell,&L,&bd,&lc);CHKERRQ(ierr);
+    ierr = DMSetPeriodicity(*pforest,maxCell,L,bd,lc);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -3971,15 +3972,16 @@ static PetscErrorCode DMConvert_pforest_plex(DM dm, DMType newtype, DM *plex)
       const DMBoundaryType *bd;
       PetscScalar          *coordArray = (PetscScalar *) coords->array;
       PetscInt             numCoords   = (PetscInt) coords->elem_count, i, j;
+      PetscErrorCode (*lc)(DM, PetscInt, PetscReal [], const PetscReal [], PetscReal [], void *);
 
-      ierr = DMGetPeriodicity(dm,&maxCell,&L,&bd);CHKERRQ(ierr);
+      ierr = DMGetPeriodicity(dm,&maxCell,&L,&bd,&lc);CHKERRQ(ierr);
       for (i = 0; i < numCoords; i++) {
         for (j = 0; j < coordDim; j++) {
           if (bd[j] == DM_BOUNDARY_PERIODIC || bd[j] == DM_BOUNDARY_TWIST) {
             PetscReal val    = PetscRealPart(coordArray[coordDim * i + j]);
             PetscReal length = PetscAbsReal(L[j]);
 
-            while (val < 0.)      {val += length;}
+            while (val < 0.)      {val += length;} /* should use mapping in lc */
             while (val >= length) {val -= length;}
 
             coordArray[coordDim * i + j] = val;
@@ -4028,9 +4030,10 @@ static PetscErrorCode DMConvert_pforest_plex(DM dm, DMType newtype, DM *plex)
     if (dm->maxCell) {
       const PetscReal      *maxCell, *L;
       const DMBoundaryType *bd;
+      PetscErrorCode (*lc)(DM, PetscInt, PetscReal [], const PetscReal [], PetscReal [], void *);
 
-      ierr = DMGetPeriodicity(dm,&maxCell,&L,&bd);CHKERRQ(ierr);
-      ierr = DMSetPeriodicity(newPlex,maxCell,L,bd);CHKERRQ(ierr);
+      ierr = DMGetPeriodicity(dm,&maxCell,&L,&bd,&lc);CHKERRQ(ierr);
+      ierr = DMSetPeriodicity(newPlex,maxCell,L,bd,lc);CHKERRQ(ierr);
       ierr = DMLocalizeCoordinates(newPlex);CHKERRQ(ierr);
     }
     ierr = DMPforestMapCoordinates(dm,newPlex);CHKERRQ(ierr);

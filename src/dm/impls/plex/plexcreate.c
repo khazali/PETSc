@@ -1033,6 +1033,7 @@ static PetscErrorCode DMPlexReplace_Static(DM dm, DM dmNew)
   const PetscReal *maxCell, *L;
   const DMBoundaryType *bd;
   PetscErrorCode   ierr;
+  PetscErrorCode (*lc)(DM, PetscInt, PetscReal [], const PetscReal [], PetscReal [], void *);
 
   PetscFunctionBegin;
   ierr = DMGetPointSF(dmNew, &sf);CHKERRQ(ierr);
@@ -1041,8 +1042,8 @@ static PetscErrorCode DMPlexReplace_Static(DM dm, DM dmNew)
   ierr = DMGetCoordinatesLocal(dmNew, &coords);CHKERRQ(ierr);
   ierr = DMSetCoordinateDM(dm, coordDM);CHKERRQ(ierr);
   ierr = DMSetCoordinatesLocal(dm, coords);CHKERRQ(ierr);
-  ierr = DMGetPeriodicity(dm, &maxCell, &L, &bd);CHKERRQ(ierr);
-  if (L) {ierr = DMSetPeriodicity(dmNew, maxCell, L, bd);CHKERRQ(ierr);}
+  ierr = DMGetPeriodicity(dm, &maxCell, &L, &bd, &lc);CHKERRQ(ierr);
+  if (L) {ierr = DMSetPeriodicity(dmNew, maxCell, L, bd, lc);CHKERRQ(ierr);}
   ierr = DMDestroy_Plex(dm);CHKERRQ(ierr);
   dm->data = dmNew->data;
   ((DM_Plex *) dmNew->data)->refct++;
@@ -1330,6 +1331,7 @@ PetscErrorCode DMInitialize_Plex(DM dm)
   dm->ops->computel2gradientdiff           = DMComputeL2GradientDiff_Plex;
   dm->ops->computel2fielddiff              = DMComputeL2FieldDiff_Plex;
   dm->ops->getneighbors                    = DMGetNeighors_Plex;
+  dm->ops->localizecoordinate              = DMLocalizeCoordinate_Internal;
   ierr = PetscObjectComposeFunction((PetscObject)dm,"DMAdaptLabel_C",DMAdaptLabel_Plex);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

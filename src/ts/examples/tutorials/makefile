@@ -106,6 +106,10 @@ ex17: ex17.o  chkopts
 	-${CLINKER} -o ex17 ex17.o  ${PETSC_TS_LIB}
 	${RM} ex17.o
 
+ex18: ex18.o  chkopts
+	-${CLINKER} -o ex18 ex18.o  ${PETSC_TS_LIB}
+	${RM} ex18.o
+
 ex19: ex19.o  chkopts
 	-${CLINKER} -o ex19 ex19.o  ${PETSC_TS_LIB}
 	${RM} ex19.o
@@ -519,6 +523,11 @@ runex17_2:
 	-@${MPIEXEC} -n 1 ./ex17 -da_grid_x 100 -ts_type theta -ts_theta_theta 0.5 > ex17_2.tmp 2>&1; \
 	   ${DIFF} output/ex17_2.out ex17_2.tmp || printf "${PWD}\nPossible problem with ex17_2, diffs above\n=========================================\n";  \
 	   ${RM} -f ex17_2.tmp
+
+runex18:
+	-@${MPIEXEC} -n 1 ./ex18 -ts_monitor > ex18_1.tmp 2>&1; \
+	   ${DIFF} output/ex18_1.out ex18_1.tmp || printf "${PWD}\nPossible problem with ex18_1, diffs above\n=========================================\n"; \
+#	   ${RM} -f ex18_1.tmp
 
 #  ex20 examples are not in the repository
 runex20:

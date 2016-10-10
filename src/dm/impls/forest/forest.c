@@ -180,9 +180,10 @@ PetscErrorCode DMForestTemplate(DM dm, MPI_Comm comm, DM *tdm)
   if (dm->maxCell) {
     const PetscReal      *maxCell, *L;
     const DMBoundaryType *bd;
+    PetscErrorCode (*lc)(DM, PetscInt, PetscReal [], const PetscReal [], PetscReal [], void *);
 
-    ierr = DMGetPeriodicity(dm,&maxCell,&L,&bd);CHKERRQ(ierr);
-    ierr = DMSetPeriodicity(*tdm,maxCell,L,bd);CHKERRQ(ierr);
+    ierr = DMGetPeriodicity(dm,&maxCell,&L,&bd,&lc);CHKERRQ(ierr);
+    ierr = DMSetPeriodicity(*tdm,maxCell,L,bd,lc);CHKERRQ(ierr);
   }
   ierr = DMCopyBoundary(dm,*tdm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1742,6 +1743,7 @@ static PetscErrorCode DMInitialize_Forest(DM dm)
   dm->ops->createsubdm    = DMCreateSubDM_Forest;
   dm->ops->refine         = DMRefine_Forest;
   dm->ops->coarsen        = DMCoarsen_Forest;
+  dm->ops->localizecoordinate = DMLocalizeCoordinate_Internal;
   ierr                    = PetscObjectComposeFunction((PetscObject)dm,"DMAdaptLabel_C",DMAdaptLabel_Forest);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

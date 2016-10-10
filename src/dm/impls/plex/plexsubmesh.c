@@ -770,8 +770,9 @@ static PetscErrorCode DMPlexConstructGhostCells_Internal(DM dm, DMLabel label, P
   if (dm->maxCell) {
     const PetscReal *maxCell, *L;
     const DMBoundaryType *bd;
-    ierr = DMGetPeriodicity(dm,  &maxCell, &L, &bd);CHKERRQ(ierr);
-    ierr = DMSetPeriodicity(gdm,  maxCell,  L,  bd);CHKERRQ(ierr);
+    PetscErrorCode (*lc)(DM, PetscInt, PetscReal [], const PetscReal [], PetscReal [], void *);
+    ierr = DMGetPeriodicity(dm,  &maxCell, &L, &bd, &lc);CHKERRQ(ierr);
+    ierr = DMSetPeriodicity(gdm,  maxCell,  L,  bd, lc);CHKERRQ(ierr);
   }
   if (numGhostCells) *numGhostCells = Ng;
   PetscFunctionReturn(0);
