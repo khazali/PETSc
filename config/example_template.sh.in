@@ -1,0 +1,7 @@
+${MPIEXEC} ${MPIARGSIZE} ${EXEC} ${ARGS} > ${TESTNAME}.tmp 2>&1
+if (${DIFF} ${SRCDIR}/output/${TESTNAME}.out ${TESTNAME}.tmp) ; then 
+  true
+else 
+  printf "${PWD}\nPossible problem with with ${TESTNAME}, diffs above\n=========================================\n"
+fi
+${RM} -f ${TESTNAME}.tmp
