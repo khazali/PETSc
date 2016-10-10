@@ -138,8 +138,14 @@ class convertExamples(PETScExamples):
     # Args
     firstPart=mainCommand.split(">")[0]
     exName=runexBase[3:]
-    args=firstPart.split(exName)[1].strip()
-    if args.strip(): abstract['args']=args 
+    args=firstPart.split(exName)[1].strip().strip("\\")
+    if args.strip(): 
+      if "\\\n" in args:
+        abstract['args']=""
+        for a in args.split("\\\n"):
+          abstract['args']=abstract['args']+" "+a.strip().strip("\\")
+      else:
+        abstract['args']=args.strip()
 
     # nsize
     if "MPIEXEC" in firstPart:
