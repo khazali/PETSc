@@ -476,7 +476,7 @@ class PETScExamples(object):
     """
     Walk a directory tree, starting from 'top'
     """
-    print "action", action
+    #print "action", action
     # Goal of action is to fill this dictionary
     dataDict={}
     for root, dirs, files in os.walk(top, topdown=False):

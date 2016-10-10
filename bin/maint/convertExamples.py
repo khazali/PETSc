@@ -209,7 +209,8 @@ class convertExamples(PETScExamples):
         reqStr=", ".join(abstract['requires'])
         insertStr=insertStr+indent+"requires: "+reqStr+"\n"
     else:
-      insertStr=indent+"script: "+abstract['script']+"\n"
+      insertStr=indent+"output_suffix: "+abstract['outputSuffix']+"\n"
+      insertStr=insertStr+indent+"script: "+abstract['script']+"\n"
 
     # For now we are writing out to a new file
     newExSrc="new_"+exSrc
