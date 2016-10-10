@@ -1196,7 +1196,48 @@ static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, 
 }
 
 /* == Defining a base plex for a torus, which looks like a rectilinear donut */
+#undef __FUNCT__
+#define __FUNCT__ "DMLocalizeCoordinate_Torus"
+/*
+  DMLocalizeCoordinate_Internal - If a mesh is periodic, and the input point is far from the anchor, pick the coordinate sheet of the torus which moves it closer.
 
+  Input Parameters:
++ dm     - The DM
+. dim    - The spatial dimension
+. anchor - The anchor point, the input point can be no more than maxCell away from it
+. ctx    - Optional context to pass
+- in     - The input coordinate point (dim numbers)
+
+  Output Parameter:
+. out - The localized coordinate point
+
+  Level: developer
+
+  Note: This is meant to get a set of coordinates close to each other, as in a cell. The anchor is usually the one of the vertices on a containing cell
+
+.seealso: DMLocalizeCoordinates(), DMLocalizeAddCoordinate()
+*/
+PetscErrorCode DMLocalizeCoordinate_Torus(DM dm, PetscInt dim, const PetscScalar anchor[], const PetscScalar in[], PetscScalar out[], void *actx)
+{
+  PetscInt d;
+  X2Ctx    *ctx = (X2Ctx*)actx;
+  PetscFunctionBegin;
+  if (!dm->maxCell) {
+    for (d = 0; d < dim; ++d) out[d] = in[d];
+  } else {
+    if (!ctx) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "No context?");
+    for (d = 0; d < dim; ++d) {
+      PetscPrintf(PETSC_COMM_SELF,"[%D]%s %D) anchor=%g in=%g maxCell=%g\n",ctx->rank,__FUNCT__,d,anchor[d],in[d],dm->maxCell[d]);
+      if (PetscAbsScalar(anchor[d] - in[d]) > dm->maxCell[d]) {
+        out[d] = PetscRealPart(anchor[d]) > PetscRealPart(in[d]) ? dm->L[d] + in[d] : in[d] - dm->L[d];
+        PetscPrintf(PETSC_COMM_SELF,"\t\t[%D]%s Found a periodic point: %D) anchor=%g in=%g maxCell=%g\n",ctx->rank,__FUNCT__,d,anchor[d],in[d],dm->maxCell[d]);
+      } else {
+        out[d] = in[d];
+      }
+    }
+  }
+  PetscFunctionReturn(0);
+}
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexCreatePICellBoxTorus"
 static PetscErrorCode DMPlexCreatePICellBoxTorus(MPI_Comm comm, X2Grid *params, DM *dm)
@@ -1520,14 +1561,25 @@ int main(int argc, char **argv)
   if (ctx.run_type == X2_ITER) {
     ierr = DMPlexCreatePICellITER(ctx.wComm,&ctx.grid,&dmpi->dmplex);CHKERRQ(ierr);
   }
-  else if (ctx.run_type == X2_TORUS) {
-    ierr = DMPlexCreatePICellTorus(ctx.wComm,&ctx.grid,&dmpi->dmplex);CHKERRQ(ierr);
-    ctx.inflate_torus = PETSC_TRUE;
-  }
   else {
-    ierr = DMPlexCreatePICellBoxTorus(ctx.wComm,&ctx.grid,&dmpi->dmplex);CHKERRQ(ierr);
-    ctx.inflate_torus = PETSC_FALSE;
-    assert(ctx.run_type == X2_BOXTORUS);
+    if (ctx.run_type == X2_TORUS) {
+      ierr = DMPlexCreatePICellTorus(ctx.wComm,&ctx.grid,&dmpi->dmplex);CHKERRQ(ierr);
+      ctx.inflate_torus = PETSC_TRUE;
+    }
+    else {
+      ierr = DMPlexCreatePICellBoxTorus(ctx.wComm,&ctx.grid,&dmpi->dmplex);CHKERRQ(ierr);
+      ctx.inflate_torus = PETSC_FALSE;
+      assert(ctx.run_type == X2_BOXTORUS);
+    }
+    if (s_section_phi != 2) {
+      PetscInt i;
+      DMBoundaryType bd[3] = {DM_BOUNDARY_NONE,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_NONE};
+      const PetscReal L[3] = {1.e10, (radius_major-radius_minor)*s_section_phi*M_PI, 1.e10};
+      PetscReal maxCell[3];
+      if (s_section_phi > -.1) PetscPrintf(comm, "%s Warning section_phi is large %g, L=%g %g %g",__FUNCT__,s_section_phi,L[0],L[1],L[2]);CHKERRQ(ierr);
+      for (i = 0; i < 3; i++) maxCell[i] =  (radius_major-radius_minor)/3;
+      ierr = DMSetPeriodicity(*dm, maxCell, L, bd, DMLocalizeCoordinate_Torus);CHKERRQ(ierr);
+    }
   }
   ierr = DMSetApplicationContext(dmpi->dmplex, &ctx);CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dmplex, "x2_");CHKERRQ(ierr);
