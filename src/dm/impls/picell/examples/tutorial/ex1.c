@@ -1508,7 +1508,7 @@ static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim,
 #define __FUNCT__ "main"
 int main(int argc, char **argv)
 {
-  X2Ctx          ctx; /* user-defined work context */
+  X2Ctx          actx,*ctx=&actx; /* user-defined work context */
   PetscErrorCode ierr;
   DM_PICell      *dmpi;
   PetscInt       dim,idx,isp;
@@ -1520,84 +1520,84 @@ int main(int argc, char **argv)
   PetscFunctionBeginUser;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
-  ctx.events = s_events;
+  ctx->events = s_events;
 #if defined(PETSC_USE_LOG)
   {
     PetscInt currevent = 0;
-    ierr = PetscLogEventRegister("X2CreateMesh", DM_CLASSID, &ctx.events[currevent++]);CHKERRQ(ierr); /* 0 */
-    ierr = PetscLogEventRegister("X2Process parts",0,&ctx.events[currevent++]);CHKERRQ(ierr); /* 1 */
-    ierr = PetscLogEventRegister(" -shiftParticles",0,&ctx.events[currevent++]);CHKERRQ(ierr); /* 2 */
-    ierr = PetscLogEventRegister("   =Non-block con",0,&ctx.events[currevent++]);CHKERRQ(ierr); /* 3 */
-    ierr = PetscLogEventRegister("     *Part. Send", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 4 */
-    ierr = PetscLogEventRegister(" -Move parts", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 5 */
-    ierr = PetscLogEventRegister(" -AddSource", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 6 */
-    ierr = PetscLogEventRegister(" -Pre Push", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 7 */
-    ierr = PetscLogEventRegister(" -Push (Jet)", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 8 */
-    ierr = PetscLogEventRegister("   =Part find (s)", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 9 */
-    ierr = PetscLogEventRegister("   =Part find (p)", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 10 */
-    ierr = PetscLogEventRegister("X2Poisson Solve", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 11 */
-    ierr = PetscLogEventRegister("X2Part AXPY", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 12 */
-    ierr = PetscLogEventRegister("X2Compress array", 0, &ctx.events[currevent++]);CHKERRQ(ierr); /* 13 */
-    ierr = PetscLogEventRegister("X2Diagnostics", 0, &ctx.events[diag_event_id]);CHKERRQ(ierr); /* N-1 */
+    ierr = PetscLogEventRegister("X2CreateMesh", DM_CLASSID, &ctx->events[currevent++]);CHKERRQ(ierr); /* 0 */
+    ierr = PetscLogEventRegister("X2Process parts",0,&ctx->events[currevent++]);CHKERRQ(ierr); /* 1 */
+    ierr = PetscLogEventRegister(" -shiftParticles",0,&ctx->events[currevent++]);CHKERRQ(ierr); /* 2 */
+    ierr = PetscLogEventRegister("   =Non-block con",0,&ctx->events[currevent++]);CHKERRQ(ierr); /* 3 */
+    ierr = PetscLogEventRegister("     *Part. Send", 0, &ctx->events[currevent++]);CHKERRQ(ierr); /* 4 */
+    ierr = PetscLogEventRegister(" -Move parts", 0, &ctx->events[currevent++]);CHKERRQ(ierr); /* 5 */
+    ierr = PetscLogEventRegister(" -AddSource", 0, &ctx->events[currevent++]);CHKERRQ(ierr); /* 6 */
+    ierr = PetscLogEventRegister(" -Pre Push", 0, &ctx->events[currevent++]);CHKERRQ(ierr); /* 7 */
+    ierr = PetscLogEventRegister(" -Push (Jet)", 0, &ctx->events[currevent++]);CHKERRQ(ierr); /* 8 */
+    ierr = PetscLogEventRegister("   =Part find (s)", 0, &ctx->events[currevent++]);CHKERRQ(ierr); /* 9 */
+    ierr = PetscLogEventRegister("   =Part find (p)", 0, &ctx->events[currevent++]);CHKERRQ(ierr); /* 10 */
+    ierr = PetscLogEventRegister("X2Poisson Solve", 0, &ctx->events[currevent++]);CHKERRQ(ierr); /* 11 */
+    ierr = PetscLogEventRegister("X2Part AXPY", 0, &ctx->events[currevent++]);CHKERRQ(ierr); /* 12 */
+    ierr = PetscLogEventRegister("X2Compress array", 0, &ctx->events[currevent++]);CHKERRQ(ierr); /* 13 */
+    ierr = PetscLogEventRegister("X2Diagnostics", 0, &ctx->events[diag_event_id]);CHKERRQ(ierr); /* N-1 */
     assert(sizeof(s_events)/sizeof(s_events[0]) > currevent);
     ierr = PetscLogStageRegister("Setup", &setup_stage);CHKERRQ(ierr);
     ierr = PetscLogStagePush(setup_stage);CHKERRQ(ierr);
   }
 #endif
 
-  ierr = PetscCommDuplicate(PETSC_COMM_WORLD,&ctx.wComm,NULL);CHKERRQ(ierr);
-  ierr = ProcessOptions( &ctx );CHKERRQ(ierr);
+  ierr = PetscCommDuplicate(PETSC_COMM_WORLD,&ctx->wComm,NULL);CHKERRQ(ierr);
+  ierr = ProcessOptions( ctx );CHKERRQ(ierr);
 
   /* construct DMs */
 #if defined(PETSC_USE_LOG)
-  ierr = PetscLogEventBegin(ctx.events[0],0,0,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(ctx->events[0],0,0,0,0);CHKERRQ(ierr);
 #endif
-  ierr = DMCreate(ctx.wComm, &ctx.dm);CHKERRQ(ierr);
-  ierr = DMSetApplicationContext(ctx.dm, &ctx);CHKERRQ(ierr);
-  ierr = DMSetType(ctx.dm, DMPICELL);CHKERRQ(ierr); /* creates (DM_PICell *) dm->data */
-  dmpi = (DM_PICell *) ctx.dm->data; assert(dmpi);
+  ierr = DMCreate(ctx->wComm, &ctx->dm);CHKERRQ(ierr);
+  ierr = DMSetApplicationContext(ctx->dm, ctx);CHKERRQ(ierr);
+  ierr = DMSetType(ctx->dm, DMPICELL);CHKERRQ(ierr); /* creates (DM_PICell *) dm->data */
+  dmpi = (DM_PICell *) ctx->dm->data; assert(dmpi);
   dmpi->debug = s_debug;
   /* setup solver grid */
-  if (ctx.run_type == X2_ITER) {
-    ierr = DMPlexCreatePICellITER(ctx.wComm,&ctx.grid,&dmpi->dmplex);CHKERRQ(ierr);
+  if (ctx->run_type == X2_ITER) {
+    ierr = DMPlexCreatePICellITER(ctx->wComm,&ctx->grid,&dmpi->dmplex);CHKERRQ(ierr);
   }
   else {
-    if (ctx.run_type == X2_TORUS) {
-      ierr = DMPlexCreatePICellTorus(ctx.wComm,&ctx.grid,&dmpi->dmplex);CHKERRQ(ierr);
-      ctx.inflate_torus = PETSC_TRUE;
+    if (ctx->run_type == X2_TORUS) {
+      ierr = DMPlexCreatePICellTorus(ctx->wComm,&ctx->grid,&dmpi->dmplex);CHKERRQ(ierr);
+      ctx->inflate_torus = PETSC_TRUE;
     }
     else {
-      ierr = DMPlexCreatePICellBoxTorus(ctx.wComm,&ctx.grid,&dmpi->dmplex);CHKERRQ(ierr);
-      ctx.inflate_torus = PETSC_FALSE;
-      assert(ctx.run_type == X2_BOXTORUS);
+      ierr = DMPlexCreatePICellBoxTorus(ctx->wComm,&ctx->grid,&dmpi->dmplex);CHKERRQ(ierr);
+      ctx->inflate_torus = PETSC_FALSE;
+      assert(ctx->run_type == X2_BOXTORUS);
     }
-    if (s_section_phi != 2) {
-      PetscInt i;
-      DMBoundaryType bd[3] = {DM_BOUNDARY_NONE,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_NONE};
-      const PetscReal L[3] = {1.e10, (radius_major-radius_minor)*s_section_phi*M_PI, 1.e10};
-      PetscReal maxCell[3];
-      if (s_section_phi > -.1) PetscPrintf(comm, "%s Warning section_phi is large %g, L=%g %g %g",__FUNCT__,s_section_phi,L[0],L[1],L[2]);CHKERRQ(ierr);
-      for (i = 0; i < 3; i++) maxCell[i] =  (radius_major-radius_minor)/3;
-      ierr = DMSetPeriodicity(*dm, maxCell, L, bd, DMLocalizeCoordinate_Torus);CHKERRQ(ierr);
-    }
+    /* if (s_section_phi != 2) { */
+    /*   PetscInt i; */
+    /*   DMBoundaryType bd[3] = {DM_BOUNDARY_NONE,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_NONE}; */
+    /*   const PetscReal L[3] = {1.e10, (ctx->grid.radius_major-ctx->grid.radius_minor)*s_section_phi*M_PI, 1.e10}; */
+    /*   PetscReal maxCell[3]; */
+    /*   if (s_section_phi > -.1) PetscPrintf(ctx->wComm, "%s Warning section_phi is large %g, L=%g %g %g",__FUNCT__,s_section_phi,L[0],L[1],L[2]);CHKERRQ(ierr); */
+    /*   for (i = 0; i < 3; i++) maxCell[i] =  (ctx->grid.radius_major-ctx->grid.radius_minor)/3; */
+    /*   ierr = DMSetPeriodicity(ctx->dm, maxCell, L, bd/\* , DMLocalizeCoordinate_Torus *\/);CHKERRQ(ierr); */
+    /* } */
   }
-  ierr = DMSetApplicationContext(dmpi->dmplex, &ctx);CHKERRQ(ierr);
+  ierr = DMSetApplicationContext(dmpi->dmplex, ctx);CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dmplex, "x2_");CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) ctx.dm, "x2_");CHKERRQ(ierr);
-  ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx.BCFuncs);CHKERRQ(ierr);
-  ctx.BCFuncs[0] = zero;
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) ctx->dm, "x2_");CHKERRQ(ierr);
+  ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx->BCFuncs);CHKERRQ(ierr);
+  ctx->BCFuncs[0] = zero;
   /* add BCs */
   {
     PetscInt id = 1;
     ierr = DMCreateLabel(dmpi->dmplex, "boundary");CHKERRQ(ierr);
     ierr = DMGetLabel(dmpi->dmplex, "boundary", &label);CHKERRQ(ierr);
     ierr = DMPlexMarkBoundaryFaces(dmpi->dmplex, label);CHKERRQ(ierr);
-    ierr = DMAddBoundary(dmpi->dmplex, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx.BCFuncs[0], 1, &id, &ctx);CHKERRQ(ierr);
+    ierr = DMAddBoundary(dmpi->dmplex, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx->BCFuncs[0], 1, &id, ctx);CHKERRQ(ierr);
   }
   { /* convert to p4est */
     char convType[256];
     PetscBool flg;
-    ierr = PetscOptionsBegin(ctx.wComm, "", "Mesh conversion options", "DMPLEX");CHKERRQ(ierr);
+    ierr = PetscOptionsBegin(ctx->wComm, "", "Mesh conversion options", "DMPLEX");CHKERRQ(ierr);
     ierr = PetscOptionsFList("-x2_dm_type","Convert DMPlex to another format (should not be Plex!)","ex1.c",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
     ierr = PetscOptionsEnd();
     if (flg) {
@@ -1609,15 +1609,15 @@ int main(int argc, char **argv)
         ierr = PetscObjectSetOptionsPrefix((PetscObject)dmpi->dmgrid,prefix);CHKERRQ(ierr);
         ierr = DMIsForest(dmpi->dmgrid,&isForest);CHKERRQ(ierr);
         if (isForest) {
-          if (ctx.run_type == X2_ITER) {
-            ierr = DMForestSetBaseCoordinateMapping(dmpi->dmgrid,GeometryPICellITER,&ctx);CHKERRQ(ierr);
+          if (ctx->run_type == X2_ITER) {
+            ierr = DMForestSetBaseCoordinateMapping(dmpi->dmgrid,GeometryPICellITER,ctx);CHKERRQ(ierr);
           }
-          else if (ctx.run_type == X2_TORUS) {
-            ierr = DMForestSetBaseCoordinateMapping(dmpi->dmgrid,GeometryPICellTorus,&ctx);CHKERRQ(ierr);
+          else if (ctx->run_type == X2_TORUS) {
+            ierr = DMForestSetBaseCoordinateMapping(dmpi->dmgrid,GeometryPICellTorus,ctx);CHKERRQ(ierr);
           }
           else {
-            ierr = DMForestSetBaseCoordinateMapping(dmpi->dmgrid,GeometryPICellTorus,&ctx);CHKERRQ(ierr);
-            assert(ctx.run_type == X2_BOXTORUS);
+            ierr = DMForestSetBaseCoordinateMapping(dmpi->dmgrid,GeometryPICellTorus,ctx);CHKERRQ(ierr);
+            assert(ctx->run_type == X2_BOXTORUS);
           }
         }
         else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Converted to non Forest?");
@@ -1625,14 +1625,14 @@ int main(int argc, char **argv)
       else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Convert failed?");
     }
     else {
-      if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] No p4est\n",ctx.rank);
+      if (dmpi->debug>0) PetscPrintf(ctx->wComm,"[%D] No p4est\n",ctx->rank);
       dmpi->dmgrid = dmpi->dmplex;
     }
   }
   if (sizeof(long long)!=sizeof(PetscReal)) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "sizeof(long long)!=sizeof(PetscReal)");
 
   /* setup DM, refine, distribute */
-  ierr = DMSetFromOptions( ctx.dm );CHKERRQ(ierr); /* refinement done here */
+  ierr = DMSetFromOptions( ctx->dm );CHKERRQ(ierr); /* refinement done here */
   if (dmpi->dmgrid == dmpi->dmplex) { /* not using p4est, distribute */
     const char *prefix;
     DM dm;
@@ -1677,7 +1677,7 @@ int main(int argc, char **argv)
     ierr = DMView(dmpi->dmplex,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
 
-  ierr = DMSetUp( ctx.dm );CHKERRQ(ierr);
+  ierr = DMSetUp( ctx->dm );CHKERRQ(ierr);
 
   {
     PetscInt n,cStart,cEnd;
@@ -1686,42 +1686,42 @@ int main(int argc, char **argv)
     ierr = DMPlexGetHeightStratum(dmpi->dmplex, 0, &cStart, &cEnd);CHKERRQ(ierr);
     if (cStart) SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_USER, "cStart != 0. %D",cStart);
     if (dmpi->debug>0 && !cEnd) {
-      ierr = PetscPrintf((dmpi->debug>1 || !cEnd) ? PETSC_COMM_SELF : ctx.wComm,"[%D] ERROR %D global equations, %d local cells, (cEnd=%d), debug=%D\n",ctx.rank,n,cEnd-cStart,cEnd,dmpi->debug);
+      ierr = PetscPrintf((dmpi->debug>1 || !cEnd) ? PETSC_COMM_SELF : ctx->wComm,"[%D] ERROR %D global equations, %d local cells, (cEnd=%d), debug=%D\n",ctx->rank,n,cEnd-cStart,cEnd,dmpi->debug);
     }
     if (!cEnd) {
       SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "No cells");
     }
     s_fluxtubeelem = cEnd/2;
-    if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] %D equations on %D processors, %D local cells, (element %D used for flux tube list)\n",
-                                   ctx.rank,n,ctx.npe,cEnd,s_fluxtubeelem);
+    if (dmpi->debug>0) PetscPrintf(ctx->wComm,"[%D] %D equations on %D processors, %D local cells, (element %D used for flux tube list)\n",
+                                   ctx->rank,n,ctx->npe,cEnd,s_fluxtubeelem);
   }
 
   /* create SNESS */
-  ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
+  ierr = SNESCreate( ctx->wComm, &dmpi->snes);CHKERRQ(ierr);
   ierr = SNESSetDM( dmpi->snes, dmpi->dmgrid);CHKERRQ(ierr);
-  ierr = DMPlexSetSNESLocalFEM(dmpi->dmgrid,&ctx,&ctx,&ctx);CHKERRQ(ierr);
+  ierr = DMPlexSetSNESLocalFEM(dmpi->dmgrid,ctx,ctx,ctx);CHKERRQ(ierr);
   ierr = DMCreateMatrix(dmpi->dmgrid, &J);CHKERRQ(ierr);
   ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
   ierr = SNESSetFromOptions(dmpi->snes);CHKERRQ(ierr);
 
   /* setup particles */
-  ierr = createParticles( &ctx );CHKERRQ(ierr);
+  ierr = createParticles(ctx);CHKERRQ(ierr);
 
   /* init send tables */
-  ierr = PetscMalloc1(ctx.proc_send_table_size,&ctx.sendListTable);CHKERRQ(ierr);
-  for (idx=0;idx<ctx.proc_send_table_size;idx++) {
-    for (isp=ctx.use_electrons ? 0 : 1 ; isp <= X2_NION ; isp++) {
-      ctx.sendListTable[idx].data_size = 0; /* init */
+  ierr = PetscMalloc1(ctx->proc_send_table_size,&ctx->sendListTable);CHKERRQ(ierr);
+  for (idx=0;idx<ctx->proc_send_table_size;idx++) {
+    for (isp=ctx->use_electrons ? 0 : 1 ; isp <= X2_NION ; isp++) {
+      ctx->sendListTable[idx].data_size = 0; /* init */
     }
   }
   /* hdf5 output - init */
 #ifdef H5PART
-  if (ctx.plot) {
-    for (isp=ctx.use_electrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
+  if (ctx->plot) {
+    for (isp=ctx->use_electrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
       char  fname1[256],fname2[256];
       X2PListPos pos1,pos2;
 #if defined(PETSC_USE_LOG)
-      ierr = PetscLogEventBegin(ctx.events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
+      ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
       if (!isp) {
         sprintf(fname1,         "particles_electrons_time%05d_fluxtube.h5part",(int)0);
@@ -1731,27 +1731,27 @@ int main(int argc, char **argv)
         sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",(int)isp,0);
       }
       /* write */
-      prewrite(&ctx, &ctx.partlists[isp][s_fluxtubeelem], &pos1, &pos2);
-      ierr = X2PListWrite(ctx.partlists[isp], ctx.nElems, ctx.rank, ctx.npe, ctx.wComm, fname1, fname2);CHKERRQ(ierr);
-      postwrite(&ctx, &ctx.partlists[isp][s_fluxtubeelem], &pos1, &pos2);
+      prewrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
+      ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
+      postwrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
 #if defined(PETSC_USE_LOG)
-      ierr = PetscLogEventEnd(ctx.events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
+      ierr = PetscLogEventEnd(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
     }
   }
 #endif
-  if (ctx.plot) { /* debug */
+  if (ctx->plot) { /* debug */
     PetscViewer       viewer = NULL;
     PetscBool         flg;
     PetscViewerFormat fmt;
-    DM_PICell      *dmpi = (DM_PICell *) ctx.dm->data;
+    DM_PICell      *dmpi = (DM_PICell *) ctx->dm->data;
     if (dmpi->dmgrid) {
       ierr = DMViewFromOptions(dmpi->dmgrid,NULL,"-dm_view");CHKERRQ(ierr);
     }
     else {
       ierr = DMViewFromOptions(dmpi->dmplex,NULL,"-dm_view");CHKERRQ(ierr);
     }
-    ierr = PetscOptionsGetViewer(ctx.wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
+    ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
     if (flg) {
       ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
       ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);
@@ -1763,38 +1763,38 @@ int main(int argc, char **argv)
   /* setup solver, dummy solve to really setup */
   {
     ierr = VecZeroEntries(dmpi->rho);CHKERRQ(ierr); /* zero density to make solver do nothing */
-    ierr = DMPICellSolve( ctx.dm );CHKERRQ(ierr);
+    ierr = DMPICellSolve( ctx->dm );CHKERRQ(ierr);
   }
 
   /* move back to solver space and make density vector */
-  ierr = processParticles(&ctx, 0.0, &ctx.sendListTable, 99, -1, -1, PETSC_TRUE);CHKERRQ(ierr);
+  ierr = processParticles(ctx, 0.0, &ctx->sendListTable, 99, -1, -1, PETSC_TRUE);CHKERRQ(ierr);
 
 #if defined(PETSC_USE_LOG)
-  ierr = PetscLogEventEnd(ctx.events[0],0,0,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(ctx->events[0],0,0,0,0);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
 #endif
   /* do it */
-  ierr = go( &ctx );CHKERRQ(ierr);
+  ierr = go( ctx );CHKERRQ(ierr);
 
   if (dmpi->debug>3) {
     PetscViewer viewer;
-    PetscViewerASCIIOpen(ctx.wComm, "Amat.m", &viewer);
+    PetscViewerASCIIOpen(ctx->wComm, "Amat.m", &viewer);
     PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
     MatView(J,viewer);
     PetscViewerPopFormat(viewer);
     PetscViewerDestroy(&viewer);
   }
-  if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] done - cleanup\n",ctx.rank);
+  if (dmpi->debug>0) PetscPrintf(ctx->wComm,"[%D] done - cleanup\n",ctx->rank);
   /* Particle STREAM test */
 #if defined(PETSC_USE_LOG)
-  ierr = PetscLogEventBegin(ctx.events[12],0,0,0,0);CHKERRQ(ierr); /* timer on particle list */
+  ierr = PetscLogEventBegin(ctx->events[12],0,0,0,0);CHKERRQ(ierr); /* timer on particle list */
 #endif
   {
     int isp,elid; X2PListPos  pos; X2Particle  part;
     ierr = X2ParticleCreate(&part,777777,0,0,0,0);CHKERRQ(ierr);
-    for (isp=ctx.use_electrons ? 0 : 1 ; isp <= X2_NION ; isp++) {
-      for (elid=0;elid<ctx.nElems;elid++) {
-        X2PList *list = &ctx.partlists[isp][elid];
+    for (isp=ctx->use_electrons ? 0 : 1 ; isp <= X2_NION ; isp++) {
+      for (elid=0;elid<ctx->nElems;elid++) {
+        X2PList *list = &ctx->partlists[isp][elid];
         if (X2PListSize(list)==0) continue;
         ierr = X2PListCompress(list);CHKERRQ(ierr);
         for (pos=0 ; pos < list->vec_top ; pos++) {
@@ -1804,21 +1804,21 @@ int main(int argc, char **argv)
     }
   }
 #if defined(PETSC_USE_LOG)
-  ierr = PetscLogEventEnd(ctx.events[12],0,0,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(ctx->events[12],0,0,0,0);CHKERRQ(ierr);
 #endif
   /* Cleanup */
-  for (idx=0;idx<ctx.proc_send_table_size;idx++) {
-    if (ctx.sendListTable[idx].data_size != 0) {
-      ierr = X2PSendListDestroy( &ctx.sendListTable[idx] );CHKERRQ(ierr);
+  for (idx=0;idx<ctx->proc_send_table_size;idx++) {
+    if (ctx->sendListTable[idx].data_size != 0) {
+      ierr = X2PSendListDestroy( &ctx->sendListTable[idx] );CHKERRQ(ierr);
     }
   }
-  ierr = PetscFree(ctx.sendListTable);CHKERRQ(ierr);
+  ierr = PetscFree(ctx->sendListTable);CHKERRQ(ierr);
   ierr = PetscFEDestroy(&dmpi->fem);CHKERRQ(ierr);
   ierr = MatDestroy(&J);CHKERRQ(ierr);
-  ierr = destroyParticles(&ctx);CHKERRQ(ierr);
-  ierr = DMDestroy(&ctx.dm);CHKERRQ(ierr);
-  ierr = PetscFree(ctx.BCFuncs);CHKERRQ(ierr);
-  ierr = PetscCommDestroy(&ctx.wComm);CHKERRQ(ierr);
+  ierr = destroyParticles(ctx);CHKERRQ(ierr);
+  ierr = DMDestroy(&ctx->dm);CHKERRQ(ierr);
+  ierr = PetscFree(ctx->BCFuncs);CHKERRQ(ierr);
+  ierr = PetscCommDestroy(&ctx->wComm);CHKERRQ(ierr);
   ierr = PetscFinalize();CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
