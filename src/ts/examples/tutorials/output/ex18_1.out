@@ -1,0 +1,11 @@
+DM Object: Mesh 1 MPI processes
+  type: plex
+Mesh in 2 dimensions:
+  0-cells: 9
+  1-cells: 18
+  2-cells: 9
+Labels:
+  depth: 3 strata of sizes (9, 18, 9)
+  Face Sets: 0 strata of sizes ()
+  marker: 0 strata of sizes ()
+CONVERGED_ITERATING at time 0. after 0 steps

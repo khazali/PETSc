@@ -525,9 +525,9 @@ runex17_2:
 	   ${RM} -f ex17_2.tmp
 
 runex18:
-	-@${MPIEXEC} -n 1 ./ex18 -ts_monitor > ex18_1.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex18 -ts_monitor -dm_view > ex18_1.tmp 2>&1; \
 	   ${DIFF} output/ex18_1.out ex18_1.tmp || printf "${PWD}\nPossible problem with ex18_1, diffs above\n=========================================\n"; \
-#	   ${RM} -f ex18_1.tmp
+	   ${RM} -f ex18_1.tmp
 
 #  ex20 examples are not in the repository
 runex20:

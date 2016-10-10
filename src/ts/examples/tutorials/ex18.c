@@ -1153,10 +1153,6 @@ int main(int argc, char **argv)
   ierr = TSGetTime(ts, &t);CHKERRQ(ierr);
   t0   = t;
   ierr = DMTSCheckFromOptions(ts, u, user.exactFuncs, ctxs);CHKERRQ(ierr);
-  ierr = TSSolve(ts, u);CHKERRQ(ierr);
-  ierr = TSGetTime(ts, &t);CHKERRQ(ierr);
-  if (t > t0) {ierr = DMTSCheckFromOptions(ts, u, user.exactFuncs, ctxs);CHKERRQ(ierr);}
-  ierr = VecViewFromOptions(u, NULL, "-sol_vec_view");CHKERRQ(ierr);
   {
     PetscReal ftime;
     PetscInt  nsteps;
