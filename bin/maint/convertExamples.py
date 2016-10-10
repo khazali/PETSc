@@ -70,12 +70,6 @@ class convertExamples(PETScExamples):
     scriptStr=scriptStr.replace("\n\n","\n")
     return scriptStr
 
-  def abstractBasedOnArgs(self,runexName,scriptStr):
-    """
-    Take the args and based on various strings in them 
-    """
-    return 
-
   def transformAnalyzeMap(self,anlzDict):
     """
     examplesAnalyze dataDict produces a dictionary of the form:
@@ -182,13 +176,6 @@ class convertExamples(PETScExamples):
       os.chdir(startdir)
       return True
 
-    # For now we are writing out to a new file
-    newExSrc="new_"+exSrc
-    if os.path.exists(newExSrc): exSrc=newExSrc
-
-    # Get the file into a string
-    sh=open(exSrc,"r"); fileStr=sh.read(); sh.close()
-
     # Before writing out the abstracted info
     # do a final update of requirements based on arguments
     import convertExamplesUtils
@@ -205,9 +192,7 @@ class convertExamples(PETScExamples):
             allRqs=allRqs+rqList
         abstract['requires']=list(set(allRqs))  # Uniquify the requirements
 
-    # Insert the run file
-    firstPart=fileStr.split("#include")[0]
-    secndPart=fileStr[len(firstPart):]
+    # Get the string to insert
     indent="  "
     if abstract['abstracted']:
       insertStr=indent+"output_suffix: "+abstract['outputSuffix']+"\n"
@@ -218,11 +203,15 @@ class convertExamples(PETScExamples):
         reqStr=", ".join(abstract['requires'])
         insertStr=insertStr+indent+"requires: "+reqStr+"\n"
     else:
-      insertStr=abstract['script']
+      insertStr=indent+"script: "+abstract['script']+"\n"
 
+    # For now we are writing out to a new file
+    newExSrc="new_"+exSrc
+    if os.path.exists(newExSrc): exSrc=newExSrc
 
-    newFileStr=firstPart+"\n/*TEST\n"+insertStr+"\nTEST*/\n"+secndPart
-
+    # Get the file into a string, append, and then close
+    sh=open(exSrc,"r"); fileStr=sh.read(); sh.close()
+    newFileStr=fileStr+"\n/*TEST\n"+insertStr+"\nTEST*/\n"
     # Write it out
     sh=open(newExSrc,"w"); sh.write(newFileStr); sh.close()
 
