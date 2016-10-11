@@ -22,6 +22,10 @@ ex2: ex2.o chkopts
 ex1_nest: ex1_nest.o chkopts
 	-${CLINKER} -o ex1_nest ex1_nest.o ${PETSC_KSP_LIB}
 	${RM} ex1_nest.o
+
+ex2_nest: ex2_nest.o chkopts
+	-${CLINKER} -o ex2_nest ex2_nest.o ${PETSC_KSP_LIB}
+	${RM} ex2_nest.o
 #---------------------------------------------------------------------------
 runex1:
 	-@${MPIEXEC} -n 1 ./ex1 -ksp_monitor_short > ex1_1.tmp 2>&1;   \
