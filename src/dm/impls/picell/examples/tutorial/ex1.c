@@ -132,7 +132,7 @@ PetscErrorCode X2GridSolverLocatePoints(DM dm, Vec xvec, const void *ctx_dum, IS
     ierr = PetscMalloc2(nn,&peidxs,nn,&elemidxs);CHKERRQ(ierr);
     for (ii=0;ii<nn;ii++) {
       elemidxs[ii] = foundCells[ii].index;
-      /* if (elemidxs[ii] < 0 && npe==1) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "We are not supporting out of domain points."); */
+      if (elemidxs[ii] < 0 && npe==1) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "We are not supporting out of domain points.");
       if (elemidxs[ii] < 0) elemidxs[ii] = 0; /* not working in parallel */
       /* peidxs[ii] = foundCells[ii].rank; */
       peidxs[ii] = rank; /* dummy - no move until have global search */
@@ -220,7 +220,8 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
       /* section of torus */
     } else {
       /* cylindrical flux tube, with L (section_length) specified */
-      ctx->grid.section_phi = atan2(t1,ctx->grid.radius_major+ctx->grid.radius_minor)/M_PI;
+      ctx->grid.section_phi = atan2( t1, ctx->grid.radius_major + ctx->grid.radius_minor ) / M_PI;
+      PetscPrintf(PETSC_COMM_WORLD,"%s: L = %16.8e %16.8e\n",__FUNCT__,t1,(ctx->grid.radius_major + ctx->grid.radius_minor)*ctx->grid.section_phi*M_PI);
     }
   }
   s_section_phi = ctx->grid.section_phi;
@@ -840,9 +841,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
     PetscDataTypeToMPIDataType(PETSC_INT,&mtype);
     ierr = MPI_Allreduce(sb, rb1, 4, mtype, MPI_SUM, ctx->wComm);CHKERRQ(ierr);
     ierr = MPI_Allreduce(sb, rb2, 4, mtype, MPI_MAX, ctx->wComm);CHKERRQ(ierr);
-    PetscPrintf(ctx->wComm,
-                "%d) %s %D local particles, %D/%D global, %g %% total particles moved in %D messages total (to %D processors local), %g load imbalance factor\n",
-                istep+1,irk<0 ? "processed" : "pushed", origNlocal, rb1[0], rb1[3], 100.*(double)rb1[1]/(double)rb1[0], rb1[2], ctx->tablecount,(double)rb2[3]/((double)rb1[3]/(double)ctx->npe));
+    if (rb1[3]) PetscPrintf(ctx->wComm,
+                            "%d) %s %D local particles, %D/%D global, %g %% total particles moved in %D messages total (to %D processors local), %g load imbalance factor\n",
+                            istep+1,irk<0 ? "processed" : "pushed", origNlocal, rb1[0], rb1[3], 100.*(double)rb1[1]/(double)rb1[0], rb1[2], ctx->tablecount,(double)rb2[3]/((double)rb1[3]/(double)ctx->npe));
     if (rb1[0] != rb1[3]) SETERRQ2(PETSC_COMM_WORLD,PETSC_ERR_USER,"Number of partilces %D --> %D",rb1[0],rb1[3]);
 #ifdef H5PART
     if (irk>=0 && ctx->plot) {
@@ -1311,7 +1312,7 @@ static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X2Grid *params, DM 
             coords[i][j][1] = sinphi * r;
           } else {
             coords[i][j][0] = r;
-            coords[i][j][1] = (radius_major+radius_minor) * s_section_phi * M_PI * i / num_phi_cells; /* height of cylinder */
+            coords[i][j][1] = (params->radius_major+params->radius_minor) * tan(s_section_phi*M_PI)*(double)i/(double)num_phi_cells; /* height of cylinder */
           }
         }
       }
@@ -1422,62 +1423,49 @@ static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim,
   z = abc[2];
   a = abc[0];
   b = abc[1];
-  if (ctx->grid.section_phi==2) {
-    inPhi = atan2(b,a);
-    inPhi = (inPhi < 0.) ? (inPhi + ctx->grid.section_phi * M_PI) : inPhi;
-    i = (inPhi * num_phi_cells) / (ctx->grid.section_phi * M_PI);
-    i = PetscMin(i,num_phi_cells - 1);
-    leftPhi =  (i *        ctx->grid.section_phi * M_PI) / num_phi_cells;
-    midPhi  = ((i + 0.5) * ctx->grid.section_phi * M_PI) / num_phi_cells;
-    cosMidPhi  = cos(midPhi);
-    sinMidPhi  = sin(midPhi);
-    cosLeftPhi = cos(leftPhi);
-    sinLeftPhi = sin(leftPhi);
-    secHalf    = 1. / cos(ctx->grid.section_phi*M_PI / (2*num_phi_cells) );
-    rhat = (a * cosMidPhi + b * sinMidPhi);
-    r    = secHalf * rhat;
-    dist = secHalf * (-a * sinLeftPhi + b * cosLeftPhi);
-    fulldist = 2. * sin(ctx->grid.section_phi*M_PI / (2*num_phi_cells)) * r;
-    outPhi = ((i + (dist/fulldist)) * ctx->grid.section_phi * M_PI) / num_phi_cells;
-    /* solve r * (cosLeftPhi * _i + sinLeftPhi * _j) + dist * (nx * _i + ny * _j) = a * _i + b * _j;
-     *
-     * (r * cosLeftPhi + dist * nx) = a;
-     * (r * sinLeftPhi + dist * ny) = b;
-     *
-     * r    = idet * ( a * ny         - b * nx);
-     * dist = idet * (-a * sinLeftPhi + b * cosLeftPhi);
-     * idet = 1./(cosLeftPhi * ny - sinLeftPhi * nx) = sec(Pi/num_phi_cells);
-     */
-    r -= radius_major; /* now centered inside torus */
-    if (ctx->inflate_torus) {
-      PetscReal absR, absZ;
-      absR = PetscAbsReal(r);
-      absZ = PetscAbsReal(z);
-      PICellCircleInflate(radius_minor,inner_mult,absR,absZ,&absR,&absZ);
-      r = (r > 0) ? absR : -absR;
-      z = (z > 0) ? absZ : -absZ;
-    }
-    r += radius_major; /* centered back at the origin */
-    cosOutPhi = cos(outPhi);
-    sinOutPhi = sin(outPhi);
-    xyz[0] = r * cosOutPhi;
-    xyz[1] = r * sinOutPhi;
-  } else {
-    r = a;
-    r -= radius_major; /* now centered inside torus */
-    if (ctx->inflate_torus) {
-      PetscReal absR, absZ;
-      absR = PetscAbsReal(r);
-      absZ = PetscAbsReal(z);
-      PICellCircleInflate(radius_minor,inner_mult,absR,absZ,&absR,&absZ);
-      r = (r > 0) ? absR : -absR;
-      z = (z > 0) ? absZ : -absZ;
-    }
-    r += radius_major; /* centered back at the origin */
-    xyz[0] = r;
-    xyz[1] = b;
+  if (ctx->grid.section_phi!=2) b = 0;
+  inPhi = atan2(b,a);
+  inPhi = (inPhi < 0.) ? (inPhi + ctx->grid.section_phi * M_PI) : inPhi;
+  i = (inPhi * num_phi_cells) / (ctx->grid.section_phi * M_PI);
+  i = PetscMin(i,num_phi_cells - 1);
+  leftPhi =  (i *        ctx->grid.section_phi * M_PI) / num_phi_cells;
+  midPhi  = ((i + 0.5) * ctx->grid.section_phi * M_PI) / num_phi_cells;
+  cosMidPhi  = cos(midPhi);
+  sinMidPhi  = sin(midPhi);
+  cosLeftPhi = cos(leftPhi);
+  sinLeftPhi = sin(leftPhi);
+  secHalf    = 1. / cos(ctx->grid.section_phi*M_PI / (2*num_phi_cells) );
+  rhat = (a * cosMidPhi + b * sinMidPhi);
+  r    = secHalf * rhat;
+  dist = secHalf * (-a * sinLeftPhi + b * cosLeftPhi);
+  fulldist = 2. * sin(ctx->grid.section_phi*M_PI / (2*num_phi_cells)) * r;
+  outPhi = ((i + (dist/fulldist)) * ctx->grid.section_phi * M_PI) / num_phi_cells;
+  /* solve r * (cosLeftPhi * _i + sinLeftPhi * _j) + dist * (nx * _i + ny * _j) = a * _i + b * _j;
+   *
+   * (r * cosLeftPhi + dist * nx) = a;
+   * (r * sinLeftPhi + dist * ny) = b;
+   *
+   * r    = idet * ( a * ny         - b * nx);
+   * dist = idet * (-a * sinLeftPhi + b * cosLeftPhi);
+   * idet = 1./(cosLeftPhi * ny - sinLeftPhi * nx) = sec(Pi/num_phi_cells);
+   */
+  r -= radius_major; /* now centered inside torus */
+  if (ctx->inflate_torus) {
+    PetscReal absR, absZ;
+    absR = PetscAbsReal(r);
+    absZ = PetscAbsReal(z);
+    PICellCircleInflate(radius_minor,inner_mult,absR,absZ,&absR,&absZ);
+    r = (r > 0) ? absR : -absR;
+    z = (z > 0) ? absZ : -absZ;
   }
+  r += radius_major; /* centered back at the origin */
+  cosOutPhi = cos(outPhi);
+  sinOutPhi = sin(outPhi);
+  xyz[0] = r * cosOutPhi;
+  if (ctx->grid.section_phi!=2) xyz[1] = abc[1];
+  else xyz[1] = r * sinOutPhi;
   xyz[2] = z;
+/* PetscPrintf(PETSC_COMM_WORLD,"\t\t%s: point %d coords = %13.15e %13.15e %13.15e\n",__FUNCT__,point,xyz[0],xyz[1],xyz[2]); */
   PetscFunctionReturn(0);
 }
 
@@ -1551,11 +1539,17 @@ int main(int argc, char **argv)
     if (s_section_phi != 2) {
       PetscInt i;
       DMBoundaryType bd[3] = {DM_BOUNDARY_NONE,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_NONE};
-      const PetscReal L[3] = {1., (ctx->grid.radius_major-ctx->grid.radius_minor)*s_section_phi*M_PI, 1.};
+      const PetscReal L2 = (ctx->grid.radius_major+ctx->grid.radius_minor)*tan(s_section_phi*M_PI);
+      const PetscReal L[3] = {0, L2, 0};
       PetscReal maxCell[3];
-      if (s_section_phi > -.1) PetscPrintf(ctx->wComm, "%s Warning section_phi is large %g, L = %g, %g, %g\n",__FUNCT__,s_section_phi,L[0],L[1],L[2]);CHKERRQ(ierr);
-      for (i = 0; i < 3; i++) maxCell[i] =  (ctx->grid.radius_major-ctx->grid.radius_minor)/3;
-      /* ierr = DMSetPeriodicity(ctx->dm, maxCell, L, bd);CHKERRQ(ierr); */
+      for (i = 0; i < 3; i++) maxCell[i] =  1e100;
+      maxCell[1] = L2/3;
+      if (s_section_phi > .1) {
+        ierr = PetscPrintf(ctx->wComm, "\t\t%s WARNING section_phi is large %g, L = %16.8e, %16.8g, %16.8e maxCell = %16.8e, %16.8e, %16.8e\n",
+                           __FUNCT__,s_section_phi,L[0],L[1],L[2],maxCell[0],maxCell[1],maxCell[2]);CHKERRQ(ierr);
+      }
+      /* ierr = DMSetPeriodicity(dmpi->dmplex, maxCell, L, bd);CHKERRQ(ierr); */
+      /* ierr = DMLocalizeCoordinates(dmpi->dmplex);CHKERRQ(ierr); */
     }
   }
   ierr = DMSetApplicationContext(dmpi->dmplex, ctx);CHKERRQ(ierr);

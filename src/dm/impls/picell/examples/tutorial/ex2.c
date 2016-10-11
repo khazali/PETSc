@@ -1014,11 +1014,9 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
 
   if (dmpi->debug>3) { /* this shows a bug with crap in the section */
     PetscSection     sec;
-    /* ierr = DMGetDefaultSection(dmpi->dmplex, &sec);CHKERRQ(ierr); */
     ierr = DMGetDefaultGlobalSection(dmpi->dmplex, &sec);CHKERRQ(ierr);
     /* diagnostics */
     if (!sec) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "DMGetDefaultSection return NULL");
-    /* ierr = PetscSectionViewFromOptions(sec, NULL, "-section_view");CHKERRQ(ierr); */
     ierr = PetscSectionView(sec,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
   if (dmpi->debug>2) {
