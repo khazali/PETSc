@@ -30,7 +30,7 @@ ex2: ex2.o chkopts
 	${RM} -f ex2.o
 
 runex1:
-	-${MPIEXEC} -n 1 ./ex1.${PETSC_ARCH} -x2_dm_type p8est -petscspace_poly_tensor -petscspace_order 1 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -run_type torus -max_vpar 30. -use_bsp 1  -petscpartitioner_type simple -collision_period 1000 -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -x2_dm_forest_initial_refinement 3 -num_phi_cells 1 -num_particles_proc 10 -section_phi .5 # -section_length 10 -radius_major 100 # -section_phi 1
+	-${MPIEXEC} -n 1 ./ex1.${PETSC_ARCH} -x2_dm_type p8est -petscspace_poly_tensor -petscspace_order 1 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -run_type torus -max_vpar 30. -use_bsp 1  -petscpartitioner_type simple -collision_period 1000 -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -x2_dm_forest_initial_refinement 2 -num_phi_cells 3 -num_particles_proc 1000 -section_length 10 -radius_major 1e4
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5
 
 runex2:
@@ -39,8 +39,8 @@ runex2:
 # -solver_np 2,2,1 -ft_np 2,2,1 -dom_lo -2,-2,-2 -dom_hi 2,2,2 -b0 .2,.2,1.5
 
 runex1_plex:
-	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 1 -num_phi_cells 8 -num_particles_proc 100 -mstep 2 -debug 3 -snes_monitor -ksp_monitor -snes_converged_reason -run_type iter -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -use_bsp 1
-	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5  -petscpartitioner_type simple
+	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -x2_dm_refine 1 -mstep 2 -debug 3 -snes_monitor -ksp_monitor -snes_converged_reason -run_type torus -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -use_bsp 1 -num_particles_proc 100 -num_phi_cells 1 -section_length 10 -radius_major 1e3
+	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5
 
 # -iter_vertex_file ITER-51vertex-quad-tri.txt -x2_dm_view -x2_dm_type p8est
 # -run_type boxtorus -gtool "advixe-cl -collect survey:2,3"

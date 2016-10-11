@@ -132,8 +132,8 @@ PetscErrorCode X2GridSolverLocatePoints(DM dm, Vec xvec, const void *ctx_dum, IS
     ierr = PetscMalloc2(nn,&peidxs,nn,&elemidxs);CHKERRQ(ierr);
     for (ii=0;ii<nn;ii++) {
       elemidxs[ii] = foundCells[ii].index;
-      if (elemidxs[ii] == -1 && npe==1) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "We are not supporting out of domain points.");
-      else if (elemidxs[ii] < 0) elemidxs[ii] = 0; /* not working in parallel */
+      /* if (elemidxs[ii] < 0 && npe==1) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "We are not supporting out of domain points."); */
+      if (elemidxs[ii] < 0) elemidxs[ii] = 0; /* not working in parallel */
       /* peidxs[ii] = foundCells[ii].rank; */
       peidxs[ii] = rank; /* dummy - no move until have global search */
     }
@@ -207,6 +207,7 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsInt("-proc_send_table_size", "Size of hash table proc->send_list", "ex1.c",ctx->proc_send_table_size, &ctx->proc_send_table_size, NULL);CHKERRQ(ierr);
 
   /* Domain and mesh definition */
+  ierr = PetscOptionsReal("-radius_minor", "Minor radius of torus", "ex1.c", ctx->grid.radius_minor, &ctx->grid.radius_minor, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-radius_major", "Major radius of torus", "ex1.c", ctx->grid.radius_major, &ctx->grid.radius_major, &rMajFlg);CHKERRQ(ierr);
     /* section of the torus, adjust major radius as needed */
   ierr = PetscOptionsReal("-section_phi", "Number of pi radians of torus section, phi direction (0 < section_phi <= 2) ", "ex1.c",ctx->grid.section_phi,&ctx->grid.section_phi,&secFlg);CHKERRQ(ierr);
@@ -219,11 +220,11 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
       /* section of torus */
     } else {
       /* cylindrical flux tube, with L (section_length) specified */
-      ctx->grid.section_phi = t1/(ctx->grid.radius_major*M_PI);
+      ctx->grid.section_phi = atan2(t1,ctx->grid.radius_major+ctx->grid.radius_minor)/M_PI;
     }
   }
   s_section_phi = ctx->grid.section_phi;
-  ierr = PetscOptionsReal("-radius_minor", "Minor radius of torus", "ex1.c", ctx->grid.radius_minor, &ctx->grid.radius_minor, NULL);CHKERRQ(ierr);
+
   ierr = PetscOptionsInt("-num_phi_cells", "Number of cells per major circle", "ex1.c", ctx->grid.num_phi_cells, &ctx->grid.num_phi_cells, NULL);CHKERRQ(ierr);
   if (ctx->grid.num_phi_cells<3 && ctx->grid.section_phi==2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," Not enough phi cells %D",ctx->grid.num_phi_cells);
   ierr = PetscOptionsReal("-inner_mult", "Fraction of minor radius taken by inner square", "ex1.c", ctx->grid.inner_mult, &ctx->grid.inner_mult, NULL);CHKERRQ(ierr);
@@ -350,20 +351,20 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
       nmajor_total *= pow(2,idx);  /* plex does not get the curve */
     }
     else {
-      ierr = PetscOptionsGetInt(NULL,"x2_","-dm_refinement", &idx, &flg);CHKERRQ(ierr);
+      ierr = PetscOptionsGetInt(NULL,"x2_","-dm_refine", &idx, &flg);CHKERRQ(ierr);
       if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-x2_dm_refinement not found?");
     }
-    if (idx<1) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "refine must be greater than 0");
+    if (idx<1) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "refine must be greater than 0 (Q2 would be legal)");
     ntheta_total *= pow(2,idx);
     /* inflate for corners in plane */
     radius = ctx->grid.radius_minor;
-    s_rminor_inflate = 1.01/cos(M_PI/ntheta_total);
+    s_rminor_inflate = 1.02/cos(M_PI/ntheta_total);
     /* inflate for corners around torus */
     radius = ctx->grid.radius_minor + ctx->grid.radius_major;
     /* s_rminor_inflate *= 1.01/cos(.5*ctx->grid.section_phi*M_PI/nmajor_total); */
-    s_rminor_inflate *= 1.01*((radius) / cos(.5*ctx->grid.section_phi*M_PI/nmajor_total) - ctx->grid.radius_major) / ctx->grid.radius_minor;
-    if (ntheta_total < 10) s_rminor_inflate *= 2.; /* hack to fix, this is not working for on level of refinement */
-    if (ctx->grid.radius_minor*s_rminor_inflate >= ctx->grid.radius_major) {
+    s_rminor_inflate *= 1.02*((radius) / cos(.5*ctx->grid.section_phi*M_PI/nmajor_total) - ctx->grid.radius_major) / ctx->grid.radius_minor;
+    if (ntheta_total < 10) s_rminor_inflate *= 2.; /* hack to fix, this is not working for one level of refinement */
+    if (ctx->grid.radius_minor*s_rminor_inflate >= ctx->grid.radius_major && ctx->grid.section_phi==2) {
       s_rminor_inflate = 0.95*ctx->grid.radius_major/ctx->grid.radius_minor;
     }
 
@@ -1196,48 +1197,7 @@ static PetscErrorCode GeometryPICellITER(DM base, PetscInt point, PetscInt dim, 
 }
 
 /* == Defining a base plex for a torus, which looks like a rectilinear donut */
-#undef __FUNCT__
-#define __FUNCT__ "DMLocalizeCoordinate_Torus"
-/*
-  DMLocalizeCoordinate_Internal - If a mesh is periodic, and the input point is far from the anchor, pick the coordinate sheet of the torus which moves it closer.
 
-  Input Parameters:
-+ dm     - The DM
-. dim    - The spatial dimension
-. anchor - The anchor point, the input point can be no more than maxCell away from it
-. ctx    - Optional context to pass
-- in     - The input coordinate point (dim numbers)
-
-  Output Parameter:
-. out - The localized coordinate point
-
-  Level: developer
-
-  Note: This is meant to get a set of coordinates close to each other, as in a cell. The anchor is usually the one of the vertices on a containing cell
-
-.seealso: DMLocalizeCoordinates(), DMLocalizeAddCoordinate()
-*/
-PetscErrorCode DMLocalizeCoordinate_Torus(DM dm, PetscInt dim, const PetscScalar anchor[], const PetscScalar in[], PetscScalar out[], void *actx)
-{
-  PetscInt d;
-  X2Ctx    *ctx = (X2Ctx*)actx;
-  PetscFunctionBegin;
-  if (!dm->maxCell) {
-    for (d = 0; d < dim; ++d) out[d] = in[d];
-  } else {
-    if (!ctx) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "No context?");
-    for (d = 0; d < dim; ++d) {
-      PetscPrintf(PETSC_COMM_SELF,"[%D]%s %D) anchor=%g in=%g maxCell=%g\n",ctx->rank,__FUNCT__,d,anchor[d],in[d],dm->maxCell[d]);
-      if (PetscAbsScalar(anchor[d] - in[d]) > dm->maxCell[d]) {
-        out[d] = PetscRealPart(anchor[d]) > PetscRealPart(in[d]) ? dm->L[d] + in[d] : in[d] - dm->L[d];
-        PetscPrintf(PETSC_COMM_SELF,"\t\t[%D]%s Found a periodic point: %D) anchor=%g in=%g maxCell=%g\n",ctx->rank,__FUNCT__,d,anchor[d],in[d],dm->maxCell[d]);
-      } else {
-        out[d] = in[d];
-      }
-    }
-  }
-  PetscFunctionReturn(0);
-}
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexCreatePICellBoxTorus"
 static PetscErrorCode DMPlexCreatePICellBoxTorus(MPI_Comm comm, X2Grid *params, DM *dm)
@@ -1245,9 +1205,9 @@ static PetscErrorCode DMPlexCreatePICellBoxTorus(MPI_Comm comm, X2Grid *params, 
   PetscMPIInt    rank;
   PetscInt       numCells = 0;
   PetscInt       numVerts = 0;
-  PetscReal      radius_major   = params->radius_major;
+  PetscReal      radius_major  = params->radius_major;
   const PetscInt num_phi_cells = params->num_phi_cells, nplains = (s_section_phi == 2) ? num_phi_cells : num_phi_cells+1;;
-  int           *flatCells = NULL;
+  int            *flatCells = NULL;
   double         *flatCoords = NULL;
   PetscErrorCode ierr;
 
@@ -1334,21 +1294,25 @@ static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X2Grid *params, DM 
 
       for (i = 0; i < nplains; i++) {
         PetscInt j;
-        double cosphi, sinphi;
+        double cosphi, sinphi, r;
 
-        cosphi = cos(s_section_phi * M_PI * i / num_phi_cells);
-        sinphi = sin(s_section_phi * M_PI * i / num_phi_cells);
-
+        if (s_section_phi == 2) {
+          cosphi = cos(s_section_phi * M_PI * i / num_phi_cells);
+          sinphi = sin(s_section_phi * M_PI * i / num_phi_cells);
+        }
         for (j = 0; j < 8; j++) {
-          double r, z;
+          double z;
           double mult = (j < 4) ? inner_mult : 1.;
-
-          r = radius_major + mult * radius_minor * cos(j * M_PI_2);
           z = mult * radius_minor * sin(j * M_PI_2);
-
-          coords[i][j][0] = cosphi * r;
-          coords[i][j][1] = sinphi * r;
           coords[i][j][2] = z;
+          r = radius_major + mult * radius_minor * cos(j * M_PI_2);
+          if (s_section_phi == 2) {
+            coords[i][j][0] = cosphi * r;
+            coords[i][j][1] = sinphi * r;
+          } else {
+            coords[i][j][0] = r;
+            coords[i][j][1] = (radius_major+radius_minor) * s_section_phi * M_PI * i / num_phi_cells; /* height of cylinder */
+          }
         }
       }
     }
@@ -1455,51 +1419,64 @@ static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim,
   PetscReal r, rhat, dist, fulldist;
 
   PetscFunctionBegin;
+  z = abc[2];
   a = abc[0];
   b = abc[1];
-  z = abc[2];
-  inPhi = atan2(b,a);
-  inPhi = (inPhi < 0.) ? (inPhi + s_section_phi * M_PI) : inPhi;
-  i = (inPhi * num_phi_cells) / (s_section_phi * M_PI);
-  i = PetscMin(i,num_phi_cells - 1);
-  leftPhi =  (i *        s_section_phi * M_PI) / num_phi_cells;
-  midPhi  = ((i + 0.5) * s_section_phi * M_PI) / num_phi_cells;
-  cosMidPhi  = cos(midPhi);
-  sinMidPhi  = sin(midPhi);
-  cosLeftPhi = cos(leftPhi);
-  sinLeftPhi = sin(leftPhi);
-  secHalf    = 1. / cos(s_section_phi*M_PI / (2*num_phi_cells) );
-
-  rhat = (a * cosMidPhi + b * sinMidPhi);
-  r    = secHalf * rhat;
-  dist = secHalf * (-a * sinLeftPhi + b * cosLeftPhi);
-  fulldist = 2. * sin(s_section_phi*M_PI / (2*num_phi_cells)) * r;
-  outPhi = ((i + (dist/fulldist)) * s_section_phi * M_PI) / num_phi_cells;
-  /* solve r * (cosLeftPhi * _i + sinLeftPhi * _j) + dist * (nx * _i + ny * _j) = a * _i + b * _j;
-   *
-   * (r * cosLeftPhi + dist * nx) = a;
-   * (r * sinLeftPhi + dist * ny) = b;
-   *
-   * r    = idet * ( a * ny         - b * nx);
-   * dist = idet * (-a * sinLeftPhi + b * cosLeftPhi);
-   * idet = 1./(cosLeftPhi * ny - sinLeftPhi * nx) = sec(Pi/num_phi_cells);
-   */
-  r -= radius_major; /* now centered inside torus */
-  if (ctx->inflate_torus) {
-    PetscReal absR, absZ;
-
-    absR = PetscAbsReal(r);
-    absZ = PetscAbsReal(z);
-    PICellCircleInflate(radius_minor,inner_mult,absR,absZ,&absR,&absZ);
-    r = (r > 0) ? absR : -absR;
-    z = (z > 0) ? absZ : -absZ;
+  if (ctx->grid.section_phi==2) {
+    inPhi = atan2(b,a);
+    inPhi = (inPhi < 0.) ? (inPhi + ctx->grid.section_phi * M_PI) : inPhi;
+    i = (inPhi * num_phi_cells) / (ctx->grid.section_phi * M_PI);
+    i = PetscMin(i,num_phi_cells - 1);
+    leftPhi =  (i *        ctx->grid.section_phi * M_PI) / num_phi_cells;
+    midPhi  = ((i + 0.5) * ctx->grid.section_phi * M_PI) / num_phi_cells;
+    cosMidPhi  = cos(midPhi);
+    sinMidPhi  = sin(midPhi);
+    cosLeftPhi = cos(leftPhi);
+    sinLeftPhi = sin(leftPhi);
+    secHalf    = 1. / cos(ctx->grid.section_phi*M_PI / (2*num_phi_cells) );
+    rhat = (a * cosMidPhi + b * sinMidPhi);
+    r    = secHalf * rhat;
+    dist = secHalf * (-a * sinLeftPhi + b * cosLeftPhi);
+    fulldist = 2. * sin(ctx->grid.section_phi*M_PI / (2*num_phi_cells)) * r;
+    outPhi = ((i + (dist/fulldist)) * ctx->grid.section_phi * M_PI) / num_phi_cells;
+    /* solve r * (cosLeftPhi * _i + sinLeftPhi * _j) + dist * (nx * _i + ny * _j) = a * _i + b * _j;
+     *
+     * (r * cosLeftPhi + dist * nx) = a;
+     * (r * sinLeftPhi + dist * ny) = b;
+     *
+     * r    = idet * ( a * ny         - b * nx);
+     * dist = idet * (-a * sinLeftPhi + b * cosLeftPhi);
+     * idet = 1./(cosLeftPhi * ny - sinLeftPhi * nx) = sec(Pi/num_phi_cells);
+     */
+    r -= radius_major; /* now centered inside torus */
+    if (ctx->inflate_torus) {
+      PetscReal absR, absZ;
+      absR = PetscAbsReal(r);
+      absZ = PetscAbsReal(z);
+      PICellCircleInflate(radius_minor,inner_mult,absR,absZ,&absR,&absZ);
+      r = (r > 0) ? absR : -absR;
+      z = (z > 0) ? absZ : -absZ;
+    }
+    r += radius_major; /* centered back at the origin */
+    cosOutPhi = cos(outPhi);
+    sinOutPhi = sin(outPhi);
+    xyz[0] = r * cosOutPhi;
+    xyz[1] = r * sinOutPhi;
+  } else {
+    r = a;
+    r -= radius_major; /* now centered inside torus */
+    if (ctx->inflate_torus) {
+      PetscReal absR, absZ;
+      absR = PetscAbsReal(r);
+      absZ = PetscAbsReal(z);
+      PICellCircleInflate(radius_minor,inner_mult,absR,absZ,&absR,&absZ);
+      r = (r > 0) ? absR : -absR;
+      z = (z > 0) ? absZ : -absZ;
+    }
+    r += radius_major; /* centered back at the origin */
+    xyz[0] = r;
+    xyz[1] = b;
   }
-  r += radius_major; /* centered back at the origin */
-
-  cosOutPhi = cos(outPhi);
-  sinOutPhi = sin(outPhi);
-  xyz[0] = r * cosOutPhi;
-  xyz[1] = r * sinOutPhi;
   xyz[2] = z;
   PetscFunctionReturn(0);
 }
@@ -1571,15 +1548,15 @@ int main(int argc, char **argv)
       ctx->inflate_torus = PETSC_FALSE;
       assert(ctx->run_type == X2_BOXTORUS);
     }
-    /* if (s_section_phi != 2) { */
-    /*   PetscInt i; */
-    /*   DMBoundaryType bd[3] = {DM_BOUNDARY_NONE,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_NONE}; */
-    /*   const PetscReal L[3] = {1.e10, (ctx->grid.radius_major-ctx->grid.radius_minor)*s_section_phi*M_PI, 1.e10}; */
-    /*   PetscReal maxCell[3]; */
-    /*   if (s_section_phi > -.1) PetscPrintf(ctx->wComm, "%s Warning section_phi is large %g, L=%g %g %g",__FUNCT__,s_section_phi,L[0],L[1],L[2]);CHKERRQ(ierr); */
-    /*   for (i = 0; i < 3; i++) maxCell[i] =  (ctx->grid.radius_major-ctx->grid.radius_minor)/3; */
-    /*   ierr = DMSetPeriodicity(ctx->dm, maxCell, L, bd/\* , DMLocalizeCoordinate_Torus *\/);CHKERRQ(ierr); */
-    /* } */
+    if (s_section_phi != 2) {
+      PetscInt i;
+      DMBoundaryType bd[3] = {DM_BOUNDARY_NONE,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_NONE};
+      const PetscReal L[3] = {1., (ctx->grid.radius_major-ctx->grid.radius_minor)*s_section_phi*M_PI, 1.};
+      PetscReal maxCell[3];
+      if (s_section_phi > -.1) PetscPrintf(ctx->wComm, "%s Warning section_phi is large %g, L = %g, %g, %g\n",__FUNCT__,s_section_phi,L[0],L[1],L[2]);CHKERRQ(ierr);
+      for (i = 0; i < 3; i++) maxCell[i] =  (ctx->grid.radius_major-ctx->grid.radius_minor)/3;
+      /* ierr = DMSetPeriodicity(ctx->dm, maxCell, L, bd);CHKERRQ(ierr); */
+    }
   }
   ierr = DMSetApplicationContext(dmpi->dmplex, ctx);CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dmplex, "x2_");CHKERRQ(ierr);

@@ -261,7 +261,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
 
       if (B[p*totDim + b] < -.1) {
         ierr = VecGetArray(coord, &xx);CHKERRQ(ierr);
-        PetscPrintf(PETSC_COMM_SELF,"DMPICellAddSource ERROR element %d, p=%d/%d, add B[%d] = %g, x = %g %g %g\n",cell,p,N,p*totDim + b,B[p*totDim + b],xx[p*dim+0],xx[p*dim+1],xx[p*dim+2]);
+        PetscPrintf(PETSC_COMM_SELF,"DMPICellAddSource ERROR element %d, p=%d/%d, add B[%d] = %g, x = %12.8e %12.8e %12.8e\n",cell,p,N,p*totDim + b,B[p*totDim + b],xx[p*dim+0],xx[p*dim+1],xx[p*dim+2]);
         ierr = VecRestoreArray(coord, &xx);CHKERRQ(ierr);
 #ifndef PETSC_USE_DEBUG
         SETERRQ1(PetscObjectComm((PetscObject) dmpi->dmplex), PETSC_ERR_PLIB, "negative interpolant %g, Plex LocatePoint not great with coarse grids",B[p*totDim + b]);
