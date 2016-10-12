@@ -487,7 +487,7 @@ class PETScExamples(object):
           raise TypeError("top must be a string")
     # Now summarize this dictionary
     eval("self."+action+"_summarize(dataDict)")
-    return
+    return dataDict
 
   def archTestAnalyze(self,makeoutput):
     """
