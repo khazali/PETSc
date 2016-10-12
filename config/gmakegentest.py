@@ -9,6 +9,7 @@ from cmakegen import Mistakes, stripsplit, AUTODIRS, SKIPDIRS
 from cmakegen import defaultdict # collections.defaultdict, with fallback for python-2.4
 from gmakegen import *
 
+
 import inspect
 thisscriptdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 maintdir=os.path.join(os.path.join(os.path.dirname(thisscriptdir),'bin'),'maint')
@@ -28,7 +29,7 @@ class generateExamples(Petsc,PETScExamples):
     super(generateExamples, self).__init__(petsc_dir=None, petsc_arch=None, verbose=False)
     self.single_ex=single_ex
 
-    # Language for requirements
+    # For help in setting the requirements
     self.precision_types="single double quad int32".split()
     self.integer_types="int32 int64".split()
     self.languages="fortran cuda cxx".split()    # Always requires C so do not list
@@ -39,12 +40,24 @@ class generateExamples(Petsc,PETScExamples):
     self.templateStr=fh.read()
     fh.close
 
-    # Adding a dictionary for storing sources
+    # Adding a dictionary for storing sources, objects, and tests
+    # to make building the dependency tree easier
     self.sources={}
+    self.objects={}
+    self.tests={}
     for pkg in PKGS:
-      self.sources[pkg]=[]
+      self.sources[pkg]={}
+      self.objects[pkg]=[]
+      self.tests[pkg]={}
+      for lang in LANGS:
+        self.sources[pkg][lang]=[]
+        self.tests[pkg][lang]=[]
 
     self.ptNaming=True
+
+    # Whether to write out a useful debugging
+    #if verbose: self.summarize=True
+    self.summarize=True
     return
 
   def parseExampleFile(self,srcfile,basedir,srcDict):
@@ -56,11 +69,6 @@ class generateExamples(Petsc,PETScExamples):
     os.chdir(basedir)
 
     basename=os.path.splitext(srcfile)[0]
-    srcext=os.path.splitext(srcfile)[-1]
-    langReq=""
-    if srcext in "F F90 f f90".split(): langReq="fortran"
-    if srcext in "cu".split(): langReq="cuda"
-    if srcext in "cxx".split(): langReq="cxx"
 
     sh=open(srcfile,"r"); fileStr=sh.read(); sh.close()
     fsplit=fileStr.split("/*TEST")[1:]
@@ -115,7 +123,6 @@ class generateExamples(Petsc,PETScExamples):
         if var=="nsize": val=int(val) 
         if var=="requires": 
           val=val.split(",")
-          if langReq: val.append(langReq)
         # do assume that script is the last entry
         # so that parsing doesn't cause problems
         if var=="script": val=test.split("script:")[1].strip()
@@ -126,13 +133,44 @@ class generateExamples(Petsc,PETScExamples):
     os.chdir(curdir)
     return True
 
+  def getLanguage(self,srcfile):
+    """
+    Based on the source, determine associated language as found in gmakegen.LANGS
+    Can we just return srcext[1:\] now?
+    """
+    langReq=None
+    srcext=os.path.splitext(srcfile)[-1]
+    if srcext in ".F90".split(): langReq="F90"
+    if srcext in ".F".split(): langReq="F"
+    if srcext in ".cxx".split(): langReq="cxx"
+    if srcext == ".cu": langReq="cu"
+    if srcext == ".c": langReq="c"
+    if not langReq: print "ERROR: ", srcext, srcfile
+    return langReq
+
   def addToSources(self,exfile,root):
     """
       Put into data structure that allows easy generation of makefile
-      Note that our testfiles are not separated by language
     """
     pkg=self.relpath(self.petsc_dir,root).split("/")[1]
-    self.sources[pkg].append(exfile)
+    fullfile=os.path.join(root,exfile)
+    relpfile=self.relpath(self.petsc_dir,fullfile)
+    self.sources[pkg][self.getLanguage(exfile)].append(relpfile)
+
+    # In gmakefile, ${TESTDIR} var specifies the object compilation
+    testsdir=self.relpath(self.petsc_dir,root)+"/"
+    objfile="${TESTDIR}/"+testsdir+os.path.splitext(exfile)[0]+".o"
+    self.objects[pkg].append(objfile)
+    return
+
+  def addToTests(self,test,root,exfile):
+    """
+      Put into data structure that allows easy generation of makefile
+      Organized by languages to allow testing of languages
+    """
+    pkg=self.relpath(self.petsc_dir,root).split("/")[1]
+    nmtest=self.nameSpace(test,root)
+    self.tests[pkg][self.getLanguage(exfile)].append(nmtest)
     return
 
   def getExecname(self,exfile,root):
@@ -155,7 +193,7 @@ class generateExamples(Petsc,PETScExamples):
     """
     # runscript_dir directory has to be consistent with gmakefile
     rpath=self.relpath(self.petsc_dir,root)
-    runscript_dir=os.path.join(self.petsc_dir,self.petsc_arch,"tests",rpath.lstrip("src/"))
+    runscript_dir=os.path.join(self.petsc_dir,self.petsc_arch,"tests",rpath)
     if not os.path.isdir(runscript_dir): os.makedirs(runscript_dir)
     fh=open(os.path.join(runscript_dir,testname+".sh"),"w")
     
@@ -173,10 +211,7 @@ class generateExamples(Petsc,PETScExamples):
       testStr=self.templateStr
       for subkey in subst:
         patt="\${"+subkey+"}"
-        print  patt, subst[subkey]
         testStr=re.sub(patt,subst[subkey],testStr)
-      print root, testname, testStr
-      sys.exit()
       fh.write(testStr+"\n")
     else:
       fh.write(testDict['script']+"\n")
@@ -196,23 +231,38 @@ class generateExamples(Petsc,PETScExamples):
     debug=False
     fileIsTested=False
     execname=self.getExecname(exfile,root)
-    for test in srcDict:
-      srcDict[test]['execname']=execname  # Convenience
-      isrun=self.determineIfRun(srcDict[test])
-      if isrun:
-        fileIsTested=True
-        self.genRunScript(test,root,srcDict[test])
-      if debug: print self.nameSpace(exfile,root), test, isrun
-    if fileIsTested:
-      self.addToSources(exfile,root)
+    if self._isBuilt(exfile):
+      for test in srcDict:
+        srcDict[test]['execname']=execname   # Convenience in generating scripts
+        srcDict[test]['isrun']=False
+        if self._isRun(srcDict[test]):
+          fileIsTested=True
+          self.genRunScript(test,root,srcDict[test])
+          srcDict[test]['isrun']=True        # Convenience for debugging
+          self.addToTests(test,root,exfile)
+        if debug: print self.nameSpace(exfile,root), test
+
+    # This adds to datastructure for building deps
+    if fileIsTested: self.addToSources(exfile,root)
     return
 
-  def determineIfRun(self,testDict):
+  def _isBuilt(self,exfile):
+    """
+    Determine if this file should be built. 
+    """
+    # Get the language based on file extension
+    lang=self.getLanguage(exfile)
+    if lang=="f" and not self.have_fortran: return False
+    if lang=="cu" and not self.conf.has_key('PETSC_HAVE_CUDA'): return False
+    if lang=="cxx" and not self.conf.has_key('PETSC_HAVE_CXX'): return False
+    return True
+
+
+  def _isRun(self,testDict):
     """
     Based on the requirements listed in the src file and the petscconf.h
     info, determine whether this test should be run or not.
     """
-    isrun=True
     indent="  "
     debug=False
 
@@ -228,10 +278,6 @@ class generateExamples(Petsc,PETScExamples):
         isNull=False
         if requirement.startswith("!"):
           requirement=requirement[1:]; isNull=True
-        # Language requirement
-        if requirement in self.languages:
-          if self.conf['PETSC_LANGUAGE']:
-            pass # To Do
         # Scalar requirement
         if requirement=="complex":
           if self.conf['PETSC_SCALAR']=='complex':
@@ -275,12 +321,40 @@ class generateExamples(Petsc,PETScExamples):
         if self.conf.get(requirement): 
           if isNull: return False
 
-    return isrun
+    return True
 
   def genPetscTests_summarize(self,dataDict):
     """
     Required method to state what happened
     """
+    if not self.summarize: return
+    indent="   "
+    fhname="GenPetscTests_summarize.txt"
+    fh=open(fhname,"w")
+    print "See ", fhname
+    for root in dataDict:
+      relroot=self.relpath(self.petsc_dir,root)
+      fh.write(relroot+"\n")
+      for exfile in dataDict[root]:
+        # Basic  information
+        pkg=relroot.split("/")[1]
+        fullfile=os.path.join(root,exfile)
+        rfile=self.relpath(self.petsc_dir,fullfile)
+        builtStatus=(" Is built" if rfile in self.sources[pkg] else " Is NOT built")
+        fh.write(indent+exfile+indent*4+builtStatus+"\n")
+
+        for test in dataDict[root][exfile]:
+          line=indent*2+test
+          fh.write(line+"\n")
+          # Looks nice to have the keys in order
+          #for key in dataDict[root][exfile][test]:
+          for key in "isrun abstracted nsize args requires script".split():
+            if not dataDict[root][exfile][test].has_key(key): continue
+            line=indent*3+key+": "+str(dataDict[root][exfile][test][key])
+            fh.write(line+"\n")
+          fh.write("\n")
+        fh.write("\n")
+      fh.write("\n")
     return
 
   def genPetscTests(self,root,dirs,files,dataDict):
@@ -303,13 +377,92 @@ class generateExamples(Petsc,PETScExamples):
 
     return
 
+  def gen_pkg(self, pkg):
+    """
+     Overwrite of the method in the base PETSc class 
+    """
+    return self.sources[pkg]
+
+  def write_gnumake(self,dataDict):
+    """
+     Write out something similar to files from gmakegen.py
+
+     There is not a lot of has_key type checking because
+     should just work and need to know if there are bugs
+
+     Test depends on script which also depends on source
+     file, but since I don't have a good way generating
+     acting on a single file (oops) just depend on
+     executable which in turn will depend on src file
+    """
+    # Open file
+    arch_files = self.arch_path('lib','petsc','conf', 'testfiles')
+    fd = open(arch_files, 'w')
+
+    # Write out the sources
+    gendeps = self.gen_gnumake(fd,prefix="testsrcs-")
+
+    # Write out the tests and execname targets
+    fd.write("\n#Tests and executables\n")    # Delimiter
+    testdeps=" ".join(["test-"+pkg for pkg in PKGS])
+    fd.write("test: "+testdeps+"\n")    # Main test target
+
+    for pkg in PKGS:
+      # These grab the ones that are built
+      # Package tests
+      testdeps=" ".join(["test-"+pkg+"-"+lang for lang in LANGS])
+      fd.write("test-"+pkg+": "+testdeps+"\n")
+      if self.single_ex:
+        execname=pkg+"-ex"
+        fd.write(execname+": "+" ".join(self.objects[pkg])+"\n\n")
+      for lang in LANGS:
+        testdeps=" ".join(self.tests[pkg][lang])
+        fd.write("test-"+pkg+"-"+lang+":"+testdeps+"\n")
+        for exfile in self.sources[pkg][lang]:
+          filetests=[]
+          root=os.path.join(self.petsc_dir,os.path.dirname(exfile))
+          basedir=os.path.dirname(exfile)
+          testsdir="${TESTDIR}/"+basedir+"/"
+          base=os.path.basename(exfile)
+          objfile=testsdir+os.path.splitext(base)[0]+".o"
+          linker=self.getLanguage(exfile)[0].upper()+"LINKER"
+          if not self.single_ex:
+            localexec=os.path.basename(os.path.splitext(exfile)[0])
+            execname=os.path.join(testsdir,localexec)
+            localobj=os.path.basename(objfile)
+            fd.write("\n"+execname+": "+objfile+"\n")
+            line="\t-cd "+testsdir+"; ${"+linker+"} -o "+localexec+" "+localobj+"; ${RM}"+localobj
+            fd.write(line+"\n")
+          for test in dataDict[root][base]:
+            if dataDict[root][base][test]['isrun']:
+              fulltest=self.nameSpace(test,root)
+              filetests.append(fulltest)
+              script=test+".sh"
+              fd.write(fulltest+": "+execname+"\n")
+              cmd="tmpdir=`mktemp '"+testsdir+"/runex.XXXXXXXXX'`; cd $tmpdir; ../"+script
+              fd.write("\t-@"+cmd+"\n")
+          linker=self.getLanguage(exfile)[0].upper()+"LINKER"
+          allFileTestsTarg=self.nameSpace(os.path.splitext(base)[0],root)+"-all"
+          fd.write(allFileTestsTarg+": "+" ".join(filetests)+"\n")
+
+    fd.write("helptests:\n\t -@"
+    # Write out tests
+    return
+
+  def writeHarness(self,output,dataDict):
+    """
+     This is set up to write out multiple harness even if only gnumake
+     is supported now
+    """
+    eval("self.write_"+output+"(dataDict)")
+    return
 
 def main(petsc_dir=None, petsc_arch=None, output=None, verbose=False, single_ex=False):
     if output is None:
         output = 'gnumake'
     pEx=generateExamples(petsc_dir=petsc_dir, petsc_arch=petsc_arch, verbose=verbose, single_ex=single_ex)
-    startdir=os.path.realpath(os.path.curdir)
-    pEx.walktree(startdir,action="genPetscTests")
+    dataDict=pEx.walktree(os.path.join(pEx.petsc_dir,'src'),action="genPetscTests")
+    pEx.writeHarness(output,dataDict)
 
 if __name__ == '__main__':
     import optparse
