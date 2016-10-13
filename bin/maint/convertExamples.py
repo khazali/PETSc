@@ -120,7 +120,19 @@ class convertExamples(PETScExamples):
 
     # OUTPUT SUFFIX should be equivalent to runex target so we just go by that.
     runexBase=runexName.split("_")[0]
+    exName=runexBase[3:]
     abstract['outputSuffix']=runexName[len(runexBase)+1:]
+
+    # We always want nsize even if not abstracted 
+    firstPart=scriptStr.split(">")[0]
+    if "MPIEXEC" in firstPart:
+      nsizeStr=firstPart.split(" -n ")[1].split()[0].strip()
+      try:
+        abstract['nsize']=int(nsizeStr)
+      except:
+        return abstract
+    else:
+      return abstract
 
     # Things that we know off the bat destroy the abstraction
     cleanStr=re.sub('"[^>]+"', '', scriptStr)
@@ -136,7 +148,6 @@ class convertExamples(PETScExamples):
 
     # Args
     firstPart=mainCommand.split(">")[0]
-    exName=runexBase[3:]
     args=firstPart.split(exName)[1].strip().strip("\\")
     if args.strip(): 
       if "\\\n" in args:
@@ -145,19 +156,6 @@ class convertExamples(PETScExamples):
           abstract['args']=abstract['args']+" "+a.strip().strip("\\")
       else:
         abstract['args']=args.strip()
-
-    # nsize
-    if "MPIEXEC" in firstPart:
-      splitVar=exName
-      if "touch" in firstPart: splitVar="./"+exName 
-      mpiStuff=firstPart.split(splitVar)[0].strip()
-      nsizeStr=mpiStuff.split("-n")[1].split()[0].strip()
-      try:
-        abstract['nsize']=int(nsizeStr)
-      except:
-        return abstract
-    else:
-      abstract['nsize']=0
 
     abstract['abstracted']=True
     return abstract
@@ -209,6 +207,8 @@ class convertExamples(PETScExamples):
         insertStr=insertStr+indent+"requires: "+reqStr+"\n"
     else:
       insertStr=indent+"output_suffix: "+abstract['outputSuffix']+"\n"
+      if abstract.has_key('nsize'):
+        insertStr=insertStr+indent+"nsize: "+str(abstract['nsize'])+"\n"
       if abstract.has_key('requires'):
         reqStr=", ".join(abstract['requires'])
         insertStr=insertStr+indent+"requires: "+reqStr+"\n"

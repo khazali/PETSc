@@ -27,18 +27,18 @@ class generateExamples(Petsc,PETScExamples):
   """
   def __init__(self,petsc_dir=None, petsc_arch=None, verbose=False, single_ex=False):
     super(generateExamples, self).__init__(petsc_dir=None, petsc_arch=None, verbose=False)
+
     self.single_ex=single_ex
+    self.arch_dir=os.path.join(self.petsc_dir,self.petsc_arch)
+    self.ptNaming=True
+    # Whether to write out a useful debugging
+    #if verbose: self.summarize=True
+    self.summarize=True
 
     # For help in setting the requirements
     self.precision_types="single double quad int32".split()
     self.integer_types="int32 int64".split()
     self.languages="fortran cuda cxx".split()    # Always requires C so do not list
-
-    # Save the examplate template in a string
-    template_name=os.path.join(thisscriptdir,"example_template.sh.in")
-    fh=open(template_name,"r")
-    self.templateStr=fh.read()
-    fh.close
 
     # Adding a dictionary for storing sources, objects, and tests
     # to make building the dependency tree easier
@@ -53,11 +53,19 @@ class generateExamples(Petsc,PETScExamples):
         self.sources[pkg][lang]=[]
         self.tests[pkg][lang]=[]
 
-    self.ptNaming=True
+    # Save the examplate template in a string
+    template_name=os.path.join(thisscriptdir,"example_template.sh.in")
+    fh=open(template_name,"r")
+    self.templateStr=fh.read()
+    fh.close
 
-    # Whether to write out a useful debugging
-    #if verbose: self.summarize=True
-    self.summarize=True
+    # Get variables that are needed by the scripts
+    self.varSubst={}
+    self.varSubst['MPIEXEC']=self.conf['MPIEXEC']
+    self.varSubst['DIFF']=self.conf['DIFF']
+    self.varSubst['RM']=self.conf['RM']
+    self.varSubst['GREP']=self.conf['GREP']
+
     return
 
   def parseExampleFile(self,srcfile,basedir,srcDict):
@@ -85,6 +93,8 @@ class generateExamples(Petsc,PETScExamples):
       # The dictionary key is determined by output_suffix.
       # Allow anywhere in the file so need to grab it first
       testname="run"+basename
+      if os.path.splitext(srcfile)[1].lstrip(".").startswith("F"):
+        test=test.replace("!","")
       for line in test.split("\n"):
         if not ":" in line: continue  # This shouldn't happen
         var=line.split(":")[0].strip()
@@ -193,30 +203,38 @@ class generateExamples(Petsc,PETScExamples):
     """
     # runscript_dir directory has to be consistent with gmakefile
     rpath=self.relpath(self.petsc_dir,root)
-    runscript_dir=os.path.join(self.petsc_dir,self.petsc_arch,"tests",rpath)
+    runscript_dir=os.path.join(self.arch_dir,"tests",rpath)
     if not os.path.isdir(runscript_dir): os.makedirs(runscript_dir)
     fh=open(os.path.join(runscript_dir,testname+".sh"),"w")
+    petscvarfile=os.path.join(self.arch_dir,'lib','petsc','conf','petscvariables')
     
+    subst={}
     if testDict['abstracted']:
       # Setup the variables in template_string that need to be substituted
-      subst={}
-      subst['MPIEXEC']=self.conf['MPIEXEC']
+      subst['SRCDIR']=os.path.join(self.petsc_dir,rpath)
       subst['MPIARGSIZE']="-n "+str(testDict['nsize'])
-      subst['EXEC']=testDict['execname']
+      subst['EXEC']="../"+testDict['execname']
       subst['ARGS']=(testDict['args'] if testDict.has_key('args') else " ")
       subst['TESTNAME']=testname
-      subst['SRCDIR']=os.path.join(self.petsc_dir,'src')
-      subst['DIFF']=self.conf['DIFF']
-      subst['RM']=self.conf['RM']
+      outf=testname+".out"
+      subst['OUTPUTFILE']=(re.sub("runnew_","",outf) if outf.startswith("runnew_") else outf)
       testStr=self.templateStr
-      for subkey in subst:
-        patt="\${"+subkey+"}"
-        testStr=re.sub(patt,subst[subkey],testStr)
-      fh.write(testStr+"\n")
     else:
-      fh.write(testDict['script']+"\n")
+      testStr=testDict['script']
+      # Try to retrofit the existing scripts (bit of hoop jumping
+      exname=testDict['execname']
+      patname=(re.sub("new_","",exname) if exname.startswith("new_") else exname)
+      patt=" "+patname+" ";   subs=" ../"+exname+" ";    testStr=re.sub(patt,subs,testStr)
+      patt=" ./"+patname+" "; subs=" ../"+exname+" ";    testStr=re.sub(patt,subs,testStr)
+      patt=" output/"      ; subs=" "+root+"/output/";  testStr=re.sub(patt,subs,testStr)
 
-    fh.close()
+    # Now substitute the key variables
+    allVars=self.varSubst.copy(); allVars.update(subst)
+    for subkey in allVars:
+      patt="\${"+subkey+"}"
+      testStr=re.sub(patt,allVars[subkey],testStr)
+
+    fh.write(testStr+"\n"); fh.close()
     os.chmod(os.path.join(runscript_dir,testname+".sh"),0777)
     return
 
@@ -271,9 +289,14 @@ class generateExamples(Petsc,PETScExamples):
       if testDict['nsize']>1 and self.conf['MPI_IS_MPIUNI']==1: 
         if debug: print indent+"Cannot run parallel tests"
         return False
+    else:
+      # If we don't know nsize, then assume it cannot be run
+      if self.conf['MPI_IS_MPIUNI']==1: return False
  
     if testDict.has_key('requires'):
       for requirement in testDict['requires']:
+        requirement=requirement.strip()
+        if not requirement: continue
         if debug: print indent+"Requirement: ", requirement
         isNull=False
         if requirement.startswith("!"):
@@ -318,8 +341,12 @@ class generateExamples(Petsc,PETScExamples):
             return False
 
         # Rest should be packages that we can just get from conf
-        if self.conf.get(requirement): 
+        petscconfvar="PETSC_HAVE_"+requirement.upper()
+        if self.conf.get(petscconfvar):
           if isNull: return False
+        else:
+          if debug: print "requirement not found: ", requirement
+          return False
 
     return True
 
@@ -334,13 +361,15 @@ class generateExamples(Petsc,PETScExamples):
     print "See ", fhname
     for root in dataDict:
       relroot=self.relpath(self.petsc_dir,root)
+      pkg=relroot.split("/")[1]
       fh.write(relroot+"\n")
+      allSrcs=[]
+      for lang in LANGS: allSrcs=allSrcs+self.sources[pkg][lang]
       for exfile in dataDict[root]:
         # Basic  information
-        pkg=relroot.split("/")[1]
         fullfile=os.path.join(root,exfile)
         rfile=self.relpath(self.petsc_dir,fullfile)
-        builtStatus=(" Is built" if rfile in self.sources[pkg] else " Is NOT built")
+        builtStatus=(" Is built" if rfile in allSrcs else " Is NOT built")
         fh.write(indent+exfile+indent*4+builtStatus+"\n")
 
         for test in dataDict[root][exfile]:
@@ -355,6 +384,9 @@ class generateExamples(Petsc,PETScExamples):
           fh.write("\n")
         fh.write("\n")
       fh.write("\n")
+    #fh.write("\nClass Sources\n"+str(self.sources)+"\n")
+    #fh.write("\nClass Tests\n"+str(self.tests)+"\n")
+    fh.close()
     return
 
   def genPetscTests(self,root,dirs,files,dataDict):
@@ -422,16 +454,17 @@ class generateExamples(Petsc,PETScExamples):
           filetests=[]
           root=os.path.join(self.petsc_dir,os.path.dirname(exfile))
           basedir=os.path.dirname(exfile)
-          testsdir="${TESTDIR}/"+basedir+"/"
+          testdir="${TESTDIR}/"+basedir+"/"
           base=os.path.basename(exfile)
-          objfile=testsdir+os.path.splitext(base)[0]+".o"
+          objfile=testdir+os.path.splitext(base)[0]+".o"
           linker=self.getLanguage(exfile)[0].upper()+"LINKER"
           if not self.single_ex:
             localexec=os.path.basename(os.path.splitext(exfile)[0])
-            execname=os.path.join(testsdir,localexec)
+            execname=os.path.join(testdir,localexec)
             localobj=os.path.basename(objfile)
-            fd.write("\n"+execname+": "+objfile+"\n")
-            line="\t-cd "+testsdir+"; ${"+linker+"} -o "+localexec+" "+localobj+"; ${RM}"+localobj
+            fd.write("\n"+execname+": "+objfile+" ${libpetscall}\n")
+            # There should be a better way here
+            line="\t-cd "+testdir+"; ${"+linker+"} -o "+localexec+" "+localobj+" ${PETSC_LIB}"
             fd.write(line+"\n")
           for test in dataDict[root][base]:
             if dataDict[root][base][test]['isrun']:
@@ -439,13 +472,14 @@ class generateExamples(Petsc,PETScExamples):
               filetests.append(fulltest)
               script=test+".sh"
               fd.write(fulltest+": "+execname+"\n")
-              cmd="tmpdir=`mktemp '"+testsdir+"/runex.XXXXXXXXX'`; cd $tmpdir; ../"+script
+              rundir=os.path.join(testdir,test)
+              cmd="mkdir -p "+rundir+"; cd "+rundir+"; ../"+script
               fd.write("\t-@"+cmd+"\n")
           linker=self.getLanguage(exfile)[0].upper()+"LINKER"
           allFileTestsTarg=self.nameSpace(os.path.splitext(base)[0],root)+"-all"
           fd.write(allFileTestsTarg+": "+" ".join(filetests)+"\n")
 
-    fd.write("helptests:\n\t -@"
+    fd.write("helptests:\n\t -@grep '^[a-z]' ${generatedtest} | cut -f1 -d:\n")
     # Write out tests
     return
 
