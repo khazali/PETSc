@@ -59,7 +59,6 @@ petscvariables := $(PETSC_ARCH)/lib/petsc/conf/petscvariables
 generatedtest      := $(PETSC_ARCH)/lib/petsc/conf/testfiles
 
 all : $(generated) $(libpetscall) 
-#TODO all : $(generated) $(libpetscall) $(generatedtest)
 
 .SECONDEXPANSION:		# to expand $$(@D)/.DIR
 
@@ -104,7 +103,7 @@ PETSC_COMPILE.cu = $(call quiet,CUDAC) -c $(CUDAC_FLAGS) --compiler-options="$(P
 PETSC_GENDEPS.cu = $(call quiet,CUDAC,.dep) --generate-dependencies --output-directory=$(@D) $(CUDAC_FLAGS) --compiler-options="$(PCC_FLAGS) $(CXXFLAGS) $(CCPPFLAGS)"
 PETSC_COMPILE.F = $(call quiet,FC) -c $(FC_FLAGS) $(FFLAGS) $(FCPPFLAGS) $(FC_DEPFLAGS)
 
-langs := c cu cxx F 
+langs := c cu cxx F
 concatlang = $(foreach lang, $(langs), $(srcs-$(1).$(lang):%.$(lang)=$(OBJDIR)/%.o))
 srcs.o := $(foreach pkg, $(pkgs), $(call concatlang,$(pkg)))
 testlangs := c cu cxx F F90
@@ -246,7 +245,6 @@ $(srcs.o) : $(petscvariables)
 $(testsrcs.o) : $(petscvariables)
 
 # all test sources should be recompiled when the library changes
-$(srcs.o) : $(libpetscall)
 $(testsrcs.o) : $(libpetscall)
 
 %/.DIR :
