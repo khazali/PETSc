@@ -23,7 +23,7 @@
 
 makefileMap={}
 makefileMap["TESTEXAMPLES_F90_NOCOMPLEX"]="requires: !complex"  # Need to check
-makefileMap["TESTEXAMPLES_F2003"]="requires: define(USING_F2003)"
+#??makefileMap["TESTEXAMPLES_F2003"]="requires: define(USING_F2003)"
 makefileMap["TESTEXAMPLES_C_COMPLEX"]="requires: complex"
 makefileMap["TESTEXAMPLES_FORTRAN_COMPLEX"]="requires: complex"
 makefileMap["TESTEXAMPLES_C_NOCOMPLEX"]="requires: !complex"
@@ -39,11 +39,20 @@ makefileMap["TESTEXAMPLES_CUSP"]="requires: cusp"
 makefileMap["TESTEXAMPLES_CUSPARSE"]="requires: cusparse"
 makefileMap["TESTEXAMPLES_HYPRE"]="requires: hypre"
 makefileMap["TESTEXAMPLES_MUMPS"]="requires: mumps"
+makefileMap["TESTEXAMPLES_FFTW"]="requires: fftw"
+makefileMap["TESTEXAMPLES_FFTW_COMPLEX"]="requires: fftw,complex"
 makefileMap["TESTEXAMPLES_SUPERLU"]="requires: superlu"
 makefileMap["TESTEXAMPLES_SUPERLU_DIST"]="requires: superlu_dist"
 makefileMap["TESTEXAMPLES_MKL_PARDISO"]="requires: mkl_pardiso"
 makefileMap["TESTEXAMPLES_MOAB"]="requires: moab"
+makefileMap["TESTEXAMPLES_MOAB_HDF5"]="requires: moab, hdf5"
 makefileMap["TESTEXAMPLES_THREADCOMM"]="requires: threadcomm"
+makefileMap["TESTEXAMPLES_EXODUSII"]="requires: exodusii"
+makefileMap["TESTEXAMPLES_TCHEM"]="requires: tchem"
+makefileMap["TESTEXAMPLES_REVOLVE"]="requires: revolve"
+makefileMap["TESTEXAMPLES_YAML"]="requires: yaml"
+makefileMap["TESTEXAMPLES_CHOMBO"]="requires: chombo"
+makefileMap["TESTEXAMPLES_TRILINOS"]="requires: trilinos"
 
 argMap={}
 #packages="superlu superlu_dist hypre strumpack elemental cuda cusp mkl_pardiso moab threadcomm"

@@ -104,7 +104,6 @@ class convertExamples(PETScExamples):
           allRqs=allRqs+rqList
       if len(allRqs)>0:
         newDict[test]['requires']=list(set(allRqs))  # Uniquify the requirements
-
     return newDict
 
   def abstractScript(self,runexName,scriptStr,anlzDict):
@@ -166,8 +165,8 @@ class convertExamples(PETScExamples):
   def insertScriptIntoSrc(self,runexName,basedir,subDict):
     """
     This is a little bit tricky because figuring out the source file
-    associated with a run file is not done by order in TEST* variables.
-    Rather than try and parse that logic, we will try to 
+    associated with a run file is done by order in TEST* variables.
+    Rather than try and parse that logic, we will try to find it
     """
     debug=False
     abstract=subDict[runexName]
@@ -210,17 +209,25 @@ class convertExamples(PETScExamples):
         insertStr=insertStr+indent+"requires: "+reqStr+"\n"
     else:
       insertStr=indent+"output_suffix: "+abstract['outputSuffix']+"\n"
+      if abstract.has_key('requires'):
+        reqStr=", ".join(abstract['requires'])
+        insertStr=insertStr+indent+"requires: "+reqStr+"\n"
       insertStr=insertStr+indent+"script: "+abstract['script']+"\n"
 
-    # For now we are writing out to a new file
-    newExSrc="new_"+exSrc
-    if os.path.exists(newExSrc): exSrc=newExSrc
+    testStr="\n/*TEST\n"+insertStr+"\nTEST*/\n"
+
+    if os.path.splitext(exSrc)[1].lstrip(".").startswith("F"):
+      testStr=testStr.replace("\n","\n!").rstrip("!")
+
+
 
     # Get the file into a string, append, and then close
     sh=open(exSrc,"r"); fileStr=sh.read(); sh.close()
-    newFileStr=fileStr+"\n/*TEST\n"+insertStr+"\nTEST*/\n"
-    # Write it out
-    sh=open(newExSrc,"w"); sh.write(newFileStr); sh.close()
+
+    # Append to in
+    newExSrc=(exSrc if self.replaceSource else "new_"+exSrc)
+    if not self.replaceSource: exSrc=newExSrc
+    sh=open(newExSrc,"w"); sh.write(fileStr+testStr); sh.close()
 
     os.chdir(startdir)
     return True
@@ -408,28 +415,30 @@ def main():
     parser.add_option('-r', '--replace', dest='replaceSource',
                       action="store_false", 
                       help='Replace the source files.  Default is false')
-    parser.add_option('-s', '--startdir', dest='startdir',
+    parser.add_option('-p', '--petsc_dir', dest='petsc_dir',
                       help='Where to start the recursion',
                       default='')
     parser.add_option('-f', '--functioneval', dest='functioneval',
-                      help='Function to evaluate while traversing example dirs: printFiles default), examplesConsistencyEval', 
-                      default='')
+                      help='Function to evaluate while traversing example dirs: genAllRunFiles cleanAllRunFiles', 
+                      default='genAllRunFiles')
     options, args = parser.parse_args()
 
     # Process arguments
-    startdir=''
-    if len(args) > 1:
-      parser.print_usage()
-      return
-    elif len(args) == 1:
-      startdir=args[0]
-    else:
-      if not options.startdir == '':
-        startdir=options.startdir
-    if not startdir:
+    if len(args) > 0:
       parser.print_usage()
       return
 
+    petsc_dir=None
+    if options.petsc_dir: petsc_dir=options.petsc_dir
+    if petsc_dir is None: petsc_dir=os.path.dirname(os.path.dirname(currentdir))
+    # This is more inline with what PETSc devs use, but since we are
+    # experimental, I worry about picking up their env var
+#    if petsc_dir is None:
+#      petsc_dir = os.environ.get('PETSC_DIR')
+#      if petsc_dir is None:
+#        petsc_dir=os.path.dirname(os.path.dirname(currentdir))
+
+    startdir=os.path.join(petsc_dir,'src')
     pEx=convertExamples(options.replaceSource)
     if not options.functioneval=='':
       pEx.walktree(startdir,action=options.functioneval)
