@@ -1262,6 +1262,7 @@ int main(int argc, char **argv)
       ierr = X2PSendListDestroy( &ctx.sendListTable[idx] );CHKERRQ(ierr);
     }
   }
+  ierr = SNESDestroy(&dmpi->snes);CHKERRQ(ierr);
   ierr = PetscFree(ctx.sendListTable);CHKERRQ(ierr);
   ierr = PetscFEDestroy(&dmpi->fem);CHKERRQ(ierr);
   ierr = MatDestroy(&J);CHKERRQ(ierr);

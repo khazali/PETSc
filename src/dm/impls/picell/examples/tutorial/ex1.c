@@ -1465,7 +1465,6 @@ static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim,
   if (ctx->grid.section_phi!=2) xyz[1] = abc[1];
   else xyz[1] = r * sinOutPhi;
   xyz[2] = z;
-/* PetscPrintf(PETSC_COMM_WORLD,"\t\t%s: point %d coords = %13.15e %13.15e %13.15e\n",__FUNCT__,point,xyz[0],xyz[1],xyz[2]); */
   PetscFunctionReturn(0);
 }
 
@@ -1711,7 +1710,7 @@ int main(int argc, char **argv)
     }
   }
 #endif
-  if (ctx->plot) { /* debug */
+  if (ctx->plot) { /* debug, plot mesh before you die */
     PetscViewer       viewer = NULL;
     PetscBool         flg;
     PetscViewerFormat fmt;
@@ -1783,6 +1782,7 @@ int main(int argc, char **argv)
       ierr = X2PSendListDestroy( &ctx->sendListTable[idx] );CHKERRQ(ierr);
     }
   }
+  ierr = SNESDestroy(&dmpi->snes);CHKERRQ(ierr);
   ierr = PetscFree(ctx->sendListTable);CHKERRQ(ierr);
   ierr = PetscFEDestroy(&dmpi->fem);CHKERRQ(ierr);
   ierr = MatDestroy(&J);CHKERRQ(ierr);

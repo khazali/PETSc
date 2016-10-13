@@ -107,7 +107,6 @@ PetscErrorCode DMDestroy_PICell(DM dm)
     ierr = DMDestroy(&dmpi->dmgrid);CHKERRQ(ierr);
   }
   ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
-  ierr = SNESDestroy(&dmpi->snes);CHKERRQ(ierr);
   ierr = PetscFree(dmpi);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
