@@ -481,13 +481,13 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         /* push, and collect x */
         if (irk>=0) {
           Vec locphi;
-          ierr = DMGetLocalVector(dmpi->dmplex, &locphi);CHKERRQ(ierr);
-          ierr = DMGlobalToLocalBegin(dmpi->dmplex, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
-          ierr = DMGlobalToLocalEnd(dmpi->dmplex, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
+          ierr = DMGetLocalVector(dmpi->dm, &locphi);CHKERRQ(ierr);
+          ierr = DMGlobalToLocalBegin(dmpi->dm, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
+          ierr = DMGlobalToLocalEnd(dmpi->dm, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
           /* get E, should set size of vecs for true size? */
           ierr = VecCreateSeq(PETSC_COMM_SELF,three*list->vec_top,&jVec);CHKERRQ(ierr);
           ierr = DMPICellGetJet(ctx->dm, xVec, locphi, elid, jVec);CHKERRQ(ierr);
-          ierr = DMRestoreLocalVector(dmpi->dmplex, &locphi);CHKERRQ(ierr);
+          ierr = DMRestoreLocalVector(dmpi->dm, &locphi);CHKERRQ(ierr);
           ierr = VecGetArray(jVec,&jj0);CHKERRQ(ierr); jj = jj0;
         }
         /* vectorize (todo) push: theta = theta + q*dphi .... grad not used */
@@ -543,7 +543,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       /* get pe & element id */
       if (solver) {
         /* see if need communication? no: add density, yes: add to communication list */
-        ierr = X2GridSolverLocatePoints(dmpi->dmplex, xVec, ctx, &pes, &elems);CHKERRQ(ierr);
+        ierr = X2GridSolverLocatePoints(dmpi->dm, xVec, ctx, &pes, &elems);CHKERRQ(ierr);
       } else {
         ierr = PetscMalloc2(list->vec_top,&peidxs,list->vec_top,&elemidxs);CHKERRQ(ierr);
 	for (pos=0 ; pos < list->vec_top ; pos++ ) {
@@ -687,7 +687,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
     /* add density (while in cache, by species at least) irk<0 first time to get rho */
     if (solver) {
       Vec locrho;
-      ierr = DMGetLocalVector(dmpi->dmplex, &locrho);CHKERRQ(ierr);
+      ierr = DMGetLocalVector(dmpi->dm, &locrho);CHKERRQ(ierr);
       ierr = VecSet(locrho, 0.0);CHKERRQ(ierr);
       for (elid=0;elid<ctx->nElems;elid++) {
         X2PList *list = &ctx->partlists[isp][elid];
@@ -745,9 +745,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         ierr = PetscLogEventEnd(ctx->events[6],0,0,0,0);CHKERRQ(ierr);
 #endif
       }
-      ierr = DMLocalToGlobalBegin(dmpi->dmplex, locrho, ADD_VALUES, dmpi->rho);CHKERRQ(ierr);
-      ierr = DMLocalToGlobalEnd(dmpi->dmplex, locrho, ADD_VALUES, dmpi->rho);CHKERRQ(ierr);
-      ierr = DMRestoreLocalVector(dmpi->dmplex, &locrho);CHKERRQ(ierr);
+      ierr = DMLocalToGlobalBegin(dmpi->dm, locrho, ADD_VALUES, dmpi->rho);CHKERRQ(ierr);
+      ierr = DMLocalToGlobalEnd(dmpi->dm, locrho, ADD_VALUES, dmpi->rho);CHKERRQ(ierr);
+      ierr = DMRestoreLocalVector(dmpi->dm, &locrho);CHKERRQ(ierr);
     }
   } /* isp */
 #if defined(PETSC_USE_LOG)
@@ -826,9 +826,9 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
 
   /* Create vector and get pointer to data space */
   dmpi = (DM_PICell *) ctx->dm->data;
-  ierr = DMGetDimension(dmpi->dmplex, &dim);CHKERRQ(ierr);
+  ierr = DMGetDimension(dmpi->dm, &dim);CHKERRQ(ierr);
   if (dim!=3) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"wrong dimension (3) = %D",dim);
-  ierr = DMGetCellChart(dmpi->dmplex, &cStart, &cEnd);CHKERRQ(ierr);
+  ierr = DMGetCellChart(dmpi->dm, &cStart, &cEnd);CHKERRQ(ierr);
   ctx->nElems = PetscMax(1,cEnd-cStart);CHKERRQ(ierr);
   /* setup particles - lexicographic partition of -- flux tube -- cells */
   gid = ctx->rank*ctx->num_particles_proc;
@@ -893,10 +893,10 @@ static PetscErrorCode setupDiscretization(X2Ctx *ctx, PetscInt dim)
   PetscFunctionBeginUser;
   /* fem */
   ierr = PetscFEDestroy(&dmpi->fem);CHKERRQ(ierr);
-  ierr = PetscFECreateDefault(dmpi->dmplex, dim, 1, PETSC_FALSE, NULL, PETSC_DECIDE, &dmpi->fem);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dmpi->dm, dim, 1, PETSC_FALSE, NULL, PETSC_DECIDE, &dmpi->fem);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->fem, "poisson");CHKERRQ(ierr);
   /* FEM prob */
-  ierr = DMGetDS(dmpi->dmplex, &prob);CHKERRQ(ierr);
+  ierr = DMGetDS(dmpi->dm, &prob);CHKERRQ(ierr);
   ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
   ierr = PetscDSSetResidual(prob, 0, f0_u, f1_u);CHKERRQ(ierr);
   ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
@@ -923,14 +923,14 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   /* setup solver grid */
   dim = 3;
   if (ctx->dtype == X2_PERIODIC) {
-    ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->grid.solver_np, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &dmpi->dmplex);CHKERRQ(ierr);
+    ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->grid.solver_np, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &dmpi->dm);CHKERRQ(ierr);
   }
   else {
-    ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->grid.solver_np, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, &dmpi->dmplex);CHKERRQ(ierr);
+    ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->grid.solver_np, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, &dmpi->dm);CHKERRQ(ierr);
   }
   /* set domain size */
-  ierr = DMGetCoordinatesLocal(dmpi->dmplex,&coordinates);CHKERRQ(ierr);
-  ierr = DMGetCoordinateDim(dmpi->dmplex,&dimEmbed);CHKERRQ(ierr);
+  ierr = DMGetCoordinatesLocal(dmpi->dm,&coordinates);CHKERRQ(ierr);
+  ierr = DMGetCoordinateDim(dmpi->dm,&dimEmbed);CHKERRQ(ierr);
   ierr = VecGetLocalSize(coordinates,&nCoords);CHKERRQ(ierr);
   if (nCoords % dimEmbed) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Coordinate vector the wrong size");CHKERRQ(ierr);
   ierr = VecGetArray(coordinates,&coords);CHKERRQ(ierr);
@@ -942,20 +942,20 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
     }
   }
   ierr = VecRestoreArray(coordinates,&coords);CHKERRQ(ierr);
-  ierr = DMSetCoordinatesLocal(dmpi->dmplex,coordinates);CHKERRQ(ierr);
+  ierr = DMSetCoordinatesLocal(dmpi->dm,coordinates);CHKERRQ(ierr);
 
-  ierr = DMSetApplicationContext(dmpi->dmplex, &ctx);CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dmplex, "x2_");CHKERRQ(ierr);
+  ierr = DMSetApplicationContext(dmpi->dm, &ctx);CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dm, "x2_");CHKERRQ(ierr);
   ierr = PetscMalloc(1 * sizeof(PetscErrorCode (*)(PetscInt,const PetscReal [],PetscInt,PetscScalar*,void*)),&ctx->BCFuncs);
   CHKERRQ(ierr);
   ctx->BCFuncs[0] = zero;
   /* add BCs */
-  ierr = DMCreateLabel(dmpi->dmplex, "boundary");CHKERRQ(ierr);
-  ierr = DMGetLabel(dmpi->dmplex, "boundary", &label);CHKERRQ(ierr);
-  ierr = DMPlexMarkBoundaryFaces(dmpi->dmplex, label);CHKERRQ(ierr);
-  ierr = DMPlexLabelComplete(dmpi->dmplex, label);CHKERRQ(ierr);
+  ierr = DMCreateLabel(dmpi->dm, "boundary");CHKERRQ(ierr);
+  ierr = DMGetLabel(dmpi->dm, "boundary", &label);CHKERRQ(ierr);
+  ierr = DMPlexMarkBoundaryFaces(dmpi->dm, label);CHKERRQ(ierr);
+  ierr = DMPlexLabelComplete(dmpi->dm, label);CHKERRQ(ierr);
   id = 1;
-  ierr = DMAddBoundary(dmpi->dmplex, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx->BCFuncs[0], 1, &id, &ctx);CHKERRQ(ierr);
+  ierr = DMAddBoundary(dmpi->dm, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx->BCFuncs[0], 1, &id, &ctx);CHKERRQ(ierr);
   if (sizeof(long long)!=sizeof(PetscReal)) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "sizeof(long long)!=sizeof(PetscReal)");
 
   ierr = setupDiscretization( ctx, dim );CHKERRQ(ierr);
@@ -965,7 +965,7 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
     PetscInt cEnd,c,*cs,*cp,ii[3],i;
     const PetscReal *dlo = ctx->grid.dom_lo, *dhi = ctx->grid.dom_hi;
     const PetscInt *np = ctx->grid.solver_np;
-    ierr = DMPlexGetHeightStratum(dmpi->dmplex, 0, NULL, &cEnd);CHKERRQ(ierr); /* DMGetCellChart */
+    ierr = DMPlexGetHeightStratum(dmpi->dm, 0, NULL, &cEnd);CHKERRQ(ierr); /* DMGetCellChart */
     if (cEnd && cEnd!=ctx->npe) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_USER, "cEnd=%d != %d",cEnd,ctx->npe);
     if (cEnd!=ctx->npe) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_USER, "cEnd=%d != %d",cEnd,ctx->npe);
     ierr = PetscMalloc2(ctx->npe, &sizes, ctx->npe, &points);CHKERRQ(ierr);
@@ -973,14 +973,14 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
       PetscReal x[3];
       *cs = 1; // points[c] = c;
       if (1) {
-        ierr = DMPlexComputeCellGeometryFVM(dmpi->dmplex, c, NULL, x, NULL);CHKERRQ(ierr);
+        ierr = DMPlexComputeCellGeometryFVM(dmpi->dm, c, NULL, x, NULL);CHKERRQ(ierr);
       } else {
         PetscReal v0[81];
         PetscQuadrature quad;
         PetscInt qdim,Nq,j;
         ierr = PetscFEGetQuadrature(dmpi->fem, &quad);CHKERRQ(ierr);
         ierr = PetscQuadratureGetData(quad, &qdim, &Nq, NULL, NULL);CHKERRQ(ierr);
-        ierr = DMPlexComputeCellGeometryFEM(dmpi->dmplex, c, dmpi->fem, v0, NULL, NULL, NULL);CHKERRQ(ierr);
+        ierr = DMPlexComputeCellGeometryFEM(dmpi->dm, c, dmpi->fem, v0, NULL, NULL, NULL);CHKERRQ(ierr);
         for(i=0;i<3;i++) x[i] = 0;
         for (j=0;j<Nq;j++) {
           for(i=0;i<3;i++) x[i] += v0[3*j+i];
@@ -991,7 +991,7 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
       *cp = X2_IDX3(ii,np);
     }
   }
-  ierr = DMPlexGetPartitioner(dmpi->dmplex, &part);CHKERRQ(ierr);
+  ierr = DMPlexGetPartitioner(dmpi->dm, &part);CHKERRQ(ierr);
   ierr = PetscPartitionerSetType(part, PETSCPARTITIONERSHELL);CHKERRQ(ierr);
   ierr = PetscPartitionerShellSetPartition(part, ctx->npe, sizes, points);CHKERRQ(ierr);
   if (sizes) {
@@ -999,11 +999,11 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   }
 
   /* distribute */
-  ierr = DMPlexDistribute(dmpi->dmplex, 0, NULL, &dm);CHKERRQ(ierr);
+  ierr = DMPlexDistribute(dmpi->dm, 0, NULL, &dm);CHKERRQ(ierr);
   if (dm) {
     ierr = PetscObjectSetOptionsPrefix((PetscObject)dm,"x2_");CHKERRQ(ierr);
-    ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
-    dmpi->dmplex = dm;
+    ierr = DMDestroy(&dmpi->dm);CHKERRQ(ierr);
+    dmpi->dm = dm;
   }
   else assert(ctx->npe==1);
 
@@ -1014,19 +1014,19 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
 
   if (dmpi->debug>3) { /* this shows a bug with crap in the section */
     PetscSection     sec;
-    ierr = DMGetDefaultGlobalSection(dmpi->dmplex, &sec);CHKERRQ(ierr);
+    ierr = DMGetDefaultGlobalSection(dmpi->dm, &sec);CHKERRQ(ierr);
     /* diagnostics */
     if (!sec) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "DMGetDefaultSection return NULL");
     ierr = PetscSectionView(sec,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
   if (dmpi->debug>2) {
-    ierr = DMView(dmpi->dmplex,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    ierr = DMView(dmpi->dm,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
   {
     PetscInt n,cStart,cEnd;
     ierr = VecGetSize(dmpi->rho,&n);CHKERRQ(ierr);
     if (!n) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "No dofs");
-    ierr = DMPlexGetHeightStratum(dmpi->dmplex, 0, &cStart, &cEnd);CHKERRQ(ierr); /* DMGetCellChart */
+    ierr = DMPlexGetHeightStratum(dmpi->dm, 0, &cStart, &cEnd);CHKERRQ(ierr); /* DMGetCellChart */
     if (cStart) SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_USER, "cStart != 0. %D",cStart);
     if (!cEnd) {
       SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "No cells");
@@ -1114,9 +1114,9 @@ int main(int argc, char **argv)
 
   /* create SNESS */
   ierr = SNESCreate( ctx.wComm, &dmpi->snes);CHKERRQ(ierr);
-  ierr = SNESSetDM( dmpi->snes, dmpi->dmplex);CHKERRQ(ierr);
-  ierr = DMPlexSetSNESLocalFEM(dmpi->dmplex,&ctx,&ctx,&ctx);CHKERRQ(ierr);
-  ierr = DMCreateMatrix(dmpi->dmplex, &J);CHKERRQ(ierr);
+  ierr = SNESSetDM( dmpi->snes, dmpi->dm);CHKERRQ(ierr);
+  ierr = DMPlexSetSNESLocalFEM(dmpi->dm,&ctx,&ctx,&ctx);CHKERRQ(ierr);
+  ierr = DMCreateMatrix(dmpi->dm, &J);CHKERRQ(ierr);
   ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
   ierr = SNESGetKSP(dmpi->snes, &ksp);CHKERRQ(ierr);
   if (ctx.dtype == X2_PERIODIC) {
@@ -1196,9 +1196,9 @@ int main(int argc, char **argv)
     CHKERRQ(ierr);
     ctxArray[0] = &ctx;
     exactFuncs[0] = u_x4_op;
-    ierr = DMProjectFunction(dmpi->dmplex, 0.0, exactFuncs, (void **)ctxArray, INSERT_ALL_VALUES, dmpi->phi);CHKERRQ(ierr);
+    ierr = DMProjectFunction(dmpi->dm, 0.0, exactFuncs, (void **)ctxArray, INSERT_ALL_VALUES, dmpi->phi);CHKERRQ(ierr);
     ierr = PetscFree(exactFuncs);CHKERRQ(ierr);
-    ierr = DMViewFromOptions(dmpi->dmplex,NULL,"-dm_view");CHKERRQ(ierr);
+    ierr = DMViewFromOptions(dmpi->dm,NULL,"-dm_view");CHKERRQ(ierr);
     ierr = PetscOptionsGetViewer(ctx.wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
     if (flg) {
       ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);

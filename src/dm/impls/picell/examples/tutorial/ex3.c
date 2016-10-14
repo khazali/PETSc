@@ -866,7 +866,7 @@ PetscErrorCode shiftParticles( const X3Ctx *ctx, X3PSendList *sendListTable, X3P
             PetscScalar xx[3];
             for (kk=0;kk<dim;kk++) xx[kk] = pp->x[kk];
             ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, xx, &vec);CHKERRQ(ierr);
-            ierr = X3GridSolverLocatePoints(dmpi->dmplex, vec, &pes, &elems);CHKERRQ(ierr);
+            ierr = X3GridSolverLocatePoints(dmpi->dm, vec, &pes, &elems);CHKERRQ(ierr);
             ierr = VecDestroy(&vec);CHKERRQ(ierr);
             ierr = ISGetIndices(pes,&peidxs);CHKERRQ(ierr);
             ierr = ISGetIndices(elems,&elemidxs);CHKERRQ(ierr);
@@ -973,7 +973,7 @@ PetscErrorCode shiftParticles( const X3Ctx *ctx, X3PSendList *sendListTable, X3P
               PetscScalar xx[3];
               for (kk=0;kk<dim;kk++) xx[kk] = data[jj].x[kk];
               ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, xx, &vec);CHKERRQ(ierr);
-              ierr = X3GridSolverLocatePoints(dmpi->dmplex, vec, &pes, &elems);CHKERRQ(ierr);
+              ierr = X3GridSolverLocatePoints(dmpi->dm, vec, &pes, &elems);CHKERRQ(ierr);
               ierr = VecDestroy(&vec);CHKERRQ(ierr);
               ierr = ISGetIndices(pes,&peidxs);CHKERRQ(ierr);
               ierr = ISGetIndices(elems,&elemidxs);CHKERRQ(ierr);
@@ -1178,13 +1178,13 @@ static PetscErrorCode processParticles( X3Ctx *ctx, const PetscReal dt, X3PSendL
         /* get E, should set size of vecs for true size? */
         if (irk>=0) {
           Vec locphi;
-          ierr = DMGetLocalVector(dmpi->dmplex, &locphi);CHKERRQ(ierr);
-          ierr = DMGlobalToLocalBegin(dmpi->dmplex, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
-          ierr = DMGlobalToLocalEnd(dmpi->dmplex, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
+          ierr = DMGetLocalVector(dmpi->dm, &locphi);CHKERRQ(ierr);
+          ierr = DMGlobalToLocalBegin(dmpi->dm, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
+          ierr = DMGlobalToLocalEnd(dmpi->dm, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
           /* get E, should set size of vecs for true size? */
           ierr = VecCreateSeq(PETSC_COMM_SELF,three*list->vec_top,&jVec);CHKERRQ(ierr);
           ierr = DMPICellGetJet(ctx->dmpic, xVec, locphi, elid, jVec);CHKERRQ(ierr);
-          ierr = DMRestoreLocalVector(dmpi->dmplex, &locphi);CHKERRQ(ierr);
+          ierr = DMRestoreLocalVector(dmpi->dm, &locphi);CHKERRQ(ierr);
           ierr = VecGetArray(jVec,&jj0);CHKERRQ(ierr); jj = jj0;
         }
         /* vectorize (todo) push: theta = theta + q*dphi .... grad not used */
@@ -1249,7 +1249,7 @@ static PetscErrorCode processParticles( X3Ctx *ctx, const PetscReal dt, X3PSendL
       /* get pe & element id */
       if (solver) {
         /* see if need communication? no: add density, yes: add to communication list */
-        ierr = X3GridSolverLocatePoints(dmpi->dmplex, xVec, &pes, &elems);CHKERRQ(ierr);
+        ierr = X3GridSolverLocatePoints(dmpi->dm, xVec, &pes, &elems);CHKERRQ(ierr);
       } else {
         SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_SUP,"should not be here.");
       }
@@ -1372,7 +1372,7 @@ static PetscErrorCode processParticles( X3Ctx *ctx, const PetscReal dt, X3PSendL
     /* add density (while in cache, by species at least) */
     if (solver) {
       Vec locrho;
-      ierr = DMGetLocalVector(dmpi->dmplex, &locrho);CHKERRQ(ierr);
+      ierr = DMGetLocalVector(dmpi->dm, &locrho);CHKERRQ(ierr);
       ierr = VecSet(locrho, 0.0);CHKERRQ(ierr);
       for (elid=0;elid<ctx->nElems;elid++) {
         X3PList *list = &ctx->partlists[isp][elid];
@@ -1421,9 +1421,9 @@ static PetscErrorCode processParticles( X3Ctx *ctx, const PetscReal dt, X3PSendL
         ierr = PetscLogEventEnd(ctx->events[6],0,0,0,0);CHKERRQ(ierr);
 #endif
       }
-      ierr = DMLocalToGlobalBegin(dmpi->dmplex, locrho, ADD_VALUES, dmpi->rho);CHKERRQ(ierr);
-      ierr = DMLocalToGlobalEnd(dmpi->dmplex, locrho, ADD_VALUES, dmpi->rho);CHKERRQ(ierr);
-      ierr = DMRestoreLocalVector(dmpi->dmplex, &locrho);CHKERRQ(ierr);
+      ierr = DMLocalToGlobalBegin(dmpi->dm, locrho, ADD_VALUES, dmpi->rho);CHKERRQ(ierr);
+      ierr = DMLocalToGlobalEnd(dmpi->dm, locrho, ADD_VALUES, dmpi->rho);CHKERRQ(ierr);
+      ierr = DMRestoreLocalVector(dmpi->dm, &locrho);CHKERRQ(ierr);
     }
   } /* isp */
 #if defined(PETSC_USE_LOG)
@@ -1506,7 +1506,7 @@ static PetscErrorCode createParticles(X3Ctx *ctx)
   }
   /* Create vector and get pointer to data space */
   dmpi = (DM_PICell *) ctx->dmpic->data;
-  dm = dmpi->dmplex;
+  dm = dmpi->dm;
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   if (dim!=3) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"wrong dimension (3) = %D",dim);
   ierr = DMGetCellChart(dm, &cStart, &cEnd);CHKERRQ(ierr);
@@ -1644,7 +1644,7 @@ static PetscErrorCode DMPlexCreatePICellBoxTorus(MPI_Comm comm, X3Grid *params, 
 
   ierr = DMPlexCreateFromCellList(comm,3,numCells,numVerts,8,PETSC_TRUE,flatCells,3,flatCoords,dm);CHKERRQ(ierr);
   ierr = PetscFree2(flatCells,flatCoords);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) *dm, "torus");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) *dm, "boxtorus");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1918,7 +1918,8 @@ PetscErrorCode SetInitialCondition(DM dm, Vec X, X3Ctx *ctx)
   PetscFunctionBeginUser;
   func[0] = SolutionFunctional;
   ctxa[0] = (void *) ctx;
-  ierr    = DMProjectFunction(dm,0.0,func,ctxa,INSERT_ALL_VALUES,X);CHKERRQ(ierr);
+  ierr = DMProjectFunction(dm,0.0,func,ctxa,INSERT_ALL_VALUES,X);CHKERRQ(ierr);
+  /* ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
   PetscFunctionReturn(0);
 }
 
@@ -1935,8 +1936,9 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal c
   xG->e = xI->e; /* ghost cell energy - same */
   for (i=0; i<3; i++) xG->b[i] = -xI->b[i];      /* zero BC, negative */
   for (i=0,nu=0; i<3; i++) nu += xI->ru[i]*n[i]; /* normal flux */
-assert(fabs(nu)<1.e-8); /* parallel flow for now!!! */
+  assert(fabs(nu)<1.e-8); /* parallel flow for now!!! */
   for (i=0; i<3; i++) xG->ru[i] = xI->ru[i] - 2*nu*n[i]; /* u - 2*u_perp, no flow? */
+  /* PetscPrintf(PETSC_COMM_WORLD,"%s: G = %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",__FUNCT__,xG->vals[0],xG->vals[1],xG->vals[2],xG->vals[3],xG->vals[4],xG->vals[5],xG->vals[6],xG->vals[7]); */
   PetscFunctionReturn(0);
 }
 
@@ -1954,19 +1956,21 @@ static PetscErrorCode MHDFlux(const X3Ctx *ctx, const PetscReal n[], const MHDNo
   for (i=0; i<3; i++) f->ru[i] = nu * x->ru[i] + n[i]*p;  /* r u^2 + p */
   f->e = nu * (x->e + p); /* u(e+p) */
   for (i=0; i<3; i++) f->b[i] = 0.0; /* zero out B */
+  PetscPrintf(PETSC_COMM_WORLD,"%s: Flux = %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",__FUNCT__,f->vals[0],f->vals[1],f->vals[2],f->vals[3],f->vals[4],f->vals[5],f->vals[6],f->vals[7]);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PhysicsRiemann_MHD"
 static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], const PetscReal n[],
-                                const PetscScalar *xL, const PetscScalar *xR, PetscScalar flux[], void *a_ctx)
+                                const PetscScalar *xL, const PetscScalar *xR, PetscScalar *aflux, void *a_ctx)
 {
   X3Ctx           *ctx = (X3Ctx*)a_ctx;
   PetscReal       cL,cR,speed,velL,velR,nn[3],s2;
   PetscInt        i;
   PetscErrorCode  ierr;
   const MHDNode   *uL = (const MHDNode*)xL,*uR = (const MHDNode*)xR;
+  MHDNode         *flux = (MHDNode*)aflux;
   MHDNode         fL,fR;
   PetscFunctionBeginUser;
 
@@ -1985,8 +1989,8 @@ static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], 
   velL /= uL->r;
   velR /= uR->r;
   speed = PetscMax(PetscAbsScalar(velR) + cR,PetscAbsScalar(velL) + cL);
-  for (i=0; i<ctx->ndof; i++) flux[i] = 0.5*((fL.vals[i]+fR.vals[i]) + speed*(xL[i] - xR[i]))*s2;
-
+  for (i=0; i<ctx->ndof; i++) flux->vals[i] = 0.5*((fL.vals[i]+fR.vals[i]) + speed*(xL[i] - xR[i]))*s2;
+  PetscPrintf(PETSC_COMM_WORLD,"%s: Flux = %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",__FUNCT__,flux->vals[0],flux->vals[1],flux->vals[2],flux->vals[3],flux->vals[4],flux->vals[5],flux->vals[6],flux->vals[7]);
   PetscFunctionReturnVoid();
 }
 
@@ -2112,7 +2116,7 @@ static PetscErrorCode adaptToleranceFVM(PetscFV fvm, TS ts, Vec sol, PetscReal r
     }
     if (solNew) {
       ierr = DMCreateGlobalVector(adaptedDM, solNew);CHKERRQ(ierr);
-      ierr = PetscObjectSetName((PetscObject) *solNew, "xxx");CHKERRQ(ierr);
+      ierr = PetscObjectSetName((PetscObject) *solNew, "mhd");CHKERRQ(ierr);
       ierr = DMForestTransferVec(dm, sol, adaptedDM, *solNew, PETSC_TRUE, time);CHKERRQ(ierr);
     }
     if (isForest) {ierr = DMForestSetAdaptivityForest(adaptedDM,NULL);CHKERRQ(ierr);} /* clear internal references to the previous dm */
@@ -2420,7 +2424,6 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   PetscDS        prob,probmhd;
   DMLabel        label;
   DM_PICell      *dmpi;
-  PetscSection   section;
   PetscInt       dim,i,id=1;
   PetscFunctionBegin;
   /* construct DMs */
@@ -2431,20 +2434,20 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   dmpi->debug = s_debug;
   /* setup solver grid */
   if (ctx->run_type == X3_TORUS) {
-    ierr = DMPlexCreatePICellTorus(ctx->wComm,&ctx->grid,&dmpi->dmplex);CHKERRQ(ierr);
+    ierr = DMPlexCreatePICellTorus(ctx->wComm,&ctx->grid,&dmpi->dm);CHKERRQ(ierr);
     ctx->inflate_torus = PETSC_TRUE;
   }
   else {
-    ierr = DMPlexCreatePICellBoxTorus(ctx->wComm,&ctx->grid,&dmpi->dmplex);CHKERRQ(ierr);
+    ierr = DMPlexCreatePICellBoxTorus(ctx->wComm,&ctx->grid,&dmpi->dm);CHKERRQ(ierr);
     ctx->inflate_torus = PETSC_FALSE;
   }
-  ierr = DMGetDimension(dmpi->dmplex, &dim);CHKERRQ(ierr);
-  ierr = DMSetApplicationContext(dmpi->dmplex, ctx);CHKERRQ(ierr);
+  ierr = DMGetDimension(dmpi->dm, &dim);CHKERRQ(ierr);
+  ierr = DMSetApplicationContext(dmpi->dm, ctx);CHKERRQ(ierr);
   /* mark BCs, how does this work with periodic? */
-  ierr = DMCreateLabel(dmpi->dmplex, "boundary");CHKERRQ(ierr);
-  ierr = DMGetLabel(dmpi->dmplex, "boundary", &label);CHKERRQ(ierr);
-  ierr = DMPlexMarkBoundaryFaces(dmpi->dmplex, label);CHKERRQ(ierr);
-  ierr = DMPlexLabelComplete(dmpi->dmplex, label);CHKERRQ(ierr);
+  ierr = DMCreateLabel(dmpi->dm, "boundary");CHKERRQ(ierr);
+  ierr = DMGetLabel(dmpi->dm, "boundary", &label);CHKERRQ(ierr);
+  ierr = DMPlexMarkBoundaryFaces(dmpi->dm, label);CHKERRQ(ierr);
+  ierr = DMPlexLabelComplete(dmpi->dm, label);CHKERRQ(ierr);
   if (s_section_phi != 2) {
     DMBoundaryType bd[3] = {DM_BOUNDARY_NONE,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_NONE};
     const PetscReal L2 = (ctx->grid.radius_major+ctx->grid.radius_minor)*tan(s_section_phi*M_PI);
@@ -2456,11 +2459,11 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
       ierr = PetscPrintf(ctx->wComm, "\t\t%s WARNING section_phi is large %g, L = %16.8e, %16.8g, %16.8e maxCell = %16.8e, %16.8e, %16.8e\n",
                          __FUNCT__,s_section_phi,L[0],L[1],L[2],maxCell[0],maxCell[1],maxCell[2]);CHKERRQ(ierr);
     }
-    /* ierr = DMSetPeriodicity(dmpi->dmplex, maxCell, L, bd);CHKERRQ(ierr); */
-    /* ierr = DMLocalizeCoordinates(dmpi->dmplex);CHKERRQ(ierr); */
+    /* ierr = DMSetPeriodicity(dmpi->dm, maxCell, L, bd);CHKERRQ(ierr); */
+    /* ierr = DMLocalizeCoordinates(dmpi->dm);CHKERRQ(ierr); */
   }
   /* clone DM for MHD with ghosts and setup */
-  ierr = DMClone(dmpi->dmplex, &dmmhd);CHKERRQ(ierr);
+  ierr = DMClone(dmpi->dm, &dmmhd);CHKERRQ(ierr);
 
   { /* setup MHD DM */
     DM dm2;
@@ -2477,29 +2480,30 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
     dmmhd = dm2;
     /* setup PIC solver */
-    ierr = DMPlexDistribute(dmpi->dmplex, 0, NULL, &dm2);CHKERRQ(ierr);
+    ierr = DMPlexDistribute(dmpi->dm, 0, NULL, &dm2);CHKERRQ(ierr);
     if (dm2) {
-      ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
-      dmpi->dmplex = dm2;
+      ierr = DMDestroy(&dmpi->dm);CHKERRQ(ierr);
+      dmpi->dm = dm2;
     }
-    ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dmplex, "x3_");CHKERRQ(ierr);
-    ierr = DMSetFromOptions(dmpi->dmplex);CHKERRQ(ierr);
+    ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dm, "x3_");CHKERRQ(ierr);
+    ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
   }
 
-  ierr = DMGetDS(dmmhd, &probmhd);CHKERRQ(ierr);
+  ierr = PetscDSCreate(ctx->wComm,&probmhd);CHKERRQ(ierr);
+  /* ierr = DMGetDS(dmmhd, &probmhd);CHKERRQ(ierr); */
   ierr = PetscFVCreate(ctx->wComm, &fvm);CHKERRQ(ierr);
   ierr = PetscFVSetFromOptions(fvm);CHKERRQ(ierr);
   /* Count number of fields and dofs */
   for (ctx->ndof=0,i=0; PhysicsFields_MHD[i].name; i++) ctx->ndof += PhysicsFields_MHD[i].dof;
   ierr = PetscFVSetNumComponents(fvm, ctx->ndof);CHKERRQ(ierr);
-  ierr = PetscFVSetSpatialDimension(fvm, dim);CHKERRQ(ierr);
+  ierr = PetscFVSetSpatialDimension(fvm, dim);CHKERRQ(ierr);assert(dim==3);
   ierr = PetscObjectSetName((PetscObject) fvm,"");CHKERRQ(ierr);
   /* Count number of fields and dofs */
   for (ctx->ndof=0,ctx->nfields=0; PhysicsFields_MHD[ctx->nfields].name; ctx->nfields++) {
     for (i = 0; i < PhysicsFields_MHD[ctx->nfields].dof ; i++, ctx->ndof++) {
       char compName[256]  = "Unknown";
       ierr = PetscSNPrintf(compName,sizeof(compName),"%s_%d",PhysicsFields_MHD[ctx->nfields].name,i);CHKERRQ(ierr);
-      ierr = PetscFVSetComponentName(fvm,ctx->ndof,compName);CHKERRQ(ierr);
+      ierr = PetscFVSetComponentName(fvm,ctx->ndof,compName);CHKERRQ(ierr); /* this does not work */
     }
   }
   /* FV is now structured with one field having all physics as components */
@@ -2510,12 +2514,14 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   ierr = PetscDSAddBoundary(probmhd, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) PhysicsBoundary_MHD_Wall, 1, &id, ctx);CHKERRQ(ierr);
   /* ierr = PetscObjectSetOptionsPrefix((PetscObject)probmhd, "mhd_");CHKERRQ(ierr); */
   ierr = PetscDSSetFromOptions(probmhd);CHKERRQ(ierr);
+  ierr = DMSetDS(dmmhd,probmhd);CHKERRQ(ierr);
+  ierr = PetscDSDestroy(&probmhd);CHKERRQ(ierr);
 
   /* setup PIC FEM Poison Discretization */
-  ierr = PetscFECreateDefault(dmpi->dmplex, dim, 1, PETSC_FALSE, NULL, PETSC_DECIDE, &dmpi->fem);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dmpi->dm, dim, 1, PETSC_FALSE, NULL, PETSC_DECIDE, &dmpi->fem);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->fem, "potential");CHKERRQ(ierr);
   /* FEM prob */
-  ierr = DMGetDS(dmpi->dmplex, &prob);CHKERRQ(ierr);
+  ierr = DMGetDS(dmpi->dm, &prob);CHKERRQ(ierr);
   ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
   ierr = PetscDSSetResidual(prob, 0, 0, f1_u);CHKERRQ(ierr);
   ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
@@ -2535,25 +2541,27 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     ierr = PetscOptionsEnd();
     if (flg && ctx->num_particles_total) { /* convert (to p4est) */
       /* convert PIC */
-      ierr = DMConvert(dmpi->dmplex,convType,&dm2);CHKERRQ(ierr);
+      ierr = DMConvert(dmpi->dm,convType,&dm2);CHKERRQ(ierr);
       if (dm2) {
-        ierr = PetscObjectGetOptionsPrefix((PetscObject)dmpi->dmplex,&prefix);CHKERRQ(ierr);
+        ierr = PetscObjectGetOptionsPrefix((PetscObject)dmpi->dm,&prefix);CHKERRQ(ierr);
         ierr = PetscObjectSetOptionsPrefix((PetscObject)dm2,prefix);CHKERRQ(ierr);
-        ierr = DMDestroy(&dmpi->dmplex);CHKERRQ(ierr);
-        dmpi->dmplex = dm2;
-        ierr = DMIsForest(dmpi->dmplex,&isForest);CHKERRQ(ierr);
+        ierr = DMDestroy(&dmpi->dm);CHKERRQ(ierr);
+        dmpi->dm = dm2;
+        ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
+        ierr = DMIsForest(dmpi->dm,&isForest);CHKERRQ(ierr);
         if (isForest && ctx->run_type == X3_TORUS) {
-          ierr = DMForestSetBaseCoordinateMapping(dmpi->dmplex,GeometryPICellTorus,ctx);CHKERRQ(ierr);
+          ierr = DMForestSetBaseCoordinateMapping(dmpi->dm,GeometryPICellTorus,ctx);CHKERRQ(ierr);
         } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Converted to non Forest?");
       } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Convert failed?");
     }
     if ( flg ) {
       ierr = DMConvert(dmmhd,convType,&dm2);CHKERRQ(ierr);
       if (dm2) {
-        ierr = PetscObjectGetOptionsPrefix((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
-        ierr = PetscObjectSetOptionsPrefix((PetscObject)dm2,prefix);CHKERRQ(ierr);
+        /* ierr = PetscObjectGetOptionsPrefix((PetscObject)dmmhd,&prefix);CHKERRQ(ierr); */
+        /* ierr = PetscObjectSetOptionsPrefix((PetscObject)dm2,prefix);CHKERRQ(ierr); */
         ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
         dmmhd = dm2;
+        ierr = DMSetFromOptions(dmmhd);CHKERRQ(ierr);
         ierr = DMIsForest(dmmhd,&isForest);CHKERRQ(ierr);
         if (isForest && ctx->run_type == X3_TORUS) {
           ierr = DMForestSetBaseCoordinateMapping(dmmhd,GeometryPICellTorus,ctx);CHKERRQ(ierr);
@@ -2561,13 +2569,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
       } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Convert failed?");
     }
   }
-  ierr = DMGetDefaultSection(dmpi->dmplex, &section);CHKERRQ(ierr);
-  if (!section) SETERRQ(ctx->wComm, PETSC_ERR_USER, "DMGetDefaultSection return NULL");
-  ierr = DMGetDefaultSection(dmmhd, &section);CHKERRQ(ierr);
-  if (!section) SETERRQ(ctx->wComm, PETSC_ERR_USER, "DMGetDefaultSection return NULL");
-  if (ctx->num_particles_total) { /* no need to setup dmpic if no particles */
-    ierr = DMSetUp( ctx->dmpic );CHKERRQ(ierr);
-  }
+
   { /* print */
     PetscInt n,cStart,cEnd,bs;
     Vec X;
@@ -2576,7 +2578,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     ierr = VecGetBlockSize(X,&bs);CHKERRQ(ierr);
     ierr = VecDestroy(&X);CHKERRQ(ierr);
     if (!n) SETERRQ(ctx->wComm, PETSC_ERR_USER, "No dofs");
-    ierr = DMPlexGetHeightStratum(dmpi->dmplex, 0, &cStart, &cEnd);CHKERRQ(ierr);
+    ierr = DMPlexGetHeightStratum(dmpi->dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
     if (cStart) SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_USER, "cStart != 0. %D",cStart);
     if (dmpi->debug>0 && !cEnd) {
       ierr = PetscPrintf((dmpi->debug>1 || !cEnd) ? PETSC_COMM_SELF : ctx->wComm,"[%D] ERROR %D global equations, %d local cells, (cEnd=%d), debug=%D\n",ctx->rank,n,cEnd-cStart,cEnd,dmpi->debug);
@@ -2589,7 +2591,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
                                     ctx->rank,n,bs,ctx->npe,cEnd);
   }
   if (dmpi->debug>2) {
-    ierr = DMView(dmpi->dmplex,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    ierr = DMView(dmpi->dm,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
     ierr = DMView(dmmhd,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
   *admmhd = dmmhd;
@@ -2627,9 +2629,9 @@ int main(int argc, char **argv)
   /* create Poisson SNES, should put this and destroy in PICell */
   if (ctx->num_particles_total) {
     ierr = SNESCreate(ctx->wComm, &dmpi->snes);CHKERRQ(ierr);
-    ierr = SNESSetDM(dmpi->snes, dmpi->dmplex);CHKERRQ(ierr);
-    ierr = DMPlexSetSNESLocalFEM(dmpi->dmplex,ctx,ctx,ctx);CHKERRQ(ierr);
-    ierr = DMCreateMatrix(dmpi->dmplex, &J);CHKERRQ(ierr);
+    ierr = SNESSetDM(dmpi->snes, dmpi->dm);CHKERRQ(ierr);
+    ierr = DMPlexSetSNESLocalFEM(dmpi->dm,ctx,ctx,ctx);CHKERRQ(ierr);
+    ierr = DMCreateMatrix(dmpi->dm, &J);CHKERRQ(ierr);
     ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
     ierr = SNESSetFromOptions(dmpi->snes);CHKERRQ(ierr);
   }
@@ -2678,7 +2680,7 @@ int main(int argc, char **argv)
   }
 
   ierr = DMCreateGlobalVector(dmmhd, &X);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) X, "xxx");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) X, "mhd");CHKERRQ(ierr);
   ierr = SetInitialCondition(dmmhd, X, ctx);CHKERRQ(ierr);
   if (ctx->use_amr) {
     PetscInt adaptIter;
@@ -2729,7 +2731,7 @@ int main(int argc, char **argv)
         ierr = TSGetDM(ts,&dmmhd);CHKERRQ(ierr);
         ierr = PetscObjectReference((PetscObject)dmmhd);CHKERRQ(ierr);
         ierr = DMCreateGlobalVector(dmmhd,&X);CHKERRQ(ierr);
-        ierr = PetscObjectSetName((PetscObject) X, "xxx");CHKERRQ(ierr);
+        ierr = PetscObjectSetName((PetscObject) X, "mhd");CHKERRQ(ierr);
         ierr = SetInitialCondition(dmmhd, X, ctx);CHKERRQ(ierr);
       }
     }
@@ -2812,7 +2814,7 @@ int main(int argc, char **argv)
     ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
     if (ctx->num_particles_total) {
-      ierr = DMViewFromOptions(dmpi->dmplex,NULL,"-dm_view");CHKERRQ(ierr);
+      ierr = DMViewFromOptions(dmpi->dm,NULL,"-dm_view");CHKERRQ(ierr);
       ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-x3_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
       if (flg) {
         ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);

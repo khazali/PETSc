@@ -116,7 +116,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, X2P
             PetscScalar xx[3];
             for (kk=0;kk<dim;kk++) xx[kk] = pp->x[kk];
             ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, xx, &vec);CHKERRQ(ierr);
-            ierr = X2GridSolverLocatePoints(dmpi->dmplex, vec, ctx, &pes, &elems);CHKERRQ(ierr);
+            ierr = X2GridSolverLocatePoints(dmpi->dm, vec, ctx, &pes, &elems);CHKERRQ(ierr);
             ierr = VecDestroy(&vec);CHKERRQ(ierr);
             ierr = ISGetIndices(pes,&peidxs);CHKERRQ(ierr);
             ierr = ISGetIndices(elems,&elemidxs);CHKERRQ(ierr);
@@ -223,7 +223,7 @@ PetscErrorCode shiftParticles( const X2Ctx *ctx, X2PSendList *sendListTable, X2P
               PetscScalar xx[3];
               for (kk=0;kk<dim;kk++) xx[kk] = data[jj].x[kk];
               ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, dim, dim, xx, &vec);CHKERRQ(ierr);
-              ierr = X2GridSolverLocatePoints(dmpi->dmplex, vec, ctx, &pes, &elems);CHKERRQ(ierr);
+              ierr = X2GridSolverLocatePoints(dmpi->dm, vec, ctx, &pes, &elems);CHKERRQ(ierr);
               ierr = VecDestroy(&vec);CHKERRQ(ierr);
               ierr = ISGetIndices(pes,&peidxs);CHKERRQ(ierr);
               ierr = ISGetIndices(elems,&elemidxs);CHKERRQ(ierr);
@@ -367,12 +367,7 @@ PetscErrorCode go( X2Ctx *ctx )
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
-    if (dmpi->dmgrid) {
-      ierr = DMViewFromOptions(dmpi->dmgrid,NULL,"-dm_view");CHKERRQ(ierr);
-    }
-    else {
-      ierr = DMViewFromOptions(dmpi->dmplex,NULL,"-dm_view");CHKERRQ(ierr);
-    }
+    ierr = DMViewFromOptions(dmpi->dm,NULL,"-dm_view");CHKERRQ(ierr);
     ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
     if (flg) {
       ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
