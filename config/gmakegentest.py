@@ -286,12 +286,12 @@ class generateExamples(Petsc,PETScExamples):
 
     # MPI requirements
     if testDict.has_key('nsize'):
-      if testDict['nsize']>1 and self.conf['MPI_IS_MPIUNI']==1: 
+      if testDict['nsize']>1 and self.conf.has_key('MPI_IS_MPIUNI'): 
         if debug: print indent+"Cannot run parallel tests"
         return False
     else:
       # If we don't know nsize, then assume it cannot be run
-      if self.conf['MPI_IS_MPIUNI']==1: return False
+      if self.conf.has_key('MPI_IS_MPIUNI'): return False
  
     if testDict.has_key('requires'):
       for requirement in testDict['requires']:
