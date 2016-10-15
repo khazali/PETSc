@@ -10,6 +10,8 @@ static char help[] = "X3: MHD with partical in cell for tokamak plasmas using PI
 #include <petscts.h>
 #include <petscdmforest.h>
 
+#define ALEN(a) (sizeof(a)/sizeof((a)[0]))
+
 /* coordinate transformation - simple radial coordinates. Not really cylindrical as r_Minor is radius from plane axis */
 #define cylindricalToPolPlane(__rMinor,__Z,__psi,__theta) { \
     __psi = sqrt((__rMinor)*(__rMinor) + (__Z)*(__Z));	    \
@@ -751,10 +753,11 @@ PetscErrorCode X3GridSolverLocatePoints(DM dm, Vec xvec, IS *pes, IS *elemIDs)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode zero(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+/* FE point function */
+PetscErrorCode zero(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
   int i;
-  for (i = 0 ; i < dim ; i++) u[i] = 0.;
+  for (i = 0 ; i < Nf ; i++) u[i] = 0.;
   return 0;
 }
 
@@ -1858,53 +1861,122 @@ typedef struct {
   PetscScalar b[3];
   PetscScalar e;
 } MHDNode;
+#define DOT3(__x,__y,__r) {int i;for(i=0,__r=0;i<3;i++) __r += __x[i] * __y[i];}
+#define MATVEC3(__a,__x,__p) {int i,j; for (i=0.; i<3; i++) {__p[i] = 0; for (j=0.; j<3; j++) __p[i] += __a[i][j]*__x[j]; }}
+#define MATTRANPOSEVEC3(__a,__x,__p) {int i,j; for (i=0.; i<3; i++) {__p[i] = 0; for (j=0.; j<3; j++) __p[i] += __a[j][i]*__x[j]; }}
 
 #undef __FUNCT__
-#define __FUNCT__ "Pressure_PG"
-static PetscErrorCode Pressure_PG(const PetscReal gamma,const MHDNode *x,PetscScalar *p)
+#define __FUNCT__ "PhysicsBoundary_MHD_Wall"
+static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *c, const PetscReal n[], const PetscScalar *axI, PetscScalar *axG, void *a_ctx)
 {
-  PetscScalar ru2;
-  PetscInt i;
+  PetscInt      i;
+  const MHDNode *xI = (const MHDNode*)axI;
+  MHDNode       *xG = (MHDNode*)axG;
   PetscFunctionBeginUser;
-  for (i=0,ru2=0; i<3; i++) ru2 += x->ru[i]*x->ru[i];
-  (*p)=(x->e - 0.5*ru2/x->r)*(gamma - 1.0); /* (E - rho V^2/2)(gamma-1) = e rho (gamma-1) */
+  /* PetscPrintf(PETSC_COMM_WORLD,"%s: xI=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e, coord = %16.8e %16.8e %16.8e normal = %16.8e %16.8e %16.8e\n",__FUNCT__,xI->vals[0],xI->vals[1],xI->vals[2],xI->vals[3],xI->vals[4],xI->vals[5],xI->vals[6],xI->vals[7],c[0],c[1],c[2],n[0],n[1],n[2]); */
+  /* if (xI->r<=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," bad density = %g",xI->r); */
+  xG->r = xI->r; /* ghost cell density - same */
+  xG->e = xI->e; /* ghost cell energy - same */
+  for (i=0; i<3; i++) xG->b[i]  = -xI->b[i];  /* zero BC, negative */
+  for (i=0; i<3; i++) xG->ru[i] = -xI->ru[i]; /* no flow? */
+  /* PetscPrintf(PETSC_COMM_WORLD,"%s: G = %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",__FUNCT__,xG->vals[0],xG->vals[1],xG->vals[2],xG->vals[3],xG->vals[4],xG->vals[5],xG->vals[6],xG->vals[7]); */
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "SpeedOfSound_PG"
-static PetscErrorCode SpeedOfSound_PG(const PetscReal *gamma, const MHDNode *x, PetscScalar *c)
+#define __FUNCT__ "MHDFlux"
+static void MHDFlux(MHDNode *uL, MHDNode *uR, PetscReal area, X3Ctx *ctx, MHDNode *flux)
 {
-  PetscScalar p;
-
+  PetscInt        i,j;
   PetscFunctionBeginUser;
-  Pressure_PG(*gamma,x,&p);
-  if (p<0.) SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_SUP,"negative pressure time %g -- NEED TO FIX!!!!!!",p);
-  (*c)=PetscSqrtScalar(*gamma * p / x->r);
-  PetscFunctionReturn(0);
+  for (i=0; i<ctx->ndof; i++) flux->vals[i] = 0;
+
+
+  PetscFunctionReturnVoid();
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PhysicsRiemann_MHD"
+static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], const PetscReal n[],
+                                const PetscScalar *xL, const PetscScalar *xR, PetscScalar *aflux, void *a_ctx)
+{
+  X3Ctx           *ctx = (X3Ctx*)a_ctx;
+  PetscReal       nn[3],t,c,v[3],R[3][3],a,ai;
+  PetscInt        i,j;
+  const MHDNode   *uL = (const MHDNode*)xL,*uR = (const MHDNode*)xR;
+  MHDNode         *retflux = (MHDNode*)aflux, flux;
+  MHDNode          luR, luL;
+  /* MHDNode         fL,fR; */
+  PetscFunctionBeginUser;
+
+  for (i=0,a=0; i<3; i++) {
+    nn[i] = n[i];
+    a += nn[i]*nn[i];
+  }
+  ai = 1/PetscSqrtReal(a); /* area inverse */
+  for (i=0; i<3; i++) nn[i] *= ai; /* |nn|==1 */
+  if (nn[0] < -0.999999) { /* == -1 */
+    /* PetscPrintf(PETSC_COMM_WORLD," ***** %s: Nf=%D, area=%g, Have -1 normal n = %g %g %g nn = %g %g %g\n",__FUNCT__,Nf,PetscSqrtReal(a),n[0],n[1],n[2],nn[0],nn[1],nn[2]); */
+    for (i=0; i<3; i++) for (j=0; j<3; j++) R[i][j] = (i==j) ? -1 : 0; /* I * -cos(theta) = -I */
+    /* R[1][1] = 1; */ /* rotation about y axis 180 degrees */
+    R[2][2] = 1; /* rotation about z axis 180 degrees */
+  } else {
+    /* rotation matrix to put vectors on x axis, v = n X e_1 */
+    v[0] = 0;
+    v[1] = nn[2];
+    v[2] = -nn[1];
+    c = nn[0];
+    R[0][0] = 1;     R[0][1] = -v[2]; R[0][2] =  v[1]; /* I + v cross */
+    R[1][0] =  v[2]; R[1][1] = 1;     R[1][2] = -v[0];
+    R[2][0] = -v[1]; R[2][1] =  v[0]; R[2][2] = 1;
+    t = 1/(1+c); /* + (v cross)^2 / (1+c) */
+    R[0][0] -= t*(v[2]*v[2] + v[1]*v[1]); R[0][1] += t*v[0]*v[1];               R[0][2] += t*v[2]*v[0];
+    R[1][0] += t*v[0]*v[1];               R[1][1] -= t*(v[2]*v[2] + v[0]*v[0]); R[1][2] += t*v[1]*v[2];
+    R[2][0] += t*v[2]*v[0];               R[2][1] += t*v[1]*v[2];               R[2][2] -= t*(v[1]*v[1] + v[0]*v[0]);
+  }
+  luL.r = uL->r; /* copy states and rotate to local coordinate, nn = (1,0,0) */
+  luL.e = uL->e;
+  luR.r = uR->r;
+  luR.e = uR->e;
+  MATVEC3(R,uR->ru,luR.ru);
+  MATVEC3(R,uL->ru,luL.ru);
+  MATVEC3(R,uR->b, luR.b);
+  MATVEC3(R,uL->b, luL.b);
+  /* PetscPrintf(PETSC_COMM_WORLD,"%s: uR.ru = %g %g %g, local uR.ru = %g %g %g, n = %g %g %g \n",__FUNCT__,uR->ru[0],uR->ru[1],uR->ru[2],luR.ru[0],luR.ru[1],luR.ru[2],n[0],n[1],n[2]); */
+  /* compute flux */
+  MHDFlux(&luL, &luR, a, ctx, &flux);
+  /* rotate fluxes back to original coordinate system */
+  MATTRANPOSEVEC3(R,flux.ru,retflux->ru);
+  MATTRANPOSEVEC3(R,flux.b,retflux->b);
+  retflux->r = flux.r;
+  retflux->e = flux.e;
+  PetscFunctionReturnVoid();
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "SolutionFunctional"
 /* put the solution callback into a functional callback */
-static PetscErrorCode SolutionFunctional(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *modctx)
+static PetscErrorCode SolutionFunctional(PetscInt dim, PetscReal time, const PetscReal xxx[], PetscInt Nf, PetscScalar *u, void *modctx)
 {
   X3Ctx           *ctx = (X3Ctx*)modctx;
   PetscInt        i;
   MHDNode         *uu  = (MHDNode*)u;
-  PetscScalar     c;
+  PetscScalar     c,t;
   PetscFunctionBegin;
   if (time != 0.0) SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_SUP,"No solution known for time %g",(double)time);
   for (i=0; i<3; i++) uu->ru[i] = 0.0; /* zero out initial velocity */
-  for (i=0; i<3; i++) uu->b[i] = 0.0; /* zero out B */
-  uu->ru[1] = 1.0; /* flow down tube */
+  for (i=0; i<3; i++) uu->b[i] = 0.0;  /* zero out B */
+  uu->ru[1] = xxx[1]; /* flow down tube pulling away */
   /* set E and rho */
   uu->r = 1.;
   uu->e = 10./(ctx->gamma-1.);
-  // set phys->maxspeed: (mod->maxspeed = phys->maxspeed) in main;
-  SpeedOfSound_PG(&ctx->gamma,uu,&c);
-  c = PetscAbsScalar(uu->ru[0]/uu->r) + c;
+  for (i=0,c=0; i<3; i++) {
+    t = uu->ru[i]/uu->r;
+    c += t*t;
+  }
+  c = PetscSqrtReal(c);
   if (c > ctx->maxspeed) ctx->maxspeed = c;
+  PetscPrintf(PETSC_COMM_WORLD,"%s: uu=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e, coord = %16.8e %16.8e %16.8e\n",__FUNCT__,uu->vals[0],uu->vals[1],uu->vals[2],uu->vals[3],uu->vals[4],uu->vals[5],uu->vals[6],uu->vals[7],xxx[0],xxx[1],xxx[2]);
   PetscFunctionReturn(0);
 }
 
@@ -1921,77 +1993,6 @@ PetscErrorCode SetInitialCondition(DM dm, Vec X, X3Ctx *ctx)
   ierr = DMProjectFunction(dm,0.0,func,ctxa,INSERT_ALL_VALUES,X);CHKERRQ(ierr);
   /* ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
   PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "PhysicsBoundary_MHD_Wall"
-static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal c[], const PetscReal n[], const PetscScalar *a_xI, PetscScalar *a_xG, void *a_ctx)
-{
-  PetscInt      i;
-  const MHDNode *xI = (const MHDNode*)a_xI;
-  MHDNode       *xG = (MHDNode*)a_xG;
-  PetscScalar   nu;
-  PetscFunctionBeginUser;
-  xG->r = xI->r; /* ghost cell density - same */
-  xG->e = xI->e; /* ghost cell energy - same */
-  for (i=0; i<3; i++) xG->b[i] = -xI->b[i];      /* zero BC, negative */
-  for (i=0,nu=0; i<3; i++) nu += xI->ru[i]*n[i]; /* normal flux */
-  assert(fabs(nu)<1.e-8); /* parallel flow for now!!! */
-  for (i=0; i<3; i++) xG->ru[i] = xI->ru[i] - 2*nu*n[i]; /* u - 2*u_perp, no flow? */
-  /* PetscPrintf(PETSC_COMM_WORLD,"%s: G = %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",__FUNCT__,xG->vals[0],xG->vals[1],xG->vals[2],xG->vals[3],xG->vals[4],xG->vals[5],xG->vals[6],xG->vals[7]); */
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "MHDFlux"
-static PetscErrorCode MHDFlux(const X3Ctx *ctx, const PetscReal n[], const MHDNode *x, MHDNode *f)
-{
-  PetscScalar   nu,p;
-  PetscInt      i;
-  PetscFunctionBeginUser;
-  Pressure_PG(ctx->gamma,x,&p);
-  for (i=0,nu=0; i<3; i++) nu += x->ru[i]*n[i];
-  f->r = nu;   /* A rho u */
-  nu /= x->r;  /* A u */
-  for (i=0; i<3; i++) f->ru[i] = nu * x->ru[i] + n[i]*p;  /* r u^2 + p */
-  f->e = nu * (x->e + p); /* u(e+p) */
-  for (i=0; i<3; i++) f->b[i] = 0.0; /* zero out B */
-  PetscPrintf(PETSC_COMM_WORLD,"%s: Flux = %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",__FUNCT__,f->vals[0],f->vals[1],f->vals[2],f->vals[3],f->vals[4],f->vals[5],f->vals[6],f->vals[7]);
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "PhysicsRiemann_MHD"
-static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], const PetscReal n[],
-                                const PetscScalar *xL, const PetscScalar *xR, PetscScalar *aflux, void *a_ctx)
-{
-  X3Ctx           *ctx = (X3Ctx*)a_ctx;
-  PetscReal       cL,cR,speed,velL,velR,nn[3],s2;
-  PetscInt        i;
-  PetscErrorCode  ierr;
-  const MHDNode   *uL = (const MHDNode*)xL,*uR = (const MHDNode*)xR;
-  MHDNode         *flux = (MHDNode*)aflux;
-  MHDNode         fL,fR;
-  PetscFunctionBeginUser;
-
-  for (i=0,s2=0.; i<3; i++) {
-    nn[i] = n[i];
-    s2 += nn[i]*nn[i];
-  }
-  s2 = PetscSqrtReal(s2); /* |n|_2 = sum(n^2)^1/2 */
-  for (i=0.; i<3; i++) nn[i] /= s2;
-  MHDFlux(ctx,nn,uL,&fL);
-  MHDFlux(ctx,nn,uR,&fR);
-  ierr = SpeedOfSound_PG(&ctx->gamma,uL,&cL); if (ierr) exit(13);
-  ierr = SpeedOfSound_PG(&ctx->gamma,uR,&cR); if (ierr) exit(14);
-  for (i=0,velL=0; i<3; i++) velL += uL->ru[i]*nn[i];
-  for (i=0,velR=0; i<3; i++) velR += uL->ru[i]*nn[i];
-  velL /= uL->r;
-  velR /= uR->r;
-  speed = PetscMax(PetscAbsScalar(velR) + cR,PetscAbsScalar(velL) + cL);
-  for (i=0; i<ctx->ndof; i++) flux->vals[i] = 0.5*((fL.vals[i]+fR.vals[i]) + speed*(xL[i] - xR[i]))*s2;
-  PetscPrintf(PETSC_COMM_WORLD,"%s: Flux = %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",__FUNCT__,flux->vals[0],flux->vals[1],flux->vals[2],flux->vals[3],flux->vals[4],flux->vals[5],flux->vals[6],flux->vals[7]);
-  PetscFunctionReturnVoid();
 }
 
 #undef __FUNCT__
@@ -2024,7 +2025,6 @@ static PetscErrorCode initializeTS(DM dm, X3Ctx *ctx, TS *ts)
   ierr = DMTSSetRHSFunctionLocal(dm, DMPlexTSComputeRHSFunctionFVM, ctx);CHKERRQ(ierr);
   ierr = TSSetDuration(*ts,ctx->msteps,1.e12);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(*ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
-  ierr = TSSetApplicationContext(*ts, ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -2490,7 +2490,6 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   }
 
   ierr = PetscDSCreate(ctx->wComm,&probmhd);CHKERRQ(ierr);
-  /* ierr = DMGetDS(dmmhd, &probmhd);CHKERRQ(ierr); */
   ierr = PetscFVCreate(ctx->wComm, &fvm);CHKERRQ(ierr);
   ierr = PetscFVSetFromOptions(fvm);CHKERRQ(ierr);
   /* Count number of fields and dofs */
@@ -2511,11 +2510,12 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   ierr = PetscDSSetRiemannSolver(probmhd, 0, PhysicsRiemann_MHD);CHKERRQ(ierr);
   ierr = PetscDSSetContext(probmhd, 0, ctx);CHKERRQ(ierr);
   /* add BCs, how does this work with periodic? */
-  ierr = PetscDSAddBoundary(probmhd, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) PhysicsBoundary_MHD_Wall, 1, &id, ctx);CHKERRQ(ierr);
+  ierr = PetscDSAddBoundary(probmhd, PETSC_FALSE, "wall", "boundary", 0, 0, NULL, (void (*)()) PhysicsBoundary_MHD_Wall, 1, &id, ctx);CHKERRQ(ierr);
   /* ierr = PetscObjectSetOptionsPrefix((PetscObject)probmhd, "mhd_");CHKERRQ(ierr); */
   ierr = PetscDSSetFromOptions(probmhd);CHKERRQ(ierr);
   ierr = DMSetDS(dmmhd,probmhd);CHKERRQ(ierr);
   ierr = PetscDSDestroy(&probmhd);CHKERRQ(ierr);
+  /* ierr = DMAddBoundary(dmmhd, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) PhysicsBoundary_MHD_Wall, 1, &id, ctx);CHKERRQ(ierr); */
 
   /* setup PIC FEM Poison Discretization */
   ierr = PetscFECreateDefault(dmpi->dm, dim, 1, PETSC_FALSE, NULL, PETSC_DECIDE, &dmpi->fem);CHKERRQ(ierr);
@@ -2555,6 +2555,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
       } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Convert failed?");
     }
     if ( flg ) {
+      PetscPrintf(PETSC_COMM_WORLD,"%s: converting to Forest\n",__FUNCT__);
       ierr = DMConvert(dmmhd,convType,&dm2);CHKERRQ(ierr);
       if (dm2) {
         /* ierr = PetscObjectGetOptionsPrefix((PetscObject)dmmhd,&prefix);CHKERRQ(ierr); */
