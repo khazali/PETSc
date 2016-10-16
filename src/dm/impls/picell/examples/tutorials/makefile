@@ -51,7 +51,7 @@ runex1_plex:
 # -nphi_particles 2 -x2_dm_view vtk:tokamac.vtu -ft_np 1,1,1 -chunksize 165536 -petscspace_poly_tensor -petscspace_order 1
 
 runex3:
-	-${MPIEXEC} -n ${NP} ./ex3.${PETSC_ARCH}                                                                                                  -dm_type p8est -mhd_dm_forest_maximum_refinement 6 -mhd_dm_forest_minimum_refinement 1 -mhd_dm_forest_initial_refinement 1 -petscfv_type leastsquares -petscfv_compute_gradients 0 -petsclimiter_type minmod -ts_view -ts_ssp_type rks2 -ts_ssp_nstages 10 -mstep 2 -debug 3 -ts_monitor -run_type torus -petscpartitioner_type simple -use_amr false -plot_amr_initial -refine_tol 0.5 -coarsen_tol 1.e-2 -mhd_dm_view hdf5:ex3.h5 -mhd_vec_view hdf5:ex3.h5::append -num_phi_cells 3 -num_particles_proc 0
+	-${MPIEXEC} -n ${NP} ./ex3.${PETSC_ARCH}                                                                                                  -dm_type p8est -mhd_dm_forest_maximum_refinement 6 -mhd_dm_forest_minimum_refinement 0 -mhd_dm_forest_initial_refinement 1 -petscfv_type leastsquares -petscfv_compute_gradients 0 -petsclimiter_type minmod -ts_view -ts_ssp_type rks2 -ts_ssp_nstages 10 -mstep 2 -debug 3 -ts_monitor -run_type torus -petscpartitioner_type simple -use_amr false -plot_amr_initial -refine_tol 0.5 -coarsen_tol 1.e-2 -mhd_dm_view hdf5:ex3.h5 -mhd_vec_view hdf5:ex3.h5::append -num_phi_cells 3 -num_particles_proc 0
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex3.h5
 
 val:

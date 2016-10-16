@@ -2045,7 +2045,7 @@ static PetscErrorCode SolutionFunctional(PetscInt dim, PetscReal time, const Pet
   }
   c = PetscSqrtReal(c);
   if (c > ctx->maxspeed) ctx->maxspeed = c;
-  PetscPrintf(PETSC_COMM_WORLD,"%s: uu=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e, coord = %16.8e %16.8e %16.8e\n",__FUNCT__,uu->vals[0],uu->vals[1],uu->vals[2],uu->vals[3],uu->vals[4],uu->vals[5],uu->vals[6],uu->vals[7],xxx[0],xxx[1],xxx[2]);
+  /* PetscPrintf(PETSC_COMM_WORLD,"%s: uu=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e, coord = %16.8e %16.8e %16.8e\n",__FUNCT__,uu->vals[0],uu->vals[1],uu->vals[2],uu->vals[3],uu->vals[4],uu->vals[5],uu->vals[6],uu->vals[7],xxx[0],xxx[1],xxx[2]); */
   PetscFunctionReturn(0);
 }
 
@@ -2495,7 +2495,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   PetscDS        prob,probmhd;
   DMLabel        label;
   DM_PICell      *dmpi;
-  PetscInt       dim,i,id=1;
+  PetscInt       dim,i,id=1,nglobalcells;
   const char     *prefix;
   PetscFunctionBegin;
   /* construct DMs */
@@ -2535,18 +2535,25 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     ierr = DMLocalizeCoordinates(dmpi->dm);CHKERRQ(ierr);
   }
   /* clone DM for MHD with ghosts and setup */
+  ierr = DMPlexGetHeightStratum(dmpi->dm, 0, NULL, &nglobalcells);CHKERRQ(ierr);
   ierr = DMClone(dmpi->dm, &dmmhd);CHKERRQ(ierr);
-
+  ierr = PetscObjectGetName((PetscObject)dmpi->dm,&prefix);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)dmmhd, prefix);CHKERRQ(ierr);
   { /* setup MHD DM */
     DM dm2;
     ierr = DMPlexSetAdjacencyUseCone(dmmhd, PETSC_TRUE);CHKERRQ(ierr);
     ierr = DMPlexSetAdjacencyUseClosure(dmmhd, PETSC_FALSE);CHKERRQ(ierr);
     ierr = DMPlexDistribute(dmmhd, 1, NULL, &dm2);CHKERRQ(ierr);
     if (dm2) {
+      ierr = PetscObjectGetName((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
+      ierr = PetscObjectSetName((PetscObject)dm2, prefix);CHKERRQ(ierr);
       ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
       dmmhd   = dm2;
+      if (dmpi->debug>0) PetscPrintf(PETSC_COMM_WORLD,"%s distributed MHD grid\n",__FUNCT__);
     }
     ierr = DMPlexConstructGhostCells(dmmhd, NULL, NULL, &dm2);CHKERRQ(ierr);
+    ierr = PetscObjectGetName((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)dm2, prefix);CHKERRQ(ierr);
     ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
     dmmhd = dm2;
     ierr = PetscObjectSetOptionsPrefix((PetscObject) dmmhd, "mhd_");CHKERRQ(ierr);
@@ -2554,13 +2561,16 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     /* setup PIC solver */
     ierr = DMPlexDistribute(dmpi->dm, 0, NULL, &dm2);CHKERRQ(ierr);
     if (dm2) {
+      ierr = PetscObjectGetName((PetscObject)dmpi->dm,&prefix);CHKERRQ(ierr);
+      ierr = PetscObjectSetName((PetscObject)dm2, prefix);CHKERRQ(ierr);
       ierr = DMDestroy(&dmpi->dm);CHKERRQ(ierr);
       dmpi->dm = dm2;
+      if (dmpi->debug>0) PetscPrintf(PETSC_COMM_WORLD,"%s distributed Poisson grid\n",__FUNCT__);
     }
     ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dm, "poission_");CHKERRQ(ierr);
     ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
   }
-
+  /* setup MHD discretization */
   ierr = PetscDSCreate(ctx->wComm,&probmhd);CHKERRQ(ierr);
   ierr = PetscFVCreate(ctx->wComm, &fvm);CHKERRQ(ierr);
   ierr = PetscFVSetFromOptions(fvm);CHKERRQ(ierr);
@@ -2586,7 +2596,6 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   ierr = PetscDSSetFromOptions(probmhd);CHKERRQ(ierr);
   ierr = DMSetDS(dmmhd,probmhd);CHKERRQ(ierr);
   ierr = PetscDSDestroy(&probmhd);CHKERRQ(ierr);
-
   /* setup PIC FEM Poison Discretization */
   ierr = PetscFECreateDefault(dmpi->dm, dim, 1, PETSC_FALSE, NULL, PETSC_DECIDE, &dmpi->fem);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->fem, "potential");CHKERRQ(ierr);
@@ -2599,6 +2608,10 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   /* add BCs, how does this work with periodic? */
   ierr = PetscDSAddBoundary(prob, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) zero, 1, &id, ctx);CHKERRQ(ierr);
   ierr = PetscDSSetFromOptions(prob);CHKERRQ(ierr);
+  if (dmpi->debug>2) {
+    /* ierr = DMView(dmpi->dm,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
+    ierr = DMView(dmmhd,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  }
   { /* convert to plex */
     char       convType[256];
     PetscBool  flg;
@@ -2613,6 +2626,8 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
       if (dm2) {
         ierr = PetscObjectGetOptionsPrefix((PetscObject)dmpi->dm,&prefix);CHKERRQ(ierr);
         ierr = PetscObjectSetOptionsPrefix((PetscObject)dm2,prefix);CHKERRQ(ierr);
+        ierr = PetscObjectGetName((PetscObject)dmpi->dm,&prefix);CHKERRQ(ierr);
+        ierr = PetscObjectSetName((PetscObject)dm2, prefix);CHKERRQ(ierr);
         ierr = DMDestroy(&dmpi->dm);CHKERRQ(ierr);
         dmpi->dm = dm2;
         ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
@@ -2623,11 +2638,13 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
       } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Convert failed?");
     }
     if ( flg ) {
-      PetscPrintf(PETSC_COMM_WORLD,"%s: converting to Forest\n",__FUNCT__);
+      PetscPrintf(PETSC_COMM_WORLD,"%s: Converting MHD to Forest\n",__FUNCT__);
       ierr = DMConvert(dmmhd,convType,&dm2);CHKERRQ(ierr);
       if (dm2) {
         ierr = PetscObjectGetOptionsPrefix((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
         ierr = PetscObjectSetOptionsPrefix((PetscObject)dm2,prefix);CHKERRQ(ierr);
+        ierr = PetscObjectGetName((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
+        ierr = PetscObjectSetName((PetscObject)dm2, prefix);CHKERRQ(ierr);
         ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
         dmmhd = dm2;
         ierr = DMSetFromOptions(dmmhd);CHKERRQ(ierr);
@@ -2638,29 +2655,22 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
       } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Convert failed?");
     }
   }
-
   { /* print */
-    PetscInt n,cStart,cEnd,bs;
+    PetscInt n,cStart,cEnd,bs,nloc;
     Vec X;
     ierr = DMCreateGlobalVector(dmmhd, &X);CHKERRQ(ierr);
     ierr = VecGetSize(X,&n);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(X,&nloc);CHKERRQ(ierr);
     ierr = VecGetBlockSize(X,&bs);CHKERRQ(ierr);
     ierr = VecDestroy(&X);CHKERRQ(ierr);
     if (!n) SETERRQ(ctx->wComm, PETSC_ERR_USER, "No dofs");
     ierr = DMPlexGetHeightStratum(dmpi->dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
-    if (cStart) SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_USER, "cStart != 0. %D",cStart);
-    if (dmpi->debug>0 && !cEnd) {
-      ierr = PetscPrintf((dmpi->debug>1 || !cEnd) ? PETSC_COMM_SELF : ctx->wComm,"[%D] ERROR %D global equations, %d local cells, (cEnd=%d), debug=%D\n",ctx->rank,n,cEnd-cStart,cEnd,dmpi->debug);
-    }
-    if (!cEnd) {
-      SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "No cells");
-    }
     s_fluxtubeelem = cEnd/2;
-    if (dmpi->debug>0) PetscPrintf( ctx->wComm,"[%D] %D equations (block size %D) on %D processors, %D local cells\n",
-                                    ctx->rank,n,bs,ctx->npe,cEnd);
+    if (dmpi->debug>0) PetscPrintf( ctx->wComm,"[%D] %D global MHD equations, %D local, block size %D, on %D processors, %D global cells, %D local\n",
+                                    ctx->rank,n,nloc,bs,ctx->npe,nglobalcells,cEnd);
   }
   if (dmpi->debug>2) {
-    ierr = DMView(dmpi->dm,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    /* ierr = DMView(dmpi->dm,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
     ierr = DMView(dmmhd,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
   *admmhd = dmmhd;
