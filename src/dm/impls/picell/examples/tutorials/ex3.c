@@ -2537,37 +2537,42 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   ierr = DMClone(dmpi->dm, &dmmhd);CHKERRQ(ierr);
   ierr = PetscObjectGetName((PetscObject)dmpi->dm,&prefix);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject)dmmhd, prefix);CHKERRQ(ierr);
-  /* setup MHD DM */
-  ierr = DMPlexSetAdjacencyUseCone(dmmhd, PETSC_TRUE);CHKERRQ(ierr);
-  ierr = DMPlexSetAdjacencyUseClosure(dmmhd, PETSC_FALSE);CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dm, "poission_");CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) dmmhd, "mhd_");CHKERRQ(ierr);
+  /* distribute */
   ierr = DMPlexDistribute(dmmhd, 1, NULL, &dm2);CHKERRQ(ierr);
   if (dm2) {
+    ierr = PetscObjectGetOptionsPrefix((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
+    ierr = PetscObjectSetOptionsPrefix((PetscObject)dm2,prefix);CHKERRQ(ierr);
     ierr = PetscObjectGetName((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
     ierr = PetscObjectSetName((PetscObject)dm2, prefix);CHKERRQ(ierr);
     ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
     dmmhd   = dm2;
     if (dmpi->debug>0) PetscPrintf(PETSC_COMM_WORLD,"%s distributed MHD grid\n",__FUNCT__);
   }
-  ierr = DMPlexConstructGhostCells(dmmhd, NULL, NULL, &dm2);CHKERRQ(ierr);
-  ierr = PetscObjectGetName((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject)dm2, prefix);CHKERRQ(ierr);
-  ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
-  dmmhd = dm2;
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) dmmhd, "mhd_");CHKERRQ(ierr);
-  ierr = DMSetFromOptions(dmmhd);CHKERRQ(ierr);
   if (ctx->num_particles_total) {
     /* setup PIC solver */
     ierr = DMPlexDistribute(dmpi->dm, 0, NULL, &dm2);CHKERRQ(ierr);
     if (dm2) {
+      ierr = PetscObjectGetOptionsPrefix((PetscObject)dmpi->dm,&prefix);CHKERRQ(ierr);
+      ierr = PetscObjectSetOptionsPrefix((PetscObject)dm2,prefix);CHKERRQ(ierr);
       ierr = PetscObjectGetName((PetscObject)dmpi->dm,&prefix);CHKERRQ(ierr);
       ierr = PetscObjectSetName((PetscObject)dm2, prefix);CHKERRQ(ierr);
       ierr = DMDestroy(&dmpi->dm);CHKERRQ(ierr);
       dmpi->dm = dm2;
       if (dmpi->debug>0) PetscPrintf(PETSC_COMM_WORLD,"%s distributed Poisson grid\n",__FUNCT__);
     }
-    ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dm, "poission_");CHKERRQ(ierr);
-    ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
   }
+  /* setup MHD DM */
+  ierr = DMPlexSetAdjacencyUseCone(dmmhd, PETSC_TRUE);CHKERRQ(ierr);
+  ierr = DMPlexSetAdjacencyUseClosure(dmmhd, PETSC_FALSE);CHKERRQ(ierr);
+  ierr = DMPlexConstructGhostCells(dmmhd, NULL, NULL, &dm2);CHKERRQ(ierr);
+  ierr = PetscObjectGetName((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)dm2, prefix);CHKERRQ(ierr);
+  ierr = PetscObjectGetOptionsPrefix((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject)dm2,prefix);CHKERRQ(ierr);
+  ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
+  dmmhd = dm2;
   /* setup MHD discretization */
   ierr = PetscDSCreate(ctx->wComm,&probmhd);CHKERRQ(ierr);
   ierr = PetscFVCreate(ctx->wComm, &fvm);CHKERRQ(ierr);
@@ -2607,10 +2612,10 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     /* add BCs, how does this work with periodic? */
     ierr = PetscDSAddBoundary(prob, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) zero, 1, &id, ctx);CHKERRQ(ierr);
     ierr = PetscDSSetFromOptions(prob);CHKERRQ(ierr);
-    if (dmpi->debug>2) {
-      /* ierr = DMView(dmpi->dm,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
-      ierr = DMView(dmmhd,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-    }
+  }
+  if (dmpi->debug>2) {
+    /* ierr = DMView(dmpi->dm,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
+    ierr = DMView(dmmhd,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
   { /* convert to plex */
     char       convType[256];
@@ -2638,7 +2643,8 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
       } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Convert failed?");
     }
     if ( flg ) {
-      PetscPrintf(PETSC_COMM_WORLD,"%s: Converting MHD to Forest\n",__FUNCT__);
+      ierr = PetscObjectGetOptionsPrefix((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
+      PetscPrintf(PETSC_COMM_WORLD,"%s: Converting MHD to Forest, prefix=%s\n",__FUNCT__,prefix);
       ierr = DMConvert(dmmhd,convType,&dm2);CHKERRQ(ierr);
       if (dm2) {
         ierr = PetscObjectGetOptionsPrefix((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
