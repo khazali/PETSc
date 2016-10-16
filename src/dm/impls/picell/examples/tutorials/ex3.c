@@ -2304,52 +2304,9 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
     }
   }
   s_section_phi = ctx->grid.section_phi;
-
   ierr = PetscOptionsInt("-num_phi_cells", "Number of cells per major circle", "ex3.c", ctx->grid.num_phi_cells, &ctx->grid.num_phi_cells, NULL);CHKERRQ(ierr);
   if (ctx->grid.num_phi_cells<3 && ctx->grid.section_phi==2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," Not enough phi cells %D",ctx->grid.num_phi_cells);
   ierr = PetscOptionsReal("-inner_mult", "Fraction of minor radius taken by inner square", "ex3.c", ctx->grid.inner_mult, &ctx->grid.inner_mult, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-np_phi", "Number of planes for particle mesh", "ex3.c", ctx->grid.np_phi, &ctx->grid.np_phi, &phiFlag);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-np_radius", "Number of radial cells for particle mesh", "ex3.c", ctx->grid.np_radius, &ctx->grid.np_radius, &radFlag);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-np_theta", "Number of theta cells for particle mesh", "ex3.c", ctx->grid.np_theta, &ctx->grid.np_theta, &thetaFlag);CHKERRQ(ierr);
-  ctx->npe_particlePlane = -1;
-  if (ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta != ctx->npe) { /* recover from inconsistant grid/procs */
-    if (thetaFlag && radFlag && phiFlag) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"over constrained number of particle processes npe (%D) != %D",ctx->npe,ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta);
-
-    if (!thetaFlag && radFlag && phiFlag) ctx->grid.np_theta = ctx->npe/(ctx->grid.np_phi*ctx->grid.np_radius);
-    else if (thetaFlag && !radFlag && phiFlag) ctx->grid.np_radius = ctx->npe/(ctx->grid.np_phi*ctx->grid.np_theta);
-    else if (thetaFlag && radFlag && !phiFlag) ctx->grid.np_phi = ctx->npe/(ctx->grid.np_radius*ctx->grid.np_theta);
-    else if (!thetaFlag && !radFlag && !phiFlag) {
-      ctx->npe_particlePlane = (int)pow((double)ctx->npe,0.6667);
-      ctx->grid.np_phi = ctx->npe/ctx->npe_particlePlane;
-      ctx->grid.np_radius = (int)(sqrt((double)ctx->npe_particlePlane)+0.5);
-      ctx->grid.np_theta = ctx->npe_particlePlane/ctx->grid.np_radius;
-      if (ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta != ctx->npe) {
-	ctx->grid.np_phi = ctx->npe;
-      }
-    }
-    else if (ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta != ctx->npe) { /* recover */
-      if (!ctx->npe%ctx->grid.np_phi) {
-	ctx->npe_particlePlane = ctx->npe/ctx->grid.np_phi;
-	ctx->grid.np_radius = (int)(sqrt((double)ctx->npe_particlePlane)+0.5);
-	ctx->grid.np_theta = ctx->npe_particlePlane/ctx->grid.np_radius;
-      }
-      else {
-      }
-    }
-    if (ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta != ctx->npe) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"particle grids do not work npe (%D) != %D",ctx->npe,ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta);
-  }
-
-  /* particle grids: <= npe, <= num solver planes */
-  if (ctx->npe < ctx->grid.np_phi) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"num particle planes np_phi (%D) > npe (%D)",ctx->grid.np_phi,ctx->npe);
-  if (ctx->npe%ctx->grid.np_phi) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"np=%D not divisible by number of particle planes (np_phi) %D",ctx->npe,ctx->grid.np_phi);
-
-  if (ctx->npe_particlePlane == -1) ctx->npe_particlePlane = ctx->npe/ctx->grid.np_phi;
-  if (ctx->npe_particlePlane != ctx->npe/ctx->grid.np_phi) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_USER,"Inconsistant number planes (%D), pes (%D), and pe/plane (%D) requested",ctx->grid.np_phi,ctx->npe,ctx->npe_particlePlane);
-
-  if (ctx->grid.np_theta*ctx->grid.np_radius != ctx->npe_particlePlane) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"%D particle cells/plane != %D pe/plane",ctx->grid.np_theta*ctx->grid.np_radius,ctx->npe_particlePlane);
-  if (ctx->grid.np_theta*ctx->grid.np_radius*ctx->grid.np_phi != ctx->npe) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"%D particle cells != %D npe",ctx->grid.np_theta*ctx->grid.np_radius*ctx->grid.np_phi,ctx->npe);
-  ctx->ParticlePlaneIdx = ctx->rank/ctx->npe_particlePlane;
-  ctx->particlePlaneRank = ctx->rank%ctx->npe_particlePlane;
 
   /* PetscPrintf(PETSC_COMM_SELF,"[%D] pe/plane=%D, my plane=%D, my local rank=%D, np_phi=%D\n",ctx->rank,ctx->npe_particlePlane,ctx->ParticlePlaneIdx,ctx->particlePlaneRank,ctx->grid.np_phi);    */
 
@@ -2375,6 +2332,46 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   if (!chunkFlag) ctx->chunksize = X3_V_LEN*((ctx->num_particles_proc/80+1)/X3_V_LEN + 1); /* an intelegent message chunk size */
   if (ctx->chunksize<64 && !chunkFlag) ctx->chunksize = 64; /* 4K messages minimum */
 
+  if (ctx->num_particles_total) {
+    ierr = PetscOptionsInt("-np_phi", "Number of planes for particle mesh", "ex3.c", ctx->grid.np_phi, &ctx->grid.np_phi, &phiFlag);CHKERRQ(ierr);
+    ierr = PetscOptionsInt("-np_radius", "Number of radial cells for particle mesh", "ex3.c", ctx->grid.np_radius, &ctx->grid.np_radius, &radFlag);CHKERRQ(ierr);
+    ierr = PetscOptionsInt("-np_theta", "Number of theta cells for particle mesh", "ex3.c", ctx->grid.np_theta, &ctx->grid.np_theta, &thetaFlag);CHKERRQ(ierr);
+    ctx->npe_particlePlane = -1;
+    if (ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta != ctx->npe) { /* recover from inconsistant grid/procs */
+      if (thetaFlag && radFlag && phiFlag) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"over constrained number of particle processes npe (%D) != %D",ctx->npe,ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta);
+      if (!thetaFlag && radFlag && phiFlag) ctx->grid.np_theta = ctx->npe/(ctx->grid.np_phi*ctx->grid.np_radius);
+      else if (thetaFlag && !radFlag && phiFlag) ctx->grid.np_radius = ctx->npe/(ctx->grid.np_phi*ctx->grid.np_theta);
+      else if (thetaFlag && radFlag && !phiFlag) ctx->grid.np_phi = ctx->npe/(ctx->grid.np_radius*ctx->grid.np_theta);
+      else if (!thetaFlag && !radFlag && !phiFlag) {
+        ctx->npe_particlePlane = (int)pow((double)ctx->npe,0.6667);
+        ctx->grid.np_phi = ctx->npe/ctx->npe_particlePlane;
+        ctx->grid.np_radius = (int)(sqrt((double)ctx->npe_particlePlane)+0.5);
+        ctx->grid.np_theta = ctx->npe_particlePlane/ctx->grid.np_radius;
+        if (ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta != ctx->npe) {
+          ctx->grid.np_phi = ctx->npe;
+        }
+      }
+      else if (ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta != ctx->npe) { /* recover */
+        if (!ctx->npe%ctx->grid.np_phi) {
+          ctx->npe_particlePlane = ctx->npe/ctx->grid.np_phi;
+          ctx->grid.np_radius = (int)(sqrt((double)ctx->npe_particlePlane)+0.5);
+          ctx->grid.np_theta = ctx->npe_particlePlane/ctx->grid.np_radius;
+        }
+        else {
+        }
+      }
+      if (ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta != ctx->npe) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"particle grids do not work npe (%D) != %D",ctx->npe,ctx->grid.np_phi*ctx->grid.np_radius*ctx->grid.np_theta);
+    }
+    /* particle grids: <= npe, <= num solver planes */
+    if (ctx->npe < ctx->grid.np_phi) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"num particle planes np_phi (%D) > npe (%D)",ctx->grid.np_phi,ctx->npe);
+    if (ctx->npe%ctx->grid.np_phi) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"np=%D not divisible by number of particle planes (np_phi) %D",ctx->npe,ctx->grid.np_phi);
+    if (ctx->npe_particlePlane == -1) ctx->npe_particlePlane = ctx->npe/ctx->grid.np_phi;
+    if (ctx->npe_particlePlane != ctx->npe/ctx->grid.np_phi) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_USER,"Inconsistant number planes (%D), pes (%D), and pe/plane (%D) requested",ctx->grid.np_phi,ctx->npe,ctx->npe_particlePlane);
+    if (ctx->grid.np_theta*ctx->grid.np_radius != ctx->npe_particlePlane) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"%D particle cells/plane != %D pe/plane",ctx->grid.np_theta*ctx->grid.np_radius,ctx->npe_particlePlane);
+    if (ctx->grid.np_theta*ctx->grid.np_radius*ctx->grid.np_phi != ctx->npe) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_USER,"%D particle cells != %D npe",ctx->grid.np_theta*ctx->grid.np_radius*ctx->grid.np_phi,ctx->npe);
+    ctx->ParticlePlaneIdx = ctx->rank/ctx->npe_particlePlane;
+    ctx->particlePlaneRank = ctx->rank%ctx->npe_particlePlane;
+  }
   ctx->use_electrons = PETSC_FALSE;
   ierr = PetscOptionsBool("-use_electrons", "Include electrons", "ex3.c", ctx->use_electrons, &ctx->use_electrons, NULL);CHKERRQ(ierr);
   ctx->max_vpar = 30.;
