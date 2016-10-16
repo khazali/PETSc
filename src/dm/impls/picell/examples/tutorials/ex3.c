@@ -2494,6 +2494,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   DM_PICell      *dmpi;
   PetscInt       dim,i,id=1,nglobalcells;
   const char     *prefix;
+  DM             dm2;
   PetscFunctionBegin;
   /* construct DMs */
   ierr = DMCreate(ctx->wComm, &ctx->dmpic);CHKERRQ(ierr);
@@ -2512,49 +2513,49 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   }
   ierr = DMGetDimension(dmpi->dm, &dim);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(dmpi->dm, ctx);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(dmpi->dm, 0, NULL, &nglobalcells);CHKERRQ(ierr);
   /* mark BCs */
   ierr = DMCreateLabel(dmpi->dm, "boundary");CHKERRQ(ierr);
   ierr = DMGetLabel(dmpi->dm, "boundary", &label);CHKERRQ(ierr);
   ierr = DMPlexMarkBoundaryFaces(dmpi->dm, label);CHKERRQ(ierr);
   ierr = DMPlexLabelComplete(dmpi->dm, label);CHKERRQ(ierr);
-  if (s_section_phi != 2) {
-    DMBoundaryType bd[3] = {DM_BOUNDARY_NONE,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_NONE};
-    const PetscReal L2 = (ctx->grid.radius_major+ctx->grid.radius_minor)*tan(s_section_phi*M_PI);
-    const PetscReal L[3] = {0, L2, 0};
-    PetscReal maxCell[3];
-    for (i = 0; i < 3; i++) maxCell[i] = 1e100;
-    maxCell[1] = L2/3;
-    if (s_section_phi > -.1) {
-      ierr = PetscPrintf(ctx->wComm, "\t\t%s (periodic not working...) section phi = %g, L = %16.8e, %16.8g, %16.8e maxCell = %16.8e, %16.8e, %16.8e\n",
-                         __FUNCT__,s_section_phi,L[0],L[1],L[2],maxCell[0],maxCell[1],maxCell[2]);CHKERRQ(ierr);
-    }
-    ierr = DMSetPeriodicity(dmpi->dm, maxCell, L, bd);CHKERRQ(ierr);
-    ierr = DMLocalizeCoordinates(dmpi->dm);CHKERRQ(ierr);
-  }
+  /* if (s_section_phi != 2) { */
+  /*   DMBoundaryType bd[3] = {DM_BOUNDARY_NONE,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_NONE}; */
+  /*   const PetscReal L2 = (ctx->grid.radius_major+ctx->grid.radius_minor)*tan(s_section_phi*M_PI); */
+  /*   const PetscReal L[3] = {0, L2, 0}; */
+  /*   PetscReal maxCell[3]; */
+  /*   for (i = 0; i < 3; i++) maxCell[i] = 1e100; */
+  /*   maxCell[1] = L2/3; */
+  /*   if (s_section_phi > -.1) { */
+  /*     ierr = PetscPrintf(ctx->wComm, "\t\t%s (periodic not working...) section phi = %g, L = %16.8e, %16.8g, %16.8e maxCell = %16.8e, %16.8e, %16.8e\n", */
+  /*                        __FUNCT__,s_section_phi,L[0],L[1],L[2],maxCell[0],maxCell[1],maxCell[2]);CHKERRQ(ierr); */
+  /*   } */
+  /*   ierr = DMSetPeriodicity(dmpi->dm, maxCell, L, bd);CHKERRQ(ierr); */
+  /*   ierr = DMLocalizeCoordinates(dmpi->dm);CHKERRQ(ierr); */
+  /* } */
   /* clone DM for MHD with ghosts and setup */
-  ierr = DMPlexGetHeightStratum(dmpi->dm, 0, NULL, &nglobalcells);CHKERRQ(ierr);
   ierr = DMClone(dmpi->dm, &dmmhd);CHKERRQ(ierr);
   ierr = PetscObjectGetName((PetscObject)dmpi->dm,&prefix);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject)dmmhd, prefix);CHKERRQ(ierr);
-  { /* setup MHD DM */
-    DM dm2;
-    ierr = DMPlexSetAdjacencyUseCone(dmmhd, PETSC_TRUE);CHKERRQ(ierr);
-    ierr = DMPlexSetAdjacencyUseClosure(dmmhd, PETSC_FALSE);CHKERRQ(ierr);
-    ierr = DMPlexDistribute(dmmhd, 1, NULL, &dm2);CHKERRQ(ierr);
-    if (dm2) {
-      ierr = PetscObjectGetName((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
-      ierr = PetscObjectSetName((PetscObject)dm2, prefix);CHKERRQ(ierr);
-      ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
-      dmmhd   = dm2;
-      if (dmpi->debug>0) PetscPrintf(PETSC_COMM_WORLD,"%s distributed MHD grid\n",__FUNCT__);
-    }
-    ierr = DMPlexConstructGhostCells(dmmhd, NULL, NULL, &dm2);CHKERRQ(ierr);
+  /* setup MHD DM */
+  ierr = DMPlexSetAdjacencyUseCone(dmmhd, PETSC_TRUE);CHKERRQ(ierr);
+  ierr = DMPlexSetAdjacencyUseClosure(dmmhd, PETSC_FALSE);CHKERRQ(ierr);
+  ierr = DMPlexDistribute(dmmhd, 1, NULL, &dm2);CHKERRQ(ierr);
+  if (dm2) {
     ierr = PetscObjectGetName((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
     ierr = PetscObjectSetName((PetscObject)dm2, prefix);CHKERRQ(ierr);
     ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
-    dmmhd = dm2;
-    ierr = PetscObjectSetOptionsPrefix((PetscObject) dmmhd, "mhd_");CHKERRQ(ierr);
-    ierr = DMSetFromOptions(dmmhd);CHKERRQ(ierr);
+    dmmhd   = dm2;
+    if (dmpi->debug>0) PetscPrintf(PETSC_COMM_WORLD,"%s distributed MHD grid\n",__FUNCT__);
+  }
+  ierr = DMPlexConstructGhostCells(dmmhd, NULL, NULL, &dm2);CHKERRQ(ierr);
+  ierr = PetscObjectGetName((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)dm2, prefix);CHKERRQ(ierr);
+  ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
+  dmmhd = dm2;
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) dmmhd, "mhd_");CHKERRQ(ierr);
+  ierr = DMSetFromOptions(dmmhd);CHKERRQ(ierr);
+  if (ctx->num_particles_total) {
     /* setup PIC solver */
     ierr = DMPlexDistribute(dmpi->dm, 0, NULL, &dm2);CHKERRQ(ierr);
     if (dm2) {
@@ -2594,20 +2595,22 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   ierr = DMSetDS(dmmhd,probmhd);CHKERRQ(ierr);
   ierr = PetscDSDestroy(&probmhd);CHKERRQ(ierr);
   /* setup PIC FEM Poison Discretization */
-  ierr = PetscFECreateDefault(dmpi->dm, dim, 1, PETSC_FALSE, NULL, PETSC_DECIDE, &dmpi->fem);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) dmpi->fem, "potential");CHKERRQ(ierr);
-  /* FEM prob */
-  ierr = DMGetDS(dmpi->dm, &prob);CHKERRQ(ierr);
-  ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
-  ierr = PetscDSSetResidual(prob, 0, 0, f1_u);CHKERRQ(ierr);
-  ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
-  ierr = PetscDSSetContext(prob, 0, ctx);CHKERRQ(ierr);
-  /* add BCs, how does this work with periodic? */
-  ierr = PetscDSAddBoundary(prob, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) zero, 1, &id, ctx);CHKERRQ(ierr);
-  ierr = PetscDSSetFromOptions(prob);CHKERRQ(ierr);
-  if (dmpi->debug>2) {
-    /* ierr = DMView(dmpi->dm,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
-    ierr = DMView(dmmhd,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  if (ctx->num_particles_total) {
+    ierr = PetscFECreateDefault(dmpi->dm, dim, 1, PETSC_FALSE, NULL, PETSC_DECIDE, &dmpi->fem);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject) dmpi->fem, "potential");CHKERRQ(ierr);
+    /* FEM prob */
+    ierr = DMGetDS(dmpi->dm, &prob);CHKERRQ(ierr);
+    ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) dmpi->fem);CHKERRQ(ierr);
+    ierr = PetscDSSetResidual(prob, 0, 0, f1_u);CHKERRQ(ierr);
+    ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
+    ierr = PetscDSSetContext(prob, 0, ctx);CHKERRQ(ierr);
+    /* add BCs, how does this work with periodic? */
+    ierr = PetscDSAddBoundary(prob, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) zero, 1, &id, ctx);CHKERRQ(ierr);
+    ierr = PetscDSSetFromOptions(prob);CHKERRQ(ierr);
+    if (dmpi->debug>2) {
+      /* ierr = DMView(dmpi->dm,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
+      ierr = DMView(dmmhd,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    }
   }
   { /* convert to plex */
     char       convType[256];
