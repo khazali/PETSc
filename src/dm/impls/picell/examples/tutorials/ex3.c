@@ -2581,7 +2581,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   for (ctx->ndof=0,i=0; PhysicsFields_MHD[i].name; i++) ctx->ndof += PhysicsFields_MHD[i].dof;
   ierr = PetscFVSetNumComponents(fvm, ctx->ndof);CHKERRQ(ierr);
   ierr = PetscFVSetSpatialDimension(fvm, dim);CHKERRQ(ierr);assert(dim==3);
-  ierr = PetscObjectSetName((PetscObject) fvm,"");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) fvm,"fv");CHKERRQ(ierr);
   /* Count number of fields and dofs */
   for (ctx->ndof=0,ctx->nfields=0; PhysicsFields_MHD[ctx->nfields].name; ctx->nfields++) {
     for (i = 0; i < PhysicsFields_MHD[ctx->nfields].dof ; i++, ctx->ndof++) {
