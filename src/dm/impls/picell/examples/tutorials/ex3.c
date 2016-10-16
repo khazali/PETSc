@@ -2492,7 +2492,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   PetscDS        prob,probmhd;
   DMLabel        label;
   DM_PICell      *dmpi;
-  PetscInt       dim,i,id=1,nglobalcells;
+  PetscInt       dim,i,id=1;
   const char     *prefix;
   DM             dm2;
   PetscFunctionBegin;
@@ -2513,7 +2513,6 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   }
   ierr = DMGetDimension(dmpi->dm, &dim);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(dmpi->dm, ctx);CHKERRQ(ierr);
-  ierr = DMPlexGetHeightStratum(dmpi->dm, 0, NULL, &nglobalcells);CHKERRQ(ierr);
   /* mark BCs */
   ierr = DMCreateLabel(dmpi->dm, "boundary");CHKERRQ(ierr);
   ierr = DMGetLabel(dmpi->dm, "boundary", &label);CHKERRQ(ierr);
@@ -2586,8 +2585,11 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   for (ctx->ndof=0,ctx->nfields=0; PhysicsFields_MHD[ctx->nfields].name; ctx->nfields++) {
     for (i = 0; i < PhysicsFields_MHD[ctx->nfields].dof ; i++, ctx->ndof++) {
       char compName[256]  = "Unknown";
-      ierr = PetscSNPrintf(compName,sizeof(compName),"%s_%d",PhysicsFields_MHD[ctx->nfields].name,i);CHKERRQ(ierr);
+      if (PhysicsFields_MHD[ctx->nfields].dof>1) ierr = PetscSNPrintf(compName,sizeof(compName),"%s_%d",PhysicsFields_MHD[ctx->nfields].name,i);
+      else ierr = PetscSNPrintf(compName,sizeof(compName),"%s",PhysicsFields_MHD[ctx->nfields].name);
+      CHKERRQ(ierr);
       ierr = PetscFVSetComponentName(fvm,ctx->ndof,compName);CHKERRQ(ierr); /* this does not work */
+      PetscPrintf(PETSC_COMM_WORLD,"%s: %D) , prefix=%s\n",__FUNCT__,ctx->ndof,compName);
     }
   }
   /* FV is now structured with one field having all physics as components */
@@ -2670,10 +2672,10 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     ierr = VecGetBlockSize(X,&bs);CHKERRQ(ierr);
     ierr = VecDestroy(&X);CHKERRQ(ierr);
     if (!n) SETERRQ(ctx->wComm, PETSC_ERR_USER, "No dofs");
-    ierr = DMPlexGetHeightStratum(dmpi->dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+    ierr = DMGetCellChart(dmmhd, &cStart, &cEnd);CHKERRQ(ierr);
     s_fluxtubeelem = cEnd/2;
-    if (dmpi->debug>0) PetscPrintf( ctx->wComm,"[%D] %D global MHD equations, %D local, block size %D, on %D processors, %D global cells, %D local\n",
-                                    ctx->rank,n,nloc,bs,ctx->npe,nglobalcells,cEnd);
+    if (dmpi->debug>0) PetscPrintf( ctx->wComm,"[%D] %D global MHD equations, %D local, block size %D, on %D processors, %D local cells\n",
+                                    ctx->rank,n,nloc,bs,ctx->npe,cEnd);
   }
   if (dmpi->debug>2) {
     /* ierr = DMView(dmpi->dm,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
