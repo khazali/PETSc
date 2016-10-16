@@ -1,6 +1,6 @@
 /* M. Adams, Oct 2016 */
 
-static char help[] = "X3: MHD with partical in cell for tokamak plasmas using PICell.\n";
+static char help[] = "MHD with partical-in-cell for tokamak plasmas using PICell (X3).\n";
 
 #ifdef H5PART
 #include <H5Part.h>
@@ -649,8 +649,6 @@ typedef struct {
   PetscReal     chargeEu; /* =1D0  ! charge number */
   PetscReal     eChargeEu; /* =-1D0 */
   /* MHD physics */
-  PetscReal     rhor;
-  PetscReal     amach;
   PetscReal     gamma;
   PetscReal     cfl;
   PetscReal     maxspeed;
@@ -676,7 +674,7 @@ typedef struct {
 static PetscInt  s_debug;
 static PetscInt  s_rank;
 static PetscInt  s_fluxtubeelem; /* could just hardwire to 0 */
-static PetscReal s_rminor_inflate;
+static PetscReal s_rminor_inflate=1;
 static PetscReal s_section_phi;
 
 /* X3GridSolverLocatePoints: find processor and element in solver grid that this point is in
@@ -751,14 +749,6 @@ PetscErrorCode X3GridSolverLocatePoints(DM dm, Vec xvec, IS *pes, IS *elemIDs)
     ierr = PetscLogEventEnd(s_events[9],0,0,0,0);CHKERRQ(ierr);
 #endif
   PetscFunctionReturn(0);
-}
-
-/* FE point function */
-PetscErrorCode zero(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
-{
-  int i;
-  for (i = 0 ; i < Nf ; i++) u[i] = 0.;
-  return 0;
 }
 
 #undef __FUNCT__
@@ -1432,8 +1422,8 @@ static PetscErrorCode processParticles( X3Ctx *ctx, const PetscReal dt, X3PSendL
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventEnd(ctx->events[1],0,0,0,0);CHKERRQ(ierr);
 #endif
-  /* diagnostics */
-  if (dmpi->debug>0) {
+  /* particle diagnostics */
+  if (dmpi->debug>0 /* && ctx->num_particles_total */) {
     MPI_Datatype mtype;
     PetscInt rb1[4], rb2[4], sb[4], nloc;
 #if defined(PETSC_USE_LOG)
@@ -1859,7 +1849,7 @@ typedef struct {
   PetscScalar r;
   PetscScalar ru[3];
   PetscScalar b[3];
-  PetscScalar e;
+  PetscScalar p;
 } MHDNode;
 #define DOT3(__x,__y,__r) {int i;for(i=0,__r=0;i<3;i++) __r += __x[i] * __y[i];}
 #define MATVEC3(__a,__x,__p) {int i,j; for (i=0.; i<3; i++) {__p[i] = 0; for (j=0.; j<3; j++) __p[i] += __a[i][j]*__x[j]; }}
@@ -1876,7 +1866,7 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *
   /* PetscPrintf(PETSC_COMM_WORLD,"%s: xI=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e, coord = %16.8e %16.8e %16.8e normal = %16.8e %16.8e %16.8e\n",__FUNCT__,xI->vals[0],xI->vals[1],xI->vals[2],xI->vals[3],xI->vals[4],xI->vals[5],xI->vals[6],xI->vals[7],c[0],c[1],c[2],n[0],n[1],n[2]); */
   /* if (xI->r<=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," bad density = %g",xI->r); */
   xG->r = xI->r; /* ghost cell density - same */
-  xG->e = xI->e; /* ghost cell energy - same */
+  xG->p = xI->p; /* ghost cell energy - same */
   for (i=0; i<3; i++) xG->b[i]  = -xI->b[i];  /* zero BC, negative */
   for (i=0; i<3; i++) xG->ru[i] = -xI->ru[i]; /* no flow? */
   /* PetscPrintf(PETSC_COMM_WORLD,"%s: G = %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",__FUNCT__,xG->vals[0],xG->vals[1],xG->vals[2],xG->vals[3],xG->vals[4],xG->vals[5],xG->vals[6],xG->vals[7]); */
@@ -1896,10 +1886,10 @@ static void SetDurl(MHDNode *durl, const MHDNode *uL, const MHDNode *uR, const P
   durl->b[0]=uR->b[0]-uL->b[0];
   durl->b[1]=uR->b[1]-uL->b[1];
   durl->b[2]=uR->b[2]-uL->b[2];
-  press=uL->e;
-  durl->e=press/(gamma-1.0)+0.5*uL->r*(uL->ru[0]*uL->ru[0]+uL->ru[1]*uL->ru[1]+uL->ru[2]*uL->ru[2])+0.5*(uL->b[0]*uL->b[0]+uL->b[1]*uL->b[1]+uL->b[2]*uL->b[2]);
-  press=uR->e;
-  durl->e=press/(gamma-1.0)+0.5*uR->r*(uR->ru[0]*uR->ru[0]+uR->ru[1]*uR->ru[1]+uR->ru[2]*uR->ru[2])+0.5*(uR->b[0]*uR->b[0]+uR->b[1]*uR->b[1]+uR->b[2]*uR->b[2])-durl->e;
+  press=uL->p;
+  durl->p=press/(gamma-1.0)+0.5*uL->r*(uL->ru[0]*uL->ru[0]+uL->ru[1]*uL->ru[1]+uL->ru[2]*uL->ru[2])+0.5*(uL->b[0]*uL->b[0]+uL->b[1]*uL->b[1]+uL->b[2]*uL->b[2]);
+  press=uR->p;
+  durl->p=press/(gamma-1.0)+0.5*uR->r*(uR->ru[0]*uR->ru[0]+uR->ru[1]*uR->ru[1]+uR->ru[2]*uR->ru[2])+0.5*(uR->b[0]*uR->b[0]+uR->b[1]*uR->b[1]+uR->b[2]*uR->b[2])-durl->p;
   PetscFunctionReturnVoid();
 }
 
@@ -1913,7 +1903,7 @@ static void SetEigenValues(MHDNode *utilde, PetscReal alamda[], const PetscReal 
   rhoInv=1/utilde->r;
   axsq=(utilde->b[0]+btlocalx)*(utilde->b[0]+btlocalx)*rhoInv;
   Asq=((utilde->b[0]+btlocalx)*(utilde->b[0]+btlocalx)+(utilde->b[1]+btlocaly)*(utilde->b[1]+btlocaly)+(utilde->b[2]+btlocalz)*(utilde->b[2]+btlocalz))*rhoInv;
-  csndsq=PetscMax(gamma*(utilde->e)*rhoInv,1.e-4);
+  csndsq=PetscMax(gamma*(utilde->p)*rhoInv,1.e-4);
   tmp=PetscSqrtReal(PetscMax(((csndsq+Asq)*(csndsq+Asq) - 4.*csndsq*axsq),0));
   cfast=PetscSqrtReal(0.5*(csndsq+Asq+tmp));
   alamda[0]=(utilde->ru[0]+cfast);
@@ -1946,7 +1936,7 @@ static void MHDFlux(const MHDNode *vl, const MHDNode *vr, PetscReal area, X3Ctx 
   bxsq=bx*bx;
   bysq=by*by;
   bzsq=bz*bz;
-  press=vl->e;
+  press=vl->p;
   finvl.r=rho*u;
   finvl.ru[0]=rho*u*u +press+0.5*(bysq+bzsq-bxsq);
   finvl.ru[1]=rho*u*v-bx*by;
@@ -1955,14 +1945,14 @@ static void MHDFlux(const MHDNode *vl, const MHDNode *vr, PetscReal area, X3Ctx 
   finvl.b[0]=0;
   finvl.b[1]=u*by-v*bx;
   finvl.b[2]=u*(bz)-w*bx;
-  finvl.e=(0.5*rho*(u*u+v*v+w*w)+eint+(press)+(bx*bx+by*by+bz*bz))*vl->ru[0]-bx*(u*bx+v*by+w*bz);
+  finvl.p=(0.5*rho*(u*u+v*v+w*w)+eint+(press)+(bx*bx+by*by+bz*bz))*vl->ru[0]-bx*(u*bx+v*by+w*bz);
   rho=vr->r;
   u=vr->ru[0]; v=vr->ru[1]; w=vr->ru[2];
   bx=vr->b[0]; by=vr->b[1]; bz=vr->b[2];
   bxsq=bx*bx;
   bysq=by*by;
   bzsq=bz*bz;
-  press=vr->e;
+  press=vr->p;
   finvr.r=rho*u;
   finvr.ru[0]=rho*u*u +press+0.5*(bysq+bzsq-bxsq);
   finvr.ru[1]=rho*u*v-bx*by;
@@ -1971,7 +1961,7 @@ static void MHDFlux(const MHDNode *vl, const MHDNode *vr, PetscReal area, X3Ctx 
   finvr.b[0]=0;
   finvr.b[1]=u*by-v*bx;
   finvr.b[2]=u*(bz)-w*bx;
-  finvr.e=(0.5*rho*(u*u+v*v+w*w)+eint+press+(bx*bx+by*by+bz*bz))*vr->ru[0]-bx*(u*bx+v*by+w*bz);
+  finvr.p=(0.5*rho*(u*u+v*v+w*w)+eint+press+(bx*bx+by*by+bz*bz))*vr->ru[0]-bx*(u*bx+v*by+w*bz);
   for (i=0;i<ctx->ndof;i++) flux->vals[i] = (lamdaMax*finvl.vals[i]-lamdaMin*finvr.vals[i]+lamdaMin*lamdaMax*durl.vals[i])/(lamdaMax-lamdaMin);
   PetscFunctionReturnVoid();
 }
@@ -1982,23 +1972,22 @@ static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], 
                                 const PetscScalar *xL, const PetscScalar *xR, PetscScalar *aflux, void *a_ctx)
 {
   X3Ctx           *ctx = (X3Ctx*)a_ctx;
-  PetscReal       nn[3],t,c,v[3],R[3][3],a,ai;
+  PetscReal       nn[3],t,v[3],R[3][3],area;
   PetscInt        i,j;
   const MHDNode   *uL = (const MHDNode*)xL,*uR = (const MHDNode*)xR;
   MHDNode         *retflux = (MHDNode*)aflux, flux;
   MHDNode          luR, luL;
-  /* MHDNode         fL,fR; */
   PetscFunctionBeginUser;
 
-  for (i=0,a=0; i<3; i++) {
+  for (i=0,area=0; i<3; i++) {
     nn[i] = n[i];
-    a += nn[i]*nn[i];
+    area += nn[i]*nn[i];
   }
-  ai = 1/PetscSqrtReal(a); /* area inverse */
-  for (i=0; i<3; i++) nn[i] *= ai; /* |nn|==1 */
+  area = PetscSqrtReal(area); /* area inverse */
+  for (i=0; i<3; i++) nn[i] /= area; /* |nn|==1 */
   if (nn[0] < -0.999999) { /* == -1 */
     /* PetscPrintf(PETSC_COMM_WORLD," ***** %s: Nf=%D, area=%g, Have -1 normal n = %g %g %g nn = %g %g %g\n",__FUNCT__,Nf,PetscSqrtReal(a),n[0],n[1],n[2],nn[0],nn[1],nn[2]); */
-    for (i=0; i<3; i++) for (j=0; j<3; j++) R[i][j] = (i==j) ? -1 : 0; /* I * -cos(theta) = -I */
+    for (i=0; i<3; i++) for (j=0; j<3; j++) R[i][j] = (i==j) ? -1 : 0; /* I * cos(theta) = -I */
     /* R[1][1] = 1; */ /* rotation about y axis 180 degrees */
     R[2][2] = 1; /* rotation about z axis 180 degrees */
   } else {
@@ -2006,31 +1995,30 @@ static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], 
     v[0] = 0;
     v[1] = nn[2];
     v[2] = -nn[1];
-    c = nn[0];
     R[0][0] = 1;     R[0][1] = -v[2]; R[0][2] =  v[1]; /* I + v cross */
     R[1][0] =  v[2]; R[1][1] = 1;     R[1][2] = -v[0];
     R[2][0] = -v[1]; R[2][1] =  v[0]; R[2][2] = 1;
-    t = 1/(1+c); /* + (v cross)^2 / (1+c) */
+    t = 1/(1+nn[0]); /* + (v cross)^2 / (1+cos) */
     R[0][0] -= t*(v[2]*v[2] + v[1]*v[1]); R[0][1] += t*v[0]*v[1];               R[0][2] += t*v[2]*v[0];
     R[1][0] += t*v[0]*v[1];               R[1][1] -= t*(v[2]*v[2] + v[0]*v[0]); R[1][2] += t*v[1]*v[2];
     R[2][0] += t*v[2]*v[0];               R[2][1] += t*v[1]*v[2];               R[2][2] -= t*(v[1]*v[1] + v[0]*v[0]);
   }
   luL.r = uL->r; /* copy states and rotate to local coordinate, nn = (1,0,0) */
-  luL.e = uL->e;
+  luL.p = uL->p;
   luR.r = uR->r;
-  luR.e = uR->e;
+  luR.p = uR->p;
   MATVEC3(R,uR->ru,luR.ru);
   MATVEC3(R,uL->ru,luL.ru);
   MATVEC3(R,uR->b, luR.b);
   MATVEC3(R,uL->b, luL.b);
   /* PetscPrintf(PETSC_COMM_WORLD,"%s: uR.ru = %g %g %g, local uR.ru = %g %g %g, n = %g %g %g \n",__FUNCT__,uR->ru[0],uR->ru[1],uR->ru[2],luR.ru[0],luR.ru[1],luR.ru[2],n[0],n[1],n[2]); */
   /* compute flux */
-  MHDFlux(&luL, &luR, a, ctx, &flux);
+  MHDFlux(&luL, &luR, area, ctx, &flux);
   /* rotate fluxes back to original coordinate system */
   MATTRANPOSEVEC3(R,flux.ru,retflux->ru);
   MATTRANPOSEVEC3(R,flux.b,retflux->b);
   retflux->r = flux.r;
-  retflux->e = flux.e;
+  retflux->p = flux.p;
   PetscFunctionReturnVoid();
 }
 
@@ -2050,7 +2038,7 @@ static PetscErrorCode SolutionFunctional(PetscInt dim, PetscReal time, const Pet
   uu->ru[1] = xxx[1]; /* flow down tube pulling away */
   /* set E and rho */
   uu->r = 1.;
-  uu->e = 10./(ctx->gamma-1.);
+  uu->p = 10./(ctx->gamma-1.);
   for (i=0,c=0; i<3; i++) {
     t = uu->ru[i]/uu->r;
     c += t*t;
@@ -2395,20 +2383,26 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   ierr = PetscStrcpy(fname,"torus");CHKERRQ(ierr);
   ierr = PetscOptionsString("-run_type", "Type of run (torus/cylinder)", "ex3.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
   PetscStrcmp("torus",fname,&flg);
-  if (flg) { /* Torus/cylinder */
+  if (flg) ctx->run_type = X3_TORUS;
+  else {
+    PetscStrcmp("boxtorus",fname,&flg);
+    if (flg) ctx->run_type = X3_BOXTORUS;
+    else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Unknown run type %s",fname);
+  }
+  if (flg && ctx->num_particles_total) { /* set s_rminor_inflate to cover particles */
     char      convType[256];
     PetscReal ntheta_total = 4, radius, nmajor_total;
     PetscInt  idx;
     /* hack to get grid expansion factor for torus */
-    ierr = PetscOptionsFList("-x3_dm_type","Convert DMPlex to another format","ex3.c",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
+    ierr = PetscOptionsFList("-dm_type","Convert DMPlex to another format","ex3.c",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
     nmajor_total = ctx->grid.num_phi_cells;
     if (flg) {
-      ierr = PetscOptionsGetInt(NULL,"x3_","-dm_forest_initial_refinement", &idx, &flg);CHKERRQ(ierr);
+      ierr = PetscOptionsGetInt(NULL,"poission_","-dm_forest_initial_refinement", &idx, &flg);CHKERRQ(ierr);
       if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-x3_dm_forest_initial_refinement not found?");
       nmajor_total *= pow(2,idx);  /* plex does not get the curve */
     }
     else {
-      ierr = PetscOptionsGetInt(NULL,"x3_","-dm_refine", &idx, &flg);CHKERRQ(ierr);
+      ierr = PetscOptionsGetInt(NULL,"poission_","-dm_refine", &idx, &flg);CHKERRQ(ierr);
       if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-x3_dm_refinement not found?");
     }
     if (idx<1) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "refine must be greater than 0 (Q2 would be legal)");
@@ -2424,24 +2418,12 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
     if (ctx->grid.radius_minor*s_rminor_inflate >= ctx->grid.radius_major && ctx->grid.section_phi==2) {
       s_rminor_inflate = 0.95*ctx->grid.radius_major/ctx->grid.radius_minor;
     }
-
-    PetscStrcmp("torus",fname,&flg);
-    if (flg) ctx->run_type = X3_TORUS;
-    else {
-      PetscStrcmp("boxtorus",fname,&flg);
-      if (flg) ctx->run_type = X3_BOXTORUS;
-      SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Unknown run type %s",fname);
-    }
   }
   /* MHD */
   {
     ctx->gamma = 1.4;
-    ctx->amach = 2.02;
-    ctx->rhor = 3.0;
     ctx->cfl = 0.5;
     ierr = PetscOptionsReal("-gamma","Heat capacity ratio","",ctx->gamma,&ctx->gamma,NULL);CHKERRQ(ierr);
-    ierr = PetscOptionsReal("-amach","Shock speed (Mach)","",ctx->amach,&ctx->amach,NULL);CHKERRQ(ierr);
-    ierr = PetscOptionsReal("-rho2","Density right of discontinuity","",ctx->rhor,&ctx->rhor,NULL);CHKERRQ(ierr);
     ierr = PetscOptionsReal("-cfl", "CFL factor", "ex3.c", ctx->cfl, &ctx->cfl, NULL);CHKERRQ(ierr);
   }
   ierr = PetscOptionsEnd();
@@ -2493,7 +2475,15 @@ struct FieldDescription {
   PetscInt dof;
 };
  /* 8 field MHD: r, ru, B, e */
-static const struct FieldDescription PhysicsFields_MHD[] = {{"Density",1},{"Momentum",3},{"B",3},{"Energy",1},{NULL,0}};
+static const struct FieldDescription PhysicsFields_MHD[] = {{"Density",1},{"Momentum",3},{"B",3},{"Pressure",1},{NULL,0}};
+
+/* FE point function */
+PetscErrorCode zero(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+{
+  int i;
+  for (i = 0 ; i < Nf ; i++) u[i] = 0.;
+  return 0;
+}
 
 #undef __FUNCT__
 #define __FUNCT__ "SetupDMs"
@@ -2506,6 +2496,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   DMLabel        label;
   DM_PICell      *dmpi;
   PetscInt       dim,i,id=1;
+  const char     *prefix;
   PetscFunctionBegin;
   /* construct DMs */
   ierr = DMCreate(ctx->wComm, &ctx->dmpic);CHKERRQ(ierr);
@@ -2524,7 +2515,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   }
   ierr = DMGetDimension(dmpi->dm, &dim);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(dmpi->dm, ctx);CHKERRQ(ierr);
-  /* mark BCs, how does this work with periodic? */
+  /* mark BCs */
   ierr = DMCreateLabel(dmpi->dm, "boundary");CHKERRQ(ierr);
   ierr = DMGetLabel(dmpi->dm, "boundary", &label);CHKERRQ(ierr);
   ierr = DMPlexMarkBoundaryFaces(dmpi->dm, label);CHKERRQ(ierr);
@@ -2534,14 +2525,14 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     const PetscReal L2 = (ctx->grid.radius_major+ctx->grid.radius_minor)*tan(s_section_phi*M_PI);
     const PetscReal L[3] = {0, L2, 0};
     PetscReal maxCell[3];
-    for (i = 0; i < 3; i++) maxCell[i] =  1e100;
+    for (i = 0; i < 3; i++) maxCell[i] = 1e100;
     maxCell[1] = L2/3;
-    if (s_section_phi > .1) {
-      ierr = PetscPrintf(ctx->wComm, "\t\t%s WARNING section_phi is large %g, L = %16.8e, %16.8g, %16.8e maxCell = %16.8e, %16.8e, %16.8e\n",
+    if (s_section_phi > -.1) {
+      ierr = PetscPrintf(ctx->wComm, "\t\t%s (periodic not working...) section phi = %g, L = %16.8e, %16.8g, %16.8e maxCell = %16.8e, %16.8e, %16.8e\n",
                          __FUNCT__,s_section_phi,L[0],L[1],L[2],maxCell[0],maxCell[1],maxCell[2]);CHKERRQ(ierr);
     }
-    /* ierr = DMSetPeriodicity(dmpi->dm, maxCell, L, bd);CHKERRQ(ierr); */
-    /* ierr = DMLocalizeCoordinates(dmpi->dm);CHKERRQ(ierr); */
+    ierr = DMSetPeriodicity(dmpi->dm, maxCell, L, bd);CHKERRQ(ierr);
+    ierr = DMLocalizeCoordinates(dmpi->dm);CHKERRQ(ierr);
   }
   /* clone DM for MHD with ghosts and setup */
   ierr = DMClone(dmpi->dm, &dmmhd);CHKERRQ(ierr);
@@ -2555,18 +2546,18 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
       ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
       dmmhd   = dm2;
     }
-    ierr = PetscObjectSetOptionsPrefix((PetscObject) dmmhd, "mhd_");CHKERRQ(ierr);
-    ierr = DMSetFromOptions(dmmhd);CHKERRQ(ierr);
     ierr = DMPlexConstructGhostCells(dmmhd, NULL, NULL, &dm2);CHKERRQ(ierr);
     ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
     dmmhd = dm2;
+    ierr = PetscObjectSetOptionsPrefix((PetscObject) dmmhd, "mhd_");CHKERRQ(ierr);
+    ierr = DMSetFromOptions(dmmhd);CHKERRQ(ierr);
     /* setup PIC solver */
     ierr = DMPlexDistribute(dmpi->dm, 0, NULL, &dm2);CHKERRQ(ierr);
     if (dm2) {
       ierr = DMDestroy(&dmpi->dm);CHKERRQ(ierr);
       dmpi->dm = dm2;
     }
-    ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dm, "x3_");CHKERRQ(ierr);
+    ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dm, "poission_");CHKERRQ(ierr);
     ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
   }
 
@@ -2592,11 +2583,9 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   ierr = PetscDSSetContext(probmhd, 0, ctx);CHKERRQ(ierr);
   /* add BCs, how does this work with periodic? */
   ierr = PetscDSAddBoundary(probmhd, PETSC_FALSE, "wall", "boundary", 0, 0, NULL, (void (*)()) PhysicsBoundary_MHD_Wall, 1, &id, ctx);CHKERRQ(ierr);
-  /* ierr = PetscObjectSetOptionsPrefix((PetscObject)probmhd, "mhd_");CHKERRQ(ierr); */
   ierr = PetscDSSetFromOptions(probmhd);CHKERRQ(ierr);
   ierr = DMSetDS(dmmhd,probmhd);CHKERRQ(ierr);
   ierr = PetscDSDestroy(&probmhd);CHKERRQ(ierr);
-  /* ierr = DMAddBoundary(dmmhd, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) PhysicsBoundary_MHD_Wall, 1, &id, ctx);CHKERRQ(ierr); */
 
   /* setup PIC FEM Poison Discretization */
   ierr = PetscFECreateDefault(dmpi->dm, dim, 1, PETSC_FALSE, NULL, PETSC_DECIDE, &dmpi->fem);CHKERRQ(ierr);
@@ -2609,16 +2598,14 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   ierr = PetscDSSetContext(prob, 0, ctx);CHKERRQ(ierr);
   /* add BCs, how does this work with periodic? */
   ierr = PetscDSAddBoundary(prob, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) zero, 1, &id, ctx);CHKERRQ(ierr);
-  /* ierr = PetscObjectSetOptionsPrefix((PetscObject)prob, "poisson_");CHKERRQ(ierr); */
   ierr = PetscDSSetFromOptions(prob);CHKERRQ(ierr);
   { /* convert to plex */
     char       convType[256];
     PetscBool  flg;
     DM         dm2;
-    const char *prefix;
     PetscBool  isForest;
     ierr = PetscOptionsBegin(ctx->wComm, "", "Mesh conversion options", "DMPLEX");CHKERRQ(ierr);
-    ierr = PetscOptionsFList("-x3_dm_type","Convert DMPlex to another format (should not be Plex!)","ex3.c",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
+    ierr = PetscOptionsFList("-dm_type","Convert DMPlex to another format (should not be Plex!)","ex3.c",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
     ierr = PetscOptionsEnd();
     if (flg && ctx->num_particles_total) { /* convert (to p4est) */
       /* convert PIC */
@@ -2639,8 +2626,8 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
       PetscPrintf(PETSC_COMM_WORLD,"%s: converting to Forest\n",__FUNCT__);
       ierr = DMConvert(dmmhd,convType,&dm2);CHKERRQ(ierr);
       if (dm2) {
-        /* ierr = PetscObjectGetOptionsPrefix((PetscObject)dmmhd,&prefix);CHKERRQ(ierr); */
-        /* ierr = PetscObjectSetOptionsPrefix((PetscObject)dm2,prefix);CHKERRQ(ierr); */
+        ierr = PetscObjectGetOptionsPrefix((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
+        ierr = PetscObjectSetOptionsPrefix((PetscObject)dm2,prefix);CHKERRQ(ierr);
         ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
         dmmhd = dm2;
         ierr = DMSetFromOptions(dmmhd);CHKERRQ(ierr);
@@ -2788,7 +2775,7 @@ int main(int argc, char **argv)
         ierr = PetscViewerSetFromOptions(viewer);CHKERRQ(ierr);
         ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERHDF5,&isHDF5);CHKERRQ(ierr);
         if (isHDF5) {
-          ierr = PetscSNPrintf(buf, 256, "ex3-initial-%d.h5", adaptIter);CHKERRQ(ierr);
+          ierr = PetscSNPrintf(buf, 256, "x3-%d.h5", adaptIter);CHKERRQ(ierr);
         }
         ierr = PetscViewerFileSetMode(viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
         ierr = PetscViewerFileSetName(viewer,buf);CHKERRQ(ierr);
@@ -2897,7 +2884,7 @@ int main(int argc, char **argv)
 #endif
     if (ctx->num_particles_total) {
       ierr = DMViewFromOptions(dmpi->dm,NULL,"-dm_view");CHKERRQ(ierr);
-      ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-x3_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
+      ierr = PetscOptionsGetViewer(ctx->wComm,"poission_","-vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
       if (flg) {
         ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
         ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);

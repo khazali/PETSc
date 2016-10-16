@@ -4529,7 +4529,6 @@ PetscErrorCode DMSetPeriodicity(DM dm, const PetscReal maxCell[], const PetscRea
   ierr = PetscFree3(dm->L,dm->maxCell,dm->bdtype);CHKERRQ(ierr);
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = PetscMalloc3(dim,&dm->L,dim,&dm->maxCell,dim,&dm->bdtype);CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_WORLD,"\t%s: ============== maxCell = %p, dim = %D\n",__FUNCT__,dm->maxCell,dim);
   for (d = 0; d < dim; ++d) {dm->L[d] = L[d]; dm->maxCell[d] = maxCell[d]; dm->bdtype[d] = bd[d];}
   PetscFunctionReturn(0);
 }
@@ -4598,7 +4597,6 @@ PetscErrorCode DMLocalizeCoordinate_Internal(DM dm, PetscInt dim, const PetscSca
     for (d = 0; d < dim; ++d) {
       if (PetscAbsScalar(anchor[d] - in[d]) > dm->maxCell[d]) {
         out[d] = PetscRealPart(anchor[d]) > PetscRealPart(in[d]) ? dm->L[d] + in[d] : in[d] - dm->L[d];
-        PetscPrintf(PETSC_COMM_WORLD,"++++++ %s: found a point from dim %D, in = %g --> out = %g. L = %g, PetscAbsScalar(anchor[d] - in[d]) = %g > maxcell = %g\n",__FUNCT__,d,in[d],out[d],dm->L[d],PetscAbsScalar(anchor[d] - in[d]),dm->maxCell[d]);
       } else {
         out[d] = in[d];
       }
