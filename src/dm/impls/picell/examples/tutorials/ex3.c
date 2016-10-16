@@ -1884,14 +1884,95 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "MHDFlux"
-static void MHDFlux(MHDNode *uL, MHDNode *uR, PetscReal area, X3Ctx *ctx, MHDNode *flux)
+#define __FUNCT__ "SetDurl"
+static void SetDurl(MHDNode *durl, const MHDNode *uL, const MHDNode *uR, const PetscReal gamma)
 {
-  PetscInt        i,j;
+  PetscReal press;
   PetscFunctionBeginUser;
-  for (i=0; i<ctx->ndof; i++) flux->vals[i] = 0;
+  durl->r=uR->r-uL->r;
+  durl->ru[0]=uR->r*uR->ru[0]-uL->r*uL->ru[0];
+  durl->ru[1]=uR->r*uR->ru[1]-uL->r*uL->ru[1];
+  durl->ru[2]=uR->r*uR->ru[2]-uL->r*uL->ru[2];
+  durl->b[0]=uR->b[0]-uL->b[0];
+  durl->b[1]=uR->b[1]-uL->b[1];
+  durl->b[2]=uR->b[2]-uL->b[2];
+  press=uL->e;
+  durl->e=press/(gamma-1.0)+0.5*uL->r*(uL->ru[0]*uL->ru[0]+uL->ru[1]*uL->ru[1]+uL->ru[2]*uL->ru[2])+0.5*(uL->b[0]*uL->b[0]+uL->b[1]*uL->b[1]+uL->b[2]*uL->b[2]);
+  press=uR->e;
+  durl->e=press/(gamma-1.0)+0.5*uR->r*(uR->ru[0]*uR->ru[0]+uR->ru[1]*uR->ru[1]+uR->ru[2]*uR->ru[2])+0.5*(uR->b[0]*uR->b[0]+uR->b[1]*uR->b[1]+uR->b[2]*uR->b[2])-durl->e;
+  PetscFunctionReturnVoid();
+}
 
+#undef __FUNCT__
+#define __FUNCT__ "SetEigenValues"
+static void SetEigenValues(MHDNode *utilde, PetscReal alamda[], const PetscReal gamma)
+{
+  PetscReal rhoInv,Asq,axsq,csndsq,cfast,tmp,btlocalx=0,btlocaly=0,btlocalz=0;
 
+  PetscFunctionBeginUser;
+  rhoInv=1/utilde->r;
+  axsq=(utilde->b[0]+btlocalx)*(utilde->b[0]+btlocalx)*rhoInv;
+  Asq=((utilde->b[0]+btlocalx)*(utilde->b[0]+btlocalx)+(utilde->b[1]+btlocaly)*(utilde->b[1]+btlocaly)+(utilde->b[2]+btlocalz)*(utilde->b[2]+btlocalz))*rhoInv;
+  csndsq=PetscMax(gamma*(utilde->e)*rhoInv,1.e-4);
+  tmp=PetscSqrtReal(PetscMax(((csndsq+Asq)*(csndsq+Asq) - 4.*csndsq*axsq),0));
+  cfast=PetscSqrtReal(0.5*(csndsq+Asq+tmp));
+  alamda[0]=(utilde->ru[0]+cfast);
+  alamda[1]=(utilde->ru[0]-cfast);
+  PetscFunctionReturnVoid();
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "MHDFlux"
+static void MHDFlux(const MHDNode *vl, const MHDNode *vr, PetscReal area, X3Ctx *ctx, MHDNode *flux)
+{
+  int       i;
+  MHDNode   finvl,finvr,durl,utilde;
+  PetscReal alamdaL[2],alamdaR[2],rho,u,v,w,bx,by,bz,eint,press,bxsq,lamdaMax=0,lamdaMin=0,bysq,bzsq;
+
+  PetscFunctionBeginUser;
+  for (i=0; i<2; i++) alamdaL[i] = 0;
+  for (i=0; i<2; i++) alamdaR[i] = 0;
+
+  utilde = *vl;
+  SetEigenValues(&utilde,alamdaL,ctx->gamma);
+  utilde = *vr;
+  SetEigenValues(&utilde,alamdaR,ctx->gamma);
+  SetDurl(&durl,vl,vr,ctx->gamma);
+  for (i=0;i<2;i++) lamdaMin=PetscMin(lamdaMin,PetscMin(alamdaL[i],alamdaR[i]));
+  for (i=0;i<2;i++) lamdaMax=PetscMax(lamdaMax,PetscMax(alamdaL[i],alamdaR[i]));
+  rho=vl->r;
+  u=vl->ru[0]; v=vl->ru[1]; w=vl->ru[2];
+  bx=vl->b[0]; by=vl->b[1]; bz=vl->b[2];
+  bxsq=bx*bx;
+  bysq=by*by;
+  bzsq=bz*bz;
+  press=vl->e;
+  finvl.r=rho*u;
+  finvl.ru[0]=rho*u*u +press+0.5*(bysq+bzsq-bxsq);
+  finvl.ru[1]=rho*u*v-bx*by;
+  finvl.ru[2]=rho*u*w-bx*bz;
+  eint=(press)/(ctx->gamma-1);
+  finvl.b[0]=0;
+  finvl.b[1]=u*by-v*bx;
+  finvl.b[2]=u*(bz)-w*bx;
+  finvl.e=(0.5*rho*(u*u+v*v+w*w)+eint+(press)+(bx*bx+by*by+bz*bz))*vl->ru[0]-bx*(u*bx+v*by+w*bz);
+  rho=vr->r;
+  u=vr->ru[0]; v=vr->ru[1]; w=vr->ru[2];
+  bx=vr->b[0]; by=vr->b[1]; bz=vr->b[2];
+  bxsq=bx*bx;
+  bysq=by*by;
+  bzsq=bz*bz;
+  press=vr->e;
+  finvr.r=rho*u;
+  finvr.ru[0]=rho*u*u +press+0.5*(bysq+bzsq-bxsq);
+  finvr.ru[1]=rho*u*v-bx*by;
+  finvr.ru[2]=rho*u*w-bx*bz;
+  eint=(press)/(ctx->gamma-1);
+  finvr.b[0]=0;
+  finvr.b[1]=u*by-v*bx;
+  finvr.b[2]=u*(bz)-w*bx;
+  finvr.e=(0.5*rho*(u*u+v*v+w*w)+eint+press+(bx*bx+by*by+bz*bz))*vr->ru[0]-bx*(u*bx+v*by+w*bz);
+  for (i=0;i<ctx->ndof;i++) flux->vals[i] = (lamdaMax*finvl.vals[i]-lamdaMin*finvr.vals[i]+lamdaMin*lamdaMax*durl.vals[i])/(lamdaMax-lamdaMin);
   PetscFunctionReturnVoid();
 }
 
