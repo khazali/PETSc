@@ -1962,7 +1962,7 @@ static void MHDFlux(const MHDNode *vl, const MHDNode *vr, PetscReal area, X3Ctx 
   finvr.b[1]=u*by-v*bx;
   finvr.b[2]=u*(bz)-w*bx;
   finvr.p=(0.5*rho*(u*u+v*v+w*w)+eint+press+(bx*bx+by*by+bz*bz))*vr->ru[0]-bx*(u*bx+v*by+w*bz);
-  for (i=0;i<ctx->ndof;i++) flux->vals[i] = (lamdaMax*finvl.vals[i]-lamdaMin*finvr.vals[i]+lamdaMin*lamdaMax*durl.vals[i])/(lamdaMax-lamdaMin);
+  for (i=0;i<ctx->ndof;i++) flux->vals[i] = area*(lamdaMax*finvl.vals[i]-lamdaMin*finvr.vals[i]+lamdaMin*lamdaMax*durl.vals[i])/(lamdaMax-lamdaMin);
   PetscFunctionReturnVoid();
 }
 
@@ -1983,7 +1983,7 @@ static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], 
     nn[i] = n[i];
     area += nn[i]*nn[i];
   }
-  area = PetscSqrtReal(area); /* area inverse */
+  area = PetscSqrtReal(area); /* area */
   for (i=0; i<3; i++) nn[i] /= area; /* |nn|==1 */
   if (nn[0] < -0.999999) { /* == -1 */
     /* PetscPrintf(PETSC_COMM_WORLD," ***** %s: Nf=%D, area=%g, Have -1 normal n = %g %g %g nn = %g %g %g\n",__FUNCT__,Nf,PetscSqrtReal(a),n[0],n[1],n[2],nn[0],nn[1],nn[2]); */
@@ -2418,7 +2418,7 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   }
   /* MHD */
   {
-    ctx->gamma = 1.4;
+    ctx->gamma = 1.66666666666666;
     ctx->cfl = 0.5;
     ierr = PetscOptionsReal("-gamma","Heat capacity ratio","",ctx->gamma,&ctx->gamma,NULL);CHKERRQ(ierr);
     ierr = PetscOptionsReal("-cfl", "CFL factor", "ex3.c", ctx->cfl, &ctx->cfl, NULL);CHKERRQ(ierr);
@@ -2518,20 +2518,6 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   ierr = DMGetLabel(dmpi->dm, "boundary", &label);CHKERRQ(ierr);
   ierr = DMPlexMarkBoundaryFaces(dmpi->dm, label);CHKERRQ(ierr);
   ierr = DMPlexLabelComplete(dmpi->dm, label);CHKERRQ(ierr);
-  /* if (s_section_phi != 2) { */
-  /*   DMBoundaryType bd[3] = {DM_BOUNDARY_NONE,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_NONE}; */
-  /*   const PetscReal L2 = (ctx->grid.radius_major+ctx->grid.radius_minor)*tan(s_section_phi*M_PI); */
-  /*   const PetscReal L[3] = {0, L2, 0}; */
-  /*   PetscReal maxCell[3]; */
-  /*   for (i = 0; i < 3; i++) maxCell[i] = 1e100; */
-  /*   maxCell[1] = L2/3; */
-  /*   if (s_section_phi > -.1) { */
-  /*     ierr = PetscPrintf(ctx->wComm, "\t\t%s (periodic not working...) section phi = %g, L = %16.8e, %16.8g, %16.8e maxCell = %16.8e, %16.8e, %16.8e\n", */
-  /*                        __FUNCT__,s_section_phi,L[0],L[1],L[2],maxCell[0],maxCell[1],maxCell[2]);CHKERRQ(ierr); */
-  /*   } */
-  /*   ierr = DMSetPeriodicity(dmpi->dm, maxCell, L, bd);CHKERRQ(ierr); */
-  /*   ierr = DMLocalizeCoordinates(dmpi->dm);CHKERRQ(ierr); */
-  /* } */
   /* clone DM for MHD with ghosts and setup */
   ierr = DMClone(dmpi->dm, &dmmhd);CHKERRQ(ierr);
   ierr = PetscObjectGetName((PetscObject)dmpi->dm,&prefix);CHKERRQ(ierr);
