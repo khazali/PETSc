@@ -1059,7 +1059,7 @@ static void prewrite(X3Ctx *ctx, X3PList *l, X3PListPos *ppos1,  X3PListPos *ppo
       phi = M_PI/4.;
     } else {
       r = ctx->grid.radius_major + ctx->grid.radius_minor;
-      phi = 0.;
+      phi = -ctx->grid.section_phi*M_PI/2;
     }
     X3ParticleCreate(&part,1,r,z,phi,0.);
     ierr = X3PListAdd(l,&part,ppos1); assert(!ierr);
@@ -1068,7 +1068,7 @@ static void prewrite(X3Ctx *ctx, X3PList *l, X3PListPos *ppos1,  X3PListPos *ppo
       phi += M_PI;
     } else {
       r = ctx->grid.radius_major - ctx->grid.radius_minor;
-      phi = ctx->grid.section_phi*M_PI;
+      phi = ctx->grid.section_phi*M_PI/2;
     }
     X3ParticleCreate(&part,2,r,z,phi,0.);
     ierr = X3PListAdd(l,&part,ppos2); assert(!ierr);
@@ -1193,7 +1193,7 @@ static PetscErrorCode processParticles( X3Ctx *ctx, const PetscReal dt, X3PSendL
             list->data_v.vpar[pos] += -dt*b0dotgrad*charge/mass;
             dphi = (dt*list->data_v.vpar[pos])/list->data_v.r[pos];  /* toroidal step */
             list->data_v.phi[pos] += dphi;
-            xx[2] = list->data_v.phi[pos] = fmod(list->data_v.phi[pos] + 100.*s_section_phi*M_PI,s_section_phi*M_PI);
+            xx[2] = list->data_v.phi[pos] = fmod(list->data_v.phi[pos] + s_section_phi*M_PI_2 + 100.*s_section_phi*M_PI, s_section_phi*M_PI) - s_section_phi*M_PI_2;
             theta += qsafty(psi/rminor)*dphi;  /* twist */
             theta = fmod( theta + 20.*M_PI, 2.*M_PI);
             polPlaneToCylindrical( psi, theta, r, z); /* time spent here */
@@ -1207,7 +1207,7 @@ static PetscErrorCode processParticles( X3Ctx *ctx, const PetscReal dt, X3PSendL
             ppart->vpar += -dt*b0dotgrad*charge/mass;
             dphi = (dt*ppart->vpar)/ppart->r;  /* toroidal step */
             ppart->phi += dphi;
-            xx[2] = ppart->phi = fmod(ppart->phi + 100.*s_section_phi*M_PI, s_section_phi*M_PI);
+            xx[2] = ppart->phi = fmod(ppart->phi + s_section_phi*M_PI_2 + 100.*s_section_phi*M_PI, s_section_phi*M_PI) - s_section_phi*M_PI_2;
             theta += qsafty(psi/rminor)*dphi;  /* twist */
             theta = fmod( theta + 20.*M_PI, 2.*M_PI);
             polPlaneToCylindrical( psi, theta, r, z); /* time spent here */
@@ -1484,7 +1484,7 @@ static PetscErrorCode createParticles(X3Ctx *ctx)
   const PetscReal rmin = ctx->grid.radius_minor;
   const PetscReal dth  = 2*M_PI/(PetscReal)ctx->grid.np_theta;
   const PetscReal dphi = ctx->grid.section_phi*M_PI/(PetscReal)ctx->grid.np_phi; /* rmin for particles < rmin */
-  const PetscReal phi1 = (PetscReal)ctx->ParticlePlaneIdx*dphi + 1.e-8,rmaj=ctx->grid.radius_major;
+  const PetscReal phi1 = (PetscReal)ctx->ParticlePlaneIdx*dphi + 1.e-8 - ctx->grid.section_phi*M_PI_2,rmaj=ctx->grid.radius_major;
   const PetscInt  nPartProcss_plane = ctx->grid.np_theta*ctx->grid.np_radius; /* nPartProcss_plane == ctx->npe_particlePlane */
   const PetscReal dx = pow( (M_PI*rmin*rmin/4.0) * rmaj*ctx->grid.section_phi*M_PI / (PetscReal)(ctx->npe*ctx->num_particles_proc), 0.333); /* ~length of a particle */
   X3Particle particle;
@@ -1601,8 +1601,8 @@ static PetscErrorCode DMPlexCreatePICellBoxTorus(MPI_Comm comm, X3Grid *params, 
         PetscInt j;
         double cosphi, sinphi;
 
-        cosphi = cos(2 * M_PI * i / num_phi_cells);
-        sinphi = sin(2 * M_PI * i / num_phi_cells);
+        cosphi = cos(2 * M_PI * i / num_phi_cells - s_section_phi*M_PI_2);
+        sinphi = sin(2 * M_PI * i / num_phi_cells - s_section_phi*M_PI_2);
 
         for (j = 0; j < 4; j++) {
           double r, z;
@@ -1673,8 +1673,8 @@ static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X3Grid *params, DM 
         double cosphi, sinphi, r;
 
         if (s_section_phi == 2) {
-          cosphi = cos(s_section_phi * M_PI * i / num_phi_cells);
-          sinphi = sin(s_section_phi * M_PI * i / num_phi_cells);
+          cosphi = cos(s_section_phi * M_PI * i / num_phi_cells - s_section_phi*M_PI_2);
+          sinphi = sin(s_section_phi * M_PI * i / num_phi_cells - s_section_phi*M_PI_2);
         }
         for (j = 0; j < 8; j++) {
           double z;
@@ -1687,7 +1687,7 @@ static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X3Grid *params, DM 
             coords[i][j][1] = sinphi * r;
           } else {
             coords[i][j][0] = r;
-            coords[i][j][1] = (params->radius_major+params->radius_minor) * tan(s_section_phi*M_PI)*(double)i/(double)num_phi_cells; /* height of cylinder */
+            coords[i][j][1] = (params->radius_major+params->radius_minor) * (tan(s_section_phi*M_PI)*(double)i/(double)num_phi_cells - s_section_phi*M_PI_2); /* height of cylinder */
           }
         }
       }
@@ -1800,9 +1800,10 @@ static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim,
   b = abc[1];
   if (ctx->grid.section_phi!=2) b = 0;
   inPhi = atan2(b,a);
+  if (ctx->grid.section_phi!=2) inPhi += ctx->grid.section_phi * M_PI_2;
   inPhi = (inPhi < 0.) ? (inPhi + ctx->grid.section_phi * M_PI) : inPhi;
   i = (inPhi * num_phi_cells) / (ctx->grid.section_phi * M_PI);
-  i = PetscMin(i,num_phi_cells - 1);
+  i = PetscMin(i,num_phi_cells - 1); assert(i>=0);
   leftPhi =  (i *        ctx->grid.section_phi * M_PI) / num_phi_cells;
   midPhi  = ((i + 0.5) * ctx->grid.section_phi * M_PI) / num_phi_cells;
   cosMidPhi  = cos(midPhi);
@@ -2394,15 +2395,15 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
     ierr = PetscOptionsFList("-dm_type","Convert DMPlex to another format","ex3.c",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
     nmajor_total = ctx->grid.num_phi_cells;
     if (flg) {
-      ierr = PetscOptionsGetInt(NULL,"poission_","-dm_forest_initial_refinement", &idx, &flg);CHKERRQ(ierr);
-      if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-x3_dm_forest_initial_refinement not found?");
+      ierr = PetscOptionsGetInt(NULL,"mhd_","-dm_forest_initial_refinement", &idx, &flg);CHKERRQ(ierr);
+      if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-mhd_dm_forest_initial_refinement not found?");
       nmajor_total *= pow(2,idx);  /* plex does not get the curve */
     }
     else {
-      ierr = PetscOptionsGetInt(NULL,"poission_","-dm_refine", &idx, &flg);CHKERRQ(ierr);
-      if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-x3_dm_refinement not found?");
+      ierr = PetscOptionsGetInt(NULL,"mhd_","-dm_refine", &idx, &flg);CHKERRQ(ierr);
+      if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-mhd_dm_refine not found? (Plex not supported?)");
     }
-    if (idx<1) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "refine must be greater than 0 (Q2 would be legal)");
+    if (idx<1) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "refine must be greater than 0");
     ntheta_total *= pow(2,idx);
     /* inflate for corners in plane */
     radius = ctx->grid.radius_minor;
@@ -2522,7 +2523,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   ierr = DMClone(dmpi->dm, &dmmhd);CHKERRQ(ierr);
   ierr = PetscObjectGetName((PetscObject)dmpi->dm,&prefix);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject)dmmhd, prefix);CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dm, "poission_");CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) dmpi->dm, "poisson_");CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) dmmhd, "mhd_");CHKERRQ(ierr);
   /* distribute */
   ierr = DMPlexDistribute(dmmhd, 1, NULL, &dm2);CHKERRQ(ierr);
@@ -2575,7 +2576,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
       else ierr = PetscSNPrintf(compName,sizeof(compName),"%s",PhysicsFields_MHD[ctx->nfields].name);
       CHKERRQ(ierr);
       ierr = PetscFVSetComponentName(fvm,ctx->ndof,compName);CHKERRQ(ierr); /* this does not work */
-      PetscPrintf(PETSC_COMM_WORLD,"%s: %D) , prefix=%s\n",__FUNCT__,ctx->ndof,compName);
+      /* PetscPrintf(PETSC_COMM_WORLD,"%s: %D) , prefix=%s\n",__FUNCT__,ctx->ndof,compName); */
     }
   }
   /* FV is now structured with one field having all physics as components */
@@ -2587,7 +2588,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   ierr = PetscDSSetFromOptions(probmhd);CHKERRQ(ierr);
   ierr = DMSetDS(dmmhd,probmhd);CHKERRQ(ierr);
   ierr = PetscDSDestroy(&probmhd);CHKERRQ(ierr);
-  /* setup PIC FEM Poison Discretization */
+  /* setup PIC FEM Poisson Discretization */
   if (ctx->num_particles_total) {
     ierr = PetscFECreateDefault(dmpi->dm, dim, 1, PETSC_FALSE, NULL, PETSC_DECIDE, &dmpi->fem);CHKERRQ(ierr);
     ierr = PetscObjectSetName((PetscObject) dmpi->fem, "potential");CHKERRQ(ierr);
@@ -2629,6 +2630,8 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
           ierr = DMForestSetBaseCoordinateMapping(dmpi->dm,GeometryPICellTorus,ctx);CHKERRQ(ierr);
         } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Converted to non Forest?");
       } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Convert failed?");
+    } else if (flg) {
+      ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
     }
     if ( flg ) {
       ierr = PetscObjectGetOptionsPrefix((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
@@ -2647,10 +2650,12 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
           ierr = DMForestSetBaseCoordinateMapping(dmmhd,GeometryPICellTorus,ctx);CHKERRQ(ierr);
         } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Converted to non Forest?");
       } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Convert failed?");
+    } else {
+      ierr = DMSetFromOptions(dmmhd);CHKERRQ(ierr);
     }
   }
   { /* print */
-    PetscInt n,cStart,cEnd,bs,nloc;
+    PetscInt n,cStart,cEnd,cStartMHD,cEndMHD,bs,nloc;
     Vec X;
     ierr = DMCreateGlobalVector(dmmhd, &X);CHKERRQ(ierr);
     ierr = VecGetSize(X,&n);CHKERRQ(ierr);
@@ -2658,10 +2663,17 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     ierr = VecGetBlockSize(X,&bs);CHKERRQ(ierr);
     ierr = VecDestroy(&X);CHKERRQ(ierr);
     if (!n) SETERRQ(ctx->wComm, PETSC_ERR_USER, "No dofs");
-    ierr = DMGetCellChart(dmmhd, &cStart, &cEnd);CHKERRQ(ierr);
-    s_fluxtubeelem = cEnd/2;
-    if (dmpi->debug>0) PetscPrintf( ctx->wComm,"[%D] %D global MHD equations, %D local, block size %D, on %D processors, %D local cells\n",
-                                    ctx->rank,n,nloc,bs,ctx->npe,cEnd);
+    ierr = DMGetCellChart(dmmhd, &cStartMHD, &cEndMHD);CHKERRQ(ierr);
+    if (ctx->num_particles_total) {
+      ierr = DMGetCellChart(dmpi->dm, &cStart, &cEnd);CHKERRQ(ierr);
+      s_fluxtubeelem = cEnd/2;
+    }
+    else {
+      cStart = 0; cEnd = 0;
+      s_fluxtubeelem = -1;
+    }
+    if (dmpi->debug>0) PetscPrintf( ctx->wComm,"[%D] %D global MHD equations, %D local, block size %D, on %D processors, %D local MHD cells, %D Poisson cells\n",
+                                    ctx->rank,n,nloc,bs,ctx->npe,cEndMHD,cEnd);
   }
   if (dmpi->debug>2) {
     /* ierr = DMView(dmpi->dm,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
@@ -2744,6 +2756,7 @@ int main(int argc, char **argv)
 
   /* setup solver, dummy solve to really setup */
   if (ctx->num_particles_total) {
+    ierr = DMSetUp(ctx->dmpic);CHKERRQ(ierr);
     ierr = VecZeroEntries(dmpi->rho);CHKERRQ(ierr); /* zero density to make solver do nothing */
     ierr = DMPICellSolve( ctx->dmpic );CHKERRQ(ierr);
     /* move back to solver space and make density vector */
@@ -2888,7 +2901,7 @@ int main(int argc, char **argv)
 #endif
     if (ctx->num_particles_total) {
       ierr = DMViewFromOptions(dmpi->dm,NULL,"-dm_view");CHKERRQ(ierr);
-      ierr = PetscOptionsGetViewer(ctx->wComm,"poission_","-vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
+      ierr = PetscOptionsGetViewer(ctx->wComm,"poisson_","-vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
       if (flg) {
         ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
         ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);
