@@ -1604,8 +1604,8 @@ static PetscErrorCode DMPlexCreatePICellBoxTorus(MPI_Comm comm, X3Grid *params, 
         PetscInt j;
         double cosphi, sinphi;
 
-        cosphi = cos(2 * M_PI * i / num_phi_cells - s_section_phi*M_PI_2);
-        sinphi = sin(2 * M_PI * i / num_phi_cells - s_section_phi*M_PI_2);
+        cosphi = cos(2 * M_PI * i / num_phi_cells);
+        sinphi = sin(2 * M_PI * i / num_phi_cells);
 
         for (j = 0; j < 4; j++) {
           double r, z;
@@ -1676,8 +1676,8 @@ static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X3Grid *params, DM 
         double cosphi, sinphi, r;
 
         if (s_section_phi == 2) {
-          cosphi = cos(s_section_phi * M_PI * i / num_phi_cells - s_section_phi*M_PI_2);
-          sinphi = sin(s_section_phi * M_PI * i / num_phi_cells - s_section_phi*M_PI_2);
+          cosphi = cos(s_section_phi * M_PI * i / num_phi_cells);
+          sinphi = sin(s_section_phi * M_PI * i / num_phi_cells);
         }
         for (j = 0; j < 8; j++) {
           double z;
@@ -1690,7 +1690,7 @@ static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X3Grid *params, DM 
             coords[i][j][1] = sinphi * r;
           } else {
             coords[i][j][0] = r;
-            coords[i][j][1] = (params->radius_major+params->radius_minor) * (tan(s_section_phi*M_PI)*(double)i/(double)num_phi_cells - s_section_phi*M_PI_2); /* height of cylinder */
+            coords[i][j][1] = (params->radius_major+params->radius_minor) * (tan(s_section_phi*M_PI)*(double)i/(double)num_phi_cells - s_section_phi*M_PI_2); /* -L/2 to L/2 */
           }
         }
       }
@@ -2061,10 +2061,11 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
     }
     phi = atan2(y,x);
     zbar = rbar*phi; /* ~y */
-    if (1) {
+    if (0) {
       cphi = x/rbar;   sphi = y/rbar;
     } else {
       cphi = cos(phi); sphi = sin(phi);
+      /* cphi = 1;   sphi = 0; */
     }
     fr = .5*r*exp(-r*r/8 + .5);
     gr = exp(-r*r/8 + .5) - .125*r*r*exp(-r*r/8 + .5);
@@ -2506,7 +2507,7 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
 #endif
                 , ctx->use_electrons ? "use electrons" : "ions only", ctx->use_bsp ? "BSP communication" : "Non-blocking consensus communication",ctx->grid.section_phi*M_PI,s_rminor_inflate);
   } else if (s_debug>0) {
-    PetscPrintf(ctx->wComm,"[%D] npe=%D; phi section=%g, inflate=%g, domain: %s, run type: %s\n",ctx->rank,ctx->npe,ctx->grid.section_phi*M_PI,s_rminor_inflate,ctx->dom_type==X3_TORUS ? "Torus" : "?", ctx->run_type == X3_TORUS_LINETIED ? "line tied" : "?");
+    PetscPrintf(ctx->wComm,"[%D] npe=%D; phi section=%g pi, inflate=%g, domain: %s, run type: %s\n",ctx->rank,ctx->npe,ctx->grid.section_phi,s_rminor_inflate,ctx->dom_type==X3_TORUS ? "Torus" : "?", ctx->run_type == X3_TORUS_LINETIED ? "line tied" : "?");
   }
   PetscFunctionReturn(0);
 }
