@@ -1908,7 +1908,7 @@ static void MHDFlux(const MHDNode *vl, const MHDNode *vr, PetscReal area, X3Ctx 
   PetscReal alamdaL[2],alamdaR[2],rho,u,v,w,bx,by,bz,eint,press,bxsq,lamdaMax=0,lamdaMin=0,bysq,bzsq;
 
   PetscFunctionBeginUser;
-  if (vl->r != vl->r) exit(12);
+  /* if (vl->r != vl->r) exit(12); */
   for (i=0; i<2; i++) alamdaL[i] = 0;
   for (i=0; i<2; i++) alamdaR[i] = 0;
 
@@ -1933,8 +1933,8 @@ static void MHDFlux(const MHDNode *vl, const MHDNode *vr, PetscReal area, X3Ctx 
   eint=(press)/(ctx->gamma-1);
   finvl.b[0]=0;
   finvl.b[1]=u*by-v*bx;
-  finvl.b[2]=u*(bz)-w*bx;
-  finvl.p=(0.5*rho*(u*u+v*v+w*w)+eint+(press)+(bxsq+bysq+bzsq))*vl->ru[0]-bx*(u*bx+v*by+w*bz);
+  finvl.b[2]=u*bz-w*bx;
+  finvl.p=(0.5*rho*(u*u+v*v+w*w)+eint+(press)+(bxsq+bysq+bzsq))*vl->ru[0]-bx*(u*bx+v*by+w*bz); /* only ru_x ? */
   rho=vr->r;
   u=vr->ru[0]; v=vr->ru[1]; w=vr->ru[2];
   bx=vr->b[0]; by=vr->b[1]; bz=vr->b[2];
@@ -1950,10 +1950,10 @@ static void MHDFlux(const MHDNode *vl, const MHDNode *vr, PetscReal area, X3Ctx 
   finvr.b[0]=0;
   finvr.b[1]=u*by-v*bx;
   finvr.b[2]=u*bz-w*bx;
-  finvr.p=(0.5*rho*(u*u+v*v+w*w)+eint+press+(bxsq+bysq+bzsq))*vr->ru[0]-bx*(u*bx+v*by+w*bz);
+  finvr.p=(0.5*rho*(u*u+v*v+w*w)+eint+press+(bxsq+bysq+bzsq))*vr->ru[0]-bx*(u*bx+v*by+w*bz); /* only ru_x ? */
   for (i=0;i<ctx->ndof;i++) flux->vals[i] = area*(lamdaMax*finvl.vals[i]-lamdaMin*finvr.vals[i]+lamdaMin*lamdaMax*durl.vals[i])/(lamdaMax-lamdaMin);
   /* PetscPrintf(PETSC_COMM_WORLD,"%s: flux=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",__FUNCT__,flux->vals[0],flux->vals[1],flux->vals[2],flux->vals[3],flux->vals[4],flux->vals[5],flux->vals[6],flux->vals[7]); */
-  if (flux->r != flux->r) exit(13);
+  /* if (flux->r != flux->r) exit(13); */
   PetscFunctionReturnVoid();
 }
 
@@ -2044,43 +2044,63 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
   if (time != 0.0) exit(11);
   if (ctx->run_type == X3_TORUS_LINETIED) {
     /* Line-tied problems from 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
-    PetscReal       cth,sth,cphi,sphi,r,zbar,rbar,rtilda,phi,vr,vtheta,vzbar,fr,gr,v[2],p[2],R[2][2];
-    const PetscReal x=xx[0],y=xx[1],z=xx[2],L=(ctx->grid.radius_minor+ctx->grid.radius_major)*ctx->grid.section_phi*M_PI, A=0.01;
+    PetscReal       cth,sth,cphi,sphi,r,zbar,rbar,rtilda,phi,vr,vtheta,vzbar,fr,gr,v[2],p[2],Rth[2][2],Rph[2][2],br,bzbar,btheta,theta;
+    const PetscReal a=ctx->grid.radius_minor,x=xx[0]/a,y=xx[1]/a,z=xx[2]/a,L=(a+ctx->grid.radius_major)*ctx->grid.section_phi*M_PI/a,P0=0.01,A=0.01,lam=ctx->lt_lambda/a;
+    /* P & rho */
+    uu->r = 1.;
+    uu->p = P0;
+    /* ru */
     rbar = PetscSqrtReal(x*x + y*y);
-    rtilda = rbar - ctx->grid.radius_major;
+    rtilda = rbar - ctx->grid.radius_major/a;
     r = PetscSqrtReal(rtilda*rtilda + z*z);
-    /* theta = atan2(z,rtilda); */
-    /* cth = cos(-theta); sth = sin(-theta); */
-    cth  = rtilda/r; sth  = z/r;
+    if (0) {
+      theta = atan2(z,rtilda);
+      cth = cos(theta); sth = sin(theta);
+    } else {
+      cth  = rtilda/r; sth  = z/r;
+    }
     phi = atan2(y,x);
     zbar = rbar*phi; /* ~y */
-    cphi = x/rbar;   sphi = y/rbar;
-    uu->r = 1.;
-    uu->p = .05;
+    if (1) {
+      cphi = x/rbar;   sphi = y/rbar;
+    } else {
+      cphi = cos(phi); sphi = sin(phi);
+    }
     fr = .5*r*exp(-r*r/8 + .5);
     gr = exp(-r*r/8 + .5) - .125*r*r*exp(-r*r/8 + .5);
-    vr =     A*fr*sin(-2*M_PI*zbar/L);
+    vr =    -A*fr*sin(2*M_PI*zbar/L);
     vtheta =-A*fr*(1+cos(2*M_PI*zbar/L));
     vzbar  =-A*gr*(1+cos(2*M_PI*zbar/L));
     /* PetscPrintf(PETSC_COMM_WORLD,"%s: zbar=%16.8e 1+cos(2*M_PI*zbar/L)=%16.8e sin(2*M_PI*zbar/L)=%16.8e\n",__FUNCT__,zbar,1+cos(2*M_PI*zbar/L),sin(-2*M_PI*zbar/L)); */
-    /* rotate by -theta */
-    R[0][0] = cth; R[0][1] = sth;
-    R[1][0] =-sth; R[1][1] = cth;
+    /* rotate by theta (neg ?) */
+    Rth[0][0] = cth; Rth[0][1] =-sth;
+    Rth[1][0] = sth; Rth[1][1] = cth;
     v[0] = vr; v[1] = vtheta;
-    MATVEC2(R,v,p);
-    uu->ru[2] = p[1];
-    /* rotate by -phi */
-    R[0][0] = cphi; R[0][1] = sphi;
-    R[1][0] =-sphi; R[1][1] = cphi;
+    MATVEC2(Rth,v,p);
+    uu->ru[2] = p[1]*uu->r;
+    /* rotate by phi */
+    Rph[0][0] = cphi; Rph[0][1] =-sphi;
+    Rph[1][0] = sphi; Rph[1][1] = cphi;
     v[0] = p[0]; v[1] = vzbar;
-    MATVEC2(R,v,p);
-    uu->ru[0] = p[0];
-    uu->ru[1] = p[1];
+    MATVEC2(Rph,v,p);
+    uu->ru[0] = p[0]*uu->r;
+    uu->ru[1] = p[1]*uu->r;
+    /* B */
+    br = 0;
+    btheta = r/(1+r*r);
+    bzbar = lam/(1+r*r);
+    /* PetscPrintf(PETSC_COMM_WORLD,"%s: bzbar=%16.8e r=%g\n",__FUNCT__,bzbar,r); */
+    v[0] = br; v[1] = btheta;
+    MATVEC2(Rth,v,p);
+    uu->b[2] = p[1];
+    v[0] = p[0]; v[1] = bzbar;
+    MATVEC2(Rph,v,p);
+    uu->b[0] = p[0];
+    uu->b[1] = p[1];
     /* get speed */
     for (i=0,r=0; i<3; i++) {
       cth = uu->ru[i]/uu->r;
       r += cth*cth;
-      uu->b[i] = 0; //debug
     }
     r = PetscSqrtReal(r);
     if (r > ctx->maxspeed) ctx->maxspeed = r;
@@ -2570,6 +2590,8 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   ierr = DMGetLabel(dmpi->dm, "boundary", &label);CHKERRQ(ierr);
   ierr = DMPlexMarkBoundaryFaces(dmpi->dm, label);CHKERRQ(ierr);
   ierr = DMPlexLabelComplete(dmpi->dm, label);CHKERRQ(ierr);
+  /* clone DM for M H D with ghosts and setup, don't need to touch dmpi->dm if no particles */
+  ierr = DMClone(dmpi->dm, &dmmhd);CHKERRQ(ierr);
   /* distribute */
   ierr = DMPlexDistribute(dmpi->dm, 0, NULL, &dm2);CHKERRQ(ierr);
   if (dm2) {
@@ -2578,8 +2600,13 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     if (dmpi->debug>0) PetscPrintf(PETSC_COMM_WORLD,"%s distributed Poisson grid\n",__FUNCT__);
   }
   ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
-  /* clone DM for M H D with ghosts and setup, don't need to touch dmpi->dm if no particles */
-  ierr = DMClone(dmpi->dm, &dmmhd);CHKERRQ(ierr);
+  ierr = DMPlexDistribute(dmmhd, 1, NULL, &dm2);CHKERRQ(ierr);
+  if (dm2) {
+    ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
+    dmmhd = dm2;
+    if (dmpi->debug>0) PetscPrintf(PETSC_COMM_WORLD,"%s distributed MHD grid\n",__FUNCT__);
+  }
+  ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
   /* setup M H D DM */
   ierr = DMPlexSetAdjacencyUseCone(dmmhd, PETSC_TRUE);CHKERRQ(ierr);
   ierr = DMPlexSetAdjacencyUseClosure(dmmhd, PETSC_FALSE);CHKERRQ(ierr);
@@ -2603,7 +2630,6 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     }
   }
   ierr = PetscFVSetFromOptions(fvm);CHKERRQ(ierr);
-
   /* FV is now structured with one field having all physics as components */
   ierr = DMGetDS(dmmhd, &probmhd);CHKERRQ(ierr);
   ierr = PetscDSSetDiscretization(probmhd, 0, (PetscObject) fvm);CHKERRQ(ierr);
@@ -2650,8 +2676,6 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
           ierr = DMForestSetBaseCoordinateMapping(dmpi->dm,GeometryPICellTorus,ctx);CHKERRQ(ierr);
         } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Converted to non Forest?");
       } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Convert failed?");
-    } else if (flg) {
-      ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
     }
     if ( flg ) {
       ierr = PetscObjectGetOptionsPrefix((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
@@ -2666,10 +2690,10 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
           ierr = DMForestSetBaseCoordinateMapping(dmmhd,GeometryPICellTorus,ctx);CHKERRQ(ierr);
         } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Converted to non Forest?");
       } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Convert failed?");
-    } else {
-      ierr = DMSetFromOptions(dmmhd);CHKERRQ(ierr);
     }
   }
+  ierr = PetscObjectSetName((PetscObject) dmmhd, "mhd");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) dmpi->dm, "poisson");CHKERRQ(ierr);
   { /* print */
     PetscInt n,cEnd,cEndM,bs,bs2,nloc;
     Vec X;
