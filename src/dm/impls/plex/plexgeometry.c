@@ -1291,7 +1291,7 @@ static PetscErrorCode DMPlexComputeIsoparametricGeometry_Internal(DM dm, PetscFE
   PetscScalar     *coords = NULL;
   const PetscReal *quadPoints;
   PetscReal       *basisDer, *basis, detJt;
-  PetscInt         dim, cdim, pdim, qdim, Nq, numCoords, q;
+  PetscInt         dim, cdim, pdim, qdim, Nq, numCoords, q, fdim;
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
@@ -1302,9 +1302,10 @@ static PetscErrorCode DMPlexComputeIsoparametricGeometry_Internal(DM dm, PetscFE
   ierr = DMGetCoordinateDim(dm, &cdim);CHKERRQ(ierr);
   ierr = PetscFEGetQuadrature(fe, &quad);CHKERRQ(ierr);
   ierr = PetscFEGetDimension(fe, &pdim);CHKERRQ(ierr);
-  ierr = PetscQuadratureGetData(quad, &qdim, &Nq, &quadPoints, NULL);CHKERRQ(ierr);
+  ierr = PetscQuadratureGetData(quad, &qdim, &fdim, &Nq, &quadPoints, NULL);CHKERRQ(ierr);
   ierr = PetscFEGetDefaultTabulation(fe, &basis, &basisDer, NULL);CHKERRQ(ierr);
   if (qdim != dim) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Point dimension %d != quadrature dimension %d", dim, qdim);
+  if (fdim != 1) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_SUP, "Only support scalar quadrature, not field dim %D", fdim);
   if (numCoords != pdim*cdim) SETERRQ4(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "There are %d coordinates for point %d != %d*%d", numCoords, point, pdim, cdim);
   if (v0) {
     ierr = PetscMemzero(v0, Nq*cdim*sizeof(PetscReal));CHKERRQ(ierr);

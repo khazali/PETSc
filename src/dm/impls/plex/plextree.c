@@ -1320,19 +1320,20 @@ static PetscErrorCode DMPlexComputeAnchorMatrix_Tree_Direct(DM dm, PetscSection 
       PetscQuadrature quad;
 
       ierr = PetscDualSpaceGetFunctional(dspace,i,&quad);CHKERRQ(ierr);
-      ierr = PetscQuadratureGetData(quad,NULL,&qPoints,NULL,NULL);CHKERRQ(ierr);
+      ierr = PetscQuadratureGetData(quad,NULL,NULL,&qPoints,NULL,NULL);CHKERRQ(ierr);
       nPoints += qPoints;
     }
     ierr = PetscMalloc7(fSize,&sizes,nPoints,&weights,spdim*nPoints,&pointsRef,spdim*nPoints,&pointsReal,fSize*nPoints,&work,maxDof,&workIndRow,maxDof,&workIndCol);CHKERRQ(ierr);
     ierr = PetscMalloc1(maxDof * maxDof,&scwork);CHKERRQ(ierr);
     offset = 0;
     for (i = 0; i < fSize; i++) {
-      PetscInt        qPoints;
+      PetscInt        qPoints, fdim;
       const PetscReal    *p, *w;
       PetscQuadrature quad;
 
       ierr = PetscDualSpaceGetFunctional(dspace,i,&quad);CHKERRQ(ierr);
-      ierr = PetscQuadratureGetData(quad,NULL,&qPoints,&p,&w);CHKERRQ(ierr);
+      ierr = PetscQuadratureGetData(quad,NULL,&fdim,&qPoints,&p,&w);CHKERRQ(ierr);
+      if (fdim != 1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Only support scalar quadrature, not field dim %D\n",fdim);
       ierr = PetscMemcpy(weights+offset,w,qPoints*sizeof(*w));CHKERRQ(ierr);
       ierr = PetscMemcpy(pointsRef+spdim*offset,p,spdim*qPoints*sizeof(*p));CHKERRQ(ierr);
       sizes[i] = qPoints;
@@ -3259,12 +3260,13 @@ PetscErrorCode DMPlexComputeInjectorReferenceTree(DM refTree, Mat *inj)
           const PetscReal *points;
           const PetscReal *weights;
           PetscInt        *closure = NULL;
-          PetscInt        numClosure;
+          PetscInt        numClosure, fdim;
           PetscInt        parentCellShapeDof = cellShapeOff + (pO < 0 ? (numSelfShapes - 1 - i) : i);
           PetscReal       *Bparent;
 
           ierr = PetscDualSpaceGetFunctional(dsp,parentCellShapeDof,&q);CHKERRQ(ierr);
-          ierr = PetscQuadratureGetData(q,&dim,&numPoints,&points,&weights);CHKERRQ(ierr);
+          ierr = PetscQuadratureGetData(q,&dim,&fdim,&numPoints,&points,&weights);CHKERRQ(ierr);
+          if (fdim != 1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Only support scalar quadrature, not field dim %D\n",fdim);
           ierr = PetscFEGetTabulation(fe,numPoints,points,&Bparent,NULL,NULL);CHKERRQ(ierr); /* I'm expecting a nodal basis: weights[:]' * Bparent[:,cellShapeDof] = 1. */
           for (k = 0; k < numChildShapes; k++) {
             pointMat[numChildShapes * i + k] = 0.;

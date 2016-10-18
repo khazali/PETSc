@@ -329,7 +329,7 @@ PetscErrorCode PetscDSSetUp(PetscDS prob)
     } else SETERRQ1(PetscObjectComm((PetscObject) prob), PETSC_ERR_ARG_WRONG, "Unknown discretization type for field %d", f);
     prob->off[f+1]    = Nc     + prob->off[f];
     prob->offDer[f+1] = Nc*dim + prob->offDer[f];
-    if (q) {ierr = PetscQuadratureGetData(q, NULL, &Nq, NULL, NULL);CHKERRQ(ierr);}
+    if (q) {ierr = PetscQuadratureGetData(q, NULL, NULL, &Nq, NULL, NULL);CHKERRQ(ierr);}
     NqMax          = PetscMax(NqMax, Nq);
     NcMax          = PetscMax(NcMax, Nc);
     prob->totDim  += Nb*Nc;

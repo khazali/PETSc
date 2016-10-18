@@ -539,11 +539,12 @@ PetscErrorCode DMProjectFieldLocal_Plex(DM dm, Vec localU,
       for (d = 0; d < spDim; ++d) {
         PetscQuadrature  quad;
         const PetscReal *points, *weights;
-        PetscInt         numPoints, q;
+        PetscInt         numPoints, q, fdim;
 
         if (funcs[f]) {
           ierr = PetscDualSpaceGetFunctional(sp[f], d, &quad);CHKERRQ(ierr);
-          ierr = PetscQuadratureGetData(quad, NULL, &numPoints, &points, &weights);CHKERRQ(ierr);
+          ierr = PetscQuadratureGetData(quad, NULL, &fdim, &numPoints, &points, &weights);CHKERRQ(ierr);
+          if (fdim != 1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Only support scalar quadrature, not field dim %D\n",fdim);
           for (q = 0; q < numPoints; ++q) {
             CoordinatesRefToReal(dim, dim, v0, J, &points[q*dim], x);
             ierr = EvaluateFieldJets(prob,    PETSC_FALSE, q, invJ, coefficients,    NULL, u, u_x, NULL);CHKERRQ(ierr);
@@ -764,7 +765,7 @@ PetscErrorCode DMComputeL2Diff_Plex(DM dm, PetscReal time, PetscErrorCode (**fun
   PetscReal       *coords, *v0, *J, *invJ, detJ;
   PetscReal        localDiff = 0.0;
   const PetscReal *quadPoints, *quadWeights;
-  PetscInt         dim, numFields, numComponents = 0, numQuadPoints, cStart, cEnd, cEndInterior, c, field, fieldOffset;
+  PetscInt         dim, fdim, numFields, numComponents = 0, numQuadPoints, cStart, cEnd, cEndInterior, c, field, fieldOffset;
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
@@ -795,7 +796,8 @@ PetscErrorCode DMComputeL2Diff_Plex(DM dm, PetscReal time, PetscErrorCode (**fun
     } else SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_WRONG, "Unknown discretization type for field %d", field);
     numComponents += Nc;
   }
-  ierr = PetscQuadratureGetData(quad, NULL, &numQuadPoints, &quadPoints, &quadWeights);CHKERRQ(ierr);
+  ierr = PetscQuadratureGetData(quad, NULL, &fdim, &numQuadPoints, &quadPoints, &quadWeights);CHKERRQ(ierr);
+  if (fdim != 1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Only support scalar quadrature, not field dim %D\n",fdim);
   ierr = PetscMalloc6(numComponents,&funcVal,numComponents,&interpolant,dim,&coords,dim,&v0,dim*dim,&J,dim*dim,&invJ);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = DMPlexGetHybridBounds(dm, &cEndInterior, NULL, NULL, NULL);CHKERRQ(ierr);
@@ -903,10 +905,11 @@ PetscErrorCode DMComputeL2GradientDiff_Plex(DM dm, PetscReal time, PetscErrorCod
       void * const     ctx = ctxs ? ctxs[field] : NULL;
       const PetscReal *quadPoints, *quadWeights;
       PetscReal       *basisDer;
-      PetscInt         numQuadPoints, Nb, Ncomp, q, d, e, fc, f, g;
+      PetscInt         numQuadPoints, Nb, Ncomp, q, d, e, fc, f, g, fdim;
 
       ierr = DMGetField(dm, field, (PetscObject *) &fe);CHKERRQ(ierr);
-      ierr = PetscQuadratureGetData(quad, NULL, &numQuadPoints, &quadPoints, &quadWeights);CHKERRQ(ierr);
+      ierr = PetscQuadratureGetData(quad, NULL, &fdim, &numQuadPoints, &quadPoints, &quadWeights);CHKERRQ(ierr);
+      if (fdim != 1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Only support scalar quadrature, not field dim %D\n",fdim);
       ierr = PetscFEGetDimension(fe, &Nb);CHKERRQ(ierr);
       ierr = PetscFEGetNumComponents(fe, &Ncomp);CHKERRQ(ierr);
       ierr = PetscFEGetDefaultTabulation(fe, NULL, &basisDer, NULL);CHKERRQ(ierr);
@@ -976,7 +979,7 @@ PetscErrorCode DMComputeL2FieldDiff_Plex(DM dm, PetscReal time, PetscErrorCode (
   PetscReal       *coords, *v0, *J, *invJ, detJ;
   PetscReal       *localDiff;
   const PetscReal *quadPoints, *quadWeights;
-  PetscInt         dim, numFields, numComponents = 0, numQuadPoints, cStart, cEnd, cEndInterior, c, field, fieldOffset;
+  PetscInt         dim, numFields, numComponents = 0, numQuadPoints, cStart, cEnd, cEndInterior, c, field, fieldOffset, fdim;
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
@@ -1007,7 +1010,8 @@ PetscErrorCode DMComputeL2FieldDiff_Plex(DM dm, PetscReal time, PetscErrorCode (
     } else SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_WRONG, "Unknown discretization type for field %d", field);
     numComponents += Nc;
   }
-  ierr = PetscQuadratureGetData(quad, NULL, &numQuadPoints, &quadPoints, &quadWeights);CHKERRQ(ierr);
+  ierr = PetscQuadratureGetData(quad, NULL, &fdim, &numQuadPoints, &quadPoints, &quadWeights);CHKERRQ(ierr);
+  if (fdim != 1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Only support scalar quadrature, not field dim %D\n",fdim);
   ierr = PetscCalloc7(numFields,&localDiff,numComponents,&funcVal,numComponents,&interpolant,dim,&coords,dim,&v0,dim*dim,&J,dim*dim,&invJ);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = DMPlexGetHybridBounds(dm, &cEndInterior, NULL, NULL, NULL);CHKERRQ(ierr);
@@ -1094,7 +1098,7 @@ PetscErrorCode DMPlexComputeL2DiffVec(DM dm, PetscReal time, PetscErrorCode (**f
   PetscScalar     *funcVal, *interpolant;
   PetscReal       *coords, *v0, *J, *invJ, detJ;
   const PetscReal *quadPoints, *quadWeights;
-  PetscInt         dim, numFields, numComponents = 0, numQuadPoints, cStart, cEnd, cEndInterior, c, field, fieldOffset;
+  PetscInt         dim, numFields, numComponents = 0, numQuadPoints, cStart, cEnd, cEndInterior, c, field, fieldOffset, fdim;
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
@@ -1126,7 +1130,8 @@ PetscErrorCode DMPlexComputeL2DiffVec(DM dm, PetscReal time, PetscErrorCode (**f
     } else SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_WRONG, "Unknown discretization type for field %d", field);
     numComponents += Nc;
   }
-  ierr = PetscQuadratureGetData(quad, NULL, &numQuadPoints, &quadPoints, &quadWeights);CHKERRQ(ierr);
+  ierr = PetscQuadratureGetData(quad, NULL, &fdim, &numQuadPoints, &quadPoints, &quadWeights);CHKERRQ(ierr);
+  if (fdim != 1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Only support scalar quadrature, not field dim %D\n",fdim);
   ierr = PetscMalloc6(numComponents,&funcVal,numComponents,&interpolant,dim,&coords,dim,&v0,dim*dim,&J,dim*dim,&invJ);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = DMPlexGetHybridBounds(dm, &cEndInterior, NULL, NULL, NULL);CHKERRQ(ierr);
@@ -1309,7 +1314,7 @@ PetscErrorCode DMPlexComputeIntegralFEM(DM dm, Vec X, PetscReal *integral, void 
 
       ierr = PetscFEGetTileSizes(fe, NULL, &numBlocks, NULL, &numBatches);CHKERRQ(ierr);
       ierr = PetscFEGetQuadrature(fe, &q);CHKERRQ(ierr);
-      ierr = PetscQuadratureGetData(q, NULL, &Nq, NULL, NULL);CHKERRQ(ierr);
+      ierr = PetscQuadratureGetData(q, NULL, NULL, &Nq, NULL, NULL);CHKERRQ(ierr);
       ierr = PetscFEGetDimension(fe, &Nb);CHKERRQ(ierr);
       blockSize = Nb*Nq;
       batchSize = numBlocks * blockSize;
@@ -1450,13 +1455,13 @@ PetscErrorCode DMPlexComputeInterpolatorNested(DM dmc, DM dmf, Mat In, void *use
     ierr = PetscDualSpaceGetDimension(Qref, &fpdim);CHKERRQ(ierr);
     for (i = 0; i < fpdim; ++i) {
       ierr = PetscDualSpaceGetFunctional(Qref, i, &f);CHKERRQ(ierr);
-      ierr = PetscQuadratureGetData(f, NULL, &Np, NULL, NULL);CHKERRQ(ierr);
+      ierr = PetscQuadratureGetData(f, NULL, NULL, &Np, NULL, NULL);CHKERRQ(ierr);
       npoints += Np;
     }
     ierr = PetscMalloc1(npoints*dim,&points);CHKERRQ(ierr);
     for (i = 0, k = 0; i < fpdim; ++i) {
       ierr = PetscDualSpaceGetFunctional(Qref, i, &f);CHKERRQ(ierr);
-      ierr = PetscQuadratureGetData(f, NULL, &Np, &qpoints, NULL);CHKERRQ(ierr);
+      ierr = PetscQuadratureGetData(f, NULL, NULL, &Np, &qpoints, NULL);CHKERRQ(ierr);
       for (p = 0; p < Np; ++p, ++k) for (d = 0; d < dim; ++d) points[k*dim+d] = qpoints[p*dim+d];
     }
 
@@ -1464,7 +1469,7 @@ PetscErrorCode DMPlexComputeInterpolatorNested(DM dmc, DM dmf, Mat In, void *use
       PetscObject  obj;
       PetscClassId id;
       PetscReal   *B;
-      PetscInt     NcJ = 0, cpdim = 0, j;
+      PetscInt     NcJ = 0, cpdim = 0, j, fdim;
 
       ierr = PetscDSGetDiscretization(prob, fieldJ, &obj);CHKERRQ(ierr);
       ierr = PetscObjectGetClassId(obj, &id);CHKERRQ(ierr);
@@ -1480,7 +1485,8 @@ PetscErrorCode DMPlexComputeInterpolatorNested(DM dmc, DM dmf, Mat In, void *use
           ierr = PetscFEGetTabulation(fe, npoints, points, &B, NULL, NULL);CHKERRQ(ierr);
           for (i = 0, k = 0; i < fpdim; ++i) {
             ierr = PetscDualSpaceGetFunctional(Qref, i, &f);CHKERRQ(ierr);
-            ierr = PetscQuadratureGetData(f, NULL, &Np, NULL, &qweights);CHKERRQ(ierr);
+            ierr = PetscQuadratureGetData(f, NULL, &fdim, &Np, NULL, &qweights);CHKERRQ(ierr);
+            if (fdim != 1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Only support scalar quadrature, not field dim %D\n",fdim);
             for (p = 0; p < Np; ++p, ++k) {
               for (j = 0; j < cpdim; ++j) {
                 for (c = 0; c < Nc; ++c) elemMat[(offsetI + i*Nc + c)*cTotDim + offsetJ + j*NcJ + c] += B[k*cpdim*NcJ+j*Nc+c]*qweights[p];
@@ -1491,6 +1497,7 @@ PetscErrorCode DMPlexComputeInterpolatorNested(DM dmc, DM dmf, Mat In, void *use
         }
       } else if (id == PETSCFV_CLASSID) {
         PetscFV        fv = (PetscFV) obj;
+        PetscInt       fdim;
 
         /* Evaluate constant function at points */
         ierr = PetscFVGetNumComponents(fv, &NcJ);CHKERRQ(ierr);
@@ -1500,7 +1507,8 @@ PetscErrorCode DMPlexComputeInterpolatorNested(DM dmc, DM dmf, Mat In, void *use
           if (Nc != NcJ) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Number of components in fine space field %d does not match coarse field %d", Nc, NcJ);
           for (i = 0, k = 0; i < fpdim; ++i) {
             ierr = PetscDualSpaceGetFunctional(Qref, i, &f);CHKERRQ(ierr);
-            ierr = PetscQuadratureGetData(f, NULL, &Np, NULL, &qweights);CHKERRQ(ierr);
+            ierr = PetscQuadratureGetData(f, NULL, &fdim, &Np, NULL, &qweights);CHKERRQ(ierr);
+            if (fdim != 1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Only support scalar quadrature, not field dim %D\n",fdim);
             for (p = 0; p < Np; ++p, ++k) {
               for (j = 0; j < cpdim; ++j) {
                 for (c = 0; c < Nc; ++c) elemMat[(offsetI + i*Nc + c)*cTotDim + offsetJ + j*NcJ + c] += 1.0*qweights[p];
@@ -1654,7 +1662,7 @@ PetscErrorCode DMPlexComputeInterpolatorGeneral(DM dmc, DM dmf, Mat In, void *us
 
         /* Get points from the dual basis functional quadrature */
         ierr = PetscDualSpaceGetFunctional(Q, i, &f);CHKERRQ(ierr);
-        ierr = PetscQuadratureGetData(f, NULL, &Np, &qpoints, NULL);CHKERRQ(ierr);
+        ierr = PetscQuadratureGetData(f, NULL, NULL, &Np, &qpoints, NULL);CHKERRQ(ierr);
         ierr = VecCreateSeq(PETSC_COMM_SELF, Np*dim, &pointVec);CHKERRQ(ierr);
         ierr = VecSetBlockSize(pointVec, dim);CHKERRQ(ierr);
         ierr = VecGetArray(pointVec, &pV);CHKERRQ(ierr);
@@ -1737,11 +1745,12 @@ PetscErrorCode DMPlexComputeInterpolatorGeneral(DM dmc, DM dmf, Mat In, void *us
         PetscScalar    *pV;
         PetscSF         coarseCellSF = NULL;
         const PetscSFNode *coarseCells;
-        PetscInt        numCoarseCells, cpdim, q, c, j;
+        PetscInt        numCoarseCells, cpdim, q, c, j, fdim;
 
         /* Get points from the dual basis functional quadrature */
         ierr = PetscDualSpaceGetFunctional(Q, i, &f);CHKERRQ(ierr);
-        ierr = PetscQuadratureGetData(f, NULL, &Np, &qpoints, &qweights);CHKERRQ(ierr);
+        ierr = PetscQuadratureGetData(f, NULL, &fdim, &Np, &qpoints, &qweights);CHKERRQ(ierr);
+        if (fdim != 1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Only support scalar quadrature, not field dim %D\n",fdim);
         ierr = VecCreateSeq(PETSC_COMM_SELF, Np*dim, &pointVec);CHKERRQ(ierr);
         ierr = VecSetBlockSize(pointVec, dim);CHKERRQ(ierr);
         ierr = VecGetArray(pointVec, &pV);CHKERRQ(ierr);
@@ -1891,7 +1900,7 @@ PetscErrorCode DMPlexComputeInjectorFEM(DM dmc, DM dmf, VecScatter *sc, void *us
       PetscBool        found = PETSC_FALSE;
 
       ierr = PetscDualSpaceGetFunctional(QC, c, &cfunc);CHKERRQ(ierr);
-      ierr = PetscQuadratureGetData(cfunc, NULL, &NpC, &cqpoints, NULL);CHKERRQ(ierr);
+      ierr = PetscQuadratureGetData(cfunc, NULL, NULL, &NpC, &cqpoints, NULL);CHKERRQ(ierr);
       if (NpC != 1 && feRef[field]) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Do not know how to do injection for moments");
       for (f = 0; f < fpdim; ++f) {
         PetscQuadrature  ffunc;
@@ -1900,7 +1909,7 @@ PetscErrorCode DMPlexComputeInjectorFEM(DM dmc, DM dmf, VecScatter *sc, void *us
         PetscInt         NpF, comp;
 
         ierr = PetscDualSpaceGetFunctional(QF, f, &ffunc);CHKERRQ(ierr);
-        ierr = PetscQuadratureGetData(ffunc, NULL, &NpF, &fqpoints, NULL);CHKERRQ(ierr);
+        ierr = PetscQuadratureGetData(ffunc, NULL, NULL, &NpF, &fqpoints, NULL);CHKERRQ(ierr);
         if (NpC != NpF) continue;
         for (d = 0; d < dim; ++d) sum += PetscAbsReal(cqpoints[d] - fqpoints[d]);
         if (sum > 1.0e-9) continue;

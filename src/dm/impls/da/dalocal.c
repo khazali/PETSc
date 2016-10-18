@@ -1239,7 +1239,7 @@ PetscErrorCode DMProjectFunctionLocal_DA(DM dm, PetscReal time, PetscErrorCode (
   ierr = DMDAVecGetClosure(dm, section, localX, cStart, &numValues, NULL);CHKERRQ(ierr);
   if (numValues != totDim) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "The section cell closure size %d != dual space dimension %d", numValues, totDim);
   ierr = DMGetWorkArray(dm, numValues, PETSC_SCALAR, &values);CHKERRQ(ierr);
-  ierr = PetscQuadratureGetData(q, NULL, &numPoints, NULL, NULL);CHKERRQ(ierr);
+  ierr = PetscQuadratureGetData(q, NULL, NULL, &numPoints, NULL, NULL);CHKERRQ(ierr);
   for (c = cStart; c < cEnd; ++c) {
     PetscFECellGeom geom;
 
@@ -1306,10 +1306,11 @@ PetscErrorCode DMComputeL2Diff_DA(DM dm, PetscReal time, PetscErrorCode (**funcs
       void * const ctx = ctxs ? ctxs[field] : NULL;
       const PetscReal *quadPoints, *quadWeights;
       PetscReal       *basis;
-      PetscInt         numQuadPoints, numBasisFuncs, numBasisComps, q, d, e, fc, f;
+      PetscInt         numQuadPoints, numBasisFuncs, numBasisComps, q, d, e, fc, f, quadDim;
 
       ierr = PetscDSGetDiscretization(prob, field, (PetscObject *) &fe);CHKERRQ(ierr);
-      ierr = PetscQuadratureGetData(quad, NULL, &numQuadPoints, &quadPoints, &quadWeights);CHKERRQ(ierr);
+      ierr = PetscQuadratureGetData(quad, NULL, &quadDim, &numQuadPoints, &quadPoints, &quadWeights);CHKERRQ(ierr);
+      if (quadDim != 1) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_SUP, "Only support scalar quadrature, not field dim %D\n",quadDim);
       ierr = PetscFEGetDimension(fe, &numBasisFuncs);CHKERRQ(ierr);
       ierr = PetscFEGetNumComponents(fe, &numBasisComps);CHKERRQ(ierr);
       ierr = PetscFEGetDefaultTabulation(fe, &basis, NULL, NULL);CHKERRQ(ierr);
@@ -1393,10 +1394,11 @@ PetscErrorCode DMComputeL2GradientDiff_DA(DM dm, PetscReal time, PetscErrorCode 
       void * const ctx = ctxs ? ctxs[field] : NULL;
       const PetscReal *quadPoints, *quadWeights;
       PetscReal       *basisDer;
-      PetscInt         Nq, Nb, Nc, q, d, e, fc, f, g;
+      PetscInt         Nq, Nb, Nc, q, d, e, fc, f, g, quadDim;
 
       ierr = PetscDSGetDiscretization(prob, field, (PetscObject *) &fe);CHKERRQ(ierr);
-      ierr = PetscQuadratureGetData(quad, NULL, &Nq, &quadPoints, &quadWeights);CHKERRQ(ierr);
+      ierr = PetscQuadratureGetData(quad, NULL, &quadDim, &Nq, &quadPoints, &quadWeights);CHKERRQ(ierr);
+      if (quadDim != 1) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_SUP, "Only support scalar quadrature, not field dim %D\n",quadDim);
       ierr = PetscFEGetDimension(fe, &Nb);CHKERRQ(ierr);
       ierr = PetscFEGetNumComponents(fe, &Nc);CHKERRQ(ierr);
       ierr = PetscFEGetDefaultTabulation(fe, NULL, &basisDer, NULL);CHKERRQ(ierr);

@@ -6,6 +6,7 @@
 struct _p_PetscQuadrature {
   PETSCHEADER(int);
   PetscInt         dim;       /* The spatial dimension */
+  PetscInt         fdim;      /* The field dimension (e.g., 1 for scalar) */
   PetscInt         order;     /* The order, i.e. the highest degree polynomial that is exactly integrated */
   PetscInt         numPoints; /* The number of quadrature points on an element */
   const PetscReal *points;    /* The quadrature point coordinates */

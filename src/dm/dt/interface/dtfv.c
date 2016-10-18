@@ -1633,7 +1633,7 @@ PetscErrorCode PetscFVGetQuadrature(PetscFV fvm, PetscQuadrature *q)
     ierr = PetscCalloc1(fvm->dim, &points);CHKERRQ(ierr);
     ierr = PetscMalloc1(1, &weights);CHKERRQ(ierr);
     weights[0] = 1.0;
-    ierr = PetscQuadratureSetData(fvm->quadrature, fvm->dim, 1, points, weights);CHKERRQ(ierr);
+    ierr = PetscQuadratureSetData(fvm->quadrature, fvm->dim, 1, 1, points, weights);CHKERRQ(ierr);
   }
   *q = fvm->quadrature;
   PetscFunctionReturn(0);
@@ -1726,7 +1726,7 @@ PetscErrorCode PetscFVGetDefaultTabulation(PetscFV fvm, PetscReal **B, PetscReal
   if (B) PetscValidPointer(B, 2);
   if (D) PetscValidPointer(D, 3);
   if (H) PetscValidPointer(H, 4);
-  ierr = PetscQuadratureGetData(fvm->quadrature, NULL, &npoints, &points, NULL);CHKERRQ(ierr);
+  ierr = PetscQuadratureGetData(fvm->quadrature, NULL, NULL, &npoints, &points, NULL);CHKERRQ(ierr);
   if (!fvm->B) {ierr = PetscFVGetTabulation(fvm, npoints, points, &fvm->B, &fvm->D, NULL/*&fvm->H*/);CHKERRQ(ierr);}
   if (B) *B = fvm->B;
   if (D) *D = fvm->D;
@@ -1884,16 +1884,17 @@ PetscErrorCode PetscFVRefine(PetscFV fv, PetscFV *fvRef)
     PetscQuadrature  qs;
     const PetscReal *points, *weights;
     PetscReal       *p, *w;
-    PetscInt         dim, npoints, np;
+    PetscInt         dim, fdim, npoints, np;
 
     ierr = PetscQuadratureCreate(PETSC_COMM_SELF, &qs);CHKERRQ(ierr);
-    ierr = PetscQuadratureGetData(q, &dim, &npoints, &points, &weights);CHKERRQ(ierr);
+    ierr = PetscQuadratureGetData(q, &dim, &fdim, &npoints, &points, &weights);CHKERRQ(ierr);
+    if (fdim != 1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Only support scalar quadrature, not field dim %D\n",fdim);
     np   = npoints/numSubelements;
     ierr = PetscMalloc1(np*dim,&p);CHKERRQ(ierr);
     ierr = PetscMalloc1(np,&w);CHKERRQ(ierr);
-    ierr = PetscMemcpy(p, &points[s*np*dim], np*dim * sizeof(PetscReal));CHKERRQ(ierr);
-    ierr = PetscMemcpy(w, &weights[s*np],    np     * sizeof(PetscReal));CHKERRQ(ierr);
-    ierr = PetscQuadratureSetData(qs, dim, np, p, w);CHKERRQ(ierr);
+    ierr = PetscMemcpy(p, &points[s*np*dim], np*dim  * sizeof(PetscReal));CHKERRQ(ierr);
+    ierr = PetscMemcpy(w, &weights[s*np],    np*fdim * sizeof(PetscReal));CHKERRQ(ierr);
+    ierr = PetscQuadratureSetData(qs, dim, fdim, np, p, w);CHKERRQ(ierr);
     ierr = PetscDualSpaceSimpleSetFunctional(Qref, s, qs);CHKERRQ(ierr);
     ierr = PetscQuadratureDestroy(&qs);CHKERRQ(ierr);
   }

@@ -53,6 +53,8 @@ PetscErrorCode PetscQuadratureCreate(MPI_Comm comm, PetscQuadrature *q)
   ierr = PetscSysInitializePackage();CHKERRQ(ierr);
   ierr = PetscHeaderCreate(*q,PETSC_OBJECT_CLASSID,"PetscQuadrature","Quadrature","DT",comm,PetscQuadratureDestroy,PetscQuadratureView);CHKERRQ(ierr);
   (*q)->dim       = -1;
+  (*q)->fdim      = -1;
+  (*q)->fdim      = -1;
   (*q)->order     = -1;
   (*q)->numPoints = 0;
   (*q)->points    = NULL;
@@ -80,7 +82,7 @@ PetscErrorCode PetscQuadratureCreate(MPI_Comm comm, PetscQuadrature *q)
 @*/
 PetscErrorCode PetscQuadratureDuplicate(PetscQuadrature q, PetscQuadrature *r)
 {
-  PetscInt         order, dim, Nq;
+  PetscInt         order, dim, Nq, fdim;
   const PetscReal *points, *weights;
   PetscReal       *p, *w;
   PetscErrorCode   ierr;
@@ -90,12 +92,12 @@ PetscErrorCode PetscQuadratureDuplicate(PetscQuadrature q, PetscQuadrature *r)
   ierr = PetscQuadratureCreate(PetscObjectComm((PetscObject) q), r);CHKERRQ(ierr);
   ierr = PetscQuadratureGetOrder(q, &order);CHKERRQ(ierr);
   ierr = PetscQuadratureSetOrder(*r, order);CHKERRQ(ierr);
-  ierr = PetscQuadratureGetData(q, &dim, &Nq, &points, &weights);CHKERRQ(ierr);
+  ierr = PetscQuadratureGetData(q, &dim, &fdim, &Nq, &points, &weights);CHKERRQ(ierr);
   ierr = PetscMalloc1(Nq*dim, &p);CHKERRQ(ierr);
   ierr = PetscMalloc1(Nq, &w);CHKERRQ(ierr);
   ierr = PetscMemcpy(p, points, Nq*dim * sizeof(PetscReal));CHKERRQ(ierr);
-  ierr = PetscMemcpy(w, weights, Nq * sizeof(PetscReal));CHKERRQ(ierr);
-  ierr = PetscQuadratureSetData(*r, dim, Nq, p, w);CHKERRQ(ierr);
+  ierr = PetscMemcpy(w, weights, Nq * fdim * sizeof(PetscReal));CHKERRQ(ierr);
+  ierr = PetscQuadratureSetData(*r, dim, fdim, Nq, p, w);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -183,6 +185,57 @@ PetscErrorCode PetscQuadratureSetOrder(PetscQuadrature q, PetscInt order)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "PetscQuadratureGetFieldDim"
+/*@
+  PetscQuadratureGetFieldDim - Return the dimension of the field on which the functional is defined
+
+  Not collective
+
+  Input Parameter:
+. q - The PetscQuadrature object
+
+  Output Parameter:
+. fdim - The dimension of the field on which the functional is defined: e.g., 1 for scalar, 2 for two-dimensional field, etc.  If a value is not set with PetscQuadratureSetFieldDim(), returns 1.
+
+  Output Parameter:
+
+  Level: intermediate
+
+.seealso: PetscQuadratureSetFieldDim(), PetscQuadratureGetData(), PetscQuadratureSetData()
+@*/
+PetscErrorCode PetscQuadratureGetFieldDim(PetscQuadrature q, PetscInt *fdim)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(q, PETSC_OBJECT_CLASSID, 1);
+  PetscValidPointer(fdim, 2);
+  *fdim = (q->fdim > 0) ? q->fdim : 1;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscQuadratureSetFieldDim"
+/*@
+  PetscQuadratureSetFieldDim - Set the dimenion of the field on which the functional is defined
+
+  Not collective
+
+  Input Parameters:
++ q - The PetscQuadrature object
+. fdim - The dimension of the field on which the functional is defined: e.g., 1 for scalar, 2 for two-dimensional field, etc.
+
+  Level: intermediate
+
+.seealso: PetscQuadratureGetFieldDim(), PetscQuadratureGetData(), PetscQuadratureSetData()
+@*/
+PetscErrorCode PetscQuadratureSetFieldDim(PetscQuadrature q, PetscInt fdim)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(q, PETSC_OBJECT_CLASSID, 1);
+  q->fdim = fdim;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PetscQuadratureGetData"
 /*@C
   PetscQuadratureGetData - Returns the data defining the quadrature
@@ -194,6 +247,7 @@ PetscErrorCode PetscQuadratureSetOrder(PetscQuadrature q, PetscInt order)
 
   Output Parameters:
 + dim - The spatial dimension
+. fdim - The field dimension
 . npoints - The number of quadrature points
 . points - The coordinates of each quadrature point
 - weights - The weight of each quadrature point
@@ -203,13 +257,17 @@ PetscErrorCode PetscQuadratureSetOrder(PetscQuadrature q, PetscInt order)
 .keywords: PetscQuadrature, quadrature
 .seealso: PetscQuadratureCreate(), PetscQuadratureSetData()
 @*/
-PetscErrorCode PetscQuadratureGetData(PetscQuadrature q, PetscInt *dim, PetscInt *npoints, const PetscReal *points[], const PetscReal *weights[])
+PetscErrorCode PetscQuadratureGetData(PetscQuadrature q, PetscInt *dim, PetscInt *fdim, PetscInt *npoints, const PetscReal *points[], const PetscReal *weights[])
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(q, PETSC_OBJECT_CLASSID, 1);
   if (dim) {
     PetscValidPointer(dim, 2);
     *dim = q->dim;
+  }
+  if (fdim) {
+    PetscValidPointer(fdim, 2);
+    *fdim = (q->fdim > 0) ? q->fdim : 1;
   }
   if (npoints) {
     PetscValidPointer(npoints, 3);
@@ -235,6 +293,7 @@ PetscErrorCode PetscQuadratureGetData(PetscQuadrature q, PetscInt *dim, PetscInt
 
   Input Parameters:
 + q  - The PetscQuadrature object
+. fdim - The field dimension
 . dim - The spatial dimension
 . npoints - The number of quadrature points
 . points - The coordinates of each quadrature point
@@ -245,11 +304,12 @@ PetscErrorCode PetscQuadratureGetData(PetscQuadrature q, PetscInt *dim, PetscInt
 .keywords: PetscQuadrature, quadrature
 .seealso: PetscQuadratureCreate(), PetscQuadratureGetData()
 @*/
-PetscErrorCode PetscQuadratureSetData(PetscQuadrature q, PetscInt dim, PetscInt npoints, const PetscReal points[], const PetscReal weights[])
+PetscErrorCode PetscQuadratureSetData(PetscQuadrature q, PetscInt dim, PetscInt fdim, PetscInt npoints, const PetscReal points[], const PetscReal weights[])
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(q, PETSC_OBJECT_CLASSID, 1);
   if (dim >= 0)     q->dim       = dim;
+  if (fdim > 0)     q->fdim      = fdim;
   if (npoints >= 0) q->numPoints = npoints;
   if (points) {
     PetscValidPointer(points, 4);
@@ -322,7 +382,7 @@ PetscErrorCode PetscQuadratureExpandComposite(PetscQuadrature q, PetscInt numSub
 {
   const PetscReal *points,    *weights;
   PetscReal       *pointsRef, *weightsRef;
-  PetscInt         dim, order, npoints, npointsRef, c, p, d, e;
+  PetscInt         dim, order, npoints, npointsRef, c, p, d, e, fdim;
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
@@ -332,7 +392,8 @@ PetscErrorCode PetscQuadratureExpandComposite(PetscQuadrature q, PetscInt numSub
   PetscValidPointer(qref, 5);
   ierr = PetscQuadratureCreate(PETSC_COMM_SELF, qref);CHKERRQ(ierr);
   ierr = PetscQuadratureGetOrder(q, &order);CHKERRQ(ierr);
-  ierr = PetscQuadratureGetData(q, &dim, &npoints, &points, &weights);CHKERRQ(ierr);
+  ierr = PetscQuadratureGetData(q, &dim, &fdim, &npoints, &points, &weights);CHKERRQ(ierr);
+  if (fdim != 1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Only support scalar quadrature, not field dim %D\n",fdim);
   npointsRef = npoints*numSubelements;
   ierr = PetscMalloc1(npointsRef*dim,&pointsRef);CHKERRQ(ierr);
   ierr = PetscMalloc1(npointsRef,&weightsRef);CHKERRQ(ierr);
@@ -349,7 +410,7 @@ PetscErrorCode PetscQuadratureExpandComposite(PetscQuadrature q, PetscInt numSub
     }
   }
   ierr = PetscQuadratureSetOrder(*qref, order);CHKERRQ(ierr);
-  ierr = PetscQuadratureSetData(*qref, dim, npointsRef, pointsRef, weightsRef);CHKERRQ(ierr);
+  ierr = PetscQuadratureSetData(*qref, dim, fdim, npointsRef, pointsRef, weightsRef);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -552,7 +613,7 @@ PetscErrorCode PetscDTGaussTensorQuadrature(PetscInt dim, PetscInt npoints, Pets
   }
   ierr = PetscQuadratureCreate(PETSC_COMM_SELF, q);CHKERRQ(ierr);
   ierr = PetscQuadratureSetOrder(*q, npoints);CHKERRQ(ierr);
-  ierr = PetscQuadratureSetData(*q, dim, totpoints, x, w);CHKERRQ(ierr);
+  ierr = PetscQuadratureSetData(*q, dim, 1, totpoints, x, w);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -767,7 +828,7 @@ PetscErrorCode PetscDTGaussJacobiQuadrature(PetscInt dim, PetscInt order, PetscR
   }
   ierr = PetscQuadratureCreate(PETSC_COMM_SELF, q);CHKERRQ(ierr);
   ierr = PetscQuadratureSetOrder(*q, order);CHKERRQ(ierr);
-  ierr = PetscQuadratureSetData(*q, dim, npoints, x, w);CHKERRQ(ierr);
+  ierr = PetscQuadratureSetData(*q, dim, 1, npoints, x, w);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -826,7 +887,7 @@ PetscErrorCode PetscDTTanhSinhTensorQuadrature(PetscInt dim, PetscInt level, Pet
     x[2*k+0] =  alpha*xk+beta;
     w[2*k+0] = wk;
   }
-  ierr = PetscQuadratureSetData(*q, dim, npoints, x, w);CHKERRQ(ierr);
+  ierr = PetscQuadratureSetData(*q, dim, 1, npoints, x, w);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

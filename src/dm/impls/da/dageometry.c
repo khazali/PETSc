@@ -696,7 +696,7 @@ PetscErrorCode DMDAComputeCellGeometryFEM(DM dm, PetscInt cell, PetscQuadrature 
   Vec              coordinates;
   const PetscReal *quadPoints;
   PetscScalar     *vertices = NULL;
-  PetscInt         numQuadPoints, csize, dim, d, q;
+  PetscInt         numQuadPoints, csize, dim, d, q, quadDim;
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
@@ -708,7 +708,8 @@ PetscErrorCode DMDAComputeCellGeometryFEM(DM dm, PetscInt cell, PetscQuadrature 
   for (d = 0; d < dim; ++d) v0[d] = PetscRealPart(vertices[d]);
   switch (dim) {
   case 2:
-    ierr = PetscQuadratureGetData(quad, NULL, &numQuadPoints, &quadPoints, NULL);CHKERRQ(ierr);
+    ierr = PetscQuadratureGetData(quad, NULL, &quadDim, &numQuadPoints, &quadPoints, NULL);CHKERRQ(ierr);
+    if (quadDim != 1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Only support scalar quadrature, not field dim %D\n",quadDim);
     for (q = 0; q < numQuadPoints; ++q) {
       ierr = DMDAComputeCellGeometry_2D(dm, vertices, &quadPoints[q*dim], J, invJ, detJ);CHKERRQ(ierr);
     }
