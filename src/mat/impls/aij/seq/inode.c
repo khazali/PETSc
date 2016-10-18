@@ -381,7 +381,7 @@ static PetscErrorCode MatMult_SeqAIJ_Inode(Mat A,Vec xx,Vec yy)
   const PetscScalar *x;
   const MatScalar   *v1,*v2,*v3,*v4,*v5;
   PetscErrorCode    ierr;
-  PetscInt          i1,i2,n,i,row,node_max,nsz,sz,nonzerorow=0;
+  PetscInt          i1,i2,i,row,node_max,nsz,sz,nonzerorow=0;
   const PetscInt    *idx,*ns,*ii;
 
 #if defined(PETSC_HAVE_PRAGMA_DISJOINT)
@@ -400,13 +400,12 @@ static PetscErrorCode MatMult_SeqAIJ_Inode(Mat A,Vec xx,Vec yy)
 
   for (i = 0,row = 0; i< node_max; ++i) {
     nsz         = ns[i];
-    n           = ii[1] - ii[0];
-    nonzerorow += (n>0)*nsz;
+    sz          = ii[1] - ii[0]; /* No of non zeros in this row */
+    nonzerorow += (sz>0)*nsz;
     ii         += nsz;
     /* PetscPrefetchBlock(idx+nsz*n,n,0,PETSC_PREFETCH_HINT_NTA); */   /* Prefetch the indices for the block row after the current one */
     /* PetscPrefetchBlock(v1+nsz*n,nsz*n,0,PETSC_PREFETCH_HINT_NTA); */ /* Prefetch the values for the block row after the current one  */
-    sz = n;                     /* No of non zeros in this row */
-                                /* Switch on the size of Node */
+    /* Switch on the size of Node */
     switch (nsz) {               /* Each loop in 'case' is unrolled */
     case 1:
       sum1 = 0.;
@@ -435,7 +434,7 @@ static PetscErrorCode MatMult_SeqAIJ_Inode(Mat A,Vec xx,Vec yy)
     case 2:
       sum1 = 0.;
       sum2 = 0.;
-      v2   = v1 + n;
+      v2   = v1 + sz;
 
       for (n=0;n<sz;n++) {
         tmp0 = x[*idx++];
@@ -467,8 +466,8 @@ static PetscErrorCode MatMult_SeqAIJ_Inode(Mat A,Vec xx,Vec yy)
       sum1 = 0.;
       sum2 = 0.;
       sum3 = 0.;
-      v2   = v1 + n;
-      v3   = v2 + n;
+      v2   = v1 + sz;
+      v3   = v2 + sz;
 
       for (n=0;n<sz;n++) {
         tmp0 = x[*idx++];
@@ -505,9 +504,9 @@ static PetscErrorCode MatMult_SeqAIJ_Inode(Mat A,Vec xx,Vec yy)
       sum2 = 0.;
       sum3 = 0.;
       sum4 = 0.;
-      v2   = v1 + n;
-      v3   = v2 + n;
-      v4   = v3 + n;
+      v2   = v1 + sz;
+      v3   = v2 + sz;
+      v4   = v3 + sz;
 
       for (n=0;n<sz;n++) {
         tmp0 = x[*idx++];
@@ -549,10 +548,10 @@ static PetscErrorCode MatMult_SeqAIJ_Inode(Mat A,Vec xx,Vec yy)
       sum3 = 0.;
       sum4 = 0.;
       sum5 = 0.;
-      v2   = v1 + n;
-      v3   = v2 + n;
-      v4   = v3 + n;
-      v5   = v4 + n;
+      v2   = v1 + sz;
+      v3   = v2 + sz;
+      v4   = v3 + sz;
+      v5   = v4 + sz;
 
       for (n=0;n<sz;n++) {
         tmp0 = x[*idx++];
