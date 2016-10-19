@@ -1737,6 +1737,8 @@ static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X3Grid *params, DM 
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "PICellCircleInflate"
 static void PICellCircleInflate(PetscReal r, PetscReal inner_mult, PetscReal x, PetscReal y,
                                 PetscReal *outX, PetscReal *outY)
 {
@@ -1804,7 +1806,6 @@ static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim,
   b = abc[1];
   if (ctx->grid.section_phi!=2 && s_use_line_section) b = 0;
   inPhi = atan2(b,a);
-  if (ctx->grid.section_phi!=2 && s_use_line_section) inPhi += ctx->grid.section_phi * M_PI_2; /* what does this do? */
   inPhi = (inPhi < 0.) ? (inPhi + ctx->grid.section_phi * M_PI) : inPhi;
   i = (inPhi * num_phi_cells) / (ctx->grid.section_phi * M_PI);
   i = PetscMin(i,num_phi_cells - 1); assert(i>=0);
@@ -2045,7 +2046,7 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
   if (time != 0.0) exit(11);
   if (ctx->run_type == X3_TORUS_LINETIED) {
     /* Line-tied problems from 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
-    PetscReal       cth,sth,cphi,sphi,r,zbar,rbar,rtilda,phi,vr,vtheta,vzbar,fr,gr,v[2],p[2],Rth[2][2],Rph[2][2],br,bzbar,btheta,theta;
+    PetscReal       cth,sth,cphi,sphi,r,zbar,rbar,rtilda,phi,vr,vtheta,vzbar,fr,gr,v[2],p[2],Rth[2][2],Rph[2][2],br,bzbar,btheta;
     const PetscReal a=ctx->grid.radius_minor,x=xx[0]/a,y=xx[1]/a,z=xx[2]/a,L=(a+ctx->grid.radius_major)*ctx->grid.section_phi*M_PI/a,P0=0.01,A=0.01,lam=ctx->lt_lambda/a;
     /* P & rho */
     uu->r = 1.;
@@ -2055,25 +2056,23 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
     rtilda = rbar - ctx->grid.radius_major/a;
     r = PetscSqrtReal(rtilda*rtilda + z*z);
     if (0) {
-      theta = atan2(z,rtilda);
+      PetscReal theta = atan2(z,rtilda);
       cth = cos(theta); sth = sin(theta);
     } else {
-      cth  = rtilda/r; sth  = z/r;
+      cth  = rtilda/r; sth = z/r;
     }
     phi = atan2(y,x);
     zbar = rbar*phi; /* ~y */
-    if (0) {
+    if (1) {
       cphi = x/rbar;   sphi = y/rbar;
     } else {
       cphi = cos(phi); sphi = sin(phi);
-      /* cphi = 1;   sphi = 0; */
     }
     fr = .5*r*exp(-r*r/8 + .5);
     gr = exp(-r*r/8 + .5) - .125*r*r*exp(-r*r/8 + .5);
     vr =    -A*fr*sin(2*M_PI*zbar/L);
     vtheta =-A*fr*(1+cos(2*M_PI*zbar/L));
     vzbar  =-A*gr*(1+cos(2*M_PI*zbar/L));
-    /* PetscPrintf(PETSC_COMM_WORLD,"%s: zbar=%16.8e 1+cos(2*M_PI*zbar/L)=%16.8e sin(2*M_PI*zbar/L)=%16.8e\n",__FUNCT__,zbar,1+cos(2*M_PI*zbar/L),sin(-2*M_PI*zbar/L)); */
     /* rotate by theta (neg ?) */
     Rth[0][0] = cth; Rth[0][1] =-sth;
     Rth[1][0] = sth; Rth[1][1] = cth;
@@ -2091,7 +2090,6 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
     br = 0;
     btheta = r/(1+r*r);
     bzbar = lam/(1+r*r);
-    /* PetscPrintf(PETSC_COMM_WORLD,"%s: bzbar=%16.8e r=%g\n",__FUNCT__,bzbar,r); */
     v[0] = br; v[1] = btheta;
     MATVEC2(Rth,v,p);
     uu->b[2] = p[1];
@@ -2107,7 +2105,6 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
     r = PetscSqrtReal(r);
     if (r > ctx->maxspeed) ctx->maxspeed = r;
   } else assert(0);
-  /* PetscPrintf(PETSC_COMM_WORLD,"%s: uu=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e, coord = %16.8e %16.8e %16.8e\n",__FUNCT__,uu->vals[0],uu->vals[1],uu->vals[2],uu->vals[3],uu->vals[4],uu->vals[5],uu->vals[6],uu->vals[7],xxx[0],xxx[1],xxx[2]); */
   PetscFunctionReturn(0);
 }
 
@@ -2355,7 +2352,8 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   ierr = PetscOptionsReal("-radius_major", "Major radius of torus", "ex3.c", ctx->grid.radius_major, &ctx->grid.radius_major, &rMajFlg);CHKERRQ(ierr);
     /* section of the torus, adjust major radius as needed */
   ierr = PetscOptionsReal("-section_phi", "Number of pi radians of torus section, phi direction (0 < section_phi <= 2) ", "ex3.c",ctx->grid.section_phi,&ctx->grid.section_phi,&secFlg);CHKERRQ(ierr);
-  if (ctx->grid.section_phi <= 0 || ctx->grid.section_phi > 2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"invalid -section_phi %g: (0,2]",ctx->grid.section_phi);
+  if (ctx->grid.section_phi <= 0 || ctx->grid.section_phi > 2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"invalid -section_phi %g: (0,1] or 2",ctx->grid.section_phi);
+  if (ctx->grid.section_phi != 2 && ctx->grid.section_phi > 1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"invalid -section_phi %g: (0,1] or 2",ctx->grid.section_phi);
   ierr = PetscOptionsBool("-use_line_section", "Make section straight", "ex3.c",ctx->grid.use_line_section,&ctx->grid.use_line_section,NULL);CHKERRQ(ierr);
   t1 = 1.;
   ierr = PetscOptionsReal("-section_length", "Length if section (cylinder)", "ex3.c", t1, &t1,&flg);CHKERRQ(ierr);
@@ -2371,6 +2369,7 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   }
   s_section_phi = ctx->grid.section_phi;
   s_use_line_section = ctx->grid.use_line_section;
+  if (ctx->grid.use_line_section && ctx->grid.section_phi>=0.5) SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_USER, "straight (line) section requires section phi < 1/2",ctx->grid.section_phi);
 
   ierr = PetscOptionsInt("-num_phi_cells", "Number of cells per major circle", "ex3.c", ctx->grid.num_phi_cells, &ctx->grid.num_phi_cells, NULL);CHKERRQ(ierr);
   if (ctx->grid.num_phi_cells<3 && ctx->grid.section_phi==2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," Not enough phi cells %D",ctx->grid.num_phi_cells);
