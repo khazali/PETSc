@@ -619,6 +619,7 @@ typedef struct {
   PetscInt   num_phi_cells; /* number of cells per major circle in the torus */
   PetscReal  inner_mult; /* (0,1) percent of the total radius taken by the inner square */
   PetscReal  section_phi; /* *PI = size of section around torus (0,2] */
+  PetscBool  use_line_section;
 } X3Grid;
 /*
   General parameters and context
@@ -679,7 +680,7 @@ static PetscInt  s_rank;
 static PetscInt  s_fluxtubeelem; /* could just hardwire to 0 */
 static PetscReal s_rminor_inflate=1;
 static PetscReal s_section_phi;
-
+static PetscBool s_use_line_section;
 /* X3GridSolverLocatePoints: find processor and element in solver grid that this point is in
     Input:
      - dm: solver dm
@@ -1675,7 +1676,7 @@ static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X3Grid *params, DM 
         PetscInt j;
         double cosphi, sinphi, r;
 
-        if (s_section_phi == 2) {
+        if (s_section_phi == 2 || !s_use_line_section) {
           cosphi = cos(s_section_phi * M_PI * i / num_phi_cells);
           sinphi = sin(s_section_phi * M_PI * i / num_phi_cells);
         }
@@ -1685,7 +1686,7 @@ static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X3Grid *params, DM 
           z = mult * radius_minor * sin(j * M_PI_2);
           coords[i][j][2] = z;
           r = radius_major + mult * radius_minor * cos(j * M_PI_2);
-          if (s_section_phi == 2) {
+          if (s_section_phi == 2 || !s_use_line_section) {
             coords[i][j][0] = cosphi * r;
             coords[i][j][1] = sinphi * r;
           } else {
@@ -1801,9 +1802,9 @@ static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim,
   z = abc[2];
   a = abc[0];
   b = abc[1];
-  if (ctx->grid.section_phi!=2) b = 0;
+  if (ctx->grid.section_phi!=2 && s_use_line_section) b = 0;
   inPhi = atan2(b,a);
-  if (ctx->grid.section_phi!=2) inPhi += ctx->grid.section_phi * M_PI_2;
+  if (ctx->grid.section_phi!=2 && s_use_line_section) inPhi += ctx->grid.section_phi * M_PI_2; /* what does this do? */
   inPhi = (inPhi < 0.) ? (inPhi + ctx->grid.section_phi * M_PI) : inPhi;
   i = (inPhi * num_phi_cells) / (ctx->grid.section_phi * M_PI);
   i = PetscMin(i,num_phi_cells - 1); assert(i>=0);
@@ -1818,7 +1819,7 @@ static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim,
   r    = secHalf * rhat;
   dist = secHalf * (-a * sinLeftPhi + b * cosLeftPhi);
   fulldist = 2. * sin(ctx->grid.section_phi*M_PI / (2*num_phi_cells)) * r;
-  outPhi = ((i + (dist/fulldist)) * ctx->grid.section_phi * M_PI) / num_phi_cells;
+  outPhi = ((i + (dist/fulldist)) * ctx->grid.section_phi*M_PI) / num_phi_cells;
   /* solve r * (cosLeftPhi * _i + sinLeftPhi * _j) + dist * (nx * _i + ny * _j) = a * _i + b * _j;
    *
    * (r * cosLeftPhi + dist * nx) = a;
@@ -1841,7 +1842,7 @@ static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim,
   cosOutPhi = cos(outPhi);
   sinOutPhi = sin(outPhi);
   xyz[0] = r * cosOutPhi;
-  if (ctx->grid.section_phi!=2) xyz[1] = abc[1];
+  if (ctx->grid.section_phi!=2 && s_use_line_section) xyz[1] = abc[1];
   else xyz[1] = r * sinOutPhi;
   xyz[2] = z;
   PetscFunctionReturn(0);
@@ -2314,6 +2315,7 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   ctx->grid.radius_major = 5.;
   ctx->grid.radius_minor = 1.;
   ctx->grid.section_phi  = 2.0; /* 2 pi, whole torus */
+  ctx->grid.use_line_section = PETSC_FALSE; /* not 2 pi, make section straight */
   ctx->grid.np_phi  = 1;
   ctx->grid.np_radius = 1;
   ctx->grid.np_theta  = 1;
@@ -2354,6 +2356,7 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
     /* section of the torus, adjust major radius as needed */
   ierr = PetscOptionsReal("-section_phi", "Number of pi radians of torus section, phi direction (0 < section_phi <= 2) ", "ex3.c",ctx->grid.section_phi,&ctx->grid.section_phi,&secFlg);CHKERRQ(ierr);
   if (ctx->grid.section_phi <= 0 || ctx->grid.section_phi > 2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"invalid -section_phi %g: (0,2]",ctx->grid.section_phi);
+  ierr = PetscOptionsBool("-use_line_section", "Make section straight", "ex3.c",ctx->grid.use_line_section,&ctx->grid.use_line_section,NULL);CHKERRQ(ierr);
   t1 = 1.;
   ierr = PetscOptionsReal("-section_length", "Length if section (cylinder)", "ex3.c", t1, &t1,&flg);CHKERRQ(ierr);
   if (flg || secFlg) {
@@ -2367,6 +2370,8 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
     }
   }
   s_section_phi = ctx->grid.section_phi;
+  s_use_line_section = ctx->grid.use_line_section;
+
   ierr = PetscOptionsInt("-num_phi_cells", "Number of cells per major circle", "ex3.c", ctx->grid.num_phi_cells, &ctx->grid.num_phi_cells, NULL);CHKERRQ(ierr);
   if (ctx->grid.num_phi_cells<3 && ctx->grid.section_phi==2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," Not enough phi cells %D",ctx->grid.num_phi_cells);
   ierr = PetscOptionsReal("-inner_mult", "Fraction of minor radius taken by inner square", "ex3.c", ctx->grid.inner_mult, &ctx->grid.inner_mult, NULL);CHKERRQ(ierr);
@@ -2507,7 +2512,8 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
 #endif
                 , ctx->use_electrons ? "use electrons" : "ions only", ctx->use_bsp ? "BSP communication" : "Non-blocking consensus communication",ctx->grid.section_phi*M_PI,s_rminor_inflate);
   } else if (s_debug>0) {
-    PetscPrintf(ctx->wComm,"[%D] npe=%D; phi section=%g pi, inflate=%g, domain: %s, run type: %s\n",ctx->rank,ctx->npe,ctx->grid.section_phi,s_rminor_inflate,ctx->dom_type==X3_TORUS ? "Torus" : "?", ctx->run_type == X3_TORUS_LINETIED ? "line tied" : "?");
+    PetscPrintf(ctx->wComm,"[%D] npe=%D; phi section=%g pi, inflate=%g, domain: %s, run type: %s, use line section = %D\n",
+                ctx->rank,ctx->npe,ctx->grid.section_phi,s_rminor_inflate,ctx->dom_type==X3_TORUS ? "Torus" : "?", ctx->run_type == X3_TORUS_LINETIED ? "line tied" : "?",ctx->grid.use_line_section);
   }
   PetscFunctionReturn(0);
 }
