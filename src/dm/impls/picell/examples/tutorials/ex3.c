@@ -2023,13 +2023,39 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *
   MHDNode       *xG = (MHDNode*)axG;
   PetscFunctionBeginUser;
   if (ctx->run_type == X3_TORUS_LINETIED) {
-    /* PetscPrintf(PETSC_COMM_WORLD,"%s: xI=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e, coord = %16.8e %16.8e %16.8e normal = %16.8e %16.8e %16.8e\n",__FUNCT__,xI->vals[0],xI->vals[1],xI->vals[2],xI->vals[3],xI->vals[4],xI->vals[5],xI->vals[6],xI->vals[7],c[0],c[1],c[2],n[0],n[1],n[2]); */
+    /* Line-tied problems from 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
+    PetscReal       cphi,sphi,r,rhat,zbar,rtilda,phi,p[2],Rph[2][2];
+    const PetscReal a=ctx->grid.radius_minor,x=c[0]/a,y=c[1]/a,z=c[2],rmaj=ctx->grid.radius_major/a;
+    const PetscReal L=(1+rmaj)*ctx->grid.section_phi*M_PI;
     /* if (xI->r<=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," bad density = %g",xI->r); */
+    /* P & rho, copy Ru & B */
     xG->r = xI->r; /* ghost cell density - same */
     xG->p = xI->p; /* ghost cell energy - same */
-    for (i=0; i<3; i++) xG->b[i]  = -xI->b[i];  /* zero BC, negative */
-    for (i=0; i<3; i++) xG->ru[i] = -xI->ru[i]; /* no flow? */
-    /* PetscPrintf(PETSC_COMM_WORLD,"%s: G = %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",__FUNCT__,xG->vals[0],xG->vals[1],xG->vals[2],xG->vals[3],xG->vals[4],xG->vals[5],xG->vals[6],xG->vals[7]); */
+    for (i=0; i<3; i++) xG->b[i]  = 0;  /* BC for magnetic field? */
+
+    /* geometry */
+    r = PetscSqrtReal(x*x + y*y);
+    rtilda = r - rmaj;
+    rhat = PetscSqrtReal(rtilda*rtilda + z*z);
+    phi = atan2(y,x);
+    zbar = r*phi; /* ~y */
+    cphi = x/r;   sphi = y/r;
+    Rph[0][0] = cphi; Rph[0][1] = sphi;
+    Rph[1][0] =-sphi; Rph[1][1] = cphi;
+    /* rotate (n_x, n_y) to plane */
+    MATVEC2(Rph,n,p);
+    if (PetscAbsReal(p[0])<1.e-8) { /* end plate */
+      PetscPrintf(PETSC_COMM_WORLD,"%s: end plate n = %9.2e %9.2e %9.2e x = %9.2e %9.2e %9.2e L=%9.2e zbar=%9.2e nprime = (%9.2e %9.2e) phi=%9.2e\n",
+                  __FUNCT__,n[0],n[1],n[2],c[0],c[1],c[2],L,zbar,p[0],p[1], phi/M_PI);
+      assert(ctx->grid.section_phi != 2); assert(phi==0 || fabs(phi/M_PI-ctx->grid.section_phi)<1.e-8);
+      for (i=0; i<3; i++) xG->ru[i] = -xI->ru[i]; /* slip */
+    } else { /* side (torus) */
+      PetscPrintf(PETSC_COMM_WORLD,"%s: side n = %9.2e %9.2e %9.2e. x = %9.2e %9.2e %9.2e.  nprime = (%g %g)\n",__FUNCT__,n[0],n[1],n[2],c[0],c[1],c[2],p[0],p[1]);
+      assert(PetscAbsReal(p[1])<1.e-8);
+      for (i=0; i<3; i++) xG->ru[i] = xI->ru[i]; /* slip */
+
+    }
+    /* PetscPrintf(PETSC_COMM_WORLD,"%s: G = %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",__FUNCT__,xG->vals[0],xG->vals[1],xG->vals[2],xG->vals[3],xG->vals[4],xG->vals[5],xG->vals[6],xG->vals[7]); */
   } else assert(0);
   PetscFunctionReturn(0);
 }
@@ -2046,57 +2072,54 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
   if (time != 0.0) exit(11);
   if (ctx->run_type == X3_TORUS_LINETIED) {
     /* Line-tied problems from 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
-    PetscReal       cth,sth,cphi,sphi,r,zbar,rbar,rtilda,phi,vr,vtheta,vzbar,fr,gr,v[2],p[2],Rth[2][2],Rph[2][2],br,bzbar,btheta;
-    const PetscReal a=ctx->grid.radius_minor,x=xx[0]/a,y=xx[1]/a,z=xx[2]/a,L=(a+ctx->grid.radius_major)*ctx->grid.section_phi*M_PI/a,P0=0.01,A=0.01,lam=ctx->lt_lambda/a;
+    PetscReal       cth,sth,cphi,sphi,r,rhat,zbar,rtilda,phi,vr,vtheta,vzbar,fr,gr,v[2],p[2],Rth[2][2],Rph[2][2],br,bzbar,btheta;
+    const PetscReal a=ctx->grid.radius_minor,x=xx[0]/a,y=xx[1]/a,z=xx[2],rmaj=ctx->grid.radius_major/a;
+    const PetscReal L=(1+rmaj)*ctx->grid.section_phi*M_PI,P0=0.01,A=0.01,lam=ctx->lt_lambda/a;
     /* P & rho */
     uu->r = 1.;
     uu->p = P0;
-    /* ru */
-    rbar = PetscSqrtReal(x*x + y*y);
-    rtilda = rbar - ctx->grid.radius_major/a;
-    r = PetscSqrtReal(rtilda*rtilda + z*z);
-    if (0) {
-      PetscReal theta = atan2(z,rtilda);
-      cth = cos(theta); sth = sin(theta);
-    } else {
-      cth  = rtilda/r; sth = z/r;
-    }
+    /* geometry */
+    r = PetscSqrtReal(x*x + y*y);
+    rtilda = r - rmaj;
+    rhat = PetscSqrtReal(rtilda*rtilda + z*z);
+    cth  = rtilda/rhat; sth = z/rhat;
     phi = atan2(y,x);
-    zbar = rbar*phi; /* ~y */
-    if (1) {
-      cphi = x/rbar;   sphi = y/rbar;
-    } else {
-      cphi = cos(phi); sphi = sin(phi);
-    }
-    fr = .5*r*exp(-r*r/8 + .5);
-    gr = exp(-r*r/8 + .5) - .125*r*r*exp(-r*r/8 + .5);
+    zbar = r*phi; /* ~y */
+    cphi = x/r;   sphi = y/r;
+    Rth[0][0] = cth; Rth[0][1] =-sth;
+    Rth[1][0] = sth; Rth[1][1] = cth;
+    Rph[0][0] = cphi; Rph[0][1] =-sphi;
+    Rph[1][0] = sphi; Rph[1][1] = cphi;
+    /* ru */
+    fr = .5*rhat*exp(-rhat*rhat/8 + .5);
+    gr = exp(-rhat*rhat/8 + .5) - .125*rhat*rhat*exp(-rhat*rhat/8 + .5);
     vr =    -A*fr*sin(2*M_PI*zbar/L);
     vtheta =-A*fr*(1+cos(2*M_PI*zbar/L));
     vzbar  =-A*gr*(1+cos(2*M_PI*zbar/L));
-    /* rotate by theta (neg ?) */
-    Rth[0][0] = cth; Rth[0][1] =-sth;
-    Rth[1][0] = sth; Rth[1][1] = cth;
+    /* rotate r & theta by theta */
     v[0] = vr; v[1] = vtheta;
     MATVEC2(Rth,v,p);
-    uu->ru[2] = p[1]*uu->r;
+    v[0] = p[0]; /* v_r* */
+    uu->ru[2] = p[1]*uu->r; /* ru_z */
     /* rotate by phi */
-    Rph[0][0] = cphi; Rph[0][1] =-sphi;
-    Rph[1][0] = sphi; Rph[1][1] = cphi;
-    v[0] = p[0]; v[1] = vzbar;
+    v[1] = vzbar;
     MATVEC2(Rph,v,p);
-    uu->ru[0] = p[0]*uu->r;
-    uu->ru[1] = p[1]*uu->r;
+    uu->ru[0] = p[0]*uu->r; /* ru_x */
+    uu->ru[1] = p[1]*uu->r; /* ru_y */
     /* B */
     br = 0;
     btheta = r/(1+r*r);
     bzbar = lam/(1+r*r);
+    /* rotate r & theta by theta */
     v[0] = br; v[1] = btheta;
     MATVEC2(Rth,v,p);
-    uu->b[2] = p[1];
-    v[0] = p[0]; v[1] = bzbar;
+    v[0] = p[0]; /* b_r* */
+    uu->b[2] = p[1]; /* b_z */
+    /* rotate by phi */
+    v[1] = bzbar;
     MATVEC2(Rph,v,p);
-    uu->b[0] = p[0];
-    uu->b[1] = p[1];
+    uu->b[0] = p[0]; /* b_x */
+    uu->b[1] = p[1]; /* b_y */
     /* get speed */
     for (i=0,r=0; i<3; i++) {
       cth = uu->ru[i]/uu->r;
