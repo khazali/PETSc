@@ -1965,7 +1965,7 @@ static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], 
                                 const PetscScalar *xL, const PetscScalar *xR, PetscScalar *aflux, void *a_ctx)
 {
   X3Ctx           *ctx = (X3Ctx*)a_ctx;
-  PetscReal       nn[3],t,v[3],R[3][3],area;
+  PetscReal       nhat[3],t,v[3],R[3][3],area;
   PetscInt        i,j;
   const MHDNode   *uL = (const MHDNode*)xL,*uR = (const MHDNode*)xR;
   MHDNode         *retflux = (MHDNode*)aflux, flux;
@@ -1973,29 +1973,29 @@ static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], 
   PetscFunctionBeginUser;
 
   for (i=0,area=0; i<3; i++) {
-    nn[i] = n[i];
-    area += nn[i]*nn[i];
+    nhat[i] = n[i];
+    area += nhat[i]*nhat[i];
   }
   area = PetscSqrtReal(area); /* area */
-  for (i=0; i<3; i++) nn[i] /= area; /* |nn|==1 */
-  if (nn[0] < -0.999999) { /* == -1 */
+  for (i=0; i<3; i++) nhat[i] /= area; /* |nhat|==1 */
+  if (nhat[0] < -0.999999) { /* == -1 */
     for (i=0; i<3; i++) for (j=0; j<3; j++) R[i][j] = (i==j) ? -1 : 0; /* I * cos(theta) = -I */
     /* R[1][1] = 1; */ /* rotation about y axis 180 degrees */
     R[2][2] = 1; /* rotation about z axis 180 degrees */
   } else {
     /* rotation matrix to put vectors on x axis, v = n X e_1 */
     v[0] = 0;
-    v[1] = nn[2];
-    v[2] = -nn[1];
+    v[1] = nhat[2];
+    v[2] = -nhat[1];
     R[0][0] = 1;     R[0][1] = -v[2]; R[0][2] =  v[1]; /* I + v cross */
     R[1][0] =  v[2]; R[1][1] = 1;     R[1][2] = -v[0];
     R[2][0] = -v[1]; R[2][1] =  v[0]; R[2][2] = 1;
-    t = 1/(1+nn[0]); /* + (v cross)^2 / (1+cos) */
+    t = 1/(1+nhat[0]); /* + (v cross)^2 / (1+cos) */
     R[0][0] -= t*(v[2]*v[2] + v[1]*v[1]); R[0][1] += t*v[0]*v[1];               R[0][2] += t*v[2]*v[0];
     R[1][0] += t*v[0]*v[1];               R[1][1] -= t*(v[2]*v[2] + v[0]*v[0]); R[1][2] += t*v[1]*v[2];
     R[2][0] += t*v[2]*v[0];               R[2][1] += t*v[1]*v[2];               R[2][2] -= t*(v[1]*v[1] + v[0]*v[0]);
   }
-  luL.r = uL->r; /* copy states and rotate to local coordinate, nn = (1,0,0) */
+  luL.r = uL->r; /* copy states and rotate to local coordinate, R*nhat = (1,0,0) */
   luL.p = uL->p;
   luR.r = uR->r;
   luR.p = uR->p;
@@ -2024,15 +2024,12 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *
   PetscFunctionBeginUser;
   if (ctx->run_type == X3_TORUS_LINETIED) {
     /* Line-tied problems from 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
-    PetscReal       cphi,sphi,r,rhat,zbar,rtilda,phi,p[2],Rph[2][2];
+    PetscReal       cphi,sphi,r,nhat[3],area,rhat,zbar,rtilda,phi,p[2],Rph[2][2],vnhat;
     const PetscReal a=ctx->grid.radius_minor,x=c[0]/a,y=c[1]/a,z=c[2],rmaj=ctx->grid.radius_major/a;
-    const PetscReal L=(1+rmaj)*ctx->grid.section_phi*M_PI;
-    /* if (xI->r<=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," bad density = %g",xI->r); */
+    if (xI->r<=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," bad density = %g",xI->r);
     /* P & rho, copy Ru & B */
     xG->r = xI->r; /* ghost cell density - same */
     xG->p = xI->p; /* ghost cell energy - same */
-    for (i=0; i<3; i++) xG->b[i]  = 0;  /* BC for magnetic field? */
-
     /* geometry */
     r = PetscSqrtReal(x*x + y*y);
     rtilda = r - rmaj;
@@ -2045,18 +2042,27 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *
     /* rotate (n_x, n_y) to plane */
     MATVEC2(Rph,n,p);
     if (PetscAbsReal(p[0])<1.e-8) { /* end plate */
-      PetscPrintf(PETSC_COMM_WORLD,"%s: end plate n = %9.2e %9.2e %9.2e x = %9.2e %9.2e %9.2e L=%9.2e zbar=%9.2e nprime = (%9.2e %9.2e) phi=%9.2e\n",
-                  __FUNCT__,n[0],n[1],n[2],c[0],c[1],c[2],L,zbar,p[0],p[1], phi/M_PI);
+      /* PetscPrintf(PETSC_COMM_WORLD,"%s: end plate n = %9.2e %9.2e %9.2e x = %9.2e %9.2e %9.2e L=%9.2e zbar=%9.2e nprime = (%9.2e %9.2e) phi=%9.2e\n", */
+      /*             __FUNCT__,n[0],n[1],n[2],c[0],c[1],c[2],L,zbar,p[0],p[1], phi/M_PI); */
       assert(ctx->grid.section_phi != 2); assert(phi==0 || fabs(phi/M_PI-ctx->grid.section_phi)<1.e-8);
-      for (i=0; i<3; i++) xG->ru[i] = -xI->ru[i]; /* slip */
+      for (i=0; i<3; i++) xG->ru[i] = -xI->ru[i]; /* zero v */
+      /* B */
+      for (i=0; i<3; i++) xG->b[i]  = 0;  /* BC for magnetic field? */
     } else { /* side (torus) */
-      PetscPrintf(PETSC_COMM_WORLD,"%s: side n = %9.2e %9.2e %9.2e. x = %9.2e %9.2e %9.2e.  nprime = (%g %g)\n",__FUNCT__,n[0],n[1],n[2],c[0],c[1],c[2],p[0],p[1]);
+      for (i=0,area=0; i<3; i++) {
+        nhat[i] = n[i];
+        area += nhat[i]*nhat[i];
+      }
+      area = PetscSqrtReal(area); /* area */
+      for (i=0; i<3; i++) nhat[i] /= area; /* |nhat|==1 */
+      /* PetscPrintf(PETSC_COMM_WORLD,"%s: side n = %9.2e %9.2e %9.2e. x = %9.2e %9.2e %9.2e.  nprime = (%9.2e %9.2e) area=%9.2e\n",__FUNCT__,n[0],n[1],n[2],c[0],c[1],c[2],p[0],p[1],area); */
       assert(PetscAbsReal(p[1])<1.e-8);
-      for (i=0; i<3; i++) xG->ru[i] = xI->ru[i]; /* slip */
-
+      for (i=0,vnhat=0; i<3; i++) vnhat += xI->ru[i]*nhat[i];
+      for (i=0; i<3; i++) xG->ru[i] = xI->ru[i] - 2*vnhat*nhat[i]; /* no slip */
+      /* B */
+      for (i=0; i<3; i++) xG->b[i]  = 0;  /* BC for magnetic field? */
     }
-    /* PetscPrintf(PETSC_COMM_WORLD,"%s: G = %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",__FUNCT__,xG->vals[0],xG->vals[1],xG->vals[2],xG->vals[3],xG->vals[4],xG->vals[5],xG->vals[6],xG->vals[7]); */
-  } else assert(0);
+  }
   PetscFunctionReturn(0);
 }
 
