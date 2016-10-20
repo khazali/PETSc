@@ -381,7 +381,7 @@ static PetscErrorCode MatMult_SeqAIJ_Inode(Mat A,Vec xx,Vec yy)
   const PetscScalar *x;
   const MatScalar   *v1,*v2,*v3,*v4,*v5;
   PetscErrorCode    ierr;
-  PetscInt          i1,i2,i,row,node_max,nsz,sz,nonzerorow=0;
+  PetscInt          i1,i2,n,i,row,node_max,nsz,sz,nonzerorow=0;
   const PetscInt    *idx,*ns,*ii;
 
 #if defined(PETSC_HAVE_PRAGMA_DISJOINT)
