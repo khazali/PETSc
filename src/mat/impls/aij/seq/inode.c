@@ -435,7 +435,9 @@ static PetscErrorCode MatMult_SeqAIJ_Inode(Mat A,Vec xx,Vec yy)
       sum1 = 0.;
       sum2 = 0.;
       v2   = v1 + sz;
-
+      #if defined(PETSC_HAVE_MEMALIGN)
+      #pragma vector aligned
+      #endif
       for (n=0;n<sz;n++) {
         tmp0 = x[*idx++];
         sum1 += *v1++ *tmp0;
@@ -2406,6 +2408,9 @@ PetscErrorCode MatSolve_SeqAIJ_Inode(Mat A,Vec bb,Vec xx)
       sum2 = b[r[row+1]];
       v2   = aa + ai[row+1];
 
+      #if defined(PETSC_HAVE_MEMALIGN)
+      #pragma vector aligned
+      #endif
       for (j=0;j<nz;j++) {
         tmp0  = tmps[vi[j]];
         sum1 -= v1[j]*tmp0;
@@ -2613,6 +2618,9 @@ PetscErrorCode MatSolve_SeqAIJ_Inode(Mat A,Vec bb,Vec xx)
       sum2 = tmp[row-1];
       v2   = aa + ad[row] + 1;
 
+      #if defined(PETSC_HAVE_MEMALIGN)
+      #pragma vector aligned
+      #endif
       for (j=0;j<nz;j++) {
         tmp0  = tmps[vi[j]];
         sum1 -= v1[j]*tmp0;

@@ -289,6 +289,9 @@ PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
     sum1 = 0;
     sum2 = 0;
     sum3 = 0;
+    #if defined(PETSC_HAVE_MEMALIGN)
+    #pragma vector aligned
+    #endif
     for (j=0;j<n;j++) {
       sum0 += xbase[j]*PetscConj(yy0[j]);
       sum1 += xbase[j]*PetscConj(yy1[j]);
@@ -693,6 +696,9 @@ PetscErrorCode VecMAXPY_Seq(Vec xin, PetscInt nv,const PetscScalar *alpha,Vec *y
     alpha2 = alpha[2];
     alpha3 = alpha[3];
     alpha += 4;
+    #if defined(PETSC_HAVE_MEMALIGN)
+    #pragma vector aligned
+    #endif
     PetscKernelAXPY4(xx,alpha0,alpha1,alpha2,alpha3,yy0,yy1,yy2,yy3,n);
     ierr = VecRestoreArrayRead(y[0],&yy0);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(y[1],&yy1);CHKERRQ(ierr);
