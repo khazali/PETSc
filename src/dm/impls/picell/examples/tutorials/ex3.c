@@ -2662,16 +2662,16 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   ierr = PetscFVSetNumComponents(fvm, ctx->ndof);CHKERRQ(ierr);
   ierr = PetscFVSetSpatialDimension(fvm, dim);CHKERRQ(ierr);assert(dim==3);
   ierr = PetscObjectSetName((PetscObject) fvm,"");CHKERRQ(ierr);
-  for (ctx->ndof=0,ctx->nfields=0; PhysicsFields_M[ctx->nfields].name; ctx->nfields++) {
-    for (i = 0; i < PhysicsFields_M[ctx->nfields].dof ; i++, ctx->ndof++) {
-      char compName[256]  = "Unknown";
-      if (PhysicsFields_M[ctx->nfields].dof>1) ierr = PetscSNPrintf(compName,sizeof(compName),"%s_%d",PhysicsFields_M[ctx->nfields].name,i+1);
-      else ierr = PetscSNPrintf(compName,sizeof(compName),"%s",PhysicsFields_M[ctx->nfields].name);
-      CHKERRQ(ierr);
-      ierr = PetscFVSetComponentName(fvm,ctx->ndof,compName);CHKERRQ(ierr); /* this does not work */
-      /* PetscPrintf(PETSC_COMM_WORLD,"%s: %D) , prefix=%s\n",__FUNCT__,ctx->ndof,compName); */
-    }
-  }
+  /* for (ctx->ndof=0,ctx->nfields=0; PhysicsFields_M[ctx->nfields].name; ctx->nfields++) { */
+  /*   for (i = 0; i < PhysicsFields_M[ctx->nfields].dof ; i++, ctx->ndof++) { */
+  /*     char compName[256]  = "Unknown"; */
+  /*     if (PhysicsFields_M[ctx->nfields].dof>1) ierr = PetscSNPrintf(compName,sizeof(compName),"%s_%d",PhysicsFields_M[ctx->nfields].name,i+1); */
+  /*     else ierr = PetscSNPrintf(compName,sizeof(compName),"%s",PhysicsFields_M[ctx->nfields].name); */
+  /*     CHKERRQ(ierr); */
+  /*     ierr = PetscFVSetComponentName(fvm,ctx->ndof,compName);CHKERRQ(ierr); /\* this does not work *\/ */
+  /*     /\* PetscPrintf(PETSC_COMM_WORLD,"%s: %D) , prefix=%s\n",__FUNCT__,ctx->ndof,compName); *\/ */
+  /*   } */
+  /* } */
   ierr = PetscFVSetFromOptions(fvm);CHKERRQ(ierr);
   /* FV is now structured with one field having all physics as components */
   ierr = DMGetDS(dmmhd, &probmhd);CHKERRQ(ierr);
@@ -2855,8 +2855,8 @@ int main(int argc, char **argv)
     PetscViewer       viewer = NULL;
     PetscBool         flg;
     PetscViewerFormat fmt;
-    ierr = DMViewFromOptions(dmmhd,NULL,"-initial_dm_view");CHKERRQ(ierr);
-    ierr = PetscOptionsGetViewer(ctx->wComm,"initial_","-vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
+    ierr = DMViewFromOptions(dmmhd,NULL,"-dm_initial_view");CHKERRQ(ierr);
+    ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-vec_initial_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
     if (flg) {
       ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
       ierr = VecView(X,viewer);CHKERRQ(ierr);
@@ -3010,7 +3010,7 @@ int main(int argc, char **argv)
     if (flg) {
       ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
       ierr = VecView(X,viewer);CHKERRQ(ierr);
-ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+      /* ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
       ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
     }
     ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
