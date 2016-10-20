@@ -632,7 +632,7 @@ typedef struct {
   domType       dom_type;
   runType       run_type;
   PetscBool     plot;
-  PetscBool     plot_amr_initial;
+  PetscBool     view_initial;
   PetscBool     use_amr;
   PetscReal     refine_tol;
   PetscReal     coarsen_tol;
@@ -1910,7 +1910,7 @@ static void MHDFlux(const MHDNode *vl, const MHDNode *vr, PetscReal area, X3Ctx 
   PetscReal alamdaL[2],alamdaR[2],rho,u,v,w,bx,by,bz,eint,press,bxsq,lamdaMax=0,lamdaMin=0,bysq,bzsq;
 
   PetscFunctionBeginUser;
-  /* if (vl->r != vl->r) exit(12); */
+  if (vl->r != vl->r) exit(12);
   for (i=0; i<2; i++) alamdaL[i] = 0;
   for (i=0; i<2; i++) alamdaR[i] = 0;
 
@@ -1955,7 +1955,7 @@ static void MHDFlux(const MHDNode *vl, const MHDNode *vr, PetscReal area, X3Ctx 
   finvr.p=(0.5*rho*(u*u+v*v+w*w)+eint+press+(bxsq+bysq+bzsq))*vr->ru[0]-bx*(u*bx+v*by+w*bz); /* only ru_x ? */
   for (i=0;i<ctx->ndof;i++) flux->vals[i] = area*(lamdaMax*finvl.vals[i]-lamdaMin*finvr.vals[i]+lamdaMin*lamdaMax*durl.vals[i])/(lamdaMax-lamdaMin);
   /* PetscPrintf(PETSC_COMM_WORLD,"%s: flux=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",__FUNCT__,flux->vals[0],flux->vals[1],flux->vals[2],flux->vals[3],flux->vals[4],flux->vals[5],flux->vals[6],flux->vals[7]); */
-  /* if (flux->r != flux->r) exit(13); */
+  if (flux->r != flux->r) exit(99);
   PetscFunctionReturnVoid();
 }
 
@@ -2024,7 +2024,7 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *
   PetscFunctionBeginUser;
   if (ctx->run_type == X3_TORUS_LINETIED) {
     /* Line-tied problems from 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
-    PetscReal       cphi,sphi,r,nhat[3],area,rhat,zbar,rtilda,phi,p[2],Rph[2][2],vnhat;
+    PetscReal       cphi,sphi,r,nhat[3],area,rhat,rtilda,phi,p[2],Rph[2][2],vnhat;
     const PetscReal a=ctx->grid.radius_minor,x=c[0]/a,y=c[1]/a,z=c[2],rmaj=ctx->grid.radius_major/a;
     if (xI->r<=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," bad density = %g",xI->r);
     /* P & rho, copy Ru & B */
@@ -2034,16 +2034,20 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *
     r = PetscSqrtReal(x*x + y*y);
     rtilda = r - rmaj;
     rhat = PetscSqrtReal(rtilda*rtilda + z*z);
-    phi = atan2(y,x);
-    zbar = r*phi; /* ~y */
-    cphi = x/r;   sphi = y/r;
+    if (ctx->grid.use_line_section) {
+      phi = 0;
+      cphi = 1;   sphi = 0; /* identity, no rotation of normal */
+    } else {
+      phi = atan2(y,x);
+      cphi = x/r;   sphi = y/r;
+    }
     Rph[0][0] = cphi; Rph[0][1] = sphi;
     Rph[1][0] =-sphi; Rph[1][1] = cphi;
     /* rotate (n_x, n_y) to plane */
     MATVEC2(Rph,n,p);
     if (PetscAbsReal(p[0])<1.e-8) { /* end plate */
-      /* PetscPrintf(PETSC_COMM_WORLD,"%s: end plate n = %9.2e %9.2e %9.2e x = %9.2e %9.2e %9.2e L=%9.2e zbar=%9.2e nprime = (%9.2e %9.2e) phi=%9.2e\n", */
-      /*             __FUNCT__,n[0],n[1],n[2],c[0],c[1],c[2],L,zbar,p[0],p[1], phi/M_PI); */
+/* PetscPrintf(PETSC_COMM_WORLD,"%s: end plate n = %9.2e %9.2e %9.2e x = %9.2e %9.2e %9.2e nprime = (%9.2e %9.2e) phi=%9.2e\n", */
+/*             __FUNCT__,n[0],n[1],n[2],c[0],c[1],c[2],p[0],p[1],phi/M_PI); */
       assert(ctx->grid.section_phi != 2); assert(phi==0 || fabs(phi/M_PI-ctx->grid.section_phi)<1.e-8);
       for (i=0; i<3; i++) xG->ru[i] = -xI->ru[i]; /* zero v */
       /* B */
@@ -2053,10 +2057,10 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *
         nhat[i] = n[i];
         area += nhat[i]*nhat[i];
       }
+/* PetscPrintf(PETSC_COMM_WORLD,"%s: side n = %9.2e %9.2e %9.2e. x = %9.2e %9.2e %9.2e.  nprime = (%9.2e %9.2e)\n",__FUNCT__,n[0],n[1],n[2],c[0],c[1],c[2],p[0],p[1]); */
+      assert(PetscAbsReal(p[1])<1.e-8);
       area = PetscSqrtReal(area); /* area */
       for (i=0; i<3; i++) nhat[i] /= area; /* |nhat|==1 */
-      /* PetscPrintf(PETSC_COMM_WORLD,"%s: side n = %9.2e %9.2e %9.2e. x = %9.2e %9.2e %9.2e.  nprime = (%9.2e %9.2e) area=%9.2e\n",__FUNCT__,n[0],n[1],n[2],c[0],c[1],c[2],p[0],p[1],area); */
-      assert(PetscAbsReal(p[1])<1.e-8);
       for (i=0,vnhat=0; i<3; i++) vnhat += xI->ru[i]*nhat[i];
       for (i=0; i<3; i++) xG->ru[i] = xI->ru[i] - 2*vnhat*nhat[i]; /* no slip */
       /* B */
@@ -2089,9 +2093,14 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
     rtilda = r - rmaj;
     rhat = PetscSqrtReal(rtilda*rtilda + z*z);
     cth  = rtilda/rhat; sth = z/rhat;
-    phi = atan2(y,x);
-    zbar = r*phi; /* ~y */
-    cphi = x/r;   sphi = y/r;
+    if (ctx->grid.use_line_section) {
+      zbar = y;
+      cphi = 1;   sphi = 0; /* identity, no rotation */
+    } else {
+      phi = atan2(y,x);
+      zbar = r*phi - L/2; /* ~y */
+      cphi = x/r;   sphi = y/r;
+    }
     Rth[0][0] = cth; Rth[0][1] =-sth;
     Rth[1][0] = sth; Rth[1][1] = cth;
     Rph[0][0] = cphi; Rph[0][1] =-sphi;
@@ -2148,7 +2157,6 @@ PetscErrorCode SetInitialCondition(DM dm, Vec X, X3Ctx *ctx)
   func[0] = InitialSolutionFunctional;
   ctxa[0] = (void *) ctx;
   ierr = DMProjectFunction(dm,0.0,func,ctxa,INSERT_ALL_VALUES,X);CHKERRQ(ierr);
-  /* ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
   PetscFunctionReturn(0);
 }
 
@@ -2358,8 +2366,8 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   ierr = PetscOptionsInt("-debug", "The debugging level", "ex3.c", s_debug, &s_debug, NULL);CHKERRQ(ierr);
   ctx->plot = PETSC_TRUE;
   ierr = PetscOptionsBool("-plot", "Write plot files", "ex3.c", ctx->plot, &ctx->plot, NULL);CHKERRQ(ierr);
-  ctx->plot_amr_initial = PETSC_TRUE;
-  ierr = PetscOptionsBool("-plot_amr_initial", "Write plot files for initial AMR grid", "ex3.c", ctx->plot_amr_initial, &ctx->plot_amr_initial, NULL);CHKERRQ(ierr);
+  ctx->view_initial = PETSC_FALSE;
+  ierr = PetscOptionsBool("-view_initial", "Write plot files for initial AMR grid", "ex3.c", ctx->view_initial, &ctx->view_initial, NULL);CHKERRQ(ierr);
   ctx->use_amr = PETSC_FALSE;
   ierr = PetscOptionsBool("-use_amr", "Use adaptive mesh refinement", "ex3.c", ctx->use_amr, &ctx->use_amr, NULL);CHKERRQ(ierr);
   ctx->refine_tol = PETSC_MAX_REAL;
@@ -2524,7 +2532,7 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   }
   /* M H D */
   {
-    ctx->gamma = 1.; /* 66666666666666; */
+    ctx->gamma = 1.66666666666666;
     ctx->cfl = 0.5;
     ierr = PetscOptionsReal("-gamma","Heat capacity ratio","",ctx->gamma,&ctx->gamma,NULL);CHKERRQ(ierr);
     ierr = PetscOptionsReal("-cfl", "CFL factor", "ex3.c", ctx->cfl, &ctx->cfl, NULL);CHKERRQ(ierr);
@@ -2843,11 +2851,11 @@ int main(int argc, char **argv)
   ierr = DMCreateGlobalVector(dmmhd, &X);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) X, "u");CHKERRQ(ierr);
   ierr = SetInitialCondition(dmmhd, X, ctx);CHKERRQ(ierr);
-  { /* plot initial state */
+  if (ctx->view_initial) { /* plot initial state */
     PetscViewer       viewer = NULL;
     PetscBool         flg;
     PetscViewerFormat fmt;
-    ierr = DMViewFromOptions(dmmhd,NULL,"-dm_initial_view");CHKERRQ(ierr);
+    ierr = DMViewFromOptions(dmmhd,NULL,"-initial_dm_view");CHKERRQ(ierr);
     ierr = PetscOptionsGetViewer(ctx->wComm,"initial_","-vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
     if (flg) {
       ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
@@ -2869,7 +2877,7 @@ int main(int argc, char **argv)
     for (adaptIter = 0;;adaptIter++) {
       PetscLogDouble bytes;
       TS             tsNew = NULL;
-      if (ctx->plot_amr_initial) {
+      if (ctx->view_initial) {
         PetscViewer viewer;
         char        buf[256];
         PetscBool   isHDF5;
@@ -2978,7 +2986,6 @@ int main(int argc, char **argv)
   }
   ierr = TSGetConvergedReason(ts,&reason);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"%s at time %g after %D steps\n",TSConvergedReasons[reason],(double)ftime,nsteps);CHKERRQ(ierr);
-
   if (ctx->plot) {
     PetscViewer       viewer = NULL;
     PetscBool         flg;
@@ -3003,6 +3010,7 @@ int main(int argc, char **argv)
     if (flg) {
       ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
       ierr = VecView(X,viewer);CHKERRQ(ierr);
+ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
       ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
     }
     ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
