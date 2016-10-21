@@ -54,9 +54,15 @@ makefileMap["TESTEXAMPLES_YAML"]="requires: yaml"
 makefileMap["TESTEXAMPLES_CHOMBO"]="requires: chombo"
 makefileMap["TESTEXAMPLES_TRILINOS"]="requires: trilinos"
 
+#
+#  Map of "string" in arguments to package requirements; i.e.,
+#    argMap[patternString]=packageRequired
+#
 argMap={}
 #packages="superlu superlu_dist hypre strumpack elemental cuda cusp mkl_pardiso moab threadcomm"
 # Figure out superlu later
+
 packages="superlu_dist hypre strumpack elemental cuda cusp mkl_pardiso moab threadcomm"
 for pkg in packages.split():
   argMap[pkg]="requires: "+pkg
+argMap['DATAFILESPATH']='requires: datafilespath'

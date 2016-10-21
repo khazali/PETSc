@@ -158,6 +158,23 @@ class convertExamples(PETScExamples):
         abstract['args']=args.strip()
 
     abstract['abstracted']=True
+
+    # Before writing out the abstracted info
+    # do a final update of requirements based on arguments
+    import convertExamplesUtils
+    argMap=convertExamplesUtils.argMap
+    if abstract.has_key('args'):
+      if abstract.has_key('requires'):
+        allRqs=abstract['requires']
+      else:
+        allRqs=[]
+      for matchStr in argMap:
+        if matchStr in abstract['args']:
+          rqList=argMap[matchStr].split("requires:")[1].strip().split()
+          allRqs=allRqs+rqList
+      abstract['requires']=list(set(allRqs))  # Uniquify the requirements
+
+
     return abstract
 
   def insertScriptIntoSrc(self,runexName,basedir,subDict):
@@ -178,22 +195,6 @@ class convertExamples(PETScExamples):
       subDict['nonUsedTests'].append(runexName)
       os.chdir(startdir)
       return True
-
-    # Before writing out the abstracted info
-    # do a final update of requirements based on arguments
-    import convertExamplesUtils
-    argMap=convertExamplesUtils.argMap
-    if abstract['abstracted']:
-      if abstract.has_key('args'):
-        if abstract.has_key('requires'):
-          allRqs=abstract['requires']
-        else:
-          allRqs=[]
-        for matchStr in argMap:
-          if matchStr in abstract['args']:
-            rqList=argMap[matchStr].split("requires:")[1].strip().split()
-            allRqs=allRqs+rqList
-        abstract['requires']=list(set(allRqs))  # Uniquify the requirements
 
     # Get the string to insert
     indent="  "
