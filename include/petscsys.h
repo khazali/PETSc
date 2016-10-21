@@ -2550,7 +2550,7 @@ $        names like PetscErrorCode, PetscInt etc. again for those you must use i
    We recommend either 2 or 3. Approaches 2 and 3 provide type checking for most PETSc function calls; 4 has type checking
 for only a few PETSc functions.
 
-   Fortran type checking with interfaces is strick, this means you cannot pass a scalar value when an array value
+   Fortran type checking with interfaces is strict, this means you cannot pass a scalar value when an array value
 is expected (even though it is legal Fortran). For example when setting a single value in a matrix with MatSetValues()
 you cannot have something like
 $      PetscInt row,col
@@ -2829,7 +2829,7 @@ PETSC_EXTERN const char *const PetscSubcommTypes[];
 
    Notes: After a call to PetscSubcommSetType(), PetscSubcommSetTypeGeneral(), or PetscSubcommSetFromOptions() one may call
 $     PetscSubcommChild() returns the associated subcommunicator on this process
-$     PetscSubcommContiguousParent() returns a parent communitor but with all child of the same subcommunicator having contiquous rank
+$     PetscSubcommContiguousParent() returns a parent communitor but with all child of the same subcommunicator having contiguous rank
 
    Sample Usage:
        PetscSubcommCreate()
@@ -2844,7 +2844,7 @@ $     PetscSubcommContiguousParent() returns a parent communitor but with all ch
 
    Notes:
 $   PETSC_SUBCOMM_GENERAL - similar to MPI_Comm_split() each process sets the new communicator (color) they will belong to and the order within that communicator
-$   PETSC_SUBCOMM_CONTIGUOUS - each new communicator contains a set of process with contiquous ranks in the original MPI communicator
+$   PETSC_SUBCOMM_CONTIGUOUS - each new communicator contains a set of process with contiguous ranks in the original MPI communicator
 $   PETSC_SUBCOMM_INTERLACED - each new communictor contains a set of processes equally far apart in rank from the others in that new communicator
 
    Examaple: Consider a communicator with six processes split into 3 subcommunicators.
