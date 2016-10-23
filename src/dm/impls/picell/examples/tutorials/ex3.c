@@ -631,8 +631,8 @@ typedef struct {
   PetscInt      chunksize;
   domType       dom_type;
   runType       run_type;
-  PetscBool     plot;
-  PetscBool     view_initial;
+  PetscBool     view_sol;
+  PetscBool     view_initial_sol;
   PetscBool     use_amr;
   PetscReal     refine_tol;
   PetscReal     coarsen_tol;
@@ -1451,7 +1451,7 @@ static PetscErrorCode processParticles( X3Ctx *ctx, const PetscReal dt, X3PSendL
                             istep+1,irk<0 ? "processed" : "pushed", origNlocal, rb1[0], rb1[3], 100.*(double)rb1[1]/(double)rb1[0], rb1[2], ctx->tablecount,(double)rb2[3]/((double)rb1[3]/(double)ctx->npe));
     if (rb1[0] != rb1[3]) SETERRQ2(PETSC_COMM_WORLD,PETSC_ERR_USER,"Number of partilces %D --> %D",rb1[0],rb1[3]);
 #ifdef H5PART
-    if (irk>=0 && ctx->plot) {
+    if (irk>=0 && ctx->view_sol) {
       for (isp=ctx->use_electrons ? 0 : 1 ; isp <= X3_NION ; isp++ ) {
         char  fname1[256],fname2[256];
         X3PListPos pos1,pos2;
@@ -2364,10 +2364,10 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   /* general options */
   s_debug = 0;
   ierr = PetscOptionsInt("-debug", "The debugging level", "ex3.c", s_debug, &s_debug, NULL);CHKERRQ(ierr);
-  ctx->plot = PETSC_TRUE;
-  ierr = PetscOptionsBool("-plot", "Write plot files", "ex3.c", ctx->plot, &ctx->plot, NULL);CHKERRQ(ierr);
-  ctx->view_initial = PETSC_FALSE;
-  ierr = PetscOptionsBool("-view_initial", "Write plot files for initial AMR grid", "ex3.c", ctx->view_initial, &ctx->view_initial, NULL);CHKERRQ(ierr);
+  ctx->view_sol = PETSC_TRUE;
+  ierr = PetscOptionsBool("-view_sol", "Write plot files", "ex3.c", ctx->view_sol, &ctx->view_sol, NULL);CHKERRQ(ierr);
+  ctx->view_initial_sol = PETSC_FALSE;
+  ierr = PetscOptionsBool("-view_initial_sol", "Write plot files for initial AMR grid", "ex3.c", ctx->view_initial_sol, &ctx->view_initial_sol, NULL);CHKERRQ(ierr);
   ctx->use_amr = PETSC_FALSE;
   ierr = PetscOptionsBool("-use_amr", "Use adaptive mesh refinement", "ex3.c", ctx->use_amr, &ctx->use_amr, NULL);CHKERRQ(ierr);
   ctx->refine_tol = PETSC_MAX_REAL;
@@ -2697,7 +2697,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   }
   if (dmpi->debug>2) {
     /* ierr = DMView(dmpi->dm,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
-    ierr = DMView(dmmhd,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    /* ierr = DMView(dmmhd,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
   }
   { /* convert to plex */
     char       convType[256];
@@ -2713,31 +2713,34 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
       if (dm2) {
         ierr = DMDestroy(&dmpi->dm);CHKERRQ(ierr);
         dmpi->dm = dm2;
-        ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
-        ierr = DMIsForest(dmpi->dm,&isForest);CHKERRQ(ierr);
-        if (isForest && ctx->dom_type == X3_TORUS) {
-          ierr = DMForestSetBaseCoordinateMapping(dmpi->dm,GeometryPICellTorus,ctx);CHKERRQ(ierr);
-        } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Converted to non Forest?");
       } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Convert failed?");
     }
-    if ( flg ) {
+    if (ctx->num_particles_total) {
+      ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
+      ierr = DMIsForest(dmpi->dm,&isForest);CHKERRQ(ierr);
+      if (isForest && ctx->dom_type == X3_TORUS) {
+        ierr = DMForestSetBaseCoordinateMapping(dmpi->dm,GeometryPICellTorus,ctx);CHKERRQ(ierr);
+      }
+    }
+    /* call set from option - refine */
+    if (flg) {
       ierr = PetscObjectGetOptionsPrefix((PetscObject)dmmhd,&prefix);CHKERRQ(ierr);
       PetscPrintf(PETSC_COMM_WORLD,"%s: Converting M H D to Forest, prefix=%s\n",__FUNCT__,prefix);
       ierr = DMConvert(dmmhd,convType,&dm2);CHKERRQ(ierr);
       if (dm2) {
         ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
         dmmhd = dm2;
-        ierr = DMSetFromOptions(dmmhd);CHKERRQ(ierr);
-        ierr = DMIsForest(dmmhd,&isForest);CHKERRQ(ierr);
-        if (isForest && ctx->dom_type == X3_TORUS) {
-          ierr = DMForestSetBaseCoordinateMapping(dmmhd,GeometryPICellTorus,ctx);CHKERRQ(ierr);
-        } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Converted to non Forest?");
       } else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Convert failed?");
+    }
+    ierr = DMSetFromOptions(dmmhd);CHKERRQ(ierr);
+    ierr = DMIsForest(dmmhd,&isForest);CHKERRQ(ierr);
+    if (isForest && ctx->dom_type == X3_TORUS) {
+      ierr = DMForestSetBaseCoordinateMapping(dmmhd,GeometryPICellTorus,ctx);CHKERRQ(ierr);
     }
   }
   ierr = PetscObjectSetName((PetscObject) dmmhd, "mhd");CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dmpi->dm, "poisson");CHKERRQ(ierr);
-  { /* print */
+  if (dmpi->debug>10) { /* print */
     PetscInt n,cEnd,cEndM,bs,bs2,nloc;
     Vec X;
     ierr = DMCreateGlobalVector(dmmhd, &X);CHKERRQ(ierr);
@@ -2756,14 +2759,37 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
       s_fluxtubeelem = -1;
     }
     ierr = DMGetBlockSize(dmmhd,&bs2);CHKERRQ(ierr);
-    if (dmpi->debug>0) PetscPrintf( ctx->wComm,"[%D] %D global M H D equations, %D local, block size %D,%D, on %D processors, %D local cells, %D Poisson cells\n",
-                                    ctx->rank,n,nloc,bs,bs2,ctx->npe,cEndM,cEnd);
+    PetscPrintf( ctx->wComm,"[%D] %D global M H D equations, %D local, block size %D,%D, on %D processors, %D local cells, %D Poisson cells\n",
+                 ctx->rank,n,nloc,bs,bs2,ctx->npe,cEndM,cEnd);
   }
   if (dmpi->debug>2) {
-    ierr = DMView(dmmhd,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    /* ierr = DMView(dmmhd,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
   }
   *admmhd = dmmhd;
   *afvm = fvm;
+  ierr = DMSetUp(dmmhd);CHKERRQ(ierr);
+  ierr = DMSetUp(dmpi->dm);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "viewDMVec"
+static PetscErrorCode viewDMVec(DM dm, Vec X, Vec Y, const char prefix[])
+{
+  PetscErrorCode    ierr;
+  PetscViewer       viewer = NULL;
+  PetscBool         flg;
+  PetscViewerFormat fmt;
+  PetscFunctionBegin;
+  ierr = DMViewFromOptions(dm,NULL,"-dm_view");CHKERRQ(ierr);
+  ierr = PetscOptionsGetViewer(PetscObjectComm((PetscObject)dm),prefix,"-vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
+  if (flg) {
+    ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
+    ierr = VecView(X,viewer);CHKERRQ(ierr);
+    if (Y) ierr = VecView(Y,viewer);CHKERRQ(ierr);
+    ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
+  }
+  ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -2807,7 +2833,7 @@ int main(int argc, char **argv)
   /* setup particles, if used */
   ierr = createParticles(ctx);CHKERRQ(ierr);
 
-  if (ctx->plot && ctx->num_particles_total) { /* plot initial particle distribution (flux tubes) */
+  if (ctx->view_sol && ctx->num_particles_total) { /* plot initial particle distribution (flux tubes) */
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
@@ -2851,19 +2877,6 @@ int main(int argc, char **argv)
   ierr = DMCreateGlobalVector(dmmhd, &X);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) X, "u");CHKERRQ(ierr);
   ierr = SetInitialCondition(dmmhd, X, ctx);CHKERRQ(ierr);
-  if (ctx->view_initial) { /* plot initial state */
-    PetscViewer       viewer = NULL;
-    PetscBool         flg;
-    PetscViewerFormat fmt;
-    ierr = DMViewFromOptions(dmmhd,NULL,"-dm_initial_view");CHKERRQ(ierr);
-    ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-vec_initial_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
-    if (flg) {
-      ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
-      ierr = VecView(X,viewer);CHKERRQ(ierr);
-      ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
-    }
-    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-  }
   if (ctx->use_amr) {
     PetscInt adaptIter;
     /* use no limiting when reconstructing gradients for adaptivity */
@@ -2877,7 +2890,7 @@ int main(int argc, char **argv)
     for (adaptIter = 0;;adaptIter++) {
       PetscLogDouble bytes;
       TS             tsNew = NULL;
-      if (ctx->view_initial) {
+      if (ctx->view_initial_sol) {
         PetscViewer viewer;
         char        buf[256];
         PetscBool   isHDF5;
@@ -2919,12 +2932,13 @@ int main(int argc, char **argv)
     }
     /* restore original limiter */
     ierr = PetscFVSetLimiter(fvm,limiter);CHKERRQ(ierr);
+  }  else if (ctx->view_initial_sol) { /* plot initial state */
+    ierr = viewDMVec(dmmhd,X,NULL,NULL);CHKERRQ(ierr);
   }
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventEnd(ctx->events[0],0,0,0,0);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
 #endif
-
   /* collect max maxspeed from all processes */
   ierr = DMPlexTSGetGeometryFVM(dmmhd, NULL, NULL, &minRadius);CHKERRQ(ierr);
   ierr = MPI_Allreduce(&ctx->maxspeed,&maxspeed,1,MPIU_REAL,MPI_MAX,ctx->wComm);CHKERRQ(ierr);
@@ -2986,34 +3000,14 @@ int main(int argc, char **argv)
   }
   ierr = TSGetConvergedReason(ts,&reason);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"%s at time %g after %D steps\n",TSConvergedReasons[reason],(double)ftime,nsteps);CHKERRQ(ierr);
-  if (ctx->plot) {
-    PetscViewer       viewer = NULL;
-    PetscBool         flg;
-    PetscViewerFormat fmt;
-    DM_PICell         *dmpi = (DM_PICell *) ctx->dmpic->data;
+  if (ctx->view_sol) {
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
     if (ctx->num_particles_total) {
-      ierr = DMViewFromOptions(dmpi->dm,NULL,"-dm_view");CHKERRQ(ierr);
-      ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
-      if (flg) {
-        ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
-        ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);
-        ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
-        ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
-      }
-      ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+      ierr = viewDMVec(dmpi->dm,dmpi->phi,dmpi->rho,"pic_");CHKERRQ(ierr);
     }
-    ierr = DMViewFromOptions(dmmhd,NULL,"-dm_view");CHKERRQ(ierr);
-    ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
-    if (flg) {
-      ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
-      ierr = VecView(X,viewer);CHKERRQ(ierr);
-      /* ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
-      ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
-    }
-    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+    ierr = viewDMVec(dmmhd,X,NULL,NULL);CHKERRQ(ierr);
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventEnd(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
