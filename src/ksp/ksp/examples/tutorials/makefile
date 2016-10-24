@@ -9,7 +9,7 @@ EXAMPLESC        = ex1.c ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c ex9.c \
                 ex25.c ex27.c ex28.c ex29.c ex30.c ex31.c ex32.c ex34.c \
                 ex41.c ex42.c ex43.c \
                 ex45.c ex46.c  ex49.c ex50.c ex51.c ex52.c ex53.c \
-                ex54.c ex55.c ex56.c ex58.c ex62.c ex63.cxx ex64.c ex65.c
+                ex54.c ex55.c ex56.c ex58.c ex62.c ex63.cxx ex64.c ex65.c ex66.c ex67.c
 EXAMPLESF        = ex1f.F ex2f.F ex6f.F ex11f.F ex13f90.F90 ex14f.F ex15f.F ex21f.F ex22f.F ex44f.F90 ex45f.F \
                    ex52f.F ex54f.F ex61f.F90
 MANSEC           = KSP
@@ -315,6 +315,13 @@ ex65: ex65.o  chkopts
 	-${CLINKER} -o ex65 ex65.o  ${PETSC_KSP_LIB}
 	${RM} ex65.o
 
+ex66: ex66.o  chkopts
+	-${CLINKER} -o ex66 ex66.o  ${PETSC_KSP_LIB}
+	${RM} ex66.o
+
+ex67: ex67.o  chkopts
+	-${CLINKER} -o ex67 ex67.o  ${PETSC_KSP_LIB}
+	${RM} ex67.o
 #----------------------------------------------------------------------------
 runex1:
 	-@${MPIEXEC} -n 1 ./ex1 -ksp_monitor_short -ksp_gmres_cgs_refinement_type refine_always > ex1_1.tmp 2>&1;	  \
@@ -1287,12 +1294,12 @@ runex49_8:
 	   ${RM} -f ex49_8.tmp
 
 runex50:
-	-@${MPIEXEC} -n 1 ./ex50 -pc_type mg -pc_mg_type full -ksp_type fgmres -ksp_monitor_short -da_refine 1 -mg_levels_pc_factor_shift_type nonzero -mg_coarse_pc_factor_shift_type nonzero -ksp_view  > ex50.tmp 2>&1;         \
+	-@${MPIEXEC} -n 1 ./ex50 -pc_type mg -pc_mg_type full -ksp_type cg -ksp_monitor_short -da_refine 3  -mg_coarse_pc_type svd -ksp_view  > ex50.tmp 2>&1;         \
         ${DIFF} output/ex50.out ex50.tmp || printf "${PWD}\nPossible problem with ex50, diffs above\n=========================================\n"; \
         ${RM} -f ex50.tmp
 
 runex50_2:
-	-@${MPIEXEC} -n 2 ./ex50 -pc_type mg -pc_mg_type full -ksp_type fgmres -ksp_monitor_short -da_refine 1 -mg_levels_sub_pc_factor_shift_type nonzero -mg_coarse_pc_type redundant -mg_coarse_redundant_pc_type svd -ksp_view > ex50_2.tmp 2>&1;         \
+	-@${MPIEXEC} -n 4 ./ex50 -pc_type mg -pc_mg_type full -ksp_type cg -ksp_monitor_short -da_refine 3  -mg_coarse_pc_type redundant -mg_coarse_redundant_pc_type svd -ksp_view > ex50_2.tmp 2>&1;         \
         ${DIFF} output/ex50_2.out ex50_2.tmp || printf "${PWD}\nPossible problem with ex50_2, diffs above\n=========================================\n"; \
         ${RM} -f ex50_2.tmp
 
@@ -1618,8 +1625,35 @@ runex65:
 	   else printf "${PWD}\nPossible problem with with ex65, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex65.tmp
 
+runex66:
+	-@${MPIEXEC} -n 1 ./ex66 -pc_type mg -pc_mg_type full  -ksp_monitor_short -da_refine 3  -mg_coarse_pc_type svd -ksp_view  > ex66.tmp 2>&1;         \
+        ${DIFF} output/ex66_1.out ex66.tmp || printf "${PWD}\nPossible problem with ex66, diffs above\n=========================================\n"; \
+        ${RM} -f ex66.tmp
 
+runex66_2:
+	-@${MPIEXEC} -n 4 ./ex66 -pc_type mg -pc_mg_type full  -ksp_monitor_short -da_refine 3  -mg_coarse_pc_type redundant -mg_coarse_redundant_pc_type svd -ksp_view > ex66_2.tmp 2>&1;   \
+        ${DIFF} output/ex66_2.out ex66_2.tmp || printf "${PWD}\nPossible problem with ex66_2, diffs above\n=========================================\n"; \
+        ${RM} -f ex66_2.tmp
 
+runex67_symmetric_left:
+	-@${MPIEXEC} -n 1 ./ex67 -ksp_view -ksp_converged_reason -pc_type sor -mat_no_inode -ksp_monitor_true_residual  -ksp_rtol 1.e-14 -ksp_max_it 12 -ksp_pc_side left  > ex67.tmp 2>&1;  \
+        ${DIFF} output/ex67_symmetric_left.out ex67.tmp || printf "${PWD}\nPossible problem with ex67_symmetric_left, diffs above\n=========================================\n"; \
+        ${RM} -f ex67.tmp
+
+runex67_symmetric_right:
+	-@${MPIEXEC} -n 1 ./ex67 -ksp_view -ksp_converged_reason -pc_type sor -mat_no_inode -ksp_monitor_true_residual  -ksp_rtol 1.e-14 -ksp_max_it 12 -ksp_pc_side right  > ex67.tmp 2>&1;  \
+        ${DIFF} output/ex67_symmetric_right.out ex67.tmp || printf "${PWD}\nPossible problem with ex67_symmetric_right, diffs above\n=========================================\n"; \
+        ${RM} -f ex67.tmp
+
+runex67_nonsymmetric_left:
+	-@${MPIEXEC} -n 1 ./ex67 -symmetric false -ksp_view -ksp_converged_reason -pc_type jacobi -mat_no_inode -ksp_monitor_true_residual  -ksp_rtol 1.e-14 -ksp_max_it 12 -ksp_pc_side left  > ex67.tmp 2>&1;  \
+        ${DIFF} output/ex67_nonsymmetric_left.out ex67.tmp || printf "${PWD}\nPossible problem with ex67_nonsymmetric_left, diffs above\n=========================================\n"; \
+        ${RM} -f ex67.tmp
+
+runex67_nonsymmetric_right:
+	-@${MPIEXEC} -n 1 ./ex67 -symmetric false -ksp_view -ksp_converged_reason -pc_type jacobi -mat_no_inode -ksp_monitor_true_residual  -ksp_rtol 1.e-14 -ksp_max_it 12 -ksp_pc_side right  > ex67.tmp 2>&1;  \
+        ${DIFF} output/ex67_nonsymmetric_right.out ex67.tmp || printf "${PWD}\nPossible problem with ex67_nonsymmetric_right, diffs above\n=========================================\n"; \
+        ${RM} -f ex67.tmp
 
 TESTEXAMPLES_C		       = ex1.PETSc runex1 runex1_2 runex1_3 ex1.rm ex2.PETSc runex2 runex2_2 runex2_3 \
                                  runex2_4 runex2_bjacobi runex2_bjacobi_2 runex2_bjacobi_3  \
@@ -1643,14 +1677,15 @@ TESTEXAMPLES_C		       = ex1.PETSc runex1 runex1_2 runex1_3 ex1.rm ex2.PETSc run
                                  ex58.PETSc runex58 runex58_baij runex58_sbaij ex58.rm \
                                  ex60.PETSc runex60 runex60_2 runex60_3 ex60.rm \
                                  ex62.PETSc runex62_2D_1 runex62_2D_2 runex62_2D_3 ex62.rm ex65.PETSc runex65 ex65.rm
-TESTEXAMPLES_C_NOTSINGLE       = ex18.PETSc runex18_bas ex18.rm ex25.PETSc runex25 ex25.rm ex43.PETSc runex43_3 ex43.rm
+TESTEXAMPLES_C_NOTSINGLE       = ex18.PETSc runex18_bas ex18.rm ex25.PETSc runex25 ex25.rm ex43.PETSc runex43_3 ex43.rm ex67.PETSc printdot \
+                                 runex67_symmetric_left runex67_symmetric_right runex67_nonsymmetric_left runex67_nonsymmetric_right ex67.rm
 TESTEXAMPLES_C_NOCOMPLEX       = ex54.PETSc ex54.rm ex10.PETSc runex10 ex10.rm
 TESTEXAMPLES_C_NOCOMPLEX_NOTSINGLE = ex23.PETSc runex23_3 ex23.rm  ex15.PETSc runex15_tsirm ex15.rm \
                                  ex34.PETSc runex34 runex34_2 ex34.rm \
                                  ex43.PETSc runex43_4 runex43_5 ex43.rm \
                                  ex49.PETSc runex49_6 runex49_7 runex49_8 ex49.rm \
-                                 ex50.PETSc runex50_3 ex50.rm \
-                                 ex60.PETSc runex60_4 runex60_5 runex60_6 runex60_7 runex60_8 runex60_9 ex60.rm
+                                 ex50.PETSc runex50 runex50_2 runex50_3 ex50.rm printdot \
+                                 ex60.PETSc runex60_4 runex60_5 runex60_6 runex60_7 runex60_8 runex60_9 ex60.rm ex66.PETSc runex66 runex66_2 ex66.rm
 TESTEXAMPLES_C_X	       = ex2.PETSc runex2_5 ex2.rm ex5.PETSc runex5_5 ex5.rm ex8.PETSc ex8.rm ex28.PETSc runex28 ex28.rm
 TESTEXAMPLES_FORTRAN	       = ex1f.PETSc runex1f ex1f.rm ex2f.PETSc runex2f runex2f_2 ex2f.rm ex6f.PETSc ex6f.rm \
                                  printdot ex15f.PETSc runex15f ex15f.rm \

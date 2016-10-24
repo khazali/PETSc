@@ -14,7 +14,7 @@ EXAMPLESC	 = ex1.c ex2.c ex3.c  ex5.c ex5s.c ex9.c \
                 ex25.c ex28.c ex30.c ex33.c \
                 ex35.c ex42.c ex46.c ex48.c \
                 ex56.c ex58.c ex59.c \
-                ex62.c ex70.c ex77.c\
+                ex62.c ex70.c ex77.c ex78\
                 ex47cu.cu
 EXAMPLESF	 = ex1f.F ex5f.F ex5f90.F90 ex5f90t.F90 ex5fs.F ex40f90.F90 ex73f90t.F90
 EXAMPLESCH	 =
@@ -236,6 +236,9 @@ ex73f90t: ex73f90t.o  chkopts
 ex77: ex77.o  chkopts
 	-${CLINKER} -o ex77 ex77.o ${PETSC_SNES_LIB}
 	${RM} ex77.o
+ex78: ex78.o  chkopts
+	-${CLINKER} -o ex78 ex78.o ${PETSC_SNES_LIB}
+	${RM} ex78.o
 #-------------------------------------------------------------------------
 runex1:
 	-@${MPIEXEC} -n 1 ./ex1 -ksp_gmres_cgs_refinement_type refine_always -snes_monitor_short > ex1_1.tmp 2>&1;   \
@@ -667,6 +670,16 @@ runex19:
 	   if (${DIFF} output/ex19_1.out ex19_1.tmp) then true; \
 	   else  printf "${PWD}\nPossible problem with ex19, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex19_1.tmp
+runex19_hypre:
+	-@${MPIEXEC} -n 2 ./ex19 -da_refine 3 -snes_monitor_short -pc_type hypre > ex19_1.tmp 2>&1; \
+	   if (${DIFF} output/ex19_hypre.out ex19_1.tmp) then true; \
+	   else  printf "${PWD}\nPossible problem with ex19_hypre, diffs above\n=========================================\n"; fi; \
+	   ${RM} -f ex19_1.tmp
+runex19_ml:
+	-@${MPIEXEC} -n 2 ./ex19 -da_refine 3 -snes_monitor_short -pc_type ml > ex19_1.tmp 2>&1; \
+	   if (${DIFF} output/ex19_ml.out ex19_1.tmp) then true; \
+	   else  printf "${PWD}\nPossible problem with ex19_ml, diffs above\n=========================================\n"; fi; \
+	   ${RM} -f ex19_1.tmp
 runex19_ibcgs:
 	-@${MPIEXEC} -n 2 ./ex19 -ksp_type ibcgs -ksp_monitor_short -da_refine 2  -snes_view > ex19_ibcgs.tmp 2>&1; \
 	   if (${DIFF} output/ex19_ibcgs.out ex19_ibcgs.tmp) then true; \
@@ -1019,15 +1032,14 @@ testex19: ex19.PETSc
 	   else echo "Possible error running C/C++ src/snes/examples/tutorials/ex19 with 1 MPI process"; \
            echo "See http://www.mcs.anl.gov/petsc/documentation/faq.html";\
            cat ex19_1.tmp; fi; \
-	if [ "${MPIEXEC}" != "${PETSC_DIR}/bin/petsc-mpiexec.uni" ]; then \
+	if [ ! "${MPI_IS_MPIUNI}" ]; then \
            ${MPIEXEC} -n 2 ./ex19 -da_refine 3 -pc_type mg -ksp_type fgmres  > ex19_1.tmp 2>&1; \
 	   if (${DIFF} output/ex19_1.testout ex19_1.tmp > /dev/null 2>&1) then \
            echo "C/C++ example src/snes/examples/tutorials/ex19 run successfully with 2 MPI processes"; \
 	   else echo "Possible error running C/C++ src/snes/examples/tutorials/ex19 with 2 MPI processes"; \
            echo "See http://www.mcs.anl.gov/petsc/documentation/faq.html";\
            cat ex19_1.tmp; fi; fi; \
-        ${RM} -f ex19_1.tmp; \
-        ${MAKE} PETSC_ARCH=${PETSC_ARCH} PETSC_DIR=${PETSC_DIR} ex19.rm ; fi
+        ${RM} -f ex19_1.tmp; fi
 
 runex19_cusp:
 	-@${MPIEXEC} -n 1 ./ex19 -dm_vec_type cusp -dm_mat_type aijcusp -pc_type none -ksp_type fgmres -snes_monitor_short -snes_rtol 1.e-5 > ex19.tmp 2>&1; \
@@ -1281,6 +1293,12 @@ runex73f90t:
 	   ${DIFF} output/ex73f90t_1.out ex73f90t.tmp || printf "${PWD}\nPossible problem with ex73f90t, diffs above\n=========================================\n"; \
 	   ${RM} -f ex73f90t.tmp
 
+runex78:
+	-@${MPIEXEC} -n 1 ./ex78  -snes_monitor_short -ksp_monitor_short -pc_type sor -snes_converged_reason  -da_refine 3 > ex78_1.tmp 2>&1; \
+	   if (${DIFF} output/ex78_1.out ex78_1.tmp) then true; \
+           else  printf "${PWD}\nPossible problem with ex78_1, diffs above\n=========================================\n"; fi; \
+           ${RM} -f ex78_1.tmp
+
 # This is way too slow  ex30.PETSc runex30 ex30.rm
 TESTEXAMPLES_C		       =  ex2.PETSc runex2  runex2_3 ex2.rm ex3.PETSc runex3 \
                                  runex3_2 runex3_3 runex3_4 ex3.rm  ex5.PETSc runex5  \
@@ -1293,7 +1311,7 @@ TESTEXAMPLES_C		       =  ex2.PETSc runex2  runex2_3 ex2.rm ex3.PETSc runex3 \
                                  ex25.PETSc runex25 runex25_2 ex25.rm \
                                  ex28.PETSc runex28_0 runex28_1 runex28_2 runex28_3 ex28.rm \
                                  ex35.PETSc runex35_3 runex35_4 runex35_5 runex35_6 runex35_8 ex35.rm \
-                                 ex70.PETSc runex70 runex70_2 runex70_3 runex70_4 ex70.rm
+                                 ex70.PETSc runex70 runex70_2 runex70_3 runex70_4 ex70.rm ex78.PETSc runex78 ex78.rm
 TESTEXAMPLES_C_NOTSINGLE       = ex1.PETSc runex1 runex1_2 ex1.rm ex5.PETSc runex5_2 runex5_3 runex5_4 runex5_5_ls runex5_5_fas runex5_5_fas_monitor printdot \
                                  runex5_5_newton_asm_dmda runex5_5_newton_gasm_dmda runex5_6  ex5.rm printdot \
                                  ex14.PETSc runex14_4 ex14.rm ex15.PETSc runex15 runex15_3 runex15_lag_jac runex15_nleqerr runex15_lag_pc ex15.rm ex16.PETSc printdot \
@@ -1331,6 +1349,8 @@ TESTEXAMPLES_MATLAB_ENGINE     =
 TESTEXAMPLES_SAWS	       =
 TESTEXAMPLES_ADIFOR	       = ex5f.PETSc runex5f_2 ex5f.rm
 TESTEXAMPLES_MUMPS             = ex19.PETSc runex19_4 runex19_fieldsplit_mumps runex19_3 runex19_4  ex19.rm
+TESTEXAMPLES_ML                = ex19.PETSc runex19_ml ex19.rm
+TESTEXAMPLES_HYPRE             = ex19.PETSc runex19_hypre ex19.rm
 TESTEXAMPLES_SUPERLU           = ex19.PETSc runex19_superlu ex19.rm
 TESTEXAMPLES_SUPERLU_DIST      = ex19.PETSc runex19_superlu_dist runex19_superlu_dist_2 ex19.rm  ex19.PETSc  ex19.rm
 TESTEXAMPLES_PASTIX            = ex19.PETSc runex19_11 runex19_12 ex19.rm  ex19.PETSc runex19_11 runex19_12 ex19.rm
