@@ -877,7 +877,7 @@ PetscErrorCode MatSetUp(Mat A)
          the matrix structure
 
    Options Database Keys:
-+  -mat_view ::ascii_info - Prints info on matrix at conclusion of MatEndAssembly()
++  -mat_view ::ascii_info - Prints info on matrix at conclusion of MatAssemblyEnd()
 .  -mat_view ::ascii_info_detail - Prints more detailed info
 .  -mat_view - Prints matrix in ASCII format
 .  -mat_view ::ascii_matlab - Prints matrix in Matlab format
@@ -8174,6 +8174,9 @@ PetscErrorCode MatGetNullSpace(Mat mat, MatNullSpace *nullsp)
 
       Krylov solvers can produce the minimal norm solution to the least squares problem by utilizing MatNullSpaceRemove().
 
+    If the matrix is known to be symmetric because it is an SBAIJ matrix or one as called MatSetOption(mat,MAT_SYMMETRIC or MAT_SYMMETRIC_ETERNAL,PETSC_TRUE); this
+    routine also automatically calls MatSetTransposeNullSpace().
+
    Concepts: null space^attaching to matrix
 
 .seealso: MatCreate(), MatNullSpaceCreate(), MatSetNearNullSpace(), MatGetNullSpace(), MatSetTransposeNullSpace(), MatGetTransposeNullSpace(), MatNullSpaceRemove()
@@ -8190,6 +8193,9 @@ PetscErrorCode MatSetNullSpace(Mat mat,MatNullSpace nullsp)
   if (nullsp) {ierr = PetscObjectReference((PetscObject)nullsp);CHKERRQ(ierr);}
   ierr = MatNullSpaceDestroy(&mat->nullsp);CHKERRQ(ierr);
   mat->nullsp = nullsp;
+  if (mat->symmetric_set && mat->symmetric) {
+    ierr = MatSetTransposeNullSpace(mat,nullsp);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
