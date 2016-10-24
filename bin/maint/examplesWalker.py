@@ -109,6 +109,17 @@ class PETScExamples(object):
       nameString=srcfile
     return nameString
 
+  def getTestsStr(self,fileStr):
+    """
+    Given a string that has the /*TESTS testsStr TESTS*/ 
+    embedded within it, return testsStr
+    """
+    if not "/*TESTS" in fileStr: return fileStr,""
+    first=fileStr.split("/*TESTS")[0]
+    fsplit=fileStr.split("/*TESTS")[1]
+    testsStr=fsplit.split("TESTS*/")[0]
+    return first,testsStr
+
   def getSourceFileName(self,petscName,srcdir):
     """
     Given a PETSc name of the form ex1.PETSc or ex2.F.PETSc 
@@ -481,6 +492,7 @@ class PETScExamples(object):
     dataDict={}
     for root, dirs, files in os.walk(top, topdown=False):
       if not "examples" in root: continue
+      if not os.path.isfile(os.path.join(root,"makefile")): continue
       if root.endswith("tests") or root.endswith("tutorials"):
         eval("self."+action+"(root,dirs,files,dataDict)")
       if type(top) != types.StringType:

@@ -11,6 +11,7 @@ import inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 sys.path.insert(0,currentdir) 
 from examplesWalker import *
+from examplesMkParse import *
 
 """
 Tools for converting PETSc examples to new format
@@ -27,7 +28,7 @@ Quick start
 
 """
 
-class convertExamples(PETScExamples):
+class convertExamples(PETScExamples,makeParse):
   def __init__(self,replaceSource):
     super(convertExamples, self).__init__()
     self.replaceSource=replaceSource
@@ -35,40 +36,6 @@ class convertExamples(PETScExamples):
     #self.scriptsSubdir=""
     self.scriptsSubdir="from_makefile"
     return
-
-  def fixScript(self,scriptStr,varVal):
-    """
-    makefile is commands are not proper bash so need to fix that
-    Our naming scheme is slightly different as well, so fix that
-    Simple replaces done here -- this is not sophisticated
-    Also, this may contain variables defined in makefile and need to do a
-    substitution
-    """
-    scriptStr=scriptStr.replace("then","; then")
-    #scriptStr=scriptStr.strip().replace("\\","")
-    scriptStr=scriptStr.replace("; \\","\n")
-    scriptStr=scriptStr.replace("do\\","do\n")
-    scriptStr=scriptStr.replace("do \\","do\n")
-    scriptStr=scriptStr.replace("done;\\","done\n")
-    # Note the comment out -- I like to see the output
-    scriptStr=scriptStr.replace("-@","")
-    # Thsi is for ts_eimex*.sh
-    scriptStr=scriptStr.replace("$$","$")
-    if 'for' in scriptStr:
-      scriptStr=scriptStr.replace("$(seq","")
-      scriptStr=scriptStr.replace(");",";")
-    #if '(${DIFF}' in scriptStr:
-    #  scriptStr=scriptStr.split("(")[1]
-    #  scriptStr=scriptStr.split(")")[0]
-    #  tmpscriptStr=sh.readline()
-    if '${DIFF}' in scriptStr.lower() and '||' in scriptStr:
-      scriptStr=scriptStr.split("||")[0].strip()
-    for var in varVal.keys():
-      if var in scriptStr:
-        replStr="${"+var+"}"
-        scriptStr=scriptStr.replace(replStr,varVal[var])
-    scriptStr=scriptStr.replace("\n\n","\n")
-    return scriptStr
 
   def transformAnalyzeMap(self,anlzDict):
     """
@@ -106,191 +73,64 @@ class convertExamples(PETScExamples):
         newDict[test]['requires']=list(set(allRqs))  # Uniquify the requirements
     return newDict
 
-  def abstractScript(self,runexName,scriptStr,anlzDict):
-    """
-    Abstract script tries to take a normal script string and then parse it
-    out such that  it is in the new format
-    Abstraction is to fill out:
-      NSIZE, ARGS, OUTPUT_SUFFIX 
-    If we can't abstract, we can't abstract and we'll just put in a script
-    """
-    abstract={}
-    abstract['abstracted']=False
-    abstract['script']=scriptStr.strip()
-
-    # OUTPUT SUFFIX should be equivalent to runex target so we just go by that.
-    runexBase=runexName.split("_")[0]
-    exName=runexBase[3:]
-    abstract['outputSuffix']=runexName[len(runexBase)+1:]
-
-    # We always want nsize even if not abstracted 
-    firstPart=scriptStr.split(">")[0]
-    if "MPIEXEC" in firstPart:
-      nsizeStr=firstPart.split(" -n ")[1].split()[0].strip()
-      try:
-        abstract['nsize']=int(nsizeStr)
-      except:
-        return abstract
-    else:
-      return abstract
-
-    # Things that we know off the bat destroy the abstraction
-    cleanStr=re.sub('"[^>]+"', '', scriptStr)
-    if "for " in cleanStr:  return abstract
-    if "grep " in cleanStr:  return abstract
-    if "sort " in cleanStr:  return abstract
-    if cleanStr.count("MPIEXEC") > 1: return abstract
-    if not "2>" in cleanStr: return abstract   # Abstraction requires redirect
-
-    # Now parse out the stuff
-    mainCommand=scriptStr.split("2>")[0].strip()
-    if not mainCommand: return abstract
-
-    # Args
-    firstPart=mainCommand.split(">")[0]
-    args=firstPart.split(exName)[1].strip().strip("\\")
-    if args.strip(): 
-      if "\\\n" in args:
-        abstract['args']=""
-        for a in args.split("\\\n"):
-          abstract['args']=abstract['args']+" "+a.strip().strip("\\")
-      else:
-        abstract['args']=args.strip()
-
-    abstract['abstracted']=True
-
-    # Before writing out the abstracted info
-    # do a final update of requirements based on arguments
-    import convertExamplesUtils
-    argMap=convertExamplesUtils.argMap
-    if abstract.has_key('args'):
-      if abstract.has_key('requires'):
-        allRqs=abstract['requires']
-      else:
-        allRqs=[]
-      for matchStr in argMap:
-        if matchStr in abstract['args']:
-          rqList=argMap[matchStr].split("requires:")[1].strip().split()
-          allRqs=allRqs+rqList
-      abstract['requires']=list(set(allRqs))  # Uniquify the requirements
-
-
-    return abstract
-
-  def insertScriptIntoSrc(self,runexName,basedir,subDict):
+  def insertScriptIntoSrc(self,runexName,basedir,abstract):
     """
     This is a little bit tricky because figuring out the source file
     associated with a run file is done by order in TEST* variables.
     Rather than try and parse that logic, we will try to find it
     """
+    # Sanity checks -- goal is to pass wtihout any of these showing
+    if not abstract.has_key('source'):
+      print "Can't find source file", basedir,runexName
+      return False
+
+    if not abstract['abstracted']:
+      print "Warning: Problem with ", runexName, " in ", basedir
+      return False
+
     debug=False
-    abstract=subDict[runexName]
     startdir=os.path.realpath(os.path.curdir)
     os.chdir(basedir)
     exBase=runexName[3:].split("_")[0]
-    if subDict[runexName].has_key('source'):
-      exSrc=subDict[runexName]['source']
-    else:
-      if debug: print "Can't find source file", basedir,runexName
-      subDict['nonUsedTests'].append(runexName)
-      os.chdir(startdir)
-      return True
+    exSrc=abstract['source']
 
     # Get the string to insert
     indent="  "
+    insertStr=indent+"test:\n"
+    indent=indent*2
     if abstract['abstracted']:
-      insertStr=indent+"output_suffix: "+abstract['outputSuffix']+"\n"
-      insertStr=insertStr+indent+"nsize: "+str(abstract['nsize'])+"\n"
+      if abstract.has_key('outputSuffix'):
+        if abstract['outputSuffix']:
+          suffix=abstract['outputSuffix']
+          insertStr=insertStr+indent+"suffix: "+suffix+"\n"
+      if abstract.has_key('outputSuffix'):
+        if abstract['nsize']>1:
+          insertStr=insertStr+indent+"nsize: "+str(abstract['nsize'])+"\n"
       if abstract.has_key('args'):
         insertStr=insertStr+indent+"args: "+abstract['args']+"\n"
       if abstract.has_key('requires'):
         reqStr=", ".join(abstract['requires'])
         insertStr=insertStr+indent+"requires: "+reqStr+"\n"
-    else:
-      insertStr=indent+"output_suffix: "+abstract['outputSuffix']+"\n"
-      if abstract.has_key('nsize'):
-        insertStr=insertStr+indent+"nsize: "+str(abstract['nsize'])+"\n"
-      if abstract.has_key('requires'):
-        reqStr=", ".join(abstract['requires'])
-        insertStr=insertStr+indent+"requires: "+reqStr+"\n"
-      insertStr=insertStr+indent+"script: "+abstract['script']+"\n"
-
-    testStr="\n/*TEST\n"+insertStr+"\nTEST*/\n"
 
     if os.path.splitext(exSrc)[1].lstrip(".").startswith("F"):
-      testStr=testStr.replace("\n","\n!").rstrip("!")
-
-
+      insertStr=insertStr.replace("\n","\n!").rstrip("!")
 
     # Get the file into a string, append, and then close
-    sh=open(exSrc,"r"); fileStr=sh.read(); sh.close()
+    newExSrc="new_"+exSrc
+    openFile=(newExSrc if os.path.isfile(newExSrc) else exSrc)
+    sh=open(openFile,"r"); fileStr=sh.read(); sh.close()
 
-    # Append to in
-    newExSrc=(exSrc if self.replaceSource else "new_"+exSrc)
-    if not self.replaceSource: exSrc=newExSrc
-    sh=open(newExSrc,"w"); sh.write(fileStr+testStr); sh.close()
+    # Get current tests within the file
+    firstPart,currentTestsStr=self.getTestsStr(fileStr)
+
+    # What gets inserted
+    testStr="\n/*TESTS\n"+currentTestsStr.lstrip("\n")+insertStr+"\nTESTS*/\n"
+
+    # Append to the file
+    sh=open(newExSrc,"w"); sh.write(firstPart+testStr); sh.close()
 
     os.chdir(startdir)
     return True
-
-  def getVarVal(self,varVal,line,fh):
-    """
-    
-    """
-    debug=False
-    while 1:
-      last_pos=fh.tell()
-      if line.strip().endswith("\\"):
-        line=line.strip().rstrip("\\")+" "+fh.readline().strip()
-      else:
-        fh.seek(last_pos)  # might be grabbing next var
-        break
-    if debug: print "       getVarVal> line ", line
-    var=line.split("=")[0].strip()
-    valList=line.split("=")[1:]
-    val=" ".join(valList).strip()
-    varVal[var]=val
-    return
-
-  def extractRunFile(self,fh,line,mkfile,varVal):
-    """
-    Given the file handle which points to the location in the file where
-    a runex: has just been read in, write it out to the file in the
-    directory where mkfile is located
-    Store summary of what we did in the part of dataDict relevant
-    """
-    debug=False
-    runexName=line.split(":")[0].strip()
-    #print mkfile, runexName
-    alphabet=tuple(string.ascii_letters)
-    shStr=""
-    basedir=os.path.dirname(mkfile)
-    shName=os.path.join(basedir,runexName+".sh")
-    while 1:
-      last_pos=fh.tell()
-      #if runexName=="runex138_2": print line
-      line=fh.readline()
-      # If it has xterm in it, then remove because we 
-      # do not want to test for that
-      if not line: break
-      #if line.startswith(alphabet): 
-      if line.startswith(alphabet) or line.startswith("#"): 
-        fh.seek(last_pos)  # might be grabbing next script so rewind
-        break
-      shStr=shStr+" "+line
-    if not shStr.strip(): return "",""
-    newShStr=self.fixScript(shStr,varVal)
-    # 
-    if self.writeScripts:
-      if self.scriptsSubdir: 
-        subdir=os.path.join(basedir,self.scriptsSubdir)
-        if not os.path.isdir(subdir): os.mkdir(subdir)
-        shName=os.path.join(subdir,runexName+".sh")
-      shh=open(shName,"w")
-      shh.write(newShStr)
-      shh.close()
-      os.chmod(shName,0777)
-    return shName, newShStr
 
   def cleanAllRunFiles_summarize(self,dataDict):
     """
@@ -308,6 +148,13 @@ class convertExamples(PETScExamples):
       for runfile in glob.glob(globstr): os.remove(runfile)
     for newfile in glob.glob(root+"/new_*"): os.remove(newfile)
     for tstfile in glob.glob(root+"/TEST*.sh"): os.remove(tstfile)
+    for newfile in glob.glob(root+"/*.tmp*"): os.remove(newfile)
+    for newfile in glob.glob(root+"/*/*.tmp*"): os.remove(newfile)
+    for newfile in glob.glob(root+"/*/*/*.tmp*"): os.remove(newfile)
+    for newfile in glob.glob(root+"/trashz"): os.remove(newfile)
+    for newfile in glob.glob(root+"/*/trashz"): os.remove(newfile)
+    for newfile in glob.glob(root+"/*/*/trashz"): os.remove(newfile)
+    for newfile in glob.glob(root+"/*.mod"): os.remove(newfile)
     return
 
   def getOrderedKeys(self,subDict):
@@ -365,50 +212,42 @@ class convertExamples(PETScExamples):
 
     debug=False
     insertIntoSrc=True
-    # Go through and parse the makefiles
-    alphabet=tuple(string.ascii_letters)
-    fullmake=os.path.join(root,"makefile")
-    fh=open(fullmake,"r")
 
-    # Use examplesAnalyze to get the TEST*scripts
+    # Information comes form makefile
+    fullmake=os.path.join(root,"makefile")
+
+    # Use examplesAnalyze to get info from TEST* targets, 
+    # but then put it into more useful data structure
+    # Provides: associated sourcefile and requirements based on TEST* variables
     anlzDict={}
     self.examplesAnalyze(root,dirs,files,anlzDict)
-    for var in anlzDict[fullmake]:
-      if var == "runexFiles": continue
-      varScript=os.path.join(root,var+".sh")
-      vh=open(varScript,"w")
-      for t in anlzDict[fullmake][var]['tsts']:
-        scriptName=t.split("-")[1]+".sh"
-        vh.write(scriptName+"\n")
-      os.chmod(varScript,0777)
-
     testDict=self.transformAnalyzeMap(anlzDict[fullmake])
 
-    # This is the main thing.  Go through the makefile, and for each
-    # run* target: extract, abstract, insert
+    # Go through the makefile, and for each run* target: 
+    #     extract, abstract, insert
     dataDict[fullmake]={}
     dataDict[fullmake]['nonUsedTests']=[]
     i=0
-    allRunex=[]
     varVal={}
     if debug: print fullmake
-    while 1:
-      line=fh.readline()
-      if not line: break
-      if line.startswith(alphabet) and "=" in line: self.getVarVal(varVal,line,fh)
-      if line.startswith("run"): 
-        runex,shStr=self.extractRunFile(fh,line,fullmake,varVal)
-        runexName=os.path.basename(runex).split(".")[0]
-        if debug: print "Working on> ", runexName, " in ", root
-        abstract=self.abstractScript(runexName,shStr,anlzDict[fullmake])
-        dataDict[fullmake][runexName]=abstract
-        if testDict.has_key(runexName):
-          dataDict[fullmake][runexName].update(testDict[runexName])
-        if insertIntoSrc: 
-          self.insertScriptIntoSrc(runexName,root,dataDict[fullmake])
-    fh.close()
+    # This gets all of the run* targets in makefile.  
+    # Can be tested independently in examplesMkParse.py
+    mkDict=self.genRunsFromMakefile(fullmake)
 
-    #print root,files
+    # Now for each runex target, abstract and insert
+    for runex in mkDict:
+      # Preliminary abstract
+      dataDict[fullmake][runex]=self.abstractScript(runex,mkDict[runex]['script'])
+
+      # Update the abstract info from testDict above (source, requires)
+      if testDict.has_key(runex):
+        dataDict[fullmake][runex].update(testDict[runex])
+
+      # If requested, then insert into source
+      if insertIntoSrc: 
+        if not self.insertScriptIntoSrc(runex,root,dataDict[fullmake][runex]):
+           dataDict[fullmake]['nonUsedTests'].append(runex)
+
     return
 
 def main():
