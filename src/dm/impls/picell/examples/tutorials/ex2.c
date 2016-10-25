@@ -28,7 +28,7 @@ typedef struct {
   PetscInt solver_np[3];
   PetscInt solver_proc_idx[3];
   /* geometry  */
-  PetscReal dom_lo[3], dom_hi[3];
+  PetscReal domain_lo[3], domain_hi[3];
   PetscReal b0[3];
   /* context */
   void *ctx;
@@ -69,7 +69,7 @@ PetscErrorCode X2GridSolverLocatePoints(DM dm, Vec xvec, const X2Ctx *ctx,  IS *
 {
   PetscInt         i,idxs[3],n,nn,dim,ii;
   const PetscInt   *np = ctx->grid.solver_np;
-  const PetscReal  *dlo = ctx->grid.dom_lo, *dhi = ctx->grid.dom_hi;
+  const PetscReal  *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi;
   PetscErrorCode   ierr;
   PetscScalar      *xx,*xx0;
   PetscInt         *peidxs,*elemidxs;
@@ -158,12 +158,12 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ctx->grid.solver_np[0]  = 1;
   ctx->grid.solver_np[1]  = 1;
   ctx->grid.solver_np[2]  = 1;
-  ctx->grid.dom_hi[0]  = 1;
-  ctx->grid.dom_hi[1]  = 1;
-  ctx->grid.dom_hi[2]  = 1;
-  ctx->grid.dom_lo[0]  = -1;
-  ctx->grid.dom_lo[1]  = -1;
-  ctx->grid.dom_lo[2]  = -1;
+  ctx->grid.domain_hi[0]  = 1;
+  ctx->grid.domain_hi[1]  = 1;
+  ctx->grid.domain_hi[2]  = 1;
+  ctx->grid.domain_lo[0]  = -1;
+  ctx->grid.domain_lo[1]  = -1;
+  ctx->grid.domain_lo[2]  = -1;
   ctx->grid.b0[0]  = .1;
   ctx->grid.b0[1]  = .2;
   ctx->grid.b0[2]  =  1; /* mostly in z */
@@ -187,9 +187,9 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsInt("-proc_send_table_size", "Size of hash table proc->send_list", "ex2.c",ctx->proc_send_table_size, &ctx->proc_send_table_size, NULL);CHKERRQ(ierr);
 
   /* Domain and mesh definition */
-  ierr = PetscOptionsRealArray("-dom_hi", "Domain size", "ex2.c", ctx->grid.dom_hi, &three, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsRealArray("-domain_hi", "Domain size", "ex2.c", ctx->grid.domain_hi, &three, NULL);CHKERRQ(ierr);
   three = 3;
-  ierr = PetscOptionsRealArray("-dom_lo", "Domain size", "ex2.c", ctx->grid.dom_lo, &three, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsRealArray("-domain_lo", "Domain size", "ex2.c", ctx->grid.domain_lo, &three, NULL);CHKERRQ(ierr);
   i1 = 3;
   ierr = PetscOptionsIntArray("-ft_np", "Number of (flux tube) processor in each dimension", "ex2.c", ctx->grid.ft_np, &i1, &npflag1);CHKERRQ(ierr);
   i2 = 3;
@@ -341,7 +341,7 @@ PetscErrorCode X2GridFluxTubeLocatePoint( const X2Grid *grid, PetscReal x[3], Pe
   PetscInt        i,ii[3];
   X2Ctx           *ctx = (X2Ctx*)grid->ctx;
   const PetscInt  *np = ctx->grid.ft_np;
-  const PetscReal *dlo = ctx->grid.dom_lo, *dhi = ctx->grid.dom_hi, *b0 = ctx->grid.b0;
+  const PetscReal *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi, *b0 = ctx->grid.b0;
   PetscReal       dx[3],xstar[3],deltaz;
   /* PetscErrorCode ierr; */
   PetscFunctionBeginUser;
@@ -374,14 +374,14 @@ static void prewrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *ppo
   if (ctx->rank==0) {
     X2Particle part;
     PetscReal r,z,phi;
-    r   = ctx->grid.dom_lo[0];
-    z   = ctx->grid.dom_lo[1];
-    phi = ctx->grid.dom_lo[2];
+    r   = ctx->grid.domain_lo[0];
+    z   = ctx->grid.domain_lo[1];
+    phi = ctx->grid.domain_lo[2];
     X2ParticleCreate(&part,1,r,z,phi,0.);
     X2PListAdd(l,&part,ppos2);
-    r   = ctx->grid.dom_hi[0];
-    z   = ctx->grid.dom_hi[1];
-    phi = ctx->grid.dom_hi[2];
+    r   = ctx->grid.domain_hi[0];
+    z   = ctx->grid.domain_hi[1];
+    phi = ctx->grid.domain_hi[2];
     X2ParticleCreate(&part,1,r,z,phi,0.);
     X2PListAdd(l,&part,ppos1);
   }
@@ -429,7 +429,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
   IS               pes,elems;
   const PetscInt   *cpeidxs,*celemidxs;
   PetscInt         *peidxs,*elemidxs;
-  const PetscReal *dlo = ctx->grid.dom_lo, *dhi = ctx->grid.dom_hi, *b0 = ctx->grid.b0;
+  const PetscReal *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi, *b0 = ctx->grid.b0;
   PetscReal dlen[3];
   X2ISend          slist[X2PROCLISTSIZE];
 
@@ -813,7 +813,7 @@ static PetscErrorCode createParticles(X2Ctx *ctx)
   PetscErrorCode  ierr;
   PetscInt        isp,gid,i,j,dim,cStart,cEnd,elid;
   const PetscInt  *np = ctx->grid.ft_np;
-  const PetscReal *dlo = ctx->grid.dom_lo, *dhi = ctx->grid.dom_hi, *b0 = ctx->grid.b0;
+  const PetscReal *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi, *b0 = ctx->grid.b0;
   const PetscReal dx=(dhi[0]-dlo[0])/(PetscReal)np[0];
   const PetscReal x1=dlo[0] + dx*X2_IDX_X(ctx->rank,np);
   const PetscReal dy=(dhi[1]-dlo[1])/(PetscReal)np[1];
@@ -938,7 +938,7 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
     PetscInt j;
     PetscScalar *coord = &coords[i];
     for (j = 0; j < dimEmbed; j++) {
-      coord[j] = ctx->grid.dom_lo[j] + coord[j] * (ctx->grid.dom_hi[j] - ctx->grid.dom_lo[j]);
+      coord[j] = ctx->grid.domain_lo[j] + coord[j] * (ctx->grid.domain_hi[j] - ctx->grid.domain_lo[j]);
     }
   }
   ierr = VecRestoreArray(coordinates,&coords);CHKERRQ(ierr);
@@ -963,7 +963,7 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   /* set a simple partitioner - needed to make my indexing work for point locate */
   if (!ctx->rank) {
     PetscInt cEnd,c,*cs,*cp,ii[3],i;
-    const PetscReal *dlo = ctx->grid.dom_lo, *dhi = ctx->grid.dom_hi;
+    const PetscReal *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi;
     const PetscInt *np = ctx->grid.solver_np;
     ierr = DMPlexGetHeightStratum(dmpi->dm, 0, NULL, &cEnd);CHKERRQ(ierr); /* DMGetCellChart */
     if (cEnd && cEnd!=ctx->npe) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_USER, "cEnd=%d != %d",cEnd,ctx->npe);
@@ -1045,7 +1045,7 @@ PetscErrorCode u_x4_op(PetscInt dim, PetscReal time, const PetscReal xx[], Petsc
 {
   X2Ctx *ctx = (X2Ctx*)a_ctx;
   PetscInt comp,i;
-  const PetscReal  *dlo = ctx->grid.dom_lo, *dhi = ctx->grid.dom_hi;
+  const PetscReal  *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi;
   PetscReal dlen[3];
   PetscFunctionBeginUser;
   for(i=0;i<dim;i++) dlen[i] = dhi[i] - dlo[i];

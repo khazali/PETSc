@@ -143,7 +143,7 @@ PetscErrorCode X2GridSolverLocatePoints(DM dm, Vec xvec, const void *ctx_dum, IS
     ierr = PetscFree2(peidxs,elemidxs);CHKERRQ(ierr);
   }
 #if defined(PETSC_USE_LOG)
-    ierr = PetscLogEventEnd(s_events[9],0,0,0,0);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(s_events[9],0,0,0,0);CHKERRQ(ierr);
 #endif
   PetscFunctionReturn(0);
 }
@@ -301,11 +301,11 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsReal("-max_vpar", "Maximum parallel velocity", "ex1.c",ctx->max_vpar,&ctx->max_vpar,NULL);CHKERRQ(ierr);
 
   ierr = PetscStrcpy(fname,"iter");CHKERRQ(ierr);
-  ierr = PetscOptionsString("-run_type", "Type of run (iter or torus)", "ex1.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsString("-domain_type", "Type of run (iter or torus)", "ex1.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
   PetscStrcmp("iter",fname,&flg);
   if (flg) { /* ITER */
     if (ctx->grid.section_phi != 2) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"section of ITER not supported");
-    ctx->run_type = X2_ITER;
+    ctx->domain_type = X2_ITER;
     ierr = PetscStrcpy(fname,"ITER-51vertex-quad.txt");CHKERRQ(ierr);
     ierr = PetscOptionsString("-iter_vertex_file", "Name of vertex .txt file of ITER vertices", "ex1.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
     fp = fopen(fname, "r");
@@ -370,10 +370,10 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     }
 
     PetscStrcmp("torus",fname,&flg);
-    if (flg) ctx->run_type = X2_TORUS;
+    if (flg) ctx->domain_type = X2_TORUS;
     else {
       PetscStrcmp("boxtorus",fname,&flg);
-      if (flg) ctx->run_type = X2_BOXTORUS;
+      if (flg) ctx->domain_type = X2_BOXTORUS;
       else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Unknown run type %s",fname);
     }
   }
@@ -1521,33 +1521,18 @@ int main(int argc, char **argv)
   dmpi = (DM_PICell *) ctx->dm->data; assert(dmpi);
   dmpi->debug = s_debug;
   /* setup solver grid */
-  if (ctx->run_type == X2_ITER) {
+  if (ctx->domain_type == X2_ITER) {
     ierr = DMPlexCreatePICellITER(ctx->wComm,&ctx->grid,&dmpi->dm);CHKERRQ(ierr);
   }
   else {
-    if (ctx->run_type == X2_TORUS) {
+    if (ctx->domain_type == X2_TORUS) {
       ierr = DMPlexCreatePICellTorus(ctx->wComm,&ctx->grid,&dmpi->dm);CHKERRQ(ierr);
       ctx->inflate_torus = PETSC_TRUE;
     }
     else {
       ierr = DMPlexCreatePICellBoxTorus(ctx->wComm,&ctx->grid,&dmpi->dm);CHKERRQ(ierr);
       ctx->inflate_torus = PETSC_FALSE;
-      assert(ctx->run_type == X2_BOXTORUS);
-    }
-    if (s_section_phi != 2) {
-      PetscInt i;
-      DMBoundaryType bd[3] = {DM_BOUNDARY_NONE,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_NONE};
-      const PetscReal L2 = (ctx->grid.radius_major+ctx->grid.radius_minor)*tan(s_section_phi*M_PI);
-      const PetscReal L[3] = {0, L2, 0};
-      PetscReal maxCell[3];
-      for (i = 0; i < 3; i++) maxCell[i] =  1e100;
-      maxCell[1] = L2/3;
-      if (s_section_phi > .1) {
-        ierr = PetscPrintf(ctx->wComm, "\t\t%s WARNING section_phi is large %g, L = %16.8e, %16.8g, %16.8e maxCell = %16.8e, %16.8e, %16.8e\n",
-                           __FUNCT__,s_section_phi,L[0],L[1],L[2],maxCell[0],maxCell[1],maxCell[2]);CHKERRQ(ierr);
-      }
-      /* ierr = DMSetPeriodicity(dmpi->dm, maxCell, L, bd);CHKERRQ(ierr); */
-      /* ierr = DMLocalizeCoordinates(dmpi->dm);CHKERRQ(ierr); */
+      assert(ctx->domain_type == X2_BOXTORUS);
     }
   }
   ierr = DMSetApplicationContext(dmpi->dm, ctx);CHKERRQ(ierr);
@@ -1591,15 +1576,15 @@ int main(int argc, char **argv)
         ierr = PetscObjectSetOptionsPrefix((PetscObject)dmforest,prefix);CHKERRQ(ierr);
         ierr = DMIsForest(dmforest,&isForest);CHKERRQ(ierr);
         if (isForest) {
-          if (ctx->run_type == X2_ITER) {
+          if (ctx->domain_type == X2_ITER) {
             ierr = DMForestSetBaseCoordinateMapping(dmforest,GeometryPICellITER,ctx);CHKERRQ(ierr);
           }
-          else if (ctx->run_type == X2_TORUS) {
+          else if (ctx->domain_type == X2_TORUS) {
             ierr = DMForestSetBaseCoordinateMapping(dmforest,GeometryPICellTorus,ctx);CHKERRQ(ierr);
           }
           else {
             ierr = DMForestSetBaseCoordinateMapping(dmforest,GeometryPICellTorus,ctx);CHKERRQ(ierr);
-            assert(ctx->run_type == X2_BOXTORUS);
+            assert(ctx->domain_type == X2_BOXTORUS);
           }
         }
         else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Converted to non Forest?");

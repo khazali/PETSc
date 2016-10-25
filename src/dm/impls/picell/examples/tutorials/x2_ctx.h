@@ -7,7 +7,7 @@ typedef struct {
   PetscLogEvent *events;
   PetscInt      use_bsp;
   PetscInt      chunksize;
-  runType       run_type;
+  runType       domain_type;
   PetscBool     plot;
   /* MPI parallel data */
   MPI_Comm      particlePlaneComm,wComm;

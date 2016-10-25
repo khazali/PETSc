@@ -629,7 +629,7 @@ typedef struct {
   PetscLogEvent *events;
   PetscInt      use_bsp;
   PetscInt      chunksize;
-  domType       dom_type;
+  domType       domain_type;
   runType       run_type;
   PetscBool     view_sol;
   PetscBool     view_initial_sol;
@@ -2384,7 +2384,7 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   ctx->grid.inner_mult= M_SQRT2 - 1.;
 
   ctx->tablecount = 0;
-  ctx->dom_type = X3_TORUS;
+  ctx->domain_type = X3_TORUS;
   ctx->run_type = X3_TORUS_LINETIED;
 
   ierr = PetscOptionsBegin(ctx->wComm, "", "Poisson Problem Options", "X3");CHKERRQ(ierr);
@@ -2509,12 +2509,12 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   ierr = PetscOptionsReal("-max_vpar", "Maximum parallel velocity", "ex3.c",ctx->max_vpar,&ctx->max_vpar,NULL);CHKERRQ(ierr);
 
   ierr = PetscStrcpy(fname,"torus");CHKERRQ(ierr);
-  ierr = PetscOptionsString("-dom_type", "Type of domain (torus/cylinder)", "ex3.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsString("-domain_type", "Type of domain (torus/cylinder)", "ex3.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
   ierr = PetscStrcpy(cname,"line_tied");CHKERRQ(ierr);
   ierr = PetscOptionsString("-run_type", "Type of run (line tied)", "ex3.c", cname, cname, sizeof(cname)/sizeof(cname[0]), NULL);CHKERRQ(ierr);
   PetscStrcmp("torus",fname,&flg);
   if (flg) {
-    ctx->dom_type = X3_TORUS;
+    ctx->domain_type = X3_TORUS;
     PetscStrcmp("line_tied",cname,&flg);
     if (flg) {
       ctx->lt_lambda = 0.5;
@@ -2524,7 +2524,7 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   }
   else {
     PetscStrcmp("boxtorus",fname,&flg);
-    if (flg) ctx->dom_type = X3_BOXTORUS;
+    if (flg) ctx->domain_type = X3_BOXTORUS;
     else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Unknown run type %s",fname);
   }
   if (flg && ctx->num_particles_total) { /* set s_rminor_inflate to cover particles */
@@ -2576,7 +2576,7 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
                 , ctx->use_electrons ? "use electrons" : "ions only", ctx->use_bsp ? "BSP communication" : "Non-blocking consensus communication",ctx->grid.section_phi*M_PI,s_rminor_inflate);
   } else if (s_debug>0) {
     PetscPrintf(ctx->wComm,"[%D] npe=%D; phi section=%g pi, inflate=%g, domain: %s, run type: %s, use line section = %D\n",
-                ctx->rank,ctx->npe,ctx->grid.section_phi,s_rminor_inflate,ctx->dom_type==X3_TORUS ? "Torus" : "?", ctx->run_type == X3_TORUS_LINETIED ? "line tied" : "?",ctx->grid.use_line_section);
+                ctx->rank,ctx->npe,ctx->grid.section_phi,s_rminor_inflate,ctx->domain_type==X3_TORUS ? "Torus" : "?", ctx->run_type == X3_TORUS_LINETIED ? "line tied" : "?",ctx->grid.use_line_section);
   }
   PetscFunctionReturn(0);
 }
@@ -2645,7 +2645,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   dmpi = (DM_PICell *) ctx->dmpic->data; assert(dmpi);
   dmpi->debug = s_debug;
   /* setup solver grid */
-  if (ctx->dom_type == X3_TORUS) {
+  if (ctx->domain_type == X3_TORUS) {
     ierr = DMPlexCreatePICellTorus(ctx->wComm,&ctx->grid,&dmpi->dm);CHKERRQ(ierr);
     ctx->inflate_torus = PETSC_TRUE;
   }
@@ -2743,7 +2743,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     if (ctx->num_particles_total) {
       ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
       ierr = DMIsForest(dmpi->dm,&isForest);CHKERRQ(ierr);
-      if (isForest && ctx->dom_type == X3_TORUS) {
+      if (isForest && ctx->domain_type == X3_TORUS) {
         ierr = DMForestSetBaseCoordinateMapping(dmpi->dm,GeometryPICellTorus,ctx);CHKERRQ(ierr);
       }
     }
@@ -2759,7 +2759,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     }
     ierr = DMSetFromOptions(dmmhd);CHKERRQ(ierr);
     ierr = DMIsForest(dmmhd,&isForest);CHKERRQ(ierr);
-    if (isForest && ctx->dom_type == X3_TORUS) {
+    if (isForest && ctx->domain_type == X3_TORUS) {
       ierr = DMForestSetBaseCoordinateMapping(dmmhd,GeometryPICellTorus,ctx);CHKERRQ(ierr);
     }
   }
@@ -3102,7 +3102,7 @@ int main(int argc, char **argv)
         ctx->maxspeed = maxspeed;
         if (ctx->dt==0) ctx->dt = ctx->cfl * minRadius / maxspeed;
         ierr = TSSetInitialTimeStep(ts,ftime,ctx->dt);CHKERRQ(ierr);
-        if (ctx->dt == ctx->cfl * minRadius / maxspeed) ctx->dt = 0;
+        if (ctx->dt == ctx->cfl * minRadius / maxspeed) ctx->dt = 0; /* reset */
       }
       else {
         ierr = PetscInfo(ts, "AMR not used\n");CHKERRQ(ierr);
