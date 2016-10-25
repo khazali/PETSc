@@ -82,8 +82,8 @@ PetscErrorCode VecView_Plex_Local_HDF5(Vec v, PetscViewer viewer)
   const char             *name;
   PetscViewerVTKFieldType ft;
   PetscViewerFormat       format;
-  PetscInt                seqnum;
-  PetscReal               seqval;
+  /* PetscInt                seqnum; */
+  /* PetscReal               seqval; */
   PetscBool               isseq;
   PetscErrorCode          ierr;
 
@@ -91,9 +91,9 @@ PetscErrorCode VecView_Plex_Local_HDF5(Vec v, PetscViewer viewer)
   ierr = PetscObjectTypeCompare((PetscObject) v, VECSEQ, &isseq);CHKERRQ(ierr);
   ierr = VecGetDM(v, &dm);CHKERRQ(ierr);
   ierr = DMGetDefaultSection(dm, &section);CHKERRQ(ierr);
-  ierr = DMGetOutputSequenceNumber(dm, &seqnum, &seqval);CHKERRQ(ierr);
-  ierr = PetscViewerHDF5SetTimestep(viewer, seqnum);CHKERRQ(ierr);
-  ierr = DMSequenceView_HDF5(dm, "time", seqnum, (PetscScalar) seqval, viewer);CHKERRQ(ierr);
+  /* ierr = DMGetOutputSequenceNumber(dm, &seqnum, &seqval);CHKERRQ(ierr); */
+  /* ierr = PetscViewerHDF5SetTimestep(viewer, seqnum);CHKERRQ(ierr); */
+  /* ierr = DMSequenceView_HDF5(dm, "time", seqnum, (PetscScalar) seqval, viewer);CHKERRQ(ierr); */
   ierr = PetscViewerGetFormat(viewer, &format);CHKERRQ(ierr);
   ierr = DMGetOutputDM(dm, &dmBC);CHKERRQ(ierr);
   ierr = DMGetDefaultGlobalSection(dmBC, &sectionGlobal);CHKERRQ(ierr);

@@ -2148,15 +2148,42 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
 
 #undef __FUNCT__
 #define __FUNCT__ "SetInitialCondition"
-PetscErrorCode SetInitialCondition(DM dm, Vec X, X3Ctx *ctx)
+PetscErrorCode SetInitialCondition(DM dm, Vec gX, X3Ctx *ctx)
 {
-  PetscErrorCode     (*func[1]) (PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
+  PetscErrorCode     (*func[1]) (PetscInt, PetscReal, const PetscReal[], PetscInt, PetscScalar *, void *);
   void               *ctxa[1];
   PetscErrorCode     ierr;
   PetscFunctionBeginUser;
   func[0] = InitialSolutionFunctional;
   ctxa[0] = (void *) ctx;
-  ierr = DMProjectFunction(dm,0.0,func,ctxa,INSERT_ALL_VALUES,X);CHKERRQ(ierr);
+  ierr = DMProjectFunction(dm,0.0,func,ctxa,INSERT_ALL_VALUES,gX);CHKERRQ(ierr);
+  if (s_debug>0) {
+    const PetscInt ndof = ctx->ndof;
+    PetscScalar    *xx,*xx0,norms1[8],normsInf[8],gnorms1[8],gnormsInf[8];
+    PetscInt       lsize,gsz,ii,jj,N;
+    PetscMPIInt    rank;
+    ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(gX,&lsize);CHKERRQ(ierr);
+    ierr = VecGetSize(gX,&gsz);CHKERRQ(ierr);
+    N = lsize/ndof; assert(lsize%ndof==0);
+    for (jj=0;jj<ndof;jj++) norms1[jj] = normsInf[jj] = 0;
+    ierr = VecGetArray(gX,&xx0);CHKERRQ(ierr);
+    for (ii=0,xx=xx0;ii<N;ii++) {
+      for (jj=0;jj<ndof;jj++,xx++) {
+        PetscScalar t = PetscAbsReal(*xx);
+        norms1[jj] += t;
+        if (t>normsInf[jj]) normsInf[jj] = t;
+      }
+    }
+    assert(xx-xx0 == lsize);
+    ierr = VecRestoreArray(gX,&xx0);CHKERRQ(ierr);
+    ierr = MPI_Allreduce(normsInf,gnormsInf,ndof,MPIU_REAL,MPI_MAX,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
+    PetscPrintf(PETSC_COMM_WORLD,"step %D) |u|_inf=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",0,gnormsInf[0],gnormsInf[1],gnormsInf[2],gnormsInf[3],gnormsInf[4],gnormsInf[5],gnormsInf[6],gnormsInf[7]);
+    if (s_debug>1) {
+      ierr = MPI_Allreduce(norms1,gnorms1,ndof,MPIU_REAL,MPI_SUM,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
+      PetscPrintf(PETSC_COMM_WORLD,"step %D) |u|_1=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",0,gnorms1[0],gnorms1[1],gnorms1[2],gnorms1[3],gnorms1[4],gnorms1[5],gnorms1[6],gnorms1[7]);
+    }
+  }
   PetscFunctionReturn(0);
 }
 
@@ -2554,13 +2581,13 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   PetscFunctionReturn(0);
 }
 #undef __FUNCT__
-#define __FUNCT__ "poststep"
-PetscErrorCode poststep(TS ts)
+#define __FUNCT__ "particle_poststep"
+PetscErrorCode particle_poststep(TS ts)
 {
   PetscErrorCode ierr;
   X3Ctx          *ctx;
   PetscFunctionBegin;
-  ierr = TSGetApplicationContext(ts, &ctx);CHKERRQ(ierr);
+  ierr = TSGetApplicationContext(ts, &ctx);CHKERRQ(ierr); assert(ctx);
   if (ctx->num_particles_total) {
     int            irk=0;
     PetscMPIInt    tag;
@@ -2642,14 +2669,12 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     dmpi->dm = dm2;
     if (dmpi->debug>0) PetscPrintf(PETSC_COMM_WORLD,"%s distributed Poisson grid\n",__FUNCT__);
   }
-  ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
   ierr = DMPlexDistribute(dmmhd, 1, NULL, &dm2);CHKERRQ(ierr);
   if (dm2) {
     ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
     dmmhd = dm2;
     if (dmpi->debug>0) PetscPrintf(PETSC_COMM_WORLD,"%s distributed MHD grid\n",__FUNCT__);
   }
-  ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
   /* setup M H D DM */
   ierr = DMPlexSetAdjacencyUseCone(dmmhd, PETSC_TRUE);CHKERRQ(ierr);
   ierr = DMPlexSetAdjacencyUseClosure(dmmhd, PETSC_FALSE);CHKERRQ(ierr);
@@ -2662,16 +2687,16 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   ierr = PetscFVSetNumComponents(fvm, ctx->ndof);CHKERRQ(ierr);
   ierr = PetscFVSetSpatialDimension(fvm, dim);CHKERRQ(ierr);assert(dim==3);
   ierr = PetscObjectSetName((PetscObject) fvm,"");CHKERRQ(ierr);
-  /* for (ctx->ndof=0,ctx->nfields=0; PhysicsFields_M[ctx->nfields].name; ctx->nfields++) { */
-  /*   for (i = 0; i < PhysicsFields_M[ctx->nfields].dof ; i++, ctx->ndof++) { */
-  /*     char compName[256]  = "Unknown"; */
-  /*     if (PhysicsFields_M[ctx->nfields].dof>1) ierr = PetscSNPrintf(compName,sizeof(compName),"%s_%d",PhysicsFields_M[ctx->nfields].name,i+1); */
-  /*     else ierr = PetscSNPrintf(compName,sizeof(compName),"%s",PhysicsFields_M[ctx->nfields].name); */
-  /*     CHKERRQ(ierr); */
-  /*     ierr = PetscFVSetComponentName(fvm,ctx->ndof,compName);CHKERRQ(ierr); /\* this does not work *\/ */
-  /*     /\* PetscPrintf(PETSC_COMM_WORLD,"%s: %D) , prefix=%s\n",__FUNCT__,ctx->ndof,compName); *\/ */
-  /*   } */
-  /* } */
+  for (ctx->ndof=0,ctx->nfields=0; PhysicsFields_M[ctx->nfields].name; ctx->nfields++) {
+    for (i = 0; i < PhysicsFields_M[ctx->nfields].dof ; i++, ctx->ndof++) { /* set component name - does not work */
+      char compName[256]  = "Unknown";
+      if (PhysicsFields_M[ctx->nfields].dof>1) ierr = PetscSNPrintf(compName,sizeof(compName),"%s_%d",PhysicsFields_M[ctx->nfields].name,i+1);
+      else ierr = PetscSNPrintf(compName,sizeof(compName),"%s",PhysicsFields_M[ctx->nfields].name);
+      CHKERRQ(ierr);
+      ierr = PetscFVSetComponentName(fvm,ctx->ndof,compName);CHKERRQ(ierr); /* this does not work */
+      /* PetscPrintf(PETSC_COMM_WORLD,"%s: %D) , prefix=%s\n",__FUNCT__,ctx->ndof,compName); */
+    }
+  }
   ierr = PetscFVSetFromOptions(fvm);CHKERRQ(ierr);
   /* FV is now structured with one field having all physics as components */
   ierr = DMGetDS(dmmhd, &probmhd);CHKERRQ(ierr);
@@ -2697,7 +2722,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   }
   if (dmpi->debug>2) {
     /* ierr = DMView(dmpi->dm,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
-    /* ierr = DMView(dmmhd,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
+    ierr = DMView(dmmhd,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
   { /* convert to plex */
     char       convType[256];
@@ -2763,7 +2788,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
                  ctx->rank,n,nloc,bs,bs2,ctx->npe,cEndM,cEnd);
   }
   if (dmpi->debug>2) {
-    /* ierr = DMView(dmmhd,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
+    ierr = DMView(dmmhd,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   }
   *admmhd = dmmhd;
   *afvm = fvm;
@@ -2780,8 +2805,12 @@ static PetscErrorCode viewDMVec(DM dm, Vec X, Vec Y, const char prefix[])
   PetscViewer       viewer = NULL;
   PetscBool         flg;
   PetscViewerFormat fmt;
+  char              buf[256] = "-dm_view";
   PetscFunctionBegin;
-  ierr = DMViewFromOptions(dm,NULL,"-dm_view");CHKERRQ(ierr);
+  if (prefix) {
+    ierr = PetscSNPrintf(buf, 256, "-%sdm_view", prefix);CHKERRQ(ierr);
+  }
+  ierr = DMViewFromOptions(dm,NULL,buf);CHKERRQ(ierr);
   ierr = PetscOptionsGetViewer(PetscObjectComm((PetscObject)dm),prefix,"-vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
   if (flg) {
     ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
@@ -2790,6 +2819,93 @@ static PetscErrorCode viewDMVec(DM dm, Vec X, Vec Y, const char prefix[])
     ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
   }
   ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+#include <petsc/private/dmforestimpl.h>
+
+#undef __FUNCT__
+#define __FUNCT__ "viewDMVecTime"
+static PetscErrorCode viewDMVecTime(TS ts)
+{
+  PetscErrorCode    ierr;
+  PetscViewer       viewer = NULL;
+  PetscBool         flg;
+  PetscViewerFormat fmt;
+  PetscMPIInt       rank;
+  DM                dm;
+  X3Ctx             *ctx;
+  PetscInt          stepi;
+  PetscFunctionBegin;
+  ierr = TSGetApplicationContext(ts, &ctx);CHKERRQ(ierr); assert(ctx);
+  ierr = TSGetDM(ts, &dm);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
+  ierr = DMViewFromOptions(dm,NULL,"-dm_view");CHKERRQ(ierr);
+  ierr = PetscOptionsGetViewer(PetscObjectComm((PetscObject)dm),NULL,"-vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
+  if (flg && ctx->view_sol) {
+    Vec        Xg,Xl;
+    const char *name;
+    ierr = TSGetSolution(ts,&Xl);CHKERRQ(ierr); /* local solution */
+    ierr = PetscObjectGetName((PetscObject) Xl, &name);CHKERRQ(ierr);
+    ierr = DMGetGlobalVector(dm,&Xg);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject) Xg, name);CHKERRQ(ierr);
+    ierr = VecZeroEntries(Xg);CHKERRQ(ierr);
+    ierr = DMLocalToGlobalBegin(dm, Xl, INSERT_VALUES, Xg);CHKERRQ(ierr);
+    ierr = DMLocalToGlobalEnd(dm, Xl, INSERT_VALUES, Xg);CHKERRQ(ierr);
+    ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
+    ierr = VecView(Xg,viewer);CHKERRQ(ierr);
+    ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
+    ierr = DMRestoreGlobalVector(dm,&Xg);CHKERRQ(ierr);
+    /* move file */
+    if (!rank) {
+      PetscInt          i;
+      char              buf[256],buf2[256];
+      const char        *name;
+      ierr = PetscViewerFileGetName(viewer,&name);CHKERRQ(ierr);
+      ierr = TSGetTimeStepNumber(ts, &stepi);CHKERRQ(ierr);
+      for (i=0;i<256 && name[i] != '\0';i++) {
+        buf2[i] = name[i];
+        if (name[i] == 'h' && name[i+1] == '5') {
+          buf2[i] = '\0';
+          ierr = PetscSNPrintf(buf,256,"%s%d.h5",buf2,stepi);CHKERRQ(ierr);
+          ierr = rename(name, buf);
+          break;
+        }
+      }
+    }
+    MPI_Barrier(PetscObjectComm((PetscObject)dm));
+  }
+  ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+  /* setup particle pushing after each TS step */
+  ierr = particle_poststep(ts);CHKERRQ(ierr);
+  /* output text data */
+  if (flg && ctx->view_sol && s_debug>0) {
+    Vec            Xl;
+    const PetscInt ndof = ctx->ndof;
+    PetscScalar    *xx,*xx0,norms1[8],normsInf[8],gnorms1[8],gnormsInf[8];
+    PetscInt       lsize,gsz,ii,jj,N;
+    ierr = TSGetSolution(ts,&Xl);CHKERRQ(ierr); /* local solution */
+    ierr = VecGetLocalSize(Xl,&lsize);CHKERRQ(ierr);
+    ierr = VecGetSize(Xl,&gsz);CHKERRQ(ierr);
+    PetscPrintf(PETSC_COMM_SELF,"\t\t[%D]%s local size = %D/%D equations\n",rank,__FUNCT__,lsize,gsz);
+    N = lsize/ndof; assert(lsize%ndof==0);
+    for (jj=0;jj<ndof;jj++) norms1[jj] = normsInf[jj] = 0;
+    ierr = VecGetArray(Xl,&xx0);CHKERRQ(ierr);
+    for (ii=0,xx=xx0;ii<N;ii++) {
+      for (jj=0;jj<ndof;jj++,xx++) {
+        PetscScalar t = PetscAbsReal(*xx);
+        norms1[jj] += t;
+        if (t>normsInf[jj]) normsInf[jj] = t;
+      }
+    }
+    assert(xx-xx0 == lsize);
+    ierr = VecRestoreArray(Xl,&xx0);CHKERRQ(ierr);
+    ierr = MPI_Allreduce(normsInf,gnormsInf,ndof,MPIU_REAL,MPI_MAX,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
+    PetscPrintf(PETSC_COMM_WORLD,"step %D) |u|_inf=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",stepi,gnormsInf[0],gnormsInf[1],gnormsInf[2],gnormsInf[3],gnormsInf[4],gnormsInf[5],gnormsInf[6],gnormsInf[7]);
+    if (s_debug>1) {
+      ierr = MPI_Allreduce(norms1,gnorms1,ndof,MPIU_REAL,MPI_SUM,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
+      PetscPrintf(PETSC_COMM_WORLD,"step %D) |u|_1=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",stepi,gnorms1[0],gnorms1[1],gnorms1[2],gnorms1[3],gnorms1[4],gnorms1[5],gnorms1[6],gnorms1[7]);
+    }
+  }
   PetscFunctionReturn(0);
 }
 
@@ -2870,8 +2986,6 @@ int main(int argc, char **argv)
     ierr = DMPICellSolve( ctx->dmpic );CHKERRQ(ierr);
     /* move back to solver space and make density vector */
     ierr = processParticles(ctx, 0.0, &ctx->sendListTable, 99, -1, -1, PETSC_TRUE);CHKERRQ(ierr);
-    /* setup particle pushing after each TS step */
-    ierr = TSSetPostStep(ts, poststep);CHKERRQ(ierr);
   }
 
   ierr = DMCreateGlobalVector(dmmhd, &X);CHKERRQ(ierr);
@@ -2933,7 +3047,7 @@ int main(int argc, char **argv)
     /* restore original limiter */
     ierr = PetscFVSetLimiter(fvm,limiter);CHKERRQ(ierr);
   }  else if (ctx->view_initial_sol) { /* plot initial state */
-    ierr = viewDMVec(dmmhd,X,NULL,NULL);CHKERRQ(ierr);
+    ierr = viewDMVec(dmmhd,X,NULL,"initial_");CHKERRQ(ierr);
   }
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventEnd(ctx->events[0],0,0,0,0);CHKERRQ(ierr);
@@ -2948,6 +3062,8 @@ int main(int argc, char **argv)
   ierr = TSSetInitialTimeStep(ts,0.0,ctx->dt);CHKERRQ(ierr);
   if (ctx->dt == ctx->cfl * minRadius / ctx->maxspeed) ctx->dt = 0;
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
+  ierr = TSSetPostStep(ts, viewDMVecTime);CHKERRQ(ierr);
+  ierr = TSSetApplicationContext(ts, ctx);CHKERRQ(ierr);
   if (!ctx->use_amr) {
     ierr = TSSolve(ts,X);CHKERRQ(ierr);
     ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
@@ -3007,7 +3123,7 @@ int main(int argc, char **argv)
     if (ctx->num_particles_total) {
       ierr = viewDMVec(dmpi->dm,dmpi->phi,dmpi->rho,"pic_");CHKERRQ(ierr);
     }
-    ierr = viewDMVec(dmmhd,X,NULL,NULL);CHKERRQ(ierr);
+    /* ierr = viewDMVec(dmmhd,X,NULL,NULL);CHKERRQ(ierr);  *//* final print, not needed with post step printing */
 #if defined(PETSC_USE_LOG)
     ierr = PetscLogEventEnd(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
 #endif
