@@ -201,7 +201,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   PetscReal       *B = NULL;
   PetscReal       v0[81], J[243], invJ[243], detJ[27], J0inv[9],v00[3];
   const PetscReal *weights;
-  PetscInt        totDim,p,N,dim,b,Nq,qdim,q,d,e;
+  PetscInt        totDim,p,N,dim,b,Nq,qdim,q,d,e,d3=8;
   PetscErrorCode  ierr;
   PetscDS         prob;
   PetscQuadrature quad;
