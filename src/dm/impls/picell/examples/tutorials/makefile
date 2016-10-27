@@ -33,16 +33,16 @@ ex3: ex3.o chkopts
 	${RM} -f ex3.o
 
 runex1_p4est:
-	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -x2_dm_type p8est -petscspace_poly_tensor -petscspace_order 1 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -domain_type torus -max_vpar 30. -use_v_update true -use_bsp 1  -petscpartitioner_type simple -collision_period 1000 -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -x2_dm_forest_initial_refinement 2 -num_phi_cells 3 -num_particles_proc 10
+	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -x2_dm_type p8est -petscspace_poly_tensor -petscspace_order 1 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -domain_type torus -max_vpar 30. -use_v_update true -use_bsp 1  -petscpartitioner_type simple -collision_period 10 -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -x2_dm_forest_initial_refinement 2 -num_phi_cells 3 -num_particles_proc 10
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5
 
 runex2:
-	-${MPIEXEC} -n ${NP} ./ex2.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -collision_period 1000 -max_vpar .05 -snes_type ksponly -use_bsp 1 -petscpartitioner_type simple -use_electrons false -periodic_domain false -use_mms false -use_v_update true -x2_dm_view hdf5:ex2.h5 -x2_vec_view hdf5:ex2.h5::append -x2_dm_refine 1 -num_particles_proc 100
+	-${MPIEXEC} -n ${NP} ./ex2.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -collision_period 1000 -max_vpar .05 -snes_type ksponly -use_bsp 1 -petscpartitioner_type simple -use_electrons false -periodic_domain false -use_mms false -use_v_update true -x2_dm_view hdf5:ex2.h5 -x2_vec_view hdf5:ex2.h5::append -x2_dm_refine 3 -num_particles_proc 1000
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex2.h5
 # -solver_np 2,2,1 -ft_np 2,2,1 -domain_lo -2,-2,-2 -domain_hi 2,2,2 -b0 .2,.2,1.5
 
 runex1:
-	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -mstep 2 -debug 3 -snes_monitor -ksp_monitor -snes_converged_reason -domain_type torus -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -x2_dm_refine 2 -use_bsp 1 -num_particles_proc 10 -num_phi_cells 4
+	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 1 -mstep 2 -debug 3 -snes_monitor -ksp_monitor -snes_converged_reason -domain_type torus -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -x2_dm_refine 2 -use_bsp 1 -num_particles_proc 100 -num_phi_cells 8
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5
 
 # -iter_vertex_file ITER-51vertex-quad-tri.txt -x2_dm_view -x2_dm_type p8est

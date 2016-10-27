@@ -955,7 +955,7 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   ierr = DMPlexMarkBoundaryFaces(dmpi->dm, label);CHKERRQ(ierr);
   ierr = DMPlexLabelComplete(dmpi->dm, label);CHKERRQ(ierr);
   id = 1;
-  ierr = DMAddBoundary(dmpi->dm, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx->BCFuncs[0], 1, &id, &ctx);CHKERRQ(ierr);
+  ierr = DMAddBoundary(dmpi->dm, DM_BC_ESSENTIAL, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx->BCFuncs[0], 1, &id, &ctx);CHKERRQ(ierr);
   if (sizeof(long long)!=sizeof(PetscReal)) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "sizeof(long long)!=sizeof(PetscReal)");
 
   ierr = setupDiscretization( ctx, dim );CHKERRQ(ierr);

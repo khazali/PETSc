@@ -132,7 +132,10 @@ PetscErrorCode X2GridSolverLocatePoints(DM dm, Vec xvec, const void *ctx_dum, IS
     ierr = PetscMalloc2(nn,&peidxs,nn,&elemidxs);CHKERRQ(ierr);
     for (ii=0;ii<nn;ii++) {
       elemidxs[ii] = foundCells[ii].index;
-      if (elemidxs[ii] < 0 && npe==1) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "We are not supporting out of domain points.");
+      if (elemidxs[ii] < 0 && npe==1) {
+        VecGetArray(xvec,&xx0);CHKERRQ(ierr);
+        SETERRQ5(PETSC_COMM_SELF, PETSC_ERR_USER, "We are not supporting out of domain points. particle %D/%D x = %g %g %g",ii+1,nn,xx0[3*ii+0],xx0[3*ii+1],xx0[3*ii+2]);
+      }
       if (elemidxs[ii] < 0) elemidxs[ii] = 0; /* not working in parallel */
       /* peidxs[ii] = foundCells[ii].rank; */
       peidxs[ii] = rank; /* dummy - no move until have global search */
@@ -350,13 +353,13 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
       ierr = PetscOptionsGetInt(NULL,"x2_","-dm_forest_initial_refinement", &idx, &flg);CHKERRQ(ierr);
       if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-x2_dm_forest_initial_refinement not found?");
       nmajor_total *= pow(2,idx);  /* plex does not get the curve */
+      ntheta_total *= pow(2,idx);
     }
     else {
       ierr = PetscOptionsGetInt(NULL,"x2_","-dm_refine", &idx, &flg);CHKERRQ(ierr);
-      if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-x2_dm_refinement not found?");
+      if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-x2_dm_refine not found?");
     }
     if (idx<1) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "refine must be greater than 0 (Q2 would be legal)");
-    ntheta_total *= pow(2,idx);
     /* inflate for corners in plane */
     radius = ctx->grid.radius_minor;
     s_rminor_inflate = 1.02/cos(M_PI/ntheta_total);
@@ -364,11 +367,11 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
     radius = ctx->grid.radius_minor + ctx->grid.radius_major;
     /* s_rminor_inflate *= 1.01/cos(.5*ctx->grid.section_phi*M_PI/nmajor_total); */
     s_rminor_inflate *= 1.02*((radius) / cos(.5*ctx->grid.section_phi*M_PI/nmajor_total) - ctx->grid.radius_major) / ctx->grid.radius_minor;
-    if (ntheta_total < 10) s_rminor_inflate *= 2.; /* hack to fix, this is not working for one level of refinement */
+    /* if (ntheta_total < 10) s_rminor_inflate *= 2.; /\* hack to fix, this is not working for one level of refinement *\/ */
     if (ctx->grid.radius_minor*s_rminor_inflate >= ctx->grid.radius_major && ctx->grid.section_phi==2) {
       s_rminor_inflate = 0.95*ctx->grid.radius_major/ctx->grid.radius_minor;
     }
-
+PetscPrintf(PETSC_COMM_WORLD,"\t\t%s ntheta_total=%g\n",__FUNCT__,ntheta_total);
     PetscStrcmp("torus",fname,&flg);
     if (flg) ctx->domain_type = X2_TORUS;
     else {
@@ -1558,7 +1561,7 @@ int main(int argc, char **argv)
     ierr = DMCreateLabel(dmpi->dm, "boundary");CHKERRQ(ierr);
     ierr = DMGetLabel(dmpi->dm, "boundary", &label);CHKERRQ(ierr);
     ierr = DMPlexMarkBoundaryFaces(dmpi->dm, label);CHKERRQ(ierr);
-    ierr = DMAddBoundary(dmpi->dm, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx->BCFuncs[0], 1, &id, ctx);CHKERRQ(ierr);
+    ierr = DMAddBoundary(dmpi->dm, DM_BC_ESSENTIAL, "wall", "boundary", 0, 0, NULL, (void (*)()) ctx->BCFuncs[0], 1, &id, ctx);CHKERRQ(ierr);
   }
   { /* convert to p4est */
     char convType[256];

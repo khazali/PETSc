@@ -2703,8 +2703,8 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   ierr = PetscDSSetDiscretization(probmhd, 0, (PetscObject) fvm);CHKERRQ(ierr);
   ierr = PetscDSSetRiemannSolver(probmhd, 0, PhysicsRiemann_MHD);CHKERRQ(ierr);
   ierr = PetscDSSetContext(probmhd, 0, ctx);CHKERRQ(ierr);
-  /* add BCs, how does this work with periodic? */
-  ierr = PetscDSAddBoundary(probmhd, PETSC_FALSE, "wall", "boundary", 0, 0, NULL, (void (*)()) PhysicsBoundary_MHD_Wall,1,&id,ctx);CHKERRQ(ierr);
+  /* add BCs */
+  ierr = PetscDSAddBoundary(probmhd, DM_BC_NATURAL, "wall", "boundary", 0, 0, NULL, (void (*)()) PhysicsBoundary_MHD_Wall,1,&id,ctx);CHKERRQ(ierr);
   ierr = PetscDSSetFromOptions(probmhd);CHKERRQ(ierr);
   /* setup PIC FEM Poisson Discretization */
   if (ctx->num_particles_total) {
@@ -2716,8 +2716,8 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     ierr = PetscDSSetResidual(prob, 0, 0, f1_u);CHKERRQ(ierr);
     ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL, NULL, g3_uu);CHKERRQ(ierr);
     ierr = PetscDSSetContext(prob, 0, ctx);CHKERRQ(ierr);
-    /* add BCs, how does this work with periodic? */
-    ierr = PetscDSAddBoundary(prob, PETSC_TRUE, "wall", "boundary", 0, 0, NULL, (void (*)()) zero, 1, &id, ctx);CHKERRQ(ierr);
+    /* add BCs */
+    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL, "wall", "boundary", 0, 0, NULL, (void (*)()) zero, 1, &id, ctx);CHKERRQ(ierr);
     ierr = PetscDSSetFromOptions(prob);CHKERRQ(ierr);
   }
   if (dmpi->debug>2) {
