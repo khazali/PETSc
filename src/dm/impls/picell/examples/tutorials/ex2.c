@@ -307,9 +307,9 @@ PetscErrorCode ProcessOptions( X2Ctx *ctx )
   ierr = PetscOptionsBool("-periodic_domain", "Periodic domain", "ex2.c", npflag2, &npflag2, &npflag1);CHKERRQ(ierr);
   if (npflag1 && npflag2) ctx->dtype = X2_PERIODIC;
   else ctx->dtype = X2_DIRI;
-  ctx->use_mms = PETSC_TRUE;
+  ctx->use_mms = PETSC_FALSE;
   ierr = PetscOptionsBool("-use_mms", "Us a manufactured RHS for particle weight", "ex2.c", ctx->use_mms, &ctx->use_mms, NULL);CHKERRQ(ierr);
-  ctx->use_vel_update = PETSC_FALSE;
+  ctx->use_vel_update = PETSC_TRUE;
   ierr = PetscOptionsBool("-use_vel_update", "Update the particle velocity with the E field", "ex2.c", ctx->use_vel_update, &ctx->use_vel_update, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
   if (s_debug>0) PetscPrintf(ctx->wComm,"npe=%D; %Dx%Dx%D solver grid; %Dx%Dx%D particle grid grid; mpi_send size (chunksize) equal %d particles. %s, %s, %s\n",
@@ -716,8 +716,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           xx[2]=list->data[pos].phi;
           *vv = list->data[pos].w0*ctx->species[isp].charge;
 #endif
+          /* method of manufactured solution, scale weight by f(x) */
           if (ctx->use_mms) {
-            *vv *= (double)ctx->nElems/(double)ctx->num_particles_proc;
+            *vv *= (double)ctx->nElems/(double)ctx->num_particles_proc; /* normalize */
             if (ctx->dtype == X2_PERIODIC) {
               ii = 2;
               *vv *= sin(2*M_PI*(xx[ii]-dlo[ii])/dlen[ii]);
@@ -923,7 +924,12 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   /* setup solver grid */
   dim = 3;
   if (ctx->dtype == X2_PERIODIC) {
-    ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->grid.solver_np, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &dmpi->dm);CHKERRQ(ierr);
+    if (ctx->npe==1) {
+      PetscInt cells[] = {2,2,2};
+      ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, cells, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &dmpi->dm);CHKERRQ(ierr);
+    } else {
+      ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->grid.solver_np, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &dmpi->dm);CHKERRQ(ierr);
+    }
   }
   else {
     ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->grid.solver_np, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, &dmpi->dm);CHKERRQ(ierr);
@@ -961,7 +967,7 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   ierr = setupDiscretization( ctx, dim );CHKERRQ(ierr);
 
   /* set a simple partitioner - needed to make my indexing work for point locate */
-  if (!ctx->rank) {
+  if (!ctx->rank && ctx->npe>1) {
     PetscInt cEnd,c,*cs,*cp,ii[3],i;
     const PetscReal *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi;
     const PetscInt *np = ctx->grid.solver_np;
@@ -991,13 +997,14 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
       *cp = X2_IDX3(ii,np);
     }
   }
-  ierr = DMPlexGetPartitioner(dmpi->dm, &part);CHKERRQ(ierr);
-  ierr = PetscPartitionerSetType(part, PETSCPARTITIONERSHELL);CHKERRQ(ierr);
-  ierr = PetscPartitionerShellSetPartition(part, ctx->npe, sizes, points);CHKERRQ(ierr);
-  if (sizes) {
-    ierr = PetscFree2(sizes,points);CHKERRQ(ierr);
+  if (ctx->npe>1) {
+    ierr = DMPlexGetPartitioner(dmpi->dm, &part);CHKERRQ(ierr);
+    ierr = PetscPartitionerSetType(part, PETSCPARTITIONERSHELL);CHKERRQ(ierr);
+    ierr = PetscPartitionerShellSetPartition(part, ctx->npe, sizes, points);CHKERRQ(ierr);
+    if (sizes) {
+      ierr = PetscFree2(sizes,points);CHKERRQ(ierr);
+    }
   }
-
   /* distribute */
   ierr = DMPlexDistribute(dmpi->dm, 0, NULL, &dm);CHKERRQ(ierr);
   if (dm) {
