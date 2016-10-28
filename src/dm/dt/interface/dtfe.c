@@ -3915,21 +3915,12 @@ PetscErrorCode PetscFEGetTabulation_Basic(PetscFE fem, PetscInt npoints, const P
   ierr = PetscSpaceEvaluate(fem->basisSpace, npoints, points, B ? tmpB : NULL, D ? tmpD : NULL, H ? tmpH : NULL);CHKERRQ(ierr);
   /* Translate to the nodal basis */
   if (B) {
-#if defined(PETSC_HAVE_MEMALIGN)
-    __assume_aligned(B,PETSC_MEMALIGN);
-#endif
     for (p = 0; p < npoints; ++p) {
       /* Multiply by V^{-1} (pdim x pdim) */
-#if defined(X2_HAVE_INTEL)
-#pragma simd vectorlengthfor(PetscReal)
-#endif
       for (j = 0; j < pdim; ++j) {
         const PetscInt i = (p*pdim + j)*comp;
         PetscInt       c;
         B[i] = 0.0;
-#if defined(X2_HAVE_INTEL)
-#pragma simd vectorlengthfor(PetscReal)
-#endif
         for (k = 0; k < pdim; ++k) {
           B[i] += fem->invV[k*pdim+j] * tmpB[p*pdim + k];
         }
