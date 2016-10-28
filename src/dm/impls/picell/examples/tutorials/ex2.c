@@ -925,11 +925,12 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   dim = 3;
   if (ctx->dtype == X2_PERIODIC) {
     if (ctx->npe==1) {
-      PetscInt cells[] = {2,2,2};
+      PetscInt cells[] = {4,4,4};
       ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, cells, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &dmpi->dm);CHKERRQ(ierr);
     } else {
       ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->grid.solver_np, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &dmpi->dm);CHKERRQ(ierr);
     }
+    ierr = DMLocalizeCoordinates(dmpi->dm);CHKERRQ(ierr);
   }
   else {
     ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->grid.solver_np, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, &dmpi->dm);CHKERRQ(ierr);
@@ -946,6 +947,23 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
     for (j = 0; j < dimEmbed; j++) {
       coord[j] = ctx->grid.domain_lo[j] + coord[j] * (ctx->grid.domain_hi[j] - ctx->grid.domain_lo[j]);
     }
+  }
+  if (ctx->dtype == X2_PERIODIC) { /* modify periodicity to match new bounds */
+    PetscReal            *maxCell, *L;
+    const PetscReal      *maxCellOrig, *Lorig;
+    DMBoundaryType       *bdtype;
+    const DMBoundaryType *bdtypeOrig;
+    PetscInt              i;
+
+    ierr = PetscMalloc3(dim,&maxCell,dim,&L,dim,&bdtype);CHKERRQ(ierr);
+    ierr = DMGetPeriodicity(dmpi->dm,&maxCellOrig,&Lorig,&bdtypeOrig);CHKERRQ(ierr);
+    for (i = 0; i < dim; i++) {
+      maxCell[i] = maxCellOrig[i] * (ctx->grid.domain_hi[i] - ctx->grid.domain_lo[i]);
+      L[i]       = Lorig[i] * (ctx->grid.domain_hi[i] - ctx->grid.domain_lo[i]);
+      bdtype[i]  = bdtypeOrig[i];
+    }
+    ierr = DMSetPeriodicity(dmpi->dm,maxCell,L,bdtype);CHKERRQ(ierr);
+    ierr = PetscFree3(maxCell,L,bdtype);CHKERRQ(ierr);
   }
   ierr = VecRestoreArray(coordinates,&coords);CHKERRQ(ierr);
   ierr = DMSetCoordinatesLocal(dmpi->dm,coordinates);CHKERRQ(ierr);

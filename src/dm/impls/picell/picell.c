@@ -1,7 +1,7 @@
 #define PETSCDM_DLL
 #include <petsc/private/dmpicellimpl.h>    /*I   "petscdmpicell.h"   I*/
 #include <petsc/private/petscfeimpl.h>    /*I   "petscfe.h"   I*/
-#include <petsc/private/snesimpl.h>    /*I   "snesimpl.h"   I*/
+#include <petsc/private/snesimpl.h>    /*I   "petscsnes.h"   I*/
 #include "petscdmforest.h"
 #include <petscdmda.h>
 #include <petscsf.h>
@@ -271,7 +271,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
 #endif
   ierr = DMGetWorkArray(plex, totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
   ierr = PetscMemzero(elemVec, totDim * sizeof(PetscScalar));CHKERRQ(ierr);
-#if defined(PETSC_HAVE_MEMALIGN)
+#if defined(__INTEL_COMPILER)
   __assume_aligned(B,PETSC_MEMALIGN);
 #endif
   for (p = 0; p < N; ++p) {
