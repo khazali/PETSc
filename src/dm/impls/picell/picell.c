@@ -1,7 +1,6 @@
 #define PETSCDM_DLL
 #include <petsc/private/dmpicellimpl.h>    /*I   "petscdmpicell.h"   I*/
 #include <petsc/private/petscfeimpl.h>    /*I   "petscfe.h"   I*/
-#include <petsc/private/snesimpl.h>    /*I   "snesimpl.h"   I*/
 #include "petscdmforest.h"
 #include <petscdmda.h>
 #include <petscsf.h>
