@@ -478,12 +478,16 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         ierr = PetscLogEventEnd(ctx->events[7],0,0,0,0);CHKERRQ(ierr);
         ierr = PetscLogEventBegin(ctx->events[8],0,0,0,0);CHKERRQ(ierr); /* timer on particle list */
 #endif
+PetscPrintf(PETSC_COMM_SELF,"\t\t[%D]%s isp=%D elid=%D/%D 111111\n",s_rank,__FUNCT__,isp,elid,ctx->nElems);
         /* push, and collect x */
         if (irk>=0) {
           Vec locphi;
+PetscPrintf(PETSC_COMM_SELF,"\t\t[%D]%s isp=%D elid=%D/%D 222222\n",s_rank,__FUNCT__,isp,elid,ctx->nElems);
           ierr = DMGetLocalVector(dmpi->dm, &locphi);CHKERRQ(ierr);
+PetscPrintf(PETSC_COMM_SELF,"\t\t[%D]%s isp=%D elid=%D/%D 3333\n",s_rank,__FUNCT__,isp,elid,ctx->nElems);          
           ierr = DMGlobalToLocalBegin(dmpi->dm, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
           ierr = DMGlobalToLocalEnd(dmpi->dm, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
+PetscPrintf(PETSC_COMM_SELF,"\t\t[%D]%s isp=%D elid=%D/%D 44444\n",s_rank,__FUNCT__,isp,elid,ctx->nElems);
           /* get E, should set size of vecs for true size? */
           ierr = VecCreateSeq(PETSC_COMM_SELF,three*list->vec_top,&jVec);CHKERRQ(ierr);
           ierr = DMPICellGetJet(ctx->dm, xVec, locphi, elid, jVec);CHKERRQ(ierr);
@@ -667,7 +671,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
       ierr = PetscLogEventEnd(ctx->events[5],0,0,0,0);CHKERRQ(ierr);
 #endif
     } /* element list */
-
+PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s element list done call shiftParticles\n",s_rank,__FUNCT__);
     /* finish sends and receive new particles for this species */
     ierr = shiftParticles(ctx, sendListTable, ctx->partlists[isp], &nslist, X2PROCLISTSIZE, slist, tag+isp, solver);CHKERRQ(ierr);
 
@@ -916,7 +920,7 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   DM_PICell        *dmpi = (DM_PICell *) ctx->dm->data;
   DM               dm;
   DMLabel          label;
-  PetscInt         *sizes = NULL;
+  PetscInt         *sizes = NULL, cells[] = {2,2,2};
   PetscInt         *points = NULL;
   PetscPartitioner part;
   PetscFunctionBeginUser;
@@ -925,15 +929,19 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   dim = 3;
   if (ctx->dtype == X2_PERIODIC) {
     if (ctx->npe==1) {
-      PetscInt cells[] = {4,4,4};
+      for (i = 0; i < dim; i++) cells[i] = 4; /* periodic on one proc needs help */
       ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, cells, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &dmpi->dm);CHKERRQ(ierr);
     } else {
-      ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->grid.solver_np, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &dmpi->dm);CHKERRQ(ierr);
+      /* periodic wants 2^D cells per processor */
+      for (i = 0; i < dim; i++) cells[i] *= ctx->grid.solver_np[i];
+      ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, cells, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &dmpi->dm);CHKERRQ(ierr);
     }
     ierr = DMLocalizeCoordinates(dmpi->dm);CHKERRQ(ierr);
   }
   else {
-    ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->grid.solver_np, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, &dmpi->dm);CHKERRQ(ierr);
+    /* one cell per processor */
+    for (i = 0; i < dim; i++) cells[i] = ctx->grid.solver_np[i];
+    ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, cells, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, &dmpi->dm);CHKERRQ(ierr);
   }
   /* set domain size */
   ierr = DMGetCoordinatesLocal(dmpi->dm,&coordinates);CHKERRQ(ierr);
@@ -988,31 +996,19 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   if (!ctx->rank && ctx->npe>1) {
     PetscInt cEnd,c,*cs,*cp,ii[3],i;
     const PetscReal *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi;
-    const PetscInt *np = ctx->grid.solver_np;
+    const PetscInt locN = ctx->dtype == X2_PERIODIC ? 2 : 1, c_proc = pow(locN,dim);
     ierr = DMPlexGetHeightStratum(dmpi->dm, 0, NULL, &cEnd);CHKERRQ(ierr); /* DMGetCellChart */
-    if (cEnd && cEnd!=ctx->npe) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_USER, "cEnd=%d != %d",cEnd,ctx->npe);
-    if (cEnd!=ctx->npe) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_USER, "cEnd=%d != %d",cEnd,ctx->npe);
-    ierr = PetscMalloc2(ctx->npe, &sizes, ctx->npe, &points);CHKERRQ(ierr);
-    for (c=0,cs=sizes,cp=points;c<ctx->npe;c++,cs++,cp++) {
-      PetscReal x[3];
-      *cs = 1; // points[c] = c;
-      if (1) {
-        ierr = DMPlexComputeCellGeometryFVM(dmpi->dm, c, NULL, x, NULL);CHKERRQ(ierr);
-      } else {
-        PetscReal v0[81];
-        PetscQuadrature quad;
-        PetscInt qdim,Nq,j;
-        ierr = PetscFEGetQuadrature(dmpi->fem, &quad);CHKERRQ(ierr);
-        ierr = PetscQuadratureGetData(quad, &qdim, &Nq, NULL, NULL);CHKERRQ(ierr);
-        ierr = DMPlexComputeCellGeometryFEM(dmpi->dm, c, dmpi->fem, v0, NULL, NULL, NULL);CHKERRQ(ierr);
-        for(i=0;i<3;i++) x[i] = 0;
-        for (j=0;j<Nq;j++) {
-          for(i=0;i<3;i++) x[i] += v0[3*j+i];
-        }
-        for(i=0;i<3;i++) x[i] /= Nq;
+    if (cEnd && cEnd!=ctx->npe*c_proc) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_USER, "cEnd=%d != %d",cEnd,ctx->npe*c_proc);
+    if (cEnd!=ctx->npe*c_proc) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_USER, "cEnd=%d != %d",cEnd,ctx->npe*c_proc);
+    ierr = PetscMalloc2(ctx->npe, &sizes, ctx->npe*c_proc, &points);CHKERRQ(ierr);
+    for (c=0,cs=sizes;c<ctx->npe;c++,cs++) *cs = c_proc;
+    for (c=0,cp=points;c<ctx->npe*c_proc;c++,cp++) {
+      PetscReal v0[81],detJ[27];
+      ierr = DMPlexComputeCellGeometryFEM(dmpi->dm, c, NULL, v0, NULL, NULL, detJ);CHKERRQ(ierr);
+      for(i=0;i<3;i++) {
+        ii[i] = (PetscInt)(PetscFloorReal(v0[i]-dlo[i]+1.e-14)/(dhi[i]-dlo[i])*(double)ctx->grid.solver_np[i]);
       }
-      for(i=0;i<3;i++) ii[i] = (PetscInt)((x[i]-dlo[i])/(dhi[i]-dlo[i])*(double)np[i]);
-      *cp = X2_IDX3(ii,np);
+      *cp = X2_IDX3(ii,ctx->grid.solver_np);
     }
   }
   if (ctx->npe>1) {
