@@ -19,50 +19,46 @@
 #      requires: !complex !single
 #      requires: int32
 #
+#   buildrequires => file requires things just to build.  Usually
+#      because of includes
+#
 #   There is some limited support for mapping args onto packages
 
-makefileMap={}
-makefileMap["TESTEXAMPLES_F90_NOCOMPLEX"]="requires: !complex"  # Need to check
-#??makefileMap["TESTEXAMPLES_F2003"]="requires: define(USING_F2003)"
-makefileMap["TESTEXAMPLES_C_COMPLEX"]="requires: complex"
-makefileMap["TESTEXAMPLES_FORTRAN_COMPLEX"]="requires: complex"
-makefileMap["TESTEXAMPLES_C_NOCOMPLEX"]="requires: !complex"
-makefileMap["TESTEXAMPLES_C_NOCOMPLEX_NOTSINGLE"]="requires: !complex, !single"
-makefileMap["TESTEXAMPLES_FORTRAN_NOCOMPLEX"]="requires: !complex"
-makefileMap["TESTEXAMPLES_C_X"]="requires: x"
-makefileMap["TESTEXAMPLES_C_X_MPIUNI"]="requires: x"
-makefileMap["TESTEXAMPLES_C_NOTSINGLE"]="requires: !single"
-makefileMap['TESTEXAMPLES_INFO']="requires: define(USE_INFO)"
-makefileMap['TESTEXAMPLES_NOTSINGLE']="requires: !single"
-makefileMap["TESTEXAMPLES_CUDA"]="requires: cuda"
-makefileMap["TESTEXAMPLES_CUSP"]="requires: cusp"
-makefileMap["TESTEXAMPLES_CUSPARSE"]="requires: cusparse"
-makefileMap["TESTEXAMPLES_HYPRE"]="requires: hypre"
-makefileMap["TESTEXAMPLES_MUMPS"]="requires: mumps"
-makefileMap["TESTEXAMPLES_FFTW"]="requires: fftw"
-makefileMap["TESTEXAMPLES_FFTW_COMPLEX"]="requires: fftw,complex"
-makefileMap["TESTEXAMPLES_SUPERLU"]="requires: superlu"
-makefileMap["TESTEXAMPLES_SUPERLU_DIST"]="requires: superlu_dist"
-makefileMap["TESTEXAMPLES_MKL_PARDISO"]="requires: mkl_pardiso"
-makefileMap["TESTEXAMPLES_MOAB"]="requires: moab"
-makefileMap["TESTEXAMPLES_MOAB_HDF5"]="requires: moab, hdf5"
-makefileMap["TESTEXAMPLES_THREADCOMM"]="requires: threadcomm"
-makefileMap["TESTEXAMPLES_EXODUSII"]="requires: exodusii"
-makefileMap["TESTEXAMPLES_TCHEM"]="requires: tchem"
-makefileMap["TESTEXAMPLES_REVOLVE"]="requires: revolve"
-makefileMap["TESTEXAMPLES_YAML"]="requires: yaml"
-makefileMap["TESTEXAMPLES_CHOMBO"]="requires: chombo"
-makefileMap["TESTEXAMPLES_TRILINOS"]="requires: trilinos"
 
-#
+makefileMap={}
+
+# This looks for the pattern matching and then determines the
+# requirement.  The distinction between buildrequires and requires is
+# tricky.  I looked at the makefile's and files themselves to try and
+# figure it out.
+makefileMap["_COMPLEX"]="buildrequires: complex"
+makefileMap["_NOCOMPLEX"]="buildrequires: !complex"
+makefileMap["_NOTSINGLE"]="buildrequires: !single"
+makefileMap["_NOSINGLE"]="buildrequires: !single"
+
+makefileMap["_DOUBLEINT32"]="buildrequires: !define(USE_64BIT_INDICES) define(PETSC_USE_REAL_DOUBLE)"  
+makefileMap["_THREADSAFETY"]="buildrequires: define(PETSC_USING_FREEFORM) define(PETSC_USING_F90)"
+makefileMap["_F2003"]="buildrequires: define(PETSC_USING_FREEFORM) define(PETSC_USING_F2003)"
+#makefileMap["_F90_DATATYPES"]="" # ??
+
+makefileMap["_DATAFILESPATH"]="requires: datafilespath"
+makefileMap['_INFO']="requires: define(USE_INFO)"
+
+# Typo
+makefileMap["_PARAMETIS"]="requires: parmetis"
+
+# Some packages are runtime, but others are buildtime because of includes
+reqpkgs=["CHOMBO", "CTETGEN", "ELEMENTAL","EXODUSII", "HDF5", "HYPRE", "LUSOL", "MATLAB", "MATLAB_ENGINE", "MKL_PARDISO", "ML", "MUMPS", "PARMETIS", "PARMS", "PASTIX", "PTSCOTCH", "REVOLVE", "SAWS", "SPAI", "STRUMPACK", "SUITESPARSE", "SUPERLU", "SUPERLU_DIST", "TRIANGLE", "TRILINOS", "YAML"]
+
+bldpkgs=["MOAB", "FFTW", "TCHEM","VECCUDA","CUSP","CUSPARSE","X"]
+
+for pkg in reqpkgs: makefileMap["_"+pkg]="requires: "+ pkg.lower()
+for pkg in bldpkgs: makefileMap["_"+pkg]="buildrequires: "+ pkg.lower()
+
 #  Map of "string" in arguments to package requirements; i.e.,
 #    argMap[patternString]=packageRequired
 #
 argMap={}
-#packages="superlu superlu_dist hypre strumpack elemental cuda cusp mkl_pardiso moab threadcomm"
-# Figure out superlu later
-
-packages="superlu_dist hypre strumpack elemental cuda cusp mkl_pardiso moab threadcomm"
-for pkg in packages.split():
-  argMap[pkg]="requires: "+pkg
+for pkg in reqpkgs+bldpkgs:
+  argMap[pkg]="requires: "+pkg.lower()
 argMap['DATAFILESPATH']='requires: datafilespath'

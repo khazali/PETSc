@@ -264,7 +264,8 @@ sources: `petsc_harness.sh`.
 
 As an example, consider this test input::
 
-     test_suffix: 2
+     test:
+         suffix: 2
          output_file: output/ex138.out
          args: -f ${DATAFILESPATH}/matrices/small -mat_type {{aij,baij,sbaij}} -matload_block_size {{2,3}}
          requires: datafilespath

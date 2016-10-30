@@ -7,6 +7,11 @@ import stat
 import types
 import optparse
 import string
+import inspect
+
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+sys.path.insert(0,currentdir) 
+from examplesMkParse import *
 
 """
 Quick start
@@ -78,144 +83,11 @@ One other mode:
          summarize the results (using examplesAnalyze_summarize)
 """
 
-class PETScExamples(object):
+class PETScExamples(makeParse):
   def __init__(self):
-
-    self.ptNaming=True
+    super(PETScExamples, self).__init__()
     return
 
-  def undoNameSpace(self,srcfile):
-    """
-    Undo the nameSpaceing
-    """
-    if self.ptNaming:
-      nameString=srcfile.split("-")[1]
-    else:
-      nameString=srcfile
-    return nameString
-
-  def nameSpace(self,srcfile,srcdir):
-    """
-    Because the scripts have a non-unique naming, the pretty-printing
-    needs to convey the srcdir and srcfile.  There are two ways of doing
-    this.
-    """
-    if self.ptNaming:
-      cdir=srcdir.split('src')[1].lstrip("/").rstrip("/")
-      prefix=cdir.replace('/examples/','_').replace("/","_")+"-"
-      nameString=prefix+srcfile
-    else:
-      #nameString=srcdir+": "+srcfile
-      nameString=srcfile
-    return nameString
-
-  def getTestsStr(self,fileStr):
-    """
-    Given a string that has the /*TESTS testsStr TESTS*/ 
-    embedded within it, return testsStr
-    """
-    if not "/*TESTS" in fileStr: return fileStr,""
-    first=fileStr.split("/*TESTS")[0]
-    fsplit=fileStr.split("/*TESTS")[1]
-    testsStr=fsplit.split("TESTS*/")[0]
-    return first,testsStr
-
-  def getSourceFileName(self,petscName,srcdir):
-    """
-    Given a PETSc name of the form ex1.PETSc or ex2.F.PETSc 
-    find the source file name
-    Source directory is needed to handle the fortran
-    """
-    # Bad spelling
-    word=petscName
-    if word.rstrip(".PETSc")[-1]=='f':
-      newword = word.replace('PETSc','F')
-      if not os.path.isfile(os.path.join(srcdir,newword)):
-        newword = word.replace('PETSc','F90')
-      if not os.path.isfile(os.path.join(srcdir,newword)):
-        print "I give up on this fortran file: ", srcdir, word
-    elif 'f90' in word:
-      newword = word.replace('PETSc','F90')
-      if not os.path.isfile(os.path.join(srcdir,newword)):
-        newword = word.replace('PETSc','F')
-      if not os.path.isfile(os.path.join(srcdir,newword)):
-        print "I give up on this f90 file: ", srcdir, word
-        newword=""
-    # For files like  
-    elif os.path.splitext(word)[0].endswith('cu'):
-      newword = word.replace('PETSc','cu')
-    else:
-      # This is a c file required for the 
-      newword = word.replace('PETS','')
-      # This means there is a bug in the makefile.  Move along
-      if not os.path.isfile(os.path.join(srcdir,newword)):
-        newword = word.replace('PETSc','cxx')
-      if not os.path.isfile(os.path.join(srcdir,newword)):
-        print "I give up on this: ", srcdir, word
-        newword=""
-    return newword
-
-  def findTests(self,srcfile,testList):
-    """
-    Given a source file of the form ex1.c and a list of tests of the form
-    ['runex1', 'runex1_1', 'runex10', ...]
-    Return the list of tests that should be associated with that srcfile
-    """
-    mtch=os.path.splitext(srcfile)[0]
-    if self.ptNaming: mtch=mtch.split("-")[1]
-    newList=[]
-    for test in testList:
-      if self.ptNaming: test=test.split("-")[1]
-      if test.split("_")[0][3:]==mtch: newList.append(test)
-    return newList
-
-  def parseline(self,fh,line,srcdir):
-    """
-    For a line of the form:
-      VAR = ex1.PETSc runex1
-    return two lists of the source files and run files
-    getSourceFileName is used to change PETSc into the 
-    appropriate file extension
-     - fh is the file handle to the makefile
-     - srcdir is where the makefile and examples are located
-    Note for EXAMPLESC and related vars, it ex1.c instead of ex1.PETSc
-    """
-    parseDict={}; parseDict['srcs']=[]; parseDict['tsts']=[]
-    debug=False
-    while 1:
-      last_pos=fh.tell()
-      if line.strip().endswith("\\"):
-        line=line.strip().rstrip("\\")+" "+fh.readline().strip()
-      else:
-        fh.seek(last_pos)  # might be grabbing next var
-        break
-    if debug: print "       parseline> line ", line
-    # Clean up the lines to only have a dot-c name
-    justfiles=line.split("=")[1].strip()
-    justfiles=justfiles.split("#")[0].strip() # Remove comments
-    if len(justfiles.strip())==0: return parseDict
-    examplesList=justfiles.split(" ")
-    # Now parse the line and put into lists
-    srcList=[]; testList=[]; removeList=[]
-    for exmpl in examplesList:
-      if len(exmpl.strip())==0: continue
-      if exmpl.endswith(".PETSc"): 
-        srcfile=self.getSourceFileName(exmpl,srcdir)
-        parseDict[srcfile]=[] # Create list of tests assocated with src file
-        srcList.append(self.nameSpace(srcfile,srcdir))
-      elif exmpl.startswith("run"): 
-        testList.append(self.nameSpace(exmpl,srcdir))
-        parseDict[srcfile].append(exmpl)
-      elif exmpl.endswith(".rm"): 
-        removeList.append(exmpl) # Can remove later if needed
-      else:
-        srcList.append(self.nameSpace(exmpl,srcdir))
-    if debug: print "       parseline> ", srcList, testList
-    #if "pde_constrained" in srcdir: raise ValueError('Testing')
-    parseDict['srcs']=srcList
-    parseDict['tsts']=testList
-    return parseDict
-   
   def getCorrespondingKeys(self,extype):
     """
     Which TESTEX* vars should we look for given an EXAMPLE* variable

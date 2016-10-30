@@ -79,10 +79,10 @@ class generateExamples(Petsc,PETScExamples):
     basename=os.path.splitext(srcfile)[0]
 
     sh=open(srcfile,"r"); fileStr=sh.read(); sh.close()
-    fsplit=fileStr.split("/*TEST")[1:]
+    fsplit=fileStr.split("/*TESTS")[1:]
     if len(fsplit)==0: return False
     srcTests=[]
-    for t in fsplit: srcTests.append(t.split("TEST*/")[0].strip())
+    for t in fsplit: srcTests.append(t.split("TESTS*/")[0].strip())
 
     # Now take the strings and put them into a dictionary
     for test in srcTests:

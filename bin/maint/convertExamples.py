@@ -28,7 +28,7 @@ Quick start
 
 """
 
-class convertExamples(PETScExamples,makeParse):
+class convertExamples(PETScExamples):
   def __init__(self,replaceSource):
     super(convertExamples, self).__init__()
     self.replaceSource=replaceSource
@@ -36,101 +36,6 @@ class convertExamples(PETScExamples,makeParse):
     #self.scriptsSubdir=""
     self.scriptsSubdir="from_makefile"
     return
-
-  def transformAnalyzeMap(self,anlzDict):
-    """
-    examplesAnalyze dataDict produces a dictionary of the form:
-      dataDict[fullmake][TESTEXAMPLES_*]['tsts']
-      dataDict[fullmake][TESTEXAMPLES_*]['srcs']
-    Put it into a form that is easier for later coding
-    """
-    newDict={}
-
-    # Insert the source file associated with the test
-    #  A little bit worried here as if there is a run* test in two TEST*
-    #  targets then I won't get it.
-    for extype in anlzDict:
-      if extype == "runexFiles": continue
-      for exfile in anlzDict[extype]['srcs']:
-        testList=self.findTests(exfile,anlzDict[extype]['tsts'])
-        for test in testList:
-          if not newDict.has_key(test):
-            newDict[test]={}
-            newDict[test]['types']=[]
-          newDict[test]['source']=self.undoNameSpace(exfile)
-          newDict[test]['types'].append(extype)
-
-    import convertExamplesUtils
-    makefileMap=convertExamplesUtils.makefileMap
-    # Clean up the requirements
-    for test in newDict:
-      allRqs=[]
-      for atype in newDict[test]['types']:
-        if makefileMap.has_key(atype):
-          rqList=makefileMap[atype].split("requires:")[1].strip().split()
-          allRqs=allRqs+rqList
-      if len(allRqs)>0:
-        newDict[test]['requires']=list(set(allRqs))  # Uniquify the requirements
-    return newDict
-
-  def insertScriptIntoSrc(self,runexName,basedir,abstract):
-    """
-    This is a little bit tricky because figuring out the source file
-    associated with a run file is done by order in TEST* variables.
-    Rather than try and parse that logic, we will try to find it
-    """
-    # Sanity checks -- goal is to pass wtihout any of these showing
-    if not abstract.has_key('source'):
-      print "Can't find source file", basedir,runexName
-      return False
-
-    if not abstract['abstracted']:
-      print "Warning: Problem with ", runexName, " in ", basedir
-      return False
-
-    debug=False
-    startdir=os.path.realpath(os.path.curdir)
-    os.chdir(basedir)
-    exBase=runexName[3:].split("_")[0]
-    exSrc=abstract['source']
-
-    # Get the string to insert
-    indent="  "
-    insertStr=indent+"test:\n"
-    indent=indent*2
-    if abstract['abstracted']:
-      if abstract.has_key('outputSuffix'):
-        if abstract['outputSuffix']:
-          suffix=abstract['outputSuffix']
-          insertStr=insertStr+indent+"suffix: "+suffix+"\n"
-      if abstract.has_key('outputSuffix'):
-        if abstract['nsize']>1:
-          insertStr=insertStr+indent+"nsize: "+str(abstract['nsize'])+"\n"
-      if abstract.has_key('args'):
-        insertStr=insertStr+indent+"args: "+abstract['args']+"\n"
-      if abstract.has_key('requires'):
-        reqStr=", ".join(abstract['requires'])
-        insertStr=insertStr+indent+"requires: "+reqStr+"\n"
-
-    if os.path.splitext(exSrc)[1].lstrip(".").startswith("F"):
-      insertStr=insertStr.replace("\n","\n!").rstrip("!")
-
-    # Get the file into a string, append, and then close
-    newExSrc="new_"+exSrc
-    openFile=(newExSrc if os.path.isfile(newExSrc) else exSrc)
-    sh=open(openFile,"r"); fileStr=sh.read(); sh.close()
-
-    # Get current tests within the file
-    firstPart,currentTestsStr=self.getTestsStr(fileStr)
-
-    # What gets inserted
-    testStr="\n/*TESTS\n"+currentTestsStr.lstrip("\n")+insertStr+"\nTESTS*/\n"
-
-    # Append to the file
-    sh=open(newExSrc,"w"); sh.write(firstPart+testStr); sh.close()
-
-    os.chdir(startdir)
-    return True
 
   def cleanAllRunFiles_summarize(self,dataDict):
     """
@@ -216,13 +121,6 @@ class convertExamples(PETScExamples,makeParse):
     # Information comes form makefile
     fullmake=os.path.join(root,"makefile")
 
-    # Use examplesAnalyze to get info from TEST* targets, 
-    # but then put it into more useful data structure
-    # Provides: associated sourcefile and requirements based on TEST* variables
-    anlzDict={}
-    self.examplesAnalyze(root,dirs,files,anlzDict)
-    testDict=self.transformAnalyzeMap(anlzDict[fullmake])
-
     # Go through the makefile, and for each run* target: 
     #     extract, abstract, insert
     dataDict[fullmake]={}
@@ -239,13 +137,9 @@ class convertExamples(PETScExamples,makeParse):
       # Preliminary abstract
       dataDict[fullmake][runex]=self.abstractScript(runex,mkDict[runex]['script'])
 
-      # Update the abstract info from testDict above (source, requires)
-      if testDict.has_key(runex):
-        dataDict[fullmake][runex].update(testDict[runex])
-
       # If requested, then insert into source
       if insertIntoSrc: 
-        if not self.insertScriptIntoSrc(runex,root,dataDict[fullmake][runex]):
+        if not self.insertScriptIntoSrc(runex,fullmake,dataDict[fullmake][runex]):
            dataDict[fullmake]['nonUsedTests'].append(runex)
 
     return
