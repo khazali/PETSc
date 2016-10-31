@@ -320,6 +320,7 @@ PetscErrorCode go( X2Ctx *ctx )
     if (((istep+1)%ctx->collision_period)==0) {
       /* move to flux tube space */
       ierr = processParticles(ctx, 0.0, &ctx->sendListTable, tag, -1, istep, PETSC_FALSE);CHKERRQ(ierr);
+
       /* call collision method */
 #ifdef H5PART
       if (ctx->plot) {

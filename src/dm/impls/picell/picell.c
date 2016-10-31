@@ -212,10 +212,10 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
 {
   DM_PICell       *dmpi = (DM_PICell *) dm->data;
   Vec             refCoord;
-  PetscScalar     *rhoArr, *xx, *xi, *elemVec;
+  PetscScalar     *rhoArr, *xx, *xi, *elemVec,sum;
   PetscReal       v0[81], J[243], invJ[243], detJ[27];
   PetscReal       *B = NULL;
-  PetscInt        totDim,p,N,dim,b,d,e;
+  PetscInt        totDim,p,N,dim,b,d,e,order;
   PetscErrorCode  ierr;
   PetscDS         prob;
   DM              plex;
@@ -234,6 +234,7 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
   ierr = DMGetDimension(plex, &dim);CHKERRQ(ierr);
   ierr = DMGetDS(plex, &prob);CHKERRQ(ierr);
   ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
+  order = pow(totDim,1./(double)dim) - 1;
   /* Affine approximation for reference coordinates */
   ierr = DMPlexComputeCellGeometryAffineFEM(plex, cell, v0, J, invJ, detJ);CHKERRQ(ierr);
   /* get coordinates */
@@ -278,15 +279,17 @@ PetscErrorCode DMPICellAddSource(DM dm, Vec coord, Vec densities, PetscInt cell,
 #if defined(__INTEL_COMPILER)
 #pragma simd vectorlengthfor(PetscReal)
 #endif
-    for (b = 0; b < totDim; ++b) {
+    for (b = 0, sum = 0; b < totDim; ++b) {
       elemVec[b] += B[p*totDim + b] * rhoArr[p];
-#ifdef PETSC_USE_DEBUG
-      if (B[p*totDim + b] < -.1) {
-        PetscPrintf(PETSC_COMM_SELF,"\t\tDMPICellAddSource ERROR element %d, p=%d/%d, add B[%d] = %g, x = %12.8e %12.8e %12.8e, ref x = %12.8e %12.8e %12.8e\n",cell,p+1,N,p*totDim + b,B[p*totDim + b],xx[p*dim+0],xx[p*dim+1],xx[p*dim+2],xi[p*dim+0],xi[p*dim+1],xi[p*dim+2]);
+      sum += B[p*totDim + b];
+/* #ifdef PETSC_USE_DEBUG */
+      if (order==1 && B[p*totDim + b] < -.1) {
+        PetscPrintf(PETSC_COMM_SELF,"\t\tDMPICellAddSource ERROR element %d, p=%d/%d, add B[%d] = %g, x = %12.8e %12.8e %12.8e, ref x = %12.8e %12.8e %12.8e order=%D\n",cell,p+1,N,p*totDim + b,B[p*totDim + b],xx[p*dim+0],xx[p*dim+1],xx[p*dim+2],xi[p*dim+0],xi[p*dim+1],xi[p*dim+2],order);
         /* SETERRQ1(PetscObjectComm((PetscObject) plex), PETSC_ERR_PLIB, "negative interpolant %g, Plex LocatePoint not great with coarse grids",B[p*totDim + b]); */
       }
-#endif
+/* #endif */
     }
+    if (PetscAbsReal(1.-sum) > 1.e-7) SETERRQ1(PetscObjectComm((PetscObject) plex), PETSC_ERR_PLIB, "sun interpolant %g",sum);
   }
   ierr = VecRestoreArray(coord, &xx);CHKERRQ(ierr);
   ierr = VecRestoreArray(densities, &rhoArr);CHKERRQ(ierr);

@@ -111,7 +111,10 @@ PetscErrorCode X2GridSolverLocatePoints(DM dm, Vec xvec, const X2Ctx *ctx,  IS *
       elemidxs[ii] = foundCells[ii].index; /* asssumes all processors have same element layout */
       /* *pe = foundCells[0].rank; */
       if (elemidxs[ii]<0) {
-        PetscPrintf(PETSC_COMM_SELF,"\t[%D]%s ERROR miseed index-1 %D/%D\n",s_rank,__FUNCT__,ii+1,nn);
+        ierr = VecGetArray(xvec,&xx);CHKERRQ(ierr);
+        PetscPrintf(PETSC_COMM_SELF,"\t[%D]%s ERROR miseed index %D/%D x = %g %g %g elem id = %D\n",s_rank,__FUNCT__,ii+1,nn,xx[3*ii+0],xx[3*ii+1],xx[3*ii+2],elemidxs[ii]);
+        ierr = VecRestoreArray(xvec,&xx);CHKERRQ(ierr);
+        PetscSleep(1);
         SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "missed point");
       }
     }
@@ -394,6 +397,48 @@ static void postwrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *pp
   }
 }
 #endif
+
+#undef __FUNCT__
+#define __FUNCT__ "u_x4_op"
+PetscErrorCode u_x4_op(PetscInt dim, PetscReal time, const PetscReal xx[], PetscInt Nf, PetscScalar *u, void *a_ctx)
+{
+  X2Ctx *ctx = (X2Ctx*)a_ctx;
+  PetscInt comp,i;
+  const PetscReal  *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi;
+  PetscReal dlen[3];
+  PetscFunctionBeginUser;
+  for(i=0;i<dim;i++) dlen[i] = dhi[i] - dlo[i];
+  for (comp = 0; comp < Nf; ++comp) {
+    u[comp] = 1;
+    for (i = 0; i < dim; ++i) {
+      PetscReal x = (xx[i]-dlo[i])/dlen[i];
+      u[comp] *= (x*x - x*x*x*x);
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "u_sinz_op"
+PetscErrorCode u_sinz_op(PetscInt dim, PetscReal time, const PetscReal xx[], PetscInt Nf, PetscScalar *u, void *a_ctx)
+{
+  X2Ctx *ctx = (X2Ctx*)a_ctx;
+  PetscInt comp,i;
+  const PetscReal  *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi;
+  PetscReal dlen[3];
+  PetscFunctionBeginUser;
+  for(i=0;i<dim;i++) dlen[i] = dhi[i] - dlo[i];
+  for (comp = 0; comp < Nf; ++comp) {
+    u[comp] = 1;
+    /* for (i = 0; i < dim; ++i) { */
+    /* PetscReal x = (xx[i]-dlo[i])/dlen[i]; */
+    /* u[comp] *= (x*x - x*x*x*x); */
+    i = 2;
+    u[comp] *= sin(2*M_PI*(xx[i]-dlo[i])/dlen[i]);
+  }
+  PetscFunctionReturn(0);
+}
+
 /* processParticle: move particles if (sendListTable) , push if (irk>=0)
     Input:
      - dt: time step
@@ -478,16 +523,14 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         ierr = PetscLogEventEnd(ctx->events[7],0,0,0,0);CHKERRQ(ierr);
         ierr = PetscLogEventBegin(ctx->events[8],0,0,0,0);CHKERRQ(ierr); /* timer on particle list */
 #endif
-PetscPrintf(PETSC_COMM_SELF,"\t\t[%D]%s isp=%D elid=%D/%D 111111\n",s_rank,__FUNCT__,isp,elid,ctx->nElems);
         /* push, and collect x */
         if (irk>=0) {
           Vec locphi;
-PetscPrintf(PETSC_COMM_SELF,"\t\t[%D]%s isp=%D elid=%D/%D 222222\n",s_rank,__FUNCT__,isp,elid,ctx->nElems);
           ierr = DMGetLocalVector(dmpi->dm, &locphi);CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_SELF,"\t\t[%D]%s isp=%D elid=%D/%D 3333\n",s_rank,__FUNCT__,isp,elid,ctx->nElems);          
+PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s callDMGlobalToLocalBegin\n",s_rank,__FUNCT__);
           ierr = DMGlobalToLocalBegin(dmpi->dm, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
           ierr = DMGlobalToLocalEnd(dmpi->dm, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_SELF,"\t\t[%D]%s isp=%D elid=%D/%D 44444\n",s_rank,__FUNCT__,isp,elid,ctx->nElems);
+PetscPrintf(PETSC_COMM_SELF,"\t\t\t\t[%D]%s callDMGlobalToLocalBegin DONE\n",s_rank,__FUNCT__);
           /* get E, should set size of vecs for true size? */
           ierr = VecCreateSeq(PETSC_COMM_SELF,three*list->vec_top,&jVec);CHKERRQ(ierr);
           ierr = DMPICellGetJet(ctx->dm, xVec, locphi, elid, jVec);CHKERRQ(ierr);
@@ -671,7 +714,7 @@ PetscPrintf(PETSC_COMM_SELF,"\t\t[%D]%s isp=%D elid=%D/%D 44444\n",s_rank,__FUNC
       ierr = PetscLogEventEnd(ctx->events[5],0,0,0,0);CHKERRQ(ierr);
 #endif
     } /* element list */
-PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s element list done call shiftParticles\n",s_rank,__FUNCT__);
+
     /* finish sends and receive new particles for this species */
     ierr = shiftParticles(ctx, sendListTable, ctx->partlists[isp], &nslist, X2PROCLISTSIZE, slist, tag+isp, solver);CHKERRQ(ierr);
 
@@ -722,16 +765,20 @@ PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s element list done call shiftParticles\
 #endif
           /* method of manufactured solution, scale weight by f(x) */
           if (ctx->use_mms) {
+            PetscScalar fact;
             *vv *= (double)ctx->nElems/(double)ctx->num_particles_proc; /* normalize */
             if (ctx->dtype == X2_PERIODIC) {
-              ii = 2;
-              *vv *= sin(2*M_PI*(xx[ii]-dlo[ii])/dlen[ii]);
+              /* ii = 2; */
+              ierr = u_sinz_op(3,0.0,xx,1,&fact,ctx);CHKERRQ(ierr);
+              /* *vv *= sin(2*M_PI*(xx[ii]-dlo[ii])/dlen[ii]); */
             } else {
-              for(ii=0;ii<3;ii++) {
-                PetscReal x = (xx[ii]-dlo[ii])/dlen[ii];
-                *vv *= (x*x - x*x*x*x);
-              }
+              ierr = u_x4_op(3,0.0,xx,1,&fact,ctx);CHKERRQ(ierr);
+              /* for(ii=0;ii<3;ii++) { */
+              /*   PetscReal x = (xx[ii]-dlo[ii])/dlen[ii]; */
+              /*   *vv *= (x*x - x*x*x*x); */
+              /* } */
             }
+            *vv *= fact;
           }
           ndeposit++;
         }
@@ -920,8 +967,7 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   DM_PICell        *dmpi = (DM_PICell *) ctx->dm->data;
   DM               dm;
   DMLabel          label;
-  PetscInt         *sizes = NULL, cells[] = {2,2,2};
-  PetscInt         *points = NULL;
+  PetscInt         *sizes = NULL, *points = NULL, * counts = NULL, cells[] = {2,2,2};
   PetscPartitioner part;
   PetscFunctionBeginUser;
 
@@ -994,9 +1040,8 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
 
   /* set a simple partitioner - needed to make my indexing work for point locate */
   if (!ctx->rank && ctx->npe>1) {
-    PetscInt cEnd,c,*cs,ii[3],i;
+    PetscInt cEnd,c,*cs,idx[3],i;
     PetscInt *offsets;
-
     const PetscReal *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi;
     const PetscInt locN = ctx->dtype == X2_PERIODIC ? 2 : 1, c_proc = pow(locN,dim);
     ierr = DMPlexGetHeightStratum(dmpi->dm, 0, NULL, &cEnd);CHKERRQ(ierr); /* DMGetCellChart */
@@ -1012,19 +1057,18 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
       PetscReal v0[81],detJ[27];
       ierr = DMPlexComputeCellGeometryFEM(dmpi->dm, c, NULL, v0, NULL, NULL, detJ);CHKERRQ(ierr);
       for(i=0;i<3;i++) {
-        ii[i] = (PetscInt)(PetscFloorReal(v0[i]-dlo[i]+1.e-14)/(dhi[i]-dlo[i])*(double)ctx->grid.solver_np[i]);
+        idx[i] = (PetscInt)((v0[i]-dlo[i]+1.e-12)/(dhi[i]-dlo[i])*(double)ctx->grid.solver_np[i]);
       }
-      proc = X2_IDX3(ii,ctx->grid.solver_np);
+      proc = X2_IDX3(idx,ctx->grid.solver_np);
       points[offsets[proc]++] = c;
     }
+    ierr = PetscFree(offsets);CHKERRQ(ierr);
   }
   if (ctx->npe>1) {
     ierr = DMPlexGetPartitioner(dmpi->dm, &part);CHKERRQ(ierr);
     ierr = PetscPartitionerSetType(part, PETSCPARTITIONERSHELL);CHKERRQ(ierr);
     ierr = PetscPartitionerShellSetPartition(part, ctx->npe, sizes, points);CHKERRQ(ierr);
-    if (sizes) {
-      ierr = PetscFree2(sizes,points);CHKERRQ(ierr);
-    }
+    if (sizes) ierr = PetscFree3(sizes,counts,points);CHKERRQ(ierr);
   }
   /* distribute */
   ierr = DMPlexDistribute(dmpi->dm, 0, NULL, &dm);CHKERRQ(ierr);
@@ -1068,26 +1112,6 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "u_x4_op"
-PetscErrorCode u_x4_op(PetscInt dim, PetscReal time, const PetscReal xx[], PetscInt Nf, PetscScalar *u, void *a_ctx)
-{
-  X2Ctx *ctx = (X2Ctx*)a_ctx;
-  PetscInt comp,i;
-  const PetscReal  *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi;
-  PetscReal dlen[3];
-  PetscFunctionBeginUser;
-  for(i=0;i<dim;i++) dlen[i] = dhi[i] - dlo[i];
-  for (comp = 0; comp < Nf; ++comp) {
-    u[comp] = 1;
-    for (i = 0; i < dim; ++i) {
-      PetscReal x = (xx[i]-dlo[i])/dlen[i];
-      u[comp] *= (x*x - x*x*x*x);
-    }
-  }
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc, char **argv)
 {
@@ -1096,7 +1120,6 @@ int main(int argc, char **argv)
   DM_PICell      *dmpi;
   PetscInt       idx,isp;
   Mat            J;
-  KSP ksp;
   PetscFunctionBeginUser;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
@@ -1145,14 +1168,13 @@ int main(int argc, char **argv)
   ierr = SNESSetDM( dmpi->snes, dmpi->dm);CHKERRQ(ierr);
   ierr = DMPlexSetSNESLocalFEM(dmpi->dm,&ctx,&ctx,&ctx);CHKERRQ(ierr);
   ierr = DMCreateMatrix(dmpi->dm, &J);CHKERRQ(ierr);
-  ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
-  ierr = SNESGetKSP(dmpi->snes, &ksp);CHKERRQ(ierr);
   if (ctx.dtype == X2_PERIODIC) {
-    MatNullSpace   nullsp;
+    MatNullSpace nullsp;
     ierr = MatNullSpaceCreate(ctx.wComm, PETSC_TRUE, 0, NULL, &nullsp);CHKERRQ(ierr);
     ierr = MatSetNullSpace(J, nullsp);CHKERRQ(ierr);
     ierr = MatNullSpaceDestroy(&nullsp);CHKERRQ(ierr);
   }
+  ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
   ierr = SNESSetFromOptions(dmpi->snes);CHKERRQ(ierr);
   if (dmpi->debug>3) {
     PetscViewer viewer;
@@ -1219,47 +1241,50 @@ int main(int argc, char **argv)
     PetscViewer       viewer = NULL;
     PetscBool         flg;
     PetscViewerFormat fmt;
-    PetscReal         norm;
+    PetscReal         norm,norm1,norm2;
+    /* put exact function in dmpi->phi */
     ierr = PetscMalloc(sizeof(PetscErrorCode (*)(PetscInt, PetscReal,const PetscReal[],PetscInt,PetscScalar*,void*)),&exactFuncs);
     CHKERRQ(ierr);
     ctxArray[0] = &ctx;
-    exactFuncs[0] = u_x4_op;
+    if (ctx.dtype == X2_PERIODIC) exactFuncs[0] = u_sinz_op;
+    else exactFuncs[0] = u_x4_op;
     ierr = DMProjectFunction(dmpi->dm, 0.0, exactFuncs, (void **)ctxArray, INSERT_ALL_VALUES, dmpi->phi);CHKERRQ(ierr);
     ierr = PetscFree(exactFuncs);CHKERRQ(ierr);
+PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s 00000\n",s_rank,__FUNCT__);
     ierr = DMViewFromOptions(dmpi->dm,NULL,"-dm_view");CHKERRQ(ierr);
-    ierr = PetscOptionsGetViewer(ctx.wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
+PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s 99999\n",s_rank,__FUNCT__);
+    ierr = PetscOptionsGetViewer(ctx.wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s 00000\n",s_rank,__FUNCT__);
     if (flg) {
       ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
       ierr = PetscObjectSetName((PetscObject) dmpi->phi,"exact-RHS");CHKERRQ(ierr);
       ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);
-      ierr = PetscObjectSetName((PetscObject) dmpi->phi,"phi");CHKERRQ(ierr);
+      ierr = VecNorm(dmpi->phi,NORM_INFINITY,&norm2);CHKERRQ(ierr);
+      /* ierr = PetscObjectSetName((PetscObject) dmpi->phi,"phi");CHKERRQ(ierr); */
       ierr = PetscObjectSetName((PetscObject) dmpi->rho,"pic-RHS");CHKERRQ(ierr);
       ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
-      ierr = PetscObjectSetName((PetscObject) dmpi->rho,"rho");CHKERRQ(ierr);
-    }
-    ierr = VecAXPY(dmpi->rho,-1.,dmpi->phi);CHKERRQ(ierr); /* error */
-    if (flg) {
+      ierr = VecNorm(dmpi->rho,NORM_1,&norm1);CHKERRQ(ierr);
+      /* ierr = PetscObjectSetName((PetscObject) dmpi->rho,"rho");CHKERRQ(ierr); */
+      ierr = VecAXPY(dmpi->rho,-1.,dmpi->phi);CHKERRQ(ierr); /* error */
       ierr = PetscObjectSetName((PetscObject) dmpi->rho,"error-RHS");CHKERRQ(ierr);
       ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
       ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
+      ierr = VecNorm(dmpi->rho,NORM_INFINITY,&norm);CHKERRQ(ierr);
+      PetscPrintf(ctx.wComm,"\tDeposition error |exact rho - rho|_inf/|rho|_inf = %g, |rho|_1 = %g\n",norm/norm2,norm1);
     }
     ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-    ierr = VecNorm(dmpi->rho,NORM_INFINITY,&norm);CHKERRQ(ierr);
-    PetscPrintf(ctx.wComm,"\tDeposition error |exact rho - deposited rho|_inf = %g\n",norm);
     ctx.use_mms = PETSC_FALSE; /* just do this once */
+    ctx.plot = PETSC_FALSE; /* don't bother printing */
   }
 
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventEnd(ctx.events[0],0,0,0,0);CHKERRQ(ierr);
 #endif
+PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s call go\n",s_rank,__FUNCT__);
 
   /* do it */
   ierr = go( &ctx );CHKERRQ(ierr);
 
   if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] done - cleanup\n",ctx.rank);
-#if defined(X2_HAVE_INTEL)
-  PetscPrintf(ctx.wComm,"[%D] X2_HAVE_INTEL\n",ctx.rank);
-#endif
 #if defined(PETSC_HAVE_MEMALIGN) && (PETSC_MEMALIGN==64)
   PetscPrintf(ctx.wComm,"[%D] defined(PETSC_HAVE_MEMALIGN) && (PETSC_MEMALIGN==64)\n",ctx.rank);
 #endif
