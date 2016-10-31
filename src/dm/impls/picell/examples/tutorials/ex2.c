@@ -527,10 +527,10 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
         if (irk>=0) {
           Vec locphi;
           ierr = DMGetLocalVector(dmpi->dm, &locphi);CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s callDMGlobalToLocalBegin\n",s_rank,__FUNCT__);
           ierr = DMGlobalToLocalBegin(dmpi->dm, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
+          /* PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s call DMGlobalToLocalEnd\n",s_rank,__FUNCT__); */ /* CODE HANGS HERE */
           ierr = DMGlobalToLocalEnd(dmpi->dm, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_SELF,"\t\t\t\t[%D]%s callDMGlobalToLocalBegin DONE\n",s_rank,__FUNCT__);
+          /* PetscPrintf(PETSC_COMM_SELF,"\t\t\t\t[%D]%s DMGlobalToLocalEnd DONE\n",s_rank,__FUNCT__); */
           /* get E, should set size of vecs for true size? */
           ierr = VecCreateSeq(PETSC_COMM_SELF,three*list->vec_top,&jVec);CHKERRQ(ierr);
           ierr = DMPICellGetJet(ctx->dm, xVec, locphi, elid, jVec);CHKERRQ(ierr);
@@ -1250,10 +1250,8 @@ int main(int argc, char **argv)
     else exactFuncs[0] = u_x4_op;
     ierr = DMProjectFunction(dmpi->dm, 0.0, exactFuncs, (void **)ctxArray, INSERT_ALL_VALUES, dmpi->phi);CHKERRQ(ierr);
     ierr = PetscFree(exactFuncs);CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s 00000\n",s_rank,__FUNCT__);
     ierr = DMViewFromOptions(dmpi->dm,NULL,"-dm_view");CHKERRQ(ierr);
-PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s 99999\n",s_rank,__FUNCT__);
-    ierr = PetscOptionsGetViewer(ctx.wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s 00000\n",s_rank,__FUNCT__);
+    ierr = PetscOptionsGetViewer(ctx.wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
     if (flg) {
       ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
       ierr = PetscObjectSetName((PetscObject) dmpi->phi,"exact-RHS");CHKERRQ(ierr);
@@ -1279,7 +1277,6 @@ PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s 99999\n",s_rank,__FUNCT__);
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventEnd(ctx.events[0],0,0,0,0);CHKERRQ(ierr);
 #endif
-PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s call go\n",s_rank,__FUNCT__);
 
   /* do it */
   ierr = go( &ctx );CHKERRQ(ierr);
