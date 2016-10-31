@@ -994,21 +994,28 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
 
   /* set a simple partitioner - needed to make my indexing work for point locate */
   if (!ctx->rank && ctx->npe>1) {
-    PetscInt cEnd,c,*cs,*cp,ii[3],i;
+    PetscInt cEnd,c,*cs,ii[3],i;
+    PetscInt *offsets;
+
     const PetscReal *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi;
     const PetscInt locN = ctx->dtype == X2_PERIODIC ? 2 : 1, c_proc = pow(locN,dim);
     ierr = DMPlexGetHeightStratum(dmpi->dm, 0, NULL, &cEnd);CHKERRQ(ierr); /* DMGetCellChart */
     if (cEnd && cEnd!=ctx->npe*c_proc) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_USER, "cEnd=%d != %d",cEnd,ctx->npe*c_proc);
     if (cEnd!=ctx->npe*c_proc) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_USER, "cEnd=%d != %d",cEnd,ctx->npe*c_proc);
     ierr = PetscMalloc2(ctx->npe, &sizes, ctx->npe*c_proc, &points);CHKERRQ(ierr);
+    ierr = PetscMalloc1(ctx->npe, &offsets);CHKERRQ(ierr);
     for (c=0,cs=sizes;c<ctx->npe;c++,cs++) *cs = c_proc;
-    for (c=0,cp=points;c<ctx->npe*c_proc;c++,cp++) {
+    offsets[0] = 0;
+    for (c = 1; c < ctx->npe; c++) {offsets[c] = offsets[c - 1] + sizes[c];}
+    for (c=0;c<ctx->npe*c_proc;c++) {
+      PetscInt  proc;
       PetscReal v0[81],detJ[27];
       ierr = DMPlexComputeCellGeometryFEM(dmpi->dm, c, NULL, v0, NULL, NULL, detJ);CHKERRQ(ierr);
       for(i=0;i<3;i++) {
         ii[i] = (PetscInt)(PetscFloorReal(v0[i]-dlo[i]+1.e-14)/(dhi[i]-dlo[i])*(double)ctx->grid.solver_np[i]);
       }
-      *cp = X2_IDX3(ii,ctx->grid.solver_np);
+      proc = X2_IDX3(ii,ctx->grid.solver_np);
+      points[offsets[proc]++] = c;
     }
   }
   if (ctx->npe>1) {
