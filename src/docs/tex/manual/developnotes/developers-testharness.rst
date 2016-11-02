@@ -80,7 +80,7 @@ With this background, these keywords are are:
      - This is the top level keyword for the tests.  All other are
        subsets of this keyword
 
- +  suffix: (**Optional**; *Default:* `suffix=''`)
+ + suffix: (**Optional**; *Default:* `suffix=''`)
      - The testname is given by: `testname='run'+basestring`
         if suffix is set to an empty string, and by 
         `testname='run'+basestring+'_'+suffix`
@@ -93,11 +93,19 @@ With this background, these keywords are are:
        source file and should be in the output subdirectory (e.g.,
        `output/ex1.out`)
 
+ + redirect_file: (**Optional**; *Default:* `redirect_file=testname+'.tmp`)
+     - Sometimes you want to redirect it to a different file name
+
  + nsize: (**Optional**; *Default:* `nsize=1`)
      - The integer that is passed to mpiexec; i.e., `mpiexec -n nsize`
 
  + args: (**Optional**; *Default:* `""`)
      - The arguments to pass to the executable
+
+ + TODO: (**Optional**; *Default:* `"False"`)
+     - Setting this boolean to True will tell the test to appear in the test harness, but 
+       report only TODO per the TAP standard.
+     - A runscript will be generated and can easily be modified by hand to run
 
  + filter: (**Optional**; *Default:* `""`)
      - Sometimes only a subset of the output is meant to be tested
