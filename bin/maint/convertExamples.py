@@ -67,7 +67,7 @@ class convertExamples(PETScExamples):
     It looks nicer to have the keys in an ordered way, but we want
     to make sure we get all of the keys, so do list manipulation here
     """
-    firstList=["sourceFile","outputSuffix","abstracted","nsize","args"]
+    firstList=["suffix","abstracted","nsize","args"]
     lastList=["script"]
     keyList=subDict.keys()
     for key in subDict.keys():

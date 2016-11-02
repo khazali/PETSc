@@ -21,28 +21,40 @@ Bad foresight on my part.
 """
 
 class makeParse(object):
-  def __init__(self):
+  def __init__(self,verbosity):
 
     self.writeScripts=True
     #self.scriptsSubdir=""
     self.scriptsSubdir="from_makefile"
     self.ptNaming=True
     self.insertIntoSrc=True
+    self.verbosity=verbosity
     return
 
-  def makeRunDict(self,mkDict):
+  def makeRunDict(self,mkDict,curdir):
     """
     parseTESTline produces a dictionary of the form:
       dataDict[TESTEXAMPLES_*]['tsts']
       dataDict[TESTEXAMPLES_*]['srcs']
     Put it into a form that is easier for process:
-      runDict[srcfile][runtest]={}
+      General form:
+        runDict[srcfile][runtest]['test']={}
+        runDict[srcfile][runtest]['test']['args']={}
+      or if subtests
+        runDict[srcfile][runtest]['test']['test1']['args']={}
+      Info:
+        runDict['not_tested']  -- the run* targets in makefile that are not invoked
+        runDict[srcfile]['requires'] -- build requirements from makefile (TEST* info)
+        runDict[srcfile]['types']    -- What TEST* types it was found in the makefile
+        runDict[srcfile][runtest]['requires'] -- build requirements from makefile (TEST* info)
+        runDict[srcfile][runtest]['types']    -- What TEST* types it was found in the makefile
+        runDict[srcfile][runtest]['abstracted']  -- Abstraction successful?
     """
     import convertExamplesUtils
     makefileMap=convertExamplesUtils.makefileMap
     def getReqs(typeList,reqtype):
-    """ Determine requirements associated with srcs and tests """
-      allReqs=[]
+      """ Determine requirements associated with srcs and tests """
+      allRqs=[]
       for atype in typeList:
         if makefileMap.has_key(atype):
           if makefileMap[atype].startswith(reqtype):
@@ -57,9 +69,8 @@ class makeParse(object):
       if not extype.startswith("TEST"): continue
       for exfile in mkDict[extype]['srcs']:
         srcfile=self.undoNameSpace(exfile)
-        if not rDict.has_key(srcfile):
-          rDict[srcfile]={}
-          rDict[srcfile][test]['types']=[]
+        if srcfile=="printdot": continue
+        if not rDict.has_key(srcfile): rDict[srcfile]={}
         rDict[srcfile]['types']=extype
         testList=self.findTests(exfile,mkDict[extype]['tsts'])
         for test in testList:
@@ -73,10 +84,12 @@ class makeParse(object):
     # Now that all types are known, determine requirements
     for sfile in rDict:
       rDict[sfile]['requires']=getReqs(rDict[sfile]['types'],"buildrequires")
-      for test in rDict:
+      for test in rDict[sfile]:
+        if not test.startswith("run"): continue
         rDict[sfile][test]['requires']=getReqs(rDict[sfile][test]['types'],"requires")
 
     # Determine tests that are not invoked (in any circumstance)
+    # In this case, we have to guess at the sourcefile
     rDict['not_tested']=[]
     for mkrun in mkDict:
       if not mkrun.startswith("run"): continue
@@ -84,14 +97,29 @@ class makeParse(object):
       for sfile in rDict:
         for runex in rDict[sfile]:
           if runex==mkrun: found=True
-      if not found: rDict['not_tested'].append(mkrun)
+      if not found: 
+        rDict['not_tested'].append(mkrun)
+        sfile=self.findSrcfile(mkrun,curdir)
+        if sfile==None:
+          print "Cannot associate source file with ", mkrun
+        else:
+          if not rDict.has_key(sfile): rDict[sfile]={}
+          if not rDict[sfile].has_key(mkrun): rDict[sfile][mkrun]={}
+          rDict[sfile][mkrun].update(mkDict[mkrun])
+          rDict[sfile][mkrun]['TODO']="True"
+        
 
 
-    # Now need
-    debug=True
-    for runex in runDict:
-      runDict[runex]=pEx.abstractScript(runex,runDict[runex])
-
+    # Now can start abstracting the script itself to figure out 
+    # the test structures
+    sfiles=rDict.keys()
+    for sfile in sfiles:
+      if sfile=="not_tested": continue
+      tests=rDict[sfile].keys()
+      for runex in tests:
+        if not runex.startswith("run"): continue
+        if not self.abstractScript(runex,rDict[sfile][runex]):
+          del rDict[sfile][runex]
 
     return rDict
 
@@ -123,10 +151,12 @@ class makeParse(object):
     if '${DIFF}' in scriptStr.lower() and '||' in scriptStr:
       scriptStr=scriptStr.split("||")[0].strip()
     for var in varVal.keys():
+      if var.startswith("run"): continue
       if var in scriptStr:
         replStr="${"+var+"}"
         scriptStr=scriptStr.replace(replStr,varVal[var])
     scriptStr=scriptStr.replace("\n\n","\n")
+    scriptStr=scriptStr.replace("\\\n","")
     return scriptStr
 
   def getVarVal(self,line,fh):
@@ -134,7 +164,6 @@ class makeParse(object):
     Process lines of form var = val.  Mostly have to handle
     continuation lines
     """
-    debug=False
     while 1:
       last_pos=fh.tell()
       if line.strip().endswith("\\"):
@@ -142,7 +171,7 @@ class makeParse(object):
       else:
         fh.seek(last_pos)  # might be grabbing next var
         break
-    if debug: print "       getVarVal> line ", line
+    if self.verbosity>=3: print "       getVarVal> line ", line
     valList=line.split("=")[1:]
     val=" ".join(valList).strip()
     return val
@@ -153,7 +182,6 @@ class makeParse(object):
     a runex: has just been read in, write it out to the file in the
     directory where mkfile is located
     """
-    debug=False
     runexName=line.split(":")[0].strip()
     #print mkfile, runexName
     alphabet=tuple(string.ascii_letters)
@@ -194,13 +222,12 @@ class makeParse(object):
     """
     fh=open(fullmake,"r")
     root=os.path.dirname(os.path.realpath(fullmake))
-    debug=False
 
     # Go through the makefile, and for each run* target: 
     #     extract, abstract, insert
     mkDict={}
     i=0
-    if debug: print fullmake
+    if self.verbosity>=3: print "parseRunsFromMkFile> ", fullmake
     alphabet=tuple(string.ascii_letters)
     while 1:
       line=fh.readline()
@@ -220,82 +247,140 @@ class makeParse(object):
       # Do some transformation of the script string at this stage
       if line.startswith("run"): 
         runex,shStr=self.extractRunFile(fh,line,fullmake,mkDict)
-        if debug: 
-          print runex
-          print " ", shStr
+        if self.verbosity>=3: 
+          print "parseRunsFromMkFile> ", runex
+          print "parseRunsFromMkFile>    ", shStr
         mkDict[runex]={}
         mkDict[runex]['script']=shStr
     fh.close()
 
     # mkDict in form related to parsing files.  Need it in 
     # form easier for generating the tests
-    runDict=self.makeRunDict(mkDict)
+    runDict=self.makeRunDict(mkDict,root)
 
     return runDict
 
-  def insertScriptIntoSrc(self,runexName,fullmake,abstract):
+  def getOrderedRuns(self,subDict):
     """
-    Put the abstract info in a dictionary into the source file in a yaml
-    format
+    Order the runs by suffix for niceness
+    Probably could use orderedDict's
+    Might be able to just sort via the keys, but doing suffixes anyway
     """
-    debug=False
+    order=[]
+    oDict={}
+    for run in subDict:
+      if not run.startswith("run"): continue
+      suffix=subDict[run]['test']['suffix']
+      order.append(suffix)
+      oDict[suffix]=run
+    order.sort()
+    orderedRuns=[]
+    for s in order: orderedRuns.append(oDict[s])
+    return orderedRuns
+
+  def getOrderedKeys(self,subDict):
+    """
+    It looks nicer to have the keys in an ordered way, and 
+    do not write out defaults
+    """
+    order=[]
+    if subDict.has_key("suffix"):
+      if subDict["suffix"].strip(): order.append("suffix")
+    if subDict.has_key("nsize"):
+      try:
+        nint=int(subDict["nsize"])
+        if nint>1: order.append("nsize")
+      except:
+        order.append("nsize")
+    if subDict.has_key("requires"):
+      if len(subDict["requires"])>0: order.append("requires")
+    if subDict.has_key("args"):
+      if subDict["args"].strip(): order.append("args")
+    if subDict.has_key("filter"):
+      if subDict["filter"].strip(): order.append("filter")
+    if subDict.has_key("output_file"):
+      if subDict["output_file"].strip(): order.append("output_file")
+    if subDict.has_key("redirect_file"):
+      if subDict["redirect_file"].strip(): order.append("redirect_file")
+     
+    tests=[]
+    for k in subDict: 
+      if k.startswith("test"): tests.append(k)
+    tests.sort()
+    return order+tests
+
+  def insertTestInfo(self,fileStr,srcDict):
+    """
+    This gets all of the stuff between /*TEST ... TEST*/
+    """
+    indent="   "
+    testStr="\n\n/*TEST\n"
+    for runex in self.getOrderedRuns(srcDict):
+      testStr=testStr+indent+"\n"+indent+"test:\n"
+      # For various reasons, this is at an awkward level
+      if srcDict[runex].has_key("TODO"):
+        if srcDict[runex]["TODO"]:
+          if srcDict[runex]["TODO"]=="True":
+            testStr=testStr+indent*2+"TODO: True\n"
+      rDict=srcDict[runex]['test']
+      # Do all of the general info
+      for rkey in self.getOrderedKeys(rDict):
+        if not rkey.startswith('test'):
+          rval=(rDict[rkey] if rkey!="requires" else " ".join(rDict[rkey]))
+          testStr=testStr+indent*2+rkey+": "+str(rval)+"\n"
+        # Do the subtests
+        else:
+          testStr=testStr+"\n"+indent*2+"test:\n"
+          for tkey in self.getOrderedKeys(rDict[rkey]):
+            rval=(rDict[rkey][tkey] if tkey!="requires" else " ".join(rDict[rkey][tkey]))
+            testStr=testStr+indent*3+tkey+": "+str(rval)+"\n"
+    return testStr+'\nTEST*/\n'
+
+  def insertSrcInfo(self,fileStr,srcDict):
+    """
+    Put the information in the dictionary into the source file
+    """
+    # First see if we have stuff to add
+    if not srcDict.has_key('requires'): return fileStr
+    if not len(srcDict['requires'])>0: return fileStr
+      
+    if "/*T\n" in fileStr or "/*T " in fileStr:
+      # The file info is already here and need to append
+      Part1=fileStr.split("T*/")[0]
+      suffix=" ".join(fileStr.split("T*/")[1:])
+      prefix=Part1.split("/*T")[1]
+      fileInfo=Part1.split("/*T")[1]
+    else:
+      prefix=fileStr.split("#include")[0]
+      nlines=len(prefix.split("\n"))
+      suffix=" ".join(fileStr.split("\n")[nlines-1:])
+      fileInfo=""
+
+    indent="   "
+    fileInfo=fileInfo+indent+"requires: "+" ".join(srcDict['requires'])
+    newFileStr=prefix+"/*T\n"+fileInfo+"T*/\n"+suffix
+    return newFileStr
+
+  def insertInfoIntoSrc(self,fullmake,testDict):
+    """
+    Put the information in the dictionary into the source file
+    """
     basedir=os.path.dirname(os.path.realpath(fullmake))
-    # Sanity checks -- goal is to pass wtihout any of these showing
-    if not abstract['used']:
-      if debug: print "Test not used: ", runexName
-      return False, "not_used"
-
-    if not abstract.has_key('source'):
-      if debug: print "Can't find source file", runexName
-      return False, "no_source"
-
-    if not abstract['abstracted']:
-      if debug: print "Warning: Problem with ", runexName
-      return False, "other"
-
-    debug=False
     startdir=os.path.realpath(os.path.curdir)
     os.chdir(basedir)
-    exBase=runexName[3:].split("_")[0]
-    exSrc=abstract['source']
 
-    # Get the string to insert
-    indent="  "
-    insertStr=indent+"test:\n"
-    indent=indent*2
-    if abstract['abstracted']:
-      if abstract.has_key('outputSuffix'):
-        if abstract['outputSuffix']:
-          suffix=abstract['outputSuffix']
-          insertStr=insertStr+indent+"suffix: "+suffix+"\n"
-      if abstract.has_key('outputSuffix'):
-        if abstract['nsize']>1:
-          insertStr=insertStr+indent+"nsize: "+str(abstract['nsize'])+"\n"
-      if abstract.has_key('args'):
-        insertStr=insertStr+indent+"args: "+abstract['args']+"\n"
-      if abstract.has_key('requires'):
-        reqStr=", ".join(abstract['requires'])
-        insertStr=insertStr+indent+"requires: "+reqStr+"\n"
-
-    if os.path.splitext(exSrc)[1].lstrip(".").startswith("F"):
-      insertStr=insertStr.replace("\n","\n!").rstrip("!")
-
-    # Get the file into a string, append, and then close
-    newExSrc="new_"+exSrc
-    openFile=(newExSrc if os.path.isfile(newExSrc) else exSrc)
-    sh=open(openFile,"r"); fileStr=sh.read(); sh.close()
-
-    # Get current tests within the file
-    firstPart,currentTestsStr=self.getTestsStr(fileStr)
-
-    # What gets inserted
-    testStr="\n/*TESTS\n"+currentTestsStr.lstrip("\n")+insertStr+"\nTESTS*/\n"
-
-    # Append to the file
-    sh=open(newExSrc,"w"); sh.write(firstPart+testStr); sh.close()
+    for sfile in testDict:
+      if sfile=='not_tested': continue
+      sh=open(sfile,"r"); fileStr=sh.read(); sh.close()
+      newFileStr=self.insertSrcInfo(fileStr,testDict[sfile])
+      testFileStr=self.insertTestInfo(fileStr,testDict[sfile])
+      # Write out new file
+      fh=open("new_"+sfile,"w")
+      fh.write(newFileStr+testFileStr)
+      fh.close()
 
     os.chdir(startdir)
-    return True, ""
+    return 
 
   def abstractForLoops(self,scriptStr):
     """
@@ -319,71 +404,114 @@ class makeParse(object):
         new=new+line+"\n"
     return new
 
-  def abstractMpiTest(self,runexName,scriptStr,abstract):
+  def abstractMultiMpiTest(self,runexName,scriptStr,subDict):
+    """
+    Multiple mpi tests leads to a new tests then need to create tests
+    """
+    subDict['subtests']=[]
+    i=0
+    allAbstracted=True
+    for line in scriptStr.split("\n"):
+      if "MPIEXEC" in line:
+        subtestName="test"+str(i); i=i+1
+        subDict['subtests'].append(subtestName)
+        subDict[subtestName]={}
+        abstracted=self.abstractMpiTest(runexName,line,subDict[subtestName])
+        if not abstracted: allAbstracted=False
+    return allAbstracted
+
+  def _hasFilter(self,scriptStr):
+    """ Determine if the filter keyword needs to be filled """
+    for fltr in ['sed','grep','sort']:
+      if fltr in scriptStr: return True
+    return False
+
+  def abstractFilter(self,runexName,scriptStr,subDict):
+    """
+    Figure out how the abstract work
+    """
+    allFilters=[]
+    for line in scriptStr.split("\n"):
+      if self._hasFilter(line):
+        splitl=line.split(">")[0]
+        if "|" in splitl:
+          testFilter=" ".join(splitl.split("|")[1:]).strip()
+        else:
+          if splitl[-1].endswith(".tmp"):
+            testFilter=" ".join(splitl[:-1])
+          else:
+            testFilter=" ".join(splitl[:])
+        allFilters.append(testFilter)
+
+    return ",".join(allFilters)
+
+  def abstractMpiTest(self,runexName,scriptStr,subDict):
     """
     If it has a for loop, then need to modify the script string
     to use the {{ ... }} syntax
     """
     # We always want nsize even if not abstracted 
-    firstPart=scriptStr.split(">")[0]
-    if "MPIEXEC" in firstPart:
-      nsizeStr=firstPart.split(" -n ")[1].split()[0].strip()
-      try:
-        abstract['nsize']=int(nsizeStr)
-      except:
-        return abstract
+    mpiLine=scriptStr.split("{MPIEXEC}")[1].split("\n")[0]
+    nsizeStr=mpiLine.split(" -n ")[1].split()[0].strip()
+    if "{{" in nsizeStr:
+      # Loops are special
+      ns=mpiLine.split(" -n ")[1].split("}}")[0].split("{{")[1]
+      subDict['nsize']="{{"+ns+"}}"
     else:
-      return abstract
+      try:
+        subDict['nsize']=int(nsizeStr)
+      except:
+        print "Problem in finding nsize: ", runexName
+        return False
 
-    # Now parse out the stuff
-    mainCommand=scriptStr.split("2>")[0].strip()
-    if not mainCommand: return abstract
-
-    # Args
+    # Help in parsing
     runexBase=runexName.split("_")[0]
     exName=runexBase[3:]
-    firstPart=mainCommand.split(">")[0]
-    args=firstPart.split(exName)[1].strip().strip("\\")
-    if args.strip(): 
-      if "\\\n" in args:
-        abstract['args']=""
-        for a in args.split("\\\n"):
-          abstract['args']=abstract['args']+" "+a.strip().strip("\\")
-      else:
-        abstract['args']=args.strip()
+    firstPart=mpiLine.split(" >")[0]
 
-    # Before writing out the abstracted info
-    # do a final update of requirements based on arguments
+    # Args
+    args=firstPart.split(exName)[1].strip().strip("\\")
+    # Peel off filters with "|" and remove extraneous white space with split/join
+    if args.strip(): subDict['args']=" ".join(args.split("|")[0].split())
+
+    # Determine requirements based on args
     import convertExamplesUtils
     argMap=convertExamplesUtils.argMap
-    if abstract.has_key('args'):
-      if abstract.has_key('requires'):
-        allRqs=abstract['requires']
+    if subDict.has_key('args'):
+      if subDict.has_key('requires'):
+        allRqs=subDict['requires']
       else:
         allRqs=[]
       for matchStr in argMap:
-        if matchStr in abstract['args']:
+        if matchStr in subDict['args']:
           rqList=argMap[matchStr].split("requires:")[1].strip().split()
           allRqs=allRqs+rqList
-      abstract['requires']=list(set(allRqs))  # Uniquify the requirements
+      subDict['requires']=list(set(allRqs))  # Uniquify the requirements
 
-    # Things that we know off the bat destroy the abstraction
-    cleanStr=re.sub('"[^>]+"', '', scriptStr)
-    if "grep " in cleanStr:  return abstract
-    if "sort " in cleanStr:  return abstract
-    if cleanStr.count("MPIEXEC") > 1: return abstract
-    if not "2>" in cleanStr: return abstract   # Abstraction requires redirect
+    # Pull out the redirect file
+    redfile=mpiLine.split('> ')[1].split('2>')[0].strip()
+    defaultRed=runexName[3:]+".tmp"
+    if redfile!=defaultRed: subDict['redirect_file']=redfile
 
-    abstract['abstracted']=True
 
-    return abstract
+    # Do filters
+    if self._hasFilter(scriptStr):
+      if self.verbosity>=1: print "FILTER", runexName
+      subDict['filter']=self.abstractFilter(runexName,scriptStr,subDict)
 
-  def abstractMultiMpiTest(self,scriptStr,abstract):
-    """
-    If it has a for loop, then need to modify the script string
-    to use the {{ ... }} syntax
-    """
-    return abstract
+    # If subtests, then we do not have the diff here
+    if not "{DIFF}" in scriptStr: return
+
+    # Check the diff and make sure everything is OK with files
+    diffPart=scriptStr.split("{DIFF}")[1].split("\n")[0]
+    outfile=diffPart.split()[0]
+    diffredfile=diffPart.split()[1].rstrip(")")
+    defaultOut="output/"+runexName[3:]+".out"
+    if outfile!=defaultOut: subDict['output_file']=outfile
+    if redfile!=diffredfile: 
+      print "Possible problem with test: ", runexName, redfile, diffredfile
+
+    return True
 
   def abstractScript(self,runexName,abstract):
     """
@@ -394,28 +522,34 @@ class makeParse(object):
       NSIZE, ARGS, OUTPUT_SUFFIX 
     If we can't abstract, we can't abstract and we'll just put in a script
     """
-    debug=True
-
     abstract['abstracted']=False
+    if not abstract.has_key('script'):
+      print "Cannot find script", runexName
+      return False
     scriptStr=abstract['script']
+    # remove whats in print message to reduce false positives
+    noPrintScript=re.sub('printf.*;','',scriptStr)
+
+    #Create subdictionary
+    abstract['test']={}
 
     # OUTPUT SUFFIX should be equivalent to runex target so we just go by that.
     runexBase=runexName.split("_")[0]
-    abstract['outputSuffix']=runexName[len(runexBase)+1:]
+    abstract['test']['suffix']=runexName[len(runexBase)+1:]
 
     # Do for loop first because that is local parsing
-    if "for " in scriptStr:
-      if debug: print "FOR LOOP", runexName
+    if "for " in noPrintScript:
+      if self.verbosity>=1: print "FOR LOOP", runexName
       scriptStr=self.abstractForLoops(scriptStr)
 
-    # Handle subtests if needed
-    if scriptStr.count("MPIEXEC")>1:
-      if debug: print "MultiMPI", runexName
-      abstract=self.abstractMultiMpiTest(scriptStr,abstract)
+    # Handle subtests if needed.  
+    if noPrintScript.count("MPIEXEC")>1:
+      if self.verbosity>=1: print "MultiMPI", runexName
+      abstract['abstracted']=self.abstractMultiMpiTest(runexName,scriptStr,abstract['test'])
     else:
-      abstract=self.abstractMpiTest(runexName,scriptStr,abstract)
+      abstract['abstracted']=self.abstractMpiTest(runexName,scriptStr,abstract['test'])
 
-    return abstract
+    return True
 
   def undoNameSpace(self,srcfile):
     """
@@ -488,6 +622,21 @@ class makeParse(object):
         newword=""
     return newword
 
+  def findSrcfile(self,testname,curdir):
+    """
+    Given a testname of the form runex10_9, try to figure out the source file
+    """
+    base=testname[3:].split("_")[0]
+    if base.endswith("f"):
+      for ext in ['F','F90']:
+        guess=os.path.join(curdir,base+"."+ext)
+        if os.path.exists(guess): return os.path.basename(guess)
+    else:
+      for ext in ['c','cxx']:
+        guess=os.path.join(curdir,base+"."+ext)
+        if os.path.exists(guess): return os.path.basename(guess)
+    return None
+
   def findTests(self,srcfile,testList):
     """
     Given a source file of the form ex1.c and a list of tests of the form
@@ -514,7 +663,6 @@ class makeParse(object):
     Note for EXAMPLESC and related vars, it ex1.c instead of ex1.PETSc
     """
     parseDict={}; parseDict['srcs']=[]; parseDict['tsts']=[]
-    debug=False
     while 1:
       last_pos=fh.tell()
       if line.strip().endswith("\\"):
@@ -522,7 +670,7 @@ class makeParse(object):
       else:
         fh.seek(last_pos)  # might be grabbing next var
         break
-    if debug: print "       parseTESTline> line ", line
+    if self.verbosity>=3: print "       parseTESTline> line ", line
     # Clean up the lines to only have a dot-c name
     justfiles=line.split("=")[1].strip()
     justfiles=justfiles.split("#")[0].strip() # Remove comments
@@ -543,25 +691,53 @@ class makeParse(object):
         removeList.append(exmpl) # Can remove later if needed
       else:
         srcList.append(self.nameSpace(exmpl,srcdir))
-    if debug: print "       parseTESTline> ", srcList, testList
+    if self.verbosity>=3: print "       parseTESTline> ", srcList, testList
     #if "pde_constrained" in srcdir: raise ValueError('Testing')
     parseDict['srcs']=srcList
     parseDict['tsts']=testList
     return parseDict
    
-def printMkParseDict(mkDict,runDict):
+def printMkParseDict(rDict,verbosity):
   """
   This is for debugging
   """
   indent="  "
-  for key in mkDict: print key,": ", str(mkDict[key])
-  print "\n\n"
 
-  for runex in runDict:
-    print runex
-    for rkey in runDict[runex]:
-      print indent+rkey,": ", str(runDict[runex][rkey])
-    print "\n"
+  fh=open("examplesMkParseInfo.txt","w")
+  for sfile in rDict:
+    if sfile=='not_tested': continue
+    fh.write(sfile+"\n")
+    for runex in rDict[sfile]:
+      if not runex.startswith("run"):
+        fh.write(indent+runex+": "+str(rDict[sfile][runex])+"\n")
+    for runex in rDict[sfile]:
+      if runex.startswith("run"):
+      #if type(rDict[sfile][runex])==types.DictType: 
+        fh.write(indent+runex+"\n")
+        # Possibly should be recursive even if it is fixed depth
+        for rkey in rDict[sfile][runex]:
+          if rkey=='test':
+            fh.write(indent*2+rkey+":\n")
+            for tkey in rDict[sfile][runex][rkey]:
+              if type(rDict[sfile][runex][rkey][tkey])==types.DictType: 
+                fh.write(indent*3+tkey+":\n")
+                for ukey in rDict[sfile][runex][rkey][tkey]:
+                  fh.write(indent*4+ukey+": "+str(rDict[sfile][runex][rkey][tkey][ukey]).strip()+"\n")
+              else:
+                fh.write(indent*3+tkey+": "+str(rDict[sfile][runex][rkey][tkey]).strip()+"\n")
+          elif rkey=='script':
+            if verbosity>=2:
+              fh.write(indent*2+rkey+": "+str(rDict[sfile][runex][rkey]).strip()+"\n")
+          else:
+            fh.write(indent*2+rkey+": "+str(rDict[sfile][runex][rkey]).strip()+"\n")
+      fh.write("\n")
+
+  if rDict.has_key('not_tested'):
+    fh.write('not_tested'+"\n")
+    for runex in rDict['not_tested']:
+      fh.write(indent+runex+"\n")
+
+  fh.close()
   return 
 
 def main():
@@ -572,12 +748,21 @@ def main():
     parser.add_option('-m', '--makefile', dest='makefile',
                       help='Function to evaluate while traversing example dirs: genAllRunFiles cleanAllRunFiles', 
                       default='makefile')
+    parser.add_option('-v', '--verbosity', dest='verbosity',
+                      help='Verbosity of output by level: 1, 2, or 3', 
+                      default='0')
     options, args = parser.parse_args()
 
     # Process arguments
     if len(args) > 0:
       parser.print_usage()
       return
+
+    # Need verbosity to be an integer
+    try:
+      verbosity=int(options.verbosity)
+    except:
+      raise Exception("Error: Verbosity must be integer")
 
     petsc_dir=None
     if options.petsc_dir: petsc_dir=options.petsc_dir
@@ -589,21 +774,14 @@ def main():
 #      if petsc_dir is None:
 #        petsc_dir=os.path.dirname(os.path.dirname(currentdir))
 
-    if not options.makefile: print "Use -m to specify makefile"
-    pEx=makeParse()
+    if not options.makefile: 
+      print "Use -m to specify makefile"
+      return
+    pEx=makeParse(verbosity)
     runDict=pEx.parseRunsFromMkFile(options.makefile)
-    #TMP printMkParseDict(runDict)
+    printMkParseDict(runDict,verbosity)
+    pEx.insertInfoIntoSrc(options.makefile,runDict)
 
-    total=0; fail=0
-    for runex in runDict:
-      total=total+1
-      # If requested, then insert into source
-      if pEx.insertIntoSrc: 
-        stat,err=pEx.insertScriptIntoSrc(runex,options.makefile,runDict[runex])
-        if not stat: 
-          #print runex, err
-          fail=fail+1
-    print str(fail)+" out of "+str(total)+" test conversions failed."
 
 if __name__ == "__main__":
         main()
