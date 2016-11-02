@@ -582,9 +582,6 @@ N  = 5
 MDOMAINS = 2
 NDOMAINS = 1
 OVERLAP=1
-runex8:
-	-@${MPIEXEC} -n ${NP} ./ex8 -m $M -n $N -user_set_subdomains -Mdomains ${MDOMAINS} -Ndomains ${NDOMAINS} -overlap ${OVERLAP} -print_error ${ARGS}
-
 
 runex8_1:
 	-@${MPIEXEC} -n 1 ./ex8 -print_error > ex8_1.tmp 2>&1; \
@@ -1536,27 +1533,12 @@ N  = 5
 MDOMAINS = 2
 NDOMAINS = 1
 OVERLAP=1
-TSUBDOMAINS = 1
-
-runex62_valgrind:
-	-@${MPIEXEC} -n ${NP} valgrind ./ex62 -M $M -N $N -print_error ${ARGS}
-
-runex62:
-	-@${MPIEXEC} -n ${NP} ./ex62 -M $M -N $N -print_error ${ARGS}
 
 runex62_hp:
 	-@${MPIEXEC} -n 4 ./ex62  -M 7  -N 9  -pc_gasm_overlap  1  -sub_pc_type lu  -sub_pc_factor_mat_solver_package superlu_dist  -ksp_monitor -print_error  -pc_gasm_total_subdomains 2 -pc_gasm_use_hierachical_partitioning 1 > ex62.tmp 2>&1;	  \
 	   if (${DIFF} output/ex62.out ex62.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with with ex62, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex62.tmp
-
-runex62_2D:
-	-@${MPIEXEC} -n ${NP} ./ex62 -M $M -N $N -user_set_subdomains -Mdomains ${MDOMAINS} -Ndomains ${NDOMAINS} -overlap ${OVERLAP} -print_error ${ARGS}
-
-TSUBDOMAINS=1
-runex62_superlu_dist:
-	-@${MPIEXEC} -n ${NP} ./ex62 -M $M -N $N -print_error -pc_gasm_total_subdomains ${TSUBDOMAINS} -sub_pc_type lu -sub_pc_factor_mat_solver_package superlu_dist ${ARGS}
-
 
 runex62_2D_1:
 	-@${MPIEXEC} -n 1 ./ex62 -M 7 -N 9 -user_set_subdomains -Mdomains 1 -Ndomains 3 -overlap 1 -print_error -pc_gasm_print_subdomains > ex62.tmp 2>&1; \
