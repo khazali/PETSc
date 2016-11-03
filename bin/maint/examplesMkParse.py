@@ -108,8 +108,6 @@ class makeParse(object):
           rDict[sfile][mkrun].update(mkDict[mkrun])
           rDict[sfile][mkrun]['TODO']="True"
         
-
-
     # Now can start abstracting the script itself to figure out 
     # the test structures
     sfiles=rDict.keys()
@@ -120,6 +118,11 @@ class makeParse(object):
         if not runex.startswith("run"): continue
         if not self.abstractScript(runex,rDict[sfile][runex]):
           del rDict[sfile][runex]
+        else:
+          # Cleanup the TODO level now that 'test' exists
+          if rDict[sfile][runex].has_key('TODO'):
+            rDict[sfile][runex]['test']['TODO']=rDict[sfile][runex]['TODO']
+            del rDict[sfile][runex]['TODO']
 
     return rDict
 
@@ -395,12 +398,13 @@ class makeParse(object):
         fv=line.split("for")[1].split("in")[0].strip()
         forvars.append(fv)
         forvals[fv]=line.split("in")[1].split(";")[0].strip()
-      elif " done" in line:
+      elif " done" in line and not "MPIEXEC" in line:
         pass
       else:
         for fv in forvars:
           fl=forvals[fv]
           line=re.sub("\$"+fv+" ","{{"+fl+"}} ",line)
+        if "done;" in line: line=re.sub("done;","",line).strip().rstrip(";")
         new=new+line+"\n"
     return new
 
@@ -449,9 +453,11 @@ class makeParse(object):
     """
     If it has a for loop, then need to modify the script string
     to use the {{ ... }} syntax
+    subDict is at the [src][runex]['test'] level of directory dictionary
     """
     # We always want nsize even if not abstracted 
-    mpiLine=scriptStr.split("{MPIEXEC}")[1].split("\n")[0]
+    mpiLine=scriptStr.split("{MPIEXEC}")[1]
+    if "\n" in mpiLine: mpiLine=mpiLine.split("\n")[0]
     nsizeStr=mpiLine.split(" -n ")[1].split()[0].strip()
     if "{{" in nsizeStr:
       # Loops are special
@@ -473,6 +479,7 @@ class makeParse(object):
     args=firstPart.split(exName)[1].strip().strip("\\")
     # Peel off filters with "|" and remove extraneous white space with split/join
     if args.strip(): subDict['args']=" ".join(args.split("|")[0].split())
+    if runexName.startswith("runex56"): print args
 
     # Determine requirements based on args
     import convertExamplesUtils
@@ -489,27 +496,33 @@ class makeParse(object):
       subDict['requires']=list(set(allRqs))  # Uniquify the requirements
 
     # Pull out the redirect file
-    redfile=mpiLine.split('> ')[1].split('2>')[0].strip()
-    defaultRed=runexName[3:]+".tmp"
-    if redfile!=defaultRed: subDict['redirect_file']=redfile
-
+    if "> " in mpiLine:
+      redfile=mpiLine.split('> ')[1].split('2>')[0].strip()
+      defaultRed=runexName[3:]+".tmp"
+      if redfile != defaultRed: subDict['redirect_file']=redfile
+    else:
+      # Without redirect, cannot do diffs so it needs work
+      subDict['TODO']="True"
 
     # Do filters
     if self._hasFilter(scriptStr):
       if self.verbosity>=1: print "FILTER", runexName
       subDict['filter']=self.abstractFilter(runexName,scriptStr,subDict)
 
-    # If subtests, then we do not have the diff here
+    # If subtests, then we do not have the diff here or it could
     if not "{DIFF}" in scriptStr: return
 
     # Check the diff and make sure everything is OK with files
-    diffPart=scriptStr.split("{DIFF}")[1].split("\n")[0]
-    outfile=diffPart.split()[0]
-    diffredfile=diffPart.split()[1].rstrip(")")
-    defaultOut="output/"+runexName[3:]+".out"
-    if outfile!=defaultOut: subDict['output_file']=outfile
-    if redfile!=diffredfile: 
-      print "Possible problem with test: ", runexName, redfile, diffredfile
+    if not subDict.has_key('TODO'):
+      diffPart=scriptStr.split("{DIFF}")[1].split("\n")[0]
+      outfile=diffPart.split()[0]
+      diffredfile=diffPart.split()[1].rstrip(")")
+      defaultOut="output/"+runexName[3:]+".out"
+      if outfile!=defaultOut: subDict['output_file']=outfile
+      if redfile!=diffredfile: 
+        # Usually this problem can't be fit into our current system
+        # so just flag this as a test that needs work
+        subDict['TODO']="True"
 
     return True
 
