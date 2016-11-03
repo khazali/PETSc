@@ -3,7 +3,7 @@ import config.package
 class Configure(config.package.CMakePackage):
   def __init__(self, framework):
     config.package.CMakePackage.__init__(self, framework)
-    self.gitcommit        = 'e81005dc3af9b331d43e16e4d221e889378e2c49'
+    self.gitcommit        = '6b01195' # snapshot from nov 2016
     self.download          = ['git://https://github.com/elemental/Elemental']
     self.liblist          = [['libEl.a','libElSuiteSparse.a','libpmrrr.a']]
     self.includes         = ['El.hpp']
@@ -47,6 +47,9 @@ class Configure(config.package.CMakePackage):
     args.append('-DEL_PREVENT_PARMETIS_DOWNLOAD=ON')
     args.append('-DINSTALL_PYTHON_PACKAGE=FALSE')
     args.append('-DEL_DISABLE_SCALAPACK=ON')
+    args.append('-DEL_DISABLE_MPFR=ON')
+    args.append('-DCMAKE_INSTALL_LIBDIR:STRING="lib"')
+
     if self.metis.include:
       args.append('-DMETIS_INCLUDE_DIR:STRING="'+self.metis.include[0]+'"')
     args.append('-DMETIS_LIBRARY:STRING="'+self.libraries.toString(self.metis.lib)+'"')
