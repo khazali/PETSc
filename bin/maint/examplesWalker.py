@@ -84,8 +84,8 @@ One other mode:
 """
 
 class PETScExamples(makeParse):
-  def __init__(self):
-    super(PETScExamples, self).__init__()
+  def __init__(self,petsc_dir,verbosity=1):
+    super(PETScExamples, self).__init__(petsc_dir,verbosity)
     return
 
   def getCorrespondingKeys(self,extype):
@@ -430,7 +430,11 @@ def main():
     # Process arguments
     # The makeoutput option is not a walker so just get it over with
 
-    pEx=PETScExamples()
+    petsc_dir=None
+    if options.petsc_dir: petsc_dir=options.petsc_dir
+    if petsc_dir is None: petsc_dir=os.path.dirname(os.path.dirname(currentdir))
+
+    pEx=PETScExamples(petsc_dir)
 
     if not options.makeoutput=='':
       pEx.archTestAnalyze(options.makeoutput)

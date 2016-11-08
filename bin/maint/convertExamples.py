@@ -29,8 +29,8 @@ Quick start
 """
 
 class convertExamples(PETScExamples):
-  def __init__(self,replaceSource):
-    super(convertExamples, self).__init__()
+  def __init__(self,petsc_dir,replaceSource,verbosity):
+    super(convertExamples, self).__init__(petsc_dir,verbosity)
     self.replaceSource=replaceSource
     self.writeScripts=True
     #self.scriptsSubdir=""
@@ -60,19 +60,8 @@ class convertExamples(PETScExamples):
     for newfile in glob.glob(root+"/*/trashz"): os.remove(newfile)
     for newfile in glob.glob(root+"/*/*/trashz"): os.remove(newfile)
     for newfile in glob.glob(root+"/*.mod"): os.remove(newfile)
+    for newfile in glob.glob(root+"/examplesMkParseInfo.txt"): os.remove(newfile)
     return
-
-  def getOrderedKeys(self,subDict):
-    """
-    It looks nicer to have the keys in an ordered way, but we want
-    to make sure we get all of the keys, so do list manipulation here
-    """
-    firstList=["suffix","abstracted","nsize","args"]
-    lastList=["script"]
-    keyList=subDict.keys()
-    for key in subDict.keys():
-      if key in firstList+lastList: keyList.remove(key)
-    return firstList+keyList+lastList
 
   def genAllRunFiles_summarize(self,dataDict):
     """
@@ -127,20 +116,12 @@ class convertExamples(PETScExamples):
     dataDict[fullmake]['nonUsedTests']=[]
     i=0
     varVal={}
-    if debug: print fullmake
+    if self.verbosity>=1: print fullmake
+
     # This gets all of the run* targets in makefile.  
     # Can be tested independently in examplesMkParse.py
-    mkDict=self.genRunsFromMakefile(fullmake)
-
-    # Now for each runex target, abstract and insert
-    for runex in mkDict:
-      # Preliminary abstract
-      dataDict[fullmake][runex]=self.abstractScript(runex,mkDict[runex]['script'])
-
-      # If requested, then insert into source
-      if insertIntoSrc: 
-        if not self.insertScriptIntoSrc(runex,fullmake,dataDict[fullmake][runex]):
-           dataDict[fullmake]['nonUsedTests'].append(runex)
+    runDict=self.parseRunsFromMkFile(fullmake)
+    self.insertInfoIntoSrc(fullmake,runDict)
 
     return
 
@@ -155,7 +136,16 @@ def main():
     parser.add_option('-f', '--functioneval', dest='functioneval',
                       help='Function to evaluate while traversing example dirs: genAllRunFiles cleanAllRunFiles', 
                       default='genAllRunFiles')
+    parser.add_option('-v', '--verbosity', dest='verbosity',
+                      help='Verbosity of output by level: 1, 2, or 3', 
+                      default='0')
     options, args = parser.parse_args()
+
+    # Need verbosity to be an integer
+    try:
+      verbosity=int(options.verbosity)
+    except:
+      raise Exception("Error: Verbosity must be integer")
 
     # Process arguments
     if len(args) > 0:
@@ -173,7 +163,7 @@ def main():
 #        petsc_dir=os.path.dirname(os.path.dirname(currentdir))
 
     startdir=os.path.join(petsc_dir,'src')
-    pEx=convertExamples(options.replaceSource)
+    pEx=convertExamples(petsc_dir,options.replaceSource,verbosity)
     if not options.functioneval=='':
       pEx.walktree(startdir,action=options.functioneval)
     else:

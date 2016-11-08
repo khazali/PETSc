@@ -504,7 +504,7 @@ if __name__ == '__main__':
     parser.add_option('--verbose', help='Show mismatches between makefiles and the filesystem', action='store_true', default=False)
     parser.add_option('--petsc-arch', help='Set PETSC_ARCH different from environment', default=os.environ.get('PETSC_ARCH'))
     parser.add_option('--output', help='Location to write output file', default=None)
-    parser.add_option('-s', '--singe_executable', dest='single_executable', action="store_false", help='Whether there should be single executable per src subdir.  Default is false')
+    parser.add_option('-s', '--single_executable', dest='single_executable', action="store_false", help='Whether there should be single executable per src subdir.  Default is false')
     opts, extra_args = parser.parse_args()
     if extra_args:
         import sys

@@ -14,15 +14,18 @@ sys.path.insert(0,currentdir)
 """
 Class for extracting the shell scripts from the makefile
 
+Usage: examplesMkParse.py <-p petsc_dir> <-m makefile> <-v verbosity>
 
-If I had programmed this better, methods from examplesWalker.py
-that are per directory specific (e.g., parseTESTline) would be here.
-Bad foresight on my part.
+In general:
+    cd src/ksp/ksp/examples/tutorials
+    ../../../../../bin/maint/examplesMkParse.py -v 1
+ 
 """
 
 class makeParse(object):
-  def __init__(self,verbosity):
+  def __init__(self,petsc_dir,verbosity):
 
+    self.petsc_dir=petsc_dir
     self.writeScripts=True
     #self.scriptsSubdir=""
     self.scriptsSubdir="from_makefile"
@@ -101,7 +104,8 @@ class makeParse(object):
         rDict['not_tested'].append(mkrun)
         sfile=self.findSrcfile(mkrun,curdir)
         if sfile==None:
-          print "Cannot associate source file with ", mkrun
+          relpath=os.path.relpath(curdir, self.petsc_dir)
+          print "Cannot associate source file with "+mkrun+" in "+relpath
         else:
           if not rDict.has_key(sfile): rDict[sfile]={}
           if not rDict[sfile].has_key(mkrun): rDict[sfile][mkrun]={}
@@ -116,7 +120,7 @@ class makeParse(object):
       tests=rDict[sfile].keys()
       for runex in tests:
         if not runex.startswith("run"): continue
-        if not self.abstractScript(runex,rDict[sfile][runex]):
+        if not self.abstractScript(runex,rDict[sfile][runex],curdir):
           del rDict[sfile][runex]
         else:
           # Cleanup the TODO level now that 'test' exists
@@ -186,19 +190,14 @@ class makeParse(object):
     directory where mkfile is located
     """
     runexName=line.split(":")[0].strip()
-    #print mkfile, runexName
     alphabet=tuple(string.ascii_letters)
     shStr=""
     basedir=os.path.dirname(mkfile)
     shName=os.path.join(basedir,runexName+".sh")
     while 1:
       last_pos=fh.tell()
-      #if runexName=="runex138_2": print line
       line=fh.readline()
-      # If it has xterm in it, then remove because we 
-      # do not want to test for that
       if not line: break
-      #if line.startswith(alphabet): 
       if line.startswith(alphabet) or line.startswith("#"): 
         fh.seek(last_pos)  # might be grabbing next script so rewind
         break
@@ -249,6 +248,10 @@ class makeParse(object):
       # Only keep the run targets in addition to vars
       # Do some transformation of the script string at this stage
       if line.startswith("run"): 
+        # ts/examples/tutorials/makefile has runex40: runex40_a ...
+        # Need to handle this phony target
+        if line.split(":")[1].split("#")[0].strip(): continue
+
         runex,shStr=self.extractRunFile(fh,line,fullmake,mkDict)
         if self.verbosity>=3: 
           print "parseRunsFromMkFile> ", runex
@@ -374,6 +377,7 @@ class makeParse(object):
 
     for sfile in testDict:
       if sfile=='not_tested': continue
+      if self.verbosity>=2: print sfile
       sh=open(sfile,"r"); fileStr=sh.read(); sh.close()
       newFileStr=self.insertSrcInfo(fileStr,testDict[sfile])
       testFileStr=self.insertTestInfo(fileStr,testDict[sfile])
@@ -449,6 +453,65 @@ class makeParse(object):
 
     return ",".join(allFilters)
 
+  def abstractTest(self,runexName,scriptStr,subDict):
+    """
+    Handle tests that are non-MPI
+    """
+    # Help in parsing
+    runexBase=runexName.split("_")[0]
+    exName=runexBase[3:]
+
+    # Assume it is of the form 'cmd > output_file'
+    cmd=scriptStr.split(" >")[0]
+    subDict['command']=cmd
+
+    # Don't even worry about trying to get the arguments
+
+    # Determine requirements based on args
+    import convertExamplesUtils
+    argMap=convertExamplesUtils.argMap
+    if subDict.has_key('args'):
+      if subDict.has_key('requires'):
+        allRqs=subDict['requires']
+      else:
+        allRqs=[]
+      for matchStr in argMap:
+        if matchStr in subDict['args']:
+          rqList=argMap[matchStr].split("requires:")[1].strip().split()
+          allRqs=allRqs+rqList
+      subDict['requires']=list(set(allRqs))  # Uniquify the requirements
+
+    # Pull out the redirect file
+    if "> " in scriptStr:
+      redfile=scriptStr.split('> ')[1].split('2>')[0].strip()
+      defaultRed=runexName[3:]+".tmp"
+      if redfile != defaultRed: subDict['redirect_file']=redfile
+    else:
+      # Without redirect, cannot do diffs so it needs work
+      subDict['TODO']="True"
+
+    # Do filters
+    if self._hasFilter(scriptStr):
+      if self.verbosity>=1: print "FILTER", runexName
+      subDict['filter']=self.abstractFilter(runexName,scriptStr,subDict)
+
+    # If subtests, then we do not have the diff here or it could
+    if not "{DIFF}" in scriptStr: return
+
+    # Check the diff and make sure everything is OK with files
+    if not subDict.has_key('TODO'):
+      diffPart=scriptStr.split("{DIFF}")[1].split("\n")[0]
+      outfile=diffPart.split()[0]
+      diffredfile=diffPart.split()[1].rstrip(")")
+      defaultOut="output/"+runexName[3:]+".out"
+      if outfile!=defaultOut: subDict['output_file']=outfile
+      if redfile!=diffredfile: 
+        # Usually this problem can't be fit into our current system
+        # so just flag this as a test that needs work
+        subDict['TODO']="True"
+
+    return True
+
   def abstractMpiTest(self,runexName,scriptStr,subDict):
     """
     If it has a for loop, then need to modify the script string
@@ -479,7 +542,6 @@ class makeParse(object):
     args=firstPart.split(exName)[1].strip().strip("\\")
     # Peel off filters with "|" and remove extraneous white space with split/join
     if args.strip(): subDict['args']=" ".join(args.split("|")[0].split())
-    if runexName.startswith("runex56"): print args
 
     # Determine requirements based on args
     import convertExamplesUtils
@@ -526,7 +588,7 @@ class makeParse(object):
 
     return True
 
-  def abstractScript(self,runexName,abstract):
+  def abstractScript(self,runexName,abstract,curdir):
     """
     Do a preliminary pass of abstracting the script
     Abstract script tries to take a normal script string and then parse it
@@ -537,7 +599,8 @@ class makeParse(object):
     """
     abstract['abstracted']=False
     if not abstract.has_key('script'):
-      print "Cannot find script", runexName
+      relpath=os.path.relpath(curdir, self.petsc_dir)
+      print "Cannot find script "+runexName+" in "+relpath
       return False
     scriptStr=abstract['script']
     # remove whats in print message to reduce false positives
@@ -559,8 +622,11 @@ class makeParse(object):
     if noPrintScript.count("MPIEXEC")>1:
       if self.verbosity>=1: print "MultiMPI", runexName
       abstract['abstracted']=self.abstractMultiMpiTest(runexName,scriptStr,abstract['test'])
-    else:
+    elif noPrintScript.count("MPIEXEC")==1:
       abstract['abstracted']=self.abstractMpiTest(runexName,scriptStr,abstract['test'])
+    else:
+      if self.verbosity>=1: print "No MPI", runexName
+      abstract['abstracted']=self.abstractTest(runexName,scriptStr,abstract['test'])
 
     return True
 
@@ -640,7 +706,17 @@ class makeParse(object):
     Given a testname of the form runex10_9, try to figure out the source file
     """
     base=testname[3:].split("_")[0]
-    if base.endswith("f"):
+    if base.endswith("f") or base.endswith("f90"):
+      for ext in ['F','F90']:
+        guess=os.path.join(curdir,base+"."+ext)
+        if os.path.exists(guess): return os.path.basename(guess)
+    else:
+      for ext in ['c','cxx']:
+        guess=os.path.join(curdir,base+"."+ext)
+        if os.path.exists(guess): return os.path.basename(guess)
+    # Sometimes the underscore is in the executable (ts-tutorials)
+    base=testname[3:]
+    if base.endswith("f") or base.endswith("f90"):
       for ext in ['F','F90']:
         guess=os.path.join(curdir,base+"."+ext)
         if os.path.exists(guess): return os.path.basename(guess)
@@ -754,7 +830,7 @@ def printMkParseDict(rDict,verbosity):
   return 
 
 def main():
-    parser = optparse.OptionParser(usage="%prog [options] startdir")
+    parser = optparse.OptionParser(usage="%prog [options]")
     parser.add_option('-p', '--petsc_dir', dest='petsc_dir',
                       help='Where to start the recursion',
                       default='')
@@ -790,7 +866,7 @@ def main():
     if not options.makefile: 
       print "Use -m to specify makefile"
       return
-    pEx=makeParse(verbosity)
+    pEx=makeParse(petsc_dir,verbosity)
     runDict=pEx.parseRunsFromMkFile(options.makefile)
     printMkParseDict(runDict,verbosity)
     pEx.insertInfoIntoSrc(options.makefile,runDict)
