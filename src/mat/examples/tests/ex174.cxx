@@ -2,7 +2,7 @@
 static char help[] = "Tests MatConvert(), MatLoad(), MatElementalHermitianGenDefEig() for MATELEMENTAL interface.\n\n";
 /*
  Example:
-   mpiexec -n <np> ./ex173 -fA <A_data> -fB <B_data> -vl <vl> -vu <vu> -orig_mat_type <type> -orig_mat_type <mat_type>
+   mpiexec -n <np> ./ex173 -fA <A_data> -fB <B_data> -orig_mat_type <type> -orig_mat_type <mat_type>
 */
  
 #include <petscmat.h>
@@ -20,15 +20,13 @@ int main(int argc,char **args)
   PetscBool      flg,flgB,isElemental,isDense,isAij,isSbaij;
   PetscScalar    one = 1.0,*Earray,alpha,beta;
   PetscMPIInt    rank,size;
-  PetscReal      vl,vu,norm;
+  PetscReal      norm;
   PetscInt       M,N,m;
 
   /* Below are Elemental data types, see <elemental.hpp> */
   El::Pencil       eigtype = El::AXBX;
   El::UpperOrLower uplo    = El::UPPER;
-  El::SortType     sort    = El::UNSORTED; /* UNSORTED, DESCENDING, ASCENDING */
-  El::HermitianEigSubset<PetscElemScalar> subset;
-  El::HermitianEigCtrl<PetscElemScalar>   ctrl;
+  El::HermitianEigCtrl<PetscElemScalar> ctrl;
 
   El::Orientation  orientation = El::NORMAL;
 
@@ -114,13 +112,7 @@ int main(int argc,char **args)
 
   /* Test MatElementalHermitianGenDefEig() */
   if (!rank) printf(" Compute Ax = lambda Bx... \n");
-  vl = -0.8, vu = -0.7;
-  ierr = PetscOptionsGetReal(NULL,NULL,"-vl",&vl,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetReal(NULL,NULL,"-vu",&vu,NULL);CHKERRQ(ierr);
-  subset.rangeSubset = PETSC_TRUE; 
-  subset.lowerBound  = vl;
-  subset.upperBound  = vu;
-  ierr = MatElementalHermitianGenDefEig(eigtype,uplo,Ae,Be,&We,&Xe,sort,subset,ctrl);CHKERRQ(ierr);
+  ierr = MatElementalHermitianGenDefEig(eigtype,uplo,Ae,Be,&We,&Xe,ctrl);CHKERRQ(ierr);
   //if (!rank) printf(" Eigenvalues:\n");
   //ierr = MatView(We,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
 
@@ -144,7 +136,7 @@ int main(int argc,char **args)
     ierr = MatDiagonalScale(C2,NULL,eval);CHKERRQ(ierr); /* C2 = B*X*eval */
     ierr = MatAXPY(C1,-1.0,C2,SAME_NONZERO_PATTERN);CHKERRQ(ierr); /* C1 = - C2 + C1 */
     ierr = MatNorm(C1,NORM_FROBENIUS,&norm);CHKERRQ(ierr);
-    if (norm > 1.e-14) {
+    if (norm > 1.e-13) {
       if (!rank) printf(" Warning: || A*X - B*X*We || = %g\n",norm);
     }
 
