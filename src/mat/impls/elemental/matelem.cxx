@@ -348,7 +348,7 @@ static PetscErrorCode MatMultTransposeAdd_Elemental(Mat A,Vec X,Vec Y,Vec Z)
 
 #undef __FUNCT__
 #define __FUNCT__ "MatElementalHerk_Elemental"
-PetscErrorCode MatElementalHerk_Elemental(El::UpperOrLower uplo,El::Orientation orientation,PetscScalar alpha,Mat A,PetscScalar beta,Mat C)
+PetscErrorCode MatElementalHerk_Elemental(El::UpperOrLower uplo,El::Orientation orientation,PetscReal alpha,Mat A,PetscReal beta,Mat C)
 {
   Mat_Elemental  *a=(Mat_Elemental*)A->data,*c=(Mat_Elemental*)C->data;
 
@@ -371,12 +371,12 @@ PetscErrorCode MatElementalHerk_Elemental(El::UpperOrLower uplo,El::Orientation 
 .      Elemental Users' Guide
 
 @*/
-PetscErrorCode MatElementalHerk(El::UpperOrLower uplo,El::Orientation orientation,PetscScalar alpha,Mat A,PetscScalar beta,Mat C)
+PetscErrorCode MatElementalHerk(El::UpperOrLower uplo,El::Orientation orientation,PetscReal alpha,Mat A,PetscReal beta,Mat C)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscUseMethod(A,"MatElementalHerk_C",(El::UpperOrLower,El::Orientation,PetscScalar,Mat,PetscScalar,Mat),(uplo,orientation,alpha,A,beta,C));CHKERRQ(ierr);
+  ierr = PetscUseMethod(A,"MatElementalHerk_C",(El::UpperOrLower,El::Orientation,PetscReal,Mat,PetscReal,Mat),(uplo,orientation,alpha,A,beta,C));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -387,7 +387,7 @@ PetscErrorCode MatElementalSyrk_Elemental(El::UpperOrLower uplo,El::Orientation 
   Mat_Elemental  *a=(Mat_Elemental*)A->data,*c=(Mat_Elemental*)C->data;
 
   PetscFunctionBegin;
-  El::Syrk(uplo,orientation,alpha,*a->emat,beta,*c->emat,conjugate);
+  El::Syrk(uplo,orientation,(PetscElemScalar)alpha,*a->emat,(PetscElemScalar)beta,*c->emat,conjugate);
   PetscFunctionReturn(0);
 }
 
@@ -416,12 +416,12 @@ PetscErrorCode MatElementalSyrk(El::UpperOrLower uplo,El::Orientation orientatio
 
 #undef __FUNCT__
 #define __FUNCT__ "MatElementalHer2k_Elemental"
-PetscErrorCode MatElementalHer2k_Elemental(El::UpperOrLower uplo,El::Orientation orientation,PetscScalar alpha,Mat A,Mat B,PetscScalar beta,Mat C)
+PetscErrorCode MatElementalHer2k_Elemental(El::UpperOrLower uplo,El::Orientation orientation,PetscScalar alpha,Mat A,Mat B,PetscReal beta,Mat C)
 {
   Mat_Elemental  *a=(Mat_Elemental*)A->data,*b=(Mat_Elemental*)B->data,*c=(Mat_Elemental*)C->data;
 
   PetscFunctionBegin;
-  El::Her2k(uplo,orientation,alpha,*a->emat,*b->emat,beta,*c->emat);
+  El::Her2k(uplo,orientation,(PetscElemScalar)alpha,*a->emat,*b->emat,beta,*c->emat);
   PetscFunctionReturn(0);
 }
 
@@ -439,12 +439,12 @@ PetscErrorCode MatElementalHer2k_Elemental(El::UpperOrLower uplo,El::Orientation
 .      Elemental Users' Guide
 
 @*/
-PetscErrorCode MatElementalHer2k(El::UpperOrLower uplo,El::Orientation orientation,PetscScalar alpha,Mat A,Mat B,PetscScalar beta,Mat C)
+PetscErrorCode MatElementalHer2k(El::UpperOrLower uplo,El::Orientation orientation,PetscScalar alpha,Mat A,Mat B,PetscReal beta,Mat C)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscUseMethod(A,"MatElementalHer2k_C",(El::UpperOrLower,El::Orientation,PetscScalar,Mat,Mat,PetscScalar,Mat),(uplo,orientation,alpha,A,B,beta,C));CHKERRQ(ierr);
+  ierr = PetscUseMethod(A,"MatElementalHer2k_C",(El::UpperOrLower,El::Orientation,PetscScalar,Mat,Mat,PetscReal,Mat),(uplo,orientation,alpha,A,B,beta,C));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -455,7 +455,7 @@ PetscErrorCode MatElementalSyr2k_Elemental(El::UpperOrLower uplo,El::Orientation
   Mat_Elemental  *a=(Mat_Elemental*)A->data,*b=(Mat_Elemental*)B->data,*c=(Mat_Elemental*)C->data;
 
   PetscFunctionBegin;
-  El::Syr2k(uplo,orientation,alpha,*a->emat,*b->emat,beta,*c->emat,conjugate);
+  El::Syr2k(uplo,orientation,(PetscElemScalar)alpha,*a->emat,*b->emat,(PetscElemScalar)beta,*c->emat,conjugate);
   PetscFunctionReturn(0);
 }
 
