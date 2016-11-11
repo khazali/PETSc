@@ -19,6 +19,7 @@ int main(int argc,char **args)
   char           file[2][PETSC_MAX_PATH_LEN];
   PetscBool      flg,flgB,isElemental,isDense,isAij,isSbaij;
   PetscScalar    one = 1.0,*Earray,alpha,beta;
+  PetscReal      ralpha,rbeta;
   PetscMPIInt    rank,size;
   PetscReal      norm;
   PetscInt       M,N,m;
@@ -148,8 +149,11 @@ int main(int argc,char **args)
   } 
 
   /* Test MatElementalSyr2k() and MatElementalHer2k() */
-  alpha = 2.0;
-  beta  = 1.0;
+  alpha  = 2.0;
+  beta   = 1.0;
+  ralpha = 2.0;
+  rbeta  = 1.0;
+
   ierr = MatDuplicate(Be,MAT_COPY_VALUES,&Ce);CHKERRQ(ierr);
   ierr = MatElementalSyr2k(uplo,orientation,alpha,Ae,Be,beta,Ce,PETSC_FALSE);CHKERRQ(ierr);
   //if (!rank) printf(" Test MatElementalSyr2k(), C = a(AB^T + BA^T)+bC: \n");
@@ -157,7 +161,7 @@ int main(int argc,char **args)
   ierr = MatDestroy(&Ce);CHKERRQ(ierr);
 
   ierr = MatDuplicate(Be,MAT_COPY_VALUES,&Ce);CHKERRQ(ierr);
-  ierr = MatElementalHer2k(uplo,orientation,alpha,Ae,Be,beta,Ce);CHKERRQ(ierr);
+  ierr = MatElementalHer2k(uplo,orientation,alpha,Ae,Be,rbeta,Ce);CHKERRQ(ierr);
   //if (!rank) printf(" Test MatElementalHer2k(), C = a(AB^H + BA^H)+bC: \n");
   //ierr = MatView(Ce,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   ierr = MatDestroy(&Ce);CHKERRQ(ierr);
@@ -169,7 +173,7 @@ int main(int argc,char **args)
   //ierr = MatView(Ce,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   ierr = MatDestroy(&Ce);CHKERRQ(ierr);
 
-  ierr = MatElementalSyrk(uplo,orientation,alpha,Ae,beta,Be,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = MatElementalHerk(uplo,orientation,ralpha,Ae,rbeta,Be);CHKERRQ(ierr);
   //if (!rank) printf(" Test MatElementalHerk(), Be = alpha * Ae * Ae^H + beta * Be: \n");
   //ierr = MatView(Be,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
 
