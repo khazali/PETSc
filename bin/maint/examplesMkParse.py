@@ -110,7 +110,7 @@ class makeParse(object):
           if not rDict.has_key(sfile): rDict[sfile]={}
           if not rDict[sfile].has_key(mkrun): rDict[sfile][mkrun]={}
           rDict[sfile][mkrun].update(mkDict[mkrun])
-          rDict[sfile][mkrun]['TODO']="True"
+          rDict[sfile][mkrun]['TODO']="Need to determine if deprecated"
         
     # Now can start abstracting the script itself to figure out 
     # the test structures
@@ -315,12 +315,12 @@ class makeParse(object):
     tests.sort()
     return order+tests
 
-  def insertTestInfo(self,fileStr,srcDict):
+  def insertTestInfo(self,fileStr,srcDict,isFortran):
     """
     This gets all of the stuff between /*TEST ... TEST*/
     """
     indent="   "
-    testStr="\n\n/*TEST\n"
+    testStr=""
     for runex in self.getOrderedRuns(srcDict):
       testStr=testStr+indent+"\n"+indent+"test:\n"
       # For various reasons, this is at an awkward level
@@ -340,9 +340,21 @@ class makeParse(object):
           for tkey in self.getOrderedKeys(rDict[rkey]):
             rval=(rDict[rkey][tkey] if tkey!="requires" else " ".join(rDict[rkey][tkey]))
             testStr=testStr+indent*3+tkey+": "+str(rval)+"\n"
-    return testStr+'\nTEST*/\n'
+    # If no test, then put it on the TODO list
+    if not testStr.strip(): 
+      testStr=testStr+"\n"+indent+"test:"+"\n"+indent*2+"TODO: Need to implement test\n"
+    testStr="\n\n/*TEST\n"+testStr+'\nTEST*/\n'
+    if isFortran: testStr=testStr.replace("\n","\n!").rstrip("!")
+    return testStr
 
-  def insertSrcInfo(self,fileStr,srcDict):
+  def _isFortran(self,filename):
+    """  Return boolean on whether it is a fortran file or not """
+    if os.path.splitext(filename)[1].startswith(".F"):
+      return True
+    else:
+      return False
+
+  def insertSrcInfo(self,fileStr,srcDict,isFortran):
     """
     Put the information in the dictionary into the source file
     """
@@ -363,8 +375,13 @@ class makeParse(object):
       fileInfo=""
 
     indent="   "
-    fileInfo=fileInfo+indent+"requires: "+" ".join(srcDict['requires'])
-    newFileStr=prefix+"/*T\n"+fileInfo+"T*/\n"+suffix
+    reqStr=indent+"requires: "+" ".join(srcDict['requires'])
+    if isFortran: reqStr="!"+reqStr
+    fileInfo=fileInfo+reqStr
+    if not isFortran: 
+      newFileStr=prefix+"/*T\n"+fileInfo+"T*/\n"+suffix
+    else:
+      newFileStr=prefix+"!/*T\n"+fileInfo+"!T*/\n"+suffix
     return newFileStr
 
   def insertInfoIntoSrc(self,fullmake,testDict):
@@ -379,8 +396,9 @@ class makeParse(object):
       if sfile=='not_tested': continue
       if self.verbosity>=2: print sfile
       sh=open(sfile,"r"); fileStr=sh.read(); sh.close()
-      newFileStr=self.insertSrcInfo(fileStr,testDict[sfile])
-      testFileStr=self.insertTestInfo(fileStr,testDict[sfile])
+      isFortran=self._isFortran(sfile)
+      newFileStr=self.insertSrcInfo(fileStr,testDict[sfile],isFortran)
+      testFileStr=self.insertTestInfo(fileStr,testDict[sfile],isFortran)
       # Write out new file
       fh=open("new_"+sfile,"w")
       fh.write(newFileStr+testFileStr)
@@ -488,7 +506,7 @@ class makeParse(object):
       if redfile != defaultRed: subDict['redirect_file']=redfile
     else:
       # Without redirect, cannot do diffs so it needs work
-      subDict['TODO']="True"
+      subDict['TODO']="Need to develop comparison test"
 
     # Do filters
     if self._hasFilter(scriptStr):
@@ -508,7 +526,7 @@ class makeParse(object):
       if redfile!=diffredfile: 
         # Usually this problem can't be fit into our current system
         # so just flag this as a test that needs work
-        subDict['TODO']="True"
+        subDict['TODO']="Needs further development from conversion"
 
     return True
 
@@ -552,7 +570,8 @@ class makeParse(object):
       else:
         allRqs=[]
       for matchStr in argMap:
-        if matchStr in subDict['args']:
+        argMatch=matchStr.lower()+" "
+        if argMatch in subDict['args']:
           rqList=argMap[matchStr].split("requires:")[1].strip().split()
           allRqs=allRqs+rqList
       subDict['requires']=list(set(allRqs))  # Uniquify the requirements
@@ -564,7 +583,7 @@ class makeParse(object):
       if redfile != defaultRed: subDict['redirect_file']=redfile
     else:
       # Without redirect, cannot do diffs so it needs work
-      subDict['TODO']="True"
+      subDict['TODO']="Need to develop comparison test"
 
     # Do filters
     if self._hasFilter(scriptStr):
@@ -584,7 +603,7 @@ class makeParse(object):
       if redfile!=diffredfile: 
         # Usually this problem can't be fit into our current system
         # so just flag this as a test that needs work
-        subDict['TODO']="True"
+        subDict['TODO']="Needs further development from conversion"
 
     return True
 

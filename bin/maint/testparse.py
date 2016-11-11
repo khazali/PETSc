@@ -54,9 +54,11 @@ def _stripIndent(block,srcfile):
   Also strip of trailing whitespace
   """
   # The first entry should be test: but it might be indented. 
+  ext=os.path.splitext(srcfile)[1]
   for line in block.split("\n"):
     if not line.strip(): continue
-    nspace=len(line)-len(line.lstrip(" "))
+    stripstr=" " if not ext.startswith(".F") else "! "
+    nspace=len(line)-len(line.lstrip(stripstr))
     newline=line[nspace:]
     break
 
@@ -64,6 +66,7 @@ def _stripIndent(block,srcfile):
   # whitespace for convenience
   newTestStr="\n"
   for line in block.split("\n"):
+    if not line.strip(): continue
     newline=line[nspace:]
     newTestStr=newTestStr+newline.rstrip()+"\n"
 
@@ -100,6 +103,8 @@ def parseTest(testStr,srcfile):
     elif var=="test":
       subtestname="test"+str(subtestnum)
       subdict[subtestname]={}
+      if not subdict.has_key("subtests"): subdict["subtests"]=[]
+      subdict["subtests"].append(subtestname)
       subtestnum=subtestnum+1
     # The reset are easy
     else:
