@@ -14,6 +14,7 @@ typedef struct {
                           we still need to be able to convert from PETSc/blocked ordering to VC/VR ordering. */
   El::Grid                         *grid;
   El::DistMatrix<PetscElemScalar>  *emat;
+  El::DistMatrix<PetscReal>        *evalmat;
   PetscInt                         pivoting;     /* 0: no pivoting; 1: partial pivoting; 2: full pivoting */
   El::DistPermutation              *P,*Q;
   PetscBool                        roworiented;  /* if true, row oriented input (default) */

@@ -1382,7 +1382,7 @@ PetscErrorCode MatElementalHermitianGenDefEig_Elemental(El::Pencil eigtype,El::U
 
   PetscFunctionBegin;
   /* Compute eigenvalues and eigenvectors */
-  El::DistMatrix<PetscElemScalar,El::VR,El::STAR> w( *a->grid ); /* holding eigenvalues */
+  El::DistMatrix<PetscReal,El::VR,El::STAR>       w( *a->grid ); /* holding eigenvalues */
   El::DistMatrix<PetscElemScalar>                 X( *a->grid ); /* holding eigenvectors */
   El::HermitianGenDefEig(eigtype,uplo,*a->emat,*b->emat,w,X,ctrl);
 
@@ -1407,7 +1407,7 @@ PetscErrorCode MatElementalHermitianGenDefEig_Elemental(El::Pencil eigtype,El::U
   ierr = MatAssemblyBegin(EVAL,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(EVAL,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   e         = (Mat_Elemental*)EVAL->data;
-  *e->emat = w; 
+  *e->evalmat = w;
   *evals   = EVAL;
   PetscFunctionReturn(0);
 }
