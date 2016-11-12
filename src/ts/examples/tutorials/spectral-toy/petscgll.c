@@ -57,6 +57,8 @@ static void qAndLEvaluation(PetscInt n, PetscReal x, PetscReal *q, PetscReal *qp
    Notes: For n > 30  the Newton approach computes duplicate (incorrect) values for some nodes because the initial guess is apparently not
           close enough to the desired solution
 
+   See  http://epubs.siam.org/doi/abs/10.1137/110855442  http://epubs.siam.org/doi/abs/10.1137/120889873 for better ways to compute GLL nodes
+
    Level: beginner
 
 .seealso: PetscGLLIP, PetscGLLIPDestroy(), PetscGLLIPView()
