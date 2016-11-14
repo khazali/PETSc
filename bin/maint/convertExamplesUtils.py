@@ -31,29 +31,29 @@ makefileMap={}
 # requirement.  The distinction between buildrequires and requires is
 # tricky.  I looked at the makefile's and files themselves to try and
 # figure it out.
-makefileMap["_COMPLEX"]="buildrequires: complex"
-makefileMap["_NOCOMPLEX"]="buildrequires: !complex"
-makefileMap["_NOTSINGLE"]="buildrequires: !single"
-makefileMap["_NOSINGLE"]="buildrequires: !single"
+makefileMap["COMPLEX"]="buildrequires: complex"
+makefileMap["NOCOMPLEX"]="buildrequires: !complex"
+makefileMap["NOTSINGLE"]="buildrequires: !single"
+makefileMap["NOSINGLE"]="buildrequires: !single"
 
-makefileMap["_DOUBLEINT32"]="buildrequires: !define(USE_64BIT_INDICES) define(PETSC_USE_REAL_DOUBLE)"  
-makefileMap["_THREADSAFETY"]="buildrequires: define(PETSC_USING_FREEFORM) define(PETSC_USING_F90)"
-makefileMap["_F2003"]="buildrequires: define(PETSC_USING_FREEFORM) define(PETSC_USING_F2003)"
-#makefileMap["_F90_DATATYPES"]="" # ??
+makefileMap["DOUBLEINT32"]="buildrequires: !define(USE_64BIT_INDICES) define(PETSC_USE_REAL_DOUBLE)"  
+makefileMap["THREADSAFETY"]="buildrequires: define(PETSC_USING_FREEFORM) define(PETSC_USING_F90)"
+makefileMap["F2003"]="buildrequires: define(PETSC_USING_FREEFORM) define(PETSC_USING_F2003)"
+#makefileMap["F90_DATATYPES"]="" # ??
 
-makefileMap["_DATAFILESPATH"]="requires: datafilespath"
-makefileMap['_INFO']="requires: define(USE_INFO)"
+makefileMap["DATAFILESPATH"]="requires: datafilespath"
+makefileMap['INFO']="requires: define(USE_INFO)"
 
 # Typo
-makefileMap["_PARAMETIS"]="requires: parmetis"
+makefileMap["PARAMETIS"]="requires: parmetis"
 
 # Some packages are runtime, but others are buildtime because of includes
-reqpkgs=["CHOMBO", "CTETGEN", "ELEMENTAL","EXODUSII", "HDF5", "HYPRE", "LUSOL", "MATLAB", "MATLAB_ENGINE", "MKL_PARDISO", "ML", "MUMPS", "PARMETIS", "PARMS", "PASTIX", "PTSCOTCH", "REVOLVE", "SAWS", "SPAI", "STRUMPACK", "SUITESPARSE", "SUPERLU", "SUPERLU_DIST", "TRIANGLE", "TRILINOS", "YAML"]
+reqpkgs=["HDF5", "HYPRE", "LUSOL","MKL_PARDISO", "ML", "MUMPS", "PARMETIS", "PARMS", "PASTIX", "PTSCOTCH", "REVOLVE", "SAWS", "SPAI", "STRUMPACK", "SUITESPARSE", "SUPERLU", "SUPERLU_DIST"]
 
-bldpkgs=["MOAB", "FFTW", "TCHEM","VECCUDA","CUSP","CUSPARSE","X"]
+bldpkgs=["CTETGEN", "EXODUSII", "CHOMBO","ELEMENTAL", "MATLAB", "MATLAB_ENGINE",  "MOAB", "FFTW", "TCHEM","VECCUDA","CUSP","CUSPARSE","TRILINOS", "X", "TRIANGLE", "YAML"]
 
-for pkg in reqpkgs: makefileMap["_"+pkg]="requires: "+ pkg.lower()
-for pkg in bldpkgs: makefileMap["_"+pkg]="buildrequires: "+ pkg.lower()
+for pkg in reqpkgs: makefileMap[pkg]="requires: "+ pkg.lower()
+for pkg in bldpkgs: makefileMap[pkg]="buildrequires: "+ pkg.lower()
 
 #  Map of "string" in arguments to package requirements; i.e.,
 #    argMap[patternString]=packageRequired

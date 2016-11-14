@@ -37,7 +37,7 @@ TEST*/
 
 """
 
-import os, re, glob
+import os, re, glob, types
 from distutils.sysconfig import parse_makefile
 import sys
 import logging
@@ -176,7 +176,9 @@ def parseTestFile(srcfile):
     Part1=fileStr.split("T*/")[0]
     fileInfo=Part1.split("/*T")[1]
     if "requires:" in fileInfo:
-      testDict[basename]['requires']=fileInfo.split("requires:")[0].split("\n")[0].strip()
+      testDict[basename]['requires']=fileInfo.split("requires:")[1].split("\n")[0].strip()
+    if "TODO:" in fileInfo:
+      testDict[basename]['TODO']=fileInfo.split("TODO:")[1].split("\n")[0].strip()
 
   os.chdir(curdir)
   return testDict
@@ -201,19 +203,21 @@ def printExParseDict(rDict):
   """
   This is useful for debugging
   """
-  print "\n\n\n"
   indent="   "
   for sfile in rDict:
     print "\n\n"+sfile
     for runex in rDict[sfile]:
       print indent+runex
-      for var in rDict[sfile][runex]:
-        if var.startswith("test"):
-          print indent*2+var
-          for var2 in rDict[sfile][runex][var]:
-            print indent*3+var2+": "+str(rDict[sfile][runex][var][var2])
-        else:
-          print indent*2+var+": "+str(rDict[sfile][runex][var])
+      if type(rDict[sfile][runex])==types.StringType:
+        print indent*2+rDict[sfile][runex]
+      else:
+        for var in rDict[sfile][runex]:
+          if var.startswith("test"):
+            print indent*2+var
+            for var2 in rDict[sfile][runex][var]:
+              print indent*3+var2+": "+str(rDict[sfile][runex][var][var2])
+          else:
+            print indent*2+var+": "+str(rDict[sfile][runex][var])
   return
 
 def main(directory='',test_file='',verbosity=0):

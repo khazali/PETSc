@@ -25,34 +25,57 @@ fi
 # Init
 cleanup=False
 success=0; failed=0; failures=""; rmfiles=""
+total=0
+todo=-1; skip=-1
 
 function petsc_testrun() {
   # First arg = Basic command
   # Second arg = stdout file
   # Third arg = stderr file
+  # Fourth arg = label for reporting
+  # Fifth arg = Filter
   rmfiles="${rmfiles} $2 $3"
   let count=$count+1
+  tlabel=$4
+  filter=$5
 
-  cmd="$1 > $2 2> $3"
+  if test -z "$filter"; then
+    cmd="$1 > $2 2> $3"
+  else
+    cmd="$1 | $filter > $2 2> $3"
+  fi
   eval $cmd
   if test $? == 0; then
-      printf "ok $count $1\n"
+      printf "ok $count $tlabel\n"
       let success=$success+1
   else
-      printf "not ok $count $1\n"
+      printf "not ok $count $tlabel\n"
       awk '{print "#\t" $0}' < $3
       let failed=$failed+1
       failures="$failures $count"
   fi
+  let total=$success+$failed
 }
 
 function petsc_testend() {
-  logfile="counts/"${0}".counts"
-  let total=$success+$failed
-  echo "total $total" > $logfile
-  echo "success $success" >> $logfile
-  echo "failed $failed" >> $logfile
-  echo "failures $failures" >> $logfile
+  logfile=$1/counts/${label}.counts
+  logdir=`dirname $logfile`
+  if ! test -d "$logdir"; then
+    mkdir -p $logdir
+  fi
+  if ! test -e "$logfile"; then
+    touch $logfile
+  fi
+  printf "total $total\n" > $logfile
+  printf "success $success\n" >> $logfile
+  printf "failed $failed\n" >> $logfile
+  printf "failures $failures\n" >> $logfile
+  if test ${todo} -gt 0; then
+    printf "todo $todo\n" >> $logfile
+  fi
+  if test ${skip} -gt 0; then
+    printf "skip $skip\n" >> $logfile
+  fi
   if $cleanup; then
      /bin/rm -f $rmfiles
   fi

@@ -110,8 +110,8 @@ testlangs := c cu cxx F F90
 concattestlang = $(foreach lang, $(testlangs), $(testsrcs-$(1).$(lang):%.$(lang)=$(TESTDIR)/%.o))
 testsrcs.o := $(foreach pkg, $(pkgs), $(call concattestlang,$(pkg)))
 
-foo:
-	-echo $(testsrcs.o)
+#foo:
+#	-echo $(testsrcs.o)
 
 define SHARED_RECIPE_DLL
   @$(RM) $@ dllcmd.${PETSC_ARCH}
@@ -278,3 +278,41 @@ $(alltest.d) : ;
 
 -include $(allobj.d)
 -include $(alltest.d)
+
+
+# this allows one to generate the tests commands to run by searching
+# Note that percent is a wildcard: 
+#    make -f gmakefile testsearch search='%ex2' 
+# For args:
+#    make -f gmakefile testsearch argsearch='%ex2' 
+
+# filtertwo is because normal filter command cannot search for two wildcards!!
+filtertwo = $(foreach v,$2,$(if $(findstring $1,$v),$v))
+TESTTARGETS := $(shell grep '^[a-z]' $(generatedtest) | grep -v "+=" | cut -f1 -d':')
+ifdef search
+  NEW_TESTTARGETS = $(filter $(search),$(TESTTARGETS))
+  ACTUAL_RUN=$(NEW_TESTTARGETS)
+else ifdef searchin
+  NEW_TESTTARGETS = $(call filtertwo,$(searchin),$(TESTTARGETS))
+  ACTUAL_RUN=$(NEW_TESTTARGETS)
+else ifdef argsearch
+    NEW_TESTTARGETS=$(foreach rarg, $(TESTTARGETS), $(if $(filter $(argsearch),$(value $(rarg))), $(rarg)))
+    ACTUAL_RUN=$(NEW_TESTTARGETS)
+else
+    ACTUAL_RUN=$(TESTTARGETS)
+endif
+
+ACTUAL_RUN += report_tests
+
+testsearch: $(ACTUAL_RUNS)
+
+.PHONY: report_tests
+
+echo_test:
+	-@echo $(TESTTARGETS)
+
+echo_testsearch:
+	-@echo $(ACTUAL_RUN)
+
+report_tests:
+	-@cd $(TESTDIR); ./report_tests.sh

@@ -59,10 +59,17 @@ class makeParse(object):
       """ Determine requirements associated with srcs and tests """
       allRqs=[]
       for atype in typeList:
-        if makefileMap.has_key(atype):
-          if makefileMap[atype].startswith(reqtype):
-            rqList=makefileMap[atype].split("requires:")[1].strip().split()
-            allRqs=allRqs+rqList
+        i=0
+        for subtype in atype.split("_"):
+          # Messy
+          if subtype=="TESTEXAMPLES": continue
+          if subtype=="C": continue
+          if subtype=="MKL": subtype="MKL_PARDISO"
+          if subtype=="SUPERLU" and "SUPERLU_DIST" in subtype: subtype="SUPERLU_DIST"
+          if makefileMap.has_key(subtype):
+            if makefileMap[subtype].startswith(reqtype):
+              rqList=makefileMap[subtype].split("requires:")[1].strip().split()
+              allRqs=allRqs+rqList
       if len(allRqs)>0: return list(set(allRqs))  # Uniquify the requirements
       return allRqs
 
@@ -74,7 +81,8 @@ class makeParse(object):
         srcfile=self.undoNameSpace(exfile)
         if srcfile=="printdot": continue
         if not rDict.has_key(srcfile): rDict[srcfile]={}
-        rDict[srcfile]['types']=extype
+        if not rDict[srcfile].has_key('types'): rDict[srcfile]['types']=[]
+        rDict[srcfile]['types'].append(extype)
         testList=self.findTests(exfile,mkDict[extype]['tsts'])
         for test in testList:
           if not rDict[srcfile].has_key(test):
@@ -93,7 +101,10 @@ class makeParse(object):
 
     # Determine tests that are not invoked (in any circumstance)
     # In this case, we have to guess at the sourcefile
+    # We have both stray tests and stray files.  This find stray files
+    # but we label those tests as stray as well
     rDict['not_tested']=[]
+    srcfilesCheck=[]
     for mkrun in mkDict:
       if not mkrun.startswith("run"): continue
       found=False
@@ -110,6 +121,7 @@ class makeParse(object):
           if not rDict.has_key(sfile): rDict[sfile]={}
           if not rDict[sfile].has_key(mkrun): rDict[sfile][mkrun]={}
           rDict[sfile][mkrun].update(mkDict[mkrun])
+          rDict[sfile]['TODO']="Need to determine if deprecated"
           rDict[sfile][mkrun]['TODO']="Need to determine if deprecated"
         
     # Now can start abstracting the script itself to figure out 
@@ -123,10 +135,14 @@ class makeParse(object):
         if not self.abstractScript(runex,rDict[sfile][runex],curdir):
           del rDict[sfile][runex]
         else:
-          # Cleanup the TODO level now that 'test' exists
+          # Cleanup the TODO and REQUIRES level now that 'test' exists
           if rDict[sfile][runex].has_key('TODO'):
             rDict[sfile][runex]['test']['TODO']=rDict[sfile][runex]['TODO']
             del rDict[sfile][runex]['TODO']
+          if rDict[sfile][runex].has_key('requires'):
+            if len(rDict[sfile][runex]['requires'])>0:
+              rDict[sfile][runex]['test']['requires']=rDict[sfile][runex]['requires']
+            del rDict[sfile][runex]['requires']
 
     return rDict
 
@@ -328,6 +344,9 @@ class makeParse(object):
         if srcDict[runex]["TODO"]:
           if srcDict[runex]["TODO"]=="True":
             testStr=testStr+indent*2+"TODO: True\n"
+      # Need to check and see if we have to push this down
+      if srcDict[runex].has_key("requires"):
+        print srcDict[runex]["requires"]
       rDict=srcDict[runex]['test']
       # Do all of the general info
       for rkey in self.getOrderedKeys(rDict):
@@ -359,29 +378,34 @@ class makeParse(object):
     Put the information in the dictionary into the source file
     """
     # First see if we have stuff to add
-    if not srcDict.has_key('requires'): return fileStr
-    if not len(srcDict['requires'])>0: return fileStr
+    if srcDict.has_key('requires'):
+      if len(srcDict['requires'])==0: del(srcDict['requires'])
+    if not srcDict.has_key('requires') and not srcDict.has_key('TODO'): return fileStr
       
     if "/*T\n" in fileStr or "/*T " in fileStr:
       # The file info is already here and need to append
       Part1=fileStr.split("T*/")[0]
       suffix=" ".join(fileStr.split("T*/")[1:])
-      prefix=Part1.split("/*T")[1]
+      prefix=Part1.split("/*T")[0]
       fileInfo=Part1.split("/*T")[1]
     else:
       prefix=fileStr.split("#include")[0]
       nlines=len(prefix.split("\n"))
-      suffix=" ".join(fileStr.split("\n")[nlines-1:])
+      suffix="\n".join(fileStr.split("\n")[nlines-1:])
       fileInfo=""
 
     indent="   "
-    reqStr=indent+"requires: "+" ".join(srcDict['requires'])
-    if isFortran: reqStr="!"+reqStr
-    fileInfo=fileInfo+reqStr
+    if isFortran: indent="!"+indent
+    insertStr=""
+    if srcDict.has_key('requires'):
+      insertStr=insertStr+indent+"requires: "+" ".join(srcDict['requires'])
+    if srcDict.has_key('TODO'): 
+      insertStr=insertStr+indent+"TODO: "+srcDict['TODO']
+    fileInfo=fileInfo.lstrip("\n")+insertStr+"\n"
     if not isFortran: 
-      newFileStr=prefix+"/*T\n"+fileInfo+"T*/\n"+suffix
+      newFileStr=prefix+"/*T\n"+fileInfo+"T*/\n\n"+suffix
     else:
-      newFileStr=prefix+"!/*T\n"+fileInfo+"!T*/\n"+suffix
+      newFileStr=prefix+"!/*T\n"+fileInfo+"!T*/\n\n"+suffix
     return newFileStr
 
   def insertInfoIntoSrc(self,fullmake,testDict):
@@ -430,7 +454,7 @@ class makeParse(object):
         new=new+line+"\n"
     return new
 
-  def abstractMultiMpiTest(self,runexName,scriptStr,subDict):
+  def abstractMultiMpiTest(self,runexName,scriptStr,subDict,subdir):
     """
     Multiple mpi tests leads to a new tests then need to create tests
     """
@@ -442,17 +466,17 @@ class makeParse(object):
         subtestName="test"+str(i); i=i+1
         subDict['subtests'].append(subtestName)
         subDict[subtestName]={}
-        abstracted=self.abstractMpiTest(runexName,line,subDict[subtestName])
+        abstracted=self.abstractMpiTest(runexName,line,subDict[subtestName],subdir)
         if not abstracted: allAbstracted=False
     return allAbstracted
 
   def _hasFilter(self,scriptStr):
     """ Determine if the filter keyword needs to be filled """
     for fltr in ['sed','grep','sort']:
-      if fltr in scriptStr: return True
+      if fltr+" " in scriptStr: return True
     return False
 
-  def abstractFilter(self,runexName,scriptStr,subDict):
+  def abstractFilter(self,runexName,scriptStr,subDict,subdir):
     """
     Figure out how the abstract work
     """
@@ -466,12 +490,16 @@ class makeParse(object):
           if splitl[-1].endswith(".tmp"):
             testFilter=" ".join(splitl[:-1])
           else:
-            testFilter=" ".join(splitl[:])
+            if "MPIEXEC" in splitl:
+              print "Could not abstract filter in: "+runexName+" "+subdir
+              return ""
+            else:
+              testFilter=" ".join(splitl[:])
         allFilters.append(testFilter)
 
     return ",".join(allFilters)
 
-  def abstractTest(self,runexName,scriptStr,subDict):
+  def abstractTest(self,runexName,scriptStr,subDict,subdir):
     """
     Handle tests that are non-MPI
     """
@@ -511,7 +539,7 @@ class makeParse(object):
     # Do filters
     if self._hasFilter(scriptStr):
       if self.verbosity>=1: print "FILTER", runexName
-      subDict['filter']=self.abstractFilter(runexName,scriptStr,subDict)
+      subDict['filter']=self.abstractFilter(runexName,scriptStr,subDict,subdir)
 
     # If subtests, then we do not have the diff here or it could
     if not "{DIFF}" in scriptStr: return
@@ -530,7 +558,7 @@ class makeParse(object):
 
     return True
 
-  def abstractMpiTest(self,runexName,scriptStr,subDict):
+  def abstractMpiTest(self,runexName,scriptStr,subDict,subdir):
     """
     If it has a for loop, then need to modify the script string
     to use the {{ ... }} syntax
@@ -588,7 +616,7 @@ class makeParse(object):
     # Do filters
     if self._hasFilter(scriptStr):
       if self.verbosity>=1: print "FILTER", runexName
-      subDict['filter']=self.abstractFilter(runexName,scriptStr,subDict)
+      subDict['filter']=self.abstractFilter(runexName,scriptStr,subDict,subdir)
 
     # If subtests, then we do not have the diff here or it could
     if not "{DIFF}" in scriptStr: return
@@ -640,12 +668,12 @@ class makeParse(object):
     # Handle subtests if needed.  
     if noPrintScript.count("MPIEXEC")>1:
       if self.verbosity>=1: print "MultiMPI", runexName
-      abstract['abstracted']=self.abstractMultiMpiTest(runexName,scriptStr,abstract['test'])
+      abstract['abstracted']=self.abstractMultiMpiTest(runexName,scriptStr,abstract['test'],curdir)
     elif noPrintScript.count("MPIEXEC")==1:
-      abstract['abstracted']=self.abstractMpiTest(runexName,scriptStr,abstract['test'])
+      abstract['abstracted']=self.abstractMpiTest(runexName,scriptStr,abstract['test'],curdir)
     else:
       if self.verbosity>=1: print "No MPI", runexName
-      abstract['abstracted']=self.abstractTest(runexName,scriptStr,abstract['test'])
+      abstract['abstracted']=self.abstractTest(runexName,scriptStr,abstract['test'],curdir)
 
     return True
 
