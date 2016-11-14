@@ -360,8 +360,8 @@ PetscErrorCode MatElementalHerk_Elemental(El::UpperOrLower uplo,El::Orientation 
 #undef __FUNCT__
 #define __FUNCT__ "MatElementalHerk"
 /*@
-  MatElementalHerk - Hermitian rank-K update: 
-    updates C:= aAA^H + bC or C:= aA^HA + bC, depending upon whether orientation is set to NORMAL or ADJOINT, respectively. Only the triangle of C specified by the uplo parameter is modified.
+  MatElementalHerk - Hermitian rank-K update:
+    updates C:= αABH + α¯BAH + βC or C:= αAHB + α¯BHA+βC, depending upon whether orientation is set to NORMAL or ADJOINT, respectively. Only the triangle of C specified by the uplo parameter is modified.
 
    Logically Collective on Mat
 
@@ -1407,7 +1407,7 @@ PetscErrorCode MatElementalHermitianGenDefEig_Elemental(El::Pencil eigtype,El::U
   ierr = MatAssemblyBegin(EVAL,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(EVAL,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   e         = (Mat_Elemental*)EVAL->data;
-  *e->evalmat = w;
+  *e->emat = w;
   *evals   = EVAL;
   PetscFunctionReturn(0);
 }
