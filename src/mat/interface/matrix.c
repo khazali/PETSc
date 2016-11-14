@@ -473,7 +473,7 @@ PetscErrorCode MatMissingDiagonal(Mat mat,PetscBool *missing,PetscInt *dd)
    matrix at a time, per processor. MatGetRow() can only obtain rows
    associated with the given processor, it cannot get rows from the
    other processors; for that we suggest using MatGetSubMatrices(), then
-   MatGetRow() on the submatrix. The row indix passed to MatGetRows()
+   MatGetRow() on the submatrix. The row index passed to MatGetRows()
    is in the global number of rows.
 
    Fortran Notes:
@@ -2072,7 +2072,7 @@ PetscErrorCode MatGetLayouts(Mat A,PetscLayout *rmap,PetscLayout *cmap)
    Not Collective
 
    Input Parameters:
-+  x - the matrix
++  mat - the matrix
 .  nrow, irow - number of rows and their local indices
 .  ncol, icol - number of columns and their local indices
 .  y -  a logically two-dimensional array of values

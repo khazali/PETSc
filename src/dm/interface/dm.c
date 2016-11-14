@@ -272,7 +272,7 @@ PetscErrorCode VecSetDM(Vec v, DM dm)
 
    Input Parameter:
 +  dm - the DM context
-.  ctype - the matrix type
+-  ctype - the matrix type
 
    Options Database:
 .   -dm_mat_type ctype
@@ -4347,9 +4347,9 @@ PetscErrorCode DMSetCoordinateDM(DM dm, DM cdm)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   PetscValidHeaderSpecific(cdm,DM_CLASSID,2);
+  ierr = PetscObjectReference((PetscObject)cdm);CHKERRQ(ierr);
   ierr = DMDestroy(&dm->coordinateDM);CHKERRQ(ierr);
   dm->coordinateDM = cdm;
-  ierr = PetscObjectReference((PetscObject) dm->coordinateDM);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -4716,19 +4716,19 @@ PetscErrorCode DMGetCoordinatesLocalized(DM dm,PetscBool *areLocalized)
   }
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
   ierr = PetscSectionGetChart(coordSection,&sStart,&sEnd);CHKERRQ(ierr);
-  alreadyLocalized = alreadyLocalizedGlobal = PETSC_TRUE;
+  alreadyLocalized = alreadyLocalizedGlobal = PETSC_FALSE;
   for (c = cStart; c < cEnd; ++c) {
     if (c < sStart || c >= sEnd) {
       alreadyLocalized = PETSC_FALSE;
       break;
     }
     ierr = PetscSectionGetDof(coordSection, c, &dof);CHKERRQ(ierr);
-    if (!dof) {
-      alreadyLocalized = PETSC_FALSE;
+    if (dof) {
+      alreadyLocalized = PETSC_TRUE;
       break;
     }
   }
-  ierr = MPI_Allreduce(&alreadyLocalized,&alreadyLocalizedGlobal,1,MPIU_BOOL,MPI_LAND,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
+  ierr = MPI_Allreduce(&alreadyLocalized,&alreadyLocalizedGlobal,1,MPIU_BOOL,MPI_LOR,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
   *areLocalized = alreadyLocalizedGlobal;
   PetscFunctionReturn(0);
 }
@@ -4839,13 +4839,13 @@ PetscErrorCode DMLocalizeCoordinates(DM dm)
   }
   ierr = PetscSectionSetUp(cSection);CHKERRQ(ierr);
   ierr = PetscSectionGetStorageSize(cSection, &coordSize);CHKERRQ(ierr);
-  ierr = VecCreate(PetscObjectComm((PetscObject) dm), &cVec);CHKERRQ(ierr);
+  ierr = VecCreate(PETSC_COMM_SELF, &cVec);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject)cVec,"coordinates");CHKERRQ(ierr);
   ierr = VecSetBlockSize(cVec,         bs);CHKERRQ(ierr);
   ierr = VecSetSizes(cVec, coordSize, PETSC_DETERMINE);CHKERRQ(ierr);
-  ierr = VecSetType(cVec,VECSTANDARD);CHKERRQ(ierr);
-  ierr = VecGetArray(coordinates, &coords);CHKERRQ(ierr);
-  ierr = VecGetArray(cVec,        &coords2);CHKERRQ(ierr);
+  ierr = VecSetType(cVec, VECSTANDARD);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(coordinates, (const PetscScalar**)&coords);CHKERRQ(ierr);
+  ierr = VecGetArray(cVec, &coords2);CHKERRQ(ierr);
   for (v = vStart; v < vEnd; ++v) {
     ierr = PetscSectionGetDof(coordSection, v, &dof);CHKERRQ(ierr);
     ierr = PetscSectionGetOffset(coordSection, v, &off);CHKERRQ(ierr);
@@ -4870,8 +4870,8 @@ PetscErrorCode DMLocalizeCoordinates(DM dm)
   }
   ierr = DMRestoreWorkArray(dm, 2 * bs, PETSC_SCALAR, &anchor);CHKERRQ(ierr);
   ierr = DMRestoreWorkArray(dm,2*(maxHeight + 1),PETSC_INT,&pStart);CHKERRQ(ierr);
-  ierr = VecRestoreArray(coordinates, &coords);CHKERRQ(ierr);
-  ierr = VecRestoreArray(cVec,        &coords2);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(coordinates, (const PetscScalar**)&coords);CHKERRQ(ierr);
+  ierr = VecRestoreArray(cVec, &coords2);CHKERRQ(ierr);
   ierr = DMSetCoordinateSection(dm, PETSC_DETERMINE, cSection);CHKERRQ(ierr);
   ierr = DMSetCoordinatesLocal(dm, cVec);CHKERRQ(ierr);
   ierr = VecDestroy(&cVec);CHKERRQ(ierr);
