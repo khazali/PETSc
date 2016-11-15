@@ -6,8 +6,6 @@ mpiexec='@MPIEXEC@'
 exec=@EXEC@
 testname='@TESTNAME@'
 label=@LABEL@
-# count info
-global_count=0
 
 . @TESTROOT@/petsc_harness.sh
 """
@@ -15,8 +13,8 @@ global_count=0
 datfilepath="@DATAFILEPATH@"
 footer='petsc_testend "@TESTSROOT@" '
 
-todoline='printf "ok ${count} ${label} # TODO @TODOCOMMENT@\\n"'
-skipline='printf "not ok ${count} ${label} # SKIP @SKIPCOMMENT@\\n"'
+todoline='printf "ok ${label} # TODO @TODOCOMMENT@\\n"'
+skipline='printf "not ok ${label} # SKIP @SKIPCOMMENT@\\n"'
 mpitest='petsc_testrun "${mpiexec} -n @NSIZE@ ${exec} @ARGS@" @REDIRECT_FILE@ ${testname}.err "${label}" @FILTER@'
 #Better labelling
 #mpitest='petsc_testrun "${mpiexec} -n @NSIZE@ ${exec} @ARGS@" @REDIRECT_FILE@ ${testname}.err "${label}-@ARGS@" @FILTER@'

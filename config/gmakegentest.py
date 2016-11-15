@@ -80,6 +80,31 @@ class generateExamples(Petsc,PETScExamples):
     if not langReq: print "ERROR: ", srcext, srcfile
     return langReq
 
+  def getArgLabel(self,testDict):
+    """
+    In all of the arguments in the test dictionary, create a simple
+    string for searching within the makefile system.  For simplicity in
+    search, remove "-", for strings, etc.
+    Also, concatenate the arg commands
+    For now, ignore nsize -- seems hard to search for anyway
+    """
+    # Collect all of the args associated with a test
+    argStr=("" if not testDict.has_key('args') else testDict['args'])
+    if testDict.has_key('subtests'):
+      for stest in testDict["subtests"]:
+         sd=testDict[stest]
+         argStr=argStr+("" if not sd.has_key('args') else sd['args'])
+
+    # Now go through and cleanup
+    argStr=re.sub('{{(.*?)}}',"",argStr)
+    argStr=re.sub('-'," ",argStr)
+    for digit in string.digits: argStr=re.sub(digit," ",argStr)
+    argStr=re.sub("\.","",argStr)
+    argStr=re.sub(",","",argStr)
+    argStr=re.sub('\+',' ',argStr)
+    argStr=re.sub(' +',' ',argStr)  # Remove repeated white space
+    return argStr.strip()
+
   def addToSources(self,exfile,root):
     """
       Put into data structure that allows easy generation of makefile
@@ -95,7 +120,7 @@ class generateExamples(Petsc,PETScExamples):
     self.objects[pkg].append(objfile)
     return
 
-  def addToTests(self,test,root,exfile,execname):
+  def addToTests(self,test,root,exfile,execname,testDict):
     """
       Put into data structure that allows easy generation of makefile
       Organized by languages to allow testing of languages
@@ -108,6 +133,7 @@ class generateExamples(Petsc,PETScExamples):
     self.tests[pkg][lang][nmtest]={}
     self.tests[pkg][lang][nmtest]['exfile']=os.path.join(rpath,exfile)
     self.tests[pkg][lang][nmtest]['exec']=execname
+    self.tests[pkg][lang][nmtest]['argLabel']=self.getArgLabel(testDict)
     return
 
   def getFor(self,subst,i,j):
@@ -336,7 +362,7 @@ class generateExamples(Petsc,PETScExamples):
       self.genRunScript(test,root,isRun,srcDict)
       srcDict[test]['isrun']=isRun
       if isRun: fileIsTested=True
-      self.addToTests(test,root,exfile,execname)
+      self.addToTests(test,root,exfile,execname,srcDict[test])
 
     # This adds to datastructure for building deps
     if fileIsTested and isBuilt: self.addToSources(exfile,root)
@@ -539,6 +565,20 @@ class generateExamples(Petsc,PETScExamples):
 
     return
 
+  def gen_gnumake(self, fd,prefix='srcs-'):
+    """
+     Overwrite of the method in the base PETSc class 
+    """
+      def write(stem, srcs):
+          fd.write('%s :=\n' % stem)
+          for lang in LANGS:
+              fd.write('%(stem)s.%(lang)s := %(srcs)s\n' % dict(stem=stem, lang=lang, srcs=' '.join(srcs[lang])))
+              fd.write('%(stem)s += $(%(stem)s.%(lang)s)\n' % dict(stem=stem, lang=lang))
+      for pkg in PKGS:
+          srcs = self.gen_pkg(pkg)
+          write(prefix + pkg, srcs)
+      return self.gendeps
+
   def gen_pkg(self, pkg):
     """
      Overwrite of the method in the base PETSc class 
@@ -559,7 +599,9 @@ class generateExamples(Petsc,PETScExamples):
     """
     # Open file
     arch_files = self.arch_path('lib','petsc','conf', 'testfiles')
+    arg_files = self.arch_path('lib','petsc','conf', 'testargfiles')
     fd = open(arch_files, 'w')
+    fa = open(arg_files, 'w')
 
     # Write out the sources
     gendeps = self.gen_gnumake(fd,prefix="testsrcs-")
@@ -617,6 +659,8 @@ class generateExamples(Petsc,PETScExamples):
             fd.write(nmtest+": "+fullex+"\n")
           cmd="mkdir -p "+rundir+"; cd "+rundir+"; ../"+script
           fd.write("\t-@"+cmd+"\n")
+          # Now write the args:
+          fa.write(nmtest+"_ARGS='"+self.tests[pkg][lang][ftest]['argLabel']+"'\n")
 
         # executable targets -- add these to build earlier
         testexdeps=""

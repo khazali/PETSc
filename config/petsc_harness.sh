@@ -1,5 +1,21 @@
 
-while getopts "a:e:m:n:o:t:" arg
+
+scriptname=`basename $0`
+rundir=${scriptname%sh}
+
+if test "$PWD"!=`dirname $0`; then
+  cd `dirname $0`
+fi
+mkdir -p rundir
+cd rundir
+
+
+
+###
+##  Arguments for overriding things
+#
+verbose=false
+while getopts "a:e:m:n:o:t:v" arg
 do
   case $arg in
     a ) args=$OPTARG     ;;  
@@ -7,6 +23,7 @@ do
     n ) nsize=$OPTARG     ;;  
     o ) output_file=$OPTARG     ;;  
     t ) testname=$OPTARG     ;;  
+    v ) verbose=true     ;;  
     *)  # To take care of any extra args
       if test -n "$OPTARG"; then
         eval $arg=\"$OPTARG\"
@@ -23,7 +40,7 @@ if test -n "$extra_args"; then
 fi
 
 # Init
-cleanup=False
+cleanup=false
 success=0; failed=0; failures=""; rmfiles=""
 total=0
 todo=-1; skip=-1
@@ -35,7 +52,6 @@ function petsc_testrun() {
   # Fourth arg = label for reporting
   # Fifth arg = Filter
   rmfiles="${rmfiles} $2 $3"
-  let count=$count+1
   tlabel=$4
   filter=$5
 
@@ -45,14 +61,15 @@ function petsc_testrun() {
     cmd="$1 | $filter > $2 2> $3"
   fi
   eval $cmd
+  if ! "$verbose"; then cmd=""; fi
   if test $? == 0; then
-      printf "ok $count $tlabel\n"
+      printf "ok $tlabel $cmd\n"
       let success=$success+1
   else
-      printf "not ok $count $tlabel\n"
+      printf "not ok $tlabel\n"
       awk '{print "#\t" $0}' < $3
       let failed=$failed+1
-      failures="$failures $count"
+      failures="$failures $tlabel"
   fi
   let total=$success+$failed
 }
