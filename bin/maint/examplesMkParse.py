@@ -476,7 +476,7 @@ class makeParse(object):
       if fltr+" " in scriptStr: return True
     return False
 
-  def abstractFilter(self,runexName,scriptStr,subDict,subdir):
+  def abstractFilter(self,runexName,scriptStr,subDict):
     """
     Figure out how the abstract work
     """
@@ -491,7 +491,7 @@ class makeParse(object):
             testFilter=" ".join(splitl[:-1])
           else:
             if "MPIEXEC" in splitl:
-              print "Could not abstract filter in: "+runexName+" "+subdir
+              testFilter="TODO: Could not abstract filter"
               return ""
             else:
               testFilter=" ".join(splitl[:])
@@ -539,7 +539,11 @@ class makeParse(object):
     # Do filters
     if self._hasFilter(scriptStr):
       if self.verbosity>=1: print "FILTER", runexName
-      subDict['filter']=self.abstractFilter(runexName,scriptStr,subDict,subdir)
+      filterTxt=self.abstractFilter(runexName,scriptStr,subDict)
+      if not "TODO:" in filterTxt:
+        subDict['filter']=filterTxt
+      else:
+        subDict['TODO']=filterTxt
 
     # If subtests, then we do not have the diff here or it could
     if not "{DIFF}" in scriptStr: return
@@ -616,7 +620,11 @@ class makeParse(object):
     # Do filters
     if self._hasFilter(scriptStr):
       if self.verbosity>=1: print "FILTER", runexName
-      subDict['filter']=self.abstractFilter(runexName,scriptStr,subDict,subdir)
+      filterTxt=self.abstractFilter(runexName,scriptStr,subDict)
+      if not "TODO:" in filterTxt:
+        subDict['filter']=filterTxt
+      else:
+        subDict['TODO']=filterTxt
 
     # If subtests, then we do not have the diff here or it could
     if not "{DIFF}" in scriptStr: return
