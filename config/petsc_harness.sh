@@ -1,15 +1,13 @@
 
 
 scriptname=`basename $0`
-rundir=${scriptname%sh}
+rundir=${scriptname%.sh}
 
 if test "$PWD"!=`dirname $0`; then
   cd `dirname $0`
 fi
-mkdir -p rundir
-cd rundir
-
-
+mkdir -p ${rundir}
+cd ${rundir}
 
 ###
 ##  Arguments for overriding things

@@ -57,6 +57,7 @@ generated      := $(PETSC_ARCH)/lib/petsc/conf/files
 petscconf      := $(PETSC_ARCH)/include/petscconf.h
 petscvariables := $(PETSC_ARCH)/lib/petsc/conf/petscvariables
 generatedtest      := $(PETSC_ARCH)/lib/petsc/conf/testfiles
+generatedtestargs  := $(PETSC_ARCH)/lib/petsc/conf/testargfiles
 
 all : $(generated) $(libpetscall) 
 
@@ -83,8 +84,12 @@ $(generated) : $(petscconf) $(petscvariables)
 $(generatedtest) : $(petscconf) $(petscvariables)
 	$(PYTHON) ./config/gmakegentest.py --petsc-arch=$(PETSC_ARCH)
 
+$(generatedtestargs) : $(petscconf) $(petscvariables)
+	$(PYTHON) ./config/gmakegentest.py --petsc-arch=$(PETSC_ARCH)
+
 -include $(generated)
 -include $(generatedtest)
+-include $(generatedtestargs)
 
 ifeq ($(PETSC_LANGUAGE),CXXONLY)
   cc_name := CXX
@@ -214,6 +219,14 @@ $(TESTDIR)/%.o : %.cu | $$(@D)/.DIR
 	$(PETSC_COMPILE.cu) $(abspath $<) -o $@ # Compile first so that if there is an error, it comes from a normal compile
 	@$(PETSC_GENDEPS.cu) $(abspath $<) -o $(@:%.o=%.d) # Generate the dependencies for later
 
+#TODO: Make the testfiles have just the *.sh: <exfile>
+#  -- but how do I get the wildcard searching to work?
+#TODO: Shell script to be invokable either in rundir or PETSC_DIR dir
+#TODO: Simplify the dependency of testparse.py? and gmakegentest.py
+# Tis is the one that runs the shell scripts
+#$(TESTDIR)/% : %.sh | $$(@D)/.DIR
+#	-@$(SHELL) $< $(if $(V),-v,)
+
 (TESTDIR)/%.o : %.F | $$(@D)/.DIR
 ifeq ($(FC_MODULE_OUTPUT_FLAG),)
 	cd $(MODDIR) && $(FC) -c $(FC_FLAGS) $(FFLAGS) $(FCPPFLAGS) $(FC_DEPFLAGS) $(abspath $<) -o $(abspath $@)
@@ -289,6 +302,7 @@ $(alltest.d) : ;
 # filtertwo is because normal filter command cannot search for two wildcards!!
 filtertwo = $(foreach v,$2,$(if $(findstring $1,$v),$v))
 TESTTARGETS := $(shell grep '^[a-z]' $(generatedtest) | grep -v "+=" | cut -f1 -d':')
+TESTARGTARGETS=$(foreach testt, $(TESTTARGETS), $(testt)_ARGS)
 ifdef search
   NEW_TESTTARGETS = $(filter $(search),$(TESTTARGETS))
   ACTUAL_RUN=$(NEW_TESTTARGETS)
@@ -296,7 +310,7 @@ else ifdef searchin
   NEW_TESTTARGETS = $(call filtertwo,$(searchin),$(TESTTARGETS))
   ACTUAL_RUN=$(NEW_TESTTARGETS)
 else ifdef argsearch
-    NEW_TESTTARGETS=$(foreach rarg, $(TESTTARGETS), $(if $(filter $(argsearch),$(value $(rarg))), $(rarg)))
+    NEW_TESTTARGETS=$(foreach rarg, $(TESTARGTARGETS), $(if $(filter $(argsearch),$(value $(rarg))), $(rarg)))
     ACTUAL_RUN=$(NEW_TESTTARGETS)
 else
     ACTUAL_RUN=$(TESTTARGETS)
