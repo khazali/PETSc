@@ -2538,6 +2538,17 @@ runex174_2_sbaij:
 	   if (${DIFF} output/ex174_sbaij.out ex174.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex174_2_sbaij, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex174.tmp
+runex174_complex:
+	-@${MPIEXEC} -n 1 ./ex174 -fA ${DATAFILESPATH}/nimrod/small_112905 > ex174.tmp 2>&1; \
+	   if (${DIFF} output/ex174.out ex174.tmp) then true; \
+	   else printf "${PWD}\nPossible problem with ex174_complex, diffs above\n=========================================\n"; fi; \
+	   ${RM} -f ex174.tmp
+
+runex174_complex_2:
+	-@${MPIEXEC} -n 4 ./ex174 -fA ${DATAFILESPATH}/nimrod/small_112905 > ex174.tmp 2>&1; \
+	   if (${DIFF} output/ex174.out ex174.tmp) then true; \
+	   else printf "${PWD}\nPossible problem with ex174_complex_2, diffs above\n=========================================\n"; fi; \
+	   ${RM} -f ex174.tmp
 
 runex175:
 	-@${MPIEXEC} -n 1 ./ex175 > ex175.tmp 2>&1; \
