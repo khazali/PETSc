@@ -118,7 +118,6 @@ int main(int argc,char **args)
     ierr = MatView(Xe,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
 #endif
 
-#if !defined(PETSC_HAVE_COMPLEX)
     /* Get native Elemental matrices Aee and Bee */
     El::Pencil       eigtype = El::AXBX;
     El::HermitianEigCtrl<PetscElemScalar> ctrl;
@@ -128,14 +127,13 @@ int main(int argc,char **args)
 
     /* Compute eigenvalues Wee and eigenvectors Xee */
     const El::Grid & grid = Aee->Grid();
-    El::DistMatrix<PetscScalar,El::VR,El::STAR>     Wee( grid ); /* holding eigenvalues */
+    El::DistMatrix<PetscReal,El::VR,El::STAR>     Wee( grid ); /* holding eigenvalues */
     El::DistMatrix<PetscElemScalar>                 Xee( grid ); /* holding eigenvectors */
     El::HermitianGenDefEig(eigtype,uplo,*Aee,*Bee,Wee,Xee,ctrl);
     //El::Print(*Aee, "Aee" );
     //El::Print(*Bee, "Bee" );
     //El::Print(Wee, "EL Eigenvalues" );
     //El::Print(Xee, "EL Eigenvectors" );
-#endif
 
 #if 0
     ierr = MatCreateElementalWithEl(Wee,&We);CHKERRQ(ierr); 
