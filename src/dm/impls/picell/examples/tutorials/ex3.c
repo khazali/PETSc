@@ -606,8 +606,8 @@ static const PetscReal x3ECharge=1.;  /* electron charge */
 static const PetscReal x3ProtMass=1.; /* proton mass */
 static const PetscReal x3ElecMass=0.01; /* electron mass */
 
-typedef enum {X3_TORUS,X3_BOXTORUS,X3_NUM_DOMTYPES} domType;
-typedef enum {X3_TORUS_LINETIED,X3_NUM_RUNTYPE} runType;
+typedef enum {X3_TORUS,X3_CYLINDER,X3_NUM_DOMTYPES} domType;
+typedef enum {X3_LINETIED,X3_RADIAL_SHOCK,X3_NUM_RUNTYPE} runType;
 typedef struct {
   /* particle grid sizes */
   PetscInt np_radius;
@@ -619,7 +619,6 @@ typedef struct {
   PetscInt   num_phi_cells; /* number of cells per major circle in the torus */
   PetscReal  inner_mult; /* (0,1) percent of the total radius taken by the inner square */
   PetscReal  section_phi; /* *PI = size of section around torus (0,2] */
-  PetscBool  use_line_section;
 } X3Grid;
 /*
   General parameters and context
@@ -1576,75 +1575,6 @@ static PetscErrorCode createParticles(X3Ctx *ctx)
   PetscFunctionReturn(0);
 }
 
-/* == Defining a base plex for a torus, which looks like a rectilinear donut */
-
-#undef __FUNCT__
-#define __FUNCT__ "DMPlexCreatePICellBoxTorus"
-static PetscErrorCode DMPlexCreatePICellBoxTorus(MPI_Comm comm, X3Grid *params, DM *dm)
-{
-  PetscMPIInt    rank;
-  PetscInt       numCells = 0;
-  PetscInt       numVerts = 0;
-  PetscReal      radius_major  = params->radius_major;
-  const PetscInt num_phi_cells = params->num_phi_cells, nplains = (s_section_phi == 2) ? num_phi_cells : num_phi_cells+1;;
-  int            *flatCells = NULL;
-  double         *flatCoords = NULL;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
-  if (!rank) {
-    numCells = num_phi_cells * 1;
-    numVerts = nplains * 4;
-    ierr = PetscMalloc2(numCells * 8,&flatCells,numVerts * 3,&flatCoords);CHKERRQ(ierr);
-    {
-      double (*coords)[4][3] = (double (*) [4][3]) flatCoords;
-      PetscInt i;
-
-      for (i = 0; i < nplains; i++) {
-        PetscInt j;
-        double cosphi, sinphi;
-
-        cosphi = cos(2 * M_PI * i / num_phi_cells);
-        sinphi = sin(2 * M_PI * i / num_phi_cells);
-
-        for (j = 0; j < 4; j++) {
-          double r, z;
-
-          r = radius_major + params->radius_minor*s_rminor_inflate * ( (j==1 || j==2)        ? -1. :  1.);
-          z =  params->radius_minor * ( (j < 2) ?  1. : -1. );
-
-          coords[i][j][0] = cosphi * r;
-          coords[i][j][1] = sinphi * r;
-          coords[i][j][2] = z;
-        }
-      }
-    }
-    {
-      int (*cells)[1][8] = (int (*) [1][8]) flatCells;
-      PetscInt k, i, j = 0;
-
-      for (i = 0; i < num_phi_cells; i++) {
-        for (k = 0; k < 8; k++) {
-          PetscInt l = k % 4;
-
-          cells[i][j][k] = (4 * ((k < 4) ? i : (i + 1)) + (3 - l)) % numVerts;
-        }
-        {
-          PetscInt swap = cells[i][j][1];
-          cells[i][j][1] = cells[i][j][3];
-          cells[i][j][3] = swap;
-        }
-      }
-    }
-  }
-
-  ierr = DMPlexCreateFromCellList(comm,3,numCells,numVerts,8,PETSC_TRUE,flatCells,3,flatCoords,dm);CHKERRQ(ierr);
-  ierr = PetscFree2(flatCells,flatCoords);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) *dm, "boxtorus");CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
 /* == Defining a base plex for a torus, which looks like a rectilinear donut, and a mapping that turns it into a conventional round donut == */
 
 #undef __FUNCT__
@@ -1859,9 +1789,9 @@ typedef struct {
 } MHDNode;
 #define DOT3(__x,__y,__r) {int i;for(i=0,__r=0;i<3;i++) __r += __x[i] * __y[i];}
 #define MATVEC3(__a,__x,__p) {int i,j; for (i=0.; i<3; i++) {__p[i] = 0; for (j=0.; j<3; j++) __p[i] += __a[i][j]*__x[j]; }}
-#define MATTRANPOSEVEC3(__a,__x,__p) {int i,j; for (i=0.; i<3; i++) {__p[i] = 0; for (j=0.; j<3; j++) __p[i] += __a[j][i]*__x[j]; }}
+#define MATTRANSVEC3(__a,__x,__p) {int i,j; for (i=0.; i<3; i++) {__p[i] = 0; for (j=0.; j<3; j++) __p[i] += __a[j][i]*__x[j]; }}
 #define MATVEC2(__a,__x,__p) {int i,j; for (i=0.; i<2; i++) {__p[i] = 0; for (j=0.; j<2; j++) __p[i] += __a[i][j]*__x[j]; }}
-#define MATTRANPOSEVEC2(__a,__x,__p) {int i,j; for (i=0.; i<2; i++) {__p[i] = 0; for (j=0.; j<2; j++) __p[i] += __a[j][i]*__x[j]; }}
+#define MATTRANSVEC2(__a,__x,__p) {int i,j; for (i=0.; i<2; i++) {__p[i] = 0; for (j=0.; j<2; j++) __p[i] += __a[j][i]*__x[j]; }}
 
 #undef __FUNCT__
 #define __FUNCT__ "SetDurl"
@@ -1978,19 +1908,19 @@ static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], 
   }
   area = PetscSqrtReal(area); /* area */
   for (i=0; i<3; i++) nhat[i] /= area; /* |nhat|==1 */
-  if (nhat[0] < -0.999999) { /* == -1 */
+  if (nhat[0] < -0.999999) { /* == (-1,0,0) , a singularity of this rotation */
     for (i=0; i<3; i++) for (j=0; j<3; j++) R[i][j] = (i==j) ? -1 : 0; /* I * cos(theta) = -I */
     /* R[1][1] = 1; */ /* rotation about y axis 180 degrees */
-    R[2][2] = 1; /* rotation about z axis 180 degrees */
+    R[2][2] = 1; /* rotation about z axis 180 degrees, to point in (1,0,0) */
   } else {
-    /* rotation matrix to put vectors on x axis, v = n X e_1 */
+    /* rotation matrix to put normal to face on x axis, v = n X e_1 (http://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d) */
     v[0] = 0;
     v[1] = nhat[2];
     v[2] = -nhat[1];
     R[0][0] = 1;     R[0][1] = -v[2]; R[0][2] =  v[1]; /* I + v cross */
     R[1][0] =  v[2]; R[1][1] = 1;     R[1][2] = -v[0];
     R[2][0] = -v[1]; R[2][1] =  v[0]; R[2][2] = 1;
-    t = 1/(1+nhat[0]); /* + (v cross)^2 / (1+cos) */
+    t = 1/(1+nhat[0]); /* + (v cross)^2 / (1+cos), cos of n with e_1 is just n_1/|n| */
     R[0][0] -= t*(v[2]*v[2] + v[1]*v[1]); R[0][1] += t*v[0]*v[1];               R[0][2] += t*v[2]*v[0];
     R[1][0] += t*v[0]*v[1];               R[1][1] -= t*(v[2]*v[2] + v[0]*v[0]); R[1][2] += t*v[1]*v[2];
     R[2][0] += t*v[2]*v[0];               R[2][1] += t*v[1]*v[2];               R[2][2] -= t*(v[1]*v[1] + v[0]*v[0]);
@@ -2006,8 +1936,8 @@ static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], 
   /* compute flux */
   MHDFlux(&luL, &luR, area, ctx, &flux);
   /* rotate fluxes back to original coordinate system */
-  MATTRANPOSEVEC3(R,flux.ru,retflux->ru);
-  MATTRANPOSEVEC3(R,flux.b,retflux->b);
+  MATTRANSVEC3(R,flux.ru,retflux->ru);
+  MATTRANSVEC3(R,flux.b,retflux->b);
   retflux->r = flux.r;
   retflux->p = flux.p;
   PetscFunctionReturnVoid();
@@ -2015,56 +1945,66 @@ static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], 
 
 #undef __FUNCT__
 #define __FUNCT__ "PhysicsBoundary_MHD_Wall"
-static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *c, const PetscReal n[], const PetscScalar *axI, PetscScalar *axG, void *a_ctx)
+static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *crd, const PetscReal n[], const PetscScalar *axI, PetscScalar *axG, void *a_ctx)
 {
-  X3Ctx         *ctx = (X3Ctx*)a_ctx;
-  PetscInt      i;
-  const MHDNode *xI = (const MHDNode*)axI;
-  MHDNode       *xG = (MHDNode*)axG;
+  X3Ctx           *ctx = (X3Ctx*)a_ctx;
+  PetscInt        i,j;
+  const MHDNode   *xI = (const MHDNode*)axI;
+  MHDNode         *xG = (MHDNode*)axG;
+  PetscReal       nhat[3],t,r,v[3],R[3][3],Rph[3][3],area,ru[3],nphi[3],cphi,sphi;
   PetscFunctionBeginUser;
-  if (ctx->run_type == X3_TORUS_LINETIED) {
-    /* Line-tied problems from 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
-    PetscReal       cphi,sphi,r,nhat[3],area,rhat,rtilda,phi,p[2],Rph[2][2],vnhat;
-    const PetscReal a=ctx->grid.radius_minor,x=c[0]/a,y=c[1]/a,z=c[2],rmaj=ctx->grid.radius_major/a;
-    if (xI->r<=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," bad density = %g",xI->r);
-    /* P & rho, copy Ru & B */
-    xG->r = xI->r; /* ghost cell density - same */
-    xG->p = xI->p; /* ghost cell energy - same */
-    /* geometry */
-    r = PetscSqrtReal(x*x + y*y);
-    rtilda = r - rmaj;
-    rhat = PetscSqrtReal(rtilda*rtilda + z*z);
-    if (ctx->grid.use_line_section) {
-      phi = 0;
+  if (xI->r<=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," bad density = %g",xI->r);
+  for (i=0,area=0; i<3; i++) {
+    nhat[i] = n[i];
+    area += n[i]*n[i];
+  }
+  area = PetscSqrtReal(area); /* area */
+  for (i=0; i<3; i++) nhat[i] /= area; /* |nhat|==1 */
+  if (nhat[0] < -0.999999) { /* == (-1,0,0) , a singularity of this rotation */
+    for (i=0; i<3; i++) for (j=0; j<3; j++) R[i][j] = (i==j) ? -1 : 0; /* I * cos(theta) = -I */
+    /* R[1][1] = 1; */ /* rotation about y axis 180 degrees */
+    R[2][2] = 1; /* rotation about z axis 180 degrees, to point in (1,0,0) */
+  } else {
+    /* rotation matrix to put normal to face on x axis, v = n X e_1 (http://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d) */
+    v[0] = 0;
+    v[1] = nhat[2];
+    v[2] = -nhat[1];
+    R[0][0] = 1;     R[0][1] = -v[2]; R[0][2] =  v[1]; /* I + v cross */
+    R[1][0] =  v[2]; R[1][1] = 1;     R[1][2] = -v[0];
+    R[2][0] = -v[1]; R[2][1] =  v[0]; R[2][2] = 1;
+    t = 1/(1+nhat[0]); /* + (v cross)^2 / (1+cos), cos of n with e_1 is just n_1/|n| */
+    R[0][0] -= t*(v[2]*v[2] + v[1]*v[1]); R[0][1] += t*v[0]*v[1];               R[0][2] += t*v[2]*v[0];
+    R[1][0] += t*v[0]*v[1];               R[1][1] -= t*(v[2]*v[2] + v[0]*v[0]); R[1][2] += t*v[1]*v[2];
+    R[2][0] += t*v[2]*v[0];               R[2][1] += t*v[1]*v[2];               R[2][2] -= t*(v[1]*v[1] + v[0]*v[0]);
+  }
+  xG->r = xI->r; /* copy states and rotate to local coordinate, R*nhat = (1,0,0) */
+  xG->p = xI->p;
+  /* apply BC */
+  for (i=0; i<3; i++) xG->b[i] = xI->b[i];  /* BC copy */
+  xG->r = xI->r; /* ghost cell density - same */
+  xG->p = xI->p; /* ghost cell energy - same */
+  MATVEC3(R,xI->ru,ru);
+  ru[0] = -ru[0]; /* no normal flow */
+  /* rotate fluxes back to original coordinate system */
+  MATTRANSVEC3(R,ru,xG->ru);
+  /* MATVEC3(R,n,nhat); */
+  /* geometry, of we want different BCs on ends and sides */
+  if (0) {
+    r = PetscSqrtReal(crd[0]*crd[0] + crd[1]*crd[1]);
+    if (s_use_line_section) {
       cphi = 1;   sphi = 0; /* identity, no rotation of normal */
     } else {
-      phi = atan2(y,x);
-      cphi = x/r;   sphi = y/r;
+      cphi = crd[0]/r;   sphi = crd[1]/r;
     }
     Rph[0][0] = cphi; Rph[0][1] = sphi;
     Rph[1][0] =-sphi; Rph[1][1] = cphi;
     /* rotate (n_x, n_y) to plane */
-    MATVEC2(Rph,n,p);
-    if (PetscAbsReal(p[0])<1.e-8) { /* end plate */
-/* PetscPrintf(PETSC_COMM_WORLD,"%s: end plate n = %9.2e %9.2e %9.2e x = %9.2e %9.2e %9.2e nprime = (%9.2e %9.2e) phi=%9.2e\n", */
-/*             __FUNCT__,n[0],n[1],n[2],c[0],c[1],c[2],p[0],p[1],phi/M_PI); */
-      assert(ctx->grid.section_phi != 2); assert(phi==0 || fabs(phi/M_PI-ctx->grid.section_phi)<1.e-8);
-      for (i=0; i<3; i++) xG->ru[i] = -xI->ru[i]; /* zero v */
-      /* B */
-      for (i=0; i<3; i++) xG->b[i]  = 0;  /* BC for magnetic field? */
+    MATVEC2(Rph,n,nphi);
+    if (PetscAbsReal(nphi[0])<1.e-12) { /* end plate */
+      PetscPrintf(PETSC_COMM_WORLD,"\t%s: end plate x = %17.10e %17.10e %17.10e ru = %17.10e %17.10e %17.10e\n", __FUNCT__,nhat[0],nhat[1],nhat[2],crd[0],crd[1],crd[2]);
+      assert(ctx->grid.section_phi != 2);
     } else { /* side (torus) */
-      for (i=0,area=0; i<3; i++) {
-        nhat[i] = n[i];
-        area += nhat[i]*nhat[i];
-      }
-/* PetscPrintf(PETSC_COMM_WORLD,"%s: side n = %9.2e %9.2e %9.2e. x = %9.2e %9.2e %9.2e.  nprime = (%9.2e %9.2e)\n",__FUNCT__,n[0],n[1],n[2],c[0],c[1],c[2],p[0],p[1]); */
-      assert(PetscAbsReal(p[1])<1.e-8);
-      area = PetscSqrtReal(area); /* area */
-      for (i=0; i<3; i++) nhat[i] /= area; /* |nhat|==1 */
-      for (i=0,vnhat=0; i<3; i++) vnhat += xI->ru[i]*nhat[i];
-      for (i=0; i<3; i++) xG->ru[i] = xI->ru[i] - 2*vnhat*nhat[i]; /* no slip */
-      /* B */
-      for (i=0; i<3; i++) xG->b[i]  = 0;  /* BC for magnetic field? */
+      PetscPrintf(PETSC_COMM_WORLD,"%s: side x = %17.10e %17.10e %17.10e. ru = %17.10e %17.10e %17.10e\n",__FUNCT__,nhat[0],nhat[1],nhat[2],crd[0],crd[1],crd[2]);
     }
   }
   PetscFunctionReturn(0);
@@ -2080,7 +2020,7 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
   MHDNode         *uu  = (MHDNode*)u;
   PetscFunctionBegin;
   if (time != 0.0) exit(11);
-  if (ctx->run_type == X3_TORUS_LINETIED) {
+  if (ctx->run_type == X3_LINETIED) {
     /* Line-tied problems from 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
     PetscReal       cth,sth,cphi,sphi,r,rhat,zbar,rtilda,phi,vr,vtheta,vzbar,fr,gr,v[2],p[2],Rth[2][2],Rph[2][2],br,bzbar,btheta;
     const PetscReal a=ctx->grid.radius_minor,x=xx[0]/a,y=xx[1]/a,z=xx[2],rmaj=ctx->grid.radius_major/a;
@@ -2093,7 +2033,7 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
     rtilda = r - rmaj;
     rhat = PetscSqrtReal(rtilda*rtilda + z*z);
     cth  = rtilda/rhat; sth = z/rhat;
-    if (ctx->grid.use_line_section) {
+    if (s_use_line_section) {
       zbar = y;
       cphi = 1;   sphi = 0; /* identity, no rotation */
     } else {
@@ -2142,7 +2082,10 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
     }
     r = PetscSqrtReal(r);
     if (r > ctx->maxspeed) ctx->maxspeed = r;
-  } else assert(0);
+  } else {
+    /* radial shock */
+
+  }
   PetscFunctionReturn(0);
 }
 
@@ -2328,8 +2271,8 @@ static PetscErrorCode adaptToleranceFVM(PetscFV fvm, TS ts, Vec sol, PetscReal r
 PetscErrorCode ProcessOptions( X3Ctx *ctx )
 {
   PetscErrorCode ierr;
-  PetscBool      phiFlag,radFlag,thetaFlag,flg,chunkFlag,secFlg,rMajFlg;
-  char           fname[256],cname[256];
+  PetscBool      phiFlag,radFlag,thetaFlag,flg,chunkFlag,rMajFlg;
+  char           name[256];
   PetscReal      t1;
   PetscFunctionBeginUser;
   ctx->events = s_events;
@@ -2376,7 +2319,6 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   ctx->grid.radius_major = 5.;
   ctx->grid.radius_minor = 1.;
   ctx->grid.section_phi  = 2.0; /* 2 pi, whole torus */
-  ctx->grid.use_line_section = PETSC_FALSE; /* not 2 pi, make section straight */
   ctx->grid.np_phi  = 1;
   ctx->grid.np_radius = 1;
   ctx->grid.np_theta  = 1;
@@ -2384,8 +2326,6 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   ctx->grid.inner_mult= M_SQRT2 - 1.;
 
   ctx->tablecount = 0;
-  ctx->domain_type = X3_TORUS;
-  ctx->run_type = X3_TORUS_LINETIED;
 
   ierr = PetscOptionsBegin(ctx->wComm, "", "Poisson Problem Options", "X3");CHKERRQ(ierr);
   /* general options */
@@ -2415,26 +2355,41 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   ierr = PetscOptionsReal("-radius_minor", "Minor radius of torus", "ex3.c", ctx->grid.radius_minor, &ctx->grid.radius_minor, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-radius_major", "Major radius of torus", "ex3.c", ctx->grid.radius_major, &ctx->grid.radius_major, &rMajFlg);CHKERRQ(ierr);
     /* section of the torus, adjust major radius as needed */
-  ierr = PetscOptionsReal("-section_phi", "Number of pi radians of torus section, phi direction (0 < section_phi <= 2) ", "ex3.c",ctx->grid.section_phi,&ctx->grid.section_phi,&secFlg);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-section_phi", "Number of pi radians of torus section, phi direction (0 < section_phi <= 2) ", "ex3.c",ctx->grid.section_phi,&ctx->grid.section_phi,NULL);CHKERRQ(ierr);
   if (ctx->grid.section_phi <= 0 || ctx->grid.section_phi > 2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"invalid -section_phi %g: (0,1] or 2",ctx->grid.section_phi);
   if (ctx->grid.section_phi != 2 && ctx->grid.section_phi > 1) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"invalid -section_phi %g: (0,1] or 2",ctx->grid.section_phi);
-  ierr = PetscOptionsBool("-use_line_section", "Make section straight", "ex3.c",ctx->grid.use_line_section,&ctx->grid.use_line_section,NULL);CHKERRQ(ierr);
-  t1 = 1.;
+  t1 = 10.;
   ierr = PetscOptionsReal("-section_length", "Length if section (cylinder)", "ex3.c", t1, &t1,&flg);CHKERRQ(ierr);
-  if (flg || secFlg) {
-    if(secFlg && flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-section_length with -section_phi not allowed, over constrained specification");
-    else if(secFlg) {
-      /* section of torus */
-    } else {
+  if (flg || ctx->grid.section_phi != 2) {
+    if(ctx->grid.section_phi != 2 && flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-section_length with -section_phi not allowed, over constrained specification");
+    else if(ctx->grid.section_phi == 2) {
       /* cylindrical flux tube, with L (section_length) specified */
-      ctx->grid.section_phi = atan2( t1, ctx->grid.radius_major + ctx->grid.radius_minor ) / M_PI;
-      PetscPrintf(PETSC_COMM_WORLD,"%s: L = %16.8e %16.8e\n",__FUNCT__,t1,(ctx->grid.radius_major + ctx->grid.radius_minor)*ctx->grid.section_phi*M_PI);
+      ctx->grid.section_phi = atan2(t1, ctx->grid.radius_major + ctx->grid.radius_minor) / M_PI;
+      PetscPrintf(PETSC_COMM_WORLD,"%s: set default L = %16.8e (r_maj + r_min)*phi = %16.8e\n",__FUNCT__,t1,(ctx->grid.radius_major + ctx->grid.radius_minor)*ctx->grid.section_phi*M_PI);
     }
+    /* else section specified */
+  }
+  if (ctx->grid.section_phi != 2 && ctx->grid.section_phi>=0.5) SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_USER, "straight (line) section requires section phi < 1/2",ctx->grid.section_phi);
+
+  ctx->domain_type = X3_TORUS;
+  ierr = PetscStrcpy(name,"torus");CHKERRQ(ierr);
+  ierr = PetscOptionsString("-domain_type", "Type of domain (torus/cylinder)", "ex3.c", name, name, sizeof(name)/sizeof(name[0]), NULL);CHKERRQ(ierr);
+  PetscStrcmp("torus",name,&flg);
+  if (flg) {
+    ctx->domain_type = X3_TORUS;
+    s_use_line_section = PETSC_FALSE;
+  }
+  else {
+    PetscStrcmp("cylinder",name,&flg);
+    if (flg) ctx->domain_type = X3_CYLINDER;
+    else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Unknown run type %s",name);
+    if (ctx->grid.section_phi == 2) {
+      ctx->grid.section_phi = atan2( t1, ctx->grid.radius_major + ctx->grid.radius_minor ) / M_PI;
+      PetscPrintf(PETSC_COMM_WORLD,"%s: set default section for cylinder L = %16.8e %16.8e\n",__FUNCT__,t1,(ctx->grid.radius_major + ctx->grid.radius_minor)*ctx->grid.section_phi*M_PI);
+    }
+    s_use_line_section = PETSC_TRUE;
   }
   s_section_phi = ctx->grid.section_phi;
-  s_use_line_section = ctx->grid.use_line_section;
-  if (ctx->grid.use_line_section && ctx->grid.section_phi>=0.5) SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_USER, "straight (line) section requires section phi < 1/2",ctx->grid.section_phi);
-
   ierr = PetscOptionsInt("-num_phi_cells", "Number of cells per major circle", "ex3.c", ctx->grid.num_phi_cells, &ctx->grid.num_phi_cells, NULL);CHKERRQ(ierr);
   if (ctx->grid.num_phi_cells<3 && ctx->grid.section_phi==2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," Not enough phi cells %D",ctx->grid.num_phi_cells);
   ierr = PetscOptionsReal("-inner_mult", "Fraction of minor radius taken by inner square", "ex3.c", ctx->grid.inner_mult, &ctx->grid.inner_mult, NULL);CHKERRQ(ierr);
@@ -2508,26 +2463,22 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   ctx->max_vpar = 30.;
   ierr = PetscOptionsReal("-max_vpar", "Maximum parallel velocity", "ex3.c",ctx->max_vpar,&ctx->max_vpar,NULL);CHKERRQ(ierr);
 
-  ierr = PetscStrcpy(fname,"torus");CHKERRQ(ierr);
-  ierr = PetscOptionsString("-domain_type", "Type of domain (torus/cylinder)", "ex3.c", fname, fname, sizeof(fname)/sizeof(fname[0]), NULL);CHKERRQ(ierr);
-  ierr = PetscStrcpy(cname,"line_tied");CHKERRQ(ierr);
-  ierr = PetscOptionsString("-run_type", "Type of run (line tied)", "ex3.c", cname, cname, sizeof(cname)/sizeof(cname[0]), NULL);CHKERRQ(ierr);
-  PetscStrcmp("torus",fname,&flg);
+  ctx->run_type = X3_LINETIED;
+  ierr = PetscStrcpy(name,"line_tied");CHKERRQ(ierr);
+  ierr = PetscOptionsString("-run_type", "Type of run (line tied)", "ex3.c", name, name, sizeof(name)/sizeof(name[0]), NULL);CHKERRQ(ierr);
+  PetscStrcmp("torus",name,&flg);
+  PetscStrcmp("line_tied",name,&flg);
   if (flg) {
-    ctx->domain_type = X3_TORUS;
-    PetscStrcmp("line_tied",cname,&flg);
-    if (flg) {
-      ctx->lt_lambda = 0.5;
-      ctx->run_type = X3_TORUS_LINETIED;
-    }
-    else assert(0);
+    ctx->lt_lambda = 0.5;
+    ctx->run_type = X3_LINETIED;
   }
   else {
-    PetscStrcmp("boxtorus",fname,&flg);
-    if (flg) ctx->domain_type = X3_BOXTORUS;
-    else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Unknown run type %s",fname);
+    PetscStrcmp("radial_shock",name,&flg);
+    if (flg) ctx->run_type = X3_RADIAL_SHOCK;
+    else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Unknown run type %s",name);
   }
-  if (flg && ctx->num_particles_total) { /* set s_rminor_inflate to cover particles */
+
+  if (ctx->num_particles_total) { /* set s_rminor_inflate to cover particles */
     char      convType[256];
     PetscReal ntheta_total = 4, radius, nmajor_total;
     PetscInt  idx;
@@ -2576,7 +2527,7 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
                 , ctx->use_electrons ? "use electrons" : "ions only", ctx->use_bsp ? "BSP communication" : "Non-blocking consensus communication",ctx->grid.section_phi*M_PI,s_rminor_inflate);
   } else if (s_debug>0) {
     PetscPrintf(ctx->wComm,"[%D] npe=%D; phi section=%g pi, inflate=%g, domain: %s, run type: %s, use line section = %D\n",
-                ctx->rank,ctx->npe,ctx->grid.section_phi,s_rminor_inflate,ctx->domain_type==X3_TORUS ? "Torus" : "?", ctx->run_type == X3_TORUS_LINETIED ? "line tied" : "?",ctx->grid.use_line_section);
+                ctx->rank,ctx->npe,ctx->grid.section_phi,s_rminor_inflate,ctx->domain_type==X3_TORUS ? "Torus" : "cylinder", ctx->run_type == X3_LINETIED ? "line tied" : "radial shock",s_use_line_section);
   }
   PetscFunctionReturn(0);
 }
@@ -2645,14 +2596,8 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   dmpi = (DM_PICell *) ctx->dmpic->data; assert(dmpi);
   dmpi->debug = s_debug;
   /* setup solver grid */
-  if (ctx->domain_type == X3_TORUS) {
-    ierr = DMPlexCreatePICellTorus(ctx->wComm,&ctx->grid,&dmpi->dm);CHKERRQ(ierr);
-    ctx->inflate_torus = PETSC_TRUE;
-  }
-  else {
-    ierr = DMPlexCreatePICellBoxTorus(ctx->wComm,&ctx->grid,&dmpi->dm);CHKERRQ(ierr);
-    ctx->inflate_torus = PETSC_FALSE;
-  }
+  ierr = DMPlexCreatePICellTorus(ctx->wComm,&ctx->grid,&dmpi->dm);CHKERRQ(ierr);
+  ctx->inflate_torus = PETSC_TRUE; /* can remove inflate_torus */
   ierr = DMGetDimension(dmpi->dm, &dim);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(dmpi->dm, ctx);CHKERRQ(ierr);
   /* mark BCs */
@@ -2743,7 +2688,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     if (ctx->num_particles_total) {
       ierr = DMSetFromOptions(dmpi->dm);CHKERRQ(ierr);
       ierr = DMIsForest(dmpi->dm,&isForest);CHKERRQ(ierr);
-      if (isForest && ctx->domain_type == X3_TORUS) {
+      if (isForest) {
         ierr = DMForestSetBaseCoordinateMapping(dmpi->dm,GeometryPICellTorus,ctx);CHKERRQ(ierr);
       }
     }
@@ -2759,7 +2704,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
     }
     ierr = DMSetFromOptions(dmmhd);CHKERRQ(ierr);
     ierr = DMIsForest(dmmhd,&isForest);CHKERRQ(ierr);
-    if (isForest && ctx->domain_type == X3_TORUS) {
+    if (isForest) {
       ierr = DMForestSetBaseCoordinateMapping(dmmhd,GeometryPICellTorus,ctx);CHKERRQ(ierr);
     }
   }

@@ -111,7 +111,10 @@ PetscErrorCode X2GridSolverLocatePoints(DM dm, Vec xvec, const X2Ctx *ctx,  IS *
       elemidxs[ii] = foundCells[ii].index; /* asssumes all processors have same element layout */
       /* *pe = foundCells[0].rank; */
       if (elemidxs[ii]<0) {
-        PetscPrintf(PETSC_COMM_SELF,"\t[%D]%s ERROR miseed index-1 %D/%D\n",s_rank,__FUNCT__,ii+1,nn);
+        ierr = VecGetArray(xvec,&xx);CHKERRQ(ierr);
+        PetscPrintf(PETSC_COMM_SELF,"\t[%D]%s ERROR miseed index %D/%D x = %g %g %g elem id = %D\n",s_rank,__FUNCT__,ii+1,nn,xx[3*ii+0],xx[3*ii+1],xx[3*ii+2],elemidxs[ii]);
+        ierr = VecRestoreArray(xvec,&xx);CHKERRQ(ierr);
+        PetscSleep(1);
         SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "missed point");
       }
     }
@@ -394,6 +397,48 @@ static void postwrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *pp
   }
 }
 #endif
+
+#undef __FUNCT__
+#define __FUNCT__ "u_x4_op"
+PetscErrorCode u_x4_op(PetscInt dim, PetscReal time, const PetscReal xx[], PetscInt Nf, PetscScalar *u, void *a_ctx)
+{
+  X2Ctx *ctx = (X2Ctx*)a_ctx;
+  PetscInt comp,i;
+  const PetscReal  *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi;
+  PetscReal dlen[3];
+  PetscFunctionBeginUser;
+  for(i=0;i<dim;i++) dlen[i] = dhi[i] - dlo[i];
+  for (comp = 0; comp < Nf; ++comp) {
+    u[comp] = 1;
+    for (i = 0; i < dim; ++i) {
+      PetscReal x = (xx[i]-dlo[i])/dlen[i];
+      u[comp] *= (x*x - x*x*x*x);
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "u_sinz_op"
+PetscErrorCode u_sinz_op(PetscInt dim, PetscReal time, const PetscReal xx[], PetscInt Nf, PetscScalar *u, void *a_ctx)
+{
+  X2Ctx *ctx = (X2Ctx*)a_ctx;
+  PetscInt comp,i;
+  const PetscReal  *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi;
+  PetscReal dlen[3];
+  PetscFunctionBeginUser;
+  for(i=0;i<dim;i++) dlen[i] = dhi[i] - dlo[i];
+  for (comp = 0; comp < Nf; ++comp) {
+    u[comp] = 1;
+    /* for (i = 0; i < dim; ++i) { */
+    /* PetscReal x = (xx[i]-dlo[i])/dlen[i]; */
+    /* u[comp] *= (x*x - x*x*x*x); */
+    i = 2;
+    u[comp] *= sin(2*M_PI*(xx[i]-dlo[i])/dlen[i]);
+  }
+  PetscFunctionReturn(0);
+}
+
 /* processParticle: move particles if (sendListTable) , push if (irk>=0)
     Input:
      - dt: time step
@@ -483,7 +528,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
           Vec locphi;
           ierr = DMGetLocalVector(dmpi->dm, &locphi);CHKERRQ(ierr);
           ierr = DMGlobalToLocalBegin(dmpi->dm, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
+          /* PetscPrintf(PETSC_COMM_SELF,"\t\t\t[%D]%s call DMGlobalToLocalEnd\n",s_rank,__FUNCT__); */ /* CODE HANGS HERE */
           ierr = DMGlobalToLocalEnd(dmpi->dm, dmpi->phi, INSERT_VALUES, locphi);CHKERRQ(ierr);
+          /* PetscPrintf(PETSC_COMM_SELF,"\t\t\t\t[%D]%s DMGlobalToLocalEnd DONE\n",s_rank,__FUNCT__); */
           /* get E, should set size of vecs for true size? */
           ierr = VecCreateSeq(PETSC_COMM_SELF,three*list->vec_top,&jVec);CHKERRQ(ierr);
           ierr = DMPICellGetJet(ctx->dm, xVec, locphi, elid, jVec);CHKERRQ(ierr);
@@ -718,16 +765,20 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
 #endif
           /* method of manufactured solution, scale weight by f(x) */
           if (ctx->use_mms) {
+            PetscScalar fact;
             *vv *= (double)ctx->nElems/(double)ctx->num_particles_proc; /* normalize */
             if (ctx->dtype == X2_PERIODIC) {
-              ii = 2;
-              *vv *= sin(2*M_PI*(xx[ii]-dlo[ii])/dlen[ii]);
+              /* ii = 2; */
+              ierr = u_sinz_op(3,0.0,xx,1,&fact,ctx);CHKERRQ(ierr);
+              /* *vv *= sin(2*M_PI*(xx[ii]-dlo[ii])/dlen[ii]); */
             } else {
-              for(ii=0;ii<3;ii++) {
-                PetscReal x = (xx[ii]-dlo[ii])/dlen[ii];
-                *vv *= (x*x - x*x*x*x);
-              }
+              ierr = u_x4_op(3,0.0,xx,1,&fact,ctx);CHKERRQ(ierr);
+              /* for(ii=0;ii<3;ii++) { */
+              /*   PetscReal x = (xx[ii]-dlo[ii])/dlen[ii]; */
+              /*   *vv *= (x*x - x*x*x*x); */
+              /* } */
             }
+            *vv *= fact;
           }
           ndeposit++;
         }
@@ -916,8 +967,7 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   DM_PICell        *dmpi = (DM_PICell *) ctx->dm->data;
   DM               dm;
   DMLabel          label;
-  PetscInt         *sizes = NULL;
-  PetscInt         *points = NULL;
+  PetscInt         *sizes = NULL, *points = NULL, * counts = NULL, cells[] = {2,2,2};
   PetscPartitioner part;
   PetscFunctionBeginUser;
 
@@ -925,14 +975,19 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
   dim = 3;
   if (ctx->dtype == X2_PERIODIC) {
     if (ctx->npe==1) {
-      PetscInt cells[] = {2,2,2};
+      for (i = 0; i < dim; i++) cells[i] = 4; /* periodic on one proc needs help */
       ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, cells, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &dmpi->dm);CHKERRQ(ierr);
     } else {
-      ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->grid.solver_np, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &dmpi->dm);CHKERRQ(ierr);
+      /* periodic wants 2^D cells per processor */
+      for (i = 0; i < dim; i++) cells[i] *= ctx->grid.solver_np[i];
+      ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, cells, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &dmpi->dm);CHKERRQ(ierr);
     }
+    ierr = DMLocalizeCoordinates(dmpi->dm);CHKERRQ(ierr);
   }
   else {
-    ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, ctx->grid.solver_np, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, &dmpi->dm);CHKERRQ(ierr);
+    /* one cell per processor */
+    for (i = 0; i < dim; i++) cells[i] = ctx->grid.solver_np[i];
+    ierr = DMPlexCreateHexBoxMesh(ctx->wComm, dim, cells, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, &dmpi->dm);CHKERRQ(ierr);
   }
   /* set domain size */
   ierr = DMGetCoordinatesLocal(dmpi->dm,&coordinates);CHKERRQ(ierr);
@@ -946,6 +1001,23 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
     for (j = 0; j < dimEmbed; j++) {
       coord[j] = ctx->grid.domain_lo[j] + coord[j] * (ctx->grid.domain_hi[j] - ctx->grid.domain_lo[j]);
     }
+  }
+  if (ctx->dtype == X2_PERIODIC) { /* modify periodicity to match new bounds */
+    PetscReal            *maxCell, *L;
+    const PetscReal      *maxCellOrig, *Lorig;
+    DMBoundaryType       *bdtype;
+    const DMBoundaryType *bdtypeOrig;
+    PetscInt              i;
+
+    ierr = PetscMalloc3(dim,&maxCell,dim,&L,dim,&bdtype);CHKERRQ(ierr);
+    ierr = DMGetPeriodicity(dmpi->dm,&maxCellOrig,&Lorig,&bdtypeOrig);CHKERRQ(ierr);
+    for (i = 0; i < dim; i++) {
+      maxCell[i] = maxCellOrig[i] * (ctx->grid.domain_hi[i] - ctx->grid.domain_lo[i]);
+      L[i]       = Lorig[i] * (ctx->grid.domain_hi[i] - ctx->grid.domain_lo[i]);
+      bdtype[i]  = bdtypeOrig[i];
+    }
+    ierr = DMSetPeriodicity(dmpi->dm,maxCell,L,bdtype);CHKERRQ(ierr);
+    ierr = PetscFree3(maxCell,L,bdtype);CHKERRQ(ierr);
   }
   ierr = VecRestoreArray(coordinates,&coords);CHKERRQ(ierr);
   ierr = DMSetCoordinatesLocal(dmpi->dm,coordinates);CHKERRQ(ierr);
@@ -968,42 +1040,35 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
 
   /* set a simple partitioner - needed to make my indexing work for point locate */
   if (!ctx->rank && ctx->npe>1) {
-    PetscInt cEnd,c,*cs,*cp,ii[3],i;
+    PetscInt cEnd,c,*cs,idx[3],i;
+    PetscInt *offsets;
     const PetscReal *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi;
-    const PetscInt *np = ctx->grid.solver_np;
+    const PetscInt locN = ctx->dtype == X2_PERIODIC ? 2 : 1, c_proc = pow(locN,dim);
     ierr = DMPlexGetHeightStratum(dmpi->dm, 0, NULL, &cEnd);CHKERRQ(ierr); /* DMGetCellChart */
-    if (cEnd && cEnd!=ctx->npe) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_USER, "cEnd=%d != %d",cEnd,ctx->npe);
-    if (cEnd!=ctx->npe) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_USER, "cEnd=%d != %d",cEnd,ctx->npe);
-    ierr = PetscMalloc2(ctx->npe, &sizes, ctx->npe, &points);CHKERRQ(ierr);
-    for (c=0,cs=sizes,cp=points;c<ctx->npe;c++,cs++,cp++) {
-      PetscReal x[3];
-      *cs = 1; // points[c] = c;
-      if (1) {
-        ierr = DMPlexComputeCellGeometryFVM(dmpi->dm, c, NULL, x, NULL);CHKERRQ(ierr);
-      } else {
-        PetscReal v0[81];
-        PetscQuadrature quad;
-        PetscInt qdim,Nq,j;
-        ierr = PetscFEGetQuadrature(dmpi->fem, &quad);CHKERRQ(ierr);
-        ierr = PetscQuadratureGetData(quad, &qdim, &Nq, NULL, NULL);CHKERRQ(ierr);
-        ierr = DMPlexComputeCellGeometryFEM(dmpi->dm, c, dmpi->fem, v0, NULL, NULL, NULL);CHKERRQ(ierr);
-        for(i=0;i<3;i++) x[i] = 0;
-        for (j=0;j<Nq;j++) {
-          for(i=0;i<3;i++) x[i] += v0[3*j+i];
-        }
-        for(i=0;i<3;i++) x[i] /= Nq;
+    if (cEnd && cEnd!=ctx->npe*c_proc) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_USER, "cEnd=%d != %d",cEnd,ctx->npe*c_proc);
+    if (cEnd!=ctx->npe*c_proc) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_USER, "cEnd=%d != %d",cEnd,ctx->npe*c_proc);
+    ierr = PetscMalloc2(ctx->npe, &sizes, ctx->npe*c_proc, &points);CHKERRQ(ierr);
+    ierr = PetscMalloc1(ctx->npe, &offsets);CHKERRQ(ierr);
+    for (c=0,cs=sizes;c<ctx->npe;c++,cs++) *cs = c_proc;
+    offsets[0] = 0;
+    for (c = 1; c < ctx->npe; c++) {offsets[c] = offsets[c - 1] + sizes[c];}
+    for (c=0;c<ctx->npe*c_proc;c++) {
+      PetscInt  proc;
+      PetscReal v0[81],detJ[27];
+      ierr = DMPlexComputeCellGeometryFEM(dmpi->dm, c, NULL, v0, NULL, NULL, detJ);CHKERRQ(ierr);
+      for(i=0;i<3;i++) {
+        idx[i] = (PetscInt)((v0[i]-dlo[i]+1.e-12)/(dhi[i]-dlo[i])*(double)ctx->grid.solver_np[i]);
       }
-      for(i=0;i<3;i++) ii[i] = (PetscInt)((x[i]-dlo[i])/(dhi[i]-dlo[i])*(double)np[i]);
-      *cp = X2_IDX3(ii,np);
+      proc = X2_IDX3(idx,ctx->grid.solver_np);
+      points[offsets[proc]++] = c;
     }
+    ierr = PetscFree(offsets);CHKERRQ(ierr);
   }
   if (ctx->npe>1) {
     ierr = DMPlexGetPartitioner(dmpi->dm, &part);CHKERRQ(ierr);
     ierr = PetscPartitionerSetType(part, PETSCPARTITIONERSHELL);CHKERRQ(ierr);
     ierr = PetscPartitionerShellSetPartition(part, ctx->npe, sizes, points);CHKERRQ(ierr);
-    if (sizes) {
-      ierr = PetscFree2(sizes,points);CHKERRQ(ierr);
-    }
+    if (sizes) ierr = PetscFree3(sizes,counts,points);CHKERRQ(ierr);
   }
   /* distribute */
   ierr = DMPlexDistribute(dmpi->dm, 0, NULL, &dm);CHKERRQ(ierr);
@@ -1047,26 +1112,6 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "u_x4_op"
-PetscErrorCode u_x4_op(PetscInt dim, PetscReal time, const PetscReal xx[], PetscInt Nf, PetscScalar *u, void *a_ctx)
-{
-  X2Ctx *ctx = (X2Ctx*)a_ctx;
-  PetscInt comp,i;
-  const PetscReal  *dlo = ctx->grid.domain_lo, *dhi = ctx->grid.domain_hi;
-  PetscReal dlen[3];
-  PetscFunctionBeginUser;
-  for(i=0;i<dim;i++) dlen[i] = dhi[i] - dlo[i];
-  for (comp = 0; comp < Nf; ++comp) {
-    u[comp] = 1;
-    for (i = 0; i < dim; ++i) {
-      PetscReal x = (xx[i]-dlo[i])/dlen[i];
-      u[comp] *= (x*x - x*x*x*x);
-    }
-  }
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc, char **argv)
 {
@@ -1075,7 +1120,6 @@ int main(int argc, char **argv)
   DM_PICell      *dmpi;
   PetscInt       idx,isp;
   Mat            J;
-  KSP ksp;
   PetscFunctionBeginUser;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
@@ -1124,14 +1168,13 @@ int main(int argc, char **argv)
   ierr = SNESSetDM( dmpi->snes, dmpi->dm);CHKERRQ(ierr);
   ierr = DMPlexSetSNESLocalFEM(dmpi->dm,&ctx,&ctx,&ctx);CHKERRQ(ierr);
   ierr = DMCreateMatrix(dmpi->dm, &J);CHKERRQ(ierr);
-  ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
-  ierr = SNESGetKSP(dmpi->snes, &ksp);CHKERRQ(ierr);
   if (ctx.dtype == X2_PERIODIC) {
-    MatNullSpace   nullsp;
+    MatNullSpace nullsp;
     ierr = MatNullSpaceCreate(ctx.wComm, PETSC_TRUE, 0, NULL, &nullsp);CHKERRQ(ierr);
     ierr = MatSetNullSpace(J, nullsp);CHKERRQ(ierr);
     ierr = MatNullSpaceDestroy(&nullsp);CHKERRQ(ierr);
   }
+  ierr = SNESSetJacobian(dmpi->snes, J, J, NULL, NULL);CHKERRQ(ierr);
   ierr = SNESSetFromOptions(dmpi->snes);CHKERRQ(ierr);
   if (dmpi->debug>3) {
     PetscViewer viewer;
@@ -1198,11 +1241,13 @@ int main(int argc, char **argv)
     PetscViewer       viewer = NULL;
     PetscBool         flg;
     PetscViewerFormat fmt;
-    PetscReal         norm;
+    PetscReal         norm,norm1,norm2;
+    /* put exact function in dmpi->phi */
     ierr = PetscMalloc(sizeof(PetscErrorCode (*)(PetscInt, PetscReal,const PetscReal[],PetscInt,PetscScalar*,void*)),&exactFuncs);
     CHKERRQ(ierr);
     ctxArray[0] = &ctx;
-    exactFuncs[0] = u_x4_op;
+    if (ctx.dtype == X2_PERIODIC) exactFuncs[0] = u_sinz_op;
+    else exactFuncs[0] = u_x4_op;
     ierr = DMProjectFunction(dmpi->dm, 0.0, exactFuncs, (void **)ctxArray, INSERT_ALL_VALUES, dmpi->phi);CHKERRQ(ierr);
     ierr = PetscFree(exactFuncs);CHKERRQ(ierr);
     ierr = DMViewFromOptions(dmpi->dm,NULL,"-dm_view");CHKERRQ(ierr);
@@ -1211,21 +1256,22 @@ int main(int argc, char **argv)
       ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
       ierr = PetscObjectSetName((PetscObject) dmpi->phi,"exact-RHS");CHKERRQ(ierr);
       ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);
-      ierr = PetscObjectSetName((PetscObject) dmpi->phi,"phi");CHKERRQ(ierr);
+      ierr = VecNorm(dmpi->phi,NORM_INFINITY,&norm2);CHKERRQ(ierr);
+      /* ierr = PetscObjectSetName((PetscObject) dmpi->phi,"phi");CHKERRQ(ierr); */
       ierr = PetscObjectSetName((PetscObject) dmpi->rho,"pic-RHS");CHKERRQ(ierr);
       ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
-      ierr = PetscObjectSetName((PetscObject) dmpi->rho,"rho");CHKERRQ(ierr);
-    }
-    ierr = VecAXPY(dmpi->rho,-1.,dmpi->phi);CHKERRQ(ierr); /* error */
-    if (flg) {
+      ierr = VecNorm(dmpi->rho,NORM_1,&norm1);CHKERRQ(ierr);
+      /* ierr = PetscObjectSetName((PetscObject) dmpi->rho,"rho");CHKERRQ(ierr); */
+      ierr = VecAXPY(dmpi->rho,-1.,dmpi->phi);CHKERRQ(ierr); /* error */
       ierr = PetscObjectSetName((PetscObject) dmpi->rho,"error-RHS");CHKERRQ(ierr);
       ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
       ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
+      ierr = VecNorm(dmpi->rho,NORM_INFINITY,&norm);CHKERRQ(ierr);
+      PetscPrintf(ctx.wComm,"\tDeposition error |exact rho - rho|_inf/|rho|_inf = %g, |rho|_1 = %g\n",norm/norm2,norm1);
     }
     ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-    ierr = VecNorm(dmpi->rho,NORM_INFINITY,&norm);CHKERRQ(ierr);
-    PetscPrintf(ctx.wComm,"\tDeposition error |exact rho - deposited rho|_inf = %g\n",norm);
     ctx.use_mms = PETSC_FALSE; /* just do this once */
+    ctx.plot = PETSC_FALSE; /* don't bother printing */
   }
 
 #if defined(PETSC_USE_LOG)
@@ -1236,9 +1282,6 @@ int main(int argc, char **argv)
   ierr = go( &ctx );CHKERRQ(ierr);
 
   if (dmpi->debug>0) PetscPrintf(ctx.wComm,"[%D] done - cleanup\n",ctx.rank);
-#if defined(X2_HAVE_INTEL)
-  PetscPrintf(ctx.wComm,"[%D] X2_HAVE_INTEL\n",ctx.rank);
-#endif
 #if defined(PETSC_HAVE_MEMALIGN) && (PETSC_MEMALIGN==64)
   PetscPrintf(ctx.wComm,"[%D] defined(PETSC_HAVE_MEMALIGN) && (PETSC_MEMALIGN==64)\n",ctx.rank);
 #endif
