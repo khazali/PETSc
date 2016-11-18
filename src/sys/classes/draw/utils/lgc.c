@@ -21,6 +21,8 @@ PetscClassId PETSC_DRAWLG_CLASSID = 0;
 
    Level: advanced
 
+.seealso: PetscDrawLGCreate(), PetscDrawAxis
+
 @*/
 PetscErrorCode  PetscDrawLGGetAxis(PetscDrawLG lg,PetscDrawAxis *axis)
 {
@@ -46,6 +48,7 @@ PetscErrorCode  PetscDrawLGGetAxis(PetscDrawLG lg,PetscDrawAxis *axis)
 
    Level: intermediate
 
+.seealso: PetscDrawLGCreate(), PetscDraw
 @*/
 PetscErrorCode  PetscDrawLGGetDraw(PetscDrawLG lg,PetscDraw *draw)
 {
@@ -144,9 +147,14 @@ PetscErrorCode  PetscDrawLGSPDraw(PetscDrawLG lg,PetscDrawSP spin)
 
     Level: intermediate
 
+    Notes: The MPI communicator that owns the PetscDraw owns this PetscDrawLG, but the calls to set options and add points are ignored on all processes except the
+           zeroth MPI process in the communicator. All MPI processes in the communicator must call PetscDrawLGDraw() to display the updated graph.
+
     Concepts: line graph^creating
 
-.seealso:  PetscDrawLGDestroy()
+.seealso:  PetscDrawLGDestroy(), PetscDrawLGAddPoint(), PetscDrawLGAddCommonPoint(), PetscDrawLGAddPoints(), PetscDrawLGDraw(), PetscDrawLGSave(),
+           PetscDrawLGView(), PetscDrawLGReset(), PetscDrawLGSetDimension(), PetscDrawLGGetDimension(), PetscDrawLGSetLegend(), PetscDrawLGGetAxis(),
+           PetscDrawLGGetDraw(), PetscDrawLGSetUseMarkers(), PetscDrawLGSetLimits(), PetscDrawLGSetColors(), PetscDrawLGSetOptionsPrefix(), PetscDrawLGSetFromOptions()
 @*/
 PetscErrorCode  PetscDrawLGCreate(PetscDraw draw,PetscInt dim,PetscDrawLG *outlg)
 {
@@ -203,6 +211,8 @@ PetscErrorCode  PetscDrawLGCreate(PetscDraw draw,PetscInt dim,PetscDrawLG *outlg
 
    Concepts: line graph^setting number of lines
 
+.seealso: PetscDrawLGCreate()
+
 @*/
 PetscErrorCode  PetscDrawLGSetColors(PetscDrawLG lg,const int colors[])
 {
@@ -232,7 +242,11 @@ PetscErrorCode  PetscDrawLGSetColors(PetscDrawLG lg,const int colors[])
 
    Level: intermediate
 
+   Notes: Call PetscDrawLGGetAxis() and then change properties of the PetscDrawAxis for detailed control of the plot
+
    Concepts: line graph^setting number of lines
+
+.seealso: PetscDrawLGGetAxis(), PetscDrawAxis, PetscDrawAxisSetColors(), PetscDrawAxisSetLabels(), PetscDrawAxisSetHoldLimits()
 
 @*/
 PetscErrorCode  PetscDrawLGSetLegend(PetscDrawLG lg,const char *const *names)
@@ -276,6 +290,8 @@ PetscErrorCode  PetscDrawLGSetLegend(PetscDrawLG lg,const char *const *names)
 
    Concepts: line graph^setting number of lines
 
+.seealso: PetscDrawLGCreate(), PetscDrawLGSetDimension()
+
 @*/
 PetscErrorCode  PetscDrawLGGetDimension(PetscDrawLG lg,PetscInt *dim)
 {
@@ -301,6 +317,7 @@ PetscErrorCode  PetscDrawLGGetDimension(PetscDrawLG lg,PetscInt *dim)
 
    Concepts: line graph^setting number of lines
 
+.seealso: PetscDrawLGCreate(), PetscDrawLGGetDimension()
 @*/
 PetscErrorCode  PetscDrawLGSetDimension(PetscDrawLG lg,PetscInt dim)
 {
@@ -345,6 +362,8 @@ PetscErrorCode  PetscDrawLGSetDimension(PetscDrawLG lg,PetscInt dim)
 
    Concepts: line graph^setting axis
 
+.seealso: PetscDrawLGCreate()
+
 @*/
 PetscErrorCode  PetscDrawLGSetLimits(PetscDrawLG lg,PetscReal x_min,PetscReal x_max,PetscReal y_min,PetscReal y_max)
 {
@@ -371,6 +390,8 @@ PetscErrorCode  PetscDrawLGSetLimits(PetscDrawLG lg,PetscReal x_min,PetscReal x_
    Level: intermediate
 
    Concepts: line graph^restarting
+
+.seealso: PetscDrawLGCreate()
 
 @*/
 PetscErrorCode  PetscDrawLGReset(PetscDrawLG lg)
@@ -441,6 +462,8 @@ PetscErrorCode  PetscDrawLGDestroy(PetscDrawLG *lg)
 
    Concepts: line graph^showing points
 
+.seealso: PetscDrawLGCreate()
+
 @*/
 PetscErrorCode  PetscDrawLGSetUseMarkers(PetscDrawLG lg,PetscBool flg)
 {
@@ -463,7 +486,7 @@ PetscErrorCode  PetscDrawLGSetUseMarkers(PetscDrawLG lg,PetscBool flg)
 
    Level: intermediate
 
-.seealso: PetscDrawSPDraw(), PetscDrawLGSPDraw()
+.seealso: PetscDrawSPDraw(), PetscDrawLGSPDraw(), PetscDrawLGReset()
 
 @*/
 PetscErrorCode  PetscDrawLGDraw(PetscDrawLG lg)
@@ -566,6 +589,8 @@ PetscErrorCode  PetscDrawLGSave(PetscDrawLG lg)
 
   Level: beginner
 
+.seealso: PetscDrawLGCreate()
+
 .keywords:  draw, line, graph
 @*/
 PetscErrorCode  PetscDrawLGView(PetscDrawLG lg,PetscViewer viewer)
@@ -609,7 +634,7 @@ PetscErrorCode  PetscDrawLGView(PetscDrawLG lg,PetscViewer viewer)
 
 .keywords: PetscDrawLG, set, options, prefix, database
 
-.seealso: PetscDrawLGSetFromOptions()
+.seealso: PetscDrawLGSetFromOptions(), PetscDrawLGCreate()
 @*/
 PetscErrorCode  PetscDrawLGSetOptionsPrefix(PetscDrawLG lg,const char prefix[])
 {

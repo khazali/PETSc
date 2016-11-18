@@ -2868,10 +2868,11 @@ If poor convergence rates are observed using the smoothed version one can test u
 AMG methods requires knowledge of the number of degrees of
 freedom per vertex, the default is one (a scalar problem).
 Vector problems like elasticity should set the block size of the matrix appropriately with \trl{-mat_block_size bs}  or \lstinline{MatSetBlockSize(mat,bs)}.
+Equations must be ordered in ``vertex-major'' ordering (e.g., $x_1,y_1,z_1,x_2,y_2,...$).
 
 Smoothed aggregation requires an explicit representation of the (near) null space of the operator for optimal performance.
-One can provide this with \lstinline{MatSetNearNullSpace()}.
-The one vector is the default, for each variable given by the block size (e.g., the translational rigid  body modes).
+One can provide an orthonormal set of null space vectors with \lstinline{MatSetNearNullSpace()}.
+The vector of all ones is the default, for each variable given by the block size (e.g., the translational rigid  body modes).
 For elasticity, where rotational rigid body modes are required to complete the near null space you can use \lstinline{MatNullSpaceCreateRigidBody()} to create the null space vectors and then \lstinline{MatSetNearNullSpace()}.
 
 There are several options to provide parameters to the coarsening algorithm and parallel data layout.
@@ -7729,6 +7730,30 @@ read into a block oriented data structure (for example,
 \lstinline{MATMPIBAIJ}). The diagonal information
 \lstinline{s1,s2,s3,...} indicates
 which (block) diagonals in the matrix have nonzero values.
+
+\section{Using SAWS with PETSc} \label{sec_saws}
+\sindex{saws}
+The Scientific Application Web server, SAWs, \href{https://bitbucket.org/saws/saws/wiki/Home}{\trl{https://bitbucket.org/saws/saws/wiki/Home}}
+allows one to monitor PETSc applications from a browser as they run. ./configure PETSc with the additional option -download-saws. The options
+to use SAWs include:
+\begin{lstlisting}
+-saws_options - allows setting values in the PETSc options database via the browser (works only on one process).
+-stack_view saws - allows monitoring the current stack frame that PETSc is in, refresh to see the new location.
+-ts_monitor_saws, -snes_monitor_saws, -ksp_monitor_saws - monitor the solvers iterations from the web browser.
+\end{lstlisting}
+For each of these you need to point your browser to \trl{https://hostname:8080}, for example \trl{https:/localhost:8080}.
+Options that control behavior of SAWs include
+\begin{lstlisting}
+-saws_log filename - log all actions of SAWs in a file
+-saws_https certfile - use HTTPS instead of HTTP with a certificate
+-saws_port_auto_select - have SAWs pick a port number instead of using 8080
+-saws_port port - use port instead of 8080
+-saws_root rootdirectory - local directory that the SAWs browser will have read access on
+-saws_local - use the local file system to obtain the SAWS javascript files (they much be located in rootdirectory/js)
+\end{lstlisting}
+See also the manual pages for PetscSAWsBlock, PetscObjectSAWsTakeAccess, PetscObjectSAWsGrantAccess, PetscObjectSAWsSetBlock, PetscStackSAWsGrantAccess
+PetscStackSAWsTakeAccess, KSPMonitorSAWs, SNESMonitorSAWs, TSMonitorSAWs.
+
 
 \section{Debugging} \sindex{debugging} \label{sec_debugging}
 

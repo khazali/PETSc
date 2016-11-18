@@ -43,11 +43,20 @@ struct _p_PetscDrawHG {
    Output Parameters:
 .  hist - The histogram context
 
+   Notes: The difference between a bar chart, PetscDrawBar, and a histogram, PetscDrawHG, is explained here http://stattrek.com/statistics/charts/histogram.aspx?Tutorial=AP
+
+   The histogram is only displayed when PetscDrawHGDraw() is called.
+
+   The MPI communicator that owns the PetscDraw owns this PetscDrawHG, but the calls to set options and add data are ignored on all processes except the
+   zeroth MPI process in the communicator. All MPI processes in the communicator must call PetscDrawHGDraw() to display the updated graph.
+
    Level: intermediate
 
    Concepts: histogram^creating
 
-.seealso: PetscDrawHGDestroy()
+.seealso: PetscDrawHGDestroy(), PetscDrawHG, PetscDrawBarCreate(), PetscDrawBar, PetscDrawLGCreate(), PetscDrawLG, PetscDrawSPCreate(), PetscDrawSP,
+          PetscDrawHGSetNumberBins(), PetscDrawHGReset(), PetscDrawHGAddValue(), PetscDrawHGDraw(), PetscDrawHGSave(), PetscDrawHGView(), PetscDrawHGSetColor(),
+          PetscDrawHGSetLimits(), PetscDrawHGCalcStats(), PetscDrawHGIntegerBins(), PetscDrawHGGetAxis(), PetscDrawAxis, PetscDrawHGGetDraw() 
 
 @*/
 PetscErrorCode  PetscDrawHGCreate(PetscDraw draw,int bins,PetscDrawHG *hist)
@@ -108,6 +117,8 @@ PetscErrorCode  PetscDrawHGCreate(PetscDraw draw,int bins,PetscDrawHG *hist)
 
    Concepts: histogram^setting number of bins
 
+.seealso: PetscDrawHGCreate(), PetscDrawHG, PetscDrawHGDraw(), PetscDrawHGIntegerBins()
+
 @*/
 PetscErrorCode  PetscDrawHGSetNumberBins(PetscDrawHG hist, int bins)
 {
@@ -140,6 +151,9 @@ PetscErrorCode  PetscDrawHGSetNumberBins(PetscDrawHG hist, int bins)
   Level: intermediate
 
   Concepts: histogram^resetting
+
+.seealso: PetscDrawHGCreate(), PetscDrawHG, PetscDrawHGDraw(), PetscDrawHGAddValue()
+
 @*/
 PetscErrorCode  PetscDrawHGReset(PetscDrawHG hist)
 {
@@ -166,7 +180,7 @@ PetscErrorCode  PetscDrawHGReset(PetscDrawHG hist)
 
   Level: intermediate
 
-.seealso:  PetscDrawHGCreate()
+.seealso:  PetscDrawHGCreate(), PetscDrawHG
 @*/
 PetscErrorCode  PetscDrawHGDestroy(PetscDrawHG *hist)
 {
@@ -200,7 +214,7 @@ PetscErrorCode  PetscDrawHGDestroy(PetscDrawHG *hist)
 
   Concepts: histogram^adding values
 
-.seealso: PetscDrawHGAddValues()
+.seealso: PetscDrawHGCreate(), PetscDrawHG, PetscDrawHGDraw(), PetscDrawHGAddValue(), PetscDrawHGReset()
 @*/
 PetscErrorCode  PetscDrawHGAddValue(PetscDrawHG hist, PetscReal value)
 {
@@ -260,6 +274,8 @@ PetscErrorCode  PetscDrawHGAddValue(PetscDrawHG hist, PetscReal value)
 . hist - The histogram context
 
   Level: intermediate
+
+.seealso: PetscDrawHGCreate(), PetscDrawHG, PetscDrawHGDraw(), PetscDrawHGAddValue(), PetscDrawHGReset()
 
 @*/
 PetscErrorCode  PetscDrawHGDraw(PetscDrawHG hist)
@@ -410,7 +426,7 @@ PetscErrorCode  PetscDrawHGDraw(PetscDrawHG hist)
 
   Concepts: histogram^saving
 
-.seealso:  PetscDrawHGCreate(), PetscDrawHGGetDraw(), PetscDrawSetSave(), PetscDrawSave()
+.seealso:  PetscDrawHGCreate(), PetscDrawHGGetDraw(), PetscDrawSetSave(), PetscDrawSave(), PetscDrawHGDraw()
 @*/
 PetscErrorCode  PetscDrawHGSave(PetscDrawHG hg)
 {
@@ -433,6 +449,8 @@ PetscErrorCode  PetscDrawHGSave(PetscDrawHG hg)
 . hist - The histogram context
 
   Level: beginner
+
+.seealso:  PetscDrawHGCreate(), PetscDrawHGGetDraw(), PetscDrawSetSave(), PetscDrawSave(), PetscDrawHGDraw()
 
 .keywords:  draw, histogram
 @*/
@@ -531,6 +549,8 @@ PetscErrorCode  PetscDrawHGView(PetscDrawHG hist,PetscViewer viewer)
 
   Level: intermediate
 
+.seealso:  PetscDrawHGCreate(), PetscDrawHGGetDraw(), PetscDrawSetSave(), PetscDrawSave(), PetscDrawHGDraw(), PetscDrawHGGetAxis()
+
 @*/
 PetscErrorCode  PetscDrawHGSetColor(PetscDrawHG hist,int color)
 {
@@ -557,6 +577,9 @@ PetscErrorCode  PetscDrawHGSetColor(PetscDrawHG hist,int color)
   Level: intermediate
 
   Concepts: histogram^setting axis
+
+.seealso:  PetscDrawHGCreate(), PetscDrawHGGetDraw(), PetscDrawSetSave(), PetscDrawSave(), PetscDrawHGDraw(), PetscDrawHGGetAxis()
+
 @*/
 PetscErrorCode  PetscDrawHGSetLimits(PetscDrawHG hist, PetscReal x_min, PetscReal x_max, int y_min, int y_max)
 {
@@ -585,6 +608,8 @@ PetscErrorCode  PetscDrawHGSetLimits(PetscDrawHG hist, PetscReal x_min, PetscRea
 
 .keywords:  draw, histogram, statistics
 
+.seealso:  PetscDrawHGCreate(), PetscDrawHGAddValue(), PetscDrawHGView(), PetscDrawHGDraw()
+
 @*/
 PetscErrorCode  PetscDrawHGCalcStats(PetscDrawHG hist, PetscBool calc)
 {
@@ -609,6 +634,9 @@ PetscErrorCode  PetscDrawHGCalcStats(PetscDrawHG hist, PetscBool calc)
   Level: intermediate
 
 .keywords:  draw, histogram, statistics
+
+.seealso:  PetscDrawHGCreate(), PetscDrawHGAddValue(), PetscDrawHGView(), PetscDrawHGDraw(), PetscDrawHGSetColor()
+
 @*/
 PetscErrorCode  PetscDrawHGIntegerBins(PetscDrawHG hist, PetscBool ints)
 {
@@ -637,6 +665,8 @@ PetscErrorCode  PetscDrawHGIntegerBins(PetscDrawHG hist, PetscBool ints)
 
   Level: intermediate
 
+.seealso:  PetscDrawHGCreate(), PetscDrawHGAddValue(), PetscDrawHGView(), PetscDrawHGDraw(), PetscDrawHGSetColor(), PetscDrawAxis, PetscDrawHGSetLimits()
+
 @*/
 PetscErrorCode  PetscDrawHGGetAxis(PetscDrawHG hist,PetscDrawAxis *axis)
 {
@@ -661,6 +691,8 @@ PetscErrorCode  PetscDrawHGGetAxis(PetscDrawHG hist,PetscDrawAxis *axis)
 . draw  - The draw context
 
   Level: intermediate
+
+.seealso:  PetscDrawHGCreate(), PetscDrawHGAddValue(), PetscDrawHGView(), PetscDrawHGDraw(), PetscDrawHGSetColor(), PetscDrawAxis, PetscDrawHGSetLimits()
 
 @*/
 PetscErrorCode  PetscDrawHGGetDraw(PetscDrawHG hist,PetscDraw *draw)
