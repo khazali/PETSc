@@ -1789,9 +1789,9 @@ typedef struct {
 } MHDNode;
 #define DOT3(__x,__y,__r) {int i;for(i=0,__r=0;i<3;i++) __r += __x[i] * __y[i];}
 #define MATVEC3(__a,__x,__p) {int i,j; for (i=0.; i<3; i++) {__p[i] = 0; for (j=0.; j<3; j++) __p[i] += __a[i][j]*__x[j]; }}
-#define MATTRANPOSEVEC3(__a,__x,__p) {int i,j; for (i=0.; i<3; i++) {__p[i] = 0; for (j=0.; j<3; j++) __p[i] += __a[j][i]*__x[j]; }}
+#define MATTRANSVEC3(__a,__x,__p) {int i,j; for (i=0.; i<3; i++) {__p[i] = 0; for (j=0.; j<3; j++) __p[i] += __a[j][i]*__x[j]; }}
 #define MATVEC2(__a,__x,__p) {int i,j; for (i=0.; i<2; i++) {__p[i] = 0; for (j=0.; j<2; j++) __p[i] += __a[i][j]*__x[j]; }}
-#define MATTRANPOSEVEC2(__a,__x,__p) {int i,j; for (i=0.; i<2; i++) {__p[i] = 0; for (j=0.; j<2; j++) __p[i] += __a[j][i]*__x[j]; }}
+#define MATTRANSVEC2(__a,__x,__p) {int i,j; for (i=0.; i<2; i++) {__p[i] = 0; for (j=0.; j<2; j++) __p[i] += __a[j][i]*__x[j]; }}
 
 #undef __FUNCT__
 #define __FUNCT__ "SetDurl"
@@ -1936,8 +1936,8 @@ static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], 
   /* compute flux */
   MHDFlux(&luL, &luR, area, ctx, &flux);
   /* rotate fluxes back to original coordinate system */
-  MATTRANPOSEVEC3(R,flux.ru,retflux->ru);
-  MATTRANPOSEVEC3(R,flux.b,retflux->b);
+  MATTRANSVEC3(R,flux.ru,retflux->ru);
+  MATTRANSVEC3(R,flux.b,retflux->b);
   retflux->r = flux.r;
   retflux->p = flux.p;
   PetscFunctionReturnVoid();
@@ -1986,7 +1986,7 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *
   MATVEC3(R,xI->ru,ru);
   ru[0] = -ru[0]; /* no normal flow */
   /* rotate fluxes back to original coordinate system */
-  MATTRANPOSEVEC3(R,ru,xG->ru);
+  MATTRANSVEC3(R,ru,xG->ru);
   /* MATVEC3(R,n,nhat); */
   /* geometry, of we want different BCs on ends and sides */
   if (0) {
