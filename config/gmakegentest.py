@@ -42,6 +42,9 @@ class generateExamples(Petsc,PETScExamples):
     self.integer_types="int32 int64".split()
     self.languages="fortran cuda cxx".split()    # Always requires C so do not list
 
+    # Things that are not test
+    self.buildkeys=testparse.buildkeys
+
     # Adding a dictionary for storing sources, objects, and tests
     # to make building the dependency tree easier
     self.sources={}
@@ -52,7 +55,8 @@ class generateExamples(Petsc,PETScExamples):
       self.objects[pkg]=[]
       self.tests[pkg]={}
       for lang in LANGS:
-        self.sources[pkg][lang]=[]
+        self.sources[pkg][lang]={}
+        self.sources[pkg][lang]['srcs']=[]
         self.tests[pkg][lang]={}
 
     # Copy petsc tests harness script
@@ -105,14 +109,19 @@ class generateExamples(Petsc,PETScExamples):
     argStr=re.sub(' +',' ',argStr)  # Remove repeated white space
     return argStr.strip()
 
-  def addToSources(self,exfile,root):
+  def addToSources(self,exfile,root,srcDict):
     """
       Put into data structure that allows easy generation of makefile
     """
     pkg=self.relpath(self.petsc_dir,root).split("/")[1]
     fullfile=os.path.join(root,exfile)
     relpfile=self.relpath(self.petsc_dir,fullfile)
-    self.sources[pkg][self.getLanguage(exfile)].append(relpfile)
+    lang=self.getLanguage(exfile)
+    self.sources[pkg][lang]['srcs'].append(relpfile)
+    if srcDict.has_key('depends'):
+      depSrc=srcDict['depends']
+      depObj=os.path.splitext(depSrc)[0]+".o"
+      self.sources[pkg][lang][exfile]=depObj
 
     # In gmakefile, ${TESTDIR} var specifies the object compilation
     testsdir=self.relpath(self.petsc_dir,root)+"/"
@@ -355,7 +364,7 @@ class generateExamples(Petsc,PETScExamples):
     execname=self.getExecname(exfile,root)
     isBuilt=self._isBuilt(exfile,srcDict)
     for test in srcDict:
-      if test=="requires" or test=="SKIP" or test=="TODO": continue
+      if test in self.buildkeys: continue
       if debug: print self.nameSpace(exfile,root), test
       srcDict[test]['execname']=execname   # Convenience in generating scripts
       isRun=self._isRun(srcDict[test])
@@ -365,7 +374,7 @@ class generateExamples(Petsc,PETScExamples):
       self.addToTests(test,root,exfile,execname,srcDict[test])
 
     # This adds to datastructure for building deps
-    if fileIsTested and isBuilt: self.addToSources(exfile,root)
+    if fileIsTested and isBuilt: self.addToSources(exfile,root,srcDict)
     #print self.nameSpace(exfile,root), fileIsTested
     return
 
@@ -512,7 +521,7 @@ class generateExamples(Petsc,PETScExamples):
       pkg=relroot.split("/")[1]
       fh.write(relroot+"\n")
       allSrcs=[]
-      for lang in LANGS: allSrcs=allSrcs+self.sources[pkg][lang]
+      for lang in LANGS: allSrcs=allSrcs+self.sources[pkg][lang]['srcs']
       for exfile in dataDict[root]:
         # Basic  information
         fullfile=os.path.join(root,exfile)
@@ -521,7 +530,7 @@ class generateExamples(Petsc,PETScExamples):
         fh.write(indent+exfile+indent*4+builtStatus+"\n")
 
         for test in dataDict[root][exfile]:
-          if test=="requires" or test=="SKIP" or test=="TODO": continue
+          if test in self.buildkeys: continue
           line=indent*2+test
           fh.write(line+"\n")
           # Looks nice to have the keys in order
@@ -572,7 +581,7 @@ class generateExamples(Petsc,PETScExamples):
     def write(stem, srcs):
         fd.write('%s :=\n' % stem)
         for lang in LANGS:
-            fd.write('%(stem)s.%(lang)s := %(srcs)s\n' % dict(stem=stem, lang=lang, srcs=' '.join(srcs[lang])))
+            fd.write('%(stem)s.%(lang)s := %(srcs)s\n' % dict(stem=stem, lang=lang, srcs=' '.join(srcs[lang]['srcs'])))
             fd.write('%(stem)s += $(%(stem)s.%(lang)s)\n' % dict(stem=stem, lang=lang))
     for pkg in PKGS:
         srcs = self.gen_pkg(pkg)
@@ -651,13 +660,13 @@ class generateExamples(Petsc,PETScExamples):
           execname=os.path.join(testdir,localexec)
 
           # SKIP and TODO tests do not depend on exec
-          if exfile in self.sources[pkg][lang]:
+          if exfile in self.sources[pkg][lang]['srcs']:
             #print "Found dep: "+exfile, execname
             fd.write(nmtest+": "+execname+"\n")
           else:
             # Still add dependency to file
             fd.write(nmtest+": "+fullex+"\n")
-          cmd="mkdir -p "+rundir+"; cd "+rundir+"; ../"+script
+          cmd=testdir+"/"+script
           fd.write("\t-@"+cmd+"\n")
           # Now write the args:
           fa.write(nmtest+"_ARGS='"+self.tests[pkg][lang][ftest]['argLabel']+"'\n")
@@ -665,7 +674,7 @@ class generateExamples(Petsc,PETScExamples):
         # executable targets -- add these to build earlier
         testexdeps=""
         if not self.single_ex:
-          for exfile in self.sources[pkg][lang]:
+          for exfile in self.sources[pkg][lang]['srcs']:
             localexec=os.path.basename(os.path.splitext(exfile)[0])
             basedir=os.path.dirname(exfile)
             testdir="${TESTDIR}/"+basedir+"/"
@@ -673,13 +682,17 @@ class generateExamples(Petsc,PETScExamples):
             testexdeps=testexdeps+" "+execname
           fd.write("test-ex-"+pkg+"-"+lang+":"+testexdeps+"\n")
 
-        for exfile in self.sources[pkg][lang]:
+        for exfile in self.sources[pkg][lang]['srcs']:
           root=os.path.join(self.petsc_dir,os.path.dirname(exfile))
           basedir=os.path.dirname(exfile)
           testdir="${TESTDIR}/"+basedir+"/"
           base=os.path.basename(exfile)
           objfile=testdir+os.path.splitext(base)[0]+".o"
           linker=self.getLanguage(exfile)[0].upper()+"LINKER"
+          if self.sources[pkg][lang].has_key(exfile):
+            # Dependency for file
+            objfile=objfile+" "+self.sources[pkg][lang][exfile]
+            print objfile
           if not self.single_ex:
             localexec=os.path.basename(os.path.splitext(exfile)[0])
             execname=os.path.join(testdir,localexec)

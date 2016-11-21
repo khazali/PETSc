@@ -58,8 +58,10 @@ function petsc_testrun() {
   else
     cmd="$1 | $filter > $2 2> $3"
   fi
+  if "${verbose}"; then 
+    printf "${cmd}\n"
+  fi
   eval $cmd
-  if ! "$verbose"; then cmd=""; fi
   if test $? == 0; then
       printf "ok $tlabel $cmd\n"
       let success=$success+1
