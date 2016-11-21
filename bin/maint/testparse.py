@@ -48,6 +48,9 @@ thisscriptdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentf
 maintdir=os.path.join(os.path.join(os.path.dirname(thisscriptdir),'bin'),'maint')
 sys.path.insert(0,maintdir) 
 
+# These are special keys describing build
+buildkeys="requires TODO SKIP depends".split()
+
 def _stripIndent(block,srcfile):
   """
   Go through and remove a level of indentation
@@ -175,10 +178,9 @@ def parseTestFile(srcfile):
     # The file info is already here and need to append
     Part1=fileStr.split("T*/")[0]
     fileInfo=Part1.split("/*T")[1]
-    if "requires:" in fileInfo:
-      testDict[basename]['requires']=fileInfo.split("requires:")[1].split("\n")[0].strip()
-    if "TODO:" in fileInfo:
-      testDict[basename]['TODO']=fileInfo.split("TODO:")[1].split("\n")[0].strip()
+    for bkey in buildkeys:
+      if bkey+":" in fileInfo:
+        testDict[basename][bkey]=fileInfo.split(bkey+":")[1].split("\n")[0].strip()
 
   os.chdir(curdir)
   return testDict
