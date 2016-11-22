@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
-import os,shutil, string
+import os,shutil, string, re
 from distutils.sysconfig import parse_makefile
 import sys
 import logging
+import types
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 from cmakegen import Mistakes, stripsplit, AUTODIRS, SKIPDIRS
 from cmakegen import defaultdict # collections.defaultdict, with fallback for python-2.4
@@ -12,20 +13,13 @@ from gmakegen import *
 import inspect
 thisscriptdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 sys.path.insert(0,thisscriptdir) 
-maintdir=os.path.join(os.path.join(os.path.dirname(thisscriptdir),'bin'),'maint')
-sys.path.insert(0,maintdir) 
-from examplesWalker import *
 import testparse
 import example_template
 
-class generateExamples(Petsc,PETScExamples):
+class generateExamples(Petsc):
   """
-  Why dual inheritance:
     gmakegen.py has basic structure for finding the files, writing out
       the dependencies, etc.
-     exampleWalker has the logic for migrating the tests, analyzing the tests, etc.
-     Rather than use the os.walk from gmakegen, gmakegentest re-uses the
-     exampleWalker functionality
   """
   def __init__(self,petsc_dir=None, petsc_arch=None, verbose=False, single_ex=False):
     super(generateExamples, self).__init__(petsc_dir=None, petsc_arch=None, verbose=False)
@@ -68,6 +62,20 @@ class generateExamples(Petsc,PETScExamples):
     shutil.copy(reports_file,self.testroot_dir)
 
     return
+
+  def nameSpace(self,srcfile,srcdir):
+    """
+    Because the scripts have a non-unique naming, the pretty-printing
+    needs to convey the srcdir and srcfile.  There are two ways of doing this.
+    """
+    if self.ptNaming:
+      cdir=srcdir.split('src')[1].lstrip("/").rstrip("/")
+      prefix=cdir.replace('/examples/','_').replace("/","_")+"-"
+      nameString=prefix+srcfile
+    else:
+      #nameString=srcdir+": "+srcfile
+      nameString=srcfile
+    return nameString
 
   def getLanguage(self,srcfile):
     """
@@ -573,6 +581,24 @@ class generateExamples(Petsc,PETScExamples):
         self.genScriptsAndInfo(exfile,root,dataDict[root][exfile])
 
     return
+
+  def walktree(self,top,action="printFiles"):
+    """
+    Walk a directory tree, starting from 'top'
+    """
+    #print "action", action
+    # Goal of action is to fill this dictionary
+    dataDict={}
+    for root, dirs, files in os.walk(top, topdown=False):
+      if not "examples" in root: continue
+      if not os.path.isfile(os.path.join(root,"makefile")): continue
+      if root.endswith("tests") or root.endswith("tutorials"):
+        eval("self."+action+"(root,dirs,files,dataDict)")
+      if type(top) != types.StringType:
+          raise TypeError("top must be a string")
+    # Now summarize this dictionary
+    eval("self."+action+"_summarize(dataDict)")
+    return dataDict
 
   def gen_gnumake(self, fd,prefix='srcs-'):
     """
