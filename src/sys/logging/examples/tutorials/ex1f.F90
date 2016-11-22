@@ -253,3 +253,13 @@
 
       end program SchoolDay
 
+
+!
+!/*TEST
+!   
+!   test:
+!      nsize: 2
+!      args: -log_view ascii:filename.xml:ascii_xml
+!      filter: cut -f1 -d: | grep Using
+!
+!TEST*/
