@@ -9,15 +9,40 @@ fi
 mkdir -p ${rundir}
 cd ${rundir}
 
+#
+# Method to print out general and script specific options
+#
+print_usage() {
+
+cat >&2 <<EOF
+Usage: $0 [options]
+
+OPTIONS
+  -a <args> ......... Override default arguments
+  -c <cleanup> ...... Cleanup (remove generated files)
+  -e <args> ......... Add extra arguments to default
+  -h ................ help: print this message
+  -n <integer> ...... Override the number of processors to use
+  -o <output file> .. Override default output file to diff with
+  -t <testname> ..... Override test name
+  -v ................ Verbose: Print commands
+EOF
+
+  if declare -f extrausage > /dev/null; then extrausage; fi
+  exit $1
+}
 ###
 ##  Arguments for overriding things
 #
 verbose=false
-while getopts "a:e:m:n:o:t:v" arg
+cleanup=false
+while getopts "a:c:e:hn:o:t:v" arg
 do
   case $arg in
     a ) args=$OPTARG     ;;  
+    c ) cleanup=true     ;;  
     e ) extra_args=$OPTARG     ;;  
+    h ) print_usage; exit ;;  
     n ) nsize=$OPTARG     ;;  
     o ) output_file=$OPTARG     ;;  
     t ) testname=$OPTARG     ;;  
@@ -38,7 +63,6 @@ if test -n "$extra_args"; then
 fi
 
 # Init
-cleanup=false
 success=0; failed=0; failures=""; rmfiles=""
 total=0
 todo=-1; skip=-1
@@ -94,6 +118,7 @@ function petsc_testend() {
     printf "skip $skip\n" >> $logfile
   fi
   if $cleanup; then
-     /bin/rm -f $rmfiles
+    echo "Cleaning up"
+    /bin/rm -f $rmfiles
   fi
 }

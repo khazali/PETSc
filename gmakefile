@@ -297,20 +297,21 @@ $(alltest.d) : ;
 # Note that percent is a wildcard: 
 #    make -f gmakefile testsearch search='%ex2' 
 # For args:
-#    make -f gmakefile testsearch argsearch='%ex2' 
+#    make -f gmakefile testsearch argsearch='cuda%' 
 
-# filtertwo is because normal filter command cannot search for two wildcards!!
-filtertwo = $(foreach v,$2,$(if $(findstring $1,$v),$v))
+# filtertest is because normal filter command cannot search for two wildcards!!
 TESTTARGETS := $(shell grep '^[a-z]' $(generatedtest) | grep -v "+=" | cut -f1 -d':')
 TESTARGTARGETS=$(foreach testt, $(TESTTARGETS), $(testt)_ARGS)
+filtertest = $(foreach v,$(TESTTARGETS),$(if $(findstring $(searchin),$(v)),$(v)))
+filterargs = $(foreach v,$(TESTTARGETS),$(if $(findstring $(argsearch),$(v)),$(v)))
 ifdef search
   NEW_TESTTARGETS = $(filter $(search),$(TESTTARGETS))
   ACTUAL_RUN=$(NEW_TESTTARGETS)
 else ifdef searchin
-  NEW_TESTTARGETS = $(call filtertwo,$(searchin),$(TESTTARGETS))
+  NEW_TESTTARGETS = $(call filtertest)
   ACTUAL_RUN=$(NEW_TESTTARGETS)
 else ifdef argsearch
-    NEW_TESTTARGETS=$(foreach rarg, $(TESTARGTARGETS), $(if $(filter $(argsearch),$(value $(rarg))), $(rarg)))
+    NEW_TESTTARGETS=$(call filterargs)
     ACTUAL_RUN=$(NEW_TESTTARGETS)
 else
     ACTUAL_RUN=$(TESTTARGETS)
