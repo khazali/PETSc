@@ -1577,23 +1577,14 @@ A typical example for compiling for real/double only is:
 
 The goals of the PETSc Test Harness are to:
 %
-\begin{quote}
-\setcounter{listcnt0}{0}
-\begin{list}{\arabic{listcnt0}.}
-{
-\usecounter{listcnt0}
-\setlength{\rightmargin}{\leftmargin}
-}
-
+\begin{tightitemize}
 \item Provide standard output used by other testing tools
 
 \item Lightweight as possible and easily fit within the PETSc build chain
 
 \item Provide information on all tests, even those that are not built or
 run because they do not meet the configuration requirements
-\end{list}
-
-\end{quote}
+\end{tightitemize}
 
 Before understanding the test harness, it is first important to
 understand the desired requirements for reporting and logging.
@@ -1715,6 +1706,16 @@ A small sample of the output from the test harness would be:
       # failed 2/16 tests; 87.500% ok
 \end{verbatim}
 %\end{lstlisting}
+
+For developers, modifying the lines that get written to the file can be
+done by modifying:
+\begin{bashlisting}
+   ${PETSC_DIR}/config/example_template.py
+\end{bashlisting}
+To modify the test harness,  one can modify this file
+\begin{bashlisting}
+   ${PETSC_DIR}/config/petsc_harness.sh
+\end{bashlisting}
 
 \bibliographystyle{plain}
 \bibliography{../petsc}
