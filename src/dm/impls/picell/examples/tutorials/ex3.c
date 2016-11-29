@@ -631,7 +631,6 @@ typedef struct {
   domType       domain_type;
   runType       run_type;
   PetscBool     view_sol;
-  PetscBool     view_initial_sol;
   PetscBool     use_amr;
   PetscReal     refine_tol;
   PetscReal     coarsen_tol;
@@ -2333,8 +2332,6 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   ierr = PetscOptionsInt("-debug", "The debugging level", "ex3.c", s_debug, &s_debug, NULL);CHKERRQ(ierr);
   ctx->view_sol = PETSC_TRUE;
   ierr = PetscOptionsBool("-view_sol", "Write plot files", "ex3.c", ctx->view_sol, &ctx->view_sol, NULL);CHKERRQ(ierr);
-  ctx->view_initial_sol = PETSC_FALSE;
-  ierr = PetscOptionsBool("-view_initial_sol", "Write plot files for initial AMR grid", "ex3.c", ctx->view_initial_sol, &ctx->view_initial_sol, NULL);CHKERRQ(ierr);
   ctx->use_amr = PETSC_FALSE;
   ierr = PetscOptionsBool("-use_amr", "Use adaptive mesh refinement", "ex3.c", ctx->use_amr, &ctx->use_amr, NULL);CHKERRQ(ierr);
   ctx->refine_tol = PETSC_MAX_REAL;
@@ -2743,49 +2740,26 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "viewDMVec"
-static PetscErrorCode viewDMVec(DM dm, Vec X, Vec Y, const char prefix[])
-{
-  PetscErrorCode    ierr;
-  PetscViewer       viewer = NULL;
-  PetscBool         flg;
-  PetscViewerFormat fmt;
-  char              buf[256] = "-dm_view";
-  PetscFunctionBegin;
-  if (prefix) {
-    ierr = PetscSNPrintf(buf, 256, "-%sdm_view", prefix);CHKERRQ(ierr);
-  }
-  ierr = DMViewFromOptions(dm,NULL,buf);CHKERRQ(ierr);
-  ierr = PetscOptionsGetViewer(PetscObjectComm((PetscObject)dm),prefix,"-vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
-  if (flg) {
-    ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
-    ierr = VecView(X,viewer);CHKERRQ(ierr);
-    if (Y) ierr = VecView(Y,viewer);CHKERRQ(ierr);
-    ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
-  }
-  ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-//#include <petsc/private/dmforestimpl.h>
-
-#undef __FUNCT__
 #define __FUNCT__ "X3DMVecView"
-static PetscErrorCode X3DMVecView(DM dm, Vec X, PetscInt stepi)
+static PetscErrorCode X3DMVecView(DM dm, Vec X, PetscInt stepi, const char prefix[], PetscLogEvent ev)
 {
   PetscErrorCode    ierr;
   PetscViewer       viewer = NULL;
   char              buf[256];
   PetscBool         isHDF5,isVTK;
   PetscFunctionBegin;
+#if defined(PETSC_USE_LOG)
+  ierr = PetscLogEventBegin(ev,0,0,0,0);CHKERRQ(ierr);
+#endif
   ierr = PetscViewerCreate(PetscObjectComm((PetscObject)dm),&viewer);CHKERRQ(ierr);
   ierr = PetscViewerSetType(viewer,PETSCVIEWERVTK);CHKERRQ(ierr);
   ierr = PetscViewerSetFromOptions(viewer);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERHDF5,&isHDF5);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERVTK,&isVTK);CHKERRQ(ierr);
   if (isHDF5) {
-    ierr = PetscSNPrintf(buf, 256, "u-%d.h5", stepi);CHKERRQ(ierr);
+    ierr = PetscSNPrintf(buf, 256, "%s-%d.h5", prefix,stepi);CHKERRQ(ierr);
   } else if (isVTK) {
-    ierr = PetscSNPrintf(buf, 256, "u-%d.vtu", stepi);CHKERRQ(ierr);
+    ierr = PetscSNPrintf(buf, 256, "%s-%d.vtu", prefix, stepi);CHKERRQ(ierr);
     ierr = PetscViewerPushFormat(viewer,PETSC_VIEWER_VTK_VTU);CHKERRQ(ierr);
   }
   ierr = PetscViewerFileSetMode(viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
@@ -2796,6 +2770,9 @@ static PetscErrorCode X3DMVecView(DM dm, Vec X, PetscInt stepi)
   }
   ierr = VecView(X,viewer);CHKERRQ(ierr);
   ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+#if defined(PETSC_USE_LOG)
+  ierr = PetscLogEventEnd(ev,0,0,0,0);CHKERRQ(ierr);
+#endif
   PetscFunctionReturn(0);
 }
 
@@ -2807,13 +2784,20 @@ static PetscErrorCode X3TSView(TS ts)
   DM                dm;
   X3Ctx             *ctx;
   PetscInt          stepi;
-  Vec               Xl;
+  Vec               X;
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(ts, &ctx);CHKERRQ(ierr); assert(ctx);
   ierr = TSGetDM(ts, &dm);CHKERRQ(ierr);
-  ierr = TSGetSolution(ts, &Xl);CHKERRQ(ierr);
+  ierr = TSGetSolution(ts, &X);CHKERRQ(ierr);
   ierr = TSGetTimeStepNumber(ts, &stepi);CHKERRQ(ierr);
-  ierr = X3DMVecView(dm, Xl, stepi);CHKERRQ(ierr);
+  if (ctx->view_sol) {
+    ierr = X3DMVecView(dm, X, stepi,"u",ctx->events[diag_event_id]);CHKERRQ(ierr);
+    if (ctx->num_particles_total) {
+      DM_PICell *dmpi = ctx->dmpic->data; assert(dmpi);
+      ierr = X3DMVecView(dmpi->dm, dmpi->phi, stepi, "phi_",ctx->events[diag_event_id]);CHKERRQ(ierr);
+      ierr = X3DMVecView(dmpi->dm, dmpi->rho, stepi, "rho_",ctx->events[diag_event_id]);CHKERRQ(ierr);
+    }
+  }
   /* setup particle pushing after each TS step */
   ierr = particle_poststep(ts);CHKERRQ(ierr);
   /* output text data of norms */
@@ -2821,12 +2805,12 @@ static PetscErrorCode X3TSView(TS ts)
     const PetscInt ndof = ctx->ndof;
     PetscScalar    *xx,*xx0,norms1[8],normsInf[8],gnorms1[8],gnormsInf[8];
     PetscInt       lsize,gsz,ii,jj,N;
-    ierr = VecGetLocalSize(Xl,&lsize);CHKERRQ(ierr);
-    ierr = VecGetSize(Xl,&gsz);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(X,&lsize);CHKERRQ(ierr);
+    ierr = VecGetSize(X,&gsz);CHKERRQ(ierr);
     PetscPrintf(PETSC_COMM_WORLD,"\t\t[%D]%s %D equations (%D local)\n",0,__FUNCT__,gsz,lsize);
     N = lsize/ndof; assert(lsize%ndof==0);
     for (jj=0;jj<ndof;jj++) norms1[jj] = normsInf[jj] = 0;
-    ierr = VecGetArray(Xl,&xx0);CHKERRQ(ierr);
+    ierr = VecGetArray(X,&xx0);CHKERRQ(ierr);
     for (ii=0,xx=xx0;ii<N;ii++) {
       for (jj=0;jj<ndof;jj++,xx++) {
         PetscScalar t = PetscAbsReal(*xx);
@@ -2835,7 +2819,7 @@ static PetscErrorCode X3TSView(TS ts)
       }
     }
     assert(xx-xx0 == lsize);
-    ierr = VecRestoreArray(Xl,&xx0);CHKERRQ(ierr);
+    ierr = VecRestoreArray(X,&xx0);CHKERRQ(ierr);
     ierr = MPI_Allreduce(normsInf,gnormsInf,ndof,MPIU_REAL,MPI_MAX,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
     PetscPrintf(PETSC_COMM_WORLD,"step %D) |u|_inf=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",stepi,gnormsInf[0],gnormsInf[1],gnormsInf[2],gnormsInf[3],gnormsInf[4],gnormsInf[5],gnormsInf[6],gnormsInf[7]);
     if (s_debug>1) {
@@ -2941,18 +2925,17 @@ int main(int argc, char **argv)
     for (adaptIter = 0;;adaptIter++) {
       PetscLogDouble bytes;
       TS             tsNew = NULL;
-      if (ctx->view_initial_sol) {
+      if (ctx->view_sol) { /* should print the same as rest with X3DMVecView -- TODO */
         PetscViewer viewer;
         char        buf[256];
         PetscBool   isHDF5;
-
         ierr = PetscViewerCreate(ctx->wComm,&viewer);CHKERRQ(ierr);
         ierr = PetscViewerSetType(viewer,PETSCVIEWERHDF5);CHKERRQ(ierr);
         ierr = PetscViewerSetOptionsPrefix(viewer,"initial_");CHKERRQ(ierr);
         ierr = PetscViewerSetFromOptions(viewer);CHKERRQ(ierr);
         ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERHDF5,&isHDF5);CHKERRQ(ierr);
         if (isHDF5) {
-          ierr = PetscSNPrintf(buf, 256, "x3-%d.h5", adaptIter);CHKERRQ(ierr);
+          ierr = PetscSNPrintf(buf, 256, "initial-amr-%d.h5", adaptIter);CHKERRQ(ierr);
         }
         ierr = PetscViewerFileSetMode(viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
         ierr = PetscViewerFileSetName(viewer,buf);CHKERRQ(ierr);
@@ -2963,7 +2946,6 @@ int main(int argc, char **argv)
         ierr = VecView(X,viewer);CHKERRQ(ierr);
         ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
       }
-
       ierr = PetscMemoryGetCurrentUsage(&bytes);CHKERRQ(ierr);
       ierr = PetscInfo2(ts, "refinement loop %D: memory used %g\n", adaptIter, bytes);CHKERRQ(ierr);
       ierr = adaptToleranceFVM(fvm, ts, X, ctx->refine_tol, ctx->coarsen_tol, ctx, &tsNew, NULL);CHKERRQ(ierr);
@@ -2983,8 +2965,12 @@ int main(int argc, char **argv)
     }
     /* restore original limiter */
     ierr = PetscFVSetLimiter(fvm,limiter);CHKERRQ(ierr);
-  }  else if (ctx->view_initial_sol) { /* plot initial state */
-    ierr = viewDMVec(dmmhd,X,NULL,"initial_");CHKERRQ(ierr);
+  } else if (ctx->view_sol) { /* plot initial state */
+    ierr = X3DMVecView(dmmhd, X, 0, "u", ctx->events[diag_event_id]);CHKERRQ(ierr);
+  }
+  if (ctx->view_sol && ctx->num_particles_total) {
+    ierr = X3DMVecView(dmpi->dm, dmpi->phi, 0, "phi_",ctx->events[diag_event_id]);CHKERRQ(ierr);
+    ierr = X3DMVecView(dmpi->dm, dmpi->rho, 0, "rho_",ctx->events[diag_event_id]);CHKERRQ(ierr);
   }
 #if defined(PETSC_USE_LOG)
   ierr = PetscLogEventEnd(ctx->events[0],0,0,0,0);CHKERRQ(ierr);
@@ -3053,19 +3039,6 @@ int main(int argc, char **argv)
   }
   ierr = TSGetConvergedReason(ts,&reason);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"%s at time %g after %D steps\n",TSConvergedReasons[reason],(double)ftime,nsteps);CHKERRQ(ierr);
-  if (ctx->view_sol) {
-#if defined(PETSC_USE_LOG)
-    ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
-#endif
-    if (ctx->num_particles_total) {
-      ierr = viewDMVec(dmpi->dm,dmpi->phi,dmpi->rho,"pic_");CHKERRQ(ierr);
-    }
-    /* ierr = viewDMVec(dmmhd,X,NULL,NULL);CHKERRQ(ierr);  *//* final print, not needed with post step printing */
-#if defined(PETSC_USE_LOG)
-    ierr = PetscLogEventEnd(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
-#endif
-  }
-  if (dmpi->debug>0) PetscPrintf(ctx->wComm,"[%D] done - cleanup\n",ctx->rank);
   /* Cleanup */
   if (ctx->num_particles_total) {
     for (idx=0;idx<ctx->proc_send_table_size;idx++) {
