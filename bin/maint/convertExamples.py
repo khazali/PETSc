@@ -66,6 +66,8 @@ class convertExamples(PETScExamples):
     """
     Summarize the results.
     """
+    # This needs to be upgraded as well
+    return
     indent="  "
     fhname="GenAllRunFiles_summarize.txt"
     fh=open(fhname,"w")
