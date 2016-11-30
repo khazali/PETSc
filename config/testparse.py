@@ -148,6 +148,7 @@ def parseTestFile(srcfile):
   Parse single example files and return dictionary of the form:
     testDict[srcfile][test][subtest]
   """
+  debug=False
   curdir=os.path.realpath(os.path.curdir)
   basedir=os.path.dirname(os.path.realpath(srcfile))
   basename=os.path.basename(srcfile)
@@ -160,7 +161,7 @@ def parseTestFile(srcfile):
   #
   fsplit=fileStr.split("/*TEST\n")[1:]
   if len(fsplit)==0: 
-    print "No test found in: "+srcfile
+    if debug: print "No test found in: "+srcfile
     return {}
   # Allow for multiple "/*TEST" blocks even though it really should be
   # on
