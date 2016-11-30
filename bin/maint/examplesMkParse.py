@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 import glob
 import sys
 import re
@@ -23,7 +24,7 @@ In general:
 """
 
 class makeParse(object):
-  def __init__(self,petsc_dir,verbosity):
+  def __init__(self,petsc_dir,replaceSource,verbosity):
 
     self.petsc_dir=petsc_dir
     self.writeScripts=True
@@ -32,6 +33,7 @@ class makeParse(object):
     self.ptNaming=True
     self.insertIntoSrc=True
     self.verbosity=verbosity
+    self.replaceSource=replaceSource
     return
 
   def makeRunDict(self,mkDict,curdir):
@@ -424,7 +426,8 @@ class makeParse(object):
       newFileStr=self.insertSrcInfo(fileStr,testDict[sfile],isFortran)
       testFileStr=self.insertTestInfo(fileStr,testDict[sfile],isFortran)
       # Write out new file
-      fh=open("new_"+sfile,"w")
+      fname=(sfile if self.replaceSource else "new_"+sfile)
+      fh=open(fname,"w")
       fh.write(newFileStr+testFileStr)
       fh.close()
 
@@ -886,6 +889,9 @@ def printMkParseDict(rDict,verbosity):
 
 def main():
     parser = optparse.OptionParser(usage="%prog [options]")
+    parser.add_option('-r', '--replace', dest='replaceSource',
+                      action="store_true", default=False, 
+                      help='Replace the source files.  Default is false')
     parser.add_option('-p', '--petsc_dir', dest='petsc_dir',
                       help='Where to start the recursion',
                       default='')
@@ -911,17 +917,16 @@ def main():
     petsc_dir=None
     if options.petsc_dir: petsc_dir=options.petsc_dir
     if petsc_dir is None: petsc_dir=os.path.dirname(os.path.dirname(currentdir))
-    # This is more inline with what PETSc devs use, but since we are
-    # experimental, I worry about picking up their env var
-#    if petsc_dir is None:
-#      petsc_dir = os.environ.get('PETSC_DIR')
-#      if petsc_dir is None:
-#        petsc_dir=os.path.dirname(os.path.dirname(currentdir))
+    if petsc_dir is None:
+      petsc_dir = os.environ.get('PETSC_DIR')
+      if petsc_dir is None:
+        petsc_dir=os.path.dirname(os.path.dirname(currentdir))
 
     if not options.makefile: 
       print "Use -m to specify makefile"
       return
-    pEx=makeParse(petsc_dir,verbosity)
+
+    pEx=makeParse(petsc_dir,options.replaceSource,verbosity)
     runDict=pEx.parseRunsFromMkFile(options.makefile)
     printMkParseDict(runDict,verbosity)
     pEx.insertInfoIntoSrc(options.makefile,runDict)

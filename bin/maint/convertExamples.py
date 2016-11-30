@@ -30,8 +30,7 @@ Quick start
 
 class convertExamples(PETScExamples):
   def __init__(self,petsc_dir,replaceSource,verbosity):
-    super(convertExamples, self).__init__(petsc_dir,verbosity)
-    self.replaceSource=replaceSource
+    super(convertExamples, self).__init__(petsc_dir,replaceSource,verbosity)
     self.writeScripts=True
     #self.scriptsSubdir=""
     self.scriptsSubdir="from_makefile"
@@ -126,15 +125,18 @@ class convertExamples(PETScExamples):
     return
 
 def main():
-    parser = optparse.OptionParser(usage="%prog [options] startdir")
+    parser = optparse.OptionParser(usage="%prog [options]")
     parser.add_option('-r', '--replace', dest='replaceSource',
-                      action="store_false", 
+                      action="store_true", default=False, 
                       help='Replace the source files.  Default is false')
     parser.add_option('-p', '--petsc_dir', dest='petsc_dir',
+                      help='PETSC_DIR (default is from environment)',
+                      default='')
+    parser.add_option('-s', '--startdir', dest='startdir',
                       help='Where to start the recursion',
                       default='')
     parser.add_option('-f', '--functioneval', dest='functioneval',
-                      help='Function to evaluate while traversing example dirs: genAllRunFiles cleanAllRunFiles', 
+                      help='Function to run while traversing example dirs: genAllRunFiles cleanAllRunFiles', 
                       default='genAllRunFiles')
     parser.add_option('-v', '--verbosity', dest='verbosity',
                       help='Verbosity of output by level: 1, 2, or 3', 
@@ -155,19 +157,18 @@ def main():
     petsc_dir=None
     if options.petsc_dir: petsc_dir=options.petsc_dir
     if petsc_dir is None: petsc_dir=os.path.dirname(os.path.dirname(currentdir))
-    # This is more inline with what PETSc devs use, but since we are
-    # experimental, I worry about picking up their env var
-#    if petsc_dir is None:
-#      petsc_dir = os.environ.get('PETSC_DIR')
-#      if petsc_dir is None:
-#        petsc_dir=os.path.dirname(os.path.dirname(currentdir))
+    if petsc_dir is None:
+      petsc_dir = os.environ.get('PETSC_DIR')
+      if petsc_dir is None:
+        petsc_dir=os.path.dirname(os.path.dirname(currentdir))
 
-    startdir=os.path.join(petsc_dir,'src')
+    if not options.startdir: options.startdir=os.path.join(petsc_dir,'src')
+
     pEx=convertExamples(petsc_dir,options.replaceSource,verbosity)
     if not options.functioneval=='':
-      pEx.walktree(startdir,action=options.functioneval)
+      pEx.walktree(options.startdir,action=options.functioneval)
     else:
-      pEx.walktree(startdir)
+      pEx.walktree(options.startdir)
 
 if __name__ == "__main__":
         main()

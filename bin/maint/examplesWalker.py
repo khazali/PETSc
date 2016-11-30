@@ -84,8 +84,8 @@ One other mode:
 """
 
 class PETScExamples(makeParse):
-  def __init__(self,petsc_dir,verbosity=1):
-    super(PETScExamples, self).__init__(petsc_dir,verbosity)
+  def __init__(self,petsc_dir,replaceSource,verbosity=1):
+    super(PETScExamples, self).__init__(petsc_dir,replaceSource,verbosity)
     return
 
   def getCorrespondingKeys(self,extype):
