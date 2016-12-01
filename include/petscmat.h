@@ -74,6 +74,7 @@ typedef const char* MatType;
 #define MATTRANSPOSEMAT    "transpose"
 #define MATSCHURCOMPLEMENT "schurcomplement"
 #define MATPYTHON          "python"
+#define MATHYPRE           "hypre"
 #define MATHYPRESTRUCT     "hyprestruct"
 #define MATHYPRESSTRUCT    "hypresstruct"
 #define MATSUBMATRIX       "submatrix"
@@ -235,10 +236,15 @@ PETSC_EXTERN PetscErrorCode MatCreateFFT(MPI_Comm,PetscInt,const PetscInt[],MatT
 PETSC_EXTERN PetscErrorCode MatCreateSeqCUFFT(MPI_Comm,PetscInt,const PetscInt[],Mat*);
 
 PETSC_EXTERN PetscErrorCode MatCreateTranspose(Mat,Mat*);
+PETSC_EXTERN PetscErrorCode MatTransposeGetMat(Mat,Mat*);
 PETSC_EXTERN PetscErrorCode MatCreateHermitianTranspose(Mat,Mat*);
 PETSC_EXTERN PetscErrorCode MatCreateSubMatrix(Mat,IS,IS,Mat*);
 PETSC_EXTERN PetscErrorCode MatSubMatrixUpdate(Mat,Mat,IS,IS);
 PETSC_EXTERN PetscErrorCode MatCreateLocalRef(Mat,IS,IS,Mat*);
+
+#if defined(PETSC_HAVE_HYPRE)
+PETSC_EXTERN PetscErrorCode MatHYPRESetPreallocation(Mat,PetscInt,const PetscInt[],PetscInt,const PetscInt[]);
+#endif
 
 PETSC_EXTERN PetscErrorCode MatPythonSetType(Mat,const char[]);
 
@@ -1708,19 +1714,6 @@ PETSC_EXTERN PetscErrorCode MatCreateAIJViennaCL(MPI_Comm,PetscInt,PetscInt,Pets
 PETSC_EXTERN PetscErrorCode VecScatterPetscToFFTW(Mat,Vec,Vec);
 PETSC_EXTERN PetscErrorCode VecScatterFFTWToPetsc(Mat,Vec,Vec);
 PETSC_EXTERN PetscErrorCode MatCreateVecsFFTW(Mat,Vec*,Vec*,Vec*);
-#endif
-
-/*
-   PETSc interface to ELEMENTAL
-*/
-#if defined(PETSC_HAVE_ELEMENTAL)
-#if defined(PETSC_USE_COMPLEX)
-typedef El::Complex<PetscReal> PetscElemScalar;
-#else
-typedef PetscScalar PetscElemScalar;
-#endif
-PETSC_EXTERN PetscErrorCode PetscElementalInitializePackage(void);
-PETSC_EXTERN PetscErrorCode PetscElementalFinalizePackage(void);
 #endif
 
 PETSC_EXTERN PetscErrorCode MatCreateNest(MPI_Comm,PetscInt,const IS[],PetscInt,const IS[],const Mat[],Mat*);
