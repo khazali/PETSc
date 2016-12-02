@@ -358,7 +358,7 @@ PetscErrorCode MatLUFactorNumeric_SuperLU_DIST(Mat F,Mat A,const MatFactorInfo *
         PetscStackCall("SuperLU_DIST:Destroy_LU",Destroy_LU(N, &lu->grid, &lu->LUstruct));
         lu->options.Fact = DOFACT;
       } else {
-        SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"options.Fact must be one of SamePattern SamePattern_SameRowPerm");
+        SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"options.Fact must be one of SamePattern SamePattern_SameRowPerm DOFACT");
       }
     }
     nz = 0;
@@ -728,8 +728,12 @@ PetscErrorCode MatFactorInfo_SuperLU_DIST(Mat A,PetscViewer viewer)
 
   if (lu->FactPattern == SamePattern) {
     ierr = PetscViewerASCIIPrintf(viewer,"  Repeated factorization SamePattern\n");CHKERRQ(ierr);
-  } else {
+  } else if (lu->FactPattern == SamePattern_SameRowPerm) {
     ierr = PetscViewerASCIIPrintf(viewer,"  Repeated factorization SamePattern_SameRowPerm\n");CHKERRQ(ierr);
+  } else if (lu->FactPattern == DOFACT) {
+    ierr = PetscViewerASCIIPrintf(viewer,"  Repeated factorization DOFACT\n");CHKERRQ(ierr);
+  } else {
+    SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"Unknown factorization pattern");
   }
   PetscFunctionReturn(0);
 }
@@ -771,7 +775,7 @@ PetscErrorCode MatView_SuperLU_DIST(Mat A,PetscViewer viewer)
 . -mat_superlu_dist_rowperm <LargeDiag,NATURAL> - row permutation
 . -mat_superlu_dist_colperm <MMD_AT_PLUS_A,MMD_ATA,NATURAL> - column permutation
 . -mat_superlu_dist_replacetinypivot - replace tiny pivots
-. -mat_superlu_dist_fact <SamePattern> - (choose one of) SamePattern SamePattern_SameRowPerm
+. -mat_superlu_dist_fact <SamePattern> - (choose one of) SamePattern SamePattern_SameRowPerm DOFACT
 . -mat_superlu_dist_iterrefine - use iterative refinement
 - -mat_superlu_dist_statprint - print factorization information
 
@@ -782,4 +786,3 @@ PetscErrorCode MatView_SuperLU_DIST(Mat A,PetscViewer viewer)
 .seealso: PCFactorSetMatSolverPackage(), MatSolverPackage
 
 M*/
-
