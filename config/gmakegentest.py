@@ -593,7 +593,8 @@ class generateExamples(Petsc):
     for root, dirs, files in os.walk(top, topdown=False):
       if not "examples" in root: continue
       if not os.path.isfile(os.path.join(root,"makefile")): continue
-      if root.endswith("tests") or root.endswith("tutorials"):
+      bname=os.path.basename(root.rstrip("/"))
+      if bname=="tests" or bname=="tutorials":
         eval("self."+action+"(root,dirs,files,dataDict)")
       if type(top) != types.StringType:
           raise TypeError("top must be a string")
