@@ -2068,7 +2068,7 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
   Rph[1][0] = sphi; Rph[1][1] = cphi;
   if (ctx->run_type == X3_LINETIED) {
  /* Line-tied problems from 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
-    const PetscReal A=0.01,lam=ctx->data.lt_lambda/a,P0=1;
+    const PetscReal A=0.0001,lam=ctx->data.lt_lambda/a,P0=1;
     fr = .5*rhat*exp(-rhat*rhat/8 + .5);
     gr = exp(-rhat*rhat/8 + .5) - .125*rhat*rhat*exp(-rhat*rhat/8 + .5);
     /* ru */
@@ -2835,6 +2835,19 @@ static PetscErrorCode X3DMVecView(DM dm, Vec X, PetscInt stepi, const char prefi
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "getFilePrefix"
+static PetscErrorCode getFilePrefix(X3Ctx *ctx, int sz, char buf[])
+{
+  PetscErrorCode    ierr;
+  PetscFunctionBegin;
+  ierr = PetscSNPrintf(buf, sz, "u_%s_%s_%gPI_rmaj=%g_rmin=%g",ctx->run_type==X3_RADIAL_SHOCK ? "shock" : "linetied",
+                       s_use_line_section ? "cylinder" : "torus",
+                       ctx->grid.section_phi,ctx->grid.radius_major,
+                       ctx->grid.radius_minor);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "X3TSView"
 static PetscErrorCode X3TSView(TS ts)
 {
@@ -2850,10 +2863,7 @@ static PetscErrorCode X3TSView(TS ts)
   ierr = TSGetTimeStepNumber(ts, &stepi);CHKERRQ(ierr);
   if (ctx->view_sol) {
     char buf[256];
-    ierr = PetscSNPrintf(buf, 256, "u_%s_%gPI_rmaj=%g_rmin=%g",
-                         s_use_line_section ? "cylinder" : "torus",
-                         ctx->grid.section_phi,ctx->grid.radius_major,
-                         ctx->grid.radius_minor);CHKERRQ(ierr);
+    getFilePrefix(ctx,256,buf);
     ierr = X3DMVecView(dm, X, stepi,buf,ctx->events[diag_event_id]);CHKERRQ(ierr);
     if (ctx->num_particles_total) {
       DM_PICell *dmpi = ctx->dmpic->data; assert(dmpi);
@@ -2988,26 +2998,11 @@ int main(int argc, char **argv)
     for (adaptIter = 0;;adaptIter++) {
       PetscLogDouble bytes;
       TS             tsNew = NULL;
-      if (ctx->view_sol) { /* should print the same as rest with X3DMVecView -- TODO */
-        PetscViewer viewer;
-        char        buf[256];
-        PetscBool   isHDF5;
-        ierr = PetscViewerCreate(ctx->wComm,&viewer);CHKERRQ(ierr);
-        ierr = PetscViewerSetType(viewer,PETSCVIEWERHDF5);CHKERRQ(ierr);
-        ierr = PetscViewerSetOptionsPrefix(viewer,"initial_");CHKERRQ(ierr);
-        ierr = PetscViewerSetFromOptions(viewer);CHKERRQ(ierr);
-        ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERHDF5,&isHDF5);CHKERRQ(ierr);
-        if (isHDF5) {
-          ierr = PetscSNPrintf(buf, 256, "initial-amr-%d.h5", adaptIter);CHKERRQ(ierr);
-        }
-        ierr = PetscViewerFileSetMode(viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
-        ierr = PetscViewerFileSetName(viewer,buf);CHKERRQ(ierr);
-        if (isHDF5) {
-          ierr = DMView(dmmhd,viewer);CHKERRQ(ierr);
-          ierr = PetscViewerFileSetMode(viewer,FILE_MODE_UPDATE);CHKERRQ(ierr);
-        }
-        ierr = VecView(X,viewer);CHKERRQ(ierr);
-        ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+      if (ctx->view_sol) {
+        char buf[256], buf2[256];
+        getFilePrefix(ctx,256,buf);
+        ierr = PetscSNPrintf(buf2, 256, "initial-%s", buf);CHKERRQ(ierr);
+        ierr = X3DMVecView(dmmhd, X, adaptIter, buf2, ctx->events[diag_event_id]);CHKERRQ(ierr);
       }
       ierr = PetscMemoryGetCurrentUsage(&bytes);CHKERRQ(ierr);
       ierr = PetscInfo2(ts, "refinement loop %D: memory used %g\n", adaptIter, bytes);CHKERRQ(ierr);
@@ -3029,7 +3024,9 @@ int main(int argc, char **argv)
     /* restore original limiter */
     ierr = PetscFVSetLimiter(fvm,limiter);CHKERRQ(ierr);
   } else if (ctx->view_sol) { /* plot initial state */
-    ierr = X3DMVecView(dmmhd, X, 0, "u", ctx->events[diag_event_id]);CHKERRQ(ierr);
+    char buf[256];
+    getFilePrefix(ctx,256,buf);
+    ierr = X3DMVecView(dmmhd, X, 0, buf, ctx->events[diag_event_id]);CHKERRQ(ierr);
   }
   if (ctx->view_sol && ctx->num_particles_total) {
     ierr = X3DMVecView(dmpi->dm, dmpi->phi, 0, "phi_",ctx->events[diag_event_id]);CHKERRQ(ierr);
