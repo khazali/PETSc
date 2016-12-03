@@ -2816,7 +2816,6 @@ static PetscErrorCode X3DMVecView(DM dm, Vec X, PetscInt stepi, const char prefi
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERHDF5,&isHDF5);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERVTK,&isVTK);CHKERRQ(ierr);
   if (isHDF5) {
-    ierr = PetscSNPrintf(buf, 256, "%s-%d.h5", prefix,stepi);CHKERRQ(ierr);
   } else if (isVTK) {
     ierr = PetscSNPrintf(buf, 256, "%s-%d.vtu", prefix, stepi);CHKERRQ(ierr);
     ierr = PetscViewerPushFormat(viewer,PETSC_VIEWER_VTK_VTU);CHKERRQ(ierr);
@@ -2850,7 +2849,12 @@ static PetscErrorCode X3TSView(TS ts)
   ierr = TSGetSolution(ts, &X);CHKERRQ(ierr);
   ierr = TSGetTimeStepNumber(ts, &stepi);CHKERRQ(ierr);
   if (ctx->view_sol) {
-    ierr = X3DMVecView(dm, X, stepi,"u",ctx->events[diag_event_id]);CHKERRQ(ierr);
+    char buf[256];
+    ierr = PetscSNPrintf(buf, 256, "u_%s_%gPI_rmaj=%g_rmin=%g",
+                         s_use_line_section ? "cylinder" : "torus",
+                         ctx->grid.section_phi,ctx->grid.radius_major,
+                         ctx->grid.radius_minor);CHKERRQ(ierr);
+    ierr = X3DMVecView(dm, X, stepi,buf,ctx->events[diag_event_id]);CHKERRQ(ierr);
     if (ctx->num_particles_total) {
       DM_PICell *dmpi = ctx->dmpic->data; assert(dmpi);
       ierr = X3DMVecView(dmpi->dm, dmpi->phi, stepi, "phi_",ctx->events[diag_event_id]);CHKERRQ(ierr);
