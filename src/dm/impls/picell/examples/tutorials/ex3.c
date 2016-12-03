@@ -623,6 +623,9 @@ typedef struct {
 /*
   General parameters and context
 */
+typedef struct ccms {
+  PetscReal M;
+} ccms_data;
 typedef enum {X3_PERIODIC,X3_DIRI} domainType;
 typedef struct {
   PetscLogEvent *events;
@@ -643,8 +646,9 @@ typedef struct {
   PetscBool     inflate_torus;
   /* time */
   PetscInt      msteps;
-  PetscReal     maxTime;
+  PetscReal     end_time;
   PetscReal     dt;
+  PetscReal     initial_time;
   /* physics */
   PetscReal     massAu; /* =2D0  !mass ratio to proton */
   PetscReal     chargeEu; /* =1D0  ! charge number */
@@ -655,7 +659,10 @@ typedef struct {
   PetscReal     maxspeed;
   PetscInt      ndof;
   PetscInt      nfields;
-  PetscReal     lt_lambda;
+  union {
+    PetscReal   lt_lambda;
+    ccms_data   ccms;
+  } data;
   /* particles */
   PetscInt      num_particles_proc;
   PetscInt      num_particles_total;
@@ -1620,6 +1627,7 @@ static PetscErrorCode DMPlexCreatePICellTorus(MPI_Comm comm, X3Grid *params, DM 
             coords[i][j][1] = sinphi * r;
           } else {
             coords[i][j][0] = r;
+            /* shift phi/2 * PI to center around y=0 */
             coords[i][j][1] = (params->radius_major+params->radius_minor) * (tan(s_section_phi*M_PI)*(double)i/(double)num_phi_cells - s_section_phi*M_PI_2); /* -L/2 to L/2 */
           }
         }
@@ -1784,8 +1792,16 @@ typedef struct {
   PetscScalar r;
   PetscScalar ru[3];
   PetscScalar b[3];
+  PetscScalar e;
+} ConserveNode;
+typedef struct {
+  PetscScalar vals[0];
+  PetscScalar r;
+  PetscScalar u[3];
+  PetscScalar b[3];
   PetscScalar p;
-} MHDNode;
+} PrimativeNode;
+
 #define DOT3(__x,__y,__r) {int i;for(i=0,__r=0;i<3;i++) __r += __x[i] * __y[i];}
 #define MATVEC3(__a,__x,__p) {int i,j; for (i=0.; i<3; i++) {__p[i] = 0; for (j=0.; j<3; j++) __p[i] += __a[i][j]*__x[j]; }}
 #define MATTRANSVEC3(__a,__x,__p) {int i,j; for (i=0.; i<3; i++) {__p[i] = 0; for (j=0.; j<3; j++) __p[i] += __a[j][i]*__x[j]; }}
@@ -1794,27 +1810,24 @@ typedef struct {
 
 #undef __FUNCT__
 #define __FUNCT__ "SetDurl"
-static void SetDurl(MHDNode *durl, const MHDNode *uL, const MHDNode *uR, const PetscReal gamma)
+static void SetDurl(const PrimativeNode *uL, const PrimativeNode *uR, const PetscReal gamma, ConserveNode *durl)
 {
-  PetscReal press;
   PetscFunctionBeginUser;
-  durl->r=uR->r-uL->r;
-  durl->ru[0]=uR->r*uR->ru[0]-uL->r*uL->ru[0];
-  durl->ru[1]=uR->r*uR->ru[1]-uL->r*uL->ru[1];
-  durl->ru[2]=uR->r*uR->ru[2]-uL->r*uL->ru[2];
-  durl->b[0]=uR->b[0]-uL->b[0];
-  durl->b[1]=uR->b[1]-uL->b[1];
-  durl->b[2]=uR->b[2]-uL->b[2];
-  press=uL->p;
-  durl->p=press/(gamma-1.0)+0.5*uL->r*(uL->ru[0]*uL->ru[0]+uL->ru[1]*uL->ru[1]+uL->ru[2]*uL->ru[2])+0.5*(uL->b[0]*uL->b[0]+uL->b[1]*uL->b[1]+uL->b[2]*uL->b[2]);
-  press=uR->p;
-  durl->p=press/(gamma-1.0)+0.5*uR->r*(uR->ru[0]*uR->ru[0]+uR->ru[1]*uR->ru[1]+uR->ru[2]*uR->ru[2])+0.5*(uR->b[0]*uR->b[0]+uR->b[1]*uR->b[1]+uR->b[2]*uR->b[2])-durl->p;
+  durl->r = uR->r - uL->r;
+  durl->ru[0] = uR->r*uR->u[0] - uL->r*uL->u[0];
+  durl->ru[1] = uR->r*uR->u[1] - uL->r*uL->u[1];
+  durl->ru[2] = uR->r*uR->u[2] - uL->r*uL->u[2];
+  durl->b[0] = uR->b[0] - uL->b[0];
+  durl->b[1] = uR->b[1] - uL->b[1];
+  durl->b[2] = uR->b[2] - uL->b[2];
+  durl->e = uL->p/(gamma-1.0) + 0.5*uL->r*(uL->u[0]*uL->u[0]+uL->u[1]*uL->u[1]+uL->u[2]*uL->u[2]) + 0.5*(uL->b[0]*uL->b[0]+uL->b[1]*uL->b[1]+uL->b[2]*uL->b[2]);
+  durl->e = uR->p/(gamma-1.0) + 0.5*uR->r*(uR->u[0]*uR->u[0]+uR->u[1]*uR->u[1]+uR->u[2]*uR->u[2]) + 0.5*(uR->b[0]*uR->b[0]+uR->b[1]*uR->b[1]+uR->b[2]*uR->b[2]) - durl->e;
   PetscFunctionReturnVoid();
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "SetEigenValues"
-static void SetEigenValues(MHDNode *utilde, PetscReal alamda[], const PetscReal gamma)
+static void SetEigenValues(const PrimativeNode *utilde, const PetscReal gamma, PetscReal alamda[])
 {
   PetscReal rhoInv,Asq,axsq,csndsq,cfast,tmp,btlocalx=0,btlocaly=0,btlocalz=0;
 
@@ -1822,67 +1835,85 @@ static void SetEigenValues(MHDNode *utilde, PetscReal alamda[], const PetscReal 
   rhoInv=1/utilde->r;
   axsq=(utilde->b[0]+btlocalx)*(utilde->b[0]+btlocalx)*rhoInv;
   Asq=((utilde->b[0]+btlocalx)*(utilde->b[0]+btlocalx)+(utilde->b[1]+btlocaly)*(utilde->b[1]+btlocaly)+(utilde->b[2]+btlocalz)*(utilde->b[2]+btlocalz))*rhoInv;
-  csndsq=PetscMax(gamma*(utilde->p)*rhoInv,1.e-4);
+  csndsq=PetscMax(gamma*utilde->p*rhoInv,1.e-4);
   tmp=PetscSqrtReal(PetscMax(((csndsq+Asq)*(csndsq+Asq) - 4.*csndsq*axsq),0));
   cfast=PetscSqrtReal(0.5*(csndsq+Asq+tmp));
-  alamda[0]=(utilde->ru[0]+cfast);
-  alamda[1]=(utilde->ru[0]-cfast);
+  alamda[0]=(utilde->u[0]+cfast);
+  alamda[1]=(utilde->u[0]-cfast);
+  PetscFunctionReturnVoid();
+}
+#undef __FUNCT__
+#define __FUNCT__ "ConsToPrim"
+static void ConsToPrim(const ConserveNode *u, const PetscReal gamma, PrimativeNode *v)
+{
+  int i;
+  PetscReal v2=0,b2=0;
+  PetscFunctionBeginUser;
+  v->r = u->r;
+  for (i=0;i<3;i++) {
+    v->u[i] = u->ru[i]/v->r;
+    v->b[i] = u->b[i];
+    v2 += v->u[i]*v->u[i];
+    b2 += v->b[i]*v->b[i];
+  }
+  v->p = (gamma-1.)*(u->e - 0.5*v->r*v2 - 0.5*b2);
   PetscFunctionReturnVoid();
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "MHDFlux"
-static void MHDFlux(const MHDNode *vl, const MHDNode *vr, PetscReal area, X3Ctx *ctx, MHDNode *flux)
+static void MHDFlux(const ConserveNode *ul, const ConserveNode *ur, PetscReal area, X3Ctx *ctx, ConserveNode *flux)
 {
-  int       i;
-  MHDNode   finvl,finvr,durl,utilde;
-  PetscReal alamdaL[2],alamdaR[2],rho,u,v,w,bx,by,bz,eint,press,bxsq,lamdaMax=0,lamdaMin=0,bysq,bzsq;
+  int            i;
+  PrimativeNode  vl,vr;
+  ConserveNode   finvl,finvr,durl;
+  PetscReal      alamdaL[2],alamdaR[2],rho,u,v,w,bx,by,bz,eint,press,bxsq,lamdaMax=0,lamdaMin=0,bysq,bzsq;
 
   PetscFunctionBeginUser;
-  if (vl->r != vl->r) exit(12);
+  if (ul->r != ul->r) exit(12);
   for (i=0; i<2; i++) alamdaL[i] = 0;
   for (i=0; i<2; i++) alamdaR[i] = 0;
 
-  utilde = *vl;
-  SetEigenValues(&utilde,alamdaL,ctx->gamma);
-  utilde = *vr;
-  SetEigenValues(&utilde,alamdaR,ctx->gamma);
-  SetDurl(&durl,vl,vr,ctx->gamma);
+  ConsToPrim(ul,ctx->gamma,&vl);
+  ConsToPrim(ur,ctx->gamma,&vr);
+  SetEigenValues(&vl,ctx->gamma,alamdaL);
+  SetEigenValues(&vr,ctx->gamma,alamdaR);
+  SetDurl(&vl,&vr,ctx->gamma,&durl);
   for (i=0;i<2;i++) lamdaMin = PetscMin(lamdaMin,PetscMin(alamdaL[i],alamdaR[i]));
   for (i=0;i<2;i++) lamdaMax = PetscMax(lamdaMax,PetscMax(alamdaL[i],alamdaR[i]));
-  rho=vl->r;
-  u=vl->ru[0]; v=vl->ru[1]; w=vl->ru[2];
-  bx=vl->b[0]; by=vl->b[1]; bz=vl->b[2];
+  rho = vl.r;
+  u = vl.u[0]; v = vl.u[1]; w = vl.u[2];
+  bx =vl.b[0]; by= vl.b[1]; bz= vl.b[2];
   bxsq=bx*bx;
   bysq=by*by;
   bzsq=bz*bz;
-  press=vl->p;
-  finvl.r=rho*u;
-  finvl.ru[0]=rho*u*u +press+0.5*(bysq+bzsq-bxsq);
-  finvl.ru[1]=rho*u*v-bx*by;
-  finvl.ru[2]=rho*u*w-bx*bz;
-  eint=(press)/(ctx->gamma-1);
+  press = vl.p;
+  finvl.r = rho*u;
+  finvl.ru[0] = rho*u*u + press + 0.5*(bysq+bzsq-bxsq);
+  finvl.ru[1] = rho*u*v-bx*by;
+  finvl.ru[2] = rho*u*w-bx*bz;
+  eint = press/(ctx->gamma-1);
   finvl.b[0]=0;
   finvl.b[1]=u*by-v*bx;
   finvl.b[2]=u*bz-w*bx;
-  finvl.p=(0.5*rho*(u*u+v*v+w*w)+eint+(press)+(bxsq+bysq+bzsq))*vl->ru[0]-bx*(u*bx+v*by+w*bz); /* only ru_x ? */
-  rho=vr->r;
-  u=vr->ru[0]; v=vr->ru[1]; w=vr->ru[2];
-  bx=vr->b[0]; by=vr->b[1]; bz=vr->b[2];
+  finvl.e=(0.5*rho*(u*u+v*v+w*w)+eint+press+(bxsq+bysq+bzsq))*u - bx*(u*bx+v*by+w*bz); /* ??? */
+  rho=vr.r;
+  u= vr.u[0]; v= vr.u[1]; w= vr.u[2];
+  bx=vr.b[0]; by=vr.b[1]; bz=vr.b[2];
   bxsq=bx*bx;
   bysq=by*by;
   bzsq=bz*bz;
-  press=vr->p;
-  finvr.r=rho*u;
+  press = vr.p;
+  finvr.r = rho*u;
   finvr.ru[0]=rho*u*u +press+0.5*(bysq+bzsq-bxsq);
   finvr.ru[1]=rho*u*v-bx*by;
   finvr.ru[2]=rho*u*w-bx*bz;
-  eint=(press)/(ctx->gamma-1);
+  eint = press/(ctx->gamma-1);
   finvr.b[0]=0;
   finvr.b[1]=u*by-v*bx;
   finvr.b[2]=u*bz-w*bx;
-  finvr.p=(0.5*rho*(u*u+v*v+w*w)+eint+press+(bxsq+bysq+bzsq))*vr->ru[0]-bx*(u*bx+v*by+w*bz); /* only ru_x ? */
-  for (i=0;i<ctx->ndof;i++) flux->vals[i] = area*(lamdaMax*finvl.vals[i]-lamdaMin*finvr.vals[i]+lamdaMin*lamdaMax*durl.vals[i])/(lamdaMax-lamdaMin);
+  finvr.e=(0.5*rho*(u*u+v*v+w*w)+eint+press+(bxsq+bysq+bzsq))*u - bx*(u*bx+v*by+w*bz);
+  for (i=0;i<ctx->ndof;i++) flux->vals[i] = area*(lamdaMax*finvl.vals[i] - lamdaMin*finvr.vals[i] + lamdaMin*lamdaMax*durl.vals[i])/(lamdaMax-lamdaMin);
   /* PetscPrintf(PETSC_COMM_WORLD,"%s: flux=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",__FUNCT__,flux->vals[0],flux->vals[1],flux->vals[2],flux->vals[3],flux->vals[4],flux->vals[5],flux->vals[6],flux->vals[7]); */
   if (flux->r != flux->r) exit(99);
   PetscFunctionReturnVoid();
@@ -1893,12 +1924,12 @@ static void MHDFlux(const MHDNode *vl, const MHDNode *vr, PetscReal area, X3Ctx 
 static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], const PetscReal n[],
                                 const PetscScalar *xL, const PetscScalar *xR, PetscScalar *aflux, void *a_ctx)
 {
-  X3Ctx           *ctx = (X3Ctx*)a_ctx;
-  PetscReal       nhat[3],t,v[3],R[3][3],area;
-  PetscInt        i,j;
-  const MHDNode   *uL = (const MHDNode*)xL,*uR = (const MHDNode*)xR;
-  MHDNode         *retflux = (MHDNode*)aflux, flux;
-  MHDNode          luR, luL;
+  X3Ctx              *ctx = (X3Ctx*)a_ctx;
+  PetscReal          nhat[3],t,v[3],R[3][3],area;
+  PetscInt           i,j;
+  const ConserveNode *uL = (const ConserveNode*)xL,*uR = (const ConserveNode*)xR;
+  ConserveNode       *retflux = (ConserveNode*)aflux, flux;
+  ConserveNode       luR, luL;
   PetscFunctionBeginUser;
 
   for (i=0,area=0; i<3; i++) {
@@ -1925,9 +1956,9 @@ static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], 
     R[2][0] += t*v[2]*v[0];               R[2][1] += t*v[1]*v[2];               R[2][2] -= t*(v[1]*v[1] + v[0]*v[0]);
   }
   luL.r = uL->r; /* copy states and rotate to local coordinate, R*nhat = (1,0,0) */
-  luL.p = uL->p;
+  luL.e = uL->e;
   luR.r = uR->r;
-  luR.p = uR->p;
+  luR.e = uR->e;
   MATVEC3(R,uR->ru,luR.ru);
   MATVEC3(R,uL->ru,luL.ru);
   MATVEC3(R,uR->b, luR.b);
@@ -1938,19 +1969,19 @@ static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], 
   MATTRANSVEC3(R,flux.ru,retflux->ru);
   MATTRANSVEC3(R,flux.b,retflux->b);
   retflux->r = flux.r;
-  retflux->p = flux.p;
+  retflux->e = flux.e;
   PetscFunctionReturnVoid();
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "PhysicsBoundary_MHD_Wall"
-static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *crd, const PetscReal n[], const PetscScalar *axI, PetscScalar *axG, void *a_ctx)
+static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *x, const PetscReal n[], const PetscScalar *axI, PetscScalar *axG, void *a_ctx)
 {
-  X3Ctx           *ctx = (X3Ctx*)a_ctx;
-  PetscInt        i,j;
-  const MHDNode   *xI = (const MHDNode*)axI;
-  MHDNode         *xG = (MHDNode*)axG;
-  PetscReal       nhat[3],t,r,v[3],R[3][3],Rph[3][3],area,ru[3],nphi[3],cphi,sphi;
+  X3Ctx              *ctx = (X3Ctx*)a_ctx;
+  PetscInt           i,j;
+  const ConserveNode *xI = (const ConserveNode*)axI;
+  ConserveNode       *xG = (ConserveNode*)axG;
+  PetscReal          nhat[3],t,r,v[3],R[3][3],Rph[3][3],area,ru[3],nphi[3],cphi,sphi;
   PetscFunctionBeginUser;
   if (xI->r<=0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," bad density = %g",xI->r);
   for (i=0,area=0; i<3; i++) {
@@ -1959,7 +1990,7 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *
   }
   area = PetscSqrtReal(area); /* area */
   for (i=0; i<3; i++) nhat[i] /= area; /* |nhat|==1 */
-  if (nhat[0] < -0.999999) { /* == (-1,0,0) , a singularity of this rotation */
+  if (nhat[0] < -0.999999) { /* == (-1,0,0) , the singularity of this rotation */
     for (i=0; i<3; i++) for (j=0; j<3; j++) R[i][j] = (i==j) ? -1 : 0; /* I * cos(theta) = -I */
     /* R[1][1] = 1; */ /* rotation about y axis 180 degrees */
     R[2][2] = 1; /* rotation about z axis 180 degrees, to point in (1,0,0) */
@@ -1977,34 +2008,31 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *
     R[2][0] += t*v[2]*v[0];               R[2][1] += t*v[1]*v[2];               R[2][2] -= t*(v[1]*v[1] + v[0]*v[0]);
   }
   xG->r = xI->r; /* copy states and rotate to local coordinate, R*nhat = (1,0,0) */
-  xG->p = xI->p;
-  /* apply BC */
-  for (i=0; i<3; i++) xG->b[i] = xI->b[i];  /* BC copy */
-  xG->r = xI->r; /* ghost cell density - same */
-  xG->p = xI->p; /* ghost cell energy - same */
-  MATVEC3(R,xI->ru,ru);
-  ru[0] = -ru[0]; /* no normal flow */
-  /* rotate fluxes back to original coordinate system */
-  MATTRANSVEC3(R,ru,xG->ru);
-  /* MATVEC3(R,n,nhat); */
-  /* geometry, of we want different BCs on ends and sides */
-  if (0) {
-    r = PetscSqrtReal(crd[0]*crd[0] + crd[1]*crd[1]);
+  xG->e = xI->e;
+  for (i=0; i<3; i++) xG->b[i] = xI->b[i];
+  for (i=0; i<3; i++) xG->ru[i]= xI->ru[i];
+  if (ctx->run_type == X3_RADIAL_SHOCK) { /* noop */
+    r = PetscSqrtReal(x[0]*x[0] + x[1]*x[1]);
     if (s_use_line_section) {
       cphi = 1;   sphi = 0; /* identity, no rotation of normal */
     } else {
-      cphi = crd[0]/r;   sphi = crd[1]/r;
+      cphi = x[0]/r;   sphi = x[1]/r;
     }
     Rph[0][0] = cphi; Rph[0][1] = sphi;
     Rph[1][0] =-sphi; Rph[1][1] = cphi;
     /* rotate (n_x, n_y) to plane */
     MATVEC2(Rph,n,nphi);
-    if (PetscAbsReal(nphi[0])<1.e-12) { /* end plate */
-      PetscPrintf(PETSC_COMM_WORLD,"\t%s: end plate x = %17.10e %17.10e %17.10e ru = %17.10e %17.10e %17.10e\n", __FUNCT__,nhat[0],nhat[1],nhat[2],crd[0],crd[1],crd[2]);
+    if (PetscAbsReal(nphi[0])<1.e-12) { /* end plate, use default */
+      /* PetscPrintf(PETSC_COMM_WORLD,"\t%s: end plate x = %17.10e %17.10e %17.10e\n",__FUNCT__,x[0],x[1],x[2]); */
       assert(ctx->grid.section_phi != 2);
-    } else { /* side (torus) */
-      PetscPrintf(PETSC_COMM_WORLD,"%s: side x = %17.10e %17.10e %17.10e. ru = %17.10e %17.10e %17.10e\n",__FUNCT__,nhat[0],nhat[1],nhat[2],crd[0],crd[1],crd[2]);
+    } else { /* side (torus)  */
+      /* PetscPrintf(PETSC_COMM_WORLD,"%s: set BC: r = %17.10e. x = %17.10e %17.10e %17.10e\n",__FUNCT__,r,x[0],x[1],x[2]); */
     }
+  } else {
+    MATVEC3(R,xI->ru,ru);
+    ru[0] = -ru[0]; /* no normal flow perp to wall */
+    /* rotate fluxes back to original coordinate system */
+    MATTRANSVEC3(R,ru,xG->ru);
   }
   PetscFunctionReturn(0);
 }
@@ -2016,75 +2044,100 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
 {
   X3Ctx           *ctx = (X3Ctx*)modctx;
   PetscInt        i;
-  MHDNode         *uu  = (MHDNode*)u;
+  ConserveNode    *uu  = (ConserveNode*)u;
+  PetscReal       cth,sth,cphi,sphi,rhat,zbar,xtilda,phi,vr,vtheta,vzbar,fr,gr,v[2],p[2],Rth[2][2],Rph[2][2],br,bzbar,btheta;
+  const PetscReal a=ctx->grid.radius_minor,x=xx[0]/a,y=xx[1]/a,z=xx[2]/a,rmaj=ctx->grid.radius_major/a,L=(1+rmaj)*ctx->grid.section_phi*M_PI/a;
+  const PetscReal r = PetscSqrtReal(x*x + y*y);
+  const PetscReal gamma = ctx->gamma, P0=1, rho0=1;
   PetscFunctionBegin;
-  if (time != 0.0) exit(11);
+  /* geometry - normalized to r_minor */
+  xtilda = r - rmaj;
+  rhat = PetscSqrtReal(xtilda*xtilda + z*z);
+  cth  = xtilda/rhat; sth = z/rhat;
+  if (s_use_line_section) {
+    zbar = y + L/2; /* cylinder is centered at y=0 */
+    cphi = 1;   sphi = 0; /* identity, no rotation */
+  } else {
+    phi = atan2(y,x);
+    zbar = r*phi;
+    cphi = x/r;   sphi = y/r;
+  }
+  Rth[0][0] = cth; Rth[0][1] =-sth;
+  Rth[1][0] = sth; Rth[1][1] = cth;
+  Rph[0][0] = cphi; Rph[0][1] =-sphi;
+  Rph[1][0] = sphi; Rph[1][1] = cphi;
   if (ctx->run_type == X3_LINETIED) {
-    /* Line-tied problems from 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
-    PetscReal       cth,sth,cphi,sphi,r,rhat,zbar,rtilda,phi,vr,vtheta,vzbar,fr,gr,v[2],p[2],Rth[2][2],Rph[2][2],br,bzbar,btheta;
-    const PetscReal a=ctx->grid.radius_minor,x=xx[0]/a,y=xx[1]/a,z=xx[2],rmaj=ctx->grid.radius_major/a;
-    const PetscReal L=(1+rmaj)*ctx->grid.section_phi*M_PI,P0=0.01,A=0.01,lam=ctx->lt_lambda/a;
-    /* P & rho */
-    uu->r = 1.;
-    uu->p = P0;
-    /* geometry */
-    r = PetscSqrtReal(x*x + y*y);
-    rtilda = r - rmaj;
-    rhat = PetscSqrtReal(rtilda*rtilda + z*z);
-    cth  = rtilda/rhat; sth = z/rhat;
-    if (s_use_line_section) {
-      zbar = y;
-      cphi = 1;   sphi = 0; /* identity, no rotation */
-    } else {
-      phi = atan2(y,x);
-      zbar = r*phi - L/2; /* ~y */
-      cphi = x/r;   sphi = y/r;
-    }
-    Rth[0][0] = cth; Rth[0][1] =-sth;
-    Rth[1][0] = sth; Rth[1][1] = cth;
-    Rph[0][0] = cphi; Rph[0][1] =-sphi;
-    Rph[1][0] = sphi; Rph[1][1] = cphi;
-    /* ru */
+ /* Line-tied problems from 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
+    const PetscReal A=0.01,lam=ctx->data.lt_lambda/a,P0=1;
     fr = .5*rhat*exp(-rhat*rhat/8 + .5);
     gr = exp(-rhat*rhat/8 + .5) - .125*rhat*rhat*exp(-rhat*rhat/8 + .5);
-    vr =    -A*fr*sin(2*M_PI*zbar/L);
-    vtheta =-A*fr*(1+cos(2*M_PI*zbar/L));
-    vzbar  =-A*gr*(1+cos(2*M_PI*zbar/L));
-    /* rotate r & theta by theta */
-    v[0] = vr; v[1] = vtheta;
-    MATVEC2(Rth,v,p);
-    v[0] = p[0]; /* v_r* */
-    uu->ru[2] = p[1]*uu->r; /* ru_z */
-    /* rotate by phi */
-    v[1] = vzbar;
-    MATVEC2(Rph,v,p);
-    uu->ru[0] = p[0]*uu->r; /* ru_x */
-    uu->ru[1] = p[1]*uu->r; /* ru_y */
+    /* ru */
+    vr =     A*fr*sin(2*M_PI*zbar/L);
+    vtheta =-A*fr*(1-cos(2*M_PI*zbar/L));
+    vzbar  =-A*gr*(1-cos(2*M_PI*zbar/L));
     /* B */
     br = 0;
     btheta = r/(1+r*r);
     bzbar = lam/(1+r*r);
-    /* rotate r & theta by theta */
-    v[0] = br; v[1] = btheta;
-    MATVEC2(Rth,v,p);
-    v[0] = p[0]; /* b_r* */
-    uu->b[2] = p[1]; /* b_z */
-    /* rotate by phi */
-    v[1] = bzbar;
-    MATVEC2(Rph,v,p);
-    uu->b[0] = p[0]; /* b_x */
-    uu->b[1] = p[1]; /* b_y */
-    /* get speed */
-    for (i=0,r=0; i<3; i++) {
-      cth = uu->ru[i]/uu->r;
-      r += cth*cth;
-    }
-    r = PetscSqrtReal(r);
-    if (r > ctx->maxspeed) ctx->maxspeed = r;
+    /* E & rho */
+    uu->r = rho0;
+    uu->e = P0/(gamma-1) + (vr*vr + vtheta*vtheta + vzbar*vzbar)*uu->r; /* uu->p = P0; */
   } else {
-    /* radial shock */
-
+    PetscReal       press;
+    assert(ctx->run_type == X3_RADIAL_SHOCK);
+    uu->r = rho0;
+    press = P0;
+    /* ru */
+    vr     = 0;
+    vtheta = 0;
+    vzbar  = 0;
+    /* B */
+    br     = 0;
+    btheta = 0;
+    bzbar  = 0;
+    if (rhat > 0.9) {
+      PetscReal c0,gas1,gas2,rho1,u0,amach=ctx->data.ccms.M;
+      c0=PetscSqrtReal(gamma*P0/rho0);
+      u0=0;
+      press = P0*(1.0+2.*gamma/(gamma+1.)*(amach*amach-1.));
+      gas1=(gamma-1)/(gamma+1);
+      gas2=2*gamma/(gamma+1);
+      rho1 = rho0*(press/P0+gas1)/(gas1*press/P0+1);
+      vr = -((rho1-rho0)*c0*amach + rho0*u0)/rho1;
+      uu->r = rho1;
+      /* PetscPrintf(PETSC_COMM_WORLD,"\t\t%s: OUTER rhat = %17.10e; x = %17.10e %17.10e %17.10e. c0=%17.10e rho1=%17.10e rho0=%17.10e amach=%17.10e v_r=%17.10e\n", __FUNCT__,rhat,xx[0],xx[1],xx[2],c0,rho1,rho0,amach,vr); */
+    } else {
+      /* PetscPrintf(PETSC_COMM_WORLD,"\t%s: INNER rhat = %17.10e; x = %17.10e %17.10e %17.10e ru = %17.10e %17.10e %17.10e\n", __FUNCT__,rhat,xx[0],xx[1],xx[2]); */
+    }
+    uu->e = press/(gamma-1) + (vr*vr)*uu->r;
   }
+  /* rotate vr & vtheta by theta */
+  v[0] = vr; v[1] = vtheta;
+  MATVEC2(Rth,v,p);
+  uu->ru[2] = p[1]*uu->r; /* ru_z */
+  /* rotate by phi */
+  v[0] = p[0]; /* v_r* */
+  v[1] = vzbar;
+  MATVEC2(Rph,v,p);
+  uu->ru[0] = p[0]*uu->r; /* ru_x */
+  uu->ru[1] = p[1]*uu->r; /* ru_y */
+  /* rotate r & theta by theta */
+  v[0] = br; v[1] = btheta;
+  MATVEC2(Rth,v,p);
+  uu->b[2] = p[1]; /* b_z */
+  /* rotate by phi */
+  v[0] = p[0]; /* b_r* */
+  v[1] = bzbar;
+  MATVEC2(Rph,v,p);
+  uu->b[0] = p[0]; /* b_x */
+  uu->b[1] = p[1]; /* b_y */
+  /* get speed */
+  for (i=0,vr=0; i<3; i++) {
+    cth = uu->ru[i]/uu->r;
+    vr += cth*cth;
+  }
+  vr = PetscSqrtReal(vr);
+  if (vr > ctx->maxspeed) ctx->maxspeed = vr;
   PetscFunctionReturn(0);
 }
 
@@ -2157,7 +2210,8 @@ static PetscErrorCode initializeTS(DM dm, X3Ctx *ctx, TS *ts)
   ierr = TSSetDM(*ts, dm);CHKERRQ(ierr);
   ierr = DMTSSetBoundaryLocal(dm, DMPlexTSComputeBoundary, ctx);CHKERRQ(ierr);
   ierr = DMTSSetRHSFunctionLocal(dm, DMPlexTSComputeRHSFunctionFVM, ctx);CHKERRQ(ierr);
-  ierr = TSSetDuration(*ts,ctx->msteps,1.e12);CHKERRQ(ierr);
+  ierr = TSSetDuration(*ts,ctx->msteps,ctx->end_time);CHKERRQ(ierr);
+  ierr = TSSetInitialTimeStep(*ts,ctx->initial_time,ctx->dt);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(*ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -2396,10 +2450,12 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   /* time integrator */
   ctx->msteps = 1;
   ierr = PetscOptionsInt("-mstep", "Maximum number of time steps", "ex3.c", ctx->msteps, &ctx->msteps, NULL);CHKERRQ(ierr);
-  ctx->maxTime = 1000000000.;
-  ierr = PetscOptionsReal("-maxTime", "Maximum time", "ex3.c",ctx->maxTime,&ctx->maxTime,NULL);CHKERRQ(ierr);
-  ctx->dt = 0.;
+  ctx->end_time = 1000000000.;
+  ierr = PetscOptionsReal("-end_time", "Maximum time", "ex3.c",ctx->end_time,&ctx->end_time,NULL);CHKERRQ(ierr);
+  ctx->dt = 0;
   ierr = PetscOptionsReal("-dt","Time step","ex3.c",ctx->dt,&ctx->dt,NULL);CHKERRQ(ierr);
+  ctx->initial_time = 0.;
+  ierr = PetscOptionsReal("-initial_time","Initial time","ex3.c",ctx->initial_time,&ctx->initial_time,NULL);CHKERRQ(ierr);
   /* particles */
   ctx->num_particles_proc = 10;
   ierr = PetscOptionsInt("-num_particles_proc", "Number of particles local (flux tube cell)", "ex3.c", ctx->num_particles_proc, &ctx->num_particles_proc, NULL);CHKERRQ(ierr);
@@ -2463,15 +2519,18 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   ctx->run_type = X3_LINETIED;
   ierr = PetscStrcpy(name,"line_tied");CHKERRQ(ierr);
   ierr = PetscOptionsString("-run_type", "Type of run (line tied)", "ex3.c", name, name, sizeof(name)/sizeof(name[0]), NULL);CHKERRQ(ierr);
-  PetscStrcmp("torus",name,&flg);
   PetscStrcmp("line_tied",name,&flg);
   if (flg) {
-    ctx->lt_lambda = 0.5;
+    ctx->data.lt_lambda = 0.5;
     ctx->run_type = X3_LINETIED;
   }
   else {
     PetscStrcmp("radial_shock",name,&flg);
-    if (flg) ctx->run_type = X3_RADIAL_SHOCK;
+    if (flg) {
+      ctx->run_type = X3_RADIAL_SHOCK;
+      ctx->data.ccms.M = 1.1;
+      ierr = PetscOptionsReal("-mach", "Shock speed U_s", "ex3.c",ctx->data.ccms.M,&ctx->data.ccms.M,NULL);CHKERRQ(ierr);
+    }
     else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Unknown run type %s",name);
   }
 
@@ -2562,7 +2621,7 @@ struct FieldDescription {
   PetscInt dof;
 };
 /* 8 field M H D: r, ru, B, e */
-static const struct FieldDescription PhysicsFields_M[] = {{"Density",1},{"Momentum",3},{"B",3},{"Pressure",1},{NULL,0}};
+static const struct FieldDescription PhysicsFields_M[] = {{"Density",1},{"Momentum",3},{"B",3},{"Energy",1},{NULL,0}};
 
 /* FE point function */
 PetscErrorCode zero(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
@@ -2979,11 +3038,11 @@ int main(int argc, char **argv)
   /* collect max maxspeed from all processes */
   ierr = DMPlexTSGetGeometryFVM(dmmhd, NULL, NULL, &minRadius);CHKERRQ(ierr);
   ierr = MPI_Allreduce(&ctx->maxspeed,&maxspeed,1,MPIU_REAL,MPI_MAX,ctx->wComm);CHKERRQ(ierr);
-  if (maxspeed <= 0) SETERRQ(ctx->wComm,PETSC_ERR_ARG_WRONGSTATE,"Physics did not set maxspeed");
+  if (ctx->dt==0 && maxspeed <= 0) SETERRQ(ctx->wComm,PETSC_ERR_ARG_WRONGSTATE,"Physics did not set maxspeed");
   ctx->maxspeed = maxspeed;
-  if (ctx->dt==0) ctx->dt = ctx->cfl * minRadius / ctx->maxspeed;
-  ierr = TSSetInitialTimeStep(ts,0.0,ctx->dt);CHKERRQ(ierr);
-  if (ctx->dt == ctx->cfl * minRadius / ctx->maxspeed) ctx->dt = 0;
+  if (ctx->dt==0) ctx->dt = ctx->cfl * minRadius / ctx->maxspeed; /* set a default if none given */
+  ierr = TSSetInitialTimeStep(ts,ctx->initial_time,ctx->dt);CHKERRQ(ierr);
+  if (ctx->dt == ctx->cfl * minRadius / ctx->maxspeed) ctx->dt = 0; /* reset if used default */
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   ierr = TSSetPostStep(ts, X3TSView);CHKERRQ(ierr);
   ierr = TSSetApplicationContext(ts, ctx);CHKERRQ(ierr);
@@ -3023,7 +3082,7 @@ int main(int argc, char **argv)
         ierr = DMPlexTSGetGeometryFVM(dmmhd, NULL, NULL, &minRadius);CHKERRQ(ierr);
         ierr = MPI_Allreduce(&ctx->maxspeed,&maxspeed,1,MPIU_REAL,MPI_MAX,ctx->wComm);CHKERRQ(ierr);
         ctx->maxspeed = maxspeed;
-        if (ctx->dt==0) ctx->dt = ctx->cfl * minRadius / maxspeed;
+        if (ctx->dt==0) ctx->dt = ctx->cfl * minRadius / maxspeed; /* set a default if none given */
         ierr = TSSetInitialTimeStep(ts,ftime,ctx->dt);CHKERRQ(ierr);
         if (ctx->dt == ctx->cfl * minRadius / maxspeed) ctx->dt = 0; /* reset */
       }
