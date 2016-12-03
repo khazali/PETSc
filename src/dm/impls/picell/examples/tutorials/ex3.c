@@ -2022,9 +2022,17 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *
     Rph[1][0] =-sphi; Rph[1][1] = cphi;
     /* rotate (n_x, n_y) to plane */
     MATVEC2(Rph,n,nphi);
-    if (PetscAbsReal(nphi[0])<1.e-12) { /* end plate, use default */
+    if (PetscAbsReal(nphi[0])<1.e-12) { /* end plate */
       /* PetscPrintf(PETSC_COMM_WORLD,"\t%s: end plate x = %17.10e %17.10e %17.10e\n",__FUNCT__,x[0],x[1],x[2]); */
       assert(ctx->grid.section_phi != 2);
+      MATVEC3(R,xI->ru,ru);
+      ru[0] = -ru[0]; /* no normal flow perp to wall */
+      /* rotate fluxes back to original coordinate system */
+      MATTRANSVEC3(R,ru,xG->ru);
+      MATVEC3(R,xI->b,ru);
+      ru[0] = -ru[0]; /* no normal flow perp to wall */
+      /* rotate fluxes back to original coordinate system */
+      MATTRANSVEC3(R,ru,xG->b);
     } else { /* side (torus)  */
       /* PetscPrintf(PETSC_COMM_WORLD,"%s: set BC: r = %17.10e. x = %17.10e %17.10e %17.10e\n",__FUNCT__,r,x[0],x[1],x[2]); */
     }
@@ -2033,6 +2041,10 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *
     ru[0] = -ru[0]; /* no normal flow perp to wall */
     /* rotate fluxes back to original coordinate system */
     MATTRANSVEC3(R,ru,xG->ru);
+    MATVEC3(R,xI->b,ru);
+    ru[0] = -ru[0]; /* no normal flow perp to wall */
+    /* rotate fluxes back to original coordinate system */
+    MATTRANSVEC3(R,ru,xG->b);
   }
   PetscFunctionReturn(0);
 }
@@ -2046,12 +2058,11 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
   PetscInt        i;
   ConserveNode    *uu  = (ConserveNode*)u;
   PetscReal       cth,sth,cphi,sphi,rhat,zbar,xtilda,phi,vr,vtheta,vzbar,fr,gr,v[2],p[2],Rth[2][2],Rph[2][2],br,bzbar,btheta;
-  const PetscReal a=ctx->grid.radius_minor,x=xx[0]/a,y=xx[1]/a,z=xx[2]/a,rmaj=ctx->grid.radius_major/a,L=(1+rmaj)*ctx->grid.section_phi*M_PI/a;
-  const PetscReal r = PetscSqrtReal(x*x + y*y);
+  const PetscReal a=ctx->grid.radius_minor,x=xx[0],y=xx[1],z=xx[2],rmaj=ctx->grid.radius_major,L=(1+rmaj)*ctx->grid.section_phi*M_PI;
+  const PetscReal rtilda = PetscSqrtReal(x*x + y*y);
   const PetscReal gamma = ctx->gamma, P0=1, rho0=1;
   PetscFunctionBegin;
-  /* geometry - normalized to r_minor */
-  xtilda = r - rmaj;
+  xtilda = rtilda - rmaj;
   rhat = PetscSqrtReal(xtilda*xtilda + z*z);
   cth  = xtilda/rhat; sth = z/rhat;
   if (s_use_line_section) {
@@ -2059,31 +2070,31 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
     cphi = 1;   sphi = 0; /* identity, no rotation */
   } else {
     phi = atan2(y,x);
-    zbar = r*phi;
-    cphi = x/r;   sphi = y/r;
+    zbar = rtilda*phi;
+    cphi = x/rtilda;   sphi = y/rtilda;
   }
   Rth[0][0] = cth; Rth[0][1] =-sth;
   Rth[1][0] = sth; Rth[1][1] = cth;
   Rph[0][0] = cphi; Rph[0][1] =-sphi;
   Rph[1][0] = sphi; Rph[1][1] = cphi;
   if (ctx->run_type == X3_LINETIED) {
- /* Line-tied problems from 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
-    const PetscReal A=0.0001,lam=ctx->data.lt_lambda/a,P0=1;
+    /* From 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
+    const PetscReal A=0.0001,lam_a=ctx->data.lt_lambda/a,P0=1,r_a=rhat/a;
     fr = .5*rhat*exp(-rhat*rhat/8 + .5);
-    gr = exp(-rhat*rhat/8 + .5) - .125*rhat*rhat*exp(-rhat*rhat/8 + .5);
+    gr = .5*exp(-rhat*rhat/8 + .5) - .125*rhat*rhat*exp(-rhat*rhat/8 + .5);
     /* ru */
     vr =     A*fr*sin(2*M_PI*zbar/L);
     vtheta =-A*fr*(1-cos(2*M_PI*zbar/L));
     vzbar  =-A*gr*(1-cos(2*M_PI*zbar/L));
     /* B */
     br = 0;
-    btheta = r/(1+r*r);
-    bzbar = lam/(1+r*r);
+    btheta = r_a/(1 + r_a*r_a);
+    bzbar = lam_a/(1 + r_a*r_a);
     /* E & rho */
     uu->r = rho0;
     uu->e = P0/(gamma-1) + (vr*vr + vtheta*vtheta + vzbar*vzbar)*uu->r; /* uu->p = P0; */
   } else {
-    PetscReal       press;
+    PetscReal press,r_a=rhat/a;
     assert(ctx->run_type == X3_RADIAL_SHOCK);
     uu->r = rho0;
     press = P0;
@@ -2095,7 +2106,7 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
     br     = 0;
     btheta = 0;
     bzbar  = 0;
-    if (rhat > 0.9) {
+    if (r_a > 0.9) {
       PetscReal c0,gas1,gas2,rho1,u0,amach=ctx->data.ccms.M;
       c0=PetscSqrtReal(gamma*P0/rho0);
       u0=0;
@@ -2105,9 +2116,9 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
       rho1 = rho0*(press/P0+gas1)/(gas1*press/P0+1);
       vr = -((rho1-rho0)*c0*amach + rho0*u0)/rho1;
       uu->r = rho1;
-      /* PetscPrintf(PETSC_COMM_WORLD,"\t\t%s: OUTER rhat = %17.10e; x = %17.10e %17.10e %17.10e. c0=%17.10e rho1=%17.10e rho0=%17.10e amach=%17.10e v_r=%17.10e\n", __FUNCT__,rhat,xx[0],xx[1],xx[2],c0,rho1,rho0,amach,vr); */
+      /* PetscPrintf(PETSC_COMM_WORLD,"\t\t%s: OUTER r/a = %17.10e; x = %17.10e %17.10e %17.10e. c0=%17.10e rho1=%17.10e rho0=%17.10e amach=%17.10e v_r=%17.10e\n", __FUNCT__,r_a,xx[0],xx[1],xx[2],c0,rho1,rho0,amach,vr); */
     } else {
-      /* PetscPrintf(PETSC_COMM_WORLD,"\t%s: INNER rhat = %17.10e; x = %17.10e %17.10e %17.10e ru = %17.10e %17.10e %17.10e\n", __FUNCT__,rhat,xx[0],xx[1],xx[2]); */
+      /* PetscPrintf(PETSC_COMM_WORLD,"\t%s: INNER r/a = %17.10e; x = %17.10e %17.10e %17.10e ru = %17.10e %17.10e %17.10e\n", __FUNCT__,r_a,xx[0],xx[1],xx[2]); */
     }
     uu->e = press/(gamma-1) + (vr*vr)*uu->r;
   }
@@ -2140,6 +2151,57 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
   if (vr > ctx->maxspeed) ctx->maxspeed = vr;
   PetscFunctionReturn(0);
 }
+#undef __FUNCT__
+#define __FUNCT__ "X3Diagnostics"
+PetscErrorCode X3Diagnostics(DM dm, Vec gX, PetscInt step, X3Ctx *ctx)
+{
+  PetscErrorCode    ierr;
+  PetscReal         xnorm,KinE=0,MagE=0,IntE=0;
+  PetscInt          cEndInterior;
+  PetscInt          c,cStart,cEnd,i;
+  const PetscScalar *cgeom,*x;
+  DM                dmCell;
+  Vec               cellgeom;
+  PetscFunctionBeginUser;
+  if (s_debug>1) {
+    ierr = DMPlexTSGetGeometryFVM(dm, NULL, &cellgeom, NULL);CHKERRQ(ierr);
+    ierr = VecGetDM(cellgeom,&dmCell);CHKERRQ(ierr);
+    ierr = DMPlexGetHybridBounds(dmCell, &cEndInterior, NULL, NULL, NULL);CHKERRQ(ierr);
+    ierr = DMPlexGetHeightStratum(dmCell,0,&cStart,&cEnd);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(cellgeom,&cgeom);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(gX,&x);CHKERRQ(ierr);
+    for (c = cStart; c < cEndInterior; ++c) {
+      const PetscFVCellGeom *cg;
+      const PetscScalar     *cx=0;
+      /* not that these two routines as currently implemented work for any dm with a
+       * defaultSection/defaultGlobalSection */
+      ierr = DMPlexPointLocalRead(dmCell,c,cgeom,&cg);CHKERRQ(ierr);
+      ierr = DMPlexPointGlobalRead(dm,c,x,&cx);CHKERRQ(ierr);
+      if (cx) { /* a global cell */
+        const ConserveNode *v = (const ConserveNode*)cx;
+        PetscReal ru2=0,b2=0,ke,me;
+        PetscFunctionBeginUser;
+        for (i=0;i<3;i++) {
+          ru2 += v->ru[i]*v->ru[i];
+          b2  += v->b[i]*v->b[i];
+        }
+        KinE += (ke=0.5*(ru2/v->r)*cg->volume);
+        MagE += (me=0.5*b2*cg->volume);
+        IntE += v->e*cg->volume - ke - me;
+      }
+    }
+    ierr = VecRestoreArrayRead(cellgeom,&cgeom);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(gX,&x);CHKERRQ(ierr);
+    ierr = VecNorm(gX,NORM_INFINITY,&xnorm);CHKERRQ(ierr);
+    {
+      PetscReal s3[3] = {KinE,MagE,IntE},r3[3];
+      ierr = MPI_Allreduce(s3,r3,3,MPIU_REAL,MPI_SUM,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
+      PetscPrintf(PetscObjectComm((PetscObject)dm),"step %D) |u|_inf=%9.2e Kin. E. = %10.4e, Mag. E. = %10.4e, Internal E. = %10.4e, Total E. = %18.12e\n",
+                  step,xnorm,r3[0],r3[1],r3[2],r3[0]+r3[1]+r3[2]);
+    }
+  }
+  PetscFunctionReturn(0);
+}
 
 #undef __FUNCT__
 #define __FUNCT__ "SetInitialCondition"
@@ -2153,31 +2215,7 @@ PetscErrorCode SetInitialCondition(DM dm, Vec gX, X3Ctx *ctx)
   ctxa[0] = (void *) ctx;
   ierr = DMProjectFunction(dm,0.0,func,ctxa,INSERT_ALL_VALUES,gX);CHKERRQ(ierr);
   if (s_debug>0) {
-    const PetscInt ndof = ctx->ndof;
-    PetscScalar    *xx,*xx0,norms1[8],normsInf[8],gnorms1[8],gnormsInf[8];
-    PetscInt       lsize,gsz,ii,jj,N;
-    PetscMPIInt    rank;
-    ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
-    ierr = VecGetLocalSize(gX,&lsize);CHKERRQ(ierr);
-    ierr = VecGetSize(gX,&gsz);CHKERRQ(ierr);
-    N = lsize/ndof; assert(lsize%ndof==0);
-    for (jj=0;jj<ndof;jj++) norms1[jj] = normsInf[jj] = 0;
-    ierr = VecGetArray(gX,&xx0);CHKERRQ(ierr);
-    for (ii=0,xx=xx0;ii<N;ii++) {
-      for (jj=0;jj<ndof;jj++,xx++) {
-        PetscScalar t = PetscAbsReal(*xx);
-        norms1[jj] += t;
-        if (t>normsInf[jj]) normsInf[jj] = t;
-      }
-    }
-    assert(xx-xx0 == lsize);
-    ierr = VecRestoreArray(gX,&xx0);CHKERRQ(ierr);
-    ierr = MPI_Allreduce(normsInf,gnormsInf,ndof,MPIU_REAL,MPI_MAX,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
-    PetscPrintf(PETSC_COMM_WORLD,"step %D) |u|_inf=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",0,gnormsInf[0],gnormsInf[1],gnormsInf[2],gnormsInf[3],gnormsInf[4],gnormsInf[5],gnormsInf[6],gnormsInf[7]);
-    if (s_debug>1) {
-      ierr = MPI_Allreduce(norms1,gnorms1,ndof,MPIU_REAL,MPI_SUM,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
-      PetscPrintf(PETSC_COMM_WORLD,"step %D) |u|_1=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",0,gnorms1[0],gnorms1[1],gnorms1[2],gnorms1[3],gnorms1[4],gnorms1[5],gnorms1[6],gnorms1[7]);
-    }
+    ierr = X3Diagnostics(dm,gX,0,ctx);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -2412,15 +2450,14 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   t1 = 10.;
   ierr = PetscOptionsReal("-section_length", "Length if section (cylinder)", "ex3.c", t1, &t1,&flg);CHKERRQ(ierr);
   if (flg || ctx->grid.section_phi != 2) {
-    if(ctx->grid.section_phi != 2 && flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-section_length with -section_phi not allowed, over constrained specification");
+    if(ctx->grid.section_phi != 2 && flg) SETERRQ(ctx->wComm, PETSC_ERR_USER, "-section_length with -section_phi not allowed, over constrained specification");
     else if(ctx->grid.section_phi == 2) {
       /* cylindrical flux tube, with L (section_length) specified */
       ctx->grid.section_phi = atan2(t1, ctx->grid.radius_major + ctx->grid.radius_minor) / M_PI;
-      PetscPrintf(PETSC_COMM_WORLD,"%s: set default L = %16.8e (r_maj + r_min)*phi = %16.8e\n",__FUNCT__,t1,(ctx->grid.radius_major + ctx->grid.radius_minor)*ctx->grid.section_phi*M_PI);
+      PetscPrintf(ctx->wComm,"%s: set default L = %16.8e (r_maj + r_min)*phi = %16.8e\n",__FUNCT__,t1,(ctx->grid.radius_major + ctx->grid.radius_minor)*ctx->grid.section_phi*M_PI);
     }
     /* else section specified */
   }
-  if (ctx->grid.section_phi != 2 && ctx->grid.section_phi>=0.5) SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_USER, "straight (line) section requires section phi < 1/2",ctx->grid.section_phi);
 
   ctx->domain_type = X3_TORUS;
   ierr = PetscStrcpy(name,"torus");CHKERRQ(ierr);
@@ -2436,13 +2473,13 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
     else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Unknown run type %s",name);
     if (ctx->grid.section_phi == 2) {
       ctx->grid.section_phi = atan2( t1, ctx->grid.radius_major + ctx->grid.radius_minor ) / M_PI;
-      PetscPrintf(PETSC_COMM_WORLD,"%s: set default section for cylinder L = %16.8e %16.8e\n",__FUNCT__,t1,(ctx->grid.radius_major + ctx->grid.radius_minor)*ctx->grid.section_phi*M_PI);
-    }
+      PetscPrintf(ctx->wComm,"%s: set default section for cylinder L = %16.8e %16.8e\n",__FUNCT__,t1,(ctx->grid.radius_major + ctx->grid.radius_minor)*ctx->grid.section_phi*M_PI);
+    } else if (ctx->grid.section_phi>=0.5) SETERRQ1(ctx->wComm, PETSC_ERR_USER, "straight (line) section requires section phi < 1/2",ctx->grid.section_phi);
     s_use_line_section = PETSC_TRUE;
   }
   s_section_phi = ctx->grid.section_phi;
   ierr = PetscOptionsInt("-num_phi_cells", "Number of cells per major circle", "ex3.c", ctx->grid.num_phi_cells, &ctx->grid.num_phi_cells, NULL);CHKERRQ(ierr);
-  if (ctx->grid.num_phi_cells<3 && ctx->grid.section_phi==2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER," Not enough phi cells %D",ctx->grid.num_phi_cells);
+  if (ctx->grid.num_phi_cells<3 && ctx->grid.section_phi==2) SETERRQ1(ctx->wComm,PETSC_ERR_USER," Not enough phi cells %D",ctx->grid.num_phi_cells);
   ierr = PetscOptionsReal("-inner_mult", "Fraction of minor radius taken by inner square", "ex3.c", ctx->grid.inner_mult, &ctx->grid.inner_mult, NULL);CHKERRQ(ierr);
 
   /* PetscPrintf(PETSC_COMM_SELF,"[%D] pe/plane=%D, my plane=%D, my local rank=%D, np_phi=%D\n",ctx->rank,ctx->npe_particlePlane,ctx->ParticlePlaneIdx,ctx->particlePlaneRank,ctx->grid.np_phi);    */
@@ -2523,15 +2560,13 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   if (flg) {
     ctx->data.lt_lambda = 0.5;
     ctx->run_type = X3_LINETIED;
-  }
-  else {
+  } else {
     PetscStrcmp("radial_shock",name,&flg);
     if (flg) {
       ctx->run_type = X3_RADIAL_SHOCK;
       ctx->data.ccms.M = 1.1;
       ierr = PetscOptionsReal("-mach", "Shock speed U_s", "ex3.c",ctx->data.ccms.M,&ctx->data.ccms.M,NULL);CHKERRQ(ierr);
-    }
-    else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Unknown run type %s",name);
+    } else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Unknown run type %s",name);
   }
 
   if (ctx->num_particles_total) { /* set s_rminor_inflate to cover particles */
@@ -2543,14 +2578,13 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
     nmajor_total = ctx->grid.num_phi_cells;
     if (flg) {
       ierr = PetscOptionsGetInt(NULL,NULL,"-dm_forest_initial_refinement", &idx, &flg);CHKERRQ(ierr);
-      if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-dm_forest_initial_refinement not found?");
+      if (!flg) SETERRQ(ctx->wComm, PETSC_ERR_USER, "-dm_forest_initial_refinement not found?");
       nmajor_total *= pow(2,idx);  /* plex does not get the curve */
-    }
-    else {
+    } else {
       ierr = PetscOptionsGetInt(NULL,NULL,"-dm_refine", &idx, &flg);CHKERRQ(ierr);
-      if (!flg) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "-dm_refine not found? (Plex not supported?)");
+      if (!flg) SETERRQ(ctx->wComm, PETSC_ERR_USER, "-dm_refine not found? (Plex not supported?)");
     }
-    if (idx<1) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "refine must be greater than 0");
+    if (idx<1) SETERRQ(ctx->wComm, PETSC_ERR_USER, "refine must be greater than 0");
     ntheta_total *= pow(2,idx);
     /* inflate for corners in plane */
     radius = ctx->grid.radius_minor;
@@ -2840,10 +2874,10 @@ static PetscErrorCode getFilePrefix(X3Ctx *ctx, int sz, char buf[])
 {
   PetscErrorCode    ierr;
   PetscFunctionBegin;
-  ierr = PetscSNPrintf(buf, sz, "u_%s_%s_%gPI_rmaj=%g_rmin=%g",ctx->run_type==X3_RADIAL_SHOCK ? "shock" : "linetied",
-                       s_use_line_section ? "cylinder" : "torus",
-                       ctx->grid.section_phi,ctx->grid.radius_major,
-                       ctx->grid.radius_minor);CHKERRQ(ierr);
+  ierr = PetscSNPrintf(buf, sz, "u_%gPI_rmaj=%g_rmin=%g_%s_%s",
+                       ctx->grid.section_phi, ctx->grid.radius_major, ctx->grid.radius_minor,
+                       ctx->run_type==X3_RADIAL_SHOCK ? "shock" : "linetied",
+                       s_use_line_section ? "cylinder" : "torus");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -2875,30 +2909,7 @@ static PetscErrorCode X3TSView(TS ts)
   ierr = particle_poststep(ts);CHKERRQ(ierr);
   /* output text data of norms */
   if (ctx->view_sol && s_debug>0) {
-    const PetscInt ndof = ctx->ndof;
-    PetscScalar    *xx,*xx0,norms1[8],normsInf[8],gnorms1[8],gnormsInf[8];
-    PetscInt       lsize,gsz,ii,jj,N;
-    ierr = VecGetLocalSize(X,&lsize);CHKERRQ(ierr);
-    ierr = VecGetSize(X,&gsz);CHKERRQ(ierr);
-    PetscPrintf(PETSC_COMM_WORLD,"\t\t[%D]%s %D equations (%D local)\n",0,__FUNCT__,gsz,lsize);
-    N = lsize/ndof; assert(lsize%ndof==0);
-    for (jj=0;jj<ndof;jj++) norms1[jj] = normsInf[jj] = 0;
-    ierr = VecGetArray(X,&xx0);CHKERRQ(ierr);
-    for (ii=0,xx=xx0;ii<N;ii++) {
-      for (jj=0;jj<ndof;jj++,xx++) {
-        PetscScalar t = PetscAbsReal(*xx);
-        norms1[jj] += t;
-        if (t>normsInf[jj]) normsInf[jj] = t;
-      }
-    }
-    assert(xx-xx0 == lsize);
-    ierr = VecRestoreArray(X,&xx0);CHKERRQ(ierr);
-    ierr = MPI_Allreduce(normsInf,gnormsInf,ndof,MPIU_REAL,MPI_MAX,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
-    PetscPrintf(PETSC_COMM_WORLD,"step %D) |u|_inf=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",stepi,gnormsInf[0],gnormsInf[1],gnormsInf[2],gnormsInf[3],gnormsInf[4],gnormsInf[5],gnormsInf[6],gnormsInf[7]);
-    if (s_debug>1) {
-      ierr = MPI_Allreduce(norms1,gnorms1,ndof,MPIU_REAL,MPI_SUM,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
-      PetscPrintf(PETSC_COMM_WORLD,"step %D) |u|_1=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",stepi,gnorms1[0],gnorms1[1],gnorms1[2],gnorms1[3],gnorms1[4],gnorms1[5],gnorms1[6],gnorms1[7]);
-    }
+    ierr = X3Diagnostics(dm,X,stepi,ctx);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
