@@ -2011,17 +2011,18 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *
   xG->e = xI->e;
   for (i=0; i<3; i++) xG->b[i] = xI->b[i];
   for (i=0; i<3; i++) xG->ru[i]= xI->ru[i];
-  if (ctx->run_type == X3_RADIAL_SHOCK) { /* noop */
-    r = PetscSqrtReal(x[0]*x[0] + x[1]*x[1]);
-    if (s_use_line_section) {
-      cphi = 1;   sphi = 0; /* identity, no rotation of normal */
-    } else {
-      cphi = x[0]/r;   sphi = x[1]/r;
-    }
-    Rph[0][0] = cphi; Rph[0][1] = sphi;
-    Rph[1][0] =-sphi; Rph[1][1] = cphi;
-    /* rotate (n_x, n_y) to plane */
-    MATVEC2(Rph,n,nphi);
+  /* rotate to check for end */
+  r = PetscSqrtReal(x[0]*x[0] + x[1]*x[1]);
+  if (s_use_line_section) {
+    cphi = 1;   sphi = 0; /* identity, no rotation of normal */
+  } else {
+    cphi = x[0]/r;   sphi = x[1]/r;
+  }
+  Rph[0][0] = cphi; Rph[0][1] = sphi;
+  Rph[1][0] =-sphi; Rph[1][1] = cphi;
+  /* rotate (n_x, n_y) to plane */
+  MATVEC2(Rph,n,nphi);
+  if (ctx->run_type == X3_RADIAL_SHOCK) {
     if (PetscAbsReal(nphi[0])<1.e-12) { /* end plate */
       /* PetscPrintf(PETSC_COMM_WORLD,"\t%s: end plate x = %17.10e %17.10e %17.10e\n",__FUNCT__,x[0],x[1],x[2]); */
       assert(ctx->grid.section_phi != 2);
@@ -2037,14 +2038,16 @@ static PetscErrorCode PhysicsBoundary_MHD_Wall(PetscReal time, const PetscReal *
       /* PetscPrintf(PETSC_COMM_WORLD,"%s: set BC: r = %17.10e. x = %17.10e %17.10e %17.10e\n",__FUNCT__,r,x[0],x[1],x[2]); */
     }
   } else {
-    MATVEC3(R,xI->ru,ru);
-    ru[0] = -ru[0]; /* no normal flow perp to wall */
-    /* rotate fluxes back to original coordinate system */
-    MATTRANSVEC3(R,ru,xG->ru);
-    MATVEC3(R,xI->b,ru);
-    ru[0] = -ru[0]; /* no normal flow perp to wall */
-    /* rotate fluxes back to original coordinate system */
-    MATTRANSVEC3(R,ru,xG->b);
+    if (PetscAbsReal(nphi[0])<1.e-12) { /* end plate */
+      MATVEC3(R,xI->ru,ru);
+      ru[0] = -ru[0]; /* no normal flow perp to wall */
+      /* rotate fluxes back to original coordinate system */
+      MATTRANSVEC3(R,ru,xG->ru);
+      /* MATVEC3(R,xI->b,ru); */
+      /* ru[0] = -ru[0]; /\* no normal flow perp to wall *\/ */
+      /* /\* rotate fluxes back to original coordinate system *\/ */
+      /* MATTRANSVEC3(R,ru,xG->b); */
+    }
   }
   PetscFunctionReturn(0);
 }
@@ -2079,20 +2082,22 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
   Rph[1][0] = sphi; Rph[1][1] = cphi;
   if (ctx->run_type == X3_LINETIED) {
     /* From 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
-    const PetscReal A=0.0001,lam_a=ctx->data.lt_lambda/a,P0=1,r_a=rhat/a;
+    const PetscReal A=0.0001,lam_a=ctx->data.lt_lambda/a,r_a=rhat/a,B0=1;
+    PetscReal press;
     fr = .5*rhat*exp(-rhat*rhat/8 + .5);
-    gr = .5*exp(-rhat*rhat/8 + .5) - .125*rhat*rhat*exp(-rhat*rhat/8 + .5);
+    gr = (1 - .125*rhat*rhat)*exp(-rhat*rhat/8 + .5);
     /* ru */
     vr =     A*fr*sin(2*M_PI*zbar/L);
     vtheta =-A*fr*(1-cos(2*M_PI*zbar/L));
     vzbar  =-A*gr*(1-cos(2*M_PI*zbar/L));
     /* B */
     br = 0;
-    btheta = r_a/(1 + r_a*r_a);
-    bzbar = lam_a/(1 + r_a*r_a);
+    btheta = B0*  r_a/(1 + r_a*r_a);
+    bzbar =  B0*lam_a/(1 + r_a*r_a);
     /* E & rho */
     uu->r = rho0;
-    uu->e = P0/(gamma-1) + (vr*vr + vtheta*vtheta + vzbar*vzbar)*uu->r; /* uu->p = P0; */
+    press = B0*B0*(1-r_a*r_a)/(2*(1+r_a*r_a)*(1+r_a*r_a));
+    uu->e = press/(gamma-1) + 0.5*(vr*vr + vtheta*vtheta + vzbar*vzbar)*uu->r + 0.5*(btheta*btheta + bzbar*bzbar);
   } else {
     PetscReal press,r_a=rhat/a;
     assert(ctx->run_type == X3_RADIAL_SHOCK);
