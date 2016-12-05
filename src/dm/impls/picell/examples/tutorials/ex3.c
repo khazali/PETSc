@@ -2060,7 +2060,7 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
   X3Ctx           *ctx = (X3Ctx*)modctx;
   PetscInt        i;
   ConserveNode    *uu  = (ConserveNode*)u;
-  PetscReal       cth,sth,cphi,sphi,rhat,zbar,xtilda,phi,vr,vtheta,vzbar,fr,gr,v[2],p[2],Rth[2][2],Rph[2][2],br,bzbar,btheta;
+  PetscReal       cth,sth,cphi,sphi,rhat,zbar,xtilda,phi,vr,vtheta,vzbar,fr,gr,v[2],p[2],Rth[2][2],Rph[2][2],br,bzbar,btheta,rho,press;
   const PetscReal a=ctx->grid.radius_minor,x=xx[0],y=xx[1],z=xx[2],rmaj=ctx->grid.radius_major,L=(1+rmaj)*ctx->grid.section_phi*M_PI;
   const PetscReal rtilda = PetscSqrtReal(x*x + y*y);
   const PetscReal gamma = ctx->gamma, P0=1, rho0=1;
@@ -2082,8 +2082,7 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
   Rph[1][0] = sphi; Rph[1][1] = cphi;
   if (ctx->run_type == X3_LINETIED) {
     /* From 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
-    const PetscReal A=0.0001,lam_a=ctx->data.lt_lambda/a,r_a=rhat/a,B0=1;
-    PetscReal press;
+    const PetscReal A=0.0,lam_a=ctx->data.lt_lambda/a,r_a=rhat/a,B0=1;
     fr = .5*rhat*exp(-rhat*rhat/8 + .5);
     gr = (1 - .125*rhat*rhat)*exp(-rhat*rhat/8 + .5);
     /* ru */
@@ -2095,14 +2094,10 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
     btheta = B0*  r_a/(1 + r_a*r_a);
     bzbar =  B0*lam_a/(1 + r_a*r_a);
     /* E & rho */
-    uu->r = rho0;
     press = B0*B0*(1-r_a*r_a)/(2*(1+r_a*r_a)*(1+r_a*r_a));
-    uu->e = press/(gamma-1) + 0.5*(vr*vr + vtheta*vtheta + vzbar*vzbar)*uu->r + 0.5*(btheta*btheta + bzbar*bzbar);
-  } else {
-    PetscReal press,r_a=rhat/a;
-    assert(ctx->run_type == X3_RADIAL_SHOCK);
-    uu->r = rho0;
-    press = P0;
+    rho = pow(press,1/gamma);
+  } else { assert(ctx->run_type == X3_RADIAL_SHOCK); /* RADIAL_SHOCK */
+    const PetscReal rhoL=rho0,pL=P0,xdriver=0.9,Bfactor=0.1,BjL=Bfactor/xdriver,r_a=rhat/a;
     /* ru */
     vr     = 0;
     vtheta = 0;
@@ -2111,22 +2106,27 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
     br     = 0;
     btheta = 0;
     bzbar  = 0;
-    if (r_a > 0.9) {
-      PetscReal c0,gas1,gas2,rho1,u0,amach=ctx->data.ccms.M;
-      c0=PetscSqrtReal(gamma*P0/rho0);
-      u0=0;
-      press = P0*(1.0+2.*gamma/(gamma+1.)*(amach*amach-1.));
-      gas1=(gamma-1)/(gamma+1);
-      gas2=2*gamma/(gamma+1);
-      rho1 = rho0*(press/P0+gas1)/(gas1*press/P0+1);
-      vr = -((rho1-rho0)*c0*amach + rho0*u0)/rho1;
-      uu->r = rho1;
-      /* PetscPrintf(PETSC_COMM_WORLD,"\t\t%s: OUTER r/a = %17.10e; x = %17.10e %17.10e %17.10e. c0=%17.10e rho1=%17.10e rho0=%17.10e amach=%17.10e v_r=%17.10e\n", __FUNCT__,r_a,xx[0],xx[1],xx[2],c0,rho1,rho0,amach,vr); */
+    if (r_a > xdriver) {
+      const PetscReal csndsq=gamma*pL/rhoL,cfastsq=csndsq+BjL*BjL/rhoL,epsilon=csndsq/cfastsq,mach=ctx->data.ccms.M;
+      const PetscReal tt = epsilon*(2.-gamma) + (gamma-1.)*mach*mach + gamma, gfun=PetscSqrtReal(4.*(1.-epsilon)*(2.-gamma)*(gamma+1.)*mach*mach + tt*tt);
+      const PetscReal rhoR=(-epsilon*(2.-gamma)-(gamma-1.)*mach*mach-gamma+gfun)/(2.*(1.-epsilon)*(2.-gamma))*rhoL;
+      const PetscReal pR=(1.+0.5*(1./epsilon-1.)*(1.-(rhoR/rhoL)*(rhoR/rhoL))*gamma + (1.-rhoL/rhoR)*gamma*mach*mach/epsilon)*pL;
+      const PetscReal BjR=BjL*rhoR/rhoL;
+      rho = rhoR;
+      press = pR;
+      vr = -mach*PetscSqrtReal(csndsq)*(1.-rhoL/rhoR);
+      btheta = BjR;
     } else {
       /* PetscPrintf(PETSC_COMM_WORLD,"\t%s: INNER r/a = %17.10e; x = %17.10e %17.10e %17.10e ru = %17.10e %17.10e %17.10e\n", __FUNCT__,r_a,xx[0],xx[1],xx[2]); */
+      rho = rhoL;
+      press = pL;
+      vr = 0;
+      btheta = 0;
+      btheta = Bfactor/r_a;
     }
-    uu->e = press/(gamma-1) + (vr*vr)*uu->r;
   }
+  uu->r = rho;
+  uu->e = press/(gamma-1) + 0.5*(vr*vr + vtheta*vtheta + vzbar*vzbar)*rho + 0.5*(br*br + btheta*btheta + bzbar*bzbar);
   /* rotate vr & vtheta by theta */
   v[0] = vr; v[1] = vtheta;
   MATVEC2(Rth,v,p);
@@ -2137,7 +2137,7 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
   MATVEC2(Rph,v,p);
   uu->ru[0] = p[0]*uu->r; /* ru_x */
   uu->ru[1] = p[1]*uu->r; /* ru_y */
-  /* rotate r & theta by theta */
+  /* rotate B_r & B_theta by theta */
   v[0] = br; v[1] = btheta;
   MATVEC2(Rth,v,p);
   uu->b[2] = p[1]; /* b_z */
@@ -2569,7 +2569,7 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
     PetscStrcmp("radial_shock",name,&flg);
     if (flg) {
       ctx->run_type = X3_RADIAL_SHOCK;
-      ctx->data.ccms.M = 1.1;
+      ctx->data.ccms.M = 2.;
       ierr = PetscOptionsReal("-mach", "Shock speed U_s", "ex3.c",ctx->data.ccms.M,&ctx->data.ccms.M,NULL);CHKERRQ(ierr);
     } else SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Unknown run type %s",name);
   }
