@@ -629,6 +629,7 @@ typedef struct ccms {
 typedef enum {X3_PERIODIC,X3_DIRI} domainType;
 typedef struct {
   PetscLogEvent *events;
+  /* general params */
   PetscInt      use_bsp;
   PetscInt      chunksize;
   domType       domain_type;
@@ -644,7 +645,7 @@ typedef struct {
   DM            dmpic;
   X3Grid        grid;
   PetscBool     inflate_torus;
-  /* time */
+  /* time params */
   PetscInt      msteps;
   PetscReal     end_time;
   PetscReal     dt;
@@ -653,9 +654,12 @@ typedef struct {
   PetscReal     massAu; /* =2D0  !mass ratio to proton */
   PetscReal     chargeEu; /* =1D0  ! charge number */
   PetscReal     eChargeEu; /* =-1D0 */
-  /* M H D physics */
+  /* M H D physics params */
   PetscReal     gamma;
   PetscReal     cfl;
+  PetscReal     b0;
+  PetscReal     radial_shock_radius_a;
+  /* M H D physics */
   PetscReal     maxspeed;
   PetscInt      ndof;
   PetscInt      nfields;
@@ -674,10 +678,6 @@ typedef struct {
   /* hash table meta-data for proc-send list table - should just be an object */
   PetscInt      proc_send_table_size, tablecount;
   X3PSendList   *sendListTable;
-  /* prob type  */
-  domainType    dtype;
-  PetscBool     use_mms;
-  PetscBool     use_vel_update;
 } X3Ctx;
 /* static vars for lack of context in all callbacks */
 static PetscInt  s_debug;
@@ -1870,7 +1870,6 @@ static void MHDFlux(const ConserveNode *ul, const ConserveNode *ur, PetscReal ar
   PetscReal      alamdaL[2],alamdaR[2],rho,u,v,w,bx,by,bz,eint,press,bxsq,lamdaMax=0,lamdaMin=0,bysq,bzsq;
 
   PetscFunctionBeginUser;
-  if (ul->r != ul->r) exit(12);
   for (i=0; i<2; i++) alamdaL[i] = 0;
   for (i=0; i<2; i++) alamdaR[i] = 0;
 
@@ -1892,7 +1891,7 @@ static void MHDFlux(const ConserveNode *ul, const ConserveNode *ur, PetscReal ar
   finvl.ru[0] = rho*u*u + press + 0.5*(bysq+bzsq-bxsq);
   finvl.ru[1] = rho*u*v-bx*by;
   finvl.ru[2] = rho*u*w-bx*bz;
-  eint = press/(ctx->gamma-1);
+  eint = press/(ctx->gamma-1.);
   finvl.b[0]=0;
   finvl.b[1]=u*by-v*bx;
   finvl.b[2]=u*bz-w*bx;
@@ -1912,10 +1911,8 @@ static void MHDFlux(const ConserveNode *ul, const ConserveNode *ur, PetscReal ar
   finvr.b[0]=0;
   finvr.b[1]=u*by-v*bx;
   finvr.b[2]=u*bz-w*bx;
-  finvr.e=(0.5*rho*(u*u+v*v+w*w)+eint+press+(bxsq+bysq+bzsq))*u - bx*(u*bx+v*by+w*bz);
+  finvr.e=(0.5*rho*(u*u+v*v+w*w)+eint+press+(bxsq+bysq+bzsq))*u - bx*(u*bx+v*by+w*bz); assert(ctx->ndof==8);
   for (i=0;i<ctx->ndof;i++) flux->vals[i] = area*(lamdaMax*finvl.vals[i] - lamdaMin*finvr.vals[i] + lamdaMin*lamdaMax*durl.vals[i])/(lamdaMax-lamdaMin);
-  /* PetscPrintf(PETSC_COMM_WORLD,"%s: flux=%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",__FUNCT__,flux->vals[0],flux->vals[1],flux->vals[2],flux->vals[3],flux->vals[4],flux->vals[5],flux->vals[6],flux->vals[7]); */
-  if (flux->r != flux->r) exit(99);
   PetscFunctionReturnVoid();
 }
 
@@ -2082,7 +2079,7 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
   Rph[1][0] = sphi; Rph[1][1] = cphi;
   if (ctx->run_type == X3_LINETIED) {
     /* From 'The nonlinear MHD evolution of axisymmetric line-tied loops in the solar corona', Longbottom, Hood, Rickard, 1995, \S 2 & 3 */
-    const PetscReal A=0.0,lam_a=ctx->data.lt_lambda/a,r_a=rhat/a,B0=1;
+    const PetscReal A=0.0,lam_a=ctx->data.lt_lambda/a,r_a=rhat/a,B0=ctx->b0;
     fr = .5*rhat*exp(-rhat*rhat/8 + .5);
     gr = (1 - .125*rhat*rhat)*exp(-rhat*rhat/8 + .5);
     /* ru */
@@ -2097,7 +2094,7 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
     press = B0*B0*(1-r_a*r_a)/(2*(1+r_a*r_a)*(1+r_a*r_a));
     rho = pow(press,1/gamma);
   } else { assert(ctx->run_type == X3_RADIAL_SHOCK); /* RADIAL_SHOCK */
-    const PetscReal rhoL=rho0,pL=P0,xdriver=0.9,Bfactor=0.1,BjL=Bfactor/xdriver,r_a=rhat/a;
+    const PetscReal rhoL=rho0, pL=P0, /* xdriver=0.9, */ BjL = ctx->b0 /* /xdriver */, r_a=rhat/a;
     /* ru */
     vr     = 0;
     vtheta = 0;
@@ -2106,23 +2103,28 @@ static PetscErrorCode InitialSolutionFunctional(PetscInt dim, PetscReal time, co
     br     = 0;
     btheta = 0;
     bzbar  = 0;
-    if (r_a > xdriver) {
+    if (r_a > ctx->radial_shock_radius_a) {
       const PetscReal csndsq=gamma*pL/rhoL,cfastsq=csndsq+BjL*BjL/rhoL,epsilon=csndsq/cfastsq,mach=ctx->data.ccms.M;
       const PetscReal tt = epsilon*(2.-gamma) + (gamma-1.)*mach*mach + gamma, gfun=PetscSqrtReal(4.*(1.-epsilon)*(2.-gamma)*(gamma+1.)*mach*mach + tt*tt);
+/* PetscPrintf(PETSC_COMM_WORLD,"\t%s: epsilon=%17.10e numerator=%17.10e denominator=%17.10e\n", __FUNCT__,epsilon,-epsilon*(2.-gamma)-(gamma-1.)*mach*mach-gamma+gfun,2.*(1.-epsilon)*(2.-gamma)); */
+/* PetscPrintf(PETSC_COMM_WORLD,"\t%s: n = %17.10e + %17.10e + %17.10e + %17.10e\n", __FUNCT__,-epsilon*(2.-gamma),-(gamma-1.)*mach*mach,-gamma,gfun); */
+/* PetscPrintf(PETSC_COMM_WORLD,"\t%s: d = %17.10e * %17.10e\n", __FUNCT__,2.*(1.-epsilon),(2.-gamma)); */
       const PetscReal rhoR=(-epsilon*(2.-gamma)-(gamma-1.)*mach*mach-gamma+gfun)/(2.*(1.-epsilon)*(2.-gamma))*rhoL;
       const PetscReal pR=(1.+0.5*(1./epsilon-1.)*(1.-(rhoR/rhoL)*(rhoR/rhoL))*gamma + (1.-rhoL/rhoR)*gamma*mach*mach/epsilon)*pL;
       const PetscReal BjR=BjL*rhoR/rhoL;
       rho = rhoR;
       press = pR;
       vr = -mach*PetscSqrtReal(csndsq)*(1.-rhoL/rhoR);
+/* PetscPrintf(PETSC_COMM_WORLD,"\t%s: pR = %17.10e rhoR = %17.10e vr = %17.10e\n", __FUNCT__,pR,rhoR,vr); */
       btheta = BjR;
+assert(BjR==BjR);      assert(btheta==btheta);
     } else {
       /* PetscPrintf(PETSC_COMM_WORLD,"\t%s: INNER r/a = %17.10e; x = %17.10e %17.10e %17.10e ru = %17.10e %17.10e %17.10e\n", __FUNCT__,r_a,xx[0],xx[1],xx[2]); */
       rho = rhoL;
       press = pL;
       vr = 0;
       btheta = 0;
-      btheta = Bfactor/r_a;
+      btheta = ctx->b0/r_a;
     }
   }
   uu->r = rho;
@@ -2201,8 +2203,8 @@ PetscErrorCode X3Diagnostics(DM dm, Vec gX, PetscInt step, X3Ctx *ctx)
     {
       PetscReal s3[3] = {KinE,MagE,IntE},r3[3];
       ierr = MPI_Allreduce(s3,r3,3,MPIU_REAL,MPI_SUM,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
-      PetscPrintf(PetscObjectComm((PetscObject)dm),"step %D) |u|_inf=%9.2e Kin. E. = %10.4e, Mag. E. = %10.4e, Internal E. = %10.4e, Total E. = %18.12e\n",
-                  step,xnorm,r3[0],r3[1],r3[2],r3[0]+r3[1]+r3[2]);
+      PetscPrintf(PetscObjectComm((PetscObject)dm),"%s T=%g |u|_inf=%9.2e Kin. E. = %10.4e, Mag. E. = %10.4e, Internal E. = %10.4e, Total E. = %18.12e\n",
+                  __FUNCT__,ctx->initial_time+step*ctx->dt,xnorm,r3[0],r3[1],r3[2],r3[0]+r3[1]+r3[2]);
     }
   }
   PetscFunctionReturn(0);
@@ -2494,6 +2496,10 @@ PetscErrorCode ProcessOptions( X3Ctx *ctx )
   ierr = PetscOptionsInt("-mstep", "Maximum number of time steps", "ex3.c", ctx->msteps, &ctx->msteps, NULL);CHKERRQ(ierr);
   ctx->end_time = 1000000000.;
   ierr = PetscOptionsReal("-end_time", "Maximum time", "ex3.c",ctx->end_time,&ctx->end_time,NULL);CHKERRQ(ierr);
+  ctx->b0 = 1.;
+  ierr = PetscOptionsReal("-b0", "B0", "ex3.c",ctx->b0,&ctx->b0,NULL);CHKERRQ(ierr);
+  ctx->radial_shock_radius_a = .9;
+  ierr = PetscOptionsReal("-radial_shock_radius_a", "radial shock initial radius/r_minor", "ex3.c",ctx->radial_shock_radius_a,&ctx->radial_shock_radius_a,NULL);CHKERRQ(ierr);
   ctx->dt = 0;
   ierr = PetscOptionsReal("-dt","Time step","ex3.c",ctx->dt,&ctx->dt,NULL);CHKERRQ(ierr);
   ctx->initial_time = 0.;
@@ -2713,7 +2719,7 @@ static PetscErrorCode SetupDMs(X3Ctx *ctx, DM *admmhd, PetscFV *afvm)
   if (dm2) {
     ierr = DMDestroy(&dmmhd);CHKERRQ(ierr);
     dmmhd = dm2;
-    if (dmpi->debug>0) PetscPrintf(PETSC_COMM_WORLD,"%s distributed MHD grid\n",__FUNCT__);
+    if (dmpi->debug>0) PetscPrintf(PETSC_COMM_WORLD,"%s distributed M H D grid\n",__FUNCT__);
   }
   /* setup M H D DM */
   ierr = DMPlexSetAdjacencyUseCone(dmmhd, PETSC_TRUE);CHKERRQ(ierr);
@@ -2879,9 +2885,8 @@ static PetscErrorCode getFilePrefix(X3Ctx *ctx, int sz, char buf[])
 {
   PetscErrorCode    ierr;
   PetscFunctionBegin;
-  ierr = PetscSNPrintf(buf, sz, "u_%gPI_rmaj=%g_rmin=%g_%s_%s",
-                       ctx->grid.section_phi, ctx->grid.radius_major, ctx->grid.radius_minor,
-                       ctx->run_type==X3_RADIAL_SHOCK ? "shock" : "linetied",
+  ierr = PetscSNPrintf(buf, sz, "u_L=%7.1e_%s_%s",ctx->grid.section_phi*M_PI*ctx->grid.radius_major,
+                       ctx->run_type==X3_RADIAL_SHOCK ? "radial_shock" : "linetied",
                        s_use_line_section ? "cylinder" : "torus");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
