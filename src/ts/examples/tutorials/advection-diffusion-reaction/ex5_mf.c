@@ -406,6 +406,43 @@ static PetscErrorCode IFunction(TS ts,PetscReal t,Vec X,Vec Xdot,Vec F,void *ctx
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "IFunctionLocal"
+static PetscErrorCode IFunctionLocal(DMDALocalInfo *info,PetscReal t,Field**u,Field**udot,Field**f,void *ctx)
+{
+  AppCtx         *appctx = (AppCtx*)ptr;
+  PetscInt       i,j,xs,ys,xm,ym;
+  PetscReal      hx,hy,sx,sy;
+  PetscScalar    uc,uxx,uyy,vc,vxx,vyy;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  hx = 2.50/(PetscReal)(info->mx); sx = 1.0/(hx*hx);
+  hy = 2.50/(PetscReal)(info->my); sy = 1.0/(hy*hy);
+
+  /*
+     Get local grid boundaries
+  */
+  xs= info->xs; xm = info->xm; ym = info->ys;
+  /*
+     Compute function over the locally owned part of the grid
+  */
+  for (j=ys; j<ys+ym; j++) {
+    for (i=xs; i<xs+xm; i++) {
+      uc        = u[j][i].u;
+      uxx       = (-2.0*uc + u[j][i-1].u + u[j][i+1].u)*sx;
+      uyy       = (-2.0*uc + u[j-1][i].u + u[j+1][i].u)*sy;
+      vc        = u[j][i].v;
+      vxx       = (-2.0*vc + u[j][i-1].v + u[j][i+1].v)*sx;
+      vyy       = (-2.0*vc + u[j-1][i].v + u[j+1][i].v)*sy;
+      f[j][i].u = udot[j][i].u - appctx->D1*(uxx + uyy) + uc*vc*vc - appctx->gamma*(1.0 - uc);
+      f[j][i].v = udot[j][i].v - appctx->D2*(vxx + vyy) - uc*vc*vc + (appctx->gamma + appctx->kappa)*vc;
+    }
+  }
+  ierr = PetcLogFlogs(16*xm*ym);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "FormIJacobian"
 static PetscErrorCode FormIJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat A_shell,Mat B,void *ctx)
 {
