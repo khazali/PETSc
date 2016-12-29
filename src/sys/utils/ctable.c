@@ -4,8 +4,6 @@
 #include <petscsys.h>
 #include <petscctable.h>
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscTableCreateHashSize"
 static PetscErrorCode PetscTableCreateHashSize(PetscInt sz, PetscInt *hsz)
 {
   PetscFunctionBegin;
@@ -29,8 +27,6 @@ static PetscErrorCode PetscTableCreateHashSize(PetscInt sz, PetscInt *hsz)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscTableCreate"
 /*
    PetscTableCreate  Creates a PETSc look up table
 
@@ -49,7 +45,7 @@ PetscErrorCode  PetscTableCreate(const PetscInt n,PetscInt maxkey,PetscTable *rt
   PetscFunctionBegin;
   if (n < 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"n < 0");
   ierr       = PetscNew(&ta);CHKERRQ(ierr);
-  ierr       = PetscTableCreateHashSize(n,&ta->tablesize);
+  ierr       = PetscTableCreateHashSize(n,&ta->tablesize);CHKERRQ(ierr);
   ierr       = PetscCalloc1(ta->tablesize,&ta->keytable);CHKERRQ(ierr);
   ierr       = PetscMalloc1(ta->tablesize,&ta->table);CHKERRQ(ierr);
   ta->head   = 0;
@@ -59,8 +55,6 @@ PetscErrorCode  PetscTableCreate(const PetscInt n,PetscInt maxkey,PetscTable *rt
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscTableCreateCopy"
 /* PetscTableCreate() ********************************************
  *
  * hash table for non-zero data and keys
@@ -91,8 +85,6 @@ PetscErrorCode  PetscTableCreateCopy(const PetscTable intable,PetscTable *rta)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscTableDestroy"
 /* PetscTableDestroy() ********************************************
  *
  *
@@ -109,8 +101,6 @@ PetscErrorCode  PetscTableDestroy(PetscTable *ta)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscTableGetCount"
 /* PetscTableGetCount() ********************************************
  */
 PetscErrorCode  PetscTableGetCount(const PetscTable ta,PetscInt *count)
@@ -120,8 +110,6 @@ PetscErrorCode  PetscTableGetCount(const PetscTable ta,PetscInt *count)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscTableIsEmpty"
 /* PetscTableIsEmpty() ********************************************
  */
 PetscErrorCode  PetscTableIsEmpty(const PetscTable ta,PetscInt *flag)
@@ -131,8 +119,6 @@ PetscErrorCode  PetscTableIsEmpty(const PetscTable ta,PetscInt *flag)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscTableAddExpand"
 /*
     PetscTableAddExpand - called by PetscTableAdd() if more space is needed
 
@@ -145,7 +131,7 @@ PetscErrorCode  PetscTableAddExpand(PetscTable ta,PetscInt key,PetscInt data,Ins
   PetscInt       *oldtab = ta->table,*oldkt = ta->keytable,newk,ndata;
 
   PetscFunctionBegin;
-  ierr = PetscTableCreateHashSize(ta->tablesize,&ta->tablesize);
+  ierr = PetscTableCreateHashSize(ta->tablesize,&ta->tablesize);CHKERRQ(ierr);
   ierr = PetscMalloc1(ta->tablesize,&ta->table);CHKERRQ(ierr);
   ierr = PetscCalloc1(ta->tablesize,&ta->keytable);CHKERRQ(ierr);
 
@@ -169,8 +155,6 @@ PetscErrorCode  PetscTableAddExpand(PetscTable ta,PetscInt key,PetscInt data,Ins
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscTableRemoveAll"
 /* PetscTableRemoveAll() ********************************************
  *
  *
@@ -191,8 +175,6 @@ PetscErrorCode  PetscTableRemoveAll(PetscTable ta)
 
 
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscTableGetHeadPosition"
 /* PetscTableGetHeadPosition() ********************************************
  *
  */
@@ -215,8 +197,6 @@ PetscErrorCode  PetscTableGetHeadPosition(PetscTable ta,PetscTablePosition *ppos
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscTableGetNext"
 /* PetscTableGetNext() ********************************************
  *
  *  - iteration - PetscTablePosition is always valid (points to a data)
@@ -252,8 +232,6 @@ PetscErrorCode  PetscTableGetNext(PetscTable ta,PetscTablePosition *rPosition,Pe
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscTableAddCountExpand"
 PetscErrorCode  PetscTableAddCountExpand(PetscTable ta,PetscInt key)
 {
   PetscErrorCode ierr;

@@ -9,7 +9,6 @@ class CompilerOptions(config.base.Configure):
     if compiler.find('mpicc') >=0:
       try:
         output   = self.executeShellCommand(compiler + ' -show', log = self.log)[0]
-        compiler = output.split(' ')[0]
         self.framework.addMakeMacro('MPICC_SHOW',output.strip().replace('\n','\\\\n'))
       except:
         pass
@@ -19,6 +18,7 @@ class CompilerOptions(config.base.Configure):
     if config.setCompilers.Configure.isGNU(compiler, self.log) or config.setCompilers.Configure.isClang(compiler, self.log):
       if bopt == '':
         flags.extend(['-Wall', '-Wwrite-strings', '-Wno-strict-aliasing','-Wno-unknown-pragmas','-fstack-protector'])
+        flags.extend(['-mfp16-format=ieee']) #  arm for utilizing 16 bit storage of floating point
         if config.setCompilers.Configure.isClang(compiler, self.log):
           flags.extend(['-Qunused-arguments'])
         if self.argDB['with-visibility']:
@@ -91,7 +91,6 @@ class CompilerOptions(config.base.Configure):
     if compiler.find('mpiCC') >=0  or compiler.find('mpicxx') >=0 :
       try:
         output   = self.executeShellCommand(compiler+' -show', log = self.log)[0]
-        compiler = output.split(' ')[0]
         self.framework.addMakeMacro('MPICXX_SHOW',output.strip().replace('\n','\\\\n'))
       except:
         pass
@@ -139,9 +138,9 @@ class CompilerOptions(config.base.Configure):
       elif compiler.find('win32fe icl') >= 0:
         if bopt == '':
           if self.argDB['with-shared-libraries']:
-            flags.extend(['-MD','-GX','-GR'])
+            flags.extend(['-MD','-GR','-EHsc'])
           else:
-            flags.extend(['-MT','-GX','-GR'])
+            flags.extend(['-MT','-GR','-EHsc']) # removing GX in favor of EHsc
         elif bopt in ['g']:
           flags.extend(['-Z7'])
         elif bopt in ['O']:
@@ -176,7 +175,6 @@ class CompilerOptions(config.base.Configure):
     if compiler.endswith('mpif77') or compiler.endswith('mpif90'):
       try:
         output   = self.executeShellCommand(compiler+' -show', log = self.log)[0]
-        compiler = output.split(' ')[0]
         self.framework.addMakeMacro('MPIFC_SHOW',output.strip().replace('\n','\\\\n'))
       except:
         pass
@@ -201,7 +199,7 @@ class CompilerOptions(config.base.Configure):
         flags.extend(['-O'])
     else:
       # Portland Group Fortran 90
-      if compiler == 'pgf90':
+      if config.setCompilers.Configure.isPGI(compiler, self.log):
         if bopt == '':
           flags.append('-Mfree')
         elif bopt == 'O':

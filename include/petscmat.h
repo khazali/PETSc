@@ -142,9 +142,13 @@ PETSC_EXTERN PetscClassId MAT_NULLSPACE_CLASSID;
 PETSC_EXTERN PetscClassId MATMFFD_CLASSID;
 
 /*E
-    MatReuse - Indicates if matrices obtained from a previous call to MatGetSubMatrices()
-     or MatGetSubMatrix() are to be reused to store the new matrix values. For MatConvert() is used to indicate
-     that the input matrix is to be replaced with the converted matrix.
+    MatReuse - Indicates if matrices obtained from a previous call to MatGetSubMatrices(), MatGetSubMatrix(), MatConvert() or several other functions
+     are to be reused to store the new matrix values.
+
+$  MAT_INITIAL_MATRIX - create a new matrix
+$  MAT_REUSE_MATRIX - reuse the matrix created with a previous call that used MAT_INITIAL_MATRIX
+$  MAT_INPLACE_MATRIX - replace the first input matrix with the new matrix (not applicable to all functions)
+$  MAT_IGNORE_MATRIX - do not create a new matrix or reuse a give matrix, just ignore that matrix argument (not applicable to all functions)
 
     Level: beginner
 
@@ -341,7 +345,8 @@ typedef enum {MAT_OPTION_MIN = -3,
               MAT_NEW_NONZERO_LOCATIONS = 18,
               MAT_NEW_NONZERO_ALLOCATION_ERR = 19,
               MAT_SUBSET_OFF_PROC_ENTRIES = 20,
-              MAT_OPTION_MAX = 21} MatOption;
+              MAT_SUBMAT_SINGLEIS = 21,
+              MAT_OPTION_MAX = 22} MatOption;
 
 PETSC_EXTERN const char *MatOptions[];
 PETSC_EXTERN PetscErrorCode MatSetOption(Mat,MatOption,PetscBool);
@@ -512,6 +517,7 @@ PETSC_EXTERN PetscErrorCode MatMatMultSymbolic(Mat,Mat,PetscReal,Mat*);
 PETSC_EXTERN PetscErrorCode MatMatMultNumeric(Mat,Mat,Mat);
 
 PETSC_EXTERN PetscErrorCode MatMatMatMult(Mat,Mat,Mat,MatReuse,PetscReal,Mat*);
+PETSC_EXTERN PetscErrorCode MatGalerkin(Mat,Mat,Mat,MatReuse,PetscReal,Mat*);
 
 PETSC_EXTERN PetscErrorCode MatPtAP(Mat,Mat,MatReuse,PetscReal,Mat*);
 PETSC_EXTERN PetscErrorCode MatPtAPSymbolic(Mat,Mat,PetscReal,Mat*);
@@ -660,13 +666,56 @@ M*/
   Concepts: preallocation^Matrix
 
 .seealso: MatPreallocateFinalize(), MatPreallocateSet(), MatPreallocateSymmetricSetBlock(), MatPreallocateInitialize(),
-          MatPreallocateInitialize(), MatPreallocateSymmetricSetLocalBlock()
+          MatPreallocateInitialize(), MatPreallocateSymmetricSetLocalBlock(), MatPreallocateSetLocalRemoveDups()
 M*/
 #define MatPreallocateSetLocal(rmap,nrows,rows,cmap,ncols,cols,dnz,onz) 0; \
 {\
   PetscInt __l;\
   _4_ierr = ISLocalToGlobalMappingApply(rmap,nrows,rows,rows);CHKERRQ(_4_ierr);\
   _4_ierr = ISLocalToGlobalMappingApply(cmap,ncols,cols,cols);CHKERRQ(_4_ierr);\
+  for (__l=0;__l<nrows;__l++) {\
+    _4_ierr = MatPreallocateSet((rows)[__l],ncols,cols,dnz,onz);CHKERRQ(_4_ierr);\
+  }\
+}
+
+/*MC
+   MatPreallocateSetLocalRemoveDups - Indicates the locations (rows and columns) in the matrix where nonzeros will be
+       inserted using a local number of the rows and columns. This version removes any duplicate columns in cols
+
+   Synopsis:
+   #include <petscmat.h>
+   PetscErrorCode MatPreallocateSetLocalRemoveDups(ISLocalToGlobalMappping map,PetscInt nrows, PetscInt *rows,PetscInt ncols, PetscInt *cols,PetscInt *dnz, PetscInt *onz)
+
+   Not Collective
+
+   Input Parameters:
++  map - the row mapping from local numbering to global numbering
+.  nrows - the number of rows indicated
+.  rows - the indices of the rows (these values are mapped to the global values)
+.  cmap - the column mapping from local to global numbering
+.  ncols - the number of columns in the matrix   (this value will be changed if duplicate columns are found)
+.  cols - the columns indicated (these values are mapped to the global values, they are then sorted and duplicates removed)
+.  dnz - the array that will be passed to the matrix preallocation routines
+-  ozn - the other array passed to the matrix preallocation routines
+
+   Level: intermediate
+
+   Notes:
+    See Users-Manual: ch_performance for more details.
+
+   Do not malloc or free dnz and onz, that is handled internally by these routines
+
+  Concepts: preallocation^Matrix
+
+.seealso: MatPreallocateFinalize(), MatPreallocateSet(), MatPreallocateSymmetricSetBlock(), MatPreallocateInitialize(),
+          MatPreallocateInitialize(), MatPreallocateSymmetricSetLocalBlock(), MatPreallocateSetLocal()
+M*/
+#define MatPreallocateSetLocalRemoveDups(rmap,nrows,rows,cmap,ncols,cols,dnz,onz) 0; \
+{\
+  PetscInt __l;\
+  _4_ierr = ISLocalToGlobalMappingApply(rmap,nrows,rows,rows);CHKERRQ(_4_ierr);\
+  _4_ierr = ISLocalToGlobalMappingApply(cmap,ncols,cols,cols);CHKERRQ(_4_ierr);\
+  _4_ierr = PetscSortRemoveDupsInt(&ncols,cols);CHKERRQ(_4_ierr);\
   for (__l=0;__l<nrows;__l++) {\
     _4_ierr = MatPreallocateSet((rows)[__l],ncols,cols,dnz,onz);CHKERRQ(_4_ierr);\
   }\
@@ -935,6 +984,7 @@ PETSC_EXTERN PetscErrorCode MatMPIBAIJGetSeqBAIJ(Mat,Mat*,Mat*,const PetscInt*[]
 PETSC_EXTERN PetscErrorCode MatMPIAdjCreateNonemptySubcommMat(Mat,Mat*);
 
 PETSC_EXTERN PetscErrorCode MatISSetPreallocation(Mat,PetscInt,const PetscInt[],PetscInt,const PetscInt[]);
+PETSC_EXTERN PetscErrorCode MatISSetUpSF(Mat);
 PETSC_EXTERN PetscErrorCode MatSeqDenseSetLDA(Mat,PetscInt);
 PETSC_EXTERN PetscErrorCode MatDenseGetLocalMatrix(Mat,Mat*);
 
@@ -944,6 +994,7 @@ PETSC_EXTERN PetscErrorCode MatRetrieveValues(Mat);
 PETSC_EXTERN PetscErrorCode MatDAADSetCtx(Mat,void*);
 
 PETSC_EXTERN PetscErrorCode MatFindNonzeroRows(Mat,IS*);
+PETSC_EXTERN PetscErrorCode MatFindZeroRows(Mat,IS*);
 /*
   These routines are not usually accessed directly, rather solving is
   done through the KSP and PC interfaces.
@@ -1057,6 +1108,8 @@ PETSC_EXTERN PetscErrorCode MatFactorInvertSchurComplement(Mat);
 PETSC_EXTERN PetscErrorCode MatFactorCreateSchurComplement(Mat,Mat*);
 PETSC_EXTERN PetscErrorCode MatFactorSolveSchurComplement(Mat,Vec,Vec);
 PETSC_EXTERN PetscErrorCode MatFactorSolveSchurComplementTranspose(Mat,Vec,Vec);
+PETSC_EXTERN PetscErrorCode MatFactorFactorizeSchurComplement(Mat);
+PETSC_EXTERN PetscErrorCode MatFactorSetSchurComplementSolverType(Mat,PetscInt);
 PETSC_EXTERN PetscErrorCode MatSetUnfactored(Mat);
 
 /*E

@@ -8,9 +8,9 @@ class Configure(config.package.Package):
     self.functions              = []
     self.includes               = []
     self.skippackagewithoptions = 1
-    self.downloaddirname        = 'petsc-petsc4py'
     self.useddirectly           = 0
     self.linkedbypetsc          = 0
+    self.downloaddirnames       = ['petsc-petsc4py','petsc4py']
     return
 
   def setupDependencies(self, framework):
@@ -49,6 +49,7 @@ class Configure(config.package.Package):
     else:
        newuser = ''
 
+    self.addMakeMacro('PETSC4PY','yes')
     self.addMakeRule('petsc4pybuild','', \
                        ['@echo "*** Building petsc4py ***"',\
                           '@${RM} -f ${PETSC_ARCH}/lib/petsc/conf/petsc4py.errorflg',\

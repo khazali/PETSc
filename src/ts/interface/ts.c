@@ -19,8 +19,6 @@ struct _n_TSMonitorDrawCtx {
   PetscBool     showtimestepandtime;
 };
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorSetFromOptions"
 /*@C
    TSMonitorSetFromOptions - Sets a monitor function and viewer appropriate for the type indicated by the user
 
@@ -65,8 +63,6 @@ PetscErrorCode  TSMonitorSetFromOptions(TS ts,const char name[],const char help[
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointMonitorSetFromOptions"
 /*@C
    TSAdjointMonitorSetFromOptions - Sets a monitor function and viewer appropriate for the type indicated by the user
 
@@ -111,8 +107,6 @@ PetscErrorCode  TSAdjointMonitorSetFromOptions(TS ts,const char name[],const cha
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetFromOptions"
 /*@
    TSSetFromOptions - Sets various TS parameters from user options.
 
@@ -449,8 +443,6 @@ PetscErrorCode  TSSetFromOptions(TS ts)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetSaveTrajectory"
 /*@
    TSSetSaveTrajectory - Causes the TS to save its solutions as it iterates forward in time in a TSTrajectory object
 
@@ -480,8 +472,6 @@ PetscErrorCode  TSSetSaveTrajectory(TS ts)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeRHSJacobian"
 /*@
    TSComputeRHSJacobian - Computes the Jacobian matrix that has been
       set with TSSetRHSJacobian().
@@ -574,8 +564,6 @@ PetscErrorCode  TSComputeRHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat B)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeRHSFunction"
 /*@
    TSComputeRHSFunction - Evaluates the right-hand-side function.
 
@@ -630,8 +618,6 @@ PetscErrorCode TSComputeRHSFunction(TS ts,PetscReal t,Vec U,Vec y)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeSolutionFunction"
 /*@
    TSComputeSolutionFunction - Evaluates the solution function.
 
@@ -674,8 +660,6 @@ PetscErrorCode TSComputeSolutionFunction(TS ts,PetscReal t,Vec U)
   }
   PetscFunctionReturn(0);
 }
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeForcingFunction"
 /*@
    TSComputeForcingFunction - Evaluates the forcing function.
 
@@ -718,8 +702,6 @@ PetscErrorCode TSComputeForcingFunction(TS ts,PetscReal t,Vec U)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetRHSVec_Private"
 static PetscErrorCode TSGetRHSVec_Private(TS ts,Vec *Frhs)
 {
   Vec            F;
@@ -735,8 +717,6 @@ static PetscErrorCode TSGetRHSVec_Private(TS ts,Vec *Frhs)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetRHSMats_Private"
 static PetscErrorCode TSGetRHSMats_Private(TS ts,Mat *Arhs,Mat *Brhs)
 {
   Mat            A,B;
@@ -766,8 +746,6 @@ static PetscErrorCode TSGetRHSMats_Private(TS ts,Mat *Arhs,Mat *Brhs)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeIFunction"
 /*@
    TSComputeIFunction - Evaluates the DAE residual written in implicit form F(t,U,Udot)=0
 
@@ -841,8 +819,6 @@ PetscErrorCode TSComputeIFunction(TS ts,PetscReal t,Vec U,Vec Udot,Vec Y,PetscBo
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeIJacobian"
 /*@
    TSComputeIJacobian - Evaluates the Jacobian of the DAE
 
@@ -916,10 +892,21 @@ PetscErrorCode TSComputeIJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal shi
   }
   if (imex) {
     if (!ijacobian) {  /* system was written as Udot = G(t,U) */
+      PetscBool assembled;
       ierr = MatZeroEntries(A);CHKERRQ(ierr);
+      ierr = MatAssembled(A,&assembled);CHKERRQ(ierr);
+      if (!assembled) {
+        ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+        ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+      }
       ierr = MatShift(A,shift);CHKERRQ(ierr);
       if (A != B) {
         ierr = MatZeroEntries(B);CHKERRQ(ierr);
+        ierr = MatAssembled(B,&assembled);CHKERRQ(ierr);
+        if (!assembled) {
+          ierr = MatAssemblyBegin(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+          ierr = MatAssemblyEnd(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+        }
         ierr = MatShift(B,shift);CHKERRQ(ierr);
       }
     }
@@ -958,8 +945,6 @@ PetscErrorCode TSComputeIJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal shi
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetRHSFunction"
 /*@C
     TSSetRHSFunction - Sets the routine for evaluating the function,
     where U_t = G(t,u).
@@ -1012,8 +997,6 @@ PetscErrorCode  TSSetRHSFunction(TS ts,Vec r,PetscErrorCode (*f)(TS,PetscReal,Ve
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetSolutionFunction"
 /*@C
     TSSetSolutionFunction - Provide a function that computes the solution of the ODE or DAE
 
@@ -1057,8 +1040,6 @@ PetscErrorCode  TSSetSolutionFunction(TS ts,PetscErrorCode (*f)(TS,PetscReal,Vec
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetForcingFunction"
 /*@C
     TSSetForcingFunction - Provide a function that computes a forcing term for a ODE or PDE
 
@@ -1101,8 +1082,6 @@ PetscErrorCode  TSSetForcingFunction(TS ts,TSForcingFunction f,void *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetRHSJacobian"
 /*@C
    TSSetRHSJacobian - Sets the function to compute the Jacobian of G,
    where U_t = G(U,t), as well as the location to store the matrix.
@@ -1178,8 +1157,6 @@ PetscErrorCode  TSSetRHSJacobian(TS ts,Mat Amat,Mat Pmat,TSRHSJacobian f,void *c
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetIFunction"
 /*@C
    TSSetIFunction - Set the function to compute F(t,U,U_t) where F() = 0 is the DAE to be solved.
 
@@ -1233,8 +1210,6 @@ PetscErrorCode  TSSetIFunction(TS ts,Vec r,TSIFunction f,void *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetIFunction"
 /*@C
    TSGetIFunction - Returns the vector where the implicit residual is stored and the function/contex to compute it.
 
@@ -1269,8 +1244,6 @@ PetscErrorCode TSGetIFunction(TS ts,Vec *r,TSIFunction *func,void **ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetRHSFunction"
 /*@C
    TSGetRHSFunction - Returns the vector where the right hand side is stored and the function/context to compute it.
 
@@ -1305,8 +1278,6 @@ PetscErrorCode TSGetRHSFunction(TS ts,Vec *r,TSRHSFunction *func,void **ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetIJacobian"
 /*@C
    TSSetIJacobian - Set the function to compute the matrix dF/dU + a*dF/dU_t where F(t,U,U_t) is the function
         provided with TSSetIFunction().
@@ -1377,8 +1348,6 @@ PetscErrorCode  TSSetIJacobian(TS ts,Mat Amat,Mat Pmat,TSIJacobian f,void *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSRHSJacobianSetReuse"
 /*@
    TSRHSJacobianSetReuse - restore RHS Jacobian before re-evaluating.  Without this flag, TS will change the sign and
    shift the RHS Jacobian for a finite-time-step implicit solve, in which case the user function will need to recompute
@@ -1402,8 +1371,6 @@ PetscErrorCode TSRHSJacobianSetReuse(TS ts,PetscBool reuse)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetI2Function"
 /*@C
    TSSetI2Function - Set the function to compute F(t,U,U_t,U_tt) where F = 0 is the DAE to be solved.
 
@@ -1445,8 +1412,6 @@ PetscErrorCode TSSetI2Function(TS ts,Vec F,TSI2Function fun,void *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetI2Function"
 /*@C
   TSGetI2Function - Returns the vector where the implicit residual is stored and the function/contex to compute it.
 
@@ -1481,8 +1446,6 @@ PetscErrorCode TSGetI2Function(TS ts,Vec *r,TSI2Function *fun,void **ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetI2Jacobian"
 /*@C
    TSSetI2Jacobian - Set the function to compute the matrix dF/dU + v*dF/dU_t  + a*dF/dU_tt
         where F(t,U,U_t,U_tt) is the function you provided with TSSetI2Function().
@@ -1538,8 +1501,6 @@ PetscErrorCode TSSetI2Jacobian(TS ts,Mat J,Mat P,TSI2Jacobian jac,void *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetI2Jacobian"
 /*@C
   TSGetI2Jacobian - Returns the implicit Jacobian at the present timestep.
 
@@ -1577,8 +1538,6 @@ PetscErrorCode  TSGetI2Jacobian(TS ts,Mat *J,Mat *P,TSI2Jacobian *jac,void **ctx
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeI2Function"
 /*@
   TSComputeI2Function - Evaluates the DAE residual written in implicit form F(t,U,U_t,U_tt) = 0
 
@@ -1645,8 +1604,6 @@ PetscErrorCode TSComputeI2Function(TS ts,PetscReal t,Vec U,Vec V,Vec A,Vec F)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeI2Jacobian"
 /*@
   TSComputeI2Jacobian - Evaluates the Jacobian of the DAE
 
@@ -1722,8 +1679,6 @@ PetscErrorCode TSComputeI2Jacobian(TS ts,PetscReal t,Vec U,Vec V,Vec A,PetscReal
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TS2SetSolution"
 /*@
    TS2SetSolution - Sets the initial solution and time derivative vectors
    for use by the TS routines handling second order equations.
@@ -1754,8 +1709,6 @@ PetscErrorCode  TS2SetSolution(TS ts,Vec u,Vec v)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TS2GetSolution"
 /*@
    TS2GetSolution - Returns the solution and time derivative at the present timestep
    for second order equations. It is valid to call this routine inside the function
@@ -1788,8 +1741,6 @@ PetscErrorCode  TS2GetSolution(TS ts,Vec *u,Vec *v)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSLoad"
 /*@C
   TSLoad - Loads a KSP that has been stored in binary  with KSPView().
 
@@ -1852,8 +1803,6 @@ PetscErrorCode  TSLoad(TS ts, PetscViewer viewer)
 #if defined(PETSC_HAVE_SAWS)
 #include <petscviewersaws.h>
 #endif
-#undef __FUNCT__
-#define __FUNCT__ "TSView"
 /*@C
     TSView - Prints the TS data structure.
 
@@ -2003,8 +1952,6 @@ PetscErrorCode  TSView(TS ts,PetscViewer viewer)
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetApplicationContext"
 /*@
    TSSetApplicationContext - Sets an optional user-defined context for
    the timesteppers.
@@ -2032,8 +1979,6 @@ PetscErrorCode  TSSetApplicationContext(TS ts,void *usrP)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetApplicationContext"
 /*@
     TSGetApplicationContext - Gets the user-defined context for the
     timestepper.
@@ -2063,8 +2008,6 @@ PetscErrorCode  TSGetApplicationContext(TS ts,void *usrP)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetTimeStepNumber"
 /*@
    TSGetTimeStepNumber - Gets the number of time steps completed.
 
@@ -2090,8 +2033,6 @@ PetscErrorCode  TSGetTimeStepNumber(TS ts,PetscInt *iter)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetInitialTimeStep"
 /*@
    TSSetInitialTimeStep - Sets the initial timestep to be used,
    as well as the initial time.
@@ -2120,8 +2061,6 @@ PetscErrorCode  TSSetInitialTimeStep(TS ts,PetscReal initial_time,PetscReal time
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetTimeStep"
 /*@
    TSSetTimeStep - Allows one to reset the timestep at any time,
    useful for simple pseudo-timestepping codes.
@@ -2147,8 +2086,6 @@ PetscErrorCode  TSSetTimeStep(TS ts,PetscReal time_step)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetExactFinalTime"
 /*@
    TSSetExactFinalTime - Determines whether to adapt the final time step to
      match the exact final time, interpolate solution to the exact final time,
@@ -2183,8 +2120,6 @@ PetscErrorCode  TSSetExactFinalTime(TS ts,TSExactFinalTimeOption eftopt)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetTimeStep"
 /*@
    TSGetTimeStep - Gets the current timestep size.
 
@@ -2211,8 +2146,6 @@ PetscErrorCode  TSGetTimeStep(TS ts,PetscReal *dt)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetSolution"
 /*@
    TSGetSolution - Returns the solution at the present timestep. It
    is valid to call this routine inside the function that you are evaluating
@@ -2245,8 +2178,6 @@ PetscErrorCode  TSGetSolution(TS ts,Vec *v)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetSolutionComponents"
 /*@
    TSGetSolutionComponents - Returns any solution components at the present 
    timestep, if available for the time integration method being used. 
@@ -2283,8 +2214,6 @@ PetscErrorCode  TSGetSolutionComponents(TS ts,PetscInt *n,Vec *v)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetAuxSolution"
 /*@
    TSGetAuxSolution - Returns an auxiliary solution at the present 
    timestep, if available for the time integration method being used.
@@ -2315,8 +2244,6 @@ PetscErrorCode  TSGetAuxSolution(TS ts,Vec *v)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetTimeError"
 /*@
    TSGetTimeError - Returns the estimated error vector, if the chosen
    TSType has an error estimation functionality.
@@ -2350,8 +2277,6 @@ PetscErrorCode  TSGetTimeError(TS ts,PetscInt n,Vec *v)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetTimeError"
 /*@
    TSSetTimeError - Sets the estimated error vector, if the chosen
    TSType has an error estimation functionality. This can be used
@@ -2382,8 +2307,6 @@ PetscErrorCode  TSSetTimeError(TS ts,Vec v)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetCostGradients"
 /*@
    TSGetCostGradients - Returns the gradients from the TSAdjointSolve()
 
@@ -2413,8 +2336,6 @@ PetscErrorCode  TSGetCostGradients(TS ts,PetscInt *numcost,Vec **lambda,Vec **mu
 }
 
 /* ----- Routines to initialize and destroy a timestepper ---- */
-#undef __FUNCT__
-#define __FUNCT__ "TSSetProblemType"
 /*@
   TSSetProblemType - Sets the type of problem to be solved.
 
@@ -2449,8 +2370,6 @@ PetscErrorCode  TSSetProblemType(TS ts, TSProblemType type)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetProblemType"
 /*@C
   TSGetProblemType - Gets the type of problem to be solved.
 
@@ -2481,8 +2400,6 @@ PetscErrorCode  TSGetProblemType(TS ts, TSProblemType *type)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetUp"
 /*@
    TSSetUp - Sets up the internal data structures for the later use
    of a timestepper.
@@ -2577,8 +2494,6 @@ PetscErrorCode  TSSetUp(TS ts)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointSetUp"
 /*@
    TSAdjointSetUp - Sets up the internal data structures for the later use
    of an adjoint solver
@@ -2617,8 +2532,6 @@ PetscErrorCode  TSAdjointSetUp(TS ts)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSReset"
 /*@
    TSReset - Resets a TS context and removes any allocated Vecs and Mats.
 
@@ -2670,8 +2583,6 @@ PetscErrorCode  TSReset(TS ts)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSDestroy"
 /*@
    TSDestroy - Destroys the timestepper context that was created
    with TSCreate().
@@ -2716,8 +2627,6 @@ PetscErrorCode  TSDestroy(TS *ts)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetSNES"
 /*@
    TSGetSNES - Returns the SNES (nonlinear solver) associated with
    a TS (timestepper) context. Valid only for nonlinear problems.
@@ -2763,8 +2672,6 @@ PetscErrorCode  TSGetSNES(TS ts,SNES *snes)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetSNES"
 /*@
    TSSetSNES - Set the SNES (nonlinear solver) to be used by the timestepping context
 
@@ -2802,8 +2709,6 @@ PetscErrorCode TSSetSNES(TS ts,SNES snes)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetKSP"
 /*@
    TSGetKSP - Returns the KSP (linear solver) associated with
    a TS (timestepper) context.
@@ -2845,8 +2750,6 @@ PetscErrorCode  TSGetKSP(TS ts,KSP *ksp)
 
 /* ----------- Routines to set solver parameters ---------- */
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetDuration"
 /*@
    TSGetDuration - Gets the maximum number of timesteps to use and
    maximum time for iteration.
@@ -2877,8 +2780,6 @@ PetscErrorCode  TSGetDuration(TS ts, PetscInt *maxsteps, PetscReal *maxtime)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetDuration"
 /*@
    TSSetDuration - Sets the maximum number of timesteps to use and
    maximum time for iteration.
@@ -2914,8 +2815,6 @@ PetscErrorCode  TSSetDuration(TS ts,PetscInt maxsteps,PetscReal maxtime)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetSolution"
 /*@
    TSSetSolution - Sets the initial solution vector
    for use by the TS routines.
@@ -2947,8 +2846,6 @@ PetscErrorCode  TSSetSolution(TS ts,Vec u)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointSetSteps"
 /*@
    TSAdjointSetSteps - Sets the number of steps the adjoint solver should take backward in time
 
@@ -2978,8 +2875,6 @@ PetscErrorCode  TSAdjointSetSteps(TS ts,PetscInt steps)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetCostGradients"
 /*@
    TSSetCostGradients - Sets the initial value of the gradients of the cost function w.r.t. initial conditions and w.r.t. the problem parameters 
       for use by the TSAdjoint routines.
@@ -3009,8 +2904,6 @@ PetscErrorCode  TSSetCostGradients(TS ts,PetscInt numcost,Vec *lambda,Vec *mu)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointSetRHSJacobian"
 /*@C
   TSAdjointSetRHSJacobian - Sets the function that computes the Jacobian of G w.r.t. the parameters p where y_t = G(y,p,t), as well as the location to store the matrix.
 
@@ -3052,8 +2945,6 @@ PetscErrorCode  TSAdjointSetRHSJacobian(TS ts,Mat Amat,PetscErrorCode (*func)(TS
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointComputeRHSJacobian"
 /*@C
   TSAdjointComputeRHSJacobian - Runs the user-defined Jacobian function.
 
@@ -3082,8 +2973,6 @@ PetscErrorCode  TSAdjointComputeRHSJacobian(TS ts,PetscReal t,Vec X,Mat Amat)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetCostIntegrand"
 /*@C
     TSSetCostIntegrand - Sets the routine for evaluating the integral term in one or more cost functions
 
@@ -3142,8 +3031,6 @@ PetscErrorCode  TSSetCostIntegrand(TS ts,PetscInt numcost,PetscErrorCode (*rf)(T
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetCostIntegral"
 /*@
    TSGetCostIntegral - Returns the values of the integral term in the cost functions.
    It is valid to call the routine after a backward run.
@@ -3171,8 +3058,6 @@ PetscErrorCode  TSGetCostIntegral(TS ts,Vec *v)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointComputeCostIntegrand"
 /*@
    TSAdjointComputeCostIntegrand - Evaluates the integral function in the cost functions.
 
@@ -3216,8 +3101,6 @@ PetscErrorCode TSAdjointComputeCostIntegrand(TS ts,PetscReal t,Vec y,Vec q)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointComputeDRDYFunction"
 /*@
   TSAdjointComputeDRDYFunction - Runs the user-defined DRDY function.
 
@@ -3249,8 +3132,6 @@ PetscErrorCode  TSAdjointComputeDRDYFunction(TS ts,PetscReal t,Vec y,Vec *drdy)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointComputeDRDPFunction"
 /*@
   TSAdjointComputeDRDPFunction - Runs the user-defined DRDP function.
 
@@ -3282,8 +3163,6 @@ PetscErrorCode  TSAdjointComputeDRDPFunction(TS ts,PetscReal t,Vec y,Vec *drdp)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetPreStep"
 /*@C
   TSSetPreStep - Sets the general-purpose function
   called once at the beginning of each time step.
@@ -3315,8 +3194,6 @@ PetscErrorCode  TSSetPreStep(TS ts, PetscErrorCode (*func)(TS))
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSPreStep"
 /*@
   TSPreStep - Runs the user-defined pre-step function.
 
@@ -3346,8 +3223,6 @@ PetscErrorCode  TSPreStep(TS ts)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetPreStage"
 /*@C
   TSSetPreStage - Sets the general-purpose function
   called once at the beginning of each stage.
@@ -3379,8 +3254,6 @@ PetscErrorCode  TSSetPreStage(TS ts, PetscErrorCode (*func)(TS,PetscReal))
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetPostStage"
 /*@C
   TSSetPostStage - Sets the general-purpose function
   called once at the end of each stage.
@@ -3412,8 +3285,6 @@ PetscErrorCode  TSSetPostStage(TS ts, PetscErrorCode (*func)(TS,PetscReal,PetscI
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetPostEvaluate"
 /*@C
   TSSetPostEvaluate - Sets the general-purpose function
   called once at the end of each step evaluation.
@@ -3447,8 +3318,6 @@ PetscErrorCode  TSSetPostEvaluate(TS ts, PetscErrorCode (*func)(TS))
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSPreStage"
 /*@
   TSPreStage - Runs the user-defined pre-stage function set using TSSetPreStage()
 
@@ -3479,8 +3348,6 @@ PetscErrorCode  TSPreStage(TS ts, PetscReal stagetime)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSPostStage"
 /*@
   TSPostStage - Runs the user-defined post-stage function set using TSSetPostStage()
 
@@ -3514,8 +3381,6 @@ PetscErrorCode  TSPostStage(TS ts, PetscReal stagetime, PetscInt stageindex, Vec
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSPostEvaluate"
 /*@
   TSPostEvaluate - Runs the user-defined post-evaluate function set using TSSetPostEvaluate()
 
@@ -3545,8 +3410,6 @@ PetscErrorCode  TSPostEvaluate(TS ts)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetPostStep"
 /*@C
   TSSetPostStep - Sets the general-purpose function
   called once at the end of each time step.
@@ -3578,8 +3441,6 @@ PetscErrorCode  TSSetPostStep(TS ts, PetscErrorCode (*func)(TS))
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSPostStep"
 /*@
   TSPostStep - Runs the user-defined post-step function.
 
@@ -3610,8 +3471,6 @@ PetscErrorCode  TSPostStep(TS ts)
 
 /* ------------ Routines to set performance monitoring options ----------- */
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorSet"
 /*@C
    TSMonitorSet - Sets an ADDITIONAL function that is to be used at every
    timestep to display the iteration's  progress.
@@ -3666,8 +3525,6 @@ PetscErrorCode  TSMonitorSet(TS ts,PetscErrorCode (*monitor)(TS,PetscInt,PetscRe
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorCancel"
 /*@C
    TSMonitorCancel - Clears all the monitors that have been set on a time-step object.
 
@@ -3701,8 +3558,6 @@ PetscErrorCode  TSMonitorCancel(TS ts)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorDefault"
 /*@C
    TSMonitorDefault - The Default monitor, prints the timestep and time for each step
 
@@ -3751,8 +3606,6 @@ PetscErrorCode TSMonitorDefault(TS ts,PetscInt step,PetscReal ptime,Vec v,PetscV
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointMonitorSet"
 /*@C
    TSAdjointMonitorSet - Sets an ADDITIONAL function that is to be used at every
    timestep to display the iteration's  progress.
@@ -3811,8 +3664,6 @@ PetscErrorCode  TSAdjointMonitorSet(TS ts,PetscErrorCode (*adjointmonitor)(TS,Pe
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointMonitorCancel"
 /*@C
    TSAdjointMonitorCancel - Clears all the adjoint monitors that have been set on a time-step object.
 
@@ -3846,8 +3697,6 @@ PetscErrorCode  TSAdjointMonitorCancel(TS ts)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointMonitorDefault"
 /*@C
    TSAdjointMonitorDefault - the default monitor of adjoint computations
 
@@ -3872,8 +3721,6 @@ PetscErrorCode TSAdjointMonitorDefault(TS ts,PetscInt step,PetscReal ptime,Vec v
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSInterpolate"
 /*@
    TSInterpolate - Interpolate the solution computed during the previous step to an arbitrary location in the interval
 
@@ -3908,8 +3755,6 @@ PetscErrorCode TSInterpolate(TS ts,PetscReal t,Vec U)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSStep"
 /*@
    TSStep - Steps one time step
 
@@ -3979,8 +3824,6 @@ PetscErrorCode  TSStep(TS ts)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointStep"
 /*@
    TSAdjointStep - Steps one time step backward in the adjoint run
 
@@ -4027,8 +3870,6 @@ PetscErrorCode  TSAdjointStep(TS ts)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSEvaluateWLTE"
 /*@
    TSEvaluateWLTE - Evaluate the weighted local truncation error norm
    at the end of a time step with a given order of accuracy.
@@ -4070,8 +3911,6 @@ PetscErrorCode TSEvaluateWLTE(TS ts,NormType wnormtype,PetscInt *order,PetscReal
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSEvaluateStep"
 /*@
    TSEvaluateStep - Evaluate the solution at the end of a time step with a given order of accuracy.
 
@@ -4106,8 +3945,6 @@ PetscErrorCode TSEvaluateStep(TS ts,PetscInt order,Vec U,PetscBool *done)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSForwardCostIntegral"
 /*@
  TSForwardCostIntegral - Evaluate the cost integral in the forward run.
  
@@ -4132,8 +3969,6 @@ PetscErrorCode TSForwardCostIntegral(TS ts)
     PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSolve"
 /*@
    TSSolve - Steps the requested number of timesteps.
 
@@ -4249,8 +4084,6 @@ PetscErrorCode TSSolve(TS ts,Vec u)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointCostIntegral"
 /*@
  TSAdjointCostIntegral - Evaluate the cost integral in the adjoint run.
  
@@ -4275,8 +4108,6 @@ PetscErrorCode TSAdjointCostIntegral(TS ts)
     PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointSolve"
 /*@
    TSAdjointSolve - Solves the discrete ajoint problem for an ODE/DAE
 
@@ -4335,8 +4166,6 @@ PetscErrorCode TSAdjointSolve(TS ts)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitor"
 /*@C
    TSMonitor - Runs all user-provided monitor routines set using TSMonitorSet()
 
@@ -4379,8 +4208,6 @@ PetscErrorCode TSMonitor(TS ts,PetscInt step,PetscReal ptime,Vec u)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointMonitor"
 /*@C
    TSAdjointMonitor - Runs all user-provided adjoint monitor routines set using TSAdjointMonitorSet()
 
@@ -4420,8 +4247,6 @@ PetscErrorCode TSAdjointMonitor(TS ts,PetscInt step,PetscReal ptime,Vec u,PetscI
 }
 
 /* ------------------------------------------------------------------------*/
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorLGCtxCreate"
 /*@C
    TSMonitorLGCtxCreate - Creates a TSMonitorLGCtx context for use with
    TS to monitor the solution process graphically in various ways
@@ -4485,8 +4310,6 @@ PetscErrorCode  TSMonitorLGCtxCreate(MPI_Comm comm,const char host[],const char 
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorLGTimeStep"
 PetscErrorCode TSMonitorLGTimeStep(TS ts,PetscInt step,PetscReal ptime,Vec v,void *monctx)
 {
   TSMonitorLGCtx ctx = (TSMonitorLGCtx) monctx;
@@ -4510,8 +4333,6 @@ PetscErrorCode TSMonitorLGTimeStep(TS ts,PetscInt step,PetscReal ptime,Vec v,voi
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorLGCtxDestroy"
 /*@C
    TSMonitorLGCtxDestroy - Destroys a line graph context that was created
    with TSMonitorLGCtxCreate().
@@ -4544,8 +4365,6 @@ PetscErrorCode  TSMonitorLGCtxDestroy(TSMonitorLGCtx *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetTime"
 /*@
    TSGetTime - Gets the time of the most recently completed step.
 
@@ -4576,8 +4395,6 @@ PetscErrorCode  TSGetTime(TS ts,PetscReal *t)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetPrevTime"
 /*@
    TSGetPrevTime - Gets the starting time of the previously completed step.
 
@@ -4604,8 +4421,6 @@ PetscErrorCode  TSGetPrevTime(TS ts,PetscReal *t)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetTime"
 /*@
    TSSetTime - Allows one to reset the time.
 
@@ -4630,8 +4445,6 @@ PetscErrorCode  TSSetTime(TS ts, PetscReal t)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetOptionsPrefix"
 /*@C
    TSSetOptionsPrefix - Sets the prefix used for searching for all
    TS options in the database.
@@ -4668,8 +4481,6 @@ PetscErrorCode  TSSetOptionsPrefix(TS ts,const char prefix[])
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAppendOptionsPrefix"
 /*@C
    TSAppendOptionsPrefix - Appends to the prefix used for searching for all
    TS options in the database.
@@ -4705,8 +4516,6 @@ PetscErrorCode  TSAppendOptionsPrefix(TS ts,const char prefix[])
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetOptionsPrefix"
 /*@C
    TSGetOptionsPrefix - Sets the prefix used for searching for all
    TS options in the database.
@@ -4739,8 +4548,6 @@ PetscErrorCode  TSGetOptionsPrefix(TS ts,const char *prefix[])
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetRHSJacobian"
 /*@C
    TSGetRHSJacobian - Returns the Jacobian J at the present timestep.
 
@@ -4777,8 +4584,6 @@ PetscErrorCode  TSGetRHSJacobian(TS ts,Mat *Amat,Mat *Pmat,TSRHSJacobian *func,v
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetIJacobian"
 /*@C
    TSGetIJacobian - Returns the implicit Jacobian at the present timestep.
 
@@ -4817,8 +4622,6 @@ PetscErrorCode  TSGetIJacobian(TS ts,Mat *Amat,Mat *Pmat,TSIJacobian *f,void **c
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorDrawSolution"
 /*@C
    TSMonitorDrawSolution - Monitors progress of the TS solvers by calling
    VecView() for the solution at each timestep
@@ -4885,8 +4688,6 @@ PetscErrorCode  TSMonitorDrawSolution(TS ts,PetscInt step,PetscReal ptime,Vec u,
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSAdjointMonitorDrawSensi"
 /*@C
    TSAdjointMonitorDrawSensi - Monitors progress of the adjoint TS solvers by calling
    VecView() for the sensitivities to initial states at each timestep
@@ -4930,8 +4731,6 @@ PetscErrorCode  TSAdjointMonitorDrawSensi(TS ts,PetscInt step,PetscReal ptime,Ve
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorDrawSolutionPhase"
 /*@C
    TSMonitorDrawSolutionPhase - Monitors progress of the TS solvers by plotting the solution as a phase diagram
 
@@ -4996,8 +4795,6 @@ PetscErrorCode  TSMonitorDrawSolutionPhase(TS ts,PetscInt step,PetscReal ptime,V
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorDrawCtxDestroy"
 /*@C
    TSMonitorDrawCtxDestroy - Destroys the monitor context for TSMonitorDrawSolution()
 
@@ -5023,8 +4820,6 @@ PetscErrorCode  TSMonitorDrawCtxDestroy(TSMonitorDrawCtx *ictx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorDrawCtxCreate"
 /*@C
    TSMonitorDrawCtxCreate - Creates the monitor context for TSMonitorDrawCtx
 
@@ -5063,8 +4858,6 @@ PetscErrorCode  TSMonitorDrawCtxCreate(MPI_Comm comm,const char host[],const cha
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorDrawError"
 /*@C
    TSMonitorDrawError - Monitors progress of the TS solvers by calling
    VecView() for the error at each timestep
@@ -5101,8 +4894,6 @@ PetscErrorCode  TSMonitorDrawError(TS ts,PetscInt step,PetscReal ptime,Vec u,voi
 }
 
 #include <petsc/private/dmimpl.h>
-#undef __FUNCT__
-#define __FUNCT__ "TSSetDM"
 /*@
    TSSetDM - Sets the DM that may be used by some nonlinear solvers or preconditioners under the TS
 
@@ -5144,8 +4935,6 @@ PetscErrorCode  TSSetDM(TS ts,DM dm)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetDM"
 /*@
    TSGetDM - Gets the DM that may be used by some preconditioners
 
@@ -5176,8 +4965,6 @@ PetscErrorCode  TSGetDM(TS ts,DM *dm)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "SNESTSFormFunction"
 /*@
    SNESTSFormFunction - Function to evaluate nonlinear residual
 
@@ -5213,8 +5000,6 @@ PetscErrorCode  SNESTSFormFunction(SNES snes,Vec U,Vec F,void *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "SNESTSFormJacobian"
 /*@
    SNESTSFormJacobian - Function to evaluate the Jacobian
 
@@ -5254,8 +5039,6 @@ PetscErrorCode  SNESTSFormJacobian(SNES snes,Vec U,Mat A,Mat B,void *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeRHSFunctionLinear"
 /*@C
    TSComputeRHSFunctionLinear - Evaluate the right hand side via the user-provided Jacobian, for linear problems Udot = A U only
 
@@ -5290,8 +5073,6 @@ PetscErrorCode TSComputeRHSFunctionLinear(TS ts,PetscReal t,Vec U,Vec F,void *ct
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeRHSJacobianConstant"
 /*@C
    TSComputeRHSJacobianConstant - Reuses a Jacobian that is time-independent.
 
@@ -5321,8 +5102,6 @@ PetscErrorCode TSComputeRHSJacobianConstant(TS ts,PetscReal t,Vec U,Mat A,Mat B,
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeIFunctionLinear"
 /*@C
    TSComputeIFunctionLinear - Evaluate the left hand side via the user-provided Jacobian, for linear problems only
 
@@ -5362,8 +5141,6 @@ PetscErrorCode TSComputeIFunctionLinear(TS ts,PetscReal t,Vec U,Vec Udot,Vec F,v
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeIJacobianConstant"
 /*@C
    TSComputeIJacobianConstant - Reuses a time-independent for a semi-implicit DAE or ODE
 
@@ -5412,8 +5189,6 @@ PetscErrorCode TSComputeIJacobianConstant(TS ts,PetscReal t,Vec U,Vec Udot,Petsc
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetEquationType"
 /*@
    TSGetEquationType - Gets the type of the equation that TS is solving.
 
@@ -5440,8 +5215,6 @@ PetscErrorCode  TSGetEquationType(TS ts,TSEquationType *equation_type)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetEquationType"
 /*@
    TSSetEquationType - Sets the type of the equation that TS is solving.
 
@@ -5465,8 +5238,6 @@ PetscErrorCode  TSSetEquationType(TS ts,TSEquationType equation_type)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetConvergedReason"
 /*@
    TSGetConvergedReason - Gets the reason the TS iteration was stopped.
 
@@ -5497,8 +5268,6 @@ PetscErrorCode  TSGetConvergedReason(TS ts,TSConvergedReason *reason)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetConvergedReason"
 /*@
    TSSetConvergedReason - Sets the reason for handling the convergence of TSSolve.
 
@@ -5526,8 +5295,6 @@ PetscErrorCode  TSSetConvergedReason(TS ts,TSConvergedReason reason)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetSolveTime"
 /*@
    TSGetSolveTime - Gets the time after a call to TSSolve()
 
@@ -5557,8 +5324,6 @@ PetscErrorCode  TSGetSolveTime(TS ts,PetscReal *ftime)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetTotalSteps"
 /*@
    TSGetTotalSteps - Gets the total number of steps done since the last call to TSSetUp() or TSCreate()
 
@@ -5588,8 +5353,6 @@ PetscErrorCode  TSGetTotalSteps(TS ts,PetscInt *steps)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetSNESIterations"
 /*@
    TSGetSNESIterations - Gets the total number of nonlinear iterations
    used by the time integrator.
@@ -5620,8 +5383,6 @@ PetscErrorCode TSGetSNESIterations(TS ts,PetscInt *nits)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetKSPIterations"
 /*@
    TSGetKSPIterations - Gets the total number of linear iterations
    used by the time integrator.
@@ -5652,8 +5413,6 @@ PetscErrorCode TSGetKSPIterations(TS ts,PetscInt *lits)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetStepRejections"
 /*@
    TSGetStepRejections - Gets the total number of rejected steps.
 
@@ -5683,8 +5442,6 @@ PetscErrorCode TSGetStepRejections(TS ts,PetscInt *rejects)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetSNESFailures"
 /*@
    TSGetSNESFailures - Gets the total number of failed SNES solves
 
@@ -5714,8 +5471,6 @@ PetscErrorCode TSGetSNESFailures(TS ts,PetscInt *fails)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetMaxStepRejections"
 /*@
    TSSetMaxStepRejections - Sets the maximum number of step rejections before a step fails
 
@@ -5745,8 +5500,6 @@ PetscErrorCode TSSetMaxStepRejections(TS ts,PetscInt rejects)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetMaxSNESFailures"
 /*@
    TSSetMaxSNESFailures - Sets the maximum number of failed SNES solves
 
@@ -5776,8 +5529,6 @@ PetscErrorCode TSSetMaxSNESFailures(TS ts,PetscInt fails)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetErrorIfStepFails"
 /*@
    TSSetErrorIfStepFails - Error if no step succeeds
 
@@ -5804,8 +5555,6 @@ PetscErrorCode TSSetErrorIfStepFails(TS ts,PetscBool err)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorSolution"
 /*@C
    TSMonitorSolution - Monitors progress of the TS solvers by VecView() for the solution at each timestep. Normally the viewer is a binary file or a PetscDraw object
 
@@ -5835,8 +5584,6 @@ PetscErrorCode  TSMonitorSolution(TS ts,PetscInt step,PetscReal ptime,Vec u,Pets
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorSolutionVTK"
 /*@C
    TSMonitorSolutionVTK - Monitors progress of the TS solvers by VecView() for the solution at each timestep.
 
@@ -5876,8 +5623,6 @@ PetscErrorCode TSMonitorSolutionVTK(TS ts,PetscInt step,PetscReal ptime,Vec u,vo
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorSolutionVTKDestroy"
 /*@C
    TSMonitorSolutionVTKDestroy - Destroy context for monitoring
 
@@ -5904,8 +5649,6 @@ PetscErrorCode TSMonitorSolutionVTKDestroy(void *filenametemplate)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetAdapt"
 /*@
    TSGetAdapt - Get the adaptive controller context for the current method
 
@@ -5937,8 +5680,6 @@ PetscErrorCode TSGetAdapt(TS ts,TSAdapt *adapt)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetTolerances"
 /*@
    TSSetTolerances - Set tolerances for local truncation error when using adaptive controller
 
@@ -5987,8 +5728,6 @@ PetscErrorCode TSSetTolerances(TS ts,PetscReal atol,Vec vatol,PetscReal rtol,Vec
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetTolerances"
 /*@
    TSGetTolerances - Get tolerances for local truncation error when using adaptive controller
 
@@ -6017,8 +5756,6 @@ PetscErrorCode TSGetTolerances(TS ts,PetscReal *atol,Vec *vatol,PetscReal *rtol,
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSErrorWeightedNorm2"
 /*@
    TSErrorWeightedNorm2 - compute a weighted 2-norm of the difference between two state vectors
 
@@ -6189,8 +5926,6 @@ PetscErrorCode TSErrorWeightedNorm2(TS ts,Vec U,Vec Y,PetscReal *norm,PetscReal 
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSErrorWeightedNormInfinity"
 /*@
    TSErrorWeightedNormInfinity - compute a weighted infinity-norm of the difference between two state vectors
 
@@ -6339,8 +6074,6 @@ PetscErrorCode TSErrorWeightedNormInfinity(TS ts,Vec U,Vec Y,PetscReal *norm,Pet
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSErrorWeightedNorm"
 /*@
    TSErrorWeightedNorm - compute a weighted norm of the difference between two state vectors based on supplied absolute and relative tolerances
 
@@ -6378,8 +6111,6 @@ PetscErrorCode TSErrorWeightedNorm(TS ts,Vec U,Vec Y,NormType wnormtype,PetscRea
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "TSErrorWeightedENorm2"
 /*@
    TSErrorWeightedENorm2 - compute a weighted 2 error norm based on supplied absolute and relative tolerances
 
@@ -6555,8 +6286,6 @@ PetscErrorCode TSErrorWeightedENorm2(TS ts,Vec E,Vec U,Vec Y,PetscReal *norm,Pet
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSErrorWeightedENormInfinity"
 /*@
    TSErrorWeightedENormInfinity - compute a weighted infinity error norm based on supplied absolute and relative tolerances
    Collective on TS
@@ -6709,8 +6438,6 @@ PetscErrorCode TSErrorWeightedENormInfinity(TS ts,Vec E,Vec U,Vec Y,PetscReal *n
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSErrorWeightedENorm"
 /*@
    TSErrorWeightedENorm - compute a weighted error norm based on supplied absolute and relative tolerances
 
@@ -6749,8 +6476,6 @@ PetscErrorCode TSErrorWeightedENorm(TS ts,Vec E,Vec U,Vec Y,NormType wnormtype,P
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetCFLTimeLocal"
 /*@
    TSSetCFLTimeLocal - Set the local CFL constraint relative to forward Euler
 
@@ -6776,8 +6501,6 @@ PetscErrorCode TSSetCFLTimeLocal(TS ts,PetscReal cfltime)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetCFLTime"
 /*@
    TSGetCFLTime - Get the maximum stable time step according to CFL criteria applied to forward Euler
 
@@ -6805,8 +6528,6 @@ PetscErrorCode TSGetCFLTime(TS ts,PetscReal *cfltime)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSVISetVariableBounds"
 /*@
    TSVISetVariableBounds - Sets the lower and upper bounds for the solution vector. xl <= x <= xu
 
@@ -6838,8 +6559,6 @@ PetscErrorCode TSVISetVariableBounds(TS ts, Vec xl, Vec xu)
 
 typedef struct {char *funcname; mxArray *ctx;} TSMatlabContext;
 
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeFunction_Matlab"
 /*
    TSComputeFunction_Matlab - Calls the function that has been set with
                          TSSetFunctionMatlab().
@@ -6905,8 +6624,6 @@ PetscErrorCode  TSComputeFunction_Matlab(TS snes,PetscReal time,Vec u,Vec udot,V
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetFunctionMatlab"
 /*
    TSSetFunctionMatlab - Sets the function evaluation routine and function
    vector for use by the TS routines in solving ODEs
@@ -6947,8 +6664,6 @@ PetscErrorCode  TSSetFunctionMatlab(TS ts,const char *func,mxArray *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeJacobian_Matlab"
 /*
    TSComputeJacobian_Matlab - Calls the function that has been set with
                          TSSetJacobianMatlab().
@@ -7012,8 +6727,6 @@ PetscErrorCode  TSComputeJacobian_Matlab(TS ts,PetscReal time,Vec u,Vec udot,Pet
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetJacobianMatlab"
 /*
    TSSetJacobianMatlab - Sets the Jacobian function evaluation routine and two empty Jacobian matrices
    vector for use by the TS routines in solving ODEs from MATLAB. Here the function is a string containing the name of a MATLAB function
@@ -7056,8 +6769,6 @@ PetscErrorCode  TSSetJacobianMatlab(TS ts,Mat A,Mat B,const char *func,mxArray *
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitor_Matlab"
 /*
    TSMonitor_Matlab - Calls the function that has been set with TSMonitorSetMatlab().
 
@@ -7098,8 +6809,6 @@ PetscErrorCode  TSMonitor_Matlab(TS ts,PetscInt it, PetscReal time,Vec u, void *
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorSetMatlab"
 /*
    TSMonitorSetMatlab - Sets the monitor function from Matlab
 
@@ -7130,8 +6839,6 @@ PetscErrorCode  TSMonitorSetMatlab(TS ts,const char *func,mxArray *ctx)
 }
 #endif
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorLGSolution"
 /*@C
    TSMonitorLGSolution - Monitors progress of the TS solvers by plotting each component of the solution vector
        in a time based line graph
@@ -7248,8 +6955,6 @@ PetscErrorCode  TSMonitorLGSolution(TS ts,PetscInt step,PetscReal ptime,Vec u,vo
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorLGSetVariableNames"
 /*@C
    TSMonitorLGSetVariableNames - Sets the name of each component in the solution vector so that it may be displayed in the plot
 
@@ -7282,8 +6987,6 @@ PetscErrorCode  TSMonitorLGSetVariableNames(TS ts,const char * const *names)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorLGCtxSetVariableNames"
 /*@C
    TSMonitorLGCtxSetVariableNames - Sets the name of each component in the solution vector so that it may be displayed in the plot
 
@@ -7309,8 +7012,6 @@ PetscErrorCode  TSMonitorLGCtxSetVariableNames(TSMonitorLGCtx ctx,const char * c
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorLGGetVariableNames"
 /*@C
    TSMonitorLGGetVariableNames - Gets the name of each component in the solution vector so that it may be displayed in the plot
 
@@ -7346,8 +7047,6 @@ PetscErrorCode  TSMonitorLGGetVariableNames(TS ts,const char *const **names)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorLGCtxSetDisplayVariables"
 /*@C
    TSMonitorLGCtxSetDisplayVariables - Sets the variables that are to be display in the monitor
 
@@ -7394,8 +7093,6 @@ PetscErrorCode  TSMonitorLGCtxSetDisplayVariables(TSMonitorLGCtx ctx,const char 
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorLGSetDisplayVariables"
 /*@C
    TSMonitorLGSetDisplayVariables - Sets the variables that are to be display in the monitor
 
@@ -7428,8 +7125,6 @@ PetscErrorCode  TSMonitorLGSetDisplayVariables(TS ts,const char * const *display
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorLGSetTransform"
 /*@C
    TSMonitorLGSetTransform - Solution vector will be transformed by provided function before being displayed
 
@@ -7463,8 +7158,6 @@ PetscErrorCode  TSMonitorLGSetTransform(TS ts,PetscErrorCode (*transform)(void*,
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorLGCtxSetTransform"
 /*@C
    TSMonitorLGCtxSetTransform - Solution vector will be transformed by provided function before being displayed
 
@@ -7491,8 +7184,6 @@ PetscErrorCode  TSMonitorLGCtxSetTransform(TSMonitorLGCtx ctx,PetscErrorCode (*t
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorLGError"
 /*@C
    TSMonitorLGError - Monitors progress of the TS solvers by plotting each component of the solution vector
        in a time based line graph
@@ -7562,8 +7253,6 @@ PetscErrorCode  TSMonitorLGError(TS ts,PetscInt step,PetscReal ptime,Vec u,void 
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorLGSNESIterations"
 PetscErrorCode TSMonitorLGSNESIterations(TS ts,PetscInt n,PetscReal ptime,Vec v,void *monctx)
 {
   TSMonitorLGCtx ctx = (TSMonitorLGCtx) monctx;
@@ -7591,8 +7280,6 @@ PetscErrorCode TSMonitorLGSNESIterations(TS ts,PetscInt n,PetscReal ptime,Vec v,
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorLGKSPIterations"
 PetscErrorCode TSMonitorLGKSPIterations(TS ts,PetscInt n,PetscReal ptime,Vec v,void *monctx)
 {
   TSMonitorLGCtx ctx = (TSMonitorLGCtx) monctx;
@@ -7620,8 +7307,6 @@ PetscErrorCode TSMonitorLGKSPIterations(TS ts,PetscInt n,PetscReal ptime,Vec v,v
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeLinearStability"
 /*@
    TSComputeLinearStability - computes the linear stability function at a point
 
@@ -7652,8 +7337,6 @@ PetscErrorCode TSComputeLinearStability(TS ts,PetscReal xr,PetscReal xi,PetscRea
 }
 
 /* ------------------------------------------------------------------------*/
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorEnvelopeCtxCreate"
 /*@C
    TSMonitorEnvelopeCtxCreate - Creates a context for use with TSMonitorEnvelope()
 
@@ -7681,8 +7364,6 @@ PetscErrorCode  TSMonitorEnvelopeCtxCreate(TS ts,TSMonitorEnvelopeCtx *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorEnvelope"
 /*@C
    TSMonitorEnvelope - Monitors the maximum and minimum value of each component of the solution
 
@@ -7725,8 +7406,6 @@ PetscErrorCode  TSMonitorEnvelope(TS ts,PetscInt step,PetscReal ptime,Vec u,void
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorEnvelopeGetBounds"
 /*@C
    TSMonitorEnvelopeGetBounds - Gets the bounds for the components of the solution
 
@@ -7765,8 +7444,6 @@ PetscErrorCode  TSMonitorEnvelopeGetBounds(TS ts,Vec *max,Vec *min)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSMonitorEnvelopeCtxDestroy"
 /*@C
    TSMonitorEnvelopeCtxDestroy - Destroys a context that was created  with TSMonitorEnvelopeCtxCreate().
 
@@ -7792,8 +7469,6 @@ PetscErrorCode  TSMonitorEnvelopeCtxDestroy(TSMonitorEnvelopeCtx *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSRollBack"
 /*@
    TSRollBack - Rolls back one time step
 
@@ -7826,8 +7501,6 @@ PetscErrorCode  TSRollBack(TS ts)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSGetStages"
 /*@
    TSGetStages - Get the number of stages and stage values
 
@@ -7855,8 +7528,6 @@ PetscErrorCode  TSGetStages(TS ts,PetscInt *ns,Vec **Y)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSComputeIJacobianDefaultColor"
 /*@C
   TSComputeIJacobianDefaultColor - Computes the Jacobian using finite differences and coloring to exploit matrix sparsity.
 
@@ -7941,8 +7612,6 @@ PetscErrorCode TSComputeIJacobianDefaultColor(TS ts,PetscReal t,Vec U,Vec Udot,P
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSSetFunctionDomainError"
 /*@
     TSSetFunctionDomainError - Set the function testing if the current state vector is valid
 
@@ -7964,8 +7633,6 @@ PetscErrorCode TSSetFunctionDomainError(TS ts, PetscErrorCode (*func)(TS,PetscRe
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TSFunctionDomainError"
 /*@
     TSFunctionDomainError - Check if the current state is valid
 
@@ -7997,8 +7664,6 @@ PetscErrorCode TSFunctionDomainError(TS ts,PetscReal stagetime,Vec Y,PetscBool* 
   PetscFunctionReturn(0);
 }
 
-#undef  __FUNCT__
-#define __FUNCT__ "TSClone"
 /*@C
   TSClone - This function clones a time step object. 
 

@@ -4,7 +4,9 @@
 
 #if defined(PETSC_HAVE_FORTRAN_CAPS)
 #define matsetvalues_                    MATSETVALUES
+#define matsetvaluesnnnn_                MATSETVALUESNNNN
 #define matsetvalues0_                   MATSETVALUES0
+#define matsetvaluesnn1_                 MATSETVALUESNN1
 #define matsetvalues11_                  MATSETVALUES11
 #define matsetvalues1n_                  MATSETVALUES1N
 #define matsetvaluesn1_                  MATSETVALUESN1
@@ -72,9 +74,17 @@
 #define matfactorinfoinitialize_         MATFACTORINFOINITIALIZE
 #define matnullspacesetfunction_         MATNULLSPACESETFUNCTION
 #define matfindnonzerorows_              MATFINDNONZEROROWS
+#define matgetsize00_                    MATGETSIZE00
+#define matgetsize10_                    MATGETSIZE10
+#define matgetsize01_                    MATGETSIZE01
+#define matgetlocalsize00_               MATGETLOCALSIZE00
+#define matgetlocalsize10_               MATGETLOCALSIZE10
+#define matgetlocalsize01_               MATGETLOCALSIZE01
 #elif !defined(PETSC_HAVE_FORTRAN_UNDERSCORE)
 #define matsetvalues_                    matsetvalues
+#define matsetvaluesnnnn_                matsetvaluesnnnn
 #define matsetvalues0_                   matsetvalues0
+#define matsetvaluesnn1_                 matsetvaluesnn1
 #define matsetvalues11_                  matsetvalues11
 #define matsetvaluesn1_                  matsetvaluesn1
 #define matsetvalues1n_                  matsetvalues1n
@@ -143,7 +153,57 @@
 #define matfactorinfoinitialize_         matfactorinfoinitialize
 #define matnullspacesetfunction_         matnullspacesetfunction
 #define matfindnonzerorows_              matfindnonzerorows
+#define matgetsize00_                    matgetsize00
+#define matgetsize10_                    matgetsize10
+#define matgetsize01_                    matgetsize01
+#define matgetlocalsize00_               matgetlocalsize00
+#define matgetlocalsize10_               matgetlocalsize10
+#define matgetlocalsize01_               matgetlocalsize01
 #endif
+
+PETSC_EXTERN void PETSC_STDCALL  matgetsize_(Mat *mat,PetscInt *m,PetscInt *n, int *ierr )
+{
+  CHKFORTRANNULLINTEGER(m);
+  CHKFORTRANNULLINTEGER(n);
+  *ierr = MatGetSize(*mat,m,n);
+}
+
+PETSC_EXTERN void PETSC_STDCALL  matgetsize00_(Mat *mat,PetscInt *m,PetscInt *n, int *ierr )
+{
+  matgetsize_(mat,m,n,ierr);
+}
+
+PETSC_EXTERN void PETSC_STDCALL  matgetsize10_(Mat *mat,PetscInt *m,PetscInt *n, int *ierr )
+{
+  matgetsize_(mat,m,n,ierr);
+}
+
+PETSC_EXTERN void PETSC_STDCALL  matgetsize01_(Mat *mat,PetscInt *m,PetscInt *n, int *ierr )
+{
+  matgetsize_(mat,m,n,ierr);
+}
+
+PETSC_EXTERN void PETSC_STDCALL  matgetlocalsize_(Mat *mat,PetscInt *m,PetscInt *n, int *ierr )
+{
+  CHKFORTRANNULLINTEGER(m);
+  CHKFORTRANNULLINTEGER(n);
+  *ierr = MatGetLocalSize(*mat,m,n);
+}
+
+PETSC_EXTERN void PETSC_STDCALL  matgetlocalsize00_(Mat *mat,PetscInt *m,PetscInt *n, int *ierr )
+{
+  matgetlocalsize_(mat,m,n,ierr);
+}
+
+PETSC_EXTERN void PETSC_STDCALL  matgetlocalsize10_(Mat *mat,PetscInt *m,PetscInt *n, int *ierr )
+{
+  matgetlocalsize_(mat,m,n,ierr);
+}
+
+PETSC_EXTERN void PETSC_STDCALL  matgetlocalsize01_(Mat *mat,PetscInt *m,PetscInt *n, int *ierr )
+{
+  matgetlocalsize_(mat,m,n,ierr);
+}
 
 PETSC_EXTERN void PETSC_STDCALL  matsetvaluesblocked_(Mat *mat,PetscInt *m, PetscInt idxm[],PetscInt *n, PetscInt idxn[], PetscScalar v[],InsertMode *addv, int *ierr ){
   *ierr = MatSetValuesBlocked(*mat,*m,idxm,*n,idxn,v,*addv);
@@ -199,7 +259,17 @@ PETSC_EXTERN void PETSC_STDCALL  matsetvalues_(Mat *mat,PetscInt *m, PetscInt id
   *ierr = MatSetValues(*mat,*m,idxm,*n,idxn,v,*addv);
 }
 
+PETSC_EXTERN void PETSC_STDCALL  matsetvaluesnnnn_(Mat *mat,PetscInt *m, PetscInt idxm[],PetscInt *n, PetscInt idxn[], PetscScalar v[],InsertMode *addv, int *ierr )
+{
+  matsetvalues_(mat,m,idxm,n,idxn,v,addv,ierr);
+}
+
 PETSC_EXTERN void PETSC_STDCALL  matsetvalues0_(Mat *mat,PetscInt *m, PetscInt idxm[],PetscInt *n, PetscInt idxn[], PetscScalar v[],InsertMode *addv, int *ierr )
+{
+  matsetvalues_(mat,m,idxm,n,idxn,v,addv,ierr);
+}
+
+PETSC_EXTERN void PETSC_STDCALL  matsetvaluesnn1_(Mat *mat,PetscInt *m, PetscInt idxm[],PetscInt *n, PetscInt idxn[], PetscScalar v[],InsertMode *addv, int *ierr )
 {
   matsetvalues_(mat,m,idxm,n,idxn,v,addv,ierr);
 }
@@ -422,7 +492,7 @@ PETSC_EXTERN void PETSC_STDCALL matdenserestorearray_(Mat *mat,PetscScalar *fa,s
   *ierr = MatDenseRestoreArray(*mat,&lx);if (*ierr) return;
 }
 
-PETSC_EXTERN void PETSC_STDCALL matfactorgetsolverpackage_(Mat *mat,CHAR name PETSC_MIXED_LEN(len),PetscErrorCode *ierr PETSC_END_LEN(len))
+PETSC_EXTERN void PETSC_STDCALL matfactorgetsolverpackage_(Mat *mat,char* name PETSC_MIXED_LEN(len),PetscErrorCode *ierr PETSC_END_LEN(len))
 {
   const char *tname;
 
@@ -433,7 +503,7 @@ PETSC_EXTERN void PETSC_STDCALL matfactorgetsolverpackage_(Mat *mat,CHAR name PE
   FIXRETURNCHAR(PETSC_TRUE,name,len);
 }
 
-PETSC_EXTERN void PETSC_STDCALL matgetfactor_(Mat *mat,CHAR outtype PETSC_MIXED_LEN(len),MatFactorType *ftype,Mat *M,PetscErrorCode *ierr PETSC_END_LEN(len))
+PETSC_EXTERN void PETSC_STDCALL matgetfactor_(Mat *mat,char* outtype PETSC_MIXED_LEN(len),MatFactorType *ftype,Mat *M,PetscErrorCode *ierr PETSC_END_LEN(len))
 {
   char *t;
   FIXCHAR(outtype,len,t);
@@ -441,7 +511,7 @@ PETSC_EXTERN void PETSC_STDCALL matgetfactor_(Mat *mat,CHAR outtype PETSC_MIXED_
   FREECHAR(outtype,t);
 }
 
-PETSC_EXTERN void PETSC_STDCALL matconvert_(Mat *mat,CHAR outtype PETSC_MIXED_LEN(len),MatReuse *reuse,Mat *M,PetscErrorCode *ierr PETSC_END_LEN(len))
+PETSC_EXTERN void PETSC_STDCALL matconvert_(Mat *mat,char* outtype PETSC_MIXED_LEN(len),MatReuse *reuse,Mat *M,PetscErrorCode *ierr PETSC_END_LEN(len))
 {
   char *t;
   FIXCHAR(outtype,len,t);
@@ -554,7 +624,7 @@ PETSC_EXTERN void PETSC_STDCALL matzerorowscolumnslocalis_(Mat *mat,IS *is,Petsc
   *ierr = MatZeroRowsColumnsLocalIS(*mat,*is,*diag,*x,*b);
 }
 
-PETSC_EXTERN void PETSC_STDCALL matsetoptionsprefix_(Mat *mat,CHAR prefix PETSC_MIXED_LEN(len),PetscErrorCode *ierr PETSC_END_LEN(len))
+PETSC_EXTERN void PETSC_STDCALL matsetoptionsprefix_(Mat *mat,char* prefix PETSC_MIXED_LEN(len),PetscErrorCode *ierr PETSC_END_LEN(len))
 {
   char *t;
 

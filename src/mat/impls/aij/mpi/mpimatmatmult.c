@@ -10,13 +10,23 @@
 #include <../src/mat/impls/dense/mpi/mpidense.h>
 #include <petsc/private/vecimpl.h>
 
+#if defined(PETSC_HAVE_HYPRE)
+PETSC_INTERN PetscErrorCode MatMatMultSymbolic_AIJ_AIJ_wHYPRE(Mat,Mat,PetscReal,Mat*);
+#endif
+
 #undef __FUNCT__
 #define __FUNCT__ "MatMatMult_MPIAIJ_MPIAIJ"
 PETSC_INTERN PetscErrorCode MatMatMult_MPIAIJ_MPIAIJ(Mat A,Mat B,MatReuse scall,PetscReal fill, Mat *C)
 {
   PetscErrorCode ierr;
+#if defined(PETSC_HAVE_HYPRE)
+  const char     *algTypes[3] = {"scalable","nonscalable","hypre"};
+  PetscInt       nalg = 3;
+#else
   const char     *algTypes[2] = {"scalable","nonscalable"};
-  PetscInt       alg=1; /* set default algorithm */
+  PetscInt       nalg = 2;
+#endif
+  PetscInt       alg = 1; /* set default algorithm */
   MPI_Comm       comm;
 
   PetscFunctionBegin;
@@ -25,7 +35,7 @@ PETSC_INTERN PetscErrorCode MatMatMult_MPIAIJ_MPIAIJ(Mat A,Mat B,MatReuse scall,
     if (A->cmap->rstart != B->rmap->rstart || A->cmap->rend != B->rmap->rend) SETERRQ4(comm,PETSC_ERR_ARG_SIZ,"Matrix local dimensions are incompatible, (%D, %D) != (%D,%D)",A->cmap->rstart,A->cmap->rend,B->rmap->rstart,B->rmap->rend);
 
     ierr = PetscObjectOptionsBegin((PetscObject)A);CHKERRQ(ierr);
-    ierr = PetscOptionsEList("-matmatmult_via","Algorithmic approach","MatMatMult",algTypes,2,algTypes[1],&alg,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsEList("-matmatmult_via","Algorithmic approach","MatMatMult",algTypes,nalg,algTypes[1],&alg,NULL);CHKERRQ(ierr);
     ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
     ierr = PetscLogEventBegin(MAT_MatMultSymbolic,A,B,0,0);CHKERRQ(ierr);
@@ -33,6 +43,11 @@ PETSC_INTERN PetscErrorCode MatMatMult_MPIAIJ_MPIAIJ(Mat A,Mat B,MatReuse scall,
     case 1:
       ierr = MatMatMultSymbolic_MPIAIJ_MPIAIJ_nonscalable(A,B,fill,C);CHKERRQ(ierr);
       break;
+#if defined(PETSC_HAVE_HYPRE)
+    case 2:
+      ierr = MatMatMultSymbolic_AIJ_AIJ_wHYPRE(A,B,fill,C);CHKERRQ(ierr);
+      break;
+#endif
     default:
       ierr = MatMatMultSymbolic_MPIAIJ_MPIAIJ(A,B,fill,C);CHKERRQ(ierr);
       break;
@@ -45,8 +60,6 @@ PETSC_INTERN PetscErrorCode MatMatMult_MPIAIJ_MPIAIJ(Mat A,Mat B,MatReuse scall,
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MatDestroy_MPIAIJ_MatMatMult"
 PetscErrorCode MatDestroy_MPIAIJ_MatMatMult(Mat A)
 {
   PetscErrorCode ierr;
@@ -67,8 +80,6 @@ PetscErrorCode MatDestroy_MPIAIJ_MatMatMult(Mat A)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MatDuplicate_MPIAIJ_MatMatMult"
 PetscErrorCode MatDuplicate_MPIAIJ_MatMatMult(Mat A, MatDuplicateOption op, Mat *M)
 {
   PetscErrorCode ierr;
@@ -83,8 +94,6 @@ PetscErrorCode MatDuplicate_MPIAIJ_MatMatMult(Mat A, MatDuplicateOption op, Mat 
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MatMatMultNumeric_MPIAIJ_MPIAIJ_nonscalable"
 PetscErrorCode MatMatMultNumeric_MPIAIJ_MPIAIJ_nonscalable(Mat A,Mat P,Mat C)
 {
   PetscErrorCode ierr;
@@ -166,8 +175,6 @@ PetscErrorCode MatMatMultNumeric_MPIAIJ_MPIAIJ_nonscalable(Mat A,Mat P,Mat C)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MatMatMultSymbolic_MPIAIJ_MPIAIJ_nonscalable"
 PetscErrorCode MatMatMultSymbolic_MPIAIJ_MPIAIJ_nonscalable(Mat A,Mat P,PetscReal fill,Mat *C)
 {
   PetscErrorCode     ierr;
@@ -327,8 +334,6 @@ PetscErrorCode MatMatMultSymbolic_MPIAIJ_MPIAIJ_nonscalable(Mat A,Mat P,PetscRea
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MatMatMult_MPIAIJ_MPIDense"
 PETSC_INTERN PetscErrorCode MatMatMult_MPIAIJ_MPIDense(Mat A,Mat B,MatReuse scall,PetscReal fill,Mat *C)
 {
   PetscErrorCode ierr;
@@ -351,8 +356,6 @@ typedef struct {
   MPI_Request *rwaits,*swaits;
 } MPIAIJ_MPIDense;
 
-#undef __FUNCT__
-#define __FUNCT__ "MatMPIAIJ_MPIDenseDestroy"
 PetscErrorCode MatMPIAIJ_MPIDenseDestroy(void *ctx)
 {
   MPIAIJ_MPIDense *contents = (MPIAIJ_MPIDense*) ctx;
@@ -365,8 +368,6 @@ PetscErrorCode MatMPIAIJ_MPIDenseDestroy(void *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MatMatMultNumeric_MPIDense"
 /*
     This is a "dummy function" that handles the case where matrix C was created as a dense matrix
   directly by the user and passed to MatMatMult() with the MAT_REUSE_MATRIX option
@@ -414,8 +415,6 @@ PetscErrorCode MatMatMultNumeric_MPIDense(Mat A,Mat B,Mat C)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MatMatMultSymbolic_MPIAIJ_MPIDense"
 PetscErrorCode MatMatMultSymbolic_MPIAIJ_MPIDense(Mat A,Mat B,PetscReal fill,Mat *C)
 {
   PetscErrorCode         ierr;
@@ -456,8 +455,6 @@ PetscErrorCode MatMatMultSymbolic_MPIAIJ_MPIDense(Mat A,Mat B,PetscReal fill,Mat
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MatMPIDenseScatter"
 /*
     Performs an efficient scatter on the rows of B needed by this process; this is
     a modification of the VecScatterBegin_() routines.
@@ -539,8 +536,6 @@ PetscErrorCode MatMPIDenseScatter(Mat A,Mat B,Mat C,Mat *outworkB)
 }
 extern PetscErrorCode MatMatMultNumericAdd_SeqAIJ_SeqDense(Mat,Mat,Mat);
 
-#undef __FUNCT__
-#define __FUNCT__ "MatMatMultNumeric_MPIAIJ_MPIDense"
 PetscErrorCode MatMatMultNumeric_MPIAIJ_MPIDense(Mat A,Mat B,Mat C)
 {
   PetscErrorCode ierr;
@@ -563,8 +558,6 @@ PetscErrorCode MatMatMultNumeric_MPIAIJ_MPIDense(Mat A,Mat B,Mat C)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MatMatMultNumeric_MPIAIJ_MPIAIJ"
 PetscErrorCode MatMatMultNumeric_MPIAIJ_MPIAIJ(Mat A,Mat P,Mat C)
 {
   PetscErrorCode ierr;
@@ -688,8 +681,6 @@ PetscErrorCode MatMatMultNumeric_MPIAIJ_MPIAIJ(Mat A,Mat P,Mat C)
 }
 
 /* same as MatMatMultSymbolic_MPIAIJ_MPIAIJ_nonscalable(), except using LLCondensed to avoid O(BN) memory requirement */
-#undef __FUNCT__
-#define __FUNCT__ "MatMatMultSymbolic_MPIAIJ_MPIAIJ"
 PetscErrorCode MatMatMultSymbolic_MPIAIJ_MPIAIJ(Mat A,Mat P,PetscReal fill,Mat *C)
 {
   PetscErrorCode     ierr;
@@ -865,8 +856,6 @@ PetscErrorCode MatMatMultSymbolic_MPIAIJ_MPIAIJ(Mat A,Mat P,PetscReal fill,Mat *
 }
 
 /*-------------------------------------------------------------------------*/
-#undef __FUNCT__
-#define __FUNCT__ "MatTransposeMatMult_MPIAIJ_MPIAIJ"
 PetscErrorCode MatTransposeMatMult_MPIAIJ_MPIAIJ(Mat P,Mat A,MatReuse scall,PetscReal fill,Mat *C)
 {
   PetscErrorCode ierr;
@@ -911,8 +900,6 @@ PetscErrorCode MatTransposeMatMult_MPIAIJ_MPIAIJ(Mat P,Mat A,MatReuse scall,Pets
 }
 
 /* This routine only works when scall=MAT_REUSE_MATRIX! */
-#undef __FUNCT__
-#define __FUNCT__ "MatTransposeMatMultNumeric_MPIAIJ_MPIAIJ_matmatmult"
 PetscErrorCode MatTransposeMatMultNumeric_MPIAIJ_MPIAIJ_matmatmult(Mat P,Mat A,Mat C)
 {
   PetscErrorCode ierr;
@@ -927,8 +914,6 @@ PetscErrorCode MatTransposeMatMultNumeric_MPIAIJ_MPIAIJ_matmatmult(Mat P,Mat A,M
 }
 
 /* Non-scalable version, use dense axpy */
-#undef __FUNCT__
-#define __FUNCT__ "MatTransposeMatMultNumeric_MPIAIJ_MPIAIJ_nonscalable"
 PetscErrorCode MatTransposeMatMultNumeric_MPIAIJ_MPIAIJ_nonscalable(Mat P,Mat A,Mat C)  
 {
   PetscErrorCode      ierr;
@@ -1099,8 +1084,6 @@ PetscErrorCode MatTransposeMatMultNumeric_MPIAIJ_MPIAIJ_nonscalable(Mat P,Mat A,
 
 PetscErrorCode MatDuplicate_MPIAIJ_MatPtAP(Mat, MatDuplicateOption,Mat*);
 /* This routine is modified from MatPtAPSymbolic_MPIAIJ_MPIAIJ() */
-#undef __FUNCT__
-#define __FUNCT__ "MatTransposeMatMultSymbolic_MPIAIJ_MPIAIJ_nonscalable"
 PetscErrorCode MatTransposeMatMultSymbolic_MPIAIJ_MPIAIJ_nonscalable(Mat P,Mat A,PetscReal fill,Mat *C)
 {
   PetscErrorCode      ierr;
@@ -1436,8 +1419,6 @@ PetscErrorCode MatTransposeMatMultSymbolic_MPIAIJ_MPIAIJ_nonscalable(Mat P,Mat A
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MatTransposeMatMultNumeric_MPIAIJ_MPIAIJ"
 PetscErrorCode MatTransposeMatMultNumeric_MPIAIJ_MPIAIJ(Mat P,Mat A,Mat C)
 {
   PetscErrorCode      ierr;
@@ -1603,8 +1584,6 @@ PetscErrorCode MatTransposeMatMultNumeric_MPIAIJ_MPIAIJ(Mat P,Mat A,Mat C)
 PetscErrorCode MatDuplicate_MPIAIJ_MatPtAP(Mat, MatDuplicateOption,Mat*);
 /* This routine is modified from MatPtAPSymbolic_MPIAIJ_MPIAIJ();
    differ from MatTransposeMatMultSymbolic_MPIAIJ_MPIAIJ_nonscalable in using LLCondensedCreate_Scalable() */
-#undef __FUNCT__
-#define __FUNCT__ "MatTransposeMatMultSymbolic_MPIAIJ_MPIAIJ"
 PetscErrorCode MatTransposeMatMultSymbolic_MPIAIJ_MPIAIJ(Mat P,Mat A,PetscReal fill,Mat *C)
 {
   PetscErrorCode      ierr;

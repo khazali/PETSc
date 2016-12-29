@@ -49,6 +49,7 @@ class Configure(config.package.Package):
     if self.defaultPrecision == 'double': return 'd'
     if self.defaultPrecision == 'quad': return 'q'
     if self.defaultPrecision == '__float128': return 'q'
+    if self.defaultPrecision == '__fp16': return 'h'
     return 'Unknown precision'
 
   def getOtherLibs(self, foundBlas = None, blasLibrary = None, separateBlas = None):
@@ -217,7 +218,7 @@ class Configure(config.package.Package):
         mkl_blacs_32=[]
       if useCPardiso or usePardiso:
         self.logPrintBox('BLASLAPACK: Looking for Multithreaded MKL for C/Pardiso')
-        for libdir in [os.path.join('lib','64'),os.path.join('lib','ia64'),os.path.join('lib','em64t'),os.path.join('lib','intel64'),'64','ia64','em64t','intel64',
+        for libdir in [os.path.join('lib','64'),os.path.join('lib','ia64'),os.path.join('lib','em64t'),os.path.join('lib','intel64'),'lib','64','ia64','em64t','intel64',
                        os.path.join('lib','32'),os.path.join('lib','ia32'),'32','ia32','']:
           if not os.path.exists(os.path.join(dir,libdir)):
             self.logPrint('MKL Path not found.. skipping: '+os.path.join(dir,libdir))
@@ -242,7 +243,7 @@ class Configure(config.package.Package):
           self.logPrint('MKL Path not found.. skipping: '+os.path.join(dir,libdir))
         else:
           yield ('User specified MKL11/12 Linux32', None, [os.path.join(dir,libdir,'libmkl_intel.a'),'mkl_sequential','mkl_core','pthread','-lm'],1)
-      for libdir in [os.path.join('lib','64'),os.path.join('lib','ia64'),os.path.join('lib','em64t'),os.path.join('lib','intel64'),'64','ia64','em64t','intel64','']:
+      for libdir in [os.path.join('lib','64'),os.path.join('lib','ia64'),os.path.join('lib','em64t'),os.path.join('lib','intel64'),'lib','64','ia64','em64t','intel64','']:
         if not os.path.exists(os.path.join(dir,libdir)):
           self.logPrint('MKL Path not found.. skipping: '+os.path.join(dir,libdir))
         else:
@@ -374,7 +375,7 @@ class Configure(config.package.Package):
         blib = glob.glob('/usr/lib/libblas.*')
         if blib != [] and not (os.path.isfile('/usr/lib/libblas.so') or os.path.isfile('/usr/lib/libblas.a')):
           raise RuntimeError('Incomplete system BLAS install detected. Perhaps you need to install blas-dev or blas-devel package - that contains /usr/lib/libblas.so using apt or yum or equivalent package manager?')
-        if hasattr(self.compilers, 'FC') and (self.defaultPrecision != '__float128') : pkg = 'fblaslapack'
+        if hasattr(self.compilers, 'FC') and (self.defaultPrecision != '__float128') and (self.defaultPrecision != '__fp16') : pkg = 'fblaslapack'
         else: pkg = 'f2cblaslapack'
         raise RuntimeError('Could not find a functional BLAS. Run with --with-blas-lib=<lib> to indicate the library containing BLAS.\n Or --download-'+pkg+'=1 to have one automatically downloaded and installed\n')
       if not self.foundLapack:
@@ -383,7 +384,7 @@ class Configure(config.package.Package):
         llib = glob.glob('/usr/lib/liblapack.*')
         if llib != [] and not (os.path.isfile('/usr/lib/liblapack.so') or os.path.isfile('/usr/lib/liblapack.a')):
           raise RuntimeError('Incomplete system LAPACK install detected. Perhaps you need to install lapack-dev or lapack-devel package - that contains /usr/lib/liblapack.so using apt or yum or equivalent package manager?')
-        if hasattr(self.compilers, 'FC') and (self.defaultPrecision != '__float128') : pkg = 'fblaslapack'
+        if hasattr(self.compilers, 'FC') and (self.defaultPrecision != '__float128') and (self.defaultPrecision != '__fp16') : pkg = 'fblaslapack'
         else: pkg = 'f2cblaslapack'
         raise RuntimeError('Could not find a functional LAPACK. Run with --with-lapack-lib=<lib> to indicate the library containing LAPACK.\n Or --download-'+pkg+'=1 to have one automatically downloaded and installed\n')
 

@@ -100,7 +100,9 @@
       <h4>General:</h4>
       <h4>Configure/Build:</h4>
       <ul>
-        <li>remove with-mpiuni-fortran-binding option</li>
+        <li>removed with-mpiuni-fortran-binding option</li>
+        <li>removed with-fortran-interfaces option</li>
+        <li>removed with-fortran-datatypes option</li>
         <li>  Added --download-openblas --download-openblas-64-bit-blas-indices</li>
       </ul>
       <h4>IS:</h4>
@@ -116,13 +118,16 @@
       <h4>Mat:</h4>
       <ul>
         <li>Added a new argument in MatCreateLRC() to express the low-rank correction as A+U*C*V'.</li>
+        <li>MatTranspose() now properly handles MAT_INITIAL_MATRIX, MAT_REUSE_MATRIX, MAT_INPLACE_MATRIX</li>
       </ul>
       <h4>PC:</h4>
       <ul>
         <li>Added PCMGSetNumberSmooth()</li>
         <li>PCMGSetGalerkin() and -pc_mg_galerkin now take PC_MG_GALERKIN_BOTH,PC_MG_GALERKIN_PMAT,PC_MG_GALERKIN_MAT, PC_MG_GALERKIN_NONE as arguments instead of PetscBool</li>
+        <li>Added PCBDDCSetDivergenceMat to help BDDC to compute the flux across the subdomain interfaces.</li>
         <li>Removed PCBDDCSetNullSpace. Local nullspace information should now be attached to the subdomain matrix via MatSetNullSpace.</li>
         <li>Added additional PetscBool parameter to PCBDDCCreateFETIDPOperators for the specification of the type of multipliers.</li>
+        <li>Added additional string parameter to PCBDDCCreateFETIDPOperators for the specification of the prefix (can be NULL).</li>
         <li>FIELDSPLIT now extracts off-diag fieldsplit blocks from the preconditioner instead of the jacobian by default. Use -pc_fieldsplit_off_diag_use_amat to use the jacobian matrix.</li>
       </ul>
       <h4>KSP:</h4>
@@ -151,6 +156,8 @@
       <h4>AO:</h4>
       <h4>Sieve:</h4>
       <h4>Fortran:</h4>
+      <ul>
+        <li>Simplified Fortran usage. Now you only include petsc/finclude/petscXXX and use petscXXX</li>
     </div>
 
     <!--end-->

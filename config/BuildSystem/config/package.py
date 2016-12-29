@@ -63,7 +63,7 @@ class Package(config.base.Configure):
                                # during the configuration/installation process such as sowing, make etc should be marked as 0
     self.parallelMake     = 1  # 1 indicates the package supports make -j np option
 
-    self.precisions       = ['single','double','__float128']; # Floating point precision package works with
+    self.precisions       = ['__fp16','single','double','__float128']; # Floating point precision package works with
     self.complex          = 1   # 0 means cannot use complex
     self.requires32bitint = 0;  # 1 means that the package will not work with 64 bit integers
     self.skippackagewithoptions = 0  # packages like fblaslapack and MPICH do not support --with-package* options so do not print them in help
@@ -139,7 +139,7 @@ class Package(config.base.Configure):
     package:      The lowercase name
     PACKAGE:      The uppercase name
     downloadname:     Name for download option (usually name)
-    downloaddirname: name for downloaded directory (first part of string) (usually downloadname)
+    downloaddirnames: names for downloaded directory (first part of string) (usually downloadname)
     '''
     import sys
     if hasattr(sys.modules.get(self.__module__), '__file__'):
@@ -150,7 +150,7 @@ class Package(config.base.Configure):
     self.package          = self.name.lower()
     self.downloadname     = self.name
     self.pkgname          = self.name
-    self.downloaddirname  = self.downloadname;
+    self.downloaddirnames = [self.downloadname];
     return
 
   def getDefaultPrecision(self):
@@ -190,9 +190,12 @@ class Package(config.base.Configure):
   defaultIndexSize = property(getDefaultIndexSize, setDefaultIndexSize, doc = 'The index size for of the library')
 
   def checkNoOptFlag(self):
-    flag = '-O0'
-    if self.setCompilers.checkCompilerFlag(flag): return flag
-    return ''
+    flags = ''
+    flag = '-O0 '
+    if self.setCompilers.checkCompilerFlag(flag): flags = flags+flag
+    flag = '-mfp16-format=ieee'
+    if self.setCompilers.checkCompilerFlag(flag): flags = flags+flag
+    return flags
 
   def getSharedFlag(self,cflags):
     for flag in ['-PIC', '-fPIC', '-KPIC', '-qpic']:
@@ -575,16 +578,18 @@ class Package(config.base.Configure):
     pkgdirs = os.listdir(packages)
     gitpkg  = 'git.'+self.package
     hgpkg  = 'hg.'+self.package
-    self.logPrint('Looking for '+self.PACKAGE+' at '+gitpkg+ ', '+hgpkg+' or a directory starting with '+str(self.downloaddirname))
+    self.logPrint('Looking for '+self.PACKAGE+' at '+gitpkg+ ', '+hgpkg+' or a directory starting with '+str(self.downloaddirnames))
     if hasattr(self.sourceControl, 'git') and gitpkg in pkgdirs:
       Dir = gitpkg
     elif hasattr(self.sourceControl, 'hg') and hgpkg in pkgdirs:
       Dir = hgpkg
     else:
       for d in pkgdirs:
-        if d.startswith(self.downloaddirname) and os.path.isdir(os.path.join(packages, d)) and not self.matchExcludeDir(d):
-          Dir = d
-          break
+        for j in self.downloaddirnames:
+          if d.startswith(j) and os.path.isdir(os.path.join(packages, d)) and not self.matchExcludeDir(d):
+            Dir = d
+            break
+        if Dir: break
     if Dir:
       self.logPrint('Found a copy of '+self.PACKAGE+' in '+str(Dir))
       return os.path.join(packages, Dir)
@@ -943,7 +948,7 @@ Brief overview of how BuildSystem\'s configuration of packages works.
     self.package          - lowercase name                                [string]
     self.PACKAGE          - uppercase name                                [string]
     self.downloadname     - same as self.name (usage a bit inconsistent)  [string]
-    self.downloaddirname - same as self.name (usage a bit inconsistent)  [string]
+    self.downloaddirnames - same as self.name (usage a bit inconsistent)  [string]
   Package subclass typically sets up the following state variables:
     self.download         - url to download source from                   [string]
     self.includes         - names of header files to locate               [list of strings]

@@ -10,14 +10,12 @@ conversion routines.\n";
 PetscErrorCode TestMatZeroRows(Mat,Mat,IS,PetscScalar);
 PetscErrorCode CheckMat(Mat,Mat,PetscBool,const char*);
 
-#undef __FUNCT__
-#define __FUNCT__ "main"
 int main(int argc,char **args)
 {
   Mat                    A,B,A2,B2,T;
   Mat                    Aee,Aeo,Aoe,Aoo;
   Mat                    *mats;
-  Vec                    x;
+  Vec                    x,y;
   MatInfo                info;
   ISLocalToGlobalMapping cmap,rmap;
   IS                     is,is2,reven,rodd,ceven,codd;
@@ -73,23 +71,14 @@ int main(int argc,char **args)
   ierr = MatGetInfo(A,MAT_LOCAL,&info);CHKERRQ(ierr);
   ierr = PetscViewerASCIIPushSynchronized(PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   ierr = PetscViewerASCIISynchronizedPrintf(PETSC_VIEWER_STDOUT_WORLD,"Process  %2d: %D %D %D %D %D\n",PetscGlobalRank,(PetscInt)info.nz_used,
-                                            (PetscInt)info.nz_allocated,
-                                            (PetscInt)info.nz_unneeded,
-                                            (PetscInt)info.assemblies,
-                                            (PetscInt)info.mallocs);CHKERRQ(ierr);
+                                            (PetscInt)info.nz_allocated,(PetscInt)info.nz_unneeded,(PetscInt)info.assemblies,(PetscInt)info.mallocs);CHKERRQ(ierr);
   ierr = PetscViewerFlush(PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   ierr = MatGetInfo(A,MAT_GLOBAL_MAX,&info);CHKERRQ(ierr);
   ierr = PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_WORLD,"GlobalMax  : %D %D %D %D %D\n",(PetscInt)info.nz_used,
-                                (PetscInt)info.nz_allocated,
-                                (PetscInt)info.nz_unneeded,
-                                (PetscInt)info.assemblies,
-                                (PetscInt)info.mallocs);CHKERRQ(ierr);
+                                (PetscInt)info.nz_allocated,(PetscInt)info.nz_unneeded,(PetscInt)info.assemblies,(PetscInt)info.mallocs);CHKERRQ(ierr);
   ierr = MatGetInfo(A,MAT_GLOBAL_SUM,&info);CHKERRQ(ierr);
   ierr = PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_WORLD,"GlobalSum  : %D %D %D %D %D\n",(PetscInt)info.nz_used,
-                                (PetscInt)info.nz_allocated,
-                                (PetscInt)info.nz_unneeded,
-                                (PetscInt)info.assemblies,
-                                (PetscInt)info.mallocs);CHKERRQ(ierr);
+                                (PetscInt)info.nz_allocated,(PetscInt)info.nz_unneeded,(PetscInt)info.assemblies,(PetscInt)info.mallocs);CHKERRQ(ierr);
 
   /* test MatView */
   ierr = PetscPrintf(PETSC_COMM_WORLD,"Test MatView\n");CHKERRQ(ierr);
@@ -116,6 +105,22 @@ int main(int argc,char **args)
   /* test MatISGetMPIXAIJ */
   ierr = PetscPrintf(PETSC_COMM_WORLD,"Test MatISGetMPIXAIJ\n");CHKERRQ(ierr);
   ierr = CheckMat(A,B,PETSC_FALSE,"MatISGetMPIXAIJ");CHKERRQ(ierr);
+
+  /* test MatDiagonalScale */
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"Test MatDiagonalScale\n");CHKERRQ(ierr);
+  ierr = MatDuplicate(A,MAT_COPY_VALUES,&A2);CHKERRQ(ierr);
+  ierr = MatDuplicate(B,MAT_COPY_VALUES,&B2);CHKERRQ(ierr);
+  ierr = MatCreateVecs(A,&x,&y);CHKERRQ(ierr);
+  ierr = VecSetRandom(x,NULL);CHKERRQ(ierr);
+  ierr = VecSetRandom(y,NULL);CHKERRQ(ierr);
+  ierr = VecScale(y,8.);CHKERRQ(ierr);
+  ierr = MatDiagonalScale(A2,y,x);CHKERRQ(ierr);
+  ierr = MatDiagonalScale(B2,y,x);CHKERRQ(ierr);
+  ierr = CheckMat(A2,B2,PETSC_FALSE,"MatDiagonalScale");CHKERRQ(ierr);
+  ierr = MatDestroy(&A2);CHKERRQ(ierr);
+  ierr = MatDestroy(&B2);CHKERRQ(ierr);
+  ierr = VecDestroy(&x);CHKERRQ(ierr);
+  ierr = VecDestroy(&y);CHKERRQ(ierr);
 
   /* test MatGetLocalSubMatrix */
   ierr = PetscPrintf(PETSC_COMM_WORLD,"Test MatGetLocalSubMatrix\n");CHKERRQ(ierr);
@@ -309,15 +314,13 @@ int main(int argc,char **args)
   ierr = MatDestroy(&A2);CHKERRQ(ierr);
 
   ierr = MatDuplicate(A,MAT_COPY_VALUES,&A2);CHKERRQ(ierr);
-  ierr = MatTranspose(A2,MAT_REUSE_MATRIX,&A2);CHKERRQ(ierr);
+  ierr = MatTranspose(A2,MAT_INPLACE_MATRIX,&A2);CHKERRQ(ierr);
   ierr = CheckMat(A2,B2,PETSC_FALSE,"reuse matrix (in place) MatTranspose");CHKERRQ(ierr);
   ierr = MatDestroy(&A2);CHKERRQ(ierr);
 
-  ierr = MatDuplicate(B,MAT_COPY_VALUES,&A2);CHKERRQ(ierr);
-  ierr = MatTranspose(A,MAT_REUSE_MATRIX,&A2);CHKERRQ(ierr);
+  ierr = MatTranspose(A,MAT_INITIAL_MATRIX,&A2);CHKERRQ(ierr);
   ierr = CheckMat(A2,B2,PETSC_FALSE,"reuse matrix (different type) MatTranspose");CHKERRQ(ierr);
   ierr = MatDestroy(&A2);CHKERRQ(ierr);
-
   ierr = MatDestroy(&B2);CHKERRQ(ierr);
 
   /* free testing matrices */
@@ -327,8 +330,6 @@ int main(int argc,char **args)
   return ierr;
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "CheckMat"
 PetscErrorCode CheckMat(Mat A, Mat B, PetscBool usemult, const char* func)
 {
   Mat            Bcheck;
@@ -373,8 +374,6 @@ PetscErrorCode CheckMat(Mat A, Mat B, PetscBool usemult, const char* func)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "TestMatZeroRows"
 PetscErrorCode TestMatZeroRows(Mat A, Mat Afull, IS is, PetscScalar diag)
 {
   Mat                    B,Bcheck,B2 = NULL;

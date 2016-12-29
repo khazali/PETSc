@@ -390,6 +390,7 @@ struct _p_Mat {
   PetscBool              symmetric_eternal;
   PetscBool              nooffprocentries,nooffproczerorows;
   PetscBool              subsetoffprocentries;
+  PetscBool              submat_singleis; /* for efficient PCSetUP_ASM() */
 #if defined(PETSC_HAVE_CUSP)
   PetscCUSPFlag          valid_GPU_matrix; /* flag pointing to the matrix on the gpu*/
 #elif defined(PETSC_HAVE_VIENNACL)
@@ -599,9 +600,8 @@ typedef struct {
 
 PETSC_EXTERN PetscErrorCode MatFactorDumpMatrix(Mat);
 PETSC_INTERN PetscErrorCode MatShift_Basic(Mat,PetscScalar);
+PETSC_INTERN PetscErrorCode MatSetBlockSizes_Default(Mat,PetscInt,PetscInt);
 
-#undef __FUNCT__
-#define __FUNCT__ "MatPivotCheck_nz"
 PETSC_STATIC_INLINE PetscErrorCode MatPivotCheck_nz(Mat mat,const MatFactorInfo *info,FactorShiftCtx *sctx,PetscInt row)
 {
   PetscReal _rs   = sctx->rs;
@@ -620,8 +620,6 @@ PETSC_STATIC_INLINE PetscErrorCode MatPivotCheck_nz(Mat mat,const MatFactorInfo 
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MatPivotCheck_pd"
 PETSC_STATIC_INLINE PetscErrorCode MatPivotCheck_pd(Mat mat,const MatFactorInfo *info,FactorShiftCtx *sctx,PetscInt row)
 {
   PetscReal _rs   = sctx->rs;
@@ -645,8 +643,6 @@ PETSC_STATIC_INLINE PetscErrorCode MatPivotCheck_pd(Mat mat,const MatFactorInfo 
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MatPivotCheck_inblocks"
 PETSC_STATIC_INLINE PetscErrorCode MatPivotCheck_inblocks(Mat mat,const MatFactorInfo *info,FactorShiftCtx *sctx,PetscInt row)
 {
   PetscReal _zero = info->zeropivot;
@@ -661,8 +657,6 @@ PETSC_STATIC_INLINE PetscErrorCode MatPivotCheck_inblocks(Mat mat,const MatFacto
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MatPivotCheck_none"
 PETSC_STATIC_INLINE PetscErrorCode MatPivotCheck_none(Mat fact,Mat mat,const MatFactorInfo *info,FactorShiftCtx *sctx,PetscInt row)
 {
   PetscReal      _zero = info->zeropivot;
@@ -681,8 +675,6 @@ PETSC_STATIC_INLINE PetscErrorCode MatPivotCheck_none(Mat fact,Mat mat,const Mat
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MatPivotCheck"
 PETSC_STATIC_INLINE PetscErrorCode MatPivotCheck(Mat fact,Mat mat,const MatFactorInfo *info,FactorShiftCtx *sctx,PetscInt row)
 {
   PetscErrorCode ierr;
@@ -1219,8 +1211,6 @@ PETSC_STATIC_INLINE PetscErrorCode MatPivotCheck(Mat fact,Mat mat,const MatFacto
 
 /* -------------------------------------------------------------------------------------------------------*/
 #include <petscbt.h>
-#undef __FUNCT__
-#define __FUNCT__ "PetscLLCondensedCreate"
 /*
   Create and initialize a condensed linked list -
     same as PetscLLCreate(), but uses a scalable array 'lnk' with size of max number of entries, not O(N).
@@ -1273,8 +1263,6 @@ PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedCreate(PetscInt nlnk_max,Pets
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscLLCondensedAddSorted"
 /*
   Add a SORTED ascending index set into a sorted linked list. See PetscLLCondensedCreate() for detailed description.
   Input Parameters:
@@ -1315,8 +1303,6 @@ PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedAddSorted(PetscInt nidx,const
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscLLCondensedClean"
 PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedClean(PetscInt lnk_max,PetscInt nidx,PetscInt *indices,PetscInt lnk[],PetscBT bt)
 {
   PetscErrorCode ierr;
@@ -1336,8 +1322,6 @@ PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedClean(PetscInt lnk_max,PetscI
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscLLCondensedView"
 PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedView(PetscInt *lnk)
 {
   PetscErrorCode ierr;
@@ -1351,8 +1335,6 @@ PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedView(PetscInt *lnk)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscLLCondensedDestroy"
 /*
   Free memories used by the list
 */
@@ -1367,8 +1349,6 @@ PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedDestroy(PetscInt *lnk,PetscBT
 }
 
 /* -------------------------------------------------------------------------------------------------------*/
-#undef __FUNCT__
-#define __FUNCT__ "PetscLLCondensedCreate_Scalable"
 /*
  Same as PetscLLCondensedCreate(), but does not use non-scalable O(lnk_max) bitarray
   Input Parameters:
@@ -1391,8 +1371,6 @@ PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedCreate_Scalable(PetscInt nlnk
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscLLCondensedAddSorted_Scalable"
 PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedAddSorted_Scalable(PetscInt nidx,const PetscInt indices[],PetscInt lnk[])
 {
   PetscInt _k,_entry,_location,_next,_lnkdata,_nlnk,_newnode;
@@ -1420,8 +1398,6 @@ PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedAddSorted_Scalable(PetscInt n
   return 0;
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscLLCondensedClean_Scalable"
 PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedClean_Scalable(PetscInt nidx,PetscInt *indices,PetscInt *lnk)
 {
   PetscInt _k,_next,_nlnk;
@@ -1436,8 +1412,6 @@ PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedClean_Scalable(PetscInt nidx,
   return 0;
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscLLCondensedDestroy_Scalable"
 PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedDestroy_Scalable(PetscInt *lnk)
 {
   return PetscFree(lnk);
@@ -1464,8 +1438,6 @@ PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedDestroy_Scalable(PetscInt *ln
       lnk[8]    next valid link (this is the same as lnk[0] but without the decreases)
 */
 
-#undef __FUNCT__
-#define __FUNCT__ "PetscLLCondensedCreate_fast"
 PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedCreate_fast(PetscInt nlnk_max,PetscInt **lnk)
 {
   PetscErrorCode ierr;
@@ -1571,19 +1543,6 @@ PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedView_fast(PetscInt *lnk)
 PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedDestroy_fast(PetscInt *lnk)
 {
   return PetscFree(lnk);
-}
-
-/* alias PetscSortIntWithScalarArray while MatScalar == PetscScalar */
-PETSC_STATIC_INLINE PetscErrorCode PetscSortIntWithMatScalarArray(PetscInt n,PetscInt *idx,PetscScalar *val)
-{
-#if !defined(PETSC_USE_REAL_MAT_SINGLE)
-  return PetscSortIntWithScalarArray(n,idx,val);
-#else
-  {
-    MatScalar mtmp;
-    return PetscSortIntWithDataArray(n,idx,val,sizeof(MatScalar),&mtmp);
-  }
-#endif
 }
 
 /* this is extern because it is used in MatFDColoringUseDM() which is in the DM library */
