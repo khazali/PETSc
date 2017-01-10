@@ -60,8 +60,6 @@ struct _mat_ctx {
 /*
 *  User-defined routines
 */
-#undef __FUNCT__
-#define __FUNCT__ "RHSFunction"
 static PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec X,Vec F,void *ctx)
 {
   PetscErrorCode    ierr;
@@ -79,8 +77,6 @@ static PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec X,Vec F,void *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "RHSJacobian"
 static PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec X,Mat A,Mat B,void *ctx)
 {
   PetscErrorCode    ierr;
@@ -107,8 +103,6 @@ static PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec X,Mat A,Mat B,void *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "FormRHSJacobian"
 static PetscErrorCode FormRHSJacobian(TS ts,PetscReal t,Vec X,Mat A_shell,Mat B,void *ctx)
 {
   PetscErrorCode    ierr;
@@ -123,8 +117,6 @@ static PetscErrorCode FormRHSJacobian(TS ts,PetscReal t,Vec X,Mat A_shell,Mat B,
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "RHSJacobianP"
 static PetscErrorCode RHSJacobianP(TS ts,PetscReal t,Vec X,Mat A,void *ctx)
 {
   PetscErrorCode    ierr;
@@ -143,8 +135,6 @@ static PetscErrorCode RHSJacobianP(TS ts,PetscReal t,Vec X,Mat A,void *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "Monitor"
 /* Monitor timesteps and use interpolation to output at integer multiples of 0.1 */
 static PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal t,Vec X,void *ctx)
 {
@@ -164,8 +154,6 @@ static PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal t,Vec X,void *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MyMult"
 static PetscErrorCode MyMult(Mat A_shell,Vec X,Vec Y)
 {
   Mctx           mctx;
@@ -178,8 +166,6 @@ static PetscErrorCode MyMult(Mat A_shell,Vec X,Vec Y)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MyMultTranspose"
 static PetscErrorCode MyMultTranspose(Mat A_shell,Vec X,Vec Y)
 {
   Mctx           mctx;
@@ -194,8 +180,6 @@ static PetscErrorCode MyMultTranspose(Mat A_shell,Vec X,Vec Y)
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "main"
 int main(int argc,char **argv)
 {
   TS             ts;            /* nonlinear solver */

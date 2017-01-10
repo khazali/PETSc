@@ -66,8 +66,6 @@ static PetscErrorCode IFunction(TS,PetscReal,Vec,Vec,Vec,void*);
 static PetscErrorCode FormIJacobian(TS,PetscReal,Vec,Vec,PetscReal,Mat,Mat,void*);
 static PetscErrorCode MyMult(Mat,Vec,Vec);
 
-#undef __FUNCT__
-#define __FUNCT__ "main"
 int main(int argc,char **argv)
 {
   TS             ts;                  /* ODE integrator */
@@ -161,8 +159,6 @@ int main(int argc,char **argv)
   PetscFunctionReturn(0);
 }
 /* ------------------------------------------------------------------- */
-#undef __FUNCT__
-#define __FUNCT__ "RHSFunction"
 /*
    RHSFunction - Evaluates nonlinear function, F(x).
 
@@ -240,8 +236,6 @@ PetscErrorCode RHSFunction(TS ts,PetscReal ftime,Vec U,Vec F,void *ptr)
 }
 
 /* ------------------------------------------------------------------- */
-#undef __FUNCT__
-#define __FUNCT__ "InitialConditions"
 PetscErrorCode InitialConditions(DM da,Vec U)
 {
   PetscErrorCode ierr;
@@ -286,8 +280,6 @@ PetscErrorCode InitialConditions(DM da,Vec U)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "RHSJacobian"
 PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat BB,void *ctx)
 {
   AppCtx         *appctx = (AppCtx*)ctx;     /* user-defined application context */
@@ -393,8 +385,6 @@ PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat BB,void *ctx)
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "IFunction"
 static PetscErrorCode IFunction(TS ts,PetscReal t,Vec X,Vec Xdot,Vec F,void *ctx)
 {
   PetscErrorCode    ierr;
@@ -405,8 +395,6 @@ static PetscErrorCode IFunction(TS ts,PetscReal t,Vec X,Vec Xdot,Vec F,void *ctx
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "IFunctionLocal"
 static PetscErrorCode IFunctionLocal(DMDALocalInfo *info,PetscReal t,Field**u,Field**udot,Field**f,void *ctx)
 {
   AppCtx         *appctx = (AppCtx*)ptr;
@@ -442,8 +430,6 @@ static PetscErrorCode IFunctionLocal(DMDALocalInfo *info,PetscReal t,Field**u,Fi
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "FormIJacobian"
 static PetscErrorCode FormIJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat A_shell,Mat B,void *ctx)
 {
   PetscErrorCode    ierr;
@@ -461,8 +447,6 @@ static PetscErrorCode FormIJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "MyMult"
 static PetscErrorCode MyMult(Mat A_shell,Vec X,Vec Y)
 {
   MatCtx         *mctx;
