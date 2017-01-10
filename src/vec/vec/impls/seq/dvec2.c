@@ -92,8 +92,6 @@ PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
 
 #else
 /*
-#undef __FUNCT__
-#define __FUNCT__ "VecMDot_Seq"
 PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
 {
   PetscErrorCode    ierr;
@@ -140,8 +138,6 @@ PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
   PetscFunctionReturn(0);
 }
 */
-#undef __FUNCT__
-#define __FUNCT__ "VecMDot_Seq"
 PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
 {
   PetscErrorCode    ierr;
