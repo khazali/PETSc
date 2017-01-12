@@ -1650,7 +1650,7 @@ PetscErrorCode MatTransposeMatMultSymbolic_MPIAIJ_MPIAIJ(Mat P,Mat A,PetscReal f
   current_space = free_space;
 
   /* create and initialize a linked list */
-  ierr = PetscTableCreate(aN,aN,&ta);CHKERRQ(ierr);
+  ierr = PetscTableCreate(A->cmap->n,aN,&ta);CHKERRQ(ierr);
   MatRowMergeMax_SeqAIJ(a_loc,am,ta);
   ierr = PetscTableGetCount(ta,&Armax);CHKERRQ(ierr);
   ierr = PetscLLCondensedCreate_Scalable(Armax,&lnk);CHKERRQ(ierr);
