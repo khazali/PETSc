@@ -305,13 +305,13 @@ static PetscErrorCode SetupDiscretization(DM dm, AppCtx *user)
   ierr = PetscFECreateDefault(dm, dim, 1, simplex, "density_", -1, &fe[0]);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe[0], "density");CHKERRQ(ierr);
   ierr = PetscFECreateDefault(dm, dim, 1, simplex, "vorticity_", -1, &fe[1]);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) fe[1], "density");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) fe[1], "vorticity");CHKERRQ(ierr);
   ierr = PetscFECreateDefault(dm, dim, 1, simplex, "flux_", -1, &fe[2]);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) fe[2], "density");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) fe[2], "flux");CHKERRQ(ierr);
   ierr = PetscFECreateDefault(dm, dim, 1, simplex, "potential_", -1, &fe[3]);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) fe[3], "density");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) fe[3], "potential");CHKERRQ(ierr);
   ierr = PetscFECreateDefault(dm, dim, 1, simplex, "current_", -1, &fe[4]);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) fe[4], "density");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) fe[4], "current");CHKERRQ(ierr);
   /* Set discretization and boundary conditions for each mesh */
   ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
   for (f = 0; f < Nf; ++f) {ierr = PetscDSSetDiscretization(prob, f, (PetscObject) fe[f]);CHKERRQ(ierr);}
