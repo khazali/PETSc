@@ -4,9 +4,9 @@ The aim of this model is to self-consistently study the interaction between the 
 /*F
 This is a three field model for the density $\tilde n$, vorticity $\tilde\Omega$, and magnetic flux $\tilde\psi$, using auxiliary variables potential $\tilde\phi$ and current $j_z$.
 \begin{align}
-  \partial_t \tilde n       &= \left\{ \tilde n, \tilde\phi \right\} + \beta \left\{ j, \tilde\psi \right\} + \left\{ \ln n_0, \tilde\phi \right\} + \mu \nabla^2_\perp \tilde\n \\
-  \partial_t \tilde\Omega   &= \left\{ \tilde\Omega, \tilde\phi \right\} + \beta \left\{ j, \tilde\psi \right\} + \mu \nabla^2_\perp \tilde\Omega \\
-  \partial_t \tilde\psi     &= \left\{ \psi, \tilde\phi - \tilde n \right\} - \left\{ \ln n_0, \tilde\psi \right\} + \frac{\eta}{\beta} \nabla^2_\perp \tilde\psi \\
+  \frac{\partial \tilde n}{\partial t}      &= \left\{ \tilde n, \tilde\phi \right\} + \beta \left\{ j, \tilde\psi \right\} + \left\{ \ln n_0, \tilde\phi \right\} + \mu \nabla^2_\perp \tilde n \\
+  \frac{\partial \tilde\Omega}{\partial t}   &= \left\{ \tilde\Omega, \tilde\phi \right\} + \beta \left\{ j, \tilde\psi \right\} + \mu \nabla^2_\perp \tilde\Omega \\
+  \frac{\partial \tilde\psi}{\partial t}   &= \left\{ \psi, \tilde\phi - \tilde n \right\} - \left\{ \ln n_0, \tilde\psi \right\} + \frac{\eta}{\beta} \nabla^2_\perp \tilde\psi \\
   \nabla^2_\perp\phi        &= \Omega \\
   \nabla^2_\perp \tilde\psi &= -j_z
 \end{align}
