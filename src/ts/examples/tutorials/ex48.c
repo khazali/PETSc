@@ -15,6 +15,7 @@ F*/
 #include <petscdmplex.h>
 #include <petscts.h>
 #include <petscds.h>
+#include <assert.h>
 
 typedef struct {
   PetscInt       debug;             /* The debugging level */
@@ -165,6 +166,48 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsString("-f", "Exodus.II filename to read", "ex12.c", options->filename, options->filename, sizeof(options->filename), &flg);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-simplex", "Simplicial (true) or tensor (false) mesh", "ex12.c", options->simplex, &options->simplex, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PostStep"
+static PetscErrorCode PostStep(TS ts)
+{
+  PetscErrorCode    ierr;
+  DM                dm;
+  AppCtx            *ctx;
+  PetscInt          stepi;
+  Vec               X;
+  const             char prefix[] = "ex48";
+  PetscViewer       viewer = NULL;
+  char              buf[256];
+  PetscBool         isHDF5,isVTK;
+  PetscFunctionBegin;
+  ierr = TSGetApplicationContext(ts, &ctx);CHKERRQ(ierr); assert(ctx);
+  if (ctx->debug<1) PetscFunctionReturn(0);
+  ierr = TSGetDM(ts, &dm);CHKERRQ(ierr);
+  ierr = TSGetSolution(ts, &X);CHKERRQ(ierr);
+  ierr = TSGetTimeStepNumber(ts, &stepi);CHKERRQ(ierr);
+  ierr = PetscViewerCreate(PetscObjectComm((PetscObject)dm),&viewer);CHKERRQ(ierr);
+  ierr = PetscViewerSetType(viewer,PETSCVIEWERVTK);CHKERRQ(ierr);
+  ierr = PetscViewerSetFromOptions(viewer);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERHDF5,&isHDF5);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERVTK,&isVTK);CHKERRQ(ierr);
+  if (isHDF5) {
+    ierr = PetscSNPrintf(buf, 256, "%s-%d.h5", prefix, stepi);CHKERRQ(ierr);
+  } else if (isVTK) {
+    ierr = PetscSNPrintf(buf, 256, "%s-%d.vtu", prefix, stepi);CHKERRQ(ierr);
+    ierr = PetscViewerPushFormat(viewer,PETSC_VIEWER_VTK_VTU);CHKERRQ(ierr);
+  }
+  ierr = PetscViewerFileSetMode(viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
+  ierr = PetscViewerFileSetName(viewer,buf);CHKERRQ(ierr);
+  if (isHDF5) {
+    ierr = DMView(dm,viewer);CHKERRQ(ierr);
+    ierr = PetscViewerFileSetMode(viewer,FILE_MODE_UPDATE);CHKERRQ(ierr);
+  }
+  /* view */
+  ierr = VecView(X,viewer);CHKERRQ(ierr);
+  ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -351,16 +394,18 @@ int main(int argc, char **argv)
   ierr = SetupDiscretization(dm, &ctx);CHKERRQ(ierr);
 
   ierr = DMCreateGlobalVector(dm, &u);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) u, "solution");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) u, "mhd-");CHKERRQ(ierr);
   ierr = VecDuplicate(u, &r);CHKERRQ(ierr);
 
   ierr = TSCreate(PETSC_COMM_WORLD, &ts);CHKERRQ(ierr);
   ierr = TSSetDM(ts, dm);CHKERRQ(ierr);
+  ierr = TSSetApplicationContext(ts, &ctx);CHKERRQ(ierr);
   ierr = DMTSSetBoundaryLocal(dm, DMPlexTSComputeBoundary, &ctx);CHKERRQ(ierr);
   ierr = DMTSSetIFunctionLocal(dm, DMPlexTSComputeIFunctionFEM, &ctx);CHKERRQ(ierr);
   ierr = DMTSSetIJacobianLocal(dm, DMPlexTSComputeIJacobianFEM, &ctx);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts, TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
+  ierr = TSSetPostStep(ts, PostStep);CHKERRQ(ierr);
 
   ierr = DMProjectFunction(dm, t, ctx.exactFuncs, NULL, INSERT_ALL_VALUES, u);CHKERRQ(ierr);
   ierr = TSSolve(ts, u);CHKERRQ(ierr);
