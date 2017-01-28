@@ -26,36 +26,6 @@ typedef struct {
   PetscErrorCode (**exactFuncs)(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
 } AppCtx;
 
-static PetscErrorCode exactSolution_n(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
-{
-  u[0] = 0.0;
-  return 0;
-}
-
-static PetscErrorCode exactSolution_Omega(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
-{
-  u[0] = 0.0;
-  return 0;
-}
-
-static PetscErrorCode exactSolution_psi(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
-{
-  u[0] = 0.0;
-  return 0;
-}
-
-static PetscErrorCode exactSolution_phi(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
-{
-  u[0] = 0.0;
-  return 0;
-}
-
-static PetscErrorCode exactSolution_jz(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
-{
-  u[0] = 0.0;
-  return 0;
-}
-
 static PetscScalar poissonBracket(const PetscScalar df[], const PetscScalar dg[])
 {
   return df[0]*dg[1] - df[1]*dg[0];
@@ -268,6 +238,36 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
   ierr = DMViewFromOptions(*dm, NULL, "-dm_view");CHKERRQ(ierr);
   PetscFunctionReturn(0);
+}
+
+static PetscErrorCode exactSolution_n(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+{
+  u[0] = 0.0;
+  return 0;
+}
+
+static PetscErrorCode exactSolution_Omega(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+{
+  u[0] = 0.0;
+  return 0;
+}
+
+static PetscErrorCode exactSolution_psi(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+{
+  u[0] = 0.0;
+  return 0;
+}
+
+static PetscErrorCode exactSolution_phi(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+{
+  u[0] = 0.0;
+  return 0;
+}
+
+static PetscErrorCode exactSolution_jz(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+{
+  u[0] = 0.0;
+  return 0;
 }
 
 static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *user)
