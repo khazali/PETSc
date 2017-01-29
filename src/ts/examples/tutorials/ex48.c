@@ -235,7 +235,6 @@ static PetscErrorCode CreateBCLabel(DM dm, const char name[])
 {
   DMLabel        label;
   PetscErrorCode ierr;
-
   PetscFunctionBeginUser;
   ierr = DMCreateLabel(dm, name);CHKERRQ(ierr);
   ierr = DMGetLabel(dm, name, &label);CHKERRQ(ierr);
@@ -255,18 +254,34 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   ierr = MPI_Comm_size(comm, &mpi_world_size);CHKERRQ(ierr);
   ierr = PetscStrlen(filename, &len);CHKERRQ(ierr);
   if (!len) {
+    Vec              coordinates;
+    PetscInt         dimEmbed,nCoords,ii,jj;
+    PetscScalar      *coords;
     if (user->simplex) {
       ierr = DMPlexCreateBoxMesh(comm, dim, dim == 2 ? 2 : 1, PETSC_TRUE, dm);CHKERRQ(ierr);
     } else {
-      PetscInt cells[3] = {1, 1, 1}, ii, prod, jj; /* coarse mesh is one cell; refine from there */
+      PetscInt cells[3] = {1, 1, 1}, prod; /* coarse mesh is one cell; refine from there */
+      for (ii=0;ii<dim;ii++) cells[ii] = (PetscInt)(user->domain_hi[ii] - user->domain_lo[ii]);
       jj = (PetscInt)(PetscPowReal(mpi_world_size,1./(PetscReal)dim) + 0.1); /* cells in each dim */
       /* refine so distribute works */
       for (ii=0;ii<dim;ii++) cells[ii] *= jj;
       for (ii=0,prod=1;ii<dim;ii++) prod *= cells[ii];
-      if (prod != mpi_world_size) SETERRQ1(comm,PETSC_ERR_ARG_WRONG,"num processes (%D) != k^D",mpi_world_size);
+      if (prod%mpi_world_size) SETERRQ1(comm,PETSC_ERR_ARG_WRONG,"num cells % num processes (%D) != 0",mpi_world_size);
       ierr = DMPlexCreateHexBoxMesh(comm, dim, cells, user->boundary_types[0], user->boundary_types[1], user->boundary_types[2], dm);CHKERRQ(ierr);
     }
     ierr = PetscObjectSetName((PetscObject) *dm, "Mesh");CHKERRQ(ierr);
+    /* set domain size */
+    ierr = DMGetCoordinatesLocal(*dm,&coordinates);CHKERRQ(ierr);
+    ierr = DMGetCoordinateDim(*dm,&dimEmbed);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(coordinates,&nCoords);CHKERRQ(ierr);
+    if (nCoords % dimEmbed) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Coordinate vector the wrong size");CHKERRQ(ierr);
+    ierr = VecGetArray(coordinates,&coords);CHKERRQ(ierr);
+    for (ii = 0; ii < nCoords; ii += dimEmbed) {
+      PetscScalar *coord = &coords[ii];
+      for (jj = 0; jj < dimEmbed; jj++) {
+        coord[jj] = user->domain_lo[jj] + coord[jj] * (user->domain_hi[jj] - user->domain_lo[jj]);
+      }
+    }
   } else {
     ierr = DMPlexCreateFromFile(comm, filename, PETSC_TRUE, dm);CHKERRQ(ierr);
   }
