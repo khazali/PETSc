@@ -23,6 +23,10 @@ typedef struct {
   PetscInt       dim;               /* The topological mesh dimension */
   char           filename[2048];    /* The optional ExodusII file */
   PetscBool      simplex;           /* Simplicial mesh */
+  DMBoundaryType boundary_types[3];
+  /* geometry  */
+  PetscReal      domain_lo[3], domain_hi[3];
+  PetscReal      b0[3]; /* not used */
   /* Problem definition */
   PetscErrorCode (**initialFuncs)(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
 } AppCtx;
@@ -153,18 +157,34 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   PetscBool      flg;
   PetscErrorCode ierr;
-
+  PetscInt       bcs[3], ii;
   PetscFunctionBeginUser;
   options->debug               = 0;
   options->dim                 = 2;
   options->filename[0]         = '\0';
   options->simplex             = PETSC_TRUE;
+  options->domain_hi[0]  = 1;
+  options->domain_hi[1]  = 1;
+  options->domain_hi[2]  = 1;
+  options->domain_lo[0]  = -1;
+  options->domain_lo[1]  = -1;
+  options->domain_lo[2]  = -1;
 
   ierr = PetscOptionsBegin(comm, "", "Poisson Problem Options", "DMPLEX");CHKERRQ(ierr);
   ierr = PetscOptionsInt("-debug", "The debugging level", "ex12.c", options->debug, &options->debug, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-dim", "The topological mesh dimension", "ex12.c", options->dim, &options->dim, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-f", "Exodus.II filename to read", "ex12.c", options->filename, options->filename, sizeof(options->filename), &flg);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-simplex", "Simplicial (true) or tensor (false) mesh", "ex12.c", options->simplex, &options->simplex, NULL);CHKERRQ(ierr);
+  ii = options->dim;
+  ierr = PetscOptionsRealArray("-domain_hi", "Domain size", "ex48.c", options->domain_hi, &ii, NULL);CHKERRQ(ierr);
+  ii = options->dim;
+  ierr = PetscOptionsRealArray("-domain_lo", "Domain size", "ex48.c", options->domain_lo, &ii, NULL);CHKERRQ(ierr);
+  ii = options->dim;
+  while (ii--) bcs[ii] = 1; /* Diri */
+  ii = options->dim;
+  ierr = PetscOptionsIntArray("-boundary_types", "Boundary types: 0:periodic; 1:Dirichlet; 2:Neumann", "ex48.c", bcs, &ii, NULL);CHKERRQ(ierr);
+  ii = options->dim;
+  while (ii--) options->boundary_types[ii] = (bcs[ii]==0) ? DM_BOUNDARY_PERIODIC : (bcs[ii]==1) ? DM_BOUNDARY_GHOSTED : DM_BOUNDARY_NONE;
   ierr = PetscOptionsEnd();
   PetscFunctionReturn(0);
 }
@@ -230,16 +250,21 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   const char    *filename = user->filename;
   size_t         len;
   PetscErrorCode ierr;
-
+  PetscMPIInt    mpi_world_size;
   PetscFunctionBeginUser;
+  ierr = MPI_Comm_size(comm, &mpi_world_size);CHKERRQ(ierr);
   ierr = PetscStrlen(filename, &len);CHKERRQ(ierr);
   if (!len) {
     if (user->simplex) {
       ierr = DMPlexCreateBoxMesh(comm, dim, dim == 2 ? 2 : 1, PETSC_TRUE, dm);CHKERRQ(ierr);
     } else {
-      PetscInt cells[3] = {1, 1, 1}; /* coarse mesh is one cell; refine from there */
-
-      ierr = DMPlexCreateHexBoxMesh(comm, dim, cells,  DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, dm);CHKERRQ(ierr);
+      PetscInt cells[3] = {1, 1, 1}, ii, prod, jj; /* coarse mesh is one cell; refine from there */
+      jj = (PetscInt)(PetscPowReal(mpi_world_size,1./(PetscReal)dim) + 0.1); /* cells in each dim */
+      /* refine so distribute works */
+      for (ii=0;ii<dim;ii++) cells[ii] *= jj;
+      for (ii=0,prod=1;ii<dim;ii++) prod *= cells[ii];
+      if (prod != mpi_world_size) SETERRQ1(comm,PETSC_ERR_ARG_WRONG,"num processes (%D) != k^D",mpi_world_size);
+      ierr = DMPlexCreateHexBoxMesh(comm, dim, cells, user->boundary_types[0], user->boundary_types[1], user->boundary_types[2], dm);CHKERRQ(ierr);
     }
     ierr = PetscObjectSetName((PetscObject) *dm, "Mesh");CHKERRQ(ierr);
   } else {
