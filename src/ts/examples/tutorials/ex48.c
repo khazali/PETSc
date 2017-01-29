@@ -29,8 +29,9 @@ typedef struct {
   PetscReal      b0[3]; /* not used */
   /* Problem definition */
   PetscErrorCode (**initialFuncs)(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
+  PetscReal      mu, eta, beta;
 } AppCtx;
-
+static AppCtx *s_ctx;
 static PetscScalar poissonBracket(const PetscScalar df[], const PetscScalar dg[])
 {
   return df[0]*dg[1] - df[1]*dg[0];
@@ -57,10 +58,9 @@ static void f1_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                  PetscReal t, const PetscReal x[], PetscScalar f1[])
 {
   const PetscScalar *dn = &u_x[uOff_x[0]];
-  const PetscScalar  mu = 1.0;
   PetscInt           d;
 
-  for (d = 0; d < dim-1; ++d) f1[d] = mu*dn[d];
+  for (d = 0; d < dim-1; ++d) f1[d] = s_ctx->mu*dn[d];
 }
 
 static void f0_Omega(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -72,9 +72,8 @@ static void f0_Omega(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   const PetscScalar *dpsi   = &u_x[uOff_x[2]];
   const PetscScalar *dphi   = &u_x[uOff_x[3]];
   const PetscScalar *djz    = &u_x[uOff_x[4]];
-  const PetscScalar  beta   = 1.0;
 
-  f0[0] = u_t[1] - poissonBracket(dOmega, dphi) - beta*poissonBracket(djz, dpsi);
+  f0[0] = u_t[1] - poissonBracket(dOmega, dphi) - s_ctx->beta*poissonBracket(djz, dpsi);
 }
 
 static void f1_Omega(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -83,10 +82,9 @@ static void f1_Omega(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                      PetscReal t, const PetscReal x[], PetscScalar f1[])
 {
   const PetscScalar *dOmega = &u_x[uOff_x[1]];
-  const PetscScalar  mu     = 1.0;
   PetscInt           d;
 
-  for (d = 0; d < dim-1; ++d) f1[d] = mu*dOmega[d];
+  for (d = 0; d < dim-1; ++d) f1[d] = s_ctx->mu*dOmega[d];
 }
 
 static void f0_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -108,11 +106,9 @@ static void f1_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                    PetscReal t, const PetscReal x[], PetscScalar f1[])
 {
   const PetscScalar *dpsi = &u_x[uOff_x[2]];
-  const PetscScalar  eta  = 1.0;
-  const PetscScalar  beta = 1.0;
   PetscInt           d;
 
-  for (d = 0; d < dim-1; ++d) f1[d] = (eta/beta)*dpsi[d];
+  for (d = 0; d < dim-1; ++d) f1[d] = (s_ctx->eta/s_ctx->beta)*dpsi[d];
 }
 
 static void f0_phi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -169,12 +165,18 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->domain_lo[0]  = -1;
   options->domain_lo[1]  = -1;
   options->domain_lo[2]  = -1;
+  options->mu   = 0;
+  options->eta  = 0;
+  options->beta = 1;
 
   ierr = PetscOptionsBegin(comm, "", "Poisson Problem Options", "DMPLEX");CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-debug", "The debugging level", "ex12.c", options->debug, &options->debug, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-dim", "The topological mesh dimension", "ex12.c", options->dim, &options->dim, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsString("-f", "Exodus.II filename to read", "ex12.c", options->filename, options->filename, sizeof(options->filename), &flg);CHKERRQ(ierr);
-  ierr = PetscOptionsBool("-simplex", "Simplicial (true) or tensor (false) mesh", "ex12.c", options->simplex, &options->simplex, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-debug", "The debugging level", "ex48.c", options->debug, &options->debug, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-dim", "The topological mesh dimension", "ex48.c", options->dim, &options->dim, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-mu", "mu", "ex48.c", options->mu, &options->mu, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-eta", "eta", "ex48.c", options->eta, &options->eta, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-beta", "beta", "ex48.c", options->beta, &options->beta, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsString("-f", "Exodus.II filename to read", "ex48.c", options->filename, options->filename, sizeof(options->filename), &flg);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-simplex", "Simplicial (true) or tensor (false) mesh", "ex48.c", options->simplex, &options->simplex, NULL);CHKERRQ(ierr);
   ii = options->dim;
   ierr = PetscOptionsRealArray("-domain_hi", "Domain size", "ex48.c", options->domain_hi, &ii, NULL);CHKERRQ(ierr);
   ii = options->dim;
@@ -482,6 +484,7 @@ int main(int argc, char **argv)
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL,help);if (ierr) return ierr;
+  s_ctx = &ctx;
   ierr = ProcessOptions(PETSC_COMM_WORLD, &ctx);CHKERRQ(ierr);
   ierr = CreateMesh(PETSC_COMM_WORLD, &ctx, &dm);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(dm, &ctx);CHKERRQ(ierr);
