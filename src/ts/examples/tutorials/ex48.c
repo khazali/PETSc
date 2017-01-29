@@ -427,6 +427,7 @@ static PetscErrorCode SetupDiscretization(DM dm, AppCtx *user)
   }
   for (f = 0; f < Nf; ++f) {ierr = PetscFEDestroy(&fe[f]);CHKERRQ(ierr);}
   for (f = 0; f < NfAux; ++f) {ierr = PetscFEDestroy(&feAux[f]);CHKERRQ(ierr);}
+  ierr = PetscDSDestroy(&probAux);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
