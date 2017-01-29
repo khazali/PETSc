@@ -24,7 +24,7 @@ typedef struct {
   char           filename[2048];    /* The optional ExodusII file */
   PetscBool      simplex;           /* Simplicial mesh */
   /* Problem definition */
-  PetscErrorCode (**exactFuncs)(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
+  PetscErrorCode (**initialFuncs)(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
 } AppCtx;
 
 static PetscScalar poissonBracket(const PetscScalar df[], const PetscScalar dg[])
@@ -301,31 +301,31 @@ static PetscErrorCode psi_0(PetscInt dim, PetscReal time, const PetscReal x[], P
   return 0;
 }
 
-static PetscErrorCode exactSolution_n(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+static PetscErrorCode initialSolution_n(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
   u[0] = 0.0;
   return 0;
 }
 
-static PetscErrorCode exactSolution_Omega(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+static PetscErrorCode initialSolution_Omega(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
   u[0] = 0.0;
   return 0;
 }
 
-static PetscErrorCode exactSolution_psi(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+static PetscErrorCode initialSolution_psi(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
   u[0] = 0.0;
   return 0;
 }
 
-static PetscErrorCode exactSolution_phi(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+static PetscErrorCode initialSolution_phi(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
   u[0] = 0.0;
   return 0;
 }
 
-static PetscErrorCode exactSolution_jz(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+static PetscErrorCode initialSolution_jz(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
   u[0] = 0.0;
   return 0;
@@ -342,12 +342,12 @@ static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *user)
   ierr = PetscDSSetResidual(prob, 2, f0_psi,   f1_psi);CHKERRQ(ierr);
   ierr = PetscDSSetResidual(prob, 3, f0_phi,   f1_phi);CHKERRQ(ierr);
   ierr = PetscDSSetResidual(prob, 4, f0_jz,    f1_jz);CHKERRQ(ierr);
-  user->exactFuncs[0] = exactSolution_n;
-  user->exactFuncs[1] = exactSolution_Omega;
-  user->exactFuncs[2] = exactSolution_psi;
-  user->exactFuncs[3] = exactSolution_phi;
-  user->exactFuncs[4] = exactSolution_jz;
-  ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL, "wall", "marker", 0, 0, NULL, (void (*)()) user->exactFuncs[0], 1, &id, user);CHKERRQ(ierr);
+  user->initialFuncs[0] = initialSolution_n;
+  user->initialFuncs[1] = initialSolution_Omega;
+  user->initialFuncs[2] = initialSolution_psi;
+  user->initialFuncs[3] = initialSolution_phi;
+  user->initialFuncs[4] = initialSolution_jz;
+  ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL, "wall", "marker", 0, 0, NULL, (void (*)()) user->initialFuncs[0], 1, &id, user);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -444,7 +444,7 @@ int main(int argc, char **argv)
   ierr = ProcessOptions(PETSC_COMM_WORLD, &ctx);CHKERRQ(ierr);
   ierr = CreateMesh(PETSC_COMM_WORLD, &ctx, &dm);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(dm, &ctx);CHKERRQ(ierr);
-  ierr = PetscMalloc1(5, &ctx.exactFuncs);CHKERRQ(ierr);
+  ierr = PetscMalloc1(5, &ctx.initialFuncs);CHKERRQ(ierr);
   ierr = SetupDiscretization(dm, &ctx);CHKERRQ(ierr);
 
   ierr = DMCreateGlobalVector(dm, &u);CHKERRQ(ierr);
@@ -461,11 +461,11 @@ int main(int argc, char **argv)
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   ierr = TSSetPostStep(ts, PostStep);CHKERRQ(ierr);
 
-  ierr = DMProjectFunction(dm, t, ctx.exactFuncs, NULL, INSERT_ALL_VALUES, u);CHKERRQ(ierr);
+  ierr = DMProjectFunction(dm, t, ctx.initialFuncs, NULL, INSERT_ALL_VALUES, u);CHKERRQ(ierr);
   ierr = TSSolve(ts, u);CHKERRQ(ierr);
 
   ierr = TSGetTime(ts, &t);CHKERRQ(ierr);
-  ierr = DMComputeL2Diff(dm, t, ctx.exactFuncs, NULL, u, &L2error);CHKERRQ(ierr);
+  ierr = DMComputeL2Diff(dm, t, ctx.initialFuncs, NULL, u, &L2error);CHKERRQ(ierr);
   if (L2error < 1.0e-11) {ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Error: < 1.0e-11\n");CHKERRQ(ierr);}
   else                   {ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Error: %g\n", L2error);CHKERRQ(ierr);}
   ierr = VecViewFromOptions(u, NULL, "-sol_vec_view");CHKERRQ(ierr);
@@ -510,7 +510,7 @@ int main(int argc, char **argv)
   ierr = VecDestroy(&r);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
-  ierr = PetscFree(ctx.exactFuncs);CHKERRQ(ierr);
+  ierr = PetscFree(ctx.initialFuncs);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return ierr;
 }
