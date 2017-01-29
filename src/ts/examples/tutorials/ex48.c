@@ -283,6 +283,24 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode n_0(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+{
+  u[0] = 0.0;
+  return 0;
+}
+
+static PetscErrorCode Omega_0(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+{
+  u[0] = 0.0;
+  return 0;
+}
+
+static PetscErrorCode psi_0(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+{
+  u[0] = 0.0;
+  return 0;
+}
+
 static PetscErrorCode exactSolution_n(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
   u[0] = 0.0;
@@ -333,15 +351,30 @@ static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *user)
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode SetupEquilibriumFields(DM dm, DM dmAux, AppCtx *user)
+{
+  PetscErrorCode (*eqFuncs[3])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar u[], void *ctx) = {n_0, Omega_0, psi_0};
+  Vec            eq;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = DMCreateLocalVector(dmAux, &eq);CHKERRQ(ierr);
+  ierr = DMProjectFunctionLocal(dmAux, 0.0, eqFuncs, NULL, INSERT_ALL_VALUES, eq);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject) dm, "A", (PetscObject) eq);CHKERRQ(ierr);
+  ierr = VecDestroy(&eq);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 static PetscErrorCode SetupDiscretization(DM dm, AppCtx *user)
 {
-  DM             cdm = dm;
-  const PetscInt dim = user->dim;
-  PetscFE        fe[5];
-  PetscDS        prob;
-  PetscInt       Nf = 5, f;
-  PetscBool      simplex = user->simplex;
-  PetscErrorCode ierr;
+  DM              cdm = dm;
+  const PetscInt  dim = user->dim;
+  PetscQuadrature q;
+  PetscFE         fe[5], feAux[3];
+  PetscDS         prob, probAux;
+  PetscInt        Nf = 5, NfAux = 3, f;
+  PetscBool       simplex = user->simplex;
+  PetscErrorCode  ierr;
 
   PetscFunctionBeginUser;
   /* Create finite element */
@@ -355,12 +388,24 @@ static PetscErrorCode SetupDiscretization(DM dm, AppCtx *user)
   ierr = PetscObjectSetName((PetscObject) fe[3], "potential");CHKERRQ(ierr);
   ierr = PetscFECreateDefault(dm, dim, 1, simplex, "current_", -1, &fe[4]);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe[4], "current");CHKERRQ(ierr);
+
+  ierr = PetscFECreateDefault(dm, dim, 1, simplex, "density_eq_", -1, &feAux[0]);CHKERRQ(ierr);
+  ierr = PetscFEGetQuadrature(fe[0], &q);CHKERRQ(ierr);
+  ierr = PetscFESetQuadrature(feAux[0], q);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dm, dim, 1, simplex, "vorticity_eq_", -1, &feAux[1]);CHKERRQ(ierr);
+  ierr = PetscFEGetQuadrature(fe[1], &q);CHKERRQ(ierr);
+  ierr = PetscFESetQuadrature(feAux[1], q);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dm, dim, 1, simplex, "flux_eq_", -1, &feAux[2]);CHKERRQ(ierr);
+  ierr = PetscFEGetQuadrature(fe[2], &q);CHKERRQ(ierr);
+  ierr = PetscFESetQuadrature(feAux[2], q);CHKERRQ(ierr);
   /* Set discretization and boundary conditions for each mesh */
   ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
   for (f = 0; f < Nf; ++f) {ierr = PetscDSSetDiscretization(prob, f, (PetscObject) fe[f]);CHKERRQ(ierr);}
+  ierr = PetscDSCreate(PetscObjectComm((PetscObject) dm), &probAux);CHKERRQ(ierr);
+  for (f = 0; f < NfAux; ++f) {ierr = PetscDSSetDiscretization(probAux, f, (PetscObject) feAux[f]);CHKERRQ(ierr);}
   ierr = SetupProblem(prob, user);CHKERRQ(ierr);
   while (cdm) {
-    DM coordDM;
+    DM coordDM, dmAux;
 
     ierr = DMSetDS(cdm,prob);CHKERRQ(ierr);
     ierr = DMGetCoordinateDM(cdm,&coordDM);CHKERRQ(ierr);
@@ -370,6 +415,14 @@ static PetscErrorCode SetupDiscretization(DM dm, AppCtx *user)
       ierr = DMHasLabel(cdm, "marker", &hasLabel);CHKERRQ(ierr);
       if (!hasLabel) {ierr = CreateBCLabel(cdm, "marker");CHKERRQ(ierr);}
     }
+
+    ierr = DMClone(cdm, &dmAux);CHKERRQ(ierr);
+    ierr = DMSetCoordinateDM(dmAux, coordDM);CHKERRQ(ierr);
+    ierr = DMSetDS(dmAux, probAux);CHKERRQ(ierr);
+    ierr = PetscObjectCompose((PetscObject) dm, "dmAux", (PetscObject) dmAux);CHKERRQ(ierr);
+    ierr = SetupEquilibriumFields(cdm, dmAux, user);CHKERRQ(ierr);
+    ierr = DMDestroy(&dmAux);CHKERRQ(ierr);
+
     ierr = DMGetCoarseDM(cdm, &cdm);CHKERRQ(ierr);
   }
   for (f = 0; f < Nf; ++f) {ierr = PetscFEDestroy(&fe[f]);CHKERRQ(ierr);}
