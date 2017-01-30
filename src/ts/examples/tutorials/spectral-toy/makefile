@@ -4,7 +4,7 @@ FFLAGS          =
 CPPFLAGS        =
 FPPFLAGS        =
 LOCDIR          = src/ts/examples/tutorials/spectral-toy
-EXAMPLESC       = ex1.c ex2.c ex3.c heat.c heatgll.c
+EXAMPLESC       = ex1.c ex2.c heat.c heatgll.c ex3.c
 EXAMPLESF       =
 MANSEC          = TS
 DIRS            =
@@ -28,10 +28,13 @@ heat: heat.o petscgll.o  chkopts
 	-${CLINKER} -o heat heat.o petscgll.o  ${PETSC_TS_LIB}
 	${RM} petscgll.o heat.o
 
-heatgll: heatgll.o petscgll.o  chkopts
-	-${CLINKER} -o heatgll heatgll.o petscgll.o  ${PETSC_TS_LIB}
-	${RM} petscgll.o heatgll.o
+heatNlinear: heatNlinear.o petscgll.o  chkopts
+	-${CLINKER} -o heatNlinear heatNlinear.o petscgll.o  ${PETSC_TS_LIB}
+	${RM} petscgll.o heatNlinear.o
 
+ex3: ex3.o petscgll.o  chkopts
+	-${CLINKER} -o ex3 ex3.o petscgll.o  ${PETSC_TS_LIB}
+	${RM} petscgll.o ex3.o
 
 TESTEXAMPLES_C =
 
