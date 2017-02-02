@@ -124,7 +124,7 @@ int main(int argc,char **args)
 {
   PetscErrorCode ierr;
   PetscGLLIP     gll;
-  PetscInt       N = 80,n,q,xs,xn,j,l;
+  PetscInt       N = 80,n,q = 2,xs,xn,j,l;
   PetscReal      **A;
   Mat            K;
   KSP            ksp;

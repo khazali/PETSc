@@ -86,6 +86,7 @@ PetscErrorCode PetscGLLIPCreate(PetscInt n,PetscGLLIPCreateType type,PetscGLLIP 
         M[i]=0.5*PetscSqrtReal(si*(si+2.0)/((si+0.5)*(si+1.5)));
       }
       ierr = PetscBLASIntCast(n-2,&bn);CHKERRQ(ierr);
+      ierr = PetscMemzero(&gll->nodes[1],bn*sizeof(gll->nodes[1]));CHKERRQ(ierr);
       ierr = PetscFPTrapPush(PETSC_FP_TRAP_OFF);CHKERRQ(ierr);
       PetscStackCallBLAS("LAPACKsteqr",LAPACKsteqr_("N",&bn,&gll->nodes[1],M,&x,&bn,M,&lierr));
       if (lierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in STERF Lapack routine %d",(int)lierr);
