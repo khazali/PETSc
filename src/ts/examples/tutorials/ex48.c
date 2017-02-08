@@ -8,8 +8,8 @@ This is a three field model for the density $\tilde n$, vorticity $\tilde\Omega$
     \partial_t \tilde n       &= \left\{ \tilde n, \tilde\phi \right\} + \beta \left\{ j_z, \tilde\psi \right\} + \left\{ \ln n_0, \tilde\phi \right\} + \mu \nabla^2_\perp \tilde n \\
   \partial_t \tilde\Omega   &= \left\{ \tilde\Omega, \tilde\phi \right\} + \beta \left\{ j_z, \tilde\psi \right\} + \mu \nabla^2_\perp \tilde\Omega \\
   \partial_t \tilde\psi     &= \left\{ \psi_0 + \tilde\psi, \tilde\phi - \tilde n \right\} - \left\{ \ln n_0, \tilde\psi \right\} + \frac{\eta}{\beta} \nabla^2_\perp \tilde\psi \\
-  \nabla^2_\perp\tilde\phi        &= \Omega - \nabla^2_\perp \phi_0\\
-  \nabla^2_\perp\tilde\psi &= -j_z - \nabla^2_\perp \psi_0 \\
+  \nabla^2_\perp\tilde\phi        &= \tilde\Omega \\
+  j_z  &= -\nabla^2_\perp  \left(\tilde\psi + \psi_0  \right)\\
   \end{aligned}
 \end{equation}
 F*/
@@ -60,10 +60,10 @@ static void f1_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                  PetscReal t, const PetscReal x[], PetscScalar f1[])
 {
-  const PetscScalar *pn = &u_x[uOff_x[DENSITY]];
+  const PetscScalar *pnDer = &u_x[uOff_x[DENSITY]];
   PetscInt           d;
 
-  for (d = 0; d < dim-1; ++d) f1[d] = -s_ctx->mu*pn[d];
+  for (d = 0; d < dim-1; ++d) f1[d] = -s_ctx->mu*pnDer[d];
 }
 
 static void f0_Omega(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -101,8 +101,9 @@ static void f0_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   const PetscScalar *refPsiDer = &a_x[aOff_x[PSI]];
   const PetscScalar *logRefDenDer= &a_x[aOff_x[DENSITY]];
   PetscScalar psiDer[] = {refPsiDer[0]+ppsiDer[0],refPsiDer[1]+ppsiDer[1]};
+  PetscScalar phi_n_Der[] = {pphiDer[0]-pnDer[0],pphiDer[1]-pnDer[1]};
 
-  f0[0] = u_t[PSI] - poissonBracket(psiDer, pphiDer) + poissonBracket(psiDer, pnDer) + poissonBracket(logRefDenDer, ppsiDer);
+  f0[0] = u_t[PSI] - poissonBracket(psiDer, phi_n_Der) + poissonBracket(logRefDenDer, ppsiDer);
 }
 
 static void f1_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -111,7 +112,6 @@ static void f1_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                    PetscReal t, const PetscReal x[], PetscScalar f1[])
 {
   const PetscScalar *ppsi = &u_x[uOff_x[PSI]];
-  const PetscScalar *refPsiDer = &a_x[aOff_x[PSI]];
   PetscInt           d;
 
   for (d = 0; d < dim-1; ++d) f1[d] = -(s_ctx->eta/s_ctx->beta)*ppsi[d];
@@ -122,7 +122,7 @@ static void f0_phi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                    const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                    PetscReal t, const PetscReal x[], PetscScalar f0[])
 {
-  f0[0] = -u[OMEGA];
+  f0[0] = -u[uOff[OMEGA]];
 }
 
 static void f1_phi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -141,8 +141,7 @@ static void f0_jz(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                   const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                   PetscReal t, const PetscReal x[], PetscScalar f0[])
 {
-  const PetscScalar *refPhiDer = &a_x[aOff_x[PHI]];
-  f0[0] = u[JZ];
+  f0[0] = u[uOff[JZ]];
 }
 
 static void f1_jz(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -151,9 +150,10 @@ static void f1_jz(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                   PetscReal t, const PetscReal x[], PetscScalar f1[])
 {
   const PetscScalar *ppsi = &u_x[uOff_x[PSI]];
+  const PetscScalar *refPsiDer = &a_x[aOff_x[PSI]]; /* aOff_x[PSI] == 2*PSI */
   PetscInt           d;
 
-  for (d = 0; d < dim-1; ++d) f1[d] = ppsi[d];
+  for (d = 0; d < dim-1; ++d) f1[d] = ppsi[d] + refPsiDer[d];
 }
 
 static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
@@ -352,7 +352,7 @@ static PetscErrorCode psi_0(PetscInt dim, PetscReal time, const PetscReal x[], P
 
 static PetscErrorCode initialSolution_n(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
-  u[0] = 0.0;
+  u[0] = 0.0; /* perturbation? */
   return 0;
 }
 
