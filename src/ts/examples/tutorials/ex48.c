@@ -4,8 +4,8 @@ The aim of this model is to self-consistently study the interaction between the 
 /*F
 This is a three field model for the density $\tilde n$, vorticity $\tilde\Omega$, and magnetic flux $\tilde\psi$, using auxiliary variables potential $\tilde\phi$ and current $j_z$.
 \begin{align}
-  \frac{\partial \tilde n}{\partial t}      &= \left\{ \tilde n, \tilde\phi \right\} + \beta \left\{ j, \tilde\psi \right\} + \left\{ \ln n_0, \tilde\phi \right\} + \mu \nabla^2_\perp \tilde n \\
-  \frac{\partial \tilde\Omega}{\partial t}   &= \left\{ \tilde\Omega, \tilde\phi \right\} + \beta \left\{ j, \tilde\psi \right\} + \mu \nabla^2_\perp \tilde\Omega \\
+  \frac{\partial \tilde n}{\partial t}      &= \left\{ \tilde n, \tilde\phi \right\} + \beta \left\{ j_z, \tilde\psi \right\} + \left\{ \ln n_0, \tilde\phi \right\} + \mu \nabla^2_\perp \tilde n \\
+  \frac{\partial \tilde\Omega}{\partial t}   &= \left\{ \tilde\Omega, \tilde\phi \right\} + \beta \left\{ j_z, \tilde\psi \right\} + \mu \nabla^2_\perp \tilde\Omega \\
   \frac{\partial \tilde\psi}{\partial t}   &= \left\{ \psi, \tilde\phi - \tilde n \right\} - \left\{ \ln n_0, \tilde\psi \right\} + \frac{\eta}{\beta} \nabla^2_\perp \tilde\psi \\
   \nabla^2_\perp\phi        &= \Omega \\
   \nabla^2_\perp \tilde\psi &= -j_z
@@ -37,19 +37,25 @@ static PetscScalar poissonBracket(const PetscScalar df[], const PetscScalar dg[]
   return df[0]*dg[1] - df[1]*dg[0];
 }
 
+enum field_idx {DENSITY,OMEGA,PSI,PHI,JZ};
+
 static void f0_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                  const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                  PetscReal t, const PetscReal x[], PetscScalar f0[])
 {
-  const PetscScalar *dn   = &u_x[uOff_x[0]];
-  const PetscScalar *dpsi = &u_x[uOff_x[2]];
-  const PetscScalar *dphi = &u_x[uOff_x[3]];
-  const PetscScalar *djz  = &u_x[uOff_x[4]];
+  const PetscScalar *dn   = &u_x[uOff_x[DENSITY]];
+  const PetscScalar *dpsi = &u_x[uOff_x[PSI]];
+  const PetscScalar *dphi = &u_x[uOff_x[PHI]];
+  const PetscScalar *djz  = &u_x[uOff_x[JZ]];
   const PetscScalar  beta = 1.0;
   PetscScalar        logRefDensityDer[2];
 
-  f0[0] = u_t[0] - poissonBracket(dn, dphi) - beta*poissonBracket(djz, dpsi) - poissonBracket(logRefDensityDer, dphi);
+  logRefDensityDer[0] = log(a_x[aOff_x[DENSITY]+0]);
+  logRefDensityDer[1] = log(a_x[aOff_x[DENSITY]+1]);
+printf("f0_n RefDensityDer=%g %g\n",a_x[aOff_x[DENSITY]+0],a_x[aOff_x[DENSITY]+1]);
+printf("\tf0_n logRefDensityDer=%g %g\n",logRefDensityDer[0],logRefDensityDer[1]);
+  f0[0] = u_t[DENSITY] - poissonBracket(dn, dphi) - beta*poissonBracket(djz, dpsi) - poissonBracket(logRefDensityDer, dphi);
 }
 
 static void f1_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -57,7 +63,7 @@ static void f1_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                  PetscReal t, const PetscReal x[], PetscScalar f1[])
 {
-  const PetscScalar *dn = &u_x[uOff_x[0]];
+  const PetscScalar *dn = &u_x[uOff_x[DENSITY]];
   PetscInt           d;
 
   for (d = 0; d < dim-1; ++d) f1[d] = s_ctx->mu*dn[d];
@@ -68,12 +74,12 @@ static void f0_Omega(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                      const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                      PetscReal t, const PetscReal x[], PetscScalar f0[])
 {
-  const PetscScalar *dOmega = &u_x[uOff_x[1]];
-  const PetscScalar *dpsi   = &u_x[uOff_x[2]];
-  const PetscScalar *dphi   = &u_x[uOff_x[3]];
-  const PetscScalar *djz    = &u_x[uOff_x[4]];
+  const PetscScalar *dOmega = &u_x[uOff_x[OMEGA]];
+  const PetscScalar *dpsi   = &u_x[uOff_x[PSI]];
+  const PetscScalar *dphi   = &u_x[uOff_x[PHI]];
+  const PetscScalar *djz    = &u_x[uOff_x[JZ]];
 
-  f0[0] = u_t[1] - poissonBracket(dOmega, dphi) - s_ctx->beta*poissonBracket(djz, dpsi);
+  f0[0] = u_t[OMEGA] - poissonBracket(dOmega, dphi) - s_ctx->beta*poissonBracket(djz, dpsi);
 }
 
 static void f1_Omega(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -81,7 +87,7 @@ static void f1_Omega(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                      const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                      PetscReal t, const PetscReal x[], PetscScalar f1[])
 {
-  const PetscScalar *dOmega = &u_x[uOff_x[1]];
+  const PetscScalar *dOmega = &u_x[uOff_x[OMEGA]];
   PetscInt           d;
 
   for (d = 0; d < dim-1; ++d) f1[d] = s_ctx->mu*dOmega[d];
@@ -92,12 +98,16 @@ static void f0_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                    const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                    PetscReal t, const PetscReal x[], PetscScalar f0[])
 {
-  const PetscScalar *dn   = &u_x[uOff_x[0]];
-  const PetscScalar *dpsi = &u_x[uOff_x[2]];
-  const PetscScalar *dphi = &u_x[uOff_x[3]];
+  const PetscScalar *dn    = &u_x[uOff_x[DENSITY]];
+  const PetscScalar *dpsi  = &u_x[uOff_x[PSI]];
+  const PetscScalar *dphi  = &u_x[uOff_x[PHI]];
+  const PetscScalar *refPsiDer = &a_x[aOff_x[PSI]];
   PetscScalar        logRefDensityDer[2];
-
-  f0[0] = u_t[2] - poissonBracket(dpsi, dphi) + poissonBracket(dpsi, dn) - poissonBracket(logRefDensityDer, dpsi);
+  logRefDensityDer[0] = log(a_x[aOff_x[DENSITY]+0]);
+  logRefDensityDer[1] = log(a_x[aOff_x[DENSITY]+1]);
+  //printf("f0_psi logRefDensityDer=%g %g\n",logRefDensityDer[0],logRefDensityDer[1]);
+  //printf("f0_psi refPsiDer=%g %g\n",refPsiDer[0],refPsiDer[1]);
+  f0[0] = u_t[PSI] - poissonBracket(refPsiDer, dphi) + poissonBracket(refPsiDer, dn) - poissonBracket(logRefDensityDer, dpsi);
 }
 
 static void f1_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -105,7 +115,7 @@ static void f1_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                    const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                    PetscReal t, const PetscReal x[], PetscScalar f1[])
 {
-  const PetscScalar *dpsi = &u_x[uOff_x[2]];
+  const PetscScalar *dpsi = &u_x[uOff_x[PSI]];
   PetscInt           d;
 
   for (d = 0; d < dim-1; ++d) f1[d] = (s_ctx->eta/s_ctx->beta)*dpsi[d];
@@ -116,7 +126,7 @@ static void f0_phi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                    const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                    PetscReal t, const PetscReal x[], PetscScalar f0[])
 {
-  f0[0] = u[1];
+  f0[0] = u[OMEGA];
 }
 
 static void f1_phi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -124,7 +134,7 @@ static void f1_phi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                    const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                    PetscReal t, const PetscReal x[], PetscScalar f1[])
 {
-  const PetscScalar *dphi = &u_x[uOff_x[3]];
+  const PetscScalar *dphi = &u_x[uOff_x[PHI]];
   PetscInt           d;
 
   for (d = 0; d < dim-1; ++d) f1[d] = dphi[d];
@@ -135,7 +145,7 @@ static void f0_jz(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                   const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                   PetscReal t, const PetscReal x[], PetscScalar f0[])
 {
-  f0[0] = -u[4];
+  f0[0] = -u[JZ];
 }
 
 static void f1_jz(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -143,7 +153,7 @@ static void f1_jz(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                   const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                   PetscReal t, const PetscReal x[], PetscScalar f1[])
 {
-  const PetscScalar *dpsi = &u_x[uOff_x[2]];
+  const PetscScalar *dpsi = &u_x[uOff_x[PSI]];
   PetscInt           d;
 
   for (d = 0; d < dim-1; ++d) f1[d] = dpsi[d];
