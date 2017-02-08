@@ -160,7 +160,7 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   PetscBool      flg;
   PetscErrorCode ierr;
-  PetscInt       bcs[3], ii;
+  PetscInt       bcs[3], ii, dim=2;
   PetscFunctionBeginUser;
   options->debug               = 0;
   options->dim                 = 2;
@@ -189,12 +189,11 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ii = options->dim;
   ierr = PetscOptionsRealArray("-domain_lo", "Domain size", "ex48.c", options->domain_lo, &ii, NULL);CHKERRQ(ierr);
   ii = options->dim;
-  while (ii--) bcs[ii] = 1; /* Diri */
+  for (ii=0;ii<dim;ii++) bcs[ii] = 1; /* Diri */
   bcs[1] = 0; /* make y periodic */
   ii = options->dim;
   ierr = PetscOptionsIntArray("-boundary_types", "Boundary types: 0:periodic; 1:Dirichlet; 2:Neumann", "ex48.c", bcs, &ii, NULL);CHKERRQ(ierr);
-  ii = options->dim;
-  while (ii--) options->boundary_types[ii] = (bcs[ii]==0) ? DM_BOUNDARY_PERIODIC : (bcs[ii]==1) ? DM_BOUNDARY_GHOSTED : DM_BOUNDARY_NONE;
+  for (ii=0;ii<dim;ii++) options->boundary_types[ii] = (bcs[ii]==0) ? DM_BOUNDARY_PERIODIC : (bcs[ii]==1) ? DM_BOUNDARY_GHOSTED : DM_BOUNDARY_NONE;
   ierr = PetscOptionsEnd();
   PetscFunctionReturn(0);
 }
@@ -277,7 +276,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
       if (jj>0) for (ii=0;ii<dim;ii++) cells[ii] *= jj;
       for (ii=0,prod=1;ii<dim;ii++) prod *= cells[ii];
       if (prod%mpi_world_size) SETERRQ1(comm,PETSC_ERR_ARG_WRONG,"num cells % num processes (%D) != 0",mpi_world_size);
-      printf("call DMPlexCreateHexBoxMesh with cells = %d %d\n",cells[0],cells[1]);
+      printf("call DMPlexCreateHexBoxMesh with cells = %d %d, boundary type = %d %d\n",cells[0],cells[1],user->boundary_types[0],user->boundary_types[1]);
       ierr = DMPlexCreateHexBoxMesh(comm, dim, cells, user->boundary_types[0], user->boundary_types[1], user->boundary_types[2], dm);CHKERRQ(ierr);
     }
     ierr = PetscObjectSetName((PetscObject) *dm, "Mesh");CHKERRQ(ierr);
