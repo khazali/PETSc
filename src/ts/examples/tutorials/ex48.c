@@ -48,14 +48,10 @@ static void f0_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   const PetscScalar *ppsi = &u_x[uOff_x[PSI]];
   const PetscScalar *pphi = &u_x[uOff_x[PHI]];
   const PetscScalar *pjz  = &u_x[uOff_x[JZ]];
+  const PetscScalar *logRefDenDer= &a_x[aOff_x[DENSITY]];
   const PetscScalar  beta = 1.0;
-  PetscScalar        logRefDensityDer[2];
 
-  logRefDensityDer[0] = log(a_x[aOff_x[DENSITY]+0]);
-  logRefDensityDer[1] = log(a_x[aOff_x[DENSITY]+1]);
-printf("f0_n RefDensityDer=%g %g\n",a_x[aOff_x[DENSITY]+0],a_x[aOff_x[DENSITY]+1]);
-printf("\tf0_n logRefDensityDer=%g %g\n",logRefDensityDer[0],logRefDensityDer[1]);
-  f0[0] = u_t[DENSITY] - poissonBracket(pn, pphi) - beta*poissonBracket(pjz, ppsi) - poissonBracket(logRefDensityDer, pphi);
+  f0[0] = u_t[DENSITY] - poissonBracket(pn, pphi) - beta*poissonBracket(pjz, ppsi) - poissonBracket(logRefDenDer, pphi);
 }
 
 static void f1_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -102,12 +98,9 @@ static void f0_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   const PetscScalar *ppsi  = &u_x[uOff_x[PSI]];
   const PetscScalar *pphi  = &u_x[uOff_x[PHI]];
   const PetscScalar *refPsiDer = &a_x[aOff_x[PSI]];
-  PetscScalar        logRefDensityDer[2];
-  logRefDensityDer[0] = log(a_x[aOff_x[DENSITY]+0]);
-  logRefDensityDer[1] = log(a_x[aOff_x[DENSITY]+1]);
-  //printf("f0_psi logRefDensityDer=%g %g\n",logRefDensityDer[0],logRefDensityDer[1]);
-  //printf("f0_psi refPsiDer=%g %g\n",refPsiDer[0],refPsiDer[1]);
-  f0[0] = u_t[PSI] - poissonBracket(refPsiDer, pphi) + poissonBracket(refPsiDer, pn) - poissonBracket(logRefDensityDer, ppsi);
+  const PetscScalar *logRefDenDer= &a_x[aOff_x[DENSITY]];
+
+  f0[0] = u_t[PSI] - poissonBracket(refPsiDer, pphi) + poissonBracket(refPsiDer, pn) - poissonBracket(logRefDenDer, ppsi);
 }
 
 static void f1_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -335,9 +328,9 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode n_0(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+static PetscErrorCode log_n_0(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
-  u[0] = 0.0;
+  u[0] = log(1.0);
   return 0;
 }
 
@@ -405,7 +398,7 @@ static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *user)
 
 static PetscErrorCode SetupEquilibriumFields(DM dm, DM dmAux, AppCtx *user)
 {
-  PetscErrorCode (*eqFuncs[3])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar u[], void *ctx) = {n_0, Omega_0, psi_0};
+  PetscErrorCode (*eqFuncs[3])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar u[], void *ctx) = {log_n_0, Omega_0, psi_0};
   Vec            eq;
   PetscErrorCode ierr;
 
