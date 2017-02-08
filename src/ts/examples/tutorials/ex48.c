@@ -190,6 +190,7 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsRealArray("-domain_lo", "Domain size", "ex48.c", options->domain_lo, &ii, NULL);CHKERRQ(ierr);
   ii = options->dim;
   while (ii--) bcs[ii] = 1; /* Diri */
+  bcs[1] = 0; /* make y periodic */
   ii = options->dim;
   ierr = PetscOptionsIntArray("-boundary_types", "Boundary types: 0:periodic; 1:Dirichlet; 2:Neumann", "ex48.c", bcs, &ii, NULL);CHKERRQ(ierr);
   ii = options->dim;
@@ -269,13 +270,14 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     if (user->simplex) {
       ierr = DMPlexCreateBoxMesh(comm, dim, dim == 2 ? 2 : 1, PETSC_TRUE, dm);CHKERRQ(ierr);
     } else {
-      PetscInt cells[3] = {1, 1, 1}, prod; /* coarse mesh is one cell; refine from there */
+      PetscInt cells[3] = {2, 2, 2}, prod; /* coarse mesh is one cell; refine from there */
       for (ii=0;ii<dim;ii++) cells[ii] = (PetscInt)(user->domain_hi[ii] - user->domain_lo[ii]);
-      jj = (PetscInt)(PetscPowReal(mpi_world_size,1./(PetscReal)dim) + 0.1); /* cells in each dim */
+      jj = (PetscInt)(PetscPowReal(mpi_world_size,1./(PetscReal)dim) + 0.1) - 1; /* procs in each dim - 1 */
       /* refine so distribute works */
-      for (ii=0;ii<dim;ii++) cells[ii] *= jj;
+      if (jj>0) for (ii=0;ii<dim;ii++) cells[ii] *= jj;
       for (ii=0,prod=1;ii<dim;ii++) prod *= cells[ii];
       if (prod%mpi_world_size) SETERRQ1(comm,PETSC_ERR_ARG_WRONG,"num cells % num processes (%D) != 0",mpi_world_size);
+      printf("call DMPlexCreateHexBoxMesh with cells = %d %d\n",cells[0],cells[1]);
       ierr = DMPlexCreateHexBoxMesh(comm, dim, cells, user->boundary_types[0], user->boundary_types[1], user->boundary_types[2], dm);CHKERRQ(ierr);
     }
     ierr = PetscObjectSetName((PetscObject) *dm, "Mesh");CHKERRQ(ierr);
