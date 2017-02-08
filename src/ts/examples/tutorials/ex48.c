@@ -26,6 +26,7 @@ typedef struct {
   char           filename[2048];    /* The optional ExodusII file */
   PetscBool      simplex;           /* Simplicial mesh */
   DMBoundaryType boundary_types[3];
+  PetscInt       cells[3];
   /* geometry  */
   PetscReal      domain_lo[3], domain_hi[3];
   PetscReal      b0[3]; /* not used */
@@ -160,7 +161,7 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   PetscBool      flg;
   PetscErrorCode ierr;
-  PetscInt       bcs[3], ii, dim=2;
+  PetscInt       bcs[3], ii;
   PetscFunctionBeginUser;
   options->debug               = 0;
   options->dim                 = 2;
@@ -189,11 +190,14 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ii = options->dim;
   ierr = PetscOptionsRealArray("-domain_lo", "Domain size", "ex48.c", options->domain_lo, &ii, NULL);CHKERRQ(ierr);
   ii = options->dim;
-  for (ii=0;ii<dim;ii++) bcs[ii] = 1; /* Diri */
+  for (ii=0;ii<options->dim;ii++) bcs[ii] = 1; /* Diri */
   bcs[1] = 0; /* make y periodic */
   ii = options->dim;
   ierr = PetscOptionsIntArray("-boundary_types", "Boundary types: 0:periodic; 1:Dirichlet; 2:Neumann", "ex48.c", bcs, &ii, NULL);CHKERRQ(ierr);
-  for (ii=0;ii<dim;ii++) options->boundary_types[ii] = (bcs[ii]==0) ? DM_BOUNDARY_PERIODIC : (bcs[ii]==1) ? DM_BOUNDARY_GHOSTED : DM_BOUNDARY_NONE;
+  for (ii=0;ii<options->dim;ii++) options->boundary_types[ii] = (bcs[ii]==0) ? DM_BOUNDARY_PERIODIC : (bcs[ii]==1) ? DM_BOUNDARY_GHOSTED : DM_BOUNDARY_NONE;
+  for (ii=0;ii<options->dim;ii++) options->cells[ii] = 2;
+  ii = options->dim;
+  ierr = PetscOptionsIntArray("-cells", "Number of cells in each dimension", "ex48.c", options->cells, &ii, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
   PetscFunctionReturn(0);
 }
@@ -269,15 +273,14 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     if (user->simplex) {
       ierr = DMPlexCreateBoxMesh(comm, dim, dim == 2 ? 2 : 1, PETSC_TRUE, dm);CHKERRQ(ierr);
     } else {
-      PetscInt cells[3] = {2, 2, 2}, prod; /* coarse mesh is one cell; refine from there */
-      for (ii=0;ii<dim;ii++) cells[ii] = (PetscInt)(user->domain_hi[ii] - user->domain_lo[ii]);
+      PetscInt prod; /* coarse mesh is one cell; refine from there */
       jj = (PetscInt)(PetscPowReal(mpi_world_size,1./(PetscReal)dim) + 0.1) - 1; /* procs in each dim - 1 */
       /* refine so distribute works */
-      if (jj>0) for (ii=0;ii<dim;ii++) cells[ii] *= jj;
-      for (ii=0,prod=1;ii<dim;ii++) prod *= cells[ii];
+      if (jj>0) for (ii=0;ii<dim;ii++) user->cells[ii] *= jj;
+      for (ii=0,prod=1;ii<dim;ii++) prod *= user->cells[ii];
       if (prod%mpi_world_size) SETERRQ1(comm,PETSC_ERR_ARG_WRONG,"num cells % num processes (%D) != 0",mpi_world_size);
-      printf("call DMPlexCreateHexBoxMesh with cells = %d %d, boundary type = %d %d\n",cells[0],cells[1],user->boundary_types[0],user->boundary_types[1]);
-      ierr = DMPlexCreateHexBoxMesh(comm, dim, cells, user->boundary_types[0], user->boundary_types[1], user->boundary_types[2], dm);CHKERRQ(ierr);
+      printf("call DMPlexCreateHexBoxMesh with cells = %d %d, boundary type = %d %d\n",user->cells[0],user->cells[1],user->boundary_types[0],user->boundary_types[1]);
+      ierr = DMPlexCreateHexBoxMesh(comm, dim, user->cells, user->boundary_types[0], user->boundary_types[1], user->boundary_types[2], dm);CHKERRQ(ierr);
     }
     ierr = PetscObjectSetName((PetscObject) *dm, "Mesh");CHKERRQ(ierr);
     /* set domain size */
