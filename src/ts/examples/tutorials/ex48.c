@@ -221,12 +221,13 @@ static PetscErrorCode PostStep(TS ts)
   ierr = TSGetSolution(ts, &X);CHKERRQ(ierr);
   ierr = TSGetTimeStepNumber(ts, &stepi);CHKERRQ(ierr);
   ierr = PetscViewerCreate(PetscObjectComm((PetscObject)dm),&viewer);CHKERRQ(ierr);
-  ierr = PetscViewerSetType(viewer,PETSCVIEWERVTK);CHKERRQ(ierr);
+  /* ierr = PetscViewerSetType(viewer,PETSCVIEWERVTK);CHKERRQ(ierr); */
+  ierr = PetscViewerSetType(viewer,PETSCVIEWERHDF5);CHKERRQ(ierr);
   ierr = PetscViewerSetFromOptions(viewer);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERHDF5,&isHDF5);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERVTK,&isVTK);CHKERRQ(ierr);
   if (isHDF5) {
-    ierr = PetscSNPrintf(buf, 256, "%s-%d.h5", prefix, stepi);CHKERRQ(ierr);
+    ierr = PetscSNPrintf(buf, 256, "%s-%05d.h5", prefix, stepi);CHKERRQ(ierr);
   } else if (isVTK) {
     ierr = PetscSNPrintf(buf, 256, "%s-%d.vtu", prefix, stepi);CHKERRQ(ierr);
     ierr = PetscViewerPushFormat(viewer,PETSC_VIEWER_VTK_VTU);CHKERRQ(ierr);
@@ -279,7 +280,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
       refineRatio = PetscMax((PetscInt) (PetscPowReal(numProcs, 1.0/dim) + 0.1) - 1, 1);
       for (d = 0; d < dim; ++d) {
-        if (user->boundary_types[d]==DM_BOUNDARY_PERIODIC && user->cells[d]*refineRatio <= 2) refineRatio++;
+        if (user->boundary_types[d]==DM_BOUNDARY_PERIODIC && user->cells[d]*refineRatio <= 2) refineRatio += (3 - user->cells[d]);
       }
       for (d = 0; d < dim; ++d) {
         user->cells[d] *= refineRatio;
