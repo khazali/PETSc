@@ -176,6 +176,9 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->mu   = 0;
   options->eta  = 0;
   options->beta = 1;
+  for (ii = 0; ii < options->dim; ++ii) bcs[ii] = 1; /* Dirichlet */
+  bcs[1] = 0;                                        /* Y-Periodic */
+  for (ii = 0; ii < options->dim; ++ii) options->cells[ii] = 2;
 
   ierr = PetscOptionsBegin(comm, "", "Poisson Problem Options", "DMPLEX");CHKERRQ(ierr);
   ierr = PetscOptionsInt("-debug", "The debugging level", "ex48.c", options->debug, &options->debug, NULL);CHKERRQ(ierr);
@@ -190,12 +193,8 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ii = options->dim;
   ierr = PetscOptionsRealArray("-domain_lo", "Domain size", "ex48.c", options->domain_lo, &ii, NULL);CHKERRQ(ierr);
   ii = options->dim;
-  for (ii=0;ii<options->dim;ii++) bcs[ii] = 1; /* Diri */
-  bcs[1] = 0; /* make y periodic */
-  ii = options->dim;
   ierr = PetscOptionsIntArray("-boundary_types", "Boundary types: 0:periodic; 1:Dirichlet; 2:Neumann", "ex48.c", bcs, &ii, NULL);CHKERRQ(ierr);
-  for (ii=0;ii<options->dim;ii++) options->boundary_types[ii] = (bcs[ii]==0) ? DM_BOUNDARY_PERIODIC : (bcs[ii]==1) ? DM_BOUNDARY_GHOSTED : DM_BOUNDARY_NONE;
-  for (ii=0;ii<options->dim;ii++) options->cells[ii] = 2;
+  for (ii = 0; ii < options->dim; ++ii) options->boundary_types[ii] = (bcs[ii] == 0) ? DM_BOUNDARY_PERIODIC : (bcs[ii] == 1) ? DM_BOUNDARY_GHOSTED : DM_BOUNDARY_NONE;
   ii = options->dim;
   ierr = PetscOptionsIntArray("-cells", "Number of cells in each dimension", "ex48.c", options->cells, &ii, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
@@ -261,39 +260,48 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   PetscInt       dim      = user->dim;
   const char    *filename = user->filename;
   size_t         len;
+  PetscMPIInt    numProcs;
   PetscErrorCode ierr;
-  PetscMPIInt    mpi_world_size;
+
   PetscFunctionBeginUser;
-  ierr = MPI_Comm_size(comm, &mpi_world_size);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &numProcs);CHKERRQ(ierr);
   ierr = PetscStrlen(filename, &len);CHKERRQ(ierr);
   if (!len) {
-    Vec              coordinates;
-    PetscInt         dimEmbed,nCoords,ii,jj;
-    PetscScalar      *coords;
+    Vec          coordinates;
+    PetscScalar *coords;
+    PetscReal    maxCell[3], L[3];
+    PetscInt     nCoords, n, dimEmbed, d;
+
     if (user->simplex) {
       ierr = DMPlexCreateBoxMesh(comm, dim, dim == 2 ? 2 : 1, PETSC_TRUE, dm);CHKERRQ(ierr);
     } else {
-      PetscInt prod; /* coarse mesh is one cell; refine from there */
-      jj = (PetscInt)(PetscPowReal(mpi_world_size,1./(PetscReal)dim) + 0.1) - 1; /* procs in each dim - 1 */
-      /* refine so distribute works */
-      if (jj>0) for (ii=0;ii<dim;ii++) user->cells[ii] *= jj;
-      for (ii=0,prod=1;ii<dim;ii++) prod *= user->cells[ii];
-      if (prod%mpi_world_size) SETERRQ1(comm,PETSC_ERR_ARG_WRONG,"num cells % num processes (%D) != 0",mpi_world_size);
-      printf("call DMPlexCreateHexBoxMesh with cells = %d %d, boundary type = %d %d\n",user->cells[0],user->cells[1],user->boundary_types[0],user->boundary_types[1]);
+      PetscInt refineRatio, totCells = 1;
+
+      refineRatio = PetscMax((PetscInt) (PetscPowReal(numProcs, 1.0/dim) + 0.1) - 1, 1);
+      for (d = 0; d < dim; ++d) {
+        user->cells[d] *= refineRatio;
+        totCells *= user->cells[d];
+      }
+      if (totCells % numProcs) SETERRQ2(comm,PETSC_ERR_ARG_WRONG,"Total cells %D not divisible by processes %D", totCells, numProcs);
       ierr = DMPlexCreateHexBoxMesh(comm, dim, user->cells, user->boundary_types[0], user->boundary_types[1], user->boundary_types[2], dm);CHKERRQ(ierr);
     }
     ierr = PetscObjectSetName((PetscObject) *dm, "Mesh");CHKERRQ(ierr);
-    /* set domain size */
-    ierr = DMGetCoordinatesLocal(*dm,&coordinates);CHKERRQ(ierr);
-    ierr = DMGetCoordinateDim(*dm,&dimEmbed);CHKERRQ(ierr);
-    ierr = VecGetLocalSize(coordinates,&nCoords);CHKERRQ(ierr);
-    if (nCoords % dimEmbed) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Coordinate vector the wrong size");CHKERRQ(ierr);
-    ierr = VecGetArray(coordinates,&coords);CHKERRQ(ierr);
-    for (ii = 0; ii < nCoords; ii += dimEmbed) {
-      PetscScalar *coord = &coords[ii];
-      for (jj = 0; jj < dimEmbed; jj++) {
-        coord[jj] = user->domain_lo[jj] + coord[jj] * (user->domain_hi[jj] - user->domain_lo[jj]);
-      }
+    /* Rescale to physical domain */
+    ierr = DMGetCoordinateDim(*dm, &dimEmbed);CHKERRQ(ierr);
+    ierr = DMGetCoordinatesLocal(*dm, &coordinates);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(coordinates, &nCoords);CHKERRQ(ierr);
+    if (nCoords % dimEmbed) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Dimension %D does not divide the coordinate vector size %D", dimEmbed, nCoords);CHKERRQ(ierr);
+    ierr = VecGetArray(coordinates, &coords);CHKERRQ(ierr);
+    for (d = 0; d < dimEmbed; ++d) L[d] = user->domain_hi[d] - user->domain_lo[d];
+    for (n = 0; n < nCoords; n += dimEmbed) {
+      PetscScalar *coord = &coords[n];
+      for (d = 0; d < dimEmbed; ++d) coord[d] = user->domain_lo[d] + coord[d] * L[d];
+    }
+    ierr = VecRestoreArray(coordinates, &coords);CHKERRQ(ierr);
+    /* Setup periodicity */
+    if ((user->boundary_types[0] == DM_BOUNDARY_PERIODIC) || (user->boundary_types[1] == DM_BOUNDARY_PERIODIC)) {
+      for (d = 0; d < 3; ++d) maxCell[d] = 1.1*(L[d]/user->cells[d]);
+      ierr = DMSetPeriodicity(*dm, maxCell, L, user->boundary_types);CHKERRQ(ierr);
     }
   } else {
     ierr = DMPlexCreateFromFile(comm, filename, PETSC_TRUE, dm);CHKERRQ(ierr);
@@ -333,6 +341,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   }
   ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
   ierr = DMViewFromOptions(*dm, NULL, "-dm_view");CHKERRQ(ierr);
+  ierr = DMLocalizeCoordinates(*dm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

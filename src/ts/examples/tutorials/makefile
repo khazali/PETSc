@@ -226,6 +226,10 @@ ex44: ex44.o chkopts
 	-${CLINKER} -o ex44 ex44.o ${PETSC_TS_LIB}
 	${RM} ex44.o
 
+ex48: ex48.o chkopts
+	-${CLINKER} -o ex48 ex48.o ${PETSC_TS_LIB}
+	${RM} ex48.o
+
 #---------------------------------------------------------------------------------
 runex1:
 	-@${MPIEXEC} -n 1 ./ex1 -ksp_gmres_cgs_refinement_type refine_always -snes_type newtonls -ts_monitor_pseudo -snes_atol 1.e-7 -ts_pseudo_frtol 1.e-5 -ts_view draw:tikz:output/fig.tex > ex1_1.tmp 2>&1;	  \
