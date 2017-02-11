@@ -279,6 +279,9 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
       refineRatio = PetscMax((PetscInt) (PetscPowReal(numProcs, 1.0/dim) + 0.1) - 1, 1);
       for (d = 0; d < dim; ++d) {
+        if (user->boundary_types[d]==DM_BOUNDARY_PERIODIC && user->cells[d]*refineRatio <= 2) refineRatio++;
+      }
+      for (d = 0; d < dim; ++d) {
         user->cells[d] *= refineRatio;
         totCells *= user->cells[d];
       }
