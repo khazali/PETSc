@@ -87,6 +87,9 @@ endif
 ifeq ($(VALGRIND),1)
   TESTFLAGS += -V    # Add valgrind to the flags
 endif
+ifeq ($(DEBUGGER),1)
+  TESTFLAGS += -d    # Add start_in_debugger to flags
+endif
 ifeq ($(REPLACE),1)
   TESTFLAGS += -m    # Replace results by passing -m to petscdiff
 endif
