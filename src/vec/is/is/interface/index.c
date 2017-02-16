@@ -24,6 +24,8 @@ PetscClassId IS_CLASSID;
 
    Level: intermediate
 
+   Notes: Negative entries are all mapped to -1
+
 .seealso:
 @*/
 PetscErrorCode ISRenumber(IS subset, IS subset_mult, PetscInt *N, IS *subset_n)
@@ -33,9 +35,9 @@ PetscErrorCode ISRenumber(IS subset, IS subset_mult, PetscInt *N, IS *subset_n)
   const PetscInt *idxs;
   PetscInt       *leaf_data,*root_data,*gidxs;
   PetscInt       N_n,n,i,lbounds[2],gbounds[2],Nl;
-  PetscInt       n_n,nlocals,start,first_index;
+  PetscInt       p1,n_n,nlocals,start,first_index;
   PetscMPIInt    commsize;
-  PetscBool      first_found;
+  PetscBool      first_found,lhas_neg,has_neg;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -45,17 +47,26 @@ PetscErrorCode ISRenumber(IS subset, IS subset_mult, PetscInt *N, IS *subset_n)
     ierr = ISGetLocalSize(subset,&i);CHKERRQ(ierr);
     if (i != n) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Local subset and multiplicity sizes don't match! %d != %d",n,i);
   }
+  lhas_neg = PETSC_FALSE;
+  ierr     = ISGetMinMax(subset,&i,NULL);CHKERRQ(ierr);
+  lhas_neg = i < 0 ? PETSC_TRUE : PETSC_FALSE;
+  ierr     = MPIU_Allreduce(&lhas_neg,&has_neg,1,MPIU_BOOL,MPI_LOR,PetscObjectComm((PetscObject)subset));CHKERRQ(ierr);
+  p1       = has_neg ? 1 : 0;
+  if (has_neg && subset_mult) SETERRQ(PetscObjectComm((PetscObject)subset),PETSC_ERR_SUP,"To be implemented");
+
   /* create workspace layout for computing global indices of subset */
   ierr = ISGetIndices(subset,&idxs);CHKERRQ(ierr);
-  lbounds[0] = lbounds[1] = 0;
+  lbounds[0] = PETSC_MAX_INT;
+  lbounds[1] = -PETSC_MAX_INT;
   for (i=0;i<n;i++) {
-    if (idxs[i] < lbounds[0]) lbounds[0] = idxs[i];
+    if (idxs[i] >= 0 && idxs[i] < lbounds[0]) lbounds[0] = idxs[i];
     else if (idxs[i] > lbounds[1]) lbounds[1] = idxs[i];
   }
+  lbounds[1] = PetscMax(lbounds[0],lbounds[1]);
   lbounds[0] = -lbounds[0];
   ierr = MPIU_Allreduce(lbounds,gbounds,2,MPIU_INT,MPI_MAX,PetscObjectComm((PetscObject)subset));CHKERRQ(ierr);
   gbounds[0] = -gbounds[0];
-  N_n= gbounds[1] - gbounds[0] + 1;
+  N_n  = gbounds[1] - gbounds[0] + 1 + p1;
   ierr = PetscLayoutCreate(PetscObjectComm((PetscObject)subset),&map);CHKERRQ(ierr);
   ierr = PetscLayoutSetBlockSize(map,1);CHKERRQ(ierr);
   ierr = PetscLayoutSetSize(map,N_n);CHKERRQ(ierr);
@@ -73,13 +84,20 @@ PetscErrorCode ISRenumber(IS subset, IS subset_mult, PetscInt *N, IS *subset_n)
   } else {
     for (i=0;i<n;i++) leaf_data[i] = 1;
   }
+
   /* local size of new subset */
   n_n = 0;
   for (i=0;i<n;i++) n_n += leaf_data[i];
 
   /* global indexes in layout */
   ierr = PetscMalloc1(n_n,&gidxs);CHKERRQ(ierr); /* allocating possibly extra space in gidxs which will be used later */
-  for (i=0;i<n;i++) gidxs[i] = idxs[i] - gbounds[0];
+  if (lhas_neg) {
+    for (i=0;i<n;i++) {
+      gidxs[i] = idxs[i] < 0 ? 0 : idxs[i] - gbounds[0] + p1;
+    }
+  } else {
+    for (i=0;i<n;i++) gidxs[i] = idxs[i] - gbounds[0] + p1;
+  }
   ierr = ISRestoreIndices(subset,&idxs);CHKERRQ(ierr);
   ierr = PetscSFCreate(PetscObjectComm((PetscObject)subset),&sf);CHKERRQ(ierr);
   ierr = PetscSFSetGraphLayout(sf,map,n,NULL,PETSC_COPY_VALUES,gidxs);CHKERRQ(ierr);
@@ -153,6 +171,7 @@ PetscErrorCode ISRenumber(IS subset, IS subset_mult, PetscInt *N, IS *subset_n)
       gidxs[i] = leaf_data[i]-1;
     }
   }
+  if (has_neg) for(i=0;i<n_n;i++) gidxs[i] = gidxs[i] - 1;
   ierr = ISCreateGeneral(PetscObjectComm((PetscObject)subset),n_n,gidxs,PETSC_OWN_POINTER,subset_n);CHKERRQ(ierr);
   ierr = PetscFree2(leaf_data,root_data);CHKERRQ(ierr);
   PetscFunctionReturn(0);
