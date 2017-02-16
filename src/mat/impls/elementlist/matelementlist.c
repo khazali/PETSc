@@ -150,14 +150,15 @@ static PetscErrorCode MatAssemblyEnd_Elementlist(Mat A, MatAssemblyType atype)
     chasnull = N != A->cmap->N ? PETSC_TRUE : PETSC_FALSE;
     if (rhasnull) {
       const PetscInt *idxs;
-      PetscInt       *rgidxs,*rlidxs,i,ntr;
+      PetscInt       *rgidxs,*rlidxs,i,ntr,rst;
 
       ierr = PetscMalloc2(tr,&rgidxs,tr,&rlidxs);CHKERRQ(ierr);
       ierr = ISGetIndices(rgis,&idxs);CHKERRQ(ierr);
+      ierr = VecGetOwnershipRange(elist->rv,&rst,NULL);CHKERRQ(ierr);
       for (i=0,ntr=0;i<tr;i++) {
         if (idxs[i] >= 0) {
           rgidxs[ntr] = idxs[i];
-          rlidxs[ntr] = i;
+          rlidxs[ntr] = i + rst;
           ntr++;
         }
       }
@@ -169,14 +170,15 @@ static PetscErrorCode MatAssemblyEnd_Elementlist(Mat A, MatAssemblyType atype)
 
     if (chasnull) {
       const PetscInt *idxs;
-      PetscInt       *cgidxs,*clidxs,i,ntc;
+      PetscInt       *cgidxs,*clidxs,i,ntc,cst;
 
+      ierr = VecGetOwnershipRange(elist->cv,&cst,NULL);CHKERRQ(ierr);
       ierr = PetscMalloc2(tc,&cgidxs,tc,&clidxs);CHKERRQ(ierr);
       ierr = ISGetIndices(cgis,&idxs);CHKERRQ(ierr);
       for (i=0,ntc=0;i<tc;i++) {
         if (idxs[i] >= 0) {
           cgidxs[ntc] = idxs[i];
-          clidxs[ntc] = i;
+          clidxs[ntc] = i + cst;
           ntc++;
         }
       }
@@ -220,16 +222,26 @@ static PetscErrorCode MatView_Elementlist(Mat A, PetscViewer viewer)
 {
   Mat_Elementlist     *elist = (Mat_Elementlist*)A->data;
   Mat_ElementlistLink next;
+  MPI_Comm            scomm;
+  PetscViewer         sviewer = NULL;
   PetscErrorCode      ierr;
 
   PetscFunctionBegin;
   next = elist->root->next;
+  if (next) {
+    ierr = PetscObjectGetComm((PetscObject)next->elem,&scomm);
+    ierr = PetscViewerGetSubViewer(viewer,scomm,&sviewer);CHKERRQ(ierr);
+  }
   while (next) {
-    ierr = MatView(next->elem,viewer);CHKERRQ(ierr);
-    ierr = ISView(next->row,viewer);CHKERRQ(ierr);
-    ierr = ISView(next->col,viewer);CHKERRQ(ierr);
+    ierr = MatView(next->elem,sviewer);CHKERRQ(ierr);
+    ierr = ISView(next->row,sviewer);CHKERRQ(ierr);
+    ierr = ISView(next->col,sviewer);CHKERRQ(ierr);
     next = next->next;
   }
+  if (sviewer) {
+    ierr = PetscViewerRestoreSubViewer(viewer,scomm,&sviewer);CHKERRQ(ierr);
+  }
+  ierr = PetscViewerFlush(viewer);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
