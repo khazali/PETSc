@@ -90,18 +90,20 @@ static PetscErrorCode MatAssemblyBegin_Elementlist(Mat A, MatAssemblyType atype)
 static PetscErrorCode MatAssemblyEnd_Elementlist(Mat A, MatAssemblyType atype)
 {
   Mat_Elementlist     *elist = (Mat_Elementlist*)A->data;
-  Mat_ElementlistLink next;
-  Vec                 rv,cv;
-  IS                  ris,cis,rgis,cgis;
-  PetscInt            *ridxs,*cidxs,*rp,*cp,cumr,cumc;
-  PetscInt            tr,tc,M,N;
-  PetscBool           rhasnull,chasnull;
-  PetscErrorCode      ierr;
 
   PetscFunctionBegin;
   if (atype == MAT_FLUSH_ASSEMBLY) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_SUP,"Unsupported operation");
   /* setup matrix-vector multiply */
   if (!elist->rscctx) {
+    Mat_ElementlistLink next;
+    Vec                 rv,cv;
+    IS                  ris,cis,rgis,cgis;
+    PetscInt            *ridxs,*cidxs,*rp,*cp;
+    PetscInt            *rlidxs,*clidxs,*rlp,*clp;
+    PetscInt            tr,tc,cst,rst,rcm,ccm;
+    PetscBool           hasneg[2],lhasneg[2];
+    PetscErrorCode      ierr;
+
     next = elist->root->next;
     tr   = 0;
     tc   = 0;
@@ -119,74 +121,90 @@ static PetscErrorCode MatAssemblyEnd_Elementlist(Mat A, MatAssemblyType atype)
     ierr = VecCreateMPI(PetscObjectComm((PetscObject)A),tr,PETSC_DECIDE,&elist->rv);CHKERRQ(ierr);
     ierr = VecCreateMPI(PetscObjectComm((PetscObject)A),tc,PETSC_DECIDE,&elist->cv);CHKERRQ(ierr);
 
+    /* determine if there are negative indices */
+    lhasneg[0] = PETSC_FALSE;
+    lhasneg[1] = PETSC_FALSE;
+    next       = elist->root->next;
+    while (next && (!lhasneg[0] || !lhasneg[1])) {
+      PetscInt m;
+      ierr = ISGetMinMax(next->row,&m,NULL);CHKERRQ(ierr);
+      if (m < 0) lhasneg[0] = PETSC_TRUE;
+      ierr = ISGetMinMax(next->col,&m,NULL);CHKERRQ(ierr);
+      if (m < 0) lhasneg[1] = PETSC_TRUE;
+      next = next->next;
+    }
+    ierr = MPI_Allreduce(lhasneg,hasneg,2,MPIU_BOOL,MPI_LOR,PetscObjectComm((PetscObject)A));CHKERRQ(ierr);
+
+    /* compute indices for scatters */
     ierr = PetscMalloc2(tr,&ridxs,tc,&cidxs);CHKERRQ(ierr);
+    if (hasneg[0]) {
+      ierr = PetscMalloc1(tr,&rlidxs);CHKERRQ(ierr);
+    }
+    if (hasneg[1]) {
+      ierr = PetscMalloc1(tc,&clidxs);CHKERRQ(ierr);
+    }
     rp   = ridxs;
     cp   = cidxs;
+    rlp  = rlidxs;
+    clp  = clidxs;
     next = elist->root->next;
+    tr   = 0;
+    tc   = 0;
+    ierr = VecGetOwnershipRange(elist->rv,&rst,NULL);CHKERRQ(ierr);
+    ierr = VecGetOwnershipRange(elist->cv,&cst,NULL);CHKERRQ(ierr);
+    ris  = NULL;
+    cis  = NULL;
+    rcm  = 0;
+    ccm  = 0;
     while (next) {
       const PetscInt *idxs;
       PetscInt       i,ll;
 
       ierr = ISGetLocalSize(next->row,&ll);CHKERRQ(ierr);
       ierr = ISGetIndices(next->row,&idxs);CHKERRQ(ierr);
-      for (i=0;i<ll;i++) *rp++ = idxs[i];
+      if (hasneg[0]) {
+        for (i=0;i<ll;i++) {
+          if (idxs[i]>=0) {
+            *rp++  = idxs[i];
+            *rlp++ = i + rcm + rst;
+            tr++;
+          }
+        }
+      } else {
+        for (i=0;i<ll;i++) *rp++ = idxs[i];
+        tr += ll;
+      }
+      rcm += ll;
       ierr = ISRestoreIndices(next->row,&idxs);CHKERRQ(ierr);
 
       ierr = ISGetLocalSize(next->col,&ll);CHKERRQ(ierr);
       ierr = ISGetIndices(next->col,&idxs);CHKERRQ(ierr);
-      for (i=0;i<ll;i++) *cp++ = idxs[i];
+      if (hasneg[1]) {
+        for (i=0;i<ll;i++) {
+          if (idxs[i]>=0) {
+            *cp++  = idxs[i];
+            *clp++ = i + ccm + cst;
+            tc++;
+          }
+        }
+      } else {
+        for (i=0;i<ll;i++) *cp++ = idxs[i];
+        tc += ll;
+      }
+      ccm += ll;
       ierr = ISRestoreIndices(next->col,&idxs);CHKERRQ(ierr);
 
       next = next->next;
     }
-    ierr = ISCreateGeneral(PetscObjectComm((PetscObject)A),tr,ridxs,PETSC_OWN_POINTER,&ris);CHKERRQ(ierr);
-    ierr = ISCreateGeneral(PetscObjectComm((PetscObject)A),tc,cidxs,PETSC_OWN_POINTER,&cis);CHKERRQ(ierr);
-    ierr = ISRenumber(ris,NULL,&M,&rgis);CHKERRQ(ierr);
-    ierr = ISRenumber(cis,NULL,&N,&cgis);CHKERRQ(ierr);
-    ierr = ISDestroy(&ris);CHKERRQ(ierr);
-    ierr = ISDestroy(&cis);CHKERRQ(ierr);
-
-    rhasnull = M != A->rmap->N ? PETSC_TRUE : PETSC_FALSE;
-    chasnull = N != A->cmap->N ? PETSC_TRUE : PETSC_FALSE;
-    if (rhasnull) {
-      const PetscInt *idxs;
-      PetscInt       *rgidxs,*rlidxs,i,ntr,rst;
-
-      ierr = PetscMalloc2(tr,&rgidxs,tr,&rlidxs);CHKERRQ(ierr);
-      ierr = ISGetIndices(rgis,&idxs);CHKERRQ(ierr);
-      ierr = VecGetOwnershipRange(elist->rv,&rst,NULL);CHKERRQ(ierr);
-      for (i=0,ntr=0;i<tr;i++) {
-        if (idxs[i] >= 0) {
-          rgidxs[ntr] = idxs[i];
-          rlidxs[ntr] = i + rst;
-          ntr++;
-        }
-      }
-      ierr = ISRestoreIndices(rgis,&idxs);CHKERRQ(ierr);
-      ierr = ISDestroy(&rgis);CHKERRQ(ierr);
-      ierr = ISCreateGeneral(PetscObjectComm((PetscObject)A),ntr,rgidxs,PETSC_OWN_POINTER,&rgis);CHKERRQ(ierr);
-      ierr = ISCreateGeneral(PetscObjectComm((PetscObject)A),ntr,rlidxs,PETSC_OWN_POINTER,&ris);CHKERRQ(ierr);
+    ierr = ISCreateGeneral(PetscObjectComm((PetscObject)A),tr,ridxs,PETSC_OWN_POINTER,&rgis);CHKERRQ(ierr);
+    ierr = ISCreateGeneral(PetscObjectComm((PetscObject)A),tc,cidxs,PETSC_OWN_POINTER,&cgis);CHKERRQ(ierr);
+    if (hasneg[0]) {
+      ierr = ISCreateGeneral(PetscObjectComm((PetscObject)A),tr,rlidxs,PETSC_OWN_POINTER,&ris);CHKERRQ(ierr);
+    }
+    if (hasneg[1]) {
+      ierr = ISCreateGeneral(PetscObjectComm((PetscObject)A),tc,clidxs,PETSC_OWN_POINTER,&cis);CHKERRQ(ierr);
     }
 
-    if (chasnull) {
-      const PetscInt *idxs;
-      PetscInt       *cgidxs,*clidxs,i,ntc,cst;
-
-      ierr = VecGetOwnershipRange(elist->cv,&cst,NULL);CHKERRQ(ierr);
-      ierr = PetscMalloc2(tc,&cgidxs,tc,&clidxs);CHKERRQ(ierr);
-      ierr = ISGetIndices(cgis,&idxs);CHKERRQ(ierr);
-      for (i=0,ntc=0;i<tc;i++) {
-        if (idxs[i] >= 0) {
-          cgidxs[ntc] = idxs[i];
-          clidxs[ntc] = i + cst;
-          ntc++;
-        }
-      }
-      ierr = ISRestoreIndices(cgis,&idxs);CHKERRQ(ierr);
-      ierr = ISDestroy(&cgis);CHKERRQ(ierr);
-      ierr = ISCreateGeneral(PetscObjectComm((PetscObject)A),ntc,cgidxs,PETSC_OWN_POINTER,&cgis);CHKERRQ(ierr);
-      ierr = ISCreateGeneral(PetscObjectComm((PetscObject)A),ntc,clidxs,PETSC_OWN_POINTER,&cis);CHKERRQ(ierr);
-    }
     ierr = MatCreateVecs(A,&rv,&cv);CHKERRQ(ierr);
     ierr = VecScatterCreate(rv,rgis,elist->rv,ris,&elist->rscctx);CHKERRQ(ierr);
     ierr = VecScatterCreate(cv,cgis,elist->cv,cis,&elist->cscctx);CHKERRQ(ierr);
@@ -279,7 +297,7 @@ static PetscErrorCode MatSetValues_Elementlist(Mat A,PetscInt m,const PetscInt *
   PetscScalar         *delem;
   PetscErrorCode      ierr;
   Mat_Elementlist     *elist = (Mat_Elementlist*)A->data;
-  Mat_ElementlistLink next,old;
+  Mat_ElementlistLink next;
 
   PetscFunctionBegin;
   if (addv == INSERT_VALUES) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Unsupported operation");
