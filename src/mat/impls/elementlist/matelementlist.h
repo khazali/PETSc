@@ -15,11 +15,15 @@ struct _Mat_ElementlistLink {
 };
 
 typedef struct {
-  Mat_ElementlistLink head;
-  Mat_ElementlistLink root;
-  PetscBool           roworiented;
+  Mat_ElementlistLink head;          /* current head for MatSetValues */
+  Mat_ElementlistLink root;          /* root node for linked list of elements */
+  PetscBool           unsym;         /* non-square matrix or non-square elements */
+  PetscBool           roworiented;   /* handle row- column-major ordering for MatSetValues */
+  PetscBool           hasneg[3];     /* handle MatSetValues with negative indices */
   Vec                 rv,cv;         /* local work vectors for row and columns */
   VecScatter          rscctx,cscctx; /* scatters from assembled vector to local work vectors */
+  IS                  rgis,cgis;     /* aggregated global indices from local elements */
+  IS                  ris,cis;       /* aggregated local indices from local elements */
 } Mat_Elementlist;
 
 #endif
