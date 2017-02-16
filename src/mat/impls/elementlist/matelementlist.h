@@ -20,6 +20,8 @@ typedef struct {
   PetscBool           unsym;         /* non-square matrix or non-square elements */
   PetscBool           roworiented;   /* handle row- column-major ordering for MatSetValues */
   PetscBool           hasneg[3];     /* handle MatSetValues with negative indices */
+  PetscInt            rlagg,clagg;   /* aggregated size of local rows and columns */
+  PetscLayout         rllay,cllay;   /* layouts for work vectors */
   Vec                 rv,cv;         /* local work vectors for row and columns */
   VecScatter          rscctx,cscctx; /* scatters from assembled vector to local work vectors */
   IS                  rgis,cgis;     /* aggregated global indices from local elements */
