@@ -57,6 +57,8 @@ PETSC_EXTERN PetscErrorCode MatCreate_Preallocator(Mat);
 PETSC_EXTERN PetscErrorCode MatCreate_HYPRE(Mat);
 #endif
 
+PETSC_EXTERN PetscErrorCode MatCreate_Elementlist(Mat);
+
 /*
     This is used by MatSetType() to make sure that at least one
     MatRegisterAll() is called. In general, if there is more than one
@@ -152,6 +154,8 @@ PetscErrorCode  MatRegisterAll(void)
 #if defined PETSC_HAVE_HYPRE
   ierr = MatRegister(MATHYPRE,          MatCreate_HYPRE);CHKERRQ(ierr);
 #endif
+
+  ierr = MatRegister(MATELEMENTLIST,    MatCreate_Elementlist);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

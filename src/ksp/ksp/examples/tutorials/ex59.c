@@ -340,7 +340,7 @@ static PetscErrorCode ComputeSubdomainMatrix(DomainData dd, GLLData glldata, Mat
   PetscInt       ie,je,ke,i,j,k,ig,jg,kg,ii,ming;
   PetscInt       *indexg,*cols,*colsg;
   PetscScalar    *vals;
-  Mat            temp_local_mat,elem_mat_DBC=0,*usedmat;
+  Mat            temp_local_mat,elem_mat_DBC=0,usedmat;
   IS             submatIS;
 
   PetscFunctionBeginUser;
@@ -406,14 +406,14 @@ static PetscErrorCode ComputeSubdomainMatrix(DomainData dd, GLLData glldata, Mat
         /* customize element accounting for BC */
         xloc    = dd.p+1;
         ming    = 0;
-        usedmat = &glldata.elem_mat;
+        usedmat = glldata.elem_mat;
         if (!dd.pure_neumann && !dd.DBC_zerorows && !dd.ipx) {
           if (ie == 0) {
             xloc    = dd.p;
-            usedmat = &elem_mat_DBC;
+            usedmat = elem_mat_DBC;
           } else {
             ming    = -1;
-            usedmat = &glldata.elem_mat;
+            usedmat = glldata.elem_mat;
           }
         }
         /* local to the element/global to the subdomain indexing */
@@ -429,12 +429,9 @@ static PetscErrorCode ComputeSubdomainMatrix(DomainData dd, GLLData glldata, Mat
           }
         }
         /* Set values */
-        for (i=0; i<xloc*yloc*zloc; i++) {
-          ierr = MatGetRow(*usedmat,i,&j,(const PetscInt**)&cols,(const PetscScalar**)&vals);CHKERRQ(ierr);
-          for (k=0; k<j; k++) colsg[k] = indexg[cols[k]];
-          ierr = MatSetValues(temp_local_mat,1,&indexg[i],j,colsg,vals,ADD_VALUES);CHKERRQ(ierr);
-          ierr = MatRestoreRow(*usedmat,i,&j,(const PetscInt**)&cols,(const PetscScalar**)&vals);CHKERRQ(ierr);
-        }
+        ierr = MatDenseGetArray(usedmat,&vals);CHKERRQ(ierr);
+        ierr = MatSetValues(temp_local_mat,xloc*yloc*zloc,indexg,xloc*yloc*zloc,indexg,vals,ADD_VALUES);CHKERRQ(ierr);
+        ierr = MatDenseRestoreArray(usedmat,&vals);CHKERRQ(ierr);
       }
     }
   }
@@ -583,10 +580,9 @@ static PetscErrorCode GLLStuffs(DomainData dd, GLLData *glldata)
 
   ierr = MatCreate(PETSC_COMM_SELF,&glldata->elem_mat);CHKERRQ(ierr);
   ierr = MatSetSizes(glldata->elem_mat,xyzloc,xyzloc,xyzloc,xyzloc);CHKERRQ(ierr);
-  ierr = MatSetType(glldata->elem_mat,MATSEQAIJ);CHKERRQ(ierr);
-  ierr = MatSeqAIJSetPreallocation(glldata->elem_mat,xyzloc,NULL);CHKERRQ(ierr); /* overestimated */
+  ierr = MatSetType(glldata->elem_mat,MATSEQDENSE);CHKERRQ(ierr);
+  ierr = MatSetUp(glldata->elem_mat);CHKERRQ(ierr);
   ierr = MatZeroEntries(glldata->elem_mat);CHKERRQ(ierr);
-  ierr = MatSetOption(glldata->elem_mat,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE);CHKERRQ(ierr);
 
   for (k=0; k<zloc; k++) {
     if (dd.dim>2) rhoGLk=glldata->rhoGL[k];

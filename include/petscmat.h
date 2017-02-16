@@ -81,6 +81,7 @@ typedef const char* MatType;
 #define MATLOCALREF        "localref"
 #define MATNEST            "nest"
 #define MATPREALLOCATOR    "preallocator"
+#define MATELEMENTLIST     "elementlist"
 
 /*J
     MatSolverPackage - String with the name of a PETSc matrix solver type.
