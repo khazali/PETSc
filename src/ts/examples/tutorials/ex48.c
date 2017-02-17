@@ -36,10 +36,17 @@ typedef struct {
   PetscErrorCode (**initialFuncs)(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
   PetscReal      mu, eta, beta;
 } AppCtx;
+
 static AppCtx *s_ctx;
-static PetscScalar poissonBracket(const PetscScalar df[], const PetscScalar dg[])
+
+static PetscScalar poissonBracket(PetscInt dim, const PetscScalar df[], const PetscScalar dg[])
 {
-  return df[0]*dg[1] - df[1]*dg[0];
+  PetscScalar ret = df[0]*dg[1] - df[1]*dg[0];
+  if (dim==3) {
+    ret -= df[0]*dg[2] - df[2]*dg[0];
+    ret += df[1]*dg[2] - df[2]*dg[1];
+  }
+  return ret;
 }
 
 enum field_idx {DENSITY,OMEGA,PSI,PHI,JZ};
@@ -55,7 +62,7 @@ static void f0_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   const PetscScalar *jzDer   = &u_x[uOff_x[JZ]];
   const PetscScalar *logRefDenDer = &a_x[aOff_x[DENSITY]];
 
-  f0[0] = u_t[DENSITY] - poissonBracket(pnDer, pphiDer) - s_ctx->beta*poissonBracket(jzDer, ppsiDer) - poissonBracket(logRefDenDer, pphiDer);
+  f0[0] = u_t[DENSITY] - poissonBracket(dim,pnDer, pphiDer) - s_ctx->beta*poissonBracket(dim,jzDer, ppsiDer) - poissonBracket(dim,logRefDenDer, pphiDer);
 }
 
 static void f1_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -79,7 +86,7 @@ static void f0_Omega(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   const PetscScalar *pphiDer   = &u_x[uOff_x[PHI]];
   const PetscScalar *jzDer     = &u_x[uOff_x[JZ]];
 
-  f0[0] = u_t[OMEGA] - poissonBracket(pOmegaDer, pphiDer) - s_ctx->beta*poissonBracket(jzDer, ppsiDer);
+  f0[0] = u_t[OMEGA] - poissonBracket(dim,pOmegaDer, pphiDer) - s_ctx->beta*poissonBracket(dim,jzDer, ppsiDer);
 }
 
 static void f1_Omega(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -103,10 +110,14 @@ static void f0_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   const PetscScalar *pphiDer   = &u_x[uOff_x[PHI]];
   const PetscScalar *refPsiDer = &a_x[aOff_x[PSI]];
   const PetscScalar *logRefDenDer= &a_x[aOff_x[DENSITY]];
-  PetscScalar psiDer[] = {refPsiDer[0]+ppsiDer[0],refPsiDer[1]+ppsiDer[1]};
-  PetscScalar phi_n_Der[] = {pphiDer[0]-pnDer[0],pphiDer[1]-pnDer[1]};
-
-  f0[0] = u_t[PSI] - poissonBracket(psiDer, phi_n_Der) + poissonBracket(logRefDenDer, ppsiDer);
+  PetscScalar       psiDer[3];
+  PetscScalar       phi_n_Der[3];
+  PetscInt           d;
+  for (d = 0; d < dim; ++d) {
+    psiDer[d]    = refPsiDer[d] + ppsiDer[d];
+    phi_n_Der[d] = pphiDer[d]   - pnDer[d];
+  }
+  f0[0] = u_t[PSI] - poissonBracket(dim,psiDer, phi_n_Der) + poissonBracket(dim,logRefDenDer, ppsiDer);
 }
 
 static void f1_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -354,7 +365,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   }
   ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
   ierr = DMViewFromOptions(*dm, NULL, "-dm_view");CHKERRQ(ierr);
-  /* ierr = DMLocalizeCoordinates(*dm);CHKERRQ(ierr); ???? */
+  ierr = DMLocalizeCoordinates(*dm);CHKERRQ(ierr); /* needed for periodic */
   PetscFunctionReturn(0);
 }
 
@@ -516,8 +527,8 @@ int main(int argc, char **argv)
   PetscReal      L2error = 0.0;
   PetscErrorCode ierr;
 
-  ierr = PetscInitialize(&argc, &argv, NULL,help);if (ierr) return ierr;
   s_ctx = &ctx;
+  ierr = PetscInitialize(&argc, &argv, NULL,help);if (ierr) return ierr;
   ierr = ProcessOptions(PETSC_COMM_WORLD, &ctx);CHKERRQ(ierr);
   ierr = CreateMesh(PETSC_COMM_WORLD, &ctx, &dm);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(dm, &ctx);CHKERRQ(ierr);
@@ -598,9 +609,9 @@ int main(int argc, char **argv)
 
   test:
     suffix: 0
-    args: -debug 1 -dim 2 -dm_refine 1 -cells 4,4 -x_periodicity PERIODIC -ts_max_steps 1 -ts_final_time 10. -ts_dt 1.0
+    args: -debug 1 -dim 2 -dm_refine 1 -x_periodicity PERIODIC -ts_max_steps 1 -ts_final_time 10. -ts_dt 1.0 -x_periodicity PERIODIC
   test:
     suffix: 0
-    args: -debug 1 -dim 3 -dm_refine 1 -z_periodicity PERIODIC -ts_max_steps 1 -ts_final_time 10. -ts_dt 1.0
+    args: -debug 1 -dim 3 -dm_refine 1 -z_periodicity PERIODIC -ts_max_steps 1 -ts_final_time 10. -ts_dt 1.0 -z_periodicity PERIODIC
 
 TEST*/
