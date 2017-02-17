@@ -24,11 +24,13 @@ typedef struct {
   /* Domain and mesh definition */
   PetscInt       dim;               /* The topological mesh dimension */
   char           filename[2048];    /* The optional ExodusII file */
-  PetscBool      simplex;           /* Simplicial mesh */
+  PetscBool      cell_simplex;           /* Simplicial mesh */
   DMBoundaryType boundary_types[3];
   PetscInt       cells[3];
+  PetscInt       refine;
   /* geometry  */
   PetscReal      domain_lo[3], domain_hi[3];
+  DMBoundaryType periodicity[3];              /* The domain periodicity */
   PetscReal      b0[3]; /* not used */
   /* Problem definition */
   PetscErrorCode (**initialFuncs)(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
@@ -161,40 +163,49 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   PetscBool      flg;
   PetscErrorCode ierr;
-  PetscInt       bcs[3], ii;
+  PetscInt       ii, bd;
   PetscFunctionBeginUser;
   options->debug               = 0;
   options->dim                 = 2;
   options->filename[0]         = '\0';
-  options->simplex             = PETSC_TRUE;
+  options->cell_simplex        = PETSC_FALSE;
+  options->refine              = 2;
   options->domain_hi[0]  = 1;
   options->domain_hi[1]  = 1;
   options->domain_hi[2]  = 1;
   options->domain_lo[0]  = -1;
   options->domain_lo[1]  = -1;
   options->domain_lo[2]  = -1;
+  options->periodicity[0]    = DM_BOUNDARY_NONE;
+  options->periodicity[1]    = DM_BOUNDARY_NONE;
+  options->periodicity[2]    = DM_BOUNDARY_NONE;
   options->mu   = 0;
   options->eta  = 0;
   options->beta = 1;
-  for (ii = 0; ii < options->dim; ++ii) bcs[ii] = 1; /* Dirichlet */
-  bcs[1] = 0;                                        /* Y-Periodic */
   for (ii = 0; ii < options->dim; ++ii) options->cells[ii] = 2;
-
   ierr = PetscOptionsBegin(comm, "", "Poisson Problem Options", "DMPLEX");CHKERRQ(ierr);
   ierr = PetscOptionsInt("-debug", "The debugging level", "ex48.c", options->debug, &options->debug, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-dim", "The topological mesh dimension", "ex48.c", options->dim, &options->dim, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-dm_refine", "Hack to get refinement level for cylinder", "ex48.c", options->refine, &options->refine, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-mu", "mu", "ex48.c", options->mu, &options->mu, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-eta", "eta", "ex48.c", options->eta, &options->eta, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-beta", "beta", "ex48.c", options->beta, &options->beta, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-f", "Exodus.II filename to read", "ex48.c", options->filename, options->filename, sizeof(options->filename), &flg);CHKERRQ(ierr);
-  ierr = PetscOptionsBool("-simplex", "Simplicial (true) or tensor (false) mesh", "ex48.c", options->simplex, &options->simplex, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-cell_simplex", "Simplicial (true) or tensor (false) mesh", "ex48.c", options->cell_simplex, &options->cell_simplex, NULL);CHKERRQ(ierr);
   ii = options->dim;
   ierr = PetscOptionsRealArray("-domain_hi", "Domain size", "ex48.c", options->domain_hi, &ii, NULL);CHKERRQ(ierr);
   ii = options->dim;
   ierr = PetscOptionsRealArray("-domain_lo", "Domain size", "ex48.c", options->domain_lo, &ii, NULL);CHKERRQ(ierr);
   ii = options->dim;
-  ierr = PetscOptionsIntArray("-boundary_types", "Boundary types: 0:periodic; 1:Dirichlet; 2:Neumann", "ex48.c", bcs, &ii, NULL);CHKERRQ(ierr);
-  for (ii = 0; ii < options->dim; ++ii) options->boundary_types[ii] = (bcs[ii] == 0) ? DM_BOUNDARY_PERIODIC : (bcs[ii] == 1) ? DM_BOUNDARY_GHOSTED : DM_BOUNDARY_NONE;
+  bd = options->periodicity[0];
+  ierr = PetscOptionsEList("-x_periodicity", "The x-boundary periodicity", "ex48.c", DMBoundaryTypes, 5, DMBoundaryTypes[options->periodicity[0]], &bd, NULL);CHKERRQ(ierr);
+  options->periodicity[0] = (DMBoundaryType) bd;
+  bd = options->periodicity[1];
+  ierr = PetscOptionsEList("-y_periodicity", "The y-boundary periodicity", "ex48.c", DMBoundaryTypes, 5, DMBoundaryTypes[options->periodicity[1]], &bd, NULL);CHKERRQ(ierr);
+  options->periodicity[1] = (DMBoundaryType) bd;
+  bd = options->periodicity[2];
+  ierr = PetscOptionsEList("-z_periodicity", "The z-boundary periodicity", "ex48.c", DMBoundaryTypes, 5, DMBoundaryTypes[options->periodicity[2]], &bd, NULL);CHKERRQ(ierr);
+  options->periodicity[2] = (DMBoundaryType) bd;
   ii = options->dim;
   ierr = PetscOptionsIntArray("-cells", "Number of cells in each dimension", "ex48.c", options->cells, &ii, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
@@ -227,9 +238,9 @@ static PetscErrorCode PostStep(TS ts)
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERHDF5,&isHDF5);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERVTK,&isVTK);CHKERRQ(ierr);
   if (isHDF5) {
-    ierr = PetscSNPrintf(buf, 256, "%s-%05d.h5", prefix, stepi);CHKERRQ(ierr);
+    ierr = PetscSNPrintf(buf, 256, "%s-%dD-%05d.h5", prefix, ctx->dim, stepi);CHKERRQ(ierr);
   } else if (isVTK) {
-    ierr = PetscSNPrintf(buf, 256, "%s-%d.vtu", prefix, stepi);CHKERRQ(ierr);
+    ierr = PetscSNPrintf(buf, 256, "%s-%dD-%d.vtu", prefix, ctx->dim, stepi);CHKERRQ(ierr);
     ierr = PetscViewerPushFormat(viewer,PETSC_VIEWER_VTK_VTU);CHKERRQ(ierr);
   }
   ierr = PetscViewerFileSetMode(viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
@@ -267,52 +278,50 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   PetscFunctionBeginUser;
   ierr = MPI_Comm_size(comm, &numProcs);CHKERRQ(ierr);
   ierr = PetscStrlen(filename, &len);CHKERRQ(ierr);
-  if (!len) {
+  if (len) {
+    ierr = DMPlexCreateFromFile(comm, filename, PETSC_TRUE, dm);CHKERRQ(ierr);
+  } else {
     Vec          coordinates;
     PetscScalar *coords;
-    PetscReal    maxCell[3], L[3];
     PetscInt     nCoords, n, dimEmbed, d;
-
-    if (user->simplex) {
-      ierr = DMPlexCreateBoxMesh(comm, dim, dim == 2 ? 2 : 1, PETSC_TRUE, dm);CHKERRQ(ierr);
-    } else {
+    PetscReal    L[3];
+    /* create DM */
+    if (dim==2) {
       PetscInt refineRatio, totCells = 1;
-
+      if (user->cell_simplex) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Cannot mesh 2D with simplices");
       refineRatio = PetscMax((PetscInt) (PetscPowReal(numProcs, 1.0/dim) + 0.1) - 1, 1);
       for (d = 0; d < dim; ++d) {
-        if (user->boundary_types[d]==DM_BOUNDARY_PERIODIC && user->cells[d]*refineRatio <= 2) refineRatio += (3 - user->cells[d]);
+        if (user->periodicity[d]==DM_BOUNDARY_PERIODIC && user->cells[d]*refineRatio <= 2) refineRatio += (3 - user->cells[d]);
       }
       for (d = 0; d < dim; ++d) {
         user->cells[d] *= refineRatio;
         totCells *= user->cells[d];
       }
       if (totCells % numProcs) SETERRQ2(comm,PETSC_ERR_ARG_WRONG,"Total cells %D not divisible by processes %D", totCells, numProcs);
-      ierr = DMPlexCreateHexBoxMesh(comm, dim, user->cells, user->boundary_types[0], user->boundary_types[1], user->boundary_types[2], dm);CHKERRQ(ierr);
+      ierr = DMPlexCreateHexBoxMesh(comm, dim, user->cells, user->periodicity[0], user->periodicity[1], user->periodicity[2], dm);CHKERRQ(ierr);
+    } else if (user->cell_simplex && dim==3) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Cannot mesh a cylinder with simplices");
+    else {
+      /* we stole dm_refine so clear it */
+      ierr = PetscOptionsClearValue(NULL,"-dm_refine");CHKERRQ(ierr);
+      ierr = DMPlexCreateHexCylinderMesh(comm, user->refine, user->periodicity[2], dm);CHKERRQ(ierr);
+      if (user->periodicity[0]==DM_BOUNDARY_PERIODIC || user->periodicity[1]==DM_BOUNDARY_PERIODIC) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Cannot do periodic in x or y in a cylinder");
     }
     ierr = PetscObjectSetName((PetscObject) *dm, "Mesh");CHKERRQ(ierr);
     /* Rescale to physical domain */
     ierr = DMGetCoordinateDim(*dm, &dimEmbed);CHKERRQ(ierr);
+    for (d = 0; d < dimEmbed; ++d) L[d] = user->domain_hi[d] - user->domain_lo[d];
     ierr = DMGetCoordinatesLocal(*dm, &coordinates);CHKERRQ(ierr);
     ierr = VecGetLocalSize(coordinates, &nCoords);CHKERRQ(ierr);
     if (nCoords % dimEmbed) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Dimension %D does not divide the coordinate vector size %D", dimEmbed, nCoords);CHKERRQ(ierr);
     ierr = VecGetArray(coordinates, &coords);CHKERRQ(ierr);
-    for (d = 0; d < dimEmbed; ++d) L[d] = user->domain_hi[d] - user->domain_lo[d];
     for (n = 0; n < nCoords; n += dimEmbed) {
       PetscScalar *coord = &coords[n];
-      for (d = 0; d < dimEmbed; ++d) coord[d] = user->domain_lo[d] + coord[d] * L[d];
+      /* for (d = 0; d < dimEmbed; ++d) coord[d] = user->domain_lo[d] + coord[d] * L[d]; */
     }
     ierr = VecRestoreArray(coordinates, &coords);CHKERRQ(ierr);
-    /* Setup periodicity */
-    if ((user->boundary_types[0] == DM_BOUNDARY_PERIODIC) || (user->boundary_types[1] == DM_BOUNDARY_PERIODIC)) {
-      for (d = 0; d < 3; ++d) maxCell[d] = 1.1*(L[d]/user->cells[d]);
-      ierr = DMSetPeriodicity(*dm, maxCell, L, user->boundary_types);CHKERRQ(ierr);
-    }
-  } else {
-    ierr = DMPlexCreateFromFile(comm, filename, PETSC_TRUE, dm);CHKERRQ(ierr);
   }
   {
     DM distributedMesh = NULL;
-
     /* Distribute mesh over processes */
     ierr = DMPlexDistribute(*dm, 0, NULL, &distributedMesh);CHKERRQ(ierr);
     if (distributedMesh) {
@@ -331,7 +340,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     PetscBool flg;
 
     ierr = PetscOptionsBegin(comm, "", "Mesh conversion options", "DMPLEX");CHKERRQ(ierr);
-    ierr = PetscOptionsFList("-dm_plex_convert_type","Convert DMPlex to another format","ex12",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
+    ierr = PetscOptionsFList("-dm_plex_convert_type","Convert DMPlex to another format","ex48",DMList,DMPLEX,convType,256,&flg);CHKERRQ(ierr);
     ierr = PetscOptionsEnd();
     if (flg) {
       DM dmConv;
@@ -345,7 +354,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   }
   ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
   ierr = DMViewFromOptions(*dm, NULL, "-dm_view");CHKERRQ(ierr);
-  ierr = DMLocalizeCoordinates(*dm);CHKERRQ(ierr);
+  /* ierr = DMLocalizeCoordinates(*dm);CHKERRQ(ierr); ???? */
   PetscFunctionReturn(0);
 }
 
@@ -439,29 +448,29 @@ static PetscErrorCode SetupDiscretization(DM dm, AppCtx *user)
   PetscFE         fe[5], feAux[3];
   PetscDS         prob, probAux;
   PetscInt        Nf = 5, NfAux = 3, f;
-  PetscBool       simplex = user->simplex;
+  PetscBool       cell_simplex = user->cell_simplex;
   PetscErrorCode  ierr;
 
   PetscFunctionBeginUser;
   /* Create finite element */
-  ierr = PetscFECreateDefault(dm, dim, 1, simplex, "density_", -1, &fe[0]);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dm, dim, 1, cell_simplex, "density_", -1, &fe[0]);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe[0], "density");CHKERRQ(ierr);
-  ierr = PetscFECreateDefault(dm, dim, 1, simplex, "vorticity_", -1, &fe[1]);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dm, dim, 1, cell_simplex, "vorticity_", -1, &fe[1]);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe[1], "vorticity");CHKERRQ(ierr);
-  ierr = PetscFECreateDefault(dm, dim, 1, simplex, "flux_", -1, &fe[2]);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dm, dim, 1, cell_simplex, "flux_", -1, &fe[2]);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe[2], "flux");CHKERRQ(ierr);
-  ierr = PetscFECreateDefault(dm, dim, 1, simplex, "potential_", -1, &fe[3]);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dm, dim, 1, cell_simplex, "potential_", -1, &fe[3]);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe[3], "potential");CHKERRQ(ierr);
-  ierr = PetscFECreateDefault(dm, dim, 1, simplex, "current_", -1, &fe[4]);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dm, dim, 1, cell_simplex, "current_", -1, &fe[4]);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe[4], "current");CHKERRQ(ierr);
 
-  ierr = PetscFECreateDefault(dm, dim, 1, simplex, "density_eq_", -1, &feAux[0]);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dm, dim, 1, cell_simplex, "density_eq_", -1, &feAux[0]);CHKERRQ(ierr);
   ierr = PetscFEGetQuadrature(fe[0], &q);CHKERRQ(ierr);
   ierr = PetscFESetQuadrature(feAux[0], q);CHKERRQ(ierr);
-  ierr = PetscFECreateDefault(dm, dim, 1, simplex, "vorticity_eq_", -1, &feAux[1]);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dm, dim, 1, cell_simplex, "vorticity_eq_", -1, &feAux[1]);CHKERRQ(ierr);
   ierr = PetscFEGetQuadrature(fe[1], &q);CHKERRQ(ierr);
   ierr = PetscFESetQuadrature(feAux[1], q);CHKERRQ(ierr);
-  ierr = PetscFECreateDefault(dm, dim, 1, simplex, "flux_eq_", -1, &feAux[2]);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(dm, dim, 1, cell_simplex, "flux_eq_", -1, &feAux[2]);CHKERRQ(ierr);
   ierr = PetscFEGetQuadrature(fe[2], &q);CHKERRQ(ierr);
   ierr = PetscFESetQuadrature(feAux[2], q);CHKERRQ(ierr);
   /* Set discretization and boundary conditions for each mesh */
@@ -530,6 +539,8 @@ int main(int argc, char **argv)
   ierr = TSSetPostStep(ts, PostStep);CHKERRQ(ierr);
 
   ierr = DMProjectFunction(dm, t, ctx.initialFuncs, NULL, INSERT_ALL_VALUES, u);CHKERRQ(ierr);
+  ierr = TSSetSolution(ts,u);CHKERRQ(ierr);
+  ierr = PostStep(ts);CHKERRQ(ierr); /* get the initial state */
   ierr = TSSolve(ts, u);CHKERRQ(ierr);
 
   ierr = TSGetTime(ts, &t);CHKERRQ(ierr);
@@ -587,5 +598,9 @@ int main(int argc, char **argv)
 
   test:
     suffix: 0
+    args: -debug 1 -dim 2 -dm_refine 1 -cells 4,4 -x_periodicity PERIODIC -ts_max_steps 1 -ts_final_time 10. -ts_dt 1.0
+  test:
+    suffix: 0
+    args: -debug 1 -dim 3 -dm_refine 1 -z_periodicity PERIODIC -ts_max_steps 1 -ts_final_time 10. -ts_dt 1.0
 
 TEST*/
