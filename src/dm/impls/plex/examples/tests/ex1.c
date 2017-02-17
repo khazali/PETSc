@@ -1,4 +1,4 @@
-static char help[] = "Run C version of TetGen to construct and refine a mesh\n\n";
+static char help[] = "Example of DMPlexCreateHexCylinderMesh, a periodic cylinder mesh\n\n";
 
 #include <petscdmplex.h>
 
