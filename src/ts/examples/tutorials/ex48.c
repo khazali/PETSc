@@ -42,10 +42,6 @@ static AppCtx *s_ctx;
 static PetscScalar poissonBracket(PetscInt dim, const PetscScalar df[], const PetscScalar dg[])
 {
   PetscScalar ret = df[0]*dg[1] - df[1]*dg[0];
-  if (dim==3) {
-    ret -= df[0]*dg[2] - df[2]*dg[0];
-    ret += df[1]*dg[2] - df[2]*dg[1];
-  }
   return ret;
 }
 
