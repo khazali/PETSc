@@ -17,6 +17,7 @@ struct _Mat_ElementlistLink {
 typedef struct {
   Mat_ElementlistLink head;          /* current head for MatSetValues */
   Mat_ElementlistLink root;          /* root node for linked list of elements */
+  PetscBool           elset;
   PetscBool           unsym;         /* non-square matrix or non-square elements */
   PetscBool           roworiented;   /* handle row- column-major ordering for MatSetValues */
   PetscBool           hasneg[3];     /* handle MatSetValues with negative indices */
