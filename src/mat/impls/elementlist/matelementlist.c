@@ -87,8 +87,10 @@ static PetscErrorCode MatAssemblyBegin_Elementlist(Mat A, MatAssemblyType atype)
   PetscFunctionBegin;
   if (atype == MAT_FLUSH_ASSEMBLY) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_SUP,"Unsupported operation");
   {
-    PetscBool lt = (PetscBool)(elist->unsym || (A->rmap->N != A->cmap->N));
-    ierr = MPI_Allreduce(&lt,&elist->unsym,1,MPIU_BOOL,MPI_LOR,PetscObjectComm((PetscObject)A));CHKERRQ(ierr);
+    PetscBool rt[2],lt[2] = {(PetscBool)(elist->root->next),(PetscBool)(elist->unsym || (A->rmap->N != A->cmap->N))};
+    ierr = MPI_Allreduce(&lt,&rt,2,MPIU_BOOL,MPI_LOR,PetscObjectComm((PetscObject)A));CHKERRQ(ierr);
+    elist->elset = rt[0];
+    elist->unsym = rt[1];
   }
   /* here we can rearrange in subdomains */
   PetscFunctionReturn(0);
@@ -248,7 +250,7 @@ static PetscErrorCode MatAssemblyEnd_Elementlist(Mat A, MatAssemblyType atype)
   PetscFunctionBegin;
   if (atype == MAT_FLUSH_ASSEMBLY) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_SUP,"Unsupported operation");
   /* setup matrix-vector multiply */
-  if (!elist->rscctx) {
+  if (!elist->rscctx && elist->elset) {
     Vec            rv,cv;
     PetscBool      congruent;
     PetscErrorCode ierr;
