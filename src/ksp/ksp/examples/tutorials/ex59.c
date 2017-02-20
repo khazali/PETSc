@@ -48,6 +48,7 @@ typedef struct {
   PetscBool DBC_zerorows;
   /* Scaling factor for subdomain */
   PetscScalar scalingfactor;
+  PetscBool   testfetidp;
   PetscBool   testkspfetidp;
 } DomainData;
 
@@ -1029,8 +1030,12 @@ int main(int argc,char **args)
   printf("SIZES : %d %d %d\n",dd.xm,dd.ym,dd.zm);
   printf("STARTS: %d %d %d\n",dd.startx,dd.starty,dd.startz);
 #endif
+  dd.testfetidp = PETSC_TRUE;
+  ierr = PetscOptionsGetBool(NULL,NULL,"-testfetidp",&dd.testfetidp,NULL);CHKERRQ(ierr);
+
   dd.testkspfetidp = PETSC_TRUE;
   ierr = PetscOptionsGetBool(NULL,NULL,"-testkspfetidp",&dd.testkspfetidp,NULL);CHKERRQ(ierr);
+
   /* assemble global matrix */
   ierr = ComputeMatrix(dd,&A);CHKERRQ(ierr);
   /* get work vectors */
@@ -1079,46 +1084,48 @@ int main(int argc,char **args)
     ierr = PetscPrintf(dd.gcomm,"Error betweeen exact and computed solution : %1.2e\n",(double)norm);CHKERRQ(ierr);
   }
   ierr = PetscPrintf(dd.gcomm,"--------------------------------------------------------------\n");CHKERRQ(ierr);
-  if (!dd.testkspfetidp) {
-    /* assemble fetidp rhs on the space of Lagrange multipliers */
-    ierr = KSPGetOperators(KSPwithFETIDP,&F,NULL);CHKERRQ(ierr);
-    ierr = MatCreateVecs(F,&fetidp_solution,&fetidp_rhs);CHKERRQ(ierr);
-    ierr = PCBDDCMatFETIDPGetRHS(F,bddc_rhs,fetidp_rhs);CHKERRQ(ierr);
-    ierr = VecSet(fetidp_solution,0.0);CHKERRQ(ierr);
-    /* test ksp with FETIDP */
-    ierr = KSPSolve(KSPwithFETIDP,fetidp_rhs,fetidp_solution);CHKERRQ(ierr);
-    /* assemble fetidp solution on physical domain */
-    ierr = PCBDDCMatFETIDPGetSolution(F,fetidp_solution,fetidp_solution_all);CHKERRQ(ierr);
-  } else {
-    KSP kspF;
-    ierr = KSPSolve(KSPwithFETIDP,bddc_rhs,fetidp_solution_all);CHKERRQ(ierr);
-    ierr = KSPFETIDPGetInnerKSP(KSPwithFETIDP,&kspF);CHKERRQ(ierr);
-    ierr = KSPGetOperators(kspF,&F,NULL);CHKERRQ(ierr);
+  if (dd.testfetidp) {
+    if (!dd.testkspfetidp) {
+      /* assemble fetidp rhs on the space of Lagrange multipliers */
+      ierr = KSPGetOperators(KSPwithFETIDP,&F,NULL);CHKERRQ(ierr);
+      ierr = MatCreateVecs(F,&fetidp_solution,&fetidp_rhs);CHKERRQ(ierr);
+      ierr = PCBDDCMatFETIDPGetRHS(F,bddc_rhs,fetidp_rhs);CHKERRQ(ierr);
+      ierr = VecSet(fetidp_solution,0.0);CHKERRQ(ierr);
+      /* test ksp with FETIDP */
+      ierr = KSPSolve(KSPwithFETIDP,fetidp_rhs,fetidp_solution);CHKERRQ(ierr);
+      /* assemble fetidp solution on physical domain */
+      ierr = PCBDDCMatFETIDPGetSolution(F,fetidp_solution,fetidp_solution_all);CHKERRQ(ierr);
+    } else {
+      KSP kspF;
+      ierr = KSPSolve(KSPwithFETIDP,bddc_rhs,fetidp_solution_all);CHKERRQ(ierr);
+      ierr = KSPFETIDPGetInnerKSP(KSPwithFETIDP,&kspF);CHKERRQ(ierr);
+      ierr = KSPGetOperators(kspF,&F,NULL);CHKERRQ(ierr);
+    }
+    ierr = MatGetSize(F,&ndofs,NULL);CHKERRQ(ierr);
+    ierr = KSPGetIterationNumber(KSPwithFETIDP,&its);CHKERRQ(ierr);
+    ierr = KSPGetConvergedReason(KSPwithFETIDP,&reason);CHKERRQ(ierr);
+    ierr = KSPComputeExtremeSingularValues(KSPwithFETIDP,&maxeig,&mineig);CHKERRQ(ierr);
+    /* check FETIDP sol */
+    if (dd.pure_neumann) {
+      ierr = VecSum(fetidp_solution_all,&scalar_value);CHKERRQ(ierr);
+      scalar_value = -scalar_value/(PetscScalar)ndofs;
+      ierr = VecShift(fetidp_solution_all,scalar_value);CHKERRQ(ierr);
+    }
+    ierr = VecAXPY(fetidp_solution_all,-1.0,exact_solution);CHKERRQ(ierr);
+    ierr = VecNorm(fetidp_solution_all,NORM_INFINITY,&norm);CHKERRQ(ierr);
+    ierr = PetscPrintf(dd.gcomm,"------------------FETI-DP stats-------------------------------\n");CHKERRQ(ierr);
+    ierr = PetscPrintf(dd.gcomm,"Number of degrees of freedom               : %8D\n",ndofs);CHKERRQ(ierr);
+    if (reason < 0) {
+      ierr = PetscPrintf(dd.gcomm,"Number of iterations                       : %8D\n",its);CHKERRQ(ierr);
+      ierr = PetscPrintf(dd.gcomm,"Converged reason                           : %D\n",reason);CHKERRQ(ierr);
+    }
+    if (0.95 <= mineig && mineig <= 1.05) mineig = 1.0;
+    ierr = PetscPrintf(dd.gcomm,"Eigenvalues preconditioned operator        : %1.1e %1.1e\n",(double)PetscFloorReal(100.*mineig)/100.,(double)PetscCeilReal(100.*maxeig)/100.);CHKERRQ(ierr);
+    if (norm > 1.e-1 || reason < 0) {
+      ierr = PetscPrintf(dd.gcomm,"Error betweeen exact and computed solution : %1.2e\n",(double)norm);CHKERRQ(ierr);
+    }
+    ierr = PetscPrintf(dd.gcomm,"--------------------------------------------------------------\n");CHKERRQ(ierr);
   }
-  ierr = MatGetSize(F,&ndofs,NULL);CHKERRQ(ierr);
-  ierr = KSPGetIterationNumber(KSPwithFETIDP,&its);CHKERRQ(ierr);
-  ierr = KSPGetConvergedReason(KSPwithFETIDP,&reason);CHKERRQ(ierr);
-  ierr = KSPComputeExtremeSingularValues(KSPwithFETIDP,&maxeig,&mineig);CHKERRQ(ierr);
-  /* check FETIDP sol */
-  if (dd.pure_neumann) {
-    ierr = VecSum(fetidp_solution_all,&scalar_value);CHKERRQ(ierr);
-    scalar_value = -scalar_value/(PetscScalar)ndofs;
-    ierr = VecShift(fetidp_solution_all,scalar_value);CHKERRQ(ierr);
-  }
-  ierr = VecAXPY(fetidp_solution_all,-1.0,exact_solution);CHKERRQ(ierr);
-  ierr = VecNorm(fetidp_solution_all,NORM_INFINITY,&norm);CHKERRQ(ierr);
-  ierr = PetscPrintf(dd.gcomm,"------------------FETI-DP stats-------------------------------\n");CHKERRQ(ierr);
-  ierr = PetscPrintf(dd.gcomm,"Number of degrees of freedom               : %8D\n",ndofs);CHKERRQ(ierr);
-  if (reason < 0) {
-    ierr = PetscPrintf(dd.gcomm,"Number of iterations                       : %8D\n",its);CHKERRQ(ierr);
-    ierr = PetscPrintf(dd.gcomm,"Converged reason                           : %D\n",reason);CHKERRQ(ierr);
-  }
-  if (0.95 <= mineig && mineig <= 1.05) mineig = 1.0;
-  ierr = PetscPrintf(dd.gcomm,"Eigenvalues preconditioned operator        : %1.1e %1.1e\n",(double)PetscFloorReal(100.*mineig)/100.,(double)PetscCeilReal(100.*maxeig)/100.);CHKERRQ(ierr);
-  if (norm > 1.e-1 || reason < 0) {
-    ierr = PetscPrintf(dd.gcomm,"Error betweeen exact and computed solution : %1.2e\n",(double)norm);CHKERRQ(ierr);
-  }
-  ierr = PetscPrintf(dd.gcomm,"--------------------------------------------------------------\n");CHKERRQ(ierr);
   /* Free workspace */
   ierr = VecDestroy(&exact_solution);CHKERRQ(ierr);
   ierr = VecDestroy(&bddc_solution);CHKERRQ(ierr);
