@@ -9,7 +9,7 @@ CPPFLAGS         =
 FPPFLAGS         =
 LOCDIR		 = src/snes/examples/tutorials/
 MANSEC           = SNES
-EXAMPLESC	 = ex1.c ex2.c ex3.c  ex5.c ex5s.c ex9.c \
+EXAMPLESC	 = ex1.c ex1fscale.c ex2.c ex3.c  ex5.c ex5s.c ex9.c \
                 ex12.c ex14.c ex15.c ex18.c ex19.c ex20.c ex21.c ex22.c \
                 ex25.c ex28.c ex30.c ex33.c \
                 ex35.c ex42.c ex46.c ex48.c \
@@ -28,6 +28,9 @@ include ${PETSC_DIR}/lib/petsc/conf/rules
 ex1: ex1.o  chkopts
 	-${CLINKER} -o ex1 ex1.o ${PETSC_SNES_LIB}
 	${RM} ex1.o
+ex1fscale: ex1fscale.o  chkopts
+	-${CLINKER} -o ex1fscale ex1fscale.o ${PETSC_SNES_LIB}
+	${RM} ex1fscale.o
 ex1f: ex1f.o  chkopts
 	-${FLINKER} -o ex1f ex1f.o ${PETSC_SNES_LIB}
 	${RM} ex1f.o
