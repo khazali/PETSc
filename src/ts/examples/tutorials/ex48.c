@@ -220,6 +220,17 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "f_n"
+static void f_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                PetscReal t, const PetscReal x[], PetscScalar *f0)
+{
+  const PetscScalar *pn = &u[uOff[DENSITY]];
+  *f0 = *pn;
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "PostStep"
 static PetscErrorCode PostStep(TS ts)
 {
@@ -259,6 +270,19 @@ static PetscErrorCode PostStep(TS ts)
   /* view */
   ierr = VecView(X,viewer);CHKERRQ(ierr);
   ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+  /* print integrals */
+  {
+    PetscDS          prob;
+    DM               plex;
+    ierr = DMConvert(dm, DMPLEX, &plex);CHKERRQ(ierr);
+    ierr = DMGetDS(plex, &prob);CHKERRQ(ierr);
+    PetscScalar den, tt[5];
+    ierr = PetscDSSetObjective(prob, 0, &f_n);CHKERRQ(ierr);
+    ierr = DMPlexComputeIntegralFEM(plex,X,tt,ctx);CHKERRQ(ierr);
+    den = tt[0];
+    ierr = DMDestroy(&plex);CHKERRQ(ierr);
+    PetscPrintf(PETSC_COMM_WORLD, "%D) total perturbed mass = %g\n", stepi, den);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
