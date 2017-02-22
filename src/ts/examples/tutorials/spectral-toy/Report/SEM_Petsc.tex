@@ -1,0 +1,386 @@
+\documentclass[10pt]{article}
+%\documentclass[review]{siamart0516}
+%\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{subfig}
+%\usepackage[latin1]{inputenc}
+\usepackage[english]{babel}
+\usepackage{fullpage}
+\usepackage{multirow}
+%\usepackage{amsmath,amssymb,psfrag, amsthm}
+\usepackage{amsmath,amssymb,psfrag}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{paralist}
+\usepackage{appendix}
+%\usepackage{natbib}
+\usepackage{amsfonts}
+\usepackage{subfig,color}
+\usepackage{comment} 
+\usepackage{enumerate}
+\usepackage{cancel}
+\usepackage{helvet}
+\usepackage{algorithm}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
+\usepackage{epstopdf}
+\usepackage{tikz,tikz-cd}
+\usepackage{pgfplots,pgfplotstable}
+\usetikzlibrary{pgfplots.groupplots}
+\usetikzlibrary{positioning}
+\usetikzlibrary[shapes,arrows,trees]
+\usetikzlibrary{matrix,decorations.pathmorphing}
+%\newcommand{\refalg}[1]{Algorithm~\ref{#1}}
+%\newcommand{\refsec}[1]{Section~\ref{#1}}
+%\newcommand{\reffig}[1]{Figure~\ref{#1}}
+%\newcommand{\refsubfig}[1]{Figure~\subref{#1}}
+%\newcommand{\reftab}[1]{Table~\ref{#1}}
+%\newcommand{\refeqn}[1]{(\ref{#1})}
+%\newcommand{\reflst}[1]{Listing~(\ref{#1})}
+\newcommand{\refalg}[1]{\cref{#1}}
+\newcommand{\refsec}[1]{\cref{#1}}
+\newcommand{\reffig}[1]{\cref{#1}}
+\newcommand{\refsubfig}[1]{\cref{#1}}
+\newcommand{\reftab}[1]{\cref{#1}}
+\newcommand{\refeqn}[1]{\cref{#1}}
+\newcommand{\reflst}[1]{\cref{#1}}
+\renewcommand{\d}{\mathrm{d}}
+\newcommand{\re}[1]{(\ref{#1})}
+\newcommand{\D}{\mathrm{D}}
+\newcommand{\bb}[1]{\boldsymbol{#1}}
+\def\sgn{\mathop{\rm sgn}}
+\newcommand{\remark}[1]{{\color{red} #1}}
+% THEOREMS ETC
+\newcommand{\vect}[1]{\mathbf{#1} }
+\newcommand{\order}[1]{\mathcal{O}(h^{#1})}
+\newcommand{\code}[1]{{\tt #1}}
+\renewcommand{\familydefault}{\sfdefault}
+% -----------------------------------------------------------
+% -----------------------------------------------------------
+\lstset{backgroundcolor=\color[rgb]{0.92,0.95,1}}
+\lstset{rulecolor=\color[rgb]{0.92,0.95,1}}
+\lstset{numbers=left}
+\lstset{basicstyle=\ttfamily\footnotesize}
+\lstset{numberstyle=\footnotesize}
+
+\def\dfdd#1#2{\frac{\partial#1}{\partial#2}}
+\newcommand{\erf}{\, \mathrm{erf}}
+\newcommand{\erfc}{\, \mathrm{erfc}}
+%\renewcommand{\labelenumi}{[\arabic{enumi}]}
+
+
+%\normalsize
+
+\begin{document}
+%\def\thefigure{\arabic{figure}}
+%\def\thetable{\arabic{table}}
+
+% TITLE AND AUTHOR --------------------------------
+\title{Spectral elements solver in Petsc}
+\vspace{1cm}
+\author{Oana Marin, Emil Constantinescu, Barry Smith}
+\date{\today}
+\maketitle
+
+
+\section{Prerequisites}
+Consider the heat equation with constant coefficients
+\begin{eqnarray}
+ \mathbb L(\mathbf u)= \frac{\partial\mathbf u}{\partial t} - \nu\Delta \mathbf u &= &0 \ , \mathbf x \in \Omega \\ \nonumber
+  \mathbf u|_{\partial \Omega}&=&0, \\
+  \mathbf u(0,t)&=&\mathbf g(\mathbf x)
+\end{eqnarray} 
+
+To transtion from the strong form of the equation to the weak form we define the spaces
+$$
+L^2(\Omega)=\lbrace f :\Omega\rightarrow \mathbb R |\quad \bigg(\int_{\Omega} |f|^2 \d \Omega \bigg)^{1/2}<\infty,\ \rbrace
+$$
+with the subset
+$$
+H^1_0(\Omega)=\lbrace f \in L^2(\Omega) |\quad \frac{\partial f}{\partial \vect x} \ \text{in}\  L^2(\Omega),\ \rbrace
+$$
+
+For the weak form we seek all functions with the propoerty (ortho residual)
+Consider solution $\mathbf u$ and test function $\mathbf v$ such that
+$(\mathbb L(\vect u),\mathbf v)=0$ for all $\mathbf v$ in a given test space, under the inner product defined as
+$$(u,v)=\int_{\Omega} u\ v \ \d \Omega$$
+
+The weak form becomes
+$$(\frac{\partial\mathbf u}{\partial t},\mathbf v) - (\nu\Delta \mathbf u,\mathbf v) =0$$
+and via integration by parts
+\begin{equation}
+(\frac{\partial\mathbf u}{\partial t},\mathbf v) + (\nu\nabla \mathbf u,\nabla \mathbf v) -
+[\nabla \mathbf u \mathbf v]|_{\Gamma} =0\label{eq:weakheat}
+\end{equation}
+
+The boundary term may vanish if either $u$ or $v$ are defined in a space that satisfies the boundary conditions.
+\section{The Spectral Element Method}
+
+Based on the weak form given by Eq.~\ref{eq:weakheat} several discretizations are suitable, Finite Element Method, Spectral Element, Continous or Discontinous Galerkin, etc.
+The Spectral Element Method is a subclass of Galerkin methods, or weighted residual methods. 
+The idea is to minimize the error of the numerical computation in the energy norm over a 
+chosen space of polynomials. 
+
+In the case of a spectral element method the domain $\Omega=\cup_{e=1,M} \Omega_e $, is decomposed in $M$ nonoverlapping 
+subdomains $\Omega_e$, termed elements, over which the data will be represented by orthogonal polynomials.
+
+Let us now define $X=H^1_0(\Omega)^d$. The space of polynomials of order $N$ defined over an element $\Omega^e, \ e=1,\ldots, E$ is
+$$
+\mathbb P_{N,E}=\lbrace  \phi| \phi \in L^2(\Omega); \quad \phi|_{\Omega^e} \text{polynomial of degree} \leq N\rbrace
+$$
+Subsequently $X_N=X\cap  P_{N,E}^d$, where $d$ is the dimension of the problem.
+
+In the polynomial space $X_N$ we expand the numerical solution $u(x)=\sum_i^N u_i(x)\phi_i$.
+With this choice the solution as well as the test space function $\vect v$ can be expanded as
+\begin{equation}
+u(\vect x)=\sum_{i=1}^N u_{i}\phi_i(\vect x)
+\label{eq:ansatz}
+\end{equation}
+
+The point discretization can be either a Chebyshev grid, or a Legendre grid, in either case the polynomials are orthogonal
+$(\phi_i \phi_j)=\delta_{ij}$ 
+
+For the moment we consider solely one diemnsional problems
+To proceed with the numerical discretization we plug Eq.~\ref{eq:ansatz} into Eq.~\ref{eq:weakheat} to obtain.
+\begin{equation}
+\frac{\partial}{\partial t}\int \sum_{i=1}^N u_{i}\phi_i(x) \sum_{j=1}^N v_{j}\phi_j(x) \d \Omega_e + \int\sum_{i=1}^N u_{i}\phi'_i(x) \sum_{j=1}^N v_{j}\phi'_j(x) \d \Omega_e  =0
+\end{equation}
+
+with proper reordering we obtain
+
+\begin{equation}
+\frac{\partial}{\partial t}\sum_{i=1}^N u_{i}\sum_{j=1}^N  v_{j}\underbrace{\int \phi_i(x)\phi_j(x) \d \Omega_e}_{M_{ij}} + \sum_{i=1}^N u_{i}\sum_{j=1}^N v_{j}\underbrace{\int\phi'_i(x) \phi'_j(x) \d \Omega_e}_{K_{ij}}  =0
+\end{equation}
+
+where $M_{ij}$ is the mass matrix and $K_{ij}$ is the stiffness matrix.
+
+In alegraic orm we can rewrite
+
+\begin{equation}
+\frac{\partial}{\partial t}\underline{v}^TM\underline{u} + \underline{v}^TK\underline{u}=0
+\end{equation}
+
+with $\underline{u}=(u_0,\ u_1, \ldots, u_N)$ and similarly $\underline v$ is the array of point values of the test function. 
+Note that one can factor out $v$ to obtain an ODE
+
+\begin{equation}
+\frac{\partial}{\partial t} M \underline{u}=- K \underline{u} \label{eq:discrete}
+\end{equation}
+
+Note if the domain $\Omega_e \neq [-1, \ 1]$ a change of variables is in order.
+Presume  $\Omega_e = [-a, \ b]$ and define the reference element $\hat{\Omega} = [-1, \ 1]$.
+For $x\in \Omega_e$ and $r \in \hat{\Omega}$ the mapping is
+$$x= a+ \frac{b-a}{r+1}$$
+
+%And the change of variables reads
+%$$\frac{dx}{dr
+
+\section{ODE solutions}
+
+
+
+
+
+
+
+
+
+
+\begin{comment}
+\subsection{Convection-Diffusion}
+Consider the energy equation in non-dimensional form Eq.~\ref{eq:energy_nondim}, this is a convection diffusion equation with the Laplacian term weighted by the P\' eclet number. For the simplicity of the presentation we make two changes 
+\begin{itemize}
+\item replace the advection velocity $\vect u$ by a constant velocity field $c$ that is divergence free
+\item denote the temperature $T$ in the energy equation by $u$
+\end{itemize}
+The variational formulation of the Convection-Diffusion equation reads
+\begin{eqnarray}\label{eq:Conv_diff}
+\int_{\Omega}\frac{\partial u}{\partial t} \cdot v\d \Omega+ \int_{\Omega}(c \cdot \nabla u)\cdot  v\d \Omega\ &=& \frac{1}{Pe}\int_{\Omega} (\nabla\cdot \nabla  u)\cdot  v\d \Omega + \int_{\Omega}f\cdot v\d \Omega.
+\end{eqnarray}
+with $ u,\ v \ \in \  H^1_0(\Omega)$.
+
+The terms in the convection diffusion equation can be further expanded to give
+\begin{eqnarray}\label{eq:var_cd}
+\int_{\Omega}\frac{\partial u}{\partial t} \cdot \vect v\d \Omega &=&\frac{\partial}{\partial t} \int_{\Omega}u \cdot \vect v\d \Omega\\
+\int_{\Omega} \nabla\cdot \nabla u\cdot v\d \Omega &=&\int_{\Omega}  \nabla u\cdot \nabla v\d \Omega +\int_{\partial\Omega} v \nabla u \cdot \vect n\d\Omega
+\end{eqnarray}
+
+
+Let us now define $X=H^1_0(\Omega)^d$. The space of polynomials of order $N$ defined over an element $\Omega^e, \ e=1,\ldots, E$ is
+$$
+\mathbb P_{N,E}=\lbrace  \phi| \phi \in L^2(\Omega); \quad \phi|_{\Omega^e} \text{polynomial of degree} \leq N\rbrace
+$$
+Subsequently $X_N=X\cap  P_{N,E}^d$, where $d$ is the dimension of the problem.
+
+In the polynomial space $X_N$ we expand the numerical solution $u=\sum_i^N u_i\phi_i$.
+With this choice the solution as well as the test space function $\vect v$ can be expanded as
+$$
+u(\vect x)=\sum_{i=1}^N u_{i}\phi_i(\vect x)
+$$
+
+Given the choice of the polynomial space $X_N$ the boundary integral term in \ref{eq:var_cd} vanishes. Upon insertion of the ansatz into the variational formulation we have
+\begin{eqnarray}\label{eq:cd_ansatz}
+\int_{\Omega}\frac{\partial u}{\partial t} \cdot \vect v\d \Omega &=&\frac{\partial}{\partial t} \sum_i^N\sum_j^N v_i\bigg(\int_{\Omega}  \phi_i(\vect x) \cdot \phi_j(\vect x)\d \Omega u_j\bigg) \\
+\int_{\Omega}(c \cdot \nabla u)\cdot  v\d \Omega\ &=&\sum_i^N\sum_j^N v_i\bigg (\int_{\Omega}(c \cdot \phi_i(\vect x)\cdot \nabla\phi_j(\vect x)  \d \Omega\bigg) u_j\ \\
+\int_{\Omega} (\nabla\cdot \nabla  u)\cdot  v\d \Omega &=&\sum_{i=1}^N \sum_{j=1}^N v_{i}(\int_{\Omega}\nabla\phi_i(\vect x) \cdot \nabla \phi_j(\vect x)\d \Omega)u_j \\
+\end{eqnarray}
+
+To discretize the integrals in \ref{eq:cd_ansatz} we need to introduce a quadrature rule. For spectral accuracy the choice is the Gauss-Legendre quadrature
+$\int_{-1}^1\phi(\vect x)\d x=\sum_k \rho_k\phi(x_k)$
+where the quadrature points $x_k$ are given by the Gauss-Legendre-Lobatto points, and the weights $\rho_k$ are based on the Legendre polynomials as in \ref{dfm02}.
+To start with we consider the one dimensional case and proceed to higher dimensions and curvilinear elements.
+
+\subsubsection{One Dimensional case}
+Let us first regard a one dimensional case on the domain $\Omega=[a\ b]$ and analyse one by one the terms in Eq.~\ref{eq:cd_ansatz}. Since the quadrature rule is defined on the interval $[-1, \ 1]$ we map $x \in \Omega$ to $r\in [-1,\ 1]$ via $x=a+(b-a)(r+1)/2$ and take $L=b-a$.
+The mass matrix is given by 
+\begin{equation}
+M_{ij}=\int_{\Omega}\phi_i(x) \phi_j(x)\d \Omega=\frac{L}{2}\int_{-1}^1\phi_i(r) \phi_j(r)\d r=\frac{L}{2}\sum_k \rho_k\phi_i(r_k) \phi_j(r_k)
+\end{equation}
+since $\phi_i(x_k) \phi_j(x_k)=\delta_{ij}$, $M$ is a diagonal matrix which holds on the diagonal the weights of the quadrature rule. In practice $M$ can also be used as an integration operator, therefore one can write $\int_{-1}^1f(x)\d x\approx Mf$
+
+The stiffness matrix corresponding to the second order term is 
+\begin{equation}
+A_{ij}=\int_{\Omega}\phi'_i(\vect x) \phi'_j(\vect x)\d \Omega=\frac{L}{2}\int_{-1}^1\phi'_i(r) \phi'_j(r)\d r=\frac{L}{2}\sum_k \rho_k\phi'_i(r_k) \phi'_j(r_k)
+\end{equation}
+and the convection operator
+\begin{equation}
+C_{ij}=\int_{\Omega}c\phi_i(\vect x) \phi'_j(\vect x)\d \Omega=\frac{L}{2}\int_{-1}^1c(r)\phi_i(r) \phi'_j(r)\d r=\frac{L}{2}\sum_k c(r_k)\rho_k\phi_i(r_k) \phi'_j(r_k)
+\end{equation}
+
+This leads to the following spatial discretized system of equations
+\begin{equation}\label{eq:advd}
+M \frac{d u}{dt} = \, Au -Cu + M f, 
+\end{equation}
+
+
+\subsubsection{Two Dimensional case}
+Consider $\Omega=[-1,\ 1]^2$ discretized in $N$ GLL points. Then the basis function $\pi_k(x_1,x_2)=\phi_i(x_1)\phi_j(x_2)$ where $i,j=1,\ldots,N$ and $k=i+(N+1)\cdot j$.
+
+The ansatz on the solution 
+$$u(x,y)=\sum_{i=0}^M\sum_{j=0}^N u_{ij}\phi_i(x)\phi_j(y)$$
+
+To start with we introduce a notation for tensor product form of matrix multiplication
+\begin{equation}
+w_{ij}=\sum_{l=1}^M\sum_{k=1}^N a_{jl}b_{ik}u_{kl}
+\end{equation}
+In the tensor product notation $c_{ij}=\sum_{l=1}^M\sum_{k=1}^N a_{jl}b_{ik}$ can be written as $C=A\otimes B)$. By unrolling the vector $w_{ij}$ as $\underline{w}_{\hat{i}}$ with components given by the ordering $\hat{i}=i+M\cdot(j-1)$ and similarly for $u_{kl}$ we can expand the tensor matrix product as \footnote{this doesn't match the one before.. careful with N+1, N}
+
+$$\underline{w}=(A\otimes I)(I\otimes B)\underline{u}$$
+
+From this notation simpler cases arise such as
+\begin{equation}
+w_{ij}=\sum_{k=1}^N a_{ik}u_{kj}\quad \rightarrow \quad \underline{w}=
+\end{equation}
+\section{Data Structure for SEM in Petsc}
+\label{sec:sem}
+
+
+%\begin{equation}
+%  \mathbf u(\mathbf x)|_{\Omega_e} = \sum_{i,j,k} u^e_{ijk}
+%  \phi_i(x_1)\phi_j(x_2)\phi_k(x_3)\ ,
+%\end{equation} 
+
+\label{sec:Spectral and Pseudo-spectral}
+\end{comment}
+
+
+%
+%\begin{figure}
+%\begin{center}
+% \begin{tikzpicture}[scale=2.0]
+%\node (A) at (0,1) {$\mathbf u$};
+%\node (B) at (1.5,1) {$T\mathbf u$};
+%\node (C) at (1.5,0) {$T\tilde{\mathbf u}$};
+%\node (D) at (0,0) {$\tilde{\mathbf u}$};
+%\path[->,font=\scriptsize,>=angle 90]
+%(A) edge node[above]{$DCT$} (B)
+%(D) edge node[right]{$Error$} (A)
+%(B) edge node[right]{$Truncate \rightarrow \texttt{Huffman\ encode}$} (C)
+%(C) edge node[above]{$IDCT$} (D);
+%\end{tikzpicture}
+%\end{center}
+% \caption{Workflow for compression and restoring the solution.} 
+%  \label{fig:algorithm}
+%\end{figure}
+%
+%\subsection{Algorithm}
+%\begin{algorithm}
+%\begin{algorithmic}[5]
+%\Procedure{Setup}{}
+%\State  {\tt T $\leftarrow$ DCT\_setup\_1d(p) }
+%%\State {\tt M $\leftarrow$ build\_map($\text{mesh}_{\text{gll}})$}
+%\EndProcedure
+%\Procedure{Truncate}{}
+%%\For {\tt k$\in$ $LocalEL_{id}(COMPnode)$} %\Comment{$ttotal$}
+%\For { {\tt 0 $\leq$ k $<$ nel} }%\Comment{$ttotal$}
+%%\State $u=M\cdot u$
+%\State  {\tt $\text{u}_{\text{DCT,k}}=\text{T}\cdot \text{u}_\text{k} \cdot
+%\text{T}^T \cdot \text{T}^T$} 
+%\State { sort($\text{u}_{\text{DCT,k}}$)}
+%%\State $\mathrm{u_{trunc}}=\mathrm{u_{DCT}}>\epsilon$
+%\State {\tt$\text{u}_{\text{trunc,k}}=\text{u}_{\text{DCT,k}}>\epsilon$}
+%\EndFor
+%\EndProcedure
+%\Procedure{Compress}{}
+%\If {\tt IOnode} 
+%\For {\tt q $\in$ IOchildren}
+%\State {\tt Recv($\text{u}_{\text{trunc}}$,q)}
+%\State {\tt $\text{u}_{\text{compress}}=$huff\_encode($\text{u}_{\text{trunc}}$)}
+%\State {\tt output($\text{u}_{\text{compress}}$)}
+%\EndFor
+%\Else
+%\State {\tt Send($\text{u}_{\text{trunc}}$,IOparent)}
+%\EndIf
+%\EndProcedure
+%\end{algorithmic}
+%\caption{Parallel compression on an already partitioned mesh with {\tt nel} elements
+%each.}
+%\label{alg:code_struct}
+%\end{algorithm}
+%
+%\begin{figure}[!ht]
+%\centering
+%\subfloat[Compression ratio ($C_r$) vs error: (blue) GLL grid, (black) Chebyshev grid, 
+%(green marker) corresponds to visualization in \reffig{fig:wingvis97}.]
+%{\includegraphics[width=0.47\textwidth]{data/compvserrwing.eps}
+%\label{fig:wingfull_err}}
+%\quad
+%\subfloat[A priori vs a posteriori error: (blue) GLL grid, (black) Chebyshev
+%grid.]
+%{\includegraphics[width=0.47\textwidth]{data/overestwing.eps}
+%\label{fig:wingfull_est}}
+%\caption{Flow past an airplane wing}
+%\end{figure}
+
+\section{Conclusions}
+\label{sec:conclusion}
+
+
+\section*{Acknowledgments}
+
+This research used resources of the Argonne Leadership Computing Facility, 
+which is a DOE Office of Science User Facility supported under Contract 
+DE-AC02-06CH11357.
+
+
+\vskip 10pt
+%\begin{flushright}
+\noindent\scriptsize \framebox{
+%\parbox{3.2in}{
+\parbox{0.96\textwidth}{
+The submitted manuscript has been created by the University of Chicago
+as Operator of Argonne National Laboratory (``Argonne'') under
+Contract No. DE-AC02-06CH11357 with the U.S. Department of Energy.
+The U.S. Government retains for itself, and others acting on its
+behalf, a paid-up, nonexclusive, irrevocable worldwide license in said
+article to reproduce, prepare derivative works, distribute copies to
+the public, and perform publicly and display publicly, by or on behalf
+of the Government.
+}
+} \normalsize
+\newpage
+
+\bibliographystyle{siamplain}
+\bibliography{SEM_Petsc}
+\end{document}
