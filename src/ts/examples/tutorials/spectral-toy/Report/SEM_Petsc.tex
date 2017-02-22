@@ -20,10 +20,10 @@
 \usepackage{comment} 
 \usepackage{enumerate}
 \usepackage{cancel}
-\usepackage{helvet}
-\usepackage{algorithm}
-\usepackage{algorithmicx}
-\usepackage{algpseudocode}
+%\usepackage{helvet}
+%\usepackage{algorithm}
+%\usepackage{algorithmicx}
+%\usepackage{algpseudocode}
 \usepackage{epstopdf}
 \usepackage{tikz,tikz-cd}
 \usepackage{pgfplots,pgfplotstable}
@@ -101,7 +101,7 @@ $$
 H^1_0(\Omega)=\lbrace f \in L^2(\Omega) |\quad \frac{\partial f}{\partial \vect x} \ \text{in}\  L^2(\Omega),\ \rbrace
 $$
 
-For the weak form we seek all functions with the propoerty (ortho residual)
+For the weak form we seek all functions with the property that residual is orthogonal to the set o all test functions.
 Consider solution $\mathbf u$ and test function $\mathbf v$ such that
 $(\mathbb L(\vect u),\mathbf v)=0$ for all $\mathbf v$ in a given test space, under the inner product defined as
 $$(u,v)=\int_{\Omega} u\ v \ \d \Omega$$
@@ -177,15 +177,8 @@ $$x= a+ \frac{b-a}{r+1}$$
 %$$\frac{dx}{dr
 
 \section{ODE solutions}
-
-
-
-
-
-
-
-
-
+\subsection{Convergence tests}
+\subsection{Various Boundary conditions}
 
 \begin{comment}
 \subsection{Convection-Diffusion}
@@ -283,6 +276,44 @@ w_{ij}=\sum_{k=1}^N a_{ik}u_{kj}\quad \rightarrow \quad \underline{w}=
 
 \label{sec:Spectral and Pseudo-spectral}
 \end{comment}
+
+\section{Inverse problem}
+
+Consider again the forward partial differential equation describing heat transfer
+\begin{eqnarray}
+ \frac{\partial\mathbf u}{\partial t} - \nu\Delta \mathbf u +\mathbf f(\mathbf x)&= &0, \ \mathbf x \in \Omega \\ \nonumber
+  \mathbf u|_{\partial \Omega}&=&0, \\ \nonumber
+  \mathbf u(0,t)&=&\mathbf u_0(\mathbf x)\label{eq:heateq}
+\end{eqnarray} 
+
+As a generic notation we use for the PDE
+$$\mathcal P (\mathbf u, \mathbf f)=0$$. 
+
+Presume we seek to find what forcing $\mathbf f$ acting on the entire domain $\Omega$ yields a solution $\mathbf u$ which matches a reference solution $\underline{\mathbf u}$ at time $T$. Typically $\underline{\mathbf u}$  is not known over the entire domain $\Omega$ in practice, but in a subset region $\Omega_s$ where sensors have been placed. However for simplicity here we construct a continous function $\underline{\mathbf u}$ to avoid regularization issues.
+
+The approach is to construct a cost function which minimizes the difference between $|\mathbf u-\underline{\mathbf u}|$.
+
+$$J[f]=\int_0^T\int_{\Omega}(\mathbf u-\underline{\mathbf u})^2 \ \d x \d t $$
+
+We seek $\mathbf f$ solution to Eq.~\ref{eq:heateq} such that $J[f]$ is minimal.
+
+
+\subsection{Validation}
+
+To validate and track convergence we shall construct the solution via method of manufactured solutions.
+So we consider $\mathbf u_0$ and compute a $\mathbf f_{\mathbf u_0}$ which yields the solution $\underline{\mathbf u}$.
+By construction the inverse problem has the solution $\mathbf f_{\mathbf u_0}$
+$$\mathcal P (\underline{\mathbf u}, \mathbf f_{\mathbf u_0})=0$$. 
+Algortihm
+\begin{itemize}
+\item Choose $\mathbf u_0$ such that $\mathbf f_{\mathbf u_0}$ is non trivial
+\item Store $\underline{\mathbf u}$ solution to $$\mathcal P (\underline{\mathbf u}, \mathbf f_{\mathbf u_0})=0$$. 
+\item Initialize PDE with $\mathbf u_0$, but with a different $\mathbf f_{n}$, e.g. $\mathbf f_{init}=1$
+\item Perform optimization problem (Forward/Dual) until  $\min_{f}J[f]=\int_0^T\int_{\Omega}\mathbf u-\underline{\mathbf u} \ \d x \d t \approx 0$
+\item Addtionally track at each iteration $|\mathbf f_{n}-\mathbf f_{\mathbf u_0}|$
+
+\end{itemize}
+
 
 
 %

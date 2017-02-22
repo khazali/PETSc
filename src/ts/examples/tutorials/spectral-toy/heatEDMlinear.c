@@ -12,7 +12,8 @@ Input parameters include:\n\
    Concepts: TS^diffusion equation
    Processors: 1
 */
-//./heatNlinear -ts_monitor -ts_view -log_summary -ts_exact_final_time matchstep -ts_type beuler -ts_exact_final_time matchstep -ts_dt 1e-2 -Nl 40
+// Run with
+//./heatEDMlinear -ts_monitor -ts_view -log_summary -ts_exact_final_time matchstep -ts_type beuler -ts_exact_final_time matchstep -ts_dt 1e-2 -Nl 20
 /* ------------------------------------------------------------------------
 
    This program solves the one-dimensional heat equation (also called the
@@ -24,12 +25,9 @@ Input parameters include:\n\
        u(0,x) = sin(6*pi*x) + 3*sin(2*pi*x).
    This is a linear, second-order, parabolic equation.
 
-   We discretize the right-hand side using finite differences with
-   uniform grid spacing h:
-       u_xx = (u_{i+1} - 2u_{i} + u_{i-1})/(h^2)
+   We discretize the right-hand side using the spectral element method
    We then demonstrate time evolution using the various TS methods by
-   running the program via
-       ex3 -ts_type <timestepping solver>
+   running the program via heatEDMlinear -ts_type <timestepping solver>
 
    We compare the approximate solution with the exact solution, given by
        u_exact(x,t) = exp(-36*pi*pi*t) * sin(6*pi*x) +
@@ -38,8 +36,8 @@ Input parameters include:\n\
    Notes:
    This code demonstrates the TS solver interface to two variants of
    linear problems, u_t = f(u,t), namely
-     - time-dependent f:   f(u,t) is a function of t
-     - time-independent f: f(u,t) is simply f(u)
+      - only time-independent f: f(u,t) is simply f(u)
+      - to be done: time-dependent f:   f(u,t) is a function of t
 
     The parallel version of this code is ts/examples/tutorials/ex4.c
 
@@ -96,12 +94,12 @@ int main(int argc,char **argv)
   TS             ts;                     /* timestepping context */
   Mat            A;                      /* matrix data structure */
   Vec            u;                      /* approximate solution vector */
-  PetscReal      time_total_max = 0.0001; /* default max total time */
+  PetscReal      time_total_max = 1.0; /* default max total time, should be short since the decay is very fast, for slower decay higher viscosity needed */
   PetscInt       time_steps_max = 100;   /* default max timesteps */
   PetscErrorCode ierr;
   PetscInt       steps,Nl=15,i, E=5, xs, xm, ind, j, lenglob;
   PetscMPIInt    size;
-  PetscReal      dt=1e-3, x, *wrk_ptr1, *wrk_ptr2, L=2.0, Le;
+  PetscReal      dt=1e-2, x, *wrk_ptr1, *wrk_ptr2, L=2.0, Le;
   //PetscBool      flg;
   PetscGLLIP     gll;
   PetscViewer    viewfile;
@@ -147,7 +145,7 @@ int main(int argc,char **argv)
   appctx.mult[0]=0.5;
   appctx.mult[Nl-1]=0.5; 
 
-  //lenloc   = E*Nl;
+  //lenloc   = E*Nl; only if I want to do it totally local for explicit
   lenglob  = E*(Nl-1)+1;
 
   /*
@@ -249,8 +247,7 @@ int main(int argc,char **argv)
   
   ierr = InitialConditions(u,&appctx);CHKERRQ(ierr);
   ierr = TSSetInitialTimeStep(ts,0.0,dt);CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_SELF,"Initial cond");CHKERRQ(ierr);
-  ierr = VecView(u,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
+  //ierr = VecView(u,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
 
  /*
      Run the timestepping solver
@@ -262,7 +259,7 @@ int main(int argc,char **argv)
      View timestepping solver info
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
-  ierr = PetscPrintf(PETSC_COMM_SELF,"avg. error (2 norm) = %g, avg. error (max norm) = %g\n",(double)(appctx.norm_2/steps),(double)(appctx.norm_L2/steps));CHKERRQ(ierr);
+  //ierr = PetscPrintf(PETSC_COMM_SELF,"avg. error (2 norm) = %g, avg. error (max norm) = %g\n",(double)(appctx.norm_2/steps),(double)(appctx.norm_L2/steps));CHKERRQ(ierr);
   ierr = TSView(ts,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
 
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -362,8 +359,8 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
   ierr = DMDAVecRestoreArray(appctx->da,u,&u_localptr);CHKERRQ(ierr);
 
   //minor test.. to be removed
-  ierr = PetscPrintf(PETSC_COMM_SELF,"Initial cond inside routine \n");CHKERRQ(ierr);
-  ierr = VecView(u,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
+  //ierr = PetscPrintf(PETSC_COMM_SELF,"Initial cond inside routine \n");CHKERRQ(ierr);
+  //ierr = VecView(u,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
 
   /*
      Print debugging information if desired
@@ -421,8 +418,7 @@ PetscErrorCode ExactSolution(PetscReal t,Vec solution,AppCtx *appctx)
     xm=xm/(appctx->Nl-1);
 
     Le=2.0/appctx->E;
-    //xg = []; for e=1:E xg=[xg; x(1:end-1)+Le*(e-1)]; end;
-
+    
    for (i=xs; i<xs+xm; i++) {
       for (j=0; j<appctx->Nl; j++)
       {
@@ -465,7 +461,7 @@ PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec u,void *ctx)
 {
   AppCtx         *appctx = (AppCtx*) ctx;   /* user-defined application context */
   PetscErrorCode ierr;
-  PetscReal      norm_2,norm_max,dt,dttol,norm_L2;
+  PetscReal      norm_max,dt,dttol,norm_L2; //this was previously computing simple euclidian norm, unsuitable for data fields
   Vec            f;
   
   /*
@@ -477,7 +473,6 @@ PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec u,void *ctx)
      Compute the exact solution
   */
   ierr = ExactSolution(time,appctx->solution,appctx);CHKERRQ(ierr);
-
   /*
      Print debugging information if desired
   */
@@ -497,19 +492,17 @@ PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec u,void *ctx)
   ierr   = VecPointwiseMult(f,appctx->solution,appctx->solution);CHKERRQ(ierr);
   ierr   = VecDot(f,appctx->mass,&norm_L2);CHKERRQ(ierr);
 
-
-  ierr   = VecNorm(appctx->solution,NORM_2,&norm_2);CHKERRQ(ierr);
+  //ierr   = VecNorm(appctx->solution,NORM_2,&norm_2);CHKERRQ(ierr);
   ierr   = VecNorm(appctx->solution,NORM_MAX,&norm_max);CHKERRQ(ierr);
+
   if (norm_L2   < 1e-14) norm_L2   = 0;
-  if (norm_2   < 1e-14) norm_2   = 0;
   if (norm_max < 1e-14) norm_max = 0;
 
-  printf(" norm L2 %f \n", norm_L2);
   norm_L2=sqrt(norm_L2);
   ierr = TSGetTimeStep(ts,&dt);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"Timestep %3D: step size = %g, time = %g, L2-norm error = %g, max norm error = %g\n",step,(double)dt,(double)time,(double)norm_L2,(double)norm_max);CHKERRQ(ierr);
 
-  appctx->norm_2   += norm_2;
+  //appctx->norm_2   += norm_2;
   appctx->norm_max += norm_max;
   appctx->norm_L2  += norm_L2;
 
@@ -555,9 +548,6 @@ PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal time,Vec u,void *ctx)
    BB - optionally different preconditioning matrix
    str - flag indicating matrix structure
 
-   Notes:
-   Recall that MatSetValues() uses 0-based row and column numbers
-   in Fortran as well as in C.
 */
 PetscErrorCode RHSMatrixHeatgllDM(TS ts,PetscReal t,Vec X,Mat *AA,Mat BB,void *ctx)
 {
@@ -621,7 +611,6 @@ PetscErrorCode RHSMatrixHeatgllDM(TS ts,PetscReal t,Vec X,Mat *AA,Mat BB,void *c
        v=-4.0/(Le*Le)*(appctx->mult[i]/appctx->W[i]); //note here I took the multiplicities in
        id=j*(N-1)+i;
        MatSetValues(B,1,&id,1,&id,&v,INSERT_VALUES);
-      
       } 
      }
 
