@@ -1,5 +1,6 @@
 
 #include "petscgll.h"
+#include "petscmat.h"
 #include <petscviewer.h>
 #include <petscblaslapack.h>
 #include <petsc/private/petscimpl.h>
@@ -88,6 +89,9 @@ PetscErrorCode PetscGLLIPCreate(PetscInt n,PetscGLLIPCreateType type,PetscGLLIP 
       ierr = PetscBLASIntCast(n-2,&bn);CHKERRQ(ierr);
       ierr = PetscMemzero(&gll->nodes[1],bn*sizeof(gll->nodes[1]));CHKERRQ(ierr);
       ierr = PetscFPTrapPush(PETSC_FP_TRAP_OFF);CHKERRQ(ierr);
+      PetscRealView(n-2,M,0);
+      x=0;
+      printf(" bn %d\n", bn);
       PetscStackCallBLAS("LAPACKsteqr",LAPACKsteqr_("N",&bn,&gll->nodes[1],M,&x,&bn,M,&lierr));
       if (lierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in STERF Lapack routine %d",(int)lierr);
       ierr = PetscFPTrapPop();CHKERRQ(ierr);
@@ -302,6 +306,10 @@ PetscErrorCode PetscGLLIPElementStiffnessCreate(PetscGLLIP *gll,PetscReal ***AA)
   *AA = A;
   PetscFunctionReturn(0);
 }
+/* 
+  Create mass matrix
+*/
+
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscGLLIPElementStiffnessDestroy"
