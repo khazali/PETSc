@@ -1,2 +1,2 @@
-number of SNES iterations = 4, number of unsuccessful steps = 0
-
+      Line search: Secant - objective value at lambda 1. is Inf or Nan, cutting lambda
+      Line search: Secant - objective value at lambda 0.5 is Inf or Nan, cutting lambda

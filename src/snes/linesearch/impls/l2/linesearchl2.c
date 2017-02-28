@@ -38,10 +38,27 @@ static PetscErrorCode  SNESLineSearchApply_L2(SNESLineSearch linesearch)
   /* precheck */
   ierr       = SNESLineSearchPreCheck(linesearch,X,Y,&changed_y);CHKERRQ(ierr);
   lambda_old = 0.0;
-  if (!objective) {
-    fnrm_old = gnorm*gnorm;
-  } else {
-    ierr = SNESComputeObjective(snes,X,&fnrm_old);CHKERRQ(ierr);
+  while (PETSC_TRUE) {
+    if (!objective) {
+      fnrm_old = gnorm*gnorm;
+    } else {
+      ierr = SNESComputeObjective(snes,X,&fnrm_old);CHKERRQ(ierr);
+    }
+    /* if the objective function is Inf or Nan, try cutting lambda */
+    if (PetscIsInfOrNanReal(fnrm_old)) {
+      if (monitor) {
+        ierr = PetscViewerASCIIAddTab(monitor,((PetscObject)linesearch)->tablevel);CHKERRQ(ierr);
+        ierr = PetscViewerASCIIPrintf(monitor,"    Line search: Secant - objective value at lambda %g is Inf or Nan, cutting lambda\n",lambda);CHKERRQ(ierr);
+        ierr = PetscViewerASCIISubtractTab(monitor,((PetscObject)linesearch)->tablevel);CHKERRQ(ierr);
+      }
+      lambda = 0.5*(lambda + lambda_old);
+      if (lambda <= steptol) {
+        ierr = SNESLineSearchSetReason(linesearch, SNES_LINESEARCH_FAILED_REDUCT);CHKERRQ(ierr);
+        PetscFunctionReturn(0);
+      }
+    } else {
+      break;
+    }
   }
   lambda_mid = 0.5*(lambda + lambda_old);
 
