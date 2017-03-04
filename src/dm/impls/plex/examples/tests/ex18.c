@@ -131,13 +131,13 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 PetscErrorCode CreateSimplex_2D(MPI_Comm comm, AppCtx *user, DM *dm)
 {
   PetscInt       testNum = user->testNum, p;
-  PetscMPIInt    rank, numProcs;
+  PetscMPIInt    rank, size;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
-  ierr = MPI_Comm_size(comm, &numProcs);CHKERRQ(ierr);
-  switch (numProcs) {
+  ierr = MPI_Comm_size(comm, &size);CHKERRQ(ierr);
+  switch (size) {
   case 2:
     switch (rank) {
     case 0:
@@ -149,7 +149,7 @@ PetscErrorCode CreateSimplex_2D(MPI_Comm comm, AppCtx *user, DM *dm)
         double         coords[4] = {-0.5, 0.5, 0.0, 0.0};
         PetscInt       markerPoints[6] = {1, 1, 2, 1, 3, 1};
 
-        ierr = DMPlexCreateFromCellListParallel(comm, user->dim, numCells, numVertices, numCorners, user->interpolate, cells, user->dim, coords, dm);CHKERRQ(ierr);
+        ierr = DMPlexCreateFromCellListParallel(comm, user->dim, numCells, numVertices, numCorners, user->interpolate, cells, user->dim, coords, NULL, dm);CHKERRQ(ierr);
         for (p = 0; p < 3; ++p) {ierr = DMSetLabelValue(*dm, "marker", markerPoints[p*2], markerPoints[p*2+1]);CHKERRQ(ierr);}
       }
       break;
@@ -165,7 +165,7 @@ PetscErrorCode CreateSimplex_2D(MPI_Comm comm, AppCtx *user, DM *dm)
         double         coords[4] = {0.0, 1.0, 0.5, 0.5};
         PetscInt       markerPoints[6] = {1, 1, 2, 1, 3, 1};
 
-        ierr = DMPlexCreateFromCellListParallel(comm, user->dim, numCells, numVertices, numCorners, user->interpolate, cells, user->dim, coords, dm);CHKERRQ(ierr);
+        ierr = DMPlexCreateFromCellListParallel(comm, user->dim, numCells, numVertices, numCorners, user->interpolate, cells, user->dim, coords, NULL, dm);CHKERRQ(ierr);
         for (p = 0; p < 3; ++p) {ierr = DMSetLabelValue(*dm, "marker", markerPoints[p*2], markerPoints[p*2+1]);CHKERRQ(ierr);}
       }
       break;
@@ -186,7 +186,7 @@ PetscErrorCode CreateSimplex_2D(MPI_Comm comm, AppCtx *user, DM *dm)
         double         coords[4] = {0.0, 1.0, 0.0, 0.0};
         PetscInt       markerPoints[6] = {1, 1, 2, 1, 3, 1};
 
-        ierr = DMPlexCreateFromCellListParallel(comm, user->dim, numCells, numVertices, numCorners, user->interpolate, cells, user->dim, coords, dm);CHKERRQ(ierr);
+        ierr = DMPlexCreateFromCellListParallel(comm, user->dim, numCells, numVertices, numCorners, user->interpolate, cells, user->dim, coords, NULL, dm);CHKERRQ(ierr);
         for (p = 0; p < 3; ++p) {ierr = DMSetLabelValue(*dm, "marker", markerPoints[p*2], markerPoints[p*2+1]);CHKERRQ(ierr);}
       }
       break;
@@ -202,7 +202,7 @@ PetscErrorCode CreateSimplex_2D(MPI_Comm comm, AppCtx *user, DM *dm)
         double         coords[4] = {0.5, 0.5, 1.0, 1.0};
         PetscInt       markerPoints[6] = {1, 1, 2, 1, 3, 1};
 
-        ierr = DMPlexCreateFromCellListParallel(comm, user->dim, numCells, numVertices, numCorners, user->interpolate, cells, user->dim, coords, dm);CHKERRQ(ierr);
+        ierr = DMPlexCreateFromCellListParallel(comm, user->dim, numCells, numVertices, numCorners, user->interpolate, cells, user->dim, coords, NULL, dm);CHKERRQ(ierr);
         for (p = 0; p < 3; ++p) {ierr = DMSetLabelValue(*dm, "marker", markerPoints[p*2], markerPoints[p*2+1]);CHKERRQ(ierr);}
       }
       break;
@@ -218,7 +218,7 @@ PetscErrorCode CreateSimplex_2D(MPI_Comm comm, AppCtx *user, DM *dm)
         double         coords[2] = {1.0, 0.0};
         PetscInt       markerPoints[10] = {2, 1, 3, 1, 4, 1, 5, 1, 6, 1};
 
-        ierr = DMPlexCreateFromCellListParallel(comm, user->dim, numCells, numVertices, numCorners, user->interpolate, cells, user->dim, coords, dm);CHKERRQ(ierr);
+        ierr = DMPlexCreateFromCellListParallel(comm, user->dim, numCells, numVertices, numCorners, user->interpolate, cells, user->dim, coords, NULL, dm);CHKERRQ(ierr);
         for (p = 0; p < 3; ++p) {ierr = DMSetLabelValue(*dm, "marker", markerPoints[p*2], markerPoints[p*2+1]);CHKERRQ(ierr);}
       }
       break;
@@ -228,7 +228,7 @@ PetscErrorCode CreateSimplex_2D(MPI_Comm comm, AppCtx *user, DM *dm)
     default: SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "No test mesh for rank %d", rank);
     }
     break;
-  default: SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "No test mesh for %d processes", numProcs);
+  default: SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "No test mesh for %d processes", size);
   }
   PetscFunctionReturn(0);
 }
@@ -236,13 +236,13 @@ PetscErrorCode CreateSimplex_2D(MPI_Comm comm, AppCtx *user, DM *dm)
 PetscErrorCode CreateSimplex_3D(MPI_Comm comm, AppCtx *user, DM *dm)
 {
   PetscInt       testNum = user->testNum, p;
-  PetscMPIInt    rank, numProcs;
+  PetscMPIInt    rank, size;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
-  ierr = MPI_Comm_size(comm, &numProcs);CHKERRQ(ierr);
-  switch (numProcs) {
+  ierr = MPI_Comm_size(comm, &size);CHKERRQ(ierr);
+  switch (size) {
   case 2:
     switch (rank) {
     case 0:
@@ -254,7 +254,7 @@ PetscErrorCode CreateSimplex_3D(MPI_Comm comm, AppCtx *user, DM *dm)
         double         coords[6] = {0.0, 0.0, -0.5,  0.0, -0.5, 0.0};
         PetscInt       markerPoints[8] = {1, 1, 2, 1, 3, 1, 4, 1};
 
-        ierr = DMPlexCreateFromCellListParallel(comm, user->dim, numCells, numVertices, numCorners, user->interpolate, cells, user->dim, coords, dm);CHKERRQ(ierr);
+        ierr = DMPlexCreateFromCellListParallel(comm, user->dim, numCells, numVertices, numCorners, user->interpolate, cells, user->dim, coords, NULL, dm);CHKERRQ(ierr);
         for (p = 0; p < 4; ++p) {ierr = DMSetLabelValue(*dm, "marker", markerPoints[p*2], markerPoints[p*2+1]);CHKERRQ(ierr);}
       }
       break;
@@ -268,14 +268,14 @@ PetscErrorCode CreateSimplex_3D(MPI_Comm comm, AppCtx *user, DM *dm)
       double         coords[9] = {1.0, 0.0, 0.0,  0.0, 0.5, 0.0,  0.0, 0.0, 0.5};
       PetscInt       markerPoints[8] = {1, 1, 2, 1, 3, 1, 4, 1};
 
-      ierr = DMPlexCreateFromCellListParallel(comm, user->dim, numCells, numVertices, numCorners, user->interpolate, cells, user->dim, coords, dm);CHKERRQ(ierr);
+      ierr = DMPlexCreateFromCellListParallel(comm, user->dim, numCells, numVertices, numCorners, user->interpolate, cells, user->dim, coords, NULL, dm);CHKERRQ(ierr);
       for (p = 0; p < 4; ++p) {ierr = DMSetLabelValue(*dm, "marker", markerPoints[p*2], markerPoints[p*2+1]);CHKERRQ(ierr);}
     }
     break;
     default: SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "No test mesh for rank %d", rank);
     }
     break;
-  default: SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "No test mesh for %d processes", numProcs);
+  default: SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "No test mesh for %d processes", size);
   }
   PetscFunctionReturn(0);
 }

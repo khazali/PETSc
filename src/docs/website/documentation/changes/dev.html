@@ -109,6 +109,9 @@
       <ul>
         <li>Changed IS_COLORING_GHOSTED to IS_COLORING_LOCAL to match convention.</li>
         <li>Added ISRenumber to renumber an IS into a contiguous set.</li>
+        <li>ISGlobalToLocalMappingType is now ISGlobalToLocalMappingMode.</li>
+        <li>Added ISGlobalToLocalMappingSetType() to change the algorithm used to apply the mapping. Choices are ISGLOBALTOLOCALMAPPINGBASIC (faster) or
+          ISGLOBALTOLOCALMAPPINGHASH (for large problems, much more scalable in memory usage)
       </ul>
       <h4>PetscDraw:</h4>
       <h4>PF:</h4>
@@ -158,6 +161,7 @@
       <h4>Fortran:</h4>
       <ul>
         <li>Simplified Fortran usage. Now you only include petsc/finclude/petscXXX and use petscXXX</li>
+        <li>SETERRQ() from Fortran has one fewer argument, there is no ierr as the final argument</li>
     </div>
 
     <PRE>

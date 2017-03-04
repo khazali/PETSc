@@ -23,3 +23,13 @@ int main(int argc,char **argv)
   return ierr;
 }
 
+
+
+/*TEST
+
+ # Testing errors so only look for errors
+   test:
+      filter: egrep "(PETSC ERROR)" | egrep "(main|CreateError|Error Created)" | cut -f1,2,3,4,5,6 -d" "
+
+
+TEST*/

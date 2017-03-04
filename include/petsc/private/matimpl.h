@@ -115,7 +115,7 @@ struct _MatOps {
   PetscErrorCode (*getrowmaxabs)(Mat,Vec,PetscInt[]);
   PetscErrorCode (*getrowminabs)(Mat,Vec,PetscInt[]);
   PetscErrorCode (*convert)(Mat, MatType,MatReuse,Mat*);
-  PetscErrorCode (*dummy72)(void);
+  PetscErrorCode (*hasoperation)(Mat,MatOperation,PetscBool*);
   PetscErrorCode (*placeholder_73)(Mat,void*);
   /*74*/
   PetscErrorCode (*setvaluesadifor)(Mat,PetscInt,void*);
@@ -597,6 +597,33 @@ typedef struct {
   PetscReal      rs;  /* active row sum of abs(offdiagonals) */
   PetscScalar    pv;  /* pivot of the active row */
 } FactorShiftCtx;
+
+/*
+ Used by MatGetSubMatrices_MPIXAIJ_Local()
+*/
+#include <petscctable.h>
+typedef struct { /* used by MatGetSubMatrices_MPIAIJ_SingleIS_Local() and MatGetSubMatrices_MPIAIJ_Local */
+  PetscInt   id;   /* index of submats, only submats[0] is responsible for deleting some arrays below */
+  PetscInt   nrqs,nrqr;
+  PetscInt   **rbuf1,**rbuf2,**rbuf3,**sbuf1,**sbuf2;
+  PetscInt   **ptr;
+  PetscInt   *tmp;
+  PetscInt   *ctr;
+  PetscInt   *pa; /* proc array */
+  PetscInt   *req_size,*req_source1,*req_source2;
+  PetscBool  allcolumns,allrows;
+  PetscBool  singleis;
+  PetscInt   *row2proc; /* row to proc map */
+  PetscInt   nstages;
+#if defined(PETSC_USE_CTABLE)
+  PetscTable cmap,rmap;
+  PetscInt   *cmap_loc,*rmap_loc;
+#else
+  PetscInt   *cmap,*rmap;
+#endif
+
+  PetscErrorCode (*destroy)(Mat);
+} Mat_SubMat;
 
 PETSC_EXTERN PetscErrorCode MatFactorDumpMatrix(Mat);
 PETSC_INTERN PetscErrorCode MatShift_Basic(Mat,PetscScalar);

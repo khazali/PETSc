@@ -921,6 +921,11 @@ runex4_4:
 	if (${DIFF} output/ex4_4.out ex4_1.tmp) then true; \
 	else printf "${PWD}\nPossible problem with ex4_4 for mpidense,np = 3,diffs above\n=========================================\n"; fi; \
 	${RM} -f ex4_1.tmp;
+runex4_5:
+	-@${MPIEXEC} -n 3 ./ex4 -mat_type aij -test_all > ex4_1.tmp 2>&1; \
+	if (${DIFF} output/ex4_5.out ex4_1.tmp) then true; \
+	else printf "${PWD}\nPossible problem with ex4_5 for mpiaij,np = 3,diffs above\n=========================================\n"; fi; \
+	${RM} -f ex4_1.tmp;
 
 runex5:
 	-@${MPIEXEC} -n 1 ./ex5 -mat_type seqaij -rectA > ex5_1.tmp 2>&1; \
@@ -1527,6 +1532,17 @@ runex54:
 	    done;\
 	done;
 
+runex54_2:
+	-@${MPIEXEC} -n 1 ./ex54 -nd 2 -test_nd0 > ex54.tmp 2>&1;   \
+	   if (${DIFF} output/ex54.out ex54.tmp) then true; \
+	   else printf "${PWD}\nPossible problem with ex54_2, diffs above\n=========================================\n"; fi; \
+	   ${RM} -f ex54.tmp
+runex54_3:
+	-@${MPIEXEC} -n 3 ./ex54 -nd 2 -test_nd0 > ex54.tmp 2>&1;   \
+	   if (${DIFF} output/ex54.out ex54.tmp) then true; \
+	   else printf "${PWD}\nPossible problem with ex54_3, diffs above\n=========================================\n"; fi; \
+	   ${RM} -f ex54.tmp
+
 runex55:
 	-@${MPIEXEC} -n 1  ./ex55  > ex55_1.tmp 2>&1;   \
 	   if (${DIFF} output/ex55_1.out ex55_1.tmp) then true; \
@@ -1769,6 +1785,19 @@ runex92_3:
 	else printf "${PWD}\nPossible problem with ex92_3, -n $$np ./ex92 -ov  $$ov -mat_block_size $$bs -test_overlap -test_allcols, diffs above\n=========================================\n"; fi; \
 	${RM} -f ex92_1.tmp
 
+runex92_3_sorted:
+	-@touch ex92_1.tmp;\
+	for np in ${NPROCS}; do \
+	  for ov in ${OVERLAP}; do \
+            for bs in ${BS}; do \
+	      ${MPIEXEC} -n $$np  ./ex92 -ov $$ov -mat_block_size $$bs -test_overlap -test_allcols -test_sorted >> ex92_1.tmp 2>&1; \
+	    done; \
+	  done; \
+	done; \
+	if (${DIFF} output/ex92_1.out ex92_1.tmp) then true; \
+	else printf "${PWD}\nPossible problem with ex92_3_sorted, -n $$np ./ex92 -ov  $$ov -mat_block_size $$bs -test_overlap -test_allcols -test_unsorted, diffs above\n=========================================\n"; fi; \
+	${RM} -f ex92_1.tmp
+
 runex92_4:
 	-@touch ex92_1.tmp;\
 	for np in ${NPROCS}; do \
@@ -1788,32 +1817,32 @@ runex93:
 	   else printf "${PWD}\nPossible problem with ex93_1, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex93_1.tmp
 runex93_scalable:
-	-@${MPIEXEC} -n 1 ./ex93 -matmatmult_via scalable > ex93_1.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex93 -B_matmatmult_via scalable > ex93_1.tmp 2>&1; \
 	   if (${DIFF} output/ex93_1.out ex93_1.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex93_scalable, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex93_1.tmp
 runex93_scalable_fast:
-	-@${MPIEXEC} -n 1 ./ex93 -matmatmult_via scalable_fast > ex93_1.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex93 -B_matmatmult_via scalable_fast > ex93_1.tmp 2>&1; \
 	   if (${DIFF} output/ex93_1.out ex93_1.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex93_scalable_fast, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex93_1.tmp
 runex93_heap:
-	-@${MPIEXEC} -n 1 ./ex93 -matmatmult_via heap> ex93_1.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex93 -B_matmatmult_via heap> ex93_1.tmp 2>&1; \
 	   if (${DIFF} output/ex93_1.out ex93_1.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex93_heap, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex93_1.tmp
 runex93_btheap:
-	-@${MPIEXEC} -n 1 ./ex93 -matmatmult_via btheap> ex93_1.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex93 -B_matmatmult_via btheap> ex93_1.tmp 2>&1; \
 	   if (${DIFF} output/ex93_1.out ex93_1.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex93_btheap, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex93_1.tmp
 runex93_llcondensed:
-	-@${MPIEXEC} -n 1 ./ex93 -matmatmult_via llcondensed > ex93_1.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex93 -B_matmatmult_via llcondensed > ex93_1.tmp 2>&1; \
 	   if (${DIFF} output/ex93_1.out ex93_1.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex93_llcondensed, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex93_1.tmp
 runex93_2:
-	-@${MPIEXEC} -n 2 ./ex93 -matmatmult_via nonscalable > ex93_1.tmp 2>&1; \
+	-@${MPIEXEC} -n 2 ./ex93 -B_matmatmult_via nonscalable > ex93_1.tmp 2>&1; \
 	   if (${DIFF} output/ex93_2.out ex93_1.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex93_2, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex93_1.tmp
@@ -1826,6 +1855,11 @@ runex93_ptap:
 	-@${MPIEXEC} -n 2 ./ex93 -matrap false > ex93_1.tmp 2>&1; \
 	   if (${DIFF} output/ex93_2.out ex93_1.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex93_ptap, diffs above\n=========================================\n"; fi; \
+	   ${RM} -f ex93_1.tmp
+runex93_hypre:
+	-@${MPIEXEC} -n 3 ./ex93 -B_matmatmult_via hypre -A_matptap_via hypre -test_hypre > ex93_1.tmp 2>&1; \
+	   if (${DIFF} output/ex93_hypre.out ex93_1.tmp) then true; \
+	   else printf "${PWD}\nPossible problem with ex93_hypre, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex93_1.tmp
 
 # See http://www.mcs.anl.gov/petsc/documentation/faq.html#datafiles for how to obtain the datafiles used below
@@ -2509,28 +2543,28 @@ runex180:
 	   ${DIFF} output/ex180_1.out ex180.tmp || printf "${PWD}\nPossible problem with ex180, diffs above\n=========================================\n"; \
 	   ${RM} -f ex180.tmp
 
-runex183_2_1:
+runex183:
 	-@${MPIEXEC} -n 2 ./ex183  -total_subdomains 1 > ex183.tmp 2>&1; \
-	   ${DIFF} output/ex183_2_1.out ex183.tmp || printf "${PWD}\nPossible problem with ex183_2_1, diffs above\n=========================================\n"; \
+	   ${DIFF} output/ex183_2_1.out ex183.tmp || printf "${PWD}\nPossible problem with ex183, diffs above\n=========================================\n"; \
 	   ${RM} -f ex183.tmp
 
-runex183_3_2:
+runex183_2:
 	-@${MPIEXEC} -n 3 ./ex183  -total_subdomains 2 > ex183.tmp 2>&1; \
-	   ${DIFF} output/ex183_3_2.out ex183.tmp || printf "${PWD}\nPossible problem with ex183_3_2, diffs above\n=========================================\n"; \
+	   ${DIFF} output/ex183_3_2.out ex183.tmp || printf "${PWD}\nPossible problem with ex183_2, diffs above\n=========================================\n"; \
 	   ${RM} -f ex183.tmp
 
-runex183_4_2:
+runex183_3:
 	-@${MPIEXEC} -n 4 ./ex183  -total_subdomains 2 > ex183.tmp 2>&1; \
-	   ${DIFF} output/ex183_4_2.out ex183.tmp || printf "${PWD}\nPossible problem with ex183_4_2, diffs above\n=========================================\n"; \
+	   ${DIFF} output/ex183_4_2.out ex183.tmp || printf "${PWD}\nPossible problem with ex183_3, diffs above\n=========================================\n"; \
 	   ${RM} -f ex183.tmp
 
-runex183_6_2:
+runex183_4:
 	-@${MPIEXEC} -n 6 ./ex183  -total_subdomains 2 > ex183.tmp 2>&1; \
-	   ${DIFF} output/ex183_6_2.out ex183.tmp || printf "${PWD}\nPossible problem with ex183_6_2, diffs above\n=========================================\n"; \
+	   ${DIFF} output/ex183_6_2.out ex183.tmp || printf "${PWD}\nPossible problem with ex183_4, diffs above\n=========================================\n"; \
 	   ${RM} -f ex183.tmp
 
 runex300:
-	-@${MPIEXEC} -n 2 ./ex300   > ex300.tmp 2>&1; \
+	-@${MPIEXEC} -n 2 ./ex300 > ex300.tmp 2>&1; \
 	   ${DIFF} output/ex300_1.out ex300.tmp || printf "${PWD}\nPossible problem with ex300, diffs above\n=========================================\n"; \
 	   ${RM} -f ex300.tmp
 
@@ -2570,7 +2604,7 @@ runex172_mpisbaij:
 	   ${DIFF} output/ex172.out ex172.tmp || printf "${PWD}\nPossible problem with ex172_mpisbaij, diffs above\n=========================================\n"; \
 	   ${RM} -f ex172.tmp
 runex173:
-	-@${MPIEXEC} -n 1 ./ex173 -f0 ${wPETSC_DIR}/share/petsc/datafiles/matrices/ns-real-int32-float64 > ex173.tmp 3>&1; \
+	-@${MPIEXEC} -n 1 ./ex173 -f0 ${wPETSC_DIR}/share/petsc/datafiles/matrices/ns-real-int32-float64 > ex173.tmp 2>&1; \
 	   ${DIFF} output/ex173_1.out ex173.tmp || printf "${PWD}\nPossible problem with ex173, diffs above\n=========================================\n"; \
 	   ${RM} -f ex173.tmp
 
@@ -2844,7 +2878,8 @@ runex206_sbaij_2_1_d:
 	   ${DIFF} output/ex206_sbaij_2_1_d.out ex206.tmp || printf "${PWD}\nPossible problem with ex206_sbaij_2_1_d, diffs above\n=========================================\n"; \
 	   ${RM} -f ex206.tmp
 
-TESTEXAMPLES_C		       = ex1.PETSc runex1 ex1.rm ex2.PETSc runex2 runex2_2 runex2_3 runex2_4 ex2.rm ex3.PETSc runex3 ex3.rm ex4.PETSc runex4 runex4_2 runex4_3 runex4_4 ex4.rm  ex5.PETSc runex5 runex5_2 ex5.rm \
+TESTEXAMPLES_C		       = ex1.PETSc runex1 ex1.rm ex2.PETSc runex2 runex2_2 runex2_3 runex2_4 ex2.rm ex3.PETSc runex3 ex3.rm \
+                                 ex4.PETSc runex4 runex4_2 runex4_3 runex4_4 runex4_5 ex4.rm ex5.PETSc runex5 runex5_2 ex5.rm \
                                  ex6.PETSc runex6 ex6.rm ex7.PETSc runex7 ex7.rm ex8.PETSc runex8 ex8.rm \
                                  ex9.PETSc runex9 runex9_2 runex9_3 runex9_3_baij runex9_3_sbaij runex9_4_baij runex9_4_sbaij ex9.rm \
                                  ex10.PETSc runex10 ex10.rm ex11.PETSc runex11 runex11_2 runex11_3 runex11_4 ex11.rm ex14.PETSc \
@@ -2862,7 +2897,7 @@ TESTEXAMPLES_C		       = ex1.PETSc runex1 ex1.rm ex2.PETSc runex2 runex2_2 runex
                                  ex65.rm ex66.PETSc ex66.rm ex68.PETSc runex68 ex68.rm ex98.PETSc runex98 ex98.rm ex102.PETSc runex102_1 runex102_2 runex102_3 ex102.rm\
                                  ex52.PETSc runex52_1 runex52_2 runex52_3 runex52_4 ex52.rm \
                                  ex86.PETSc runex86 runex86_2 runex86_3 ex86.rm printdot \
-                                 ex88.PETSc runex88 ex88.rm ex92.PETSc runex92 runex92_2 runex92_3 runex92_4 ex92.rm \
+                                 ex88.PETSc runex88 ex88.rm ex92.PETSc runex92 runex92_2 runex92_3 runex92_3_sorted runex92_4 ex92.rm \
                                  ex93.PETSc runex93 runex93_scalable runex93_scalable_fast runex93_heap runex93_btheap runex93_llcondensed \
                                  runex93_2 runex93_rap runex93_ptap ex93.rm \
                                  ex97.PETSc runex97 ex97.rm ex104.PETSc runex104 runex104_2 ex104.rm \
@@ -2877,7 +2912,7 @@ TESTEXAMPLES_C		       = ex1.PETSc runex1 ex1.rm ex2.PETSc runex2 runex2_2 runex
                                  ex160.PETSc runex160 ex160.rm ex161.PETSc runex161 runex161_2 runex161_3 runex161_4 runex161_5 ex161.rm \
                                  ex164.PETSc runex164 ex164.rm ex172.PETSc runex172 runex172_2 runex172_3 runex172_4 \
                                  runex172_baij runex172_mpibaij runex172_sbaij runex172_mpisbaij ex172.rm ex181.PETSc runex181 runex181_2 ex181.rm\
-                                 ex183.PETSc runex183_2_1 runex183_3_2 runex183_4_2 runex183_6_2 ex183.rm ex300.PETSc runex300 ex300.rm\
+                                 ex183.PETSc runex183 runex183_2 runex183_3 runex183_4 ex183.rm ex300.PETSc runex300 ex300.rm\
                                  ex191.PETSc runex191 ex191.rm ex194.PETSc runex194 ex194.rm  ex101.PETSc runex101 ex101.rm \
                                  ex12.PETSc runex12 runex12_2 runex12_3 runex12_4 ex12.rm ex13.PETSc runex13 ex13.rm \
                                  ex17.PETSc runex17 ex17.rm ex24.PETSc ex24.rm ex25.PETSc \
@@ -2887,7 +2922,7 @@ TESTEXAMPLES_C		       = ex1.PETSc runex1 ex1.rm ex2.PETSc runex2 runex2_2 runex
                                  ex35.rm ex37.PETSc runex37 runex37_2 runex37_3 runex37_4 runex37_5 runex37_6 ex37.rm \
                                  ex38.PETSc ex38.rm ex43.PETSc ex43.rm ex48.PETSc \
                                  runex48 ex48.rm ex49.PETSc ex49.rm ex51.PETSc runex51 ex51.rm ex52.PETSc ex52.rm \
-                                 ex54.PETSc runex54 ex54.rm ex56.PETSc runex56 runex56_4 runex56_5 \
+                                 ex54.PETSc runex54 runex54_2 runex54_3 ex54.rm ex56.PETSc runex56 runex56_4 runex56_5 \
                                  ex56.rm ex74.PETSc runex74 ex74.rm ex75.PETSc runex75 ex75.rm ex76.PETSc runex76 \
                                  runex76_3 ex76.rm ex77.PETSc  ex77.rm ex94.PETSc ex94.rm \
                                  ex96.PETSc runex96 ex96.rm ex95.PETSc runex95 runex95_2 ex95.rm ex200.PETSc runex200 ex200.rm \
@@ -2932,7 +2967,7 @@ TESTEXAMPLES_13		       = ex58f.PETSc ex58f.rm ex70.PETSc ex70.rm
 TESTEXAMPLES_PARMETIS	       = ex73.PETSc ex73.rm
 TESTEXAMPLES_PARMETIS_DATAFILESPATH = ex152.PETSc runex152 runex152_2 ex152.rm
 TESTEXAMPLES_FFTW              = ex142.PETSc runex142 ex142.rm ex144.PETSc runex144 runex144_2 ex144.rm \
-                                 ex148.PETsc runex148 runex148_2 ex148.rm ex158.PETsc runex158 runex158_2 ex158.rm
+                                 ex148.PETSc runex148 runex148_2 ex148.rm ex158.PETSc runex158 runex158_2 ex158.rm
 TESTEXAMPLES_FFTW_COMPLEX       = ex112.PETSc runex112 runex112_3 runex112_4 ex112.rm ex121.PETSc ex121.rm \
                                  ex143.PETSc runex143 runex143_2 ex143.rm
 TESTEXAMPLES_C_COMPLEX	       = ex120.PETSc runex120 runex120_2 runex120_3 runex120_4 ex120.rm printdot \
@@ -2951,9 +2986,9 @@ TESTEXAMPLES_MKL_PARDISO       = ex125.PETSc runex125_mkl_pardiso ex125.rm \
                                  ex192.PETSc runex192_mkl_pardiso ex192.rm
 TESTEXAMPLES_SUPERLU_DIST_DATAFILESPATH = ex125.PETSc runex125_superlu_dist runex125_superlu_dist_2 ex125.rm
 TESTEXAMPLES_SUPERLU_DIST_COMPLEX_DATAFILESPATH = ex125.PETSc runex125_superlu_dist_complex ex125.rm
-TESTEXAMPLES_F90               = ex196f90.PETSc ex196f90.rm
+TESTEXAMPLES_F90               = ex196f90.PETSc ex196f90.rm ex16f90.PETSc runex16f90 ex16f90.rm
 TESTEXAMPLES_VECCUDA           = ex2.PETSc runex2_aijcusparse runex2_2_aijcusparse runex2_3_aijcusparse ex2.rm \
                                  ex5.PETSc runex5_aijcusparse runex5_2_aijcusparse runex5_3_aijcusparse ex5.rm
-TESTEXAMPLES_HYPRE             = ex115.PETSc runex115_1 runex115_2 runex115_3 runex115_4 runex115_5 ex115.rm
+TESTEXAMPLES_HYPRE             = ex93.PETSc runex93_hypre ex93.rm ex115.PETSc runex115_1 runex115_2 runex115_3 runex115_4 runex115_5 ex115.rm
 
 include ${PETSC_DIR}/lib/petsc/conf/test

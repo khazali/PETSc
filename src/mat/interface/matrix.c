@@ -94,7 +94,7 @@ PetscErrorCode MatSetRandom(Mat x,PetscRandom rctx)
 }
 
 /*@
-   MatFactorGetErrorZeroPivot - returns the pivot value that was determined to be zero and the row it occurred in 
+   MatFactorGetErrorZeroPivot - returns the pivot value that was determined to be zero and the row it occurred in
 
    Logically Collective on Mat
 
@@ -104,7 +104,7 @@ PetscErrorCode MatSetRandom(Mat x,PetscRandom rctx)
    Output Parameter:
 +  pivot - the pivot value computed
 -  row - the row that the zero pivot occurred. Note that this row must be interpreted carefully due to row reorderings and which processes
-         the share the matrix 
+         the share the matrix
 
    Level: advanced
 
@@ -425,14 +425,14 @@ PetscErrorCode MatImaginaryPart(Mat mat)
 /*@
    MatMissingDiagonal - Determine if sparse matrix is missing a diagonal entry (or block entry for BAIJ matrices)
 
-   Collective on Mat
+   Not Collective
 
    Input Parameter:
 .  mat - the matrix
 
    Output Parameters:
 +  missing - is any diagonal missing
--  dd - first diagonal entry that is missing (optional)
+-  dd - first diagonal entry that is missing (optional) on this process
 
    Level: advanced
 
@@ -4871,7 +4871,7 @@ PetscErrorCode MatEqual(Mat A,Mat B,PetscBool  *flg)
   PetscFunctionReturn(0);
 }
 
-/*@
+/*@C
    MatDiagonalScale - Scales a matrix on the left and right by diagonal
    matrices that are stored as vectors.  Either of the two scaling
    matrices can be NULL.
@@ -10306,21 +10306,11 @@ PetscErrorCode MatGetNonzeroState(Mat mat,PetscObjectState *state)
 PetscErrorCode MatCreateMPIMatConcatenateSeqMat(MPI_Comm comm,Mat seqmat,PetscInt n,MatReuse reuse,Mat *mpimat)
 {
   PetscErrorCode ierr;
-  PetscMPIInt    size;
 
   PetscFunctionBegin;
-  ierr = MPI_Comm_size(comm,&size);CHKERRQ(ierr);
-  if (size == 1) {
-    if (reuse == MAT_INITIAL_MATRIX) {
-      ierr = MatDuplicate(seqmat,MAT_COPY_VALUES,mpimat);CHKERRQ(ierr);
-    } else {
-      if (*mpimat == seqmat) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"MAT_REUSE_MATRIX means reuse the matrix passed in as the final argument, not the original matrix");
-      ierr = MatCopy(seqmat,*mpimat,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
-    }
-    PetscFunctionReturn(0);
-  }
-
   if (!seqmat->ops->creatempimatconcatenateseqmat) SETERRQ1(PetscObjectComm((PetscObject)seqmat),PETSC_ERR_SUP,"Mat type %s",((PetscObject)seqmat)->type_name);
+  if (reuse == MAT_REUSE_MATRIX && seqmat == *mpimat) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"MAT_REUSE_MATRIX means reuse the matrix passed in as the final argument, not the original matrix");
+
   ierr = PetscLogEventBegin(MAT_Merge,seqmat,0,0,0);CHKERRQ(ierr);
   ierr = (*seqmat->ops->creatempimatconcatenateseqmat)(comm,seqmat,n,reuse,mpimat);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(MAT_Merge,seqmat,0,0,0);CHKERRQ(ierr);
