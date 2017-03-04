@@ -1,6 +1,6 @@
 /* M. Adams, August 2016 */
 
-static char help[] = "X2: A partical in cell code for slab plasmas using PICell.\n";
+static char help[] = "A partical in cell salb code using PICell.\n";
 
 #ifdef H5PART
 #include <H5Part.h>

@@ -1,6 +1,6 @@
 /* M. Adams, April 2015 */
 
-static char help[] = "X2: A partical in cell code for tokamak plasmas using PICell.\n";
+static char help[] = "A partical in cell code for tokamak plasmas using PICell with flux tube particle partitions.\n";
 
 #ifdef H5PART
 #include <H5Part.h>

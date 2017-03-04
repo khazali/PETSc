@@ -1,6 +1,6 @@
 /* M. Adams, Oct 2016 */
 
-static char help[] = "Magnetohydrodynamics with partical-in-cell for tokamak plasmas using PICell (X3).\n";
+static char help[] = "Magnetohydrodynamics with partical-in-cell for tokamak plasmas using PICell.\n";
 
 #ifdef H5PART
 #include <H5Part.h>
