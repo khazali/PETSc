@@ -158,34 +158,10 @@ PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
 #define __FUNCT__ "ConvertPlex"
 static PetscErrorCode ConvertPlex(DM dm, DM *plex, PetscBool copy)
 {
-  PetscBool      isPlex;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscObjectTypeCompare((PetscObject) dm, DMPLEX, &isPlex);CHKERRQ(ierr);
-  if (isPlex) {
-    *plex = dm;
-    ierr = PetscObjectReference((PetscObject) dm);CHKERRQ(ierr);
-  } else {
-    ierr = PetscObjectQuery((PetscObject) dm, "dm_plex", (PetscObject *) plex);CHKERRQ(ierr);
-    if (!*plex) {
-      ierr = DMConvert(dm,DMPLEX,plex);CHKERRQ(ierr);
-      ierr = PetscObjectCompose((PetscObject) dm, "dm_plex", (PetscObject) *plex);CHKERRQ(ierr);
-      if (copy) {
-        PetscInt    i;
-        PetscObject obj;
-        const char *comps[3] = {"A","dmAux","dmCh"};
-
-        ierr = DMCopyDMSNES(dm, *plex);CHKERRQ(ierr);
-        for (i = 0; i < 3; i++) {
-          ierr = PetscObjectQuery((PetscObject) dm, comps[i], &obj);CHKERRQ(ierr);
-          ierr = PetscObjectCompose((PetscObject) *plex, comps[i], obj);CHKERRQ(ierr);
-        }
-      }
-    } else {
-      ierr = PetscObjectReference((PetscObject) *plex);CHKERRQ(ierr);
-    }
-  }
+  ierr = DMConvert(dm, DMPLEX, plex);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
