@@ -281,7 +281,16 @@ static PetscErrorCode PostStep(TS ts)
     ierr = DMPlexComputeIntegralFEM(plex,X,tt,ctx);CHKERRQ(ierr);
     den = tt[0];
     ierr = DMDestroy(&plex);CHKERRQ(ierr);
-    PetscPrintf(PETSC_COMM_WORLD, "%D) total perturbed mass = %g\n", stepi, den);CHKERRQ(ierr);
+    PetscPrintf(PetscObjectComm((PetscObject)dm), "%D) total perturbed mass = %g\n", stepi, den);CHKERRQ(ierr);
+  }
+  /* print matlab solution */
+  if (ctx->debug>1) {
+    ierr = PetscSNPrintf(buf, 256, "%s-%dD-%05d.m", prefix, ctx->dim, stepi);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIOpen(PetscObjectComm((PetscObject)dm), buf, &viewer);CHKERRQ(ierr);
+    ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+    ierr = VecView(X,viewer);CHKERRQ(ierr);
+    ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
+    ierr = PetscViewerDestroy(&viewer);
   }
   PetscFunctionReturn(0);
 }
@@ -343,11 +352,11 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     for (d = 0; d < dimEmbed; ++d) L[d] = user->domain_hi[d] - user->domain_lo[d];
     ierr = DMGetCoordinatesLocal(*dm, &coordinates);CHKERRQ(ierr);
     ierr = VecGetLocalSize(coordinates, &nCoords);CHKERRQ(ierr);
-    if (nCoords % dimEmbed) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Dimension %D does not divide the coordinate vector size %D", dimEmbed, nCoords);CHKERRQ(ierr);
+    if (nCoords % dimEmbed) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Dimension %D does not divide the coordinate vector size %D", dimEmbed, nCoords);
     ierr = VecGetArray(coordinates, &coords);CHKERRQ(ierr);
     for (n = 0; n < nCoords; n += dimEmbed) {
       PetscScalar *coord = &coords[n];
-      /* for (d = 0; d < dimEmbed; ++d) coord[d] = user->domain_lo[d] + coord[d] * L[d]; */
+      for (d = 0; d < dimEmbed; ++d) coord[d] = user->domain_lo[d] + (coord[d]+1.) * L[d] / 2.0;
     }
     ierr = VecRestoreArray(coordinates, &coords);CHKERRQ(ierr);
   }
@@ -556,7 +565,7 @@ int main(int argc, char **argv)
   ierr = SetupDiscretization(dm, &ctx);CHKERRQ(ierr);
 
   ierr = DMCreateGlobalVector(dm, &u);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) u, "mhd-");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) u, "u");CHKERRQ(ierr);
   ierr = VecDuplicate(u, &r);CHKERRQ(ierr);
 
   ierr = TSCreate(PETSC_COMM_WORLD, &ts);CHKERRQ(ierr);
@@ -615,7 +624,21 @@ int main(int argc, char **argv)
     }
   }
 #endif
-
+  /* print matlab coordinates */
+  if (ctx.debug>1) {
+    Vec               X;
+    PetscViewer       viewer = NULL;
+    char              buf[256];
+    ierr = DMGetCoordinates(dm, &X);CHKERRQ(ierr);
+    ierr = PetscSNPrintf(buf, 256, "X%dD.m", ctx.dim);CHKERRQ(ierr);
+    /* ierr = PetscObjectSetName((PetscObject)X,buf);CHKERRQ(ierr); */
+    /* ierr = VecView(X,PETSC_VIEWER_MATLAB_WORLD);CHKERRQ(ierr); */
+    ierr = PetscViewerASCIIOpen(PetscObjectComm((PetscObject)dm), buf, &viewer);CHKERRQ(ierr);
+    ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+    ierr = VecView(X,viewer);CHKERRQ(ierr);
+    ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
+    ierr = PetscViewerDestroy(&viewer);
+  }
   ierr = VecDestroy(&u);CHKERRQ(ierr);
   ierr = VecDestroy(&r);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
@@ -629,9 +652,9 @@ int main(int argc, char **argv)
 
   test:
     suffix: 0
-    args: -debug 1 -dim 2 -dm_refine 1 -x_periodicity PERIODIC -ts_max_steps 1 -ts_final_time 10. -ts_dt 1.0 -x_periodicity PERIODIC
+    args: -debug 1 -dim 2 -dm_refine 1 -x_periodicity PERIODIC -ts_max_steps 1 -ts_final_time 10. -ts_dt 1.0
   test:
     suffix: 0
-    args: -debug 1 -dim 3 -dm_refine 1 -z_periodicity PERIODIC -ts_max_steps 1 -ts_final_time 10. -ts_dt 1.0 -z_periodicity PERIODIC
+    args: -debug 1 -dim 3 -dm_refine 1 -z_periodicity PERIODIC -ts_max_steps 1 -ts_final_time 10. -ts_dt 1.0 -domain_lo -2,-1,-1 -domain_hi 2,1,1
 
 TEST*/
