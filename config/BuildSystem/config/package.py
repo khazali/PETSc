@@ -485,9 +485,11 @@ class Package(config.base.Configure):
     gcommfileSaved = os.path.join(self.confDir,'lib','petsc','conf', 'pkg.gitcommit.'+self.package)
     if not os.path.isfile(makefileSaved) or not (self.getChecksum(makefileSaved) == self.getChecksum(makefile)):
       self.log.write('Have to rebuild '+self.PACKAGE+', '+makefile+' != '+makefileSaved+'\n')
+      self.cleanGitDir()
       return 1
     if os.path.isfile(gcommfile) and (not os.path.isfile(gcommfileSaved) or not (self.getChecksum(gcommfileSaved) == self.getChecksum(gcommfile))):
       self.log.write('Have to rebuild '+self.PACKAGE+', '+gcommfile+' != '+gcommfileSaved+'\n')
+      self.cleanGitDir()
       return 1
     self.log.write('Do not need to rebuild '+self.PACKAGE+'\n')
     return 0
@@ -528,7 +530,7 @@ class Package(config.base.Configure):
         config.base.Configure.executeShellCommand([self.sourceControl.hg, 'update', '-c', self.hghash], cwd=self.packageDir, log = self.log)
 
   def updateGitDir(self):
-    '''Checkout the correct gitcommit for the gitdir - and update pkg.gitcommit'''
+    '''Update git repo with a fetch - and make sure the correct gitcommit exists in the gitdir - and update pkg.gitcommit'''
     if hasattr(self.sourceControl, 'git') and (self.packageDir == os.path.join(self.externalPackagesDir,'git.'+self.package)):
       # verify that packageDir is actually a git clone
       if not os.path.isdir(os.path.join(self.packageDir,'.git')):
@@ -555,6 +557,16 @@ class Package(config.base.Configure):
         gitcommit_hash,err,ret = config.base.Configure.executeShellCommand([self.sourceControl.git, 'rev-parse', self.gitcommit], cwd=self.packageDir, log = self.log)
       except:
         raise RuntimeError('Unable to locate commit: '+self.gitcommit+' in repository: '+self.packageDir+'.\n If its a remote branch- use: origin/'+self.gitcommit)
+      # write a commit-tag file
+      fd = open(os.path.join(self.packageDir,'pkg.gitcommit'),'w')
+      fd.write(gitcommit_hash)
+      fd.close()
+      self.gitcommit_hash = gitcommit_hash
+    return
+
+  def cleanGitDir(self):
+    '''clean the repo for a new build with the correct gitcommit checkedout'''
+    if hasattr(self, 'gitcommit_hash'): # all git repo checks are already done in updateGitDir() if this value is set.
       if self.gitcommit != 'HEAD':
         try:
           config.base.Configure.executeShellCommand([self.sourceControl.git, 'stash'], cwd=self.packageDir, log = self.log)
@@ -565,10 +577,6 @@ class Package(config.base.Configure):
           config.base.Configure.executeShellCommand([self.sourceControl.git, 'checkout', '-f', gitcommit_hash], cwd=self.packageDir, log = self.log)
         except:
           raise RuntimeError('Unable to checkout commit: '+self.gitcommit+' in repository: '+self.packageDir+'.\nPerhaps its a git error!')
-      # write a commit-tag file
-      fd = open(os.path.join(self.packageDir,'pkg.gitcommit'),'w')
-      fd.write(gitcommit_hash)
-      fd.close()
     return
 
   def getDir(self):
