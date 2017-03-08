@@ -13,6 +13,7 @@ class FakePETScDir:
     self.dir = 'UNKNOWN'
 
 class Package(config.base.Configure):
+  installedpetsc             = 0 # using a 'class variable' so that this flag set/used by any/all packages [pflotran/xsdktrilinos]
   def __init__(self, framework):
     config.base.Configure.__init__(self, framework)
     self.headerPrefix        = 'PETSC'
@@ -80,7 +81,6 @@ class Package(config.base.Configure):
     self.hastests               = 0 # indicates that PETSc make alltests has tests for this package
     self.hastestsdatafiles      = 0 # indicates that PETSc make all tests has tests for this package that require DATAFILESPATH to be set
     self.makerulename           = '' # some packages do too many things with the make stage; this allows a package to limit to, for example, just building the libraries
-    self.installedpetsc         = 0
     self.installwithbatch       = 0  # install the package even though configure is running in the initial batch mode; f2blaslapack and fblaslapack for example
     return
 
@@ -885,6 +885,9 @@ class Package(config.base.Configure):
       return True
 
   def compilePETSc(self):
+    if Package.installedpetsc:
+      self.logPrintBox('PETSc already installed; skipping rebuild')
+      return
     try:
       self.logPrintBox('Compiling PETSc; this may take several minutes')
       output,err,ret  = config.package.Package.executeShellCommand('cd '+self.petscdir.dir+' && '+self.make.make+' all PETSC_DIR='+self.petscdir.dir+' PETSC_ARCH='+self.arch,timeout=1000, log = self.log)
@@ -908,7 +911,8 @@ class Package(config.base.Configure):
           raise RuntimeError('Error running make test on PETSc: '+output)
       except RuntimeError, e:
         raise RuntimeError('Error running make test on PETSc: '+str(e))
-    self.installedpetsc = 1
+    Package.installedpetsc = 1
+    return
 
 
 '''
