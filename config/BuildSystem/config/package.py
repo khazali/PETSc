@@ -485,11 +485,11 @@ class Package(config.base.Configure):
     gcommfileSaved = os.path.join(self.confDir,'lib','petsc','conf', 'pkg.gitcommit.'+self.package)
     if not os.path.isfile(makefileSaved) or not (self.getChecksum(makefileSaved) == self.getChecksum(makefile)):
       self.log.write('Have to rebuild '+self.PACKAGE+', '+makefile+' != '+makefileSaved+'\n')
-      self.cleanGitDir()
+      self.cleanGitDir(makefile)
       return 1
     if os.path.isfile(gcommfile) and (not os.path.isfile(gcommfileSaved) or not (self.getChecksum(gcommfileSaved) == self.getChecksum(gcommfile))):
       self.log.write('Have to rebuild '+self.PACKAGE+', '+gcommfile+' != '+gcommfileSaved+'\n')
-      self.cleanGitDir()
+      self.cleanGitDir(makefile)
       return 1
     self.log.write('Do not need to rebuild '+self.PACKAGE+'\n')
     return 0
@@ -564,17 +564,17 @@ class Package(config.base.Configure):
       self.gitcommit_hash = gitcommit_hash
     return
 
-  def cleanGitDir(self):
+  def cleanGitDir(self,makefile):
     '''clean the repo for a new build with the correct gitcommit checkedout'''
     if hasattr(self, 'gitcommit_hash'): # all git repo checks are already done in updateGitDir() if this value is set.
       if self.gitcommit != 'HEAD':
         try:
           config.base.Configure.executeShellCommand([self.sourceControl.git, 'stash'], cwd=self.packageDir, log = self.log)
-          config.base.Configure.executeShellCommand([self.sourceControl.git, 'clean', '-f', '-d', '-x'], cwd=self.packageDir, log = self.log)
+          config.base.Configure.executeShellCommand([self.sourceControl.git, 'clean', '-f', '-d', '-x', '-e', 'pkg.gitcommit', '-e', os.path.basename(makefile)], cwd=self.packageDir, log = self.log)
         except:
           raise RuntimeError('Unable to run git stash/clean in repository: '+self.packageDir+'.\nPerhaps its a git error!')
         try:
-          config.base.Configure.executeShellCommand([self.sourceControl.git, 'checkout', '-f', gitcommit_hash], cwd=self.packageDir, log = self.log)
+          config.base.Configure.executeShellCommand([self.sourceControl.git, 'checkout', '-f', self.gitcommit_hash], cwd=self.packageDir, log = self.log)
         except:
           raise RuntimeError('Unable to checkout commit: '+self.gitcommit+' in repository: '+self.packageDir+'.\nPerhaps its a git error!')
     return
