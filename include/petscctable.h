@@ -9,6 +9,9 @@ struct _n_PetscTable {
   PetscInt tablesize;
   PetscInt head;
   PetscInt maxkey;   /* largest key allowed */
+#if defined(PETSC_USE_LOG)
+  Petsc64bitInt n_malloc,n_lookup,n_search;
+#endif
 };
 
 typedef struct _n_PetscTable* PetscTable;
@@ -149,6 +152,10 @@ PETSC_STATIC_INLINE PetscErrorCode  PetscTableFind(PetscTable ta,PetscInt key,Pe
     }
     hash = (hash + hashstep)%ta->tablesize;
   }
+#if defined(PETSC_USE_LOG)
+  ta->n_lookup++;
+  ta->n_search+=ii;
+#endif
   PetscFunctionReturn(0);
 }
 

@@ -70,6 +70,11 @@ PetscErrorCode  PetscTableCreate(const PetscInt n,PetscInt maxkey,PetscTable *rt
   ta->head   = 0;
   ta->count  = 0;
   ta->maxkey = maxkey;
+#if defined(PETSC_USE_LOG)
+  ta->n_malloc=0;
+  ta->n_lookup=0;
+  ta->n_search=0;
+#endif
   *rta       = ta;
   PetscFunctionReturn(0);
 }
@@ -102,6 +107,11 @@ PetscErrorCode  PetscTableCreateCopy(const PetscTable intable,PetscTable *rta)
   ta->head   = 0;
   ta->count  = intable->count;
   ta->maxkey = intable->maxkey;
+#if defined(PETSC_USE_LOG)
+  ta->n_malloc=0;
+  ta->n_lookup=0;
+  ta->n_search=0;
+#endif
   *rta       = ta;
   PetscFunctionReturn(0);
 }
@@ -118,6 +128,7 @@ PetscErrorCode  PetscTableDestroy(PetscTable *ta)
 
   PetscFunctionBegin;
   if (!*ta) PetscFunctionReturn(0);
+  ierr = PetscInfo6(NULL,"size=%D, count=%D, n_malloc=%ld nlookup=%ld n_search=%ld ratio=%g\n",(*ta)->tablesize,(*ta)->count,(*ta)->n_malloc,(*ta)->n_lookup,(*ta)->n_search,((double)(*ta)->n_search)/(*ta)->n_lookup);CHKERRQ(ierr);
   ierr = PetscFree((*ta)->keytable);CHKERRQ(ierr);
   ierr = PetscFree((*ta)->table);CHKERRQ(ierr);
   ierr = PetscFree(*ta);CHKERRQ(ierr);
@@ -177,7 +188,9 @@ PetscErrorCode  PetscTableAddExpand(PetscTable ta,PetscInt key,PetscInt data,Ins
     }
   }
   if (ta->count != tcount + 1) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_COR,"corrupted ta->count");
-
+#if defined(PETSC_USE_LOG)
+  ta->n_malloc++;
+#endif
   ierr = PetscFree(oldtab);CHKERRQ(ierr);
   ierr = PetscFree(oldkt);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -301,7 +314,9 @@ PetscErrorCode  PetscTableAddCountExpand(PetscTable ta,PetscInt key)
   }
   ierr = PetscTableAddCount(ta,key);CHKERRQ(ierr);
   if (ta->count != tcount + 1) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_COR,"corrupted ta->count");
-
+#if defined(PETSC_USE_LOG)
+  ta->n_malloc++;
+#endif
   ierr = PetscFree(oldtab);CHKERRQ(ierr);
   ierr = PetscFree(oldkt);CHKERRQ(ierr);
   PetscFunctionReturn(0);
