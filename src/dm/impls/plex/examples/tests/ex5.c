@@ -622,12 +622,12 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 {
   PetscInt       dim          = user->dim;
   PetscBool      cellSimplex  = user->cellSimplex, hasFaultB;
-  PetscMPIInt    rank, numProcs;
+  PetscMPIInt    rank, size;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
-  ierr = MPI_Comm_size(comm, &numProcs);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &size);CHKERRQ(ierr);
   ierr = DMCreate(comm, dm);CHKERRQ(ierr);
   ierr = DMSetType(*dm, DMPLEX);CHKERRQ(ierr);
   ierr = DMSetDimension(*dm, dim);CHKERRQ(ierr);
@@ -679,13 +679,13 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     ierr = DMDestroy(dm);CHKERRQ(ierr);
     *dm  = dmHybrid;
   }
-  if (user->testPartition && numProcs > 1) {
+  if (user->testPartition && size > 1) {
     PetscPartitioner part;
-    const PetscInt  *sizes  = NULL;
-    const PetscInt  *points = NULL;
+    PetscInt *sizes  = NULL;
+    PetscInt *points = NULL;
 
     if (!rank) {
-      if (dim == 2 && cellSimplex && numProcs == 2) {
+      if (dim == 2 && cellSimplex && size == 2) {
         switch (user->testNum) {
         case 0: {
           PetscInt triSizes_p2[2]  = {1, 2};
@@ -697,7 +697,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
         default:
           SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_ARG_WRONG, "Could not find matching test number %d for triangular mesh on 2 procs", user->testNum);
         }
-      } else if (dim == 2 && !cellSimplex && numProcs == 2) {
+      } else if (dim == 2 && !cellSimplex && size == 2) {
         switch (user->testNum) {
         case 0: {
           PetscInt quadSizes_p2[2]  = {1, 2};
@@ -709,7 +709,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
         default:
           SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_ARG_WRONG, "Could not find matching test number %d for triangular mesh on 2 procs", user->testNum);
         }
-      } else if (dim == 3 && cellSimplex && numProcs == 2) {
+      } else if (dim == 3 && cellSimplex && size == 2) {
         switch (user->testNum) {
         case 0: {
           PetscInt tetSizes_p2[2]  = {1, 2};
@@ -721,7 +721,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
         default:
           SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_ARG_WRONG, "Could not find matching test number %d for triangular mesh on 2 procs", user->testNum);
         }
-      } else if (dim == 3 && !cellSimplex && numProcs == 2) {
+      } else if (dim == 3 && !cellSimplex && size == 2) {
         switch (user->testNum) {
         case 0: {
           PetscInt hexSizes_p2[2]  = {1, 2};
@@ -737,7 +737,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     }
     ierr = DMPlexGetPartitioner(*dm, &part);CHKERRQ(ierr);
     ierr = PetscPartitionerSetType(part, PETSCPARTITIONERSHELL);CHKERRQ(ierr);
-    ierr = PetscPartitionerShellSetPartition(part, numProcs, sizes, points);CHKERRQ(ierr);
+    ierr = PetscPartitionerShellSetPartition(part, size, sizes, points);CHKERRQ(ierr);
     ierr = PetscFree2(sizes, points);CHKERRQ(ierr);
   }
   {
@@ -774,3 +774,55 @@ int main(int argc, char **argv)
   ierr = PetscFinalize();
   return ierr;
 }
+
+/*TEST
+  # 2D Simplex 0-1
+  test:
+    suffix: 0
+    args: -dim 2 -dm_view ::ascii_info_detail
+  test:
+    suffix: 1
+    nsize: 2
+    args: -dim 2 -dm_view ::ascii_info_detail
+  # 2D Quads 2-3
+  test:
+    suffix: 2
+    args: -dim 2 -cell_simplex 0 -dm_view ::ascii_info_detail
+  test:
+    suffix: 3
+    nsize: 2
+    args: -dim 2 -cell_simplex 0 -dm_view ::ascii_info_detail
+  # 3D Simplex 4-5
+  test:
+    suffix: 4
+    args: -dim 3 -dm_view ::ascii_info_detail
+  test:
+    suffix: 5
+    nsize: 2
+    args: -dim 3 -dm_view ::ascii_info_detail
+  # 3D Hex 6-7
+  test:
+    suffix: 6
+    args: -dim 3 -cell_simplex 0 -dm_view ::ascii_info_detail
+  test:
+    suffix: 7
+    nsize: 2
+    args: -dim 3 -cell_simplex 0 -dm_view ::ascii_info_detail
+  # Examples from PyLith 8-12
+  test:
+    suffix: 8
+    args: -dim 2 -test_num 1 -dm_view ::ascii_info_detail
+  test:
+    suffix: 9
+    args: -dim 3 -test_num 1 -dm_view ::ascii_info_detail
+  test:
+    suffix: 10
+    args: -dim 3 -cell_simplex 0 -test_num 1 -dm_view ::ascii_info_detail
+  test:
+    suffix: 11
+    args: -dim 2 -cell_simplex 0 -test_num 1 -dm_view ::ascii_info_detail
+  test:
+    suffix: 12
+    args: -dim 3 -cell_simplex 0 -test_num 2 -dm_view ::ascii_info_detail
+
+TEST*/
