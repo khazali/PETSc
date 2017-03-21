@@ -33,6 +33,7 @@ typedef struct {
   /* Problem definition */
   PetscErrorCode (**initialFuncs)(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
   PetscReal      mu, eta, beta;
+  PetscReal      a,b,Jo,Jop,m,ke,kx,ky,DeltaPrime;
 } AppCtx;
 static AppCtx *s_ctx;
 static PetscScalar poissonBracket(const PetscScalar df[], const PetscScalar dg[])
@@ -163,7 +164,7 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   PetscErrorCode ierr;
   PetscInt       bcs[3], ii;
   PetscFunctionBeginUser;
-  options->debug               = 0;
+  options->debug               = 1;
   options->dim                 = 2;
   options->filename[0]         = '\0';
   options->simplex             = PETSC_TRUE;
@@ -176,6 +177,11 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->mu   = 0;
   options->eta  = 0;
   options->beta = 1;
+  options->a = 1;
+  options->b = 2.0*PETSC_PI;
+  options->Jop = 1;
+  options->m = 1;
+
   for (ii = 0; ii < options->dim; ++ii) bcs[ii] = 1; /* Dirichlet */
   bcs[1] = 0;                                        /* Y-Periodic */
   for (ii = 0; ii < options->dim; ++ii) options->cells[ii] = 2;
@@ -186,6 +192,10 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsReal("-mu", "mu", "ex48.c", options->mu, &options->mu, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-eta", "eta", "ex48.c", options->eta, &options->eta, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-beta", "beta", "ex48.c", options->beta, &options->beta, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-a", "a", "ex48.c", options->a, &options->a, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-b", "b", "ex48.c", options->b, &options->b, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-Jop", "Jop", "ex48.c", options->Jop, &options->Jop, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-m", "m", "ex48.c", options->m, &options->m, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-f", "Exodus.II filename to read", "ex48.c", options->filename, options->filename, sizeof(options->filename), &flg);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-simplex", "Simplicial (true) or tensor (false) mesh", "ex48.c", options->simplex, &options->simplex, NULL);CHKERRQ(ierr);
   ii = options->dim;
@@ -198,6 +208,17 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ii = options->dim;
   ierr = PetscOptionsIntArray("-cells", "Number of cells in each dimension", "ex48.c", options->cells, &ii, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
+  
+  options->ke = PetscSqrtScalar(options->Jop);
+  if (options->Jop==0.0) {
+    options->Jo = 1.0/PetscPowScalar(options->a,2);
+  } else {
+    options->Jo = options->Jop*PetscCosReal(options->ke*options->a)/(1.0-PetscCosReal(options->ke*options->a));
+  }
+  options->ky = 2.0*PETSC_PI*options->m/options->b;
+  options->kx = PetscSqrtScalar(options->Jop-PetscPowScalar(options->ky,2));
+  options->DeltaPrime = -2.0*options->kx*PetscCosReal(options->kx*options->a)/PetscSinReal(options->kx*options->a);
+  
   PetscFunctionReturn(0);
 }
 
@@ -351,7 +372,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
 static PetscErrorCode log_n_0(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
-  u[0] = log(1.0);
+  u[0] = 1.0;
   return 0;
 }
 
@@ -363,7 +384,10 @@ static PetscErrorCode Omega_0(PetscInt dim, PetscReal time, const PetscReal x[],
 
 static PetscErrorCode psi_0(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
-  u[0] = 0.0;
+  AppCtx *lctx = (AppCtx*)ctx;
+  assert(ctx);
+  u[0] = (PetscCosReal(lctx->ke*x[0])-PetscCosReal(lctx->ke*lctx->a))/(1.0-PetscCosReal(lctx->ke*lctx->a));
+  PetscPrintf(PETSC_COMM_WORLD, "Psi %lf %lf\n",x[0],u[0]);
   return 0;
 }
 
@@ -381,7 +405,9 @@ static PetscErrorCode initialSolution_Omega(PetscInt dim, PetscReal time, const 
 
 static PetscErrorCode initialSolution_psi(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
-  u[0] = 0.0;
+  PetscScalar r = (PetscScalar) (rand()) / (PetscScalar) (RAND_MAX);
+  u[0] = r;
+  PetscPrintf(PETSC_COMM_WORLD, "rand psi %lf\n",u[0]);
   return 0;
 }
 
@@ -422,10 +448,11 @@ static PetscErrorCode SetupEquilibriumFields(DM dm, DM dmAux, AppCtx *user)
   PetscErrorCode (*eqFuncs[3])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar u[], void *ctx) = {log_n_0, Omega_0, psi_0};
   Vec            eq;
   PetscErrorCode ierr;
+  AppCtx *ctxarr[3]={user,user,user}; //each variable could have a different context
 
   PetscFunctionBegin;
   ierr = DMCreateLocalVector(dmAux, &eq);CHKERRQ(ierr);
-  ierr = DMProjectFunctionLocal(dmAux, 0.0, eqFuncs, NULL, INSERT_ALL_VALUES, eq);CHKERRQ(ierr);
+  ierr = DMProjectFunctionLocal(dmAux, 0.0, eqFuncs, (void **)ctxarr, INSERT_ALL_VALUES, eq);CHKERRQ(ierr);
   ierr = PetscObjectCompose((PetscObject) dm, "A", (PetscObject) eq);CHKERRQ(ierr);
   ierr = VecDestroy(&eq);CHKERRQ(ierr);
   PetscFunctionReturn(0);
