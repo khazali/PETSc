@@ -195,9 +195,6 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->Jop = 0;
   options->m = 1;
 
-  for (ii = 0; ii < options->dim; ++ii) bcs[ii] = 1; /* Dirichlet */
-  bcs[1] = 0;                                        /* Y-Periodic */
-
   for (ii = 0; ii < options->dim; ++ii) options->cells[ii] = 2;
   ierr = PetscOptionsBegin(comm, "", "Poisson Problem Options", "DMPLEX");CHKERRQ(ierr);
   ierr = PetscOptionsInt("-debug", "The debugging level", "ex48.c", options->debug, &options->debug, NULL);CHKERRQ(ierr);
@@ -229,7 +226,7 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ii = options->dim;
   ierr = PetscOptionsIntArray("-cells", "Number of cells in each dimension", "ex48.c", options->cells, &ii, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
-  
+
   // The domain limits maybe should be handled differently
   options->domain_hi[0]  = options->a;
   options->domain_hi[1]  = options->b;
@@ -247,7 +244,7 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->ky = PETSC_PI*options->m/options->b;
   options->kx = PetscSqrtScalar(options->Jop-PetscPowScalar(options->ky,2));
   options->DeltaPrime = -2.0*options->kx*PetscCosReal(options->kx*options->a)/PetscSinReal(options->kx*options->a);
-  
+
   PetscFunctionReturn(0);
 }
 
@@ -447,7 +444,7 @@ static PetscErrorCode psi_0(PetscInt dim, PetscReal time, const PetscReal x[], P
   AppCtx *lctx = (AppCtx*)ctx;
   assert(ctx);
   u[0] = (PetscCosReal(lctx->ke*x[0])-PetscCosReal(lctx->ke*lctx->a))/(1.0-PetscCosReal(lctx->ke*lctx->a));
-  PetscPrintf(PETSC_COMM_WORLD, "Psi %lf %lf\n",x[0],u[0]);
+  // PetscPrintf(PETSC_COMM_WORLD, "Psi %lf %lf\n",x[0],u[0]);
   return 0;
 }
 
@@ -467,7 +464,7 @@ static PetscErrorCode initialSolution_psi(PetscInt dim, PetscReal time, const Pe
 {
   PetscScalar r = (PetscScalar) (rand()) / (PetscScalar) (RAND_MAX);
   u[0] = r;
-  PetscPrintf(PETSC_COMM_WORLD, "rand psi %lf\n",u[0]);
+  // PetscPrintf(PETSC_COMM_WORLD, "rand psi %lf\n",u[0]);
   return 0;
 }
 
@@ -505,7 +502,7 @@ static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *user)
 
 static PetscErrorCode SetupEquilibriumFields(DM dm, DM dmAux, AppCtx *user)
 {
-  PetscErrorCode (*eqFuncs[3])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar u[], void *ctx) = {log_n_0, Omega_0, psi_0};
+  PetscErrorCode (*eqFuncs[3])(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar [], void *) = {log_n_0, Omega_0, psi_0};
   Vec            eq;
   PetscErrorCode ierr;
   AppCtx *ctxarr[3]={user,user,user}; //each variable could have a different context
@@ -514,6 +511,37 @@ static PetscErrorCode SetupEquilibriumFields(DM dm, DM dmAux, AppCtx *user)
   ierr = DMCreateLocalVector(dmAux, &eq);CHKERRQ(ierr);
   ierr = DMProjectFunctionLocal(dmAux, 0.0, eqFuncs, (void **)ctxarr, INSERT_ALL_VALUES, eq);CHKERRQ(ierr);
   ierr = PetscObjectCompose((PetscObject) dm, "A", (PetscObject) eq);CHKERRQ(ierr);
+  {  /* plot refereance functions */
+    PetscViewer       viewer = NULL;
+    PetscBool         isHDF5,isVTK;
+    char              buf[256];
+    Vec               global;
+    ierr = DMCreateGlobalVector(dmAux,&global);CHKERRQ(ierr);
+    ierr = VecSet(global,.0);CHKERRQ(ierr); /* BCs! */
+    ierr = DMLocalToGlobalBegin(dmAux,eq,INSERT_VALUES,global);CHKERRQ(ierr);
+    ierr = DMLocalToGlobalEnd(dmAux,eq,INSERT_VALUES,global);CHKERRQ(ierr);
+    ierr = PetscViewerCreate(PetscObjectComm((PetscObject)dmAux),&viewer);CHKERRQ(ierr);
+    ierr = PetscViewerSetType(viewer,PETSCVIEWERHDF5);CHKERRQ(ierr);
+    ierr = PetscViewerSetFromOptions(viewer);CHKERRQ(ierr);
+    ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERHDF5,&isHDF5);CHKERRQ(ierr);
+    ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERVTK,&isVTK);CHKERRQ(ierr);
+    if (isHDF5) {
+      ierr = PetscSNPrintf(buf, 256, "u0-%dD.h5", user->dim);CHKERRQ(ierr);
+    } else if (isVTK) {
+      ierr = PetscSNPrintf(buf, 256, "u0-%dD.vtu", user->dim);CHKERRQ(ierr);
+      ierr = PetscViewerPushFormat(viewer,PETSC_VIEWER_VTK_VTU);CHKERRQ(ierr);
+    }
+    ierr = PetscViewerFileSetMode(viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
+    ierr = PetscViewerFileSetName(viewer,buf);CHKERRQ(ierr);
+    if (isHDF5) {
+      ierr = DMView(dmAux,viewer);CHKERRQ(ierr);
+    }
+    /* view equilibrium fields, this will overwrite fine grids with coarse grids! */
+    ierr = PetscObjectSetName((PetscObject) global, "u0");CHKERRQ(ierr);
+    ierr = VecView(global,viewer);CHKERRQ(ierr);
+    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+    ierr = VecDestroy(&global);CHKERRQ(ierr);
+  }
   ierr = VecDestroy(&eq);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
