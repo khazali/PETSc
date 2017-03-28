@@ -191,8 +191,8 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->eta  = 0;
   options->beta = 1;
   options->a = 1;
-  options->b = 2.0*PETSC_PI;
-  options->Jop = 1;
+  options->b = PETSC_PI;
+  options->Jop = 0;
   options->m = 1;
 
   for (ii = 0; ii < options->dim; ++ii) bcs[ii] = 1; /* Dirichlet */
@@ -230,13 +230,21 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsIntArray("-cells", "Number of cells in each dimension", "ex48.c", options->cells, &ii, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
   
+  // The domain limits maybe should be handled differently
+  options->domain_hi[0]  = options->a;
+  options->domain_hi[1]  = options->b;
+  options->domain_hi[2]  = 1;
+  options->domain_lo[0]  = -options->a;
+  options->domain_lo[1]  = -options->b;
+  options->domain_lo[2]  = -1;
+
   options->ke = PetscSqrtScalar(options->Jop);
   if (options->Jop==0.0) {
     options->Jo = 1.0/PetscPowScalar(options->a,2);
   } else {
     options->Jo = options->Jop*PetscCosReal(options->ke*options->a)/(1.0-PetscCosReal(options->ke*options->a));
   }
-  options->ky = 2.0*PETSC_PI*options->m/options->b;
+  options->ky = PETSC_PI*options->m/options->b;
   options->kx = PetscSqrtScalar(options->Jop-PetscPowScalar(options->ky,2));
   options->DeltaPrime = -2.0*options->kx*PetscCosReal(options->kx*options->a)/PetscSinReal(options->kx*options->a);
   
