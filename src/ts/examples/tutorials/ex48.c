@@ -227,12 +227,12 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsIntArray("-cells", "Number of cells in each dimension", "ex48.c", options->cells, &ii, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
   /* The domain limits maybe should be handled differently */
-  options->domain_hi[0]  = options->a;
-  options->domain_hi[1]  = options->b;
+  options->domain_hi[0]  = 1; //options->a;
+  options->domain_hi[1]  = 1; //options->b;
   options->domain_hi[2]  = 1;
-  options->domain_lo[0]  = -options->a;
-  options->domain_lo[1]  = -options->b;
-  options->domain_lo[2]  = -1;
+  options->domain_lo[0]  = 0; //-options->a;
+  options->domain_lo[1]  = 0; //-options->b;
+  options->domain_lo[2]  = 0; //-1;
 
   options->ke = PetscSqrtScalar(options->Jop);
   if (options->Jop==0.0) {
