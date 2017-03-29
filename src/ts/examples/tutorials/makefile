@@ -827,6 +827,16 @@ runex44_2:
 	   sort  -b output/ex44_2.out | ${DIFF}  - ex44_2.tmp || printf "${PWD}\nPossible problem with ex44_2, diffs above\n=========================================\n"; \
 	   ${RM} -f ex44_2.tmp
 
+runex48_2D:
+	-@${MPIEXEC} -n 1 ./ex48 -debug 1 -dim 2 -dm_refine 2 -options_left -ts_max_steps 10 -ts_final_time 10. -ts_dt 1.0 -y_periodicity PERIODIC > ex48_2D.tmp 2>&1; \
+	   ${DIFF} output/ex48_2D.out ex48_2D.tmp || printf "${PWD}\nPossible problem with ex48_2D, diffs above\n=========================================\n"; \
+#	   ${RM} -f ex48_2D.tmp
+
+runex48_3D:
+	-@${MPIEXEC} -n 1 ./ex48 -debug 2 -dim 3 -dm_refine 3 -domain_lo -2,-1,-1 -domain_hi 2,1,1 -options_left -ts_max_steps 1 -ts_final_time 10. -ts_dt 1.0 -z_periodicity PERIODIC > ex48_3D.tmp 2>&1; \
+	   ${DIFF} output/ex48_3D.out ex48_3D.tmp || printf "${PWD}\nPossible problem with ex48_3D, diffs above\n=========================================\n"; \
+#	   ${RM} -f ex48_3D.tmp
+
 TESTEXAMPLES_C		  = ex1.PETSc runex1 runex1_2 ex1.rm ex3.PETSc runex3 runex3_2 runex3_4 runex3_5 ex3.rm \
                             ex4.PETSc runex4 runex4_2 runex4_3 runex4_4 ex4.rm ex5.PETSc runex5_nox ex5.rm\
                             ex6.PETSc runex6 ex6.rm ex7.PETSc runex7 runex7_2 runex7_3 ex7.rm \

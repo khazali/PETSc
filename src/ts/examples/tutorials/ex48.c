@@ -226,8 +226,7 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ii = options->dim;
   ierr = PetscOptionsIntArray("-cells", "Number of cells in each dimension", "ex48.c", options->cells, &ii, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
-
-  // The domain limits maybe should be handled differently
+  /* The domain limits maybe should be handled differently */
   options->domain_hi[0]  = options->a;
   options->domain_hi[1]  = options->b;
   options->domain_hi[2]  = 1;
@@ -385,7 +384,11 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     ierr = VecGetArray(coordinates, &coords);CHKERRQ(ierr);
     for (n = 0; n < nCoords; n += dimEmbed) {
       PetscScalar *coord = &coords[n];
-      for (d = 0; d < dimEmbed; ++d) coord[d] = user->domain_lo[d] + (coord[d]+1.) * L[d] / 2.0;
+      if (dimEmbed==3) { /* cylinder is on (-1,1) */
+        for (d = 0; d < dimEmbed; ++d) coord[d] = user->domain_lo[d] + (coord[d]+1.) * L[d] / 2.0;
+      } else { /* hex mesh is on (0,1) */
+        for (d = 0; d < dimEmbed; ++d) coord[d] = user->domain_lo[d] + coord[d] * (user->domain_hi[d] - user->domain_lo[d]);
+      }
     }
     ierr = VecRestoreArray(coordinates, &coords);CHKERRQ(ierr);
   }
