@@ -227,12 +227,12 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsIntArray("-cells", "Number of cells in each dimension", "ex48.c", options->cells, &ii, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
   /* The domain limits maybe should be handled differently */
-  options->domain_hi[0]  = 1; //options->a;
-  options->domain_hi[1]  = 1; //options->b;
+  options->domain_hi[0]  = options->a;
+  options->domain_hi[1]  = options->b;
   options->domain_hi[2]  = 1;
-  options->domain_lo[0]  = 0; //-options->a;
-  options->domain_lo[1]  = 0; //-options->b;
-  options->domain_lo[2]  = 0; //-1;
+  options->domain_lo[0]  = -options->a;
+  options->domain_lo[1]  = -options->b;
+  options->domain_lo[2]  = -1;
 
   options->ke = PetscSqrtScalar(options->Jop);
   if (options->Jop==0.0) {
@@ -351,8 +351,11 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   } else {
     Vec          coordinates;
     PetscScalar *coords;
-    PetscInt     nCoords, n, dimEmbed, d;
+    PetscInt     pStart, pEnd, p, d;
     PetscReal    L[3];
+    DM           cdm;
+    PetscSection csec;
+
     /* create DM */
     if (dim==2) {
       PetscInt refineRatio, totCells = 1;
@@ -376,18 +379,20 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     }
     ierr = PetscObjectSetName((PetscObject) *dm, "Mesh");CHKERRQ(ierr);
     /* Rescale to physical domain */
-    ierr = DMGetCoordinateDim(*dm, &dimEmbed);CHKERRQ(ierr);
-    for (d = 0; d < dimEmbed; ++d) L[d] = user->domain_hi[d] - user->domain_lo[d];
+    for (d = 0; d < dim; ++d) L[d] = user->domain_hi[d] - user->domain_lo[d];
+    ierr = DMGetCoordinateDM(*dm, &cdm);CHKERRQ(ierr);
+    ierr = DMGetDefaultGlobalSection(cdm, &csec);CHKERRQ(ierr);
+    ierr = PetscSectionGetChart(csec, &pStart, &pEnd);CHKERRQ(ierr);
     ierr = DMGetCoordinatesLocal(*dm, &coordinates);CHKERRQ(ierr);
-    ierr = VecGetLocalSize(coordinates, &nCoords);CHKERRQ(ierr);
-    if (nCoords % dimEmbed) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Dimension %D does not divide the coordinate vector size %D", dimEmbed, nCoords);
     ierr = VecGetArray(coordinates, &coords);CHKERRQ(ierr);
-    for (n = 0; n < nCoords; n += dimEmbed) {
-      PetscScalar *coord = &coords[n];
-      if (dimEmbed==3) { /* cylinder is on (-1,1) */
-        for (d = 0; d < dimEmbed; ++d) coord[d] = user->domain_lo[d] + (coord[d]+1.) * L[d] / 2.0;
-      } else { /* hex mesh is on (0,1) */
-        for (d = 0; d < dimEmbed; ++d) coord[d] = user->domain_lo[d] + coord[d] * (user->domain_hi[d] - user->domain_lo[d]);
+    for (p = pStart; p < pEnd; ++p) {
+      PetscScalar *pcoords;
+      ierr = DMPlexPointGlobalRef(cdm, p, coords, &pcoords);CHKERRQ(ierr);
+      for (d = 0; d < dim; ++d) {
+        /* cylinder is on (-1,1) */
+        if (dim==3) pcoords[d] = user->domain_lo[d] + (pcoords[d]+1.) * L[d] / 2.0;
+        /* hex mesh is on (0,1) */
+        else pcoords[d] = user->domain_lo[d] + pcoords[d] * (user->domain_hi[d] - user->domain_lo[d]);
       }
     }
     ierr = VecRestoreArray(coordinates, &coords);CHKERRQ(ierr);
