@@ -352,7 +352,8 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     Vec          coordinates;
     PetscScalar *coords;
     PetscInt     pStart, pEnd, p, d;
-    PetscReal    L[3];
+    const PetscReal *oldMaxCell;
+    PetscReal    L[3], maxCell[3];
     DM           cdm;
     PetscSection csec;
 
@@ -379,7 +380,11 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     }
     ierr = PetscObjectSetName((PetscObject) *dm, "Mesh");CHKERRQ(ierr);
     /* Rescale to physical domain */
-    for (d = 0; d < dim; ++d) L[d] = user->domain_hi[d] - user->domain_lo[d];
+    ierr = DMGetPeriodicity(*dm, &oldMaxCell, NULL, NULL);CHKERRQ(ierr);
+    for (d = 0; d < dim; ++d) {
+      maxCell[d] = oldMaxCell[d]*(user->domain_hi[d] - user->domain_lo[d]);
+      L[d]       = user->domain_hi[d] - user->domain_lo[d];
+    }
     ierr = DMGetCoordinateDM(*dm, &cdm);CHKERRQ(ierr);
     ierr = DMGetDefaultGlobalSection(cdm, &csec);CHKERRQ(ierr);
     ierr = PetscSectionGetChart(csec, &pStart, &pEnd);CHKERRQ(ierr);
@@ -396,6 +401,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
       }
     }
     ierr = VecRestoreArray(coordinates, &coords);CHKERRQ(ierr);
+    ierr = DMSetPeriodicity(*dm, maxCell, L, user->periodicity);CHKERRQ(ierr);
   }
   {
     DM distributedMesh = NULL;
