@@ -7,8 +7,10 @@ typedef struct {
   Vec        *x;                  /* solution vectors */
   Vec        *xl;                 /* solution local vectors */
   Vec        *y;                  /* step vectors */
+  Vec        *yl;                 /* step local vectors */
   Vec        *b;                  /* rhs vectors */
   VecScatter *oscatter;           /* scatter from global space to the subdomain global space */
+  VecScatter *oscatter_copy;      /* copy of the above */
   VecScatter *iscatter;           /* scatter from global space to the nonoverlapping subdomain space */
   VecScatter *gscatter;           /* scatter from global space to the subdomain local space */
   PCASMType  type;                /* ASM type */
@@ -39,10 +41,12 @@ static PetscErrorCode SNESReset_NASM(SNES snes)
     if (nasm->xl) { ierr = VecDestroy(&nasm->xl[i]);CHKERRQ(ierr); }
     if (nasm->x) { ierr = VecDestroy(&nasm->x[i]);CHKERRQ(ierr); }
     if (nasm->y) { ierr = VecDestroy(&nasm->y[i]);CHKERRQ(ierr); }
+    if (nasm->yl) { ierr = VecDestroy(&nasm->yl[i]);CHKERRQ(ierr); }
     if (nasm->b) { ierr = VecDestroy(&nasm->b[i]);CHKERRQ(ierr); }
 
     if (nasm->subsnes) { ierr = SNESDestroy(&nasm->subsnes[i]);CHKERRQ(ierr); }
     if (nasm->oscatter) { ierr = VecScatterDestroy(&nasm->oscatter[i]);CHKERRQ(ierr); }
+    if (nasm->oscatter_copy) { ierr = VecScatterDestroy(&nasm->oscatter_copy[i]);CHKERRQ(ierr); }
     if (nasm->iscatter) { ierr = VecScatterDestroy(&nasm->iscatter[i]);CHKERRQ(ierr); }
     if (nasm->gscatter) { ierr = VecScatterDestroy(&nasm->gscatter[i]);CHKERRQ(ierr); }
   }
@@ -50,12 +54,14 @@ static PetscErrorCode SNESReset_NASM(SNES snes)
   ierr = PetscFree(nasm->x);CHKERRQ(ierr);
   ierr = PetscFree(nasm->xl);CHKERRQ(ierr);
   ierr = PetscFree(nasm->y);CHKERRQ(ierr);
+  ierr = PetscFree(nasm->yl);CHKERRQ(ierr);
   ierr = PetscFree(nasm->b);CHKERRQ(ierr);
 
   if (nasm->xinit) {ierr = VecDestroy(&nasm->xinit);CHKERRQ(ierr);}
 
   ierr = PetscFree(nasm->subsnes);CHKERRQ(ierr);
   ierr = PetscFree(nasm->oscatter);CHKERRQ(ierr);
+  ierr = PetscFree(nasm->oscatter_copy);CHKERRQ(ierr);
   ierr = PetscFree(nasm->iscatter);CHKERRQ(ierr);
   ierr = PetscFree(nasm->gscatter);CHKERRQ(ierr);
 
@@ -105,6 +111,10 @@ static PetscErrorCode SNESSetUp_NASM(SNES snes)
       ierr         = DMCreateDomainDecomposition(dm,&nasm->n,NULL,NULL,NULL,&subdms);CHKERRQ(ierr);
       if (!subdms) SETERRQ(PetscObjectComm((PetscObject)dm),PETSC_ERR_ARG_WRONGSTATE,"DM has no default decomposition defined.  Set subsolves manually with SNESNASMSetSubdomains().");
       ierr = DMCreateDomainDecompositionScatters(dm,nasm->n,subdms,&nasm->iscatter,&nasm->oscatter,&nasm->gscatter);CHKERRQ(ierr);
+      ierr = PetscMalloc1(nasm->n, &nasm->oscatter_copy);CHKERRQ(ierr);
+      for (i=0; i<nasm->n; i++) {
+        ierr = VecScatterCopy(nasm->oscatter[i], &nasm->oscatter_copy[i]);CHKERRQ(ierr);
+      }
 
       ierr = SNESGetOptionsPrefix(snes, &optionsprefix);CHKERRQ(ierr);
       ierr = PetscMalloc1(nasm->n,&nasm->subsnes);CHKERRQ(ierr);
@@ -137,6 +147,9 @@ static PetscErrorCode SNESSetUp_NASM(SNES snes)
   if (!nasm->y) {
     ierr = PetscCalloc1(nasm->n,&nasm->y);CHKERRQ(ierr);
   }
+  if (!nasm->yl) {
+    ierr = PetscCalloc1(nasm->n,&nasm->yl);CHKERRQ(ierr);
+  }
   if (!nasm->b) {
     ierr = PetscCalloc1(nasm->n,&nasm->b);CHKERRQ(ierr);
   }
@@ -149,6 +162,7 @@ static PetscErrorCode SNESSetUp_NASM(SNES snes)
     if (!nasm->xl[i]) {
       ierr = SNESGetDM(nasm->subsnes[i],&subdm);CHKERRQ(ierr);
       ierr = DMCreateLocalVector(subdm,&nasm->xl[i]);CHKERRQ(ierr);
+      ierr = DMCreateLocalVector(subdm,&nasm->yl[i]);CHKERRQ(ierr);
       ierr = DMGlobalToLocalHookAdd(subdm,DMGlobalToLocalSubDomainDirichletHook_Private,NULL,nasm->xl[i]);CHKERRQ(ierr);
     }
   }
@@ -384,8 +398,10 @@ static PetscErrorCode SNESNASMSetSubdomains_NASM(SNES snes,PetscInt n,SNES subsn
   }
   if (oscatter) {
     ierr = PetscMalloc1(n,&nasm->oscatter);CHKERRQ(ierr);
+    ierr = PetscMalloc1(n,&nasm->oscatter_copy);CHKERRQ(ierr);
     for (i=0; i<n; i++) {
       nasm->oscatter[i] = oscatter[i];
+      ierr = VecScatterCopy(oscatter[i], &nasm->oscatter_copy[i]);CHKERRQ(ierr);
     }
   }
   if (iscatter) {
@@ -632,8 +648,8 @@ PetscErrorCode SNESNASMSolveLocal_Private(SNES snes,Vec B,Vec Y,Vec X)
   PetscInt       i;
   PetscReal      dmp;
   PetscErrorCode ierr;
-  Vec            Xlloc,Xl,Bl,Yl;
-  VecScatter     iscat,oscat,gscat;
+  Vec            Ylloc,Xl,Bl,Yl,Xlloc;
+  VecScatter     iscat,oscat,gscat,oscat_copy;
   DM             dm,subdm;
   PCASMType      type;
 
@@ -643,15 +659,19 @@ PetscErrorCode SNESNASMSolveLocal_Private(SNES snes,Vec B,Vec Y,Vec X)
   ierr = VecSet(Y,0);CHKERRQ(ierr);
   if (nasm->eventrestrictinterp) {ierr = PetscLogEventBegin(nasm->eventrestrictinterp,snes,0,0,0);CHKERRQ(ierr);}
   for (i=0; i<nasm->n; i++) {
-    /* scatter the solution to the local solution */
-    Xlloc = nasm->xl[i];
-    gscat   = nasm->gscatter[i];
+    /* scatter the solution to the global solution and the local solution */
+    Xl      = nasm->x[i];
+    Xlloc   = nasm->xl[i];
     oscat   = nasm->oscatter[i];
+    oscat_copy = nasm->oscatter_copy[i];
+    gscat   = nasm->gscatter[i];
+    iscat   = nasm->iscatter[i];
+    ierr = VecScatterBegin(oscat,X,Xl,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
     ierr = VecScatterBegin(gscat,X,Xlloc,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
     if (B) {
       /* scatter the RHS to the local RHS */
       Bl   = nasm->b[i];
-      ierr = VecScatterBegin(oscat,B,Bl,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+      ierr = VecScatterBegin(oscat_copy,B,Bl,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
     }
   }
   if (nasm->eventrestrictinterp) {ierr = PetscLogEventEnd(nasm->eventrestrictinterp,snes,0,0,0);CHKERRQ(ierr);}
@@ -662,25 +682,25 @@ PetscErrorCode SNESNASMSolveLocal_Private(SNES snes,Vec B,Vec Y,Vec X)
     Xl    = nasm->x[i];
     Xlloc = nasm->xl[i];
     Yl    = nasm->y[i];
+    Ylloc = nasm->yl[i];
     subsnes = nasm->subsnes[i];
     ierr    = SNESGetDM(subsnes,&subdm);CHKERRQ(ierr);
     iscat   = nasm->iscatter[i];
     oscat   = nasm->oscatter[i];
+    oscat_copy = nasm->oscatter_copy[i];
     gscat   = nasm->gscatter[i];
+    ierr = VecScatterEnd(oscat,X,Xl,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
     ierr = VecScatterEnd(gscat,X,Xlloc,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
     if (B) {
       Bl   = nasm->b[i];
-      ierr = VecScatterEnd(oscat,B,Bl,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+      ierr = VecScatterEnd(oscat_copy,B,Bl,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
     } else Bl = NULL;
     ierr = DMSubDomainRestrict(dm,oscat,gscat,subdm);CHKERRQ(ierr);
-    /* Could scatter directly from X */
-    ierr = DMLocalToGlobalBegin(subdm,Xlloc,INSERT_VALUES,Xl);CHKERRQ(ierr);
-    ierr = DMLocalToGlobalEnd(subdm,Xlloc,INSERT_VALUES,Xl);CHKERRQ(ierr);
     ierr = VecCopy(Xl,Yl);CHKERRQ(ierr);
     ierr = SNESSolve(subsnes,Bl,Xl);CHKERRQ(ierr);
     ierr = VecAYPX(Yl,-1.0,Xl);CHKERRQ(ierr);
     if (type == PC_ASM_BASIC) {
-      ierr = VecScatterBegin(oscat,Yl,Y,ADD_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+      ierr = DMGlobalToLocalBegin(subdm,Yl,INSERT_VALUES,Ylloc);CHKERRQ(ierr); /* FIXME: does this execute the Dirichlet hook? */
     } else if (type == PC_ASM_RESTRICT) {
       ierr = VecScatterBegin(iscat,Yl,Y,ADD_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
     } else SETERRQ(PetscObjectComm((PetscObject)snes),PETSC_ERR_ARG_WRONGSTATE,"Only basic and restrict types are supported for SNESNASM");
@@ -689,13 +709,26 @@ PetscErrorCode SNESNASMSolveLocal_Private(SNES snes,Vec B,Vec Y,Vec X)
   if (nasm->eventrestrictinterp) {ierr = PetscLogEventBegin(nasm->eventrestrictinterp,snes,0,0,0);CHKERRQ(ierr);}
   for (i=0; i<nasm->n; i++) {
     Yl    = nasm->y[i];
+    Ylloc = nasm->yl[i];
     iscat   = nasm->iscatter[i];
     oscat   = nasm->oscatter[i];
+    subsnes = nasm->subsnes[i];
+    ierr    = SNESGetDM(subsnes,&subdm);CHKERRQ(ierr);
     if (type == PC_ASM_BASIC) {
-      ierr = VecScatterEnd(oscat,Yl,Y,ADD_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+      ierr = DMGlobalToLocalEnd(subdm,Yl,INSERT_VALUES,Ylloc);CHKERRQ(ierr);
+      ierr = VecScatterBegin(iscat,Ylloc,Y,ADD_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
     } else if (type == PC_ASM_RESTRICT) {
       ierr = VecScatterEnd(iscat,Yl,Y,ADD_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
     } else SETERRQ(PetscObjectComm((PetscObject)snes),PETSC_ERR_ARG_WRONGSTATE,"Only basic and restrict types are supported for SNESNASM");
+  }
+  for (i=0; i<nasm->n; i++) {
+    Yl    = nasm->y[i];
+    Ylloc = nasm->yl[i];
+    iscat   = nasm->iscatter[i];
+    oscat   = nasm->oscatter[i];
+    if (type == PC_ASM_BASIC) {
+      ierr = VecScatterEnd(iscat,Ylloc,Y,ADD_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
+    }
   }
   if (nasm->eventrestrictinterp) {ierr = PetscLogEventEnd(nasm->eventrestrictinterp,snes,0,0,0);CHKERRQ(ierr);}
   ierr = SNESNASMGetDamping(snes,&dmp);CHKERRQ(ierr);
@@ -879,6 +912,7 @@ PETSC_EXTERN PetscErrorCode SNESCreate_NASM(SNES snes)
   nasm->y        = 0;
   nasm->b        = 0;
   nasm->oscatter = 0;
+  nasm->oscatter_copy = 0;
   nasm->iscatter = 0;
   nasm->gscatter = 0;
   nasm->damping  = 1.;
