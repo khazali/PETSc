@@ -128,7 +128,7 @@ PetscErrorCode  PetscTableDestroy(PetscTable *ta)
 
   PetscFunctionBegin;
   if (!*ta) PetscFunctionReturn(0);
-  ierr = PetscInfo6(NULL,"size=%D, count=%D, n_malloc=%ld nlookup=%ld n_search=%ld ratio=%g\n",(*ta)->tablesize,(*ta)->count,(*ta)->n_malloc,(*ta)->n_lookup,(*ta)->n_search,((double)(*ta)->n_search)/(*ta)->n_lookup);CHKERRQ(ierr);
+  ierr = PetscInfo6(NULL,"size=%D, count=%D, n_malloc=%" PetscInt64_FMT " nlookup=%" PetscInt64_FMT " n_search=%" PetscInt64_FMT " ratio=%g\n",(*ta)->tablesize,(*ta)->count,(*ta)->n_malloc,(*ta)->n_lookup,(*ta)->n_search,((double)(*ta)->n_search)/(*ta)->n_lookup);CHKERRQ(ierr);
   ierr = PetscFree((*ta)->keytable);CHKERRQ(ierr);
   ierr = PetscFree((*ta)->table);CHKERRQ(ierr);
   ierr = PetscFree(*ta);CHKERRQ(ierr);
