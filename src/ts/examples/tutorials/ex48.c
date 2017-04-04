@@ -363,7 +363,8 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
       if (user->cell_simplex) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Cannot mesh 2D with simplices");
       refineRatio = PetscMax((PetscInt) (PetscPowReal(numProcs, 1.0/dim) + 0.1) - 1, 1);
       for (d = 0; d < dim; ++d) {
-        if (user->periodicity[d]==DM_BOUNDARY_PERIODIC && user->cells[d]*refineRatio <= 2) refineRatio += (3 - user->cells[d]);
+        if (user->cells[d] < refineRatio) user->cells[d] = refineRatio;
+        if (user->periodicity[d]==DM_BOUNDARY_PERIODIC && user->cells[d]*refineRatio <= 2) refineRatio = 2;
       }
       for (d = 0; d < dim; ++d) {
         user->cells[d] *= refineRatio;
