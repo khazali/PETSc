@@ -274,8 +274,9 @@ static PetscErrorCode PostStep(TS ts)
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(ts, &ctx);CHKERRQ(ierr); assert(ctx);
   if (ctx->debug<1) PetscFunctionReturn(0);
-  ierr = TSGetDM(ts, &dm);CHKERRQ(ierr);
   ierr = TSGetSolution(ts, &X);CHKERRQ(ierr);
+  ierr = VecGetDM(X, &dm);CHKERRQ(ierr);
+  /* ierr = TSGetDM(ts, &dm);CHKERRQ(ierr); */
   ierr = TSGetTimeStepNumber(ts, &stepi);CHKERRQ(ierr);
   ierr = PetscViewerCreate(PetscObjectComm((PetscObject)dm),&viewer);CHKERRQ(ierr);
   /* ierr = PetscViewerSetType(viewer,PETSCVIEWERVTK);CHKERRQ(ierr); */
@@ -434,7 +435,6 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   }
   ierr = PetscObjectSetName((PetscObject) *dm, "Mesh");CHKERRQ(ierr);
   ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
-  ierr = DMViewFromOptions(*dm, NULL, "-dm_view");CHKERRQ(ierr);
   ierr = DMLocalizeCoordinates(*dm);CHKERRQ(ierr); /* needed for periodic */
   PetscFunctionReturn(0);
 }
@@ -457,7 +457,7 @@ static PetscErrorCode psi_0(PetscInt dim, PetscReal time, const PetscReal x[], P
   assert(ctx);
   u[0] = (PetscCosReal(lctx->ke*x[0])-PetscCosReal(lctx->ke*lctx->a))/(1.0-PetscCosReal(lctx->ke*lctx->a));
   if (u[0] != u[0]) {
-    PetscPrintf(PETSC_COMM_WORLD, "Psi %lf %lf\n",x[0],u[0]);
+    // PetscPrintf(PETSC_COMM_WORLD, "Psi %lf %lf\n",x[0],u[0]);
     u[0] = x[1];
   }
   return 0;
@@ -667,21 +667,22 @@ int main(int argc, char **argv)
   ierr = PostStep(ts);CHKERRQ(ierr); /* get the initial state */
     /* print matlab coordinates */
   if (ctx.debug>1) {
-    Vec               X;
+    Vec               coordinates;
     PetscViewer       viewer = NULL;
     char              buf[256];
-    ierr = DMGetCoordinates(dm, &X);CHKERRQ(ierr);
-    ierr = PetscSNPrintf(buf, 256, "X%dD.m", ctx.dim);CHKERRQ(ierr);
-    /* ierr = PetscObjectSetName((PetscObject)X,buf);CHKERRQ(ierr); */
-    /* ierr = VecView(X,PETSC_VIEWER_MATLAB_WORLD);CHKERRQ(ierr); */
+    ierr = DMGetCoordinates(dm, &coordinates);CHKERRQ(ierr);
+    ierr = PetscSNPrintf(buf, 256, "coords%dD.m", ctx.dim);CHKERRQ(ierr);
     ierr = PetscViewerASCIIOpen(PetscObjectComm((PetscObject)dm), buf, &viewer);CHKERRQ(ierr);
     ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-    ierr = VecView(X,viewer);CHKERRQ(ierr);
+    ierr = VecView(coordinates,viewer);CHKERRQ(ierr);
     ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
     ierr = PetscViewerDestroy(&viewer);
   }
+  ierr = DMViewFromOptions(dm, NULL, "-pre_dm_view");CHKERRQ(ierr);
+  ierr = VecViewFromOptions(u, NULL, "-pre_vec_view");CHKERRQ(ierr);
   ierr = TSSolve(ts, u);CHKERRQ(ierr);
-
+  ierr = DMViewFromOptions(dm, NULL, "-dm_view");CHKERRQ(ierr);
+  ierr = VecViewFromOptions(u, NULL, "-vec_view");CHKERRQ(ierr);
   ierr = TSGetTime(ts, &t);CHKERRQ(ierr);
   ierr = DMComputeL2Diff(dm, t, ctx.initialFuncs, NULL, u, &L2error);CHKERRQ(ierr);
   if (L2error < 1.0e-11) {ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Error: < 1.0e-11\n");CHKERRQ(ierr);}
