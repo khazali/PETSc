@@ -2125,7 +2125,7 @@ PetscErrorCode DMPlexComputeJacobian_Internal(DM dm, PetscInt cStart, PetscInt c
   PetscFECellGeom  *cgeom = NULL;
   PetscScalar      *cgeomScal;
   PetscScalar      *elemMat, *elemMatP, *elemMatD, *u, *u_t, *a = NULL;
-  PetscInt          dim, Nf, fieldI, fieldJ, numCells, c;
+  PetscInt          maxNq = 1, dim, Nf, fieldI, fieldJ, numCells, c;
   PetscInt          totDim, totDimAux;
   PetscBool         isMatIS, isMatISP, isShell, hasJac, hasPrec, hasDyn, hasFV = PETSC_FALSE;
   PetscErrorCode    ierr;
