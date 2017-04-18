@@ -285,7 +285,7 @@ static PetscErrorCode PostStep(TS ts)
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERHDF5,&isHDF5);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERVTK,&isVTK);CHKERRQ(ierr);
   if (isHDF5) {
-    ierr = PetscSNPrintf(buf, 256, "%s%dD%05d.h5", prefix, ctx->dim, stepi);CHKERRQ(ierr);
+    ierr = PetscSNPrintf(buf, 256, "%s_%dD_%05d.h5", prefix, ctx->dim, stepi);CHKERRQ(ierr);
   } else if (isVTK) {
     ierr = PetscSNPrintf(buf, 256, "%s%dD%d.vtu", prefix, ctx->dim, stepi);CHKERRQ(ierr);
     ierr = PetscViewerPushFormat(viewer,PETSC_VIEWER_VTK_VTU);CHKERRQ(ierr);
@@ -337,9 +337,9 @@ static PetscErrorCode PostStep(TS ts)
     ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
     ierr = VecGetArray(coordinates, &coords);CHKERRQ(ierr);
     ierr = VecGetArray(X, &data);CHKERRQ(ierr);
-    ierr = VecGetSize(X, &d);CHKERRQ(ierr); //assert(d%5 == 0);
+    ierr = VecGetSize(X, &d);CHKERRQ(ierr); assert(d%5 == 0);
     nloc = vEnd - vStart;
-    PetscPrintf(PETSC_COMM_WORLD, "|X|=%D, nloc=%D\n", d,nloc);
+    PetscPrintf(PETSC_COMM_WORLD, "|X|=%D, nloc=%D\n", d, nloc);
     for (p = vStart; p < vEnd; ++p) {
       PetscScalar *pcoords;
       ierr = DMPlexPointGlobalRef(cdm, p, coords, &pcoords);CHKERRQ(ierr);
@@ -347,7 +347,7 @@ static PetscErrorCode PostStep(TS ts)
         ierr = PetscFPrintf(PETSC_COMM_SELF,fp,"%1.6e ",pcoords[d]);CHKERRQ(ierr);
       }
       for (d = 0; d < 5; ++d) {
-        ierr = PetscFPrintf(PETSC_COMM_SELF,fp,"%1.6e ",data[p + d*nloc]);CHKERRQ(ierr);
+        ierr = PetscFPrintf(PETSC_COMM_SELF,fp,"%1.6e ",data[5*p + d]);CHKERRQ(ierr);
       }
       ierr = PetscFPrintf(PETSC_COMM_SELF,fp,";\n");CHKERRQ(ierr);
     }
@@ -534,7 +534,7 @@ static PetscErrorCode initialSolution_jz(PetscInt dim, PetscReal time, const Pet
 static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *user)
 {
   const PetscInt id = 1;
-  PetscErrorCode ierr;
+  PetscErrorCode ierr, f;
 
   PetscFunctionBeginUser;
   ierr = PetscDSSetResidual(prob, 0, f0_n,     f1_n);CHKERRQ(ierr);
@@ -547,7 +547,9 @@ static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *user)
   user->initialFuncs[2] = initialSolution_psi;
   user->initialFuncs[3] = initialSolution_phi;
   user->initialFuncs[4] = initialSolution_jz;
-  ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL, "wall", "marker", 0, 0, NULL, (void (*)()) user->initialFuncs[0], 1, &id, user);CHKERRQ(ierr);
+  for (f = 0; f < 5; ++f) {
+    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL, "wall", "marker", f, 0, NULL, (void (*)()) user->initialFuncs[f], 1, &id, user);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
