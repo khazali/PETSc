@@ -314,12 +314,47 @@ static PetscErrorCode PostStep(TS ts)
   }
   /* print matlab solution */
   if (ctx->debug>1) {
-    ierr = PetscSNPrintf(buf, 256, "%s%dD%05d.m", prefix, ctx->dim, stepi);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIOpen(PetscObjectComm((PetscObject)dm), buf, &viewer);CHKERRQ(ierr);
-    ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-    ierr = VecView(X,viewer);CHKERRQ(ierr);
-    ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
-    ierr = PetscViewerDestroy(&viewer);
+    FILE           *fp;
+    char           fname[PETSC_MAX_PATH_LEN];
+    PetscMPIInt    rank;
+    DM             cdm;
+    PetscSection   csec;
+    Vec            coordinates;
+    PetscScalar    *coords,*data;
+    PetscInt       vStart, vEnd, d, p, nloc;
+    ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)dm),&rank);CHKERRQ(ierr);
+    ierr = PetscSNPrintf(fname, PETSC_MAX_PATH_LEN, "%s_proc%05D_%05D.m", prefix, rank, stepi);CHKERRQ(ierr);
+    ierr = PetscFOpen(PETSC_COMM_SELF,fname,"w",&fp);CHKERRQ(ierr);
+    if (!fp) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"Cannot open file");
+    if (ctx->dim==2) ierr = PetscFPrintf(PETSC_COMM_SELF,fp,"%% (x y ");
+    else ierr = PetscFPrintf(PETSC_COMM_SELF,fp,"%% (x y z ");
+    CHKERRQ(ierr);
+    ierr = PetscFPrintf(PETSC_COMM_SELF,fp," density vorticity flux potential current_z) for processor %d\n",rank);CHKERRQ(ierr);
+    ierr = PetscFPrintf(PETSC_COMM_SELF,fp,"data%05D = [\n",rank);CHKERRQ(ierr);
+    ierr = DMGetCoordinateDM(dm,&cdm);CHKERRQ(ierr);
+    ierr = DMGetDefaultGlobalSection(cdm, &csec);CHKERRQ(ierr);
+    ierr = DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd);
+    ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
+    ierr = VecGetArray(coordinates, &coords);CHKERRQ(ierr);
+    ierr = VecGetArray(X, &data);CHKERRQ(ierr);
+    ierr = VecGetSize(X, &d);CHKERRQ(ierr); //assert(d%5 == 0);
+    nloc = vEnd - vStart;
+    PetscPrintf(PETSC_COMM_WORLD, "|X|=%D, nloc=%D\n", d,nloc);
+    for (p = vStart; p < vEnd; ++p) {
+      PetscScalar *pcoords;
+      ierr = DMPlexPointGlobalRef(cdm, p, coords, &pcoords);CHKERRQ(ierr);
+      for (d = 0; d < ctx->dim; ++d) {
+        ierr = PetscFPrintf(PETSC_COMM_SELF,fp,"%1.6e ",pcoords[d]);CHKERRQ(ierr);
+      }
+      for (d = 0; d < 5; ++d) {
+        ierr = PetscFPrintf(PETSC_COMM_SELF,fp,"%1.6e ",data[p + d*nloc]);CHKERRQ(ierr);
+      }
+      ierr = PetscFPrintf(PETSC_COMM_SELF,fp,";\n");CHKERRQ(ierr);
+    }
+    ierr = VecRestoreArray(coordinates, &coords);CHKERRQ(ierr);
+    ierr = VecRestoreArray(X, &data);CHKERRQ(ierr);
+    ierr = PetscFPrintf(PETSC_COMM_SELF,fp,"]\n",rank);CHKERRQ(ierr);
+    ierr = PetscFClose(PETSC_COMM_SELF,fp);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -352,7 +387,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   } else {
     Vec          coordinates;
     PetscScalar *coords;
-    PetscInt     pStart, pEnd, p, d;
+    PetscInt     vStart, vEnd, p, d;
     const PetscReal *oldMaxCell;
     PetscReal    L[3], maxCell[3];
     DM           cdm;
@@ -388,10 +423,11 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     }
     ierr = DMGetCoordinateDM(*dm, &cdm);CHKERRQ(ierr);
     ierr = DMGetDefaultGlobalSection(cdm, &csec);CHKERRQ(ierr);
-    ierr = PetscSectionGetChart(csec, &pStart, &pEnd);CHKERRQ(ierr);
+    //ierr = PetscSectionGetChart(csec, &pStart, &pEnd);CHKERRQ(ierr);
+    ierr = DMPlexGetDepthStratum(*dm, 0, &vStart, &vEnd);
     ierr = DMGetCoordinatesLocal(*dm, &coordinates);CHKERRQ(ierr);
     ierr = VecGetArray(coordinates, &coords);CHKERRQ(ierr);
-    for (p = pStart; p < pEnd; ++p) {
+    for (p = vStart; p < vEnd; ++p) {
       PetscScalar *pcoords;
       ierr = DMPlexPointGlobalRef(cdm, p, coords, &pcoords);CHKERRQ(ierr);
       for (d = 0; d < dim; ++d) {
@@ -413,7 +449,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
       *dm  = distributedMesh;
     }
   }
- {
+  {
     PetscBool hasLabel;
     ierr = DMHasLabel(*dm, "marker", &hasLabel);CHKERRQ(ierr);
     if (!hasLabel) {ierr = CreateBCLabel(*dm, "marker");CHKERRQ(ierr);}
@@ -457,7 +493,7 @@ static PetscErrorCode psi_0(PetscInt dim, PetscReal time, const PetscReal x[], P
   assert(ctx);
   u[0] = (PetscCosReal(lctx->ke*x[0])-PetscCosReal(lctx->ke*lctx->a))/(1.0-PetscCosReal(lctx->ke*lctx->a));
   if (u[0] != u[0]) {
-    // PetscPrintf(PETSC_COMM_WORLD, "Psi %lf %lf\n",x[0],u[0]);
+    //PetscPrintf(PETSC_COMM_WORLD, "Psi %lf %lf\n",x[0],u[0]);
     u[0] = x[1];
   }
   return 0;
@@ -651,6 +687,7 @@ int main(int argc, char **argv)
   ierr = DMCreateGlobalVector(dm, &u);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) u, "u");CHKERRQ(ierr);
   ierr = VecDuplicate(u, &r);CHKERRQ(ierr);
+PetscInt d; VecGetSize(u, &d);CHKERRQ(ierr); PetscPrintf(PETSC_COMM_WORLD, "|u|=%D\n", d);
   ierr = PetscObjectSetName((PetscObject) r, "r");CHKERRQ(ierr);
   ierr = TSCreate(PETSC_COMM_WORLD, &ts);CHKERRQ(ierr);
   ierr = TSSetDM(ts, dm);CHKERRQ(ierr);
@@ -663,21 +700,9 @@ int main(int argc, char **argv)
   ierr = TSSetPostStep(ts, PostStep);CHKERRQ(ierr);
 
   ierr = DMProjectFunction(dm, t, ctx.initialFuncs, NULL, INSERT_ALL_VALUES, u);CHKERRQ(ierr);
+
   ierr = TSSetSolution(ts,u);CHKERRQ(ierr);
   ierr = PostStep(ts);CHKERRQ(ierr); /* get the initial state */
-    /* print matlab coordinates */
-  if (ctx.debug>1) {
-    Vec               coordinates;
-    PetscViewer       viewer = NULL;
-    char              buf[256];
-    ierr = DMGetCoordinates(dm, &coordinates);CHKERRQ(ierr);
-    ierr = PetscSNPrintf(buf, 256, "coords%dD.m", ctx.dim);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIOpen(PetscObjectComm((PetscObject)dm), buf, &viewer);CHKERRQ(ierr);
-    ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-    ierr = VecView(coordinates,viewer);CHKERRQ(ierr);
-    ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
-    ierr = PetscViewerDestroy(&viewer);
-  }
   ierr = DMViewFromOptions(dm, NULL, "-pre_dm_view");CHKERRQ(ierr);
   ierr = VecViewFromOptions(u, NULL, "-pre_vec_view");CHKERRQ(ierr);
   ierr = TSSolve(ts, u);CHKERRQ(ierr);
