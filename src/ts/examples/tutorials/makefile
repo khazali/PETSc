@@ -828,7 +828,7 @@ runex44_2:
 	   ${RM} -f ex44_2.tmp
 
 runex48_2D:
-	-@${MPIEXEC} -n 1 ./ex48 -debug 2 -dim 2 -snes_fd -snes_monitor -ts_type beuler -dm_refine 0 -petscspace_order 2 -petscspace_poly_tensor -ts_max_steps 1 -ts_dt .1 -eps 1.e-12 -eta 0.2 -y_periodicity PERIODIC > ex48_2D.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex48 -debug 2 -dim 2 -ts_monitor -ts_type euler -dm_refine ${REFINE} -petscspace_order 2 -petscspace_poly_tensor -ts_max_steps 10 -ts_dt .1 -eps 1.e-12 -eta 0.2 -y_periodicity PERIODIC > ex48_2D.tmp 2>&1; \
 	   ${DIFF} output/ex48_2D.out ex48_2D.tmp || printf "${PWD}\nPossible problem with ex48_2D, diffs above\n=========================================\n"; \
 	${PETSC_DIR}/bin/petsc_gen_xdmf.py *.h5
 	   ${RM} -f ex48_2D.tmp

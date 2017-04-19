@@ -58,7 +58,7 @@ static void f0_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   const PetscScalar *pphiDer = &u_x[uOff_x[PHI]];
   const PetscScalar *jzDer   = &u_x[uOff_x[JZ]];
   const PetscScalar *logRefDenDer = &a_x[aOff_x[DENSITY]];
-
+printf("f0_n\n");
   f0[0] = u_t[DENSITY] - poissonBracket(dim,pnDer, pphiDer) - s_ctx->beta*poissonBracket(dim,jzDer, ppsiDer) - poissonBracket(dim,logRefDenDer, pphiDer);
 }
 
@@ -288,29 +288,32 @@ static PetscErrorCode PostStep(TS ts)
   if (ctx->debug<1) PetscFunctionReturn(0);
   ierr = TSGetSolution(ts, &X);CHKERRQ(ierr);
   ierr = VecGetDM(X, &dm);CHKERRQ(ierr);
-  /* ierr = TSGetDM(ts, &dm);CHKERRQ(ierr); */
   ierr = TSGetTimeStepNumber(ts, &stepi);CHKERRQ(ierr);
-  ierr = PetscViewerCreate(PetscObjectComm((PetscObject)dm),&viewer);CHKERRQ(ierr);
-  /* ierr = PetscViewerSetType(viewer,PETSCVIEWERVTK);CHKERRQ(ierr); */
-  ierr = PetscViewerSetType(viewer,PETSCVIEWERHDF5);CHKERRQ(ierr);
-  ierr = PetscViewerSetFromOptions(viewer);CHKERRQ(ierr);
-  ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERHDF5,&isHDF5);CHKERRQ(ierr);
-  ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERVTK,&isVTK);CHKERRQ(ierr);
-  if (isHDF5) {
-    ierr = PetscSNPrintf(buf, 256, "%s_%dD_%05d.h5", prefix, ctx->dim, stepi);CHKERRQ(ierr);
-  } else if (isVTK) {
-    ierr = PetscSNPrintf(buf, 256, "%s%dD%d.vtu", prefix, ctx->dim, stepi);CHKERRQ(ierr);
-    ierr = PetscViewerPushFormat(viewer,PETSC_VIEWER_VTK_VTU);CHKERRQ(ierr);
+  if (1) {
+    ierr = VecViewFromOptions(X, NULL, "-vec_view");CHKERRQ(ierr);
+  } else {
+    ierr = PetscViewerCreate(PetscObjectComm((PetscObject)dm),&viewer);CHKERRQ(ierr);
+    /* ierr = PetscViewerSetType(viewer,PETSCVIEWERVTK);CHKERRQ(ierr); */
+    ierr = PetscViewerSetType(viewer,PETSCVIEWERHDF5);CHKERRQ(ierr);
+    ierr = PetscViewerSetFromOptions(viewer);CHKERRQ(ierr);
+    ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERHDF5,&isHDF5);CHKERRQ(ierr);
+    ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERVTK,&isVTK);CHKERRQ(ierr);
+    if (isHDF5) {
+      ierr = PetscSNPrintf(buf, 256, "%s_%dD_%05d.h5", prefix, ctx->dim, stepi);CHKERRQ(ierr);
+    } else if (isVTK) {
+      ierr = PetscSNPrintf(buf, 256, "%s%dD%d.vtu", prefix, ctx->dim, stepi);CHKERRQ(ierr);
+      ierr = PetscViewerPushFormat(viewer,PETSC_VIEWER_VTK_VTU);CHKERRQ(ierr);
+    }
+    ierr = PetscViewerFileSetMode(viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
+    ierr = PetscViewerFileSetName(viewer,buf);CHKERRQ(ierr);
+    if (isHDF5) {
+      ierr = DMView(dm,viewer);CHKERRQ(ierr);
+      ierr = PetscViewerFileSetMode(viewer,FILE_MODE_UPDATE);CHKERRQ(ierr);
+    }
+    /* view */
+    ierr = VecView(X,viewer);CHKERRQ(ierr);
+    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
   }
-  ierr = PetscViewerFileSetMode(viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
-  ierr = PetscViewerFileSetName(viewer,buf);CHKERRQ(ierr);
-  if (isHDF5) {
-    ierr = DMView(dm,viewer);CHKERRQ(ierr);
-    ierr = PetscViewerFileSetMode(viewer,FILE_MODE_UPDATE);CHKERRQ(ierr);
-  }
-  /* view */
-  ierr = VecView(X,viewer);CHKERRQ(ierr);
-  ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
   /* print integrals */
   {
     PetscDS          prob;
@@ -691,8 +694,12 @@ PetscInt d; VecGetSize(u, &d);CHKERRQ(ierr); PetscPrintf(PETSC_COMM_WORLD, "|u|=
   ierr = TSSetDM(ts, dm);CHKERRQ(ierr);
   ierr = TSSetApplicationContext(ts, &ctx);CHKERRQ(ierr);
   ierr = DMTSSetBoundaryLocal(dm, DMPlexTSComputeBoundary, &ctx);CHKERRQ(ierr);
-  ierr = DMTSSetIFunctionLocal(dm, DMPlexTSComputeIFunctionFEM, &ctx);CHKERRQ(ierr);
-  ierr = DMTSSetIJacobianLocal(dm, DMPlexTSComputeIJacobianFEM, &ctx);CHKERRQ(ierr);
+  if (0) {
+    ierr = DMTSSetIFunctionLocal(dm, DMPlexTSComputeIFunctionFEM, &ctx);CHKERRQ(ierr);
+    ierr = DMTSSetIJacobianLocal(dm, DMPlexTSComputeIJacobianFEM, &ctx);CHKERRQ(ierr);
+  } else {
+    ierr = DMTSSetRHSFunctionLocal(dm, DMPlexTSComputeRHSFunctionFVM, &ctx);CHKERRQ(ierr);
+  }
   ierr = TSSetExactFinalTime(ts, TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   ierr = TSSetPostStep(ts, PostStep);CHKERRQ(ierr);
@@ -700,17 +707,13 @@ PetscInt d; VecGetSize(u, &d);CHKERRQ(ierr); PetscPrintf(PETSC_COMM_WORLD, "|u|=
   ierr = DMProjectFunction(dm, t, ctx.initialFuncs, (void **)ctxarr, INSERT_ALL_VALUES, u);CHKERRQ(ierr);
 
   ierr = TSSetSolution(ts,u);CHKERRQ(ierr);
-  ierr = PostStep(ts);CHKERRQ(ierr); /* get the initial state */
-  ierr = DMViewFromOptions(dm, NULL, "-pre_dm_view");CHKERRQ(ierr);
-  ierr = VecViewFromOptions(u, NULL, "-pre_vec_view");CHKERRQ(ierr);
-  ierr = TSSolve(ts, u);CHKERRQ(ierr);
   ierr = DMViewFromOptions(dm, NULL, "-dm_view");CHKERRQ(ierr);
-  ierr = VecViewFromOptions(u, NULL, "-vec_view");CHKERRQ(ierr);
+  ierr = PostStep(ts);CHKERRQ(ierr); /* print the initial state */
+  ierr = TSSolve(ts, u);CHKERRQ(ierr);
   ierr = TSGetTime(ts, &t);CHKERRQ(ierr);
   ierr = DMComputeL2Diff(dm, t, ctx.initialFuncs, (void **)ctxarr, u, &L2error);CHKERRQ(ierr);
   if (L2error < 1.0e-11) {ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Error: < 1.0e-11\n");CHKERRQ(ierr);}
   else                   {ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Error: %g\n", L2error);CHKERRQ(ierr);}
-  ierr = VecViewFromOptions(u, NULL, "-sol_vec_view");CHKERRQ(ierr);
 #if 0
   {
     PetscReal res = 0.0;
