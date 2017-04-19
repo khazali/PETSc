@@ -35,7 +35,7 @@ typedef struct {
   /* Problem definition */
   PetscErrorCode (**initialFuncs)(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
   PetscReal      mu, eta, beta;
-  PetscReal      a,b,Jo,Jop,m,ke,kx,ky,DeltaPrime;
+  PetscReal      a,b,Jo,Jop,m,ke,kx,ky,DeltaPrime,eps;
 } AppCtx;
 
 static AppCtx *s_ctx;
@@ -115,6 +115,7 @@ static void f0_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
     phi_n_Der[d] = pphiDer[d]   - pnDer[d];
   }
   f0[0] = u_t[PSI] - poissonBracket(dim,psiDer, phi_n_Der) + poissonBracket(dim,logRefDenDer, ppsiDer);
+  printf("ppsiDer = %20.15e %20.15e psi = %20.15e refPsiDer = %20.15e %20.15e refPsi = %20.15e \n",ppsiDer[0],ppsiDer[1],u[PSI],refPsiDer[0],refPsiDer[1],a[PSI]);
 }
 
 static void f1_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -194,6 +195,7 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->b = PETSC_PI;
   options->Jop = 0;
   options->m = 1;
+  options->eps = 1.e-6;
 
   for (ii = 0; ii < options->dim; ++ii) options->cells[ii] = 4;
   ierr = PetscOptionsBegin(comm, "", "Poisson Problem Options", "DMPLEX");CHKERRQ(ierr);
@@ -207,6 +209,7 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsReal("-b", "b", "ex48.c", options->b, &options->b, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-Jop", "Jop", "ex48.c", options->Jop, &options->Jop, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-m", "m", "ex48.c", options->m, &options->m, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-eps", "eps", "ex48.c", options->eps, &options->eps, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-f", "Exodus.II filename to read", "ex48.c", options->filename, options->filename, sizeof(options->filename), &flg);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-cell_simplex", "Simplicial (true) or tensor (false) mesh", "ex48.c", options->cell_simplex, &options->cell_simplex, NULL);CHKERRQ(ierr);
   ii = options->dim;
@@ -241,8 +244,17 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
     options->Jo = options->Jop*PetscCosReal(options->ke*options->a)/(1.0-PetscCosReal(options->ke*options->a));
   }
   options->ky = PETSC_PI*options->m/options->b;
-  options->kx = PetscSqrtScalar(options->Jop-PetscPowScalar(options->ky,2));
-  options->DeltaPrime = -2.0*options->kx*PetscCosReal(options->kx*options->a)/PetscSinReal(options->kx*options->a);
+  if (PetscPowScalar(options->ky,2)<options->Jop) {
+    options->kx = PetscSqrtScalar(options->Jop-PetscPowScalar(options->ky,2));
+    options->DeltaPrime = -2.0*options->kx*options->a*PetscCosReal(options->kx*options->a)/PetscSinReal(options->kx*options->a);
+  } else if (PetscPowScalar(options->ky,2)>options->Jop) {
+    options->kx = PetscSqrtScalar(PetscPowScalar(options->ky,2)-options->Jop);
+    options->DeltaPrime = -2.0*options->kx*options->a*PetscCoshReal(options->kx*options->a)/PetscSinhReal(options->kx*options->a);
+  } else { //they're equal (or there's a NaN), lim(x*cot(x))_x->0=1
+    options->kx = 0;
+    options->DeltaPrime = -2.0;
+  }
+  ierr = PetscPrintf(comm, "DeltaPrime=%g\n",options->DeltaPrime);CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }
@@ -313,7 +325,7 @@ static PetscErrorCode PostStep(TS ts)
     PetscPrintf(PetscObjectComm((PetscObject)dm), "%D) total perturbed mass = %g\n", stepi, den);CHKERRQ(ierr);
   }
   /* print matlab solution */
-  if (ctx->debug>1) {
+  if (ctx->debug>11) {
     char           fname[PETSC_MAX_PATH_LEN];
     ierr = PetscSNPrintf(fname, PETSC_MAX_PATH_LEN, "%s_solution_%05D.m", prefix, stepi);CHKERRQ(ierr);
     ierr = PetscViewerASCIIOpen(PetscObjectComm((PetscObject)dm), fname, &viewer);CHKERRQ(ierr);
@@ -439,7 +451,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *ctx, DM *dm)
   ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
   ierr = DMLocalizeCoordinates(*dm);CHKERRQ(ierr); /* needed for periodic */
   /* print matlab coordinates */
-  if (ctx->debug>1) {
+  if (ctx->debug>11) {
     Vec               coordinates;
     PetscViewer       viewer = NULL;
     char              buf[256];
@@ -456,7 +468,9 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *ctx, DM *dm)
 
 static PetscErrorCode log_n_0(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
-  u[0] = 1.0;
+  AppCtx *lctx = (AppCtx*)ctx;
+  assert(ctx);
+  u[0] = (lctx->domain_hi-lctx->domain_lo)+x[0];
   return 0;
 }
 
@@ -470,18 +484,17 @@ static PetscErrorCode psi_0(PetscInt dim, PetscReal time, const PetscReal x[], P
 {
   AppCtx *lctx = (AppCtx*)ctx;
   assert(ctx);
-  u[0] = (PetscCosReal(lctx->ke*x[0])-PetscCosReal(lctx->ke*lctx->a))/(1.0-PetscCosReal(lctx->ke*lctx->a));
-  if (u[0] != u[0]) {
-    //PetscPrintf(PETSC_COMM_WORLD, "Psi %lf %lf\n",x[0],u[0]);
-    u[0] = x[1];
+  if (lctx->ke!=0.0) {
+    u[0] = (PetscCosReal(lctx->ke*x[0])-PetscCosReal(lctx->ke*lctx->a))/(1.0-PetscCosReal(lctx->ke*lctx->a));
+  } else {
+    u[0] = 1.0-PetscPowScalar(x[0]/lctx->a,2);
   }
-  u[0] = 0;
   return 0;
 }
 
 static PetscErrorCode initialSolution_n(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
-  u[0] = 1.e-6; /* perturbation? */
+  u[0] = 0.0; /* perturbation? */
   return 0;
 }
 
@@ -493,8 +506,10 @@ static PetscErrorCode initialSolution_Omega(PetscInt dim, PetscReal time, const 
 
 static PetscErrorCode initialSolution_psi(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
-  // PetscScalar r = (PetscScalar) (rand()) / (PetscScalar) (RAND_MAX);
-  u[0] = 0; //x[0];
+  AppCtx *lctx = (AppCtx*)ctx;
+  assert(ctx);
+  PetscScalar r = lctx->eps*(PetscScalar) (rand()) / (PetscScalar) (RAND_MAX);
+  u[0] = r;
   // PetscPrintf(PETSC_COMM_WORLD, "rand psi %lf\n",u[0]);
   return 0;
 }
@@ -657,6 +672,7 @@ int main(int argc, char **argv)
   PetscReal      t       = 0.0;
   PetscReal      L2error = 0.0;
   PetscErrorCode ierr;
+  AppCtx *ctxarr[]={&ctx,&ctx,&ctx,&ctx,&ctx}; //each variable could have a different context
 
   s_ctx = &ctx;
   ierr = PetscInitialize(&argc, &argv, NULL,help);if (ierr) return ierr;
@@ -681,7 +697,7 @@ PetscInt d; VecGetSize(u, &d);CHKERRQ(ierr); PetscPrintf(PETSC_COMM_WORLD, "|u|=
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   ierr = TSSetPostStep(ts, PostStep);CHKERRQ(ierr);
 
-  ierr = DMProjectFunction(dm, t, ctx.initialFuncs, NULL, INSERT_ALL_VALUES, u);CHKERRQ(ierr);
+  ierr = DMProjectFunction(dm, t, ctx.initialFuncs, (void **)ctxarr, INSERT_ALL_VALUES, u);CHKERRQ(ierr);
 
   ierr = TSSetSolution(ts,u);CHKERRQ(ierr);
   ierr = PostStep(ts);CHKERRQ(ierr); /* get the initial state */
@@ -691,7 +707,7 @@ PetscInt d; VecGetSize(u, &d);CHKERRQ(ierr); PetscPrintf(PETSC_COMM_WORLD, "|u|=
   ierr = DMViewFromOptions(dm, NULL, "-dm_view");CHKERRQ(ierr);
   ierr = VecViewFromOptions(u, NULL, "-vec_view");CHKERRQ(ierr);
   ierr = TSGetTime(ts, &t);CHKERRQ(ierr);
-  ierr = DMComputeL2Diff(dm, t, ctx.initialFuncs, NULL, u, &L2error);CHKERRQ(ierr);
+  ierr = DMComputeL2Diff(dm, t, ctx.initialFuncs, (void **)ctxarr, u, &L2error);CHKERRQ(ierr);
   if (L2error < 1.0e-11) {ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Error: < 1.0e-11\n");CHKERRQ(ierr);}
   else                   {ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Error: %g\n", L2error);CHKERRQ(ierr);}
   ierr = VecViewFromOptions(u, NULL, "-sol_vec_view");CHKERRQ(ierr);
