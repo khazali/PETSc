@@ -828,10 +828,10 @@ runex44_2:
 	   ${RM} -f ex44_2.tmp
 
 runex48_2D:
-	-@${MPIEXEC} -n 2 ./ex48 -debug 2 -dim 2 -snes_fd -dm_refine 0 -petscspace_order 2 -petscspace_poly_tensor -ts_max_steps 1 -ts_final_time 10. -ts_dt 1.0 -y_periodicity PERIODIC > ex48_2D.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex48 -debug 2 -dim 2 -snes_fd -dm_refine 0 -petscspace_order 2 -petscspace_poly_tensor -ts_max_steps 1 -ts_final_time 10. -ts_dt 1.0 -y_periodicity PERIODIC > ex48_2D.tmp 2>&1; \
 	   ${DIFF} output/ex48_2D.out ex48_2D.tmp || printf "${PWD}\nPossible problem with ex48_2D, diffs above\n=========================================\n"; \
 	${PETSC_DIR}/bin/petsc_gen_xdmf.py *.h5
-#	   ${RM} -f ex48_2D.tmp
+	   ${RM} -f ex48_2D.tmp
 
 runex48_3D:
 	-@${MPIEXEC} -n 1 ./ex48 -debug 2 -dim 3 -snes_fd -dm_refine 0 -petscspace_order 2 -petscspace_poly_tensor -domain_lo -2,-1,-1 -domain_hi 2,1,1 -ts_max_steps 1 -z_periodicity PERIODIC > ex48_3D.tmp 2>&1; \
