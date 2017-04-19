@@ -115,7 +115,7 @@ static void f0_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
     phi_n_Der[d] = pphiDer[d]   - pnDer[d];
   }
   f0[0] = u_t[PSI] - poissonBracket(dim,psiDer, phi_n_Der) + poissonBracket(dim,logRefDenDer, ppsiDer);
-  printf("ppsiDer = %20.15e %20.15e psi = %20.15e refPsiDer = %20.15e %20.15e refPsi = %20.15e \n",ppsiDer[0],ppsiDer[1],u[PSI],refPsiDer[0],refPsiDer[1],a[PSI]);
+  //printf("ppsiDer = %20.15e %20.15e psi = %20.15e refPsiDer = %20.15e %20.15e refPsi = %20.15e \n",ppsiDer[0],ppsiDer[1],u[PSI],refPsiDer[0],refPsiDer[1],a[PSI]);
 }
 
 static void f1_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
