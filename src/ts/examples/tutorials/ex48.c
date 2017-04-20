@@ -290,6 +290,9 @@ static PetscErrorCode PostStep(TS ts)
   ierr = VecGetDM(X, &dm);CHKERRQ(ierr);
   ierr = TSGetTimeStepNumber(ts, &stepi);CHKERRQ(ierr);
   if (1) {
+    PetscInt num;
+    ierr = DMGetOutputSequenceNumber(dm, &num, NULL);CHKERRQ(ierr);
+    if (num < 0) {ierr = DMSetOutputSequenceNumber(dm, 0, 0.0);CHKERRQ(ierr);}
     ierr = VecViewFromOptions(X, NULL, "-vec_view");CHKERRQ(ierr);
   } else {
     ierr = PetscViewerCreate(PetscObjectComm((PetscObject)dm),&viewer);CHKERRQ(ierr);
