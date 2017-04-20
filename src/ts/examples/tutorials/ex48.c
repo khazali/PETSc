@@ -180,10 +180,10 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->cell_simplex        = PETSC_FALSE;
   options->refine              = 2;
   options->domain_hi[0]  = 1;
-  options->domain_hi[1]  = 1;
+  options->domain_hi[1]  = PETSC_PI;
   options->domain_hi[2]  = 1;
   options->domain_lo[0]  = -1;
-  options->domain_lo[1]  = -1;
+  options->domain_lo[1]  = -PETSC_PI;
   options->domain_lo[2]  = -1;
   options->periodicity[0]    = DM_BOUNDARY_NONE;
   options->periodicity[1]    = DM_BOUNDARY_NONE;
@@ -205,8 +205,6 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsReal("-mu", "mu", "ex48.c", options->mu, &options->mu, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-eta", "eta", "ex48.c", options->eta, &options->eta, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-beta", "beta", "ex48.c", options->beta, &options->beta, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsReal("-a", "a", "ex48.c", options->a, &options->a, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsReal("-b", "b", "ex48.c", options->b, &options->b, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-Jop", "Jop", "ex48.c", options->Jop, &options->Jop, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-m", "m", "ex48.c", options->m, &options->m, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-eps", "eps", "ex48.c", options->eps, &options->eps, NULL);CHKERRQ(ierr);
@@ -230,13 +228,20 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsIntArray("-cells", "Number of cells in each dimension", "ex48.c", options->cells, &ii, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
   /* The domain limits maybe should be handled differently */
-  options->domain_hi[0]  = options->a;
-  options->domain_hi[1]  = options->b;
-  options->domain_hi[2]  = 1;
-  options->domain_lo[0]  = -options->a;
-  options->domain_lo[1]  = -options->b;
-  options->domain_lo[2]  = -1;
-
+  /* options->domain_hi[0]  = options->a; */
+  /* options->domain_hi[1]  = options->b; */
+  /* options->domain_hi[2]  = 1; */
+  /* options->domain_lo[0]  = -options->a; */
+  /* options->domain_lo[1]  = -options->b; */
+  /* options->domain_lo[2]  = -1; */
+  if (options->domain_hi[0] == -options->domain_lo[0]) options->a = options->domain_hi[0];
+  else options->a = 1;
+  if (options->domain_hi[1] == -options->domain_lo[1]) options->b = options->domain_hi[1];
+  else options->b = 1;
+  PetscPrintf(comm, "a=%g b=%g\n",options->a,options->b);
+  for (ii = 0; ii < options->dim; ++ii) {
+    if (options->domain_hi[ii] <= options->domain_lo[ii]) SETERRQ3(comm,PETSC_ERR_ARG_WRONG,"Domain %D lo=%g hi=%g",ii,options->domain_lo[ii],options->domain_hi[ii]);
+  }
   options->ke = PetscSqrtScalar(options->Jop);
   if (options->Jop==0.0) {
     options->Jo = 1.0/PetscPowScalar(options->a,2);
