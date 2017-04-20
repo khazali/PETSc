@@ -36,6 +36,8 @@ typedef struct {
   PetscErrorCode (**initialFuncs)(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
   PetscReal      mu, eta, beta;
   PetscReal      a,b,Jo,Jop,m,ke,kx,ky,DeltaPrime,eps;
+  /* solver */
+  PetscBool      implicit;
 } AppCtx;
 
 static AppCtx *s_ctx;
@@ -58,7 +60,7 @@ static void f0_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   const PetscScalar *pphiDer = &u_x[uOff_x[PHI]];
   const PetscScalar *jzDer   = &u_x[uOff_x[JZ]];
   const PetscScalar *logRefDenDer = &a_x[aOff_x[DENSITY]];
-printf("f0_n\n");
+
   f0[0] = u_t[DENSITY] - poissonBracket(dim,pnDer, pphiDer) - s_ctx->beta*poissonBracket(dim,jzDer, ppsiDer) - poissonBracket(dim,logRefDenDer, pphiDer);
 }
 
@@ -178,6 +180,7 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->dim                 = 2;
   options->filename[0]         = '\0';
   options->cell_simplex        = PETSC_FALSE;
+  options->implicit            = PETSC_TRUE;
   options->refine              = 2;
   options->domain_hi[0]  = 1;
   options->domain_hi[1]  = PETSC_PI;
@@ -210,6 +213,7 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsReal("-eps", "eps", "ex48.c", options->eps, &options->eps, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-f", "Exodus.II filename to read", "ex48.c", options->filename, options->filename, sizeof(options->filename), &flg);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-cell_simplex", "Simplicial (true) or tensor (false) mesh", "ex48.c", options->cell_simplex, &options->cell_simplex, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-implicit", "Use implicit time integrator", "ex48.c", options->implicit, &options->implicit, NULL);CHKERRQ(ierr);
   ii = options->dim;
   ierr = PetscOptionsRealArray("-domain_hi", "Domain size", "ex48.c", options->domain_hi, &ii, NULL);CHKERRQ(ierr);
   ii = options->dim;
@@ -702,7 +706,7 @@ PetscInt d; VecGetSize(u, &d);CHKERRQ(ierr); PetscPrintf(PETSC_COMM_WORLD, "|u|=
   ierr = TSSetDM(ts, dm);CHKERRQ(ierr);
   ierr = TSSetApplicationContext(ts, &ctx);CHKERRQ(ierr);
   ierr = DMTSSetBoundaryLocal(dm, DMPlexTSComputeBoundary, &ctx);CHKERRQ(ierr);
-  if (0) {
+  if (ctx.implicit) {
     ierr = DMTSSetIFunctionLocal(dm, DMPlexTSComputeIFunctionFEM, &ctx);CHKERRQ(ierr);
     ierr = DMTSSetIJacobianLocal(dm, DMPlexTSComputeIJacobianFEM, &ctx);CHKERRQ(ierr);
   } else {
