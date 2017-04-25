@@ -225,6 +225,7 @@ PetscErrorCode  TSAdaptView(TSAdapt adapt,PetscViewer viewer)
   if (iascii) {
     ierr = PetscObjectPrintClassNamePrefixType((PetscObject)adapt,viewer);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  number of candidates %D\n",adapt->candidates.n);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(viewer,"  maximum allowed timestep %g minimum %g\n",adapt->dt_max,&adapt->dt_min);CHKERRQ(ierr);
     if (adapt->ops->view) {
       ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
       ierr = (*adapt->ops->view)(adapt,viewer);CHKERRQ(ierr);
@@ -384,14 +385,18 @@ PetscErrorCode TSAdaptSetStepLimits(TSAdapt adapt,PetscReal hmin,PetscReal hmax)
 .  adapt - the TSAdapt context
 
    Options Database Keys:
-.  -ts_adapt_type <type> - basic
++  -ts_adapt_type <type> - basic
+.  -ts_adapt_dt_min <min> - minimum timestep to use
+.  -ts_adapt_dt_max <max> - maximum timestep to use
+.  -ts_adapt_scale_solve_failed <scale> - scale timestep by this factor if a solve fails
+-  -ts_adapt_wnormtype <2 or infinity> - type of norm for computing error estimates
 
    Level: advanced
 
    Notes:
    This function is automatically called by TSSetFromOptions()
 
-.keywords: TS, TSGetAdapt(), TSAdaptSetType()
+.keywords: TS, TSGetAdapt(), TSAdaptSetType(), TSAdaptSetStepLimits()
 
 .seealso: TSGetType()
 */
@@ -406,8 +411,7 @@ PetscErrorCode  TSAdaptSetFromOptions(PetscOptionItems *PetscOptionsObject,TSAda
   /* This should use PetscOptionsBegin() if/when this becomes an object used outside of TS, but currently this
    * function can only be called from inside TSSetFromOptions()  */
   ierr = PetscOptionsHead(PetscOptionsObject,"TS Adaptivity options");CHKERRQ(ierr);
-  ierr = PetscOptionsFList("-ts_adapt_type","Algorithm to use for adaptivity","TSAdaptSetType",TSAdaptList,
-                          ((PetscObject)adapt)->type_name ? ((PetscObject)adapt)->type_name : type,type,sizeof(type),&flg);CHKERRQ(ierr);
+  ierr = PetscOptionsFList("-ts_adapt_type","Algorithm to use for adaptivity","TSAdaptSetType",TSAdaptList,((PetscObject)adapt)->type_name ? ((PetscObject)adapt)->type_name : type,type,sizeof(type),&flg);CHKERRQ(ierr);
   if (flg || !((PetscObject)adapt)->type_name) {
     ierr = TSAdaptSetType(adapt,type);CHKERRQ(ierr);
   }
@@ -587,10 +591,9 @@ PetscErrorCode TSAdaptChoose(TSAdapt adapt,TS ts,PetscReal h,PetscInt *next_sc,P
     const char *sc_name = (scheme < ncandidates) ? adapt->candidates.name[scheme] : "";
     ierr = PetscViewerASCIIAddTab(adapt->monitor,((PetscObject)adapt)->tablevel);CHKERRQ(ierr);
     if (wlte < 0) {
-      ierr = PetscViewerASCIIPrintf(adapt->monitor,"    TSAdapt '%s': step %3D %s t=%-11g+%10.3e family='%s' scheme=%D:'%s' dt=%-10.3e\n",((PetscObject)adapt)->type_name,ts->steps,*accept ? "accepted" : "rejected",(double)ts->ptime,(double)h,((PetscObject)ts)->type_name,scheme,sc_name,(double)*next_h);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(adapt->monitor,"    TSAdapt %s %s %D:%s step %3D %s t=%-11g+%10.3e dt=%-10.3e\n",((PetscObject)adapt)->type_name,((PetscObject)ts)->type_name,scheme,sc_name,ts->steps,*accept ? "accepted" : "rejected",(double)ts->ptime,(double)h,(double)*next_h);CHKERRQ(ierr);
     } else {
-      ierr = PetscViewerASCIIPrintf(adapt->monitor,"    TSAdapt '%s': step %3D %s t=%-11g+%10.3e wlte=%5.3g family='%s' scheme=%D:'%s' dt=%-10.3e\n",((PetscObject)adapt)->type_name,ts->steps,*accept ? "accepted" : "rejected",(double)ts->ptime,(double)h,(double)wlte,((PetscObject)ts)->type_name,scheme,sc_name,(double)*next_h);CHKERRQ(ierr);
-      ierr = PetscViewerASCIIPrintf(adapt->monitor,"            wlte=%5.3g wltea=%5.3g wlter=%5.3g \n",(double)wlte,(double)wltea,(double)wlter);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(adapt->monitor,"    TSAdapt %s %s %D:%s step %3D %s t=%-11g+%10.3e dt=%-10.3e wlte=%5.3g  wltea=%5.3g wlter=%5.3g\n",((PetscObject)adapt)->type_name,((PetscObject)ts)->type_name,scheme,sc_name,ts->steps,*accept ? "accepted" : "rejected",(double)ts->ptime,(double)h,(double)*next_h,(double)wlte,(double)wltea,(double)wlter);CHKERRQ(ierr);
     }
     ierr = PetscViewerASCIISubtractTab(adapt->monitor,((PetscObject)adapt)->tablevel);CHKERRQ(ierr);
   }
@@ -633,7 +636,7 @@ PetscErrorCode TSAdaptCheckStage(TSAdapt adapt,TS ts,PetscReal t,Vec Y,PetscBool
       ierr = PetscInfo2(ts,"Step=%D, nonlinear solve failures %D greater than current TS allowed, stopping solve\n",ts->steps,ts->num_snes_failures);CHKERRQ(ierr);
       if (adapt->monitor) {
         ierr = PetscViewerASCIIAddTab(adapt->monitor,((PetscObject)adapt)->tablevel);CHKERRQ(ierr);
-        ierr = PetscViewerASCIIPrintf(adapt->monitor,"    TSAdapt '%s': step %3D stage rejected t=%-11g+%10.3e, nonlinear solve failures %D greater than current TS allowed\n",((PetscObject)adapt)->type_name,ts->steps,(double)ts->ptime,(double)ts->time_step,ts->num_snes_failures);CHKERRQ(ierr);
+        ierr = PetscViewerASCIIPrintf(adapt->monitor,"    TSAdapt %s step %3D stage rejected t=%-11g+%10.3e, nonlinear solve failures %D greater than current TS allowed\n",((PetscObject)adapt)->type_name,ts->steps,(double)ts->ptime,(double)ts->time_step,ts->num_snes_failures);CHKERRQ(ierr);
         ierr = PetscViewerASCIISubtractTab(adapt->monitor,((PetscObject)adapt)->tablevel);CHKERRQ(ierr);
       }
     }
@@ -652,7 +655,7 @@ PetscErrorCode TSAdaptCheckStage(TSAdapt adapt,TS ts,PetscReal t,Vec Y,PetscBool
     ierr = TSSetTimeStep(ts,new_dt);CHKERRQ(ierr);
     if (adapt->monitor) {
       ierr = PetscViewerASCIIAddTab(adapt->monitor,((PetscObject)adapt)->tablevel);CHKERRQ(ierr);
-      ierr = PetscViewerASCIIPrintf(adapt->monitor,"    TSAdapt '%s': step %3D stage rejected t=%-11g+%10.3e retrying with dt=%-10.3e\n",((PetscObject)adapt)->type_name,ts->steps,(double)ts->ptime,(double)dt,(double)new_dt);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(adapt->monitor,"    TSAdapt %s step %3D stage rejected t=%-11g+%10.3e retrying with dt=%-10.3e\n",((PetscObject)adapt)->type_name,ts->steps,(double)ts->ptime,(double)dt,(double)new_dt);CHKERRQ(ierr);
       ierr = PetscViewerASCIISubtractTab(adapt->monitor,((PetscObject)adapt)->tablevel);CHKERRQ(ierr);
     }
   }

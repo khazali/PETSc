@@ -428,7 +428,7 @@ runex11_advect_p4est:
 		-f -grid_bounds -1.,1.,-1.,1. -bc_outflow 1,2,3,4 \
 			-dm_type p4est -dm_forest_partition_overlap 1 -dm_forest_maximum_refinement 6 -dm_forest_minimum_refinement 2 -dm_forest_initial_refinement 4 \
 		-ts_ssp_type rks2 -ts_ssp_nstages 10 -ts_final_time 1. \
-		-ufv_use_amr -ufv_refine_tol 1.e-2 -ufv_coarsen_tol 1.e-4
+		-ufv_use_amr -refine_vec_tagger_box 1.e-2,inf -coarsen_vec_tagger_box 0.,1.e-4 -refine_tag_view -coarsen_tag_view
 
 runex11_advect_p4est_fine:
 	-@${MPIEXEC} -n 4 ./ex11 \
@@ -438,13 +438,13 @@ runex11_advect_p4est_fine:
 		-f -grid_bounds -1.,1.,-1.,1. -bc_outflow 1,2,3,4 \
 			-dm_type p4est -dm_forest_partition_overlap 1 -dm_forest_maximum_refinement 7 -dm_forest_minimum_refinement 3 -dm_forest_initial_refinement 4 \
 		-ts_ssp_type rks2 -ts_ssp_nstages 10 -ts_final_time 1. \
-		-ufv_use_amr -ufv_refine_tol 2.5e-3 -ufv_coarsen_tol 2.5e-5
+		-ufv_use_amr -refine_vec_tagger_box 2.5e-3,inf -coarsen_vec_tagger_box 0,2.5e-5 -refine_tag_view -coarsen_tag_view
 
 runex11_euler_p4est:
 	-@${MPIEXEC} -n 4 ./ex11 -ufv_vtk_interval 1 -monitor density,energy -f -grid_size 2,1 -grid_bounds -1,1.,0.,1 -bc_wall 1,2,3,4 \
           -dm_type p4est -dm_forest_partition_overlap 1 -dm_forest_maximum_refinement 6 -dm_forest_minimum_refinement 2 -dm_forest_initial_refinement 2 -physics euler -eu_type iv_shock -ufv_cfl 10 -eu_alpha 60. -grid_skew_60 -eu_gamma 1.4 -eu_amach 2.02 -eu_rho2 3. -ts_final_time 1 \
           -ts_ssp_type rks2 -ts_ssp_nstages 10 -petscfv_type leastsquares -petscfv_compute_gradients 0 -petsclimiter_type minmod \
-					-ufv_use_amr -ufv_view_initial_refinement -ufv_refine_tol 0.5 -ufv_coarsen_tol 1.e-2 -ts_final_time 0.1
+					-ufv_use_amr -ufv_view_initial_refinement -refine_vec_tagger_box 0.5,inf -coarsen_vec_tagger_box 0,1.e-2 -refine_tag_view -coarsen_tag_view -ts_final_time 0.1
 
 runex12:
 	-@${MPIEXEC} -n 1 ./ex12 -da_grid_x 20 -ts_final_time 3 -ts_dt 1e-1 -ts_theta_initial_guess_extrapolate 0 \
@@ -772,6 +772,16 @@ runex40_e:
 	   ${DIFF} output/ex40.out ex40.tmp || printf "${PWD}\nPossible problem with ex40_e, diffs above\n=========================================\n"; \
 	   ${RM} -f ex40.tmp
 
+runex40_f:
+	-@${MPIEXEC} -n 1 ./ex40 -rhs-form -ts_type rk -ts_rk_type 3bs > ex40.tmp 2>&1; \
+	   ${DIFF} output/ex40.out ex40.tmp || printf "${PWD}\nPossible problem with ex40_f, diffs above\n=========================================\n"; \
+	   ${RM} -f ex40.tmp
+
+runex40_g:
+	-@${MPIEXEC} -n 1 ./ex40 -rhs-form -ts_type rk -ts_rk_type 5bs > ex40.tmp 2>&1; \
+	   ${DIFF} output/ex40.out ex40.tmp || printf "${PWD}\nPossible problem with ex40_g, diffs above\n=========================================\n"; \
+	   ${RM} -f ex40.tmp
+
 runex41_a:
 	-@${MPIEXEC} -n 2 ./ex41 -snes_stol 1e-4 > ex41.tmp 2>&1; \
 	   ${DIFF} output/ex41.out ex41.tmp || printf "${PWD}\nPossible problem with ex41_a, diffs above\n=========================================\n"; \
@@ -795,6 +805,16 @@ runex41_d:
 runex41_e:
 	-@${MPIEXEC} -n 2 ./ex41 -ts_type bdf -ts_bdf_adapt -ts_adapt_dt_max 0.015 -ts_max_steps 3000 > ex41.tmp 2>&1; \
 	   ${DIFF} output/ex41.out ex41.tmp || printf "${PWD}\nPossible problem with ex41_e, diffs above\n=========================================\n"; \
+	   ${RM} -f ex41.tmp
+
+runex41_f:
+	-@${MPIEXEC} -n 2 ./ex41 -rhs-form -ts_type rk -ts_rk_type 3bs > ex41.tmp 2>&1; \
+	   ${DIFF} output/ex41.out ex41.tmp || printf "${PWD}\nPossible problem with ex41_f, diffs above\n=========================================\n"; \
+	   ${RM} -f ex41.tmp
+
+runex41_g:
+	-@${MPIEXEC} -n 2 ./ex41 -rhs-form -ts_type rk -ts_rk_type 5bs > ex41.tmp 2>&1; \
+	   ${DIFF} output/ex41.out ex41.tmp || printf "${PWD}\nPossible problem with ex41_g, diffs above\n=========================================\n"; \
 	   ${RM} -f ex41.tmp
 
 runex42:
@@ -851,8 +871,8 @@ TESTEXAMPLES_C		  = ex1.PETSc runex1 runex1_2 ex1.rm ex3.PETSc runex3 runex3_2 r
                             ex22.PETSc runex22_2 runex22_3 runex22_4 ex22.rm \
                             ex25.PETSc runex25 ex25.rm \
                             ex31.PETSc runex31 runex31_2 ex31.rm \
-                            ex40.PETSc runex40_a runex40_b runex40_c runex40_d runex40_e ex40.rm \
-                            ex41.PETSc runex41_a runex41_b runex41_c runex41_d runex41_e ex41.rm \
+                            ex40.PETSc runex40_a runex40_b runex40_c runex40_d runex40_e runex40_f runex40_g ex40.rm \
+                            ex41.PETSc runex41_a runex41_b runex41_c runex41_d runex41_e runex41_f runex41_g ex41.rm \
                             ex43.PETSc ex43.rm \
                             ex44.PETSc runex44_a runex44_b runex44_2 ex44.rm
 
@@ -870,7 +890,8 @@ TESTEXAMPLES_C_X	  = ex5.PETSc runex5 ex5.rm
 TESTEXAMPLES_FORTRAN	  = ex1f.PETSc runex1f ex1f.rm
 TESTEXAMPLES_FORTRAN_NOTSINGLE =  ex22f.PETSc runex22f ex22f.rm
 TESTEXAMPLES_F90_NOTSINGLE =  ex22f_mf.PETSc runex22f_mf ex22f_mf.rm
-TESTEXAMPLES_C_X_MPIUNI   = ex43.PETSc runex43_a runex43_b ex43.rm \
+TESTEXAMPLES_C_X_MPIUNI   = ex40.PETSc runex40_a runex40_b runex40_c runex40_d runex40_e runex40_f runex40_g ex40.rm \
+                            ex43.PETSc runex43_a runex43_b ex43.rm \
                             ex44.PETSc runex44_a runex44_b ex44.rm
 TESTEXAMPLES_13		  = ex2.PETSc ex2.rm ex3.PETSc ex3.rm ex4.PETSc ex4.rm \
                             ex5.PETSc ex5.rm

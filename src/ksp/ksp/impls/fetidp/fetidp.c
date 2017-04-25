@@ -811,7 +811,7 @@ static PetscErrorCode KSPFETIDPSetUpOperators(KSP ksp)
       if (!pisz) {
         Mat C;
 
-        ierr = MatGetSubMatrix(Ap,fetidp->pP,fetidp->pP,MAT_INITIAL_MATRIX,&C);CHKERRQ(ierr);
+        ierr = MatCreateSubMatrix(Ap,fetidp->pP,fetidp->pP,MAT_INITIAL_MATRIX,&C);CHKERRQ(ierr);
         ierr = MatScale(C,-1.);CHKERRQ(ierr);
         ierr = PetscObjectCompose((PetscObject)fetidp->innerbddc,"__KSPFETIDP_C",(PetscObject)C);CHKERRQ(ierr);
         /* default operators for the interface pressure solver */
@@ -856,7 +856,7 @@ static PetscErrorCode KSPFETIDPSetUpOperators(KSP ksp)
         if (PAM == AM) { /* monolithic ordering, restrict to interface pressure */
           Mat C;
 
-          ierr  = MatGetSubMatrix(PAmat,fetidp->pP,fetidp->pP,MAT_INITIAL_MATRIX,&C);CHKERRQ(ierr);
+          ierr  = MatCreateSubMatrix(PAmat,fetidp->pP,fetidp->pP,MAT_INITIAL_MATRIX,&C);CHKERRQ(ierr);
           ierr  = MatDestroy(&PAmat);CHKERRQ(ierr);
           PAmat = C;
           ierr  = PetscObjectCompose((PetscObject)fetidp->innerbddc,"__KSPFETIDP_PAmat",(PetscObject)PAmat);CHKERRQ(ierr);
@@ -877,7 +877,7 @@ static PetscErrorCode KSPFETIDPSetUpOperators(KSP ksp)
         if (PAM == AM) { /* monolithic ordering, restrict to interface pressure */
           Mat C;
 
-          ierr  = MatGetSubMatrix(PPmat,fetidp->pP,fetidp->pP,MAT_INITIAL_MATRIX,&C);CHKERRQ(ierr);
+          ierr  = MatCreateSubMatrix(PPmat,fetidp->pP,fetidp->pP,MAT_INITIAL_MATRIX,&C);CHKERRQ(ierr);
           ierr  = MatDestroy(&PPmat);CHKERRQ(ierr);
           PPmat = C;
           ierr  = PetscObjectCompose((PetscObject)fetidp->innerbddc,"__KSPFETIDP_PPmat",(PetscObject)PPmat);CHKERRQ(ierr);
@@ -1141,6 +1141,8 @@ PETSC_EXTERN PetscErrorCode KSPCreate_FETIDP(KSP ksp)
   ksp->ops->setfromoptions               = KSPSetFromOptions_FETIDP;
   ksp->ops->buildsolution                = KSPBuildSolution_FETIDP;
   ksp->ops->buildresidual                = KSPBuildResidualDefault;
+  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_NONE,PC_LEFT,1);CHKERRQ(ierr);
+  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_NONE,PC_RIGHT,1);CHKERRQ(ierr);
   /* create the inner KSP for the Lagrange multipliers */
   ierr = KSPCreate(PetscObjectComm((PetscObject)ksp),&fetidp->innerksp);CHKERRQ(ierr);
   ierr = KSPGetPC(fetidp->innerksp,&pc);CHKERRQ(ierr);

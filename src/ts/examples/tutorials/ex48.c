@@ -180,7 +180,7 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->dim                 = 2;
   options->filename[0]         = '\0';
   options->cell_simplex        = PETSC_FALSE;
-  options->implicit            = PETSC_TRUE;
+  options->implicit            = PETSC_FALSE;
   options->refine              = 2;
   options->domain_hi[0]  = 1;
   options->domain_hi[1]  = PETSC_PI;

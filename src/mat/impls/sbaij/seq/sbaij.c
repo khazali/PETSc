@@ -11,7 +11,6 @@
 #define USESHORT
 #include <../src/mat/impls/sbaij/seq/relax.h>
 
-extern PetscErrorCode MatSeqSBAIJSetNumericFactorization_inplace(Mat,PetscBool);
 #if defined(PETSC_HAVE_ELEMENTAL)
 PETSC_INTERN PetscErrorCode MatConvert_SeqSBAIJ_Elemental(Mat,MatType,MatReuse,Mat*);
 #endif
@@ -1376,7 +1375,7 @@ static struct _MatOps MatOps_Values = {MatSetValues_SeqSBAIJ,
                                        0,
                                        MatICCFactor_SeqSBAIJ,
                                /* 39*/ MatAXPY_SeqSBAIJ,
-                                       MatGetSubMatrices_SeqSBAIJ,
+                                       MatCreateSubMatrices_SeqSBAIJ,
                                        MatIncreaseOverlap_SeqSBAIJ,
                                        MatGetValues_SeqSBAIJ,
                                        MatCopy_SeqSBAIJ,
@@ -1395,7 +1394,7 @@ static struct _MatOps MatOps_Values = {MatSetValues_SeqSBAIJ,
                                        0,
                                        0,
                                        MatSetValuesBlocked_SeqSBAIJ,
-                               /* 59*/ MatGetSubMatrix_SeqSBAIJ,
+                               /* 59*/ MatCreateSubMatrix_SeqSBAIJ,
                                        0,
                                        0,
                                        0,

@@ -328,6 +328,11 @@ runex1:
 	   if (${DIFF} output/ex1_1.out ex1_1.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex1_1, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex1_1.tmp
+runex1_changepcside:
+	-@${MPIEXEC} -n 1 ./ex1 -ksp_monitor_short -ksp_gmres_cgs_refinement_type refine_always -change_pc_side > ex1_1.tmp 2>&1;	  \
+	   if (${DIFF} output/ex1_changepcside.out ex1_1.tmp) then true; \
+	   else printf "${PWD}\nPossible problem with ex1_changepcside, diffs above\n=========================================\n"; fi; \
+	   ${RM} -f ex1_1.tmp
 runex1_2:
 	-@${MPIEXEC} -n 1 ./ex1 -pc_type sor -pc_sor_symmetric -ksp_monitor_short -ksp_gmres_cgs_refinement_type refine_always >\
 	   ex1_2.tmp 2>&1;   \
@@ -432,6 +437,11 @@ runex2_fbcgs:
 	-@${MPIEXEC} -n 1 ./ex2 -ksp_type fbcgs -pc_type ilu  > ex2.tmp 2>&1; \
            if (${DIFF} output/ex2_fbcgs.out ex2.tmp) then true; \
            else printf "${PWD}\nPossible problem with ex2_fbcgs, diffs above\n=========================================\n"; fi; \
+           ${RM} -f ex2.tmp
+runex2_pipebcgs:
+	-@${MPIEXEC} -n 1 ./ex2 -ksp_monitor_short -ksp_type pipebcgs -m 9 -n 9 > ex2.tmp 2>&1; \
+           if (${DIFF} output/ex2_pipebcgs.out ex2.tmp) then true; \
+           else printf "${PWD}\nPossible problem with ex2_pipebcgs, diffs above\n=========================================\n"; fi; \
            ${RM} -f ex2.tmp
 runex2_fbcgs_2:
 	-@${MPIEXEC} -n 3 ./ex2 -ksp_type fbcgsr -pc_type bjacobi > ex2.tmp 2>&1; \
@@ -1449,6 +1459,11 @@ runex56:
          ${DIFF} output/ex56_1.out ex.tmp || printf "${PWD}\nPossible problem with ex56, diffs above \n=========================================\n"; \
          ${RM} -f ex.tmp
 
+runex56_2:
+	-@${MPIEXEC} -n 8 ./ex56 -ne 31 -alpha 1.e-3 -ksp_type cg -pc_type gamg -pc_gamg_agg_nsmooths 1 -pc_gamg_reuse_interpolation true -two_solves -ksp_converged_reason -use_mat_nearnullspace -mg_levels_esteig_ksp_type cg -mg_levels_esteig_ksp_max_it 10 -pc_gamg_square_graph 1 -mg_levels_ksp_max_it 1 -mg_levels_ksp_type chebyshev -mg_levels_ksp_chebyshev_esteig 0,0.2,0,1.05 -gamg_est_ksp_type cg -gamg_est_ksp_max_it 10 -pc_gamg_asm_use_agg true -mg_levels_sub_pc_type lu -mg_levels_pc_asm_overlap 0 -pc_gamg_threshold -0.01 -pc_gamg_coarse_eq_limit 200 -pc_gamg_process_eq_limit 30 -pc_gamg_repartition false -pc_mg_cycle_type v -pc_gamg_use_parallel_coarse_grid_solver -mg_coarse_pc_type jacobi -mg_coarse_ksp_type cg | grep -v variant > ex.tmp 2>&1; \
+         ${DIFF} output/ex56_2.out ex.tmp || printf "${PWD}\nPossible problem with ex56_2, diffs above \n=========================================\n"; \
+         ${RM} -f ex.tmp
+
 runex56_latebs:
 	-@${MPIEXEC} -n 8 ./ex56 -test_late_bs 0 -ne 13 -alpha 1.e-3 -ksp_type cg -pc_type gamg -pc_gamg_agg_nsmooths 1 -pc_gamg_reuse_interpolation true -two_solves -ksp_converged_reason -ksp_view -use_mat_nearnullspace -mg_levels_esteig_ksp_type cg -mg_levels_esteig_ksp_max_it 10 -pc_gamg_square_graph 1 -mg_levels_ksp_max_it 1 -mg_levels_ksp_type chebyshev -mg_levels_ksp_chebyshev_esteig 0,0.2,0,1.05 -gamg_est_ksp_type cg -gamg_est_ksp_max_it 10 -pc_gamg_asm_use_agg true -mg_levels_sub_pc_type lu -mg_levels_pc_asm_overlap 0 -pc_gamg_threshold -0.01 -pc_gamg_coarse_eq_limit 200 -pc_gamg_process_eq_limit 30 -pc_gamg_repartition false -pc_mg_cycle_type v -pc_gamg_use_parallel_coarse_grid_solver -mg_coarse_pc_type jacobi -mg_coarse_ksp_type cg -ksp_monitor_short -ksp_view | grep -v variant > ex.tmp 2>&1; \
 	 ${MPIEXEC} -n 8 ./ex56 -test_late_bs -ne 13 -alpha 1.e-3 -ksp_type cg -pc_type gamg -pc_gamg_agg_nsmooths 1 -pc_gamg_reuse_interpolation true -two_solves -ksp_converged_reason -ksp_view -use_mat_nearnullspace -mg_levels_esteig_ksp_type cg -mg_levels_esteig_ksp_max_it 10 -pc_gamg_square_graph 1 -mg_levels_ksp_max_it 1 -mg_levels_ksp_type chebyshev -mg_levels_ksp_chebyshev_esteig 0,0.2,0,1.05 -gamg_est_ksp_type cg -gamg_est_ksp_max_it 10 -pc_gamg_asm_use_agg true -mg_levels_sub_pc_type lu -mg_levels_pc_asm_overlap 0 -pc_gamg_threshold -0.01 -pc_gamg_coarse_eq_limit 200 -pc_gamg_process_eq_limit 30 -pc_gamg_repartition false -pc_mg_cycle_type v -pc_gamg_use_parallel_coarse_grid_solver -mg_coarse_pc_type jacobi -mg_coarse_ksp_type cg -ksp_monitor_short -ksp_view | grep -v variant > exlate.tmp 2>&1; \
@@ -1671,9 +1686,9 @@ runex67_nonsymmetric_right:
         ${DIFF} output/ex67_nonsymmetric_right.out ex67.tmp || printf "${PWD}\nPossible problem with ex67_nonsymmetric_right, diffs above\n=========================================\n"; \
         ${RM} -f ex67.tmp
 
-TESTEXAMPLES_C		       = ex1.PETSc runex1 runex1_2 runex1_3 ex1.rm ex2.PETSc runex2 runex2_2 runex2_3 \
+TESTEXAMPLES_C		       = ex1.PETSc runex1 runex1_changepcside runex1_2 runex1_3 ex1.rm ex2.PETSc runex2 runex2_2 runex2_3 \
                                  runex2_4 runex2_bjacobi runex2_bjacobi_2 runex2_bjacobi_3  \
-                                 runex2_chebyest_1 runex2_chebyest_2 runex2_fbcgs runex2_fbcgs_2 runex2_telescope runex2_pipecg runex2_pipecr runex2_groppcg runex2_pipecgrr ex2.rm \
+                                 runex2_chebyest_1 runex2_chebyest_2 runex2_fbcgs runex2_pipebcgs runex2_fbcgs_2 runex2_telescope runex2_pipecg runex2_pipecr runex2_groppcg runex2_pipecgrr ex2.rm \
                                  ex3.PETSc runex3_1 ex3.rm \
                                  ex4.PETSc ex4.rm ex7.PETSc runex7 runex7_2 ex7.rm ex4.PETSc ex4.rm ex5.PETSc runex5 runex5_2 \
                                  runex5_redundant_0 runex5_redundant_1 runex5_redundant_2 runex5_redundant_3 runex5_redundant_4 ex5.rm \

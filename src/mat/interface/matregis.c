@@ -52,17 +52,11 @@ PETSC_EXTERN PetscErrorCode MatCreate_FFTW(Mat);
 PETSC_EXTERN PetscErrorCode MatCreate_Elemental(Mat);
 
 PETSC_EXTERN PetscErrorCode MatCreate_Preallocator(Mat);
+PETSC_EXTERN PetscErrorCode MatCreate_Dummy(Mat);
 
 #if defined PETSC_HAVE_HYPRE
 PETSC_EXTERN PetscErrorCode MatCreate_HYPRE(Mat);
 #endif
-
-/*
-    This is used by MatSetType() to make sure that at least one
-    MatRegisterAll() is called. In general, if there is more than one
-    DLL, then MatRegisterAll() may be called several times.
-*/
-extern PetscBool MatRegisterAllCalled;
 
 /*@C
   MatRegisterAll - Registers all of the matrix types in PETSc
@@ -148,6 +142,7 @@ PetscErrorCode  MatRegisterAll(void)
 #endif
 
   ierr = MatRegister(MATPREALLOCATOR,   MatCreate_Preallocator);CHKERRQ(ierr);
+  ierr = MatRegister(MATDUMMY,          MatCreate_Dummy);CHKERRQ(ierr);
 
 #if defined PETSC_HAVE_HYPRE
   ierr = MatRegister(MATHYPRE,          MatCreate_HYPRE);CHKERRQ(ierr);

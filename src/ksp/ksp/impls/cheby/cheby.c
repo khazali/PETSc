@@ -49,11 +49,11 @@ static PetscErrorCode KSPChebyshevEstEigSet_Chebyshev(KSP ksp,PetscReal a,PetscR
     if (!cheb->kspest) { /* should this block of code be moved to KSPSetUp_Chebyshev()? */
       ierr = KSPCreate(PetscObjectComm((PetscObject)ksp),&cheb->kspest);CHKERRQ(ierr);
       ierr = PetscObjectIncrementTabLevel((PetscObject)cheb->kspest,(PetscObject)ksp,1);CHKERRQ(ierr);
-      ierr = KSPSetOptionsPrefix(cheb->kspest,((PetscObject)ksp)->prefix);CHKERRQ(ierr);
-      ierr = KSPAppendOptionsPrefix(cheb->kspest,"esteig_");CHKERRQ(ierr);
-      ierr = KSPSetSkipPCSetFromOptions(cheb->kspest,PETSC_TRUE);CHKERRQ(ierr);
-
       ierr = KSPSetPC(cheb->kspest,ksp->pc);CHKERRQ(ierr);
+      /* use PetscObjectSet/AppendOptionsPrefix() instead of KSPSet/AppendOptionsPrefix() so that the PC prefix is not changed */
+      ierr = PetscObjectSetOptionsPrefix((PetscObject)cheb->kspest,((PetscObject)ksp)->prefix);CHKERRQ(ierr);
+      ierr = PetscObjectAppendOptionsPrefix((PetscObject)cheb->kspest,"esteig_");CHKERRQ(ierr);
+      ierr = KSPSetSkipPCSetFromOptions(cheb->kspest,PETSC_TRUE);CHKERRQ(ierr);
 
       ierr = KSPSetComputeEigenvalues(cheb->kspest,PETSC_TRUE);CHKERRQ(ierr);
 
@@ -581,6 +581,7 @@ PETSC_EXTERN PetscErrorCode KSPCreate_Chebyshev(KSP ksp)
   ksp->data = (void*)chebyshevP;
   ierr      = KSPSetSupportedNorm(ksp,KSP_NORM_PRECONDITIONED,PC_LEFT,3);CHKERRQ(ierr);
   ierr      = KSPSetSupportedNorm(ksp,KSP_NORM_UNPRECONDITIONED,PC_LEFT,2);CHKERRQ(ierr);
+  ierr      = KSPSetSupportedNorm(ksp,KSP_NORM_NONE,PC_LEFT,1);CHKERRQ(ierr);
 
   chebyshevP->emin = 0.;
   chebyshevP->emax = 0.;

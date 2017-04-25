@@ -1349,8 +1349,6 @@ PetscErrorCode MatRestoreRow_SeqBAIJ(Mat A,PetscInt row,PetscInt *nz,PetscInt **
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatSetValues_SeqBAIJ(Mat,PetscInt,const PetscInt[],PetscInt,const PetscInt[],const PetscScalar[],InsertMode);
-
 PetscErrorCode MatTranspose_SeqBAIJ(Mat A,MatReuse reuse,Mat *B)
 {
   Mat_SeqBAIJ    *a=(Mat_SeqBAIJ*)A->data;
@@ -2598,7 +2596,7 @@ static struct _MatOps MatOps_Values = {MatSetValues_SeqBAIJ,
                                        MatILUFactor_SeqBAIJ,
                                        0,
                                /* 39*/ MatAXPY_SeqBAIJ,
-                                       MatGetSubMatrices_SeqBAIJ,
+                                       MatCreateSubMatrices_SeqBAIJ,
                                        MatIncreaseOverlap_SeqBAIJ,
                                        MatGetValues_SeqBAIJ,
                                        MatCopy_SeqBAIJ,
@@ -2617,7 +2615,7 @@ static struct _MatOps MatOps_Values = {MatSetValues_SeqBAIJ,
                                        0,
                                        0,
                                        MatSetValuesBlocked_SeqBAIJ,
-                               /* 59*/ MatGetSubMatrix_SeqBAIJ,
+                               /* 59*/ MatCreateSubMatrix_SeqBAIJ,
                                        MatDestroy_SeqBAIJ,
                                        MatView_SeqBAIJ,
                                        0,
@@ -2813,6 +2811,10 @@ static PetscErrorCode  MatSeqBAIJSetPreallocation_SeqBAIJ(Mat B,PetscInt bs,Pets
     case 7:
       B->ops->mult    = MatMult_SeqBAIJ_7;
       B->ops->multadd = MatMultAdd_SeqBAIJ_7;
+      break;
+    case 11:
+      B->ops->mult    = MatMult_SeqBAIJ_11;
+      B->ops->multadd = MatMultAdd_SeqBAIJ_11;
       break;
     case 15:
       B->ops->mult    = MatMult_SeqBAIJ_15_ver1;
