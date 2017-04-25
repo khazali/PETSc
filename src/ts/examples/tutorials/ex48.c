@@ -182,12 +182,12 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->cell_simplex        = PETSC_FALSE;
   options->implicit            = PETSC_FALSE;
   options->refine              = 2;
-  options->domain_hi[0]  = 1;
-  options->domain_hi[1]  = PETSC_PI;
-  options->domain_hi[2]  = 1;
-  options->domain_lo[0]  = -1;
-  options->domain_lo[1]  = -PETSC_PI;
-  options->domain_lo[2]  = -1;
+  options->domain_lo[0]  = 0.0;
+  options->domain_lo[1]  = 0.0;
+  options->domain_lo[2]  = 0.0;
+  options->domain_hi[0]  = 2.0;
+  options->domain_hi[1]  = 2.0*PETSC_PI;
+  options->domain_hi[2]  = 2.0;
   options->periodicity[0]    = DM_BOUNDARY_NONE;
   options->periodicity[1]    = DM_BOUNDARY_NONE;
   options->periodicity[2]    = DM_BOUNDARY_NONE;
@@ -387,6 +387,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *ctx, DM *dm)
     PetscSection csec;
 
     /* create DM */
+    if (ctx->cell_simplex && dim == 3) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Cannot mesh a cylinder with simplices");
     if (dim==2) {
       PetscInt refineRatio, totCells = 1;
       if (ctx->cell_simplex) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Cannot mesh 2D with simplices");
@@ -400,38 +401,13 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *ctx, DM *dm)
         totCells *= ctx->cells[d];
       }
       if (totCells % numProcs) SETERRQ2(comm,PETSC_ERR_ARG_WRONG,"Total cells %D not divisible by processes %D", totCells, numProcs);
-      ierr = DMPlexCreateHexBoxMesh(comm, dim, ctx->cells, ctx->periodicity[0], ctx->periodicity[1], ctx->periodicity[2], dm);CHKERRQ(ierr);
-    } else if (ctx->cell_simplex && dim==3) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Cannot mesh a cylinder with simplices");
-    else {
+      ierr = DMPlexCreateHexBoxMesh(comm, dim, ctx->cells, ctx->domain_lo, ctx->domain_hi, ctx->periodicity[0], ctx->periodicity[1], ctx->periodicity[2], dm);CHKERRQ(ierr);
+    } else {
+      if (ctx->periodicity[0]==DM_BOUNDARY_PERIODIC || ctx->periodicity[1]==DM_BOUNDARY_PERIODIC) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Cannot do periodic in x or y in a cylinder");
       /* we stole dm_refine so clear it */
       ierr = PetscOptionsClearValue(NULL,"-dm_refine");CHKERRQ(ierr);
       ierr = DMPlexCreateHexCylinderMesh(comm, ctx->refine, ctx->periodicity[2], dm);CHKERRQ(ierr);
-      if (ctx->periodicity[0]==DM_BOUNDARY_PERIODIC || ctx->periodicity[1]==DM_BOUNDARY_PERIODIC) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Cannot do periodic in x or y in a cylinder");
     }
-    /* Rescale to physical domain */
-    ierr = DMGetPeriodicity(*dm, &oldMaxCell, NULL, NULL);CHKERRQ(ierr);
-    for (d = 0; d < dim; ++d) {
-      if (oldMaxCell) maxCell[d] = oldMaxCell[d]*(ctx->domain_hi[d] - ctx->domain_lo[d]);
-      L[d]       = ctx->domain_hi[d] - ctx->domain_lo[d];
-    }
-    ierr = DMGetCoordinateDM(*dm, &cdm);CHKERRQ(ierr);
-    ierr = DMGetDefaultGlobalSection(cdm, &csec);CHKERRQ(ierr);
-    //ierr = PetscSectionGetChart(csec, &pStart, &pEnd);CHKERRQ(ierr);
-    ierr = DMPlexGetDepthStratum(*dm, 0, &vStart, &vEnd);
-    ierr = DMGetCoordinatesLocal(*dm, &coordinates);CHKERRQ(ierr);
-    ierr = VecGetArray(coordinates, &coords);CHKERRQ(ierr);
-    for (p = vStart; p < vEnd; ++p) {
-      PetscScalar *pcoords;
-      ierr = DMPlexPointGlobalRef(cdm, p, coords, &pcoords);CHKERRQ(ierr);
-      for (d = 0; d < dim; ++d) {
-        /* cylinder is on (-1,1) */
-        if (dim==3) pcoords[d] = ctx->domain_lo[d] + (pcoords[d]+1.) * L[d] / 2.0;
-        /* hex mesh is on (0,1) */
-        else pcoords[d] = ctx->domain_lo[d] + pcoords[d] * (ctx->domain_hi[d] - ctx->domain_lo[d]);
-      }
-    }
-    ierr = VecRestoreArray(coordinates, &coords);CHKERRQ(ierr);
-    if (oldMaxCell) ierr = DMSetPeriodicity(*dm, maxCell, L, ctx->periodicity);CHKERRQ(ierr);
   }
   {
     DM distributedMesh = NULL;

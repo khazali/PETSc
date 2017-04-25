@@ -1676,7 +1676,7 @@ int main(int argc, char **argv)
         dim = nret1;
         if (dim != DIM) SETERRQ1(comm,PETSC_ERR_ARG_SIZ,"Dim wrong size %D in -grid_size",dim);CHKERRQ(ierr);
       }
-      ierr = DMPlexCreateHexBoxMesh(comm, dim, cells, mod->bcs[0], mod->bcs[1], mod->bcs[2], &dm);CHKERRQ(ierr);
+      ierr = DMPlexCreateHexBoxMesh(comm, dim, cells, NULL, NULL, mod->bcs[0], mod->bcs[1], mod->bcs[2], &dm);CHKERRQ(ierr);
       if (flg2) {
         PetscInt dimEmbed, i;
         PetscInt nCoords;
