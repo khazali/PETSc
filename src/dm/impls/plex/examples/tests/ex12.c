@@ -44,7 +44,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscLogStageRegister("MeshRefine",       &options->stages[STAGE_REFINE]);CHKERRQ(ierr);
   ierr = PetscLogStageRegister("MeshRedistribute", &options->stages[STAGE_REDISTRIBUTE]);CHKERRQ(ierr);
   PetscFunctionReturn(0);
-};
+}
 
 PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 {
@@ -72,39 +72,12 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
   ierr = MPI_Comm_size(comm, &size);CHKERRQ(ierr);
   ierr = PetscStrlen(filename, &len);CHKERRQ(ierr);
-<<<<<<< HEAD
-  if (len) {
-    const char *extGmsh = ".msh";
-    PetscBool   isGmsh;
-
-    ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extGmsh, 4, &isGmsh);CHKERRQ(ierr);
-    if (isGmsh) {
-      PetscViewer viewer;
-
-      ierr = PetscViewerCreate(comm, &viewer);CHKERRQ(ierr);
-      ierr = PetscViewerSetType(viewer, PETSCVIEWERASCII);CHKERRQ(ierr);
-      ierr = PetscViewerFileSetMode(viewer, FILE_MODE_READ);CHKERRQ(ierr);
-      ierr = PetscViewerFileSetName(viewer, filename);CHKERRQ(ierr);
-      ierr = DMPlexCreateGmsh(comm, viewer, PETSC_TRUE, dm);CHKERRQ(ierr);
-      ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-    } else {
-      ierr = DMPlexCreateCGNSFromFile(comm, filename, PETSC_TRUE, dm);CHKERRQ(ierr);
-    }
-  } else if (cellSimplex) {
-    ierr = DMPlexCreateBoxMesh(comm, dim, dim == 2 ? 2 : 1, PETSC_TRUE, dm);CHKERRQ(ierr);
-  } else {
-    const PetscInt cells[3] = {2, 2, 2};
-
-    ierr = DMPlexCreateHexBoxMesh(comm, dim, cells, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, dm);CHKERRQ(ierr);
-  }
-=======
   ierr = PetscLogStagePush(user->stages[STAGE_LOAD]);CHKERRQ(ierr);
   if (len)              {ierr = DMPlexCreateFromFile(comm, filename, PETSC_TRUE, dm);CHKERRQ(ierr);}
   else if (cellSimplex) {ierr = DMPlexCreateBoxMesh(comm, dim, dim == 2 ? 2 : 1, PETSC_TRUE, dm);CHKERRQ(ierr);}
   else                  {ierr = DMPlexCreateHexBoxMesh(comm, dim, cells, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, dm);CHKERRQ(ierr);}
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   ierr = PetscLogStagePush(user->stages[STAGE_DISTRIBUTE]);CHKERRQ(ierr);
->>>>>>> origin
   if (!user->testRedundant) {
     if (user->testPartition) {
       const PetscInt  *sizes = NULL;
@@ -138,16 +111,18 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   }
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   if (user->loadBalance) {
-    PetscPartitioner part;
-    PetscInt         reSizes_n2[2]  = {2, 2};
-    PetscInt         rePoints_n2[4] = {2, 3, 0, 1};
-    if (rank) {rePoints_n2[0] = 1; rePoints_n2[1] = 2, rePoints_n2[2] = 0, rePoints_n2[3] = 3;}
-
+    ierr = DMPlexSetOptionsPrefix(*dm, "lb_");CHKERRQ(ierr);
     ierr = PetscLogStagePush(user->stages[STAGE_REDISTRIBUTE]);CHKERRQ(ierr);
-    ierr = DMPlexGetPartitioner(*dm, &part);CHKERRQ(ierr);
-    ierr = PetscPartitionerSetType(part, PETSCPARTITIONERSHELL);CHKERRQ(ierr);
-    ierr = PetscPartitionerShellSetPartition(part, size, reSizes_n2, rePoints_n2);CHKERRQ(ierr);
+    if (user->testPartition) {
+      PetscPartitioner part;
+      PetscInt         reSizes_n2[2]  = {2, 2};
+      PetscInt         rePoints_n2[4] = {2, 3, 0, 1};
+      if (rank) {rePoints_n2[0] = 1; rePoints_n2[1] = 2, rePoints_n2[2] = 0, rePoints_n2[3] = 3;}
 
+      ierr = DMPlexGetPartitioner(*dm, &part);CHKERRQ(ierr);
+      ierr = PetscPartitionerSetType(part, PETSCPARTITIONERSHELL);CHKERRQ(ierr);
+      ierr = PetscPartitionerShellSetPartition(part, size, reSizes_n2, rePoints_n2);CHKERRQ(ierr);
+    }
     ierr = DMPlexDistribute(*dm, overlap, NULL, &distMesh);CHKERRQ(ierr);
     if (distMesh) {
       ierr = DMDestroy(dm);CHKERRQ(ierr);
