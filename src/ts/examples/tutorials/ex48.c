@@ -231,13 +231,6 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ii = options->dim;
   ierr = PetscOptionsIntArray("-cells", "Number of cells in each dimension", "ex48.c", options->cells, &ii, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
-  /* The domain limits maybe should be handled differently */
-  /* options->domain_hi[0]  = options->a; */
-  /* options->domain_hi[1]  = options->b; */
-  /* options->domain_hi[2]  = 1; */
-  /* options->domain_lo[0]  = -options->a; */
-  /* options->domain_lo[1]  = -options->b; */
-  /* options->domain_lo[2]  = -1; */
   if (options->domain_hi[0] == -options->domain_lo[0]) options->a = options->domain_hi[0];
   else options->a = 1;
   if (options->domain_hi[1] == -options->domain_lo[1]) options->b = options->domain_hi[1];
@@ -286,46 +279,17 @@ static PetscErrorCode PostStep(TS ts)
   PetscErrorCode    ierr;
   DM                dm;
   AppCtx            *ctx;
-  PetscInt          stepi;
+  PetscInt          stepi,num;
   Vec               X;
-  const             char prefix[] = "ex48";
-  PetscViewer       viewer = NULL;
-  char              buf[256];
-  PetscBool         isHDF5,isVTK;
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(ts, &ctx);CHKERRQ(ierr); assert(ctx);
   if (ctx->debug<1) PetscFunctionReturn(0);
   ierr = TSGetSolution(ts, &X);CHKERRQ(ierr);
   ierr = VecGetDM(X, &dm);CHKERRQ(ierr);
   ierr = TSGetTimeStepNumber(ts, &stepi);CHKERRQ(ierr);
-  if (1) {
-    PetscInt num;
-    ierr = DMGetOutputSequenceNumber(dm, &num, NULL);CHKERRQ(ierr);
-    if (num < 0) {ierr = DMSetOutputSequenceNumber(dm, 0, 0.0);CHKERRQ(ierr);}
-    ierr = VecViewFromOptions(X, NULL, "-vec_view");CHKERRQ(ierr);
-  } else {
-    ierr = PetscViewerCreate(PetscObjectComm((PetscObject)dm),&viewer);CHKERRQ(ierr);
-    /* ierr = PetscViewerSetType(viewer,PETSCVIEWERVTK);CHKERRQ(ierr); */
-    ierr = PetscViewerSetType(viewer,PETSCVIEWERHDF5);CHKERRQ(ierr);
-    ierr = PetscViewerSetFromOptions(viewer);CHKERRQ(ierr);
-    ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERHDF5,&isHDF5);CHKERRQ(ierr);
-    ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERVTK,&isVTK);CHKERRQ(ierr);
-    if (isHDF5) {
-      ierr = PetscSNPrintf(buf, 256, "%s_%dD_%05d.h5", prefix, ctx->dim, stepi);CHKERRQ(ierr);
-    } else if (isVTK) {
-      ierr = PetscSNPrintf(buf, 256, "%s%dD%d.vtu", prefix, ctx->dim, stepi);CHKERRQ(ierr);
-      ierr = PetscViewerPushFormat(viewer,PETSC_VIEWER_VTK_VTU);CHKERRQ(ierr);
-    }
-    ierr = PetscViewerFileSetMode(viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
-    ierr = PetscViewerFileSetName(viewer,buf);CHKERRQ(ierr);
-    if (isHDF5) {
-      ierr = DMView(dm,viewer);CHKERRQ(ierr);
-      ierr = PetscViewerFileSetMode(viewer,FILE_MODE_UPDATE);CHKERRQ(ierr);
-    }
-    /* view */
-    ierr = VecView(X,viewer);CHKERRQ(ierr);
-    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-  }
+  ierr = DMGetOutputSequenceNumber(dm, &num, NULL);CHKERRQ(ierr);
+  if (num < 0) {ierr = DMSetOutputSequenceNumber(dm, 0, 0.0);CHKERRQ(ierr);}
+  ierr = VecViewFromOptions(X, NULL, "-vec_view");CHKERRQ(ierr);
   /* print integrals */
   {
     PetscDS          prob;
@@ -341,7 +305,9 @@ static PetscErrorCode PostStep(TS ts)
   }
   /* print matlab solution */
   if (ctx->debug>11) {
-    char           fname[PETSC_MAX_PATH_LEN];
+    const char  *prefix;
+    char        fname[PETSC_MAX_PATH_LEN];
+    PetscViewer viewer = NULL;
     ierr = PetscSNPrintf(fname, PETSC_MAX_PATH_LEN, "%s_solution_%05D.m", prefix, stepi);CHKERRQ(ierr);
     ierr = PetscViewerASCIIOpen(PetscObjectComm((PetscObject)dm), fname, &viewer);CHKERRQ(ierr);
     ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
@@ -378,13 +344,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *ctx, DM *dm)
   if (len) {
     ierr = DMPlexCreateFromFile(comm, filename, PETSC_TRUE, dm);CHKERRQ(ierr);
   } else {
-    Vec          coordinates;
-    PetscScalar *coords;
-    PetscInt     vStart, vEnd, p, d;
-    const PetscReal *oldMaxCell;
-    PetscReal    L[3], maxCell[3];
-    DM           cdm;
-    PetscSection csec;
+    PetscInt        d;
 
     /* create DM */
     if (ctx->cell_simplex && dim == 3) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Cannot mesh a cylinder with simplices");
