@@ -229,8 +229,7 @@ int main(int argc,char **argv)
     ierr = PetscViewerPopFormat(viewfile);CHKERRQ(ierr);
     ierr = PetscViewerDestroy(&viewfile);CHKERRQ(ierr);
 
-  exit(1);
- 
+
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create timestepping solver context
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
