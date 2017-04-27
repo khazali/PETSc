@@ -5,6 +5,7 @@
 #include <petscblaslapack.h>
 #include <petsc/private/petscimpl.h>
 
+
 static void qAndLEvaluation(PetscInt n, PetscReal x, PetscReal *q, PetscReal *qp, PetscReal *Ln)
 /*
   Compute the polynomial q(x) = L_{N+1}(x) - L_{n-1}(x) and its derivative in
@@ -313,6 +314,8 @@ PetscErrorCode PetscGLLIPElementStiffnessCreate(PetscGLLIP *gll,PetscReal ***AA)
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscGLLIPElementStiffnessDestroy"
+
+
 /*@C
    PetscGLLIPElementStiffnessDestroy - frees the stiffness for a single 1d GLL element
 

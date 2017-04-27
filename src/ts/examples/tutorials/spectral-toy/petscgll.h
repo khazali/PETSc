@@ -30,10 +30,11 @@ E*/
 typedef enum {PETSCGLLIP_VIA_LINEARALGEBRA,PETSCGLLIP_VIA_NEWTON} PetscGLLIPCreateType;
 
 #endif
-
 PETSC_EXTERN PetscErrorCode PetscGLLIPCreate(PetscInt,PetscGLLIPCreateType,PetscGLLIP*);
 PETSC_EXTERN PetscErrorCode PetscGLLIPDestroy(PetscGLLIP*);
 PETSC_EXTERN PetscErrorCode PetscGLLIPView(PetscGLLIP*,PetscViewer);
 PETSC_EXTERN PetscErrorCode PetscGLLIPElementStiffnessCreate(PetscGLLIP*,PetscReal***);
 PETSC_EXTERN PetscErrorCode PetscGLLIPElementStiffnessDestroy(PetscGLLIP*,PetscReal***);
+PETSC_EXTERN PetscErrorCode PetscGLLIPMassCreate(PetscGLLIP*,PetscReal***);
+PETSC_EXTERN PetscErrorCode PetscGLLIPMassDestroy(PetscGLLIP*,PetscReal***);
 PETSC_EXTERN PetscErrorCode PetscGLLIPIntegrate(PetscGLLIP*,PetscReal*,PetscReal*);

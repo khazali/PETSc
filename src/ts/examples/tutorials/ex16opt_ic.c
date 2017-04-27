@@ -247,6 +247,9 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   PetscScalar       *x_ptr,*y_ptr;
   PetscErrorCode    ierr;
   PetscScalar       *ic_ptr;
+  PetscReal         ff, gnorm, cnorm, xdiff; 
+  PetscInt          its;
+  TaoConvergedReason reason;       
 
   ierr = VecCopy(IC,user->x);CHKERRQ(ierr);
 
@@ -303,6 +306,8 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   ierr = TSAdjointSolve(ts);CHKERRQ(ierr);
 
   ierr = VecCopy(user->lambda[0],G);CHKERRQ(ierr);
+  ierr= TaoGetSolutionStatus(tao, &its, &ff, &gnorm, &cnorm, &xdiff, &reason);
+  PetscPrintf(PETSC_COMM_WORLD,"iteration=%D\tf=%g\n",its,(double)ff);
 
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
   PetscFunctionReturn(0);

@@ -162,17 +162,6 @@ int main(int argc,char **argv)
   ierr = MatSetFromOptions(A);CHKERRQ(ierr);
   ierr = MatSetUp(A);CHKERRQ(ierr);
 
-  flg  = PETSC_FALSE;
-  ierr = PetscOptionsGetBool(NULL,NULL,"-time_dependent_rhs",&flg,NULL);CHKERRQ(ierr);
-  if (flg) {
-    /*
-       For linear problems with a time-dependent f(u,t) in the equation
-       u_t = f(u,t), the user provides the discretized right-hand-side
-       as a time-dependent matrix.
-    */
-    ierr = TSSetRHSFunction(ts,NULL,TSComputeRHSFunctionLinear,&appctx);CHKERRQ(ierr);
-    ierr = TSSetRHSJacobian(ts,A,A,RHSMatrixHeat,&appctx);CHKERRQ(ierr);
-  } else {
     /*
        For linear problems with a time-independent f(u) in the equation
        u_t = f(u), the user provides the discretized right-hand-side
@@ -182,7 +171,7 @@ int main(int argc,char **argv)
     ierr = RHSMatrixHeat(ts,0.0,u,A,A,&appctx);CHKERRQ(ierr);
     ierr = TSSetRHSFunction(ts,NULL,TSComputeRHSFunctionLinear,&appctx);CHKERRQ(ierr);
     ierr = TSSetRHSJacobian(ts,A,A,TSComputeRHSJacobianConstant,&appctx);CHKERRQ(ierr);
-  }
+
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set solution vector and initial timestep
@@ -234,9 +223,9 @@ int main(int argc,char **argv)
   flg  = PETSC_FALSE;
   ierr = PetscOptionsHasName(NULL,NULL,"-matlab_view",&flg);CHKERRQ(ierr);
   if (flg) { /* print solution into a MATLAB file */
-    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"out.m",&viewfile);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"outold.m",&viewfile);CHKERRQ(ierr);
     ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-    ierr = VecView(u,viewfile);CHKERRQ(ierr);
+    ierr = MatView(A,viewfile);CHKERRQ(ierr);
     ierr = PetscViewerPopFormat(viewfile);CHKERRQ(ierr);
     ierr = PetscViewerDestroy(&viewfile);CHKERRQ(ierr);
   }

@@ -155,7 +155,7 @@ with proper reordering we obtain
 
 where $M_{ij}$ is the mass matrix and $K_{ij}$ is the stiffness matrix.
 
-In alegraic orm we can rewrite
+In alegraic form we can rewrite
 
 \begin{equation}
 \frac{\partial}{\partial t}\underline{v}^TM\underline{u} + \underline{v}^TK\underline{u}=0
@@ -282,21 +282,54 @@ w_{ij}=\sum_{k=1}^N a_{ik}u_{kj}\quad \rightarrow \quad \underline{w}=
 Consider again the forward partial differential equation describing heat transfer
 \begin{eqnarray}
  \frac{\partial\mathbf u}{\partial t} - \nu\Delta \mathbf u +\mathbf f(\mathbf x)&= &0, \ \mathbf x \in \Omega \\ \nonumber
-  \mathbf u|_{\partial \Omega}&=&0, \\ \nonumber
-  \mathbf u(0,t)&=&\mathbf u_0(\mathbf x)\label{eq:heateq}
+  \mathbf u|_{\partial \Omega}&=&\mathbf u_b, \\ \nonumber
+  \mathbf u(\mathbf x,0)&=&\mathbf u_0(\mathbf x)\label{eq:heateq}
 \end{eqnarray} 
 
 As a generic notation we use for the PDE
-$$\mathcal P (\mathbf u, \mathbf f)=0$$. 
+$$\mathcal P [\mathbf u]=0$$. 
 
-Presume we seek to find what forcing $\mathbf f$ acting on the entire domain $\Omega$ yields a solution $\mathbf u$ which matches a reference solution $\underline{\mathbf u}$ at time $T$. Typically $\underline{\mathbf u}$  is not known over the entire domain $\Omega$ in practice, but in a subset region $\Omega_s$ where sensors have been placed. However for simplicity here we construct a continous function $\underline{\mathbf u}$ to avoid regularization issues.
+Presume we seek to find what forcing $\mathbf f$ acting on the entire domain $\Omega$ yields a solution $\mathbf u$ which matches a reference solution $\mathbf u_d$ at time $T$. Typically $\mathbf u_d$  is not known over the entire domain $\Omega$ in practice, but in a subset region $\Omega_s$ where sensors have been placed. However for simplicity here we construct a continous function $\mathbf u_d$ to avoid regularization issues.
 
-The approach is to construct a cost function which minimizes the difference between $|\mathbf u-\underline{\mathbf u}|$.
+The approach is to construct a cost function which minimizes the difference between $|\mathbf u-\mathbf u_d|$.
 
-$$J[f]=\int_0^T\int_{\Omega}(\mathbf u-\underline{\mathbf u})^2 \ \d x \d t $$
+$$J[\vect u]=\int_{\Omega}(\mathbf u-\mathbf u_d)^2 \ \d \Omega  $$
 
-We seek $\mathbf f$ solution to Eq.~\ref{eq:heateq} such that $J[f]$ is minimal.
+We seek $\vect u$ solution to Eq.~\ref{eq:heateq} such that $J[\vect u]$ is minimal.
+\subsection{Variational calculus derivation}
 
+Set up the Lagrangian
+$$\mathcal{L}[\vect u, \vect u_0]=\int_{\Omega}(\mathbf u[T]-\mathbf u_d[T])^2 \ \d \Omega +\int_0^T\int_{\Omega} P[\mathbf u] \mathbf v \ \d \Omega \d t + \int_0^T\int_{\Gamma} \mathbf v_b \mathbf (\mathbf u- \mathbf u_b) \ \d \Gamma \d t$$
+
+Rewrite of the term
+\begin{eqnarray}
+\int_0^T\int_{\Omega} P[\mathbf u] \mathbf v \ \d \Omega \d t &=&
+\int_0^T\int_{\Omega} \frac{\partial\mathbf u}{\partial t} \mathbf v \ \d \Omega \d t+ \int_0^T\int_{\Omega} \nu\Delta \mathbf u \cdot \mathbf v \ \d \Omega \d t+\int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t \\ \nonumber
+&=& \int_{\Omega}\mathbf u\mathbf v \ \d \Omega|_0^T -
+\int_0^T\int_{\Omega}
+ \frac{\partial\mathbf v}{\partial t} \mathbf u \ \d \Omega \d t+ \int_0^T\int_{\Gamma}(\nabla \mathbf u\cdot \mathbf v- \mathbf u\cdot \nabla\mathbf v)\mathbf n\ \d \Gamma \d t +
+ \int_0^T\int_{\Omega} \nu\Delta \mathbf v\cdot  \mathbf u \ \d \Omega \d t+
+ \int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t \\ \nonumber
+ &=& 
+\int_0^T\int_{\Omega}
+(- \frac{\partial\mathbf v}{\partial t}  +\nu\Delta \mathbf v)\cdot  \mathbf u\ \d \Omega \d t+\int_{\Omega}\mathbf u\mathbf v |_0^T \ \d \Omega
++ \int_0^T\int_{\Gamma}(\nabla \mathbf u\cdot \mathbf v- \mathbf u\cdot \nabla\mathbf v)\mathbf n\ \d \Gamma \d t +
+ \int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t \\ \nonumber
+\end{eqnarray}
+
+Grouping now the time dependent terms we have
+\begin{eqnarray}
+\mathcal{L}[\vect u, \vect u_0, \mathbf v]&=&\int_{\Omega}(\mathbf u[T]-\mathbf u_d[T])^2 +\mathbf u[T]\mathbf v[T]\ \d \Omega -\int_{\Omega}\mathbf u[0]\mathbf v[0]\ \d \Omega+\int_0^T\int_{\Omega} \overline{P}[\mathbf v] \mathbf u \ \d \Omega \d t + \\ \nonumber
+ && \int_0^T\int_{\Gamma} \mathbf v_b \mathbf (\mathbf u- \mathbf u_b) \ \d \Gamma \d t +\int_0^T\int_{\Gamma}(\nabla \mathbf u\cdot \mathbf v- \mathbf u\cdot \nabla\mathbf v)\mathbf n\ \d \Gamma \d t +
+ \int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t 
+\end{eqnarray}
+
+\begin{eqnarray}
+\frac{\partial L}{\partial \mathbf u}&=&- \frac{\partial\mathbf v}{\partial t}  +\nu\Delta \mathbf v \\
+\frac{\partial L}{\partial \mathbf u_0}&=&-\mathbf v[0]\\
+\frac{\partial L}{\partial \mathbf u_T}&=&2(\mathbf u[T]-\mathbf u_d[T])+\mathbf v[T]\\
+\frac{\partial L}{\partial \mathbf u_b}&=&\\
+\end{eqnarray}
 
 \subsection{Validation}
 
