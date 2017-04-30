@@ -1113,7 +1113,6 @@ static PetscErrorCode TSSetUp_ARKIMEX(TS ts)
   TS_ARKIMEX     *ark = (TS_ARKIMEX*)ts->data;
   PetscErrorCode ierr;
   DM             dm;
-  SNES           snes;
 
   PetscFunctionBegin;
   ierr = TSARKIMEXTableauSetUp(ts);CHKERRQ(ierr);
@@ -1125,7 +1124,7 @@ static PetscErrorCode TSSetUp_ARKIMEX(TS ts)
     ierr = DMCoarsenHookAdd(dm,DMCoarsenHook_TSARKIMEX,DMRestrictHook_TSARKIMEX,ts);CHKERRQ(ierr);
     ierr = DMSubDomainHookAdd(dm,DMSubDomainHook_TSARKIMEX,DMSubDomainRestrictHook_TSARKIMEX,ts);CHKERRQ(ierr);
   }
-  ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
+  ierr = TSGetSNES(ts,&ts->snes);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 /*------------------------------------------------------------*/
@@ -1155,6 +1154,7 @@ static PetscErrorCode TSSetFromOptions_ARKIMEX(PetscOptionItems *PetscOptionsObj
     ierr = PetscOptionsBool("-ts_arkimex_initial_guess_extrapolate","Extrapolate the initial guess for the stage solution from stage values of the previous time step","",ark->extrapolate,&ark->extrapolate,NULL);CHKERRQ(ierr);
   }
   ierr = PetscOptionsTail();CHKERRQ(ierr);
+  ierr = TSGetSNES(ts,&ts->snes);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

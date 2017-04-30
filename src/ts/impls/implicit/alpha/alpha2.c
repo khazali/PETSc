@@ -444,6 +444,7 @@ static PetscErrorCode TSSetFromOptions_Alpha(PetscOptionItems *PetscOptionsObjec
     if (flg) {ierr = TSAlpha2UseAdapt(ts,adapt);CHKERRQ(ierr);}
   }
   ierr = PetscOptionsTail();CHKERRQ(ierr);
+  ierr = TSGetSNES(ts,&ts->snes);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

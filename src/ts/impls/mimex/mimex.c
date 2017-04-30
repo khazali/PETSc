@@ -264,6 +264,7 @@ static PetscErrorCode TSSetUp_Mimex(TS ts)
   PetscFunctionBegin;
   ierr = VecDuplicate(ts->vec_sol, &mimex->update);CHKERRQ(ierr);
   ierr = VecDuplicate(ts->vec_sol, &mimex->Xdot);CHKERRQ(ierr);
+  ierr = TSGetSNES(ts,&ts->snes);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -300,6 +301,7 @@ static PetscErrorCode TSSetFromOptions_Mimex(PetscOptionItems *PetscOptionsObjec
     ierr = PetscOptionsInt("-ts_mimex_version", "Algorithm version", "TSMimexSetVersion", mimex->version, &mimex->version, NULL);CHKERRQ(ierr);
   }
   ierr = PetscOptionsTail();CHKERRQ(ierr);
+  ierr = TSGetSNES(ts,&ts->snes);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

@@ -956,7 +956,6 @@ static PetscErrorCode TSView_GLEE(TS ts,PetscViewer viewer)
   GLEETableau    tab  = glee->tableau;
   PetscBool      iascii;
   PetscErrorCode ierr;
-  TSAdapt        adapt;
 
   PetscFunctionBegin;
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&iascii);CHKERRQ(ierr);
@@ -969,8 +968,8 @@ static PetscErrorCode TSView_GLEE(TS ts,PetscViewer viewer)
     ierr = PetscViewerASCIIPrintf(viewer,"  Abscissa     c = %s\n",buf);CHKERRQ(ierr);
     /* Note: print out r as well */
   }
-  ierr = TSGetAdapt(ts,&adapt);CHKERRQ(ierr);
-  ierr = TSAdaptView(adapt,viewer);CHKERRQ(ierr);
+  if (ts->adapt) {ierr = TSAdaptView(ts->adapt,viewer);CHKERRQ(ierr);}
+  if (ts->snes)  {ierr = SNESView(ts->snes,viewer);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 

@@ -437,9 +437,12 @@ PetscErrorCode  TSSetFromOptions(TS ts)
     ierr = TSTrajectorySetFromOptions(ts->trajectory,ts);CHKERRQ(ierr);
   }
 
-  ierr = TSGetSNES(ts,&ts->snes);CHKERRQ(ierr);
-  if (ts->problem_type == TS_LINEAR) {ierr = SNESSetType(ts->snes,SNESKSPONLY);CHKERRQ(ierr);}
-  ierr = SNESSetFromOptions(ts->snes);CHKERRQ(ierr);
+  if (ts->snes) {
+    if (ts->problem_type == TS_LINEAR) {
+      ierr = SNESSetType(ts->snes,SNESKSPONLY);CHKERRQ(ierr);
+    }
+    ierr = SNESSetFromOptions(ts->snes);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -1011,7 +1014,6 @@ $     func (TS ts,PetscReal t,Vec u,Vec F,void *ctx);
 PetscErrorCode  TSSetRHSFunction(TS ts,Vec r,PetscErrorCode (*f)(TS,PetscReal,Vec,Vec,void*),void *ctx)
 {
   PetscErrorCode ierr;
-  SNES           snes;
   Vec            ralloc = NULL;
   DM             dm;
 
@@ -1021,13 +1023,15 @@ PetscErrorCode  TSSetRHSFunction(TS ts,Vec r,PetscErrorCode (*f)(TS,PetscReal,Ve
 
   ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
   ierr = DMTSSetRHSFunction(dm,f,ctx);CHKERRQ(ierr);
-  ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
-  if (!r && !ts->dm && ts->vec_sol) {
-    ierr = VecDuplicate(ts->vec_sol,&ralloc);CHKERRQ(ierr);
-    r = ralloc;
+  if (ts->snes || r) {
+    ierr = TSGetSNES(ts,&ts->snes);CHKERRQ(ierr);
+    if (!r && !ts->dm && ts->vec_sol) {
+      ierr = VecDuplicate(ts->vec_sol,&ralloc);CHKERRQ(ierr);
+      r = ralloc;
+    }
+    ierr = SNESSetFunction(ts->snes,r,SNESTSFormFunction,ts);CHKERRQ(ierr);
+    ierr = VecDestroy(&ralloc);CHKERRQ(ierr);
   }
-  ierr = SNESSetFunction(snes,r,SNESTSFormFunction,ts);CHKERRQ(ierr);
-  ierr = VecDestroy(&ralloc);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1272,13 +1276,14 @@ PetscErrorCode  TSSetIFunction(TS ts,Vec r,TSIFunction f,void *ctx)
 PetscErrorCode TSGetIFunction(TS ts,Vec *r,TSIFunction *func,void **ctx)
 {
   PetscErrorCode ierr;
-  SNES           snes;
   DM             dm;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
-  ierr = SNESGetFunction(snes,r,NULL,NULL);CHKERRQ(ierr);
+  if (r) {
+    ierr = TSGetSNES(ts,&ts->snes);CHKERRQ(ierr);
+    ierr = SNESGetFunction(ts->snes,r,NULL,NULL);CHKERRQ(ierr);
+  }
   ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
   ierr = DMTSGetIFunction(dm,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1306,13 +1311,14 @@ PetscErrorCode TSGetIFunction(TS ts,Vec *r,TSIFunction *func,void **ctx)
 PetscErrorCode TSGetRHSFunction(TS ts,Vec *r,TSRHSFunction *func,void **ctx)
 {
   PetscErrorCode ierr;
-  SNES           snes;
   DM             dm;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
-  ierr = SNESGetFunction(snes,r,NULL,NULL);CHKERRQ(ierr);
+  if (r) {
+    ierr = TSGetSNES(ts,&ts->snes);CHKERRQ(ierr);
+    ierr = SNESGetFunction(ts->snes,r,NULL,NULL);CHKERRQ(ierr);
+  }
   ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
   ierr = DMTSGetRHSFunction(dm,func,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1901,11 +1907,13 @@ PetscErrorCode  TSView(TS ts,PetscViewer viewer)
     ierr = PetscObjectPrintClassNamePrefixType((PetscObject)ts,viewer);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  maximum steps=%D\n",ts->max_steps);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  maximum time=%g\n",(double)ts->max_time);CHKERRQ(ierr);
-    if (ts->problem_type == TS_NONLINEAR) {
+    if (ts->snes && ts->problem_type == TS_NONLINEAR) {
       ierr = PetscViewerASCIIPrintf(viewer,"  total number of nonlinear solver iterations=%D\n",ts->snes_its);CHKERRQ(ierr);
       ierr = PetscViewerASCIIPrintf(viewer,"  total number of nonlinear solve failures=%D\n",ts->num_snes_failures);CHKERRQ(ierr);
     }
-    ierr = PetscViewerASCIIPrintf(viewer,"  total number of linear solver iterations=%D\n",ts->ksp_its);CHKERRQ(ierr);
+    if (ts->snes) {
+      ierr = PetscViewerASCIIPrintf(viewer,"  total number of linear solver iterations=%D\n",ts->ksp_its);CHKERRQ(ierr);
+    }
     ierr = PetscViewerASCIIPrintf(viewer,"  total number of rejected steps=%D\n",ts->reject);CHKERRQ(ierr);
     if (ts->vrtol) {
       ierr = PetscViewerASCIIPrintf(viewer,"  using vector of relative error tolerances, ");CHKERRQ(ierr);
@@ -2402,10 +2410,8 @@ PetscErrorCode  TSSetProblemType(TS ts, TSProblemType type)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts, TS_CLASSID,1);
   ts->problem_type = type;
-  if (type == TS_LINEAR) {
-    SNES snes;
-    ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
-    ierr = SNESSetType(snes,SNESKSPONLY);CHKERRQ(ierr);
+  if (ts->snes && type == TS_LINEAR) {
+    ierr = SNESSetType(ts->snes,SNESKSPONLY);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -2700,6 +2706,7 @@ PetscErrorCode  TSGetSNES(TS ts,SNES *snes)
   PetscValidPointer(snes,2);
   if (!ts->snes) {
     ierr = SNESCreate(PetscObjectComm((PetscObject)ts),&ts->snes);CHKERRQ(ierr);
+    ierr = SNESSetOptionsPrefix(ts->snes,((PetscObject)ts)->prefix);CHKERRQ(ierr);
     ierr = SNESSetFunction(ts->snes,NULL,SNESTSFormFunction,ts);CHKERRQ(ierr);
     ierr = PetscLogObjectParent((PetscObject)ts,(PetscObject)ts->snes);CHKERRQ(ierr);
     ierr = PetscObjectIncrementTabLevel((PetscObject)ts->snes,(PetscObject)ts,1);CHKERRQ(ierr);
@@ -4505,13 +4512,11 @@ PetscErrorCode  TSSetTime(TS ts, PetscReal t)
 PetscErrorCode  TSSetOptionsPrefix(TS ts,const char prefix[])
 {
   PetscErrorCode ierr;
-  SNES           snes;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   ierr = PetscObjectSetOptionsPrefix((PetscObject)ts,prefix);CHKERRQ(ierr);
-  ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
-  ierr = SNESSetOptionsPrefix(snes,prefix);CHKERRQ(ierr);
+  if (ts->snes) {ierr = SNESSetOptionsPrefix(ts->snes,prefix);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 
@@ -4541,13 +4546,11 @@ PetscErrorCode  TSSetOptionsPrefix(TS ts,const char prefix[])
 PetscErrorCode  TSAppendOptionsPrefix(TS ts,const char prefix[])
 {
   PetscErrorCode ierr;
-  SNES           snes;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   ierr = PetscObjectAppendOptionsPrefix((PetscObject)ts,prefix);CHKERRQ(ierr);
-  ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
-  ierr = SNESAppendOptionsPrefix(snes,prefix);CHKERRQ(ierr);
+  if (ts->snes) {ierr = SNESAppendOptionsPrefix(ts->snes,prefix);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 
@@ -4951,7 +4954,6 @@ PetscErrorCode  TSMonitorDrawError(TS ts,PetscInt step,PetscReal ptime,Vec u,voi
 PetscErrorCode  TSSetDM(TS ts,DM dm)
 {
   PetscErrorCode ierr;
-  SNES           snes;
   DMTS           tsdm;
 
   PetscFunctionBegin;
@@ -4968,10 +4970,8 @@ PetscErrorCode  TSSetDM(TS ts,DM dm)
     }
     ierr = DMDestroy(&ts->dm);CHKERRQ(ierr);
   }
+  if (ts->snes) {ierr = SNESSetDM(ts->snes,dm);CHKERRQ(ierr);}
   ts->dm = dm;
-
-  ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
-  ierr = SNESSetDM(snes,dm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

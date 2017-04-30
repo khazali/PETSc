@@ -1208,7 +1208,7 @@ static PetscErrorCode TSView_GLLE(TS ts,PetscViewer viewer)
     }
     ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
   }
-  ierr = SNESView(ts->snes,viewer);CHKERRQ(ierr);
+  if (ts->snes) {ierr = SNESView(ts->snes,viewer);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 

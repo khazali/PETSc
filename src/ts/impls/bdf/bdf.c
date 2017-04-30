@@ -367,6 +367,7 @@ static PetscErrorCode TSSetFromOptions_BDF(PetscOptionItems *PetscOptionsObject,
     if (flg) {ierr = TSBDFSetOrder(ts,order);CHKERRQ(ierr);}
   }
   ierr = PetscOptionsTail();CHKERRQ(ierr);
+  ierr = TSGetSNES(ts,&ts->snes);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

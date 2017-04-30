@@ -380,6 +380,7 @@ static PetscErrorCode TSSetFromOptions_Alpha(PetscOptionItems *PetscOptionsObjec
     if (flg) {ierr = TSAlphaUseAdapt(ts,adapt);CHKERRQ(ierr);}
   }
   ierr = PetscOptionsTail();CHKERRQ(ierr);
+  ierr = TSGetSNES(ts,&ts->snes);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

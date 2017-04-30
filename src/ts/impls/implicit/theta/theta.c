@@ -592,6 +592,7 @@ static PetscErrorCode TSSetFromOptions_Theta(PetscOptionItems *PetscOptionsObjec
     ierr = PetscOptionsBool("-ts_theta_initial_guess_extrapolate","Extrapolate stage initial guess from previous solution (sometimes unstable)","TSThetaSetExtrapolate",th->extrapolate,&th->extrapolate,NULL);CHKERRQ(ierr);
   }
   ierr = PetscOptionsTail();CHKERRQ(ierr);
+  ierr = TSGetSNES(ts,&ts->snes);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

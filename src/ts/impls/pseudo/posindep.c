@@ -299,6 +299,7 @@ static PetscErrorCode TSSetUp_Pseudo(TS ts)
   ierr = VecDuplicate(ts->vec_sol,&pseudo->update);CHKERRQ(ierr);
   ierr = VecDuplicate(ts->vec_sol,&pseudo->func);CHKERRQ(ierr);
   ierr = VecDuplicate(ts->vec_sol,&pseudo->xdot);CHKERRQ(ierr);
+  ierr = TSGetSNES(ts,&ts->snes);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 /*------------------------------------------------------------*/
@@ -343,6 +344,7 @@ static PetscErrorCode TSSetFromOptions_Pseudo(PetscOptionItems *PetscOptionsObje
   ierr = PetscOptionsReal("-ts_pseudo_fatol","Tolerance for norm of function","",pseudo->fatol,&pseudo->fatol,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-ts_pseudo_frtol","Relative tolerance for norm of function","",pseudo->frtol,&pseudo->frtol,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsTail();CHKERRQ(ierr);
+  ierr = TSGetSNES(ts,&ts->snes);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

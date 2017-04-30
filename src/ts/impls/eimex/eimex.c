@@ -428,7 +428,6 @@ static PetscErrorCode TSView_EIMEX(TS ts,PetscViewer viewer)
   if (iascii) {
     ierr = PetscViewerASCIIPrintf(viewer,"  EIMEX\n");CHKERRQ(ierr);
   }
-  ierr = SNESView(ts->snes,viewer);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
