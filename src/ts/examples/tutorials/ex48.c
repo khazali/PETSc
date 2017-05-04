@@ -231,10 +231,8 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ii = options->dim;
   ierr = PetscOptionsIntArray("-cells", "Number of cells in each dimension", "ex48.c", options->cells, &ii, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
-  if (options->domain_hi[0] == -options->domain_lo[0]) options->a = options->domain_hi[0];
-  else options->a = 1;
-  if (options->domain_hi[1] == -options->domain_lo[1]) options->b = options->domain_hi[1];
-  else options->b = 1;
+  options->a = (options->domain_hi[0]-options->domain_lo[0])/2.0;
+  options->b = (options->domain_hi[1]-options->domain_lo[1])/2.0;
   PetscPrintf(comm, "a=%g b=%g\n",options->a,options->b);
   for (ii = 0; ii < options->dim; ++ii) {
     if (options->domain_hi[ii] <= options->domain_lo[ii]) SETERRQ3(comm,PETSC_ERR_ARG_WRONG,"Domain %D lo=%g hi=%g",ii,options->domain_lo[ii],options->domain_hi[ii]);
@@ -435,17 +433,19 @@ static PetscErrorCode psi_0(PetscInt dim, PetscReal time, const PetscReal x[], P
 {
   AppCtx *lctx = (AppCtx*)ctx;
   assert(ctx);
+  /* This sets up a symmetrix By flux aroound the mid point in x, which represents a current density flux along z.  The stability
+     is analytically known and reported in ProcessOptions. */
   if (lctx->ke!=0.0) {
-    u[0] = (PetscCosReal(lctx->ke*x[0])-PetscCosReal(lctx->ke*lctx->a))/(1.0-PetscCosReal(lctx->ke*lctx->a));
+    u[0] = (PetscCosReal(lctx->ke*(x[0]-lctx->a))-PetscCosReal(lctx->ke*lctx->a))/(1.0-PetscCosReal(lctx->ke*lctx->a));
   } else {
-    u[0] = 1.0-PetscPowScalar(x[0]/lctx->a,2);
+    u[0] = 1.0-PetscPowScalar((x[0]-lctx->a)/lctx->a,2);
   }
   return 0;
 }
 
 static PetscErrorCode initialSolution_n(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
-  u[0] = 0.0; /* perturbation? */
+  u[0] = 0.0;
   return 0;
 }
 
