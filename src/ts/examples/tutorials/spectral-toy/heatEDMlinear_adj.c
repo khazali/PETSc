@@ -87,7 +87,7 @@ typedef struct {
 */
 extern PetscErrorCode InitialConditions(Vec,AppCtx*);
 extern PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
-extern PetscErrorCode RHSMatrixHeatgllDM(TS,PetscReal,Vec,Mat,Mat,void*);
+extern PetscErrorCode RHSMatrixHeatgllDM(PetscReal,Vec,Mat,Mat,void*);
 extern PetscErrorCode RHSAdjointgllDM(TS,PetscReal,Vec,Mat,Mat,void*);
 extern PetscErrorCode RHSFunctionHeat(TS,PetscReal,Vec,Vec,void*);
 extern PetscErrorCode Objective(PetscReal,Vec,AppCtx*);
@@ -97,7 +97,7 @@ extern PetscErrorCode Objective(PetscReal,Vec,AppCtx*);
 int main(int argc,char **argv)
 {
   AppCtx         appctx;                 /* user-defined application context */
-  TS             ts;                     /* timestepping context */
+  /*TS             ts;                */     /* timestepping context */
   Tao            tao;
   KSP            ksp;
   PC                 pc;
@@ -106,7 +106,7 @@ int main(int argc,char **argv)
   PetscReal      time_total_max = 0.1, Tadj=0.2; /* default max total time, should be short since the decay is very fast, for slower decay higher viscosity needed */
   PetscInt       time_steps_max = 200;   /* default max timesteps */
   PetscErrorCode ierr;
-  PetscInt       steps,Nl=8,i, E=3, xs, xm, ind, j, lenglob;
+  PetscInt       Nl=8,i, E=3, xs, xm, ind, j, lenglob; /*steps*/
   PetscMPIInt    size;
   PetscReal      dt=5e-4, x, *wrk_ptr1, *wrk_ptr2, L=1.0, Le;
   //PetscBool      flg;
@@ -252,7 +252,7 @@ int main(int argc,char **argv)
        u_t = f(u,t), the user provides the discretized right-hand-side
        as a time-dependent matrix.
     */
-  ierr = RHSMatrixHeatgllDM(ts,0.0,u,A,A,&appctx);CHKERRQ(ierr);
+  ierr = RHSMatrixHeatgllDM(0.0,u,A,A,&appctx);CHKERRQ(ierr);
   ierr = MatDuplicate(A,MAT_COPY_VALUES,&appctx.stiff);CHKERRQ(ierr);
   ierr = MatScale(A, -1.0);
   ierr = MatDuplicate(A,MAT_COPY_VALUES,&appctx.adj);CHKERRQ(ierr);
@@ -534,7 +534,7 @@ PetscErrorCode Objective(PetscReal t,Vec obj,AppCtx *appctx)
    matrix for the heat equation.
 
    Input Parameters:
-   ts - the TS context
+ss   ts - the TS context
    t - current time
    global_in - global input vector
    dummy - optional user-defined context, as set by TSetRHSJacobian()
@@ -545,7 +545,7 @@ PetscErrorCode Objective(PetscReal t,Vec obj,AppCtx *appctx)
    str - flag indicating matrix structure
 
 */
-PetscErrorCode RHSMatrixHeatgllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx)
+PetscErrorCode RHSMatrixHeatgllDM(PetscReal t,Vec X,Mat A,Mat BB,void *ctx)
 {
   //Mat            A=AA;                /* Jacobian matrix */
   PetscReal      **temp, Le, init;
@@ -553,10 +553,10 @@ PetscErrorCode RHSMatrixHeatgllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx
   PetscGLLIP     gll;
   AppCtx         *appctx = (AppCtx*)ctx;     /* user-defined application context */
   PetscInt       N=appctx->Nl;
-  PetscInt       E=appctx->E;
+  /*  PetscInt       E=appctx->E;*/
   PetscErrorCode ierr;
   PetscInt       i,xs,xn,l,j,id;
-  PetscInt       rows[2], *rowsDM;
+  PetscInt       *rowsDM; /*rows[2], */
   PetscViewer    viewfile;
   
    Le=appctx->Le; // this should be in the appctx, but I think I need a new struct only for grid info
@@ -658,8 +658,8 @@ PetscErrorCode RHSAdjointgllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx)
 {
   //Mat            A=AA;                /* Jacobian matrix */
   AppCtx         *appctx = (AppCtx*)ctx;     /* user-defined application context */
-  PetscErrorCode ierr;
-  PetscViewer    viewfile;
+  /*PetscErrorCode ierr;*/
+  /*PetscViewer    viewfile;*/
   
   //ierr=MatCopy(A,appctx->stiff,SAME_NONZERO_PATTERN);
   //ierr=MatScale(A,-1.0);
@@ -687,8 +687,8 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   AppCtx           *appctx = (AppCtx*)ctx;     /* user-defined application context */
   TS                ts;
   PetscErrorCode    ierr;
-  Mat               A;                      /* matrix data structure */
-  Vec               temp, temp2, u;
+  /*Mat               A;*/                      /* matrix data structure */
+  Vec               temp, temp2; /*, u;*/
   PetscInt          its;
   PetscReal         ff, gnorm, cnorm, xdiff; 
   TaoConvergedReason reason;      
@@ -810,7 +810,7 @@ PetscErrorCode RHSFunctionHeatgllDM(TS ts,PetscReal t,Vec globalin,Vec globalout
 
   PetscFunctionBeginUser;
   ierr = TSGetRHSJacobian(ts,&A,NULL,NULL,&ctx);CHKERRQ(ierr);
-  ierr = RHSMatrixHeatgllDM(ts,t,globalin,A,NULL,ctx);CHKERRQ(ierr);
+  ierr = RHSMatrixHeatgllDM(t,globalin,A,NULL,ctx);CHKERRQ(ierr);
   /* ierr = MatView(A,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
   ierr = MatMult(A,globalin,globalout);CHKERRQ(ierr);
   PetscFunctionReturn(0);
