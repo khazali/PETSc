@@ -301,18 +301,6 @@ static PetscErrorCode PostStep(TS ts)
     ierr = DMDestroy(&plex);CHKERRQ(ierr);
     PetscPrintf(PetscObjectComm((PetscObject)dm), "%D) total perturbed mass = %g\n", stepi, den);CHKERRQ(ierr);
   }
-  /* print matlab solution */
-  if (ctx->debug>11) {
-    const char  *prefix;
-    char        fname[PETSC_MAX_PATH_LEN];
-    PetscViewer viewer = NULL;
-    ierr = PetscSNPrintf(fname, PETSC_MAX_PATH_LEN, "%s_solution_%05D.m", prefix, stepi);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIOpen(PetscObjectComm((PetscObject)dm), fname, &viewer);CHKERRQ(ierr);
-    ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-    ierr = VecView(X,viewer);CHKERRQ(ierr);
-    ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
-    ierr = PetscViewerDestroy(&viewer);
-  }
   PetscFunctionReturn(0);
 }
 
@@ -399,19 +387,6 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *ctx, DM *dm)
   ierr = PetscObjectSetName((PetscObject) *dm, "Mesh");CHKERRQ(ierr);
   ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
   ierr = DMLocalizeCoordinates(*dm);CHKERRQ(ierr); /* needed for periodic */
-  /* print matlab coordinates */
-  if (ctx->debug>11) {
-    Vec               coordinates;
-    PetscViewer       viewer = NULL;
-    char              buf[256];
-    ierr = DMGetCoordinates(*dm, &coordinates);CHKERRQ(ierr);
-    ierr = PetscSNPrintf(buf, 256, "coords_%dD.m", ctx->dim);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIOpen(PetscObjectComm((PetscObject)*dm), buf, &viewer);CHKERRQ(ierr);
-    ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-    ierr = VecView(coordinates,viewer);CHKERRQ(ierr);
-    ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
-    ierr = PetscViewerDestroy(&viewer);
-  }
   PetscFunctionReturn(0);
 }
 
@@ -455,11 +430,12 @@ static PetscErrorCode initialSolution_Omega(PetscInt dim, PetscReal time, const 
   return 0;
 }
 
-static PetscErrorCode initialSolution_psi(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+static PetscErrorCode initialSolution_psi(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *a_ctx)
 {
-  AppCtx *lctx = (AppCtx*)ctx;
+  AppCtx *ctx = (AppCtx*)a_ctx;
   assert(ctx);
-  PetscScalar r = lctx->eps*(PetscScalar) (rand()) / (PetscScalar) (RAND_MAX);
+  PetscScalar r = ctx->eps*(PetscScalar) (rand()) / (PetscScalar) (RAND_MAX);
+  if (x[0] == ctx->domain_lo[0] || x[0] == ctx->domain_hi[0]) r = 0;
   u[0] = r;
   // PetscPrintf(PETSC_COMM_WORLD, "rand psi %lf\n",u[0]);
   return 0;
