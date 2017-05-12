@@ -1,6 +1,16 @@
 clear all;
 close all;
 
+%the files optimize** contain
+%Grad    --- gradient, 
+%Init_ts --- initial condition of forward problem
+%Init_adj--- initial condition of backward problem
+
+%additionally 
+%xg - the grid
+%obj- the objective function
+%ic - initial condition (the one to be optimized)
+
 figure(1);set(gca,'FontSize',18);
 run('IC_OBJ.m')
 plot(xg,ic,'k-','LineWidth',2);
