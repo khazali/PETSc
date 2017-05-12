@@ -548,7 +548,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   PetscReal         ff, gnorm, cnorm, xdiff; 
   TaoConvergedReason reason;      
   PetscViewer        viewfile;
-  char filename[13] ;
+  char filename[24] ;
 
 
   ierr = TSSetTime(appctx->ts,0.0);CHKERRQ(ierr);
@@ -568,7 +568,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     Save trajectory of solution so that TSAdjointSolve() may be used
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  ierr = TSSetSaveTrajectory(appctx->ts);CHKERRQ(ierr);
+   ierr = TSSetSaveTrajectory(appctx->ts);CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set runtime options
@@ -609,7 +609,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   ierr=  TaoGetSolutionStatus(tao, &its, &ff, &gnorm, &cnorm, &xdiff, &reason);
   PetscPrintf(PETSC_COMM_WORLD,"iteration=%D\t cost function (TAO)=%g, cost function (L2 %f)\n",its,(double)ff,f);
 
-  PetscSNPrintf(filename,sizeof(filename),"optimize%02d.m",its);
+  PetscSNPrintf(filename,sizeof(filename),"PDEadjoint/optimize%02d.m",its);
   ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,filename,&viewfile);CHKERRQ(ierr);
   ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
   //ierr = MatView(appctx.stiff,viewfile);CHKERRQ(ierr);
@@ -634,11 +634,11 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   //ierr = MatView(appctx->SEMop.stiff,viewfile);CHKERRQ(ierr);
   //ierr = PetscViewerPopFormat(viewfile);CHKERRQ(ierr);
   //ierr = PetscViewerDestroy(&viewfile);CHKERRQ(ierr);
-
+  ierr=PetscViewerPopFormat(viewfile);
   PetscFunctionReturn(0);
 }
 
-
+/*
 #undef __FUNCT__
 #define __FUNCT__ "RHSFunctionHeatgllDM"
 PetscErrorCode RHSFunctionHeatgllDM(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
@@ -649,8 +649,8 @@ PetscErrorCode RHSFunctionHeatgllDM(TS ts,PetscReal t,Vec globalin,Vec globalout
   PetscFunctionBeginUser;
   ierr = TSGetRHSJacobian(ts,&A,NULL,NULL,&ctx);CHKERRQ(ierr);
   ierr = RHSMatrixHeatgllDM(ts,t,globalin,A,NULL,ctx);CHKERRQ(ierr);
-  /* ierr = MatView(A,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
+  // ierr = MatView(A,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); 
   ierr = MatMult(A,globalin,globalout);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-
+*/
