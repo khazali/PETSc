@@ -145,10 +145,10 @@ int main(int argc,char **argv)
 
   appctx.param.mu    = 0.001; 
 
-  appctx.param.steps =200;
+  appctx.param.steps =20000000;
   appctx.param.dt    = 1e-3;
 
-  appctx.param.Tend = appctx.param.steps*appctx.param.dt;  
+  appctx.param.Tend = 0.1; //appctx.param.steps*appctx.param.dt;  
   appctx.param.Tadj =appctx.param.Tend+0.7;
 
   //ierr = PetscPrintf(PETSC_COMM_WORLD,"Solving a linear TS problem on 1 processor\n");CHKERRQ(ierr);
@@ -259,7 +259,7 @@ int main(int argc,char **argv)
   ierr = TSSetExactFinalTime(appctx.ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
 
   ierr = TSSetTolerances(appctx.ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
- 
+  ierr = TSSetFromOptions(appctx.ts);
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create matrix data structure; set matrix evaluation routine.
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -275,7 +275,7 @@ int main(int argc,char **argv)
     */
    ierr = RHSMatrixHeatgllDM(appctx.ts,0.0,u,A,A,&appctx);CHKERRQ(ierr);
    ierr = MatDuplicate(A,MAT_COPY_VALUES,&appctx.SEMop.stiff);CHKERRQ(ierr);
-   ierr = MatScale(A, -1.0);
+   ierr = MatScale(A, 1.0);
    ierr = MatDuplicate(A,MAT_COPY_VALUES,&appctx.SEMop.adj);CHKERRQ(ierr);
 
   //ierr = PetscPrintf(PETSC_COMM_SELF,"avg. error (2 norm) = %g, avg. error (max norm) = %g\n",(double)(appctx.norm_2/steps),(double)(appctx.norm_L2/steps));CHKERRQ(ierr);
@@ -549,6 +549,16 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   TaoConvergedReason reason;      
   PetscViewer        viewfile;
   char filename[13] ;
+
+
+  ierr = TSSetTime(appctx->ts,0.0);CHKERRQ(ierr);
+  ierr = TSSetInitialTimeStep(appctx->ts,0.0,appctx->param.dt);CHKERRQ(ierr);
+  ierr = TSSetDuration(appctx->ts,appctx->param.steps,appctx->param.Tend);CHKERRQ(ierr);
+  ierr = TSSetExactFinalTime(appctx->ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
+
+  ierr = TSSetTolerances(appctx->ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
+  ierr = TSSetFromOptions(appctx->ts);
+
   
   ierr = VecCopy(IC,appctx->dat.curr_sol);CHKERRQ(ierr);
   
