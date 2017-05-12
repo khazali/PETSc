@@ -21,8 +21,6 @@ Input parameters include:\n\
        u_t = u_xx,
    on the domain 0 <= x <= 1, with the boundary conditions
        u(t,0) = 0, u(t,1) = 0,
-   and the initial condition
-       u(0,x) = sin(6*pi*x) + 3*sin(2*pi*x).
    This is a linear, second-order, parabolic equation.
 
    We discretize the right-hand side using the spectral element method
@@ -46,14 +44,17 @@ Input parameters include:\n\
 #include "petscvec.h" 
 #include "petscgll.h"
 #include <petscdraw.h>
+#include <petscmath.h>
 #include <petscdmda.h>
 #include <petscmat.h>  
 #include <petsctao.h>   
 #include "petscdmlabel.h" 
+#include "stdio.h"
 /*
    User-defined application context - contains data needed by the
    application-provided call-back routines.
 */
+
 typedef struct {
   PetscInt    N;             /* grid points per elements*/
   PetscInt    E;              /* number of elements */
@@ -71,7 +72,6 @@ typedef struct {
   Vec         obj;               /* desired end state */
   Vec         u_local;           /* local ghosted approximate solution vector */
   Vec         grid;              /* total grid */   
-  Vec         mass;              /* mass matrix for total integration */
   Vec         grad;
   Vec         ic;
   Vec         curr_sol;
@@ -97,6 +97,7 @@ typedef struct {
   PetscBool    debug;
   TS           ts;
 } AppCtx;
+
 /*
    User-defined routines
 */
@@ -112,7 +113,6 @@ extern PetscErrorCode Objective(PetscReal,Vec,AppCtx*);
 int main(int argc,char **argv)
 {
   AppCtx         appctx;                 /* user-defined application context */
-  TS             ts;                     /* timestepping context */
   Tao            tao;
   KSP            ksp;
   PC             pc;
@@ -260,13 +260,13 @@ int main(int argc,char **argv)
 
   ierr = TSSetTolerances(appctx.ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
  
- /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
+   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create matrix data structure; set matrix evaluation routine.
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-    ierr = DMSetMatrixPreallocateOnly(appctx.da, PETSC_TRUE);CHKERRQ(ierr);
-    ierr = DMCreateMatrix(appctx.da,&A);CHKERRQ(ierr);
-    ierr = DMCreateMatrix(appctx.da,&appctx.stiff);CHKERRQ(ierr);
+
+   ierr = DMSetMatrixPreallocateOnly(appctx.da, PETSC_TRUE);CHKERRQ(ierr);
+   ierr = DMCreateMatrix(appctx.da,&A);CHKERRQ(ierr);
+   ierr = DMCreateMatrix(appctx.da,&appctx.SEMop.stiff);CHKERRQ(ierr);
     
     /*
        For linear problems with a time-dependent f(u,t) in the equation
@@ -300,7 +300,6 @@ int main(int argc,char **argv)
 
   ierr = TaoSetTolerances(tao,1e-8,PETSC_DEFAULT,PETSC_DEFAULT);CHKERRQ(ierr);
 
-  /* SOLVE THE APPLICATION */
   ierr = TaoSolve(tao); CHKERRQ(ierr);
 
   // Free TAO data structures 
@@ -363,8 +362,6 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
   for (i=0; i<lenglob; i++) {
       s_localptr[i]=PetscSinScalar(2.0*PETSC_PI*xg_localptr[i]);
       } 
-     }
-*/
 
 //printf("sinfunc %2.20f \n",PetscSinScalar(2.0*PETSC_PI*xg_localptr[lenglob])*PetscExpScalar(-0.4*tc));
 
@@ -421,23 +418,6 @@ PetscErrorCode Objective(PetscReal t,Vec obj,AppCtx *appctx)
   ierr = DMDAVecRestoreArray(appctx->da,appctx->SEMop.grid,&xg_localptr);CHKERRQ(ierr);
   ierr = DMDAVecRestoreArray(appctx->da,appctx->dat.obj,&s_localptr);CHKERRQ(ierr);
 
-  for (i=xs; i<xs+xm; i++) {
-      for (j=0; j<appctx->Nl; j++)
-      {
-      x = (Le/2.0)*(appctx->Z[j])+Le*i; 
-      xx= PetscSinScalar(2.0*PETSC_PI*x)*PetscExpScalar(-0.4*tc);
-      ind=i*(appctx->Nl-1)+j;
-      s_localptr[ind]=xx;
-      } 
-   }
-
-
-
-  /*
-     Restore vectors
-  */
-  ierr = DMDAVecRestoreArray(appctx->da,obj,&s_localptr);CHKERRQ(ierr);
-  
   return 0;
 }
 
@@ -466,10 +446,7 @@ PetscErrorCode RHSMatrixHeatgllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx
 {
   PetscReal      **temp, init;
   PetscReal      vv;
-  PetscGLLIP     gll;
   AppCtx         *appctx = (AppCtx*)ctx;     /* user-defined application context */
-  PetscInt       N=appctx->Nl;
-  PetscInt       E=appctx->E;
   PetscErrorCode ierr;
   PetscInt       i,xs,xn,l,j,id;
   PetscInt       rows[2], *rowsDM;
@@ -486,7 +463,6 @@ PetscErrorCode RHSMatrixHeatgllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx
        for (j=0; j<appctx->param.N; j++)
                {
                 temp[i][j]=temp[i][j]*vv; 
-                //printf("prefactor %f \n",temp[i][j]);
                }
       } 
     init=temp[0][0];
@@ -522,13 +498,6 @@ PetscErrorCode RHSMatrixHeatgllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx
    rows[1] = appctx->param.E*(appctx->param.N-1);
    ierr = MatZeroRowsColumns(A,2,rows,0.0,appctx->SEMop.grid,appctx->SEMop.grid);CHKERRQ(ierr);
 
-  
-   // Output only for testing
-   ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"inside.m",&viewfile);CHKERRQ(ierr);
-   ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-   ierr = MatView(A,viewfile);CHKERRQ(ierr);
-   ierr = PetscViewerPopFormat(viewfile);CHKERRQ(ierr);
-   ierr = PetscViewerDestroy(&viewfile);CHKERRQ(ierr);
 
    ierr = PetscGLLIPElementStiffnessDestroy(&appctx->SEMop.gll,&temp);CHKERRQ(ierr);
    
@@ -545,25 +514,8 @@ PetscErrorCode RHSMatrixHeatgllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx
 #undef __FUNCT__
 #define __FUNCT__ "RHSAdjointgllDM"
 
-/*
-   RHSMatrixHeat - User-provided routine to compute the right-hand-side
-   matrix for the heat equation.
-
-   Input Parameters:
-   ts - the TS context
-   t - current time
-   global_in - global input vector
-   dummy - optional user-defined context, as set by TSetRHSJacobian()
-
-   Output Parameters:
-   AA - Jacobian matrix
-   BB - optionally different preconditioning matrix
-   str - flag indicating matrix structure
-
-*/
 PetscErrorCode RHSAdjointgllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx)
 {
-  //Mat            A=AA;                /* Jacobian matrix */
   AppCtx         *appctx = (AppCtx*)ctx;     /* user-defined application context */
    
   //ierr=MatCopy(A,appctx->stiff,SAME_NONZERO_PATTERN);
@@ -590,7 +542,6 @@ PetscErrorCode RHSAdjointgllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx)
 PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
 {
   AppCtx           *appctx = (AppCtx*)ctx;     /* user-defined application context */
-  TS                ts;
   PetscErrorCode    ierr;
   Vec               temp, temp2;
   PetscInt          its;
