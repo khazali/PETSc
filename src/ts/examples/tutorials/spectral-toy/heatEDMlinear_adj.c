@@ -138,8 +138,8 @@ int main(int argc,char **argv)
   ierr = PetscOptionsHasName(NULL,NULL,"-debug",&appctx.debug);CHKERRQ(ierr);
 
   /*initialize parameters */ 
-  appctx.param.N  = 8;
-  appctx.param.E  = 3;
+  appctx.param.N  = 6;
+  appctx.param.E  = 5;
   appctx.param.L  = 1.0;
   appctx.param.Le = appctx.param.L/appctx.param.E;
 
@@ -368,7 +368,7 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
   //Restore vectors
 
   ierr = DMDAVecRestoreArray(appctx->da,appctx->SEMop.grid,&xg_localptr);CHKERRQ(ierr);
-  ierr = DMDAVecRestoreArray(appctx->da,appctx->dat.obj,&s_localptr);CHKERRQ(ierr);
+  ierr = DMDAVecRestoreArray(appctx->da,appctx->dat.ic,&s_localptr);CHKERRQ(ierr);
   
   //  Print debugging information if desired
   
