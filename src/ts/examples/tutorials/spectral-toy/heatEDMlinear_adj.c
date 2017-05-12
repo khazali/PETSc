@@ -90,12 +90,15 @@ typedef struct {
 } PetscSEMOperators;
 
 typedef struct {
-  DM          da;                /* distributed array data structure */
+  DM                da;                /* distributed array data structure */
   PetscSEMOperators SEMop;
-  PetscParam   param;
-  PetscData    dat;
-  PetscBool    debug;
-  TS           ts;
+  PetscParam        param;
+  PetscData         dat;
+  PetscBool         debug;
+  TS                ts;
+  PetscBool         AdjTestLinear;  /* just test if the adjoint is consistent (works only ofr leanr problems becasue we don't have the damn TLM in PETSc*/
+  PetscReal         AdjTestLinearForward;
+  PetscReal         AdjTestLinearBackward;
 } AppCtx;
 
 /*
@@ -121,7 +124,8 @@ int main(int argc,char **argv)
   PetscErrorCode ierr;
   PetscInt       i, xs, xm, ind, j, lenglob;
   PetscMPIInt    size;
-  PetscReal      x, *wrk_ptr1, *wrk_ptr2;
+  PetscReal      x, *wrk_ptr1, *wrk_ptr2, wrk1;
+  Vec            wrk_vec,wrk2_vec;
   PetscViewer        viewfile;
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize program and set problem parameters
@@ -131,8 +135,9 @@ int main(int argc,char **argv)
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return ierr;
   ierr = MPI_Comm_size(PETSC_COMM_WORLD,&size);CHKERRQ(ierr);
   if (size != 1) SETERRQ(PETSC_COMM_SELF,1,"This is a uniprocessor example only!");
- 
 
+  appctx.AdjTestLinear=PETSC_FALSE;
+  ierr = PetscOptionsGetBool(NULL,NULL,"-test_adjoint_linear_problem",&appctx.AdjTestLinear,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-Nl",&appctx.param.N,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-E",&appctx.param.E,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsHasName(NULL,NULL,"-debug",&appctx.debug);CHKERRQ(ierr);
@@ -168,7 +173,7 @@ int main(int argc,char **argv)
      appctx.dat.W[i]=appctx.SEMop.gll.weights[i]; 
      appctx.dat.mult[i]=1.0;
       }
-
+ 
   appctx.dat.mult[0]=0.5;
   appctx.dat.mult[appctx.param.N-1]=0.5; 
 
@@ -227,7 +232,7 @@ int main(int argc,char **argv)
 
    ierr = DMDAVecRestoreArray(appctx.da,appctx.SEMop.grid,&wrk_ptr1);CHKERRQ(ierr);
    ierr = DMDAVecRestoreArray(appctx.da,appctx.SEMop.mass,&wrk_ptr2);CHKERRQ(ierr);
-      
+
 
    //Set Objective and Initial conditions for the problem 
    ierr = Objective(appctx.param.Tadj,appctx.dat.obj,&appctx);CHKERRQ(ierr);
@@ -253,13 +258,14 @@ int main(int argc,char **argv)
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set time
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  ierr = TSSetTime(appctx.ts,0.0);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(appctx.ts,0.0,appctx.param.dt);CHKERRQ(ierr);
-  ierr = TSSetDuration(appctx.ts,appctx.param.steps,appctx.param.Tend);CHKERRQ(ierr);
-  ierr = TSSetExactFinalTime(appctx.ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
+   /*ierr = TSSetTime(appctx.ts,0.0);CHKERRQ(ierr);
+    ierr = TSSetInitialTimeStep(appctx.ts,0.0,appctx.param.dt);CHKERRQ(ierr);
+    ierr = TSSetDuration(appctx.ts,appctx.param.steps,appctx.param.Tend);CHKERRQ(ierr);
+    ierr = TSSetExactFinalTime(appctx.ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
 
-  ierr = TSSetTolerances(appctx.ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
-  ierr = TSSetFromOptions(appctx.ts);
+    ierr = TSSetTolerances(appctx.ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
+    ierr = TSSetFromOptions(appctx.ts);*/
+
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create matrix data structure; set matrix evaluation routine.
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -299,9 +305,21 @@ int main(int argc,char **argv)
   }
 
   ierr = TaoSetTolerances(tao,1e-8,PETSC_DEFAULT,PETSC_DEFAULT);CHKERRQ(ierr);
-
-  ierr = TaoSolve(tao); CHKERRQ(ierr);
-
+  
+  if(!appctx.AdjTestLinear) {
+    ierr = PetscPrintf(PETSC_COMM_SELF,"Solving the optimization problem:\n");CHKERRQ(ierr);
+    ierr = TaoSolve(tao); CHKERRQ(ierr);
+  } else {
+    ierr = PetscPrintf(PETSC_COMM_SELF,"Testing the adjoint of the linear problem:\n");CHKERRQ(ierr);
+    ierr = VecDuplicate(appctx.dat.ic,&wrk_vec); CHKERRQ(ierr);
+    ierr = VecCopy(appctx.dat.ic,wrk_vec); CHKERRQ(ierr);
+    ierr = VecDuplicate(appctx.dat.ic,&wrk2_vec); CHKERRQ(ierr);
+    ierr = FormFunctionGradient(tao,wrk_vec,&wrk1,wrk2_vec,&appctx);CHKERRQ(ierr);
+    ierr = VecDot(appctx.dat.ic,wrk2_vec,&(appctx.AdjTestLinearBackward));CHKERRQ(ierr);
+    PetscPrintf(PETSC_COMM_WORLD,"Cost=%g, forward test = %g, backward test = %g \n",wrk1,appctx.AdjTestLinearForward,appctx.AdjTestLinearBackward);
+    ierr = VecDestroy(&wrk_vec); CHKERRQ(ierr);
+    ierr = VecDestroy(&wrk2_vec); CHKERRQ(ierr);
+  }
   // Free TAO data structures 
   ierr = TaoDestroy(&tao);CHKERRQ(ierr);
 
@@ -573,8 +591,14 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set runtime options
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  /*VecView(appctx->dat.curr_sol,PETSC_VIEWER_STDOUT_WORLD);*/
   ierr = TSSolve(appctx->ts,appctx->dat.curr_sol);CHKERRQ(ierr);
- 
+  /*VecView(appctx->dat.curr_sol,PETSC_VIEWER_STDOUT_WORLD);*/
+  if(appctx->AdjTestLinear) {
+    ierr = VecDot(appctx->dat.curr_sol,appctx->dat.curr_sol,&ff);CHKERRQ(ierr);
+    appctx->AdjTestLinearForward=ff;
+  }
+
  /*
      Compute the L2-norm of the objective function, cost function is f
   */
@@ -582,9 +606,9 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   ierr = VecCopy(appctx->dat.obj,temp);CHKERRQ(ierr);
   ierr = VecAXPY(temp,-1.0,appctx->dat.curr_sol);CHKERRQ(ierr);
 
-  ierr   = VecDuplicate(temp,&temp2);CHKERRQ(ierr);
-  ierr   = VecPointwiseMult(temp2,temp,temp);CHKERRQ(ierr);
-  ierr   = VecDot(temp2,appctx->SEMop.mass,f);CHKERRQ(ierr);
+  ierr = VecDuplicate(temp,&temp2);CHKERRQ(ierr);
+  ierr = VecPointwiseMult(temp2,temp,temp);CHKERRQ(ierr);
+  ierr = VecDot(temp2,appctx->SEMop.mass,f);CHKERRQ(ierr);
   
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Adjoint model starts here
