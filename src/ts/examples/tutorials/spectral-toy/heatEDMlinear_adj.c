@@ -316,9 +316,14 @@ int main(int argc,char **argv)
     ierr = VecDuplicate(appctx.dat.ic,&wrk2_vec); CHKERRQ(ierr);
     ierr = FormFunctionGradient(tao,wrk_vec,&wrk1,wrk2_vec,&appctx);CHKERRQ(ierr);
     ierr = VecDot(appctx.dat.ic,wrk2_vec,&(appctx.AdjTestLinearBackward));CHKERRQ(ierr);
-    PetscPrintf(PETSC_COMM_WORLD,"Cost=%g, forward test = %g, backward test = %g \n",wrk1,appctx.AdjTestLinearForward,appctx.AdjTestLinearBackward);
+    PetscPrintf(PETSC_COMM_WORLD,"Cost=%g, forward test = %g = %g = backward test \n",wrk1,appctx.AdjTestLinearForward,appctx.AdjTestLinearBackward);
     ierr = VecDestroy(&wrk_vec); CHKERRQ(ierr);
     ierr = VecDestroy(&wrk2_vec); CHKERRQ(ierr);
+
+    /* NEED TO IMPLEMENT THE FINITE DIFFERENCE TEST TOO */
+
+    PetscPrintf(PETSC_COMM_WORLD,"Finite difference test NOT IMPLEMENTED. \n");
+
   }
   // Free TAO data structures 
   ierr = TaoDestroy(&tao);CHKERRQ(ierr);
@@ -594,7 +599,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   /*VecView(appctx->dat.curr_sol,PETSC_VIEWER_STDOUT_WORLD);*/
   ierr = TSSolve(appctx->ts,appctx->dat.curr_sol);CHKERRQ(ierr);
   /*VecView(appctx->dat.curr_sol,PETSC_VIEWER_STDOUT_WORLD);*/
-  if(appctx->AdjTestLinear) {
+  if(appctx->AdjTestLinear){
     ierr = VecDot(appctx->dat.curr_sol,appctx->dat.curr_sol,&ff);CHKERRQ(ierr);
     appctx->AdjTestLinearForward=ff;
   }
@@ -619,8 +624,13 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   
   ierr = VecScale(temp, -2.0);
   ierr = VecCopy(temp,appctx->dat.grad);CHKERRQ(ierr);
-  
-  ierr = TSSetCostGradients(appctx->ts,1,&appctx->dat.grad,NULL);CHKERRQ(ierr);
+  if(!appctx->AdjTestLinear){
+    ierr = TSSetCostGradients(appctx->ts,1,&appctx->dat.grad,NULL);CHKERRQ(ierr);
+  } else {
+    /*VecView(appctx->dat.curr_sol,PETSC_VIEWER_STDOUT_WORLD);*/
+    ierr = TSSetCostGradients(appctx->ts,1,&appctx->dat.curr_sol,NULL);CHKERRQ(ierr);
+  }
+
   ierr = TSAdjointSetUp(appctx->ts);CHKERRQ(ierr);
   ierr = TSSetDM(appctx->ts,appctx->da);CHKERRQ(ierr);
     
