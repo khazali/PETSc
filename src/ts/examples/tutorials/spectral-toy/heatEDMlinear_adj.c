@@ -62,7 +62,6 @@ typedef struct {
   PetscInt    steps;          /* number of timesteps */
   PetscReal   Tend;           /* endtime */
   PetscReal   mu;             /* viscosity */
-  PetscReal   dt;             /* timestep*/
   PetscReal   L;              /* total length of domain */   
   PetscReal   Le; 
   PetscReal   Tadj;
@@ -96,6 +95,7 @@ typedef struct {
   PetscData         dat;
   PetscBool         debug;
   TS                ts;
+  PetscReal         initial_dt;
   PetscBool         AdjTestLinear;  /* just test if the adjoint is consistent (works only ofr leanr problems becasue we don't have the damn TLM in PETSc*/
   PetscReal         AdjTestLinearForward;
   PetscReal         AdjTestLinearBackward;
@@ -137,21 +137,20 @@ int main(int argc,char **argv)
   if (size != 1) SETERRQ(PETSC_COMM_SELF,1,"This is a uniprocessor example only!");
 
   appctx.AdjTestLinear=PETSC_FALSE;
+  appctx.param.N  = 6;
+  appctx.param.E  = 5;
   ierr = PetscOptionsGetBool(NULL,NULL,"-test_adjoint_linear_problem",&appctx.AdjTestLinear,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-Nl",&appctx.param.N,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-E",&appctx.param.E,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsHasName(NULL,NULL,"-debug",&appctx.debug);CHKERRQ(ierr);
 
   /*initialize parameters */ 
-  appctx.param.N  = 6;
-  appctx.param.E  = 5;
   appctx.param.L  = 1.0;
   appctx.param.Le = appctx.param.L/appctx.param.E;
 
   appctx.param.mu    = 0.001; 
 
   appctx.param.steps =20000000;
-  appctx.param.dt    = 1e-3;
 
   appctx.param.Tend = 0.1; //appctx.param.steps*appctx.param.dt;  
   appctx.param.Tadj =appctx.param.Tend+0.7;
@@ -258,13 +257,13 @@ int main(int argc,char **argv)
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set time
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-   /*ierr = TSSetTime(appctx.ts,0.0);CHKERRQ(ierr);
-    ierr = TSSetInitialTimeStep(appctx.ts,0.0,appctx.param.dt);CHKERRQ(ierr);
-    ierr = TSSetDuration(appctx.ts,appctx.param.steps,appctx.param.Tend);CHKERRQ(ierr);
-    ierr = TSSetExactFinalTime(appctx.ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
-
-    ierr = TSSetTolerances(appctx.ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
-    ierr = TSSetFromOptions(appctx.ts);*/
+   ierr = TSSetInitialTimeStep(appctx.ts,0.0,1.e-3);CHKERRQ(ierr);
+   ierr = TSSetDuration(appctx.ts,appctx.param.steps,appctx.param.Tend);CHKERRQ(ierr);
+   ierr = TSSetExactFinalTime(appctx.ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
+   ierr = TSSetTolerances(appctx.ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
+   ierr = TSSetFromOptions(appctx.ts);
+   /* Need to save initial timestep user may have set with -ts_dt so it can be reset for each new TSSolve() */
+   ierr = TSGetTimeStep(appctx.ts,&appctx.initial_dt);CHKERRQ(ierr);
 
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create matrix data structure; set matrix evaluation routine.
@@ -283,6 +282,9 @@ int main(int argc,char **argv)
    ierr = MatDuplicate(A,MAT_COPY_VALUES,&appctx.SEMop.stiff);CHKERRQ(ierr);
    ierr = MatScale(A, 1.0);
    ierr = MatDuplicate(A,MAT_COPY_VALUES,&appctx.SEMop.adj);CHKERRQ(ierr);
+
+   ierr = TSSetRHSFunction(appctx.ts,NULL,TSComputeRHSFunctionLinear,&appctx);CHKERRQ(ierr);
+   ierr = TSSetRHSJacobian(appctx.ts,appctx.SEMop.stiff,appctx.SEMop.stiff,TSComputeRHSJacobianConstant,&appctx);CHKERRQ(ierr);
 
   //ierr = PetscPrintf(PETSC_COMM_SELF,"avg. error (2 norm) = %g, avg. error (max norm) = %g\n",(double)(appctx.norm_2/steps),(double)(appctx.norm_L2/steps));CHKERRQ(ierr);
   //ierr = TSView(ts,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
@@ -569,19 +571,10 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   char filename[24] ;
 
 
-  ierr = TSSetTime(appctx->ts,0.0);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(appctx->ts,0.0,appctx->param.dt);CHKERRQ(ierr);
-  ierr = TSSetDuration(appctx->ts,appctx->param.steps,appctx->param.Tend);CHKERRQ(ierr);
-  ierr = TSSetExactFinalTime(appctx->ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
+  ierr = TSSetInitialTimeStep(appctx->ts,0.0,appctx->initial_dt);CHKERRQ(ierr);
 
-  ierr = TSSetTolerances(appctx->ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
-  ierr = TSSetFromOptions(appctx->ts);
-
-  
   ierr = VecCopy(IC,appctx->dat.curr_sol);CHKERRQ(ierr);
   
-  ierr = TSSetRHSFunction(appctx->ts,NULL,TSComputeRHSFunctionLinear,&appctx);CHKERRQ(ierr);
-  ierr = TSSetRHSJacobian(appctx->ts,appctx->SEMop.stiff,appctx->SEMop.stiff,TSComputeRHSJacobianConstant,&appctx);CHKERRQ(ierr);
    
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     Save trajectory of solution so that TSAdjointSolve() may be used
@@ -625,7 +618,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   ierr = TSSetDM(appctx->ts,appctx->da);CHKERRQ(ierr);
     
   /* Set RHS Jacobian  for the adjoint integration */
-  ierr = TSSetRHSJacobian(appctx->ts,appctx->SEMop.adj,appctx->SEMop.adj,TSComputeRHSJacobianConstant,appctx);CHKERRQ(ierr);
+  /* ierr = TSSetRHSJacobian(appctx->ts,appctx->SEMop.adj,appctx->SEMop.adj,TSComputeRHSJacobianConstant,appctx);CHKERRQ(ierr); */
 
   ierr = TSAdjointSolve(appctx->ts);CHKERRQ(ierr);
    
