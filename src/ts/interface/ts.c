@@ -64,6 +64,28 @@ PetscErrorCode  TSMonitorSetFromOptions(TS ts,const char name[],const char help[
 }
 
 /*@C
+   TSAdjointMonitorGradient - monitors the first lambda gradient
+
+   Level: intermediate
+
+.keywords: TS, set, monitor
+
+.seealso: TSAdjointMonitorSet()
+@*/
+PetscErrorCode TSAdjointMonitorGradient(TS ts,PetscInt step,PetscReal ptime,Vec v,PetscInt numcost,Vec *lambda,Vec *mu,PetscViewerAndFormat *vf)
+{
+  PetscErrorCode ierr;
+  PetscViewer    viewer = vf->viewer;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(viewer,PETSC_VIEWER_CLASSID,4);
+  ierr = PetscViewerPushFormat(viewer,vf->format);CHKERRQ(ierr);
+  ierr = VecView(lambda[0],viewer);CHKERRQ(ierr);
+  ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*@C
    TSAdjointMonitorSetFromOptions - Sets a monitor function and viewer appropriate for the type indicated by the user
 
    Collective on TS
@@ -103,6 +125,19 @@ PetscErrorCode  TSAdjointMonitorSetFromOptions(TS ts,const char name[],const cha
       ierr = (*monitorsetup)(ts,vf);CHKERRQ(ierr);
     }
     ierr = TSAdjointMonitorSet(ts,(PetscErrorCode (*)(TS,PetscInt,PetscReal,Vec,PetscInt,Vec*,Vec*,void*))monitor,vf,(PetscErrorCode (*)(void**))PetscViewerAndFormatDestroy);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode TSAdaptSetDefaultType(TSAdapt adapt,TSAdaptType default_type)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(adapt,TSADAPT_CLASSID,1);
+  PetscValidCharPointer(default_type,2);
+  if (!((PetscObject)adapt)->type_name) {
+    ierr = TSAdaptSetType(adapt,default_type);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -212,6 +247,7 @@ PetscErrorCode  TSSetFromOptions(TS ts)
   ierr = TSMonitorSetFromOptions(ts,"-ts_monitor","Monitor time and timestep size","TSMonitorDefault",TSMonitorDefault,NULL);CHKERRQ(ierr);
   ierr = TSMonitorSetFromOptions(ts,"-ts_monitor_solution","View the solution at each timestep","TSMonitorSolution",TSMonitorSolution,NULL);CHKERRQ(ierr);
   ierr = TSAdjointMonitorSetFromOptions(ts,"-ts_adjoint_monitor","Monitor adjoint timestep size","TSAdjointMonitorDefault",TSAdjointMonitorDefault,NULL);CHKERRQ(ierr);
+  ierr = TSAdjointMonitorSetFromOptions(ts,"-ts_adjoint_monitor_gradient","Monitor gradient in the adjoint computation","TSAdjointMonitorGradient",TSAdjointMonitorGradient,NULL);CHKERRQ(ierr);  
 
   ierr = PetscOptionsString("-ts_monitor_python","Use Python function","TSMonitorSet",0,monfilename,PETSC_MAX_PATH_LEN,&flg);CHKERRQ(ierr);
   if (flg) {ierr = PetscPythonMonitorSet((PetscObject)ts,monfilename);CHKERRQ(ierr);}
@@ -407,9 +443,10 @@ PetscErrorCode  TSSetFromOptions(TS ts)
     ierr = PetscInfo(ts, "Setting default finite difference coloring Jacobian matrix\n");CHKERRQ(ierr);
   }
 
-  if (ts->adapt) {
-    ierr = TSAdaptSetFromOptions(PetscOptionsObject,ts->adapt);CHKERRQ(ierr);
-  }
+  /* Handle TSAdapt options */
+  ierr = TSGetAdapt(ts,&ts->adapt);CHKERRQ(ierr);
+  ierr = TSAdaptSetDefaultType(ts->adapt,ts->default_adapt_type);CHKERRQ(ierr);
+  ierr = TSAdaptSetFromOptions(PetscOptionsObject,ts->adapt);CHKERRQ(ierr);
 
   /* Handle specific TS options */
   if (ts->ops->setfromoptions) {
@@ -2472,6 +2509,7 @@ PetscErrorCode  TSSetUp(TS ts)
   TSIJacobian    ijac;
   TSI2Jacobian   i2jac;
   TSRHSJacobian  rhsjac;
+  PetscBool      isnone;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
@@ -2502,9 +2540,18 @@ PetscErrorCode  TSSetUp(TS ts)
       ierr = MatDestroy(&Pmat);CHKERRQ(ierr);
     }
   }
+
+  ierr = TSGetAdapt(ts,&ts->adapt);CHKERRQ(ierr);
+  ierr = TSAdaptSetDefaultType(ts->adapt,ts->default_adapt_type);CHKERRQ(ierr);
+
   if (ts->ops->setup) {
     ierr = (*ts->ops->setup)(ts);CHKERRQ(ierr);
   }
+
+  /* Attempt to check/preset a default value for the exact final time option */
+  ierr = PetscObjectTypeCompare((PetscObject)ts->adapt,TSADAPTNONE,&isnone);CHKERRQ(ierr);
+  if (!isnone && ts->exact_final_time == TS_EXACTFINALTIME_UNSPECIFIED)
+    ts->exact_final_time = TS_EXACTFINALTIME_MATCHSTEP;
 
   /* In the case where we've set a DMTSFunction or what have you, we need the default SNESFunction
      to be set right but can't do it elsewhere due to the overreliance on ctx=ts.
