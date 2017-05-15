@@ -23,7 +23,7 @@
 
 .seealso: DMFieldDestroy()
 @*/
-PetscErrorcode DMFieldCreate(DM dm,DMField *field)
+PetscErrorCode DMFieldCreate(DM dm,DMField *field)
 {
   PetscErrorCode ierr;
   DMField        b;
@@ -60,6 +60,7 @@ PetscErrorCode DMFieldDestroy(DMField *field)
   if (--((PetscObject)(*field))->refct > 0) {*field = 0; PetscFunctionReturn(0);}
   if ((*field)->ops->destroy) {ierr = (*(*field)->ops->destroy)(*field);CHKERRQ(ierr);}
   ierr = PetscHeaderDestroy(field);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
 }
 
 /*@C

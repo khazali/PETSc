@@ -1,6 +1,6 @@
 #include <petsc/private/dmfieldimpl.h> /*I "petscdmfield.h" I*/
 
-PETSC_INTERN PetscErrorcode DMFieldCreate_DA(DMField field)
+PETSC_INTERN PetscErrorCode DMFieldCreate_DA(DMField field)
 {
   PetscErrorCode ierr;
 

@@ -25,6 +25,7 @@
 #define PetscFV          PetscFortranAddr
 #define PetscLimiter     PetscFortranAddr
 #define PetscPartitioner PetscFortranAddr
+#define DMField          PetscFortranAddr
 
 
 #define DMDA        'da'

@@ -38,7 +38,6 @@ typedef struct _p_DM* DM;
 .seealso: DMDASetBoundaryType(), DMDACreate1d(), DMDACreate2d(), DMDACreate3d(), DMDACreate()
 E*/
 typedef enum {DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED, DM_BOUNDARY_MIRROR, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_TWIST} DMBoundaryType;
-
 /*E
   DMPointLocationType - Describes the method to handle point location failure
 

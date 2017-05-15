@@ -11,6 +11,7 @@ S*/
 typedef struct _p_DMField* DMField;
 
 PETSC_EXTERN PetscErrorCode DMFieldInitializePackage(void);
+PETSC_EXTERN PetscErrorCode DMFieldFinalizePackage(void);
 
 PETSC_EXTERN PetscClassId DMFIELD_CLASSID;
 
@@ -33,14 +34,17 @@ typedef enum {DMFIELD_VERTEX,DMFIELD_EDGE,DMFIELD_FACET,DMFIELD_CELL} DMFieldCon
 typedef enum {DMFIELD_SIMPLE,DMFIELD_COVARIANT,DMFIELD_CONTRAVARIANT} DMFieldPullback;
 
 PETSC_EXTERN PetscErrorCode    DMFieldCreate(DM,DMField*);
+PETSC_EXTERN PetscErrorCode    DMFieldDestroy(DMField*);
+PETSC_EXTERN PetscErrorCode    DMFieldView(DMField,PetscViewer);
+
 PETSC_EXTERN PetscErrorCode    DMFieldSetNumComponents(DMField,PetscInt);
 PETSC_EXTERN PetscErrorCode    DMFieldGetNumComponents(DMField,PetscInt*);
 PETSC_EXTERN PetscErrorCode    DMFieldSetContinuity(DMField,DMFieldContinuity);
 PETSC_EXTERN PetscErrorCode    DMFieldGetContinuity(DMField,DMFieldContinuity*);
 PETSC_EXTERN PetscErrorCode    DMFieldSetPullback(DMField,DMFieldPullback);
 PETSC_EXTERN PetscErrorCode    DMFieldGetPullback(DMField,DMFieldPullback*);
-PETSC_EXTERN PetscErrorCode    DMFieldSetField(DMField,PetscDatatype);
-PETSC_EXTERN PetscErrorCode    DMFieldGetField(DMField,PetscDatatype*);
+PETSC_EXTERN PetscErrorCode    DMFieldSetField(DMField,PetscDataType);
+PETSC_EXTERN PetscErrorCode    DMFieldGetField(DMField,PetscDataType*);
 
 PETSC_EXTERN PetscErrorCode    DMFieldSetFromOptions(DMField);
 PETSC_EXTERN PetscErrorCode    DMFieldSetUp(DMField);
