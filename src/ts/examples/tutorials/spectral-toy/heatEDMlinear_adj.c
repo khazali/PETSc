@@ -635,7 +635,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   ierr = TSSetDM(appctx->ts,appctx->da);CHKERRQ(ierr);
     
   /* Set RHS Jacobian  for the adjoint integration */
-  ierr = TSSetRHSJacobian(appctx->ts,appctx->SEMop.adj,appctx->SEMop.adj,TSComputeRHSJacobianConstant,appctx);CHKERRQ(ierr);
+  /*ierr = TSSetRHSJacobian(appctx->ts,appctx->SEMop.adj,appctx->SEMop.adj,TSComputeRHSJacobianConstant,appctx);CHKERRQ(ierr);*/
 
   ierr = TSAdjointSolve(appctx->ts);CHKERRQ(ierr);
    
