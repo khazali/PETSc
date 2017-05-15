@@ -287,6 +287,7 @@ static PetscErrorCode PostStep(TS ts)
   ierr = TSGetTimeStepNumber(ts, &stepi);CHKERRQ(ierr);
   ierr = DMGetOutputSequenceNumber(dm, &num, NULL);CHKERRQ(ierr);
   if (num < 0) {ierr = DMSetOutputSequenceNumber(dm, 0, 0.0);CHKERRQ(ierr);}
+  ierr = PetscObjectSetName((PetscObject) X, "u");CHKERRQ(ierr);
   ierr = VecViewFromOptions(X, NULL, "-vec_view");CHKERRQ(ierr);
   /* print integrals */
   {
