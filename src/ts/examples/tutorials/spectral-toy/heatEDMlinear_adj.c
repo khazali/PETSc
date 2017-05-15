@@ -96,7 +96,8 @@ typedef struct {
   PetscBool         debug;
   TS                ts;
   PetscReal         initial_dt;
-  PetscBool         AdjTestLinear;  /* just test if the adjoint is consistent (works only ofr leanr problems becasue we don't have the damn TLM in PETSc*/
+  PetscBool         AdjTestFD;
+  PetscBool         AdjTestLinear;  /* just test if the adjoint is consistent (works only for leanr problems becasue we don't have the damn TLM in PETSc*/
   PetscReal         AdjTestLinearForward;
   PetscReal         AdjTestLinearBackward;
 } AppCtx;
@@ -123,10 +124,11 @@ int main(int argc,char **argv)
   Vec            u;                      /* approximate solution vector */
   PetscErrorCode ierr;
   PetscInt       i, xs, xm, ind, j, lenglob;
+  PetscInt       VecLength;
   PetscMPIInt    size;
-  PetscReal      x, *wrk_ptr1, *wrk_ptr2, wrk1;
-  Vec            wrk_vec,wrk2_vec;
-  PetscViewer        viewfile;
+  PetscReal      x, *wrk_ptr1, *wrk_ptr2, wrk1, wrk2,varepsilon;
+  Vec            wrk_vec,wrk2_vec,wrk3_vec,wrk4_vec;
+  PetscViewer    viewfile;
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize program and set problem parameters
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -138,13 +140,15 @@ int main(int argc,char **argv)
 
   appctx.AdjTestLinear=PETSC_FALSE;
   ierr = PetscOptionsGetBool(NULL,NULL,"-test_adjoint_linear_problem",&appctx.AdjTestLinear,NULL);CHKERRQ(ierr);
+  appctx.AdjTestFD=PETSC_FALSE;
+  ierr = PetscOptionsGetBool(NULL,NULL,"-test_adjoint_finite_difference",&appctx.AdjTestFD,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-Nl",&appctx.param.N,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-E",&appctx.param.E,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsHasName(NULL,NULL,"-debug",&appctx.debug);CHKERRQ(ierr);
 
   /*initialize parameters */ 
-  appctx.param.N  = 6;
-  appctx.param.E  = 5;
+  appctx.param.N  = 32;
+  appctx.param.E  = 1;
   appctx.param.L  = 1.0;
   appctx.param.Le = appctx.param.L/appctx.param.E;
 
@@ -153,7 +157,7 @@ int main(int argc,char **argv)
   appctx.param.steps =20000000;
   appctx.initial_dt    = 1e-3;
 
-  appctx.param.Tend = 0.1; //appctx.param.steps*appctx.param.dt;  
+  appctx.param.Tend = 0.01; //appctx.param.steps*appctx.param.dt;  
   appctx.param.Tadj =appctx.param.Tend+0.7;
 
   //ierr = PetscPrintf(PETSC_COMM_WORLD,"Solving a linear TS problem on 1 processor\n");CHKERRQ(ierr);
@@ -274,7 +278,7 @@ int main(int argc,char **argv)
    ierr = DMSetMatrixPreallocateOnly(appctx.da, PETSC_TRUE);CHKERRQ(ierr);
    ierr = DMCreateMatrix(appctx.da,&A);CHKERRQ(ierr);
    ierr = DMCreateMatrix(appctx.da,&appctx.SEMop.stiff);CHKERRQ(ierr);
-    
+
     /*
        For linear problems with a time-dependent f(u,t) in the equation
        u_t = f(u,t), the user provides the discretized right-hand-side
@@ -286,22 +290,22 @@ int main(int argc,char **argv)
    ierr = MatDuplicate(A,MAT_COPY_VALUES,&appctx.SEMop.adj);CHKERRQ(ierr);
 
 
-  
+
   ierr = TSSetRHSFunction(appctx.ts,NULL,TSComputeRHSFunctionLinear,&appctx);CHKERRQ(ierr);
   ierr = TSSetRHSJacobian(appctx.ts,appctx.SEMop.stiff,appctx.SEMop.stiff,TSComputeRHSJacobianConstant,&appctx);CHKERRQ(ierr);
   //ierr = PetscPrintf(PETSC_COMM_SELF,"avg. error (2 norm) = %g, avg. error (max norm) = %g\n",(double)(appctx.norm_2/steps),(double)(appctx.norm_L2/steps));CHKERRQ(ierr);
   //ierr = TSView(ts,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
  
-  // Create TAO solver and set desired solution method 
+  // Create TAO solver and set desired solution method
   ierr = TaoCreate(PETSC_COMM_WORLD,&tao);CHKERRQ(ierr);
   ierr = TaoSetType(tao,TAOCG);CHKERRQ(ierr);
 
   ierr = TaoSetInitialVector(tao,appctx.dat.ic);CHKERRQ(ierr);
 
-  // Set routine for function and gradient evaluation 
+  // Set routine for function and gradient evaluation
   ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void *)&appctx);CHKERRQ(ierr);
 
-  // Check for any TAO command line options 
+  // Check for any TAO command line options
   ierr = TaoSetFromOptions(tao);CHKERRQ(ierr);
   ierr = TaoGetKSP(tao,&ksp);CHKERRQ(ierr);
   if (ksp) {
@@ -310,11 +314,12 @@ int main(int argc,char **argv)
   }
 
   ierr = TaoSetTolerances(tao,1e-8,PETSC_DEFAULT,PETSC_DEFAULT);CHKERRQ(ierr);
-  
-  if(!appctx.AdjTestLinear) {
+
+  if(!appctx.AdjTestLinear && !appctx.AdjTestFD) {
     ierr = PetscPrintf(PETSC_COMM_SELF,"Solving the optimization problem:\n");CHKERRQ(ierr);
     ierr = TaoSolve(tao); CHKERRQ(ierr);
-  } else {
+  }
+  if (appctx.AdjTestLinear){
     ierr = PetscPrintf(PETSC_COMM_SELF,"Testing the adjoint of the linear problem:\n");CHKERRQ(ierr);
     ierr = VecDuplicate(appctx.dat.ic,&wrk_vec); CHKERRQ(ierr);
     ierr = VecCopy(appctx.dat.ic,wrk_vec); CHKERRQ(ierr);
@@ -324,12 +329,38 @@ int main(int argc,char **argv)
     PetscPrintf(PETSC_COMM_WORLD,"Cost=%g, forward test = %g = %g = backward test \n",wrk1,appctx.AdjTestLinearForward,appctx.AdjTestLinearBackward);
     ierr = VecDestroy(&wrk_vec); CHKERRQ(ierr);
     ierr = VecDestroy(&wrk2_vec); CHKERRQ(ierr);
-
-    /* NEED TO IMPLEMENT THE FINITE DIFFERENCE TEST TOO */
-
-    PetscPrintf(PETSC_COMM_WORLD,"Finite difference test NOT IMPLEMENTED. \n");
-
   }
+  if (appctx.AdjTestFD){
+    appctx.AdjTestLinear = PETSC_FALSE;
+    ierr = PetscPrintf(PETSC_COMM_SELF,"Testing the adjoint by using finite differences:\n");CHKERRQ(ierr);
+    ierr = VecDuplicate(appctx.dat.ic,&wrk_vec); CHKERRQ(ierr);
+    ierr = VecCopy(appctx.dat.ic,wrk_vec); CHKERRQ(ierr);
+    ierr = VecDuplicate(appctx.dat.ic,&wrk2_vec); CHKERRQ(ierr);
+    ierr = VecDuplicate(appctx.dat.ic,&wrk3_vec); CHKERRQ(ierr);
+    ierr = VecDuplicate(appctx.dat.ic,&wrk4_vec); CHKERRQ(ierr);
+
+    ierr = FormFunctionGradient(tao,wrk_vec,&wrk1,wrk2_vec,&appctx);CHKERRQ(ierr);
+    /* Note computed gradient is in wrk2_vec, original cost is in wrk1 */
+    ierr = VecZeroEntries(wrk3_vec);
+    ierr = VecGetSize(wrk_vec,&VecLength); CHKERRQ(ierr);
+    varepsilon = 1e-08;
+    for (i=0; i<VecLength; i++) {
+      ierr = VecCopy(appctx.dat.ic,wrk_vec); CHKERRQ(ierr);
+      VecSetValue(wrk_vec,i, varepsilon,ADD_VALUES);
+      ierr = FormFunctionGradient(tao,wrk_vec,&wrk2,wrk4_vec,&appctx);CHKERRQ(ierr);
+      /* Note original cost is in wrk1, perturbed cost in wrk2 */
+      VecSetValue(wrk3_vec,i,(PetscScalar)((wrk2-wrk1)/varepsilon),INSERT_VALUES);
+    }
+    /* Note finite difference gradient is in wrk3_vec */
+    VecView(wrk2_vec,PETSC_VIEWER_STDOUT_WORLD);
+    VecView(wrk3_vec,PETSC_VIEWER_STDOUT_WORLD);
+
+    ierr = VecDestroy(&wrk_vec); CHKERRQ(ierr);
+    ierr = VecDestroy(&wrk2_vec); CHKERRQ(ierr);
+    ierr = VecDestroy(&wrk3_vec); CHKERRQ(ierr);
+    ierr = VecDestroy(&wrk4_vec); CHKERRQ(ierr);
+  }
+
   // Free TAO data structures 
   ierr = TaoDestroy(&tao);CHKERRQ(ierr);
 
@@ -653,8 +684,8 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   ierr = VecView(appctx->dat.curr_sol,viewfile);CHKERRQ(ierr);
   //ierr = PetscObjectSetName((PetscObject)appctx->dat.obj,  "Obj");
   //ierr = VecView(appctx->dat.obj,viewfile);CHKERRQ(ierr);
-  //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.mass, "Mass");
-  //ierr = VecView(appctx->SEMop.mass,viewfile);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)appctx->SEMop.mass, "Mass");
+  ierr = VecView(appctx->SEMop.mass,viewfile);CHKERRQ(ierr);
   //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.adj, "A_adj");
   //ierr = MatView(appctx->SEMop.adj,viewfile);CHKERRQ(ierr);
   //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.stiff, "A");
