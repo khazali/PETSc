@@ -31,28 +31,34 @@ PETSC_EXTERN PetscErrorCode    DMFieldGetType(DMField, DMFieldType*);
 PETSC_EXTERN PetscErrorCode    DMFieldRegister(const char[],PetscErrorCode (*)(DMField));
 
 typedef enum {DMFIELD_VERTEX,DMFIELD_EDGE,DMFIELD_FACET,DMFIELD_CELL} DMFieldContinuity;
-typedef enum {DMFIELD_SIMPLE,DMFIELD_COVARIANT,DMFIELD_CONTRAVARIANT} DMFieldPullback;
 
-PETSC_EXTERN PetscErrorCode    DMFieldCreate(DM,DMField*);
 PETSC_EXTERN PetscErrorCode    DMFieldDestroy(DMField*);
 PETSC_EXTERN PetscErrorCode    DMFieldView(DMField,PetscViewer);
 
-PETSC_EXTERN PetscErrorCode    DMFieldSetNumComponents(DMField,PetscInt);
+PETSC_EXTERN PetscErrorCode    DMFieldGetDM(DMField,DM*);
 PETSC_EXTERN PetscErrorCode    DMFieldGetNumComponents(DMField,PetscInt*);
-PETSC_EXTERN PetscErrorCode    DMFieldSetContinuity(DMField,DMFieldContinuity);
 PETSC_EXTERN PetscErrorCode    DMFieldGetContinuity(DMField,DMFieldContinuity*);
-PETSC_EXTERN PetscErrorCode    DMFieldSetPullback(DMField,DMFieldPullback);
-PETSC_EXTERN PetscErrorCode    DMFieldGetPullback(DMField,DMFieldPullback*);
-PETSC_EXTERN PetscErrorCode    DMFieldSetField(DMField,PetscDataType);
-PETSC_EXTERN PetscErrorCode    DMFieldGetField(DMField,PetscDataType*);
 
-PETSC_EXTERN PetscErrorCode    DMFieldSetFromOptions(DMField);
-PETSC_EXTERN PetscErrorCode    DMFieldSetUp(DMField);
-
-PETSC_EXTERN PetscErrorCode    DMFieldEvaluate(DMField,PetscInt,PetscQuadrature,PetscScalar*,PetscScalar*,PetscScalar*);
-PETSC_EXTERN PetscErrorCode    DMFieldEvaluateReal(DMField,PetscInt,PetscQuadrature,PetscReal*,PetscReal*,PetscReal*,PetscReal*);
+PETSC_EXTERN PetscErrorCode    DMFieldEvaluate(DMField,Vec,PetscScalar*,PetscScalar*,PetscScalar*);
+PETSC_EXTERN PetscErrorCode    DMFieldEvaluateReal(DMField,Vec,PetscReal*,PetscReal*,PetscReal*,PetscReal*);
 
 PETSC_EXTERN PetscErrorCode    DMFieldEvaluateFE(DMField,PetscInt,const PetscInt*,PetscQuadrature,PetscScalar*,PetscScalar*,PetscScalar*);
 PETSC_EXTERN PetscErrorCode    DMFieldEvaluateFEReal(DMField,PetscInt,const PetscInt*,PetscQuadrature,PetscReal*,PetscReal*,PetscReal*);
+
+PETSC_EXTERN PetscErrorCode    DMFieldEvaluateFV(DMField,PetscInt,const PetscInt*,PetscScalar*,PetscScalar*,PetscScalar*);
+PETSC_EXTERN PetscErrorCode    DMFieldEvaluateFVReal(DMField,PetscInt,const PetscInt*,PetscReal*,PetscReal*,PetscReal*);
+
+PETSC_EXTERN PetscErrorCode    DMFieldCreateDA(DM,PetscInt,const PetscScalar *,DMField *);
+
+PETSC_EXTERN PetscErrorCode    DMFieldCreateMapped(DM,PetscObject,PetscSection,Vec,DMField *);
+
+PETSC_EXTERN PetscErrorCode    DMFieldCreateShell(DM,PetscInt,DMFieldContinuity,void *,DMField *);
+PETSC_EXTERN PetscErrorCode    DMFieldShellGetContext(DMField,void *);
+PETSC_EXTERN PetscErrorCode    DMFieldShellSetEvaluate(DMField,PetscErrorCode(*)(DMField,Vec,PetscScalar*,PetscScalar*,PetscScalar*));
+PETSC_EXTERN PetscErrorCode    DMFieldShellSetEvaluateReal(DMField,PetscErrorCode(*)(DMField,Vec,PetscReal*,PetscReal*,PetscReal*));
+PETSC_EXTERN PetscErrorCode    DMFieldShellSetEvaluateFE(DMField,PetscErrorCode(*)(DMField,PetscInt,const PetscInt*,PetscQuadrature,PetscScalar*,PetscScalar*,PetscScalar*));
+PETSC_EXTERN PetscErrorCode    DMFieldShellSetEvaluateFEReal(DMField,PetscErrorCode(*)(DMField,PetscInt,const PetscInt*,PetscQuadrature,PetscReal*,PetscReal*,PetscReal*));
+PETSC_EXTERN PetscErrorCode    DMFieldShellSetEvaluateFV(DMField,PetscErrorCode(*)(DMField,PetscInt,const PetscInt*,PetscScalar*,PetscScalar*,PetscScalar*));
+PETSC_EXTERN PetscErrorCode    DMFieldShellSetEvaluateFVReal(DMField,PetscErrorCode(*)(DMField,PetscInt,const PetscInt*,PetscReal*,PetscReal*,PetscReal*));
 
 #endif

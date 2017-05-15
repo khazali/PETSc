@@ -1,29 +1,6 @@
 #include <petsc/private/dmfieldimpl.h> /*I "petscdmfield.h" I*/
 
-/*@C
-   DMFieldCreate - Create an instance of a field over a DM.  This object is used to define (static, unchangeable)
-   fields over a DM's mesh topology.  The values and derivatives of the field can be queried through two basic
-   approaches: either by coordinates directly, or by the local coordinate system (such as a reference element) of a
-   point in the mesh topology.
-
-   On a DMDA, one can define a DMField (DMFIELDDA) that interpolates multi-linearly from values of the corners of the da.
-   On a DMPlex, one can define a DMField (DMFIELDMAPPED) via a PetscSection into a vector.
-   On any DM, one can define a DMfield (DMFIELDSHELL) that simply calls user-defined callback functions to evaluate
-   the field, either based on the mesh point or on the coordinates.
-
-   Collective
-
-   Input Arguments:
-.  dm - mesh over with the field will be defined
-
-   Output Arguments:
-.  field - new DMField
-
-   Level: advanced
-
-.seealso: DMFieldDestroy()
-@*/
-PetscErrorCode DMFieldCreate(DM dm,DMField *field)
+PETSC_INTERN PetscErrorCode DMFieldCreate(DM dm,PetscInt numComponents,DMFieldContinuity continuity,DMField *field)
 {
   PetscErrorCode ierr;
   DMField        b;
@@ -34,6 +11,10 @@ PetscErrorCode DMFieldCreate(DM dm,DMField *field)
   ierr = DMFieldInitializePackage();CHKERRQ(ierr);
 
   ierr = PetscHeaderCreate(b,DMFIELD_CLASSID,"DMField","Field over DM","DM",PetscObjectComm((PetscObject)dm),DMFieldDestroy,DMFieldView);CHKERRQ(ierr);
+  ierr = PetscObjectReference((PetscObject)dm);CHKERRQ(ierr);
+  b->dm = dm;
+  b->continuity = continuity;
+  b->numComponents = numComponents;
   *field = b;
   PetscFunctionReturn(0);
 }

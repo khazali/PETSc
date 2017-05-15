@@ -15,10 +15,20 @@ struct _DMFieldOps {
   PetscErrorCode (*setfromoptions) (PetscOptionItems*,DMField);
   PetscErrorCode (*setup) (DMField);
   PetscErrorCode (*view) (DMField,PetscViewer);
+  PetscErrorCode (*evaluate) (DMField,Vec,PetscScalar*,PetscScalar*,PetscScalar*);
+  PetscErrorCode (*evaluateReal) (DMField,Vec,PetscReal*,PetscReal*,PetscReal*);
+  PetscErrorCode (*evaluateFE) (DMField,PetscInt,const PetscInt *,PetscQuadrature,PetscScalar*,PetscScalar*,PetscScalar*);
+  PetscErrorCode (*evaluateFEReal) (DMField,PetscInt,const PetscInt *,PetscQuadrature,PetscReal*,PetscReal*,PetscReal*);
+  PetscErrorCode (*evaluateFV) (DMField,PetscInt,const PetscInt *,PetscQuadrature,PetscScalar*,PetscScalar*,PetscScalar*);
+  PetscErrorCode (*evaluateFVReal) (DMField,PetscInt,const PetscInt *,PetscQuadrature,PetscReal*,PetscReal*,PetscReal*);
 };
 struct _p_DMField {
   PETSCHEADER(struct _DMFieldOps);
+  DM dm;
+  DMFieldContinuity continuity;
+  PetscInt numComponents;
   void *data;
-  PetscBool setupcalled;
 };
+
+PetscErrorCode DMFieldCreate(DM,PetscInt,DMFieldContinuity,DMField*);
 #endif
