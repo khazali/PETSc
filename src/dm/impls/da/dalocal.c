@@ -132,6 +132,7 @@ PetscErrorCode DMDAGetCellPoint(DM dm, PetscInt i, PetscInt j, PetscInt k, Petsc
 {
   const PetscInt dim = dm->dim;
   DMDALocalInfo  info;
+  PetscInt       numCells[3];
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
