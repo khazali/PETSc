@@ -60,8 +60,8 @@ static void f0_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   const PetscScalar *pphiDer = &u_x[uOff_x[PHI]];
   const PetscScalar *jzDer   = &u_x[uOff_x[JZ]];
   const PetscScalar *logRefDenDer = &a_x[aOff_x[DENSITY]];
-
-  f0[0] = u_t[DENSITY] - poissonBracket(dim,pnDer, pphiDer) - s_ctx->beta*poissonBracket(dim,jzDer, ppsiDer) - poissonBracket(dim,logRefDenDer, pphiDer);
+  f0[0] += - poissonBracket(dim,pnDer, pphiDer) - s_ctx->beta*poissonBracket(dim,jzDer, ppsiDer) - poissonBracket(dim,logRefDenDer, pphiDer);
+  if (u_t) f0[0] += u_t[DENSITY];
 }
 
 static void f1_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -85,7 +85,8 @@ static void f0_Omega(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   const PetscScalar *pphiDer   = &u_x[uOff_x[PHI]];
   const PetscScalar *jzDer     = &u_x[uOff_x[JZ]];
 
-  f0[0] = u_t[OMEGA] - poissonBracket(dim,pOmegaDer, pphiDer) - s_ctx->beta*poissonBracket(dim,jzDer, ppsiDer);
+  f0[0] += - poissonBracket(dim,pOmegaDer, pphiDer) - s_ctx->beta*poissonBracket(dim,jzDer, ppsiDer);
+  if (u_t) f0[0] += u_t[OMEGA];
 }
 
 static void f1_Omega(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -116,7 +117,8 @@ static void f0_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
     psiDer[d]    = refPsiDer[d] + ppsiDer[d];
     phi_n_Der[d] = pphiDer[d]   - pnDer[d];
   }
-  f0[0] = u_t[PSI] - poissonBracket(dim,psiDer, phi_n_Der) + poissonBracket(dim,logRefDenDer, ppsiDer);
+  f0[0] = - poissonBracket(dim,psiDer, phi_n_Der) + poissonBracket(dim,logRefDenDer, ppsiDer);
+  if (u_t) f0[0] += u_t[PSI];
   //printf("ppsiDer = %20.15e %20.15e psi = %20.15e refPsiDer = %20.15e %20.15e refPsi = %20.15e \n",ppsiDer[0],ppsiDer[1],u[PSI],refPsiDer[0],refPsiDer[1],a[PSI]);
 }
 
@@ -233,7 +235,6 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsEnd();
   options->a = (options->domain_hi[0]-options->domain_lo[0])/2.0;
   options->b = (options->domain_hi[1]-options->domain_lo[1])/2.0;
-  PetscPrintf(comm, "a=%g b=%g\n",options->a,options->b);
   for (ii = 0; ii < options->dim; ++ii) {
     if (options->domain_hi[ii] <= options->domain_lo[ii]) SETERRQ3(comm,PETSC_ERR_ARG_WRONG,"Domain %D lo=%g hi=%g",ii,options->domain_lo[ii],options->domain_hi[ii]);
   }
@@ -471,8 +472,11 @@ static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *ctx)
   ctx->initialFuncs[3] = initialSolution_phi;
   ctx->initialFuncs[4] = initialSolution_jz;
   for (f = 0; f < 5; ++f) {
-    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL, "wall", "marker", f, 0, NULL, (void (*)()) ctx->initialFuncs[f], 1, &id, ctx);CHKERRQ(ierr);
+    ierr = PetscDSSetImplicit( prob, f, ctx->implicit);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary( prob, DM_BC_ESSENTIAL, "wall", "marker", f, 0, NULL, (void (*)()) ctx->initialFuncs[f], 1, &id, ctx);CHKERRQ(ierr);
   }
+  ierr = PetscDSSetContext(prob, 0, ctx);CHKERRQ(ierr);
+  ierr = PetscDSSetFromOptions(prob);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -605,16 +609,16 @@ int main(int argc, char **argv)
   s_ctx = &ctx;
   ierr = PetscInitialize(&argc, &argv, NULL,help);if (ierr) return ierr;
   ierr = ProcessOptions(PETSC_COMM_WORLD, &ctx);CHKERRQ(ierr);
+  /* create mesh and problem */
   ierr = CreateMesh(PETSC_COMM_WORLD, &ctx, &dm);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(dm, &ctx);CHKERRQ(ierr);
   ierr = PetscMalloc1(5, &ctx.initialFuncs);CHKERRQ(ierr);
   ierr = SetupDiscretization(dm, &ctx);CHKERRQ(ierr);
-
   ierr = DMCreateGlobalVector(dm, &u);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) u, "u");CHKERRQ(ierr);
   ierr = VecDuplicate(u, &r);CHKERRQ(ierr);
-PetscInt d; VecGetSize(u, &d);CHKERRQ(ierr); PetscPrintf(PETSC_COMM_WORLD, "|u|=%D\n", d);
   ierr = PetscObjectSetName((PetscObject) r, "r");CHKERRQ(ierr);
+  /* create TS */
   ierr = TSCreate(PETSC_COMM_WORLD, &ts);CHKERRQ(ierr);
   ierr = TSSetDM(ts, dm);CHKERRQ(ierr);
   ierr = TSSetApplicationContext(ts, &ctx);CHKERRQ(ierr);
@@ -628,9 +632,8 @@ PetscInt d; VecGetSize(u, &d);CHKERRQ(ierr); PetscPrintf(PETSC_COMM_WORLD, "|u|=
   ierr = TSSetExactFinalTime(ts, TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   ierr = TSSetPostStep(ts, PostStep);CHKERRQ(ierr);
-
+  /* make solution & solve */
   ierr = DMProjectFunction(dm, t, ctx.initialFuncs, (void **)ctxarr, INSERT_ALL_VALUES, u);CHKERRQ(ierr);
-
   ierr = TSSetSolution(ts,u);CHKERRQ(ierr);
   ierr = DMViewFromOptions(dm, NULL, "-dm_view");CHKERRQ(ierr);
   ierr = PostStep(ts);CHKERRQ(ierr); /* print the initial state */
@@ -642,7 +645,6 @@ PetscInt d; VecGetSize(u, &d);CHKERRQ(ierr); PetscPrintf(PETSC_COMM_WORLD, "|u|=
 #if 0
   {
     PetscReal res = 0.0;
-
     /* Check discretization error */
     ierr = VecViewFromOptions(u, NULL, "-initial_guess_view");CHKERRQ(ierr);
     ierr = DMComputeL2Diff(dm, 0.0, ctx.exactFuncs, NULL, u, &error);CHKERRQ(ierr);

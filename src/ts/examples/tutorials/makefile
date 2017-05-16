@@ -847,9 +847,15 @@ runex44_2:
 	   sort  -b output/ex44_2.out | ${DIFF}  - ex44_2.tmp || printf "${PWD}\nPossible problem with ex44_2, diffs above\n=========================================\n"; \
 	   ${RM} -f ex44_2.tmp
 
-runex48_2D:
-	-@${MPIEXEC} -n 1 ./ex48 -debug 2 -dim 2 -dm_refine 1 -ts_monitor -implicit true -snes_fd -snes_monitor -snes_rtol 1.e-6 -snes_stol 1.e-6 -snes_atol 1.e-18 -snes_converged_reason -ts_type beuler -petscspace_order 2 -petscspace_poly_tensor -ts_max_steps 10 -ts_dt .00001 -eps 1.e-12 -eta 0.1 -y_periodicity PERIODIC -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append -dm_plex_periodic_cut > ex48_2D.tmp 2>&1; \
+runex48_exp:
+	-@${MPIEXEC} -n 1 ./ex48 -debug 2 -dim 2 -dm_refine 1 -ts_monitor -implicit false -ts_type euler -petscspace_order 2 -petscspace_poly_tensor -ts_max_steps 10 -ts_dt .00001 -eps 1.e-12 -eta 0.1 -y_periodicity PERIODIC -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append -dm_plex_periodic_cut > ex48_2D.tmp 2>&1; \
 	   ${DIFF} output/ex48_2D.out ex48_2D.tmp || printf "${PWD}\nPossible problem with ex48_2D, diffs above\n=========================================\n"; \
+	${PETSC_DIR}/bin/petsc_gen_xdmf.py *.h5
+	   ${RM} -f ex48_2D.tmp
+
+runex48_imp:
+	-@${MPIEXEC} -n 1 ./ex48 -debug 2 -dim 2 -dm_refine 1 -ts_monitor -implicit true -ts_type beuler -snes_monitor -snes_rtol 1.e-6 -snes_stol 1.e-6 -snes_atol 1.e-18 -snes_converged_reason -petscspace_order 2 -petscspace_poly_tensor -ts_max_steps 10 -ts_dt .00001 -eps 1.e-12 -eta 0.1 -y_periodicity PERIODIC -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append -dm_plex_periodic_cut > ex48_2D.tmp 2>&1; \
+	   ${DIFF} output/ex48_2D.out ex48_2D_imp.tmp || printf "${PWD}\nPossible problem with ex48_2D, diffs above\n=========================================\n"; \
 	${PETSC_DIR}/bin/petsc_gen_xdmf.py *.h5
 	   ${RM} -f ex48_2D.tmp
 

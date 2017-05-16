@@ -1,57 +1,24 @@
-a=1. b=3.14159
 DeltaPrime=-2.62607
-|u|=1200
 0) total perturbed mass = 0.
 0 TS dt 1e-05 time 0.
-    0 SNES Function norm 1.723374550973e+00 
-    1 SNES Function norm 3.454737938899e-04 
-    2 SNES Function norm 1.033611783922e-09 
-  Nonlinear solve converged due to CONVERGED_FNORM_RELATIVE iterations 2
-1) total perturbed mass = 4.88752e-16
+1) total perturbed mass = 0.
 1 TS dt 1e-05 time 1e-05
-    0 SNES Function norm 1.082891525691e-09 
-    1 SNES Function norm 4.455240849303e-15 
-  Nonlinear solve converged due to CONVERGED_SNORM_RELATIVE iterations 1
-2) total perturbed mass = 4.88744e-16
+2) total perturbed mass = 1.13047e-11
 2 TS dt 1e-05 time 2e-05
-    0 SNES Function norm 4.466307132366e-11 
-    1 SNES Function norm 2.754859142782e-15 
-  Nonlinear solve converged due to CONVERGED_SNORM_RELATIVE iterations 1
-3) total perturbed mass = 4.88745e-16
+3) total perturbed mass = 3.39142e-11
 3 TS dt 1e-05 time 3e-05
-    0 SNES Function norm 4.488479722258e-11 
-    1 SNES Function norm 2.807418620056e-15 
-  Nonlinear solve converged due to CONVERGED_SNORM_RELATIVE iterations 1
-4) total perturbed mass = 4.88745e-16
+4) total perturbed mass = 6.78285e-11
 4 TS dt 1e-05 time 4e-05
-    0 SNES Function norm 4.510812224541e-11 
-    1 SNES Function norm 2.617021740279e-15 
-  Nonlinear solve converged due to CONVERGED_SNORM_RELATIVE iterations 1
-5) total perturbed mass = 4.88745e-16
+5) total perturbed mass = 1.13048e-10
 5 TS dt 1e-05 time 5e-05
-    0 SNES Function norm 4.533294569403e-11 
-    1 SNES Function norm 2.512722736030e-15 
-  Nonlinear solve converged due to CONVERGED_SNORM_RELATIVE iterations 1
-6) total perturbed mass = 4.88745e-16
+6) total perturbed mass = 1.69572e-10
 6 TS dt 1e-05 time 6e-05
-    0 SNES Function norm 4.555929987789e-11 
-    1 SNES Function norm 2.731755085850e-15 
-  Nonlinear solve converged due to CONVERGED_SNORM_RELATIVE iterations 1
-7) total perturbed mass = 4.88746e-16
+7) total perturbed mass = 2.37402e-10
 7 TS dt 1e-05 time 7e-05
-    0 SNES Function norm 4.578735619283e-11 
-    1 SNES Function norm 2.583363879714e-15 
-  Nonlinear solve converged due to CONVERGED_SNORM_RELATIVE iterations 1
-8) total perturbed mass = 4.88746e-16
+8) total perturbed mass = 3.16537e-10
 8 TS dt 1e-05 time 8e-05
-    0 SNES Function norm 4.601688302830e-11 
-    1 SNES Function norm 2.482627217682e-15 
-  Nonlinear solve converged due to CONVERGED_SNORM_RELATIVE iterations 1
-9) total perturbed mass = 4.88746e-16
+9) total perturbed mass = 4.06977e-10
 9 TS dt 1e-05 time 9e-05
-    0 SNES Function norm 4.624824793818e-11 
-    1 SNES Function norm 2.615097891689e-15 
-  Nonlinear solve converged due to CONVERGED_SNORM_RELATIVE iterations 1
-10) total perturbed mass = 4.88746e-16
+10) total perturbed mass = 5.08723e-10
 10 TS dt 1e-05 time 0.0001
-L_2 Error: 6.98459
+L_2 Error: 4.36915e-05
