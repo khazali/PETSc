@@ -11,6 +11,9 @@ int main(int argc, char **argv)
   char           type[256] = DMPLEX;
   PetscBool      isda, isplex;
   PetscInt       dim = 2;
+  DMField        field = NULL;
+  PetscInt       nc = 1;
+  PetscInt       numCells = -1;
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);if (ierr) return ierr;
@@ -18,6 +21,7 @@ int main(int argc, char **argv)
   ierr = PetscOptionsBegin(comm, "", "DMField Tutorial Options", "DM");CHKERRQ(ierr);
   ierr = PetscOptionsFList("-dm_type","DM implementation on which to define field","ex1.c",DMList,type,type,256,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-dim","DM intrinsic dimension", "ex1.c", dim, &dim, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-num_components","Number of components in field", "ex1.c", nc, &nc, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   if (dim > 3) SETERRQ1(comm,PETSC_ERR_ARG_OUTOFRANGE,"This examples works for dim <= 3, not %D",dim);
@@ -26,9 +30,11 @@ int main(int argc, char **argv)
 
   if (isplex) {
     PetscBool simplex     = PETSC_TRUE;
+    PetscInt  cStart, cEnd, overlap = 0;
 
     ierr = PetscOptionsBegin(comm, "", "DMField DMPlex Options", "DM");CHKERRQ(ierr);
     ierr = PetscOptionsBool("-simplex","Create a simplicial DMPlex","ex1.c",simplex,&simplex,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsInt("-overlap","DMPlex parallel overlap","ex1.c",overlap,&overlap,NULL);CHKERRQ(ierr);
     ierr = PetscOptionsEnd();CHKERRQ(ierr);
     if (simplex) {
       PetscBool interpolate = PETSC_TRUE;
@@ -58,7 +64,25 @@ int main(int argc, char **argv)
       }
       ierr = DMPlexCreateHexBoxMesh(comm,dim,cells,types[0],types[1],types[2],&dm);CHKERRQ(ierr);
     }
+    {
+      PetscPartitioner part;
+      DM               dmDist;
+
+      ierr = DMPlexGetPartitioner(dm,&part);CHKERRQ(ierr);
+      ierr = PetscPartitionerSetType(part,PETSCPARTITIONERSIMPLE);CHKERRQ(ierr);
+      ierr = DMPlexDistribute(dm,overlap,NULL,&dmDist);CHKERRQ(ierr);
+      if (dmDist) {
+        ierr = DMDestroy(&dm);CHKERRQ(ierr);
+        dm = dmDist;
+      }
+    }
+    ierr = DMPlexGetHeightStratum(dm,0,&cStart,&cEnd);CHKERRQ(ierr);
+    numCells = cEnd - cStart;
   } else if (isda) {
+    PetscInt       cStart, cEnd, i;
+    PetscRandom    rand;
+    PetscScalar    *cv;
+
     switch (dim) {
     case 1:
       ierr = DMDACreate1d(comm, DM_BOUNDARY_NONE, 3, 1, 1, NULL, &dm);CHKERRQ(ierr);
@@ -66,16 +90,30 @@ int main(int argc, char **argv)
     case 2:
       ierr = DMDACreate2d(comm, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DMDA_STENCIL_BOX, 3, 3, PETSC_DETERMINE, PETSC_DETERMINE, 1, 1, NULL, NULL, &dm);CHKERRQ(ierr);
       break;
-      ierr = DMDACreate3d(comm, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DMDA_STENCIL_BOX, 3, 3, 3, PETSC_DETERMINE, PETSC_DETERMINE, PETSC_DETERMINE, 1, 1, NULL, NULL, NULL, &dm);CHKERRQ(ierr);
     default:
+      ierr = DMDACreate3d(comm, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DMDA_STENCIL_BOX, 3, 3, 3, PETSC_DETERMINE, PETSC_DETERMINE, PETSC_DETERMINE, 1, 1, NULL, NULL, NULL, &dm);CHKERRQ(ierr);
       break;
     }
+    ierr = DMDAGetHeightStratum(dm,0,&cStart,&cEnd);CHKERRQ(ierr);
+    numCells = cEnd - cStart;
+    ierr = PetscRandomCreate(PETSC_COMM_SELF,&rand);CHKERRQ(ierr);
+    ierr = PetscRandomSetFromOptions(rand);CHKERRQ(ierr);
+    ierr = PetscMalloc1(nc * (1 << dim),&cv);CHKERRQ(ierr);
+    for (i = 0; i < nc * (1 << dim); i++) {
+      PetscReal rv;
+
+      ierr = PetscRandomGetValueReal(rand,&rv);CHKERRQ(ierr);
+      cv[i] = rv;
+    }
+    ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
+    ierr = DMFieldCreateDA(dm,nc,cv,&field);CHKERRQ(ierr);
+    ierr = PetscFree(cv);CHKERRQ(ierr);
   } else SETERRQ1(comm,PETSC_ERR_SUP,"This test does not run for DM type %s",type);
 
-  ierr = DMSetFromOptions(dm);CHKERRQ(ierr);
   ierr = DMViewFromOptions(dm,NULL,"-dm_view");CHKERRQ(ierr);
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
-
+  ierr = PetscObjectViewFromOptions((PetscObject)field,NULL,"-dmfield_view");CHKERRQ(ierr);
+  ierr = DMFieldDestroy(&field);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return ierr;
 }

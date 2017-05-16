@@ -21,6 +21,42 @@ static PetscErrorCode DMFieldDestroy_DA(DMField field)
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode DMFieldView_DA(DMField field,PetscViewer viewer)
+{
+  DMField_DA     *dafield = (DMField_DA *) field->data;
+  PetscBool      iascii;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&iascii);CHKERRQ(ierr);
+  if (iascii) {
+    PetscInt i, c, dim;
+    PetscInt nc;
+    DM       dm = field->dm;
+
+    PetscViewerASCIIPrintf(viewer, "Field corner values:\n");CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
+    ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
+    nc = field->numComponents;
+    for (i = 0, c = 0; i < (1 << dim); i++) {
+      PetscInt j;
+
+      for (j = 0; j < nc; j++, c++) {
+        PetscScalar val = dafield->cornerVals[nc * i + j];
+
+#if !defined(PETSC_USE_COMPLEX)
+        ierr = PetscViewerASCIIPrintf(viewer,"%g ",(double) val);CHKERRQ(ierr);
+#else
+        ierr = PetscViewerASCIIPrintf(viewer,"%g+i%g ",(double) PetscRealPart(val),(double) PetscImaginaryPart(val));CHKERRQ(ierr);
+#endif
+      }
+      ierr = PetscViewerASCIIPrintf(viewer,"\n");CHKERRQ(ierr);
+    }
+    ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
 static void MultilinearEvaluate(PetscInt dim, PetscReal (*coordRange)[2], PetscInt nc, const PetscScalar *cv, PetscInt nPoints, const PetscScalar *points, PetscScalar *B, PetscScalar *D, PetscScalar *H)
 {
   PetscInt i, j, k, l, m, p;
@@ -379,6 +415,7 @@ static PetscErrorCode DMFieldInitialize_DA(DMField field)
   field->ops->evaluateFEReal = DMFieldEvaluateFEReal_DA;
   field->ops->evaluateFV     = DMFieldEvaluateFV_DA;
   field->ops->evaluateFVReal = DMFieldEvaluateFVReal_DA;
+  field->ops->view           = DMFieldView_DA;
   dm = field->dm;
   ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
   if (dm->coordinates) coords = dm->coordinates;

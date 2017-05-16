@@ -31,6 +31,7 @@ PETSC_EXTERN PetscErrorCode    DMFieldGetType(DMField, DMFieldType*);
 PETSC_EXTERN PetscErrorCode    DMFieldRegister(const char[],PetscErrorCode (*)(DMField));
 
 typedef enum {DMFIELD_VERTEX,DMFIELD_EDGE,DMFIELD_FACET,DMFIELD_CELL} DMFieldContinuity;
+PETSC_EXTERN const char *const DMFieldContinuities[];
 
 PETSC_EXTERN PetscErrorCode    DMFieldDestroy(DMField*);
 PETSC_EXTERN PetscErrorCode    DMFieldView(DMField,PetscViewer);

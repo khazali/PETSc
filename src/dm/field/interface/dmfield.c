@@ -1,5 +1,13 @@
 #include <petsc/private/dmfieldimpl.h> /*I "petscdmfield.h" I*/
 
+const char *const DMFieldContinuities[] = {
+  "VERTEX",
+  "EDGE",
+  "FACET",
+  "CELL",
+  0
+};
+
 PETSC_INTERN PetscErrorCode DMFieldCreate(DM dm,PetscInt numComponents,DMFieldContinuity continuity,DMField *field)
 {
   PetscErrorCode ierr;
@@ -72,10 +80,89 @@ PetscErrorCode DMFieldView(DMField field,PetscViewer viewer)
   if (iascii) {
     ierr = PetscObjectPrintClassNamePrefixType((PetscObject)field,viewer);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(viewer,"%D components\n",field->numComponents);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(viewer,"%s continuity\n",DMFieldContinuities[field->continuity]);CHKERRQ(ierr);
+    ierr = PetscViewerPushFormat(viewer,PETSC_VIEWER_DEFAULT);CHKERRQ(ierr);
+    ierr = DMView(field->dm,viewer);CHKERRQ(ierr);
+    ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
   }
   if (field->ops->view) {ierr = (*field->ops->view)(field,viewer);CHKERRQ(ierr);}
   if (iascii) {
     ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
   }
+  PetscFunctionReturn(0);
+}
+
+/*@C
+   DMFieldSetType - set the DMField implementation
+
+   Collective on DMField
+
+   Input Parameters:
++  field - the DMField context
+-  type - a known method
+
+   Notes:
+   See "include/petscvec.h" for available methods (for instance)
++    DMFIELDDA     - a field defined only by its values at the corners of a DMDA
+.    DMFIELDMAPPED - a field defined by its pullback onto mapped reference elements
+-    DMFIELDSHELL  - a field defined by arbitrary callbacks
+
+  Level: advanced
+
+.keywords: DMField, set, type
+
+.seealso: DMFieldType,
+@*/
+PetscErrorCode DMFieldSetType(DMField field,DMFieldType type)
+{
+  PetscErrorCode ierr,(*r)(DMField);
+  PetscBool      match;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(field,DMFIELD_CLASSID,1);
+  PetscValidCharPointer(type,2);
+
+  ierr = PetscObjectTypeCompare((PetscObject)field,type,&match);CHKERRQ(ierr);
+  if (match) PetscFunctionReturn(0);
+
+  ierr = PetscFunctionListFind(DMFieldList,type,&r);CHKERRQ(ierr);
+  if (!r) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_UNKNOWN_TYPE,"Unable to find requested DMField type %s",type);
+  /* Destroy the previous private DMField context */
+  if (field->ops->destroy) {
+    ierr = (*(field)->ops->destroy)(field);CHKERRQ(ierr);
+  }
+  ierr = PetscMemzero(field->ops,sizeof(*field->ops));CHKERRQ(ierr);
+  ierr = PetscObjectChangeTypeName((PetscObject)field,type);CHKERRQ(ierr);
+  field->ops->create = r;
+  ierr = (*r)(field);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*@C
+  DMFieldGetType - Gets the DMField type name (as a string) from the DMField.
+
+  Not Collective
+
+  Input Parameter:
+. field  - The DMField context
+
+  Output Parameter:
+. type - The DMField type name
+
+  Level: advanced
+
+.keywords: DMField, get, type, name
+.seealso: DMFieldSetType()
+@*/
+PetscErrorCode  DMFieldGetType(DMField field, DMFieldType *type)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(field, VEC_TAGGER_CLASSID,1);
+  PetscValidPointer(type,2);
+  ierr = DMFieldRegisterAll();CHKERRQ(ierr);
+  *type = ((PetscObject)field)->type_name;
   PetscFunctionReturn(0);
 }
