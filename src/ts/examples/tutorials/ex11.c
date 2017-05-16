@@ -448,7 +448,7 @@ static PetscErrorCode SetUpBC_SW(PetscDS prob,Physics phys)
   PetscErrorCode ierr;
   const PetscInt wallids[] = {100,101,200,300};
   PetscFunctionBeginUser;
-  ierr = PetscDSAddBoundary(prob, PETSC_FALSE, "wall", "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_SW_Wall, ALEN(wallids), wallids, phys);CHKERRQ(ierr);
+  ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL, "wall", "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_SW_Wall, ALEN(wallids), wallids, phys);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -707,11 +707,11 @@ static PetscErrorCode SetUpBC_Euler(PetscDS prob,Physics phys)
   Physics_Euler   *eu = phys->data;
   if (eu->type == EULER_LINEAR_WAVE) {
     const PetscInt wallids[] = {100,101};
-    ierr = PetscDSAddBoundary(prob, PETSC_FALSE, "wall", "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_Euler_Wall, ALEN(wallids), wallids, phys);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL, "wall", "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_Euler_Wall, ALEN(wallids), wallids, phys);CHKERRQ(ierr);
   }
   else {
     const PetscInt wallids[] = {100,101,200,300};
-    ierr = PetscDSAddBoundary(prob, PETSC_FALSE, "wall", "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_Euler_Wall, ALEN(wallids), wallids, phys);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL, "wall", "Face Sets", 0, 0, NULL, (void (*)()) PhysicsBoundary_Euler_Wall, ALEN(wallids), wallids, phys);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -2244,7 +2244,7 @@ int riemannsolver(PetscScalar *xcen, PetscScalar *xp,
     x0 = *xcen + wsp0 * *dtt;
     xstar = *xcen + wspst * *dtt;
 /*           using gas formula to evaluate rarefaction wave */
-/*            ri : reiman invariant */
+/*            ri : Riemann invariant */
     ri = u0 - sgn0 * 2. * gasc4 * c0;
     cx = sgn0 * .5 * gasc1 / gasc2 * ((*xp - *xcen) / *dtt - ri);
     *uxm = ri + sgn0 * 2. * gasc4 * cx;
