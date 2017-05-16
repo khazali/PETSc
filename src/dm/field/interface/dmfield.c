@@ -40,6 +40,7 @@ PetscErrorCode DMFieldDestroy(DMField *field)
   PetscValidHeaderSpecific((*field),DMFIELD_CLASSID,1);
   if (--((PetscObject)(*field))->refct > 0) {*field = 0; PetscFunctionReturn(0);}
   if ((*field)->ops->destroy) {ierr = (*(*field)->ops->destroy)(*field);CHKERRQ(ierr);}
+  ierr = DMDestroy(&((*field)->dm));CHKERRQ(ierr);
   ierr = PetscHeaderDestroy(field);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
