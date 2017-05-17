@@ -45,6 +45,10 @@ static AppCtx *s_ctx;
 static PetscScalar poissonBracket(PetscInt dim, const PetscScalar df[], const PetscScalar dg[])
 {
   PetscScalar ret = df[0]*dg[1] - df[1]*dg[0];
+  /* if (dim==3) { */
+  /*   ret += df[1]*dg[2] - df[2]*dg[1]; */
+  /*   ret += df[2]*dg[0] - df[0]*dg[2]; */
+  /* } */
   return ret;
 }
 
@@ -64,6 +68,37 @@ static void f0_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   if (u_t) f0[0] += u_t[DENSITY];
 }
 
+/* < v, du/dt > */
+static void g0_n_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                   const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                   const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                   PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g0[])
+{
+  if (u_t) g0[0] = u_t[uOff_x[DENSITY]];
+}
+/* mu < \nabla v, \nabla u + {\nabla u}^T >_perp, weak form changes sign
+   This just gives \nabla u, give the perdiagonal for the transpose */
+static void g3_n_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                  const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                  PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g3[])
+{
+  PetscInt d;
+  for (d = 0; d < 2; ++d) g3[d*dim+d] = s_ctx->mu;
+}
+
+/* -beta {j_z, psi} }
+   NcompI = 1, NcompJ = dim */
+static void g1_n_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                     const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                     const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                     PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g1[])
+{
+  PetscInt d;
+  const PetscScalar *jzDer = &u_x[uOff_x[JZ]];
+  for (d = 0; d < dim; ++d) g1[d*dim+d] = 1.0;
+}
+
 static void f1_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                  const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
@@ -72,7 +107,7 @@ static void f1_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   const PetscScalar *pnDer = &u_x[uOff_x[DENSITY]];
   PetscInt           d;
 
-  for (d = 0; d < dim-1; ++d) f1[d] = -s_ctx->mu*pnDer[d];
+  for (d = 0; d < 2; ++d) f1[d] = -s_ctx->mu*pnDer[d];
 }
 
 static void f0_Omega(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -461,11 +496,16 @@ static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *ctx)
   PetscErrorCode ierr, f;
 
   PetscFunctionBeginUser;
-  ierr = PetscDSSetResidual(prob, 0, f0_n,     f1_n);CHKERRQ(ierr);
-  ierr = PetscDSSetResidual(prob, 1, f0_Omega, f1_Omega);CHKERRQ(ierr);
-  ierr = PetscDSSetResidual(prob, 2, f0_psi,   f1_psi);CHKERRQ(ierr);
-  ierr = PetscDSSetResidual(prob, 3, f0_phi,   f1_phi);CHKERRQ(ierr);
-  ierr = PetscDSSetResidual(prob, 4, f0_jz,    f1_jz);CHKERRQ(ierr);
+  if (ctx->implicit) {
+    ierr = PetscDSSetJacobian(prob, 0, 0, g0_n_n, NULL, NULL, g3_n_n);CHKERRQ(ierr);
+    ierr = PetscDSSetJacobian(prob, 0, 2, NULL, g1_n_psi, NULL, NULL);CHKERRQ(ierr);
+  } else {
+    ierr = PetscDSSetResidual(prob, 0, f0_n,     f1_n);CHKERRQ(ierr);
+    ierr = PetscDSSetResidual(prob, 1, f0_Omega, f1_Omega);CHKERRQ(ierr);
+    ierr = PetscDSSetResidual(prob, 2, f0_psi,   f1_psi);CHKERRQ(ierr);
+    ierr = PetscDSSetResidual(prob, 3, f0_phi,   f1_phi);CHKERRQ(ierr);
+    ierr = PetscDSSetResidual(prob, 4, f0_jz,    f1_jz);CHKERRQ(ierr);
+  }
   ctx->initialFuncs[0] = initialSolution_n;
   ctx->initialFuncs[1] = initialSolution_Omega;
   ctx->initialFuncs[2] = initialSolution_psi;
