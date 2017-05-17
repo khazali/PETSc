@@ -114,6 +114,62 @@ static PetscErrorCode TestEvaluateFE(DMField field, PetscInt cStart, PetscInt cE
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode TestEvaluateFV(DMField field, PetscInt cStart, PetscInt cEnd, PetscRandom rand)
+{
+  DM             dm;
+  PetscInt       dim, i, nc;
+  PetscInt       n = 2, N;
+  PetscScalar    *B, *D, *H;
+  PetscReal      *rB, *rD, *rH;
+  PetscInt       *cells;
+  PetscViewer    viewer;
+  MPI_Comm       comm;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  comm = PetscObjectComm((PetscObject)field);
+  ierr = DMFieldGetNumComponents(field,&nc);CHKERRQ(ierr);
+  ierr = DMFieldGetDM(field,&dm);CHKERRQ(ierr);
+  ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
+  ierr = PetscOptionsBegin(comm, "", "DMField TestEvaluateFV Options", "DM");CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-num_fv_cells", "Number of test cells for FV", "ex1.c", n, &n, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsEnd();CHKERRQ(ierr);
+  ierr = PetscRandomSetInterval(rand,(PetscScalar) cStart, (PetscScalar) cEnd);CHKERRQ(ierr);
+  ierr = PetscMalloc1(n,&cells);CHKERRQ(ierr);
+  for (i = 0; i < n; i++) {
+    PetscReal rc;
+
+    ierr = PetscRandomGetValueReal(rand,&rc);CHKERRQ(ierr);
+    cells[i] = PetscFloorReal(rc);
+  }
+  N    = n * nc;
+  ierr = PetscMalloc6(N,&B,N,&rB,N*dim,&D,N*dim,&rD,N*dim*dim,&H,N*dim*dim,&rH);CHKERRQ(ierr);
+  ierr = DMFieldEvaluateFV(field,n,cells,B,D,H);CHKERRQ(ierr);
+  ierr = DMFieldEvaluateFVReal(field,n,cells,rB,rD,rH);CHKERRQ(ierr);
+  viewer = PETSC_VIEWER_STDOUT_(comm);
+
+  ierr = PetscViewerASCIIPrintf(viewer,"Test Cells:\n");CHKERRQ(ierr);
+  ierr = PetscIntView(n,cells,viewer);CHKERRQ(ierr);
+  ierr = PetscViewerASCIIPrintf(viewer,"B:\n");CHKERRQ(ierr);
+  ierr = PetscScalarView(N,B,viewer);CHKERRQ(ierr);
+  ierr = PetscViewerASCIIPrintf(viewer,"D:\n");CHKERRQ(ierr);
+  ierr = PetscScalarView(N*dim,D,viewer);CHKERRQ(ierr);
+  ierr = PetscViewerASCIIPrintf(viewer,"H:\n");CHKERRQ(ierr);
+  ierr = PetscScalarView(N*dim*dim,H,viewer);CHKERRQ(ierr);
+
+  ierr = PetscViewerASCIIPrintf(viewer,"rB:\n");CHKERRQ(ierr);
+  ierr = PetscRealView(N,rB,viewer);CHKERRQ(ierr);
+  ierr = PetscViewerASCIIPrintf(viewer,"rD:\n");CHKERRQ(ierr);
+  ierr = PetscScalarView(N*dim,rD,viewer);CHKERRQ(ierr);
+  ierr = PetscViewerASCIIPrintf(viewer,"rH:\n");CHKERRQ(ierr);
+  ierr = PetscScalarView(N*dim*dim,rH,viewer);CHKERRQ(ierr);
+
+  ierr = PetscFree6(B,rB,D,rD,H,rH);CHKERRQ(ierr);
+  ierr = PetscFree(cells);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+
 int main(int argc, char **argv)
 {
   DM              dm = NULL;
@@ -231,9 +287,19 @@ int main(int argc, char **argv)
   ierr = PetscObjectViewFromOptions((PetscObject)field,NULL,"-dmfield_view");CHKERRQ(ierr);
   ierr = TestEvaluate(field,rand);CHKERRQ(ierr);
   ierr = TestEvaluateFE(field,cStart,cEnd,quad,rand);CHKERRQ(ierr);
+  ierr = TestEvaluateFV(field,cStart,cEnd,rand);CHKERRQ(ierr);
   ierr = PetscQuadratureDestroy(&quad);CHKERRQ(ierr);
   ierr = DMFieldDestroy(&field);CHKERRQ(ierr);
   ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return ierr;
 }
+
+/*TEST
+
+  test:
+    suffix: da
+    requires: !complex
+    args: -dm_type da -dim 2 -num_components 2 -num_points 2 -num_fe_cells 2 -num_fv_cells 2 -dmfield_view
+
+TEST*/
