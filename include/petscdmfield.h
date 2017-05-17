@@ -41,7 +41,7 @@ PETSC_EXTERN PetscErrorCode    DMFieldGetNumComponents(DMField,PetscInt*);
 PETSC_EXTERN PetscErrorCode    DMFieldGetContinuity(DMField,DMFieldContinuity*);
 
 PETSC_EXTERN PetscErrorCode    DMFieldEvaluate(DMField,Vec,PetscScalar*,PetscScalar*,PetscScalar*);
-PETSC_EXTERN PetscErrorCode    DMFieldEvaluateReal(DMField,Vec,PetscReal*,PetscReal*,PetscReal*,PetscReal*);
+PETSC_EXTERN PetscErrorCode    DMFieldEvaluateReal(DMField,Vec,PetscReal*,PetscReal*,PetscReal*);
 
 PETSC_EXTERN PetscErrorCode    DMFieldEvaluateFE(DMField,PetscInt,const PetscInt*,PetscQuadrature,PetscScalar*,PetscScalar*,PetscScalar*);
 PETSC_EXTERN PetscErrorCode    DMFieldEvaluateFEReal(DMField,PetscInt,const PetscInt*,PetscQuadrature,PetscReal*,PetscReal*,PetscReal*);

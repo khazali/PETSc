@@ -166,3 +166,119 @@ PetscErrorCode  DMFieldGetType(DMField field, DMFieldType *type)
   *type = ((PetscObject)field)->type_name;
   PetscFunctionReturn(0);
 }
+
+PetscErrorCode DMFieldGetNumComponents(DMField field, PetscInt *nc)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(field,DMFIELD_CLASSID,1);
+  PetscValidIntPointer(nc,2);
+  *nc = field->numComponents;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode DMFieldGetDM(DMField field, DM *dm)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(field,DMFIELD_CLASSID,1);
+  PetscValidPointer(dm,2);
+  *dm = field->dm;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode DMFieldEvaluate(DMField field, Vec points, PetscScalar *B, PetscScalar *D, PetscScalar *H)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(field,DMFIELD_CLASSID,1);
+  PetscValidHeaderSpecific(points,VEC_CLASSID,2);
+  if (B) PetscValidScalarPointer(B,3);
+  if (D) PetscValidScalarPointer(D,4);
+  if (H) PetscValidScalarPointer(H,5);
+  if (field->ops->evaluate) {
+    ierr = (*field->ops->evaluate) (field, points, B, D, H);CHKERRQ(ierr);
+  } else SETERRQ (PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented for this type");
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode DMFieldEvaluateReal(DMField field, Vec points, PetscReal *B, PetscReal *D, PetscReal *H)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(field,DMFIELD_CLASSID,1);
+  PetscValidHeaderSpecific(points,VEC_CLASSID,2);
+  if (B) PetscValidRealPointer(B,3);
+  if (D) PetscValidRealPointer(D,4);
+  if (H) PetscValidRealPointer(H,5);
+  if (field->ops->evaluate) {
+    ierr = (*field->ops->evaluateReal) (field, points, B, D, H);CHKERRQ(ierr);
+  } else SETERRQ (PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented for this type");
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode DMFieldEvaluateFE(DMField field, PetscInt numCells, const PetscInt *cells, PetscQuadrature points, PetscScalar *B, PetscScalar *D, PetscScalar *H)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(field,DMFIELD_CLASSID,1);
+  if (numCells) PetscValidIntPointer(cells,3);
+  PetscValidHeader(points,4);
+  if (B) PetscValidScalarPointer(B,5);
+  if (D) PetscValidScalarPointer(D,6);
+  if (H) PetscValidScalarPointer(H,7);
+  if (field->ops->evaluate) {
+    ierr = (*field->ops->evaluateFE) (field, numCells, cells, points, B, D, H);CHKERRQ(ierr);
+  } else SETERRQ (PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented for this type");
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode DMFieldEvaluateFEReal(DMField field, PetscInt numCells, const PetscInt *cells, PetscQuadrature points, PetscReal *B, PetscReal *D, PetscReal *H)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(field,DMFIELD_CLASSID,1);
+  if (numCells) PetscValidIntPointer(cells,3);
+  PetscValidHeader(points,4);
+  if (B) PetscValidRealPointer(B,5);
+  if (D) PetscValidRealPointer(D,6);
+  if (H) PetscValidRealPointer(H,7);
+  if (field->ops->evaluate) {
+    ierr = (*field->ops->evaluateFEReal) (field, numCells, cells, points, B, D, H);CHKERRQ(ierr);
+  } else SETERRQ (PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented for this type");
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode DMFieldEvaluateFV(DMField field, PetscInt numCells, const PetscInt *cells, PetscScalar *B, PetscScalar *D, PetscScalar *H)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(field,DMFIELD_CLASSID,1);
+  if (numCells) PetscValidIntPointer(cells,3);
+  if (B) PetscValidScalarPointer(B,4);
+  if (D) PetscValidScalarPointer(D,5);
+  if (H) PetscValidScalarPointer(H,6);
+  if (field->ops->evaluate) {
+    ierr = (*field->ops->evaluateFV) (field, numCells, cells, B, D, H);CHKERRQ(ierr);
+  } else SETERRQ (PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented for this type");
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode DMFieldEvaluateFVReal(DMField field, PetscInt numCells, const PetscInt *cells, PetscReal *B, PetscReal *D, PetscReal *H)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(field,DMFIELD_CLASSID,1);
+  if (numCells) PetscValidIntPointer(cells,3);
+  if (B) PetscValidRealPointer(B,4);
+  if (D) PetscValidRealPointer(D,5);
+  if (H) PetscValidRealPointer(H,6);
+  if (field->ops->evaluate) {
+    ierr = (*field->ops->evaluateFVReal) (field, numCells, cells, B, D, H);CHKERRQ(ierr);
+  } else SETERRQ (PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented for this type");
+  PetscFunctionReturn(0);
+}

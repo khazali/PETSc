@@ -85,10 +85,10 @@ static void MultilinearEvaluate(PetscInt dim, PetscReal (*coordRange)[2], PetscI
       }
     }
     if (D) {
-      PetscScalar *out = &B[nc * dim * i];
+      PetscScalar *out = &D[nc * dim * i];
 
+      for (m = 0; m < nc * dim; m++) out[m] = 0.;
       for (l = 0; l < (1 << dim); l++) {
-        for (m = 0; m < nc * dim; m++) out[m] = 0.;
         for (m = 0; m < dim; m++) {
           PetscReal w = 1.;
 
@@ -104,8 +104,8 @@ static void MultilinearEvaluate(PetscInt dim, PetscReal (*coordRange)[2], PetscI
     if (H) {
       PetscScalar *out = &H[nc * dim * dim * i];
 
+      for (m = 0; m < nc * dim * dim; m++) out[m] = 0.;
       for (l = 0; l < (1 << dim); l++) {
-        for (m = 0; m < nc * dim * dim; m++) out[m] = 0.;
         for (m = 0; m < dim; m++) {
           for (p = m + 1; p < dim; p++) {
             PetscReal w = 1.;
@@ -216,9 +216,9 @@ static PetscErrorCode DMFieldEvaluateFE_DA(DMField field, PetscInt nCells, const
   nc = field->numComponents;
   ierr = DMDAGetLocalInfo(dm,&info);CHKERRQ(ierr);
   dim = info.dim;
-  stepPer[0] = 1./ (info.mx + 1);
-  stepPer[1] = 1./ (info.my + 1);
-  stepPer[2] = 1./ (info.mz + 1);
+  stepPer[0] = 1./ info.mx;
+  stepPer[1] = 1./ info.my;
+  stepPer[2] = 1./ info.mz;
   first[0] = info.gxs;
   first[1] = info.gys;
   first[2] = info.gzs;
@@ -239,17 +239,17 @@ static PetscErrorCode DMFieldEvaluateFE_DA(DMField field, PetscInt nCells, const
     PetscInt  cell = cells[c];
     PetscInt  rem  = cell;
     PetscInt  ijk[3] = {0};
-    PetscInt  eta0[3] = {0.};
+    PetscReal eta0[3] = {0.};
     PetscReal *cB, *cD, *cH;
 
-    cB = B ? &B[nc * nq] : NULL;
-    cD = D ? &D[nc * dim * nq] : NULL;
-    cH = H ? &H[nc * dim * dim * nq] : NULL;
-    if (cell < cStart || cell >= cStart) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Point %D not a cell [%D,%D), not implemented yet",cell,cStart,cEnd);
+    cB = B ? &B[nc * nq * c] : NULL;
+    cD = D ? &D[nc * nq * dim * c] : NULL;
+    cH = H ? &H[nc * nq * dim * dim * c] : NULL;
+    if (cell < cStart || cell >= cEnd) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Point %D not a cell [%D,%D), not implemented yet",cell,cStart,cEnd);
     for (i = 0; i < dim; i++) {
       ijk[i] = (rem % cellsPer[i]);
       rem /= cellsPer[i];
-      eta0[3] = (ijk[i] + first[i]) * stepPer[i];
+      eta0[i] = (ijk[i] + first[i]) * stepPer[i];
     }
     for (j = 0; j < (1 << dim); j++) {
       PetscReal eta[3];
@@ -335,9 +335,9 @@ static PetscErrorCode DMFieldEvaluateFV_DA(DMField field, PetscInt numCells, con
   nc = field->numComponents;
   ierr = DMDAGetLocalInfo(dm,&info);CHKERRQ(ierr);
   dim = info.dim;
-  stepPer[0] = 1./ (info.mx + 1);
-  stepPer[1] = 1./ (info.my + 1);
-  stepPer[2] = 1./ (info.mz + 1);
+  stepPer[0] = 1./ info.mx;
+  stepPer[1] = 1./ info.my;
+  stepPer[2] = 1./ info.mz;
   first[0] = info.gxs;
   first[1] = info.gys;
   first[2] = info.gzs;
@@ -351,7 +351,7 @@ static PetscErrorCode DMFieldEvaluateFV_DA(DMField field, PetscInt numCells, con
     PetscInt  rem  = cell;
     PetscInt  ijk[3] = {0};
 
-    if (cell < cStart || cell >= cStart) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Point %D not a cell [%D,%D), not implemented yet",cell,cStart,cEnd);
+    if (cell < cStart || cell >= cEnd) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Point %D not a cell [%D,%D), not implemented yet",cell,cStart,cEnd);
     for (i = 0; i < dim; i++) {
       ijk[i] = (rem % cellsPer[i]);
       rem /= cellsPer[i];
