@@ -2,7 +2,7 @@
 ALL: lib
 
 LIBBASE  = libpetscdm
-DIRS     = da mapped shell
+DIRS     = da ds shell
 LOCDIR   = src/dm/field/impls
 
 include ${PETSC_DIR}/lib/petsc/conf/variables

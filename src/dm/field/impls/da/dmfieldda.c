@@ -127,7 +127,6 @@ static void MultilinearEvaluate(PetscInt dim, PetscReal (*coordRange)[2], PetscI
   PetscFunctionReturnVoid();
 }
 
-
 static PetscErrorCode DMFieldEvaluate_DA(DMField field, Vec points, PetscScalar *B, PetscScalar *D, PetscScalar *H)
 {
   DM             dm;

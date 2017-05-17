@@ -1,7 +1,7 @@
 #include <petsc/private/dmfieldimpl.h>     /*I  "petscdmfield.h"  I*/
 
 PETSC_EXTERN PetscErrorCode DMFieldCreate_DA(DMField);
-PETSC_EXTERN PetscErrorCode DMFieldCreate_Mapped(DMField);
+PETSC_EXTERN PetscErrorCode DMFieldCreate_DS(DMField);
 PETSC_EXTERN PetscErrorCode DMFieldCreate_Shell(DMField);
 
 PetscFunctionList DMFieldList;
@@ -24,9 +24,9 @@ PetscErrorCode  DMFieldRegisterAll(void)
   PetscFunctionBegin;
   if (DMFieldRegisterAllCalled) PetscFunctionReturn(0);
   DMFieldRegisterAllCalled = PETSC_TRUE;
-  ierr = DMFieldRegister(DMFIELDDA,     DMFieldCreate_DA);CHKERRQ(ierr);
-  ierr = DMFieldRegister(DMFIELDMAPPED, DMFieldCreate_Mapped);CHKERRQ(ierr);
-  ierr = DMFieldRegister(DMFIELDSHELL,  DMFieldCreate_Shell);CHKERRQ(ierr);
+  ierr = DMFieldRegister(DMFIELDDA,    DMFieldCreate_DA);CHKERRQ(ierr);
+  ierr = DMFieldRegister(DMFIELDDS,    DMFieldCreate_DS);CHKERRQ(ierr);
+  ierr = DMFieldRegister(DMFIELDSHELL, DMFieldCreate_Shell);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

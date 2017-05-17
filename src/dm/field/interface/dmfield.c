@@ -104,9 +104,9 @@ PetscErrorCode DMFieldView(DMField field,PetscViewer viewer)
 
    Notes:
    See "include/petscvec.h" for available methods (for instance)
-+    DMFIELDDA     - a field defined only by its values at the corners of a DMDA
-.    DMFIELDMAPPED - a field defined by its pullback onto mapped reference elements
--    DMFIELDSHELL  - a field defined by arbitrary callbacks
++    DMFIELDDA    - a field defined only by its values at the corners of a DMDA
+.    DMFIELDDS    - a field defined by a discretization over a mesh set with DMSetField()
+-    DMFIELDSHELL - a field defined by arbitrary callbacks
 
   Level: advanced
 

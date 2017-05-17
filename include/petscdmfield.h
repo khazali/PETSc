@@ -21,9 +21,9 @@ PETSC_EXTERN PetscClassId DMFIELD_CLASSID;
     Level: intermediate
 J*/
 typedef const char *DMFieldType;
-#define DMFIELDDA       "da"
-#define DMFIELDMAPPED   "mapped"
-#define DMFIELDSHELL    "shell"
+#define DMFIELDDA    "da"
+#define DMFIELDDS    "ds"
+#define DMFIELDSHELL "shell"
 
 PETSC_EXTERN PetscFunctionList DMFieldList;
 PETSC_EXTERN PetscErrorCode    DMFieldSetType(DMField, DMFieldType);
@@ -51,7 +51,7 @@ PETSC_EXTERN PetscErrorCode    DMFieldEvaluateFVReal(DMField,PetscInt,const Pets
 
 PETSC_EXTERN PetscErrorCode    DMFieldCreateDA(DM,PetscInt,const PetscScalar *,DMField *);
 
-PETSC_EXTERN PetscErrorCode    DMFieldCreateMapped(DM,PetscObject,PetscSection,Vec,DMField *);
+PETSC_EXTERN PetscErrorCode    DMFieldCreateDS(DM,PetscInt,Vec,DMField *);
 
 PETSC_EXTERN PetscErrorCode    DMFieldCreateShell(DM,PetscInt,DMFieldContinuity,void *,DMField *);
 PETSC_EXTERN PetscErrorCode    DMFieldShellGetContext(DMField,void *);
