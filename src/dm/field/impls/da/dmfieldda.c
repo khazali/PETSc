@@ -97,8 +97,8 @@ static void MultilinearEvaluate(PetscInt dim, PetscReal (*coordRange)[2], PetscI
   for (i = 0; i < nPoints; i++) {
     const PetscScalar *point = &points[dim * i];
     PetscReal deta[3] = {0.};
-    PetscReal etaB[8] = {1.};
-    PetscReal etaD[8] = {1.};
+    PetscReal etaB[8] = {1.,1.,1.,1.,1.,1.,1.,1.};
+    PetscReal etaD[8] = {1.,1.,1.,1.,1.,1.,1.,1.};
     PetscReal work[8];
 
     for (j = 0; j < dim; j++) {
@@ -286,8 +286,8 @@ static PetscErrorCode DMFieldEvaluateFE_DA(DMField field, PetscInt nCells, const
       d = stepPer[j];
       for (i = 0; i < half; i++) {
         for (k = 0; k < nc; k++) {
-          cellCoeffs[ i         * nc + k] = d * work[ 2 * i * nc + k];
-          cellCoeffs[(i + half) * nc + k] = e * work[(2 * i + 1) * nc + k];
+          cellCoeffs[ i         * nc + k] = work[ 2 * i * nc + k] * d;
+          cellCoeffs[(i + half) * nc + k] = work[ 2 * i * nc + k] * e + work[(2 * i + 1) * nc + k];
         }
       }
       for (i = 0; i < whol * nc; i++) {work[i] = cellCoeffs[i];}
@@ -331,7 +331,7 @@ static PetscErrorCode DMFieldEvaluateFV_DA(DMField field, PetscInt numCells, con
   ierr = DMDAGetHeightStratum(dm,0,&cStart,&cEnd);CHKERRQ(ierr);
   ierr = DMGetWorkArray(dm,dim * numCells,PETSC_SCALAR,&points);CHKERRQ(ierr);
   for (c = 0; c < numCells; c++) {
-    PetscInt  cell = cells[i];
+    PetscInt  cell = cells[c];
     PetscInt  rem  = cell;
     PetscInt  ijk[3] = {0};
 
@@ -419,6 +419,7 @@ PetscErrorCode DMFieldCreateDA(DM dm, PetscInt nc, const PetscScalar *cornerValu
   DMField        b;
   DMField_DA     *dafield;
   PetscInt       dim, nv, i, j, k;
+  PetscInt       half;
   PetscScalar    *cv, *cf, *work;
   PetscErrorCode ierr;
 
@@ -434,17 +435,18 @@ PetscErrorCode DMFieldCreateDA(DM dm, PetscInt nc, const PetscScalar *cornerValu
   dafield->cornerVals = cv;
   dafield->cornerCoeffs = cf;
   dafield->work = work;
+  half = (1 << (dim - 1));
   for (i = 0; i < dim; i++) {
     PetscScalar *w;
 
     w = work;
-    for (j = 0; j < (1 << (dim - 1)); j++) {
+    for (j = 0; j < half; j++) {
       for (k = 0; k < nc; k++) {
         w[j * nc + k] = 0.5 * (cf[(2 * j + 1) * nc + k] - cf[(2 * j) * nc + k]);
       }
     }
-    w = &work[j];
-    for (j = 0; j < (1 << (dim - 1)); j++) {
+    w = &work[j * nc];
+    for (j = 0; j < half; j++) {
       for (k = 0; k < nc; k++) {
         w[j * nc + k] = 0.5 * (cf[(2 * j) * nc + k] + cf[(2 * j + 1) * nc + k]);
       }

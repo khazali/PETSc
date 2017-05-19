@@ -31,8 +31,8 @@ static PetscErrorCode TestEvaluate(DMField field, PetscRandom rand)
   for (i = 0; i < n * dim; i++) {ierr = PetscRandomGetValue(rand,&array[i]);CHKERRQ(ierr);}
   ierr = VecRestoreArray(points,&array);CHKERRQ(ierr);
   ierr = PetscMalloc6(n*nc,&B,n*nc,&rB,n*nc*dim,&D,n*nc*dim,&rD,n*nc*dim*dim,&H,n*nc*dim*dim,&rH);CHKERRQ(ierr);
-  ierr = DMFieldEvaluate(field,points,B,D,H);CHKERRQ(ierr);
-  ierr = DMFieldEvaluateReal(field,points,rB,rD,rH);CHKERRQ(ierr);
+  ierr = DMFieldEvaluate(field,points,PETSC_SCALAR,B,D,H);CHKERRQ(ierr);
+  ierr = DMFieldEvaluate(field,points,PETSC_REAL,rB,rD,rH);CHKERRQ(ierr);
   viewer = PETSC_VIEWER_STDOUT_(comm);
 
   ierr = PetscObjectSetName((PetscObject)points,"Test Points");CHKERRQ(ierr);
@@ -87,8 +87,8 @@ static PetscErrorCode TestEvaluateFE(DMField field, PetscInt cStart, PetscInt cE
   ierr = PetscQuadratureGetData(quad,NULL,NULL,&nq,NULL,NULL);CHKERRQ(ierr);
   N    = n * nq * nc;
   ierr = PetscMalloc6(N,&B,N,&rB,N*dim,&D,N*dim,&rD,N*dim*dim,&H,N*dim*dim,&rH);CHKERRQ(ierr);
-  ierr = DMFieldEvaluateFE(field,n,cells,quad,B,D,H);CHKERRQ(ierr);
-  ierr = DMFieldEvaluateFEReal(field,n,cells,quad,rB,rD,rH);CHKERRQ(ierr);
+  ierr = DMFieldEvaluateFE(field,n,cells,quad,PETSC_SCALAR,B,D,H);CHKERRQ(ierr);
+  ierr = DMFieldEvaluateFE(field,n,cells,quad,PETSC_REAL,rB,rD,rH);CHKERRQ(ierr);
   viewer = PETSC_VIEWER_STDOUT_(comm);
 
   ierr = PetscObjectSetName((PetscObject)quad,"Test quadrature");CHKERRQ(ierr);
@@ -144,8 +144,8 @@ static PetscErrorCode TestEvaluateFV(DMField field, PetscInt cStart, PetscInt cE
   }
   N    = n * nc;
   ierr = PetscMalloc6(N,&B,N,&rB,N*dim,&D,N*dim,&rD,N*dim*dim,&H,N*dim*dim,&rH);CHKERRQ(ierr);
-  ierr = DMFieldEvaluateFV(field,n,cells,B,D,H);CHKERRQ(ierr);
-  ierr = DMFieldEvaluateFVReal(field,n,cells,rB,rD,rH);CHKERRQ(ierr);
+  ierr = DMFieldEvaluateFV(field,n,cells,PETSC_SCALAR,B,D,H);CHKERRQ(ierr);
+  ierr = DMFieldEvaluateFV(field,n,cells,PETSC_REAL,rB,rD,rH);CHKERRQ(ierr);
   viewer = PETSC_VIEWER_STDOUT_(comm);
 
   ierr = PetscViewerASCIIPrintf(viewer,"Test Cells:\n");CHKERRQ(ierr);
