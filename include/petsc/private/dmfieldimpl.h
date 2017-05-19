@@ -15,12 +15,9 @@ struct _DMFieldOps {
   PetscErrorCode (*setfromoptions) (PetscOptionItems*,DMField);
   PetscErrorCode (*setup) (DMField);
   PetscErrorCode (*view) (DMField,PetscViewer);
-  PetscErrorCode (*evaluate) (DMField,Vec,PetscScalar*,PetscScalar*,PetscScalar*);
-  PetscErrorCode (*evaluateReal) (DMField,Vec,PetscReal*,PetscReal*,PetscReal*);
-  PetscErrorCode (*evaluateFE) (DMField,PetscInt,const PetscInt *,PetscQuadrature,PetscScalar*,PetscScalar*,PetscScalar*);
-  PetscErrorCode (*evaluateFEReal) (DMField,PetscInt,const PetscInt *,PetscQuadrature,PetscReal*,PetscReal*,PetscReal*);
-  PetscErrorCode (*evaluateFV) (DMField,PetscInt,const PetscInt *,PetscScalar*,PetscScalar*,PetscScalar*);
-  PetscErrorCode (*evaluateFVReal) (DMField,PetscInt,const PetscInt *,PetscReal*,PetscReal*,PetscReal*);
+  PetscErrorCode (*evaluate) (DMField,Vec,PetscDataType,void*,void*,void*);
+  PetscErrorCode (*evaluateFE) (DMField,PetscInt,const PetscInt *,PetscQuadrature,PetscDataType,void*,void*,void*);
+  PetscErrorCode (*evaluateFV) (DMField,PetscInt,const PetscInt *,PetscDataType,void*,void*,void*);
 };
 struct _p_DMField {
   PETSCHEADER(struct _DMFieldOps);

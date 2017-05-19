@@ -5,6 +5,8 @@
 typedef struct _n_DMField_DA
 {
   PetscScalar     *cornerVals;
+  PetscScalar     *cornerCoeffs;
+  PetscScalar     *work;
   PetscReal       coordRange[3][2];
 }
 DMField_DA;
@@ -16,7 +18,7 @@ static PetscErrorCode DMFieldDestroy_DA(DMField field)
 
   PetscFunctionBegin;
   dafield = (DMField_DA *) field->data;
-  ierr = PetscFree(dafield->cornerVals);CHKERRQ(ierr);
+  ierr = PetscFree3(dafield->cornerVals,dafield->cornerCoeffs,dafield->work);CHKERRQ(ierr);
   ierr = PetscFree(dafield);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -57,77 +59,134 @@ static PetscErrorCode DMFieldView_DA(DMField field,PetscViewer viewer)
   PetscFunctionReturn(0);
 }
 
-static void MultilinearEvaluate(PetscInt dim, PetscReal (*coordRange)[2], PetscInt nc, const PetscScalar *cv, PetscInt nPoints, const PetscScalar *points, PetscScalar *B, PetscScalar *D, PetscScalar *H)
+#define MEdot(y,A,x,m,c,cast)                          \
+  do {                                                 \
+    PetscInt _k, _l;                                   \
+    for (_k = 0; _k < (c); _k++) (y)[_k] = 0.;         \
+    for (_l = 0; _l < (m); _l++) {                     \
+      for (_k = 0; _k < (c); _k++) {                   \
+        (y)[_k] += cast((A)[(c) * _l + _k]) * (x)[_l]; \
+      }                                                \
+    }                                                  \
+  } while (0)
+
+#define MEHess(out,cf,etaB,etaD,dim,nc,cast)                      \
+  do {                                                            \
+    PetscInt _m, _j, _k;                                          \
+    for (_m = 0; _m < (nc) * (dim) * (dim); _m++) (out)[_m] = 0.; \
+    for (_j = 0; _j < (dim); _j++) {                              \
+      for (_k = _j + 1; _k < (dim); _k++) {                       \
+        PetscInt _ind = (1 << _j) + (1 << _k);                    \
+        for (_m = 0; _m < (nc); _m++) {                           \
+          PetscScalar c = (cf)[_m] * (etaB)[_ind] * (etaD)[_ind];   \
+          (out)[(_m * (dim) + _k) * (dim) + _j] += cast(c);       \
+          (out)[(_m * (dim) + _j) * (dim) + _k] += cast(c);       \
+        }                                                         \
+      }                                                           \
+    }                                                             \
+  } while (0)
+
+static void MultilinearEvaluate(PetscInt dim, PetscReal (*coordRange)[2], PetscInt nc, PetscScalar *cf, PetscScalar *cfWork, PetscInt nPoints, const PetscScalar *points, PetscDataType datatype, void *B, void *D, void *H)
 {
-  PetscInt i, j, k, l, m, p;
+  PetscInt i, j, k, l, m;
+  PetscInt  whol = 1 << dim;
+  PetscInt  half = whol >> 1;
 
   PetscFunctionBeginHot;
+  if (!B && !D && !H) PetscFunctionReturnVoid();
   for (i = 0; i < nPoints; i++) {
     const PetscScalar *point = &points[dim * i];
-    PetscReal eta[3] = {0.};
+    PetscReal deta[3] = {0.};
+    PetscReal etaB[8] = {1.};
+    PetscReal etaD[8] = {1.};
+    PetscReal work[8];
 
     for (j = 0; j < dim; j++) {
-      eta[j] = (point[j] - coordRange[j][0]) / coordRange[j][1];
-    }
-    if (B) {
-      PetscScalar *out = &B[nc * i];
+      PetscReal e, d;
 
-      for (k = 0; k < nc; k++) out[k] = 0.;
-      for (l = 0; l < (1 << dim); l++) {
-        PetscReal w = 1.;
-
-        for (j = 0; j < dim; j++) {
-          w *= (l & (1 << j)) ? eta[j] : (1. - eta[j]);
-        }
-        for (k = 0; k < nc; k++) {
-          out[k] += w * cv[nc * l + k];
+      e = (PetscRealPart(point[j]) - coordRange[j][0]) / coordRange[j][1];
+      deta[j] = d = 1. / coordRange[j][1];
+      for (k = 0; k < whol; k++) {work[k] = etaB[k];}
+      for (k = 0; k < half; k++) {
+        etaB[k]        = work[2 * k] * e;
+        etaB[k + half] = work[2 * k + 1];
+      }
+      if (H) {
+        for (k = 0; k < whol; k++) {work[k] = etaD[k];}
+        for (k = 0; k < half; k++) {
+          etaD[k]        = work[2 * k];
+          etaD[k + half] = work[2 * k + 1] * d;
         }
       }
     }
+    if (B) {
+      if (datatype == PETSC_SCALAR) {
+        PetscScalar *out = &((PetscScalar *)B)[nc * i];
+
+        MEdot(out,cf,etaB,(1 << dim),nc,(PetscScalar));
+      } else {
+        PetscReal *out = &((PetscReal *)B)[nc * i];
+
+        MEdot(out,cf,etaB,(1 << dim),nc,PetscRealPart);
+      }
+    }
     if (D) {
-      PetscScalar *out = &D[nc * dim * i];
+      if (datatype == PETSC_SCALAR) {
+        PetscScalar *out = &((PetscScalar *)D)[nc * dim * i];
 
-      for (m = 0; m < nc * dim; m++) out[m] = 0.;
-      for (l = 0; l < (1 << dim); l++) {
-        for (m = 0; m < dim; m++) {
-          PetscReal w = 1.;
+        for (m = 0; m < nc * dim; m++) out[m] = 0.;
+      } else {
+        PetscReal *out = &((PetscReal *)D)[nc * dim * i];
 
-          for (j = 0; j < dim; j++) {
-            w *= (l & (1 << j)) ? ((j == m) ? 1./coordRange[j][1] : eta[j]) : ((j == m) ? -1./coordRange[j][1] : (1. - eta[j]));
+        for (m = 0; m < nc * dim; m++) out[m] = 0.;
+      }
+      for (j = 0; j < dim; j++) {
+        PetscReal d = deta[j];
+
+        for (k = 0; k < whol * nc; k++) {cfWork[k] = cf[k];}
+        for (k = 0; k < whol; k++) {work[k] = etaB[k];}
+        for (k = 0; k < half; k++) {
+          PetscReal e;
+
+          etaB[k]        =     work[2 * k];
+          etaB[k + half] = e = work[2 * k + 1];
+
+          for (l = 0; l < nc; l++) {
+            cf[ k         * nc + l] = cfWork[ 2 * k      * nc + l];
+            cf[(k + half) * nc + l] = cfWork[(2 * k + 1) * nc + l];
           }
-          for (k = 0; k < nc; k++) {
-            out[k * dim + m] += w * cv[nc * l + k];
+          if (datatype == PETSC_SCALAR) {
+            PetscScalar *out = &((PetscScalar *)D)[nc * dim * i];
+
+            for (l = 0; l < nc; l++) {
+              out[l * dim + j] += d * e * cf[k * nc + l];
+            }
+          } else {
+            PetscReal *out = &((PetscReal *)D)[nc * dim * i];
+
+            for (l = 0; l < nc; l++) {
+              out[l * dim + j] += d * e * PetscRealPart(cf[k * nc + l]);
+            }
           }
         }
       }
     }
     if (H) {
-      PetscScalar *out = &H[nc * dim * dim * i];
+      if (datatype == PETSC_SCALAR) {
+        PetscScalar *out = &((PetscScalar *)H)[nc * dim * dim * i];
 
-      for (m = 0; m < nc * dim * dim; m++) out[m] = 0.;
-      for (l = 0; l < (1 << dim); l++) {
-        for (m = 0; m < dim; m++) {
-          for (p = m + 1; p < dim; p++) {
-            PetscReal w = 1.;
-            PetscInt q;
+        MEHess(out,cf,etaB,etaD,dim,nc,(PetscScalar));
+      } else {
+        PetscReal *out = &((PetscReal *)H)[nc * dim * dim * i];
 
-            q = 3 - m - p;
-            for (j = 0; j < dim; j++) {
-              w *= (l & (1 << j)) ? ((j != q) ? 1./coordRange[j][1] : eta[j]) : ((j != q) ? -1./coordRange[j][1] : (1. - eta[j]));
-            }
-            for (k = 0; k < nc; k++) {
-              out[k * dim * dim + m * dim + p] += w * cv[nc * l + k];
-              out[k * dim * dim + p * dim + m] += w * cv[nc * l + k];
-            }
-          }
-        }
+        MEHess(out,cf,etaB,etaD,dim,nc,PetscRealPart);
       }
     }
   }
   PetscFunctionReturnVoid();
 }
 
-static PetscErrorCode DMFieldEvaluate_DA(DMField field, Vec points, PetscScalar *B, PetscScalar *D, PetscScalar *H)
+static PetscErrorCode DMFieldEvaluate_DA(DMField field, Vec points, PetscDataType datatype, void *B, void *D, void *H)
 {
   DM             dm;
   DMField_DA     *dafield;
@@ -147,55 +206,17 @@ static PetscErrorCode DMFieldEvaluate_DA(DMField field, Vec points, PetscScalar 
   n = N / dim;
   coordRange = &(dafield->coordRange[0]);
   ierr = VecGetArrayRead(points,&array);CHKERRQ(ierr);
-  MultilinearEvaluate(dim,coordRange,nc,dafield->cornerVals,n,array,B,D,H);
+  MultilinearEvaluate(dim,coordRange,nc,dafield->cornerCoeffs,dafield->work,n,array,datatype,B,D,H);
   ierr = VecRestoreArrayRead(points,&array);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode DMFieldEvaluateReal_DA(DMField field, Vec points, PetscReal *B, PetscReal *D, PetscReal *H)
+static PetscErrorCode DMFieldEvaluateFE_DA(DMField field, PetscInt nCells, const PetscInt *cells, PetscQuadrature points, PetscDataType datatype, void *B, void *D, void *H)
 {
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-#if !defined(PETSC_USE_COMPLEX)
-  ierr = DMFieldEvaluate_DA(field,points,B,D,H);CHKERRQ(ierr);
-#else
-  {
-    DM          dm = field->dm;
-    PetscInt    dim, N, n, i;
-    PetscScalar *sB = NULL, *sD = NULL, *sH = NULL;
-    nc = field->numComponents;
-    ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
-    ierr = VecGetLocalSize(points,&N);CHKERRQ(ierr);
-    if (N % dim) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Point vector size %D not divisible by coordinate dimension %D\n",N,dim);
-    n = N / dim;
-    if (B) {ierr = DMGetWorkArray(dm,n*nc,PETSC_SCALAR,&sB);CHKERRQ(ierr);}
-    if (D) {ierr = DMGetWorkArray(dm,n*dim*nc,PETSC_SCALAR,&sD);CHKERRQ(ierr);}
-    if (H) {ierr = DMGetWorkArray(dm,n*dim*dim*nc,PETSC_SCALAR,&sH);CHKERRQ(ierr);}
-    ierr = DMFieldEvaluate_DA(field,points,sB,sD,sH);CHKERRQ(ierr);
-    if (H) {
-      for (i = 0; i < n * dim * dim * nc; i++) {H[i] = PetscRealPart(sH[i]);}
-      ierr = DMRestoreWorkArray(dm,n*dim*dim*nc,PETSC_SCALAR,&sH);CHKERRQ(ierr);
-    }
-    if (D) {
-      for (i = 0; i < n * dim * nc; i++) {D[i] = PetscRealPart(sD[i]);}
-      ierr = DMGetWorkArray(dm,n*dim*nc,PETSC_SCALAR,&sD);CHKERRQ(ierr);
-    }
-    if (B) {
-      for (i = 0; i < n * nc; i++) {B[i] = PetscRealPart(sB[i]);}
-      ierr = DMGetWorkArray(dm,n*nc,PETSC_SCALAR,&sB);CHKERRQ(ierr);
-    }
-  }
-#endif
-  PetscFunctionReturn(0);
-}
-
-static PetscErrorCode DMFieldEvaluateFE_DA(DMField field, PetscInt nCells, const PetscInt *cells, PetscQuadrature points, PetscScalar *B, PetscScalar *D, PetscScalar *H)
-{
-  PetscInt       c, i, j, k, dim, cellsPer[3] = {0}, first[3] = {0};
+  PetscInt       c, i, j, k, dim, cellsPer[3] = {0}, first[3] = {0}, whol, half;
   PetscReal      stepPer[3] = {0.};
-  PetscReal      cellCoordRange[3][2] = {{-1.,2.},{-1.,2.},{-1.,2.}};
-  PetscReal      *cellVals;
+  PetscReal      cellCoordRange[3][2] = {{0.,1.},{0.,1.},{0.,1.}};
+  PetscScalar    *cellCoeffs, *work;
   DM             dm;
   DMDALocalInfo  info;
   PetscInt       cStart, cEnd;
@@ -215,6 +236,7 @@ static PetscErrorCode DMFieldEvaluateFE_DA(DMField field, PetscInt nCells, const
   nc = field->numComponents;
   ierr = DMDAGetLocalInfo(dm,&info);CHKERRQ(ierr);
   dim = info.dim;
+  work = dafield->work;
   stepPer[0] = 1./ info.mx;
   stepPer[1] = 1./ info.my;
   stepPer[2] = 1./ info.mz;
@@ -233,90 +255,53 @@ static PetscErrorCode DMFieldEvaluateFE_DA(DMField field, PetscInt nCells, const
   qs = q;
 #endif
   ierr = DMDAGetHeightStratum(dm,0,&cStart,&cEnd);CHKERRQ(ierr);
-  ierr = DMGetWorkArray(dm,(1 << dim) * nc,PETSC_SCALAR,&cellVals);CHKERRQ(ierr);
+  ierr = DMGetWorkArray(dm,(1 << dim) * nc,PETSC_SCALAR,&cellCoeffs);CHKERRQ(ierr);
+  whol = (1 << dim);
+  half = whol >> 1;
   for (c = 0; c < nCells; c++) {
     PetscInt  cell = cells[c];
     PetscInt  rem  = cell;
     PetscInt  ijk[3] = {0};
-    PetscReal eta0[3] = {0.};
-    PetscReal *cB, *cD, *cH;
+    void *cB, *cD, *cH;
 
-    cB = B ? &B[nc * nq * c] : NULL;
-    cD = D ? &D[nc * nq * dim * c] : NULL;
-    cH = H ? &H[nc * nq * dim * dim * c] : NULL;
+    if (datatype == PETSC_SCALAR) {
+      cB = B ? &((PetscScalar *)B)[nc * nq * c] : NULL;
+      cD = D ? &((PetscScalar *)D)[nc * nq * dim * c] : NULL;
+      cH = H ? &((PetscScalar *)H)[nc * nq * dim * dim * c] : NULL;
+    } else {
+      cB = B ? &((PetscReal *)B)[nc * nq * c] : NULL;
+      cD = D ? &((PetscReal *)D)[nc * nq * dim * c] : NULL;
+      cH = H ? &((PetscReal *)H)[nc * nq * dim * dim * c] : NULL;
+    }
     if (cell < cStart || cell >= cEnd) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Point %D not a cell [%D,%D), not implemented yet",cell,cStart,cEnd);
     for (i = 0; i < dim; i++) {
-      ijk[i] = (rem % cellsPer[i]);
-      rem /= cellsPer[i];
-      eta0[i] = (ijk[i] + first[i]) * stepPer[i];
     }
-    for (j = 0; j < (1 << dim); j++) {
-      PetscReal eta[3];
+    for (i = 0; i < nc * whol; i++) {work[i] = dafield->cornerCoeffs[i];}
+    for (j = 0; j < dim; j++) {
+      PetscReal e, d;
+      ijk[j] = (rem % cellsPer[j]);
+      rem /= cellsPer[j];
 
-      for (i = 0; i < nc; i++) {
-        cellVals[j * nc + i] = 0.;
-      }
-      for (i = 0; i < dim; i++) {
-        eta[i] = eta0[i] + ((j & (1 << i)) ? stepPer[i] : 0.);
-      }
-      for (k = 0; k < (1 << dim); k++) {
-        PetscReal w = 1.;
-
-        for (i = 0; i < dim; i++) {
-          w *= (k & (1 << i)) ? eta[i] : (1. - eta[i]);
-        }
-        for (i = 0; i < nc; i++) {
-          cellVals[j * nc + i] += w * dafield->cornerVals[k * nc + i];
+      e = 2. * (ijk[j] + first[j] + 0.5) * stepPer[j] - 1.;
+      d = stepPer[j];
+      for (i = 0; i < half; i++) {
+        for (k = 0; k < nc; k++) {
+          cellCoeffs[ i         * nc + k] = d * work[ 2 * i * nc + k];
+          cellCoeffs[(i + half) * nc + k] = e * work[(2 * i + 1) * nc + k];
         }
       }
+      for (i = 0; i < whol * nc; i++) {work[i] = cellCoeffs[i];}
     }
-    MultilinearEvaluate(dim,cellCoordRange,nc,cellVals,nq,qs,cB,cD,cH);
+    MultilinearEvaluate(dim,cellCoordRange,nc,cellCoeffs,dafield->work,nq,qs,datatype,cB,cD,cH);
   }
-  ierr = DMRestoreWorkArray(dm,(1 << dim) * nc,PETSC_SCALAR,&cellVals);CHKERRQ(ierr);
+  ierr = DMRestoreWorkArray(dm,(1 << dim) * nc,PETSC_SCALAR,&cellCoeffs);CHKERRQ(ierr);
 #if defined(PETSC_USE_COMPLEX)
   ierr = DMRestoreWorkArray(dm,nq * dim,PETSC_SCALAR,&qs);CHKERRQ(ierr);
 #endif
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode DMFieldEvaluateFEReal_DA(DMField field, PetscInt numCells, const PetscInt *cells, PetscQuadrature points, PetscReal *B, PetscReal *D, PetscReal *H)
-{
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-#if !defined(PETSC_USE_COMPLEX)
-  ierr = DMFieldEvaluateFE_DA(field,numCells,cells,points,B,D,H);CHKERRQ(ierr);
-#else
-  {
-    DM          dm = field->dm;
-    PetscInt    dim, i, nq;
-    PetscScalar *sB = NULL, *sD = NULL, *sH = NULL;
-
-    nc = field->numComponents;
-    ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
-    ierr = PetscQuadratureGetData(points,NULL,NULL,&nq,NULL,NULL);CHKERRQ(ierr);
-    if (B) {ierr = DMGetWorkArray(dm,nq*nc,PETSC_SCALAR,&sB);CHKERRQ(ierr);}
-    if (D) {ierr = DMGetWorkArray(dm,nq*dim*nc,PETSC_SCALAR,&sD);CHKERRQ(ierr);}
-    if (H) {ierr = DMGetWorkArray(dm,nq*dim*dim*nc,PETSC_SCALAR,&sH);CHKERRQ(ierr);}
-    ierr = DMFieldEvaluateFE_DA(field,numCels,cells,points,sB,sD,sH);CHKERRQ(ierr);
-    if (H) {
-      for (i = 0; i < n * dim * dim * nc; i++) {H[i] = PetscRealPart(sH[i]);}
-      ierr = DMRestoreWorkArray(dm,nq*dim*dim*nc,PETSC_SCALAR,&sH);CHKERRQ(ierr);
-    }
-    if (D) {
-      for (i = 0; i < n * dim * nc; i++) {D[i] = PetscRealPart(sD[i]);}
-      ierr = DMGetWorkArray(dm,nq*dim*nc,PETSC_SCALAR,&sD);CHKERRQ(ierr);
-    }
-    if (B) {
-      for (i = 0; i < n * nc; i++) {B[i] = PetscRealPart(sB[i]);}
-      ierr = DMGetWorkArray(dm,nq*nc,PETSC_SCALAR,&sB);CHKERRQ(ierr);
-    }
-  }
-#endif
-  PetscFunctionReturn(0);
-}
-
-static PetscErrorCode DMFieldEvaluateFV_DA(DMField field, PetscInt numCells, const PetscInt *cells, PetscScalar *B, PetscScalar *D, PetscScalar *H)
+static PetscErrorCode DMFieldEvaluateFV_DA(DMField field, PetscInt numCells, const PetscInt *cells, PetscDataType datatype, void *B, void *D, void *H)
 {
   PetscInt       c, i, dim, cellsPer[3] = {0}, first[3] = {0};
   PetscReal      stepPer[3] = {0.};
@@ -357,44 +342,8 @@ static PetscErrorCode DMFieldEvaluateFV_DA(DMField field, PetscInt numCells, con
       points[dim * c + i] = (ijk[i] + first[i] + 0.5) * stepPer[i];
     }
   }
-  MultilinearEvaluate(dim,dafield->coordRange,nc,dafield->cornerVals,numCells,points,B,D,H);
+  MultilinearEvaluate(dim,dafield->coordRange,nc,dafield->cornerCoeffs,dafield->work,numCells,points,datatype,B,D,H);
   ierr = DMRestoreWorkArray(dm,dim * numCells,PETSC_SCALAR,&points);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-static PetscErrorCode DMFieldEvaluateFVReal_DA(DMField field, PetscInt numCells, const PetscInt *cells, PetscReal *B, PetscReal *D, PetscReal *H)
-{
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-#if !defined(PETSC_USE_COMPLEX)
-  ierr = DMFieldEvaluateFV_DA(field,numCells,cells,B,D,H);CHKERRQ(ierr);
-#else
-  {
-    DM          dm = field->dm;
-    PetscInt    dim, i, nq;
-    PetscScalar *sB = NULL, *sD = NULL, *sH = NULL;
-
-    nc = field->numComponents;
-    ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
-    if (B) {ierr = DMGetWorkArray(dm,numCells*nc,PETSC_SCALAR,&sB);CHKERRQ(ierr);}
-    if (D) {ierr = DMGetWorkArray(dm,numCells*dim*nc,PETSC_SCALAR,&sD);CHKERRQ(ierr);}
-    if (H) {ierr = DMGetWorkArray(dm,numCells*dim*dim*nc,PETSC_SCALAR,&sH);CHKERRQ(ierr);}
-    ierr = DMFieldEvaluateFV_DA(field,numCels,cells,sB,sD,sH);CHKERRQ(ierr);
-    if (H) {
-      for (i = 0; i < n * dim * dim * nc; i++) {H[i] = PetscRealPart(sH[i]);}
-      ierr = DMRestoreWorkArray(dm,n*dim*dim*nc,PETSC_SCALAR,&sH);CHKERRQ(ierr);
-    }
-    if (D) {
-      for (i = 0; i < n * dim * nc; i++) {D[i] = PetscRealPart(sD[i]);}
-      ierr = DMGetWorkArray(dm,n*dim*nc,PETSC_SCALAR,&sD);CHKERRQ(ierr);
-    }
-    if (B) {
-      for (i = 0; i < n * nc; i++) {B[i] = PetscRealPart(sB[i]);}
-      ierr = DMGetWorkArray(dm,n*nc,PETSC_SCALAR,&sB);CHKERRQ(ierr);
-    }
-  }
-#endif
   PetscFunctionReturn(0);
 }
 
@@ -409,11 +358,8 @@ static PetscErrorCode DMFieldInitialize_DA(DMField field)
   PetscFunctionBegin;
   field->ops->destroy        = DMFieldDestroy_DA;
   field->ops->evaluate       = DMFieldEvaluate_DA;
-  field->ops->evaluateReal   = DMFieldEvaluateReal_DA;
   field->ops->evaluateFE     = DMFieldEvaluateFE_DA;
-  field->ops->evaluateFEReal = DMFieldEvaluateFEReal_DA;
   field->ops->evaluateFV     = DMFieldEvaluateFV_DA;
-  field->ops->evaluateFVReal = DMFieldEvaluateFVReal_DA;
   field->ops->view           = DMFieldView_DA;
   dm = field->dm;
   ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
@@ -447,7 +393,11 @@ static PetscErrorCode DMFieldInitialize_DA(DMField field)
     }
   }
   for (j = 0; j < dim; j++) {
-    dafield->coordRange[j][1] -= dafield->coordRange[j][0];
+    PetscScalar avg = 0.5 * (dafield->coordRange[j][1] + dafield->coordRange[j][0]);
+    PetscScalar dif = 0.5 * (dafield->coordRange[j][1] - dafield->coordRange[j][0]);
+
+    dafield->coordRange[j][0] = avg;
+    dafield->coordRange[j][1] = dif;
   }
   PetscFunctionReturn(0);
 }
@@ -464,23 +414,43 @@ PETSC_INTERN PetscErrorCode DMFieldCreate_DA(DMField field)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode DMFieldCreateDA(DM dm, PetscInt numComponents, const PetscScalar *cornerValues,DMField *field)
+PetscErrorCode DMFieldCreateDA(DM dm, PetscInt nc, const PetscScalar *cornerValues,DMField *field)
 {
   DMField        b;
   DMField_DA     *dafield;
-  PetscInt       dim, nv, i;
-  PetscScalar    *cv;
+  PetscInt       dim, nv, i, j, k;
+  PetscScalar    *cv, *cf, *work;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = DMFieldCreate(dm,numComponents,DMFIELD_VERTEX,&b);CHKERRQ(ierr);
+  ierr = DMFieldCreate(dm,nc,DMFIELD_VERTEX,&b);CHKERRQ(ierr);
   ierr = DMFieldSetType(b,DMFIELDDA);CHKERRQ(ierr);
   dafield = (DMField_DA *) b->data;
   ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
-  nv = (1 << dim) * numComponents;
-  ierr = PetscMalloc1(nv,&cv);CHKERRQ(ierr);
+  nv = (1 << dim) * nc;
+  ierr = PetscMalloc3(nv,&cv,nv,&cf,nv,&work);CHKERRQ(ierr);
   for (i = 0; i < nv; i++) cv[i] = cornerValues[i];
+  for (i = 0; i < nv; i++) cf[i] = cv[i];
   dafield->cornerVals = cv;
+  dafield->cornerCoeffs = cf;
+  dafield->work = work;
+  for (i = 0; i < dim; i++) {
+    PetscScalar *w;
+
+    w = work;
+    for (j = 0; j < (1 << (dim - 1)); j++) {
+      for (k = 0; k < nc; k++) {
+        w[j * nc + k] = 0.5 * (cf[(2 * j + 1) * nc + k] - cf[(2 * j) * nc + k]);
+      }
+    }
+    w = &work[j];
+    for (j = 0; j < (1 << (dim - 1)); j++) {
+      for (k = 0; k < nc; k++) {
+        w[j * nc + k] = 0.5 * (cf[(2 * j) * nc + k] + cf[(2 * j + 1) * nc + k]);
+      }
+    }
+    for (j = 0; j < nv; j++) {cf[j] = work[j];}
+  }
   *field = b;
   PetscFunctionReturn(0);
 }

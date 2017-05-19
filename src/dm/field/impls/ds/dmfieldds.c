@@ -55,14 +55,7 @@ static PetscErrorCode DMFieldView_DS(DMField field,PetscViewer viewer)
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode DMFieldEvaluate_DS(DMField field, Vec points, PetscScalar *B, PetscScalar *D, PetscScalar *H)
-{
-  PetscFunctionBegin;
-  SETERRQ(PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented yet");
-  PetscFunctionReturn(0);
-}
-
-static PetscErrorCode DMFieldEvaluateReal_DS(DMField field, Vec points, PetscScalar *B, PetscScalar *D, PetscScalar *H)
+static PetscErrorCode DMFieldEvaluate_DS(DMField field, Vec points, PetscDataType type, void *B, void *D, void *H)
 {
   PetscFunctionBegin;
   SETERRQ(PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented yet");
@@ -187,11 +180,8 @@ static PetscErrorCode DMFieldInitialize_DS(DMField field)
   PetscFunctionBegin;
   field->ops->destroy        = DMFieldDestroy_DS;
   field->ops->evaluate       = DMFieldEvaluate_DS;
-  field->ops->evaluateReal   = DMFieldEvaluateReal_DS;
   field->ops->evaluateFE     = DMFieldEvaluateFE_DS;
-  field->ops->evaluateFEReal = DMFieldEvaluateFEReal_DS;
   //field->ops->evaluateFV     = DMFieldEvaluateFV_DA;
-  //field->ops->evaluateFVReal = DMFieldEvaluateFVReal_DA;
   field->ops->view           = DMFieldView_DS;
   PetscFunctionReturn(0);
 }
