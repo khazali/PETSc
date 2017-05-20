@@ -55,7 +55,7 @@ static PetscErrorCode DMFieldView_DS(DMField field,PetscViewer viewer)
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode DMFieldEvaluate_DS(DMField field, Vec points, PetscDataType type, void *B, void *D, void *H)
+static PetscErrorCode DMFieldEvaluate_DS(DMField field, Vec points, PetscDataType datatype, void *B, void *D, void *H)
 {
   PetscFunctionBegin;
   SETERRQ(PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented yet");
@@ -77,7 +77,7 @@ static PetscErrorCode DMFieldEvaluate_DS(DMField field, Vec points, PetscDataTyp
     }                                                                            \
   } while (0)
 
-static PetscErrorCode DMFieldEvaluateFE_DS_Internal(DMField field, PetscInt numCells, const PetscInt *cells, PetscQuadrature quad, PetscDataType type, void *B, void *D, void *H)
+static PetscErrorCode DMFieldEvaluateFE_DS(DMField field, PetscInt numCells, const PetscInt *cells, PetscQuadrature quad, PetscDataType type, void *B, void *D, void *H)
 {
   DMField_DS      *dsfield = (DMField_DS *) field->data;
   DM              dm;
@@ -154,24 +154,6 @@ static PetscErrorCode DMFieldEvaluateFE_DS_Internal(DMField field, PetscInt numC
     ierr = DMRestoreWorkArray(dm,feDim,PETSC_SCALAR,&elem);CHKERRQ(ierr);
     ierr = PetscFERestoreTabulation(fe,nq,qpoints,B ? &fB : NULL,D ? &fD : NULL,H ? &fH : NULL);CHKERRQ(ierr);
   } else {SETERRQ(PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented");}
-  PetscFunctionReturn(0);
-}
-
-static PetscErrorCode DMFieldEvaluateFE_DS(DMField field, PetscInt numCells, const PetscInt *cells, PetscQuadrature quad, PetscScalar *B, PetscScalar *D, PetscScalar *H)
-{
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  ierr = DMFieldEvaluateFE_DS_Internal(field,numCells,cells,quad,PETSC_SCALAR,B,D,H);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-static PetscErrorCode DMFieldEvaluateFEReal_DS(DMField field, PetscInt numCells, const PetscInt *cells, PetscQuadrature quad, PetscReal *B, PetscReal *D, PetscReal *H)
-{
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  ierr = DMFieldEvaluateFE_DS_Internal(field,numCells,cells,quad,PETSC_REAL,B,D,H);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -263,5 +245,6 @@ PetscErrorCode DMFieldCreateDS(DM dm, PetscInt fieldNum, Vec vec,DMField *field)
   dsfield->disc = disc;
   ierr = PetscObjectReference((PetscObject)vec);CHKERRQ(ierr);
   dsfield->vec = vec;
+  *field = b;
   PetscFunctionReturn(0);
 }

@@ -144,6 +144,18 @@ static PetscErrorCode TestEvaluateFV(DMField field, PetscInt n, PetscInt cStart,
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode radiusSquared(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar u[], void *ctx)
+{
+  PetscInt       i;
+  PetscReal      r2 = 0.;
+
+  PetscFunctionBegin;
+  for (i = 0; i < dim; i++) {r2 += PetscSqr(x[i]);}
+  for (i = 0; i < Nf; i++) {
+    u[i] = (i + 1) * r2;
+  }
+  PetscFunctionReturn(0);
+}
 
 int main(int argc, char **argv)
 {
@@ -182,6 +194,8 @@ int main(int argc, char **argv)
   if (isplex) {
     PetscBool simplex = PETSC_TRUE;
     PetscInt  overlap = 0;
+    Vec       fieldvec;
+    PetscFE   fe;
 
     ierr = PetscOptionsBegin(comm, "", "DMField DMPlex Options", "DM");CHKERRQ(ierr);
     ierr = PetscOptionsBool("-simplex","Create a simplicial DMPlex","ex1.c",simplex,&simplex,NULL);CHKERRQ(ierr);
@@ -230,6 +244,21 @@ int main(int argc, char **argv)
       }
     }
     ierr = DMPlexGetHeightStratum(dm,0,&cStart,&cEnd);CHKERRQ(ierr);
+    ierr = PetscFECreateDefault(dm,dim,nc,simplex,NULL,PETSC_DEFAULT,&fe);CHKERRQ(ierr);
+    ierr = DMSetField(dm,0,(PetscObject)fe);CHKERRQ(ierr);
+    ierr = PetscFEDestroy(&fe);CHKERRQ(ierr);
+    ierr = DMCreateLocalVector(dm,&fieldvec);CHKERRQ(ierr);
+    {
+      PetscErrorCode (*func[1]) (PetscInt,PetscReal,const PetscReal [],PetscInt, PetscScalar *,void *);
+      void            *ctxs[1];
+
+      func[0] = radiusSquared;
+      ctxs[0] = NULL;
+
+      ierr = DMProjectFunctionLocal(dm,0.0,func,ctxs,INSERT_ALL_VALUES,fieldvec);CHKERRQ(ierr);
+    }
+    ierr = DMFieldCreateDS(dm,0,fieldvec,&field);CHKERRQ(ierr);
+    ierr = VecDestroy(&fieldvec);CHKERRQ(ierr);
   } else if (isda) {
     PetscInt       i;
     PetscScalar    *cv;
@@ -280,5 +309,11 @@ int main(int argc, char **argv)
     suffix: da
     requires: !complex
     args: -dm_type da -dim 2 -num_components 2 -num_point_tests 2 -num_fe_tests 2 -num_fv_tests 2 -dmfield_view
+
+  test:
+    suffix: ds
+    requires: !complex
+    TODO: broken
+    args: -dm_type plex -dim 2 -num_components 2 -num_point_tests 0 -num_fe_tests 2 -num_fv_tests 0 -dmfield_view -petscspace_order 2
 
 TEST*/
