@@ -106,12 +106,12 @@ static PetscErrorCode DMFieldEvaluateFE_DS(DMField field, PetscInt numCells, con
     PetscFE      fe = (PetscFE) disc;
     PetscInt     feDim, i;
     PetscReal    *fB = NULL, *fD = NULL, *fH = NULL;
-    PetscInt     closureSize = 0;
+    PetscInt     closureSize;
     PetscScalar  *elem = NULL;
 
     ierr = PetscFEGetDimension(fe,&feDim);CHKERRQ(ierr);
     ierr = PetscFEGetTabulation(fe,nq,qpoints,B ? &fB : NULL,D ? &fD : NULL,H ? &fH : NULL);CHKERRQ(ierr);
-    ierr = DMGetWorkArray(dm,feDim,PETSC_SCALAR,&elem);CHKERRQ(ierr);
+    closureSize = feDim;
     for (i = 0; i < numCells; i++) {
       PetscInt c = cells[i];
 
@@ -150,7 +150,6 @@ static PetscErrorCode DMFieldEvaluateFE_DS(DMField field, PetscInt numCells, con
         }
       }
     }
-    ierr = DMPlexVecRestoreClosure(dm,section,dsfield->vec,-1,&closureSize,&elem);CHKERRQ(ierr);
     ierr = DMRestoreWorkArray(dm,feDim,PETSC_SCALAR,&elem);CHKERRQ(ierr);
     ierr = PetscFERestoreTabulation(fe,nq,qpoints,B ? &fB : NULL,D ? &fD : NULL,H ? &fH : NULL);CHKERRQ(ierr);
   } else {SETERRQ(PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented");}
