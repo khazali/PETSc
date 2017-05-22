@@ -44,6 +44,9 @@ PETSC_EXTERN PetscErrorCode    DMFieldEvaluate(DMField,Vec,PetscDataType,void*,v
 PETSC_EXTERN PetscErrorCode    DMFieldEvaluateFE(DMField,PetscInt,const PetscInt*,PetscQuadrature,PetscDataType,void*,void*,void*);
 PETSC_EXTERN PetscErrorCode    DMFieldEvaluateFV(DMField,PetscInt,const PetscInt*,PetscDataType,void*,void*,void*);
 
+PETSC_EXTERN PetscErrorCode    DMFieldGetFEInvariance(DMField,PetscInt,const PetscInt*,PetscBool*,PetscBool*,PetscBool*);
+PETSC_EXTERN PetscErrorCode    DMFieldEvaluateFECompact(DMField,PetscInt,const PetscInt*,PetscQuadrature,PetscDataType,PetscBool,void*,PetscBool,void*,PetscBool,void*);
+
 PETSC_EXTERN PetscErrorCode    DMFieldCreateDA(DM,PetscInt,const PetscScalar *,DMField *);
 PETSC_EXTERN PetscErrorCode    DMFieldCreateDS(DM,PetscInt,Vec,DMField *);
 

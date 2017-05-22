@@ -213,7 +213,7 @@ PetscErrorCode DMFieldEvaluateFE(DMField field, PetscInt numCells, const PetscIn
   if (D) PetscValidPointer(D,6);
   if (H) PetscValidPointer(H,7);
   if (field->ops->evaluate) {
-    ierr = (*field->ops->evaluateFE) (field, numCells, cells, points, datatype, B, D, H);CHKERRQ(ierr);
+    ierr = (*field->ops->evaluateFECompact) (field, numCells, cells, points, datatype, PETSC_FALSE, B, PETSC_FALSE, D, PETSC_FALSE, H);CHKERRQ(ierr);
   } else SETERRQ (PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented for this type");
   PetscFunctionReturn(0);
 }
@@ -230,6 +230,44 @@ PetscErrorCode DMFieldEvaluateFV(DMField field, PetscInt numCells, const PetscIn
   if (H) PetscValidPointer(H,6);
   if (field->ops->evaluate) {
     ierr = (*field->ops->evaluateFV) (field, numCells, cells, datatype, B, D, H);CHKERRQ(ierr);
+  } else SETERRQ (PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented for this type");
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode DMFieldGetFEInvariance(DMField field, PetscInt numCells, const PetscInt *cells, PetscBool *isConstant, PetscBool *isAffine, PetscBool *isQuadratic)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(field,DMFIELD_CLASSID,1);
+  if (numCells) PetscValidIntPointer(cells,3);
+  if (isConstant) PetscValidPointer(isConstant,4);
+  if (isAffine) PetscValidPointer(isAffine,5);
+  if (isQuadratic) PetscValidPointer(isQuadratic,6);
+
+  if (isConstant)  *isConstant  = PETSC_FALSE;
+  if (isAffine)    *isAffine    = PETSC_FALSE;
+  if (isQuadratic) *isQuadratic = PETSC_FALSE;
+
+  if (field->ops->getFEInvariance) {
+    ierr = (*field->ops->getFEInvariance) (field,numCells,cells,isConstant,isAffine,isQuadratic);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode DMFieldEvaluateFECompact(DMField field, PetscInt numCells, const PetscInt *cells, PetscQuadrature points, PetscDataType datatype, PetscBool isConstant, void *B, PetscBool isAffine, void *D, PetscBool isQuadratic, void *H)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(field,DMFIELD_CLASSID,1);
+  if (numCells) PetscValidIntPointer(cells,3);
+  PetscValidHeader(points,4);
+  if (B) PetscValidPointer(B,6);
+  if (D) PetscValidPointer(D,8);
+  if (H) PetscValidPointer(H,10);
+  if (field->ops->evaluate) {
+    ierr = (*field->ops->evaluateFECompact) (field, numCells, cells, points, datatype, isConstant, B, isAffine, D, isQuadratic, H);CHKERRQ(ierr);
   } else SETERRQ (PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented for this type");
   PetscFunctionReturn(0);
 }

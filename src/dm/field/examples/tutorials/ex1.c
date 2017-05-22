@@ -70,11 +70,15 @@ static PetscErrorCode TestEvaluateFE(DMField field, PetscInt n, PetscInt cStart,
   PetscReal      *rB, *rD, *rH;
   PetscInt       *cells;
   PetscViewer    viewer;
+  PetscBool      compact = PETSC_FALSE;
   MPI_Comm       comm;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   comm = PetscObjectComm((PetscObject)field);
+  ierr = PetscOptionsBegin(comm, "", "DMField TestEvaluateFE Options", "DM");CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-test_fe_compact","Test DMFieldEvaluateFECompact()", "DM", compact, &compact, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsEnd();CHKERRQ(ierr);
   ierr = DMFieldGetNumComponents(field,&nc);CHKERRQ(ierr);
   ierr = DMFieldGetDM(field,&dm);CHKERRQ(ierr);
   ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
@@ -89,8 +93,35 @@ static PetscErrorCode TestEvaluateFE(DMField field, PetscInt n, PetscInt cStart,
   ierr = PetscQuadratureGetData(quad,NULL,NULL,&nq,NULL,NULL);CHKERRQ(ierr);
   N    = n * nq * nc;
   ierr = PetscMalloc6(N,&B,N,&rB,N*dim,&D,N*dim,&rD,N*dim*dim,&H,N*dim*dim,&rH);CHKERRQ(ierr);
-  ierr = DMFieldEvaluateFE(field,n,cells,quad,PETSC_SCALAR,B,D,H);CHKERRQ(ierr);
-  ierr = DMFieldEvaluateFE(field,n,cells,quad,PETSC_REAL,rB,rD,rH);CHKERRQ(ierr);
+  if (!compact) {
+    ierr = DMFieldEvaluateFE(field,n,cells,quad,PETSC_SCALAR,B,D,H);CHKERRQ(ierr);
+    ierr = DMFieldEvaluateFE(field,n,cells,quad,PETSC_REAL,rB,rD,rH);CHKERRQ(ierr);
+  } else {
+    PetscBool isConstant, isAffine, isQuadratic;
+
+    ierr = DMFieldGetFEInvariance(field,n,cells,&isConstant,&isAffine,&isQuadratic);CHKERRQ(ierr);
+    /* compact, in the presence of invariance, fills the output array as though there is one point per cell */
+    ierr = DMFieldEvaluateFECompact(field,n,cells,quad,PETSC_SCALAR,isConstant,B,isAffine,D,isQuadratic,H);CHKERRQ(ierr);
+    ierr = DMFieldEvaluateFECompact(field,n,cells,quad,PETSC_REAL,isConstant,rB,isAffine,rD,isQuadratic,rH);CHKERRQ(ierr);
+    /* expand the compacted entries: should give the same result as DMFieldEvaluateFE() */
+    for (i = n - 1; i >= 0; i--) {
+      PetscInt j;
+      for (j = nq - 1; j >= 0; j--) {
+        if (isConstant) {
+          ierr = PetscMemmove(&B[(i * nq + j)* nc],&B[i * nc],nc * sizeof(PetscScalar));CHKERRQ(ierr);
+          ierr = PetscMemmove(&rB[(i * nq + j)* nc],&rB[i * nc],nc * sizeof(PetscReal));CHKERRQ(ierr);
+        }
+        if (isAffine) {
+          ierr = PetscMemmove(&D[(i * nq + j)* nc * dim],&D[i * nc * dim],nc * dim * sizeof(PetscScalar));CHKERRQ(ierr);
+          ierr = PetscMemmove(&rD[(i * nq + j)* nc * dim],&rD[i * nc * dim],nc * dim * sizeof(PetscReal));CHKERRQ(ierr);
+        }
+        if (isQuadratic) {
+          ierr = PetscMemmove(&H[(i * nq + j)* nc * dim * dim],&H[i * nc * dim * dim],nc * dim * dim * sizeof(PetscScalar));CHKERRQ(ierr);
+          ierr = PetscMemmove(&rH[(i * nq + j)* nc * dim * dim],&rH[i * nc * dim * dim],nc * dim * dim * sizeof(PetscReal));CHKERRQ(ierr);
+        }
+      }
+    }
+  }
   viewer = PETSC_VIEWER_STDOUT_(comm);
 
   ierr = PetscObjectSetName((PetscObject)quad,"Test quadrature");CHKERRQ(ierr);
@@ -170,7 +201,7 @@ int main(int argc, char **argv)
   PetscRandom     rand;
   PetscQuadrature quad = NULL;
   PetscInt        pointsPerEdge = 2;
-  PetscInt        numPoint = 2, numFE = 2, numFV = 2;
+  PetscInt        numPoint = 0, numFE = 0, numFV = 0;
   PetscErrorCode  ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);if (ierr) return ierr;
@@ -311,8 +342,116 @@ int main(int argc, char **argv)
     args: -dm_type da -dim 2 -num_components 2 -num_point_tests 2 -num_fe_tests 2 -num_fv_tests 2 -dmfield_view
 
   test:
+    suffix: da_compact_1
+    requires: !complex
+    args: -dm_type da -dim 1  -num_fe_tests 2
+    test:
+      args:
+    test:
+      args: -test_fe_compact
+
+  test:
+    suffix: da_compact_2
+    requires: !complex
+    args: -dm_type da -dim 2  -num_fe_tests 2
+    test:
+      args:
+    test:
+      args: -test_fe_compact
+
+  test:
+    suffix: da_compact_3
+    requires: !complex
+    args: -dm_type da -dim 3  -num_fe_tests 2
+    test:
+      args:
+    test:
+      args: -test_fe_compact
+
+  test:
     suffix: ds
     requires: !complex
-    args: -dm_type plex -dim 2 -num_components 2 -num_point_tests 0 -num_fe_tests 2 -num_fv_tests 0 -dmfield_view -petscspace_order 2 -num_quad_points 1
+    args: -dm_type plex -dim 2 -num_components 2  -num_fe_tests 2  -dmfield_view -petscspace_order 2 -num_quad_points 1
+
+  test:
+    suffix: ds_compact_simplex_0
+    requires: !complex
+    args: -dm_type plex -dim 2  -num_fe_tests 2  -petscspace_order 0
+    test:
+      args:
+    test:
+      args: -test_fe_compact
+
+  test:
+    suffix: ds_compact_simplex_1
+    requires: !complex
+    args: -dm_type plex -dim 2  -num_fe_tests 2  -petscspace_order 1
+    test:
+      args:
+    test:
+      args: -test_fe_compact
+
+  test:
+    suffix: ds_compact_simplex_2
+    requires: !complex
+    args: -dm_type plex -dim 2  -num_fe_tests 2  -petscspace_order 2
+    test:
+      args:
+    test:
+      args: -test_fe_compact
+
+  test:
+    suffix: ds_compact_tensor_2_0
+    requires: !complex
+    args: -dm_type plex -dim 2  -num_fe_tests 2  -petscspace_poly_tensor 1 -petscspace_order 0 -simplex 0
+    test:
+      args:
+    test:
+      args: -test_fe_compact
+
+  test:
+    suffix: ds_compact_tensor_2_1
+    requires: !complex
+    args: -dm_type plex -dim 2  -num_fe_tests 2  -petscspace_poly_tensor 1 -petscspace_order 1 -simplex 0
+    test:
+      args:
+    test:
+      args: -test_fe_compact
+
+  test:
+    suffix: ds_compact_tensor_2_2
+    requires: !complex
+    args: -dm_type plex -dim 2  -num_fe_tests 2  -petscspace_poly_tensor 1 -petscspace_order 2 -simplex 0
+    test:
+      args:
+    test:
+      args: -test_fe_compact
+
+  test:
+    suffix: ds_compact_tensor_3_0
+    requires: !complex
+    args: -dm_type plex -dim 3  -num_fe_tests 2  -petscspace_poly_tensor 1 -petscspace_order 0 -simplex 0
+    test:
+      args:
+    test:
+      args: -test_fe_compact
+
+  test:
+    suffix: ds_compact_tensor_3_1
+    requires: !complex
+    args: -dm_type plex -dim 3  -num_fe_tests 2  -petscspace_poly_tensor 1 -petscspace_order 1 -simplex 0
+    test:
+      args:
+    test:
+      args: -test_fe_compact
+
+  test:
+    suffix: ds_compact_tensor_3_2
+    requires: !complex
+    args: -dm_type plex -dim 3  -num_fe_tests 2  -petscspace_poly_tensor 1 -petscspace_order 2 -simplex 0
+    test:
+      args:
+    test:
+      args: -test_fe_compact
 
 TEST*/
