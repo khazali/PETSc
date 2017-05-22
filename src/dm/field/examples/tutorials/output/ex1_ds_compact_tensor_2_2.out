@@ -13,8 +13,11 @@ Quadrature on 4 points
 0.57735
 , 0.57735
 ) 1.
-Test Cells:
-0: 6 0
+IS Object: FE Test Cells 1 MPI processes
+  type: general
+Number of indices in set 2
+0 6
+1 0
 B:
  0:   5.4829e-01   8.6904e-01   6.1244e-01
  3:   9.3319e-01   9.9240e-03   7.4074e-02

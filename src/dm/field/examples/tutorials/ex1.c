@@ -69,6 +69,7 @@ static PetscErrorCode TestEvaluateFE(DMField field, PetscInt n, PetscInt cStart,
   PetscScalar    *B, *D, *H;
   PetscReal      *rB, *rD, *rH;
   PetscInt       *cells;
+  IS             cellIS;
   PetscViewer    viewer;
   PetscBool      compact = PETSC_FALSE;
   MPI_Comm       comm;
@@ -90,19 +91,21 @@ static PetscErrorCode TestEvaluateFE(DMField field, PetscInt n, PetscInt cStart,
     ierr = PetscRandomGetValueReal(rand,&rc);CHKERRQ(ierr);
     cells[i] = PetscFloorReal(rc);
   }
+  ierr = ISCreateGeneral(comm,n,cells,PETSC_OWN_POINTER,&cellIS);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)cellIS,"FE Test Cells");CHKERRQ(ierr);
   ierr = PetscQuadratureGetData(quad,NULL,NULL,&nq,NULL,NULL);CHKERRQ(ierr);
   N    = n * nq * nc;
   ierr = PetscMalloc6(N,&B,N,&rB,N*dim,&D,N*dim,&rD,N*dim*dim,&H,N*dim*dim,&rH);CHKERRQ(ierr);
   if (!compact) {
-    ierr = DMFieldEvaluateFE(field,n,cells,quad,PETSC_SCALAR,B,D,H);CHKERRQ(ierr);
-    ierr = DMFieldEvaluateFE(field,n,cells,quad,PETSC_REAL,rB,rD,rH);CHKERRQ(ierr);
+    ierr = DMFieldEvaluateFE(field,cellIS,quad,PETSC_SCALAR,B,D,H);CHKERRQ(ierr);
+    ierr = DMFieldEvaluateFE(field,cellIS,quad,PETSC_REAL,rB,rD,rH);CHKERRQ(ierr);
   } else {
     PetscBool isConstant, isAffine, isQuadratic;
 
-    ierr = DMFieldGetFEInvariance(field,n,cells,&isConstant,&isAffine,&isQuadratic);CHKERRQ(ierr);
+    ierr = DMFieldGetFEInvariance(field,cellIS,&isConstant,&isAffine,&isQuadratic);CHKERRQ(ierr);
     /* compact, in the presence of invariance, fills the output array as though there is one point per cell */
-    ierr = DMFieldEvaluateFECompact(field,n,cells,quad,PETSC_SCALAR,isConstant,B,isAffine,D,isQuadratic,H);CHKERRQ(ierr);
-    ierr = DMFieldEvaluateFECompact(field,n,cells,quad,PETSC_REAL,isConstant,rB,isAffine,rD,isQuadratic,rH);CHKERRQ(ierr);
+    ierr = DMFieldEvaluateFECompact(field,cellIS,quad,PETSC_SCALAR,isConstant,B,isAffine,D,isQuadratic,H);CHKERRQ(ierr);
+    ierr = DMFieldEvaluateFECompact(field,cellIS,quad,PETSC_REAL,isConstant,rB,isAffine,rD,isQuadratic,rH);CHKERRQ(ierr);
     /* expand the compacted entries: should give the same result as DMFieldEvaluateFE() */
     for (i = n - 1; i >= 0; i--) {
       PetscInt j;
@@ -126,12 +129,11 @@ static PetscErrorCode TestEvaluateFE(DMField field, PetscInt n, PetscInt cStart,
 
   ierr = PetscObjectSetName((PetscObject)quad,"Test quadrature");CHKERRQ(ierr);
   ierr = PetscQuadratureView(quad,viewer);CHKERRQ(ierr);
-  ierr = PetscViewerASCIIPrintf(viewer,"Test Cells:\n");CHKERRQ(ierr);
-  ierr = PetscIntView(n,cells,viewer);CHKERRQ(ierr);
+  ierr = ISView(cellIS,viewer);CHKERRQ(ierr);
   ierr = ViewResults(viewer,N,dim,B,D,H,rB,rD,rH);CHKERRQ(ierr);
 
   ierr = PetscFree6(B,rB,D,rD,H,rH);CHKERRQ(ierr);
-  ierr = PetscFree(cells);CHKERRQ(ierr);
+  ierr = ISDestroy(&cellIS);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -143,6 +145,7 @@ static PetscErrorCode TestEvaluateFV(DMField field, PetscInt n, PetscInt cStart,
   PetscScalar    *B, *D, *H;
   PetscReal      *rB, *rD, *rH;
   PetscInt       *cells;
+  IS             cellIS;
   PetscViewer    viewer;
   MPI_Comm       comm;
   PetscErrorCode ierr;
@@ -160,18 +163,19 @@ static PetscErrorCode TestEvaluateFV(DMField field, PetscInt n, PetscInt cStart,
     ierr = PetscRandomGetValueReal(rand,&rc);CHKERRQ(ierr);
     cells[i] = PetscFloorReal(rc);
   }
+  ierr = ISCreateGeneral(comm,n,cells,PETSC_OWN_POINTER,&cellIS);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)cellIS,"FV Test Cells");CHKERRQ(ierr);
   N    = n * nc;
   ierr = PetscMalloc6(N,&B,N,&rB,N*dim,&D,N*dim,&rD,N*dim*dim,&H,N*dim*dim,&rH);CHKERRQ(ierr);
-  ierr = DMFieldEvaluateFV(field,n,cells,PETSC_SCALAR,B,D,H);CHKERRQ(ierr);
-  ierr = DMFieldEvaluateFV(field,n,cells,PETSC_REAL,rB,rD,rH);CHKERRQ(ierr);
+  ierr = DMFieldEvaluateFV(field,cellIS,PETSC_SCALAR,B,D,H);CHKERRQ(ierr);
+  ierr = DMFieldEvaluateFV(field,cellIS,PETSC_REAL,rB,rD,rH);CHKERRQ(ierr);
   viewer = PETSC_VIEWER_STDOUT_(comm);
 
-  ierr = PetscViewerASCIIPrintf(viewer,"Test Cells:\n");CHKERRQ(ierr);
-  ierr = PetscIntView(n,cells,viewer);CHKERRQ(ierr);
+  ierr = ISView(cellIS,viewer);CHKERRQ(ierr);
   ierr = ViewResults(viewer,N,dim,B,D,H,rB,rD,rH);CHKERRQ(ierr);
 
   ierr = PetscFree6(B,rB,D,rD,H,rH);CHKERRQ(ierr);
-  ierr = PetscFree(cells);CHKERRQ(ierr);
+  ierr = ISDestroy(&cellIS);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

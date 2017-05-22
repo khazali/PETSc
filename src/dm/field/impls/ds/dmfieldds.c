@@ -77,15 +77,18 @@ static PetscErrorCode DMFieldEvaluate_DS(DMField field, Vec points, PetscDataTyp
     }                                                                            \
   } while (0)
 
-static PetscErrorCode DMFieldEvaluateFECompact_DS(DMField field, PetscInt numCells, const PetscInt *cells, PetscQuadrature quad, PetscDataType type, PetscBool isConstant, void *B, PetscBool isAffine, void *D, PetscBool isQuadratic, void *H)
+static PetscErrorCode DMFieldEvaluateFECompact_DS(DMField field, IS cellIS, PetscQuadrature quad, PetscDataType type, PetscBool isConstant, void *B, PetscBool isAffine, void *D, PetscBool isQuadratic, void *H)
 {
   DMField_DS      *dsfield = (DMField_DS *) field->data;
   DM              dm;
   PetscObject     disc;
   PetscClassId    classid;
-  PetscInt        nq, nqB, nqD, nqH, nc, dim;
+  PetscInt        nq, nqB, nqD, nqH, nc, dim, numCells;
   PetscSection    section;
   const PetscReal *qpoints;
+  PetscBool       isStride;
+  const PetscInt  *cells = NULL;
+  PetscInt        sfirst = -1, stride = -1;
   PetscErrorCode  ierr;
 
   PetscFunctionBeginHot;
@@ -106,6 +109,13 @@ static PetscErrorCode DMFieldEvaluateFECompact_DS(DMField field, PetscInt numCel
   nq = PetscMax(nqB, nqD);
   nq = PetscMax(nq,  nqH);
   /* TODO: batch */
+  ierr = PetscObjectTypeCompare((PetscObject)cellIS,ISSTRIDE,&isStride);CHKERRQ(ierr);
+  ierr = ISGetLocalSize(cellIS,&numCells);CHKERRQ(ierr);
+  if (isStride) {
+    ierr = ISStrideGetInfo(cellIS,&sfirst,&stride);CHKERRQ(ierr);
+  } else {
+    ierr = ISGetIndices(cellIS,&cells);CHKERRQ(ierr);
+  }
   if (classid == PETSCFE_CLASSID) {
     PetscFE      fe = (PetscFE) disc;
     PetscInt     feDim, i;
@@ -117,7 +127,7 @@ static PetscErrorCode DMFieldEvaluateFECompact_DS(DMField field, PetscInt numCel
     ierr = PetscFEGetTabulation(fe,nq,qpoints,B ? &fB : NULL,D ? &fD : NULL,H ? &fH : NULL);CHKERRQ(ierr);
     closureSize = feDim;
     for (i = 0; i < numCells; i++) {
-      PetscInt c = cells[i];
+      PetscInt c = isStride ? (sfirst + i * stride) : cells[i];
 
       ierr = DMPlexVecGetClosure(dm,section,dsfield->vec,c,&closureSize,&elem);CHKERRQ(ierr);
       if (B) {
@@ -157,10 +167,13 @@ static PetscErrorCode DMFieldEvaluateFECompact_DS(DMField field, PetscInt numCel
     ierr = DMRestoreWorkArray(dm,feDim,PETSC_SCALAR,&elem);CHKERRQ(ierr);
     ierr = PetscFERestoreTabulation(fe,nq,qpoints,B ? &fB : NULL,D ? &fD : NULL,H ? &fH : NULL);CHKERRQ(ierr);
   } else {SETERRQ(PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented");}
+  if (!isStride) {
+    ierr = ISRestoreIndices(cellIS,&cells);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode DMFieldGetFEInvariance_DS(DMField field, PetscInt numCells, const PetscInt *cells, PetscBool *isConstant, PetscBool *isAffine, PetscBool *isQuadratic)
+static PetscErrorCode DMFieldGetFEInvariance_DS(DMField field, IS cellIS, PetscBool *isConstant, PetscBool *isAffine, PetscBool *isQuadratic)
 {
   DMField_DS     *dsfield;
   PetscObject    disc;

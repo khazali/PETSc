@@ -130,7 +130,7 @@ static void MultilinearEvaluate(PetscInt dim, PetscReal (*coordRange)[2], PetscI
         MEdot(out,cf,etaB,(1 << dim),nc,PetscRealPart);
       }
     }
-    if (D && !(isQuadratic && i)) {
+    if (D && !(isAffine && i)) {
       if (datatype == PETSC_SCALAR) {
         PetscScalar *out = &((PetscScalar *)D)[nc * dim * i];
 
@@ -171,7 +171,7 @@ static void MultilinearEvaluate(PetscInt dim, PetscReal (*coordRange)[2], PetscI
         }
       }
     }
-    if (H) {
+    if (H && !(isQuadratic && i)) {
       if (datatype == PETSC_SCALAR) {
         PetscScalar *out = &((PetscScalar *)H)[nc * dim * dim * i];
 
@@ -211,7 +211,7 @@ static PetscErrorCode DMFieldEvaluate_DA(DMField field, Vec points, PetscDataTyp
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode DMFieldEvaluateFECompact_DA(DMField field, PetscInt nCells, const PetscInt *cells, PetscQuadrature points, PetscDataType datatype, PetscBool isConstant, void *B, PetscBool isAffine, void *D, PetscBool isQuadratic, void *H)
+static PetscErrorCode DMFieldEvaluateFECompact_DA(DMField field, IS cellIS, PetscQuadrature points, PetscDataType datatype, PetscBool isConstant, void *B, PetscBool isAffine, void *D, PetscBool isQuadratic, void *H)
 {
   PetscInt       c, i, j, k, dim, cellsPer[3] = {0}, first[3] = {0}, whol, half;
   PetscReal      stepPer[3] = {0.};
@@ -228,7 +228,9 @@ static PetscErrorCode DMFieldEvaluateFECompact_DA(DMField field, PetscInt nCells
   const PetscScalar *qs;
 #endif
   DMField_DA     *dafield;
-  PetscBool      onePoint;
+  PetscBool      onePoint, isStride;
+  const PetscInt *cells = NULL;
+  PetscInt       sfirst = -1, stride = -1, nCells;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -261,8 +263,15 @@ static PetscErrorCode DMFieldEvaluateFECompact_DA(DMField field, PetscInt nCells
   ierr = DMGetWorkArray(dm,(1 << dim) * nc,PETSC_SCALAR,&cellCoeffs);CHKERRQ(ierr);
   whol = (1 << dim);
   half = whol >> 1;
+  ierr = ISGetLocalSize(cellIS,&nCells);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject)cellIS,ISSTRIDE,&isStride);CHKERRQ(ierr);
+  if (isStride) {
+    ierr = ISStrideGetInfo(cellIS,&sfirst,&stride);CHKERRQ(ierr);
+  } else {
+    ierr = ISGetIndices(cellIS,&cells);CHKERRQ(ierr);
+  }
   for (c = 0; c < nCells; c++) {
-    PetscInt  cell = cells[c];
+    PetscInt  cell = isStride ? (sfirst + c * stride) : cells[c];
     PetscInt  rem  = cell;
     PetscInt  ijk[3] = {0};
     void *cB, *cD, *cH;
@@ -295,6 +304,9 @@ static PetscErrorCode DMFieldEvaluateFECompact_DA(DMField field, PetscInt nCells
     }
     MultilinearEvaluate(dim,cellCoordRange,nc,cellCoeffs,dafield->work,nq,qs,datatype,isConstant,cB,isAffine,cD,isQuadratic,cH);
   }
+  if (!isStride) {
+    ierr = ISRestoreIndices(cellIS,&cells);CHKERRQ(ierr);
+  }
   ierr = DMRestoreWorkArray(dm,(1 << dim) * nc,PETSC_SCALAR,&cellCoeffs);CHKERRQ(ierr);
 #if defined(PETSC_USE_COMPLEX)
   ierr = DMRestoreWorkArray(dm,nq * dim,PETSC_SCALAR,&qs);CHKERRQ(ierr);
@@ -302,16 +314,19 @@ static PetscErrorCode DMFieldEvaluateFECompact_DA(DMField field, PetscInt nCells
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode DMFieldEvaluateFV_DA(DMField field, PetscInt numCells, const PetscInt *cells, PetscDataType datatype, void *B, void *D, void *H)
+static PetscErrorCode DMFieldEvaluateFV_DA(DMField field, IS cellIS, PetscDataType datatype, void *B, void *D, void *H)
 {
   PetscInt       c, i, dim, cellsPer[3] = {0}, first[3] = {0};
   PetscReal      stepPer[3] = {0.};
   DM             dm;
   DMDALocalInfo  info;
-  PetscInt       cStart, cEnd;
+  PetscInt       cStart, cEnd, numCells;
   PetscInt       nc;
   PetscReal      *points;
   DMField_DA     *dafield;
+  PetscBool      isStride;
+  const PetscInt *cells = NULL;
+  PetscInt       sfirst = -1, stride = -1;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -330,9 +345,16 @@ static PetscErrorCode DMFieldEvaluateFV_DA(DMField field, PetscInt numCells, con
   cellsPer[1] = info.gym;
   cellsPer[2] = info.gzm;
   ierr = DMDAGetHeightStratum(dm,0,&cStart,&cEnd);CHKERRQ(ierr);
+  ierr = ISGetLocalSize(cellIS,&numCells);CHKERRQ(ierr);
   ierr = DMGetWorkArray(dm,dim * numCells,PETSC_SCALAR,&points);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject)cellIS,ISSTRIDE,&isStride);CHKERRQ(ierr);
+  if (isStride) {
+    ierr = ISStrideGetInfo(cellIS,&sfirst,&stride);CHKERRQ(ierr);
+  } else {
+    ierr = ISGetIndices(cellIS,&cells);CHKERRQ(ierr);
+  }
   for (c = 0; c < numCells; c++) {
-    PetscInt  cell = cells[c];
+    PetscInt  cell = isStride ? (sfirst + c * stride) : cells[c];
     PetscInt  rem  = cell;
     PetscInt  ijk[3] = {0};
 
@@ -343,12 +365,15 @@ static PetscErrorCode DMFieldEvaluateFV_DA(DMField field, PetscInt numCells, con
       points[dim * c + i] = (ijk[i] + first[i] + 0.5) * stepPer[i];
     }
   }
+  if (!isStride) {
+    ierr = ISRestoreIndices(cellIS,&cells);CHKERRQ(ierr);
+  }
   MultilinearEvaluate(dim,dafield->coordRange,nc,dafield->cornerCoeffs,dafield->work,numCells,points,datatype,PETSC_FALSE,B,PETSC_FALSE,D,PETSC_FALSE,H);
   ierr = DMRestoreWorkArray(dm,dim * numCells,PETSC_SCALAR,&points);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode DMFieldGetFEInvariance_DA(DMField field, PetscInt numCells, const PetscInt *cells, PetscBool *isConstant, PetscBool *isAffine, PetscBool *isQuadratic)
+static PetscErrorCode DMFieldGetFEInvariance_DA(DMField field, IS cellIS, PetscBool *isConstant, PetscBool *isAffine, PetscBool *isQuadratic)
 {
   DM             dm;
   PetscInt       dim;

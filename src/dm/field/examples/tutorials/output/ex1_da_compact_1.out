@@ -5,8 +5,11 @@ Quadrature on 2 points
 ) 1.
 0.57735
 ) 1.
-Test Cells:
-0: 0 0
+IS Object: FE Test Cells 1 MPI processes
+  type: general
+Number of indices in set 2
+0 0
+1 0
 B:
  0:   6.7366e-01   5.4699e-01   6.7366e-01
  3:   5.4699e-01

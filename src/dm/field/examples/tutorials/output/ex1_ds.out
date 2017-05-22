@@ -123,8 +123,11 @@ Quadrature on 1 points
   (-0.333333
 , -0.333333
 ) 2.
-Test Cells:
-0: 12 1
+IS Object: FE Test Cells 1 MPI processes
+  type: general
+Number of indices in set 2
+0 12
+1 1
 B:
  0:   9.8765e-01   1.9753e+00   9.8765e-02
  3:   1.9753e-01
