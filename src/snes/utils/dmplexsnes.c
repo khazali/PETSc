@@ -2203,7 +2203,7 @@ PetscErrorCode DMPlexComputeJacobian_Internal(DM dm, PetscInt cStart, PetscInt c
   ierr = PetscMalloc5(numCells*totDim,&u,X_t ? numCells*totDim : 0,&u_t,hasJac ? numCells*totDim*totDim : 0,&elemMat,hasPrec ? numCells*totDim*totDim : 0, &elemMatP,hasDyn ? numCells*totDim*totDim : 0, &elemMatD);CHKERRQ(ierr);
   if (dmAux) {ierr = PetscMalloc1(numCells*totDimAux, &a);CHKERRQ(ierr);}
   ierr = DMPlexSNESGetGeometryFEM(dm, &geom);CHKERRQ(ierr);
-  ierr = ISCreateStride(PetscObjectComm((PetscObject)dm),cStart,numCells,1,&cellIS);CHKERRQ(ierr);
+  ierr = ISCreateStride(PetscObjectComm((PetscObject)dm),numCells,cStart,1,&cellIS);CHKERRQ(ierr);
   ierr = DMFieldGetFEInvariance(geom,cellIS,NULL,&geomAffine,NULL);CHKERRQ(ierr);
   if (geomAffine) {
     PetscReal *eta0;
@@ -2433,7 +2433,7 @@ PetscErrorCode DMPlexComputeJacobianAction_Internal(DM dm, PetscInt cStart, Pets
   ierr = PetscMalloc6(numCells*totDim,&u,X_t ? numCells*totDim : 0,&u_t,numCells*totDim*totDim,&elemMat,hasDyn ? numCells*totDim*totDim : 0, &elemMatD,numCells*totDim,&y,totDim,&z);CHKERRQ(ierr);
   if (dmAux) {ierr = PetscMalloc1(numCells*totDimAux, &a);CHKERRQ(ierr);}
   ierr = DMPlexSNESGetGeometryFEM(dm, &geom);CHKERRQ(ierr);
-  ierr = ISCreateStride(PetscObjectComm((PetscObject)dm),cStart,numCells,1,&cellIS);CHKERRQ(ierr);
+  ierr = ISCreateStride(PetscObjectComm((PetscObject)dm),numCells,cStart,1,&cellIS);CHKERRQ(ierr);
   ierr = DMFieldGetFEInvariance(geom, cellIS, NULL, &geomAffine, NULL);CHKERRQ(ierr);
   if (geomAffine) {
     PetscReal *eta0;

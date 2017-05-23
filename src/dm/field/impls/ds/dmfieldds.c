@@ -1,6 +1,7 @@
 #include <petsc/private/dmfieldimpl.h> /*I "petscdmfield.h" I*/
 #include <petscfe.h>
 #include <petscdmplex.h>
+#include <petscds.h>
 
 typedef struct _n_DMField_DS
 {
@@ -94,13 +95,10 @@ static PetscErrorCode DMFieldEvaluateFECompact_DS(DMField field, IS cellIS, Pets
   PetscFunctionBeginHot;
   dm   = field->dm;
   nc   = field->numComponents;
+  disc = dsfield->disc;
   ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
-  ierr = DMGetField(dm,dsfield->fieldNum,&disc);CHKERRQ(ierr);
   ierr = DMGetDefaultSection(dm,&section);CHKERRQ(ierr);
-  if (dsfield->multifieldVec) {
-    ierr = PetscSectionGetField(section,dsfield->fieldNum,&section);CHKERRQ(ierr);
-  }
-  if (!disc) SETERRQ(PetscObjectComm((PetscObject)field),PETSC_ERR_SUP,"Not implemented");
+  ierr = PetscSectionGetField(section,dsfield->fieldNum,&section);CHKERRQ(ierr);
   ierr = PetscObjectGetClassId(disc,&classid);CHKERRQ(ierr);
   ierr = PetscQuadratureGetData(quad,NULL,NULL,&nq,&qpoints,NULL);CHKERRQ(ierr);
   nqB = ((isConstant  || !B)) ? PetscMin(nq, 1) : nq;
@@ -236,13 +234,21 @@ PetscErrorCode DMFieldCreateDS(DM dm, PetscInt fieldNum, Vec vec,DMField *field)
   DMField        b;
   DMField_DS     *dsfield;
   PetscObject    disc;
-  PetscClassId   id;
+  PetscBool      isContainer = PETSC_FALSE;
+  PetscClassId   id = -1;
   PetscInt       numComponents = -1;
+  PetscSection   section;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ierr = DMGetDefaultSection(dm,&section);CHKERRQ(ierr);
+  ierr = PetscSectionGetFieldComponents(section,fieldNum,&numComponents);CHKERRQ(ierr);
   ierr = DMGetField(dm,fieldNum,&disc);CHKERRQ(ierr);
-  if (!disc) {
+  if (disc) {
+    ierr = PetscObjectGetClassId(disc,&id);CHKERRQ(ierr);
+    isContainer = (id == PETSC_CONTAINER_CLASSID) ? PETSC_TRUE : PETSC_FALSE;
+  }
+  if (!disc || isContainer) {
     PetscInt        cStart, cEnd, dim;
     PetscInt        localConeSize = 0, coneSize;
     PetscFE         fe;
@@ -259,10 +265,11 @@ PetscErrorCode DMFieldCreateDS(DM dm, PetscInt fieldNum, Vec vec,DMField *field)
     ierr = MPI_Allreduce(&localConeSize,&coneSize,1,MPIU_INT,MPI_MAX,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
     isSimplex = (coneSize == (dim + 1)) ? PETSC_TRUE : PETSC_FALSE;
     ierr = PetscSpaceCreate(PetscObjectComm((PetscObject) dm), &P);CHKERRQ(ierr);
+    ierr = PetscSpaceSetOrder(P, 1);CHKERRQ(ierr);
     ierr = PetscSpaceSetNumComponents(P, numComponents);CHKERRQ(ierr);
+    ierr = PetscSpaceSetType(P,PETSCSPACEPOLYNOMIAL);CHKERRQ(ierr);
     ierr = PetscSpacePolynomialSetNumVariables(P, dim);CHKERRQ(ierr);
     ierr = PetscSpacePolynomialSetTensor(P, isSimplex ? PETSC_FALSE : PETSC_TRUE);CHKERRQ(ierr);
-    ierr = PetscSpaceSetOrder(P, 1);CHKERRQ(ierr);
     ierr = PetscSpaceSetUp(P);CHKERRQ(ierr);
     ierr = PetscDualSpaceCreate(PetscObjectComm((PetscObject) dm), &Q);CHKERRQ(ierr);
     ierr = PetscDualSpaceSetType(Q,PETSCDUALSPACELAGRANGE);CHKERRQ(ierr);
@@ -272,7 +279,9 @@ PetscErrorCode DMFieldCreateDS(DM dm, PetscInt fieldNum, Vec vec,DMField *field)
     ierr = PetscDualSpaceSetNumComponents(Q, numComponents);CHKERRQ(ierr);
     ierr = PetscDualSpaceSetOrder(Q, 1);CHKERRQ(ierr);
     ierr = PetscDualSpaceLagrangeSetTensor(Q, isSimplex ? PETSC_FALSE : PETSC_TRUE);CHKERRQ(ierr);
+    ierr = PetscDualSpaceSetUp(Q);CHKERRQ(ierr);
     ierr = PetscFECreate(PetscObjectComm((PetscObject) dm), &fe);CHKERRQ(ierr);
+    ierr = PetscFESetType(fe,PETSCFEBASIC);CHKERRQ(ierr);
     ierr = PetscFESetBasisSpace(fe, P);CHKERRQ(ierr);
     ierr = PetscFESetDualSpace(fe, Q);CHKERRQ(ierr);
     ierr = PetscFESetNumComponents(fe, numComponents);CHKERRQ(ierr);

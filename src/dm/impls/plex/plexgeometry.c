@@ -1863,7 +1863,6 @@ PetscErrorCode DMPlexComputeGeometryFEM(DM dm, DMField *geom)
 {
   DM             dmCoord;
   Vec            coordinates;
-  PetscScalar   *cgeom;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
