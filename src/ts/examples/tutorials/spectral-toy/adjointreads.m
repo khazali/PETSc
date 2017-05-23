@@ -19,8 +19,8 @@ plot(xg,obj,'r-','LineWidth',2);
 
 run('PDEadjoint/optimize00.m')
 plot(xg,Init_ts,'k*','Markersize',14);
-run('PDEadjoint/optimize09.m')
-plot(xg,Init_ts,'ro','Markersize',14);
+%run('PDEadjoint/optimize01.m')
+%plot(xg,Init_ts,'ro','Markersize',14);
 
 xlabel('x (GLL grid)');
 ylabel('f(x)- objective');
@@ -31,10 +31,15 @@ figure(2);set(gca,'FontSize',18);hold on
 
 run('PDEadjoint/optimize00.m')
 plot(xg,Grad,'k*-');
-run('PDEadjoint/optimize09.m')
-plot(xg,Grad,'ro-');
+%run('PDEadjoint/optimize01.m')
+%plot(xg,Grad,'ro-');
 xlabel('x (GLL grid)');
 ylabel('f(x)- objective');
 
 legend('Grad at it=0','Grad at it=9')
+run('fd.m')
+plot(xg,gradj./Mass,'ro-');
 
+max(abs(gradj-Grad))
+
+abs(Grad./gradj)

@@ -1,4 +1,3 @@
-
 static char help[] ="Solves a simple time-dependent linear PDE (the heat equation).\n\
 Input parameters include:\n\
   -m <points>, where <points> = number of grid points\n\
@@ -62,7 +61,6 @@ typedef struct {
   PetscInt    steps;          /* number of timesteps */
   PetscReal   Tend;           /* endtime */
   PetscReal   mu;             /* viscosity */
-  PetscReal   dt;             /* timestep*/
   PetscReal   L;              /* total length of domain */   
   PetscReal   Le; 
   PetscReal   Tadj;
@@ -90,12 +88,17 @@ typedef struct {
 } PetscSEMOperators;
 
 typedef struct {
-  DM          da;                /* distributed array data structure */
+  DM                da;                /* distributed array data structure */
   PetscSEMOperators SEMop;
-  PetscParam   param;
-  PetscData    dat;
-  PetscBool    debug;
-  TS           ts;
+  PetscParam        param;
+  PetscData         dat;
+  PetscBool         debug;
+  TS                ts;
+  PetscReal         initial_dt;
+  PetscBool         AdjTestFD;
+  PetscBool         AdjTestLinear;  /* just test if the adjoint is consistent (works only for leanr problems becasue we don't have the damn TLM in PETSc*/
+  PetscReal         AdjTestLinearForward;
+  PetscReal         AdjTestLinearBackward;
 } AppCtx;
 
 /*
@@ -120,9 +123,12 @@ int main(int argc,char **argv)
   Vec            u;                      /* approximate solution vector */
   PetscErrorCode ierr;
   PetscInt       i, xs, xm, ind, j, lenglob;
+  PetscInt       VecLength;
   PetscMPIInt    size;
-  PetscReal      x, *wrk_ptr1, *wrk_ptr2;
-  PetscViewer        viewfile;
+  PetscReal      x, *wrk_ptr1, *wrk_ptr2, wrk1, wrk2,varepsilon;
+  Vec            wrk_vec,wrk2_vec,wrk3_vec,wrk4_vec,wrk1_vec;
+  PetscViewer    viewfile;
+  char filename[20] ;
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize program and set problem parameters
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -131,24 +137,27 @@ int main(int argc,char **argv)
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return ierr;
   ierr = MPI_Comm_size(PETSC_COMM_WORLD,&size);CHKERRQ(ierr);
   if (size != 1) SETERRQ(PETSC_COMM_SELF,1,"This is a uniprocessor example only!");
- 
 
-  ierr = PetscOptionsGetInt(NULL,NULL,"-Nl",&appctx.param.N,NULL);CHKERRQ(ierr);
+  appctx.AdjTestLinear=PETSC_FALSE;
+  ierr = PetscOptionsGetBool(NULL,NULL,"-test_adjoint_linear_problem",&appctx.AdjTestLinear,NULL);CHKERRQ(ierr);
+  appctx.AdjTestFD=PETSC_FALSE;
+  ierr = PetscOptionsGetBool(NULL,NULL,"-test_adjoint_finite_difference",&appctx.AdjTestFD,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(NULL,NULL,"-N",&appctx.param.N,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-E",&appctx.param.E,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsHasName(NULL,NULL,"-debug",&appctx.debug);CHKERRQ(ierr);
 
   /*initialize parameters */ 
-  appctx.param.N  = 6;
-  appctx.param.E  = 5;
+  appctx.param.N  = 32;
+  appctx.param.E  = 1;
   appctx.param.L  = 1.0;
   appctx.param.Le = appctx.param.L/appctx.param.E;
 
   appctx.param.mu    = 0.001; 
 
   appctx.param.steps =20000000;
-  appctx.param.dt    = 1e-3;
+  appctx.initial_dt    = 1e-3;
 
-  appctx.param.Tend = 0.1; //appctx.param.steps*appctx.param.dt;  
+  appctx.param.Tend = 0.001; //appctx.param.steps*appctx.param.dt;  
   appctx.param.Tadj =appctx.param.Tend+0.7;
 
   //ierr = PetscPrintf(PETSC_COMM_WORLD,"Solving a linear TS problem on 1 processor\n");CHKERRQ(ierr);
@@ -168,7 +177,7 @@ int main(int argc,char **argv)
      appctx.dat.W[i]=appctx.SEMop.gll.weights[i]; 
      appctx.dat.mult[i]=1.0;
       }
-
+ 
   appctx.dat.mult[0]=0.5;
   appctx.dat.mult[appctx.param.N-1]=0.5; 
 
@@ -227,7 +236,7 @@ int main(int argc,char **argv)
 
    ierr = DMDAVecRestoreArray(appctx.da,appctx.SEMop.grid,&wrk_ptr1);CHKERRQ(ierr);
    ierr = DMDAVecRestoreArray(appctx.da,appctx.SEMop.mass,&wrk_ptr2);CHKERRQ(ierr);
-      
+
 
    //Set Objective and Initial conditions for the problem 
    ierr = Objective(appctx.param.Tadj,appctx.dat.obj,&appctx);CHKERRQ(ierr);
@@ -253,13 +262,15 @@ int main(int argc,char **argv)
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set time
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  ierr = TSSetTime(appctx.ts,0.0);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(appctx.ts,0.0,appctx.param.dt);CHKERRQ(ierr);
-  ierr = TSSetDuration(appctx.ts,appctx.param.steps,appctx.param.Tend);CHKERRQ(ierr);
-  ierr = TSSetExactFinalTime(appctx.ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
+    ierr = TSSetTime(appctx.ts,0.0);CHKERRQ(ierr);
+    ierr = TSSetInitialTimeStep(appctx.ts,0.0,appctx.initial_dt);CHKERRQ(ierr);
+    ierr = TSSetDuration(appctx.ts,appctx.param.steps,appctx.param.Tend);CHKERRQ(ierr);
+    ierr = TSSetExactFinalTime(appctx.ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
 
-  ierr = TSSetTolerances(appctx.ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
-  ierr = TSSetFromOptions(appctx.ts);
+    ierr = TSSetTolerances(appctx.ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
+    ierr = TSSetFromOptions(appctx.ts);
+    /* Need to save initial timestep user may have set with -ts_dt so it can be reset for each new TSSolve() */
+    ierr = TSGetTimeStep(appctx.ts,&appctx.initial_dt);CHKERRQ(ierr);
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create matrix data structure; set matrix evaluation routine.
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -267,7 +278,7 @@ int main(int argc,char **argv)
    ierr = DMSetMatrixPreallocateOnly(appctx.da, PETSC_TRUE);CHKERRQ(ierr);
    ierr = DMCreateMatrix(appctx.da,&A);CHKERRQ(ierr);
    ierr = DMCreateMatrix(appctx.da,&appctx.SEMop.stiff);CHKERRQ(ierr);
-    
+
     /*
        For linear problems with a time-dependent f(u,t) in the equation
        u_t = f(u,t), the user provides the discretized right-hand-side
@@ -278,19 +289,23 @@ int main(int argc,char **argv)
    ierr = MatScale(A, 1.0);
    ierr = MatDuplicate(A,MAT_COPY_VALUES,&appctx.SEMop.adj);CHKERRQ(ierr);
 
+
+
+  ierr = TSSetRHSFunction(appctx.ts,NULL,TSComputeRHSFunctionLinear,&appctx);CHKERRQ(ierr);
+  ierr = TSSetRHSJacobian(appctx.ts,appctx.SEMop.stiff,appctx.SEMop.stiff,TSComputeRHSJacobianConstant,&appctx);CHKERRQ(ierr);
   //ierr = PetscPrintf(PETSC_COMM_SELF,"avg. error (2 norm) = %g, avg. error (max norm) = %g\n",(double)(appctx.norm_2/steps),(double)(appctx.norm_L2/steps));CHKERRQ(ierr);
   //ierr = TSView(ts,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
  
-  // Create TAO solver and set desired solution method 
+  // Create TAO solver and set desired solution method
   ierr = TaoCreate(PETSC_COMM_WORLD,&tao);CHKERRQ(ierr);
   ierr = TaoSetType(tao,TAOCG);CHKERRQ(ierr);
 
   ierr = TaoSetInitialVector(tao,appctx.dat.ic);CHKERRQ(ierr);
 
-  // Set routine for function and gradient evaluation 
+  // Set routine for function and gradient evaluation
   ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void *)&appctx);CHKERRQ(ierr);
 
-  // Check for any TAO command line options 
+  // Check for any TAO command line options
   ierr = TaoSetFromOptions(tao);CHKERRQ(ierr);
   ierr = TaoGetKSP(tao,&ksp);CHKERRQ(ierr);
   if (ksp) {
@@ -300,7 +315,64 @@ int main(int argc,char **argv)
 
   ierr = TaoSetTolerances(tao,1e-8,PETSC_DEFAULT,PETSC_DEFAULT);CHKERRQ(ierr);
 
-  ierr = TaoSolve(tao); CHKERRQ(ierr);
+  if(!appctx.AdjTestLinear && !appctx.AdjTestFD) {
+    ierr = PetscPrintf(PETSC_COMM_SELF,"Solving the optimization problem:\n");CHKERRQ(ierr);
+    ierr = TaoSolve(tao); CHKERRQ(ierr);
+  }
+  if (appctx.AdjTestLinear){
+    ierr = PetscPrintf(PETSC_COMM_SELF,"Testing the adjoint of the linear problem:\n");CHKERRQ(ierr);
+    ierr = VecDuplicate(appctx.dat.ic,&wrk_vec); CHKERRQ(ierr);
+    ierr = VecCopy(appctx.dat.ic,wrk_vec); CHKERRQ(ierr);
+    ierr = VecDuplicate(appctx.dat.ic,&wrk2_vec); CHKERRQ(ierr);
+    ierr = FormFunctionGradient(tao,wrk_vec,&wrk1,wrk2_vec,&appctx);CHKERRQ(ierr);
+    ierr = VecDot(appctx.dat.ic,wrk2_vec,&(appctx.AdjTestLinearBackward));CHKERRQ(ierr);
+    PetscPrintf(PETSC_COMM_WORLD,"Cost=%g, forward test = %g = %g = backward test \n",wrk1,appctx.AdjTestLinearForward,appctx.AdjTestLinearBackward);
+    ierr = VecDestroy(&wrk_vec); CHKERRQ(ierr);
+    ierr = VecDestroy(&wrk2_vec); CHKERRQ(ierr);
+  }
+  if (appctx.AdjTestFD){
+    appctx.AdjTestLinear = PETSC_FALSE;
+    ierr = PetscPrintf(PETSC_COMM_SELF,"Testing the adjoint by using finite differences:\n");CHKERRQ(ierr);
+    ierr = VecDuplicate(appctx.dat.ic,&wrk_vec); CHKERRQ(ierr);
+    ierr = VecCopy(appctx.dat.ic,wrk_vec); CHKERRQ(ierr);
+    ierr = VecDuplicate(appctx.dat.ic,&wrk1_vec); CHKERRQ(ierr);
+    ierr = VecDuplicate(appctx.dat.ic,&wrk2_vec); CHKERRQ(ierr);
+    ierr = VecDuplicate(appctx.dat.ic,&wrk3_vec); CHKERRQ(ierr);
+    ierr = VecDuplicate(appctx.dat.ic,&wrk4_vec); CHKERRQ(ierr);
+
+    ierr = FormFunctionGradient(tao,wrk_vec,&wrk1,wrk2_vec,&appctx);CHKERRQ(ierr);
+    /* Note computed gradient is in wrk2_vec, original cost is in wrk1 */
+    ierr = VecZeroEntries(wrk3_vec);
+    ierr = VecGetSize(wrk_vec,&VecLength); CHKERRQ(ierr);
+    varepsilon = 1e-05;
+    for (i=0; i<VecLength; i++) {
+      ierr = VecCopy(appctx.dat.ic,wrk_vec); CHKERRQ(ierr); //reset J(eps) for each point
+      VecSetValue(wrk_vec,i, varepsilon,ADD_VALUES);
+      ierr = FormFunctionGradient(tao,wrk_vec,&wrk2,wrk4_vec,&appctx);CHKERRQ(ierr);
+      /* Note original cost is in wrk1, perturbed cost in wrk2 */
+      VecSetValue(wrk3_vec,i,(PetscScalar)((wrk2-wrk1)/varepsilon),INSERT_VALUES);
+      VecSetValue(wrk1_vec,i,(PetscScalar)(wrk2),INSERT_VALUES);
+    }
+    PetscPrintf(PETSC_COMM_WORLD,"Cost original J=%g \n",wrk1);
+    /* Note finite difference gradient is in wrk3_vec */
+    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"fd.m",&viewfile);CHKERRQ(ierr);
+    ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+    //ierr = PetscObjectSetName((PetscObject)wrk2_vec,"gradj");
+    //ierr = VecView(wrk2_vec,viewfile);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)wrk3_vec,"gradj");
+    ierr = VecView(wrk3_vec,viewfile);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)wrk1_vec,"Jeps");
+    ierr = VecView(wrk1_vec,viewfile);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)wrk2_vec,"J");
+    ierr = VecView(wrk2_vec,viewfile);CHKERRQ(ierr);
+    ierr=PetscViewerPopFormat(viewfile);
+
+    ierr = VecDestroy(&wrk_vec); CHKERRQ(ierr);
+    ierr = VecDestroy(&wrk2_vec); CHKERRQ(ierr);
+    ierr = VecDestroy(&wrk3_vec); CHKERRQ(ierr);
+    ierr = VecDestroy(&wrk4_vec); CHKERRQ(ierr);
+    exit(1); 
+  }
 
   // Free TAO data structures 
   ierr = TaoDestroy(&tao);CHKERRQ(ierr);
@@ -550,21 +622,9 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   PetscViewer        viewfile;
   char filename[24] ;
 
-
-  ierr = TSSetTime(appctx->ts,0.0);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(appctx->ts,0.0,appctx->param.dt);CHKERRQ(ierr);
-  ierr = TSSetDuration(appctx->ts,appctx->param.steps,appctx->param.Tend);CHKERRQ(ierr);
-  ierr = TSSetExactFinalTime(appctx->ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
-
-  ierr = TSSetTolerances(appctx->ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
-  ierr = TSSetFromOptions(appctx->ts);
-
-  
+  ierr = TSSetInitialTimeStep(appctx->ts,0.0,appctx->initial_dt);CHKERRQ(ierr);
   ierr = VecCopy(IC,appctx->dat.curr_sol);CHKERRQ(ierr);
-  
-  ierr = TSSetRHSFunction(appctx->ts,NULL,TSComputeRHSFunctionLinear,&appctx);CHKERRQ(ierr);
-  ierr = TSSetRHSJacobian(appctx->ts,appctx->SEMop.stiff,appctx->SEMop.stiff,TSComputeRHSJacobianConstant,&appctx);CHKERRQ(ierr);
-   
+
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     Save trajectory of solution so that TSAdjointSolve() may be used
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -573,19 +633,46 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set runtime options
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  /*VecView(appctx->dat.curr_sol,PETSC_VIEWER_STDOUT_WORLD);*/
   ierr = TSSolve(appctx->ts,appctx->dat.curr_sol);CHKERRQ(ierr);
- 
+  /*VecView(appctx->dat.curr_sol,PETSC_VIEWER_STDOUT_WORLD);*/
+  if(appctx->AdjTestLinear){
+    ierr = VecDot(appctx->dat.curr_sol,appctx->dat.curr_sol,&ff);CHKERRQ(ierr);
+    appctx->AdjTestLinearForward=ff;
+  }
+
  /*
      Compute the L2-norm of the objective function, cost function is f
   */
+
+  /*
   ierr = VecDuplicate(appctx->dat.obj,&temp);CHKERRQ(ierr);
   ierr = VecCopy(appctx->dat.obj,temp);CHKERRQ(ierr);
   ierr = VecAXPY(temp,-1.0,appctx->dat.curr_sol);CHKERRQ(ierr);
 
+  ierr = VecDuplicate(temp,&temp2);CHKERRQ(ierr);
+  ierr = VecPointwiseMult(temp2,temp,temp);CHKERRQ(ierr);
+  ierr = VecDot(temp2,appctx->SEMop.mass,f);CHKERRQ(ierr);
+  
+  ierr = VecScale(temp, -2.0);
+  ierr = VecCopy(temp,appctx->dat.grad);CHKERRQ(ierr);
+
+  */  
+
+  ierr = VecDuplicate(appctx->dat.obj,&temp);CHKERRQ(ierr);
+  ierr = VecCopy(appctx->dat.obj,temp);CHKERRQ(ierr);
+  ierr = VecAXPY(temp,-1.0,appctx->dat.curr_sol);CHKERRQ(ierr);
+  ierr = VecPointwiseMult(appctx->dat.grad,temp,appctx->SEMop.mass);CHKERRQ(ierr);
+  ierr = VecCopy(temp,appctx->dat.grad);CHKERRQ(ierr);
+  ierr = VecScale(appctx->dat.grad, -2.0);
+  
+
   ierr   = VecDuplicate(temp,&temp2);CHKERRQ(ierr);
   ierr   = VecPointwiseMult(temp2,temp,temp);CHKERRQ(ierr);
-  ierr   = VecDot(temp2,appctx->SEMop.mass,f);CHKERRQ(ierr);
-  
+  //ierr   = VecDot(temp,temp,f);CHKERRQ(ierr);CHKERRQ(ierr);
+  //ierr   = VecPointwiseDivide(temp2,temp2,appctx->SEMop.mass);CHKERRQ(ierr);
+  ierr = VecDot(temp2,appctx->SEMop.mass,f);CHKERRQ(ierr);
+
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Adjoint model starts here
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -593,15 +680,20 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
    Initial conditions for the adjoint integration, given by 2*obj'=temp (rewrite)
    */
   
-  ierr = VecScale(temp, -2.0);
-  ierr = VecCopy(temp,appctx->dat.grad);CHKERRQ(ierr);
   
-  ierr = TSSetCostGradients(appctx->ts,1,&appctx->dat.grad,NULL);CHKERRQ(ierr);
+ // if(appctx->AdjTestFD){
+    /*VecView(appctx->dat.curr_sol,PETSC_VIEWER_STDOUT_WORLD);*/
+ //   ierr = TSSetCostGradients(appctx->ts,1,&appctx->dat.curr_sol,NULL);CHKERRQ(ierr);
+    
+  //} else {
+    ierr = TSSetCostGradients(appctx->ts,1,&appctx->dat.grad,NULL);CHKERRQ(ierr);
+  //}
+
   ierr = TSAdjointSetUp(appctx->ts);CHKERRQ(ierr);
   ierr = TSSetDM(appctx->ts,appctx->da);CHKERRQ(ierr);
     
   /* Set RHS Jacobian  for the adjoint integration */
-  ierr = TSSetRHSJacobian(appctx->ts,appctx->SEMop.adj,appctx->SEMop.adj,TSComputeRHSJacobianConstant,appctx);CHKERRQ(ierr);
+  /*ierr = TSSetRHSJacobian(appctx->ts,appctx->SEMop.adj,appctx->SEMop.adj,TSComputeRHSJacobianConstant,appctx);CHKERRQ(ierr);*/
 
   ierr = TSAdjointSolve(appctx->ts);CHKERRQ(ierr);
    
@@ -626,8 +718,8 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   ierr = VecView(appctx->dat.curr_sol,viewfile);CHKERRQ(ierr);
   //ierr = PetscObjectSetName((PetscObject)appctx->dat.obj,  "Obj");
   //ierr = VecView(appctx->dat.obj,viewfile);CHKERRQ(ierr);
-  //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.mass, "Mass");
-  //ierr = VecView(appctx->SEMop.mass,viewfile);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)appctx->SEMop.mass, "Mass");
+  ierr = VecView(appctx->SEMop.mass,viewfile);CHKERRQ(ierr);
   //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.adj, "A_adj");
   //ierr = MatView(appctx->SEMop.adj,viewfile);CHKERRQ(ierr);
   //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.stiff, "A");
@@ -652,5 +744,4 @@ PetscErrorCode RHSFunctionHeatgllDM(TS ts,PetscReal t,Vec globalin,Vec globalout
   // ierr = MatView(A,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); 
   ierr = MatMult(A,globalin,globalout);CHKERRQ(ierr);
   PetscFunctionReturn(0);
-}
-*/
+}*/
