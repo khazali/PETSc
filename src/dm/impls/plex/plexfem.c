@@ -1047,7 +1047,7 @@ PetscErrorCode DMPlexComputeIntegralFEM(DM dm, Vec X, PetscReal *integral, void 
     ierr = VecGetArrayRead(locGrad, &lgrad);CHKERRQ(ierr);
   }
   if (quad) {
-    ierr = PetscQuadratureGetData(quad,NULL,&Nq,NULL,NULL);CHKERRQ(ierr);
+    ierr = PetscQuadratureGetData(quad,NULL,NULL,&Nq,NULL,NULL);CHKERRQ(ierr);
   } else {
     Nq = 1;
   }

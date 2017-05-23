@@ -4140,10 +4140,9 @@ PetscErrorCode PetscFEIntegrate_Nonaffine(PetscFE fem, PetscDS prob, PetscInt fi
     const PetscReal *quadPoints, *quadWeights;
     PetscInt         Nq, q;
 
-    ierr = PetscQuadratureGetData(quad, NULL, &Nq, &quadPoints, &quadWeights);CHKERRQ(ierr);
+    ierr = PetscQuadratureGetData(quad, NULL, NULL, &Nq, &quadPoints, &quadWeights);CHKERRQ(ierr);
     for (q = 0; q < Nq; ++q) {
       const PetscReal *v0   = cgeom[e*Nq+q].v0;
-      const PetscReal *J    = cgeom[e*Nq+q].J;
       const PetscReal *invJ = cgeom[e*Nq+q].invJ;
       const PetscReal  detJ = cgeom[e*Nq+q].detJ;
       PetscScalar integrand;
@@ -5080,6 +5079,7 @@ PetscErrorCode PetscFEInitialize_Nonaffine(PetscFE fem)
   fem->ops->destroy                 = PetscFEDestroy_Nonaffine;
   fem->ops->getdimension            = PetscFEGetDimension_Basic;
   fem->ops->gettabulation           = PetscFEGetTabulation_Basic;
+  fem->ops->integrate               = PetscFEIntegrate_Nonaffine;
   fem->ops->integrateresidual       = PetscFEIntegrateResidual_Nonaffine;
   fem->ops->integratebdresidual     = PetscFEIntegrateBdResidual_Nonaffine;
   fem->ops->integratejacobianaction = NULL/* PetscFEIntegrateJacobianAction_Nonaffine */;
