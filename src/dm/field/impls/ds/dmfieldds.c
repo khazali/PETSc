@@ -168,6 +168,7 @@ static PetscErrorCode DMFieldEvaluateFECompact_DS(DMField field, IS cellIS, Pets
   if (!isStride) {
     ierr = ISRestoreIndices(cellIS,&cells);CHKERRQ(ierr);
   }
+  ierr = PetscSectionDestroy(&section);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
