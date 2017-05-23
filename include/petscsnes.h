@@ -7,6 +7,7 @@
 #include <petscdmtypes.h>
 #include <petscfvtypes.h>
 #include <petscdmdatypes.h>
+#include <petscdmfield.h>
 
 /*S
      SNES - Abstract PETSc object that manages all nonlinear solves
@@ -683,7 +684,7 @@ PETSC_EXTERN PetscErrorCode DMDASNESSetJacobianLocal(DM,DMDASNESJacobian,void*);
 PETSC_EXTERN PetscErrorCode DMDASNESSetObjectiveLocal(DM,DMDASNESObjective,void*);
 PETSC_EXTERN PetscErrorCode DMDASNESSetPicardLocal(DM,InsertMode,PetscErrorCode (*)(DMDALocalInfo*,void*,void*,void*),PetscErrorCode (*)(DMDALocalInfo*,void*,Mat,Mat,void*),void*);
 
-PETSC_EXTERN PetscErrorCode DMPlexSNESGetGeometryFEM(DM,Vec*);
+PETSC_EXTERN PetscErrorCode DMPlexSNESGetGeometryFEM(DM,DMField *);
 PETSC_EXTERN PetscErrorCode DMPlexSNESGetGeometryFVM(DM,Vec*,Vec*,PetscReal*);
 PETSC_EXTERN PetscErrorCode DMPlexSNESGetGradientDM(DM,PetscFV,DM*);
 PETSC_EXTERN PetscErrorCode DMPlexGetCellFields(DM, PetscInt, PetscInt, Vec, Vec, Vec, PetscScalar **, PetscScalar **, PetscScalar **);
