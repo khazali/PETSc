@@ -86,7 +86,7 @@ static PetscErrorCode DMFieldView_DA(DMField field,PetscViewer viewer)
     }                                                             \
   } while (0)
 
-static void MultilinearEvaluate(PetscInt dim, PetscReal (*coordRange)[2], PetscInt nc, PetscScalar *cf, PetscScalar *cfWork, PetscInt nPoints, const PetscScalar *points, PetscDataType datatype, PetscBool isConstant, void *B, PetscBool isAffine, void *D, PetscBool isQuadratic, void *H)
+static void MultilinearEvaluate(PetscInt dim, PetscReal (*coordRange)[2], PetscInt nc, PetscScalar *cf, PetscScalar *cfWork, PetscInt nPoints, const PetscScalar *points, PetscDataType datatype, void *B, void *D, void *H)
 {
   PetscInt i, j, k, l, m;
   PetscInt  whol = 1 << dim;
@@ -119,7 +119,7 @@ static void MultilinearEvaluate(PetscInt dim, PetscReal (*coordRange)[2], PetscI
         }
       }
     }
-    if (B && !(isConstant && i)) {
+    if (B) {
       if (datatype == PETSC_SCALAR) {
         PetscScalar *out = &((PetscScalar *)B)[nc * i];
 
@@ -130,7 +130,7 @@ static void MultilinearEvaluate(PetscInt dim, PetscReal (*coordRange)[2], PetscI
         MEdot(out,cf,etaB,(1 << dim),nc,PetscRealPart);
       }
     }
-    if (D && !(isAffine && i)) {
+    if (D) {
       if (datatype == PETSC_SCALAR) {
         PetscScalar *out = &((PetscScalar *)D)[nc * dim * i];
 
@@ -171,7 +171,7 @@ static void MultilinearEvaluate(PetscInt dim, PetscReal (*coordRange)[2], PetscI
         }
       }
     }
-    if (H && !(isQuadratic && i)) {
+    if (H) {
       if (datatype == PETSC_SCALAR) {
         PetscScalar *out = &((PetscScalar *)H)[nc * dim * dim * i];
 
@@ -206,12 +206,12 @@ static PetscErrorCode DMFieldEvaluate_DA(DMField field, Vec points, PetscDataTyp
   n = N / dim;
   coordRange = &(dafield->coordRange[0]);
   ierr = VecGetArrayRead(points,&array);CHKERRQ(ierr);
-  MultilinearEvaluate(dim,coordRange,nc,dafield->cornerCoeffs,dafield->work,n,array,datatype,PETSC_FALSE,B,PETSC_FALSE,D,PETSC_FALSE,H);
+  MultilinearEvaluate(dim,coordRange,nc,dafield->cornerCoeffs,dafield->work,n,array,datatype,B,D,H);
   ierr = VecRestoreArrayRead(points,&array);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode DMFieldEvaluateFECompact_DA(DMField field, IS cellIS, PetscQuadrature points, PetscDataType datatype, PetscBool isConstant, void *B, PetscBool isAffine, void *D, PetscBool isQuadratic, void *H)
+static PetscErrorCode DMFieldEvaluateFE_DA(DMField field, IS cellIS, PetscQuadrature points, PetscDataType datatype, void *B, void *D, void *H)
 {
   PetscInt       c, i, j, k, dim, cellsPer[3] = {0}, first[3] = {0}, whol, half;
   PetscReal      stepPer[3] = {0.};
@@ -251,8 +251,6 @@ static PetscErrorCode DMFieldEvaluateFECompact_DA(DMField field, IS cellIS, Pets
   cellsPer[2] = info.gzm;
   /* TODO: probably take components into account */
   ierr = PetscQuadratureGetData(points, NULL, NULL, &nq, &q, NULL);CHKERRQ(ierr);
-  onePoint = ((isConstant || !B) && (isAffine || !D) && (isQuadratic || !H)) ? PETSC_TRUE : PETSC_FALSE;
-  if (onePoint) nq = PetscMin(nq,1);
 #if defined(PETSC_USE_COMPLEX)
   ierr = DMGetWorkArray(dm,nq * dim,PETSC_SCALAR,&qs);CHKERRQ(ierr);
   for (i = 0; i < nq * dim; i++) qs[i] = q[i];
@@ -277,13 +275,13 @@ static PetscErrorCode DMFieldEvaluateFECompact_DA(DMField field, IS cellIS, Pets
     void *cB, *cD, *cH;
 
     if (datatype == PETSC_SCALAR) {
-      cB = B ? &((PetscScalar *)B)[nc * (isConstant  ? 1 : nq) * c] : NULL;
-      cD = D ? &((PetscScalar *)D)[nc * (isAffine    ? 1 : nq) * dim * c] : NULL;
-      cH = H ? &((PetscScalar *)H)[nc * (isQuadratic ? 1 : nq) * dim * dim * c] : NULL;
+      cB = B ? &((PetscScalar *)B)[nc * nq * c] : NULL;
+      cD = D ? &((PetscScalar *)D)[nc * nq * dim * c] : NULL;
+      cH = H ? &((PetscScalar *)H)[nc * nq * dim * dim * c] : NULL;
     } else {
-      cB = B ? &((PetscReal *)B)[nc * (isConstant  ? 1 : nq) * c] : NULL;
-      cD = D ? &((PetscReal *)D)[nc * (isAffine    ? 1 : nq) * dim * c] : NULL;
-      cH = H ? &((PetscReal *)H)[nc * (isQuadratic ? 1 : nq) * dim * dim * c] : NULL;
+      cB = B ? &((PetscReal *)B)[nc * nq * c] : NULL;
+      cD = D ? &((PetscReal *)D)[nc * nq * dim * c] : NULL;
+      cH = H ? &((PetscReal *)H)[nc * nq * dim * dim * c] : NULL;
     }
     if (cell < cStart || cell >= cEnd) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Point %D not a cell [%D,%D), not implemented yet",cell,cStart,cEnd);
     for (i = 0; i < nc * whol; i++) {work[i] = dafield->cornerCoeffs[i];}
@@ -302,7 +300,7 @@ static PetscErrorCode DMFieldEvaluateFECompact_DA(DMField field, IS cellIS, Pets
       }
       for (i = 0; i < whol * nc; i++) {work[i] = cellCoeffs[i];}
     }
-    MultilinearEvaluate(dim,cellCoordRange,nc,cellCoeffs,dafield->work,nq,qs,datatype,isConstant,cB,isAffine,cD,isQuadratic,cH);
+    MultilinearEvaluate(dim,cellCoordRange,nc,cellCoeffs,dafield->work,nq,qs,datatype,cB,cD,cH);
   }
   if (!isStride) {
     ierr = ISRestoreIndices(cellIS,&cells);CHKERRQ(ierr);
@@ -368,7 +366,7 @@ static PetscErrorCode DMFieldEvaluateFV_DA(DMField field, IS cellIS, PetscDataTy
   if (!isStride) {
     ierr = ISRestoreIndices(cellIS,&cells);CHKERRQ(ierr);
   }
-  MultilinearEvaluate(dim,dafield->coordRange,nc,dafield->cornerCoeffs,dafield->work,numCells,points,datatype,PETSC_FALSE,B,PETSC_FALSE,D,PETSC_FALSE,H);
+  MultilinearEvaluate(dim,dafield->coordRange,nc,dafield->cornerCoeffs,dafield->work,numCells,points,datatype,B,D,H);
   ierr = DMRestoreWorkArray(dm,dim * numCells,PETSC_SCALAR,&points);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -397,12 +395,12 @@ static PetscErrorCode DMFieldInitialize_DA(DMField field)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  field->ops->destroy           = DMFieldDestroy_DA;
-  field->ops->evaluate          = DMFieldEvaluate_DA;
-  field->ops->evaluateFECompact = DMFieldEvaluateFECompact_DA;
-  field->ops->evaluateFV        = DMFieldEvaluateFV_DA;
-  field->ops->getFEInvariance   = DMFieldGetFEInvariance_DA;
-  field->ops->view              = DMFieldView_DA;
+  field->ops->destroy         = DMFieldDestroy_DA;
+  field->ops->evaluate        = DMFieldEvaluate_DA;
+  field->ops->evaluateFE      = DMFieldEvaluateFE_DA;
+  field->ops->evaluateFV      = DMFieldEvaluateFV_DA;
+  field->ops->getFEInvariance = DMFieldGetFEInvariance_DA;
+  field->ops->view            = DMFieldView_DA;
   dm = field->dm;
   ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
   if (dm->coordinates) coords = dm->coordinates;

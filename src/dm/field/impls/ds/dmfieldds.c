@@ -78,13 +78,13 @@ static PetscErrorCode DMFieldEvaluate_DS(DMField field, Vec points, PetscDataTyp
     }                                                                            \
   } while (0)
 
-static PetscErrorCode DMFieldEvaluateFECompact_DS(DMField field, IS cellIS, PetscQuadrature quad, PetscDataType type, PetscBool isConstant, void *B, PetscBool isAffine, void *D, PetscBool isQuadratic, void *H)
+static PetscErrorCode DMFieldEvaluateFE_DS(DMField field, IS cellIS, PetscQuadrature quad, PetscDataType type, void *B, void *D, void *H)
 {
   DMField_DS      *dsfield = (DMField_DS *) field->data;
   DM              dm;
   PetscObject     disc;
   PetscClassId    classid;
-  PetscInt        nq, nqB, nqD, nqH, nc, dim, numCells;
+  PetscInt        nq, nc, dim, numCells;
   PetscSection    section;
   const PetscReal *qpoints;
   PetscBool       isStride;
@@ -101,11 +101,6 @@ static PetscErrorCode DMFieldEvaluateFECompact_DS(DMField field, IS cellIS, Pets
   ierr = PetscSectionGetField(section,dsfield->fieldNum,&section);CHKERRQ(ierr);
   ierr = PetscObjectGetClassId(disc,&classid);CHKERRQ(ierr);
   ierr = PetscQuadratureGetData(quad,NULL,NULL,&nq,&qpoints,NULL);CHKERRQ(ierr);
-  nqB = ((isConstant  || !B)) ? PetscMin(nq, 1) : nq;
-  nqD = ((isAffine    || !D)) ? PetscMin(nq, 1) : nq;
-  nqH = ((isQuadratic || !H)) ? PetscMin(nq, 1) : nq;
-  nq = PetscMax(nqB, nqD);
-  nq = PetscMax(nq,  nqH);
   /* TODO: batch */
   ierr = PetscObjectTypeCompare((PetscObject)cellIS,ISSTRIDE,&isStride);CHKERRQ(ierr);
   ierr = ISGetLocalSize(cellIS,&numCells);CHKERRQ(ierr);
@@ -130,35 +125,35 @@ static PetscErrorCode DMFieldEvaluateFECompact_DS(DMField field, IS cellIS, Pets
       ierr = DMPlexVecGetClosure(dm,section,dsfield->vec,c,&closureSize,&elem);CHKERRQ(ierr);
       if (B) {
         if (type == PETSC_SCALAR) {
-          PetscScalar *cB = &((PetscScalar *) B)[nc * nqB * i];
+          PetscScalar *cB = &((PetscScalar *) B)[nc * nq * i];
 
-          DMFieldDSdot(cB,fB,elem,nqB,feDim,nc,(PetscScalar));
+          DMFieldDSdot(cB,fB,elem,nq,feDim,nc,(PetscScalar));
         } else {
-          PetscReal *cB = &((PetscReal *) B)[nc * nqB * i];
+          PetscReal *cB = &((PetscReal *) B)[nc * nq * i];
 
-          DMFieldDSdot(cB,fB,elem,nqB,feDim,nc,PetscRealPart);
+          DMFieldDSdot(cB,fB,elem,nq,feDim,nc,PetscRealPart);
         }
       }
       if (D) {
         if (type == PETSC_SCALAR) {
-          PetscScalar *cD = &((PetscScalar *) D)[nc * nqD * dim * i];
+          PetscScalar *cD = &((PetscScalar *) D)[nc * nq * dim * i];
 
-          DMFieldDSdot(cD,fD,elem,nqD,feDim,(nc * dim),(PetscScalar));
+          DMFieldDSdot(cD,fD,elem,nq,feDim,(nc * dim),(PetscScalar));
         } else {
-          PetscReal *cD = &((PetscReal *) D)[nc * nqD * dim * i];
+          PetscReal *cD = &((PetscReal *) D)[nc * nq * dim * i];
 
-          DMFieldDSdot(cD,fD,elem,nqD,feDim,(nc * dim),PetscRealPart);
+          DMFieldDSdot(cD,fD,elem,nq,feDim,(nc * dim),PetscRealPart);
         }
       }
       if (H) {
         if (type == PETSC_SCALAR) {
-          PetscScalar *cH = &((PetscScalar *) H)[nc * nqH * dim * dim * i];
+          PetscScalar *cH = &((PetscScalar *) H)[nc * nq * dim * dim * i];
 
-          DMFieldDSdot(cH,fH,elem,nqH,feDim,(nc * dim * dim),(PetscScalar));
+          DMFieldDSdot(cH,fH,elem,nq,feDim,(nc * dim * dim),(PetscScalar));
         } else {
-          PetscReal *cH = &((PetscReal *) H)[nc * nqH * dim * dim * i];
+          PetscReal *cH = &((PetscReal *) H)[nc * nq * dim * dim * i];
 
-          DMFieldDSdot(cH,fH,elem,nqH,feDim,(nc * dim * dim),PetscRealPart);
+          DMFieldDSdot(cH,fH,elem,nq,feDim,(nc * dim * dim),PetscRealPart);
         }
       }
     }
@@ -210,11 +205,11 @@ static PetscErrorCode DMFieldGetFEInvariance_DS(DMField field, IS cellIS, PetscB
 static PetscErrorCode DMFieldInitialize_DS(DMField field)
 {
   PetscFunctionBegin;
-  field->ops->destroy           = DMFieldDestroy_DS;
-  field->ops->evaluate          = DMFieldEvaluate_DS;
-  field->ops->evaluateFECompact = DMFieldEvaluateFECompact_DS;
-  field->ops->getFEInvariance   = DMFieldGetFEInvariance_DS;
-  field->ops->view              = DMFieldView_DS;
+  field->ops->destroy         = DMFieldDestroy_DS;
+  field->ops->evaluate        = DMFieldEvaluate_DS;
+  field->ops->evaluateFE      = DMFieldEvaluateFE_DS;
+  field->ops->getFEInvariance = DMFieldGetFEInvariance_DS;
+  field->ops->view            = DMFieldView_DS;
   PetscFunctionReturn(0);
 }
 

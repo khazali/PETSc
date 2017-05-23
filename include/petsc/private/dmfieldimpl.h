@@ -16,7 +16,7 @@ struct _DMFieldOps {
   PetscErrorCode (*setup) (DMField);
   PetscErrorCode (*view) (DMField,PetscViewer);
   PetscErrorCode (*evaluate) (DMField,Vec,PetscDataType,void*,void*,void*);
-  PetscErrorCode (*evaluateFECompact) (DMField,IS,PetscQuadrature,PetscDataType,PetscBool,void*,PetscBool,void*,PetscBool,void*);
+  PetscErrorCode (*evaluateFE) (DMField,IS,PetscQuadrature,PetscDataType,void*,void*,void*);
   PetscErrorCode (*evaluateFV) (DMField,IS,PetscDataType,void*,void*,void*);
   PetscErrorCode (*getFEInvariance) (DMField,IS,PetscBool*,PetscBool*,PetscBool*);
 };
