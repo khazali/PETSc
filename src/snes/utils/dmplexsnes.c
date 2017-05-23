@@ -1578,7 +1578,7 @@ PetscErrorCode DMPlexComputeResidual_Internal(DM dm, PetscInt cStart, PetscInt c
     PetscFVFaceGeom *fgeom;
     PetscInt         cS = cStart+chunk*cellChunkSize, cE = PetscMin(cS+cellChunkSize, cEnd), numCells = cE - cS, cell;
     PetscInt         fS = fStart+chunk*faceChunkSize, fE = PetscMin(fS+faceChunkSize, fEnd), numFaces = 0, face;
-    PetscBool        geomAffine;
+    PetscBool        geomNonaffine;
     IS               cellIS;
 
     ierr = ISCreateStride(PETSC_COMM_SELF,numCells,cS,1,&cellIS);CHKERRQ(ierr);
@@ -1587,7 +1587,6 @@ PetscErrorCode DMPlexComputeResidual_Internal(DM dm, PetscInt cStart, PetscInt c
       ierr = DMPlexGetCellFields(dm, cS, cE, locX, locX_t, locA, &u, &u_t, &a);CHKERRQ(ierr);
       ierr = DMGetWorkArray(dm, numCells*totDim, PETSC_SCALAR, &elemVec);CHKERRQ(ierr);
       ierr = PetscMemzero(elemVec, numCells*totDim * sizeof(PetscScalar));CHKERRQ(ierr);
-      ierr = DMFieldGetFEInvariance(geometryFEM,cellIS,NULL,&geomAffine,NULL);CHKERRQ(ierr);
     }
     if (useFVM) {
       ierr = DMPlexGetFaceFields(dm, fS, fE, locX, locX_t, faceGeometryFVM, cellGeometryFVM, locGrad, &numFaces, &uL, &uR);CHKERRQ(ierr);
@@ -1617,14 +1616,14 @@ PetscErrorCode DMPlexComputeResidual_Internal(DM dm, PetscInt cStart, PetscInt c
         PetscInt        Nq, Nb, Nqhat;
 
         ierr = PetscFEGetTileSizes(fe, NULL, &numBlocks, NULL, &numBatches);CHKERRQ(ierr);
-
         ierr = PetscFEGetQuadrature(fe, &q);CHKERRQ(ierr);
+        ierr = PetscObjectTypeCompare((PetscObject)fe,PETSCFENONAFFINE,&geomNonaffine);CHKERRQ(ierr);
         ierr = PetscQuadratureGetData(q, NULL, NULL, &Nq, NULL, NULL);CHKERRQ(ierr);
-        Nqhat = geomAffine ? 1 : Nq;
+        Nqhat = geomNonaffine ? Nq : 1;
         ierr = DMGetWorkArray(dm,numCells*Nqhat*(coordDim + coordDim * coordDim + (sizeof(PetscFECellGeom) / sizeof(PetscReal))),PETSC_REAL,&B);CHKERRQ(ierr);
         D = &B[numCells*Nqhat*coordDim];
         cgeomFEM = (PetscFECellGeom *) &D[numCells*Nqhat*coordDim*coordDim];
-        ierr = DMFieldEvaluateFE(geometryFEM, cellIS, geomAffine ? affineQuad : q, PETSC_REAL, B, D, NULL);CHKERRQ(ierr);
+        ierr = DMFieldEvaluateFE(geometryFEM, cellIS, geomNonaffine ? q : affineQuad, PETSC_REAL, B, D, NULL);CHKERRQ(ierr);
         ierr = JetToGeom(numCells * Nqhat, dim, coordDim, B, D, cgeomFEM);CHKERRQ(ierr);
         ierr = PetscFEGetDimension(fe, &Nb);CHKERRQ(ierr);
         blockSize = Nb*Nq;
@@ -1824,7 +1823,7 @@ static PetscErrorCode DMPlexComputeResidualFEM_Check_Internal(DM dm, Vec X, Vec 
   PetscScalar      *elemVec, *elemVecCh, *u, *u_t, *a = NULL;
   PetscInt          coordDim, dim, Nf, f, numCells, cStart, cEnd, c;
   PetscInt          totDim, totDimAux = 0, diffCell = 0;
-  PetscBool         geomAffine;
+  PetscBool         geomNonaffine;
   IS                cellIS;
   PetscReal        *eta0 = NULL;
   PetscQuadrature   affineQuad = NULL;
@@ -1854,8 +1853,7 @@ static PetscErrorCode DMPlexComputeResidualFEM_Check_Internal(DM dm, Vec X, Vec 
   if (dmAux) {ierr = PetscMalloc1(numCells*totDimAux, &a);CHKERRQ(ierr);}
   ierr = ISCreateStride(PetscObjectComm((PetscObject)dm),numCells,cStart,1,&cellIS);CHKERRQ(ierr);
   ierr = DMPlexSNESGetGeometryFEM(dm, &geom);CHKERRQ(ierr);
-  ierr = DMFieldGetFEInvariance(geom,cellIS,NULL,&geomAffine,NULL);CHKERRQ(ierr);
-  if (geomAffine) {
+  {
     PetscInt i;
 
     ierr = PetscMalloc1(dim,&eta0);CHKERRQ(ierr);
@@ -1900,12 +1898,13 @@ static PetscErrorCode DMPlexComputeResidualFEM_Check_Internal(DM dm, Vec X, Vec 
     ierr = PetscFEGetQuadrature(fe, &q);CHKERRQ(ierr);
     ierr = PetscFEGetDimension(fe, &Nb);CHKERRQ(ierr);
     ierr = PetscFEGetTileSizes(fe, NULL, &numBlocks, NULL, &numBatches);CHKERRQ(ierr);
+    ierr = PetscObjectTypeCompare((PetscObject)fe,PETSCFENONAFFINE, &geomNonaffine);CHKERRQ(ierr);
     ierr = PetscQuadratureGetData(q, NULL, NULL, &numQuadPoints, NULL, NULL);CHKERRQ(ierr);
-    Nq = geomAffine ? 1 : numQuadPoints;
+    Nq = geomNonaffine ? numQuadPoints : 1;
     ierr = DMGetWorkArray(dm,numCells * Nq * (coordDim + coordDim * coordDim + sizeof(PetscFECellGeom)/sizeof(PetscReal)),PETSC_REAL,&B);CHKERRQ(ierr);
     D = &B[numCells * Nq * coordDim];
     cgeomFEM = (PetscFECellGeom *) &D[numCells * Nq * coordDim * coordDim];
-    ierr = DMFieldEvaluateFE(geom,cellIS,geomAffine ? affineQuad : q, PETSC_REAL, B, D, NULL);CHKERRQ(ierr);
+    ierr = DMFieldEvaluateFE(geom,cellIS,geomNonaffine ? q : affineQuad, PETSC_REAL, B, D, NULL);CHKERRQ(ierr);
     ierr = JetToGeom(numCells * Nq, dim, coordDim, B, D, cgeomFEM);CHKERRQ(ierr);
     blockSize = Nb*numQuadPoints;
     batchSize = numBlocks * blockSize;
@@ -2167,7 +2166,7 @@ PetscErrorCode DMPlexComputeJacobian_Internal(DM dm, PetscInt cStart, PetscInt c
   PetscInt          coordDim, dim, Nf, fieldI, fieldJ, numCells, c;
   PetscInt          totDim, totDimAux;
   PetscBool         isMatIS, isMatISP, isShell, hasJac, hasPrec, hasDyn, hasFV = PETSC_FALSE;
-  PetscBool         geomAffine;
+  PetscBool         geomNonaffine;
   IS                cellIS;
   PetscQuadrature   affineQuad = NULL;
   PetscErrorCode    ierr;
@@ -2204,8 +2203,7 @@ PetscErrorCode DMPlexComputeJacobian_Internal(DM dm, PetscInt cStart, PetscInt c
   if (dmAux) {ierr = PetscMalloc1(numCells*totDimAux, &a);CHKERRQ(ierr);}
   ierr = DMPlexSNESGetGeometryFEM(dm, &geom);CHKERRQ(ierr);
   ierr = ISCreateStride(PetscObjectComm((PetscObject)dm),numCells,cStart,1,&cellIS);CHKERRQ(ierr);
-  ierr = DMFieldGetFEInvariance(geom,cellIS,NULL,&geomAffine,NULL);CHKERRQ(ierr);
-  if (geomAffine) {
+  {
     PetscReal *eta0;
     PetscInt  i;
 
@@ -2253,12 +2251,13 @@ PetscErrorCode DMPlexComputeJacobian_Internal(DM dm, PetscInt cStart, PetscInt c
     ierr = PetscFEGetQuadrature(fe, &q);CHKERRQ(ierr);
     ierr = PetscFEGetDimension(fe, &Nb);CHKERRQ(ierr);
     ierr = PetscFEGetTileSizes(fe, NULL, &numBlocks, NULL, &numBatches);CHKERRQ(ierr);
+    ierr = PetscObjectTypeCompare((PetscObject)fe,PETSCFENONAFFINE,&geomNonaffine);CHKERRQ(ierr);
     ierr = PetscQuadratureGetData(q, NULL, NULL, &numQuadPoints, NULL, NULL);CHKERRQ(ierr);
-    Nq   = geomAffine ? 1 : numQuadPoints;
+    Nq   = geomNonaffine ? numQuadPoints : 1;
     ierr = DMGetWorkArray(dm,numCells * Nq * (coordDim + coordDim * coordDim + sizeof(PetscFECellGeom)/sizeof(PetscReal)),PETSC_REAL,&B);CHKERRQ(ierr);
     D    = &B[numCells * Nq * coordDim];
     cgeomFEM = (PetscFECellGeom *) &D[numCells * Nq * coordDim * coordDim];
-    ierr = DMFieldEvaluateFE(geom,cellIS,geomAffine ? affineQuad : q, PETSC_REAL, B, D, NULL);CHKERRQ(ierr);
+    ierr = DMFieldEvaluateFE(geom,cellIS,geomNonaffine ? q : affineQuad, PETSC_REAL, B, D, NULL);CHKERRQ(ierr);
     ierr = JetToGeom(numCells * Nq, dim, coordDim, B, D, cgeomFEM);CHKERRQ(ierr);
     blockSize = Nb*numQuadPoints;
     batchSize = numBlocks * blockSize;
@@ -2403,7 +2402,7 @@ PetscErrorCode DMPlexComputeJacobianAction_Internal(DM dm, PetscInt cStart, Pets
   PetscInt          totDim, totDimAux = 0;
   PetscBool         hasDyn;
   DMField           geom;
-  PetscBool         geomAffine;
+  PetscBool         geomNonaffine;
   PetscQuadrature   affineQuad = NULL;
   IS                cellIS;
   PetscErrorCode    ierr;
@@ -2434,8 +2433,7 @@ PetscErrorCode DMPlexComputeJacobianAction_Internal(DM dm, PetscInt cStart, Pets
   if (dmAux) {ierr = PetscMalloc1(numCells*totDimAux, &a);CHKERRQ(ierr);}
   ierr = DMPlexSNESGetGeometryFEM(dm, &geom);CHKERRQ(ierr);
   ierr = ISCreateStride(PetscObjectComm((PetscObject)dm),numCells,cStart,1,&cellIS);CHKERRQ(ierr);
-  ierr = DMFieldGetFEInvariance(geom, cellIS, NULL, &geomAffine, NULL);CHKERRQ(ierr);
-  if (geomAffine) {
+  {
     PetscReal *eta0;
     PetscInt  i;
 
@@ -2481,12 +2479,13 @@ PetscErrorCode DMPlexComputeJacobianAction_Internal(DM dm, PetscInt cStart, Pets
     ierr = PetscFEGetQuadrature(fe, &quad);CHKERRQ(ierr);
     ierr = PetscFEGetDimension(fe, &Nb);CHKERRQ(ierr);
     ierr = PetscFEGetTileSizes(fe, NULL, &numBlocks, NULL, &numBatches);CHKERRQ(ierr);
+    ierr = PetscObjectTypeCompare((PetscObject)fe,PETSCFENONAFFINE,&geomNonaffine);CHKERRQ(ierr);
     ierr = PetscQuadratureGetData(quad, NULL, NULL, &numQuadPoints, NULL, NULL);CHKERRQ(ierr);
-    Nq = geomAffine ? 1 : numQuadPoints;
+    Nq = geomNonaffine ? numQuadPoints : 1;
     ierr = DMGetWorkArray(dm,numCells * Nq * (coordDim + coordDim * coordDim + sizeof(PetscFECellGeom)/sizeof(PetscReal)),PETSC_REAL,&B);CHKERRQ(ierr);
     D    = &B[numCells * Nq * coordDim];
     cgeomFEM = (PetscFECellGeom *) &D[numCells * Nq * coordDim * coordDim];
-    ierr = DMFieldEvaluateFE(geom,cellIS,geomAffine ? affineQuad : quad, PETSC_REAL, B, D, NULL);CHKERRQ(ierr);
+    ierr = DMFieldEvaluateFE(geom,cellIS,geomNonaffine ? quad : affineQuad, PETSC_REAL, B, D, NULL);CHKERRQ(ierr);
     ierr = JetToGeom(numCells * Nq, dim, coordDim, B, D, cgeomFEM);CHKERRQ(ierr);
     blockSize = Nb*numQuadPoints;
     batchSize = numBlocks * blockSize;
