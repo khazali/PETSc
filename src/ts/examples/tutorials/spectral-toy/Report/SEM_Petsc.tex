@@ -77,7 +77,7 @@
 %\def\thetable{\arabic{table}}
 
 % TITLE AND AUTHOR --------------------------------
-\title{Spectral elements solver in Petsc}
+\title{PDE constrained optimization in spectral element framework using PETSc and TAO}
 \vspace{1cm}
 \author{Oana Marin, Emil Constantinescu, Barry Smith}
 \date{\today}
@@ -85,11 +85,11 @@
 
 
 \section{Prerequisites}
-Consider the heat equation with constant coefficients
+Consider a time dependent partial differential equation with constant coefficients, given by the spatial operator $ \mathbb L(\mathbf u)$ and initial conditions $\mathbf g(\cdot)$ as
 \begin{eqnarray}
- \mathbb L(\mathbf u)= \frac{\partial\mathbf u}{\partial t} - \nu\Delta \mathbf u &= &0 \ , \mathbf x \in \Omega \\ \nonumber
-  \mathbf u|_{\partial \Omega}&=&0, \\
-  \mathbf u(0,t)&=&\mathbf g(\mathbf x)
+ \frac{\partial\mathbf u}{\partial t} &=&  \mathbb L(\mathbf u) \ , \mathbf x \in \Omega \\ \nonumber
+  \mathbf u|_{\partial \Omega}&=&0, \\ 
+  \mathbf u(0,t)&=&\mathbf g(\mathbf x) \ . \nonumber \label{eq:generic}
 \end{eqnarray} 
 
 To transtion from the strong form of the equation to the weak form we define the spaces
@@ -98,24 +98,33 @@ L^2(\Omega)=\lbrace f :\Omega\rightarrow \mathbb R |\quad \bigg(\int_{\Omega} |f
 $$
 with the subset
 $$
-H^1_0(\Omega)=\lbrace f \in L^2(\Omega) |\quad \frac{\partial f}{\partial \vect x} \ \text{in}\  L^2(\Omega),\ \rbrace
+H^1(\Omega)=\lbrace f \in L^2(\Omega) |\quad \frac{\partial f}{\partial \vect x} \ \text{in}\  L^2(\Omega),\ \rbrace
+$$
+and the space
+$$
+H^1_0(\Omega)=\lbrace f \in H^1(\Omega) |\quad \frac{\partial f}{\partial \vect x}|_{\partial\Omega}=0 ,\ \rbrace
 $$
 
-For the weak form we seek all functions with the property that residual is orthogonal to the set o all test functions.
-Consider solution $\mathbf u$ and test function $\mathbf v$ such that
+For the weak form of a partial differential equation we seek all functions with the property that the residual is orthogonal to the set of all test functions.
+Consider the solution $\mathbf u$ and test function $\mathbf v$ such that
 $(\mathbb L(\vect u),\mathbf v)=0$ for all $\mathbf v$ in a given test space, under the inner product defined as
-$$(u,v)=\int_{\Omega} u\ v \ \d \Omega$$
+$$(\mathbf u,\mathbf v)=\int_{\Omega} \mathbf u\ \mathbf v \ \d \Omega$$
 
-The weak form becomes
-$$(\frac{\partial\mathbf u}{\partial t},\mathbf v) - (\nu\Delta \mathbf u,\mathbf v) =0$$
-and via integration by parts
+To take a concrete example let us set $\mathbb L(\mathbf u) = \nu \Delta \mathbf u$, where $\nu$ is a parameter which represents the viscosity. To derive the weak form we multiply both sides of the partial differential equation (Eq.~\ref{eq:generic}) by a test function $\mathbf v$ leading to
+$$(\frac{\partial\mathbf u}{\partial t},\mathbf v) + (\nu\Delta \mathbf u, \mathbf v) =0$$
+In this case  becomes after applying integration by parts
 \begin{equation}
-(\frac{\partial\mathbf u}{\partial t},\mathbf v) + (\nu\nabla \mathbf u,\nabla \mathbf v) -
-[\nabla \mathbf u \mathbf v]|_{\Gamma} =0\label{eq:weakheat}
+\int_{\Omega}\frac{\partial\mathbf u}{\partial t} \mathbf v \ \d \Omega + \int_{\Omega} \nu\nabla \mathbf u\ \nabla \mathbf v\ \d \Omega -
+ \int_{\Gamma} \nabla \mathbf u \ \mathbf v\  \d \Gamma =0\label{eq:weakheat}
 \end{equation}
 
-The boundary term may vanish if either $u$ or $v$ are defined in a space that satisfies the boundary conditions.
+The boundary term vanishes since $\mathbf u, \mathbf v \in H^1_0(\Omega)$ and $H^1_0(\Omega)$ is chosen such that it satisfies the boundary conditions.
 \section{The Spectral Element Method}
+Consider now for simplicty the one dimensional heat equation
+\begin{equation}
+\frac{\partial u}{\partial t} - \nu\Delta u\ =0\ . \label{eq:1dheat}
+\end{equation}
+
 
 Based on the weak form given by Eq.~\ref{eq:weakheat} several discretizations are suitable, Finite Element Method, Spectral Element, Continous or Discontinous Galerkin, etc.
 The Spectral Element Method is a subclass of Galerkin methods, or weighted residual methods. 
@@ -132,22 +141,20 @@ $$
 Subsequently $X_N=X\cap  P_{N,E}^d$, where $d$ is the dimension of the problem.
 
 In the polynomial space $X_N$ we expand the numerical solution $u(x)=\sum_i^N u_i(x)\phi_i$.
-With this choice the solution as well as the test space function $\vect v$ can be expanded as
+With this choice the solution as well as the test space function $v$ can be expanded as
 \begin{equation}
 u(\vect x)=\sum_{i=1}^N u_{i}\phi_i(\vect x)
 \label{eq:ansatz}
 \end{equation}
 
-The point discretization can be either a Chebyshev grid, or a Legendre grid, in either case the polynomials are orthogonal
-$(\phi_i \phi_j)=\delta_{ij}$ 
-
-For the moment we consider solely one diemnsional problems
-To proceed with the numerical discretization we plug Eq.~\ref{eq:ansatz} into Eq.~\ref{eq:weakheat} to obtain.
+The point discretization can be either a Chebyshev grid, or a Legendre grid, in either case the polynomials are orthogonal $(\phi_i \phi_j)=\delta_{ij}$. 
+For the moment we consider solely one dimensional problems
+To proceed with the numerical discretization we plug Eq.~\ref{eq:ansatz} into Eq.~\ref{eq:weakheat} to obtain
 \begin{equation}
-\frac{\partial}{\partial t}\int \sum_{i=1}^N u_{i}\phi_i(x) \sum_{j=1}^N v_{j}\phi_j(x) \d \Omega_e + \int\sum_{i=1}^N u_{i}\phi'_i(x) \sum_{j=1}^N v_{j}\phi'_j(x) \d \Omega_e  =0
+\frac{\partial}{\partial t}\int \sum_{i=1}^N u_{i}\phi_i(x) \sum_{j=1}^N v_{j}\phi_j(x) \d \Omega_e + \int\sum_{i=1}^N u_{i}\phi'_i(x) \sum_{j=1}^N v_{j}\phi'_j(x) \d \Omega_e  =0 \ .
 \end{equation}
 
-with proper reordering we obtain
+With proper reordering this yields
 
 \begin{equation}
 \frac{\partial}{\partial t}\sum_{i=1}^N u_{i}\sum_{j=1}^N  v_{j}\underbrace{\int \phi_i(x)\phi_j(x) \d \Omega_e}_{M_{ij}} + \sum_{i=1}^N u_{i}\sum_{j=1}^N v_{j}\underbrace{\int\phi'_i(x) \phi'_j(x) \d \Omega_e}_{K_{ij}}  =0
@@ -155,8 +162,7 @@ with proper reordering we obtain
 
 where $M_{ij}$ is the mass matrix and $K_{ij}$ is the stiffness matrix.
 
-In alegraic form we can rewrite
-
+In algebraic form we can rewrite
 \begin{equation}
 \frac{\partial}{\partial t}\underline{v}^TM\underline{u} + \underline{v}^TK\underline{u}=0
 \end{equation}
@@ -168,19 +174,18 @@ Note that one can factor out $v$ to obtain an ODE
 \frac{\partial}{\partial t} M \underline{u}=- K \underline{u} \label{eq:discrete}
 \end{equation}
 
-Note if the domain $\Omega_e \neq [-1, \ 1]$ a change of variables is in order.
-Presume  $\Omega_e = [-a, \ b]$ and define the reference element $\hat{\Omega} = [-1, \ 1]$.
+If the domain $\Omega_e \neq [-1, \ 1]$ a change of variables is in order.
+Presume  $\Omega_e = [a, \ b]$ and define the reference element $\hat{\Omega} = [-1, \ 1]$.
 For $x\in \Omega_e$ and $r \in \hat{\Omega}$ the mapping is
 $$x= a+ \frac{b-a}{r+1}$$
 
 %And the change of variables reads
 %$$\frac{dx}{dr
-
+\begin{comment}
 \section{ODE solutions}
 \subsection{Convergence tests}
 \subsection{Various Boundary conditions}
 
-\begin{comment}
 \subsection{Convection-Diffusion}
 Consider the energy equation in non-dimensional form Eq.~\ref{eq:energy_nondim}, this is a convection diffusion equation with the Laplacian term weighted by the P\' eclet number. For the simplicity of the presentation we make two changes 
 \begin{itemize}
@@ -281,69 +286,70 @@ w_{ij}=\sum_{k=1}^N a_{ik}u_{kj}\quad \rightarrow \quad \underline{w}=
 
 Consider again the forward partial differential equation describing heat transfer
 \begin{eqnarray}
- \frac{\partial\mathbf u}{\partial t} - \nu\Delta \mathbf u +\mathbf f(\mathbf x)&= &0, \ \mathbf x \in \Omega \\ \nonumber
-  \mathbf u|_{\partial \Omega}&=&\mathbf u_b, \\ \nonumber
-  \mathbf u(\mathbf x,0)&=&\mathbf u_0(\mathbf x)\label{eq:heateq}
+ \frac{\partial u}{\partial t} - \nu\Delta  u  &= &0, \  x \in \Omega \\ \nonumber
+   u|_{\partial \Omega}&=& u_b, \\ \nonumber
+   u( x,0)&=& u_0( x)\label{eq:heateq}
 \end{eqnarray} 
 
 As a generic notation we use for the PDE
-$$\mathcal P [\mathbf u]=0$$. 
+$$\mathcal P [ u]=0$$. 
 
-Presume we seek to find what forcing $\mathbf f$ acting on the entire domain $\Omega$ yields a solution $\mathbf u$ which matches a reference solution $\mathbf u_d$ at time $T$. Typically $\mathbf u_d$  is not known over the entire domain $\Omega$ in practice, but in a subset region $\Omega_s$ where sensors have been placed. However for simplicity here we construct a continous function $\mathbf u_d$ to avoid regularization issues.
+Presume we seek to find the intial condition $u_0$ that leads at time $T$ a solution $\mathbf u$ which matches a reference solution $\mathbf u_d$. Typically $ u_d$  is not known over the entire domain $\Omega$ in practice, but in a subset region $\Omega_s$ where sensors have been placed. However for simplicity here we construct a continous function $\mathbf u_d$ to avoid regularization issues.
 
-The approach is to construct a cost function which minimizes the difference between $|\mathbf u-\mathbf u_d|$.
+The approach is to construct a cost function which minimizes the difference between $| u- u_d|$ while preserving convexity.
+$$J[u|_T]=\int_{\Omega}(u(T)- u_d(T))^2 \ \d \Omega  $$
 
-$$J[\vect u]=\int_{\Omega}(\mathbf u-\mathbf u_d)^2 \ \d \Omega  $$
+We seek $ u$ solution to Eq.~\ref{eq:heateq} such that $J[ u]$ is minimal.
+\subsection{Continous Adjoint - Variational calculus derivation}
 
-We seek $\vect u$ solution to Eq.~\ref{eq:heateq} such that $J[\vect u]$ is minimal.
-\subsection{Variational calculus derivation}
+To derive the gradient used in the backward Set up the Lagrangian
+$$\mathcal{L}[ u,  v]=\int_{\Omega}( u[T]- u_d[T])^2 \ \d \Omega +\int_0^T\int_{\Omega} P[ u]  v \ \d \Omega \d t + \int_0^T\int_{\Gamma}  v_b  ( u-  u_b) \ \d \Gamma \d t$$
 
-Set up the Lagrangian
-$$\mathcal{L}[\vect u, \vect u_0]=\int_{\Omega}(\mathbf u[T]-\mathbf u_d[T])^2 \ \d \Omega +\int_0^T\int_{\Omega} P[\mathbf u] \mathbf v \ \d \Omega \d t + \int_0^T\int_{\Gamma} \mathbf v_b \mathbf (\mathbf u- \mathbf u_b) \ \d \Gamma \d t$$
+\footnote{Chain rule for $f=g\circ h$, g must be Frechet and if h' is Frechet or Gateaux so is f.}
+
+\footnote{Riesz theorem: Let T be a functional on H then the Frechet derivative $T'(x)$ is given by
+$T'(x) v= (\nabla T, v)$ for $\forall v \in H$.}
 
 Rewrite of the term
 \begin{eqnarray}
-\int_0^T\int_{\Omega} P[\mathbf u] \mathbf v \ \d \Omega \d t &=&
-\int_0^T\int_{\Omega} \frac{\partial\mathbf u}{\partial t} \mathbf v \ \d \Omega \d t+ \int_0^T\int_{\Omega} \nu\Delta \mathbf u \cdot \mathbf v \ \d \Omega \d t+\int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t \\ \nonumber
-&=& \int_{\Omega}\mathbf u\mathbf v \ \d \Omega|_0^T -
+\int_0^T\int_{\Omega} P[ u]  v \ \d \Omega \d t &=&
+\int_0^T\int_{\Omega} \frac{\partial u}{\partial t}  v \ \d \Omega \d t+ \int_0^T\int_{\Omega} \nu\Delta  u \cdot  v \ \d \Omega \d t+\int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t \\ \nonumber
+&=& \int_{\Omega} u v \ \d \Omega|_0^T -
 \int_0^T\int_{\Omega}
- \frac{\partial\mathbf v}{\partial t} \mathbf u \ \d \Omega \d t+ \int_0^T\int_{\Gamma}(\nabla \mathbf u\cdot \mathbf v- \mathbf u\cdot \nabla\mathbf v)\mathbf n\ \d \Gamma \d t +
- \int_0^T\int_{\Omega} \nu\Delta \mathbf v\cdot  \mathbf u \ \d \Omega \d t+
- \int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t \\ \nonumber
+ \frac{\partial v}{\partial t}  u \ \d \Omega \d t+ \int_0^T\int_{\Gamma}(\nabla  u\cdot  v-  u\cdot \nabla v) n\ \d \Gamma \d t + \\
+ && \int_0^T\int_{\Omega} \nu\Delta  v\cdot   u \ \d \Omega \d t+
+ \int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t \\ \nonumber
  &=& 
 \int_0^T\int_{\Omega}
-(- \frac{\partial\mathbf v}{\partial t}  +\nu\Delta \mathbf v)\cdot  \mathbf u\ \d \Omega \d t+\int_{\Omega}\mathbf u\mathbf v |_0^T \ \d \Omega
-+ \int_0^T\int_{\Gamma}(\nabla \mathbf u\cdot \mathbf v- \mathbf u\cdot \nabla\mathbf v)\mathbf n\ \d \Gamma \d t +
- \int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t \\ \nonumber
+(- \frac{\partial v}{\partial t}  +\nu\Delta  v)\cdot   u\ \d \Omega \d t+\int_{\Omega} u v |_0^T \ \d \Omega
++ \int_0^T\int_{\Gamma}(\nabla  u\cdot  v-  u\cdot \nabla v) n\ \d \Gamma \d t \\
+&&+
+ \int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t \\ \nonumber
 \end{eqnarray}
 
 Grouping now the time dependent terms we have
 \begin{eqnarray}
-\mathcal{L}[\vect u, \vect u_0, \mathbf v]&=&\int_{\Omega}(\mathbf u[T]-\mathbf u_d[T])^2 +\mathbf u[T]\mathbf v[T]\ \d \Omega -\int_{\Omega}\mathbf u[0]\mathbf v[0]\ \d \Omega+\int_0^T\int_{\Omega} \overline{P}[\mathbf v] \mathbf u \ \d \Omega \d t + \\ \nonumber
- && \int_0^T\int_{\Gamma} \mathbf v_b \mathbf (\mathbf u- \mathbf u_b) \ \d \Gamma \d t +\int_0^T\int_{\Gamma}(\nabla \mathbf u\cdot \mathbf v- \mathbf u\cdot \nabla\mathbf v)\mathbf n\ \d \Gamma \d t +
- \int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t 
+\mathcal{L}[ u, u_0,  v]&=&\int_{\Omega}( u[T]- u_d[T])^2 + u[T] v[T]\ \d \Omega -\int_{\Omega} u[0] v[0]\ \d \Omega+\int_0^T\int_{\Omega} \overline{P}[ v]  u \ \d \Omega \d t + \\ \nonumber
+ && \int_0^T\int_{\Gamma}  v_b  ( u-  u_b) \ \d \Gamma \d t +\int_0^T\int_{\Gamma}(\nabla  u\cdot  v-  u\cdot \nabla v) n\ \d \Gamma \d t +
+ \int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t 
 \end{eqnarray}
 
 \begin{eqnarray}
-\frac{\partial L}{\partial \mathbf u}&=&- \frac{\partial\mathbf v}{\partial t}  +\nu\Delta \mathbf v \\
-\frac{\partial L}{\partial \mathbf u_0}&=&-\mathbf v[0]\\
-\frac{\partial L}{\partial \mathbf u_T}&=&2(\mathbf u[T]-\mathbf u_d[T])+\mathbf v[T]\\
-\frac{\partial L}{\partial \mathbf u_b}&=&\\
+\frac{\partial L}{\partial  u}&=&- \frac{\partial v}{\partial t}  +\nu\Delta  v \\
+\frac{\partial L}{\partial  u_0}&=&- v[0]\\
+\frac{\partial L}{\partial  u_T}&=&2( u[T]- u_d[T])+ v[T]\\
+\frac{\partial L}{\partial  u_b}&=&\\
 \end{eqnarray}
 
-\subsection{Validation}
+\subsection{Discrete Adjoint}
 
-To validate and track convergence we shall construct the solution via method of manufactured solutions.
-So we consider $\mathbf u_0$ and compute a $\mathbf f_{\mathbf u_0}$ which yields the solution $\underline{\mathbf u}$.
-By construction the inverse problem has the solution $\mathbf f_{\mathbf u_0}$
-$$\mathcal P (\underline{\mathbf u}, \mathbf f_{\mathbf u_0})=0$$. 
-Algortihm
+\section{Validation and sources of error}
+
+Sources of error
 \begin{itemize}
-\item Choose $\mathbf u_0$ such that $\mathbf f_{\mathbf u_0}$ is non trivial
-\item Store $\underline{\mathbf u}$ solution to $$\mathcal P (\underline{\mathbf u}, \mathbf f_{\mathbf u_0})=0$$. 
-\item Initialize PDE with $\mathbf u_0$, but with a different $\mathbf f_{n}$, e.g. $\mathbf f_{init}=1$
-\item Perform optimization problem (Forward/Dual) until  $\min_{f}J[f]=\int_0^T\int_{\Omega}\mathbf u-\underline{\mathbf u} \ \d x \d t \approx 0$
-\item Addtionally track at each iteration $|\mathbf f_{n}-\mathbf f_{\mathbf u_0}|$
+\item Accumulation of local truncation error in the timestepper
+\item Inaccurate gradient information may hinder convergence
+
 
 \end{itemize}
 
@@ -448,3 +454,46 @@ of the Government.
 \bibliographystyle{siamplain}
 \bibliography{SEM_Petsc}
 \end{document}
+
+\begin{comment}
+
+Set up the Lagrangian
+$$\mathcal{L}[\vect u, \vect u_0]=\int_{\Omega}(\mathbf u[T]-\mathbf u_d[T])^2 \ \d \Omega +\int_0^T\int_{\Omega} P[\mathbf u] \mathbf v \ \d \Omega \d t + \int_0^T\int_{\Gamma} \mathbf v_b \mathbf (\mathbf u- \mathbf u_b) \ \d \Gamma \d t$$
+
+Note: Chain rule for $f=g\circ h$, g must be Frechet and if h' is Frechet or gateaux so is f.
+
+Note2: Riesz theorem: Let T be a functional on H then the Frechet derivative $T'(x)$ is given by
+$T'(x) v= (\nabla T, v)$ for $\forall v \in H$.
+
+Rewrite of the term
+\begin{eqnarray}
+\int_0^T\int_{\Omega} P[\mathbf u] \mathbf v \ \d \Omega \d t &=&
+\int_0^T\int_{\Omega} \frac{\partial\mathbf u}{\partial t} \mathbf v \ \d \Omega \d t+ \int_0^T\int_{\Omega} \nu\Delta \mathbf u \cdot \mathbf v \ \d \Omega \d t+\int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t \\ \nonumber
+&=& \int_{\Omega}\mathbf u\mathbf v \ \d \Omega|_0^T -
+\int_0^T\int_{\Omega}
+ \frac{\partial\mathbf v}{\partial t} \mathbf u \ \d \Omega \d t+ \int_0^T\int_{\Gamma}(\nabla \mathbf u\cdot \mathbf v- \mathbf u\cdot \nabla\mathbf v)\mathbf n\ \d \Gamma \d t +
+ \int_0^T\int_{\Omega} \nu\Delta \mathbf v\cdot  \mathbf u \ \d \Omega \d t+
+ \int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t \\ \nonumber
+ &=& 
+\int_0^T\int_{\Omega}
+(- \frac{\partial\mathbf v}{\partial t}  +\nu\Delta \mathbf v)\cdot  \mathbf u\ \d \Omega \d t+\int_{\Omega}\mathbf u\mathbf v |_0^T \ \d \Omega
++ \int_0^T\int_{\Gamma}(\nabla \mathbf u\cdot \mathbf v- \mathbf u\cdot \nabla\mathbf v)\mathbf n\ \d \Gamma \d t +
+ \int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t \\ \nonumber
+\end{eqnarray}
+
+Grouping now the time dependent terms we have
+\begin{eqnarray}
+\mathcal{L}[\vect u, \vect u_0, \mathbf v]&=&\int_{\Omega}(\mathbf u[T]-\mathbf u_d[T])^2 +\mathbf u[T]\mathbf v[T]\ \d \Omega -\int_{\Omega}\mathbf u[0]\mathbf v[0]\ \d \Omega+\int_0^T\int_{\Omega} \overline{P}[\mathbf v] \mathbf u \ \d \Omega \d t + \\ \nonumber
+ && \int_0^T\int_{\Gamma} \mathbf v_b \mathbf (\mathbf u- \mathbf u_b) \ \d \Gamma \d t +\int_0^T\int_{\Gamma}(\nabla \mathbf u\cdot \mathbf v- \mathbf u\cdot \nabla\mathbf v)\mathbf n\ \d \Gamma \d t +
+ \int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t 
+\end{eqnarray}
+
+\begin{eqnarray}
+\frac{\partial L}{\partial \mathbf u}&=&- \frac{\partial\mathbf v}{\partial t}  +\nu\Delta \mathbf v \\
+\frac{\partial L}{\partial \mathbf u_0}&=&-\mathbf v[0]\\
+\frac{\partial L}{\partial \mathbf u_T}&=&2(\mathbf u[T]-\mathbf u_d[T])+\mathbf v[T]\\
+\frac{\partial L}{\partial \mathbf u_b}&=&\\
+\end{eqnarray}
+
+
+\end{comment}
