@@ -128,7 +128,7 @@ int main(int argc,char **argv)
   PetscInt       VecLength;
   PetscMPIInt    size;
   PetscReal      x, *wrk_ptr1, *wrk_ptr2, wrk1, wrk2,varepsilon;
-  Vec            wrk_vec,wrk2_vec,wrk3_vec,wrk4_vec;
+  Vec            wrk_vec,wrk1_vec,wrk2_vec,wrk3_vec,wrk4_vec;
   PetscViewer    viewfile;
   char filename[20] ;
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -150,8 +150,8 @@ int main(int argc,char **argv)
   ierr = PetscOptionsHasName(NULL,NULL,"-debug",&appctx.debug);CHKERRQ(ierr);
 
   /*initialize parameters */ 
-  appctx.param.N  = 32;
-  appctx.param.E  = 1;
+  appctx.param.N  = 10;
+  appctx.param.E  = 4;
   appctx.param.L  = 1.0;
   appctx.param.Le = appctx.param.L/appctx.param.E;
 
@@ -434,9 +434,15 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
   ierr = DMDAVecGetArray(appctx->da,appctx->SEMop.grid,&xg_localptr);CHKERRQ(ierr);
 
   lenglob  = appctx->param.E*(appctx->param.N-1)+1;
+  /*
   for (i=0; i<lenglob; i++) {
       s_localptr[i]=PetscSinScalar(2.0*PETSC_PI*xg_localptr[i]);
       } 
+   */
+  for (i=0; i<lenglob; i++) {
+      s_localptr[i]=PetscSinScalar(2.0*PETSC_PI*xg_localptr[i])+PetscCosScalar(4.0*PETSC_PI*xg_localptr[i])+\
+3.0*PetscSinScalar(2.0*PETSC_PI*xg_localptr[i])*PetscCosScalar(5.0*PETSC_PI*xg_localptr[i]);
+      }
 
 //printf("sinfunc %2.20f \n",PetscSinScalar(2.0*PETSC_PI*xg_localptr[lenglob])*PetscExpScalar(-0.4*tc));
 
@@ -483,9 +489,15 @@ PetscErrorCode Objective(PetscReal t,Vec obj,AppCtx *appctx)
   ierr = DMDAVecGetArray(appctx->da,appctx->SEMop.grid,&xg_localptr);CHKERRQ(ierr);
 
   lenglob  = appctx->param.E*(appctx->param.N-1)+1;
+  /*
   for (i=0; i<lenglob; i++) {
       s_localptr[i]=PetscSinScalar(2.0*PETSC_PI*xg_localptr[i])*PetscExpScalar(-0.4*tc);
       } 
+  */
+  for (i=0; i<lenglob; i++) {
+      s_localptr[i]=1.0;
+      } 
+
 
 /*
      Restore vectors
@@ -627,20 +639,6 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
 
   ierr = TSSetInitialTimeStep(appctx->ts,0.0,appctx->initial_dt);CHKERRQ(ierr);
   ierr = VecCopy(IC,appctx->dat.curr_sol);CHKERRQ(ierr);
-
-  ierr = TSSetTime(appctx->ts,0.0);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(appctx->ts,0.0,appctx->param.dt);CHKERRQ(ierr);
-  ierr = TSSetDuration(appctx->ts,appctx->param.steps,appctx->param.Tend);CHKERRQ(ierr);
-  ierr = TSSetExactFinalTime(appctx->ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
-
-  ierr = TSSetTolerances(appctx->ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
-  ierr = TSSetFromOptions(appctx->ts);
-
-  
-  ierr = VecCopy(IC,appctx->dat.curr_sol);CHKERRQ(ierr);
-  
-  ierr = TSSetRHSFunction(appctx->ts,NULL,TSComputeRHSFunctionLinear,&appctx);CHKERRQ(ierr);
-  ierr = TSSetRHSJacobian(appctx->ts,appctx->SEMop.stiff,appctx->SEMop.stiff,TSComputeRHSJacobianConstant,&appctx);CHKERRQ(ierr);
    
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     Save trajectory of solution so that TSAdjointSolve() may be used
@@ -657,26 +655,15 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
     appctx->AdjTestLinearForward=ff;
   }
 
- /*
+  /*
      Compute the L2-norm of the objective function, cost function is f
   */
-  ierr = VecDuplicate(appctx->dat.obj,&temp);CHKERRQ(ierr);
-  ierr = VecCopy(appctx->dat.obj,temp);CHKERRQ(ierr);
-  ierr = VecAXPY(temp,-1.0,appctx->dat.curr_sol);CHKERRQ(ierr);
-
-  ierr = VecDuplicate(temp,&temp2);CHKERRQ(ierr);
-  ierr = VecPointwiseMult(temp2,temp,temp);CHKERRQ(ierr);
-  ierr = VecDot(temp2,appctx->SEMop.mass,f);CHKERRQ(ierr);
-  
-  ierr = VecScale(temp, -2.0);
-  ierr = VecCopy(temp,appctx->dat.grad);CHKERRQ(ierr);
-
-  */  
 
   ierr = VecDuplicate(appctx->dat.obj,&temp);CHKERRQ(ierr);
   ierr = VecCopy(appctx->dat.obj,temp);CHKERRQ(ierr);
   ierr = VecAXPY(temp,-1.0,appctx->dat.curr_sol);CHKERRQ(ierr);
-  ierr = VecPointwiseMult(appctx->dat.grad,temp,appctx->SEMop.mass);CHKERRQ(ierr);
+
+  //ierr = VecPointwiseMult(appctx->dat.grad,temp,appctx->SEMop.mass);CHKERRQ(ierr);
   ierr = VecCopy(temp,appctx->dat.grad);CHKERRQ(ierr);
   ierr = VecScale(appctx->dat.grad, -2.0);
   
