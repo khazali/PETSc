@@ -1,0 +1,78 @@
+\documentclass[10pt]{article}
+\usepackage{fullpage}
+\usepackage{amsmath, amsthm, amssymb}
+\begin{document}
+%\section{}
+%\subsection{}
+
+This is a three field model for the density $\tilde n$, vorticity $\tilde\Omega$, and magnetic flux $\tilde\psi$, using auxiliary variables potential $\tilde\phi$ and current $j_z$.
+\begin{equation}
+  \begin{aligned}
+    \partial_t \tilde n       &= \left\langle \tilde n, \tilde\phi \right\rangle + \beta \left\langle j_z, \tilde\psi \right\rangle + \left\langle \ln n_0, \tilde\phi \right\rangle + \mu \nabla^2_\perp \tilde n \\
+  \partial_t \tilde\Omega   &= \left\langle \tilde\Omega, \tilde\phi \right\rangle + \beta \left\langle j_z, \tilde\psi \right\rangle + \mu \nabla^2_\perp \tilde\Omega \\
+  \partial_t \tilde\psi     &= \left\langle \psi_0 + \tilde\psi, \tilde\phi - \tilde n \right\rangle - \left\langle \ln n_0, \tilde\psi \right\rangle + \frac{\eta}{\beta} \nabla^2_\perp \tilde\psi \\
+  \nabla^2_\perp\tilde\phi        &= \tilde\Omega \\
+  j_z  &= -\nabla^2_\perp  \left(\tilde\psi + \psi_0  \right)\\
+  \end{aligned}
+\end{equation}
+with $\left\langle f, g \right\rangle = \frac{\partial f}{\partial x}\frac{\partial g}{\partial y} - \frac{\partial f}{\partial y}\frac{\partial g}{\partial x}$.
+
+The linearization of a bracket $\left\langle f, g \right\rangle$ around $f_0$ and $g_0$ to get $\left\langle f, g \right\rangle  = \left\langle d f, g_0 \right\rangle + \left\langle f_0, d g \right\rangle$.
+These two terms are put into the column corresponding to the $d$ term, thus the $\left\langle d f, g_0 \right\rangle$ term turns into $\left\langle \cdot, g_0 \right\rangle$ in the $f$ column. The linearized systems is thus:
+
+\begin{equation}
+\begin{bmatrix}
+  \partial t - \mu \triangledown_\perp^2  -\left \langle \cdot ,  \tilde{\phi} \right \rangle &  .&  -\beta \left \langle j_z, \cdot \right \rangle & -\left \langle \ln{n_0}, \cdot \right \rangle - \left \langle \tilde{n}, \cdot \right \rangle & -\beta \left \langle \cdot,  \tilde{\psi} \right \rangle \\ 
+  
+ . & \partial t -\mu \triangledown_\perp^2 -\left \langle \cdot, \tilde{\phi} \right \rangle &  -\beta \left \langle j_z, \cdot \right \rangle & -\left \langle \tilde{\Omega}, \cdot \right \rangle  & -\beta \left \langle \cdot,  \tilde{\psi} \right \rangle \\ 
+ 
+\left \langle \psi_0, \cdot \right \rangle  + \left \langle \tilde{\psi}, \cdot \right \rangle & .  &  * & - \left \langle \psi_0, \cdot \right \rangle - \left \langle \tilde{\psi}, \cdot \right \rangle & .\\ 
+
+ .& M & . &  -\triangledown_\perp^2 & .\\ 
+ 
+ .& . &  \triangledown_\perp^2 & . & M
+ 
+\end{bmatrix} \begin{bmatrix}
+\tilde{n}\\
+\tilde{\Omega} \\ 
+\tilde{\psi} \\
+\tilde{\phi} \\ 
+\tilde{j_z}
+\end{bmatrix} = \begin{bmatrix}
+.\\ 
+.\\ 
+.\\ 
+.\\ 
+-\triangledown_\perp^2 \psi_0
+\end{bmatrix}
+\end{equation}
+with $* \equiv \partial t - \frac{\eta}{\beta}\triangledown_\perp^2 + \left \langle \ln{n_0} , \cdot \right \rangle - \left \langle \cdot, \tilde{\phi} \right \rangle + \left \langle \cdot, \tilde{n} \right \rangle$
+
+Finite element weak forms in PETSc are of the form
+
+\begin{equation*}
+  \begin{aligned}
+   \left(  v,  g0 \cdot u \right)  +\left(  v,  g1 \cdot\nabla u \right) + \left(  \nabla v,  g2 \cdot u \right)  +\left(  \nabla v,  g3 \cdot\nabla u \right)   &=  \left( \nabla v, f1 \cdot u \right) + \left( v, f0 \cdot u \right) \\
+  \end{aligned}
+\end{equation*}
+
+Our brackets always have a derivative on the basis functions and do not have gradients on the test function.
+We thus add the bracket terms as a $g1$ functions for each of the 15 terms with brackets.
+The five Laplacian terms are implemented in $g3$ term and the mass terms are implemented with $g0$ methods.
+
+The $g1$ point function for a right bracket term 
+$
+\left \langle f_0, \cdot  \right \rangle = \begin{bmatrix}  \frac{\partial f_0}{\partial x} & \frac{\partial f_0}{\partial y}  \end{bmatrix} \begin{bmatrix}
+0 & 1 \\ 
+-1 & 0
+\end{bmatrix}
+$ and for a left bracket term $
+\left \langle \cdot, g_0  \right \rangle = \begin{bmatrix}
+0 & 1 \\ 
+-1 & 0 \\
+\end{bmatrix}
+\begin{bmatrix}  \frac{\partial g_0}{\partial x} \\ \frac{\partial g_0}{\partial y}  \end{bmatrix}.
+$
+
+
+\end{document}  
