@@ -292,7 +292,7 @@ PetscErrorCode PetscSectionSetFieldName(PetscSection s, PetscInt field, const ch
 
   Level: intermediate
 
-.seealso: PetscSectionSetNumFieldComponents(), PetscSectionGetNumFields()
+.seealso: PetscSectionSetFieldComponents(), PetscSectionGetNumFields()
 @*/
 PetscErrorCode PetscSectionGetFieldComponents(PetscSection s, PetscInt field, PetscInt *numComp)
 {
