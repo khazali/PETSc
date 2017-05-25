@@ -160,7 +160,7 @@ int main(int argc,char **argv)
   appctx.param.steps =20000000;
   appctx.initial_dt    = 1e-3;
 
-  appctx.param.Tend = 0.01; //appctx.param.steps*appctx.param.dt;  
+  appctx.param.Tend = 0.001; //appctx.param.steps*appctx.param.dt;  
   appctx.param.Tadj =appctx.param.Tend+0.7;
 
   //ierr = PetscPrintf(PETSC_COMM_WORLD,"Solving a linear TS problem on 1 processor\n");CHKERRQ(ierr);
@@ -234,6 +234,8 @@ int main(int argc,char **argv)
       ind=i*(appctx.param.N-1)+j;
       wrk_ptr1[ind]=x;
       wrk_ptr2[ind]=appctx.param.Le/2.0*appctx.dat.W[j]*appctx.dat.mult[j];
+      if (j==0 || j==appctx.param.N)
+             {wrk_ptr2[ind]=appctx.param.Le/2.0*appctx.dat.W[j];}
       } 
    }
 
@@ -636,6 +638,8 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   TaoConvergedReason reason;      
   PetscViewer        viewfile;
   char filename[24] ;
+  char data[60] ;
+
 
   ierr = TSSetInitialTimeStep(appctx->ts,0.0,appctx->initial_dt);CHKERRQ(ierr);
   ierr = VecCopy(IC,appctx->dat.curr_sol);CHKERRQ(ierr);
@@ -664,10 +668,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   ierr = VecAXPY(temp,-1.0,appctx->dat.curr_sol);CHKERRQ(ierr);
 
   //ierr = VecPointwiseMult(appctx->dat.grad,temp,appctx->SEMop.mass);CHKERRQ(ierr);
-  ierr = VecCopy(temp,appctx->dat.grad);CHKERRQ(ierr);
-  ierr = VecScale(appctx->dat.grad, -2.0);
   
-
   ierr   = VecDuplicate(temp,&temp2);CHKERRQ(ierr);
   ierr   = VecPointwiseMult(temp2,temp,temp);CHKERRQ(ierr);
   //ierr   = VecDot(temp,temp,f);CHKERRQ(ierr);CHKERRQ(ierr);
@@ -702,11 +703,13 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
    
   ierr = VecCopy(appctx->dat.grad,G);CHKERRQ(ierr);
   ierr=  TaoGetSolutionStatus(tao, &its, &ff, &gnorm, &cnorm, &xdiff, &reason);
-  PetscPrintf(PETSC_COMM_WORLD,"iteration=%D\t cost function (TAO)=%g, cost function (L2 %f)\n",its,(double)ff,f);
+  PetscPrintf(PETSC_COMM_WORLD,"iteration=%D\t cost function (TAO)=%g, cost function (L2 %g)\n",its,(double)ff,*f);
 
   PetscSNPrintf(filename,sizeof(filename),"PDEadjoint/optimize%02d.m",its);
   ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,filename,&viewfile);CHKERRQ(ierr);
   ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+  PetscSNPrintf(data,sizeof(data),"TAO(%D)=%g; L2(%D)= %g ;\n",its+1,(double)ff,its+1,*f);
+  PetscViewerASCIIPrintf(viewfile,data);
   //ierr = MatView(appctx.stiff,viewfile);CHKERRQ(ierr);
   //ierr = MatView(appctx.adj,viewfile);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject)appctx->dat.grad,"Grad");

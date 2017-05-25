@@ -343,7 +343,51 @@ Grouping now the time dependent terms we have
 
 \subsection{Discrete Adjoint}
 
+\section{PETSc implementation}
+\begin{figure}
+\begin{center}
+ \begin{tikzpicture}[scale=3.0]
+\node (A) at (0,1) {$u_0$};
+\node (B) at (2,1) {$u_T$};
+\node (C) at (2,0) {$v_0 (\partial \mathcal L/\partial u_T=0)$};
+\node (D) at (0,0) {$v_T$};
+\path[->,font=\scriptsize,>=angle 90]
+(A) edge node[above]{Forward mode} (B)
+(D) edge node[right]{Optimization update} (A)
+(B) edge node[right]{Initialize adjoint} (C)
+(C) edge node[above]{Reverse mode (adjoint)} (D);
+\end{tikzpicture}
+\end{center}
+ \caption{Workflow for compression and restoring the solution.} 
+  \label{fig:algorithm}
+\end{figure}
+
 \section{Validation and sources of error}
+
+In the current section we illustrate...
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.47\textwidth]{Cost_decay.eps}
+%\label{fig:wingfull_est}}
+\caption{Cost function}
+\end{figure}
+
+\begin{figure}[!ht]
+\centering
+\subfloat[Initial condition(black) and desired profile(red)]
+{\includegraphics[width=0.47\textwidth]{IC_OBJ.eps}
+\label{fig:wingfull_err}}
+\quad
+\subfloat[Gradient computed via finite differences(red), and gradient via adjoint computation(black), error between the two in max norm $0.435$.]
+{\includegraphics[width=0.47\textwidth]{Gradient.eps}
+\label{fig:wingfull_est}}
+\caption{Optimal initial conditions and gradient information}
+\end{figure}
+
+
+
+
 
 Sources of error
 \begin{itemize}
