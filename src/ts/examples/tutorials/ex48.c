@@ -41,7 +41,189 @@ typedef struct {
 } AppCtx;
 
 static AppCtx *s_ctx;
+static PetscReal s_K[2][2] = {{0,1},{-1,0}};
 
+enum field_idx {NDEN,OMEGA,PSI,PHI,JZ};
+enum auxfield_idx {LNNDEN0,OMEGA0,PSI0};
+
+/*
+*/
+static void g0_dt(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                 const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                 const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                 PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g0[])
+{
+  g0[0] = u_tShift;
+}
+
+/*
+*/
+static void g0_1(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                 const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                 const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                 PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g0[])
+{
+  g0[0] = 1;
+}
+
+/* 'right' Poisson bracket -< . , phi0>, live var is left, held var is right */
+static void g1_nphi_right(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                          const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                          const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                          PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g1[])
+{
+  PetscInt          i,j;
+  const PetscScalar *pphiDer = &u_x[uOff_x[PHI]];
+  for (i = 0; i < dim; ++i)
+    for (j = 0; j < dim; ++j)
+      g1[i] += -s_K[i][j]*pphiDer[j];
+}
+/* 'left' Poisson bracket -beta< j0_z , .>, live var is right, held var is left */
+static void g1_nbetaj_left(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                           const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                           const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                           PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g1[])
+{
+  PetscInt          i,j;
+  const PetscScalar *jzDer   = &u_x[uOff_x[JZ]];
+  for (i = 0; i < dim; ++i)
+    for (j = 0; j < dim; ++j)
+      g1[j] += -s_ctx->beta*jzDer[i]*s_K[i][j];
+}
+/* 'left' Poisson bracket - < ln(n0) , . > - < n0, .>, live var is right, held var is left */
+static void g1_nlnn0_nn_left(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                             const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                             const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                             PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g1[])
+{
+  PetscInt          i,j;
+  const PetscScalar *pnDer   = &u_x[uOff_x[NDEN]];
+  const PetscScalar *logRefDenDer = &a_x[aOff_x[LNNDEN0]];
+  for (i = 0; i < dim; ++i)
+    for (j = 0; j < dim; ++j)
+      g1[j] += -(logRefDenDer[i] + pnDer[i])*s_K[i][j];
+}
+
+static void g1_nbetapsi_right(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                              const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                              const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                              PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g1[])
+{
+  PetscInt          i,j;
+  const PetscScalar *psiDer   = &u_x[uOff_x[PSI]];
+  for (i = 0; i < dim; ++i)
+    for (j = 0; j < dim; ++j)
+      g1[j] += -s_ctx->beta*psiDer[i]*s_K[i][j];
+}
+
+/* 'left' Poisson bracket - < Omega , . >, live var is right, held var is left */
+static void g1_nomega_left(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                             const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                             const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                             PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g1[])
+{
+  PetscInt          i,j;
+  const PetscScalar *pOmegaDer   = &u_x[uOff_x[OMEGA]];
+  for (i = 0; i < dim; ++i)
+    for (j = 0; j < dim; ++j)
+      g1[j] += -pOmegaDer[i]*s_K[i][j];
+}
+
+/* 'left' Poisson bracket < psi , . > + < psi0 , . >, live var is right, held var is left */
+static void g1_psi0_psi_left(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                             const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                             const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                             PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g1[])
+{
+  PetscInt          i,j;
+  const PetscScalar *pPsiDer   = &u_x[uOff_x[PSI]];
+  const PetscScalar *RefPsiDer = &a_x[aOff_x[PSI0]];
+  for (i = 0; i < dim; ++i)
+    for (j = 0; j < dim; ++j)
+      g1[j] += (pPsiDer[i]+RefPsiDer[i])*s_K[i][j];
+}
+
+/* 'left' Poisson bracket -< psi , . > + < psi0 , . >, live var is right, held var is left */
+static void g1_npsi0_npsi_left(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                             const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                             const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                             PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g1[])
+{
+  PetscInt          i,j;
+  const PetscScalar *pPsiDer   = &u_x[uOff_x[PSI]];
+  const PetscScalar *RefPsiDer = &a_x[aOff_x[PSI0]];
+  for (i = 0; i < dim; ++i)
+    for (j = 0; j < dim; ++j)
+      g1[j] += -(pPsiDer[i]+RefPsiDer[i])*s_K[i][j];
+}
+
+/* 'left' Poisson bracket < ln(n0) , . >, live var is right, held var is left */
+/* 'right' Poisson bracket -< . , phi> + < . , n>, live var is left, held var is right */
+static void g1_lnn0_left_nphi_n_right(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                             const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                             const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                             PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g1[])
+{
+  PetscInt          i,j;
+  const PetscScalar *pnDer        = &u_x[uOff_x[NDEN]];
+  const PetscScalar *pphiDer      = &u_x[uOff_x[PHI]];
+  const PetscScalar *logRefDenDer = &a_x[aOff_x[LNNDEN0]];
+  /* left */
+  for (i = 0; i < dim; ++i)
+    for (j = 0; j < dim; ++j)
+      g1[j] += logRefDenDer[i]*s_K[i][j];
+  /* right */
+  for (i = 0; i < dim; ++i)
+    for (j = 0; j < dim; ++j)
+      g1[j] += (pnDer[i] - pphiDer[i])*s_K[i][j];
+}
+
+static void g3_nmu(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                  const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                  PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g3[])
+{
+  PetscInt d;
+  for (d = 0; d < dim; ++d) {
+    g3[d*dim+d] = -s_ctx->mu;
+  }
+}
+
+static void g3_neta_beta(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                  const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                  PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g3[])
+{
+  PetscInt d;
+  for (d = 0; d < dim; ++d) {
+    g3[d*dim+d] = -s_ctx->eta/s_ctx->beta;
+  }
+}
+
+static void g3_1(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                  const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                  PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g3[])
+{
+  PetscInt d;
+  for (d = 0; d < dim; ++d) {
+    g3[d*dim+d] = 1;
+  }
+}
+
+static void g3_n1(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                  const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                  PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g3[])
+{
+  PetscInt d;
+  for (d = 0; d < dim; ++d) {
+    g3[d*dim+d] = -1;
+  }
+}
+
+
+/* residual point methods */
 static PetscScalar poissonBracket(PetscInt dim, const PetscScalar df[], const PetscScalar dg[])
 {
   PetscScalar ret = df[0]*dg[1] - df[1]*dg[0];
@@ -52,51 +234,18 @@ static PetscScalar poissonBracket(PetscInt dim, const PetscScalar df[], const Pe
   return ret;
 }
 
-enum field_idx {DENSITY,OMEGA,PSI,PHI,JZ};
-
 static void f0_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                  const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                  PetscReal t, const PetscReal x[], PetscScalar f0[])
 {
-  const PetscScalar *pnDer   = &u_x[uOff_x[DENSITY]];
+  const PetscScalar *pnDer   = &u_x[uOff_x[NDEN]];
   const PetscScalar *ppsiDer = &u_x[uOff_x[PSI]];
   const PetscScalar *pphiDer = &u_x[uOff_x[PHI]];
   const PetscScalar *jzDer   = &u_x[uOff_x[JZ]];
-  const PetscScalar *logRefDenDer = &a_x[aOff_x[DENSITY]];
+  const PetscScalar *logRefDenDer = &a_x[aOff_x[LNNDEN0]];
   f0[0] += - poissonBracket(dim,pnDer, pphiDer) - s_ctx->beta*poissonBracket(dim,jzDer, ppsiDer) - poissonBracket(dim,logRefDenDer, pphiDer);
-  if (u_t) f0[0] += u_t[DENSITY];
-}
-
-/* < v, du/dt > */
-static void g0_n_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
-                   const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
-                   const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
-                   PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g0[])
-{
-  if (u_t) g0[0] = u_t[uOff_x[DENSITY]];
-}
-/* mu < \nabla v, \nabla u + {\nabla u}^T >_perp, weak form changes sign
-   This just gives \nabla u, give the perdiagonal for the transpose */
-static void g3_n_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
-                  const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
-                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
-                  PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g3[])
-{
-  PetscInt d;
-  for (d = 0; d < 2; ++d) g3[d*dim+d] = s_ctx->mu;
-}
-
-/* -beta {j_z, psi} }
-   NcompI = 1, NcompJ = dim */
-static void g1_n_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
-                     const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
-                     const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
-                     PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g1[])
-{
-  PetscInt d;
-  const PetscScalar *jzDer = &u_x[uOff_x[JZ]];
-  for (d = 0; d < dim; ++d) g1[d*dim+d] = 1.0;
+  if (u_t) f0[0] += u_t[NDEN];
 }
 
 static void f1_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -104,9 +253,8 @@ static void f1_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                  PetscReal t, const PetscReal x[], PetscScalar f1[])
 {
-  const PetscScalar *pnDer = &u_x[uOff_x[DENSITY]];
+  const PetscScalar *pnDer = &u_x[uOff_x[NDEN]];
   PetscInt           d;
-
   for (d = 0; d < 2; ++d) f1[d] = -s_ctx->mu*pnDer[d];
 }
 
@@ -140,11 +288,11 @@ static void f0_psi(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                    const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                    PetscReal t, const PetscReal x[], PetscScalar f0[])
 {
-  const PetscScalar *pnDer     = &u_x[uOff_x[DENSITY]];
-  const PetscScalar *ppsiDer   = &u_x[uOff_x[PSI]];
-  const PetscScalar *pphiDer   = &u_x[uOff_x[PHI]];
-  const PetscScalar *refPsiDer = &a_x[aOff_x[PSI]];
-  const PetscScalar *logRefDenDer= &a_x[aOff_x[DENSITY]];
+  const PetscScalar *pnDer        = &u_x[uOff_x[NDEN]];
+  const PetscScalar *ppsiDer      = &u_x[uOff_x[PSI]];
+  const PetscScalar *pphiDer      = &u_x[uOff_x[PHI]];
+  const PetscScalar *refPsiDer    = &a_x[aOff_x[PSI0]];
+  const PetscScalar *logRefDenDer = &a_x[aOff_x[LNNDEN0]];
   PetscScalar       psiDer[3];
   PetscScalar       phi_n_Der[3];
   PetscInt           d;
@@ -195,16 +343,16 @@ static void f0_jz(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   f0[0] = u[uOff[JZ]];
 }
 
+/* - del^2 (psi + psi_0) */
 static void f1_jz(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                   const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
                   const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                   PetscReal t, const PetscReal x[], PetscScalar f1[])
 {
-  const PetscScalar *ppsi = &u_x[uOff_x[PSI]];
-  const PetscScalar *refPsiDer = &a_x[aOff_x[PSI]]; /* aOff_x[PSI] == 2*PSI */
+  const PetscScalar *ppsiDer   = &u_x[uOff_x[PSI]];
+  const PetscScalar *refPsiDer = &a_x[aOff_x[PSI]];
   PetscInt           d;
-
-  for (d = 0; d < dim-1; ++d) f1[d] = ppsi[d] + refPsiDer[d];
+  for (d = 0; d < dim; ++d) f1[d] = ppsiDer[d] + refPsiDer[d];
 }
 
 static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
@@ -302,7 +450,7 @@ static void f_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                 const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                 PetscReal t, const PetscReal x[], PetscScalar *f0)
 {
-  const PetscScalar *pn = &u[uOff[DENSITY]];
+  const PetscScalar *pn = &u[uOff[NDEN]];
   *f0 = *pn;
 }
 
@@ -497,15 +645,32 @@ static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *ctx)
 
   PetscFunctionBeginUser;
   if (ctx->implicit) {
-    ierr = PetscDSSetJacobian(prob, 0, 0, g0_n_n, NULL, NULL, g3_n_n);CHKERRQ(ierr);
-    ierr = PetscDSSetJacobian(prob, 0, 2, NULL, g1_n_psi, NULL, NULL);CHKERRQ(ierr);
-  } else {
-    ierr = PetscDSSetResidual(prob, 0, f0_n,     f1_n);CHKERRQ(ierr);
-    ierr = PetscDSSetResidual(prob, 1, f0_Omega, f1_Omega);CHKERRQ(ierr);
-    ierr = PetscDSSetResidual(prob, 2, f0_psi,   f1_psi);CHKERRQ(ierr);
-    ierr = PetscDSSetResidual(prob, 3, f0_phi,   f1_phi);CHKERRQ(ierr);
-    ierr = PetscDSSetResidual(prob, 4, f0_jz,    f1_jz);CHKERRQ(ierr);
+    ierr = PetscDSSetJacobian(prob, NDEN, NDEN, g0_dt, g1_nphi_right,  NULL, g3_nmu);CHKERRQ(ierr);
+    ierr = PetscDSSetJacobian(prob, NDEN, PSI, NULL,  g1_nbetaj_left, NULL, NULL);CHKERRQ(ierr);
+    ierr = PetscDSSetJacobian(prob, NDEN, PHI, NULL,  g1_nlnn0_nn_left, NULL, NULL);CHKERRQ(ierr);
+    ierr = PetscDSSetJacobian(prob, NDEN, JZ, NULL,  g1_nbetapsi_right, NULL, NULL);CHKERRQ(ierr);
+
+    ierr = PetscDSSetJacobian(prob, OMEGA, OMEGA, g0_dt, g1_nphi_right,  NULL, g3_nmu);CHKERRQ(ierr);
+    ierr = PetscDSSetJacobian(prob, OMEGA, PSI, NULL,    g1_nbetaj_left, NULL, NULL);CHKERRQ(ierr);
+    ierr = PetscDSSetJacobian(prob, OMEGA, PHI, NULL,    g1_nomega_left, NULL, NULL);CHKERRQ(ierr);
+    ierr = PetscDSSetJacobian(prob, OMEGA, JZ, NULL,     g1_nbetapsi_right, NULL, NULL);CHKERRQ(ierr);
+
+    ierr = PetscDSSetJacobian(prob, PSI, NDEN, NULL,  g1_psi0_psi_left, NULL, NULL);CHKERRQ(ierr);
+    ierr = PetscDSSetJacobian(prob, PSI, PSI, g0_dt, g1_lnn0_left_nphi_n_right,  NULL, g3_neta_beta);CHKERRQ(ierr);
+    ierr = PetscDSSetJacobian(prob, PSI, PHI, NULL,  g1_npsi0_npsi_left,  NULL, NULL);CHKERRQ(ierr);
+
+    ierr = PetscDSSetJacobian(prob, PHI, OMEGA, g0_1,  NULL,  NULL, NULL);CHKERRQ(ierr);
+    ierr = PetscDSSetJacobian(prob, PHI, PHI,   NULL,  NULL,  NULL, g3_n1);CHKERRQ(ierr);
+
+    ierr = PetscDSSetJacobian(prob, JZ, PSI,  NULL,  NULL,  NULL, g3_1);CHKERRQ(ierr);
+    ierr = PetscDSSetJacobian(prob, JZ, JZ,   g0_1,  NULL,  NULL, NULL);CHKERRQ(ierr);
   }
+  ierr = PetscDSSetResidual(prob, NDEN,  f0_n,     f1_n);CHKERRQ(ierr);
+  ierr = PetscDSSetResidual(prob, OMEGA, f0_Omega, f1_Omega);CHKERRQ(ierr);
+  ierr = PetscDSSetResidual(prob, PSI,   f0_psi,   f1_psi);CHKERRQ(ierr);
+  ierr = PetscDSSetResidual(prob, PHI,   f0_phi,   f1_phi);CHKERRQ(ierr);
+  ierr = PetscDSSetResidual(prob, JZ,    f0_jz,    f1_jz);CHKERRQ(ierr);
+
   ctx->initialFuncs[0] = initialSolution_n;
   ctx->initialFuncs[1] = initialSolution_Omega;
   ctx->initialFuncs[2] = initialSolution_psi;
