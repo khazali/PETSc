@@ -70,6 +70,15 @@
 \newcommand{\erfc}{\, \mathrm{erfc}}
 %\renewcommand{\labelenumi}{[\arabic{enumi}]}
 
+\newcommand{\dt}{\Delta t}
+\newcommand{\dd}{\:\textrm{d}}
+\newcommand{\CostFcn}{J}
+\newcommand{\CostIntegrand}{g}
+\newcommand{\param}{p}
+\newcommand{\PDEConstr}{P}
+\newcommand{\ModelN}{{\mathcal{F}}}
+\newcommand{\ModelTLM}{F}
+\newcommand{\Lagrangian}{{\mathcal{L}}}
 
 %\normalsize
 
@@ -93,7 +102,7 @@ Consider a time dependent partial differential equation with constant coefficien
   \mathbf u(0,t)&=&\mathbf g(\mathbf x) \ . \nonumber \label{eq:generic}
 \end{eqnarray} 
 
-To transtion from the strong form of the equation to the weak form we define the spaces
+To transition from the strong form of the equation to the weak form we define the spaces
 $$
 L^2(\Omega)=\lbrace f :\Omega\rightarrow \mathbb R |\quad \bigg(\int_{\Omega} |f|^2 \d \Omega \bigg)^{1/2}<\infty,\ \rbrace
 $$
@@ -121,7 +130,7 @@ In this case  becomes after applying integration by parts
 
 The boundary term vanishes since $\mathbf u, \mathbf v \in H^1_0(\Omega)$ and $H^1_0(\Omega)$ is chosen such that it satisfies the boundary conditions.
 \section{The Spectral Element Method}
-Consider now for simplicty the one dimensional heat equation
+Consider now for simplicity the one dimensional heat equation
 \begin{equation}
 \frac{\partial u}{\partial t} - \nu\Delta u\ =0\ . \label{eq:1dheat}
 \end{equation}
@@ -231,7 +240,7 @@ where the quadrature points $x_k$ are given by the Gauss-Legendre-Lobatto points
 To start with we consider the one dimensional case and proceed to higher dimensions and curvilinear elements.
 
 \subsubsection{One Dimensional case}
-Let us first regard a one dimensional case on the domain $\Omega=[a\ b]$ and analyse one by one the terms in Eq.~\ref{eq:cd_ansatz}. Since the quadrature rule is defined on the interval $[-1, \ 1]$ we map $x \in \Omega$ to $r\in [-1,\ 1]$ via $x=a+(b-a)(r+1)/2$ and take $L=b-a$.
+Let us first regard a one dimensional case on the domain $\Omega=[a\ b]$ and analyze one by one the terms in Eq.~\ref{eq:cd_ansatz}. Since the quadrature rule is defined on the interval $[-1, \ 1]$ we map $x \in \Omega$ to $r\in [-1,\ 1]$ via $x=a+(b-a)(r+1)/2$ and take $L=b-a$.
 The mass matrix is given by 
 \begin{equation}
 M_{ij}=\int_{\Omega}\phi_i(x) \phi_j(x)\d \Omega=\frac{L}{2}\int_{-1}^1\phi_i(r) \phi_j(r)\d r=\frac{L}{2}\sum_k \rho_k\phi_i(r_k) \phi_j(r_k)
@@ -283,33 +292,57 @@ w_{ij}=\sum_{k=1}^N a_{ik}u_{kj}\quad \rightarrow \quad \underline{w}=
 \label{sec:Spectral and Pseudo-spectral}
 \end{comment}
 
-\section{Inverse problem}
+\section{Inverse problem\label{sec:inverse}}
 
-Consider again the forward partial differential equation describing heat transfer
+We will denote a generic PDE model by
+$$\mathcal P [ u]=0\,.$$
+%
+For example we may consider again the partial differential equation describing heat transfer
 \begin{eqnarray}
  \frac{\partial u}{\partial t} - \nu\Delta  u  &= &0, \  x \in \Omega \\ \nonumber
    u|_{\partial \Omega}&=& u_b, \\ \nonumber
    u( x,0)&=& u_0( x)\label{eq:heateq}
 \end{eqnarray} 
 
-As a generic notation we use for the PDE
-$$\mathcal P [ u]=0$$. 
+Let us assume that we seek to find the initial condition $u_0$ such
+that we minimize a function
+%
+\begin{align}
+  \label{eq:Cost:general}
+\CostFcn(u_0) = \int_0^T \CostIntegrand(u(t)) \dd t\,.
+\end{align}
+%
 
-Presume we seek to find the intial condition $u_0$ that leads at time $T$ a solution $\mathbf u$ which matches a reference solution $\mathbf u_d$. Typically $ u_d$  is not known over the entire domain $\Omega$ in practice, but in a subset region $\Omega_s$ where sensors have been placed. However for simplicity here we construct a continous function $\mathbf u_d$ to avoid regularization issues.
 
-The approach is to construct a cost function which minimizes the difference between $| u- u_d|$ while preserving convexity.
-$$J[u|_T]=\int_{\Omega}(u(T)- u_d(T))^2 \ \d \Omega  $$
 
-We seek $ u$ solution to Eq.~\ref{eq:heateq} such that $J[ u]$ is minimal.
-\subsection{Continous Adjoint - Variational calculus derivation}
+\paragraph{Final-time cost.} A particular case is one for which we
+seek the initial condition $u_0$ that leads at time $T$ a solution
+$\mathbf u$ which matches a reference solution $\mathbf
+u_d$. Typically $ u_d$  is not known over the entire domain $\Omega$
+in practice, but in a subset region $\Omega_s$ where sensors have been
+placed. However, for simplicity here we construct a continuous function
+$\mathbf u_d$ to avoid regularization issues. 
+
+The approach is to construct a cost function which minimizes the
+difference between $| u- u_d|$ while preserving convexity. 
+$$J[u|_T]=\int_{\Omega}(u(T)- u_d(T))^2 \ \d \Omega \,. $$
+In this case $\CostIntegrand(u(t))=\delta_{t=T}(u(t)- u_d(T))^2$ in \eqref{eq:Cost:general}
+
+We seek $ u$ solution to Eq.~\ref{eq:heateq} such that $J[ u]$ is
+minimal.
+
+
+\subsection{Continous Adjoint - Variational calculus derivation\label{sec:adj:continuous}} 
 
 To derive the gradient used in the backward Set up the Lagrangian
-$$\mathcal{L}[ u,  v]=\int_{\Omega}( u[T]- u_d[T])^2 \ \d \Omega +\int_0^T\int_{\Omega} P[ u]  v \ \d \Omega \d t + \int_0^T\int_{\Gamma}  v_b  ( u-  u_b) \ \d \Gamma \d t$$
-
+$$\mathcal{L}[ u,  v]=\int_{\Omega}( u[T]- u_d[T])^2 \ \d \Omega +\int_0^T\int_{\Omega} P[ u]  v \ \d \Omega \d t + \int_0^T\int_{\Gamma}  v_b  ( u-  u_b) \ \d \Gamma \d t
+%
 \footnote{Chain rule for $f=g\circ h$, g must be Frechet and if h' is Frechet or Gateaux so is f.}
-
+%
 \footnote{Riesz theorem: Let T be a functional on H then the Frechet derivative $T'(x)$ is given by
 $T'(x) v= (\nabla T, v)$ for $\forall v \in H$.}
+%
+$$
 
 Rewrite of the term
 \begin{eqnarray}
@@ -342,7 +375,184 @@ Grouping now the time dependent terms we have
 %\frac{\partial L}{\partial  u_b}&=&\\
 \end{eqnarray}
 
-\subsection{Discrete Adjoint}
+\subsection{Discrete Adjoint - Derivation\label{sec:adj:discrete}} 
+
+We are now changing the solution space from $L^2(\Omega;[t_0,t_N])$ to
+$\mathbb{R}^{n(N+1)}$, where we have $n$ components and $N$ time
+steps. The inner product in this space is defined as $\langle u , v
+\rangle = \sum_{k=0}^N \sum_{i=1}^{n} u_k^{(i)} v_k^{(i)} =
+\sum_{k=0}^N  (u_k)^T v_k$; i.e., $k$ indexes all times and $i$ all
+spatial locations. Then the adjoint of $A$ is $A^*$ s.t. $\langle A u , v
+\rangle = \langle u , A^* v \rangle $, $u,v \in \mathbb{R}^{n(N+1)}$.
+
+Let us assume we have a time-dependent such as \eqref{eq:heateq}. We
+can write it in semi-discrete form as
+%
+\begin{align}
+  \label{eq:semi:discrete:form}
+\frac{\partial u}{\partial t} = f(u,p,t)\,, 
+\end{align}
+%
+where in our case $\param=u_0$. We have a discrete process
+%
+\begin{align}
+   \label{eq:discrete:form}
+u_{k+1} = \ModelN(u_{k};\param,\dt)\,,~ k=0,1,\dots, N\,.
+\end{align}
+%
+Furthermore, consider a discretization of the cost function
+\eqref{eq:Cost:general}, for instance, via the trapezoidal rule:
+$\CostFcn(u_0) = \frac{\dt}{2} g(u_0) + \dt\sum_{k=2}^{N-1}  g(u_k) +
+\frac{\dt}{2} g(u_N)$. The optimization problem is therefore
+%
+\begin{align}
+  \label{eq:discrete:optim}
+\min_{u_0,u_{k+1} - \ModelN(u_{k})=0\,,~ k=0,1,\dots, N} \CostFcn(u_0)\,.
+\end{align}
+%
+The Lagrangian function for \eqref{eq:discrete:optim} is
+%
+\begin{align}
+  \nonumber
+\Lagrangian = \CostFcn(u_0) + \sum_{k=0}^{N-1} \lambda_k^T
+\left(u_{k+1} - \ModelN(u_{k})\right)\,. 
+\end{align}
+%
+The gradient with respect to $\param$ is given by:
+%
+\begin{align}
+  \nonumber
+\nabla_\param\Lagrangian =\nabla_\param \CostFcn(u_0) + \sum_{k=0}^{N-1}
+\lambda_k^T \left(\frac{\partial u_{k+1}}{\partial \param} - \ModelTLM
+\frac{\partial u_{k}}{\partial \param}\right)\,,
+\end{align}
+%
+where $\ModelTLM_k = \left. \frac{\partial \ModelN(u;\param)}{\partial
+  u}\right|_{u=u_k}$ is the tangent linear model. It follows that
+%
+\begin{allowdisplaybreaks}
+\begin{align}
+  \nonumber
+  \nabla_\param
+  \Lagrangian =&\dt \sum_{k=1}^{N} \left.
+  \frac{\partial
+  \CostIntegrand(u)}{\partial u}\frac{\partial u}{\partial \param}
+  \right|_{u=u_k}
++ \sum_{k=0}^{N-1} \lambda_k^T \frac{\partial u_{k+1}}{\partial
+  \param}  - \sum_{k=0}^{N-1}
+\lambda_k^T \ModelTLM \frac{\partial u_{k}}{\partial \param}
+\\
+%%%
+\nonumber
+=& \dt\sum_{k=1}^{N}  
+\frac{\partial
+  \CostIntegrand(u_k)}{\partial u} \frac{\partial u_k}{\partial \param}+
+\sum_{k=1}^{N} \lambda_{k-1}^T \frac{\partial u_{k}}{\partial \param}
+- \sum_{k=0}^{N-1} \lambda_k^T \ModelTLM \frac{\partial
+  u_{k}}{\partial \param}
+\\
+%%%
+\nonumber
+=&\sum_{k=1}^{N-1}  \left(  \dt \frac{\partial
+  \CostIntegrand(u)}{\partial u}  +  \lambda_{k-1}^T  -  \lambda_k^T
+\ModelTLM \right) \frac{\partial u_{k}}{\partial \param} + \dt \frac{\partial
+  \CostIntegrand(u_N)}{\partial u} \frac{\partial u_{N}}{\partial
+  \param} +  \lambda_{N-1}^T \frac{\partial u_{N}}{\partial \param} -
+\lambda_0^T \ModelTLM \frac{\partial   u_{0}}{\partial \param}
+\\
+%%%
+\nonumber
+=&\sum_{k=1}^{N-1}  \left(     \lambda_{k-1}   -  \ModelTLM^T
+\lambda_k +\left(\dt\frac{\partial
+  \CostIntegrand(u)}{\partial u}\right)^T \right)^T \frac{\partial u_{k}}{\partial \param} + \dt \frac{\partial
+  \CostIntegrand(u_N)}{\partial u} \frac{\partial u_{N}}{\partial
+  \param} +  \lambda_{N-1}^T \frac{\partial u_{N}}{\partial \param} -
+\lambda_0^T \ModelTLM \frac{\partial   u_{0}}{\partial \param}
+\\
+%%%
+\nonumber
+=&\sum_{k=1}^{N-1}  \left(     \lambda_{k-1}   -  \ModelTLM^T
+\lambda_k + \left(\dt\frac{\partial
+  \CostIntegrand(u)}{\partial u}\right)^T \right)^T \frac{\partial
+  u_{k}}{\partial \param} + \left(\dt \frac{\partial 
+  \CostIntegrand(u_N)}{\partial u}  +  \lambda_{N-1}^T\right)
+\frac{\partial u_{N}}{\partial \param} - 
+\lambda_0^T \ModelTLM \frac{\partial u_{0}}{\partial \param}\,.
+\end{align}
+\end{allowdisplaybreaks}
+%
+Now choose $\lambda$ so that the so called adjoint system, $\lambda_{k-1}   -  \ModelTLM^T
+\lambda_k + s_k$ is satisfied and the boundary conditions vanish so
+that $\lambda_0 = \nabla_\param \CostFcn(u_0)$, where $s_k$ is the
+source term.
+
+\paragraph{Adjoint for forward Euler.} The numerical algorithm for
+forward Euler satisfies:
+%
+\begin{align}
+  \label{eq:FE}
+  %\nonumber
+  &u_{k+1}=u_k + \dt f(u_k)= \ModelN(u_k;\param,\dt)\,,\\
+  \nonumber
+  &\left. \ModelTLM \right|_{u=u_k} =\ModelTLM_k = I + \dt
+  J(t_k,u_k,\param)\,.
+\end{align}
+%
+The discrete adjoint for this scheme is then
+%
+\begin{align}
+\nonumber
+&\lambda_{k-1}   -  \ModelTLM^T \lambda_k + s_k =0
+\\
+\nonumber
+&\lambda_{k-1} = \left(I + \dt J(t_{k},u_{k},\param) \right)^T \lambda_k -
+s_k
+\\
+\label{eq:FE:adjoint}
+&\lambda_{k-1} =  \lambda_k + \dt J(t_k,u_k,\param)^T \lambda_k - s_k\,.
+\end{align}
+%
+Equation \eqref{eq:FE:adjoint} describes the adjoint of the forward
+Euler method; it goes backward in time (from step $N$ to $0$) and it
+is initialized with $s_N$.
+
+
+\paragraph{Adjoint for backward Euler.} The numerical algorithm for
+backward Euler satisfies:
+%
+\begin{align}
+  \label{eq:BE}
+  %\nonumber
+  &u_{k+1}=u_k + \dt f(u_{k+1})= \ModelN(u_k;\param,\dt)\,,\\
+  \nonumber
+  &\left. \ModelTLM \right|_{u=u_k} =\ModelTLM_k = \left(I - \dt
+  J(t_{k+1},u_{k+1},\param)\right)^{-1}\,.
+\end{align}
+%
+The discrete adjoint for this scheme is then
+%
+\begin{align}
+\nonumber
+&\lambda_{k-1}   -  \ModelTLM^T \lambda_k + s_k =0
+\\
+\nonumber
+&\lambda_{k-1} = \left(I - \dt J(t_{k-1},u_{k-1},\param)^T \right)^{-1} \lambda_k -
+s_k
+\\
+\nonumber
+&\left(I - \dt J(t_{k-1},u_{k-1},\param)^T \right) \lambda_{k-1} = \lambda_k -
+\left(I - \dt J(t_{k-1},u_{k-1},\param)^T \right) s_k\\
+\label{eq:BE:adjoint}
+& \lambda_{k-1} = \lambda_k + \dt J(t_{k-1},u_{k-1},\param)^T
+\lambda_{k-1} -
+\left(I - \dt J(t_{k-1},u_{k-1},\param)^T \right) s_k\,.
+\end{align}
+%
+Equation \eqref{eq:BE:adjoint} describes the adjoint of the backward
+Euler method; it goes backward in time (from step $N$ to $0$) and it
+is initialized with $s_N$.
+
+
 
 \section{PETSc implementation}
 
@@ -438,7 +648,7 @@ In the current section we illustrate...
 
 Sources of error
 \begin{itemize}
-\item Accumulation of local truncation error in the timestepper
+\item Accumulation of local truncation error in the time-stepper
 \item Inaccurate gradient information may hinder convergence
 
 
@@ -588,3 +798,6 @@ Grouping now the time dependent terms we have
 
 
 \end{comment}
+
+%%  LocalWords:  PDE PETSc Oana Constantinescu discretizations
+%%  LocalWords:  Adjoint adjoint
