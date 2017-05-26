@@ -26,6 +26,7 @@
 %\usepackage{algpseudocode}
 \usepackage{epstopdf}
 \usepackage{tikz,tikz-cd}
+\usepackage{listings}
 \usepackage{pgfplots,pgfplotstable}
 \usetikzlibrary{pgfplots.groupplots}
 \usetikzlibrary{positioning}
@@ -316,13 +317,13 @@ Rewrite of the term
 \int_0^T\int_{\Omega} \frac{\partial u}{\partial t}  v \ \d \Omega \d t+ \int_0^T\int_{\Omega} \nu\Delta  u \cdot  v \ \d \Omega \d t+\int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t \\ \nonumber
 &=& \int_{\Omega} u v \ \d \Omega|_0^T -
 \int_0^T\int_{\Omega}
- \frac{\partial v}{\partial t}  u \ \d \Omega \d t+ \int_0^T\int_{\Gamma}(\nabla  u\cdot  v-  u\cdot \nabla v) n\ \d \Gamma \d t + \\
+ \frac{\partial v}{\partial t}  u \ \d \Omega \d t+ \int_0^T\int_{\Gamma}(\nabla  u\cdot  v-  u\cdot \nabla v) n\ \d \Gamma \d t + \\ \nonumber
  && \int_0^T\int_{\Omega} \nu\Delta  v\cdot   u \ \d \Omega \d t+
  \int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t \\ \nonumber
  &=& 
 \int_0^T\int_{\Omega}
 (- \frac{\partial v}{\partial t}  +\nu\Delta  v)\cdot   u\ \d \Omega \d t+\int_{\Omega} u v |_0^T \ \d \Omega
-+ \int_0^T\int_{\Gamma}(\nabla  u\cdot  v-  u\cdot \nabla v) n\ \d \Gamma \d t \\
++ \int_0^T\int_{\Gamma}(\nabla  u\cdot  v-  u\cdot \nabla v) n\ \d \Gamma \d t \\ \nonumber
 &&+
  \int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t \\ \nonumber
 \end{eqnarray}
@@ -336,14 +337,22 @@ Grouping now the time dependent terms we have
 
 \begin{eqnarray}
 \frac{\partial L}{\partial  u}&=&- \frac{\partial v}{\partial t}  +\nu\Delta  v \\
-\frac{\partial L}{\partial  u_0}&=&- v[0]\\
-\frac{\partial L}{\partial  u_T}&=&2( u[T]- u_d[T])+ v[T]\\
-\frac{\partial L}{\partial  u_b}&=&\\
+\frac{\partial L}{\partial  u_0}&=&- v[0]\\ \nonumber
+\frac{\partial L}{\partial  u_T}&=&2( u[T]- u_d[T])+ v[T]\\ \nonumber
+%\frac{\partial L}{\partial  u_b}&=&\\
 \end{eqnarray}
 
 \subsection{Discrete Adjoint}
 
 \section{PETSc implementation}
+
+PETSc has data structures and algortihms for both time integration and optimization, via TAO.
+For spatial discretization the user needs to prove the matrices that stem from the space dependent operators ($\nabla,\ \Delta,\ \nabla \times$, etc) equipped with the afferent boundary conditions. From here on time step routines can integrate forward in time using the integrator of choice, multistage, multistep, and several other more exotic time integrators.
+
+The gradient based optimzation can be performed via using adjoint information, or as a coupled KKT system (ref code). Here we showcase the adjoint based approach, which as illustarted in Fig.~\ref{fig:algorithm} consists of two solvers, one forward and one backward in time.
+
+
+
 \begin{figure}
 \begin{center}
  \begin{tikzpicture}[scale=3.0]
@@ -361,6 +370,46 @@ Grouping now the time dependent terms we have
  \caption{Workflow for compression and restoring the solution.} 
   \label{fig:algorithm}
 \end{figure}
+\lstset{language=C,numbers=left,
+    stepnumber=5,
+    showstringspaces=false,
+    tabsize=2,
+    breaklines=true,
+    breakatwhitespace=true}
+\begin{lstlisting}[caption=PETSc code for PDE constrained optimization via adjoints, label=codemat]
+
+  //TS object initialized previsouly
+  ierr = TSSetSaveTrajectory(appctx->ts);CHKERRQ(ierr);
+  ierr = TSSolve(appctx->ts,appctx->dat.curr_sol);CHKERRQ(ierr);
+  
+  // Compute the L2-norm of the objective function f
+  ierr = VecDuplicate(appctx->dat.obj,&temp);CHKERRQ(ierr);
+  ierr = VecCopy(appctx->dat.obj,temp);CHKERRQ(ierr);
+  ierr = VecAXPY(temp,-1.0,appctx->dat.curr_sol);CHKERRQ(ierr);
+  
+  ierr   = VecDuplicate(temp,&temp2);CHKERRQ(ierr);
+  ierr   = VecPointwiseMult(temp2,temp,temp);CHKERRQ(ierr);
+  ierr = VecDot(temp2,appctx->SEMop.mass,f);CHKERRQ(ierr);
+
+  // Initial conditions for the adjoint integration, given by 2*obj'=temp    
+  ierr = VecScale(temp, -2.0);
+  ierr = VecCopy(temp,appctx->dat.grad);CHKERRQ(ierr);
+  
+  //Set gradient and objective function
+  ierr = TSSetCostGradients(appctx->ts,1,&appctx>dat.grad,NULL);CHKERRQ(ierr);
+  
+  ierr = TSAdjointSetUp(appctx->ts);CHKERRQ(ierr);
+     
+  //Solve adjoint step
+  ierr = TSAdjointSolve(appctx->ts);CHKERRQ(ierr);
+   
+  ierr = VecCopy(appctx->dat.grad,G);CHKERRQ(ierr);
+  
+  //get solution status from TAO
+  ierr=  TaoGetSolutionStatus(tao, &its, &ff, &gnorm, &cnorm, &xdiff, &reason);
+\end{lstlisting}
+
+
 
 \section{Validation and sources of error}
 
@@ -384,8 +433,6 @@ In the current section we illustrate...
 \label{fig:wingfull_est}}
 \caption{Optimal initial conditions and gradient information}
 \end{figure}
-
-
 
 
 
