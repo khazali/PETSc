@@ -113,7 +113,7 @@ static void g1_nbetapsi_right(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   const PetscScalar *psiDer   = &u_x[uOff_x[PSI]];
   for (i = 0; i < dim; ++i)
     for (j = 0; j < dim; ++j)
-      g1[j] += -s_ctx->beta*psiDer[i]*s_K[i][j];
+      g1[i] += -s_K[i][j]*s_ctx->beta*psiDer[j];
 }
 
 /* 'left' Poisson bracket - < Omega , . >, live var is right, held var is left */
@@ -175,7 +175,7 @@ static void g1_lnn0_left_nphi_n_right(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   /* right */
   for (i = 0; i < dim; ++i)
     for (j = 0; j < dim; ++j)
-      g1[j] += (pnDer[i] - pphiDer[i])*s_K[i][j];
+      g1[i] += s_K[i][j]*(pnDer[j]-pphiDer[j]);
 }
 
 static void g3_nmu(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -350,7 +350,7 @@ static void f1_jz(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                   PetscReal t, const PetscReal x[], PetscScalar f1[])
 {
   const PetscScalar *ppsiDer   = &u_x[uOff_x[PSI]];
-  const PetscScalar *refPsiDer = &a_x[aOff_x[PSI]];
+  const PetscScalar *refPsiDer = &a_x[aOff_x[PSI0]];
   PetscInt           d;
   for (d = 0; d < dim; ++d) f1[d] = ppsiDer[d] + refPsiDer[d];
 }
