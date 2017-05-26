@@ -429,24 +429,128 @@ The gradient with respect to $\param$ is given by:
 where $\ModelTLM_k = \left. \frac{\partial \ModelN(u;\param)}{\partial
   u}\right|_{u=u_k}$ is the tangent linear model. It follows that
 %
+\begin{allowdisplaybreaks}
 \begin{align}
   \nonumber
   \nabla_\param
-  \Lagrangian =&\dt \sum_{k=1}^{N-1} \left. 
+  \Lagrangian =&\dt \sum_{k=1}^{N} \left.
   \frac{\partial
   \CostIntegrand(u)}{\partial u}\frac{\partial u}{\partial \param}
   \right|_{u=u_k}
-+ \sum_{k=0}^{N-1} \lambda_k^T \frac{\partial u_{k+1}}{\partial \param}  - \sum_{k=0}^{N-1}
++ \sum_{k=0}^{N-1} \lambda_k^T \frac{\partial u_{k+1}}{\partial
+  \param}  - \sum_{k=0}^{N-1}
 \lambda_k^T \ModelTLM \frac{\partial u_{k}}{\partial \param}
 \\
+%%%
 \nonumber
-=& \dt \left. \sum_{k=1}^{N-1}
+=& \dt\sum_{k=1}^{N}  
 \frac{\partial
-  \CostIntegrand(u)}{\partial u} \frac{\partial u}{\partial \param} \right|_{u=u_k}+
-\sum_{k=1}^{N} \lambda_{k+1}^T \frac{\partial u_{k}}{\partial \param}
-- \sum_{k=0}^{N-1} \lambda_k^T \ModelTLM \frac{\partial u_{k}}{\partial \param}
+  \CostIntegrand(u_k)}{\partial u} \frac{\partial u_k}{\partial \param}+
+\sum_{k=1}^{N} \lambda_{k-1}^T \frac{\partial u_{k}}{\partial \param}
+- \sum_{k=0}^{N-1} \lambda_k^T \ModelTLM \frac{\partial
+  u_{k}}{\partial \param}
+\\
+%%%
+\nonumber
+=&\sum_{k=1}^{N-1}  \left(  \dt \frac{\partial
+  \CostIntegrand(u)}{\partial u}  +  \lambda_{k-1}^T  -  \lambda_k^T
+\ModelTLM \right) \frac{\partial u_{k}}{\partial \param} + \dt \frac{\partial
+  \CostIntegrand(u_N)}{\partial u} \frac{\partial u_{N}}{\partial
+  \param} +  \lambda_{N-1}^T \frac{\partial u_{N}}{\partial \param} -
+\lambda_0^T \ModelTLM \frac{\partial   u_{0}}{\partial \param}
+\\
+%%%
+\nonumber
+=&\sum_{k=1}^{N-1}  \left(     \lambda_{k-1}   -  \ModelTLM^T
+\lambda_k +\left(\dt\frac{\partial
+  \CostIntegrand(u)}{\partial u}\right)^T \right)^T \frac{\partial u_{k}}{\partial \param} + \dt \frac{\partial
+  \CostIntegrand(u_N)}{\partial u} \frac{\partial u_{N}}{\partial
+  \param} +  \lambda_{N-1}^T \frac{\partial u_{N}}{\partial \param} -
+\lambda_0^T \ModelTLM \frac{\partial   u_{0}}{\partial \param}
+\\
+%%%
+\nonumber
+=&\sum_{k=1}^{N-1}  \left(     \lambda_{k-1}   -  \ModelTLM^T
+\lambda_k + \left(\dt\frac{\partial
+  \CostIntegrand(u)}{\partial u}\right)^T \right)^T \frac{\partial
+  u_{k}}{\partial \param} + \left(\dt \frac{\partial 
+  \CostIntegrand(u_N)}{\partial u}  +  \lambda_{N-1}^T\right)
+\frac{\partial u_{N}}{\partial \param} - 
+\lambda_0^T \ModelTLM \frac{\partial u_{0}}{\partial \param}\,.
+\end{align}
+\end{allowdisplaybreaks}
+%
+Now choose $\lambda$ so that the so called adjoint system, $\lambda_{k-1}   -  \ModelTLM^T
+\lambda_k + s_k$ is satisfied and the boundary conditions vanish so
+that $\lambda_0 = \nabla_\param \CostFcn(u_0)$, where $s_k$ is the
+source term.
+
+\paragraph{Adjoint for forward Euler.} The numerical algorithm for
+forward Euler satisfies:
+%
+\begin{align}
+  \label{eq:FE}
+  %\nonumber
+  &u_{k+1}=u_k + \dt f(u_k)= \ModelN(u_k;\param,\dt)\,,\\
+  \nonumber
+  &\left. \ModelTLM \right|_{u=u_k} =\ModelTLM_k = I + \dt
+  J(t_k,u_k,\param)\,.
 \end{align}
 %
+The discrete adjoint for this scheme is then
+%
+\begin{align}
+\nonumber
+&\lambda_{k-1}   -  \ModelTLM^T \lambda_k + s_k =0
+\\
+\nonumber
+&\lambda_{k-1} = \left(I + \dt J(t_{k},u_{k},\param) \right)^T \lambda_k -
+s_k
+\\
+\label{eq:FE:adjoint}
+&\lambda_{k-1} =  \lambda_k + \dt J(t_k,u_k,\param)^T \lambda_k - s_k\,.
+\end{align}
+%
+Equation \eqref{eq:FE:adjoint} describes the adjoint of the forward
+Euler method; it goes backward in time (from step $N$ to $0$) and it
+is initialized with $s_N$.
+
+
+\paragraph{Adjoint for backward Euler.} The numerical algorithm for
+backward Euler satisfies:
+%
+\begin{align}
+  \label{eq:BE}
+  %\nonumber
+  &u_{k+1}=u_k + \dt f(u_{k+1})= \ModelN(u_k;\param,\dt)\,,\\
+  \nonumber
+  &\left. \ModelTLM \right|_{u=u_k} =\ModelTLM_k = \left(I - \dt
+  J(t_{k+1},u_{k+1},\param)\right)^{-1}\,.
+\end{align}
+%
+The discrete adjoint for this scheme is then
+%
+\begin{align}
+\nonumber
+&\lambda_{k-1}   -  \ModelTLM^T \lambda_k + s_k =0
+\\
+\nonumber
+&\lambda_{k-1} = \left(I - \dt J(t_{k-1},u_{k-1},\param)^T \right)^{-1} \lambda_k -
+s_k
+\\
+\nonumber
+&\left(I - \dt J(t_{k-1},u_{k-1},\param)^T \right) \lambda_{k-1} = \lambda_k -
+\left(I - \dt J(t_{k-1},u_{k-1},\param)^T \right) s_k\\
+\label{eq:BE:adjoint}
+& \lambda_{k-1} = \lambda_k + \dt J(t_{k-1},u_{k-1},\param)^T
+\lambda_{k-1} -
+\left(I - \dt J(t_{k-1},u_{k-1},\param)^T \right) s_k\,.
+\end{align}
+%
+Equation \eqref{eq:BE:adjoint} describes the adjoint of the backward
+Euler method; it goes backward in time (from step $N$ to $0$) and it
+is initialized with $s_N$.
+
 
 
 \section{PETSc implementation}
