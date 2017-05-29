@@ -2,8 +2,8 @@
 \usepackage{fullpage}
 \usepackage{amsmath, amsthm, amssymb}
 \begin{document}
-
 \title{Compressible Naiver-Stokes with Implicit time integration}
+\date{}
 \maketitle
 The conservation form of compressible Naiver-Stokes can be written as
 \begin{equation}
@@ -19,40 +19,34 @@ The conservation form of compressible Naiver-Stokes can be written as
 
 %and the definition of temperature as $T=p/(\rho\,r_{\text{gas}})$
 %with $r_{\text{gas}}$ the gas constant.
-with velocity $\bf u$, pressure $p$, density $\rho$, energy $e$, and $T = \frac{p}{\rho R}$, $R = 8.314/29 J/(kg K)$.
+with velocity $\bf u$, pressure $p$, density $\rho$, energy $e$, and $T = \frac{p}{\rho R}$, $R = 8.314/29 J/(kg K)$, where $29$ is the molecular weight of air.
 The stress tensor is related to the strain as
 \[
   {\bf \tau}=\mu\left(\nabla{\bf u}+(\nabla {\bf u})^T\right).
 \]
 
-\section{1D Viscous shock test}
+\subsubsection*{1D Viscous shock test}
+On the domain $(-L,L)$, with left state $U_0$ and right state $U_1$, 
 \begin{equation}
 \begin{aligned}
 \mu&=  \rho \cdot 1.e-5 \mathrm{\frac{m^2}{s}} \\
-L&=1.e-7 \mathrm{m}\\
-M &= 1.1 \\
-\rho_0 &= 1 \mathrm{\frac{kg}{m^3}}\\
+L&=1.e-7 \mathrm{m} \\
+M &= 1.1                                                                            && \text{Mach number}  \\
+\rho_0 &= 1 \mathrm{\frac{kg}{m^3}}                                 && \text{Initial left density}\\
 p_0 &= 1e5 \mathrm{\frac{N}{m^2}}\\
 p_1 &= p_0 \left [ 1+\frac{2\gamma}{\gamma+1} \right ] \left ( M^2 - 1 \right )  \\
 u_0 &= -M\sqrt{\frac{\gamma p_0}{\rho_0}} \mathrm{\frac{m}{s}} \\
 \frac{\rho_1}{\rho_0} &= \frac{\frac{p_1}{p_0} \cdot \frac{\gamma +1}{\gamma -1} + 1}{\frac{p_1}{p_0}+  \frac{\gamma +1}{\gamma -1}} \\
 u_1&=\frac{\rho_0 u_0}{\rho_1} \\
-f(x) &= \frac{f_0+f_1}{2}+ \frac{f_1-f_0}{2}tanh(\alpha x) \\
+f(x,0) &= \frac{f_0+f_1}{2}+ \frac{f_1-f_0}{2}tanh(\alpha x) && \text{initialized all variables $f$} \\
 x &\in \left ( -L,L \right )
 \end{aligned}
 \end{equation}
 We can assume $\rho$ is a constant (ie, 1) in the definition of $\mu$.
-
-
-
-
-
-
-
-
-
-
-
+This is a standing shock test.
+Choose $\alpha$ to get a reasonably sharp initial shock profile.
+This initial shock relaxes to shock with a certain profile (a new $\alpha$, which we need to get from Ravi).
+To get a moving shock, add a constant velocity after the shock has relaxed to its equilibrium.
 \bibliographystyle{plain}
 \bibliography{./mybiblio}
 \end{document}
