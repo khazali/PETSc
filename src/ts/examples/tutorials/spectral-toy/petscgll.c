@@ -6,6 +6,9 @@
 #include <petsc/private/petscimpl.h>
 
 
+
+
+
 static void qAndLEvaluation(PetscInt n, PetscReal x, PetscReal *q, PetscReal *qp, PetscReal *Ln)
 /*
   Compute the polynomial q(x) = L_{N+1}(x) - L_{n-1}(x) and its derivative in
@@ -40,6 +43,36 @@ static void qAndLEvaluation(PetscInt n, PetscReal x, PetscReal *q, PetscReal *qp
   *q    = Lnp1 - Lnm1;
   *qp   = Lnp1p - Lnm1p;
 }
+
+
+/*
+
+ 
+
+       REAL FUNCTION PNDLEG (Z,N)
+ //     Compute the derivative of the Nth order Legendre polynomial at Z.
+  //Based on the recursion formula for the Legendre polynomials.
+
+      P1   = 1.
+       P2   = Z
+       P1D  = 0.
+      P2D  = 1.
+       P3D  = 1.
+      DO 10 K = 1, N-1
+          FK  = (K)
+          P3  = ((2.*FK+1.)*Z*P2 - FK*P1)/(FK+1.)
+         P3D = ((2.*FK+1.)*P2 + (2.*FK+1.)*Z*P2D - FK*P1D)/(FK+1.)
+          P1  = P2
+          P2  = P3
+         P1D = P2D
+          P2D = P3D
+  10   CONTINUE
+       PNDLEG = P3D
+       IF (N.eq.0) pndleg = 0.
+       RETURN
+       END
+*/
+
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscGLLIPCreate"
@@ -90,9 +123,9 @@ PetscErrorCode PetscGLLIPCreate(PetscInt n,PetscGLLIPCreateType type,PetscGLLIP 
       ierr = PetscBLASIntCast(n-2,&bn);CHKERRQ(ierr);
       ierr = PetscMemzero(&gll->nodes[1],bn*sizeof(gll->nodes[1]));CHKERRQ(ierr);
       ierr = PetscFPTrapPush(PETSC_FP_TRAP_OFF);CHKERRQ(ierr);
-      /*PetscRealView(n-2,M,0);*/
+      //PetscRealView(n-2,M,0);
       x=0;
-      /*printf(" bn %d\n", bn);*/
+      //printf(" bn %d\n", bn);
       PetscStackCallBLAS("LAPACKsteqr",LAPACKsteqr_("N",&bn,&gll->nodes[1],M,&x,&bn,M,&lierr));
       if (lierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in STERF Lapack routine %d",(int)lierr);
       ierr = PetscFPTrapPop();CHKERRQ(ierr);
@@ -118,13 +151,16 @@ PetscErrorCode PetscGLLIPCreate(PetscInt n,PetscGLLIPCreateType type,PetscGLLIP 
   } else {
     PetscInt  j,m;
     PetscReal z1,z,q,qp,Ln;
+    PetscReal *pt;
+    ierr = PetscMalloc(n,&pt);CHKERRQ(ierr);
 
     if (n > 30) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"PETSCGLLIP_VIA_NEWTON produces incorrect answers for n > 30");
     gll->nodes[0]     = -1.0;
     gll->nodes[n-1]   = 1.0;
     gll->weights[0]   = gll->weights[n-1] = 2./(((PetscReal)n)*(((PetscReal)n)-1.0));;
     m  = (n-1)/2; /* The roots are symmetric, so we only find half of them. */
-    for (j=1; j<=m; j++) { /* Loop over the desired roots. */
+    for (j=1; j<=m; j++) 
+    { /* Loop over the desired roots. */
       z = -1.0*PetscCosReal((PETSC_PI*((PetscReal)j)+0.25)/(((PetscReal)n)-1.0))-(3.0/(8.0*(((PetscReal)n)-1.0)*PETSC_PI))*(1.0/(((PetscReal)j)+0.25));
       /* Starting with the above approximation to the ith root, we enter */
       /* the main loop of refinement by Newton's method.                 */
@@ -132,19 +168,25 @@ PetscErrorCode PetscGLLIPCreate(PetscInt n,PetscGLLIPCreateType type,PetscGLLIP 
         qAndLEvaluation(n-1,z,&q,&qp,&Ln);
         z1 = z;
         z  = z1-q/qp; /* Newton's method. */
-      } while (PetscAbs(z-z1) > 10.*PETSC_MACHINE_EPSILON);
+         } while (PetscAbs(z-z1) > 10.*PETSC_MACHINE_EPSILON);
       qAndLEvaluation(n-1,z,&q,&qp,&Ln);
+      
       gll->nodes[j]       = z;
       gll->nodes[n-1-j]   = -z;      /* and put in its symmetric counterpart.   */
       gll->weights[j]     = 2.0/(((PetscReal)n)*(((PetscReal)n)-1.)*Ln*Ln);  /* Compute the weight */
       gll->weights[n-1-j] = gll->weights[j];                 /* and its symmetric counterpart. */
-    }
+      pt[j]=qp;
+    printf(" qp %g\n", pt[j]);
+    printf(" Ln %g\n", Ln);
+     }
+   
     if ((n-1)%2==0) {
       qAndLEvaluation(n-1,0.0,&q,&qp,&Ln);
       gll->nodes[(n-1)/2]   = 0.0;
       gll->weights[(n-1)/2] = 2.0/(((PetscReal)n)*(((PetscReal)n)-1.)*Ln*Ln);
-    }
+          }
   }
+  
   gll->n = n;
   PetscFunctionReturn(0);
 }
@@ -371,3 +413,131 @@ PetscErrorCode PetscGLLIPIntegrate(PetscGLLIP *gll,PetscReal *f,PetscReal *in)
   }
   PetscFunctionReturn(0);
 }
+
+/*
+#undef __FUNCT__
+#define __FUNCT__ "PetscGLLPoly"
+
+PetscErrorCode PetscGLLIPCreate(PetscInt n,PetscReal z, PetscReal Ln)
+{
+  PetscErrorCode ierr;
+  PetscReal p1,p2,p3;
+  PetscInt k;
+
+  PetscFunctionBegin;
+      p1   = 1.;
+      if (n==0) {Ln = p1;}
+       else{
+        p2   = z;
+        p3   = p2;
+       for (K = 0; k<N; k++)
+         {p3  = ((2.*k+1.)*z*p2 - k*p1)/(k+1.);
+         p1  = p2;
+         p2  = p3;
+         }
+        Ln = p3;
+       if (n==0) {Ln = 1.;}
+  
+   PetscFunctionReturn(0);
+}
+*/
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscGLLIPElementGradientCreate"
+/*@C
+   PetscGLLIPElementStiffnessCreate - computes the stiffness for a single 1d GLL element for the Laplacian
+
+   Not Collective
+
+   Input Parameter:
+.  gll - the nodes
+
+   Output Parameter:
+.  A - the stiffness element
+
+   Level: beginner
+
+   Notes: Destroy this with PetscGLLIPElementStiffnessDestroy()
+
+   You can access entries in this matrix with AA[i][j] but in memory it is stored in contiguous memory, row oriented (the matrix is symmetric)
+
+.seealso: PetscGLLIP, PetscGLLIPDestroy(), PetscGLLIPView(), PetscGLLIPElementStiffnessDestroy()
+
+@*/
+PetscErrorCode PetscGLLIPElementGradientCreate(PetscGLLIP *gll,PetscReal ***AA, PetscReal ***AAT)
+{
+  PetscReal        **A, **AT, zz;
+  PetscErrorCode  ierr;
+  const PetscReal  *nodes = gll->nodes;
+  const PetscInt   n = gll->n, p = gll->n-1;
+  PetscReal        zi,zj,q,qp,Li, Lj,d0;
+  PetscInt         i,j,nn,r;
+
+  PetscFunctionBegin;
+  ierr = PetscMalloc1(n,&A);CHKERRQ(ierr);
+  ierr = PetscMalloc1(n*n,&A[0]);CHKERRQ(ierr);
+   for (i=1; i<n; i++) A[i] = A[i-1]+n;
+
+  ierr = PetscMalloc1(n,&AT);CHKERRQ(ierr);
+  ierr = PetscMalloc1(n*n,&AT[0]);CHKERRQ(ierr);
+  for (i=1; i<n; i++) AT[i] = AT[i-1]+n;
+
+   if (n==1) {A[0][0] = 0.;}
+   d0 = (PetscReal)p*((PetscReal)p+1.)/4.;
+   for  (i=0; i<n; i++)
+         {for  (j=0; j<n; j++)
+           {
+           A[i][j]=0.; 
+           qAndLEvaluation(p,nodes[i],&q,&qp,&Li);
+           qAndLEvaluation(p,nodes[j],&q,&qp,&Lj);
+           if (i!=j) {A[i][j] = Li/(Lj*(nodes[i]-nodes[j]));}
+           if ((j==i) && (i==0))  { A[i][j] = -d0;}
+           if (j==i && i==p)  {A[i][j] = d0; }
+           //printf("feeling bah, A=%g\n", A[i][j]);
+           AT[j][i] = A[i][j];
+           }
+     }  
+
+  //A[0][0]= -d0;
+  //A[p][p]= d0;
+  
+  *AAT = AT;
+  *AA = A;
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscGLLIPElementGradientDestroy"
+
+
+/*@C
+   PetscGLLIPElementStiffnessDestroy - frees the stiffness for a single 1d GLL element
+
+   Not Collective
+
+   Input Parameter:
++  gll - the nodes
+-  A - the stiffness element
+
+   Level: beginner
+
+.seealso: PetscGLLIP, PetscGLLIPDestroy(), PetscGLLIPView(), PetscGLLIPElementStiffnessCreate()
+
+@*/
+PetscErrorCode PetscGLLIPElementGradientDestroy(PetscGLLIP *gll,PetscReal ***AA,PetscReal ***AAT)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscFree((*AA)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(*AA);CHKERRQ(ierr);
+  *AA  = NULL;
+
+  ierr = PetscFree((*AAT)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(*AAT);CHKERRQ(ierr);
+  *AAT  = NULL;
+  PetscFunctionReturn(0);
+}
+
+
