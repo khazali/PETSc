@@ -859,6 +859,9 @@ runex48_imp:
 	${PETSC_DIR}/bin/petsc_gen_xdmf.py *.h5
 	   ${RM} -f ex48_2D.tmp
 
+runex48_dbg:
+	-@${MPIEXEC} -n 1 ./ex48  -debug 2 -dim 2 -ts_monitor -implicit true -ts_type beuler -snes_monitor -snes_rtol 1.e-6 -snes_stol 1.e-6 -snes_atol 1.e-18 -snes_converged_reason -petscspace_order 2 -petscspace_poly_tensor -ts_max_steps 1 -ts_dt .00001 -eps 1.e-12 -eta 0.1 -dm_refine 0 -cells 2,2 -snes_type test -snes_test_display
+
 runex48_3D:
 	-@${MPIEXEC} -n 1 ./ex48 -debug 2 -dim 3 -eta 0.1 -ts_type euler -dm_refine 2 -petscspace_order 2 -petscspace_poly_tensor -ts_max_steps 1 -ts_dt .1 -ts_max_steps 1 -domain_lo -2,-2,-1 -domain_hi 2,2,1 > ex48_3D.tmp 2>&1; \
 	   ${DIFF} output/ex48_3D.out ex48_3D.tmp || printf "${PWD}\nPossible problem with ex48_3D, diffs above\n=========================================\n"; \

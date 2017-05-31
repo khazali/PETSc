@@ -244,7 +244,7 @@ static void f0_n(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   const PetscScalar *pphiDer = &u_x[uOff_x[PHI]];
   const PetscScalar *jzDer   = &u_x[uOff_x[JZ]];
   const PetscScalar *logRefDenDer = &a_x[aOff_x[LNNDEN0]];
-  f0[0] += - poissonBracket(dim,pnDer, pphiDer) - s_ctx->beta*poissonBracket(dim,jzDer, ppsiDer) - poissonBracket(dim,logRefDenDer, pphiDer);
+  //f0[0] += - poissonBracket(dim,pnDer, pphiDer) - s_ctx->beta*poissonBracket(dim,jzDer, ppsiDer) - poissonBracket(dim,logRefDenDer, pphiDer);
   if (u_t) f0[0] += u_t[NDEN];
 }
 
@@ -516,7 +516,6 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *ctx, DM *dm)
     ierr = DMPlexCreateFromFile(comm, filename, PETSC_TRUE, dm);CHKERRQ(ierr);
   } else {
     PetscInt        d;
-
     /* create DM */
     if (ctx->cell_simplex && dim == 3) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Cannot mesh a cylinder with simplices");
     if (dim==2) {
@@ -645,31 +644,33 @@ static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *ctx)
 
   PetscFunctionBeginUser;
   if (ctx->implicit) {
-    ierr = PetscDSSetJacobian(prob, NDEN, NDEN, g0_dt, g1_nphi_right,  NULL, g3_nmu);CHKERRQ(ierr);
-    ierr = PetscDSSetJacobian(prob, NDEN, PSI, NULL,  g1_nbetaj_left, NULL, NULL);CHKERRQ(ierr);
-    ierr = PetscDSSetJacobian(prob, NDEN, PHI, NULL,  g1_nlnn0_nn_left, NULL, NULL);CHKERRQ(ierr);
-    ierr = PetscDSSetJacobian(prob, NDEN, JZ, NULL,  g1_nbetapsi_right, NULL, NULL);CHKERRQ(ierr);
+    ierr = PetscDSSetJacobian(prob, NDEN, NDEN, g0_dt, NULL,  NULL, NULL);CHKERRQ(ierr);
+    /* ierr = PetscDSSetJacobian(prob, NDEN, NDEN, g0_dt, g1_nphi_right,  NULL, g3_nmu);CHKERRQ(ierr); */
+    /* ierr = PetscDSSetJacobian(prob, NDEN, PSI, NULL,  g1_nbetaj_left, NULL, NULL);CHKERRQ(ierr); */
+    /* ierr = PetscDSSetJacobian(prob, NDEN, PHI, NULL,  g1_nlnn0_nn_left, NULL, NULL);CHKERRQ(ierr); */
+    /* ierr = PetscDSSetJacobian(prob, NDEN, JZ, NULL,  g1_nbetapsi_right, NULL, NULL);CHKERRQ(ierr); */
 
-    ierr = PetscDSSetJacobian(prob, OMEGA, OMEGA, g0_dt, g1_nphi_right,  NULL, g3_nmu);CHKERRQ(ierr);
-    ierr = PetscDSSetJacobian(prob, OMEGA, PSI, NULL,    g1_nbetaj_left, NULL, NULL);CHKERRQ(ierr);
-    ierr = PetscDSSetJacobian(prob, OMEGA, PHI, NULL,    g1_nomega_left, NULL, NULL);CHKERRQ(ierr);
-    ierr = PetscDSSetJacobian(prob, OMEGA, JZ, NULL,     g1_nbetapsi_right, NULL, NULL);CHKERRQ(ierr);
+    /* ierr = PetscDSSetJacobian(prob, OMEGA, OMEGA, g0_dt, g1_nphi_right,  NULL, g3_nmu);CHKERRQ(ierr); */
+    /* ierr = PetscDSSetJacobian(prob, OMEGA, PSI, NULL,    g1_nbetaj_left, NULL, NULL);CHKERRQ(ierr); */
+    /* ierr = PetscDSSetJacobian(prob, OMEGA, PHI, NULL,    g1_nomega_left, NULL, NULL);CHKERRQ(ierr); */
+    /* ierr = PetscDSSetJacobian(prob, OMEGA, JZ, NULL,     g1_nbetapsi_right, NULL, NULL);CHKERRQ(ierr); */
 
-    ierr = PetscDSSetJacobian(prob, PSI, NDEN, NULL,  g1_psi0_psi_left, NULL, NULL);CHKERRQ(ierr);
-    ierr = PetscDSSetJacobian(prob, PSI, PSI, g0_dt, g1_lnn0_left_nphi_n_right,  NULL, g3_neta_beta);CHKERRQ(ierr);
-    ierr = PetscDSSetJacobian(prob, PSI, PHI, NULL,  g1_npsi0_npsi_left,  NULL, NULL);CHKERRQ(ierr);
+    /* ierr = PetscDSSetJacobian(prob, PSI, NDEN, NULL,  g1_psi0_psi_left, NULL, NULL);CHKERRQ(ierr); */
+    /* ierr = PetscDSSetJacobian(prob, PSI, PSI, g0_dt, g1_lnn0_left_nphi_n_right,  NULL, g3_neta_beta);CHKERRQ(ierr); */
+    /* ierr = PetscDSSetJacobian(prob, PSI, PHI, NULL,  g1_npsi0_npsi_left,  NULL, NULL);CHKERRQ(ierr); */
 
-    ierr = PetscDSSetJacobian(prob, PHI, OMEGA, g0_1,  NULL,  NULL, NULL);CHKERRQ(ierr);
-    ierr = PetscDSSetJacobian(prob, PHI, PHI,   NULL,  NULL,  NULL, g3_n1);CHKERRQ(ierr);
+    /* ierr = PetscDSSetJacobian(prob, PHI, OMEGA, g0_1,  NULL,  NULL, NULL);CHKERRQ(ierr); */
+    /* ierr = PetscDSSetJacobian(prob, PHI, PHI,   NULL,  NULL,  NULL, g3_n1);CHKERRQ(ierr); */
 
-    ierr = PetscDSSetJacobian(prob, JZ, PSI,  NULL,  NULL,  NULL, g3_1);CHKERRQ(ierr);
-    ierr = PetscDSSetJacobian(prob, JZ, JZ,   g0_1,  NULL,  NULL, NULL);CHKERRQ(ierr);
+    /* ierr = PetscDSSetJacobian(prob, JZ, PSI,  NULL,  NULL,  NULL, g3_1);CHKERRQ(ierr); */
+    /* ierr = PetscDSSetJacobian(prob, JZ, JZ,   g0_1,  NULL,  NULL, NULL);CHKERRQ(ierr); */
   }
-  ierr = PetscDSSetResidual(prob, NDEN,  f0_n,     f1_n);CHKERRQ(ierr);
-  ierr = PetscDSSetResidual(prob, OMEGA, f0_Omega, f1_Omega);CHKERRQ(ierr);
-  ierr = PetscDSSetResidual(prob, PSI,   f0_psi,   f1_psi);CHKERRQ(ierr);
-  ierr = PetscDSSetResidual(prob, PHI,   f0_phi,   f1_phi);CHKERRQ(ierr);
-  ierr = PetscDSSetResidual(prob, JZ,    f0_jz,    f1_jz);CHKERRQ(ierr);
+  ierr = PetscDSSetResidual(prob, NDEN,  f0_n,     NULL);CHKERRQ(ierr);
+  /* ierr = PetscDSSetResidual(prob, NDEN,  f0_n,     f1_n);CHKERRQ(ierr); */
+  /* ierr = PetscDSSetResidual(prob, OMEGA, f0_Omega, f1_Omega);CHKERRQ(ierr); */
+  /* ierr = PetscDSSetResidual(prob, PSI,   f0_psi,   f1_psi);CHKERRQ(ierr); */
+  /* ierr = PetscDSSetResidual(prob, PHI,   f0_phi,   f1_phi);CHKERRQ(ierr); */
+  /* ierr = PetscDSSetResidual(prob, JZ,    f0_jz,    f1_jz);CHKERRQ(ierr); */
 
   ctx->initialFuncs[0] = initialSolution_n;
   ctx->initialFuncs[1] = initialSolution_Omega;
