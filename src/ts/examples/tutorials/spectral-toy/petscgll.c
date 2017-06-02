@@ -45,34 +45,6 @@ static void qAndLEvaluation(PetscInt n, PetscReal x, PetscReal *q, PetscReal *qp
 }
 
 
-/*
-
- 
-
-       REAL FUNCTION PNDLEG (Z,N)
- //     Compute the derivative of the Nth order Legendre polynomial at Z.
-  //Based on the recursion formula for the Legendre polynomials.
-
-      P1   = 1.
-       P2   = Z
-       P1D  = 0.
-      P2D  = 1.
-       P3D  = 1.
-      DO 10 K = 1, N-1
-          FK  = (K)
-          P3  = ((2.*FK+1.)*Z*P2 - FK*P1)/(FK+1.)
-         P3D = ((2.*FK+1.)*P2 + (2.*FK+1.)*Z*P2D - FK*P1D)/(FK+1.)
-          P1  = P2
-          P2  = P3
-         P1D = P2D
-          P2D = P3D
-  10   CONTINUE
-       PNDLEG = P3D
-       IF (N.eq.0) pndleg = 0.
-       RETURN
-       END
-*/
-
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscGLLIPCreate"
@@ -414,33 +386,6 @@ PetscErrorCode PetscGLLIPIntegrate(PetscGLLIP *gll,PetscReal *f,PetscReal *in)
   PetscFunctionReturn(0);
 }
 
-/*
-#undef __FUNCT__
-#define __FUNCT__ "PetscGLLPoly"
-
-PetscErrorCode PetscGLLIPCreate(PetscInt n,PetscReal z, PetscReal Ln)
-{
-  PetscErrorCode ierr;
-  PetscReal p1,p2,p3;
-  PetscInt k;
-
-  PetscFunctionBegin;
-      p1   = 1.;
-      if (n==0) {Ln = p1;}
-       else{
-        p2   = z;
-        p3   = p2;
-       for (K = 0; k<N; k++)
-         {p3  = ((2.*k+1.)*z*p2 - k*p1)/(k+1.);
-         p1  = p2;
-         p2  = p3;
-         }
-        Ln = p3;
-       if (n==0) {Ln = 1.;}
-  
-   PetscFunctionReturn(0);
-}
-*/
 
 #undef __FUNCT__
 #define __FUNCT__ "PetscGLLIPElementGradientCreate"
@@ -493,14 +438,10 @@ PetscErrorCode PetscGLLIPElementGradientCreate(PetscGLLIP *gll,PetscReal ***AA, 
            if (i!=j) {A[i][j] = Li/(Lj*(nodes[i]-nodes[j]));}
            if ((j==i) && (i==0))  { A[i][j] = -d0;}
            if (j==i && i==p)  {A[i][j] = d0; }
-           //printf("feeling bah, A=%g\n", A[i][j]);
            AT[j][i] = A[i][j];
            }
      }  
-
-  //A[0][0]= -d0;
-  //A[p][p]= d0;
-  
+ 
   *AAT = AT;
   *AA = A;
   PetscFunctionReturn(0);
@@ -539,5 +480,87 @@ PetscErrorCode PetscGLLIPElementGradientDestroy(PetscGLLIP *gll,PetscReal ***AA,
   *AAT  = NULL;
   PetscFunctionReturn(0);
 }
+
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscGLLIPElementGradientCreate"
+/*@C
+   PetscGLLIPElementStiffnessCreate - computes the stiffness for a single 1d GLL element for the Laplacian
+
+   Not Collective
+
+   Input Parameter:
+.  gll - the nodes
+
+   Output Parameter:
+.  A - the stiffness element
+
+   Level: beginner
+
+   Notes: Destroy this with PetscGLLIPElementStiffnessDestroy()
+
+   You can access entries in this matrix with AA[i][j] but in memory it is stored in contiguous memory, row oriented (the matrix is symmetric)
+
+.seealso: PetscGLLIP, PetscGLLIPDestroy(), PetscGLLIPView(), PetscGLLIPElementStiffnessDestroy()
+
+@*/
+PetscErrorCode PetscGLLIPElementAdvectionCreate(PetscGLLIP *gll,PetscReal ***AA)
+{
+  PetscReal        **A, **B, **D;
+  PetscErrorCode  ierr;
+  const PetscReal  *weights = gll->weights;
+  const PetscInt   n = gll->n;
+  PetscInt         i,j;
+
+  PetscFunctionBegin;
+  ierr = PetscMalloc1(n,&A);CHKERRQ(ierr);
+  ierr = PetscMalloc1(n*n,&A[0]);CHKERRQ(ierr);
+  for (i=1; i<n; i++) A[i] = A[i-1]+n;
+
+  ierr=PetscGLLIPElementGradientCreate(gll,&D,&B);CHKERRQ(ierr);
+
+  for  (i=0; i<n; i++)
+         {for  (j=0; j<n; j++)
+           {
+           A[i][j] = weights[i]*D[i][j];
+           }
+          }  
+
+  *AA = A;
+  ierr = PetscGLLIPElementGradientDestroy(gll,&D,&B);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscGLLIPElementAdvectionDestroy"
+
+
+/*@C
+   PetscGLLIPElementStiffnessDestroy - frees the stiffness for a single 1d GLL element
+
+   Not Collective
+
+   Input Parameter:
++  gll - the nodes
+-  A - advection
+
+   Level: beginner
+
+.seealso: PetscGLLIP, PetscGLLIPDestroy(), PetscGLLIPView(), PetscGLLIPElementStiffnessCreate()
+
+@*/
+PetscErrorCode PetscGLLIPElementAdvectionDestroy(PetscGLLIP *gll,PetscReal ***AA)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscFree((*AA)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(*AA);CHKERRQ(ierr);
+  *AA  = NULL;
+
+  PetscFunctionReturn(0);
+}
+
 
 

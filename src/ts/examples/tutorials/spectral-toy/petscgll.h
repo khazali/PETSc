@@ -40,3 +40,5 @@ PETSC_EXTERN PetscErrorCode PetscGLLIPMassDestroy(PetscGLLIP*,PetscReal***);
 PETSC_EXTERN PetscErrorCode PetscGLLIPIntegrate(PetscGLLIP*,PetscReal*,PetscReal*);
 PETSC_EXTERN PetscErrorCode PetscGLLIPElementGradientCreate(PetscGLLIP*,PetscReal***,PetscReal***);
 PETSC_EXTERN PetscErrorCode PetscGLLIPElementGradientDestroy(PetscGLLIP*,PetscReal***,PetscReal***);
+PETSC_EXTERN PetscErrorCode PetscGLLIPElementAdvectionCreate(PetscGLLIP*,PetscReal***);
+PETSC_EXTERN PetscErrorCode PetscGLLIPElementAdvectionDestroy(PetscGLLIP*,PetscReal***);
