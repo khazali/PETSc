@@ -411,12 +411,12 @@ PetscErrorCode PetscGLLIPIntegrate(PetscGLLIP *gll,PetscReal *f,PetscReal *in)
 @*/
 PetscErrorCode PetscGLLIPElementGradientCreate(PetscGLLIP *gll,PetscReal ***AA, PetscReal ***AAT)
 {
-  PetscReal        **A, **AT, zz;
+  PetscReal        **A, **AT;
   PetscErrorCode  ierr;
   const PetscReal  *nodes = gll->nodes;
   const PetscInt   n = gll->n, p = gll->n-1;
-  PetscReal        zi,zj,q,qp,Li, Lj,d0;
-  PetscInt         i,j,nn,r;
+  PetscReal        q,qp,Li, Lj,d0;
+  PetscInt         i,j;
 
   PetscFunctionBegin;
   ierr = PetscMalloc1(n,&A);CHKERRQ(ierr);

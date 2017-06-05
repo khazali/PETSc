@@ -1,5 +1,5 @@
 
-CFLAGS          =
+CFLAGS          = -g
 FFLAGS          =
 CPPFLAGS        =
 FPPFLAGS        =
@@ -28,9 +28,9 @@ heat: heat.o petscgll.o  chkopts
 	-${CLINKER} -o heat heat.o petscgll.o  ${PETSC_TS_LIB}
 	${RM} petscgll.o heat.o
 
-heatEDMlinearF: heatEDMlinearF.o petscgll.o  chkopts
-	-${CLINKER} -o heatEDMlinearF heatEDMlinearF.o petscgll.o  ${PETSC_TS_LIB}
-	${RM} petscgll.o heatEDMlinearf.o
+convNlinear: convNlinear.o petscgll.o  chkopts
+	-${CLINKER} -o convNlinear convNlinear.o petscgll.o  ${PETSC_TS_LIB}
+	${RM} petscgll.o convNlinear.o
 
 heatEDMlinear: heatEDMlinear.o petscgll.o  chkopts
 	-${CLINKER} -o heatEDMlinear heatEDMlinear.o petscgll.o  ${PETSC_TS_LIB}
@@ -43,6 +43,10 @@ heatEDMlinear2d: heatEDMlinear2d.o petscgll.o  chkopts
 heatEDMlinear_adj: heatEDMlinear_adj.o petscgll.o  chkopts
 	-${CLINKER} -o heatEDMlinear_adj heatEDMlinear_adj.o petscgll.o  ${PETSC_TS_LIB}
 	${RM} petscgll.o heatEDMlinear_adj.o
+
+convEDMlinear_adj: convEDMlinear_adj.o petscgll.o  chkopts
+	-${CLINKER} -o convEDMlinear_adj convEDMlinear_adj.o petscgll.o  ${PETSC_TS_LIB}
+	${RM} petscgll.o convEDMlinear_adj.o
 
 heatNlinear: heatNlinear.o petscgll.o  chkopts
 	-${CLINKER} -o heatNlinear heatNlinear.o petscgll.o  ${PETSC_TS_LIB}
