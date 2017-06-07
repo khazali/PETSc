@@ -2,7 +2,7 @@
 
 #include <petsc/private/petscfeimpl.h>
 
-static PetscErrorCode DMProjectPoint_Func_Private(DM dm, PetscReal time, PetscFECellGeom *fegeom, PetscFVCellGeom *fvgeom, PetscBool isFE[], PetscDualSpace sp[],
+static PetscErrorCode DMProjectPoint_Func_Private(DM dm, PetscReal time, PetscFEGeom *fegeom, PetscFVCellGeom *fvgeom, PetscBool isFE[], PetscDualSpace sp[],
                                                   PetscErrorCode (**funcs)(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *), void **ctxs,
                                                   PetscScalar values[])
 {
@@ -33,7 +33,7 @@ static PetscErrorCode DMProjectPoint_Func_Private(DM dm, PetscReal time, PetscFE
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode DMProjectPoint_Field_Private(DM dm, DM dmAux, PetscReal time, Vec localU, Vec localA, PetscFECellGeom *fegeom, PetscDualSpace sp[], PetscInt p,
+static PetscErrorCode DMProjectPoint_Field_Private(DM dm, DM dmAux, PetscReal time, Vec localU, Vec localA, PetscFEGeom *fegeom, PetscDualSpace sp[], PetscInt p,
                                                    PetscReal **basisTab, PetscReal **basisDerTab, PetscReal **basisTabAux, PetscReal **basisDerTabAux,
                                                    void (**funcs)(PetscInt, PetscInt, PetscInt,
                                                                   const PetscInt[], const PetscInt[], const PetscScalar[], const PetscScalar[], const PetscScalar[],
@@ -88,7 +88,7 @@ static PetscErrorCode DMProjectPoint_Field_Private(DM dm, DM dmAux, PetscReal ti
         ierr = PetscDualSpaceGetFunctional(sp[f], d, &quad);CHKERRQ(ierr);
         ierr = PetscQuadratureGetData(quad, NULL, NULL, &numPoints, &points, &weights);CHKERRQ(ierr);
         for (q = 0; q < numPoints; ++q, ++tp) {
-          CoordinatesRefToReal(dim, dim, fegeom->v0, fegeom->J, &points[q*dim], x);
+          CoordinatesRefToReal(dim, dim, fegeom->xi, fegeom->v, fegeom->J, &points[q*dim], x);
           EvaluateFieldJets(dim, Nf, Nb, Nc, tp, basisTab, basisDerTab, refSpaceDer, fegeom->invJ, coefficients, coefficients_t, u, u_x, u_t);
           if (probAux) {EvaluateFieldJets(dim, NfAux, NbAux, NcAux, tp, basisTabAux, basisDerTabAux, refSpaceDerAux, fegeom->invJ, coefficientsAux, coefficientsAux_t, a, a_x, a_t);}
           (*funcs[f])(dim, Nf, NfAux, uOff, uOff_x, u, u_t, u_x, aOff, aOff_x, a, a_t, a_x, time, x, bc);
@@ -108,7 +108,7 @@ static PetscErrorCode DMProjectPoint_Private(DM dm, DM dmAux, PetscInt h, PetscR
                                              PetscDualSpace sp[], PetscInt p, PetscReal **basisTab, PetscReal **basisDerTab, PetscReal **basisTabAux, PetscReal **basisDerTabAux,
                                              DMBoundaryConditionType type, void (**funcs)(void), void **ctxs, PetscBool fieldActive[], PetscScalar values[])
 {
-  PetscFECellGeom fegeom;
+  PetscFEGeom fegeom;
   PetscFVCellGeom fvgeom;
   PetscInt        dim, dimEmbed;
   PetscErrorCode  ierr;
@@ -117,7 +117,7 @@ static PetscErrorCode DMProjectPoint_Private(DM dm, DM dmAux, PetscInt h, PetscR
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = DMGetCoordinateDim(dm, &dimEmbed);CHKERRQ(ierr);
   if (hasFE) {
-    ierr = DMPlexComputeCellGeometryFEM(dm, p, NULL, fegeom.v0, fegeom.J, fegeom.invJ, &fegeom.detJ);CHKERRQ(ierr);
+    ierr = DMPlexComputeCellGeometryFEM(dm, p, NULL, fegeom.v, fegeom.J, fegeom.invJ, fegeom.detJ);CHKERRQ(ierr);
     fegeom.dim      = dim - h;
     fegeom.dimEmbed = dimEmbed;
   }

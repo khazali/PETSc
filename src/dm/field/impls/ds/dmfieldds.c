@@ -245,12 +245,14 @@ PetscErrorCode DMFieldCreateDS(DM dm, PetscInt fieldNum, Vec vec,DMField *field)
     isContainer = (id == PETSC_CONTAINER_CLASSID) ? PETSC_TRUE : PETSC_FALSE;
   }
   if (!disc || isContainer) {
+    MPI_Comm        comm = PetscObjectComm((PetscObject) dm);
     PetscInt        cStart, cEnd, dim;
     PetscInt        localConeSize = 0, coneSize;
     PetscFE         fe;
     PetscDualSpace  Q;
     PetscSpace      P;
     DM              K;
+    PetscQuadrature quad, fquad;
     PetscBool       isSimplex;
 
     ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
@@ -258,16 +260,16 @@ PetscErrorCode DMFieldCreateDS(DM dm, PetscInt fieldNum, Vec vec,DMField *field)
     if (cEnd > cStart) {
       ierr = DMPlexGetConeSize(dm, cStart, &localConeSize);CHKERRQ(ierr);
     }
-    ierr = MPI_Allreduce(&localConeSize,&coneSize,1,MPIU_INT,MPI_MAX,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
+    ierr = MPI_Allreduce(&localConeSize,&coneSize,1,MPIU_INT,MPI_MAX,comm);CHKERRQ(ierr);
     isSimplex = (coneSize == (dim + 1)) ? PETSC_TRUE : PETSC_FALSE;
-    ierr = PetscSpaceCreate(PetscObjectComm((PetscObject) dm), &P);CHKERRQ(ierr);
+    ierr = PetscSpaceCreate(comm, &P);CHKERRQ(ierr);
     ierr = PetscSpaceSetOrder(P, 1);CHKERRQ(ierr);
     ierr = PetscSpaceSetNumComponents(P, numComponents);CHKERRQ(ierr);
     ierr = PetscSpaceSetType(P,PETSCSPACEPOLYNOMIAL);CHKERRQ(ierr);
     ierr = PetscSpacePolynomialSetNumVariables(P, dim);CHKERRQ(ierr);
     ierr = PetscSpacePolynomialSetTensor(P, isSimplex ? PETSC_FALSE : PETSC_TRUE);CHKERRQ(ierr);
     ierr = PetscSpaceSetUp(P);CHKERRQ(ierr);
-    ierr = PetscDualSpaceCreate(PetscObjectComm((PetscObject) dm), &Q);CHKERRQ(ierr);
+    ierr = PetscDualSpaceCreate(comm, &Q);CHKERRQ(ierr);
     ierr = PetscDualSpaceSetType(Q,PETSCDUALSPACELAGRANGE);CHKERRQ(ierr);
     ierr = PetscDualSpaceCreateReferenceCell(Q, dim, isSimplex, &K);CHKERRQ(ierr);
     ierr = PetscDualSpaceSetDM(Q, K);CHKERRQ(ierr);
@@ -276,7 +278,7 @@ PetscErrorCode DMFieldCreateDS(DM dm, PetscInt fieldNum, Vec vec,DMField *field)
     ierr = PetscDualSpaceSetOrder(Q, 1);CHKERRQ(ierr);
     ierr = PetscDualSpaceLagrangeSetTensor(Q, isSimplex ? PETSC_FALSE : PETSC_TRUE);CHKERRQ(ierr);
     ierr = PetscDualSpaceSetUp(Q);CHKERRQ(ierr);
-    ierr = PetscFECreate(PetscObjectComm((PetscObject) dm), &fe);CHKERRQ(ierr);
+    ierr = PetscFECreate(comm, &fe);CHKERRQ(ierr);
     ierr = PetscFESetType(fe,PETSCFEBASIC);CHKERRQ(ierr);
     ierr = PetscFESetBasisSpace(fe, P);CHKERRQ(ierr);
     ierr = PetscFESetDualSpace(fe, Q);CHKERRQ(ierr);
@@ -284,6 +286,18 @@ PetscErrorCode DMFieldCreateDS(DM dm, PetscInt fieldNum, Vec vec,DMField *field)
     ierr = PetscFESetUp(fe);CHKERRQ(ierr);
     ierr = PetscSpaceDestroy(&P);CHKERRQ(ierr);
     ierr = PetscDualSpaceDestroy(&Q);CHKERRQ(ierr);
+    if (isSimplex) {
+      ierr = PetscDTGaussJacobiQuadrature(dim,   1, 1, -1.0, 1.0, &quad);CHKERRQ(ierr);
+      ierr = PetscDTGaussJacobiQuadrature(dim-1, 1, 1, -1.0, 1.0, &fquad);CHKERRQ(ierr);
+    }
+    else {
+      ierr = PetscDTGaussTensorQuadrature(dim,   1, 1, -1.0, 1.0, &quad);CHKERRQ(ierr);
+      ierr = PetscDTGaussTensorQuadrature(dim-1, 1, 1, -1.0, 1.0, &fquad);CHKERRQ(ierr);
+    }
+    ierr = PetscFESetQuadrature(fe, quad);CHKERRQ(ierr);
+    ierr = PetscFESetFaceQuadrature(fe, fquad);CHKERRQ(ierr);
+    ierr = PetscQuadratureDestroy(&quad);CHKERRQ(ierr);
+    ierr = PetscQuadratureDestroy(&fquad);CHKERRQ(ierr);
     disc = (PetscObject) fe;
   } else {
     ierr = PetscObjectReference(disc);CHKERRQ(ierr);

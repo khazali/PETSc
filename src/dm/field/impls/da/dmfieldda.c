@@ -228,7 +228,7 @@ static PetscErrorCode DMFieldEvaluateFE_DA(DMField field, IS cellIS, PetscQuadra
   const PetscScalar *qs;
 #endif
   DMField_DA     *dafield;
-  PetscBool      onePoint, isStride;
+  PetscBool      isStride;
   const PetscInt *cells = NULL;
   PetscInt       sfirst = -1, stride = -1, nCells;
   PetscErrorCode ierr;

@@ -1322,7 +1322,7 @@ static PetscErrorCode DMPlexComputeCellGeometryFEM_Implicit(DM dm, PetscInt cell
   PetscInt        Nq = 0;
   const PetscReal *points = NULL;
   DMLabel         depthLabel;
-  PetscReal       v0[3] = {-1.}, J0[9] = {-1.}, detJ0 = -1.;
+  PetscReal       xi0[3] = {-1.}, v0[3] = {-1.}, J0[9] = {-1.}, detJ0 = -1.;
   PetscBool       isAffine = PETSC_TRUE;
   PetscErrorCode  ierr;
 
@@ -1390,7 +1390,7 @@ static PetscErrorCode DMPlexComputeCellGeometryFEM_Implicit(DM dm, PetscInt cell
   if (isAffine && Nq) {
     if (v) {
       for (i = 0; i < Nq; i++) {
-        CoordinatesRefToReal(coordDim,dim,v0, J0, &points[dim * i], &v[coordDim * i]);
+        CoordinatesRefToReal(coordDim, dim, xi0, v0, J0, &points[dim * i], &v[coordDim * i]);
       }
     }
     if (detJ) {
@@ -2794,7 +2794,9 @@ PetscErrorCode DMPlexCoordinatesToReference(DM dm, PetscInt cell, PetscInt numPo
       invJ = &J[dimC * dimC];
       ierr = DMPlexComputeCellGeometryAffineFEM(dm, cell, v0, J, invJ, &detJ);CHKERRQ(ierr);
       for (i = 0; i < numPoints; i++) { /* Apply the inverse affine transformation for each point */
-        CoordinatesRealToRef(dimC, dimR, v0, invJ, &realCoords[dimC * i], &refCoords[dimR * i]);
+        const PetscReal x0[3] = {-1.};
+
+        CoordinatesRealToRef(dimC, dimR, x0, v0, invJ, &realCoords[dimC * i], &refCoords[dimR * i]);
       }
       ierr = DMRestoreWorkArray(dm,dimC + 2 * dimC * dimC, PETSC_REAL, &v0);CHKERRQ(ierr);
     } else if (isTensor) {
@@ -2873,7 +2875,8 @@ PetscErrorCode DMPlexReferenceToCoordinates(DM dm, PetscInt cell, PetscInt numPo
       J    = &v0[dimC];
       ierr = DMPlexComputeCellGeometryAffineFEM(dm, cell, v0, J, NULL, &detJ);CHKERRQ(ierr);
       for (i = 0; i < numPoints; i++) { /* Apply the inverse affine transformation for each point */
-        CoordinatesRefToReal(dimC, dimR, v0, J, &refCoords[dimR * i], &realCoords[dimC * i]);
+        const PetscReal xi0[3] = {-1.};
+        CoordinatesRefToReal(dimC, dimR, xi0, v0, J, &refCoords[dimR * i], &realCoords[dimC * i]);
       }
       ierr = DMRestoreWorkArray(dm,dimC + 2 * dimC * dimC, PETSC_REAL, &v0);CHKERRQ(ierr);
     } else if (isTensor) {
