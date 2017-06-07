@@ -71,7 +71,6 @@ typedef struct {
 typedef struct {
   Vec         obj;               /* desired end state */
   Vec         u_local;           /* local ghosted approximate solution vector */
-  Vec         grid;              /* total grid */   
   Vec         grad;
   Vec         ic;
   Vec         curr_sol;
@@ -84,7 +83,9 @@ typedef struct {
   Vec         u_local;           /* local ghosted approximate solution vector */
   Vec         grid;              /* total grid */   
   Vec         mass;              /* mass matrix for total integration */
+  Vec         massinv;              /* mass matrix for total integration */
   Mat         stiff;             // stifness matrix
+  Mat         grad;             // stifness matrix
   Mat         adj;           //adjoint jacobian    
   PetscGLLIP  gll;
 } PetscSEMOperators;
@@ -108,7 +109,7 @@ typedef struct {
 */
 extern PetscErrorCode InitialConditions(Vec,AppCtx*);
 extern PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
-extern PetscErrorCode RHSMatrixAdvectiongllDM(TS,PetscReal,Vec,Mat,Mat,void*);
+extern PetscErrorCode RHSMatrixAdvectiongllDM(TS,PetscReal,Vec,Mat*,Mat,void*);
 extern PetscErrorCode RHSAdjointgllDM(TS,PetscReal,Vec,Mat,Mat,void*);
 extern PetscErrorCode RHSFunctionAdvection(TS,PetscReal,Vec,Vec,void*);
 extern PetscErrorCode Objective(PetscReal,Vec,AppCtx*);
@@ -127,7 +128,7 @@ int main(int argc,char **argv)
   PetscInt       i, xs, xm, ind, j, lenglob;
   PetscInt       VecLength;
   PetscMPIInt    size;
-  PetscReal      x, *wrk_ptr1, *wrk_ptr2, wrk1, wrk2,varepsilon;
+  PetscReal      x, *wrk_ptr1, *wrk_ptr2, *wrk_ptr3, wrk1, wrk2,varepsilon;
   Vec            wrk_vec,wrk1_vec,wrk2_vec,wrk3_vec,wrk4_vec;
   PetscViewer    viewfile;
      /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -159,7 +160,7 @@ int main(int argc,char **argv)
   appctx.param.steps =20000000;
   appctx.initial_dt    = 1e-3;
 
-  appctx.param.Tend = 0.01; //appctx.param.steps*appctx.param.dt;  
+  appctx.param.Tend = 0.001; //appctx.param.steps*appctx.param.dt;  
   appctx.param.Tadj =appctx.param.Tend+0.7;
 
   //ierr = PetscPrintf(PETSC_COMM_WORLD,"Solving a linear TS problem on 1 processor\n");CHKERRQ(ierr);
@@ -193,7 +194,7 @@ int main(int argc,char **argv)
      total grid values spread equally among all the processors, except first and last
   */
 
-  ierr = DMDACreate1d(PETSC_COMM_WORLD,DM_BOUNDARY_PERIODIC,lenglob,1,1,NULL,&appctx.da);CHKERRQ(ierr);
+  ierr = DMDACreate1d(PETSC_COMM_WORLD,DM_BOUNDARY_NONE,lenglob,1,1,NULL,&appctx.da);CHKERRQ(ierr);
   ierr = DMSetFromOptions(appctx.da);CHKERRQ(ierr);
   ierr = DMSetUp(appctx.da);CHKERRQ(ierr);
   //ierr = DMDAGetInfo(appctx.da,NULL,&E,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
@@ -211,13 +212,14 @@ int main(int argc,char **argv)
   ierr = VecDuplicate(u,&appctx.dat.grad);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&appctx.SEMop.grid);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&appctx.SEMop.mass);CHKERRQ(ierr);
+  ierr = VecDuplicate(u,&appctx.SEMop.massinv);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&appctx.dat.curr_sol);CHKERRQ(ierr);
  
   ierr = DMDAGetCorners(appctx.da,&xs,NULL,NULL,&xm,NULL,NULL);CHKERRQ(ierr);
 
   ierr = DMDAVecGetArray(appctx.da,appctx.SEMop.grid,&wrk_ptr1);CHKERRQ(ierr);
   ierr = DMDAVecGetArray(appctx.da,appctx.SEMop.mass,&wrk_ptr2);CHKERRQ(ierr);
-  
+  ierr = DMDAVecGetArray(appctx.da,appctx.SEMop.massinv,&wrk_ptr3);CHKERRQ(ierr);
   //Compute function over the locally owned part of the grid
   
     xs=xs/(appctx.param.N-1);
@@ -236,12 +238,13 @@ int main(int argc,char **argv)
       wrk_ptr2[ind]=appctx.param.Le/2.0*appctx.dat.W[j]*appctx.dat.mult[j];
       if (j==0 || j==appctx.param.N)
              {wrk_ptr2[ind]=appctx.param.Le/2.0*appctx.dat.W[j];}
+      wrk_ptr3[ind]=1./wrk_ptr2[ind];
       } 
    }
 
    ierr = DMDAVecRestoreArray(appctx.da,appctx.SEMop.grid,&wrk_ptr1);CHKERRQ(ierr);
    ierr = DMDAVecRestoreArray(appctx.da,appctx.SEMop.mass,&wrk_ptr2);CHKERRQ(ierr);
-      
+   ierr = DMDAVecRestoreArray(appctx.da,appctx.SEMop.massinv,&wrk_ptr3);CHKERRQ(ierr);
 
    //Set Objective and Initial conditions for the problem 
    ierr = Objective(appctx.param.Tadj,appctx.dat.obj,&appctx);CHKERRQ(ierr);
@@ -282,22 +285,22 @@ int main(int argc,char **argv)
 
    ierr = DMSetMatrixPreallocateOnly(appctx.da, PETSC_TRUE);CHKERRQ(ierr);
    ierr = DMCreateMatrix(appctx.da,&A);CHKERRQ(ierr);
-   ierr = DMCreateMatrix(appctx.da,&appctx.SEMop.stiff);CHKERRQ(ierr);
+   ierr = DMCreateMatrix(appctx.da,&appctx.SEMop.grad);CHKERRQ(ierr);
     
     /*
        For linear problems with a time-dependent f(u,t) in the equation
        u_t = f(u,t), the user provides the discretized right-hand-side
        as a time-dependent matrix.
     */
-   ierr = RHSMatrixAdvectiongllDM(appctx.ts,0.0,u,A,A,&appctx);CHKERRQ(ierr);
-   ierr = MatDuplicate(A,MAT_COPY_VALUES,&appctx.SEMop.stiff);CHKERRQ(ierr);
+   ierr = RHSMatrixAdvectiongllDM(appctx.ts,0.0,u,&A,A,&appctx);CHKERRQ(ierr);
+   ierr = MatDuplicate(A,MAT_COPY_VALUES,&appctx.SEMop.grad);CHKERRQ(ierr);
    ierr = MatScale(A, 1.0);
    ierr = MatDuplicate(A,MAT_COPY_VALUES,&appctx.SEMop.adj);CHKERRQ(ierr);
 
    //exit(1);
 
   ierr = TSSetRHSFunction(appctx.ts,NULL,TSComputeRHSFunctionLinear,&appctx);CHKERRQ(ierr);
-  ierr = TSSetRHSJacobian(appctx.ts,appctx.SEMop.stiff,appctx.SEMop.stiff,TSComputeRHSJacobianConstant,&appctx);CHKERRQ(ierr);
+  ierr = TSSetRHSJacobian(appctx.ts,appctx.SEMop.grad,appctx.SEMop.grad,TSComputeRHSJacobianConstant,&appctx);CHKERRQ(ierr);
   //ierr = PetscPrintf(PETSC_COMM_SELF,"avg. error (2 norm) = %g, avg. error (max norm) = %g\n",(double)(appctx.norm_2/steps),(double)(appctx.norm_L2/steps));CHKERRQ(ierr);
   //ierr = TSView(ts,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
  
@@ -352,7 +355,7 @@ int main(int argc,char **argv)
     varepsilon = 1e-05;
     for (i=0; i<VecLength; i++) {
       ierr = VecCopy(appctx.dat.ic,wrk_vec); CHKERRQ(ierr); //reset J(eps) for each point
-      VecSetValue(wrk_vec,i, varepsilon,ADD_VALUES);
+      VecSetValue(wrk_vec,i, varepsilon,INSERT_VALUES);
       ierr = FormFunctionGradient(tao,wrk_vec,&wrk2,wrk4_vec,&appctx);CHKERRQ(ierr);
       /* Note original cost is in wrk1, perturbed cost in wrk2 */
       VecSetValue(wrk3_vec,i,(PetscScalar)((wrk2-wrk1)/varepsilon),INSERT_VALUES);
@@ -384,7 +387,7 @@ int main(int argc,char **argv)
 
   ierr = TSDestroy(&appctx.ts);CHKERRQ(ierr);
   ierr = MatDestroy(&A);CHKERRQ(ierr);
-  ierr = MatDestroy(&appctx.SEMop.stiff);CHKERRQ(ierr);
+  ierr = MatDestroy(&appctx.SEMop.grad);CHKERRQ(ierr);
   ierr = MatDestroy(&appctx.SEMop.adj);CHKERRQ(ierr);
   ierr = VecDestroy(&u);CHKERRQ(ierr);
   ierr = VecDestroy(&appctx.dat.obj);CHKERRQ(ierr);
@@ -530,34 +533,34 @@ PetscErrorCode Objective(PetscReal t,Vec obj,AppCtx *appctx)
    str - flag indicating matrix structure
 
 */
-PetscErrorCode RHSMatrixAdvectiongllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx)
+PetscErrorCode RHSMatrixAdvectiongllDM(TS ts,PetscReal t,Vec X,Mat *AA,Mat BB,void *ctx)
 {
   PetscReal      **temp, init;
   PetscReal      vv;
   AppCtx         *appctx = (AppCtx*)ctx;     /* user-defined application context */
   PetscErrorCode ierr;
-  PetscInt       i,xs,xn,l,j,id;
+  PetscInt       i,xs,xn,l,j,id1,id2, N=appctx->param.N;
   PetscInt       *rowsDM;
    PetscViewer    viewfile;
+   Mat            K,Q,A;
      /*
        Creates the advection matrix for the given gll
     */
     ierr = PetscGLLIPElementAdvectionCreate(&appctx->SEMop.gll,&temp);CHKERRQ(ierr);
 
-    //ierr = DMDAVecGetArray(appctx.da,appctx->SEMop.mass,&wrk_ptr1);CHKERRQ(ierr);
+/*
     // scale by the mass matrix
     for (i=0; i<appctx->param.N; i++) 
     {
        vv=2.0/appctx->param.Le*appctx->dat.mult[i]*1.0/appctx->dat.W[i]; //note here I took the multiplicities in
-       printf("VV =%g \n",vv);
        for (j=0; j<appctx->param.N; j++)
                {
                 temp[i][j]=temp[i][j]*vv; 
                }
       } 
-    init=temp[0][0]*0.5;
-    
-    ierr = MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE);CHKERRQ(ierr);
+*/
+    ierr = DMCreateMatrix(appctx->da,&K);CHKERRQ(ierr);
+    ierr = MatSetOption(K,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE);CHKERRQ(ierr);
     ierr = DMDAGetCorners(appctx->da,&xs,NULL,NULL,&xn,NULL,NULL);CHKERRQ(ierr);
 
     xs   = xs/(appctx->param.N-1);
@@ -572,13 +575,45 @@ PetscErrorCode RHSMatrixAdvectiongllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void
           {rowsDM[l] = j*(appctx->param.N-1)+l;
            }
 
-      ierr = MatSetValues(A,appctx->param.N,rowsDM,appctx->param.N,rowsDM,&temp[0][0],ADD_VALUES);CHKERRQ(ierr);
+      ierr = MatSetValues(K,appctx->param.N,rowsDM,appctx->param.N,rowsDM,&temp[0][0],ADD_VALUES);CHKERRQ(ierr);
     }
 
-   id=0;
-   ierr = MatSetValues(A,1,&id,1,&id,&init,ADD_VALUES);CHKERRQ(ierr);
-   id=appctx->param.E*(appctx->param.N-1);
-   ierr = MatSetValues(A,1,&id,1,&id,&init,ADD_VALUES);CHKERRQ(ierr);
+   MatAssemblyBegin(K,MAT_FINAL_ASSEMBLY);
+   MatAssemblyEnd(K,MAT_FINAL_ASSEMBLY);
+
+   MatDiagonalScale(K,appctx->SEMop.massinv,NULL);
+
+  /*
+       Creates the element BC matrix for the given gll
+    */
+  
+    ierr = DMCreateMatrix(appctx->da,&Q);CHKERRQ(ierr);
+    ierr = MatSetOption(Q,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE);CHKERRQ(ierr);
+    ierr = DMDAGetCorners(appctx->da,&xs,NULL,NULL,&xn,NULL,NULL);CHKERRQ(ierr);
+    xs   = xs/(N-1);
+    xn   = xn/(N-1);
+  
+    for (j=xs; j<xs+xn; j++) {
+     for (i=0; i<N; i++) {
+       vv=appctx->dat.mult[i]; //note here I took the multiplicities in
+       id1=j*(N-1)+i;
+       MatSetValues(Q,1,&id1,1,&id1,&vv,ADD_VALUES);
+      } 
+     }
+   vv=0.25; 
+   id1=0; id2=appctx->param.E*(appctx->param.N-1);
+   ierr = MatSetValues(Q,1,&id1,1,&id2,&vv,ADD_VALUES);CHKERRQ(ierr);
+   ierr = MatSetValues(Q,1,&id2,1,&id1,&vv,ADD_VALUES);CHKERRQ(ierr);
+   //ierr = MatSetValues(Q,1,&id1,1,&id1,&vv,ADD_VALUES);CHKERRQ(ierr);
+   //ierr = MatSetValues(Q,1,&id2,1,&id2,&vv,ADD_VALUES);CHKERRQ(ierr);
+
+
+   MatAssemblyBegin(Q,MAT_FINAL_ASSEMBLY);
+   MatAssemblyEnd(Q,MAT_FINAL_ASSEMBLY);
+    
+   // one needs mappings to ref element to proceed further 
+   ierr = MatDuplicate(K,MAT_DO_NOT_COPY_VALUES,&A);CHKERRQ(ierr); 
+   MatMatMult(Q,K,MAT_INITIAL_MATRIX,PETSC_DEFAULT,&A);
 
    MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);
    MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);
@@ -589,14 +624,6 @@ PetscErrorCode RHSMatrixAdvectiongllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void
     ierr = MatView(A,viewfile);CHKERRQ(ierr);
     ierr=PetscViewerPopFormat(viewfile);
    
-  // exit(1);
-   //Set BCs 
-   
-   //rows[0] = 0;
-   //rows[1] = appctx->param.E*(appctx->param.N-1);
-   //ierr = MatZeroRowsColumns(A,2,rows,0.0,appctx->SEMop.grid,appctx->SEMop.grid);CHKERRQ(ierr);
-
-
    ierr = PetscGLLIPElementAdvectionDestroy(&appctx->SEMop.gll,&temp);CHKERRQ(ierr);
    
      /*
@@ -605,6 +632,7 @@ PetscErrorCode RHSMatrixAdvectiongllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void
   */
   //ierr = MatSetOption(A,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
 
+  *AA=A;
   return 0;
 }
 
@@ -719,7 +747,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
   PetscSNPrintf(data,sizeof(data),"TAO(%D)=%g; L2(%D)= %g ;\n",its+1,(double)ff,its+1,*f);
   PetscViewerASCIIPrintf(viewfile,data);
-  //ierr = MatView(appctx.stiff,viewfile);CHKERRQ(ierr);
+  //ierr = MatView(appctx.grad,viewfile);CHKERRQ(ierr);
   //ierr = MatView(appctx.adj,viewfile);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject)appctx->dat.grad,"Grad");
   ierr = VecView(appctx->dat.grad,viewfile);CHKERRQ(ierr);
@@ -737,22 +765,23 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   ierr = VecView(appctx->SEMop.mass,viewfile);CHKERRQ(ierr);
   //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.adj, "A_adj");
   //ierr = MatView(appctx->SEMop.adj,viewfile);CHKERRQ(ierr);
-  //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.stiff, "A");
-  //ierr = MatView(appctx->SEMop.stiff,viewfile);CHKERRQ(ierr);
+  //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.grad, "A");
+  //ierr = MatView(appctx->SEMop.grad,viewfile);CHKERRQ(ierr);
   //ierr = PetscViewerPopFormat(viewfile);CHKERRQ(ierr);
   //ierr = PetscViewerDestroy(&viewfile);CHKERRQ(ierr);
   ierr=PetscViewerPopFormat(viewfile);
+
   PetscFunctionReturn(0);
 }
-
 /*
+
 #undef __FUNCT__
 #define __FUNCT__ "RHSFunctionAdvectiongllDM"
 PetscErrorCode RHSFunctionAdvectiongllDM(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
 {
   PetscErrorCode ierr;
-  Mat            A;
-
+  
+  AppCtx        *appctx = (AppCtx*)ctx;   
   PetscFunctionBeginUser;
   ierr = TSGetRHSJacobian(ts,&A,NULL,NULL,&ctx);CHKERRQ(ierr);
   ierr = RHSMatrixAdvectiongllDM(ts,t,globalin,A,NULL,ctx);CHKERRQ(ierr);

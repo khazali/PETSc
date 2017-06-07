@@ -44,6 +44,10 @@ heatEDMlinear_adj: heatEDMlinear_adj.o petscgll.o  chkopts
 	-${CLINKER} -o heatEDMlinear_adj heatEDMlinear_adj.o petscgll.o  ${PETSC_TS_LIB}
 	${RM} petscgll.o heatEDMlinear_adj.o
 
+convEDMlinear_loc_adj: convEDMlinear_loc_adj.o petscgll.o  chkopts
+	-${CLINKER} -o convEDMlinear_loc_adj convEDMlinear_loc_adj.o petscgll.o  ${PETSC_TS_LIB}
+	${RM} petscgll.o convEDMlinear_loc_adj.o
+
 convEDMlinear_adj: convEDMlinear_adj.o petscgll.o  chkopts
 	-${CLINKER} -o convEDMlinear_adj convEDMlinear_adj.o petscgll.o  ${PETSC_TS_LIB}
 	${RM} petscgll.o convEDMlinear_adj.o
