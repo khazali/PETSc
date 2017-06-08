@@ -1387,7 +1387,7 @@ PetscErrorCode DMPlexComputeBdResidual_Internal(DM dm, Vec locX, Vec locX_t, Pet
       ierr = PetscMalloc3(numFaces*totDim,&u,locX_t ? numFaces*totDim : 0, &u_t, numFaces*totDim,&elemVec);CHKERRQ(ierr);
       ierr = DMFieldGetFEInvariance(coordField,pointIS,NULL,&isAffine,NULL);CHKERRQ(ierr);
       if (isAffine) {
-        ierr = DMFieldGetDefaultQuadrature(coordField,pointIS,&qGeom);CHKERRQ(ierr);
+        ierr = DMFieldCreateDefaultQuadrature(coordField,pointIS,&qGeom);CHKERRQ(ierr);
       }
       if (!qGeom) {
         ierr = PetscFEGetFaceQuadrature(fe, &qGeom);CHKERRQ(ierr);
@@ -1591,7 +1591,7 @@ PetscErrorCode DMPlexComputeResidual_Internal(DM dm, PetscInt cStart, PetscInt c
         ierr = PetscFEGetTileSizes(fe, NULL, &numBlocks, NULL, &numBatches);CHKERRQ(ierr);
         ierr = DMFieldGetFEInvariance(coordField,cellIS,NULL,&isAffine,NULL);CHKERRQ(ierr);
         if (isAffine) {
-          ierr = DMFieldGetDefaultQuadrature(coordField,cellIS,&qGeom);CHKERRQ(ierr);
+          ierr = DMFieldCreateDefaultQuadrature(coordField,cellIS,&qGeom);CHKERRQ(ierr);
         }
         if (!qGeom) {
           ierr = PetscFEGetQuadrature(fe, &qGeom);CHKERRQ(ierr);
@@ -1860,7 +1860,7 @@ static PetscErrorCode DMPlexComputeResidualFEM_Check_Internal(DM dm, Vec X, Vec 
     ierr = PetscFEGetTileSizes(fe, NULL, &numBlocks, NULL, &numBatches);CHKERRQ(ierr);
     ierr = DMFieldGetFEInvariance(coordField,cellIS,NULL,&isAffine,NULL);CHKERRQ(ierr);
     if (isAffine) {
-      ierr = DMFieldGetDefaultQuadrature(coordField,cellIS,&qGeom);CHKERRQ(ierr);
+      ierr = DMFieldCreateDefaultQuadrature(coordField,cellIS,&qGeom);CHKERRQ(ierr);
     }
     if (!qGeom) {
       ierr = PetscFEGetQuadrature(fe, &qGeom);CHKERRQ(ierr);
@@ -2042,7 +2042,7 @@ PetscErrorCode DMPlexComputeBdJacobian_Internal(DM dm, Vec locX, Vec locX_t, Pet
       if (locA) {ierr = PetscMalloc1(numFaces*totDimAux,&a);CHKERRQ(ierr);}
       ierr = DMFieldGetFEInvariance(coordField,pointIS,NULL,&isAffine,NULL);CHKERRQ(ierr);
       if (isAffine) {
-        ierr = DMFieldGetDefaultQuadrature(coordField,pointIS,&qGeom);CHKERRQ(ierr);
+        ierr = DMFieldCreateDefaultQuadrature(coordField,pointIS,&qGeom);CHKERRQ(ierr);
       }
       if (!qGeom) {
         ierr = PetscFEGetFaceQuadrature(fe, &qGeom);CHKERRQ(ierr);
@@ -2216,7 +2216,7 @@ PetscErrorCode DMPlexComputeJacobian_Internal(DM dm, PetscInt cStart, PetscInt c
     ierr = PetscFEGetTileSizes(fe, NULL, &numBlocks, NULL, &numBatches);CHKERRQ(ierr);
     ierr = DMFieldGetFEInvariance(coordField,cellIS,NULL,&isAffine,NULL);CHKERRQ(ierr);
     if (isAffine) {
-      ierr = DMFieldGetDefaultQuadrature(coordField,cellIS,&qGeom);CHKERRQ(ierr);
+      ierr = DMFieldCreateDefaultQuadrature(coordField,cellIS,&qGeom);CHKERRQ(ierr);
     }
     if (!qGeom) {
       ierr = PetscFEGetQuadrature(fe,&qGeom);CHKERRQ(ierr);
@@ -2436,7 +2436,7 @@ PetscErrorCode DMPlexComputeJacobianAction_Internal(DM dm, PetscInt cStart, Pets
     ierr = PetscFEGetTileSizes(fe, NULL, &numBlocks, NULL, &numBatches);CHKERRQ(ierr);
     ierr = DMFieldGetFEInvariance(coordField,cellIS,NULL,&isAffine,NULL);CHKERRQ(ierr);
     if (isAffine) {
-      ierr = DMFieldGetDefaultQuadrature(coordField,cellIS,&qGeom);CHKERRQ(ierr);
+      ierr = DMFieldCreateDefaultQuadrature(coordField,cellIS,&qGeom);CHKERRQ(ierr);
     }
     if (!qGeom) {
       ierr = PetscFEGetQuadrature(fe,&qGeom);CHKERRQ(ierr);

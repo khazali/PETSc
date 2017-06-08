@@ -43,9 +43,10 @@ PETSC_EXTERN PetscErrorCode    DMFieldGetContinuity(DMField,DMFieldContinuity*);
 
 PETSC_EXTERN PetscErrorCode    DMFieldEvaluate(DMField,Vec,PetscDataType,void*,void*,void*);
 PETSC_EXTERN PetscErrorCode    DMFieldEvaluateFE(DMField,IS,PetscQuadrature,PetscDataType,void*,void*,void*);
-PETSC_EXTERN PetscErrorCode    DMFieldGetDefaultQuadrature(DMField,IS,PetscQuadrature*);
 PETSC_EXTERN PetscErrorCode    DMFieldEvaluateFV(DMField,IS,PetscDataType,void*,void*,void*);
 PETSC_EXTERN PetscErrorCode    DMFieldCreateFEGeom(DMField,IS,PetscQuadrature,PetscBool,PetscFEGeom **);
+
+PETSC_EXTERN PetscErrorCode    DMFieldCreateDefaultQuadrature(DMField,IS,PetscQuadrature*);
 
 PETSC_EXTERN PetscErrorCode    DMFieldGetFEInvariance(DMField,IS,PetscBool*,PetscBool*,PetscBool*);
 
@@ -55,7 +56,6 @@ PETSC_EXTERN PetscErrorCode    DMFieldCreateDS(DM,PetscInt,Vec,DMField *);
 PETSC_EXTERN PetscErrorCode    DMFieldCreateShell(DM,PetscInt,DMFieldContinuity,void *,DMField *);
 PETSC_EXTERN PetscErrorCode    DMFieldShellGetContext(DMField,void *);
 PETSC_EXTERN PetscErrorCode    DMFieldShellSetEvaluate(DMField,PetscErrorCode(*)(DMField,Vec,PetscDataType,void*,void*,void*));
-PETSC_EXTERN PetscErrorCode    DMFieldShellSetEvaluateFECompact(DMField,PetscErrorCode(*)(DMField,IS,PetscQuadrature,PetscDataType,PetscBool,void*,PetscBool,void*,PetscBool,void*));
 PETSC_EXTERN PetscErrorCode    DMFieldShellSetEvaluateFV(DMField,PetscErrorCode(*)(DMField,IS,PetscDataType,void*,void*,void*));
 
 #endif

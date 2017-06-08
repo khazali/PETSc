@@ -371,18 +371,51 @@ static PetscErrorCode DMFieldEvaluateFV_DA(DMField field, IS cellIS, PetscDataTy
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode DMFieldGetFEInvariance_DA(DMField field, IS cellIS, PetscBool *isConstant, PetscBool *isAffine, PetscBool *isQuadratic)
+static PetscErrorCode DMFieldGetFEInvariance_DA(DMField field, IS pointIS, PetscBool *isConstant, PetscBool *isAffine, PetscBool *isQuadratic)
 {
   DM             dm;
-  PetscInt       dim;
+  PetscInt       dim, h, imin;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   dm = field->dm;
+  ierr = ISGetMinMax(pointIS,&imin,NULL);CHKERRQ(ierr);
   ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
+  for (h = 0; h <= dim; h++) {
+    PetscInt hEnd;
+
+    ierr = DMDAGetHeightStratum(dm,h,NULL,&hEnd);CHKERRQ(ierr);
+    if (imin < hEnd) break;
+  }
+  dim -= h;
   if (isConstant)  *isConstant  = (dim < 1) ? PETSC_TRUE : PETSC_FALSE;
   if (isAffine)    *isAffine    = (dim < 2) ? PETSC_TRUE : PETSC_FALSE;
   if (isQuadratic) *isQuadratic = (dim < 3) ? PETSC_TRUE : PETSC_FALSE;
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode DMFieldCreateDefaultQuadrature_DA(DMField field, IS cellIS, PetscQuadrature *quad)
+{
+  PetscInt       h, dim, imax, imin;
+  DM             dm;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  dm = field->dm;
+  ierr = ISGetMinMax(cellIS,&imax,&imin);CHKERRQ(ierr);
+  ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
+  *quad = NULL;
+  for (h = 0; h <= dim; h++) {
+    PetscInt hStart, hEnd;
+
+    ierr = DMDAGetHeightStratum(dm,h,&hStart,&hEnd);CHKERRQ(ierr);
+    if (imin >= hStart && imax < hEnd) break;
+  }
+  dim -= h;
+  if (dim > 0) {
+    ierr = PetscDTGaussTensorQuadrature(dim, 1, 1, -1.0, 1.0, quad);CHKERRQ(ierr);
+  }
+
   PetscFunctionReturn(0);
 }
 
@@ -395,12 +428,13 @@ static PetscErrorCode DMFieldInitialize_DA(DMField field)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  field->ops->destroy         = DMFieldDestroy_DA;
-  field->ops->evaluate        = DMFieldEvaluate_DA;
-  field->ops->evaluateFE      = DMFieldEvaluateFE_DA;
-  field->ops->evaluateFV      = DMFieldEvaluateFV_DA;
-  field->ops->getFEInvariance = DMFieldGetFEInvariance_DA;
-  field->ops->view            = DMFieldView_DA;
+  field->ops->destroy                 = DMFieldDestroy_DA;
+  field->ops->evaluate                = DMFieldEvaluate_DA;
+  field->ops->evaluateFE              = DMFieldEvaluateFE_DA;
+  field->ops->evaluateFV              = DMFieldEvaluateFV_DA;
+  field->ops->getFEInvariance         = DMFieldGetFEInvariance_DA;
+  field->ops->createDefaultQuadrature = DMFieldCreateDefaultQuadrature_DA;
+  field->ops->view                    = DMFieldView_DA;
   dm = field->dm;
   ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
   if (dm->coordinates) coords = dm->coordinates;

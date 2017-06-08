@@ -198,14 +198,50 @@ static PetscErrorCode DMFieldGetFEInvariance_DS(DMField field, IS cellIS, PetscB
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode DMFieldCreateDefaultQuadrature_DS(DMField field, IS cellIS, PetscQuadrature *quad)
+{
+  PetscInt       h, dim, imax, imin;
+  DM             dm;
+  DMField_DS     *dsfield;
+  PetscFE        fe;
+  PetscClassId   id;
+  PetscErrorCode ierr;
+
+
+  PetscFunctionBegin;
+  dm = field->dm;
+  dsfield = (DMField_DS *) field->data;
+  ierr = ISGetMinMax(cellIS,&imax,&imin);CHKERRQ(ierr);
+  ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
+  *quad = NULL;
+  ierr = PetscObjectGetClassId(dsfield->disc,&id);CHKERRQ(ierr);
+  if (id != PETSCFE_CLASSID) PetscFunctionReturn(0);
+  fe = (PetscFE) dsfield->disc;
+  for (h = 0; h <= dim; h++) {
+    PetscInt hStart, hEnd;
+
+    ierr = DMPlexGetHeightStratum(dm,h,&hStart,&hEnd);CHKERRQ(ierr);
+    if (imin >= hStart && imax < hEnd) break;
+  }
+  if (!h) {
+    ierr = PetscFEGetQuadrature(fe,quad);CHKERRQ(ierr);
+    ierr = PetscObjectReference((PetscObject)quad);CHKERRQ(ierr);
+  } else if (h == 1) {
+    ierr = PetscFEGetFaceQuadrature(fe,quad);CHKERRQ(ierr);
+    ierr = PetscObjectReference((PetscObject)quad);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
 static PetscErrorCode DMFieldInitialize_DS(DMField field)
 {
   PetscFunctionBegin;
-  field->ops->destroy         = DMFieldDestroy_DS;
-  field->ops->evaluate        = DMFieldEvaluate_DS;
-  field->ops->evaluateFE      = DMFieldEvaluateFE_DS;
-  field->ops->getFEInvariance = DMFieldGetFEInvariance_DS;
-  field->ops->view            = DMFieldView_DS;
+  field->ops->destroy                 = DMFieldDestroy_DS;
+  field->ops->evaluate                = DMFieldEvaluate_DS;
+  field->ops->evaluateFE              = DMFieldEvaluateFE_DS;
+  field->ops->getFEInvariance         = DMFieldGetFEInvariance_DS;
+  field->ops->createDefaultQuadrature = DMFieldCreateDefaultQuadrature_DS;
+  field->ops->view                    = DMFieldView_DS;
   PetscFunctionReturn(0);
 }
 
