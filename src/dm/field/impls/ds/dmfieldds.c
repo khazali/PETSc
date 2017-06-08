@@ -30,15 +30,11 @@ static PetscErrorCode DMFieldView_DS(DMField field,PetscViewer viewer)
 {
   DMField_DS     *dsfield = (DMField_DS *) field->data;
   PetscBool      iascii;
-  PetscDS        ds;
   PetscObject    disc;
-  DM             dm;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  dm   = field->dm;
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&iascii);CHKERRQ(ierr);
-  ierr = DMGetDS(dm,&ds);CHKERRQ(ierr);
   disc = dsfield->disc;
   if (iascii) {
     PetscViewerASCIIPrintf(viewer, "PetscDS field %D\n",dsfield->fieldNum);CHKERRQ(ierr);
@@ -229,17 +225,18 @@ PetscErrorCode DMFieldCreateDS(DM dm, PetscInt fieldNum, Vec vec,DMField *field)
 {
   DMField        b;
   DMField_DS     *dsfield;
-  PetscObject    disc;
+  PetscObject    disc = NULL;
   PetscBool      isContainer = PETSC_FALSE;
   PetscClassId   id = -1;
-  PetscInt       numComponents = -1;
+  PetscInt       numComponents = -1, dsNumFields;
   PetscSection   section;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = DMGetDefaultSection(dm,&section);CHKERRQ(ierr);
   ierr = PetscSectionGetFieldComponents(section,fieldNum,&numComponents);CHKERRQ(ierr);
-  ierr = DMGetField(dm,fieldNum,&disc);CHKERRQ(ierr);
+  ierr = DMGetNumFields(dm,&dsNumFields);CHKERRQ(ierr);
+  if (dsNumFields) {ierr = DMGetField(dm,fieldNum,&disc);CHKERRQ(ierr);}
   if (disc) {
     ierr = PetscObjectGetClassId(disc,&id);CHKERRQ(ierr);
     isContainer = (id == PETSC_CONTAINER_CLASSID) ? PETSC_TRUE : PETSC_FALSE;

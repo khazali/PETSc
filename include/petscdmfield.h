@@ -2,6 +2,7 @@
 #define      __PETSCDMFIELD_H
 #include <petscdm.h>
 #include <petscdt.h>
+#include <petscfe.h>
 
 /*S
     DMField - PETSc object for defining a field on a mesh topology
@@ -42,7 +43,9 @@ PETSC_EXTERN PetscErrorCode    DMFieldGetContinuity(DMField,DMFieldContinuity*);
 
 PETSC_EXTERN PetscErrorCode    DMFieldEvaluate(DMField,Vec,PetscDataType,void*,void*,void*);
 PETSC_EXTERN PetscErrorCode    DMFieldEvaluateFE(DMField,IS,PetscQuadrature,PetscDataType,void*,void*,void*);
+PETSC_EXTERN PetscErrorCode    DMFieldGetDefaultQuadrature(DMField,IS,PetscQuadrature*);
 PETSC_EXTERN PetscErrorCode    DMFieldEvaluateFV(DMField,IS,PetscDataType,void*,void*,void*);
+PETSC_EXTERN PetscErrorCode    DMFieldCreateFEGeom(DMField,IS,PetscQuadrature,PetscBool,PetscFEGeom **);
 
 PETSC_EXTERN PetscErrorCode    DMFieldGetFEInvariance(DMField,IS,PetscBool*,PetscBool*,PetscBool*);
 
