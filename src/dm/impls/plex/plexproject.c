@@ -108,27 +108,29 @@ static PetscErrorCode DMProjectPoint_Private(DM dm, DM dmAux, PetscInt h, PetscR
                                              PetscDualSpace sp[], PetscInt p, PetscReal **basisTab, PetscReal **basisDerTab, PetscReal **basisTabAux, PetscReal **basisDerTabAux,
                                              DMBoundaryConditionType type, void (**funcs)(void), void **ctxs, PetscBool fieldActive[], PetscScalar values[])
 {
-  PetscFEGeom fegeom;
+  PetscFEGeom     *fegeom;
   PetscFVCellGeom fvgeom;
   PetscInt        dim, dimEmbed;
+  PetscQuadrature q = NULL;
   PetscErrorCode  ierr;
 
   PetscFunctionBeginHot;
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = DMGetCoordinateDim(dm, &dimEmbed);CHKERRQ(ierr);
+  ierr = PetscFEGeomCreate(q,1,dimEmbed,PETSC_FALSE,&fegeom);CHKERRQ(ierr);
   if (hasFE) {
-    ierr = DMPlexComputeCellGeometryFEM(dm, p, NULL, fegeom.v, fegeom.J, fegeom.invJ, fegeom.detJ);CHKERRQ(ierr);
-    fegeom.dim      = dim - h;
-    fegeom.dimEmbed = dimEmbed;
+    ierr = DMPlexComputeCellGeometryFEM(dm, p, q, fegeom->v, fegeom->J, fegeom->invJ, fegeom->detJ);CHKERRQ(ierr);
+    fegeom->dim      = dim - h;
+    fegeom->dimEmbed = dimEmbed;
   }
   if (hasFV) {ierr = DMPlexComputeCellGeometryFVM(dm, p, &fvgeom.volume, fvgeom.centroid, NULL);CHKERRQ(ierr);}
   switch (type) {
   case DM_BC_ESSENTIAL:
   case DM_BC_NATURAL:
-    ierr = DMProjectPoint_Func_Private(dm, time, &fegeom, &fvgeom, isFE, sp, (PetscErrorCode (**)(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *)) funcs, ctxs, values);CHKERRQ(ierr);break;
+    ierr = DMProjectPoint_Func_Private(dm, time, fegeom, &fvgeom, isFE, sp, (PetscErrorCode (**)(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *)) funcs, ctxs, values);CHKERRQ(ierr);break;
   case DM_BC_ESSENTIAL_FIELD:
   case DM_BC_NATURAL_FIELD:
-    ierr = DMProjectPoint_Field_Private(dm, dmAux, time, localU, localA, &fegeom, sp, p,
+    ierr = DMProjectPoint_Field_Private(dm, dmAux, time, localU, localA, fegeom, sp, p,
                                         basisTab, basisDerTab, basisTabAux, basisDerTabAux,
                                         (void (**)(PetscInt, PetscInt, PetscInt,
                                                    const PetscInt[], const PetscInt[], const PetscScalar[], const PetscScalar[], const PetscScalar[],
@@ -136,6 +138,7 @@ static PetscErrorCode DMProjectPoint_Private(DM dm, DM dmAux, PetscInt h, PetscR
                                                    PetscReal, const PetscReal[], PetscScalar[])) funcs, ctxs, values);CHKERRQ(ierr);break;
   default: SETERRQ1(PetscObjectComm((PetscObject) dm), PETSC_ERR_ARG_WRONG, "Unknown boundary condition type: %d", (int) type);
   }
+  ierr = PetscFEGeomDestroy(&fegeom);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
