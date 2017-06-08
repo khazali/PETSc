@@ -137,7 +137,6 @@ PETSC_EXTERN PetscClassId PETSCFE_CLASSID;
 J*/
 typedef const char *PetscFEType;
 #define PETSCFEBASIC     "basic"
-#define PETSCFENONAFFINE "nonaffine"
 #define PETSCFEOPENCL    "opencl"
 #define PETSCFECOMPOSITE "composite"
 
