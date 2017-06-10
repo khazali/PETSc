@@ -676,6 +676,7 @@ PetscErrorCode  DMDestroy(DM *dm)
     ierr = DMSetCoarseDM((*dm)->fineMesh,NULL);CHKERRQ(ierr);
   }
   ierr = DMDestroy(&(*dm)->fineMesh);CHKERRQ(ierr);
+  ierr = DMFieldDestroy(&(*dm)->coordinateField);CHKERRQ(ierr);
   ierr = DMDestroy(&(*dm)->coordinateDM);CHKERRQ(ierr);
   ierr = VecDestroy(&(*dm)->coordinates);CHKERRQ(ierr);
   ierr = VecDestroy(&(*dm)->coordinatesLocal);CHKERRQ(ierr);
@@ -4084,6 +4085,35 @@ PetscErrorCode DMGetCoordinatesLocal(DM dm, Vec *c)
     ierr = DMGlobalToLocalEnd(cdm, dm->coordinates, INSERT_VALUES, dm->coordinatesLocal);CHKERRQ(ierr);
   }
   *c = dm->coordinatesLocal;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode DMGetCoordinateField(DM dm, DMField *field)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  PetscValidPointer(field,2);
+  if (!dm->coordinateField) {
+    if (dm->ops->createcoordinatefield) {
+      ierr = (*dm->ops->createcoordinatefield)(dm,&dm->coordinateField);CHKERRQ(ierr);
+    }
+  }
+  *field = dm->coordinateField;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode DMSetCoordinateField(DM dm, DMField field)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  if (field) PetscValidHeaderSpecific(field,DMFIELD_CLASSID,2);
+  ierr = PetscObjectReference((PetscObject)field);
+  ierr = DMFieldDestroy(&dm->coordinateField);CHKERRQ(ierr);
+  dm->coordinateField = field;
   PetscFunctionReturn(0);
 }
 

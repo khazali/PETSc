@@ -1,7 +1,6 @@
 #if !defined(__DMFIELDIMPL_H)
 #define      __DMFIELDIMPL_H
 
-#include <petscdm.h>
 #include <petscdmfield.h>
 #include <petsc/private/petscimpl.h>
 

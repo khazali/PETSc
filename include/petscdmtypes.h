@@ -63,4 +63,11 @@ typedef enum {DM_POINTLOCATION_NONE, DM_POINTLOCATION_NEAREST, DM_POINTLOCATION_
 S*/
 typedef struct _p_PetscPartitioner *PetscPartitioner;
 
+/*S
+    DMField - PETSc object for defining a field on a mesh topology
+
+    Level: intermediate
+S*/
+typedef struct _p_DMField* DMField;
+
 #endif

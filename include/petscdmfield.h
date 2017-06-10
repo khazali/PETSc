@@ -1,15 +1,8 @@
 #if !defined(__PETSCDMFIELD_H)
 #define      __PETSCDMFIELD_H
-#include <petscdm.h>
+#include <petscdmtypes.h>
 #include <petscdt.h>
 #include <petscfe.h>
-
-/*S
-    DMField - PETSc object for defining a field on a mesh topology
-
-    Level: intermediate
-S*/
-typedef struct _p_DMField* DMField;
 
 PETSC_EXTERN PetscErrorCode DMFieldInitializePackage(void);
 PETSC_EXTERN PetscErrorCode DMFieldFinalizePackage(void);
