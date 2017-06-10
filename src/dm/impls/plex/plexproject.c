@@ -7,27 +7,61 @@ static PetscErrorCode DMProjectPoint_Func_Private(DM dm, PetscReal time, PetscFE
                                                   PetscScalar values[])
 {
   PetscDS        prob;
-  PetscInt       Nf, *Nc, f, totDim, spDim, d, v;
+  PetscInt       coordDim, Nf, *Nc, f, totDim, spDim, d, v;
+  PetscBool      isAffine;
   PetscErrorCode ierr;
 
   PetscFunctionBeginHot;
   ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
+  ierr = DMGetCoordinateDim(dm,&coordDim);CHKERRQ(ierr);
   ierr = PetscDSGetNumFields(prob, &Nf);CHKERRQ(ierr);
   ierr = PetscDSGetComponents(prob, &Nc);CHKERRQ(ierr);
   ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
   /* Get values for closure */
+  /* TODO: We are not doing the right thing if each of the dual spaces has a different number of points */
+  isAffine = (fegeom->numPoints == 1) ? PETSC_TRUE : PETSC_FALSE;
   for (f = 0, v = 0; f < Nf; ++f) {
     void * const ctx = ctxs ? ctxs[f] : NULL;
 
     if (!sp[f]) continue;
     ierr = PetscDualSpaceGetDimension(sp[f], &spDim);CHKERRQ(ierr);
-    for (d = 0; d < spDim; ++d, ++v) {
-      if (funcs[f]) {
-        if (isFE[f]) {ierr = PetscDualSpaceApply(sp[f], d, time, fegeom, Nc[f], funcs[f], ctx, &values[v]);CHKERRQ(ierr);}
-        else         {ierr = PetscDualSpaceApplyFVM(sp[f], d, time, fvgeom, Nc[f], funcs[f], ctx, &values[v]);CHKERRQ(ierr);}
+    if (funcs[f]) {
+      if (isFE[f]) {
+        PetscQuadrature   allPoints;
+        PetscInt          q, dim, numPoints;
+        const PetscReal   *points;
+        PetscScalar       *pointEval;
+        PetscReal         *x;
+        DM                dm;
+
+        ierr = PetscDualSpaceGetDM(sp[f],&dm);CHKERRQ(ierr);
+        ierr = PetscDualSpaceGetAllPoints(sp[f], &allPoints);CHKERRQ(ierr);
+        ierr = PetscQuadratureGetData(allPoints,&dim,NULL,&numPoints,&points,NULL);CHKERRQ(ierr);
+        ierr = PetscDualSpaceGetDM(sp[f],&dm);CHKERRQ(ierr);
+        ierr = DMGetWorkArray(dm,numPoints*Nc[f],PETSC_SCALAR,&pointEval);CHKERRQ(ierr);
+        ierr = DMGetWorkArray(dm,coordDim,PETSC_REAL,&x);CHKERRQ(ierr);
+        for (q = 0; q < numPoints; q++) {
+          const PetscReal *v;
+
+          if (isAffine) {
+            CoordinatesRefToReal(coordDim, fegeom->dim, fegeom->xi, fegeom->v, fegeom->J, &points[q*dim], x);
+            v = x;
+          } else {
+            v = &fegeom->v[q*coordDim];
+          }
+          ierr = (*funcs[f])(coordDim,time,v, Nc[f], &pointEval[Nc[f]*q], ctx);CHKERRQ(ierr);
+        }
+        ierr = PetscDualSpaceApplyAll(sp[f], pointEval, &values[v]);CHKERRQ(ierr);
+        ierr = DMRestoreWorkArray(dm,coordDim,PETSC_REAL,&x);CHKERRQ(ierr);
+        ierr = DMRestoreWorkArray(dm,numPoints*Nc[f],PETSC_SCALAR,&pointEval);CHKERRQ(ierr);
+        v += spDim;
       } else {
-        values[v] = 0.0;
+        for (d = 0; d < spDim; ++d, ++v) {
+          ierr = PetscDualSpaceApplyFVM(sp[f], d, time, fvgeom, Nc[f], funcs[f], ctx, &values[v]);CHKERRQ(ierr);
+        }
       }
+    } else {
+      for (d = 0; d < spDim; d++, v++) {values[v] = 0.0;}
     }
   }
   PetscFunctionReturn(0);
@@ -48,11 +82,13 @@ static PetscErrorCode DMProjectPoint_Field_Private(DM dm, DM dmAux, PetscReal ti
   PetscScalar   *coefficients_t = NULL, *coefficientsAux_t = NULL;
   PetscReal     *x;
   PetscInt      *uOff, *uOff_x, *aOff = NULL, *aOff_x = NULL, *Nb, *Nc, *NbAux = NULL, *NcAux = NULL;
-  PetscInt       dim, Nf, NfAux = 0, f, spDim, d, c, v, tp = 0;
+  PetscInt       dim, dE, Nf, NfAux = 0, f, spDim, d, v, tp = 0;
+  PetscBool      isAffine;
   PetscErrorCode ierr;
 
   PetscFunctionBeginHot;
   ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
+  ierr = DMGetCoordinateDim(dm, &dE);CHKERRQ(ierr);
   ierr = PetscDSGetSpatialDimension(prob, &dim);CHKERRQ(ierr);
   ierr = PetscDSGetNumFields(prob, &Nf);CHKERRQ(ierr);
   ierr = PetscDSGetDimensions(prob, &Nb);CHKERRQ(ierr);
@@ -76,28 +112,45 @@ static PetscErrorCode DMProjectPoint_Field_Private(DM dm, DM dmAux, PetscReal ti
     ierr = DMPlexVecGetClosure(dmAux, sectionAux, localA, p, NULL, &coefficientsAux);CHKERRQ(ierr);
   }
   /* Get values for closure */
+  isAffine = (fegeom->numPoints == 1) ? PETSC_TRUE : PETSC_FALSE;
   for (f = 0, v = 0; f < Nf; ++f) {
+    PetscQuadrature   allPoints;
+    PetscInt          q, dim, numPoints;
+    const PetscReal   *points;
+    PetscScalar       *pointEval;
+    DM                dm;
+
     if (!sp[f]) continue;
     ierr = PetscDualSpaceGetDimension(sp[f], &spDim);CHKERRQ(ierr);
-    for (d = 0; d < spDim; ++d, ++v) {
-      if (funcs[f]) {
-        PetscQuadrature  quad;
-        const PetscReal *points, *weights;
-        PetscInt         numPoints, q;
-
-        ierr = PetscDualSpaceGetFunctional(sp[f], d, &quad);CHKERRQ(ierr);
-        ierr = PetscQuadratureGetData(quad, NULL, NULL, &numPoints, &points, &weights);CHKERRQ(ierr);
-        for (q = 0; q < numPoints; ++q, ++tp) {
-          CoordinatesRefToReal(dim, dim, fegeom->xi, fegeom->v, fegeom->J, &points[q*dim], x);
-          EvaluateFieldJets(dim, Nf, Nb, Nc, tp, basisTab, basisDerTab, refSpaceDer, fegeom->invJ, coefficients, coefficients_t, u, u_x, u_t);
-          if (probAux) {EvaluateFieldJets(dim, NfAux, NbAux, NcAux, tp, basisTabAux, basisDerTabAux, refSpaceDerAux, fegeom->invJ, coefficientsAux, coefficientsAux_t, a, a_x, a_t);}
-          (*funcs[f])(dim, Nf, NfAux, uOff, uOff_x, u, u_t, u_x, aOff, aOff_x, a, a_t, a_x, time, x, bc);
-          for (c = 0; c < Nc[f]; ++c) values[v] += bc[c]*weights[c];
-        }
-      } else {
-        values[v] = 0.0;
+    if (!funcs[f]) {
+      for (d = 0; d < spDim; d++, v++) {
+        values[v] = 0.;
       }
+      continue;
     }
+    ierr = PetscDualSpaceGetDM(sp[f],&dm);CHKERRQ(ierr);
+    ierr = PetscDualSpaceGetAllPoints(sp[f], &allPoints);CHKERRQ(ierr);
+    ierr = PetscQuadratureGetData(allPoints,&dim,NULL,&numPoints,&points,NULL);CHKERRQ(ierr);
+    ierr = PetscDualSpaceGetDM(sp[f],&dm);CHKERRQ(ierr);
+    ierr = DMGetWorkArray(dm,numPoints*Nc[f],PETSC_SCALAR,&pointEval);CHKERRQ(ierr);
+    for (q = 0; q < numPoints; ++q, ++tp) {
+      const PetscReal *v;
+      const PetscReal *invJ;
+      if (isAffine) {
+        CoordinatesRefToReal(dim, dim, fegeom->xi, fegeom->v, fegeom->J, &points[q*dim], x);
+        v = x;
+        invJ = fegeom->invJ;
+      } else {
+        v = &fegeom->v[q*dE];
+        invJ = &fegeom->invJ[q*dE*dE];
+      }
+      EvaluateFieldJets(dim, Nf, Nb, Nc, tp, basisTab, basisDerTab, refSpaceDer, invJ, coefficients, coefficients_t, u, u_x, u_t);
+      if (probAux) {EvaluateFieldJets(dim, NfAux, NbAux, NcAux, tp, basisTabAux, basisDerTabAux, refSpaceDerAux, invJ, coefficientsAux, coefficientsAux_t, a, a_x, a_t);}
+      (*funcs[f])(dim, Nf, NfAux, uOff, uOff_x, u, u_t, u_x, aOff, aOff_x, a, a_t, a_x, time, v, &pointEval[Nc[f]*q]);
+    }
+    ierr = PetscDualSpaceApplyAll(sp[f], pointEval, &values[v]);CHKERRQ(ierr);
+    ierr = DMRestoreWorkArray(dm,numPoints*Nc[f],PETSC_SCALAR,&pointEval);CHKERRQ(ierr);
+    v += spDim;
   }
   ierr = DMPlexVecRestoreClosure(dm, section, localU, p, NULL, &coefficients);CHKERRQ(ierr);
   if (dmAux) {ierr = DMPlexVecRestoreClosure(dmAux, sectionAux, localA, p, NULL, &coefficientsAux);CHKERRQ(ierr);}
@@ -199,26 +252,14 @@ static PetscErrorCode DMProjectLocal_Generic_Plex(DM dm, PetscReal time, Vec loc
     } else SETERRQ1(PetscObjectComm((PetscObject) dm), PETSC_ERR_ARG_WRONG, "Unknown discretization type for field %d", f);
   }
   if (type == DM_BC_ESSENTIAL_FIELD || type == DM_BC_NATURAL_FIELD) {
-    PetscFE    fem;
-    PetscReal *points;
-    PetscInt   numPoints, spDim, d;
+    PetscFE         fem;
+    const PetscReal *points;
+    PetscQuadrature allPoints;
+    PetscInt        numPoints, spDim, d;
 
     if (maxHeight) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Field projection not supported for face interpolation");
-    numPoints = 0;
-    for (f = 0; f < Nf; ++f) {
-      ierr = PetscDualSpaceGetDimension(cellsp[f], &spDim);CHKERRQ(ierr);
-      for (d = 0; d < spDim; ++d) {
-        if (funcs[f]) {
-          PetscQuadrature quad;
-          PetscInt        Nq;
-
-          ierr = PetscDualSpaceGetFunctional(cellsp[f], d, &quad);CHKERRQ(ierr);
-          ierr = PetscQuadratureGetData(quad, NULL, NULL, &Nq, NULL, NULL);CHKERRQ(ierr);
-          numPoints += Nq;
-        }
-      }
-    }
-    ierr = PetscMalloc1(numPoints*dim, &points);CHKERRQ(ierr);
+    ierr = PetscDualSpaceGetAllPoints(cellsp[f],&allPoints);CHKERRQ(ierr);
+    ierr = PetscQuadratureGetData(allPoints, NULL, NULL, &numPoints, &points, NULL);CHKERRQ(ierr);
     numPoints = 0;
     for (f = 0; f < Nf; ++f) {
       ierr = PetscDualSpaceGetDimension(cellsp[f], &spDim);CHKERRQ(ierr);
