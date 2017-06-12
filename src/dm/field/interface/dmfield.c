@@ -354,8 +354,8 @@ PetscErrorCode DMFieldCreateFEGeom(DMField field, IS pointIS, PetscQuadrature qu
         g->J[i*dE*dE + j] = J[j];
       }
     }
-    ierr = PetscFEGeomComplete(g);CHKERRQ(ierr);
   }
+  ierr = PetscFEGeomComplete(g);CHKERRQ(ierr);
   ierr = DMFieldGetFEInvariance(field,pointIS,NULL,&g->isAffine,NULL);CHKERRQ(ierr);
   *geom = g;
   PetscFunctionReturn(0);
