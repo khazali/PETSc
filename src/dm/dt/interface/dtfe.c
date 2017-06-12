@@ -2884,6 +2884,7 @@ PetscErrorCode PetscDualSpaceInitialize_Lagrange(PetscDualSpace sp)
   sp->ops->getsymmetries     = PetscDualSpaceGetSymmetries_Lagrange;
   sp->ops->apply             = PetscDualSpaceApplyDefault;
   sp->ops->applyall          = PetscDualSpaceApplyAllDefault;
+  sp->ops->createallpoints   = PetscDualSpaceCreateAllPointsDefault;
   PetscFunctionReturn(0);
 }
 
@@ -3095,6 +3096,8 @@ PetscErrorCode PetscDualSpaceInitialize_Simple(PetscDualSpace sp)
   sp->ops->getheightsubspace = NULL;
   sp->ops->getsymmetries     = NULL;
   sp->ops->apply             = PetscDualSpaceApplyDefault;
+  sp->ops->applyall          = PetscDualSpaceApplyAllDefault;
+  sp->ops->createallpoints   = PetscDualSpaceCreateAllPointsDefault;
   PetscFunctionReturn(0);
 }
 
