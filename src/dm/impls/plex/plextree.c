@@ -1336,7 +1336,7 @@ static PetscErrorCode DMPlexComputeAnchorMatrix_Tree_Direct(DM dm, PetscSection 
       ierr = DMPlexComputeCellGeometryFEM(dm, c, NULL, v0, J, NULL, &detJ);CHKERRQ(ierr);
       ierr = DMPlexComputeCellGeometryFEM(dm, parent, NULL, v0parent, Jparent, invJparent, &detJparent);CHKERRQ(ierr);
       for (i = 0; i < nPoints; i++) {
-        const PetscReal xi0[3] = {-1.};
+        const PetscReal xi0[3] = {-1.,-1.,-1.};
 
         CoordinatesRefToReal(spdim, spdim, xi0, v0, J, &pointsRef[i*spdim],vtmp);
         CoordinatesRealToRef(spdim, spdim, xi0, v0parent, invJparent, vtmp, &pointsReal[i*spdim]);
@@ -2108,7 +2108,7 @@ PetscErrorCode DMPlexTreeRefineCell (DM dm, PetscInt cell, DM *ncdm)
         PetscReal coord[3], newCoord[3];
         PetscInt  vPerm = perm[v];
         PetscInt  kParent;
-        const PetscReal xi0[3] = {-1.};
+        const PetscReal xi0[3] = {-1.,-1.,-1.};
 
         ierr = DMPlexGetTreeParent(K,v,&kParent,NULL);CHKERRQ(ierr);
         if (kParent != v) {
@@ -3220,7 +3220,7 @@ PetscErrorCode DMPlexComputeInjectorReferenceTree(DM refTree, Mat *inj)
           for (j = 0; j < numPoints; j++) {
             PetscInt          childCell = -1;
             PetscReal         *parentValAtPoint;
-            const PetscReal   xi0[3] = {-1.};
+            const PetscReal   xi0[3] = {-1.,-1.,-1.};
             const PetscReal   *pointReal = &points[dim * j];
             const PetscScalar *point;
             PetscReal         *Bchild;

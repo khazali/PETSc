@@ -1473,6 +1473,7 @@ PetscErrorCode PetscDualSpaceDestroy(PetscDualSpace *sp)
     ierr = PetscQuadratureDestroy(&(*sp)->functional[f]);CHKERRQ(ierr);
   }
   ierr = PetscFree((*sp)->functional);CHKERRQ(ierr);
+  ierr = PetscQuadratureDestroy(&(*sp)->allPoints);CHKERRQ(ierr);
   ierr = DMDestroy(&(*sp)->dm);CHKERRQ(ierr);
 
   if ((*sp)->ops->destroy) {ierr = (*(*sp)->ops->destroy)(*sp);CHKERRQ(ierr);}
@@ -3848,7 +3849,7 @@ PetscErrorCode PetscFEGetFaceTabulation(PetscFE fem, PetscReal **Bf, PetscReal *
   if (Df) PetscValidPointer(Df, 3);
   if (Hf) PetscValidPointer(Hf, 4);
   if (!fem->Bf) {
-    const PetscReal  xi0[3] = {-1.};
+    const PetscReal  xi0[3] = {-1., -1., -1.};
     PetscReal        v0[3], J[9], detJ;
     PetscQuadrature  fq;
     PetscDualSpace   sp;

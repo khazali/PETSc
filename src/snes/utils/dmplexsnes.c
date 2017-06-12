@@ -2132,6 +2132,7 @@ PetscErrorCode DMPlexComputeBdJacobian_Internal(DM dm, Vec locX, Vec locX_t, Pet
       if (locA) {ierr = PetscFree(a);CHKERRQ(ierr);}
     }
   }
+  ierr = ISDestroy(&facetIS);CHKERRQ(ierr);
   if (plex) {ierr = DMDestroy(&plex);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }

@@ -220,7 +220,7 @@ int main(int argc, char **argv)
       PetscInt       n = 3, i;
       PetscBool      flags[3];
       PetscInt       inttypes[3];
-      DMBoundaryType types[3] = {DM_BOUNDARY_NONE};
+      DMBoundaryType types[3] = {DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE};
 
       ierr = PetscOptionsBegin(comm, "", "DMField DMPlex Tensor Options", "DM");CHKERRQ(ierr);
       ierr = PetscOptionsIntArray("-cells","Cells per dimension","ex1.c",cells,&n,NULL);CHKERRQ(ierr);

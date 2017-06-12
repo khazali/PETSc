@@ -1438,7 +1438,7 @@ PetscErrorCode DMPlexComputeInterpolatorGeneral(DM dmc, DM dmf, Mat In, void *us
         ierr = VecSetBlockSize(pointVec, dim);CHKERRQ(ierr);
         ierr = VecGetArray(pointVec, &pV);CHKERRQ(ierr);
         for (q = 0; q < Np; ++q) {
-          const PetscReal xi0[3] = {-1.};
+          const PetscReal xi0[3] = {-1., -1., -1.};
 
           /* Transform point to real space */
           CoordinatesRefToReal(dim, dim, xi0, v0, J, &qpoints[q*dim], x);
@@ -1529,7 +1529,7 @@ PetscErrorCode DMPlexComputeInterpolatorGeneral(DM dmc, DM dmf, Mat In, void *us
         ierr = VecSetBlockSize(pointVec, dim);CHKERRQ(ierr);
         ierr = VecGetArray(pointVec, &pV);CHKERRQ(ierr);
         for (q = 0; q < Np; ++q) {
-          const PetscReal xi0[3] = {-1.};
+          const PetscReal xi0[3] = {-1., -1., -1.};
 
           /* Transform point to real space */
           CoordinatesRefToReal(dim, dim, xi0, v0, J, &qpoints[q*dim], x);
@@ -1544,7 +1544,7 @@ PetscErrorCode DMPlexComputeInterpolatorGeneral(DM dmc, DM dmf, Mat In, void *us
         ierr = VecGetArray(pointVec, &pV);CHKERRQ(ierr);
         for (ccell = 0; ccell < numCoarseCells; ++ccell) {
           PetscReal pVReal[3];
-          const PetscReal xi0[3] = {-1.};
+          const PetscReal xi0[3] = {-1., -1., -1.};
 
           ierr = DMPlexGetClosureIndices(dmc, csection, globalCSection, coarseCells[ccell].index, &numCIndices, &cindices, NULL);CHKERRQ(ierr);
           /* Transform points from real space to coarse reference space */

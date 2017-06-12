@@ -442,7 +442,7 @@ static PetscErrorCode DMFieldInitialize_DA(DMField field)
   if (coords) {
     PetscInt          n;
     const PetscScalar *array;
-    PetscReal         mins[3][2] = {{PETSC_MAX_REAL,PETSC_MAX_REAL}};
+    PetscReal         mins[3][2] = {{PETSC_MAX_REAL,PETSC_MAX_REAL},{PETSC_MAX_REAL,PETSC_MAX_REAL},{PETSC_MAX_REAL,PETSC_MAX_REAL}};
 
     ierr = VecGetLocalSize(coords,&n);CHKERRQ(ierr);
     n /= dim;

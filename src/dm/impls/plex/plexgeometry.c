@@ -1322,7 +1322,7 @@ static PetscErrorCode DMPlexComputeCellGeometryFEM_Implicit(DM dm, PetscInt cell
   PetscInt        Nq = 0;
   const PetscReal *points = NULL;
   DMLabel         depthLabel;
-  PetscReal       xi0[3] = {-1.}, v0[3] = {-1.}, J0[9] = {-1.}, detJ0 = -1.;
+  PetscReal       xi0[3] = {-1.,-1.,-1.}, v0[3], J0[9], detJ0;
   PetscBool       isAffine = PETSC_TRUE;
   PetscErrorCode  ierr;
 
@@ -2794,7 +2794,7 @@ PetscErrorCode DMPlexCoordinatesToReference(DM dm, PetscInt cell, PetscInt numPo
       invJ = &J[dimC * dimC];
       ierr = DMPlexComputeCellGeometryAffineFEM(dm, cell, v0, J, invJ, &detJ);CHKERRQ(ierr);
       for (i = 0; i < numPoints; i++) { /* Apply the inverse affine transformation for each point */
-        const PetscReal x0[3] = {-1.};
+        const PetscReal x0[3] = {-1.,-1.,-1.};
 
         CoordinatesRealToRef(dimC, dimR, x0, v0, invJ, &realCoords[dimC * i], &refCoords[dimR * i]);
       }
@@ -2874,8 +2874,9 @@ PetscErrorCode DMPlexReferenceToCoordinates(DM dm, PetscInt cell, PetscInt numPo
       ierr = DMGetWorkArray(dm,dimC + 2 * dimC * dimC, PETSC_REAL, &v0);CHKERRQ(ierr);
       J    = &v0[dimC];
       ierr = DMPlexComputeCellGeometryAffineFEM(dm, cell, v0, J, NULL, &detJ);CHKERRQ(ierr);
-      for (i = 0; i < numPoints; i++) { /* Apply the inverse affine transformation for each point */
-        const PetscReal xi0[3] = {-1.};
+      for (i = 0; i < numPoints; i++) { /* Apply the affine transformation for each point */
+        const PetscReal xi0[3] = {-1.,-1.,-1.};
+
         CoordinatesRefToReal(dimC, dimR, xi0, v0, J, &refCoords[dimR * i], &realCoords[dimC * i]);
       }
       ierr = DMRestoreWorkArray(dm,dimC + 2 * dimC * dimC, PETSC_REAL, &v0);CHKERRQ(ierr);
