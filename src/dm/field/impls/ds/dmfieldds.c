@@ -225,10 +225,10 @@ static PetscErrorCode DMFieldCreateDefaultQuadrature_DS(DMField field, IS cellIS
   }
   if (!h) {
     ierr = PetscFEGetQuadrature(fe,quad);CHKERRQ(ierr);
-    ierr = PetscObjectReference((PetscObject)quad);CHKERRQ(ierr);
+    ierr = PetscObjectReference((PetscObject)*quad);CHKERRQ(ierr);
   } else if (h == 1) {
     ierr = PetscFEGetFaceQuadrature(fe,quad);CHKERRQ(ierr);
-    ierr = PetscObjectReference((PetscObject)quad);CHKERRQ(ierr);
+    ierr = PetscObjectReference((PetscObject)*quad);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
