@@ -20,6 +20,7 @@ typedef struct _n_PetscFEGeom {
   PetscInt  dimEmbed;
   PetscInt  numCells;
   PetscInt  numPoints;
+  PetscBool isAffine;
 } PetscFEGeom;
 
 PETSC_EXTERN PetscErrorCode PetscFEInitializePackage(void);

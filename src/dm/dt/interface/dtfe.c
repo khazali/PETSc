@@ -1951,7 +1951,7 @@ PetscErrorCode PetscDualSpaceApplyDefault(PetscDualSpace sp, PetscInt f, PetscRe
   if (qNc != Nc) SETERRQ2(PetscObjectComm((PetscObject) sp), PETSC_ERR_ARG_SIZ, "The quadrature components %D != function components %D", qNc, Nc);
   ierr = DMGetWorkArray(dm, Nc, PETSC_SCALAR, &val);CHKERRQ(ierr);
   *value = 0.0;
-  isAffine = (cgeom->numPoints == 1 && Nq > 1) ? PETSC_TRUE : PETSC_FALSE;
+  isAffine = cgeom->isAffine;
   dE = cgeom->dimEmbed;
   for (q = 0; q < Nq; ++q) {
     if (isAffine) {
@@ -4200,7 +4200,7 @@ PetscErrorCode PetscFEIntegrate_Basic(PetscFE fem, PetscDS prob, PetscInt field,
   ierr = PetscQuadratureGetData(quad, NULL, &qNc, &Nq, &quadPoints, &quadWeights);CHKERRQ(ierr);
   Np = cgeom->numPoints;
   dE = cgeom->dimEmbed;
-  isAffine = (Np == 1 && Nq > 1) ? PETSC_TRUE : PETSC_FALSE;
+  isAffine = cgeom->isAffine;
   for (e = 0; e < Ne; ++e) {
     const PetscReal *v0   = &cgeom->v[e*Np*dE];
     const PetscReal *J    = &cgeom->J[e*Np*dE*dE];
@@ -4293,7 +4293,7 @@ PetscErrorCode PetscFEIntegrateResidual_Basic(PetscFE fem, PetscDS prob, PetscIn
   ierr = PetscQuadratureGetData(quad, NULL, &qNc, &Nq, &quadPoints, &quadWeights);CHKERRQ(ierr);
   Np = cgeom->numPoints;
   dE = cgeom->dimEmbed;
-  isAffine = (Np == 1 && Nq > 1) ? PETSC_TRUE : PETSC_FALSE;
+  isAffine = cgeom->isAffine;
   for (e = 0; e < Ne; ++e) {
     const PetscReal *v0   = &cgeom->v[e*Np*dE];
     const PetscReal *J    = &cgeom->J[e*Np*dE*dE];
@@ -4387,7 +4387,7 @@ PetscErrorCode PetscFEIntegrateBdResidual_Basic(PetscFE fem, PetscDS prob, Petsc
   ierr = PetscQuadratureGetData(quad, NULL, &qNc, &Nq, &quadPoints, &quadWeights);CHKERRQ(ierr);
   Np = fgeom->numPoints;
   dE = fgeom->dimEmbed;
-  isAffine = (Np == 1 && Nq > 1) ? PETSC_TRUE : PETSC_FALSE;
+  isAffine = fgeom->isAffine;
   for (e = 0; e < Ne; ++e) {
     const PetscReal *v0   = &fgeom->v[e*Np*dE];
     const PetscReal *J    = &fgeom->J[e*Np*dE*dE];
@@ -4504,7 +4504,7 @@ PetscErrorCode PetscFEIntegrateJacobian_Basic(PetscFE fem, PetscDS prob, PetscFE
   ierr = PetscQuadratureGetData(quad, NULL, &qNc, &Nq, &quadPoints, &quadWeights);CHKERRQ(ierr);
   Np = geom->numPoints;
   dE = geom->dimEmbed;
-  isAffine = (Np == 1 && Nq > 1) ? PETSC_TRUE : PETSC_FALSE;
+  isAffine = geom->isAffine;
   for (e = 0; e < Ne; ++e) {
     const PetscReal *v0   = &geom->v[e*Np*dE];
     const PetscReal *J    = &geom->J[e*Np*dE*dE];
@@ -4700,7 +4700,7 @@ PetscErrorCode PetscFEIntegrateBdJacobian_Basic(PetscFE fem, PetscDS prob, Petsc
   ierr = PetscQuadratureGetData(quad, NULL, &qNc, &Nq, &quadPoints, &quadWeights);CHKERRQ(ierr);
   Np = fgeom->numPoints;
   dE = fgeom->dimEmbed;
-  isAffine = (Np == 1 && Nq > 1) ? PETSC_TRUE : PETSC_FALSE;
+  isAffine = fgeom->isAffine;
   for (e = 0; e < Ne; ++e) {
     const PetscReal *v0   = &fgeom->v[e*Np*dE];
     const PetscReal *J    = &fgeom->J[e*Np*dE*dE];
