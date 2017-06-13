@@ -80,7 +80,7 @@ static PetscErrorCode DMFieldEvaluateFE_DS(DMField field, IS cellIS, PetscQuadra
   DM              dm;
   PetscObject     disc;
   PetscClassId    classid;
-  PetscInt        nq, nc, dim, numCells;
+  PetscInt        nq, nc, dim, meshDim, dE, numCells;
   PetscSection    section;
   const PetscReal *qpoints;
   PetscBool       isStride;
@@ -92,11 +92,11 @@ static PetscErrorCode DMFieldEvaluateFE_DS(DMField field, IS cellIS, PetscQuadra
   dm   = field->dm;
   nc   = field->numComponents;
   disc = dsfield->disc;
-  ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
+  ierr = DMGetDimension(dm,&meshDim);CHKERRQ(ierr);
   ierr = DMGetDefaultSection(dm,&section);CHKERRQ(ierr);
   ierr = PetscSectionGetField(section,dsfield->fieldNum,&section);CHKERRQ(ierr);
   ierr = PetscObjectGetClassId(disc,&classid);CHKERRQ(ierr);
-  ierr = PetscQuadratureGetData(quad,NULL,NULL,&nq,&qpoints,NULL);CHKERRQ(ierr);
+  ierr = PetscQuadratureGetData(quad,&dim,NULL,&nq,&qpoints,NULL);CHKERRQ(ierr);
   /* TODO: batch */
   ierr = PetscObjectTypeCompare((PetscObject)cellIS,ISSTRIDE,&isStride);CHKERRQ(ierr);
   ierr = ISGetLocalSize(cellIS,&numCells);CHKERRQ(ierr);
@@ -112,6 +112,9 @@ static PetscErrorCode DMFieldEvaluateFE_DS(DMField field, IS cellIS, PetscQuadra
     PetscInt     closureSize;
     PetscScalar  *elem = NULL;
 
+    if (dim == meshDim - 1) {
+      /* TODO */
+    }
     ierr = PetscFEGetDimension(fe,&feDim);CHKERRQ(ierr);
     ierr = PetscFEGetTabulation(fe,nq,qpoints,B ? &fB : NULL,D ? &fD : NULL,H ? &fH : NULL);CHKERRQ(ierr);
     closureSize = feDim;
