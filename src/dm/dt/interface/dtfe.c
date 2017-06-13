@@ -6517,6 +6517,7 @@ PetscErrorCode PetscFEGeomGetChunk(PetscFEGeom *geom, PetscInt cStart, PetscInt 
   (*chunkGeom)->detJ = &geom->detJ[Nq*cStart];
   (*chunkGeom)->n = geom->n ? &geom->n[Nq*dE*cStart] : NULL;
   (*chunkGeom)->face = geom->face ? &geom->face[cStart] : NULL;
+  (*chunkGeom)->isAffine = geom->isAffine;
   PetscFunctionReturn(0);
 }
 
