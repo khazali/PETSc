@@ -233,6 +233,7 @@ PetscErrorCode PetscSpaceSetFromOptions(PetscSpace sp)
     ierr = PetscSpaceSetType(sp, defaultType);CHKERRQ(ierr);
   }
   ierr = PetscOptionsInt("-petscspace_order", "The approximation order", "PetscSpaceSetOrder", sp->order, &sp->order, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-petscspace_variables", "The number of different variables, e.g. x and y", "PetscSpaceSetNumVariables", sp->Nv, &sp->Nv, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-petscspace_components", "The number of components", "PetscSpaceSetNumComponents", sp->Nc, &sp->Nc, NULL);CHKERRQ(ierr);
   if (sp->ops->setfromoptions) {
     ierr = (*sp->ops->setfromoptions)(PetscOptionsObject,sp);CHKERRQ(ierr);
@@ -325,6 +326,7 @@ PetscErrorCode PetscSpaceCreate(MPI_Comm comm, PetscSpace *sp)
 
   s->order = 0;
   s->Nc    = 1;
+  s->Nv    = 0;
   ierr = DMShellCreate(comm, &s->dm);CHKERRQ(ierr);
 
   *sp = s;
@@ -440,6 +442,24 @@ PetscErrorCode PetscSpaceSetNumComponents(PetscSpace sp, PetscInt Nc)
   PetscFunctionReturn(0);
 }
 
+PetscErrorCode PetscSpaceSetNumVariables(PetscSpace sp, PetscInt n)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(sp, PETSCSPACE_CLASSID, 1);
+  sp->Nv = n;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode PetscSpaceGetNumVariables(PetscSpace sp, PetscInt *n)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(sp, PETSCSPACE_CLASSID, 1);
+  PetscValidPointer(n, 2);
+  *n = sp->Nv;
+  PetscFunctionReturn(0);
+}
+
+
 /*@C
   PetscSpaceEvaluate - Evaluate the basis functions and their derivatives (jet) at each point
 
@@ -480,7 +500,6 @@ PetscErrorCode PetscSpaceSetFromOptions_Polynomial(PetscOptionItems *PetscOption
 
   PetscFunctionBegin;
   ierr = PetscOptionsHead(PetscOptionsObject,"PetscSpace polynomial options");CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-petscspace_poly_num_variables", "The number of different variables, e.g. x and y", "PetscSpacePolynomialSetNumVariables", poly->numVariables, &poly->numVariables, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-petscspace_poly_sym", "Use only symmetric polynomials", "PetscSpacePolynomialSetSymmetric", poly->symmetric, &poly->symmetric, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-petscspace_poly_tensor", "Use the tensor product polynomials", "PetscSpacePolynomialSetTensor", poly->tensor, &poly->tensor, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsTail();CHKERRQ(ierr);
@@ -934,7 +953,7 @@ PetscErrorCode PetscSpaceEvaluate_Polynomial(PetscSpace sp, PetscInt npoints, co
 
   Level: beginner
 
-.seealso: PetscSpacePolynomialGetTensor(), PetscSpaceSetOrder(), PetscSpacePolynomialSetNumVariables()
+.seealso: PetscSpacePolynomialGetTensor(), PetscSpaceSetOrder(), PetscSpaceSetNumVariables()
 @*/
 PetscErrorCode PetscSpacePolynomialSetTensor(PetscSpace sp, PetscBool tensor)
 {
@@ -959,7 +978,7 @@ PetscErrorCode PetscSpacePolynomialSetTensor(PetscSpace sp, PetscBool tensor)
 
   Level: beginner
 
-.seealso: PetscSpacePolynomialSetTensor(), PetscSpaceSetOrder(), PetscSpacePolynomialSetNumVariables()
+.seealso: PetscSpacePolynomialSetTensor(), PetscSpaceSetOrder(), PetscSpaceSetNumVariables()
 @*/
 PetscErrorCode PetscSpacePolynomialGetTensor(PetscSpace sp, PetscBool *tensor)
 {
@@ -1027,7 +1046,6 @@ PETSC_EXTERN PetscErrorCode PetscSpaceCreate_Polynomial(PetscSpace sp)
   ierr     = PetscNewLog(sp,&poly);CHKERRQ(ierr);
   sp->data = poly;
 
-  poly->numVariables = 0;
   poly->symmetric    = PETSC_FALSE;
   poly->tensor       = PETSC_FALSE;
   poly->degrees      = NULL;
@@ -1054,27 +1072,6 @@ PetscErrorCode PetscSpacePolynomialGetSymmetric(PetscSpace sp, PetscBool *sym)
   PetscValidHeaderSpecific(sp, PETSCSPACE_CLASSID, 1);
   PetscValidPointer(sym, 2);
   *sym = poly->symmetric;
-  PetscFunctionReturn(0);
-}
-
-PetscErrorCode PetscSpacePolynomialSetNumVariables(PetscSpace sp, PetscInt n)
-{
-  PetscSpace_Poly *poly = (PetscSpace_Poly *) sp->data;
-
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(sp, PETSCSPACE_CLASSID, 1);
-  poly->numVariables = n;
-  PetscFunctionReturn(0);
-}
-
-PetscErrorCode PetscSpacePolynomialGetNumVariables(PetscSpace sp, PetscInt *n)
-{
-  PetscSpace_Poly *poly = (PetscSpace_Poly *) sp->data;
-
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(sp, PETSCSPACE_CLASSID, 1);
-  PetscValidPointer(n, 2);
-  *n = poly->numVariables;
   PetscFunctionReturn(0);
 }
 
@@ -1212,7 +1209,6 @@ PETSC_EXTERN PetscErrorCode PetscSpaceCreate_Point(PetscSpace sp)
   ierr     = PetscNewLog(sp,&pt);CHKERRQ(ierr);
   sp->data = pt;
 
-  pt->numVariables    = 0;
   pt->quad->dim       = 0;
   pt->quad->Nc        = 1;
   pt->quad->numPoints = 0;
@@ -6409,7 +6405,7 @@ PetscErrorCode PetscFECreateDefault(DM dm, PetscInt dim, PetscInt Nc, PetscBool 
   ierr = PetscObjectSetOptionsPrefix((PetscObject) P, prefix);CHKERRQ(ierr);
   ierr = PetscSpaceSetFromOptions(P);CHKERRQ(ierr);
   ierr = PetscSpaceSetNumComponents(P, Nc);CHKERRQ(ierr);
-  ierr = PetscSpacePolynomialSetNumVariables(P, dim);CHKERRQ(ierr);
+  ierr = PetscSpaceSetNumVariables(P, dim);CHKERRQ(ierr);
   ierr = PetscSpaceSetUp(P);CHKERRQ(ierr);
   ierr = PetscSpaceGetOrder(P, &order);CHKERRQ(ierr);
   ierr = PetscSpacePolynomialGetTensor(P, &tensor);CHKERRQ(ierr);

@@ -29,18 +29,17 @@ struct _p_PetscSpace {
   void                   *data;          /* Implementation object */
   PetscInt                order;         /* The approximation order of the space */
   PetscInt                Nc;            /* The number of components */
+  PetscInt                Nv;            /* The number of variables in the space, e.g. x and y */
   DM                      dm;            /* Shell to use for temp allocation */
 };
 
 typedef struct {
-  PetscInt   numVariables; /* The number of variables in the space, e.g. x and y */
   PetscBool  symmetric;    /* Use only symmetric polynomials */
   PetscBool  tensor;       /* Flag for tensor product */
   PetscInt  *degrees;      /* Degrees of single variable which we need to compute */
 } PetscSpace_Poly;
 
 typedef struct {
-  PetscInt        numVariables; /* The spatial dimension */
   PetscQuadrature quad;         /* The points defining the space */
 } PetscSpace_Point;
 
