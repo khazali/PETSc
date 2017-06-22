@@ -87,12 +87,57 @@
 %\def\thetable{\arabic{table}}
 
 % TITLE AND AUTHOR --------------------------------
-\title{PDE constrained optimization in spectral element framework using PETSc and TAO}
+\title{PDE constrained optimization, error estimation and control\footnote{we haven't done control} with spectral elements using PETSc and TAO}
 \vspace{1cm}
 \author{Oana Marin, Emil Constantinescu, Barry Smith}
 \date{\today}
 \maketitle
 
+Parameter determination by fitting observations, of either numerical or experimental nature, acceleration of simulations throughout their long transients, identification of boundary conditions that satisfy certain observation, and many more such applications fall within the field of PDE constrained optimization and inverse problems. Despite their widespread usability inverse problems have been plagued by bottlenecks such as: ill-posedness, data intensity, sensitivity to errors, high computational costs. The current work aims to address these issues by leveraging the extensive range of methods available in both PETSc and TAO, to provide a framework for tackling large scale inverse problems in a robust fashion.
+
+%The traditional approach to PDE constrained optimization is mathematically similar to the inverse problems approach however differs in terms of computational 
+
+A PDE constrained optimization problem can be stated in two different ways according to the problem at hand: either by fully discretizing the entire KKT system, as is customary in the optimization community \cite{Haber_2007}, or by decoupling the direct problem and its adjoint and solving them via a forward/backward timestepping loop, with appropiate initial and boundary conditions depending on the objective function.
+
+We aim to adddress three of the five main startegies outlined in \cite{Brown_2008}. Specifically the core strategy in \cite{Brown_2008} is to proceed to the solution of inverse problem in a purely non-linear manner (a lot of work has previously relied on linearizations), and here we showcase a nonlinear time dependent convection problem solved in PETSc with TAO. A second outlined challenge is to identify connections between uncertainty in the model and its underlying mathematical structure. This point can be interpreted in several ways and encompases a series of problems, however we shall address this by means of error analysis of the numerical implementation and its impact on optimization. The last aspect we begin to grapple with is the gap between mathematical research and domain specific expertise, with a direct focus on Computational Fluid Dynamics applications. Since the implementation is performed in the PETSc framework, a byproduct of this work is to open the road to a fourth strategy stated in \cite{Brown_2008}, which refers to the development of large-scale linear algebraic techniques that reliably capture the structure of ill-posedness. 
+
+Given that inverse problems based on the full nonlinear underlying PDE as opposed to linearizations has been an issue for a long time, the data and computational intensity aspect has often been overlooked, however we adressed this in previous work \cite{schanen_2016}. The data intensity for nonlinear problems stems mainly from the nature of the backward in time component which depends at every time instance on its forward counterpart. A robust treatment for balancing the compute time versus trajectory storage has been already implemented in PETSc for certain time stepping routines for ordinary differential equations (cite hong) and in the current work we explore/extend it further to PDEs. 
+
+A known aspect in the PDE optimization community is that continous derivations of the adjoint equation differ in nature from their discrete correspondent, and may subsequently provide a shifted gradient which affects the convergence of the optimization step. To surpass this issue we implemented a spectral element method in PETSc which is the spatial discretization with the highest accuracy per grid point of all presently available numerical schemes. Another novelty factor this work intends to bring about is to equip the solvers with a combined space/time error analysis to facilitate studies on the impact of errors on the optimization step. The relevance of this addition cannot be stressed enough, since the errors in the gradient computation tend to slow the convergence rate of the optimization.
+
+The material is organized as follows: the time dependent inverse problem is stated in a spatially unaware fashion, which allows for any operators such as diffussion, convection etc. As a prerequisite the main aspects of a spectral element method are presented together with a discussion on best implementation choices. A set of canonical test problems is explored in depth by describing the continous adjoint versus the discrete adjoint, followed by an error analysis discussion. Results of the PETSc/TAO implementation are presented, together with an outloook on future work.
+
+
+  
+\section{Inverse problem\label{sec:inverse}}
+The aim of this work to estimate and control the error in the solution of PDE constrained optimization problems.
+We will denote a generic PDE model by
+\begin{eqnarray}
+ \frac{\partial u}{\partial t} &=& \mathcal P[ u ] , \  x \in \Omega \\ \nonumber
+   B[u|_{\partial \Omega}(t)]&=& u_b(t), \\ \nonumber
+   u( x,0)&=& u_0( x),\label{eq:generic}
+\end{eqnarray} 
+where $\mathcal P[ u ]$ is a stand-in operator for derivatives controlling the spatial behaviour of the solution $u$. The boundary condition $u_b$ is also provided by an operator $B[u]$ which can be the indetity for Dirichlet boundary conditions or a derivative for Neumann, while $u_b(t)$ denotes whether the boundaries are homogenously or inhomogenously satisfied. We draw the attention that this notation does not exclude periodic boundary conditions, which can be inforced by a quasi-identity operator $B[\cdot]$ such that $B[u_0]=u_N$ and $B[u_N]=u_0$, while $B[u_i]=u_i$ for $i=1,\ldots,N-1$ for all $t\in [0,\ T]$.
+
+%Let us assume that we seek to find the initial condition $u_0$ such
+that we minimize a function
+%
+%\begin{align}
+%  \label{eq:Cost:general}
+%\CostFcn(u_0) = \int_0^T \CostIntegrand(u(t)) \dd t\,.
+%\end{align}
+%
+
+In this work we will consider simple data assimilation problems  for which we seek the initial condition $u_0$ that leads at time $T$ to a solution
+$u$ which matches a reference solution $u_d$. Typically $ u_d$  is not known over the entire domain $\Omega$
+in practice, but in a subset region $\Omega_s$ where sensors have been
+placed. However, for simplicity we construct a continuous function
+$\mathbf u_d$ to avoid regularization issues. 
+A cost function which minimizes the difference between $| u- u_d|$ while preserving convexity is
+$$J[u|_T]=\int_{\Omega}(u(T)- u_d(T))^2 \ \d \Omega \,. $$
+
+
+We seek $u_0$ initial condition which satisfies Eq.~\ref{eq:generic} such that $J[ u|_T]$ is minimal.
 
 \section{Prerequisites}
 Consider a time dependent partial differential equation with constant coefficients, given by the spatial operator $ \mathbb L(\mathbf u)$ and initial conditions $\mathbf g(\cdot)$ as
@@ -292,44 +337,6 @@ w_{ij}=\sum_{k=1}^N a_{ik}u_{kj}\quad \rightarrow \quad \underline{w}=
 \label{sec:Spectral and Pseudo-spectral}
 \end{comment}
 
-\section{Inverse problem\label{sec:inverse}}
-
-We will denote a generic PDE model by
-$$\mathcal P [ u]=0\,.$$
-%
-For example we may consider again the partial differential equation describing heat transfer
-\begin{eqnarray}
- \frac{\partial u}{\partial t} - \nu\Delta  u  &= &0, \  x \in \Omega \\ \nonumber
-   u|_{\partial \Omega}&=& u_b, \\ \nonumber
-   u( x,0)&=& u_0( x)\label{eq:heateq}
-\end{eqnarray} 
-
-Let us assume that we seek to find the initial condition $u_0$ such
-that we minimize a function
-%
-\begin{align}
-  \label{eq:Cost:general}
-\CostFcn(u_0) = \int_0^T \CostIntegrand(u(t)) \dd t\,.
-\end{align}
-%
-
-
-
-\paragraph{Final-time cost.} A particular case is one for which we
-seek the initial condition $u_0$ that leads at time $T$ a solution
-$\mathbf u$ which matches a reference solution $\mathbf
-u_d$. Typically $ u_d$  is not known over the entire domain $\Omega$
-in practice, but in a subset region $\Omega_s$ where sensors have been
-placed. However, for simplicity here we construct a continuous function
-$\mathbf u_d$ to avoid regularization issues. 
-
-The approach is to construct a cost function which minimizes the
-difference between $| u- u_d|$ while preserving convexity. 
-$$J[u|_T]=\int_{\Omega}(u(T)- u_d(T))^2 \ \d \Omega \,. $$
-In this case $\CostIntegrand(u(t))=\delta_{t=T}(u(t)- u_d(T))^2$ in \eqref{eq:Cost:general}
-
-We seek $ u$ solution to Eq.~\ref{eq:heateq} such that $J[ u]$ is
-minimal.
 
 
 \subsection{Continous Adjoint - Variational calculus derivation\label{sec:adj:continuous}} 
@@ -752,7 +759,7 @@ of the Government.
 } \normalsize
 \newpage
 
-\bibliographystyle{siamplain}
+\bibliographystyle{plain}
 \bibliography{SEM_Petsc}
 \end{document}
 
