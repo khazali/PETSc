@@ -1,4 +1,3 @@
-
 CFLAGS          = -g
 FFLAGS          =
 CPPFLAGS        =
@@ -11,6 +10,11 @@ DIRS            =
 
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
+
+all: remove burgersEDMnonlinear_adj 
+
+remove:
+	rm -f PDEadjoint/*
 
 ex1: ex1.o petscgll.o  chkopts
 	-${CLINKER} -o ex1 ex1.o petscgll.o  ${PETSC_TS_LIB}
@@ -32,6 +36,10 @@ convNlinear: convNlinear.o petscgll.o  chkopts
 	-${CLINKER} -o convNlinear convNlinear.o petscgll.o  ${PETSC_TS_LIB}
 	${RM} petscgll.o convNlinear.o
 
+bkcpheat: bkcpheat.o petscgll.o  chkopts
+	-${CLINKER} -o bkcpheat bkcpheat.o petscgll.o  ${PETSC_TS_LIB}
+	${RM} petscgll.o bkcpheat.o
+
 heatEDMlinear: heatEDMlinear.o petscgll.o  chkopts
 	-${CLINKER} -o heatEDMlinear heatEDMlinear.o petscgll.o  ${PETSC_TS_LIB}
 	${RM} petscgll.o heatEDMlinear.o
@@ -44,6 +52,18 @@ heatEDMlinear_adj: heatEDMlinear_adj.o petscgll.o  chkopts
 	-${CLINKER} -o heatEDMlinear_adj heatEDMlinear_adj.o petscgll.o  ${PETSC_TS_LIB}
 	${RM} petscgll.o heatEDMlinear_adj.o
 
+heatEDMlinear_adj_B: heatEDMlinear_adj_B.o petscgll.o  chkopts
+	-${CLINKER} -o heatEDMlinear_adj_B heatEDMlinear_adj_B.o petscgll.o  ${PETSC_TS_LIB}
+	${RM} petscgll.o heatEDMlinear_adj_B.o
+
+heatwithfcall: heatwithfcall.o petscgll.o  chkopts
+	-${CLINKER} -o heatwithfcall heatwithfcall.o petscgll.o  ${PETSC_TS_LIB}
+	${RM} petscgll.o heatwithfcall.o
+
+theburg: theburg.o petscgll.o  chkopts
+	-${CLINKER} -o theburg theburg.o petscgll.o  ${PETSC_TS_LIB}
+	${RM} petscgll.o theburg.o
+
 convEDMlinear_loc_adj: convEDMlinear_loc_adj.o petscgll.o  chkopts
 	-${CLINKER} -o convEDMlinear_loc_adj convEDMlinear_loc_adj.o petscgll.o  ${PETSC_TS_LIB}
 	${RM} petscgll.o convEDMlinear_loc_adj.o
@@ -51,6 +71,14 @@ convEDMlinear_loc_adj: convEDMlinear_loc_adj.o petscgll.o  chkopts
 convEDMlinear_adj: convEDMlinear_adj.o petscgll.o  chkopts
 	-${CLINKER} -o convEDMlinear_adj convEDMlinear_adj.o petscgll.o  ${PETSC_TS_LIB}
 	${RM} petscgll.o convEDMlinear_adj.o
+
+convEDMnonlinear_adj: convEDMnonlinear_adj.o petscgll.o  chkopts
+	-${CLINKER} -o convEDMnonlinear_adj convEDMnonlinear_adj.o petscgll.o  ${PETSC_TS_LIB}
+	${RM} petscgll.o convEDMnonlinear_adj.o
+
+burgersEDMnonlinear_adj: burgersEDMnonlinear_adj.o petscgll.o  chkopts
+	-${CLINKER} -o burgersEDMnonlinear_adj burgersEDMnonlinear_adj.o petscgll.o  ${PETSC_TS_LIB}
+	${RM} petscgll.o burgersEDMnonlinear_adj.o
 
 heatNlinear: heatNlinear.o petscgll.o  chkopts
 	-${CLINKER} -o heatNlinear heatNlinear.o petscgll.o  ${PETSC_TS_LIB}
