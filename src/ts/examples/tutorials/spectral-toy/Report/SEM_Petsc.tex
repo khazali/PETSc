@@ -142,7 +142,7 @@ We seek $u_0$ initial condition which satisfies Eq.~\ref{eq:generic} such that $
 \section{Prerequisites}
 Consider a time dependent partial differential equation with constant coefficients, given by the spatial operator $ \mathbb L(\mathbf u)$ and initial conditions $\mathbf g(\cdot)$ as
 \begin{eqnarray}
- \frac{\partial\mathbf u}{\partial t} &=&  \mathbb L(\mathbf u) \ , \mathbf x \in \Omega \\ \nonumber
+ \frac{\partial\mathbf u}{\partial t} &=&  \mathbb P(\mathbf u) \ , \mathbf x \in \Omega \\ \nonumber
   \mathbf u|_{\partial \Omega}&=&0, \\ 
   \mathbf u(0,t)&=&\mathbf g(\mathbf x) \ . \nonumber \label{eq:generic}
 \end{eqnarray} 
@@ -174,7 +174,7 @@ In this case  becomes after applying integration by parts
 \end{equation}
 
 The boundary term vanishes since $\mathbf u, \mathbf v \in H^1_0(\Omega)$ and $H^1_0(\Omega)$ is chosen such that it satisfies the boundary conditions.
-\section{The Spectral Element Method}
+\subsection{The Spectral Element Method}
 Consider now for simplicity the one dimensional heat equation
 \begin{equation}
 \frac{\partial u}{\partial t} - \nu\Delta u\ =0\ . \label{eq:1dheat}
@@ -233,6 +233,10 @@ If the domain $\Omega_e \neq [-1, \ 1]$ a change of variables is in order.
 Presume  $\Omega_e = [a, \ b]$ and define the reference element $\hat{\Omega} = [-1, \ 1]$.
 For $x\in \Omega_e$ and $r \in \hat{\Omega}$ the mapping is
 $$x= a+ \frac{b-a}{r+1}$$
+
+\subsubsection{Spectral operators and their implementation}
+
+
 
 %And the change of variables reads
 %$$\frac{dx}{dr
@@ -339,7 +343,9 @@ w_{ij}=\sum_{k=1}^N a_{ik}u_{kj}\quad \rightarrow \quad \underline{w}=
 
 
 
-\subsection{Continous Adjoint - Variational calculus derivation\label{sec:adj:continuous}} 
+\section{PDE constrained optimization}
+
+\subsection{Variational calculus, Continous adjoint\label{sec:adj:continuous}} 
 
 To derive the gradient used in the backward Set up the Lagrangian
 $$\mathcal{L}[ u,  v]=\int_{\Omega}( u[T]- u_d[T])^2 \ \d \Omega +\int_0^T\int_{\Omega} P[ u]  v \ \d \Omega \d t + \int_0^T\int_{\Gamma}  v_b  ( u-  u_b) \ \d \Gamma \d t
@@ -382,7 +388,7 @@ Grouping now the time dependent terms we have
 %\frac{\partial L}{\partial  u_b}&=&\\
 \end{eqnarray}
 
-\subsection{Discrete Adjoint - Derivation\label{sec:adj:discrete}} 
+\subsection{Discrete Adjoint \label{sec:adj:discrete}} 
 
 We are now changing the solution space from $L^2(\Omega;[t_0,t_N])$ to
 $\mathbb{R}^{n(N+1)}$, where we have $n$ components and $N$ time
@@ -632,25 +638,20 @@ The gradient based optimzation can be performed via using adjoint information, o
 
 In the current section we illustrate...
 
+
 \begin{figure}[!ht]
 \centering
-\includegraphics[width=0.47\textwidth]{Cost_decay.eps}
+\includegraphics[width=0.47\textwidth]{superpose.eps}
 %\label{fig:wingfull_est}}
-\caption{Cost function}
+\caption{Solution to Burger's equation for a discretization of N=10 points over E=5 elements(red), and error bars in log scale (right y axis) per element computed via the error estimator(black).}
 \end{figure}
 
 \begin{figure}[!ht]
 \centering
-\subfloat[Initial condition(black) and desired profile(red)]
-{\includegraphics[width=0.47\textwidth]{IC_OBJ.eps}
-\label{fig:wingfull_err}}
-\quad
-\subfloat[Gradient computed via finite differences(red), and gradient via adjoint computation(black), error between the two in max norm $0.435$.]
-{\includegraphics[width=0.47\textwidth]{Gradient.eps}
-\label{fig:wingfull_est}}
-\caption{Optimal initial conditions and gradient information}
+\includegraphics[width=0.47\textwidth]{specerr.eps}
+%\label{fig:wingfull_est}}
+\caption{Error computed per element. Sample elements 1:3 represented by different markers, spectral representation of the signal (blue), error estimate (red).}
 \end{figure}
-
 
 
 Sources of error
@@ -734,6 +735,25 @@ Sources of error
 \section{Conclusions}
 \label{sec:conclusion}
 
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.47\textwidth]{Cost_decay.eps}
+%\label{fig:wingfull_est}}
+\caption{Cost function}
+\end{figure}
+
+\begin{figure}[!ht]
+\centering
+\subfloat[Initial condition(black) and desired profile(red)]
+{\includegraphics[width=0.47\textwidth]{IC_OBJ.eps}
+\label{fig:wingfull_err}}
+\quad
+\subfloat[Gradient computed via finite differences(red), and gradient via adjoint computation(black), error between the two in max norm $0.435$.]
+{\includegraphics[width=0.47\textwidth]{Gradient.eps}
+\label{fig:wingfull_est}}
+\caption{Optimal initial conditions and gradient information}
+\end{figure}
 
 \section*{Acknowledgments}
 
