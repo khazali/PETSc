@@ -513,11 +513,11 @@ static PetscErrorCode PetscSpacePolynomialView_Ascii(PetscSpace sp, PetscViewer 
 
   PetscFunctionBegin;
   if (sp->Nc > 1) {
-    if (poly->tensor) {ierr = PetscViewerASCIIPrintf(viewer, "Tensor polynomial space in %D variables of degree %D with %D components\n", poly->numVariables, sp->order, sp->Nc);CHKERRQ(ierr);}
-    else              {ierr = PetscViewerASCIIPrintf(viewer, "Polynomial space in %D variables of degree %D with %D components\n", poly->numVariables, sp->order, sp->Nc);CHKERRQ(ierr);}
+    if (poly->tensor) {ierr = PetscViewerASCIIPrintf(viewer, "Tensor polynomial space in %D variables of degree %D with %D components\n", sp->Nv, sp->order, sp->Nc);CHKERRQ(ierr);}
+    else              {ierr = PetscViewerASCIIPrintf(viewer, "Polynomial space in %D variables of degree %D with %D components\n", sp->Nv, sp->order, sp->Nc);CHKERRQ(ierr);}
   } else {
-    if (poly->tensor) {ierr = PetscViewerASCIIPrintf(viewer, "Tensor polynomial space in %d variables of degree %d\n", poly->numVariables, sp->order);CHKERRQ(ierr);}
-    else              {ierr = PetscViewerASCIIPrintf(viewer, "Polynomial space in %d variables of degree %d\n", poly->numVariables, sp->order);CHKERRQ(ierr);}
+    if (poly->tensor) {ierr = PetscViewerASCIIPrintf(viewer, "Tensor polynomial space in %d variables of degree %d\n", sp->Nv, sp->order);CHKERRQ(ierr);}
+    else              {ierr = PetscViewerASCIIPrintf(viewer, "Polynomial space in %d variables of degree %d\n", sp->Nv, sp->order);CHKERRQ(ierr);}
   }
   PetscFunctionReturn(0);
 }
@@ -566,7 +566,7 @@ PetscErrorCode PetscSpaceGetDimension_Polynomial(PetscSpace sp, PetscInt *dim)
 {
   PetscSpace_Poly *poly = (PetscSpace_Poly *) sp->data;
   PetscInt         deg  = sp->order;
-  PetscInt         n    = poly->numVariables, i;
+  PetscInt         n    = sp->Nv, i;
   PetscReal        D    = 1.0;
 
   PetscFunctionBegin;
@@ -728,7 +728,7 @@ PetscErrorCode PetscSpaceEvaluate_Polynomial(PetscSpace sp, PetscInt npoints, co
   PetscInt         Nc      = sp->Nc;
   PetscInt         ndegree = sp->order+1;
   PetscInt        *degrees = poly->degrees;
-  PetscInt         dim     = poly->numVariables;
+  PetscInt         dim     = sp->Nv;
   PetscReal       *lpoints, *tmp, *LB, *LD, *LH;
   PetscInt        *ind, *tup;
   PetscInt         c, pdim, d, e, der, der2, i, p, deg, o;
@@ -1075,18 +1075,6 @@ PetscErrorCode PetscSpacePolynomialGetSymmetric(PetscSpace sp, PetscBool *sym)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode PetscSpaceSetFromOptions_Point(PetscOptionItems *PetscOptionsObject,PetscSpace sp)
-{
-  PetscSpace_Point *pt = (PetscSpace_Point *) sp->data;
-  PetscErrorCode    ierr;
-
-  PetscFunctionBegin;
-  ierr = PetscOptionsHead(PetscOptionsObject,"PetscSpace Point options");CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-petscspace_point_num_variables", "The number of different variables, e.g. x and y", "PetscSpacePointSetNumVariables", pt->numVariables, &pt->numVariables, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsTail();CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
 PetscErrorCode PetscSpacePointView_Ascii(PetscSpace sp, PetscViewer viewer)
 {
   PetscSpace_Point *pt = (PetscSpace_Point *) sp->data;
@@ -1096,12 +1084,12 @@ PetscErrorCode PetscSpacePointView_Ascii(PetscSpace sp, PetscViewer viewer)
   PetscFunctionBegin;
   ierr = PetscViewerGetFormat(viewer, &format);CHKERRQ(ierr);
   if (format == PETSC_VIEWER_ASCII_INFO_DETAIL) {
-    ierr = PetscViewerASCIIPrintf(viewer, "Point space in dimension %d:\n", pt->numVariables);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(viewer, "Point space in dimension %d:\n", sp->Nv);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
     ierr = PetscQuadratureView(pt->quad, viewer);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
   } else {
-    ierr = PetscViewerASCIIPrintf(viewer, "Point space in dimension %d on %d points\n", pt->numVariables, pt->quad->numPoints);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(viewer, "Point space in dimension %d on %d points\n", sp->Nv, pt->quad->numPoints);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -1126,7 +1114,7 @@ PetscErrorCode PetscSpaceSetUp_Point(PetscSpace sp)
 
   PetscFunctionBegin;
   if (!pt->quad->points && sp->order) {
-    ierr = PetscDTGaussJacobiQuadrature(pt->numVariables, sp->Nc, sp->order, -1.0, 1.0, &pt->quad);CHKERRQ(ierr);
+    ierr = PetscDTGaussJacobiQuadrature(sp->Nv, sp->Nc, sp->order, -1.0, 1.0, &pt->quad);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -1153,7 +1141,7 @@ PetscErrorCode PetscSpaceGetDimension_Point(PetscSpace sp, PetscInt *dim)
 PetscErrorCode PetscSpaceEvaluate_Point(PetscSpace sp, PetscInt npoints, const PetscReal points[], PetscReal B[], PetscReal D[], PetscReal H[])
 {
   PetscSpace_Point *pt  = (PetscSpace_Point *) sp->data;
-  PetscInt          dim = pt->numVariables, pdim = pt->quad->numPoints, d, p, i, c;
+  PetscInt          dim = sp->Nv, pdim = pt->quad->numPoints, d, p, i, c;
   PetscErrorCode    ierr;
 
   PetscFunctionBegin;
@@ -1182,7 +1170,7 @@ PetscErrorCode PetscSpaceEvaluate_Point(PetscSpace sp, PetscInt npoints, const P
 PetscErrorCode PetscSpaceInitialize_Point(PetscSpace sp)
 {
   PetscFunctionBegin;
-  sp->ops->setfromoptions = PetscSpaceSetFromOptions_Point;
+  sp->ops->setfromoptions = NULL;
   sp->ops->setup          = PetscSpaceSetUp_Point;
   sp->ops->view           = PetscSpaceView_Point;
   sp->ops->destroy        = PetscSpaceDestroy_Point;
@@ -1219,6 +1207,174 @@ PETSC_EXTERN PetscErrorCode PetscSpaceCreate_Point(PetscSpace sp)
   PetscFunctionReturn(0);
 }
 
+/*@
+  PetscSpacePointSetPoints - Sets the evaluation points for the space to coincide with the points of a quadrature rule
+
+  Logically collective
+
+  Input Parameters:
++ sp - The PetscSpace
+- q  - The PetscQuadrature defining the points
+
+  Level: intermediate
+
+.keywords: PetscSpacePoint
+.seealso: PetscSpaceCreate(), PetscSpaceSetType()
+@*/
+PetscErrorCode PetscSpacePointSetPoints(PetscSpace sp, PetscQuadrature q)
+{
+  PetscSpace_Point *pt = (PetscSpace_Point *) sp->data;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(sp, PETSCSPACE_CLASSID, 1);
+  PetscValidHeaderSpecific(q, PETSC_OBJECT_CLASSID, 2);
+  ierr = PetscQuadratureDestroy(&pt->quad);CHKERRQ(ierr);
+  ierr = PetscQuadratureDuplicate(q, &pt->quad);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*@
+  PetscSpacePointGetPoints - Gets the evaluation points for the space as the points of a quadrature rule
+
+  Logically collective
+
+  Input Parameter:
+. sp - The PetscSpace
+
+  Output Parameter:
+. q  - The PetscQuadrature defining the points
+
+  Level: intermediate
+
+.keywords: PetscSpacePoint
+.seealso: PetscSpaceCreate(), PetscSpaceSetType()
+@*/
+PetscErrorCode PetscSpacePointGetPoints(PetscSpace sp, PetscQuadrature *q)
+{
+  PetscSpace_Point *pt = (PetscSpace_Point *) sp->data;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(sp, PETSCSPACE_CLASSID, 1);
+  PetscValidPointer(q, 2);
+  *q = pt->quad;
+  PetscFunctionReturn(0);
+}
+
+typedef struct {
+  PetscSpace origSpace;
+  PetscReal  *x;
+  PetscReal  *Jx;
+  PetscReal  *u;
+  PetscReal  *Ju;
+} PetscSpace_Subspace;
+
+PetscErrorCode PetscSpaceCreateAffineSubspace(PetscSpace origSpace, PetscDualSpace dualSubspace, const PetscReal *x, const PetscReal *Jx, const PetscReal *u, const PetscReal *Ju, PetscSpace *subspace)
+{
+  PetscInt       origDim, subDim, origNc, subNc, origNb, origNc, i, j, k;
+  PetscBool      isPolynomial;
+  PetscRandom    rand;
+  PetscReal      *Borig, *Bsub, *pointRandSub, *pointRandOrig;
+  DM             dm;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(origSpace,PETSCSPACE_CLASSID,1);
+  PetscValidHeaderSpecific(dualSubspace,PETSCDUALSPACE_CLASSID,2);
+  if (x) PetscValidRealPointer(x,3);
+  if (Jx) PetscValidRealPointer(Jx,4);
+  if (u) PetscValidRealPointer(u,5);
+  if (Ju) PetscValidRealPointer(Ju,6);
+  PetscValidPointer(subspace,7);
+  ierr = PetscSpaceGetNumComponents(origSpace,&numNc);CHKERRQ(ierr);
+  ierr = PetscSpaceGetNumVariables(origSpace,&numDim);CHKERRQ(ierr);
+  ierr = PetscDualSpaceGetDM(dualSubspace,&dm);CHKERRQ(ierr);
+  ierr = DMGetDimension(dm,&subDim);CHKERRQ(ierr);
+  ierr = PetscSpaceGetDimension(origSpace,&origNb);CHKERRQ(ierr);
+  ierr = PetscDualSpaceGetNumComponents(dualSubspace,&subNb);CHKERRQ(ierr);
+  ierr = PetscMalloc4(Nb*numOrigVars,&pointRandOrig,Nb*numSubVars,&pointRandSub,Nb*Nb*numOrigComps,&Borig,Nb*Nb*numSubComps,&Bsub);CHKERRQ(ierr);
+  ierr = PetscRandomCreate(PETSC_COMM_SELF,&rand);CHKERRQ(ierr);
+  for (i = 0; i < Nb*numSubVars; i++) {ierr = PetscRandomGetValueReal(rand,&pointRandSub[i]);CHKERRQ(ierr);}
+  ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
+  for (i = 0; i < Nb; i++) {
+    PetscReal *pointOrig = &pointRandOrig[i*numOrigVars];
+    const PetscReal *pointSub = &pointRandSub[i*numSubVars];
+
+    for (j = 0; j < numOrigVars; j++) {
+      pointOrig[j] = x[j];
+      for (k = 0; k < numSubVars; k++) {
+        pointOrig[j] += Jx[j * numSubVars + k] * pointSub[k];
+      }
+    }
+  }
+  ierr = PetscSpaceEvaluate(origSpace,Nb,pointRandOrig,Borig,NULL,NULL);CHKERRQ(ierr);
+  for (i = 0; i < Nb * Nb; i++) {
+    for (j = 0; j < numOrigComps; j++) {
+      Borig[i * numOrigComps + j] -= u[j];
+    }
+  }
+  {
+    PetscScalar *JuQR, *B, *BT, *tau, *work;
+    PetscBLASInt M, N, lda, lwork, info, nrhs, *pivot;
+
+    M = numOrigComps;
+    N = numSubComps;
+    lda = M;
+    nrhs = Nb * Nb;
+    lwork = PetscMax(1,N);
+    lwork = PetscMax(lwork,nrhs);
+    ierr = PetscMalloc6(numOrigComps*numSubComps,&JuQR,numSubComps,&tau,(PetscInt) lwork,&work,Nb * Nb * numOrigComps,&B,Nb*Nb*numSubComps,&BT,Nb,&pivot);CHKERRQ(ierr);
+    for (i = 0; i < numSubComps; i++) {
+      for (j = 0; j < numOrigComps; j++) {
+        JuQR[i * numOrigComps + j] = Ju[j * numSubComps + i];
+      }
+    }
+    for (i = 0; i < Nb * Nb * numOrigComps; i++) B[i] = Borig[i];
+
+    /* QR factorize */
+#if defined(PETSC_MISSING_LAPACK_GEQRF)
+    SETERRQ(PetscObjectComm((PetscObject)origSpace),PETSC_ERR_SUP,"GEQRF - Lapack routine is unavailable.");
+#else
+    PetscStackCallBLAS("LAPACKgeqrf",LAPACKgeqrf_(&M, &N, JuQR, &lda, tau, work, &lwork, &info));
+    if (info) SETERRQ1(PetscObjectComm((PetscObject)origSpace), PETSC_ERR_LIB,"Error in LAPACK routine XGEQRF INFO=%d", info);
+#endif
+
+#if defined(PETSC_MISSING_LAPACK_ORMQR)
+    SETERRQ(PetscObjectComm((PetscObject)origSpace),PETSC_ERR_SUP,"GEQRF - Lapack routine is unavailable.");
+#else
+    PetscStackCallBLAS("LAPACKormqr",LAPACKormqr_("L", "T", &M, &nrhs, &N, JuQR, &lda, tau, B, &M, work, &lwork, &info));
+    if (info) SETERRQ1(PetscObjectComm((PetscObject)origSpace), PETSC_ERR_LIB,"Error in LAPACK routine XORMQR INFO=%d",info);
+#endif
+    /* solve the least-square problem */
+#if defined(PETSC_MISSING_LAPACK_TRTRS)
+    SETERRQ(PetscObjectComm((PetscObject)origSpace),PETSC_ERR_SUP,"TRTRS - Lapack routine is unavailable.");
+#else
+    PetscStackCallBLAS("LAPACKtrtrs",LAPACKtrtrs_("U", "N", "N", &N, &nrhs, JuQR, &lda, B, &M, &info));
+    if (info) SETERRQ1(PetscObjectComm((PetscObject)origSpace), PETSC_ERR_LIB,"Error in LAPACK routine XTRTRS INFO=%d",info);
+#endif
+    for (i = 0; i < Nb; i++) {
+      for (j = 0; j < numSubComps; j++) {
+        for (k = 0; k < Nb; k++) {
+          BT[(i * numSubComps  + j)* Nb + k] = B[(i * Nb + k) * numOrigComps + j];
+        }
+      }
+    }
+    /* RR QR factorize */
+    M = Nb * numSubComps;
+    N = Nb;
+    lda = Nb * numSubComps;
+#if defined(PETSC_MISSING_LAPACK_GEQP3)
+    SETERRQ(PetscObjectComm((PetscObject)origSpace),PETSC_ERR_SUP,"GEQP3 - Lapack routine is unavailable.");
+#else
+    PetscStackCallBLAS("LAPACKgeqp3",LAPACKgeqp3_(&M, &N, BT, &lda, tau, work, &lwork, &info));
+    if (info) SETERRQ1(PetscObjectComm((PetscObject)origSpace), PETSC_ERR_LIB,"Error in LAPACK routine XGEQRF INFO=%d", info);
+#endif
+    ierr = PetscFree6(JuQR,tau,work,B,BT,pivot);CHKERRQ(ierr);
+  }
+  ierr = PetscFree4(pointRandOrig,pointRandSub,Borig,Bsub);CHKERRQ(ierr);
+  *subspace = NULL;
+  PetscFunctionReturn(0);
+}
 
 PetscClassId PETSCDUALSPACE_CLASSID = 0;
 
@@ -5938,7 +6094,6 @@ PetscErrorCode PetscFEInitialize_Composite(PetscFE fem)
 
 .seealso: PetscFEType, PetscFECreate(), PetscFESetType()
 M*/
-
 PETSC_EXTERN PetscErrorCode PetscFECreate_Composite(PetscFE fem)
 {
   PetscFE_Composite *cmp;
@@ -5955,6 +6110,15 @@ PETSC_EXTERN PetscErrorCode PetscFECreate_Composite(PetscFE fem)
   cmp->jac            = NULL;
 
   ierr = PetscFEInitialize_Composite(fem);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+PETSC_EXTERN PetscErrorCode PetscFECreatePointTrace(PetscFE fe, PetscInt refPoint, PetscFE *trFE)
+{
+  PetscInt       dim, numComp;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
   PetscFunctionReturn(0);
 }
 

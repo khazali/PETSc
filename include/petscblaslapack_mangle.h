@@ -140,6 +140,7 @@
 #define LAPACKormqr_ PETSCBLAS(ormqr,ORMQR)
 #define LAPACKhgeqz_ PETSCBLAS(hgeqz,HGEQZ)
 #define LAPACKtrtrs_ PETSCBLAS(trtrs,TRTRS)
+#define LAPACKgeqp3_ PETSCBLAS(geqp3,GEQP3)
 
 /* Subroutine names that differ for real/complex data: */
 #if !defined(PETSC_USE_COMPLEX)

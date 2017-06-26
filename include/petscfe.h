@@ -37,6 +37,7 @@ J*/
 typedef const char *PetscSpaceType;
 #define PETSCSPACEPOLYNOMIAL "poly"
 #define PETSCSPACEPOINT      "point"
+#define PETSCSPACESUBSPACE   "subspace"
 
 PETSC_EXTERN PetscFunctionList PetscSpaceList;
 PETSC_EXTERN PetscErrorCode PetscSpaceCreate(MPI_Comm, PetscSpace *);
@@ -67,6 +68,8 @@ PETSC_EXTERN PetscErrorCode PetscSpacePolynomialGetTensor(PetscSpace, PetscBool 
 
 PETSC_EXTERN PetscErrorCode PetscSpacePointSetQuadrature(PetscSpace, PetscQuadrature);
 PETSC_EXTERN PetscErrorCode PetscSpacePointGetQuadrature(PetscSpace, PetscQuadrature *);
+
+PETSC_EXTERN PetscErrorCode PetscSpaceCreateAffineSubspace(PetscSpace, PetscDualSpace, const PetscReal *,const PetscReal *,PetscSpace *);
 
 PETSC_EXTERN PetscClassId PETSCDUALSPACE_CLASSID;
 
@@ -146,6 +149,7 @@ typedef const char *PetscFEType;
 #define PETSCFEBASIC     "basic"
 #define PETSCFEOPENCL    "opencl"
 #define PETSCFECOMPOSITE "composite"
+#define PETSCFETRACE     "trace"
 
 PETSC_EXTERN PetscFunctionList PetscFEList;
 PETSC_EXTERN PetscErrorCode PetscFECreate(MPI_Comm, PetscFE *);
@@ -190,6 +194,9 @@ PETSC_EXTERN PetscErrorCode PetscFEIntegrateJacobian(PetscFE, PetscDS, PetscFEJa
 PETSC_EXTERN PetscErrorCode PetscFEIntegrateBdJacobian(PetscFE, PetscDS, PetscInt, PetscInt, PetscInt, PetscFEGeom *, const PetscScalar[], const PetscScalar[], PetscDS, const PetscScalar[], PetscReal, PetscReal, PetscScalar[]);
 
 PETSC_EXTERN PetscErrorCode PetscFECompositeGetMapping(PetscFE, PetscInt *, const PetscReal *[], const PetscReal *[], const PetscReal *[]);
+
+PETSC_EXTERN PetscErrorCode PetscFECreateHeightTrace(PetscFE, PetscInt, PetscFE *);
+PETSC_EXTERN PetscErrorCode PetscFECreatePointTrace(PetscFE, PetscInt, PetscFE *);
 
 PETSC_EXTERN PetscErrorCode PetscFEOpenCLSetRealType(PetscFE, PetscDataType);
 PETSC_EXTERN PetscErrorCode PetscFEOpenCLGetRealType(PetscFE, PetscDataType *);
