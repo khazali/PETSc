@@ -350,7 +350,7 @@ PetscErrorCode DMFieldCreateFEGeom(DMField field, IS pointIS, PetscQuadrature qu
         }
         break;
       }
-      for (k = 0; k < dE; k++) {
+      for (j = 0; j < dE*dE; j++) {
         g->J[i*dE*dE + j] = J[j];
       }
     }
