@@ -16,7 +16,10 @@ DMField Object: field 1 MPI processes
       dimension:       2
       components:      2
       num quad points: 9
-      Polynomial space in 2 variables of degree 2 with 2 components
+      PetscSpace Object: 1 MPI processes
+        type: poly
+        Space in 2 variables of order 2 with 2 components
+        Polynomial space of degree 2
     Vec Object: 1 MPI processes
       type: seq
     0.
@@ -133,8 +136,8 @@ B:
  3:   1.9753e-01
 D:
  0:   2.9630e-01   4.4444e-01   5.9259e-01
- 3:   8.8889e-01   7.4074e-02   0.0000e+00
- 6:   1.4815e-01   0.0000e+00
+ 3:   8.8889e-01   7.4074e-02   3.4694e-18
+ 6:   1.4815e-01   6.9389e-18
 H:
  0:   5.5556e-02   5.5556e-02   5.5556e-02
  3:   1.1111e-01   1.1111e-01   1.1111e-01
@@ -146,8 +149,8 @@ rB:
  0:   9.8765e-01   1.9753e+00   9.8765e-02   1.9753e-01
 rD:
  0:   2.9630e-01   4.4444e-01   5.9259e-01
- 3:   8.8889e-01   7.4074e-02   0.0000e+00
- 6:   1.4815e-01   0.0000e+00
+ 3:   8.8889e-01   7.4074e-02   3.4694e-18
+ 6:   1.4815e-01   6.9389e-18
 rH:
  0:   5.5556e-02   5.5556e-02   5.5556e-02
  3:   1.1111e-01   1.1111e-01   1.1111e-01
