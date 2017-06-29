@@ -103,6 +103,7 @@ PetscErrorCode PetscPartitionerRegisterAll(void)
 
 PETSC_EXTERN PetscErrorCode PetscSpaceCreate_Polynomial(PetscSpace);
 PETSC_EXTERN PetscErrorCode PetscSpaceCreate_Point(PetscSpace);
+PETSC_EXTERN PetscErrorCode PetscSpaceCreate_Subspace(PetscSpace);
 
 /*@C
   PetscSpaceRegisterAll - Registers all of the PetscSpace components in the PetscFE package.
@@ -127,6 +128,7 @@ PetscErrorCode PetscSpaceRegisterAll(void)
 
   ierr = PetscSpaceRegister(PETSCSPACEPOLYNOMIAL, PetscSpaceCreate_Polynomial);CHKERRQ(ierr);
   ierr = PetscSpaceRegister(PETSCSPACEPOINT,      PetscSpaceCreate_Point);CHKERRQ(ierr);
+  ierr = PetscSpaceRegister(PETSCSPACESUBSPACE,   PetscSpaceCreate_Subspace);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
