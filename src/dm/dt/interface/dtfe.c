@@ -1282,7 +1282,7 @@ typedef struct {
   PetscInt       Nb;
 } PetscSpace_Subspace;
 
-PetscErrorCode PetscSpaceDestroy_Subspace(PetscSpace sp)
+static PetscErrorCode PetscSpaceDestroy_Subspace(PetscSpace sp)
 {
   PetscSpace_Subspace *subsp;
   PetscErrorCode      ierr;
@@ -1302,10 +1302,11 @@ PetscErrorCode PetscSpaceDestroy_Subspace(PetscSpace sp)
   ierr = PetscDualSpaceDestroy(&subsp->dualSubspace);CHKERRQ(ierr);
   ierr = PetscFree(subsp);CHKERRQ(ierr);
   sp->data = NULL;
+  ierr = PetscObjectComposeFunction((PetscObject) sp, "PetscSpacePolynomialGetTensor_C", NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode PetscSpaceView_Subspace(PetscSpace sp, PetscViewer viewer)
+static PetscErrorCode PetscSpaceView_Subspace(PetscSpace sp, PetscViewer viewer)
 {
   PetscBool           iascii;
   PetscSpace_Subspace *subsp;
@@ -1364,7 +1365,7 @@ PetscErrorCode PetscSpaceView_Subspace(PetscSpace sp, PetscViewer viewer)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode PetscSpaceEvaluate_Subspace(PetscSpace sp, PetscInt npoints, const PetscReal points[], PetscReal B[], PetscReal D[], PetscReal H[])
+static PetscErrorCode PetscSpaceEvaluate_Subspace(PetscSpace sp, PetscInt npoints, const PetscReal points[], PetscReal B[], PetscReal D[], PetscReal H[])
 {
   PetscSpace_Subspace *subsp = (PetscSpace_Subspace *) sp->data;
   PetscSpace          origsp;
@@ -1704,14 +1705,51 @@ static PetscErrorCode PetscSpaceSetUp_Subspace(PetscSpace sp)
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode PetscSpacePolynomialGetTensor_Subspace(PetscSpace sp, PetscBool *poly)
+{
+  PetscSpace_Subspace *subsp = (PetscSpace_Subspace *) sp->data;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  *poly = PETSC_FALSE;
+  ierr = PetscSpacePolynomialGetTensor(subsp->origSpace,poly);CHKERRQ(ierr);
+  if (*poly) {
+    if (subsp->Jx) {
+      PetscInt subDim, origDim, i, j;
+      PetscInt maxnnz;
+
+      ierr = PetscSpaceGetNumVariables(subsp->origSpace,&origDim);CHKERRQ(ierr);
+      ierr = PetscSpaceGetNumVariables(sp,&subDim);CHKERRQ(ierr);
+      maxnnz = 0;
+      for (i = 0; i < origDim; i++) {
+        PetscInt nnz = 0;
+
+        for (j = 0; j < subDim; j++) nnz += (subsp->Jx[i * subDim + j] != 0.);
+        maxnnz = PetscMax(maxnnz,nnz);
+      }
+      for (j = 0; j < subDim; j++) {
+        PetscInt nnz = 0;
+
+        for (i = 0; i < origDim; i++) nnz += (subsp->Jx[i * subDim + j] != 0.);
+        maxnnz = PetscMax(maxnnz,nnz);
+      }
+      if (maxnnz > 1) *poly = PETSC_FALSE;
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
 static PetscErrorCode PetscSpaceInitialize_Subspace(PetscSpace sp)
 {
+  PetscErrorCode ierr;
+
   PetscFunctionBegin;
   sp->ops->setup = PetscSpaceSetUp_Subspace;
   sp->ops->view  = PetscSpaceView_Subspace;
   sp->ops->destroy  = PetscSpaceDestroy_Subspace;
   sp->ops->getdimension  = PetscSpaceGetDimension_Subspace;
   sp->ops->evaluate = PetscSpaceEvaluate_Subspace;
+  ierr = PetscObjectComposeFunction((PetscObject) sp, "PetscSpacePolynomialGetTensor_C", PetscSpacePolynomialGetTensor_Subspace);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
