@@ -630,15 +630,17 @@ PetscErrorCode RHSAdjointgllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx)
 */
 PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
 {
-  AppCtx           *appctx = (AppCtx*)ctx;     /* user-defined application context */
-  PetscErrorCode    ierr;
-  Vec               temp, temp2;
-  PetscInt          its;
-  PetscReal         ff, gnorm, cnorm, xdiff; 
+  AppCtx            *appctx = (AppCtx*)ctx;     /* user-defined application context */
+  PetscErrorCode     ierr;
+  Vec                temp, temp2;
+  PetscInt           its;
+  Vec                Uerr;
+  PetscReal          ff, gnorm, cnorm, xdiff; 
+  PetscReal          err_norm;
   TaoConvergedReason reason;      
   PetscViewer        viewfile;
-  char filename[24] ;
-  char data[60] ;
+  char               filename[24] ;
+  char               data[60] ;
 
 
   ierr = TSSetInitialTimeStep(appctx->ts,0.0,appctx->initial_dt);CHKERRQ(ierr);
@@ -653,6 +655,15 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
      Set runtime options
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   ierr = TSSolve(appctx->ts,appctx->dat.curr_sol);CHKERRQ(ierr);
+
+
+
+  ierr = VecDuplicate(IC,&Uerr);CHKERRQ(ierr);
+  ierr = VecZeroEntries(Uerr);CHKERRQ(ierr);
+  ierr = TSGetTimeError(appctx->ts,0,&Uerr);CHKERRQ(ierr);
+  ierr = VecNorm(Uerr,NORM_2,&err_norm);CHKERRQ(ierr);
+  ierr = VecDestroy(&Uerr);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"Estimated temporal error = %E.\n",err_norm);CHKERRQ(ierr);
   /*VecView(appctx->dat.curr_sol,PETSC_VIEWER_STDOUT_WORLD);*/
   if(appctx->AdjTestLinear){
     ierr = VecDot(appctx->dat.curr_sol,appctx->dat.curr_sol,&ff);CHKERRQ(ierr);
