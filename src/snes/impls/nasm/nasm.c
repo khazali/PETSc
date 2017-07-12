@@ -7,7 +7,6 @@ typedef struct {
   Vec        *x;                  /* solution vectors */
   Vec        *xl;                 /* solution local vectors */
   Vec        *y;                  /* step vectors */
-  Vec        *yl;                 /* step local vectors */
   Vec        *b;                  /* rhs vectors */
   Vec        weight;              /* weighting for adding updates on overlaps, in global space */
   Vec        *weightl;            /* local vectors for weights */
@@ -44,7 +43,6 @@ static PetscErrorCode SNESReset_NASM(SNES snes)
     if (nasm->xl) { ierr = VecDestroy(&nasm->xl[i]);CHKERRQ(ierr); }
     if (nasm->x) { ierr = VecDestroy(&nasm->x[i]);CHKERRQ(ierr); }
     if (nasm->y) { ierr = VecDestroy(&nasm->y[i]);CHKERRQ(ierr); }
-    if (nasm->yl) { ierr = VecDestroy(&nasm->yl[i]);CHKERRQ(ierr); }
     if (nasm->b) { ierr = VecDestroy(&nasm->b[i]);CHKERRQ(ierr); }
 
     if (nasm->subsnes) { ierr = SNESDestroy(&nasm->subsnes[i]);CHKERRQ(ierr); }
@@ -57,7 +55,6 @@ static PetscErrorCode SNESReset_NASM(SNES snes)
   ierr = PetscFree(nasm->x);CHKERRQ(ierr);
   ierr = PetscFree(nasm->xl);CHKERRQ(ierr);
   ierr = PetscFree(nasm->y);CHKERRQ(ierr);
-  ierr = PetscFree(nasm->yl);CHKERRQ(ierr);
   ierr = PetscFree(nasm->b);CHKERRQ(ierr);
 
   if (nasm->xinit) {ierr = VecDestroy(&nasm->xinit);CHKERRQ(ierr);}
@@ -160,9 +157,6 @@ static PetscErrorCode SNESSetUp_NASM(SNES snes)
   if (!nasm->y) {
     ierr = PetscCalloc1(nasm->n,&nasm->y);CHKERRQ(ierr);
   }
-  if (!nasm->yl) {
-    ierr = PetscCalloc1(nasm->n,&nasm->yl);CHKERRQ(ierr);
-  }
   if (!nasm->b) {
     ierr = PetscCalloc1(nasm->n,&nasm->b);CHKERRQ(ierr);
   }
@@ -181,7 +175,6 @@ static PetscErrorCode SNESSetUp_NASM(SNES snes)
     if (!nasm->xl[i]) {
       ierr = SNESGetDM(nasm->subsnes[i],&subdm);CHKERRQ(ierr);
       ierr = DMCreateLocalVector(subdm,&nasm->xl[i]);CHKERRQ(ierr);
-      ierr = DMCreateLocalVector(subdm,&nasm->yl[i]);CHKERRQ(ierr);
       ierr = DMGlobalToLocalHookAdd(subdm,DMGlobalToLocalSubDomainDirichletHook_Private,NULL,nasm->xl[i]);CHKERRQ(ierr);
     }
   }
@@ -739,8 +732,6 @@ PetscErrorCode SNESNASMSolveLocal_Private(SNES snes,Vec B,Vec Y,Vec X)
     Yl    = nasm->y[i];
     iscat   = nasm->iscatter[i];
     oscat   = nasm->oscatter[i];
-    subsnes = nasm->subsnes[i];
-    ierr    = SNESGetDM(subsnes,&subdm);CHKERRQ(ierr);
     if (type == PC_ASM_BASIC) {
       ierr = VecScatterEnd(oscat,Yl,Y,ADD_VALUES,SCATTER_REVERSE);CHKERRQ(ierr);
     } else if (type == PC_ASM_RESTRICT) {
