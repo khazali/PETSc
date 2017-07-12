@@ -167,12 +167,13 @@ PetscErrorCode DMForestTemplate(DM dm, MPI_Comm comm, DM *tdm)
   ierr = DMSetDS(*tdm,ds);CHKERRQ(ierr);
   ierr = DMGetApplicationContext(dm,&ctx);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(*tdm,&ctx);CHKERRQ(ierr);
-  if (dm->maxCell) {
+  {
+    PetscBool            isper;
     const PetscReal      *maxCell, *L;
     const DMBoundaryType *bd;
 
-    ierr = DMGetPeriodicity(dm,&maxCell,&L,&bd);CHKERRQ(ierr);
-    ierr = DMSetPeriodicity(*tdm,maxCell,L,bd);CHKERRQ(ierr);
+    ierr = DMGetPeriodicity(dm,&isper,&maxCell,&L,&bd);CHKERRQ(ierr);
+    ierr = DMSetPeriodicity(*tdm,isper,maxCell,L,bd);CHKERRQ(ierr);
   }
   ierr = DMCopyBoundary(dm,*tdm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -212,7 +213,6 @@ static PetscErrorCode DMDestroy_Forest(DM dm)
   ierr = DMDestroy(&forest->adapt);CHKERRQ(ierr);
   ierr = PetscFree(forest->topology);CHKERRQ(ierr);
   ierr = PetscFree(forest);CHKERRQ(ierr);
-  ierr = PetscObjectComposeFunction((PetscObject)dm,"DMAdaptLabel_C",NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1636,7 +1636,7 @@ static PetscErrorCode DMInitialize_Forest(DM dm)
   dm->ops->createsubdm    = DMCreateSubDM_Forest;
   dm->ops->refine         = DMRefine_Forest;
   dm->ops->coarsen        = DMCoarsen_Forest;
-  ierr                    = PetscObjectComposeFunction((PetscObject)dm,"DMAdaptLabel_C",DMAdaptLabel_Forest);CHKERRQ(ierr);
+  dm->ops->adaptlabel     = DMAdaptLabel_Forest;
   PetscFunctionReturn(0);
 }
 

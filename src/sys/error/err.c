@@ -264,7 +264,7 @@ static const char *PetscErrorStrings[] = {
 
    Concepts: error handler^messages
 
-.seealso:  PetscPushErrorHandler(), PetscAttachDebuggerErrorHandler(),
+.seealso:  PetscPushErrorHandler(), PetscAttachDebuggerErrorHandler(), PetscError(), SETERRQ(), CHKERRQ() 
           PetscAbortErrorHandler(), PetscTraceBackErrorHandler()
  @*/
 PetscErrorCode  PetscErrorMessage(int errnum,const char *text[],char **specific)
@@ -327,6 +327,10 @@ static void PetscCxxErrorThrow() {
    sequence
 $     SETERRQ(comm,n,mess)
 
+   Fortran Note:
+   This routine is used differently from Fortran
+$    PetscError(MPI_Comm comm,PetscErrorCode n,PetscErrorType p,char *message)
+
    Experienced users can set the error handler with PetscPushErrorHandler().
 
    Developer Note: Since this is called after an error condition it should not be calling any error handlers (currently it ignores any error codes)
@@ -335,7 +339,7 @@ $     SETERRQ(comm,n,mess)
 
    Concepts: error^setting condition
 
-.seealso: PetscTraceBackErrorHandler(), PetscPushErrorHandler(), SETERRQ(), CHKERRQ(), CHKMEMQ, SETERRQ1(), SETERRQ2()
+.seealso: PetscTraceBackErrorHandler(), PetscPushErrorHandler(), SETERRQ(), CHKERRQ(), CHKMEMQ, SETERRQ1(), SETERRQ2(), PetscErrorMessage()
 @*/
 PetscErrorCode  PetscError(MPI_Comm comm,int line,const char *func,const char *file,PetscErrorCode n,PetscErrorType p,const char *mess,...)
 {
@@ -356,7 +360,7 @@ PetscErrorCode  PetscError(MPI_Comm comm,int line,const char *func,const char *f
     PetscVSNPrintf(buf,2048,mess,&fullLength,Argp);
     va_end(Argp);
     lbuf = buf;
-    if (p == 1) PetscStrncpy(PetscErrorBaseMessage,lbuf,1023);
+    if (p == PETSC_ERROR_INITIAL) PetscStrncpy(PetscErrorBaseMessage,lbuf,1023);
   }
 
   if (!eh) ierr = PetscTraceBackErrorHandler(comm,line,func,file,n,p,lbuf,0);

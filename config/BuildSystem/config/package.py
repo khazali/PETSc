@@ -159,7 +159,9 @@ class Package(config.base.Configure):
     if hasattr(self, 'precisionProvider'):
       if hasattr(self.precisionProvider, 'precision'):
         return self.precisionProvider.precision
-    return self._defaultPrecision
+    if hasattr(self, '_defaultPrecision'):
+      return self._defaultPrecision
+    return 'double'
   def setDefaultPrecision(self, defaultPrecision):
     '''The precision of the library'''
     self._defaultPrecision = defaultPrecision
@@ -351,6 +353,8 @@ class Package(config.base.Configure):
   def generateGuesses(self):
     d = self.checkDownload()
     if d:
+      if not self.liblist:
+        yield('Download '+self.PACKAGE, d, [], self.getIncludeDirs(d, self.includedir))
       for libdir in [self.libdir, self.altlibdir]:
         libdirpath = os.path.join(d, libdir)
         if not os.path.isdir(libdirpath):

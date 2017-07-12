@@ -37,7 +37,7 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsEnd();
 
   PetscFunctionReturn(0);
-};
+}
 
 static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user)
 {
@@ -52,6 +52,16 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user)
     ierr = DMPlexCreateFromFile(comm, user->mshNam, PETSC_TRUE, &user->dm);CHKERRQ(ierr);
     ierr = DMGetDimension(user->dm, &user->dim);CHKERRQ(ierr);
   }
+  {
+    DM distributedMesh = NULL;
+
+    /* Distribute mesh over processes */
+    ierr = DMPlexDistribute(user->dm, 0, NULL, &distributedMesh);CHKERRQ(ierr);
+    if (distributedMesh) {
+      ierr = DMDestroy(&user->dm);CHKERRQ(ierr);
+      user->dm  = distributedMesh;
+    }
+  }
   ierr = DMSetFromOptions(user->dm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -63,12 +73,12 @@ static PetscErrorCode ComputeMetric(DM dm, AppCtx *user, Vec *metric)
   Vec                coordinates;
   const PetscScalar *coords;
   PetscScalar       *met;
-  PetscReal          h, lambda[3], lbd, lmax;
+  PetscReal          h, lambda[3] = {0.0, 0.0, 0.0}, lbd, lmax;
   PetscInt           pStart, pEnd, p, d;
   const PetscInt     dim = user->dim, Nd = dim*dim;
   PetscErrorCode     ierr;
 
-  PetscFunctionBegin;
+  PetscFunctionBeginUser;
   ierr = DMGetCoordinateDM(dm, &cdm);CHKERRQ(ierr);
   ierr = DMClone(cdm, &mdm);CHKERRQ(ierr);
   ierr = DMGetDefaultSection(cdm, &csec);CHKERRQ(ierr);
@@ -87,11 +97,11 @@ static PetscErrorCode ComputeMetric(DM dm, AppCtx *user, Vec *metric)
   ierr = PetscSectionDestroy(&msec);CHKERRQ(ierr);
 
   ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
-  ierr = DMCreateGlobalVector(mdm, metric);CHKERRQ(ierr);
+  ierr = DMCreateLocalVector(mdm, metric);CHKERRQ(ierr);
   ierr = VecGetArrayRead(coordinates, &coords);CHKERRQ(ierr);
   ierr = VecGetArray(*metric, &met);CHKERRQ(ierr);
   for (p = pStart; p < pEnd; ++p) {
-    const PetscScalar *pcoords;
+    PetscScalar       *pcoords;
     PetscScalar       *pmet;
 
     ierr = DMPlexPointLocalRead(cdm, p, coords, &pcoords);CHKERRQ(ierr);
@@ -101,7 +111,7 @@ static PetscErrorCode ComputeMetric(DM dm, AppCtx *user, Vec *metric)
       lambda[0] = lambda[1] = lambda[2] = lbd;
       break;
     case 1:
-      h = user->hmax - (user->hmax-user->hmin)*pcoords[0];
+      h = user->hmax - (user->hmax-user->hmin)*PetscRealPart(pcoords[0]);
       h = h*h;
       lmax = 1/(user->hmax*user->hmax);
       lambda[0] = 1/h;
@@ -109,7 +119,7 @@ static PetscErrorCode ComputeMetric(DM dm, AppCtx *user, Vec *metric)
       lambda[2] = lmax;
       break;
     case 2:
-      h = user->hmax*fabs(1-exp(-fabs(pcoords[0]-0.5))) + user->hmin;
+      h = user->hmax*PetscAbsReal(1-PetscExpReal(-PetscAbsScalar(pcoords[0]-0.5))) + user->hmin;
       lbd = 1/(h*h);
       lmax = 1/(user->hmax*user->hmax);
       lambda[0] = lbd;
@@ -120,7 +130,7 @@ static PetscErrorCode ComputeMetric(DM dm, AppCtx *user, Vec *metric)
       SETERRQ1(PetscObjectComm((PetscObject) dm), PETSC_ERR_ARG_WRONG, "metOpt = 0, 1 or 2, cannot be %d", user->metOpt);
     }
     /* Only set the diagonal */
-    ierr = DMPlexPointGlobalRef(mdm, p, met, &pmet);CHKERRQ(ierr);
+    ierr = DMPlexPointLocalRef(mdm, p, met, &pmet);CHKERRQ(ierr);
     for (d = 0; d < dim; ++d) pmet[d*(dim+1)] = lambda[d];
   }
   ierr = VecRestoreArray(*metric, &met);CHKERRQ(ierr);
@@ -131,10 +141,11 @@ static PetscErrorCode ComputeMetric(DM dm, AppCtx *user, Vec *metric)
 
 int main (int argc, char * argv[]) {
   AppCtx         user;                 /* user-defined work context */
+  DMLabel        bdLabel = NULL;
   MPI_Comm       comm;
-  DM             dma;
+  DM             dma, odm;
   Vec            metric;
-  PetscViewer    viewer;
+  size_t         len;
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
@@ -145,14 +156,63 @@ int main (int argc, char * argv[]) {
   ierr = PetscObjectSetName((PetscObject) user.dm, "DMinit");CHKERRQ(ierr);
   ierr = DMViewFromOptions(user.dm, NULL, "-init_dm_view");CHKERRQ(ierr);
 
+  odm  = user.dm;
+  ierr = DMPlexDistributeOverlap(odm, 1, NULL, &user.dm);CHKERRQ(ierr);
+  if (!user.dm) {user.dm = odm;}
+  else          {ierr = DMDestroy(&odm);CHKERRQ(ierr);}
   ierr = ComputeMetric(user.dm, &user, &metric);CHKERRQ(ierr);
-  ierr = DMPlexAdapt(user.dm, metric, user.bdLabel, &dma);CHKERRQ(ierr);
+  ierr = PetscStrlen(user.bdLabel, &len);CHKERRQ(ierr);
+  if (len) {
+    ierr = DMCreateLabel(user.dm, user.bdLabel);CHKERRQ(ierr);
+    ierr = DMGetLabel(user.dm, user.bdLabel, &bdLabel);CHKERRQ(ierr);
+  }
+  ierr = DMAdaptMetric(user.dm, metric, bdLabel, &dma);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dma, "DMadapt");CHKERRQ(ierr);
-  ierr = DMViewFromOptions(dma, NULL, "-adapt_dm_view");CHKERRQ(ierr);
-
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) dma, "adapt_");CHKERRQ(ierr);
+  ierr = DMViewFromOptions(dma, NULL, "-dm_view");CHKERRQ(ierr);
+  ierr = DMDestroy(&dma);CHKERRQ(ierr);
   ierr = VecDestroy(&metric);CHKERRQ(ierr);
   ierr = DMDestroy(&user.dm);CHKERRQ(ierr);
-  ierr = DMDestroy(&dma);CHKERRQ(ierr);
   PetscFinalize();
   return 0;
 }
+
+/*TEST
+
+  test:
+    suffix: 0
+    requires: pragmatic
+    args: -dim 2 -nbrVerEdge 5 -dm_plex_separate_marker 0 -met 2 -init_dm_view -adapt_dm_view
+  test:
+    suffix: 1
+    requires: pragmatic
+    args: -dim 2 -nbrVerEdge 5 -dm_plex_separate_marker 1 -bdLabel marker -met 2 -init_dm_view -adapt_dm_view
+  test:
+    suffix: 2
+    requires: pragmatic
+    args: -dim 3 -nbrVerEdge 5 -met 2 -init_dm_view -adapt_dm_view
+  test:
+    suffix: 3
+    requires: pragmatic
+    args: -dim 3 -nbrVerEdge 5 -bdLabel marker -met 2 -init_dm_view -adapt_dm_view
+  test:
+    suffix: 4
+    requires: pragmatic
+    nsize: 2
+    args: -dim 2 -nbrVerEdge 3 -dm_plex_separate_marker 0 -met 2 -init_dm_view -adapt_dm_view
+  test:
+    suffix: 5
+    requires: pragmatic
+    nsize: 4
+    args: -dim 2 -nbrVerEdge 3 -dm_plex_separate_marker 0 -met 2 -init_dm_view -adapt_dm_view
+  test:
+    suffix: 6
+    requires: pragmatic
+    nsize: 2
+    args: -dim 3 -nbrVerEdge 10 -dm_plex_separate_marker 0 -met 0 -hmin 0.01 -hmax 0.03 -init_dm_view -adapt_dm_view
+  test:
+    suffix: 7
+    requires: pragmatic
+    nsize: 5
+    args: -dim 2 -nbrVerEdge 20 -dm_plex_separate_marker 0 -met 2 -hmax 0.5 -hmin 0.001 -init_dm_view -adapt_dm_view
+TEST*/

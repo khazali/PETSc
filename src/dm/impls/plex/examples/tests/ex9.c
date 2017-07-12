@@ -77,7 +77,7 @@ static PetscErrorCode ProcessOptions(AppCtx *options)
   ierr = PetscOptionsReal("-max_vec_closure_time", "The maximum time per run for DMPlexVecGetClosure()", "ex9.c", options->maxVecClosureTime, &options->maxVecClosureTime, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
   PetscFunctionReturn(0);
-};
+}
 
 static PetscErrorCode CreateSimplex_2D(MPI_Comm comm, DM *newdm)
 {
@@ -263,7 +263,7 @@ static PetscErrorCode TestCone(DM dm, AppCtx *user)
   if (eventInfo.count != 1) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Number of event calls %d should be %d", eventInfo.count, 1);
   if ((PetscInt) eventInfo.flops != 0) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Number of event flops %d should be %d", (PetscInt) eventInfo.flops, 0);
   if (eventInfo.time > maxTimePerRun * numRuns) {
-    ierr = PetscPrintf(PETSC_COMM_SELF, "Cones: %d Average time per cone: %gs standard: %gs\n", numRuns, eventInfo.time/numRuns, maxTimePerRun);
+    ierr = PetscPrintf(PETSC_COMM_SELF, "Cones: %d Average time per cone: %gs standard: %gs\n", numRuns, eventInfo.time/numRuns, maxTimePerRun);CHKERRQ(ierr);
     if (user->errors) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Average time for cone %g > standard %g", eventInfo.time/numRuns, maxTimePerRun);
   }
   PetscFunctionReturn(0);
@@ -301,7 +301,7 @@ static PetscErrorCode TestTransitiveClosure(DM dm, AppCtx *user)
   if (eventInfo.count != 1) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Number of event calls %d should be %d", eventInfo.count, 1);
   if ((PetscInt) eventInfo.flops != 0) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Number of event flops %d should be %d", (PetscInt) eventInfo.flops, 0);
   if (eventInfo.time > maxTimePerRun * numRuns) {
-    ierr = PetscPrintf(PETSC_COMM_SELF, "Closures: %d Average time per cone: %gs standard: %gs\n", numRuns, eventInfo.time/numRuns, maxTimePerRun);
+    ierr = PetscPrintf(PETSC_COMM_SELF, "Closures: %d Average time per cone: %gs standard: %gs\n", numRuns, eventInfo.time/numRuns, maxTimePerRun);CHKERRQ(ierr);
     if (user->errors) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Average time for closure %g > standard %g", eventInfo.time/numRuns, maxTimePerRun);
   }
   PetscFunctionReturn(0);
@@ -370,7 +370,7 @@ static PetscErrorCode TestVecClosure(DM dm, PetscBool useIndex, PetscBool useSpe
     const char *titleSpec = "VecClosures Spectral";
     const char *titleSpecIndex = "VecClosures Spectral with Index";
 
-    ierr = PetscPrintf(PETSC_COMM_SELF, "%s: %d Average time per vector closure: %gs standard: %gs\n", useIndex ? (useSpectral ? titleSpecIndex : titleIndex) : (useSpectral ? titleSpec : title), numRuns, eventInfo.time/numRuns, maxTimePerRun);
+    ierr = PetscPrintf(PETSC_COMM_SELF, "%s: %d Average time per vector closure: %gs standard: %gs\n", useIndex ? (useSpectral ? titleSpecIndex : titleIndex) : (useSpectral ? titleSpec : title), numRuns, eventInfo.time/numRuns, maxTimePerRun);CHKERRQ(ierr);
     if (user->errors) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Average time for vector closure %g > standard %g", eventInfo.time/numRuns, maxTimePerRun);
   }
   PetscFunctionReturn(0);
@@ -409,3 +409,66 @@ int main(int argc, char **argv)
   ierr = PetscFinalize();
   return ierr;
 }
+
+/*TEST
+
+  # 2D Simplex P_1 scalar tests
+  test:
+    suffix: 0
+    requires: performance
+    TODO: missing output file
+    args: -num_dof 1,0,0 -iterations 10000 -max_cone_time 1.1e-8 -max_closure_time 1.3e-7 -max_vec_closure_time 3.6e-7
+  test:
+    suffix: 1
+    requires: performance
+    TODO: missing output file
+    args: -refinement_limit 1.0e-5 -num_dof 1,0,0 -iterations 2 -max_cone_time 2.1e-8 -max_closure_time 1.5e-7 -max_vec_closure_time 3.6e-7
+  test:
+    suffix: 2
+    requires: performance
+    TODO: missing output file
+    args: -num_fields 1 -num_components 1 -num_dof 1,0,0 -iterations 10000 -max_cone_time 1.1e-8 -max_closure_time 1.3e-7 -max_vec_closure_time 4.5e-7
+  test:
+    suffix: 3
+    requires: performance
+    TODO: missing output file
+    args: -refinement_limit 1.0e-5 -num_fields 1 -num_components 1 -num_dof 1,0,0 -iterations 2 -max_cone_time 2.1e-8 -max_closure_time 1.5e-7 -max_vec_closure_time 4.7e-7
+  test:
+    suffix: 4
+    requires: performance
+    TODO: missing output file
+    args: -interpolate -num_dof 1,0,0 -iterations 10000 -max_cone_time 1.1e-8 -max_closure_time 6.5e-7 -max_vec_closure_time 1.0e-6
+  test:
+    suffix: 5
+    requires: performance
+    TODO: missing output file
+    args: -interpolate -refinement_limit 1.0e-4 -num_dof 1,0,0 -iterations 2 -max_cone_time 2.1e-8 -max_closure_time 6.5e-7 -max_vec_closure_time 1.0e-6
+  test:
+    suffix: 6
+    requires: performance
+    TODO: missing output file
+    args: -interpolate -num_fields 1 -num_components 1 -num_dof 1,0,0 -iterations 10000 -max_cone_time 1.1e-8 -max_closure_time 6.5e-7 -max_vec_closure_time 1.1e-6
+  test:
+    suffix: 7
+    requires: performance
+    TODO: missing output file
+    args: -interpolate -refinement_limit 1.0e-4 -num_fields 1 -num_components 1 -num_dof 1,0,0 -iterations 2 -max_cone_time 2.1e-8 -max_closure_time 6.5e-7 -max_vec_closure_time 1.2e-6
+
+  # 2D Simplex P_1 vector tests
+  # 2D Simplex P_2 scalar tests
+  # 2D Simplex P_2 vector tests
+  # 2D Simplex P_2/P_1 vector/scalar tests
+  # 2D Quad P_1 scalar tests
+  # 2D Quad P_1 vector tests
+  # 2D Quad P_2 scalar tests
+  # 2D Quad P_2 vector tests
+  # 3D Simplex P_1 scalar tests
+  # 3D Simplex P_1 vector tests
+  # 3D Simplex P_2 scalar tests
+  # 3D Simplex P_2 vector tests
+  # 3D Hex P_1 scalar tests
+  # 3D Hex P_1 vector tests
+  # 3D Hex P_2 scalar tests
+  # 3D Hex P_2 vector tests
+
+TEST*/
