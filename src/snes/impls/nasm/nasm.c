@@ -716,6 +716,7 @@ PetscErrorCode SNESNASMSolveLocal_Private(SNES snes,Vec B,Vec Y,Vec X)
     ierr = VecCopy(Xl,Yl);CHKERRQ(ierr);
     ierr = SNESSolve(subsnes,Bl,Xl);CHKERRQ(ierr);
     ierr = VecAYPX(Yl,-1.0,Xl);CHKERRQ(ierr);
+    ierr = VecScale(Yl, nasm->damping);CHKERRQ(ierr);
     if (nasm->weight_set) {
       ierr = VecScatterEnd(oscat_copy,nasm->weight,weightloc,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
       ierr = VecPointwiseMult(Yl,Yl,weightloc);CHKERRQ(ierr);
