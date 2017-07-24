@@ -138,14 +138,16 @@ conditions. For simplicity of presentation we assume only homogeneous Dirichlet 
 In this work we will consider simple data assimilation problems  for which we seek the initial condition $u_0$ that leads at time $T$ to a solution
 $u$ which matches a reference solution $u_d$. In practice $ u_d$  is not known over the entire domain $\Omega$, but in a subset region $\Omega_s\subset \Omega$ where sensors have been placed. However, for simplicity we construct a continuous function
 $u_d$ to avoid regularization issues, and consider the sensor values $u_s$ to be a restriction of the destination vector $u_d$, i.e. $u_s=u_d|_{\Omega_s}$. 
-A cost function which minimizes the difference between $| u- u_d|$ while preserving convexity is
-\begin{equation}J[u_0]=\int_0^T\int_{\Omega}(u- u_d)^2 \ \d \Omega \,.  \label{eq:Cost_general}
+A cost functional which minimizes the difference between $| u- u_d|$ while preserving convexity is
+\begin{equation}
+  J[u_0]=\int_{\Omega}(u- u_d)^2 \ \d \Omega \,.  \label{eq:Cost_general}
 \end{equation}
 
 The optimization problem we seek to solve is
 \begin{eqnarray}
 \min_{u_0} &&J[u_0], \quad s.t. \\ \nonumber
 u_t&=&\mathcal{P}[u], \quad \text{with}\ u|_{t=0}=u_0\ , \text{and} \  B[u|_{\partial \Omega}(t)]= u_b(t)\ ,
+\label{optimizationproblem}
 \end{eqnarray}
 where the partial differential equation is given by $\mathcal P$ and can be either advection-difussion, pure diffusion or other combinations.
 
@@ -161,11 +163,11 @@ To transition from the strong form of the equation to the weak form we define th
 $$
 L^2(\Omega)=\lbrace u :\Omega\rightarrow \mathbb R |\quad \bigg(\int_{\Omega} |u|^2 \d \Omega \bigg)^{1/2}<\infty\ \rbrace
 $$
-with the subset
+with the subspace
 $$
 H^1(\Omega)=\lbrace u \in L^2(\Omega) |\quad \frac{\partial u}{\partial \vect x} \ \text{in}\  L^2(\Omega)\ \rbrace
 $$
-and the space
+and its subspace
 $$
 H^1_0(\Omega)=\lbrace u \in H^1(\Omega) |\quad \ u|_{\partial\Omega}=0 \ \rbrace
 $$
@@ -191,7 +193,19 @@ Example: Let $\mathcal P(\mathbf u) = \nu \Delta \mathbf u + \mathbf a  \nabla \
 \end{equation}
 The boundary term vanishes since $\mathbf u, \mathbf v \in K.$
 
-Introduce functional derivative here.
+In calculus the quantity of interest in determining extremum values of functions is the gradient. In functional analysis (calculus of variations) the functional
+derivative plays a similar role in determining functions that provide the extremum of functionals. The functional derivative of
+\[
+F(p) = \int f(r,p(r),\nabla p(r)) \d r
+\]
+is defined to be the function (denoted by $ \frac{\partial F}{\partial p(r)}$) that satisfies
+\[
+\int \frac{\partial F}{\partial p(r)} \phi(r) \d r = \frac{\d}{\d \epsilon} \int f(r,p(r) + \epsilon \phi(r),\nabla p(r) + \epsilon \nabla \phi(r) ) \d r
+\]
+for all $ \phi(r)$ in some appropriate space. By the calculus of variations, a neccessary condition for a function to provide the local
+minimum or maximum of a functional is that the functional derivative is zero.
+
+
 
 
 \subsection{The Spectral Element Method}
@@ -593,6 +607,44 @@ s_k
 Equation \eqref{eq:BE:adjoint} describes the adjoint of the backward
 Euler method; it goes backward in time (from step $N$ to $0$) and it
 is initialized with $s_N$.
+
+\subsection{Using Adjoints for Optimization}
+
+The optimization problem \ref{optimizationproblem} is posed as an optimization of a functional subject to a time dependent PDE constraint.
+In this section we demonstrate how, using the functional analysis equivalent of Lagrange multiplies, it can be reformated and solved as
+an unconstrained optimization. This approach is known as the adjoint state method. Conside the (more general than presented before)
+optimization problem with the constraint posed in weak form
+\begin{eqnarray}
+  \min_{u \in K} \int_0^T\int_{\Omega}G(u) \ \d \Omega \d t \quad s.t. \\ \nonumber
+  \int_0^T \int_{\Omega} (\mathbf u_t-\mathcal P(\vect u)) \mathbf v \d \Omega \d t = 0, \quad \forall v \in K.
+\label{newoptimizationproblem}
+\end{eqnarray}
+The unconstrained problem
+\begin{eqnarray}
+  \min_{u \in K, v \in K} \Lagrangian(u,v) = \min_{u \in K, v \in K} \int_0^T\int_{\Omega}G(u) \ \d \Omega \d t \quad +  \int_0^T \int_{\Omega} (\mathbf u_t-\mathcal P(\vect u)) \mathbf v \d \Omega \d t = 0, \quad \forall v \in K
+\label{unconstrainedoptimizationproblem}
+\end{eqnarray}
+has a stationary point for each extremum of the original problem (plus possibly additional stationary points). In this formulation the $ v$ play the role of
+Lagrange multipliers. We integrate by parts the $ u_t v $ term and for clarity explicitly include $ u(0) $ and $ u(T) $ in the arguments of the Lagrangian resulting in
+\[
+\Lagrangian(u,v,u(0),u(T)) = \int_0^T\int_{\Omega}G(u) - \mathbf u v_t-\mathcal P(\vect u) \mathbf v \d \Omega \d t + \int_{\Omega} u(T)v(T) - u(0) v(0) \d \Omega.
+\]
+Now using the definition of the functional derivative we obtain
+\[
+\int_0^T\int_{\Omega} \frac{\partial \Lagrangian(u,v,u(0),u(T))}{\partial u(0)}\phi() = \int_0^T\int_{\Omega} (\frac{\partial G}{\partial u(0)}(u(0)) - v(0))\phi() \d \Omega \d t
+\],
+\[
+\int_0^T\int_{\Omega} \frac{\partial \Lagrangian(u,v,u(0),u(T))}{\partial u(T)}\phi() = \int_0^T\int_{\Omega} (\frac{\partial G}{\partial u(T)}(u(T)) - v(T))\phi() \d \Omega \d t
+\], and 
+\[
+\int_0^T\int_{\Omega} \frac{\partial \Lagrangian(u,v,u(0),u(T))}{\partial u}\phi() = \int_0^T\int_{\Omega}\frac{\partial G}{\partial u}(u)\phi() -  v_t\phi() - [\frac{\partial P}{\partial u}(u)\phi()] \mathbf v \d \Omega \d t.
+\]
+
+Question, why do the other two terms drop out for the first two equations?
+
+\subsubsection{Semi-discrete Adjoints}
+
+\subsubsection{Continous Adjoints}
 
 
 
