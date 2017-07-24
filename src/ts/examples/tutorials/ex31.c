@@ -39,6 +39,9 @@ List of cases and their names in the code:-
 
     Kulikov2013I -> "kulik2013i"
 
+Steady state test:
+
+   nonstiff steady state test -> "nss"
 */
 
 #include <petscts.h>
@@ -51,6 +54,9 @@ PetscErrorCode (*RHSFunction) (TS,PetscReal,Vec,Vec,void*);
 PetscErrorCode (*RHSJacobian) (TS,PetscReal,Vec,Mat,Mat,void*);
 PetscErrorCode (*IFunction)   (TS,PetscReal,Vec,Vec,Vec,void*);
 PetscErrorCode (*IJacobian)   (TS,PetscReal,Vec,Vec,PetscReal,Mat,Mat,void*);
+
+/* problem specific constants */
+PetscScalar       NSS_A=10.,NSS_B=3.,NSS_C=5.;
 
 /* Returns the size of the system of equations depending on problem specification */
 PetscInt GetSize(const char *p)
@@ -65,7 +71,8 @@ PetscInt GetSize(const char *p)
   else if ((!strcmp(p,"hull1972b2"))
          ||(!strcmp(p,"hull1972b3"))
          ||(!strcmp(p,"hull1972b4"))
-         ||(!strcmp(p,"hull1972b5")) )  PetscFunctionReturn(3);
+         ||(!strcmp(p,"hull1972b5"))
+         ||(!strcmp(p,"nss"))        )  PetscFunctionReturn(3);
   else if ((!strcmp(p,"kulik2013i")) )  PetscFunctionReturn(4);
   else if ((!strcmp(p,"hull1972c1"))
          ||(!strcmp(p,"hull1972c2"))
@@ -705,6 +712,46 @@ PetscErrorCode IJacobian_Hull1972B5(TS ts, PetscReal t, Vec Y, Vec Ydot, PetscRe
 }
 
 
+
+/* Nonstiff steady state */
+
+PetscErrorCode RHSFunction_NSS(TS ts, PetscReal t, Vec Y, Vec F, void *s)
+{
+  PetscErrorCode    ierr;
+  PetscScalar       *f;
+  const PetscScalar *y;
+
+  PetscFunctionBegin;
+  ierr = VecGetArrayRead(Y,&y);CHKERRQ(ierr);
+  ierr = VecGetArray(F,&f);CHKERRQ(ierr);
+  f[0] = -NSS_A*y[0]+NSS_B*y[1]*y[2];
+  f[1] = NSS_A*y[0]-NSS_B*y[1]*y[2]-NSS_C*y[1];
+  f[2] = NSS_C*y[1];
+  ierr = VecRestoreArrayRead(Y,&y);CHKERRQ(ierr);
+  ierr = VecRestoreArray(F,&f);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode RHSJacobian_NSS(TS ts, PetscReal t, Vec Y, Mat A, Mat B, void *s)
+{
+  PetscErrorCode    ierr;
+  const PetscScalar *y;
+  PetscInt          row[4] = {0,1,2};
+  PetscScalar       value[3][3];
+
+  PetscFunctionBegin;
+  ierr = VecGetArrayRead(Y,&y);CHKERRQ(ierr);
+
+  value[0][0] = -NSS_A; value[0][1] = NSS_B * y[2];        value[0][2] = NSS_B*y[1];
+  value[1][0] = NSS_A;  value[1][1] = -NSS_C - NSS_B*y[2]; value[1][2] = -NSS_B*y[1];
+  value[2][0] = 0.;     value[2][1] = NSS_C;               value[2][2] = 0.; 
+  ierr = MatSetValues(A,3,&row[0],3,&row[0],&value[0][0],INSERT_VALUES);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd  (A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(Y,&y);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /* Kulikov, 2013, Problem I */
 
 PetscErrorCode RHSFunction_Kulikov2013I(TS ts, PetscReal t, Vec Y, Vec F, void *s)
@@ -793,7 +840,6 @@ PetscErrorCode IJacobian_Kulikov2013I(TS ts, PetscReal t, Vec Y, Vec Ydot, Petsc
   ierr = VecRestoreArrayRead(Y,&y);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-
 
 /* Hull, 1972, Problem C1 */
 
@@ -1036,6 +1082,12 @@ PetscErrorCode Initialize(Vec Y, void* s)
   PetscBool     flg;
 
   PetscFunctionBegin;
+
+  RHSFunction = NULL;
+  RHSJacobian = NULL;
+  IFunction   = NULL;
+  IJacobian   = NULL;
+
   VecZeroEntries(Y);
   ierr = VecGetArray(Y,&y);CHKERRQ(ierr);
   if (!strcmp(p,"hull1972a1")) {
@@ -1102,6 +1154,12 @@ PetscErrorCode Initialize(Vec Y, void* s)
     RHSFunction = RHSFunction_Hull1972B5;
     IFunction   = IFunction_Hull1972B5;
     IJacobian   = IJacobian_Hull1972B5;
+  } else if (!strcmp(p,"nss")) {
+    y[0] = 0.1;
+    y[1] = 0.0;
+    y[2] = 0.0;
+    RHSFunction = RHSFunction_NSS;
+    RHSJacobian = RHSJacobian_NSS;
   } else if (!strcmp(p,"kulik2013i")) {
     t0=0.;
     y[0] = PetscExpReal(PetscSinReal(t0*t0));
@@ -1227,12 +1285,20 @@ PetscErrorCode SolveODE(char* ptype, PetscReal dt, PetscReal tfinal, PetscInt ma
   } else if ((!strcmp(time_scheme,TSTHETA)) || (!strcmp(time_scheme,TSBEULER)) || (!strcmp(time_scheme,TSCN)) || (!strcmp(time_scheme,TSALPHA)) || (!strcmp(time_scheme,TSARKIMEX))) {
     /* Implicit time-integration -> specify left-hand side function ydot-f(y) = 0 */
     /* and its Jacobian function                                                 */
-    ierr = TSSetIFunction(ts,NULL,IFunction,&ptype[0]);CHKERRQ(ierr);
+    if (IFunction) {
+      ierr = TSSetIFunction(ts,NULL,IFunction,&ptype[0]);CHKERRQ(ierr);
+    } else {
+      ierr = TSSetRHSFunction(ts,NULL,RHSFunction,&ptype[0]);CHKERRQ(ierr);
+    }
     ierr = MatCreate(PETSC_COMM_WORLD,&Jac);CHKERRQ(ierr);
     ierr = MatSetSizes(Jac,PETSC_DECIDE,PETSC_DECIDE,N,N);CHKERRQ(ierr);
     ierr = MatSetFromOptions(Jac);CHKERRQ(ierr);
     ierr = MatSetUp(Jac);CHKERRQ(ierr);
-    ierr = TSSetIJacobian(ts,Jac,Jac,IJacobian,&ptype[0]);CHKERRQ(ierr);
+    if (IJacobian) {
+      ierr = TSSetIJacobian(ts,Jac,Jac,IJacobian,&ptype[0]);CHKERRQ(ierr);
+    } else {
+      ierr = TSSetRHSJacobian(ts,Jac,Jac,RHSJacobian,&ptype[0]);CHKERRQ(ierr);
+    }
   }
 
   /* Solve */
