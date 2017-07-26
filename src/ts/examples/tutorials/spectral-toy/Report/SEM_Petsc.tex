@@ -20,6 +20,8 @@
 \usepackage{comment} 
 \usepackage{enumerate}
 \usepackage{cancel}
+\usepackage{footnote}
+%\makesavenoteenv{tabular}
 %\usepackage{helvet}
 %\usepackage{algorithm}
 %\usepackage{algorithmicx}
@@ -209,7 +211,7 @@ minimum or maximum of a functional is that the functional derivative is zero.
 
 
 \subsection{The Spectral Element Method}
-
+\label{sec:sem}
 
 Based on the weak form given by Equation~\ref{eq:weakcd} several discretizations are suitable, the finite element method, spectral element, continuous or discontinuous Galerkin, etc.
 The spectral element method is a subclass of Galerkin methods, or weighted residual methods. 
@@ -383,9 +385,24 @@ Two main approaches are available when dealing with PDE-constrained optimization
 
 Variational calculus allows us to obtain a direct derivation of the adjoint equations, which are weakly decoupled from the forward PDE. By weakly decoupled in this context we mean that the backward and forward problems can be regarded as two independent PDEs where the backward problem is tied to the forward via initial conditions, boundary conditions as well as the advection velocity in the case of nonlinear problems.
 
-In the examples we consider here an objective function that is  restricted to the final time horizon which implies that in Equation\ref{eq:Cost_general} we have $\mathcal{J}[u_0]=\int_{\Omega}( u[T]- u_d)^2 \ \d \Omega$.
+In the examples we consider here an objective function that is  restricted to the final time horizon which implies that in Equation\ref{eq:Cost_general} we have $\mathcal{J}[u_0]=\int_{\Omega}( u[T]- u_d)^2 \ \d \Omega$. 
 
+We sum up in Table~\ref{sum} the approaches available for PDE constrained optimization, outlining the current work and subsequently proceeding to the necessary derivations.
 
+\begin{table}
+\centering
+\begin{tabular}{|r|c|c|}
+  \hline
+   & KKT system & Adjoint looping \\
+  \hline\hline
+  Discrete Adjoint & TAO\footnotemark
+   & Current work (PETSc) \\ 
+  Continous Adjoint& to be developed & Current work (MATLAB)\\
+  \hline
+\end{tabular}
+\caption{PDE constrained optimization strategies.}\label{sum}
+\end{table}
+\footnotetext{\texttt{/petsc/src/tao/pde\_constrained/}}
 \subsection{Variational calculus using the continous adjoint\label{sec:adj:continuous}} 
 
 To derive the gradient used in the backward step we set up the Lagrangian, where $v$ plays the role of the Lagrangian multiplier
@@ -426,10 +443,10 @@ Here we denote by $\overline{\mathcal P}$ the reverse mode which is reversed in 
 
 In order to take a derivative of a functional we need to make use of the Riesz representation theorem, which states that for a functional $\mathcal J$, the derivative is $d \mathcal J[u]/dv=(u,v)(=\int_{\Omega} u\cdot v \ d \Omega)$. Considering now each partial derivative individually we have for the Lagrangian
 \begin{eqnarray}
-\frac{\partial \mathcal L}{\partial  u}&=&- \frac{\partial v}{\partial t}  +\nu\Delta  v \\ \nonumber
-\frac{\partial \mathcal L}{\partial  u_0}&=&- v[0]\\ \nonumber
-\frac{\partial \mathcal L}{\partial  u_T}&=&2( u[T]- u_d)+ v[T]\\ \nonumber
-%\frac{\partial L}{\partial  u_b}&=&\\
+\nabla_u \mathcal L&=&- \frac{\partial v}{\partial t}  +\nu\Delta  v \\ \nonumber
+\nabla_{u_0} \mathcal L&=&- v[0]\\ \nonumber
+\nabla_{u_T} \mathcal L&=&2( u[T]- u_d)+ v[T]\\ \nonumber
+\label{eq:bcs_ics}
 \end{eqnarray}
 
 The last two partial derivatives are responsible for initial conditions for the forward and for the reverse (adjoint) problem.
@@ -660,7 +677,7 @@ The gradient based optimization can be performed using adjoint information, or a
  \begin{tikzpicture}[scale=3.0]
 \node (A) at (0,1) {$u_0$};
 \node (B) at (2,1) {$u_T$};
-\node (C) at (2,0) {$v_0 (\partial \mathcal L/\partial u_T=0)$};
+\node (C) at (2,0) {$v_0 (\nabla_{u_0} \mathcal L=0)$};
 \node (D) at (0,0) {$v_T$};
 \path[->,font=\scriptsize,>=angle 90]
 (A) edge node[above]{Forward mode} (B)
@@ -733,18 +750,9 @@ In the current framework we consider a set of problems in one dimension: diffusi
 To be noted that diffussion domainated problem such as the ones studied here are highly ill-conditioned since small perturbations in the initial conditions smooth away quickly. This implies that multiple initial conditions lead to the same final solution, which proves to be a challenge when solving inverse problems.
 
 
-\begin{tabular}{|r|c|c|}
-  \hline
-   & KKT system & Adjoint looping \\
-  \hline\hline
-  Discrete Adjoint &  & Current work (PETSc) \\ 
-  Continous Adjoint& & Current work (MATLAB)\\
-  \hline
-\end{tabular}
-
 \subsection{Advection-Diffusion}
 We consider Equation~\ref{eq:1dcd} and seek $u_0$ which minimizes $\int (u[T]-u_d)^2\d \Omega$. 
-The advection diffusion problem admits and analytical solution $u(x,t)=u_0(x-at)e^{-\nu t}$. The initial condition chosen here is a Gaussian convecting to the left side of the domain and the desired state we wish to optimize for is given by $u(x,T)$, we refer to $T$ as the time horizon of the problem.
+The advection diffusion problem admits and analytical solution $u(x,t)=u_0(x-at)e^{-\nu t}$. The initial condition chosen here is a Gaussian convecting to the left side of the domain and the desired state we wish to optimize for is given by $u(x,T)$, we refer to $T$ as the time horizon of the problem. The paramters chosen here are advective velocity $a=0.05$ and viscosity $\nu=0.001$.
 
 In Figure~\ref{fig:ic_obj} we illustrate both the initial condition and desired solution we seek to attain at time horizon $T$. The cost function decay versus the number of iterations required for finding the initial condition $u_0$ is illustrated in Figure~\ref{fig:decay_cd}. For an admissible error in the solution of $10^{-8}$ we obtain the final optimal in Figure\ref{fig:opt_cd}. The optimization algorithm used here is quasi-Newton algorithm, specifically Limited Memory Variable Metric (\texttt{LMVM}), and the timestepper is an explicit Runge-Kutta of 3rd order accuracy.
 
@@ -753,15 +761,35 @@ In Figure~\ref{fig:ic_obj} we illustrate both the initial condition and desired 
 
 A diffusion problem with periodic boundary conditions and viscosity parameter $\nu=0.001$ is considered over the domain $[0,1]$. The domain is discretized in 5 elements each of polynomial order $N=8$ and the time horizon of the forward problem is $T=1$. We distinguish two cases one where the objective function is smooth, and the desired end state $u_d$ is discretized over the entire domain, and a second case where $u_d$ is not available at every grid in the domain, but a scattered selection of points.
 
+We establish an analytical solution to the heat equation: 
+\begin{equation}
+u(x,t)=\sin(2\pi x)e^{-4\pi^2\mu t}+\cos(4\pi x)e^{-16\pi^2\mu t}
+\label{eq:heatex}
+\end{equation}
 
-\paragraph{Continous objective function} 
-Consider the same objective function as earlier 
-$\mathcal J[u_0]=\int_{\Omega} (u[T]-u_d)^2 \d \Omega$ for we seek the inital condition which minimizes the distance to the desired profile $u_d$. The inital condition we start from is $u_0=(\sin(2\pi x)+\cos(4\pi x))$ and the destination is $u_d=(\sin(2\pi x)+\cos(4\pi x))e^{-30\pi^2\mu}$. Note that the desired solution is also a solution to the heat equation in fact is a dampening of the 
+We choose the objective function to be a solution to the heat equation, i.e. in Equation~\ref{eq:heatex}, $u_d=u(x,T_a)$, where we set $T_a=3.0$. For the time horizon of the problem we choose $T=1.0$ and seek again to optimize for the initial condition, we minimize $\mathcal J[u_0]=\int_{\Omega} (u[T]-u_d)^2 \d \Omega$. The initial condition we start from is $u_0=u(x,0)=(\sin(2\pi x)+\cos(4\pi x))$. Since the time horizon is $T=1.0$ and the objective function is the solution at $T_a=3.0$ we can compare the result of the optimization with the exact solution at $u(x,T_a-T)$, and identify the behaviour of the errors.
 
+\paragraph{Continous/Dense objective function} 
 The smooth continous case is illustrated in Figure~\ref{fig:ic_obj_heat}, and Figure~\ref{fig:opt_heat}. We note a difference between the optimal and the objective, which is only natural given that the initial optimal condition has to decay for a time $T$ to reach $u_d$.
 
-\paragraph{Discrete objective function}
-The case where the objective is only a discrete set of points $N_s=2 N/3$, a two thirds fraction of the total spatial discretization $N$, is depicted in Figure~\ref{fig:opt_heatass}. This result is decieving since it resembles that the optimal initial condition is almost superposed to the destination state, however this as we know by comparison with the continous $u_d$ is not consistent with the travel time to destination $T$.    
+Comparing now the error of the optimal solution stemming from the optimization $u_0^{opt}$ and the analytical solution at the same time instance $u(x,T_a-T)$ we note in Figure~\ref{fig:opt_heat} that the error between the two is higher than the threshold imposed on the optimization. This can be easily explained by analyzing the errors incurred by the PDE solver which will always overtake the error in the optimization. Put simply if the PDE is resolved with an error $\epsilon$, then the optimization problem will be bound by the same error, $\vert u_0^{opt} -u(x,T_a-T)\vert \approx \epsilon $. 
+
+In this case the PDE error is a compound of the space $\mathcal O(e{-\sigma N})$ error and time errors, which for a method of third order are $\mathcal O{dt^3}$. We performed a spatial error analysis on this problem, described in Section~\ref{sec:err}, and in Figure~\ref{fig:err_tot} we illustrate for this particular case the spatial error on a per element basis. The upper bound of the error the spatial error is given by the left most element in this discretization and is of magnitude $10^{-7}$. To observe this in the full optimization setup we chose a timestep of size $10^{-5}$, far lower than the stability requirements of the problem, and totally impractical for computational purposes, however revealing for the spatial error which we can see plateaus at $10^{-5}$, which we can consider to be within the round off vicinity of the spatial error. This is by no means an extensive study of errors, but a prerequiste to a fully fledged analysis of the interplay between the convergence of the optimization and the error of the underlying PDE.
+
+\paragraph{Discrete/Sparse objective function}
+The case where the objective is only a discrete set of points $N_s=\alpha\%N$, only a fraction $\alpha$ of the total spatial discretization $N$, is now considered. In this case the objective function becomes a fully discrete functional
+$\mathcal J[u_0]=\sum_{i=1}^{N_s} (u^i[T]-u^i_d)^2 $ which needs to be regularized.
+
+The regularization we consider here is 
+$\Sigma[u_0]=\int_{\Omega} \nabla u \nabla u \d\Omega$, which leads to the modified objective function
+$$\mathcal J_{reg}[u_0]= \mathcal J[u_0]+\Sigma[u_0] \ .$$
+
+The intial condition of the reverse mode will now be, as in Equation~\ref{eq:bcs_ics}, given by $\nabla_{u_0} \mathcal J_{reg}[u_0] =\nabla_{u_0} \mathcal J[u_0]+\nabla_{u_0} \Sigma[u_0]=0 $.
+
+For a choice $\alpha=80$, i.e. $N_s=0.8N$ uniformly distributed sensors, solving the optimization problem is similar to a least squares problems for the objective function, and we expect the fitting of the initial condition to have a higher deviation from the analytical solution. In Figure~\ref{eq:heatex} we note that the soltuion plateaus higher at a value of approximately $10^{-3}$, and several line searches at the first iteration are sufficent to acheive this result. The level at which this plateau is acheived is problem dependent and also can be impacted by the distribution of sensors as well as the number of sensors. Here for simplicity we chose the sensors to coincide with grid points, however in large scale applications they would be interpolated back and forth to the computational grid, which would additional errors to the problem.
+
+
+
 
 \begin{figure}[!ht]
 \centering
@@ -779,25 +807,32 @@ The case where the objective is only a discrete set of points $N_s=2 N/3$, a two
 
 \begin{figure}[!ht]
 \centering
-\subfloat[Initial condition(black), desired profile(blue)-only a set of discrete points, optimal solution(red)]
-{\includegraphics[width=0.47\textwidth]{Heatdataass.eps}
-\label{fig:ic_obj_heatass}}
-\quad
-\subfloat[Decay of the cost function for a pointwise discrete objective function, convergence plateaus early on.]
-{\includegraphics[width=0.47\textwidth]{Dataass_decay.eps}
-\label{fig:opt_heatass}}
-\caption{Optimal initial conditions for the heat equation with a pointwise discrete objective function, and time horizon T=1.}
+\includegraphics[width=0.5\textwidth]{decayregvsc.eps}
+\label{fig:opt_heatass}
+\caption{Log-scale of error between analytical solution and optimal solution: (red) continous/dense objective functional, (blue) discrete/sparse objective functional. For the sparse objective we have a number of line searches performed in the first iteration, while the for the dense one only one line search per iteration was sufficient.}
 \end{figure}
 
 \section{Spatial error estimation}
+\label{sec:err}
+To assess the error incurred in the spatial discretization we use the a posteriori spectral error analysis suggested in \cite{Mavriplis1990}, and a lengthy review on the matter can be found in \cite{kopriva2009}. 
 
-To assess the error incurred in the spatial discretization we use the a posteriori spectral error analysis suggested in \cite{Mavriplis1990}, and a lengthy review on the matter can be found in \cite{kopriva2009}. Using the knowledge that a spectral scheme exhibits exponential decay of the form $e^{-\sigma N}$, where N is the number of degrees of freedom, we transform the signal in spectral space where the decay can be viewed as a linear function in log-scale. More specifically the error per element stems from the truncation of the spectral representation of the function and the actual functional, which via a series of derivations gives the leading error per element $e$, denoted $\epsilon_e$ as
+Considering the discrete solution $u_N\in X_N$ (the Hilbert space of polynomials of order $N$ defined in Section~\ref{sec:sem}), an extrapolated solution $\tilde u\in X_M$, a space of polynomials of order $M\gg N$ and the exact solution $u$ we can bound the error as
+$$\Vert u - u_N\Vert \leq \underbrace{\Vert u-\tilde u\Vert}_{\text{extrapolation err.}} + \underbrace{\Vert \tilde u- \Pi_N \tilde u\Vert}_{\text{truncation err.}} + \underbrace{\Vert u_N-\Pi_N \tilde u\Vert}_{\text{quadrature err.}} \ ,$$
+where $\Pi_h u$ is the projection of $u$ on a polynomial space of order $N$.
+
+We can identify the terms in the error one by one as follows
+\begin{itemize}
+\item \textit{extrapolation error} -- the error incurred by extrapolating the solution to a higher order space (needed to identify the truncation error, this error is negligable)
+\item \textit{truncation error} -- the error incurred by the truncation to a lower order space
+\item \textit{quadrature error} -- the error of the quadrature used by discretizing the weak formulation.
+\end{itemize}
+
+The remaining two errors are withstanding and given that we are in a spectral element framework the projection on an orthogonal polynomial space exhibit spectral decay. A through derivation gives the leading order term of the truncation in the error bound to be $\epsilon_e$ with
 
 $$\epsilon_e=\frac{a_N^2}{(2N+2)/2}\ , $$
+where $a_N$ can be approximated from a least squares expansion to be $a_N=ce^{-\sigma N}$, $N$ is the number of degrees of freedom, $\sigma$ the slope of the decay and $c$ a scaling factor. 
 
-where $a_N$ can be approximated from the least squares expansion to be $a_N=ce^{-\sigma N}$.
-
-
+The actual computational procedure is rather straightforward: we transform the signal into spectral space where the decay can be viewed as a linear function in log-scale and form there we compute both $\sigma$ and $c$.
 This operation is performed per element and for a given signal such as the one in Figure~\ref{fig:err_tot} we obtain error bounds per element that are consistent with the signal fluctuations as illustrated in Figure~\ref{fig:err_tot}. As a general procedure we perform a least square fit in spectral space to identify the value of the parameter $\sigma$. To certify the consistency of the fit with the spectral decay we show in Figure~\ref{fig:err_spec} the estimated error decay versus the actual spectral error.
 
 
