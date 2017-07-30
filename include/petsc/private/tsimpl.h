@@ -66,6 +66,18 @@ typedef struct _n_TSEvent *TSEvent;
 
 typedef struct _TSTrajectoryOps *TSTrajectoryOps;
 
+typedef struct _CostFunctionalLink *CostFunctionalLink;
+struct _CostFunctionalLink {
+  TSEvalCostFunctional f;         /* f(x,m,t) */
+  void                 *f_ctx;
+  TSEvalCostGradient   f_x;       /* \partial_x f (x,m,t) */
+  void                 *f_x_ctx;
+  TSEvalCostGradient   f_m;       /* \partial_m f (x,m,t) */
+  void                 *f_m_ctx;
+  PetscReal            fixedtime; /* if the funcional is to be evaluated at a specific time, i.e. || x(T1) - x_d || ^2, T1 in [T0,TF] */
+  CostFunctionalLink   next;
+};
+
 struct _TSTrajectoryOps {
   PetscErrorCode (*view)(TSTrajectory,PetscViewer);
   PetscErrorCode (*destroy)(TSTrajectory);
@@ -150,6 +162,25 @@ struct _p_TS {
   PetscInt  forwardsetupcalled;
   PetscBool forward_solve;
   PetscErrorCode (*vecsrhsjacobianp)(TS,PetscReal,Vec,Vec*,void*);
+
+  /* ---------------------- PDE-constrained support -----------------------------*/
+  /* Targets problem of the type
+
+       min obj(x(m),m) , obj(x,m) = \int^{TF}_{T0} f(x,m,t), f : X \times M \times R -> R
+        m
+
+       subject to
+         F(x,x_t,m,t) = 0  PDE in implicit form
+         G(x(T0),m)   = 0  Initial conditions
+  */
+  CostFunctionalLink funchead;
+  TSEvalICGradient   Ggrad;           /* callback to compute G_p and G_X(T0) */
+  Mat                G_x;
+  Mat                G_m;
+  void               *Ggrad_ctx;
+  TSEvalGradient     F_m_f;           /* callback to compute F_m */
+  Mat                F_m;
+  void               *F_m_ctx;
 
   /* ---------------------- IMEX support ---------------------------------*/
   /* These extra slots are only used when the user provides both Implicit and RHS */

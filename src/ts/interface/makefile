@@ -3,7 +3,7 @@ ALL: lib
 
 CFLAGS   =
 FFLAGS   =
-SOURCEC  = ts.c tscreate.c tsreg.c tsregall.c dlregists.c tseig.c tsfwdsen.c
+SOURCEC  = ts.c tscreate.c tsreg.c tsregall.c dlregists.c tseig.c tsfwdsen.c tsgradient.c
 SOURCEF  =
 SOURCEH  =
 LIBBASE  = libpetscts
