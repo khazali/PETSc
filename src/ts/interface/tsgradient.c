@@ -1,10 +1,10 @@
 #include <petsc/private/tsimpl.h>        /*I "petscts.h"  I*/
 
 typedef struct {
-  PetscErrorCode (*user)(TS);
-  Vec            design;
-  PetscReal      pdt;
-  PetscReal      obj;
+  PetscErrorCode (*user)(TS); /* user post step method */
+  Vec            design;      /* the design vector we are evaluating against */
+  PetscReal      pdt;         /* previous time step (for trapz rule) */
+  PetscScalar    obj;         /* objective function value */
 } TSGradientPostStepCtx;
 
 static PetscErrorCode TSGradientEvalFunctionals(TS ts, PetscReal time, Vec state, Vec design, PetscScalar *val)
@@ -36,6 +36,7 @@ static PetscErrorCode TSGradientPostStep(TS ts)
   TSGradientPostStepCtx *poststep_ctx;
   PetscScalar           val;
   PetscReal             dt,time;
+  PetscInt              step;
   PetscErrorCode        ierr;
 
   PetscFunctionBegin;
@@ -57,10 +58,14 @@ static PetscErrorCode TSGradientPostStep(TS ts)
   } else {
     ierr = TSGetTimeStep(ts,&dt);CHKERRQ(ierr);
   }
+  /* first step: obj has been initialized with the first function evaluation at t0 */
+  ierr = TSGetTimeStepNumber(ts,&step);CHKERRQ(ierr);
+  if (step == 1) poststep_ctx->obj *= dt/2.0;
   poststep_ctx->obj += (dt + poststep_ctx->pdt)*val/2.0;
   poststep_ctx->pdt = dt;
   PetscFunctionReturn(0);
 }
+
 /*
    TSResetCostFunctionals - Resets the list of cost functionals for gradient computation.
 
@@ -288,8 +293,6 @@ PetscErrorCode TSEvaluateCostFunctionals(TS ts, Vec X, Vec design, PetscScalar *
   PetscValidPointer(val,4);
   if (!ts->funchead) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Cost functional are missing");
 
-  /* forward solve */
-
   /* solution vector */
   destroyX = PETSC_FALSE;
   ierr = TSGetSolution(ts,&U);CHKERRQ(ierr);
@@ -359,6 +362,7 @@ PetscErrorCode TSEvaluateGradient(TS ts, Vec X, Vec design, Vec gradient)
   Vec                   U;
   PetscContainer        container;
   TSGradientPostStepCtx poststep_ctx;
+  PetscReal             t0;
   PetscInt              tst;
   PetscBool             destroyX;
   PetscErrorCode        ierr;
@@ -398,7 +402,11 @@ PetscErrorCode TSEvaluateGradient(TS ts, Vec X, Vec design, Vec gradient)
   ierr = PetscContainerDestroy(&container);CHKERRQ(ierr);
   ierr = TSSetPostStep(ts,TSGradientPostStep);CHKERRQ(ierr);
 
-  /* forward run */
+  /* evaluate at initial time */
+  ierr = TSGetTime(ts,&t0);CHKERRQ(ierr);
+  ierr = TSGradientEvalFunctionals(ts,t0,X,design,&poststep_ctx.obj);CHKERRQ(ierr);
+
+  /* forward solve */
   ierr = TSSetUp(ts);CHKERRQ(ierr);
   tst  = ts->total_steps;
   ts->total_steps = 0;
