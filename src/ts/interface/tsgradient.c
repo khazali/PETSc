@@ -282,6 +282,7 @@ PetscErrorCode TSEvaluateCostFunctionals(TS ts, Vec X, Vec design, PetscScalar *
   Vec                   U;
   PetscContainer        container;
   TSGradientPostStepCtx poststep_ctx;
+  PetscReal             t0;
   PetscInt              tst;
   PetscBool             destroyX;
   PetscErrorCode        ierr;
@@ -315,7 +316,11 @@ PetscErrorCode TSEvaluateCostFunctionals(TS ts, Vec X, Vec design, PetscScalar *
   ierr = PetscContainerDestroy(&container);CHKERRQ(ierr);
   ierr = TSSetPostStep(ts,TSGradientPostStep);CHKERRQ(ierr);
 
-  /* forward run */
+  /* evaluate at initial time */
+  ierr = TSGetTime(ts,&t0);CHKERRQ(ierr);
+  ierr = TSGradientEvalFunctionals(ts,t0,X,design,&poststep_ctx.obj);CHKERRQ(ierr);
+
+  /* forward solve */
   ierr = TSSetUp(ts);CHKERRQ(ierr);
   tst  = ts->total_steps;
   ts->total_steps = 0;
@@ -358,14 +363,9 @@ PetscErrorCode TSEvaluateCostFunctionals(TS ts, Vec X, Vec design, PetscScalar *
 */
 PetscErrorCode TSEvaluateGradient(TS ts, Vec X, Vec design, Vec gradient)
 {
-  TSTrajectory          otrj;
-  Vec                   U;
-  PetscContainer        container;
-  TSGradientPostStepCtx poststep_ctx;
-  PetscReal             t0;
-  PetscInt              tst;
-  PetscBool             destroyX;
-  PetscErrorCode        ierr;
+  TSTrajectory   otrj;
+  PetscReal      val;
+  PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
@@ -373,70 +373,21 @@ PetscErrorCode TSEvaluateGradient(TS ts, Vec X, Vec design, Vec gradient)
   PetscValidHeaderSpecific(gradient,VEC_CLASSID,3);
   if (!ts->funchead) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Cost functional are missing");
 
-  /* forward solve */
-
   /* trajectory */
   otrj = ts->trajectory;
   ierr = TSTrajectoryCreate(PetscObjectComm((PetscObject)ts),&ts->trajectory);CHKERRQ(ierr);
   ierr = TSTrajectorySetFromOptions(ts->trajectory,ts);CHKERRQ(ierr);
 
-  /* solution vector */
-  destroyX = PETSC_FALSE;
-  ierr = TSGetSolution(ts,&U);CHKERRQ(ierr);
-  if (!X) {
-    if (!U) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Missing solution vector");
-    ierr = VecDuplicate(U,&X);CHKERRQ(ierr);
-    ierr = VecSet(X,0.0);CHKERRQ(ierr);
-    destroyX = PETSC_TRUE;
-  }
-  ierr = TSSetSolution(ts,X);CHKERRQ(ierr);
-
-  /* set special purpose post step method */
-  poststep_ctx.user   = ts->poststep;
-  poststep_ctx.design = design;
-  poststep_ctx.pdt    = 0.0;
-  poststep_ctx.obj    = 0.0;
-  ierr = PetscContainerCreate(PetscObjectComm((PetscObject)ts),&container);CHKERRQ(ierr);
-  ierr = PetscContainerSetPointer(container,(void*)&poststep_ctx);CHKERRQ(ierr);
-  ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_poststep",(PetscObject)container);CHKERRQ(ierr);
-  ierr = PetscContainerDestroy(&container);CHKERRQ(ierr);
-  ierr = TSSetPostStep(ts,TSGradientPostStep);CHKERRQ(ierr);
-
-  /* evaluate at initial time */
-  ierr = TSGetTime(ts,&t0);CHKERRQ(ierr);
-  ierr = TSGradientEvalFunctionals(ts,t0,X,design,&poststep_ctx.obj);CHKERRQ(ierr);
-
   /* forward solve */
-  ierr = TSSetUp(ts);CHKERRQ(ierr);
-  tst  = ts->total_steps;
-  ts->total_steps = 0;
-  ierr = TSSolve(ts,NULL);CHKERRQ(ierr);
+  ierr = TSEvaluateCostFunctionals(ts,X,design,&val);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"Objective function inside gradient: val %g\n",(double)PetscRealPart(val));CHKERRQ(ierr);
+
+  /* adjoint */
+  //ierr = TSGradientCreateAdjointTS(ts,design,gradient,&adjts);CHKERRQ(ierr);
+  //ierr = TSSolve(adjts,NULL);CHKERRQ(ierr);
 
   /* restore */
-  ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_poststep",NULL);CHKERRQ(ierr);
-  ierr = TSSetPostStep(ts,poststep_ctx.user);CHKERRQ(ierr);
-  if (U) {
-    ierr = TSSetSolution(ts,U);CHKERRQ(ierr);
-  }
   ierr = TSTrajectoryDestroy(&ts->trajectory);CHKERRQ(ierr);
-  ts->total_steps = tst;
   ts->trajectory  = otrj;
-#if 0
-
-  /* add */
-  ierr = TSGradientCreateFWDMonitor(ts,&monitor);CHKERRQ(ierr);
-  ierr = PetscNew(&fwd_mon_ctx);CHKERRQ(ierr);
-  fwd_mon_ctx->funchead = ts->funchead
-  ierr = TSMonitorSet(ts,TSGradientFWDMonitor,fwd_mon_ctx,NULL);CHKERRQ(ierr);
-  /* create the adjointed solver */
-  ierr = TSGradientCreateAdjointTS(ts,&tsadj);CHKERRQ(ierr);
-  /* ierr = TSGradientComputeAdjointIC(ts,ts->vec_sol);CHKERRQ(ierr); */
-  ierr = TSSolve(tsadj,ts->vec_sol);CHKERRQ(ierr);
-  ierr = TSDestroy(&tsadj);CHKERRQ(ierr);
-  ierr = PetscFree(fwd_mon_ctx);CHKERRQ(ierr);
-#endif
-  if (destroyX) {
-    ierr = VecDestroy(&X);CHKERRQ(ierr);
-  }
   PetscFunctionReturn(0);
 }
