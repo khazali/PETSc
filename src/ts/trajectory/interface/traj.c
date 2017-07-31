@@ -4,7 +4,7 @@
 PetscFunctionList TSTrajectoryList              = NULL;
 PetscBool         TSTrajectoryRegisterAllCalled = PETSC_FALSE;
 PetscClassId      TSTRAJECTORY_CLASSID;
-PetscLogEvent     TSTrajectory_Set, TSTrajectory_Get;
+PetscLogEvent     TSTrajectory_Set, TSTrajectory_Get, TSTrajectory_GetVecs;
 
 /*@C
   TSTrajectoryRegister - Adds a way of storing trajectories to the TS package
@@ -33,27 +33,127 @@ PetscErrorCode TSTrajectoryRegister(const char sname[],PetscErrorCode (*function
   PetscFunctionReturn(0);
 }
 
+/*
+  TSTrajectorySet - Sets a vector of state in the trajectory object
+
+  Collective on TS
+
+  Input Parameters:
++ tj      - the trajectory object
+. ts      - the time stepper object
+. stepnum - the step number
+. time    - the current time
+- X       - the current solution
+
+  Level: developer
+
+  Notes: Usually one does not call this routine, it is called automatically during TSSolve()
+
+.keywords: TS, trajectory, create
+
+.seealso: TSTrajectorySetUp(), TSTrajectoryDestroy(), TSTrajectorySetType(), TSTrajectorySetVariableNames(), TSGetTrajectory()
+*/
 PetscErrorCode TSTrajectorySet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal time,Vec X)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   if (!tj) PetscFunctionReturn(0);
+  PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
+  PetscValidHeaderSpecific(ts,TS_CLASSID,2);
+  PetscValidLogicalCollectiveInt(stepnum,3);
+  PetscValidLogicalCollectiveReal(time,4);
+  PetscValidHeaderSpecific(X,VEC_CLASSID,5);
+  if (!tj->ops->set) SETERRQ1(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"TSTrajectory type %s",((PetscObject)tj)->type_name);
   ierr = PetscLogEventBegin(TSTrajectory_Set,tj,ts,0,0);CHKERRQ(ierr);
   ierr = (*tj->ops->set)(tj,ts,stepnum,time,X);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(TSTrajectory_Set,tj,ts,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
+/*
+  TSTrajectoryGet - Updates the solution vector of a time stepper object by inquiring the TSTrajectory
+
+  Collective on TS
+
+  Input Parameters:
++ tj      - the trajectory object
+. ts      - the time stepper object
+- stepnum - the step number
+
+  Output Parameter:
+. time    - the time associated with the step number
+
+  Level: developer
+
+  Notes: Usually one does not call this routine, it is called automatically during TSSolve()
+
+.keywords: TS, trajectory, create
+
+.seealso: TSTrajectorySetUp(), TSTrajectoryDestroy(), TSTrajectorySetType(), TSTrajectorySetVariableNames(), TSGetTrajectory()
+*/
 PetscErrorCode TSTrajectoryGet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal *time)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   if (!tj) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_ARG_WRONGSTATE,"TS solver did not save trajectory");
+  PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
+  PetscValidHeaderSpecific(ts,TS_CLASSID,2);
+  PetscValidLogicalCollectiveInt(stepnum,3);
+  PetscValidPointer(time,4);
+  if (!tj->ops->get) SETERRQ1(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"TSTrajectory type %s",((PetscObject)tj)->type_name);
   ierr = PetscLogEventBegin(TSTrajectory_Get,tj,ts,0,0);CHKERRQ(ierr);
   ierr = (*tj->ops->get)(tj,ts,stepnum,time);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(TSTrajectory_Get,tj,ts,0,0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*
+  TSTrajectoryGetVecs - Reconstructs the vectors of state and its time derivative using information from the TSTrajectory and the TS
+
+  Collective on TS
+
+  Input Parameters:
++ tj      - the trajectory object
+. ts      - the time stepper object
+- stepnum - the requested step number
+
+  Input/Output Parameter:
+. time    - the time associated with the step number
+
+  Output Parameters:
++ U       - state vector (can be NULL)
+- Udot    - time derivative of state vector (can be NULL)
+
+  Level: developer
+
+  Notes: If the step number is negative, the time is used to inquire the trajectory. Currently implemented of TSTRAJECTORYBASIC only.
+         Usually one does not call this routine, it is called during TSEvaluateGradient()
+
+.keywords: TS, trajectory, create
+
+.seealso: TSTrajectorySetUp(), TSTrajectoryDestroy(), TSTrajectorySetType(), TSTrajectorySetVariableNames(), TSGetTrajectory()
+*/
+PetscErrorCode TSTrajectoryGetVecs(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal *time,Vec U,Vec Udot)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (!tj) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_ARG_WRONGSTATE,"TS solver did not save trajectory");
+  PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
+  PetscValidHeaderSpecific(ts,TS_CLASSID,2);
+  PetscValidLogicalCollectiveInt(stepnum,3);
+  PetscValidPointer(time,4);
+  if (U) PetscValidHeaderSpecific(U,VEC_CLASSID,5);
+  if (Udot) PetscValidHeaderSpecific(Udot,VEC_CLASSID,6);
+
+  if (!U || !Udot) PetscFunctionReturn(0);
+
+  if (!tj->ops->getvecs) SETERRQ1(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"TSTrajectory type %s",((PetscObject)tj)->type_name);
+  ierr = PetscLogEventBegin(TSTrajectory_GetVecs,tj,ts,0,0);CHKERRQ(ierr);
+  ierr = (*tj->ops->getvecs)(tj,ts,stepnum,time,U,Udot);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(TSTrajectory_GetVecs,tj,ts,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -134,13 +234,15 @@ PetscErrorCode  TSTrajectorySetVariableNames(TSTrajectory ctx,const char * const
   PetscErrorCode    ierr;
 
   PetscFunctionBegin;
+  PetscValidHeaderSpecific(ctx,TSTRAJECTORY_CLASSID,1);
+  PetscValidPointer(names,2);
   ierr = PetscStrArrayDestroy(&ctx->names);CHKERRQ(ierr);
   ierr = PetscStrArrayallocpy(names,&ctx->names);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 /*@C
-   TSTrjactorySetTransform - Solution vector will be transformed by provided function before being saved to disk
+   TSTrajectorySetTransform - Solution vector will be transformed by provided function before being saved to disk
 
    Collective on TSLGCtx
 
@@ -159,12 +261,12 @@ PetscErrorCode  TSTrajectorySetVariableNames(TSTrajectory ctx,const char * const
 PetscErrorCode  TSTrajectorySetTransform(TSTrajectory tj,PetscErrorCode (*transform)(void*,Vec,Vec*),PetscErrorCode (*destroy)(void*),void *tctx)
 {
   PetscFunctionBegin;
+  PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
   tj->transform        = transform;
   tj->transformdestroy = destroy;
   tj->transformctx     = tctx;
   PetscFunctionReturn(0);
 }
-
 
 /*@C
   TSTrajectoryCreate - This function creates an empty trajectory object used to store the time dependent solution of an ODE/DAE
@@ -415,7 +517,7 @@ PetscErrorCode  TSTrajectorySetFromOptions(TSTrajectory tj,TS ts)
   ierr = TSTrajectorySetTypeFromOptions_Private(PetscOptionsObject,tj,ts);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-ts_trajectory_monitor","Print checkpointing schedules","TSTrajectorySetMonitor",tj->monitor ? PETSC_TRUE:PETSC_FALSE,&flg,&set);CHKERRQ(ierr);
   if (set) {ierr = TSTrajectorySetMonitor(tj,flg);CHKERRQ(ierr);}
-  /* Handle specific TS options */
+  /* Handle specific TSTrajectory options */
   if (tj->ops->setfromoptions) {
     ierr = (*tj->ops->setfromoptions)(PetscOptionsObject,tj);CHKERRQ(ierr);
   }
