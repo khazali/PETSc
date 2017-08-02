@@ -1,6 +1,6 @@
 #include <petsc/private/tsimpl.h>        /*I "petscts.h"  I*/
 
-static PetscErrorCode TSGradientEvalCostFunctionals(TS ts, PetscReal time, Vec state, Vec design, PetscScalar *val)
+static PetscErrorCode TSGradientEvalCostFunctionals(TS ts, PetscReal time, Vec state, Vec design, PetscReal *val)
 {
   PetscErrorCode     ierr;
   CostFunctionalLink link = ts->funchead;
@@ -14,7 +14,7 @@ static PetscErrorCode TSGradientEvalCostFunctionals(TS ts, PetscReal time, Vec s
   ierr = VecLockPush(design);CHKERRQ(ierr);
   *val = 0.0;
   while (link) {
-    PetscScalar v = 0.0;
+    PetscReal v = 0.0;
     if (link->f && (link->fixedtime <= PETSC_MIN_REAL || PetscAbsReal(link->fixedtime-time) < PETSC_SMALL) ) {
       ierr = (*link->f)(ts,time,state,design,&v,link->f_ctx);CHKERRQ(ierr);
     }
@@ -402,7 +402,7 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
   PetscValidHeaderSpecific(gradient,VEC_CLASSID,2);
   ierr = PetscObjectQuery((PetscObject)adjts,"_ts_gradient_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
-  ierr = PetscContainerGetPointer(c,(void*)&adj_ctx);CHKERRQ(ierr);
+  ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   if (adj_ctx->t0 >= PETSC_MAX_REAL || adj_ctx->tf >= PETSC_MAX_REAL) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"You should call AdjointTSSetTimeLimits first");
   if (!adj_ctx->design) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"You should call AdjointTSSetDesign first");
 
@@ -453,7 +453,7 @@ static PetscErrorCode AdjointTSSetDesign(TS adjts, Vec design)
   PetscValidHeaderSpecific(design,VEC_CLASSID,2);
   ierr = PetscObjectQuery((PetscObject)adjts,"_ts_gradient_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
-  ierr = PetscContainerGetPointer(c,(void*)&adj_ctx);CHKERRQ(ierr);
+  ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   ierr = PetscObjectReference((PetscObject)design);CHKERRQ(ierr);
   ierr = VecDestroy(&adj_ctx->design);CHKERRQ(ierr);
   adj_ctx->design = design;
@@ -470,7 +470,7 @@ static PetscErrorCode AdjointTSSetTimeLimits(TS adjts, PetscReal t0, PetscReal t
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
   ierr = PetscObjectQuery((PetscObject)adjts,"_ts_gradient_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
-  ierr = PetscContainerGetPointer(c,(void*)&adj_ctx);CHKERRQ(ierr);
+  ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   ierr = TSSetInitialTimeStep(adjts,t0,PetscMin(dt,tf-t0));CHKERRQ(ierr);
   ierr = TSSetDuration(adjts,PETSC_MAX_INT,tf);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(adjts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
@@ -493,7 +493,7 @@ static PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
   ierr = PetscObjectQuery((PetscObject)adjts,"_ts_gradient_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
-  ierr = PetscContainerGetPointer(c,(void*)&adj_ctx);CHKERRQ(ierr);
+  ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   if (!adj_ctx->gradient) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Missing gradient vector");
   ierr = TSGetTime(adjts,&tf);CHKERRQ(ierr);
   if (tf < adj_ctx->tf) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Backward solve did not complete");
@@ -531,7 +531,7 @@ typedef struct {
   PetscErrorCode (*user)(TS); /* user post step method */
   Vec            design;      /* the design vector we are evaluating against */
   PetscBool      objeval;     /* indicates we have to evalute the cost functionals */
-  PetscScalar    obj;         /* objective function value */
+  PetscReal      obj;         /* objective function value */
   Vec            gradient;    /* used when f_m is not zero, and it is evaluated during the forward run */
   Vec            *wgrad;      /* gradient work vectors */
   PetscBool      firststep;   /* used for trapz rule */
@@ -543,7 +543,7 @@ static PetscErrorCode TSGradientPostStep(TS ts)
   PetscContainer        container;
   Vec                   solution;
   TSGradientPostStepCtx *poststep_ctx;
-  PetscScalar           val = 0.0;
+  PetscReal             val = 0.0;
   PetscReal             dt,time,ptime;
   PetscInt              step;
   PetscErrorCode        ierr;
@@ -594,7 +594,7 @@ static PetscErrorCode TSGradientPostStep(TS ts)
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode TSEvaluateCostFunctionals_Private(TS ts, Vec X, Vec design, Vec gradient, PetscScalar *val)
+static PetscErrorCode TSEvaluateCostFunctionals_Private(TS ts, Vec X, Vec design, Vec gradient, PetscReal *val)
 {
   Vec                   U;
   PetscContainer        container;
@@ -877,7 +877,7 @@ PetscErrorCode TSSetEvalICGradient(TS ts, Mat J_x, Mat J_m, TSEvalICGradient f, 
 
 .seealso: TSSetCostFunctional(), TSSetEvalGradient(), TSSetEvalICGradient(), TSEvaluateGradient()
 */
-PetscErrorCode TSEvaluateCostFunctionals(TS ts, Vec X, Vec design, PetscScalar *val)
+PetscErrorCode TSEvaluateCostFunctionals(TS ts, Vec X, Vec design, PetscReal *val)
 {
   PetscErrorCode ierr;
 

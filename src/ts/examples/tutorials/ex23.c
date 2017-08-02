@@ -19,16 +19,19 @@ typedef struct {
 } UserObjective;
 
 /* returns ||u||^2  or Sum(u), depending on the objective function selected */
-static PetscErrorCode EvalCostFunctional(TS ts, PetscReal time, Vec U, Vec M, PetscScalar *val, void *ctx)
+static PetscErrorCode EvalCostFunctional(TS ts, PetscReal time, Vec U, Vec M, PetscReal *val, void *ctx)
 {
   UserObjective  *user = (UserObjective*)ctx;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
   if (user->isnorm) {
-    ierr = VecDot(U,U,val);CHKERRQ(ierr);
+    ierr  = VecNorm(U,NORM_2,val);CHKERRQ(ierr);
+    *val *= *val;
   } else {
-    ierr = VecSum(U,val);CHKERRQ(ierr);
+    PetscScalar sval;
+    ierr = VecSum(U,&sval);CHKERRQ(ierr);
+    *val = PetscRealPart(sval);
   }
   PetscFunctionReturn(0);
 }
@@ -172,12 +175,13 @@ int main(int argc, char* argv[])
   Vec            U,M,Mgrad;
   UserObjective  userobj;
   User           user;
+  PetscScalar    one = 1.0;
   PetscReal      t0 = 0.0, tf = 2.0, dt = 0.1;
-  PetscScalar    obj,objtest;
+  PetscReal      obj,objtest;
   PetscInt       maxsteps;
   PetscMPIInt    np;
   PetscBool      testpoststep = PETSC_FALSE;
-  PetscBool      testifunc = PETSC_TRUE;
+  PetscBool      testifunc = PETSC_FALSE;
   PetscBool      testrhsjacconst = PETSC_FALSE;
   PetscBool      testnullgradM = PETSC_FALSE;
   PetscBool      testnulljacIC = PETSC_FALSE;
@@ -188,16 +192,16 @@ int main(int argc, char* argv[])
   /* Command line options */
   t0             = 0.0;
   tf             = 2.0;
-  dt             = 0.1;
-  user.a         = 2.0;
-  user.b         = 3.0;
+  dt             = 1.0/512.0;
+  user.a         = 1.0;
+  user.b         = 1.0;
   userobj.isnorm = PETSC_FALSE;
   ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"PDE-constrained options","");
   ierr = PetscOptionsScalar("-a","Initial condition","",user.a,&user.a,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsScalar("-b","Grow rate","",user.b,&user.b,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsScalar("-t0","Initial time","",t0,&t0,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsScalar("-tf","Final time","",tf,&tf,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsScalar("-dt","Initial time","",dt,&dt,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-t0","Initial time","",t0,&t0,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-tf","Final time","",tf,&tf,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-dt","Initial time","",dt,&dt,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_objective_norm","Test f(u) = ||u||^2","",userobj.isnorm,&userobj.isnorm,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_poststep","Test with PostStep method","",testpoststep,&testpoststep,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_ifunc","Test with IFunction interface","",testifunc,&testifunc,NULL);CHKERRQ(ierr);
@@ -296,11 +300,11 @@ int main(int argc, char* argv[])
   ierr = TSGetTime(ts,&tf);CHKERRQ(ierr);
   ierr = MPI_Comm_size(PETSC_COMM_WORLD,&np);CHKERRQ(ierr);
   if (userobj.isnorm) {
-    objtest = np * (user.a * user.a) / (2.0*user.b) * (PetscExpScalar(2.0*(tf-t0)*user.b) - 1.);
+    objtest = np * PetscRealPart((user.a * user.a) / (2.0*user.b) * (PetscExpScalar(2.0*(tf-t0)*user.b) - one));
   } else {
-    objtest = np * (user.a/user.b) * (PetscExpScalar((tf-t0)*user.b) - 1.);
+    objtest = np * PetscRealPart((user.a / user.b) * (PetscExpScalar((tf-t0)*user.b) - one));
   }
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"Objective function: time [%g,%g], val %g (should be %g)\n",t0,tf,(double)PetscRealPart(obj),(double)objtest);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"Objective function: time [%g,%g], val %g (should be %g)\n",t0,tf,(double)obj,(double)objtest);CHKERRQ(ierr);
 
   /* Test gradient evaluation */
   ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
@@ -309,7 +313,7 @@ int main(int argc, char* argv[])
   ierr = TSEvaluateGradient(ts,U,M,Mgrad);CHKERRQ(ierr);
   if (userobj.isnorm) { /* we test against finite differencing the function evaluation */
     PetscScalar oa = user.a, ob = user.b, dx = PETSC_SMALL;
-    PetscScalar objadx,objbdx;
+    PetscReal   objadx,objbdx;
 
     user.a = oa + dx;
     user.b = ob;
@@ -328,12 +332,12 @@ int main(int argc, char* argv[])
     ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
     ierr = TSSetDuration(ts,maxsteps,tf);CHKERRQ(ierr);
     ierr = TSEvaluateCostFunctionals(ts,U,M,&objbdx);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"1st component of gradient should be (approximated) %g\n",(double)((objadx-obj)/dx));CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"2nd component of gradient should be (approximated) %g\n",(double)((objbdx-obj)/dx));CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"1st component of gradient should be (approximated) %g\n",(double)((objadx-obj)/PetscRealPart(dx)));CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"2nd component of gradient should be (approximated) %g\n",(double)((objbdx-obj)/PetscRealPart(dx)));CHKERRQ(ierr);
   } else { /* analytic solution */
-    objtest = np*(-(1.0 - PetscExpScalar((tf-t0)*user.b))/user.b);
+    objtest = np*PetscRealPart(-(one - PetscExpScalar((tf-t0)*user.b))/user.b);
     ierr = PetscPrintf(PETSC_COMM_WORLD,"1st component of gradient should be (analytic) %g\n",(double)objtest);CHKERRQ(ierr);
-    objtest = np*(user.a/user.b)*( (tf-t0)*PetscExpScalar((tf-t0)*user.b) - (PetscExpScalar((tf-t0)*user.b) - 1.)/user.b);
+    objtest = np*PetscRealPart((user.a/user.b)*( (tf-t0)*PetscExpScalar((tf-t0)*user.b) - (PetscExpScalar((tf-t0)*user.b) - one)/user.b));
     ierr = PetscPrintf(PETSC_COMM_WORLD,"2nd component of gradient should be (analytic) %g\n",(double)objtest);CHKERRQ(ierr);
   }
   ierr = VecView(Mgrad,NULL);CHKERRQ(ierr);

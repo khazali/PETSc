@@ -104,7 +104,8 @@ typedef struct {
   /* strategy for computing from missing time */
   PetscInt    order;  /* interpolation order. if negative, recompute */
   Vec         *W;     /* work vectors */
-  PetscReal   *T,*L;  /* Lagrange */
+  PetscScalar *L;     /* Lagrange */
+  PetscReal   *T;     /* Lagrange */
 
   /* history */
   TSHistory   tsh;
@@ -112,7 +113,7 @@ typedef struct {
 
 static PetscErrorCode TSTrajectoryDestroy_Basic(TSTrajectory tj)
 {
-  TSTrajectory_Basic *tjbasic = tj->data;
+  TSTrajectory_Basic *tjbasic = (TSTrajectory_Basic*)tj->data;
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
@@ -129,7 +130,7 @@ static PetscErrorCode TSTrajectoryDestroy_Basic(TSTrajectory tj)
 
 static PetscErrorCode TSTrajectorySet_Basic(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal time,Vec X)
 {
-  TSTrajectory_Basic *tjbasic = tj->data;
+  TSTrajectory_Basic *tjbasic = (TSTrajectory_Basic*)tj->data;
   char               filename[PETSC_MAX_PATH_LEN];
   PetscErrorCode     ierr;
   MPI_Comm           comm;
@@ -171,7 +172,7 @@ static PetscErrorCode TSTrajectorySet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
 
 static PetscErrorCode TSTrajectoryBasicReconstruct_Private(TSTrajectory tj,PetscReal t,PetscInt stepnum,Vec U,Vec Udot)
 {
-  TSTrajectory_Basic *tjbasic = tj->data;
+  TSTrajectory_Basic *tjbasic = (TSTrajectory_Basic*)tj->data;
   TSHistory          tsh = tjbasic->tsh;
   PetscErrorCode     ierr;
 
@@ -230,7 +231,7 @@ static PetscErrorCode TSTrajectoryBasicReconstruct_Private(TSTrajectory tj,Petsc
 
 static PetscErrorCode TSTrajectoryGetVecs_Basic(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal *t,Vec U,Vec Udot)
 {
-  TSTrajectory_Basic *tjbasic = tj->data;
+  TSTrajectory_Basic *tjbasic = (TSTrajectory_Basic*)tj->data;
   PetscErrorCode     ierr;
   PetscViewer        viewer;
   char               filename[PETSC_MAX_PATH_LEN];
@@ -260,7 +261,7 @@ static PetscErrorCode TSTrajectoryGetVecs_Basic(TSTrajectory tj,TS ts,PetscInt s
 
 static PetscErrorCode TSTrajectoryGet_Basic(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal *t)
 {
-  TSTrajectory_Basic *tjbasic = tj->data;
+  TSTrajectory_Basic *tjbasic = (TSTrajectory_Basic*)tj->data;
   PetscViewer        viewer;
   char               filename[PETSC_MAX_PATH_LEN];
   PetscErrorCode     ierr;
