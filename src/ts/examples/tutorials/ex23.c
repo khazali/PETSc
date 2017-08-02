@@ -109,6 +109,27 @@ typedef struct {
   PetscScalar b;
 } User;
 
+static PetscErrorCode FormIFunction(TS ts,PetscReal time, Vec U, Vec Udot, Vec F,void* ctx)
+{
+  User           *user = (User*)ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecWAXPY(F,-user->b,U,Udot);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode FormIJacobian(TS ts,PetscReal time, Vec U, Vec Udot, PetscReal shift, Mat A, Mat P, void* ctx)
+{
+  User           *user = (User*)ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = MatZeroEntries(A);CHKERRQ(ierr);
+  ierr = MatShift(A,shift-user->b);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 static PetscErrorCode FormRHSFunction(TS ts,PetscReal time, Vec U, Vec F,void* ctx)
 {
   User           *user = (User*)ctx;
@@ -156,6 +177,7 @@ int main(int argc, char* argv[])
   PetscInt       maxsteps;
   PetscMPIInt    np;
   PetscBool      testpoststep = PETSC_FALSE;
+  PetscBool      testifunc = PETSC_TRUE;
   PetscBool      testrhsjacconst = PETSC_FALSE;
   PetscBool      testnullgradM = PETSC_FALSE;
   PetscBool      testnulljacIC = PETSC_FALSE;
@@ -178,6 +200,7 @@ int main(int argc, char* argv[])
   ierr = PetscOptionsScalar("-dt","Initial time","",dt,&dt,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_objective_norm","Test f(u) = ||u||^2","",userobj.isnorm,&userobj.isnorm,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_poststep","Test with PostStep method","",testpoststep,&testpoststep,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-test_ifunc","Test with IFunction interface","",testifunc,&testifunc,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_rhsjacconst","Test with TSComputeRHSJacobianConstant","",testrhsjacconst,&testrhsjacconst,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_nullgrad_M","Test with NULL M gradient","",testnullgradM,&testnullgradM,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_nulljac_IC","Test with NULL G_X jacobian","",testnulljacIC,&testnulljacIC,NULL);CHKERRQ(ierr);
@@ -228,29 +251,42 @@ int main(int argc, char* argv[])
   ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
   ierr = TSSetDuration(ts,PETSC_MAX_INT,tf);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
+  if (testpoststep) {
+    ierr = TSSetPostStep(ts,TestPostStep);CHKERRQ(ierr);
+  }
+  if (!testifunc) {
+    ierr = TSSetRHSFunction(ts,NULL,FormRHSFunction,&user);CHKERRQ(ierr);
+    if (testrhsjacconst) {
+      ierr = FormRHSJacobian(ts,0.0,NULL,J,J,&user);CHKERRQ(ierr);
+      ierr = TSSetRHSJacobian(ts,J,J,TSComputeRHSJacobianConstant,NULL);CHKERRQ(ierr);
+    } else {
+      ierr = TSSetRHSJacobian(ts,J,J,FormRHSJacobian,&user);CHKERRQ(ierr);
+    }
+  } else {
+    ierr = TSSetIFunction(ts,NULL,FormIFunction,&user);CHKERRQ(ierr);
+    ierr = TSSetIJacobian(ts,J,J,FormIJacobian,&user);CHKERRQ(ierr);
+  }
+
+  /* force matchstep and get initial time and final time requested */
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   ierr = TSGetTime(ts,&t0);CHKERRQ(ierr);
   ierr = TSGetDuration(ts,&maxsteps,&tf);CHKERRQ(ierr);
+
+  /* Set cost functionals */
   if (testnullgradM) {
     ierr = TSSetCostFunctional(ts,PETSC_MIN_REAL,EvalCostFunctional,&userobj,EvalCostGradient_U,&userobj,NULL,NULL);CHKERRQ(ierr);
   } else {
     ierr = TSSetCostFunctional(ts,PETSC_MIN_REAL,EvalCostFunctional,&userobj,EvalCostGradient_U,&userobj,EvalCostGradient_M,&userobj);CHKERRQ(ierr);
   }
+
+  /* Set dependence of F(Udot,U,t;M) = 0 from the parameters */
   ierr = TSSetEvalGradient(ts,F_M,EvalGradient,NULL);CHKERRQ(ierr);
+
+  /* Set dependence of initial conditions (in implicit form G(U(0);M) = 0) from the parameters */
   if (testnulljacIC) {
     ierr = TSSetEvalICGradient(ts,NULL,G_M,EvalICGradient,NULL);CHKERRQ(ierr);
   } else {
     ierr = TSSetEvalICGradient(ts,G_X,G_M,EvalICGradient,NULL);CHKERRQ(ierr);
-  }
-  if (testpoststep) {
-    ierr = TSSetPostStep(ts,TestPostStep);CHKERRQ(ierr);
-  }
-  ierr = TSSetRHSFunction(ts,NULL,FormRHSFunction,&user);CHKERRQ(ierr);
-  if (testrhsjacconst) {
-    ierr = FormRHSJacobian(ts,0.0,NULL,J,J,&user);CHKERRQ(ierr);
-    ierr = TSSetRHSJacobian(ts,J,J,TSComputeRHSJacobianConstant,NULL);CHKERRQ(ierr);
-  } else {
-    ierr = TSSetRHSJacobian(ts,J,J,FormRHSJacobian,&user);CHKERRQ(ierr);
   }
 
   /* Test objective function evaluation */
