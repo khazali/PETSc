@@ -250,7 +250,6 @@ int main(int argc, char* argv[])
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
   ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
   ierr = TSSetDuration(ts,PETSC_MAX_INT,tf);CHKERRQ(ierr);
-  ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   if (testpoststep) {
     ierr = TSSetPostStep(ts,TestPostStep);CHKERRQ(ierr);
   }
@@ -266,6 +265,7 @@ int main(int argc, char* argv[])
     ierr = TSSetIFunction(ts,NULL,FormIFunction,&user);CHKERRQ(ierr);
     ierr = TSSetIJacobian(ts,J,J,FormIJacobian,&user);CHKERRQ(ierr);
   }
+  ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
 
   /* force matchstep and get initial time and final time requested */
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
