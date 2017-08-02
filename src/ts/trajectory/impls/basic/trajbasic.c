@@ -243,7 +243,7 @@ static PetscErrorCode TSTrajectoryGetVecs_Basic(TSTrajectory tj,TS ts,PetscInt s
     if (stepnum == -1 || stepnum == -tsh->n - 1) {
       PetscReal t0 = tsh->n ? tsh->hist[0]        : 0.0;
       PetscReal tf = tsh->n ? tsh->hist[tsh->n-1] : 0.0;
-      SETERRQ3(PetscObjectComm((PetscObject)ts),PETSC_ERR_PLIB,"Requested time %g is outside the history interval [%g, %g]",*t,t0,tf);
+      SETERRQ5(PetscObjectComm((PetscObject)ts),PETSC_ERR_PLIB,"Requested time %g (%d) is outside the history interval [%g, %g] (%d)",*t,stepnum,t0,tf,tsh->n);
     }
     stepnum = stepnum < 0 ? -(stepnum+1) : stepnum;
     ierr = TSTrajectoryBasicReconstruct_Private(tj,*t,stepnum,U,Udot);CHKERRQ(ierr);
