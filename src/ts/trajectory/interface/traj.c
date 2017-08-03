@@ -60,9 +60,9 @@ PetscErrorCode TSTrajectorySet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal 
   PetscFunctionBegin;
   if (!tj) PetscFunctionReturn(0);
   PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
-  PetscValidHeaderSpecific(ts,TS_CLASSID,2);
-  PetscValidLogicalCollectiveInt(ts,stepnum,3);
-  PetscValidLogicalCollectiveReal(ts,time,4);
+  if (ts) PetscValidHeaderSpecific(ts,TS_CLASSID,2);
+  PetscValidLogicalCollectiveInt(tj,stepnum,3);
+  PetscValidLogicalCollectiveReal(tj,time,4);
   PetscValidHeaderSpecific(X,VEC_CLASSID,5);
   if (!tj->ops->set) SETERRQ1(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"TSTrajectory type %s",((PetscObject)tj)->type_name);
   ierr = PetscLogEventBegin(TSTrajectory_Set,tj,ts,0,0);CHKERRQ(ierr);
@@ -128,7 +128,7 @@ PetscErrorCode TSTrajectoryGet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal 
 
   Level: developer
 
-  Notes: If the step number is negative, the time is used to inquire the trajectory. Currently implemented of TSTRAJECTORYBASIC only.
+  Notes: If the step number is PETSC_MIN_INT, the time is used to inquire the trajectory. Currently implemented of TSTRAJECTORYBASIC only.
          Usually one does not call this routine, it is called during TSEvaluateGradient()
 
 .keywords: TS, trajectory, create
@@ -142,8 +142,8 @@ PetscErrorCode TSTrajectoryGetVecs(TSTrajectory tj,TS ts,PetscInt stepnum,PetscR
   PetscFunctionBegin;
   if (!tj) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_ARG_WRONGSTATE,"TS solver did not save trajectory");
   PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
-  PetscValidHeaderSpecific(ts,TS_CLASSID,2);
-  PetscValidLogicalCollectiveInt(ts,stepnum,3);
+  if (ts) PetscValidHeaderSpecific(ts,TS_CLASSID,2);
+  PetscValidLogicalCollectiveInt(tj,stepnum,3);
   PetscValidPointer(time,4);
   if (U) PetscValidHeaderSpecific(U,VEC_CLASSID,5);
   if (Udot) PetscValidHeaderSpecific(Udot,VEC_CLASSID,6);
@@ -433,7 +433,6 @@ static PetscErrorCode TSTrajectorySetTypeFromOptions_Private(PetscOptionItems *P
   PetscBool      opt;
   const char     *defaultType;
   char           typeName[256];
-  PetscBool      flg;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -443,7 +442,6 @@ static PetscErrorCode TSTrajectorySetTypeFromOptions_Private(PetscOptionItems *P
   ierr = TSTrajectoryRegisterAll();CHKERRQ(ierr);
   ierr = PetscOptionsFList("-ts_trajectory_type","TSTrajectory method"," TSTrajectorySetType",TSTrajectoryList,defaultType,typeName,256,&opt);CHKERRQ(ierr);
   if (opt) {
-    ierr = PetscStrcmp(typeName,TSTRAJECTORYMEMORY,&flg);CHKERRQ(ierr);
     ierr = TSTrajectorySetType(tj,ts,typeName);CHKERRQ(ierr);
   } else {
     ierr = TSTrajectorySetType(tj,ts,defaultType);CHKERRQ(ierr);
@@ -512,7 +510,7 @@ PetscErrorCode  TSTrajectorySetFromOptions(TSTrajectory tj,TS ts)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
-  PetscValidHeaderSpecific(ts,TS_CLASSID,2);
+  if (ts) PetscValidHeaderSpecific(ts,TS_CLASSID,2);
   ierr = PetscObjectOptionsBegin((PetscObject)tj);CHKERRQ(ierr);
   ierr = TSTrajectorySetTypeFromOptions_Private(PetscOptionsObject,tj,ts);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-ts_trajectory_monitor","Print checkpointing schedules","TSTrajectorySetMonitor",tj->monitor ? PETSC_TRUE:PETSC_FALSE,&flg,&set);CHKERRQ(ierr);

@@ -44,9 +44,8 @@ static PetscErrorCode TSHistoryUpdate(TSHistory tsh, PetscInt id, PetscReal time
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode TSHistoryGetIdFromTime(TSHistory tsh, PetscReal time, PetscInt *id)
+static PetscErrorCode TSHistoryGetLocFromTime(TSHistory tsh, PetscReal time, PetscInt *loc)
 {
-  PetscInt       loc;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -54,8 +53,7 @@ static PetscErrorCode TSHistoryGetIdFromTime(TSHistory tsh, PetscReal time, Pets
     ierr = PetscSortRealWithArrayInt(tsh->n,tsh->hist,tsh->hist_id);CHKERRQ(ierr);
     tsh->sorted = PETSC_TRUE;
   }
-  ierr = PetscFindReal(time,tsh->n,tsh->hist,PETSC_SMALL,&loc);CHKERRQ(ierr);
-  *id  = loc < 0 ? loc : tsh->hist_id[loc];
+  ierr = PetscFindReal(time,tsh->n,tsh->hist,PETSC_SMALL,loc);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -94,18 +92,37 @@ PETSC_STATIC_INLINE void LagrangeBasisDers(PetscInt n,PetscReal t,const PetscRea
       }
 }
 
+PETSC_STATIC_INLINE PetscInt LagrangeGetId(PetscReal t, PetscInt n, const PetscReal T[], const PetscBool Taken[])
+{
+  PetscInt _tid = 0;
+  while (_tid < n && PetscAbsReal(t-T[_tid]) > PETSC_SMALL) _tid++;
+  if (_tid < n && !Taken[_tid]) {
+    return _tid;
+  } else { /* we get back a negative id, where the maximum time is stored, since we use usually reconstruct backward in time */
+    PetscReal max = PETSC_MIN_REAL;
+    PetscInt maxloc = n;
+    _tid = 0;
+    while (_tid < n) { maxloc = (max < T[_tid] && !Taken[_tid]) ? (max = T[_tid],_tid) : maxloc; _tid++; }
+    return -maxloc-1;
+  }
+}
+
 typedef struct {
   /* output */
   PetscViewer viewer;
   char        *folder;
   char        *basefilename;
   char        *ext;
+  PetscBool   dumpstages;
 
   /* strategy for computing from missing time */
   PetscInt    order;  /* interpolation order. if negative, recompute */
   Vec         *W;     /* work vectors */
-  PetscScalar *L;     /* Lagrange */
-  PetscReal   *T;     /* Lagrange */
+  PetscScalar *L;     /* workspace for Lagrange basis */
+  PetscReal   *T;     /* Lagrange times (stored) */
+  Vec         *WW;    /* just an array of pointers */
+  PetscBool   *TT;    /* workspace for Lagrange */
+  PetscReal   *TW;    /* Lagrange times (workspace) */
 
   /* history */
   TSHistory   tsh;
@@ -123,7 +140,7 @@ static PetscErrorCode TSTrajectoryDestroy_Basic(TSTrajectory tj)
   ierr = PetscFree(tjbasic->ext);CHKERRQ(ierr);
   ierr = TSHistoryDestroy(tjbasic->tsh);CHKERRQ(ierr);
   ierr = VecDestroyVecs(tjbasic->order+1,&tjbasic->W);CHKERRQ(ierr);
-  ierr = PetscFree2(tjbasic->T,tjbasic->L);CHKERRQ(ierr);
+  ierr = PetscFree5(tjbasic->L,tjbasic->T,tjbasic->WW,tjbasic->TT,tjbasic->TW);CHKERRQ(ierr);
   ierr = PetscFree(tjbasic);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -136,7 +153,7 @@ static PetscErrorCode TSTrajectorySet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
   MPI_Comm           comm;
 
   PetscFunctionBegin;
-  ierr = PetscObjectGetComm((PetscObject)ts,&comm);CHKERRQ(ierr);
+  ierr = PetscObjectGetComm((PetscObject)tj,&comm);CHKERRQ(ierr);
   if (stepnum == 0) {
     PetscMPIInt rank;
     ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
@@ -144,7 +161,7 @@ static PetscErrorCode TSTrajectorySet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
       ierr = PetscRMTree(tjbasic->folder);CHKERRQ(ierr);
       ierr = PetscMkdir(tjbasic->folder);CHKERRQ(ierr);
     }
-    ierr = PetscBarrier((PetscObject)ts);CHKERRQ(ierr);
+    ierr = PetscBarrier((PetscObject)tj);CHKERRQ(ierr);
   }
   ierr = PetscSNPrintf(filename,sizeof(filename),"%s/%s-%06d.%s",tjbasic->folder,tjbasic->basefilename,stepnum,tjbasic->ext);CHKERRQ(ierr);
   ierr = PetscViewerFileSetName(tjbasic->viewer,filename);CHKERRQ(ierr);
@@ -152,7 +169,7 @@ static PetscErrorCode TSTrajectorySet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
   ierr = VecView(X,tjbasic->viewer);CHKERRQ(ierr);
   ierr = PetscViewerBinaryWrite(tjbasic->viewer,&time,1,PETSC_REAL,PETSC_FALSE);CHKERRQ(ierr);
 
-  if (stepnum) {
+  if (stepnum && tjbasic->dumpstages) {
     Vec       *Y;
     PetscReal tprev;
     PetscInt  ns,i;
@@ -170,62 +187,83 @@ static PetscErrorCode TSTrajectorySet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode TSTrajectoryBasicReconstruct_Private(TSTrajectory tj,PetscReal t,PetscInt stepnum,Vec U,Vec Udot)
+static PetscErrorCode TSTrajectoryGetVecs_Basic(TSTrajectory,TS,PetscInt,PetscReal*,Vec,Vec);
+
+static PetscErrorCode TSTrajectoryBasicReconstruct_Private(TSTrajectory tj,PetscReal t,Vec U,Vec Udot)
 {
   TSTrajectory_Basic *tjbasic = (TSTrajectory_Basic*)tj->data;
   TSHistory          tsh = tjbasic->tsh;
+  PetscInt           id, cnt, i;
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
-  if (tjbasic->order < 0) {
-    SETERRQ1(PetscObjectComm((PetscObject)U),PETSC_ERR_SUP,"Recompute at time %g not yet implemented",t);
-  } else { /* lagrange interpolation */
-    PetscInt cnt = 0,i;
-    if (!tjbasic->T) {
-      ierr = PetscMalloc2(tjbasic->order+1,&tjbasic->T,tjbasic->order+1,&tjbasic->L);CHKERRQ(ierr);
-      ierr = VecDuplicateVecs(U,tjbasic->order+1,&tjbasic->W);CHKERRQ(ierr);
-    }
-    for (i = 0; i < (tjbasic->order+1)/2; i++) {
-      PetscInt s = stepnum - i - 1;
-      if (s > 0) {
-        PetscViewer viewer;
-        char        filename[PETSC_MAX_PATH_LEN];
-        PetscInt    id = tsh->hist_id[s];
+  ierr = TSHistoryGetLocFromTime(tsh,t,&id);CHKERRQ(ierr);
+  if (id == -1 || id == -tsh->n - 1) {
+    PetscReal t0 = tsh->n ? tsh->hist[0]        : 0.0;
+    PetscReal tf = tsh->n ? tsh->hist[tsh->n-1] : 0.0;
+    SETERRQ4(PetscObjectComm((PetscObject)tj),PETSC_ERR_PLIB,"Requested time %g is outside the history interval [%g, %g] (%d)",t,t0,tf,tsh->n);
+  }
+  if (!tjbasic->T) {
+    PetscInt o = tjbasic->order+1;
+    ierr = PetscMalloc5(o,&tjbasic->L,o,&tjbasic->T,o,&tjbasic->WW,o,&tjbasic->TT,o,&tjbasic->TW);CHKERRQ(ierr);
+    for (i = 0; i < o; i++) tjbasic->T[i] = PETSC_MAX_REAL;
+    ierr = VecDuplicateVecs(U,o,&tjbasic->W);CHKERRQ(ierr);
+  }
+  cnt = 0;
+  ierr = PetscMemzero(tjbasic->TT,(tjbasic->order+1)*sizeof(PetscBool));CHKERRQ(ierr);
+  if (id < 0 || Udot) {
+    PetscInt s,nid = id < 0 ? -(id+1) : id;
 
-        ierr = PetscSNPrintf(filename,sizeof(filename),"%s/%s-%06d.%s",tjbasic->folder,tjbasic->basefilename,id,tjbasic->ext);CHKERRQ(ierr);
-        ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename,FILE_MODE_READ,&viewer);CHKERRQ(ierr);
-        ierr = VecLoad(tjbasic->W[cnt],viewer);CHKERRQ(ierr);
-        ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-        tjbasic->T[cnt] = tsh->hist[s];
-        cnt++;
+    PetscInt up = PetscMin(nid + tjbasic->order/2+1,tsh->n);
+    PetscInt low = PetscMax(up-tjbasic->order-1,0);
+    up = PetscMin(PetscMax(low + tjbasic->order + 1,up),tsh->n);
+    for (s = up-1; s >= low; s--) {
+      PetscReal t = tsh->hist[s];
+      PetscInt tid = LagrangeGetId(t,tjbasic->order+1,tjbasic->T,tjbasic->TT);
+      if (tid < 0) {
+        tid  = -tid-1;
+        ierr = TSTrajectoryGetVecs_Basic(tj,NULL,tsh->hist_id[s],&t,tjbasic->W[tid],NULL);CHKERRQ(ierr);
+        tjbasic->T[tid] = t;
       }
-    }
-    for (i = 0; i < tjbasic->order/2 + 1; i++) {
-      PetscInt s = stepnum + i;
-      if (s < tsh->n) {
-        PetscViewer viewer;
-        char        filename[PETSC_MAX_PATH_LEN];
-        PetscInt    id = tsh->hist_id[s];
-
-        ierr = PetscSNPrintf(filename,sizeof(filename),"%s/%s-%06d.%s",tjbasic->folder,tjbasic->basefilename,id,tjbasic->ext);CHKERRQ(ierr);
-        ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename,FILE_MODE_READ,&viewer);CHKERRQ(ierr);
-        ierr = VecLoad(tjbasic->W[cnt],viewer);CHKERRQ(ierr);
-        ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-        tjbasic->T[cnt] = tsh->hist[s];
-        cnt++;
-      }
-    }
-    if (U) {
-      LagrangeBasisVals(cnt,t,tjbasic->T,tjbasic->L);
-      ierr = VecZeroEntries(U);CHKERRQ(ierr);
-      ierr = VecMAXPY(U,cnt,tjbasic->L,tjbasic->W);CHKERRQ(ierr);
-    }
-    if (Udot) {
-      LagrangeBasisDers(cnt,t,tjbasic->T,tjbasic->L);
-      ierr = VecZeroEntries(Udot);CHKERRQ(ierr);
-      ierr = VecMAXPY(Udot,cnt,tjbasic->L,tjbasic->W);CHKERRQ(ierr);
+      tjbasic->TT[tid] = PETSC_TRUE;
+      tjbasic->WW[cnt] = tjbasic->W[tid];
+      tjbasic->TW[cnt] = t;
+      cnt++;
     }
   }
+  ierr = PetscMemzero(tjbasic->TT,(tjbasic->order+1)*sizeof(PetscBool));CHKERRQ(ierr);
+  if (id >=0 && U) { /* requested time match */
+    PetscInt tid = LagrangeGetId(t,tjbasic->order+1,tjbasic->T,tjbasic->TT);
+    if (tid < 0) {
+      tid  = -tid-1;
+      ierr = TSTrajectoryGetVecs_Basic(tj,NULL,tsh->hist_id[id],&t,tjbasic->W[tid],NULL);CHKERRQ(ierr);
+      tjbasic->T[tid] = t;
+    }
+    ierr = VecCopy(tjbasic->W[tid],U);CHKERRQ(ierr);
+  }
+  if (id < 0 && U) {
+    LagrangeBasisVals(cnt,t,tjbasic->TW,tjbasic->L);
+    ierr = VecZeroEntries(U);CHKERRQ(ierr);
+    ierr = VecMAXPY(U,cnt,tjbasic->L,tjbasic->WW);CHKERRQ(ierr);
+  }
+  if (Udot) {
+    LagrangeBasisDers(cnt,t,tjbasic->TW,tjbasic->L);
+    ierr = VecZeroEntries(Udot);CHKERRQ(ierr);
+    ierr = VecMAXPY(Udot,cnt,tjbasic->L,tjbasic->WW);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode TSTrajectorySetFromOptions_Basic(PetscOptionItems *PetscOptionsObject,TSTrajectory tj)
+{
+  TSTrajectory_Basic *tjbasic = (TSTrajectory_Basic*)tj->data;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscOptionsHead(PetscOptionsObject,"TS trajectory options for Basic type");CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-ts_trajectory_basic_order","Interpolation order for reconstruction",NULL,tjbasic->order,&tjbasic->order,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-ts_trajectory_basic_dumpstages","Dump stages during TSTrajectorySet",NULL,tjbasic->dumpstages,&tjbasic->dumpstages,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsTail();CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -237,20 +275,11 @@ static PetscErrorCode TSTrajectoryGetVecs_Basic(TSTrajectory tj,TS ts,PetscInt s
   char               filename[PETSC_MAX_PATH_LEN];
 
   PetscFunctionBegin;
-  if (stepnum < 0 || Udot) { /* reverse search for requested time in TSHistory*/
-    TSHistory tsh = tjbasic->tsh;
-
-    ierr = TSHistoryGetIdFromTime(tsh,*t,&stepnum);CHKERRQ(ierr);
-    if (stepnum == -1 || stepnum == -tsh->n - 1) {
-      PetscReal t0 = tsh->n ? tsh->hist[0]        : 0.0;
-      PetscReal tf = tsh->n ? tsh->hist[tsh->n-1] : 0.0;
-      SETERRQ5(PetscObjectComm((PetscObject)ts),PETSC_ERR_PLIB,"Requested time %g (%d) is outside the history interval [%g, %g] (%d)",*t,stepnum,t0,tf,tsh->n);
-    }
-    stepnum = stepnum < 0 ? -(stepnum+1) : stepnum;
-    ierr = TSTrajectoryBasicReconstruct_Private(tj,*t,stepnum,U,Udot);CHKERRQ(ierr);
+  if (stepnum < 0 || Udot) { /* reverse search for requested time in TSHistory */
+    ierr = TSTrajectoryBasicReconstruct_Private(tj,*t,U,Udot);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
-  /* we can safely load from stepnum */
+  /* we were asked to load from stepnum */
   ierr = PetscSNPrintf(filename,sizeof(filename),"%s/%s-%06d.%s",tjbasic->folder,tjbasic->basefilename,stepnum,tjbasic->ext);CHKERRQ(ierr);
   ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename,FILE_MODE_READ,&viewer);CHKERRQ(ierr);
   ierr = VecLoad(U,viewer);CHKERRQ(ierr);
@@ -311,7 +340,7 @@ PETSC_EXTERN PetscErrorCode TSTrajectoryCreate_Basic(TSTrajectory tj,TS ts)
   PetscFunctionBegin;
   ierr = PetscNew(&tjbasic);CHKERRQ(ierr);
 
-  ierr = PetscViewerCreate(PetscObjectComm((PetscObject)ts),&tjbasic->viewer);CHKERRQ(ierr);
+  ierr = PetscViewerCreate(PetscObjectComm((PetscObject)tj),&tjbasic->viewer);CHKERRQ(ierr);
   ierr = PetscViewerSetType(tjbasic->viewer,PETSCVIEWERBINARY);CHKERRQ(ierr);
   ierr = PetscViewerFileSetMode(tjbasic->viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
   ierr = PetscStrallocpy("./SA-data",&tjbasic->folder);CHKERRQ(ierr);
@@ -326,13 +355,15 @@ PETSC_EXTERN PetscErrorCode TSTrajectoryCreate_Basic(TSTrajectory tj,TS ts)
   ierr = PetscMalloc1(tjbasic->tsh->c,&tjbasic->tsh->hist);CHKERRQ(ierr);
   ierr = PetscMalloc1(tjbasic->tsh->c,&tjbasic->tsh->hist_id);CHKERRQ(ierr);
 
-  tjbasic->order = 1;
+  tjbasic->dumpstages = PETSC_TRUE;
+  tjbasic->order      = 1;
 
   tj->data = tjbasic;
 
-  tj->ops->set     = TSTrajectorySet_Basic;
-  tj->ops->get     = TSTrajectoryGet_Basic;
-  tj->ops->getvecs = TSTrajectoryGetVecs_Basic;
-  tj->ops->destroy = TSTrajectoryDestroy_Basic;
+  tj->ops->set            = TSTrajectorySet_Basic;
+  tj->ops->get            = TSTrajectoryGet_Basic;
+  tj->ops->getvecs        = TSTrajectoryGetVecs_Basic;
+  tj->ops->destroy        = TSTrajectoryDestroy_Basic;
+  tj->ops->setfromoptions = TSTrajectorySetFromOptions_Basic;
   PetscFunctionReturn(0);
 }

@@ -4,7 +4,7 @@ FFLAGS	        =
 CPPFLAGS        =
 FPPFLAGS        =
 LOCDIR          = src/ts/examples/tests/
-EXAMPLESC       = ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c ex9.c ex10.c ex25.c
+EXAMPLESC       = ex1.c ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c ex9.c ex10.c ex25.c
 EXAMPLESF       =
 EXAMPLESFH      =
 MANSEC          = TS
@@ -70,6 +70,11 @@ ex25: ex25.o  chkopts
 
 #----------------------------------------------------------------------------------
 NPROCS    = 1  3
+
+runex1:
+	-@${MPIEXEC} -n 1 ./ex1 -ts_trajectory_basic_dumpstages 0 -p 3 -ts_trajectory_basic_order 3 -interptimes 0.1,0.99,0.3,0.11,0.56 > ex1.tmp 2>&1;  \
+           ${DIFF} output/ex1.out ex1.tmp || printf "${PWD}\nPossible problem with ex1, diffs above\n=========================================\n"; \
+           ${RM} -f ex1.tmp
 
 runex2_euler:
 	-@${MPIEXEC} -n 1 ./ex2 -ts_type euler > ex2_euler.tmp 2>&1;   \
