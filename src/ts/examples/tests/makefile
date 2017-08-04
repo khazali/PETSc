@@ -4,7 +4,7 @@ FFLAGS	        =
 CPPFLAGS        =
 FPPFLAGS        =
 LOCDIR          = src/ts/examples/tests/
-EXAMPLESC       = ex1.c ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c ex9.c ex10.c ex25.c
+EXAMPLESC       = ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c ex9.c ex10.c ex11.c ex25.c
 EXAMPLESF       =
 EXAMPLESFH      =
 MANSEC          = TS
@@ -56,6 +56,10 @@ ex10: ex10.o  chkopts
 	-${CLINKER} -o ex10 ex10.o ${PETSC_TS_LIB}
 	${RM} ex10.o
 
+ex11: ex11.o  chkopts
+	-${CLINKER} -o ex11 ex11.o ${PETSC_TS_LIB}
+	${RM} ex11.o
+
 ex22: ex22.o  chkopts
 	-${CLINKER} -o ex22 ex22.o  ${PETSC_TS_LIB}
 	${RM} ex22.o
@@ -70,11 +74,6 @@ ex25: ex25.o  chkopts
 
 #----------------------------------------------------------------------------------
 NPROCS    = 1  3
-
-runex1:
-	-@${MPIEXEC} -n 1 ./ex1 -ts_trajectory_basic_dumpstages 0 -p 3 -ts_trajectory_basic_order 3 -interptimes 0.1,0.99,0.3,0.11,0.56 > ex1.tmp 2>&1;  \
-           ${DIFF} output/ex1.out ex1.tmp || printf "${PWD}\nPossible problem with ex1, diffs above\n=========================================\n"; \
-           ${RM} -f ex1.tmp
 
 runex2_euler:
 	-@${MPIEXEC} -n 1 ./ex2 -ts_type euler > ex2_euler.tmp 2>&1;   \
@@ -141,6 +140,12 @@ runex5_2:
 	   ${DIFF} output/ex5.out ex5.tmp || printf "${PWD}\nPossible problem with ex5_2, diffs above\n=========================================\n"; \
 	   ${RM} -f ex5.tmp
 
+runex11:
+	-@${MPIEXEC} -n 1 ./ex11 -ts_trajectory_basic_dumpstages 0 -p 3 -ts_trajectory_basic_order 3 -interptimes 0.1,0.99,0.3,0.11,0.56 > ex11.tmp 2>&1;  \
+           ${DIFF} output/ex11.out ex11.tmp || printf "${PWD}\nPossible problem with ex11, diffs above\n=========================================\n"; \
+           ${RM} -rf ex11.tmp SA-data
+
+
 runex25:
 	-@${MPIEXEC} -n 1 ./ex25 -ts_exact_final_time INTERPOLATE -snes_rtol 1.e-3 > ex25_1.tmp 2>&1;	  \
 	   ${DIFF} output/ex25_1.out ex25_1.tmp || printf "${PWD}\nPossible problem with ex25_1, diffs above\n=========================================\n"; \
@@ -152,7 +157,7 @@ runex25_2:
 	   ${RM} -f ex25_2.tmp
 
 TESTEXAMPLES_C		  = ex4.PETSc runex4 runex4_2 runex4_3 runex4_4 runex4_5 runex4_6 \
-                            ex4.rm ex25.PETSc runex25 runex25_2 ex25.rm
+                            ex4.rm ex11.PETSc runex11 ex11.rm ex25.PETSc runex25 runex25_2 ex25.rm
 TESTEXAMPLES_C_NOTSINGLE  = ex4.PETSc runex4_7 ex4.rm
 TESTEXAMPLES_C_NOCOMPLEX  = ex3.PETSc runex3 ex3.rm
 TESTEXAMPLES_C_NOCOMPLEX_NOTSINGLE  = ex5.PETSc runex5 runex5_2 ex5.rm
