@@ -157,6 +157,32 @@ static PetscErrorCode FormIJacobian(TS ts,PetscReal time, Vec U, Vec Udot, Petsc
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode FormIFunction_mix(TS ts,PetscReal time, Vec U, Vec Udot, Vec F,void* ctx)
+{
+  PetscScalar    *aUdot,*aF;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecGetArray(F,&aF);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(Udot,(const PetscScalar**)&aUdot);CHKERRQ(ierr);
+  aF[0] = aUdot[0];
+  ierr = VecRestoreArrayRead(Udot,(const PetscScalar**)&aUdot);CHKERRQ(ierr);
+  ierr = VecRestoreArray(F,&aF);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode FormIJacobian_mix(TS ts,PetscReal time, Vec U, Vec Udot, PetscReal shift, Mat A, Mat P, void* ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = MatZeroEntries(A);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatShift(A,shift);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 static PetscErrorCode FormRHSFunction(TS ts,PetscReal time, Vec U, Vec F,void* ctx)
 {
   User           *user = (User*)ctx;
@@ -219,6 +245,7 @@ int main(int argc, char* argv[])
   PetscMPIInt    np;
   PetscBool      testpoststep = PETSC_FALSE;
   PetscBool      testifunc = PETSC_FALSE;
+  PetscBool      testmix = PETSC_FALSE;
   PetscBool      testrhsjacconst = PETSC_FALSE;
   PetscBool      testnullgradM = PETSC_FALSE;
   PetscBool      testnulljacIC = PETSC_FALSE;
@@ -244,6 +271,7 @@ int main(int argc, char* argv[])
   ierr = PetscOptionsReal("-dt","Initial time","",dt,&dt,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_objective_norm","Test f(u) = ||u||^2","",userobj.isnorm,&userobj.isnorm,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_poststep","Test with PostStep method","",testpoststep,&testpoststep,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-test_mix","Test mixing IFunction and RHSFunction","",testmix,&testmix,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_ifunc","Test with IFunction interface","",testifunc,&testifunc,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_rhsjacconst","Test with TSComputeRHSJacobianConstant","",testrhsjacconst,&testrhsjacconst,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_nullgrad_M","Test with NULL M gradient","",testnullgradM,&testnullgradM,NULL);CHKERRQ(ierr);
@@ -257,6 +285,7 @@ int main(int argc, char* argv[])
     problemtype = TS_NONLINEAR;
     testrhsjacconst = PETSC_FALSE;
   }
+  if (testmix) testifunc = PETSC_TRUE;
 
   /* state vectors */
   ierr = VecCreate(PETSC_COMM_WORLD,&U);CHKERRQ(ierr);
@@ -311,14 +340,21 @@ int main(int argc, char* argv[])
   if (!testifunc) {
     ierr = TSSetRHSFunction(ts,NULL,FormRHSFunction,&user);CHKERRQ(ierr);
     if (testrhsjacconst) {
-      ierr = FormRHSJacobian(ts,0.0,NULL,J,J,&user);CHKERRQ(ierr);
+      ierr = FormRHSJacobian(ts,0.0,U,J,J,&user);CHKERRQ(ierr);
       ierr = TSSetRHSJacobian(ts,J,J,TSComputeRHSJacobianConstant,NULL);CHKERRQ(ierr);
     } else {
       ierr = TSSetRHSJacobian(ts,J,J,FormRHSJacobian,&user);CHKERRQ(ierr);
     }
   } else {
-    ierr = TSSetIFunction(ts,NULL,FormIFunction,&user);CHKERRQ(ierr);
-    ierr = TSSetIJacobian(ts,J,J,FormIJacobian,&user);CHKERRQ(ierr);
+    if (testmix) {
+      ierr = TSSetIFunction(ts,NULL,FormIFunction_mix,&user);CHKERRQ(ierr);
+      ierr = TSSetRHSFunction(ts,NULL,FormRHSFunction,&user);CHKERRQ(ierr);
+      ierr = TSSetIJacobian(ts,NULL,NULL,FormIJacobian_mix,&user);CHKERRQ(ierr);
+      ierr = TSSetRHSJacobian(ts,NULL,NULL,FormRHSJacobian,&user);CHKERRQ(ierr);
+    } else {
+      ierr = TSSetIFunction(ts,NULL,FormIFunction,&user);CHKERRQ(ierr);
+      ierr = TSSetIJacobian(ts,J,J,FormIJacobian,&user);CHKERRQ(ierr);
+    }
   }
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
 
