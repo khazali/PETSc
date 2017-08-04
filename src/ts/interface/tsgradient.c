@@ -471,8 +471,10 @@ static PetscErrorCode AdjointTSSetTimeLimits(TS adjts, PetscReal t0, PetscReal t
   ierr = PetscObjectQuery((PetscObject)adjts,"_ts_gradient_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(adjts,t0,PetscMin(dt,tf-t0));CHKERRQ(ierr);
-  ierr = TSSetDuration(adjts,PETSC_MAX_INT,tf);CHKERRQ(ierr);
+  ierr = TSSetTime(adjts,t0);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(adjts,PetscMin(dt,tf-t0));CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(adjts,PETSC_MAX_INT);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(adjts,tf);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(adjts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   /* update time limits in the application context
      they are needed to recover the forward time from the backward */
@@ -570,7 +572,7 @@ static PetscErrorCode TSGradientPostStep(TS ts)
 
   /* first step: obj has been initialized with the first function evaluation at t0
      and gradient with the first gradient evaluation */
-  ierr = TSGetTimeStepNumber(ts,&step);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts,&step);CHKERRQ(ierr);
   if (poststep_ctx->firststep) {
     poststep_ctx->obj *= dt/2.0;
     poststep_ctx->pval = 0.0;
@@ -645,17 +647,18 @@ static PetscErrorCode TSEvaluateCostFunctionals_Private(TS ts, Vec X, Vec design
 
   /* forward solve */
   ierr = TSSetUp(ts);CHKERRQ(ierr);
-  tst  = ts->total_steps;
-  ts->total_steps = 0;
+
+  ierr = TSGetStepNumber(ts,&tst);CHKERRQ(ierr);
+  ierr = TSSetStepNumber(ts,0);CHKERRQ(ierr);
   ierr = TSSolve(ts,NULL);CHKERRQ(ierr);
 
   /* restore */
+  ierr = TSSetStepNumber(ts,tst);CHKERRQ(ierr);
   ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_poststep",NULL);CHKERRQ(ierr);
   ierr = TSSetPostStep(ts,poststep_ctx.user);CHKERRQ(ierr);
   if (U) {
     ierr = TSSetSolution(ts,U);CHKERRQ(ierr);
   }
-  ts->total_steps = tst;
   if (destroyX) {
     ierr = VecDestroy(&X);CHKERRQ(ierr);
   }

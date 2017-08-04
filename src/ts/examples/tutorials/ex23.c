@@ -197,7 +197,7 @@ static PetscErrorCode TestPostStep(TS ts)
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
-  ierr = TSGetTimeStepNumber(ts,&step);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts,&step);CHKERRQ(ierr);
   ierr = TSGetTime(ts,&time);CHKERRQ(ierr);
   ierr = PetscPrintf(PetscObjectComm((PetscObject)ts),"  Inside %s at (step,time) %d,%g\n",__func__,step,time);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -294,8 +294,10 @@ int main(int argc, char* argv[])
 
   /* TS solver */
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
-  ierr = TSSetDuration(ts,PETSC_MAX_INT,tf);CHKERRQ(ierr);
+  ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(ts,PETSC_MAX_INT);CHKERRQ(ierr);
   if (testpoststep) {
     ierr = TSSetPostStep(ts,TestPostStep);CHKERRQ(ierr);
   }
@@ -316,7 +318,8 @@ int main(int argc, char* argv[])
   /* force matchstep and get initial time and final time requested */
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   ierr = TSGetTime(ts,&t0);CHKERRQ(ierr);
-  ierr = TSGetDuration(ts,&maxsteps,&tf);CHKERRQ(ierr);
+  ierr = TSGetMaxTime(ts,&tf);CHKERRQ(ierr);
+  ierr = TSGetMaxSteps(ts,&maxsteps);CHKERRQ(ierr);
 
   /* Set cost functionals */
   if (testnullgradM) {
@@ -358,8 +361,10 @@ int main(int argc, char* argv[])
   ierr = PetscPrintf(PETSC_COMM_WORLD,"Objective function: time [%g,%g], val %g (should be %g)\n",t0,tf,(double)obj,(double)objtest);CHKERRQ(ierr);
 
   /* Test gradient evaluation */
-  ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
-  ierr = TSSetDuration(ts,maxsteps,tf);CHKERRQ(ierr);
+  ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
   ierr = VecSet(U,user.a);CHKERRQ(ierr);
   ierr = TSEvaluateGradient(ts,U,M,Mgrad);CHKERRQ(ierr);
   if (usefd) { /* we test against finite differencing the function evaluation */
@@ -376,8 +381,10 @@ int main(int argc, char* argv[])
     ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
     ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
     ierr = VecSet(U,user.a);CHKERRQ(ierr);
-    ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
-    ierr = TSSetDuration(ts,maxsteps,tf);CHKERRQ(ierr);
+    ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
+    ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
+    ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
+    ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
     ierr = TSEvaluateCostFunctionals(ts,U,M,&objadx1);CHKERRQ(ierr);
     user.a = oa - dx;
     user.b = ob;
@@ -388,8 +395,10 @@ int main(int argc, char* argv[])
     ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
     ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
     ierr = VecSet(U,user.a);CHKERRQ(ierr);
-    ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
-    ierr = TSSetDuration(ts,maxsteps,tf);CHKERRQ(ierr);
+    ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
+    ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
+    ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
+    ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
     ierr = TSEvaluateCostFunctionals(ts,U,M,&objadx2);CHKERRQ(ierr);
 
     user.a = oa;
@@ -401,8 +410,10 @@ int main(int argc, char* argv[])
     ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
     ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
     ierr = VecSet(U,user.a);CHKERRQ(ierr);
-    ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
-    ierr = TSSetDuration(ts,maxsteps,tf);CHKERRQ(ierr);
+    ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
+    ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
+    ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
+    ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
     ierr = TSEvaluateCostFunctionals(ts,U,M,&objbdx1);CHKERRQ(ierr);
     user.a = oa;
     user.b = ob - dx;
@@ -413,8 +424,10 @@ int main(int argc, char* argv[])
     ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
     ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
     ierr = VecSet(U,user.a);CHKERRQ(ierr);
-    ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
-    ierr = TSSetDuration(ts,maxsteps,tf);CHKERRQ(ierr);
+    ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
+    ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
+    ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
+    ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
     ierr = TSEvaluateCostFunctionals(ts,U,M,&objbdx2);CHKERRQ(ierr);
 
     user.a = oa;
@@ -426,8 +439,10 @@ int main(int argc, char* argv[])
     ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
     ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
     ierr = VecSet(U,user.a);CHKERRQ(ierr);
-    ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
-    ierr = TSSetDuration(ts,maxsteps,tf);CHKERRQ(ierr);
+    ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
+    ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
+    ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
+    ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
     ierr = TSEvaluateCostFunctionals(ts,U,M,&objpdx1);CHKERRQ(ierr);
     user.a = oa;
     user.b = ob;
@@ -438,8 +453,10 @@ int main(int argc, char* argv[])
     ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
     ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
     ierr = VecSet(U,user.a);CHKERRQ(ierr);
-    ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
-    ierr = TSSetDuration(ts,maxsteps,tf);CHKERRQ(ierr);
+    ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
+    ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
+    ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
+    ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
     ierr = TSEvaluateCostFunctionals(ts,U,M,&objpdx2);CHKERRQ(ierr);
 
     ierr = PetscPrintf(PETSC_COMM_WORLD,"1st component of gradient should be (approximated) %g\n",(double)((objadx1-objadx2)/PetscRealPart(2*dx)));CHKERRQ(ierr);
