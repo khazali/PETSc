@@ -186,13 +186,7 @@ static PetscErrorCode TSTrajectorySet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
     ierr = TSGetPrevTime(ts,&tprev);CHKERRQ(ierr);
     ierr = PetscViewerBinaryWrite(tjbasic->viewer,&tprev,1,PETSC_REAL,PETSC_FALSE);CHKERRQ(ierr);
   }
-
   ierr = TSHistoryUpdate(tjbasic->tsh,stepnum,time);CHKERRQ(ierr);
-  if (tj->monitor) {
-    TSHistory tsh = tjbasic->tsh;
-    ierr = PetscViewerASCIIPrintf(tj->monitor,"  Got history ID %D\n",tsh->hist_id[tsh->n-1]);CHKERRQ(ierr);
-    ierr = PetscViewerFlush(tj->monitor);CHKERRQ(ierr);
-  }
   PetscFunctionReturn(0);
 }
 
@@ -213,7 +207,7 @@ static PetscErrorCode TSTrajectoryBasicReconstruct_Private(TSTrajectory tj,Petsc
     SETERRQ4(PetscObjectComm((PetscObject)tj),PETSC_ERR_PLIB,"Requested time %g is outside the history interval [%g, %g] (%d)",(double)t,(double)t0,(double)tf,tsh->n);
   }
   if (tj->monitor) {
-    ierr = PetscViewerASCIIPrintf(tj->monitor,"Reconstructing at time %g, history id %D, order %D\n",(double)t,id,tjbasic->order);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(tj->monitor,"Reconstructing at time %g, order %D\n",(double)t,tjbasic->order);CHKERRQ(ierr);
   }
   if (!tjbasic->T) {
     PetscInt o = tjbasic->order+1;
@@ -530,8 +524,8 @@ PETSC_EXTERN PetscErrorCode TSTrajectoryCreate_Basic(TSTrajectory tj,TS ts)
 
   ierr = PetscNew(&tjbasic->tsh);CHKERRQ(ierr);
   tjbasic->tsh->n      = 0;
-  tjbasic->tsh->c      = 1000;
-  tjbasic->tsh->s      = 1000;
+  tjbasic->tsh->c      = 1024; /* capacity */
+  tjbasic->tsh->s      = 1024; /* reallocation size */
   tjbasic->tsh->sorted = PETSC_TRUE;
   ierr = PetscMalloc1(tjbasic->tsh->c,&tjbasic->tsh->hist);CHKERRQ(ierr);
   ierr = PetscMalloc1(tjbasic->tsh->c,&tjbasic->tsh->hist_id);CHKERRQ(ierr);
