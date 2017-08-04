@@ -148,7 +148,11 @@ static PetscErrorCode AdjointTSUpdateHistory(TS adjts, PetscReal time, PetscBool
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   if (!adj_ctx->fwdts->trajectory) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing TSTrajectory object");
   ft   = adj_ctx->tf - time + adj_ctx->t0;
+  ierr = VecLockPop(adj_ctx->W[0]);CHKERRQ(ierr);
+  ierr = VecLockPop(adj_ctx->W[1]);CHKERRQ(ierr);
   ierr = TSTrajectoryGetVecs(adj_ctx->fwdts->trajectory,adj_ctx->fwdts,step,&ft,U ? adj_ctx->W[0] : NULL, Udot ? adj_ctx->W[1] : NULL);CHKERRQ(ierr);
+  ierr = VecLockPush(adj_ctx->W[0]);CHKERRQ(ierr);
+  ierr = VecLockPush(adj_ctx->W[1]);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -432,6 +436,9 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
   } else {
     ierr = VecSet(lambda,0.0);CHKERRQ(ierr);
   }
+  /* these two vectors are locked: only AdjointTSUpdateHistory can unlock them */
+  ierr = VecLockPush(adj_ctx->W[0]);CHKERRQ(ierr);
+  ierr = VecLockPush(adj_ctx->W[1]);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
