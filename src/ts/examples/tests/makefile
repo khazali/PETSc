@@ -141,7 +141,7 @@ runex5_2:
 	   ${RM} -f ex5.tmp
 
 runex11:
-	-@${MPIEXEC} -n 1 ./ex11 -ts_trajectory_basic_dumpstages 0 -p 3 -ts_trajectory_basic_order 3 -interptimes 0.1,0.99,0.3,0.11,0.56 > ex11.tmp 2>&1;  \
+	-@${MPIEXEC} -n 1 ./ex11 -ts_trajectory_monitor -ts_trajectory_basic_dumpstages 0 -p 3 -ts_trajectory_basic_order 3 -interptimes 0.1,0.99,0.3,0.11,0.56 > ex11.tmp 2>&1;  \
            ${DIFF} output/ex11.out ex11.tmp || printf "${PWD}\nPossible problem with ex11, diffs above\n=========================================\n"; \
            ${RM} -rf ex11.tmp SA-data
 
