@@ -108,6 +108,13 @@ PETSC_STATIC_INLINE PetscInt LagrangeGetId(PetscReal t, PetscInt n, const PetscR
 }
 
 typedef struct {
+  PetscObjectId    id;
+  PetscObjectState state;
+  PetscReal        time;
+  PetscInt         step;
+} VecInfoCached;
+
+typedef struct {
   /* output */
   PetscViewer viewer;
   char        *folder;
@@ -123,6 +130,11 @@ typedef struct {
   Vec         *WW;    /* just an array of pointers */
   PetscBool   *TT;    /* workspace for Lagrange */
   PetscReal   *TW;    /* Lagrange times (workspace) */
+
+  /* caching */
+  PetscBool     caching;
+  VecInfoCached Ucached;
+  VecInfoCached Udotcached;
 
   /* history */
   TSHistory   tsh;
@@ -227,7 +239,7 @@ static PetscErrorCode TSTrajectoryBasicReconstruct_Private(TSTrajectory tj,Petsc
       PetscInt tid = LagrangeGetId(t,tjbasic->order+1,tjbasic->T,tjbasic->TT);
       if (tid < 0) continue;
       if (tj->monitor) {
-        ierr = PetscViewerASCIIPrintf(tj->monitor,"Reusing cached step %D, time %g\n",tsh->hist_id[s],(double)t);CHKERRQ(ierr);
+        ierr = PetscViewerASCIIPrintf(tj->monitor,"Reusing snapshot %D, step %D, time %g\n",tid,tsh->hist_id[s],(double)t);CHKERRQ(ierr);
       }
       tjbasic->TT[tid] = PETSC_TRUE;
       tjbasic->WW[cnt] = tjbasic->W[tid];
@@ -245,9 +257,9 @@ static PetscErrorCode TSTrajectoryBasicReconstruct_Private(TSTrajectory tj,Petsc
       tid = -tid-1;
       if (tj->monitor) {
         if (tjbasic->T[tid] < PETSC_MAX_REAL) {
-          ierr = PetscViewerASCIIPrintf(tj->monitor,"Discarding cached snapshot %D at time %g\n",tid,(double)tjbasic->T[tid]);CHKERRQ(ierr);
+          ierr = PetscViewerASCIIPrintf(tj->monitor,"Discarding snapshot %D at time %g\n",tid,(double)tjbasic->T[tid]);CHKERRQ(ierr);
         } else {
-          ierr = PetscViewerASCIIPrintf(tj->monitor,"New cached snapshot %D\n",tid);CHKERRQ(ierr);
+          ierr = PetscViewerASCIIPrintf(tj->monitor,"New snapshot %D\n",tid);CHKERRQ(ierr);
         }
         ierr = PetscViewerASCIIPushTab(tj->monitor);CHKERRQ(ierr);
       }
@@ -277,9 +289,9 @@ static PetscErrorCode TSTrajectoryBasicReconstruct_Private(TSTrajectory tj,Petsc
       tid = -tid-1;
       if (tj->monitor) {
         if (tjbasic->T[tid] < PETSC_MAX_REAL) {
-          ierr = PetscViewerASCIIPrintf(tj->monitor,"Discarding cached snapshot %D at time %g\n",tid,(double)tjbasic->T[tid]);CHKERRQ(ierr);
+          ierr = PetscViewerASCIIPrintf(tj->monitor,"Discarding snapshot %D at time %g\n",tid,(double)tjbasic->T[tid]);CHKERRQ(ierr);
         } else {
-          ierr = PetscViewerASCIIPrintf(tj->monitor,"New cached snapshot %D\n",tid);CHKERRQ(ierr);
+          ierr = PetscViewerASCIIPrintf(tj->monitor,"New snapshot %D\n",tid);CHKERRQ(ierr);
         }
         ierr = PetscViewerASCIIPushTab(tj->monitor);CHKERRQ(ierr);
       }
@@ -289,9 +301,13 @@ static PetscErrorCode TSTrajectoryBasicReconstruct_Private(TSTrajectory tj,Petsc
       }
       tjbasic->T[tid] = t;
     } else if (tj->monitor) {
-      ierr = PetscViewerASCIIPrintf(tj->monitor,"Reusing cached step %D, time %g\n",tsh->hist_id[id],(double)t);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(tj->monitor,"Reusing snapshot %D step %D, time %g\n",tid,tsh->hist_id[id],(double)t);CHKERRQ(ierr);
     }
     ierr = VecCopy(tjbasic->W[tid],U);CHKERRQ(ierr);
+    ierr = PetscObjectStateGet((PetscObject)U,&tjbasic->Ucached.state);CHKERRQ(ierr);
+    ierr = PetscObjectGetId((PetscObject)U,&tjbasic->Ucached.id);CHKERRQ(ierr);
+    tjbasic->Ucached.time = t;
+    tjbasic->Ucached.step = tsh->hist_id[id];
     if (tj->monitor) {
       ierr = PetscViewerASCIIPopTab(tj->monitor);CHKERRQ(ierr);
     }
@@ -303,6 +319,10 @@ static PetscErrorCode TSTrajectoryBasicReconstruct_Private(TSTrajectory tj,Petsc
     LagrangeBasisVals(cnt,t,tjbasic->TW,tjbasic->L);
     ierr = VecZeroEntries(U);CHKERRQ(ierr);
     ierr = VecMAXPY(U,cnt,tjbasic->L,tjbasic->WW);CHKERRQ(ierr);
+    ierr = PetscObjectStateGet((PetscObject)U,&tjbasic->Ucached.state);CHKERRQ(ierr);
+    ierr = PetscObjectGetId((PetscObject)U,&tjbasic->Ucached.id);CHKERRQ(ierr);
+    tjbasic->Ucached.time = t;
+    tjbasic->Ucached.step = PETSC_MIN_INT;
   }
   if (Udot) {
     if (tj->monitor) {
@@ -311,6 +331,10 @@ static PetscErrorCode TSTrajectoryBasicReconstruct_Private(TSTrajectory tj,Petsc
     LagrangeBasisDers(cnt,t,tjbasic->TW,tjbasic->L);
     ierr = VecZeroEntries(Udot);CHKERRQ(ierr);
     ierr = VecMAXPY(Udot,cnt,tjbasic->L,tjbasic->WW);CHKERRQ(ierr);
+    ierr = PetscObjectStateGet((PetscObject)Udot,&tjbasic->Udotcached.state);CHKERRQ(ierr);
+    ierr = PetscObjectGetId((PetscObject)Udot,&tjbasic->Udotcached.id);CHKERRQ(ierr);
+    tjbasic->Udotcached.time = t;
+    tjbasic->Udotcached.step = PETSC_MIN_INT;
   }
   PetscFunctionReturn(0);
 }
@@ -323,6 +347,7 @@ static PetscErrorCode TSTrajectorySetFromOptions_Basic(PetscOptionItems *PetscOp
   PetscFunctionBegin;
   ierr = PetscOptionsHead(PetscOptionsObject,"TS trajectory options for Basic type");CHKERRQ(ierr);
   ierr = PetscOptionsInt("-ts_trajectory_basic_order","Interpolation order for reconstruction",NULL,tjbasic->order,&tjbasic->order,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-ts_trajectory_basic_caching","Turn on caching of TSTrajectoryGetVecs input",NULL,tjbasic->caching,&tjbasic->caching,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-ts_trajectory_basic_dumpstages","Dump stages during TSTrajectorySet",NULL,tjbasic->dumpstages,&tjbasic->dumpstages,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsTail();CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -336,14 +361,56 @@ static PetscErrorCode TSTrajectoryGetVecs_Basic(TSTrajectory tj,TS ts,PetscInt s
   char               filename[PETSC_MAX_PATH_LEN];
 
   PetscFunctionBegin;
-  if (stepnum < 0 || Udot) { /* reverse search for requested time in TSHistory */
+  if (tj->monitor) {
+    PetscInt pU,pUdot;
+    pU    = U ? 1 : 0;
+    pUdot = Udot ? 1 : 0;
+    ierr  = PetscViewerASCIIPrintf(tj->monitor,"Requested by GetVecs %D %D: stepnum %D, time %g\n",pU,pUdot,stepnum,(double)*t);CHKERRQ(ierr);
+    ierr = PetscViewerFlush(tj->monitor);CHKERRQ(ierr);
+  }
+  if (U && tjbasic->caching) {
+    PetscObjectId    id;
+    PetscObjectState state;
+
+    ierr = PetscObjectStateGet((PetscObject)U,&state);CHKERRQ(ierr);
+    ierr = PetscObjectGetId((PetscObject)U,&id);CHKERRQ(ierr);
+    if (stepnum == PETSC_MIN_INT) {
+      if (id == tjbasic->Ucached.id && *t == tjbasic->Ucached.time && state == tjbasic->Ucached.state) U = NULL;
+    } else {
+      if (id == tjbasic->Ucached.id && stepnum == tjbasic->Ucached.step && state == tjbasic->Ucached.state) U = NULL;
+    }
+    if (tj->monitor && !U) {
+      ierr = PetscViewerASCIIPushTab(tj->monitor);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(tj->monitor,"State vector cached\n");CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPopTab(tj->monitor);CHKERRQ(ierr);
+      ierr = PetscViewerFlush(tj->monitor);CHKERRQ(ierr);
+    }
+  }
+  if (Udot && tjbasic->caching) {
+    PetscObjectId    id;
+    PetscObjectState state;
+
+    ierr = PetscObjectStateGet((PetscObject)Udot,&state);CHKERRQ(ierr);
+    ierr = PetscObjectGetId((PetscObject)Udot,&id);CHKERRQ(ierr);
+    if (stepnum == PETSC_MIN_INT) {
+      if (id == tjbasic->Udotcached.id && *t == tjbasic->Udotcached.time && state == tjbasic->Udotcached.state) Udot = NULL;
+    } else {
+      if (id == tjbasic->Udotcached.id && stepnum == tjbasic->Udotcached.step && state == tjbasic->Udotcached.state) Udot = NULL;
+    }
+    if (tj->monitor && !Udot) {
+      ierr = PetscViewerASCIIPushTab(tj->monitor);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(tj->monitor,"Derivative vector cached\n");CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPopTab(tj->monitor);CHKERRQ(ierr);
+      ierr = PetscViewerFlush(tj->monitor);CHKERRQ(ierr);
+    }
+  }
+  if (!U && !Udot) PetscFunctionReturn(0);
+
+  if (stepnum == PETSC_MIN_INT || Udot) { /* reverse search for requested time in TSHistory */
     if (tj->monitor) {
-      PetscInt pU,pUdot;
-      pU    = U ? 1 : 0;
-      pUdot = Udot ? 1 : 0;
-      ierr  = PetscViewerASCIIPrintf(tj->monitor,"Requested by GetVecs %D %D: stepnum %D, time %g\n",pU,pUdot,stepnum,(double)*t);CHKERRQ(ierr);
       ierr = PetscViewerASCIIPushTab(tj->monitor);CHKERRQ(ierr);
     }
+    /* cached states will be updated in the function */
     ierr = TSTrajectoryBasicReconstruct_Private(tj,*t,U,Udot);CHKERRQ(ierr);
     if (tj->monitor) {
       ierr = PetscViewerASCIIPopTab(tj->monitor);CHKERRQ(ierr);
@@ -352,14 +419,22 @@ static PetscErrorCode TSTrajectoryGetVecs_Basic(TSTrajectory tj,TS ts,PetscInt s
     PetscFunctionReturn(0);
   }
   /* we were asked to load from stepnum */
-  ierr = PetscSNPrintf(filename,sizeof(filename),"%s/%s-%06d.%s",tjbasic->folder,tjbasic->basefilename,stepnum,tjbasic->ext);CHKERRQ(ierr);
-  ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename,FILE_MODE_READ,&viewer);CHKERRQ(ierr);
-  ierr = VecLoad(U,viewer);CHKERRQ(ierr);
-  ierr = PetscViewerBinaryRead(viewer,t,1,NULL,PETSC_REAL);CHKERRQ(ierr);
-  ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-  if (tj->monitor) {
-    ierr = PetscViewerASCIIPrintf(tj->monitor,"Loaded stepnum %D, time %g\n",stepnum,(double)*t);CHKERRQ(ierr);
-    ierr = PetscViewerFlush(tj->monitor);CHKERRQ(ierr);
+  if (U) {
+    ierr = PetscSNPrintf(filename,sizeof(filename),"%s/%s-%06d.%s",tjbasic->folder,tjbasic->basefilename,stepnum,tjbasic->ext);CHKERRQ(ierr);
+    ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename,FILE_MODE_READ,&viewer);CHKERRQ(ierr);
+    ierr = VecLoad(U,viewer);CHKERRQ(ierr);
+    ierr = PetscViewerBinaryRead(viewer,t,1,NULL,PETSC_REAL);CHKERRQ(ierr);
+    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+    if (tj->monitor) {
+      ierr = PetscViewerASCIIPushTab(tj->monitor);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(tj->monitor,"Loaded stepnum %D, time %g\n",stepnum,(double)*t);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPopTab(tj->monitor);CHKERRQ(ierr);
+      ierr = PetscViewerFlush(tj->monitor);CHKERRQ(ierr);
+    }
+    ierr = PetscObjectStateGet((PetscObject)U,&tjbasic->Ucached.state);CHKERRQ(ierr);
+    ierr = PetscObjectGetId((PetscObject)U,&tjbasic->Ucached.id);CHKERRQ(ierr);
+    tjbasic->Ucached.time = *t;
+    tjbasic->Ucached.step = stepnum;
   }
   PetscFunctionReturn(0);
 }
@@ -463,6 +538,17 @@ PETSC_EXTERN PetscErrorCode TSTrajectoryCreate_Basic(TSTrajectory tj,TS ts)
 
   tjbasic->dumpstages = PETSC_TRUE;
   tjbasic->order      = 1;
+
+  /* this is experimental, it works but I'm not sure how much we can save from it */
+  tjbasic->caching          = PETSC_TRUE;
+  tjbasic->Ucached.id       = 0;
+  tjbasic->Ucached.state    = -1;
+  tjbasic->Ucached.time     = PETSC_MIN_REAL;
+  tjbasic->Ucached.step     = PETSC_MAX_INT;
+  tjbasic->Udotcached.id    = 0;
+  tjbasic->Udotcached.state = -1;
+  tjbasic->Udotcached.time  = PETSC_MIN_REAL;
+  tjbasic->Udotcached.step  = PETSC_MAX_INT;
 
   tj->data = tjbasic;
 

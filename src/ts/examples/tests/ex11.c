@@ -47,33 +47,33 @@ int main(int argc,char **argv)
   }
   for (i = 0; i < Nt; i++) {
     PetscReal testtime = times[i];
-    PetscScalar *aW,*aWdot;
+    const PetscScalar *aW,*aWdot;
 
     ierr = TSTrajectoryGetVecs(tj,NULL,PETSC_MIN_INT,&testtime,W,Wdot);CHKERRQ(ierr);
-    ierr = VecGetArray(W,&aW);CHKERRQ(ierr);
-    ierr = VecGetArray(Wdot,&aWdot);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(W,&aW);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(Wdot,&aWdot);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD," f(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(func(p,testtime)),(double)PetscRealPart(aW[0]));
     ierr = PetscPrintf(PETSC_COMM_WORLD,"df(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(dfunc(p,testtime)),(double)PetscRealPart(aWdot[0]));
-    ierr = VecRestoreArray(W,&aW);CHKERRQ(ierr);
-    ierr = VecRestoreArray(Wdot,&aWdot);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(W,&aW);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(Wdot,&aWdot);CHKERRQ(ierr);
   }
   for (i = Nt-1; i >=0; i--) {
     PetscReal testtime = times[i];
-    PetscScalar *aW;
+    const PetscScalar *aW;
 
     ierr = TSTrajectoryGetVecs(tj,NULL,PETSC_MIN_INT,&testtime,W,NULL);CHKERRQ(ierr);
-    ierr = VecGetArray(W,&aW);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(W,&aW);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD," f(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(func(p,testtime)),(double)PetscRealPart(aW[0]));
-    ierr = VecRestoreArray(W,&aW);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(W,&aW);CHKERRQ(ierr);
   }
   for (i = Nt-1; i >=0; i--) {
     PetscReal testtime = times[i];
-    PetscScalar *aWdot;
+    const PetscScalar *aWdot;
 
     ierr = TSTrajectoryGetVecs(tj,NULL,PETSC_MIN_INT,&testtime,NULL,Wdot);CHKERRQ(ierr);
-    ierr = VecGetArray(Wdot,&aWdot);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(Wdot,&aWdot);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD,"df(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(dfunc(p,testtime)),(double)PetscRealPart(aWdot[0]));
-    ierr = VecRestoreArray(Wdot,&aWdot);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(Wdot,&aWdot);CHKERRQ(ierr);
   }
   ierr = VecDestroy(&W);CHKERRQ(ierr);
   ierr = VecDestroy(&Wdot);CHKERRQ(ierr);

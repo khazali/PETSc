@@ -20,164 +20,185 @@ Set stepnum 7, time 0.8 (stages 0)
   Got history ID 7
 Requested by GetVecs 1 1: stepnum -2147483648, time 0.1
   Reconstructing at time 0.1, history id 0, order 3
-    New cached snapshot 0
-      Loaded stepnum 10, time 0.4
-    New cached snapshot 1
-      Loaded stepnum 2, time 0.3
-    New cached snapshot 2
-      Loaded stepnum 1, time 0.2
-    New cached snapshot 3
-      Loaded stepnum 9, time 0.1
+    New snapshot 0
+      Requested by GetVecs 1 0: stepnum 10, time 0.4
+        Loaded stepnum 10, time 0.4
+    New snapshot 1
+      Requested by GetVecs 1 0: stepnum 2, time 0.3
+        Loaded stepnum 2, time 0.3
+    New snapshot 2
+      Requested by GetVecs 1 0: stepnum 1, time 0.2
+        Loaded stepnum 1, time 0.2
+    New snapshot 3
+      Requested by GetVecs 1 0: stepnum 9, time 0.1
+        Loaded stepnum 9, time 0.1
   Retrieving solution from exact step
-    Reusing cached step 9, time 0.1
+    Reusing snapshot 3 step 9, time 0.1
   Interpolating derivative with 4 snapshots
  f(0.1) = 0.001 (reconstructed 0.001)
 df(0.1) = 0.03 (reconstructed 0.03)
 Requested by GetVecs 1 1: stepnum -2147483648, time 0.99
   Reconstructing at time 0.99, history id -10, order 3
-    Discarding cached snapshot 0 at time 0.4
-      Loaded stepnum 8, time 1.
-    Discarding cached snapshot 1 at time 0.3
-      Loaded stepnum 4, time 0.9
-    Discarding cached snapshot 2 at time 0.2
-      Loaded stepnum 7, time 0.8
-    Discarding cached snapshot 3 at time 0.1
-      Loaded stepnum 6, time 0.7
+    Discarding snapshot 0 at time 0.4
+      Requested by GetVecs 1 0: stepnum 8, time 1.
+        Loaded stepnum 8, time 1.
+    Discarding snapshot 1 at time 0.3
+      Requested by GetVecs 1 0: stepnum 4, time 0.9
+        Loaded stepnum 4, time 0.9
+    Discarding snapshot 2 at time 0.2
+      Requested by GetVecs 1 0: stepnum 7, time 0.8
+        Loaded stepnum 7, time 0.8
+    Discarding snapshot 3 at time 0.1
+      Requested by GetVecs 1 0: stepnum 6, time 0.7
+        Loaded stepnum 6, time 0.7
   Interpolating solution with 4 snapshots
   Interpolating derivative with 4 snapshots
  f(0.99) = 0.970299 (reconstructed 0.970299)
 df(0.99) = 2.9403 (reconstructed 2.9403)
 Requested by GetVecs 1 1: stepnum -2147483648, time 0.3
   Reconstructing at time 0.3, history id 2, order 3
-    Discarding cached snapshot 0 at time 1.
-      Loaded stepnum 10, time 0.4
-    Discarding cached snapshot 1 at time 0.9
-      Loaded stepnum 2, time 0.3
-    Discarding cached snapshot 2 at time 0.8
-      Loaded stepnum 1, time 0.2
-    Discarding cached snapshot 3 at time 0.7
-      Loaded stepnum 9, time 0.1
+    Discarding snapshot 0 at time 1.
+      Requested by GetVecs 1 0: stepnum 10, time 0.4
+        Loaded stepnum 10, time 0.4
+    Discarding snapshot 1 at time 0.9
+      Requested by GetVecs 1 0: stepnum 2, time 0.3
+        Loaded stepnum 2, time 0.3
+    Discarding snapshot 2 at time 0.8
+      Requested by GetVecs 1 0: stepnum 1, time 0.2
+        Loaded stepnum 1, time 0.2
+    Discarding snapshot 3 at time 0.7
+      Requested by GetVecs 1 0: stepnum 9, time 0.1
+        Loaded stepnum 9, time 0.1
   Retrieving solution from exact step
-    Reusing cached step 2, time 0.3
+    Reusing snapshot 1 step 2, time 0.3
   Interpolating derivative with 4 snapshots
  f(0.3) = 0.027 (reconstructed 0.027)
 df(0.3) = 0.27 (reconstructed 0.27)
 Requested by GetVecs 1 1: stepnum -2147483648, time 0.11
   Reconstructing at time 0.11, history id -2, order 3
-    Reusing cached step 10, time 0.4
-    Reusing cached step 2, time 0.3
-    Reusing cached step 1, time 0.2
-    Reusing cached step 9, time 0.1
+    Reusing snapshot 0, step 10, time 0.4
+    Reusing snapshot 1, step 2, time 0.3
+    Reusing snapshot 2, step 1, time 0.2
+    Reusing snapshot 3, step 9, time 0.1
   Interpolating solution with 4 snapshots
   Interpolating derivative with 4 snapshots
  f(0.11) = 0.001331 (reconstructed 0.001331)
 df(0.11) = 0.0363 (reconstructed 0.0363)
 Requested by GetVecs 1 1: stepnum -2147483648, time 0.56
   Reconstructing at time 0.56, history id -6, order 3
-    Reusing cached step 10, time 0.4
-    Discarding cached snapshot 1 at time 0.3
-      Loaded stepnum 6, time 0.7
-    Discarding cached snapshot 2 at time 0.2
-      Loaded stepnum 3, time 0.6
-    Discarding cached snapshot 3 at time 0.1
-      Loaded stepnum 5, time 0.5
+    Reusing snapshot 0, step 10, time 0.4
+    Discarding snapshot 1 at time 0.3
+      Requested by GetVecs 1 0: stepnum 6, time 0.7
+        Loaded stepnum 6, time 0.7
+    Discarding snapshot 2 at time 0.2
+      Requested by GetVecs 1 0: stepnum 3, time 0.6
+        Loaded stepnum 3, time 0.6
+    Discarding snapshot 3 at time 0.1
+      Requested by GetVecs 1 0: stepnum 5, time 0.5
+        Loaded stepnum 5, time 0.5
   Interpolating solution with 4 snapshots
   Interpolating derivative with 4 snapshots
  f(0.56) = 0.175616 (reconstructed 0.175616)
 df(0.56) = 0.9408 (reconstructed 0.9408)
 Requested by GetVecs 1 0: stepnum -2147483648, time 0.56
-  Reconstructing at time 0.56, history id -6, order 3
-    Reusing cached step 6, time 0.7
-    Reusing cached step 3, time 0.6
-    Reusing cached step 5, time 0.5
-    Reusing cached step 10, time 0.4
-  Interpolating solution with 4 snapshots
+  State vector cached
  f(0.56) = 0.175616 (reconstructed 0.175616)
 Requested by GetVecs 1 0: stepnum -2147483648, time 0.11
   Reconstructing at time 0.11, history id -2, order 3
-    Reusing cached step 10, time 0.4
-    Discarding cached snapshot 1 at time 0.7
-      Loaded stepnum 2, time 0.3
-    Discarding cached snapshot 2 at time 0.6
-      Loaded stepnum 1, time 0.2
-    Discarding cached snapshot 3 at time 0.5
-      Loaded stepnum 9, time 0.1
+    Reusing snapshot 0, step 10, time 0.4
+    Discarding snapshot 1 at time 0.7
+      Requested by GetVecs 1 0: stepnum 2, time 0.3
+        Loaded stepnum 2, time 0.3
+    Discarding snapshot 2 at time 0.6
+      Requested by GetVecs 1 0: stepnum 1, time 0.2
+        Loaded stepnum 1, time 0.2
+    Discarding snapshot 3 at time 0.5
+      Requested by GetVecs 1 0: stepnum 9, time 0.1
+        Loaded stepnum 9, time 0.1
   Interpolating solution with 4 snapshots
  f(0.11) = 0.001331 (reconstructed 0.001331)
 Requested by GetVecs 1 0: stepnum -2147483648, time 0.3
   Reconstructing at time 0.3, history id 2, order 3
   Retrieving solution from exact step
-    Reusing cached step 2, time 0.3
+    Reusing snapshot 1 step 2, time 0.3
  f(0.3) = 0.027 (reconstructed 0.027)
 Requested by GetVecs 1 0: stepnum -2147483648, time 0.99
   Reconstructing at time 0.99, history id -10, order 3
-    Discarding cached snapshot 0 at time 0.4
-      Loaded stepnum 8, time 1.
-    Discarding cached snapshot 1 at time 0.3
-      Loaded stepnum 4, time 0.9
-    Discarding cached snapshot 2 at time 0.2
-      Loaded stepnum 7, time 0.8
-    Discarding cached snapshot 3 at time 0.1
-      Loaded stepnum 6, time 0.7
+    Discarding snapshot 0 at time 0.4
+      Requested by GetVecs 1 0: stepnum 8, time 1.
+        Loaded stepnum 8, time 1.
+    Discarding snapshot 1 at time 0.3
+      Requested by GetVecs 1 0: stepnum 4, time 0.9
+        Loaded stepnum 4, time 0.9
+    Discarding snapshot 2 at time 0.2
+      Requested by GetVecs 1 0: stepnum 7, time 0.8
+        Loaded stepnum 7, time 0.8
+    Discarding snapshot 3 at time 0.1
+      Requested by GetVecs 1 0: stepnum 6, time 0.7
+        Loaded stepnum 6, time 0.7
   Interpolating solution with 4 snapshots
  f(0.99) = 0.970299 (reconstructed 0.970299)
 Requested by GetVecs 1 0: stepnum -2147483648, time 0.1
   Reconstructing at time 0.1, history id 0, order 3
   Retrieving solution from exact step
-    Discarding cached snapshot 0 at time 1.
-      Loaded stepnum 9, time 0.1
+    Discarding snapshot 0 at time 1.
+      Requested by GetVecs 1 0: stepnum 9, time 0.1
+        Loaded stepnum 9, time 0.1
  f(0.1) = 0.001 (reconstructed 0.001)
 Requested by GetVecs 0 1: stepnum -2147483648, time 0.56
-  Reconstructing at time 0.56, history id -6, order 3
-    Reusing cached step 6, time 0.7
-    Discarding cached snapshot 1 at time 0.9
-      Loaded stepnum 3, time 0.6
-    Discarding cached snapshot 2 at time 0.8
-      Loaded stepnum 5, time 0.5
-    Discarding cached snapshot 0 at time 0.1
-      Loaded stepnum 10, time 0.4
-  Interpolating derivative with 4 snapshots
+  Derivative vector cached
 df(0.56) = 0.9408 (reconstructed 0.9408)
 Requested by GetVecs 0 1: stepnum -2147483648, time 0.11
   Reconstructing at time 0.11, history id -2, order 3
-    Reusing cached step 10, time 0.4
-    Discarding cached snapshot 3 at time 0.7
-      Loaded stepnum 2, time 0.3
-    Discarding cached snapshot 1 at time 0.6
-      Loaded stepnum 1, time 0.2
-    Discarding cached snapshot 2 at time 0.5
-      Loaded stepnum 9, time 0.1
+    Reusing snapshot 0, step 9, time 0.1
+    Discarding snapshot 1 at time 0.9
+      Requested by GetVecs 1 0: stepnum 10, time 0.4
+        Loaded stepnum 10, time 0.4
+    Discarding snapshot 2 at time 0.8
+      Requested by GetVecs 1 0: stepnum 2, time 0.3
+        Loaded stepnum 2, time 0.3
+    Discarding snapshot 3 at time 0.7
+      Requested by GetVecs 1 0: stepnum 1, time 0.2
+        Loaded stepnum 1, time 0.2
   Interpolating derivative with 4 snapshots
 df(0.11) = 0.0363 (reconstructed 0.0363)
 Requested by GetVecs 0 1: stepnum -2147483648, time 0.3
   Reconstructing at time 0.3, history id 2, order 3
-    Reusing cached step 10, time 0.4
-    Reusing cached step 2, time 0.3
-    Reusing cached step 1, time 0.2
-    Reusing cached step 9, time 0.1
+    Reusing snapshot 1, step 10, time 0.4
+    Reusing snapshot 2, step 2, time 0.3
+    Reusing snapshot 3, step 1, time 0.2
+    Reusing snapshot 0, step 9, time 0.1
   Interpolating derivative with 4 snapshots
 df(0.3) = 0.27 (reconstructed 0.27)
 Requested by GetVecs 0 1: stepnum -2147483648, time 0.99
   Reconstructing at time 0.99, history id -10, order 3
-    Discarding cached snapshot 0 at time 0.4
-      Loaded stepnum 8, time 1.
-    Discarding cached snapshot 3 at time 0.3
-      Loaded stepnum 4, time 0.9
-    Discarding cached snapshot 1 at time 0.2
-      Loaded stepnum 7, time 0.8
-    Discarding cached snapshot 2 at time 0.1
-      Loaded stepnum 6, time 0.7
+    Discarding snapshot 1 at time 0.4
+      Requested by GetVecs 1 0: stepnum 8, time 1.
+        Loaded stepnum 8, time 1.
+    Discarding snapshot 2 at time 0.3
+      Requested by GetVecs 1 0: stepnum 4, time 0.9
+        Loaded stepnum 4, time 0.9
+    Discarding snapshot 3 at time 0.2
+      Requested by GetVecs 1 0: stepnum 7, time 0.8
+        Loaded stepnum 7, time 0.8
+    Discarding snapshot 0 at time 0.1
+      Requested by GetVecs 1 0: stepnum 6, time 0.7
+        Loaded stepnum 6, time 0.7
   Interpolating derivative with 4 snapshots
 df(0.99) = 2.9403 (reconstructed 2.9403)
 Requested by GetVecs 0 1: stepnum -2147483648, time 0.1
   Reconstructing at time 0.1, history id 0, order 3
-    Discarding cached snapshot 0 at time 1.
-      Loaded stepnum 10, time 0.4
-    Discarding cached snapshot 3 at time 0.9
-      Loaded stepnum 2, time 0.3
-    Discarding cached snapshot 1 at time 0.8
-      Loaded stepnum 1, time 0.2
-    Discarding cached snapshot 2 at time 0.7
-      Loaded stepnum 9, time 0.1
+    Discarding snapshot 1 at time 1.
+      Requested by GetVecs 1 0: stepnum 10, time 0.4
+        Loaded stepnum 10, time 0.4
+    Discarding snapshot 2 at time 0.9
+      Requested by GetVecs 1 0: stepnum 2, time 0.3
+        Loaded stepnum 2, time 0.3
+    Discarding snapshot 3 at time 0.8
+      Requested by GetVecs 1 0: stepnum 1, time 0.2
+        Loaded stepnum 1, time 0.2
+    Discarding snapshot 0 at time 0.7
+      Requested by GetVecs 1 0: stepnum 9, time 0.1
+        Loaded stepnum 9, time 0.1
   Interpolating derivative with 4 snapshots
 df(0.1) = 0.03 (reconstructed 0.03)
