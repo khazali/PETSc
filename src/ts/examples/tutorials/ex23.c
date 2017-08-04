@@ -364,7 +364,8 @@ int main(int argc, char* argv[])
   ierr = TSEvaluateGradient(ts,U,M,Mgrad);CHKERRQ(ierr);
   if (usefd) { /* we test against finite differencing the function evaluation */
     PetscScalar oa = user.a, ob = user.b, op = user.p, dx = PETSC_SMALL;
-    PetscReal   objadx,objbdx,objpdx;
+    PetscReal   objadx1,objbdx1,objpdx1;
+    PetscReal   objadx2,objbdx2,objpdx2;
 
     user.a = oa + dx;
     user.b = ob;
@@ -377,7 +378,19 @@ int main(int argc, char* argv[])
     ierr = VecSet(U,user.a);CHKERRQ(ierr);
     ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
     ierr = TSSetDuration(ts,maxsteps,tf);CHKERRQ(ierr);
-    ierr = TSEvaluateCostFunctionals(ts,U,M,&objadx);CHKERRQ(ierr);
+    ierr = TSEvaluateCostFunctionals(ts,U,M,&objadx1);CHKERRQ(ierr);
+    user.a = oa - dx;
+    user.b = ob;
+    user.p = op;
+    ierr = VecSetValue(M,0,user.a,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecSetValue(M,1,user.b,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecSetValue(M,2,user.p,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
+    ierr = VecSet(U,user.a);CHKERRQ(ierr);
+    ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
+    ierr = TSSetDuration(ts,maxsteps,tf);CHKERRQ(ierr);
+    ierr = TSEvaluateCostFunctionals(ts,U,M,&objadx2);CHKERRQ(ierr);
 
     user.a = oa;
     user.b = ob + dx;
@@ -390,7 +403,19 @@ int main(int argc, char* argv[])
     ierr = VecSet(U,user.a);CHKERRQ(ierr);
     ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
     ierr = TSSetDuration(ts,maxsteps,tf);CHKERRQ(ierr);
-    ierr = TSEvaluateCostFunctionals(ts,U,M,&objbdx);CHKERRQ(ierr);
+    ierr = TSEvaluateCostFunctionals(ts,U,M,&objbdx1);CHKERRQ(ierr);
+    user.a = oa;
+    user.b = ob - dx;
+    user.p = op;
+    ierr = VecSetValue(M,0,user.a,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecSetValue(M,1,user.b,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecSetValue(M,2,user.p,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
+    ierr = VecSet(U,user.a);CHKERRQ(ierr);
+    ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
+    ierr = TSSetDuration(ts,maxsteps,tf);CHKERRQ(ierr);
+    ierr = TSEvaluateCostFunctionals(ts,U,M,&objbdx2);CHKERRQ(ierr);
 
     user.a = oa;
     user.b = ob;
@@ -403,10 +428,23 @@ int main(int argc, char* argv[])
     ierr = VecSet(U,user.a);CHKERRQ(ierr);
     ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
     ierr = TSSetDuration(ts,maxsteps,tf);CHKERRQ(ierr);
-    ierr = TSEvaluateCostFunctionals(ts,U,M,&objpdx);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"1st component of gradient should be (approximated) %g\n",(double)((objadx-obj)/PetscRealPart(dx)));CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"2nd component of gradient should be (approximated) %g\n",(double)((objbdx-obj)/PetscRealPart(dx)));CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"3rd component of gradient should be (approximated) %g\n",(double)((objpdx-obj)/PetscRealPart(dx)));CHKERRQ(ierr);
+    ierr = TSEvaluateCostFunctionals(ts,U,M,&objpdx1);CHKERRQ(ierr);
+    user.a = oa;
+    user.b = ob;
+    user.p = op - dx;
+    ierr = VecSetValue(M,0,user.a,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecSetValue(M,1,user.b,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecSetValue(M,2,user.p,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
+    ierr = VecSet(U,user.a);CHKERRQ(ierr);
+    ierr = TSSetInitialTimeStep(ts,t0,dt);CHKERRQ(ierr);
+    ierr = TSSetDuration(ts,maxsteps,tf);CHKERRQ(ierr);
+    ierr = TSEvaluateCostFunctionals(ts,U,M,&objpdx2);CHKERRQ(ierr);
+
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"1st component of gradient should be (approximated) %g\n",(double)((objadx1-objadx2)/PetscRealPart(2*dx)));CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"2nd component of gradient should be (approximated) %g\n",(double)((objbdx1-objbdx2)/PetscRealPart(2*dx)));CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"3rd component of gradient should be (approximated) %g\n",(double)((objpdx1-objpdx2)/PetscRealPart(2*dx)));CHKERRQ(ierr);
   } else { /* analytic solution */
     if (userobj.isnorm) {
       objtest = np * PetscRealPart( user.a / user.b * (PetscExpScalar(2.0*(tf-t0)*user.b) - one));
@@ -420,7 +458,7 @@ int main(int argc, char* argv[])
       objtest = np * PetscRealPart((user.a/user.b)*( (tf-t0)*PetscExpScalar((tf-t0)*user.b) - (PetscExpScalar((tf-t0)*user.b) - one)/user.b));
     }
     ierr = PetscPrintf(PETSC_COMM_WORLD,"2nd component of gradient should be (analytic) %g\n",(double)objtest);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"3nd component of gradient not yet coded (use -use_fd to test it)\n");CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"3rd component of gradient not yet coded (use -use_fd to test it)\n");CHKERRQ(ierr);
   }
   ierr = VecView(Mgrad,NULL);CHKERRQ(ierr);
 
