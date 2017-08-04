@@ -407,7 +407,6 @@ PetscErrorCode  TSTrajectoryDestroy(TSTrajectory *tj)
 
   if ((*tj)->transformdestroy) {ierr = (*(*tj)->transformdestroy)((*tj)->transformctx);CHKERRQ(ierr);}
   if ((*tj)->ops->destroy) {ierr = (*(*tj)->ops->destroy)((*tj));CHKERRQ(ierr);}
-  ierr = PetscViewerDestroy(&(*tj)->monitor);CHKERRQ(ierr);
   ierr = PetscStrArrayDestroy(&(*tj)->names);CHKERRQ(ierr);
   ierr = PetscHeaderDestroy(tj);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -472,16 +471,11 @@ static PetscErrorCode TSTrajectorySetTypeFromOptions_Private(PetscOptionItems *P
 @*/
 PetscErrorCode TSTrajectorySetMonitor(TSTrajectory tj,PetscBool flg)
 {
-  PetscErrorCode ierr;
-
   PetscFunctionBegin;
   PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
   PetscValidLogicalCollectiveBool(tj,flg,2);
-  if (flg) {
-    if (!tj->monitor) {ierr = PetscViewerASCIIOpen(PetscObjectComm((PetscObject)tj),"stdout",&tj->monitor);CHKERRQ(ierr);}
-  } else {
-    ierr = PetscViewerDestroy(&tj->monitor);CHKERRQ(ierr);
-  }
+  if (flg) tj->monitor = PETSC_VIEWER_STDOUT_(PetscObjectComm((PetscObject)tj));
+  else tj->monitor = NULL;
   PetscFunctionReturn(0);
 }
 
