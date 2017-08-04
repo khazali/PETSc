@@ -319,9 +319,9 @@ PetscErrorCode FormFunction(Tao tao,Vec P,PetscReal *f,void *ctx0)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set solver options
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  ierr = TSSetDuration(ts,PETSC_DEFAULT,1.0);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,1.0);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(ts,0.0,0.03125);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,0.03125);CHKERRQ(ierr);
   ierr = TSSetCostIntegrand(ts,1,NULL,(PetscErrorCode (*)(TS,PetscReal,Vec,Vec,void*))CostIntegrand,PETSC_NULL,PETSC_NULL,PETSC_TRUE,ctx);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
 
@@ -336,7 +336,7 @@ PetscErrorCode FormFunction(Tao tao,Vec P,PetscReal *f,void *ctx0)
   ierr = TSSolve(ts,U);CHKERRQ(ierr);
 
   ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts,&steps);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts,&steps);CHKERRQ(ierr);
 
   ierr = TSGetCostIntegral(ts,&q);CHKERRQ(ierr);
 

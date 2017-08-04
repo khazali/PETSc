@@ -736,14 +736,14 @@ static PetscErrorCode SetupBC(DM dm, AppCtx *user)
   if (label) {
     const PetscInt id = 1;
 
-    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL, "wall", "marker", 0, 0, NULL, (void (*)()) user->exactFuncs[0], 1, &id, user);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL, "wall", "marker", 0, 0, NULL, (void (*)(void)) user->exactFuncs[0], 1, &id, user);CHKERRQ(ierr);
   }
   ierr = DMGetLabel(dm, "Face Sets", &label);CHKERRQ(ierr);
   if (label && user->useFV) {
     const PetscInt inflowids[] = {100,200,300}, outflowids[] = {101};
 
-    ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "inflow",  "Face Sets", 1, 0, NULL, (void (*)()) advect_inflow,  ALEN(inflowids),  inflowids,  user);CHKERRQ(ierr);
-    ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "outflow", "Face Sets", 1, 0, NULL, (void (*)()) advect_outflow, ALEN(outflowids), outflowids, user);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "inflow",  "Face Sets", 1, 0, NULL, (void (*)(void)) advect_inflow,  ALEN(inflowids),  inflowids,  user);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "outflow", "Face Sets", 1, 0, NULL, (void (*)(void)) advect_outflow, ALEN(outflowids), outflowids, user);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -891,7 +891,7 @@ static PetscErrorCode SetInitialConditionFVM(DM dm, Vec X, PetscInt field, Petsc
   ierr = VecGetArrayRead(cellgeom, &cgeom);CHKERRQ(ierr);
   ierr = VecGetArray(X, &x);CHKERRQ(ierr);
   for (c = cStart; c < cEndInterior; ++c) {
-    const PetscFVCellGeom *cg;
+    PetscFVCellGeom       *cg;
     PetscScalar           *xc;
 
     ierr = DMPlexPointLocalRead(dmCell, c, cgeom, &cg);CHKERRQ(ierr);
@@ -910,7 +910,8 @@ static PetscErrorCode MonitorFunctionals(TS ts, PetscInt stepnum, PetscReal time
   DM                 dm;
   PetscSection       s;
   Vec                cellgeom;
-  const PetscScalar *x, *a;
+  const PetscScalar *x;
+  PetscScalar       *a;
   PetscReal         *xnorms;
   PetscInt           pStart, pEnd, p, Nf, f, cEndInterior;
   PetscErrorCode     ierr;
@@ -977,8 +978,8 @@ static PetscErrorCode MonitorFunctionals(TS ts, PetscInt stepnum, PetscReal time
     ierr = VecGetArrayRead(cellgeom, &cgeom);CHKERRQ(ierr);
     ierr = VecGetArrayRead(X, &x);CHKERRQ(ierr);
     for (c = cStart; c < cEndInterior; ++c) {
-      const PetscFVCellGeom *cg;
-      const PetscScalar     *cx;
+      PetscFVCellGeom *cg;
+      PetscScalar     *cx;
 
       ierr = DMPlexPointLocalRead(dmCell, c, cgeom, &cg);CHKERRQ(ierr);
       ierr = DMPlexPointGlobalFieldRead(dm, c, 1, x, &cx);CHKERRQ(ierr);
@@ -1113,8 +1114,9 @@ int main(int argc, char **argv)
     ierr = DMTSSetIJacobianLocal(dm, DMPlexTSComputeIJacobianFEM, &user);CHKERRQ(ierr);
   }
   if (user.useFV) {ierr = TSMonitorSet(ts, MonitorFunctionals, &user, NULL);CHKERRQ(ierr);}
-  ierr = TSSetDuration(ts, 1, 2.0);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(ts, 0.0, 0.01);CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(ts, 1);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts, 2.0);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,0.01);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
 
@@ -1135,7 +1137,7 @@ int main(int argc, char **argv)
     TSConvergedReason reason;
 
     ierr = TSGetSolveTime(ts, &ftime);CHKERRQ(ierr);
-    ierr = TSGetTimeStepNumber(ts, &nsteps);CHKERRQ(ierr);
+    ierr = TSGetStepNumber(ts, &nsteps);CHKERRQ(ierr);
     ierr = TSGetConvergedReason(ts, &reason);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "%s at time %g after %D steps\n", TSConvergedReasons[reason], (double) ftime, nsteps);CHKERRQ(ierr);
   }

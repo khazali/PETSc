@@ -552,7 +552,7 @@ int main(int argc,char ** argv)
   PetscReal         ftime = 2500.0;
   Vec               X;
   TS                ts;
-  PetscInt          maxsteps=-1,steps;
+  PetscInt          steps;
   TSConvergedReason reason;
   PetscBool         viewpipes;
   PetscInt          pipesCase;
@@ -700,9 +700,9 @@ int main(int argc,char ** argv)
   ierr = TSSetDM(ts,(DM)networkdm);CHKERRQ(ierr);
   ierr = TSSetIFunction(ts,NULL,WASHIFunction,wash);CHKERRQ(ierr);
 
-  ierr = TSSetDuration(ts,maxsteps,ftime);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,ftime);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(ts,0.0,0.1);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,0.1);CHKERRQ(ierr);
   ierr = TSSetType(ts,TSBEULER);CHKERRQ(ierr);
   if (size == 1) {
     ierr = TSMonitorSet(ts, TSDMNetworkMonitor, monitor, NULL);CHKERRQ(ierr);
@@ -714,7 +714,7 @@ int main(int argc,char ** argv)
   ierr = TSSolve(ts,X);CHKERRQ(ierr);
 
   ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts,&steps);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts,&steps);CHKERRQ(ierr);
   ierr = TSGetConvergedReason(ts,&reason);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"%s at time %g after %D steps\n",TSConvergedReasons[reason],(double)ftime,steps);CHKERRQ(ierr);
   /* ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */

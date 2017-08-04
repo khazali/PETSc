@@ -298,7 +298,8 @@ int main(int argc, char **argv)
    * Set a large number of timesteps and final duration time to insure
    * convergenge to steady state
    */
-  ierr = TSSetDuration(ts, 5000, 1e12);
+  ierr = TSSetMaxSteps(ts, 1e12);
+  ierr = TSSetMaxTime(ts, 1e12);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
 
   /*
@@ -336,7 +337,7 @@ int main(int argc, char **argv)
    */
   ierr = TSSolve(ts, x);CHKERRQ(ierr);
   ierr = TSGetSolveTime(ts, &ftime);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts,&its);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts,&its);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD, "Number of time steps = %D, final time: %4.2e\nResult:\n\n", its, (double)ftime);CHKERRQ(ierr);
   ierr = PrintSolution(x, &user);CHKERRQ(ierr);
 

@@ -1450,7 +1450,7 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
   if (user->vtkInterval < 1) PetscFunctionReturn(0);
   if ((stepnum == -1) ^ (stepnum % user->vtkInterval == 0)) {
     if (stepnum == -1) {        /* Final time is not multiple of normal time interval, write it anyway */
-      ierr = TSGetTimeStepNumber(ts,&stepnum);CHKERRQ(ierr);
+      ierr = TSGetStepNumber(ts,&stepnum);CHKERRQ(ierr);
     }
     ierr = PetscSNPrintf(filename,sizeof filename,"%s-%03D.vtu",user->outputBasename,stepnum);CHKERRQ(ierr);
     ierr = OutputVTK(dm,filename,&viewer);CHKERRQ(ierr);
@@ -1471,7 +1471,7 @@ static PetscErrorCode initializeTS(DM dm, User user, TS *ts)
   ierr = TSMonitorSet(*ts,MonitorVTK,user,NULL);CHKERRQ(ierr);
   ierr = DMTSSetBoundaryLocal(dm, DMPlexTSComputeBoundary, user);CHKERRQ(ierr);
   ierr = DMTSSetRHSFunctionLocal(dm, DMPlexTSComputeRHSFunctionFVM, user);CHKERRQ(ierr);
-  ierr = TSSetDuration(*ts,1000,2.0);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(*ts,2.0);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(*ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -1921,24 +1921,23 @@ int main(int argc, char **argv)
   ierr = MPI_Allreduce(&phys->maxspeed,&mod->maxspeed,1,MPIU_REAL,MPIU_MAX,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
   if (mod->maxspeed <= 0) SETERRQ1(comm,PETSC_ERR_ARG_WRONGSTATE,"Physics '%s' did not set maxspeed",physname);
   dt   = cfl * minRadius / mod->maxspeed;
-  ierr = TSSetInitialTimeStep(ts,0.0,dt);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   if (!useAMR) {
     ierr = TSSolve(ts,X);CHKERRQ(ierr);
     ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-    ierr = TSGetTimeStepNumber(ts,&nsteps);CHKERRQ(ierr);
+    ierr = TSGetStepNumber(ts,&nsteps);CHKERRQ(ierr);
   } else {
     PetscReal finalTime;
     PetscInt  adaptIter;
     TS        tsNew = NULL;
     Vec       solNew = NULL;
-    PetscInt  incSteps;
 
-    ierr   = TSGetDuration(ts,NULL,&finalTime);CHKERRQ(ierr);
-    ierr   = TSSetDuration(ts,adaptInterval,finalTime);CHKERRQ(ierr);
+    ierr   = TSGetMaxTime(ts,&finalTime);CHKERRQ(ierr);
+    ierr   = TSSetMaxSteps(ts,adaptInterval);CHKERRQ(ierr);
     ierr   = TSSolve(ts,X);CHKERRQ(ierr);
     ierr   = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-    ierr   = TSGetTimeStepNumber(ts,&nsteps);CHKERRQ(ierr);
+    ierr   = TSGetStepNumber(ts,&nsteps);CHKERRQ(ierr);
     for (adaptIter = 0;ftime < finalTime;adaptIter++) {
       PetscLogDouble bytes;
 
@@ -1961,16 +1960,17 @@ int main(int argc, char **argv)
         ierr = MPI_Allreduce(&phys->maxspeed,&mod->maxspeed,1,MPIU_REAL,MPIU_MAX,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
         if (mod->maxspeed <= 0) SETERRQ1(comm,PETSC_ERR_ARG_WRONGSTATE,"Physics '%s' did not set maxspeed",physname);
         dt   = cfl * minRadius / mod->maxspeed;
-        ierr = TSSetInitialTimeStep(ts,ftime,dt);CHKERRQ(ierr);
+        ierr = TSSetStepNumber(ts,nsteps);CHKERRQ(ierr);
+        ierr = TSSetTime(ts,ftime);CHKERRQ(ierr);
+        ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
       } else {
         ierr = PetscInfo(ts, "AMR not used\n");CHKERRQ(ierr);
       }
       user->monitorStepOffset = nsteps;
-      ierr    = TSSetDuration(ts,adaptInterval,finalTime);CHKERRQ(ierr);
-      ierr    = TSSolve(ts,X);CHKERRQ(ierr);
-      ierr    = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-      ierr    = TSGetTimeStepNumber(ts,&incSteps);CHKERRQ(ierr);
-      nsteps += incSteps;
+      ierr = TSSetMaxSteps(ts,nsteps+adaptInterval);CHKERRQ(ierr);
+      ierr = TSSolve(ts,X);CHKERRQ(ierr);
+      ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
+      ierr = TSGetStepNumber(ts,&nsteps);CHKERRQ(ierr);
     }
   }
   ierr = TSGetConvergedReason(ts,&reason);CHKERRQ(ierr);

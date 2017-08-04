@@ -383,9 +383,9 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx0)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set solver options
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  ierr = TSSetDuration(ts,PETSC_DEFAULT,1.0);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,1.0);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(ts,0.0,0.03125);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,0.03125);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
 
   direction[0] = direction[1] = 1;
@@ -399,7 +399,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx0)
   ierr = TSSolve(ts,U);CHKERRQ(ierr);
 
   ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts,&steps);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts,&steps);CHKERRQ(ierr);
   /* ierr = VecView(U,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

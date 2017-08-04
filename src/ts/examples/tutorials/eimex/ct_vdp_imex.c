@@ -48,7 +48,7 @@ int main(int argc, char **argv)
   TS                ts;
   Vec               x; /*solution vector*/
   Mat               A; /*Jacobian*/
-  PetscInt          steps,maxsteps,mx,eimex_rowcol[2],two;
+  PetscInt          steps,mx,eimex_rowcol[2],two;
   PetscErrorCode    ierr;
   PetscScalar       *x_ptr;
   PetscReal         ftime,dt,norm;
@@ -110,11 +110,10 @@ int main(int argc, char **argv)
   ierr = TSSetIFunction(ts,NULL,IFunction,&user);CHKERRQ(ierr);
   ierr = TSSetIJacobian(ts,A,A,IJacobian,&user);CHKERRQ(ierr);
 
-  ftime = 1.1;
   dt    = 0.00001;
-  maxsteps = 100000;
-  ierr = TSSetDuration(ts,maxsteps,ftime);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(ts,0.0,dt);CHKERRQ(ierr);
+  ftime = 1.1;
+  ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,ftime);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    Set initial conditions
@@ -136,7 +135,7 @@ int main(int argc, char **argv)
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   ierr = TSSolve(ts,x);CHKERRQ(ierr);
   ierr = TSGetTime(ts,&ftime);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts,&steps);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts,&steps);CHKERRQ(ierr);
 
   ierr = VecAXPY(x,-1.0,ref);CHKERRQ(ierr);
   ierr = VecNorm(x,NORM_2,&norm);CHKERRQ(ierr);
