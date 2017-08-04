@@ -40,7 +40,7 @@ PetscErrorCode TSTrajectoryRegister(const char sname[],PetscErrorCode (*function
 
   Input Parameters:
 + tj      - the trajectory object
-. ts      - the time stepper object
+. ts      - the time stepper object (optional)
 . stepnum - the step number
 . time    - the current time
 - X       - the current solution
@@ -51,7 +51,7 @@ PetscErrorCode TSTrajectoryRegister(const char sname[],PetscErrorCode (*function
 
 .keywords: TS, trajectory, create
 
-.seealso: TSTrajectorySetUp(), TSTrajectoryDestroy(), TSTrajectorySetType(), TSTrajectorySetVariableNames(), TSGetTrajectory()
+.seealso: TSTrajectorySetUp(), TSTrajectoryDestroy(), TSTrajectorySetType(), TSTrajectorySetVariableNames(), TSGetTrajectory(), TSTrajectoryGet(), TSTrajectoryGetVecs()
 */
 PetscErrorCode TSTrajectorySet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal time,Vec X)
 {
@@ -79,7 +79,7 @@ PetscErrorCode TSTrajectorySet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal 
 
   Input Parameters:
 + tj      - the trajectory object
-. ts      - the time stepper object
+. ts      - the time stepper object (optional)
 - stepnum - the step number
 
   Output Parameter:
@@ -91,7 +91,7 @@ PetscErrorCode TSTrajectorySet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal 
 
 .keywords: TS, trajectory, create
 
-.seealso: TSTrajectorySetUp(), TSTrajectoryDestroy(), TSTrajectorySetType(), TSTrajectorySetVariableNames(), TSGetTrajectory()
+.seealso: TSTrajectorySetUp(), TSTrajectoryDestroy(), TSTrajectorySetType(), TSTrajectorySetVariableNames(), TSGetTrajectory(), TSTrajectorySet(), TSTrajectoryGetVecs()
 */
 PetscErrorCode TSTrajectoryGet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal *time)
 {
@@ -112,13 +112,13 @@ PetscErrorCode TSTrajectoryGet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal 
 }
 
 /*
-  TSTrajectoryGetVecs - Reconstructs the vectors of state and its time derivative using information from the TSTrajectory and the TS
+  TSTrajectoryGetVecs - Reconstructs the vectors of state and its time derivative using information from the TSTrajectory and, possibly, from the TS
 
   Collective on TS
 
   Input Parameters:
 + tj      - the trajectory object
-. ts      - the time stepper object
+. ts      - the time stepper object (optional)
 - stepnum - the requested step number
 
   Input/Output Parameter:
