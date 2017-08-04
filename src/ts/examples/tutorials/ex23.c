@@ -2,14 +2,14 @@ static const char help[] = "Demonstrates the use of TSEvaluteGradient";
 /*
   Computes the gradient of
 
-    Obj(x,m) = \int^{TF}_{T0} f(u) dt
+    Obj(u,m) = \int^{TF}_{T0} f(u) dt
 
   where u obeys the ODE:
 
     udot = b*u^p
     u(0) = a
 
-  The integrand of the objective function can be either f(u) = ||u||^2 or f(u) = Sum(u)
+  The integrand of the objective function is either f(u) = ||u||^2 or f(u) = Sum(u).
   The design variables are m = [a,b,p].
 */
 #include <petscts.h>
@@ -18,7 +18,7 @@ typedef struct {
   PetscBool isnorm;
 } UserObjective;
 
-/* returns ||u||^2  or Sum(u), depending on the objective function selected */
+/* returns f(u) -> ||u||^2  or Sum(u), depending on the objective function selected */
 static PetscErrorCode EvalCostFunctional(TS ts, PetscReal time, Vec U, Vec M, PetscReal *val, void *ctx)
 {
   UserObjective  *user = (UserObjective*)ctx;
@@ -36,7 +36,7 @@ static PetscErrorCode EvalCostFunctional(TS ts, PetscReal time, Vec U, Vec M, Pe
   PetscFunctionReturn(0);
 }
 
-/* returns 2*u or 1, depending on the objective function selected */
+/* returns \partial_u f(u) ->  2*u or 1, depending on the objective function selected */
 static PetscErrorCode EvalCostGradient_U(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
 {
   UserObjective  *user = (UserObjective*)ctx;
@@ -52,7 +52,7 @@ static PetscErrorCode EvalCostGradient_U(TS ts, PetscReal time, Vec U, Vec M, Ve
   PetscFunctionReturn(0);
 }
 
-/* returns \partial_m f(u) */
+/* returns \partial_m f(u) = 0, the functional does not depend on the parameters  */
 static PetscErrorCode EvalCostGradient_M(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
 {
   PetscErrorCode ierr;
@@ -68,7 +68,7 @@ typedef struct {
   PetscReal   p;
 } User;
 
-/* returns \partial_m F(U,Udot,t;M) for a fixed design M. F(U,Udot,t) the ODE in implicit form */
+/* returns \partial_m F(U,Udot,t;M) for a fixed design M, where F(U,Udot,t;M) is the parameter dependent ODE in implicit form */
 static PetscErrorCode EvalGradient(TS ts, PetscReal time, Vec U, Vec Udot, Vec M, Mat J, void *ctx)
 {
   User           *user = (User*)ctx;
@@ -81,11 +81,12 @@ static PetscErrorCode EvalGradient(TS ts, PetscReal time, Vec U, Vec Udot, Vec M
   ierr = MatZeroEntries(J);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(J,&rst,&ren);CHKERRQ(ierr);
   for (r = rst; r < ren; r++) {
+    /* F_a : 0 */
+    /* F_b : -x^p */
+    /* F_p : -b*x^p*log(x) */
     PetscInt    c = 1;
     PetscScalar v = -PetscPowScalarReal(arr[r-rst],user->p);
-    /* F_b : -x^p */
     ierr = MatSetValues(J,1,&r,1,&c,&v,INSERT_VALUES);CHKERRQ(ierr);
-    /* F_p : -b*x^p*log(x) */
     c = 2;
     v *= user->b*PetscLogReal(arr[r-rst]);
     ierr = MatSetValues(J,1,&r,1,&c,&v,INSERT_VALUES);CHKERRQ(ierr);
