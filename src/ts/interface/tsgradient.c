@@ -349,7 +349,7 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   ierr = TSGetIFunction(ts,NULL,&ifunc,NULL);CHKERRQ(ierr);
   ierr = TSGetRHSFunction(ts,NULL,&rhsfunc,NULL);CHKERRQ(ierr);
   if (ifunc) {
-
+    if (rhsfunc) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Not yet implemented");
     ierr = TSGetIJacobian(ts,&A,&B,NULL,NULL);CHKERRQ(ierr);
     ierr = MatDuplicate(A,MAT_DO_NOT_COPY_VALUES,&adj->splitJ_U);CHKERRQ(ierr);
     ierr = MatDuplicate(A,MAT_DO_NOT_COPY_VALUES,&adj->splitJ_Udot);CHKERRQ(ierr);
@@ -357,7 +357,7 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
     ierr = TSSetIFunction(*adjts,NULL,AdjointTSIFuncLinear,NULL);CHKERRQ(ierr);
     ierr = TSSetIJacobian(*adjts,A,B,AdjointTSIJacobian,NULL);CHKERRQ(ierr);
   } else {
-    if (!rhsfunc) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Invalid TS");
+    if (!rhsfunc) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"TSSetIFunction or TSSetRHSFunction not called");
     ierr = TSSetRHSFunction(*adjts,NULL,AdjointTSRHSFuncLinear,NULL);CHKERRQ(ierr);
     ierr = TSGetRHSJacobian(ts,&A,&B,&rhsjacfunc,NULL);CHKERRQ(ierr);
     if (rhsjacfunc == TSComputeRHSJacobianConstant) {
@@ -934,11 +934,11 @@ PetscErrorCode TSEvaluateGradient(TS ts, Vec X, Vec design, Vec gradient)
   ierr = TSEvaluateCostFunctionals_Private(ts,X,design,gradient,NULL);CHKERRQ(ierr);
 
   /* adjoint */
+  ierr = TSCreateAdjointTS(ts,&adjts);CHKERRQ(ierr);
+  ierr = TSSetSolution(adjts,X);CHKERRQ(ierr);
   ierr = TSGetTime(ts,&tf);CHKERRQ(ierr);
   ierr = TSGetPrevTime(ts,&dt);CHKERRQ(ierr);
   dt   = tf - dt;
-  ierr = TSCreateAdjointTS(ts,&adjts);CHKERRQ(ierr);
-  ierr = TSSetSolution(adjts,X);CHKERRQ(ierr);
   ierr = AdjointTSSetTimeLimits(adjts,t0,tf,dt);CHKERRQ(ierr);
   ierr = AdjointTSSetDesign(adjts,design);CHKERRQ(ierr);
   ierr = AdjointTSSetInitialGradient(adjts,gradient);CHKERRQ(ierr); /* it also initializes the adjoint variable */
