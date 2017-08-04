@@ -211,6 +211,7 @@ int main(int argc, char* argv[])
   Vec            U,M,Mgrad;
   UserObjective  userobj;
   User           user;
+  TSProblemType  problemtype;
   PetscScalar    one = 1.0;
   PetscReal      t0 = 0.0, tf = 2.0, dt = 0.1;
   PetscReal      obj,objtest;
@@ -230,8 +231,8 @@ int main(int argc, char* argv[])
   t0             = 0.0;
   tf             = 2.0;
   dt             = 1.0/512.0;
-  user.a         = 1.0;
-  user.b         = 1.0;
+  user.a         = 0.5;
+  user.b         = 0.7;
   user.p         = 1.0;
   userobj.isnorm = PETSC_FALSE;
   ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"PDE-constrained options","");
@@ -250,8 +251,12 @@ int main(int argc, char* argv[])
   ierr = PetscOptionsBool("-use_fd","Use finite differencing to test gradient evaluation","",usefd,&usefd,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
-  /* we test with finite differencing the nonlinear case */
-  if (user.p != 1.0) usefd = PETSC_TRUE;
+  problemtype = TS_LINEAR;
+  if (user.p != 1.0) {
+    usefd = PETSC_TRUE;
+    problemtype = TS_NONLINEAR;
+    testrhsjacconst = PETSC_FALSE;
+  }
 
   /* state vectors */
   ierr = VecCreate(PETSC_COMM_WORLD,&U);CHKERRQ(ierr);
@@ -295,6 +300,7 @@ int main(int argc, char* argv[])
 
   /* TS solver */
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
+  ierr = TSSetProblemType(ts,problemtype);CHKERRQ(ierr);
   ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
   ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
   ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
@@ -369,100 +375,37 @@ int main(int argc, char* argv[])
   ierr = VecSet(U,user.a);CHKERRQ(ierr);
   ierr = TSEvaluateGradient(ts,U,M,Mgrad);CHKERRQ(ierr);
   if (usefd) { /* we test against finite differencing the function evaluation */
-    PetscScalar oa = user.a, ob = user.b, op = user.p, dx = PETSC_SMALL;
-    PetscReal   objadx1,objbdx1,objpdx1;
-    PetscReal   objadx2,objbdx2,objpdx2;
+    PetscInt i;
+    for (i=0; i<3; i++) {
+      PetscReal oa = user.a, ob = user.b, op = user.p;
+      PetscReal objdx[2];
+      PetscReal dx = PETSC_SMALL;
+      PetscInt  j;
 
-    user.a = oa + dx;
-    user.b = ob;
-    user.p = op;
-    ierr = VecSetValue(M,0,user.a,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecSetValue(M,1,user.b,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecSetValue(M,2,user.p,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
-    ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
-    ierr = VecSet(U,user.a);CHKERRQ(ierr);
-    ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
-    ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
-    ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
-    ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
-    ierr = TSEvaluateCostFunctionals(ts,U,M,&objadx1);CHKERRQ(ierr);
-    user.a = oa - dx;
-    user.b = ob;
-    user.p = op;
-    ierr = VecSetValue(M,0,user.a,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecSetValue(M,1,user.b,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecSetValue(M,2,user.p,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
-    ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
-    ierr = VecSet(U,user.a);CHKERRQ(ierr);
-    ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
-    ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
-    ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
-    ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
-    ierr = TSEvaluateCostFunctionals(ts,U,M,&objadx2);CHKERRQ(ierr);
+      for (j=0; j<2; j++) {
+        PetscScalar param[3];
+        param[0] = oa;
+        param[1] = ob;
+        param[2] = op;
+        param[i] = (j == 0 ? param[i] + dx : param[i] - dx);
+        user.a = param[0];
+        user.b = param[1];
+        user.p = param[2];
 
-    user.a = oa;
-    user.b = ob + dx;
-    user.p = op;
-    ierr = VecSetValue(M,0,user.a,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecSetValue(M,1,user.b,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecSetValue(M,2,user.p,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
-    ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
-    ierr = VecSet(U,user.a);CHKERRQ(ierr);
-    ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
-    ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
-    ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
-    ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
-    ierr = TSEvaluateCostFunctionals(ts,U,M,&objbdx1);CHKERRQ(ierr);
-    user.a = oa;
-    user.b = ob - dx;
-    user.p = op;
-    ierr = VecSetValue(M,0,user.a,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecSetValue(M,1,user.b,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecSetValue(M,2,user.p,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
-    ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
-    ierr = VecSet(U,user.a);CHKERRQ(ierr);
-    ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
-    ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
-    ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
-    ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
-    ierr = TSEvaluateCostFunctionals(ts,U,M,&objbdx2);CHKERRQ(ierr);
-
-    user.a = oa;
-    user.b = ob;
-    user.p = op + dx;
-    ierr = VecSetValue(M,0,user.a,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecSetValue(M,1,user.b,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecSetValue(M,2,user.p,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
-    ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
-    ierr = VecSet(U,user.a);CHKERRQ(ierr);
-    ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
-    ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
-    ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
-    ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
-    ierr = TSEvaluateCostFunctionals(ts,U,M,&objpdx1);CHKERRQ(ierr);
-    user.a = oa;
-    user.b = ob;
-    user.p = op - dx;
-    ierr = VecSetValue(M,0,user.a,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecSetValue(M,1,user.b,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecSetValue(M,2,user.p,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
-    ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
-    ierr = VecSet(U,user.a);CHKERRQ(ierr);
-    ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
-    ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
-    ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
-    ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
-    ierr = TSEvaluateCostFunctionals(ts,U,M,&objpdx2);CHKERRQ(ierr);
-
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"1st component of gradient should be (approximated) %g\n",(double)((objadx1-objadx2)/PetscRealPart(2*dx)));CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"2nd component of gradient should be (approximated) %g\n",(double)((objbdx1-objbdx2)/PetscRealPart(2*dx)));CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"3rd component of gradient should be (approximated) %g\n",(double)((objpdx1-objpdx2)/PetscRealPart(2*dx)));CHKERRQ(ierr);
+        ierr = VecSetValue(M,0,param[0],INSERT_VALUES);CHKERRQ(ierr);
+        ierr = VecSetValue(M,1,param[1],INSERT_VALUES);CHKERRQ(ierr);
+        ierr = VecSetValue(M,2,param[2],INSERT_VALUES);CHKERRQ(ierr);
+        ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
+        ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
+        ierr = VecSet(U,param[0]);CHKERRQ(ierr);
+        ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
+        ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
+        ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
+        ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
+        ierr = TSEvaluateCostFunctionals(ts,U,M,&objdx[j]);CHKERRQ(ierr);
+      }
+      ierr = PetscPrintf(PETSC_COMM_WORLD,"%D-th component of gradient should be (approximated) %g\n",i,(double)((objdx[0]-objdx[1])/PetscRealPart(2*dx)));CHKERRQ(ierr);
+    }
   } else { /* analytic solution */
     if (userobj.isnorm) {
       objtest = np * PetscRealPart( user.a / user.b * (PetscExpScalar(2.0*(tf-t0)*user.b) - one));
