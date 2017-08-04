@@ -382,7 +382,7 @@ static PetscErrorCode TSTrajectoryGet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
   ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename,FILE_MODE_READ,&viewer);CHKERRQ(ierr);
   ierr = VecLoad(Sol,viewer);CHKERRQ(ierr);
   ierr = PetscViewerBinaryRead(viewer,t,1,NULL,PETSC_REAL);CHKERRQ(ierr);
-  if (stepnum != 0) {
+  if (stepnum != 0 && tjbasic->dumpstages) {
     Vec         *Y;
     PetscInt    Nr,i;
     PetscReal   timepre;
