@@ -27,6 +27,7 @@ int main(int argc,char **argv)
   ierr = TSTrajectoryCreate(PETSC_COMM_WORLD,&tj);CHKERRQ(ierr);
   ierr = TSTrajectorySetType(tj,NULL,TSTRAJECTORYBASIC);CHKERRQ(ierr);
   ierr = TSTrajectorySetFromOptions(tj,NULL);CHKERRQ(ierr);
+  ierr = TSTrajectorySetUp(tj,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-p",&p,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetRealArray(NULL,NULL,"-interptimes",times,&Nt,NULL);CHKERRQ(ierr);
   sort = PETSC_FALSE;

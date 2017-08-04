@@ -65,6 +65,7 @@ PetscErrorCode TSTrajectorySet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal 
   PetscValidLogicalCollectiveReal(tj,time,4);
   PetscValidHeaderSpecific(X,VEC_CLASSID,5);
   if (!tj->ops->set) SETERRQ1(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"TSTrajectory type %s",((PetscObject)tj)->type_name);
+  if (!tj->setupcalled) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_ORDER,"TSTrajectorySetUp should be called first");
   ierr = PetscLogEventBegin(TSTrajectory_Set,tj,ts,0,0);CHKERRQ(ierr);
   ierr = (*tj->ops->set)(tj,ts,stepnum,time,X);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(TSTrajectory_Set,tj,ts,0,0);CHKERRQ(ierr);
@@ -99,10 +100,11 @@ PetscErrorCode TSTrajectoryGet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal 
   PetscFunctionBegin;
   if (!tj) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_ARG_WRONGSTATE,"TS solver did not save trajectory");
   PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
-  PetscValidHeaderSpecific(ts,TS_CLASSID,2);
-  PetscValidLogicalCollectiveInt(ts,stepnum,3);
+  if (ts) PetscValidHeaderSpecific(ts,TS_CLASSID,2);
+  PetscValidLogicalCollectiveInt(tj,stepnum,3);
   PetscValidPointer(time,4);
   if (!tj->ops->get) SETERRQ1(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"TSTrajectory type %s",((PetscObject)tj)->type_name);
+  if (!tj->setupcalled) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_ORDER,"TSTrajectorySetUp should be called first");
   ierr = PetscLogEventBegin(TSTrajectory_Get,tj,ts,0,0);CHKERRQ(ierr);
   ierr = (*tj->ops->get)(tj,ts,stepnum,time);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(TSTrajectory_Get,tj,ts,0,0);CHKERRQ(ierr);
@@ -151,6 +153,7 @@ PetscErrorCode TSTrajectoryGetVecs(TSTrajectory tj,TS ts,PetscInt stepnum,PetscR
   if (!U && !Udot) PetscFunctionReturn(0);
 
   if (!tj->ops->getvecs) SETERRQ1(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"TSTrajectory type %s",((PetscObject)tj)->type_name);
+  if (!tj->setupcalled) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_ORDER,"TSTrajectorySetUp should be called first");
   ierr = PetscLogEventBegin(TSTrajectory_GetVecs,tj,ts,0,0);CHKERRQ(ierr);
   ierr = (*tj->ops->getvecs)(tj,ts,stepnum,time,U,Udot);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(TSTrajectory_GetVecs,tj,ts,0,0);CHKERRQ(ierr);
@@ -546,7 +549,7 @@ PetscErrorCode  TSTrajectorySetUp(TSTrajectory tj,TS ts)
   PetscFunctionBegin;
   if (!tj) PetscFunctionReturn(0);
   PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
-  PetscValidHeaderSpecific(ts,TS_CLASSID,2);
+  if (ts) PetscValidHeaderSpecific(ts,TS_CLASSID,2);
   if (tj->setupcalled) PetscFunctionReturn(0);
 
   if (!((PetscObject)tj)->type_name) {

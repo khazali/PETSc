@@ -150,19 +150,8 @@ static PetscErrorCode TSTrajectorySet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
   TSTrajectory_Basic *tjbasic = (TSTrajectory_Basic*)tj->data;
   char               filename[PETSC_MAX_PATH_LEN];
   PetscErrorCode     ierr;
-  MPI_Comm           comm;
 
   PetscFunctionBegin;
-  ierr = PetscObjectGetComm((PetscObject)tj,&comm);CHKERRQ(ierr);
-  if (stepnum == 0) {
-    PetscMPIInt rank;
-    ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
-    if (!rank) {
-      ierr = PetscRMTree(tjbasic->folder);CHKERRQ(ierr);
-      ierr = PetscMkdir(tjbasic->folder);CHKERRQ(ierr);
-    }
-    ierr = PetscBarrier((PetscObject)tj);CHKERRQ(ierr);
-  }
   ierr = PetscSNPrintf(filename,sizeof(filename),"%s/%s-%06d.%s",tjbasic->folder,tjbasic->basefilename,stepnum,tjbasic->ext);CHKERRQ(ierr);
   ierr = PetscViewerFileSetName(tjbasic->viewer,filename);CHKERRQ(ierr);
   ierr = PetscViewerSetUp(tjbasic->viewer);CHKERRQ(ierr);
@@ -318,6 +307,32 @@ static PetscErrorCode TSTrajectoryGet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode TSTrajectorySetUp_Basic(TSTrajectory tj,TS ts)
+{
+  TSTrajectory_Basic *tjbasic = (TSTrajectory_Basic*)tj->data;
+  MPI_Comm           comm;
+  PetscMPIInt        rank;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscObjectGetComm((PetscObject)tj,&comm);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
+  if (!rank) {
+    const char* dir = tjbasic->folder;
+    PetscBool   flg;
+
+    /* I don't like running PetscRMTree on a directory */
+    ierr = PetscTestDirectory(dir,'w',&flg);CHKERRQ(ierr);
+    if (!flg) {
+      ierr = PetscTestFile(dir,'r',&flg);CHKERRQ(ierr);
+      if (flg) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Specified path is a file - not a dir: %s",dir);
+      ierr = PetscMkdir(dir);CHKERRQ(ierr);
+    }
+  }
+  ierr = PetscBarrier((PetscObject)tj);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /*MC
       TSTRAJECTORYBASIC - Stores each solution of the ODE/DAE in a file
 
@@ -362,6 +377,7 @@ PETSC_EXTERN PetscErrorCode TSTrajectoryCreate_Basic(TSTrajectory tj,TS ts)
 
   tj->ops->set            = TSTrajectorySet_Basic;
   tj->ops->get            = TSTrajectoryGet_Basic;
+  tj->ops->setup          = TSTrajectorySetUp_Basic;
   tj->ops->getvecs        = TSTrajectoryGetVecs_Basic;
   tj->ops->destroy        = TSTrajectoryDestroy_Basic;
   tj->ops->setfromoptions = TSTrajectorySetFromOptions_Basic;
