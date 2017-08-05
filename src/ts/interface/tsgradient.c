@@ -448,10 +448,14 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
   ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
   ierr = TSGradientEvalCostGradientUFixed(adj_ctx->fwdts,adj_ctx->tf,lambda,adj_ctx->design,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
   ierr = VecNorm(adj_ctx->W[1],NORM_2,&norm);CHKERRQ(ierr);
+
+  /* these two vectors are locked: only AdjointTSUpdateHistory can unlock them */
+  ierr = VecLockPush(adj_ctx->W[0]);CHKERRQ(ierr);
+  ierr = VecLockPush(adj_ctx->W[1]);CHKERRQ(ierr);
+
   if (norm > PETSC_SMALL) {
     TSIJacobian ijac;
 
-    ierr = VecScale(adj_ctx->W[1],-1.0);CHKERRQ(ierr);
     ierr = TSGetIJacobian(adjts,NULL,NULL,&ijac,NULL);CHKERRQ(ierr);
     if (ijac) { /* lambda(T) = - (F_Udot)^T D_x, D_x the gradients of the functionals that sample the solution at the final time */
       SNES snes;
@@ -465,13 +469,10 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
     } else {
       ierr = VecCopy(adj_ctx->W[1],lambda);CHKERRQ(ierr);
     }
+    ierr = VecScale(lambda,-1.0);CHKERRQ(ierr);
   } else {
     ierr = VecSet(lambda,0.0);CHKERRQ(ierr);
   }
-
-  /* these two vectors are locked: only AdjointTSUpdateHistory can unlock them */
-  ierr = VecLockPush(adj_ctx->W[0]);CHKERRQ(ierr);
-  ierr = VecLockPush(adj_ctx->W[1]);CHKERRQ(ierr);
 
   /* initialize wgrad[0] */
   if (adj_ctx->fwdts->F_m) {
