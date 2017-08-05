@@ -15,7 +15,33 @@ static PetscErrorCode TSGradientEvalCostFunctionals(TS ts, PetscReal time, Vec s
   *val = 0.0;
   while (link) {
     PetscReal v = 0.0;
-    if (link->f && (link->fixedtime <= PETSC_MIN_REAL || PetscAbsReal(link->fixedtime-time) < PETSC_SMALL) ) {
+    if (link->f && link->fixedtime <= PETSC_MIN_REAL) {
+      ierr = (*link->f)(ts,time,state,design,&v,link->f_ctx);CHKERRQ(ierr);
+    }
+    *val += v;
+    link = link->next;
+  }
+  ierr = VecLockPop(state);CHKERRQ(ierr);
+  ierr = VecLockPop(design);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode TSGradientEvalCostFunctionalsFixed(TS ts, PetscReal time, Vec state, Vec design, PetscReal *val)
+{
+  PetscErrorCode     ierr;
+  CostFunctionalLink link = ts->funchead;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(ts,TS_CLASSID,1);
+  PetscValidHeaderSpecific(state,VEC_CLASSID,2);
+  PetscValidHeaderSpecific(design,VEC_CLASSID,3);
+  PetscValidPointer(val,4);
+  ierr = VecLockPush(state);CHKERRQ(ierr);
+  ierr = VecLockPush(design);CHKERRQ(ierr);
+  *val = 0.0;
+  while (link) {
+    PetscReal v = 0.0;
+    if (link->f && PetscAbsReal(link->fixedtime-time) < PETSC_SMALL) {
       ierr = (*link->f)(ts,time,state,design,&v,link->f_ctx);CHKERRQ(ierr);
     }
     *val += v;
@@ -418,6 +444,7 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
   if (norm > PETSC_SMALL) {
     TSIJacobian ijac;
 
+    ierr = VecScale(adj_ctx->W[1],-1.0);CHKERRQ(ierr);
     ierr = TSGetIJacobian(adjts,NULL,NULL,&ijac,NULL);CHKERRQ(ierr);
     if (ijac) { /* lambda(T) = - (F_Udot)^T D_x, D_x the gradients of the functionals that sample the solution at the final time */
       SNES snes;
@@ -427,10 +454,9 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
       ierr = TSGetSNES(adjts,&snes);CHKERRQ(ierr);
       ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
       ierr = KSPSetOperators(ksp,adj_ctx->splitJ_Udot,adj_ctx->splitJ_Udot);CHKERRQ(ierr);
-      ierr = VecScale(adj_ctx->W[1],-1.0);CHKERRQ(ierr);
       ierr = KSPSolveTranspose(ksp,adj_ctx->W[1],lambda);CHKERRQ(ierr);
     } else {
-      ierr = VecSet(lambda,0.0);CHKERRQ(ierr);
+      ierr = VecCopy(adj_ctx->W[1],lambda);CHKERRQ(ierr);
     }
   } else {
     ierr = VecSet(lambda,0.0);CHKERRQ(ierr);
@@ -578,6 +604,10 @@ static PetscErrorCode TSGradientPostStep(TS ts)
   }
   poststep_ctx->obj += dt*(val+poststep_ctx->pval)/2.0;
   poststep_ctx->pval = val;
+  if (poststep_ctx->objeval) {
+    ierr = TSGradientEvalCostFunctionalsFixed(ts,time,solution,poststep_ctx->design,&val);CHKERRQ(ierr);
+    poststep_ctx->obj += val;
+  }
   if (poststep_ctx->gradient) {
     PetscScalar tt[2];
 
