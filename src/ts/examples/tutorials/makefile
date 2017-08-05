@@ -698,6 +698,31 @@ runex22f_mf:
 	   ${DIFF} output/ex22f_mf_1.out ex22f_mf_1.tmp || printf "${PWD}\nPossible problem with ex22f_mf_1, diffs above\n=========================================\n";  \
 	   ${RM} -f ex22f_mf_1.tmp petscshiftmod.mod
 
+runex23_1:
+	-@${MPIEXEC} -n 1 ./ex23 -t0 1.1 -tf 2.3 -ts_type rk -use_fd -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 > ex23_1.tmp 2>&1; \
+	   ${DIFF} output/ex23_1.out ex23_1.tmp || printf "${PWD}\nPossible problem with ex23_1, diffs above\n=========================================\n";  \
+	   ${RM} -rf ex23_1.tmp SA-data
+
+runex23_2:
+	-@${MPIEXEC} -n 1 ./ex23 -t0 1.6 -tf 2.12 -ts_type bdf -use_fd -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 > ex23_2.tmp 2>&1; \
+	   ${DIFF} output/ex23_2.out ex23_2.tmp || printf "${PWD}\nPossible problem with ex23_2, diffs above\n=========================================\n";  \
+	   ${RM} -rf ex23_2.tmp SA-data
+
+runex23_3:
+	-@${MPIEXEC} -n 1 ./ex23 -t0 1.6 -tf 2.12 -ts_type bdf -use_fd -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 -test_ifunc > ex23_3.tmp 2>&1; \
+	   ${DIFF} output/ex23_3.out ex23_3.tmp || printf "${PWD}\nPossible problem with ex23_3, diffs above\n=========================================\n";  \
+	   ${RM} -rf ex23_3.tmp SA-data
+
+runex23_4:
+	-@${MPIEXEC} -n 1 ./ex23 -t0 1.1 -tf 2.3 -ts_type rk -use_fd -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_constant -test_rhsjacconst -ts_trajectory_basic_order 3 > ex23_4.tmp 2>&1; \
+	   ${DIFF} output/ex23_4.out ex23_4.tmp || printf "${PWD}\nPossible problem with ex23_4, diffs above\n=========================================\n";  \
+	   ${RM} -rf ex23_4.tmp SA-data
+
+runex23_5:
+	-@${MPIEXEC} -n 1 ./ex23 -t0 0.7 -tf 1.2 -ts_type cn -use_fd -test_event_constant -p 0.8 -test_ifunc -ts_trajectory_basic_order 2 > ex23_5.tmp 2>&1; \
+	   ${DIFF} output/ex23_5.out ex23_5.tmp || printf "${PWD}\nPossible problem with ex23_5, diffs above\n=========================================\n";  \
+	   ${RM} -rf ex23_5.tmp SA-data
+
 runex24:                        # This is not in the nightlies because the convergence details are numerically sensitive
 	-@${MPIEXEC} -n 1 ./ex24 -pc_type lu -ts_dt 1e-5 -ts_final_time 1e5 -n 50 -monitor_short > ex24_1.tmp 2>&1; \
 	   ${DIFF} output/ex24_1.out ex24_1.tmp || printf "${PWD}\nPossible problem with ex24_1, diffs above\n=========================================\n";  \
@@ -858,8 +883,9 @@ TESTEXAMPLES_C_NOCOMPLEX_NOTSINGLE  = ex9.PETSc runex9 runex9_2 runex9_3 ex9.rm 
                             ex16opt_p.PETSc  runex16opt_p  runex16opt_p_ca ex16opt_p.rm \
                             printdot ex16opt_ic.PETSc runex16opt_ic runex16opt_p_ca ex16opt_ic.rm \
                             ex20fwd.PETSc runex20fwd runex20fwd_2 ex20fwd.rm \
-                            ex20opt_p.PETSc runex20opt_p ex20opt_p.rm \
-                            ex20opt_ic.PETSc runex20opt_ic ex20opt_ic.rm
+                            ex20opt_p.PETSc runex20opt_p runex20opt_p_ca ex20opt_p.rm \
+                            ex20opt_ic.PETSc runex20opt_ic ex20opt_ic.rm \
+                            ex23.PETSc runex23_1 runex23_2 runex23_3 runex23_4 runex23_5 ex23.rm
 TESTEXAMPLES_C_X = ex5.PETSc runex5 ex5.rm
 TESTEXAMPLES_FORTRAN = ex1f.PETSc runex1f ex1f.rm
 TESTEXAMPLES_FORTRAN_NOTSINGLE = ex22f.PETSc runex22f ex22f.rm

@@ -20,7 +20,7 @@ Input parameters include:\n";
   The nonlinear problem is written in a DAE equivalent form.
   The objective is to minimize the difference between observation and model prediction by finding an optimal value for parameter \mu.
   The gradient is computed with the discrete adjoint of an implicit theta method, see ex20adj.c for details.
-  FD gradients with functions evaluations through the continuous adjoint approach is also presented.
+  Alternatively, the gradient can be computed through the continuous adjoint approach, see also ex16opt_p.c and ex16opt_ic.c for details.
   ------------------------------------------------------------------------- */
 #include <petsctao.h>
 #include <petscts.h>
@@ -38,7 +38,7 @@ struct _n_User {
 };
 
 PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
-PetscErrorCode FormFunction_CA(Tao,Vec,PetscReal*,void*);
+PetscErrorCode FormFunctionGradient_CA(Tao,Vec,PetscReal*,Vec,void*);
 
 /*
 *  User-defined routines
@@ -232,8 +232,7 @@ int main(int argc,char **argv)
   /* Set routine for function and gradient evaluation */
   ierr = PetscOptionsGetBool(NULL,NULL,"-continuous",&continuous,NULL);CHKERRQ(ierr);
   if (continuous) { /* use continuous adjoint approach */
-    ierr = TaoSetObjectiveRoutine(tao,FormFunction_CA,(void *)&user);CHKERRQ(ierr);
-    ierr = TaoSetGradientRoutine(tao,TaoDefaultComputeGradient,(void *)&user);CHKERRQ(ierr);
+    ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient_CA,(void *)&user);CHKERRQ(ierr);
   } else {
     ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void *)&user);CHKERRQ(ierr);
   }
@@ -365,7 +364,33 @@ static PetscErrorCode EvalCostFunctional_CA(TS ts, PetscReal time, Vec U, Vec P,
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode FormFunction_CA(Tao tao,Vec P,PetscReal *f,void *ctx)
+static PetscErrorCode EvalCostGradient_U_CA(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+{
+  User              user = (User)ctx;
+  const PetscScalar *x;
+  PetscScalar       *g;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecGetArrayRead(U,&x);CHKERRQ(ierr);
+  ierr = VecGetArray(grad,&g);CHKERRQ(ierr);
+  g[0] = 2.*rescale*(x[0]-user->x_ob[0]);
+  g[1] = 2.*rescale*(x[1]-user->x_ob[1]);
+  ierr = VecRestoreArray(grad,&g);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(U,&x);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+static PetscErrorCode RHSJacobianP_CA(TS ts, PetscReal t, Vec X, Vec Xdot, Vec P, Mat J, void *ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = RHSJacobianP(ts,t,X,J,ctx);CHKERRQ(ierr);
+  ierr = MatScale(J,-1.0);CHKERRQ(ierr); /* implicit form */
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode FormFunctionGradient_CA(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx)
 {
   User              user_ptr = (User)ctx;
   TS                ts;
@@ -392,8 +417,9 @@ PetscErrorCode FormFunction_CA(Tao tao,Vec P,PetscReal *f,void *ctx)
   x_ptr[1] = -0.66666654321;
   ierr = VecRestoreArray(user_ptr->x,&x_ptr);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
-  ierr = TSSetCostFunctional(ts,user_ptr->ftime,EvalCostFunctional_CA,user_ptr,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
-  ierr = TSEvaluateCostFunctionals(ts,user_ptr->x,P,f);CHKERRQ(ierr);
+  ierr = TSSetCostFunctional(ts,user_ptr->ftime,EvalCostFunctional_CA,user_ptr,EvalCostGradient_U_CA,user_ptr,NULL,NULL);CHKERRQ(ierr);
+  ierr = TSSetEvalGradient(ts,user_ptr->Jacp,RHSJacobianP_CA,user_ptr);CHKERRQ(ierr);
+  ierr = TSEvaluateCostAndGradient(ts,user_ptr->x,P,G,f);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

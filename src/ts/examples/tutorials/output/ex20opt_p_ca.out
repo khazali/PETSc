@@ -1,8 +1,8 @@
-iter =   0, Function value: 0.0347842,  Residual: 0.334968 
-iter =   1, Function value: 2.90101e-05,  Residual: 0.0100263 
-iter =   2, Function value: 1.42542e-06,  Residual: 0.000876033 
-iter =   3, Function value: 1.21244e-06,  Residual: 2.18505e-06 
-iter =   4, Function value: 1.21244e-06,  Residual: 1.81217e-10 
+iter =   0, Function value: 0.0347842,  Residual: 0.333981 
+iter =   1, Function value: 3.55096e-05,  Residual: 0.0111219 
+iter =   2, Function value: 1.48427e-06,  Residual: 0.000978934 
+iter =   3, Function value: 1.21247e-06,  Residual: 2.73111e-06 
+iter =   4, Function value: 1.21246e-06,  Residual: 6.71849e-10 
 Tao Object: 1 MPI processes
   type: blmvm
       Gradient steps: 0
@@ -10,15 +10,11 @@ Tao Object: 1 MPI processes
     type: more-thuente
   Active Set subset type: subvec
   convergence tolerances: gatol=1e-08,   steptol=0.,   gttol=0.
-  Residual in Function/Gradient:=1.81217e-10
-  Objective value=1.21244e-06
+  Residual in Function/Gradient:=6.71849e-10
+  Objective value=1.21246e-06
   total number of iterations=4,                          (max: 2000)
-  total number of function evaluations=15,                  max: 4000
-  total number of gradient evaluations=5,                  max: 4000
+  total number of function/gradient evaluations=5,      (max: 4000)
   Solution converged:    ||g(X)|| <= gatol
 Vec Object: 1 MPI processes
   type: seq
-0.997863
-WARNING! There are options you set that were not used!
-WARNING! could be spelling mistake, etc!
-Option left: name:-viewer_binary_skip_info (no value)
+0.997868

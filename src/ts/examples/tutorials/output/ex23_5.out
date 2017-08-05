@@ -1,0 +1,9 @@
+Objective function: time [0.7,1.2], val 1.30598 (should be 1.30598)
+0-th component of gradient should be (approximated) 0.587134
+1-th component of gradient should be (approximated) 0.0886424
+2-th component of gradient should be (approximated) -0.0346456
+Vec Object: 1 MPI processes
+  type: seq
+0.587139
+0.0886411
+-0.034654
