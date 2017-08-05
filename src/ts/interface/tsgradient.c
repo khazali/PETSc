@@ -8,9 +8,10 @@ static PetscErrorCode TSGradientEvalCostFunctionals(TS ts, PetscReal time, Vec s
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  PetscValidHeaderSpecific(state,VEC_CLASSID,2);
-  PetscValidHeaderSpecific(design,VEC_CLASSID,3);
-  PetscValidPointer(val,4);
+  PetscValidLogicalCollectiveReal(ts,time,2);
+  PetscValidHeaderSpecific(state,VEC_CLASSID,3);
+  PetscValidHeaderSpecific(design,VEC_CLASSID,4);
+  PetscValidPointer(val,5);
   ierr = VecLockPush(state);CHKERRQ(ierr);
   ierr = VecLockPush(design);CHKERRQ(ierr);
   *val = 0.0;
@@ -36,9 +37,11 @@ static PetscErrorCode TSGradientEvalCostFunctionalsFixed(TS ts, PetscReal ptime,
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  PetscValidHeaderSpecific(state,VEC_CLASSID,2);
-  PetscValidHeaderSpecific(design,VEC_CLASSID,3);
-  PetscValidPointer(val,4);
+  PetscValidLogicalCollectiveReal(ts,ptime,2);
+  PetscValidLogicalCollectiveReal(ts,time,3);
+  PetscValidHeaderSpecific(state,VEC_CLASSID,4);
+  PetscValidHeaderSpecific(design,VEC_CLASSID,5);
+  PetscValidPointer(val,6);
   ierr = VecLockPush(state);CHKERRQ(ierr);
   ierr = VecLockPush(design);CHKERRQ(ierr);
   *val = 0.0;
@@ -62,10 +65,11 @@ static PetscErrorCode TSGradientEvalCostGradientU(TS ts, PetscReal time, Vec sta
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  PetscValidHeaderSpecific(state,VEC_CLASSID,2);
-  PetscValidHeaderSpecific(design,VEC_CLASSID,3);
-  PetscValidHeaderSpecific(work,VEC_CLASSID,4);
-  PetscValidHeaderSpecific(out,VEC_CLASSID,4);
+  PetscValidLogicalCollectiveReal(ts,time,2);
+  PetscValidHeaderSpecific(state,VEC_CLASSID,3);
+  PetscValidHeaderSpecific(design,VEC_CLASSID,4);
+  PetscValidHeaderSpecific(work,VEC_CLASSID,5);
+  PetscValidHeaderSpecific(out,VEC_CLASSID,6);
   ierr = VecLockPush(state);CHKERRQ(ierr);
   ierr = VecLockPush(design);CHKERRQ(ierr);
   ierr = VecSet(out,0.0);CHKERRQ(ierr);
@@ -89,17 +93,18 @@ static PetscErrorCode TSGradientEvalCostGradientUFixed(TS ts, PetscReal time, Ve
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  PetscValidHeaderSpecific(state,VEC_CLASSID,2);
-  PetscValidHeaderSpecific(design,VEC_CLASSID,3);
-  PetscValidHeaderSpecific(work,VEC_CLASSID,4);
-  PetscValidHeaderSpecific(out,VEC_CLASSID,4);
+  PetscValidLogicalCollectiveReal(ts,time,2);
+  PetscValidHeaderSpecific(state,VEC_CLASSID,3);
+  PetscValidHeaderSpecific(design,VEC_CLASSID,4);
+  PetscValidHeaderSpecific(work,VEC_CLASSID,5);
+  PetscValidHeaderSpecific(out,VEC_CLASSID,6);
   ierr = VecLockPush(state);CHKERRQ(ierr);
   ierr = VecLockPush(design);CHKERRQ(ierr);
   ierr = VecSet(out,0.0);CHKERRQ(ierr);
   while (link) {
     if (link->f_x && link->fixedtime > PETSC_MIN_REAL && PetscAbsReal(link->fixedtime-time) < PETSC_SMALL) {
       ierr = VecSet(work,0.0);CHKERRQ(ierr);
-      ierr = (*link->f_x)(ts,time,state,design,work,link->f_x_ctx);CHKERRQ(ierr);
+      ierr = (*link->f_x)(ts,link->fixedtime,state,design,work,link->f_x_ctx);CHKERRQ(ierr);
       ierr = VecAXPY(out,1.0,work);CHKERRQ(ierr);
     }
     link = link->next;
@@ -116,10 +121,11 @@ static PetscErrorCode TSGradientEvalCostGradientM(TS ts, PetscReal time, Vec sta
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  PetscValidHeaderSpecific(state,VEC_CLASSID,2);
-  PetscValidHeaderSpecific(design,VEC_CLASSID,3);
-  PetscValidHeaderSpecific(work,VEC_CLASSID,4);
-  PetscValidHeaderSpecific(out,VEC_CLASSID,4);
+  PetscValidLogicalCollectiveReal(ts,time,2);
+  PetscValidHeaderSpecific(state,VEC_CLASSID,3);
+  PetscValidHeaderSpecific(design,VEC_CLASSID,4);
+  PetscValidHeaderSpecific(work,VEC_CLASSID,5);
+  PetscValidHeaderSpecific(out,VEC_CLASSID,6);
   ierr = VecLockPush(state);CHKERRQ(ierr);
   ierr = VecLockPush(design);CHKERRQ(ierr);
   ierr = VecSet(out,0.0);CHKERRQ(ierr);
@@ -165,7 +171,7 @@ static PetscErrorCode AdjointTSDestroy_Private(void *ptr)
 
   PetscFunctionBegin;
   ierr = VecDestroy(&adj->design);CHKERRQ(ierr);
-  ierr = VecDestroyVecs(3,&adj->W);CHKERRQ(ierr);
+  ierr = VecDestroyVecs(4,&adj->W);CHKERRQ(ierr);
   ierr = MatDestroy(&adj->splitJ_U);CHKERRQ(ierr);
   ierr = MatDestroy(&adj->splitJ_Udot);CHKERRQ(ierr);
   ierr = MatDestroy(&adj->splitJ_dtUdot);CHKERRQ(ierr);
@@ -396,7 +402,15 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   ierr = PetscNew(&adj);CHKERRQ(ierr);
   ierr = TSSetApplicationContext(*adjts,(void *)adj);CHKERRQ(ierr);
   ierr = TSGetSolution(ts,&U);CHKERRQ(ierr);
-  ierr = VecDuplicateVecs(U,3,&adj->W);CHKERRQ(ierr);
+  ierr = VecDuplicateVecs(U,4,&adj->W);CHKERRQ(ierr);
+
+  /* these two vectors are locked: only AdjointTSUpdateHistory can unlock them */
+  /* W[0] stores the updated forward state,  W[1] stores the updated backward state */
+  /* if you need to update them, call AdjointTSUpdateHistory, a caching mechanism in
+     TSTrajectoryGetVecs will prevent to reload/reinterpolate */
+  ierr = VecLockPush(adj->W[0]);CHKERRQ(ierr);
+  ierr = VecLockPush(adj->W[1]);CHKERRQ(ierr);
+
   adj->fwdts = ts; /* we don't take reference on the forward ts, as adjts in not public */
   adj->t0 = adj->tf = PETSC_MAX_REAL;
 
@@ -438,7 +452,6 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   ierr = TSGetOptionsPrefix(ts,&prefix);CHKERRQ(ierr);
   ierr = TSSetOptionsPrefix(*adjts,prefix);CHKERRQ(ierr);
   ierr = TSAppendOptionsPrefix(*adjts,"adjoint_");CHKERRQ(ierr);
-  ierr = TSSetFromOptions(*adjts);CHKERRQ(ierr);
 
   /* preliminary support for time-independent adjoints */
   ierr = TSGetOptionsPrefix(*adjts,&prefix);CHKERRQ(ierr);
@@ -483,15 +496,9 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
 
   /* Set initial conditions for the adjoint ode */
   ierr = TSGetSolution(adj_ctx->fwdts,&fwdsol);CHKERRQ(ierr);
-  ierr = VecSet(adj_ctx->W[0],0);CHKERRQ(ierr);
-  ierr = TSGradientEvalCostGradientUFixed(adj_ctx->fwdts,adj_ctx->tf,fwdsol,adj_ctx->design,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
-  ierr = VecNorm(adj_ctx->W[1],NORM_2,&norm);CHKERRQ(ierr);
-
-  /* these two vectors are locked: only AdjointTSUpdateHistory can unlock them */
-  ierr = VecLockPush(adj_ctx->W[0]);CHKERRQ(ierr);
-  ierr = VecLockPush(adj_ctx->W[1]);CHKERRQ(ierr);
-
   ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
+  ierr = TSGradientEvalCostGradientUFixed(adj_ctx->fwdts,adj_ctx->tf,fwdsol,adj_ctx->design,adj_ctx->W[2],lambda);CHKERRQ(ierr);
+  ierr = VecNorm(lambda,NORM_2,&norm);CHKERRQ(ierr);
   if (norm > PETSC_SMALL) {
     TSIJacobian ijac;
 
@@ -505,13 +512,9 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
       ierr = TSGetSNES(adjts,&snes);CHKERRQ(ierr);
       ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
       ierr = KSPSetOperators(ksp,adj_ctx->splitJ_Udot,adj_ctx->splitJ_Udot);CHKERRQ(ierr);
-      ierr = KSPSolveTranspose(ksp,adj_ctx->W[1],lambda);CHKERRQ(ierr);
-    } else {
-      ierr = VecCopy(adj_ctx->W[1],lambda);CHKERRQ(ierr);
+      ierr = KSPSolveTranspose(ksp,lambda,lambda);CHKERRQ(ierr);
     }
     ierr = VecScale(lambda,-1.0);CHKERRQ(ierr);
-  } else {
-    ierr = VecSet(lambda,0.0);CHKERRQ(ierr);
   }
 
   /* initialize wgrad[0] */
@@ -545,7 +548,7 @@ static PetscErrorCode AdjointTSSetDesign(TS adjts, Vec design)
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode AdjointTSSetTimeLimits(TS adjts, PetscReal t0, PetscReal tf, PetscReal dt)
+static PetscErrorCode AdjointTSSetTimeLimits(TS adjts, PetscReal t0, PetscReal tf)
 {
   PetscContainer c;
   AdjointCtx     *adj_ctx;
@@ -557,7 +560,6 @@ static PetscErrorCode AdjointTSSetTimeLimits(TS adjts, PetscReal t0, PetscReal t
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   ierr = TSSetTime(adjts,t0);CHKERRQ(ierr);
-  ierr = TSSetTimeStep(adjts,PetscMin(dt,tf-t0));CHKERRQ(ierr);
   ierr = TSSetMaxSteps(adjts,PETSC_MAX_INT);CHKERRQ(ierr);
   ierr = TSSetMaxTime(adjts,tf);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(adjts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
@@ -764,6 +766,7 @@ static PetscErrorCode TSEvaluateCostFunctionals_Private(TS ts, Vec X, Vec design
 static PetscErrorCode TSEvaluateGradient_Private(TS ts, Vec X, Vec design, Vec gradient, PetscReal *val)
 {
   TS             adjts;
+  Vec            lambda;
   TSTrajectory   otrj;
   PetscReal      t0,tf,dt;
   PetscErrorCode ierr;
@@ -785,16 +788,20 @@ static PetscErrorCode TSEvaluateGradient_Private(TS ts, Vec X, Vec design, Vec g
 
   /* adjoint */
   ierr = TSCreateAdjointTS(ts,&adjts);CHKERRQ(ierr);
-  ierr = TSSetSolution(adjts,X);CHKERRQ(ierr);
+  ierr = VecDuplicate(X,&lambda);CHKERRQ(ierr);
+  ierr = TSSetSolution(adjts,lambda);CHKERRQ(ierr);
   ierr = TSGetTime(ts,&tf);CHKERRQ(ierr);
   ierr = TSGetPrevTime(ts,&dt);CHKERRQ(ierr);
   dt   = tf - dt;
-  ierr = AdjointTSSetTimeLimits(adjts,t0,tf,dt);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(adjts,PetscMin(dt,tf-t0));CHKERRQ(ierr);
+  ierr = AdjointTSSetTimeLimits(adjts,t0,tf);CHKERRQ(ierr);
   ierr = AdjointTSSetDesign(adjts,design);CHKERRQ(ierr);
   ierr = AdjointTSSetInitialGradient(adjts,gradient);CHKERRQ(ierr); /* it also initializes the adjoint variable */
+  ierr = TSSetFromOptions(adjts);CHKERRQ(ierr);
   ierr = TSSolve(adjts,NULL);CHKERRQ(ierr);
   ierr = AdjointTSComputeFinalGradient(adjts);CHKERRQ(ierr);
   ierr = TSDestroy(&adjts);CHKERRQ(ierr);
+  ierr = VecDestroy(&lambda);CHKERRQ(ierr);
 
   /* restore trajectory */
   ierr = TSTrajectoryDestroy(&ts->trajectory);CHKERRQ(ierr);
