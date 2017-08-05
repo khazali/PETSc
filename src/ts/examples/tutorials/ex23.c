@@ -62,6 +62,36 @@ static PetscErrorCode EvalCostGradient_M(TS ts, PetscReal time, Vec U, Vec M, Ve
   PetscFunctionReturn(0);
 }
 
+static PetscReal store_Event = 0.0;
+
+static PetscErrorCode EvalCostFunctional_Const(TS ts, PetscReal time, Vec U, Vec M, PetscReal *val, void *ctx)
+{
+  PetscFunctionBeginUser;
+  *val = 1.0;
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode EvalCostFunctional_Event(TS ts, PetscReal time, Vec U, Vec M, PetscReal *val, void *ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr  = VecNorm(U,NORM_2,val);CHKERRQ(ierr);
+  *val *= *val;
+  store_Event += *val;
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode EvalCostGradient_U_Event(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecCopy(U,grad);CHKERRQ(ierr);
+  ierr = VecScale(grad,2.0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 typedef struct {
   PetscScalar a;
   PetscScalar b;
@@ -249,6 +279,9 @@ int main(int argc, char* argv[])
   PetscBool      testrhsjacconst = PETSC_FALSE;
   PetscBool      testnullgradM = PETSC_FALSE;
   PetscBool      testnulljacIC = PETSC_FALSE;
+  PetscBool      testevent = PETSC_FALSE;
+  PetscBool      testeventfinal = PETSC_FALSE;
+  PetscBool      testeventconst = PETSC_FALSE;
   PetscBool      usefd = PETSC_FALSE;
   PetscErrorCode ierr;
 
@@ -276,6 +309,9 @@ int main(int argc, char* argv[])
   ierr = PetscOptionsBool("-test_rhsjacconst","Test with TSComputeRHSJacobianConstant","",testrhsjacconst,&testrhsjacconst,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_nullgrad_M","Test with NULL M gradient","",testnullgradM,&testnullgradM,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_nulljac_IC","Test with NULL G_X jacobian","",testnulljacIC,&testnulljacIC,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-test_event_constant","Constant functional at given time in between the simulation","",testeventconst,&testeventconst,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-test_event_func","Functional at given time in between the simulation","",testevent,&testevent,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-test_event_final","Functional at final time of the simulation","",testeventfinal,&testeventfinal,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-use_fd","Use finite differencing to test gradient evaluation","",usefd,&usefd,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
@@ -370,6 +406,18 @@ int main(int argc, char* argv[])
   } else {
     ierr = TSSetCostFunctional(ts,PETSC_MIN_REAL,EvalCostFunctional,&userobj,EvalCostGradient_U,&userobj,EvalCostGradient_M,&userobj);CHKERRQ(ierr);
   }
+  /* Cost functional at final time */
+  if (testeventfinal) {
+    ierr = TSSetCostFunctional(ts,tf,EvalCostFunctional_Event,NULL,EvalCostGradient_U_Event,NULL,NULL,NULL);CHKERRQ(ierr);
+  }
+  /* Cost functional in between the simulation */
+  if (testevent) {
+    ierr = TSSetCostFunctional(ts,t0 + 0.132*(tf-t0),EvalCostFunctional_Event,NULL,EvalCostGradient_U_Event,NULL,NULL,NULL);CHKERRQ(ierr);
+  }
+  /* Cost functional in between the simulation (constant) */
+  if (testeventconst) {
+    ierr = TSSetCostFunctional(ts,t0 + 0.44*(tf-t0),EvalCostFunctional_Const,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+  }
 
   /* Set dependence of F(Udot,U,t;M) = 0 from the parameters */
   ierr = TSSetEvalGradient(ts,F_M,EvalGradient,&user);CHKERRQ(ierr);
@@ -401,7 +449,8 @@ int main(int argc, char* argv[])
     objtest = np / ((gamma + 1.0) * beta )* ( PetscPowScalar(beta*(tf-t0)+alpha,gamma+1.0) - PetscPowScalar(alpha,gamma+1.0) );
 
   }
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"Objective function: time [%g,%g], val %g (should be %g)\n",t0,tf,(double)obj,(double)objtest);CHKERRQ(ierr);
+  if (testeventconst) objtest += 1.0;
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"Objective function: time [%g,%g], val %g (should be %g)\n",t0,tf,(double)obj,(double)(objtest+store_Event));CHKERRQ(ierr);
 
   /* Test gradient evaluation */
   ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
