@@ -1,8 +1,12 @@
+#include <petsc/private/snesimpl.h>             /*I   "petscsnes.h"   I*/
 
-#include <petsc/private/snesimpl.h>
+typedef struct {
+  PetscBool transpose_solve;
+} SNES_KSPONLY;
 
 static PetscErrorCode SNESSolve_KSPONLY(SNES snes)
 {
+  SNES_KSPONLY       *ksponly = (SNES_KSPONLY*)snes->data;
   PetscErrorCode     ierr;
   PetscInt           lits;
   Vec                Y,X,F;
@@ -35,13 +39,17 @@ static PetscErrorCode SNESSolve_KSPONLY(SNES snes)
   /* Solve J Y = F, where J is Jacobian matrix */
   ierr = SNESComputeJacobian(snes,X,snes->jacobian,snes->jacobian_pre);CHKERRQ(ierr);
   ierr = KSPSetOperators(snes->ksp,snes->jacobian,snes->jacobian_pre);CHKERRQ(ierr);
-  ierr = KSPSolve(snes->ksp,F,Y);CHKERRQ(ierr);
+  if (ksponly->transpose_solve) {
+    ierr = KSPSolveTranspose(snes->ksp,F,Y);CHKERRQ(ierr);
+  } else {
+    ierr = KSPSolve(snes->ksp,F,Y);CHKERRQ(ierr);
+  }
   snes->reason = SNES_CONVERGED_ITS;
   SNESCheckKSPSolve(snes);
 
-  ierr              = KSPGetIterationNumber(snes->ksp,&lits);CHKERRQ(ierr);
+  ierr = KSPGetIterationNumber(snes->ksp,&lits);CHKERRQ(ierr);
   snes->linear_its += lits;
-  ierr              = PetscInfo2(snes,"iter=%D, linear solve iterations=%D\n",snes->iter,lits);CHKERRQ(ierr);
+  ierr = PetscInfo2(snes,"iter=%D, linear solve iterations=%D\n",snes->iter,lits);CHKERRQ(ierr);
   snes->iter++;
 
   /* Take the computed step. */
@@ -66,8 +74,42 @@ static PetscErrorCode SNESSetUp_KSPONLY(SNES snes)
 
 static PetscErrorCode SNESDestroy_KSPONLY(SNES snes)
 {
+  PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ierr = PetscFree(snes->data);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*@
+   SNESKSPONLYSetUseTransposeSolve - Sets a flag to use KSPSolveTranspose() for the inner linear solves.
+
+   Logically Collective on SNES
+
+   Input Parameters:
++  snes - the SNES context
+-  flg - use KSPSolveTranspose() for inner linear solves?
+
+   Level: developer
+
+   Notes:
+   It is declared in petsc/private/snesimpl.h since it just supports the implementation of time-dependent adjoint problems and it should not be called directly by users.
+
+.seealso: SNESKSPONLY
+@*/
+PetscErrorCode SNESKSPONLYSetUseTransposeSolve(SNES snes,PetscBool flg)
+{
+  SNES_KSPONLY   *ksponly;
+  PetscBool      match;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  PetscValidLogicalCollectiveBool(snes,flg,2);
+  ierr = PetscObjectTypeCompare((PetscObject)snes,SNESKSPONLY,&match);CHKERRQ(ierr);
+  if (!match) SETERRQ1(PetscObjectComm((PetscObject)snes),PETSC_ERR_SUP,"SNES type %s",((PetscObject)snes)->type_name);
+  ksponly = (SNES_KSPONLY*)snes->data;
+  ksponly->transpose_solve = flg;
   PetscFunctionReturn(0);
 }
 
@@ -84,6 +126,9 @@ M*/
 PETSC_EXTERN PetscErrorCode SNESCreate_KSPONLY(SNES snes)
 {
 
+  SNES_KSPONLY   *ksponly;
+  PetscErrorCode ierr;
+
   PetscFunctionBegin;
   snes->ops->setup          = SNESSetUp_KSPONLY;
   snes->ops->solve          = SNESSolve_KSPONLY;
@@ -97,6 +142,7 @@ PETSC_EXTERN PetscErrorCode SNESCreate_KSPONLY(SNES snes)
 
   snes->alwayscomputesfinalresidual = PETSC_FALSE;
 
-  snes->data = 0;
+  ierr = PetscNewLog(snes,&ksponly);CHKERRQ(ierr);
+  snes->data = (void*)ksponly;
   PetscFunctionReturn(0);
 }

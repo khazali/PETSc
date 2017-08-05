@@ -1,4 +1,5 @@
 #include <petsc/private/tsimpl.h>        /*I "petscts.h"  I*/
+#include <petsc/private/snesimpl.h>
 
 static PetscErrorCode TSGradientEvalCostFunctionals(TS ts, PetscReal time, Vec state, Vec design, PetscReal *val)
 {
@@ -347,6 +348,7 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
 
 static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
 {
+  SNES            snes;
   Mat             A,B;
   Vec             U,vatol,vrtol;
   PetscContainer  container;
@@ -411,7 +413,9 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   /* adjoint ODE is linear */
   ierr = TSSetProblemType(*adjts,TS_LINEAR);CHKERRQ(ierr);
 
-  /* XXX use KSPSolveTranspose to solve the adjoint */
+  /* use KSPSolveTranspose to solve the adjoint */
+  ierr = TSGetSNES(*adjts,&snes);CHKERRQ(ierr);
+  ierr = SNESKSPONLYSetUseTransposeSolve(snes,PETSC_TRUE);CHKERRQ(ierr);
 
   /* set special purpose post step method for incremental gradient evaluation */
   ierr = TSSetPostStep(*adjts,AdjointTSPostStep);CHKERRQ(ierr);
