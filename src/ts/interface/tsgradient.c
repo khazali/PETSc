@@ -303,7 +303,6 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
 {
   Vec            lambda;
   PetscReal      dt,time,ptime,fwdt;
-  PetscScalar    tt[2];
   AdjointCtx     *adj_ctx;
   PetscErrorCode ierr;
 
@@ -328,6 +327,8 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
     ierr = VecSet(adj_ctx->wgrad[1],0.0);CHKERRQ(ierr);
   }
   if (adj_ctx->fwdts->F_m) {
+    PetscScalar tt[2];
+
     TS ts = adj_ctx->fwdts;
     if (ts->F_m_f) { /* non constant dependence */
       ierr = AdjointTSUpdateHistory(adjts,time,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
@@ -335,14 +336,13 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
     }
     ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
     ierr = MatMultTranspose(ts->F_m,lambda,adj_ctx->wgrad[0]);CHKERRQ(ierr);
-  } else SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing parameter dependency");
-
-  tt[0] = tt[1] = dt/2.0;
-  ierr = VecMAXPY(adj_ctx->gradient,2,tt,adj_ctx->wgrad);CHKERRQ(ierr);
-  /* XXX this could be done more efficiently */
-  ierr = VecCopy(adj_ctx->wgrad[0],adj_ctx->wgrad[1]);CHKERRQ(ierr);
+    tt[0] = tt[1] = dt/2.0;
+    ierr = VecMAXPY(adj_ctx->gradient,2,tt,adj_ctx->wgrad);CHKERRQ(ierr);
+    /* XXX this could be done more efficiently */
+    ierr = VecCopy(adj_ctx->wgrad[0],adj_ctx->wgrad[1]);CHKERRQ(ierr);
+  }
   adj_ctx->firststep = PETSC_FALSE;
-  if (adjts->reason) { adj_ctx->tf = time; }/* prevent from accumulation errors XXX */
+  if (adjts->reason) { adj_ctx->tf = time; } /* prevent from accumulation errors XXX */
   PetscFunctionReturn(0);
 }
 
@@ -482,7 +482,7 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
     }
     ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
     ierr = MatMultTranspose(ts->F_m,lambda,adj_ctx->wgrad[0]);CHKERRQ(ierr);
-  } else SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing parameter dependency");
+  }
   PetscFunctionReturn(0);
 }
 

@@ -13,7 +13,7 @@ Input parameters include:\n\
    Notes:
    This code demonstrates how to solve an ODE-constrained optimization problem with TAO, TSAdjoint and TS.
    The objective is to minimize the difference between observation and model prediction by finding optimal values for initial conditions.
-   The gradient is computed with the discrete adjoint of an explicit Runge-Kutta method, see ex16adj.c for details.
+   The gradient is computed either with the discrete adjoint of an explicit Runge-Kutta method (see ex16adj.c for details) or via the continuous adjoint approach.
   ------------------------------------------------------------------------- */
 #include <petsctao.h>
 #include <petscts.h>
@@ -30,6 +30,7 @@ struct _n_User {
 };
 
 PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
+PetscErrorCode FormFunctionGradient_CA(Tao,Vec,PetscReal*,Vec,void*);
 
 /*
 *  User-defined routines
@@ -66,10 +67,10 @@ static PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec X,Mat A,Mat B,void *ctx)
   J[1][0] = -2.*mu*x[1]*x[0]-1;
   J[0][1] = 1.0;
   J[1][1] = mu*(1.0-x[0]*x[0]);
-  ierr    = MatSetValues(A,2,rowcol,2,rowcol,&J[0][0],INSERT_VALUES);CHKERRQ(ierr);
+  ierr = MatSetValues(A,2,rowcol,2,rowcol,&J[0][0],INSERT_VALUES);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  if (A != B) {
+  if (B && A != B) {
     ierr = MatAssemblyBegin(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
@@ -108,6 +109,7 @@ int main(int argc,char **argv)
   Tao                tao;
   KSP                ksp;
   PC                 pc;
+  PetscBool          continuous = PETSC_FALSE;
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize program
@@ -195,8 +197,12 @@ int main(int argc,char **argv)
   ierr = TaoSetInitialVector(tao,ic);CHKERRQ(ierr);
 
   /* Set routine for function and gradient evaluation */
-  ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void *)&user);CHKERRQ(ierr);
-
+  ierr = PetscOptionsGetBool(NULL,NULL,"-continuous",&continuous,NULL);CHKERRQ(ierr);
+  if (continuous) { /* use continuous adjoint approach */
+    ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient_CA,(void *)&user);CHKERRQ(ierr);
+  } else {
+    ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void *)&user);CHKERRQ(ierr);
+  }
   /* Check for any TAO command line options */
   ierr = TaoSetFromOptions(tao);CHKERRQ(ierr);
   ierr = TaoGetKSP(tao,&ksp);CHKERRQ(ierr);
@@ -304,6 +310,76 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
 
   ierr = VecCopy(user->lambda[0],G);CHKERRQ(ierr);
 
+  ierr = TSDestroy(&ts);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* callbacks for the continuous adjoint approach */
+
+/* the cost functional interface: returns ||u - u_obs||^2 */
+static PetscErrorCode EvalCostFunctional_CA(TS ts, PetscReal time, Vec U, Vec P, PetscReal *val, void *ctx)
+{
+  const PetscScalar *x;
+  User              user = (User)ctx;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecGetArrayRead(U,&x);CHKERRQ(ierr);
+  *val = (x[0]-user->x_ob[0])*(x[0]-user->x_ob[0])+(x[1]-user->x_ob[1])*(x[1]-user->x_ob[1]);
+  ierr = VecRestoreArrayRead(U,&x);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* with the continuous adjoint approach, we also need the gradient of the cost functional with
+   respect to the state variables */
+static PetscErrorCode EvalCostGradient_U_CA(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+{
+  User              user = (User)ctx;
+  const PetscScalar *x;
+  PetscScalar       *g;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecGetArrayRead(U,&x);CHKERRQ(ierr);
+  ierr = VecGetArray(grad,&g);CHKERRQ(ierr);
+  g[0] = 2*(x[0]-user->x_ob[0]);
+  g[1] = 2*(x[1]-user->x_ob[1]);
+  ierr = VecRestoreArray(grad,&g);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(U,&x);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode FormFunctionGradient_CA(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
+{
+  User           user = (User)ctx;
+  TS             ts;
+  PetscErrorCode ierr;
+  Mat            Id;
+
+  ierr = VecCopy(IC,user->x);CHKERRQ(ierr);
+  ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
+  ierr = TSSetType(ts,TSRK);CHKERRQ(ierr);
+  ierr = TSSetRHSFunction(ts,NULL,RHSFunction,user);CHKERRQ(ierr);
+  ierr = TSSetTime(ts,0.0);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,.001);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,0.5);CHKERRQ(ierr);
+  ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
+  ierr = TSSetTolerances(ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
+  ierr = TSSetRHSJacobian(ts,user->A,user->A,RHSJacobian,user);CHKERRQ(ierr);
+  ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
+  /* the cost functional needs to be evaluated at time 0.5 */
+  ierr = TSSetCostFunctional(ts,0.5,EvalCostFunctional_CA,user,EvalCostGradient_U_CA,user,NULL,NULL);CHKERRQ(ierr);
+
+  /* set Jacobian G_p for the ODE dependence from initial conditions in implicit form: G(u(0),p) = 0 */
+
+  ierr = MatDuplicate(user->A,MAT_DO_NOT_COPY_VALUES,&Id);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(Id,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(Id,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatZeroEntries(Id);CHKERRQ(ierr);
+  ierr = MatShift(Id,-1.0);CHKERRQ(ierr);
+  ierr = TSSetEvalICGradient(ts,NULL,Id,NULL,NULL);CHKERRQ(ierr);
+  ierr = MatDestroy(&Id);CHKERRQ(ierr);
+  ierr = TSEvaluateCostAndGradient(ts,user->x,IC,G,f);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
