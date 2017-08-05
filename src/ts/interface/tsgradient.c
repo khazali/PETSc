@@ -135,10 +135,19 @@ static PetscErrorCode TSGradientEvalCostGradientM(TS ts, PetscReal time, Vec sta
 }
 
 typedef struct {
+  PetscScalar      shift;
+  PetscObjectState Astate;
+  PetscObjectId    Aid;
+  PetscBool        splitdone;
+} CachedJac;
+
+typedef struct {
   Vec       design;        /* design vector (fixed) */
   TS        fwdts;         /* forward solver */
   PetscReal t0,tf;         /* time limits, for forward time recovery */
   Vec       *W;            /* work vectors W[0] and W[1] always store U and Udot at a given time */
+  PetscBool timeindep;     /* true if the adjoint ODE is A Udot + B U -f = 0 */
+  CachedJac cachedJ;       /* struct to hold shifts and split flag */
   Mat       splitJ_U;      /* Jacobian : F_U (U,Udot,fwdt) */
   Mat       splitJ_Udot;   /* Jacobian : F_Udot(U,Udot,fwdt) */
   Mat       splitJ_dtUdot; /* Jacobian : d/dt F_Udot(U,Udot,fwdt) */
@@ -254,8 +263,9 @@ static PetscErrorCode AdjointTSUpdateSplitJacobians(TS adjts, PetscReal time)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = AdjointTSUpdateHistory(adjts,time,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
+  if (adj_ctx->timeindep && adj_ctx->cachedJ.splitdone) PetscFunctionReturn(0);
+  ierr = AdjointTSUpdateHistory(adjts,time,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
   ierr = TSComputeSplitJacobians(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->W[1],
                                  adj_ctx->splitJ_U,adj_ctx->splitJ_U,
@@ -265,20 +275,32 @@ static PetscErrorCode AdjointTSUpdateSplitJacobians(TS adjts, PetscReal time)
     ierr = MatAXPY(adj_ctx->splitJ_U,1.0,adj_ctx->splitJ_dtUdot,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
     ierr = MatZeroEntries(adj_ctx->splitJ_dtUdot);CHKERRQ(ierr);
   }
+  adj_ctx->cachedJ.splitdone = adj_ctx->timeindep ? PETSC_TRUE : PETSC_FALSE;
   PetscFunctionReturn(0);
 }
 
 /* the assumption here is that the IJacobian routine is called after the IFunction (called with same time, U and Udot) */
 static PetscErrorCode AdjointTSIJacobian(TS adjts, PetscReal time, Vec U, Vec Udot, PetscReal shift, Mat A, Mat B, void *ctx)
 {
-  AdjointCtx     *adj_ctx;
-  PetscErrorCode ierr;
+  AdjointCtx       *adj_ctx;
+  PetscObjectState Astate;
+  PetscObjectId    Aid;
+  PetscErrorCode   ierr;
 
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
+  ierr = PetscObjectStateGet((PetscObject)A,&Astate);CHKERRQ(ierr);
+  ierr = PetscObjectGetId((PetscObject)A,&Aid);CHKERRQ(ierr);
+  if (adj_ctx->timeindep && PetscAbsScalar(adj_ctx->cachedJ.shift - shift) < PETSC_SMALL &&
+      adj_ctx->cachedJ.Astate == Astate && adj_ctx->cachedJ.Aid == Aid) {
+    PetscFunctionReturn(0);
+  }
   ierr = MatCopy(adj_ctx->splitJ_Udot,A,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
   ierr = MatScale(A,shift);CHKERRQ(ierr);
   ierr = MatAXPY(A,1.0,adj_ctx->splitJ_U,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  ierr = PetscObjectStateGet((PetscObject)A,&adj_ctx->cachedJ.Astate);CHKERRQ(ierr);
+  ierr = PetscObjectGetId((PetscObject)A,&adj_ctx->cachedJ.Aid);CHKERRQ(ierr);
+  adj_ctx->cachedJ.shift  = shift;
   if (B && A != B) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_SUP,"B != A not yet implemented");
   PetscFunctionReturn(0);
 }
@@ -376,6 +398,12 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   adj->fwdts = ts; /* we don't take reference on the forward ts, as adjts in not public */
   adj->t0 = adj->tf = PETSC_MAX_REAL;
 
+  /* caching to prevent from recomputation of Jacobians */
+  adj->cachedJ.Astate    = -1;
+  adj->cachedJ.Aid       = PETSC_MIN_INT;
+  adj->cachedJ.shift     = PETSC_MIN_REAL;
+  adj->cachedJ.splitdone = PETSC_FALSE;
+
   /* wrap application context in a container, so that it will be destroyed when calling TSDestroy on adjts */
   ierr = PetscContainerCreate(PetscObjectComm((PetscObject)(*adjts)),&container);CHKERRQ(ierr);
   ierr = PetscContainerSetPointer(container,adj);CHKERRQ(ierr);
@@ -409,6 +437,10 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   ierr = TSSetOptionsPrefix(*adjts,prefix);CHKERRQ(ierr);
   ierr = TSAppendOptionsPrefix(*adjts,"adjoint_");CHKERRQ(ierr);
   ierr = TSSetFromOptions(*adjts);CHKERRQ(ierr);
+
+  /* preliminary support for time-independent adjoints */
+  ierr = TSGetOptionsPrefix(*adjts,&prefix);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL,prefix,"-time_independent",&adj->timeindep,NULL);CHKERRQ(ierr);
 
   /* adjoint ODE is linear */
   ierr = TSSetProblemType(*adjts,TS_LINEAR);CHKERRQ(ierr);
