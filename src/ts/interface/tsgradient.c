@@ -322,8 +322,7 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
        gradient with the forward contribution to the gradient (i.e. \int f_m )
   */
   if (adj_ctx->firststep) {
-    ierr = VecScale(adj_ctx->wgrad[0],dt/2.0);CHKERRQ(ierr);
-    ierr = VecAXPY(adj_ctx->gradient,1.0,adj_ctx->wgrad[0]);CHKERRQ(ierr);
+    ierr = VecAXPY(adj_ctx->gradient,dt/2.0,adj_ctx->wgrad[0]);CHKERRQ(ierr);
     ierr = VecSet(adj_ctx->wgrad[1],0.0);CHKERRQ(ierr);
   }
   if (adj_ctx->fwdts->F_m) {
@@ -421,7 +420,7 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
 
 static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
 {
-  Vec            lambda;
+  Vec            lambda,fwdsol;
   PetscReal      norm;
   PetscContainer c;
   AdjointCtx     *adj_ctx;
@@ -445,14 +444,16 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
   }
 
   /* Set initial conditions for the adjoint ode */
-  ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
-  ierr = TSGradientEvalCostGradientUFixed(adj_ctx->fwdts,adj_ctx->tf,lambda,adj_ctx->design,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
+  ierr = TSGetSolution(adj_ctx->fwdts,&fwdsol);CHKERRQ(ierr);
+  ierr = VecSet(adj_ctx->W[0],0);CHKERRQ(ierr);
+  ierr = TSGradientEvalCostGradientUFixed(adj_ctx->fwdts,adj_ctx->tf,fwdsol,adj_ctx->design,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
   ierr = VecNorm(adj_ctx->W[1],NORM_2,&norm);CHKERRQ(ierr);
 
   /* these two vectors are locked: only AdjointTSUpdateHistory can unlock them */
   ierr = VecLockPush(adj_ctx->W[0]);CHKERRQ(ierr);
   ierr = VecLockPush(adj_ctx->W[1]);CHKERRQ(ierr);
 
+  ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
   if (norm > PETSC_SMALL) {
     TSIJacobian ijac;
 
@@ -461,7 +462,7 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
       SNES snes;
       KSP  ksp;
 
-      ierr = AdjointTSUpdateSplitJacobians(adjts,adj_ctx->t0);CHKERRQ(ierr); /* split uses backward fime */
+      ierr = AdjointTSUpdateSplitJacobians(adjts,adj_ctx->t0);CHKERRQ(ierr); /* split uses backward time */
       ierr = TSGetSNES(adjts,&snes);CHKERRQ(ierr);
       ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
       ierr = KSPSetOperators(ksp,adj_ctx->splitJ_Udot,adj_ctx->splitJ_Udot);CHKERRQ(ierr);

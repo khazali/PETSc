@@ -665,6 +665,11 @@ runex20opt_p:
 	  ${DIFF} output/ex20opt_p_1.out ex20opt_p_1.tmp || printf "${PWD}\nPossible problem with ex20opt_p_1, diffs above\n=========================================\n"; \
 	  ${RM} -f ex20opt_p_1.tmp SA-data/*
 
+runex20opt_p_ca:
+	-@${MPIEXEC} -n 1 ./ex20opt_p -continuous -tao_monitor -monitor 0 -ts_type theta -ts_theta_endpoint -ts_theta_theta 0.5 -viewer_binary_skip_info -tao_view > ex20opt_p_ca.tmp 2>&1; \
+	  ${DIFF} output/ex20opt_p_ca.out ex20opt_p_ca.tmp || printf "${PWD}\nPossible problem with ex20opt_p_ca, diffs above\n=========================================\n"; \
+	  ${RM} -f ex20opt_p_ca.tmp SA-data/*
+
 runex22:
 	-@${MPIEXEC} -n 1 ./ex22 -nox -da_grid_x 200 -ts_monitor_draw_solution -ts_arkimex_type 4 -ts_adapt_type none -ts_dt .005 -ts_final_time .1  > ex22_1.tmp 2>&1; \
 	   ${DIFF} output/ex22_1.out ex22_1.tmp || printf "${PWD}\nPossible problem with ex22_1, diffs above\n=========================================\n";  \
