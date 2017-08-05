@@ -332,6 +332,7 @@ PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalICGradient)(TS,PetscReal,Vec
 PETSC_EXTERN PetscErrorCode TSSetEvalICGradient(TS,Mat,Mat,TSEvalICGradient,void*);
 PETSC_EXTERN PetscErrorCode TSEvaluateGradient(TS,Vec,Vec,Vec);
 PETSC_EXTERN PetscErrorCode TSEvaluateCostFunctionals(TS,Vec,Vec,PetscReal*);
+PETSC_EXTERN PetscErrorCode TSEvaluateCostAndGradient(TS,Vec,Vec,Vec,PetscReal*);
 
 PETSC_EXTERN PetscErrorCode TSSetMaxSteps(TS,PetscInt);
 PETSC_EXTERN PetscErrorCode TSGetMaxSteps(TS,PetscInt*);

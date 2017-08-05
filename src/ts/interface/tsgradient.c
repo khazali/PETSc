@@ -348,18 +348,25 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
 
 static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
 {
-  Vec             U;
+  Mat             A,B;
+  Vec             U,vatol,vrtol;
   PetscContainer  container;
+  AdjointCtx      *adj;
   TSIFunction     ifunc;
   TSRHSFunction   rhsfunc;
   TSRHSJacobian   rhsjacfunc;
-  Mat             A,B;
-  AdjointCtx      *adj;
+  TSType          type;
   const char      *prefix;
+  PetscReal       atol,rtol;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
   ierr = TSCreate(PetscObjectComm((PetscObject)ts),adjts);CHKERRQ(ierr);
+  ierr = TSGetType(ts,&type);CHKERRQ(ierr);
+  ierr = TSSetType(*adjts,type);CHKERRQ(ierr);
+  ierr = TSGetTolerances(ts,&atol,&vatol,&rtol,&vrtol);CHKERRQ(ierr);
+  ierr = TSSetTolerances(*adjts,atol,vatol,rtol,vrtol);CHKERRQ(ierr);
+
   /* application context */
   ierr = PetscNew(&adj);CHKERRQ(ierr);
   ierr = TSSetApplicationContext(*adjts,(void *)adj);CHKERRQ(ierr);
@@ -698,6 +705,47 @@ static PetscErrorCode TSEvaluateCostFunctionals_Private(TS ts, Vec X, Vec design
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode TSEvaluateGradient_Private(TS ts, Vec X, Vec design, Vec gradient, PetscReal *val)
+{
+  TS             adjts;
+  TSTrajectory   otrj;
+  PetscReal      t0,tf,dt;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  otrj = ts->trajectory;
+  ierr = TSTrajectoryCreate(PetscObjectComm((PetscObject)ts),&ts->trajectory);CHKERRQ(ierr);
+  ierr = TSTrajectorySetType(ts->trajectory,ts,TSTRAJECTORYBASIC);CHKERRQ(ierr);
+  ierr = TSTrajectorySetFromOptions(ts->trajectory,ts);CHKERRQ(ierr);
+
+  /* sample initial condition dependency */
+  ierr = TSGetTime(ts,&t0);CHKERRQ(ierr);
+  if (ts->Ggrad) {
+    ierr = (*ts->Ggrad)(ts,t0,X,design,ts->G_x,ts->G_m,ts->Ggrad_ctx);CHKERRQ(ierr);
+  }
+
+  /* forward solve */
+  ierr = TSEvaluateCostFunctionals_Private(ts,X,design,gradient,val);CHKERRQ(ierr);
+
+  /* adjoint */
+  ierr = TSCreateAdjointTS(ts,&adjts);CHKERRQ(ierr);
+  ierr = TSSetSolution(adjts,X);CHKERRQ(ierr);
+  ierr = TSGetTime(ts,&tf);CHKERRQ(ierr);
+  ierr = TSGetPrevTime(ts,&dt);CHKERRQ(ierr);
+  dt   = tf - dt;
+  ierr = AdjointTSSetTimeLimits(adjts,t0,tf,dt);CHKERRQ(ierr);
+  ierr = AdjointTSSetDesign(adjts,design);CHKERRQ(ierr);
+  ierr = AdjointTSSetInitialGradient(adjts,gradient);CHKERRQ(ierr); /* it also initializes the adjoint variable */
+  ierr = TSSolve(adjts,NULL);CHKERRQ(ierr);
+  ierr = AdjointTSComputeFinalGradient(adjts);CHKERRQ(ierr);
+  ierr = TSDestroy(&adjts);CHKERRQ(ierr);
+
+  /* restore trajectory */
+  ierr = TSTrajectoryDestroy(&ts->trajectory);CHKERRQ(ierr);
+  ts->trajectory  = otrj;
+  PetscFunctionReturn(0);
+}
+
 /*
    TSResetCostFunctionals - Resets the list of cost functionals for gradient computation.
 
@@ -907,7 +955,7 @@ PetscErrorCode TSSetEvalICGradient(TS ts, Mat J_x, Mat J_m, TSEvalICGradient f, 
 
    Level: developer
 
-.seealso: TSSetCostFunctional(), TSSetEvalGradient(), TSSetEvalICGradient(), TSEvaluateGradient()
+.seealso: TSSetCostFunctional(), TSSetEvalGradient(), TSSetEvalICGradient(), TSEvaluateGradient(), TSEvaluateCostAndGradient()
 */
 PetscErrorCode TSEvaluateCostFunctionals(TS ts, Vec X, Vec design, PetscReal *val)
 {
@@ -941,13 +989,10 @@ PetscErrorCode TSEvaluateCostFunctionals(TS ts, Vec X, Vec design, PetscReal *va
 
    Level: developer
 
-.seealso: TSSetCostFunctional(), TSSetEvalGradient(), TSSetEvalICGradient(), TSEvaluateCostFunctionals()
+.seealso: TSSetCostFunctional(), TSSetEvalGradient(), TSSetEvalICGradient(), TSEvaluateCostFunctionals(), TSEvaluateCostAndGradient()
 */
 PetscErrorCode TSEvaluateGradient(TS ts, Vec X, Vec design, Vec gradient)
 {
-  TS             adjts;
-  TSTrajectory   otrj;
-  PetscReal      t0,tf,dt;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -955,40 +1000,45 @@ PetscErrorCode TSEvaluateGradient(TS ts, Vec X, Vec design, Vec gradient)
   PetscValidHeaderSpecific(X,VEC_CLASSID,2);
   PetscValidHeaderSpecific(design,VEC_CLASSID,3);
   PetscValidHeaderSpecific(gradient,VEC_CLASSID,4);
+  ierr = VecLockPush(design);CHKERRQ(ierr);
+  ierr = TSEvaluateGradient_Private(ts,X,design,gradient,NULL);CHKERRQ(ierr);
+  ierr = VecLockPop(design);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*
+   TSEvaluateCostAndGradient - Evaluates the cost functionals and their gradient
+
+   Logically Collective on TS
+
+   Input Parameters:
++  ts       - the TS context
+.  X        - the initial vector for the state
+-  design   - current design state
+
+   Output Parameters:
++  obj      - the value of the objective function
+-  gradient - the computed gradient
+
+   Notes:
+
+   Level: developer
+
+.seealso: TSSetCostFunctional(), TSSetEvalGradient(), TSSetEvalICGradient(), TSEvaluateCostFunctionals(), TSEvaluateGradient()
+*/
+PetscErrorCode TSEvaluateCostAndGradient(TS ts, Vec X, Vec design, Vec gradient, PetscReal *obj)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(ts,TS_CLASSID,1);
+  PetscValidHeaderSpecific(X,VEC_CLASSID,2);
+  PetscValidHeaderSpecific(design,VEC_CLASSID,3);
+  PetscValidHeaderSpecific(gradient,VEC_CLASSID,4);
+  PetscValidPointer(obj,5);
 
   ierr = VecLockPush(design);CHKERRQ(ierr);
-
-  /* trajectory */
-  otrj = ts->trajectory;
-  ierr = TSTrajectoryCreate(PetscObjectComm((PetscObject)ts),&ts->trajectory);CHKERRQ(ierr);
-  ierr = TSTrajectorySetFromOptions(ts->trajectory,ts);CHKERRQ(ierr);
-
-  /* sample initial condition dependency */
-  ierr = TSGetTime(ts,&t0);CHKERRQ(ierr);
-  if (ts->Ggrad) {
-    ierr = (*ts->Ggrad)(ts,t0,X,design,ts->G_x,ts->G_m,ts->Ggrad_ctx);CHKERRQ(ierr);
-  }
-
-  /* forward solve */
-  ierr = TSEvaluateCostFunctionals_Private(ts,X,design,gradient,NULL);CHKERRQ(ierr);
-
-  /* adjoint */
-  ierr = TSCreateAdjointTS(ts,&adjts);CHKERRQ(ierr);
-  ierr = TSSetSolution(adjts,X);CHKERRQ(ierr);
-  ierr = TSGetTime(ts,&tf);CHKERRQ(ierr);
-  ierr = TSGetPrevTime(ts,&dt);CHKERRQ(ierr);
-  dt   = tf - dt;
-  ierr = AdjointTSSetTimeLimits(adjts,t0,tf,dt);CHKERRQ(ierr);
-  ierr = AdjointTSSetDesign(adjts,design);CHKERRQ(ierr);
-  ierr = AdjointTSSetInitialGradient(adjts,gradient);CHKERRQ(ierr); /* it also initializes the adjoint variable */
-  ierr = TSSolve(adjts,NULL);CHKERRQ(ierr);
-  ierr = AdjointTSComputeFinalGradient(adjts);CHKERRQ(ierr);
-  ierr = TSDestroy(&adjts);CHKERRQ(ierr);
-
-  /* restore */
-  ierr = TSTrajectoryDestroy(&ts->trajectory);CHKERRQ(ierr);
-  ts->trajectory  = otrj;
-
+  ierr = TSEvaluateGradient_Private(ts,X,design,gradient,obj);CHKERRQ(ierr);
   ierr = VecLockPop(design);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
