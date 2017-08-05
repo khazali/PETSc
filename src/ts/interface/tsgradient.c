@@ -27,7 +27,9 @@ static PetscErrorCode TSGradientEvalCostFunctionals(TS ts, PetscReal time, Vec s
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode TSGradientEvalCostFunctionalsFixed(TS ts, PetscReal time, Vec state, Vec design, PetscReal *val)
+/* since we just accumulate values to the objective function, we don't need an Event to detect the exact time
+   we test in the interval (ptime,time] */
+static PetscErrorCode TSGradientEvalCostFunctionalsFixed(TS ts, PetscReal ptime, PetscReal time, Vec state, Vec design, PetscReal *val)
 {
   PetscErrorCode     ierr;
   CostFunctionalLink link = ts->funchead;
@@ -42,8 +44,8 @@ static PetscErrorCode TSGradientEvalCostFunctionalsFixed(TS ts, PetscReal time, 
   *val = 0.0;
   while (link) {
     PetscReal v = 0.0;
-    if (link->f && PetscAbsReal(link->fixedtime-time) < PETSC_SMALL) {
-      ierr = (*link->f)(ts,time,state,design,&v,link->f_ctx);CHKERRQ(ierr);
+    if (link->f && ptime < link->fixedtime && link->fixedtime <= time) {
+      ierr = (*link->f)(ts,link->fixedtime,state,design,&v,link->f_ctx);CHKERRQ(ierr);
     }
     *val += v;
     link = link->next;
@@ -493,6 +495,7 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
   if (norm > PETSC_SMALL) {
     TSIJacobian ijac;
 
+    /* dirac delta initial condition */
     ierr = TSGetIJacobian(adjts,NULL,NULL,&ijac,NULL);CHKERRQ(ierr);
     if (ijac) { /* lambda(T) = - (F_Udot)^T D_x, D_x the gradients of the functionals that sample the solution at the final time */
       SNES snes;
@@ -644,6 +647,9 @@ static PetscErrorCode TSGradientPostStep(TS ts)
 
   ierr = TSGetSolution(ts,&solution);CHKERRQ(ierr);
   ierr = TSGetTime(ts,&time);CHKERRQ(ierr);
+  if (ts->reason == TS_CONVERGED_TIME) {
+    ierr = TSGetMaxTime(ts,&time);CHKERRQ(ierr);
+  }
   if (poststep_ctx->objeval) {
     ierr = TSGradientEvalCostFunctionals(ts,time,solution,poststep_ctx->design,&val);CHKERRQ(ierr);
   }
@@ -662,7 +668,7 @@ static PetscErrorCode TSGradientPostStep(TS ts)
   poststep_ctx->obj += dt*(val+poststep_ctx->pval)/2.0;
   poststep_ctx->pval = val;
   if (poststep_ctx->objeval) {
-    ierr = TSGradientEvalCostFunctionalsFixed(ts,time,solution,poststep_ctx->design,&val);CHKERRQ(ierr);
+    ierr = TSGradientEvalCostFunctionalsFixed(ts,ptime,time,solution,poststep_ctx->design,&val);CHKERRQ(ierr);
     poststep_ctx->obj += val;
   }
   if (poststep_ctx->gradient) {
@@ -860,7 +866,7 @@ $  f(TS ts,PetscReal t,Vec u,Vec m,Vec out,void ctx);
 
    Notes: the functions passed in are appended to a list. More functions can be passed in
           by simply calling TSSetCostFunctional with different arguments.
-          The functionals are intendended to be used as integrand terms of a time integration (if fixtime == PETSC_MIN_REAL) or as evaluation at a given specific time.
+          The functionals are intendended to be used as integrand terms of a time integration (if fixtime == PETSC_MIN_REAL) or as evaluation at a given specific time. In the last case, only f and f_x (if any) should be provided.
           The size of the output vectors equals the size of the state and design vectors for f_x and f_m, respectively.
 
    Level: developer
@@ -887,6 +893,7 @@ PetscErrorCode TSSetCostFunctional(TS ts, PetscReal fixtime, TSEvalCostFunctiona
   link->f_ctx     = f_ctx;
   link->f_x       = f_x;
   link->f_x_ctx   = f_x_ctx;
+  if (f_m && fixtime > PETSC_MIN_REAL) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Don't know how to integrate delta F_M");
   link->f_m       = f_m;
   link->f_m_ctx   = f_m_ctx;
   link->fixedtime = fixtime;
