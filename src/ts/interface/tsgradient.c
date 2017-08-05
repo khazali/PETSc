@@ -444,7 +444,7 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
     ierr = VecDuplicateVecs(gradient,2,&adj_ctx->wgrad);CHKERRQ(ierr);
   }
 
-  /* Set Initial condition for the adjoint ode: solution of adjts is the last computed forward state */
+  /* Set initial conditions for the adjoint ode */
   ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
   ierr = TSGradientEvalCostGradientUFixed(adj_ctx->fwdts,adj_ctx->tf,lambda,adj_ctx->design,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
   ierr = VecNorm(adj_ctx->W[1],NORM_2,&norm);CHKERRQ(ierr);
@@ -468,9 +468,21 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
   } else {
     ierr = VecSet(lambda,0.0);CHKERRQ(ierr);
   }
+
   /* these two vectors are locked: only AdjointTSUpdateHistory can unlock them */
   ierr = VecLockPush(adj_ctx->W[0]);CHKERRQ(ierr);
   ierr = VecLockPush(adj_ctx->W[1]);CHKERRQ(ierr);
+
+  /* initialize wgrad[0] */
+  if (adj_ctx->fwdts->F_m) {
+    TS ts = adj_ctx->fwdts;
+    if (ts->F_m_f) { /* non constant dependence */
+      ierr = AdjointTSUpdateHistory(adjts,adj_ctx->t0,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
+      ierr = (*ts->F_m_f)(ts,adj_ctx->tf,adj_ctx->W[0],adj_ctx->W[1],adj_ctx->design,ts->F_m,ts->F_m_ctx);CHKERRQ(ierr);
+    }
+    ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
+    ierr = MatMultTranspose(ts->F_m,lambda,adj_ctx->wgrad[0]);CHKERRQ(ierr);
+  } else SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing parameter dependency");
   PetscFunctionReturn(0);
 }
 

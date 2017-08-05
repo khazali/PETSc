@@ -1,54 +1,30 @@
 mu 1., steps 0, ftime 0.5
 mu 1., steps 7, ftime 0.5
 WARNING: Variable bounds have been set but will be ignored by cg algorithm
-iter =   0, Function value: 0.070862,  Residual: 0.00914408 
-iter =   1, Function value: 0.00172302,  Residual: 0.00701871 
-iter =   2, Function value: 0.000732219,  Residual: 0.0039375 
-iter =   3, Function value: 0.000360224,  Residual: 0.00332027 
-iter =   4, Function value: 0.000148472,  Residual: 0.00257576 
-iter =   5, Function value: 4.86093e-05,  Residual: 0.00113645 
-iter =   6, Function value: 2.21991e-05,  Residual: 0.000826347 
-iter =   7, Function value: 9.45877e-06,  Residual: 0.000609334 
-iter =   8, Function value: 3.51111e-06,  Residual: 0.000469172 
-iter =   9, Function value: 9.05329e-07,  Residual: 0.000385625 
-iter =  10, Function value: 5.94928e-07,  Residual: 0.000325954 
-iter =  11, Function value: 3.83295e-07,  Residual: 0.000262262 
-iter =  12, Function value: 2.46709e-07,  Residual: 0.000210816 
-iter =  13, Function value: 1.58672e-07,  Residual: 0.000169333 
-iter =  14, Function value: 1.01988e-07,  Residual: 0.000135928 
-iter =  15, Function value: 6.55206e-08,  Residual: 0.000109059 
-iter =  16, Function value: 4.20759e-08,  Residual: 8.74662e-05 
-iter =  17, Function value: 2.70115e-08,  Residual: 7.01262e-05 
-iter =  18, Function value: 1.73361e-08,  Residual: 5.62092e-05 
-iter =  19, Function value: 1.11241e-08,  Residual: 4.50449e-05 
-iter =  20, Function value: 7.13685e-09,  Residual: 3.6092e-05 
-iter =  21, Function value: 4.57815e-09,  Residual: 2.89147e-05 
-iter =  22, Function value: 2.93648e-09,  Residual: 2.31622e-05 
-iter =  23, Function value: 1.88333e-09,  Residual: 1.85526e-05 
-iter =  24, Function value: 1.2078e-09,  Residual: 1.48594e-05 
-iter =  25, Function value: 7.74536e-10,  Residual: 1.19006e-05 
-iter =  26, Function value: 4.9667e-10,  Residual: 9.53065e-06 
-iter =  27, Function value: 3.18478e-10,  Residual: 7.63236e-06 
-iter =  28, Function value: 2.04211e-10,  Residual: 6.112e-06 
-iter =  29, Function value: 1.30939e-10,  Residual: 4.89438e-06 
-iter =  30, Function value: 8.39556e-11,  Residual: 3.91926e-06 
-iter =  31, Function value: 5.383e-11,  Residual: 3.13837e-06 
-iter =  32, Function value: 3.4514e-11,  Residual: 2.51304e-06 
-iter =  33, Function value: 2.21289e-11,  Residual: 2.01229e-06 
-iter =  34, Function value: 1.41881e-11,  Residual: 1.61131e-06 
-iter =  35, Function value: 9.0967e-12,  Residual: 1.29022e-06 
-iter =  36, Function value: 5.83233e-12,  Residual: 1.03311e-06 
-iter =  37, Function value: 3.73937e-12,  Residual: 8.27234e-07 
-iter =  38, Function value: 2.39747e-12,  Residual: 6.62382e-07 
-iter =  39, Function value: 1.53712e-12,  Residual: 5.30381e-07 
-iter =  40, Function value: 9.8551e-13,  Residual: 4.24684e-07 
-iter =  41, Function value: 6.31849e-13,  Residual: 3.40051e-07 
-iter =  42, Function value: 4.05103e-13,  Residual: 2.72283e-07 
-iter =  43, Function value: 2.59727e-13,  Residual: 2.18021e-07 
-iter =  44, Function value: 1.66521e-13,  Residual: 1.74572e-07 
-iter =  45, Function value: 1.06763e-13,  Residual: 1.39782e-07 
-iter =  46, Function value: 6.84495e-14,  Residual: 1.11925e-07 
-iter =  47, Function value: 4.38855e-14,  Residual: 8.96193e-08 
+iter =   0, Function value: 0.070862,  Residual: 0.00975314 
+iter =   1, Function value: 0.000137517,  Residual: 0.00225647 
+iter =   2, Function value: 5.12696e-05,  Residual: 0.00136255 
+iter =   3, Function value: 1.98057e-05,  Residual: 0.000840019 
+iter =   4, Function value: 7.77526e-06,  Residual: 0.000522906 
+iter =   5, Function value: 3.08972e-06,  Residual: 0.00032891 
+iter =   6, Function value: 1.23462e-06,  Residual: 0.000207195 
+iter =   7, Function value: 4.96303e-07,  Residual: 0.000131173 
+iter =   8, Function value: 2.00103e-07,  Residual: 8.32099e-05 
+iter =   9, Function value: 8.08361e-08,  Residual: 5.28563e-05 
+iter =  10, Function value: 3.26946e-08,  Residual: 3.36431e-05 
+iter =  11, Function value: 1.32152e-08,  Residual: 2.14224e-05 
+iter =  12, Function value: 5.33331e-09,  Residual: 1.35964e-05 
+iter =  13, Function value: 2.15498e-09,  Residual: 8.64879e-06 
+iter =  14, Function value: 8.70106e-10,  Residual: 5.50205e-06 
+iter =  15, Function value: 3.50871e-10,  Residual: 3.51065e-06 
+iter =  16, Function value: 1.40716e-10,  Residual: 2.22589e-06 
+iter =  17, Function value: 5.63575e-11,  Residual: 1.41192e-06 
+iter =  18, Function value: 2.25112e-11,  Residual: 8.97252e-07 
+iter =  19, Function value: 8.93441e-12,  Residual: 5.71539e-07 
+iter =  20, Function value: 3.49985e-12,  Residual: 3.61046e-07 
+iter =  21, Function value: 1.35577e-12,  Residual: 2.27409e-07 
+iter =  22, Function value: 5.17588e-13,  Residual: 1.42156e-07 
+iter =  23, Function value: 1.94745e-13,  Residual: 8.99801e-08 
 Tao Object: 1 MPI processes
   type: cg
       CG Type: prp
@@ -58,10 +34,10 @@ Tao Object: 1 MPI processes
     type: more-thuente
   Active Set subset type: subvec
   convergence tolerances: gatol=1e-13,   steptol=0.,   gttol=1e-05
-  Residual in Function/Gradient:=8.96193e-08
-  Objective value=4.38855e-14
-  total number of iterations=47,                          (max: 2000)
-  total number of function/gradient evaluations=103,      (max: 4000)
+  Residual in Function/Gradient:=8.99801e-08
+  Objective value=1.94745e-13
+  total number of iterations=23,                          (max: 2000)
+  total number of function/gradient evaluations=69,      (max: 4000)
   Solution converged:    ||g(X)||/||g(X0)|| <= gttol
 Vec Object: 1 MPI processes
   type: seq
