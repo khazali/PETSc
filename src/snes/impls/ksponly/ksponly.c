@@ -81,7 +81,7 @@ static PetscErrorCode SNESDestroy_KSPONLY(SNES snes)
   PetscFunctionReturn(0);
 }
 
-/*@
+/*
    SNESKSPONLYSetUseTransposeSolve - Sets a flag to use KSPSolveTranspose() for the inner linear solves.
 
    Logically Collective on SNES
@@ -96,7 +96,7 @@ static PetscErrorCode SNESDestroy_KSPONLY(SNES snes)
    It is declared in petsc/private/snesimpl.h since it just supports the implementation of time-dependent adjoint problems and it should not be called directly by users.
 
 .seealso: SNESKSPONLY
-@*/
+*/
 PetscErrorCode SNESKSPONLYSetUseTransposeSolve(SNES snes,PetscBool flg)
 {
   SNES_KSPONLY   *ksponly;
