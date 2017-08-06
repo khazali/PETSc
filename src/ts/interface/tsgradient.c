@@ -1,6 +1,7 @@
 #include <petsc/private/tsimpl.h>        /*I "petscts.h"  I*/
 #include <petsc/private/snesimpl.h>
 
+/* Evaluates cost functionals of the type f(U,param,t) */
 static PetscErrorCode TSGradientEvalCostFunctionals(TS ts, PetscReal time, Vec state, Vec design, PetscReal *val)
 {
   PetscErrorCode     ierr;
@@ -28,8 +29,9 @@ static PetscErrorCode TSGradientEvalCostFunctionals(TS ts, PetscReal time, Vec s
   PetscFunctionReturn(0);
 }
 
-/* since we just accumulate values to the objective function, we don't need an Event to detect the exact time
-   we test in the interval (ptime,time] */
+/* Evaluates cost functionals of the type f(U,param,t = fixed)
+   Since we just accumulate values to the objective function, we don't need an Event to detect the exact time.
+   We test in the interval (ptime,time] */
 static PetscErrorCode TSGradientEvalCostFunctionalsFixed(TS ts, PetscReal ptime, PetscReal time, Vec state, Vec design, PetscReal *val)
 {
   PetscErrorCode     ierr;
@@ -58,6 +60,7 @@ static PetscErrorCode TSGradientEvalCostFunctionalsFixed(TS ts, PetscReal ptime,
   PetscFunctionReturn(0);
 }
 
+/* Evaluates derivative (wrt the state) of cost functionals of the type f(U,param,t) */
 static PetscErrorCode TSGradientEvalCostGradientU(TS ts, PetscReal time, Vec state, Vec design, Vec work, Vec out)
 {
   PetscErrorCode     ierr;
@@ -86,6 +89,7 @@ static PetscErrorCode TSGradientEvalCostGradientU(TS ts, PetscReal time, Vec sta
   PetscFunctionReturn(0);
 }
 
+/* Evaluates derivative (wrt the state) of cost functionals of the type f(U,param,t = fixed) */
 static PetscErrorCode TSGradientEvalCostGradientUFixed(TS ts, PetscReal time, Vec state, Vec design, Vec work, Vec out)
 {
   PetscErrorCode     ierr;
@@ -114,6 +118,8 @@ static PetscErrorCode TSGradientEvalCostGradientUFixed(TS ts, PetscReal time, Ve
   PetscFunctionReturn(0);
 }
 
+/* Evaluates derivative (wrt the parameters) of cost functionals of the type f(U,param,t) */
+/* TODO: Fixed case. They could be added when evaluating the final gradient */
 static PetscErrorCode TSGradientEvalCostGradientM(TS ts, PetscReal time, Vec state, Vec design, Vec work, Vec out)
 {
   PetscErrorCode     ierr;
@@ -162,6 +168,7 @@ typedef struct {
   PetscBool firststep;     /* used for trapz rule */
   Vec       gradient;      /* gradient we are evaluating */
   Vec       *wgrad;        /* gradient work vectors (for trapz rule) */
+  PetscBool dirac_delta;   /* If true, means that a delta contribution needs to be added to lambda during the post step method */
 } AdjointCtx;
 
 static PetscErrorCode AdjointTSDestroy_Private(void *ptr)
@@ -181,11 +188,12 @@ static PetscErrorCode AdjointTSDestroy_Private(void *ptr)
   PetscFunctionReturn(0);
 }
 
+/* Updates history vectors adj_ctx->W[0] (state) and adj_ctx->W[1] (derivative) if U or Udot are true */
 static PetscErrorCode AdjointTSUpdateHistory(TS adjts, PetscReal time, PetscBool U, PetscBool Udot)
 {
   AdjointCtx     *adj_ctx;
   PetscReal      ft;
-  PetscInt       step = PETSC_MIN_INT;
+  PetscInt       step = PETSC_MIN_INT; /* inquire TSTrajectoryGetVecs by the time argument */
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -216,6 +224,10 @@ static PetscErrorCode AdjointTSRHSJacobian(TS adjts, PetscReal time, Vec U, Mat 
   PetscFunctionReturn(0);
 }
 
+/* The adjoint formulation I'm using assumes H(U,Udot,t) = 0
+   -> the forward ODE is Udot - G(U) = 0 ( -> H(U,Udot,t) := Udot - G(U) )
+   -> the adjoint ODE is F - L^T * G_U - Ldot^T in backward time
+   -> the adjoint ODE is Ldot^T = L^T * G_U - F in forward time */
 static PetscErrorCode AdjointTSRHSFuncLinear(TS adjts, PetscReal time, Vec U, Vec F, void *ctx)
 {
   AdjointCtx     *adj_ctx;
@@ -226,17 +238,15 @@ static PetscErrorCode AdjointTSRHSFuncLinear(TS adjts, PetscReal time, Vec U, Ve
   ierr = AdjointTSUpdateHistory(adjts,time,PETSC_TRUE,PETSC_FALSE);CHKERRQ(ierr);
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
-  ierr = TSGradientEvalCostGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[2],F);CHKERRQ(ierr);
-  /* the adjoint formulation I'm using assumes F(U,Udot,t) = 0
-     -> the forward PDE is Udot - G(U) = 0
-     -> the adjoint PDE is F - L^T * G_U - Ldot^T in backward time
-     -> the adjoint PDE is Ldot^T = L^T * G_U - F in forward time */
+  ierr = TSGradientEvalCostGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],F);CHKERRQ(ierr);
   ierr = VecScale(F,-1.0);CHKERRQ(ierr);
   ierr = TSComputeRHSJacobian(adjts,time,U,adjts->Arhs,NULL);CHKERRQ(ierr);
   ierr = MatMultTransposeAdd(adjts->Arhs,U,F,F);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
+/* This is an helper routine to get F_U and F_Udot. Can be generalized with some public API with callbacks.
+   TODO: possibly also d/dt F_Udot, not yet coded */
 static PetscErrorCode TSComputeSplitJacobians(TS ts, PetscReal time, Vec U, Vec Udot, Mat A, Mat pA, Mat B, Mat pB, Mat C, Mat pC)
 {
   PetscErrorCode ierr;
@@ -264,6 +274,7 @@ static PetscErrorCode TSComputeSplitJacobians(TS ts, PetscReal time, Vec U, Vec 
   PetscFunctionReturn(0);
 }
 
+/* Updates F_Udot (adj_ctx->splitJ_Udot) and F_U + d/dt F_Udot (adj_ctx->splitJ_U) at a given (backward) time */
 static PetscErrorCode AdjointTSUpdateSplitJacobians(TS adjts, PetscReal time)
 {
   AdjointCtx     *adj_ctx;
@@ -287,7 +298,7 @@ static PetscErrorCode AdjointTSUpdateSplitJacobians(TS adjts, PetscReal time)
   PetscFunctionReturn(0);
 }
 
-/* the assumption here is that the IJacobian routine is called after the IFunction (called with same time, U and Udot) */
+/* The assumption here is that the IJacobian routine is called after the IFunction (called with same time, U and Udot) */
 static PetscErrorCode AdjointTSIJacobian(TS adjts, PetscReal time, Vec U, Vec Udot, PetscReal shift, Mat A, Mat B, void *ctx)
 {
   AdjointCtx       *adj_ctx;
@@ -313,6 +324,9 @@ static PetscErrorCode AdjointTSIJacobian(TS adjts, PetscReal time, Vec U, Vec Ud
   PetscFunctionReturn(0);
 }
 
+/* Given the forward ODE : H(U,Udot,t) = 0
+   -> the adjoint ODE is : F - L^T * (H_U - d/dt H_Udot) - Ldot^T H_Udot = 0 (in backward time)
+   -> the adjoint ODE is : Ldot^T H_Udot + L^T * (H_U + d/dt H_Udot) + F = 0 (in forward time) */
 static PetscErrorCode AdjointTSIFuncLinear(TS adjts, PetscReal time, Vec U, Vec Udot, Vec F, void *ctx)
 {
   AdjointCtx     *adj_ctx;
@@ -323,13 +337,66 @@ static PetscErrorCode AdjointTSIFuncLinear(TS adjts, PetscReal time, Vec U, Vec 
   ierr = AdjointTSUpdateHistory(adjts,time,PETSC_TRUE,PETSC_FALSE);CHKERRQ(ierr);
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
-  ierr = TSGradientEvalCostGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[2],F);CHKERRQ(ierr);
+  ierr = TSGradientEvalCostGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],F);CHKERRQ(ierr);
   ierr = AdjointTSUpdateSplitJacobians(adjts,time);CHKERRQ(ierr);
   ierr = MatMultTransposeAdd(adj_ctx->splitJ_U,U,F,F);CHKERRQ(ierr);
   ierr = MatMultTransposeAdd(adj_ctx->splitJ_Udot,Udot,F,F);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
+/* Handles the detection of Dirac's delta forcing terms (i.e. f_U(U,param,t = fixed)) in the adjoint equations */
+static PetscErrorCode AdjointTSEventFunction(TS adjts, PetscReal t, Vec U, PetscScalar fvalue[], void *ctx)
+{
+  AdjointCtx         *adj_ctx;
+  CostFunctionalLink link;
+  TS                 ts;
+  PetscInt           cnt = 0;
+  PetscReal          fwdt;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
+  fwdt = adj_ctx->tf - t + adj_ctx->t0;
+  ts   = adj_ctx->fwdts;
+  link = ts->funchead;
+  while (link) { fvalue[cnt++] = link->f_x && link->fixedtime > PETSC_MIN_REAL ?  link->fixedtime - fwdt : 1.0; link = link->next; }
+  PetscFunctionReturn(0);
+}
+
+/* Dirac's delta integration H_Udot^T ( L(+) - L(-) )  = - f_U -> L(+) = - H_Udot^-T f_U + L(-)
+   We store the increment - H_Udot^-T f_U in adj_ctx->W[2] and apply it during the AdjointTSPostStep */
+static PetscErrorCode AdjointTSPostEvent(TS adjts, PetscInt nevents, PetscInt event_list[], PetscReal t, Vec U, PetscBool forwardsolve, void* ctx)
+{
+  AdjointCtx     *adj_ctx;
+  PetscReal      fwdt;
+  TSIJacobian    ijac;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
+  fwdt = adj_ctx->tf - t + adj_ctx->t0;
+  PetscPrintf(PETSC_COMM_SELF,"monitoring TS EVENT: Time %g, fwdt %g, nevents %d\n",t,fwdt,nevents);
+  ierr = AdjointTSUpdateHistory(adjts,t,PETSC_TRUE,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = VecLockPop(adj_ctx->W[2]);CHKERRQ(ierr);
+  ierr = TSGradientEvalCostGradientUFixed(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],adj_ctx->W[2]);CHKERRQ(ierr);
+  ierr = VecScale(adj_ctx->W[2],-1.0);CHKERRQ(ierr);
+  ierr = TSGetIJacobian(adjts,NULL,NULL,&ijac,NULL);CHKERRQ(ierr);
+  if (ijac) {
+    SNES snes;
+    KSP  ksp;
+
+    ierr = AdjointTSUpdateSplitJacobians(adjts,t);CHKERRQ(ierr);
+    ierr = TSGetSNES(adjts,&snes);CHKERRQ(ierr);
+    ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
+    ierr = KSPSetOperators(ksp,adj_ctx->splitJ_Udot,adj_ctx->splitJ_Udot);CHKERRQ(ierr);
+    ierr = KSPSolveTranspose(ksp,adj_ctx->W[2],adj_ctx->W[2]);CHKERRQ(ierr);
+  }
+  ierr = VecLockPush(adj_ctx->W[2]);CHKERRQ(ierr);
+  adj_ctx->dirac_delta = PETSC_TRUE;
+  PetscFunctionReturn(0);
+}
+
+/* Partial integration (via the trapezoidal rule) of the gradient terms f_M + L^T H_M */
 static PetscErrorCode AdjointTSPostStep(TS adjts)
 {
   Vec            lambda;
@@ -343,14 +410,13 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
   ierr = TSGetTime(adjts,&time);CHKERRQ(ierr);
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
-
-  /* trapezoidal rule */
   ierr = TSGetPrevTime(adjts,&ptime);CHKERRQ(ierr);
-  dt   = time - ptime;
+  dt   = time - ptime; /* current time step used */
 
   /* first step:
-       wgrad[0] has been initialized with the first backward evaluation of \lambda^T F_m at t0
-       gradient with the forward contribution to the gradient (i.e. \int f_m )
+       wgrad[0] has been initialized with the first backward evaluation of L^T H_M at t0
+       gradient with the forward contribution to the gradient (i.e. \int f_m)
+       Note that f_m is not a regularizer (i.e. evaluated at fixed time)
   */
   if (adj_ctx->firststep) {
     ierr = VecAXPY(adj_ctx->gradient,dt/2.0,adj_ctx->wgrad[0]);CHKERRQ(ierr);
@@ -372,10 +438,26 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
     ierr = VecCopy(adj_ctx->wgrad[0],adj_ctx->wgrad[1]);CHKERRQ(ierr);
   }
   adj_ctx->firststep = PETSC_FALSE;
+
+  /* We detected Dirac's delta terms -> add the increment here
+     Re-evaluate L^T H_M and restart trapezoidal rule if needed */
+  if (adj_ctx->dirac_delta) {
+    TS ts = adj_ctx->fwdts;
+
+    ierr = VecAXPY(lambda,1.0,adj_ctx->W[2]);CHKERRQ(ierr);
+    if (ts->F_m) {
+      ierr = VecSet(adj_ctx->wgrad[0],0.0);CHKERRQ(ierr);
+      ierr = MatMultTranspose(ts->F_m,lambda,adj_ctx->wgrad[0]);CHKERRQ(ierr);
+      adj_ctx->firststep = PETSC_TRUE;
+    }
+  }
+  adj_ctx->dirac_delta = PETSC_FALSE;
+
   if (adjts->reason) { adj_ctx->tf = time; } /* prevent from accumulation errors XXX */
   PetscFunctionReturn(0);
 }
 
+/* Creates the adjoint TS */
 static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
 {
   SNES            snes;
@@ -404,12 +486,16 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   ierr = TSGetSolution(ts,&U);CHKERRQ(ierr);
   ierr = VecDuplicateVecs(U,4,&adj->W);CHKERRQ(ierr);
 
-  /* these two vectors are locked: only AdjointTSUpdateHistory can unlock them */
-  /* W[0] stores the updated forward state,  W[1] stores the updated backward state */
-  /* if you need to update them, call AdjointTSUpdateHistory, a caching mechanism in
-     TSTrajectoryGetVecs will prevent to reload/reinterpolate */
+  /* these three vectors are locked:
+     - only AdjointTSUpdateHistory can modify W[0] and W[1]
+       W[0] stores the updated forward state,  W[1] stores the updated derivative of the state vector (interpolated)
+       If you need to update them, call AdjointTSUpdateHistory, a caching mechanism in
+       TSTrajectoryGetVecs will prevent to reload/reinterpolate
+     - only AdjointTSPostEvent can modify W[2], used to store delta contributions
+  */
   ierr = VecLockPush(adj->W[0]);CHKERRQ(ierr);
   ierr = VecLockPush(adj->W[1]);CHKERRQ(ierr);
+  ierr = VecLockPush(adj->W[2]);CHKERRQ(ierr);
 
   adj->fwdts = ts; /* we don't take reference on the forward ts, as adjts in not public */
   adj->t0 = adj->tf = PETSC_MAX_REAL;
@@ -497,12 +583,12 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
   /* Set initial conditions for the adjoint ode */
   ierr = TSGetSolution(adj_ctx->fwdts,&fwdsol);CHKERRQ(ierr);
   ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
-  ierr = TSGradientEvalCostGradientUFixed(adj_ctx->fwdts,adj_ctx->tf,fwdsol,adj_ctx->design,adj_ctx->W[2],lambda);CHKERRQ(ierr);
+  ierr = TSGradientEvalCostGradientUFixed(adj_ctx->fwdts,adj_ctx->tf,fwdsol,adj_ctx->design,adj_ctx->W[3],lambda);CHKERRQ(ierr);
   ierr = VecNorm(lambda,NORM_2,&norm);CHKERRQ(ierr);
   if (norm > PETSC_SMALL) {
     TSIJacobian ijac;
 
-    /* dirac delta initial condition */
+    /* Dirac's delta initial condition */
     ierr = TSGetIJacobian(adjts,NULL,NULL,&ijac,NULL);CHKERRQ(ierr);
     if (ijac) { /* lambda(T) = - (F_Udot)^T D_x, D_x the gradients of the functionals that sample the solution at the final time */
       SNES snes;
@@ -518,6 +604,7 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
   }
 
   /* initialize wgrad[0] */
+  ierr = VecSet(adj_ctx->wgrad[0],0.0);CHKERRQ(ierr);
   if (adj_ctx->fwdts->F_m) {
     TS ts = adj_ctx->fwdts;
     if (ts->F_m_f) { /* non constant dependence */
@@ -570,6 +657,34 @@ static PetscErrorCode AdjointTSSetTimeLimits(TS adjts, PetscReal t0, PetscReal t
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode AdjointTSEventHandler(TS adjts)
+{
+  PetscContainer     c;
+  AdjointCtx         *adj_ctx;
+  PetscErrorCode     ierr;
+  CostFunctionalLink link;
+  PetscInt           cnt = 0;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
+  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_gradient_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
+  if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
+  ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
+
+  /* set event handler for Dirac's delta terms */
+  link = adj_ctx->fwdts->funchead;
+  while (link) { cnt++; link = link->next; }
+  if (cnt) {
+    PetscInt  *dir;
+    PetscBool *term;
+
+    ierr = PetscCalloc2(cnt,&dir,cnt,&term);CHKERRQ(ierr);
+    ierr = TSSetEventHandler(adjts,cnt,dir,term,AdjointTSEventFunction,AdjointTSPostEvent,NULL);CHKERRQ(ierr);
+    ierr = PetscFree2(dir,term);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
 static PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
 {
   TS             fwdts;
@@ -596,9 +711,9 @@ static PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
     ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
     ierr = TSGetIJacobian(adjts,NULL,NULL,&ijacfunc,NULL);CHKERRQ(ierr);
     if (!ijacfunc) {
-      ierr = VecCopy(lambda,adj_ctx->W[2]);CHKERRQ(ierr);
+      ierr = VecCopy(lambda,adj_ctx->W[3]);CHKERRQ(ierr);
     } else {
-      ierr = MatMultTranspose(adj_ctx->splitJ_Udot,lambda,adj_ctx->W[2]);CHKERRQ(ierr);
+      ierr = MatMultTranspose(adj_ctx->splitJ_Udot,lambda,adj_ctx->W[3]);CHKERRQ(ierr);
     }
 
     if (fwdts->G_x) { /* this is optional. If not provided, identity is assumed */
@@ -608,10 +723,10 @@ static PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
       ierr = KSPSetOperators(ksp,fwdts->G_x,fwdts->G_x);CHKERRQ(ierr);
       ierr = KSPSetOptionsPrefix(ksp,"adjoint_G_");CHKERRQ(ierr);
       ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
-      ierr = KSPSolveTranspose(ksp,adj_ctx->W[2],adj_ctx->W[2]);CHKERRQ(ierr);
+      ierr = KSPSolveTranspose(ksp,adj_ctx->W[3],adj_ctx->W[3]);CHKERRQ(ierr);
       ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
     }
-    ierr = MatMultTransposeAdd(fwdts->G_m,adj_ctx->W[2],adj_ctx->gradient,adj_ctx->gradient);CHKERRQ(ierr);
+    ierr = MatMultTransposeAdd(fwdts->G_m,adj_ctx->W[3],adj_ctx->gradient,adj_ctx->gradient);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -797,6 +912,7 @@ static PetscErrorCode TSEvaluateGradient_Private(TS ts, Vec X, Vec design, Vec g
   ierr = AdjointTSSetTimeLimits(adjts,t0,tf);CHKERRQ(ierr);
   ierr = AdjointTSSetDesign(adjts,design);CHKERRQ(ierr);
   ierr = AdjointTSSetInitialGradient(adjts,gradient);CHKERRQ(ierr); /* it also initializes the adjoint variable */
+  ierr = AdjointTSEventHandler(adjts);CHKERRQ(ierr);
   ierr = TSSetFromOptions(adjts);CHKERRQ(ierr);
   ierr = TSSolve(adjts,NULL);CHKERRQ(ierr);
   ierr = AdjointTSComputeFinalGradient(adjts);CHKERRQ(ierr);
@@ -950,7 +1066,7 @@ PetscErrorCode TSSetEvalGradient(TS ts, Mat J, TSEvalGradient f, void *ctx)
 }
 
 /*
-   TSSetEvalICGradient - Sets the callback function to compute the matrices g_x(x0,m) and g_m(x0,m), if there is any dependence of the PDE initial conditions from the design parameters.
+   TSSetEvalICGradient - Sets the callback function to compute the matrices g_x(x0,m) and g_m(x0,m), if there is any dependence of the ODE initial conditions from the design parameters.
 
    Logically Collective on TS
 

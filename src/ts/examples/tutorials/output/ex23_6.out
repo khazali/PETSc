@@ -1,0 +1,10 @@
+Objective function: time [0.01,1.8], val 7.36011 (should be 7.36011)
+monitoring TS EVENT: Time 1.56372, fwdt 0.24628, nevents 1
+0-th component of gradient should be (approximated) 7.5504
+1-th component of gradient should be (approximated) 5.67218
+2-th component of gradient should be (approximated) 1.14057
+Vec Object: 1 MPI processes
+  type: seq
+6.28673
+5.49985
+1.11217

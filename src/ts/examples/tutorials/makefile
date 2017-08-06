@@ -723,6 +723,13 @@ runex23_5:
 	   ${DIFF} output/ex23_5.out ex23_5.tmp || printf "${PWD}\nPossible problem with ex23_5, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_5.tmp SA-data
 
+#BROKEN: test_event_func does not currently work
+runex23_6:
+	-@${MPIEXEC} -n 1 ./ex23 -t0 0.01 -tf 1.8 -b 0.3 -a 1.7 -p 1 -ts_type rk -use_fd -ts_adapt_type basic -ts_atol 1.e-10 -adjoint_ts_adapt_type basic -ts_rtol 1.e-10 -test_event_func -ts_trajectory_basic_order 6 > ex23_6.tmp 2>&1; \
+	   ${DIFF} output/ex23_6.out ex23_6.tmp || printf "${PWD}\nPossible problem with ex23_6, diffs above\n=========================================\n";  \
+	   ${RM} -rf ex23_6.tmp SA-data
+
+
 runex24:                        # This is not in the nightlies because the convergence details are numerically sensitive
 	-@${MPIEXEC} -n 1 ./ex24 -pc_type lu -ts_dt 1e-5 -ts_final_time 1e5 -n 50 -monitor_short > ex24_1.tmp 2>&1; \
 	   ${DIFF} output/ex24_1.out ex24_1.tmp || printf "${PWD}\nPossible problem with ex24_1, diffs above\n=========================================\n";  \
