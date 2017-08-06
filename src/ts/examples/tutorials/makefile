@@ -709,7 +709,7 @@ runex23_2:
 	   ${RM} -rf ex23_2.tmp SA-data
 
 runex23_3:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 1.6 -tf 2.12 -ts_type bdf -use_fd -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 -test_ifunc > ex23_3.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 1.6 -tf 2.12 -ts_type bdf -use_fd -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 -test_ifunc -test_nulljac_IC -test_nullgrad_M > ex23_3.tmp 2>&1; \
 	   ${DIFF} output/ex23_3.out ex23_3.tmp || printf "${PWD}\nPossible problem with ex23_3, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_3.tmp SA-data
 

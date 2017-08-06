@@ -19,7 +19,7 @@ typedef struct {
 } UserObjective;
 
 /* returns f(u) -> ||u||^2  or Sum(u), depending on the objective function selected */
-static PetscErrorCode EvalCostFunctional(TS ts, PetscReal time, Vec U, Vec M, PetscReal *val, void *ctx)
+static PetscErrorCode EvalObjective(TS ts, PetscReal time, Vec U, Vec M, PetscReal *val, void *ctx)
 {
   UserObjective  *user = (UserObjective*)ctx;
   PetscErrorCode ierr;
@@ -37,7 +37,7 @@ static PetscErrorCode EvalCostFunctional(TS ts, PetscReal time, Vec U, Vec M, Pe
 }
 
 /* returns \partial_u f(u) ->  2*u or 1, depending on the objective function selected */
-static PetscErrorCode EvalCostGradient_U(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+static PetscErrorCode EvalObjectiveGradient_U(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
 {
   UserObjective  *user = (UserObjective*)ctx;
   PetscErrorCode ierr;
@@ -53,7 +53,7 @@ static PetscErrorCode EvalCostGradient_U(TS ts, PetscReal time, Vec U, Vec M, Ve
 }
 
 /* returns \partial_m f(u) = 0, the functional does not depend on the parameters  */
-static PetscErrorCode EvalCostGradient_M(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+static PetscErrorCode EvalObjectiveGradient_M(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
 {
   PetscErrorCode ierr;
 
@@ -64,14 +64,14 @@ static PetscErrorCode EvalCostGradient_M(TS ts, PetscReal time, Vec U, Vec M, Ve
 
 static PetscReal store_Event = 0.0;
 
-static PetscErrorCode EvalCostFunctional_Const(TS ts, PetscReal time, Vec U, Vec M, PetscReal *val, void *ctx)
+static PetscErrorCode EvalObjective_Const(TS ts, PetscReal time, Vec U, Vec M, PetscReal *val, void *ctx)
 {
   PetscFunctionBeginUser;
   *val = 1.0;
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode EvalCostFunctional_Event(TS ts, PetscReal time, Vec U, Vec M, PetscReal *val, void *ctx)
+static PetscErrorCode EvalObjective_Event(TS ts, PetscReal time, Vec U, Vec M, PetscReal *val, void *ctx)
 {
   PetscErrorCode ierr;
 
@@ -82,7 +82,7 @@ static PetscErrorCode EvalCostFunctional_Event(TS ts, PetscReal time, Vec U, Vec
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode EvalCostGradient_U_Event(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+static PetscErrorCode EvalObjectiveGradient_U_Event(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
 {
   PetscErrorCode ierr;
 
@@ -378,6 +378,8 @@ int main(int argc, char* argv[])
   if (testpoststep) {
     ierr = TSSetPostStep(ts,TestPostStep);CHKERRQ(ierr);
   }
+
+  /* we test different combinations of IFunction/RHSFunction on the same ODE */
   if (!testifunc) {
     ierr = TSSetRHSFunction(ts,NULL,FormRHSFunction,&user);CHKERRQ(ierr);
     if (testrhsjacconst) {
@@ -405,23 +407,26 @@ int main(int argc, char* argv[])
   ierr = TSGetMaxTime(ts,&tf);CHKERRQ(ierr);
   ierr = TSGetMaxSteps(ts,&maxsteps);CHKERRQ(ierr);
 
-  /* Set cost functionals */
+  /* Set cost functionals: many can be added, by simply calling TSSetObjective multiple times */
   if (testnullgradM) {
-    ierr = TSSetCostFunctional(ts,PETSC_MIN_REAL,EvalCostFunctional,&userobj,EvalCostGradient_U,&userobj,NULL,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,&userobj,EvalObjectiveGradient_U,&userobj,NULL,NULL);CHKERRQ(ierr);
   } else {
-    ierr = TSSetCostFunctional(ts,PETSC_MIN_REAL,EvalCostFunctional,&userobj,EvalCostGradient_U,&userobj,EvalCostGradient_M,&userobj);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,&userobj,EvalObjectiveGradient_U,&userobj,EvalObjectiveGradient_M,&userobj);CHKERRQ(ierr);
   }
+
   /* Cost functional at final time */
   if (testeventfinal) {
-    ierr = TSSetCostFunctional(ts,tf,EvalCostFunctional_Event,NULL,EvalCostGradient_U_Event,NULL,NULL,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,tf,EvalObjective_Event,NULL,EvalObjectiveGradient_U_Event,NULL,NULL,NULL);CHKERRQ(ierr);
   }
+
   /* Cost functional in between the simulation */
   if (testevent) {
-    ierr = TSSetCostFunctional(ts,t0 + 0.132*(tf-t0),EvalCostFunctional_Event,NULL,EvalCostGradient_U_Event,NULL,NULL,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,t0 + 0.132*(tf-t0),EvalObjective_Event,NULL,EvalObjectiveGradient_U_Event,NULL,NULL,NULL);CHKERRQ(ierr);
   }
+
   /* Cost functional in between the simulation (constant) */
   if (testeventconst) {
-    ierr = TSSetCostFunctional(ts,t0 + 0.44*(tf-t0),EvalCostFunctional_Const,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,t0 + 0.44*(tf-t0),EvalObjective_Const,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
   }
 
   /* Set dependence of F(Udot,U,t;M) = 0 from the parameters */
@@ -437,7 +442,7 @@ int main(int argc, char* argv[])
   /* Test objective function evaluation */
   ierr = VecSet(U,user.a);CHKERRQ(ierr);
   ierr = TSGetTime(ts,&t0);CHKERRQ(ierr);
-  ierr = TSEvaluateCostFunctionals(ts,U,M,&obj);CHKERRQ(ierr);
+  ierr = TSEvaluateObjective(ts,U,M,&obj);CHKERRQ(ierr);
   ierr = TSGetTime(ts,&tf);CHKERRQ(ierr);
   ierr = MPI_Comm_size(PETSC_COMM_WORLD,&np);CHKERRQ(ierr);
   if (user.p == 1.0) {
@@ -492,7 +497,7 @@ int main(int argc, char* argv[])
         ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
         ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
         ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
-        ierr = TSEvaluateCostFunctionals(ts,U,M,&objdx[j]);CHKERRQ(ierr);
+        ierr = TSEvaluateObjective(ts,U,M,&objdx[j]);CHKERRQ(ierr);
       }
       ierr = PetscPrintf(PETSC_COMM_WORLD,"%D-th component of gradient should be (approximated) %g\n",i,(double)((objdx[0]-objdx[1])/PetscRealPart(2*dx)));CHKERRQ(ierr);
     }
@@ -525,7 +530,7 @@ int main(int argc, char* argv[])
       ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
       ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
       ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
-      ierr = TSEvaluateCostFunctionals(ts,U,M,&objtest);CHKERRQ(ierr);
+      ierr = TSEvaluateObjective(ts,U,M,&objtest);CHKERRQ(ierr);
       ierr = VecSetValue(M,0,ra,INSERT_VALUES);CHKERRQ(ierr);
       ierr = VecSetValue(M,1,rb,INSERT_VALUES);CHKERRQ(ierr);
       ierr = VecSetValue(M,2,rp,INSERT_VALUES);CHKERRQ(ierr);

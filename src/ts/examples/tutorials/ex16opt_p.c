@@ -382,7 +382,7 @@ static PetscErrorCode RHSJacobianP_CA(TS ts, PetscReal t, Vec X, Vec Xdot, Vec P
 }
 
 /* the cost functional interface: returns ||u - u_obs||^2 */
-static PetscErrorCode EvalCostFunctional_CA(TS ts, PetscReal time, Vec U, Vec P, PetscReal *val, void *ctx)
+static PetscErrorCode EvalObjective_CA(TS ts, PetscReal time, Vec U, Vec P, PetscReal *val, void *ctx)
 {
   const PetscScalar *x;
   User              user = (User)ctx;
@@ -397,7 +397,7 @@ static PetscErrorCode EvalCostFunctional_CA(TS ts, PetscReal time, Vec U, Vec P,
 
 /* with the continuous adjoint approach, we also need the gradient of the cost functional with
    respect to the state variables */
-static PetscErrorCode EvalCostGradient_U_CA(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+static PetscErrorCode EvalObjectiveGradient_U_CA(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
 {
   User              user = (User)ctx;
   const PetscScalar *x;
@@ -440,9 +440,9 @@ PetscErrorCode FormFunctionGradient_CA(Tao tao,Vec P,PetscReal *f,Vec G,void *ct
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   /* the cost functional needs to be evaluated at time 0.5 */
-  ierr = TSSetCostFunctional(ts,0.5,EvalCostFunctional_CA,user,EvalCostGradient_U_CA,user,NULL,NULL);CHKERRQ(ierr);
+  ierr = TSSetObjective(ts,0.5,EvalObjective_CA,user,EvalObjectiveGradient_U_CA,user,NULL,NULL);CHKERRQ(ierr);
   ierr = TSSetEvalGradient(ts,user->Jacp,RHSJacobianP_CA,user);CHKERRQ(ierr);
-  ierr = TSEvaluateCostAndGradient(ts,user->x,P,G,f);CHKERRQ(ierr);
+  ierr = TSEvaluateObjectiveAndGradient(ts,user->x,P,G,f);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

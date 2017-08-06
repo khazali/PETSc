@@ -66,16 +66,16 @@ typedef struct _n_TSEvent *TSEvent;
 
 typedef struct _TSTrajectoryOps *TSTrajectoryOps;
 
-typedef struct _CostFunctionalLink *CostFunctionalLink;
-struct _CostFunctionalLink {
-  TSEvalCostFunctional f;         /* f(x,m,t) */
-  void                 *f_ctx;
-  TSEvalCostGradient   f_x;       /* \partial_x f (x,m,t) */
-  void                 *f_x_ctx;
-  TSEvalCostGradient   f_m;       /* \partial_m f (x,m,t) */
-  void                 *f_m_ctx;
-  PetscReal            fixedtime; /* if the funcional is to be evaluated at a specific time, i.e. || x(T1) - x_d || ^2, T1 in [T0,TF] */
-  CostFunctionalLink   next;
+typedef struct _ObjectiveLink *ObjectiveLink;
+struct _ObjectiveLink {
+  TSEvalObjective         f;         /* f(x,m,t) */
+  void                    *f_ctx;
+  TSEvalObjectiveGradient f_x;       /* \partial_x f (x,m,t) */
+  void                    *f_x_ctx;
+  TSEvalObjectiveGradient f_m;       /* \partial_m f (x,m,t) */
+  void                    *f_m_ctx;
+  PetscReal               fixedtime; /* if the funcional is to be evaluated at a specific time, i.e. || x(T1) - x_d || ^2, T1 in [T0,TF] */
+  ObjectiveLink           next;
 };
 
 struct _TSTrajectoryOps {
@@ -175,7 +175,7 @@ struct _p_TS {
          F(x,x_t,m,t) = 0  PDE in implicit form
          G(x(T0),m)   = 0  Initial conditions
   */
-  CostFunctionalLink funchead;
+  ObjectiveLink      funchead;
   TSEvalICGradient   Ggrad;           /* callback to compute G_p and G_X(T0) */
   Mat                G_x;
   Mat                G_m;

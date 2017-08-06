@@ -350,7 +350,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx)
 /* callbacks for the continuous adjoint approach */
 
 /* the cost functional interface: returns ||u - u_obs||^2 */
-static PetscErrorCode EvalCostFunctional_CA(TS ts, PetscReal time, Vec U, Vec P, PetscReal *val, void *ctx)
+static PetscErrorCode EvalObjective_CA(TS ts, PetscReal time, Vec U, Vec P, PetscReal *val, void *ctx)
 {
   const PetscScalar *x;
   User              user = (User)ctx;
@@ -417,9 +417,9 @@ PetscErrorCode FormFunctionGradient_CA(Tao tao,Vec P,PetscReal *f,Vec G,void *ct
   x_ptr[1] = -0.66666654321;
   ierr = VecRestoreArray(user_ptr->x,&x_ptr);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
-  ierr = TSSetCostFunctional(ts,user_ptr->ftime,EvalCostFunctional_CA,user_ptr,EvalCostGradient_U_CA,user_ptr,NULL,NULL);CHKERRQ(ierr);
+  ierr = TSSetObjective(ts,user_ptr->ftime,EvalObjective_CA,user_ptr,EvalCostGradient_U_CA,user_ptr,NULL,NULL);CHKERRQ(ierr);
   ierr = TSSetEvalGradient(ts,user_ptr->Jacp,RHSJacobianP_CA,user_ptr);CHKERRQ(ierr);
-  ierr = TSEvaluateCostAndGradient(ts,user_ptr->x,P,G,f);CHKERRQ(ierr);
+  ierr = TSEvaluateObjectiveAndGradient(ts,user_ptr->x,P,G,f);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

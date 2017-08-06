@@ -2714,7 +2714,7 @@ PetscErrorCode  TSReset(TS ts)
   }
   if (ts->snes) {ierr = SNESReset(ts->snes);CHKERRQ(ierr);}
   if (ts->adapt) {ierr = TSAdaptReset(ts->adapt);CHKERRQ(ierr);}
-  ierr = TSResetCostFunctionals(ts);CHKERRQ(ierr);
+  ierr = TSResetObjective(ts);CHKERRQ(ierr);
   ierr = MatDestroy(&ts->G_x);CHKERRQ(ierr);
   ierr = MatDestroy(&ts->G_m);CHKERRQ(ierr);
   ierr = MatDestroy(&ts->F_m);CHKERRQ(ierr);

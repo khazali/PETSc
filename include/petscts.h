@@ -322,17 +322,17 @@ PETSC_EXTERN PetscErrorCode TSForwardSetUp(TS);
 PETSC_EXTERN PetscErrorCode TSForwardCostIntegral(TS);
 PETSC_EXTERN PetscErrorCode TSForwardStep(TS);
 
-PETSC_EXTERN PetscErrorCode TSResetCostFunctionals(TS);
-PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalCostFunctional)(TS,PetscReal,Vec,Vec,PetscReal*,void*);
-PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalCostGradient)(TS,PetscReal,Vec,Vec,Vec,void*);
-PETSC_EXTERN PetscErrorCode TSSetCostFunctional(TS,PetscReal,TSEvalCostFunctional,void*,TSEvalCostGradient,void*,TSEvalCostGradient,void*);
+PETSC_EXTERN PetscErrorCode TSResetObjective(TS);
+PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalObjective)(TS,PetscReal,Vec,Vec,PetscReal*,void*);
+PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalObjectiveGradient)(TS,PetscReal,Vec,Vec,Vec,void*);
+PETSC_EXTERN PetscErrorCode TSSetObjective(TS,PetscReal,TSEvalObjective,void*,TSEvalObjectiveGradient,void*,TSEvalObjectiveGradient,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalGradient)(TS,PetscReal,Vec,Vec,Vec,Mat,void*);
 PETSC_EXTERN PetscErrorCode TSSetEvalGradient(TS,Mat,TSEvalGradient,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalICGradient)(TS,PetscReal,Vec,Vec,Mat,Mat,void*);
 PETSC_EXTERN PetscErrorCode TSSetEvalICGradient(TS,Mat,Mat,TSEvalICGradient,void*);
 PETSC_EXTERN PetscErrorCode TSEvaluateGradient(TS,Vec,Vec,Vec);
-PETSC_EXTERN PetscErrorCode TSEvaluateCostFunctionals(TS,Vec,Vec,PetscReal*);
-PETSC_EXTERN PetscErrorCode TSEvaluateCostAndGradient(TS,Vec,Vec,Vec,PetscReal*);
+PETSC_EXTERN PetscErrorCode TSEvaluateObjective(TS,Vec,Vec,PetscReal*);
+PETSC_EXTERN PetscErrorCode TSEvaluateObjectiveAndGradient(TS,Vec,Vec,Vec,PetscReal*);
 
 PETSC_EXTERN PetscErrorCode TSSetMaxSteps(TS,PetscInt);
 PETSC_EXTERN PetscErrorCode TSGetMaxSteps(TS,PetscInt*);
