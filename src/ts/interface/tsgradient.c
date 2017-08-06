@@ -359,7 +359,7 @@ static PetscErrorCode AdjointTSEventFunction(TS adjts, PetscReal t, Vec U, Petsc
   fwdt = adj_ctx->tf - t + adj_ctx->t0;
   ts   = adj_ctx->fwdts;
   link = ts->funchead;
-  while (link) { fvalue[cnt++] = link->f_x && link->fixedtime > PETSC_MIN_REAL ?  link->fixedtime - fwdt : 1.0; link = link->next; }
+  while (link) { fvalue[cnt++] = (link->f_x && link->fixedtime > PETSC_MIN_REAL) ?  link->fixedtime - fwdt : 1.0; link = link->next; }
   PetscFunctionReturn(0);
 }
 
@@ -375,7 +375,6 @@ static PetscErrorCode AdjointTSPostEvent(TS adjts, PetscInt nevents, PetscInt ev
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - t + adj_ctx->t0;
-  PetscPrintf(PETSC_COMM_SELF,"monitoring TS EVENT: Time %g, fwdt %g, nevents %d\n",t,fwdt,nevents);
   ierr = AdjointTSUpdateHistory(adjts,t,PETSC_TRUE,PETSC_FALSE);CHKERRQ(ierr);
   ierr = VecLockPop(adj_ctx->W[2]);CHKERRQ(ierr);
   ierr = TSGradientEvalCostGradientUFixed(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],adj_ctx->W[2]);CHKERRQ(ierr);
