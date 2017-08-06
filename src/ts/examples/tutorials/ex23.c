@@ -282,7 +282,9 @@ int main(int argc, char* argv[])
   PetscBool      testevent = PETSC_FALSE;
   PetscBool      testeventfinal = PETSC_FALSE;
   PetscBool      testeventconst = PETSC_FALSE;
-  PetscBool      usefd = PETSC_FALSE;
+  PetscBool      usefd = PETSC_FALSE, usetaylor = PETSC_FALSE;
+  PetscBool      analytic= PETSC_TRUE;
+  PetscReal      dx = PETSC_SMALL;
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return ierr;
@@ -313,15 +315,18 @@ int main(int argc, char* argv[])
   ierr = PetscOptionsBool("-test_event_func","Functional at given time in between the simulation","",testevent,&testevent,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_event_final","Functional at final time of the simulation","",testeventfinal,&testeventfinal,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-use_fd","Use finite differencing to test gradient evaluation","",usefd,&usefd,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-use_taylor","Use Taylor remainders to check gradient evaluation","",usetaylor,&usetaylor,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-dx","dx for FD","",dx,&dx,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   problemtype = TS_LINEAR;
   if (user.p != 1.0) {
-    usefd = PETSC_TRUE;
+    if (!usefd) usetaylor = PETSC_TRUE;
     problemtype = TS_NONLINEAR;
     testrhsjacconst = PETSC_FALSE;
   }
   if (testmix) testifunc = PETSC_TRUE;
+  if (usetaylor) usefd = PETSC_FALSE;
 
   /* state vectors */
   ierr = VecCreate(PETSC_COMM_WORLD,&U);CHKERRQ(ierr);
@@ -460,11 +465,10 @@ int main(int argc, char* argv[])
   ierr = VecSet(U,user.a);CHKERRQ(ierr);
   ierr = TSEvaluateGradient(ts,U,M,Mgrad);CHKERRQ(ierr);
   if (usefd) { /* we test against finite differencing the function evaluation */
-    PetscInt i;
+    PetscInt  i;
+    PetscReal oa = user.a, ob = user.b, op = user.p;
     for (i=0; i<3; i++) {
-      PetscReal oa = user.a, ob = user.b, op = user.p;
       PetscReal objdx[2];
-      PetscReal dx = PETSC_SMALL;
       PetscInt  j;
 
       for (j=0; j<2; j++) {
@@ -477,6 +481,7 @@ int main(int argc, char* argv[])
         user.b = param[1];
         user.p = param[2];
 
+        store_Event = 0.0;
         ierr = VecSetValue(M,0,param[0],INSERT_VALUES);CHKERRQ(ierr);
         ierr = VecSetValue(M,1,param[1],INSERT_VALUES);CHKERRQ(ierr);
         ierr = VecSetValue(M,2,param[2],INSERT_VALUES);CHKERRQ(ierr);
@@ -491,7 +496,44 @@ int main(int argc, char* argv[])
       }
       ierr = PetscPrintf(PETSC_COMM_WORLD,"%D-th component of gradient should be (approximated) %g\n",i,(double)((objdx[0]-objdx[1])/PetscRealPart(2*dx)));CHKERRQ(ierr);
     }
-  } else { /* analytic solution */
+  } else if (usetaylor) {
+    PetscRandom rand;
+    PetscReal   h = 0.125, ra,rb,rp;
+    PetscScalar oa = user.a, ob = user.b;
+    PetscReal   op = user.p;
+    PetscInt    i;
+
+    ierr = PetscRandomCreate(PETSC_COMM_SELF,&rand);CHKERRQ(ierr);
+    ierr = PetscRandomGetValueReal(rand,&ra);CHKERRQ(ierr);
+    ierr = PetscRandomGetValueReal(rand,&rb);CHKERRQ(ierr);
+    ierr = PetscRandomGetValueReal(rand,&rp);CHKERRQ(ierr);
+    ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
+
+    for (i = 0 ; i < 7; i++) {
+      PetscScalar val;
+      store_Event = 0.0;
+      user.a = oa + h*ra;
+      user.b = ob + h*rb;
+      user.p = op + h*rp;
+      ierr = VecSetValue(M,0,user.a,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = VecSetValue(M,1,user.b,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = VecSetValue(M,2,user.p,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
+      ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
+      ierr = VecSet(U,user.a);CHKERRQ(ierr);
+      ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
+      ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
+      ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
+      ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
+      ierr = TSEvaluateCostFunctionals(ts,U,M,&objtest);CHKERRQ(ierr);
+      ierr = VecSetValue(M,0,ra,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = VecSetValue(M,1,rb,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = VecSetValue(M,2,rp,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = VecDot(Mgrad,M,&val);CHKERRQ(ierr);
+      ierr = PetscPrintf(PETSC_COMM_WORLD,"%D-th Taylor remainder (h = 2^-%d) is %g\n",i,i+3,(double)PetscAbsReal(objtest-obj-h*PetscRealPart(val)));
+      h    = h/2.0;
+    }
+  } else if (analytic) { /* analytic solution */
     if (userobj.isnorm) {
       objtest = np * PetscRealPart( user.a / user.b * (PetscExpScalar(2.0*(tf-t0)*user.b) - one));
     } else {

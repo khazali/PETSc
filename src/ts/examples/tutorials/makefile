@@ -725,7 +725,7 @@ runex23_5:
 
 #BROKEN: test_event_func does not currently work
 runex23_6:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 0.01 -tf 1.8 -b 0.3 -a 1.7 -p 1 -ts_type rk -use_fd -ts_adapt_type basic -ts_atol 1.e-10 -adjoint_ts_adapt_type basic -ts_rtol 1.e-10 -test_event_func -ts_trajectory_basic_order 6 > ex23_6.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 0.01 -tf 1.8 -b 0.3 -a 1.7 -p 1 -ts_type arkimex -ts_adapt_type basic -ts_atol 1.e-6 -adjoint_ts_adapt_type basic -ts_rtol 1.e-6 -test_event_func -ts_trajectory_basic_order 4 -use_taylor > ex23_6.tmp 2>&1; \
 	   ${DIFF} output/ex23_6.out ex23_6.tmp || printf "${PWD}\nPossible problem with ex23_6, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_6.tmp SA-data
 

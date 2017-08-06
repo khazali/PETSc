@@ -1,10 +1,13 @@
-Objective function: time [0.01,1.8], val 7.36011 (should be 7.36011)
-monitoring TS EVENT: Time 1.56372, fwdt 0.24628, nevents 1
-0-th component of gradient should be (approximated) 7.5504
-1-th component of gradient should be (approximated) 5.67218
-2-th component of gradient should be (approximated) 1.14057
+Objective function: time [0.01,1.8], val 7.5051 (should be 7.50454)
+0-th Taylor remainder (h = 2^-3) is 0.0115624
+1-th Taylor remainder (h = 2^-4) is 0.00288504
+2-th Taylor remainder (h = 2^-5) is 0.000718958
+3-th Taylor remainder (h = 2^-6) is 0.000178729
+4-th Taylor remainder (h = 2^-7) is 4.41916e-05
+5-th Taylor remainder (h = 2^-8) is 1.08041e-05
+6-th Taylor remainder (h = 2^-9) is 2.58016e-06
 Vec Object: 1 MPI processes
   type: seq
-6.28673
-5.49985
-1.11217
+6.28741
+5.49927
+1.11151
