@@ -330,9 +330,10 @@ PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalGradient)(TS,PetscReal,Vec,V
 PETSC_EXTERN PetscErrorCode TSSetEvalGradient(TS,Mat,TSEvalGradient,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalICGradient)(TS,PetscReal,Vec,Vec,Mat,Mat,void*);
 PETSC_EXTERN PetscErrorCode TSSetEvalICGradient(TS,Mat,Mat,TSEvalICGradient,void*);
-PETSC_EXTERN PetscErrorCode TSEvaluateGradient(TS,Vec,Vec,Vec);
+PETSC_EXTERN PetscErrorCode TSEvaluateObjectiveGradient(TS,Vec,Vec,Vec);
 PETSC_EXTERN PetscErrorCode TSEvaluateObjective(TS,Vec,Vec,PetscReal*);
 PETSC_EXTERN PetscErrorCode TSEvaluateObjectiveAndGradient(TS,Vec,Vec,Vec,PetscReal*);
+PETSC_EXTERN PetscErrorCode TSCreateTLMMat(TS,Mat*);
 
 PETSC_EXTERN PetscErrorCode TSSetMaxSteps(TS,PetscInt);
 PETSC_EXTERN PetscErrorCode TSGetMaxSteps(TS,PetscInt*);

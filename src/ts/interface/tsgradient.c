@@ -496,12 +496,20 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   TSIFunction     ifunc;
   TSRHSFunction   rhsfunc;
   TSRHSJacobian   rhsjacfunc;
+  TSI2Function    i2func;
   TSType          type;
+  TSEquationType  eqtype;
   const char      *prefix;
   PetscReal       atol,rtol;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
+  ierr = TSGetEquationType(ts,&eqtype);CHKERRQ(ierr);
+  if (eqtype != TS_EQ_UNSPECIFIED && eqtype != TS_EQ_EXPLICIT && eqtype != TS_EQ_ODE_EXPLICIT &&
+      eqtype != TS_EQ_IMPLICIT && eqtype != TS_EQ_ODE_IMPLICIT)
+      SETERRQ1(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"TSEquationType %D\n",eqtype);
+  ierr = TSGetI2Function(ts,NULL,&i2func,NULL);CHKERRQ(ierr);
+  if (i2func) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Second order ODE are not supported");
   ierr = TSCreate(PetscObjectComm((PetscObject)ts),adjts);CHKERRQ(ierr);
   ierr = TSGetType(ts,&type);CHKERRQ(ierr);
   ierr = TSSetType(*adjts,type);CHKERRQ(ierr);
@@ -913,7 +921,7 @@ static PetscErrorCode TSEvaluateObjective_Private(TS ts, Vec X, Vec design, Vec 
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode TSEvaluateGradient_Private(TS ts, Vec X, Vec design, Vec gradient, PetscReal *val)
+static PetscErrorCode TSEvaluateObjectiveGradient_Private(TS ts, Vec X, Vec design, Vec gradient, PetscReal *val)
 {
   TS             adjts;
   Vec            lambda;
@@ -1032,7 +1040,7 @@ $  f(TS ts,PetscReal t,Vec u,Vec m,Vec out,void ctx);
 
    Level: developer
 
-.seealso: TSSetEvalGradient(), TSEvaluateGradient(), TSSetEvalICGradient()
+.seealso: TSSetEvalGradient(), TSEvaluateObjectiveGradient(), TSSetEvalICGradient()
 */
 PetscErrorCode TSSetObjective(TS ts, PetscReal fixtime, TSEvalObjective f, void* f_ctx, TSEvalObjectiveGradient f_x, void* f_x_ctx, TSEvalObjectiveGradient f_m, void* f_m_ctx)
 {
@@ -1061,7 +1069,7 @@ PetscErrorCode TSSetObjective(TS ts, PetscReal fixtime, TSEvalObjective f, void*
 }
 
 /*
-   TSSetEvalGradient - Sets the function for the evaluation of F_m(t,x(t),x_t(t);m) for gradient computation.
+   TSSetEvalGradient - Sets the function for the evaluation of F_m(t,x(t),x_t(t);m).
 
    Logically Collective on TS
 
@@ -1130,7 +1138,7 @@ $  f(TS ts,PetscReal t,Vec u,Vec m,Mat Gx,Mat Gm,ctx);
 
    Level: developer
 
-.seealso: TSSetObjective(), TSSetEvalGradient(), TSEvaluateGradient(), MATSHELL, MatMultTranspose()
+.seealso: TSSetObjective(), TSSetEvalGradient(), TSEvaluateObjectiveGradient(), MATSHELL, MatMultTranspose()
 */
 PetscErrorCode TSSetEvalICGradient(TS ts, Mat J_x, Mat J_m, TSEvalICGradient f, void *ctx)
 {
@@ -1172,7 +1180,7 @@ PetscErrorCode TSSetEvalICGradient(TS ts, Mat J_x, Mat J_m, TSEvalICGradient f, 
 
    Level: developer
 
-.seealso: TSSetObjective(), TSSetEvalGradient(), TSSetEvalICGradient(), TSEvaluateGradient(), TSEvaluateObjectiveAndGradient()
+.seealso: TSSetObjective(), TSSetEvalGradient(), TSSetEvalICGradient(), TSEvaluateObjectiveGradient(), TSEvaluateObjectiveAndGradient()
 */
 PetscErrorCode TSEvaluateObjective(TS ts, Vec X, Vec design, PetscReal *val)
 {
@@ -1190,7 +1198,7 @@ PetscErrorCode TSEvaluateObjective(TS ts, Vec X, Vec design, PetscReal *val)
 }
 
 /*
-   TSEvaluateGradient - Evaluates the gradient of the objective functions.
+   TSEvaluateObjectiveGradient - Evaluates the gradient of the objective functions.
 
    Logically Collective on TS
 
@@ -1208,7 +1216,7 @@ PetscErrorCode TSEvaluateObjective(TS ts, Vec X, Vec design, PetscReal *val)
 
 .seealso: TSSetObjective(), TSSetEvalGradient(), TSSetEvalICGradient(), TSEvaluateObjective(), TSEvaluateObjectiveAndGradient()
 */
-PetscErrorCode TSEvaluateGradient(TS ts, Vec X, Vec design, Vec gradient)
+PetscErrorCode TSEvaluateObjectiveGradient(TS ts, Vec X, Vec design, Vec gradient)
 {
   PetscErrorCode ierr;
 
@@ -1218,7 +1226,7 @@ PetscErrorCode TSEvaluateGradient(TS ts, Vec X, Vec design, Vec gradient)
   PetscValidHeaderSpecific(design,VEC_CLASSID,3);
   PetscValidHeaderSpecific(gradient,VEC_CLASSID,4);
   ierr = VecLockPush(design);CHKERRQ(ierr);
-  ierr = TSEvaluateGradient_Private(ts,X,design,gradient,NULL);CHKERRQ(ierr);
+  ierr = TSEvaluateObjectiveGradient_Private(ts,X,design,gradient,NULL);CHKERRQ(ierr);
   ierr = VecLockPop(design);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -1241,7 +1249,7 @@ PetscErrorCode TSEvaluateGradient(TS ts, Vec X, Vec design, Vec gradient)
 
    Level: developer
 
-.seealso: TSSetObjective(), TSSetEvalGradient(), TSSetEvalICGradient(), TSEvaluateObjective(), TSEvaluateGradient()
+.seealso: TSSetObjective(), TSSetEvalGradient(), TSSetEvalICGradient(), TSEvaluateObjective(), TSEvaluateObjectiveGradient()
 */
 PetscErrorCode TSEvaluateObjectiveAndGradient(TS ts, Vec X, Vec design, Vec gradient, PetscReal *obj)
 {
@@ -1254,7 +1262,7 @@ PetscErrorCode TSEvaluateObjectiveAndGradient(TS ts, Vec X, Vec design, Vec grad
   PetscValidHeaderSpecific(gradient,VEC_CLASSID,4);
   PetscValidPointer(obj,5);
   ierr = VecLockPush(design);CHKERRQ(ierr);
-  ierr = TSEvaluateGradient_Private(ts,X,design,gradient,obj);CHKERRQ(ierr);
+  ierr = TSEvaluateObjectiveGradient_Private(ts,X,design,gradient,obj);CHKERRQ(ierr);
   ierr = VecLockPop(design);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

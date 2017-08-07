@@ -468,7 +468,7 @@ int main(int argc, char* argv[])
   ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
   ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
   ierr = VecSet(U,user.a);CHKERRQ(ierr);
-  ierr = TSEvaluateGradient(ts,U,M,Mgrad);CHKERRQ(ierr);
+  ierr = TSEvaluateObjectiveGradient(ts,U,M,Mgrad);CHKERRQ(ierr);
   if (usefd) { /* we test against finite differencing the function evaluation */
     PetscInt  i;
     PetscReal oa = user.a, ob = user.b, op = user.p;

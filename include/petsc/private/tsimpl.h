@@ -74,7 +74,7 @@ struct _ObjectiveLink {
   void                    *f_x_ctx;
   TSEvalObjectiveGradient f_m;       /* \partial_m f (x,m,t) */
   void                    *f_m_ctx;
-  PetscReal               fixedtime; /* if the funcional is to be evaluated at a specific time, i.e. || x(T1) - x_d || ^2, T1 in [T0,TF] */
+  PetscReal               fixedtime; /* if the functional has to be evaluated at a specific time, i.e. || x(T1) - x_d || ^2, T1 in [T0,TF] */
   ObjectiveLink           next;
 };
 
