@@ -176,6 +176,7 @@ static PetscErrorCode TSGradientEvalObjectiveGradientMFixed(TS ts, PetscReal pti
   ierr = VecLockPop(design);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+
 typedef struct {
   PetscScalar      shift;
   PetscObjectState Astate;
@@ -917,6 +918,7 @@ static PetscErrorCode TSEvaluateGradient_Private(TS ts, Vec X, Vec design, Vec g
   TS             adjts;
   Vec            lambda;
   TSTrajectory   otrj;
+  PetscBool      isbasic;
   PetscReal      t0,tf,dt;
   PetscErrorCode ierr;
 
@@ -925,6 +927,8 @@ static PetscErrorCode TSEvaluateGradient_Private(TS ts, Vec X, Vec design, Vec g
   ierr = TSTrajectoryCreate(PetscObjectComm((PetscObject)ts),&ts->trajectory);CHKERRQ(ierr);
   ierr = TSTrajectorySetType(ts->trajectory,ts,TSTRAJECTORYBASIC);CHKERRQ(ierr);
   ierr = TSTrajectorySetFromOptions(ts->trajectory,ts);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject)ts->trajectory,TSTRAJECTORYBASIC,&isbasic);CHKERRQ(ierr);
+  if (!isbasic) SETERRQ1(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"TSTrajectory type %s",((PetscObject)ts->trajectory)->type_name);
 
   /* sample initial condition dependency */
   ierr = TSGetTime(ts,&t0);CHKERRQ(ierr);

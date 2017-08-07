@@ -551,7 +551,7 @@ int main(int argc, char* argv[])
       objtest = np * PetscRealPart((user.a/user.b)*( (tf-t0)*PetscExpScalar((tf-t0)*user.b) - (PetscExpScalar((tf-t0)*user.b) - one)/user.b));
     }
     ierr = PetscPrintf(PETSC_COMM_WORLD,"2nd component of gradient should be (analytic) %g\n",(double)objtest);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"3rd component of gradient not yet coded (use -use_fd to test it)\n");CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"3rd component of gradient not yet coded (use -use_taylor or -use_fd to test it)\n");CHKERRQ(ierr);
   }
   ierr = VecView(Mgrad,NULL);CHKERRQ(ierr);
 
