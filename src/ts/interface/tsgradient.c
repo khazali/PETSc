@@ -238,18 +238,20 @@ static PetscErrorCode TSUpdateHistoryVecs(TS ts, PetscReal time, Vec U, Vec Udot
   PetscFunctionReturn(0);
 }
 
-/* The assumption here is that the RHSJacobian routine is called after the RHSFunction has been called with same time and U
-   The evaluation of the forward RHS jacobian is always called with an updated history vector adj_ctx->W[0]
-   since F_U needs to be evaluated in the RHSFunction */
 static PetscErrorCode AdjointTSRHSJacobian(TS adjts, PetscReal time, Vec U, Mat A, Mat P, void *ctx)
 {
   AdjointCtx     *adj_ctx;
   PetscReal      ft;
+  TSProblemType  type;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
+  ierr = TSGetProblemType(adj_ctx->fwdts,&type);CHKERRQ(ierr);
   ft   = adj_ctx->tf - time + adj_ctx->t0;
+  if (type > TS_LINEAR) {
+    ierr = TSUpdateHistoryVecs(adj_ctx->fwdts,ft,adj_ctx->W[0],NULL);CHKERRQ(ierr);
+  }
   ierr = TSComputeRHSJacobian(adj_ctx->fwdts,ft,adj_ctx->W[0],A,P);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -267,8 +269,8 @@ static PetscErrorCode AdjointTSRHSFuncLinear(TS adjts, PetscReal time, Vec U, Ve
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
-  ierr = TSUpdateHistoryVecs(adj_ctx->fwdts,fwdt,adj_ctx->W[0],NULL);CHKERRQ(ierr);
   if (adj_ctx->optimization) {
+    ierr = TSUpdateHistoryVecs(adj_ctx->fwdts,fwdt,adj_ctx->W[0],NULL);CHKERRQ(ierr);
     ierr = TSGradientEvalObjectiveGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],F);CHKERRQ(ierr);
     ierr = VecScale(F,-1.0);CHKERRQ(ierr);
     ierr = TSComputeRHSJacobian(adjts,time,U,adjts->Arhs,NULL);CHKERRQ(ierr);
@@ -314,6 +316,7 @@ static PetscErrorCode TSComputeSplitJacobians(TS ts, PetscReal time, Vec U, Vec 
 static PetscErrorCode AdjointTSUpdateSplitJacobians(TS adjts, PetscReal time)
 {
   AdjointCtx     *adj_ctx;
+  TSProblemType  type;
   PetscReal      fwdt;
   PetscErrorCode ierr;
 
@@ -321,7 +324,10 @@ static PetscErrorCode AdjointTSUpdateSplitJacobians(TS adjts, PetscReal time)
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   if (adj_ctx->timeindep && adj_ctx->cachedJ.splitdone) PetscFunctionReturn(0);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
-  ierr = TSUpdateHistoryVecs(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
+  ierr = TSGetProblemType(adj_ctx->fwdts,&type);CHKERRQ(ierr);
+  if (type > TS_LINEAR) {
+    ierr = TSUpdateHistoryVecs(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
+  }
   ierr = TSComputeSplitJacobians(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->W[1],
                                  adj_ctx->splitJ_U,adj_ctx->splitJ_U,
                                  adj_ctx->splitJ_Udot,adj_ctx->splitJ_Udot,
@@ -372,8 +378,8 @@ static PetscErrorCode AdjointTSIFuncLinear(TS adjts, PetscReal time, Vec U, Vec 
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
-  ierr = TSUpdateHistoryVecs(adj_ctx->fwdts,fwdt,adj_ctx->W[0],NULL);CHKERRQ(ierr);
   if (adj_ctx->optimization) {
+    ierr = TSUpdateHistoryVecs(adj_ctx->fwdts,fwdt,adj_ctx->W[0],NULL);CHKERRQ(ierr);
     ierr = TSGradientEvalObjectiveGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],F);CHKERRQ(ierr);
     ierr = AdjointTSUpdateSplitJacobians(adjts,time);CHKERRQ(ierr);
     ierr = MatMultTransposeAdd(adj_ctx->splitJ_U,U,F,F);CHKERRQ(ierr);
