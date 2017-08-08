@@ -185,6 +185,7 @@ typedef struct {
 } CachedJac;
 
 typedef struct {
+  PetscBool optimization;  /* whether we need an adjoint for PDE constrained optimization or a standard ODE adjoint */
   Vec       design;        /* design vector (fixed) */
   TS        fwdts;         /* forward solver */
   PetscReal t0,tf;         /* time limits, for forward time recovery */
@@ -255,7 +256,7 @@ static PetscErrorCode AdjointTSRHSJacobian(TS adjts, PetscReal time, Vec U, Mat 
 
 /* The adjoint formulation I'm using assumes H(U,Udot,t) = 0
    -> the forward ODE is Udot - G(U) = 0 ( -> H(U,Udot,t) := Udot - G(U) )
-   -> the adjoint ODE is F - L^T * G_U - Ldot^T in backward time
+   -> the adjoint ODE is F - L^T * G_U - Ldot^T in backward time (F is present just in optimization)
    -> the adjoint ODE is Ldot^T = L^T * G_U - F in forward time */
 static PetscErrorCode AdjointTSRHSFuncLinear(TS adjts, PetscReal time, Vec U, Vec F, void *ctx)
 {
@@ -267,10 +268,15 @@ static PetscErrorCode AdjointTSRHSFuncLinear(TS adjts, PetscReal time, Vec U, Ve
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
   ierr = TSUpdateHistoryVecs(adj_ctx->fwdts,fwdt,adj_ctx->W[0],NULL);CHKERRQ(ierr);
-  ierr = TSGradientEvalObjectiveGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],F);CHKERRQ(ierr);
-  ierr = VecScale(F,-1.0);CHKERRQ(ierr);
-  ierr = TSComputeRHSJacobian(adjts,time,U,adjts->Arhs,NULL);CHKERRQ(ierr);
-  ierr = MatMultTransposeAdd(adjts->Arhs,U,F,F);CHKERRQ(ierr);
+  if (adj_ctx->optimization) {
+    ierr = TSGradientEvalObjectiveGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],F);CHKERRQ(ierr);
+    ierr = VecScale(F,-1.0);CHKERRQ(ierr);
+    ierr = TSComputeRHSJacobian(adjts,time,U,adjts->Arhs,NULL);CHKERRQ(ierr);
+    ierr = MatMultTransposeAdd(adjts->Arhs,U,F,F);CHKERRQ(ierr);
+  } else {
+    ierr = TSComputeRHSJacobian(adjts,time,U,adjts->Arhs,NULL);CHKERRQ(ierr);
+    ierr = MatMultTranspose(adjts->Arhs,U,F);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -355,7 +361,7 @@ static PetscErrorCode AdjointTSIJacobian(TS adjts, PetscReal time, Vec U, Vec Ud
 }
 
 /* Given the forward ODE : H(U,Udot,t) = 0
-   -> the adjoint ODE is : F - L^T * (H_U - d/dt H_Udot) - Ldot^T H_Udot = 0 (in backward time)
+   -> the adjoint ODE is : F - L^T * (H_U - d/dt H_Udot) - Ldot^T H_Udot = 0 (in backward time) (again, F is null for standard ODE adjoints)
    -> the adjoint ODE is : Ldot^T H_Udot + L^T * (H_U + d/dt H_Udot) + F = 0 (in forward time) */
 static PetscErrorCode AdjointTSIFuncLinear(TS adjts, PetscReal time, Vec U, Vec Udot, Vec F, void *ctx)
 {
@@ -367,9 +373,14 @@ static PetscErrorCode AdjointTSIFuncLinear(TS adjts, PetscReal time, Vec U, Vec 
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
   ierr = TSUpdateHistoryVecs(adj_ctx->fwdts,fwdt,adj_ctx->W[0],NULL);CHKERRQ(ierr);
-  ierr = TSGradientEvalObjectiveGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],F);CHKERRQ(ierr);
-  ierr = AdjointTSUpdateSplitJacobians(adjts,time);CHKERRQ(ierr);
-  ierr = MatMultTransposeAdd(adj_ctx->splitJ_U,U,F,F);CHKERRQ(ierr);
+  if (adj_ctx->optimization) {
+    ierr = TSGradientEvalObjectiveGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],F);CHKERRQ(ierr);
+    ierr = AdjointTSUpdateSplitJacobians(adjts,time);CHKERRQ(ierr);
+    ierr = MatMultTransposeAdd(adj_ctx->splitJ_U,U,F,F);CHKERRQ(ierr);
+  } else {
+    ierr = AdjointTSUpdateSplitJacobians(adjts,time);CHKERRQ(ierr);
+    ierr = MatMultTranspose(adj_ctx->splitJ_U,U,F);CHKERRQ(ierr);
+  }
   ierr = MatMultTransposeAdd(adj_ctx->splitJ_Udot,Udot,F,F);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -487,11 +498,11 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
 }
 
 /* Creates the adjoint TS */
-static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
+static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts, PetscBool optimization)
 {
   SNES            snes;
   Mat             A,B;
-  Vec             U,vatol,vrtol;
+  Vec             lambda,vatol,vrtol;
   PetscContainer  container;
   AdjointCtx      *adj;
   TSIFunction     ifunc;
@@ -520,8 +531,9 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   /* application context */
   ierr = PetscNew(&adj);CHKERRQ(ierr);
   ierr = TSSetApplicationContext(*adjts,(void *)adj);CHKERRQ(ierr);
-  ierr = TSGetSolution(ts,&U);CHKERRQ(ierr);
-  ierr = VecDuplicateVecs(U,4,&adj->W);CHKERRQ(ierr);
+  ierr = TSGetSolution(ts,&lambda);CHKERRQ(ierr);
+  ierr = VecDuplicateVecs(lambda,4,&adj->W);CHKERRQ(ierr);
+  adj->optimization = optimization;
 
   /* these three vectors are locked:
      - only TSUpdateHistoryVecs can modify W[0] and W[1]
@@ -588,7 +600,9 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   ierr = SNESKSPONLYSetUseTransposeSolve(snes,PETSC_TRUE);CHKERRQ(ierr);
 
   /* set special purpose post step method for incremental gradient evaluation */
-  ierr = TSSetPostStep(*adjts,AdjointTSPostStep);CHKERRQ(ierr);
+  if (adj->optimization) {
+    ierr = TSSetPostStep(*adjts,AdjointTSPostStep);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -606,6 +620,7 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
   ierr = PetscObjectQuery((PetscObject)adjts,"_ts_gradient_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
+  if (!adj_ctx->optimization) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_USER,"Cannot set initial gradient with a standard ODE adjoint. Use TSCreateAdjointTS(ts,&adj,PETSC_TRUE)");
   if (adj_ctx->t0 >= PETSC_MAX_REAL || adj_ctx->tf >= PETSC_MAX_REAL) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"You should call AdjointTSSetTimeLimits first");
   if (!adj_ctx->design) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"You should call AdjointTSSetDesign first");
 
@@ -736,6 +751,7 @@ static PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   if (!adj_ctx->gradient) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Missing gradient vector");
+  if (!adj_ctx->optimization) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_USER,"Cannot compute final gradient with a standard ODE adjoint. Use TSCreateAdjointTS(ts,&adj,PETSC_TRUE)");
   ierr = TSGetTime(adjts,&tf);CHKERRQ(ierr);
   if (tf < adj_ctx->tf) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Backward solve did not complete");
 
@@ -949,7 +965,7 @@ static PetscErrorCode TSEvaluateObjectiveGradient_Private(TS ts, Vec X, Vec desi
   ierr = TSEvaluateObjective_Private(ts,X,design,gradient,val);CHKERRQ(ierr);
 
   /* adjoint */
-  ierr = TSCreateAdjointTS(ts,&adjts);CHKERRQ(ierr);
+  ierr = TSCreateAdjointTS(ts,&adjts,PETSC_TRUE);CHKERRQ(ierr);
   ierr = VecDuplicate(X,&lambda);CHKERRQ(ierr);
   ierr = TSSetSolution(adjts,lambda);CHKERRQ(ierr);
   ierr = TSGetTime(ts,&tf);CHKERRQ(ierr);
