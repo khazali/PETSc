@@ -217,23 +217,23 @@ static PetscErrorCode AdjointTSDestroy_Private(void *ptr)
   PetscFunctionReturn(0);
 }
 
-/* Updates history vectors adj_ctx->W[0] (state) and adj_ctx->W[1] (derivative) if U or Udot are true */
-static PetscErrorCode AdjointTSUpdateHistory(TS adjts, PetscReal time, PetscBool U, PetscBool Udot)
+/* Updates history vectors U and Udot, if present */
+static PetscErrorCode TSUpdateHistoryVecs(TS ts, PetscReal time, Vec U, Vec Udot)
 {
-  AdjointCtx     *adj_ctx;
-  PetscReal      ft;
   PetscInt       step = PETSC_MIN_INT; /* inquire TSTrajectoryGetVecs by the time argument */
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
-  if (!adj_ctx->fwdts->trajectory) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing TSTrajectory object");
-  ft   = adj_ctx->tf - time + adj_ctx->t0;
-  ierr = VecLockPop(adj_ctx->W[0]);CHKERRQ(ierr);
-  ierr = VecLockPop(adj_ctx->W[1]);CHKERRQ(ierr);
-  ierr = TSTrajectoryGetVecs(adj_ctx->fwdts->trajectory,adj_ctx->fwdts,step,&ft,U ? adj_ctx->W[0] : NULL, Udot ? adj_ctx->W[1] : NULL);CHKERRQ(ierr);
-  ierr = VecLockPush(adj_ctx->W[0]);CHKERRQ(ierr);
-  ierr = VecLockPush(adj_ctx->W[1]);CHKERRQ(ierr);
+  PetscValidHeaderSpecific(ts,TS_CLASSID,1);
+  PetscValidLogicalCollectiveReal(ts,time,2);
+  if (U) PetscValidHeaderSpecific(U,VEC_CLASSID,3);
+  if (Udot) PetscValidHeaderSpecific(Udot,VEC_CLASSID,4);
+  if (!ts->trajectory) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_PLIB,"Missing TSTrajectory");
+  if (U)    { ierr = VecLockPop(U);CHKERRQ(ierr); }
+  if (Udot) { ierr = VecLockPop(Udot);CHKERRQ(ierr); }
+  ierr = TSTrajectoryGetVecs(ts->trajectory,ts,step,&time,U,Udot);CHKERRQ(ierr);
+  if (U)    { ierr = VecLockPush(U);CHKERRQ(ierr); }
+  if (Udot) { ierr = VecLockPush(Udot);CHKERRQ(ierr); }
   PetscFunctionReturn(0);
 }
 
@@ -264,9 +264,9 @@ static PetscErrorCode AdjointTSRHSFuncLinear(TS adjts, PetscReal time, Vec U, Ve
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = AdjointTSUpdateHistory(adjts,time,PETSC_TRUE,PETSC_FALSE);CHKERRQ(ierr);
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
+  ierr = TSUpdateHistoryVecs(adj_ctx->fwdts,fwdt,adj_ctx->W[0],NULL);CHKERRQ(ierr);
   ierr = TSGradientEvalObjectiveGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],F);CHKERRQ(ierr);
   ierr = VecScale(F,-1.0);CHKERRQ(ierr);
   ierr = TSComputeRHSJacobian(adjts,time,U,adjts->Arhs,NULL);CHKERRQ(ierr);
@@ -282,6 +282,7 @@ static PetscErrorCode TSComputeSplitJacobians(TS ts, PetscReal time, Vec U, Vec 
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
+  PetscValidLogicalCollectiveReal(ts,time,2);
   PetscValidHeaderSpecific(U,VEC_CLASSID,3);
   PetscValidHeaderSpecific(Udot,VEC_CLASSID,4);
   PetscValidHeaderSpecific(A,MAT_CLASSID,5);
@@ -313,8 +314,8 @@ static PetscErrorCode AdjointTSUpdateSplitJacobians(TS adjts, PetscReal time)
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   if (adj_ctx->timeindep && adj_ctx->cachedJ.splitdone) PetscFunctionReturn(0);
-  ierr = AdjointTSUpdateHistory(adjts,time,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
+  ierr = TSUpdateHistoryVecs(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
   ierr = TSComputeSplitJacobians(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->W[1],
                                  adj_ctx->splitJ_U,adj_ctx->splitJ_U,
                                  adj_ctx->splitJ_Udot,adj_ctx->splitJ_Udot,
@@ -363,9 +364,9 @@ static PetscErrorCode AdjointTSIFuncLinear(TS adjts, PetscReal time, Vec U, Vec 
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = AdjointTSUpdateHistory(adjts,time,PETSC_TRUE,PETSC_FALSE);CHKERRQ(ierr);
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
+  ierr = TSUpdateHistoryVecs(adj_ctx->fwdts,fwdt,adj_ctx->W[0],NULL);CHKERRQ(ierr);
   ierr = TSGradientEvalObjectiveGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],F);CHKERRQ(ierr);
   ierr = AdjointTSUpdateSplitJacobians(adjts,time);CHKERRQ(ierr);
   ierr = MatMultTransposeAdd(adj_ctx->splitJ_U,U,F,F);CHKERRQ(ierr);
@@ -404,7 +405,7 @@ static PetscErrorCode AdjointTSPostEvent(TS adjts, PetscInt nevents, PetscInt ev
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - t + adj_ctx->t0;
-  ierr = AdjointTSUpdateHistory(adjts,t,PETSC_TRUE,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = TSUpdateHistoryVecs(adj_ctx->fwdts,fwdt,adj_ctx->W[0],NULL);CHKERRQ(ierr);
   ierr = VecLockPop(adj_ctx->W[2]);CHKERRQ(ierr);
   ierr = TSGradientEvalObjectiveGradientUFixed(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],adj_ctx->W[2]);CHKERRQ(ierr);
   ierr = VecScale(adj_ctx->W[2],-1.0);CHKERRQ(ierr);
@@ -455,7 +456,7 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
 
     TS ts = adj_ctx->fwdts;
     if (ts->F_m_f) { /* non constant dependence */
-      ierr = AdjointTSUpdateHistory(adjts,time,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
+      ierr = TSUpdateHistoryVecs(ts,fwdt,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
       ierr = (*ts->F_m_f)(ts,fwdt,adj_ctx->W[0],adj_ctx->W[1],adj_ctx->design,ts->F_m,ts->F_m_ctx);CHKERRQ(ierr);
     }
     ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
@@ -523,9 +524,9 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   ierr = VecDuplicateVecs(U,4,&adj->W);CHKERRQ(ierr);
 
   /* these three vectors are locked:
-     - only AdjointTSUpdateHistory can modify W[0] and W[1]
+     - only TSUpdateHistoryVecs can modify W[0] and W[1]
        W[0] stores the updated forward state,  W[1] stores the updated derivative of the state vector (interpolated)
-       If you need to update them, call AdjointTSUpdateHistory, a caching mechanism in
+       If you need to update them, call TSUpdateHistoryVecs, a caching mechanism in
        TSTrajectoryGetVecs will prevent to reload/reinterpolate
      - only AdjointTSPostEvent can modify W[2], used to store delta contributions
   */
@@ -644,7 +645,7 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
   if (adj_ctx->fwdts->F_m) {
     TS ts = adj_ctx->fwdts;
     if (ts->F_m_f) { /* non constant dependence */
-      ierr = AdjointTSUpdateHistory(adjts,adj_ctx->t0,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
+      ierr = TSUpdateHistoryVecs(ts,adj_ctx->tf,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
       ierr = (*ts->F_m_f)(ts,adj_ctx->tf,adj_ctx->W[0],adj_ctx->W[1],adj_ctx->design,ts->F_m,ts->F_m_ctx);CHKERRQ(ierr);
     }
     ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
