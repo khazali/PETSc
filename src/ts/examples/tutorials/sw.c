@@ -20,6 +20,29 @@ typedef struct {
   PetscInt  q;
 } Model_SW;
 
+PetscErrorCode InitializeLambda(DM da,Vec lambda,PetscReal x,PetscReal y)
+{
+   PetscInt i,j,Mx,My,xs,ys,xm,ym;
+   PetscErrorCode ierr;
+   Field **uarr;
+   PetscFunctionBegin;
+
+   ierr = DMDAGetInfo(da,PETSC_IGNORE,&Mx,&My,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE);CHKERRQ(ierr);
+   /* locate the global i index for x and j index for y */
+   i = (PetscInt)(x/(2*PETSC_PI)*(Mx-1)); /* longitude */
+   j = (PetscInt)((2*y/PETSC_PI+0.5)*(My-1)); /* latitude */
+   ierr = DMDAGetCorners(da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+
+   if (xs <= i && i < xs+xm && ys <= j && j < ys+ym) {
+     /* the i,j vertex is on this process */
+     ierr = DMDAVecGetArray(da,lambda,&uarr);CHKERRQ(ierr);
+     uarr[j][i].h = 1.0;
+     ierr = DMDAVecRestoreArray(da,lambda,&uarr);CHKERRQ(ierr);
+   }
+   PetscFunctionReturn(0);
+}
+
+
 PetscErrorCode InitialConditions(DM da,Vec U,Model_SW *sw)
 {
   PetscInt       i,j,Mx,My,xs,ys,xm,ym;
@@ -481,10 +504,12 @@ PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat BB,void *ptx)
 
 int main(int argc,char **argv)
 {
+  PetscBool      forwardonly;
   TS             ts;
   Vec            U;
   DM             da;
   Model_SW       sw;
+  Vec            lambda[1];
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,NULL);if (ierr) return ierr;
@@ -496,6 +521,7 @@ int main(int argc,char **argv)
   sw.p            = 4;
   sw.q            = 2;
 
+  ierr = PetscOptionsGetBool(NULL,NULL,"-forwardonly",&forwardonly,NULL);CHKERRQ(ierr);
   ierr = DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,150,75,PETSC_DECIDE,PETSC_DECIDE,3,4,NULL,NULL,&da);CHKERRQ(ierr);
   ierr = DMSetFromOptions(da);CHKERRQ(ierr);
   ierr = DMSetUp(da);CHKERRQ(ierr);
@@ -512,6 +538,10 @@ int main(int argc,char **argv)
 
   ierr = InitialConditions(da,U,&sw);CHKERRQ(ierr);
   ierr = TSSetSolution(ts,U);CHKERRQ(ierr);
+  /*
+    Have the TS save its trajectory so that TSAdjointSolve() may be used
+  */
+  if (!forwardonly) { ierr = TSSetSaveTrajectory(ts);CHKERRQ(ierr); }
 
   ierr = TSSetMaxSteps(ts,3600);CHKERRQ(ierr);
   ierr = TSSetTime(ts,0.0);CHKERRQ(ierr);
@@ -520,6 +550,14 @@ int main(int argc,char **argv)
 
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   ierr = TSSolve(ts,U);CHKERRQ(ierr);
+
+  if (!forwardonly) {
+    ierr = VecDuplicate(U,&lambda[0]);CHKERRQ(ierr);
+    ierr = InitializeLambda(da,lambda[0],PETSC_PI,0);CHKERRQ(ierr);
+    ierr = TSSetCostGradients(ts,1,lambda,NULL);CHKERRQ(ierr);
+    ierr = TSAdjointSolve(ts);CHKERRQ(ierr);
+    ierr = VecDestroy(&lambda[0]);CHKERRQ(ierr);
+  }
 
   ierr = VecDestroy(&U);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
