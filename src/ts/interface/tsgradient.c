@@ -208,10 +208,12 @@ static PetscErrorCode TSGradientICApply(TS ts, Vec x, Vec y, PetscBool transpose
       ierr = KSPAppendOptionsPrefix(ksp,prefix);CHKERRQ(ierr);
       ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
       ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_G",(PetscObject)ksp);
+      ierr = PetscObjectDereference((PetscObject)ksp);CHKERRQ(ierr);
     }
     if (!workvec) {
       ierr = MatCreateVecs(ts->G_m,NULL,&workvec);CHKERRQ(ierr);
       ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_GW",(PetscObject)workvec);
+      ierr = PetscObjectDereference((PetscObject)workvec);CHKERRQ(ierr);
     }
     ierr = KSPSetOperators(ksp,ts->G_x,ts->G_x);CHKERRQ(ierr);
   }
@@ -281,6 +283,7 @@ static PetscErrorCode SplitJacDestroy_Private(void *ptr)
    TODO: possibly also d/dt F_Udot, not yet coded */
 static PetscErrorCode TSComputeSplitJacobians(TS ts, PetscReal time, Vec U, Vec Udot, Mat A, Mat pA, Mat B, Mat pB, Mat C, Mat pC)
 {
+  PetscErrorCode (*f)(TS,PetscReal,Vec,Vec,Mat,Mat,Mat,Mat,Mat,Mat);
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -296,14 +299,18 @@ static PetscErrorCode TSComputeSplitJacobians(TS ts, PetscReal time, Vec U, Vec 
   if (pA == pB) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"pA and pB must be different matrices");
   /* PetscValidHeaderSpecific(C,MAT_CLASSID,9); */
   /* PetscValidHeaderSpecific(pC,MAT_CLASSID,10); */
-  /* this is a fallback if the user does not provide the Jacobians through TSSetSplitJacobians */
-  ierr = TSComputeIJacobian(ts,time,U,Udot,0.0,A,pA,PETSC_FALSE);CHKERRQ(ierr);
-  ierr = TSComputeIJacobian(ts,time,U,Udot,1.0,B,pB,PETSC_FALSE);CHKERRQ(ierr);
-  ierr = MatAXPY(B,-1.0,A,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
-  if (pB != B) {
-    ierr = MatAXPY(pB,-1.0,pA,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  ierr = PetscObjectQueryFunction((PetscObject)ts,"TSComputeSplitJacobians_C",&f);CHKERRQ(ierr);
+  if (!f) {
+    ierr = TSComputeIJacobian(ts,time,U,Udot,0.0,A,pA,PETSC_FALSE);CHKERRQ(ierr);
+    ierr = TSComputeIJacobian(ts,time,U,Udot,1.0,B,pB,PETSC_FALSE);CHKERRQ(ierr);
+    ierr = MatAXPY(B,-1.0,A,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+    if (pB != B) {
+      ierr = MatAXPY(pB,-1.0,pA,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+    }
+    if (C) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Time derivative of F_Udot not yet implemented");
+  } else {
+    ierr = (*f)(ts,time,U,Udot,A,pA,B,pB,C,pC);CHKERRQ(ierr);
   }
-  if (C) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Time derivative of F_Udot not yet implemented");
   PetscFunctionReturn(0);
 }
 
@@ -402,7 +409,6 @@ static PetscErrorCode TSComputeIJacobianWithSplits(TS ts, PetscReal time, Vec U,
 /* ------------------ Routines for adjoints of ODE, namespaced with AdjointTS ----------------------- */
 
 typedef struct {
-  PetscBool optimization;  /* whether we need an adjoint for PDE constrained optimization or a standard ODE adjoint */
   Vec       design;        /* design vector (fixed) */
   TS        fwdts;         /* forward solver */
   PetscReal t0,tf;         /* time limits, for forward time recovery */
@@ -448,7 +454,7 @@ static PetscErrorCode AdjointTSRHSJacobian(TS adjts, PetscReal time, Vec U, Mat 
 
 /* The adjoint formulation I'm using assumes H(U,Udot,t) = 0
    -> the forward ODE is Udot - G(U) = 0 ( -> H(U,Udot,t) := Udot - G(U) )
-   -> the adjoint ODE is F - L^T * G_U - Ldot^T in backward time (F is present just in optimization)
+   -> the adjoint ODE is F - L^T * G_U - Ldot^T in backward time (F the derivative of the objective wrt U)
    -> the adjoint ODE is Ldot^T = L^T * G_U - F in forward time */
 static PetscErrorCode AdjointTSRHSFuncLinear(TS adjts, PetscReal time, Vec U, Vec F, void *ctx)
 {
@@ -459,16 +465,11 @@ static PetscErrorCode AdjointTSRHSFuncLinear(TS adjts, PetscReal time, Vec U, Ve
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
-  if (adj_ctx->optimization) {
-    ierr = TSTrajectoryUpdateHistoryVecs(adj_ctx->fwdts->trajectory,adj_ctx->fwdts,fwdt,adj_ctx->W[0],NULL);CHKERRQ(ierr);
-    ierr = TSGradientEvalObjectiveGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],F);CHKERRQ(ierr);
-    ierr = VecScale(F,-1.0);CHKERRQ(ierr);
-    ierr = TSComputeRHSJacobian(adjts,time,U,adjts->Arhs,NULL);CHKERRQ(ierr);
-    ierr = MatMultTransposeAdd(adjts->Arhs,U,F,F);CHKERRQ(ierr);
-  } else {
-    ierr = TSComputeRHSJacobian(adjts,time,U,adjts->Arhs,NULL);CHKERRQ(ierr);
-    ierr = MatMultTranspose(adjts->Arhs,U,F);CHKERRQ(ierr);
-  }
+  ierr = TSTrajectoryUpdateHistoryVecs(adj_ctx->fwdts->trajectory,adj_ctx->fwdts,fwdt,adj_ctx->W[0],NULL);CHKERRQ(ierr);
+  ierr = TSGradientEvalObjectiveGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],F);CHKERRQ(ierr);
+  ierr = VecScale(F,-1.0);CHKERRQ(ierr);
+  ierr = TSComputeRHSJacobian(adjts,time,U,adjts->Arhs,NULL);CHKERRQ(ierr);
+  ierr = MatMultTransposeAdd(adjts->Arhs,U,F,F);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -485,17 +486,11 @@ static PetscErrorCode AdjointTSIFunctionLinear(TS adjts, PetscReal time, Vec U, 
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
-  if (adj_ctx->optimization) {
-    ierr = TSTrajectoryUpdateHistoryVecs(adj_ctx->fwdts->trajectory,adj_ctx->fwdts,fwdt,adj_ctx->W[0],NULL);CHKERRQ(ierr);
-    ierr = TSGradientEvalObjectiveGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],F);CHKERRQ(ierr);
-    ierr = TSUpdateSplitJacobiansFromHistory(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
-    ierr = TSGetSplitJacobians(adj_ctx->fwdts,&J_U,&J_Udot);CHKERRQ(ierr);
-    ierr = MatMultTransposeAdd(J_U,U,F,F);CHKERRQ(ierr);
-  } else {
-    ierr = TSTrajectoryUpdateHistoryVecs(adj_ctx->fwdts->trajectory,adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
-    ierr = TSGetSplitJacobians(adj_ctx->fwdts,&J_U,&J_Udot);CHKERRQ(ierr);
-    ierr = MatMultTranspose(J_U,U,F);CHKERRQ(ierr);
-  }
+  ierr = TSTrajectoryUpdateHistoryVecs(adj_ctx->fwdts->trajectory,adj_ctx->fwdts,fwdt,adj_ctx->W[0],NULL);CHKERRQ(ierr);
+  ierr = TSGradientEvalObjectiveGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],F);CHKERRQ(ierr);
+  ierr = TSUpdateSplitJacobiansFromHistory(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
+  ierr = TSGetSplitJacobians(adj_ctx->fwdts,&J_U,&J_Udot);CHKERRQ(ierr);
+  ierr = MatMultTransposeAdd(J_U,U,F,F);CHKERRQ(ierr);
   ierr = MatMultTransposeAdd(J_Udot,Udot,F,F);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -565,6 +560,7 @@ static PetscErrorCode AdjointTSPostEvent(TS adjts, PetscInt nevents, PetscInt ev
 }
 
 /* Partial integration (via the trapezoidal rule) of the gradient terms f_M + L^T H_M */
+/* TODO: use a TS to do integration */
 static PetscErrorCode AdjointTSPostStep(TS adjts)
 {
   Vec            lambda;
@@ -626,7 +622,7 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
 }
 
 /* Creates the adjoint TS */
-static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts, PetscBool optimization)
+static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
 {
   SNES            snes;
   Mat             A,B;
@@ -662,7 +658,6 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts, PetscBool optimization
   ierr = TSSetApplicationContext(*adjts,(void *)adj);CHKERRQ(ierr);
   ierr = TSGetSolution(ts,&lambda);CHKERRQ(ierr);
   ierr = VecDuplicateVecs(lambda,4,&adj->W);CHKERRQ(ierr);
-  adj->optimization = optimization;
 
   /* these three vectors are locked:
      - only TSUpdateHistoryVecs can modify W[0] and W[1]
@@ -739,9 +734,7 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts, PetscBool optimization
   ierr = SNESKSPONLYSetUseTransposeSolve(snes,PETSC_TRUE);CHKERRQ(ierr);
 
   /* set special purpose post step method for incremental gradient evaluation */
-  if (adj->optimization) {
-    ierr = TSSetPostStep(*adjts,AdjointTSPostStep);CHKERRQ(ierr);
-  }
+  ierr = TSSetPostStep(*adjts,AdjointTSPostStep);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -759,7 +752,6 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
   ierr = PetscObjectQuery((PetscObject)adjts,"_ts_gradient_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
-  if (!adj_ctx->optimization) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_USER,"Cannot set initial gradient with a standard ODE adjoint. Use TSCreateAdjointTS(ts,&adj,PETSC_TRUE)");
   if (adj_ctx->t0 >= PETSC_MAX_REAL || adj_ctx->tf >= PETSC_MAX_REAL) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"You should call AdjointTSSetTimeLimits first");
   if (!adj_ctx->design) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"You should call AdjointTSSetDesign first");
 
@@ -892,7 +884,6 @@ static PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   if (!adj_ctx->gradient) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Missing gradient vector");
-  if (!adj_ctx->optimization) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_USER,"Cannot compute final gradient with a standard ODE adjoint. Use TSCreateAdjointTS(ts,&adj,PETSC_TRUE)");
   ierr = TSGetTime(adjts,&tf);CHKERRQ(ierr);
   if (tf < adj_ctx->tf) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Backward solve did not complete");
 
@@ -1100,7 +1091,7 @@ static PetscErrorCode TSEvaluateObjectiveGradient_Private(TS ts, Vec X, Vec desi
   ierr = TSEvaluateObjective_Private(ts,X,design,gradient,val);CHKERRQ(ierr);
 
   /* adjoint */
-  ierr = TSCreateAdjointTS(ts,&adjts,PETSC_TRUE);CHKERRQ(ierr);
+  ierr = TSCreateAdjointTS(ts,&adjts);CHKERRQ(ierr);
   ierr = VecDuplicate(X,&lambda);CHKERRQ(ierr);
   ierr = TSSetSolution(adjts,lambda);CHKERRQ(ierr);
   ierr = TSGetTime(ts,&tf);CHKERRQ(ierr);
@@ -1121,6 +1112,495 @@ static PetscErrorCode TSEvaluateObjectiveGradient_Private(TS ts, Vec X, Vec desi
   /* restore trajectory */
   ierr = TSTrajectoryDestroy(&ts->trajectory);CHKERRQ(ierr);
   ts->trajectory  = otrj;
+  PetscFunctionReturn(0);
+}
+
+/* ------------------ Routines for the TS representing the tangent linear model, namespaced by TLMTS ----------------------- */
+
+typedef struct {
+  TS   model;
+  Vec  *W;
+  Vec  design;
+  Vec  mdelta;
+} TLMTS_Ctx;
+
+static PetscErrorCode TLMTSDestroy_Private(void *ptr)
+{
+  TLMTS_Ctx*     tlm = (TLMTS_Ctx*)ptr;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = VecDestroy(&tlm->design);CHKERRQ(ierr);
+  ierr = VecDestroy(&tlm->mdelta);CHKERRQ(ierr);
+  ierr = VecDestroyVecs(3,&tlm->W);CHKERRQ(ierr);
+  ierr = TSDestroy(&tlm->model);CHKERRQ(ierr);
+  ierr = PetscFree(tlm);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* TLMTS can be called by AdjointTS, this is a shortcut */
+static PetscErrorCode TLMTSComputeSplitJacobians(TS ts, PetscReal time, Vec U, Vec Udot, Mat A, Mat pA, Mat B, Mat pB, Mat C, Mat pC)
+{
+  TLMTS_Ctx      *tlm_ctx;
+  Mat            J_U, J_Udot;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (A == B) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"A and B must be different matrices");
+  if (pA == pB) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"pA and pB must be different matrices");
+  if (pA && pA != A) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Pmats not yet supported");
+  if (pB && pB != B) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Pmats not yet supported");
+  if (C) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Not coded yet");
+  if (pC) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Not coded yet");
+  ierr = TSGetApplicationContext(ts,(void*)&tlm_ctx);CHKERRQ(ierr);
+  ierr = TSUpdateSplitJacobiansFromHistory(tlm_ctx->model,time,tlm_ctx->W[0],tlm_ctx->W[1]);CHKERRQ(ierr);
+  ierr = TSGetSplitJacobians(tlm_ctx->model,&J_U,&J_Udot);CHKERRQ(ierr);
+  if (A) { ierr = MatCopy(J_U,A,SAME_NONZERO_PATTERN);CHKERRQ(ierr); }
+  if (B) { ierr = MatCopy(J_Udot,B,SAME_NONZERO_PATTERN);CHKERRQ(ierr); }
+  PetscFunctionReturn(0);
+}
+
+/* The TLM ODE is J_Udot * U_dot + J_U * U + f = 0, with f = dH/dm * deltam */
+static PetscErrorCode TLMTSIFunctionLinear(TS lts, PetscReal time, Vec U, Vec Udot, Vec F, void *ctx)
+{
+  TLMTS_Ctx      *tlm_ctx;
+  Mat            J_U, J_Udot;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = TSGetApplicationContext(lts,(void*)&tlm_ctx);CHKERRQ(ierr);
+  ierr = TSUpdateSplitJacobiansFromHistory(tlm_ctx->model,time,tlm_ctx->W[0],tlm_ctx->W[1]);CHKERRQ(ierr);
+  ierr = TSGetSplitJacobians(tlm_ctx->model,&J_U,&J_Udot);CHKERRQ(ierr);
+  ierr = MatMult(J_U,U,F);CHKERRQ(ierr);
+  ierr = MatMultAdd(J_Udot,Udot,F,F);CHKERRQ(ierr);
+  if (tlm_ctx->model->F_m) {
+    TS ts = tlm_ctx->model;
+    if (ts->F_m_f) { /* non constant dependence */
+      ierr = TSTrajectoryUpdateHistoryVecs(ts->trajectory,ts,time,tlm_ctx->W[0],tlm_ctx->W[1]);CHKERRQ(ierr);
+      ierr = (*ts->F_m_f)(ts,time,tlm_ctx->W[0],tlm_ctx->W[1],tlm_ctx->design,ts->F_m,ts->F_m_ctx);CHKERRQ(ierr);
+      ierr = MatMult(ts->F_m,tlm_ctx->mdelta,tlm_ctx->W[2]);CHKERRQ(ierr);
+    }
+    ierr = VecAXPY(F,1.0,tlm_ctx->W[2]);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode TLMTSIJacobian(TS lts, PetscReal time, Vec U, Vec Udot, PetscReal shift, Mat A, Mat B, void *ctx)
+{
+  TLMTS_Ctx      *tlm_ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = TSGetApplicationContext(lts,(void*)&tlm_ctx);CHKERRQ(ierr);
+  ierr = TSComputeIJacobianWithSplits(tlm_ctx->model,time,U,Udot,shift,A,B,ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* The TLM ODE is U_dot = J_U * U - f, with f = dH/dm * deltam */
+static PetscErrorCode TLMTSRHSFunctionLinear(TS lts, PetscReal time, Vec U, Vec F, void *ctx)
+{
+  TLMTS_Ctx      *tlm_ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = TSGetApplicationContext(lts,(void*)&tlm_ctx);CHKERRQ(ierr);
+  ierr = TSComputeRHSJacobian(lts,time,U,lts->Arhs,NULL);CHKERRQ(ierr);
+  ierr = MatMult(lts->Arhs,U,F);CHKERRQ(ierr);
+  if (tlm_ctx->model->F_m) {
+    TS ts = tlm_ctx->model;
+    if (ts->F_m_f) { /* non constant dependence */
+      ierr = TSTrajectoryUpdateHistoryVecs(ts->trajectory,ts,time,tlm_ctx->W[0],tlm_ctx->W[1]);CHKERRQ(ierr);
+      ierr = (*ts->F_m_f)(ts,time,tlm_ctx->W[0],tlm_ctx->W[1],tlm_ctx->design,ts->F_m,ts->F_m_ctx);CHKERRQ(ierr);
+      ierr = MatMult(ts->F_m,tlm_ctx->mdelta,tlm_ctx->W[2]);CHKERRQ(ierr);
+    }
+    ierr = VecAXPY(F,-1.0,tlm_ctx->W[2]);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode TLMTSRHSJacobian(TS lts, PetscReal time, Vec U, Mat A, Mat P, void *ctx)
+{
+  TLMTS_Ctx      *tlm_ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = TSGetApplicationContext(lts,(void*)&tlm_ctx);CHKERRQ(ierr);
+  ierr = TSTrajectoryUpdateHistoryVecs(tlm_ctx->model->trajectory,tlm_ctx->model,time,tlm_ctx->W[0],NULL);CHKERRQ(ierr);
+  ierr = TSComputeRHSJacobian(tlm_ctx->model,time,tlm_ctx->W[0],A,P);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* creates the TS for the tangent linear model */
+static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
+{
+  Mat            A,B;
+  Vec            vatol,vrtol;
+  PetscContainer container;
+  TLMTS_Ctx      *tlm_ctx;
+  TSIFunction    ifunc;
+  TSRHSFunction  rhsfunc;
+  TSI2Function   i2func;
+  TSType         type;
+  const char     *prefix;
+  PetscReal      atol,rtol;
+  SplitJac       *splitJ;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(ts,TS_CLASSID,1);
+  PetscValidPointer(lts,2);
+  ierr = TSGetI2Function(ts,NULL,&i2func,NULL);CHKERRQ(ierr);
+  if (i2func) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Second order ODEs are not supported");
+  ierr = TSCreate(PetscObjectComm((PetscObject)ts),lts);CHKERRQ(ierr);
+  ierr = TSGetType(ts,&type);CHKERRQ(ierr);
+  ierr = TSSetType(*lts,type);CHKERRQ(ierr);
+  ierr = TSGetTolerances(ts,&atol,&vatol,&rtol,&vrtol);CHKERRQ(ierr);
+  ierr = TSSetTolerances(*lts,atol,vatol,rtol,vrtol);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)(*lts),"TSComputeSplitJacobians_C",TLMTSComputeSplitJacobians);CHKERRQ(ierr);
+
+  ierr = PetscNew(&tlm_ctx);CHKERRQ(ierr);
+  ierr = TSSetApplicationContext(*lts,(void *)tlm_ctx);CHKERRQ(ierr);
+  ierr = PetscObjectReference((PetscObject)ts);CHKERRQ(ierr);
+  tlm_ctx->model = ts;
+
+  /* caching to prevent from recomputation of Jacobians */
+  ierr = PetscObjectQuery((PetscObject)ts,"_ts_splitJac",(PetscObject*)&container);CHKERRQ(ierr);
+  if (container) {
+    ierr = PetscContainerGetPointer(container,(void**)&splitJ);CHKERRQ(ierr);
+  } else {
+    ierr = PetscNew(&splitJ);CHKERRQ(ierr);
+    splitJ->Astate    = -1;
+    splitJ->Aid       = PETSC_MIN_INT;
+    splitJ->shift     = PETSC_MIN_REAL;
+    splitJ->splitdone = PETSC_FALSE;
+    ierr = PetscContainerCreate(PetscObjectComm((PetscObject)ts),&container);CHKERRQ(ierr);
+    ierr = PetscContainerSetPointer(container,splitJ);CHKERRQ(ierr);
+    ierr = PetscContainerSetUserDestroy(container,SplitJacDestroy_Private);CHKERRQ(ierr);
+    ierr = PetscObjectCompose((PetscObject)ts,"_ts_splitJac",(PetscObject)container);CHKERRQ(ierr);
+    ierr = PetscContainerDestroy(&container);CHKERRQ(ierr);
+  }
+
+  /* wrap application context in a container, so that it will be destroyed when calling TSDestroy on lts */
+  ierr = PetscContainerCreate(PetscObjectComm((PetscObject)(*lts)),&container);CHKERRQ(ierr);
+  ierr = PetscContainerSetPointer(container,tlm_ctx);CHKERRQ(ierr);
+  ierr = PetscContainerSetUserDestroy(container,TLMTSDestroy_Private);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject)(*lts),"_ts_tlm_ctx",(PetscObject)container);CHKERRQ(ierr);
+  ierr = PetscContainerDestroy(&container);CHKERRQ(ierr);
+
+  /* setup callbacks for the tangent linear model ODE: we reuse the same jacobian matrices of the forward model */
+  ierr = TSGetIFunction(ts,NULL,&ifunc,NULL);CHKERRQ(ierr);
+  ierr = TSGetRHSFunction(ts,NULL,&rhsfunc,NULL);CHKERRQ(ierr);
+  if (ifunc) {
+    ierr = TSGetIJacobian(ts,&A,&B,NULL,NULL);CHKERRQ(ierr);
+    ierr = TSSetIFunction(*lts,NULL,TLMTSIFunctionLinear,NULL);CHKERRQ(ierr);
+    ierr = TSSetIJacobian(*lts,A,B,TLMTSIJacobian,NULL);CHKERRQ(ierr);
+  } else {
+    if (!rhsfunc) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"TSSetIFunction or TSSetRHSFunction not called");
+    ierr = TSGetRHSJacobian(ts,&A,&B,NULL,NULL);CHKERRQ(ierr);
+    ierr = TSSetRHSFunction(*lts,NULL,TLMTSRHSFunctionLinear,NULL);CHKERRQ(ierr);
+    ierr = TSSetRHSJacobian(*lts,A,B,TLMTSRHSJacobian,NULL);CHKERRQ(ierr);
+  }
+
+  /* prefix */
+  ierr = TSGetOptionsPrefix(ts,&prefix);CHKERRQ(ierr);
+  ierr = TSSetOptionsPrefix(*lts,"tlm_");CHKERRQ(ierr);
+  ierr = TSAppendOptionsPrefix(*lts,prefix);CHKERRQ(ierr);
+  ierr = TSSetFromOptions(*lts);CHKERRQ(ierr);
+
+  /* preliminary support for time-independent problems */
+  ierr = TSGetOptionsPrefix(*lts,&prefix);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL,prefix,"-time_independent",&splitJ->timeindep,NULL);CHKERRQ(ierr);
+  splitJ->splitdone = PETSC_FALSE;
+
+  /* tangent linear model ODE is linear */
+  ierr = TSSetProblemType(*lts,TS_LINEAR);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* ------------------ Routines for the Mat that represents the linearized propagator ----------------------- */
+
+typedef struct {
+  TS           model;
+  TS           lts;
+  TS           adjlts;
+  Vec          x0;
+  Vec          design;
+  TSTrajectory tj;
+  PetscReal    t0;
+  PetscReal    dt;
+  PetscReal    tf;
+} MatPropagator_Ctx;
+
+static PetscErrorCode MatDestroy_Propagator(Mat A)
+{
+  MatPropagator_Ctx *prop;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBegin;
+  ierr = MatShellGetContext(A,(void **)&prop);CHKERRQ(ierr);
+  ierr = TSTrajectoryDestroy(&prop->tj);CHKERRQ(ierr);
+  ierr = VecDestroy(&prop->x0);CHKERRQ(ierr);
+  ierr = VecDestroy(&prop->design);CHKERRQ(ierr);
+  ierr = TSDestroy(&prop->adjlts);CHKERRQ(ierr);
+  ierr = TSDestroy(&prop->lts);CHKERRQ(ierr);
+  ierr = TSDestroy(&prop->model);CHKERRQ(ierr);
+  ierr = PetscFree(prop);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* F^T L = dx */
+static PetscErrorCode TLMTSRHS(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = VecCopy(U,grad);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode MatMultTranspose_Propagator(Mat A, Vec x, Vec y)
+{
+  MatPropagator_Ctx *prop;
+  Vec               lambda;
+  TLMTS_Ctx         *tlm;
+  PetscErrorCode    ierr;
+  TSTrajectory      otrj;
+
+  PetscFunctionBegin;
+  ierr = MatShellGetContext(A,(void **)&prop);CHKERRQ(ierr);
+  otrj = prop->model->trajectory;
+  prop->model->trajectory = prop->tj;
+  prop->lts->trajectory = prop->tj;
+  ierr = TSGetApplicationContext(prop->lts,&tlm);CHKERRQ(ierr);
+  if (!tlm->mdelta) {
+    ierr = VecDuplicate(y,&tlm->mdelta);CHKERRQ(ierr);
+  }
+  if (!tlm->W) {
+    ierr = VecDuplicateVecs(x,3,&tlm->W);CHKERRQ(ierr);
+    ierr = VecLockPush(tlm->W[0]);CHKERRQ(ierr);
+    ierr = VecLockPush(tlm->W[1]);CHKERRQ(ierr);
+  }
+  ierr = VecSet(tlm->W[2],0.0);CHKERRQ(ierr);
+
+  /* sample initial condition dependency */
+  if (tlm->model->Ggrad) {
+    TS ts = tlm->model;
+    ierr = (*ts->Ggrad)(ts,prop->t0,prop->x0,prop->design,ts->G_x,ts->G_m,ts->Ggrad_ctx);CHKERRQ(ierr);
+  }
+  ierr = TSSetFromOptions(prop->adjlts);CHKERRQ(ierr);
+
+  /* x is the increment -> we set the solution vector of the forward tangent linear to this value
+     in order to compute the initial value in AdjointTSSetInitialGradient */
+  ierr = TSGetSolution(prop->lts,&lambda);CHKERRQ(ierr);
+  ierr = VecCopy(x,lambda);CHKERRQ(ierr);
+  ierr = TSGetSolution(prop->adjlts,&lambda);CHKERRQ(ierr);
+  ierr = VecSet(y,0.0);CHKERRQ(ierr);
+  ierr = AdjointTSSetDesign(prop->adjlts,prop->design);CHKERRQ(ierr);
+  ierr = AdjointTSSetInitialGradient(prop->adjlts,y);CHKERRQ(ierr);
+  ierr = TSSetStepNumber(prop->adjlts,0);CHKERRQ(ierr);
+  ierr = TSSetTime(prop->adjlts,prop->t0);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(prop->adjlts,prop->dt);CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(prop->adjlts,PETSC_MAX_INT);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(prop->adjlts,prop->tf);CHKERRQ(ierr);
+  ierr = TSSetExactFinalTime(prop->adjlts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
+  ierr = TSSolve(prop->adjlts,NULL);CHKERRQ(ierr);
+  ierr = AdjointTSComputeFinalGradient(prop->adjlts);CHKERRQ(ierr);
+  prop->lts->trajectory = NULL;
+  prop->tj = prop->model->trajectory;
+  prop->model->trajectory = otrj;
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
+{
+  MatPropagator_Ctx *prop;
+  TLMTS_Ctx         *tlm;
+  PetscErrorCode    ierr;
+  TSTrajectory      otrj;
+
+  PetscFunctionBegin;
+  ierr = MatShellGetContext(A,(void **)&prop);CHKERRQ(ierr);
+  otrj = prop->model->trajectory;
+  prop->model->trajectory = prop->tj;
+  ierr = TSGetApplicationContext(prop->lts,&tlm);CHKERRQ(ierr);
+  if (!tlm->mdelta) {
+    ierr = VecDuplicate(x,&tlm->mdelta);CHKERRQ(ierr);
+  }
+  ierr = VecCopy(x,tlm->mdelta);CHKERRQ(ierr);
+  ierr = VecLockPush(tlm->mdelta);CHKERRQ(ierr);
+  if (!tlm->W) {
+    ierr = VecDuplicateVecs(y,3,&tlm->W);CHKERRQ(ierr);
+    ierr = VecLockPush(tlm->W[0]);CHKERRQ(ierr);
+    ierr = VecLockPush(tlm->W[1]);CHKERRQ(ierr);
+  }
+  ierr = VecSet(tlm->W[2],0.0);CHKERRQ(ierr);
+  if (tlm->model->F_m) {
+    TS ts = tlm->model;
+    ierr = PetscObjectReference((PetscObject)prop->design);CHKERRQ(ierr);
+    ierr = VecDestroy(&tlm->design);CHKERRQ(ierr);
+    tlm->design = prop->design;
+    if (ts->F_m_f) { /* non constant dependence */
+      ierr = TSTrajectoryUpdateHistoryVecs(ts->trajectory,ts,prop->t0,tlm->W[0],tlm->W[1]);CHKERRQ(ierr);
+      ierr = (*ts->F_m_f)(ts,prop->t0,tlm->W[0],tlm->W[1],tlm->design,ts->F_m,ts->F_m_ctx);CHKERRQ(ierr);
+    }
+    ierr = MatMult(ts->F_m,tlm->mdelta,tlm->W[2]);CHKERRQ(ierr);
+  }
+
+  /* sample initial condition dependency */
+  if (tlm->model->Ggrad) {
+    TS ts = tlm->model;
+    ierr = (*ts->Ggrad)(ts,prop->t0,prop->x0,prop->design,ts->G_x,ts->G_m,ts->Ggrad_ctx);CHKERRQ(ierr);
+  }
+  ierr = TSGradientICApply(prop->model,x,y,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = VecScale(y,-1.0);CHKERRQ(ierr);
+
+  ierr = TSSetStepNumber(prop->lts,0);CHKERRQ(ierr);
+  ierr = TSSetTime(prop->lts,prop->t0);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(prop->lts,prop->dt);CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(prop->lts,PETSC_MAX_INT);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(prop->lts,prop->tf);CHKERRQ(ierr);
+  ierr = TSSetExactFinalTime(prop->lts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
+  ierr = TSSolve(prop->lts,y);CHKERRQ(ierr);
+  prop->tj = prop->model->trajectory;
+  prop->model->trajectory = otrj;
+  ierr = VecLockPop(tlm->mdelta);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* solves the forward model and stores its trajectory */
+static PetscErrorCode MatPropagatorUpdate_Propagator(Mat A, PetscReal t0, PetscReal dt, PetscReal tf, Vec x0, Vec design)
+{
+  Vec               osol;
+  TSTrajectory      otrj;
+  MatPropagator_Ctx *prop;
+  PetscBool         isbasic;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBegin;
+  ierr = MatShellGetContext(A,(void **)&prop);CHKERRQ(ierr);
+  ierr = VecLockPop(prop->x0);CHKERRQ(ierr);
+  ierr = VecCopy(x0,prop->x0);CHKERRQ(ierr);
+  ierr = VecLockPush(prop->x0);CHKERRQ(ierr);
+  ierr = VecLockPop(prop->design);CHKERRQ(ierr);
+  ierr = VecCopy(design,prop->design);CHKERRQ(ierr);
+  ierr = VecLockPush(prop->design);CHKERRQ(ierr);
+  prop->t0 = t0;
+  prop->dt = dt;
+  prop->tf = tf;
+  ierr = TSTrajectoryDestroy(&prop->tj);CHKERRQ(ierr);
+
+  /* Solve the forward nonlinear model in the given time window */
+  ierr = TSGetSolution(prop->model,&osol);CHKERRQ(ierr);
+  ierr = VecCopy(prop->x0,osol);CHKERRQ(ierr);
+  otrj = prop->model->trajectory;
+  ierr = TSTrajectoryCreate(PetscObjectComm((PetscObject)prop->model),&prop->model->trajectory);CHKERRQ(ierr);
+  ierr = TSTrajectorySetType(prop->model->trajectory,prop->model,TSTRAJECTORYBASIC);CHKERRQ(ierr);
+  ierr = TSTrajectorySetFromOptions(prop->model->trajectory,prop->model);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject)prop->model->trajectory,TSTRAJECTORYBASIC,&isbasic);CHKERRQ(ierr);
+  if (!isbasic) SETERRQ1(PetscObjectComm((PetscObject)prop->model),PETSC_ERR_SUP,"TSTrajectory type %s",((PetscObject)prop->model->trajectory)->type_name);
+  ierr = TSSetStepNumber(prop->model,0);CHKERRQ(ierr);
+  ierr = TSSetTime(prop->model,t0);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(prop->model,dt);CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(prop->model,PETSC_MAX_INT);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(prop->model,tf);CHKERRQ(ierr);
+  ierr = TSSetExactFinalTime(prop->model,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
+  ierr = TSSolve(prop->model,NULL);CHKERRQ(ierr);
+  prop->tj = prop->model->trajectory;
+  prop->model->trajectory = otrj;
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscReal dt, PetscReal tf, Vec x0, Vec design, Mat *A)
+{
+  MatPropagator_Ctx *prop;
+  PetscInt          M,N,m,n,rbs,cbs;
+  Vec               X;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscNew(&prop);CHKERRQ(ierr);
+  ierr = PetscObjectReference((PetscObject)ts);CHKERRQ(ierr);
+  prop->model = ts;
+  ierr = VecGetSize(x0,&M);CHKERRQ(ierr);
+  ierr = VecGetLocalSize(x0,&m);CHKERRQ(ierr);
+  ierr = VecGetBlockSize(x0,&rbs);CHKERRQ(ierr);
+  ierr = VecGetSize(design,&N);CHKERRQ(ierr);
+  ierr = VecGetLocalSize(design,&n);CHKERRQ(ierr);
+  ierr = VecGetBlockSize(design,&cbs);CHKERRQ(ierr);
+  ierr = MatCreate(PetscObjectComm((PetscObject)ts),A);CHKERRQ(ierr);
+  ierr = MatSetSizes(*A,m,n,M,N);CHKERRQ(ierr);
+  ierr = MatSetBlockSizes(*A,rbs,cbs);CHKERRQ(ierr);
+  ierr = MatSetType(*A,MATSHELL);CHKERRQ(ierr);
+  ierr = MatShellSetContext(*A,(void *)prop);CHKERRQ(ierr);
+  ierr = MatShellSetOperation(*A,MATOP_MULT,(void (*)())MatMult_Propagator);CHKERRQ(ierr);
+  ierr = MatShellSetOperation(*A,MATOP_MULT_TRANSPOSE,(void (*)())MatMultTranspose_Propagator);CHKERRQ(ierr);
+  ierr = MatShellSetOperation(*A,MATOP_DESTROY,(void (*)())MatDestroy_Propagator);
+  ierr = VecDuplicate(x0,&prop->x0);CHKERRQ(ierr);
+  ierr = VecDuplicate(design,&prop->design);CHKERRQ(ierr);
+  ierr = VecLockPush(prop->x0);CHKERRQ(ierr);     /* this vector is locked since it stores the initial conditions */
+  ierr = VecLockPush(prop->design);CHKERRQ(ierr); /* this vector is locked since it stores the design state */
+  ierr = MatPropagatorUpdate_Propagator(*A,t0,dt,tf,x0,design);CHKERRQ(ierr);
+  ierr = MatSetUp(*A);CHKERRQ(ierr);
+
+  /* creates the linear tangent model solver and its adjoint */
+  ierr = TSCreateTLMTS(prop->model,&prop->lts);CHKERRQ(ierr);
+  ierr = TSSetObjective(prop->lts,prop->tf,NULL,NULL,TLMTSRHS,NULL,NULL,NULL);CHKERRQ(ierr);
+  ierr = TSSetEvalGradient(prop->lts,prop->model->F_m,prop->model->F_m_f,prop->model->F_m_ctx);CHKERRQ(ierr);
+  ierr = TSSetEvalICGradient(prop->lts,prop->model->G_x,prop->model->G_m,prop->model->Ggrad,prop->model->Ggrad_ctx);CHKERRQ(ierr);
+  ierr = VecDuplicate(prop->x0,&X);CHKERRQ(ierr);
+  ierr = TSSetSolution(prop->lts,X);CHKERRQ(ierr);
+  ierr = VecDestroy(&X);CHKERRQ(ierr);
+  ierr = TSCreateAdjointTS(prop->lts,&prop->adjlts);CHKERRQ(ierr);
+  ierr = VecDuplicate(x0,&X);CHKERRQ(ierr);
+  ierr = TSSetSolution(prop->adjlts,X);CHKERRQ(ierr);
+  ierr = VecDestroy(&X);CHKERRQ(ierr);
+  ierr = AdjointTSSetTimeLimits(prop->adjlts,t0,tf);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*MC
+   MATPROPAGATOR - a matrix to be used for evaluating the linearized propagator of a time stepper.
+
+   Level: developer
+
+.seealso: TS, MATSHELL, TSSetEvalGradient(), TSSetEvalICGradient()
+M*/
+
+/*
+   TSCreatePropagatorMat - Creates a Mat object that behaves like a linearized propagator of a time stepper on the time window [t0,tf].
+
+   Logically Collective on TS
+
+   Input Parameters:
++  ts     - the TS context
+.  t0     - the initial time
+.  dt     - the initial time step
+.  tf     - the final time
+.  x0     - the vector of initial conditions
+-  design - the vector of design
+
+   Output Parameters:
+.  A  - the Mat object
+
+   Notes: Internally, the Mat object solves the Tangent Linear Model (TLM) during MatMult() and the adjoint of the TLM during MatMultTranspose().
+
+   Level: developer
+
+.seealso: TSSetEvalGradient(), TSSetEvalICGradient()
+*/
+PetscErrorCode TSCreatePropagatorMat(TS ts, PetscReal t0, PetscReal dt, PetscReal tf, Vec x0, Vec design, Mat *A)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(ts,TS_CLASSID,1);
+  PetscValidLogicalCollectiveReal(ts,t0,2);
+  PetscValidLogicalCollectiveReal(ts,dt,3);
+  PetscValidLogicalCollectiveReal(ts,tf,4);
+  PetscValidHeaderSpecific(x0,VEC_CLASSID,5);
+  PetscValidHeaderSpecific(design,VEC_CLASSID,6);
+  PetscValidPointer(A,7);
+  ierr = TSCreatePropagatorMat_Private(ts,t0,dt,tf,x0,design,A);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1242,11 +1722,12 @@ $  f(TS ts,PetscReal t,Vec u,Vec u_t,Vec m,Mat J,ctx);
 .  J   - the jacobian
 -  ctx - [optional] user-defined context
 
-   Notes: The J matrix doesn't need to assembled. Just the transposed action on the adjoint state via MatMultTranspose() is needed.
+   Notes: The J matrix doesn't need to assembled. For propagator computations, J needs to implement MatMult() and MatMultTranspose().
+          For gradient computations, just its action via MatMultTranspose() is needed.
 
    Level: developer
 
-.seealso: TSSetObjective(), TSEvaluateGradient(), TSSetEvalICGradient(), MATSHELL
+.seealso: TSSetObjective(), TSEvaluateObjectiveGradient(), TSSetEvalICGradient(), TSCreatePropagatorMat(), MATSHELL, MATPROPAGATOR
 */
 PetscErrorCode TSSetEvalGradient(TS ts, Mat J, TSEvalGradient f, void *ctx)
 {
@@ -1300,18 +1781,18 @@ PetscErrorCode TSSetEvalICGradient(TS ts, Mat J_x, Mat J_m, TSEvalICGradient f, 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   if (J_x) PetscValidHeaderSpecific(J_x,MAT_CLASSID,2);
-  PetscValidHeaderSpecific(J_m,MAT_CLASSID,3);
+  if (J_m) PetscValidHeaderSpecific(J_m,MAT_CLASSID,3);
 
   ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_G",NULL);
   ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_GW",NULL);
   if (J_x) {
     ierr = PetscObjectReference((PetscObject)J_x);CHKERRQ(ierr);
-    ierr = MatDestroy(&ts->G_x);CHKERRQ(ierr);
-    ts->G_x = J_x;
-  } else {
-    ierr = MatDestroy(&ts->G_x);CHKERRQ(ierr);
   }
-  ierr = PetscObjectReference((PetscObject)J_m);CHKERRQ(ierr);
+  ierr = MatDestroy(&ts->G_x);CHKERRQ(ierr);
+  ts->G_x = J_x;
+  if (J_m) {
+    ierr = PetscObjectReference((PetscObject)J_m);CHKERRQ(ierr);
+  }
   ierr = MatDestroy(&ts->G_m);CHKERRQ(ierr);
   ts->G_m = J_m;
 
