@@ -903,6 +903,8 @@ static PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
       ierr = VecCopy(lambda,adj_ctx->W[3]);CHKERRQ(ierr);
     } else {
       Mat J_Udot;
+
+      ierr = TSUpdateSplitJacobiansFromHistory(adj_ctx->fwdts,adj_ctx->t0,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
       ierr = TSGetSplitJacobians(adj_ctx->fwdts,NULL,&J_Udot);CHKERRQ(ierr);
       ierr = MatMultTranspose(J_Udot,lambda,adj_ctx->W[3]);CHKERRQ(ierr);
     }
