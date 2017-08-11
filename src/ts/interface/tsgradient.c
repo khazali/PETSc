@@ -652,6 +652,10 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   ierr = TSSetType(*adjts,type);CHKERRQ(ierr);
   ierr = TSGetTolerances(ts,&atol,&vatol,&rtol,&vrtol);CHKERRQ(ierr);
   ierr = TSSetTolerances(*adjts,atol,vatol,rtol,vrtol);CHKERRQ(ierr);
+  if (ts->adapt) {
+    ierr = PetscObjectReference((PetscObject)ts->adapt);CHKERRQ(ierr);
+    (*adjts)->adapt = ts->adapt;
+  }
 
   /* application context */
   ierr = PetscNew(&adj);CHKERRQ(ierr);
@@ -1256,6 +1260,10 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
   ierr = TSSetType(*lts,type);CHKERRQ(ierr);
   ierr = TSGetTolerances(ts,&atol,&vatol,&rtol,&vrtol);CHKERRQ(ierr);
   ierr = TSSetTolerances(*lts,atol,vatol,rtol,vrtol);CHKERRQ(ierr);
+  if (ts->adapt) {
+    ierr = PetscObjectReference((PetscObject)ts->adapt);CHKERRQ(ierr);
+    (*lts)->adapt = ts->adapt;
+  }
   ierr = PetscObjectComposeFunction((PetscObject)(*lts),"TSComputeSplitJacobians_C",TLMTSComputeSplitJacobians);CHKERRQ(ierr);
 
   ierr = PetscNew(&tlm_ctx);CHKERRQ(ierr);
