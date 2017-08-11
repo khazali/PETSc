@@ -1287,6 +1287,7 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
     ierr = PetscObjectCompose((PetscObject)ts,"_ts_splitJac",(PetscObject)container);CHKERRQ(ierr);
     ierr = PetscContainerDestroy(&container);CHKERRQ(ierr);
   }
+  splitJ->splitdone = PETSC_FALSE;
 
   /* wrap application context in a container, so that it will be destroyed when calling TSDestroy on lts */
   ierr = PetscContainerCreate(PetscObjectComm((PetscObject)(*lts)),&container);CHKERRQ(ierr);
@@ -1314,11 +1315,6 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
   ierr = TSSetOptionsPrefix(*lts,"tlm_");CHKERRQ(ierr);
   ierr = TSAppendOptionsPrefix(*lts,prefix);CHKERRQ(ierr);
   ierr = TSSetFromOptions(*lts);CHKERRQ(ierr);
-
-  /* preliminary support for time-independent problems */
-  ierr = TSGetOptionsPrefix(*lts,&prefix);CHKERRQ(ierr);
-  ierr = PetscOptionsGetBool(NULL,prefix,"-time_independent",&splitJ->timeindep,NULL);CHKERRQ(ierr);
-  splitJ->splitdone = PETSC_FALSE;
 
   /* tangent linear model ODE is linear */
   ierr = TSSetProblemType(*lts,TS_LINEAR);CHKERRQ(ierr);
@@ -1441,17 +1437,17 @@ static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
     ierr = VecLockPush(tlm->W[0]);CHKERRQ(ierr);
     ierr = VecLockPush(tlm->W[1]);CHKERRQ(ierr);
   }
+  ierr = PetscObjectReference((PetscObject)prop->design);CHKERRQ(ierr);
+  ierr = VecDestroy(&tlm->design);CHKERRQ(ierr);
+  tlm->design = prop->design;
+
+  /* initialize tlm->W[2] if needed */
   ierr = VecSet(tlm->W[2],0.0);CHKERRQ(ierr);
   if (tlm->model->F_m) {
     TS ts = tlm->model;
-    ierr = PetscObjectReference((PetscObject)prop->design);CHKERRQ(ierr);
-    ierr = VecDestroy(&tlm->design);CHKERRQ(ierr);
-    tlm->design = prop->design;
-    if (ts->F_m_f) { /* non constant dependence */
-      ierr = TSTrajectoryUpdateHistoryVecs(ts->trajectory,ts,prop->t0,tlm->W[0],tlm->W[1]);CHKERRQ(ierr);
-      ierr = (*ts->F_m_f)(ts,prop->t0,tlm->W[0],tlm->W[1],tlm->design,ts->F_m,ts->F_m_ctx);CHKERRQ(ierr);
+    if (!ts->F_m_f) { /* constant dependence */
+      ierr = MatMult(ts->F_m,tlm->mdelta,tlm->W[2]);CHKERRQ(ierr);
     }
-    ierr = MatMult(ts->F_m,tlm->mdelta,tlm->W[2]);CHKERRQ(ierr);
   }
 
   /* sample initial condition dependency */
