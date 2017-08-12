@@ -83,13 +83,52 @@ struct _TSTrajectoryOps {
   PetscErrorCode (*destroy)(TSTrajectory);
   PetscErrorCode (*set)(TSTrajectory,TS,PetscInt,PetscReal,Vec);
   PetscErrorCode (*get)(TSTrajectory,TS,PetscInt,PetscReal*);
-  PetscErrorCode (*getvecs)(TSTrajectory,TS,PetscInt,PetscReal*,Vec,Vec);
   PetscErrorCode (*setfromoptions)(PetscOptionItems*,TSTrajectory);
   PetscErrorCode (*setup)(TSTrajectory,TS);
 };
 
+/* TSHistory is an helper object that allows inquiring
+   the TSTrajectory by time and not by the step number only */
+struct _n_TSHistory {
+  PetscReal *hist;    /* time history */
+  PetscInt  *hist_id; /* stores the stepid in time history */
+  PetscInt  n;        /* current number of steps stored */
+  PetscBool sorted;   /* if the history is sorted in ascending order */
+  PetscReal c;        /* current capacity of hist */
+  PetscReal s;        /* reallocation size */
+};
+typedef struct _n_TSHistory* TSHistory;
+
 struct _p_TSTrajectory {
   PETSCHEADER(struct _TSTrajectoryOps);
+  TSHistory tsh;        /* associates times to unique step ids */
+  /* stores necessary data to reconstruct states and derivatives via Lagrangian interpolation */
+  struct {
+    PetscInt    order;  /* interpolation order */
+    Vec         *W;     /* work vectors */
+    PetscScalar *L;     /* workspace for Lagrange basis */
+    PetscReal   *T;     /* Lagrange times (stored) */
+    Vec         *WW;    /* just an array of pointers */
+    PetscBool   *TT;    /* workspace for Lagrange */
+    PetscReal   *TW;    /* Lagrange times (workspace) */
+
+    /* caching */
+    PetscBool     caching;
+    struct {
+      PetscObjectId    id;
+      PetscObjectState state;
+      PetscReal        time;
+      PetscInt         step;
+    } Ucached;
+    struct {
+      PetscObjectId    id;
+      PetscObjectState state;
+      PetscReal        time;
+      PetscInt         step;
+    } Udotcached;
+  } lag;
+  PetscBool      solution_only;           /* whether we dump just the solution or also the stages */
+  PetscBool      adjoint_solve_mode;      /* whether we will use the Trajectory inside a TSAdjointSolve() or not */
   PetscViewer    monitor;
   PetscInt       setupcalled;             /* true if setup has been called */
   PetscInt       recomps;                 /* counter for recomputations in the adjoint run */
@@ -427,4 +466,8 @@ PETSC_STATIC_INLINE PetscErrorCode TSCheckImplicitTerm(TS ts)
 
 PETSC_EXTERN PetscLogEvent TSTrajectory_Set, TSTrajectory_Get, TSTrajectory_DiskWrite, TSTrajectory_DiskRead;
 
+PETSC_INTERN PetscErrorCode TSHistoryDestroy(TSHistory);
+PETSC_INTERN PetscErrorCode TSHistoryGetLocFromTime(TSHistory,PetscReal,PetscInt*);
+PETSC_INTERN PetscErrorCode TSHistoryUpdate(TSHistory,PetscInt,PetscReal);
+PETSC_INTERN PetscErrorCode TSTrajectoryReconstruct_Private(TSTrajectory,TS,PetscReal,Vec,Vec);
 #endif

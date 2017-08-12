@@ -237,7 +237,6 @@ static PetscErrorCode TSGradientICApply(TS ts, Vec x, Vec y, PetscBool transpose
 /* Updates history vectors U and Udot, if present */
 static PetscErrorCode TSTrajectoryUpdateHistoryVecs(TSTrajectory tj, TS ts, PetscReal time, Vec U, Vec Udot)
 {
-  PetscInt       step = PETSC_MIN_INT; /* inquire TSTrajectoryGetVecs by the time argument */
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -248,7 +247,7 @@ static PetscErrorCode TSTrajectoryUpdateHistoryVecs(TSTrajectory tj, TS ts, Pets
   if (Udot) PetscValidHeaderSpecific(Udot,VEC_CLASSID,5);
   if (U)    { ierr = VecLockPop(U);CHKERRQ(ierr); }
   if (Udot) { ierr = VecLockPop(Udot);CHKERRQ(ierr); }
-  ierr = TSTrajectoryGetVecs(ts->trajectory,ts,step,&time,U,Udot);CHKERRQ(ierr);
+  ierr = TSTrajectoryGetVecs(ts->trajectory,ts,PETSC_DECIDE,&time,U,Udot);CHKERRQ(ierr);
   if (U)    { ierr = VecLockPush(U);CHKERRQ(ierr); }
   if (Udot) { ierr = VecLockPush(Udot);CHKERRQ(ierr); }
   PetscFunctionReturn(0);
@@ -1083,7 +1082,10 @@ static PetscErrorCode TSEvaluateObjectiveGradient_Private(TS ts, Vec X, Vec desi
   otrj = ts->trajectory;
   ierr = TSTrajectoryCreate(PetscObjectComm((PetscObject)ts),&ts->trajectory);CHKERRQ(ierr);
   ierr = TSTrajectorySetType(ts->trajectory,ts,TSTRAJECTORYBASIC);CHKERRQ(ierr);
+  ierr = TSTrajectorySetSolutionOnly(ts->trajectory,PETSC_TRUE);CHKERRQ(ierr);
   ierr = TSTrajectorySetFromOptions(ts->trajectory,ts);CHKERRQ(ierr);
+  /* we don't have an API for this right now */
+  ts->trajectory->adjoint_solve_mode = PETSC_FALSE;
   ierr = PetscObjectTypeCompare((PetscObject)ts->trajectory,TSTRAJECTORYBASIC,&isbasic);CHKERRQ(ierr);
   if (!isbasic) SETERRQ1(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"TSTrajectory type %s",((PetscObject)ts->trajectory)->type_name);
 
@@ -1501,7 +1503,10 @@ static PetscErrorCode MatPropagatorUpdate_Propagator(Mat A, PetscReal t0, PetscR
   otrj = prop->model->trajectory;
   ierr = TSTrajectoryCreate(PetscObjectComm((PetscObject)prop->model),&prop->model->trajectory);CHKERRQ(ierr);
   ierr = TSTrajectorySetType(prop->model->trajectory,prop->model,TSTRAJECTORYBASIC);CHKERRQ(ierr);
+  ierr = TSTrajectorySetSolutionOnly(prop->model->trajectory,PETSC_TRUE);CHKERRQ(ierr);
   ierr = TSTrajectorySetFromOptions(prop->model->trajectory,prop->model);CHKERRQ(ierr);
+  /* we don't have an API for this right now */
+  prop->model->trajectory->adjoint_solve_mode = PETSC_FALSE;
   ierr = PetscObjectTypeCompare((PetscObject)prop->model->trajectory,TSTRAJECTORYBASIC,&isbasic);CHKERRQ(ierr);
   if (!isbasic) SETERRQ1(PetscObjectComm((PetscObject)prop->model),PETSC_ERR_SUP,"TSTrajectory type %s",((PetscObject)prop->model->trajectory)->type_name);
   ierr = TSSetStepNumber(prop->model,0);CHKERRQ(ierr);
