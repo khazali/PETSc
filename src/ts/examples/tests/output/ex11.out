@@ -203,21 +203,3 @@ Requested by GetVecs 0 1: stepnum -1, time 0.1
       TSTrajectoryGet: stepnum 9, stages 0
   Interpolating derivative with 4 snapshots
 df(0.1) = 0.03 (reconstructed 0.03)
-==17415== 8 bytes in 1 blocks are still reachable in loss record 1 of 1
-==17415==    at 0x4C2DB9D: malloc (/builddir/build/BUILD/valgrind-3.12.0/coregrind/m_replacemalloc/vg_replace_malloc.c:299)
-==17415==    by 0xB1637C8: ??? (in /usr/lib64/libgomp.so.1.0.0)
-==17415==    by 0xB1730D7: ??? (in /usr/lib64/libgomp.so.1.0.0)
-==17415==    by 0xB161DF5: ??? (in /usr/lib64/libgomp.so.1.0.0)
-==17415==    by 0x4010A39: call_init.part.0 (in /usr/lib64/ld-2.24.so)
-==17415==    by 0x4010B4A: _dl_init (in /usr/lib64/ld-2.24.so)
-==17415==    by 0x4000D09: ??? (in /usr/lib64/ld-2.24.so)
-==17415==    by 0x7: ???
-==17415==    by 0xFFEFFFAA2: ???
-==17415==    by 0xFFEFFFAA9: ???
-==17415==    by 0xFFEFFFAC0: ???
-==17415==    by 0xFFEFFFAC3: ???
-==17415==    by 0xFFEFFFAC5: ???
-==17415==    by 0xFFEFFFAE9: ???
-==17415==    by 0xFFEFFFAEB: ???
-==17415==    by 0xFFEFFFAF8: ???
-==17415== 
