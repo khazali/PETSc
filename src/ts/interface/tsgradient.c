@@ -1013,6 +1013,7 @@ static PetscErrorCode TSEvaluateObjective_Private(TS ts, Vec X, Vec design, Vec 
   /* solution vector */
   destroyX = PETSC_FALSE;
   ierr = TSGetSolution(ts,&U);CHKERRQ(ierr);
+  ierr = PetscObjectReference((PetscObject)U);CHKERRQ(ierr);
   if (!X) {
     if (!U) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Missing solution vector");
     ierr = VecDuplicate(U,&X);CHKERRQ(ierr);
@@ -1059,6 +1060,7 @@ static PetscErrorCode TSEvaluateObjective_Private(TS ts, Vec X, Vec design, Vec 
   if (U) {
     ierr = TSSetSolution(ts,U);CHKERRQ(ierr);
   }
+  ierr = PetscObjectDereference((PetscObject)U);CHKERRQ(ierr);
   if (destroyX) {
     ierr = VecDestroy(&X);CHKERRQ(ierr);
   }

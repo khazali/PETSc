@@ -222,11 +222,13 @@ PetscErrorCode TSTrajectoryGetVecs(TSTrajectory tj,TS ts,PetscInt stepnum,PetscR
     Vec osol;
 
     ierr = TSGetSolution(ts,&osol);CHKERRQ(ierr);
+    ierr = PetscObjectReference((PetscObject)osol);CHKERRQ(ierr);
     ierr = TSSetSolution(ts,U);CHKERRQ(ierr);
     ierr = TSTrajectoryGet(tj,ts,stepnum,time);CHKERRQ(ierr);
     if (osol) {
       ierr = TSSetSolution(ts,osol);CHKERRQ(ierr);
     }
+    ierr = PetscObjectDereference((PetscObject)osol);CHKERRQ(ierr);
     ierr = PetscObjectStateGet((PetscObject)U,&tj->lag.Ucached.state);CHKERRQ(ierr);
     ierr = PetscObjectGetId((PetscObject)U,&tj->lag.Ucached.id);CHKERRQ(ierr);
     tj->lag.Ucached.time = *time;
