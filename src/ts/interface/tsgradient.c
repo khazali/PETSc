@@ -652,8 +652,8 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   ierr = TSGetTolerances(ts,&atol,&vatol,&rtol,&vrtol);CHKERRQ(ierr);
   ierr = TSSetTolerances(*adjts,atol,vatol,rtol,vrtol);CHKERRQ(ierr);
   if (ts->adapt) {
-    ierr = PetscObjectReference((PetscObject)ts->adapt);CHKERRQ(ierr);
-    (*adjts)->adapt = ts->adapt;
+    ierr = TSAdaptCreate(PetscObjectComm((PetscObject)*adjts),&(*adjts)->adapt);CHKERRQ(ierr);
+    ierr = TSAdaptSetType((*adjts)->adapt,((PetscObject)ts->adapt)->type_name);CHKERRQ(ierr);
   }
 
   /* application context */
@@ -1114,6 +1114,21 @@ static PetscErrorCode TSEvaluateObjectiveGradient_Private(TS ts, Vec X, Vec desi
   ierr = AdjointTSEventHandler(adjts);CHKERRQ(ierr);
   ierr = TSSetFromOptions(adjts);CHKERRQ(ierr);
   ierr = AdjointTSSetTimeLimits(adjts,t0,tf);CHKERRQ(ierr);
+  if (adjts->adapt) {
+    PetscBool istrj;
+
+    ierr = PetscObjectTypeCompare((PetscObject)adjts->adapt,TSADAPTTRAJECTORY,&istrj);CHKERRQ(ierr);
+    ierr = TSAdaptTrajectorySetTrajectory(adjts->adapt,ts->trajectory,PETSC_TRUE);CHKERRQ(ierr);
+    if (!istrj) {
+      ierr = TSSetMaxSteps(adjts,PETSC_MAX_INT);CHKERRQ(ierr);
+      ierr = TSSetExactFinalTime(adjts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
+    } else {
+      PetscInt nsteps = ts->trajectory->tsh->n;
+
+      ierr = TSSetMaxSteps(adjts,nsteps);CHKERRQ(ierr);
+      ierr = TSSetExactFinalTime(adjts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
+    }
+  }
   ierr = TSSolve(adjts,NULL);CHKERRQ(ierr);
   ierr = AdjointTSComputeFinalGradient(adjts);CHKERRQ(ierr);
   ierr = TSDestroy(&adjts);CHKERRQ(ierr);
@@ -1266,10 +1281,8 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
   ierr = TSSetType(*lts,type);CHKERRQ(ierr);
   ierr = TSGetTolerances(ts,&atol,&vatol,&rtol,&vrtol);CHKERRQ(ierr);
   ierr = TSSetTolerances(*lts,atol,vatol,rtol,vrtol);CHKERRQ(ierr);
-  if (ts->adapt) {
-    ierr = PetscObjectReference((PetscObject)ts->adapt);CHKERRQ(ierr);
-    (*lts)->adapt = ts->adapt;
-  }
+  ierr = TSAdaptCreate(PetscObjectComm((PetscObject)*lts),&(*lts)->adapt);CHKERRQ(ierr);
+  ierr = TSAdaptSetType((*lts)->adapt,TSADAPTTRAJECTORY);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)(*lts),"TSComputeSplitJacobians_C",TLMTSComputeSplitJacobians);CHKERRQ(ierr);
 
   ierr = PetscNew(&tlm_ctx);CHKERRQ(ierr);
@@ -1337,7 +1350,6 @@ typedef struct {
   Vec          design;
   TSTrajectory tj;
   PetscReal    t0;
-  PetscReal    dt;
   PetscReal    tf;
 } MatPropagator_Ctx;
 
@@ -1374,6 +1386,8 @@ static PetscErrorCode MatMultTranspose_Propagator(Mat A, Vec x, Vec y)
   Vec               lambda;
   TLMTS_Ctx         *tlm;
   PetscErrorCode    ierr;
+  PetscBool         istrj;
+  PetscReal         dt;
   TSTrajectory      otrj;
 
   PetscFunctionBegin;
@@ -1409,10 +1423,22 @@ static PetscErrorCode MatMultTranspose_Propagator(Mat A, Vec x, Vec y)
   ierr = AdjointTSSetInitialGradient(prop->adjlts,y);CHKERRQ(ierr);
   ierr = TSSetStepNumber(prop->adjlts,0);CHKERRQ(ierr);
   ierr = TSSetTime(prop->adjlts,prop->t0);CHKERRQ(ierr);
-  ierr = TSSetTimeStep(prop->adjlts,prop->dt);CHKERRQ(ierr);
-  ierr = TSSetMaxSteps(prop->adjlts,PETSC_MAX_INT);CHKERRQ(ierr);
+  ierr = TSHistoryGetTimeStep(prop->tj->tsh,PETSC_TRUE,0,&dt);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(prop->adjlts,dt);CHKERRQ(ierr);
+  if (prop->adjlts->adapt) {
+    ierr = PetscObjectTypeCompare((PetscObject)prop->adjlts->adapt,TSADAPTTRAJECTORY,&istrj);CHKERRQ(ierr);
+    ierr = TSAdaptTrajectorySetTrajectory(prop->adjlts->adapt,prop->tj,PETSC_TRUE);CHKERRQ(ierr);
+  }
+  if (!istrj) {
+    ierr = TSSetMaxSteps(prop->adjlts,PETSC_MAX_INT);CHKERRQ(ierr);
+    ierr = TSSetExactFinalTime(prop->adjlts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
+  } else {
+    PetscInt nsteps = prop->tj->tsh->n;
+
+    ierr = TSSetMaxSteps(prop->adjlts,nsteps);CHKERRQ(ierr);
+    ierr = TSSetExactFinalTime(prop->adjlts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
+  }
   ierr = TSSetMaxTime(prop->adjlts,prop->tf);CHKERRQ(ierr);
-  ierr = TSSetExactFinalTime(prop->adjlts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   ierr = TSSolve(prop->adjlts,NULL);CHKERRQ(ierr);
   ierr = AdjointTSComputeFinalGradient(prop->adjlts);CHKERRQ(ierr);
   prop->lts->trajectory = NULL;
@@ -1426,12 +1452,15 @@ static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
   MatPropagator_Ctx *prop;
   TLMTS_Ctx         *tlm;
   PetscErrorCode    ierr;
+  PetscReal         dt;
   TSTrajectory      otrj;
 
   PetscFunctionBegin;
   ierr = MatShellGetContext(A,(void **)&prop);CHKERRQ(ierr);
   otrj = prop->model->trajectory;
   prop->model->trajectory = prop->tj;
+  ierr = TSAdaptTrajectorySetTrajectory(prop->lts->adapt,prop->tj,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = TSHistoryGetTimeStep(prop->tj->tsh,PETSC_FALSE,0,&dt);CHKERRQ(ierr);
   ierr = TSGetApplicationContext(prop->lts,&tlm);CHKERRQ(ierr);
   if (!tlm->mdelta) {
     ierr = VecDuplicate(x,&tlm->mdelta);CHKERRQ(ierr);
@@ -1466,7 +1495,7 @@ static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
 
   ierr = TSSetStepNumber(prop->lts,0);CHKERRQ(ierr);
   ierr = TSSetTime(prop->lts,prop->t0);CHKERRQ(ierr);
-  ierr = TSSetTimeStep(prop->lts,prop->dt);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(prop->lts,dt);CHKERRQ(ierr);
   ierr = TSSetMaxSteps(prop->lts,PETSC_MAX_INT);CHKERRQ(ierr);
   ierr = TSSetMaxTime(prop->lts,prop->tf);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(prop->lts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
@@ -1495,7 +1524,6 @@ static PetscErrorCode MatPropagatorUpdate_Propagator(Mat A, PetscReal t0, PetscR
   ierr = VecCopy(design,prop->design);CHKERRQ(ierr);
   ierr = VecLockPush(prop->design);CHKERRQ(ierr);
   prop->t0 = t0;
-  prop->dt = dt;
   prop->tf = tf;
   ierr = TSTrajectoryDestroy(&prop->tj);CHKERRQ(ierr);
 

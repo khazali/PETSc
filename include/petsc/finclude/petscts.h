@@ -49,9 +49,10 @@
 #define TSGLLEADAPT_BOTH 'both'
 
 #define TSAdaptType character*(80)
-#define TSADAPTBASIC 'basic'
-#define TSADAPTNONE  'none'
-#define TSADAPTCFL   'cfl'
+#define TSADAPTBASIC      'basic'
+#define TSADAPTNONE       'none'
+#define TSADAPTCFL        'cfl'
+#define TSADAPTTRAJECTORY 'trajectory'
 
 #define TSRKType character*(80)
 #define TSRK1FE   '1fe'

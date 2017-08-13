@@ -318,6 +318,7 @@ struct _p_TSAdapt {
   PetscReal   clip[2];            /* admissible time step decrease/increase factors */
   PetscReal   dt_min,dt_max;      /* admissible minimum and maximum time step */
   PetscReal   scale_solve_failed; /* scale step by this factor if solver (linear or nonlinear) fails. */
+  PetscReal   matchstepfac[2];    /* factors to control the behaviour of matchstep */
   NormType    wnormtype;
   PetscViewer monitor;
   PetscInt    timestepjustincreased;
@@ -469,5 +470,6 @@ PETSC_EXTERN PetscLogEvent TSTrajectory_Set, TSTrajectory_Get, TSTrajectory_Disk
 PETSC_INTERN PetscErrorCode TSHistoryDestroy(TSHistory);
 PETSC_INTERN PetscErrorCode TSHistoryGetLocFromTime(TSHistory,PetscReal,PetscInt*);
 PETSC_INTERN PetscErrorCode TSHistoryUpdate(TSHistory,PetscInt,PetscReal);
+PETSC_INTERN PetscErrorCode TSHistoryGetTimeStep(TSHistory,PetscBool,PetscInt,PetscReal*);
 PETSC_INTERN PetscErrorCode TSTrajectoryReconstruct_Private(TSTrajectory,TS,PetscReal,Vec,Vec);
 #endif

@@ -29,6 +29,14 @@ PetscErrorCode TSHistoryUpdate(TSHistory tsh, PetscInt id, PetscReal time)
   PetscFunctionReturn(0);
 }
 
+PetscErrorCode TSHistoryGetTimeStep(TSHistory tsh, PetscBool backward, PetscInt step, PetscReal *dt)
+{
+  PetscFunctionBegin;
+  if (step < 0 || step > tsh->n) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Given time step %D does not match any in history [0,%D]",step,tsh->n);
+  if (!backward) *dt = tsh->hist[PetscMin(step+1,tsh->n-1)] - tsh->hist[PetscMin(step,tsh->n-1)];
+  else           *dt = tsh->hist[PetscMax(tsh->n-step-1,0)] - tsh->hist[PetscMax(tsh->n-step-2,0)];
+  PetscFunctionReturn(0);
+}
 
 PetscErrorCode TSHistoryGetLocFromTime(TSHistory tsh, PetscReal time, PetscInt *loc)
 {
@@ -42,7 +50,6 @@ PetscErrorCode TSHistoryGetLocFromTime(TSHistory tsh, PetscReal time, PetscInt *
   ierr = PetscFindReal(time,tsh->n,tsh->hist,PETSC_SMALL,loc);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-
 
 PetscErrorCode TSHistoryDestroy(TSHistory tsh)
 {
