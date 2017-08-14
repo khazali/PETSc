@@ -18,30 +18,40 @@ typedef struct {
   PetscReal alpha,phi;
   PetscInt  p;
   PetscInt  q;
+  PetscReal sqrtru,sqrtrv,sqrtrh;
 } Model_SW;
 
-PetscErrorCode InitializeLambda(DM da,Vec lambda,PetscReal x,PetscReal y)
+PetscErrorCode ReInitializeLambda(DM da,Vec lambda,Vec U,PetscInt iob,Model_SW *sw)
 {
-   PetscInt i,j,Mx,My,xs,ys,xm,ym;
-   PetscErrorCode ierr;
-   Field **uarr;
-   PetscFunctionBegin;
+  PetscInt       i,j,Mx,My,xs,ys,xm,ym;
+  Field          **uarr,**larr;
+  char           filename[PETSC_MAX_PATH_LEN]="";
+  Vec            Uob;
+  PetscViewer    viewer;
+  PetscErrorCode ierr;
 
-   ierr = DMDAGetInfo(da,PETSC_IGNORE,&Mx,&My,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE);CHKERRQ(ierr);
-   /* locate the global i index for x and j index for y */
-   i = (PetscInt)(x/(2*PETSC_PI)*(Mx-1)); /* longitude */
-   j = (PetscInt)((2*y/PETSC_PI+0.5)*(My-1)); /* latitude */
-   ierr = DMDAGetCorners(da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+  PetscFunctionBegin;
+  ierr = VecDuplicate(U,&Uob);CHKERRQ(ierr);
+  ierr = PetscSNPrintf(filename,sizeof filename,"sw-%03d.obs",iob);CHKERRQ(ierr);
+  ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename,FILE_MODE_READ,&viewer);CHKERRQ(ierr);
+  ierr = VecLoad(Uob,viewer);CHKERRQ(ierr);
+  ierr = VecAYPX(Uob,-1,U);CHKERRQ(ierr);
 
-   if (xs <= i && i < xs+xm && ys <= j && j < ys+ym) {
-     /* the i,j vertex is on this process */
-     ierr = DMDAVecGetArray(da,lambda,&uarr);CHKERRQ(ierr);
-     uarr[j][i].h = 1.0;
-     ierr = DMDAVecRestoreArray(da,lambda,&uarr);CHKERRQ(ierr);
-   }
-   PetscFunctionReturn(0);
+  ierr = DMDAVecGetArray(da,lambda,&larr);CHKERRQ(ierr);
+  ierr = DMDAVecGetArray(da,Uob,&uarr);CHKERRQ(ierr);
+  ierr = DMDAGetInfo(da,PETSC_IGNORE,&Mx,&My,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE);CHKERRQ(ierr);
+  ierr = DMDAGetCorners(da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+  for (j=ys; j<ys+ym; j++) { /* latitude */
+    for (i=xs; i<xs+xm; i++) { /* longitude */
+      larr[j][i].u += uarr[j][i].u/sw->sqrtru;
+      larr[j][i].v += uarr[j][i].v/sw->sqrtrv;
+      larr[j][i].h += uarr[j][i].h/sw->sqrtrh;
+    }
+  }
+  ierr = DMDAVecRestoreArray(da,Uob,&uarr);CHKERRQ(ierr);
+  ierr = DMDAVecRestoreArray(da,lambda,&larr);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
 }
-
 
 PetscErrorCode InitialConditions(DM da,Vec U,Model_SW *sw)
 {
@@ -502,9 +512,71 @@ PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat BB,void *ptx)
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode OutputBIN(DM dm, const char *filename, PetscViewer *viewer)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = PetscViewerCreate(PetscObjectComm((PetscObject)dm),viewer);CHKERRQ(ierr);
+  ierr = PetscViewerSetType(*viewer,PETSCVIEWERBINARY);CHKERRQ(ierr);
+  ierr = PetscViewerFileSetMode(*viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
+  ierr = PetscViewerFileSetName(*viewer,filename);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*
+   Generate observations
+ */
+PetscErrorCode GenerateOBs(TS ts,Vec U,PetscInt nobs,Model_SW *sw)
+{
+  PetscInt       i,j,k,Mx,My,xs,ys,xm,ym;
+  PetscReal      randn;
+  Field          **uarr;
+  PetscInt       maxsteps;
+  Vec            Uob;
+  PetscRandom    rand;
+  char           filename[PETSC_MAX_PATH_LEN] = "";
+  PetscViewer    viewer;
+  DM             dm;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+  ierr = PetscRandomCreate(PetscObjectComm((PetscObject)dm),&rand);CHKERRQ(ierr);
+  ierr = VecDuplicate(U,&Uob);CHKERRQ(ierr);
+  ierr = TSGetMaxSteps(ts,&maxsteps);CHKERRQ(ierr);
+  maxsteps /= nobs;
+  for (k=0; k<nobs; k++) {
+    ierr = TSSetMaxSteps(ts,(k+1)*maxsteps);CHKERRQ(ierr);
+    ierr = TSSolve(ts,U);CHKERRQ(ierr);
+    ierr = VecCopy(U,Uob);CHKERRQ(ierr);
+    ierr = DMDAVecGetArray(dm,Uob,&uarr);CHKERRQ(ierr);
+    ierr = DMDAGetInfo(dm,PETSC_IGNORE,&Mx,&My,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE);CHKERRQ(ierr);
+    ierr = DMDAGetCorners(dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+
+    for (j=ys; j<ys+ym; j++) { /* latitude */
+      for (i=xs; i<xs+xm; i++) { /* longitude */
+        ierr = PetscRandomGetValue(rand,&randn); CHKERRQ(ierr);
+        uarr[j][i].u += sw->sqrtru*randn;
+        ierr = PetscRandomGetValue(rand,&randn); CHKERRQ(ierr);
+        uarr[j][i].v += sw->sqrtrv*randn;
+        ierr = PetscRandomGetValue(rand,&randn); CHKERRQ(ierr);
+        uarr[j][i].h += sw->sqrtrh*randn;
+      }
+    }
+    ierr = DMDAVecRestoreArray(dm,Uob,&uarr);CHKERRQ(ierr);
+    ierr = PetscSNPrintf(filename,sizeof filename,"sw-%03D.obs",k);CHKERRQ(ierr);
+    ierr = OutputBIN(dm,filename,&viewer);CHKERRQ(ierr);
+    ierr = VecView(Uob,viewer);CHKERRQ(ierr);
+    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
 int main(int argc,char **argv)
 {
   PetscBool      forwardonly;
+  PetscInt       i,nobs;
   TS             ts;
   Vec            U;
   DM             da;
@@ -520,8 +592,10 @@ int main(int argc,char **argv)
   sw.AngularSpeed = 7.292e-5;
   sw.p            = 4;
   sw.q            = 2;
+  nobs            = 2;
 
   ierr = PetscOptionsGetBool(NULL,NULL,"-forwardonly",&forwardonly,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(NULL,NULL,"-num_obs",&nobs,NULL);CHKERRQ(ierr);
   ierr = DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,150,75,PETSC_DECIDE,PETSC_DECIDE,3,4,NULL,NULL,&da);CHKERRQ(ierr);
   ierr = DMSetFromOptions(da);CHKERRQ(ierr);
   ierr = DMSetUp(da);CHKERRQ(ierr);
@@ -533,7 +607,7 @@ int main(int argc,char **argv)
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
   ierr = TSSetRHSFunction(ts,NULL,RHSFunction,&sw);CHKERRQ(ierr);
   ierr = TSSetRHSJacobian(ts,NULL,NULL,RHSJacobian,&sw);CHKERRQ(ierr);
-  ierr = TSSetType(ts,TSCN);CHKERRQ(ierr);
+  ierr = TSSetType(ts,TSRK);CHKERRQ(ierr);
   ierr = TSSetDM(ts,da);CHKERRQ(ierr);
 
   ierr = InitialConditions(da,U,&sw);CHKERRQ(ierr);
@@ -543,19 +617,27 @@ int main(int argc,char **argv)
   */
   if (!forwardonly) { ierr = TSSetSaveTrajectory(ts);CHKERRQ(ierr); }
 
-  ierr = TSSetMaxSteps(ts,3600);CHKERRQ(ierr);
   ierr = TSSetTime(ts,0.0);CHKERRQ(ierr);
-  ierr = TSSetTimeStep(ts,32.0);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,225.0);CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(ts,16);CHKERRQ(ierr); /* 3600 s */
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
 
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
-  ierr = TSSolve(ts,U);CHKERRQ(ierr);
+  ierr = GenerateOBs(ts,U,nobs,&sw);CHKERRQ(ierr);
+  //ierr = TSSolve(ts,U);CHKERRQ(ierr);
 
   if (!forwardonly) {
     ierr = VecDuplicate(U,&lambda[0]);CHKERRQ(ierr);
-    ierr = InitializeLambda(da,lambda[0],PETSC_PI,0);CHKERRQ(ierr);
     ierr = TSSetCostGradients(ts,1,lambda,NULL);CHKERRQ(ierr);
-    ierr = TSAdjointSolve(ts);CHKERRQ(ierr);
+    for (i=0; i<nobs; i++) {
+      TSTrajectory tj;
+      PetscReal    time;
+      ierr = TSGetTrajectory(ts,&tj);CHKERRQ(ierr);
+      ierr = TSTrajectoryGet(tj,ts,16/nobs*i,&time);CHKERRQ(ierr);
+      ierr = ReInitializeLambda(da,lambda[0],U,i,&sw);CHKERRQ(ierr);
+      ierr = TSAdjointSetSteps(ts,16/nobs);CHKERRQ(ierr);
+      ierr = TSAdjointSolve(ts);CHKERRQ(ierr);
+    }
     ierr = VecDestroy(&lambda[0]);CHKERRQ(ierr);
   }
 
