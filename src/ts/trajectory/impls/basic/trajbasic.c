@@ -73,6 +73,7 @@ static PetscErrorCode TSTrajectoryGet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
   ierr = TSGetSolution(ts,&Sol);CHKERRQ(ierr);
   ierr = PetscSNPrintf(filename,sizeof(filename),"%s/%s-%06d.%s",tjbasic->folder,tjbasic->basefilename,stepnum,tjbasic->ext);CHKERRQ(ierr);
   ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename,FILE_MODE_READ,&viewer);CHKERRQ(ierr);
+  ierr = PetscViewerPushFormat(viewer,PETSC_VIEWER_NATIVE);CHKERRQ(ierr);
   ierr = VecLoad(Sol,viewer);CHKERRQ(ierr);
   ierr = PetscViewerBinaryRead(viewer,t,1,NULL,PETSC_REAL);CHKERRQ(ierr);
   if (stepnum != 0 && !tj->solution_only) {
@@ -141,6 +142,7 @@ PETSC_EXTERN PetscErrorCode TSTrajectoryCreate_Basic(TSTrajectory tj,TS ts)
 
   ierr = PetscViewerCreate(PetscObjectComm((PetscObject)tj),&tjbasic->viewer);CHKERRQ(ierr);
   ierr = PetscViewerSetType(tjbasic->viewer,PETSCVIEWERBINARY);CHKERRQ(ierr);
+  ierr = PetscViewerPushFormat(tjbasic->viewer,PETSC_VIEWER_NATIVE);CHKERRQ(ierr);
   ierr = PetscViewerFileSetMode(tjbasic->viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
   ierr = PetscStrallocpy("./SA-data",&tjbasic->folder);CHKERRQ(ierr);
   ierr = PetscStrallocpy("SA",&tjbasic->basefilename);CHKERRQ(ierr);

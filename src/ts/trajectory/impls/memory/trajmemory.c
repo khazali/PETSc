@@ -223,7 +223,7 @@ static PetscErrorCode StackCreate(Stack *stack,PetscInt size,PetscInt ny)
 static PetscErrorCode StackDestroy(Stack *stack)
 {
   PetscInt       i,n;
-  StackElement   e;
+  StackElement   e = NULL;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -254,6 +254,7 @@ static PetscErrorCode OutputBIN(MPI_Comm comm,const char *filename,PetscViewer *
   PetscFunctionBegin;
   ierr = PetscViewerCreate(comm,viewer);CHKERRQ(ierr);
   ierr = PetscViewerSetType(*viewer,PETSCVIEWERBINARY);CHKERRQ(ierr);
+  ierr = PetscViewerPushFormat(*viewer,PETSC_VIEWER_NATIVE);CHKERRQ(ierr);
   ierr = PetscViewerFileSetMode(*viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
   ierr = PetscViewerFileSetName(*viewer,filename);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -674,7 +675,7 @@ static PetscErrorCode GetTrajN(TS ts,TJScheduler *tjsch,PetscInt stepnum)
 static PetscErrorCode GetTrajN_2(TS ts,TJScheduler *tjsch,PetscInt stepnum)
 {
   Stack          *stack = &tjsch->stack;
-  StackElement   e;
+  StackElement   e = NULL;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
