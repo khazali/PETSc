@@ -1585,8 +1585,8 @@ static PetscErrorCode MatMultTranspose_Propagator(Mat A, Vec x, Vec y)
   ierr = VecSet(tlm->W[2],0.0);CHKERRQ(ierr);
 
   /* sample initial condition dependency */
-  if (tlm->model->Ggrad) {
-    TS ts = tlm->model;
+  if (prop->lts->Ggrad) {
+    TS ts = prop->lts;
     ierr = (*ts->Ggrad)(ts,prop->t0,prop->x0,prop->design,ts->G_x,ts->G_m,ts->Ggrad_ctx);CHKERRQ(ierr);
   }
   ierr = TSSetFromOptions(prop->adjlts);CHKERRQ(ierr);
@@ -1654,19 +1654,19 @@ static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
 
   /* initialize tlm->W[2] if needed */
   ierr = VecSet(tlm->W[2],0.0);CHKERRQ(ierr);
-  if (tlm->model->F_m) {
-    TS ts = tlm->model;
+  if (prop->lts->F_m) {
+    TS ts = prop->lts;
     if (!ts->F_m_f) { /* constant dependence */
       ierr = MatMult(ts->F_m,tlm->mdelta,tlm->W[2]);CHKERRQ(ierr);
     }
   }
 
   /* sample initial condition dependency */
-  if (tlm->model->Ggrad) {
-    TS ts = tlm->model;
+  if (prop->lts->Ggrad) {
+    TS ts = prop->lts;
     ierr = (*ts->Ggrad)(ts,prop->t0,prop->x0,prop->design,ts->G_x,ts->G_m,ts->Ggrad_ctx);CHKERRQ(ierr);
   }
-  ierr = TSGradientICApply(prop->model,x,y,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = TSGradientICApply(prop->lts,x,y,PETSC_FALSE);CHKERRQ(ierr);
   ierr = VecScale(y,-1.0);CHKERRQ(ierr);
 
   ierr = TSSetStepNumber(prop->lts,0);CHKERRQ(ierr);
@@ -1762,8 +1762,27 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   /* creates the linear tangent model solver and its adjoint */
   ierr = TSCreateTLMTS(prop->model,&prop->lts);CHKERRQ(ierr);
   ierr = TSSetObjective(prop->lts,prop->tf,NULL,NULL,TLMTSRHS,NULL,NULL,NULL);CHKERRQ(ierr);
-  ierr = TSSetEvalGradient(prop->lts,prop->model->F_m,prop->model->F_m_f,prop->model->F_m_ctx);CHKERRQ(ierr);
-  ierr = TSSetEvalICGradient(prop->lts,prop->model->G_x,prop->model->G_m,prop->model->Ggrad,prop->model->Ggrad_ctx);CHKERRQ(ierr);
+  if (prop->model->F_m) {
+    ierr = TSSetEvalGradient(prop->lts,prop->model->F_m,prop->model->F_m_f,prop->model->F_m_ctx);CHKERRQ(ierr);
+  }
+  if (prop->model->G_m) {
+    ierr = TSSetEvalICGradient(prop->lts,prop->model->G_x,prop->model->G_m,prop->model->Ggrad,prop->model->Ggrad_ctx);CHKERRQ(ierr);
+  } else { /* we compute the dependence on u_0 by default */
+    Mat      G_m;
+    PetscInt m;
+
+    ierr = VecGetLocalSize(x0,&m);CHKERRQ(ierr);
+    ierr = MatCreate(PETSC_COMM_WORLD,&G_m);CHKERRQ(ierr);
+    ierr = MatSetSizes(G_m,m,m,PETSC_DECIDE,PETSC_DECIDE);CHKERRQ(ierr);
+    ierr = MatSetType(G_m,MATAIJ);CHKERRQ(ierr);
+    ierr = MatSeqAIJSetPreallocation(G_m,1,NULL);CHKERRQ(ierr);
+    ierr = MatMPIAIJSetPreallocation(G_m,1,NULL,0,NULL);CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(G_m,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(G_m,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatShift(G_m,-1.0);CHKERRQ(ierr);
+    ierr = TSSetEvalICGradient(prop->lts,NULL,G_m,NULL,NULL);CHKERRQ(ierr);
+    ierr = MatDestroy(&G_m);CHKERRQ(ierr);
+  }
   ierr = VecDuplicate(prop->x0,&X);CHKERRQ(ierr);
   ierr = TSSetSolution(prop->lts,X);CHKERRQ(ierr);
   ierr = VecDestroy(&X);CHKERRQ(ierr);
