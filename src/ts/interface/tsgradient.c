@@ -234,7 +234,7 @@ static PetscErrorCode TSGradientICApply(TS ts, Vec x, Vec y, PetscBool transpose
 }
 /* ------------------ Helper routines to update history vectors and compute split Jacobians, namespaced with TS ----------------------- */
 
-/* Updates history vectors U and Udot, if present */
+/* Updates history vectors U and Udot for a given (forward) time, if they are present */
 static PetscErrorCode TSTrajectoryUpdateHistoryVecs(TSTrajectory tj, TS ts, PetscReal time, Vec U, Vec Udot)
 {
   PetscErrorCode ierr;
@@ -332,7 +332,7 @@ static PetscErrorCode TSGetSplitJacobians(TS ts, Mat* JU, Mat *JUdot)
   PetscFunctionReturn(0);
 }
 
-/* Updates F_Udot (splitJ->J_Udot) and F_U + d/dt F_Udot (splitJ->J_U) at a given time */
+/* Updates F_Udot (splitJ->J_Udot) and F_U + d/dt F_Udot (splitJ->J_U) at a given (forward) time */
 static PetscErrorCode TSUpdateSplitJacobiansFromHistory(TS ts, PetscReal time, Vec U, Vec Udot)
 {
   PetscContainer c;
@@ -1076,7 +1076,6 @@ static PetscErrorCode TSEvaluateObjectiveGradient_Private(TS ts, Vec X, Vec desi
   TS             adjts;
   Vec            lambda;
   TSTrajectory   otrj;
-  PetscBool      isbasic;
   PetscReal      t0,tf,dt;
   PetscErrorCode ierr;
 
@@ -1088,8 +1087,7 @@ static PetscErrorCode TSEvaluateObjectiveGradient_Private(TS ts, Vec X, Vec desi
   ierr = TSTrajectorySetFromOptions(ts->trajectory,ts);CHKERRQ(ierr);
   /* we don't have an API for this right now */
   ts->trajectory->adjoint_solve_mode = PETSC_FALSE;
-  ierr = PetscObjectTypeCompare((PetscObject)ts->trajectory,TSTRAJECTORYBASIC,&isbasic);CHKERRQ(ierr);
-  if (!isbasic) SETERRQ1(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"TSTrajectory type %s",((PetscObject)ts->trajectory)->type_name);
+  ierr = TSTrajectorySetUp(ts->trajectory,ts);CHKERRQ(ierr);
 
   /* sample initial condition dependency */
   ierr = TSGetTime(ts,&t0);CHKERRQ(ierr);
@@ -1125,7 +1123,7 @@ static PetscErrorCode TSEvaluateObjectiveGradient_Private(TS ts, Vec X, Vec desi
     } else {
       PetscInt nsteps = ts->trajectory->tsh->n;
 
-      ierr = TSSetMaxSteps(adjts,nsteps);CHKERRQ(ierr);
+      ierr = TSSetMaxSteps(adjts,nsteps-1);CHKERRQ(ierr);
       ierr = TSSetExactFinalTime(adjts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
     }
   }
@@ -1435,7 +1433,7 @@ static PetscErrorCode MatMultTranspose_Propagator(Mat A, Vec x, Vec y)
   } else {
     PetscInt nsteps = prop->tj->tsh->n;
 
-    ierr = TSSetMaxSteps(prop->adjlts,nsteps);CHKERRQ(ierr);
+    ierr = TSSetMaxSteps(prop->adjlts,nsteps-1);CHKERRQ(ierr);
     ierr = TSSetExactFinalTime(prop->adjlts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   }
   ierr = TSSetMaxTime(prop->adjlts,prop->tf);CHKERRQ(ierr);
@@ -1496,9 +1494,9 @@ static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
   ierr = TSSetStepNumber(prop->lts,0);CHKERRQ(ierr);
   ierr = TSSetTime(prop->lts,prop->t0);CHKERRQ(ierr);
   ierr = TSSetTimeStep(prop->lts,dt);CHKERRQ(ierr);
-  ierr = TSSetMaxSteps(prop->lts,PETSC_MAX_INT);CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(prop->lts,prop->tj->tsh->n-1);CHKERRQ(ierr);
   ierr = TSSetMaxTime(prop->lts,prop->tf);CHKERRQ(ierr);
-  ierr = TSSetExactFinalTime(prop->lts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
+  ierr = TSSetExactFinalTime(prop->lts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   ierr = TSSolve(prop->lts,y);CHKERRQ(ierr);
   prop->tj = prop->model->trajectory;
   prop->model->trajectory = otrj;
@@ -1512,7 +1510,6 @@ static PetscErrorCode MatPropagatorUpdate_Propagator(Mat A, PetscReal t0, PetscR
   Vec               osol;
   TSTrajectory      otrj;
   MatPropagator_Ctx *prop;
-  PetscBool         isbasic;
   PetscErrorCode    ierr;
 
   PetscFunctionBegin;
@@ -1527,9 +1524,7 @@ static PetscErrorCode MatPropagatorUpdate_Propagator(Mat A, PetscReal t0, PetscR
   prop->tf = tf;
   ierr = TSTrajectoryDestroy(&prop->tj);CHKERRQ(ierr);
 
-  /* Solve the forward nonlinear model in the given time window */
-  ierr = TSGetSolution(prop->model,&osol);CHKERRQ(ierr);
-  ierr = VecCopy(prop->x0,osol);CHKERRQ(ierr);
+  /* Create trajectory object */
   otrj = prop->model->trajectory;
   ierr = TSTrajectoryCreate(PetscObjectComm((PetscObject)prop->model),&prop->model->trajectory);CHKERRQ(ierr);
   ierr = TSTrajectorySetType(prop->model->trajectory,prop->model,TSTRAJECTORYBASIC);CHKERRQ(ierr);
@@ -1537,8 +1532,11 @@ static PetscErrorCode MatPropagatorUpdate_Propagator(Mat A, PetscReal t0, PetscR
   ierr = TSTrajectorySetFromOptions(prop->model->trajectory,prop->model);CHKERRQ(ierr);
   /* we don't have an API for this right now */
   prop->model->trajectory->adjoint_solve_mode = PETSC_FALSE;
-  ierr = PetscObjectTypeCompare((PetscObject)prop->model->trajectory,TSTRAJECTORYBASIC,&isbasic);CHKERRQ(ierr);
-  if (!isbasic) SETERRQ1(PetscObjectComm((PetscObject)prop->model),PETSC_ERR_SUP,"TSTrajectory type %s",((PetscObject)prop->model->trajectory)->type_name);
+  ierr = TSTrajectorySetUp(prop->model->trajectory,prop->model);CHKERRQ(ierr);
+
+  /* Solve the forward nonlinear model in the given time window */
+  ierr = TSGetSolution(prop->model,&osol);CHKERRQ(ierr);
+  ierr = VecCopy(prop->x0,osol);CHKERRQ(ierr);
   ierr = TSSetStepNumber(prop->model,0);CHKERRQ(ierr);
   ierr = TSSetTime(prop->model,t0);CHKERRQ(ierr);
   ierr = TSSetTimeStep(prop->model,dt);CHKERRQ(ierr);

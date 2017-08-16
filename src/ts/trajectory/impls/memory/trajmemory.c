@@ -304,9 +304,9 @@ static PetscErrorCode StackDumpAll(TSTrajectory tj,TS ts,Stack *stack,PetscInt i
   PetscFunctionBegin;
   ierr = PetscObjectGetComm((PetscObject)ts,&comm);CHKERRQ(ierr);
   if (tj->monitor) {
-    ierr = PetscViewerASCIIAddTab(tj->monitor,((PetscObject)tj)->tablevel);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIPrintf(tj->monitor,"Dump stack to file\n");CHKERRQ(ierr);
-    ierr = PetscViewerASCIISubtractTab(tj->monitor,((PetscObject)tj)->tablevel);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPushTab(tj->monitor);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(tj->monitor,"Dump stack id %D to file\n",id);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPopTab(tj->monitor);CHKERRQ(ierr);
   }
   if (id == 1) {
     PetscMPIInt rank;
@@ -438,7 +438,7 @@ static PetscErrorCode DumpSingle(TSTrajectory tj,TS ts,Stack *stack,PetscInt id)
   ierr = PetscObjectGetComm((PetscObject)ts,&comm);CHKERRQ(ierr);
   if (tj->monitor) {
     ierr = PetscViewerASCIIAddTab(tj->monitor,((PetscObject)tj)->tablevel);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIPrintf(tj->monitor,"Load a single point from file\n");CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(tj->monitor,"Dump a single point from file\n");CHKERRQ(ierr);
     ierr = PetscViewerASCIISubtractTab(tj->monitor,((PetscObject)tj)->tablevel);CHKERRQ(ierr);
   }
   ierr = TSGetStepNumber(ts,&stepnum);CHKERRQ(ierr);
@@ -593,25 +593,45 @@ static PetscErrorCode SetTrajN(TS ts,TJScheduler *tjsch,PetscInt stepnum,PetscRe
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  if (ts->trajectory->adjoint_solve_mode) {
-    /* skip the last step */
-    if (ts->reason) { /* only affect the forward run */
-      /* update total_steps in the end of forward run */
-      if (stepnum != tjsch->total_steps) tjsch->total_steps = stepnum;
-      if (stack->solution_only) {
-        /* get rid of the solution at second last step */
-        ierr = StackPop(stack,&e);CHKERRQ(ierr);
-        ierr = ElementDestroy(stack,e);CHKERRQ(ierr);
-      }
-      PetscFunctionReturn(0);
+  /* skip the last step */
+  if (ts->reason) { /* only affect the forward run */
+    /* update total_steps in the end of forward run */
+    if (stepnum != tjsch->total_steps) tjsch->total_steps = stepnum;
+    if (stack->solution_only) {
+      /* get rid of the solution at second last step */
+      ierr = StackPop(stack,&e);CHKERRQ(ierr);
+      ierr = ElementDestroy(stack,e);CHKERRQ(ierr);
     }
-    /*  do not save trajectory at the recompute stage for solution_only mode */
-    if (stack->solution_only && tjsch->recompute) PetscFunctionReturn(0);
-    /* skip the first step for no_solution_only mode */
-    if (!stack->solution_only && stepnum == 0) PetscFunctionReturn(0);
+    PetscFunctionReturn(0);
   }
+  /*  do not save trajectory at the recompute stage for solution_only mode */
+  if (stack->solution_only && tjsch->recompute) PetscFunctionReturn(0);
+  /* skip the first step for no_solution_only mode */
+  if (!stack->solution_only && stepnum == 0) PetscFunctionReturn(0);
 
   /* resize the stack */
+  if (stack->top+1 == stack->stacksize) {
+    ierr = StackResize(stack,2*stack->stacksize);CHKERRQ(ierr);
+  }
+  /* update timenext for the previous step; necessary for step adaptivity */
+  if (stack->top > -1) {
+    ierr = StackTop(stack,&e);CHKERRQ(ierr);
+    e->timenext = ts->ptime;
+  }
+  if (stepnum < stack->top) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_MEMC,"Illegal modification of a non-top stack element");
+  ierr = ElementCreate(ts,stack,&e);CHKERRQ(ierr);
+  ierr = ElementSet(ts,stack,&e,stepnum,time,X);CHKERRQ(ierr);
+  ierr = StackPush(stack,e);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode SetTrajN_2(TS ts,TJScheduler *tjsch,PetscInt stepnum,PetscReal time,Vec X)
+{
+  Stack          *stack = &tjsch->stack;
+  StackElement   e;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
   if (stack->top+1 == stack->stacksize) {
     ierr = StackResize(stack,2*stack->stacksize);CHKERRQ(ierr);
   }
@@ -634,26 +654,33 @@ static PetscErrorCode GetTrajN(TS ts,TJScheduler *tjsch,PetscInt stepnum)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  if (ts->trajectory->adjoint_solve_mode) {
-    if (stepnum == tjsch->total_steps) {
-      ierr = TurnBackward(ts);CHKERRQ(ierr);
-      PetscFunctionReturn(0);
-    }
-    /* restore a checkpoint */
-    ierr = StackTop(stack,&e);CHKERRQ(ierr);
-    ierr = UpdateTS(ts,stack,e,PETSC_TRUE);CHKERRQ(ierr);
-    if (stack->solution_only) { /* recompute one step */
-      tjsch->recompute = PETSC_TRUE;
-      ierr = TurnForwardWithStepsize(ts,e->timenext-e->time);CHKERRQ(ierr);
-      ierr = ReCompute(ts,tjsch,e->stepnum,stepnum);CHKERRQ(ierr);
-    }
-    ierr = StackPop(stack,&e);CHKERRQ(ierr);
-    ierr = ElementDestroy(stack,e);CHKERRQ(ierr);
-  } else {
-    ierr = StackFind(stack,&e,stepnum);CHKERRQ(ierr);
-    if (stepnum != e->stepnum) SETERRQ2(PetscObjectComm((PetscObject)ts),PETSC_ERR_PLIB,"Inconsistent steps! %D != %D",stepnum,e->stepnum);
-    ierr = UpdateTS(ts,stack,e,PETSC_FALSE);CHKERRQ(ierr);
+  if (stepnum == tjsch->total_steps) {
+    ierr = TurnBackward(ts);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
   }
+  /* restore a checkpoint */
+  ierr = StackTop(stack,&e);CHKERRQ(ierr);
+  ierr = UpdateTS(ts,stack,e,PETSC_TRUE);CHKERRQ(ierr);
+  if (stack->solution_only) { /* recompute one step */
+    tjsch->recompute = PETSC_TRUE;
+    ierr = TurnForwardWithStepsize(ts,e->timenext-e->time);CHKERRQ(ierr);
+    ierr = ReCompute(ts,tjsch,e->stepnum,stepnum);CHKERRQ(ierr);
+  }
+  ierr = StackPop(stack,&e);CHKERRQ(ierr);
+  ierr = ElementDestroy(stack,e);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode GetTrajN_2(TS ts,TJScheduler *tjsch,PetscInt stepnum)
+{
+  Stack          *stack = &tjsch->stack;
+  StackElement   e;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = StackFind(stack,&e,stepnum);CHKERRQ(ierr);
+  if (stepnum != e->stepnum) SETERRQ2(PetscObjectComm((PetscObject)ts),PETSC_ERR_PLIB,"Inconsistent steps! %D != %D",stepnum,e->stepnum);
+  ierr = UpdateTS(ts,stack,e,PETSC_FALSE);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -671,7 +698,7 @@ static PetscErrorCode SetTrajTLNR(TSTrajectory tj,TS ts,TJScheduler *tjsch,Petsc
   if (tjsch->save_stack && tjsch->recompute) PetscFunctionReturn(0);
 
   localstepnum = stepnum%tjsch->stride;
-  /* (stride size-1) checkpoints are saved in each stride; an extra point is added by StackDumpAll() */
+  /* (stridesize-1) checkpoints are saved in each stride; an extra point is added by StackDumpAll() */
   laststridesize = tjsch->total_steps%tjsch->stride;
   if (!laststridesize) laststridesize = tjsch->stride;
 
@@ -1523,25 +1550,35 @@ static PetscErrorCode TSTrajectorySet_Memory(TSTrajectory tj,TS ts,PetscInt step
   if (!tjsch->recompute && stepnum == 0) ts->ptime_prev = ts->ptime-ts->time_step;
   switch (tjsch->stype) {
     case NONE:
-      ierr = SetTrajN(ts,tjsch,stepnum,time,X);CHKERRQ(ierr);
+      if (tj->adjoint_solve_mode) {
+        ierr = SetTrajN(ts,tjsch,stepnum,time,X);CHKERRQ(ierr);
+      } else {
+        ierr = SetTrajN_2(ts,tjsch,stepnum,time,X);CHKERRQ(ierr);
+      }
       break;
     case TWO_LEVEL_NOREVOLVE:
+      if (!tj->adjoint_solve_mode) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"Not implemented");
       ierr = SetTrajTLNR(tj,ts,tjsch,stepnum,time,X);CHKERRQ(ierr);
       break;
 #if defined(PETSC_HAVE_REVOLVE)
     case TWO_LEVEL_REVOLVE:
+      if (!tj->adjoint_solve_mode) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"Not implemented");
       ierr = SetTrajTLR(tj,ts,tjsch,stepnum,time,X);CHKERRQ(ierr);
       break;
     case TWO_LEVEL_TWO_REVOLVE:
+      if (!tj->adjoint_solve_mode) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"Not implemented");
       ierr = SetTrajTLTR(tj,ts,tjsch,stepnum,time,X);CHKERRQ(ierr);
       break;
     case REVOLVE_OFFLINE:
+      if (!tj->adjoint_solve_mode) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"Not implemented");
       ierr = SetTrajROF(tj,ts,tjsch,stepnum,time,X);CHKERRQ(ierr);
       break;
     case REVOLVE_ONLINE:
+      if (!tj->adjoint_solve_mode) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"Not implemented");
       ierr = SetTrajRON(tj,ts,tjsch,stepnum,time,X);CHKERRQ(ierr);
       break;
     case REVOLVE_MULTISTAGE:
+      if (!tj->adjoint_solve_mode) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"Not implemented");
       ierr = SetTrajRMS(tj,ts,tjsch,stepnum,time,X);CHKERRQ(ierr);
       break;
 #endif
@@ -1560,25 +1597,35 @@ static PetscErrorCode TSTrajectoryGet_Memory(TSTrajectory tj,TS ts,PetscInt step
   if (tj->adjoint_solve_mode && stepnum == 0) PetscFunctionReturn(0);
   switch (tjsch->stype) {
     case NONE:
-      ierr = GetTrajN(ts,tjsch,stepnum);CHKERRQ(ierr);
+      if (tj->adjoint_solve_mode) {
+        ierr = GetTrajN(ts,tjsch,stepnum);CHKERRQ(ierr);
+      } else {
+        ierr = GetTrajN_2(ts,tjsch,stepnum);CHKERRQ(ierr);
+      }
       break;
     case TWO_LEVEL_NOREVOLVE:
+      if (!tj->adjoint_solve_mode) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"Not implemented");
       ierr = GetTrajTLNR(tj,ts,tjsch,stepnum);CHKERRQ(ierr);
       break;
 #if defined(PETSC_HAVE_REVOLVE)
     case TWO_LEVEL_REVOLVE:
+      if (!tj->adjoint_solve_mode) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"Not implemented");
       ierr = GetTrajTLR(tj,ts,tjsch,stepnum);CHKERRQ(ierr);
       break;
     case TWO_LEVEL_TWO_REVOLVE:
+      if (!tj->adjoint_solve_mode) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"Not implemented");
       ierr = GetTrajTLTR(tj,ts,tjsch,stepnum);CHKERRQ(ierr);
       break;
     case REVOLVE_OFFLINE:
+      if (!tj->adjoint_solve_mode) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"Not implemented");
       ierr = GetTrajROF(tj,ts,tjsch,stepnum);CHKERRQ(ierr);
       break;
     case REVOLVE_ONLINE:
+      if (!tj->adjoint_solve_mode) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"Not implemented");
       ierr = GetTrajRON(tj,ts,tjsch,stepnum);CHKERRQ(ierr);
       break;
     case REVOLVE_MULTISTAGE:
+      if (!tj->adjoint_solve_mode) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"Not implemented");
       ierr = GetTrajRMS(tj,ts,tjsch,stepnum);CHKERRQ(ierr);
       break;
 #endif
@@ -1682,7 +1729,7 @@ static PetscErrorCode TSTrajectorySetUp_Memory(TSTrajectory tj,TS ts)
   PetscFunctionBegin;
   if (ts->adapt) {
     ierr = PetscObjectTypeCompare((PetscObject)ts->adapt,TSADAPTNONE,&flg);CHKERRQ(ierr);
-  } else flg = PETSC_FALSE;
+  } else flg = PETSC_TRUE;
   if (flg) tjsch->total_steps = PetscMin(ts->max_steps,(PetscInt)(PetscCeilReal((ts->max_time-ts->ptime)/ts->time_step))); /* fixed time step */
   if (tjsch->max_cps_ram > 0) stack->stacksize = tjsch->max_cps_ram;
 

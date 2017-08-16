@@ -699,7 +699,7 @@ runex22f_mf:
 	   ${RM} -f ex22f_mf_1.tmp petscshiftmod.mod
 
 runex23_1:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 1.1 -tf 2.3 -ts_type rk -use_fd -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 > ex23_1.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 1.1 -tf 2.3 -ts_type rk -use_fd -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 -ts_trajectory_type memory > ex23_1.tmp 2>&1; \
 	   ${DIFF} output/ex23_1.out ex23_1.tmp || printf "${PWD}\nPossible problem with ex23_1, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_1.tmp SA-data
 
