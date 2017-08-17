@@ -97,7 +97,7 @@ static PetscErrorCode TSGradientEvalObjectiveGradientU(TS ts, PetscReal time, Ve
 }
 
 /* Evaluates derivative (wrt the state) of objective functions of the type f(U,param,t = fixed)
-   These may lead to Dirac's delta terms in the adjoint ODE if the fixed time is in between (t0,tf) */
+   These may lead to Dirac's delta terms in the adjoint DAE if the fixed time is in between (t0,tf) */
 static PetscErrorCode TSGradientEvalObjectiveGradientUFixed(TS ts, PetscReal time, Vec state, Vec design, Vec work, Vec out)
 {
   PetscErrorCode ierr;
@@ -155,7 +155,7 @@ static PetscErrorCode TSGradientEvalObjectiveGradientM(TS ts, PetscReal time, Ve
 
 /*
    Evaluates derivative (wrt the parameters) of objective functions of the type f(U,param,t = tfixed)
-   Regularizers fall into this category. They don't contribute to the adjoint ODE, only to the gradient
+   Regularizers fall into this category. They don't contribute to the adjoint DAE, only to the gradient
    They are evaluated in TSGradientPostStep
 */
 static PetscErrorCode TSGradientEvalObjectiveGradientMFixed(TS ts, PetscReal ptime, PetscReal time, Vec state, Vec design, Vec work, Vec out)
@@ -265,7 +265,7 @@ typedef struct {
   PetscObjectState Astate;
   PetscObjectId    Aid;
   PetscBool        splitdone;
-  PetscBool        timeindep; /* true if the ODE is A Udot + B U -f = 0 */
+  PetscBool        timeindep; /* true if the DAE is A Udot + B U -f = 0 */
   Mat              J_U;       /* Jacobian : F_U (U,Udot,t) */
   Mat              J_Udot;    /* Jacobian : F_Udot(U,Udot,t) */
   Mat              J_dtUdot;  /* Jacobian : d/dt F_Udot(U,Udot,t) */
@@ -411,7 +411,7 @@ static PetscErrorCode TSComputeIJacobianWithSplits(TS ts, PetscReal time, Vec U,
   PetscFunctionReturn(0);
 }
 
-/* ------------------ Routines for adjoints of ODE, namespaced with AdjointTS ----------------------- */
+/* ------------------ Routines for adjoints of DAE, namespaced with AdjointTS ----------------------- */
 
 typedef struct {
   Vec       design;        /* design vector (fixed) */
@@ -458,9 +458,9 @@ static PetscErrorCode AdjointTSRHSJacobian(TS adjts, PetscReal time, Vec U, Mat 
 }
 
 /* The adjoint formulation I'm using assumes H(U,Udot,t) = 0
-   -> the forward ODE is Udot - G(U) = 0 ( -> H(U,Udot,t) := Udot - G(U) )
-   -> the adjoint ODE is F - L^T * G_U - Ldot^T in backward time (F the derivative of the objective wrt U)
-   -> the adjoint ODE is Ldot^T = L^T * G_U - F in forward time */
+   -> the forward DAE is Udot - G(U) = 0 ( -> H(U,Udot,t) := Udot - G(U) )
+   -> the adjoint DAE is F - L^T * G_U - Ldot^T in backward time (F the derivative of the objective wrt U)
+   -> the adjoint DAE is Ldot^T = L^T * G_U - F in forward time */
 static PetscErrorCode AdjointTSRHSFuncLinear(TS adjts, PetscReal time, Vec U, Vec F, void *ctx)
 {
   AdjointCtx     *adj_ctx;
@@ -478,9 +478,9 @@ static PetscErrorCode AdjointTSRHSFuncLinear(TS adjts, PetscReal time, Vec U, Ve
   PetscFunctionReturn(0);
 }
 
-/* Given the forward ODE : H(U,Udot,t) = 0
-   -> the adjoint ODE is : F - L^T * (H_U - d/dt H_Udot) - Ldot^T H_Udot = 0 (in backward time) (again, F is null for standard ODE adjoints)
-   -> the adjoint ODE is : Ldot^T H_Udot + L^T * (H_U + d/dt H_Udot) + F = 0 (in forward time) */
+/* Given the forward DAE : H(U,Udot,t) = 0
+   -> the adjoint DAE is : F - L^T * (H_U - d/dt H_Udot) - Ldot^T H_Udot = 0 (in backward time) (again, F is null for standard DAE adjoints)
+   -> the adjoint DAE is : Ldot^T H_Udot + L^T * (H_U + d/dt H_Udot) + F = 0 (in forward time) */
 static PetscErrorCode AdjointTSIFunctionLinear(TS adjts, PetscReal time, Vec U, Vec Udot, Vec F, void *ctx)
 {
   AdjointCtx     *adj_ctx;
@@ -648,7 +648,7 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
       eqtype != TS_EQ_IMPLICIT && eqtype != TS_EQ_ODE_IMPLICIT && eqtype != TS_EQ_DAE_SEMI_EXPLICIT_INDEX1)
       SETERRQ1(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"TSEquationType %D\n",eqtype);
   ierr = TSGetI2Function(ts,NULL,&i2func,NULL);CHKERRQ(ierr);
-  if (i2func) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Second order ODEs are not supported");
+  if (i2func) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Second order DAEs are not supported");
   ierr = TSCreate(PetscObjectComm((PetscObject)ts),adjts);CHKERRQ(ierr);
   ierr = TSGetType(ts,&type);CHKERRQ(ierr);
   ierr = TSSetType(*adjts,type);CHKERRQ(ierr);
@@ -732,7 +732,7 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   ierr = PetscOptionsGetBool(NULL,prefix,"-time_independent",&splitJ->timeindep,NULL);CHKERRQ(ierr);
   splitJ->splitdone = PETSC_FALSE;
 
-  /* adjoint ODE is linear */
+  /* adjoint DAE is linear */
   ierr = TSSetProblemType(*adjts,TS_LINEAR);CHKERRQ(ierr);
 
   /* use KSPSolveTranspose to solve the adjoint */
@@ -1364,7 +1364,7 @@ static PetscErrorCode TLMTSComputeSplitJacobians(TS ts, PetscReal time, Vec U, V
   PetscFunctionReturn(0);
 }
 
-/* The TLM ODE is J_Udot * U_dot + J_U * U + f = 0, with f = dH/dm * deltam */
+/* The TLM DAE is J_Udot * U_dot + J_U * U + f = 0, with f = dH/dm * deltam */
 static PetscErrorCode TLMTSIFunctionLinear(TS lts, PetscReal time, Vec U, Vec Udot, Vec F, void *ctx)
 {
   TLMTS_Ctx      *tlm_ctx;
@@ -1400,7 +1400,7 @@ static PetscErrorCode TLMTSIJacobian(TS lts, PetscReal time, Vec U, Vec Udot, Pe
   PetscFunctionReturn(0);
 }
 
-/* The TLM ODE is U_dot = J_U * U - f, with f = dH/dm * deltam */
+/* The TLM DAE is U_dot = J_U * U - f, with f = dH/dm * deltam */
 static PetscErrorCode TLMTSRHSFunctionLinear(TS lts, PetscReal time, Vec U, Vec F, void *ctx)
 {
   TLMTS_Ctx      *tlm_ctx;
@@ -1454,7 +1454,7 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidPointer(lts,2);
   ierr = TSGetI2Function(ts,NULL,&i2func,NULL);CHKERRQ(ierr);
-  if (i2func) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Second order ODEs are not supported");
+  if (i2func) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Second order DAEs are not supported");
   ierr = TSCreate(PetscObjectComm((PetscObject)ts),lts);CHKERRQ(ierr);
   ierr = TSGetType(ts,&type);CHKERRQ(ierr);
   ierr = TSSetType(*lts,type);CHKERRQ(ierr);
@@ -1494,7 +1494,7 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
   ierr = PetscObjectCompose((PetscObject)(*lts),"_ts_tlm_ctx",(PetscObject)container);CHKERRQ(ierr);
   ierr = PetscContainerDestroy(&container);CHKERRQ(ierr);
 
-  /* setup callbacks for the tangent linear model ODE: we reuse the same jacobian matrices of the forward model */
+  /* setup callbacks for the tangent linear model DAE: we reuse the same jacobian matrices of the forward model */
   ierr = TSGetIFunction(ts,NULL,&ifunc,NULL);CHKERRQ(ierr);
   ierr = TSGetRHSFunction(ts,NULL,&rhsfunc,NULL);CHKERRQ(ierr);
   if (ifunc) {
@@ -1514,7 +1514,7 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
   ierr = TSAppendOptionsPrefix(*lts,prefix);CHKERRQ(ierr);
   ierr = TSSetFromOptions(*lts);CHKERRQ(ierr);
 
-  /* tangent linear model ODE is linear */
+  /* tangent linear model DAE is linear */
   ierr = TSSetProblemType(*lts,TS_LINEAR);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -1741,6 +1741,13 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   ierr = VecGetSize(x0,&M);CHKERRQ(ierr);
   ierr = VecGetLocalSize(x0,&m);CHKERRQ(ierr);
   ierr = VecGetBlockSize(x0,&rbs);CHKERRQ(ierr);
+  if (!design) {
+    if (prop->model->G_m) {
+      ierr = MatCreateVecs(prop->model->G_m,&design,NULL);CHKERRQ(ierr);
+    } else {
+      ierr = VecDuplicate(x0,&design);CHKERRQ(ierr);
+    }
+  }
   ierr = VecGetSize(design,&N);CHKERRQ(ierr);
   ierr = VecGetLocalSize(design,&n);CHKERRQ(ierr);
   ierr = VecGetBlockSize(design,&cbs);CHKERRQ(ierr);
@@ -1813,12 +1820,13 @@ M*/
 .  dt     - the initial time step
 .  tf     - the final time
 .  x0     - the vector of initial conditions
--  design - the vector of design
+-  design - the vector of desig
 
    Output Parameters:
 .  A  - the Mat object
 
    Notes: Internally, the Mat object solves the Tangent Linear Model (TLM) during MatMult() and the adjoint of the TLM during MatMultTranspose().
+          The design vector can be NULL if the Jacobians (wrt to the parameters) of the DAE and of the initial conditions does not explicitly depend on it.
 
    Level: developer
 
@@ -1834,7 +1842,7 @@ PetscErrorCode TSCreatePropagatorMat(TS ts, PetscReal t0, PetscReal dt, PetscRea
   PetscValidLogicalCollectiveReal(ts,dt,3);
   PetscValidLogicalCollectiveReal(ts,tf,4);
   PetscValidHeaderSpecific(x0,VEC_CLASSID,5);
-  PetscValidHeaderSpecific(design,VEC_CLASSID,6);
+  if (design) PetscValidHeaderSpecific(design,VEC_CLASSID,6);
   PetscValidPointer(A,7);
   ierr = TSCreatePropagatorMat_Private(ts,t0,dt,tf,x0,design,A);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1958,7 +1966,8 @@ $  f(TS ts,PetscReal t,Vec u,Vec u_t,Vec m,Mat J,ctx);
 .  J   - the jacobian
 -  ctx - [optional] user-defined context
 
-   Notes: The J matrix doesn't need to assembled. For propagator computations, J needs to implement MatMult() and MatMultTranspose().
+   Notes: The layout of the J matrix has to be compatible with that of the state vector.
+          The matrix doesn't need to be in assembled form. For propagator computations, J needs to implement MatMult() and MatMultTranspose().
           For gradient computations, just its action via MatMultTranspose() is needed.
 
    Level: developer
@@ -1981,7 +1990,7 @@ PetscErrorCode TSSetEvalGradient(TS ts, Mat J, TSEvalGradient f, void *ctx)
 }
 
 /*
-   TSSetEvalICGradient - Sets the callback function to compute the matrices g_x(x0,m) and g_m(x0,m), if there is any dependence of the ODE initial conditions from the design parameters.
+   TSSetEvalICGradient - Sets the callback function to compute the matrices g_x(x0,m) and g_m(x0,m), if there is any dependence of the DAE initial conditions from the design parameters.
 
    Logically Collective on TS
 
