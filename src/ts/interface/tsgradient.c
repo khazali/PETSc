@@ -1493,11 +1493,14 @@ static PetscErrorCode TLMTSIFunctionLinear(TS lts, PetscReal time, Vec U, Vec Ud
 static PetscErrorCode TLMTSIJacobian(TS lts, PetscReal time, Vec U, Vec Udot, PetscReal shift, Mat A, Mat B, void *ctx)
 {
   TLMTS_Ctx      *tlm_ctx;
+  TS             model;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(lts,(void*)&tlm_ctx);CHKERRQ(ierr);
-  ierr = TSComputeIJacobianWithSplits(tlm_ctx->model,time,U,Udot,shift,A,B,ctx);CHKERRQ(ierr);
+  model = tlm_ctx->model;
+  ierr = TSTrajectoryUpdateHistoryVecs(model->trajectory,model,time,tlm_ctx->W[0],tlm_ctx->W[1]);CHKERRQ(ierr);
+  ierr = TSComputeIJacobian(model,time,tlm_ctx->W[0],tlm_ctx->W[1],shift,A,B,PETSC_TRUE);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
