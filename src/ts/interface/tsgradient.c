@@ -251,8 +251,9 @@ static PetscErrorCode TSGradientEvalObjectiveGradientMFixed(TS ts, PetscReal pti
    Apply "gradients" of initial conditions
    if transpose is true : y = G_x^-1 G_m x
    if transpose is false: y = G_m^t G_x^-T x
+   x0 is the Vector we linearize against to get G_x and G_m
 */
-static PetscErrorCode TSGradientICApply(TS ts, Vec x, Vec y, PetscBool transpose)
+static PetscErrorCode TSGradientICApply(TS ts, PetscReal t0, Vec x0, Vec design, Vec x, Vec y, PetscBool transpose)
 {
   PetscErrorCode ierr;
   KSP            ksp = NULL;
@@ -260,20 +261,27 @@ static PetscErrorCode TSGradientICApply(TS ts, Vec x, Vec y, PetscBool transpose
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  PetscValidHeaderSpecific(x,VEC_CLASSID,2);
-  PetscValidHeaderSpecific(y,VEC_CLASSID,3);
-  PetscValidLogicalCollectiveBool(ts,transpose,4);
+  PetscValidLogicalCollectiveReal(ts,t0,2);
+  PetscValidHeaderSpecific(x0,VEC_CLASSID,3);
+  PetscValidHeaderSpecific(design,VEC_CLASSID,4);
+  PetscValidHeaderSpecific(x,VEC_CLASSID,5);
+  PetscValidHeaderSpecific(y,VEC_CLASSID,6);
+  PetscValidLogicalCollectiveBool(ts,transpose,7);
   ierr = VecSet(y,0.0);CHKERRQ(ierr);
   if (!ts->G_m) PetscFunctionReturn(0);
+  if (ts->Ggrad) {
+    ierr = (*ts->Ggrad)(ts,t0,x0,design,ts->G_x,ts->G_m,ts->Ggrad_ctx);CHKERRQ(ierr);
+  }
   if (ts->G_x) { /* this is optional. If not provided, identity is assumed */
     ierr = PetscObjectQuery((PetscObject)ts,"_ts_gradient_G",(PetscObject*)&ksp);
     ierr = PetscObjectQuery((PetscObject)ts,"_ts_gradient_GW",(PetscObject*)&workvec);
     if (!ksp) {
       const char *prefix;
       ierr = KSPCreate(PetscObjectComm((PetscObject)ts),&ksp);CHKERRQ(ierr);
+      ierr = KSPSetTolerances(ksp,PETSC_SMALL,PETSC_SMALL,PETSC_DEFAULT,PETSC_DEFAULT);CHKERRQ(ierr);
       ierr = TSGetOptionsPrefix(ts,&prefix);CHKERRQ(ierr);
-      ierr = KSPSetOptionsPrefix(ksp,"G_");CHKERRQ(ierr);
-      ierr = KSPAppendOptionsPrefix(ksp,prefix);CHKERRQ(ierr);
+      ierr = KSPSetOptionsPrefix(ksp,prefix);CHKERRQ(ierr);
+      ierr = KSPAppendOptionsPrefix(ksp,"JacIC_");CHKERRQ(ierr);
       ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
       ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_G",(PetscObject)ksp);
       ierr = PetscObjectDereference((PetscObject)ksp);CHKERRQ(ierr);
@@ -1161,11 +1169,12 @@ static PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
     } else {
       Mat J_Udot;
 
-      ierr = TSUpdateSplitJacobiansFromHistory(adj_ctx->fwdts,adj_ctx->t0,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
-      ierr = TSGetSplitJacobians(adj_ctx->fwdts,NULL,&J_Udot);CHKERRQ(ierr);
+      ierr = TSUpdateSplitJacobiansFromHistory(fwdts,adj_ctx->t0,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
+      ierr = TSGetSplitJacobians(fwdts,NULL,&J_Udot);CHKERRQ(ierr);
       ierr = MatMultTranspose(J_Udot,lambda,adj_ctx->W[3]);CHKERRQ(ierr);
     }
-    ierr = TSGradientICApply(fwdts,adj_ctx->W[3],adj_ctx->wgrad[0],PETSC_TRUE);CHKERRQ(ierr);
+    ierr = TSTrajectoryUpdateHistoryVecs(fwdts->trajectory,fwdts,adj_ctx->t0,adj_ctx->W[0],NULL);CHKERRQ(ierr);
+    ierr = TSGradientICApply(fwdts,adj_ctx->t0,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],adj_ctx->wgrad[0],PETSC_TRUE);CHKERRQ(ierr);
     ierr = VecAXPY(adj_ctx->gradient,1.0,adj_ctx->wgrad[0]);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
@@ -1676,12 +1685,6 @@ static PetscErrorCode MatMultTranspose_Propagator(Mat A, Vec x, Vec y)
   }
   ierr = VecSet(tlm->W[2],0.0);CHKERRQ(ierr);
 
-  /* sample initial condition dependency */
-  if (prop->lts->Ggrad) {
-    TS ts = prop->lts;
-    ierr = (*ts->Ggrad)(ts,prop->t0,prop->x0,prop->design,ts->G_x,ts->G_m,ts->Ggrad_ctx);CHKERRQ(ierr);
-  }
-
   ierr = VecSet(y,0.0);CHKERRQ(ierr);
   ierr = AdjointTSSetDesign(prop->adjlts,prop->design);CHKERRQ(ierr);
   ierr = AdjointTSSetInitialGradient(prop->adjlts,y);CHKERRQ(ierr);
@@ -1759,12 +1762,8 @@ static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
   }
 
   /* sample initial condition dependency */
-  if (prop->lts->Ggrad) {
-    TS ts = prop->lts;
-    ierr = (*ts->Ggrad)(ts,prop->t0,prop->x0,prop->design,ts->G_x,ts->G_m,ts->Ggrad_ctx);CHKERRQ(ierr);
-  }
   ierr = TSGetSolution(prop->lts,&sol);CHKERRQ(ierr);
-  ierr = TSGradientICApply(prop->lts,x,sol,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = TSGradientICApply(prop->lts,prop->t0,prop->x0,prop->design,x,sol,PETSC_FALSE);CHKERRQ(ierr);
   ierr = VecScale(sol,-1.0);CHKERRQ(ierr);
 
   ierr = TSSetStepNumber(prop->lts,0);CHKERRQ(ierr);
@@ -1876,8 +1875,19 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   if (prop->model->F_m) {
     ierr = TSSetEvalGradient(prop->lts,prop->model->F_m,prop->model->F_m_f,prop->model->F_m_ctx);CHKERRQ(ierr);
   }
-  if (prop->model->G_m) {
-    ierr = TSSetEvalICGradient(prop->lts,prop->model->G_x,prop->model->G_m,prop->model->Ggrad,prop->model->Ggrad_ctx);CHKERRQ(ierr);
+  if (prop->model->G_m) { /* we sample once the initial condition dependency (which is fixed given x0, t0 and the design vector) */
+    Mat       G_x = NULL, G_m;
+
+    ierr = MatDuplicate(prop->model->G_m,MAT_COPY_VALUES,&G_m);CHKERRQ(ierr);
+    if (prop->model->G_x) {
+      ierr = MatDuplicate(prop->model->G_x,MAT_COPY_VALUES,&G_x);CHKERRQ(ierr);
+    }
+    if (prop->model->Ggrad) {
+      ierr = (*prop->model->Ggrad)(prop->model,t0,x0,design,G_x,G_m,ts->Ggrad_ctx);CHKERRQ(ierr);
+    }
+    ierr = TSSetEvalICGradient(prop->lts,G_x,G_m,NULL,NULL);CHKERRQ(ierr);
+    ierr = MatDestroy(&G_x);CHKERRQ(ierr);
+    ierr = MatDestroy(&G_m);CHKERRQ(ierr);
   } else { /* we compute the dependence on u_0 by default */
     Mat      G_m;
     PetscInt m;
