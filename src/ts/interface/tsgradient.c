@@ -881,6 +881,7 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
     if (!kspD) {
       const char *prefix;
       ierr = KSPCreate(PetscObjectComm((PetscObject)adjts),&kspD);CHKERRQ(ierr);
+      ierr = KSPSetTolerances(kspD,PETSC_SMALL,PETSC_SMALL,PETSC_DEFAULT,PETSC_DEFAULT);CHKERRQ(ierr);
       ierr = TSGetOptionsPrefix(adjts,&prefix);CHKERRQ(ierr);
       ierr = KSPSetOptionsPrefix(kspD,prefix);CHKERRQ(ierr);
       ierr = KSPAppendOptionsPrefix(kspD,"index1_D_");CHKERRQ(ierr);
@@ -891,6 +892,7 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
     if (!kspM) {
       const char *prefix;
       ierr = KSPCreate(PetscObjectComm((PetscObject)adjts),&kspM);CHKERRQ(ierr);
+      ierr = KSPSetTolerances(kspM,PETSC_SMALL,PETSC_SMALL,PETSC_DEFAULT,PETSC_DEFAULT);CHKERRQ(ierr);
       ierr = TSGetOptionsPrefix(adjts,&prefix);CHKERRQ(ierr);
       ierr = KSPSetOptionsPrefix(kspM,prefix);CHKERRQ(ierr);
       ierr = KSPAppendOptionsPrefix(kspM,"index1_M_");CHKERRQ(ierr);
@@ -1018,16 +1020,21 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
   } else {
     if (has_g) {
       if (ijac) { /* lambda_T(T) = (J_Udot)^T D_x, D_x the gradients of the functionals that sample the solution at the final time */
-        SNES snes;
-        KSP  ksp;
-        Mat  J_Udot;
+        SNES      snes;
+        KSP       ksp;
+        Mat       J_Udot;
+        PetscReal rtol,atol;
+        PetscInt  maxits;
 
         ierr = TSUpdateSplitJacobiansFromHistory(adj_ctx->fwdts,ftime,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
         ierr = TSGetSNES(adjts,&snes);CHKERRQ(ierr);
         ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
         ierr = TSGetSplitJacobians(adj_ctx->fwdts,NULL,&J_Udot);CHKERRQ(ierr);
         ierr = KSPSetOperators(ksp,J_Udot,J_Udot);CHKERRQ(ierr);
+        ierr = KSPGetTolerances(ksp,&rtol,&atol,NULL,&maxits);CHKERRQ(ierr);
+        ierr = KSPSetTolerances(ksp,PETSC_SMALL,PETSC_SMALL,PETSC_DEFAULT,10000);CHKERRQ(ierr);
         ierr = KSPSolveTranspose(ksp,adj_ctx->W[2],adj_ctx->W[2]);CHKERRQ(ierr);
+        ierr = KSPSetTolerances(ksp,rtol,atol,PETSC_DEFAULT,maxits);CHKERRQ(ierr);
       }
       /* the lambdas we use are equivalent to -lambda_T in [1] */
       ierr = VecScale(adj_ctx->W[2],-1.0);CHKERRQ(ierr);
@@ -2000,7 +2007,7 @@ $  f(TS ts,PetscReal t,Vec u,Vec m,PetscReal *out,void *ctx);
 -  ctx - [optional] user-defined context
 
    Calling sequence of f_x and f_m:
-$  f(TS ts,PetscReal t,Vec u,Vec m,Vec out,void ctx);
+$  f(TS ts,PetscReal t,Vec u,Vec m,Vec out,void *ctx);
 
 +  t   - time at step/stage being solved
 .  u   - state vector
@@ -2055,7 +2062,7 @@ PetscErrorCode TSSetObjective(TS ts, PetscReal fixtime, TSEvalObjective f, void*
 -  f_ctx   - user-defined context for private data for the function evaluation routine (may be NULL)
 
    Calling sequence of f:
-$  f(TS ts,PetscReal t,Vec u,Vec u_t,Vec m,Mat J,ctx);
+$  f(TS ts,PetscReal t,Vec u,Vec u_t,Vec m,Mat J,void *ctx);
 
 +  t   - time at step/stage being solved
 .  u   - state vector
@@ -2100,7 +2107,7 @@ PetscErrorCode TSSetEvalGradient(TS ts, Mat J, TSEvalGradient f, void *ctx)
 -  f_ctx   - user-defined context for private data for the function evaluation routine (may be NULL)
 
    Calling sequence of f:
-$  f(TS ts,PetscReal t,Vec u,Vec m,Mat Gx,Mat Gm,ctx);
+$  f(TS ts,PetscReal t,Vec u,Vec m,Mat Gx,Mat Gm,void *ctx);
 
 +  t   - initial time
 .  u   - state vector (at initial time)
