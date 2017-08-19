@@ -1881,6 +1881,7 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   MatPropagator_Ctx *prop;
   PetscInt          M,N,m,n,rbs,cbs;
   Vec               X;
+  PetscBool         owndesign = PETSC_FALSE;
   PetscErrorCode    ierr;
 
   PetscFunctionBegin;
@@ -1891,6 +1892,7 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   ierr = VecGetLocalSize(x0,&m);CHKERRQ(ierr);
   ierr = VecGetBlockSize(x0,&rbs);CHKERRQ(ierr);
   if (!design) {
+    owndesign = PETSC_TRUE;
     if (prop->model->G_m) {
       ierr = MatCreateVecs(prop->model->G_m,&design,NULL);CHKERRQ(ierr);
     } else {
@@ -1909,7 +1911,11 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   ierr = MatShellSetOperation(*A,MATOP_MULT_TRANSPOSE,(void (*)())MatMultTranspose_Propagator);CHKERRQ(ierr);
   ierr = MatShellSetOperation(*A,MATOP_DESTROY,(void (*)())MatDestroy_Propagator);
   ierr = VecDuplicate(x0,&prop->x0);CHKERRQ(ierr);
-  ierr = VecDuplicate(design,&prop->design);CHKERRQ(ierr);
+  if (!owndesign) {
+    ierr = VecDuplicate(design,&prop->design);CHKERRQ(ierr);
+  } else {
+    prop->design = design;
+  }
   ierr = VecLockPush(prop->x0);CHKERRQ(ierr);     /* this vector is locked since it stores the initial conditions */
   ierr = VecLockPush(prop->design);CHKERRQ(ierr); /* this vector is locked since it stores the design state */
   ierr = MatPropagatorUpdate_Propagator(*A,t0,dt,tf,x0,design);CHKERRQ(ierr);
