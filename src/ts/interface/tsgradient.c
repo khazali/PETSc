@@ -694,6 +694,8 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
 static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
 {
   SNES            snes;
+  KSP             ksp;
+  KSPType         ksptype;
   Mat             A,B;
   Vec             lambda,vatol,vrtol;
   PetscContainer  container;
@@ -705,7 +707,8 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   TSType          type;
   TSEquationType  eqtype;
   const char      *prefix;
-  PetscReal       atol,rtol;
+  PetscReal       atol,rtol,dtol;
+  PetscInt        maxits;
   SplitJac        *splitJ;
   PetscErrorCode  ierr;
 
@@ -805,12 +808,26 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   ierr = PetscOptionsGetBool(NULL,prefix,"-time_independent",&splitJ->timeindep,NULL);CHKERRQ(ierr);
   splitJ->splitdone = PETSC_FALSE;
 
+  /* The equation type is the same */
+  ierr = TSSetEquationType(*adjts,eqtype);CHKERRQ(ierr);
+
   /* adjoint DAE is linear */
   ierr = TSSetProblemType(*adjts,TS_LINEAR);CHKERRQ(ierr);
+
+  /* get info on linear solver */
+  ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
+  ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
+  ierr = KSPGetType(ksp,&ksptype);CHKERRQ(ierr);
+  ierr = KSPGetTolerances(ksp,&rtol,&atol,&dtol,&maxits);CHKERRQ(ierr);
 
   /* use KSPSolveTranspose to solve the adjoint */
   ierr = TSGetSNES(*adjts,&snes);CHKERRQ(ierr);
   ierr = SNESKSPONLYSetUseTransposeSolve(snes,PETSC_TRUE);CHKERRQ(ierr);
+
+  /* propagate KSP info of the forward model */
+  ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
+  ierr = KSPSetType(ksp,ksptype);CHKERRQ(ierr);
+  ierr = KSPSetTolerances(ksp,rtol,atol,dtol,maxits);CHKERRQ(ierr);
 
   /* set special purpose post step method for incremental gradient evaluation */
   ierr = TSSetPostStep(*adjts,AdjointTSPostStep);CHKERRQ(ierr);
@@ -1537,6 +1554,9 @@ static PetscErrorCode TLMTSRHSJacobian(TS lts, PetscReal time, Vec U, Mat A, Mat
 /* creates the TS for the tangent linear model */
 static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
 {
+  SNES           snes;
+  KSP            ksp;
+  KSPType        ksptype;
   Mat            A,B;
   Vec            vatol,vrtol;
   PetscContainer container;
@@ -1545,8 +1565,10 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
   TSRHSFunction  rhsfunc;
   TSI2Function   i2func;
   TSType         type;
+  TSEquationType eqtype;
   const char     *prefix;
-  PetscReal      atol,rtol;
+  PetscReal      atol,rtol,dtol;
+  PetscInt       maxits;
   SplitJac       *splitJ;
   PetscErrorCode ierr;
 
@@ -1618,8 +1640,24 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
   ierr = TSGetOptionsPrefix(*lts,&prefix);CHKERRQ(ierr);
   ierr = PetscOptionsGetBool(NULL,prefix,"-userijacobian",&tlm_ctx->userijac,NULL);CHKERRQ(ierr);
 
+  /* The equation type is the same */
+  ierr = TSGetEquationType(ts,&eqtype);CHKERRQ(ierr);
+  ierr = TSSetEquationType(*lts,eqtype);CHKERRQ(ierr);
+
+  /* get info on linear solver */
+  ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
+  ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
+  ierr = KSPGetType(ksp,&ksptype);CHKERRQ(ierr);
+  ierr = KSPGetTolerances(ksp,&rtol,&atol,&dtol,&maxits);CHKERRQ(ierr);
+
   /* tangent linear model DAE is linear */
   ierr = TSSetProblemType(*lts,TS_LINEAR);CHKERRQ(ierr);
+
+  /* propagate KSP info of the forward model */
+  ierr = TSGetSNES(*lts,&snes);CHKERRQ(ierr);
+  ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
+  ierr = KSPSetType(ksp,ksptype);CHKERRQ(ierr);
+  ierr = KSPSetTolerances(ksp,rtol,atol,dtol,maxits);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
