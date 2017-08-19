@@ -248,10 +248,10 @@ static PetscErrorCode TSGradientEvalObjectiveGradientMFixed(TS ts, PetscReal pti
 }
 
 /*
-   Apply "gradients" of initial conditions
+   Apply "Jacobians" of initial conditions
    if transpose is true : y = G_x^-1 G_m x
    if transpose is false: y = G_m^t G_x^-T x
-   x0 is the Vector we linearize against to get G_x and G_m
+   (x0,design) are the variables one needs to linearize against to get G_x and G_m
 */
 static PetscErrorCode TSGradientICApply(TS ts, PetscReal t0, Vec x0, Vec design, Vec x, Vec y, PetscBool transpose)
 {
@@ -900,9 +900,9 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
     ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjoint_index1_kspD",(PetscObject*)&kspD);CHKERRQ(ierr);
     if (!kspD) {
       const char *prefix;
+      ierr = TSGetOptionsPrefix(adjts,&prefix);CHKERRQ(ierr);
       ierr = KSPCreate(PetscObjectComm((PetscObject)adjts),&kspD);CHKERRQ(ierr);
       ierr = KSPSetTolerances(kspD,PETSC_SMALL,PETSC_SMALL,PETSC_DEFAULT,PETSC_DEFAULT);CHKERRQ(ierr);
-      ierr = TSGetOptionsPrefix(adjts,&prefix);CHKERRQ(ierr);
       ierr = KSPSetOptionsPrefix(kspD,prefix);CHKERRQ(ierr);
       ierr = KSPAppendOptionsPrefix(kspD,"index1_D_");CHKERRQ(ierr);
       ierr = KSPSetFromOptions(kspD);CHKERRQ(ierr);
@@ -911,9 +911,9 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
     }
     if (!kspM) {
       const char *prefix;
+      ierr = TSGetOptionsPrefix(adjts,&prefix);CHKERRQ(ierr);
       ierr = KSPCreate(PetscObjectComm((PetscObject)adjts),&kspM);CHKERRQ(ierr);
       ierr = KSPSetTolerances(kspM,PETSC_SMALL,PETSC_SMALL,PETSC_DEFAULT,PETSC_DEFAULT);CHKERRQ(ierr);
-      ierr = TSGetOptionsPrefix(adjts,&prefix);CHKERRQ(ierr);
       ierr = KSPSetOptionsPrefix(kspM,prefix);CHKERRQ(ierr);
       ierr = KSPAppendOptionsPrefix(kspM,"index1_M_");CHKERRQ(ierr);
       ierr = KSPSetFromOptions(kspM);CHKERRQ(ierr);
@@ -1673,7 +1673,6 @@ typedef struct {
   TS           lts;
   TS           adjlts;
   Vec          x0;
-  Vec          design;
   TSTrajectory tj;
   PetscReal    t0;
   PetscReal    tf;
@@ -1688,7 +1687,6 @@ static PetscErrorCode MatDestroy_Propagator(Mat A)
   ierr = MatShellGetContext(A,(void **)&prop);CHKERRQ(ierr);
   ierr = TSTrajectoryDestroy(&prop->tj);CHKERRQ(ierr);
   ierr = VecDestroy(&prop->x0);CHKERRQ(ierr);
-  ierr = VecDestroy(&prop->design);CHKERRQ(ierr);
   ierr = TSDestroy(&prop->adjlts);CHKERRQ(ierr);
   ierr = TSDestroy(&prop->lts);CHKERRQ(ierr);
   ierr = TSDestroy(&prop->model);CHKERRQ(ierr);
@@ -1729,10 +1727,13 @@ static PetscErrorCode MatMultTranspose_Propagator(Mat A, Vec x, Vec y)
     ierr = VecLockPush(tlm->W[0]);CHKERRQ(ierr);
     ierr = VecLockPush(tlm->W[1]);CHKERRQ(ierr);
   }
+  if (!tlm->design) {
+    ierr = VecDuplicate(y,&tlm->design);CHKERRQ(ierr);
+  }
   ierr = VecSet(tlm->W[2],0.0);CHKERRQ(ierr);
 
   ierr = VecSet(y,0.0);CHKERRQ(ierr);
-  ierr = AdjointTSSetDesign(prop->adjlts,prop->design);CHKERRQ(ierr);
+  ierr = AdjointTSSetDesign(prop->adjlts,tlm->design);CHKERRQ(ierr);
   ierr = AdjointTSSetInitialGradient(prop->adjlts,y);CHKERRQ(ierr);
   /* x is the increment -> we use it to initialize the adjoint variables */
   ierr = AdjointTSComputeInitialConditions(prop->adjlts,prop->t0,x,PETSC_TRUE);CHKERRQ(ierr);
@@ -1756,6 +1757,8 @@ static PetscErrorCode MatMultTranspose_Propagator(Mat A, Vec x, Vec y)
   }
   ierr = TSSetMaxTime(prop->adjlts,prop->tf);CHKERRQ(ierr);
   ierr = TSSolve(prop->adjlts,NULL);CHKERRQ(ierr);
+  /* XXX tlm_ctx->design is used to compute the final condition? */
+  ierr = VecCopy(y,tlm->design);CHKERRQ(ierr);
   ierr = AdjointTSComputeFinalGradient(prop->adjlts);CHKERRQ(ierr);
   prop->lts->trajectory = NULL;
   prop->tj = prop->model->trajectory;
@@ -1794,9 +1797,10 @@ static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
     ierr = VecLockPush(tlm->W[0]);CHKERRQ(ierr);
     ierr = VecLockPush(tlm->W[1]);CHKERRQ(ierr);
   }
-  ierr = PetscObjectReference((PetscObject)prop->design);CHKERRQ(ierr);
-  ierr = VecDestroy(&tlm->design);CHKERRQ(ierr);
-  tlm->design = prop->design;
+  if (!tlm->design) {
+    ierr = VecDuplicate(x,&tlm->design);CHKERRQ(ierr);
+  }
+  ierr = VecCopy(x,tlm->design);CHKERRQ(ierr);
 
   /* initialize tlm->W[2] if needed */
   ierr = VecSet(tlm->W[2],0.0);CHKERRQ(ierr);
@@ -1809,7 +1813,7 @@ static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
 
   /* sample initial condition dependency */
   ierr = TSGetSolution(prop->lts,&sol);CHKERRQ(ierr);
-  ierr = TSGradientICApply(prop->lts,prop->t0,prop->x0,prop->design,x,sol,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = TSGradientICApply(prop->lts,prop->t0,prop->x0,tlm->design,x,sol,PETSC_FALSE);CHKERRQ(ierr);
   ierr = VecScale(sol,-1.0);CHKERRQ(ierr);
 
   ierr = TSSetStepNumber(prop->lts,0);CHKERRQ(ierr);
@@ -1832,7 +1836,7 @@ static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
 }
 
 /* solves the forward model and stores its trajectory */
-static PetscErrorCode MatPropagatorUpdate_Propagator(Mat A, PetscReal t0, PetscReal dt, PetscReal tf, Vec x0, Vec design)
+static PetscErrorCode MatPropagatorUpdate_Propagator(Mat A, PetscReal t0, PetscReal dt, PetscReal tf, Vec x0)
 {
   Vec               osol;
   TSTrajectory      otrj;
@@ -1844,9 +1848,6 @@ static PetscErrorCode MatPropagatorUpdate_Propagator(Mat A, PetscReal t0, PetscR
   ierr = VecLockPop(prop->x0);CHKERRQ(ierr);
   ierr = VecCopy(x0,prop->x0);CHKERRQ(ierr);
   ierr = VecLockPush(prop->x0);CHKERRQ(ierr);
-  ierr = VecLockPop(prop->design);CHKERRQ(ierr);
-  ierr = VecCopy(design,prop->design);CHKERRQ(ierr);
-  ierr = VecLockPush(prop->design);CHKERRQ(ierr);
   prop->t0 = t0;
   prop->tf = tf;
   ierr = TSTrajectoryDestroy(&prop->tj);CHKERRQ(ierr);
@@ -1870,7 +1871,7 @@ static PetscErrorCode MatPropagatorUpdate_Propagator(Mat A, PetscReal t0, PetscR
   ierr = TSSetMaxSteps(prop->model,PETSC_MAX_INT);CHKERRQ(ierr);
   ierr = TSSetMaxTime(prop->model,tf);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(prop->model,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
-  ierr = TSSolve(prop->model,NULL);CHKERRQ(ierr);
+  ierr = TSSolve(prop->model,osol);CHKERRQ(ierr);
   prop->tj = prop->model->trajectory;
   prop->model->trajectory = otrj;
   PetscFunctionReturn(0);
@@ -1881,7 +1882,6 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   MatPropagator_Ctx *prop;
   PetscInt          M,N,m,n,rbs,cbs;
   Vec               X;
-  PetscBool         owndesign = PETSC_FALSE;
   PetscErrorCode    ierr;
 
   PetscFunctionBegin;
@@ -1892,16 +1892,20 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   ierr = VecGetLocalSize(x0,&m);CHKERRQ(ierr);
   ierr = VecGetBlockSize(x0,&rbs);CHKERRQ(ierr);
   if (!design) {
-    owndesign = PETSC_TRUE;
     if (prop->model->G_m) {
-      ierr = MatCreateVecs(prop->model->G_m,&design,NULL);CHKERRQ(ierr);
+      ierr = MatGetSize(prop->model->G_m,NULL,&N);CHKERRQ(ierr);
+      ierr = MatGetLocalSize(prop->model->G_m,NULL,&n);CHKERRQ(ierr);
+      ierr = MatGetBlockSizes(prop->model->G_m,NULL,&cbs);CHKERRQ(ierr);
     } else {
-      ierr = VecDuplicate(x0,&design);CHKERRQ(ierr);
+      ierr = VecGetSize(x0,&N);CHKERRQ(ierr);
+      ierr = VecGetLocalSize(x0,&n);CHKERRQ(ierr);
+      ierr = VecGetBlockSize(x0,&cbs);CHKERRQ(ierr);
     }
+  } else {
+    ierr = VecGetSize(design,&N);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(design,&n);CHKERRQ(ierr);
+    ierr = VecGetBlockSize(design,&cbs);CHKERRQ(ierr);
   }
-  ierr = VecGetSize(design,&N);CHKERRQ(ierr);
-  ierr = VecGetLocalSize(design,&n);CHKERRQ(ierr);
-  ierr = VecGetBlockSize(design,&cbs);CHKERRQ(ierr);
   ierr = MatCreate(PetscObjectComm((PetscObject)ts),A);CHKERRQ(ierr);
   ierr = MatSetSizes(*A,m,n,M,N);CHKERRQ(ierr);
   ierr = MatSetBlockSizes(*A,rbs,cbs);CHKERRQ(ierr);
@@ -1911,14 +1915,8 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   ierr = MatShellSetOperation(*A,MATOP_MULT_TRANSPOSE,(void (*)())MatMultTranspose_Propagator);CHKERRQ(ierr);
   ierr = MatShellSetOperation(*A,MATOP_DESTROY,(void (*)())MatDestroy_Propagator);
   ierr = VecDuplicate(x0,&prop->x0);CHKERRQ(ierr);
-  if (!owndesign) {
-    ierr = VecDuplicate(design,&prop->design);CHKERRQ(ierr);
-  } else {
-    prop->design = design;
-  }
   ierr = VecLockPush(prop->x0);CHKERRQ(ierr);     /* this vector is locked since it stores the initial conditions */
-  ierr = VecLockPush(prop->design);CHKERRQ(ierr); /* this vector is locked since it stores the design state */
-  ierr = MatPropagatorUpdate_Propagator(*A,t0,dt,tf,x0,design);CHKERRQ(ierr);
+  ierr = MatPropagatorUpdate_Propagator(*A,t0,dt,tf,x0);CHKERRQ(ierr);
   ierr = MatSetUp(*A);CHKERRQ(ierr);
 
   /* creates the linear tangent model solver and its adjoint */
@@ -1928,20 +1926,9 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   if (prop->model->F_m) {
     ierr = TSSetEvalGradient(prop->lts,prop->model->F_m,prop->model->F_m_f,prop->model->F_m_ctx);CHKERRQ(ierr);
   }
-  if (prop->model->G_m) { /* we sample once the initial condition dependency (which is fixed given x0, t0 and the design vector) */
-    Mat       G_x = NULL, G_m;
-
-    ierr = MatDuplicate(prop->model->G_m,MAT_COPY_VALUES,&G_m);CHKERRQ(ierr);
-    if (prop->model->G_x) {
-      ierr = MatDuplicate(prop->model->G_x,MAT_COPY_VALUES,&G_x);CHKERRQ(ierr);
-    }
-    if (prop->model->Ggrad) {
-      ierr = (*prop->model->Ggrad)(prop->model,t0,x0,design,G_x,G_m,ts->Ggrad_ctx);CHKERRQ(ierr);
-    }
-    ierr = TSSetEvalICGradient(prop->lts,G_x,G_m,NULL,NULL);CHKERRQ(ierr);
-    ierr = MatDestroy(&G_x);CHKERRQ(ierr);
-    ierr = MatDestroy(&G_m);CHKERRQ(ierr);
-  } else { /* we compute the dependence on u_0 by default */
+  if (prop->model->G_m) {
+    ierr = TSSetEvalICGradient(prop->lts,prop->model->G_x,prop->model->G_m,prop->model->Ggrad,prop->model->Ggrad_ctx);CHKERRQ(ierr);
+  } else { /* we compute a linear dependence on u_0 by default */
     Mat      G_m;
     PetscInt m;
 
