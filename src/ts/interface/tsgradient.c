@@ -930,6 +930,7 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
           ierr = ISComplement(alg,m,n,&diff);CHKERRQ(ierr);
         } else {
           ierr = MatFindNonzeroRows(J_Udot,&diff);CHKERRQ(ierr);
+          if (!diff) SETERRQ(PetscObjectComm((PetscObject)adj_ctx->fwdts),PETSC_ERR_USER,"The DAE does not appear to have algebraic variables");
         }
         ierr = PetscObjectCompose((PetscObject)adj_ctx->fwdts,"_ts_differential_is",(PetscObject)diff);CHKERRQ(ierr);
         ierr = PetscObjectDereference((PetscObject)diff);CHKERRQ(ierr);
@@ -940,7 +941,7 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
         ierr = PetscObjectDereference((PetscObject)alg);CHKERRQ(ierr);
       }
       ierr = ISGetSize(alg,&N);CHKERRQ(ierr);
-      if (!N) SETERRQ(PetscObjectComm((PetscObject)adj_ctx->fwdts),PETSC_ERR_USER,"The DAE does not appear to have algebraic variables");
+      if (!N) SETERRQ(PetscObjectComm((PetscObject)adj_ctx->fwdts),PETSC_ERR_USER,"The DAE does not have algebraic variables");
       ierr = MatCreateSubMatrix(J_Udot,diff,diff,MAT_INITIAL_MATRIX,&M);CHKERRQ(ierr);
       ierr = MatCreateSubMatrix(J_U,diff,alg,MAT_INITIAL_MATRIX,&B);CHKERRQ(ierr);
       ierr = MatCreateSubMatrix(J_U,alg,diff,MAT_INITIAL_MATRIX,&C);CHKERRQ(ierr);
