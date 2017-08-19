@@ -1039,6 +1039,10 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
       }
     }
     ierr = VecDestroy(&f_x);CHKERRQ(ierr);
+    ierr = MatDestroy(&M);CHKERRQ(ierr);
+    ierr = MatDestroy(&B);CHKERRQ(ierr);
+    ierr = MatDestroy(&C);CHKERRQ(ierr);
+    ierr = MatDestroy(&D);CHKERRQ(ierr);
   } else {
     if (has_g) {
       if (ijac) { /* lambda_T(T) = (J_Udot)^T D_x, D_x the gradients of the functionals that sample the solution at the final time */
