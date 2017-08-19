@@ -931,6 +931,7 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
         if (alg) {
           ierr = ISComplement(alg,m,n,&diff);CHKERRQ(ierr);
         } else {
+          ierr = MatChop(J_Udot,PETSC_SMALL);CHKERRQ(ierr);
           ierr = MatFindNonzeroRows(J_Udot,&diff);CHKERRQ(ierr);
           if (!diff) SETERRQ(PetscObjectComm((PetscObject)adj_ctx->fwdts),PETSC_ERR_USER,"The DAE does not appear to have algebraic variables");
         }
