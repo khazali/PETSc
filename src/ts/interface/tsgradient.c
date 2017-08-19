@@ -1638,7 +1638,6 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
   ierr = TSGetOptionsPrefix(ts,&prefix);CHKERRQ(ierr);
   ierr = TSSetOptionsPrefix(*lts,"tlm_");CHKERRQ(ierr);
   ierr = TSAppendOptionsPrefix(*lts,prefix);CHKERRQ(ierr);
-  ierr = TSSetFromOptions(*lts);CHKERRQ(ierr);
 
   /* Options specific to TLMTS */
   ierr = TSGetOptionsPrefix(*lts,&prefix);CHKERRQ(ierr);
@@ -1924,6 +1923,7 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
 
   /* creates the linear tangent model solver and its adjoint */
   ierr = TSCreateTLMTS(prop->model,&prop->lts);CHKERRQ(ierr);
+  ierr = TSSetFromOptions(prop->lts);CHKERRQ(ierr);
   ierr = TSSetObjective(prop->lts,prop->tf,NULL,NULL,TLMTSRHS,NULL,NULL,NULL);CHKERRQ(ierr);
   if (prop->model->F_m) {
     ierr = TSSetEvalGradient(prop->lts,prop->model->F_m,prop->model->F_m_f,prop->model->F_m_ctx);CHKERRQ(ierr);
