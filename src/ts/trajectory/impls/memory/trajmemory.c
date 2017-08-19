@@ -1724,14 +1724,14 @@ static PetscErrorCode TSTrajectorySetUp_Memory(TSTrajectory tj,TS ts)
   PetscInt       diskblocks;
 #endif
   PetscInt       numY;
-  PetscBool      flg;
+  PetscBool      fixedtimestep;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   if (ts->adapt) {
-    ierr = PetscObjectTypeCompare((PetscObject)ts->adapt,TSADAPTNONE,&flg);CHKERRQ(ierr);
-  } else flg = PETSC_TRUE;
-  if (flg) tjsch->total_steps = PetscMin(ts->max_steps,(PetscInt)(PetscCeilReal((ts->max_time-ts->ptime)/ts->time_step))); /* fixed time step */
+    ierr = PetscObjectTypeCompare((PetscObject)ts->adapt,TSADAPTNONE,&fixedtimestep);CHKERRQ(ierr);
+  } else fixedtimestep = PETSC_TRUE;
+  if (fixedtimestep) tjsch->total_steps = PetscMin(ts->max_steps,(PetscInt)(PetscCeilReal((ts->max_time-ts->ptime)/ts->time_step)));
   if (tjsch->max_cps_ram > 0) stack->stacksize = tjsch->max_cps_ram;
 
   if (tjsch->stride > 1) { /* two level mode */
@@ -1740,7 +1740,7 @@ static PetscErrorCode TSTrajectorySetUp_Memory(TSTrajectory tj,TS ts)
     if (tjsch->max_cps_disk > 1 && tjsch->max_cps_ram > 1 && tjsch->max_cps_ram <= tjsch->stride-1) tjsch->stype = TWO_LEVEL_TWO_REVOLVE;  /* use revolve_offline for each stride */
     if (tjsch->max_cps_disk <= 1 && (tjsch->max_cps_ram >= tjsch->stride || tjsch->max_cps_ram == -1)) tjsch->stype = TWO_LEVEL_NOREVOLVE; /* can also be handled by TWO_LEVEL_REVOLVE */
   } else { /* single level mode */
-    if (flg) { /* fixed time step */
+    if (fixedtimestep) {
       if (tjsch->max_cps_ram >= tjsch->total_steps-1 || tjsch->max_cps_ram < 1) tjsch->stype = NONE; /* checkpoint all */
       else tjsch->stype = (tjsch->max_cps_disk>1) ? REVOLVE_MULTISTAGE : REVOLVE_OFFLINE;
     } else tjsch->stype = NONE; /* checkpoint all for adaptive time step */
@@ -1801,7 +1801,7 @@ static PetscErrorCode TSTrajectorySetUp_Memory(TSTrajectory tj,TS ts)
   } else {
     if (tjsch->stype == TWO_LEVEL_NOREVOLVE) stack->stacksize = tjsch->stride-1; /* need tjsch->stride-1 at most */
     if (tjsch->stype == NONE) {
-      if (flg) stack->stacksize = stack->solution_only ? tjsch->total_steps : tjsch->total_steps-1; /* fix time step */
+      if (fixedtimestep) stack->stacksize = stack->solution_only ? tjsch->total_steps : tjsch->total_steps-1;
       else { /* adaptive time step */
         /* if max_cps_ram is not specified, use maximal allowed number of steps for stack size */
         if(tjsch->max_cps_ram == -1) stack->stacksize = ts->max_steps < PETSC_MAX_INT ? ts->max_steps : 10000;
