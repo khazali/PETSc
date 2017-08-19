@@ -803,9 +803,11 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   ierr = TSSetOptionsPrefix(*adjts,"adjoint_");CHKERRQ(ierr);
   ierr = TSAppendOptionsPrefix(*adjts,prefix);CHKERRQ(ierr);
 
-  /* preliminary support for time-independent adjoints */
+  /* Options specific to ADJTS */
   ierr = TSGetOptionsPrefix(*adjts,&prefix);CHKERRQ(ierr);
-  ierr = PetscOptionsGetBool(NULL,prefix,"-time_independent",&splitJ->timeindep,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBegin(PetscObjectComm((PetscObject)*adjts),prefix,"Adjoint options","TS");CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-timeindependent","Whether or not the DAE Jacobians are time-independent",NULL,splitJ->timeindep,&splitJ->timeindep,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsEnd();CHKERRQ(ierr);
   splitJ->splitdone = PETSC_FALSE;
 
   /* The equation type is the same */
@@ -1637,9 +1639,11 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
   ierr = TSAppendOptionsPrefix(*lts,prefix);CHKERRQ(ierr);
   ierr = TSSetFromOptions(*lts);CHKERRQ(ierr);
 
-  /* The default for the IJacobian is to sum the splits. */
+  /* Options specific to TLMTS */
   ierr = TSGetOptionsPrefix(*lts,&prefix);CHKERRQ(ierr);
-  ierr = PetscOptionsGetBool(NULL,prefix,"-userijacobian",&tlm_ctx->userijac,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBegin(PetscObjectComm((PetscObject)*lts),prefix,"Tangent Linear Model options","TS");CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-userijacobian","Use the user-provided IJacobian routine, instead of the splits, to compute the Jacobian",NULL,tlm_ctx->userijac,&tlm_ctx->userijac,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   /* The equation type is the same */
   ierr = TSGetEquationType(ts,&eqtype);CHKERRQ(ierr);
