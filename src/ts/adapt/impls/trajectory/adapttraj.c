@@ -68,7 +68,7 @@ PetscErrorCode TSAdaptTrajectorySetTrajectory(TSAdapt adapt, TSTrajectory tj, Pe
 
    Level: developer
 
-.seealso: TS, TSAdapt, TSSetAdapt()
+.seealso: TS, TSAdapt, TSGetAdapt()
 M*/
 PETSC_EXTERN PetscErrorCode TSAdaptCreate_Trajectory(TSAdapt adapt)
 {
