@@ -1013,7 +1013,8 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
       ierr = VecRestoreSubVector(adj_ctx->W[2],alg,&lambda_a);CHKERRQ(ierr);
       ierr = VecRestoreSubVector(f_x,alg,&f_a);CHKERRQ(ierr);
     }
-    if (0) {
+#if 0
+    {
       Mat J_U;
       Vec test,test_a;
       PetscReal norm;
@@ -1027,6 +1028,7 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
       ierr = VecRestoreSubVector(test,alg,&test_a);CHKERRQ(ierr);
       ierr = VecDestroy(&test);CHKERRQ(ierr);
     }
+#endif
     ierr = VecDestroy(&f_x);CHKERRQ(ierr);
     ierr = MatDestroy(&M);CHKERRQ(ierr);
     ierr = MatDestroy(&B);CHKERRQ(ierr);
