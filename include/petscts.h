@@ -334,7 +334,7 @@ PETSC_EXTERN PetscErrorCode TSSetEvalICGradient(TS,Mat,Mat,TSEvalICGradient,void
 PETSC_EXTERN PetscErrorCode TSEvaluateObjectiveGradient(TS,Vec,Vec,Vec);
 PETSC_EXTERN PetscErrorCode TSEvaluateObjective(TS,Vec,Vec,PetscReal*);
 PETSC_EXTERN PetscErrorCode TSEvaluateObjectiveAndGradient(TS,Vec,Vec,Vec,PetscReal*);
-PETSC_EXTERN PetscErrorCode TSCreatePropagatorMat(TS,PetscReal,PetscReal,PetscReal,Vec,Vec,Mat*);
+PETSC_EXTERN PetscErrorCode TSCreatePropagatorMat(TS,PetscReal,PetscReal,PetscReal,Vec,Vec,Mat,Mat*);
 PETSC_EXTERN PetscErrorCode TSSetMaxSteps(TS,PetscInt);
 PETSC_EXTERN PetscErrorCode TSGetMaxSteps(TS,PetscInt*);
 PETSC_EXTERN PetscErrorCode TSSetMaxTime(TS,PetscReal);
