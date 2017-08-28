@@ -796,6 +796,7 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
     } else {
       ierr = TSSetRHSJacobian(*adjts,A,B,AdjointTSRHSJacobian,NULL);CHKERRQ(ierr);
     }
+    ierr = TSRHSJacobianSetReuse(*adjts,PETSC_TRUE);CHKERRQ(ierr);
   }
 
   /* prefix */
@@ -1633,6 +1634,7 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
     ierr = TSGetRHSJacobian(ts,&A,&B,NULL,NULL);CHKERRQ(ierr);
     ierr = TSSetRHSFunction(*lts,NULL,TLMTSRHSFunctionLinear,NULL);CHKERRQ(ierr);
     ierr = TSSetRHSJacobian(*lts,A,B,TLMTSRHSJacobian,NULL);CHKERRQ(ierr);
+    ierr = TSRHSJacobianSetReuse(*lts,PETSC_TRUE);CHKERRQ(ierr);
   }
 
   /* prefix */
