@@ -1723,7 +1723,7 @@ static PetscErrorCode TSTrajectorySetUp_Memory(TSTrajectory tj,TS ts)
   DiskStack      *diskstack = &tjsch->diskstack;
   PetscInt       diskblocks;
 #endif
-  PetscInt       numY;
+  PetscInt       numY,total_steps;
   PetscBool      fixedtimestep;
   PetscErrorCode ierr;
 
@@ -1731,7 +1731,9 @@ static PetscErrorCode TSTrajectorySetUp_Memory(TSTrajectory tj,TS ts)
   if (ts->adapt) {
     ierr = PetscObjectTypeCompare((PetscObject)ts->adapt,TSADAPTNONE,&fixedtimestep);CHKERRQ(ierr);
   } else fixedtimestep = PETSC_TRUE;
-  if (fixedtimestep) tjsch->total_steps = PetscMin(ts->max_steps,(PetscInt)(PetscCeilReal((ts->max_time-ts->ptime)/ts->time_step)));
+  total_steps = (PetscInt)(PetscCeilReal((ts->max_time-ts->ptime)/ts->time_step));
+  total_steps = total_steps < 0 ? PETSC_MAX_INT : total_steps;
+  if (fixedtimestep) tjsch->total_steps = PetscMin(ts->max_steps,total_steps);
   if (tjsch->max_cps_ram > 0) stack->stacksize = tjsch->max_cps_ram;
 
   if (tjsch->stride > 1) { /* two level mode */

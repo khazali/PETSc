@@ -28,6 +28,7 @@ int main(int argc,char **argv)
   ierr = VecDuplicate(W,&W2);CHKERRQ(ierr);
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
   ierr = TSSetSolution(ts,W2);CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(ts,10);CHKERRQ(ierr);
   ierr = TSSetSaveTrajectory(ts);CHKERRQ(ierr);
   ierr = TSGetTrajectory(ts,&tj);CHKERRQ(ierr);
   ierr = TSTrajectorySetType(tj,ts,TSTRAJECTORYBASIC);CHKERRQ(ierr);
