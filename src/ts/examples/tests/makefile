@@ -4,7 +4,7 @@ FFLAGS	        =
 CPPFLAGS        =
 FPPFLAGS        =
 LOCDIR          = src/ts/examples/tests/
-EXAMPLESC       = ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c ex9.c ex10.c ex11.c ex25.c
+EXAMPLESC       = ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c ex9.c ex10.c ex11.c ex14.c ex25.c
 EXAMPLESF       =
 EXAMPLESFH      =
 MANSEC          = TS
@@ -59,6 +59,10 @@ ex10: ex10.o  chkopts
 ex11: ex11.o  chkopts
 	-${CLINKER} -o ex11 ex11.o ${PETSC_TS_LIB}
 	${RM} ex11.o
+
+ex14: ex14.o  chkopts
+	-${CLINKER} -o ex14 ex14.o ${PETSC_TS_LIB}
+	${RM} ex14.o
 
 ex22: ex22.o  chkopts
 	-${CLINKER} -o ex22 ex22.o  ${PETSC_TS_LIB}
@@ -204,6 +208,20 @@ runex11_2:
            ${DIFF} output/ex11_2.out ex11.tmp || printf "${PWD}\nPossible problem with ex11_2, diffs above\n=========================================\n"; \
            ${RM} -rf ex11.tmp SA-data
 
+runex14_lorentz:
+	-@${MPIEXEC} -n 1 ./ex14 -ts_type rk -ts_rk_type 3bs -tf 3  -lorentz -ts_rtol 1.e-6 -ts_atol 1.e-6 -ts_trajectory_type memory > ex14.tmp 2>&1;  \
+           ${DIFF} output/ex14_lorentz.out ex14.tmp || printf "${PWD}\nPossible problem with ex14_lorentz, diffs above\n=========================================\n"; \
+           ${RM} -rf ex14.tmp
+
+runex14_lorentz_i:
+	-@${MPIEXEC} -n 1 ./ex14 -ts_type bdf -ts_bdf_order 3 -tf 0.5  -lorentz -ts_rtol 1.e-6 -ts_atol 1.e-6 -ts_trajectory_type memory -ifunc 1 > ex14.tmp 2>&1;  \
+           ${DIFF} output/ex14_lorentz.out ex14.tmp || printf "${PWD}\nPossible problem with ex14_lorentz_i, diffs above\n=========================================\n"; \
+           ${RM} -rf ex14.tmp
+
+runex14_oscillator:
+	-@${MPIEXEC} -n 1 ./ex14 -ts_type rk -ts_rk_type 5dp -tf 10  -omega 3 -gamma 2 -ts_trajectory_type memory > ex14.tmp 2>&1;  \
+           ${DIFF} output/ex14_oscillator.out ex14.tmp || printf "${PWD}\nPossible problem with ex14_oscillator, diffs above\n=========================================\n"; \
+           ${RM} -rf ex14.tmp
 
 runex25:
 	-@${MPIEXEC} -n 1 ./ex25 -ts_exact_final_time INTERPOLATE -snes_rtol 1.e-3 > ex25_1.tmp 2>&1;	  \
@@ -217,7 +235,9 @@ runex25_2:
 
 TESTEXAMPLES_C		  = ex1.PETSc runex1 ex1.rm \
                             ex4.PETSc runex4 runex4_2 runex4_3 runex4_4 runex4_5 runex4_6 ex4.rm \
-                            ex11.PETSc runex11_1 runex11_2 ex11.rm ex25.PETSc runex25 runex25_2 ex25.rm
+                            ex11.PETSc runex11_1 runex11_2 ex11.rm \
+                            ex14.PETSc runex14_lorentz runex14_oscillator ex14.rm \
+                            ex25.PETSc runex25 runex25_2 ex25.rm
 TESTEXAMPLES_C_NOTSINGLE  = ex4.PETSc runex4_7 ex4.rm
 TESTEXAMPLES_C_NOCOMPLEX  = ex3.PETSc runex3 ex3.rm
 TESTEXAMPLES_C_NOCOMPLEX_NOTSINGLE  = ex5.PETSc runex5 runex5_2 ex5.rm
