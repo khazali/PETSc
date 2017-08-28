@@ -209,17 +209,17 @@ runex11_2:
            ${RM} -rf ex11.tmp SA-data
 
 runex14_lorentz:
-	-@${MPIEXEC} -n 1 ./ex14 -ts_type rk -ts_rk_type 3bs -tf 3  -lorentz -ts_rtol 1.e-6 -ts_atol 1.e-6 -ts_trajectory_type memory > ex14.tmp 2>&1;  \
+	-@${MPIEXEC} -n 1 ./ex14 -ts_type rk -tf 3  -lorentz -ts_rtol 1.e-6 -ts_atol 1.e-6 -ts_trajectory_type memory > ex14.tmp 2>&1;  \
            ${DIFF} output/ex14_lorentz.out ex14.tmp || printf "${PWD}\nPossible problem with ex14_lorentz, diffs above\n=========================================\n"; \
            ${RM} -rf ex14.tmp
 
 runex14_lorentz_i:
-	-@${MPIEXEC} -n 1 ./ex14 -ts_type bdf -ts_bdf_order 3 -tf 0.5  -lorentz -ts_rtol 1.e-6 -ts_atol 1.e-6 -ts_trajectory_type memory -ifunc 1 > ex14.tmp 2>&1;  \
+	-@${MPIEXEC} -n 1 ./ex14 -ts_type bdf -ts_bdf_order 3 -tlm_ts_bdf_order 3 -adjoint_tlm_ts_bdf_order 3 -tf 0.5  -lorentz -ts_rtol 1.e-6 -ts_atol 1.e-6 -ts_trajectory_type memory -ifunc 1 > ex14.tmp 2>&1;  \
            ${DIFF} output/ex14_lorentz.out ex14.tmp || printf "${PWD}\nPossible problem with ex14_lorentz_i, diffs above\n=========================================\n"; \
            ${RM} -rf ex14.tmp
 
 runex14_oscillator:
-	-@${MPIEXEC} -n 1 ./ex14 -ts_type rk -ts_rk_type 5dp -tf 10  -omega 3 -gamma 2 -ts_trajectory_type memory > ex14.tmp 2>&1;  \
+	-@${MPIEXEC} -n 1 ./ex14 -ts_type rk -ts_rk_type 5dp -tlm_ts_rk_type 5dp -adjoint_tlm_ts_rk_type 5dp -tf 10  -omega 3 -gamma 2 -ts_trajectory_type memory > ex14.tmp 2>&1;  \
            ${DIFF} output/ex14_oscillator.out ex14.tmp || printf "${PWD}\nPossible problem with ex14_oscillator, diffs above\n=========================================\n"; \
            ${RM} -rf ex14.tmp
 

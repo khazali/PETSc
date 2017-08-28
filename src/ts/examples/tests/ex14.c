@@ -165,7 +165,7 @@ int main(int argc, char* argv[])
 {
   TS             ts;
   Mat            J,Phi,PhiExpl,PhiT,PhiTExpl,H;
-  Vec            U;
+  Vec            U,U0;
   User_Lorentz   luser;
   User_Osc       ouser;
   PetscBool      ifunc = PETSC_FALSE;
@@ -173,6 +173,7 @@ int main(int argc, char* argv[])
   PetscInt       N = 3;
   PetscReal      err,params[3],normPhi,omega = 0.1,gamma = 0.0;
   PetscBool      use_lorentz = PETSC_FALSE;
+  TSProblemType  ptype;
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return ierr;
@@ -206,39 +207,62 @@ int main(int argc, char* argv[])
   ierr = VecCreate(PETSC_COMM_WORLD,&U);CHKERRQ(ierr);
   ierr = VecSetSizes(U,N,PETSC_DECIDE);CHKERRQ(ierr);
   ierr = VecSetType(U,VECSTANDARD);CHKERRQ(ierr);
+  ierr = VecDuplicate(U,&U0);CHKERRQ(ierr);
 
   /* jacobian */
   ierr = MatCreate(PETSC_COMM_WORLD,&J);CHKERRQ(ierr);
   ierr = MatSetSizes(J,N,N,PETSC_DECIDE,PETSC_DECIDE);CHKERRQ(ierr);
-  ierr = MatSetUp(J);CHKERRQ(ierr);
-  ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatSetType(J,MATAIJ);CHKERRQ(ierr);
+  ierr = MatSeqAIJSetPreallocation(J,N,NULL);CHKERRQ(ierr);
+  ierr = MatMPIAIJSetPreallocation(J,N,NULL,0,NULL);CHKERRQ(ierr);
 
   /* TS solver */
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
+  ierr = TSSetSolution(ts,U);CHKERRQ(ierr);
   ierr = TSSetMaxSteps(ts,PETSC_MAX_INT);CHKERRQ(ierr);
   if (ifunc) {
     ierr = TSSetType(ts,TSCN);CHKERRQ(ierr);
     if (use_lorentz) {
       ierr = TSSetIFunction(ts,NULL,FormIFunction_Lorentz,&luser);CHKERRQ(ierr);
       ierr = TSSetIJacobian(ts,J,J,FormIJacobian_Lorentz,&luser);CHKERRQ(ierr);
+      ierr = FormIJacobian_Lorentz(ts,0.0,U,U,1.0,J,J,&luser);CHKERRQ(ierr);
     } else {
       ierr = TSSetIFunction(ts,NULL,FormIFunction_Osc,&ouser);CHKERRQ(ierr);
       ierr = TSSetIJacobian(ts,J,J,FormIJacobian_Osc,&ouser);CHKERRQ(ierr);
+      ierr = FormIJacobian_Osc(ts,0.0,U,U,1.0,J,J,&ouser);CHKERRQ(ierr);
     }
   } else {
     if (use_lorentz) {
       ierr = TSSetRHSFunction(ts,NULL,FormRHSFunction_Lorentz,&luser);CHKERRQ(ierr);
       ierr = TSSetRHSJacobian(ts,J,J,FormRHSJacobian_Lorentz,&luser);CHKERRQ(ierr);
+      ierr = FormRHSJacobian_Lorentz(ts,0.0,U,J,J,&luser);CHKERRQ(ierr);
     } else {
       ierr = TSSetRHSFunction(ts,NULL,FormRHSFunction_Osc,&ouser);CHKERRQ(ierr);
       ierr = TSSetRHSJacobian(ts,J,J,FormRHSJacobian_Osc,&ouser);CHKERRQ(ierr);
+      ierr = FormRHSJacobian_Osc(ts,0.0,U,J,J,&ouser);CHKERRQ(ierr);
     }
+  }
+  if (!use_lorentz) {
+    ierr = TSSetProblemType(ts,TS_LINEAR);CHKERRQ(ierr);
   }
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
 
-  ierr = VecSetRandom(U,NULL);CHKERRQ(ierr);
-  ierr = TSCreatePropagatorMat(ts,t0,dt,tf,U,NULL,NULL,&Phi);CHKERRQ(ierr);
+  ierr = VecSetRandom(U0,NULL);CHKERRQ(ierr);
+  ierr = TSCreatePropagatorMat(ts,t0,dt,tf,U0,NULL,NULL,&Phi);CHKERRQ(ierr);
+  ierr = TSGetProblemType(ts,&ptype);CHKERRQ(ierr);
+  if (ptype == TS_LINEAR) { /* For linear problems Phi should give the ODE itself */
+    Vec W,sol;
+
+    ierr = TSGetSolution(ts,&sol);CHKERRQ(ierr);
+    ierr = VecDuplicate(sol,&W);CHKERRQ(ierr);
+    ierr = MatMult(Phi,U0,W);CHKERRQ(ierr);
+    ierr = VecAXPY(W,-1.0,sol);CHKERRQ(ierr);
+    ierr = VecNorm(W,NORM_INFINITY,&err);CHKERRQ(ierr);
+    if (err > PETSC_SMALL) {
+      ierr = PetscPrintf(PETSC_COMM_WORLD,"Possible error with TLM: ||Phi u0 - u(t)|| is  %g\n",(double)err);CHKERRQ(ierr);
+    }
+    ierr = VecDestroy(&W);CHKERRQ(ierr);
+  }
   ierr = MatComputeExplicitOperator(Phi,&PhiExpl);CHKERRQ(ierr);
   ierr = MatNorm(PhiExpl,NORM_INFINITY,&normPhi);CHKERRQ(ierr);
   ierr = MatCreateTranspose(Phi,&PhiT);CHKERRQ(ierr);
@@ -263,6 +287,7 @@ int main(int argc, char* argv[])
 
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
   ierr = VecDestroy(&U);CHKERRQ(ierr);
+  ierr = VecDestroy(&U0);CHKERRQ(ierr);
   ierr = MatDestroy(&PhiExpl);CHKERRQ(ierr);
   ierr = MatDestroy(&Phi);CHKERRQ(ierr);
   ierr = MatDestroy(&PhiTExpl);CHKERRQ(ierr);
