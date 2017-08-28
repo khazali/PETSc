@@ -1860,6 +1860,11 @@ static PetscErrorCode MatPropagatorUpdate_Propagator(Mat A, PetscReal t0, PetscR
 
   /* Solve the forward nonlinear model in the given time window */
   ierr = TSGetSolution(prop->model,&osol);CHKERRQ(ierr);
+  if (!osol) {
+    ierr = VecDuplicate(prop->x0,&osol);CHKERRQ(ierr);
+    ierr = TSSetSolution(prop->model,osol);CHKERRQ(ierr);
+    ierr = PetscObjectDereference((PetscObject)osol);CHKERRQ(ierr);
+  }
   ierr = VecCopy(prop->x0,osol);CHKERRQ(ierr);
   ierr = TSSetStepNumber(prop->model,0);CHKERRQ(ierr);
   ierr = TSSetTime(prop->model,t0);CHKERRQ(ierr);
@@ -1867,7 +1872,7 @@ static PetscErrorCode MatPropagatorUpdate_Propagator(Mat A, PetscReal t0, PetscR
   ierr = TSSetMaxSteps(prop->model,PETSC_MAX_INT);CHKERRQ(ierr);
   ierr = TSSetMaxTime(prop->model,tf);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(prop->model,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
-  ierr = TSSolve(prop->model,osol);CHKERRQ(ierr);
+  ierr = TSSolve(prop->model,NULL);CHKERRQ(ierr);
   prop->tj = prop->model->trajectory;
   prop->model->trajectory = otrj;
   PetscFunctionReturn(0);
