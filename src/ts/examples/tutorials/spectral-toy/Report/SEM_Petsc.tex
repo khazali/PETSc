@@ -643,44 +643,64 @@ In this section we demonstrate how, using the functional analysis equivalent of 
 an unconstrained optimization. This approach is known as the adjoint state method. 
 The unconstrained problem
 \begin{eqnarray}
-  \min_{u \in K, v \in K} \Lagrangian(u,v) = \min_{u \in K, v \in K} \int_{\Omega}g(u(T)) \ \d \Omega + \int_0^T\int_{\Omega}(G(u)  +  \int_0^T \int_{\Omega} v^T ( u_t- P( u))) \d \Omega \d t
+  \min_{u \in K, v \in K} \Lagrangian(u,v) = \min_{u \in K, v \in K} \int_{\Omega}g(u(T)) \ \d \Omega + \int_0^T\int_{\Omega}(G(u)  +   v^T ( u_t- P( u))) \d \Omega \d t
 \label{unconstrainedoptimizationproblem}
 \end{eqnarray}
 has a stationary point for each extremum of the original problem (plus possibly additional stationary points). In this formulation the $ v$ play the role of
 Lagrange multipliers. We integrate by parts and for clarity explicitly include $ u(0) $ and $ u(T) $ in the arguments of the Lagrangian resulting in
 \[
-\Lagrangian(u,v,u(0),u(T)) =  \int_0^T\int_{\Omega}(G(u) -  v^T_tu - \tilde{P}( v)  u) \d \Omega \d t + \int_{\Omega} (g(u(T))  + v(T)^Tu(T) - v(0)^Tu(0)) \d \Omega.
+\Lagrangian(u,v,u(0),u(T)) =  \int_0^T\int_{\Omega}(G(u) -  v^T_tu - \tilde{P}( v)  u) \d \Omega \d t + \int_{\Omega} (g(u(T)  + v(T)^Tu(T) - v(0)^Tu(0)) \d \Omega.
 \]
+The integration by parts is used to shift the $u$ outside of the $P()$ so that the result is linear in $u$; this is not possible to do for all forms of $p()$ but presumably in those cases one can
+directly apply the definition of the functional derivative to the original form.
 Now using the definition of the functional derivative we obtain
-\[
-\int_{\Omega} \frac{\partial \Lagrangian(u,v,u(0),u(T))}{\partial u(0)}\phi = \int_{\Omega}  - v(0)\phi \d \Omega
-\],
-\[
-\int_{\Omega} \frac{\partial \Lagrangian(u,v,u(0),u(T))}{\partial u(T)}\phi = \int_{\Omega} (\frac{\partial g}{\partial u(T)}(u(T)) - v(T))\phi \d \Omega
-\], and 
 \[
 \int_0^T\int_{\Omega} \frac{\partial \Lagrangian(u,v,u(0),u(T))}{\partial u}\phi = \int_0^T\int_{\Omega} (\frac{\partial G}{\partial u}(u) -  v_t - \tilde{P}(v))\phi \d \Omega
 \]
+\[
+\int_{\Omega} \frac{\partial \Lagrangian(u,v,u(0),u(T))}{\partial u(0)}\phi = \int_{\Omega}  - v(0)\phi \d \Omega
+\], and
+\[
+\int_{\Omega} \frac{\partial \Lagrangian(u,v,u(0),u(T))}{\partial u(T)}\phi = \int_{\Omega} (\frac{\partial g}{\partial u(T)}(u(T)) - v(T))\phi \d \Omega.
+\] 
+In strong form the resulting equations are
+\begin{eqnarray}
+\nabla_u \mathcal L&=&- \frac{\partial v}{\partial t}  +\nu\Delta  v = 0\\ \nonumber
+\nabla_{u_0} \mathcal L&=&- v[0] = 0\\ \nonumber
+\nabla_{u_T} \mathcal L&=&2( u[T]- u_d)+ v[T] = 0.\\ \nonumber
+\label{eq:bcs_ics}
+\end{eqnarray}
 
-Question, why do the other two terms drop out for the first two equations?
 
 Example convection-diffusion method problem. 
 
 \subsubsection{Semi-discrete Adjoints}
 
-In this section we use the denominator layout for derivatives, i.e. vectors are column oriented as are gradients, a byproduct of this notation is that $ \frac{\partial \overline{v}^T A \overline{u}}{\partial \overline{u}} = A^T \overline{v}.$
+In this section we use $ \overline{u} $ to represent a vector of finite element coefficients (which are still time dependent) and we use
+the {\em denominator layout} for derivatives, i.e. vectors are column oriented as are gradients, a byproduct of this notation is that
+$ \frac{\partial \overline{v}^T A \overline{u}}{\partial \overline{u}} = A^T \overline{v}.$
 
-Instead of minimizing the Lagrangian via the functional derivative one
-can first discretize in space and then optimizing the resulting
-algebraic model. So rewrite \ref{unconstrainedoptimizationproblem} after discretizing in space resulting in
+Instead of first minimizing the Lagrangian via the functional derivative one
+can first discretize in space and then optimizing. So rewrite \ref{unconstrainedoptimizationproblem}, after discretizing in space, resulting in
 
 \begin{eqnarray}
-  \min_{\overline{u} \in R^{n}, \overline{v} \in R^{n}} \Lagrangian(\overline{u},\overline{v},\overline{u}(0),\overline{u}(T) =  \min_{\overline{u} \in R^{n}, \overline{v} \in R^{n}} \int_0^T(\overline{G}(\overline{u})  -   \overline{v}_t^TM\overline{u}  - \overline{v}^T \overline{P}(\overline{u})) \d t + \overline{g}(\overline{u}(T)).
+  \min_{\overline{u} \in R^{n}, \overline{v} \in R^{n}} \Lagrangian(\overline{u},\overline{v},\overline{u}(0),\overline{u}(T) =  \min_{\overline{u} \in R^{n}, \overline{v} \in R^{n}} \int_0^T(\overline{G}(\overline{u})  -   \overline{v}_t^TM\overline{u}  - \overline{v}^T \overline{P}(\overline{u})) \d t + \overline{g}(\overline{u}(T)) \d  t + \overline{v}(T)^TM\overline{u}(T) - \overline{v}(0)^TM\overline{u}(0).
 \end{eqnarray}
 Now take the functional derivative only with respect to time resulting in
 \[
   \int_0^T \frac{\partial \Lagrangian(\overline{u},\overline{v},\overline{u}(0),\overline{u}(T))}{\partial \overline{u}}\overline{\phi} = \int_0^T (\frac{\partial \overline{G}}{\partial \overline{u}} -  M \overline{v}_t  - \frac{\partial \overline{P}}{\partial \overline{u}}(\overline{u})^T\overline{v})\overline{\phi} \d  t.
-\]
+  \]
+  \[
+  \frac{\partial \Lagrangian(\overline{u},\overline{v},\overline{u}(0),\overline{u}(T))}{\partial \overline{u(0)}} = -M \overline{v}(0)
+  \]
+  \[
+  \frac{\partial \Lagrangian(\overline{u},\overline{v},\overline{u}(0),\overline{u}(T))}{\partial \overline{u(T)}} = \frac{\partial \overline{g}}{\partial \overline{u}(T)}(\overline{u}(T)) - M \overline{v}(T)) -M \overline{v}(T). 
+  \]
+  In strong form the equations can be written as
+
+
+\subsubsection{Discrete Adjoints}
+
 
 Example convection-diffusion method problem.
 
