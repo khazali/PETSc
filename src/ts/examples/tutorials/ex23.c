@@ -264,13 +264,14 @@ int main(int argc, char* argv[])
 {
   TS             ts;
   Mat            J,G_M,F_M,G_X;
+  Mat            H,Phi,PhiExpl,PhiT,PhiTExpl;
   Vec            U,M,Mgrad;
   UserObjective  userobj;
   User           user;
   TSProblemType  problemtype;
   PetscScalar    one = 1.0;
   PetscReal      t0 = 0.0, tf = 2.0, dt = 0.1;
-  PetscReal      obj,objtest;
+  PetscReal      obj,objtest,err,normPhi;
   PetscInt       maxsteps;
   PetscMPIInt    np;
   PetscBool      testpoststep = PETSC_FALSE;
@@ -292,7 +293,6 @@ int main(int argc, char* argv[])
   /* Command line options */
   t0             = 0.0;
   tf             = 2.0;
-  dt             = 1.0/512.0;
   user.a         = 0.5;
   user.b         = 0.7;
   user.p         = 1.0;
@@ -303,7 +303,8 @@ int main(int argc, char* argv[])
   ierr = PetscOptionsReal("-p","Nonlinearity","",user.p,&user.p,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-t0","Initial time","",t0,&t0,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-tf","Final time","",tf,&tf,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsReal("-dt","Initial time","",dt,&dt,NULL);CHKERRQ(ierr);
+  dt   = (tf-t0)/512.0;
+  ierr = PetscOptionsReal("-dt","Initial time step","",dt,&dt,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_objective_norm","Test f(u) = ||u||^2","",userobj.isnorm,&userobj.isnorm,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_poststep","Test with PostStep method","",testpoststep,&testpoststep,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_mix","Test mixing IFunction and RHSFunction","",testmix,&testmix,NULL);CHKERRQ(ierr);
@@ -337,7 +338,9 @@ int main(int argc, char* argv[])
   ierr = VecCreate(PETSC_COMM_WORLD,&M);CHKERRQ(ierr);
   ierr = VecSetSizes(M,PETSC_DECIDE,3);CHKERRQ(ierr);
   ierr = VecSetType(M,VECSTANDARD);CHKERRQ(ierr);
-  ierr = VecSetRandom(M,NULL);CHKERRQ(ierr);
+  ierr = VecSetValue(M,0,user.a,INSERT_VALUES);CHKERRQ(ierr);
+  ierr = VecSetValue(M,1,user.b,INSERT_VALUES);CHKERRQ(ierr);
+  ierr = VecSetValue(M,2,user.p,INSERT_VALUES);CHKERRQ(ierr);
   ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
   ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
   ierr = VecDuplicate(M,&Mgrad);CHKERRQ(ierr);
@@ -469,6 +472,32 @@ int main(int argc, char* argv[])
   ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
   ierr = VecSet(U,user.a);CHKERRQ(ierr);
   ierr = TSEvaluateObjectiveGradient(ts,U,M,Mgrad);CHKERRQ(ierr);
+
+  /* Test tangent Linear Model */
+  ierr = VecSet(U,user.a);CHKERRQ(ierr);
+  ierr = TSCreatePropagatorMat(ts,t0,dt,tf,U,M,NULL,&Phi);CHKERRQ(ierr);
+  ierr = MatComputeExplicitOperator(Phi,&PhiExpl);CHKERRQ(ierr);
+  ierr = MatNorm(PhiExpl,NORM_INFINITY,&normPhi);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)PhiExpl,"Phi");CHKERRQ(ierr);
+  ierr = MatViewFromOptions(PhiExpl,NULL,"-phi_view");CHKERRQ(ierr);
+  ierr = MatCreateTranspose(Phi,&PhiT);CHKERRQ(ierr);
+  ierr = MatComputeExplicitOperator(PhiT,&PhiTExpl);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)PhiTExpl,"PhiT");CHKERRQ(ierr);
+  ierr = MatViewFromOptions(PhiTExpl,NULL,"-phiT_view");CHKERRQ(ierr);
+  ierr = MatTranspose(PhiTExpl,MAT_INITIAL_MATRIX,&H);CHKERRQ(ierr);
+  ierr = MatAXPY(H,-1.0,PhiExpl,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  ierr = MatScale(H,1./normPhi);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)H,"||Phi - (Phi^T)^T||/||Phi||");CHKERRQ(ierr);
+  ierr = MatNorm(H,NORM_INFINITY,&err);CHKERRQ(ierr);
+  ierr = MatViewFromOptions(H,NULL,"-err_view");CHKERRQ(ierr);
+  if (err > 0.01) { /* 1% difference */
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"Possible error with TLM: ||Phi|| is  %g (%g)\n",(double)normPhi,(double)err);CHKERRQ(ierr);
+    ierr = MatView(PhiExpl,NULL);CHKERRQ(ierr);
+    ierr = MatView(PhiTExpl,NULL);CHKERRQ(ierr);
+    ierr = MatView(H,NULL);CHKERRQ(ierr);
+  }
+  ierr = MatDestroy(&H);CHKERRQ(ierr);
+
   if (usefd) { /* we test against finite differencing the function evaluation */
     PetscInt  i;
     PetscReal oa = user.a, ob = user.b, op = user.p;
@@ -559,6 +588,10 @@ int main(int argc, char* argv[])
   ierr = VecDestroy(&U);CHKERRQ(ierr);
   ierr = VecDestroy(&M);CHKERRQ(ierr);
   ierr = VecDestroy(&Mgrad);CHKERRQ(ierr);
+  ierr = MatDestroy(&PhiExpl);CHKERRQ(ierr);
+  ierr = MatDestroy(&Phi);CHKERRQ(ierr);
+  ierr = MatDestroy(&PhiTExpl);CHKERRQ(ierr);
+  ierr = MatDestroy(&PhiT);CHKERRQ(ierr);
   ierr = MatDestroy(&J);CHKERRQ(ierr);
   ierr = MatDestroy(&G_M);CHKERRQ(ierr);
   ierr = MatDestroy(&G_X);CHKERRQ(ierr);
