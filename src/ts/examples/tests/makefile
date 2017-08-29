@@ -213,6 +213,11 @@ runex14_lorentz:
            ${DIFF} output/ex14_lorentz.out ex14.tmp || printf "${PWD}\nPossible problem with ex14_lorentz, diffs above\n=========================================\n"; \
            ${RM} -rf ex14.tmp
 
+runex14_lorentz_i_noifunc:
+	-@${MPIEXEC} -n 1 ./ex14 -ts_type bdf -ts_bdf_order 3 -tlm_ts_bdf_order 3 -adjoint_tlm_ts_bdf_order 3 -tf 0.5  -lorentz -ts_rtol 1.e-6 -ts_atol 1.e-6 -ts_trajectory_type memory > ex14.tmp 2>&1;  \
+           ${DIFF} output/ex14_lorentz.out ex14.tmp || printf "${PWD}\nPossible problem with ex14_lorentz_i_noifunc, diffs above\n=========================================\n"; \
+           ${RM} -rf ex14.tmp
+
 runex14_lorentz_i:
 	-@${MPIEXEC} -n 1 ./ex14 -ts_type bdf -ts_bdf_order 3 -tlm_ts_bdf_order 3 -adjoint_tlm_ts_bdf_order 3 -tf 0.5  -lorentz -ts_rtol 1.e-6 -ts_atol 1.e-6 -ts_trajectory_type memory -ifunc 1 > ex14.tmp 2>&1;  \
            ${DIFF} output/ex14_lorentz.out ex14.tmp || printf "${PWD}\nPossible problem with ex14_lorentz_i, diffs above\n=========================================\n"; \
@@ -236,7 +241,7 @@ runex25_2:
 TESTEXAMPLES_C		  = ex1.PETSc runex1 ex1.rm \
                             ex4.PETSc runex4 runex4_2 runex4_3 runex4_4 runex4_5 runex4_6 ex4.rm \
                             ex11.PETSc runex11_1 runex11_2 ex11.rm \
-                            ex14.PETSc runex14_lorentz runex14_oscillator ex14.rm \
+                            ex14.PETSc runex14_lorentz runex14_lorentz_i runex14_lorentz_i_noifunc runex14_oscillator ex14.rm \
                             ex25.PETSc runex25 runex25_2 ex25.rm
 TESTEXAMPLES_C_NOTSINGLE  = ex4.PETSc runex4_7 ex4.rm
 TESTEXAMPLES_C_NOCOMPLEX  = ex3.PETSc runex3 ex3.rm

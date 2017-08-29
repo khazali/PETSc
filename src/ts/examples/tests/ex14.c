@@ -265,10 +265,10 @@ int main(int argc, char* argv[])
   }
   ierr = MatComputeExplicitOperator(Phi,&PhiExpl);CHKERRQ(ierr);
   ierr = MatNorm(PhiExpl,NORM_INFINITY,&normPhi);CHKERRQ(ierr);
-  ierr = MatCreateTranspose(Phi,&PhiT);CHKERRQ(ierr);
-  ierr = MatComputeExplicitOperator(PhiT,&PhiTExpl);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject)PhiExpl,"Phi");CHKERRQ(ierr);
   ierr = MatViewFromOptions(PhiExpl,NULL,"-prop_view");CHKERRQ(ierr);
+  ierr = MatCreateTranspose(Phi,&PhiT);CHKERRQ(ierr);
+  ierr = MatComputeExplicitOperator(PhiT,&PhiTExpl);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject)PhiTExpl,"PhiT");CHKERRQ(ierr);
   ierr = MatViewFromOptions(PhiTExpl,NULL,"-propT_view");CHKERRQ(ierr);
   ierr = MatTranspose(PhiTExpl,MAT_INITIAL_MATRIX,&H);CHKERRQ(ierr);
