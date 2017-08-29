@@ -2635,7 +2635,8 @@ PetscErrorCode  TSSetUp(TS ts)
 
   if (!ts->vec_sol) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call TSSetSolution() first");
 
-  if (ts->rhsjacobian.reuse) {
+  ierr = TSGetRHSJacobian(ts,NULL,NULL,&rhsjac,NULL);CHKERRQ(ierr);
+  if (ts->rhsjacobian.reuse && rhsjac == TSComputeRHSJacobianConstant) {
     Mat Amat,Pmat;
     SNES snes;
     ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
