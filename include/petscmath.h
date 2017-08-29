@@ -419,11 +419,6 @@ PETSC_STATIC_INLINE PetscComplex PetscCMPLX(PetscReal x, PetscReal y)
 #elif defined(_Imaginary_I)
   return x + y * _Imaginary_I;
 #else
-#if   defined(PETSC_USE_REAL_SINGLE) && defined(CMPLXF)
-  return CMPLXF(x,y);
-#elif defined(PETSC_USE_REAL_DOUBLE) && defined(CMPLX)
-  return CMPLX(x,y);
-#else
   { /* In both C99 and C11 (ISO/IEC 9899, Section 6.2.5),
 
        "For each floating type there is a corresponding real type, which is always a real floating
@@ -437,7 +432,6 @@ PETSC_STATIC_INLINE PetscComplex PetscCMPLX(PetscReal x, PetscReal y)
     uz.f[1] = y;
     return uz.z;
   }
-#endif
 #endif
 }
 #endif
@@ -637,12 +631,14 @@ M*/
 #define PETSC_INFINITY               (PETSC_MAX_REAL/4)
 #define PETSC_NINFINITY              (-PETSC_INFINITY)
 
-PETSC_EXTERN PetscErrorCode PetscIsInfOrNanReal(PetscReal);
-PETSC_EXTERN PetscErrorCode PetscIsNanReal(PetscReal);
+PETSC_EXTERN PetscBool PetscIsInfReal(PetscReal);
+PETSC_EXTERN PetscBool PetscIsNanReal(PetscReal);
 PETSC_EXTERN PetscBool PetscIsNormalReal(PetscReal);
-PETSC_STATIC_INLINE PetscErrorCode PetscIsInfOrNanScalar(PetscScalar v) {return PetscIsInfOrNanReal(PetscAbsScalar(v));}
-PETSC_STATIC_INLINE PetscErrorCode PetscIsNanScalar(PetscScalar v) {return PetscIsNanReal(PetscAbsScalar(v));}
-PETSC_STATIC_INLINE PetscErrorCode PetscIsNormalScalar(PetscScalar v) {return PetscIsNormalReal(PetscAbsScalar(v));}
+PETSC_STATIC_INLINE PetscBool PetscIsInfOrNanReal(PetscReal v) {return PetscIsInfReal(v) || PetscIsNanReal(v) ? PETSC_TRUE : PETSC_FALSE;}
+PETSC_STATIC_INLINE PetscBool PetscIsInfScalar(PetscScalar v) {return PetscIsInfReal(PetscAbsScalar(v));}
+PETSC_STATIC_INLINE PetscBool PetscIsNanScalar(PetscScalar v) {return PetscIsNanReal(PetscAbsScalar(v));}
+PETSC_STATIC_INLINE PetscBool PetscIsInfOrNanScalar(PetscScalar v) {return PetscIsInfOrNanReal(PetscAbsScalar(v));}
+PETSC_STATIC_INLINE PetscBool PetscIsNormalScalar(PetscScalar v) {return PetscIsNormalReal(PetscAbsScalar(v));}
 
 PETSC_EXTERN PetscBool PetscEqualReal(PetscReal,PetscReal);
 PETSC_EXTERN PetscBool PetscEqualScalar(PetscScalar,PetscScalar);
