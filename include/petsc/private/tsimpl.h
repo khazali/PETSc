@@ -467,6 +467,7 @@ PETSC_STATIC_INLINE PetscErrorCode TSCheckImplicitTerm(TS ts)
 
 PETSC_EXTERN PetscLogEvent TSTrajectory_Set, TSTrajectory_Get, TSTrajectory_DiskWrite, TSTrajectory_DiskRead;
 
+PETSC_INTERN PetscErrorCode TSGetRHSMats_Private(TS,Mat*,Mat*);
 PETSC_INTERN PetscErrorCode TSHistoryDestroy(TSHistory);
 PETSC_INTERN PetscErrorCode TSHistoryGetLocFromTime(TSHistory,PetscReal,PetscInt*);
 PETSC_INTERN PetscErrorCode TSHistoryUpdate(TSHistory,PetscInt,PetscReal);

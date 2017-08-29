@@ -611,9 +611,11 @@ PetscErrorCode  TSComputeRHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat B)
   ierr = PetscObjectGetId((PetscObject)U,&Uid);CHKERRQ(ierr);
   if (ts->rhsjacobian.time == t && (ts->problem_type == TS_LINEAR || (ts->rhsjacobian.Xid == Uid && ts->rhsjacobian.Xstate == Ustate)) && (rhsfunction != TSComputeRHSFunctionLinear)) {
     if (ts->rhsjacobian.reuse) {
-      ierr = MatShift(A,-ts->rhsjacobian.shift);CHKERRQ(ierr);
-      ierr = MatScale(A,1./ts->rhsjacobian.scale);CHKERRQ(ierr);
-      if (B && A != B) {
+      if (A == ts->Arhs) {
+        ierr = MatShift(A,-ts->rhsjacobian.shift);CHKERRQ(ierr);
+        ierr = MatScale(A,1./ts->rhsjacobian.scale);CHKERRQ(ierr);
+      }
+      if (B && B == ts->Brhs && A != B) {
         ierr = MatShift(B,-ts->rhsjacobian.shift);CHKERRQ(ierr);
         ierr = MatScale(B,1./ts->rhsjacobian.scale);CHKERRQ(ierr);
       }
@@ -627,9 +629,11 @@ PetscErrorCode  TSComputeRHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat B)
   if (!rhsjacobianfunc && !ijacobianfunc) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Must call TSSetRHSJacobian() and / or TSSetIJacobian()");
 
   if (ts->rhsjacobian.reuse) {
-    ierr = MatShift(A,-ts->rhsjacobian.shift);CHKERRQ(ierr);
-    ierr = MatScale(A,1./ts->rhsjacobian.scale);CHKERRQ(ierr);
-    if (B && A != B) {
+    if (A == ts->Arhs) {
+      ierr = MatShift(A,-ts->rhsjacobian.shift);CHKERRQ(ierr);
+      ierr = MatScale(A,1./ts->rhsjacobian.scale);CHKERRQ(ierr);
+    }
+    if (B && B == ts->Brhs && A != B) {
       ierr = MatShift(B,-ts->rhsjacobian.shift);CHKERRQ(ierr);
       ierr = MatScale(B,1./ts->rhsjacobian.scale);CHKERRQ(ierr);
     }
@@ -815,7 +819,7 @@ static PetscErrorCode TSGetRHSVec_Private(TS ts,Vec *Frhs)
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode TSGetRHSMats_Private(TS ts,Mat *Arhs,Mat *Brhs)
+PetscErrorCode TSGetRHSMats_Private(TS ts,Mat *Arhs,Mat *Brhs)
 {
   Mat            A,B;
   PetscErrorCode ierr;
@@ -1008,6 +1012,14 @@ PetscErrorCode TSComputeIJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal shi
   if (imex) {
     if (!ijacobian) {  /* system was written as Udot = G(t,U) */
       PetscBool assembled;
+      if (rhsjacobian) {
+        Mat Arhs = NULL;
+        ierr = TSGetRHSMats_Private(ts,&Arhs,NULL);CHKERRQ(ierr);
+        if (A == Arhs) {
+          if (rhsjacobian == TSComputeRHSJacobianConstant) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Unsupported operation! cannot use TSComputeRHSJacobianConstant");
+          ts->rhsjacobian.time = PETSC_MIN_REAL;
+        }
+      }
       ierr = MatZeroEntries(A);CHKERRQ(ierr);
       ierr = MatAssembled(A,&assembled);CHKERRQ(ierr);
       if (!assembled) {
@@ -2619,13 +2631,13 @@ PetscErrorCode  TSSetUp(TS ts)
     ierr = SNESGetJacobian(snes,&Amat,&Pmat,NULL,NULL);CHKERRQ(ierr);
     /* Matching matrices implies that an IJacobian is NOT set, because if it had been set, the IJacobian's matrix would
      * have displaced the RHS matrix */
-    if (Amat == ts->Arhs) {
+    if (Amat && Amat == ts->Arhs) {
       /* we need to copy the values of the matrix because for the constant Jacobian case the user will never set the numerical values in this new location */
       ierr = MatDuplicate(ts->Arhs,MAT_COPY_VALUES,&Amat);CHKERRQ(ierr);
       ierr = SNESSetJacobian(snes,Amat,NULL,NULL,NULL);CHKERRQ(ierr);
       ierr = MatDestroy(&Amat);CHKERRQ(ierr);
     }
-    if (Pmat == ts->Brhs) {
+    if (Pmat && Pmat == ts->Brhs) {
       ierr = MatDuplicate(ts->Brhs,MAT_COPY_VALUES,&Pmat);CHKERRQ(ierr);
       ierr = SNESSetJacobian(snes,NULL,Pmat,NULL,NULL);CHKERRQ(ierr);
       ierr = MatDestroy(&Pmat);CHKERRQ(ierr);

@@ -790,7 +790,8 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   } else {
     if (!rhsfunc) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"TSSetIFunction or TSSetRHSFunction not called");
     ierr = TSSetRHSFunction(*adjts,NULL,AdjointTSRHSFunctionLinear,NULL);CHKERRQ(ierr);
-    ierr = TSGetRHSJacobian(ts,&A,&B,&rhsjacfunc,NULL);CHKERRQ(ierr);
+    ierr = TSGetRHSJacobian(ts,NULL,NULL,&rhsjacfunc,NULL);CHKERRQ(ierr);
+    ierr = TSGetRHSMats_Private(ts,&A,&B);CHKERRQ(ierr);
     if (rhsjacfunc == TSComputeRHSJacobianConstant) {
       ierr = TSSetRHSJacobian(*adjts,A,B,TSComputeRHSJacobianConstant,NULL);CHKERRQ(ierr);
     } else {
@@ -1631,7 +1632,7 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
     ierr = TSSetIJacobian(*lts,A,B,TLMTSIJacobian,NULL);CHKERRQ(ierr);
   } else {
     if (!rhsfunc) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"TSSetIFunction or TSSetRHSFunction not called");
-    ierr = TSGetRHSJacobian(ts,&A,&B,NULL,NULL);CHKERRQ(ierr);
+    ierr = TSGetRHSMats_Private(ts,&A,&B);CHKERRQ(ierr);
     ierr = TSSetRHSFunction(*lts,NULL,TLMTSRHSFunctionLinear,NULL);CHKERRQ(ierr);
     ierr = TSSetRHSJacobian(*lts,A,B,TLMTSRHSJacobian,NULL);CHKERRQ(ierr);
     ierr = TSRHSJacobianSetReuse(*lts,PETSC_TRUE);CHKERRQ(ierr);
