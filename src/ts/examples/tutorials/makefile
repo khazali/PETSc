@@ -715,7 +715,7 @@ runex23_4:
 	   ${RM} -rf ex23_4.tmp SA-data
 
 runex23_5:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 0.7 -tf 1.2 -ts_type cn -use_fd -test_event_constant -p 0.8 -test_ifunc -ts_trajectory_basic_order 2 > ex23_5.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 0.7 -tf 1.2 -ts_type cn -use_fd -test_event_constant -p 0.8 -test_ifunc -ts_trajectory_reconstruction_order 2 > ex23_5.tmp 2>&1; \
 	   ${DIFF} output/ex23_5.out ex23_5.tmp || printf "${PWD}\nPossible problem with ex23_5, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_5.tmp SA-data
 
