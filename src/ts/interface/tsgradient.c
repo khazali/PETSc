@@ -524,7 +524,7 @@ static PetscErrorCode AdjointTSRHSJacobian(TS adjts, PetscReal time, Vec U, Mat 
    -> the forward DAE is Udot - G(U) = 0 ( -> H(U,Udot,t) := Udot - G(U) )
    -> the adjoint DAE is F - L^T * G_U - Ldot^T in backward time (F the derivative of the objective wrt U)
    -> the adjoint DAE is Ldot^T = L^T * G_U - F in forward time */
-static PetscErrorCode AdjointTSRHSFuncLinear(TS adjts, PetscReal time, Vec U, Vec F, void *ctx)
+static PetscErrorCode AdjointTSRHSFunctionLinear(TS adjts, PetscReal time, Vec U, Vec F, void *ctx)
 {
   AdjointCtx     *adj_ctx;
   PetscReal      fwdt;
@@ -789,7 +789,7 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
     ierr = TSSetIJacobian(*adjts,A,B,AdjointTSIJacobian,NULL);CHKERRQ(ierr);
   } else {
     if (!rhsfunc) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"TSSetIFunction or TSSetRHSFunction not called");
-    ierr = TSSetRHSFunction(*adjts,NULL,AdjointTSRHSFuncLinear,NULL);CHKERRQ(ierr);
+    ierr = TSSetRHSFunction(*adjts,NULL,AdjointTSRHSFunctionLinear,NULL);CHKERRQ(ierr);
     ierr = TSGetRHSJacobian(ts,&A,&B,&rhsjacfunc,NULL);CHKERRQ(ierr);
     if (rhsjacfunc == TSComputeRHSJacobianConstant) {
       ierr = TSSetRHSJacobian(*adjts,A,B,TSComputeRHSJacobianConstant,NULL);CHKERRQ(ierr);
@@ -1480,7 +1480,7 @@ static PetscErrorCode TLMTSComputeSplitJacobians(TS ts, PetscReal time, Vec U, V
 static PetscErrorCode TLMTSIFunctionLinear(TS lts, PetscReal time, Vec U, Vec Udot, Vec F, void *ctx)
 {
   TLMTS_Ctx      *tlm_ctx;
-  Mat            J_U, J_Udot;
+  Mat            J_U = NULL, J_Udot = NULL;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
