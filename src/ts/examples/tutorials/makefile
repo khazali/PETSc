@@ -505,9 +505,9 @@ runex16opt_p:
 	   ${RM} -f ex16opt_p_1.tmp SA-data/*
 
 runex16opt_p_ca:
-	-@${MPIEXEC} -n 1 ./ex16opt_p -continuous -ts_trajectory_basic_dumpstages 0 -viewer_binary_skip_info -tao_view -tao_monitor  -tao_gttol 1.e-5 -adjoint_ts_atol 1.e-9 > ex16opt_p_ca.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex16opt_p -ts_trajectory_type memory -continuous -tao_view -tao_monitor  -tao_gttol 1.e-5 -adjoint_ts_atol 1.e-9 > ex16opt_p_ca.tmp 2>&1; \
 	   ${DIFF} output/ex16opt_p_ca.out ex16opt_p_ca.tmp || printf "${PWD}\nPossible problem with ex16opt_p_ca, diffs above\n=========================================\n"; \
-	   ${RM} -f ex16opt_p_ca.tmp SA-data/*
+	   ${RM} -f ex16opt_p_ca.tmp
 
 
 runex16opt_ic:
@@ -516,9 +516,9 @@ runex16opt_ic:
 	   ${RM} -f ex16opt_ic_1.tmp SA-data/*
 
 runex16opt_ic_ca:
-	-@${MPIEXEC} -n 1 ./ex16opt_ic -continuous -ts_trajectory_basic_dumpstages 0 -monitor 0 -viewer_binary_skip_info -tao_view -tao_monitor  -tao_gttol 1.e-5 > ex16opt_ic_ca.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex16opt_ic -ts_trajectory_type memory -continuous -monitor 0 -tao_view -tao_monitor  -tao_gttol 1.e-5 > ex16opt_ic_ca.tmp 2>&1; \
 	   ${DIFF} output/ex16opt_ic_ca.out ex16opt_ic_ca.tmp || printf "${PWD}\nPossible problem with ex16opt_ic_ca, diffs above\n=========================================\n"; \
-	   ${RM} -f ex16opt_ic_ca.tmp SA-data/*
+	   ${RM} -f ex16opt_ic_ca.tmp
 
 runex17:
 	-@${MPIEXEC} -n 1 ./ex17 -da_grid_x 40 -ts_max_steps 2 -snes_monitor_short -ksp_monitor_short -ts_monitor > ex17_1.tmp 2>&1; \
@@ -889,7 +889,7 @@ TESTEXAMPLES_C_NOTSINGLE = ex2.PETSc runex2 ex2.rm ex3.PETSc runex3_3 ex3.rm ex8
 TESTEXAMPLES_C_NOCOMPLEX_NOTSINGLE  = ex9.PETSc runex9 runex9_2 runex9_3 ex9.rm \
                             ex26.PETSc runex26 runex26_2 runex26_3 runex26_4 runex26_asm ex26.rm\
                             ex16opt_p.PETSc  runex16opt_p  runex16opt_p_ca ex16opt_p.rm \
-                            printdot ex16opt_ic.PETSc runex16opt_ic runex16opt_p_ca ex16opt_ic.rm \
+                            printdot ex16opt_ic.PETSc runex16opt_ic runex16opt_ic_ca ex16opt_ic.rm \
                             ex20fwd.PETSc runex20fwd runex20fwd_2 ex20fwd.rm \
                             ex20opt_p.PETSc runex20opt_p runex20opt_p_ca ex20opt_p.rm \
                             ex20opt_ic.PETSc runex20opt_ic ex20opt_ic.rm \
