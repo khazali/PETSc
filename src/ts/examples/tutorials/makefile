@@ -1,13 +1,13 @@
 
 CFLAGS          =
 FFLAGS          =
-CPPFLAGS        =
+CPPFLAGS        = -I./out
 FPPFLAGS        =
 LOCDIR          = src/ts/examples/tutorials/
 EXAMPLESC       = ex1.c ex2.c ex3.c ex4.c ex5.c ex6.c ex7.c ex8.c \
                 ex9.c ex10.c ex11.c ex12.c ex13.c ex14.c ex15.c ex16.c ex17.c \
                 ex19.c ex20.c ex21.c ex22.c ex24.c ex25.c ex26.c \
-                ex28.c ex31.c ex34.c ex35.cxx extchem.c\
+                ex28.c ex31.c ex34.c ex35.cxx extchem.c expyjac.c \
                 ex16adj.c ex16opt_p.c ex16opt_ic.c  \
                 ex20adj.c ex20opt_p.c ex20opt_ic.c  \
                 ex40.c ex41.c ex42.c
@@ -205,6 +205,19 @@ ex36A: ex36A.o chkopts
 extchem: extchem.o chkopts
 	-${CLINKER} -o extchem extchem.o ${PETSC_TS_LIB}
 	${RM} extchem.o
+
+runpyjac:
+	python -m pyjac --lang c --input ${CHEMFILE} --thermo ${THERMFILE}
+	grep "^[0-9]" out/mechanism.h | cut -f3 -d" " | sed 's/^/\"/g' | sed 's/$$/\",/g' > out/species.h
+
+PYJACSOURCE  = $(wildcard out/*.c out/*/*.c)
+PYJACOBJS    = $(PYJACSOURCE:.c=.o)
+
+#  run make runpyjac before running this
+expyjac:  expyjac.o ${PYJACOBJS} chkopts
+	echo $PYJACSOURCE $PYJACOBJS
+	-${CLINKER} -o expyjac expyjac.o ${PYJACOBJS} ${PETSC_TS_LIB}
+	${RM} -rf out expyjac.o 
 
 extchemfield: extchemfield.o chkopts
 	-${CLINKER} -o extchemfield extchemfield.o ${PETSC_TS_LIB}
@@ -685,7 +698,7 @@ runex24:                        # This is not in the nightlies because the conve
 	   ${RM} -f ex24_1.tmp
 
 runextchem:
-	-@${MPIEXEC} -n 1 ./extchem -Tini 1500 -ts_arkimex_fully_implicit -ts_max_snes_failures -1 -ts_adapt_monitor -ts_adapt_dt_max 1e-4 -ts_arkimex_type 4 -ts_final_time .005 > extchem_1.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./extchem -Tini 1500 -ts_arkimex_fully_implicit -ts_max_snes_failures -1 -ts_adapt_monitor -ts_adapt_dt_max 1e-4 -ts_arkimex_type 4 -ts_final_time .005  -chem http://combustion.berkeley.edu/gri_mech/version30/files30/grimech30.dat -thermo http://combustion.berkeley.edu/gri_mech/version30/files30/thermo30.dat -initial_species CH4,O2,N2,AR -initial_mole    0.0948178320887,0.189635664177,0.706766236705,0.00878026702874 > extchem_1.tmp 2>&1; \
 	   ${DIFF} output/extchem_1.out extchem_1.tmp || printf "${PWD}\nPossible problem with extchem_1, diffs above\n=========================================\n";  \
 	   ${RM} -f extchem_1.tmp
 

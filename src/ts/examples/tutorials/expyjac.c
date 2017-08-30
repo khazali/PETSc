@@ -1,52 +1,44 @@
-static const char help[] = "Integrate chemistry using TChem.\n";
+static const char help[] = "Integrate chemistry using PyJac.\n";
 
-#include <petscts.h>
-
-#if defined(PETSC_HAVE_TCHEM)
-#if defined(MAX)
-#undef MAX
-#endif
-#if defined(MIN)
-#undef MIN
-#endif
-#  include <TC_params.h>
-#  include <TC_interface.h>
-#else
-#  error TChem is required for this example.  Reconfigure PETSc using --download-tchem.
-#endif
 /*
-    See extchem.example.1 for how to run an example
-
-    See also h2_10sp.inp for another example
-
-    Determine sensitivity of final tempature on each variables initial conditions
-    -ts_dt 1.e-5 -ts_type cn -ts_adjoint_solve -ts_adjoint_view_solution draw
-
-    The solution for component i = 0 is the temperature.
-
-    The solution, i > 0, is the mass fraction, massf[i], of species i, i.e. mass of species i/ total mass of all species
-
-    The mole fraction molef[i], i > 0, is the number of moles of a species/ total number of moles of all species
-        Define M[i] = mass per mole of species i then
-        molef[i] = massf[i]/(M[i]*(sum_j massf[j]/M[j]))
-
-    FormMoleFraction(User,massf,molef) converts the mass fraction solution of each species to the mole fraction of each species.
-
-
-    These are other data sets for other possible runs
-       https://www-pls.llnl.gov/data/docs/science_and_technology/chemistry/combustion/n_heptane_v3.1_therm.dat
-       https://www-pls.llnl.gov/data/docs/science_and_technology/chemistry/combustion/nc7_ver3.1_mech.txt
-
+    Pyjac require knowing the chemistry and thermo data at compile time so must be compiled with
+    make CHEMFILE=chemistryfile THERMFILE=thermofile expyjac
 
 */
+#include <petscts.h>
+#include <dydt.h>
+#include <jacob.h>
+#include <mass_mole.h>
+
+const char * const Species[] = {"Tempature",
+#include "out/species.h"
+                                0};
+
+PetscErrorCode FindSpecies(const char *sp,PetscInt *cnt)
+{
+  PetscBool      found;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  *cnt = 0;
+  while (Species[1 + *cnt]) {
+    ierr = PetscStrcasecmp(Species[*cnt],sp,&found);
+    if (found) PetscFunctionReturn(0);
+    *cnt += 1;
+  }
+  ierr = PetscStrcasecmp(Species[*cnt],sp,&found);
+  if (found) PetscFunctionReturn(0);
+  SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER, "Unable to find species %s\n",sp);
+  PetscFunctionReturn(0);
+}
+
 typedef struct _User *User;
 struct _User {
   PetscReal pressure;
   int       Nspec;
-  int       Nreac;
   PetscReal Tini;
-  double    *tchemwork;
-  double    *Jdense;        /* Dense array workspace where Tchem computes the Jacobian */ 
+  double    *pyjacwork;
+  double    *Jdense;        /* Dense array workspace where pyJac computes the Jacobian */ 
   PetscInt  *rows;
   char      **snames;
 };
@@ -62,7 +54,6 @@ static PetscErrorCode ComputeMassConservation(Vec,PetscReal*,void*);
 static PetscErrorCode MonitorMassConservation(TS,PetscInt,PetscReal,Vec,void*);
 static PetscErrorCode MonitorTempature(TS,PetscInt,PetscReal,Vec,void*);
 
-#define TCCHKERRQ(ierr) do {if (ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in TChem library, return code %d",ierr);} while (0)
 
 int main(int argc,char **argv)
 {
@@ -73,24 +64,14 @@ int main(int argc,char **argv)
   PetscInt          steps;
   PetscErrorCode    ierr;
   PetscReal         ftime,dt;
-  char              chemfile[PETSC_MAX_PATH_LEN],thermofile[PETSC_MAX_PATH_LEN],lchemfile[PETSC_MAX_PATH_LEN],lthermofile[PETSC_MAX_PATH_LEN],lperiodic[PETSC_MAX_PATH_LEN];
-  const char        *periodic = "file://${PETSC_DIR}/${PETSC_ARCH}/share/periodictable.dat";
   struct _User      user;       /* user-defined work context */
   TSConvergedReason reason;
-  char              **snames,*names;
-  PetscInt          i;
   TSTrajectory      tj;
-  PetscBool         flg = PETSC_FALSE,tflg = PETSC_FALSE,found;
+  PetscBool         flg = PETSC_FALSE,tflg = PETSC_FALSE;
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return ierr;
   ierr = PetscViewerPushFormat(PETSC_VIEWER_STDOUT_SELF,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
   ierr = PetscOptionsBegin(PETSC_COMM_WORLD,NULL,"Chemistry solver options","");CHKERRQ(ierr);
-  ierr = PetscOptionsString("-chem","CHEMKIN input file","",chemfile,chemfile,sizeof(chemfile),NULL);CHKERRQ(ierr);
-  ierr = PetscFileRetrieve(PETSC_COMM_WORLD,chemfile,lchemfile,PETSC_MAX_PATH_LEN,&found);CHKERRQ(ierr);
-  if (!found) SETERRQ2(PETSC_COMM_WORLD,PETSC_ERR_FILE_OPEN,"Cannot download %s and no local version %s",chemfile,lchemfile);
-  ierr = PetscOptionsString("-thermo","NASA thermo input file","",thermofile,thermofile,sizeof(thermofile),NULL);CHKERRQ(ierr);
-  ierr = PetscFileRetrieve(PETSC_COMM_WORLD,thermofile,lthermofile,PETSC_MAX_PATH_LEN,&found);CHKERRQ(ierr);
-  if (!found) SETERRQ2(PETSC_COMM_WORLD,PETSC_ERR_FILE_OPEN,"Cannot download %s and no local version %s",thermofile,lthermofile);
   user.pressure = 1.01325e5;    /* Pascal */
   ierr = PetscOptionsReal("-pressure","Pressure of reaction [Pa]","",user.pressure,&user.pressure,NULL);CHKERRQ(ierr);
   user.Tini = 1000;             /* Kelvin */
@@ -99,32 +80,13 @@ int main(int argc,char **argv)
   ierr = PetscOptionsBool("-monitor_temp","Monitor the tempature each timestep","",tflg,&tflg,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
-  /* tchem requires periodic table in current directory */
-  ierr = PetscFileRetrieve(PETSC_COMM_WORLD,periodic,lperiodic,PETSC_MAX_PATH_LEN,&found);CHKERRQ(ierr);
-  if (!found) SETERRQ2(PETSC_COMM_WORLD,PETSC_ERR_FILE_OPEN,"Cannot located required periodic table %s or local version %s",periodic,lperiodic);
+  user.Nspec = NSP;
+  user.snames = (char**) Species;
 
-  ierr = TC_initChem(lchemfile, lthermofile, 0, 1.0);TCCHKERRQ(ierr);
-  TC_setThermoPres(user.pressure);
-  user.Nspec = TC_getNspec();
-  user.Nreac = TC_getNreac();
-  /*
-      Get names of all species in easy to use array
-  */
-  ierr = PetscMalloc1((user.Nspec+1)*LENGTHOFSPECNAME,&names);CHKERRQ(ierr);
-  ierr = PetscStrcpy(names,"Temp");CHKERRQ(ierr);
-  TC_getSnames(user.Nspec,names+LENGTHOFSPECNAME);CHKERRQ(ierr);
-  ierr = PetscMalloc1((user.Nspec+2),&snames);CHKERRQ(ierr);
-  for (i=0; i<user.Nspec+1; i++) snames[i] = names+i*LENGTHOFSPECNAME;
-  snames[user.Nspec+1] = NULL;
-  ierr = PetscStrArrayallocpy((const char *const *)snames,&user.snames);CHKERRQ(ierr);
-  ierr = PetscFree(snames);CHKERRQ(ierr);
-  ierr = PetscFree(names);CHKERRQ(ierr);
+  ierr = PetscMalloc3(user.Nspec,&user.pyjacwork,PetscSqr(user.Nspec),&user.Jdense,user.Nspec,&user.rows);CHKERRQ(ierr);
+  ierr = VecCreateSeq(PETSC_COMM_SELF,user.Nspec,&X);CHKERRQ(ierr);
 
-  ierr = PetscMalloc3(user.Nspec+1,&user.tchemwork,PetscSqr(user.Nspec+1),&user.Jdense,user.Nspec+1,&user.rows);CHKERRQ(ierr);
-  ierr = VecCreateSeq(PETSC_COMM_SELF,user.Nspec+1,&X);CHKERRQ(ierr);
-
-  /* ierr = MatCreateSeqAIJ(PETSC_COMM_SELF,user.Nspec+1,user.Nspec+1,PETSC_DECIDE,NULL,&J);CHKERRQ(ierr); */
-  ierr = MatCreateSeqDense(PETSC_COMM_SELF,user.Nspec+1,user.Nspec+1,NULL,&J);CHKERRQ(ierr);
+  ierr = MatCreateSeqDense(PETSC_COMM_SELF,user.Nspec,user.Nspec,NULL,&J);CHKERRQ(ierr);
   ierr = MatSetFromOptions(J);CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -219,13 +181,11 @@ int main(int argc,char **argv)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Free work space.
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  TC_reset();
-  ierr = PetscStrArrayDestroy(&user.snames);CHKERRQ(ierr);
   ierr = MatDestroy(&J);CHKERRQ(ierr);
   ierr = VecDestroy(&X);CHKERRQ(ierr);
   ierr = VecDestroy(&lambda);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
-  ierr = PetscFree3(user.tchemwork,user.Jdense,user.rows);CHKERRQ(ierr);
+  ierr = PetscFree3(user.pyjacwork,user.Jdense,user.rows);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return ierr;
 }
@@ -241,9 +201,9 @@ static PetscErrorCode FormRHSFunction(TS ts,PetscReal t,Vec X,Vec F,void *ptr)
   ierr = VecGetArrayRead(X,&x);CHKERRQ(ierr);
   ierr = VecGetArray(F,&f);CHKERRQ(ierr);
 
-  ierr = PetscMemcpy(user->tchemwork,x,(user->Nspec+1)*sizeof(x[0]));CHKERRQ(ierr);
-  user->tchemwork[0] *= user->Tini; /* Dimensionalize */
-  ierr = TC_getSrc(user->tchemwork,user->Nspec+1,f);TCCHKERRQ(ierr);
+  ierr = PetscMemcpy(user->pyjacwork,x,(user->Nspec)*sizeof(x[0]));CHKERRQ(ierr);
+  user->pyjacwork[0] *= user->Tini; /* Dimensionalize */
+  dydt(t, user->pressure,user->pyjacwork,f);
   f[0] /= user->Tini;           /* Non-dimensionalize */
 
   ierr = VecRestoreArrayRead(X,&x);CHKERRQ(ierr);
@@ -256,15 +216,14 @@ static PetscErrorCode FormRHSJacobian(TS ts,PetscReal t,Vec X,Mat Amat,Mat Pmat,
   User              user = (User)ptr;
   PetscErrorCode    ierr;
   const PetscScalar *x;
-  PetscInt          M = user->Nspec+1,i;
+  PetscInt          M = user->Nspec,i;
 
   PetscFunctionBeginUser;
   ierr = VecGetArrayRead(X,&x);CHKERRQ(ierr);
-  ierr = PetscMemcpy(user->tchemwork,x,(user->Nspec+1)*sizeof(x[0]));CHKERRQ(ierr);
+  ierr = PetscMemcpy(user->pyjacwork,x,M*sizeof(x[0]));CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(X,&x);CHKERRQ(ierr);
-  user->tchemwork[0] *= user->Tini;  /* Dimensionalize temperature (first row) because that is what Tchem wants */
-  ierr = TC_getJacTYN(user->tchemwork,user->Nspec,user->Jdense,1);CHKERRQ(ierr);
-
+  user->pyjacwork[0] *= user->Tini;  /* Dimensionalize temperature (first row) because that is what Tchem wants */
+  eval_jacob (t, user->pressure,user->pyjacwork,user->Jdense);
   for (i=0; i<M; i++) user->Jdense[i + 0*M] /= user->Tini; /* Non-dimensionalize first column */
   for (i=0; i<M; i++) user->Jdense[0 + i*M] /= user->Tini; /* Non-dimensionalize first row */
   for (i=0; i<M; i++) user->rows[i] = i;
@@ -307,10 +266,10 @@ PetscErrorCode FormInitialSolution(TS ts,Vec X,void *ctx)
   for (i=0; i<smax; i++) sum += molefracs[i];
   for (i=0; i<smax; i++) molefracs[i] = molefracs[i]/sum;
   for (i=0; i<smax; i++) {
-    int ispec = TC_getSpos(names[i], strlen(names[i]));
-    if (ispec < 0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER,"Could not find species %s",names[i]);
+    PetscInt ispec;
+    ierr = FindSpecies(names[i],&ispec);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_SELF,"Species %d: %s %g\n",i,names[i],molefracs[i]);CHKERRQ(ierr);
-    x[1+ispec] = molefracs[i];
+    x[ispec] = molefracs[i];
   }
   for (i=0; i<smax; i++) {
     ierr = PetscFree(names[i]);CHKERRQ(ierr);
@@ -337,7 +296,7 @@ PetscErrorCode MassFractionToMoleFraction(User user,Vec massf,Vec *molef)
   ierr = VecGetArrayRead(massf,&maf);CHKERRQ(ierr);
   ierr = VecGetArray(*molef,&mof);CHKERRQ(ierr);
   mof[0] = maf[0]; /* copy over temperature */
-  TC_getMs2Ml((double*)maf+1,user->Nspec,mof+1);
+  mass2mole(maf+1,mof+1);
   ierr = VecRestoreArray(*molef,&mof);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(massf,&maf);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -357,7 +316,7 @@ PetscErrorCode MoleFractionToMassFraction(User user,Vec molef,Vec *massf)
   ierr = VecGetArrayRead(molef,&mof);CHKERRQ(ierr);
   ierr = VecGetArray(*massf,&maf);CHKERRQ(ierr);
   maf[0] = mof[0]; /* copy over temperature */
-  TC_getMl2Ms((double*)mof+1,user->Nspec,maf+1);
+  mole2mass(mof+1,maf+1);
   ierr = VecRestoreArrayRead(molef,&mof);CHKERRQ(ierr);
   ierr = VecRestoreArray(*massf,&maf);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -407,7 +366,7 @@ PETSC_UNUSED PetscErrorCode PrintSpecies(User user,Vec molef)
 {
   PetscErrorCode    ierr;
   const PetscScalar *mof;
-  PetscInt          i,*idx,n = user->Nspec+1;
+  PetscInt          i,*idx,n = user->Nspec;
 
   PetscFunctionBegin;
   ierr = PetscMalloc1(n,&idx);CHKERRQ(ierr);

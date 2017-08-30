@@ -1,5 +1,12 @@
 #
-#   Run with  ./extchem -options_file extchem.example.1
+#
+#   Run with
+#        make extchem
+#        ./extchem -options_file extchem.example.1
+#
+#    or
+#        make CHEMFILE=grimech30.dat THERMFILE=thermo30.dat runpyjac ; make expyjac
+#        ./expyjac -options_file extchem.example.1
 #
 #
 # If your machine is not connected to the internet you must obtain the two files below and store
@@ -24,7 +31,8 @@
 -ts_adapt_monitor
 -ts_adapt_dt_max 1e-4
 -ts_arkimex_type 4
--ts_final_time .005
+-ts_final_time .002
+-ts_view_solution
 
 -ts_monitor_lg_solution
 -draw_pause -2
