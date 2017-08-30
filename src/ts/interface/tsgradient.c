@@ -273,8 +273,8 @@ static PetscErrorCode TSGradientICApply(TS ts, PetscReal t0, Vec x0, Vec design,
     ierr = (*ts->Ggrad)(ts,t0,x0,design,ts->G_x,ts->G_m,ts->Ggrad_ctx);CHKERRQ(ierr);
   }
   if (ts->G_x) { /* this is optional. If not provided, identity is assumed */
-    ierr = PetscObjectQuery((PetscObject)ts,"_ts_gradient_G",(PetscObject*)&ksp);
-    ierr = PetscObjectQuery((PetscObject)ts,"_ts_gradient_GW",(PetscObject*)&workvec);
+    ierr = PetscObjectQuery((PetscObject)ts,"_ts_gradient_G",(PetscObject*)&ksp);CHKERRQ(ierr);
+    ierr = PetscObjectQuery((PetscObject)ts,"_ts_gradient_GW",(PetscObject*)&workvec);CHKERRQ(ierr);
     if (!ksp) {
       const char *prefix;
       ierr = KSPCreate(PetscObjectComm((PetscObject)ts),&ksp);CHKERRQ(ierr);
@@ -283,12 +283,12 @@ static PetscErrorCode TSGradientICApply(TS ts, PetscReal t0, Vec x0, Vec design,
       ierr = KSPSetOptionsPrefix(ksp,prefix);CHKERRQ(ierr);
       ierr = KSPAppendOptionsPrefix(ksp,"JacIC_");CHKERRQ(ierr);
       ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
-      ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_G",(PetscObject)ksp);
+      ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_G",(PetscObject)ksp);CHKERRQ(ierr);
       ierr = PetscObjectDereference((PetscObject)ksp);CHKERRQ(ierr);
     }
     if (!workvec) {
       ierr = MatCreateVecs(ts->G_m,NULL,&workvec);CHKERRQ(ierr);
-      ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_GW",(PetscObject)workvec);
+      ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_GW",(PetscObject)workvec);CHKERRQ(ierr);
       ierr = PetscObjectDereference((PetscObject)workvec);CHKERRQ(ierr);
     }
     ierr = KSPSetOperators(ksp,ts->G_x,ts->G_x);CHKERRQ(ierr);
@@ -323,7 +323,7 @@ static PetscErrorCode TSTrajectoryUpdateHistoryVecs(TSTrajectory tj, TS ts, Pets
   if (Udot) PetscValidHeaderSpecific(Udot,VEC_CLASSID,5);
   if (U)    { ierr = VecLockPop(U);CHKERRQ(ierr); }
   if (Udot) { ierr = VecLockPop(Udot);CHKERRQ(ierr); }
-  ierr = TSTrajectoryGetVecs(ts->trajectory,ts,PETSC_DECIDE,&time,U,Udot);CHKERRQ(ierr);
+  ierr = TSTrajectoryGetVecs(tj,ts,PETSC_DECIDE,&time,U,Udot);CHKERRQ(ierr);
   if (U)    { ierr = VecLockPush(U);CHKERRQ(ierr); }
   if (Udot) { ierr = VecLockPush(Udot);CHKERRQ(ierr); }
   PetscFunctionReturn(0);
@@ -655,6 +655,7 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
     ierr = VecAXPY(adj_ctx->gradient,dt/2.0,adj_ctx->wgrad[0]);CHKERRQ(ierr);
     ierr = VecSet(adj_ctx->wgrad[1],0.0);CHKERRQ(ierr);
   }
+  ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
   if (adj_ctx->fwdts->F_m) {
     PetscScalar tt[2];
 
@@ -663,7 +664,6 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
       ierr = TSTrajectoryUpdateHistoryVecs(ts->trajectory,ts,fwdt,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
       ierr = (*ts->F_m_f)(ts,fwdt,adj_ctx->W[0],adj_ctx->W[1],adj_ctx->design,ts->F_m,ts->F_m_ctx);CHKERRQ(ierr);
     }
-    ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
     ierr = MatMultTranspose(ts->F_m,lambda,adj_ctx->wgrad[0]);CHKERRQ(ierr);
     tt[0] = tt[1] = dt/2.0;
     ierr = VecMAXPY(adj_ctx->gradient,2,tt,adj_ctx->wgrad);CHKERRQ(ierr);
@@ -1236,7 +1236,7 @@ static PetscErrorCode TSGradientPostStep(TS ts)
   }
 
   /* time step used */
-  ierr = TSGetPrevTime(ts,&ptime);
+  ierr = TSGetPrevTime(ts,&ptime);CHKERRQ(ierr);
   dt   = time - ptime;
 
   /* first step: obj has been initialized with the first function evaluation at t0
@@ -1969,7 +1969,7 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   ierr = MatShellSetContext(*A,(void *)prop);CHKERRQ(ierr);
   ierr = MatShellSetOperation(*A,MATOP_MULT,(void (*)())MatMult_Propagator);CHKERRQ(ierr);
   ierr = MatShellSetOperation(*A,MATOP_MULT_TRANSPOSE,(void (*)())MatMultTranspose_Propagator);CHKERRQ(ierr);
-  ierr = MatShellSetOperation(*A,MATOP_DESTROY,(void (*)())MatDestroy_Propagator);
+  ierr = MatShellSetOperation(*A,MATOP_DESTROY,(void (*)())MatDestroy_Propagator);CHKERRQ(ierr);
   ierr = VecDuplicate(x0,&prop->x0);CHKERRQ(ierr);
   ierr = VecLockPush(prop->x0);CHKERRQ(ierr);     /* this vector is locked since it stores the initial conditions */
   ierr = MatPropagatorUpdate_Propagator(*A,t0,dt,tf,x0);CHKERRQ(ierr);
@@ -2157,12 +2157,6 @@ PetscErrorCode TSSetObjective(TS ts, PetscReal fixtime, TSEvalObjective f, void*
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidLogicalCollectiveReal(ts,fixtime,2);
-  if (f) PetscValidPointer(f,3);
-  if (f_ctx) PetscValidPointer(f_ctx,4);
-  if (f_x) PetscValidPointer(f_x,5);
-  if (f_x_ctx) PetscValidPointer(f_x_ctx,6);
-  if (f_m) PetscValidPointer(f_m,7);
-  if (f_m_ctx) PetscValidPointer(f_m_ctx,8);
   if (!ts->funchead) {
     ierr = PetscNew(&ts->funchead);CHKERRQ(ierr);
     link = ts->funchead;
@@ -2265,8 +2259,8 @@ PetscErrorCode TSSetEvalICGradient(TS ts, Mat J_x, Mat J_m, TSEvalICGradient f, 
   if (J_x) PetscValidHeaderSpecific(J_x,MAT_CLASSID,2);
   if (J_m) PetscValidHeaderSpecific(J_m,MAT_CLASSID,3);
 
-  ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_G",NULL);
-  ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_GW",NULL);
+  ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_G",NULL);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_GW",NULL);CHKERRQ(ierr);
   if (J_x) {
     ierr = PetscObjectReference((PetscObject)J_x);CHKERRQ(ierr);
   }

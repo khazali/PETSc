@@ -41,8 +41,8 @@ static PetscErrorCode FormRHSFunction_Osc(TS ts,PetscReal time, Vec U, Vec F,voi
   y    = a[1];
   ierr = VecRestoreArrayRead(U,(const PetscScalar**)&a);CHKERRQ(ierr);
   ierr = VecGetArray(F,&a);CHKERRQ(ierr);
-  a[0] =  0 * x + 1 * y;
-  a[1] = -w * x - g * y;
+  a[0] = 0. * x + 1. * y;
+  a[1] = -w * x -  g * y;
   ierr = VecRestoreArray(F,&a);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -103,9 +103,9 @@ static PetscErrorCode FormRHSFunction_Lorentz(TS ts,PetscReal time, Vec U, Vec F
   z    = a[2];
   ierr = VecRestoreArrayRead(U,(const PetscScalar**)&a);CHKERRQ(ierr);
   ierr = VecGetArray(F,&a);CHKERRQ(ierr);
-  a[0] = -s * x + s * y + 0 * z;
-  a[1] =  r * x - 1 * y - x * z;
-  a[2] =  y * x + 0 * y - b * z;
+  a[0] = -s * x +  s * y + 0. * z;
+  a[1] =  r * x - 1. * y -  x * z;
+  a[2] =  y * x + 0. * y -  b * z;
   ierr = VecRestoreArray(F,&a);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
