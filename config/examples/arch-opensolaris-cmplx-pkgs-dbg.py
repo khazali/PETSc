@@ -20,6 +20,7 @@ configure_options = [
   '--download-fblaslapack=1', # -lsunperf is insufficient for scalapack
   '--download-scalapack=1',
   '--download-mumps=1',
+  '--download-tchem=1',
   #'--download-elemental=1', breaks with solaris compilers
   #'--download-hdf5',
   #'--download-sundials=1',
