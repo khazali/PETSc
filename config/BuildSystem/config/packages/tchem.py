@@ -4,7 +4,7 @@ class Configure(config.package.Package):
   def __init__(self, framework):
     config.package.Package.__init__(self, framework)
     self.download          = ['git://https://bitbucket.org/jedbrown/tchem.git']
-    self.gitcommit         = '81601d2'
+    self.gitcommit         = '8ee6fba'
     self.functions         = ['TC_getSrc']
     self.includes          = ['TC_interface.h']
     self.liblist           = [['libtchem.a']]
@@ -34,7 +34,7 @@ class Configure(config.package.Package):
       args.append('CXX="'+self.framework.getCompiler()+'"')
       args.append('CXXFLAGS="'+self.removeWarningFlags(self.framework.getCompilerFlags())+'"')
       self.framework.popLanguage()
-    args = '\n'.join(args)
+    args = ' '.join(args)
 
     conffile = os.path.join(self.packageDir, self.package)
     fd = open(conffile, 'w')
@@ -49,9 +49,9 @@ class Configure(config.package.Package):
         raise RuntimeError('Error running configure on TChem: '+str(e))
       try:
         self.logPrintBox('Compiling TChem; this may take several minutes')
-        output2,err2,ret2  = config.package.Package.executeShellCommand('cd '+self.packageDir+' && make && cp include/TC_*.h %(includeDir)s && cp lib/libtchem* %(libDir)s' % dict(includeDir=includeDir,libDir=libDir), timeout=500, log = self.log)
-        output2,err2,ret2  = config.package.Package.executeShellCommand('cd '+self.packageDir+' && cp data/periodictable.dat  %(shareDir)s' % dict(shareDir=shareDir) , timeout=10, log = self.log)
+        output2,err2,ret2  = config.package.Package.executeShellCommand('cd '+self.packageDir+' && make tchemlib && cp include/TC_*.h %(includeDir)s && cp lib/libtchem* %(libDir)s' % dict(includeDir=includeDir,libDir=libDir), timeout=500, log = self.log)
+        output3,err3,ret3  = config.package.Package.executeShellCommand('cd '+self.packageDir+' && cp data/periodictable.dat  %(shareDir)s' % dict(shareDir=shareDir) , timeout=10, log = self.log)
       except RuntimeError, e:
         raise RuntimeError('Error running make on TChem: '+str(e))
-      self.postInstall(output1+err1+output2+err2,'tchem')
+      self.postInstall(output1+err1+output2+err2+output3+err3,'tchem')
     return self.installDir
