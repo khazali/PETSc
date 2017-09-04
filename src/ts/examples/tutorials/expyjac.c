@@ -22,11 +22,11 @@ PetscErrorCode FindSpecies(const char *sp,PetscInt *cnt)
   PetscFunctionBegin;
   *cnt = 0;
   while (Species[1 + *cnt]) {
-    ierr = PetscStrcasecmp(Species[*cnt],sp,&found);
+    ierr = PetscStrcasecmp(Species[*cnt],sp,&found);CHKERRQ(ierr);
     if (found) PetscFunctionReturn(0);
     *cnt += 1;
   }
-  ierr = PetscStrcasecmp(Species[*cnt],sp,&found);
+  ierr = PetscStrcasecmp(Species[*cnt],sp,&found);CHKERRQ(ierr);
   if (found) PetscFunctionReturn(0);
   SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_USER, "Unable to find species %s\n",sp);
   PetscFunctionReturn(0);

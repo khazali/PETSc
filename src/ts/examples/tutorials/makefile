@@ -215,7 +215,6 @@ PYJACOBJS    = $(PYJACSOURCE:.c=.o)
 
 #  run make runpyjac before running this
 expyjac:  expyjac.o ${PYJACOBJS} chkopts
-	echo $PYJACSOURCE $PYJACOBJS
 	-${CLINKER} -o expyjac expyjac.o ${PYJACOBJS} ${PETSC_TS_LIB}
 	${RM} -rf out expyjac.o 
 
