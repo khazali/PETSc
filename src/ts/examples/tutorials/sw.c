@@ -22,7 +22,146 @@ typedef struct {
   PetscReal sqrtru,sqrtrv,sqrtrh;
   PetscInt  nobs;
   TS        ts;
+  Vec       xf; /* forecast state */
 } Model_SW;
+
+PetscErrorCode Covariance(DM da,Vec U,Model_SW *sw,PetscReal *r,Vec Gr)
+{
+  KSP            ksp;
+  MPI_Comm       comm;
+  Mat            corX1d,corY1d,corX1dsc,corY1dsc,corX2d,corY2d; /* longitude and lattitude */
+  PetscInt       i,j,xs,ys,nx,ny,Mx,My,maxlen;
+  PetscScalar    *y1dscarr,*x1dscarr;
+  PetscReal      dist,value,theta;
+  PetscInt       *colidxs,*rowidxs;
+  Vec            b0,b1;
+  PetscErrorCode ierr;
+
+  theta = 0.025;
+  ierr = DMDAGetInfo(da,PETSC_IGNORE,&Mx,&My,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE);CHKERRQ(ierr);
+  ierr = DMDAGetCorners(da,0,0,0,&nx,&ny,NULL);CHKERRQ(ierr);
+  ierr = PetscObjectGetComm((PetscObject)da,&comm);CHKERRQ(ierr);
+
+  /* Create 1d correlation matrix (dense) */
+  ierr = MatCreateSeqDense(comm,Mx,Mx,NULL,&corX1d);CHKERRQ(ierr);
+  ierr = MatSetUp(corX1d);CHKERRQ(ierr);
+  ierr = MatCreateSeqDense(comm,My,My,NULL,&corY1d);CHKERRQ(ierr);
+  ierr = MatSetUp(corY1d);CHKERRQ(ierr);
+
+  /* Create 2d correlation matrix (sparse) */
+  ierr = MatCreate(comm,&corX2d);CHKERRQ(ierr);
+  ierr = MatSetSizes(corX2d,PETSC_DETERMINE,PETSC_DETERMINE,3*Mx*My,3*Mx*My);CHKERRQ(ierr);
+  ierr = MatSetType(corX2d,MATAIJ);CHKERRQ(ierr);
+  ierr = MatSetFromOptions(corX2d);CHKERRQ(ierr);
+  ierr = MatSeqAIJSetPreallocation(corX2d,Mx,NULL);CHKERRQ(ierr);
+  ierr = MatSetUp(corX2d);CHKERRQ(ierr);
+  ierr = MatCreate(comm,&corY2d);CHKERRQ(ierr);
+  ierr = MatSetSizes(corY2d,PETSC_DETERMINE,PETSC_DETERMINE,3*Mx*My,3*Mx*My);CHKERRQ(ierr);
+  ierr = MatSetType(corY2d,MATAIJ);CHKERRQ(ierr);
+  ierr = MatSetFromOptions(corY2d);CHKERRQ(ierr);
+  ierr = MatSeqAIJSetPreallocation(corY2d,My,NULL);CHKERRQ(ierr);
+  ierr = MatSetUp(corY2d);CHKERRQ(ierr);
+
+  maxlen = PetscMax(Mx,My);
+  ierr = PetscCalloc2(maxlen,&rowidxs,maxlen,&colidxs);CHKERRQ(ierr);
+
+  for (i=0;i<Mx;i++) {
+    for (j=0;j<Mx;j++) {
+      dist = PetscMin(PetscAbs(i-j),Mx-PetscAbs(i-j));
+      value = (1-theta)*PetscExpReal(-(dist*dist)/Mx);
+      if (i==j) value += theta;
+      ierr = MatSetValues(corX1d,1,&i,1,&j,&value,INSERT_VALUES);CHKERRQ(ierr);
+    }
+  }
+  for (i=0;i<My;i++) {
+    for (j=0;j<My;j++) {
+      value = (1-theta)*PetscExpReal(-((i-j)*(i-j))/My);
+      if (i==j) value += theta;
+      ierr = MatSetValues(corY1d,1,&i,1,&j,&value,INSERT_VALUES);CHKERRQ(ierr);
+    }
+  }
+
+  ierr = MatAssemblyBegin(corX1d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(corX1d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(corY1d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(corY1d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+
+  /* Kronecker product of corX1d and I(My,My), duplicated for the three fields  */
+  ierr = MatDuplicate(corX1d,MAT_COPY_VALUES,&corX1dsc);CHKERRQ(ierr);
+  ierr = MatScale(corX1dsc,0.025);CHKERRQ(ierr);
+  ierr = MatDenseGetArray(corX1dsc,&x1dscarr);CHKERRQ(ierr);
+  for (ys=0;ys<My;ys++) { /* u and v */
+    for (i=0;i<Mx;i++) rowidxs[i] = (ys*Mx+i)*3;
+    for (i=0;i<Mx;i++) colidxs[i] = (ys*Mx+i)*3;
+    ierr = MatSetValues(corX2d,Mx,rowidxs,Mx,colidxs,x1dscarr,INSERT_VALUES);CHKERRQ(ierr);
+    for (i=0;i<Mx;i++) rowidxs[i] += 1;
+    for (i=0;i<Mx;i++) colidxs[i] += 1;
+    ierr = MatSetValues(corX2d,Mx,rowidxs,Mx,colidxs,x1dscarr,INSERT_VALUES);CHKERRQ(ierr);
+  }
+  ierr = MatDenseRestoreArray(corX1dsc,&x1dscarr);CHKERRQ(ierr);
+
+  ierr = MatCopy(corX1d,corX1dsc,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  ierr = MatScale(corX1dsc,0.125);CHKERRQ(ierr);
+  ierr = MatDenseGetArray(corX1dsc,&x1dscarr);CHKERRQ(ierr);
+  for (ys=0;ys<My;ys++) { /* h */
+    for (i=0;i<Mx;i++) rowidxs[i] = (ys*Mx+i)*3+2;
+    for (i=0;i<Mx;i++) colidxs[i] = (ys*Mx+i)*3+2;
+    ierr = MatSetValues(corX2d,Mx,rowidxs,Mx,colidxs,x1dscarr,INSERT_VALUES);CHKERRQ(ierr);
+  }
+  ierr = MatDenseRestoreArray(corX1dsc,&x1dscarr);CHKERRQ(ierr);
+  ierr = MatDestroy(&corX1dsc);CHKERRQ(ierr);
+
+  /* Kronecker product of I(Mx,Mx) and corY1d, duplicated for the three fields */
+  ierr = MatDuplicate(corY1d,MAT_COPY_VALUES,&corY1dsc);CHKERRQ(ierr);
+  ierr = MatScale(corY1dsc,0.025);CHKERRQ(ierr);
+  ierr = MatDenseGetArray(corY1dsc,&y1dscarr);CHKERRQ(ierr);
+  for (xs=0;xs<Mx;xs++) { /* u and v */
+    for (i=0;i<My;i++) rowidxs[i] = (xs*My+i)*3;
+    for (i=0;i<My;i++) colidxs[i] = (xs*My+i)*3;
+    ierr = MatSetValues(corY2d,My,rowidxs,My,colidxs,y1dscarr,INSERT_VALUES);CHKERRQ(ierr);
+    for (i=0;i<My;i++) rowidxs[i] += 1;
+    for (i=0;i<My;i++) colidxs[i] += 1;
+    ierr = MatSetValues(corY2d,My,rowidxs,My,colidxs,y1dscarr,INSERT_VALUES);CHKERRQ(ierr);
+  }
+  ierr = MatDenseRestoreArray(corY1dsc,&y1dscarr);CHKERRQ(ierr);
+
+  ierr = MatCopy(corY1d,corY1dsc,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  ierr = MatScale(corY1dsc,0.125);CHKERRQ(ierr);
+  ierr = MatDenseGetArray(corY1dsc,&y1dscarr);CHKERRQ(ierr);
+  for (xs=0;xs<Mx;xs++) { /* h */
+    for (i=0;i<My;i++) rowidxs[i] = (xs*My+i)*3+2;
+    for (i=0;i<My;i++) colidxs[i] = (xs*My+i)*3+2;
+    ierr = MatSetValues(corY2d,My,rowidxs,My,colidxs,y1dscarr,INSERT_VALUES);CHKERRQ(ierr);
+  }
+  ierr = MatDenseRestoreArray(corY1dsc,&y1dscarr);CHKERRQ(ierr);
+  ierr = MatDestroy(&corY1dsc);CHKERRQ(ierr);
+
+  ierr = MatAssemblyBegin(corX2d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(corX2d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(corY2d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(corY2d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatSetOption(corX2d,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
+  ierr = MatSetOption(corY2d,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
+  ierr = PetscFree2(rowidxs,colidxs);CHKERRQ(ierr);
+
+  /* Solve for (x-xf)^T (corX2d*corY2d)^-1 (x-xf) */
+  ierr = VecDuplicate(U,&b0);CHKERRQ(ierr);
+  ierr = VecDuplicate(U,&b1);CHKERRQ(ierr);
+  ierr = VecCopy(U,b0);CHKERRQ(ierr);
+  ierr = VecAXPY(b0,-1,sw->xf);CHKERRQ(ierr);
+  ierr = KSPCreate(PETSC_COMM_WORLD,&ksp);CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp,corX2d,corX2d);CHKERRQ(ierr);
+  ierr = KSPSetUp(ksp);CHKERRQ(ierr);
+  ierr = KSPSolve(ksp,b0,b1);CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp,corY2d,corY2d);CHKERRQ(ierr);
+  ierr = KSPSolve(ksp,b1,Gr);CHKERRQ(ierr);
+  ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
+  ierr = VecDot(b0,Gr,r);CHKERRQ(ierr);
+  *r = *r/2.;
+  ierr = VecDestroy(&b0);CHKERRQ(ierr);
+  ierr = VecDestroy(&b1);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
 
 PetscErrorCode ReInitializeLambda(DM da,Vec lambda,Vec U,PetscInt iob,Model_SW *sw)
 {
@@ -569,6 +708,40 @@ PetscErrorCode GenerateOBs(TS ts,Vec U,Model_SW *sw)
 }
 
 /*
+   Generate forecast state
+ */
+PetscErrorCode GenerateFS(DM dm,Vec U,Model_SW *sw)
+{
+  PetscInt       i,j,xs,ys,xm,ym;
+  PetscReal      randn;
+  Field          **xfarr;
+  PetscRandom    rand;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = PetscRandomCreate(PetscObjectComm((PetscObject)dm),&rand);CHKERRQ(ierr);
+  ierr = VecDuplicate(U,&sw->xf);CHKERRQ(ierr);
+  ierr = VecCopy(U,sw->xf);CHKERRQ(ierr);
+
+  ierr = DMDAVecGetArray(dm,sw->xf,&xfarr);CHKERRQ(ierr);
+  ierr = DMDAGetCorners(dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+  for (j=ys; j<ys+ym; j++) { /* latitude */
+    for (i=xs; i<xs+xm; i++) { /* longitude */
+      ierr = PetscRandomGetValue(rand,&randn); CHKERRQ(ierr);
+      xfarr[j][i].u += sw->sqrtru*randn;
+      ierr = PetscRandomGetValue(rand,&randn); CHKERRQ(ierr);
+      xfarr[j][i].v += sw->sqrtrv*randn;
+      ierr = PetscRandomGetValue(rand,&randn); CHKERRQ(ierr);
+      xfarr[j][i].h += sw->sqrtrh*randn;
+    }
+  }
+  ierr = DMDAVecRestoreArray(dm,sw->xf,&xfarr);CHKERRQ(ierr);
+
+  ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*
    FormFunctionAndGradient - Evaluates the function and corresponding gradient.
 
    Input Parameters:
@@ -657,7 +830,6 @@ int main(int argc,char **argv)
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,NULL);if (ierr) return ierr;
-
   sw.Gravity      = 9.8;
   sw.EarthRadius  = 6.37e6;
   sw.alpha        = 1./3.;
@@ -680,7 +852,15 @@ int main(int argc,char **argv)
   ierr = DMDASetFieldName(da,1,"v");CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,2,"h");CHKERRQ(ierr);
   ierr = DMCreateGlobalVector(da,&U);CHKERRQ(ierr);
-
+  {
+    PetscReal r;
+    Vec Gr;
+    ierr = VecDuplicate(U,&Gr);CHKERRQ(ierr);
+    ierr = GenerateFS(da,U,&sw);CHKERRQ(ierr);
+    ierr = Covariance(da,U,&sw,&r,Gr);CHKERRQ(ierr);
+    ierr = VecDestroy(&Gr);CHKERRQ(ierr);
+  }
+  return 0;
   ierr = TSCreate(PETSC_COMM_WORLD,&sw.ts);CHKERRQ(ierr);
   ierr = TSSetRHSFunction(sw.ts,NULL,RHSFunction,&sw);CHKERRQ(ierr);
   ierr = TSSetRHSJacobian(sw.ts,NULL,NULL,RHSJacobian,&sw);CHKERRQ(ierr);
