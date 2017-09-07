@@ -7,8 +7,12 @@
 
 /* Logging support */
 PetscLogEvent DMPICell_Solve, DMPICell_SetUp, DMPICell_AddSource, DMPICell_LocateProcess, DMPICell_GetJet, DMPICell_Add1, DMPICell_Add2, DMPICell_Add3;
-
-PETSC_EXTERN PetscErrorCode DMPlexView_HDF5(DM, PetscViewer);
+#if defined(PETSC_HAVE_HDF5)
+//PETSC_EXTERN PetscErrorCode DMPlexView_HDF5(DM, PetscViewer);
+PetscErrorCode DMPlexView_HDF5(DM dm, PetscViewer v){
+  PetscFunctionReturn(1);
+}
+#endif
 #undef __FUNCT__
 #define __FUNCT__ "DMView_PICell"
 PetscErrorCode DMView_PICell(DM dm, PetscViewer viewer)

@@ -1,6 +1,6 @@
 /* M. Adams, August 2016 */
 
-static char help[] = "A partical in cell salb code using PICell.\n";
+static char help[] = "Partical-in-cell slab domain using PICell.\n";
 
 #ifdef H5PART
 #include <H5Part.h>
@@ -1007,16 +1007,17 @@ static PetscErrorCode CreateMesh(X2Ctx *ctx)
     const PetscReal      *maxCellOrig, *Lorig;
     DMBoundaryType       *bdtype;
     const DMBoundaryType *bdtypeOrig;
+    PetscBool             isper;
     PetscInt              i;
 
     ierr = PetscMalloc3(dim,&maxCell,dim,&L,dim,&bdtype);CHKERRQ(ierr);
-    ierr = DMGetPeriodicity(dmpi->dm,&maxCellOrig,&Lorig,&bdtypeOrig);CHKERRQ(ierr);
+    ierr = DMGetPeriodicity(dmpi->dm,&isper,&maxCellOrig,&Lorig,&bdtypeOrig);CHKERRQ(ierr); assert(isper);
     for (i = 0; i < dim; i++) {
       maxCell[i] = maxCellOrig[i] * (ctx->grid.domain_hi[i] - ctx->grid.domain_lo[i]);
       L[i]       = Lorig[i] * (ctx->grid.domain_hi[i] - ctx->grid.domain_lo[i]);
       bdtype[i]  = bdtypeOrig[i];
     }
-    ierr = DMSetPeriodicity(dmpi->dm,maxCell,L,bdtype);CHKERRQ(ierr);
+    ierr = DMSetPeriodicity(dmpi->dm,isper,maxCell,L,bdtype);CHKERRQ(ierr);
     ierr = PetscFree3(maxCell,L,bdtype);CHKERRQ(ierr);
   }
   ierr = VecRestoreArray(coordinates,&coords);CHKERRQ(ierr);
@@ -1118,7 +1119,7 @@ int main(int argc, char **argv)
   X2Ctx          ctx; /* user-defined work context */
   PetscErrorCode ierr;
   DM_PICell      *dmpi;
-  PetscInt       idx,isp;
+  PetscInt       idx;
   Mat            J;
   PetscFunctionBeginUser;
 

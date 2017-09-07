@@ -404,7 +404,7 @@ PetscErrorCode X2PListWrite(X2PList l[], PetscInt nLists, PetscMPIInt rank, Pets
 {
   /* PetscErrorCode ierr; */
   double *x=0,*y=0,*z=0,*v=0;
-  h5part_int64_t *id=0,nparticles;
+  h5_int64_t *id=0,nparticles;
   X2PListPos     pos;
   X2Particle     part;
   PetscErrorCode ierr;
@@ -419,11 +419,10 @@ PetscErrorCode X2PListWrite(X2PList l[], PetscInt nLists, PetscMPIInt rank, Pets
     y=(double*)malloc(nparticles*sizeof(double));
     z=(double*)malloc(nparticles*sizeof(double));
     v=(double*)malloc(nparticles*sizeof(double));
-    id=(h5part_int64_t*)malloc(nparticles*sizeof(h5part_int64_t));
+    id=(h5_int64_t*)malloc(nparticles*sizeof(h5_int64_t));
   }
   if (fname1) {
     file1 = H5PartOpenFileParallel(fname1,H5PART_WRITE,comm);assert(file1);
-    ierr = H5PartFileIsValid(file1);CHKERRQ(ierr);
     ierr = H5PartSetStep(file1, 0);CHKERRQ(ierr);
     for (nparticles=0,elid=0;elid<nLists;elid++) {
       ierr = X2PListGetHead( &l[elid], &part, &pos );
@@ -451,7 +450,6 @@ PetscErrorCode X2PListWrite(X2PList l[], PetscInt nLists, PetscMPIInt rank, Pets
   }
   if (fname2) {
     file2 = H5PartOpenFileParallel(fname2,H5PART_WRITE,comm);assert(file2);
-    ierr = H5PartFileIsValid(file2);CHKERRQ(ierr);assert(ierr==H5PART_SUCCESS);
     ierr = H5PartSetStep(file2, 0);CHKERRQ(ierr);assert(ierr==H5PART_SUCCESS);
     // if (rank!=npe-1 && rank!=npe-2) nparticles = 0; /* just write last (two) proc(s) */
     if (rank>=(npe+1)/2) nparticles = 0; /* just write last (two) proc(s) */

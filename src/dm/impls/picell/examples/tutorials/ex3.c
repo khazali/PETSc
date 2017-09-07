@@ -1018,7 +1018,7 @@ PetscErrorCode shiftParticles( const X3Ctx *ctx, X3PSendList *sendListTable, X3P
 void g3_uu(PetscInt dim, PetscInt Nf, PetscInt NfAux,
            const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
            const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
-           PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscScalar g3[])
+           PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar g3[])
 {
   PetscInt d;
   PetscScalar coef = x3_coef(x);
@@ -1027,7 +1027,7 @@ void g3_uu(PetscInt dim, PetscInt Nf, PetscInt NfAux,
 void f0_u(PetscInt dim, PetscInt Nf, PetscInt NfAux,
           const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
           const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
-          PetscReal t, const PetscReal x[], PetscScalar f0[])
+          PetscReal t, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar f0[])
 {
   PetscBool in = PETSC_TRUE;
   PetscInt i;
@@ -1041,7 +1041,7 @@ void f0_u(PetscInt dim, PetscInt Nf, PetscInt NfAux,
 void f1_u(PetscInt dim, PetscInt Nf, PetscInt NfAux,
           const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
           const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
-          PetscReal t, const PetscReal x[], PetscScalar f1[])
+          PetscReal t, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar f1[])
 {
   PetscInt d;
   for (d = 0; d < dim; ++d) f1[d] = u_x[d];
@@ -1915,11 +1915,11 @@ static void MHDFlux(const ConserveNode *ul, const ConserveNode *ur, PetscReal ar
   for (i=0;i<ctx->ndof;i++) flux->vals[i] = area*(lamdaMax*finvl.vals[i] - lamdaMin*finvr.vals[i] + lamdaMin*lamdaMax*durl.vals[i])/(lamdaMax-lamdaMin);
   PetscFunctionReturnVoid();
 }
-
+// void (*r)(PetscInt dim, PetscInt Nf, const PetscReal x[], const PetscReal n[], const PetscScalar uL[], const PetscScalar uR[], PetscScalar flux[], void *ctx))
 #undef __FUNCT__
 #define __FUNCT__ "PhysicsRiemann_MHD"
 static void PhysicsRiemann_MHD( PetscInt dim, PetscInt Nf, const PetscReal x[], const PetscReal n[],
-                                const PetscScalar *xL, const PetscScalar *xR, PetscScalar *aflux, void *a_ctx)
+                                const PetscScalar *xL, const PetscScalar *xR, PetscInt numConstants, const PetscScalar constants[], PetscScalar *aflux, void *a_ctx)
 {
   X3Ctx              *ctx = (X3Ctx*)a_ctx;
   PetscReal          nhat[3],t,v[3],R[3][3],area;
@@ -2255,8 +2255,10 @@ static PetscErrorCode initializeTS(DM dm, X3Ctx *ctx, TS *ts)
   ierr = TSSetDM(*ts, dm);CHKERRQ(ierr);
   ierr = DMTSSetBoundaryLocal(dm, DMPlexTSComputeBoundary, ctx);CHKERRQ(ierr);
   ierr = DMTSSetRHSFunctionLocal(dm, DMPlexTSComputeRHSFunctionFVM, ctx);CHKERRQ(ierr);
-  ierr = TSSetDuration(*ts,ctx->msteps,ctx->end_time);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(*ts,ctx->initial_time,ctx->dt);CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(*ts, ctx->msteps);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(*ts, ctx->end_time);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(*ts,ctx->dt);CHKERRQ(ierr);
+  ierr = TSSetTime(*ts,ctx->initial_time);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(*ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -2654,7 +2656,7 @@ PetscErrorCode particle_poststep(TS ts)
     ierr = PetscLogEventEnd(ctx->events[11],0,0,0,0);CHKERRQ(ierr);
 #endif
     ierr = PetscCommGetNewTag(ctx->wComm,&tag);CHKERRQ(ierr);
-    ierr = TSGetTimeStepNumber(ts,&istep);CHKERRQ(ierr);
+    ierr = TSGetStepNumber(ts,&istep);CHKERRQ(ierr);
     ierr = TSGetTimeStep(ts,&dt);CHKERRQ(ierr);
     ierr = processParticles(ctx, dt, &ctx->sendListTable, tag + 2*(X3_NION + 1), irk, istep, PETSC_TRUE);CHKERRQ(ierr);
   }
@@ -2904,7 +2906,7 @@ static PetscErrorCode X3TSView(TS ts)
   ierr = TSGetApplicationContext(ts, &ctx);CHKERRQ(ierr); assert(ctx);
   ierr = TSGetDM(ts, &dm);CHKERRQ(ierr);
   ierr = TSGetSolution(ts, &X);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts, &stepi);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts, &stepi);CHKERRQ(ierr);
   if (ctx->view_sol) {
     char buf[256];
     getFilePrefix(ctx,256,buf);
@@ -2931,7 +2933,7 @@ int main(int argc, char **argv)
   X3Ctx          actx,*ctx=&actx; /* work context */
   PetscErrorCode ierr;
   DM_PICell      *dmpi = NULL;
-  PetscInt       idx,isp,nsteps,adaptInterval=1;
+  PetscInt       idx,nsteps,adaptInterval=1;
   Mat            J;
   TS             ts;
   DM             dmmhd;
@@ -3063,7 +3065,8 @@ int main(int argc, char **argv)
   if (ctx->dt==0 && maxspeed <= 0) SETERRQ(ctx->wComm,PETSC_ERR_ARG_WRONGSTATE,"Physics did not set maxspeed");
   ctx->maxspeed = maxspeed;
   if (ctx->dt==0) ctx->dt = ctx->cfl * minRadius / ctx->maxspeed; /* set a default if none given */
-  ierr = TSSetInitialTimeStep(ts,ctx->initial_time,ctx->dt);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,ctx->dt);CHKERRQ(ierr);
+  ierr = TSSetTime(ts,ctx->initial_time);CHKERRQ(ierr);
   if (ctx->dt == ctx->cfl * minRadius / ctx->maxspeed) ctx->dt = 0; /* reset if used default */
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   ierr = TSSetPostStep(ts, X3TSView);CHKERRQ(ierr);
@@ -3071,18 +3074,18 @@ int main(int argc, char **argv)
   if (!ctx->use_amr) {
     ierr = TSSolve(ts,X);CHKERRQ(ierr);
     ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-    ierr = TSGetTimeStepNumber(ts,&nsteps);CHKERRQ(ierr);
+    ierr = TSGetStepNumber(ts,&nsteps);CHKERRQ(ierr);
   } else {
     PetscReal finalTime;
     PetscInt  adaptIter;
     TS        tsNew = NULL;
     Vec       solNew = NULL;
     PetscInt  incSteps;
-    ierr   = TSGetDuration(ts,NULL,&finalTime);CHKERRQ(ierr);
-    ierr   = TSSetDuration(ts,adaptInterval,finalTime);CHKERRQ(ierr);
+    ierr   = TSGetMaxTime(ts, &finalTime);CHKERRQ(ierr);
+    ierr   = TSSetMaxSteps(ts, adaptInterval);CHKERRQ(ierr);
     ierr   = TSSolve(ts,X);CHKERRQ(ierr);
     ierr   = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-    ierr   = TSGetTimeStepNumber(ts,&nsteps);CHKERRQ(ierr);
+    ierr   = TSGetStepNumber(ts,&nsteps);CHKERRQ(ierr);
     for (adaptIter = 0;ftime < finalTime;adaptIter++) {
       PetscLogDouble bytes;
 
@@ -3105,16 +3108,16 @@ int main(int argc, char **argv)
         ierr = MPI_Allreduce(&ctx->maxspeed,&maxspeed,1,MPIU_REAL,MPI_MAX,ctx->wComm);CHKERRQ(ierr);
         ctx->maxspeed = maxspeed;
         if (ctx->dt==0) ctx->dt = ctx->cfl * minRadius / maxspeed; /* set a default if none given */
-        ierr = TSSetInitialTimeStep(ts,ftime,ctx->dt);CHKERRQ(ierr);
+        ierr = TSSetTimeStep(ts,ctx->dt);CHKERRQ(ierr);
+        ierr = TSSetTime(ts,ftime);CHKERRQ(ierr);
         if (ctx->dt == ctx->cfl * minRadius / maxspeed) ctx->dt = 0; /* reset */
       }
       else {
         ierr = PetscInfo(ts, "AMR not used\n");CHKERRQ(ierr);
       }
-      ierr    = TSSetDuration(ts,adaptInterval,finalTime);CHKERRQ(ierr);
       ierr    = TSSolve(ts,X);CHKERRQ(ierr);
       ierr    = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-      ierr    = TSGetTimeStepNumber(ts,&incSteps);CHKERRQ(ierr);
+      ierr    = TSGetStepNumber(ts,&incSteps);CHKERRQ(ierr);
       nsteps += incSteps;
     }
   }

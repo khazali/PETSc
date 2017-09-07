@@ -1,14 +1,14 @@
 /* M. Adams, April 2015 */
 
-static char help[] = "A partical in cell code for tokamak plasmas using PICell with flux tube particle partitions.\n";
+static char help[] = "Partical-in-cell tokamak plasma using PICell with flux tube particle partitions.\n";
 
-#ifdef H5PART
-#include <H5Part.h>
-#endif
 #include <petsc/private/dmpicellimpl.h>    /*I   "petscdmpicell.h"   I*/
 #include <assert.h>
 #include <petscds.h>
 #include <petscdmforest.h>
+#ifdef H5PART
+#include "H5hut.h"
+#endif
 
 /* coordinate transformation - simple radial coordinates. Not really cylindrical as r_Minor is radius from plane axis */
 #define cylindricalToPolPlane(__rMinor,__Z,__psi,__theta) { \
