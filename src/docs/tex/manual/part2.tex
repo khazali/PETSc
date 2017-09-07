@@ -2296,7 +2296,8 @@ be used. \sindex{Bi-conjugate gradient}
 Note: PETSc implements the FETI-DP (Finite Element Tearing and Interconnecting
 Dual-Primal) method as a KSP since it recasts the original problem into a contstrained
 minimization one with Lagrange multipliers. The only matrix type supported is
-\lstinline{MATIS}.
+\lstinline{MATIS}. Support for saddle point problems is provided.
+Consult the online documentation for further details.
 
 \subsection{Convergence Tests}
 \label{section_convergencetests}
@@ -4879,9 +4880,9 @@ error&explicit and implicit&$1-3$\\
 \label{tab_TSPET}
 \end{table}
 
-\noindent Set the initial time and timestep with the command
+\noindent Set the initial time with the command
 \begin{lstlisting}
-TSSetInitialTimeStep(TS ts,PetscReal time,PetscReal dt);
+TSSetTime(TS ts,PetscReal time);
 \end{lstlisting}
 One can change the timestep with the command
 \begin{lstlisting}
@@ -4895,9 +4896,10 @@ Here, ``current'' refers to the timestep being used to attempt to
 promote the solution form $ u^n $ to $ u^{n+1}. $
 
 \noindent One sets the total number of timesteps to run or the total time to run
-(whatever is first) with the command
+(whatever is first) with the commands
 \begin{lstlisting}
-TSSetDuration(TS ts,PetscInt maxsteps,PetscReal maxtime);
+TSSetMaxSteps(TS ts,PetscInt maxsteps);
+TSSetMaxTime(TS ts,PetscReal maxtime);
 \end{lstlisting}
 and determines the behavior near the final time with
 \begin{lstlisting}
@@ -5176,9 +5178,10 @@ timestep is calculated using the solutions from the Runge-Kutta method and its e
 method (the 2-norm of the difference is used). The default method is the \sindex{Bogacki-Shampine}
 $3$rd-order Bogacki-Shampine method with a $2$nd-order embedded method (\lstinline{TSRK3BS}).
 Other available methods are the \sindex{Fehlberg} $5$th-order Fehlberg RK scheme with a $4$th-order embedded
-method (\lstinline{TSRK5F}), and the \sindex{Dormand-Prince} $5$th-order Dormand-Prince RK scheme with a $4$th-order embedded method
-(\lstinline{TSRK5DP}). Variable timesteps cannot be used with RK schemes that do not have an embedded
-method (\lstinline{TSRK1} - $1$st-order, $1$-stage forward Euler, \lstinline{TSRK2A} - $2$nd-order, $2$-stage RK scheme,
+method (\lstinline{TSRK5F}), the \sindex{Dormand-Prince} $5$th-order Dormand-Prince RK scheme with a $4$th-order embedded method
+(\lstinline{TSRK5DP}), and the \sindex{Bogacki-Shampine} $5$th-order Bogacki-Shampine RK scheme with a $4$th-order embedded method
+(\lstinline{TSRK5BS}). Variable timesteps cannot be used with RK schemes that do not have an embedded
+method (\lstinline{TSRK1FE} - $1$st-order, $1$-stage forward Euler, \lstinline{TSRK2A} - $2$nd-order, $2$-stage RK scheme,
 \lstinline{TSRK3} - $3$rd-order, $3$-stage RK scheme, \lstinline{TSRK4} - $4$-th order, $4$-stage RK scheme).
 
 \section{Special Cases}
@@ -5296,11 +5299,11 @@ The next step size is based on this error estimate, and determined by
  \max(\alpha_{\min}, \beta (1/\SErr)^\frac{1}{\widehat{p}+1}))\,,
 \end{eqnarray}
 %%%
-where $\alpha_{\min}=$\trl{-ts_adapt_basic_clip}[0] and
-$\alpha_{\max}$=\trl{-ts_adapt_basic_clip}[1] keep the change in
+where $\alpha_{\min}=$\trl{-ts_adapt_clip}[0] and
+$\alpha_{\max}$=\trl{-ts_adapt_clip}[1] keep the change in
 $\Delta t$
 to within a certain factor, and $\beta<1$ is chosen
-through \trl{-ts_adapt_basic_safety} so that there is 
+through \trl{-ts_adapt_safety} so that there is
 some margin to which the tolerances are satisfied and so that the
 probability of rejection is decreased.
 
@@ -5339,13 +5342,28 @@ The event monitoring functionality is only available with PETSc's implicit time-
 
 %\section{Debugging ODE solvers}
 
+\section{Using TChem from PETSc}
+\label{sec_tchem}
+
+TChem\footnote{\href{https://bitbucket.org/jedbrown/tchem}{bitbucket.org/jedbrown/tchem}} 
+is a package originally developed at Sandia National Laboratory that can read in 
+CHEMKIN\footnote{\href{https://en.wikipedia.org/wiki/CHEMKIN}{en.wikipedia.org/wiki/CHEMKIN}} 
+data files and compute the right hand side function and its Jacobian for a reaction ODE system.
+To utilize PETSc's ODE solvers for these systems, first install PETSc with the additional 
+\trl{./configure} option \trl{--download-tchem}. We currently provide two examples of its use;
+one for single cell reaction and one for an ``artificial'' one dimensional problem with 
+periodic boundary conditions and diffusion of all species. The self-explanatory examples 
+are \href{http://www.mcs.anl.gov/petsc/petsc-current/src/ts/examples/tutorials/extchem.c.html}{\trl{$PETSC_DIR/src/ts/examples/tutorials/extchem.c}} 
+and \href{http://www.mcs.anl.gov/petsc/petsc-current/src/ts/examples/tutorials/exchemfield.c.html}{\trl{$PETSC_DIR/src/ts/examples/tutorials/exchemfield.c}}.
+
 \section{Using Sundials from PETSc}
 \label{sec_sundials}
 
-Sundials is a parallel ODE solver developed by Hindmarsh et al. at LLNL.
-The \lstinline{TS} library provides an interface to use the CVODE component of
-Sundials directly from PETSc.  (To configure PETSc to use Sundials, see
-the installation guide, \trl{docs/installation/index.htm}.)
+Sundials is a parallel ODE solver developed by Hindmarsh et al. at
+LLNL.  The \lstinline{TS} library provides an interface to use the
+CVODE component of Sundials directly from PETSc.  (To configure PETSc
+to use Sundials, see the installation
+guide, \trl{docs/installation/index.htm}.)
 
 To use the Sundials integrators, call
 \begin{lstlisting}
@@ -5450,7 +5468,7 @@ are the timestep context, current time, $y$, and the (optional) user-provided co
 
 If there is an integral term in the cost function, i.e. $r()$ is nonzero, one must also call
 \begin{lstlisting}
-TSSetCostIntegrand(TS ts,PetscInt numcost,
+TSSetCostIntegrand(TS ts,PetscInt numcost,Vec costintegral,
                    PetscErrorCode (*rf)(TS,PetscReal,Vec,Vec,void*),
                    PetscErrorCode (*drdyf)(TS,PetscReal,Vec,Vec*,void*),
                    PetscErrorCode (*drdpf)(TS,PetscReal,Vec,Vec*,void*),void *ctx)
@@ -5537,7 +5555,7 @@ methods for stiff DAEs
 \item a DAE-constrained optimization using the discrete adjoint
 models of \lstinline{TSCN} (Crank-Nicolson) methods for cost function with an
     integral term \href{http://www.mcs.anl.gov/petsc/petsc-current/src/ts/examples/tutorials/power_grid/stability/stability_9bus/ex9busopt.c.html}{\trl{${PETSC_DIR}/src/ts/examples/tutorials/power_grid/stability_9bus/ex9busopt.c}},
-\item a discrete adjoint sensitivity using TSCN methods for a
+  \item a discrete adjoint sensitivity using \lstinline{TSCN} methods for a
   PDE problem \href{http://www.mcs.anl.gov/petsc/petsc-current/src/ts/examples/tutorials/advection-diffusion-reaction/ex5adj.c.html}{\trl{${PETSC_DIR}/src/ts/examples/tutorials/advection-diffusion-reaction/ex5adj.c}}.
 \end{itemize}
 
@@ -6033,7 +6051,7 @@ DMNetworkGetVariableGlobalOffset(DM dm,PetscInt p,PetscInt *offsetg);
 In network applications, one frequently needs to find the supporting edges for a node or
 the connecting nodes covering an edge. These can be obtained by the following two routines.
 \begin{lstlisting}
-DMNetworkGetConnectedNodes(DM dm,PetscInt edge,const PetscInt *vertices[]);
+DMNetworkGetConnectedVertices(DM dm,PetscInt edge,const PetscInt *vertices[]);
 \end{lstlisting}
 \begin{lstlisting}
 DMNetworkGetSupportingEdges(DM dm,PetscInt vertex,PetscInt *nedges,const PetscInt *edges[]) ;
@@ -6046,7 +6064,7 @@ DMNetworkGetComponentDataArray(DM dm,DMNetworkComponentGenericDataType **compone
 \end{lstlisting}
   Using \lstinline{componentdataarray}, individual components set at a node/edge can be retrieved by
 \begin{lstlisting}
-DMNetworkGetComponentTypeOffset(DM dm,PetscInt p, PetscInt compnum, PetscInt *compkey, PetscInt *offset);
+DMNetworkGetComponentKeyOffset(DM dm,PetscInt p, PetscInt compnum, PetscInt *compkey, PetscInt *offset);
 \end{lstlisting}
 \lstinline{compkey} is the key set by \lstinline{DMNetworkRegisterComponent}. An example of accessing and retrieving the components at nodes is:
 
@@ -6059,7 +6077,7 @@ DMNetworkGetVertexRange(dm, &Start, &End);
 for(v=Start; v  < End; v++) { 
   DMNetworkGetNumComponents(dm,v, &numcomps); 
   for(compnum=0; compnum < numcomps;compnum++) {
-    DMNetworkGetComponentTypeOffset(dm,v,compnum, &key, &offset); 
+    DMNetworkGetComponentKeyOffset(dm,v,compnum, &key, &offset); 
     compdata = (UserCompDataType)(arr+offset); 
   }
 }
@@ -7828,20 +7846,11 @@ the PETSc libraries in which the basic ``scalar'' datatype, given in
 PETSc codes by \lstinline{PetscScalar}, is defined as \lstinline{complex} (or \lstinline{complex<double>}
  for machines using templated complex class
 libraries).  To work with complex numbers,
-the user should run ./configure with the additional option \trl{--with-scalar-type=complex}.
+the user should run \trl{./configure} with the additional option \trl{--with-scalar-type=complex}.
 The file \href{https://www.mcs.anl.gov/petsc/documentation/installation.html}{\trl{${PETSC_DIR}/src/docs/website/documentation/installation.html}}
-provides detailed instructions for installing PETSc. 
-You can use \trl{--with-clanguage=c} (the default) to use the C99 complex numbers or \trl{--with-clanguage=c++} to use the C++ complex type. 
-
-We recommend using optimized Fortran kernels for some key numerical
-routines with complex numbers (such as matrix-vector products, vector
-norms, etc.) instead of the default C/C++ routines.  This can be done with the \trl{./configure}  option \trl{--with-fortran-kernels=generic}.
-This implementation exploits the
-maturity of Fortran compilers while retaining the identical user
-interface.  For example, on rs6000 machines, the base single-node
-performance when using the Fortran kernels is 4-5 times faster than
-the default C++ code.
-
+provides detailed instructions for installing PETSc.
+You can use \trl{--with-clanguage=c} (the default) to use the C99 complex numbers or \trl{--with-clanguage=c++} 
+to use the C++ complex type\footnote{Note that this option is not required to use PETSc with C++}.
 
 Recall that each variant of the PETSc libraries is stored in a
 different directory, given by
@@ -8313,10 +8322,8 @@ architecture, \trl{arch}, is one of \trl{solaris, rs6000, IRIX,
 hpux, arch-darwin-double-debug}, etc., as determined during the PETSc configuration process.
 Note that when using command line options with \trl{make} (as illustrated above),
 one must {\em not} place spaces on either side of the ``\trl{=}'' signs.
-The variable \trl{PETSC_ARCH} can also be set as environment
-variable.  Although PETSc is written in C, it can be compiled with a
-C++ compiler.  For many C++ users this may be the preferred route. To compile
-with the C++ compiler, one should use the ./configure option \trl{--with-clanguage=c++}. \sindex{C++}
+The variable \trl{PETSC_ARCH} can also be set as an environment
+variable.
 
 \subsection{Makefile Commands} \label{sec_common}
 
@@ -8572,7 +8579,7 @@ we recommend skipping this chapter during an initial reading.
 
 One can extract a (parallel) submatrix from a given (parallel) using
 \begin{lstlisting}
-MatGetSubMatrix(Mat A,IS rows,IS cols,MatReuse call,Mat *B);
+MatCreateSubMatrix(Mat A,IS rows,IS cols,MatReuse call,Mat *B);
 \end{lstlisting}
 This extracts the \lstinline{rows} and \lstinline{col}umns of the matrix \lstinline{A} into \lstinline{B}. If
 call is  \lstinline{MAT_INITIAL_MATRIX} \findex{MAT_INITIAL_MATRIX} it will create the matrix

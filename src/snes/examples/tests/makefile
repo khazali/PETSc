@@ -5,7 +5,7 @@ CPPFLAGS        =
 FPPFLAGS        =
 LOCDIR          = src/snes/examples/tests/
 EXAMPLESC       = ex1.c ex3.c ex7.c ex17.c ex68.c ex69.c
-EXAMPLESF       = ex1f.F ex12f.F ex18f90.F90
+EXAMPLESF       = ex1f.F90 ex12f.F ex18f90.F90
 DIRS	        =
 MANSEC          = SNES
 
@@ -108,10 +108,10 @@ runex1f_2:
 	-@${MPIEXEC} -n 1 ./ex1f -snes_monitor_short -nox -snes_fd -ksp_gmres_cgs_refinement_type refine_always > ex1f_2.tmp 2>&1;\
 	   if (${DIFF} output/ex1f_2.out ex1f_2.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex1f_2, diffs above\n=========================================\n"; fi; \
-	   #${RM} -f ex1f_2.tmp
+	   ${RM} -f ex1f_2.tmp
 runex1f_3:
-	-@${MPIEXEC} -n 1 ./ex1f -snes_monitor_short -nox -snes_fd_coloring -ksp_gmres_cgs_refinement_type refine_always > ex1f_3.tmp 2>&1;\
-	   if (${DIFF} output/ex1f_2.out ex1f_3.tmp) then true; \
+	-@${MPIEXEC} -n 1 ./ex1f -snes_monitor_short -nox -snes_fd_coloring -mat_coloring_type sl -ksp_gmres_cgs_refinement_type refine_always | sort -b > ex1f_3.tmp 2>&1;\
+           if (sort -b output/ex1f_3.out | ${DIFF} - ex1f_3.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex1f_3, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex1f_3.tmp
 runex3:
@@ -119,6 +119,11 @@ runex3:
 	   if (${DIFF} output/ex3_1.out ex3_1.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex3_1, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex3_1.tmp
+runex4:
+	-@${MPIEXEC} -n 1 ./ex4 -snes_converged_reason -snes_linesearch_monitor -snes_linesearch_type l2 | grep Inf > ex4_1.tmp 2>&1;	 \
+	   if (${DIFF} output/ex4_1.out ex4_1.tmp) then true; \
+	   else printf "${PWD}\nPossible problem with ex4_1, diffs above\n=========================================\n"; fi; \
+	   ${RM} -f ex4_1.tmp
 runex7:
 	-@${MPIEXEC} -n 1 ./ex7 -ksp_gmres_cgs_refinement_type refine_always -snes_monitor_cancel -snes_monitor_short > ex7_1.tmp 2>&1; \
 	   if (${DIFF} output/ex7_1.out ex7_1.tmp) then true; \
@@ -133,7 +138,7 @@ runex12f:
 	-@${MPIEXEC} -n 2 ./ex12f -ksp_gmres_cgs_refinement_type refine_always -n 10 -snes_monitor_short  > ex12_1.tmp 2>&1;	  \
 	   if (${DIFF} output/ex12_1.out ex12_1.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex12f_1, diffs above\n=========================================\n"; fi; \
-	   ${RM} -f ex12_1.tmp
+	   ${RM} -f ex12_1.tmp usermodule.mod
 runex17:
 	-@${MPIEXEC} -n 1 ./ex17 -snes_monitor_short > ex17_1.tmp 2>&1; \
 	   ${DIFF} output/ex17_1.out ex17_1.tmp || printf "${PWD}\nPossible problem with ex17, diffs above\n=========================================\n"; \
@@ -142,7 +147,7 @@ runex17:
 runex18f90:
 	-@${MPIEXEC} -n 1 ./ex18f90 > ex18f90_1.tmp 2>&1; \
 	   ${DIFF} output/ex18f90_1.out ex18f90_1.tmp || printf "${PWD}\nPossible problem with ex18f90, diffs above\n=========================================\n"; \
-	   ${RM} -f ex18f90_1.tmp
+	   ${RM} -f ex18f90_1.tmp base_module.mod extended_module.mod function_module.mod
 
 runex69:
 	-@${MPIEXEC} -n 1 ./ex69 -snes_converged_reason -ksp_converged_reason > ex69_1.tmp 2>&1; \

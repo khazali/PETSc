@@ -40,7 +40,7 @@
       parameter(MAT_FACTOR_CHOLESKY=2,MAT_FACTOR_ILU=3)
       parameter(MAT_FACTOR_ICC=4)
 
-! MatGetSubMatrixOption
+! MatCreateSubMatrixOption
       PetscEnum MAT_DO_NOT_GET_VALUES
       PetscEnum MAT_GET_VALUES
       parameter(MAT_DO_NOT_GET_VALUES=0,MAT_GET_VALUES=1)
@@ -71,8 +71,9 @@
       PetscEnum MAT_NEW_NONZERO_LOCATIONS
       PetscEnum MAT_NEW_NONZERO_ALLOCATION_ERR
       PetscEnum MAT_SUBSET_OFF_PROC_ENTRIES
-      PetscEnum MAT_OPTION_MAX
       PetscEnum MAT_SUBMAT_SINGLEIS
+      PetscEnum MAT_STRUCTURE_ONLY
+      PetscEnum MAT_OPTION_MAX
 
       parameter(MAT_OPTION_MIN = -3)
       parameter(MAT_UNUSED_NONZERO_LOCATION_ERR = -2)
@@ -98,7 +99,8 @@
       parameter(MAT_NEW_NONZERO_ALLOCATION_ERR = 19)
       parameter(MAT_SUBSET_OFF_PROC_ENTRIES = 20)
       parameter(MAT_SUBMAT_SINGLEIS = 21)
-      parameter(MAT_OPTION_MAX = 22)
+      parameter(MAT_STRUCTURE_ONLY = 22)
+      parameter(MAT_OPTION_MAX = 23)
 !
 !  MatFactorShiftType
 !
@@ -283,7 +285,7 @@
       PetscEnum MATOP_ILUFACTOR
       PetscEnum MATOP_ICCFACTOR
       PetscEnum MATOP_AXPY
-      PetscEnum MATOP_GET_SUBMATRICES
+      PetscEnum MATOP_CREATE_SUBMATRICES
       PetscEnum MATOP_INCREASE_OVERLAP
       PetscEnum MATOP_GET_VALUES
       PetscEnum MATOP_COPY
@@ -302,7 +304,7 @@
       PetscEnum MATOP_SET_UNFACTORED
       PetscEnum MATOP_PERMUTE
       PetscEnum MATOP_SET_VALUES_BLOCKED
-      PetscEnum MATOP_GET_SUBMATRIX
+      PetscEnum MATOP_CREATE_SUBMATRIX
       PetscEnum MATOP_DESTROY
       PetscEnum MATOP_VIEW
       PetscEnum MATOP_CONVERT_FROM
@@ -331,7 +333,7 @@
       PetscEnum MATOP_IS_HERMITIAN
       PetscEnum MATOP_IS_STRUCTURALLY_SYMMETRIC
       PetscEnum MATOP_SET_VALUES_BLOCKEDLOCAL
-      PetscEnum MATOP_GET_VECS
+      PetscEnum MATOP_CREATE_VECS
       PetscEnum MATOP_MAT_MULT
       PetscEnum MATOP_MAT_MULT_SYMBOLIC
       PetscEnum MATOP_MAT_MULT_NUMERIC
@@ -353,7 +355,7 @@
       PetscEnum MATOP_GET_ROW_UPPER_TRIANGULAR
       PetscEnum MATOP_RESTORE_ROW_UPPER_TRIANG
       PetscEnum MATOP_MAT_SOLVE
-      PetscEnum MATOP_GET_REDUNDANT_MATRIX
+      PetscEnum MATOP_MAT_SOLVE_TRANSPOSE
       PetscEnum MATOP_GET_ROW_MIN
       PetscEnum MATOP_GET_COLUMN_VECTOR
       PetscEnum MATOP_MISSING_DIAGONAL
@@ -371,7 +373,7 @@
       PetscEnum MATOP_GET_COLUMN_NORMS
       PetscEnum MATOP_INVERT_BLOCK_DIAGONAL
 !     PetscEnum MATOP_PLACEHOLDER_127
-      PetscEnum MATOP_GET_SUB_MATRICES_PARALLE
+      PetscEnum MATOP_CREATE_SUB_MATRICES_MPI
       PetscEnum MATOP_SET_VALUES_BATCH
       PetscEnum MATOP_TRANSPOSE_MAT_MULT
       PetscEnum MATOP_TRANSPOSE_MAT_MULT_SYMBO
@@ -428,7 +430,7 @@
       parameter(MATOP_ILUFACTOR=37)
       parameter(MATOP_ICCFACTOR=38)
       parameter(MATOP_AXPY=39)
-      parameter(MATOP_GET_SUBMATRICES=40)
+      parameter(MATOP_CREATE_SUBMATRICES=40)
       parameter(MATOP_INCREASE_OVERLAP=41)
       parameter(MATOP_GET_VALUES=42)
       parameter(MATOP_COPY=43)
@@ -447,7 +449,7 @@
       parameter(MATOP_SET_UNFACTORED=56)
       parameter(MATOP_PERMUTE=57)
       parameter(MATOP_SET_VALUES_BLOCKED=58)
-      parameter(MATOP_GET_SUBMATRIX=59)
+      parameter(MATOP_CREATE_SUBMATRIX=59)
       parameter(MATOP_DESTROY=60)
       parameter(MATOP_VIEW=61)
       parameter(MATOP_CONVERT_FROM=62)
@@ -476,7 +478,7 @@
       parameter(MATOP_IS_HERMITIAN=85)
       parameter(MATOP_IS_STRUCTURALLY_SYMMETRIC=86)
       parameter(MATOP_SET_VALUES_BLOCKEDLOCAL=87)
-      parameter(MATOP_GET_VECS=88)
+      parameter(MATOP_CREATE_VECS=88)
       parameter(MATOP_MAT_MULT=89)
       parameter(MATOP_MAT_MULT_SYMBOLIC=90)
       parameter(MATOP_MAT_MULT_NUMERIC=91)
@@ -498,7 +500,7 @@
       parameter(MATOP_GET_ROW_UPPER_TRIANGULAR=107)
       parameter(MATOP_RESTORE_ROW_UPPER_TRIANG=108)
       parameter(MATOP_MAT_SOLVE=109)
-      parameter(MATOP_GET_REDUNDANT_MATRIX=110)
+      parameter(MATOP_MAT_SOLVE_TRANSPOSE=110)
       parameter(MATOP_GET_ROW_MIN=111)
       parameter(MATOP_GET_COLUMN_VECTOR=112)
       parameter(MATOP_MISSING_DIAGONAL=113)
@@ -516,7 +518,7 @@
       parameter(MATOP_GET_COLUMN_NORMS=125)
       parameter(MATOP_INVERT_BLOCK_DIAGONAL=126)
 !     parameter(MATOP_PLACEHOLDER_127=127)
-      parameter(MATOP_GET_SUB_MATRICES_PARALLE=128)
+      parameter(MATOP_CREATE_SUB_MATRICES_MPI=128)
       parameter(MATOP_SET_VALUES_BATCH=129)
       parameter(MATOP_TRANSPOSE_MAT_MULT=130)
       parameter(MATOP_TRANSPOSE_MAT_MULT_SYMBO=131)

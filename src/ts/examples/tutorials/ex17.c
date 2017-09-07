@@ -45,7 +45,6 @@ int main(int argc,char **argv)
   TS             ts;                   /* nonlinear solver */
   Vec            u;                    /* solution, residual vectors */
   Mat            J;                    /* Jacobian matrix */
-  PetscInt       maxsteps = 1000;     /* iterations for convergence */
   PetscInt       nsteps;
   PetscReal      vmin,vmax,norm;
   PetscErrorCode ierr;
@@ -92,7 +91,7 @@ int main(int argc,char **argv)
   ierr = TSSetDM(ts,da);CHKERRQ(ierr); /* Use TSGetDM() to access. Setting here allows easy use of geometric multigrid. */
 
   ftime = 1.0;
-  ierr = TSSetDuration(ts,maxsteps,ftime);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,ftime);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -101,7 +100,7 @@ int main(int argc,char **argv)
   ierr = FormInitialSolution(ts,u,&user);CHKERRQ(ierr);
   ierr = TSSetSolution(ts,u);CHKERRQ(ierr);
   dt   = .01;
-  ierr = TSSetInitialTimeStep(ts,0.0,dt);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
 
 
   /* Use slow fd Jacobian or fast fd Jacobian with colorings.
@@ -137,7 +136,7 @@ int main(int argc,char **argv)
   ierr = VecNorm(u,NORM_1,&norm);CHKERRQ(ierr);
   ierr = VecMax(u,NULL,&vmax);CHKERRQ(ierr);
   ierr = VecMin(u,NULL,&vmin);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts,&nsteps);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts,&nsteps);CHKERRQ(ierr);
   ierr = TSGetTime(ts,&ftime);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"timestep %D: time %g, solution norm %g, max %g, min %g\n",nsteps,(double)ftime,(double)norm,(double)vmax,(double)vmin);CHKERRQ(ierr);
 

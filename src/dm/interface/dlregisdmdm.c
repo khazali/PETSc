@@ -2,10 +2,10 @@
 #include <petsc/private/dmlabelimpl.h>
 #include <petsc/private/dmdaimpl.h>
 #include <petsc/private/dmpleximpl.h>
-#include <petsc/private/dmpicellimpl.h>
 #include <petsc/private/petscdsimpl.h>
 #include <petsc/private/petscfeimpl.h>
 #include <petsc/private/petscfvimpl.h>
+#include <petsc/private/dmswarmimpl.h>
 
 static PetscBool DMPackageInitialized = PETSC_FALSE;
 /*@C
@@ -100,16 +100,18 @@ PetscErrorCode  DMInitializePackage(void)
   ierr = PetscLogEventRegister("DMPlexInjectorFE",       DM_CLASSID,&DMPLEX_InjectorFEM);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPlexIntegralFEM",      DM_CLASSID,&DMPLEX_IntegralFEM);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("DMPlexCreateGmsh",       DM_CLASSID,&DMPLEX_CreateGmsh);CHKERRQ(ierr);
-
-  ierr = PetscLogEventRegister("DMPICell_Solve",         DM_CLASSID,&DMPICell_Solve);CHKERRQ(ierr);
-  ierr = PetscLogEventRegister("DMPICell_SetUp",         DM_CLASSID,&DMPICell_SetUp);CHKERRQ(ierr);
-  ierr = PetscLogEventRegister("DMPICell_Add",           DM_CLASSID,&DMPICell_AddSource);CHKERRQ(ierr);
-  ierr = PetscLogEventRegister("  DMPICell_Add-1",           DM_CLASSID,&DMPICell_Add1);CHKERRQ(ierr);
-  ierr = PetscLogEventRegister("  DMPICell_Add-2",           DM_CLASSID,&DMPICell_Add2);CHKERRQ(ierr);
-  ierr = PetscLogEventRegister("  DMPICell_Add-3",           DM_CLASSID,&DMPICell_Add3);CHKERRQ(ierr);
-  ierr = PetscLogEventRegister("DMPICell_Locate",        DM_CLASSID,&DMPICell_LocateProcess);CHKERRQ(ierr);
-  ierr = PetscLogEventRegister("DMPICell_GetJet",        DM_CLASSID,&DMPICell_GetJet);CHKERRQ(ierr);
-
+  
+  ierr = PetscLogEventRegister("DMSwarmMigrate",         DM_CLASSID,&DMSWARM_Migrate);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("DMSwarmDETSetup",        DM_CLASSID,&DMSWARM_DataExchangerTopologySetup);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("DMSwarmDExBegin",        DM_CLASSID,&DMSWARM_DataExchangerBegin);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("DMSwarmDExEnd",          DM_CLASSID,&DMSWARM_DataExchangerEnd);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("DMSwarmDESendCnt",       DM_CLASSID,&DMSWARM_DataExchangerSendCount);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("DMSwarmDEPack",          DM_CLASSID,&DMSWARM_DataExchangerPack);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("DMSwarmAddPnts",         DM_CLASSID,&DMSWARM_AddPoints);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("DMSwarmRmvPnts",         DM_CLASSID,&DMSWARM_RemovePoints);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("DMSwarmSort",            DM_CLASSID,&DMSWARM_Sort);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("DMSwarmSetSizes",        DM_CLASSID,&DMSWARM_SetSizes);CHKERRQ(ierr);
+  
   /* Process info exclusions */
   ierr = PetscOptionsGetString(NULL,NULL, "-info_exclude", logList, 256, &opt);CHKERRQ(ierr);
   if (opt) {

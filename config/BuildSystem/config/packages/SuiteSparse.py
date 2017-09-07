@@ -11,10 +11,9 @@ class Configure(config.package.Package):
                              ['libumfpack.a','libklu.a','libcholmod.a','libbtf.a','libccolamd.a','libcolamd.a','libcamd.a','libamd.a','libmetis.a','libsuitesparseconfig.a','librt.a']]
     self.functions        = ['umfpack_dl_wsolve','cholmod_l_solve','klu_l_solve']
     self.includes         = ['umfpack.h','cholmod.h','klu.h']
-    self.needsMath        = 1
     self.hastests         = 1
     self.hastestsdatafiles= 1
-    self.precisions       = ['single','double']
+    self.precisions       = ['double']
     return
 
   def setupHelp(self, help):
@@ -25,11 +24,11 @@ class Configure(config.package.Package):
   def setupDependencies(self, framework):
     config.package.Package.setupDependencies(self, framework)
     self.blasLapack = framework.require('config.packages.BlasLapack',self)
+    self.mathlib    = framework.require('config.packages.mathlib',self)
+    self.deps       = [self.blasLapack,self.mathlib]
     if self.argDB['download-suitesparse-gpu']:
       self.cuda       = framework.require('config.packages.cuda',self)
-      self.deps       = [self.blasLapack,self.cuda]
-    else:
-      self.deps       = [self.blasLapack]
+      self.deps.append(self.cuda)
     return
 
   def Install(self):
@@ -63,7 +62,7 @@ class Configure(config.package.Package):
     if self.argDB['download-suitesparse-gpu']:
       if self.defaultIndexSize == 32:
         raise RuntimeError('SuiteSparse only uses GPUs with --with-64-bit-indices')
-      if not self.framework.clArgDB.has_key('with-cuda') or not self.argDB['with-cuda']:
+      if not hasattr(self.compilers, 'CUDAC'):
         raise RuntimeError('Run with --with-cuda to use allow SuiteSparse to compile using CUDA')
       # code taken from cuda.py
       self.pushLanguage('CUDA')

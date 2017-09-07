@@ -229,6 +229,7 @@ static PetscErrorCode TSPseudoGetXdot(TS ts,Vec X,Vec *Xdot)
   PetscInt          i,n;
 
   PetscFunctionBegin;
+  *Xdot = NULL;
   ierr = VecGetArrayRead(ts->vec_sol,&xn);CHKERRQ(ierr);
   ierr = VecGetArrayRead(X,&xnp1);CHKERRQ(ierr);
   ierr = VecGetArray(pseudo->xdot,&xdot);CHKERRQ(ierr);
@@ -355,14 +356,12 @@ static PetscErrorCode TSView_Pseudo(TS ts,PetscViewer viewer)
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&isascii);CHKERRQ(ierr);
   if (isascii) {
     TS_Pseudo *pseudo = (TS_Pseudo*) ts->data;
-    ierr = PetscViewerASCIIPrintf(viewer,"Parameters for pseudo timestepping\n");CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  frtol - relative tolerance in function value %g\n",(double)pseudo->frtol);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  fatol - absolute tolerance in function value %g\n",(double)pseudo->fatol);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  dt_initial - initial timestep %g\n",(double)pseudo->dt_initial);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  dt_increment - increase in timestep on successful step %g\n",(double)pseudo->dt_increment);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  dt_max - maximum time %g\n",(double)pseudo->dt_max);CHKERRQ(ierr);
   }
-  if (ts->snes) {ierr = SNESView(ts->snes,viewer);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 
@@ -651,6 +650,7 @@ PETSC_EXTERN PetscErrorCode TSCreate_Pseudo(TS ts)
   ts->ops->setfromoptions = TSSetFromOptions_Pseudo;
   ts->ops->snesfunction   = SNESTSFormFunction_Pseudo;
   ts->ops->snesjacobian   = SNESTSFormJacobian_Pseudo;
+  ts->default_adapt_type  = TSADAPTNONE;
 
   ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
   ierr = SNESGetType(snes,&stype);CHKERRQ(ierr);

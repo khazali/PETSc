@@ -11,7 +11,7 @@ Input parameters include:\n\
    Concepts: TS^heat equation
    Concepts: TS^diffusion equation
    Routines: TSCreate(); TSSetSolution(); TSSetRHSJacobian(), TSSetIJacobian();
-   Routines: TSSetInitialTimeStep(); TSSetDuration(); TSMonitorSet();
+   Routines: TSSetTimeStep(); TSSetMaxTime(); TSMonitorSet();
    Routines: TSSetFromOptions(); TSStep(); TSDestroy();
    Routines: TSSetTimeStep(); TSGetTimeStep();
    Processors: 1
@@ -188,7 +188,7 @@ int main(int argc,char **argv)
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
   dt   = appctx.h*appctx.h/2.0;
-  ierr = TSSetInitialTimeStep(ts,0.0,dt);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
   ierr = TSSetSolution(ts,u);CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -198,10 +198,11 @@ int main(int argc,char **argv)
      Then set runtime options, which can override these defaults.
      For example,
           -ts_max_steps <maxsteps> -ts_final_time <maxtime>
-     to override the defaults set by TSSetDuration().
+     to override the defaults set by TSSetMaxSteps()/TSSetMaxTime().
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
-  ierr = TSSetDuration(ts,time_steps_max,time_total_max);CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(ts,time_steps_max);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,time_total_max);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
 
@@ -219,7 +220,7 @@ int main(int argc,char **argv)
   */
   ierr = TSSolve(ts,u);CHKERRQ(ierr);
   ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts,&steps);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts,&steps);CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      View timestepping solver info
@@ -244,7 +245,7 @@ int main(int argc,char **argv)
      Always call PetscFinalize() before exiting a program.  This routine
        - finalizes the PETSc libraries as well as MPI
        - provides summary and diagnostic information if certain runtime
-         options are chosen (e.g., -log_summary).
+         options are chosen (e.g., -log_view).
   */
   ierr = PetscFinalize();
   return ierr;

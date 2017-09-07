@@ -7,7 +7,7 @@ MANSEC           = Vec
 LOCDIR		 = src/vec/vec/examples/tutorials/
 EXAMPLESC	 = ex1.c ex2.c ex3.c ex5.c ex6.c ex7.c ex8.c ex9.c ex10.c \
                 ex11.c ex12.c ex15.c ex16.c  ex18.c ex19.c ex42.c ex42a.c ex21.c
-EXAMPLESF	 = ex1f.F ex1f90.F90 ex2f.F ex3f.F ex4f.F ex4f90.F90 ex7f.F ex9f.F ex11f.F ex14f.F ex20f90.F90 ex21f90.F90
+EXAMPLESF	 = ex1f.F ex1f90.F90 ex2f.F ex3f.F ex4f.F ex4f90.F90 ex7f.F ex9f.F90 ex11f.F ex14f.F90 ex20f90.F90 ex21f90.F90
 
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
@@ -267,17 +267,17 @@ runex10:
 	-@${MPIEXEC} -n 2 ./ex10 -binary > ex10_1.tmp 2>&1;\
 	   if (${DIFF} output/ex10_1.out ex10_1.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex10_1, diffs above\n=========================================\n"; fi;\
-	   ${RM} -f ex10_1.tmp
+	   ${RM} -f ex10_1.tmp vector.dat vector.dat.info
 runex10_2:
 	-@${MPIEXEC} -n 3 ./ex10 -binary > ex10_2.tmp 2>&1;\
 	   if (${DIFF} output/ex10_2.out ex10_2.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex10_2, diffs above\n=========================================\n"; fi;\
-	   ${RM} -f ex10_2.tmp
+	   ${RM} -f ex10_2.tmp vector.dat vector.dat.info
 runex10_3:
 	-@${MPIEXEC} -n 5 ./ex10 -binary > ex10_3.tmp 2>&1;\
 	   if (${DIFF} output/ex10_3.out ex10_3.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex10_3, diffs above\n=========================================\n"; fi;\
-	   ${RM} -f ex10_3.tmp
+	   ${RM} -f ex10_3.tmp vector.dat vector.dat.info
 
 runex11:
 	-@${MPIEXEC}  -n 2 ./ex11 > ex11_1.tmp 2>&1;\
@@ -308,7 +308,7 @@ runex21f90:
 	-@${MPIEXEC} -n 1 ./ex21f90 > ex21f90_1.tmp 2>&1;\
 	   if (${DIFF} output/ex21f90_1.out ex21f90_1.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex21f90_1, diffs above\n=========================================\n"; fi;\
-	   ${RM} -f ex21f90_1.tmp
+	   ${RM} -f ex21f90_1.tmp mymodule.mod
 
 TESTEXAMPLES_C		    = ex1.PETSc runex1 runex1_2 ex1.rm  \
                               ex2.PETSc runex2 ex2.rm ex5.PETSc runex5 runex5_2 ex5.rm ex6.PETSc \

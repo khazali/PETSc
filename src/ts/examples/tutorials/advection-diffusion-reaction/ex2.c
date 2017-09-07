@@ -32,8 +32,8 @@ typedef struct {
 PetscScalar k1(AppCtx *ctx,PetscReal t)
 {
   PetscReal th    = t/3600.0;
-  PetscReal barth = th - 24.0*floor(th/24.0);
-  if (((((PetscInt)th) % 24) < 4)               || ((((PetscInt)th) % 24) >= 20)) return(1.0e-40);
+  PetscReal barth = th - 24.0*PetscFloorReal(th/24.0);
+  if (((((PetscInt)th) % 24) < 4) || ((((PetscInt)th) % 24) >= 20)) return(1.0e-40);
   else return(ctx->k1*PetscExpReal(7.0*PetscPowReal(PetscSinReal(.0625*PETSC_PI*(barth - 4.0)),.2)));
 }
 
@@ -148,13 +148,14 @@ int main(int argc,char **argv)
      Set initial conditions
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   ierr = Solution(ts,0,U,&ctx);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(ts,4.0*3600,1.0);CHKERRQ(ierr);
+  ierr = TSSetTime(ts,4.0*3600);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,1.0);CHKERRQ(ierr);
   ierr = TSSetSolution(ts,U);CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set solver options
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  ierr = TSSetDuration(ts,1000000,518400.0);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,518400.0);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   ierr = TSSetMaxStepRejections(ts,100);CHKERRQ(ierr);
   ierr = TSSetMaxSNESFailures(ts,-1);CHKERRQ(ierr); /* unlimited */

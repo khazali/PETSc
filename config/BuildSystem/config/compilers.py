@@ -136,17 +136,20 @@ class Configure(config.base.Configure):
 
   def checkRestrict(self,language):
     '''Check for the C/CXX restrict keyword'''
-    # Try the official restrict keyword, then gcc's __restrict__, then
-    # SGI's __restrict.  __restrict has slightly different semantics than
-    # restrict (it's a bit stronger, in that __restrict pointers can't
-    # overlap even with non __restrict pointers), but I think it should be
-    # okay under the circumstances where restrict is normally used.
+    # Try keywords equivalent to C99 restrict.  Note that many C
+    # compilers require special cflags, such as -std=c99 or -restrict to
+    # recognize the "restrict" keyword and it is not always practical to
+    # expect that every user provides matching options.  Meanwhile,
+    # compilers like Intel and MSVC (reportedly) support __restrict
+    # without special options.  Glibc uses __restrict, presumably for
+    # this reason.  Note that __restrict is not standardized while
+    # "restrict" is, but implementation realities favor __restrict.
     if config.setCompilers.Configure.isPGI(self.setCompilers.CC, self.log):
       self.addDefine(language.upper()+'_RESTRICT', ' ')
       self.logPrint('PGI restrict word is broken cannot handle [restrict] '+str(language)+' restrict keyword', 4, 'compilers')
       return
     self.pushLanguage(language)
-    for kw in ['restrict', ' __restrict__', '__restrict']:
+    for kw in ['__restrict', ' __restrict__', 'restrict']:
       if self.checkCompile('', 'float * '+kw+' x;'):
         if language.lower() == 'c':
           self.cRestrict = kw
@@ -245,8 +248,6 @@ class Configure(config.base.Configure):
         if m:
           if not arg in lflags:
             if arg == '-lkernel32':
-              continue
-            elif arg == '-lm':
               continue
             else:
               lflags.append(arg)
@@ -490,7 +491,7 @@ class Configure(config.base.Configure):
         # Check for full dylib library name
         m = re.match(r'^/.*\.dylib$', arg)
         if m:
-          if not arg in lflags:
+          if not arg in lflags and not arg.endswith('LTO.dylib'):
             lflags.append(arg)
             self.logPrint('Found full library spec: '+arg, 4, 'compilers')
             cxxlibs.append(arg)
@@ -508,12 +509,12 @@ class Configure(config.base.Configure):
           if not arg in lflags:
             if arg == '-lkernel32':
               continue
-            elif arg == '-lm':
-              continue
+            elif arg == '-lLTO' and self.setCompilers.isDarwin(self.log):
+              self.logPrint('Skipping -lTO')
             else:
               lflags.append(arg)
             self.logPrint('Found library: '+arg, 4, 'compilers')
-            if arg in self.clibs:
+            if (arg == '-lLTO' and self.setCompilers.isDarwin(self.log)) or arg in self.clibs:
               self.logPrint('Library already in C list so skipping in C++')
             else:
               cxxlibs.append(arg)
@@ -851,7 +852,7 @@ class Configure(config.base.Configure):
         # Check for full dylib library name
         m = re.match(r'^/.*\.dylib$', arg)
         if m:
-          if not arg in lflags:
+          if not arg.endwith('LTO.dylib') and not arg in lflags:
             lflags.append(arg)
             self.logPrint('Found full library spec: '+arg, 4, 'compilers')
             flibs.append(arg)
@@ -890,7 +891,8 @@ class Configure(config.base.Configure):
         if m:
           lib = arg+argIter.next()
           self.logPrint('Found canonical library: '+lib, 4, 'compilers')
-          flibs.append(lib)
+          if not lib == '-LLTO' or not self.setCompilers.isDarwin(self.log):
+            flibs.append(lib)
           continue
         # intel windows compilers can use -libpath argument
         if arg.find('-libpath:')>=0:
@@ -906,22 +908,18 @@ class Configure(config.base.Configure):
           if not arg in lflags:
             if arg == '-lkernel32':
               continue
-            elif arg == '-lm':
-              pass
             elif arg == '-lgfortranbegin':
               fmainlibs.append(arg)
               continue
             elif arg == '-lfrtbegin' and not config.setCompilers.Configure.isCygwin(self.log):
               fmainlibs.append(arg)
               continue
-            else:
+            elif not arg == '-lLTO' or not config.setCompilers.Configure.isDarwin(self.log):
               lflags.append(arg)
             self.logPrint('Found library: '+arg, 4, 'compilers')
             if arg in self.clibs:
               self.logPrint('Library already in C list so skipping in Fortran')
-            elif arg in self.cxxlibs:
-              self.logPrint('Library already in Cxx list so skipping in Fortran')
-            else:
+            elif not arg == '-lLTO' or not config.setCompilers.Configure.isDarwin(self.log):
               flibs.append(arg)
           else:
             self.logPrint('Already in lflags: '+arg, 4, 'compilers')
@@ -1146,7 +1144,7 @@ class Configure(config.base.Configure):
     '''Determine whether the Fortran compiler handles F90FreeForm
        We also require that the compiler handles lines longer than 132 characters'''
     self.pushLanguage('FC')
-    if self.checkLink(body = '      INTEGER, PARAMETER ::        int = SELECTED_INT_KIND(8);              INTEGER (KIND=int) :: ierr;       ierr                            = 1'):
+    if self.checkLink(body = '      INTEGER, PARAMETER ::        int = SELECTED_INT_KIND(8);              INTEGER (KIND=int) :: ierr;       ierr                            =                                                                                                               1'):
       self.addDefine('USING_F90FREEFORM', 1)
       self.fortranIsF90FreeForm = 1
       self.logPrint('Fortran compiler supports F90FreeForm')
@@ -1186,6 +1184,8 @@ class Configure(config.base.Configure):
       self.fortranIsF2003 = 0
       self.logPrint('Fortran compiler does not support F2003')
     self.popLanguage()
+    for f in [os.path.abspath('base_module.mod'), os.path.abspath('BASE_MODULE.mod'), os.path.join(os.path.dirname(self.compilerObj),'base_module.mod'), os.path.join(os.path.dirname(self.compilerObj),'BASE_MODULE.mod')]:
+      if os.path.isfile(f): os.remove(f)
     return
 
   def checkFortran90Array(self):

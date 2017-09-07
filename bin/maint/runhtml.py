@@ -241,7 +241,6 @@ for root, dirs, filenames in os.walk(sys.argv[2]):
       exclude_warnings_re = ["unrecognized .pragma",
                           "warning: .SSL",
                           "warning: .BIO_",
-                          "warning: treating 'c' input as 'c..' when in C.. mode",
                           "warning[s]* generated"]
       exclude_warnings = ["warning: statement not reached",
                           "warning: loop not entered at top",
@@ -333,6 +332,8 @@ for root, dirs, filenames in os.walk(sys.argv[2]):
       for line in open(logfile_examples_full):
         if write_to_summary:
           examples_summary_file.write(line)
+        if re.search(r'not ok', line):
+          example_problem_num += 1
         if re.search(r'[Pp]ossible [Pp]roblem', line):
           example_problem_num += 1
 

@@ -34,13 +34,17 @@
 !     Every PETSc routine should begin with the PetscInitialize()
 !     routine.
 
-      call PetscInitialize(PETSC_NULL_CHARACTER,ierr);CHKERRQ(ierr)
+      call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
+      if (ierr .ne. 0) then
+        print*,'Unable to initialize PETSc'
+        stop
+      endif
 
 !     The following MPI calls return the number of processes being used
 !     and the rank of this process in the group.
 
-      call MPI_Comm_size(PETSC_COMM_WORLD,size,ierr);CHKERRQ(ierr)
-      call MPI_Comm_rank(PETSC_COMM_WORLD,rank,ierr);CHKERRQ(ierr)
+      call MPI_Comm_size(PETSC_COMM_WORLD,size,ierr);CHKERRA(ierr)
+      call MPI_Comm_rank(PETSC_COMM_WORLD,rank,ierr);CHKERRA(ierr)
 
 
 !     Here we would like to print only one message that represents all
@@ -51,7 +55,7 @@
 !     Always call PetscFinalize() before exiting a program.  This
 !     routine - finalizes the PETSc libraries as well as MPI - provides
 !     summary and diagnostic information if certain runtime options are
-!     chosen (e.g., -log_summary).  See PetscFinalize() manpage for more
+!     chosen (e.g., -log_view).  See PetscFinalize() manpage for more
 !     information.
 
       call PetscFinalize(ierr)

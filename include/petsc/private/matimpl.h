@@ -7,6 +7,7 @@
 #include <petsc/private/petscimpl.h>
 
 PETSC_EXTERN PetscBool MatRegisterAllCalled;
+PETSC_EXTERN PetscBool MatSeqAIJRegisterAllCalled;
 PETSC_EXTERN PetscBool MatOrderingRegisterAllCalled;
 PETSC_EXTERN PetscBool MatColoringRegisterAllCalled;
 PETSC_EXTERN PetscBool MatPartitioningRegisterAllCalled;
@@ -16,6 +17,7 @@ PETSC_EXTERN PetscErrorCode MatOrderingRegisterAll(void);
 PETSC_EXTERN PetscErrorCode MatColoringRegisterAll(void);
 PETSC_EXTERN PetscErrorCode MatPartitioningRegisterAll(void);
 PETSC_EXTERN PetscErrorCode MatCoarsenRegisterAll(void);
+PETSC_EXTERN PetscErrorCode MatSeqAIJRegisterAll(void);
 
 /*
   This file defines the parts of the matrix data structure that are
@@ -77,7 +79,7 @@ struct _MatOps {
   PetscErrorCode (*iccfactor)(Mat,IS,const MatFactorInfo*);
   /*39*/
   PetscErrorCode (*axpy)(Mat,PetscScalar,Mat,MatStructure);
-  PetscErrorCode (*getsubmatrices)(Mat,PetscInt,const IS[],const IS[],MatReuse,Mat *[]);
+  PetscErrorCode (*createsubmatrices)(Mat,PetscInt,const IS[],const IS[],MatReuse,Mat *[]);
   PetscErrorCode (*increaseoverlap)(Mat,PetscInt,IS[],PetscInt);
   PetscErrorCode (*getvalues)(Mat,PetscInt,const PetscInt[],PetscInt,const PetscInt[],PetscScalar []);
   PetscErrorCode (*copy)(Mat,Mat,MatStructure);
@@ -100,7 +102,7 @@ struct _MatOps {
   PetscErrorCode (*permute)(Mat,IS,IS,Mat*);
   PetscErrorCode (*setvaluesblocked)(Mat,PetscInt,const PetscInt[],PetscInt,const PetscInt[],const PetscScalar[],InsertMode);
   /*59*/
-  PetscErrorCode (*getsubmatrix)(Mat,IS,IS,MatReuse,Mat*);
+  PetscErrorCode (*createsubmatrix)(Mat,IS,IS,MatReuse,Mat*);
   PetscErrorCode (*destroy)(Mat);
   PetscErrorCode (*view)(Mat,PetscViewer);
   PetscErrorCode (*convertfrom)(Mat, MatType,MatReuse,Mat*);
@@ -161,7 +163,7 @@ struct _MatOps {
   PetscErrorCode (*restorerowuppertriangular)(Mat);
   /*109*/
   PetscErrorCode (*matsolve)(Mat,Mat,Mat);
-  PetscErrorCode (*placeholder_110)(Mat);
+  PetscErrorCode (*matsolvetranspose)(Mat,Mat,Mat);
   PetscErrorCode (*getrowmin)(Mat,Vec,PetscInt[]);
   PetscErrorCode (*getcolumnvector)(Mat,Vec,PetscInt);
   PetscErrorCode (*missingdiagonal)(Mat,PetscBool *,PetscInt*);
@@ -182,7 +184,7 @@ struct _MatOps {
   PetscErrorCode (*getcolumnnorms)(Mat,NormType,PetscReal*);
   PetscErrorCode (*invertblockdiagonal)(Mat,const PetscScalar**);
   PetscErrorCode (*placeholder_127)(Mat,Vec,Vec,Vec);
-  PetscErrorCode (*getsubmatricesmpi)(Mat,PetscInt,const IS[], const IS[], MatReuse, Mat**);
+  PetscErrorCode (*createsubmatricesmpi)(Mat,PetscInt,const IS[], const IS[], MatReuse, Mat**);
   /*129*/
   PetscErrorCode (*setvaluesbatch)(Mat,PetscInt,PetscInt,PetscInt*,const PetscScalar*);
   PetscErrorCode (*transposematmult)(Mat,Mat,MatReuse,PetscReal,Mat*);
@@ -203,7 +205,7 @@ struct _MatOps {
   PetscErrorCode (*findoffblockdiagonalentries)(Mat,IS*);
   /*144*/
   PetscErrorCode (*creatempimatconcatenateseqmat)(MPI_Comm,Mat,PetscInt,MatReuse,Mat*);
-
+  PetscErrorCode (*destroysubmatrices)(PetscInt,Mat*[]);
 };
 /*
     If you add MatOps entries above also add them to the MATOP enum
@@ -391,6 +393,7 @@ struct _p_Mat {
   PetscBool              nooffprocentries,nooffproczerorows;
   PetscBool              subsetoffprocentries;
   PetscBool              submat_singleis; /* for efficient PCSetUP_ASM() */
+  PetscBool              structure_only;
 #if defined(PETSC_HAVE_CUSP)
   PetscCUSPFlag          valid_GPU_matrix; /* flag pointing to the matrix on the gpu*/
 #elif defined(PETSC_HAVE_VIENNACL)
@@ -402,6 +405,8 @@ struct _p_Mat {
   MatSolverPackage       solvertype;
   PetscBool              checksymmetryonassembly,checknullspaceonassembly;
   PetscReal              checksymmetrytol;
+  Mat                    schur;             /* Schur complement matrix */
+  MatFactorSchurStatus   schur_status;      /* status of the Schur complement matrix */
   Mat_Redundant          *redundant;        /* used by MatCreateRedundantMatrix() */
   PetscBool              erroriffailure;    /* Generate an error if detected (for example a zero pivot) instead of returning */
   MatFactorError         factorerrortype;               /* type of error in factorization */
@@ -411,6 +416,14 @@ struct _p_Mat {
 
 PETSC_INTERN PetscErrorCode MatAXPY_Basic(Mat,PetscScalar,Mat,MatStructure);
 PETSC_INTERN PetscErrorCode MatAXPY_BasicWithPreallocation(Mat,Mat,PetscScalar,Mat,MatStructure);
+
+/*
+    Utility for MatFactor (Schur complement)
+*/
+PETSC_INTERN PetscErrorCode MatFactorFactorizeSchurComplement_Private(Mat);
+PETSC_INTERN PetscErrorCode MatFactorInvertSchurComplement_Private(Mat);
+PETSC_INTERN PetscErrorCode MatFactorUpdateSchurStatus_Private(Mat);
+PETSC_INTERN PetscErrorCode MatFactorSetUpInPlaceSchur_Private(Mat);
 
 /*
     Utility for MatZeroRows
@@ -599,10 +612,10 @@ typedef struct {
 } FactorShiftCtx;
 
 /*
- Used by MatGetSubMatrices_MPIXAIJ_Local()
+ Used by MatCreateSubMatrices_MPIXAIJ_Local()
 */
 #include <petscctable.h>
-typedef struct { /* used by MatGetSubMatrices_MPIAIJ_SingleIS_Local() and MatGetSubMatrices_MPIAIJ_Local */
+typedef struct { /* used by MatCreateSubMatrices_MPIAIJ_SingleIS_Local() and MatCreateSubMatrices_MPIAIJ_Local */
   PetscInt   id;   /* index of submats, only submats[0] is responsible for deleting some arrays below */
   PetscInt   nrqs,nrqr;
   PetscInt   **rbuf1,**rbuf2,**rbuf3,**sbuf1,**sbuf2;
@@ -623,7 +636,7 @@ typedef struct { /* used by MatGetSubMatrices_MPIAIJ_SingleIS_Local() and MatGet
 #endif
 
   PetscErrorCode (*destroy)(Mat);
-} Mat_SubMat;
+} Mat_SubSppt;
 
 PETSC_EXTERN PetscErrorCode MatFactorDumpMatrix(Mat);
 PETSC_INTERN PetscErrorCode MatShift_Basic(Mat,PetscScalar);
@@ -1580,9 +1593,9 @@ PETSC_EXTERN PetscLogEvent MAT_MultTransposeConstrained, MAT_MultTransposeAdd, M
 PETSC_EXTERN PetscLogEvent MAT_SolveTransposeAdd, MAT_SOR, MAT_ForwardSolve, MAT_BackwardSolve, MAT_LUFactor, MAT_LUFactorSymbolic;
 PETSC_EXTERN PetscLogEvent MAT_LUFactorNumeric, MAT_CholeskyFactor, MAT_CholeskyFactorSymbolic, MAT_CholeskyFactorNumeric, MAT_ILUFactor;
 PETSC_EXTERN PetscLogEvent MAT_ILUFactorSymbolic, MAT_ICCFactorSymbolic, MAT_Copy, MAT_Convert, MAT_Scale, MAT_AssemblyBegin;
-PETSC_EXTERN PetscLogEvent MAT_AssemblyEnd, MAT_SetValues, MAT_GetValues, MAT_GetRow, MAT_GetRowIJ, MAT_GetSubMatrices, MAT_GetColoring, MAT_GetOrdering, MAT_RedundantMat;
+PETSC_EXTERN PetscLogEvent MAT_AssemblyEnd, MAT_SetValues, MAT_GetValues, MAT_GetRow, MAT_GetRowIJ, MAT_CreateSubMats, MAT_GetColoring, MAT_GetOrdering, MAT_RedundantMat;
 PETSC_EXTERN PetscLogEvent MAT_IncreaseOverlap, MAT_Partitioning, MAT_Coarsen, MAT_ZeroEntries, MAT_Load, MAT_View, MAT_AXPY, MAT_FDColoringCreate, MAT_TransposeColoringCreate;
-PETSC_EXTERN PetscLogEvent MAT_FDColoringSetUp, MAT_FDColoringApply, MAT_Transpose, MAT_FDColoringFunction,MAT_GetSubMatrix;
+PETSC_EXTERN PetscLogEvent MAT_FDColoringSetUp, MAT_FDColoringApply, MAT_Transpose, MAT_FDColoringFunction,MAT_CreateSubMat;
 PETSC_EXTERN PetscLogEvent MAT_MatMult, MAT_MatSolve,MAT_MatMultSymbolic, MAT_MatMultNumeric,MAT_Getlocalmatcondensed,MAT_GetBrowsOfAcols,MAT_GetBrowsOfAocols;
 PETSC_EXTERN PetscLogEvent MAT_PtAP, MAT_PtAPSymbolic, MAT_PtAPNumeric,MAT_Seqstompinum,MAT_Seqstompisym,MAT_Seqstompi,MAT_Getlocalmat;
 PETSC_EXTERN PetscLogEvent MAT_RARt, MAT_RARtSymbolic, MAT_RARtNumeric;

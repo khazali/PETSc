@@ -5,43 +5,44 @@ Mesh in 2 dimensions:
   1-cells: 12416
   2-cells: 8192
 Labels:
-  marker: 4 strata of sizes (129, 127, 129, 127)
-  depth: 3 strata of sizes (4225, 12416, 8192)
+  marker: 4 strata with value/size (4 (129), 1 (127), 2 (129), 3 (127))
+  Face Sets: 4 strata with value/size (1 (126), 4 (126), 2 (126), 3 (126))
+  depth: 3 strata with value/size (0 (4225), 1 (12416), 2 (8192))
   DM_0x84000000_0 in 2 dimensions:
     0-cells:   1224  
     1-cells:   3543  
     2-cells:   2320  
   Labels:
-    _boundary_: 1 strata of sizes (126)
-    depth: 3 strata of sizes (1224, 3543, 2320)
+    _boundary_: 1 strata with value/size (1 (126))
+    depth: 3 strata with value/size (0 (1224), 1 (3543), 2 (2320))
     DM_0x84000000_1 in 2 dimensions:
       0-cells:     408    
       1-cells:     1154    
       2-cells:     747    
     Labels:
-      _boundary_: 1 strata of sizes (67)
-      depth: 3 strata of sizes (408, 1154, 747)
+      _boundary_: 1 strata with value/size (1 (67))
+      depth: 3 strata with value/size (0 (408), 1 (1154), 2 (747))
       DM_0x84000000_2 in 2 dimensions:
         0-cells:       136      
         1-cells:       369      
         2-cells:       234      
       Labels:
-        _boundary_: 1 strata of sizes (36)
-        depth: 3 strata of sizes (136, 369, 234)
+        _boundary_: 1 strata with value/size (1 (36))
+        depth: 3 strata with value/size (0 (136), 1 (369), 2 (234))
         DM_0x84000000_3 in 2 dimensions:
           0-cells:         55        
           1-cells:         137        
           2-cells:         83        
         Labels:
-          _boundary_: 1 strata of sizes (25)
-          depth: 3 strata of sizes (55, 137, 83)
+          _boundary_: 1 strata with value/size (1 (25))
+          depth: 3 strata with value/size (0 (55), 1 (137), 2 (83))
           DM_0x84000000_4 in 2 dimensions:
             0-cells:           26          
             1-cells:           55          
             2-cells:           30          
           Labels:
-            _boundary_: 1 strata of sizes (20)
-            depth: 3 strata of sizes (26, 55, 30)
+            _boundary_: 1 strata with value/size (1 (20))
+            depth: 3 strata with value/size (0 (26), 1 (55), 2 (30))
   0 SNES Function norm 3.538058091867e+00 
       Residual norms for mg_levels_2_ solve.
       0 KSP none resid norm 6.684008878137e-01 true resid norm 2.369800283865e+00 ||r(i)||/||b|| 6.698025364005e-01
@@ -9548,14 +9549,14 @@ Labels:
   730 KSP preconditioned resid norm 9.984929210637e-12 true resid norm 4.029601931812e-13 ||r(i)||/||b|| 1.138930403962e-13
 KSP Object: 1 MPI processes
   type: richardson
-    Richardson: damping factor=1.
+    damping factor=1.
   maximum iterations=10000, initial guess is zero
   tolerances:  relative=1e-12, absolute=1e-50, divergence=10000.
   left preconditioning
   using PRECONDITIONED norm type for convergence test
 PC Object: 1 MPI processes
   type: mg
-    MG: type is MULTIPLICATIVE, levels=3 cycles=v
+    type is MULTIPLICATIVE, levels=3 cycles=v
       Cycles per PCApply=1
       Not using Galerkin computed coarse grid matrices
   Coarse grid solver -- level -------------------------------
@@ -9590,26 +9591,25 @@ PC Object: 1 MPI processes
   Down solver (pre-smoother) on level 1 -------------------------------
     KSP Object: (mg_levels_1_) 1 MPI processes
       type: chebyshev
-        Chebyshev: eigenvalue estimates used:  min = 0.0998459, max = 1.09831
-        Chebyshev: eigenvalues estimate via gmres min 0.0124716, max 0.998459
-        Chebyshev: eigenvalues estimated using gmres with translations  [0. 0.1; 0. 1.1]
+        eigenvalue estimates used:  min = 0.0998459, max = 1.09831
+        eigenvalues estimate via gmres min 0.0124716, max 0.998459
+        eigenvalues estimated using gmres with translations  [0. 0.1; 0. 1.1]
         KSP Object: (mg_levels_1_esteig_) 1 MPI processes
           type: gmres
-            GMRES: restart=30, using Classical (unmodified) Gram-Schmidt Orthogonalization with no iterative refinement
-            GMRES: happy breakdown tolerance 1e-30
+            restart=30, using Classical (unmodified) Gram-Schmidt Orthogonalization with no iterative refinement
+            happy breakdown tolerance 1e-30
           maximum iterations=10, initial guess is zero
           tolerances:  relative=1e-12, absolute=1e-50, divergence=10000.
           left preconditioning
           using PRECONDITIONED norm type for convergence test
-        Chebyshev: estimating eigenvalues using noisy right hand side
-      maximum iterations=2
+        estimating eigenvalues using noisy right hand side
+      maximum iterations=2, nonzero initial guess
       tolerances:  relative=1e-05, absolute=1e-50, divergence=10000.
       left preconditioning
-      using nonzero initial guess
       using NONE norm type for convergence test
     PC Object: (mg_levels_1_) 1 MPI processes
       type: sor
-        SOR: type = local_symmetric, iterations = 1, local iterations = 1, omega = 1.
+        type = local_symmetric, iterations = 1, local iterations = 1, omega = 1.
       linear system matrix = precond matrix:
       Mat Object: 1 MPI processes
         type: seqaij
@@ -9621,26 +9621,25 @@ PC Object: 1 MPI processes
   Down solver (pre-smoother) on level 2 -------------------------------
     KSP Object: (mg_levels_2_) 1 MPI processes
       type: chebyshev
-        Chebyshev: eigenvalue estimates used:  min = 0.0998957, max = 1.09885
-        Chebyshev: eigenvalues estimate via gmres min 0.0139685, max 0.998957
-        Chebyshev: eigenvalues estimated using gmres with translations  [0. 0.1; 0. 1.1]
+        eigenvalue estimates used:  min = 0.0998957, max = 1.09885
+        eigenvalues estimate via gmres min 0.0139685, max 0.998957
+        eigenvalues estimated using gmres with translations  [0. 0.1; 0. 1.1]
         KSP Object: (mg_levels_2_esteig_) 1 MPI processes
           type: gmres
-            GMRES: restart=30, using Classical (unmodified) Gram-Schmidt Orthogonalization with no iterative refinement
-            GMRES: happy breakdown tolerance 1e-30
+            restart=30, using Classical (unmodified) Gram-Schmidt Orthogonalization with no iterative refinement
+            happy breakdown tolerance 1e-30
           maximum iterations=10, initial guess is zero
           tolerances:  relative=1e-12, absolute=1e-50, divergence=10000.
           left preconditioning
           using PRECONDITIONED norm type for convergence test
-        Chebyshev: estimating eigenvalues using noisy right hand side
-      maximum iterations=2
+        estimating eigenvalues using noisy right hand side
+      maximum iterations=2, nonzero initial guess
       tolerances:  relative=1e-05, absolute=1e-50, divergence=10000.
       left preconditioning
-      using nonzero initial guess
       using NONE norm type for convergence test
     PC Object: (mg_levels_2_) 1 MPI processes
       type: sor
-        SOR: type = local_symmetric, iterations = 1, local iterations = 1, omega = 1.
+        type = local_symmetric, iterations = 1, local iterations = 1, omega = 1.
       linear system matrix = precond matrix:
       Mat Object: 1 MPI processes
         type: seqaij

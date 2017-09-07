@@ -390,7 +390,7 @@ PetscErrorCode  PetscLogObjects(PetscBool flag)
 
 /*------------------------------------------------ Stage Functions --------------------------------------------------*/
 /*@C
-  PetscLogStageRegister - Attaches a charactor string name to a logging stage.
+  PetscLogStageRegister - Attaches a character string name to a logging stage.
 
   Not Collective
 
@@ -1189,7 +1189,7 @@ PetscErrorCode  PetscLogView_Detailed(PetscViewer viewer)
   ierr = PetscViewerASCIISynchronizedPrintf(viewer,"LocalMessageLens[%d] = %g\n",rank,(petsc_irecv_len + petsc_isend_len + petsc_recv_len + petsc_send_len));CHKERRQ(ierr);
   ierr = PetscViewerASCIISynchronizedPrintf(viewer,"LocalMessages[%d] = %g\n",rank,(petsc_irecv_ct + petsc_isend_ct + petsc_recv_ct + petsc_send_ct));CHKERRQ(ierr);
   ierr = PetscViewerASCIISynchronizedPrintf(viewer,"LocalReductions[%d] = %g\n",rank,numRed);CHKERRQ(ierr);
-  ierr = PetscViewerASCIISynchronizedPrintf(viewer,"LocalObjects[%d] = %g\n",rank,petsc_numObjects);CHKERRQ(ierr);
+  ierr = PetscViewerASCIISynchronizedPrintf(viewer,"LocalObjects[%d] = %d\n",rank,petsc_numObjects);CHKERRQ(ierr);
   ierr = PetscMallocGetMaximumUsage(&maxMem);CHKERRQ(ierr);
   ierr = PetscViewerASCIISynchronizedPrintf(viewer,"LocalMemory[%d] = %g\n",rank,maxMem);CHKERRQ(ierr);
   ierr = PetscViewerFlush(viewer);CHKERRQ(ierr);
@@ -1708,7 +1708,7 @@ PetscErrorCode  PetscLogView(PetscViewer viewer)
   PetscStageLog     stageLog;
 
   PetscFunctionBegin;
-  if (!PetscLogPLB) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Must use -log_summary or PetscLogDefaultBegin() before calling this routine");
+  if (!PetscLogPLB) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Must use -log_view or PetscLogDefaultBegin() before calling this routine");
   /* Pop off any stages the user forgot to remove */
   lastStage = 0;
   ierr      = PetscLogGetStageLog(&stageLog);CHKERRQ(ierr);
@@ -1853,7 +1853,7 @@ M*/
    Input Parameter:
 +   flag - PETSC_TRUE to run twice, PETSC_FALSE to run once, may be overridden
            with command line option -preload true or -preload false
--   name - name of first stage (lines of code timed separately with -log_summary) to
+-   name - name of first stage (lines of code timed separately with -log_view) to
            be preloaded
 
    Usage:
@@ -2009,7 +2009,7 @@ PETSC_INTERN PetscErrorCode PetscLogEventEndMPE(PetscLogEvent,int,PetscObject,Pe
 . -log_mpe - Prints extensive log information
 
    Notes:
-   A related routine is PetscLogDefaultBegin() (with the options key -log_summary), which is
+   A related routine is PetscLogDefaultBegin() (with the options key -log_view), which is
    intended for production runs since it logs only flop rates and object
    creation (and should not significantly slow the programs).
 

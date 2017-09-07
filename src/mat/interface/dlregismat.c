@@ -1,11 +1,9 @@
 
 #include <petsc/private/matimpl.h>
 
-const char       *MatOptions[] = {"NEW_NONZERO_LOCATION_ERR",
-                                  "UNUSED_NONZERO_LOCATION_ERR",
-                                  "NEW_NONZERO_ALLOCATION_ERR",
+const char       *MatOptions_Shifted[] = {"UNUSED_NONZERO_LOCATION_ERR",
                                   "ROW_ORIENTED",
-                                  "NEW_NONZERO_LOCATIONS",
+                                  "NOT_A_VALID_OPTION",
                                   "SYMMETRIC",
                                   "STRUCTURALLY_SYMMETRIC",
                                   "NEW_DIAGONALS",
@@ -16,7 +14,7 @@ const char       *MatOptions[] = {"NEW_NONZERO_LOCATION_ERR",
                                   "USE_INODES",
                                   "HERMITIAN",
                                   "SYMMETRY_ETERNAL",
-                                  "DUMMY",
+                                  "NEW_NONZERO_LOCATION_ERR",
                                   "IGNORE_LOWER_TRIANGULAR",
                                   "ERROR_LOWER_TRIANGULAR",
                                   "GETROW_UPPERTRIANGULAR",
@@ -24,7 +22,11 @@ const char       *MatOptions[] = {"NEW_NONZERO_LOCATION_ERR",
                                   "NO_OFF_PROC_ZERO_ROWS",
                                   "NO_OFF_PROC_ENTRIES",
                                   "NEW_NONZERO_LOCATIONS",
+                                  "NEW_NONZERO_ALLOCATION_ERR",
+                                  "MAT_SUBSET_OFF_PROC_ENTRIES",
+                                  "MAT_SUBMAT_SINGLEIS",
                                   "MatOption","MAT_",0};
+const char *const* MatOptions = MatOptions_Shifted+2;
 const char *const MatFactorShiftTypes[] = {"NONE","NONZERO","POSITIVE_DEFINITE","INBLOCKS","MatFactorShiftType","PC_FACTOR_",0};
 const char *const MatFactorShiftTypesDetail[] = {NULL,"diagonal shift to prevent zero pivot","Manteuffel shift","diagonal shift on blocks to prevent zero pivot"};
 const char *const MPPTScotchStrategyTypes[] = {"QUALITY","SPEED","BALANCE","SAFETY","SCALABILITY","MPPTScotchStrategyType","MP_PTSCOTCH_",0};
@@ -71,6 +73,9 @@ PetscErrorCode  MatFinalizePackage(void)
   MatColoringRegisterAllCalled     = PETSC_FALSE;
   MatPartitioningRegisterAllCalled = PETSC_FALSE;
   MatCoarsenRegisterAllCalled      = PETSC_FALSE;
+  /* this is not ideal because it exposes SeqAIJ implementation details directly into the base Mat code */
+  ierr = PetscFunctionListDestroy(&MatSeqAIJList);CHKERRQ(ierr);
+  MatSeqAIJRegisterAllCalled       = PETSC_FALSE;
   PetscFunctionReturn(0);
 }
 
@@ -165,6 +170,7 @@ PetscErrorCode  MatInitializePackage(void)
   ierr = MatColoringRegisterAll();CHKERRQ(ierr);
   ierr = MatPartitioningRegisterAll();CHKERRQ(ierr);
   ierr = MatCoarsenRegisterAll();CHKERRQ(ierr);
+  ierr = MatSeqAIJRegisterAll();CHKERRQ(ierr);
   /* Register Events */
   ierr = PetscLogEventRegister("MatMult",          MAT_CLASSID,&MAT_Mult);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("MatMults",         MAT_CLASSID,&MAT_Mults);CHKERRQ(ierr);
@@ -200,8 +206,8 @@ PetscErrorCode  MatInitializePackage(void)
   ierr = PetscLogEventRegister("MatGetValues",     MAT_CLASSID,&MAT_GetValues);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("MatGetRow",        MAT_CLASSID,&MAT_GetRow);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("MatGetRowIJ",      MAT_CLASSID,&MAT_GetRowIJ);CHKERRQ(ierr);
-  ierr = PetscLogEventRegister("MatGetSubMatrice", MAT_CLASSID,&MAT_GetSubMatrices);CHKERRQ(ierr);
-  ierr = PetscLogEventRegister("MatGetSubMatrix",  MAT_CLASSID,&MAT_GetSubMatrix);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("MatCreateSubMats", MAT_CLASSID,&MAT_CreateSubMats);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("MatCreateSubMat",  MAT_CLASSID,&MAT_CreateSubMat);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("MatGetOrdering",   MAT_CLASSID,&MAT_GetOrdering);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("MatIncreaseOvrlp", MAT_CLASSID,&MAT_IncreaseOverlap);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("MatPartitioning",  MAT_PARTITIONING_CLASSID,&MAT_Partitioning);CHKERRQ(ierr);
@@ -302,6 +308,15 @@ PetscErrorCode  MatInitializePackage(void)
   ierr = MatSolverPackageRegister(MATSOLVERPETSC, MATSEQAIJPERM,    MAT_FACTOR_CHOLESKY,MatGetFactor_seqaij_petsc);CHKERRQ(ierr);
   ierr = MatSolverPackageRegister(MATSOLVERPETSC, MATSEQAIJPERM,    MAT_FACTOR_ILU,MatGetFactor_seqaij_petsc);CHKERRQ(ierr);
   ierr = MatSolverPackageRegister(MATSOLVERPETSC, MATSEQAIJPERM,    MAT_FACTOR_ICC,MatGetFactor_seqaij_petsc);CHKERRQ(ierr);
+
+#if defined(PETSC_HAVE_MKL)
+  ierr = MatSolverPackageRegister(MATSOLVERPETSC, MATSEQAIJMKL,     MAT_FACTOR_LU,MatGetFactor_seqaij_petsc);CHKERRQ(ierr);
+  ierr = MatSolverPackageRegister(MATSOLVERPETSC, MATSEQAIJMKL,     MAT_FACTOR_CHOLESKY,MatGetFactor_seqaij_petsc);CHKERRQ(ierr);
+  ierr = MatSolverPackageRegister(MATSOLVERPETSC, MATSEQAIJMKL,     MAT_FACTOR_ILU,MatGetFactor_seqaij_petsc);CHKERRQ(ierr);
+  ierr = MatSolverPackageRegister(MATSOLVERPETSC, MATSEQAIJMKL,     MAT_FACTOR_ICC,MatGetFactor_seqaij_petsc);CHKERRQ(ierr);
+#endif
+    /* Above, we register the PETSc built-in factorization solvers for MATSEQAIJMKL.  In the future, we may want to use 
+     * some of the MKL-provided ones instead. */ 
 
   ierr = MatSolverPackageRegister(MATSOLVERPETSC, MATSEQAIJCRL,     MAT_FACTOR_LU,MatGetFactor_seqaij_petsc);CHKERRQ(ierr);
   ierr = MatSolverPackageRegister(MATSOLVERPETSC, MATSEQAIJCRL,     MAT_FACTOR_CHOLESKY,MatGetFactor_seqaij_petsc);CHKERRQ(ierr);

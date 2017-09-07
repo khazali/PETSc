@@ -1,5 +1,5 @@
 
-static char help[] = "Tests MatGetSubMatrices().\n\n";
+static char help[] = "Tests MatCreateSubMatrices().\n\n";
 
 #include <petscmat.h>
 
@@ -29,31 +29,28 @@ int main(int argc,char **args)
 
   /* take the first diagonal block */
   ierr = ISCreateStride(PETSC_COMM_WORLD,m,0,1,&isrow);CHKERRQ(ierr);
-  ierr = MatGetSubMatrices(A,1,&isrow,&isrow,MAT_INITIAL_MATRIX,&Bsub);CHKERRQ(ierr);
+  ierr = MatCreateSubMatrices(A,1,&isrow,&isrow,MAT_INITIAL_MATRIX,&Bsub);CHKERRQ(ierr);
   B    = *Bsub;
-  ierr = PetscFree(Bsub);CHKERRQ(ierr);
   ierr = ISDestroy(&isrow);CHKERRQ(ierr);
   ierr = MatView(B,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
-  ierr = MatDestroy(&B);CHKERRQ(ierr);
+  ierr = MatDestroySubMatrices(1,&Bsub);CHKERRQ(ierr);
 
   /* take a strided block */
   ierr = ISCreateStride(PETSC_COMM_WORLD,m,0,2,&isrow);CHKERRQ(ierr);
-  ierr = MatGetSubMatrices(A,1,&isrow,&isrow,MAT_INITIAL_MATRIX,&Bsub);CHKERRQ(ierr);
+  ierr = MatCreateSubMatrices(A,1,&isrow,&isrow,MAT_INITIAL_MATRIX,&Bsub);CHKERRQ(ierr);
   B    = *Bsub;
-  ierr = PetscFree(Bsub);CHKERRQ(ierr);
   ierr = ISDestroy(&isrow);CHKERRQ(ierr);
   ierr = MatView(B,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
-  ierr = MatDestroy(&B);CHKERRQ(ierr);
+  ierr = MatDestroySubMatrices(1,&Bsub);CHKERRQ(ierr);
 
   /* take the last block */
   ierr = ISCreateStride(PETSC_COMM_WORLD,m,N-m-1,1,&isrow);CHKERRQ(ierr);
-  ierr = MatGetSubMatrices(A,1,&isrow,&isrow,MAT_INITIAL_MATRIX,&Bsub);CHKERRQ(ierr);
+  ierr = MatCreateSubMatrices(A,1,&isrow,&isrow,MAT_INITIAL_MATRIX,&Bsub);CHKERRQ(ierr);
   B    = *Bsub;
-  ierr = PetscFree(Bsub);CHKERRQ(ierr);
   ierr = ISDestroy(&isrow);CHKERRQ(ierr);
   ierr = MatView(B,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
 
-  ierr = MatDestroy(&B);CHKERRQ(ierr);
+  ierr = MatDestroySubMatrices(1,&Bsub);CHKERRQ(ierr);
   ierr = MatDestroy(&A);CHKERRQ(ierr);
 
   ierr = PetscFinalize();

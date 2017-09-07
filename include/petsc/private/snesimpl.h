@@ -39,9 +39,9 @@ struct _p_SNES {
   PETSCHEADER(struct _SNESOps);
   DM        dm;
   PetscBool dmAuto;             /* SNES created currently used DM automatically */
-  SNES      pc;
-  PCSide    pcside;
-  PetscBool usespc;
+  SNES      npc;
+  PCSide    npcside;
+  PetscBool usesnpc;            /* type can use a nonlinear preconditioner */
 
   /*  ------------------------ User-provided stuff -------------------------------*/
   void  *user;                   /* user-defined context */
@@ -96,6 +96,7 @@ struct _p_SNES {
   PetscReal   abstol;             /* absolute tolerance */
   PetscReal   stol;               /* step length tolerance*/
   PetscReal   deltatol;           /* trust region convergence tolerance */
+  PetscBool   forceiteration;     /* Force SNES to take at least one iteration regardless of the initial residual norm */
   PetscInt    lagpreconditioner;  /* SNESSetLagPreconditioner() */
   PetscInt    lagjacobian;        /* SNESSetLagJacobian() */
   PetscInt    jac_iter;           /* The present iteration of the Jacobian lagging */
@@ -206,7 +207,6 @@ PETSC_EXTERN PetscErrorCode DMGetDMSNES(DM,DMSNES*);
 PETSC_EXTERN PetscErrorCode DMSNESView(DMSNES,PetscViewer);
 PETSC_EXTERN PetscErrorCode DMSNESLoad(DMSNES,PetscViewer);
 PETSC_EXTERN PetscErrorCode DMGetDMSNESWrite(DM,DMSNES*);
-PETSC_EXTERN PetscErrorCode DMCopyDMSNES(DM,DM);
 
 
 /* Context for Eisenstat-Walker convergence criteria for KSP solvers */

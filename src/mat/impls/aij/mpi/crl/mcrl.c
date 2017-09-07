@@ -15,8 +15,6 @@
 #include <../src/mat/impls/aij/mpi/mpiaij.h>
 #include <../src/mat/impls/aij/seq/crl/crl.h>
 
-extern PetscErrorCode MatDestroy_MPIAIJ(Mat);
-
 PetscErrorCode MatDestroy_MPIAIJCRL(Mat A)
 {
   PetscErrorCode ierr;
@@ -89,8 +87,6 @@ PetscErrorCode MatMPIAIJCRL_create_aijcrl(Mat A)
   aijcrl->xscat = a->Mvctx;
   PetscFunctionReturn(0);
 }
-
-extern PetscErrorCode MatAssemblyEnd_MPIAIJ(Mat,MatAssemblyType);
 
 PetscErrorCode MatAssemblyEnd_MPIAIJCRL(Mat A, MatAssemblyType mode)
 {

@@ -1,5 +1,5 @@
 
-static char help[] = "Tests MatIncreaseOverlap() and MatGetSubmatrices() for the parallel case.\n\
+static char help[] = "Tests MatIncreaseOverlap() and MatCreateSubmatrices() for the parallel case.\n\
 This example is similar to ex40.c; here the index sets used are random.\n\
 Input arguments are:\n\
   -f <input_file> : file to load.  For example see $PETSC_DIR/share/petsc/datafiles/matrices\n\
@@ -100,8 +100,8 @@ int main(int argc,char **args)
     }
   }
 
-  ierr = MatGetSubMatrices(A,nd,is1,is1,MAT_INITIAL_MATRIX,&submatA);CHKERRQ(ierr);
-  ierr = MatGetSubMatrices(B,nd,is2,is2,MAT_INITIAL_MATRIX,&submatB);CHKERRQ(ierr);
+  ierr = MatCreateSubMatrices(A,nd,is1,is1,MAT_INITIAL_MATRIX,&submatA);CHKERRQ(ierr);
+  ierr = MatCreateSubMatrices(B,nd,is2,is2,MAT_INITIAL_MATRIX,&submatB);CHKERRQ(ierr);
 
   /* Now see if the serial and parallel case have the same answers */
   for (i=0; i<nd; ++i) {
@@ -115,11 +115,10 @@ int main(int argc,char **args)
   for (i=0; i<nd; ++i) {
     ierr = ISDestroy(&is1[i]);CHKERRQ(ierr);
     ierr = ISDestroy(&is2[i]);CHKERRQ(ierr);
-    ierr = MatDestroy(&submatA[i]);CHKERRQ(ierr);
-    ierr = MatDestroy(&submatB[i]);CHKERRQ(ierr);
   }
-  ierr = PetscFree(submatA);CHKERRQ(ierr);
-  ierr = PetscFree(submatB);CHKERRQ(ierr);
+  ierr = MatDestroySubMatrices(nd,&submatA);CHKERRQ(ierr);
+  ierr = MatDestroySubMatrices(nd,&submatB);CHKERRQ(ierr);
+
   ierr = PetscRandomDestroy(&r);CHKERRQ(ierr);
   ierr = PetscFree(is1);CHKERRQ(ierr);
   ierr = PetscFree(is2);CHKERRQ(ierr);

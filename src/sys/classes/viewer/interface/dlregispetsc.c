@@ -1,22 +1,28 @@
 
 #include <petscdraw.h>
 #include <petscviewer.h>
+#include <petsc/private/viewerimpl.h>
 
 extern PetscLogEvent PETSC_Barrier,PETSC_BuildTwoSided,PETSC_BuildTwoSidedF;
-
 static PetscBool PetscSysPackageInitialized = PETSC_FALSE;
+
 /*@C
-  PetscSysFinalizePackage - This function destroys everything in the Petsc interface to Mathematica. It is
-  called from PetscFinalize().
+  PetscSysFinalizePackage - This function destroys everything in the PETSc created internally in the system library portion of PETSc.
+  It is called from PetscFinalize().
 
   Level: developer
 
-.keywords: Petsc, destroy, package, mathematica
+.keywords: Petsc, destroy, package
 .seealso: PetscFinalize()
 @*/
 PetscErrorCode  PetscSysFinalizePackage(void)
 {
+  PetscErrorCode ierr;
+
   PetscFunctionBegin;
+  if (Petsc_Seq_keyval != MPI_KEYVAL_INVALID) {
+    ierr = MPI_Keyval_free(&Petsc_Seq_keyval);CHKERRQ(ierr);
+  }
   PetscSysPackageInitialized = PETSC_FALSE;
   PetscFunctionReturn(0);
 }

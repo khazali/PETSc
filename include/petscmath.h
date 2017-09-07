@@ -392,7 +392,7 @@ PETSC_STATIC_INLINE PetscReal PetscAbsScalar(PetscScalar a) {return a < 0.0 ? -a
 
 #define PetscSign(a) (((a) >= 0) ? ((a) == 0 ? 0 : 1) : -1)
 #define PetscSignReal(a) (((a) >= 0.0) ? ((a) == 0.0 ? 0.0 : 1.0) : -1.0)
-#define PetscAbs(a)  (((a) >= 0) ? (a) : -(a))
+#define PetscAbs(a)  (((a) >= 0) ? (a) : (-(a)))
 
 /* --------------------------------------------------------------------------*/
 
@@ -405,7 +405,37 @@ typedef enum { PETSC_SCALAR_DOUBLE,PETSC_SCALAR_SINGLE, PETSC_SCALAR_LONG_DOUBLE
 #if defined(PETSC_HAVE_COMPLEX)
 /* PETSC_i is the imaginary number, i */
 PETSC_EXTERN PetscComplex PETSC_i;
+
+/* Try to do the right thing for complex number construction: see
+
+  http://www.open-std.org/jtc1/sc22/wg14/www/docs/n1464.htm
+
+  for details
+*/
+PETSC_STATIC_INLINE PetscComplex PetscCMPLX(PetscReal x, PetscReal y)
+{
+#if   defined(__cplusplus)
+  return PetscComplex(x,y);
+#elif defined(_Imaginary_I)
+  return x + y * _Imaginary_I;
+#else
+  { /* In both C99 and C11 (ISO/IEC 9899, Section 6.2.5),
+
+       "For each floating type there is a corresponding real type, which is always a real floating
+       type. For real floating types, it is the same type. For complex types, it is the type given
+       by deleting the keyword _Complex from the type name."
+
+       So type punning should be portable. */
+    union { PetscComplex z; PetscReal f[2]; } uz;
+
+    uz.f[0] = x;
+    uz.f[1] = y;
+    return uz.z;
+  }
 #endif
+}
+#endif
+
 
 /*MC
    PetscMin - Returns minimum of two numbers
@@ -491,7 +521,7 @@ M*/
 .seealso: PetscMax(), PetscMin(), PetscAbsReal(), PetscSqr()
 
 M*/
-#define PetscAbsInt(a)  (((a)<0)   ? -(a) : (a))
+#define PetscAbsInt(a)  (((a)<0)   ? (-(a)) : (a))
 
 /*MC
    PetscAbsReal - Returns the absolute value of an real number
@@ -511,7 +541,15 @@ M*/
 .seealso: PetscMax(), PetscMin(), PetscAbsInt(), PetscSqr()
 
 M*/
-#define PetscAbsReal(a) (((a)<0)   ? -(a) : (a))
+#if defined(PETSC_USE_REAL_SINGLE)
+#define PetscAbsReal(a) fabsf(a)
+#elif defined(PETSC_USE_REAL_DOUBLE)
+#define PetscAbsReal(a) fabs(a)
+#elif defined(PETSC_USE_REAL___FLOAT128)
+#define PetscAbsReal(a) fabsq(a)
+#elif defined(PETSC_USE_REAL___FP16)
+#define PetscAbsReal(a) fabsf(a)
+#endif
 
 /*MC
    PetscSqr - Returns the square of a number
@@ -535,6 +573,15 @@ M*/
 #define PetscSqr(a)     ((a)*(a))
 
 /* ----------------------------------------------------------------------------*/
+
+#if defined(PETSC_USE_REAL_SINGLE)
+#define PetscRealConstant(constant) constant##F
+#elif defined(PETSC_USE_REAL___FLOAT128)
+#define PetscRealConstant(constant) constant##Q
+#else
+#define PetscRealConstant(constant) constant
+#endif
+
 /*
      Basic constants
 */
@@ -545,6 +592,7 @@ M*/
 #else
 #define PETSC_PI                 3.14159265358979323846264338327950288419716939937510582
 #endif
+#define PETSC_PHI                1.6180339887498948482
 
 #if !defined(PETSC_USE_64BIT_INDICES)
 #define PETSC_MAX_INT            2147483647
@@ -556,39 +604,44 @@ M*/
 
 #if defined(PETSC_USE_REAL_SINGLE)
 #  define PETSC_MAX_REAL                3.40282346638528860e+38F
-#  define PETSC_MIN_REAL                -PETSC_MAX_REAL
+#  define PETSC_MIN_REAL                (-PETSC_MAX_REAL)
 #  define PETSC_MACHINE_EPSILON         1.19209290e-07F
 #  define PETSC_SQRT_MACHINE_EPSILON    3.45266983e-04F
-#  define PETSC_SMALL                   1.e-5
+#  define PETSC_SMALL                   1.e-5F
 #elif defined(PETSC_USE_REAL_DOUBLE)
 #  define PETSC_MAX_REAL                1.7976931348623157e+308
-#  define PETSC_MIN_REAL                -PETSC_MAX_REAL
+#  define PETSC_MIN_REAL                (-PETSC_MAX_REAL)
 #  define PETSC_MACHINE_EPSILON         2.2204460492503131e-16
 #  define PETSC_SQRT_MACHINE_EPSILON    1.490116119384766e-08
 #  define PETSC_SMALL                   1.e-10
 #elif defined(PETSC_USE_REAL___FLOAT128)
 #  define PETSC_MAX_REAL                FLT128_MAX
-#  define PETSC_MIN_REAL                -FLT128_MAX
+#  define PETSC_MIN_REAL                (-FLT128_MAX)
 #  define PETSC_MACHINE_EPSILON         FLT128_EPSILON
-#  define PETSC_SQRT_MACHINE_EPSILON    1.38777878078e-17q
-#  define PETSC_SMALL                   1.e-20q
+#  define PETSC_SQRT_MACHINE_EPSILON    1.38777878078144567552953958511352539e-17Q
+#  define PETSC_SMALL                   1.e-20Q
 #elif defined(PETSC_USE_REAL___FP16)  /* maybe should use single precision values for these? */
 #  define PETSC_MAX_REAL                65504.
-#  define PETSC_MIN_REAL                -PETSC_MAX_REAL
+#  define PETSC_MIN_REAL                (-PETSC_MAX_REAL)
 #  define PETSC_MACHINE_EPSILON         .00097656
 #  define PETSC_SQRT_MACHINE_EPSILON    .0312
 #  define PETSC_SMALL                   5.e-3
 #endif
 
-#define PETSC_INFINITY                PETSC_MAX_REAL/4.0
-#define PETSC_NINFINITY              -PETSC_INFINITY
+#define PETSC_INFINITY               (PETSC_MAX_REAL/4)
+#define PETSC_NINFINITY              (-PETSC_INFINITY)
 
-PETSC_EXTERN PetscErrorCode PetscIsInfOrNanReal(PetscReal);
-PETSC_EXTERN PetscErrorCode PetscIsNanReal(PetscReal);
+PETSC_EXTERN PetscBool PetscIsInfReal(PetscReal);
+PETSC_EXTERN PetscBool PetscIsNanReal(PetscReal);
 PETSC_EXTERN PetscBool PetscIsNormalReal(PetscReal);
-PETSC_STATIC_INLINE PetscErrorCode PetscIsInfOrNanScalar(PetscScalar v) {return PetscIsInfOrNanReal(PetscAbsScalar(v));}
-PETSC_STATIC_INLINE PetscErrorCode PetscIsNanScalar(PetscScalar v) {return PetscIsNanReal(PetscAbsScalar(v));}
-PETSC_STATIC_INLINE PetscErrorCode PetscIsNormalScalar(PetscScalar v) {return PetscIsNormalReal(PetscAbsScalar(v));}
+PETSC_STATIC_INLINE PetscBool PetscIsInfOrNanReal(PetscReal v) {return PetscIsInfReal(v) || PetscIsNanReal(v) ? PETSC_TRUE : PETSC_FALSE;}
+PETSC_STATIC_INLINE PetscBool PetscIsInfScalar(PetscScalar v) {return PetscIsInfReal(PetscAbsScalar(v));}
+PETSC_STATIC_INLINE PetscBool PetscIsNanScalar(PetscScalar v) {return PetscIsNanReal(PetscAbsScalar(v));}
+PETSC_STATIC_INLINE PetscBool PetscIsInfOrNanScalar(PetscScalar v) {return PetscIsInfOrNanReal(PetscAbsScalar(v));}
+PETSC_STATIC_INLINE PetscBool PetscIsNormalScalar(PetscScalar v) {return PetscIsNormalReal(PetscAbsScalar(v));}
+
+PETSC_EXTERN PetscBool PetscEqualReal(PetscReal,PetscReal);
+PETSC_EXTERN PetscBool PetscEqualScalar(PetscScalar,PetscScalar);
 
 /*
     These macros are currently hardwired to match the regular data types, so there is no support for a different

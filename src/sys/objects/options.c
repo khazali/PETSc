@@ -72,7 +72,7 @@ static PetscOptions      defaultoptions = NULL;
 PetscErrorCode  PetscOptionsStringToInt(const char name[],PetscInt *a)
 {
   PetscErrorCode ierr;
-  size_t         i,len;
+  size_t         len;
   PetscBool      decide,tdefault,mouse;
 
   PetscFunctionBegin;
@@ -93,18 +93,20 @@ PetscErrorCode  PetscOptionsStringToInt(const char name[],PetscInt *a)
   else if (decide) *a = PETSC_DECIDE;
   else if (mouse)  *a = -1;
   else {
-    if (name[0] != '+' && name[0] != '-' && name[0] < '0' && name[0] > '9') SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Input string %s has no integer value (do not include . in it)",name);
+    char *endptr;
+    long strtolval;
 
-    for (i=1; i<len; i++) {
-      if (name[i] < '0' || name[i] > '9') SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Input string %s has no integer value (do not include . in it)",name);
-    }
+    strtolval = strtol(name,&endptr,10);
+    if ((size_t) (endptr - name) != len) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Input string %s has no integer value (do not include . in it)",name);
 
 #if defined(PETSC_USE_64BIT_INDICES) && defined(PETSC_HAVE_ATOLL)
+    (void) strtolval;
     *a = atoll(name);
 #elif defined(PETSC_USE_64BIT_INDICES) && defined(PETSC_HAVE___INT64)
+    (void) strtolval;
     *a = _atoi64(name);
 #else
-    *a = (PetscInt)atoi(name);
+    *a = (PetscInt)strtolval;
 #endif
   }
   PetscFunctionReturn(0);
@@ -113,6 +115,55 @@ PetscErrorCode  PetscOptionsStringToInt(const char name[],PetscInt *a)
 #if defined(PETSC_USE_REAL___FLOAT128)
 #include <quadmath.h>
 #endif
+
+static PetscErrorCode PetscStrtod(const char name[],PetscReal *a,char **endptr)
+{
+  PetscFunctionBegin;
+#if defined(PETSC_USE_REAL___FLOAT128)
+  *a = strtoflt128(name,endptr);
+#else
+  *a = (PetscReal)strtod(name,endptr);
+#endif
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode PetscStrtoz(const char name[],PetscScalar *a,char **endptr,PetscBool *isImaginary)
+{
+  PetscBool      hasi = PETSC_FALSE;
+  char           *ptr;
+  PetscReal      strtoval;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscStrtod(name,&strtoval,&ptr);CHKERRQ(ierr);
+  if (ptr == name) {
+    strtoval = 1.;
+    hasi = PETSC_TRUE;
+    if (name[0] == 'i') {
+      ptr++;
+    } else if (name[0] == '+' && name[1] == 'i') {
+      ptr += 2;
+    } else if (name[0] == '-' && name[1] == 'i') {
+      strtoval = -1.;
+      ptr += 2;
+    }
+  } else if (*ptr == 'i') {
+    hasi = PETSC_TRUE;
+    ptr++;
+  }
+  *endptr = ptr;
+  *isImaginary = hasi;
+  if (hasi) {
+#if !defined(PETSC_USE_COMPLEX)
+    SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Input string %s contains imaginary but complex not supported ",name);
+#else
+    *a = PetscCMPLX(0.,strtoval);
+#endif
+  } else {
+    *a = strtoval;
+  }
+  PetscFunctionReturn(0);
+}
 
 /*
    Converts a string to PetscReal value. Handles special cases like "default" and "decide"
@@ -139,100 +190,38 @@ PetscErrorCode  PetscOptionsStringToReal(const char name[],PetscReal *a)
   if (tdefault)    *a = PETSC_DEFAULT;
   else if (decide) *a = PETSC_DECIDE;
   else {
-    if (name[0] != '+' && name[0] != '-' && name[0] != '.' && name[0] < '0' && name[0] > '9') SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Input string %s has no numeric value ",name);
-#if defined(PETSC_USE_REAL___FLOAT128)
-    *a = strtoflt128(name,NULL);
-#else
-    *a = atof(name);
-#endif
+    char   *endptr;
+
+    ierr = PetscStrtod(name,a,&endptr);CHKERRQ(ierr);
+    if ((size_t) (endptr - name) != len) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Input string %s has no numeric value ",name);
   }
   PetscFunctionReturn(0);
 }
 
-/*
-   Converts a string to PetscScalar value. Handles
-      [-][2].0
-      [-][2].0i
-      [-][2].0+/-2.0i
-
-*/
 PetscErrorCode  PetscOptionsStringToScalar(const char name[],PetscScalar *a)
 {
-  PetscErrorCode ierr;
+  PetscBool      imag1;
   size_t         len;
+  PetscScalar    val = 0.;
+  char           *ptr = NULL;
+  PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = PetscStrlen(name,&len);CHKERRQ(ierr);
   if (!len) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"character string of length zero has no numerical value");
-
-  if (name[0] == '+') name++;
-  if (name[0] == 'i') {
+  ierr = PetscStrtoz(name,&val,&ptr,&imag1);CHKERRQ(ierr);
 #if defined(PETSC_USE_COMPLEX)
-    *a = PETSC_i;
-#else
-    SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Input string %s is imaginary but complex not supported ",name);
-#endif
-  } else {
-    PetscToken token;
-    char       *tvalue1,*tvalue2;
-    PetscBool  neg = PETSC_FALSE, negim = PETSC_FALSE;
-    PetscReal  re = 0.0,im = 0.0;
+  if ((size_t) (ptr - name) < len) {
+    PetscBool   imag2;
+    PetscScalar val2;
 
-    if (name[0] != '-' && name[0] != '.' && name[0] < '0' && name[0] > '9') SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Input string %s has no numeric value ",name);
-    if (name[0] == '-') {
-      neg = PETSC_TRUE;
-      name++;
-    }
-    if (name[0] == 'i') {
-#if defined(PETSC_USE_COMPLEX)
-      *a = -PETSC_i;
-#else
-     SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Input string %s is imaginary but complex not supported ",name);
-#endif
-      PetscFunctionReturn(0);
-    }
-
-    ierr = PetscTokenCreate(name,'+',&token);CHKERRQ(ierr);
-    ierr = PetscTokenFind(token,&tvalue1);CHKERRQ(ierr);
-    ierr = PetscTokenFind(token,&tvalue2);CHKERRQ(ierr);
-    if (!tvalue2) {
-      negim = PETSC_TRUE;
-      ierr  = PetscTokenDestroy(&token);CHKERRQ(ierr);
-      ierr  = PetscTokenCreate(name,'-',&token);CHKERRQ(ierr);
-      ierr  = PetscTokenFind(token,&tvalue1);CHKERRQ(ierr);
-      ierr  = PetscTokenFind(token,&tvalue2);CHKERRQ(ierr);
-    }
-    if (!tvalue2) {
-      PetscBool isim;
-      ierr = PetscStrendswith(tvalue1,"i",&isim);CHKERRQ(ierr);
-      if (isim) {
-        tvalue2 = tvalue1;
-        tvalue1 = NULL;
-        negim   = neg;
-      }
-    } else {
-      PetscBool isim;
-      ierr = PetscStrendswith(tvalue2,"i",&isim);CHKERRQ(ierr);
-      if (!isim) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Input string %s has no numeric value ",name);
-    }
-    if (tvalue1) {
-      ierr = PetscOptionsStringToReal(tvalue1,&re);CHKERRQ(ierr);
-      if (neg) re = -re;
-    }
-    if (tvalue2) {
-      ierr = PetscStrlen(tvalue2,&len);CHKERRQ(ierr);
-      tvalue2[len-1] = 0;
-      ierr = PetscOptionsStringToReal(tvalue2,&im);CHKERRQ(ierr);
-      if (negim) im = -im;
-    }
-    ierr = PetscTokenDestroy(&token);CHKERRQ(ierr);
-#if defined(PETSC_USE_COMPLEX)
-    *a = re + im*PETSC_i;
-#else
-    if (im != 0.0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Input string %s is complex but complex not supported ",name);
-    *a = re;
-#endif
+    ierr = PetscStrtoz(ptr,&val2,&ptr,&imag2);CHKERRQ(ierr);
+    if (imag1 || !imag2) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Input string %s: must specify imaginary component second",name);
+    val = PetscCMPLX(PetscRealPart(val),PetscImaginaryPart(val2));
   }
+#endif
+  if ((size_t) (ptr - name) != len) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Input string %s has no numeric value ",name);
+  *a = val;
   PetscFunctionReturn(0);
 }
 
@@ -303,7 +292,7 @@ PetscErrorCode  PetscSetProgramName(const char name[])
   PetscFunctionReturn(0);
 }
 
-/*@
+/*@C
     PetscOptionsValidKey - PETSc Options database keys must begin with one or two dashes (-) followed by a letter.
 
    Input Parameter:
@@ -317,8 +306,7 @@ PetscErrorCode  PetscSetProgramName(const char name[])
 @*/
 PetscErrorCode  PetscOptionsValidKey(const char in_str[],PetscBool  *key)
 {
-  PetscBool      inf,INF;
-  PetscErrorCode ierr;
+  char           *ptr;
 
   PetscFunctionBegin;
   *key = PETSC_FALSE;
@@ -326,9 +314,8 @@ PetscErrorCode  PetscOptionsValidKey(const char in_str[],PetscBool  *key)
   if (in_str[0] != '-') PetscFunctionReturn(0);
   if (in_str[1] == '-') in_str++;
   if (!isalpha((int)(in_str[1]))) PetscFunctionReturn(0);
-  ierr = PetscStrncmp(in_str+1,"inf",3,&inf);CHKERRQ(ierr);
-  ierr = PetscStrncmp(in_str+1,"INF",3,&INF);CHKERRQ(ierr);
-  if ((inf || INF) && !(in_str[4] == '_' || isalnum((int)(in_str[4])))) PetscFunctionReturn(0);
+  (void) strtod(in_str,&ptr);
+  if (ptr != in_str && !(*ptr == '_' || isalnum((int)*ptr))) PetscFunctionReturn(0);
   *key = PETSC_TRUE;
   PetscFunctionReturn(0);
 }
@@ -436,7 +423,7 @@ static char *Petscgetline(FILE * f)
   Notes: Use  # for lines that are comments and which should be ignored.
 
    Usually, instead of using this command, one should list the file name in the call to PetscInitialize(), this insures that certain options
-   such as -log_summary or -malloc_debug are processed properly. This routine only sets options into the options database that will be processed by later
+   such as -log_view or -malloc_debug are processed properly. This routine only sets options into the options database that will be processed by later
    calls to XXXSetFromOptions() it should not be used for options listed under PetscInitialize().
 
   Level: developer
@@ -766,7 +753,8 @@ PetscErrorCode  PetscOptionsInsert(PetscOptions options,int *argc,char ***args,c
    Logically Collective on PetscViewer
 
    Input Parameter:
-.  viewer - must be an PETSCVIEWERASCII viewer
+-  options - options database, use NULL for default global database
++  viewer - must be an PETSCVIEWERASCII viewer
 
    Options Database Key:
 .  -options_table - Activates PetscOptionsView() within PetscFinalize()
@@ -1443,7 +1431,7 @@ PETSC_EXTERN PetscErrorCode PetscOptionsFindPairPrefix_Private(PetscOptions opti
    for parallel objects looking for options.
 
    Input Parameters:
-+  options - options database use NULL for default global database
++  options - options database, use NULL for default global database
 .  name - the option one is seeking
 -  mess - error message (may be NULL)
 
@@ -1480,7 +1468,7 @@ PetscErrorCode  PetscOptionsReject(PetscOptions options,const char name[],const 
    Not Collective
 
    Input Parameters:
-+  options - options database use NULL for default global database
++  options - options database, use NULL for default global database
 .  name - the option one is seeking
 -  pre - string to prepend to the name or NULL
 
@@ -1521,7 +1509,7 @@ PetscErrorCode  PetscOptionsHasName(PetscOptions options,const char pre[],const 
    Not Collective
 
    Input Parameters:
-+  options - options database use NULL for default global database
++  options - options database, use NULL for default global database
 .  pre - the string to prepend to the name or NULL
 -  name - the option one is seeking
 
@@ -1571,7 +1559,7 @@ PetscErrorCode  PetscOptionsGetInt(PetscOptions options,const char pre[],const c
    Not Collective
 
    Input Parameters:
-+  options - options database use NULL for default global database
++  options - options database, use NULL for default global database
 .  pre - the string to prepend to the name or NULL
 .  opt - option name
 .  list - the possible choices (one of these must be selected, anything else is invalid)
@@ -1626,7 +1614,7 @@ PetscErrorCode  PetscOptionsGetEList(PetscOptions options,const char pre[],const
    Not Collective
 
    Input Parameters:
-+  options - options database use NULL for default global database
++  options - options database, use NULL for default global database
 .  pre - option prefix or NULL
 .  opt - option name
 .  list - array containing the list of choices, followed by the enum name, followed by the enum prefix, followed by a null
@@ -1679,7 +1667,7 @@ PetscErrorCode  PetscOptionsGetEnum(PetscOptions options,const char pre[],const 
    Not Collective
 
    Input Parameters:
-+  options - options database use NULL for default global database
++  options - options database, use NULL for default global database
 .  pre - the string to prepend to the name or NULL
 -  name - the option one is seeking
 
@@ -1737,7 +1725,7 @@ PetscErrorCode  PetscOptionsGetBool(PetscOptions options,const char pre[],const 
    Not Collective
 
    Input Parameters:
-+  options - options database use NULL for default global database
++  options - options database, use NULL for default global database
 .  pre - string to prepend to each name or NULL
 .  name - the option one is seeking
 -  nmax - maximum number of values to retrieve
@@ -1800,7 +1788,7 @@ PetscErrorCode  PetscOptionsGetBoolArray(PetscOptions options,const char pre[],c
    Not Collective
 
    Input Parameters:
-+  options - options database use NULL for default global database
++  options - options database, use NULL for default global database
 .  pre - string to prepend to each name or NULL
 -  name - the option one is seeking
 
@@ -1851,7 +1839,7 @@ PetscErrorCode  PetscOptionsGetReal(PetscOptions options,const char pre[],const 
    Not Collective
 
    Input Parameters:
-+  options - options database use NULL for default global database
++  options - options database, use NULL for default global database
 .  pre - string to prepend to each name or NULL
 -  name - the option one is seeking
 
@@ -1910,7 +1898,7 @@ PetscErrorCode  PetscOptionsGetScalar(PetscOptions options,const char pre[],cons
    Not Collective
 
    Input Parameters:
-+  options - options database use NULL for default global database
++  options - options database, use NULL for default global database
 .  pre - string to prepend to each name or NULL
 .  name - the option one is seeking
 -  nmax - maximum number of values to retrieve
@@ -1977,7 +1965,7 @@ PetscErrorCode  PetscOptionsGetRealArray(PetscOptions options,const char pre[],c
    Not Collective
 
    Input Parameters:
-+  options - options database use NULL for default global database
++  options - options database, use NULL for default global database
 .  pre - string to prepend to each name or NULL
 .  name - the option one is seeking
 -  nmax - maximum number of values to retrieve
@@ -2043,7 +2031,7 @@ PetscErrorCode  PetscOptionsGetScalarArray(PetscOptions options,const char pre[]
    Not Collective
 
    Input Parameters:
-+  options - options database use NULL for default global database
++  options - options database, use NULL for default global database
 .  pre - string to prepend to each name or NULL
 .  name - the option one is seeking
 -  nmax - maximum number of values to retrieve
@@ -2155,7 +2143,7 @@ PetscErrorCode  PetscOptionsGetIntArray(PetscOptions options,const char pre[],co
    Not Collective
 
    Input Parameters:
-+  options - options database use NULL for default global database
++  options - options database, use NULL for default global database
 .  pre - option prefix or NULL
 .  name - option name
 .  list - array containing the list of choices, followed by the enum name, followed by the enum prefix, followed by a null
@@ -2232,7 +2220,7 @@ PetscErrorCode PetscOptionsGetEnumArray(PetscOptions options,const char pre[],co
    Not Collective
 
    Input Parameters:
-+  options - options database use NULL for default global database
++  options - options database, use NULL for default global database
 .  pre - string to prepend to name or NULL
 .  name - the option one is seeking
 -  len - maximum length of the string including null termination
@@ -2312,7 +2300,7 @@ char *PetscOptionsGetStringMatlab(PetscOptions options,const char pre[],const ch
    Not Collective
 
    Input Parameters:
-+  options - options database use NULL for default global database
++  options - options database, use NULL for default global database
 .  pre - string to prepend to name or NULL
 .  name - the option one is seeking
 -  nmax - maximum number of strings
@@ -2389,7 +2377,7 @@ PetscErrorCode  PetscOptionsGetStringArray(PetscOptions options,const char pre[]
    Not Collective
 
    Input Parameter:
-+   options - options database use NULL for default global database
++   options - options database, use NULL for default global database
 -   option - string name of option
 
    Output Parameter:
@@ -2424,7 +2412,7 @@ PetscErrorCode  PetscOptionsUsed(PetscOptions options,const char *option,PetscBo
    Not Collective
 
    Input Parameter:
-.  options - options database use NULL for default global database
+.  options - options database, use NULL for default global database
 
    Output Parameter:
 .   N - count of options not used
@@ -2452,7 +2440,7 @@ PetscErrorCode  PetscOptionsAllUsed(PetscOptions options,PetscInt *N)
   Not collective
 
    Input Parameter:
-.  options - options database use NULL for default global database
+.  options - options database; use NULL for default global database
 
    Options Database Key:
 .  -options_left - Activates OptionsAllUsed() within PetscFinalize()
@@ -2479,6 +2467,85 @@ PetscErrorCode  PetscOptionsLeft(PetscOptions options)
   }
   PetscFunctionReturn(0);
 }
+
+/*@C
+  PetscOptionsLeftGet - Returns all options that were set and never used.
+
+  Not collective
+
+   Input Parameter:
+.  options - options database, use NULL for default global database
+
+   Output Parameter:
+.   N - count of options not used
+.   names - names of options not used
+.   values - values of options not used
+
+  Level: advanced
+
+  Notes:
+  Users should call PetscOptionsLeftRestore() to free the memory allocated in this routine
+
+.seealso: PetscOptionsAllUsed(), PetscOptionsLeft()
+@*/
+PetscErrorCode  PetscOptionsLeftGet(PetscOptions options,PetscInt *N,char **names[],char **values[])
+{
+  PetscErrorCode ierr;
+  PetscInt       i,n;
+
+  PetscFunctionBegin;
+  options = options ? options : defaultoptions;
+
+  /* The number of unused PETSc options */
+  n = 0;
+  for (i=0; i<options->N; i++) {
+    if (!options->used[i]) {
+      n++;
+    }
+  }
+  if (N) {*N = n;}
+  if (names)  { ierr = PetscMalloc1(n,names);CHKERRQ(ierr); }
+  if (values) { ierr = PetscMalloc1(n,values);CHKERRQ(ierr); }
+
+  n = 0;
+  if (names || values) {
+    for (i=0; i<options->N; i++) {
+      if (!options->used[i]) {
+        if (names)  (*names)[n]  = options->names[i];
+        if (values) (*values)[n] = options->values[i];
+        n++;
+      }
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
+
+/*@C
+  PetscOptionsLeftRestore - Free memory for the unused PETSc options obtained using PetscOptionsLeftGet.
+
+  Not collective
+
+   Input Parameter:
+.   options - options database, use NULL for default global database
+.   names - names of options not used
+.   values - values of options not used
+
+  Level: advanced
+
+.seealso: PetscOptionsAllUsed(), PetscOptionsLeft(), PetscOptionsLeftGet
+@*/
+PetscErrorCode  PetscOptionsLeftRestore(PetscOptions options,PetscInt *N,char **names[],char **values[])
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if(N) *N = 0;
+  if (names)  { ierr = PetscFree(*names);CHKERRQ(ierr); }
+  if (values) { ierr = PetscFree(*values);CHKERRQ(ierr); }
+  PetscFunctionReturn(0);
+}
+
 
 /*@
     PetscOptionsCreate - Creates the empty options database.
@@ -2520,7 +2587,7 @@ PetscErrorCode  PetscOptionsCreateDefault(void)
    Collective on PETSC_COMM_WORLD
 
    Input Parameter:
-.  options - options database use NULL for default global database
+.  options - options database, use NULL for default global database
 
    Options Database Keys:
 +  -options_monitor <optional filename> - prints the names and values of all runtime options as they are set. The monitor functionality is not

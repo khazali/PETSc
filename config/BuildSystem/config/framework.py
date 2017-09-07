@@ -425,7 +425,8 @@ class Framework(config.base.Configure, script.LanguageProcessor):
 
   def filterCompileOutput(self, output):
     if output.find('warning:  attribute "deprecated" is unknown, ignored') >= 0: return output
-    if output.find('warning: ISO C90 does not support complex types') >= 0: return output
+    if output.find('warning: ISO C90 does not support') >= 0: return output
+    if output.find('warning: ISO C does not support') >= 0: return output
     if output.find('Warning: attribute visibility is unsupported and will be skipped') >= 0: return output
     elif self.argDB['ignoreCompileOutput']:
       output = ''
@@ -902,7 +903,7 @@ class Framework(config.base.Configure, script.LanguageProcessor):
       # pretty print repr(args.values())
       for itm in args:
         if (itm != '--configModules=PETSc.Configure') and (itm != '--optionsModule=config.compilerOptions'):
-          body.append('fprintf(output,"  \'%s\',\\n","'+str(itm)+'");')
+          body.append('fprintf(output,"  \'%s\',\\n","'+str(itm).replace('"', "'")+'");')
       body.append('fprintf(output,"]");')
       driver = ['fprintf(output, "\\nif __name__ == \'__main__\':',
                 '  import os',

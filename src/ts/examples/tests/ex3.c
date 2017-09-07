@@ -165,15 +165,17 @@ int main(int argc,char **argv)
   ftime     = 0.0;
   for (k=0; k<nphase; k++) {
     if (nphase > 1) {ierr = PetscPrintf(PETSC_COMM_WORLD,"Phase %D initial time %g, stepsz %g, duration: %g\n",k,(double)ftime,(double)stepsz[k],(double)((k+1)*T));CHKERRQ(ierr);}
-    ierr = TSSetInitialTimeStep(ts,ftime,stepsz[k]);CHKERRQ(ierr);
-    ierr = TSSetDuration(ts,max_steps,(k+1)*T);CHKERRQ(ierr);
+    ierr = TSSetTime(ts,ftime);CHKERRQ(ierr);
+    ierr = TSSetTimeStep(ts,stepsz[k]);CHKERRQ(ierr);
+    ierr = TSSetMaxSteps(ts,max_steps);CHKERRQ(ierr);
+    ierr = TSSetMaxTime(ts,(k+1)*T);CHKERRQ(ierr);
     ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
 
     /* loop over time steps */
     /*----------------------*/
     ierr = TSSolve(ts,init_sol);CHKERRQ(ierr);
     ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-    ierr = TSGetTimeStepNumber(ts,&steps);CHKERRQ(ierr);
+    ierr = TSGetStepNumber(ts,&steps);CHKERRQ(ierr);
     stepsz[k+1] = stepsz[k]*1.5; /* change step size for the next phase */
   }
 
@@ -375,7 +377,7 @@ PetscErrorCode femBg(PetscScalar btri[][3],PetscScalar *f,PetscInt nz,PetscScala
     zquad[il][0] = zip;
     zquad[il][1] = (0.5)*(zip+zipq);
     zquad[il][2] = zipq;
-    dlen[il]     = fabs(dl);
+    dlen[il]     = PetscAbsScalar(dl);
     nli[il][0]   = ip;
     nli[il][1]   = ipq;
   }
@@ -457,7 +459,7 @@ PetscErrorCode femA(AppCtx *obj,PetscInt nz,PetscScalar *z)
     rquad[il][0] = zip;
     rquad[il][1] = (0.5)*(zip+zipq);
     rquad[il][2] = zipq;
-    dlen[il]     = fabs(dl);
+    dlen[il]     = PetscAbsScalar(dl);
     nli[il][0]   = ip;
     nli[il][1]   = ipq;
   } /*end for (il)*/

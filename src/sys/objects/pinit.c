@@ -380,7 +380,7 @@ int  PetscGlobalArgc   = 0;
 char **PetscGlobalArgs = 0;
 PetscSegBuffer PetscCitationsList;
 
-PetscErrorCode PetscCitationsInitialize()
+PetscErrorCode PetscCitationsInitialize(void)
 {
   PetscErrorCode ierr;
 
@@ -625,7 +625,8 @@ PetscErrorCode  PetscInitializeSAWs(const char help[])
    if different subcommunicators of the job are doing different things with PETSc.
 
    Options Database Keys:
-+  -start_in_debugger [noxterm,dbx,xdb,gdb,...] - Starts program in debugger
++  -help [intro] - prints help method for each option; if intro is given the program stops after printing the introductory help message
+.  -start_in_debugger [noxterm,dbx,xdb,gdb,...] - Starts program in debugger
 .  -on_error_attach_debugger [noxterm,dbx,xdb,gdb,...] - Starts debugger when error detected
 .  -on_error_emacs <machinename> causes emacsclient to jump to error file
 .  -on_error_abort calls abort() when error detected (no traceback)
@@ -665,7 +666,7 @@ PetscErrorCode  PetscInitializeSAWs(const char help[])
 .  -log [filename] - Logs basic profiline information  See PetscLogDump().
 -  -log_mpe [filename] - Creates a logfile viewable by the utility Jumpshot (in MPICH distribution)
 
-    Only one of -log_trace, -log_view, -log_summary, -log_all, -log, or -log_mpe may be used at a time
+    Only one of -log_trace, -log_view, -log_view, -log_all, -log, or -log_mpe may be used at a time
 
    Options Database Keys for SAWs:
 +  -saws_port <portnumber> - port number to publish SAWs data, default is 8080
@@ -714,7 +715,7 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
 {
   PetscErrorCode ierr;
   PetscMPIInt    flag, size;
-  PetscBool      flg;
+  PetscBool      flg = PETSC_TRUE;
   char           hostname[256];
 #if defined(PETSC_HAVE_CUDA)
   cublasStatus_t cberr;
@@ -722,6 +723,74 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
 
   PetscFunctionBegin;
   if (PetscInitializeCalled) PetscFunctionReturn(0);
+  /*
+      The checking over compatible runtime libraries is complicated by the MPI ABI initiative
+      https://wiki.mpich.org/mpich/index.php/ABI_Compatibility_Initiative which started with
+        MPICH v3.1 (Released Feburary 2014)
+        IBM MPI v2.1 (December 2014)
+        Intel® MPI Library v5.0 (2014)
+        Cray MPT v7.0.0 (June 2014)
+      As of July 31, 2017 the ABI number still appears to be 12, that is all of the versions
+      listed above and since that time are compatible.
+
+      Unfortunately the MPI ABI initiative has not defined a way to determine the ABI number
+      at compile time or runtime. Thus we will need to systematically track the allowed versions
+      and how they are represented in the mpi.h and MPI_Get_library_version() output in order
+      to perform the checking.
+
+      Currently we only check for pre MPI ABI versions (and packages that do not follow the MPI ABI).
+
+      Questions:
+
+        Should the checks for ABI incompatibility be only on the major version number below?
+        Presumably the output to stderr will be removed before a release.
+  */
+
+#if defined(PETSC_HAVE_MPI_GET_LIBRARY_VERSION)
+  {
+    char        mpilibraryversion[MPI_MAX_LIBRARY_VERSION_STRING];
+    PetscMPIInt mpilibraryversionlength;
+    ierr = MPI_Get_library_version(mpilibraryversion,&mpilibraryversionlength);if (ierr) return ierr;
+    /* check for MPICH versions before MPI ABI initiative */
+#if defined(MPICH_VERSION)
+#if MPICH_NUMVERSION < 30100000
+    {
+      char *ver,*lf;
+      flg = PETSC_FALSE;
+      ierr = PetscStrstr(mpilibraryversion,"MPICH Version:",&ver);if (ierr) return ierr;
+      if (ver) {
+        ierr = PetscStrchr(ver,'\n',&lf);if (ierr) return ierr;
+        if (lf) {
+          *lf = 0;
+          ierr = PetscStrendswith(ver,MPICH_VERSION,&flg);if (ierr) return ierr;
+        }
+      }
+      if (!flg) {
+        fprintf(stderr,"PETSc Error --- MPICH library version \n%s does not match what PETSc was compiled with %s, aborting\n",mpilibraryversion,MPICH_VERSION);
+        return PETSC_ERR_MPI_LIB_INCOMP;
+      }
+    }
+#endif
+    /* check for OpenMPI version, it is not part of the MPI ABI initiative (is it part of another initiative that needs to be handled?) */
+#elif defined(OMPI_MAJOR_VERSION)
+    {
+      char *ver,bs[32],*bsf;
+      flg = PETSC_FALSE;
+      ierr = PetscStrstr(mpilibraryversion,"Open MPI",&ver);if (ierr) return ierr;
+      if (ver) {
+        sprintf(bs,"v%d.%d",OMPI_MAJOR_VERSION,OMPI_MINOR_VERSION);
+        ierr = PetscStrstr(ver,bs,&bsf);if (ierr) return ierr;
+        if (bsf) flg = PETSC_TRUE;
+      }
+      if (!flg) {
+        fprintf(stderr,"PETSc Error --- Open MPI library version \n%s does not match what PETSc was compiled with %d.%d, aborting\n",mpilibraryversion,OMPI_MAJOR_VERSION,OMPI_MINOR_VERSION);
+        return PETSC_ERR_MPI_LIB_INCOMP;
+      }
+    }
+#endif
+  }
+#endif
+
 
   /* these must be initialized in a routine, not as a constant declaration*/
   PETSC_STDOUT = stdout;
@@ -940,6 +1009,46 @@ extern PetscObject *PetscObjects;
 extern PetscInt    PetscObjectsCounts, PetscObjectsMaxCounts;
 extern PetscBool   PetscObjectsLog;
 #endif
+
+/*
+    Frees all the MPI types and operations that PETSc may have created
+*/
+PetscErrorCode  PetscFreeMPIResources(void)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+#if defined(PETSC_USE_REAL___FLOAT128)
+  ierr = MPI_Type_free(&MPIU___FLOAT128);CHKERRQ(ierr);
+#if defined(PETSC_HAVE_COMPLEX)
+  ierr = MPI_Type_free(&MPIU___COMPLEX128);CHKERRQ(ierr);
+#endif
+  ierr = MPI_Op_free(&MPIU_MAX);CHKERRQ(ierr);
+  ierr = MPI_Op_free(&MPIU_MIN);CHKERRQ(ierr);
+#elif defined(PETSC_USE_REAL___FP16)
+  ierr = MPI_Type_free(&MPIU___FP16);CHKERRQ(ierr);
+  ierr = MPI_Op_free(&MPIU_MAX);CHKERRQ(ierr);
+  ierr = MPI_Op_free(&MPIU_MIN);CHKERRQ(ierr);
+#endif
+
+#if defined(PETSC_HAVE_COMPLEX)
+#if !defined(PETSC_HAVE_MPI_C_DOUBLE_COMPLEX)
+  ierr = MPI_Type_free(&MPIU_C_DOUBLE_COMPLEX);CHKERRQ(ierr);
+  ierr = MPI_Type_free(&MPIU_C_COMPLEX);CHKERRQ(ierr);
+#endif
+#endif
+
+#if (defined(PETSC_HAVE_COMPLEX) && !defined(PETSC_HAVE_MPI_C_DOUBLE_COMPLEX)) || defined(PETSC_USE_REAL___FLOAT128) || defined(PETSC_USE_REAL___FP16)
+  ierr = MPI_Op_free(&MPIU_SUM);CHKERRQ(ierr);
+#endif
+
+  ierr = MPI_Type_free(&MPIU_2SCALAR);CHKERRQ(ierr);
+#if defined(PETSC_USE_64BIT_INDICES) || !defined(MPI_2INT)
+  ierr = MPI_Type_free(&MPIU_2INT);CHKERRQ(ierr);
+#endif
+  ierr = MPI_Op_free(&MPIU_MAXSUM_OP);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
 
 /*@C
    PetscFinalize - Checks for options to be called at the conclusion
@@ -1345,35 +1454,7 @@ PetscErrorCode  PetscFinalize(void)
   PetscGlobalArgc = 0;
   PetscGlobalArgs = 0;
 
-#if defined(PETSC_USE_REAL___FLOAT128)
-  ierr = MPI_Type_free(&MPIU___FLOAT128);CHKERRQ(ierr);
-#if defined(PETSC_HAVE_COMPLEX)
-  ierr = MPI_Type_free(&MPIU___COMPLEX128);CHKERRQ(ierr);
-#endif
-  ierr = MPI_Op_free(&MPIU_MAX);CHKERRQ(ierr);
-  ierr = MPI_Op_free(&MPIU_MIN);CHKERRQ(ierr);
-#elif defined(PETSC_USE_REAL___FP16)
-  ierr = MPI_Type_free(&MPIU___FP16);CHKERRQ(ierr);
-  ierr = MPI_Op_free(&MPIU_MAX);CHKERRQ(ierr);
-  ierr = MPI_Op_free(&MPIU_MIN);CHKERRQ(ierr);
-#endif
-
-#if defined(PETSC_HAVE_COMPLEX)
-#if !defined(PETSC_HAVE_MPI_C_DOUBLE_COMPLEX)
-  ierr = MPI_Type_free(&MPIU_C_DOUBLE_COMPLEX);CHKERRQ(ierr);
-  ierr = MPI_Type_free(&MPIU_C_COMPLEX);CHKERRQ(ierr);
-#endif
-#endif
-
-#if (defined(PETSC_HAVE_COMPLEX) && !defined(PETSC_HAVE_MPI_C_DOUBLE_COMPLEX)) || defined(PETSC_USE_REAL___FLOAT128) || defined(PETSC_USE_REAL___FP16)
-  ierr = MPI_Op_free(&MPIU_SUM);CHKERRQ(ierr);
-#endif
-
-  ierr = MPI_Type_free(&MPIU_2SCALAR);CHKERRQ(ierr);
-#if defined(PETSC_USE_64BIT_INDICES) || !defined(MPI_2INT)
-  ierr = MPI_Type_free(&MPIU_2INT);CHKERRQ(ierr);
-#endif
-  ierr = MPI_Op_free(&MPIU_MAXSUM_OP);CHKERRQ(ierr);
+  ierr = PetscFreeMPIResources();CHKERRQ(ierr);
 
   /*
      Destroy any known inner MPI_Comm's and attributes pointing to them

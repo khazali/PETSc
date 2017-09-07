@@ -7,17 +7,17 @@ class Configure(config.package.Package):
     self.download        = ['git://https://bitbucket.org/petsc/pkg-scotch.git',
                             'http://ftp.mcs.anl.gov/pub/petsc/externalpackages/scotch_'+self.gitcommit+'.tar.gz']
     self.downloaddirnames = ['scotch']
-    self.liblist         = [['libptesmumps.a','libptscotch.a','libptscotcherr.a','libscotch.a','libscotcherr.a']]
+    self.liblist         = [['libptesmumps.a','libptscotch.a','libptscotcherr.a','libesmumps.a','libscotch.a','libscotcherr.a']]
     self.functions       = ['SCOTCH_archBuild']
     self.includes        = ['ptscotch.h']
-    self.needsMath       = 1
     self.hastests        = 1
     return
 
   def setupDependencies(self, framework):
     config.package.Package.setupDependencies(self, framework)
-    self.mpi  = framework.require('config.packages.MPI',self)
-    self.deps = [self.mpi]
+    self.mpi            = framework.require('config.packages.MPI',self)
+    self.mathlib        = framework.require('config.packages.mathlib',self)
+    self.deps           = [self.mpi, self.mathlib]
     return
 
   def Install(self):
@@ -85,14 +85,7 @@ class Configure(config.package.Package):
     if self.installNeeded(os.path.join('src','Makefile.inc')):
       try:
         self.logPrintBox('Compiling PTScotch; this may take several minutes')
-#
-#    If desired one can have this build Scotch as well as PTScoth as indicated here
-#        output,err,ret  = config.package.Package.executeShellCommand('cd '+os.path.join(self.packageDir,'src')+' && make clean scotch ptscotch', timeout=2500, log = self.log)
-#
-        if self.mpi.found:
-          output,err,ret  = config.package.Package.executeShellCommand('cd '+os.path.join(self.packageDir,'src')+' && make clean ptesmumps', timeout=2500, log = self.log)
-        else:
-          output,err,ret  = config.package.Package.executeShellCommand('cd '+os.path.join(self.packageDir,'src')+' && make clean esmumps', timeout=2500, log = self.log)
+        output,err,ret  = config.package.Package.executeShellCommand('cd '+os.path.join(self.packageDir,'src')+' && make clean ptesmumps esmumps', timeout=2500, log = self.log)
       except RuntimeError, e:
         raise RuntimeError('Error running make on PTScotch: '+str(e))
 

@@ -18,7 +18,7 @@
 #define MatType character*(80)
 #define MatSolverPackage character*(80)
 #define MatOption PetscEnum
-#define MatGetSubMatrixOption PetscEnum
+#define MatCreateSubMatrixOption PetscEnum
 #define MPChacoGlobalType PetscEnum
 #define MPChacoLocalType PetscEnum
 #define MPChacoEigenType PetscEnum
@@ -27,6 +27,7 @@
 #define MatFactorType PetscEnum
 #define MatFactorError PetscEnum
 #define MatFactorShiftType PetscEnum
+#define MatFactorSchurStatus PetscEnum
 #define MatOrderingType character*(80)
 #define MatSORType PetscEnum
 #define MatInfoType PetscEnum
@@ -93,6 +94,9 @@
 #define MATAIJPERM         'aijperm'
 #define MATSEQAIJPERM      'seqaijperm'
 #define MATMPIAIJPERM      'mpiaijperm'
+#define MATAIJMKL          'aijmkl'
+#define MATSEQAIJMKL       'seqaijmkl'
+#define MATMPIAIJMKL       'mpiaijmkl'
 #define MATSHELL           'shell'
 #define MATDENSE           'dense'
 #define MATSEQDENSE        'seqdense'
@@ -126,6 +130,7 @@
 #define MATLOCALREF        'localref'
 #define MATNEST            'nest'
 #define MATPREALLOCATOR    'preallocator'
+#define MATDUMMY           'dummy'
 
 !
 ! MatMFFDType values

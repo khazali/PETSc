@@ -11,7 +11,6 @@
 #define USESHORT
 #include <../src/mat/impls/sbaij/seq/relax.h>
 
-extern PetscErrorCode MatSeqSBAIJSetNumericFactorization_inplace(Mat,PetscBool);
 #if defined(PETSC_HAVE_ELEMENTAL)
 PETSC_INTERN PetscErrorCode MatConvert_SeqSBAIJ_Elemental(Mat,MatType,MatReuse,Mat*);
 #endif
@@ -238,12 +237,14 @@ PetscErrorCode MatSetOption_SeqSBAIJ(Mat A,MatOption op,PetscBool flg)
     ierr = PetscInfo1(A,"Option %s ignored\n",MatOptions[op]);CHKERRQ(ierr);
     break;
   case MAT_HERMITIAN:
+#if defined(PETSC_USE_COMPLEX) /* MAT_HERMITIAN is a synonym for MAT_SYMMETRIC with reals */
     if (!A->assembled) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call MatAssemblyEnd() first");
     if (A->cmap->n < 65536 && A->cmap->bs == 1) {
       A->ops->mult = MatMult_SeqSBAIJ_1_Hermitian_ushort;
     } else if (A->cmap->bs == 1) {
       A->ops->mult = MatMult_SeqSBAIJ_1_Hermitian;
     } else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"No support for Hermitian with block size greater than 1");
+#endif
     break;
   case MAT_SPD:
     /* These options are handled directly by MatSetOption() */
@@ -251,6 +252,7 @@ PetscErrorCode MatSetOption_SeqSBAIJ(Mat A,MatOption op,PetscBool flg)
   case MAT_SYMMETRIC:
   case MAT_STRUCTURALLY_SYMMETRIC:
   case MAT_SYMMETRY_ETERNAL:
+  case MAT_STRUCTURE_ONLY:
     /* These options are handled directly by MatSetOption() */
     break;
   case MAT_IGNORE_LOWER_TRIANGULAR:
@@ -1112,6 +1114,7 @@ PetscErrorCode MatCopy_SeqSBAIJ(Mat A,Mat B,MatStructure str)
 
     if (a->i[A->rmap->N] != b->i[B->rmap->N]) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Number of nonzeros in two matrices are different");
     ierr = PetscMemcpy(b->a,a->a,(a->i[A->rmap->N])*sizeof(PetscScalar));CHKERRQ(ierr);
+    ierr = PetscObjectStateIncrease((PetscObject)B);CHKERRQ(ierr);
   } else {
     ierr = MatGetRowUpperTriangular(A);CHKERRQ(ierr);
     ierr = MatCopy_Basic(A,B,str);CHKERRQ(ierr);
@@ -1376,7 +1379,7 @@ static struct _MatOps MatOps_Values = {MatSetValues_SeqSBAIJ,
                                        0,
                                        MatICCFactor_SeqSBAIJ,
                                /* 39*/ MatAXPY_SeqSBAIJ,
-                                       MatGetSubMatrices_SeqSBAIJ,
+                                       MatCreateSubMatrices_SeqSBAIJ,
                                        MatIncreaseOverlap_SeqSBAIJ,
                                        MatGetValues_SeqSBAIJ,
                                        MatCopy_SeqSBAIJ,
@@ -1395,7 +1398,7 @@ static struct _MatOps MatOps_Values = {MatSetValues_SeqSBAIJ,
                                        0,
                                        0,
                                        MatSetValuesBlocked_SeqSBAIJ,
-                               /* 59*/ MatGetSubMatrix_SeqSBAIJ,
+                               /* 59*/ MatCreateSubMatrix_SeqSBAIJ,
                                        0,
                                        0,
                                        0,

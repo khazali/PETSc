@@ -14,6 +14,15 @@ except NameError:
   def any(lst):
     return reduce(lambda x,y:x or y,lst,False)
 
+def _picTestIncludes(export=''):
+  return '\n'.join(['#include <stdio.h>',
+                    'int (*fprintf_ptr)(FILE*,const char*,...) = fprintf;',
+                    'void '+export+' foo(void){',
+                    '  fprintf_ptr(stdout,"hello");',
+                    '  return;',
+                    '}',
+                    'void bar(void){foo();}\n'])
+
 class Configure(config.base.Configure):
   def __init__(self, framework):
     config.base.Configure.__init__(self, framework)
@@ -503,6 +512,10 @@ class Configure(config.base.Configure):
       self.usedMPICompilers = 0
       raise RuntimeError('MPI compiler wrappers in '+self.argDB['with-mpi-dir']+'/bin do not work. See http://www.mcs.anl.gov/petsc/documentation/faq.html#mpi-compilers')
     else:
+      if self.useMPICompilers() and 'with-mpi-dir' in self.argDB:
+      # if it gets here these means that self.argDB['with-mpi-dir']/bin does not exist so we should not search for MPI compilers
+      # that is we are turning off the self.useMPICompilers()
+        self.argDB['with-mpi-compilers'] = 0
       if self.useMPICompilers():
         self.usedMPICompilers = 1
         if Configure.isGNU('mpicc', self.log) and self.argDB['with-gnu-compilers']:
@@ -626,7 +639,7 @@ class Configure(config.base.Configure):
 
   def checkCUDACompiler(self):
     '''Locate a functional CUDA compiler'''
-    if not self.framework.clArgDB.has_key('with-cuda') or self.argDB['with-cuda'] == '0':
+    if (not self.framework.clArgDB.has_key('with-cuda') and not self.framework.clArgDB.has_key('with-cuda-dir')) or self.argDB['with-cuda'] == '0':
       if 'CUDAC' in self.argDB:
         del self.argDB['CUDAC']
       return
@@ -1046,7 +1059,7 @@ class Configure(config.base.Configure):
     for language in languages:
       self.pushLanguage(language)
       if language in ['C','Cxx','CUDA']:
-        includeLine = '#include<stdio.h>\nvoid foo(void){fprintf(stdout,"hello");\nreturn;}\nvoid bar(void){foo();}\n'
+        includeLine = _picTestIncludes()
       else:
         includeLine = '      function foo(a)\n      real:: a,x,bar\n      common /xx/ x\n      x=a\n      foo = bar(x)\n      end\n'
       compilerFlagsArg = self.getCompilerFlagsArg(1) # compiler only
@@ -1300,7 +1313,6 @@ class Configure(config.base.Configure):
             accepted = 0
           if accepted:
             goodFlags = filter(self.checkLinkerFlag, flags)
-            testMethod = 'foo'
             self.sharedLinker = self.LD_SHARED
             self.sharedLibraryFlags = goodFlags
             self.sharedLibraryExt = ext
@@ -1311,7 +1323,7 @@ class Configure(config.base.Configure):
               dllexport = ''
               dllimport = ''
             # using printf appears to correctly identify non-pic code on X86_64
-            if self.checkLink(includes = '#include <stdio.h>\n'+dllexport+'int '+testMethod+'(void) {fprintf(stdout,"hello");\nreturn 0;}\n', codeBegin = '', codeEnd = '', cleanup = 0, shared = 1):
+            if self.checkLink(includes = _picTestIncludes(dllexport), codeBegin = '', codeEnd = '', cleanup = 0, shared = 1):
               oldLib  = self.linkerObj
               oldLibs = self.LIBS
               self.LIBS += ' -L'+self.tmpDir+' -lconftest'

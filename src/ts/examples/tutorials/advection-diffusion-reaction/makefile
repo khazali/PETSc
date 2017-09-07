@@ -1,14 +1,15 @@
 
-CFLAGS	        =
+CLFAGS          =
 FFLAGS	        =
 CPPFLAGS        =
 FPPFLAGS        =
 LOCDIR          = src/ts/examples/tutorials/advection-diffusion-reaction/
 EXAMPLESC       = ex1.c ex2.c ex3.c ex4.c ex5.c ex7.c ex10.c
-EXAMPLESF       = shashi.F
+EXAMPLESF       = shashi.F90
 EXAMPLESFH      =
 MANSEC          = TS
 DIRS            =
+CLEANFILES      =  SA-data/*
 
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
@@ -105,13 +106,16 @@ runex5:
 	   ${RM} -f ex5_1.tmp
 
 runex5adj:
-	-@${MPIEXEC} -n 1 ./ex5adj -ts_max_steps 10 -ts_monitor -ts_adjoint_monitor -da_grid_x 3 -da_grid_y 3 > ex5adj_1.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex5adj -ts_max_steps 10 -ts_monitor -ts_adjoint_monitor -da_grid_x 16 -da_grid_y 16 > ex5adj_1.tmp 2>&1; \
 	   if (${DIFF} output/ex5adj_1.out ex5adj_1.tmp) then true; \
 	   else printf "${PWD}\n Possible problem with ex5adj_1, diffs above\n=======================================\n"; fi; \
-	   ${RM} -f ex5adj_1.tmp
+	   ${RM} -f ex5adj_1.tmp SA-data/*
 
 runex5adj_2:
 	-@${MPIEXEC} -n 2 ./ex5adj -ts_max_steps 10 -ts_dt 10 -ts_adjoint_monitor_draw_sensi -draw_pause -2
+
+runex5adj_knl:
+	-@${MPIEXEC} -n 1 ./ex5adj -ts_max_steps 10 -ts_monitor -ts_adjoint_monitor -da_grid_x 128 -da_grid_y 128 -ts_trajectory_type memory -ts_trajectory_solution_only 0 -malloc_hbw -ts_trajectory_use_dram 1 2>&1
 
 runex6:
 	-@${MPIEXEC} -n 1 ./ex6 -ts_max_steps 10 -ts_monitor > ex6_1.tmp 2>&1;	  \

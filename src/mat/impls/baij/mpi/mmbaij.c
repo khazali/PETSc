@@ -5,8 +5,6 @@
 #include <../src/mat/impls/baij/mpi/mpibaij.h>
 #include <petsc/private/isimpl.h>    /* needed because accesses data structure of ISLocalToGlobalMapping directly */
 
-extern PetscErrorCode MatSetValuesBlocked_SeqBAIJ(Mat,PetscInt,const PetscInt[],PetscInt,const PetscInt[],const PetscScalar[],InsertMode);
-
 PetscErrorCode MatSetUpMultiply_MPIBAIJ(Mat mat)
 {
   Mat_MPIBAIJ    *baij = (Mat_MPIBAIJ*)mat->data;
@@ -288,17 +286,18 @@ PetscErrorCode  MatMPIBAIJDiagonalScaleLocal(Mat A,Vec scale)
 
 PetscErrorCode  MatDiagonalScaleLocal_MPIBAIJ(Mat A,Vec scale)
 {
-  Mat_MPIBAIJ    *a = (Mat_MPIBAIJ*) A->data; /*access private part of matrix */
-  PetscErrorCode ierr;
-  PetscInt       n,i;
-  PetscScalar    *d,*o,*s;
+  Mat_MPIBAIJ       *a = (Mat_MPIBAIJ*) A->data; /*access private part of matrix */
+  PetscErrorCode    ierr;
+  PetscInt          n,i;
+  PetscScalar       *d,*o;
+  const PetscScalar *s;
 
   PetscFunctionBegin;
   if (!uglyrmapd) {
     ierr = MatMPIBAIJDiagonalScaleLocalSetUp(A,scale);CHKERRQ(ierr);
   }
 
-  ierr = VecGetArray(scale,&s);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(scale,&s);CHKERRQ(ierr);
 
   ierr = VecGetLocalSize(uglydd,&n);CHKERRQ(ierr);
   ierr = VecGetArray(uglydd,&d);CHKERRQ(ierr);
@@ -314,7 +313,7 @@ PetscErrorCode  MatDiagonalScaleLocal_MPIBAIJ(Mat A,Vec scale)
   for (i=0; i<n; i++) {
     o[i] = s[uglyrmapo[i]]; /* copy "off-diagonal" portion of scale into oo vector */
   }
-  ierr = VecRestoreArray(scale,&s);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(scale,&s);CHKERRQ(ierr);
   ierr = VecRestoreArray(uglyoo,&o);CHKERRQ(ierr);
   /* column scale "off-diagonal" portion of local matrix */
   ierr = MatDiagonalScale(a->B,NULL,uglyoo);CHKERRQ(ierr);

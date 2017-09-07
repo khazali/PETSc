@@ -997,7 +997,6 @@ accepted:
     ierr = VecCopy(gl->X[0],ts->vec_sol);CHKERRQ(ierr);
     ts->ptime += h;
     ts->steps++;
-    ts->total_steps++;
 
     ierr = TSPostEvaluate(ts);CHKERRQ(ierr);
     ierr = TSPostStep(ts);CHKERRQ(ierr);
@@ -1208,7 +1207,6 @@ static PetscErrorCode TSView_GLLE(TS ts,PetscViewer viewer)
     }
     ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
   }
-  ierr = SNESView(ts->snes,viewer);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1465,6 +1463,9 @@ PETSC_EXTERN PetscErrorCode TSCreate_GLLE(TS ts)
   ts->ops->setfromoptions = TSSetFromOptions_GLLE;
   ts->ops->snesfunction   = SNESTSFormFunction_GLLE;
   ts->ops->snesjacobian   = SNESTSFormJacobian_GLLE;
+
+  ts->usessnes = PETSC_TRUE;
+
 
   gl->max_step_rejections = 1;
   gl->min_order           = 1;

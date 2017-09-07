@@ -6,7 +6,7 @@ static char help[] = "Nonlinear, time-dependent. Developed from radiative_surfac
     mpiexec -n <np> ./ex5 [options]
     ./ex5 -help  [view petsc options]
     ./ex5 -ts_type sundials -ts_view
-    ./ex5 -da_grid_x 20 -da_grid_y 20 -log_summary
+    ./ex5 -da_grid_x 20 -da_grid_y 20 -log_view
     ./ex5 -da_grid_x 20 -da_grid_y 20 -ts_type rosw -ts_atol 1.e-6 -ts_rtol 1.e-6
     ./ex5 -drawcontours -draw_pause 0.1 -draw_fields 0,1,2,3,4
 */
@@ -296,8 +296,9 @@ int main(int argc,char **argv)
   ftime = TIMESTEP*time;
   if (!rank) printf("time %d, ftime %g hour, TIMESTEP %g\n",time,(double)(ftime/3600),(double)dt);
 
-  ierr = TSSetInitialTimeStep(ts,0.0,dt);CHKERRQ(ierr);
-  ierr = TSSetDuration(ts,time,ftime);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(ts,time);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,ftime);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   ierr = TSSetSolution(ts,T);CHKERRQ(ierr);
   ierr = TSSetDM(ts,da);CHKERRQ(ierr);
@@ -312,7 +313,7 @@ int main(int argc,char **argv)
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   ierr = TSSolve(ts,T);CHKERRQ(ierr);
   ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts,&steps);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts,&steps);CHKERRQ(ierr);
   if (!rank) PetscPrintf(PETSC_COMM_WORLD,"Solution T after %g hours %d steps\n",(double)(ftime/3600),steps);
 
 
@@ -439,7 +440,7 @@ extern PetscScalar emission(PetscScalar pwat)
 {
   PetscScalar emma;
 
-  emma = 0.725 + 0.17*log10(pwat);
+  emma = 0.725 + 0.17*PetscLog10Real(PetscRealPart(pwat));
 
   return emma;
 }

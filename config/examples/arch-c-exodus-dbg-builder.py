@@ -12,17 +12,15 @@ if __name__ == '__main__':
     '--download-chaco',
     '--download-ctetgen',
     '--download-exodusii',
-    '--download-fiat',
     '--download-generator',
     '--download-hdf5',
+    '--download-zlib=1',
     '--download-metis',
     '--download-ml',
     '--download-netcdf',
     '--download-parmetis',
-    '--download-scientificpython',
     '--download-triangle',
     '--with-cuda',
-    '--with-cuda-only',
     '--with-shared-libraries',
   ]
   configure.petsc_configure(configure_options)

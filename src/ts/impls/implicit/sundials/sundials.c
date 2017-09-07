@@ -144,7 +144,7 @@ PetscErrorCode TSStep_Sundials(TS ts)
         PetscReal tcur;
         ierr = CVodeGetNumSteps(mem,&nsteps);CHKERRQ(ierr);
         ierr = CVodeGetCurrentTime(mem,&tcur);CHKERRQ(ierr);
-        SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_LIB,"CVode() fails, CV_TOO_MUCH_WORK. At t=%g, nsteps %D exceeds maxstep %D. Increase '-ts_max_steps <>' or modify TSSetDuration()",(double)tcur,nsteps,ts->max_steps);
+        SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_LIB,"CVode() fails, CV_TOO_MUCH_WORK. At t=%g, nsteps %D exceeds maxstep %D. Increase '-ts_max_steps <>' or modify TSSetMaxSteps()",(double)tcur,nsteps,ts->max_steps);
       } break;
       case CV_TOO_MUCH_ACC:
         SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"CVode() fails, CV_TOO_MUCH_ACC");
@@ -199,7 +199,7 @@ PetscErrorCode TSStep_Sundials(TS ts)
   ts->ptime = t;
 
   ierr = CVodeGetNumSteps(mem,&nsteps);CHKERRQ(ierr);
-  if (!cvode->monitorstep) ts->steps = nsteps - 1; /* TSStep() increments the step counter by one */
+  if (!cvode->monitorstep) ts->steps += nsteps - 1; /* TSStep() increments the step counter by one */
   PetscFunctionReturn(0);
 }
 
@@ -888,8 +888,11 @@ PETSC_EXTERN PetscErrorCode TSCreate_Sundials(TS ts)
   ts->ops->step           = TSStep_Sundials;
   ts->ops->interpolate    = TSInterpolate_Sundials;
   ts->ops->setfromoptions = TSSetFromOptions_Sundials;
+  ts->default_adapt_type  = TSADAPTNONE;
 
   ierr = PetscNewLog(ts,&cvode);CHKERRQ(ierr);
+
+  ts->usessnes = PETSC_TRUE;
 
   ts->data           = (void*)cvode;
   cvode->cvode_type  = SUNDIALS_BDF;

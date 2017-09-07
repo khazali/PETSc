@@ -5,8 +5,14 @@
 #include <../src/dm/f90-mod/petscdm.h>
         end module
 
+        module petscdmlabeldef
+        use petscmatdef
+#include <../src/dm/f90-mod/petscdmlabel.h>
+        end module
+
         module petscdmdef
         use petscdmdefdummy
+        use petscdmlabeldef
         interface operator(.ne.)
           function dmnotequal(A,B)
             use petscdmdefdummy
@@ -60,8 +66,12 @@
 #include <../src/dm/f90-mod/petscdmnetwork.h>
         end module
 
-        module petscdmlabeldef
-        use petscdmdef
+        module petscdmlabel
+        use petscdmlabeldef
+#include <../src/dm/f90-mod/petscdmlabel.h90>
+        interface
+#include <../src/dm/f90-mod/ftn-auto-interfaces/petscdmlabel.h90>
+        end interface
         end module
 
         module petscdm
@@ -99,6 +109,7 @@
         end module
 
         module petscdmplex
+        use petscdmlabel
         use petscdmplexdef
 #include <../src/dm/f90-mod/petscdmplex.h90>
         interface
@@ -114,11 +125,11 @@
         end interface
         end module
 
-        module petscdmlabel
-        use petscdmlabeldef
-#include <../src/dm/f90-mod/petscdmlabel.h90>
+        module petscdt
+        use petscdmdef
+#include <../src/dm/f90-mod/petscdt.h90>
         interface
-#include <../src/dm/f90-mod/ftn-auto-interfaces/petscdmlabel.h90>
+#include <../src/dm/f90-mod/ftn-auto-interfaces/petscdt.h90>
         end interface
         end module
 

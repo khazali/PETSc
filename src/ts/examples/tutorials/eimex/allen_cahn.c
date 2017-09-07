@@ -30,7 +30,7 @@ int main(int argc, char **argv)
   TS                ts;
   Vec               x; /*solution vector*/
   Mat               A; /*Jacobian*/
-  PetscInt          steps,maxsteps,mx;
+  PetscInt          steps,mx;
   PetscErrorCode    ierr;
   PetscReal         ftime;
   AppCtx            user;       /* user-defined work context */
@@ -70,8 +70,7 @@ int main(int argc, char **argv)
   ierr = TSSetIFunction(ts,NULL,FormIFunction,&user);CHKERRQ(ierr);
   ierr = TSSetIJacobian(ts,A,A,FormIJacobian,&user);CHKERRQ(ierr);
   ftime = 142;
-  maxsteps = 100000;
-  ierr = TSSetDuration(ts,maxsteps,ftime);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,ftime);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -91,7 +90,7 @@ int main(int argc, char **argv)
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   ierr = TSSolve(ts,x);CHKERRQ(ierr);
   ierr = TSGetTime(ts,&ftime);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts,&steps);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts,&steps);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"eps %g, steps %D, ftime %g\n",(double)user.param,steps,(double)ftime);CHKERRQ(ierr);
   /*   ierr = VecView(x,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);*/
 
@@ -199,15 +198,15 @@ static PetscErrorCode FormInitialSolution(TS ts,Vec U,void *ctx)
   for(i=0;i<user->mx;i++) {
     x_map = user->xleft + i*hx;
     if(x_map >= 0.7065) {
-      x[i] = tanh((x_map-0.8)/(2.*PetscSqrtReal(user->param)));
+      x[i] = PetscTanhReal((x_map-0.8)/(2.*PetscSqrtReal(user->param)));
     } else if(x_map >= 0.4865) {
-      x[i] = tanh((0.613-x_map)/(2.*PetscSqrtReal(user->param)));
+      x[i] = PetscTanhReal((0.613-x_map)/(2.*PetscSqrtReal(user->param)));
     } else if(x_map >= 0.28) {
-      x[i] = tanh((x_map-0.36)/(2.*PetscSqrtReal(user->param)));
+      x[i] = PetscTanhReal((x_map-0.36)/(2.*PetscSqrtReal(user->param)));
     } else if(x_map >= -0.7) {
-      x[i] = tanh((0.2-x_map)/(2.*PetscSqrtReal(user->param)));
+      x[i] = PetscTanhReal((0.2-x_map)/(2.*PetscSqrtReal(user->param)));
     } else if(x_map >= -1) {
-      x[i] = tanh((x_map+0.9)/(2.*PetscSqrtReal(user->param)));
+      x[i] = PetscTanhReal((x_map+0.9)/(2.*PetscSqrtReal(user->param)));
     }
   }
   ierr = VecRestoreArray(U,&x);CHKERRQ(ierr);

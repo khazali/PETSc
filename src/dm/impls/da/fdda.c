@@ -539,7 +539,7 @@ PetscErrorCode  MatView_MPI_DA(Mat A,PetscViewer viewer)
   ierr = ISCreateGeneral(comm,rend-rstart,petsc,PETSC_OWN_POINTER,&is);CHKERRQ(ierr);
 
   /* call viewer on natural ordering */
-  ierr = MatGetSubMatrix(A,is,is,MAT_INITIAL_MATRIX,&Anatural);CHKERRQ(ierr);
+  ierr = MatCreateSubMatrix(A,is,is,MAT_INITIAL_MATRIX,&Anatural);CHKERRQ(ierr);
   ierr = ISDestroy(&is);CHKERRQ(ierr);
   ierr = PetscObjectGetOptionsPrefix((PetscObject)A,&prefix);CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject)Anatural,prefix);CHKERRQ(ierr);
@@ -581,7 +581,7 @@ PetscErrorCode  MatLoad_MPI_DA(Mat A,PetscViewer viewer)
   ierr = ISCreateGeneral(comm,rend-rstart,app,PETSC_OWN_POINTER,&is);CHKERRQ(ierr);
 
   /* Do permutation and replace header */
-  ierr = MatGetSubMatrix(Anatural,is,is,MAT_INITIAL_MATRIX,&Aapp);CHKERRQ(ierr);
+  ierr = MatCreateSubMatrix(Anatural,is,is,MAT_INITIAL_MATRIX,&Aapp);CHKERRQ(ierr);
   ierr = MatHeaderReplace(A,&Aapp);CHKERRQ(ierr);
   ierr = ISDestroy(&is);CHKERRQ(ierr);
   ierr = MatDestroy(&Anatural);CHKERRQ(ierr);
@@ -613,17 +613,16 @@ PetscErrorCode DMCreateMatrix_DA(DM da, Mat *J)
 
     ierr = DMGetDefaultGlobalSection(da, &sectionGlobal);CHKERRQ(ierr);
     ierr = PetscSectionGetConstrainedStorageSize(sectionGlobal, &localSize);CHKERRQ(ierr);
-    ierr = MatCreate(PetscObjectComm((PetscObject)da), J);CHKERRQ(ierr);
-    ierr = MatSetSizes(*J, localSize, localSize, PETSC_DETERMINE, PETSC_DETERMINE);CHKERRQ(ierr);
-    ierr = MatSetType(*J, mtype);CHKERRQ(ierr);
-    ierr = MatSetFromOptions(*J);CHKERRQ(ierr);
-    ierr = PetscStrcmp(mtype, MATSHELL, &isShell);CHKERRQ(ierr);
-    ierr = PetscStrcmp(mtype, MATBAIJ, &isBlock);CHKERRQ(ierr);
-    ierr = PetscStrcmp(mtype, MATSEQBAIJ, &isSeqBlock);CHKERRQ(ierr);
-    ierr = PetscStrcmp(mtype, MATMPIBAIJ, &isMPIBlock);CHKERRQ(ierr);
-    ierr = PetscStrcmp(mtype, MATSBAIJ, &isSymBlock);CHKERRQ(ierr);
-    ierr = PetscStrcmp(mtype, MATSEQSBAIJ, &isSymSeqBlock);CHKERRQ(ierr);
-    ierr = PetscStrcmp(mtype, MATMPISBAIJ, &isSymMPIBlock);CHKERRQ(ierr);
+    ierr = MatCreate(PetscObjectComm((PetscObject)da),&A);CHKERRQ(ierr);
+    ierr = MatSetSizes(A,localSize,localSize,PETSC_DETERMINE,PETSC_DETERMINE);CHKERRQ(ierr);
+    ierr = MatSetType(A,mtype);CHKERRQ(ierr);
+    ierr = PetscStrcmp(mtype,MATSHELL,&isShell);CHKERRQ(ierr);
+    ierr = PetscStrcmp(mtype,MATBAIJ,&isBlock);CHKERRQ(ierr);
+    ierr = PetscStrcmp(mtype,MATSEQBAIJ,&isSeqBlock);CHKERRQ(ierr);
+    ierr = PetscStrcmp(mtype,MATMPIBAIJ,&isMPIBlock);CHKERRQ(ierr);
+    ierr = PetscStrcmp(mtype,MATSBAIJ,&isSymBlock);CHKERRQ(ierr);
+    ierr = PetscStrcmp(mtype,MATSEQSBAIJ,&isSymSeqBlock);CHKERRQ(ierr);
+    ierr = PetscStrcmp(mtype,MATMPISBAIJ,&isSymMPIBlock);CHKERRQ(ierr);
     /* Check for symmetric storage */
     isSymmetric = (PetscBool) (isSymBlock || isSymSeqBlock || isSymMPIBlock);
     if (isSymmetric) {
@@ -690,7 +689,9 @@ PetscErrorCode DMCreateMatrix_DA(DM da, Mat *J)
   ierr = MatSetSizes(A,dof*nx*ny*nz,dof*nx*ny*nz,dof*M*N*P,dof*M*N*P);CHKERRQ(ierr);
   ierr = MatSetType(A,mtype);CHKERRQ(ierr);
   ierr = MatSetDM(A,da);CHKERRQ(ierr);
-  ierr = MatSetFromOptions(A);CHKERRQ(ierr);
+  if (da->structure_only) {
+    ierr = MatSetOption(A,MAT_STRUCTURE_ONLY,PETSC_TRUE);CHKERRQ(ierr);
+  }
   ierr = MatGetType(A,&Atype);CHKERRQ(ierr);
   /*
      We do not provide a getmatrix function in the DMDA operations because
@@ -752,8 +753,9 @@ PetscErrorCode DMCreateMatrix_DA(DM da, Mat *J)
     } else SETERRQ3(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"Not implemented for %D dimension and Matrix Type: %s in %D dimension! Send mail to petsc-maint@mcs.anl.gov for code",dim,Atype,dim);
   } else {
     ISLocalToGlobalMapping ltog;
-    ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
+    ierr = MatSetBlockSize(A,dof);CHKERRQ(ierr);
     ierr = MatSetUp(A);CHKERRQ(ierr);
+    ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
     ierr = MatSetLocalToGlobalMapping(A,ltog,ltog);CHKERRQ(ierr);
   }
   ierr = DMDAGetGhostCorners(da,&starts[0],&starts[1],&starts[2],&dims[0],&dims[1],&dims[2]);CHKERRQ(ierr);
@@ -765,6 +767,7 @@ PetscErrorCode DMCreateMatrix_DA(DM da, Mat *J)
     ierr = MatShellSetOperation(A, MATOP_VIEW, (void (*)(void))MatView_MPI_DA);CHKERRQ(ierr);
     ierr = MatShellSetOperation(A, MATOP_LOAD, (void (*)(void))MatLoad_MPI_DA);CHKERRQ(ierr);
   }
+  ierr = MatSetFromOptions(A);CHKERRQ(ierr);
   *J = A;
   PetscFunctionReturn(0);
 }
