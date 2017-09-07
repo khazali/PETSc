@@ -22,22 +22,32 @@ typedef struct {
   PetscReal sqrtru,sqrtrv,sqrtrh;
   PetscInt  nobs;
   TS        ts;
-  Vec       xf; /* forecast state */
+  PetscBool be; /* flag to add background error */
+  Vec       Uf; /* forecast state */
+  Vec       U;  /* working vector */
+  Mat       corX2d,corY2d;
 } Model_SW;
 
-PetscErrorCode Covariance(DM da,Vec U,Model_SW *sw,PetscReal *r,Vec Gr)
+/*
+  Build the background error covariance
+  B = Sigma*CorX2d*CorY2d*Sigma
+  where
+    CorX2d = CorX1d X I
+    CorY2d = I X CorY1d
+    Sigma is a diagonal scaling matrix
+
+*/
+PetscErrorCode BuildCovariance(DM da,Model_SW *sw)
 {
-  KSP            ksp;
   MPI_Comm       comm;
-  Mat            corX1d,corY1d,corX1dsc,corY1dsc,corX2d,corY2d; /* longitude and lattitude */
+  Mat            corX1d,corY1d,corX1dsc,corY1dsc;
   PetscInt       i,j,xs,ys,nx,ny,Mx,My,maxlen;
   PetscScalar    *y1dscarr,*x1dscarr;
   PetscReal      dist,value,theta;
   PetscInt       *colidxs,*rowidxs;
-  Vec            b0,b1;
   PetscErrorCode ierr;
 
-  theta = 0.025;
+  theta = 0.2;
   ierr = DMDAGetInfo(da,PETSC_IGNORE,&Mx,&My,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE,PETSC_IGNORE);CHKERRQ(ierr);
   ierr = DMDAGetCorners(da,0,0,0,&nx,&ny,NULL);CHKERRQ(ierr);
   ierr = PetscObjectGetComm((PetscObject)da,&comm);CHKERRQ(ierr);
@@ -49,18 +59,20 @@ PetscErrorCode Covariance(DM da,Vec U,Model_SW *sw,PetscReal *r,Vec Gr)
   ierr = MatSetUp(corY1d);CHKERRQ(ierr);
 
   /* Create 2d correlation matrix (sparse) */
-  ierr = MatCreate(comm,&corX2d);CHKERRQ(ierr);
-  ierr = MatSetSizes(corX2d,PETSC_DETERMINE,PETSC_DETERMINE,3*Mx*My,3*Mx*My);CHKERRQ(ierr);
-  ierr = MatSetType(corX2d,MATAIJ);CHKERRQ(ierr);
-  ierr = MatSetFromOptions(corX2d);CHKERRQ(ierr);
-  ierr = MatSeqAIJSetPreallocation(corX2d,Mx,NULL);CHKERRQ(ierr);
-  ierr = MatSetUp(corX2d);CHKERRQ(ierr);
-  ierr = MatCreate(comm,&corY2d);CHKERRQ(ierr);
-  ierr = MatSetSizes(corY2d,PETSC_DETERMINE,PETSC_DETERMINE,3*Mx*My,3*Mx*My);CHKERRQ(ierr);
-  ierr = MatSetType(corY2d,MATAIJ);CHKERRQ(ierr);
-  ierr = MatSetFromOptions(corY2d);CHKERRQ(ierr);
-  ierr = MatSeqAIJSetPreallocation(corY2d,My,NULL);CHKERRQ(ierr);
-  ierr = MatSetUp(corY2d);CHKERRQ(ierr);
+  ierr = MatCreate(comm,&sw->corX2d);CHKERRQ(ierr);
+  ierr = MatSetSizes(sw->corX2d,PETSC_DETERMINE,PETSC_DETERMINE,3*Mx*My,3*Mx*My);CHKERRQ(ierr);
+  ierr = MatSetType(sw->corX2d,MATAIJ);CHKERRQ(ierr);
+  ierr = MatSetFromOptions(sw->corX2d);CHKERRQ(ierr);
+  ierr = MatSeqAIJSetPreallocation(sw->corX2d,Mx,NULL);CHKERRQ(ierr);
+  ierr = MatSetOptionsPrefix(sw->corX2d,"X2d_");CHKERRQ(ierr);
+  ierr = MatSetUp(sw->corX2d);CHKERRQ(ierr);
+  ierr = MatCreate(comm,&sw->corY2d);CHKERRQ(ierr);
+  ierr = MatSetSizes(sw->corY2d,PETSC_DETERMINE,PETSC_DETERMINE,3*Mx*My,3*Mx*My);CHKERRQ(ierr);
+  ierr = MatSetType(sw->corY2d,MATAIJ);CHKERRQ(ierr);
+  ierr = MatSetFromOptions(sw->corY2d);CHKERRQ(ierr);
+  ierr = MatSeqAIJSetPreallocation(sw->corY2d,My,NULL);CHKERRQ(ierr);
+  ierr = MatSetOptionsPrefix(sw->corY2d,"Y2d_");CHKERRQ(ierr);
+  ierr = MatSetUp(sw->corY2d);CHKERRQ(ierr);
 
   maxlen = PetscMax(Mx,My);
   ierr = PetscCalloc2(maxlen,&rowidxs,maxlen,&colidxs);CHKERRQ(ierr);
@@ -68,14 +80,14 @@ PetscErrorCode Covariance(DM da,Vec U,Model_SW *sw,PetscReal *r,Vec Gr)
   for (i=0;i<Mx;i++) {
     for (j=0;j<Mx;j++) {
       dist = PetscMin(PetscAbs(i-j),Mx-PetscAbs(i-j));
-      value = (1-theta)*PetscExpReal(-(dist*dist)/Mx);
+      value = (1.-theta)*PetscExpReal(-dist*dist);
       if (i==j) value += theta;
       ierr = MatSetValues(corX1d,1,&i,1,&j,&value,INSERT_VALUES);CHKERRQ(ierr);
     }
   }
   for (i=0;i<My;i++) {
     for (j=0;j<My;j++) {
-      value = (1-theta)*PetscExpReal(-((i-j)*(i-j))/My);
+      value = (1.-theta)*PetscExpReal(-(i-j)*(i-j));
       if (i==j) value += theta;
       ierr = MatSetValues(corY1d,1,&i,1,&j,&value,INSERT_VALUES);CHKERRQ(ierr);
     }
@@ -88,79 +100,94 @@ PetscErrorCode Covariance(DM da,Vec U,Model_SW *sw,PetscReal *r,Vec Gr)
 
   /* Kronecker product of corX1d and I(My,My), duplicated for the three fields  */
   ierr = MatDuplicate(corX1d,MAT_COPY_VALUES,&corX1dsc);CHKERRQ(ierr);
-  ierr = MatScale(corX1dsc,0.025);CHKERRQ(ierr);
   ierr = MatDenseGetArray(corX1dsc,&x1dscarr);CHKERRQ(ierr);
-  for (ys=0;ys<My;ys++) { /* u and v */
-    for (i=0;i<Mx;i++) rowidxs[i] = (ys*Mx+i)*3;
-    for (i=0;i<Mx;i++) colidxs[i] = (ys*Mx+i)*3;
-    ierr = MatSetValues(corX2d,Mx,rowidxs,Mx,colidxs,x1dscarr,INSERT_VALUES);CHKERRQ(ierr);
-    for (i=0;i<Mx;i++) rowidxs[i] += 1;
-    for (i=0;i<Mx;i++) colidxs[i] += 1;
-    ierr = MatSetValues(corX2d,Mx,rowidxs,Mx,colidxs,x1dscarr,INSERT_VALUES);CHKERRQ(ierr);
+  for (i=0;i<Mx*Mx;i++) x1dscarr[i] *=  sw->sqrtru;
+  for (ys=0;ys<My;ys++) { /* u */
+    for (i=0;i<Mx;i++) rowidxs[i] = (i*My+ys)*3;
+    for (i=0;i<Mx;i++) colidxs[i] = (i*My+ys)*3;
+    ierr = MatSetValues(sw->corX2d,Mx,rowidxs,Mx,colidxs,x1dscarr,INSERT_VALUES);CHKERRQ(ierr);
   }
-  ierr = MatDenseRestoreArray(corX1dsc,&x1dscarr);CHKERRQ(ierr);
-
-  ierr = MatCopy(corX1d,corX1dsc,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
-  ierr = MatScale(corX1dsc,0.125);CHKERRQ(ierr);
-  ierr = MatDenseGetArray(corX1dsc,&x1dscarr);CHKERRQ(ierr);
+  for (i=0;i<Mx*Mx;i++) x1dscarr[i] *=  sw->sqrtrv/sw->sqrtru;
+  for (ys=0;ys<My;ys++) { /* v */
+    for (i=0;i<Mx;i++) rowidxs[i] = (i*My+ys)*3+1;
+    for (i=0;i<Mx;i++) colidxs[i] = (i*My+ys)*3+1;
+    ierr = MatSetValues(sw->corX2d,Mx,rowidxs,Mx,colidxs,x1dscarr,INSERT_VALUES);CHKERRQ(ierr);
+  }
+  for (i=0;i<Mx*Mx;i++) x1dscarr[i] *=  sw->sqrtrh/sw->sqrtrv;
   for (ys=0;ys<My;ys++) { /* h */
-    for (i=0;i<Mx;i++) rowidxs[i] = (ys*Mx+i)*3+2;
-    for (i=0;i<Mx;i++) colidxs[i] = (ys*Mx+i)*3+2;
-    ierr = MatSetValues(corX2d,Mx,rowidxs,Mx,colidxs,x1dscarr,INSERT_VALUES);CHKERRQ(ierr);
+    for (i=0;i<Mx;i++) rowidxs[i] = (i*My+ys)*3+2;
+    for (i=0;i<Mx;i++) colidxs[i] = (i*My+ys)*3+2;
+    ierr = MatSetValues(sw->corX2d,Mx,rowidxs,Mx,colidxs,x1dscarr,INSERT_VALUES);CHKERRQ(ierr);
   }
   ierr = MatDenseRestoreArray(corX1dsc,&x1dscarr);CHKERRQ(ierr);
   ierr = MatDestroy(&corX1dsc);CHKERRQ(ierr);
+  ierr = MatDestroy(&corX1d);CHKERRQ(ierr);
 
   /* Kronecker product of I(Mx,Mx) and corY1d, duplicated for the three fields */
   ierr = MatDuplicate(corY1d,MAT_COPY_VALUES,&corY1dsc);CHKERRQ(ierr);
-  ierr = MatScale(corY1dsc,0.025);CHKERRQ(ierr);
   ierr = MatDenseGetArray(corY1dsc,&y1dscarr);CHKERRQ(ierr);
-  for (xs=0;xs<Mx;xs++) { /* u and v */
+  for (i=0;i<My*My;i++) y1dscarr[i] *=  sw->sqrtru;
+  for (xs=0;xs<Mx;xs++) { /* u */
     for (i=0;i<My;i++) rowidxs[i] = (xs*My+i)*3;
     for (i=0;i<My;i++) colidxs[i] = (xs*My+i)*3;
-    ierr = MatSetValues(corY2d,My,rowidxs,My,colidxs,y1dscarr,INSERT_VALUES);CHKERRQ(ierr);
-    for (i=0;i<My;i++) rowidxs[i] += 1;
-    for (i=0;i<My;i++) colidxs[i] += 1;
-    ierr = MatSetValues(corY2d,My,rowidxs,My,colidxs,y1dscarr,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = MatSetValues(sw->corY2d,My,rowidxs,My,colidxs,y1dscarr,INSERT_VALUES);CHKERRQ(ierr);
   }
-  ierr = MatDenseRestoreArray(corY1dsc,&y1dscarr);CHKERRQ(ierr);
-
-  ierr = MatCopy(corY1d,corY1dsc,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
-  ierr = MatScale(corY1dsc,0.125);CHKERRQ(ierr);
-  ierr = MatDenseGetArray(corY1dsc,&y1dscarr);CHKERRQ(ierr);
+  for (i=0;i<My*My;i++) y1dscarr[i] *=  sw->sqrtrv/sw->sqrtru;
+  for (xs=0;xs<Mx;xs++) { /* u and v */
+    for (i=0;i<My;i++) rowidxs[i] = (xs*My+i)*3+1;
+    for (i=0;i<My;i++) colidxs[i] = (xs*My+i)*3+1;
+    ierr = MatSetValues(sw->corY2d,My,rowidxs,My,colidxs,y1dscarr,INSERT_VALUES);CHKERRQ(ierr);
+  }
+  for (i=0;i<My*My;i++) y1dscarr[i] *=  sw->sqrtrh/sw->sqrtrv;
   for (xs=0;xs<Mx;xs++) { /* h */
     for (i=0;i<My;i++) rowidxs[i] = (xs*My+i)*3+2;
     for (i=0;i<My;i++) colidxs[i] = (xs*My+i)*3+2;
-    ierr = MatSetValues(corY2d,My,rowidxs,My,colidxs,y1dscarr,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = MatSetValues(sw->corY2d,My,rowidxs,My,colidxs,y1dscarr,INSERT_VALUES);CHKERRQ(ierr);
   }
   ierr = MatDenseRestoreArray(corY1dsc,&y1dscarr);CHKERRQ(ierr);
   ierr = MatDestroy(&corY1dsc);CHKERRQ(ierr);
+  ierr = MatDestroy(&corY1d);CHKERRQ(ierr);
 
-  ierr = MatAssemblyBegin(corX2d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatAssemblyEnd(corX2d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatAssemblyBegin(corY2d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatAssemblyEnd(corY2d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatSetOption(corX2d,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
-  ierr = MatSetOption(corY2d,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(sw->corX2d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(sw->corX2d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(sw->corY2d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(sw->corY2d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = PetscFree2(rowidxs,colidxs);CHKERRQ(ierr);
 
-  /* Solve for (x-xf)^T (corX2d*corY2d)^-1 (x-xf) */
+  return 0;
+}
+
+/*
+  Compute the regulization term
+  (u-u_b)^T B^-1 (u-u_b)
+  where B is the background error covariance and u is the initial conditoin.
+  Its gradients is 2*B^-1 (u-u_b).
+*/
+PetscErrorCode BackgroundError(DM da,Vec U,Model_SW *sw,PetscReal *r,Vec Gr)
+{
+  KSP            ksp;
+  Vec            b0,b1;
+  PetscErrorCode ierr;
+
+  /* Solve for (U-Uf)^T (corX2d*corY2d)^-1 (U-Uf) */
   ierr = VecDuplicate(U,&b0);CHKERRQ(ierr);
   ierr = VecDuplicate(U,&b1);CHKERRQ(ierr);
   ierr = VecCopy(U,b0);CHKERRQ(ierr);
-  ierr = VecAXPY(b0,-1,sw->xf);CHKERRQ(ierr);
+  ierr = VecAXPY(b0,-1.,sw->Uf);CHKERRQ(ierr);
   ierr = KSPCreate(PETSC_COMM_WORLD,&ksp);CHKERRQ(ierr);
-  ierr = KSPSetOperators(ksp,corX2d,corX2d);CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp,sw->corX2d,sw->corX2d);CHKERRQ(ierr);
   ierr = KSPSetUp(ksp);CHKERRQ(ierr);
+  ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
   ierr = KSPSolve(ksp,b0,b1);CHKERRQ(ierr);
-  ierr = KSPSetOperators(ksp,corY2d,corY2d);CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp,sw->corY2d,sw->corY2d);CHKERRQ(ierr);
   ierr = KSPSolve(ksp,b1,Gr);CHKERRQ(ierr);
   ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
   ierr = VecDot(b0,Gr,r);CHKERRQ(ierr);
   *r = *r/2.;
   ierr = VecDestroy(&b0);CHKERRQ(ierr);
   ierr = VecDestroy(&b1);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
+  //printf("Regularization term = %lf\n",*r);
+  return 0;
 }
 
 PetscErrorCode ReInitializeLambda(DM da,Vec lambda,Vec U,PetscInt iob,Model_SW *sw)
@@ -172,14 +199,13 @@ PetscErrorCode ReInitializeLambda(DM da,Vec lambda,Vec U,PetscInt iob,Model_SW *
   PetscViewer    viewer;
   PetscErrorCode ierr;
 
-  PetscFunctionBeginUser;
   ierr = VecDuplicate(U,&Uob);CHKERRQ(ierr);
 
   ierr = PetscSNPrintf(filename,sizeof filename,"sw-%03d.obs",iob);CHKERRQ(ierr);
   ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename,FILE_MODE_READ,&viewer);CHKERRQ(ierr);
   ierr = VecLoad(Uob,viewer);CHKERRQ(ierr);
   ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-  ierr = VecAYPX(Uob,-1,U);CHKERRQ(ierr);
+  ierr = VecAYPX(Uob,-1.,U);CHKERRQ(ierr);
 
   ierr = DMDAVecGetArray(da,lambda,&larr);CHKERRQ(ierr);
   ierr = DMDAVecGetArray(da,Uob,&uarr);CHKERRQ(ierr);
@@ -195,7 +221,7 @@ PetscErrorCode ReInitializeLambda(DM da,Vec lambda,Vec U,PetscInt iob,Model_SW *
   ierr = DMDAVecRestoreArray(da,lambda,&larr);CHKERRQ(ierr);
 
   ierr = VecDestroy(&Uob);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
+  return 0;
 }
 
 PetscErrorCode InitialConditions(DM da,Vec U,Model_SW *sw)
@@ -205,7 +231,6 @@ PetscErrorCode InitialConditions(DM da,Vec U,Model_SW *sw)
   Field          **uarr;
   PetscErrorCode ierr;
 
-  PetscFunctionBeginUser;
   a     = sw->EarthRadius;
   omega = sw->AngularSpeed;
   g     = sw->Gravity;
@@ -218,7 +243,7 @@ PetscErrorCode InitialConditions(DM da,Vec U,Model_SW *sw)
   ierr = DMDAGetCorners(da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
 
   for (j=ys; j<ys+ym; j++) { /* latitude */
-    lat = -PETSC_PI/2.+j*dlat+dlat/2; /* shift half grid size to avoid North pole and South pole */
+    lat = -PETSC_PI/2.+j*dlat+dlat/2.; /* shift half grid size to avoid North pole and South pole */
     for (i=xs; i<xs+xm; i++) { /* longitude */
       lon = i*dlat; /* dlon = dlat */
       uarr[j][i].u = -3.*u0*PetscSinReal(lat)*PetscCosReal(lat)*PetscCosReal(lat)*PetscSinReal(lon)+u0*PetscSinReal(lat)*PetscSinReal(lat)*PetscSinReal(lat)*PetscSinReal(lon);
@@ -227,7 +252,7 @@ PetscErrorCode InitialConditions(DM da,Vec U,Model_SW *sw)
     }
   }
   ierr = DMDAVecRestoreArray(da,U,&uarr);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
+  return 0;
 }
 
 PetscErrorCode RHSFunction(TS ts,PetscReal ftime,Vec U,Vec F,void *ptr)
@@ -649,12 +674,23 @@ static PetscErrorCode OutputBIN(DM dm, const char *filename, PetscViewer *viewer
 {
   PetscErrorCode ierr;
 
-  PetscFunctionBeginUser;
   ierr = PetscViewerCreate(PetscObjectComm((PetscObject)dm),viewer);CHKERRQ(ierr);
   ierr = PetscViewerSetType(*viewer,PETSCVIEWERBINARY);CHKERRQ(ierr);
   ierr = PetscViewerFileSetMode(*viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
   ierr = PetscViewerFileSetName(*viewer,filename);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
+  return 0;
+}
+
+PetscErrorCode GenerateGaussianNoise(PetscRandom rand,PetscReal mu,PetscReal sigma,PetscReal *noise)
+{
+  PetscReal      u1,u2,z;
+  PetscErrorCode ierr;
+
+  ierr = PetscRandomGetValue(rand,&u1);CHKERRQ(ierr);
+  ierr = PetscRandomGetValue(rand,&u2);CHKERRQ(ierr);
+  z = PetscSqrtReal(-2.*PetscLogReal(u1))*PetscCosReal(2.*PETSC_PI*u2);
+  *noise = z*sigma+mu;
+  return 0;;
 }
 
 /*
@@ -673,9 +709,9 @@ PetscErrorCode GenerateOBs(TS ts,Vec U,Model_SW *sw)
   DM             dm;
   PetscErrorCode ierr;
 
-  PetscFunctionBeginUser;
   ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
   ierr = PetscRandomCreate(PetscObjectComm((PetscObject)dm),&rand);CHKERRQ(ierr);
+  ierr = PetscRandomSetInterval(rand,0,1.);CHKERRQ(ierr);
   ierr = VecDuplicate(U,&Uob);CHKERRQ(ierr);
   ierr = TSGetMaxSteps(ts,&maxsteps);CHKERRQ(ierr);
   for (iob=1; iob<=sw->nobs; iob++) {
@@ -687,11 +723,11 @@ PetscErrorCode GenerateOBs(TS ts,Vec U,Model_SW *sw)
     ierr = DMDAGetCorners(dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
     for (j=ys; j<ys+ym; j++) { /* latitude */
       for (i=xs; i<xs+xm; i++) { /* longitude */
-        ierr = PetscRandomGetValue(rand,&randn); CHKERRQ(ierr);
+        ierr = GenerateGaussianNoise(rand,0,1.,&randn);CHKERRQ(ierr);
         uarr[j][i].u += sw->sqrtru*randn;
-        ierr = PetscRandomGetValue(rand,&randn); CHKERRQ(ierr);
+        ierr = GenerateGaussianNoise(rand,0,1.,&randn);CHKERRQ(ierr);
         uarr[j][i].v += sw->sqrtrv*randn;
-        ierr = PetscRandomGetValue(rand,&randn); CHKERRQ(ierr);
+        ierr = GenerateGaussianNoise(rand,0,1.,&randn);CHKERRQ(ierr);
         uarr[j][i].h += sw->sqrtrh*randn;
       }
     }
@@ -704,7 +740,7 @@ PetscErrorCode GenerateOBs(TS ts,Vec U,Model_SW *sw)
   }
   ierr = VecDestroy(&Uob);CHKERRQ(ierr);
   ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
+  return 0;
 }
 
 /*
@@ -718,27 +754,27 @@ PetscErrorCode GenerateFS(DM dm,Vec U,Model_SW *sw)
   PetscRandom    rand;
   PetscErrorCode ierr;
 
-  PetscFunctionBeginUser;
   ierr = PetscRandomCreate(PetscObjectComm((PetscObject)dm),&rand);CHKERRQ(ierr);
-  ierr = VecDuplicate(U,&sw->xf);CHKERRQ(ierr);
-  ierr = VecCopy(U,sw->xf);CHKERRQ(ierr);
+  ierr = PetscRandomSetInterval(rand,0,1.);CHKERRQ(ierr);
+  ierr = VecDuplicate(U,&sw->Uf);CHKERRQ(ierr);
+  ierr = VecCopy(U,sw->Uf);CHKERRQ(ierr);
 
-  ierr = DMDAVecGetArray(dm,sw->xf,&xfarr);CHKERRQ(ierr);
+  ierr = DMDAVecGetArray(dm,sw->Uf,&xfarr);CHKERRQ(ierr);
   ierr = DMDAGetCorners(dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
   for (j=ys; j<ys+ym; j++) { /* latitude */
     for (i=xs; i<xs+xm; i++) { /* longitude */
-      ierr = PetscRandomGetValue(rand,&randn); CHKERRQ(ierr);
+      ierr = GenerateGaussianNoise(rand,0,0.1,&randn);CHKERRQ(ierr);
       xfarr[j][i].u += sw->sqrtru*randn;
-      ierr = PetscRandomGetValue(rand,&randn); CHKERRQ(ierr);
+      ierr = GenerateGaussianNoise(rand,0,0.1,&randn);CHKERRQ(ierr);
       xfarr[j][i].v += sw->sqrtrv*randn;
-      ierr = PetscRandomGetValue(rand,&randn); CHKERRQ(ierr);
+      ierr = GenerateGaussianNoise(rand,0,0.1,&randn);CHKERRQ(ierr);
       xfarr[j][i].h += sw->sqrtrh*randn;
     }
   }
-  ierr = DMDAVecRestoreArray(dm,sw->xf,&xfarr);CHKERRQ(ierr);
+  ierr = DMDAVecRestoreArray(dm,sw->Uf,&xfarr);CHKERRQ(ierr);
 
   ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
+  return 0;
 }
 
 /*
@@ -746,18 +782,18 @@ PetscErrorCode GenerateFS(DM dm,Vec U,Model_SW *sw)
 
    Input Parameters:
    tao - the Tao context
-   U   - the input vector
+   X   - the input vector
    ctx - optional user-defined context, as set by TaoSetObjectiveAndGradientRoutine()
 
    Output Parameters:
    f   - the newly evaluated function
    G   - the newly evaluated gradient
 */
-PetscErrorCode FormFunctionAndGradient(Tao tao,Vec U,PetscReal *f,Vec G,void *ctx)
+PetscErrorCode FormFunctionAndGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx)
 {
   PetscInt       i,j,iob,xs,ys,xm,ym;
   PetscInt       maxsteps,numcost;
-  PetscReal      soberr,timestep;
+  PetscReal      soberr,timestep,r;
   Vec            *lambda;
   Vec            SDiff;
   DM             da;
@@ -775,19 +811,19 @@ PetscErrorCode FormFunctionAndGradient(Tao tao,Vec U,PetscReal *f,Vec G,void *ct
   }
   ierr = TSSetStepNumber(sw->ts,0);CHKERRQ(ierr);
 
-  ierr = VecDuplicate(U,&SDiff);CHKERRQ(ierr);
+  ierr = VecDuplicate(P,&SDiff);CHKERRQ(ierr);
+  ierr = VecCopy(P,sw->U);CHKERRQ(ierr);
   ierr = TSGetDM(sw->ts,&da);CHKERRQ(ierr);
   ierr = TSGetMaxSteps(sw->ts,&maxsteps);CHKERRQ(ierr);
-
   *f = 0;
   for (iob=1; iob<=sw->nobs; iob++) {
     ierr = TSSetMaxSteps(sw->ts,iob*maxsteps/sw->nobs);CHKERRQ(ierr);
-    ierr = TSSolve(sw->ts,U);CHKERRQ(ierr);
+    ierr = TSSolve(sw->ts,sw->U);CHKERRQ(ierr);
     ierr = PetscSNPrintf(filename,sizeof filename,"sw-%03d.obs",iob);CHKERRQ(ierr);
     ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename,FILE_MODE_READ,&viewer);CHKERRQ(ierr);
     ierr = VecLoad(SDiff,viewer);CHKERRQ(ierr);
     ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-    ierr = VecAYPX(SDiff,-1,U);CHKERRQ(ierr);
+    ierr = VecAYPX(SDiff,-1.,sw->U);CHKERRQ(ierr);
 
     ierr = DMDAVecGetArray(da,SDiff,&sdarr);CHKERRQ(ierr);
     ierr = DMDAGetCorners(da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
@@ -811,11 +847,17 @@ PetscErrorCode FormFunctionAndGradient(Tao tao,Vec U,PetscReal *f,Vec G,void *ct
     PetscReal    time;
     ierr = TSGetTrajectory(sw->ts,&tj);CHKERRQ(ierr);
     ierr = TSTrajectoryGet(tj,sw->ts,iob*maxsteps/sw->nobs,&time);CHKERRQ(ierr);
-    ierr = ReInitializeLambda(da,lambda[0],U,iob,sw);CHKERRQ(ierr);
+    ierr = ReInitializeLambda(da,lambda[0],sw->U,iob,sw);CHKERRQ(ierr);
     ierr = TSAdjointSetSteps(sw->ts,maxsteps/sw->nobs);CHKERRQ(ierr);
     ierr = TSAdjointSolve(sw->ts);CHKERRQ(ierr);
   }
   ierr = VecCopy(lambda[0],G);CHKERRQ(ierr);
+
+  if (sw->be) {
+    ierr = BackgroundError(da,sw->U,sw,&r,SDiff);CHKERRQ(ierr);
+    *f  += r;
+    ierr = VecAXPY(G,1.,SDiff);CHKERRQ(ierr);
+  }
   ierr = VecDestroy(&SDiff);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -823,7 +865,7 @@ PetscErrorCode FormFunctionAndGradient(Tao tao,Vec U,PetscReal *f,Vec G,void *ct
 int main(int argc,char **argv)
 {
   PetscBool      forwardonly;
-  Vec            U;
+  Vec            P;
   DM             da;
   Model_SW       sw;
   Vec            lambda[1];
@@ -838,12 +880,15 @@ int main(int argc,char **argv)
   sw.p            = 4;
   sw.q            = 2;
   sw.nobs         = 2;
-  sw.sqrtru       = 3.;
-  sw.sqrtrv       = 3.;
-  sw.sqrtrh       = 700.;
+  sw.sqrtru       = 1.; /* 5% error */
+  sw.sqrtrv       = 1.; /* 5% error */
+  sw.sqrtrh       = 700.; /* 1.5% error */
+  forwardonly     = PETSC_FALSE;
+  sw.be           = PETSC_FALSE;
 
   ierr = PetscOptionsGetBool(NULL,NULL,"-forwardonly",&forwardonly,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-num_obs",&sw.nobs,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL,NULL,"-background_error",&sw.be,NULL);CHKERRQ(ierr);
 
   ierr = DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,150,75,PETSC_DECIDE,PETSC_DECIDE,3,4,NULL,NULL,&da);CHKERRQ(ierr);
   ierr = DMSetFromOptions(da);CHKERRQ(ierr);
@@ -851,29 +896,35 @@ int main(int argc,char **argv)
   ierr = DMDASetFieldName(da,0,"u");CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,1,"v");CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,2,"h");CHKERRQ(ierr);
-  ierr = DMCreateGlobalVector(da,&U);CHKERRQ(ierr);
-  {
+  ierr = DMCreateGlobalVector(da,&sw.U);CHKERRQ(ierr);
+  ierr = DMCreateGlobalVector(da,&P);CHKERRQ(ierr);
+  /*
+  {// testing
     PetscReal r;
     Vec Gr;
     ierr = VecDuplicate(U,&Gr);CHKERRQ(ierr);
-    ierr = GenerateFS(da,U,&sw);CHKERRQ(ierr);
-    ierr = Covariance(da,U,&sw,&r,Gr);CHKERRQ(ierr);
+    ierr = BackgroundError(da,U,&sw,&r,Gr);CHKERRQ(ierr);
     ierr = VecDestroy(&Gr);CHKERRQ(ierr);
   }
   return 0;
+  */
   ierr = TSCreate(PETSC_COMM_WORLD,&sw.ts);CHKERRQ(ierr);
   ierr = TSSetRHSFunction(sw.ts,NULL,RHSFunction,&sw);CHKERRQ(ierr);
   ierr = TSSetRHSJacobian(sw.ts,NULL,NULL,RHSJacobian,&sw);CHKERRQ(ierr);
   ierr = TSSetType(sw.ts,TSRK);CHKERRQ(ierr);
   ierr = TSSetDM(sw.ts,da);CHKERRQ(ierr);
 
-  ierr = InitialConditions(da,U,&sw);CHKERRQ(ierr);
-  ierr = TSSetSolution(sw.ts,U);CHKERRQ(ierr);
+  ierr = InitialConditions(da,sw.U,&sw);CHKERRQ(ierr);
+  ierr = TSSetSolution(sw.ts,sw.U);CHKERRQ(ierr);
+
+  /* Build Covariance matrix and generate forecast state */
+  ierr = BuildCovariance(da,&sw);CHKERRQ(ierr);
+  ierr = GenerateFS(da,sw.U,&sw);CHKERRQ(ierr);
 
   if (!forwardonly) {
     /* Let TS save its trajectory for TSAdjointSolve() */
     ierr = TSSetSaveTrajectory(sw.ts);CHKERRQ(ierr);
-    ierr = VecDuplicate(U,&lambda[0]);CHKERRQ(ierr);
+    ierr = VecDuplicate(P,&lambda[0]);CHKERRQ(ierr);
     ierr = TSSetCostGradients(sw.ts,1,lambda,NULL);CHKERRQ(ierr);
   }
 
@@ -882,26 +933,18 @@ int main(int argc,char **argv)
   ierr = TSSetMaxSteps(sw.ts,16);CHKERRQ(ierr); /* 3600 s */
   ierr = TSSetExactFinalTime(sw.ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   ierr = TSSetFromOptions(sw.ts);CHKERRQ(ierr);
-  ierr = GenerateOBs(sw.ts,U,&sw);CHKERRQ(ierr);
+  ierr = GenerateOBs(sw.ts,sw.U,&sw);CHKERRQ(ierr);
 
   if (!forwardonly) {
     Tao         tao;
-    Vec         Vrand;
-    PetscRandom rand;
 
     /* Create TAO solver and set desired solution method */
     ierr = TaoCreate(PETSC_COMM_WORLD,&tao);CHKERRQ(ierr);
     ierr = TaoSetType(tao,TAOBLMVM);CHKERRQ(ierr);
 
-    /* Set initial guess */
-    ierr = InitialConditions(da,U,&sw);CHKERRQ(ierr);
-    ierr = PetscRandomCreate(PetscObjectComm((PetscObject)da),&rand);CHKERRQ(ierr);
-    ierr = VecDuplicate(U,&Vrand);CHKERRQ(ierr);
-    ierr = VecSetRandom(Vrand,rand);CHKERRQ(ierr);
-    ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
-    ierr = VecAXPY(U,0.01,Vrand);CHKERRQ(ierr);
-    ierr = VecDestroy(&Vrand);CHKERRQ(ierr);
-    ierr = TaoSetInitialVector(tao,U);CHKERRQ(ierr);
+    /* Set initial guess for TAO */
+    ierr = VecCopy(sw.Uf,P);CHKERRQ(ierr);
+    ierr = TaoSetInitialVector(tao,P);CHKERRQ(ierr);
 
     /* Set routine for function and gradient evaluation */
     ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionAndGradient,&sw);CHKERRQ(ierr);
@@ -924,7 +967,11 @@ int main(int argc,char **argv)
 
   ierr = TSDestroy(&sw.ts);CHKERRQ(ierr);
   ierr = DMDestroy(&da);CHKERRQ(ierr);
-  ierr = VecDestroy(&U);CHKERRQ(ierr);
+  ierr = VecDestroy(&P);CHKERRQ(ierr);
+  ierr = VecDestroy(&sw.U);CHKERRQ(ierr);
+  ierr = VecDestroy(&sw.Uf);CHKERRQ(ierr);
+  ierr = MatDestroy(&sw.corX2d);CHKERRQ(ierr);
+  ierr = MatDestroy(&sw.corY2d);CHKERRQ(ierr);
 
   ierr = PetscFinalize();
   return ierr;
