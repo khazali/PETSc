@@ -715,7 +715,7 @@ runex23_4:
 	   ${RM} -rf ex23_4.tmp SA-data
 
 runex23_5:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 0.7 -tf 1.2 -ts_type cn -use_fd -test_event_constant -p 0.8 -test_ifunc -ts_trajectory_reconstruction_order 2 > ex23_5.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 0.7 -tf 1.2 -ts_type cn -use_fd -test_event_constant -p 0.8 -test_ifunc -ts_trajectory_reconstruction_order 2 -test_pjac 0 > ex23_5.tmp 2>&1; \
 	   ${DIFF} output/ex23_5.out ex23_5.tmp || printf "${PWD}\nPossible problem with ex23_5, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_5.tmp SA-data
 
@@ -729,6 +729,10 @@ runex23_7:
 	   ${DIFF} output/ex23_7.out ex23_7.tmp || printf "${PWD}\nPossible problem with ex23_7, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_7.tmp SA-data
 
+runex23_8:
+	-@${MPIEXEC} -n 1 ./ex23 -t0 0 -tf 0.125 -b 0.5 -a 1.1 -p 0.4 -ts_type bdf -test_mix -test_pjac 0 -test_event_constant -ts_rtol 1.e-8 -ts_atol 1.e-8 > ex23_8.tmp 2>&1; \
+	   ${DIFF} output/ex23_8.out ex23_8.tmp || printf "${PWD}\nPossible problem with ex23_8, diffs above\n=========================================\n";  \
+	   ${RM} -rf ex23_8.tmp SA-data
 
 runex24:                        # This is not in the nightlies because the convergence details are numerically sensitive
 	-@${MPIEXEC} -n 1 ./ex24 -pc_type lu -ts_dt 1e-5 -ts_final_time 1e5 -n 50 -monitor_short > ex24_1.tmp 2>&1; \
@@ -893,7 +897,8 @@ TESTEXAMPLES_C_NOCOMPLEX_NOTSINGLE  = ex9.PETSc runex9 runex9_2 runex9_3 ex9.rm 
                             ex20fwd.PETSc runex20fwd runex20fwd_2 ex20fwd.rm \
                             ex20opt_p.PETSc runex20opt_p runex20opt_p_ca ex20opt_p.rm \
                             ex20opt_ic.PETSc runex20opt_ic ex20opt_ic.rm \
-                            ex23.PETSc runex23_1 runex23_2 runex23_3 runex23_4 runex23_5 ex23.rm
+                            ex23.PETSc runex23_1 runex23_2 runex23_3 runex23_4 runex23_5 \
+                            runex23_6 runex23_7 runex23_8 ex23.rm
 TESTEXAMPLES_C_X = ex5.PETSc runex5 ex5.rm
 TESTEXAMPLES_FORTRAN = ex1f.PETSc runex1f ex1f.rm
 TESTEXAMPLES_FORTRAN_NOTSINGLE = ex22f.PETSc runex22f ex22f.rm

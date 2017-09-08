@@ -338,6 +338,8 @@ typedef struct {
   PetscBool        timeindep; /* true if the DAE is A Udot + B U -f = 0 */
   Mat              J_U;       /* Jacobian : F_U (U,Udot,t) */
   Mat              J_Udot;    /* Jacobian : F_Udot(U,Udot,t) */
+  Mat              pJ_U;      /* Jacobian : F_U (U,Udot,t) (to be preconditioned) */
+  Mat              pJ_Udot;   /* Jacobian : F_Udot(U,Udot,t) (to be preconditioned) */
 } SplitJac;
 
 static PetscErrorCode SplitJacDestroy_Private(void *ptr)
@@ -346,6 +348,8 @@ static PetscErrorCode SplitJacDestroy_Private(void *ptr)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ierr = MatDestroy(&s->pJ_U);CHKERRQ(ierr);
+  ierr = MatDestroy(&s->pJ_Udot);CHKERRQ(ierr);
   ierr = MatDestroy(&s->J_U);CHKERRQ(ierr);
   ierr = MatDestroy(&s->J_Udot);CHKERRQ(ierr);
   ierr = PetscFree(s);CHKERRQ(ierr);
@@ -385,36 +389,56 @@ static PetscErrorCode TSComputeSplitJacobians(TS ts, PetscReal time, Vec U, Vec 
 }
 
 /* Just access the split matrices */
-static PetscErrorCode TSGetSplitJacobians(TS ts, Mat* JU, Mat *JUdot)
+static PetscErrorCode TSGetSplitJacobians(TS ts, Mat* JU, Mat* pJU, Mat *JUdot, Mat* pJUdot)
 {
   PetscErrorCode ierr;
   PetscContainer c;
+  Mat            A,B;
   SplitJac       *splitJ;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   if (JU) PetscValidPointer(JU,2);
-  if (JUdot) PetscValidPointer(JUdot,3);
+  if (pJU) PetscValidPointer(pJU,3);
+  if (JUdot) PetscValidPointer(JUdot,4);
+  if (pJUdot) PetscValidPointer(pJUdot,5);
   ierr = PetscObjectQuery((PetscObject)ts,"_ts_splitJac",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_PLIB,"Missing splitJac container");
   ierr = PetscContainerGetPointer(c,(void**)&splitJ);CHKERRQ(ierr);
+  ierr = TSGetIJacobian(ts,&A,&B,NULL,NULL);CHKERRQ(ierr);
   if (JU) {
     if (!splitJ->J_U) {
-      Mat A;
-
-      ierr = TSGetIJacobian(ts,&A,NULL,NULL,NULL);CHKERRQ(ierr);
       ierr = MatDuplicate(A,MAT_DO_NOT_COPY_VALUES,&splitJ->J_U);CHKERRQ(ierr);
     }
     *JU = splitJ->J_U;
   }
+  if (pJU) {
+    if (!splitJ->pJ_U) {
+      if (B && B != A) {
+        ierr = MatDuplicate(B,MAT_DO_NOT_COPY_VALUES,&splitJ->pJ_U);CHKERRQ(ierr);
+      } else {
+        ierr = PetscObjectReference((PetscObject)splitJ->J_U);CHKERRQ(ierr);
+        splitJ->pJ_U = splitJ->J_U;
+      }
+    }
+    *pJU = splitJ->pJ_U;
+  }
   if (JUdot) {
     if (!splitJ->J_Udot) {
-      Mat A;
-
-      ierr = TSGetIJacobian(ts,&A,NULL,NULL,NULL);CHKERRQ(ierr);
       ierr = MatDuplicate(A,MAT_DO_NOT_COPY_VALUES,&splitJ->J_Udot);CHKERRQ(ierr);
     }
     *JUdot = splitJ->J_Udot;
+  }
+  if (pJUdot) {
+    if (!splitJ->pJ_Udot) {
+      if (B && B != A) {
+        ierr = MatDuplicate(B,MAT_DO_NOT_COPY_VALUES,&splitJ->pJ_Udot);CHKERRQ(ierr);
+      } else {
+        ierr = PetscObjectReference((PetscObject)splitJ->J_Udot);CHKERRQ(ierr);
+        splitJ->pJ_Udot = splitJ->J_Udot;
+      }
+    }
+    *pJUdot = splitJ->pJ_Udot;
   }
   PetscFunctionReturn(0);
 }
@@ -424,7 +448,7 @@ static PetscErrorCode TSUpdateSplitJacobiansFromHistory(TS ts, PetscReal time, V
 {
   PetscContainer c;
   SplitJac       *splitJ;
-  Mat            J_U,J_Udot;
+  Mat            J_U,J_Udot,pJ_U,pJ_Udot;
   TSProblemType  type;
   PetscErrorCode ierr;
 
@@ -437,8 +461,8 @@ static PetscErrorCode TSUpdateSplitJacobiansFromHistory(TS ts, PetscReal time, V
   if (type > TS_LINEAR) {
     ierr = TSTrajectoryUpdateHistoryVecs(ts->trajectory,ts,time,U,Udot);CHKERRQ(ierr);
   }
-  ierr = TSGetSplitJacobians(ts,&J_U,&J_Udot);CHKERRQ(ierr);
-  ierr = TSComputeSplitJacobians(ts,time,U,Udot,J_U,J_U,J_Udot,J_Udot);CHKERRQ(ierr);
+  ierr = TSGetSplitJacobians(ts,&J_U,&pJ_U,&J_Udot,&pJ_Udot);CHKERRQ(ierr);
+  ierr = TSComputeSplitJacobians(ts,time,U,Udot,J_U,pJ_U,J_Udot,pJ_Udot);CHKERRQ(ierr);
   splitJ->splitdone = splitJ->timeindep ? PETSC_TRUE : PETSC_FALSE;
   PetscFunctionReturn(0);
 }
@@ -470,7 +494,11 @@ static PetscErrorCode TSComputeIJacobianWithSplits(TS ts, PetscReal time, Vec U,
   ierr = PetscObjectStateGet((PetscObject)A,&splitJ->Astate);CHKERRQ(ierr);
   ierr = PetscObjectGetId((PetscObject)A,&splitJ->Aid);CHKERRQ(ierr);
   splitJ->shift = shift;
-  if (B && A != B) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"B != A not yet implemented");
+  if (B && A != B) {
+    ierr = MatCopy(splitJ->pJ_Udot,B,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+    ierr = MatScale(B,shift);CHKERRQ(ierr);
+    ierr = MatAXPY(B,1.0,splitJ->pJ_U,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -563,7 +591,7 @@ static PetscErrorCode AdjointTSIFunctionLinear(TS adjts, PetscReal time, Vec U, 
   ierr = TSTrajectoryUpdateHistoryVecs(adj_ctx->fwdts->trajectory,adj_ctx->fwdts,fwdt,adj_ctx->W[0],NULL);CHKERRQ(ierr);
   ierr = TSGradientEvalObjectiveGradientU(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->design,adj_ctx->W[3],&has,F);CHKERRQ(ierr);
   ierr = TSUpdateSplitJacobiansFromHistory(adj_ctx->fwdts,fwdt,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
-  ierr = TSGetSplitJacobians(adj_ctx->fwdts,&J_U,&J_Udot);CHKERRQ(ierr);
+  ierr = TSGetSplitJacobians(adj_ctx->fwdts,&J_U,NULL,&J_Udot,NULL);CHKERRQ(ierr);
   if (has) {
     ierr = MatMultTransposeAdd(J_U,U,F,F);CHKERRQ(ierr);
   } else {
@@ -927,7 +955,7 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
       PetscInt m,n,N;
 
       ierr = TSUpdateSplitJacobiansFromHistory(adj_ctx->fwdts,ftime,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
-      ierr = TSGetSplitJacobians(adj_ctx->fwdts,&J_U,&J_Udot);CHKERRQ(ierr);
+      ierr = TSGetSplitJacobians(adj_ctx->fwdts,&J_U,NULL,&J_Udot,NULL);CHKERRQ(ierr);
       ierr = MatGetOwnershipRange(J_Udot,&m,&n);CHKERRQ(ierr);
       if (!diff) {
         if (alg) {
@@ -1022,7 +1050,7 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
       PetscReal norm;
 
       ierr = VecDuplicate(adj_ctx->W[2],&test);CHKERRQ(ierr);
-      ierr = TSGetSplitJacobians(adj_ctx->fwdts,&J_U,NULL);CHKERRQ(ierr);
+      ierr = TSGetSplitJacobians(adj_ctx->fwdts,&J_U,NULL,NULL,NULL);CHKERRQ(ierr);
       ierr = MatMultTranspose(J_U,adj_ctx->W[2],test);CHKERRQ(ierr);
       ierr = VecGetSubVector(test,alg,&test_a);CHKERRQ(ierr);
       ierr = VecNorm(test_a,NORM_2,&norm);CHKERRQ(ierr);
@@ -1048,7 +1076,7 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
         ierr = TSUpdateSplitJacobiansFromHistory(adj_ctx->fwdts,ftime,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
         ierr = TSGetSNES(adjts,&snes);CHKERRQ(ierr);
         ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
-        ierr = TSGetSplitJacobians(adj_ctx->fwdts,NULL,&J_Udot);CHKERRQ(ierr);
+        ierr = TSGetSplitJacobians(adj_ctx->fwdts,NULL,NULL,&J_Udot,NULL);CHKERRQ(ierr);
         ierr = KSPSetOperators(ksp,J_Udot,J_Udot);CHKERRQ(ierr);
         ierr = KSPGetTolerances(ksp,&rtol,&atol,NULL,&maxits);CHKERRQ(ierr);
         ierr = KSPSetTolerances(ksp,PETSC_SMALL,PETSC_SMALL,PETSC_DEFAULT,10000);CHKERRQ(ierr);
@@ -1181,7 +1209,7 @@ static PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
       Mat J_Udot;
 
       ierr = TSUpdateSplitJacobiansFromHistory(fwdts,adj_ctx->t0,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
-      ierr = TSGetSplitJacobians(fwdts,NULL,&J_Udot);CHKERRQ(ierr);
+      ierr = TSGetSplitJacobians(fwdts,NULL,NULL,&J_Udot,NULL);CHKERRQ(ierr);
       ierr = MatMultTranspose(J_Udot,lambda,adj_ctx->W[3]);CHKERRQ(ierr);
     }
     ierr = TSTrajectoryUpdateHistoryVecs(fwdts->trajectory,fwdts,adj_ctx->t0,adj_ctx->W[0],NULL);CHKERRQ(ierr);
@@ -1461,19 +1489,19 @@ static PetscErrorCode TLMTSDestroy_Private(void *ptr)
 static PetscErrorCode TLMTSComputeSplitJacobians(TS ts, PetscReal time, Vec U, Vec Udot, Mat A, Mat pA, Mat B, Mat pB)
 {
   TLMTS_Ctx      *tlm_ctx;
-  Mat            J_U, J_Udot;
+  Mat            J_U,J_Udot,pJ_U,pJ_Udot;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   if (A == B) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"A and B must be different matrices");
   if (pA == pB) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"pA and pB must be different matrices");
-  if (pA && pA != A) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Pmats not yet supported");
-  if (pB && pB != B) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Pmats not yet supported");
   ierr = TSGetApplicationContext(ts,(void*)&tlm_ctx);CHKERRQ(ierr);
   ierr = TSUpdateSplitJacobiansFromHistory(tlm_ctx->model,time,tlm_ctx->W[0],tlm_ctx->W[1]);CHKERRQ(ierr);
-  ierr = TSGetSplitJacobians(tlm_ctx->model,&J_U,&J_Udot);CHKERRQ(ierr);
+  ierr = TSGetSplitJacobians(tlm_ctx->model,&J_U,&pJ_U,&J_Udot,&pJ_Udot);CHKERRQ(ierr);
   if (A) { ierr = MatCopy(J_U,A,SAME_NONZERO_PATTERN);CHKERRQ(ierr); }
+  if (pA && pA != A) { ierr = MatCopy(pJ_U,pA,SAME_NONZERO_PATTERN);CHKERRQ(ierr); }
   if (B) { ierr = MatCopy(J_Udot,B,SAME_NONZERO_PATTERN);CHKERRQ(ierr); }
+  if (pB && pB != B) { ierr = MatCopy(pJ_Udot,pB,SAME_NONZERO_PATTERN);CHKERRQ(ierr); }
   PetscFunctionReturn(0);
 }
 
@@ -1487,7 +1515,7 @@ static PetscErrorCode TLMTSIFunctionLinear(TS lts, PetscReal time, Vec U, Vec Ud
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(lts,(void*)&tlm_ctx);CHKERRQ(ierr);
   ierr = TSUpdateSplitJacobiansFromHistory(tlm_ctx->model,time,tlm_ctx->W[0],tlm_ctx->W[1]);CHKERRQ(ierr);
-  ierr = TSGetSplitJacobians(tlm_ctx->model,&J_U,&J_Udot);CHKERRQ(ierr);
+  ierr = TSGetSplitJacobians(tlm_ctx->model,&J_U,NULL,&J_Udot,NULL);CHKERRQ(ierr);
   ierr = MatMult(J_U,U,F);CHKERRQ(ierr);
   ierr = MatMultAdd(J_Udot,Udot,F,F);CHKERRQ(ierr);
   if (tlm_ctx->model->F_m) {

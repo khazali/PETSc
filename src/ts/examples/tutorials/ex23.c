@@ -184,6 +184,17 @@ static PetscErrorCode FormIJacobian(TS ts,PetscReal time, Vec U, Vec Udot, Petsc
   ierr = VecRestoreArrayRead(U,(const PetscScalar**)&aU);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  if (P && P != A) {
+    ierr = MatZeroEntries(P);CHKERRQ(ierr);
+    ierr = MatShift(P,shift);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(U,(const PetscScalar**)&aU);CHKERRQ(ierr);
+    v    = -user->b*user->p*PetscPowScalarReal(aU[0],user->p - 1.0)*1.01; /* just to make it different */
+    ierr = MatGetOwnershipRange(P,&i,NULL);CHKERRQ(ierr);
+    ierr = MatSetValues(P,1,&i,1,&i,&v,ADD_VALUES);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(U,(const PetscScalar**)&aU);CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(P,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(P,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -210,6 +221,12 @@ static PetscErrorCode FormIJacobian_mix(TS ts,PetscReal time, Vec U, Vec Udot, P
   ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatShift(A,shift);CHKERRQ(ierr);
+  if (P && P != A) {
+    ierr = MatZeroEntries(P);CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(P,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(P,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatShift(P,shift*1.01);CHKERRQ(ierr); /* just to make it different */
+  }
   PetscFunctionReturn(0);
 }
 
@@ -244,6 +261,16 @@ static PetscErrorCode FormRHSJacobian(TS ts,PetscReal time, Vec U, Mat A, Mat P,
   ierr = VecRestoreArrayRead(U,(const PetscScalar**)&aU);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  if (P && P != A) {
+    ierr = MatZeroEntries(P);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(U,(const PetscScalar**)&aU);CHKERRQ(ierr);
+    v    = user->b*user->p*PetscPowScalarReal(aU[0],user->p - 1.0)*1.01; /* just to make it different */
+    ierr = MatGetOwnershipRange(P,&i,NULL);CHKERRQ(ierr);
+    ierr = MatSetValues(P,1,&i,1,&i,&v,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(U,(const PetscScalar**)&aU);CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(P,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(P,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -263,7 +290,7 @@ static PetscErrorCode TestPostStep(TS ts)
 int main(int argc, char* argv[])
 {
   TS             ts;
-  Mat            J,G_M,F_M,G_X;
+  Mat            J,pJ,G_M,F_M,G_X;
   Mat            H,Phi,PhiExpl,PhiT,PhiTExpl;
   Vec            U,M,Mgrad;
   UserObjective  userobj;
@@ -274,6 +301,7 @@ int main(int argc, char* argv[])
   PetscReal      obj,objtest,err,normPhi;
   PetscInt       maxsteps;
   PetscMPIInt    np;
+  PetscBool      testpjac = PETSC_TRUE;
   PetscBool      testpoststep = PETSC_FALSE;
   PetscBool      testifunc = PETSC_FALSE;
   PetscBool      testmix = PETSC_FALSE;
@@ -307,6 +335,7 @@ int main(int argc, char* argv[])
   ierr = PetscOptionsReal("-dt","Initial time step","",dt,&dt,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_objective_norm","Test f(u) = ||u||^2","",userobj.isnorm,&userobj.isnorm,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_poststep","Test with PostStep method","",testpoststep,&testpoststep,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-test_pjac","Test with Pmat != Amat","",testpjac,&testpjac,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_mix","Test mixing IFunction and RHSFunction","",testmix,&testmix,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_ifunc","Test with IFunction interface","",testifunc,&testifunc,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_rhsjacconst","Test with TSComputeRHSJacobianConstant","",testrhsjacconst,&testrhsjacconst,NULL);CHKERRQ(ierr);
@@ -351,6 +380,12 @@ int main(int argc, char* argv[])
   ierr = MatSetUp(J);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  if (testpjac) {
+    ierr = MatDuplicate(J,MAT_DO_NOT_COPY_VALUES,&pJ);CHKERRQ(ierr);
+  } else {
+    ierr = PetscObjectReference((PetscObject)J);CHKERRQ(ierr);
+    pJ   = J;
+  }
 
   /* Jacobian for F_m */
   ierr = MatCreate(PETSC_COMM_WORLD,&F_M);CHKERRQ(ierr);
@@ -386,10 +421,10 @@ int main(int argc, char* argv[])
   if (!testifunc) {
     ierr = TSSetRHSFunction(ts,NULL,FormRHSFunction,&user);CHKERRQ(ierr);
     if (testrhsjacconst) {
-      ierr = FormRHSJacobian(ts,0.0,U,J,J,&user);CHKERRQ(ierr);
-      ierr = TSSetRHSJacobian(ts,J,J,TSComputeRHSJacobianConstant,NULL);CHKERRQ(ierr);
+      ierr = FormRHSJacobian(ts,0.0,U,J,pJ,&user);CHKERRQ(ierr);
+      ierr = TSSetRHSJacobian(ts,J,pJ,TSComputeRHSJacobianConstant,NULL);CHKERRQ(ierr);
     } else {
-      ierr = TSSetRHSJacobian(ts,J,J,FormRHSJacobian,&user);CHKERRQ(ierr);
+      ierr = TSSetRHSJacobian(ts,J,pJ,FormRHSJacobian,&user);CHKERRQ(ierr);
     }
   } else {
     if (testmix) {
@@ -399,7 +434,7 @@ int main(int argc, char* argv[])
       ierr = TSSetRHSJacobian(ts,NULL,NULL,FormRHSJacobian,&user);CHKERRQ(ierr);
     } else {
       ierr = TSSetIFunction(ts,NULL,FormIFunction,&user);CHKERRQ(ierr);
-      ierr = TSSetIJacobian(ts,J,J,FormIJacobian,&user);CHKERRQ(ierr);
+      ierr = TSSetIJacobian(ts,J,pJ,FormIJacobian,&user);CHKERRQ(ierr);
     }
   }
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
@@ -593,6 +628,7 @@ int main(int argc, char* argv[])
   ierr = MatDestroy(&Phi);CHKERRQ(ierr);
   ierr = MatDestroy(&PhiTExpl);CHKERRQ(ierr);
   ierr = MatDestroy(&PhiT);CHKERRQ(ierr);
+  ierr = MatDestroy(&pJ);CHKERRQ(ierr);
   ierr = MatDestroy(&J);CHKERRQ(ierr);
   ierr = MatDestroy(&G_M);CHKERRQ(ierr);
   ierr = MatDestroy(&G_X);CHKERRQ(ierr);
