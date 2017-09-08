@@ -95,19 +95,82 @@
 \date{\today}
 \maketitle
 
-Fitting observations to determine parameters, of either numerical or experimental nature, accelerating simulations throughout their long transients, identifiying  boundary conditions that satisfy certain observations, and many more such applications fall within the field of PDE constrained optimization and inverse problems. Despite their widespread aplicability inverse problems have been plagued by bottlenecks such as: ill-posedness, sensitivity to errors, high computational costs and these problems are also data intensive, placing high demands on the I/O and disk space. The current work aims to address these issues by leveraging the extensive range of methods available in both PETSc and TAO, to provide a framework for tackling large scale inverse problems in a robust fashion.
+Fitting observations to determine parameters, of either numerical or
+experimental nature, identifiying boundary conditions that satisfy certain
+observations, optimizing some objective function of the solution, accelerating simulations throughout their long
+transients \cite{}, and many more operations fall within the field of
+partial differential equation (PDE) constrained optimization and inverse problems.
+Despite their
+widespread utility inverse problems are plagued by
+bottlenecks including: ill-posedness, sensitivity to errors, high
+computational costs, high input-output (IO) costs. This work aims
+to address these issues by leveraging the extensive range of methods
+available in both the Portable Extensible Toolkit for Scientific computation (PETSc) and the Toolkit for Advanced Optimization (TAO), to provide a framework for tackling
+large scale inverse problems, with error control, in a robust fashion.
 
 %The traditional approach to PDE constrained optimization is mathematically similar to the inverse problems approach however differs in terms of computational 
 
-A PDE constrained optimization problem can be stated in two different ways according to the problem at hand: either by fully discretizing the entire KKT (Karush-Kuhn-Tucker) system, as is customary in the optimization community \cite{Haber_2007}, or by decoupling the direct problem and its adjoint and solving the optimization problem via a forward/backward timestepping loop, with appropriate initial and boundary conditions depending on the objective function.
+PDE constrained optimization problems can be posed in two
+ways: either by fully discretizing
+the entire Karush-Kuhn-Tucker (KKT) system (that is solving for all unknowns at all timesteps simultaneously, as is customary in the
+optimization community \cite{Haber_2007}, or by decoupling the direct
+problem and its adjoint and solving the optimization problem via a
+forward/backward timestepping loop, with appropriate initial and
+boundary conditions depending on the objective function.
 
-We aim to address three of the five main strategies outlined in \cite{Brown_2008}. Specifically the core strategy in \cite{Brown_2008} is to proceed to the solution of inverse problem in a purely non-linear manner (a lot of work has previously relied on linearizations), and here we showcase a quasi-linear time dependent convection problem solved in PETSc with TAO. A second outlined challenge is to identify connections between uncertainty in the model and its underlying mathematical structure. This point can be interpreted in several ways and encompasses a series of problems, however we shall address this by means of error analysis of the numerical implementation and its impact on optimization. The last aspect we begin to grapple with is the gap between mathematical research and domain specific expertise, with a direct focus on computational fluid dynamics applications. Since the implementation is performed in the PETSc framework, a byproduct of this work is to open the road to a fourth strategy stated in \cite{Brown_2008}, which refers to the development of large-scale linear algebraic techniques that reliably capture the structure of ill-posedness. 
+We aim to address three of the five main strategies outlined in
+\cite{Brown_2008}. Specifically the core strategy in \cite{Brown_2008}
+is to solve the inverse problem in a purely
+non-linear manner (a lot of work has previously relied on so-called linearized adjoints \cite{}).
+In this work we showcase the solution of the quasi-linear time dependent
+convection Burger's equation (is this what Burger's equation is) utilizing PETSc with TAO.
+A second  challenge outlined in \cite{Brown_2008} is to identify connections between uncertainty in the model
+and its underlying mathematical structure. This point can be
+interpreted in several ways and encompasses a series of problems,
+however we shall address it by means of error analysis of the
+PDE discretization, the solver and optimization algorithms. The final
+aspect we grapple with is the gap between mathematical
+research and domain specific expertise, with a direct focus on
+computational fluid dynamics applications. Since the implementation is
+performed in PETSc, a byproduct of this work is to open
+the road to the fourth strategy stated in \cite{Brown_2008}, which
+refers to the development of large-scale linear algebraic techniques
+that reliably capture the structure of ill-posedness.
 
-Given that inverse problems based on the full nonlinear underlying PDE as opposed to linearizations has been an issue for a long time, the data and computational intensity aspect has often been overlooked, however we addressed this in previous work \cite{schanen_2016}. The data intensity for nonlinear problems stems mainly from the nature of the backward in time component which depends at every time instance on its forward counterpart. A robust treatment for balancing the compute time versus trajectory storage has been already implemented in PETSc for certain time stepping routines for ordinary differential equations and in the current work we explore/extend it further to PDEs. 
+In our previous work \cite{schanen_2016}, we addressed the data and
+computational intensity aspects of PDE constrained optimization which
+has often been overlooked.  The data intensity for nonlinear problems
+stems mainly from the nature of the backward in time component which
+depends at every time instance on its forward counterpart. A robust
+treatment for balancing the compute time versus trajectory storage has
+been already implemented in PETSc for certain time stepping routines
+for ordinary differential equations, in this work we extend it further
+to PDEs.
 
-A known aspect in the PDE optimization community is that continuous derivations of the adjoint equation differ in nature from their discrete couterpart, and may subsequently provide a different gradient which affects the convergence of the optimization step. To surpass this issue we implemented a spectral element method in PETSc, which is the spatial discretization with the highest accuracy per grid point of all presently available numerical schemes. Another novelty factor this work intends to bring about is to equip the solvers with a combined space/time error analysis to facilitate studies on the impact of errors on the optimization step. The relevance of this addition cannot be stressed enough, since the errors in the gradient computation tend to slow the convergence rate of the optimization.
+A known aspect in the PDE optimization community is that continuous
+derivations of the adjoint equation differ in nature from their
+discrete couterpart, and may subsequently provide different gradients
+which affects the convergence of the optimization step. To deal with
+this issue we have implemented a spectral element method in PETSc,
+these methods provide the spatial discretization with the highest
+accuracy per grid point of all presently available numerical
+schemes. Another novelty factor this work intends to bring about is to
+equip the solvers with a combined space/time error analysis to
+facilitate studies on the impact of errors on the optimization
+step. The relevance of this addition cannot be stressed enough, since
+the errors in the gradient computation tend to slow the convergence
+rate of the optimization and errors in the forward simulation result
+in errors in the solution of the optimization problem computed.
 
-The material is organized as follows: the time dependent inverse problem is stated in a spatially unaware fashion, which allows for any operators such as diffusion, convection etc. As a prerequisite the main aspects of a spectral element method are presented together with a discussion on best implementation choices. A set of canonical test problems is explored in depth by describing the continuous adjoint versus the discrete adjoint, followed by an error analysis discussion. Results of the PETSc/TAO implementation are presented, together with an outlook on future work.
+The material is organized as follows: the time dependent inverse
+problem is stated in a spatially unaware fashion, which allows for any
+operators such as diffusion, convection etc. As a prerequisite the
+main aspects of a spectral element method are presented together with
+a discussion on best implementation choices. A set of canonical test
+problems is explored in depth by describing the continuous adjoint
+versus the discrete adjoint, followed by an error analysis
+discussion. Results of the PETSc/TAO implementation are presented,
+together with an outlook on future work.
 
 
   
