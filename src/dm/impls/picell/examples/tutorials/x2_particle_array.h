@@ -1,8 +1,5 @@
 /* M. Adams, August 2016 */
-#if defined(PETSC_USE_LOG)
-PetscLogEvent s_events[22];
-static const int diag_event_id = sizeof(s_events)/sizeof(s_events[0])-1;
-#endif
+
 /* X2Particle */
 typedef struct { /* ptl_type */
   /* phase (4D) */
@@ -32,6 +29,7 @@ typedef struct { /* ptl_type */
   PetscReal *f0;
   long long *gid; /* diagnostic */
 } X2Particle_v;
+
 /* X2PList */
 typedef PetscInt X2PListPos;
 typedef struct {
@@ -277,7 +275,7 @@ PetscErrorCode X2PListCompress(X2PList *l)
     l->vec_top = vtop;
     for ( ii = l->top ; ii < vtop ; ii++) {
 #ifdef X2_S_OF_V
-      X2V2V(l->data_v,l->data_v,l->top-1,ii); /* use any valid coordinate */ 
+      X2V2V(l->data_v,l->data_v,l->top-1,ii); /* use any valid coordinate */
       l->data_v.w0[ii] = 0; /* zero weight so it does nothing in deposition, etc */
 #else
       l->data[ii] = l->data[l->top-1];

@@ -1,5 +1,7 @@
 /* M. Adams, August 2016 */
 
+#include <petscviewerhdf5.h>
+
 PETSC_STATIC_INLINE PetscErrorCode zero(PetscInt dim, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
   int i;
@@ -23,7 +25,6 @@ static PetscErrorCode destroyParticles(X2Ctx *ctx)
   }
   PetscFunctionReturn(0);
 }
-
 
 /* shiftParticles: send particles
     Input:
@@ -297,10 +298,7 @@ void f1_u(PetscInt dim, PetscInt Nf, PetscInt NfAux,
 
 static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendList **sendListTable, const PetscMPIInt tag,
                                         const int irk, const int istep, PetscBool solver);
-#ifdef H5PART
-static void prewrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *ppos2);
-static void postwrite(X2Ctx *ctx, X2PList *l, X2PListPos *ppos1,  X2PListPos *ppos2);
-#endif
+
 #undef __FUNCT__
 #define __FUNCT__ "go"
 PetscErrorCode go( X2Ctx *ctx )
@@ -320,29 +318,6 @@ PetscErrorCode go( X2Ctx *ctx )
     if (((istep+1)%ctx->collision_period)==0) {
       /* move to flux tube space */
       ierr = processParticles(ctx, 0.0, &ctx->sendListTable, tag, -1, istep, PETSC_FALSE);CHKERRQ(ierr);
-
-      /* call collision method */
-#ifdef H5PART
-      if (ctx->plot) {
-        int isp;
-        for (isp=ctx->use_electrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
-          char fname1[256], fname2[256];
-          X2PListPos pos1,pos2;
-#if defined(PETSC_USE_LOG)
-          ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
-#endif
-          sprintf(fname1,         "particles_sp%d_time%05d_fluxtube.h5part",isp,istep+1);
-          sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",isp,istep+1);
-          /* write */
-          prewrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
-          ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
-          postwrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
-#if defined(PETSC_USE_LOG)
-          ierr = PetscLogEventEnd(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
-#endif
-        }
-      }
-#endif
       /* move back to solver space, and deposit (deposit not needed, should add a flag, could check for no change) */
       ierr = processParticles(ctx, 0.0, &ctx->sendListTable, tag + X2_NION + 1, -1, istep, PETSC_TRUE);CHKERRQ(ierr);
     }
@@ -359,28 +334,100 @@ PetscErrorCode go( X2Ctx *ctx )
     /* process particles: push, move */
     irk=0;
     ierr = processParticles(ctx, dt, &ctx->sendListTable, tag + 2*(X2_NION + 1), irk, istep, PETSC_TRUE);CHKERRQ(ierr);
-  } /* time step */
-  if (ctx->plot) {
-    PetscViewer       viewer = NULL;
-    PetscBool         flg;
-    PetscViewerFormat fmt;
-    DM_PICell      *dmpi = (DM_PICell *) ctx->dm->data;
-#if defined(PETSC_USE_LOG)
-    ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
-#endif
-    ierr = DMViewFromOptions(dmpi->dm,NULL,"-dm_view");CHKERRQ(ierr);
-    ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
-    if (flg) {
-      ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
-      ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);
-      ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
-      ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
-    }
-    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-#if defined(PETSC_USE_LOG)
-    ierr = PetscLogEventEnd(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
-#endif
-  }
 
+    if (ctx->plot) {
+      PetscViewer       viewer = NULL;
+      PetscBool         flg;
+      PetscViewerFormat fmt;
+      DM_PICell         *dmpi = (DM_PICell *) ctx->dm->data;
+#if defined(PETSC_USE_LOG)
+      ierr = PetscLogEventBegin(ctx->events[14],0,0,0,0);CHKERRQ(ierr);
+#endif
+      //ierr = DMViewFromOptions(dmpi->dm,NULL,"-dm_view");CHKERRQ(ierr);
+      ierr = DMViewFromOptions(ctx->dm,NULL,"-dm_view");CHKERRQ(ierr);
+      ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
+      if (flg) {
+        ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
+        ierr = VecView(dmpi->phi,viewer);CHKERRQ(ierr);
+        ierr = VecView(dmpi->rho,viewer);CHKERRQ(ierr);
+        ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
+      }
+      ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+#if defined(PETSC_USE_LOG)
+      ierr = PetscLogEventEnd(ctx->events[14],0,0,0,0);CHKERRQ(ierr);
+#endif
+    }
+  } /* time step */
+
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMView_PICell_part_private"
+PetscErrorCode DMView_PICell_part_private(DM dm, PetscViewer viewer)
+{
+  DM_PICell        *dmpi = (DM_PICell *) dm->data;
+  PetscInt          low;
+  PetscInt          ii,elid,nloc,isp;
+  char              vecname[] = "xcoord", pre[] = "xyzvi";
+  PetscErrorCode    ierr;
+  X2Ctx             *ctx;
+#define X_NCOORD 4
+  Vec               vec[X_NCOORD+1];
+  PetscScalar       *xarr[X_NCOORD+1];
+  PetscFunctionBegin;
+  /* count particles */
+  ctx = (X2Ctx*)dmpi->data; assert(ctx);
+  for (isp=ctx->use_electrons ? 0 : 1, nloc = 0 ; isp <= X2_NION ; isp++) {
+    for (elid=0;elid<ctx->nElems;elid++) {
+      nloc += X2PListSize(&ctx->partlists[isp][elid]);
+    }
+    break; /* debug, do one species only!!! */
+  }
+  /* Select hyperslab in the file */
+  for (ii=0;ii<X_NCOORD+1;ii++) {
+    ierr = VecCreate(PetscObjectComm((PetscObject) dm),&vec[ii]);CHKERRQ(ierr);
+    ierr = VecSetSizes(vec[ii],nloc,PETSC_DECIDE);CHKERRQ(ierr);
+    ierr = VecSetFromOptions(vec[ii]);CHKERRQ(ierr); /* should we call this? */
+  }
+  ierr = VecGetOwnershipRange(vec[0], &low, NULL);CHKERRQ(ierr);
+  for (ii=0;ii<X_NCOORD+1;ii++) {
+    ierr = VecGetArray(vec[ii], &xarr[ii]);CHKERRQ(ierr);
+  }
+  /* To write dataset independently use H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_INDEPENDENT) */
+  for (isp=ctx->use_electrons ? 0 : 1, nloc = 0 ; isp <= X2_NION ; isp++) {
+    X2PList     *l = ctx->partlists[isp];
+    X2Particle  part;
+    X2PListPos  pos;
+    for (nloc=0,elid=0;elid<ctx->nElems;elid++) {
+      ierr = X2PListGetHead( &l[elid], &part, &pos );
+      if (!ierr) {
+        do {
+          if (part.gid > 0) {
+            PetscReal xx[3];
+            cylindricalToCart(part.r, part.z, part.phi, xx);
+            xarr[0][nloc] = xx[0];
+            xarr[1][nloc] = xx[1];
+            xarr[2][nloc] = xx[2];
+            xarr[3][nloc] = part.vpar;
+            /* add more vel coords to index X_NCOORD-1 */
+            xarr[X_NCOORD][nloc] = (PetscScalar)part.gid;
+            nloc++;
+          }
+          else assert(0);
+        } while ( !X2PListGetNext( &l[elid], &part, &pos) );
+      }
+    }
+    break; /* debug, do one species only!!! */
+  }
+  for (ii=0;ii<X_NCOORD+1;ii++) {
+    ierr = VecRestoreArray(vec[ii], &xarr[ii]);CHKERRQ(ierr);
+    vecname[0] = pre[ii];
+    ierr = PetscObjectSetName((PetscObject) vec[ii], vecname);CHKERRQ(ierr);
+PetscPrintf(PETSC_COMM_WORLD,"%s: call VecView with %s\n",__FUNCT__,vecname);
+    ierr = VecView(vec[ii],viewer);CHKERRQ(ierr);
+    ierr = VecDestroy(&vec[ii]);CHKERRQ(ierr);
+  }
+  ierr   = PetscInfo4(dm,"Wrote DMPICell object with name %s %s %s %s ...\n",vecname[0],vecname[1],vecname[2],vecname[3]);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

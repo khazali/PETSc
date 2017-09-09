@@ -34,12 +34,12 @@ ex3: ex3.o chkopts
 	-${CLINKER} -o ex3.${PETSC_ARCH} ex3.o ${PETSC_DM_LIB} ${EX1_LIB}
 	${RM} -f ex3.o
 
-runex1_p4est:
-	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -x2_dm_type p8est -petscspace_poly_tensor -petscspace_order 1 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -domain_type torus -max_vpar 30. -use_v_update true -use_bsp 1  -petscpartitioner_type simple -collision_period 10 -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -x2_dm_forest_initial_refinement 2 -num_phi_cells 3 -num_particles_proc 10
-	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5
-
 runex1:
 	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -petscspace_poly_tensor -petscspace_order 2 -mstep 2 -debug 3 -snes_monitor -ksp_monitor -snes_converged_reason -domain_type torus -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -x2_dm_refine 1 -use_bsp 1 -num_particles_proc 100 -num_phi_cells 8
+	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5
+
+runex1_p4est:
+	-${MPIEXEC} -n ${NP} ./ex1.${PETSC_ARCH} -x2_dm_type p8est -petscspace_poly_tensor -petscspace_order 1 -mstep 2 -debug 2 -snes_monitor -ksp_monitor -snes_converged_reason -domain_type torus -max_vpar 30. -use_v_update true -use_bsp 1  -petscpartitioner_type simple -collision_period 10 -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -x2_dm_forest_initial_refinement 2 -num_phi_cells 3 -num_particles_proc 10
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py ex1.h5
 
 runex2:
@@ -66,6 +66,6 @@ val:
 	-${MPIEXEC} -n ${NP} valgrind --dsymutil=yes --leak-check=yes --gen-suppressions=no --num-callers=20 --error-limit=no ./ex3.${PETSC_ARCH} -dm_type p8est -dm_forest_maximum_refinement 6 -dm_forest_minimum_refinement 1 -dm_forest_initial_refinement 1 -petscfv_type leastsquares -petscfv_compute_gradients 0 -petsclimiter_type minmod -ts_view -ts_ssp_type rks2 -ts_ssp_nstages 10 -mstep 2 -debug 3 -domain_type torus -petscpartitioner_type simple -use_amr false -view_sol true -refine_tol 0.5 -coarsen_tol 1.e-2 -num_phi_cells 3 -num_particles_proc 0 -petscfv_view -dm_view hdf5:ex3.h5 -vec_view hdf5:ex3.h5::append -initial_dm_view hdf5:u0.h5 -initial_vec_view hdf5:u0.h5::append -use_line_section false -section_length 10 -radius_major 6e2
 
 debug:
-	-@gdb --args ./ex3.${PETSC_ARCH} -dm_type p8est -dm_forest_maximum_refinement 6 -dm_forest_minimum_refinement 1 -dm_forest_initial_refinement 1 -petscfv_type leastsquares -petscfv_compute_gradients 0 -petsclimiter_type minmod -ts_view -ts_ssp_type rks2 -ts_ssp_nstages 10 -mstep 2 -debug 3 -domain_type torus -petscpartitioner_type simple -use_amr false -view_sol false -refine_tol 0.5 -coarsen_tol 1.e-2 -num_phi_cells 3 -num_particles_proc 0 -petscfv_view -dm_view hdf5:ex3.h5 -vec_view hdf5:ex3.h5::append -use_line_section false -section_length 10 -radius_major 6e2
+	-@lldb ./ex1.${PETSC_ARCH} -- -petscspace_poly_tensor -petscspace_order 2 -mstep 2 -debug 3 -snes_monitor -ksp_monitor -snes_converged_reason -domain_type torus -x2_dm_view hdf5:ex1.h5 -x2_vec_view hdf5:ex1.h5::append -x2_dm_refine 1 -use_bsp 1 -num_particles_proc 100 -num_phi_cells 8
 
 include ${PETSC_DIR}/lib/petsc/conf/test

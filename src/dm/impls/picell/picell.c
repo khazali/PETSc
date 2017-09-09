@@ -7,45 +7,6 @@
 
 /* Logging support */
 PetscLogEvent DMPICell_Solve, DMPICell_SetUp, DMPICell_AddSource, DMPICell_LocateProcess, DMPICell_GetJet, DMPICell_Add1, DMPICell_Add2, DMPICell_Add3;
-#if defined(PETSC_HAVE_HDF5)
-//PETSC_EXTERN PetscErrorCode DMPlexView_HDF5(DM, PetscViewer);
-PetscErrorCode DMPlexView_HDF5(DM dm, PetscViewer v){
-  PetscFunctionReturn(1);
-}
-#endif
-#undef __FUNCT__
-#define __FUNCT__ "DMView_PICell"
-PetscErrorCode DMView_PICell(DM dm, PetscViewer viewer)
-{
-  PetscBool      iascii, ishdf5, isvtk;
-  PetscErrorCode ierr;
-  DM_PICell      *dmpi = (DM_PICell *) dm->data;
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
-  PetscValidHeaderSpecific(viewer, PETSC_VIEWER_CLASSID, 2);
-  ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERASCII, &iascii);CHKERRQ(ierr);
-  ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERVTK,   &isvtk);CHKERRQ(ierr);
-  ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERHDF5,  &ishdf5);CHKERRQ(ierr);
-  if (iascii) {
-    ierr = DMView(dmpi->dm, viewer);CHKERRQ(ierr);
-  } else if (ishdf5) {
-#if defined(PETSC_HAVE_HDF5)
-    ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_HDF5_VIZ);CHKERRQ(ierr);
-    ierr = DMPlexView_HDF5(dmpi->dm, viewer);CHKERRQ(ierr);
-    ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
-#else
-    SETERRQ(PetscObjectComm((PetscObject) dmpi->dm), PETSC_ERR_SUP, "HDF5 not supported in this build.\nPlease reconfigure using --download-hdf5");
-#endif
-  }
-  else if (isvtk) {
-    SETERRQ(PetscObjectComm((PetscObject) dmpi->dm), PETSC_ERR_SUP, "VTK not supported in this build");
-    /* ierr = DMPICellVTKWriteAll((PetscObject) dm,viewer);CHKERRQ(ierr); */
-  }
-  else {
-    SETERRQ(PetscObjectComm((PetscObject) dmpi->dm), PETSC_ERR_SUP, "Unknown viewer type");
-  }
-  PetscFunctionReturn(0);
-}
 
 #undef __FUNCT__
 #define __FUNCT__ "DMSetFromOptions_PICell"
@@ -105,7 +66,7 @@ PetscErrorCode DMDestroy_PICell(DM dm)
   ierr = PetscFree(dmpi);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-
+PetscErrorCode DMView_PICell(DM dm, PetscViewer viewer);
 #undef __FUNCT__
 #define __FUNCT__ "DMCreate_PICell"
 PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
@@ -408,5 +369,17 @@ PetscErrorCode DMGetCellChart(DM dm, PetscInt *cStart, PetscInt *cEnd)
   else {
     ierr = DMPlexGetHeightStratum(dm, 0, cStart, cEnd);CHKERRQ(ierr);
   }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "DMView_PICell"
+PetscErrorCode DMView_PICell(DM dm, PetscViewer viewer)
+{
+  PetscErrorCode ierr;
+  DM_PICell *dmpi = (DM_PICell *) dm->data;
+  if (!dmpi) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "dmpi not found");
+  ierr = DMView(dmpi->dm,viewer);CHKERRQ(ierr);
+  ierr = DMView_PICell_part_private(dm, viewer);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

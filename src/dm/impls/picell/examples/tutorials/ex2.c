@@ -9,14 +9,6 @@ static char help[] = "Partical-in-cell slab domain using PICell.\n";
 #include <assert.h>
 #include <petscds.h>
 
-/* copy to fit with viz outpout in array class */
-#define cylindricalToCart( __R,  __Z,  __phi, __cart) \
-{ \
- __cart[0] = __R;  \
- __cart[1] = __Z;  \
- __cart[2] = __phi;\
-}
-
 #include "x2_particle_array.h"
 #include "x2_physics.h"
 

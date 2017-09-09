@@ -6,8 +6,9 @@ static char help[] = "Partical-in-cell tokamak plasma using PICell with flux tub
 #include <assert.h>
 #include <petscds.h>
 #include <petscdmforest.h>
-#ifdef H5PART
-#include "H5hut.h"
+
+#if defined(PETSC_USE_LOG)
+static PetscLogEvent s_events[22];
 #endif
 
 /* coordinate transformation - simple radial coordinates. Not really cylindrical as r_Minor is radius from plane axis */
@@ -829,7 +830,7 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
     MPI_Datatype mtype;
     PetscInt rb1[4], rb2[4], sb[4], nloc;
 #if defined(PETSC_USE_LOG)
-    ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(ctx->events[14],0,0,0,0);CHKERRQ(ierr);
 #endif
     /* count particles */
     for (isp=ctx->use_electrons ? 0 : 1, nloc = 0 ; isp <= X2_NION ; isp++) {
@@ -848,29 +849,9 @@ static PetscErrorCode processParticles( X2Ctx *ctx, const PetscReal dt, X2PSendL
                             "%d) %s %D local particles, %D/%D global, %g %% total particles moved in %D messages total (to %D processors local), %g load imbalance factor\n",
                             istep+1,irk<0 ? "processed" : "pushed", origNlocal, rb1[0], rb1[3], 100.*(double)rb1[1]/(double)rb1[0], rb1[2], ctx->tablecount,(double)rb2[3]/((double)rb1[3]/(double)ctx->npe));
     if (rb1[0] != rb1[3]) SETERRQ2(PETSC_COMM_WORLD,PETSC_ERR_USER,"Number of partilces %D --> %D",rb1[0],rb1[3]);
-#ifdef H5PART
-    if (irk>=0 && ctx->plot) {
-      for (isp=ctx->use_electrons ? 0 : 1 ; isp <= X2_NION ; isp++ ) {
-        char  fname1[256],fname2[256];
-        X2PListPos pos1,pos2;
-        /* hdf5 output */
-        if (!isp) {
-          sprintf(fname1,         "x2_particles_electrons_time%05d.h5part",(int)istep+1);
-          sprintf(fname2,"x2_sub_rank_particles_electrons_time%05d.h5part",(int)istep+1);
-        } else {
-          sprintf(fname1,         "x2_particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
-          sprintf(fname2,"x2_sub_rank_particles_sp%d_time%05d.h5part",(int)isp,(int)istep+1);
-        }
-        /* write */
-        prewrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
-        ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
-        postwrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
-      }
-    }
-#endif
 #if defined(PETSC_USE_LOG)
     MPI_Barrier(ctx->wComm);
-    ierr = PetscLogEventEnd(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
+    ierr = PetscLogEventEnd(ctx->events[14],0,0,0,0);CHKERRQ(ierr);
 #endif
   }
   PetscFunctionReturn(0);
@@ -1475,7 +1456,7 @@ static PetscErrorCode GeometryPICellTorus(DM base, PetscInt point, PetscInt dim,
 #define __FUNCT__ "main"
 int main(int argc, char **argv)
 {
-  X2Ctx          actx,*ctx=&actx; /* user-defined work context */
+  X2Ctx          actx,*ctx = &actx; /* user-defined work context */
   PetscErrorCode ierr;
   DM_PICell      *dmpi;
   PetscInt       dim,idx,isp;
@@ -1504,7 +1485,7 @@ int main(int argc, char **argv)
     ierr = PetscLogEventRegister("X2Poisson Solve", 0, &ctx->events[currevent++]);CHKERRQ(ierr); /* 11 */
     ierr = PetscLogEventRegister("X2Part AXPY", 0, &ctx->events[currevent++]);CHKERRQ(ierr); /* 12 */
     ierr = PetscLogEventRegister("X2Compress array", 0, &ctx->events[currevent++]);CHKERRQ(ierr); /* 13 */
-    ierr = PetscLogEventRegister("X2Diagnostics", 0, &ctx->events[diag_event_id]);CHKERRQ(ierr); /* N-1 */
+    ierr = PetscLogEventRegister("X2Diagnostics", 0, &ctx->events[currevent++]);CHKERRQ(ierr); /* 14 */
     assert(sizeof(s_events)/sizeof(s_events[0]) > currevent);
     ierr = PetscLogStageRegister("Setup", &setup_stage);CHKERRQ(ierr);
     ierr = PetscLogStagePush(setup_stage);CHKERRQ(ierr);
@@ -1523,6 +1504,7 @@ int main(int argc, char **argv)
   ierr = DMSetType(ctx->dm, DMPICELL);CHKERRQ(ierr); /* creates (DM_PICell *) dm->data */
   dmpi = (DM_PICell *) ctx->dm->data; assert(dmpi);
   dmpi->debug = s_debug;
+  dmpi->data = ctx;
   /* setup solver grid */
   if (ctx->domain_type == X2_ITER) {
     ierr = DMPlexCreatePICellITER(ctx->wComm,&ctx->grid,&dmpi->dm);CHKERRQ(ierr);
@@ -1652,38 +1634,13 @@ int main(int argc, char **argv)
       ctx->sendListTable[idx].data_size = 0; /* init */
     }
   }
-  /* hdf5 output - init */
-#ifdef H5PART
-  if (ctx->plot) {
-    for (isp=ctx->use_electrons ? 0 : 1 ; isp <= X2_NION ; isp++) { // for each species
-      char  fname1[256],fname2[256];
-      X2PListPos pos1,pos2;
-#if defined(PETSC_USE_LOG)
-      ierr = PetscLogEventBegin(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
-#endif
-      if (!isp) {
-        sprintf(fname1,         "particles_electrons_time%05d_fluxtube.h5part",(int)0);
-        sprintf(fname2,"sub_rank_particles_electrons_time%05d_fluxtube.h5part",(int)0);
-      } else {
-        sprintf(fname1,         "particles_sp%d_time%05d_fluxtube.h5part",(int)isp,0);
-        sprintf(fname2,"sub_rank_particles_sp%d_time%05d_fluxtube.h5part",(int)isp,0);
-      }
-      /* write */
-      prewrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
-      ierr = X2PListWrite(ctx->partlists[isp], ctx->nElems, ctx->rank, ctx->npe, ctx->wComm, fname1, fname2);CHKERRQ(ierr);
-      postwrite(ctx, &ctx->partlists[isp][s_fluxtubeelem], &pos1, &pos2);
-#if defined(PETSC_USE_LOG)
-      ierr = PetscLogEventEnd(ctx->events[diag_event_id],0,0,0,0);CHKERRQ(ierr);
-#endif
-    }
-  }
-#endif
-  if (ctx->plot) { /* debug, plot mesh before you die */
+
+  if (ctx->plot) { /* debug, plot initial mesh */
     PetscViewer       viewer = NULL;
     PetscBool         flg;
     PetscViewerFormat fmt;
-    DM_PICell      *dmpi = (DM_PICell *) ctx->dm->data;
-    ierr = DMViewFromOptions(dmpi->dm,NULL,"-dm_view");CHKERRQ(ierr);
+    DM_PICell         *dmpi = (DM_PICell *) ctx->dm->data;
+    ierr = DMViewFromOptions(ctx->dm,NULL,"-dm_view");CHKERRQ(ierr);
     ierr = PetscOptionsGetViewer(ctx->wComm,NULL,"-x2_vec_view",&viewer,&fmt,&flg);CHKERRQ(ierr);
     if (flg) {
       ierr = PetscViewerPushFormat(viewer,fmt);CHKERRQ(ierr);
