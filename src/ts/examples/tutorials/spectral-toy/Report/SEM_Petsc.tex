@@ -98,7 +98,7 @@
 Fitting observations to determine parameters, of either numerical or
 experimental nature, identifiying boundary conditions that satisfy certain
 observations, optimizing some objective function of the solution, accelerating simulations throughout their long
-transients \cite{}, and many more operations fall within the field of
+transients (the so-called {\em spin up problem) \cite{}, and many more operations fall within the field of
 partial differential equation (PDE) constrained optimization and inverse problems.
 Despite their
 widespread utility inverse problems are plagued by
@@ -112,7 +112,7 @@ large scale inverse problems, with error control, in a robust fashion.
 
 PDE constrained optimization problems can be posed in two
 ways: either by fully discretizing
-the entire Karush-Kuhn-Tucker (KKT) system (that is solving for all unknowns at all timesteps simultaneously, as is customary in the
+the entire Karush-Kuhn-Tucker (KKT) system (that is solving for all unknowns at all timesteps simultaneously, the so-called {\em parallel-in-time} method), as is customary in the
 optimization community \cite{Haber_2007}, or by decoupling the direct
 problem and its adjoint and solving the optimization problem via a
 forward/backward timestepping loop, with appropriate initial and
@@ -217,11 +217,11 @@ u_t&=&\mathcal{P}[u], \quad \text{with}\ u|_{t=0}=u_0\ , \text{and} \  B[u|_{\pa
 where the partial differential equation is given by $\mathcal P$ and can be either advection-difussion, pure diffusion or other combinations.
 
 \section{Prerequisites}
-%Consider a time dependent partial differential equation with constant coefficients, given by the spatial operator $ \mathcal P(\mathbf u)$ and initial conditions $\mathbf g(\cdot)$ as
+%Consider a time dependent partial differential equation with constant coefficients, given by the spatial operator $ \mathcal P( u)$ and initial conditions $ g(\cdot)$ as
 %\begin{eqnarray}
-% \frac{\partial\mathbf u}{\partial t} &=&  \mathcal P(\mathbf u) \ , \mathbf x \in \Omega \\ \nonumber
-%  \mathbf u|_{\partial \Omega}&=&0, \\ 
-%  \mathbf u(0,t)&=&\mathbf g(\mathbf x) \ . \nonumber \label{eq:generic}
+% \frac{\partial u}{\partial t} &=&  \mathcal P( u) \ ,  x \in \Omega \\ \nonumber
+%   u|_{\partial \Omega}&=&0, \\ 
+%   u(0,t)&=& g( x) \ . \nonumber \label{eq:generic}
 %\end{eqnarray} 
 
 To transition from the strong form of the equation to the weak form we define the spaces
@@ -230,7 +230,7 @@ L^2(\Omega)=\lbrace u :\Omega\rightarrow \mathbb R |\quad \bigg(\int_{\Omega} |u
 $$
 with the subspace
 $$
-H^1(\Omega)=\lbrace u \in L^2(\Omega) |\quad \frac{\partial u}{\partial \vect x} \ \text{in}\  L^2(\Omega)\ \rbrace
+H^1(\Omega)=\lbrace u \in L^2(\Omega) |\quad \frac{\partial u}{\partial  x} \ \text{in}\  L^2(\Omega)\ \rbrace
 $$
 and its subspace
 $$
@@ -241,22 +241,22 @@ We define the space
 \begin{eqnarray*}
 K  =   K (\Omega) & = & \lbrace \bigg(\int_0^T \int_{\Omega} |u|^2 \d \Omega \d t \bigg) < \infty | \\
                   &   &  \bigg(\int_0^T \int_{\Omega} |u_t|^2 \d \Omega \d t \bigg) < \infty | \\
-                  &   &  \bigg(\int_0^T \int_{\Omega} |\frac{\partial u}{\partial \vect x}|^2 \d \Omega \dt \bigg) < \infty | \quad  u|_{\partial\Omega}=0 \rbrace.
+                  &   &  \bigg(\int_0^T \int_{\Omega} |\frac{\partial u}{\partial  x}|^2 \d \Omega \dt \bigg) < \infty | \quad  u|_{\partial\Omega}=0 \rbrace.
 \end{eqnarray*}
 Unless otherwise indicated we will assume all functions in this manuscript are in $K$.
 For the weak form of a partial differential equation we seek $ u $ in $K$ with the property that the residual is orthogonal to the set of all test functions,
 that is
 \[
-\int_0^T \int_{\Omega} (\mathbf u_t-\mathcal P(\vect u)) \mathbf v \d \Omega \d t = 0
+\int_0^T \int_{\Omega} ( u_t-\mathcal P( u))  v \d \Omega \d t = 0
 \]
-for all $\mathbf v$ in $K$.
+for all $ v$ in $K$.
 
-Example: Let $\mathcal P(\mathbf u) = \nu \Delta \mathbf u + \mathbf a  \nabla \mathbf u$, where $\nu$ is a parameter which represents the viscosity, and $\mathbf a$ is the advection velocity. Apply integration by parts to remove any second derivatives from the equation to obtain
+Example: Let $\mathcal P( u) = \nu \Delta  u +  a  \nabla  u$, where $\nu$ is a parameter which represents the viscosity, and $ a$ is the advection velocity. Apply integration by parts to remove any second derivatives from the equation to obtain
 \begin{equation}
-\int_0^T \bigg( \int_{\Omega}\frac{\partial\mathbf u}{\partial t} \mathbf v \ \d \Omega + \int_{\Omega} \nu\nabla \mathbf u\ \nabla \mathbf v\ \d \Omega - \int_{\Omega} \mathbf a \cdot \mathbf v\ \nabla \mathbf u\ \d \Omega-
- \int_{\partial \Omega} \nabla \mathbf u \ \mathbf v\  \d \partial \Omega \bigg) \d t =0\label{eq:weakcd}
+\int_0^T \bigg( \int_{\Omega}\frac{\partial u}{\partial t}  v \ \d \Omega + \int_{\Omega} \nu\nabla  u\ \nabla  v\ \d \Omega - \int_{\Omega}  a \cdot  v\ \nabla  u\ \d \Omega-
+ \int_{\partial \Omega} \nabla  u \  v\  \d \partial \Omega \bigg) \d t =0\label{eq:weakcd}
 \end{equation}
-The boundary term vanishes since $\mathbf u, \mathbf v \in K.$
+The boundary term vanishes since $ u,  v \in K.$
 
 In calculus the quantity of interest in determining extremum values of functions is the gradient. In functional analysis (calculus of variations) the functional
 derivative plays a similar role in determining functions that provide the extremum of functionals. The functional derivative of
@@ -297,11 +297,11 @@ Subsequently $X_N=X\cap  P_{N,E}^d$, where $d$ is the dimension of the problem.
 In the polynomial space $X_N$ we expand the numerical solution $u(x)=\sum_i^N u_i(x)\phi_i$.
 With this choice the solution as well as the test space function $v$ can be expressed as
 \begin{equation}
-u(\vect x)=\sum_{i=1}^N u_{i}\phi_i(\vect x)\ .
+u( x)=\sum_{i=1}^N u_{i}\phi_i( x)\ .
 \label{eq:ansatz}
 \end{equation}
 
-The discrete point distribution $\mathbf x$ can be either a Chebyshev grid, or a Legendre grid, in either case the polynomials are orthogonal $(\phi_i, \phi_j)=\delta_{ij}$. 
+The discrete point distribution $ x$ can be either a Chebyshev grid, or a Legendre grid, in either case the polynomials are orthogonal $(\phi_i, \phi_j)=\delta_{ij}$. 
 For the moment we consider solely one dimensional problems and to proceed with the numerical discretization we plug Equation~\ref{eq:ansatz} into Equation~\ref{eq:weakcd} to obtain
 \begin{equation}
 \frac{\partial}{\partial t}\int \sum_{i=1}^N u_{i}\phi_i(x) \sum_{j=1}^N v_{j}\phi_j(x) \d \Omega_e + \int\sum_{i=1}^N u_{i}\phi'_i(x) \sum_{j=1}^N v_{j}\phi'_j(x) \d \Omega_e  +\int\sum_{i=1}^N u_{i}\phi_i(x) \sum_{j=1}^N v_{j}\phi'_j(x) \d \Omega_e =0 \ .
@@ -317,14 +317,14 @@ where $M_{ij}$ is the mass matrix and $K_{ij}$ is the stiffness matrix. If the s
 
 In algebraic form we can rewrite
 \begin{equation}
-\frac{\partial}{\partial t}\underline{v}^TM\underline{u} + \underline{v}^TK\underline{u}+\underline{v}^TD\underline{u}=0
+\frac{\partial}{\partial t}\overline{v}^TM\overline{u} + \overline{v}^TK\overline{u}+\overline{v}^TD\overline{u}=0
 \end{equation}
 
-with $\underline{u}=(u_0,\ u_1, \ldots, u_N)$ and similarly $\underline v$ is the array of point values of the test function. 
-Note that one can factor out $\underline v$ to obtain an ODE
+with $\overline{u}=(u_0,\ u_1, \ldots, u_N)$ and similarly $\overline v$ is the array of point values of the test function. 
+Note that one can factor out $\overline v$ to obtain an ODE
 
 \begin{equation}
-M\frac{d \underline{u}}{d t} =- K \underline{u}+ D \underline{u} \label{eq:discrete}
+M\frac{d \overline{u}}{d t} =- K \overline{u}+ D \overline{u} \label{eq:discrete}
 \end{equation}
 
 Presume  $\Omega_e = [a, \ b]$ and define the reference element $\hat{\Omega} = [-1, \ 1]$.
@@ -347,7 +347,7 @@ This mapping introduces a scaling factor for each element as given by the Jacobi
 \subsection{Convection-Diffusion}
 Consider the energy equation in non-dimensional form Equation~\ref{eq:energy_nondim}, this is a convection diffusion equation with the Laplacian term weighted by the P\' eclet number. For the simplicity of the presentation we make two changes 
 \begin{itemize}
-\item replace the advection velocity $\vect u$ by a constant velocity field $c$ that is divergence free
+\item replace the advection velocity $ u$ by a constant velocity field $c$ that is divergence free
 \item denote the temperature $T$ in the energy equation by $u$
 \end{itemize}
 The variational formulation of the Convection-Diffusion equation reads
@@ -358,8 +358,8 @@ with $ u,\ v \ \in \  H^1_0(\Omega)$.
 
 The terms in the convection diffusion equation can be further expanded to give
 \begin{eqnarray}\label{eq:var_cd}
-\int_{\Omega}\frac{\partial u}{\partial t} \cdot \vect v\d \Omega &=&\frac{\partial}{\partial t} \int_{\Omega}u \cdot \vect v\d \Omega\\
-\int_{\Omega} \nabla\cdot \nabla u\cdot v\d \Omega &=&\int_{\Omega}  \nabla u\cdot \nabla v\d \Omega +\int_{\partial\Omega} v \nabla u \cdot \vect n\d\Omega
+\int_{\Omega}\frac{\partial u}{\partial t} \cdot  v\d \Omega &=&\frac{\partial}{\partial t} \int_{\Omega}u \cdot  v\d \Omega\\
+\int_{\Omega} \nabla\cdot \nabla u\cdot v\d \Omega &=&\int_{\Omega}  \nabla u\cdot \nabla v\d \Omega +\int_{\partial\Omega} v \nabla u \cdot  n\d\Omega
 \end{eqnarray}
 
 
@@ -370,20 +370,20 @@ $$
 Subsequently $X_N=X\cap  P_{N,E}^d$, where $d$ is the dimension of the problem.
 
 In the polynomial space $X_N$ we expand the numerical solution $u=\sum_i^N u_i\phi_i$.
-With this choice the solution as well as the test space function $\vect v$ can be expanded as
+With this choice the solution as well as the test space function $ v$ can be expanded as
 $$
-u(\vect x)=\sum_{i=1}^N u_{i}\phi_i(\vect x)
+u( x)=\sum_{i=1}^N u_{i}\phi_i( x)
 $$
 
 Given the choice of the polynomial space $X_N$ the boundary integral term in \ref{eq:var_cd} vanishes. Upon insertion of the ansatz into the variational formulation we have
 \begin{eqnarray}\label{eq:cd_ansatz}
-\int_{\Omega}\frac{\partial u}{\partial t} \cdot \vect v\d \Omega &=&\frac{\partial}{\partial t} \sum_i^N\sum_j^N v_i\bigg(\int_{\Omega}  \phi_i(\vect x) \cdot \phi_j(\vect x)\d \Omega u_j\bigg) \\
-\int_{\Omega}(c \cdot \nabla u)\cdot  v\d \Omega\ &=&\sum_i^N\sum_j^N v_i\bigg (\int_{\Omega}(c \cdot \phi_i(\vect x)\cdot \nabla\phi_j(\vect x)  \d \Omega\bigg) u_j\ \\
-\int_{\Omega} (\nabla\cdot \nabla  u)\cdot  v\d \Omega &=&\sum_{i=1}^N \sum_{j=1}^N v_{i}(\int_{\Omega}\nabla\phi_i(\vect x) \cdot \nabla \phi_j(\vect x)\d \Omega)u_j \\
+\int_{\Omega}\frac{\partial u}{\partial t} \cdot  v\d \Omega &=&\frac{\partial}{\partial t} \sum_i^N\sum_j^N v_i\bigg(\int_{\Omega}  \phi_i( x) \cdot \phi_j( x)\d \Omega u_j\bigg) \\
+\int_{\Omega}(c \cdot \nabla u)\cdot  v\d \Omega\ &=&\sum_i^N\sum_j^N v_i\bigg (\int_{\Omega}(c \cdot \phi_i( x)\cdot \nabla\phi_j( x)  \d \Omega\bigg) u_j\ \\
+\int_{\Omega} (\nabla\cdot \nabla  u)\cdot  v\d \Omega &=&\sum_{i=1}^N \sum_{j=1}^N v_{i}(\int_{\Omega}\nabla\phi_i( x) \cdot \nabla \phi_j( x)\d \Omega)u_j \\
 \end{eqnarray}
 
 To discretize the integrals in \ref{eq:cd_ansatz} we need to introduce a quadrature rule. For spectral accuracy the choice is the Gauss-Legendre quadrature
-$\int_{-1}^1\phi(\vect x)\d x=\sum_k \rho_k\phi(x_k)$
+$\int_{-1}^1\phi( x)\d x=\sum_k \rho_k\phi(x_k)$
 where the quadrature points $x_k$ are given by the Gauss-Legendre-Lobatto points, and the weights $\rho_k$ are based on the Legendre polynomials as in \ref{dfm02}.
 To start with we consider the one dimensional case and proceed to higher dimensions and curvilinear elements.
 
@@ -397,11 +397,11 @@ since $\phi_i(x_k) \phi_j(x_k)=\delta_{ij}$, $M$ is a diagonal matrix which hold
 
 The stiffness matrix corresponding to the second order term is 
 \begin{equation}
-A_{ij}=\int_{\Omega}\phi'_i(\vect x) \phi'_j(\vect x)\d \Omega=\frac{L}{2}\int_{-1}^1\phi'_i(r) \phi'_j(r)\d r=\frac{L}{2}\sum_k \rho_k\phi'_i(r_k) \phi'_j(r_k)
+A_{ij}=\int_{\Omega}\phi'_i( x) \phi'_j( x)\d \Omega=\frac{L}{2}\int_{-1}^1\phi'_i(r) \phi'_j(r)\d r=\frac{L}{2}\sum_k \rho_k\phi'_i(r_k) \phi'_j(r_k)
 \end{equation}
 and the convection operator
 \begin{equation}
-C_{ij}=\int_{\Omega}c\phi_i(\vect x) \phi'_j(\vect x)\d \Omega=\frac{L}{2}\int_{-1}^1c(r)\phi_i(r) \phi'_j(r)\d r=\frac{L}{2}\sum_k c(r_k)\rho_k\phi_i(r_k) \phi'_j(r_k)
+C_{ij}=\int_{\Omega}c\phi_i( x) \phi'_j( x)\d \Omega=\frac{L}{2}\int_{-1}^1c(r)\phi_i(r) \phi'_j(r)\d r=\frac{L}{2}\sum_k c(r_k)\rho_k\phi_i(r_k) \phi'_j(r_k)
 \end{equation}
 
 This leads to the following spatial discretized system of equations
@@ -420,20 +420,20 @@ To start with we introduce a notation for tensor product form of matrix multipli
 \begin{equation}
 w_{ij}=\sum_{l=1}^M\sum_{k=1}^N a_{jl}b_{ik}u_{kl}
 \end{equation}
-In the tensor product notation $c_{ij}=\sum_{l=1}^M\sum_{k=1}^N a_{jl}b_{ik}$ can be written as $C=A\otimes B)$. By unrolling the vector $w_{ij}$ as $\underline{w}_{\hat{i}}$ with components given by the ordering $\hat{i}=i+M\cdot(j-1)$ and similarly for $u_{kl}$ we can expand the tensor matrix product as \footnote{this doesn't match the one before.. careful with N+1, N}
+In the tensor product notation $c_{ij}=\sum_{l=1}^M\sum_{k=1}^N a_{jl}b_{ik}$ can be written as $C=A\otimes B)$. By unrolling the vector $w_{ij}$ as $\overline{w}_{\hat{i}}$ with components given by the ordering $\hat{i}=i+M\cdot(j-1)$ and similarly for $u_{kl}$ we can expand the tensor matrix product as \footnote{this doesn't match the one before.. careful with N+1, N}
 
-$$\underline{w}=(A\otimes I)(I\otimes B)\underline{u}$$
+$$\overline{w}=(A\otimes I)(I\otimes B)\overline{u}$$
 
 From this notation simpler cases arise such as
 \begin{equation}
-w_{ij}=\sum_{k=1}^N a_{ik}u_{kj}\quad \rightarrow \quad \underline{w}=
+w_{ij}=\sum_{k=1}^N a_{ik}u_{kj}\quad \rightarrow \quad \overline{w}=
 \end{equation}
 \section{Data Structure for SEM in Petsc}
 \label{sec:sem}
 
 
 %\begin{equation}
-%  \mathbf u(\mathbf x)|_{\Omega_e} = \sum_{i,j,k} u^e_{ijk}
+%   u( x)|_{\Omega_e} = \sum_{i,j,k} u^e_{ijk}
 %  \phi_i(x_1)\phi_j(x_2)\phi_k(x_3)\ ,
 %\end{equation} 
 
@@ -968,10 +968,10 @@ This operation is performed per element and for a given signal such as the one i
 %\begin{figure}
 %\begin{center}
 % \begin{tikzpicture}[scale=2.0]
-%\node (A) at (0,1) {$\mathbf u$};
-%\node (B) at (1.5,1) {$T\mathbf u$};
-%\node (C) at (1.5,0) {$T\tilde{\mathbf u}$};
-%\node (D) at (0,0) {$\tilde{\mathbf u}$};
+%\node (A) at (0,1) {$ u$};
+%\node (B) at (1.5,1) {$T u$};
+%\node (C) at (1.5,0) {$T\tilde{ u}$};
+%\node (D) at (0,0) {$\tilde{ u}$};
 %\path[->,font=\scriptsize,>=angle 90]
 %(A) edge node[above]{$DCT$} (B)
 %(D) edge node[right]{$Error$} (A)
@@ -1068,7 +1068,7 @@ of the Government.
 \begin{comment}
 
 Set up the Lagrangian
-$$\mathcal{L}[\vect u, \vect u_0]=\int_{\Omega}(\mathbf u[T]-\mathbf u_d)^2 \ \d \Omega +\int_0^T\int_{\Omega} P[\mathbf u] \mathbf v \ \d \Omega \d t + \int_0^T\int_{\Gamma} \mathbf v_b \mathbf (\mathbf u- \mathbf u_b) \ \d \Gamma \d t$$
+$$\mathcal{L}[ u,  u_0]=\int_{\Omega}( u[T]- u_d)^2 \ \d \Omega +\int_0^T\int_{\Omega} P[ u]  v \ \d \Omega \d t + \int_0^T\int_{\Gamma}  v_b  ( u-  u_b) \ \d \Gamma \d t$$
 
 Note: Chain rule for $f=g\circ h$, g must be Frechet and if h' is Frechet or gateaux so is f.
 
@@ -1077,32 +1077,32 @@ $T'(x) v= (\nabla T, v)$ for $\forall v \in H$.
 
 Rewrite of the term
 \begin{eqnarray}
-\int_0^T\int_{\Omega} P[\mathbf u] \mathbf v \ \d \Omega \d t &=&
-\int_0^T\int_{\Omega} \frac{\partial\mathbf u}{\partial t} \mathbf v \ \d \Omega \d t+ \int_0^T\int_{\Omega} \nu\Delta \mathbf u \cdot \mathbf v \ \d \Omega \d t+\int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t \\ \nonumber
-&=& \int_{\Omega}\mathbf u\mathbf v \ \d \Omega|_0^T -
+\int_0^T\int_{\Omega} P[ u]  v \ \d \Omega \d t &=&
+\int_0^T\int_{\Omega} \frac{\partial u}{\partial t}  v \ \d \Omega \d t+ \int_0^T\int_{\Omega} \nu\Delta  u \cdot  v \ \d \Omega \d t+\int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t \\ \nonumber
+&=& \int_{\Omega} u v \ \d \Omega|_0^T -
 \int_0^T\int_{\Omega}
- \frac{\partial\mathbf v}{\partial t} \mathbf u \ \d \Omega \d t+ \int_0^T\int_{\Gamma}(\nabla \mathbf u\cdot \mathbf v- \mathbf u\cdot \nabla\mathbf v)\mathbf n\ \d \Gamma \d t +
- \int_0^T\int_{\Omega} \nu\Delta \mathbf v\cdot  \mathbf u \ \d \Omega \d t+
- \int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t \\ \nonumber
+ \frac{\partial v}{\partial t}  u \ \d \Omega \d t+ \int_0^T\int_{\Gamma}(\nabla  u\cdot  v-  u\cdot \nabla v) n\ \d \Gamma \d t +
+ \int_0^T\int_{\Omega} \nu\Delta  v\cdot   u \ \d \Omega \d t+
+ \int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t \\ \nonumber
  &=& 
 \int_0^T\int_{\Omega}
-(- \frac{\partial\mathbf v}{\partial t}  +\nu\Delta \mathbf v)\cdot  \mathbf u\ \d \Omega \d t+\int_{\Omega}\mathbf u\mathbf v |_0^T \ \d \Omega
-+ \int_0^T\int_{\Gamma}(\nabla \mathbf u\cdot \mathbf v- \mathbf u\cdot \nabla\mathbf v)\mathbf n\ \d \Gamma \d t +
- \int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t \\ \nonumber
+(- \frac{\partial v}{\partial t}  +\nu\Delta  v)\cdot   u\ \d \Omega \d t+\int_{\Omega} u v |_0^T \ \d \Omega
++ \int_0^T\int_{\Gamma}(\nabla  u\cdot  v-  u\cdot \nabla v) n\ \d \Gamma \d t +
+ \int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t \\ \nonumber
 \end{eqnarray}
 
 Grouping now the time dependent terms we have
 \begin{eqnarray}
-\mathcal{L}[\vect u, \vect u_0, \mathbf v]&=&\int_{\Omega}(\mathbf u[T]-\mathbf u_d)^2 +\mathbf u[T]\mathbf v[T]\ \d \Omega -\int_{\Omega}\mathbf u[0]\mathbf v[0]\ \d \Omega+\int_0^T\int_{\Omega} \overline{P}[\mathbf v] \mathbf u \ \d \Omega \d t + \\ \nonumber
- && \int_0^T\int_{\Gamma} \mathbf v_b \mathbf (\mathbf u- \mathbf u_b) \ \d \Gamma \d t +\int_0^T\int_{\Gamma}(\nabla \mathbf u\cdot \mathbf v- \mathbf u\cdot \nabla\mathbf v)\mathbf n\ \d \Gamma \d t +
- \int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t 
+\mathcal{L}[ u,  u_0,  v]&=&\int_{\Omega}( u[T]- u_d)^2 + u[T] v[T]\ \d \Omega -\int_{\Omega} u[0] v[0]\ \d \Omega+\int_0^T\int_{\Omega} \overline{P}[ v]  u \ \d \Omega \d t + \\ \nonumber
+ && \int_0^T\int_{\Gamma}  v_b  ( u-  u_b) \ \d \Gamma \d t +\int_0^T\int_{\Gamma}(\nabla  u\cdot  v-  u\cdot \nabla v) n\ \d \Gamma \d t +
+ \int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t 
 \end{eqnarray}
 
 \begin{eqnarray}
-\frac{\partial L}{\partial \mathbf u}&=&- \frac{\partial\mathbf v}{\partial t}  +\nu\Delta \mathbf v \\
-\frac{\partial L}{\partial \mathbf u_0}&=&-\mathbf v[0]\\
-\frac{\partial L}{\partial \mathbf u_T}&=&2(\mathbf u[T]-\mathbf u_d)+\mathbf v[T]\\
-\frac{\partial L}{\partial \mathbf u_b}&=&\\
+\frac{\partial L}{\partial  u}&=&- \frac{\partial v}{\partial t}  +\nu\Delta  v \\
+\frac{\partial L}{\partial  u_0}&=&- v[0]\\
+\frac{\partial L}{\partial  u_T}&=&2( u[T]- u_d)+ v[T]\\
+\frac{\partial L}{\partial  u_b}&=&\\
 \end{eqnarray}
 
 
