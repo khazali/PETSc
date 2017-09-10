@@ -2,7 +2,7 @@ static const char help[] = "Demonstrates the use of TSEvaluteGradient";
 /*
   Computes the gradient of
 
-    Obj(u,m) = \int^{TF}_{T0} f(u) dt
+    Obj(u,m) = \int^{TF}_{T0} f(u,m) dt
 
   where u obeys the ODE:
 
@@ -11,6 +11,7 @@ static const char help[] = "Demonstrates the use of TSEvaluteGradient";
 
   The integrand of the objective function is either f(u) = ||u||^2 or f(u) = Sum(u).
   The design variables are m = [a,b,p].
+  It also shows how to compute gradients with point-functionals of the type f(u,T,m), with T in (T0,TF].
 */
 #include <petscts.h>
 
@@ -307,6 +308,7 @@ int main(int argc, char* argv[])
   PetscBool      testevent = PETSC_FALSE;
   PetscBool      testeventfinal = PETSC_FALSE;
   PetscBool      testeventconst = PETSC_FALSE;
+  PetscBool      testtlmgrad = PETSC_FALSE;
   PetscBool      usefd = PETSC_FALSE, usetaylor = PETSC_FALSE;
   PetscBool      analytic = PETSC_FALSE;
   PetscReal      dx = PETSC_SMALL;
@@ -340,6 +342,7 @@ int main(int argc, char* argv[])
   ierr = PetscOptionsBool("-test_event_constant","Constant functional at given time in between the simulation","",testeventconst,&testeventconst,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_event_func","Functional at given time in between the simulation","",testevent,&testevent,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_event_final","Functional at final time of the simulation","",testeventfinal,&testeventfinal,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-test_tlm_gradient","Test TLM for gradient computation","",testtlmgrad,&testtlmgrad,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-use_analytic","Use analytic solution to test gradient evaluation","",analytic,&analytic,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-use_fd","Use finite differencing to test gradient evaluation","",usefd,&usefd,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-use_taylor","Use Taylor remainders to check gradient evaluation","",usetaylor,&usetaylor,NULL);CHKERRQ(ierr);
@@ -354,6 +357,11 @@ int main(int argc, char* argv[])
   }
   if (testmix) testifunc = PETSC_TRUE;
   if (usetaylor) usefd = PETSC_FALSE;
+  if (testtlmgrad) {
+    testeventfinal = PETSC_TRUE;
+    testeventconst = PETSC_FALSE;
+    testevent      = PETSC_FALSE;
+  }
 
   /* state vectors */
   ierr = VecCreate(PETSC_COMM_WORLD,&U);CHKERRQ(ierr);
@@ -443,10 +451,12 @@ int main(int argc, char* argv[])
   ierr = TSGetMaxSteps(ts,&maxsteps);CHKERRQ(ierr);
 
   /* Set cost functionals: many can be added, by simply calling TSSetObjective multiple times */
-  if (testnullgradM) {
-    ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,&userobj,EvalObjectiveGradient_U,&userobj,NULL,NULL);CHKERRQ(ierr);
-  } else {
-    ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,&userobj,EvalObjectiveGradient_U,&userobj,EvalObjectiveGradient_M,&userobj);CHKERRQ(ierr);
+  if (!testtlmgrad) {
+    if (testnullgradM) {
+      ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,&userobj,EvalObjectiveGradient_U,&userobj,NULL,NULL);CHKERRQ(ierr);
+    } else {
+      ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,&userobj,EvalObjectiveGradient_U,&userobj,EvalObjectiveGradient_M,&userobj);CHKERRQ(ierr);
+    }
   }
 
   /* Cost functional at final time */
@@ -494,6 +504,7 @@ int main(int argc, char* argv[])
     objtest = PetscRealPart(snp / ( (gamma + 1.0) * beta )* ( PetscPowScalar(beta*(tf-t0)+alpha,gamma+1.0) - PetscPowScalar(alpha,gamma+1.0) ));
 
   }
+  if (testtlmgrad) objtest = 0.0;
   if (testeventconst) objtest += 1.0;
   ierr = PetscPrintf(PETSC_COMM_WORLD,"Objective function: time [%g,%g], val %g (should be %g)\n",t0,tf,(double)obj,(double)(objtest+store_Event));CHKERRQ(ierr);
 
@@ -563,7 +574,7 @@ int main(int argc, char* argv[])
       }
       ierr = PetscPrintf(PETSC_COMM_WORLD,"%D-th component of gradient should be (approximated) %g\n",i,(double)((objdx[0]-objdx[1])/(2.*dx)));CHKERRQ(ierr);
     }
-  } else if (usetaylor) {
+  } else if (usetaylor || testtlmgrad) {
     PetscRandom rand;
     PetscReal   h = 0.125, ra,rb,rp;
     PetscScalar oa = user.a, ob = user.b;
@@ -596,9 +607,23 @@ int main(int argc, char* argv[])
       ierr = VecSetValue(M,0,ra,INSERT_VALUES);CHKERRQ(ierr);
       ierr = VecSetValue(M,1,rb,INSERT_VALUES);CHKERRQ(ierr);
       ierr = VecSetValue(M,2,rp,INSERT_VALUES);CHKERRQ(ierr);
-      ierr = VecDot(Mgrad,M,&val);CHKERRQ(ierr);
-      ierr = PetscPrintf(PETSC_COMM_WORLD,"%D-th Taylor remainder (h = 2^-%d) is %g\n",i,i+3,(double)PetscAbsReal(objtest-obj-h*PetscRealPart(val)));CHKERRQ(ierr);
-      h    = h/2.0;
+      if (usetaylor) {
+        ierr = VecDot(Mgrad,M,&val);CHKERRQ(ierr);
+        ierr = PetscPrintf(PETSC_COMM_WORLD,"%D-th Taylor remainder       (h = 2^-%d) is %g\n",i,i+3,(double)PetscAbsReal(objtest-obj-h*PetscRealPart(val)));CHKERRQ(ierr);
+      }
+      if (testtlmgrad) {
+        Vec J_U,tU;
+
+        ierr = VecDuplicate(U,&J_U);CHKERRQ(ierr);
+        ierr = EvalObjectiveGradient_U_Event(ts,tf,U,M,J_U,NULL);CHKERRQ(ierr);
+        ierr = VecDuplicate(U,&tU);CHKERRQ(ierr);
+        ierr = MatMult(Phi,M,tU);CHKERRQ(ierr);
+        ierr = VecDot(J_U,tU,&val);CHKERRQ(ierr);
+        ierr = PetscPrintf(PETSC_COMM_WORLD,"%D-th Taylor remainder (TLM) (h = 2^-%d) is %g\n",i,i+3,(double)PetscAbsReal(objtest-obj-h*PetscRealPart(val)));CHKERRQ(ierr);
+        ierr = VecDestroy(&J_U);CHKERRQ(ierr);
+        ierr = VecDestroy(&tU);CHKERRQ(ierr);
+      }
+      h = h/2.0;
     }
   } else if (analytic) { /* analytic solution */
     if (userobj.isnorm) {
