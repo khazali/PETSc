@@ -1,11 +1,4 @@
 Objective function: time [0.,0.125], val 1.14159 (should be 1.14159)
-0-th Taylor remainder (h = 2^-3) is 6.60185e-07
-1-th Taylor remainder (h = 2^-4) is 1.77407e-07
-2-th Taylor remainder (h = 2^-5) is 4.65363e-08
-3-th Taylor remainder (h = 2^-6) is 1.22026e-08
-4-th Taylor remainder (h = 2^-7) is 3.26786e-09
-5-th Taylor remainder (h = 2^-8) is 9.17076e-10
-6-th Taylor remainder (h = 2^-9) is 2.78285e-10
 Vec Object: 1 MPI processes
   type: seq
 0.12647

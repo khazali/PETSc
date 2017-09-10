@@ -178,7 +178,8 @@ static PetscErrorCode FormIJacobian(TS ts,PetscReal time, Vec U, Vec Udot, Petsc
   ierr = MatZeroEntries(A);CHKERRQ(ierr);
   ierr = MatShift(A,shift);CHKERRQ(ierr);
   ierr = VecGetArrayRead(U,(const PetscScalar**)&aU);CHKERRQ(ierr);
-  v    = -user->b*user->p*PetscPowScalarReal(aU[0],user->p - 1.0);
+  if (user->p != 1.0) v = -user->b*user->p*PetscPowScalarReal(aU[0],user->p - 1.0);
+  else v = -user->b*user->p;
   ierr = MatGetOwnershipRange(A,&i,NULL);CHKERRQ(ierr);
   ierr = MatSetValues(A,1,&i,1,&i,&v,ADD_VALUES);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(U,(const PetscScalar**)&aU);CHKERRQ(ierr);
@@ -187,11 +188,8 @@ static PetscErrorCode FormIJacobian(TS ts,PetscReal time, Vec U, Vec Udot, Petsc
   if (P && P != A) {
     ierr = MatZeroEntries(P);CHKERRQ(ierr);
     ierr = MatShift(P,shift);CHKERRQ(ierr);
-    ierr = VecGetArrayRead(U,(const PetscScalar**)&aU);CHKERRQ(ierr);
-    v    = -user->b*user->p*PetscPowScalarReal(aU[0],user->p - 1.0)*1.01; /* just to make it different */
-    ierr = MatGetOwnershipRange(P,&i,NULL);CHKERRQ(ierr);
+    v   *= 1.01; /* just to make it different */
     ierr = MatSetValues(P,1,&i,1,&i,&v,ADD_VALUES);CHKERRQ(ierr);
-    ierr = VecRestoreArrayRead(U,(const PetscScalar**)&aU);CHKERRQ(ierr);
     ierr = MatAssemblyBegin(P,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(P,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
@@ -255,7 +253,8 @@ static PetscErrorCode FormRHSJacobian(TS ts,PetscReal time, Vec U, Mat A, Mat P,
   PetscFunctionBeginUser;
   ierr = MatZeroEntries(A);CHKERRQ(ierr);
   ierr = VecGetArrayRead(U,(const PetscScalar**)&aU);CHKERRQ(ierr);
-  v    = user->b*user->p*PetscPowScalarReal(aU[0],user->p - 1.0);
+  if (user->p != 1.0) v = user->b*user->p*PetscPowScalarReal(aU[0],user->p - 1.0);
+  else v = user->b*user->p;
   ierr = MatGetOwnershipRange(A,&i,NULL);CHKERRQ(ierr);
   ierr = MatSetValues(A,1,&i,1,&i,&v,INSERT_VALUES);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(U,(const PetscScalar**)&aU);CHKERRQ(ierr);
@@ -263,11 +262,8 @@ static PetscErrorCode FormRHSJacobian(TS ts,PetscReal time, Vec U, Mat A, Mat P,
   ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   if (P && P != A) {
     ierr = MatZeroEntries(P);CHKERRQ(ierr);
-    ierr = VecGetArrayRead(U,(const PetscScalar**)&aU);CHKERRQ(ierr);
-    v    = user->b*user->p*PetscPowScalarReal(aU[0],user->p - 1.0)*1.01; /* just to make it different */
-    ierr = MatGetOwnershipRange(P,&i,NULL);CHKERRQ(ierr);
+    v   *= 1.01; /* just to make it different */
     ierr = MatSetValues(P,1,&i,1,&i,&v,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecRestoreArrayRead(U,(const PetscScalar**)&aU);CHKERRQ(ierr);
     ierr = MatAssemblyBegin(P,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(P,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
@@ -312,7 +308,7 @@ int main(int argc, char* argv[])
   PetscBool      testeventfinal = PETSC_FALSE;
   PetscBool      testeventconst = PETSC_FALSE;
   PetscBool      usefd = PETSC_FALSE, usetaylor = PETSC_FALSE;
-  PetscBool      analytic= PETSC_TRUE;
+  PetscBool      analytic = PETSC_FALSE;
   PetscReal      dx = PETSC_SMALL;
   PetscErrorCode ierr;
 
@@ -344,6 +340,7 @@ int main(int argc, char* argv[])
   ierr = PetscOptionsBool("-test_event_constant","Constant functional at given time in between the simulation","",testeventconst,&testeventconst,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_event_func","Functional at given time in between the simulation","",testevent,&testevent,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_event_final","Functional at final time of the simulation","",testeventfinal,&testeventfinal,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-use_analytic","Use analytic solution to test gradient evaluation","",analytic,&analytic,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-use_fd","Use finite differencing to test gradient evaluation","",usefd,&usefd,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-use_taylor","Use Taylor remainders to check gradient evaluation","",usetaylor,&usetaylor,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-dx","dx for FD","",dx,&dx,NULL);CHKERRQ(ierr);
@@ -351,7 +348,7 @@ int main(int argc, char* argv[])
 
   problemtype = TS_LINEAR;
   if (user.p != 1.0) {
-    if (!usefd) usetaylor = PETSC_TRUE;
+    analytic = PETSC_FALSE;
     problemtype = TS_NONLINEAR;
     testrhsjacconst = PETSC_FALSE;
   }

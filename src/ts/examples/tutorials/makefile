@@ -695,37 +695,37 @@ runex22f_mf:
 	   ${RM} -f ex22f_mf_1.tmp petscshiftmod.mod
 
 runex23_1:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 1.1 -tf 2.3 -ts_type rk -use_fd -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 -ts_trajectory_type memory > ex23_1.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 1.1 -tf 2.3 -ts_type rk -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 -ts_trajectory_type memory > ex23_1.tmp 2>&1; \
 	   ${DIFF} output/ex23_1.out ex23_1.tmp || printf "${PWD}\nPossible problem with ex23_1, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_1.tmp SA-data
 
 runex23_2:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 1.6 -tf 2.12 -ts_type bdf -use_fd -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 > ex23_2.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 1.6 -tf 2.12 -ts_type bdf -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 > ex23_2.tmp 2>&1; \
 	   ${DIFF} output/ex23_2.out ex23_2.tmp || printf "${PWD}\nPossible problem with ex23_2, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_2.tmp SA-data
 
 runex23_3:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 1.6 -tf 2.12 -ts_type bdf -use_fd -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 -test_ifunc -test_nulljac_IC -test_nullgrad_M > ex23_3.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 1.6 -tf 2.12 -ts_type bdf -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 -test_ifunc -test_nulljac_IC -test_nullgrad_M > ex23_3.tmp 2>&1; \
 	   ${DIFF} output/ex23_3.out ex23_3.tmp || printf "${PWD}\nPossible problem with ex23_3, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_3.tmp SA-data
 
 runex23_4:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 1.1 -tf 2.3 -ts_type rk -use_fd -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_constant -test_rhsjacconst -ts_trajectory_reconstruction_order 3 > ex23_4.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 1.1 -tf 2.3 -ts_type rk -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_constant -test_rhsjacconst -ts_trajectory_reconstruction_order 3 > ex23_4.tmp 2>&1; \
 	   ${DIFF} output/ex23_4.out ex23_4.tmp || printf "${PWD}\nPossible problem with ex23_4, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_4.tmp SA-data
 
 runex23_5:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 0.7 -tf 1.2 -ts_type cn -use_fd -test_event_constant -p 0.8 -test_ifunc -ts_trajectory_reconstruction_order 2 -test_pjac 0 > ex23_5.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 0.7 -tf 1.2 -dt 0.01 -ts_type cn -test_event_constant -p 0.8 -test_ifunc -ts_trajectory_reconstruction_order 2 -test_pjac 0 > ex23_5.tmp 2>&1; \
 	   ${DIFF} output/ex23_5.out ex23_5.tmp || printf "${PWD}\nPossible problem with ex23_5, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_5.tmp SA-data
 
 runex23_6:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 0.01 -tf 0.8 -b 0.3 -a 1.7 -p 1 -ts_type rk -ts_adapt_type basic -ts_atol 1.e-8 -adjoint_ts_adapt_type basic -ts_rtol 1.e-8 -test_event_func -ts_trajectory_reconstruction_order 4 -use_taylor > ex23_6.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 0.01 -tf 0.8 -b 0.3 -a 1.7 -p 1 -ts_type rk -ts_adapt_type basic -ts_atol 1.e-8 -adjoint_ts_adapt_type basic -ts_rtol 1.e-8 -test_event_func -ts_trajectory_reconstruction_order 4 > ex23_6.tmp 2>&1; \
 	   ${DIFF} output/ex23_6.out ex23_6.tmp || printf "${PWD}\nPossible problem with ex23_6, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_6.tmp SA-data
 
 runex23_7:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 0 -tf 0.125 -dt 0.001 -b 0.3 -a 1.7 -p 1 -ts_type rosw -test_ifunc -test_event_func -use_taylor -ts_adapt_type none -adjoint_ts_adapt_type none > ex23_7.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 0 -tf 0.125 -dt 0.001 -b 0.3 -a 1.7 -p 1 -ts_type rosw -test_ifunc -test_event_func -ts_adapt_type none -adjoint_ts_adapt_type none > ex23_7.tmp 2>&1; \
 	   ${DIFF} output/ex23_7.out ex23_7.tmp || printf "${PWD}\nPossible problem with ex23_7, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_7.tmp SA-data
 
@@ -889,6 +889,8 @@ TESTEXAMPLES_C = ex1.PETSc runex1 runex1_2 ex1.rm ex3.PETSc runex3 runex3_2 rune
 TESTEXAMPLES_C_NOTSINGLE = ex2.PETSc runex2 ex2.rm ex3.PETSc runex3_3 ex3.rm ex8.PETSc runex8_2 runex8_3 ex8.rm ex10.PETSc printdot runex10 runex10_2 runex10_3  ex10.rm \
                             printdot ex12.PETSc runex12 runex12_2 ex12.rm ex15.PETSc runex15_3 runex15_4 ex15.rm printdot \
                             ex16.PETSc runex16  ex16.rm ex17.PETSc runex17 runex17_2 ex17.rm  ex22.PETSc runex22  ex22.rm printdot \
+                            ex23.PETSc runex23_1 runex23_2 runex23_3 runex23_4 runex23_5 \
+                            runex23_6 runex23_7 runex23_8 ex23.rm printdot \
                             ex29.PETSc runex29 ex29.rm ex43.PETSc runex43_a runex43_b ex43.rm
 TESTEXAMPLES_C_NOCOMPLEX_NOTSINGLE  = ex9.PETSc runex9 runex9_2 runex9_3 ex9.rm \
                             ex26.PETSc runex26 runex26_2 runex26_3 runex26_4 runex26_asm ex26.rm\
@@ -896,9 +898,7 @@ TESTEXAMPLES_C_NOCOMPLEX_NOTSINGLE  = ex9.PETSc runex9 runex9_2 runex9_3 ex9.rm 
                             printdot ex16opt_ic.PETSc runex16opt_ic runex16opt_ic_ca ex16opt_ic.rm \
                             ex20fwd.PETSc runex20fwd runex20fwd_2 ex20fwd.rm \
                             ex20opt_p.PETSc runex20opt_p runex20opt_p_ca ex20opt_p.rm \
-                            ex20opt_ic.PETSc runex20opt_ic ex20opt_ic.rm \
-                            ex23.PETSc runex23_1 runex23_2 runex23_3 runex23_4 runex23_5 \
-                            runex23_6 runex23_7 runex23_8 ex23.rm
+                            ex20opt_ic.PETSc runex20opt_ic ex20opt_ic.rm
 TESTEXAMPLES_C_X = ex5.PETSc runex5 ex5.rm
 TESTEXAMPLES_FORTRAN = ex1f.PETSc runex1f ex1f.rm
 TESTEXAMPLES_FORTRAN_NOTSINGLE = ex22f.PETSc runex22f ex22f.rm
