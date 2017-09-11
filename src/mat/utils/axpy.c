@@ -161,7 +161,6 @@ PetscErrorCode  MatShift(Mat Y,PetscScalar a)
   PetscValidHeaderSpecific(Y,MAT_CLASSID,1);
   if (!Y->assembled) SETERRQ(PetscObjectComm((PetscObject)Y),PETSC_ERR_ARG_WRONGSTATE,"Not for unassembled matrix");
   if (Y->factortype) SETERRQ(PetscObjectComm((PetscObject)Y),PETSC_ERR_ARG_WRONGSTATE,"Not for factored matrix");
-  if (a == (PetscScalar)0.0) PetscFunctionReturn(0);
   MatCheckPreallocated(Y,1);
 
   if (Y->ops->shift) {
