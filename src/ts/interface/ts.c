@@ -609,30 +609,10 @@ PetscErrorCode  TSComputeRHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat B)
   ierr = DMTSGetRHSFunction(dm,&rhsfunction,&ctx);CHKERRQ(ierr);
   ierr = PetscObjectStateGet((PetscObject)U,&Ustate);CHKERRQ(ierr);
   ierr = PetscObjectGetId((PetscObject)U,&Uid);CHKERRQ(ierr);
+
   if (ts->rhsjacobian.time == t && (ts->problem_type == TS_LINEAR || (ts->rhsjacobian.Xid == Uid && ts->rhsjacobian.Xstate == Ustate)) && (rhsfunction != TSComputeRHSFunctionLinear)) {
-    if (ts->rhsjacobian.reuse) {
-      if (A == ts->Arhs) {
-        ierr = MatShift(A,-ts->rhsjacobian.shift);CHKERRQ(ierr);
-        ierr = MatScale(A,1./ts->rhsjacobian.scale);CHKERRQ(ierr);
-      }
-      if (B && B == ts->Brhs && A != B) {
-        ierr = MatShift(B,-ts->rhsjacobian.shift);CHKERRQ(ierr);
-        ierr = MatScale(B,1./ts->rhsjacobian.scale);CHKERRQ(ierr);
-      }
-      ts->rhsjacobian.shift = 0;
-      ts->rhsjacobian.scale = 1.;
-    }
-
-    PetscFunctionReturn(0);
-  }
-
-  if (!rhsjacobianfunc && !ijacobianfunc) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Must call TSSetRHSJacobian() and / or TSSetIJacobian()");
-
-  if (ts->rhsjacobian.reuse) {
+    /* restore back RHS Jacobian matrices if they have been shifted/scaled */
     if (A == ts->Arhs) {
-      /* MatShift and MatScale have short paths for these cases.
-         However, this code path is taken the first time TSComputeRHSJacobian is called
-         and the matrices have not assembled yet */
       if (ts->rhsjacobian.shift != 0) {
         ierr = MatShift(A,-ts->rhsjacobian.shift);CHKERRQ(ierr);
       }
@@ -650,6 +630,31 @@ PetscErrorCode  TSComputeRHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat B)
     }
     ts->rhsjacobian.shift = 0;
     ts->rhsjacobian.scale = 1.;
+    PetscFunctionReturn(0);
+  }
+
+  if (!rhsjacobianfunc && !ijacobianfunc) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Must call TSSetRHSJacobian() and / or TSSetIJacobian()");
+
+  if (ts->rhsjacobian.reuse) {
+    if (A == ts->Arhs) {
+      /* MatScale has a short path for this case.
+         However, this code path is taken the first time TSComputeRHSJacobian is called
+         and the matrices have not assembled yet */
+      if (ts->rhsjacobian.shift != 0) {
+        ierr = MatShift(A,-ts->rhsjacobian.shift);CHKERRQ(ierr);
+      }
+      if (ts->rhsjacobian.scale != 1.) {
+        ierr = MatScale(A,1./ts->rhsjacobian.scale);CHKERRQ(ierr);
+      }
+    }
+    if (B && B == ts->Brhs && A != B) {
+      if (ts->rhsjacobian.shift != 0) {
+        ierr = MatShift(B,-ts->rhsjacobian.shift);CHKERRQ(ierr);
+      }
+      if (ts->rhsjacobian.scale != 1.) {
+        ierr = MatScale(B,1./ts->rhsjacobian.scale);CHKERRQ(ierr);
+      }
+    }
   }
 
   if (rhsjacobianfunc) {
@@ -671,9 +676,11 @@ PetscErrorCode  TSComputeRHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat B)
     ierr = MatZeroEntries(A);CHKERRQ(ierr);
     if (A != B) {ierr = MatZeroEntries(B);CHKERRQ(ierr);}
   }
-  ts->rhsjacobian.time = t;
-  ierr                 = PetscObjectGetId((PetscObject)U,&ts->rhsjacobian.Xid);CHKERRQ(ierr);
-  ierr                 = PetscObjectStateGet((PetscObject)U,&ts->rhsjacobian.Xstate);CHKERRQ(ierr);
+  ts->rhsjacobian.time  = t;
+  ts->rhsjacobian.shift = 0;
+  ts->rhsjacobian.scale = 1.;
+  ierr                  = PetscObjectGetId((PetscObject)U,&ts->rhsjacobian.Xid);CHKERRQ(ierr);
+  ierr                  = PetscObjectStateGet((PetscObject)U,&ts->rhsjacobian.Xstate);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
