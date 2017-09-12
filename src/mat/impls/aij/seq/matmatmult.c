@@ -20,13 +20,14 @@ PETSC_INTERN PetscErrorCode MatMatMult_SeqAIJ_SeqAIJ(Mat A,Mat B,MatReuse scall,
 {
   PetscErrorCode ierr;
 #if !defined(PETSC_HAVE_HYPRE)
-  const char     *algTypes[6] = {"sorted","scalable","scalable_fast","heap","btheap","llcondensed"};
-  PetscInt       nalg = 6;
+  const char     *algTypes[8] = {"sorted","scalable","scalable_fast","heap","btheap","llcondensed","rowmerge","rowmerge2"};
+  PetscInt       nalg = 8;
 #else
-  const char     *algTypes[7] = {"sorted","scalable","scalable_fast","heap","btheap","llcondensed","hypre"};
-  PetscInt       nalg = 7;
+  const char     *algTypes[9] = {"sorted","scalable","scalable_fast","heap","btheap","llcondensed","rowmerge","rowmerge2","hypre"};
+  PetscInt       nalg = 9;
 #endif
   PetscInt       alg = 0; /* set default algorithm */
+  PetscBool      combined = PETSC_FALSE;  /* Indicates whether the symbolic stage already computed the numerical values. */
 
   PetscFunctionBegin;
   if (scall == MAT_INITIAL_MATRIX) {
@@ -51,8 +52,15 @@ PETSC_INTERN PetscErrorCode MatMatMult_SeqAIJ_SeqAIJ(Mat A,Mat B,MatReuse scall,
     case 5:
       ierr = MatMatMultSymbolic_SeqAIJ_SeqAIJ_LLCondensed(A,B,fill,C);CHKERRQ(ierr);
       break;
-#if defined(PETSC_HAVE_HYPRE)
     case 6:
+      ierr = MatMatMultSymbolic_SeqAIJ_SeqAIJ_RowMerge(A,B,fill,C);CHKERRQ(ierr);
+      break;
+    case 7:
+      ierr = MatMatMultSymbolic_SeqAIJ_SeqAIJ_RowMerge2(A,B,fill,C);CHKERRQ(ierr);
+      combined = PETSC_TRUE;
+      break;
+#if defined(PETSC_HAVE_HYPRE)
+    case 7:
       ierr = MatMatMultSymbolic_AIJ_AIJ_wHYPRE(A,B,fill,C);CHKERRQ(ierr);
       break;
 #endif
@@ -64,7 +72,9 @@ PETSC_INTERN PetscErrorCode MatMatMult_SeqAIJ_SeqAIJ(Mat A,Mat B,MatReuse scall,
   }
 
   ierr = PetscLogEventBegin(MAT_MatMultNumeric,A,B,0,0);CHKERRQ(ierr);
-  ierr = (*(*C)->ops->matmultnumeric)(A,B,*C);CHKERRQ(ierr);
+  if (!combined) {
+    ierr = (*(*C)->ops->matmultnumeric)(A,B,*C);CHKERRQ(ierr);
+  }
   ierr = PetscLogEventEnd(MAT_MatMultNumeric,A,B,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -721,6 +731,256 @@ PetscErrorCode MatMatMultSymbolic_SeqAIJ_SeqAIJ_BTHeap(Mat A,Mat B,PetscReal fil
     ierr = PetscInfo((*C),"Empty matrix product\n");CHKERRQ(ierr);
   }
 #endif
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode MatMatMultSymbolic_SeqAIJ_SeqAIJ_RowMerge(Mat A,Mat B,PetscReal fill,Mat *C)
+{
+  PetscErrorCode     ierr;
+  Mat_SeqAIJ         *a  = (Mat_SeqAIJ*)A->data,*b=(Mat_SeqAIJ*)B->data,*c;
+  const PetscInt     *ai = a->i,*bi=b->i,*aj=a->j,*bj=b->j;
+  PetscInt           *ci,*cj;
+  PetscInt           c_maxmem=0,a_maxrownnz=0,a_rownnz;
+  PetscInt           am=A->rmap->N,bn=B->cmap->N,bm=B->rmap->N;
+  const PetscInt     *brow_ptr[8],*brow_end[8];
+  PetscInt           window[8];
+  PetscInt           window_min,old_window_min,ci_nnz;
+  PetscInt           i,k,ndouble = 0;
+  PetscReal          afill;
+
+  /* Step 1: Get upper bound on memory required for allocation.
+             Because of the way virtual memory works,
+             only the memory pages that are actually needed will be physically allocated. */
+  PetscFunctionBegin;
+  ierr  = PetscMalloc1(am+1,&ci);CHKERRQ(ierr);
+
+  for (i=0; i<am; i++) {
+    const PetscInt anzi  = ai[i+1] - ai[i]; /* number of nonzeros in this row of A, this is the number of rows of B that we merge */
+    const PetscInt *acol = aj + ai[i]; /* column indices of nonzero entries in this row */
+
+    a_rownnz = 0;
+    for (k=0;k<anzi;++k) a_rownnz += bi[acol[k]+1] - bi[acol[k]];
+    a_maxrownnz = PetscMax(a_maxrownnz, a_rownnz);
+    c_maxmem += a_rownnz;
+  }
+
+  /* Step 2: Populate pattern for C */
+  ierr  = PetscMalloc1(c_maxmem,&cj);CHKERRQ(ierr);
+
+  ci_nnz = 0;
+  ci[0] = 0;
+  for (i=0; i<am; i++) {
+    const PetscInt anzi  = ai[i+1] - ai[i]; /* number of nonzeros in this row of A, this is the number of rows of B that we merge */
+    const PetscInt *acol = aj + ai[i]; /* column indices of nonzero entries in this row */
+
+/* The following macro is used to specialize for small rows in A.
+   This helps with compiler unrolling, improving performance substantially. */
+#define MatMatMultSymbolic_RowMergeMacro(ANNZ) \
+    window_min = bn; \
+    for (k=0; k<ANNZ; ++k) { \
+      brow_ptr[k] = bj + bi[acol[k]]; \
+      brow_end[k] = bj + bi[acol[k]+1]; \
+      window[k] = (brow_ptr[k] != brow_end[k]) ? *brow_ptr[k] : bn; \
+      window_min = PetscMin(window[k], window_min); \
+    } \
+    while (window_min < bn) { \
+      cj[ci_nnz++] = window_min; \
+      /* advance front and compute new minimum */ \
+      old_window_min = window_min; \
+      window_min = bn; \
+      for (k=0; k<ANNZ; ++k) { \
+        if (window[k] == old_window_min) { \
+          brow_ptr[k]++; \
+          window[k] = (brow_ptr[k] != brow_end[k]) ? *brow_ptr[k] : bn; \
+        } \
+        window_min = PetscMin(window[k], window_min); \
+      } \
+    }
+
+    switch (anzi) {
+    case 0: break;
+    case 1: brow_ptr[0] = bj + bi[acol[k]];
+            brow_end[0] = bj + bi[acol[k]+1];
+            for (; brow_ptr[0] != brow_end[0]; ++brow_ptr[0]) cj[ci_nnz++] = *brow_ptr[0]; /* copy row in b to c */
+            break;
+    case 2: MatMatMultSymbolic_RowMergeMacro(2); break;
+    case 3: MatMatMultSymbolic_RowMergeMacro(3); break;
+    case 4: MatMatMultSymbolic_RowMergeMacro(4); break;
+    case 5: MatMatMultSymbolic_RowMergeMacro(5); break;
+    case 6: MatMatMultSymbolic_RowMergeMacro(6); break;
+    case 7: MatMatMultSymbolic_RowMergeMacro(7); break;
+    case 8: MatMatMultSymbolic_RowMergeMacro(8); break;
+    default: SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"MatMatMult with more than 8 nonzeros per row in left factor not supported!");
+    }
+
+    /* terminate current row */
+    ci[i+1] = ci_nnz;
+  }
+
+  /* Step 3: Create the new symbolic matrix */
+  ierr = MatCreateSeqAIJWithArrays(PetscObjectComm((PetscObject)A),am,bn,ci,cj,NULL,C);CHKERRQ(ierr);
+  ierr = MatSetBlockSizesFromMats(*C,A,B);CHKERRQ(ierr);
+
+  /* MatCreateSeqAIJWithArrays flags matrix so PETSc doesn't free the user's arrays. */
+  /* These are PETSc arrays, so change flags so arrays can be deleted by PETSc */
+  c          = (Mat_SeqAIJ*)((*C)->data);
+  c->free_a  = PETSC_TRUE;
+  c->free_ij = PETSC_TRUE;
+  c->nonew   = 0;
+
+  (*C)->ops->matmultnumeric = MatMatMultNumeric_SeqAIJ_SeqAIJ;
+
+  /* set MatInfo */
+  afill = (PetscReal)ci[am]/(ai[am]+bi[bm]) + 1.e-5;
+  if (afill < 1.0) afill = 1.0;
+  c->maxnz                     = ci[am];
+  c->nz                        = ci[am];
+  (*C)->info.mallocs           = ndouble;
+  (*C)->info.fill_ratio_given  = fill;
+  (*C)->info.fill_ratio_needed = afill;
+
+#if defined(PETSC_USE_INFO)
+  if (ci[am]) {
+    ierr = PetscInfo3((*C),"Reallocs %D; Fill ratio: given %g needed %g.\n",ndouble,(double)fill,(double)afill);CHKERRQ(ierr);
+    ierr = PetscInfo1((*C),"Use MatMatMult(A,B,MatReuse,%g,&C) for best performance.;\n",(double)afill);CHKERRQ(ierr);
+  } else {
+    ierr = PetscInfo((*C),"Empty matrix product\n");CHKERRQ(ierr);
+  }
+#endif
+  PetscFunctionReturn(0);
+}
+
+/* Similar to MatMatMultSymbolic_SeqAIJ_SeqAIJ_RowMerge(), but also computes the numerical entries.
+   May be faster than the above rowmerge version for very large matrices (scalable!). */
+PetscErrorCode MatMatMultSymbolic_SeqAIJ_SeqAIJ_RowMerge2(Mat A,Mat B,PetscReal fill,Mat *C)
+{
+  PetscErrorCode     ierr;
+  PetscLogDouble flops=0.0;
+  Mat_SeqAIJ         *a  = (Mat_SeqAIJ*)A->data,*b=(Mat_SeqAIJ*)B->data,*c;
+  const PetscInt     *ai = a->i,*bi=b->i,*aj=a->j,*bj=b->j;
+  PetscInt           *ci,*cj;
+  PetscScalar        *aa=a->a,*ba=b->a,*ca,valtmp;
+  PetscInt           brow_offset[8],brow_offset_end[8];
+  PetscInt           c_maxmem=0,a_maxrownnz=0,a_rownnz;
+  PetscInt           am=A->rmap->N,bn=B->cmap->N,bm=B->rmap->N;
+  PetscInt           window[8];
+  PetscInt           window_min,old_window_min,c_nnz;
+  PetscInt           i,k,ndouble = 0;
+  PetscReal          afill;
+
+  /* Step 1: Get upper bound on memory required for allocation.
+             Because of the way virtual memory works,
+             only the memory pages that are actually needed will be physically allocated (deferred allocation). */
+  PetscFunctionBegin;
+  ierr  = PetscMalloc1(am+1,&ci);CHKERRQ(ierr);
+
+  for (i=0; i<am; i++) {
+    const PetscInt anzi  = ai[i+1] - ai[i]; /* number of nonzeros in this row of A, this is the number of rows of B that we merge */
+    const PetscInt *acol = aj + ai[i]; /* column indices of nonzero entries in this row */
+
+    a_rownnz = 0;
+    for (k=0;k<anzi;++k) a_rownnz += bi[acol[k]+1] - bi[acol[k]];
+    a_maxrownnz = PetscMax(a_maxrownnz, a_rownnz);
+    c_maxmem += a_rownnz;
+  }
+
+  /* Step 2: Populate pattern for C */
+  ierr  = PetscMalloc1(c_maxmem,&cj);CHKERRQ(ierr);
+  ierr  = PetscMalloc1(c_maxmem,&ca);CHKERRQ(ierr);
+
+  c_nnz = 0;
+  ci[0] = 0;
+  for (i=0; i<am; i++) {
+    const PetscInt anzi     = ai[i+1] - ai[i]; /* number of nonzeros in this row of A, this is the number of rows of B that we merge */
+    const PetscInt *acol    = aj + ai[i];      /* column indices of nonzero entries in this row */
+    const PetscScalar *aval = aa + ai[i];      /* nonzero values of nonzero entries in this row */
+
+/* The following macro is used to specialize for small rows in A.
+   This helps with compiler unrolling, improving performance substantially. */
+#define MatMatMultSymbolic_RowMerge2Macro(ANNZ) \
+    window_min = bn; \
+    for (k=0; k<ANNZ; ++k) { \
+      brow_offset[k]     = bi[acol[k]]; \
+      brow_offset_end[k] = bi[acol[k]+1]; \
+      window[k] = (brow_offset[k] != brow_offset_end[k]) ? bj[brow_offset[k]] : bn; \
+      window_min = PetscMin(window[k], window_min); \
+      flops += 2 * (brow_offset_end[k] - brow_offset[k]); \
+    } \
+    while (window_min < bn) { \
+      cj[c_nnz] = window_min; \
+      valtmp = 0; \
+      for (k=0; k<ANNZ; ++k) if (window[k] == window_min) valtmp += aval[k] * ba[brow_offset[k]]; \
+      ca[c_nnz++] = valtmp; \
+      /* advance front and compute new minimum */ \
+      old_window_min = window_min; \
+      window_min = bn; \
+      for (k=0; k<ANNZ; ++k) { \
+        if (window[k] == old_window_min) { \
+          brow_offset[k]++; \
+          window[k] = (brow_offset[k] != brow_offset_end[k]) ? bj[brow_offset[k]] : bn; \
+        } \
+        window_min = PetscMin(window[k], window_min); \
+      } \
+    }
+
+    switch (anzi) {
+    case 0: break;
+    case 1: brow_offset[0]     = bi[acol[0]];
+            brow_offset_end[0] = bi[acol[0]+1];
+            flops += brow_offset_end[0] - brow_offset[0];
+            for (; brow_offset[0] != brow_offset_end[0]; ++brow_offset[0]) {
+              ca[c_nnz++] = aval[0] * ba[brow_offset[0]]; /* copy row in b to c */
+            }
+            break;
+    case 2: MatMatMultSymbolic_RowMerge2Macro(2); break;
+    case 3: MatMatMultSymbolic_RowMerge2Macro(3); break;
+    case 4: MatMatMultSymbolic_RowMerge2Macro(4); break;
+    case 5: MatMatMultSymbolic_RowMerge2Macro(5); break;
+    case 6: MatMatMultSymbolic_RowMerge2Macro(6); break;
+    case 7: MatMatMultSymbolic_RowMerge2Macro(7); break;
+    case 8: MatMatMultSymbolic_RowMerge2Macro(8); break;
+    default: SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"MatMatMult with more than 8 nonzeros per row in left factor not supported!");
+    }
+#undef MatMatMultSymbolic_RowMergeMacro
+
+    /* terminate current row */
+    ci[i+1] = c_nnz;
+  }
+
+  /* Step 3: Create the new symbolic matrix */
+  ierr = MatCreateSeqAIJWithArrays(PetscObjectComm((PetscObject)A),am,bn,ci,cj,NULL,C);CHKERRQ(ierr);
+  ierr = MatSetBlockSizesFromMats(*C,A,B);CHKERRQ(ierr);
+
+  /* MatCreateSeqAIJWithArrays flags matrix so PETSc doesn't free the user's arrays. */
+  /* These are PETSc arrays, so change flags so arrays can be deleted by PETSc */
+  c          = (Mat_SeqAIJ*)((*C)->data);
+  c->a       = ca;
+  c->free_a  = PETSC_TRUE;
+  c->free_ij = PETSC_TRUE;
+  c->nonew   = 0;
+
+  (*C)->ops->matmultnumeric = MatMatMultNumeric_SeqAIJ_SeqAIJ;
+
+  /* set MatInfo */
+  afill = (PetscReal)ci[am]/(ai[am]+bi[bm]) + 1.e-5;
+  if (afill < 1.0) afill = 1.0;
+  c->maxnz                     = ci[am];
+  c->nz                        = ci[am];
+  (*C)->info.mallocs           = ndouble;
+  (*C)->info.fill_ratio_given  = fill;
+  (*C)->info.fill_ratio_needed = afill;
+
+#if defined(PETSC_USE_INFO)
+  if (ci[am]) {
+    ierr = PetscInfo3((*C),"Reallocs %D; Fill ratio: given %g needed %g.\n",ndouble,(double)fill,(double)afill);CHKERRQ(ierr);
+    ierr = PetscInfo1((*C),"Use MatMatMult(A,B,MatReuse,%g,&C) for best performance.;\n",(double)afill);CHKERRQ(ierr);
+  } else {
+    ierr = PetscInfo((*C),"Empty matrix product\n");CHKERRQ(ierr);
+  }
+#endif
+  ierr = MatAssemblyBegin(*C,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(*C,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = PetscLogFlops(flops);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
