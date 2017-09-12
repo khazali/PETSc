@@ -6,7 +6,7 @@ static char help[] = "Tests TSTrajectoryGetVecs. \n\n";
 #include <petscts.h>
 
 PetscScalar func(PetscInt p, PetscReal t)  { return p ? t*func(p-1,t) : 1.0; }
-PetscScalar dfunc(PetscInt p, PetscReal t)  { return p > 0 ? p*func(p-1,t) : 0.0; }
+PetscScalar dfunc(PetscInt p, PetscReal t)  { return p > 0 ? (PetscReal)p*func(p-1,t) : 0.0; }
 
 int main(int argc,char **argv)
 {
