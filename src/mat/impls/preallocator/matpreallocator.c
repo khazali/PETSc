@@ -50,7 +50,8 @@ PetscErrorCode MatSetValues_Preallocator(Mat A, PetscInt m, const PetscInt *rows
   ierr = MatGetOwnershipRangeColumn(A, &cStart, &cEnd);CHKERRQ(ierr);
   for (r = 0; r < m; ++r) {
     PetscHashJKKey  key;
-    PetscHashJKIter missing, iter;
+    PetscHashJKIter iter;
+    int             missing;
 
     key.j = rows[r];
     if (key.j < 0) continue;

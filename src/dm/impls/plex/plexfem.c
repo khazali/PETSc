@@ -1454,7 +1454,8 @@ PetscErrorCode DMPlexComputeInterpolatorGeneral(DM dmc, DM dmf, Mat In, void *us
         if (numCoarseCells != Np) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Not all closure points located");
         {
           PetscHashJKKey  key;
-          PetscHashJKIter missing, iter;
+          PetscHashJKIter iter;
+          int             missing;
 
           key.j = findices[i];
           if (key.j >= 0) {

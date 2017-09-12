@@ -128,7 +128,8 @@ static PetscErrorCode DMLabelMakeAllValid_Private(DMLabel label)
 */
 static PetscErrorCode DMLabelMakeInvalid_Private(DMLabel label, PetscInt v)
 {
-  PETSC_UNUSED PetscHashIIter ret, iter;
+  PETSC_UNUSED PetscHashIIter iter;
+  PETSC_UNUSED int            ret;
   PetscInt                    p;
   const PetscInt              *points;
   PetscErrorCode ierr;
@@ -600,7 +601,8 @@ PetscErrorCode DMLabelGetValue(DMLabel label, PetscInt point, PetscInt *value)
 @*/
 PetscErrorCode DMLabelSetValue(DMLabel label, PetscInt point, PetscInt value)
 {
-  PETSC_UNUSED PetscHashIIter iter, ret;
+  PETSC_UNUSED PetscHashIIter iter;
+  PETSC_UNUSED int            ret;
   PetscInt                    v;
   PetscErrorCode              ierr;
 

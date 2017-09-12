@@ -71,7 +71,7 @@ PetscErrorCode PetscOptionsHelpPrintedCheck(PetscOptionsHelpPrinted hp,const cha
   size_t          l1,l2;
 #if !defined(PETSC_HAVE_THREADSAFETY)
   char            *both;
-  khint_t         newitem;
+  int             newitem;
 #endif
   PetscErrorCode  ierr;
 

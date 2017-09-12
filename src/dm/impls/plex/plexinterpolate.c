@@ -172,7 +172,8 @@ static PetscErrorCode DMPlexInterpolateFaces_Internal(DM dm, PetscInt cellDepth,
     for (cf = 0; cf < numCellFaces; ++cf) {
       const PetscInt   *cellFace = &cellFaces[cf*faceSize];
       PetscHashIJKLKey  key;
-      PetscHashIJKLIter missing, iter;
+      PetscHashIJKLIter iter;
+      int               missing;
 
       if (faceSize == 2) {
         key.i = PetscMin(cellFace[0], cellFace[1]);
@@ -241,7 +242,8 @@ static PetscErrorCode DMPlexInterpolateFaces_Internal(DM dm, PetscInt cellDepth,
     for (cf = 0; cf < numCellFaces; ++cf) {
       const PetscInt  *cellFace = &cellFaces[cf*faceSize];
       PetscHashIJKLKey key;
-      PetscHashIJKLIter missing, iter;
+      PetscHashIJKLIter iter;
+      int               missing;
 
       if (faceSize == 2) {
         key.i = PetscMin(cellFace[0], cellFace[1]);
