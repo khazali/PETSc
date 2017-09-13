@@ -28,6 +28,31 @@ typedef struct {
   Mat       corX2d,corY2d;
 } Model_SW;
 
+
+/*
+  Apply the operator to transform simulation results to obvervations. Normally interpolation is needed.
+ */
+PetscErrorCode ApplyObservation(DM da,Vec Uob)
+{
+  PetscInt       i,j,xs,ys,xm,ym;
+  Field          **uarr;
+  PetscErrorCode ierr;
+
+  ierr = DMDAVecGetArray(da,Uob,&uarr);CHKERRQ(ierr);
+  ierr = DMDAGetCorners(da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+  for (j=ys; j<ys+ym; j++) { /* latitude */
+    for (i=xs; i<xs+xm; i++) { /* longitude */
+      if ((i%10!=0 && j%10!=0)) {
+        uarr[j][i].u = 0;
+        uarr[j][i].v = 0;
+        uarr[j][i].h = 0;
+      }
+    }
+  }
+  ierr = DMDAVecRestoreArray(da,Uob,&uarr);CHKERRQ(ierr);
+  return 0;
+}
+
 /*
   Build the background error covariance
   B = Sigma*CorX2d*CorY2d*Sigma
@@ -206,6 +231,7 @@ PetscErrorCode ReInitializeLambda(DM da,Vec lambda,Vec U,PetscInt iob,Model_SW *
   ierr = VecLoad(Uob,viewer);CHKERRQ(ierr);
   ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
   ierr = VecAYPX(Uob,-1.,U);CHKERRQ(ierr);
+  ierr = ApplyObservation(da,Uob);CHKERRQ(ierr);
 
   ierr = DMDAVecGetArray(da,lambda,&larr);CHKERRQ(ierr);
   ierr = DMDAVecGetArray(da,Uob,&uarr);CHKERRQ(ierr);
@@ -721,8 +747,8 @@ PetscErrorCode GenerateOBs(TS ts,Vec U,Model_SW *sw)
 
     ierr = DMDAVecGetArray(dm,Uob,&uarr);CHKERRQ(ierr);
     ierr = DMDAGetCorners(dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
-    for (j=ys; j<ys+ym; j++) { /* latitude */
-      for (i=xs; i<xs+xm; i++) { /* longitude */
+    for (j=ys; j<ys+ym; j+=10) { /* latitude */
+      for (i=xs; i<xs+xm; i+=10) { /* longitude */
         ierr = GenerateGaussianNoise(rand,0,1.,&randn);CHKERRQ(ierr);
         uarr[j][i].u += sw->sqrtru*randn;
         ierr = GenerateGaussianNoise(rand,0,1.,&randn);CHKERRQ(ierr);
@@ -761,8 +787,8 @@ PetscErrorCode GenerateFS(DM dm,Vec U,Model_SW *sw)
 
   ierr = DMDAVecGetArray(dm,sw->Uf,&xfarr);CHKERRQ(ierr);
   ierr = DMDAGetCorners(dm,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
-  for (j=ys; j<ys+ym; j++) { /* latitude */
-    for (i=xs; i<xs+xm; i++) { /* longitude */
+  for (j=ys; j<ys+ym; j+=10) { /* latitude */
+    for (i=xs; i<xs+xm; i+=10) { /* longitude */
       ierr = GenerateGaussianNoise(rand,0,0.1,&randn);CHKERRQ(ierr);
       xfarr[j][i].u += sw->sqrtru*randn;
       ierr = GenerateGaussianNoise(rand,0,0.1,&randn);CHKERRQ(ierr);
@@ -835,7 +861,7 @@ PetscErrorCode FormFunctionAndGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ct
       }
     }
     ierr = DMDAVecRestoreArray(da,SDiff,&sdarr);CHKERRQ(ierr);
-
+    ierr = ApplyObservation(da,SDiff);CHKERRQ(ierr);
     ierr = VecDot(SDiff,SDiff,&soberr);CHKERRQ(ierr);
     *f += soberr/2.;
   }
