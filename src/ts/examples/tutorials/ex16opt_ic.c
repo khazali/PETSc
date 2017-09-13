@@ -13,7 +13,7 @@ Input parameters include:\n\
    Notes:
    This code demonstrates how to solve an ODE-constrained optimization problem with TAO, TSAdjoint and TS.
    The objective is to minimize the difference between observation and model prediction by finding optimal values for initial conditions.
-   The gradient is computed either with the discrete adjoint of an explicit Runge-Kutta method (see ex16adj.c for details) or via the continuous adjoint approach.
+   The gradient is computed either with the discrete adjoint of an explicit Runge-Kutta method (see ex16adj.c for details) or by solving the adjoint ode.
   ------------------------------------------------------------------------- */
 #include <petsctao.h>
 #include <petscts.h>
@@ -30,7 +30,7 @@ struct _n_User {
 };
 
 PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
-PetscErrorCode FormFunctionGradient_CA(Tao,Vec,PetscReal*,Vec,void*);
+PetscErrorCode FormFunctionGradient_AO(Tao,Vec,PetscReal*,Vec,void*);
 
 /*
 *  User-defined routines
@@ -109,7 +109,7 @@ int main(int argc,char **argv)
   Tao                tao;
   KSP                ksp;
   PC                 pc;
-  PetscBool          continuous = PETSC_FALSE;
+  PetscBool          adjointode = PETSC_FALSE;
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize program
@@ -197,9 +197,9 @@ int main(int argc,char **argv)
   ierr = TaoSetInitialVector(tao,ic);CHKERRQ(ierr);
 
   /* Set routine for function and gradient evaluation */
-  ierr = PetscOptionsGetBool(NULL,NULL,"-continuous",&continuous,NULL);CHKERRQ(ierr);
-  if (continuous) { /* use continuous adjoint approach */
-    ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient_CA,(void *)&user);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL,NULL,"-adjointode",&adjointode,NULL);CHKERRQ(ierr);
+  if (adjointode) { /* use adjoint ode approach */
+    ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient_AO,(void *)&user);CHKERRQ(ierr);
   } else {
     ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void *)&user);CHKERRQ(ierr);
   }
@@ -314,10 +314,10 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   PetscFunctionReturn(0);
 }
 
-/* callbacks for the continuous adjoint approach */
+/* callbacks for the adjoint ode approach */
 
 /* the cost functional interface: returns ||u - u_obs||^2 */
-static PetscErrorCode EvalObjective_CA(TS ts, PetscReal time, Vec U, Vec P, PetscReal *val, void *ctx)
+static PetscErrorCode EvalObjective_AO(TS ts, PetscReal time, Vec U, Vec P, PetscReal *val, void *ctx)
 {
   const PetscScalar *x;
   User              user = (User)ctx;
@@ -330,9 +330,8 @@ static PetscErrorCode EvalObjective_CA(TS ts, PetscReal time, Vec U, Vec P, Pets
   PetscFunctionReturn(0);
 }
 
-/* with the continuous adjoint approach, we also need the gradient of the cost functional with
-   respect to the state variables */
-static PetscErrorCode EvalCostGradient_U_CA(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+/* with this approach, we also need the gradient of the cost functional with respect to the state variables */
+static PetscErrorCode EvalCostGradient_U_AO(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
 {
   User              user = (User)ctx;
   const PetscScalar *x;
@@ -349,7 +348,7 @@ static PetscErrorCode EvalCostGradient_U_CA(TS ts, PetscReal time, Vec U, Vec M,
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode FormFunctionGradient_CA(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
+PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
 {
   User           user = (User)ctx;
   TS             ts;
@@ -360,15 +359,11 @@ PetscErrorCode FormFunctionGradient_CA(Tao tao,Vec IC,PetscReal *f,Vec G,void *c
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
   ierr = TSSetType(ts,TSRK);CHKERRQ(ierr);
   ierr = TSSetRHSFunction(ts,NULL,RHSFunction,user);CHKERRQ(ierr);
-  ierr = TSSetTime(ts,0.0);CHKERRQ(ierr);
-  ierr = TSSetTimeStep(ts,.001);CHKERRQ(ierr);
-  ierr = TSSetMaxTime(ts,0.5);CHKERRQ(ierr);
-  ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   ierr = TSSetTolerances(ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
   ierr = TSSetRHSJacobian(ts,user->A,user->A,RHSJacobian,user);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   /* the cost functional needs to be evaluated at time 0.5 */
-  ierr = TSSetObjective(ts,0.5,EvalObjective_CA,user,EvalCostGradient_U_CA,user,NULL,NULL);CHKERRQ(ierr);
+  ierr = TSSetObjective(ts,0.5,EvalObjective_AO,user,EvalCostGradient_U_AO,user,NULL,NULL);CHKERRQ(ierr);
 
   /* set Jacobian G_p for the ODE dependence from initial conditions in implicit form: G(u(0),p) = 0 */
 
@@ -379,7 +374,7 @@ PetscErrorCode FormFunctionGradient_CA(Tao tao,Vec IC,PetscReal *f,Vec G,void *c
   ierr = MatShift(Id,-1.0);CHKERRQ(ierr);
   ierr = TSSetEvalICGradient(ts,NULL,Id,NULL,NULL);CHKERRQ(ierr);
   ierr = MatDestroy(&Id);CHKERRQ(ierr);
-  ierr = TSEvaluateObjectiveAndGradient(ts,user->x,IC,G,f);CHKERRQ(ierr);
+  ierr = TSEvaluateObjectiveAndGradient(ts,0.0,0.001,0.5,user->x,IC,G,f);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

@@ -271,19 +271,6 @@ static PetscErrorCode FormRHSJacobian(TS ts,PetscReal time, Vec U, Mat A, Mat P,
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode TestPostStep(TS ts)
-{
-  PetscReal      time;
-  PetscInt       step;
-  PetscErrorCode ierr;
-
-  PetscFunctionBeginUser;
-  ierr = TSGetStepNumber(ts,&step);CHKERRQ(ierr);
-  ierr = TSGetTime(ts,&time);CHKERRQ(ierr);
-  ierr = PetscPrintf(PetscObjectComm((PetscObject)ts),"  Inside %s at (step,time) %d,%g\n",__func__,step,time);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
 int main(int argc, char* argv[])
 {
   TS             ts;
@@ -296,10 +283,8 @@ int main(int argc, char* argv[])
   PetscScalar    one = 1.0;
   PetscReal      t0 = 0.0, tf = 2.0, dt = 0.1;
   PetscReal      obj,objtest,err,normPhi;
-  PetscInt       maxsteps;
   PetscMPIInt    np;
   PetscBool      testpjac = PETSC_TRUE;
-  PetscBool      testpoststep = PETSC_FALSE;
   PetscBool      testifunc = PETSC_FALSE;
   PetscBool      testmix = PETSC_FALSE;
   PetscBool      testrhsjacconst = PETSC_FALSE;
@@ -315,6 +300,7 @@ int main(int argc, char* argv[])
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return ierr;
+  ierr = MPI_Comm_size(PETSC_COMM_WORLD,&np);CHKERRQ(ierr);
 
   /* Command line options */
   t0             = 0.0;
@@ -332,7 +318,6 @@ int main(int argc, char* argv[])
   dt   = (tf-t0)/512.0;
   ierr = PetscOptionsReal("-dt","Initial time step","",dt,&dt,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_objective_norm","Test f(u) = ||u||^2","",userobj.isnorm,&userobj.isnorm,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsBool("-test_poststep","Test with PostStep method","",testpoststep,&testpoststep,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_pjac","Test with Pmat != Amat","",testpjac,&testpjac,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_mix","Test mixing IFunction and RHSFunction","",testmix,&testmix,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_ifunc","Test with IFunction interface","",testifunc,&testifunc,NULL);CHKERRQ(ierr);
@@ -414,13 +399,6 @@ int main(int argc, char* argv[])
   /* TS solver */
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
   ierr = TSSetProblemType(ts,problemtype);CHKERRQ(ierr);
-  ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
-  ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
-  ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
-  ierr = TSSetMaxSteps(ts,PETSC_MAX_INT);CHKERRQ(ierr);
-  if (testpoststep) {
-    ierr = TSSetPostStep(ts,TestPostStep);CHKERRQ(ierr);
-  }
 
   /* we test different combinations of IFunction/RHSFunction on the same ODE */
   if (!testifunc) {
@@ -443,12 +421,6 @@ int main(int argc, char* argv[])
     }
   }
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
-
-  /* force matchstep and get initial time and final time requested */
-  ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
-  ierr = TSGetTime(ts,&t0);CHKERRQ(ierr);
-  ierr = TSGetMaxTime(ts,&tf);CHKERRQ(ierr);
-  ierr = TSGetMaxSteps(ts,&maxsteps);CHKERRQ(ierr);
 
   /* Set cost functionals: many can be added, by simply calling TSSetObjective multiple times */
   if (!testtlmgrad) {
@@ -486,10 +458,7 @@ int main(int argc, char* argv[])
 
   /* Test objective function evaluation */
   ierr = VecSet(U,user.a);CHKERRQ(ierr);
-  ierr = TSGetTime(ts,&t0);CHKERRQ(ierr);
-  ierr = TSEvaluateObjective(ts,U,M,&obj);CHKERRQ(ierr);
-  ierr = TSGetTime(ts,&tf);CHKERRQ(ierr);
-  ierr = MPI_Comm_size(PETSC_COMM_WORLD,&np);CHKERRQ(ierr);
+  ierr = TSEvaluateObjective(ts,t0,dt,tf,U,M,&obj);CHKERRQ(ierr);
   if (user.p == 1.0) {
     if (userobj.isnorm) {
       objtest = np * PetscRealPart((user.a * user.a) / (2.0*user.b) * (PetscExpScalar(2.0*(tf-t0)*user.b) - one));
@@ -509,12 +478,8 @@ int main(int argc, char* argv[])
   ierr = PetscPrintf(PETSC_COMM_WORLD,"Objective function: time [%g,%g], val %g (should be %g)\n",t0,tf,(double)obj,(double)(objtest+store_Event));CHKERRQ(ierr);
 
   /* Test gradient evaluation */
-  ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
-  ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
-  ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
-  ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
   ierr = VecSet(U,user.a);CHKERRQ(ierr);
-  ierr = TSEvaluateObjectiveGradient(ts,U,M,Mgrad);CHKERRQ(ierr);
+  ierr = TSEvaluateObjectiveGradient(ts,t0,dt,tf,U,M,Mgrad);CHKERRQ(ierr);
 
   /* Test tangent Linear Model */
   ierr = VecSet(U,user.a);CHKERRQ(ierr);
@@ -566,11 +531,7 @@ int main(int argc, char* argv[])
         ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
         ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
         ierr = VecSet(U,param[0]);CHKERRQ(ierr);
-        ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
-        ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
-        ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
-        ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
-        ierr = TSEvaluateObjective(ts,U,M,&objdx[j]);CHKERRQ(ierr);
+        ierr = TSEvaluateObjective(ts,t0,dt,tf,U,M,&objdx[j]);CHKERRQ(ierr);
       }
       ierr = PetscPrintf(PETSC_COMM_WORLD,"%D-th component of gradient should be (approximated) %g\n",i,(double)((objdx[0]-objdx[1])/(2.*dx)));CHKERRQ(ierr);
     }
@@ -599,11 +560,7 @@ int main(int argc, char* argv[])
       ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
       ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
       ierr = VecSet(U,user.a);CHKERRQ(ierr);
-      ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
-      ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
-      ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
-      ierr = TSSetMaxSteps(ts,maxsteps);CHKERRQ(ierr);
-      ierr = TSEvaluateObjective(ts,U,M,&objtest);CHKERRQ(ierr);
+      ierr = TSEvaluateObjective(ts,t0,dt,tf,U,M,&objtest);CHKERRQ(ierr);
       ierr = VecSetValue(M,0,ra,INSERT_VALUES);CHKERRQ(ierr);
       ierr = VecSetValue(M,1,rb,INSERT_VALUES);CHKERRQ(ierr);
       ierr = VecSetValue(M,2,rp,INSERT_VALUES);CHKERRQ(ierr);

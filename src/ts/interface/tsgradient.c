@@ -2321,6 +2321,9 @@ PetscErrorCode TSSetEvalICGradient(TS ts, Mat J_x, Mat J_m, TSEvalICGradient f, 
 
    Input Parameters:
 +  ts     - the TS context
+.  t0     - initial time
+.  dt     - initial time step
+.  tf     - final time
 .  X      - the initial vector for the state (can be NULL)
 -  design - current design vector
 
@@ -2333,15 +2336,25 @@ PetscErrorCode TSSetEvalICGradient(TS ts, Mat J_x, Mat J_m, TSEvalICGradient f, 
 
 .seealso: TSSetObjective(), TSSetEvalGradient(), TSSetEvalICGradient(), TSEvaluateObjectiveGradient(), TSEvaluateObjectiveAndGradient()
 */
-PetscErrorCode TSEvaluateObjective(TS ts, Vec X, Vec design, PetscReal *val)
+PetscErrorCode TSEvaluateObjective(TS ts, PetscReal t0, PetscReal dt, PetscReal tf, Vec X, Vec design, PetscReal *val)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  if (X) PetscValidHeaderSpecific(X,VEC_CLASSID,2);
-  PetscValidHeaderSpecific(design,VEC_CLASSID,3);
-  PetscValidPointer(val,4);
+  PetscValidLogicalCollectiveReal(ts,t0,2);
+  PetscValidLogicalCollectiveReal(ts,dt,3);
+  PetscValidLogicalCollectiveReal(ts,tf,4);
+  if (X) PetscValidHeaderSpecific(X,VEC_CLASSID,5);
+  PetscValidHeaderSpecific(design,VEC_CLASSID,6);
+  PetscValidPointer(val,7);
+  ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
+  if (dt > 0) {
+    ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
+  }
+  ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(ts,PETSC_MAX_INT);CHKERRQ(ierr);
+  ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   ierr = VecLockPush(design);CHKERRQ(ierr);
   ierr = TSEvaluateObjective_Private(ts,X,design,NULL,val);CHKERRQ(ierr);
   ierr = VecLockPop(design);CHKERRQ(ierr);
@@ -2354,9 +2367,12 @@ PetscErrorCode TSEvaluateObjective(TS ts, Vec X, Vec design, PetscReal *val)
    Logically Collective on TS
 
    Input Parameters:
-+  ts       - the TS context
-.  X        - the initial vector for the state (can be NULL)
--  design   - current design vector
++  ts     - the TS context
+.  t0     - initial time
+.  dt     - initial time step
+.  tf     - final time
+.  X      - the initial vector for the state (can be NULL)
+-  design - current design vector
 
    Output Parameters:
 .  gradient - the computed gradient
@@ -2367,15 +2383,25 @@ PetscErrorCode TSEvaluateObjective(TS ts, Vec X, Vec design, PetscReal *val)
 
 .seealso: TSSetObjective(), TSSetEvalGradient(), TSSetEvalICGradient(), TSEvaluateObjective(), TSEvaluateObjectiveAndGradient()
 */
-PetscErrorCode TSEvaluateObjectiveGradient(TS ts, Vec X, Vec design, Vec gradient)
+PetscErrorCode TSEvaluateObjectiveGradient(TS ts, PetscReal t0, PetscReal dt, PetscReal tf, Vec X, Vec design, Vec gradient)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  PetscValidHeaderSpecific(X,VEC_CLASSID,2);
-  PetscValidHeaderSpecific(design,VEC_CLASSID,3);
-  PetscValidHeaderSpecific(gradient,VEC_CLASSID,4);
+  PetscValidLogicalCollectiveReal(ts,t0,2);
+  PetscValidLogicalCollectiveReal(ts,dt,3);
+  PetscValidLogicalCollectiveReal(ts,tf,4);
+  PetscValidHeaderSpecific(X,VEC_CLASSID,5);
+  PetscValidHeaderSpecific(design,VEC_CLASSID,6);
+  PetscValidHeaderSpecific(gradient,VEC_CLASSID,7);
+  ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
+  if (dt > 0) {
+    ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
+  }
+  ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(ts,PETSC_MAX_INT);CHKERRQ(ierr);
+  ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   ierr = VecLockPush(design);CHKERRQ(ierr);
   ierr = TSEvaluateObjectiveGradient_Private(ts,X,design,gradient,NULL);CHKERRQ(ierr);
   ierr = VecLockPop(design);CHKERRQ(ierr);
@@ -2388,9 +2414,12 @@ PetscErrorCode TSEvaluateObjectiveGradient(TS ts, Vec X, Vec design, Vec gradien
    Logically Collective on TS
 
    Input Parameters:
-+  ts       - the TS context
-.  X        - the initial vector for the state
--  design   - current design vector
++  ts     - the TS context
+.  t0     - initial time
+.  dt     - initial time step
+.  tf     - final time
+.  X      - the initial vector for the state
+-  design - current design vector
 
    Output Parameters:
 +  obj      - the value of the objective function
@@ -2402,16 +2431,26 @@ PetscErrorCode TSEvaluateObjectiveGradient(TS ts, Vec X, Vec design, Vec gradien
 
 .seealso: TSSetObjective(), TSSetEvalGradient(), TSSetEvalICGradient(), TSEvaluateObjective(), TSEvaluateObjectiveGradient()
 */
-PetscErrorCode TSEvaluateObjectiveAndGradient(TS ts, Vec X, Vec design, Vec gradient, PetscReal *obj)
+PetscErrorCode TSEvaluateObjectiveAndGradient(TS ts, PetscReal t0, PetscReal dt, PetscReal tf, Vec X, Vec design, Vec gradient, PetscReal *obj)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  PetscValidHeaderSpecific(X,VEC_CLASSID,2);
-  PetscValidHeaderSpecific(design,VEC_CLASSID,3);
-  PetscValidHeaderSpecific(gradient,VEC_CLASSID,4);
-  PetscValidPointer(obj,5);
+  PetscValidLogicalCollectiveReal(ts,t0,2);
+  PetscValidLogicalCollectiveReal(ts,dt,3);
+  PetscValidLogicalCollectiveReal(ts,tf,4);
+  PetscValidHeaderSpecific(X,VEC_CLASSID,5);
+  PetscValidHeaderSpecific(design,VEC_CLASSID,6);
+  PetscValidHeaderSpecific(gradient,VEC_CLASSID,7);
+  PetscValidPointer(obj,8);
+  ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
+  if (dt > 0) {
+    ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
+  }
+  ierr = TSSetMaxTime(ts,tf);CHKERRQ(ierr);
+  ierr = TSSetMaxSteps(ts,PETSC_MAX_INT);CHKERRQ(ierr);
+  ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   ierr = VecLockPush(design);CHKERRQ(ierr);
   ierr = TSEvaluateObjectiveGradient_Private(ts,X,design,gradient,obj);CHKERRQ(ierr);
   ierr = VecLockPop(design);CHKERRQ(ierr);

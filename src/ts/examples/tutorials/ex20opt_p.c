@@ -20,7 +20,7 @@ Input parameters include:\n";
   The nonlinear problem is written in a DAE equivalent form.
   The objective is to minimize the difference between observation and model prediction by finding an optimal value for parameter \mu.
   The gradient is computed with the discrete adjoint of an implicit theta method, see ex20adj.c for details.
-  Alternatively, the gradient can be computed through the continuous adjoint approach, see also ex16opt_p.c and ex16opt_ic.c for details.
+  Alternatively, the gradient can be computed by directly solving the adjoint ode, see also ex16opt_p.c and ex16opt_ic.c for details.
   ------------------------------------------------------------------------- */
 #include <petsctao.h>
 #include <petscts.h>
@@ -38,7 +38,7 @@ struct _n_User {
 };
 
 PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
-PetscErrorCode FormFunctionGradient_CA(Tao,Vec,PetscReal*,Vec,void*);
+PetscErrorCode FormFunctionGradient_AO(Tao,Vec,PetscReal*,Vec,void*);
 
 /*
 *  User-defined routines
@@ -146,7 +146,7 @@ int main(int argc,char **argv)
   Tao                tao;
   KSP                ksp;
   PC                 pc;
-  PetscBool          continuous = PETSC_FALSE;
+  PetscBool          adjointode = PETSC_FALSE;
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize program
@@ -230,9 +230,9 @@ int main(int argc,char **argv)
   ierr = TaoSetInitialVector(tao,p);CHKERRQ(ierr);
 
   /* Set routine for function and gradient evaluation */
-  ierr = PetscOptionsGetBool(NULL,NULL,"-continuous",&continuous,NULL);CHKERRQ(ierr);
-  if (continuous) { /* use continuous adjoint approach */
-    ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient_CA,(void *)&user);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL,NULL,"-adjointode",&adjointode,NULL);CHKERRQ(ierr);
+  if (adjointode) { /* use the adjoint ode approach */
+    ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient_AO,(void *)&user);CHKERRQ(ierr);
   } else {
     ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void *)&user);CHKERRQ(ierr);
   }
@@ -347,10 +347,10 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx)
   PetscFunctionReturn(0);
 }
 
-/* callbacks for the continuous adjoint approach */
+/* callbacks for the adjoint ode approach */
 
 /* the cost functional interface: returns ||u - u_obs||^2 */
-static PetscErrorCode EvalObjective_CA(TS ts, PetscReal time, Vec U, Vec P, PetscReal *val, void *ctx)
+static PetscErrorCode EvalObjective_AO(TS ts, PetscReal time, Vec U, Vec P, PetscReal *val, void *ctx)
 {
   const PetscScalar *x;
   User              user = (User)ctx;
@@ -364,7 +364,7 @@ static PetscErrorCode EvalObjective_CA(TS ts, PetscReal time, Vec U, Vec P, Pets
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode EvalCostGradient_U_CA(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+static PetscErrorCode EvalCostGradient_U_AO(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
 {
   User              user = (User)ctx;
   const PetscScalar *x;
@@ -380,7 +380,8 @@ static PetscErrorCode EvalCostGradient_U_CA(TS ts, PetscReal time, Vec U, Vec M,
   ierr = VecRestoreArrayRead(U,&x);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-static PetscErrorCode RHSJacobianP_CA(TS ts, PetscReal t, Vec X, Vec Xdot, Vec P, Mat J, void *ctx)
+
+static PetscErrorCode RHSJacobianP_AO(TS ts, PetscReal t, Vec X, Vec Xdot, Vec P, Mat J, void *ctx)
 {
   PetscErrorCode ierr;
 
@@ -390,7 +391,7 @@ static PetscErrorCode RHSJacobianP_CA(TS ts, PetscReal t, Vec X, Vec Xdot, Vec P
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode FormFunctionGradient_CA(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx)
+PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx)
 {
   User              user_ptr = (User)ctx;
   TS                ts;
@@ -409,17 +410,14 @@ PetscErrorCode FormFunctionGradient_CA(Tao tao,Vec P,PetscReal *f,Vec G,void *ct
   ierr = TSSetType(ts,TSCN);CHKERRQ(ierr);
   ierr = TSSetIFunction(ts,NULL,IFunction,user_ptr);CHKERRQ(ierr);
   ierr = TSSetIJacobian(ts,user_ptr->A,user_ptr->A,IJacobian,user_ptr);CHKERRQ(ierr);
-  ierr = TSSetTime(ts,0.0);CHKERRQ(ierr);
-  ierr = TSSetMaxTime(ts,user_ptr->ftime);CHKERRQ(ierr);
-  ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   ierr = VecGetArray(user_ptr->x,&x_ptr);CHKERRQ(ierr);
   x_ptr[0] = 2.0;
   x_ptr[1] = -0.66666654321;
   ierr = VecRestoreArray(user_ptr->x,&x_ptr);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
-  ierr = TSSetObjective(ts,user_ptr->ftime,EvalObjective_CA,user_ptr,EvalCostGradient_U_CA,user_ptr,NULL,NULL);CHKERRQ(ierr);
-  ierr = TSSetEvalGradient(ts,user_ptr->Jacp,RHSJacobianP_CA,user_ptr);CHKERRQ(ierr);
-  ierr = TSEvaluateObjectiveAndGradient(ts,user_ptr->x,P,G,f);CHKERRQ(ierr);
+  ierr = TSSetObjective(ts,user_ptr->ftime,EvalObjective_AO,user_ptr,EvalCostGradient_U_AO,user_ptr,NULL,NULL);CHKERRQ(ierr);
+  ierr = TSSetEvalGradient(ts,user_ptr->Jacp,RHSJacobianP_AO,user_ptr);CHKERRQ(ierr);
+  ierr = TSEvaluateObjectiveAndGradient(ts,0.0,PETSC_DECIDE,user_ptr->ftime,user_ptr->x,P,G,f);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
