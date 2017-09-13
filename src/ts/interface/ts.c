@@ -7321,8 +7321,9 @@ PetscErrorCode  TSMonitorLGGetVariableNames(TS ts,const char *const **names)
 @*/
 PetscErrorCode  TSMonitorLGCtxSetDisplayVariables(TSMonitorLGCtx ctx,const char * const *displaynames)
 {
-  PetscInt          j = 0,k;
-  PetscErrorCode    ierr;
+  PetscInt       j = 0,k;
+  PetscErrorCode ierr;
+  PetscBool      flg;
 
   PetscFunctionBegin;
   if (!ctx->names) PetscFunctionReturn(0);
@@ -7334,16 +7335,17 @@ PetscErrorCode  TSMonitorLGCtxSetDisplayVariables(TSMonitorLGCtx ctx,const char 
   ierr = PetscMalloc1(ctx->ndisplayvariables,&ctx->displayvalues);CHKERRQ(ierr);
   j = 0;
   while (displaynames[j]) {
-    k = 0;
+    k   = 0;
+    flg = PETSC_FALSE;
     while (ctx->names[k]) {
-      PetscBool flg;
-      ierr = PetscStrcmp(displaynames[j],ctx->names[k],&flg);CHKERRQ(ierr);
+      ierr = PetscStrcasecmp(displaynames[j],ctx->names[k],&flg);CHKERRQ(ierr);
       if (flg) {
         ctx->displayvariables[j] = k;
         break;
       }
       k++;
     }
+    if (!flg) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"Cannot find %s you requested be displayed",displaynames[j]);
     j++;
   }
   PetscFunctionReturn(0);
