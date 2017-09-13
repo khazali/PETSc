@@ -331,8 +331,6 @@ PETSC_EXTERN PetscErrorCode TSResetObjective(TS);
 PETSC_EXTERN PetscErrorCode TSSetObjective(TS,PetscReal,TSEvalObjective,void*,TSEvalObjectiveGradient,void*,TSEvalObjectiveGradient,void*);
 PETSC_EXTERN PetscErrorCode TSSetEvalGradient(TS,Mat,TSEvalGradient,void*);
 PETSC_EXTERN PetscErrorCode TSSetEvalICGradient(TS,Mat,Mat,TSEvalICGradient,void*);
-PETSC_EXTERN PetscErrorCode TSEvaluateObjectiveGradient(TS,PetscReal,PetscReal,PetscReal,Vec,Vec,Vec);
-PETSC_EXTERN PetscErrorCode TSEvaluateObjective(TS,PetscReal,PetscReal,PetscReal,Vec,Vec,PetscReal*);
 PETSC_EXTERN PetscErrorCode TSEvaluateObjectiveAndGradient(TS,PetscReal,PetscReal,PetscReal,Vec,Vec,Vec,PetscReal*);
 PETSC_EXTERN PetscErrorCode TSCreatePropagatorMat(TS,PetscReal,PetscReal,PetscReal,Vec,Vec,Mat,Mat*);
 PETSC_EXTERN PetscErrorCode TSSetMaxSteps(TS,PetscInt);

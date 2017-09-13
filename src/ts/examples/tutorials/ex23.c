@@ -1,4 +1,4 @@
-static const char help[] = "Demonstrates the use of TSEvaluteGradient";
+static const char help[] = "Demonstrates the use of TSEvaluteObjectiveAndGradient";
 /*
   Computes the gradient of
 
@@ -458,7 +458,7 @@ int main(int argc, char* argv[])
 
   /* Test objective function evaluation */
   ierr = VecSet(U,user.a);CHKERRQ(ierr);
-  ierr = TSEvaluateObjective(ts,t0,dt,tf,U,M,&obj);CHKERRQ(ierr);
+  ierr = TSEvaluateObjectiveAndGradient(ts,t0,dt,tf,U,M,NULL,&obj);CHKERRQ(ierr);
   if (user.p == 1.0) {
     if (userobj.isnorm) {
       objtest = np * PetscRealPart((user.a * user.a) / (2.0*user.b) * (PetscExpScalar(2.0*(tf-t0)*user.b) - one));
@@ -479,7 +479,7 @@ int main(int argc, char* argv[])
 
   /* Test gradient evaluation */
   ierr = VecSet(U,user.a);CHKERRQ(ierr);
-  ierr = TSEvaluateObjectiveGradient(ts,t0,dt,tf,U,M,Mgrad);CHKERRQ(ierr);
+  ierr = TSEvaluateObjectiveAndGradient(ts,t0,dt,tf,U,M,Mgrad,NULL);CHKERRQ(ierr);
 
   /* Test tangent Linear Model */
   ierr = VecSet(U,user.a);CHKERRQ(ierr);
@@ -531,7 +531,7 @@ int main(int argc, char* argv[])
         ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
         ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
         ierr = VecSet(U,param[0]);CHKERRQ(ierr);
-        ierr = TSEvaluateObjective(ts,t0,dt,tf,U,M,&objdx[j]);CHKERRQ(ierr);
+        ierr = TSEvaluateObjectiveAndGradient(ts,t0,dt,tf,U,M,NULL,&objdx[j]);CHKERRQ(ierr);
       }
       ierr = PetscPrintf(PETSC_COMM_WORLD,"%D-th component of gradient should be (approximated) %g\n",i,(double)((objdx[0]-objdx[1])/(2.*dx)));CHKERRQ(ierr);
     }
@@ -560,7 +560,7 @@ int main(int argc, char* argv[])
       ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
       ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
       ierr = VecSet(U,user.a);CHKERRQ(ierr);
-      ierr = TSEvaluateObjective(ts,t0,dt,tf,U,M,&objtest);CHKERRQ(ierr);
+      ierr = TSEvaluateObjectiveAndGradient(ts,t0,dt,tf,U,M,NULL,&objtest);CHKERRQ(ierr);
       ierr = VecSetValue(M,0,ra,INSERT_VALUES);CHKERRQ(ierr);
       ierr = VecSetValue(M,1,rb,INSERT_VALUES);CHKERRQ(ierr);
       ierr = VecSetValue(M,2,rp,INSERT_VALUES);CHKERRQ(ierr);
