@@ -12,7 +12,6 @@ Input parameters include:\n\
 
    Notes:
    This code demonstrates how to solve an ODE-constrained optimization problem with TAO, TSAdjoint and TS.
-   The continuous adjoint approach can be also used.
    The objective is to minimize the difference between observation and model prediction by finding an optimal value for parameter \mu.
    The gradient is either computed with the discrete adjoint of an explicit Runge-Kutta method (see ex16adj.c for details), or by solving the adjoint ODE.
   ------------------------------------------------------------------------- */
