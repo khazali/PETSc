@@ -734,6 +734,16 @@ runex23_8:
 	   ${DIFF} output/ex23_8.out ex23_8.tmp || printf "${PWD}\nPossible problem with ex23_8, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_8.tmp SA-data
 
+runex23_9:
+	-@${MPIEXEC} -n 1 ./ex23 -t0 -0.3 -tf 0.5 -b 1.2 -a 2.1 -p 0.3 -ts_type rk -test_general_fixed -test_general_final -test_general -test_event_func -test_event_constant -test_event_final -ts_rtol 1.e-6 -ts_atol 1.e-6 > ex23_9.tmp 2>&1; \
+	   ${DIFF} output/ex23_9.out ex23_9.tmp || printf "${PWD}\nPossible problem with ex23_9, diffs above\n=========================================\n";  \
+	   ${RM} -rf ex23_9.tmp SA-data
+
+runex23_10:
+	-@${MPIEXEC} -n 1 ./ex23 -t0 -0.3 -tf 0.5 -b 1.2 -a 2.1 -p 0.3 -ts_type bdf -test_general_fixed -test_general_final -test_general -test_event_func -test_event_constant -test_event_final -ts_rtol 1.e-6 -ts_atol 1.e-6 > ex23_10.tmp 2>&1; \
+	   ${DIFF} output/ex23_10.out ex23_10.tmp || printf "${PWD}\nPossible problem with ex23_10, diffs above\n=========================================\n";  \
+	   ${RM} -rf ex23_10.tmp SA-data
+
 runex24:                        # This is not in the nightlies because the convergence details are numerically sensitive
 	-@${MPIEXEC} -n 1 ./ex24 -pc_type lu -ts_dt 1e-5 -ts_final_time 1e5 -n 50 -monitor_short > ex24_1.tmp 2>&1; \
 	   ${DIFF} output/ex24_1.out ex24_1.tmp || printf "${PWD}\nPossible problem with ex24_1, diffs above\n=========================================\n";  \
@@ -890,7 +900,7 @@ TESTEXAMPLES_C_NOTSINGLE = ex2.PETSc runex2 ex2.rm ex3.PETSc runex3_3 ex3.rm ex8
                             printdot ex12.PETSc runex12 runex12_2 ex12.rm ex15.PETSc runex15_3 runex15_4 ex15.rm printdot \
                             ex16.PETSc runex16  ex16.rm ex17.PETSc runex17 runex17_2 ex17.rm  ex22.PETSc runex22  ex22.rm printdot \
                             ex23.PETSc runex23_1 runex23_2 runex23_3 runex23_4 runex23_5 \
-                            runex23_6 runex23_7 runex23_8 ex23.rm printdot \
+                            runex23_6 runex23_7 runex23_8 runex23_9 runex23_10 ex23.rm printdot \
                             ex29.PETSc runex29 ex29.rm ex43.PETSc runex43_a runex43_b ex43.rm
 TESTEXAMPLES_C_NOCOMPLEX_NOTSINGLE  = ex9.PETSc runex9 runex9_2 runex9_3 ex9.rm \
                             ex26.PETSc runex26 runex26_2 runex26_3 runex26_4 runex26_asm ex26.rm\
