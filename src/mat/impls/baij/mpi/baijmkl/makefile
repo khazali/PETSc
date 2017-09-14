@@ -1,16 +1,17 @@
+#requirespackage 'PETSC_HAVE_MKL'
 
 ALL: lib
 
 CFLAGS   =
 FFLAGS   =
-SOURCEC  =
+SOURCEC  = mpibaijmkl.c
 SOURCEF  =
 SOURCEH  =
-LIBBASE  = libpetscsys
-DIRS     = rand rand48 rander48 sprng random123
-LOCDIR   = src/sys/classes/random/impls/
+LIBBASE  = libpetscmat
+DIRS     =
+MANSEC   = Mat
+LOCDIR   = src/mat/impls/baij/mpi/baijmkl/
 
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
 include ${PETSC_DIR}/lib/petsc/conf/test
-
