@@ -650,17 +650,16 @@ static PetscErrorCode AdjointTSPostEvent(TS adjts, PetscInt nevents, PetscInt ev
 {
   AdjointCtx     *adj_ctx;
   PetscReal      fwdt;
-  Vec            lambda;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - t + adj_ctx->t0;
   ierr = TSTrajectoryUpdateHistoryVecs(adj_ctx->fwdts->trajectory,adj_ctx->fwdts,fwdt,adj_ctx->W[0],NULL);CHKERRQ(ierr);
-  ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
-  ierr = VecLockPush(lambda);CHKERRQ(ierr);
+  /* just to double check that U is not changed here, as it is changed in AdjointTSPostStep */
+  ierr = VecLockPush(U);CHKERRQ(ierr);
   ierr = AdjointTSComputeInitialConditions(adjts,t,adj_ctx->W[0],PETSC_FALSE);CHKERRQ(ierr);
-  ierr = VecLockPop(lambda);CHKERRQ(ierr);
+  ierr = VecLockPop(U);CHKERRQ(ierr);
   adj_ctx->dirac_delta = PETSC_TRUE;
   PetscFunctionReturn(0);
 }
@@ -900,7 +899,10 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
   PetscFunctionReturn(0);
 }
 
-/* compute initial conditions */
+/*
+ Compute initial conditions for the adjoint DAE
+ We use svec (instead of just loading from history inside the function), as the propagator Mat can use P*U
+*/
 static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time, Vec svec, PetscBool apply)
 {
   PetscReal      fwdt;
