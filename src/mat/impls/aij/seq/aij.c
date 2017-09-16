@@ -425,6 +425,10 @@ PetscErrorCode MatSetValues_SeqAIJ(Mat A,PetscInt m,const PetscInt im[],PetscInt
   PetscBool      roworiented       = a->roworiented;
 
   PetscFunctionBegin;
+  if (a->aijhash) {
+    ierr = MatSetValuesAIJHash(A,m,im,n,in,v,is,a->aijhash);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
+  }
   for (k=0; k<m; k++) { /* loop over added rows */
     row = im[k];
     if (row < 0) continue;
@@ -989,6 +993,10 @@ PetscErrorCode MatAssemblyEnd_SeqAIJ(Mat A,MatAssemblyType mode)
 
   PetscFunctionBegin;
   if (mode == MAT_FLUSH_ASSEMBLY) PetscFunctionReturn(0);
+  if (a->aijhash) {
+    ierr = MatUnpackAIJHash(A,mode,&a->aijhash);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
+  }
 
   if (m) rmax = ailen[0]; /* determine row with most nonzeros */
   for (i=1; i<m; i++) {
@@ -3590,7 +3598,12 @@ PetscErrorCode  MatSeqAIJSetPreallocation_SeqAIJ(Mat B,PetscInt nz,const PetscIn
   ierr = PetscLayoutSetUp(B->rmap);CHKERRQ(ierr);
   ierr = PetscLayoutSetUp(B->cmap);CHKERRQ(ierr);
 
-  if (nz == PETSC_DEFAULT || nz == PETSC_DECIDE) nz = 5;
+  b = (Mat_SeqAIJ*)B->data;
+
+  if (nz == PETSC_DEFAULT || nz == PETSC_DECIDE) {
+    ierr = MatCreateAIJHash(B,&b->aijhash);CHKERRQ(ierr);
+    nz = 0;
+  }
   if (nz < 0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"nz cannot be less than 0: value %D",nz);
   if (nnz) {
     for (i=0; i<B->rmap->n; i++) {
@@ -3600,8 +3613,6 @@ PetscErrorCode  MatSeqAIJSetPreallocation_SeqAIJ(Mat B,PetscInt nz,const PetscIn
   }
 
   B->preallocated = PETSC_TRUE;
-
-  b = (Mat_SeqAIJ*)B->data;
 
   if (!skipallocation) {
     if (!b->imax) {
@@ -3989,6 +4000,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_SeqAIJ(Mat B)
   b->idiagvalid         = PETSC_FALSE;
   b->ibdiagvalid        = PETSC_FALSE;
   b->keepnonzeropattern = PETSC_FALSE;
+  b->aijhash            = NULL;
 
   ierr = PetscObjectChangeTypeName((PetscObject)B,MATSEQAIJ);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatSeqAIJGetArray_C",MatSeqAIJGetArray_SeqAIJ);CHKERRQ(ierr);

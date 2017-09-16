@@ -73,6 +73,8 @@ typedef struct {
   PetscErrorCode (*destroy)(Mat);
 } Mat_MatMatMatMult;
 
+typedef struct Mat_AIJHash *MatAIJHash;
+
 /*
   MATSEQAIJ format - Compressed row storage (also called Yale sparse matrix
   format) or compressed sparse row (CSR).  The i[] and j[] arrays start at 0. For example,
@@ -123,6 +125,7 @@ typedef struct {
   Mat_MatMatMatMult   *matmatmatmult;      /* used by MatMatMatMult() */
   Mat_RARt            *rart;               /* used by MatRARt() */
   Mat_MatMatTransMult *abt;                /* used by MatMatTransposeMult() */
+  MatAIJHash          aijhash;             /* used by MatSetValues if unassembled */
 } Mat_SeqAIJ;
 
 /*
@@ -354,6 +357,10 @@ PETSC_INTERN PetscErrorCode MatDestroySubMatrix_Private(Mat_SubSppt*);
 PETSC_INTERN PetscErrorCode MatDestroySubMatrix_SeqAIJ(Mat);
 PETSC_INTERN PetscErrorCode MatDestroySubMatrix_Dummy(Mat);
 PETSC_INTERN PetscErrorCode MatCreateSubMatrix_SeqAIJ(Mat,IS,IS,PetscInt,MatReuse,Mat*);
+
+PETSC_INTERN PetscErrorCode MatSetValuesAIJHash(Mat,PetscInt,const PetscInt*,PetscInt,const PetscInt*,const PetscScalar*,InsertMode,MatAIJHash);
+PETSC_INTERN PetscErrorCode MatCreateAIJHash(Mat,MatAIJHash*);
+PETSC_INTERN PetscErrorCode MatUnpackAIJHash(Mat,MatAssemblyType,MatAIJHash*);
 
 /*
     PetscSparseDenseMinusDot - The inner kernel of triangular solves and Gauss-Siedel smoothing. \sum_i xv[i] * r[xi[i]] for CSR storage
