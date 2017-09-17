@@ -20,7 +20,6 @@ typedef struct {
   SNES      snes;
   PetscFE   fem;
   PetscInt  debug;   /* The debugging level */
-  void      *data;
 } DM_PICell;
 
 #endif /* _PICELLIMPL_H */

@@ -66,7 +66,19 @@ PetscErrorCode DMDestroy_PICell(DM dm)
   ierr = PetscFree(dmpi);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-PetscErrorCode DMView_PICell(DM dm, PetscViewer viewer);
+
+#undef __FUNCT__
+#define __FUNCT__ "DMView_PICell"
+PetscErrorCode DMView_PICell(DM dm, PetscViewer viewer)
+{
+  PetscErrorCode ierr;
+  DM_PICell *dmpi = (DM_PICell *) dm->data;
+  if (!dmpi) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "dmpi not found");
+  ierr = DMView(dmpi->dm,viewer);CHKERRQ(ierr);
+  ierr = DMView_PICell_part_private(dm, viewer);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 #undef __FUNCT__
 #define __FUNCT__ "DMCreate_PICell"
 PETSC_EXTERN PetscErrorCode DMCreate_PICell(DM dm)
@@ -289,7 +301,7 @@ PetscErrorCode  DMPICellGetJet(DM dm, Vec coord, Vec philoc, PetscInt cell, Vec 
   ierr = VecGetBlockSize(coord, &dim);CHKERRQ(ierr);
   ierr = VecGetLocalSize(coord, &N);CHKERRQ(ierr);
   if (N%dim) SETERRQ2(PetscObjectComm((PetscObject) plex), PETSC_ERR_PLIB, "N=%D dim=%D",N,dim);
-  N /= dim;
+  N = N/dim;
   ierr = VecGetArray(coord, &xx);CHKERRQ(ierr);
   ierr = VecGetArray(refCoord, &xi);CHKERRQ(ierr);
   /* Affine approximation for reference coordinates */
@@ -369,17 +381,5 @@ PetscErrorCode DMGetCellChart(DM dm, PetscInt *cStart, PetscInt *cEnd)
   else {
     ierr = DMPlexGetHeightStratum(dm, 0, cStart, cEnd);CHKERRQ(ierr);
   }
-  PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "DMView_PICell"
-PetscErrorCode DMView_PICell(DM dm, PetscViewer viewer)
-{
-  PetscErrorCode ierr;
-  DM_PICell *dmpi = (DM_PICell *) dm->data;
-  if (!dmpi) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "dmpi not found");
-  ierr = DMView(dmpi->dm,viewer);CHKERRQ(ierr);
-  ierr = DMView_PICell_part_private(dm, viewer);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
