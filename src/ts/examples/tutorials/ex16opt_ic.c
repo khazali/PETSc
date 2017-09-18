@@ -372,7 +372,7 @@ PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec IC,PetscReal *f,Vec G,void *c
   ierr = MatAssemblyEnd(Id,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatZeroEntries(Id);CHKERRQ(ierr);
   ierr = MatShift(Id,-1.0);CHKERRQ(ierr);
-  ierr = TSSetEvalICGradient(ts,NULL,Id,NULL,NULL);CHKERRQ(ierr);
+  ierr = TSSetGradientIC(ts,NULL,Id,NULL,NULL);CHKERRQ(ierr);
   ierr = MatDestroy(&Id);CHKERRQ(ierr);
   ierr = TSEvaluateObjectiveAndGradient(ts,0.0,0.001,0.5,user->x,IC,G,f);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);

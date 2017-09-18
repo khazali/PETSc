@@ -527,13 +527,13 @@ int main(int argc, char* argv[])
   }
 
   /* Set dependence of F(Udot,U,t;M) = 0 from the parameters */
-  ierr = TSSetEvalGradient(ts,F_M,EvalGradient,&user);CHKERRQ(ierr);
+  ierr = TSSetGradientDAE(ts,F_M,EvalGradient,&user);CHKERRQ(ierr);
 
   /* Set dependence of initial conditions (in implicit form G(U(0);M) = 0) from the parameters */
   if (testnulljacIC) {
-    ierr = TSSetEvalICGradient(ts,NULL,G_M,EvalICGradient,NULL);CHKERRQ(ierr);
+    ierr = TSSetGradientIC(ts,NULL,G_M,EvalICGradient,NULL);CHKERRQ(ierr);
   } else {
-    ierr = TSSetEvalICGradient(ts,G_X,G_M,EvalICGradient,NULL);CHKERRQ(ierr);
+    ierr = TSSetGradientIC(ts,G_X,G_M,EvalICGradient,NULL);CHKERRQ(ierr);
   }
 
   /* Test objective function evaluation */

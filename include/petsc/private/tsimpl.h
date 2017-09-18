@@ -70,9 +70,9 @@ typedef struct _ObjectiveLink *ObjectiveLink;
 struct _ObjectiveLink {
   TSEvalObjective         f;         /* f(x,m,t) */
   void                    *f_ctx;
-  TSEvalObjectiveGradient f_x;       /* \partial_x f (x,m,t) */
+  TSEvalObjectiveGradient f_x;       /* \frac{\partial f}{\partial x}(x,m,t) */
   void                    *f_x_ctx;
-  TSEvalObjectiveGradient f_m;       /* \partial_m f (x,m,t) */
+  TSEvalObjectiveGradient f_m;       /* \frac{\partial f}{\partial m}(x,m,t) */
   void                    *f_m_ctx;
   PetscReal               fixedtime; /* if the functional has to be evaluated at a specific time, i.e. || x(T1) - x_d || ^2, T1 in [T0,TF] */
   ObjectiveLink           next;
@@ -215,11 +215,11 @@ struct _p_TS {
          G(x(T0),m)   = 0  Initial conditions
   */
   ObjectiveLink      funchead;
-  TSEvalICGradient   Ggrad;           /* callback to compute G_p and G_X(T0) */
+  TSEvalGradientIC   Ggrad;           /* callback to compute G_p and G_X(T0) */
   Mat                G_x;
   Mat                G_m;
   void               *Ggrad_ctx;
-  TSEvalGradient     F_m_f;           /* callback to compute F_m */
+  TSEvalGradientDAE  F_m_f;           /* callback to compute F_m */
   Mat                F_m;
   void               *F_m_ctx;
 
