@@ -282,8 +282,8 @@ static PetscErrorCode TSLinearizeICApply(TS ts, PetscReal t0, Vec x0, Vec design
     ierr = (*ts->Ggrad)(ts,t0,x0,design,ts->G_x,ts->G_m,ts->Ggrad_ctx);CHKERRQ(ierr);
   }
   if (ts->G_x) { /* this is optional. If not provided, identity is assumed */
-    ierr = PetscObjectQuery((PetscObject)ts,"_ts_gradient_G",(PetscObject*)&ksp);CHKERRQ(ierr);
-    ierr = PetscObjectQuery((PetscObject)ts,"_ts_gradient_GW",(PetscObject*)&workvec);CHKERRQ(ierr);
+    ierr = PetscObjectQuery((PetscObject)ts,"_ts_gradientIC_G",(PetscObject*)&ksp);CHKERRQ(ierr);
+    ierr = PetscObjectQuery((PetscObject)ts,"_ts_gradientIC_GW",(PetscObject*)&workvec);CHKERRQ(ierr);
     if (!ksp) {
       const char *prefix;
       ierr = KSPCreate(PetscObjectComm((PetscObject)ts),&ksp);CHKERRQ(ierr);
@@ -292,12 +292,12 @@ static PetscErrorCode TSLinearizeICApply(TS ts, PetscReal t0, Vec x0, Vec design
       ierr = KSPSetOptionsPrefix(ksp,prefix);CHKERRQ(ierr);
       ierr = KSPAppendOptionsPrefix(ksp,"JacIC_");CHKERRQ(ierr);
       ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
-      ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_G",(PetscObject)ksp);CHKERRQ(ierr);
+      ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradientIC_G",(PetscObject)ksp);CHKERRQ(ierr);
       ierr = PetscObjectDereference((PetscObject)ksp);CHKERRQ(ierr);
     }
     if (!workvec) {
       ierr = MatCreateVecs(ts->G_m,NULL,&workvec);CHKERRQ(ierr);
-      ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_GW",(PetscObject)workvec);CHKERRQ(ierr);
+      ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradientIC_GW",(PetscObject)workvec);CHKERRQ(ierr);
       ierr = PetscObjectDereference((PetscObject)workvec);CHKERRQ(ierr);
     }
     ierr = KSPSetOperators(ksp,ts->G_x,ts->G_x);CHKERRQ(ierr);
@@ -935,7 +935,7 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   ierr = PetscContainerCreate(PetscObjectComm((PetscObject)(*adjts)),&container);CHKERRQ(ierr);
   ierr = PetscContainerSetPointer(container,adj);CHKERRQ(ierr);
   ierr = PetscContainerSetUserDestroy(container,AdjointTSDestroy_Private);CHKERRQ(ierr);
-  ierr = PetscObjectCompose((PetscObject)(*adjts),"_ts_gradient_adjctx",(PetscObject)container);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject)(*adjts),"_ts_adjctx",(PetscObject)container);CHKERRQ(ierr);
   ierr = PetscContainerDestroy(&container);CHKERRQ(ierr);
 
   /* setup callbacks for adjoint DAE: we reuse the same jacobian matrices of the forward solve */
@@ -1005,7 +1005,7 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
   PetscValidHeaderSpecific(gradient,VEC_CLASSID,2);
-  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_gradient_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
+  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   if (adj_ctx->t0 >= PETSC_MAX_REAL || adj_ctx->tf >= PETSC_MAX_REAL) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"You should call AdjointTSSetTimeLimits first");
@@ -1033,7 +1033,7 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
-  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_gradient_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
+  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
@@ -1291,7 +1291,7 @@ static PetscErrorCode AdjointTSSetDesign(TS adjts, Vec design)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
   PetscValidHeaderSpecific(design,VEC_CLASSID,2);
-  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_gradient_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
+  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   ierr = PetscObjectReference((PetscObject)design);CHKERRQ(ierr);
@@ -1310,7 +1310,7 @@ static PetscErrorCode AdjointTSSetTimeLimits(TS adjts, PetscReal t0, PetscReal t
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
-  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_gradient_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
+  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   ierr = TSSetTime(adjts,t0);CHKERRQ(ierr);
@@ -1333,7 +1333,7 @@ static PetscErrorCode AdjointTSEventHandler(TS adjts)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
-  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_gradient_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
+  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   link = adj_ctx->fwdts->funchead;
@@ -1359,7 +1359,7 @@ static PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
-  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_gradient_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
+  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   if (!adj_ctx->gradient) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Missing gradient vector");
@@ -2501,8 +2501,8 @@ PetscErrorCode TSSetGradientIC(TS ts, Mat J_x, Mat J_m, TSEvalGradientIC f, void
   if (J_x) PetscValidHeaderSpecific(J_x,MAT_CLASSID,2);
   if (J_m) PetscValidHeaderSpecific(J_m,MAT_CLASSID,3);
 
-  ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_G",NULL);CHKERRQ(ierr);
-  ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradient_GW",NULL);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradientIC_G",NULL);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject)ts,"_ts_gradientIC_GW",NULL);CHKERRQ(ierr);
   if (J_x) {
     ierr = PetscObjectReference((PetscObject)J_x);CHKERRQ(ierr);
   }
