@@ -619,13 +619,13 @@ PetscErrorCode DMLocatePoints_Plex(DM dm, Vec v, DMPointLocationType ltype, Pets
     }
   }
   /* define domain bounding box */
-  {
-    Vec coorglobal;
+  /* { */
+  /*   Vec coorglobal; */
     
-    ierr = DMGetCoordinates(dm,&coorglobal);CHKERRQ(ierr);
-    ierr = VecStrideMaxAll(coorglobal,NULL,gmax);CHKERRQ(ierr);
-    ierr = VecStrideMinAll(coorglobal,NULL,gmin);CHKERRQ(ierr);
-  }
+  /*   ierr = DMGetCoordinates(dm,&coorglobal);CHKERRQ(ierr); */
+  /*   ierr = VecStrideMaxAll(coorglobal,NULL,gmax);CHKERRQ(ierr); */
+  /*   ierr = VecStrideMinAll(coorglobal,NULL,gmin);CHKERRQ(ierr); */
+  /* } */
   if (hash) {
     if (!mesh->lbox) {ierr = PetscInfo(dm, "Initializing grid hashing");CHKERRQ(ierr);ierr = DMPlexComputeGridHash_Internal(dm, &mesh->lbox);CHKERRQ(ierr);}
     /* Designate the local box for each point */
@@ -640,10 +640,10 @@ PetscErrorCode DMLocatePoints_Plex(DM dm, Vec v, DMPointLocationType ltype, Pets
     PetscBool          point_outside_domain = PETSC_FALSE;
 
     /* check bounding box of domain */
-    for (d=0; d<dim; d++) {
-      if (PetscRealPart(point[d]) < gmin[d]) { point_outside_domain = PETSC_TRUE; break; }
-      if (PetscRealPart(point[d]) > gmax[d]) { point_outside_domain = PETSC_TRUE; break; }
-    }
+    /* for (d=0; d<dim; d++) { */
+    /*   if (PetscRealPart(point[d]) < gmin[d]) { point_outside_domain = PETSC_TRUE; break; } */
+    /*   if (PetscRealPart(point[d]) > gmax[d]) { point_outside_domain = PETSC_TRUE; break; } */
+    /* } */
     if (point_outside_domain) {
       cells[p].rank = 0;
       cells[p].index = DMLOCATEPOINT_POINT_NOT_FOUND;
