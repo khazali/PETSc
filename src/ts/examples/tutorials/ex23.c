@@ -20,7 +20,7 @@ typedef struct {
 } UserObjective;
 
 /* returns f(u) -> ||u||^2  or Sum(u), depending on the objective function selected */
-static PetscErrorCode EvalObjective(TS ts, PetscReal time, Vec U, Vec M, PetscReal *val, void *ctx)
+static PetscErrorCode EvalObjective(Vec U, Vec M, PetscReal time, PetscReal *val, void *ctx)
 {
   UserObjective  *user = (UserObjective*)ctx;
   PetscErrorCode ierr;
@@ -38,7 +38,7 @@ static PetscErrorCode EvalObjective(TS ts, PetscReal time, Vec U, Vec M, PetscRe
 }
 
 /* returns \partial_u f(u) ->  2*u or 1, depending on the objective function selected */
-static PetscErrorCode EvalObjectiveGradient_U(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+static PetscErrorCode EvalObjectiveGradient_U(Vec U, Vec M, PetscReal time, Vec grad, void *ctx)
 {
   UserObjective  *user = (UserObjective*)ctx;
   PetscErrorCode ierr;
@@ -54,7 +54,7 @@ static PetscErrorCode EvalObjectiveGradient_U(TS ts, PetscReal time, Vec U, Vec 
 }
 
 /* returns \partial_m f(u) = 0, the functional does not depend on the parameters  */
-static PetscErrorCode EvalObjectiveGradient_M(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+static PetscErrorCode EvalObjectiveGradient_M(Vec U, Vec M, PetscReal time, Vec grad, void *ctx)
 {
   PetscErrorCode ierr;
 
@@ -67,14 +67,14 @@ static PetscErrorCode EvalObjectiveGradient_M(TS ts, PetscReal time, Vec U, Vec 
 static PetscReal store_Event = 0.0;
 static PetscBool general_fixed = PETSC_FALSE;
 
-static PetscErrorCode EvalObjective_Const(TS ts, PetscReal time, Vec U, Vec M, PetscReal *val, void *ctx)
+static PetscErrorCode EvalObjective_Const(Vec U, Vec M, PetscReal time, PetscReal *val, void *ctx)
 {
   PetscFunctionBeginUser;
   *val = 1.0;
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode EvalObjective_Event(TS ts, PetscReal time, Vec U, Vec M, PetscReal *val, void *ctx)
+static PetscErrorCode EvalObjective_Event(Vec U, Vec M, PetscReal time, PetscReal *val, void *ctx)
 {
   PetscErrorCode ierr;
 
@@ -85,7 +85,7 @@ static PetscErrorCode EvalObjective_Event(TS ts, PetscReal time, Vec U, Vec M, P
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode EvalObjectiveGradient_U_Event(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+static PetscErrorCode EvalObjectiveGradient_U_Event(Vec U, Vec M, PetscReal time, Vec grad, void *ctx)
 {
   PetscErrorCode ierr;
 
@@ -95,7 +95,7 @@ static PetscErrorCode EvalObjectiveGradient_U_Event(TS ts, PetscReal time, Vec U
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode EvalObjective_Gen(TS ts, PetscReal time, Vec U, Vec M, PetscReal *val, void *ctx)
+static PetscErrorCode EvalObjective_Gen(Vec U, Vec M, PetscReal time, PetscReal *val, void *ctx)
 {
   PetscErrorCode ierr;
   PetscReal      v1,v2;
@@ -108,7 +108,7 @@ static PetscErrorCode EvalObjective_Gen(TS ts, PetscReal time, Vec U, Vec M, Pet
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode EvalObjective_U_Gen(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+static PetscErrorCode EvalObjective_U_Gen(Vec U, Vec M, PetscReal time, Vec grad, void *ctx)
 {
   PetscErrorCode ierr;
 
@@ -118,7 +118,7 @@ static PetscErrorCode EvalObjective_U_Gen(TS ts, PetscReal time, Vec U, Vec M, V
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode EvalObjective_M_Gen(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+static PetscErrorCode EvalObjective_M_Gen(Vec U, Vec M, PetscReal time, Vec grad, void *ctx)
 {
   PetscErrorCode ierr;
 
@@ -135,7 +135,7 @@ typedef struct {
 } User;
 
 /* returns \partial_m F(U,Udot,t;M) for a fixed design M, where F(U,Udot,t;M) is the parameter dependent ODE in implicit form */
-static PetscErrorCode EvalGradient(TS ts, PetscReal time, Vec U, Vec Udot, Vec M, Mat J, void *ctx)
+static PetscErrorCode EvalGradientDAE(TS ts, PetscReal time, Vec U, Vec Udot, Vec M, Mat J, void *ctx)
 {
   User           *user = (User*)ctx;
   PetscInt       rst,ren,r;
@@ -164,7 +164,7 @@ static PetscErrorCode EvalGradient(TS ts, PetscReal time, Vec U, Vec Udot, Vec M
 }
 
 /* returns \partial_u0 G and \partial_m G, with G the initial conditions in implicit form */
-static PetscErrorCode EvalICGradient(TS ts, PetscReal t0, Vec u0, Vec M, Mat G_u0, Mat G_m, void *ctx)
+static PetscErrorCode EvalGradientIC(TS ts, PetscReal t0, Vec u0, Vec M, Mat G_u0, Mat G_m, void *ctx)
 {
   PetscInt       rst,ren,r;
   PetscErrorCode ierr;
@@ -535,13 +535,13 @@ int main(int argc, char* argv[])
   }
 
   /* Set dependence of F(Udot,U,t;M) = 0 from the parameters */
-  ierr = TSSetGradientDAE(ts,F_M,EvalGradient,&user);CHKERRQ(ierr);
+  ierr = TSSetGradientDAE(ts,F_M,EvalGradientDAE,&user);CHKERRQ(ierr);
 
   /* Set dependence of initial conditions (in implicit form G(U(0);M) = 0) from the parameters */
   if (testnulljacIC) {
-    ierr = TSSetGradientIC(ts,NULL,G_M,EvalICGradient,NULL);CHKERRQ(ierr);
+    ierr = TSSetGradientIC(ts,NULL,G_M,EvalGradientIC,NULL);CHKERRQ(ierr);
   } else {
-    ierr = TSSetGradientIC(ts,G_X,G_M,EvalICGradient,NULL);CHKERRQ(ierr);
+    ierr = TSSetGradientIC(ts,G_X,G_M,EvalGradientIC,NULL);CHKERRQ(ierr);
   }
 
   /* Test objective function evaluation */
@@ -662,10 +662,10 @@ int main(int argc, char* argv[])
         ierr = VecAssemblyBegin(M);CHKERRQ(ierr);
         ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
         if (testeventfinal) {
-          ierr = EvalObjectiveGradient_U_Event(ts,tf,tlmsol,M,J_U,NULL);CHKERRQ(ierr);
+          ierr = EvalObjectiveGradient_U_Event(tlmsol,M,tf,J_U,NULL);CHKERRQ(ierr);
         }
         if (testgeneral_final) {
-          ierr = EvalObjective_U_Gen(ts,tf,tlmsol,M,tU,NULL);CHKERRQ(ierr);
+          ierr = EvalObjective_U_Gen(tlmsol,M,tf,tU,NULL);CHKERRQ(ierr);
           ierr = VecAXPY(J_U,1.0,tU);CHKERRQ(ierr);
         }
         ierr = VecSetValue(M,0,ra,INSERT_VALUES);CHKERRQ(ierr);

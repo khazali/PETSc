@@ -323,9 +323,9 @@ PETSC_EXTERN PetscErrorCode TSForwardSetUp(TS);
 PETSC_EXTERN PetscErrorCode TSForwardCostIntegral(TS);
 PETSC_EXTERN PetscErrorCode TSForwardStep(TS);
 
-PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalObjective)(TS,PetscReal,Vec,Vec,PetscReal*,void*);
-PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalObjectiveGradient)(TS,PetscReal,Vec,Vec,Vec,void*);
-PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalObjectiveHessian)(TS,PetscReal,Vec,Vec,Mat,void*);
+PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalObjective)(Vec,Vec,PetscReal,PetscReal*,void*);
+PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalObjectiveGradient)(Vec,Vec,PetscReal,Vec,void*);
+PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalObjectiveHessian)(Vec,Vec,PetscReal,Mat,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalGradientIC)(TS,PetscReal,Vec,Vec,Mat,Mat,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalGradientDAE)(TS,PetscReal,Vec,Vec,Vec,Mat,void*);
 PETSC_EXTERN PetscErrorCode TSResetObjective(TS);

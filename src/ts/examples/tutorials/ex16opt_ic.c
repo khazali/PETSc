@@ -317,7 +317,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
 /* callbacks for the adjoint ode approach */
 
 /* the cost functional interface: returns ||u - u_obs||^2 */
-static PetscErrorCode EvalObjective_AO(TS ts, PetscReal time, Vec U, Vec P, PetscReal *val, void *ctx)
+static PetscErrorCode EvalObjective_AO(Vec U, Vec P, PetscReal time, PetscReal *val, void *ctx)
 {
   const PetscScalar *x;
   User              user = (User)ctx;
@@ -331,7 +331,7 @@ static PetscErrorCode EvalObjective_AO(TS ts, PetscReal time, Vec U, Vec P, Pets
 }
 
 /* with this approach, we also need the gradient of the cost functional with respect to the state variables */
-static PetscErrorCode EvalCostGradient_U_AO(TS ts, PetscReal time, Vec U, Vec M, Vec grad, void *ctx)
+static PetscErrorCode EvalCostGradient_U_AO(Vec U, Vec M, PetscReal time, Vec grad, void *ctx)
 {
   User              user = (User)ctx;
   const PetscScalar *x;
