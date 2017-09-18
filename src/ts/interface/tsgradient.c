@@ -2047,7 +2047,8 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   }
   ierr = PetscObjectDereference((PetscObject)design);CHKERRQ(ierr);
   ierr = TSSetFromOptions(prop->lts);CHKERRQ(ierr);
-  ierr = TSSetObjective(prop->lts,prop->tf,NULL,NULL,TLMTS_dummyRHS,NULL,NULL,NULL);CHKERRQ(ierr);
+  ierr = TSSetObjective(prop->lts,prop->tf,NULL,NULL,TLMTS_dummyRHS,NULL,NULL,NULL,
+                        NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
   if (prop->model->F_m) {
     ierr = TSSetGradientDAE(prop->lts,prop->model->F_m,prop->model->F_m_f,prop->model->F_m_ctx);CHKERRQ(ierr);
   }
@@ -2166,13 +2167,16 @@ PetscErrorCode TSResetObjective(TS ts)
     ObjectiveLink olink = link;
 
     link = link->next;
+    ierr = MatDestroy(&olink->f_XX);CHKERRQ(ierr);
+    ierr = MatDestroy(&olink->f_XM);CHKERRQ(ierr);
+    ierr = MatDestroy(&olink->f_MM);CHKERRQ(ierr);
     ierr = PetscFree(olink);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
 
 /*
-   TSSetObjective - Sets a cost functional for gradient computation.
+   TSSetObjective - Sets a cost functional callback together with its gradient and hessian.
 
    Logically Collective on TS
 
@@ -2184,7 +2188,16 @@ PetscErrorCode TSResetObjective(TS ts)
 .  f_x      - the function evaluation routine for the derivativrt to the state variables (can be NULL)
 .  f_x_ctx  - user-defined context for the function evaluation routine (can be NULL)
 .  f_m      - the function evaluation routine for the derivative wrt the design variables (can be NULL)
--  f_m_ctx  - user-defined context for the function evaluation routine (can be NULL)
+.  f_m_ctx  - user-defined context for the function evaluation routine (can be NULL)
+.  f_XX     - the Mat object to hold f_xx(x,m,t) (can be NULL)
+.  f_xx     - the function evaluation routine for the second derivative wrt the state variables (can be NULL)
+.  f_xx_ctx - user-defined context for the matrix evaluation routine (can be NULL)
+.  f_XM     - the Mat object to hold f_xm(x,m,t) (can be NULL)
+.  f_xm     - the function evaluation routine for the mixed derivative (can be NULL)
+.  f_xm_ctx - user-defined context for the matrix evaluation routine (can be NULL)
+.  f_MM     - the Mat object to hold f_mm(x,m,t) (can be NULL)
+.  f_mm     - the function evaluation routine for the second derivative wrt the design variables (can be NULL)
+-  f_mm_ctx - user-defined context for the matrix evaluation routine (can be NULL)
 
    Calling sequence of f:
 $  f(TS ts,PetscReal t,Vec u,Vec m,PetscReal *out,void *ctx);
@@ -2204,16 +2217,31 @@ $  f(TS ts,PetscReal t,Vec u,Vec m,Vec out,void *ctx);
 .  out - output vector
 -  ctx - [optional] user-defined context
 
+   Calling sequence of f_xx, f_xm and f_mm:
+$  f(TS ts,PetscReal t,Vec u,Vec m,Mat A,void *ctx);
+
++  t   - time at step/stage being solved
+.  u   - state vector
+.  m   - design vector
+.  A   - the output matrix
+-  ctx - [optional] user-defined context
+
    Notes: the functions passed in are appended to a list. More functions can be passed by simply calling TSSetObjective multiple times.
           The functionals are intendended to be used as integrand terms of a time integration (if fixtime == PETSC_MIN_REAL) or as evaluation at a given specific time.
           Regularizers fall into the latter category: use f_x = NULL, and pass f and f_m with any time in between the half-open interval (t0, tf] (i.e. start and end of the forward solve).
-          The size of the output vectors equals the size of the state and design vectors for f_x and f_m, respectively.
+          For f_x, the size of the output vector equals the size of the state vector; for f_m it equals the size of the design vector.
+          The hessian matrices do not need to be in assembled form, just the MatMult() action is needed. If f_XM is present, the action of f_MX is obtained by calling MatMultTranspose().
+          If any of the second derivative matrices are constant, the associated function pointers can be NULL.
 
    Level: developer
 
 .seealso: TSSetGradientDAE(), TSEvaluateObjectiveAndGradient(), TSSetGradientIC()
 */
-PetscErrorCode TSSetObjective(TS ts, PetscReal fixtime, TSEvalObjective f, void* f_ctx, TSEvalObjectiveGradient f_x, void* f_x_ctx, TSEvalObjectiveGradient f_m, void* f_m_ctx)
+PetscErrorCode TSSetObjective(TS ts, PetscReal fixtime, TSEvalObjective f, void* f_ctx,
+                              TSEvalObjectiveGradient f_x, void* f_x_ctx, TSEvalObjectiveGradient f_m, void* f_m_ctx,
+                              Mat f_XX, TSEvalObjectiveHessian f_xx, void* f_xx_ctx,
+                              Mat f_XM, TSEvalObjectiveHessian f_xm, void* f_xm_ctx,
+                              Mat f_MM, TSEvalObjectiveHessian f_mm, void* f_mm_ctx)
 {
   ObjectiveLink  link;
   PetscErrorCode ierr;
@@ -2221,6 +2249,9 @@ PetscErrorCode TSSetObjective(TS ts, PetscReal fixtime, TSEvalObjective f, void*
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidLogicalCollectiveReal(ts,fixtime,2);
+  if (f_XX) PetscValidHeaderSpecific(f_XX,MAT_CLASSID,9);
+  if (f_XM) PetscValidHeaderSpecific(f_XM,MAT_CLASSID,12);
+  if (f_MM) PetscValidHeaderSpecific(f_MM,MAT_CLASSID,15);
   if (!ts->funchead) {
     ierr = PetscNew(&ts->funchead);CHKERRQ(ierr);
     link = ts->funchead;
@@ -2236,6 +2267,24 @@ PetscErrorCode TSSetObjective(TS ts, PetscReal fixtime, TSEvalObjective f, void*
   link->f_x_ctx   = f_x_ctx;
   link->f_m       = f_m;
   link->f_m_ctx   = f_m_ctx;
+  if (f_XX) {
+    ierr = PetscObjectReference((PetscObject)f_XX);CHKERRQ(ierr);
+    link->f_XX      = f_XX;
+    link->f_xx      = f_xx;
+    link->f_xx_ctx  = f_xx_ctx;
+  }
+  if (f_XM) {
+    ierr = PetscObjectReference((PetscObject)f_XM);CHKERRQ(ierr);
+    link->f_XM      = f_XM;
+    link->f_xm      = f_xm;
+    link->f_xm_ctx  = f_xm_ctx;
+  }
+  if (f_MM) {
+    ierr = PetscObjectReference((PetscObject)f_MM);CHKERRQ(ierr);
+    link->f_MM      = f_MM;
+    link->f_mm      = f_mm;
+    link->f_mm_ctx  = f_mm_ctx;
+  }
   link->fixedtime = fixtime;
   PetscFunctionReturn(0);
 }

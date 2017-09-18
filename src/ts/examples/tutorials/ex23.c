@@ -471,9 +471,11 @@ int main(int argc, char* argv[])
   objtest = 0.0;
   if (userobjective) {
     if (testnullgradM) {
-      ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,&userobj,EvalObjectiveGradient_U,&userobj,NULL,NULL);CHKERRQ(ierr);
+      ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,&userobj,EvalObjectiveGradient_U,&userobj,NULL,NULL,
+                            NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
     } else {
-      ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,&userobj,EvalObjectiveGradient_U,&userobj,EvalObjectiveGradient_M,&userobj);CHKERRQ(ierr);
+      ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,&userobj,EvalObjectiveGradient_U,&userobj,EvalObjectiveGradient_M,&userobj,
+                            NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
     }
     if (user.b != 0.0) { /* we can compute the analytic solution for the objective function */
       if (user.p == 1.0) {
@@ -495,35 +497,41 @@ int main(int argc, char* argv[])
 
   /* Cost functional at final time */
   if (testeventfinal) {
-    ierr = TSSetObjective(ts,tf,EvalObjective_Event,NULL,EvalObjectiveGradient_U_Event,NULL,NULL,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,tf,EvalObjective_Event,NULL,EvalObjectiveGradient_U_Event,NULL,NULL,NULL,
+                          NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
   }
 
   /* Cost functional in between the simulation */
   if (testevent) {
-    ierr = TSSetObjective(ts,t0 + 0.132*(tf-t0),EvalObjective_Event,NULL,EvalObjectiveGradient_U_Event,NULL,NULL,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,t0 + 0.132*(tf-t0),EvalObjective_Event,NULL,EvalObjectiveGradient_U_Event,NULL,NULL,NULL,
+                          NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
   }
 
   /* Cost functional in between the simulation (constant) */
   if (testeventconst) {
-    ierr = TSSetObjective(ts,t0 + 0.44*(tf-t0),EvalObjective_Const,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,t0 + 0.44*(tf-t0),EvalObjective_Const,NULL,NULL,NULL,NULL,NULL,
+                          NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
   }
 
   /* Cost functional with nonzero gradient wrt the parameters at a given time */
   if (testgeneral_fixed) {
     general_fixed = PETSC_TRUE;
-    ierr = TSSetObjective(ts,t0 + 0.77*(tf-t0),EvalObjective_Gen,NULL,EvalObjective_U_Gen,NULL,EvalObjective_M_Gen,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,t0 + 0.77*(tf-t0),EvalObjective_Gen,NULL,EvalObjective_U_Gen,NULL,EvalObjective_M_Gen,NULL,
+                          NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
   }
 
   /* Cost functional with nonzero gradient wrt the parameters at final time */
   if (testgeneral_final) {
     general_fixed = PETSC_TRUE;
-    ierr = TSSetObjective(ts,tf,EvalObjective_Gen,NULL,EvalObjective_U_Gen,NULL,EvalObjective_M_Gen,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,tf,EvalObjective_Gen,NULL,EvalObjective_U_Gen,NULL,EvalObjective_M_Gen,NULL,
+                          NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
   }
 
   /* Cost functional with nonzero gradient wrt the parameters (integrand) */
   if (testgeneral) {
     general_fixed = PETSC_FALSE;
-    ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective_Gen,NULL,EvalObjective_U_Gen,NULL,EvalObjective_M_Gen,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective_Gen,NULL,EvalObjective_U_Gen,NULL,EvalObjective_M_Gen,NULL,
+                          NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
   }
 
   /* Set dependence of F(Udot,U,t;M) = 0 from the parameters */

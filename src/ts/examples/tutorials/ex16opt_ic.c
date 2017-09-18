@@ -363,7 +363,8 @@ PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec IC,PetscReal *f,Vec G,void *c
   ierr = TSSetRHSJacobian(ts,user->A,user->A,RHSJacobian,user);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   /* the cost functional needs to be evaluated at time 0.5 */
-  ierr = TSSetObjective(ts,0.5,EvalObjective_AO,user,EvalCostGradient_U_AO,user,NULL,NULL);CHKERRQ(ierr);
+  ierr = TSSetObjective(ts,0.5,EvalObjective_AO,user,EvalCostGradient_U_AO,user,NULL,NULL,
+                        NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
 
   /* set Jacobian G_p for the ODE dependence from initial conditions in implicit form: G(u(0),p) = 0 */
 

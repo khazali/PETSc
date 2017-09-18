@@ -325,10 +325,12 @@ PETSC_EXTERN PetscErrorCode TSForwardStep(TS);
 
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalObjective)(TS,PetscReal,Vec,Vec,PetscReal*,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalObjectiveGradient)(TS,PetscReal,Vec,Vec,Vec,void*);
+PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalObjectiveHessian)(TS,PetscReal,Vec,Vec,Mat,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalGradientIC)(TS,PetscReal,Vec,Vec,Mat,Mat,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalGradientDAE)(TS,PetscReal,Vec,Vec,Vec,Mat,void*);
 PETSC_EXTERN PetscErrorCode TSResetObjective(TS);
-PETSC_EXTERN PetscErrorCode TSSetObjective(TS,PetscReal,TSEvalObjective,void*,TSEvalObjectiveGradient,void*,TSEvalObjectiveGradient,void*);
+PETSC_EXTERN PetscErrorCode TSSetObjective(TS,PetscReal,TSEvalObjective,void*,TSEvalObjectiveGradient,void*,TSEvalObjectiveGradient,void*,
+                                           Mat,TSEvalObjectiveHessian,void*,Mat,TSEvalObjectiveHessian,void*,Mat,TSEvalObjectiveHessian,void*);
 PETSC_EXTERN PetscErrorCode TSSetGradientDAE(TS,Mat,TSEvalGradientDAE,void*);
 PETSC_EXTERN PetscErrorCode TSSetGradientIC(TS,Mat,Mat,TSEvalGradientIC,void*);
 PETSC_EXTERN PetscErrorCode TSEvaluateObjectiveAndGradient(TS,PetscReal,PetscReal,PetscReal,Vec,Vec,Vec,PetscReal*);
