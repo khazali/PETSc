@@ -204,7 +204,7 @@ static PetscErrorCode EvalGradientDAE(TS ts, PetscReal time, Vec U, Vec Udot, Ve
   ierr = VecScatterEnd(user->Msct,M,user->M,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
   ierr = VecGetArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
   b    = arr[1];
-  p    = arr[2];
+  p    = PetscRealPart(arr[2]);
   ierr = VecRestoreArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
   ierr = VecGetArrayRead(U,(const PetscScalar**)&arr);CHKERRQ(ierr);
   ierr = MatZeroEntries(J);CHKERRQ(ierr);
@@ -252,7 +252,7 @@ static PetscErrorCode EvalHessianDAE_UU(TS ts, PetscReal time, Vec U, Vec Udot, 
   ierr = VecScatterEnd(user->Msct,M,user->M,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
   ierr = VecGetArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
   b    = arr[1];
-  p    = arr[2];
+  p    = PetscRealPart(arr[2]);
   ierr = VecRestoreArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
   if (!user->F_UU) { /* create the workspace matrix once */
     ierr = MatCreate(PETSC_COMM_WORLD,&user->F_UU);CHKERRQ(ierr);
@@ -301,7 +301,7 @@ static PetscErrorCode EvalHessianDAE_UM(TS ts, PetscReal time, Vec U, Vec Udot, 
   ierr = VecScatterEnd(user->Msct,M,user->M,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
   ierr = VecGetArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
   b    = arr[1];
-  p    = arr[2];
+  p    = PetscRealPart(arr[2]);
   ierr = VecRestoreArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
   if (!user->F_UM) { /* create the workspace matrix once */
     ierr = MatCreate(PETSC_COMM_WORLD,&user->F_UM);CHKERRQ(ierr);
@@ -355,7 +355,7 @@ static PetscErrorCode EvalHessianDAE_MU(TS ts, PetscReal time, Vec U, Vec Udot, 
   ierr = VecScatterEnd(user->Msct,M,user->M,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
   ierr = VecGetArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
   b    = arr[1];
-  p    = arr[2];
+  p    = PetscRealPart(arr[2]);
   ierr = VecRestoreArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
   if (!user->F_UM) { /* create the workspace matrix once */
     ierr = MatCreate(PETSC_COMM_WORLD,&user->F_UM);CHKERRQ(ierr);
@@ -413,7 +413,7 @@ static PetscErrorCode EvalHessianDAE_MM(TS ts, PetscReal time, Vec U, Vec Udot, 
   ierr = VecScatterEnd(user->Msct,M,user->M,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
   ierr = VecGetArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
   b    = arr[1];
-  p    = arr[2];
+  p    = PetscRealPart(arr[2]);
   ierr = VecRestoreArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
   if (!user->F_MM) { /* create the workspace matrix once */
     ierr = MatCreate(PETSC_COMM_WORLD,&user->F_MM);CHKERRQ(ierr);
