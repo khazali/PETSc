@@ -12,8 +12,8 @@ static PetscErrorCode Fsnes(SNES snes ,Vec X,Vec G,void*ctx)
   Tao            tao = (Tao)ctx;
 
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(ctx,TAO_CLASSID,4);
-  ierr=TaoComputeGradient(tao,X,G);CHKERRQ(ierr);
+  PetscValidHeaderSpecific(tao,TAO_CLASSID,4);
+  ierr = TaoComputeGradient(tao,X,G);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -49,7 +49,6 @@ static PetscErrorCode Fsnes(SNES snes ,Vec X,Vec G,void*ctx)
    This finite difference gradient evaluation can be set using the routine TaoSetGradientRoutine() or by using the command line option -tao_fd_gradient
 
 .seealso: TaoSetGradientRoutine()
-
 @*/
 PetscErrorCode TaoDefaultComputeGradient(Tao tao,Vec X,Vec G,void *dummy)
 {
@@ -123,14 +122,13 @@ PetscErrorCode TaoDefaultComputeGradient(Tao tao,Vec X,Vec G,void *dummy)
    correctness of a user-provided Hessian.
 
 .seealso: TaoSetHessianRoutine(), TaoDefaultComputeHessianColor(), SNESComputeJacobianDefault(), TaoSetGradientRoutine(), TaoDefaultComputeGradient()
-
 @*/
 PetscErrorCode TaoDefaultComputeHessian(Tao tao,Vec V,Mat H,Mat B,void *dummy)
 {
-  PetscErrorCode       ierr;
-  MPI_Comm             comm;
-  Vec                  G;
-  SNES                 snes;
+  PetscErrorCode ierr;
+  MPI_Comm       comm;
+  Vec            G;
+  SNES           snes;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(V,VEC_CLASSID,2);
@@ -168,7 +166,6 @@ PetscErrorCode TaoDefaultComputeHessian(Tao tao,Vec V,Mat H,Mat B,void *dummy)
 
 
 .seealso: TaoSetHessianRoutine(), TaoDefaultComputeHessian(),SNESComputeJacobianDefaultColor(), TaoSetGradientRoutine()
-
 @*/
 PetscErrorCode TaoDefaultComputeHessianColor(Tao tao, Vec V, Mat H,Mat B,void *ctx)
 {
@@ -185,5 +182,3 @@ PetscErrorCode TaoDefaultComputeHessianColor(Tao tao, Vec V, Mat H,Mat B,void *c
   }
   PetscFunctionReturn(0);
 }
-
-

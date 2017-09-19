@@ -72,7 +72,7 @@ PetscErrorCode TaoComputeGradient(Tao tao, Vec X, Vec G)
     PetscStackPop;
     ierr = PetscLogEventEnd(Tao_ObjGradientEval,tao,X,G,NULL);CHKERRQ(ierr);
     tao->nfuncgrads++;
-  }  else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"TaoSetGradientRoutine() has not been called");
+  } else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"TaoSetGradientRoutine() has not been called");
   PetscFunctionReturn(0);
 }
 
@@ -375,7 +375,6 @@ PetscErrorCode TaoSetGradientRoutine(Tao tao,  PetscErrorCode (*func)(Tao, Vec, 
   PetscFunctionReturn(0);
 }
 
-
 /*@C
   TaoSetObjectiveAndGradientRoutine - Sets a combined objective function and gradient evaluation routine for minimization
 
@@ -457,7 +456,6 @@ PetscErrorCode TaoIsGradientDefined(Tao tao, PetscBool *flg)
   PetscFunctionReturn(0);
 }
 
-
 /*@
   TaoIsObjectiveAndGradientDefined -- Checks to see if the user has
   declared a joint objective/gradient routine.  Useful for determining when
@@ -481,6 +479,3 @@ PetscErrorCode TaoIsObjectiveAndGradientDefined(Tao tao, PetscBool *flg)
   else *flg = PETSC_TRUE;
   PetscFunctionReturn(0);
 }
-
-
-
