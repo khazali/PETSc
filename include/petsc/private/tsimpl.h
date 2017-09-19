@@ -224,13 +224,15 @@ struct _p_TS {
          G(x(T0),m)   = 0  Initial conditions
   */
   ObjectiveLink      funchead;
-  TSEvalGradientIC   Ggrad;           /* callback to compute G_p and G_X(T0) */
+  TSEvalGradientIC   Ggrad;        /* callback to compute G_p and G_X(T0) */
   Mat                G_x;
   Mat                G_m;
   void               *Ggrad_ctx;
-  TSEvalGradientDAE  F_m_f;           /* callback to compute F_m */
+  TSEvalGradientDAE  F_m_f;        /* callback to compute F_m */
   Mat                F_m;
   void               *F_m_ctx;
+  TSEvalHessianDAE   HF[3][3];     /* callbacks to compute the action Hessian terms */
+  void              *HFctx;
 
   /* ---------------------- IMEX support ---------------------------------*/
   /* These extra slots are only used when the user provides both Implicit and RHS */

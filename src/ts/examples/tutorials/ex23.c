@@ -12,6 +12,7 @@ static const char help[] = "Demonstrates the use of TSEvaluteObjectiveAndGradien
   The integrand of the objective function is either f(u) = ||u||^2 or f(u) = Sum(u).
   The design variables are m = [a,b,p].
   It also shows how to compute gradients with point-functionals of the type f(u,T,m), with T in (T0,TF].
+  For parallel runs, we replicate the same solution on each process.
 */
 #include <petscts.h>
 
@@ -49,6 +50,20 @@ static PetscErrorCode EvalObjectiveGradient_U(Vec U, Vec M, PetscReal time, Vec 
     ierr = VecScale(grad,2.0);CHKERRQ(ierr);
   } else {
     ierr = VecSet(grad,1.0);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+/* returns \partial_uu f(u) -> 2 or 0, depending on the objective function selected */
+static PetscErrorCode EvalObjectiveHessian_UU(Vec U, Vec M, PetscReal time, Mat H, void *ctx)
+{
+  UserObjective  *user = (UserObjective*)ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = MatZeroEntries(H);CHKERRQ(ierr);
+  if (user->isnorm) {
+    ierr = MatShift(H,2.0);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -95,6 +110,16 @@ static PetscErrorCode EvalObjectiveGradient_U_Event(Vec U, Vec M, PetscReal time
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode EvalObjectiveHessian_UU_Event(Vec U, Vec M, PetscReal time, Mat H, void *ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = MatZeroEntries(H);CHKERRQ(ierr);
+  ierr = MatShift(H,2.0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 static PetscErrorCode EvalObjective_Gen(Vec U, Vec M, PetscReal time, PetscReal *val, void *ctx)
 {
   PetscErrorCode ierr;
@@ -128,21 +153,59 @@ static PetscErrorCode EvalObjective_M_Gen(Vec U, Vec M, PetscReal time, Vec grad
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode EvalObjective_UU_Gen(Vec U, Vec M, PetscReal time, Mat H, void *ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = MatZeroEntries(H);CHKERRQ(ierr);
+  ierr = MatShift(H,-2.0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode EvalObjective_MM_Gen(Vec U, Vec M, PetscReal time, Mat H, void *ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = MatZeroEntries(H);CHKERRQ(ierr);
+  ierr = MatShift(H,6.0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 typedef struct {
   PetscScalar a;
   PetscScalar b;
   PetscReal   p;
 } User;
 
+typedef struct {
+  VecScatter  Msct;
+  Vec         M;
+  Mat         F_MM; /* Hessian workspace */
+  Mat         F_UM; /* Hessian workspace */
+  Mat         F_UU; /* Hessian workspace */
+} UserDAE;
+
 /* returns \partial_m F(U,Udot,t;M) for a fixed design M, where F(U,Udot,t;M) is the parameter dependent ODE in implicit form */
 static PetscErrorCode EvalGradientDAE(TS ts, PetscReal time, Vec U, Vec Udot, Vec M, Mat J, void *ctx)
 {
-  User           *user = (User*)ctx;
+  UserDAE        *user = (UserDAE*)ctx;
   PetscInt       rst,ren,r;
   PetscScalar    *arr;
+  PetscReal      p;
+  PetscScalar    b;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
+  /* this scatter here is just for debugging purposes
+     we could have used the User ctx without the need for the scatters */
+  ierr = VecScatterBegin(user->Msct,M,user->M,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user->Msct,M,user->M,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  b    = arr[1];
+  p    = arr[2];
+  ierr = VecRestoreArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
   ierr = VecGetArrayRead(U,(const PetscScalar**)&arr);CHKERRQ(ierr);
   ierr = MatZeroEntries(J);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(J,&rst,&ren);CHKERRQ(ierr);
@@ -151,15 +214,237 @@ static PetscErrorCode EvalGradientDAE(TS ts, PetscReal time, Vec U, Vec Udot, Ve
     /* F_b : -x^p */
     /* F_p : -b*x^p*log(x) */
     PetscInt    c = 1;
-    PetscScalar v = -PetscPowScalarReal(arr[r-rst],user->p);
+    PetscScalar v = -PetscPowScalarReal(arr[r-rst],p);
     ierr = MatSetValues(J,1,&r,1,&c,&v,INSERT_VALUES);CHKERRQ(ierr);
-    c = 2;
-    v *= user->b*PetscLogReal(arr[r-rst]);
+    c    = 2;
+    v   *= b*PetscLogScalar(arr[r-rst]);
     ierr = MatSetValues(J,1,&r,1,&c,&v,INSERT_VALUES);CHKERRQ(ierr);
   }
   ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(U,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* returns Y = (L^T \otimes I_N)*F_UU*X, where L and X are vectors of size N, I_N is the identity matrix of size N, \otimes is the Kronecker product,
+   and F_UU is the N^2 x N matrix with entries
+
+          | F^1_UU |
+   F_UU = |   ...  |, F^k has dimension NxN, with {F^k_UU}_ij = \frac{\partial^2 F_k}{\partial u_j \partial u_i}, where F_k is the k-th component of the DAE
+          | F^N_UU |
+
+   with u_i the i-th state variable, and N the number of state variables.
+
+   The output should be computed as: Y = (\sum_k L_k*F^k_UU)*X, with L_k the k-th entry of the adjoint variable L.
+
+   In this example, {F^k_UU}_ij != 0 only when i == j == k, with nonzero value -p*b*(p-1)*u_k^-2.
+*/
+static PetscErrorCode EvalHessianDAE_UU(TS ts, PetscReal time, Vec U, Vec Udot, Vec M, Vec L, Vec X, Vec Y, void *ctx)
+{
+  UserDAE        *user = (UserDAE*)ctx;
+  PetscScalar    *arr;
+  PetscReal      p;
+  PetscScalar    b,v,l;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecScatterBegin(user->Msct,M,user->M,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user->Msct,M,user->M,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  b    = arr[1];
+  p    = arr[2];
+  ierr = VecRestoreArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  if (!user->F_UU) { /* create the workspace matrix once */
+    ierr = MatCreate(PETSC_COMM_WORLD,&user->F_UU);CHKERRQ(ierr);
+    ierr = MatSetSizes(user->F_UU,1,1,PETSC_DECIDE,PETSC_DECIDE);CHKERRQ(ierr);
+    ierr = MatSetUp(user->F_UU);CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(user->F_UU,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(user->F_UU,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  }
+  ierr = VecGetArrayRead(L,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  l    = arr[0];
+  ierr = VecRestoreArrayRead(L,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(U,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  if (p != 2.0) v = -l*p*b*(p-1.0)*PetscPowScalarReal(arr[0],p - 2.0); /* x^0 gives error on my Mac */
+  else          v = -l*p*b*(p-1.0);
+  ierr = VecRestoreArrayRead(U,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  ierr = MatZeroEntries(user->F_UU);CHKERRQ(ierr);
+  ierr = MatShift(user->F_UU,v);CHKERRQ(ierr);
+  ierr = MatMult(user->F_UU,X,Y);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* returns Y = (L^T \otimes I_N)*F_UM*X, where L and X are vectors of size N and P respectively, I_N is the identity matrix of size N, \otimes is the Kronecker product,
+   and F_UM is the N^2 x P matrix with entries
+
+          | F^1_UM |
+   F_UM = |   ...  |, F^k has dimension NxP, with {F^k_UM}_ij = \frac{\partial^2 F_k}{\partial m_j \partial u_i}, where F_k is the k-th component of the DAE
+          | F^N_UM |
+
+   with m_j the j-th design variable and u_i the i-th state variable, with N the number of state variables and P the number of design variables.
+
+   The output should be computed as:  Y = (\sum_k L_k*F^k_UM)*X, with L_k the k-th entry of the adjoint variable L.
+
+   In this example, {F^k_UM}_ij != 0 only when i == k, with the k-th row of F^k_UM given by [0, p*u_k^(p-1), -p*u_k^(p-1)*(1+p*log(u_k))].
+*/
+static PetscErrorCode EvalHessianDAE_UM(TS ts, PetscReal time, Vec U, Vec Udot, Vec M, Vec L, Vec X, Vec Y, void *ctx)
+{
+  UserDAE        *user = (UserDAE*)ctx;
+  PetscScalar    *arr;
+  PetscReal      p;
+  PetscScalar    b,v[3],tmp,x,l;
+  PetscInt       rst,id[3] = {0, 1, 2};
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecScatterBegin(user->Msct,M,user->M,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user->Msct,M,user->M,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  b    = arr[1];
+  p    = arr[2];
+  ierr = VecRestoreArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  if (!user->F_UM) { /* create the workspace matrix once */
+    ierr = MatCreate(PETSC_COMM_WORLD,&user->F_UM);CHKERRQ(ierr);
+    ierr = MatSetSizes(user->F_UM,1,PETSC_DECIDE,PETSC_DECIDE,3);CHKERRQ(ierr);
+    ierr = MatSetUp(user->F_UM);CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(user->F_UM,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(user->F_UM,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  }
+  ierr = VecGetArrayRead(L,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  l    = arr[0];
+  ierr = VecRestoreArrayRead(L,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(U,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  x    = arr[0];
+  ierr = VecRestoreArrayRead(U,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  if (p != 1.0) tmp = PetscPowScalarReal(x,p - 1.0);
+  else          tmp = 1.0;
+  v[0] = 0.0;
+  v[1] = -l*p*tmp;
+  v[2] = -l*b*tmp*(1.0+p*PetscLogReal(x));
+  ierr = MatZeroEntries(user->F_UM);CHKERRQ(ierr);
+  ierr = MatGetOwnershipRange(user->F_UM,&rst,NULL);CHKERRQ(ierr);
+  ierr = MatSetValues(user->F_UM,1,&rst,3,id,v,INSERT_VALUES);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(user->F_UM,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(user->F_UM,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatMult(user->F_UM,X,Y);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* returns Y = (L^T \otimes I_P)*F_MU*X, where L and X are vectors of size N, I_P is the identity matrix of size P, \otimes is the Kronecker product,
+   and F_MU is the N*P x N matrix with entries
+
+          | F^1_MU |
+   F_MU = |   ...  |, F^k has dimension PxN, with {F^k_MU}_ij = \frac{\partial^2 F_k}{\partial u_j \partial m_i}, where F_k is the k-th component of the DAE
+          | F^N_MU |
+
+   with u_j the j-th state variable and m_i the i-th design variable, with N the number of state variables and P the number of design variables.
+
+   The output should be computed as:  Y = (\sum_k L_k*F^k_MU)*X = (\sum_k L_k*(F^k_UM)^T)*X, with L_k the k-th entry of the adjoint variable L.
+*/
+static PetscErrorCode EvalHessianDAE_MU(TS ts, PetscReal time, Vec U, Vec Udot, Vec M, Vec L, Vec X, Vec Y, void *ctx)
+{
+  UserDAE        *user = (UserDAE*)ctx;
+  PetscScalar    *arr;
+  PetscReal      p;
+  PetscScalar    b,v[3],tmp,x,l;
+  PetscInt       rst,id[3] = {0, 1, 2};
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecScatterBegin(user->Msct,M,user->M,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user->Msct,M,user->M,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  b    = arr[1];
+  p    = arr[2];
+  ierr = VecRestoreArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  if (!user->F_UM) { /* create the workspace matrix once */
+    ierr = MatCreate(PETSC_COMM_WORLD,&user->F_UM);CHKERRQ(ierr);
+    ierr = MatSetSizes(user->F_UM,1,PETSC_DECIDE,PETSC_DECIDE,3);CHKERRQ(ierr);
+    ierr = MatSetUp(user->F_UM);CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(user->F_UM,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(user->F_UM,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  }
+  ierr = VecGetArrayRead(L,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  l    = arr[0];
+  ierr = VecRestoreArrayRead(L,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(U,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  x    = arr[0];
+  ierr = VecRestoreArrayRead(U,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  if (p != 1.0) tmp = PetscPowScalarReal(x,p - 1.0);
+  else          tmp = 1.0;
+  v[0] = 0.0;
+  v[1] = -l*p*tmp;
+  v[2] = -l*b*tmp*(1.0+p*PetscLogReal(x));
+  ierr = MatZeroEntries(user->F_UM);CHKERRQ(ierr);
+  ierr = MatGetOwnershipRange(user->F_UM,&rst,NULL);CHKERRQ(ierr);
+  ierr = MatSetValues(user->F_UM,1,&rst,3,id,v,INSERT_VALUES);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(user->F_UM,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(user->F_UM,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatMultTranspose(user->F_UM,X,Y);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* returns Y = (L^T \otimes I_P)*F_MM*X, where L and X are vectors of size N and P respectively, I_P is the identity matrix of size P, \otimes is the Kronecker product,
+   and F_MM is the N*P x P matrix with entries
+
+          | F^1_MM |
+   F_MM = |   ...  |, F^k has dimension PxP, with {F^k_MM}_ij = \frac{\partial^2 F_k}{\partial m_j \partial m_i}, where F_k is the k-th component of the DAE
+          | F^N_MM |
+
+   with m_j the j-th design variable, N the number of state variables, and P the number of design variables.
+
+   The output should be computed as:  Y = (\sum_k L_k*F^k_MM)*X, with L_k the k-th entry of the adjoint variable L.
+
+                             | 0       0                   0         |
+   In this example, F^k_MM = | 0       0           -u_k^p*log(u_k)   |.
+                             | 0 -u_k^p*log(u_k) -b*log^2(u_k)*u_k^p |
+*/
+static PetscErrorCode EvalHessianDAE_MM(TS ts, PetscReal time, Vec U, Vec Udot, Vec M, Vec L, Vec X, Vec Y, void *ctx)
+{
+  UserDAE        *user = (UserDAE*)ctx;
+  PetscScalar    *arr;
+  PetscReal      p;
+  PetscScalar    b,v[9],tmp,x,l,ll;
+  PetscInt       id[3] = {0, 1, 2};
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecScatterBegin(user->Msct,M,user->M,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = VecScatterEnd(user->Msct,M,user->M,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  b    = arr[1];
+  p    = arr[2];
+  ierr = VecRestoreArrayRead(user->M,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  if (!user->F_MM) { /* create the workspace matrix once */
+    ierr = MatCreate(PETSC_COMM_WORLD,&user->F_MM);CHKERRQ(ierr);
+    ierr = MatSetSizes(user->F_MM,PETSC_DECIDE,PETSC_DECIDE,3,3);CHKERRQ(ierr);
+    ierr = MatSetUp(user->F_MM);CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(user->F_MM,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(user->F_MM,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  }
+  ierr = VecGetArrayRead(L,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  l    = arr[0];
+  ierr = VecRestoreArrayRead(L,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(U,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  x    = arr[0];
+  ierr = VecRestoreArrayRead(U,(const PetscScalar**)&arr);CHKERRQ(ierr);
+  if (p != 0.0) tmp = PetscPowScalarReal(x,p);
+  else          tmp = 1.0;
+  ll = PetscLogScalar(x);
+  v[0*3+0] = 0.0;
+  v[0*3+1] = 0.0;
+  v[0*3+2] = 0.0;
+  v[1*3+0] = 0.0;
+  v[1*3+1] = 0.0;
+  v[1*3+2] = -l*tmp*ll;
+  v[2*3+0] = 0.0;
+  v[2*3+1] = -l*tmp*ll;
+  v[2*3+2] = -l*b*ll*ll*tmp;
+  ierr = MatZeroEntries(user->F_MM);CHKERRQ(ierr);
+  ierr = MatSetValues(user->F_MM,3,id,3,id,v,ADD_VALUES);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(user->F_MM,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(user->F_MM,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatMult(user->F_MM,X,Y);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -289,7 +574,7 @@ static PetscErrorCode FormRHSJacobian(TS ts,PetscReal time, Vec U, Mat A, Mat P,
   PetscFunctionBeginUser;
   ierr = MatZeroEntries(A);CHKERRQ(ierr);
   ierr = VecGetArrayRead(U,(const PetscScalar**)&aU);CHKERRQ(ierr);
-  if (user->p != 1.0) v = user->b*user->p*PetscPowScalarReal(aU[0],user->p - 1.0);
+  if (user->p != 1.0) v = user->b*user->p*PetscPowScalarReal(aU[0],user->p - 1.0); /* x^0 gives error on my Mac */
   else v = user->b*user->p;
   ierr = MatGetOwnershipRange(A,&i,NULL);CHKERRQ(ierr);
   ierr = MatSetValues(A,1,&i,1,&i,&v,INSERT_VALUES);CHKERRQ(ierr);
@@ -310,10 +595,12 @@ int main(int argc, char* argv[])
 {
   TS             ts;
   Mat            J,pJ,G_M,F_M,G_X;
-  Mat            H,Phi,PhiExpl,PhiT,PhiTExpl;
+  Mat            checkTLM,Phi,PhiExpl,PhiT,PhiTExpl;
+  Mat            H_MM,H_UU;
   Vec            U,M,Mgrad,sol,tlmsol;
   UserObjective  userobj;
   User           user;
+  UserDAE        userdae;
   TSProblemType  problemtype;
   PetscScalar    one = 1.0;
   PetscReal      t0 = 0.0, tf = 2.0, dt = 0.1;
@@ -409,6 +696,12 @@ int main(int argc, char* argv[])
   ierr = VecAssemblyEnd(M);CHKERRQ(ierr);
   ierr = VecDuplicate(M,&Mgrad);CHKERRQ(ierr);
 
+  /* Context for gradient and hessian of the ODE */
+  userdae.F_UU = NULL;
+  userdae.F_UM = NULL;
+  userdae.F_MM = NULL;
+  ierr = VecScatterCreateToAll(M,&userdae.Msct,&userdae.M);CHKERRQ(ierr);
+
   /* rhs jacobian */
   ierr = MatCreate(PETSC_COMM_WORLD,&J);CHKERRQ(ierr);
   ierr = MatSetSizes(J,1,1,PETSC_DECIDE,PETSC_DECIDE);CHKERRQ(ierr);
@@ -441,6 +734,19 @@ int main(int argc, char* argv[])
   ierr = MatAssemblyBegin(G_M,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(G_M,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
+  /* Objective hessians (we create matrices with the correct layout here
+     and we duplicate them for each objective that needs them) */
+  ierr = MatCreate(PETSC_COMM_WORLD,&H_UU);CHKERRQ(ierr);
+  ierr = MatSetSizes(H_UU,1,1,PETSC_DECIDE,PETSC_DECIDE);CHKERRQ(ierr);
+  ierr = MatSetUp(H_UU);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(H_UU,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(H_UU,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatCreate(PETSC_COMM_WORLD,&H_MM);CHKERRQ(ierr);
+  ierr = MatSetSizes(H_MM,PETSC_DECIDE,PETSC_DECIDE,3,3);CHKERRQ(ierr);
+  ierr = MatSetUp(H_MM);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(H_MM,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(H_MM,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+
   /* TS solver */
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
   ierr = TSSetProblemType(ts,problemtype);CHKERRQ(ierr);
@@ -470,13 +776,17 @@ int main(int argc, char* argv[])
   /* Set cost functionals: many can be added, by simply calling TSSetObjective multiple times */
   objtest = 0.0;
   if (userobjective) {
+    Mat H;
+
+    ierr = MatDuplicate(H_UU,MAT_DO_NOT_COPY_VALUES,&H);CHKERRQ(ierr);
     if (testnullgradM) {
       ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,&userobj,EvalObjectiveGradient_U,&userobj,NULL,NULL,
-                            NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+                            H,EvalObjectiveHessian_UU,&userobj,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
     } else {
       ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,&userobj,EvalObjectiveGradient_U,&userobj,EvalObjectiveGradient_M,&userobj,
-                            NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+                            H,EvalObjectiveHessian_UU,&userobj,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
     }
+    ierr = MatDestroy(&H);CHKERRQ(ierr);
     if (user.b != 0.0) { /* we can compute the analytic solution for the objective function */
       if (user.p == 1.0) {
         if (userobj.isnorm) {
@@ -497,14 +807,22 @@ int main(int argc, char* argv[])
 
   /* Cost functional at final time */
   if (testeventfinal) {
+    Mat H;
+
+    ierr = MatDuplicate(H_UU,MAT_DO_NOT_COPY_VALUES,&H);CHKERRQ(ierr);
     ierr = TSSetObjective(ts,tf,EvalObjective_Event,NULL,EvalObjectiveGradient_U_Event,NULL,NULL,NULL,
-                          NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+                          H,EvalObjectiveHessian_UU_Event,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+    ierr = MatDestroy(&H);CHKERRQ(ierr);
   }
 
   /* Cost functional in between the simulation */
   if (testevent) {
+    Mat H;
+
+    ierr = MatDuplicate(H_UU,MAT_DO_NOT_COPY_VALUES,&H);CHKERRQ(ierr);
     ierr = TSSetObjective(ts,t0 + 0.132*(tf-t0),EvalObjective_Event,NULL,EvalObjectiveGradient_U_Event,NULL,NULL,NULL,
-                          NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+                          H,EvalObjectiveHessian_UU_Event,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+    ierr = MatDestroy(&H);CHKERRQ(ierr);
   }
 
   /* Cost functional in between the simulation (constant) */
@@ -515,27 +833,48 @@ int main(int argc, char* argv[])
 
   /* Cost functional with nonzero gradient wrt the parameters at a given time */
   if (testgeneral_fixed) {
+    Mat HUU,HMM;
+
     general_fixed = PETSC_TRUE;
+    ierr = MatDuplicate(H_UU,MAT_DO_NOT_COPY_VALUES,&HUU);CHKERRQ(ierr);
+    ierr = MatDuplicate(H_MM,MAT_DO_NOT_COPY_VALUES,&HMM);CHKERRQ(ierr);
     ierr = TSSetObjective(ts,t0 + 0.77*(tf-t0),EvalObjective_Gen,NULL,EvalObjective_U_Gen,NULL,EvalObjective_M_Gen,NULL,
-                          NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+                          HUU,EvalObjective_UU_Gen,NULL,NULL,NULL,NULL,HMM,EvalObjective_MM_Gen,NULL);CHKERRQ(ierr);
+    ierr = MatDestroy(&HMM);CHKERRQ(ierr);
+    ierr = MatDestroy(&HUU);CHKERRQ(ierr);
   }
 
   /* Cost functional with nonzero gradient wrt the parameters at final time */
   if (testgeneral_final) {
+    Mat HUU,HMM;
+
     general_fixed = PETSC_TRUE;
+    ierr = MatDuplicate(H_UU,MAT_DO_NOT_COPY_VALUES,&HUU);CHKERRQ(ierr);
+    ierr = MatDuplicate(H_MM,MAT_DO_NOT_COPY_VALUES,&HMM);CHKERRQ(ierr);
     ierr = TSSetObjective(ts,tf,EvalObjective_Gen,NULL,EvalObjective_U_Gen,NULL,EvalObjective_M_Gen,NULL,
-                          NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+                          HUU,EvalObjective_UU_Gen,NULL,NULL,NULL,NULL,HMM,EvalObjective_MM_Gen,NULL);CHKERRQ(ierr);
+    ierr = MatDestroy(&HMM);CHKERRQ(ierr);
+    ierr = MatDestroy(&HUU);CHKERRQ(ierr);
   }
 
   /* Cost functional with nonzero gradient wrt the parameters (integrand) */
   if (testgeneral) {
-    general_fixed = PETSC_FALSE;
+    Mat HUU,HMM;
+
+    general_fixed = PETSC_TRUE;
+    ierr = MatDuplicate(H_UU,MAT_DO_NOT_COPY_VALUES,&HUU);CHKERRQ(ierr);
+    ierr = MatDuplicate(H_MM,MAT_DO_NOT_COPY_VALUES,&HMM);CHKERRQ(ierr);
     ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective_Gen,NULL,EvalObjective_U_Gen,NULL,EvalObjective_M_Gen,NULL,
-                          NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+                          HUU,EvalObjective_UU_Gen,NULL,NULL,NULL,NULL,HMM,EvalObjective_MM_Gen,NULL);CHKERRQ(ierr);
+    ierr = MatDestroy(&HMM);CHKERRQ(ierr);
+    ierr = MatDestroy(&HUU);CHKERRQ(ierr);
   }
 
   /* Set dependence of F(Udot,U,t;M) = 0 from the parameters */
-  ierr = TSSetGradientDAE(ts,F_M,EvalGradientDAE,&user);CHKERRQ(ierr);
+  ierr = TSSetGradientDAE(ts,F_M,EvalGradientDAE,&userdae);CHKERRQ(ierr);
+  ierr = TSSetHessianDAE(ts,EvalHessianDAE_UU,NULL,EvalHessianDAE_UM,
+                            NULL,             NULL,NULL,
+                            EvalHessianDAE_MU,NULL,EvalHessianDAE_MM,&userdae);CHKERRQ(ierr);
 
   /* Set dependence of initial conditions (in implicit form G(U(0);M) = 0) from the parameters */
   if (testnulljacIC) {
@@ -570,19 +909,19 @@ int main(int argc, char* argv[])
   ierr = MatComputeExplicitOperator(PhiT,&PhiTExpl);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject)PhiTExpl,"PhiT");CHKERRQ(ierr);
   ierr = MatViewFromOptions(PhiTExpl,NULL,"-phiT_view");CHKERRQ(ierr);
-  ierr = MatTranspose(PhiTExpl,MAT_INITIAL_MATRIX,&H);CHKERRQ(ierr);
-  ierr = MatAXPY(H,-1.0,PhiExpl,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
-  ierr = MatScale(H,1./normPhi);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject)H,"||Phi - (Phi^T)^T||/||Phi||");CHKERRQ(ierr);
-  ierr = MatNorm(H,NORM_INFINITY,&err);CHKERRQ(ierr);
-  ierr = MatViewFromOptions(H,NULL,"-err_view");CHKERRQ(ierr);
+  ierr = MatTranspose(PhiTExpl,MAT_INITIAL_MATRIX,&checkTLM);CHKERRQ(ierr);
+  ierr = MatAXPY(checkTLM,-1.0,PhiExpl,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  ierr = MatScale(checkTLM,1./normPhi);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)checkTLM,"||Phi - (Phi^T)^T||/||Phi||");CHKERRQ(ierr);
+  ierr = MatNorm(checkTLM,NORM_INFINITY,&err);CHKERRQ(ierr);
+  ierr = MatViewFromOptions(checkTLM,NULL,"-err_view");CHKERRQ(ierr);
   if (err > 0.01) { /* 1% difference */
     ierr = PetscPrintf(PETSC_COMM_WORLD,"Possible error with TLM: ||Phi|| is  %g (%g)\n",(double)normPhi,(double)err);CHKERRQ(ierr);
     ierr = MatView(PhiExpl,NULL);CHKERRQ(ierr);
     ierr = MatView(PhiTExpl,NULL);CHKERRQ(ierr);
-    ierr = MatView(H,NULL);CHKERRQ(ierr);
+    ierr = MatView(checkTLM,NULL);CHKERRQ(ierr);
   }
-  ierr = MatDestroy(&H);CHKERRQ(ierr);
+  ierr = MatDestroy(&checkTLM);CHKERRQ(ierr);
 
   ierr = VecView(Mgrad,NULL);CHKERRQ(ierr);
   if (usefd) { /* we test against finite differencing the function evaluation */
@@ -698,6 +1037,11 @@ int main(int argc, char* argv[])
     ierr = PetscPrintf(PETSC_COMM_WORLD,"3rd component of gradient not yet coded (use -use_taylor or -use_fd to test it)\n");CHKERRQ(ierr);
   }
 
+  ierr = VecScatterDestroy(&userdae.Msct);CHKERRQ(ierr);
+  ierr = VecDestroy(&userdae.M);CHKERRQ(ierr);
+  ierr = MatDestroy(&userdae.F_UU);CHKERRQ(ierr);
+  ierr = MatDestroy(&userdae.F_MM);CHKERRQ(ierr);
+  ierr = MatDestroy(&userdae.F_UM);CHKERRQ(ierr);
   ierr = VecDestroy(&tlmsol);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
   ierr = VecDestroy(&U);CHKERRQ(ierr);
@@ -709,6 +1053,8 @@ int main(int argc, char* argv[])
   ierr = MatDestroy(&PhiT);CHKERRQ(ierr);
   ierr = MatDestroy(&pJ);CHKERRQ(ierr);
   ierr = MatDestroy(&J);CHKERRQ(ierr);
+  ierr = MatDestroy(&H_UU);CHKERRQ(ierr);
+  ierr = MatDestroy(&H_MM);CHKERRQ(ierr);
   ierr = MatDestroy(&G_M);CHKERRQ(ierr);
   ierr = MatDestroy(&G_X);CHKERRQ(ierr);
   ierr = MatDestroy(&F_M);CHKERRQ(ierr);
