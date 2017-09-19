@@ -26,7 +26,6 @@ int main(int argc,char **argv)
   ierr = MatSetSizes(A,PETSC_DECIDE,PETSC_DECIDE,M,N);CHKERRQ(ierr);
   ierr = MatSetType(A,MATAIJ);CHKERRQ(ierr);
   ierr = MatSetFromOptions(A);CHKERRQ(ierr);
-  ierr = MatGetOwnershipRange(A,&Istart,&Iend);CHKERRQ(ierr);
 
   /* Consistency checks */
   if (o < 1 || m < 1 || n < 1) SETERRQ(PETSC_COMM_WORLD,1,"Dimensions need to be larger than zero!");
@@ -36,6 +35,7 @@ int main(int argc,char **argv)
   if (equal) {   /* 5-point stencil, 2D */
     ierr = MatMPIAIJSetPreallocation(A,5,NULL,5,NULL);CHKERRQ(ierr);
     ierr = MatSeqAIJSetPreallocation(A,5,NULL);CHKERRQ(ierr);
+    ierr = MatGetOwnershipRange(A,&Istart,&Iend);CHKERRQ(ierr);
     for (Ii=Istart; Ii<Iend; Ii++) {
       v = -1.0; k = Ii / (m*n); j = (Ii - k * m * n) / m; i = (Ii - k * m * n - j * m);
       if (i>0)   {J = global_index(i-1,j,k,m,n); ierr = MatSetValues(A,1,&Ii,1,&J,&v,INSERT_VALUES);CHKERRQ(ierr);}
@@ -49,6 +49,7 @@ int main(int argc,char **argv)
   if (equal) {      /* 9-point stencil, 2D */
     ierr = MatMPIAIJSetPreallocation(A,9,NULL,9,NULL);CHKERRQ(ierr);
     ierr = MatSeqAIJSetPreallocation(A,9,NULL);CHKERRQ(ierr);
+    ierr = MatGetOwnershipRange(A,&Istart,&Iend);CHKERRQ(ierr);
     for (Ii=Istart; Ii<Iend; Ii++) {
       v = -1.0; k = Ii / (m*n); j = (Ii - k * m * n) / m; i = (Ii - k * m * n - j * m);
       if (i>0)            {J = global_index(i-1,j,  k,m,n); ierr = MatSetValues(A,1,&Ii,1,&J,&v,INSERT_VALUES);CHKERRQ(ierr);}
@@ -62,10 +63,11 @@ int main(int argc,char **argv)
       v = 8.0; ierr = MatSetValues(A,1,&Ii,1,&Ii,&v,INSERT_VALUES);CHKERRQ(ierr);
     }
   }
-  ierr = PetscStrcmp(stencil, "2d9point", &equal);CHKERRQ(ierr);
+  ierr = PetscStrcmp(stencil, "2d9point2", &equal);CHKERRQ(ierr);
   if (equal) {      /* 9-point Cartesian stencil (width 2 per coordinate), 2D */
     ierr = MatMPIAIJSetPreallocation(A,9,NULL,9,NULL);CHKERRQ(ierr);
     ierr = MatSeqAIJSetPreallocation(A,9,NULL);CHKERRQ(ierr);
+    ierr = MatGetOwnershipRange(A,&Istart,&Iend);CHKERRQ(ierr);
     for (Ii=Istart; Ii<Iend; Ii++) {
       v = -1.0; k = Ii / (m*n); j = (Ii - k * m * n) / m; i = (Ii - k * m * n - j * m);
       if (i>0)   {J = global_index(i-1,j,k,m,n); ierr = MatSetValues(A,1,&Ii,1,&J,&v,INSERT_VALUES);CHKERRQ(ierr);}
@@ -83,6 +85,7 @@ int main(int argc,char **argv)
   if (equal) {      /* 13-point Cartesian stencil (width 3 per coordinate), 2D */
     ierr = MatMPIAIJSetPreallocation(A,13,NULL,13,NULL);CHKERRQ(ierr);
     ierr = MatSeqAIJSetPreallocation(A,13,NULL);CHKERRQ(ierr);
+    ierr = MatGetOwnershipRange(A,&Istart,&Iend);CHKERRQ(ierr);
     for (Ii=Istart; Ii<Iend; Ii++) {
       v = -1.0; k = Ii / (m*n); j = (Ii - k * m * n) / m; i = (Ii - k * m * n - j * m);
       if (i>0)   {J = global_index(i-1,j,k,m,n); ierr = MatSetValues(A,1,&Ii,1,&J,&v,INSERT_VALUES);CHKERRQ(ierr);}
@@ -105,6 +108,7 @@ int main(int argc,char **argv)
   if (equal) {      /* 7-point stencil, 3D */
     ierr = MatMPIAIJSetPreallocation(A,7,NULL,7,NULL);CHKERRQ(ierr);
     ierr = MatSeqAIJSetPreallocation(A,7,NULL);CHKERRQ(ierr);
+    ierr = MatGetOwnershipRange(A,&Istart,&Iend);CHKERRQ(ierr);
     for (Ii=Istart; Ii<Iend; Ii++) {
       v = -1.0; k = Ii / (m*n); j = (Ii - k * m * n) / m; i = (Ii - k * m * n - j * m);
       if (i>0)   {J = global_index(i-1,j,k,m,n); ierr = MatSetValues(A,1,&Ii,1,&J,&v,INSERT_VALUES);CHKERRQ(ierr);}
@@ -120,6 +124,7 @@ int main(int argc,char **argv)
   if (equal) {      /* 13-point stencil, 3D */
     ierr = MatMPIAIJSetPreallocation(A,13,NULL,13,NULL);CHKERRQ(ierr);
     ierr = MatSeqAIJSetPreallocation(A,13,NULL);CHKERRQ(ierr);
+    ierr = MatGetOwnershipRange(A,&Istart,&Iend);CHKERRQ(ierr);
     for (Ii=Istart; Ii<Iend; Ii++) {
       v = -1.0; k = Ii / (m*n); j = (Ii - k * m * n) / m; i = (Ii - k * m * n - j * m);
       if (i>0)   {J = global_index(i-1,j,k,m,n); ierr = MatSetValues(A,1,&Ii,1,&J,&v,INSERT_VALUES);CHKERRQ(ierr);}
@@ -141,6 +146,7 @@ int main(int argc,char **argv)
   if (equal) {      /* 19-point stencil, 3D */
     ierr = MatMPIAIJSetPreallocation(A,19,NULL,19,NULL);CHKERRQ(ierr);
     ierr = MatSeqAIJSetPreallocation(A,19,NULL);CHKERRQ(ierr);
+    ierr = MatGetOwnershipRange(A,&Istart,&Iend);CHKERRQ(ierr);
     for (Ii=Istart; Ii<Iend; Ii++) {
       v = -1.0; k = Ii / (m*n); j = (Ii - k * m * n) / m; i = (Ii - k * m * n - j * m);
       /* one hop */
@@ -170,6 +176,7 @@ int main(int argc,char **argv)
   if (equal) {      /* 27-point stencil, 3D */
     ierr = MatMPIAIJSetPreallocation(A,27,NULL,27,NULL);CHKERRQ(ierr);
     ierr = MatSeqAIJSetPreallocation(A,27,NULL);CHKERRQ(ierr);
+    ierr = MatGetOwnershipRange(A,&Istart,&Iend);CHKERRQ(ierr);
     for (Ii=Istart; Ii<Iend; Ii++) {
       v = -1.0; k = Ii / (m*n); j = (Ii - k * m * n) / m; i = (Ii - k * m * n - j * m);
       if (k>0) {
