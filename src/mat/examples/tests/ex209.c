@@ -13,6 +13,9 @@ int main(int argc,char **argv)
   PetscErrorCode ierr;
   PetscBool      equal=PETSC_FALSE;
   char           stencil[PETSC_MAX_PATH_LEN];
+#if defined(PETSC_USE_LOG)
+  PetscLogStage  fullMatMatMultStage,numericMatMatMultStage;
+#endif
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return ierr;
   ierr = PetscOptionsGetInt(NULL,NULL,"-m",&m,NULL);CHKERRQ(ierr);
@@ -239,9 +242,16 @@ int main(int argc,char **argv)
   /* Copy A into B in order to have a more representative benchmark (A*A has more cache hits than A*B) */
   ierr = MatDuplicate(A,MAT_COPY_VALUES,&B);CHKERRQ(ierr);
 
+  ierr = PetscLogStageRegister("Full MatMatMult",&fullMatMatMultStage);
+  ierr = PetscLogStageRegister("Numeric MatMatMult",&numericMatMatMultStage);
+
   /* Test C = A*B (aij*dense) */
+  ierr = PetscLogStagePush(fullMatMatMultStage);
   ierr = MatMatMult(A,B,MAT_INITIAL_MATRIX,PETSC_DEFAULT,&C);CHKERRQ(ierr);
+  ierr = PetscLogStagePop();
+  ierr = PetscLogStagePush(numericMatMatMultStage);
   ierr = MatMatMult(A,B,MAT_REUSE_MATRIX,PETSC_DEFAULT,&C);CHKERRQ(ierr);
+  ierr = PetscLogStagePop();
 
   ierr = MatDestroy(&C);CHKERRQ(ierr);
   ierr = MatDestroy(&B);CHKERRQ(ierr);
