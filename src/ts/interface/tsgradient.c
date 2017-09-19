@@ -1392,8 +1392,9 @@ static PetscErrorCode TSEvaluateObjective_Private(TS ts, Vec X, Vec design, Vec 
   Vec             U;
   PetscContainer  container;
   TSQuadratureCtx *qeval_ctx;
-  PetscReal       t0,tf,tfup;
+  PetscReal       t0,tf,tfup,dt;
   PetscInt        tst;
+  PetscBool       fidt;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
@@ -1470,7 +1471,12 @@ static PetscErrorCode TSEvaluateObjective_Private(TS ts, Vec X, Vec design, Vec 
   }
 
   /* forward solve */
+  fidt = PETSC_TRUE;
   ierr = TSGetMaxTime(ts,&tf);CHKERRQ(ierr);
+  ierr = TSGetTimeStep(ts,&dt);CHKERRQ(ierr);
+  if (ts->adapt) {
+    ierr = PetscObjectTypeCompare((PetscObject)ts->adapt,TSADAPTNONE,&fidt);CHKERRQ(ierr);
+  }
   do {
     ObjectiveLink link;
 
@@ -1513,6 +1519,9 @@ static PetscErrorCode TSEvaluateObjective_Private(TS ts, Vec X, Vec design, Vec 
       if (has) {
         ierr = VecAXPY(qeval_ctx->vquad,1.0,work0);CHKERRQ(ierr);
       }
+    }
+    if (fidt) { /* restore fixed time step */
+      ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
     }
   } while (tfup < tf);
 
