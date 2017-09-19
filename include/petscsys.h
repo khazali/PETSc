@@ -2581,6 +2581,7 @@ PETSC_EXTERN PetscErrorCode PetscGetVersion(char[], size_t);
 PETSC_EXTERN PetscErrorCode PetscGetVersionNumber(PetscInt*,PetscInt*,PetscInt*,PetscInt*);
 
 PETSC_EXTERN PetscErrorCode PetscSortInt(PetscInt,PetscInt[]);
+PETSC_EXTERN PetscErrorCode PetscSortedRemoveDupsInt(PetscInt*,PetscInt[]);
 PETSC_EXTERN PetscErrorCode PetscSortRemoveDupsInt(PetscInt*,PetscInt[]);
 PETSC_EXTERN PetscErrorCode PetscFindInt(PetscInt, PetscInt, const PetscInt[], PetscInt*);
 PETSC_EXTERN PetscErrorCode PetscFindMPIInt(PetscMPIInt, PetscInt, const PetscMPIInt[], PetscInt*);
@@ -2613,8 +2614,8 @@ PETSC_EXTERN PetscErrorCode PetscGetDisplay(char[],size_t);
 
    Level: beginner
 
-   Notes: to use the SPRNG you must have ./configure PETSc
-   with the option --download-sprng
+   Notes: to use SPRNG or RANDOM123 you must have ./configure PETSc
+   with the option --download-sprng or --download-random123
 
 .seealso: PetscRandomSetType(), PetscRandom, PetscRandomCreate()
 J*/
@@ -2623,6 +2624,7 @@ typedef const char* PetscRandomType;
 #define PETSCRAND48     "rand48"
 #define PETSCSPRNG      "sprng"
 #define PETSCRANDER48   "rander48"
+#define PETSCRANDOM123  "random123"
 
 /* Logging support */
 PETSC_EXTERN PetscClassId PETSC_RANDOM_CLASSID;

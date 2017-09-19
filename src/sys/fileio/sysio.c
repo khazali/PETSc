@@ -92,8 +92,26 @@ PetscErrorCode  PetscByteSwapShort(short *buff,PetscInt n)
 }
 /* --------------------------------------------------------- */
 /*
-  PetscByteSwapScalar - Swap bytes in a double
-  Complex is dealt with as if array of double twice as long.
+  PetscByteSwapReal - Swap bytes in a PetscReal
+*/
+PetscErrorCode  PetscByteSwapReal(PetscReal *buff,PetscInt n)
+{
+  PetscInt  i,j;
+  PetscReal tmp,*buff1 = (PetscReal*)buff;
+  char      *ptr1,*ptr2 = (char*)&tmp;
+
+  PetscFunctionBegin;
+  for (j=0; j<n; j++) {
+    ptr1 = (char*)(buff1 + j);
+    for (i=0; i<(PetscInt) sizeof(PetscReal); i++) ptr2[i] = ptr1[sizeof(PetscReal)-1-i];
+    for (i=0; i<(PetscInt) sizeof(PetscReal); i++) ptr1[i] = ptr2[i];
+  }
+  PetscFunctionReturn(0);
+}
+/* --------------------------------------------------------- */
+/*
+  PetscByteSwapScalar - Swap bytes in a PetscScalar
+  The complex case is dealt with with an array of PetscReal, twice as long.
 */
 PetscErrorCode  PetscByteSwapScalar(PetscScalar *buff,PetscInt n)
 {
@@ -158,6 +176,7 @@ PetscErrorCode PetscByteSwap(void *data,PetscDataType pdtype,PetscInt count)
   else if (pdtype == PETSC_ENUM)   {ierr = PetscByteSwapEnum((PetscEnum*)data,count);CHKERRQ(ierr);}
   else if (pdtype == PETSC_BOOL)   {ierr = PetscByteSwapBool((PetscBool*)data,count);CHKERRQ(ierr);}
   else if (pdtype == PETSC_SCALAR) {ierr = PetscByteSwapScalar((PetscScalar*)data,count);CHKERRQ(ierr);}
+  else if (pdtype == PETSC_REAL)   {ierr = PetscByteSwapReal((PetscReal*)data,count);CHKERRQ(ierr);}
   else if (pdtype == PETSC_DOUBLE) {ierr = PetscByteSwapDouble((double*)data,count);CHKERRQ(ierr);}
   else if (pdtype == PETSC_FLOAT)  {ierr = PetscByteSwapFloat((float*)data,count);CHKERRQ(ierr);}
   else if (pdtype == PETSC_SHORT)  {ierr = PetscByteSwapShort((short*)data,count);CHKERRQ(ierr);}
@@ -230,6 +249,7 @@ PetscErrorCode  PetscBinaryRead(int fd,void *p,PetscInt n,PetscDataType type)
 
   if (type == PETSC_INT)          m *= sizeof(PetscInt);
   else if (type == PETSC_SCALAR)  m *= sizeof(PetscScalar);
+  else if (type == PETSC_REAL)    m *= sizeof(PetscReal);
   else if (type == PETSC_DOUBLE)  m *= sizeof(double);
   else if (type == PETSC_FLOAT)   m *= sizeof(float);
   else if (type == PETSC_SHORT)   m *= sizeof(short);
@@ -242,7 +262,7 @@ PetscErrorCode  PetscBinaryRead(int fd,void *p,PetscInt n,PetscDataType type)
 #if defined(PETSC_USE_REAL___FLOAT128)
   ierr = PetscOptionsGetBool(NULL,NULL,"-binary_read_double",&readdouble,NULL);CHKERRQ(ierr);
   /* If using __float128 precision we still read in doubles from file */
-  if (type == PETSC_SCALAR && readdouble) {
+  if ((type == PETSC_SCALAR || type == PETSC_REAL) && readdouble) {
     m    = m/2;
     ierr = PetscMalloc1(n,&ppp);CHKERRQ(ierr);
     pp   = (char*)ppp;
@@ -260,7 +280,7 @@ PetscErrorCode  PetscBinaryRead(int fd,void *p,PetscInt n,PetscDataType type)
   }
 
 #if defined(PETSC_USE_REAL___FLOAT128)
-  if (type == PETSC_SCALAR && readdouble) {
+  if ((type == PETSC_SCALAR || type == PETSC_REAL) && readdouble) {
     PetscScalar *pv = (PetscScalar*) p;
     PetscInt    i;
 #if !defined(PETSC_WORDS_BIGENDIAN)
@@ -309,7 +329,7 @@ PetscErrorCode  PetscBinaryRead(int fd,void *p,PetscInt n,PetscDataType type)
    file as 64 bit integers, this means they can only be read back in when the option --with-64bit-indices
    is used.
 
-   If running with __float128 precision the output is in __float128 unless one uses the -binary_read_double option
+   If running with __float128 precision the output is in __float128 unless one uses the -binary_write_double option
 
    The Buffer p should be read-write buffer, and not static data.
    This way, byte-swapping is done in-place, and then the buffer is
@@ -345,6 +365,7 @@ PetscErrorCode  PetscBinaryWrite(int fd,void *p,PetscInt n,PetscDataType type,Pe
   PetscReal      *pv;
   PetscInt       i;
 #endif
+  PetscDataType  wtype = type;
 
   PetscFunctionBegin;
   if (n < 0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Trying to write a negative amount of data %D",n);
@@ -374,8 +395,8 @@ PetscErrorCode  PetscBinaryWrite(int fd,void *p,PetscInt n,PetscDataType type,Pe
 #if defined(PETSC_USE_REAL___FLOAT128)
   ierr = PetscOptionsGetBool(NULL,NULL,"-binary_write_double",&writedouble,NULL);CHKERRQ(ierr);
   /* If using __float128 precision we still write in doubles to file */
-  if (type == PETSC_SCALAR && writedouble) {
-    m    = m/2;
+  if ((type == PETSC_SCALAR || type == PETSC_REAL) && writedouble) {
+    wtype = PETSC_DOUBLE;
     ierr = PetscMalloc1(n,&ppp);CHKERRQ(ierr);
     pv = (PetscReal*)pp;
     for (i=0; i<n; i++) {
@@ -386,19 +407,20 @@ PetscErrorCode  PetscBinaryWrite(int fd,void *p,PetscInt n,PetscDataType type,Pe
   }
 #endif
 
-  if (type == PETSC_INT)          m *= sizeof(PetscInt);
-  else if (type == PETSC_SCALAR)  m *= sizeof(PetscScalar);
-  else if (type == PETSC_DOUBLE)  m *= sizeof(double);
-  else if (type == PETSC_FLOAT)   m *= sizeof(float);
-  else if (type == PETSC_SHORT)   m *= sizeof(short);
-  else if (type == PETSC_CHAR)    m *= sizeof(char);
-  else if (type == PETSC_ENUM)    m *= sizeof(PetscEnum);
-  else if (type == PETSC_BOOL)   m *= sizeof(PetscBool);
-  else if (type == PETSC_BIT_LOGICAL) m = PetscBTLength(m)*sizeof(char);
+  if (wtype == PETSC_INT)          m *= sizeof(PetscInt);
+  else if (wtype == PETSC_SCALAR)  m *= sizeof(PetscScalar);
+  else if (wtype == PETSC_REAL)    m *= sizeof(PetscReal);
+  else if (wtype == PETSC_DOUBLE)  m *= sizeof(double);
+  else if (wtype == PETSC_FLOAT)   m *= sizeof(float);
+  else if (wtype == PETSC_SHORT)   m *= sizeof(short);
+  else if (wtype == PETSC_CHAR)    m *= sizeof(char);
+  else if (wtype == PETSC_ENUM)    m *= sizeof(PetscEnum);
+  else if (wtype == PETSC_BOOL)    m *= sizeof(PetscBool);
+  else if (wtype == PETSC_BIT_LOGICAL) m = PetscBTLength(m)*sizeof(char);
   else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Unknown type");
 
 #if !defined(PETSC_WORDS_BIGENDIAN)
-  ierr = PetscByteSwap(ptmp,type,n);CHKERRQ(ierr);
+  ierr = PetscByteSwap(ptmp,wtype,n);CHKERRQ(ierr);
 #endif
 
   while (m) {
@@ -412,17 +434,17 @@ PetscErrorCode  PetscBinaryWrite(int fd,void *p,PetscInt n,PetscDataType type,Pe
 
 #if !defined(PETSC_WORDS_BIGENDIAN)
   if (!istemp) {
-    ierr = PetscByteSwap(ptmp,type,n);CHKERRQ(ierr);
+    ierr = PetscByteSwap(ptmp,wtype,n);CHKERRQ(ierr);
   }
 #endif
   if (type == PETSC_FUNCTION) {
     free(fname);
   }
 #if defined(PETSC_USE_REAL___FLOAT128)
-  if (type == PETSC_SCALAR && writedouble) {
+  if ((type == PETSC_SCALAR || type == PETSC_REAL) && writedouble) {
     ierr = PetscFree(ppp);CHKERRQ(ierr);
   }
-#endif   
+#endif
   PetscFunctionReturn(0);
 }
 
