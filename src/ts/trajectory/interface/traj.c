@@ -203,7 +203,10 @@ PetscErrorCode TSTrajectoryGetVecs(TSTrajectory tj,TS ts,PetscInt stepnum,PetscR
       ierr = PetscViewerFlush(tj->monitor);CHKERRQ(ierr);
     }
   }
-  if (!U && !Udot) PetscFunctionReturn(0);
+  if (!U && !Udot) {
+    ierr = PetscLogEventEnd(TSTrajectory_GetVecs,tj,ts,0,0);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
+  }
 
   if (stepnum == PETSC_DECIDE || Udot) { /* reverse search for requested time in TSHistory */
     if (tj->monitor) {
@@ -215,10 +218,7 @@ PetscErrorCode TSTrajectoryGetVecs(TSTrajectory tj,TS ts,PetscInt stepnum,PetscR
       ierr = PetscViewerASCIIPopTab(tj->monitor);CHKERRQ(ierr);
       ierr = PetscViewerFlush(tj->monitor);CHKERRQ(ierr);
     }
-    PetscFunctionReturn(0);
-  }
-  /* we were asked to load from stepnum, use TSTrajectoryGet */
-  if (U) {
+  } else if (U) { /* we were asked to load from stepnum, use TSTrajectoryGet */
     Vec osol;
 
     ierr = TSGetSolution(ts,&osol);CHKERRQ(ierr);

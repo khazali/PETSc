@@ -64,6 +64,7 @@ PetscErrorCode  TSInitializePackage(void)
   ierr = PetscLogEventRegister("TSForwardStep",TS_CLASSID,&TS_ForwardStep);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("TSTrajSet",TSTRAJECTORY_CLASSID,&TSTrajectory_Set);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("TSTrajGet",TSTRAJECTORY_CLASSID,&TSTrajectory_Get);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("TSTrajGetVecs",TSTRAJECTORY_CLASSID,&TSTrajectory_GetVecs);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("TSTrajDiskWrite",TS_CLASSID,&TSTrajectory_DiskWrite);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("TSTrajDiskRead",TS_CLASSID,&TSTrajectory_DiskRead);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("TSStep",TS_CLASSID,&TS_Step);CHKERRQ(ierr);
