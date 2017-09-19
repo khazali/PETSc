@@ -72,9 +72,6 @@ PetscErrorCode DMDestroy_PICell(DM dm)
 PetscErrorCode DMView_PICell(DM dm, PetscViewer viewer)
 {
   PetscErrorCode ierr;
-  DM_PICell *dmpi = (DM_PICell *) dm->data;
-  if (!dmpi) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "dmpi not found");
-  /* ierr = DMView(dmpi->dm,viewer);CHKERRQ(ierr); */
   ierr = DMView_PICell_part_private(dm, viewer);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
