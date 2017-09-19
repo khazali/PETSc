@@ -2532,9 +2532,9 @@ PetscErrorCode TSSetHessianDAE(TS ts, TSEvalHessianDAE f_uu,  TSEvalHessianDAE f
   ts->HF[0][0] = f_uu;
   ts->HF[0][1] = f_uut;
   ts->HF[0][2] = f_um;
-  ts->HF[0][0] = f_utu;
-  ts->HF[0][1] = f_utut;
-  ts->HF[0][2] = f_utm;
+  ts->HF[1][0] = f_utu;
+  ts->HF[1][1] = f_utut;
+  ts->HF[1][2] = f_utm;
   ts->HF[2][0] = f_mu;
   ts->HF[2][1] = f_mut;
   ts->HF[2][2] = f_mm;
