@@ -1921,6 +1921,7 @@ static PetscErrorCode MatMultTranspose_Propagator(Mat A, Vec x, Vec y)
   }
   ierr = VecSet(y,0.0);CHKERRQ(ierr);
   ierr = AdjointTSSetDesign(prop->adjlts,tlm->design);CHKERRQ(ierr);
+  ierr = AdjointTSSetTimeLimits(prop->adjlts,prop->t0,prop->tf);CHKERRQ(ierr);
   ierr = AdjointTSSetInitialGradient(prop->adjlts,y);CHKERRQ(ierr);
   /* Initialize adjoint variables using P^T x or x */
   if (tlm->P) {
@@ -2201,7 +2202,6 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   ierr = VecDuplicate(x0,&X);CHKERRQ(ierr);
   ierr = TSSetSolution(prop->adjlts,X);CHKERRQ(ierr);
   ierr = VecDestroy(&X);CHKERRQ(ierr);
-  ierr = AdjointTSSetTimeLimits(prop->adjlts,t0,tf);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
