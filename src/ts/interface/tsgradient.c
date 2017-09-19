@@ -1245,7 +1245,7 @@ initialize:
       }
     }
     ierr = PetscContainerGetPointer(c,(void**)&qeval_ctx);CHKERRQ(ierr);
-    qeval_ctx->user      = adjts->poststep;
+    qeval_ctx->user      = AdjointTSPostStep;
     qeval_ctx->userafter = PETSC_TRUE;
     qeval_ctx->seval     = NULL;
     qeval_ctx->veval     = EvalQuadDAE_M;
