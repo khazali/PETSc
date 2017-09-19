@@ -735,12 +735,12 @@ runex23_8:
 	   ${RM} -rf ex23_8.tmp SA-data
 
 runex23_9:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 -0.3 -tf 0.5 -b 1.2 -a 2.1 -p 0.3 -ts_type rk -test_general_fixed -test_general_final -test_general -test_event_func -test_event_constant -test_event_final -ts_rtol 1.e-6 -ts_atol 1.e-6 > ex23_9.tmp 2>&1; \
+	-@${MPIEXEC} -n 5 ./ex23 -t0 -0.3 -tf 0.5 -b 1.2 -a 2.1 -p 0.3 -ts_type rk -test_general_fixed -test_general_final -test_general -test_event_func -test_event_constant -test_event_final -ts_rtol 1.e-6 -ts_atol 1.e-6 > ex23_9.tmp 2>&1; \
 	   ${DIFF} output/ex23_9.out ex23_9.tmp || printf "${PWD}\nPossible problem with ex23_9, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_9.tmp SA-data
 
 runex23_10:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 -0.3 -tf 0.5 -b 1.2 -a 2.1 -p 0.3 -ts_type bdf -test_general_fixed -test_general_final -test_general -test_event_func -test_event_constant -test_event_final -ts_rtol 1.e-6 -ts_atol 1.e-6 > ex23_10.tmp 2>&1; \
+	-@${MPIEXEC} -n 5 ./ex23 -t0 -0.3 -tf 0.5 -b 1.2 -a 2.1 -p 0.3 -ts_type bdf -test_general_fixed -test_general_final -test_general -test_event_func -test_event_constant -test_event_final -ts_rtol 1.e-6 -ts_atol 1.e-6 > ex23_10.tmp 2>&1; \
 	   ${DIFF} output/ex23_10.out ex23_10.tmp || printf "${PWD}\nPossible problem with ex23_10, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_10.tmp SA-data
 
