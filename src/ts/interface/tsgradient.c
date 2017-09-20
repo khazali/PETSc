@@ -90,9 +90,9 @@ static PetscErrorCode EvaluateObjective_U(ObjectiveLink funchead, Vec state, Vec
     while (link) {
       if (link->f_x && link->fixedtime <= PETSC_MIN_REAL) {
         if (!firstdone) {
-          ierr = (*link->f_x)(state,design,time,out,link->f_x_ctx);CHKERRQ(ierr);
+          ierr = (*link->f_x)(state,design,time,out,link->f_ctx);CHKERRQ(ierr);
         } else {
-          ierr = (*link->f_x)(state,design,time,work,link->f_x_ctx);CHKERRQ(ierr);
+          ierr = (*link->f_x)(state,design,time,work,link->f_ctx);CHKERRQ(ierr);
           ierr = VecAXPY(out,1.0,work);CHKERRQ(ierr);
         }
         firstdone = PETSC_TRUE;
@@ -133,9 +133,9 @@ static PetscErrorCode EvaluateObjective_UFixed(ObjectiveLink funchead, Vec state
     while (link) {
       if (link->f_x && link->fixedtime > PETSC_MIN_REAL && PetscAbsReal(link->fixedtime-time) < PETSC_SMALL) {
         if (!firstdone) {
-          ierr = (*link->f_x)(state,design,link->fixedtime,out,link->f_x_ctx);CHKERRQ(ierr);
+          ierr = (*link->f_x)(state,design,link->fixedtime,out,link->f_ctx);CHKERRQ(ierr);
         } else {
-          ierr = (*link->f_x)(state,design,link->fixedtime,work,link->f_x_ctx);CHKERRQ(ierr);
+          ierr = (*link->f_x)(state,design,link->fixedtime,work,link->f_ctx);CHKERRQ(ierr);
           ierr = VecAXPY(out,1.0,work);CHKERRQ(ierr);
         }
         firstdone = PETSC_TRUE;
@@ -175,9 +175,9 @@ static PetscErrorCode EvaluateObjective_M(ObjectiveLink funchead, Vec state, Vec
     while (link) {
       if (link->f_m && link->fixedtime <= PETSC_MIN_REAL) {
         if (!firstdone) {
-          ierr = (*link->f_m)(state,design,time,out,link->f_m_ctx);CHKERRQ(ierr);
+          ierr = (*link->f_m)(state,design,time,out,link->f_ctx);CHKERRQ(ierr);
         } else {
-          ierr = (*link->f_m)(state,design,time,work,link->f_m_ctx);CHKERRQ(ierr);
+          ierr = (*link->f_m)(state,design,time,work,link->f_ctx);CHKERRQ(ierr);
           ierr = VecAXPY(out,1.0,work);CHKERRQ(ierr);
         }
         firstdone = PETSC_TRUE;
@@ -217,9 +217,9 @@ static PetscErrorCode EvaluateObjective_MFixed(ObjectiveLink funchead, Vec state
     while (link) {
       if (link->f_m && time == link->fixedtime) {
         if (!firstdone) {
-          ierr = (*link->f_m)(state,design,link->fixedtime,out,link->f_m_ctx);CHKERRQ(ierr);
+          ierr = (*link->f_m)(state,design,link->fixedtime,out,link->f_ctx);CHKERRQ(ierr);
         } else {
-          ierr = (*link->f_m)(state,design,link->fixedtime,work,link->f_m_ctx);CHKERRQ(ierr);
+          ierr = (*link->f_m)(state,design,link->fixedtime,work,link->f_ctx);CHKERRQ(ierr);
           ierr = VecAXPY(out,1.0,work);CHKERRQ(ierr);
         }
         firstdone = PETSC_TRUE;
@@ -2180,8 +2180,8 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   }
   ierr = PetscObjectDereference((PetscObject)design);CHKERRQ(ierr);
   ierr = TSSetFromOptions(prop->lts);CHKERRQ(ierr);
-  ierr = TSSetObjective(prop->lts,prop->tf,NULL,NULL,TLMTS_dummyRHS,NULL,NULL,NULL,
-                        NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+  ierr = TSSetObjective(prop->lts,prop->tf,NULL,TLMTS_dummyRHS,NULL,
+                        NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
   if (prop->model->F_m) {
     ierr = TSSetGradientDAE(prop->lts,prop->model->F_m,prop->model->F_m_f,prop->model->F_m_ctx);CHKERRQ(ierr);
   }
@@ -2307,23 +2307,18 @@ PetscErrorCode TSResetObjective(TS ts)
    Logically Collective on TS
 
    Input Parameters:
-+  ts       - the TS context obtained from TSCreate()
-.  fixtime  - the time at which the functional has to be evaluated (use PETSC_MIN_REAL for integrands)
-.  f        - the function evaluation routine
-.  f_ctx    - user-defined context for the function evaluation routine (can be NULL)
-.  f_x      - the function evaluation routine for the derivativrt to the state variables (can be NULL)
-.  f_x_ctx  - user-defined context for the function evaluation routine (can be NULL)
-.  f_m      - the function evaluation routine for the derivative wrt the design variables (can be NULL)
-.  f_m_ctx  - user-defined context for the function evaluation routine (can be NULL)
-.  f_XX     - the Mat object to hold f_xx(x,m,t) (can be NULL)
-.  f_xx     - the function evaluation routine for the second derivative wrt the state variables (can be NULL)
-.  f_xx_ctx - user-defined context for the matrix evaluation routine (can be NULL)
-.  f_XM     - the Mat object to hold f_xm(x,m,t) (can be NULL)
-.  f_xm     - the function evaluation routine for the mixed derivative (can be NULL)
-.  f_xm_ctx - user-defined context for the matrix evaluation routine (can be NULL)
-.  f_MM     - the Mat object to hold f_mm(x,m,t) (can be NULL)
-.  f_mm     - the function evaluation routine for the second derivative wrt the design variables (can be NULL)
--  f_mm_ctx - user-defined context for the matrix evaluation routine (can be NULL)
++  ts      - the TS context obtained from TSCreate()
+.  fixtime - the time at which the functional has to be evaluated (use PETSC_MIN_REAL for integrand terms)
+.  f       - the function evaluation routine
+.  f_x     - the function evaluation routine for the derivativrt to the state variables (can be NULL)
+.  f_m     - the function evaluation routine for the derivative wrt the design variables (can be NULL)
+.  f_XX    - the Mat object to hold f_xx(x,m,t) (can be NULL)
+.  f_xx    - the function evaluation routine for the second derivative wrt the state variables (can be NULL)
+.  f_XM    - the Mat object to hold f_xm(x,m,t) (can be NULL)
+.  f_xm    - the function evaluation routine for the mixed derivative (can be NULL)
+.  f_MM    - the Mat object to hold f_mm(x,m,t) (can be NULL)
+.  f_mm    - the function evaluation routine for the second derivative wrt the design variables (can be NULL)
+-  f_ctx   - user-defined context (can be NULL)
 
    Calling sequence of f:
 $  f(Vec u,Vec m,PetscReal t,PetscReal *out,void *ctx);
@@ -2363,11 +2358,11 @@ $  f(Vec u,Vec m,PetscReal t,Mat A,void *ctx);
 
 .seealso: TSSetGradientDAE(), TSSetHessianDAE(), TSComputeObjectiveAndGradient(), TSSetGradientIC()
 @*/
-PetscErrorCode TSSetObjective(TS ts, PetscReal fixtime, TSEvalObjective f, void* f_ctx,
-                              TSEvalObjectiveGradient f_x, void* f_x_ctx, TSEvalObjectiveGradient f_m, void* f_m_ctx,
-                              Mat f_XX, TSEvalObjectiveHessian f_xx, void* f_xx_ctx,
-                              Mat f_XM, TSEvalObjectiveHessian f_xm, void* f_xm_ctx,
-                              Mat f_MM, TSEvalObjectiveHessian f_mm, void* f_mm_ctx)
+PetscErrorCode TSSetObjective(TS ts, PetscReal fixtime, TSEvalObjective f,
+                              TSEvalObjectiveGradient f_x, TSEvalObjectiveGradient f_m,
+                              Mat f_XX, TSEvalObjectiveHessian f_xx,
+                              Mat f_XM, TSEvalObjectiveHessian f_xm,
+                              Mat f_MM, TSEvalObjectiveHessian f_mm, void* f_ctx)
 {
   ObjectiveLink  link;
   PetscErrorCode ierr;
@@ -2387,30 +2382,25 @@ PetscErrorCode TSSetObjective(TS ts, PetscReal fixtime, TSEvalObjective f, void*
     ierr = PetscNew(&link->next);CHKERRQ(ierr);
     link = link->next;
   }
-  link->f         = f;
-  link->f_ctx     = f_ctx;
-  link->f_x       = f_x;
-  link->f_x_ctx   = f_x_ctx;
-  link->f_m       = f_m;
-  link->f_m_ctx   = f_m_ctx;
+  link->f   = f;
+  link->f_x = f_x;
+  link->f_m = f_m;
   if (f_XX) {
-    ierr = PetscObjectReference((PetscObject)f_XX);CHKERRQ(ierr);
-    link->f_XX      = f_XX;
-    link->f_xx      = f_xx;
-    link->f_xx_ctx  = f_xx_ctx;
+    ierr       = PetscObjectReference((PetscObject)f_XX);CHKERRQ(ierr);
+    link->f_XX = f_XX;
+    link->f_xx = f_xx;
   }
   if (f_XM) {
-    ierr = PetscObjectReference((PetscObject)f_XM);CHKERRQ(ierr);
-    link->f_XM      = f_XM;
-    link->f_xm      = f_xm;
-    link->f_xm_ctx  = f_xm_ctx;
+    ierr       = PetscObjectReference((PetscObject)f_XM);CHKERRQ(ierr);
+    link->f_XM = f_XM;
+    link->f_xm = f_xm;
   }
   if (f_MM) {
-    ierr = PetscObjectReference((PetscObject)f_MM);CHKERRQ(ierr);
-    link->f_MM      = f_MM;
-    link->f_mm      = f_mm;
-    link->f_mm_ctx  = f_mm_ctx;
+    ierr       = PetscObjectReference((PetscObject)f_MM);CHKERRQ(ierr);
+    link->f_MM = f_MM;
+    link->f_mm = f_mm;
   }
+  link->f_ctx     = f_ctx;
   link->fixedtime = fixtime;
   PetscFunctionReturn(0);
 }

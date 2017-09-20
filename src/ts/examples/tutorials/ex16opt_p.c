@@ -435,8 +435,8 @@ PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec P,PetscReal *f,Vec G,void *ct
   ierr = VecRestoreArray(user->x,&x_ptr);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   /* the cost functional needs to be evaluated at time 0.5 */
-  ierr = TSSetObjective(ts,0.5,EvalObjective_AO,user,EvalObjectiveGradient_U_AO,user,NULL,NULL,
-                        NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+  ierr = TSSetObjective(ts,0.5,EvalObjective_AO,EvalObjectiveGradient_U_AO,NULL,
+                        NULL,NULL,NULL,NULL,NULL,NULL,user);CHKERRQ(ierr);
   ierr = TSSetGradientDAE(ts,user->Jacp,RHSJacobianP_AO,user);CHKERRQ(ierr);
   ierr = TSComputeObjectiveAndGradient(ts,0.0,PETSC_DECIDE,0.5,user->x,P,G,f);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);

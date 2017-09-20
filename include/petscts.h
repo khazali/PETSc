@@ -330,8 +330,8 @@ PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalGradientIC)(TS,PetscReal,Vec
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalGradientDAE)(TS,PetscReal,Vec,Vec,Vec,Mat,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSEvalHessianDAE)(TS,PetscReal,Vec,Vec,Vec,Vec,Vec,Vec,void*);
 PETSC_EXTERN PetscErrorCode TSResetObjective(TS);
-PETSC_EXTERN PetscErrorCode TSSetObjective(TS,PetscReal,TSEvalObjective,void*,TSEvalObjectiveGradient,void*,TSEvalObjectiveGradient,void*,
-                                           Mat,TSEvalObjectiveHessian,void*,Mat,TSEvalObjectiveHessian,void*,Mat,TSEvalObjectiveHessian,void*);
+PETSC_EXTERN PetscErrorCode TSSetObjective(TS,PetscReal,TSEvalObjective,TSEvalObjectiveGradient,TSEvalObjectiveGradient,
+                                           Mat,TSEvalObjectiveHessian,Mat,TSEvalObjectiveHessian,Mat,TSEvalObjectiveHessian,void*);
 PETSC_EXTERN PetscErrorCode TSSetGradientDAE(TS,Mat,TSEvalGradientDAE,void*);
 PETSC_EXTERN PetscErrorCode TSSetHessianDAE(TS,TSEvalHessianDAE,TSEvalHessianDAE,TSEvalHessianDAE,
                                                TSEvalHessianDAE,TSEvalHessianDAE,TSEvalHessianDAE,

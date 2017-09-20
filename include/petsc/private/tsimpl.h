@@ -69,21 +69,16 @@ typedef struct _TSTrajectoryOps *TSTrajectoryOps;
 typedef struct _ObjectiveLink *ObjectiveLink;
 struct _ObjectiveLink {
   TSEvalObjective         f;         /* f(x,m,t) */
-  void                    *f_ctx;
   TSEvalObjectiveGradient f_x;       /* \frac{\partial f}{\partial x}(x,m,t) */
-  void                    *f_x_ctx;
   TSEvalObjectiveGradient f_m;       /* \frac{\partial f}{\partial m}(x,m,t) */
-  void                    *f_m_ctx;
   Mat                     f_XX;
   TSEvalObjectiveHessian  f_xx;      /* \frac{\partial^2 f}{\partial x^2} f (x,m,t) */
-  void                    *f_xx_ctx;
   Mat                     f_XM;
   TSEvalObjectiveHessian  f_xm;      /* \frac{\partial^2 f}{\partial x \partial m} f (x,m,t) */
-  void                    *f_xm_ctx;
   Mat                     f_MM;
   TSEvalObjectiveHessian  f_mm;      /* \frac{\partial^2 f}{\partial m^2} f (x,m,t) */
-  void                    *f_mm_ctx;
-  PetscReal               fixedtime; /* if the functional has to be evaluated at a specific time, i.e. || x(T1) - x_d || ^2, T1 in [T0,TF] */
+  void                    *f_ctx;
+  PetscReal               fixedtime; /* if the functional has to be evaluated at a specific time, i.e. || x(T1) - x_d || ^2, T1 in (T0,TF] */
   ObjectiveLink           next;
 };
 

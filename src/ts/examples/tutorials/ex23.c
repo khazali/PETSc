@@ -780,11 +780,11 @@ int main(int argc, char* argv[])
 
     ierr = MatDuplicate(H_UU,MAT_DO_NOT_COPY_VALUES,&H);CHKERRQ(ierr);
     if (testnullgradM) {
-      ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,&userobj,EvalObjectiveGradient_U,&userobj,NULL,NULL,
-                            H,EvalObjectiveHessian_UU,&userobj,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+      ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,EvalObjectiveGradient_U,NULL,
+                            H,EvalObjectiveHessian_UU,NULL,NULL,NULL,NULL,&userobj);CHKERRQ(ierr);
     } else {
-      ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,&userobj,EvalObjectiveGradient_U,&userobj,EvalObjectiveGradient_M,&userobj,
-                            H,EvalObjectiveHessian_UU,&userobj,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+      ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective,EvalObjectiveGradient_U,EvalObjectiveGradient_M,
+                            H,EvalObjectiveHessian_UU,NULL,NULL,NULL,NULL,&userobj);CHKERRQ(ierr);
     }
     ierr = MatDestroy(&H);CHKERRQ(ierr);
     if (user.b != 0.0) { /* we can compute the analytic solution for the objective function */
@@ -810,8 +810,8 @@ int main(int argc, char* argv[])
     Mat H;
 
     ierr = MatDuplicate(H_UU,MAT_DO_NOT_COPY_VALUES,&H);CHKERRQ(ierr);
-    ierr = TSSetObjective(ts,tf,EvalObjective_Event,NULL,EvalObjectiveGradient_U_Event,NULL,NULL,NULL,
-                          H,EvalObjectiveHessian_UU_Event,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,tf,EvalObjective_Event,EvalObjectiveGradient_U_Event,NULL,
+                          H,EvalObjectiveHessian_UU_Event,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
     ierr = MatDestroy(&H);CHKERRQ(ierr);
   }
 
@@ -820,15 +820,15 @@ int main(int argc, char* argv[])
     Mat H;
 
     ierr = MatDuplicate(H_UU,MAT_DO_NOT_COPY_VALUES,&H);CHKERRQ(ierr);
-    ierr = TSSetObjective(ts,t0 + 0.132*(tf-t0),EvalObjective_Event,NULL,EvalObjectiveGradient_U_Event,NULL,NULL,NULL,
-                          H,EvalObjectiveHessian_UU_Event,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,t0 + 0.132*(tf-t0),EvalObjective_Event,EvalObjectiveGradient_U_Event,NULL,
+                          H,EvalObjectiveHessian_UU_Event,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
     ierr = MatDestroy(&H);CHKERRQ(ierr);
   }
 
   /* Cost functional in between the simulation (constant) */
   if (testeventconst) {
-    ierr = TSSetObjective(ts,t0 + 0.44*(tf-t0),EvalObjective_Const,NULL,NULL,NULL,NULL,NULL,
-                          NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,t0 + 0.44*(tf-t0),EvalObjective_Const,NULL,NULL,
+                          NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
   }
 
   /* Cost functional with nonzero gradient wrt the parameters at a given time */
@@ -838,8 +838,8 @@ int main(int argc, char* argv[])
     general_fixed = PETSC_TRUE;
     ierr = MatDuplicate(H_UU,MAT_DO_NOT_COPY_VALUES,&HUU);CHKERRQ(ierr);
     ierr = MatDuplicate(H_MM,MAT_DO_NOT_COPY_VALUES,&HMM);CHKERRQ(ierr);
-    ierr = TSSetObjective(ts,t0 + 0.77*(tf-t0),EvalObjective_Gen,NULL,EvalObjective_U_Gen,NULL,EvalObjective_M_Gen,NULL,
-                          HUU,EvalObjective_UU_Gen,NULL,NULL,NULL,NULL,HMM,EvalObjective_MM_Gen,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,t0 + 0.77*(tf-t0),EvalObjective_Gen,EvalObjective_U_Gen,EvalObjective_M_Gen,
+                          HUU,EvalObjective_UU_Gen,NULL,NULL,HMM,EvalObjective_MM_Gen,NULL);CHKERRQ(ierr);
     ierr = MatDestroy(&HMM);CHKERRQ(ierr);
     ierr = MatDestroy(&HUU);CHKERRQ(ierr);
   }
@@ -851,8 +851,8 @@ int main(int argc, char* argv[])
     general_fixed = PETSC_TRUE;
     ierr = MatDuplicate(H_UU,MAT_DO_NOT_COPY_VALUES,&HUU);CHKERRQ(ierr);
     ierr = MatDuplicate(H_MM,MAT_DO_NOT_COPY_VALUES,&HMM);CHKERRQ(ierr);
-    ierr = TSSetObjective(ts,tf,EvalObjective_Gen,NULL,EvalObjective_U_Gen,NULL,EvalObjective_M_Gen,NULL,
-                          HUU,EvalObjective_UU_Gen,NULL,NULL,NULL,NULL,HMM,EvalObjective_MM_Gen,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,tf,EvalObjective_Gen,EvalObjective_U_Gen,EvalObjective_M_Gen,
+                          HUU,EvalObjective_UU_Gen,NULL,NULL,HMM,EvalObjective_MM_Gen,NULL);CHKERRQ(ierr);
     ierr = MatDestroy(&HMM);CHKERRQ(ierr);
     ierr = MatDestroy(&HUU);CHKERRQ(ierr);
   }
@@ -864,8 +864,8 @@ int main(int argc, char* argv[])
     general_fixed = PETSC_TRUE;
     ierr = MatDuplicate(H_UU,MAT_DO_NOT_COPY_VALUES,&HUU);CHKERRQ(ierr);
     ierr = MatDuplicate(H_MM,MAT_DO_NOT_COPY_VALUES,&HMM);CHKERRQ(ierr);
-    ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective_Gen,NULL,EvalObjective_U_Gen,NULL,EvalObjective_M_Gen,NULL,
-                          HUU,EvalObjective_UU_Gen,NULL,NULL,NULL,NULL,HMM,EvalObjective_MM_Gen,NULL);CHKERRQ(ierr);
+    ierr = TSSetObjective(ts,PETSC_MIN_REAL,EvalObjective_Gen,EvalObjective_U_Gen,EvalObjective_M_Gen,
+                          HUU,EvalObjective_UU_Gen,NULL,NULL,HMM,EvalObjective_MM_Gen,NULL);CHKERRQ(ierr);
     ierr = MatDestroy(&HMM);CHKERRQ(ierr);
     ierr = MatDestroy(&HUU);CHKERRQ(ierr);
   }
