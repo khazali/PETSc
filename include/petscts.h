@@ -337,7 +337,7 @@ PETSC_EXTERN PetscErrorCode TSSetHessianDAE(TS,TSEvalHessianDAE,TSEvalHessianDAE
                                                TSEvalHessianDAE,TSEvalHessianDAE,TSEvalHessianDAE,
                                                TSEvalHessianDAE,TSEvalHessianDAE,TSEvalHessianDAE,void*);
 PETSC_EXTERN PetscErrorCode TSSetGradientIC(TS,Mat,Mat,TSEvalGradientIC,void*);
-PETSC_EXTERN PetscErrorCode TSEvaluateObjectiveAndGradient(TS,PetscReal,PetscReal,PetscReal,Vec,Vec,Vec,PetscReal*);
+PETSC_EXTERN PetscErrorCode TSComputeObjectiveAndGradient(TS,PetscReal,PetscReal,PetscReal,Vec,Vec,Vec,PetscReal*);
 PETSC_EXTERN PetscErrorCode TSCreatePropagatorMat(TS,PetscReal,PetscReal,PetscReal,Vec,Vec,Mat,Mat*);
 PETSC_EXTERN PetscErrorCode TSSetMaxSteps(TS,PetscInt);
 PETSC_EXTERN PetscErrorCode TSGetMaxSteps(TS,PetscInt*);

@@ -1387,7 +1387,7 @@ static PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode TSEvaluateObjective_Private(TS ts, Vec X, Vec design, Vec gradient, PetscReal *val)
+static PetscErrorCode TSComputeObjective_Private(TS ts, Vec X, Vec design, Vec gradient, PetscReal *val)
 {
   Vec             U;
   PetscContainer  container;
@@ -1534,7 +1534,7 @@ static PetscErrorCode TSEvaluateObjective_Private(TS ts, Vec X, Vec design, Vec 
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode TSEvaluateObjectiveAndGradient_Private(TS ts, Vec X, Vec design, Vec gradient, PetscReal *val)
+static PetscErrorCode TSComputeObjectiveAndGradient_Private(TS ts, Vec X, Vec design, Vec gradient, PetscReal *val)
 {
   TSTrajectory   otrj = NULL;
   PetscReal      t0,tf,dt;
@@ -1570,7 +1570,7 @@ static PetscErrorCode TSEvaluateObjectiveAndGradient_Private(TS ts, Vec X, Vec d
   }
 
   /* forward solve */
-  ierr = TSEvaluateObjective_Private(ts,X,design,gradient,val);CHKERRQ(ierr);
+  ierr = TSComputeObjective_Private(ts,X,design,gradient,val);CHKERRQ(ierr);
 
   /* adjoint */
   if (gradient) {
@@ -2367,7 +2367,7 @@ $  f(Vec u,Vec m,PetscReal t,Mat A,void *ctx);
 
    Level: developer
 
-.seealso: TSSetGradientDAE(), TSSetHessianDAE(), TSEvaluateObjectiveAndGradient(), TSSetGradientIC()
+.seealso: TSSetGradientDAE(), TSSetHessianDAE(), TSComputeObjectiveAndGradient(), TSSetGradientIC()
 */
 PetscErrorCode TSSetObjective(TS ts, PetscReal fixtime, TSEvalObjective f, void* f_ctx,
                               TSEvalObjectiveGradient f_x, void* f_x_ctx, TSEvalObjectiveGradient f_m, void* f_m_ctx,
@@ -2449,7 +2449,7 @@ $  f(TS ts,PetscReal t,Vec u,Vec u_t,Vec m,Mat J,void *ctx);
 
    Level: developer
 
-.seealso: TSSetObjective(), TSSetHessianDAE(), TSEvaluateObjectiveAndGradient(), TSSetGradientIC(), TSCreatePropagatorMat()
+.seealso: TSSetObjective(), TSSetHessianDAE(), TSComputeObjectiveAndGradient(), TSSetGradientIC(), TSCreatePropagatorMat()
 */
 PetscErrorCode TSSetGradientDAE(TS ts, Mat J, TSEvalGradientDAE f, void *ctx)
 {
@@ -2521,7 +2521,7 @@ $  f(TS ts,PetscReal t,Vec u,Vec u_t,Vec m,Vec L,Vec X,Vec Y,void *ctx);
 
    Level: developer
 
-.seealso: TSSetObjective(), TSSetGradientDAE(), TSEvaluateObjectiveAndGradient(), TSSetGradientIC(), TSCreatePropagatorMat()
+.seealso: TSSetObjective(), TSSetGradientDAE(), TSComputeObjectiveAndGradient(), TSSetGradientIC(), TSCreatePropagatorMat()
 */
 PetscErrorCode TSSetHessianDAE(TS ts, TSEvalHessianDAE f_uu,  TSEvalHessianDAE f_uut,  TSEvalHessianDAE f_um,
                                       TSEvalHessianDAE f_utu, TSEvalHessianDAE f_utut, TSEvalHessianDAE f_utm,
@@ -2570,7 +2570,7 @@ $  f(TS ts,PetscReal t,Vec u,Vec m,Mat Gx,Mat Gm,void *ctx);
 
    Level: developer
 
-.seealso: TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSEvaluateObjectiveAndGradient(), MATSHELL, MatMultTranspose()
+.seealso: TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSComputeObjectiveAndGradient(), MATSHELL, MatMultTranspose()
 */
 PetscErrorCode TSSetGradientIC(TS ts, Mat J_x, Mat J_m, TSEvalGradientIC f, void *ctx)
 {
@@ -2600,7 +2600,7 @@ PetscErrorCode TSSetGradientIC(TS ts, Mat J_x, Mat J_m, TSEvalGradientIC f, void
 }
 
 /*
-   TSEvaluateObjectiveAndGradient - Evaluates the objective functions set with TSSetObjective and the gradient.
+   TSComputeObjectiveAndGradient - Evaluates the objective functions set with TSSetObjective and the gradient.
 
    Logically Collective on TS
 
@@ -2623,7 +2623,7 @@ PetscErrorCode TSSetGradientIC(TS ts, Mat J_x, Mat J_m, TSEvalGradientIC f, void
 
 .seealso: TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetGradientIC(), TSSetSolution()
 */
-PetscErrorCode TSEvaluateObjectiveAndGradient(TS ts, PetscReal t0, PetscReal dt, PetscReal tf, Vec X, Vec design, Vec gradient, PetscReal *obj)
+PetscErrorCode TSComputeObjectiveAndGradient(TS ts, PetscReal t0, PetscReal dt, PetscReal tf, Vec X, Vec design, Vec gradient, PetscReal *obj)
 {
   PetscErrorCode ierr;
 
@@ -2646,7 +2646,7 @@ PetscErrorCode TSEvaluateObjectiveAndGradient(TS ts, PetscReal t0, PetscReal dt,
   ierr = TSSetMaxSteps(ts,PETSC_MAX_INT);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   ierr = VecLockPush(design);CHKERRQ(ierr);
-  ierr = TSEvaluateObjectiveAndGradient_Private(ts,X,design,gradient,obj);CHKERRQ(ierr);
+  ierr = TSComputeObjectiveAndGradient_Private(ts,X,design,gradient,obj);CHKERRQ(ierr);
   ierr = VecLockPop(design);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

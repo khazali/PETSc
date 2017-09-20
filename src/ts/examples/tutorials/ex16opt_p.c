@@ -438,7 +438,7 @@ PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec P,PetscReal *f,Vec G,void *ct
   ierr = TSSetObjective(ts,0.5,EvalObjective_AO,user,EvalObjectiveGradient_U_AO,user,NULL,NULL,
                         NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
   ierr = TSSetGradientDAE(ts,user->Jacp,RHSJacobianP_AO,user);CHKERRQ(ierr);
-  ierr = TSEvaluateObjectiveAndGradient(ts,0.0,PETSC_DECIDE,0.5,user->x,P,G,f);CHKERRQ(ierr);
+  ierr = TSComputeObjectiveAndGradient(ts,0.0,PETSC_DECIDE,0.5,user->x,P,G,f);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
