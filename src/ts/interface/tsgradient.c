@@ -2214,15 +2214,9 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   PetscFunctionReturn(0);
 }
 
-/*MC
-   MATPROPAGATOR - a matrix to be used for evaluating the linearized propagator of a time stepper.
+/* ------------------ Public API ----------------------- */
 
-   Level: developer
-
-.seealso: TS, MATSHELL, TSSetGradientDAE(), TSSetGradientIC()
-M*/
-
-/*
+/*@
    TSCreatePropagatorMat - Creates a Mat object that behaves like a linearized propagator of a time stepper on the time window [t0,tf].
 
    Logically Collective on TS
@@ -2257,7 +2251,7 @@ M*/
    Level: developer
 
 .seealso: TSSetGradientDAE(), TSSetGradientIC()
-*/
+@*/
 PetscErrorCode TSCreatePropagatorMat(TS ts, PetscReal t0, PetscReal dt, PetscReal tf, Vec x0, Vec design, Mat P, Mat *A)
 {
   PetscErrorCode ierr;
@@ -2275,18 +2269,18 @@ PetscErrorCode TSCreatePropagatorMat(TS ts, PetscReal t0, PetscReal dt, PetscRea
   PetscFunctionReturn(0);
 }
 
-/*
-   TSResetObjective - Resets the list of objective functions for gradient computation.
+/*@
+   TSResetObjective - Resets the list of objective functions set with TSSetObjective().
 
    Logically Collective on TS
 
    Input Parameters:
-.  ts - the TS context
+.  ts - the TS context obtained from TSCreate()
 
-   Level: developer
+   Level: advanced
 
-.seealso:
-*/
+.seealso: TSSetObjective()
+@*/
 PetscErrorCode TSResetObjective(TS ts)
 {
   ObjectiveLink  link;
@@ -2307,8 +2301,8 @@ PetscErrorCode TSResetObjective(TS ts)
   PetscFunctionReturn(0);
 }
 
-/*
-   TSSetObjective - Sets a cost functional callback together with its gradient and hessian.
+/*@C
+   TSSetObjective - Sets a cost functional callback together with its gradient and Hessian.
 
    Logically Collective on TS
 
@@ -2365,10 +2359,10 @@ $  f(Vec u,Vec m,PetscReal t,Mat A,void *ctx);
           The hessian matrices do not need to be in assembled form, just the MatMult() action is needed. If f_XM is present, the action of f_MX is obtained by calling MatMultTranspose().
           If any of the second derivative matrices is constant, the associated function pointers can be NULL.
 
-   Level: developer
+   Level: advanced
 
 .seealso: TSSetGradientDAE(), TSSetHessianDAE(), TSComputeObjectiveAndGradient(), TSSetGradientIC()
-*/
+@*/
 PetscErrorCode TSSetObjective(TS ts, PetscReal fixtime, TSEvalObjective f, void* f_ctx,
                               TSEvalObjectiveGradient f_x, void* f_x_ctx, TSEvalObjectiveGradient f_m, void* f_m_ctx,
                               Mat f_XX, TSEvalObjectiveHessian f_xx, void* f_xx_ctx,
@@ -2421,8 +2415,8 @@ PetscErrorCode TSSetObjective(TS ts, PetscReal fixtime, TSEvalObjective f, void*
   PetscFunctionReturn(0);
 }
 
-/*
-   TSSetGradientDAE - Sets the callback for the evaluation of F_m(t,x(t),x_t(t);m).
+/*@C
+   TSSetGradientDAE - Sets the callback for the evaluation of the Jacobian matrix F_m(t,x(t),x_t(t);m) of a parameter dependent DAE.
 
    Logically Collective on TS
 
@@ -2447,10 +2441,10 @@ $  f(TS ts,PetscReal t,Vec u,Vec u_t,Vec m,Mat J,void *ctx);
           The matrix doesn't need to be in assembled form. For propagator computations, J needs to implement MatMult() and MatMultTranspose().
           For gradient computations, just its action via MatMultTranspose() is needed.
 
-   Level: developer
+   Level: advanced
 
 .seealso: TSSetObjective(), TSSetHessianDAE(), TSComputeObjectiveAndGradient(), TSSetGradientIC(), TSCreatePropagatorMat()
-*/
+@*/
 PetscErrorCode TSSetGradientDAE(TS ts, Mat J, TSEvalGradientDAE f, void *ctx)
 {
   PetscErrorCode ierr;
@@ -2466,23 +2460,23 @@ PetscErrorCode TSSetGradientDAE(TS ts, Mat J, TSEvalGradientDAE f, void *ctx)
   PetscFunctionReturn(0);
 }
 
-/*
-   TSSetHessianDAE - Sets the callbacks for the evaluation of Hessian terms of a parameter dependent DAE solver.
+/*@C
+   TSSetHessianDAE - Sets the callbacks for the evaluation of Hessian terms of a parameter dependent DAE.
 
    Logically Collective on TS
 
    Input Parameters:
 +  ts     - the TS context obtained from TSCreate()
-.  f_uu   - the function evaluation routine for second order state derivative
-.  f_uut  - the function evaluation routine for second order mixed u,ut derivative
-.  f_um   - the function evaluation routine for second order mixed state and parameter derivative
-.  f_utu  - the function evaluation routine for second order mixed ut,u derivative
-.  f_utut - the function evaluation routine for second order ut,ut derivative
-.  f_utm  - the function evaluation routine for second order mixed ut and parameter derivative
-.  f_mu   - the function evaluation routine for second order mixed m,u derivative
-.  f_mut  - the function evaluation routine for second order mixed m,ut derivative
+.  f_xx   - the function evaluation routine for second order state derivative
+.  f_xxt  - the function evaluation routine for second order mixed x,x_t derivative
+.  f_xm   - the function evaluation routine for second order mixed state and parameter derivative
+.  f_xtx  - the function evaluation routine for second order mixed x_t,x derivative
+.  f_xtxt - the function evaluation routine for second order x_t,x_t derivative
+.  f_xtm  - the function evaluation routine for second order mixed x_t and parameter derivative
+.  f_mx   - the function evaluation routine for second order mixed m,x derivative
+.  f_mxt  - the function evaluation routine for second order mixed m,x_t derivative
 .  f_mm   - the function evaluation routine for second order parameter derivative
--  Hctx   - user-defined context for the function evaluation routine (can be NULL)
+-  ctx    - user-defined context for the function evaluation routines (can be NULL)
 
    Calling sequence of each function evaluation routine:
 $  f(TS ts,PetscReal t,Vec u,Vec u_t,Vec m,Vec L,Vec X,Vec Y,void *ctx);
@@ -2492,8 +2486,8 @@ $  f(TS ts,PetscReal t,Vec u,Vec u_t,Vec m,Vec L,Vec X,Vec Y,void *ctx);
 .  u_t - time derivative of state vector
 .  m   - design vector
 .  L   - input vector (adjoint variable)
-.  X   - input vector (state of parameter variable)
-.  Y   - output vector (state of parameter variable)
+.  X   - input vector (state or parameter variable)
+.  Y   - output vector (state or parameter variable)
 -  ctx - [optional] user-defined context
 
    Notes: the callbacks need to return
@@ -2519,38 +2513,38 @@ $  f(TS ts,PetscReal t,Vec u,Vec u_t,Vec m,Vec L,Vec X,Vec Y,void *ctx);
    Developing the Kronecker product, we get Y = (\sum_k L_k*F^k_AB)*X, with L_k the k-th entry of the adjoint variable L.
    Pass NULL if F_AB is zero for some A and B.
 
-   Level: developer
+   Level: advanced
 
 .seealso: TSSetObjective(), TSSetGradientDAE(), TSComputeObjectiveAndGradient(), TSSetGradientIC(), TSCreatePropagatorMat()
-*/
-PetscErrorCode TSSetHessianDAE(TS ts, TSEvalHessianDAE f_uu,  TSEvalHessianDAE f_uut,  TSEvalHessianDAE f_um,
-                                      TSEvalHessianDAE f_utu, TSEvalHessianDAE f_utut, TSEvalHessianDAE f_utm,
-                                      TSEvalHessianDAE f_mu,  TSEvalHessianDAE f_mut,  TSEvalHessianDAE f_mm, void *Hctx)
+@*/
+PetscErrorCode TSSetHessianDAE(TS ts, TSEvalHessianDAE f_xx,  TSEvalHessianDAE f_xxt,  TSEvalHessianDAE f_xm,
+                                      TSEvalHessianDAE f_xtx, TSEvalHessianDAE f_xtxt, TSEvalHessianDAE f_xtm,
+                                      TSEvalHessianDAE f_mx,  TSEvalHessianDAE f_mxt,  TSEvalHessianDAE f_mm, void *ctx)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  ts->HF[0][0] = f_uu;
-  ts->HF[0][1] = f_uut;
-  ts->HF[0][2] = f_um;
-  ts->HF[1][0] = f_utu;
-  ts->HF[1][1] = f_utut;
-  ts->HF[1][2] = f_utm;
-  ts->HF[2][0] = f_mu;
-  ts->HF[2][1] = f_mut;
+  ts->HF[0][0] = f_xx;
+  ts->HF[0][1] = f_xxt;
+  ts->HF[0][2] = f_xm;
+  ts->HF[1][0] = f_xtx;
+  ts->HF[1][1] = f_xtxt;
+  ts->HF[1][2] = f_xtm;
+  ts->HF[2][0] = f_mx;
+  ts->HF[2][1] = f_mxt;
   ts->HF[2][2] = f_mm;
-  ts->HFctx = Hctx;
+  ts->HFctx    = ctx;
   PetscFunctionReturn(0);
 }
 
-/*
-   TSSetGradientIC - Sets the callback function to compute the matrices g_x(x0,m) and g_m(x0,m), if there is any dependence of the DAE initial conditions from the design parameters.
+/*@C
+   TSSetGradientIC - Sets the callback to compute the Jacobian matrices G_x(x0,m) and G_m(x0,m) when parameter dependent initial conditions are implicitly defined by the function G(x(0),m) = 0.
 
    Logically Collective on TS
 
    Input Parameters:
 +  ts    - the TS context obtained from TSCreate()
-.  J_x   - the Mat object to hold g_x(x0,m) (optional, if NULL identity is assumed)
-.  J_m   - the Mat object to hold g_m(x0,m)
+.  J_x   - the Mat object to hold G_x(x0,m) (optional, if NULL identity is assumed)
+.  J_m   - the Mat object to hold G_m(x0,m)
 .  f     - the function evaluation routine
 -  f_ctx - user-defined context for the function evaluation routine (can be NULL)
 
@@ -2560,18 +2554,19 @@ $  f(TS ts,PetscReal t,Vec u,Vec m,Mat Gx,Mat Gm,void *ctx);
 +  t   - initial time
 .  u   - state vector (at initial time)
 .  m   - design vector
-.  Gx  - the Mat Object representing the operator g_x(u,m)
+.  Gx  - the Mat Object representing the operator G_x(u,m)
 .  Gm  - the Mat object for g_m(u,m)
 -  ctx - [optional] user-defined context
 
    Notes: J_x is a square matrix of the same size of the state vector. J_m is a rectangular matrix with "state size" rows and "design size" columns.
           If f is not provided, J_x is assumed constant. The J_m matrix doesn't need to assembled.
           Just the transposed action on the current adjoint state (via MatMultTranspose()) is needed.
+          Currently, the initial condition vector should be computed by the user.
 
-   Level: developer
+   Level: advanced
 
 .seealso: TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSComputeObjectiveAndGradient(), MATSHELL, MatMultTranspose()
-*/
+@*/
 PetscErrorCode TSSetGradientIC(TS ts, Mat J_x, Mat J_m, TSEvalGradientIC f, void *ctx)
 {
   PetscErrorCode ierr;
@@ -2599,8 +2594,8 @@ PetscErrorCode TSSetGradientIC(TS ts, Mat J_x, Mat J_m, TSEvalGradientIC f, void
   PetscFunctionReturn(0);
 }
 
-/*
-   TSComputeObjectiveAndGradient - Evaluates the objective functions set with TSSetObjective and the gradient.
+/*@
+   TSComputeObjectiveAndGradient - Evaluates the objective functions set with TSSetObjective and their gradient with respect the parameters.
 
    Logically Collective on TS
 
@@ -2613,16 +2608,16 @@ PetscErrorCode TSSetGradientIC(TS ts, Mat J_x, Mat J_m, TSEvalGradientIC f, void
 -  design - current design vector
 
    Output Parameters:
-+  gradient - the computed gradient (can be NULL)
--  obj      - the value of the objective function (can be NULL)
++  gradient - the computed gradient
+-  obj      - the value of the objective function
 
    Notes: If gradient is NULL, just a forward solve will be performed to compute the objective function. Otherwise, forward and backward solves are performed.
-          The dt argument is ignored when smaller or equal to zero. If X is NULL, the initial state is given by the TS solution vector.
+          The dt argument is ignored when smaller or equal to zero. If X is NULL, the initial state is given by the current TS solution vector.
 
-   Level: developer
+   Level: advanced
 
 .seealso: TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetGradientIC(), TSSetSolution()
-*/
+@*/
 PetscErrorCode TSComputeObjectiveAndGradient(TS ts, PetscReal t0, PetscReal dt, PetscReal tf, Vec X, Vec design, Vec gradient, PetscReal *obj)
 {
   PetscErrorCode ierr;
