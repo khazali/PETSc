@@ -208,25 +208,27 @@ struct _p_TS {
   PetscBool forward_solve;
   PetscErrorCode (*vecsrhsjacobianp)(TS,PetscReal,Vec,Vec*,void*);
 
-  /* ---------------------- PDE-constrained support -----------------------------*/
-  /* Targets problem of the type
+  /* ---------------------- DAE-constrained optimization support -----------------------------*/
+  /* Targets problems of the type
 
-       min obj(x(m),m) , obj(x,m) = \int^{TF}_{T0} f(x,m,t), f : X \times M \times R -> R
-        m
+       min/max obj(x(m),m) , obj(x,m) = \int^{TF}_{T0} (\sum_j f_j(x,m,t)) dt + \sum_j g_j(x,m,t=tfixed_j), with f_i, g_j : X \times M \times R -> R
+          m
 
        subject to
-         F(x,x_t,m,t) = 0  PDE in implicit form
-         G(x(T0),m)   = 0  Initial conditions
+         F(x,x_t,t;m) = 0  Parameter dependent DAE in implicit form
+         G(x(t0),m)   = 0  Initial conditions
   */
-  ObjectiveLink      funchead;
-  TSEvalGradientIC   Ggrad;        /* callback to compute G_p and G_X(T0) */
-  Mat                G_x;
-  Mat                G_m;
-  void               *Ggrad_ctx;
-  TSEvalGradientDAE  F_m_f;        /* callback to compute F_m */
-  Mat                F_m;
-  void               *F_m_ctx;
-  TSEvalHessianDAE   HF[3][3];     /* callbacks to compute the action Hessian terms */
+  ObjectiveLink     funchead;   /* head of the linked list of objective functions */
+  TSEvalGradientIC  Ggrad;      /* compute the IC Jacobian terms G_m(x(t0),m) and G_x(x(t0),m) */
+  Mat               G_x;
+  Mat               G_m;
+  void              *Ggrad_ctx;
+  TSEvalHessianIC   HG[3];      /* compute the IC Hessian terms G_xx, G_xm and G_mm */
+  void              *HGctx;
+  TSEvalGradientDAE F_m_f;      /* compute the DAE Jacobian term F_m(x,x_t,t;m) */
+  Mat               F_m;
+  void              *F_m_ctx;
+  TSEvalHessianDAE  HF[3][3];   /* compute the DAE Hessian terms F_{x|x_t|m}{x|x_t|m} */
   void              *HFctx;
 
   /* ---------------------- IMEX support ---------------------------------*/
