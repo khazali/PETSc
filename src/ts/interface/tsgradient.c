@@ -2237,8 +2237,8 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
           The design vector can be NULL if the Jacobians (wrt to the parameters) of the DAE and of the initial conditions does not explicitly depend on it.
           The projection P is intended to analyze problems in Generalized Stability Theory of the type
 
-            argmax      ||P du_T||^2
-           ||du_0||=1
+$           argmax ||P du_T||^2
+$          ||du_0||=1
 
           when one can be interested in the norm of the final state in a subspace.
           The projector is applied (via MatMult) on the final state computed by the forward Tangent Linear Model.
@@ -2246,7 +2246,7 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
           Note that the role of P is somewhat different from that of the matrix representing the norm in the state variables.
           If P is provided, the row layout of A is the same of that of P. Otherwise, it is the same of that of x0.
           The column layout of A is the same of that of the design vector. If the latter is not provided, it is inherited from x0.
-          Note that the column layout of P should be compatible with the that of x0.
+          Note that the column layout of P should be compatible with that of x0.
 
    Level: developer
 
@@ -2310,7 +2310,7 @@ PetscErrorCode TSResetObjective(TS ts)
 +  ts      - the TS context obtained from TSCreate()
 .  fixtime - the time at which the functional has to be evaluated (use PETSC_MIN_REAL for integrand terms)
 .  f       - the function evaluation routine
-.  f_x     - the function evaluation routine for the derivativrt to the state variables (can be NULL)
+.  f_x     - the function evaluation routine for the derivative wrt the state variables (can be NULL)
 .  f_m     - the function evaluation routine for the derivative wrt the design variables (can be NULL)
 .  f_XX    - the Mat object to hold f_xx(x,m,t) (can be NULL)
 .  f_xx    - the function evaluation routine for the second derivative wrt the state variables (can be NULL)
@@ -2411,10 +2411,10 @@ PetscErrorCode TSSetObjective(TS ts, PetscReal fixtime, TSEvalObjective f,
    Logically Collective on TS
 
    Input Parameters:
-+  ts    - the TS context obtained from TSCreate()
-.  J     - the Mat object to hold F_m(t,x(t),x_t(t);m)
-.  f     - the function evaluation routine
--  f_ctx - user-defined context for the function evaluation routine (can be NULL)
++  ts  - the TS context obtained from TSCreate()
+.  J   - the Mat object to hold F_m(t,x(t),x_t(t);m)
+.  f   - the function evaluation routine
+-  ctx - user-defined context for the function evaluation routine (can be NULL)
 
    Calling sequence of f:
 $  f(TS ts,PetscReal t,Vec u,Vec u_t,Vec m,Mat J,void *ctx);
@@ -2429,7 +2429,7 @@ $  f(TS ts,PetscReal t,Vec u,Vec u_t,Vec m,Mat J,void *ctx);
    Notes: The ij entry of F_m is given by \frac{\partial F_i}{\partial m_j}, where F_i is the i-th component of the DAE and m_j the j-th design variable.
           The row and column layouts of the J matrix have to be compatible with those of the state and design vector, respectively.
           The matrix doesn't need to be in assembled form. For propagator computations, J needs to implement MatMult() and MatMultTranspose().
-          For gradient computations, just its action via MatMultTranspose() is needed.
+          For gradient and Hessian computations, just the actions of MatMultTranspose() and MatMultTransposeAdd() are needed.
 
    Level: advanced
 
@@ -2482,21 +2482,21 @@ $  f(TS ts,PetscReal t,Vec u,Vec u_t,Vec m,Vec L,Vec X,Vec Y,void *ctx);
 
    Notes: the callbacks need to return
 
-     - f_xx   : Y = (L^T \otimes I_N)*F_UU*X
-     - f_xxt  : Y = (L^T \otimes I_N)*F_UUdot*X
-     - f_xm   : Y = (L^T \otimes I_N)*F_UM*X
-     - f_xtx  : Y = (L^T \otimes I_N)*F_UdotU*X
-     - f_xtxt : Y = (L^T \otimes I_N)*F_UdotUdot*X
-     - f_xtm  : Y = (L^T \otimes I_N)*F_UdotM*X
-     - f_mx   : Y = (L^T \otimes I_P)*F_MU*X
-     - f_mxt  : Y = (L^T \otimes I_P)*F_MUdot*X
-     - f_mm   : Y = (L^T \otimes I_P)*F_MM*X
+$  f_xx   : Y = (L^T \otimes I_N)*F_UU*X
+$  f_xxt  : Y = (L^T \otimes I_N)*F_UUdot*X
+$  f_xm   : Y = (L^T \otimes I_N)*F_UM*X
+$  f_xtx  : Y = (L^T \otimes I_N)*F_UdotU*X
+$  f_xtxt : Y = (L^T \otimes I_N)*F_UdotUdot*X
+$  f_xtm  : Y = (L^T \otimes I_N)*F_UdotM*X
+$  f_mx   : Y = (L^T \otimes I_P)*F_MU*X
+$  f_mxt  : Y = (L^T \otimes I_P)*F_MUdot*X
+$  f_mm   : Y = (L^T \otimes I_P)*F_MM*X
 
    where L is a vector of size N (the number of DAE equations), I_x the identity matrix of size x, \otimes is the Kronecker product, X an input vector of appropriate size, and F_AB an N*size(A) x size(B) matrix given as
 
-            | F^1_AB |
-     F_AB = |   ...  |, A = {U|Udot|M}, B = {U|Udot|M}.
-            | F^N_AB |
+$            | F^1_AB |
+$     F_AB = |   ...  |, A = {U|Udot|M}, B = {U|Udot|M}.
+$            | F^N_AB |
 
    Each F^k_AB block term has dimension size(A) x size(B), with {F^k_AB}_ij = \frac{\partial^2 F_k}{\partial b_j \partial a_i}, where F_k is the k-th component of the DAE, a_i the i-th variable of A and b_j the j-th variable of B.
    For example, {F^k_UM}_ij = \frac{\partial^2 F_k}{\partial m_j \partial u_i}.
@@ -2532,11 +2532,11 @@ PetscErrorCode TSSetHessianDAE(TS ts, TSEvalHessianDAE f_xx,  TSEvalHessianDAE f
    Logically Collective on TS
 
    Input Parameters:
-+  ts    - the TS context obtained from TSCreate()
-.  J_x   - the Mat object to hold G_x(x0,m) (optional, if NULL identity is assumed)
-.  J_m   - the Mat object to hold G_m(x0,m)
-.  f     - the function evaluation routine
--  f_ctx - user-defined context for the function evaluation routine (can be NULL)
++  ts  - the TS context obtained from TSCreate()
+.  J_x - the Mat object to hold G_x(x0,m) (optional, if NULL identity is assumed)
+.  J_m - the Mat object to hold G_m(x0,m)
+.  f   - the function evaluation routine
+-  ctx - user-defined context for the function evaluation routine (can be NULL)
 
    Calling sequence of f:
 $  f(TS ts,PetscReal t,Vec u,Vec m,Mat Gx,Mat Gm,void *ctx);
@@ -2549,13 +2549,12 @@ $  f(TS ts,PetscReal t,Vec u,Vec m,Mat Gx,Mat Gm,void *ctx);
 -  ctx - [optional] user-defined context
 
    Notes: J_x is a square matrix of the same size of the state vector. J_m is a rectangular matrix with "state size" rows and "design size" columns.
-          If f is not provided, J_x is assumed constant. The J_m matrix doesn't need to assembled.
-          Just the transposed action on the current adjoint state (via MatMultTranspose()) is needed.
+          If f is not provided, J_x is assumed constant. The J_m matrix doesn't need to assembled; only MatMult() and MatMultTranspose() are needed.
           Currently, the initial condition vector should be computed by the user.
 
    Level: advanced
 
-.seealso: TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetHessianIC(), TSComputeObjectiveAndGradient(), MATSHELL, MatMultTranspose()
+.seealso: TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetHessianIC(), TSComputeObjectiveAndGradient(), MATSHELL
 @*/
 PetscErrorCode TSSetGradientIC(TS ts, Mat J_x, Mat J_m, TSEvalGradientIC f, void *ctx)
 {
@@ -2607,15 +2606,15 @@ $  f(TS ts,PetscReal t,Vec u,Vec m,Vec L,Vec X,Vec Y,void *ctx);
 
    Notes: the callbacks need to return
 
-     - g_xx   : Y = (L^T \otimes I_N)*G_UU*X
-     - g_xm   : Y = (L^T \otimes I_N)*G_UM*X
-     - g_mm   : Y = (L^T \otimes I_P)*G_MM*X
+$  g_xx   : Y = (L^T \otimes I_N)*G_UU*X
+$  g_xm   : Y = (L^T \otimes I_N)*G_UM*X
+$  g_mm   : Y = (L^T \otimes I_P)*G_MM*X
 
    where L is a vector of size N (the number of DAE equations), I_x the identity matrix of size x, \otimes is the Kronecker product, X an input vector of appropriate size, and G_AB an N*size(A) x size(B) matrix given as
 
-            | G^1_AB |
-     G_AB = |   ...  |, A = {U|M}, B = {U|M}.
-            | G^N_AB |
+$            | G^1_AB |
+$     G_AB = |   ...  | , A = {U|M}, B = {U|M}.
+$            | G^N_AB |
 
    Each G^k_AB block term has dimension size(A) x size(B), with {G^k_AB}_ij = \frac{\partial^2 G_k}{\partial b_j \partial a_i}, where G_k is the k-th component of the implicit function G that determines the initial conditions, a_i the i-th variable of A and b_j the j-th variable of B.
    For example, {G^k_UM}_ij = \frac{\partial^2 G_k}{\partial m_j \partial u_i}.
