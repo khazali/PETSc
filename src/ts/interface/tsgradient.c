@@ -237,7 +237,7 @@ static PetscErrorCode EvaluateObjectiveFixed_M(ObjectiveLink funchead, Vec state
   PetscFunctionReturn(0);
 }
 
-/* Evaluates Hessian (wrt the parameters) of objective functions of the type f(state,design,t) */
+/* Evaluates Hessian (wrt the parameters) matvec of objective functions of the type f(state,design,t) */
 static PetscErrorCode EvaluateObjective_MM(ObjectiveLink funchead, Vec state, Vec design, PetscReal time, Vec direction, Vec work, PetscBool *has, Vec out)
 {
   PetscErrorCode ierr;
@@ -271,9 +271,16 @@ static PetscErrorCode EvaluateObjective_MM(ObjectiveLink funchead, Vec state, Ve
         }
         if (!firstdone) {
           ierr = MatMult(link->f_MM,direction,out);CHKERRQ(ierr);
-        } else { /* XXX Can we safely use MatMultAdd? */
-          ierr = MatMult(link->f_MM,direction,work);CHKERRQ(ierr);
-          ierr = VecAXPY(out,1.0,work);CHKERRQ(ierr);
+        } else {
+          PetscBool hasop;
+
+          ierr = MatHasOperation(link->f_MM,MATOP_MULT_ADD,&hasop);CHKERRQ(ierr);
+          if (hasop) {
+            ierr = MatMultAdd(link->f_MM,direction,out,out);CHKERRQ(ierr);
+          } else {
+            ierr = MatMult(link->f_MM,direction,work);CHKERRQ(ierr);
+            ierr = VecAXPY(out,1.0,work);CHKERRQ(ierr);
+          }
         }
         firstdone = PETSC_TRUE;
       }
@@ -1291,13 +1298,24 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
         ierr = VecScale(g_a,-1.0);CHKERRQ(ierr);
         ierr = MatMultTransposeAdd(C,g_a,g_d,g_d);CHKERRQ(ierr);
         if (adj_ctx->fwdts->F_m) { /* add fixed term to the gradient */
-          TS ts = adj_ctx->fwdts;
+          TS        ts = adj_ctx->fwdts;
+          PetscBool hasop;
+
           if (ts->F_m_f) { /* non constant dependence */
             ierr = TSTrajectoryUpdateHistoryVecs(ts->trajectory,ts,fwdt,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
             ierr = (*ts->F_m_f)(ts,fwdt,adj_ctx->W[0],adj_ctx->W[1],adj_ctx->design,ts->F_m,ts->F_m_ctx);CHKERRQ(ierr);
           }
-          /* XXX */
-          ierr = MatMultTransposeAdd(ts->F_m,g_a,adj_ctx->gradient,adj_ctx->gradient);CHKERRQ(ierr);
+          ierr = MatHasOperation(ts->F_m,MATOP_MULT_TRANSPOSE_ADD,&hasop);CHKERRQ(ierr);
+          if (hasop) {
+            ierr = MatMultTransposeAdd(ts->F_m,g_a,adj_ctx->gradient,adj_ctx->gradient);CHKERRQ(ierr);
+          } else {
+            Vec w;
+
+            ierr = VecDuplicate(adj_ctx->gradient,&w);CHKERRQ(ierr);
+            ierr = MatMultTranspose(ts->F_m,g_a,w);CHKERRQ(ierr);
+            ierr = VecAXPY(adj_ctx->gradient,1.0,w);CHKERRQ(ierr);
+            ierr = VecDestroy(&w);CHKERRQ(ierr);
+          }
         }
       }
       ierr = KSPSetOperators(kspM,M,M);CHKERRQ(ierr);
@@ -2609,7 +2627,7 @@ $  f(TS ts,PetscReal t,Vec u,Vec u_t,Vec m,Mat J,void *ctx);
    Notes: The ij entry of F_m is given by \frac{\partial F_i}{\partial m_j}, where F_i is the i-th component of the DAE and m_j the j-th design variable.
           The row and column layouts of the J matrix have to be compatible with those of the state and design vector, respectively.
           The matrix doesn't need to be in assembled form. For propagator computations, J needs to implement MatMult() and MatMultTranspose().
-          For gradient and Hessian computations, just the actions of MatMultTranspose() and MatMultTransposeAdd() are needed.
+          For gradient and Hessian computations, both MatMult() and MatMultTranspose() need to be implemented.
 
    Level: advanced
 
