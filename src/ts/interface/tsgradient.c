@@ -661,7 +661,7 @@ typedef struct {
   VQuadEval      veval;       /* vector function to be evaluated */
   void           *veval_ctx;  /* context for vector function */
   Vec            vquad;       /* used for vector quadrature */
-  Vec            *wquad;      /* quadrature work vectors: 0 and 1 are used by the trapezoidal rule */
+  Vec            *wquad;      /* quadrature work vectors used by the trapezoidal rule */
   PetscInt       cur,old;     /* pointers to current and old wquad vectors for trapezoidal rule */
 } TSQuadratureCtx;
 
@@ -734,7 +734,7 @@ static PetscErrorCode EvalQuadObjFixed_M(ObjectiveLink link,Vec U, PetscReal t, 
   PetscFunctionReturn(0);
 }
 
-/* private context for adjoint quadrature */
+/* these functions are evaluated in the adjoint solves */
 typedef struct {
   TS        fwdts;
   Vec       hist[2];
@@ -871,7 +871,7 @@ static PetscErrorCode AdjointTSRHSJacobian(TS adjts, PetscReal time, Vec U, Mat 
   PetscFunctionReturn(0);
 }
 
-/* The adjoint formulation used assumes the problem as H(U,Udot,t) = 0
+/* The adjoint formulation used assumes the problem written as H(U,Udot,t) = 0
    -> the forward DAE is Udot - G(U) = 0 ( -> H(U,Udot,t) := Udot - G(U) )
    -> the adjoint DAE is F - L^T * G_U - Ldot^T in backward time (F the derivative of the objective wrt U)
    -> the adjoint DAE is Ldot^T = L^T * G_U - F in forward time */
@@ -898,7 +898,7 @@ static PetscErrorCode AdjointTSRHSFunctionLinear(TS adjts, PetscReal time, Vec U
 }
 
 /* Given the forward DAE : H(U,Udot,t) = 0
-   -> the adjoint DAE is : F - L^T * (H_U - d/dt H_Udot) - Ldot^T H_Udot = 0 (in backward time) (again, F is null for standard DAE adjoints)
+   -> the adjoint DAE is : F - L^T * (H_U - d/dt H_Udot) - Ldot^T H_Udot = 0 (in backward time)
    -> the adjoint DAE is : Ldot^T H_Udot + L^T * (H_U + d/dt H_Udot) + F = 0 (in forward time)
    TODO : add support for augmented system to avoid d/dt H_Udot (which is zero for most of the problems)
 */
@@ -937,7 +937,7 @@ static PetscErrorCode AdjointTSIJacobian(TS adjts, PetscReal time, Vec U, Vec Ud
   PetscFunctionReturn(0);
 }
 
-/* Handles the detection of Dirac's delta forcing terms (i.e. f_state(state,design,t = fixed)) in the adjoint equations */
+/* Handles the detection of Dirac's delta forcing terms (i.e. f_x(state,design,t = fixed)) in the adjoint equations */
 static PetscErrorCode AdjointTSEventFunction(TS adjts, PetscReal t, Vec U, PetscScalar fvalue[], void *ctx)
 {
   AdjointCtx     *adj_ctx;
@@ -1180,7 +1180,6 @@ static PetscErrorCode AdjointTSSetInitialGradient(TS adjts, Vec gradient)
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   if (adj_ctx->t0 >= PETSC_MAX_REAL || adj_ctx->tf >= PETSC_MAX_REAL) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"You should call AdjointTSSetTimeLimits first");
   if (!adj_ctx->design) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"You should call AdjointTSSetDesign first");
-
   ierr = PetscObjectReference((PetscObject)gradient);CHKERRQ(ierr);
   ierr = VecDestroy(&adj_ctx->gradient);CHKERRQ(ierr);
   adj_ctx->gradient = gradient;
@@ -1685,7 +1684,7 @@ static PetscErrorCode TSFWDWithQuadrature_Private(TS ts, Vec X, Vec design, Vec 
     ierr = PetscObjectTypeCompare((PetscObject)ts->adapt,TSADAPTNONE,&fidt);CHKERRQ(ierr);
   }
   /* determine if there are functionals and gradients wrt parameters of the type f(U,M,t=fixed) to be evaluated */
-  /* we don't use events since there's no API to add new events to a pre-exiting set */
+  /* we don't use events since there's no API to add new events to a pre-existing set */
   do {
     PetscBool has_f = PETSC_FALSE, has_m = PETSC_FALSE;
 
