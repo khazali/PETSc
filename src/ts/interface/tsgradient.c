@@ -237,6 +237,55 @@ static PetscErrorCode EvaluateObjectiveFixed_M(ObjectiveLink funchead, Vec state
   PetscFunctionReturn(0);
 }
 
+/* Evaluates Hessian (wrt the parameters) of objective functions of the type f(state,design,t) */
+static PetscErrorCode EvaluateObjective_MM(ObjectiveLink funchead, Vec state, Vec design, PetscReal time, Vec direction, Vec work, PetscBool *has, Vec out)
+{
+  PetscErrorCode ierr;
+  ObjectiveLink  link = funchead;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(state,VEC_CLASSID,2);
+  PetscValidHeaderSpecific(design,VEC_CLASSID,3);
+  PetscValidLogicalCollectiveReal(state,time,4);
+  PetscValidHeaderSpecific(direction,VEC_CLASSID,5);
+  PetscValidHeaderSpecific(work,VEC_CLASSID,6);
+  PetscValidPointer(has,7);
+  PetscValidHeaderSpecific(out,VEC_CLASSID,8);
+  if (work == out) SETERRQ(PetscObjectComm((PetscObject)out),PETSC_ERR_USER,"work and out vectors need to be different");
+  *has = PETSC_FALSE;
+  while (link) {
+    if (link->f_MM && link->fixedtime <= PETSC_MIN_REAL) *has = PETSC_TRUE;
+    link = link->next;
+  }
+  if (*has) {
+    PetscBool firstdone = PETSC_FALSE;
+
+    link = funchead;
+    ierr = VecLockPush(state);CHKERRQ(ierr);
+    ierr = VecLockPush(design);CHKERRQ(ierr);
+    ierr = VecLockPush(direction);CHKERRQ(ierr);
+    while (link) {
+      if (link->f_MM && link->fixedtime <= PETSC_MIN_REAL) {
+        if (link->f_mm) { /* non-constant dependence */
+          ierr = (*link->f_mm)(state,design,time,link->f_MM,link->f_ctx);CHKERRQ(ierr);
+        }
+        if (!firstdone) {
+          ierr = MatMult(link->f_MM,direction,out);CHKERRQ(ierr);
+        } else { /* XXX Can we safely use MatMultAdd? */
+          ierr = MatMult(link->f_MM,direction,work);CHKERRQ(ierr);
+          ierr = VecAXPY(out,1.0,work);CHKERRQ(ierr);
+        }
+        firstdone = PETSC_TRUE;
+      }
+      link = link->next;
+    }
+    ierr = VecLockPop(state);CHKERRQ(ierr);
+    ierr = VecLockPop(design);CHKERRQ(ierr);
+    ierr = VecLockPop(direction);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
 PETSC_UNUSED static PetscErrorCode TSGetNumObjectives(TS ts, PetscInt *n)
 {
   ObjectiveLink link = ts->funchead;
@@ -621,6 +670,7 @@ static PetscErrorCode TSQuadratureCtxDestroy_Private(void *ptr)
   PetscFunctionReturn(0);
 }
 
+/* these functions are evaluated during the forward run */
 static PetscErrorCode EvalQuadObj(ObjectiveLink link,Vec U, PetscReal t, PetscReal *f, void* ctx)
 {
   Vec            design = (Vec)ctx;
@@ -644,12 +694,24 @@ static PetscErrorCode EvalQuadObjFixed(ObjectiveLink link,Vec U, PetscReal t, Pe
 static PetscErrorCode EvalQuadObj_M(ObjectiveLink link,Vec U, PetscReal t, Vec F, void* ctx)
 {
   Vec            *v = (Vec*)ctx;
-  Vec            design = v[0];
+  Vec            design = v[0], work = v[1];
   PetscBool      has_m;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = EvaluateObjective_M(link,U,design,t,v[1],&has_m,F);CHKERRQ(ierr);
+  ierr = EvaluateObjective_M(link,U,design,t,work,&has_m,F);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode EvalQuadObj_MM(ObjectiveLink link,Vec U, PetscReal t, Vec F, void* ctx)
+{
+  Vec            *v = (Vec*)ctx;
+  Vec            design = v[0], work = v[1], direction = v[2];
+  PetscBool      has_m;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = EvaluateObjective_MM(link,U,design,t,direction,work,&has_m,F);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1234,6 +1296,7 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
             ierr = TSTrajectoryUpdateHistoryVecs(ts->trajectory,ts,fwdt,adj_ctx->W[0],adj_ctx->W[1]);CHKERRQ(ierr);
             ierr = (*ts->F_m_f)(ts,fwdt,adj_ctx->W[0],adj_ctx->W[1],adj_ctx->design,ts->F_m,ts->F_m_ctx);CHKERRQ(ierr);
           }
+          /* XXX */
           ierr = MatMultTransposeAdd(ts->F_m,g_a,adj_ctx->gradient,adj_ctx->gradient);CHKERRQ(ierr);
         }
       }
