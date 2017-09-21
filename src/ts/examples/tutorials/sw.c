@@ -61,16 +61,16 @@ PetscErrorCode Correlation1D(PetscInt Mx,Mat corX1d,PetscInt My,Mat corY1d,Petsc
   PetscErrorCode ierr;
 
   theta = 0.2;
-  for (i=0;i<Mx;i++) {
-    for (j=0;j<Mx;j++) {
+  for (j=0;j<Mx;j++) {
+    for (i=0;i<Mx;i++) {
       dist = PetscMin(PetscAbs(i-j),Mx-PetscAbs(i-j));
       value = (1.-theta)*PetscExpReal(-dist*dist);
       if (i==j) value += theta;
       ierr = MatSetValues(corX1d,1,&i,1,&j,&value,INSERT_VALUES);CHKERRQ(ierr);
     }
   }
-  for (i=0;i<My;i++) {
-    for (j=0;j<My;j++) {
+  for (j=0;j<My;j++) {
+    for (i=0;i<My;i++) {
       value = (1.-theta)*PetscExpReal(-(i-j)*(i-j));
       if (i==j) value += theta;
       ierr = MatSetValues(corY1d,1,&i,1,&j,&value,INSERT_VALUES);CHKERRQ(ierr);
@@ -90,9 +90,9 @@ PetscErrorCode Correlation1D(PetscInt Mx,Mat corX1d,PetscInt My,Mat corY1d,Petsc
 #if defined(PETSC_MISSING_LAPACK_POTRF)
     SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"POTRF - Lapack routine is unavailable.");
 #else
-    PetscStackCallBLAS("LAPACKpotrf",LAPACKpotrf_("L",&Mx,x1darr,&Mx,&info));
+    PetscStackCallBLAS("LAPACKpotrf",LAPACKpotrf_("U",&Mx,x1darr,&Mx,&info));
     if (info) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"POTRF - Lapack Cholesky factorization failed.");
-    PetscStackCallBLAS("LAPACKpotrf",LAPACKpotrf_("L",&My,y1darr,&My,&info));
+    PetscStackCallBLAS("LAPACKpotrf",LAPACKpotrf_("U",&My,y1darr,&My,&info));
     if (info) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"POTRF - Lapack Cholesky factorization failed.");
 #endif
     ierr = MatDenseRestoreArray(corX1d,&x1darr);CHKERRQ(ierr);
@@ -105,9 +105,9 @@ PetscErrorCode Correlation2D(DM da,Mat corX2d,Mat corY2d,PetscBool docholesky)
 {
   MPI_Comm       comm;
   Mat            corX1d,corY1d;
-  PetscInt       i,j,k,xs,ys,xm,ym,Mx,My,maxlen,field,columns;
+  PetscInt       i,j,k,xs,ys,xm,ym,Mx,My,maxlen,field,rows;
   PetscScalar    *y1darr,*x1darr;
-  PetscInt       *colidxs,*rowidxs,rowidx;
+  PetscInt       *rowidxs,colidx;
   AO             ao;
   PetscErrorCode ierr;
 
@@ -115,7 +115,7 @@ PetscErrorCode Correlation2D(DM da,Mat corX2d,Mat corY2d,PetscBool docholesky)
   ierr = DMDAGetCorners(da,&xs,&ys,0,&xm,&ym,NULL);CHKERRQ(ierr);
   ierr = PetscObjectGetComm((PetscObject)da,&comm);CHKERRQ(ierr);
 
-  /* Create 1d correlation matrix (dense) */
+  /* Create 1d correlation matrix (dense). Dense matrices are stored in column major. */
   ierr = MatCreateSeqDense(PETSC_COMM_SELF,Mx,Mx,NULL,&corX1d);CHKERRQ(ierr);
   ierr = MatSetUp(corX1d);CHKERRQ(ierr);
   ierr = MatCreateSeqDense(PETSC_COMM_SELF,My,My,NULL,&corY1d);CHKERRQ(ierr);
@@ -123,7 +123,7 @@ PetscErrorCode Correlation2D(DM da,Mat corX2d,Mat corY2d,PetscBool docholesky)
   ierr = Correlation1D(Mx,corX1d,My,corY1d,docholesky);CHKERRQ(ierr);
 
   maxlen = PetscMax(Mx,My);
-  ierr = PetscCalloc2(maxlen,&rowidxs,maxlen,&colidxs);CHKERRQ(ierr);
+  ierr = PetscCalloc1(maxlen,&rowidxs);CHKERRQ(ierr);
   ierr = DMDAGetAO(da,&ao);CHKERRQ(ierr);
 
   ierr = MatDenseGetArray(corX1d,&x1darr);CHKERRQ(ierr);
@@ -132,13 +132,13 @@ PetscErrorCode Correlation2D(DM da,Mat corX2d,Mat corY2d,PetscBool docholesky)
   /* Kronecker product of corrY1d and I(Mx,Mx), duplicated for the three fields  */
   for (field=0;field<3;field++) {
     for (i=xs;i<xs+xm;i++) {
-      for (k=0;k<My;k++) colidxs[k] = (k*Mx+i)*3+field;
-      ierr = AOApplicationToPetsc(ao,My,colidxs);CHKERRQ(ierr);
+      for (k=0;k<My;k++) rowidxs[k] = (k*Mx+i)*3+field;
+      ierr = AOApplicationToPetsc(ao,My,rowidxs);CHKERRQ(ierr);
       for (j=ys;j<ys+ym;j++) {
-        rowidx = (j*Mx+i)*3+field;
-        ierr = AOApplicationToPetsc(ao,1,&rowidx);CHKERRQ(ierr);
-        columns = docholesky ? j+1: My;
-        ierr = MatSetValues(corY2d,1,&rowidx,columns,colidxs,y1darr+j*My,INSERT_VALUES);CHKERRQ(ierr);
+        colidx = (j*Mx+i)*3+field;
+        ierr = AOApplicationToPetsc(ao,1,&colidx);CHKERRQ(ierr);
+        rows = docholesky ? j+1: My;
+        ierr = MatSetValues(corY2d,rows,rowidxs,1,&colidx,y1darr+j*My,INSERT_VALUES);CHKERRQ(ierr);
       }
     }
   }
@@ -146,13 +146,13 @@ PetscErrorCode Correlation2D(DM da,Mat corX2d,Mat corY2d,PetscBool docholesky)
   /* Kronecker product of I(My,My) and corX1d, duplicated for the three fields */
   for (field=0;field<3;field++) {
     for (j=ys;j<ys+ym;j++) {
-      for (k=0;k<Mx;k++) colidxs[k] = (j*Mx+k)*3+field;
-      ierr = AOApplicationToPetsc(ao,Mx,colidxs);CHKERRQ(ierr);
+      for (k=0;k<Mx;k++) rowidxs[k] = (j*Mx+k)*3+field;
+      ierr = AOApplicationToPetsc(ao,Mx,rowidxs);CHKERRQ(ierr);
       for (i=xs;i<xs+xm;i++) {
-        rowidx = (j*Mx+i)*3+field;
-        ierr = AOApplicationToPetsc(ao,1,&rowidx);CHKERRQ(ierr);
-        columns = docholesky ? i+1: Mx;
-        ierr = MatSetValues(corX2d,1,&rowidx,columns,colidxs,x1darr+i*Mx,INSERT_VALUES);CHKERRQ(ierr);
+        colidx = (j*Mx+i)*3+field;
+        ierr = AOApplicationToPetsc(ao,1,&colidx);CHKERRQ(ierr);
+        rows = docholesky ? i+1: Mx;
+        ierr = MatSetValues(corX2d,rows,rowidxs,1,&colidx,x1darr+i*Mx,INSERT_VALUES);CHKERRQ(ierr);
       }
     }
   }
@@ -162,7 +162,7 @@ PetscErrorCode Correlation2D(DM da,Mat corX2d,Mat corY2d,PetscBool docholesky)
 
   ierr = MatDestroy(&corX1d);CHKERRQ(ierr);
   ierr = MatDestroy(&corY1d);CHKERRQ(ierr);
-  ierr = PetscFree2(rowidxs,colidxs);CHKERRQ(ierr);
+  ierr = PetscFree(rowidxs);CHKERRQ(ierr);
 
   ierr = MatAssemblyBegin(corX2d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(corX2d,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
