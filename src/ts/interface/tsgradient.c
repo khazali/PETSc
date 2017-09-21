@@ -1010,7 +1010,7 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
     }
   }
   adj_ctx->dirac_delta = PETSC_FALSE;
-  if (adjts->reason) { /* prevent from accumulation errors XXX */
+  if (adjts->reason == TS_CONVERGED_TIME) {
     PetscReal time;
 
     ierr = TSGetTime(adjts,&time);CHKERRQ(ierr);
