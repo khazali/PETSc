@@ -223,7 +223,7 @@ struct _p_TS {
   Mat               G_x;
   Mat               G_m;
   void              *Ggrad_ctx;
-  TSEvalHessianIC   HG[3];      /* compute the IC Hessian terms G_xx, G_xm and G_mm */
+  TSEvalHessianIC   HG[2][2];   /* compute the IC Hessian terms G_xx, G_xm, G_mx and G_mm */
   void              *HGctx;
   TSEvalGradientDAE F_m_f;      /* compute the DAE Jacobian term F_m(x,x_t,t;m) */
   Mat               F_m;

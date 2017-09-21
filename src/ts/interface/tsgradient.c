@@ -2582,7 +2582,7 @@ PetscErrorCode TSSetGradientIC(TS ts, Mat J_x, Mat J_m, TSEvalGradientIC f, void
 }
 
 /*@C
-   TSSetHessianIC - Sets the callback to compute the Hessian matrices G_xx(x0,m), G_xm(x0,m) and G_mm(x0,m), with parameter dependent initial conditions implicitly defined by the function G(x(0),m) = 0.
+   TSSetHessianIC - Sets the callback to compute the action of the Hessian matrices G_xx(x0,m), G_xm(x0,m), G_mx(x0,m) and G_mm(x0,m), with parameter dependent initial conditions implicitly defined by the function G(x(0),m) = 0.
 
    Logically Collective on TS
 
@@ -2590,6 +2590,7 @@ PetscErrorCode TSSetGradientIC(TS ts, Mat J_x, Mat J_m, TSEvalGradientIC f, void
 +  ts   - the TS context obtained from TSCreate()
 .  g_xx - the function evaluation routine for second order state derivative
 .  g_xm - the function evaluation routine for second order mixed x,m derivative
+.  g_mx - the function evaluation routine for second order mixed m,x derivative
 .  g_mm - the function evaluation routine for second order parameter derivative
 -  ctx  - user-defined context for the function evaluation routines (can be NULL)
 
@@ -2608,6 +2609,7 @@ $  f(TS ts,PetscReal t,Vec u,Vec m,Vec L,Vec X,Vec Y,void *ctx);
 
 $  g_xx   : Y = (L^T \otimes I_N)*G_UU*X
 $  g_xm   : Y = (L^T \otimes I_N)*G_UM*X
+$  g_mx   : Y = (L^T \otimes I_P)*G_MU*X
 $  g_mm   : Y = (L^T \otimes I_P)*G_MM*X
 
    where L is a vector of size N (the number of DAE equations), I_x the identity matrix of size x, \otimes is the Kronecker product, X an input vector of appropriate size, and G_AB an N*size(A) x size(B) matrix given as
@@ -2619,20 +2621,21 @@ $            | G^N_AB |
    Each G^k_AB block term has dimension size(A) x size(B), with {G^k_AB}_ij = \frac{\partial^2 G_k}{\partial b_j \partial a_i}, where G_k is the k-th component of the implicit function G that determines the initial conditions, a_i the i-th variable of A and b_j the j-th variable of B.
    For example, {G^k_UM}_ij = \frac{\partial^2 G_k}{\partial m_j \partial u_i}.
    Developing the Kronecker product, we get Y = (\sum_k L_k*G^k_AB)*X, with L_k the k-th entry of the adjoint variable L.
-   Pass NULL if F_AB is zero for some A and B.
+   Pass NULL if G_AB is zero for some A and B.
 
    Level: advanced
 
 .seealso: TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSComputeObjectiveAndGradient(), TSSetGradientIC()
 @*/
-PetscErrorCode TSSetHessianIC(TS ts, TSEvalHessianIC g_uu,  TSEvalHessianIC g_um,  TSEvalHessianIC g_mm, void *ctx)
+PetscErrorCode TSSetHessianIC(TS ts, TSEvalHessianIC g_xx,  TSEvalHessianIC g_xm,  TSEvalHessianIC g_mx, TSEvalHessianIC g_mm, void *ctx)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  ts->HG[0] = g_uu;
-  ts->HG[1] = g_um;
-  ts->HG[2] = g_mm;
-  ts->HGctx = ctx;
+  ts->HG[0][0] = g_xx;
+  ts->HG[0][1] = g_xm;
+  ts->HG[1][0] = g_mx;
+  ts->HG[1][1] = g_mm;
+  ts->HGctx    = ctx;
   PetscFunctionReturn(0);
 }
 
