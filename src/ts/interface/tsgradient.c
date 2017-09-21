@@ -3,6 +3,7 @@
    [1] Cao, Li, Petzold. Adjoint sensitivity analysis for differential-algebraic equations: algorithms and software, JCAM 149, 2002.
    [2] Cao, Li, Petzold. Adjoint sensitivity analysis for differential-algebraic equations: the adjoint DAE system and its numerical solution, SISC 24, 2003.
    TODO: register citations
+   TODO: add custom fortran wrappers
 */
 #include <petsc/private/tsimpl.h>        /*I "petscts.h"  I*/
 #include <petsc/private/snesimpl.h>
@@ -76,6 +77,7 @@ static PetscErrorCode EvaluateObjective_U(ObjectiveLink funchead, Vec state, Vec
   PetscValidHeaderSpecific(work,VEC_CLASSID,5);
   PetscValidPointer(has,6);
   PetscValidHeaderSpecific(out,VEC_CLASSID,7);
+  if (work == out) SETERRQ(PetscObjectComm((PetscObject)out),PETSC_ERR_USER,"work and out vectors need to be different");
   *has = PETSC_FALSE;
   while (link) {
     if (link->f_x && link->fixedtime <= PETSC_MIN_REAL) *has = PETSC_TRUE;
@@ -107,7 +109,7 @@ static PetscErrorCode EvaluateObjective_U(ObjectiveLink funchead, Vec state, Vec
 
 /* Evaluates derivative (wrt the state) of objective functions of the type f(state,design,t = fixed)
    These may lead to Dirac's delta terms in the adjoint DAE if the fixed time is in between (t0,tf) */
-static PetscErrorCode EvaluateObjective_UFixed(ObjectiveLink funchead, Vec state, Vec design, PetscReal time, Vec work, PetscBool *has, Vec out)
+static PetscErrorCode EvaluateObjectiveFixed_U(ObjectiveLink funchead, Vec state, Vec design, PetscReal time, Vec work, PetscBool *has, Vec out)
 {
   PetscErrorCode ierr;
   ObjectiveLink  link = funchead;
@@ -119,6 +121,7 @@ static PetscErrorCode EvaluateObjective_UFixed(ObjectiveLink funchead, Vec state
   PetscValidHeaderSpecific(work,VEC_CLASSID,5);
   PetscValidPointer(has,6);
   PetscValidHeaderSpecific(out,VEC_CLASSID,7);
+  if (work == out) SETERRQ(PetscObjectComm((PetscObject)out),PETSC_ERR_USER,"work and out vectors need to be different");
   *has = PETSC_FALSE;
   while (link) {
     if (link->f_x && link->fixedtime > PETSC_MIN_REAL && PetscAbsReal(link->fixedtime-time) < PETSC_SMALL) *has = PETSC_TRUE;
@@ -161,6 +164,7 @@ static PetscErrorCode EvaluateObjective_M(ObjectiveLink funchead, Vec state, Vec
   PetscValidHeaderSpecific(work,VEC_CLASSID,5);
   PetscValidPointer(has,6);
   PetscValidHeaderSpecific(out,VEC_CLASSID,7);
+  if (work == out) SETERRQ(PetscObjectComm((PetscObject)out),PETSC_ERR_USER,"work and out vectors need to be different");
   *has = PETSC_FALSE;
   while (link) {
     if (link->f_m && link->fixedtime <= PETSC_MIN_REAL) *has = PETSC_TRUE;
@@ -191,7 +195,7 @@ static PetscErrorCode EvaluateObjective_M(ObjectiveLink funchead, Vec state, Vec
 }
 
 /* Evaluates derivative (wrt the parameters) of objective functions of the type f(state,design,t = tfixed) */
-static PetscErrorCode EvaluateObjective_MFixed(ObjectiveLink funchead, Vec state, Vec design, PetscReal time, Vec work, PetscBool *has, Vec out)
+static PetscErrorCode EvaluateObjectiveFixed_M(ObjectiveLink funchead, Vec state, Vec design, PetscReal time, Vec work, PetscBool *has, Vec out)
 {
   PetscErrorCode ierr;
   ObjectiveLink  link = funchead;
@@ -203,6 +207,7 @@ static PetscErrorCode EvaluateObjective_MFixed(ObjectiveLink funchead, Vec state
   PetscValidHeaderSpecific(work,VEC_CLASSID,5);
   PetscValidPointer(has,6);
   PetscValidHeaderSpecific(out,VEC_CLASSID,7);
+  if (work == out) SETERRQ(PetscObjectComm((PetscObject)out),PETSC_ERR_USER,"work and out vectors need to be different");
   *has = PETSC_FALSE;
   while (link) {
     if (link->f_m && time == link->fixedtime) *has = PETSC_TRUE;
@@ -244,6 +249,86 @@ PETSC_UNUSED static PetscErrorCode TSGetNumObjectives(TS ts, PetscInt *n)
     (*n)++;
     link = link->next;
   }
+  PetscFunctionReturn(0);
+}
+
+/* Inquires the presence of integrand terms */
+static PetscErrorCode TSHasObjectiveIntegrand(TS ts, PetscBool *has, PetscBool *has_x, PetscBool *has_m, PetscBool *has_xx, PetscBool *has_xm, PetscBool *has_mm)
+{
+  ObjectiveLink link = ts->funchead;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(ts,TS_CLASSID,1);
+  if (has)    PetscValidPointer(has,2);
+  if (has_x)  PetscValidPointer(has_x,3);
+  if (has_m)  PetscValidPointer(has_m,4);
+  if (has_xx) PetscValidPointer(has_xx,5);
+  if (has_xm) PetscValidPointer(has_xm,6);
+  if (has_mm) PetscValidPointer(has_mm,7);
+  if (has)    *has    = PETSC_FALSE;
+  if (has_x)  *has_x  = PETSC_FALSE;
+  if (has_m)  *has_m  = PETSC_FALSE;
+  if (has_xx) *has_xx = PETSC_FALSE;
+  if (has_xm) *has_xm = PETSC_FALSE;
+  if (has_mm) *has_mm = PETSC_FALSE;
+  while (link) {
+    if (link->fixedtime <= PETSC_MIN_REAL) {
+      if (has    && link->f)    *has    = PETSC_TRUE;
+      if (has_x  && link->f_x)  *has_x  = PETSC_TRUE;
+      if (has_m  && link->f_m)  *has_m  = PETSC_TRUE;
+      if (has_xx && link->f_XX) *has_xx = PETSC_TRUE;
+      if (has_xm && link->f_XM) *has_xm = PETSC_TRUE;
+      if (has_mm && link->f_MM) *has_mm = PETSC_TRUE;
+    }
+    link = link->next;
+  }
+  PetscFunctionReturn(0);
+}
+
+/* Inquires the presence of point-form functionals in a given time interval (t0,tf] and returns the minimum among the requested ones and tf */
+static PetscErrorCode TSHasObjectiveFixed(TS ts, PetscReal t0, PetscReal tf, PetscBool *has, PetscBool *has_x, PetscBool *has_m, PetscBool *has_xx, PetscBool *has_xm, PetscBool *has_mm, PetscReal *time)
+{
+  ObjectiveLink link = ts->funchead;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(ts,TS_CLASSID,1);
+  PetscValidLogicalCollectiveReal(ts,t0,2);
+  PetscValidLogicalCollectiveReal(ts,tf,3);
+  if (has)    PetscValidPointer(has,3);
+  if (has_x)  PetscValidPointer(has_x,4);
+  if (has_m)  PetscValidPointer(has_m,5);
+  if (has_xx) PetscValidPointer(has_xx,6);
+  if (has_xm) PetscValidPointer(has_xm,7);
+  if (has_mm) PetscValidPointer(has_mm,8);
+  if (time)   PetscValidPointer(time,9);
+  if (has)    *has    = PETSC_FALSE;
+  if (has_x)  *has_x  = PETSC_FALSE;
+  if (has_m)  *has_m  = PETSC_FALSE;
+  if (has_xx) *has_xx = PETSC_FALSE;
+  if (has_xm) *has_xm = PETSC_FALSE;
+  if (has_mm) *has_mm = PETSC_FALSE;
+  if (time)   *time   = tf;
+  while (link) {
+    if (t0 < link->fixedtime && link->fixedtime <= tf) {
+      if ((has    && link->f   ) || (has_x  && link->f_x ) || (has_m  && link->f_m ) ||
+          (has_xx && link->f_XX) || (has_xm && link->f_XM) || (has_mm && link->f_MM))
+        tf = PetscMax(t0,PetscMin(link->fixedtime,tf));
+    }
+    link = link->next;
+  }
+  link = ts->funchead;
+  while (link) {
+    if (link->fixedtime == tf) {
+      if (has    && link->f)    *has    = PETSC_TRUE;
+      if (has_x  && link->f_x)  *has_x  = PETSC_TRUE;
+      if (has_m  && link->f_m)  *has_m  = PETSC_TRUE;
+      if (has_xx && link->f_XX) *has_xx = PETSC_TRUE;
+      if (has_xm && link->f_XM) *has_xm = PETSC_TRUE;
+      if (has_mm && link->f_MM) *has_mm = PETSC_TRUE;
+    }
+    link = link->next;
+  }
+  if (time) *time = tf;
   PetscFunctionReturn(0);
 }
 
@@ -310,6 +395,7 @@ static PetscErrorCode TSLinearizeICApply(TS ts, PetscReal t0, Vec x0, Vec design
   }
   PetscFunctionReturn(0);
 }
+
 /* ------------------ Helper routines to update history vectors and compute split Jacobians, namespaced with TS ----------------------- */
 
 /* Updates history vectors U and Udot for a given time, if they are present */
@@ -545,6 +631,16 @@ static PetscErrorCode EvalQuadObj(ObjectiveLink link,Vec U, PetscReal t, PetscRe
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode EvalQuadObjFixed(ObjectiveLink link,Vec U, PetscReal t, PetscReal *f, void* ctx)
+{
+  Vec            design = (Vec)ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = EvaluateObjectiveFixed(link,U,design,t,f);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 static PetscErrorCode EvalQuadObj_M(ObjectiveLink link,Vec U, PetscReal t, Vec F, void* ctx)
 {
   Vec            *v = (Vec*)ctx;
@@ -554,7 +650,18 @@ static PetscErrorCode EvalQuadObj_M(ObjectiveLink link,Vec U, PetscReal t, Vec F
 
   PetscFunctionBegin;
   ierr = EvaluateObjective_M(link,U,design,t,v[1],&has_m,F);CHKERRQ(ierr);
-  if (!has_m) SETERRQ(PetscObjectComm((PetscObject)U),PETSC_ERR_PLIB,"This should not happen");
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode EvalQuadObjFixed_M(ObjectiveLink link,Vec U, PetscReal t, Vec F, void* ctx)
+{
+  Vec            *v = (Vec*)ctx;
+  Vec            design = v[0];
+  PetscBool      has_m;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = EvaluateObjectiveFixed_M(link,U,design,t,v[1],&has_m,F);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -782,7 +889,7 @@ static PetscErrorCode AdjointTSEventFunction(TS adjts, PetscReal t, Vec U, Petsc
 
 /* Dirac's delta integration H_Udot^T ( L(+) - L(-) )  = - f_U -> L(+) = - H_Udot^-T f_U + L(-)
    We store the increment - H_Udot^-T f_U in adj_ctx->W[2] and apply it during the AdjointTSPostStep
-   It also works for index-1 DAEs.
+   AdjointTSComputeInitialConditions supports index-1 DAEs too (singular H_Udot).
 */
 static PetscErrorCode AdjointTSComputeInitialConditions(TS,PetscReal,Vec,PetscBool,PetscBool);
 
@@ -1033,7 +1140,7 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
   ierr = VecLockPop(adj_ctx->W[2]);CHKERRQ(ierr);
   ierr = VecSet(adj_ctx->W[2],0.0);CHKERRQ(ierr);
-  ierr = EvaluateObjective_UFixed(adj_ctx->fwdts->funchead,svec,adj_ctx->design,fwdt,adj_ctx->W[3],&has_g,adj_ctx->W[2]);CHKERRQ(ierr);
+  ierr = EvaluateObjectiveFixed_U(adj_ctx->fwdts->funchead,svec,adj_ctx->design,fwdt,adj_ctx->W[3],&has_g,adj_ctx->W[2]);CHKERRQ(ierr);
   ierr = TSGetEquationType(adj_ctx->fwdts,&eqtype);CHKERRQ(ierr);
   ierr = TSGetIJacobian(adjts,NULL,NULL,&ijac,NULL);CHKERRQ(ierr);
   if (eqtype == TS_EQ_DAE_SEMI_EXPLICIT_INDEX1) { /* details in [1,Section 4.2] */
@@ -1387,7 +1494,7 @@ static PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode TSComputeObjective_Private(TS ts, Vec X, Vec design, Vec gradient, PetscReal *val)
+static PetscErrorCode TSFWDWithQuadrature_Private(TS ts, Vec X, Vec design, Vec quadvec, PetscReal *quadscalar)
 {
   Vec             U;
   PetscContainer  container;
@@ -1395,10 +1502,12 @@ static PetscErrorCode TSComputeObjective_Private(TS ts, Vec X, Vec design, Vec g
   PetscReal       t0,tf,tfup,dt;
   PetscInt        tst;
   PetscBool       fidt;
+  SQuadEval       seval_fixed, seval;
+  VQuadEval       veval_fixed, veval;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
-  if (gradient) PetscValidHeaderSpecific(gradient,VEC_CLASSID,4);
+  if (quadvec) PetscValidHeaderSpecific(quadvec,VEC_CLASSID,4);
 
   /* solution vector */
   ierr = TSGetSolution(ts,&U);CHKERRQ(ierr);
@@ -1410,6 +1519,12 @@ static PetscErrorCode TSComputeObjective_Private(TS ts, Vec X, Vec design, Vec g
   ierr = VecCopy(X,U);CHKERRQ(ierr);
   ierr = TSGetStepNumber(ts,&tst);CHKERRQ(ierr);
   ierr = TSSetStepNumber(ts,0);CHKERRQ(ierr);
+
+  /* XXX */
+  seval       = EvalQuadObj;
+  seval_fixed = quadscalar ? EvalQuadObjFixed : NULL;
+  veval       = EvalQuadObj_M;
+  veval_fixed = quadvec ? EvalQuadObjFixed_M : NULL;
 
   /* set special purpose post step method for quadrature evaluation */
   ierr = PetscObjectQuery((PetscObject)ts,"_ts_evaluate_quadrature",(PetscObject*)&container);CHKERRQ(ierr);
@@ -1425,48 +1540,59 @@ static PetscErrorCode TSComputeObjective_Private(TS ts, Vec X, Vec design, Vec g
   }
   qeval_ctx->user      = ts->poststep;
   qeval_ctx->userafter = PETSC_FALSE;
-  qeval_ctx->seval     = val ? EvalQuadObj : NULL;
+  qeval_ctx->seval     = quadscalar ? seval : NULL;
   qeval_ctx->seval_ctx = design;
   qeval_ctx->squad     = 0.0;
   qeval_ctx->psquad    = 0.0;
-  qeval_ctx->veval     = gradient ? EvalQuadObj_M : NULL;
-  qeval_ctx->vquad     = gradient;
+  qeval_ctx->veval     = quadvec ? veval : NULL;
+  qeval_ctx->vquad     = quadvec;
   qeval_ctx->cur       = 0;
   qeval_ctx->old       = 1;
 
   ierr = TSSetPostStep(ts,TSQuadrature_PostStep);CHKERRQ(ierr);
   ierr = TSSetUp(ts);CHKERRQ(ierr);
 
-  /* evaluate at initial time */
+  /* evaluate scalar function at initial time */
   ierr = TSGetTime(ts,&t0);CHKERRQ(ierr);
   if (qeval_ctx->seval) {
     PetscStackPush("TS scalar quadrature function");
     ierr = (*qeval_ctx->seval)(ts->funchead,U,t0,&qeval_ctx->psquad,qeval_ctx->seval_ctx);CHKERRQ(ierr);
     PetscStackPop;
   }
+  ierr = PetscFree(qeval_ctx->veval_ctx);CHKERRQ(ierr);
   if (qeval_ctx->veval) {
     PetscBool has;
 
-    ierr = PetscFree(qeval_ctx->veval_ctx);CHKERRQ(ierr);
     if (!qeval_ctx->wquad) {
       ierr = VecDuplicateVecs(qeval_ctx->vquad,2,&qeval_ctx->wquad);CHKERRQ(ierr);
     }
-    ierr = EvaluateObjective_M(ts->funchead,U,design,t0,qeval_ctx->wquad[qeval_ctx->cur],&has,qeval_ctx->wquad[qeval_ctx->old]);CHKERRQ(ierr);
+    ierr = TSHasObjectiveIntegrand(ts,NULL,NULL,&has,NULL,NULL,NULL);CHKERRQ(ierr);
     if (!has) { /* cost integrands not present */
       qeval_ctx->veval = NULL;
-    } else { /* need the design vector and one work vector for the function evaluation */
-      Vec *v,work;
+    }
+  }
+  if (qeval_ctx->veval || veval_fixed) { /* need the design vector and one work vector for the function evaluation */
+    Vec *v,work;
 
-      ierr = PetscMalloc1(2,&v);CHKERRQ(ierr);
-      v[0] = design;
-      ierr = PetscObjectQuery((PetscObject)ts,"_ts_quadwork_0",(PetscObject*)&work);CHKERRQ(ierr);
-      if (!work) {
-        ierr = VecDuplicate(qeval_ctx->vquad,&work);CHKERRQ(ierr);
-        ierr = PetscObjectCompose((PetscObject)ts,"_ts_quadwork_0",(PetscObject)work);CHKERRQ(ierr);
-        ierr = PetscObjectDereference((PetscObject)work);CHKERRQ(ierr);
-      }
-      v[1] = work;
-      qeval_ctx->veval_ctx = v;
+    ierr = PetscMalloc1(2,&v);CHKERRQ(ierr);
+    v[0] = design;
+    ierr = PetscObjectQuery((PetscObject)ts,"_ts_quadwork_0",(PetscObject*)&work);CHKERRQ(ierr);
+    if (!work) {
+      ierr = VecDuplicate(qeval_ctx->vquad,&work);CHKERRQ(ierr);
+      ierr = PetscObjectCompose((PetscObject)ts,"_ts_quadwork_0",(PetscObject)work);CHKERRQ(ierr);
+      ierr = PetscObjectDereference((PetscObject)work);CHKERRQ(ierr);
+    }
+    v[1] = work;
+    qeval_ctx->veval_ctx = v;
+
+    /* initialize trapz rule */
+    if (qeval_ctx->veval) {
+      Vec sol;
+
+      ierr = TSGetSolution(ts,&sol);CHKERRQ(ierr);
+      PetscStackPush("TS vector quadrature function");
+      ierr = (*qeval_ctx->veval)(ts->funchead,sol,t0,qeval_ctx->wquad[qeval_ctx->old],qeval_ctx->veval_ctx);CHKERRQ(ierr);
+      PetscStackPop;
     }
   }
 
@@ -1477,48 +1603,39 @@ static PetscErrorCode TSComputeObjective_Private(TS ts, Vec X, Vec design, Vec g
   if (ts->adapt) {
     ierr = PetscObjectTypeCompare((PetscObject)ts->adapt,TSADAPTNONE,&fidt);CHKERRQ(ierr);
   }
+  /* determine if there are functionals and gradients wrt parameters of the type f(U,M,t=fixed) to be evaluated */
+  /* we don't use events since there's no API to add new events to a pre-exiting set */
   do {
-    ObjectiveLink link;
+    PetscBool has_f = PETSC_FALSE, has_m = PETSC_FALSE;
 
-    /* determine if there are functionals and gradients wrt parameters of the type f(U,M,t=fixed) to be evaluated */
-    /* we don't use events since there's no API to add new events to a pre-exiting set */
-    tfup = tf;
     ierr = TSGetTime(ts,&t0);CHKERRQ(ierr);
-    link = ts->funchead;
-    while (link) {
-      if (((link->f && qeval_ctx->seval) || (link->f_m && gradient)) && t0 < link->fixedtime && link->fixedtime <= tf) {
-        tfup = PetscMin(tfup,link->fixedtime);
-      }
-      link = link->next;
-    }
+    ierr = TSHasObjectiveFixed(ts,t0,tf,seval_fixed ? &has_f : NULL,NULL,veval_fixed ? &has_m : NULL,NULL,NULL,NULL,&tfup);CHKERRQ(ierr);
     ierr = TSSetMaxTime(ts,tfup);CHKERRQ(ierr);
     ierr = TSSolve(ts,NULL);CHKERRQ(ierr);
-
-    if (qeval_ctx->seval) {
+    if (has_f) {
+      Vec       sol;
       PetscReal v;
-      ierr = EvaluateObjectiveFixed(ts->funchead,U,design,tfup,&v);CHKERRQ(ierr);
+
+      ierr = TSGetSolution(ts,&sol);CHKERRQ(ierr);
+      PetscStackPush("TS scalar quadrature function (fixed time)");
+      ierr = (*seval_fixed)(ts->funchead,sol,tfup,&v,qeval_ctx->seval_ctx);CHKERRQ(ierr);
+      PetscStackPop;
       qeval_ctx->squad += v;
     }
-    if (qeval_ctx->vquad) {
-      Vec       work0,work1;
-      PetscBool has;
+    if (has_m) {
+      Vec sol,work;
 
-      ierr = PetscObjectQuery((PetscObject)ts,"_ts_quadwork_0",(PetscObject*)&work0);CHKERRQ(ierr);
-      if (!work0) {
-        ierr = VecDuplicate(qeval_ctx->vquad,&work0);CHKERRQ(ierr);
-        ierr = PetscObjectCompose((PetscObject)ts,"_ts_quadwork_0",(PetscObject)work0);CHKERRQ(ierr);
-        ierr = PetscObjectDereference((PetscObject)work0);CHKERRQ(ierr);
+      ierr = PetscObjectQuery((PetscObject)ts,"_ts_quadwork_1",(PetscObject*)&work);CHKERRQ(ierr);
+      if (!work) {
+        ierr = VecDuplicate(qeval_ctx->vquad,&work);CHKERRQ(ierr);
+        ierr = PetscObjectCompose((PetscObject)ts,"_ts_quadwork_1",(PetscObject)work);CHKERRQ(ierr);
+        ierr = PetscObjectDereference((PetscObject)work);CHKERRQ(ierr);
       }
-      ierr = PetscObjectQuery((PetscObject)ts,"_ts_quadwork_1",(PetscObject*)&work1);CHKERRQ(ierr);
-      if (!work1) {
-        ierr = VecDuplicate(qeval_ctx->vquad,&work1);CHKERRQ(ierr);
-        ierr = PetscObjectCompose((PetscObject)ts,"_ts_quadwork_1",(PetscObject)work1);CHKERRQ(ierr);
-        ierr = PetscObjectDereference((PetscObject)work1);CHKERRQ(ierr);
-      }
-      ierr = EvaluateObjective_MFixed(ts->funchead,U,design,tfup,work1,&has,work0);CHKERRQ(ierr);
-      if (has) {
-        ierr = VecAXPY(qeval_ctx->vquad,1.0,work0);CHKERRQ(ierr);
-      }
+      ierr = TSGetSolution(ts,&sol);CHKERRQ(ierr);
+      PetscStackPush("TS vector quadrature function (fixed time)");
+      ierr = (*veval_fixed)(ts->funchead,sol,tfup,work,qeval_ctx->veval_ctx);CHKERRQ(ierr);
+      PetscStackPop;
+      ierr = VecAXPY(qeval_ctx->vquad,1.0,work);CHKERRQ(ierr);
     }
     if (fidt) { /* restore fixed time step */
       ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
@@ -1529,8 +1646,8 @@ static PetscErrorCode TSComputeObjective_Private(TS ts, Vec X, Vec design, Vec g
   ierr = TSSetStepNumber(ts,tst);CHKERRQ(ierr);
   ierr = TSSetPostStep(ts,qeval_ctx->user);CHKERRQ(ierr);
 
-  /* get back value */
-  if (val) *val = qeval_ctx->squad;
+  /* get back scalar value */
+  if (quadscalar) *quadscalar = qeval_ctx->squad;
   PetscFunctionReturn(0);
 }
 
@@ -1570,7 +1687,7 @@ static PetscErrorCode TSComputeObjectiveAndGradient_Private(TS ts, Vec X, Vec de
   }
 
   /* forward solve */
-  ierr = TSComputeObjective_Private(ts,X,design,gradient,val);CHKERRQ(ierr);
+  ierr = TSFWDWithQuadrature_Private(ts,X,design,gradient,val);CHKERRQ(ierr);
 
   /* adjoint */
   if (gradient) {
