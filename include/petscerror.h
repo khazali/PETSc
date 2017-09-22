@@ -28,6 +28,7 @@
 #define PETSC_ERR_USER             83   /* user has not provided needed function */
 #define PETSC_ERR_SYS              88   /* error in system call */
 #define PETSC_ERR_POINTER          70   /* pointer does not point to valid address */
+#define PETSC_ERR_MPI_LIB_INCOMP   87   /* MPI library at runtime is not compatible with MPI user compiled with */
 
 #define PETSC_ERR_ARG_SIZ          60   /* nonconforming object sizes used in operation */
 #define PETSC_ERR_ARG_IDN          61   /* two arguments not allowed to be the same */
@@ -621,6 +622,23 @@ PETSC_EXTERN PetscStack *petscstack;
 
 PetscErrorCode  PetscStackCopy(PetscStack*,PetscStack*);
 PetscErrorCode  PetscStackPrint(PetscStack *,FILE*);
+#if defined(PETSC_SERIALIZE_FUNCTIONS)
+#include <petsc/private/petscfptimpl.h>
+/*
+   Registers the current function into the global function pointer to function name table
+
+   Have to fix this to handle errors but cannot return error since used in PETSC_VIEWER_DRAW_() etc
+*/
+#define PetscRegister__FUNCT__() do { \
+  static PetscBool __chked = PETSC_FALSE; \
+  if (!__chked) {\
+  void *ptr; PetscDLSym(NULL,PETSC_FUNCTION_NAME,&ptr);\
+  __chked = PETSC_TRUE;\
+  }} while (0)
+#else
+#define PetscRegister__FUNCT__()
+#endif
+
 #if defined(PETSC_USE_DEBUG)
 PETSC_STATIC_INLINE PetscBool PetscStackActive(void)
 {
@@ -764,23 +782,6 @@ M*/
     PetscRegister__FUNCT__();                                           \
   } while (0)
 
-
-#if defined(PETSC_SERIALIZE_FUNCTIONS)
-#include <petsc/private/petscfptimpl.h>
-/*
-   Registers the current function into the global function pointer to function name table
-
-   Have to fix this to handle errors but cannot return error since used in PETSC_VIEWER_DRAW_() etc
-*/
-#define PetscRegister__FUNCT__() do { \
-  static PetscBool __chked = PETSC_FALSE; \
-  if (!__chked) {\
-  void *ptr; PetscDLSym(NULL,PETSC_FUNCTION_NAME,&ptr);\
-  __chked = PETSC_TRUE;\
-  }} while (0)
-#else
-#define PetscRegister__FUNCT__()
-#endif
 
 #define PetscStackPush(n) \
   do {                                                                  \

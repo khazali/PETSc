@@ -266,6 +266,7 @@ PetscErrorCode DMPlexCreateSquareBoundary(DM dm, const PetscReal lower[], const 
   ierr = DMPlexSymmetrize(dm);CHKERRQ(ierr);
   ierr = DMPlexStratify(dm);CHKERRQ(ierr);
   /* Build coordinates */
+  ierr = DMSetCoordinateDim(dm, 2);CHKERRQ(ierr);
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
   ierr = PetscSectionSetNumFields(coordSection, 1);CHKERRQ(ierr);
   ierr = PetscSectionSetChart(coordSection, numEdges, numEdges + numVertices);CHKERRQ(ierr);
@@ -398,7 +399,7 @@ PetscErrorCode DMPlexCreateCubeBoundary(DM dm, const PetscReal lower[], const Pe
     /* Side 5 (Right) */
     for (vz = 0; vz < faces[2]; vz++) {
       for (vy = 0; vy < faces[1]; vy++) {
-        voffset = numFaces + vz*vertices[0]*vertices[1] + vy*vertices[0] + vx;
+        voffset = numFaces + vz*vertices[0]*vertices[1] + vy*vertices[0] + faces[0];
         cone[0] = voffset+vertices[0]*vertices[1]; cone[1] = voffset;
         cone[2] = voffset+vertices[0]; cone[3] = voffset+vertices[0]*vertices[1]+vertices[0];
         ierr    = DMPlexSetCone(dm, iface, cone);CHKERRQ(ierr);
@@ -409,6 +410,7 @@ PetscErrorCode DMPlexCreateCubeBoundary(DM dm, const PetscReal lower[], const Pe
   ierr = DMPlexSymmetrize(dm);CHKERRQ(ierr);
   ierr = DMPlexStratify(dm);CHKERRQ(ierr);
   /* Build coordinates */
+  ierr = DMSetCoordinateDim(dm, 3);CHKERRQ(ierr);
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
   ierr = PetscSectionSetChart(coordSection, numFaces, numFaces + numVertices);CHKERRQ(ierr);
   for (v = numFaces; v < numFaces+numVertices; ++v) {
@@ -971,7 +973,7 @@ PetscErrorCode DMPlexCreateHexBoxMesh(MPI_Comm comm, PetscInt dim, const PetscIn
         maxCell[i] = 1.1 * (L[i] / PetscMax(1,cells[i]));
       }
 
-      ierr = DMSetPeriodicity(*dm,maxCell,L,bdType);CHKERRQ(ierr);
+      ierr = DMSetPeriodicity(*dm,PETSC_TRUE,maxCell,L,bdType);CHKERRQ(ierr);
     }
     break;
   }
@@ -996,7 +998,7 @@ PetscErrorCode DMPlexCreateHexBoxMesh(MPI_Comm comm, PetscInt dim, const PetscIn
         maxCell[i] = 1.1 * (L[i] / cells[i]);
       }
 
-      ierr = DMSetPeriodicity(*dm,maxCell,L,bdType);CHKERRQ(ierr);
+      ierr = DMSetPeriodicity(*dm,PETSC_TRUE,maxCell,L,bdType);CHKERRQ(ierr);
     }
     break;
   }
@@ -1257,7 +1259,7 @@ PetscErrorCode DMPlexCreateHexCylinderMesh(MPI_Comm comm, PetscInt numRefine, DM
       L[i]       = upper[i] - lower[i];
       maxCell[i] = 1.1 * (L[i] / numZCells);
     }
-    ierr = DMSetPeriodicity(*dm, maxCell, L, bdType);CHKERRQ(ierr);
+    ierr = DMSetPeriodicity(*dm, PETSC_TRUE, maxCell, L, bdType);CHKERRQ(ierr);
   }
   /* Refine topology */
   for (r = 0; r < numRefine; ++r) {
@@ -1309,13 +1311,13 @@ PetscErrorCode DMPlexCreateHexCylinderMesh(MPI_Comm comm, PetscInt numRefine, DM
       if ((PetscAbsReal(phi) > PETSC_PI/4.0) && (PetscAbsReal(phi) < 3.0*PETSC_PI/4.0)) {
         dc = PetscAbsReal(ds2/sinp);
         df = PetscAbsReal(dis/sinp);
-        xc = ds2*x/PetscAbsScalar(y);
+        xc = ds2*x/PetscAbsReal(y);
         yc = ds2*PetscSignReal(y);
       } else {
         dc = PetscAbsReal(ds2/cosp);
         df = PetscAbsReal(dis/cosp);
         xc = ds2*PetscSignReal(x);
-        yc = ds2*y/PetscAbsScalar(x);
+        yc = ds2*y/PetscAbsReal(x);
       }
       coords[off+0] = xc + (coords[off+0] - xc)*(1.0 - dc)/(df - dc);
       coords[off+1] = yc + (coords[off+1] - yc)*(1.0 - dc)/(df - dc);
@@ -1485,10 +1487,8 @@ PetscErrorCode DMPlexCreateSphereMesh(MPI_Comm comm, PetscInt dim, PetscBool sim
       PetscInt       *graph, p, i, j, k;
 
       numCells    = !rank ? 20 : 0;
-      numEdges    = !rank ? 30 : 0;
       numVerts    = !rank ? 12 : 0;
       firstVertex = numCells;
-      firstEdge   = numCells + numVerts;
       /* Use icosahedron, which for a unit sphere has coordinates which are all cyclic permutations of
 
            (0, \pm 1/\phi+1, \pm \phi/\phi+1)
@@ -1843,12 +1843,13 @@ static PetscErrorCode DMInitialize_Plex(DM dm);
 */
 static PetscErrorCode DMPlexReplace_Static(DM dm, DM dmNew)
 {
-  PetscSF          sf;
-  DM               coordDM, coarseDM;
-  Vec              coords;
-  const PetscReal *maxCell, *L;
+  PetscSF               sf;
+  DM                    coordDM, coarseDM;
+  Vec                   coords;
+  PetscBool             isper;
+  const PetscReal      *maxCell, *L;
   const DMBoundaryType *bd;
-  PetscErrorCode   ierr;
+  PetscErrorCode        ierr;
 
   PetscFunctionBegin;
   ierr = DMGetPointSF(dmNew, &sf);CHKERRQ(ierr);
@@ -1857,8 +1858,8 @@ static PetscErrorCode DMPlexReplace_Static(DM dm, DM dmNew)
   ierr = DMGetCoordinatesLocal(dmNew, &coords);CHKERRQ(ierr);
   ierr = DMSetCoordinateDM(dm, coordDM);CHKERRQ(ierr);
   ierr = DMSetCoordinatesLocal(dm, coords);CHKERRQ(ierr);
-  ierr = DMGetPeriodicity(dm, &maxCell, &L, &bd);CHKERRQ(ierr);
-  if (L) {ierr = DMSetPeriodicity(dmNew, maxCell, L, bd);CHKERRQ(ierr);}
+  ierr = DMGetPeriodicity(dm, &isper, &maxCell, &L, &bd);CHKERRQ(ierr);
+  ierr = DMSetPeriodicity(dmNew, isper, maxCell, L, bd);CHKERRQ(ierr);
   ierr = DMDestroy_Plex(dm);CHKERRQ(ierr);
   ierr = DMInitialize_Plex(dm);CHKERRQ(ierr);
   dm->data = dmNew->data;
@@ -2137,6 +2138,7 @@ static PetscErrorCode DMInitialize_Plex(DM dm)
   dm->ops->computel2fielddiff              = DMComputeL2FieldDiff_Plex;
   dm->ops->getneighbors                    = DMGetNeighors_Plex;
   ierr = PetscObjectComposeFunction((PetscObject)dm,"DMPlexInsertBoundaryValues_C",DMPlexInsertBoundaryValues_Plex);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)dm,"DMSetUpGLVisViewer_C",DMSetUpGLVisViewer_Plex);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -2369,6 +2371,7 @@ static PetscErrorCode DMPlexBuildCoordinates_Parallel_Private(DM dm, PetscInt sp
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ierr = DMSetCoordinateDim(dm, spaceDim);CHKERRQ(ierr);
   ierr = PetscSFGetGraph(sfVert, &numVertices, &numVerticesAdj, NULL, NULL);CHKERRQ(ierr);
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
   ierr = PetscSectionSetNumFields(coordSection, 1);CHKERRQ(ierr);
@@ -2528,6 +2531,7 @@ static PetscErrorCode DMPlexBuildCoordinates_Private(DM dm, PetscInt spaceDim, P
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ierr = DMSetCoordinateDim(dm, spaceDim);CHKERRQ(ierr);
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
   ierr = PetscSectionSetNumFields(coordSection, 1);CHKERRQ(ierr);
   ierr = PetscSectionSetFieldComponents(coordSection, 0, spaceDim);CHKERRQ(ierr);
@@ -2736,15 +2740,16 @@ PetscErrorCode DMPlexCreateFromDAG(DM dm, PetscInt depth, const PetscInt numPoin
 @*/
 PetscErrorCode DMPlexCreateFromFile(MPI_Comm comm, const char filename[], PetscBool interpolate, DM *dm)
 {
-  const char    *extGmsh   = ".msh";
-  const char    *extCGNS   = ".cgns";
-  const char    *extExodus = ".exo";
-  const char    *extFluent = ".cas";
-  const char    *extHDF5   = ".h5";
-  const char    *extMed    = ".med";
-  const char    *extPLY    = ".ply";
+  const char    *extGmsh    = ".msh";
+  const char    *extCGNS    = ".cgns";
+  const char    *extExodus  = ".exo";
+  const char    *extGenesis = ".gen";
+  const char    *extFluent  = ".cas";
+  const char    *extHDF5    = ".h5";
+  const char    *extMed     = ".med";
+  const char    *extPLY     = ".ply";
   size_t         len;
-  PetscBool      isGmsh, isCGNS, isExodus, isFluent, isHDF5, isMed, isPLY;
+  PetscBool      isGmsh, isCGNS, isExodus, isGenesis, isFluent, isHDF5, isMed, isPLY;
   PetscMPIInt    rank;
   PetscErrorCode ierr;
 
@@ -2754,18 +2759,19 @@ PetscErrorCode DMPlexCreateFromFile(MPI_Comm comm, const char filename[], PetscB
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
   ierr = PetscStrlen(filename, &len);CHKERRQ(ierr);
   if (!len) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Filename must be a valid path");
-  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extGmsh,   4, &isGmsh);CHKERRQ(ierr);
-  ierr = PetscStrncmp(&filename[PetscMax(0,len-5)], extCGNS,   5, &isCGNS);CHKERRQ(ierr);
-  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extExodus, 4, &isExodus);CHKERRQ(ierr);
-  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extFluent, 4, &isFluent);CHKERRQ(ierr);
-  ierr = PetscStrncmp(&filename[PetscMax(0,len-3)], extHDF5,   3, &isHDF5);CHKERRQ(ierr);
-  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extMed,    4, &isMed);CHKERRQ(ierr);
-  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extPLY,    4, &isPLY);CHKERRQ(ierr);
+  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extGmsh,    4, &isGmsh);CHKERRQ(ierr);
+  ierr = PetscStrncmp(&filename[PetscMax(0,len-5)], extCGNS,    5, &isCGNS);CHKERRQ(ierr);
+  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extExodus,  4, &isExodus);CHKERRQ(ierr);
+  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extGenesis, 4, &isGenesis);CHKERRQ(ierr);
+  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extFluent,  4, &isFluent);CHKERRQ(ierr);
+  ierr = PetscStrncmp(&filename[PetscMax(0,len-3)], extHDF5,    3, &isHDF5);CHKERRQ(ierr);
+  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extMed,     4, &isMed);CHKERRQ(ierr);
+  ierr = PetscStrncmp(&filename[PetscMax(0,len-4)], extPLY,     4, &isPLY);CHKERRQ(ierr);
   if (isGmsh) {
     ierr = DMPlexCreateGmshFromFile(comm, filename, interpolate, dm);CHKERRQ(ierr);
   } else if (isCGNS) {
     ierr = DMPlexCreateCGNSFromFile(comm, filename, interpolate, dm);CHKERRQ(ierr);
-  } else if (isExodus) {
+  } else if (isExodus || isGenesis) {
     ierr = DMPlexCreateExodusFromFile(comm, filename, interpolate, dm);CHKERRQ(ierr);
   } else if (isFluent) {
     ierr = DMPlexCreateFluentFromFile(comm, filename, interpolate, dm);CHKERRQ(ierr);

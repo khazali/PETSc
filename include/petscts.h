@@ -121,7 +121,7 @@ M*/
 
    Level: beginner
 
-.seealso: TSSolve(), TSGetConvergedReason(), TSGetAdapt(), TSSetDuration(), TSGetSolveTime()
+.seealso: TSSolve(), TSGetConvergedReason(), TSGetAdapt(), TSSetMaxTime(), TSGetMaxTime(), TSGetSolveTime()
 M*/
 
 /*MC
@@ -129,7 +129,7 @@ M*/
 
    Level: beginner
 
-.seealso: TSSolve(), TSGetConvergedReason(), TSGetAdapt(), TSSetDuration()
+.seealso: TSSolve(), TSGetConvergedReason(), TSGetAdapt(), TSSetMaxSteps(), TSGetMaxSteps()
 M*/
 
 /*MC
@@ -137,7 +137,7 @@ M*/
 
    Level: beginner
 
-.seealso: TSSolve(), TSGetConvergedReason(), TSSetConvergedReason(), TSSetDuration()
+.seealso: TSSolve(), TSGetConvergedReason(), TSSetConvergedReason()
 M*/
 
 /*MC
@@ -145,7 +145,7 @@ M*/
 
    Level: beginner
 
-.seealso: TSSolve(), TSGetConvergedReason(), TSSetConvergedReason(), TSSetDuration()
+.seealso: TSSolve(), TSGetConvergedReason(), TSSetConvergedReason()
 M*/
 
 /*MC
@@ -156,7 +156,7 @@ M*/
    Options Database:
 .   -ts_pseudo_frtol <rtol>
 
-.seealso: TSSolve(), TSGetConvergedReason(), TSSetConvergedReason(), TSSetDuration(), TS_CONVERGED_PSEUDO_FATOL
+.seealso: TSSolve(), TSGetConvergedReason(), TSSetConvergedReason(), TS_CONVERGED_PSEUDO_FATOL
 M*/
 
 /*MC
@@ -167,7 +167,7 @@ M*/
    Options Database:
 .   -ts_pseudo_fatol <atol>
 
-.seealso: TSSolve(), TSGetConvergedReason(), TSSetConvergedReason(), TSSetDuration(), TS_CONVERGED_PSEUDO_FRTOL
+.seealso: TSSolve(), TSGetConvergedReason(), TSSetConvergedReason(), TS_CONVERGED_PSEUDO_FRTOL
 M*/
 
 /*MC
@@ -201,12 +201,11 @@ $  TS_EXACTFINALTIME_STEPOVER    - Don't do anything if final time is exceeded
 $  TS_EXACTFINALTIME_INTERPOLATE - Interpolate back to final time
 $  TS_EXACTFINALTIME_MATCHSTEP - Adapt final time step to match the final time
 
-.seealso: TSGetConvergedReason(), TSSetExactFinalTime()
+.seealso: TSGetConvergedReason(), TSSetExactFinalTime(), TSGetExactFinalTime()
 
 E*/
 typedef enum {TS_EXACTFINALTIME_UNSPECIFIED=0,TS_EXACTFINALTIME_STEPOVER=1,TS_EXACTFINALTIME_INTERPOLATE=2,TS_EXACTFINALTIME_MATCHSTEP=3} TSExactFinalTimeOption;
 PETSC_EXTERN const char *const TSExactFinalTimeOptions[];
-
 
 /* Logging support */
 PETSC_EXTERN PetscClassId TS_CLASSID;
@@ -299,6 +298,7 @@ PETSC_EXTERN PetscErrorCode TSSetCostGradients(TS,PetscInt,Vec*,Vec*);
 PETSC_EXTERN PetscErrorCode TSGetCostGradients(TS,PetscInt*,Vec**,Vec**);
 PETSC_EXTERN PetscErrorCode TSSetCostIntegrand(TS,PetscInt,Vec,PetscErrorCode (*)(TS,PetscReal,Vec,Vec,void*),PetscErrorCode (*)(TS,PetscReal,Vec,Vec*,void*),PetscErrorCode (*)(TS,PetscReal,Vec,Vec*,void*),PetscBool,void*);
 PETSC_EXTERN PetscErrorCode TSGetCostIntegral(TS,Vec*);
+PETSC_EXTERN PetscErrorCode TSComputeCostIntegrand(TS,PetscReal,Vec,Vec);
 
 PETSC_EXTERN PetscErrorCode TSAdjointSetRHSJacobian(TS,Mat,PetscErrorCode(*)(TS,PetscReal,Vec,Mat,void*),void*);
 PETSC_EXTERN PetscErrorCode TSAdjointSolve(TS);
@@ -309,13 +309,30 @@ PETSC_EXTERN PetscErrorCode TSAdjointStep(TS);
 PETSC_EXTERN PetscErrorCode TSAdjointSetUp(TS);
 PETSC_EXTERN PetscErrorCode TSAdjointComputeDRDPFunction(TS,PetscReal,Vec,Vec*);
 PETSC_EXTERN PetscErrorCode TSAdjointComputeDRDYFunction(TS,PetscReal,Vec,Vec*);
-PETSC_EXTERN PetscErrorCode TSAdjointComputeCostIntegrand(TS,PetscReal,Vec,Vec);
 PETSC_EXTERN PetscErrorCode TSAdjointCostIntegral(TS);
-PETSC_EXTERN PetscErrorCode TSForwardCostIntegral(TS);
 
-PETSC_EXTERN PetscErrorCode TSSetDuration(TS,PetscInt,PetscReal);
-PETSC_EXTERN PetscErrorCode TSGetDuration(TS,PetscInt*,PetscReal*);
+PETSC_EXTERN PetscErrorCode TSForwardSetSensitivities(TS,PetscInt,Vec*,PetscInt,Vec*);
+PETSC_EXTERN PetscErrorCode TSForwardGetSensitivities(TS,PetscInt*,Vec**,PetscInt*,Vec**);
+PETSC_EXTERN PetscErrorCode TSForwardSetIntegralGradients(TS,PetscInt,Vec *,Vec *);
+PETSC_EXTERN PetscErrorCode TSForwardGetIntegralGradients(TS,PetscInt*,Vec **,Vec **);
+PETSC_EXTERN PetscErrorCode TSForwardSetRHSJacobianP(TS,Vec*,PetscErrorCode(*)(TS,PetscReal,Vec,Vec*,void*),void*);
+PETSC_EXTERN PetscErrorCode TSForwardComputeRHSJacobianP(TS,PetscReal,Vec,Vec*);
+PETSC_EXTERN PetscErrorCode TSForwardSetUp(TS);
+PETSC_EXTERN PetscErrorCode TSForwardCostIntegral(TS);
+PETSC_EXTERN PetscErrorCode TSForwardStep(TS);
+
+PETSC_EXTERN PetscErrorCode TSSetMaxSteps(TS,PetscInt);
+PETSC_EXTERN PetscErrorCode TSGetMaxSteps(TS,PetscInt*);
+PETSC_EXTERN PetscErrorCode TSSetMaxTime(TS,PetscReal);
+PETSC_EXTERN PetscErrorCode TSGetMaxTime(TS,PetscReal*);
 PETSC_EXTERN PetscErrorCode TSSetExactFinalTime(TS,TSExactFinalTimeOption);
+PETSC_EXTERN PetscErrorCode TSGetExactFinalTime(TS,TSExactFinalTimeOption*);
+
+PETSC_EXTERN PETSC_DEPRECATED("Use TSSetTime[Step]")      PetscErrorCode TSSetInitialTimeStep(TS,PetscReal,PetscReal);
+PETSC_EXTERN PETSC_DEPRECATED("Use TSSetMax{Steps|Time}") PetscErrorCode TSSetDuration(TS,PetscInt,PetscReal);
+PETSC_EXTERN PETSC_DEPRECATED("Use TSGetMax{Steps|Time}") PetscErrorCode TSGetDuration(TS,PetscInt*,PetscReal*);
+PETSC_EXTERN PETSC_DEPRECATED("Use TSGetStepNumber")      PetscErrorCode TSGetTimeStepNumber(TS,PetscInt*);
+PETSC_EXTERN PETSC_DEPRECATED("Use TSGetStepNumber")      PetscErrorCode TSGetTotalSteps(TS,PetscInt*);
 
 PETSC_EXTERN PetscErrorCode TSMonitorDefault(TS,PetscInt,PetscReal,Vec,PetscViewerAndFormat*);
 
@@ -350,17 +367,16 @@ PETSC_EXTERN PetscErrorCode TSGetSNESFailures(TS,PetscInt*);
 PETSC_EXTERN PetscErrorCode TSSetMaxSNESFailures(TS,PetscInt);
 PETSC_EXTERN PetscErrorCode TSSetErrorIfStepFails(TS,PetscBool);
 PETSC_EXTERN PetscErrorCode TSRollBack(TS);
-PETSC_EXTERN PetscErrorCode TSGetTotalSteps(TS,PetscInt*);
 
 PETSC_EXTERN PetscErrorCode TSGetStages(TS,PetscInt*,Vec**);
 
-PETSC_EXTERN PetscErrorCode TSSetInitialTimeStep(TS,PetscReal,PetscReal);
-PETSC_EXTERN PetscErrorCode TSGetTimeStep(TS,PetscReal*);
 PETSC_EXTERN PetscErrorCode TSGetTime(TS,PetscReal*);
 PETSC_EXTERN PetscErrorCode TSSetTime(TS,PetscReal);
-PETSC_EXTERN PetscErrorCode TSGetTimeStepNumber(TS,PetscInt*);
-PETSC_EXTERN PetscErrorCode TSSetTimeStep(TS,PetscReal);
 PETSC_EXTERN PetscErrorCode TSGetPrevTime(TS,PetscReal*);
+PETSC_EXTERN PetscErrorCode TSGetTimeStep(TS,PetscReal*);
+PETSC_EXTERN PetscErrorCode TSSetTimeStep(TS,PetscReal);
+PETSC_EXTERN PetscErrorCode TSGetStepNumber(TS,PetscInt*);
+PETSC_EXTERN PetscErrorCode TSSetStepNumber(TS,PetscInt);
 
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSRHSFunction)(TS,PetscReal,Vec,Vec,void*);
 PETSC_EXTERN_TYPEDEF typedef PetscErrorCode (*TSRHSJacobian)(TS,PetscReal,Vec,Mat,Mat,void*);
@@ -495,7 +511,6 @@ typedef struct {
 PETSC_EXTERN PetscErrorCode TSMonitorDMDARayDestroy(void**);
 PETSC_EXTERN PetscErrorCode TSMonitorDMDARay(TS,PetscInt,PetscReal,Vec,void*);
 PETSC_EXTERN PetscErrorCode TSMonitorLGDMDARay(TS,PetscInt,PetscReal,Vec,void*);
-
 
 /* Dynamic creation and loading functions */
 PETSC_EXTERN PetscFunctionList TSList;

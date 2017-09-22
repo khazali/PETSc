@@ -49,6 +49,8 @@ struct _TSOps {
   PetscErrorCode (*adjointstep)(TS);
   PetscErrorCode (*adjointsetup)(TS);
   PetscErrorCode (*adjointintegral)(TS);
+  PetscErrorCode (*forwardsetup)(TS);
+  PetscErrorCode (*forwardstep)(TS);
   PetscErrorCode (*forwardintegral)(TS);
   PetscErrorCode (*getsolutioncomponents)(TS,PetscInt*,Vec*);
   PetscErrorCode (*getauxsolution)(TS,Vec*);
@@ -122,6 +124,7 @@ struct _p_TS {
   PetscInt  numcost;                /* number of cost functions */
   Vec       vec_costintegral;
   PetscInt  adjointsetupcalled;
+  PetscInt  adjoint_steps;
   PetscInt  adjoint_max_steps;
   PetscBool adjoint_solve;          /* immediately call TSAdjointSolve() after TSSolve() is complete */
   PetscBool costintegralfwd;        /* cost integral is evaluated in the forward run if true */
@@ -136,6 +139,18 @@ struct _p_TS {
   PetscErrorCode (*costintegrand)(TS,PetscReal,Vec,Vec,void*);
   PetscErrorCode (*drdyfunction)(TS,PetscReal,Vec,Vec*,void*);
   PetscErrorCode (*drdpfunction)(TS,PetscReal,Vec,Vec*,void*);
+
+  /* specific to forward sensitivity analysis */
+  Vec       *vecs_fwdsensipacked;    /* packed vector array for forward sensitivitis */
+  Vec       *vecs_integral_sensi;    /* one vector for each integral */
+  Vec       *vecs_integral_sensip;   /* one vector for each integral */
+  PetscInt  num_parameters;
+  PetscInt  num_initialvalues;
+  Vec       *vecs_jacp;
+  void      *vecsrhsjacobianpctx;
+  PetscInt  forwardsetupcalled;
+  PetscBool forward_solve;
+  PetscErrorCode (*vecsrhsjacobianp)(TS,PetscReal,Vec,Vec*,void*);
 
   /* ---------------------- IMEX support ---------------------------------*/
   /* These extra slots are only used when the user provides both Implicit and RHS */
@@ -183,8 +198,7 @@ struct _p_TS {
 
   PetscBool steprollback;           /* flag to indicate that the step was rolled back */
   PetscBool steprestart;            /* flag to indicate that the timestepper has to discard any history and restart */
-  PetscInt  steps;                  /* steps taken so far in latest call to TSSolve() */
-  PetscInt  total_steps;            /* steps taken in all calls to TSSolve() since the TS was created or since TSSetUp() was called */
+  PetscInt  steps;                  /* steps taken so far in all successive calls to TSSolve() */
   PetscReal ptime;                  /* time at the start of the current step (stage time is internal if it exists) */
   PetscReal time_step;              /* current time increment */
   PetscReal ptime_prev;             /* time at the start of the previous step */
@@ -337,7 +351,7 @@ PETSC_EXTERN PetscErrorCode TSEventDestroy(TSEvent*);
 PETSC_EXTERN PetscErrorCode TSEventHandler(TS);
 PETSC_EXTERN PetscErrorCode TSAdjointEventHandler(TS);
 
-PETSC_EXTERN PetscLogEvent TS_AdjointStep, TS_Step, TS_PseudoComputeTimeStep, TS_FunctionEval, TS_JacobianEval;
+PETSC_EXTERN PetscLogEvent TS_AdjointStep, TS_Step, TS_PseudoComputeTimeStep, TS_FunctionEval, TS_JacobianEval, TS_ForwardStep;
 
 typedef enum {TS_STEP_INCOMPLETE, /* vec_sol, ptime, etc point to beginning of step */
               TS_STEP_PENDING,    /* vec_sol advanced, but step has not been accepted yet */
@@ -346,6 +360,7 @@ typedef enum {TS_STEP_INCOMPLETE, /* vec_sol, ptime, etc point to beginning of s
 
 struct _n_TSMonitorLGCtx {
   PetscDrawLG    lg;
+  PetscBool      semilogy;
   PetscInt       howoften;  /* when > 0 uses step % howoften, when negative only final solution plotted */
   PetscInt       ksp_its,snes_its;
   char           **names;

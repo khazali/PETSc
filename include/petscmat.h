@@ -48,6 +48,9 @@ typedef const char* MatType;
 #define MATAIJPERM         "aijperm"
 #define MATSEQAIJPERM      "seqaijperm"
 #define MATMPIAIJPERM      "mpiaijperm"
+#define MATAIJMKL          "aijmkl"
+#define MATSEQAIJMKL       "seqaijmkl"
+#define MATMPIAIJMKL       "mpiaijmkl"
 #define MATSHELL           "shell"
 #define MATDENSE           "dense"
 #define MATSEQDENSE        "seqdense"
@@ -367,6 +370,9 @@ PETSC_EXTERN PetscErrorCode MatSeqAIJGetArray(Mat,PetscScalar *[]);
 PETSC_EXTERN PetscErrorCode MatSeqAIJRestoreArray(Mat,PetscScalar *[]);
 PETSC_EXTERN PetscErrorCode MatSeqAIJGetMaxRowNonzeros(Mat,PetscInt*);
 PETSC_EXTERN PetscErrorCode MatSeqAIJSetValuesLocalFast(Mat,PetscInt,const PetscInt[],PetscInt,const PetscInt[],const PetscScalar[],InsertMode);
+PETSC_EXTERN PetscErrorCode MatSeqAIJSetType(Mat,MatType);
+PETSC_EXTERN PetscErrorCode MatSeqAIJRegister(const char[],PetscErrorCode (*)(Mat,const MatType,MatReuse,Mat *));
+PETSC_EXTERN PetscFunctionList MatSeqAIJList;
 PETSC_EXTERN PetscErrorCode MatSeqSBAIJGetArray(Mat,PetscScalar *[]);
 PETSC_EXTERN PetscErrorCode MatSeqSBAIJRestoreArray(Mat,PetscScalar *[]);
 PETSC_EXTERN PetscErrorCode MatDenseGetArray(Mat,PetscScalar *[]);
@@ -402,9 +408,17 @@ PETSC_EXTERN PetscErrorCode MatResidual(Mat,Vec,Vec,Vec);
 
    Any additions/changes here MUST also be made in include/petsc/finclude/petscmat.h
 
-$   MAT_SHARE_NONZERO_PATTERN - the i and j arrays in the new matrix will be shared with the original matrix
-$                               this also triggers the MAT_DO_NOT_COPY_VALUES option. This is used when you
-$                               have several matrices with the same nonzero pattern.
+$   MAT_DO_NOT_COPY_VALUES    - Create a matrix using the same nonzero pattern as the original matrix, 
+$                               with zeros for the numerical values.
+$   MAT_COPY_VALUES           - Create a matrix with the same nonzero pattern as the original matrix 
+$                               and with the same numerical values.
+$   MAT_SHARE_NONZERO_PATTERN - Create a matrix that shares the nonzero structure with the previous matrix
+$                               and does not copy it, using zeros for the numerical values. The parent and 
+$                               child matrices will share their index (i and j) arrays, and you cannot 
+$                               insert new nonzero entries into either matrix.
+
+Notes: Many matrix types (including SeqAIJ) do not support the MAT_SHARE_NONZERO_PATTERN optimization; in 
+this case the behavior is as if MAT_DO_NOT_COPY_VALUES has been specified.
 
 .seealso: MatDuplicate()
 E*/
@@ -644,7 +658,7 @@ M*/
 #define MatPreallocateInitialize(comm,nrows,ncols,dnz,onz) 0; \
 { \
   PetscErrorCode _4_ierr; PetscInt __nrows = (nrows),__ctmp = (ncols),__rstart,__start,__end; \
-  _4_ierr = PetscCalloc2(__nrows,&dnz,__nrows,&onz);CHKERRQ(_4_ierr); \
+  _4_ierr = PetscCalloc2((size_t)__nrows,&dnz,(size_t)__nrows,&onz);CHKERRQ(_4_ierr); \
   __start = 0; __end = __start;                                         \
   _4_ierr = MPI_Scan(&__ctmp,&__end,1,MPIU_INT,MPI_SUM,comm);CHKERRQ(_4_ierr); __start = __end - __ctmp;\
   _4_ierr = MPI_Scan(&__nrows,&__rstart,1,MPIU_INT,MPI_SUM,comm);CHKERRQ(_4_ierr); __rstart = __rstart - __nrows;
@@ -1454,7 +1468,7 @@ typedef enum { MATOP_SET_VALUES=0,
                MATOP_IS_HERMITIAN=85,
                MATOP_IS_STRUCTURALLY_SYMMETRIC=86,
                MATOP_SET_VALUES_BLOCKEDLOCAL=87,
-               MATOP_GET_VECS=88,
+               MATOP_CREATE_VECS=88,
                MATOP_MAT_MULT=89,
                MATOP_MAT_MULT_SYMBOLIC=90,
                MATOP_MAT_MULT_NUMERIC=91,
@@ -1494,7 +1508,7 @@ typedef enum { MATOP_SET_VALUES=0,
                MATOP_GET_COLUMN_NORMS=125,
                MATOP_INVERT_BLOCK_DIAGONAL=126,
                /* MATOP_PLACEHOLDER_127=127, */
-               MATOP_GET_SUB_MATRICES_PARALLE=128,
+               MATOP_CREATE_SUB_MATRICES_MPI=128,
                MATOP_SET_VALUES_BATCH=129,
                MATOP_TRANSPOSE_MAT_MULT=130,
                MATOP_TRANSPOSE_MAT_MULT_SYMBO=131,
@@ -1509,7 +1523,8 @@ typedef enum { MATOP_SET_VALUES=0,
                MATOP_AYPX=140,
                MATOP_RESIDUAL=141,
                MATOP_FDCOLORING_SETUP=142,
-               MATOP_MPICONCATENATESEQ=144
+               MATOP_MPICONCATENATESEQ=144,
+               MATOP_DESTROYSUBMATRICES=145
              } MatOperation;
 PETSC_EXTERN PetscErrorCode MatHasOperation(Mat,MatOperation,PetscBool *);
 PETSC_EXTERN PetscErrorCode MatShellSetOperation(Mat,MatOperation,void(*)(void));

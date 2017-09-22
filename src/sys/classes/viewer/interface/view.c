@@ -5,7 +5,7 @@ PetscClassId PETSC_VIEWER_CLASSID;
 
 static PetscBool PetscViewerPackageInitialized = PETSC_FALSE;
 /*@C
-  PetscViewerFinalizePackage - This function destroys everything in the Petsc interface to Mathematica. It is
+  PetscViewerFinalizePackage - This function destroys any global objects created in the Petsc viewers. It is
   called from PetscFinalize().
 
   Level: developer
@@ -18,6 +18,31 @@ PetscErrorCode  PetscViewerFinalizePackage(void)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (Petsc_Viewer_keyval != MPI_KEYVAL_INVALID) {
+    ierr = MPI_Keyval_free(&Petsc_Viewer_keyval);CHKERRQ(ierr);
+  }
+  if (Petsc_Viewer_Stdout_keyval != MPI_KEYVAL_INVALID) {
+    ierr = MPI_Keyval_free(&Petsc_Viewer_Stdout_keyval);CHKERRQ(ierr);
+  }
+  if (Petsc_Viewer_Stderr_keyval != MPI_KEYVAL_INVALID) {
+    ierr = MPI_Keyval_free(&Petsc_Viewer_Stderr_keyval);CHKERRQ(ierr);
+  }
+  if (Petsc_Viewer_Binary_keyval != MPI_KEYVAL_INVALID) {
+    ierr = MPI_Keyval_free(&Petsc_Viewer_Binary_keyval);CHKERRQ(ierr);
+  }
+  if (Petsc_Viewer_Draw_keyval != MPI_KEYVAL_INVALID) {
+    ierr = MPI_Keyval_free(&Petsc_Viewer_Draw_keyval);CHKERRQ(ierr);
+  }
+#if defined(PETSC_HAVE_HDF5)
+  if (Petsc_Viewer_HDF5_keyval != MPI_KEYVAL_INVALID) {
+    ierr = MPI_Keyval_free(&Petsc_Viewer_HDF5_keyval);CHKERRQ(ierr);
+  }
+#endif
+#if defined(PETSC_USE_SOCKETVIEWER)
+  if (Petsc_Viewer_Socket_keyval != MPI_KEYVAL_INVALID) {
+    ierr = MPI_Keyval_free(&Petsc_Viewer_Socket_keyval);CHKERRQ(ierr);
+  }
+#endif
   ierr = PetscFunctionListDestroy(&PetscViewerList);CHKERRQ(ierr);
   PetscViewerPackageInitialized = PETSC_FALSE;
   PetscViewerRegisterAllCalled  = PETSC_FALSE;
@@ -404,6 +429,10 @@ PetscErrorCode  PetscViewerView(PetscViewer v,PetscViewer viewer)
    Output Parameters:
 .  count - number of items of data actually read, or NULL
 
+   Notes:
+   If datatype is PETSC_STRING and num is negative, reads until a newline character is found,
+   until a maximum of (-num - 1) chars.
+
    Level: beginner
 
    Concepts: binary files, ascii files
@@ -421,16 +450,25 @@ PetscErrorCode  PetscViewerRead(PetscViewer viewer, void *data, PetscInt num, Pe
   if (dtype == PETSC_STRING) {
     PetscInt c, i = 0, cnt;
     char *s = (char *)data;
-    for (c = 0; c < num; c++) {
-      /* Skip leading whitespaces */
-      do {ierr = (*viewer->ops->read)(viewer, &(s[i]), 1, &cnt, PETSC_CHAR);CHKERRQ(ierr); if (count && !cnt) break;}
-      while (s[i]=='\n' || s[i]=='\t' || s[i]==' ' || s[i]=='\0' || s[i]=='\v' || s[i]=='\f' || s[i]=='\r');
-      i++;
-      /* Read strings one char at a time */
-      do {ierr = (*viewer->ops->read)(viewer, &(s[i++]), 1, &cnt, PETSC_CHAR);CHKERRQ(ierr); if (count && !cnt) break;}
-      while (s[i-1]!='\n' && s[i-1]!='\t' && s[i-1]!=' ' && s[i-1]!='\0' && s[i-1]!='\v' && s[i-1]!='\f' && s[i-1]!='\r');
+    if (num >= 0) {
+      for (c = 0; c < num; c++) {
+        /* Skip leading whitespaces */
+        do {ierr = (*viewer->ops->read)(viewer, &(s[i]), 1, &cnt, PETSC_CHAR);CHKERRQ(ierr); if (count && !cnt) break;}
+        while (s[i]=='\n' || s[i]=='\t' || s[i]==' ' || s[i]=='\0' || s[i]=='\v' || s[i]=='\f' || s[i]=='\r');
+        i++;
+        /* Read strings one char at a time */
+        do {ierr = (*viewer->ops->read)(viewer, &(s[i++]), 1, &cnt, PETSC_CHAR);CHKERRQ(ierr); if (count && !cnt) break;}
+        while (s[i-1]!='\n' && s[i-1]!='\t' && s[i-1]!=' ' && s[i-1]!='\0' && s[i-1]!='\v' && s[i-1]!='\f' && s[i-1]!='\r');
+        /* Terminate final string */
+        if (c == num-1) s[i-1] = '\0';
+      }
+    } else {
+      /* Read until a \n is encountered (-num is the max size allowed) */
+      do {ierr = (*viewer->ops->read)(viewer, &(s[i++]), 1, &cnt, PETSC_CHAR);CHKERRQ(ierr); if (i == -num && !cnt) break;}
+      while (s[i-1]!='\n');
       /* Terminate final string */
-      if (c == num-1) s[i-1] = '\0';
+      s[i-1] = '\0';
+      c      = i;
     }
     if (count) *count = c;
     else if (c < num) SETERRQ2(PetscObjectComm((PetscObject) viewer), PETSC_ERR_FILE_READ, "Insufficient data, only read %D < %D strings", c, num);

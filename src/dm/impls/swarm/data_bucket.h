@@ -1,12 +1,9 @@
-
 #ifndef __DATA_BUCKET_H__
 #define __DATA_BUCKET_H__
 
-
-#include <petsc.h>
 #include <petsc/private/dmswarmimpl.h>    /*I   "petscdmswarm.h"   I*/
 
-
+#define DATA_BUCKET_BUFFER_DEFAULT -1
 #define DATAFIELD_POINT_ACCESS_GUARD
 
 /* Logging flag */

@@ -19,7 +19,7 @@
 #echo "(4) Latest version of win32fe.exe is copied over into /sandbox/petsc/petsc-dist on login.mcs"
 #echo "(5) Update update-docs.py with additional docs on the petsc web page (for eg new changes file)"
 #echo "(6) Update version info on all petsc web pages"
-#echo "(7) tag the new release with 'hg' and make a new clone for the release"
+#echo "(7) tag the new release with git and make a new clone for the release"
 #echo "(8) got the users manual CLEARED by ANL publications for release"
 
 # If version specified on the commandline, set the version
@@ -94,7 +94,7 @@ version_date=`date +"%b, %d, %Y"`
 version_git=`git describe --match "v*"`
 version_date_git=`git log -1 --pretty=format:%ci`
 if [ ${version}foo = foo ]; then
-  if  [ ${version_release} = 0 -o ${version_release} = -2 ]; then
+  if  [ ${version_release} = 0 -o ${version_release} = -2 -o ${version_release} = -3 -o ${version_release} = -4 -o ${version_release} = -5 ]; then
     version=-`echo ${branch} | sed s~/~-~g`
   elif [ ${version_release} = 1 ]; then
     version=-${version_major}.${version_minor}.${version_subminor}

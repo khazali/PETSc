@@ -58,18 +58,21 @@ typedef struct {
   PetscReal     p_wall;            /* The wall pressure */
 } AppCtx;
 
+#if 0
 PETSC_STATIC_INLINE void Det2D(PetscReal *detJ, const PetscReal J[])
 {
   *detJ = J[0]*J[3] - J[1]*J[2];
 }
+#endif
 
-PETSC_STATIC_INLINE void Det3D(PetscReal *detJ, const PetscReal J[])
+PETSC_STATIC_INLINE void Det3D(PetscReal *detJ, const PetscScalar J[])
 {
-  *detJ = (J[0*3+0]*(J[1*3+1]*J[2*3+2] - J[1*3+2]*J[2*3+1]) +
-           J[0*3+1]*(J[1*3+2]*J[2*3+0] - J[1*3+0]*J[2*3+2]) +
-           J[0*3+2]*(J[1*3+0]*J[2*3+1] - J[1*3+1]*J[2*3+0]));
+  *detJ = PetscRealPart(J[0*3+0]*(J[1*3+1]*J[2*3+2] - J[1*3+2]*J[2*3+1]) +
+                        J[0*3+1]*(J[1*3+2]*J[2*3+0] - J[1*3+0]*J[2*3+2]) +
+                        J[0*3+2]*(J[1*3+0]*J[2*3+1] - J[1*3+1]*J[2*3+0]));
 }
 
+#if 0
 PETSC_STATIC_INLINE void Cof2D(PetscReal C[], const PetscReal A[])
 {
   C[0] =  A[3];
@@ -77,18 +80,19 @@ PETSC_STATIC_INLINE void Cof2D(PetscReal C[], const PetscReal A[])
   C[2] = -A[1];
   C[3] =  A[0];
 }
+#endif
 
-PETSC_STATIC_INLINE void Cof3D(PetscReal C[], const PetscReal A[])
+PETSC_STATIC_INLINE void Cof3D(PetscReal C[], const PetscScalar A[])
 {
-  C[0*3+0] = A[1*3+1]*A[2*3+2] - A[1*3+2]*A[2*3+1];
-  C[0*3+1] = A[1*3+2]*A[2*3+0] - A[1*3+0]*A[2*3+2];
-  C[0*3+2] = A[1*3+0]*A[2*3+1] - A[1*3+1]*A[2*3+0];
-  C[1*3+0] = A[0*3+2]*A[2*3+1] - A[0*3+1]*A[2*3+2];
-  C[1*3+1] = A[0*3+0]*A[2*3+2] - A[0*3+2]*A[2*3+0];
-  C[1*3+2] = A[0*3+1]*A[2*3+0] - A[0*3+0]*A[2*3+1];
-  C[2*3+0] = A[0*3+1]*A[1*3+2] - A[0*3+2]*A[1*3+1];
-  C[2*3+1] = A[0*3+2]*A[1*3+0] - A[0*3+0]*A[1*3+2];
-  C[2*3+2] = A[0*3+0]*A[1*3+1] - A[0*3+1]*A[1*3+0];
+  C[0*3+0] = PetscRealPart(A[1*3+1]*A[2*3+2] - A[1*3+2]*A[2*3+1]);
+  C[0*3+1] = PetscRealPart(A[1*3+2]*A[2*3+0] - A[1*3+0]*A[2*3+2]);
+  C[0*3+2] = PetscRealPart(A[1*3+0]*A[2*3+1] - A[1*3+1]*A[2*3+0]);
+  C[1*3+0] = PetscRealPart(A[0*3+2]*A[2*3+1] - A[0*3+1]*A[2*3+2]);
+  C[1*3+1] = PetscRealPart(A[0*3+0]*A[2*3+2] - A[0*3+2]*A[2*3+0]);
+  C[1*3+2] = PetscRealPart(A[0*3+1]*A[2*3+0] - A[0*3+0]*A[2*3+1]);
+  C[2*3+0] = PetscRealPart(A[0*3+1]*A[1*3+2] - A[0*3+2]*A[1*3+1]);
+  C[2*3+1] = PetscRealPart(A[0*3+2]*A[1*3+0] - A[0*3+0]*A[1*3+2]);
+  C[2*3+2] = PetscRealPart(A[0*3+0]*A[1*3+1] - A[0*3+1]*A[1*3+0]);
 }
 
 PetscErrorCode zero_scalar(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
@@ -135,15 +139,15 @@ void f1_u_3d(PetscInt dim, PetscInt Nf, PetscInt NfAux,
           PetscReal t, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar f1[])
 {
   const PetscInt  Ncomp = dim;
-  const PetscReal mu = a[0], kappa = 3.0;
-  PetscReal       cofu_x[Ncomp*dim], detu_x, p = u[Ncomp];
+  const PetscReal mu = PetscRealPart(a[0]), kappa = 3.0;
+  PetscReal       cofu_x[9/*Ncomp*dim*/], detu_x, p = PetscRealPart(u[Ncomp]);
+  PetscInt        comp, d;
 
   Cof3D(cofu_x, u_x);
   Det3D(&detu_x, u_x);
   p += kappa * (detu_x - 1.0);
 
   /* f1 is the first Piola-Kirchhoff tensor */
-  PetscInt comp, d;
   for (comp = 0; comp < Ncomp; ++comp) {
     for (d = 0; d < dim; ++d) {
       f1[comp*dim+d] = mu * u_x[comp*dim+d] + p * cofu_x[comp*dim+d];
@@ -157,8 +161,9 @@ void g3_uu_3d(PetscInt dim, PetscInt Nf, PetscInt NfAux,
           PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar g3[])
 {
   const PetscInt  Ncomp = dim;
-  const PetscReal mu = a[0], kappa = 3.0;
-  PetscReal       cofu_x[Ncomp*dim], detu_x, pp, pm, p = u[Ncomp];
+  const PetscReal mu = PetscRealPart(a[0]), kappa = 3.0;
+  PetscReal       cofu_x[9/*Ncomp*dim*/], detu_x, pp, pm, p = PetscRealPart(u[Ncomp]);
+  PetscInt        compI, compJ, d1, d2;
 
   Cof3D(cofu_x, u_x);
   Det3D(&detu_x, u_x);
@@ -167,7 +172,6 @@ void g3_uu_3d(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   pm = p/detu_x;
 
   /* g3 is the first elasticity tensor, i.e. A_i^I_j^J = S^{IJ} g_{ij} + C^{KILJ} F^k_K F^l_L g_{kj} g_{li} */
-  PetscInt compI, compJ, d1, d2;
   for (compI = 0; compI < Ncomp; ++compI) {
     for (compJ = 0; compJ < Ncomp; ++compJ) {
       const PetscReal G = (compI == compJ) ? 1.0 : 0.0;
@@ -190,7 +194,7 @@ void f0_bd_u_3d(PetscInt dim, PetscInt Nf, PetscInt NfAux,
 {
   const PetscInt    Ncomp = dim;
   const PetscScalar p = a[aOff[1]];
-  PetscReal         cofu_x[Ncomp*dim];
+  PetscReal         cofu_x[9/*Ncomp*dim*/];
   PetscInt          comp, d;
 
   Cof3D(cofu_x, u_x);
@@ -207,13 +211,13 @@ void g1_bd_uu_3d(PetscInt dim, PetscInt Nf, PetscInt NfAux,
 {
   const PetscInt Ncomp = dim;
   PetscScalar    p = a[aOff[1]];
-  PetscReal      cofu_x[Ncomp*dim], m[Ncomp], detu_x;
+  PetscReal      cofu_x[9/*Ncomp*dim*/], m[3/*Ncomp*/], detu_x;
+  PetscInt       comp, compI, compJ, d;
 
   Cof3D(cofu_x, u_x);
   Det3D(&detu_x, u_x);
   p /= detu_x;
 
-  PetscInt comp, compI, compJ, d;
   for (comp = 0; comp < Ncomp; ++comp) for (d = 0, m[comp] = 0.0; d < dim; ++d) m[comp] += cofu_x[comp*dim+d] * n[d];
   for (compI = 0; compI < Ncomp; ++compI) {
     for (compJ = 0; compJ < Ncomp; ++compJ) {
@@ -239,15 +243,25 @@ void g1_pu_3d(PetscInt dim, PetscInt Nf, PetscInt NfAux,
            const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
            PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar g1[])
 {
-  Cof3D(g1, u_x);
+  PetscReal cofu_x[9/*Ncomp*dim*/];
+  PetscInt  compI, d;
+
+  Cof3D(cofu_x, u_x);
+  for (compI = 0; compI < dim; ++compI)
+    for (d = 0; d < dim; ++d) g1[compI*dim+d] = cofu_x[compI*dim+d];
 }
 
 void g2_up_3d(PetscInt dim, PetscInt Nf, PetscInt NfAux,
-           const PetscInt uOff[], const PetscInt uOff_x[], const PetscReal u[], const PetscReal u_t[], const PetscReal u_x[],
-           const PetscInt aOff[], const PetscInt aOff_x[], const PetscReal a[], const PetscReal a_t[], const PetscReal a_x[],
-           PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscReal g2[])
+           const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+           const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+           PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar g2[])
 {
-  Cof3D(g2, u_x);
+  PetscReal cofu_x[9/*Ncomp*dim*/];
+  PetscInt  compI, d;
+
+  Cof3D(cofu_x, u_x);
+  for (compI = 0; compI < dim; ++compI)
+    for (d = 0; d < dim; ++d) g2[compI*dim+d] = cofu_x[compI*dim+d];
 }
 
 PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
@@ -334,7 +348,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     PetscInt        d, dim = user->dim, b, f, Nf;
     const PetscInt *faces;
     PetscInt        csize;
-    PetscReal      *coords = NULL;
+    PetscScalar    *coords = NULL;
     PetscSection    cs;
     Vec             coordinates ;
 
@@ -343,23 +357,24 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     ierr = DMPlexMarkBoundaryFaces(*dm, label);CHKERRQ(ierr);
     ierr = DMGetStratumIS(*dm, "boundary", 1,  &is);CHKERRQ(ierr);
     if (is) {
+      PetscReal faceCoord;
+      PetscInt  v;
+
       ierr = ISGetLocalSize(is, &Nf);CHKERRQ(ierr);
       ierr = ISGetIndices(is, &faces);CHKERRQ(ierr);
 
       ierr = DMGetCoordinatesLocal(*dm, &coordinates);CHKERRQ(ierr);
       ierr = DMGetCoordinateDM(*dm, &cdm);CHKERRQ(ierr);
-      ierr = DMGetDefaultSection(cdm, &cs);
+      ierr = DMGetDefaultSection(cdm, &cs);CHKERRQ(ierr);
 
       /* Check for each boundary face if any component of its centroid is either 0.0 or 1.0 */
-      PetscReal faceCoord;
-      PetscInt  v;
       for (f = 0; f < Nf; ++f) {
-        ierr = DMPlexVecGetClosure(cdm, cs, coordinates, faces[f], &csize, &coords);
+        ierr = DMPlexVecGetClosure(cdm, cs, coordinates, faces[f], &csize, &coords);CHKERRQ(ierr);
         /* Calculate mean coordinate vector */
-        const PetscInt Nv = csize/dim;
         for (d = 0; d < dim; ++d) {
+          const PetscInt Nv = csize/dim;
           faceCoord = 0.0;
-          for (v = 0; v < Nv; ++v) faceCoord += coords[v*dim+d];
+          for (v = 0; v < Nv; ++v) faceCoord += PetscRealPart(coords[v*dim+d]);
           faceCoord /= Nv;
           for (b = 0; b < 2; ++b) {
             if (PetscAbs(faceCoord - b*1.0) < PETSC_SMALL) {
@@ -367,7 +382,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
             }
           }
         }
-        ierr = DMPlexVecRestoreClosure(cdm, cs, coordinates, faces[f], &csize, &coords);
+        ierr = DMPlexVecRestoreClosure(cdm, cs, coordinates, faces[f], &csize, &coords);CHKERRQ(ierr);
       }
       ierr = ISRestoreIndices(is, &faces);CHKERRQ(ierr);
     }
@@ -398,6 +413,8 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
       PetscInt         triPoints_ref_n3[16] = {1, 7, 10, 14, 15, 2, 6, 8, 11, 12, 13, 0, 3, 4, 5, 9};
       PetscInt         triSizes_ref_n5[5]   = {3, 4, 3, 3, 3};
       PetscInt         triPoints_ref_n5[16] = {1, 7, 10, 2, 11, 13, 14, 5, 6, 15, 0, 8, 9, 3, 4, 12};
+      PetscInt         tetSizes_n2[2]       = {3, 3};
+      PetscInt         tetPoints_n2[6]      = {1, 2, 3, 0, 4, 5};
       const PetscInt  *sizes = NULL;
       const PetscInt  *points = NULL;
       PetscPartitioner part;
@@ -420,6 +437,8 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
           sizes = triSizes_ref_n3; points = triPoints_ref_n3;
         } else if (dim == 2 && user->simplex && size == 5 && cEnd == 16) {
           sizes = triSizes_ref_n5; points = triPoints_ref_n5;
+        } else if (dim == 3 && user->simplex && size == 2 && cEnd == 6) {
+          sizes = tetSizes_n2; points = tetPoints_n2;
         } else SETERRQ(comm, PETSC_ERR_ARG_WRONG, "No stored partition matching run parameters");
       }
       ierr = DMPlexGetPartitioner(*dm, &part);CHKERRQ(ierr);
@@ -454,7 +473,7 @@ PetscErrorCode SetupProblem(PetscDS prob, PetscInt dim, AppCtx *user)
   ierr = PetscDSSetBdResidual(prob, 0, f0_bd_u_3d, NULL);CHKERRQ(ierr);
   ierr = PetscDSSetBdJacobian(prob, 0, 0, NULL, g1_bd_uu_3d, NULL, NULL);CHKERRQ(ierr);
 
-  ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL, "fixed", "Faces", 0, 0, NULL, (void (*)()) coordinates, 0, NULL, user);CHKERRQ(ierr);
+  ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL, "fixed", "Faces", 0, 0, NULL, (void (*)(void)) coordinates, 0, NULL, user);CHKERRQ(ierr);
   ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL, "pressure", "Faces", 0, 0, NULL, NULL, 0, NULL, user);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -463,10 +482,11 @@ PetscErrorCode SetupMaterial(DM dm, DM dmAux, AppCtx *user)
 {
   PetscErrorCode (*matFuncs[2])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar u[], void *ctx) = {elasticityMaterial, wallPressure};
   Vec            A;
-  void *ctxs[] = {user, user};
+  void          *ctxs[2];
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ctxs[0] = user; ctxs[1] = user;
   ierr = DMCreateLocalVector(dmAux, &A);CHKERRQ(ierr);
   ierr = DMProjectFunctionLocal(dmAux, 0.0, matFuncs, ctxs, INSERT_ALL_VALUES, A);CHKERRQ(ierr);
   ierr = PetscObjectCompose((PetscObject) dm, "A", (PetscObject) A);CHKERRQ(ierr);
@@ -499,7 +519,7 @@ PetscErrorCode SetupDiscretization(DM dm, AppCtx *user)
   const PetscInt  dim   = user->dim;
   const PetscBool simplex = user->simplex;
   PetscFE         fe[2], feAux[2];
-  PetscQuadrature q;
+  PetscQuadrature q, fq;
   PetscDS         prob, probAux;
   PetscErrorCode  ierr;
 
@@ -508,20 +528,22 @@ PetscErrorCode SetupDiscretization(DM dm, AppCtx *user)
   ierr = PetscFECreateDefault(dm, dim, dim, simplex, "def_", PETSC_DEFAULT, &fe[0]);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe[0], "deformation");CHKERRQ(ierr);
   ierr = PetscFEGetQuadrature(fe[0], &q);CHKERRQ(ierr);
+  ierr = PetscFEGetFaceQuadrature(fe[0], &fq);CHKERRQ(ierr);
   ierr = PetscFECreateDefault(dm, dim, 1, simplex, "pres_", PETSC_DEFAULT, &fe[1]);CHKERRQ(ierr);
   ierr = PetscFESetQuadrature(fe[1], q);CHKERRQ(ierr);
+  ierr = PetscFESetFaceQuadrature(fe[1], fq);CHKERRQ(ierr);
 
   ierr = PetscObjectSetName((PetscObject) fe[1], "pressure");CHKERRQ(ierr);
 
   ierr = PetscFECreateDefault(dm, dim, 1, simplex, "elastMat_", PETSC_DEFAULT, &feAux[0]);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) feAux[0], "elasticityMaterial");CHKERRQ(ierr);
   ierr = PetscFESetQuadrature(feAux[0], q);CHKERRQ(ierr);
-  ierr = PetscFESetFaceQuadrature(feAux[0], q);CHKERRQ(ierr);
+  ierr = PetscFESetFaceQuadrature(feAux[0], fq);CHKERRQ(ierr);
   /* It is not yet possible to define a field on a submesh (e.g. a boundary), so we will use a normal finite element */
   ierr = PetscFECreateDefault(dm, dim, 1, simplex, "wall_pres_", PETSC_DEFAULT, &feAux[1]);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) feAux[1], "wall_pressure");CHKERRQ(ierr);
   ierr = PetscFESetQuadrature(feAux[1], q);CHKERRQ(ierr);
-  ierr = PetscFESetFaceQuadrature(feAux[1], q);CHKERRQ(ierr);
+  ierr = PetscFESetFaceQuadrature(feAux[1], fq);CHKERRQ(ierr);
 
   /* Set discretization and boundary conditions for each mesh */
   ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
@@ -585,8 +607,11 @@ int main(int argc, char **argv)
 
   ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
 
-  PetscErrorCode (*initialGuess[2])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void* ctx) = {coordinates, zero_scalar};
-  ierr = DMProjectFunction(dm, 0.0, initialGuess, NULL, INSERT_VALUES, u);CHKERRQ(ierr);
+  {
+    PetscErrorCode (*initialGuess[2])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void* ctx);
+    initialGuess[0] = coordinates; initialGuess[1] = zero_scalar;
+    ierr = DMProjectFunction(dm, 0.0, initialGuess, NULL, INSERT_VALUES, u);CHKERRQ(ierr);
+  }
   if (user.showInitial) {ierr = DMVecViewLocal(dm, u, PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);}
 
   if (user.runType == RUN_FULL) {
@@ -653,5 +678,13 @@ int main(int argc, char **argv)
     suffix: 0
     requires: ctetgen
     args: -run_type full -dim 3 -dm_refine 3 -interpolate 1 -bc_fixed 1 -bc_pressure 2 -wall_pressure 0.4 -def_petscspace_order 2 -pres_petscspace_order 1 -elastMat_petscspace_order 0 -wall_pres_petscspace_order 0 -snes_rtol 1e-05 -ksp_type fgmres -ksp_rtol 1e-10 -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_factorization_type upper -fieldsplit_deformation_ksp_type preonly -fieldsplit_deformation_pc_type lu -fieldsplit_pressure_ksp_rtol 1e-10 -fieldsplit_pressure_pc_type jacobi -snes_monitor_short -ksp_monitor_short -snes_converged_reason -ksp_converged_reason -show_solution 0
-
+  test:
+    suffix: 1
+    requires: ctetgen superlu_dist
+    nsize: 2
+    args: -run_type full -dim 3 -dm_refine 0 -interpolate 1 -test_partition -bc_fixed 1 -bc_pressure 2 -wall_pressure 0.4 -def_petscspace_order 2 -pres_petscspace_order 1 -elastMat_petscspace_order 0 -wall_pres_petscspace_order 0 -snes_rtol 1e-05 -ksp_type fgmres -ksp_rtol 1e-10 -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_factorization_type upper -fieldsplit_deformation_ksp_type preonly -fieldsplit_deformation_pc_type lu -fieldsplit_pressure_ksp_rtol 1e-10 -fieldsplit_pressure_pc_type jacobi -snes_monitor_short -ksp_monitor_short -snes_converged_reason -ksp_converged_reason -show_solution 0
+  test:
+    suffix: 2
+    requires: ctetgen
+    args: -run_type full -dim 3 -dm_refine 2 -interpolate 1 -bc_fixed 3,4,5,6 -bc_pressure 2 -wall_pressure 1.0 -def_petscspace_order 2 -pres_petscspace_order 1 -elastMat_petscspace_order 0 -wall_pres_petscspace_order 0 -snes_rtol 1e-05 -ksp_type fgmres -ksp_rtol 1e-10 -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_factorization_type upper -fieldsplit_deformation_ksp_type preonly -fieldsplit_deformation_pc_type lu -fieldsplit_pressure_ksp_rtol 1e-10 -fieldsplit_pressure_pc_type jacobi -snes_monitor_short -ksp_monitor_short -snes_converged_reason -ksp_converged_reason -show_solution 0
 TEST*/

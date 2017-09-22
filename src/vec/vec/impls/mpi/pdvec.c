@@ -3,6 +3,8 @@
      Code for some of the parallel vector primatives.
 */
 #include <../src/vec/vec/impls/mpi/pvecimpl.h>   /*I  "petscvec.h"   I*/
+#include <petsc/private/glvisviewerimpl.h>
+#include <petsc/private/glvisvecimpl.h>
 #include <petscviewerhdf5.h>
 
 PetscErrorCode VecDestroy_MPI(Vec v)
@@ -48,8 +50,8 @@ PetscErrorCode VecView_MPI_ASCII(Vec xin,PetscViewer viewer)
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)xin),&rank);CHKERRQ(ierr);
   ierr = MPI_Reduce(&work,&len,1,MPIU_INT,MPI_MAX,0,PetscObjectComm((PetscObject)xin));CHKERRQ(ierr);
   ierr = MPI_Comm_size(PetscObjectComm((PetscObject)xin),&size);CHKERRQ(ierr);
-
   ierr = PetscViewerGetFormat(viewer,&format);CHKERRQ(ierr);
+  if (format == PETSC_VIEWER_ASCII_GLVIS) { rank = 0, len = 0; } /* no parallel distributed write support from GLVis */
   if (!rank) {
     ierr = PetscMalloc1(len,&values);CHKERRQ(ierr);
     /*
@@ -272,6 +274,37 @@ PetscErrorCode VecView_MPI_ASCII(Vec xin,PetscViewer viewer)
           }
           ierr = PetscViewerASCIIPrintf(viewer,"\n");CHKERRQ(ierr);
         }
+      }
+    } else if (format == PETSC_VIEWER_ASCII_GLVIS) {
+      /* GLVis ASCII visualization/dump: this function mimicks mfem::GridFunction::Save() */
+      const PetscScalar       *array;
+      PetscInt                i,n,vdim, ordering = 1; /* mfem::FiniteElementSpace::Ordering::byVDIM */
+      PetscContainer          glvis_container;
+      PetscViewerGLVisVecInfo glvis_vec_info;
+      PetscViewerGLVisInfo    glvis_info;
+      PetscErrorCode          ierr;
+
+      /* mfem::FiniteElementSpace::Save() */
+      ierr = VecGetBlockSize(xin,&vdim);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(viewer,"FiniteElementSpace\n");CHKERRQ(ierr);
+      ierr = PetscObjectQuery((PetscObject)xin,"_glvis_info_container",(PetscObject*)&glvis_container);CHKERRQ(ierr);
+      if (!glvis_container) SETERRQ(PetscObjectComm((PetscObject)xin),PETSC_ERR_PLIB,"Missing GLVis container");
+      ierr = PetscContainerGetPointer(glvis_container,(void**)&glvis_vec_info);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(viewer,"%s\n",glvis_vec_info->fec_type);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(viewer,"VDim: %d\n",vdim);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(viewer,"Ordering: %d\n",ordering);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(viewer,"\n");CHKERRQ(ierr);
+      /* mfem::Vector::Print() */
+      ierr = PetscObjectQuery((PetscObject)viewer,"_glvis_info_container",(PetscObject*)&glvis_container);CHKERRQ(ierr);
+      if (!glvis_container) SETERRQ(PetscObjectComm((PetscObject)viewer),PETSC_ERR_PLIB,"Missing GLVis container");
+      ierr = PetscContainerGetPointer(glvis_container,(void**)&glvis_info);CHKERRQ(ierr);
+      if (glvis_info->enabled) {
+        ierr = VecGetLocalSize(xin,&n);CHKERRQ(ierr);
+        ierr = VecGetArrayRead(xin,&array);CHKERRQ(ierr);
+        for (i=0;i<n;i++) {
+          ierr = PetscViewerASCIIPrintf(viewer,"%g\n",(double)PetscRealPart(array[i]));CHKERRQ(ierr);
+        }
+        ierr = VecRestoreArrayRead(xin,&array);CHKERRQ(ierr);
       }
     } else if (format == PETSC_VIEWER_ASCII_INFO || format == PETSC_VIEWER_ASCII_INFO_DETAIL) {
       /* No info */
@@ -604,6 +637,7 @@ PetscErrorCode VecView_MPI_HDF5(Vec xin, PetscViewer viewer)
   hsize_t           maxDims[4], dims[4], chunkDims[4], count[4],offset[4];
   PetscInt          timestep;
   PetscInt          low;
+  PetscInt          chunksize;
   const PetscScalar *x;
   const char        *vecname;
   PetscErrorCode    ierr;
@@ -628,6 +662,7 @@ PetscErrorCode VecView_MPI_HDF5(Vec xin, PetscViewer viewer)
    * permit extending dataset).
    */
   dim = 0;
+  chunksize = 1;
   if (timestep >= 0) {
     dims[dim]      = timestep+1;
     maxDims[dim]   = H5S_UNLIMITED;
@@ -638,19 +673,49 @@ PetscErrorCode VecView_MPI_HDF5(Vec xin, PetscViewer viewer)
 
   maxDims[dim]   = dims[dim];
   chunkDims[dim] = dims[dim];
+  chunksize      *= chunkDims[dim];
   ++dim;
   if (bs > 1 || dim2) {
     dims[dim]      = bs;
     maxDims[dim]   = dims[dim];
     chunkDims[dim] = dims[dim];
+    chunksize      *= chunkDims[dim];
     ++dim;
   }
 #if defined(PETSC_USE_COMPLEX)
   dims[dim]      = 2;
   maxDims[dim]   = dims[dim];
   chunkDims[dim] = dims[dim];
+  chunksize      *= chunkDims[dim];
+  /* hdf5 chunks must be less than the max of 32 bit int */
+  if (chunksize > PETSC_HDF5_INT_MAX/64 ) {
+    if (bs > 1 || dim2) {
+      if (chunkDims[dim-2] > (PetscInt)PetscSqrtReal((PetscReal)(PETSC_HDF5_INT_MAX/128))) {
+        chunkDims[dim-2] = (PetscInt)PetscSqrtReal((PetscReal)(PETSC_HDF5_INT_MAX/128));
+      } if (chunkDims[dim-1] > (PetscInt)PetscSqrtReal((PetscReal)(PETSC_HDF5_INT_MAX/128))) {
+        chunkDims[dim-1] = (PetscInt)PetscSqrtReal((PetscReal)(PETSC_HDF5_INT_MAX/128));
+      }
+    } else {
+      chunkDims[dim-1] = PETSC_HDF5_INT_MAX/128;
+    }
+  }
   ++dim;
+#else 
+  /* hdf5 chunks must be less than the max of 32 bit int */
+  if (chunksize > PETSC_HDF5_INT_MAX/64) {
+    if (bs > 1 || dim2) {
+      if (chunkDims[dim-2] > (PetscInt)PetscSqrtReal((PetscReal)(PETSC_HDF5_INT_MAX/64))) {
+        chunkDims[dim-2] = (PetscInt)PetscSqrtReal((PetscReal)(PETSC_HDF5_INT_MAX/64));
+      } if (chunkDims[dim-1] > (PetscInt)PetscSqrtReal((PetscReal)(PETSC_HDF5_INT_MAX/64))) {
+        chunkDims[dim-1] = (PetscInt)PetscSqrtReal((PetscReal)(PETSC_HDF5_INT_MAX/64));
+      }
+    } else {
+      chunkDims[dim-1] = PETSC_HDF5_INT_MAX/64;
+    }
+  }
 #endif
+
+
   PetscStackCallHDF5Return(filespace,H5Screate_simple,(dim, dims, maxDims));
 
 #if defined(PETSC_USE_REAL_SINGLE)
@@ -745,6 +810,17 @@ PetscErrorCode VecView_MPI_HDF5(Vec xin, PetscViewer viewer)
   PetscStackCallHDF5(H5Fflush,(file_id, H5F_SCOPE_GLOBAL));
   ierr   = VecRestoreArrayRead(xin, &x);CHKERRQ(ierr);
 
+#if defined(PETSC_USE_COMPLEX)
+  {
+    PetscInt   one = 1;
+    const char *groupname;
+    char       vecgroup[PETSC_MAX_PATH_LEN];
+
+    ierr = PetscViewerHDF5GetGroup(viewer,&groupname);CHKERRQ(ierr);
+    ierr = PetscSNPrintf(vecgroup,PETSC_MAX_PATH_LEN,"%s/%s",groupname,vecname);CHKERRQ(ierr);
+    ierr = PetscViewerHDF5WriteAttribute(viewer,vecgroup,"complex",PETSC_INT,&one);CHKERRQ(ierr);
+  }
+#endif
   /* Close/release resources */
   if (group != file_id) {
     PetscStackCallHDF5(H5Gclose,(group));
@@ -771,6 +847,7 @@ PETSC_EXTERN PetscErrorCode VecView_MPI(Vec xin,PetscViewer viewer)
 #if defined(PETSC_HAVE_MATLAB_ENGINE)
   PetscBool      ismatlab;
 #endif
+  PetscBool      isglvis;
 
   PetscFunctionBegin;
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&iascii);CHKERRQ(ierr);
@@ -785,6 +862,7 @@ PETSC_EXTERN PetscErrorCode VecView_MPI(Vec xin,PetscViewer viewer)
 #if defined(PETSC_HAVE_MATLAB_ENGINE)
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERMATLAB,&ismatlab);CHKERRQ(ierr);
 #endif
+  ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERGLVIS,&isglvis);CHKERRQ(ierr);
   if (iascii) {
     ierr = VecView_MPI_ASCII(xin,viewer);CHKERRQ(ierr);
   } else if (isbinary) {
@@ -809,6 +887,8 @@ PETSC_EXTERN PetscErrorCode VecView_MPI(Vec xin,PetscViewer viewer)
   } else if (ismatlab) {
     ierr = VecView_MPI_Matlab(xin,viewer);CHKERRQ(ierr);
 #endif
+  } else if (isglvis) {
+    ierr = VecView_GLVis(xin,viewer);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }

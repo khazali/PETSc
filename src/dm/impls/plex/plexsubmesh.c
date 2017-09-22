@@ -46,8 +46,9 @@ PetscErrorCode DMPlexMarkBoundaryFaces(DM dm, DMLabel label)
 static PetscErrorCode DMPlexLabelComplete_Internal(DM dm, DMLabel label, PetscBool completeCells)
 {
   IS              valueIS;
+  PetscSF         sfPoint;
   const PetscInt *values;
-  PetscInt        numValues, v, cStart, cEnd;
+  PetscInt        numValues, v, cStart, cEnd, nroots;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
@@ -82,6 +83,47 @@ static PetscErrorCode DMPlexLabelComplete_Internal(DM dm, DMLabel label, PetscBo
   }
   ierr = ISRestoreIndices(valueIS, &values);CHKERRQ(ierr);
   ierr = ISDestroy(&valueIS);CHKERRQ(ierr);
+  ierr = DMGetPointSF(dm, &sfPoint);CHKERRQ(ierr);
+  ierr = PetscSFGetGraph(sfPoint, &nroots, NULL, NULL, NULL);CHKERRQ(ierr);
+  if (nroots >= 0) {
+    DMLabel         lblRoots, lblLeaves;
+    IS              valueIS, pointIS;
+    const PetscInt *values;
+    PetscInt        numValues, v;
+    PetscErrorCode  ierr;
+
+    ierr = DMGetPointSF(dm, &sfPoint);CHKERRQ(ierr);
+    /* Pull point contributions from remote leaves into local roots */
+    ierr = DMLabelGather(label, sfPoint, &lblLeaves);CHKERRQ(ierr);
+    ierr = DMLabelGetValueIS(lblLeaves, &valueIS);CHKERRQ(ierr);
+    ierr = ISGetLocalSize(valueIS, &numValues);CHKERRQ(ierr);
+    ierr = ISGetIndices(valueIS, &values);CHKERRQ(ierr);
+    for (v = 0; v < numValues; ++v) {
+      const PetscInt value = values[v];
+      
+      ierr = DMLabelGetStratumIS(lblLeaves, value, &pointIS);CHKERRQ(ierr);
+      ierr = DMLabelInsertIS(label, pointIS, value);CHKERRQ(ierr);
+      ierr = ISDestroy(&pointIS);CHKERRQ(ierr);
+    }
+    ierr = ISRestoreIndices(valueIS, &values);CHKERRQ(ierr);
+    ierr = ISDestroy(&valueIS);CHKERRQ(ierr);
+    ierr = DMLabelDestroy(&lblLeaves);CHKERRQ(ierr);
+    /* Push point contributions from roots into remote leaves */
+    ierr = DMLabelDistribute(label, sfPoint, &lblRoots);CHKERRQ(ierr);
+    ierr = DMLabelGetValueIS(lblRoots, &valueIS);CHKERRQ(ierr);
+    ierr = ISGetLocalSize(valueIS, &numValues);CHKERRQ(ierr);
+    ierr = ISGetIndices(valueIS, &values);CHKERRQ(ierr);
+    for (v = 0; v < numValues; ++v) {
+      const PetscInt value = values[v];
+      
+      ierr = DMLabelGetStratumIS(lblRoots, value, &pointIS);CHKERRQ(ierr);
+      ierr = DMLabelInsertIS(label, pointIS, value);CHKERRQ(ierr);
+      ierr = ISDestroy(&pointIS);CHKERRQ(ierr);
+    }
+    ierr = ISRestoreIndices(valueIS, &values);CHKERRQ(ierr);
+    ierr = ISDestroy(&valueIS);CHKERRQ(ierr);
+    ierr = DMLabelDestroy(&lblRoots);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -362,6 +404,7 @@ static PetscErrorCode DMPlexShiftCoordinates_Internal(DM dm, PetscInt depthShift
 
   PetscFunctionBegin;
   ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
+  ierr = DMSetCoordinateDim(dmNew, dim);CHKERRQ(ierr);
   ierr = DMPlexGetDepth(dm, &depth);CHKERRQ(ierr);
   /* Step 8: Convert coordinates */
   ierr = DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
@@ -621,12 +664,15 @@ static PetscErrorCode DMPlexShiftTree_Internal(DM dm, PetscInt depthShift[], DM 
 
 static PetscErrorCode DMPlexConstructGhostCells_Internal(DM dm, DMLabel label, PetscInt *numGhostCells, DM gdm)
 {
-  PetscSF         sf;
-  IS              valueIS;
-  const PetscInt *values, *leaves;
-  PetscInt       *depthShift;
-  PetscInt        d, depth = 0, nleaves, loc, Ng, numFS, fs, fStart, fEnd, ghostCell, cEnd, c;
-  PetscErrorCode  ierr;
+  PetscSF               sf;
+  IS                    valueIS;
+  const PetscInt       *values, *leaves;
+  PetscInt             *depthShift;
+  PetscInt              d, depth = 0, nleaves, loc, Ng, numFS, fs, fStart, fEnd, ghostCell, cEnd, c;
+  PetscBool             isper;
+  const PetscReal      *maxCell, *L;
+  const DMBoundaryType *bd;
+  PetscErrorCode        ierr;
 
   PetscFunctionBegin;
   ierr = DMGetPointSF(dm, &sf);CHKERRQ(ierr);
@@ -735,12 +781,8 @@ static PetscErrorCode DMPlexConstructGhostCells_Internal(DM dm, DMLabel label, P
   ierr = DMPlexShiftTree_Internal(dm, depthShift, gdm);CHKERRQ(ierr);
   ierr = PetscFree(depthShift);CHKERRQ(ierr);
   /* Step 7: Periodicity */
-  if (dm->maxCell) {
-    const PetscReal *maxCell, *L;
-    const DMBoundaryType *bd;
-    ierr = DMGetPeriodicity(dm,  &maxCell, &L, &bd);CHKERRQ(ierr);
-    ierr = DMSetPeriodicity(gdm,  maxCell,  L,  bd);CHKERRQ(ierr);
-  }
+  ierr = DMGetPeriodicity(dm, &isper, &maxCell, &L, &bd);CHKERRQ(ierr);
+  ierr = DMSetPeriodicity(gdm, isper, maxCell,  L,  bd);CHKERRQ(ierr);
   if (numGhostCells) *numGhostCells = Ng;
   PetscFunctionReturn(0);
 }
@@ -2858,9 +2900,9 @@ static PetscErrorCode DMPlexCreateSubmeshGeneric_Interpolated(DM dm, DMLabel lab
           if (subc >= 0) {
             const PetscInt ccell = subpoints[d+1][subc];
 
-            ierr = DMPlexGetCone(dm, ccell, &cone);
-            ierr = DMPlexGetConeSize(dm, ccell, &coneSize);
-            ierr = DMPlexGetConeOrientation(dm, ccell, &ornt);
+            ierr = DMPlexGetCone(dm, ccell, &cone);CHKERRQ(ierr);
+            ierr = DMPlexGetConeSize(dm, ccell, &coneSize);CHKERRQ(ierr);
+            ierr = DMPlexGetConeOrientation(dm, ccell, &ornt);CHKERRQ(ierr);
             for (c = 0; c < coneSize; ++c) {
               if (cone[c] == point) {
                 fornt = ornt[c];
@@ -2914,9 +2956,10 @@ static PetscErrorCode DMPlexCreateSubmeshGeneric_Interpolated(DM dm, DMLabel lab
     PetscSection coordSection, subCoordSection;
     Vec          coordinates, subCoordinates;
     PetscScalar *coords, *subCoords;
-    PetscInt     numComp, coordSize;
+    PetscInt     cdim, numComp, coordSize;
     const char  *name;
 
+    ierr = DMGetCoordinateDim(dm, &cdim);CHKERRQ(ierr);
     ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
     ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
     ierr = DMGetCoordinateSection(subdm, &subCoordSection);CHKERRQ(ierr);
@@ -2939,6 +2982,7 @@ static PetscErrorCode DMPlexCreateSubmeshGeneric_Interpolated(DM dm, DMLabel lab
     ierr = PetscObjectGetName((PetscObject)coordinates,&name);CHKERRQ(ierr);
     ierr = PetscObjectSetName((PetscObject)subCoordinates,name);CHKERRQ(ierr);
     ierr = VecSetSizes(subCoordinates, coordSize, PETSC_DETERMINE);CHKERRQ(ierr);
+    ierr = VecSetBlockSize(subCoordinates, cdim);CHKERRQ(ierr);
     ierr = VecSetType(subCoordinates,VECSTANDARD);CHKERRQ(ierr);
     ierr = VecGetArray(coordinates,    &coords);CHKERRQ(ierr);
     ierr = VecGetArray(subCoordinates, &subCoords);CHKERRQ(ierr);
@@ -3174,9 +3218,10 @@ static PetscErrorCode DMPlexCreateCohesiveSubmesh_Uninterpolated(DM dm, PetscBoo
     PetscSection coordSection, subCoordSection;
     Vec          coordinates, subCoordinates;
     PetscScalar *coords, *subCoords;
-    PetscInt     numComp, coordSize, v;
+    PetscInt     cdim, numComp, coordSize, v;
     const char  *name;
 
+    ierr = DMGetCoordinateDim(dm, &cdim);CHKERRQ(ierr);
     ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
     ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
     ierr = DMGetCoordinateSection(subdm, &subCoordSection);CHKERRQ(ierr);
@@ -3199,6 +3244,7 @@ static PetscErrorCode DMPlexCreateCohesiveSubmesh_Uninterpolated(DM dm, PetscBoo
     ierr = PetscObjectGetName((PetscObject)coordinates,&name);CHKERRQ(ierr);
     ierr = PetscObjectSetName((PetscObject)subCoordinates,name);CHKERRQ(ierr);
     ierr = VecSetSizes(subCoordinates, coordSize, PETSC_DETERMINE);CHKERRQ(ierr);
+    ierr = VecSetBlockSize(subCoordinates, cdim);CHKERRQ(ierr);
     ierr = VecSetType(subCoordinates,VECSTANDARD);CHKERRQ(ierr);
     ierr = VecGetArray(coordinates,    &coords);CHKERRQ(ierr);
     ierr = VecGetArray(subCoordinates, &subCoords);CHKERRQ(ierr);
@@ -3329,7 +3375,7 @@ static PetscErrorCode DMPlexCreateCohesiveSubmesh_Interpolated(DM dm, const char
 @*/
 PetscErrorCode DMPlexCreateCohesiveSubmesh(DM dm, PetscBool hasLagrange, const char label[], PetscInt value, DM *subdm)
 {
-  PetscInt       dim, depth;
+  PetscInt       dim, cdim, depth;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -3340,6 +3386,8 @@ PetscErrorCode DMPlexCreateCohesiveSubmesh(DM dm, PetscBool hasLagrange, const c
   ierr = DMCreate(PetscObjectComm((PetscObject)dm), subdm);CHKERRQ(ierr);
   ierr = DMSetType(*subdm, DMPLEX);CHKERRQ(ierr);
   ierr = DMSetDimension(*subdm, dim-1);CHKERRQ(ierr);
+  ierr = DMGetCoordinateDim(dm, &cdim);CHKERRQ(ierr);
+  ierr = DMSetCoordinateDim(*subdm, cdim);CHKERRQ(ierr);
   if (depth == dim) {
     ierr = DMPlexCreateCohesiveSubmesh_Interpolated(dm, label, value, *subdm);CHKERRQ(ierr);
   } else {

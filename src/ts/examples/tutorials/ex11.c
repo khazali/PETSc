@@ -1450,7 +1450,7 @@ static PetscErrorCode MonitorVTK(TS ts,PetscInt stepnum,PetscReal time,Vec X,voi
   if (user->vtkInterval < 1) PetscFunctionReturn(0);
   if ((stepnum == -1) ^ (stepnum % user->vtkInterval == 0)) {
     if (stepnum == -1) {        /* Final time is not multiple of normal time interval, write it anyway */
-      ierr = TSGetTimeStepNumber(ts,&stepnum);CHKERRQ(ierr);
+      ierr = TSGetStepNumber(ts,&stepnum);CHKERRQ(ierr);
     }
     ierr = PetscSNPrintf(filename,sizeof filename,"%s-%03D.vtu",user->outputBasename,stepnum);CHKERRQ(ierr);
     ierr = OutputVTK(dm,filename,&viewer);CHKERRQ(ierr);
@@ -1471,7 +1471,7 @@ static PetscErrorCode initializeTS(DM dm, User user, TS *ts)
   ierr = TSMonitorSet(*ts,MonitorVTK,user,NULL);CHKERRQ(ierr);
   ierr = DMTSSetBoundaryLocal(dm, DMPlexTSComputeBoundary, user);CHKERRQ(ierr);
   ierr = DMTSSetRHSFunctionLocal(dm, DMPlexTSComputeRHSFunctionFVM, user);CHKERRQ(ierr);
-  ierr = TSSetDuration(*ts,1000,2.0);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(*ts,2.0);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(*ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -1921,24 +1921,23 @@ int main(int argc, char **argv)
   ierr = MPI_Allreduce(&phys->maxspeed,&mod->maxspeed,1,MPIU_REAL,MPIU_MAX,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
   if (mod->maxspeed <= 0) SETERRQ1(comm,PETSC_ERR_ARG_WRONGSTATE,"Physics '%s' did not set maxspeed",physname);
   dt   = cfl * minRadius / mod->maxspeed;
-  ierr = TSSetInitialTimeStep(ts,0.0,dt);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   if (!useAMR) {
     ierr = TSSolve(ts,X);CHKERRQ(ierr);
     ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-    ierr = TSGetTimeStepNumber(ts,&nsteps);CHKERRQ(ierr);
+    ierr = TSGetStepNumber(ts,&nsteps);CHKERRQ(ierr);
   } else {
     PetscReal finalTime;
     PetscInt  adaptIter;
     TS        tsNew = NULL;
     Vec       solNew = NULL;
-    PetscInt  incSteps;
 
-    ierr   = TSGetDuration(ts,NULL,&finalTime);CHKERRQ(ierr);
-    ierr   = TSSetDuration(ts,adaptInterval,finalTime);CHKERRQ(ierr);
+    ierr   = TSGetMaxTime(ts,&finalTime);CHKERRQ(ierr);
+    ierr   = TSSetMaxSteps(ts,adaptInterval);CHKERRQ(ierr);
     ierr   = TSSolve(ts,X);CHKERRQ(ierr);
     ierr   = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-    ierr   = TSGetTimeStepNumber(ts,&nsteps);CHKERRQ(ierr);
+    ierr   = TSGetStepNumber(ts,&nsteps);CHKERRQ(ierr);
     for (adaptIter = 0;ftime < finalTime;adaptIter++) {
       PetscLogDouble bytes;
 
@@ -1961,16 +1960,17 @@ int main(int argc, char **argv)
         ierr = MPI_Allreduce(&phys->maxspeed,&mod->maxspeed,1,MPIU_REAL,MPIU_MAX,PetscObjectComm((PetscObject)ts));CHKERRQ(ierr);
         if (mod->maxspeed <= 0) SETERRQ1(comm,PETSC_ERR_ARG_WRONGSTATE,"Physics '%s' did not set maxspeed",physname);
         dt   = cfl * minRadius / mod->maxspeed;
-        ierr = TSSetInitialTimeStep(ts,ftime,dt);CHKERRQ(ierr);
+        ierr = TSSetStepNumber(ts,nsteps);CHKERRQ(ierr);
+        ierr = TSSetTime(ts,ftime);CHKERRQ(ierr);
+        ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
       } else {
         ierr = PetscInfo(ts, "AMR not used\n");CHKERRQ(ierr);
       }
       user->monitorStepOffset = nsteps;
-      ierr    = TSSetDuration(ts,adaptInterval,finalTime);CHKERRQ(ierr);
-      ierr    = TSSolve(ts,X);CHKERRQ(ierr);
-      ierr    = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-      ierr    = TSGetTimeStepNumber(ts,&incSteps);CHKERRQ(ierr);
-      nsteps += incSteps;
+      ierr = TSSetMaxSteps(ts,nsteps+adaptInterval);CHKERRQ(ierr);
+      ierr = TSSolve(ts,X);CHKERRQ(ierr);
+      ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
+      ierr = TSGetStepNumber(ts,&nsteps);CHKERRQ(ierr);
     }
   }
   ierr = TSGetConvergedReason(ts,&reason);CHKERRQ(ierr);
@@ -2589,11 +2589,9 @@ int initLinearWave(EulerNode *ux, const PetscReal gamma, const PetscReal coord[]
   # Advection in a box
   test:
     suffix: adv_2d_quad_0
-    requires:  !mpiuni
     args: -ufv_vtk_interval 0 -dm_refine 5 -dm_plex_separate_marker -bc_inflow 1,2,4 -bc_outflow 3
   test:
     suffix: adv_2d_quad_1
-    requires:  !mpiuni
     args: -ufv_vtk_interval 0 -dm_refine 5 -dm_plex_separate_marker -grid_bounds -0.5,0.5,-0.5,0.5 -bc_inflow 1,2,4 -bc_outflow 3 -advect_sol_type bump -advect_bump_center 0.25,0 -advect_bump_radius 0.1
   test:
     suffix: adv_2d_quad_p4est_0
@@ -2609,11 +2607,11 @@ int initLinearWave(EulerNode *ux, const PetscReal gamma, const PetscReal coord[]
     args: -ufv_vtk_interval 0 -dm_refine 3 -dm_type p4est -dm_plex_separate_marker -grid_bounds -0.5,0.5,-0.5,0.5 -bc_inflow 1,2,4 -bc_outflow 3 -advect_sol_type bump -advect_bump_center 0.25,0 -advect_bump_radius 0.1 -ufv_use_amr -refine_vec_tagger_box 0.005,inf -coarsen_vec_tagger_box 0,1.e-5 -petscfv_type leastsquares -ts_final_time 0.01
   test:
     suffix: adv_2d_tri_0
-    requires: triangle  !mpiuni
+    requires: triangle
     args: -ufv_vtk_interval 0 -simplex -dm_refine 3 -dm_plex_separate_marker -bc_inflow 1,2,4 -bc_outflow 3
   test:
     suffix: adv_2d_tri_1
-    requires: triangle  !mpiuni
+    requires: triangle
     args: -ufv_vtk_interval 0 -simplex -dm_refine 5 -dm_plex_separate_marker -grid_bounds -0.5,0.5,-0.5,0.5 -bc_inflow 1,2,4 -bc_outflow 3 -advect_sol_type bump -advect_bump_center 0.25,0 -advect_bump_radius 0.1
   test:
     suffix: adv_0

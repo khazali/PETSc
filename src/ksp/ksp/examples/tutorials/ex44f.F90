@@ -16,28 +16,36 @@
         print*,'Unable to initialize PETSc'
         stop
       endif
-      call DMDACreate1d(MPI_COMM_WORLD,DM_BOUNDARY_NONE,eight,one,one,PETSC_NULL_INTEGER,da,ierr);CHKERRQ(ierr)
+      call DMDACreate1d(MPI_COMM_WORLD,DM_BOUNDARY_NONE,eight,one,one,PETSC_NULL_INTEGER,da,ierr);CHKERRA(ierr)
       call DMSetFromOptions(da,ierr)
       call DMSetUp(da,ierr)
-      call DMCreateGlobalVector(da,x,ierr);CHKERRQ(ierr)
-      call VecDuplicate(x,f,ierr);CHKERRQ(ierr)
-      call DMSetMatType(da,MATAIJ,ierr);CHKERRQ(ierr)
-      call DMCreateMatrix(da,J,ierr);CHKERRQ(ierr)
+      call DMCreateGlobalVector(da,x,ierr);CHKERRA(ierr)
+      call VecDuplicate(x,f,ierr);CHKERRA(ierr)
+      call DMSetMatType(da,MATAIJ,ierr);CHKERRA(ierr)
+      call DMCreateMatrix(da,J,ierr);CHKERRA(ierr)
 
-      call ComputeRHS(da,f,ierr);CHKERRQ(ierr)
-      call ComputeMatrix(da,J,ierr);CHKERRQ(ierr)
+      call ComputeRHS(da,f,ierr);CHKERRA(ierr)
+      call ComputeMatrix(da,J,ierr);CHKERRA(ierr)
 
-      call KSPCreate(MPI_COMM_WORLD,ksp,ierr);CHKERRQ(ierr)
-      call KSPSetOperators(ksp,J,J,ierr);CHKERRQ(ierr)
-      call KSPSetFromOptions(ksp,ierr);CHKERRQ(ierr)
-      call KSPSolve(ksp,f,x,ierr);CHKERRQ(ierr)
+      call KSPCreate(MPI_COMM_WORLD,ksp,ierr);CHKERRA(ierr)
+      call KSPSetOperators(ksp,J,J,ierr);CHKERRA(ierr)
+      call KSPSetFromOptions(ksp,ierr);CHKERRA(ierr)
+      call KSPSolve(ksp,f,x,ierr);CHKERRA(ierr)
 
-      call MatDestroy(J,ierr);CHKERRQ(ierr)
-      call VecDestroy(x,ierr);CHKERRQ(ierr)
-      call VecDestroy(f,ierr);CHKERRQ(ierr)
-      call KSPDestroy(ksp,ierr);CHKERRQ(ierr)
-      call DMDestroy(da,ierr);CHKERRQ(ierr)
-      call PetscFinalize(ierr);CHKERRQ(ierr)
+      call MatDestroy(J,ierr);CHKERRA(ierr)
+      call VecDestroy(x,ierr);CHKERRA(ierr)
+      call VecDestroy(f,ierr);CHKERRA(ierr)
+      call KSPDestroy(ksp,ierr);CHKERRA(ierr)
+      call DMDestroy(da,ierr);CHKERRA(ierr)
+      call PetscFinalize(ierr);CHKERRA(ierr)
+      end
+
+! AVX512 crashes without this..
+      subroutine knl_workarround(xx)
+      PetscScalar xx,sd
+      common /cb/ sd
+      data sd /0/
+      sd = sd+xx
       end
 
       subroutine  ComputeRHS(da,x,ierr)
@@ -56,12 +64,13 @@
       hx     = 1.0_PETSC_REAL_KIND/(mx-1)
       call DMDAVecGetArrayF90(da,x,xx,ierr);CHKERRQ(ierr)
       do i=xs,xs+xm-1
-       xx(i) = i*hx
+        call knl_workarround(xx(i))
+        xx(i) = i*hx
       enddo
       call DMDAVecRestoreArrayF90(da,x,xx,ierr);CHKERRQ(ierr)
       return
       end
-      
+
       subroutine ComputeMatrix(da,J,ierr)
       use petscdm
       use petscmat

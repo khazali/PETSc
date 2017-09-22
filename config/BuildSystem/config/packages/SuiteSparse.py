@@ -13,7 +13,7 @@ class Configure(config.package.Package):
     self.includes         = ['umfpack.h','cholmod.h','klu.h']
     self.hastests         = 1
     self.hastestsdatafiles= 1
-    self.precisions       = ['single','double']
+    self.precisions       = ['double']
     return
 
   def setupHelp(self, help):
@@ -62,7 +62,7 @@ class Configure(config.package.Package):
     if self.argDB['download-suitesparse-gpu']:
       if self.defaultIndexSize == 32:
         raise RuntimeError('SuiteSparse only uses GPUs with --with-64-bit-indices')
-      if not self.framework.clArgDB.has_key('with-cuda') or not self.argDB['with-cuda']:
+      if not hasattr(self.compilers, 'CUDAC'):
         raise RuntimeError('Run with --with-cuda to use allow SuiteSparse to compile using CUDA')
       # code taken from cuda.py
       self.pushLanguage('CUDA')

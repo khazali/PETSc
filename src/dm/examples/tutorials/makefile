@@ -88,6 +88,14 @@ ex19: ex19.o   chkopts
 	-${CLINKER} -o ex19 ex19.o  ${PETSC_DM_LIB}
 	${RM} -f ex19.o
 
+ex20: ex20.o   chkopts
+	-${CLINKER} -o ex20 ex20.o  ${PETSC_DM_LIB}
+	${RM} -f ex20.o
+
+ex21: ex21.o   chkopts
+	-${CLINKER} -o ex21 ex21.o  ${PETSC_DM_LIB}
+	${RM} -f ex21.o
+
 ex51: ex51.o  chkopts
 	-${CLINKER} -o ex51 ex51.o ${PETSC_SNES_LIB}
 	${RM} ex51.o
@@ -150,7 +158,7 @@ runex7:
 	-@${MPIEXEC} -n 1 ./ex7  > ex7.tmp 2>&1;   \
 	   if (${DIFF} output/ex7.out ex7.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex7, diffs above\n=========================================\n"; fi; \
-	   ${RM} -f ex7.tmp
+	   ${RM} -f ex7.tmp output_file output_file.info
 runex9:
 	-@${MPIEXEC} -n 4 ./ex9
 	-@${MPIEXEC} -n 4 ./ex9 -ndof 2
@@ -173,23 +181,18 @@ runex15:
 	-@${MPIEXEC} -n 1 ./ex15 > ex15.tmp 2>&1;   \
 	   if (${DIFF} output/ex15_1.out ex15.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex15_1, diffs above\n=========================================\n"; fi; \
-	   ${RM} -f ex15.tmp
+	   ${RM} -f ex15.tmp dmda.pbvec dmda.pbvec.info
 runex15_2:
 	-@${MPIEXEC} -n 12 ./ex15 > ex15.tmp 2>&1;   \
 	   if (${DIFF} output/ex15_2.out ex15.tmp) then true; \
 	   else printf "${PWD}\nPossible problem with ex15_2, diffs above\n=========================================\n"; fi; \
-	   ${RM} -f ex15.tmp
-runex15_3:
-	-@${MPIEXEC} -n 12 ./ex15 -usempiio > ex15.tmp 2>&1;   \
-	   if (${DIFF} output/ex15_3.out ex15.tmp) then true; \
-	   else printf "${PWD}\nPossible problem with ex15_3, diffs above\n=========================================\n"; fi; \
-	   ${RM} -f ex15.tmp
+	   ${RM} -f ex15.tmp dmda.pbvec dmda.pbvec.info
 
 
 TESTEXAMPLES_C		  = ex3.PETSc runex3 runex3_2 runex3_3 ex3.rm ex4.PETSc ex4.rm \
                             ex6.PETSc runex6 runex6_2 runex6_4 runex6_9 ex6.rm \
                             ex7.PETSc runex7 ex7.rm ex12.PETSc ex12.rm ex51.PETSc ex51.rm \
-                            ex15.PETSc runex15 runex15_2 runex15_3 ex15.rm
+                            ex15.PETSc runex15 runex15_2 ex15.rm
 TESTEXAMPLES_C_X	  = ex1.PETSc runex1 ex1.rm ex5.PETSc runex5 runex5_2 ex5.rm
 TESTEXAMPLES_FORTRAN	  =
 TESTEXAMPLES_F90_NOCOMPLEX= ex11f90.PETSc runex11f90 ex11f90.rm ex13f90.PETSc runex13f90 ex13f90.rm

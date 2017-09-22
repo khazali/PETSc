@@ -154,13 +154,13 @@ void assert_never_put_petsc_headers_inside_an_extern_c(int); void assert_never_p
 #elif defined(PETSC_HAVE_MPICH_NUMVERSION)
 #  if !defined(MPICH_NUMVERSION) || defined(MVAPICH2_NUMVERSION) || defined(I_MPI_NUMVERSION)
 #    error "PETSc was configured with MPICH but now appears to be compiling using a non-MPICH mpi.h"
-#  elif MPICH_NUMVERSION != PETSC_HAVE_MPICH_NUMVERSION
+#  elif (MPICH_NUMVERSION/100000 != PETSC_HAVE_MPICH_NUMVERSION/100000) || (MPICH_NUMVERSION%100000/1000 < PETSC_HAVE_MPICH_NUMVERSION%100000/1000)
 #    error "PETSc was configured with one MPICH mpi.h version but now appears to be compiling using a different MPICH mpi.h version"
 #  endif
 #elif defined(PETSC_HAVE_OMPI_MAJOR_VERSION)
 #  if !defined(OMPI_MAJOR_VERSION)
 #    error "PETSc was configured with OpenMPI but now appears to be compiling using a non-OpenMPI mpi.h"
-#  elif (OMPI_MAJOR_VERSION != PETSC_HAVE_OMPI_MAJOR_VERSION) || (OMPI_MINOR_VERSION != PETSC_HAVE_OMPI_MINOR_VERSION) || (OMPI_RELEASE_VERSION != PETSC_HAVE_OMPI_RELEASE_VERSION)
+#  elif (OMPI_MAJOR_VERSION != PETSC_HAVE_OMPI_MAJOR_VERSION) || (OMPI_MINOR_VERSION != PETSC_HAVE_OMPI_MINOR_VERSION) || (OMPI_RELEASE_VERSION < PETSC_HAVE_OMPI_RELEASE_VERSION)
 #    error "PETSc was configured with one OpenMPI mpi.h version but now appears to be compiling using a different OpenMPI mpi.h version"
 #  endif
 #elif defined(OMPI_MAJOR_VERSION) || defined(MPICH_NUMVERSION)
@@ -738,7 +738,7 @@ M*/
 #else
 #define PetscMalloc2(m1,r1,m2,r2) ((((m1)+(m2)) ? (*(r2) = 0,PetscMalloc((m1)*sizeof(**(r1))+(m2)*sizeof(**(r2))+(PETSC_MEMALIGN-1),r1)) : 0) \
                                    || (*(void**)(r2) = PetscAddrAlign(*(r1)+(m1)),0) \
-                                   || (!(m1) ? (*(r1) = 0,0) : 0) || (!(m2) ? (*(r2) = 0,0) : 0))
+                                   || (0==(m1) ? (*(r1) = 0,0) : 0) || (0==(m2) ? (*(r2) = 0,0) : 0))
 #endif
 
 /*MC
@@ -797,7 +797,7 @@ M*/
 #else
 #define PetscMalloc3(m1,r1,m2,r2,m3,r3) ((((m1)+(m2)+(m3)) ? (*(r2) = 0,*(r3) = 0,PetscMalloc((m1)*sizeof(**(r1))+(m2)*sizeof(**(r2))+(m3)*sizeof(**(r3))+2*(PETSC_MEMALIGN-1),r1)) : 0) \
                                          || (*(void**)(r2) = PetscAddrAlign(*(r1)+(m1)),*(void**)(r3) = PetscAddrAlign(*(r2)+(m2)),0) \
-                                         || (!(m1) ? (*(r1) = 0,0) : 0) || (!(m2) ? (*(r2) = 0,0) : 0) || (!(m3) ? (*(r3) = 0,0) : 0))
+                                         || (0==(m1) ? (*(r1) = 0,0) : 0) || (0==(m2) ? (*(r2) = 0,0) : 0) || (0==(m3) ? (*(r3) = 0,0) : 0))
 #endif
 
 /*MC
@@ -863,7 +863,7 @@ M*/
 #define PetscMalloc4(m1,r1,m2,r2,m3,r3,m4,r4)                           \
   ((((m1)+(m2)+(m3)+(m4)) ? (*(r2) = 0, *(r3) = 0, *(r4) = 0,PetscMalloc((m1)*sizeof(**(r1))+(m2)*sizeof(**(r2))+(m3)*sizeof(**(r3))+(m4)*sizeof(**(r4))+3*(PETSC_MEMALIGN-1),r1)) : 0) \
    || (*(void**)(r2) = PetscAddrAlign(*(r1)+(m1)),*(void**)(r3) = PetscAddrAlign(*(r2)+(m2)),*(void**)(r4) = PetscAddrAlign(*(r3)+(m3)),0) \
-   || (!(m1) ? (*(r1) = 0,0) : 0) || (!(m2) ? (*(r2) = 0,0) : 0) || (!(m3) ? (*(r3) = 0,0) : 0) || (!(m4) ? (*(r4) = 0,0) : 0))
+   || (0==(m1) ? (*(r1) = 0,0) : 0) || (0==(m2) ? (*(r2) = 0,0) : 0) || (0==(m3) ? (*(r3) = 0,0) : 0) || (0==(m4) ? (*(r4) = 0,0) : 0))
 #endif
 
 /*MC
@@ -935,7 +935,7 @@ M*/
 #define PetscMalloc5(m1,r1,m2,r2,m3,r3,m4,r4,m5,r5)      \
   ((((m1)+(m2)+(m3)+(m4)+(m5)) ? (*(r2) = 0, *(r3) = 0, *(r4) = 0,*(r5) = 0,PetscMalloc((m1)*sizeof(**(r1))+(m2)*sizeof(**(r2))+(m3)*sizeof(**(r3))+(m4)*sizeof(**(r4))+(m5)*sizeof(**(r5))+4*(PETSC_MEMALIGN-1),r1)) : 0) \
    || (*(void**)(r2) = PetscAddrAlign(*(r1)+(m1)),*(void**)(r3) = PetscAddrAlign(*(r2)+(m2)),*(void**)(r4) = PetscAddrAlign(*(r3)+(m3)),*(void**)(r5) = PetscAddrAlign(*(r4)+(m4)),0) \
-   || (!(m1) ? (*(r1) = 0,0) : 0) || (!(m2) ? (*(r2) = 0,0) : 0) || (!(m3) ? (*(r3) = 0,0) : 0) || (!(m4) ? (*(r4) = 0,0) : 0) || (!(m5) ? (*(r5) = 0,0) : 0))
+   || (0==(m1) ? (*(r1) = 0,0) : 0) || (0==(m2) ? (*(r2) = 0,0) : 0) || (0==(m3) ? (*(r3) = 0,0) : 0) || (0==(m4) ? (*(r4) = 0,0) : 0) || (0==(m5) ? (*(r5) = 0,0) : 0))
 #endif
 
 /*MC
@@ -1011,7 +1011,7 @@ M*/
 #define PetscMalloc6(m1,r1,m2,r2,m3,r3,m4,r4,m5,r5,m6,r6) \
   ((((m1)+(m2)+(m3)+(m4)+(m5)+(m6)) ? (*(r2) = 0, *(r3) = 0, *(r4) = 0,*(r5) = 0,*(r6) = 0,PetscMalloc((m1)*sizeof(**(r1))+(m2)*sizeof(**(r2))+(m3)*sizeof(**(r3))+(m4)*sizeof(**(r4))+(m5)*sizeof(**(r5))+(m6)*sizeof(**(r6))+5*(PETSC_MEMALIGN-1),r1)) : 0) \
    || (*(void**)(r2) = PetscAddrAlign(*(r1)+(m1)),*(void**)(r3) = PetscAddrAlign(*(r2)+(m2)),*(void**)(r4) = PetscAddrAlign(*(r3)+(m3)),*(void**)(r5) = PetscAddrAlign(*(r4)+(m4)),*(void**)(r6) = PetscAddrAlign(*(r5)+(m5)),0) \
-   || (!(m1) ? (*(r1) = 0,0) : 0) || (!(m2) ? (*(r2) = 0,0) : 0) || (!(m3) ? (*(r3) = 0,0) : 0) || (!(m4) ? (*(r4) = 0,0) : 0) || (!(m5) ? (*(r5) = 0,0) : 0) || (!(m6) ? (*(r6) = 0,0) : 0))
+   || (0==(m1) ? (*(r1) = 0,0) : 0) || (0==(m2) ? (*(r2) = 0,0) : 0) || (0==(m3) ? (*(r3) = 0,0) : 0) || (0==(m4) ? (*(r4) = 0,0) : 0) || (0==(m5) ? (*(r5) = 0,0) : 0) || (0==(m6) ? (*(r6) = 0,0) : 0))
 #endif
 
 /*MC
@@ -1090,7 +1090,7 @@ M*/
 #define PetscMalloc7(m1,r1,m2,r2,m3,r3,m4,r4,m5,r5,m6,r6,m7,r7) \
   ((((m1)+(m2)+(m3)+(m4)+(m5)+(m6)+(m7)) ? (*(r2) = 0, *(r3) = 0, *(r4) = 0,*(r5) = 0,*(r6) = 0,*(r7) = 0,PetscMalloc((m1)*sizeof(**(r1))+(m2)*sizeof(**(r2))+(m3)*sizeof(**(r3))+(m4)*sizeof(**(r4))+(m5)*sizeof(**(r5))+(m6)*sizeof(**(r6))+(m7)*sizeof(**(r7))+6*(PETSC_MEMALIGN-1),r1)) : 0) \
    || (*(void**)(r2) = PetscAddrAlign(*(r1)+(m1)),*(void**)(r3) = PetscAddrAlign(*(r2)+(m2)),*(void**)(r4) = PetscAddrAlign(*(r3)+(m3)),*(void**)(r5) = PetscAddrAlign(*(r4)+(m4)),*(void**)(r6) = PetscAddrAlign(*(r5)+(m5)),*(void**)(r7) = PetscAddrAlign(*(r6)+(m6)),0) \
-   || (!(m1) ? (*(r1) = 0,0) : 0) || (!(m2) ? (*(r2) = 0,0) : 0) || (!(m3) ? (*(r3) = 0,0) : 0) || (!(m4) ? (*(r4) = 0,0) : 0) || (!(m5) ? (*(r5) = 0,0) : 0) || (!(m6) ? (*(r6) = 0,0) : 0) || (!(m7) ? (*(r7) = 0,0) : 0))
+   || (0==(m1) ? (*(r1) = 0,0) : 0) || (0==(m2) ? (*(r2) = 0,0) : 0) || (0==(m3) ? (*(r3) = 0,0) : 0) || (0==(m4) ? (*(r4) = 0,0) : 0) || (0==(m5) ? (*(r5) = 0,0) : 0) || (0==(m6) ? (*(r6) = 0,0) : 0) || (0==(m7) ? (*(r7) = 0,0) : 0))
 #endif
 
 /*MC
@@ -1719,6 +1719,7 @@ PETSC_EXTERN PetscErrorCode PetscObjectRegisterDestroyAll(void);
 PETSC_EXTERN PetscErrorCode PetscObjectViewFromOptions(PetscObject,PetscObject,const char[]);
 PETSC_EXTERN PetscErrorCode PetscObjectName(PetscObject);
 PETSC_EXTERN PetscErrorCode PetscObjectTypeCompare(PetscObject,const char[],PetscBool *);
+PETSC_EXTERN PetscErrorCode PetscObjectBaseTypeCompare(PetscObject,const char[],PetscBool *);
 PETSC_EXTERN PetscErrorCode PetscObjectTypeCompareAny(PetscObject,PetscBool*,const char[],...);
 PETSC_EXTERN PetscErrorCode PetscRegisterFinalize(PetscErrorCode (*)(void));
 PETSC_EXTERN PetscErrorCode PetscRegisterFinalizeAll(void);
@@ -2582,6 +2583,7 @@ PETSC_EXTERN PetscErrorCode PetscGetVersionNumber(PetscInt*,PetscInt*,PetscInt*,
 PETSC_EXTERN PetscErrorCode PetscSortInt(PetscInt,PetscInt[]);
 PETSC_EXTERN PetscErrorCode PetscSortRemoveDupsInt(PetscInt*,PetscInt[]);
 PETSC_EXTERN PetscErrorCode PetscFindInt(PetscInt, PetscInt, const PetscInt[], PetscInt*);
+PETSC_EXTERN PetscErrorCode PetscFindMPIInt(PetscMPIInt, PetscInt, const PetscMPIInt[], PetscInt*);
 PETSC_EXTERN PetscErrorCode PetscSortIntWithPermutation(PetscInt,const PetscInt[],PetscInt[]);
 PETSC_EXTERN PetscErrorCode PetscSortStrWithPermutation(PetscInt,const char*[],PetscInt[]);
 PETSC_EXTERN PetscErrorCode PetscSortIntWithArray(PetscInt,PetscInt[],PetscInt[]);
@@ -2677,7 +2679,9 @@ PETSC_EXTERN PetscErrorCode PetscSharedWorkingDirectory(MPI_Comm,PetscBool  *);
 PETSC_EXTERN PetscErrorCode PetscGetTmp(MPI_Comm,char[],size_t);
 PETSC_EXTERN PetscErrorCode PetscFileRetrieve(MPI_Comm,const char[],char[],size_t,PetscBool *);
 PETSC_EXTERN PetscErrorCode PetscLs(MPI_Comm,const char[],char[],size_t,PetscBool *);
+#if defined(PETSC_USE_SOCKET_VIEWER)
 PETSC_EXTERN PetscErrorCode PetscOpenSocket(const char[],int,int*);
+#endif
 
 /*
    In binary files variables are stored using the following lengths,

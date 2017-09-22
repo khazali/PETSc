@@ -1628,15 +1628,15 @@ int main(int argc,char *argv[])
   ierr = TSSetType(ts,TSTHETA);CHKERRQ(ierr);
   ierr = TSSetIFunction(ts,NULL,THIFunction,thi);CHKERRQ(ierr);
   ierr = TSSetIJacobian(ts,B,B,THIJacobian,thi);CHKERRQ(ierr);
-  ierr = TSSetDuration(ts,100,10.0);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,10.0);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   ierr = TSSetSolution(ts,X);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(ts,0.,1e-3);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,1e-3);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
 
   ierr = TSSolve(ts,X);CHKERRQ(ierr);
   ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts,&steps);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts,&steps);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"Steps %D  final time %g\n",steps,(double)ftime);CHKERRQ(ierr);
 
   if (0) {ierr = THISolveStatistics(thi,ts,0,"Full");CHKERRQ(ierr);}

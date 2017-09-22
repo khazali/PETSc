@@ -2388,6 +2388,7 @@ PetscErrorCode MatCopy_SeqBAIJ(Mat A,Mat B,MatStructure str)
     if (a->i[ambs] != b->i[bmbs]) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Number of nonzero blocks in matrices A %D and B %D are different",a->i[ambs],b->i[bmbs]);
     if (abs != bbs) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Block size A %D and B %D are different",abs,bbs);
     ierr = PetscMemcpy(b->a,a->a,(bs2*a->i[ambs])*sizeof(PetscScalar));CHKERRQ(ierr);
+    ierr = PetscObjectStateIncrease((PetscObject)B);CHKERRQ(ierr);
   } else {
     ierr = MatCopy_Basic(A,B,str);CHKERRQ(ierr);
   }
@@ -2754,7 +2755,8 @@ static struct _MatOps MatOps_Values = {MatSetValues_SeqBAIJ,
                                        0,
                                        MatFDColoringSetUp_SeqXAIJ,
                                        0,
-                                /*144*/MatCreateMPIMatConcatenateSeqMat_SeqBAIJ
+                                /*144*/MatCreateMPIMatConcatenateSeqMat_SeqBAIJ,
+                                       MatDestroySubMatrices_SeqBAIJ
 };
 
 PetscErrorCode  MatStoreValues_SeqBAIJ(Mat mat)

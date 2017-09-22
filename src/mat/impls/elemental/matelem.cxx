@@ -472,6 +472,13 @@ static PetscErrorCode MatDiagonalScale_Elemental(Mat X,Vec L,Vec R)
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode MatMissingDiagonal_Elemental(Mat A,PetscBool *missing,PetscInt *d)
+{
+  PetscFunctionBegin;
+  *missing = PETSC_FALSE;
+  PetscFunctionReturn(0);
+}
+
 static PetscErrorCode MatScale_Elemental(Mat X,PetscScalar a)
 {
   Mat_Elemental  *x = (Mat_Elemental*)X->data;
@@ -500,9 +507,11 @@ static PetscErrorCode MatCopy_Elemental(Mat A,Mat B,MatStructure str)
 {
   Mat_Elemental *a=(Mat_Elemental*)A->data;
   Mat_Elemental *b=(Mat_Elemental*)B->data;
+  PetscErrorCode ierr;
 
   PetscFunctionBegin;
   El::Copy(*a->emat,*b->emat);
+  ierr = PetscObjectStateIncrease((PetscObject)B);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1244,7 +1253,7 @@ static struct _MatOps MatOps_Values = {
        0,
        0,
        0,
-       0,
+       MatMissingDiagonal_Elemental,
 /*114*/0,
        0,
        0,

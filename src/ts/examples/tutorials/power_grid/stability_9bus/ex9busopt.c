@@ -1157,6 +1157,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx0)
   PetscScalar    val;
   Vec            Xdot;
 
+  PetscFunctionBegin;
   ierr  = VecGetArray(P,&x_ptr);CHKERRQ(ierr);
   PG[0] = x_ptr[0];
   PG[1] = x_ptr[1];
@@ -1213,16 +1214,18 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx0)
   */
   ierr = TSSetSaveTrajectory(ts);CHKERRQ(ierr);
 
-  ierr = TSSetDuration(ts,1000,ctx->tfaulton);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,0.01);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(ts,0.0,0.01);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   /* ierr = TSSetPostStep(ts,SaveSolution);CHKERRQ(ierr); */
 
-  ctx->alg_flg = PETSC_FALSE;
+
   /* Prefault period */
+  ctx->alg_flg = PETSC_FALSE;
+  ierr = TSSetTime(ts,0.0);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,ctx->tfaulton);CHKERRQ(ierr);
   ierr = TSSolve(ts,X);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts,&steps1);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts,&steps1);CHKERRQ(ierr);
 
   /* Create the nonlinear solver for solving the algebraic system */
   /* Note that although the algebraic system needs to be solved only for
@@ -1252,14 +1255,12 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx0)
   ctx->stepnum++;
 
   /* Disturbance period */
-  ierr = TSSetDuration(ts,1000,ctx->tfaultoff);CHKERRQ(ierr);
-  ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(ts,ctx->tfaulton,.01);CHKERRQ(ierr);
-
   ctx->alg_flg = PETSC_FALSE;
-
+  ierr = TSSetTime(ts,ctx->tfaulton);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,ctx->tfaultoff);CHKERRQ(ierr);
   ierr = TSSolve(ts,X);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts,&steps2);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts,&steps2);CHKERRQ(ierr);
+  steps2 -= steps1;
 
   /* Remove the fault */
   row_loc = 2*ctx->faultbus; col_loc = 2*ctx->faultbus+1;
@@ -1282,14 +1283,13 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx0)
   ctx->stepnum++;
 
   /* Post-disturbance period */
-  ierr = TSSetDuration(ts,1000,ctx->tmax);CHKERRQ(ierr);
-  ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(ts,ctx->tfaultoff,.01);CHKERRQ(ierr);
-
   ctx->alg_flg = PETSC_TRUE;
-
+  ierr = TSSetTime(ts,ctx->tfaultoff);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,ctx->tmax);CHKERRQ(ierr);
   ierr = TSSolve(ts,X);CHKERRQ(ierr);
-  ierr = TSGetTimeStepNumber(ts,&steps3);CHKERRQ(ierr);
+  ierr = TSGetStepNumber(ts,&steps3);CHKERRQ(ierr);
+  steps3 -= steps2;
+  steps3 -= steps1;
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Adjoint model starts here
@@ -1365,5 +1365,5 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx0)
   for (i=0;i<3;i++) {
     ierr = VecDestroy(&DICDP[i]);CHKERRQ(ierr);
   }
-  return 0;
+  PetscFunctionReturn(0);
 }

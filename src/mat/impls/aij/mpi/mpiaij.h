@@ -27,10 +27,12 @@ typedef struct { /* used by MatPtAP_MPIAIJ_MPIAIJ() and MatMatMult_MPIAIJ_MPIAIJ
   Mat         Pt;              /* used by MatTransposeMatMult(), Pt = P^T */
   PetscBool   scalable;        /* flag determines scalable or non-scalable implementation */
   Mat         Rd,Ro,AP_loc,C_loc,C_oth;
+  PetscInt    algType;         /* implementation algorithm */
 
   Mat_Merge_SeqsToMPI *merge;
   PetscErrorCode (*destroy)(Mat);
   PetscErrorCode (*duplicate)(Mat,MatDuplicateOption,Mat*);
+  PetscErrorCode (*view)(Mat,PetscViewer);
 } Mat_PtAPMPI;
 
 typedef struct {
@@ -79,6 +81,8 @@ typedef struct {
 } Mat_MPIAIJ;
 
 PETSC_EXTERN PetscErrorCode MatCreate_MPIAIJ(Mat);
+
+PETSC_INTERN PetscErrorCode MatAssemblyEnd_MPIAIJ(Mat,MatAssemblyType);
 
 PETSC_INTERN PetscErrorCode MatSetUpMultiply_MPIAIJ(Mat);
 PETSC_INTERN PetscErrorCode MatDisAssemble_MPIAIJ(Mat);
@@ -182,7 +186,7 @@ PETSC_INTERN PetscErrorCode MatSetSeqMats_MPIAIJ(Mat,IS,IS,IS,MatStructure,Mat,M
         apa[_k] += _valtmp*_pa[_nextp++];                                \
       } \
     }                                           \
-    PetscLogFlops(2.0*_pnz);                    \
+    (void)PetscLogFlops(2.0*_pnz);              \
   }                                             \
   /* off-diagonal portion of A */               \
   _ai  = ao->i;\
@@ -203,7 +207,7 @@ PETSC_INTERN PetscErrorCode MatSetSeqMats_MPIAIJ(Mat,IS,IS,IS,MatStructure,Mat,M
         apa[_k] += _valtmp*_pa[_nextp++];                       \
       }                                                     \
     }                                            \
-    PetscLogFlops(2.0*_pnz);                     \
+    (void)PetscLogFlops(2.0*_pnz);               \
   } \
 }
 
@@ -227,7 +231,7 @@ PETSC_INTERN PetscErrorCode MatSetSeqMats_MPIAIJ(Mat,IS,IS,IS,MatStructure,Mat,M
     for (_k=0; _k<_pnz; _k++) {                    \
       apa[_pj[_k]] += _valtmp*_pa[_k];               \
     }                                           \
-    PetscLogFlops(2.0*_pnz);                    \
+    (void)PetscLogFlops(2.0*_pnz);              \
   }                                             \
   /* off-diagonal portion of A */               \
   _ai  = ao->i;\
@@ -245,7 +249,7 @@ PETSC_INTERN PetscErrorCode MatSetSeqMats_MPIAIJ(Mat,IS,IS,IS,MatStructure,Mat,M
     for (_k=0; _k<_pnz; _k++) {                     \
       apa[_pj[_k]] += _valtmp*_pa[_k];                \
     }                                            \
-    PetscLogFlops(2.0*_pnz);                     \
+    (void)PetscLogFlops(2.0*_pnz);               \
   } \
 }
 

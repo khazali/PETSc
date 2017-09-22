@@ -390,7 +390,7 @@ PetscErrorCode SetInitialGuess(DM networkdm, Vec X)
     ierr = DMNetworkGetVariableOffset(networkdm,v,&offset);CHKERRQ(ierr);
     ierr = DMNetworkGetNumComponents(networkdm,v,&numComps);CHKERRQ(ierr);
     for (j=0; j < numComps; j++) {
-      ierr = DMNetworkGetComponentTypeOffset(networkdm,v,j,&key,&offsetd);CHKERRQ(ierr);
+      ierr = DMNetworkGetComponentKeyOffset(networkdm,v,j,&key,&offsetd);CHKERRQ(ierr);
       if (key == 1) {
         bus = (Bus*)(arr+offsetd);
 
@@ -531,7 +531,7 @@ PetscErrorCode FormIFunction(TS ts,PetscReal t,Vec X,Vec Xdot,Vec F,Userctx *use
     ierr = DMNetworkGetVariableOffset(networkdm,v,&offset);CHKERRQ(ierr);
 
     for (j = 0; j < numComps; j++) {
-      ierr = DMNetworkGetComponentTypeOffset(networkdm,v,j,&key,&offsetd);CHKERRQ(ierr);
+      ierr = DMNetworkGetComponentKeyOffset(networkdm,v,j,&key,&offsetd);CHKERRQ(ierr);
       if (key == 1) {
         PetscInt       nconnedges;
         const PetscInt *connedges;
@@ -567,13 +567,13 @@ PetscErrorCode FormIFunction(TS ts,PetscReal t,Vec X,Vec Xdot,Vec F,Userctx *use
           const PetscInt *cone;
 
           e = connedges[i];
-          ierr = DMNetworkGetComponentTypeOffset(networkdm,e,0,&keye,&offsetd);CHKERRQ(ierr);
+          ierr = DMNetworkGetComponentKeyOffset(networkdm,e,0,&keye,&offsetd);CHKERRQ(ierr);
           branch = (Branch*)(arr+offsetd);
 
           Yfti = branch->yft[0];
           Yftr = branch->yft[1];
 
-          ierr = DMNetworkGetConnectedNodes(networkdm,e,&cone);CHKERRQ(ierr);
+          ierr = DMNetworkGetConnectedVertices(networkdm,e,&cone);CHKERRQ(ierr);
 
           vfrom = cone[0];
           vto   = cone[1];
@@ -775,7 +775,7 @@ PetscErrorCode AlgFunction (SNES snes, Vec X, Vec F, void *ctx)
     ierr = DMNetworkGetVariableOffset(networkdm,v,&offset);CHKERRQ(ierr);
 
     for (j = 0; j < numComps; j++) {
-      ierr = DMNetworkGetComponentTypeOffset(networkdm,v,j,&key,&offsetd);CHKERRQ(ierr);
+      ierr = DMNetworkGetComponentKeyOffset(networkdm,v,j,&key,&offsetd);CHKERRQ(ierr);
       if (key == 1) {
         PetscInt       nconnedges;
         const PetscInt *connedges;
@@ -806,13 +806,13 @@ PetscErrorCode AlgFunction (SNES snes, Vec X, Vec F, void *ctx)
           const PetscInt *cone;
 
           e = connedges[i];
-          ierr   = DMNetworkGetComponentTypeOffset(networkdm,e,0,&keye,&offsetd);CHKERRQ(ierr);
+          ierr   = DMNetworkGetComponentKeyOffset(networkdm,e,0,&keye,&offsetd);CHKERRQ(ierr);
           branch = (Branch*)(arr+offsetd);
 
           Yfti = branch->yft[0];
           Yftr = branch->yft[1];
 
-          ierr  = DMNetworkGetConnectedNodes(networkdm,e,&cone);CHKERRQ(ierr);
+          ierr  = DMNetworkGetConnectedVertices(networkdm,e,&cone);CHKERRQ(ierr);
           vfrom = cone[0];
           vto   = cone[1];
 
@@ -1075,9 +1075,9 @@ int main(int argc,char ** argv)
   ierr = PCSetType(pc,PCBJACOBI);CHKERRQ(ierr);
 
   ierr = TSSetIFunction(ts,NULL,(TSIFunction) FormIFunction,&user);CHKERRQ(ierr);
-  ierr = TSSetDuration(ts,1000,user.tfaulton);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,user.tfaulton);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(ts,0.0,0.01);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,0.01);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
 
   /*user.alg_flg = PETSC_TRUE is the period when fault exists. We add fault admittance to Ybus matrix. 
@@ -1114,9 +1114,9 @@ int main(int argc,char ** argv)
   ierr = SNESSolve(snes_alg,NULL,X);CHKERRQ(ierr);
 
   /* Disturbance period */
-  ierr = TSSetDuration(ts,1000,user.tfaultoff);CHKERRQ(ierr);
+  ierr = TSSetTime(ts,user.tfaulton);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,user.tfaultoff);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(ts,user.tfaulton,.01);CHKERRQ(ierr);
   ierr = TSSetIFunction(ts,NULL,(TSIFunction) FormIFunction,&user);CHKERRQ(ierr);
 
   user.alg_flg = PETSC_TRUE;
@@ -1137,9 +1137,9 @@ int main(int argc,char ** argv)
   ierr = SNESDestroy(&snes_alg);CHKERRQ(ierr);
 
   /* Post-disturbance period */
-  ierr = TSSetDuration(ts,1000,user.tmax);CHKERRQ(ierr);
+  ierr = TSSetTime(ts,user.tfaultoff);CHKERRQ(ierr);
+  ierr = TSSetMaxTime(ts,user.tmax);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
-  ierr = TSSetInitialTimeStep(ts,user.tfaultoff,.01);CHKERRQ(ierr);
   ierr = TSSetIFunction(ts,NULL,(TSIFunction) FormIFunction,&user);CHKERRQ(ierr);
 
   user.alg_flg = PETSC_FALSE;
@@ -1152,6 +1152,6 @@ int main(int argc,char ** argv)
   ierr = VecDestroy(&X);CHKERRQ(ierr);
   ierr = DMDestroy(&networkdm);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
-  PetscFinalize();
-  return(0);
+  ierr = PetscFinalize();
+  return ierr;
  }

@@ -144,7 +144,7 @@ static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *ctx)
   ierr = PetscDSSetResidual(prob, 0, f0_temp, f1_temp);CHKERRQ(ierr);
   ierr = PetscDSSetJacobian(prob, 0, 0, g0_temp, NULL, NULL, g3_temp);CHKERRQ(ierr);
   ctx->exactFuncs[0] = analytic_temp;
-  ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL, "wall", "marker", 0, 0, NULL, (void (*)()) ctx->exactFuncs[0], 1, &id, ctx);CHKERRQ(ierr);
+  ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL, "wall", "marker", 0, 0, NULL, (void (*)(void)) ctx->exactFuncs[0], 1, &id, ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -186,7 +186,7 @@ int main(int argc, char **argv)
   PetscReal      L2error = 0.0;
   PetscErrorCode ierr;
 
-  ierr = PetscInitialize(&argc, &argv, NULL, help);CHKERRQ(ierr);
+  ierr = PetscInitialize(&argc, &argv, NULL, help);if (ierr) return ierr;
   ierr = ProcessOptions(PETSC_COMM_WORLD, &ctx);CHKERRQ(ierr);
   ierr = CreateMesh(PETSC_COMM_WORLD, &dm, &ctx);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(dm, &ctx);CHKERRQ(ierr);
@@ -224,8 +224,6 @@ int main(int argc, char **argv)
 }
 
 /*TEST
-  build:
-    requires: !mpiuni
 
   # Full solves
   test:
@@ -262,28 +260,28 @@ int main(int argc, char **argv)
     suffix: 2d_q1_r1
     requires: !single
     filter: sed -e "s~ATOL~RTOL~g" -e "s~ABS~RELATIVE~g"
-    args: -simplex 0 -dm_refine 1 -temp_petscspace_order 1 -temp_petscspace_poly_tensor -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
+    args: -simplex 0 -dm_refine 1 -temp_petscspace_order 1 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
   test:
     suffix: 2d_q1_r3
     filter: sed -e "s~ATOL~RTOL~g" -e "s~ABS~RELATIVE~g"
-    args: -simplex 0 -dm_refine 3 -temp_petscspace_order 1 -temp_petscspace_poly_tensor -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
+    args: -simplex 0 -dm_refine 3 -temp_petscspace_order 1 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
   test:
     suffix: 2d_q1_r5
     filter: sed -e "s~ATOL~RTOL~g" -e "s~ABS~RELATIVE~g"
-    args: -simplex 0 -dm_refine 5 -temp_petscspace_order 1 -temp_petscspace_poly_tensor -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
+    args: -simplex 0 -dm_refine 5 -temp_petscspace_order 1 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
   test:
     suffix: 2d_q2_r1
     filter: sed -e "s~ATOL~RTOL~g" -e "s~ABS~RELATIVE~g"
-    args: -simplex 0 -dm_refine 1 -temp_petscspace_order 2 -temp_petscspace_poly_tensor -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
+    args: -simplex 0 -dm_refine 1 -temp_petscspace_order 2 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
   test:
     suffix: 2d_q2_r3
     filter: sed -e "s~ATOL~RTOL~g" -e "s~ABS~RELATIVE~g"
-    args: -simplex 0 -dm_refine 3 -temp_petscspace_order 2 -temp_petscspace_poly_tensor -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
+    args: -simplex 0 -dm_refine 3 -temp_petscspace_order 2 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
   test:
     suffix: 2d_q2_r5
     requires: !single
     filter: sed -e "s~ATOL~RTOL~g" -e "s~ABS~RELATIVE~g"
-    args: -simplex 0 -dm_refine 5 -temp_petscspace_order 2 -temp_petscspace_poly_tensor -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
+    args: -simplex 0 -dm_refine 5 -temp_petscspace_order 2 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
   test:
     suffix: 3d_p1_r1
     requires: ctetgen
@@ -317,26 +315,26 @@ int main(int argc, char **argv)
   test:
     suffix: 3d_q1_r1
     filter: sed -e "s~ATOL~RTOL~g" -e "s~ABS~RELATIVE~g"
-    args: -dim 3 -simplex 0 -dm_refine 1 -temp_petscspace_order 1 -temp_petscspace_poly_tensor -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
+    args: -dim 3 -simplex 0 -dm_refine 1 -temp_petscspace_order 1 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
   test:
     suffix: 3d_q1_r2
     filter: sed -e "s~ATOL~RTOL~g" -e "s~ABS~RELATIVE~g"
-    args: -dim 3 -simplex 0 -dm_refine 2 -temp_petscspace_order 1 -temp_petscspace_poly_tensor -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
+    args: -dim 3 -simplex 0 -dm_refine 2 -temp_petscspace_order 1 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
   test:
     suffix: 3d_q1_r3
     filter: sed -e "s~ATOL~RTOL~g" -e "s~ABS~RELATIVE~g"
-    args: -dim 3 -simplex 0 -dm_refine 3 -temp_petscspace_order 1 -temp_petscspace_poly_tensor -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
+    args: -dim 3 -simplex 0 -dm_refine 3 -temp_petscspace_order 1 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
   test:
     suffix: 3d_q2_r1
     filter: sed -e "s~ATOL~RTOL~g" -e "s~ABS~RELATIVE~g"
-    args: -dim 3 -simplex 0 -dm_refine 1 -temp_petscspace_order 2 -temp_petscspace_poly_tensor -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
+    args: -dim 3 -simplex 0 -dm_refine 1 -temp_petscspace_order 2 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
   test:
     suffix: 3d_q2_r2
     filter: sed -e "s~ATOL~RTOL~g" -e "s~ABS~RELATIVE~g"
-    args: -dim 3 -simplex 0 -dm_refine 2 -temp_petscspace_order 2 -temp_petscspace_poly_tensor -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
+    args: -dim 3 -simplex 0 -dm_refine 2 -temp_petscspace_order 2 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
   test:
     suffix: 3d_q2_r3
     filter: sed -e "s~ATOL~RTOL~g" -e "s~ABS~RELATIVE~g"
-    args: -dim 3 -simplex 0 -dm_refine 3 -temp_petscspace_order 2 -temp_petscspace_poly_tensor -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
+    args: -dim 3 -simplex 0 -dm_refine 3 -temp_petscspace_order 2 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
 
 TEST*/

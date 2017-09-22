@@ -587,7 +587,7 @@ static PetscErrorCode KSPFETIDPSetUpOperators(KSP ksp)
       PC_IS                  *pcis = (PC_IS*)fetidp->innerbddc->data;
       Mat_IS                 *matis = (Mat_IS*)(A->data);
       ISLocalToGlobalMapping l2g;
-      IS                     lP,II,pII,lPall,Pall,is1,is2;
+      IS                     lP = NULL,II,pII,lPall,Pall,is1,is2;
       const PetscInt         *idxs;
       PetscInt               nl,ni,*widxs;
       PetscInt               i,j,n_neigh,*neigh,*n_shared,**shared,*count;
@@ -597,10 +597,10 @@ static PetscErrorCode KSPFETIDPSetUpOperators(KSP ksp)
       ierr = MatGetLocalSize(A,&nl,NULL);CHKERRQ(ierr);
       ierr = MatGetOwnershipRange(A,&rst,&ren);CHKERRQ(ierr);
       ierr = MatGetLocalSize(lA,&n,NULL);CHKERRQ(ierr);
+      ierr = MatGetLocalToGlobalMapping(A,&l2g,NULL);CHKERRQ(ierr);
 
       if (!pcis->is_I_local) { /* need to compute interior dofs */
         ierr = PetscCalloc1(n,&count);CHKERRQ(ierr);
-        ierr = MatGetLocalToGlobalMapping(A,&l2g,NULL);CHKERRQ(ierr);
         ierr = ISLocalToGlobalMappingGetInfo(l2g,&n_neigh,&neigh,&n_shared,&shared);CHKERRQ(ierr);
         for (i=1;i<n_neigh;i++)
           for (j=0;j<n_shared[i];j++)
@@ -725,7 +725,8 @@ static PetscErrorCode KSPFETIDPSetUpOperators(KSP ksp)
       /* local selected pressures in subdomain-wise and global ordering */
       ierr = PetscMemzero(matis->sf_leafdata,n*sizeof(PetscInt));CHKERRQ(ierr);
       ierr = PetscMemzero(matis->sf_rootdata,nl*sizeof(PetscInt));CHKERRQ(ierr);
-      if (pP) {
+      if (!ploc) {
+        if (!pP) SETERRQ(PetscObjectComm((PetscObject)ksp),PETSC_ERR_PLIB,"Missing parallel pressure IS");
         ierr = ISGetLocalSize(pP,&ni);CHKERRQ(ierr);
         ierr = ISGetIndices(pP,&idxs);CHKERRQ(ierr);
         for (i=0;i<ni;i++) matis->sf_rootdata[idxs[i]-rst] = 1;
@@ -740,6 +741,7 @@ static PetscErrorCode KSPFETIDPSetUpOperators(KSP ksp)
         ierr = PetscObjectCompose((PetscObject)fetidp->innerbddc,"__KSPFETIDP_gP",(PetscObject)is1);CHKERRQ(ierr);
         ierr = ISDestroy(&is1);CHKERRQ(ierr);
       } else {
+        if (!lP) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Missing sequential pressure IS");
         ierr = ISGetLocalSize(lP,&ni);CHKERRQ(ierr);
         ierr = ISGetIndices(lP,&idxs);CHKERRQ(ierr);
         for (i=0;i<ni;i++)
@@ -764,17 +766,19 @@ static PetscErrorCode KSPFETIDPSetUpOperators(KSP ksp)
          Need to extract the interior velocity dofs in interior dofs ordering (iV)
          and interior pressure dofs in local ordering (iP) */
       if (!allp) {
+        ISLocalToGlobalMapping l2g_t;
+
         ierr = ISDifference(lPall,lP,&is1);CHKERRQ(ierr);
         ierr = PetscObjectCompose((PetscObject)fetidp->innerbddc,"__KSPFETIDP_iP",(PetscObject)is1);CHKERRQ(ierr);
         ierr = ISDifference(II,is1,&is2);CHKERRQ(ierr);
         ierr = ISDestroy(&is1);CHKERRQ(ierr);
-        ierr = ISLocalToGlobalMappingCreateIS(II,&l2g);CHKERRQ(ierr);
-        ierr = ISGlobalToLocalMappingApplyIS(l2g,IS_GTOLM_DROP,is2,&is1);CHKERRQ(ierr);
+        ierr = ISLocalToGlobalMappingCreateIS(II,&l2g_t);CHKERRQ(ierr);
+        ierr = ISGlobalToLocalMappingApplyIS(l2g_t,IS_GTOLM_DROP,is2,&is1);CHKERRQ(ierr);
         ierr = ISGetLocalSize(is1,&i);CHKERRQ(ierr);
         ierr = ISGetLocalSize(is2,&j);CHKERRQ(ierr);
         if (i != j) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Inconsistent local sizes %D and %D for iV",i,j);
         ierr = PetscObjectCompose((PetscObject)fetidp->innerbddc,"__KSPFETIDP_iV",(PetscObject)is1);CHKERRQ(ierr);
-        ierr = ISLocalToGlobalMappingDestroy(&l2g);CHKERRQ(ierr);
+        ierr = ISLocalToGlobalMappingDestroy(&l2g_t);CHKERRQ(ierr);
         ierr = ISDestroy(&is1);CHKERRQ(ierr);
         ierr = ISDestroy(&is2);CHKERRQ(ierr);
       }
@@ -1211,13 +1215,20 @@ static PetscErrorCode KSPSetFromOptions_FETIDP(PetscOptionItems *PetscOptionsObj
       -fetidp_bddelta_pc_factor_mat_solver_package mumps -my_fetidp_bddelta_pc_type lu
 .ve
 
+   Some of the basic options such as maximum number of iterations and tolerances are automatically passed from this KSP to the inner KSP that actually performs the iterations.
+
+   The converged reason and number of iterations computed are passed from the inner KSP to this KSP at the end of the solution.
+
+   Developer Notes: Even though this method does not directly use any norms, the user is allowed to set the KSPNormType to any value.
+    This is so users do not have to change KSPNormType options when they switch from other KSP methods to this one.
+
    References:
 .vb
 .  [1] - C. Farhat, M. Lesoinne, P. LeTallec, K. Pierson, and D. Rixen, FETI-DP: a dual-primal unified FETI method. I. A faster alternative to the two-level FETI method, Internat. J. Numer. Methods Engrg., 50 (2001), pp. 1523--1544
 .  [2] - X. Tu, J. Li, A FETI-DP type domain decomposition algorithm for three-dimensional incompressible Stokes equations, SIAM J. Numer. Anal., 53 (2015), pp. 720-742
 .ve
 
-.seealso: MATIS, PCBDDC, KSPFETIDPSetInnerBDDC, KSPFETIDPGetInnerBDDC, KSPFETIDPGetInnerKSP
+.seealso: MATIS, PCBDDC, KSPFETIDPSetInnerBDDC(), KSPFETIDPGetInnerBDDC(), KSPFETIDPGetInnerKSP()
 M*/
 PETSC_EXTERN PetscErrorCode KSPCreate_FETIDP(KSP ksp)
 {
@@ -1228,6 +1239,14 @@ PETSC_EXTERN PetscErrorCode KSPCreate_FETIDP(KSP ksp)
   PC             pc;
 
   PetscFunctionBegin;
+  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_NONE,PC_LEFT,3);CHKERRQ(ierr);
+  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_NONE,PC_RIGHT,2);CHKERRQ(ierr);
+  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_PRECONDITIONED,PC_LEFT,2);CHKERRQ(ierr);
+  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_PRECONDITIONED,PC_RIGHT,2);CHKERRQ(ierr);
+  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_UNPRECONDITIONED,PC_LEFT,2);CHKERRQ(ierr);
+  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_UNPRECONDITIONED,PC_RIGHT,2);CHKERRQ(ierr);
+  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_NATURAL,PC_LEFT,2);CHKERRQ(ierr);
+
   ierr = PetscNewLog(ksp,&fetidp);CHKERRQ(ierr);
   fetidp->matstate     = -1;
   fetidp->matnnzstate  = -1;
@@ -1243,8 +1262,6 @@ PETSC_EXTERN PetscErrorCode KSPCreate_FETIDP(KSP ksp)
   ksp->ops->setfromoptions               = KSPSetFromOptions_FETIDP;
   ksp->ops->buildsolution                = KSPBuildSolution_FETIDP;
   ksp->ops->buildresidual                = KSPBuildResidualDefault;
-  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_NONE,PC_LEFT,1);CHKERRQ(ierr);
-  ierr = KSPSetSupportedNorm(ksp,KSP_NORM_NONE,PC_RIGHT,1);CHKERRQ(ierr);
   ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
   ierr = PCSetType(pc,PCNONE);CHKERRQ(ierr);
   /* create the inner KSP for the Lagrange multipliers */

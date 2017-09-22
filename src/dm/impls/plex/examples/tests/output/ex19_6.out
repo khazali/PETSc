@@ -8,7 +8,7 @@ DMinit in 3 dimensions:
 Labels:
   marker: 1 strata with value/size (1 (1022))
   depth: 4 strata with value/size (0 (548), 1 (3055), 2 (4695), 3 (2187))
-DM Object: DMadapt 2 MPI processes
+DM Object: DMadapt (adapt_) 2 MPI processes
   type: plex
 DMadapt in 3 dimensions:
   0-cells: 49603 49827
@@ -18,6 +18,3 @@ DMadapt in 3 dimensions:
 Labels:
   _boundary_: 1 strata with value/size (1 (7584))
   depth: 4 strata with value/size (0 (49603), 1 (334994), 2 (564944), 3 (279552))
-WARNING! There are options you set that were not used!
-WARNING! could be spelling mistake, etc!
-Option left: name:-dm_plex_separate_marker value: 0

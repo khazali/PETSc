@@ -7,6 +7,7 @@
 #include <petsc/private/petscimpl.h>
 
 PETSC_EXTERN PetscBool MatRegisterAllCalled;
+PETSC_EXTERN PetscBool MatSeqAIJRegisterAllCalled;
 PETSC_EXTERN PetscBool MatOrderingRegisterAllCalled;
 PETSC_EXTERN PetscBool MatColoringRegisterAllCalled;
 PETSC_EXTERN PetscBool MatPartitioningRegisterAllCalled;
@@ -16,6 +17,7 @@ PETSC_EXTERN PetscErrorCode MatOrderingRegisterAll(void);
 PETSC_EXTERN PetscErrorCode MatColoringRegisterAll(void);
 PETSC_EXTERN PetscErrorCode MatPartitioningRegisterAll(void);
 PETSC_EXTERN PetscErrorCode MatCoarsenRegisterAll(void);
+PETSC_EXTERN PetscErrorCode MatSeqAIJRegisterAll(void);
 
 /*
   This file defines the parts of the matrix data structure that are
@@ -203,7 +205,7 @@ struct _MatOps {
   PetscErrorCode (*findoffblockdiagonalentries)(Mat,IS*);
   /*144*/
   PetscErrorCode (*creatempimatconcatenateseqmat)(MPI_Comm,Mat,PetscInt,MatReuse,Mat*);
-
+  PetscErrorCode (*destroysubmatrices)(PetscInt,Mat*[]);
 };
 /*
     If you add MatOps entries above also add them to the MATOP enum
