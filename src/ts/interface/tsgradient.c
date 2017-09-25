@@ -1545,7 +1545,7 @@ static PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   if (!adj_ctx->gradient) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Missing gradient vector");
   ierr = TSGetTime(adjts,&tf);CHKERRQ(ierr);
-  if (tf < adj_ctx->tf) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Backward solve did not complete");
+  if (PetscAbsReal(tf - adj_ctx->tf) > PETSC_SMALL) SETERRQ1(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Backward solve did not complete %1.14e",tf-adj_ctx->tf);
 
   /* initial condition contribution to the gradient */
   fwdts = adj_ctx->fwdts;
