@@ -293,6 +293,62 @@ static PetscErrorCode EvaluateObjective_MM(ObjectiveLink funchead, Vec state, Ve
   PetscFunctionReturn(0);
 }
 
+/* Evaluates Hessian (wrt the parameters) matvec of objective functions of the type f(state,design,t = tfixed) */
+static PetscErrorCode EvaluateObjectiveFixed_MM(ObjectiveLink funchead, Vec state, Vec design, PetscReal time, Vec direction, Vec work, PetscBool *has, Vec out)
+{
+  PetscErrorCode ierr;
+  ObjectiveLink  link = funchead;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(state,VEC_CLASSID,2);
+  PetscValidHeaderSpecific(design,VEC_CLASSID,3);
+  PetscValidLogicalCollectiveReal(state,time,4);
+  PetscValidHeaderSpecific(direction,VEC_CLASSID,5);
+  PetscValidHeaderSpecific(work,VEC_CLASSID,6);
+  PetscValidPointer(has,7);
+  PetscValidHeaderSpecific(out,VEC_CLASSID,8);
+  if (work == out) SETERRQ(PetscObjectComm((PetscObject)out),PETSC_ERR_USER,"work and out vectors need to be different");
+  *has = PETSC_FALSE;
+  while (link) {
+    if (link->f_MM && time == link->fixedtime) *has = PETSC_TRUE;
+    link = link->next;
+  }
+  if (*has) {
+    PetscBool firstdone = PETSC_FALSE;
+
+    link = funchead;
+    ierr = VecLockPush(state);CHKERRQ(ierr);
+    ierr = VecLockPush(design);CHKERRQ(ierr);
+    ierr = VecLockPush(direction);CHKERRQ(ierr);
+    while (link) {
+      if (link->f_MM && time == link->fixedtime) {
+        if (link->f_mm) { /* non-constant dependence */
+          ierr = (*link->f_mm)(state,design,time,link->f_MM,link->f_ctx);CHKERRQ(ierr);
+        }
+        if (!firstdone) {
+          ierr = MatMult(link->f_MM,direction,out);CHKERRQ(ierr);
+        } else {
+          PetscBool hasop;
+
+          ierr = MatHasOperation(link->f_MM,MATOP_MULT_ADD,&hasop);CHKERRQ(ierr);
+          if (hasop) {
+            ierr = MatMultAdd(link->f_MM,direction,out,out);CHKERRQ(ierr);
+          } else {
+            ierr = MatMult(link->f_MM,direction,work);CHKERRQ(ierr);
+            ierr = VecAXPY(out,1.0,work);CHKERRQ(ierr);
+          }
+        }
+        firstdone = PETSC_TRUE;
+      }
+      link = link->next;
+    }
+    ierr = VecLockPop(state);CHKERRQ(ierr);
+    ierr = VecLockPop(design);CHKERRQ(ierr);
+    ierr = VecLockPop(direction);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
 PETSC_UNUSED static PetscErrorCode TSGetNumObjectives(TS ts, PetscInt *n)
 {
   ObjectiveLink link = ts->funchead;
@@ -677,8 +733,12 @@ static PetscErrorCode TSQuadratureCtxDestroy_Private(void *ptr)
   PetscFunctionReturn(0);
 }
 
-/* these functions are evaluated during the forward run */
-static PetscErrorCode EvalQuadObj(ObjectiveLink link,Vec U, PetscReal t, PetscReal *f, void* ctx)
+/*
+  XXX_FWD are evaluated during the forward run
+  XXX_TLM are evaluated during the tangent linear model run
+  XXX_ADJ are evaluated during the adjoint run
+*/
+static PetscErrorCode EvalQuadObj_FWD(ObjectiveLink link,Vec U, PetscReal t, PetscReal *f, void* ctx)
 {
   Vec            design = (Vec)ctx;
   PetscErrorCode ierr;
@@ -688,7 +748,7 @@ static PetscErrorCode EvalQuadObj(ObjectiveLink link,Vec U, PetscReal t, PetscRe
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode EvalQuadObjFixed(ObjectiveLink link,Vec U, PetscReal t, PetscReal *f, void* ctx)
+static PetscErrorCode EvalQuadObjFixed_FWD(ObjectiveLink link,Vec U, PetscReal t, PetscReal *f, void* ctx)
 {
   Vec            design = (Vec)ctx;
   PetscErrorCode ierr;
@@ -698,19 +758,7 @@ static PetscErrorCode EvalQuadObjFixed(ObjectiveLink link,Vec U, PetscReal t, Pe
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode EvalQuadObj_M(ObjectiveLink link,Vec U, PetscReal t, Vec F, void* ctx)
-{
-  Vec            *v = (Vec*)ctx;
-  Vec            design = v[0], work = v[1];
-  PetscBool      has_m;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  ierr = EvaluateObjective_M(link,U,design,t,work,&has_m,F);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-static PetscErrorCode EvalQuadObj_MM(ObjectiveLink link,Vec U, PetscReal t, Vec F, void* ctx)
+static PetscErrorCode EvalQuadIntegrand_FWD(ObjectiveLink link,Vec U, PetscReal t, Vec F, void* ctx)
 {
   Vec            *v = (Vec*)ctx;
   Vec            design = v[0], work = v[1], direction = v[2];
@@ -718,19 +766,27 @@ static PetscErrorCode EvalQuadObj_MM(ObjectiveLink link,Vec U, PetscReal t, Vec 
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = EvaluateObjective_MM(link,U,design,t,direction,work,&has_m,F);CHKERRQ(ierr);
+  if (direction) { /* Hessian computation */
+    ierr = EvaluateObjective_MM(link,U,design,t,direction,work,&has_m,F);CHKERRQ(ierr);
+  } else {
+    ierr = EvaluateObjective_M(link,U,design,t,work,&has_m,F);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode EvalQuadObjFixed_M(ObjectiveLink link,Vec U, PetscReal t, Vec F, void* ctx)
+static PetscErrorCode EvalQuadIntegrandFixed_FWD(ObjectiveLink link,Vec U, PetscReal t, Vec F, void* ctx)
 {
   Vec            *v = (Vec*)ctx;
-  Vec            design = v[0];
+  Vec            design = v[0], work = v[1], direction = v[2];
   PetscBool      has_m;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = EvaluateObjectiveFixed_M(link,U,design,t,v[1],&has_m,F);CHKERRQ(ierr);
+  if (direction) { /* Hessian computation */
+    ierr = EvaluateObjectiveFixed_MM(link,U,design,t,direction,work,&has_m,F);CHKERRQ(ierr);
+  } else {
+    ierr = EvaluateObjectiveFixed_M(link,U,design,t,work,&has_m,F);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -1601,10 +1657,10 @@ static PetscErrorCode TSFWDWithQuadrature_Private(TS ts, Vec X, Vec design, Vec 
   ierr = TSSetStepNumber(ts,0);CHKERRQ(ierr);
 
   /* XXX */
-  seval       = EvalQuadObj;
-  seval_fixed = quadscalar ? EvalQuadObjFixed : NULL;
-  veval       = EvalQuadObj_M;
-  veval_fixed = quadvec ? EvalQuadObjFixed_M : NULL;
+  seval       = quadscalar ? EvalQuadObj_FWD : NULL;
+  seval_fixed = quadscalar ? EvalQuadObjFixed_FWD : NULL;
+  veval       = quadvec ? EvalQuadIntegrand_FWD : NULL;
+  veval_fixed = quadvec ? EvalQuadIntegrandFixed_FWD : NULL;
 
   /* set special purpose post step method for quadrature evaluation */
   ierr = PetscObjectQuery((PetscObject)ts,"_ts_evaluate_quadrature",(PetscObject*)&container);CHKERRQ(ierr);
@@ -1654,7 +1710,7 @@ static PetscErrorCode TSFWDWithQuadrature_Private(TS ts, Vec X, Vec design, Vec 
   if (qeval_ctx->veval || veval_fixed) { /* need the design vector and one work vector for the function evaluation */
     Vec *v,work;
 
-    ierr = PetscMalloc1(2,&v);CHKERRQ(ierr);
+    ierr = PetscCalloc1(3,&v);CHKERRQ(ierr);
     v[0] = design;
     ierr = PetscObjectQuery((PetscObject)ts,"_ts_quadwork_0",(PetscObject*)&work);CHKERRQ(ierr);
     if (!work) {
