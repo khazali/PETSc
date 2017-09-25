@@ -2401,10 +2401,10 @@ PetscErrorCode DMCoarsenHookAdd(DM fine,PetscErrorCode (*coarsenhook)(DM,DM,void
    Collective if any hooks are
 
    Input Arguments:
-+  fine - finer DM to use as a base
-.  restrct - restriction matrix, apply using MatRestrict()
-.  inject - injection matrix, also use MatRestrict()
--  coarse - coarer DM to update
++  fine     - finer DM to use as a base
+.  restrict - restriction matrix, apply using MatRestrict()
+.  inject   - injection matrix, also use MatRestrict()
+-  coarse   - coarser DM to update
 
    Level: developer
 

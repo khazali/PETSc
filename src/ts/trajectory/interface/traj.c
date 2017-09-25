@@ -33,7 +33,7 @@ PetscErrorCode TSTrajectoryRegister(const char sname[],PetscErrorCode (*function
   PetscFunctionReturn(0);
 }
 
-/*
+/*@
   TSTrajectorySet - Sets a vector of state in the trajectory object
 
   Collective on TS
@@ -52,7 +52,7 @@ PetscErrorCode TSTrajectoryRegister(const char sname[],PetscErrorCode (*function
 .keywords: TS, trajectory, create
 
 .seealso: TSTrajectorySetUp(), TSTrajectoryDestroy(), TSTrajectorySetType(), TSTrajectorySetVariableNames(), TSGetTrajectory(), TSTrajectoryGet(), TSTrajectoryGetVecs()
-*/
+@*/
 PetscErrorCode TSTrajectorySet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal time,Vec X)
 {
   PetscErrorCode ierr;
@@ -76,14 +76,14 @@ PetscErrorCode TSTrajectorySet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal 
   PetscFunctionReturn(0);
 }
 
-/*
+/*@
   TSTrajectoryGet - Updates the solution vector of a time stepper object by inquiring the TSTrajectory
 
   Collective on TS
 
   Input Parameters:
 + tj      - the trajectory object
-. ts      - the time stepper object (optional)
+. ts      - the time stepper object
 - stepnum - the step number
 
   Output Parameter:
@@ -95,8 +95,8 @@ PetscErrorCode TSTrajectorySet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal 
 
 .keywords: TS, trajectory, create
 
-.seealso: TSTrajectorySetUp(), TSTrajectoryDestroy(), TSTrajectorySetType(), TSTrajectorySetVariableNames(), TSGetTrajectory(), TSTrajectorySet(), TSTrajectoryGetVecs()
-*/
+.seealso: TSTrajectorySetUp(), TSTrajectoryDestroy(), TSTrajectorySetType(), TSTrajectorySetVariableNames(), TSGetTrajectory(), TSTrajectorySet(), TSTrajectoryGetVecs(), TSGetSolution()
+@*/
 PetscErrorCode TSTrajectoryGet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal *time)
 {
   PetscErrorCode ierr;
@@ -104,7 +104,7 @@ PetscErrorCode TSTrajectoryGet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal 
   PetscFunctionBegin;
   if (!tj) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_ARG_WRONGSTATE,"TS solver did not save trajectory");
   PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
-  if (ts) PetscValidHeaderSpecific(ts,TS_CLASSID,2);
+  PetscValidHeaderSpecific(ts,TS_CLASSID,2);
   PetscValidLogicalCollectiveInt(tj,stepnum,3);
   PetscValidPointer(time,4);
   if (!tj->ops->get) SETERRQ1(PetscObjectComm((PetscObject)tj),PETSC_ERR_SUP,"TSTrajectory type %s",((PetscObject)tj)->type_name);
@@ -119,8 +119,8 @@ PetscErrorCode TSTrajectoryGet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal 
   PetscFunctionReturn(0);
 }
 
-/*
-  TSTrajectoryGetVecs - Reconstructs the vectors of state and its time derivative using information from the TSTrajectory and, possibly, from the TS
+/*@
+  TSTrajectoryGetVecs - Reconstructs the vector of state and its time derivative using information from the TSTrajectory and, possibly, from the TS
 
   Collective on TS
 
@@ -129,8 +129,8 @@ PetscErrorCode TSTrajectoryGet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal 
 . ts      - the time stepper object (optional)
 - stepnum - the requested step number
 
-  Input/Output Parameter:
-. time    - the time associated with the step number
+  Input/Output Parameters:
+. time - the time associated with the step number
 
   Output Parameters:
 + U       - state vector (can be NULL)
@@ -138,13 +138,13 @@ PetscErrorCode TSTrajectoryGet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal 
 
   Level: developer
 
-  Notes: If the step number is PETSC_DECIDE, the time is used to inquire the trajectory.
-         Usually one does not call this routine, it is called during TSEvaluateGradient()
+  Notes: If the step number is PETSC_DECIDE, the time argument is used to inquire the trajectory.
+         If the requested time does not match any in the trajectory, Lagrangian interpolations are returned.
 
 .keywords: TS, trajectory, create
 
-.seealso: TSTrajectorySetUp(), TSTrajectoryDestroy(), TSTrajectorySetType(), TSTrajectorySetVariableNames(), TSGetTrajectory()
-*/
+.seealso: TSTrajectorySetUp(), TSTrajectoryDestroy(), TSTrajectorySetType(), TSTrajectorySetVariableNames(), TSGetTrajectory(), TSTrajectorySet(), TSTrajectoryGet()
+@*/
 PetscErrorCode TSTrajectoryGetVecs(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal *time,Vec U,Vec Udot)
 {
   PetscErrorCode ierr;
