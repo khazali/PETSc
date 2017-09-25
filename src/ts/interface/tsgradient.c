@@ -1836,7 +1836,6 @@ static PetscErrorCode TLMTSDestroy_Private(void *ptr)
   ierr = VecDestroy(&tlm->design);CHKERRQ(ierr);
   ierr = VecDestroy(&tlm->mdelta);CHKERRQ(ierr);
   ierr = VecDestroyVecs(3,&tlm->W);CHKERRQ(ierr);
-  ierr = MatDestroy(&tlm->P);CHKERRQ(ierr);
   ierr = TSDestroy(&tlm->model);CHKERRQ(ierr);
   ierr = PetscFree(tlm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -2071,6 +2070,7 @@ typedef struct {
   TS           lts;
   TS           adjlts;
   Vec          x0;
+  Mat          P;
   TSTrajectory tj;
   PetscReal    t0;
   PetscReal    tf;
@@ -2088,6 +2088,7 @@ static PetscErrorCode MatDestroy_Propagator(Mat A)
   ierr = TSDestroy(&prop->adjlts);CHKERRQ(ierr);
   ierr = TSDestroy(&prop->lts);CHKERRQ(ierr);
   ierr = TSDestroy(&prop->model);CHKERRQ(ierr);
+  ierr = MatDestroy(&prop->P);CHKERRQ(ierr);
   ierr = PetscFree(prop);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -2130,8 +2131,8 @@ static PetscErrorCode MatMultTranspose_Propagator(Mat A, Vec x, Vec y)
   ierr = AdjointTSSetTimeLimits(prop->adjlts,prop->t0,prop->tf);CHKERRQ(ierr);
   ierr = AdjointTSSetInitialGradient(prop->adjlts,y);CHKERRQ(ierr);
   /* Initialize adjoint variables using P^T x or x */
-  if (tlm->P) {
-    ierr = MatMultTranspose(tlm->P,x,tlm->W[2]);CHKERRQ(ierr);
+  if (prop->P) {
+    ierr = MatMultTranspose(prop->P,x,tlm->W[2]);CHKERRQ(ierr);
   } else {
     ierr = VecCopy(x,tlm->W[2]);CHKERRQ(ierr);
   }
@@ -2221,8 +2222,8 @@ static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
     ierr = TSSetExactFinalTime(prop->lts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   }
   ierr = TSSolve(prop->lts,NULL);CHKERRQ(ierr);
-  if (tlm->P) {
-    ierr = MatMult(tlm->P,sol,y);CHKERRQ(ierr);
+  if (prop->P) {
+    ierr = MatMult(prop->P,sol,y);CHKERRQ(ierr);
   } else {
     ierr = VecCopy(sol,y);CHKERRQ(ierr);
   }
@@ -2281,24 +2282,6 @@ static PetscErrorCode MatPropagatorUpdate_Propagator(Mat A, PetscReal t0, PetscR
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode TLMTSSetProjection(TS lts, Mat P)
-{
-  PetscContainer c;
-  TLMTS_Ctx      *tlm;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(lts,TS_CLASSID,1);
-  PetscValidHeaderSpecific(P,MAT_CLASSID,2);
-  ierr = PetscObjectQuery((PetscObject)lts,"_ts_tlm_ctx",(PetscObject*)&c);CHKERRQ(ierr);
-  if (!c) SETERRQ(PetscObjectComm((PetscObject)lts),PETSC_ERR_PLIB,"Missing tlm container");
-  ierr = PetscContainerGetPointer(c,(void**)&tlm);CHKERRQ(ierr);
-  ierr = PetscObjectReference((PetscObject)P);CHKERRQ(ierr);
-  ierr = MatDestroy(&tlm->P);CHKERRQ(ierr);
-  tlm->P = P;
-  PetscFunctionReturn(0);
-}
-
 static PetscErrorCode TLMTSSetDesign(TS lts, Vec design)
 {
   PetscContainer c;
@@ -2332,6 +2315,9 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
     PetscBool   match;
     PetscLayout pmap,map;
 
+    ierr = PetscObjectReference((PetscObject)P);CHKERRQ(ierr);
+    ierr = MatDestroy(&prop->P);CHKERRQ(ierr);
+    prop->P = P;
     ierr = MatGetLayouts(P,NULL,&pmap);CHKERRQ(ierr);
     ierr = VecGetLayout(x0,&map);CHKERRQ(ierr);
     ierr = PetscLayoutCompare(map,pmap,&match);CHKERRQ(ierr);
@@ -2372,9 +2358,6 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   /* creates the linear tangent model solver and its adjoint */
   ierr = TSCreateTLMTS(prop->model,&prop->lts);CHKERRQ(ierr);
   ierr = TLMTSSetDesign(prop->lts,design);CHKERRQ(ierr);
-  if (P) {
-    ierr = TLMTSSetProjection(prop->lts,P);CHKERRQ(ierr);
-  }
   ierr = PetscObjectDereference((PetscObject)design);CHKERRQ(ierr);
   ierr = TSSetFromOptions(prop->lts);CHKERRQ(ierr);
   ierr = TSSetObjective(prop->lts,prop->tf,NULL,TLMTS_dummyRHS,NULL,
