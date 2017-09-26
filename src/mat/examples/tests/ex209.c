@@ -11,7 +11,7 @@ int main(int argc,char **argv)
   PetscInt       i,M,N,Istart,Iend,n=7,j,J,Ii,m=8,k,o=1;
   PetscScalar    v;
   PetscErrorCode ierr;
-  PetscBool      equal=PETSC_FALSE;
+  PetscBool      equal=PETSC_FALSE,mat_view=PETSC_FALSE;
   char           stencil[PETSC_MAX_PATH_LEN];
 #if defined(PETSC_USE_LOG)
   PetscLogStage  fullMatMatMultStage,numericMatMatMultStage;
@@ -21,6 +21,7 @@ int main(int argc,char **argv)
   ierr = PetscOptionsGetInt(NULL,NULL,"-m",&m,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-n",&n,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-o",&o,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsHasName(NULL,NULL,"-result_view",&mat_view);
   ierr = PetscOptionsGetString(NULL,NULL,"-stencil",stencil,PETSC_MAX_PATH_LEN,NULL);CHKERRQ(ierr);
 
   /* Create a aij matrix A */
@@ -245,13 +246,17 @@ int main(int argc,char **argv)
   ierr = PetscLogStageRegister("Full MatMatMult",&fullMatMatMultStage);
   ierr = PetscLogStageRegister("Numeric MatMatMult",&numericMatMatMultStage);
 
-  /* Test C = A*B (aij*dense) */
+  /* Test C = A*B */
   ierr = PetscLogStagePush(fullMatMatMultStage);
   ierr = MatMatMult(A,B,MAT_INITIAL_MATRIX,PETSC_DEFAULT,&C);CHKERRQ(ierr);
   ierr = PetscLogStagePop();
   ierr = PetscLogStagePush(numericMatMatMultStage);
   ierr = MatMatMult(A,B,MAT_REUSE_MATRIX,PETSC_DEFAULT,&C);CHKERRQ(ierr);
   ierr = PetscLogStagePop();
+
+  if (mat_view) {
+    ierr = MatView(C,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  }
 
   ierr = MatDestroy(&C);CHKERRQ(ierr);
   ierr = MatDestroy(&B);CHKERRQ(ierr);
