@@ -738,14 +738,14 @@ PetscErrorCode MatMatMultSymbolic_SeqAIJ_SeqAIJ_RowMerge(Mat A,Mat B,PetscReal f
 {
   PetscErrorCode     ierr;
   Mat_SeqAIJ         *a  = (Mat_SeqAIJ*)A->data,*b=(Mat_SeqAIJ*)B->data,*c;
-  const PetscInt     *ai = a->i,*bi=b->i,*aj=a->j,*bj=b->j;
-  PetscInt           *ci,*cj;
+  const PetscInt     *ai = a->i,*bi=b->i,*aj=a->j,*bj=b->j,*inputi,*inputj,*inputcol;
+  PetscInt           *ci,*cj,*outputi,*outputj,worki[8],*workj,workcol[8];
   PetscInt           c_maxmem=0,a_maxrownnz=0,a_rownnz;
   PetscInt           am=A->rmap->N,bn=B->cmap->N,bm=B->rmap->N;
   const PetscInt     *brow_ptr[8],*brow_end[8];
   PetscInt           window[8];
-  PetscInt           window_min,old_window_min,ci_nnz;
-  PetscInt           i,k,ndouble = 0;
+  PetscInt           window_min,old_window_min,ci_nnz,outputi_nnz,output_rows;
+  PetscInt           i,k,ndouble = 0,rowsleft;
   PetscReal          afill;
 
   /* Step 1: Get upper bound on memory required for allocation.
@@ -764,27 +764,34 @@ PetscErrorCode MatMatMultSymbolic_SeqAIJ_SeqAIJ_RowMerge(Mat A,Mat B,PetscReal f
     c_maxmem += a_rownnz;
   }
 
+  if (a_maxrownnz > 8) { /* temporary work area for merging rows */
+    ierr = PetscMalloc1(a_maxrownnz*8,&workj);CHKERRQ(ierr);
+    for (k=0; k<8; ++k) workcol[k] = k;
+  }
+
   /* Step 2: Populate pattern for C */
   ierr  = PetscMalloc1(c_maxmem,&cj);CHKERRQ(ierr);
 
   ci_nnz = 0;
   ci[0] = 0;
+  worki[0] = 0;
   for (i=0; i<am; i++) {
     const PetscInt anzi  = ai[i+1] - ai[i]; /* number of nonzeros in this row of A, this is the number of rows of B that we merge */
     const PetscInt *acol = aj + ai[i]; /* column indices of nonzero entries in this row */
+    rowsleft = anzi;
 
 /* The following macro is used to specialize for small rows in A.
    This helps with compiler unrolling, improving performance substantially. */
 #define MatMatMultSymbolic_RowMergeMacro(ANNZ) \
     window_min = bn; \
     for (k=0; k<ANNZ; ++k) { \
-      brow_ptr[k] = bj + bi[acol[k]]; \
-      brow_end[k] = bj + bi[acol[k]+1]; \
+      brow_ptr[k] = inputj + inputi[inputcol[k]]; \
+      brow_end[k] = inputj + inputi[inputcol[k]+1]; \
       window[k] = (brow_ptr[k] != brow_end[k]) ? *brow_ptr[k] : bn; \
       window_min = PetscMin(window[k], window_min); \
     } \
     while (window_min < bn) { \
-      cj[ci_nnz++] = window_min; \
+      outputj[outputi_nnz++] = window_min; \
       /* advance front and compute new minimum */ \
       old_window_min = window_min; \
       window_min = bn; \
@@ -795,25 +802,65 @@ PetscErrorCode MatMatMultSymbolic_SeqAIJ_SeqAIJ_RowMerge(Mat A,Mat B,PetscReal f
         } \
         window_min = PetscMin(window[k], window_min); \
       } \
+    } \
+    rowsleft -= ANNZ;
+
+    inputi = bi;
+    inputj = bj;
+    inputcol = acol;
+    outputi_nnz = 0;
+    output_rows = 0;
+    if (anzi > 64) {
+      SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"MatMatMult with more than 64 nonzeros per row in left factor not supported!");
+    } else if (anzi > 8) { /* merge to temporary buffer */
+      outputi = worki;
+      outputj = workj;
+    } else { /* merge straight to C */
+      outputi = ci;
+      outputj = cj + ci_nnz;
     }
 
-    switch (anzi) {
-    case 0: break;
-    case 1: brow_ptr[0] = bj + bi[acol[k]];
-            brow_end[0] = bj + bi[acol[k]+1];
-            for (; brow_ptr[0] != brow_end[0]; ++brow_ptr[0]) cj[ci_nnz++] = *brow_ptr[0]; /* copy row in b to c */
-            break;
-    case 2: MatMatMultSymbolic_RowMergeMacro(2); break;
-    case 3: MatMatMultSymbolic_RowMergeMacro(3); break;
-    case 4: MatMatMultSymbolic_RowMergeMacro(4); break;
-    case 5: MatMatMultSymbolic_RowMergeMacro(5); break;
-    case 6: MatMatMultSymbolic_RowMergeMacro(6); break;
-    case 7: MatMatMultSymbolic_RowMergeMacro(7); break;
-    case 8: MatMatMultSymbolic_RowMergeMacro(8); break;
-    default: SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"MatMatMult with more than 8 nonzeros per row in left factor not supported!");
+    while (rowsleft) {
+      switch (rowsleft) {
+      case 1: brow_ptr[0] = inputj + inputi[inputcol[k]];
+              brow_end[0] = inputj + inputi[inputcol[k]+1];
+              for (; brow_ptr[0] != brow_end[0]; ++brow_ptr[0]) outputj[outputi_nnz++] = *brow_ptr[0]; /* copy row in b over */
+              rowsleft -= 1;
+              break;
+      case 2: MatMatMultSymbolic_RowMergeMacro(2); break;
+      case 3: MatMatMultSymbolic_RowMergeMacro(3); break;
+      case 4: MatMatMultSymbolic_RowMergeMacro(4); break;
+      case 5: MatMatMultSymbolic_RowMergeMacro(5); break;
+      case 6: MatMatMultSymbolic_RowMergeMacro(6); break;
+      case 7: MatMatMultSymbolic_RowMergeMacro(7); break;
+      default: MatMatMultSymbolic_RowMergeMacro(8); break;
+      }
+      ++output_rows;
+      if (anzi > 8) worki[output_rows] = outputi_nnz;
+    }
+
+    if (anzi > 8) { /* merge from work array to C */
+      inputi = worki;
+      inputj = workj;
+      inputcol = workcol;
+      outputi = ci;
+      outputj = cj + ci_nnz;
+      outputi_nnz = 0;
+
+      switch (output_rows) {
+      case 2: MatMatMultSymbolic_RowMergeMacro(2); break;
+      case 3: MatMatMultSymbolic_RowMergeMacro(3); break;
+      case 4: MatMatMultSymbolic_RowMergeMacro(4); break;
+      case 5: MatMatMultSymbolic_RowMergeMacro(5); break;
+      case 6: MatMatMultSymbolic_RowMergeMacro(6); break;
+      case 7: MatMatMultSymbolic_RowMergeMacro(7); break;
+      case 8: MatMatMultSymbolic_RowMergeMacro(8); break;
+      default: SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"MatMatMult logic error: Not merging 2-8 rows from work array to C!");
+      }
     }
 
     /* terminate current row */
+    ci_nnz += outputi_nnz;
     ci[i+1] = ci_nnz;
   }
 
@@ -847,6 +894,7 @@ PetscErrorCode MatMatMultSymbolic_SeqAIJ_SeqAIJ_RowMerge(Mat A,Mat B,PetscReal f
     ierr = PetscInfo((*C),"Empty matrix product\n");CHKERRQ(ierr);
   }
 #endif
+  ierr = PetscFree(workj);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
