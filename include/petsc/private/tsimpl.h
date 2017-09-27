@@ -131,6 +131,7 @@ struct _p_TSTrajectory {
       PetscInt         step;
     } Udotcached;
   } lag;
+  Vec            U,Udot;                  /* used by TSTrajectory{Get|Restore}UpdatedHistoryVecs */
   PetscBool      solution_only;           /* whether we dump just the solution or also the stages */
   PetscBool      adjoint_solve_mode;      /* whether we will use the Trajectory inside a TSAdjointSolve() or not */
   PetscViewer    monitor;

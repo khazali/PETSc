@@ -1,5 +1,6 @@
 
 #include <petsc/private/tsimpl.h>        /*I "petscts.h"  I*/
+#include <petscdm.h>
 
 PetscFunctionList TSTrajectoryList              = NULL;
 PetscBool         TSTrajectoryRegisterAllCalled = PETSC_FALSE;
@@ -516,6 +517,8 @@ PetscErrorCode  TSTrajectoryDestroy(TSTrajectory *tj)
   ierr = TSHistoryDestroy((*tj)->tsh);CHKERRQ(ierr);
   ierr = VecDestroyVecs((*tj)->lag.order+1,&(*tj)->lag.W);CHKERRQ(ierr);
   ierr = PetscFree5((*tj)->lag.L,(*tj)->lag.T,(*tj)->lag.WW,(*tj)->lag.TT,(*tj)->lag.TW);CHKERRQ(ierr);
+  ierr = VecDestroy(&(*tj)->U);CHKERRQ(ierr);
+  ierr = VecDestroy(&(*tj)->Udot);CHKERRQ(ierr);
   if ((*tj)->transformdestroy) {ierr = (*(*tj)->transformdestroy)((*tj)->transformctx);CHKERRQ(ierr);}
   if ((*tj)->ops->destroy) {ierr = (*(*tj)->ops->destroy)((*tj));CHKERRQ(ierr);}
   ierr = PetscStrArrayDestroy(&(*tj)->names);CHKERRQ(ierr);
@@ -698,5 +701,112 @@ PetscErrorCode TSTrajectorySetSolutionOnly(TSTrajectory tj,PetscBool solution_on
   PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
   PetscValidLogicalCollectiveBool(tj,solution_only,2);
   tj->solution_only = solution_only;
+  PetscFunctionReturn(0);
+}
+
+/*@
+   TSTrajectoryGetUpdatedHistoryVecs - Get updated state and time-derivative history vectors.
+
+   Collective on TSTrajectory
+
+   Input Parameter:
++  tj   - the TS trajectory context
+.  ts   - the TS solver context
+-  time - the requested time
+
+   Output Parameter:
++  U    - state vector at given time (can be interpolated)
+-  Udot - time-derivative vector at given time (can be interpolated)
+
+   Level: developer
+
+   Notes: The vectors are interpolated if time does not match any time step stored in the TSTrajectory(). Pass NULL to not request a vector.
+          This function differs from TSTrajectoryGetVecs since the vectors obtained cannot be modified, and they need to be returned by
+          calling TSTrajectoryRestoreUpdatedHistoryVecs().
+
+.keywords: trajectory
+
+.seealso: TSSetSaveTrajectory(), TSTrajectoryCreate(), TSTrajectoryDestroy(), TSTrajectoryRestoreUpdatedHistoryVecs(), TSTrajectoryGetVecs()
+@*/
+PetscErrorCode TSTrajectoryGetUpdatedHistoryVecs(TSTrajectory tj, TS ts, PetscReal time, Vec *U, Vec *Udot)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
+  PetscValidHeaderSpecific(ts,TS_CLASSID,2);
+  PetscValidLogicalCollectiveReal(tj,time,3);
+  if (U) PetscValidPointer(U,4);
+  if (Udot) PetscValidPointer(Udot,5);
+  if (U) {
+    PetscInt lock;
+
+    if (!tj->U) {
+      DM dm;
+
+      ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+      ierr = DMCreateGlobalVector(dm,&tj->U);CHKERRQ(ierr);
+    }
+    ierr = VecLockGet(tj->U,&lock);CHKERRQ(ierr);
+    if (lock) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_ORDER,"U vector already in use. Call TSTrajectoryRestoreUpdatedHistoryVecs() first");
+  }
+  if (Udot) {
+    PetscInt lock;
+
+    if (!tj->Udot) {
+      DM dm;
+
+      ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+      ierr = DMCreateGlobalVector(dm,&tj->Udot);CHKERRQ(ierr);
+    }
+    ierr = VecLockGet(tj->Udot,&lock);CHKERRQ(ierr);
+    if (lock) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_ORDER,"Udot vector already in use. Call TSTrajectoryRestoreUpdatedHistoryVecs() first");
+  }
+  ierr = TSTrajectoryGetVecs(tj,ts,PETSC_DECIDE,&time,U ? tj->U : NULL,Udot ? tj->Udot : NULL);CHKERRQ(ierr);
+  if (U) {
+    ierr = VecLockPush(tj->U);CHKERRQ(ierr);
+    *U   = tj->U;
+  }
+  if (Udot) {
+    ierr  = VecLockPush(tj->Udot);CHKERRQ(ierr);
+    *Udot = tj->Udot;
+  }
+  PetscFunctionReturn(0);
+}
+
+/*@
+   TSTrajectoryRestoreUpdatedHistoryVecs - Restores updated state and time-derivative history vectors obtained with TSTrajectoryGetUpdatedHistoryVecs().
+
+   Collective on TSTrajectory
+
+   Input Parameter:
++  tj   - the TS trajectory context
+.  U    - state vector at given time (can be interpolated)
+-  Udot - time-derivative vector at given time (can be interpolated)
+
+   Level: developer
+
+.keywords: trajectory
+
+.seealso: TSTrajectoryGetUpdatedHistoryVecs()
+@*/
+PetscErrorCode TSTrajectoryRestoreUpdatedHistoryVecs(TSTrajectory tj, Vec *U, Vec *Udot)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
+  if (U) PetscValidHeaderSpecific(*U,VEC_CLASSID,2);
+  if (Udot) PetscValidHeaderSpecific(*Udot,VEC_CLASSID,3);
+  if (U && *U != tj->U) SETERRQ(PetscObjectComm((PetscObject)*U),PETSC_ERR_USER,"U was not obtained from TSTrajectoryGetUpdatedHistoryVecs()");
+  if (Udot && *Udot != tj->Udot) SETERRQ(PetscObjectComm((PetscObject)*Udot),PETSC_ERR_USER,"Udot was not obtained from TSTrajectoryGetUpdatedHistoryVecs()");
+  if (U) {
+    ierr = VecLockPop(tj->U);CHKERRQ(ierr);
+    *U   = NULL;
+  }
+  if (Udot) {
+    ierr  = VecLockPop(tj->Udot);CHKERRQ(ierr);
+    *Udot = NULL;
+  }
   PetscFunctionReturn(0);
 }
