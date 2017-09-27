@@ -3031,6 +3031,9 @@ PetscErrorCode TSGetMaxTime(TS ts,PetscReal *maxtime)
 
 /*@
    TSSetInitialTimeStep - Deprecated, use TSSetTime() and TSSetTimeStep().
+
+   Level: deprecated
+
 @*/
 PetscErrorCode  TSSetInitialTimeStep(TS ts,PetscReal initial_time,PetscReal time_step)
 {
@@ -3044,6 +3047,9 @@ PetscErrorCode  TSSetInitialTimeStep(TS ts,PetscReal initial_time,PetscReal time
 
 /*@
    TSGetDuration - Deprecated, use TSGetMaxSteps() and TSGetMaxTime().
+
+   Level: deprecated
+
 @*/
 PetscErrorCode TSGetDuration(TS ts, PetscInt *maxsteps, PetscReal *maxtime)
 {
@@ -3062,6 +3068,9 @@ PetscErrorCode TSGetDuration(TS ts, PetscInt *maxsteps, PetscReal *maxtime)
 
 /*@
    TSSetDuration - Deprecated, use TSSetMaxSteps() and TSSetMaxTime().
+
+   Level: deprecated
+
 @*/
 PetscErrorCode TSSetDuration(TS ts,PetscInt maxsteps,PetscReal maxtime)
 {
@@ -3076,11 +3085,17 @@ PetscErrorCode TSSetDuration(TS ts,PetscInt maxsteps,PetscReal maxtime)
 
 /*@
    TSGetTimeStepNumber - Deprecated, use TSGetStepNumber().
+
+   Level: deprecated
+
 @*/
 PetscErrorCode TSGetTimeStepNumber(TS ts,PetscInt *steps) { return TSGetStepNumber(ts,steps); }
 
 /*@
    TSGetTotalSteps - Deprecated, use TSGetStepNumber().
+
+   Level: deprecated
+
 @*/
 PetscErrorCode TSGetTotalSteps(TS ts,PetscInt *steps) { return TSGetStepNumber(ts,steps); }
 
@@ -4353,11 +4368,14 @@ PetscErrorCode TSSolve(TS ts,Vec u)
       if (ts->vec_costintegral && ts->costintegralfwd) { /* Must evaluate the cost integral before event is handled. The cost integral value can also be rolled back. */
         ierr = TSForwardCostIntegral(ts);CHKERRQ(ierr);
       }
-      if (!ts->steprollback && ts->forward_solve) { /* compute forward sensitivities before event handling because postevent() may change RHS and jump conditions may have to be applied */
+      if (ts->forward_solve) { /* compute forward sensitivities before event handling because postevent() may change RHS and jump conditions may have to be applied */
         ierr = TSForwardStep(ts);CHKERRQ(ierr);
       }
       ierr = TSPostEvaluate(ts);CHKERRQ(ierr);
       ierr = TSEventHandler(ts);CHKERRQ(ierr); /* The right-hand side may be changed due to event. Be careful with Any computation using the RHS information after this point. */
+      if (ts->steprollback) {
+        ierr = TSPostEvaluate(ts);CHKERRQ(ierr);
+      }
       if (!ts->steprollback) {
         ierr = TSTrajectorySet(ts->trajectory,ts,ts->steps,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
         ierr = TSPostStep(ts);CHKERRQ(ierr);
@@ -7765,7 +7783,6 @@ PetscErrorCode  TSRollBack(TS ts)
   ts->ptime = ts->ptime_prev;
   ts->ptime_prev = ts->ptime_prev_rollback;
   ts->steps--;
-  ierr = TSPostEvaluate(ts);CHKERRQ(ierr);
   ts->steprollback = PETSC_TRUE;
   PetscFunctionReturn(0);
 }

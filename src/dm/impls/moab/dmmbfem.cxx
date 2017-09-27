@@ -9,8 +9,6 @@ static inline PetscReal DMatrix_Determinant_2x2_Internal ( const PetscReal inmat
   return  inmat[0] * inmat[3] - inmat[1] * inmat[2];
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "DMatrix_Invert_2x2_Internal"
 static inline PetscErrorCode DMatrix_Invert_2x2_Internal (const PetscReal *inmat, PetscReal *outmat, PetscReal *determinant)
 {
   if (!inmat) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_POINTER, "Invalid input matrix specified for 2x2 inversion.");
@@ -32,8 +30,6 @@ static inline PetscReal DMatrix_Determinant_3x3_Internal ( const PetscReal inmat
            + inmat[6] * (inmat[5] * inmat[1] - inmat[4] * inmat[2]);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "DMatrix_Invert_3x3_Internal"
 static inline PetscErrorCode DMatrix_Invert_3x3_Internal (const PetscReal *inmat, PetscReal *outmat, PetscScalar *determinant)
 {
   if (!inmat) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_POINTER, "Invalid input matrix specified for 3x3 inversion.");
@@ -74,8 +70,6 @@ inline PetscReal DMatrix_Determinant_4x4_Internal ( PetscReal inmat[4 * 4] )
       + inmat[1 + 2 * 4] * ( inmat[2 + 0 * 4] * inmat[3 + 1 * 4] - inmat[2 + 1 * 4] * inmat[3 + 0 * 4] ) );
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "DMatrix_Invert_4x4_Internal"
 inline PetscErrorCode DMatrix_Invert_4x4_Internal (PetscReal *inmat, PetscReal *outmat, PetscScalar *determinant)
 {
   if (!inmat) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_POINTER, "Invalid input matrix specified for 4x4 inversion.");
@@ -104,7 +98,7 @@ inline PetscErrorCode DMatrix_Invert_4x4_Internal (PetscReal *inmat, PetscReal *
 
 
 /*@
-  Compute_Lagrange_Basis_1D_Internal: Evaluate bases and derivatives at quadrature points for a EDGE2 or EDGE3 element.
+  Compute_Lagrange_Basis_1D_Internal - Evaluate bases and derivatives at quadrature points for a EDGE2 or EDGE3 element.
 
   The routine is given the coordinates of the vertices of a linear or quadratic edge element.
 
@@ -131,10 +125,10 @@ inline PetscErrorCode DMatrix_Invert_4x4_Internal (PetscReal *inmat, PetscReal *
 .  PetscReal phi[npts],        the bases evaluated at the specified quadrature points
 .  PetscReal dphidx[npts],     the derivative of the bases wrt X-direction evaluated at the specified quadrature points
 
+  Level: advanced
+
 .keywords: DMMoab, FEM, 1-D
 @*/
-#undef __FUNCT__
-#define __FUNCT__ "Compute_Lagrange_Basis_1D_Internal"
 PetscErrorCode Compute_Lagrange_Basis_1D_Internal ( const PetscInt nverts, const PetscReal *coords, const PetscInt npts, const PetscReal *quad, PetscReal *phypts,
     PetscReal *jxw, PetscReal *phi, PetscReal *dphidx,
     PetscReal *jacobian, PetscReal *ijacobian, PetscReal *volume)
@@ -237,7 +231,7 @@ PetscErrorCode Compute_Lagrange_Basis_1D_Internal ( const PetscInt nverts, const
 
 
 /*@
-  Compute_Lagrange_Basis_2D_Internal: Evaluate bases and derivatives at quadrature points for a QUAD4 or TRI3 element.
+  Compute_Lagrange_Basis_2D_Internal - Evaluate bases and derivatives at quadrature points for a QUAD4 or TRI3 element.
 
   The routine is given the coordinates of the vertices of a quadrangle or triangle.
 
@@ -268,10 +262,10 @@ PetscErrorCode Compute_Lagrange_Basis_1D_Internal ( const PetscInt nverts, const
 .  PetscReal dphidx[npts],     the derivative of the bases wrt X-direction evaluated at the specified quadrature points
 .  PetscReal dphidy[npts],     the derivative of the bases wrt Y-direction evaluated at the specified quadrature points
 
+  Level: advanced
+
 .keywords: DMMoab, FEM, 2-D
 @*/
-#undef __FUNCT__
-#define __FUNCT__ "Compute_Lagrange_Basis_2D_Internal"
 PetscErrorCode Compute_Lagrange_Basis_2D_Internal ( const PetscInt nverts, const PetscReal *coords, const PetscInt npts, const PetscReal *quad, PetscReal *phypts,
     PetscReal *jxw, PetscReal *phi, PetscReal *dphidx, PetscReal *dphidy,
     PetscReal *jacobian, PetscReal *ijacobian, PetscReal *volume)
@@ -413,7 +407,7 @@ PetscErrorCode Compute_Lagrange_Basis_2D_Internal ( const PetscInt nverts, const
 
 
 /*@
-  Compute_Lagrange_Basis_3D_Internal: Evaluate bases and derivatives at quadrature points for a HEX8 or TET4 element.
+  Compute_Lagrange_Basis_3D_Internal - Evaluate bases and derivatives at quadrature points for a HEX8 or TET4 element.
 
   The routine is given the coordinates of the vertices of a hexahedra or tetrahedra.
 
@@ -447,10 +441,10 @@ PetscErrorCode Compute_Lagrange_Basis_2D_Internal ( const PetscInt nverts, const
 .  PetscReal dphidy[npts],     the derivative of the bases wrt Y-direction evaluated at the specified quadrature points
 .  PetscReal dphidz[npts],     the derivative of the bases wrt Z-direction evaluated at the specified quadrature points
 
+  Level: advanced
+
 .keywords: DMMoab, FEM, 3-D
 @*/
-#undef __FUNCT__
-#define __FUNCT__ "Compute_Lagrange_Basis_3D_Internal"
 PetscErrorCode Compute_Lagrange_Basis_3D_Internal ( const PetscInt nverts, const PetscReal *coords, const PetscInt npts, const PetscReal *quad, PetscReal *phypts,
     PetscReal *jxw, PetscReal *phi, PetscReal *dphidx, PetscReal *dphidy, PetscReal *dphidz,
     PetscReal *jacobian, PetscReal *ijacobian, PetscReal *volume)
@@ -684,7 +678,7 @@ PetscErrorCode Compute_Lagrange_Basis_3D_Internal ( const PetscInt nverts, const
 
 
 /*@
-  DMMoabFEMComputeBasis: Evaluate bases and derivatives at quadrature points for a linear EDGE/QUAD/TRI/HEX/TET element.
+  DMMoabFEMComputeBasis - Evaluate bases and derivatives at quadrature points for a linear EDGE/QUAD/TRI/HEX/TET element.
 
   The routine takes the coordinates of the vertices of an element and computes basis functions associated with
   each quadrature point provided, and their derivatives with respect to X, Y and Z as appropriate.
@@ -702,10 +696,10 @@ PetscErrorCode Compute_Lagrange_Basis_3D_Internal ( const PetscInt nverts, const
 .  PetscReal fe_basis[npts],        the bases values evaluated at the specified quadrature points
 .  PetscReal fe_basis_derivatives[dim][npts],  the derivative of the bases wrt (X,Y,Z)-directions (depending on the dimension) evaluated at the specified quadrature points
 
+  Level: advanced
+
 .keywords: DMMoab, FEM, 3-D
 @*/
-#undef __FUNCT__
-#define __FUNCT__ "DMMoabFEMComputeBasis"
 PetscErrorCode DMMoabFEMComputeBasis ( const PetscInt dim, const PetscInt nverts, const PetscReal *coordinates, const PetscQuadrature quadrature, 
                                        PetscReal *phypts, PetscReal *jacobian_quadrature_weight_product, 
                                        PetscReal *fe_basis, PetscReal **fe_basis_derivatives)
@@ -760,7 +754,7 @@ PetscErrorCode DMMoabFEMComputeBasis ( const PetscInt dim, const PetscInt nverts
 
 
 /*@
-  DMMoabFEMCreateQuadratureDefault: Create default quadrature rules for integration over an element with a given
+  DMMoabFEMCreateQuadratureDefault - Create default quadrature rules for integration over an element with a given
   dimension and polynomial order (deciphered from number of element vertices).
 
   Input Parameter:
@@ -771,10 +765,10 @@ PetscErrorCode DMMoabFEMComputeBasis ( const PetscInt dim, const PetscInt nverts
   Output Parameter:
 .  PetscQuadrature quadrature,  the quadrature object with default settings to integrate polynomials defined over the element
 
+  Level: advanced
+
 .keywords: DMMoab, Quadrature, PetscDT
 @*/
-#undef __FUNCT__
-#define __FUNCT__ "DMMoabFEMCreateQuadratureDefault"
 PetscErrorCode DMMoabFEMCreateQuadratureDefault ( const PetscInt dim, const PetscInt nverts, PetscQuadrature *quadrature )
 {
   PetscReal *w, *x;
@@ -876,8 +870,6 @@ PetscErrorCode DMMoabFEMCreateQuadratureDefault ( const PetscInt dim, const Pets
 }
 
 /* Compute Jacobians */
-#undef __FUNCT__
-#define __FUNCT__ "ComputeJacobian_Internal"
 PetscErrorCode ComputeJacobian_Internal ( const PetscInt dim, const PetscInt nverts, const PetscReal *coordinates, const PetscReal *quad, PetscReal *phypts,
   PetscReal *jacobian, PetscReal *ijacobian, PetscReal* dvolume)
 {
@@ -1035,8 +1027,6 @@ PetscErrorCode ComputeJacobian_Internal ( const PetscInt dim, const PetscInt nve
 }
 
 
-#undef __FUNCT__
-#define __FUNCT__ "FEMComputeBasis_JandF"
 PetscErrorCode FEMComputeBasis_JandF ( const PetscInt dim, const PetscInt nverts, const PetscReal *coordinates, const PetscReal *quadrature, PetscReal *phypts,
                                        PetscReal *phibasis, PetscReal *jacobian, PetscReal *ijacobian, PetscReal* volume  )
 {
@@ -1065,7 +1055,7 @@ PetscErrorCode FEMComputeBasis_JandF ( const PetscInt dim, const PetscInt nverts
 
 
 /*@
-  DMMoabPToRMapping: Compute the mapping from the physical coordinate system for a given element to the 
+  DMMoabPToRMapping - Compute the mapping from the physical coordinate system for a given element to the
   canonical reference element. In addition to finding the inverse mapping evaluation through Newton iteration,
   the basis function at the parametric point is also evaluated optionally.
 
@@ -1080,10 +1070,10 @@ PetscErrorCode FEMComputeBasis_JandF ( const PetscInt dim, const PetscInt nverts
 .  PetscReal[3] natparam,  the natural coordinates (in reference frame) corresponding to xphy
 .  PetscReal[nverts] phi,  the basis functions evaluated at the natural coordinates (natparam)
 
+  Level: advanced
+
 .keywords: DMMoab, Mapping, FEM
 @*/
-#undef __FUNCT__
-#define __FUNCT__ "DMMoabPToRMapping"
 PetscErrorCode DMMoabPToRMapping( const PetscInt dim, const PetscInt nverts, const PetscReal *coordinates, const PetscReal* xphy, PetscReal* natparam, PetscReal* phi)
 {
   /* Perform inverse evaluation for the mapping with use of Newton Raphson iteration */
