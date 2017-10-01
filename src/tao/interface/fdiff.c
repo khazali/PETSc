@@ -1,6 +1,7 @@
 #include <petsctao.h>         /*I  "petsctao.h"  I*/
 #include <petsc/private/taoimpl.h>
 #include <petscsnes.h>
+#include <petscdmshell.h>
 
 /*
    For finited difference computations of the Hessian, we use PETSc's SNESComputeJacobianDefault
@@ -105,8 +106,7 @@ PetscErrorCode TaoDefaultComputeGradient(Tao tao,Vec X,Vec G,void *dummy)
 -  B - newly computed Hessian matrix to use with preconditioner (generally the same as H)
 
    Options Database Key:
-+  -tao_fd           - activates TaoDefaultComputeHessian()
--  -tao_view_hessian - view the hessian after each evaluation using PETSC_VIEWER_STDOUT_WORLD
+.  -tao_fd_hessian - activates TaoDefaultComputeHessian()
 
    Level: advanced
 
@@ -124,6 +124,7 @@ PetscErrorCode TaoDefaultComputeHessian(Tao tao,Vec V,Mat H,Mat B,void *dummy)
   PetscErrorCode ierr;
   Vec            G;
   SNES           snes;
+  DM             dm;
 
   PetscFunctionBegin;
   ierr = VecDuplicate(V,&G);CHKERRQ(ierr);
@@ -131,7 +132,26 @@ PetscErrorCode TaoDefaultComputeHessian(Tao tao,Vec V,Mat H,Mat B,void *dummy)
   ierr = TaoComputeGradient(tao,V,G);CHKERRQ(ierr);
   ierr = SNESCreate(PetscObjectComm((PetscObject)H),&snes);CHKERRQ(ierr);
   ierr = SNESSetFunction(snes,G,Fsnes,tao);CHKERRQ(ierr);
-  ierr = SNESComputeJacobianDefault(snes,V,H,B,tao);CHKERRQ(ierr);
+  ierr = SNESGetDM(snes,&dm);CHKERRQ(ierr);
+  ierr = DMShellSetGlobalVector(dm,V);CHKERRQ(ierr);
+  ierr = SNESSetUp(snes);CHKERRQ(ierr);
+  if (H) {
+    PetscInt n,N;
+
+    ierr = VecGetSize(V,&N);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(V,&n);CHKERRQ(ierr);
+    ierr = MatSetSizes(H,n,n,N,N);CHKERRQ(ierr);
+    ierr = MatSetUp(H);CHKERRQ(ierr);
+  }
+  if (B && B != H) {
+    PetscInt n,N;
+
+    ierr = VecGetSize(V,&N);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(V,&n);CHKERRQ(ierr);
+    ierr = MatSetSizes(B,n,n,N,N);CHKERRQ(ierr);
+    ierr = MatSetUp(B);CHKERRQ(ierr);
+  }
+  ierr = SNESComputeJacobianDefault(snes,V,H,B,NULL);CHKERRQ(ierr);
   ierr = SNESDestroy(&snes);CHKERRQ(ierr);
   ierr = VecDestroy(&G);CHKERRQ(ierr);
   PetscFunctionReturn(0);
