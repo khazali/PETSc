@@ -1019,6 +1019,7 @@ PetscErrorCode FormFunctionAndGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ct
 
 int main(int argc,char **argv)
 {
+  TSAdapt        adapt;
   PetscBool      forwardonly;
   Vec            P;
   DM             da;
@@ -1096,6 +1097,8 @@ int main(int argc,char **argv)
   ierr = TSSetTime(sw.ts,0.0);CHKERRQ(ierr);
   ierr = TSSetTimeStep(sw.ts,225.0);CHKERRQ(ierr);
   ierr = TSSetMaxSteps(sw.ts,16);CHKERRQ(ierr); /* 3600 s */
+  ierr = TSGetAdapt(sw.ts,&adapt);CHKERRQ(ierr);
+  ierr = TSAdaptSetType(adapt,TSADAPTNONE);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(sw.ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   ierr = TSSetFromOptions(sw.ts);CHKERRQ(ierr);
   ierr = GenerateOBs(sw.ts,sw.U,&sw);CHKERRQ(ierr);
