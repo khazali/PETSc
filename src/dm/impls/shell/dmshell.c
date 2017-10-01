@@ -397,7 +397,7 @@ PetscErrorCode DMShellSetGlobalVector(DM dm,Vec X)
   PetscValidHeaderSpecific(X,VEC_CLASSID,2);
   ierr = PetscObjectTypeCompare((PetscObject)dm,DMSHELL,&isshell);CHKERRQ(ierr);
   if (!isshell) PetscFunctionReturn(0);
-  ierr           = VecGetDM(X,&vdm);CHKERRQ(ierr);
+  ierr = VecGetDM(X,&vdm);CHKERRQ(ierr);
   /*
       if the vector proposed as the new base global vector for the DM is a DM vector associated
       with the same DM then the current base global vector for the DM is ok and if we replace it with the new one
