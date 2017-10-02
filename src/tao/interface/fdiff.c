@@ -47,8 +47,9 @@ static PetscErrorCode Fsnes(SNES snes,Vec X,Vec G,void* ctx)
 
 .seealso: TaoSetGradientRoutine()
 @*/
-PetscErrorCode TaoDefaultComputeGradient(Tao tao,Vec X,Vec G,void *dummy)
+PetscErrorCode TaoDefaultComputeGradient(Tao tao,Vec Xin,Vec G,void *dummy)
 {
+  Vec            X;
   PetscScalar    *x,*g;
   PetscReal      f, f2;
   PetscErrorCode ierr;
@@ -58,6 +59,8 @@ PetscErrorCode TaoDefaultComputeGradient(Tao tao,Vec X,Vec G,void *dummy)
 
   PetscFunctionBegin;
   ierr = PetscOptionsGetReal(((PetscObject)tao)->options,((PetscObject)tao)->prefix,"-tao_fd_delta",&h,&flg);CHKERRQ(ierr);
+  ierr = VecDuplicate(Xin,&X);CHKERRQ(ierr);
+  ierr = VecCopy(Xin,X);CHKERRQ(ierr);
   ierr = VecGetSize(X,&N);CHKERRQ(ierr);
   ierr = VecGetOwnershipRange(X,&low,&high);CHKERRQ(ierr);
   ierr = VecGetArray(G,&g);CHKERRQ(ierr);
@@ -68,7 +71,7 @@ PetscErrorCode TaoDefaultComputeGradient(Tao tao,Vec X,Vec G,void *dummy)
       ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
     }
 
-    ierr = TaoComputeObjective(tao, X,&f);CHKERRQ(ierr);
+    ierr = TaoComputeObjective(tao,X,&f);CHKERRQ(ierr);
 
     if (i>=low && i<high) {
       ierr = VecGetArray(X,&x);CHKERRQ(ierr);
@@ -88,6 +91,7 @@ PetscErrorCode TaoDefaultComputeGradient(Tao tao,Vec X,Vec G,void *dummy)
     }
   }
   ierr = VecRestoreArray(G,&g);CHKERRQ(ierr);
+  ierr = VecDestroy(&X);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

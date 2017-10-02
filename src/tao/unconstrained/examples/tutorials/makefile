@@ -154,10 +154,3 @@ TESTEXAMPLES_FORTRAN_NOTSINGLE =  rosenbrock1f.PETSc runrosenbrock1f rosenbrock1
 TESTEXAMPLES_FORTRAN =  eptorsion2f.PETSc runeptorsion2f runeptorsion2f_2 eptorsion2f.rm
 
 include ${PETSC_DIR}/lib/petsc/conf/test
-
-
-
-
-
-
-

@@ -298,8 +298,10 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx)
   PetscScalar       *x_ptr,*y_ptr;
   PetscErrorCode    ierr;
 
-  ierr = VecGetArray(P,&x_ptr);CHKERRQ(ierr);
+  PetscFunctionBeginUser;
+  ierr = VecGetArrayRead(P,(const PetscScalar**)&x_ptr);CHKERRQ(ierr);
   user->mu = x_ptr[0];
+  ierr = VecRestoreArrayRead(P,(const PetscScalar**)&x_ptr);CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create timestepping solver context
@@ -312,7 +314,8 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx)
      Set initial conditions
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   ierr = VecGetArray(user->x,&x_ptr);CHKERRQ(ierr);
-  x_ptr[0] = 2;   x_ptr[1] = 0.66666654321;
+  x_ptr[0] = 2;
+  x_ptr[1] = 0.66666654321;
   ierr = VecRestoreArray(user->x,&x_ptr);CHKERRQ(ierr);
   ierr = TSSetTime(ts,0.0);CHKERRQ(ierr);
   ierr = TSSetMaxTime(ts,0.5);CHKERRQ(ierr);
@@ -345,10 +348,11 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx)
   y_ptr[0] = 2.*(x_ptr[0]-user->x_ob[0]);
   y_ptr[1] = 2.*(x_ptr[1]-user->x_ob[1]);
   ierr = VecRestoreArray(user->lambda[0],&y_ptr);CHKERRQ(ierr);
+  ierr = VecRestoreArray(user->x,&x_ptr);CHKERRQ(ierr);
   ierr = VecGetArray(user->lambda[1],&x_ptr);CHKERRQ(ierr);
-  x_ptr[0] = 0.0;   x_ptr[1] = 1.0;
+  x_ptr[0] = 0.0;
+  x_ptr[1] = 1.0;
   ierr = VecRestoreArray(user->lambda[1],&x_ptr);CHKERRQ(ierr);
-
   ierr = VecGetArray(user->mup[0],&x_ptr);CHKERRQ(ierr);
   x_ptr[0] = 0.0;
   ierr = VecRestoreArray(user->mup[0],&x_ptr);CHKERRQ(ierr);
@@ -420,20 +424,18 @@ PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec P,PetscReal *f,Vec G,void *ct
   PetscErrorCode    ierr;
 
   PetscFunctionBeginUser;
-  ierr = VecGetArray(P,&x_ptr);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(P,(const PetscScalar**)&x_ptr);CHKERRQ(ierr);
   user->mu = x_ptr[0];
-
-  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-     Create timestepping solver context
-     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  ierr = VecRestoreArrayRead(P,(const PetscScalar**)&x_ptr);CHKERRQ(ierr);
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
   ierr = TSSetType(ts,TSRK);CHKERRQ(ierr);
   ierr = TSSetRHSFunction(ts,NULL,RHSFunction,user);CHKERRQ(ierr);
   ierr = TSSetRHSJacobian(ts,user->A,user->A,RHSJacobian,user);CHKERRQ(ierr);
-  ierr = VecGetArray(user->x,&x_ptr);CHKERRQ(ierr);
-  x_ptr[0] = 2;   x_ptr[1] = 0.66666654321;
-  ierr = VecRestoreArray(user->x,&x_ptr);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
+  ierr = VecGetArray(user->x,&x_ptr);CHKERRQ(ierr);
+  x_ptr[0] = 2;
+  x_ptr[1] = 0.66666654321;
+  ierr = VecRestoreArray(user->x,&x_ptr);CHKERRQ(ierr);
   /* the cost functional needs to be evaluated at time 0.5 */
   ierr = TSSetObjective(ts,0.5,EvalObjective_AO,EvalObjectiveGradient_U_AO,NULL,
                         NULL,NULL,NULL,NULL,NULL,NULL,user);CHKERRQ(ierr);

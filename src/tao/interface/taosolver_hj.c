@@ -93,11 +93,13 @@ PetscErrorCode TaoComputeHessian(Tao tao, Vec X, Mat H, Mat Hpre)
   PetscCheckSameComm(tao,1,X,2);
   if (!tao->ops->computehessian) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call TaoSetHessianRoutine() first");
   ++tao->nhess;
+  ierr = VecLockPush(X);CHKERRQ(ierr);
   ierr = PetscLogEventBegin(Tao_HessianEval,tao,X,H,Hpre);CHKERRQ(ierr);
   PetscStackPush("Tao user Hessian function");
   ierr = (*tao->ops->computehessian)(tao,X,H,Hpre,tao->user_hessP);CHKERRQ(ierr);
   PetscStackPop;
   ierr = PetscLogEventEnd(Tao_HessianEval,tao,X,H,Hpre);CHKERRQ(ierr);
+  ierr = VecLockPop(X);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -137,11 +139,13 @@ PetscErrorCode TaoComputeJacobian(Tao tao, Vec X, Mat J, Mat Jpre)
   PetscCheckSameComm(tao,1,X,2);
   if (!tao->ops->computejacobian) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call TaoSetJacobian() first");
   ++tao->njac;
+  ierr = VecLockPush(X);CHKERRQ(ierr);
   ierr = PetscLogEventBegin(Tao_JacobianEval,tao,X,J,Jpre);CHKERRQ(ierr);
   PetscStackPush("Tao user Jacobian function");
   ierr = (*tao->ops->computejacobian)(tao,X,J,Jpre,tao->user_jacP);CHKERRQ(ierr);
   PetscStackPop;
   ierr = PetscLogEventEnd(Tao_JacobianEval,tao,X,J,Jpre);CHKERRQ(ierr);
+  ierr = VecLockPop(X);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -181,11 +185,13 @@ PetscErrorCode TaoComputeJacobianState(Tao tao, Vec X, Mat J, Mat Jpre, Mat Jinv
   PetscCheckSameComm(tao,1,X,2);
   if (!tao->ops->computejacobianstate) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call TaoSetJacobianState() first");
   ++tao->njac_state;
+  ierr = VecLockPush(X);CHKERRQ(ierr);
   ierr = PetscLogEventBegin(Tao_JacobianEval,tao,X,J,Jpre);CHKERRQ(ierr);
   PetscStackPush("Tao user Jacobian(state) function");
   ierr = (*tao->ops->computejacobianstate)(tao,X,J,Jpre,Jinv,tao->user_jac_stateP);CHKERRQ(ierr);
   PetscStackPop;
   ierr = PetscLogEventEnd(Tao_JacobianEval,tao,X,J,Jpre);CHKERRQ(ierr);
+  ierr = VecLockPop(X);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -224,11 +230,13 @@ PetscErrorCode TaoComputeJacobianDesign(Tao tao, Vec X, Mat J)
   PetscCheckSameComm(tao,1,X,2);
   if (!tao->ops->computejacobiandesign) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call TaoSetJacobianDesign() first");
   ++tao->njac_design;
+  ierr = VecLockPush(X);CHKERRQ(ierr);
   ierr = PetscLogEventBegin(Tao_JacobianEval,tao,X,J,NULL);CHKERRQ(ierr);
   PetscStackPush("Tao user Jacobian(design) function");
   ierr = (*tao->ops->computejacobiandesign)(tao,X,J,tao->user_jac_designP);CHKERRQ(ierr);
   PetscStackPop;
   ierr = PetscLogEventEnd(Tao_JacobianEval,tao,X,J,NULL);CHKERRQ(ierr);
+  ierr = VecLockPop(X);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -472,11 +480,13 @@ PetscErrorCode TaoComputeJacobianEquality(Tao tao, Vec X, Mat J, Mat Jpre)
   PetscCheckSameComm(tao,1,X,2);
   if (!tao->ops->computejacobianequality) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call TaoSetJacobianEquality() first");
   ++tao->njac_equality;
+  ierr = VecLockPush(X);CHKERRQ(ierr);
   ierr = PetscLogEventBegin(Tao_JacobianEval,tao,X,J,Jpre);CHKERRQ(ierr);
   PetscStackPush("Tao user Jacobian(equality) function");
   ierr = (*tao->ops->computejacobianequality)(tao,X,J,Jpre,tao->user_jac_equalityP);CHKERRQ(ierr);
   PetscStackPop;
   ierr = PetscLogEventEnd(Tao_JacobianEval,tao,X,J,Jpre);CHKERRQ(ierr);
+  ierr = VecLockPop(X);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -512,11 +522,13 @@ PetscErrorCode TaoComputeJacobianInequality(Tao tao, Vec X, Mat J, Mat Jpre)
   PetscCheckSameComm(tao,1,X,2);
   if (!tao->ops->computejacobianinequality) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call TaoSetJacobianInequality() first");
   ++tao->njac_inequality;
+  ierr = VecLockPush(X);CHKERRQ(ierr);
   ierr = PetscLogEventBegin(Tao_JacobianEval,tao,X,J,Jpre);CHKERRQ(ierr);
   PetscStackPush("Tao user Jacobian(inequality) function");
   ierr = (*tao->ops->computejacobianinequality)(tao,X,J,Jpre,tao->user_jac_inequalityP);CHKERRQ(ierr);
   PetscStackPop;
   ierr = PetscLogEventEnd(Tao_JacobianEval,tao,X,J,Jpre);CHKERRQ(ierr);
+  ierr = VecLockPop(X);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
