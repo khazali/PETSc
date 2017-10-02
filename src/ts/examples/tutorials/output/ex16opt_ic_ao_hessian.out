@@ -1,0 +1,21 @@
+mu 1., steps 0, ftime 0.5
+mu 1., steps 7, ftime 0.5
+iter =   0, Function value: 0.00926185,  Residual: 0.176584 
+iter =   1, Function value: 9.12422e-08,  Residual: 0.000157639 
+iter =   2, Function value: 1.97457e-12,  Residual: 6.82124e-07 
+Tao Object: 1 MPI processes
+  type: tron
+      Total PG its: 6,      PG tolerance: 0.001 
+  TaoLineSearch Object: 1 MPI processes
+    type: more-thuente
+  KSP Object: 1 MPI processes
+    type: stcg
+  total KSP iterations: 4
+  Active Set subset type: subvec
+  convergence tolerances: gatol=1e-10,   steptol=0.,   gttol=1e-05
+  Residual in Function/Gradient:=6.82124e-07
+  Objective value=1.97457e-12
+  total number of iterations=2,                          (max: 50)
+  total number of function/gradient evaluations=9,      (max: 4000)
+  total number of Hessian evaluations=2
+  Solution converged:    ||g(X)||/||g(X0)|| <= gttol

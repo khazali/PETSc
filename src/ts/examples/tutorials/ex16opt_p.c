@@ -14,7 +14,9 @@ Input parameters include:\n\
    This code demonstrates how to solve an ODE-constrained optimization problem with TAO, TSAdjoint and TS.
    The objective is to minimize the difference between observation and model prediction by finding an optimal value for parameter \mu.
    The gradient is either computed with the discrete adjoint of an explicit Runge-Kutta method (see ex16adj.c for details), or by solving the adjoint ODE.
+   With the adjoint ode approach, we can also compute the Hessian via TSComputeHessian().
   ------------------------------------------------------------------------- */
+
 #include <petsctao.h>
 #include <petscts.h>
 #include <petscmat.h>
@@ -30,8 +32,10 @@ struct _n_User {
 };
 
 PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
-PetscErrorCode FormFunctionGradient_AO(Tao,Vec,PetscReal*,Vec,void*);
 PetscErrorCode FormFunction_AO(Tao,Vec,PetscReal*,void*);
+PetscErrorCode FormGradient_AO(Tao,Vec,Vec,void*);
+PetscErrorCode FormFunctionGradient_AO(Tao,Vec,PetscReal*,Vec,void*);
+PetscErrorCode FormHessian_AO(Tao,Vec,Mat,Mat,void*);
 
 /*
 *  User-defined routines
@@ -75,7 +79,7 @@ static PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec X,Mat A,Mat B,void *ctx)
     ierr = MatAssemblyBegin(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
-  ierr = VecRestoreArrayRead(X,&x);CHKERRQ(ierr);  
+  ierr = VecRestoreArrayRead(X,&x);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -226,7 +230,14 @@ int main(int argc,char **argv)
   /* Set routine for function and gradient evaluation */
   ierr = PetscOptionsGetBool(NULL,NULL,"-adjointode",&adjointode,NULL);CHKERRQ(ierr);
   if (adjointode) { /* use adjoint ode approach */
+    Mat H;
+
+    ierr = TaoSetObjectiveRoutine(tao,FormFunction_AO,(void *)&user);CHKERRQ(ierr);
+    ierr = TaoSetGradientRoutine(tao,FormGradient_AO,(void *)&user);CHKERRQ(ierr);
     ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient_AO,(void *)&user);CHKERRQ(ierr);
+    ierr = MatCreate(PETSC_COMM_WORLD,&H);CHKERRQ(ierr);
+    ierr = TaoSetHessianRoutine(tao,H,H,FormHessian_AO,(void *)&user);CHKERRQ(ierr);
+    ierr = MatDestroy(&H);CHKERRQ(ierr);
   } else {
     ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void *)&user);CHKERRQ(ierr);
   }
@@ -371,18 +382,8 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx)
   PetscFunctionReturn(0);
 }
 
-/* callbacks for the adjoint ode (AO) approach */
-
-/* wrapper for RHSJacobianP: with this approach, the model ODE is in implicit form F(U,Udot,t) = 0 */
-static PetscErrorCode RHSJacobianP_AO(TS ts, PetscReal t, Vec X, Vec Xdot, Vec P, Mat J, void *ctx)
-{
-  PetscErrorCode ierr;
-
-  PetscFunctionBeginUser;
-  ierr = RHSJacobianP(ts,t,X,J,ctx);CHKERRQ(ierr);
-  ierr = MatScale(J,-1.0);CHKERRQ(ierr); /* implicit form */
-  PetscFunctionReturn(0);
-}
+/* callbacks for the adjoint ode (AO) approach
+   Note that with the adjointode approach the ODE is assumed to be in the implicit form F(U,Udot,t;M) = 0 */
 
 /* the cost functional interface: returns ||u - u_obs||^2 */
 static PetscErrorCode EvalObjective_AO(Vec U, Vec P, PetscReal time, PetscReal *val, void *ctx)
@@ -398,7 +399,7 @@ static PetscErrorCode EvalObjective_AO(Vec U, Vec P, PetscReal time, PetscReal *
   PetscFunctionReturn(0);
 }
 
-/* we also need the gradient of the cost functional with respect to the state variables */
+/* the gradient of the cost functional with respect to the state variables */
 static PetscErrorCode EvalObjectiveGradient_U_AO(Vec U, Vec M, PetscReal time, Vec grad, void *ctx)
 {
   User              user = (User)ctx;
@@ -416,6 +417,151 @@ static PetscErrorCode EvalObjectiveGradient_U_AO(Vec U, Vec M, PetscReal time, V
   PetscFunctionReturn(0);
 }
 
+/* gradient term of the DAE: we can handle X,Xdot and P dependency, even if in this case the dependency is on X only */
+
+/* wrapper for RHSJacobianP */
+static PetscErrorCode EvalGradientDAE_P(TS ts, PetscReal t, Vec X, Vec Xdot, Vec P, Mat J, void *ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = RHSJacobianP(ts,t,X,J,ctx);CHKERRQ(ierr);
+  ierr = MatScale(J,-1.0);CHKERRQ(ierr); /* implicit form */
+  PetscFunctionReturn(0);
+}
+
+/* hessian terms of the DAE */
+
+/* returns Y = (L^T \otimes I_N)*F_UU*X, where L and X are vectors of size N, I_N is the identity matrix of size N, \otimes is the Kronecker product,
+   and F_UU is the N^2 x N matrix with entries
+
+          | F^1_UU |
+   F_UU = |   ...  |, F^k has dimension NxN, with {F^k_UU}_ij = \frac{\partial^2 F_k}{\partial u_j \partial u_i} where F_k is the k-th component of the DAE
+          | F^N_UU |
+
+   with u_i the i-th state variable, and N the number of state variables.
+
+   The output should be computed as: Y = (\sum_k L_k*F^k_UU)*X, with L_k the k-th entry of the adjoint variable L.
+   In this example
+
+                           | 2*mu*u[1]  2*mu*u[0] |
+      F^1_UU = 0, F^2_UU = |                      |
+                           | 2*mu*u[0]      0     |
+
+*/
+static PetscErrorCode EvalHessianDAE_UU(TS ts, PetscReal t, Vec U, Vec Udot, Vec P, Vec L, Vec X, Vec Y, void *ctx)
+{
+  PetscErrorCode    ierr;
+  PetscScalar       *y,mu;
+  const PetscScalar *x,*l,*u,*mup;
+
+  PetscFunctionBeginUser;
+  ierr = VecGetArrayRead(U,&u);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(X,&x);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(L,&l);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(P,&mup);CHKERRQ(ierr);
+  ierr = VecGetArray(Y,&y);CHKERRQ(ierr);
+  mu   = mup[0];
+  y[0] = l[1]*(2.*mu*u[1]*x[0] + 2.*mu*u[0]*x[1]);
+  y[1] = l[1]*(2.*mu*u[0]*x[0]);
+  ierr = VecRestoreArray(Y,&y);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(P,&mup);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(L,&l);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(X,&x);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(U,&u);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* returns Y = (L^T \otimes I_N)*F_UM*X, where L and X are vectors of size N and P respectively, I_N is the identity matrix of size N, \otimes is the Kronecker product,
+   and F_UM is the N^2 x P matrix with entries
+
+          | F^1_UM |
+   F_UM = |   ...  |, F^k has dimension NxP, with {F^k_UM}_ij = \frac{\partial^2 F_k}{\partial m_j \partial u_i}, where F_k is the k-th component of the DAE
+          | F^N_UM |
+
+   with m_j the j-th design variable and u_i the i-th state variable, with N the number of state variables and P the number of design variables.
+
+   The output should be computed as:  Y = (\sum_k L_k*F^k_UM)*X, with L_k the k-th entry of the adjoint variable L.
+   In this example,
+
+                           | 2*u[0]*u[1]  |
+      F^1_UM = 0, F^2_UM = |              |
+                           | -1+u[0]*u[0] |
+*/
+static PetscErrorCode EvalHessianDAE_UP(TS ts, PetscReal time, Vec U, Vec Udot, Vec P, Vec L, Vec X, Vec Y, void *ctx)
+{
+  PetscErrorCode    ierr;
+  PetscScalar       *y;
+  const PetscScalar *x,*l,*u;
+
+  PetscFunctionBeginUser;
+  ierr = VecGetArrayRead(U,&u);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(X,&x);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(L,&l);CHKERRQ(ierr);
+  ierr = VecGetArray(Y,&y);CHKERRQ(ierr);
+  y[0] = l[1]*(2.*u[0]*u[1]*x[0]);
+  y[1] = l[1]*((-1.+u[0]*u[0])*x[0]);
+  ierr = VecRestoreArray(Y,&y);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(L,&l);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(X,&x);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(U,&u);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* returns Y = (L^T \otimes I_P)*F_MU*X, where L and X are vectors of size N, I_P is the identity matrix of size P, \otimes is the Kronecker product,
+   and F_MU is the N*P x N matrix with entries
+
+          | F^1_MU |
+   F_MU = |   ...  |, F^k has dimension PxN, with {F^k_MU}_ij = \frac{\partial^2 F_k}{\partial u_j \partial m_i}, where F_k is the k-th component of the DAE
+          | F^N_MU |
+
+   with u_j the j-th state variable and m_i the i-th design variable, with N the number of state variables and P the number of design variables.
+
+   The output should be computed as:  Y = (\sum_k L_k*F^k_MU)*X = (\sum_k L_k*(F^k_UM)^T)*X, with L_k the k-th entry of the adjoint variable L.
+   In this example
+
+      F^1_MU = 0, F^2_MU = | 2*u[0]*u[1] , -1+u[0]*u[0] |
+*/
+static PetscErrorCode EvalHessianDAE_PU(TS ts, PetscReal time, Vec U, Vec Udot, Vec P, Vec L, Vec X, Vec Y, void *ctx)
+{
+  PetscErrorCode    ierr;
+  PetscScalar       *y;
+  const PetscScalar *x,*l,*u;
+
+  PetscFunctionBeginUser;
+  ierr = VecGetArrayRead(U,&u);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(X,&x);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(L,&l);CHKERRQ(ierr);
+  ierr = VecGetArray(Y,&y);CHKERRQ(ierr);
+  y[0] = l[1]*(2.*u[0]*u[1]*x[0] + (-1.+u[0]*u[0])*x[1]);
+  ierr = VecRestoreArray(Y,&y);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(L,&l);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(X,&x);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(U,&u);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* TSComputeObjectiveAndGradient just computes the objective function if the gradient is NULL */
+PetscErrorCode FormFunction_AO(Tao tao,Vec IC,PetscReal *f,void *ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = FormFunctionGradient_AO(tao,IC,f,NULL,ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* TSComputeObjectiveAndGradient just computes the gradient if the return value of the objective function is NULL */
+PetscErrorCode FormGradient_AO(Tao tao,Vec IC,Vec G,void *ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = FormFunctionGradient_AO(tao,IC,NULL,G,ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* wrapper for TSComputeObjectiveAndGradient */
 PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx)
 {
   User              user = (User)ctx;
@@ -439,8 +585,58 @@ PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec P,PetscReal *f,Vec G,void *ct
   /* the cost functional needs to be evaluated at time 0.5 */
   ierr = TSSetObjective(ts,0.5,EvalObjective_AO,EvalObjectiveGradient_U_AO,NULL,
                         NULL,NULL,NULL,NULL,NULL,NULL,user);CHKERRQ(ierr);
-  ierr = TSSetGradientDAE(ts,user->Jacp,RHSJacobianP_AO,user);CHKERRQ(ierr);
+  ierr = TSSetGradientDAE(ts,user->Jacp,EvalGradientDAE_P,user);CHKERRQ(ierr);
   ierr = TSComputeObjectiveAndGradient(ts,0.0,PETSC_DECIDE,0.5,user->x,P,G,f);CHKERRQ(ierr);
+  ierr = TSDestroy(&ts);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* wrapper for TSComputeHessian */
+PetscErrorCode FormHessian_AO(Tao tao,Vec P,Mat H,Mat Hp,void *ctx)
+{
+  User              user = (User)ctx;
+  TS                ts;
+  Mat               H_UU;
+  PetscScalar       *x_ptr;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecGetArrayRead(P,(const PetscScalar**)&x_ptr);CHKERRQ(ierr);
+  user->mu = x_ptr[0];
+  ierr = VecRestoreArrayRead(P,(const PetscScalar**)&x_ptr);CHKERRQ(ierr);
+  ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
+  ierr = TSSetType(ts,TSRK);CHKERRQ(ierr);
+  ierr = TSSetRHSFunction(ts,NULL,RHSFunction,user);CHKERRQ(ierr);
+  ierr = TSSetRHSJacobian(ts,user->A,user->A,RHSJacobian,user);CHKERRQ(ierr);
+  ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
+  ierr = VecGetArray(user->x,&x_ptr);CHKERRQ(ierr);
+  x_ptr[0] = 2;
+  x_ptr[1] = 0.66666654321;
+  ierr = VecRestoreArray(user->x,&x_ptr);CHKERRQ(ierr);
+  /* Hessian (wrt the state) of objective function (all other Hessian terms of the objective are zero) */
+  ierr = MatDuplicate(user->A,MAT_DO_NOT_COPY_VALUES,&H_UU);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(H_UU,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(H_UU,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatShift(H_UU,2.0);CHKERRQ(ierr);
+  /* the cost functional needs to be evaluated at time 0.5 */
+  ierr = TSSetObjective(ts,0.5,EvalObjective_AO,EvalObjectiveGradient_U_AO,NULL,
+                        H_UU,NULL,NULL,NULL,NULL,NULL,user);CHKERRQ(ierr);
+  ierr = MatDestroy(&H_UU);CHKERRQ(ierr);
+  ierr = TSSetGradientDAE(ts,user->Jacp,EvalGradientDAE_P,user);CHKERRQ(ierr);
+  /* The DAE dependency on the parameters is linear, thus EvalHessianDAE_PP is zero */
+  ierr = TSSetHessianDAE(ts,EvalHessianDAE_UU,NULL,EvalHessianDAE_UP, /* NULL term since there's no dependency on Udot */
+                            NULL,NULL,NULL,                           /* Udot dependency is NULL */
+                            EvalHessianDAE_PU,NULL,NULL,              /* NULL term since there's no dependency on Udot */
+                            NULL);CHKERRQ(ierr);
+  ierr = TSComputeHessian(ts,0.0,PETSC_DECIDE,0.5,user->x,P,H);CHKERRQ(ierr);
+#if 0
+  {
+    Mat He;
+    ierr = MatComputeExplicitOperator(H,&He);CHKERRQ(ierr);
+    ierr = MatView(He,NULL);CHKERRQ(ierr);
+    ierr = MatDestroy(&He);CHKERRQ(ierr);
+  }
+#endif
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

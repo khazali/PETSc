@@ -2773,7 +2773,6 @@ PetscErrorCode  TSReset(TS ts)
   ierr = MatDestroy(&ts->G_m);CHKERRQ(ierr);
   ierr = MatDestroy(&ts->F_m);CHKERRQ(ierr);
 
-
   ierr = MatDestroy(&ts->Arhs);CHKERRQ(ierr);
   ierr = MatDestroy(&ts->Brhs);CHKERRQ(ierr);
   ierr = VecDestroy(&ts->Frhs);CHKERRQ(ierr);

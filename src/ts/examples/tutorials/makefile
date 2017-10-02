@@ -505,20 +505,40 @@ runex16opt_p:
 	   ${RM} -f ex16opt_p_1.tmp SA-data/*
 
 runex16opt_p_ao:
-	-@${MPIEXEC} -n 1 ./ex16opt_p -ts_trajectory_type memory -adjointode -tao_view -tao_monitor  -tao_gttol 1.e-5 -adjoint_ts_atol 1.e-9 > ex16opt_p_ao.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex16opt_p -ts_trajectory_type memory -adjointode -tao_view -tao_monitor -tao_gttol 1.e-5 -adjoint_ts_atol 1.e-9 > ex16opt_p_ao.tmp 2>&1; \
 	   ${DIFF} output/ex16opt_p_ao.out ex16opt_p_ao.tmp || printf "${PWD}\nPossible problem with ex16opt_p_ao, diffs above\n=========================================\n"; \
 	   ${RM} -f ex16opt_p_ao.tmp
 
+runex16opt_p_ao_hessian_mf:
+	-@${MPIEXEC} -n 1 ./ex16opt_p -ts_trajectory_type memory -adjointode -tao_view -tao_monitor -tao_gttol 1.e-5 -adjoint_ts_atol 1.e-10 -tao_type tron -tao_mf_hessian > ex16opt_p_ao_hessian_mf.tmp 2>&1; \
+	   ${DIFF} output/ex16opt_p_ao_hessian_mf.out ex16opt_p_ao_hessian_mf.tmp || printf "${PWD}\nPossible problem with ex16opt_p_ao_hessian_mf, diffs above\n=========================================\n"; \
+	   ${RM} -f ex16opt_p_ao_hessian_mf.tmp
+
+runex16opt_p_ao_hessian:
+	-@${MPIEXEC} -n 1 ./ex16opt_p -ts_trajectory_type memory -adjointode -tao_view -tao_monitor -tao_gttol 1.e-5 -adjoint_ts_atol 1.e-10 -hessian_soadjoint_ts_atol 1.e-10 -hessian_foadjoint_ts_atol 1.e-10 -hessian_tlm_ts_atol 1.e-10 -tao_type tron > ex16opt_p_ao_hessian.tmp 2>&1; \
+	   ${DIFF} output/ex16opt_p_ao_hessian.out ex16opt_p_ao_hessian.tmp || printf "${PWD}\nPossible problem with ex16opt_p_ao_hessian, diffs above\n=========================================\n"; \
+	   ${RM} -f ex16opt_p_ao_hessian.tmp
 
 runex16opt_ic:
 	-@${MPIEXEC} -n 1 ./ex16opt_ic -monitor 0 -viewer_binary_skip_info -tao_view -tao_monitor  -tao_gttol 1.e-5 > ex16opt_ic_1.tmp 2>&1; \
 	   ${DIFF} output/ex16opt_ic_1.out ex16opt_ic_1.tmp || printf "${PWD}\nPossible problem with ex16opt_ic_1, diffs above\n=========================================\n"; \
-	   ${RM} -f ex16opt_ic_1.tmp SA-data/*
+	   ${RM} -rf ex16opt_ic_1.tmp SA-data
 
 runex16opt_ic_ao:
-	-@${MPIEXEC} -n 1 ./ex16opt_ic -ts_trajectory_type memory -adjointode -monitor 0 -tao_view -tao_monitor  -tao_gttol 1.e-5 > ex16opt_ic_ao.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex16opt_ic -ts_trajectory_type memory -adjointode -monitor 0 -tao_view -tao_monitor -tao_gttol 1.e-5 > ex16opt_ic_ao.tmp 2>&1; \
 	   ${DIFF} output/ex16opt_ic_ao.out ex16opt_ic_ao.tmp || printf "${PWD}\nPossible problem with ex16opt_ic_ao, diffs above\n=========================================\n"; \
 	   ${RM} -f ex16opt_ic_ao.tmp
+
+runex16opt_ic_ao_hessian:
+	-@${MPIEXEC} -n 1 ./ex16opt_ic -ts_trajectory_type memory -adjointode -monitor 0 -tao_view -tao_monitor -tao_gttol 1.e-5 -tao_type tron > ex16opt_ic_ao_hessian.tmp 2>&1; \
+	   ${DIFF} output/ex16opt_ic_ao_hessian.out ex16opt_ic_ao_hessian.tmp || printf "${PWD}\nPossible problem with ex16opt_ic_ao_hessian, diffs above\n=========================================\n"; \
+	   ${RM} -f ex16opt_ic_ao_hessian.tmp
+
+runex16opt_ic_ao_hessian_mf:
+	-@${MPIEXEC} -n 1 ./ex16opt_ic -ts_trajectory_type memory -adjointode -monitor 0 -tao_view -tao_monitor -tao_gttol 1.e-5 -tao_type tron -tao_mf_hessian > ex16opt_ic_ao_hessian_mf.tmp 2>&1; \
+	   ${DIFF} output/ex16opt_ic_ao_hessian_mf.out ex16opt_ic_ao_hessian_mf.tmp || printf "${PWD}\nPossible problem with ex16opt_ic_ao_hessian_mf, diffs above\n=========================================\n"; \
+	   ${RM} -f ex16opt_ic_ao_hessian_mf.tmp
+
 
 runex17:
 	-@${MPIEXEC} -n 1 ./ex17 -da_grid_x 40 -ts_max_steps 2 -snes_monitor_short -ksp_monitor_short -ts_monitor > ex17_1.tmp 2>&1; \
@@ -662,9 +682,19 @@ runex20opt_p:
 	  ${RM} -f ex20opt_p_1.tmp SA-data/*
 
 runex20opt_p_ao:
-	-@${MPIEXEC} -n 1 ./ex20opt_p -adjointode -tao_monitor -monitor 0 -ts_type theta -ts_theta_endpoint -ts_theta_theta 0.5 -viewer_binary_skip_info -tao_view > ex20opt_p_ao.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex20opt_p -adjointode -tao_monitor -monitor 0 -ts_trajectory_type memory -tao_view > ex20opt_p_ao.tmp 2>&1; \
 	  ${DIFF} output/ex20opt_p_ao.out ex20opt_p_ao.tmp || printf "${PWD}\nPossible problem with ex20opt_p_ao, diffs above\n=========================================\n"; \
-	  ${RM} -f ex20opt_p_ao.tmp SA-data/*
+	  ${RM} -f ex20opt_p_ao.tmp
+
+runex20opt_p_ao_hessian:
+	-@${MPIEXEC} -n 1 ./ex20opt_p -adjointode -tao_monitor -monitor 0 -tao_view -tao_type tron -ts_trajectory_type memory > ex20opt_p_ao_hessian.tmp 2>&1; \
+	  ${DIFF} output/ex20opt_p_ao_hessian.out ex20opt_p_ao_hessian.tmp || printf "${PWD}\nPossible problem with ex20opt_p_ao_hessian, diffs above\n=========================================\n"; \
+	  ${RM} -f ex20opt_p_ao_hessian.tmp
+
+runex20opt_p_ao_hessian_mf:
+	-@${MPIEXEC} -n 1 ./ex20opt_p -adjointode -tao_monitor -monitor 0 -tao_view -tao_type tron -tao_mf_hessian -ts_trajectory_type memory > ex20opt_p_ao_hessian_mf.tmp 2>&1; \
+	  ${DIFF} output/ex20opt_p_ao_hessian_mf.out ex20opt_p_ao_hessian_mf.tmp || printf "${PWD}\nPossible problem with ex20opt_p_ao_hessian_mf, diffs above\n=========================================\n"; \
+	  ${RM} -f ex20opt_p_ao_hessian_mf.tmp
 
 runex22:
 	-@${MPIEXEC} -n 1 ./ex22 -nox -da_grid_x 200 -ts_monitor_draw_solution -ts_arkimex_type 4 -ts_adapt_type none -ts_dt .005 -ts_final_time .1  > ex22_1.tmp 2>&1; \
@@ -695,22 +725,22 @@ runex22f_mf:
 	   ${RM} -f ex22f_mf_1.tmp petscshiftmod.mod
 
 runex23_1:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 1.1 -tf 2.3 -ts_type rk -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 -ts_trajectory_type memory > ex23_1.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 1.1 -tf 2.3 -ts_type rk -ts_adapt_type basic -ts_atol 1.e-9 -ts_rtol 1.e-9 -test_event_final -p 1.3 -ts_trajectory_type memory > ex23_1.tmp 2>&1; \
 	   ${DIFF} output/ex23_1.out ex23_1.tmp || printf "${PWD}\nPossible problem with ex23_1, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_1.tmp SA-data
 
 runex23_2:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 1.6 -tf 2.12 -ts_type bdf -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 > ex23_2.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 1.6 -tf 2.12 -ts_type bdf -ts_adapt_type basic -ts_atol 1.e-9 -ts_rtol 1.e-9 -test_event_final -p 1.3 > ex23_2.tmp 2>&1; \
 	   ${DIFF} output/ex23_2.out ex23_2.tmp || printf "${PWD}\nPossible problem with ex23_2, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_2.tmp SA-data
 
 runex23_3:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 1.6 -tf 2.12 -ts_type bdf -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_final -p 1.3 -test_ifunc -test_nulljac_IC -test_nullgrad_M > ex23_3.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 1.6 -tf 2.12 -ts_type bdf -ts_adapt_type basic -ts_atol 1.e-9 -ts_rtol 1.e-9 -test_event_final -p 1.3 -test_ifunc -test_nulljac_IC -test_nullgrad_M > ex23_3.tmp 2>&1; \
 	   ${DIFF} output/ex23_3.out ex23_3.tmp || printf "${PWD}\nPossible problem with ex23_3, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_3.tmp SA-data
 
 runex23_4:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 1.1 -tf 2.3 -ts_type rk -ts_adapt_type basic -ts_atol 1.e-9 -adjoint_ts_adapt_type basic -ts_rtol 1.e-9 -test_event_constant -test_rhsjacconst -ts_trajectory_reconstruction_order 3 > ex23_4.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 1.1 -tf 2.3 -ts_type rk -ts_adapt_type basic -ts_atol 1.e-9 -ts_rtol 1.e-9 -test_event_constant -test_rhsjacconst -ts_trajectory_reconstruction_order 3 > ex23_4.tmp 2>&1; \
 	   ${DIFF} output/ex23_4.out ex23_4.tmp || printf "${PWD}\nPossible problem with ex23_4, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_4.tmp SA-data
 
@@ -720,12 +750,12 @@ runex23_5:
 	   ${RM} -rf ex23_5.tmp SA-data
 
 runex23_6:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 0.01 -tf 0.8 -b 0.3 -a 1.7 -p 1 -ts_type rk -ts_adapt_type basic -ts_atol 1.e-8 -adjoint_ts_adapt_type basic -ts_rtol 1.e-8 -test_event_func -ts_trajectory_reconstruction_order 4 > ex23_6.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 0.01 -tf 0.8 -b 0.3 -a 1.7 -p 1 -ts_type rk -ts_adapt_type basic -ts_atol 1.e-8 -ts_rtol 1.e-8 -test_event_func -ts_trajectory_reconstruction_order 4 > ex23_6.tmp 2>&1; \
 	   ${DIFF} output/ex23_6.out ex23_6.tmp || printf "${PWD}\nPossible problem with ex23_6, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_6.tmp SA-data
 
 runex23_7:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 0 -tf 0.125 -dt 0.001 -b 0.3 -a 1.7 -p 1 -ts_type rosw -test_ifunc -test_event_func -ts_adapt_type none -adjoint_ts_adapt_type none > ex23_7.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 0 -tf 0.125 -dt 0.001 -b 0.3 -a 1.7 -p 1 -ts_type rosw -test_ifunc -test_event_func -ts_adapt_type none > ex23_7.tmp 2>&1; \
 	   ${DIFF} output/ex23_7.out ex23_7.tmp || printf "${PWD}\nPossible problem with ex23_7, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_7.tmp SA-data
 
@@ -818,37 +848,37 @@ runex40: runex40_a runex40_b runex40_c runex40_d runex40_e
 runex40_a:
 	-@${MPIEXEC} -n 1 ./ex40 -snes_stol 1e-4 > ex40.tmp 2>&1; \
 	   ${DIFF} output/ex40.out ex40.tmp || printf "${PWD}\nPossible problem with ex40_a, diffs above\n=========================================\n"; \
-	   ${RM} -f ex40.tmp SA-data/*
+	   ${RM} -rf ex40.tmp SA-data
 
 runex40_b:
 	-@${MPIEXEC} -n 1 ./ex40 -ts_type arkimex -snes_stol 1e-4 > ex40.tmp 2>&1; \
 	   ${DIFF} output/ex40.out ex40.tmp || printf "${PWD}\nPossible problem with ex40_b, diffs above\n=========================================\n"; \
-	   ${RM} -f ex40.tmp SA-data/*
+	   ${RM} -rf ex40.tmp SA-data
 
 runex40_c:
 	-@${MPIEXEC} -n 1 ./ex40 -ts_type theta -ts_adapt_type basic -ts_atol 1e-1 -snes_stol 1e-4 > ex40.tmp 2>&1; \
 	   ${DIFF} output/ex40.out ex40.tmp || printf "${PWD}\nPossible problem with ex40_c, diffs above\n=========================================\n"; \
-	   ${RM} -f ex40.tmp SA-data/*
+	   ${RM} -rf ex40.tmp SA-data
 
 runex40_d:
 	-@${MPIEXEC} -n 1 ./ex40 -ts_type alpha -ts_adapt_type basic -ts_atol 1e-1 -snes_stol 1e-4 > ex40.tmp 2>&1; \
 	   ${DIFF} output/ex40.out ex40.tmp || printf "${PWD}\nPossible problem with ex40_d, diffs above\n=========================================\n"; \
-	   ${RM} -f ex40.tmp SA-data/*
+	   ${RM} -rf ex40.tmp SA-data
 
 runex40_e:
 	-@${MPIEXEC} -n 1 ./ex40 -ts_type bdf -ts_adapt_dt_max 0.025 -ts_max_steps 1500 > ex40.tmp 2>&1; \
 	   ${DIFF} output/ex40.out ex40.tmp || printf "${PWD}\nPossible problem with ex40_e, diffs above\n=========================================\n"; \
-	   ${RM} -f ex40.tmp SA-data/*
+	   ${RM} -rf ex40.tmp SA-data
 
 runex40_f:
 	-@${MPIEXEC} -n 1 ./ex40 -rhs-form -ts_type rk -ts_rk_type 3bs > ex40.tmp 2>&1; \
 	   ${DIFF} output/ex40.out ex40.tmp || printf "${PWD}\nPossible problem with ex40_f, diffs above\n=========================================\n"; \
-	   ${RM} -f ex40.tmp SA-data/*
+	   ${RM} -rf ex40.tmp SA-data
 
 runex40_g:
 	-@${MPIEXEC} -n 1 ./ex40 -rhs-form -ts_type rk -ts_rk_type 5bs > ex40.tmp 2>&1; \
 	   ${DIFF} output/ex40.out ex40.tmp || printf "${PWD}\nPossible problem with ex40_g, diffs above\n=========================================\n"; \
-	   ${RM} -f ex40.tmp SA-data/*
+	   ${RM} -rf ex40.tmp SA-data
 
 runex42:
 	-@${MPIEXEC} -n 1 ./ex42 -ts_max_steps 8  > ex42.tmp 2>&1;  \
@@ -904,10 +934,10 @@ TESTEXAMPLES_C_NOTSINGLE = ex2.PETSc runex2 ex2.rm ex3.PETSc runex3_3 ex3.rm ex8
                             ex29.PETSc runex29 ex29.rm ex43.PETSc runex43_a runex43_b ex43.rm
 TESTEXAMPLES_C_NOCOMPLEX_NOTSINGLE  = ex9.PETSc runex9 runex9_2 runex9_3 ex9.rm \
                             ex26.PETSc runex26 runex26_2 runex26_3 runex26_4 runex26_asm ex26.rm\
-                            ex16opt_p.PETSc  runex16opt_p  runex16opt_p_ao ex16opt_p.rm \
-                            printdot ex16opt_ic.PETSc runex16opt_ic runex16opt_ic_ao ex16opt_ic.rm \
+                            ex16opt_p.PETSc runex16opt_p runex16opt_p_ao runex16opt_p_ao_hessian runex16opt_p_ao_hessian_mf runexex16opt_p.rm \
+                            printdot ex16opt_ic.PETSc runex16opt_ic runex16opt_ic_ao runex16opt_ic_ao_hessian runex16opt_ic_ao_hessian_mf ex16opt_ic.rm \
                             ex20fwd.PETSc runex20fwd runex20fwd_2 ex20fwd.rm \
-                            ex20opt_p.PETSc runex20opt_p runex20opt_p_ao ex20opt_p.rm \
+                            ex20opt_p.PETSc runex20opt_p runex20opt_p_ao runex20opt_p_ao_hessian runex20opt_p_ao_hessian_mf ex20opt_p.rm \
                             ex20opt_ic.PETSc runex20opt_ic ex20opt_ic.rm
 TESTEXAMPLES_C_X = ex5.PETSc runex5 ex5.rm
 TESTEXAMPLES_FORTRAN = ex1f.PETSc runex1f ex1f.rm

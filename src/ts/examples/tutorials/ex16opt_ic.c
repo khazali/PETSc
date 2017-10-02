@@ -14,7 +14,9 @@ Input parameters include:\n\
    This code demonstrates how to solve an ODE-constrained optimization problem with TAO, TSAdjoint and TS.
    The objective is to minimize the difference between observation and model prediction by finding optimal values for initial conditions.
    The gradient is computed either with the discrete adjoint of an explicit Runge-Kutta method (see ex16adj.c for details) or by solving the adjoint ode.
+   With the adjoint ode approach, we can also compute the Hessian via TSComputeHessian().
   ------------------------------------------------------------------------- */
+
 #include <petsctao.h>
 #include <petscts.h>
 #include <petscmat.h>
@@ -30,7 +32,10 @@ struct _n_User {
 };
 
 PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
+PetscErrorCode FormFunction_AO(Tao,Vec,PetscReal*,void*);
+PetscErrorCode FormGradient_AO(Tao,Vec,Vec,void*);
 PetscErrorCode FormFunctionGradient_AO(Tao,Vec,PetscReal*,Vec,void*);
+PetscErrorCode FormHessian_AO(Tao,Vec,Mat,Mat,void*);
 
 /*
 *  User-defined routines
@@ -199,7 +204,14 @@ int main(int argc,char **argv)
   /* Set routine for function and gradient evaluation */
   ierr = PetscOptionsGetBool(NULL,NULL,"-adjointode",&adjointode,NULL);CHKERRQ(ierr);
   if (adjointode) { /* use adjoint ode approach */
+    Mat H;
+
+    ierr = TaoSetObjectiveRoutine(tao,FormFunction_AO,(void *)&user);CHKERRQ(ierr);
+    ierr = TaoSetGradientRoutine(tao,FormGradient_AO,(void *)&user);CHKERRQ(ierr);
     ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient_AO,(void *)&user);CHKERRQ(ierr);
+    ierr = MatCreate(PETSC_COMM_WORLD,&H);CHKERRQ(ierr);
+    ierr = TaoSetHessianRoutine(tao,H,H,FormHessian_AO,(void *)&user);CHKERRQ(ierr);
+    ierr = MatDestroy(&H);CHKERRQ(ierr);
   } else {
     ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void *)&user);CHKERRQ(ierr);
   }
@@ -315,7 +327,8 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   PetscFunctionReturn(0);
 }
 
-/* callbacks for the adjoint ode approach */
+/* callbacks for the adjoint ode approach
+   Note that with the adjointode approach the ODE is assumed to be in the implicit form F(U,Udot,t;M) = 0 */
 
 /* the cost functional interface: returns ||u - u_obs||^2 */
 static PetscErrorCode EvalObjective_AO(Vec U, Vec P, PetscReal time, PetscReal *val, void *ctx)
@@ -331,8 +344,8 @@ static PetscErrorCode EvalObjective_AO(Vec U, Vec P, PetscReal time, PetscReal *
   PetscFunctionReturn(0);
 }
 
-/* with this approach, we also need the gradient of the cost functional with respect to the state variables */
-static PetscErrorCode EvalCostGradient_U_AO(Vec U, Vec M, PetscReal time, Vec grad, void *ctx)
+/* the gradient of the cost functional with respect to the state variables */
+static PetscErrorCode EvalObjectiveGradient_U_AO(Vec U, Vec M, PetscReal time, Vec grad, void *ctx)
 {
   User              user = (User)ctx;
   const PetscScalar *x;
@@ -349,6 +362,27 @@ static PetscErrorCode EvalCostGradient_U_AO(Vec U, Vec M, PetscReal time, Vec gr
   PetscFunctionReturn(0);
 }
 
+/* TSComputeObjectiveAndGradient just computes the objective function if the gradient is NULL */
+PetscErrorCode FormFunction_AO(Tao tao,Vec IC,PetscReal *f,void *ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = FormFunctionGradient_AO(tao,IC,f,NULL,ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* TSComputeObjectiveAndGradient just computes the gradient if the return value of the objective function is NULL */
+PetscErrorCode FormGradient_AO(Tao tao,Vec IC,Vec G,void *ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = FormFunctionGradient_AO(tao,IC,NULL,G,ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* wrapper for TSComputeObjectiveAndGradient */
 PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
 {
   User           user = (User)ctx;
@@ -360,16 +394,15 @@ PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec IC,PetscReal *f,Vec G,void *c
   ierr = VecCopy(IC,user->x);CHKERRQ(ierr);
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
   ierr = TSSetType(ts,TSRK);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,0.001);CHKERRQ(ierr);
   ierr = TSSetRHSFunction(ts,NULL,RHSFunction,user);CHKERRQ(ierr);
   ierr = TSSetTolerances(ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
   ierr = TSSetRHSJacobian(ts,user->A,user->A,RHSJacobian,user);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   /* the cost functional needs to be evaluated at time 0.5 */
-  ierr = TSSetObjective(ts,0.5,EvalObjective_AO,EvalCostGradient_U_AO,NULL,
+  ierr = TSSetObjective(ts,0.5,EvalObjective_AO,EvalObjectiveGradient_U_AO,NULL,
                         NULL,NULL,NULL,NULL,NULL,NULL,user);CHKERRQ(ierr);
-
   /* set Jacobian G_p for the ODE dependence from initial conditions in implicit form: G(u(0),p) = 0 */
-
   ierr = MatDuplicate(user->A,MAT_DO_NOT_COPY_VALUES,&Id);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(Id,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(Id,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
@@ -377,7 +410,54 @@ PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec IC,PetscReal *f,Vec G,void *c
   ierr = MatShift(Id,-1.0);CHKERRQ(ierr);
   ierr = TSSetGradientIC(ts,NULL,Id,NULL,NULL);CHKERRQ(ierr);
   ierr = MatDestroy(&Id);CHKERRQ(ierr);
-  ierr = TSComputeObjectiveAndGradient(ts,0.0,0.001,0.5,user->x,IC,G,f);CHKERRQ(ierr);
+  ierr = TSComputeObjectiveAndGradient(ts,0.0,PETSC_DECIDE,0.5,user->x,IC,G,f);CHKERRQ(ierr);
+  ierr = TSDestroy(&ts);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* wrapper for TSComputeHessian */
+PetscErrorCode FormHessian_AO(Tao tao,Vec IC,Mat H,Mat Hp,void *ctx)
+{
+  User           user = (User)ctx;
+  TS             ts;
+  PetscErrorCode ierr;
+  Mat            Id,H_UU;
+
+  PetscFunctionBeginUser;
+  ierr = VecCopy(IC,user->x);CHKERRQ(ierr);
+  ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
+  ierr = TSSetType(ts,TSRK);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,0.001);CHKERRQ(ierr);
+  ierr = TSSetRHSFunction(ts,NULL,RHSFunction,user);CHKERRQ(ierr);
+  ierr = TSSetTolerances(ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
+  ierr = TSSetRHSJacobian(ts,user->A,user->A,RHSJacobian,user);CHKERRQ(ierr);
+  ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
+  /* Hessian (wrt the state) of objective function (all other Hessian terms are zero) */
+  ierr = MatDuplicate(user->A,MAT_DO_NOT_COPY_VALUES,&H_UU);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(H_UU,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(H_UU,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatShift(H_UU,2.0);CHKERRQ(ierr);
+  /* the cost functional needs to be evaluated at time 0.5 */
+  ierr = TSSetObjective(ts,0.5,EvalObjective_AO,EvalObjectiveGradient_U_AO,NULL,
+                        H_UU,NULL,NULL,NULL,NULL,NULL,user);CHKERRQ(ierr);
+  ierr = MatDestroy(&H_UU);CHKERRQ(ierr);
+  /* set Jacobian G_p for the ODE dependence from initial conditions in implicit form: G(u(0),p) = 0 */
+  ierr = MatDuplicate(user->A,MAT_DO_NOT_COPY_VALUES,&Id);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(Id,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(Id,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatZeroEntries(Id);CHKERRQ(ierr);
+  ierr = MatShift(Id,-1.0);CHKERRQ(ierr);
+  ierr = TSSetGradientIC(ts,NULL,Id,NULL,NULL);CHKERRQ(ierr);
+  ierr = MatDestroy(&Id);CHKERRQ(ierr);
+  ierr = TSComputeHessian(ts,0.0,PETSC_DECIDE,0.5,user->x,IC,H);CHKERRQ(ierr);
+#if 0
+  {
+    Mat He;
+    ierr = MatComputeExplicitOperator(H,&He);CHKERRQ(ierr);
+    ierr = MatView(He,NULL);CHKERRQ(ierr);
+    ierr = MatDestroy(&He);CHKERRQ(ierr);
+  }
+#endif
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
