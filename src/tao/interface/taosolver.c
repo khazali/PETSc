@@ -367,6 +367,7 @@ PetscErrorCode TaoDestroy(Tao *tao)
 . -tao_draw_gradient - graphically view gradient at each iteration
 . -tao_fd_gradient - use gradient computed with finite differences
 . -tao_fd_hessian - use hessian computed with finite differences
+. -tao_mf_hessian - use matrix-free hessian computed with finite differences
 . -tao_cancelmonitors - cancels all monitors (except those set with command line)
 . -tao_view - prints information about the Tao after solving
 - -tao_converged_reason - prints the reason TAO stopped iterating
@@ -511,6 +512,15 @@ PetscErrorCode TaoSetFromOptions(Tao tao)
       ierr = MatCreate(PetscObjectComm((PetscObject)tao),&H);CHKERRQ(ierr);
       ierr = MatSetType(H,MATAIJ);CHKERRQ(ierr);
       ierr = TaoSetHessianRoutine(tao,H,H,TaoDefaultComputeHessian,NULL);CHKERRQ(ierr);
+      ierr = MatDestroy(&H);CHKERRQ(ierr);
+    }
+    flg = PETSC_FALSE;
+    ierr = PetscOptionsBool("-tao_mf_hessian","compute matrix-free hessian using finite differences","TaoDefaultComputeHessianMFFD",flg,&flg,NULL);CHKERRQ(ierr);
+    if (flg) {
+      Mat H;
+
+      ierr = MatCreate(PetscObjectComm((PetscObject)tao),&H);CHKERRQ(ierr);
+      ierr = TaoSetHessianRoutine(tao,H,H,TaoDefaultComputeHessianMFFD,NULL);CHKERRQ(ierr);
       ierr = MatDestroy(&H);CHKERRQ(ierr);
     }
     ierr = PetscOptionsEnum("-tao_subset_type","subset type","",TaoSubSetTypes,(PetscEnum)tao->subset_type,(PetscEnum*)&tao->subset_type,NULL);CHKERRQ(ierr);

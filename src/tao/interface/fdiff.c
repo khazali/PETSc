@@ -195,3 +195,22 @@ PetscErrorCode TaoDefaultComputeHessianColor(Tao tao,Vec V,Mat H,Mat B,void *ctx
   }
   PetscFunctionReturn(0);
 }
+
+PetscErrorCode TaoDefaultComputeHessianMFFD(Tao tao,Vec X,Mat H,Mat B,void *ctx)
+{
+  PetscInt       n,N;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (B && B != H) SETERRQ(PetscObjectComm((PetscObject)tao),PETSC_ERR_SUP,"Preconditioning Hessian matrix");
+  ierr = VecGetSize(X,&N);CHKERRQ(ierr);
+  ierr = VecGetLocalSize(X,&n);CHKERRQ(ierr);
+  ierr = MatSetSizes(H,n,n,N,N);CHKERRQ(ierr);
+  ierr = MatSetType(H,MATMFFD);CHKERRQ(ierr);
+  ierr = MatSetUp(H);CHKERRQ(ierr);
+  ierr = MatMFFDSetBase(H,X,NULL);CHKERRQ(ierr);
+  ierr = MatMFFDSetFunction(H,(PetscErrorCode (*)(void*,Vec,Vec))TaoComputeGradient,tao);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(H,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(H,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
