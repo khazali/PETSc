@@ -92,7 +92,7 @@ static PetscErrorCode TSLinearizedICApply(TS ts, PetscReal t0, Vec x0, Vec desig
       }
     }
   }
-  if (ksp) { /* destroy inner vectors to avoid ABA problems with the DM */
+  if (ksp) { /* destroy inner vectors to avoid ABA issues when destroying the DM */
     ierr = VecDestroy(&ksp->vec_rhs);CHKERRQ(ierr);
     ierr = VecDestroy(&ksp->vec_sol);CHKERRQ(ierr);
   }
@@ -107,17 +107,17 @@ typedef struct {
   PetscObjectState Astate;
   PetscObjectId    Aid;
   PetscBool        splitdone;
-  PetscBool        timeindep; /* true if the DAE is A Udot + B U -f = 0 */
+  PetscBool        jacconsts; /* true if the DAE is A Udot + B U -f = 0 */
   Mat              J_U;       /* Jacobian : F_U (U,Udot,t) */
   Mat              J_Udot;    /* Jacobian : F_Udot(U,Udot,t) */
   Mat              pJ_U;      /* Jacobian : F_U (U,Udot,t) (to be preconditioned) */
   Mat              pJ_Udot;   /* Jacobian : F_Udot(U,Udot,t) (to be preconditioned) */
-} SplitJac;
+} TSSplitJacobians;
 
-static PetscErrorCode SplitJacDestroy_Private(void *ptr)
+static PetscErrorCode TSSplitJacobiansDestroy_Private(void *ptr)
 {
-  SplitJac*      s = (SplitJac*)ptr;
-  PetscErrorCode ierr;
+  TSSplitJacobians* s = (TSSplitJacobians*)ptr;
+  PetscErrorCode    ierr;
 
   PetscFunctionBegin;
   ierr = MatDestroy(&s->pJ_U);CHKERRQ(ierr);
@@ -163,10 +163,10 @@ static PetscErrorCode TSComputeSplitJacobians(TS ts, PetscReal time, Vec U, Vec 
 /* Just access the split matrices */
 static PetscErrorCode TSGetSplitJacobians(TS ts, Mat* JU, Mat* pJU, Mat *JUdot, Mat* pJUdot)
 {
-  PetscErrorCode ierr;
-  PetscContainer c;
-  Mat            A,B;
-  SplitJac       *splitJ;
+  PetscErrorCode    ierr;
+  PetscContainer    c;
+  Mat               A,B;
+  TSSplitJacobians *splitJ;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
@@ -218,18 +218,18 @@ static PetscErrorCode TSGetSplitJacobians(TS ts, Mat* JU, Mat* pJU, Mat *JUdot, 
 /* Updates splitJ->J_Udot and splitJ->J_U at a given time */
 static PetscErrorCode TSUpdateSplitJacobiansFromHistory(TS ts, PetscReal time)
 {
-  PetscContainer c;
-  SplitJac       *splitJ;
-  Mat            J_U = NULL,J_Udot = NULL,pJ_U = NULL,pJ_Udot = NULL;
-  Vec            U,Udot;
-  TSProblemType  type;
-  PetscErrorCode ierr;
+  PetscContainer   c;
+  TSSplitJacobians *splitJ;
+  Mat              J_U = NULL,J_Udot = NULL,pJ_U = NULL,pJ_Udot = NULL;
+  Vec              U,Udot;
+  TSProblemType    type;
+  PetscErrorCode   ierr;
 
   PetscFunctionBegin;
   ierr = PetscObjectQuery((PetscObject)ts,"_ts_splitJac",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_PLIB,"Missing splitJac container");
   ierr = PetscContainerGetPointer(c,(void**)&splitJ);CHKERRQ(ierr);
-  if (splitJ->timeindep && splitJ->splitdone) PetscFunctionReturn(0);
+  if (splitJ->jacconsts && splitJ->splitdone) PetscFunctionReturn(0);
   ierr = TSGetProblemType(ts,&type);CHKERRQ(ierr);
   if (type > TS_LINEAR) {
     ierr = TSTrajectoryGetUpdatedHistoryVecs(ts->trajectory,ts,time,&U,&Udot);CHKERRQ(ierr);
@@ -242,7 +242,7 @@ static PetscErrorCode TSUpdateSplitJacobiansFromHistory(TS ts, PetscReal time)
   if (type > TS_LINEAR) {
     ierr = TSTrajectoryRestoreUpdatedHistoryVecs(ts->trajectory,&U,&Udot);CHKERRQ(ierr);
   }
-  splitJ->splitdone = splitJ->timeindep ? PETSC_TRUE : PETSC_FALSE;
+  splitJ->splitdone = splitJ->jacconsts ? PETSC_TRUE : PETSC_FALSE;
   PetscFunctionReturn(0);
 }
 
@@ -254,7 +254,7 @@ static PetscErrorCode TSComputeIJacobianWithSplits(TS ts, PetscReal time, Vec U,
   PetscObjectState Astate;
   PetscObjectId    Aid;
   PetscContainer   c;
-  SplitJac         *splitJ;
+  TSSplitJacobians *splitJ;
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
@@ -263,7 +263,7 @@ static PetscErrorCode TSComputeIJacobianWithSplits(TS ts, PetscReal time, Vec U,
   ierr = PetscContainerGetPointer(c,(void**)&splitJ);CHKERRQ(ierr);
   ierr = PetscObjectStateGet((PetscObject)A,&Astate);CHKERRQ(ierr);
   ierr = PetscObjectGetId((PetscObject)A,&Aid);CHKERRQ(ierr);
-  if (splitJ->timeindep && PetscAbsScalar(splitJ->shift - shift) < PETSC_SMALL &&
+  if (splitJ->jacconsts && PetscAbsScalar(splitJ->shift - shift) < PETSC_SMALL &&
       splitJ->Astate == Astate && splitJ->Aid == Aid) {
     PetscFunctionReturn(0);
   }
@@ -936,23 +936,22 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
 */
 static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
 {
-  SNES            snes;
-  KSP             ksp;
-  KSPType         ksptype;
-  Mat             A,B;
-  Vec             vatol,vrtol;
-  PetscContainer  container;
-  AdjointCtx      *adj;
-  TSIFunction     ifunc;
-  TSRHSFunction   rhsfunc;
-  TSI2Function    i2func;
-  TSType          type;
-  TSEquationType  eqtype;
-  const char      *prefix;
-  PetscReal       atol,rtol,dtol;
-  PetscInt        maxits;
-  SplitJac        *splitJ;
-  PetscErrorCode  ierr;
+  SNES             snes;
+  KSP              ksp;
+  Mat              A,B;
+  Vec              vatol,vrtol;
+  PetscContainer   container;
+  AdjointCtx       *adj;
+  TSIFunction      ifunc;
+  TSRHSFunction    rhsfunc;
+  TSI2Function     i2func;
+  TSType           type;
+  TSEquationType   eqtype;
+  const char       *prefix;
+  PetscReal        atol,rtol;
+  PetscInt         maxits;
+  PetscBool        jcon,rksp;
+  PetscErrorCode   ierr;
 
   PetscFunctionBegin;
   ierr = TSGetEquationType(ts,&eqtype);CHKERRQ(ierr);
@@ -976,24 +975,9 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   ierr = TSSetApplicationContext(*adjts,(void *)adj);CHKERRQ(ierr);
   ierr = PetscObjectReference((PetscObject)ts);CHKERRQ(ierr);
   adj->fwdts = ts;
-  adj->t0    = adj->tf = PETSC_MAX_REAL;
 
-  /* caching to prevent from recomputation of Jacobians */
-  ierr = PetscObjectQuery((PetscObject)ts,"_ts_splitJac",(PetscObject*)&container);CHKERRQ(ierr);
-  if (container) {
-    ierr = PetscContainerGetPointer(container,(void**)&splitJ);CHKERRQ(ierr);
-  } else {
-    ierr = PetscNew(&splitJ);CHKERRQ(ierr);
-    splitJ->Astate    = -1;
-    splitJ->Aid       = PETSC_MIN_INT;
-    splitJ->shift     = PETSC_MIN_REAL;
-    splitJ->splitdone = PETSC_FALSE;
-    ierr = PetscContainerCreate(PetscObjectComm((PetscObject)ts),&container);CHKERRQ(ierr);
-    ierr = PetscContainerSetPointer(container,splitJ);CHKERRQ(ierr);
-    ierr = PetscContainerSetUserDestroy(container,SplitJacDestroy_Private);CHKERRQ(ierr);
-    ierr = PetscObjectCompose((PetscObject)ts,"_ts_splitJac",(PetscObject)container);CHKERRQ(ierr);
-    ierr = PetscContainerDestroy(&container);CHKERRQ(ierr);
-  }
+  /* invalidate time limits, that need to be set by AdjointTSSetTimeLimits */
+  adj->t0 = adj->tf = PETSC_MAX_REAL;
 
   /* wrap application context in a container, so that it will be destroyed when calling TSDestroy on adjts */
   ierr = PetscContainerCreate(PetscObjectComm((PetscObject)(*adjts)),&container);CHKERRQ(ierr);
@@ -1002,27 +986,7 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   ierr = PetscObjectCompose((PetscObject)(*adjts),"_ts_adjctx",(PetscObject)container);CHKERRQ(ierr);
   ierr = PetscContainerDestroy(&container);CHKERRQ(ierr);
 
-  /* setup callbacks for adjoint DAE: we reuse the same jacobian matrices of the forward solve */
-  ierr = TSGetIFunction(ts,NULL,&ifunc,NULL);CHKERRQ(ierr);
-  ierr = TSGetRHSFunction(ts,NULL,&rhsfunc,NULL);CHKERRQ(ierr);
-  if (ifunc) {
-    ierr = TSGetIJacobian(ts,&A,&B,NULL,NULL);CHKERRQ(ierr);
-    ierr = TSSetIFunction(*adjts,NULL,AdjointTSIFunctionLinear,NULL);CHKERRQ(ierr);
-    ierr = TSSetIJacobian(*adjts,A,B,AdjointTSIJacobian,NULL);CHKERRQ(ierr);
-  } else {
-    TSRHSJacobian rhsjacfunc;
-    if (!rhsfunc) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"TSSetIFunction or TSSetRHSFunction not called");
-    ierr = TSSetRHSFunction(*adjts,NULL,AdjointTSRHSFunctionLinear,NULL);CHKERRQ(ierr);
-    ierr = TSGetRHSJacobian(ts,NULL,NULL,&rhsjacfunc,NULL);CHKERRQ(ierr);
-    ierr = TSGetRHSMats_Private(ts,&A,&B);CHKERRQ(ierr);
-    if (rhsjacfunc == TSComputeRHSJacobianConstant) {
-      ierr = TSSetRHSJacobian(*adjts,A,B,TSComputeRHSJacobianConstant,NULL);CHKERRQ(ierr);
-    } else {
-      ierr = TSSetRHSJacobian(*adjts,A,B,AdjointTSRHSJacobian,NULL);CHKERRQ(ierr);
-    }
-  }
-
-  /* prefix */
+  /* AdjointTS prefix: i.e. options called as -adjoint_ts_monitor or -adjoint_fwdtsprefix_ts_monitor */
   ierr = TSGetOptionsPrefix(ts,&prefix);CHKERRQ(ierr);
   ierr = TSSetOptionsPrefix(*adjts,"adjoint_");CHKERRQ(ierr);
   ierr = TSAppendOptionsPrefix(*adjts,prefix);CHKERRQ(ierr);
@@ -1030,9 +994,60 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   /* options specific to AdjointTS */
   ierr = TSGetOptionsPrefix(*adjts,&prefix);CHKERRQ(ierr);
   ierr = PetscOptionsBegin(PetscObjectComm((PetscObject)*adjts),prefix,"Adjoint options","TS");CHKERRQ(ierr);
-  ierr = PetscOptionsBool("-timeindependent","Whether or not the DAE Jacobians are time-independent",NULL,splitJ->timeindep,&splitJ->timeindep,NULL);CHKERRQ(ierr);
+  jcon = PETSC_FALSE;
+  ierr = PetscOptionsBool("-constjacobians","Whether or not the DAE Jacobians are constant",NULL,jcon,&jcon,NULL);CHKERRQ(ierr);
+  rksp = PETSC_FALSE;
+  ierr = PetscOptionsBool("-reuseksp","Reuse the KSP solver from the nonlinear model",NULL,rksp,&rksp,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
-  splitJ->splitdone = PETSC_FALSE;
+
+  /* setup callbacks for adjoint DAE: we reuse the same jacobian matrices of the forward solve */
+  ierr = TSGetIFunction(ts,NULL,&ifunc,NULL);CHKERRQ(ierr);
+  ierr = TSGetRHSFunction(ts,NULL,&rhsfunc,NULL);CHKERRQ(ierr);
+  if (ifunc) {
+    TSSplitJacobians *splitJ;
+
+    ierr = TSGetIJacobian(ts,&A,&B,NULL,NULL);CHKERRQ(ierr);
+    ierr = TSSetIFunction(*adjts,NULL,AdjointTSIFunctionLinear,NULL);CHKERRQ(ierr);
+    ierr = TSSetIJacobian(*adjts,A,B,AdjointTSIJacobian,NULL);CHKERRQ(ierr);
+    /* caching to prevent from recomputation of Jacobians */
+    ierr = PetscObjectQuery((PetscObject)ts,"_ts_splitJac",(PetscObject*)&container);CHKERRQ(ierr);
+    if (container) {
+      ierr = PetscContainerGetPointer(container,(void**)&splitJ);CHKERRQ(ierr);
+    } else {
+      ierr = PetscNew(&splitJ);CHKERRQ(ierr);
+      splitJ->Astate = -1;
+      splitJ->Aid    = PETSC_MIN_INT;
+      splitJ->shift  = PETSC_MIN_REAL;
+      ierr = PetscContainerCreate(PetscObjectComm((PetscObject)ts),&container);CHKERRQ(ierr);
+      ierr = PetscContainerSetPointer(container,splitJ);CHKERRQ(ierr);
+      ierr = PetscContainerSetUserDestroy(container,TSSplitJacobiansDestroy_Private);CHKERRQ(ierr);
+      ierr = PetscObjectCompose((PetscObject)ts,"_ts_splitJac",(PetscObject)container);CHKERRQ(ierr);
+      ierr = PetscContainerDestroy(&container);CHKERRQ(ierr);
+    }
+    splitJ->splitdone = PETSC_FALSE;
+    splitJ->jacconsts = jcon;
+  } else {
+    TSRHSJacobian rhsjacfunc;
+
+    if (!rhsfunc) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"TSSetIFunction or TSSetRHSFunction not called");
+    ierr = TSSetRHSFunction(*adjts,NULL,AdjointTSRHSFunctionLinear,NULL);CHKERRQ(ierr);
+    ierr = TSGetRHSJacobian(ts,NULL,NULL,&rhsjacfunc,NULL);CHKERRQ(ierr);
+    ierr = TSGetRHSMats_Private(ts,&A,&B);CHKERRQ(ierr);
+    if (rhsjacfunc == TSComputeRHSJacobianConstant) {
+      ierr = TSSetRHSJacobian(*adjts,A,B,TSComputeRHSJacobianConstant,NULL);CHKERRQ(ierr);
+    } else if (jcon) { /* just to make sure we have a correct Jacobian */
+      DM  dm;
+      Vec U;
+
+      ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+      ierr = DMGetGlobalVector(dm,&U);CHKERRQ(ierr);
+      ierr = TSComputeRHSJacobian(ts,PETSC_MIN_REAL,U,A,B);CHKERRQ(ierr);
+      ierr = DMRestoreGlobalVector(dm,&U);CHKERRQ(ierr);
+      ierr = TSSetRHSJacobian(*adjts,A,B,TSComputeRHSJacobianConstant,NULL);CHKERRQ(ierr);
+    } else {
+      ierr = TSSetRHSJacobian(*adjts,A,B,AdjointTSRHSJacobian,NULL);CHKERRQ(ierr);
+    }
+  }
 
   /* the equation type is the same */
   ierr = TSSetEquationType(*adjts,eqtype);CHKERRQ(ierr);
@@ -1040,21 +1055,27 @@ static PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   /* the adjoint DAE is linear */
   ierr = TSSetProblemType(*adjts,TS_LINEAR);CHKERRQ(ierr);
 
-  /* get info on linear solver */
-  ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
-  ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
-  ierr = KSPGetType(ksp,&ksptype);CHKERRQ(ierr);
-  ierr = KSPGetTolerances(ksp,&rtol,&atol,&dtol,&maxits);CHKERRQ(ierr);
-
   /* use KSPSolveTranspose to solve the adjoint */
   ierr = TSGetSNES(*adjts,&snes);CHKERRQ(ierr);
   ierr = SNESKSPONLYSetUseTransposeSolve(snes,PETSC_TRUE);CHKERRQ(ierr);
 
-  /* propagate KSP info of the forward model */
+  /* adjointTS linear solver */
+  ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
   ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
-  ierr = KSPSetType(ksp,ksptype);CHKERRQ(ierr);
-  ierr = KSPSetTolerances(ksp,rtol,atol,dtol,maxits);CHKERRQ(ierr);
+  if (!rksp) { /* propagate KSP info of the forward model but use a different object */
+    KSPType   ksptype;
+    PetscReal atol,rtol,dtol;
 
+    ierr = KSPGetType(ksp,&ksptype);CHKERRQ(ierr);
+    ierr = KSPGetTolerances(ksp,&rtol,&atol,&dtol,&maxits);CHKERRQ(ierr);
+    ierr = TSGetSNES(*adjts,&snes);CHKERRQ(ierr);
+    ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
+    ierr = KSPSetType(ksp,ksptype);CHKERRQ(ierr);
+    ierr = KSPSetTolerances(ksp,rtol,atol,dtol,maxits);CHKERRQ(ierr);
+  } else { /* reuse the same KSP */
+    ierr = TSGetSNES(*adjts,&snes);CHKERRQ(ierr);
+    ierr = SNESSetKSP(snes,ksp);CHKERRQ(ierr);
+  }
   /* set special purpose post step method for handling of discontinuities */
   ierr = TSSetPostStep(*adjts,AdjointTSPostStep);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1196,7 +1217,9 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
   ierr = TSGetIJacobian(adjts,NULL,NULL,&ijac,NULL);CHKERRQ(ierr);
   if (eqtype == TS_EQ_DAE_SEMI_EXPLICIT_INDEX1) { /* details in [1,Section 4.2] */
     KSP       kspM,kspD;
-    Mat       M,B,C,D;
+    Mat       M = NULL,B = NULL,C = NULL,D = NULL,pM = NULL,pD = NULL;
+    Mat       J_U,J_Udot,pJ_U,pJ_Udot;
+    PetscInt  m,n,N;
     DM        dm;
     IS        diff = NULL,alg = NULL;
     Vec       f_x,W;
@@ -1219,12 +1242,16 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
       ierr = VecDestroy(&f_x);CHKERRQ(ierr);
       goto initialize;
     }
+    if (!ijac) SETERRQ(PetscObjectComm((PetscObject)adj_ctx->fwdts),PETSC_ERR_SUP,"IJacobian routine is missing");
     ierr = PetscObjectQuery((PetscObject)adj_ctx->fwdts,"_ts_algebraic_is",(PetscObject*)&alg);CHKERRQ(ierr);
     ierr = PetscObjectQuery((PetscObject)adj_ctx->fwdts,"_ts_differential_is",(PetscObject*)&diff);CHKERRQ(ierr);
+    ierr = PetscObjectQuery((PetscObject)adj_ctx->fwdts,"_ts_dae_BMat",(PetscObject*)&B);CHKERRQ(ierr);
+    ierr = PetscObjectQuery((PetscObject)adj_ctx->fwdts,"_ts_dae_CMat",(PetscObject*)&C);CHKERRQ(ierr);
     ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjoint_index1_kspM",(PetscObject*)&kspM);CHKERRQ(ierr);
     ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjoint_index1_kspD",(PetscObject*)&kspD);CHKERRQ(ierr);
     if (!kspD) {
       const char *prefix;
+
       ierr = TSGetOptionsPrefix(adjts,&prefix);CHKERRQ(ierr);
       ierr = KSPCreate(PetscObjectComm((PetscObject)adjts),&kspD);CHKERRQ(ierr);
       ierr = KSPSetTolerances(kspD,PETSC_SMALL,PETSC_SMALL,PETSC_DEFAULT,PETSC_DEFAULT);CHKERRQ(ierr);
@@ -1233,9 +1260,12 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
       ierr = KSPSetFromOptions(kspD);CHKERRQ(ierr);
       ierr = PetscObjectCompose((PetscObject)adjts,"_ts_adjoint_index1_kspD",(PetscObject)kspD);CHKERRQ(ierr);
       ierr = PetscObjectDereference((PetscObject)kspD);CHKERRQ(ierr);
+    } else {
+      ierr = KSPGetOperators(kspD,&D,&pD);CHKERRQ(ierr);
     }
     if (!kspM) {
       const char *prefix;
+
       ierr = TSGetOptionsPrefix(adjts,&prefix);CHKERRQ(ierr);
       ierr = KSPCreate(PetscObjectComm((PetscObject)adjts),&kspM);CHKERRQ(ierr);
       ierr = KSPSetTolerances(kspM,PETSC_SMALL,PETSC_SMALL,PETSC_DEFAULT,PETSC_DEFAULT);CHKERRQ(ierr);
@@ -1244,37 +1274,56 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
       ierr = KSPSetFromOptions(kspM);CHKERRQ(ierr);
       ierr = PetscObjectCompose((PetscObject)adjts,"_ts_adjoint_index1_kspM",(PetscObject)kspM);CHKERRQ(ierr);
       ierr = PetscObjectDereference((PetscObject)kspM);CHKERRQ(ierr);
+    } else {
+      ierr = KSPGetOperators(kspM,&M,&pM);CHKERRQ(ierr);
     }
-    if (ijac) {
-      Mat      J_U = NULL,J_Udot = NULL;
-      PetscInt m,n,N;
-
-      ierr = TSUpdateSplitJacobiansFromHistory(adj_ctx->fwdts,fwdt);CHKERRQ(ierr);
-      ierr = TSGetSplitJacobians(adj_ctx->fwdts,&J_U,NULL,&J_Udot,NULL);CHKERRQ(ierr);
-      ierr = MatGetOwnershipRange(J_Udot,&m,&n);CHKERRQ(ierr);
-      if (!diff) {
-        if (alg) {
-          ierr = ISComplement(alg,m,n,&diff);CHKERRQ(ierr);
-        } else {
-          ierr = MatChop(J_Udot,PETSC_SMALL);CHKERRQ(ierr);
-          ierr = MatFindNonzeroRows(J_Udot,&diff);CHKERRQ(ierr);
-          if (!diff) SETERRQ(PetscObjectComm((PetscObject)adj_ctx->fwdts),PETSC_ERR_USER,"The DAE does not appear to have algebraic variables");
-        }
-        ierr = PetscObjectCompose((PetscObject)adj_ctx->fwdts,"_ts_differential_is",(PetscObject)diff);CHKERRQ(ierr);
-        ierr = PetscObjectDereference((PetscObject)diff);CHKERRQ(ierr);
+    ierr = TSUpdateSplitJacobiansFromHistory(adj_ctx->fwdts,fwdt);CHKERRQ(ierr);
+    ierr = TSGetSplitJacobians(adj_ctx->fwdts,&J_U,&pJ_U,&J_Udot,&pJ_Udot);CHKERRQ(ierr);
+    ierr = MatGetOwnershipRange(J_Udot,&m,&n);CHKERRQ(ierr);
+    if (!diff) {
+      if (alg) {
+        ierr = ISComplement(alg,m,n,&diff);CHKERRQ(ierr);
+      } else {
+        ierr = MatChop(J_Udot,PETSC_SMALL);CHKERRQ(ierr);
+        ierr = MatFindNonzeroRows(J_Udot,&diff);CHKERRQ(ierr);
+        if (!diff) SETERRQ(PetscObjectComm((PetscObject)adj_ctx->fwdts),PETSC_ERR_USER,"The DAE does not appear to have algebraic variables");
       }
-      if (!alg) {
-        ierr = ISComplement(diff,m,n,&alg);CHKERRQ(ierr);
-        ierr = PetscObjectCompose((PetscObject)adj_ctx->fwdts,"_ts_algebraic_is",(PetscObject)alg);CHKERRQ(ierr);
-        ierr = PetscObjectDereference((PetscObject)alg);CHKERRQ(ierr);
-      }
-      ierr = ISGetSize(alg,&N);CHKERRQ(ierr);
-      if (!N) SETERRQ(PetscObjectComm((PetscObject)adj_ctx->fwdts),PETSC_ERR_USER,"The DAE does not have algebraic variables");
-      ierr = MatCreateSubMatrix(J_Udot,diff,diff,MAT_INITIAL_MATRIX,&M);CHKERRQ(ierr);
-      ierr = MatCreateSubMatrix(J_U,diff,alg,MAT_INITIAL_MATRIX,&B);CHKERRQ(ierr);
-      ierr = MatCreateSubMatrix(J_U,alg,diff,MAT_INITIAL_MATRIX,&C);CHKERRQ(ierr);
-      ierr = MatCreateSubMatrix(J_U,alg,alg,MAT_INITIAL_MATRIX,&D);CHKERRQ(ierr);
-    } else SETERRQ(PetscObjectComm((PetscObject)adj_ctx->fwdts),PETSC_ERR_USER,"IJacobian routine is missing");
+      ierr = PetscObjectCompose((PetscObject)adj_ctx->fwdts,"_ts_differential_is",(PetscObject)diff);CHKERRQ(ierr);
+      ierr = PetscObjectDereference((PetscObject)diff);CHKERRQ(ierr);
+    }
+    if (!alg) {
+      ierr = ISComplement(diff,m,n,&alg);CHKERRQ(ierr);
+      ierr = PetscObjectCompose((PetscObject)adj_ctx->fwdts,"_ts_algebraic_is",(PetscObject)alg);CHKERRQ(ierr);
+      ierr = PetscObjectDereference((PetscObject)alg);CHKERRQ(ierr);
+    }
+    ierr = ISGetSize(alg,&N);CHKERRQ(ierr);
+    if (!N) SETERRQ(PetscObjectComm((PetscObject)adj_ctx->fwdts),PETSC_ERR_USER,"The DAE does not have algebraic variables");
+    if (M) { ierr = PetscObjectReference((PetscObject)M);CHKERRQ(ierr); }
+    if (B) { ierr = PetscObjectReference((PetscObject)B);CHKERRQ(ierr); }
+    if (C) { ierr = PetscObjectReference((PetscObject)C);CHKERRQ(ierr); }
+    if (D) { ierr = PetscObjectReference((PetscObject)D);CHKERRQ(ierr); }
+    ierr = MatCreateSubMatrix(J_Udot,diff,diff,M ? MAT_REUSE_MATRIX : MAT_INITIAL_MATRIX,&M);CHKERRQ(ierr);
+    if (pJ_Udot != J_Udot) {
+      if (pM) { ierr = PetscObjectReference((PetscObject)pM);CHKERRQ(ierr); }
+      ierr = MatCreateSubMatrix(pJ_Udot,diff,diff,pM ? MAT_REUSE_MATRIX : MAT_INITIAL_MATRIX,&pM);CHKERRQ(ierr);
+    } else {
+      if (pM && pM != M) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Amat and Pmat don't match");
+      ierr = PetscObjectReference((PetscObject)M);CHKERRQ(ierr);
+      pM   = M;
+    }
+    ierr = MatCreateSubMatrix(J_U,diff,alg ,B ? MAT_REUSE_MATRIX : MAT_INITIAL_MATRIX,&B);CHKERRQ(ierr);
+    ierr = MatCreateSubMatrix(J_U,alg ,diff,C ? MAT_REUSE_MATRIX : MAT_INITIAL_MATRIX,&C);CHKERRQ(ierr);
+    ierr = MatCreateSubMatrix(J_U,alg ,alg ,D ? MAT_REUSE_MATRIX : MAT_INITIAL_MATRIX,&D);CHKERRQ(ierr);
+    if (pJ_U != J_U) {
+      if (pD) { ierr = PetscObjectReference((PetscObject)pD);CHKERRQ(ierr); }
+      ierr = MatCreateSubMatrix(pJ_U,alg,alg,pD ? MAT_REUSE_MATRIX : MAT_INITIAL_MATRIX,&pD);CHKERRQ(ierr);
+    } else {
+      if (pD && pD != D) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Amat and Pmat don't match");
+      ierr = PetscObjectReference((PetscObject)D);CHKERRQ(ierr);
+      pD   = D;
+    }
+    ierr = PetscObjectCompose((PetscObject)adj_ctx->fwdts,"_ts_dae_BMat",(PetscObject)B);CHKERRQ(ierr);
+    ierr = PetscObjectCompose((PetscObject)adj_ctx->fwdts,"_ts_dae_CMat",(PetscObject)C);CHKERRQ(ierr);
 
     /* we first compute the contribution of the g(x,T,p) terms,
        the initial conditions are consistent by construction with the adjointed algebraic constraints, i.e.
@@ -1287,7 +1336,7 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
       ierr = VecGetSubVector(adj_ctx->workinit,alg,&g_a);CHKERRQ(ierr);
       ierr = VecNorm(g_a,NORM_2,&norm);CHKERRQ(ierr);
       if (norm) {
-        ierr = KSPSetOperators(kspD,D,D);CHKERRQ(ierr);
+        ierr = KSPSetOperators(kspD,D,pD);CHKERRQ(ierr);
         ierr = KSPSolveTranspose(kspD,g_a,g_a);CHKERRQ(ierr);
         ierr = VecScale(g_a,-1.0);CHKERRQ(ierr);
         ierr = MatMultTransposeAdd(C,g_a,g_d,g_d);CHKERRQ(ierr);
@@ -1315,10 +1364,10 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
           }
         }
       }
-      ierr = KSPSetOperators(kspM,M,M);CHKERRQ(ierr);
+      ierr = KSPSetOperators(kspM,M,pM);CHKERRQ(ierr);
       ierr = KSPSolveTranspose(kspM,g_d,g_d);CHKERRQ(ierr);
       ierr = MatMultTranspose(B,g_d,g_a);CHKERRQ(ierr);
-      ierr = KSPSetOperators(kspD,D,D);CHKERRQ(ierr);
+      ierr = KSPSetOperators(kspD,D,pD);CHKERRQ(ierr);
       ierr = KSPSolveTranspose(kspD,g_a,g_a);CHKERRQ(ierr);
       ierr = VecScale(g_d,-1.0);CHKERRQ(ierr);
       ierr = VecRestoreSubVector(adj_ctx->workinit,diff,&g_d);CHKERRQ(ierr);
@@ -1347,7 +1396,7 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
 
       ierr = VecGetSubVector(f_x,alg,&f_a);CHKERRQ(ierr);
       ierr = VecGetSubVector(adj_ctx->workinit,alg,&lambda_a);CHKERRQ(ierr);
-      ierr = KSPSetOperators(kspD,D,D);CHKERRQ(ierr);
+      ierr = KSPSetOperators(kspD,D,pD);CHKERRQ(ierr);
       ierr = KSPSolveTranspose(kspD,f_a,f_a);CHKERRQ(ierr);
       ierr = VecAXPY(lambda_a,-1.0,f_a);CHKERRQ(ierr);
       ierr = VecRestoreSubVector(adj_ctx->workinit,alg,&lambda_a);CHKERRQ(ierr);
@@ -1371,33 +1420,55 @@ static PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time
 #endif
     ierr = VecDestroy(&f_x);CHKERRQ(ierr);
     ierr = MatDestroy(&M);CHKERRQ(ierr);
+    ierr = MatDestroy(&pM);CHKERRQ(ierr);
     ierr = MatDestroy(&B);CHKERRQ(ierr);
     ierr = MatDestroy(&C);CHKERRQ(ierr);
     ierr = MatDestroy(&D);CHKERRQ(ierr);
+    ierr = MatDestroy(&pD);CHKERRQ(ierr);
   } else {
     if (has_g) {
       if (ijac) { /* lambda_T(T) = (J_Udot)^T D_x, D_x the gradients of the functionals that sample the solution at the final time */
-        SNES      snes;
         KSP       ksp;
-        Mat       J_Udot = NULL;
+        Mat       J_Udot, pJ_Udot;
         DM        dm;
         Vec       W;
-        PetscReal rtol,atol;
-        PetscInt  maxits;
 
         ierr = TSUpdateSplitJacobiansFromHistory(adj_ctx->fwdts,fwdt);CHKERRQ(ierr);
-        ierr = TSGetSNES(adjts,&snes);CHKERRQ(ierr);
-        ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
-        ierr = TSGetSplitJacobians(adj_ctx->fwdts,NULL,NULL,&J_Udot,NULL);CHKERRQ(ierr);
-        ierr = KSPSetOperators(ksp,J_Udot,J_Udot);CHKERRQ(ierr);
-        ierr = KSPGetTolerances(ksp,&rtol,&atol,NULL,&maxits);CHKERRQ(ierr);
-        ierr = KSPSetTolerances(ksp,PETSC_SMALL,PETSC_SMALL,PETSC_DEFAULT,10000);CHKERRQ(ierr);
+        ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjointinit_ksp",(PetscObject*)&ksp);CHKERRQ(ierr);
+        if (!ksp) {
+          SNES       snes;
+          PC         pc;
+          KSPType    ksptype;
+          PCType     pctype;
+          const char *prefix;
+
+          ierr = TSGetSNES(adjts,&snes);CHKERRQ(ierr);
+          ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
+          ierr = KSPGetType(ksp,&ksptype);CHKERRQ(ierr);
+          ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
+          ierr = PCGetType(pc,&pctype);CHKERRQ(ierr);
+          ierr = KSPCreate(PetscObjectComm((PetscObject)adjts),&ksp);CHKERRQ(ierr);
+          ierr = KSPSetTolerances(ksp,PETSC_SMALL,PETSC_SMALL,PETSC_DEFAULT,PETSC_DEFAULT);CHKERRQ(ierr);
+          ierr = KSPSetType(ksp,ksptype);CHKERRQ(ierr);
+          ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
+          ierr = PCSetType(pc,pctype);CHKERRQ(ierr);
+          ierr = TSGetOptionsPrefix(adjts,&prefix);CHKERRQ(ierr);
+          ierr = KSPSetOptionsPrefix(ksp,prefix);CHKERRQ(ierr);
+          ierr = KSPAppendOptionsPrefix(ksp,"initlambda_");CHKERRQ(ierr);
+          ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
+          ierr = PetscObjectCompose((PetscObject)adjts,"_ts_adjointinit_ksp",(PetscObject)ksp);CHKERRQ(ierr);
+          ierr = PetscObjectDereference((PetscObject)ksp);CHKERRQ(ierr);
+        }
+        ierr = TSGetSplitJacobians(adj_ctx->fwdts,NULL,NULL,&J_Udot,&pJ_Udot);CHKERRQ(ierr);
+        ierr = KSPSetOperators(ksp,J_Udot,pJ_Udot);CHKERRQ(ierr);
         ierr = TSGetDM(adjts,&dm);CHKERRQ(ierr);
         ierr = DMGetGlobalVector(dm,&W);CHKERRQ(ierr);
         ierr = VecCopy(adj_ctx->workinit,W);CHKERRQ(ierr);
         ierr = KSPSolveTranspose(ksp,W,adj_ctx->workinit);CHKERRQ(ierr);
-        ierr = KSPSetTolerances(ksp,rtol,atol,PETSC_DEFAULT,maxits);CHKERRQ(ierr);
         ierr = DMRestoreGlobalVector(dm,&W);CHKERRQ(ierr);
+        /* destroy inner vectors to avoid ABA issues when destroying the DM */
+        ierr = VecDestroy(&ksp->vec_rhs);CHKERRQ(ierr);
+        ierr = VecDestroy(&ksp->vec_sol);CHKERRQ(ierr);
       }
       /* the lambdas we use are equivalent to -lambda_T in [1] */
       ierr = VecScale(adj_ctx->workinit,-1.0);CHKERRQ(ierr);
@@ -1859,23 +1930,22 @@ static PetscErrorCode TLMTSRHSJacobian(TS lts, PetscReal time, Vec U, Mat A, Mat
 /* creates the TS for the tangent linear model */
 static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
 {
-  SNES           snes;
-  KSP            ksp;
-  KSPType        ksptype;
-  Mat            A,B;
-  Vec            vatol,vrtol;
-  PetscContainer container;
-  TLMTS_Ctx      *tlm_ctx;
-  TSIFunction    ifunc;
-  TSRHSFunction  rhsfunc;
-  TSI2Function   i2func;
-  TSType         type;
-  TSEquationType eqtype;
-  const char     *prefix;
-  PetscReal      atol,rtol,dtol;
-  PetscInt       maxits;
-  SplitJac       *splitJ;
-  PetscErrorCode ierr;
+  SNES             snes;
+  KSP              ksp;
+  Mat              A,B;
+  Vec              vatol,vrtol;
+  PetscContainer   container;
+  TLMTS_Ctx        *tlm_ctx;
+  TSIFunction      ifunc;
+  TSRHSFunction    rhsfunc;
+  TSI2Function     i2func;
+  TSType           type;
+  TSEquationType   eqtype;
+  const char       *prefix;
+  PetscReal        atol,rtol;
+  PetscInt         maxits;
+  PetscBool        jcon,rksp;
+  PetscErrorCode   ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
@@ -1896,24 +1966,6 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
   ierr = PetscObjectReference((PetscObject)ts);CHKERRQ(ierr);
   tlm_ctx->model = ts;
 
-  /* caching to prevent from recomputation of Jacobians */
-  ierr = PetscObjectQuery((PetscObject)ts,"_ts_splitJac",(PetscObject*)&container);CHKERRQ(ierr);
-  if (container) {
-    ierr = PetscContainerGetPointer(container,(void**)&splitJ);CHKERRQ(ierr);
-  } else {
-    ierr = PetscNew(&splitJ);CHKERRQ(ierr);
-    splitJ->Astate    = -1;
-    splitJ->Aid       = PETSC_MIN_INT;
-    splitJ->shift     = PETSC_MIN_REAL;
-    splitJ->splitdone = PETSC_FALSE;
-    ierr = PetscContainerCreate(PetscObjectComm((PetscObject)ts),&container);CHKERRQ(ierr);
-    ierr = PetscContainerSetPointer(container,splitJ);CHKERRQ(ierr);
-    ierr = PetscContainerSetUserDestroy(container,SplitJacDestroy_Private);CHKERRQ(ierr);
-    ierr = PetscObjectCompose((PetscObject)ts,"_ts_splitJac",(PetscObject)container);CHKERRQ(ierr);
-    ierr = PetscContainerDestroy(&container);CHKERRQ(ierr);
-  }
-  splitJ->splitdone = PETSC_FALSE;
-
   /* wrap application context in a container, so that it will be destroyed when calling TSDestroy on lts */
   ierr = PetscContainerCreate(PetscObjectComm((PetscObject)(*lts)),&container);CHKERRQ(ierr);
   ierr = PetscContainerSetPointer(container,tlm_ctx);CHKERRQ(ierr);
@@ -1921,27 +1973,7 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
   ierr = PetscObjectCompose((PetscObject)(*lts),"_ts_tlm_ctx",(PetscObject)container);CHKERRQ(ierr);
   ierr = PetscContainerDestroy(&container);CHKERRQ(ierr);
 
-  /* setup callbacks for the tangent linear model DAE: we reuse the same jacobian matrices of the forward model */
-  ierr = TSGetIFunction(ts,NULL,&ifunc,NULL);CHKERRQ(ierr);
-  ierr = TSGetRHSFunction(ts,NULL,&rhsfunc,NULL);CHKERRQ(ierr);
-  if (ifunc) {
-    ierr = TSGetIJacobian(ts,&A,&B,NULL,NULL);CHKERRQ(ierr);
-    ierr = TSSetIFunction(*lts,NULL,TLMTSIFunctionLinear,NULL);CHKERRQ(ierr);
-    ierr = TSSetIJacobian(*lts,A,B,TLMTSIJacobian,NULL);CHKERRQ(ierr);
-  } else {
-    TSRHSJacobian rhsjacfunc;
-    if (!rhsfunc) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"TSSetIFunction or TSSetRHSFunction not called");
-    ierr = TSSetRHSFunction(*lts,NULL,TLMTSRHSFunctionLinear,NULL);CHKERRQ(ierr);
-    ierr = TSGetRHSJacobian(ts,NULL,NULL,&rhsjacfunc,NULL);CHKERRQ(ierr);
-    ierr = TSGetRHSMats_Private(ts,&A,&B);CHKERRQ(ierr);
-    if (rhsjacfunc == TSComputeRHSJacobianConstant) {
-      ierr = TSSetRHSJacobian(*lts,A,B,TSComputeRHSJacobianConstant,NULL);CHKERRQ(ierr);
-    } else {
-      ierr = TSSetRHSJacobian(*lts,A,B,TLMTSRHSJacobian,NULL);CHKERRQ(ierr);
-    }
-  }
-
-  /* prefix */
+  /* TLMTS prefix: i.e. options called as -tlm_ts_monitor or -tlm_modelprefix_ts_monitor */
   ierr = TSGetOptionsPrefix(ts,&prefix);CHKERRQ(ierr);
   ierr = TSSetOptionsPrefix(*lts,"tlm_");CHKERRQ(ierr);
   ierr = TSAppendOptionsPrefix(*lts,prefix);CHKERRQ(ierr);
@@ -1950,26 +1982,87 @@ static PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
   ierr = TSGetOptionsPrefix(*lts,&prefix);CHKERRQ(ierr);
   ierr = PetscOptionsBegin(PetscObjectComm((PetscObject)*lts),prefix,"Tangent Linear Model options","TS");CHKERRQ(ierr);
   ierr = PetscOptionsBool("-userijacobian","Use the user-provided IJacobian routine, instead of the splits, to compute the Jacobian",NULL,tlm_ctx->userijac,&tlm_ctx->userijac,NULL);CHKERRQ(ierr);
+  jcon = PETSC_FALSE;
+  ierr = PetscOptionsBool("-constjacobians","Whether or not the DAE Jacobians are constant",NULL,jcon,&jcon,NULL);CHKERRQ(ierr);
+  rksp = PETSC_FALSE;
+  ierr = PetscOptionsBool("-reuseksp","Reuse the KSP solver from the nonlinear model",NULL,rksp,&rksp,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
+
+  /* setup callbacks for the tangent linear model DAE: we reuse the same jacobian matrices of the forward model */
+  ierr = TSGetIFunction(ts,NULL,&ifunc,NULL);CHKERRQ(ierr);
+  ierr = TSGetRHSFunction(ts,NULL,&rhsfunc,NULL);CHKERRQ(ierr);
+  if (ifunc) {
+    TSSplitJacobians *splitJ;
+
+    ierr = TSGetIJacobian(ts,&A,&B,NULL,NULL);CHKERRQ(ierr);
+    ierr = TSSetIFunction(*lts,NULL,TLMTSIFunctionLinear,NULL);CHKERRQ(ierr);
+    ierr = TSSetIJacobian(*lts,A,B,TLMTSIJacobian,NULL);CHKERRQ(ierr);
+    /* caching to prevent from recomputation of Jacobians */
+    ierr = PetscObjectQuery((PetscObject)ts,"_ts_splitJac",(PetscObject*)&container);CHKERRQ(ierr);
+    if (container) {
+      ierr = PetscContainerGetPointer(container,(void**)&splitJ);CHKERRQ(ierr);
+    } else {
+      ierr = PetscNew(&splitJ);CHKERRQ(ierr);
+      splitJ->Astate = -1;
+      splitJ->Aid    = PETSC_MIN_INT;
+      splitJ->shift  = PETSC_MIN_REAL;
+      ierr = PetscContainerCreate(PetscObjectComm((PetscObject)ts),&container);CHKERRQ(ierr);
+      ierr = PetscContainerSetPointer(container,splitJ);CHKERRQ(ierr);
+      ierr = PetscContainerSetUserDestroy(container,TSSplitJacobiansDestroy_Private);CHKERRQ(ierr);
+      ierr = PetscObjectCompose((PetscObject)ts,"_ts_splitJac",(PetscObject)container);CHKERRQ(ierr);
+      /* we can setup an AdjointTS from a TLMTS -> propagate splitJac to save memory */
+      ierr = PetscObjectCompose((PetscObject)(*lts),"_ts_splitJac",(PetscObject)container);CHKERRQ(ierr);
+      ierr = PetscContainerDestroy(&container);CHKERRQ(ierr);
+    }
+    splitJ->splitdone = PETSC_FALSE;
+    splitJ->jacconsts = jcon;
+  } else {
+    TSRHSJacobian rhsjacfunc;
+
+    if (!rhsfunc) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"TSSetIFunction or TSSetRHSFunction not called");
+    ierr = TSSetRHSFunction(*lts,NULL,TLMTSRHSFunctionLinear,NULL);CHKERRQ(ierr);
+    ierr = TSGetRHSJacobian(ts,NULL,NULL,&rhsjacfunc,NULL);CHKERRQ(ierr);
+    ierr = TSGetRHSMats_Private(ts,&A,&B);CHKERRQ(ierr);
+    if (rhsjacfunc == TSComputeRHSJacobianConstant) {
+      ierr = TSSetRHSJacobian(*lts,A,B,TSComputeRHSJacobianConstant,NULL);CHKERRQ(ierr);
+    } else if (jcon) { /* just to make sure we have a correct Jacobian */
+      DM  dm;
+      Vec U;
+
+      ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+      ierr = DMGetGlobalVector(dm,&U);CHKERRQ(ierr);
+      ierr = TSComputeRHSJacobian(ts,PETSC_MIN_REAL,U,A,B);CHKERRQ(ierr);
+      ierr = DMRestoreGlobalVector(dm,&U);CHKERRQ(ierr);
+      ierr = TSSetRHSJacobian(*lts,A,B,TSComputeRHSJacobianConstant,NULL);CHKERRQ(ierr);
+    } else {
+      ierr = TSSetRHSJacobian(*lts,A,B,TLMTSRHSJacobian,NULL);CHKERRQ(ierr);
+    }
+  }
 
   /* the equation type is the same */
   ierr = TSGetEquationType(ts,&eqtype);CHKERRQ(ierr);
   ierr = TSSetEquationType(*lts,eqtype);CHKERRQ(ierr);
 
-  /* get info on linear solver */
-  ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
-  ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
-  ierr = KSPGetType(ksp,&ksptype);CHKERRQ(ierr);
-  ierr = KSPGetTolerances(ksp,&rtol,&atol,&dtol,&maxits);CHKERRQ(ierr);
-
   /* tangent linear model DAE is linear */
   ierr = TSSetProblemType(*lts,TS_LINEAR);CHKERRQ(ierr);
 
-  /* propagate KSP info of the forward model */
-  ierr = TSGetSNES(*lts,&snes);CHKERRQ(ierr);
+  /* tangent linear model linear solver */
+  ierr = TSGetSNES(ts,&snes);CHKERRQ(ierr);
   ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
-  ierr = KSPSetType(ksp,ksptype);CHKERRQ(ierr);
-  ierr = KSPSetTolerances(ksp,rtol,atol,dtol,maxits);CHKERRQ(ierr);
+  if (!rksp) { /* propagate KSP info of the forward model but use a different object */
+    KSPType   ksptype;
+    PetscReal atol,rtol,dtol;
+
+    ierr = KSPGetType(ksp,&ksptype);CHKERRQ(ierr);
+    ierr = KSPGetTolerances(ksp,&rtol,&atol,&dtol,&maxits);CHKERRQ(ierr);
+    ierr = TSGetSNES(*lts,&snes);CHKERRQ(ierr);
+    ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
+    ierr = KSPSetType(ksp,ksptype);CHKERRQ(ierr);
+    ierr = KSPSetTolerances(ksp,rtol,atol,dtol,maxits);CHKERRQ(ierr);
+  } else { /* reuse the same KSP */
+    ierr = TSGetSNES(*lts,&snes);CHKERRQ(ierr);
+    ierr = SNESSetKSP(snes,ksp);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
