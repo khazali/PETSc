@@ -934,7 +934,7 @@ TESTEXAMPLES_C_NOTSINGLE = ex2.PETSc runex2 ex2.rm ex3.PETSc runex3_3 ex3.rm ex8
                             ex29.PETSc runex29 ex29.rm ex43.PETSc runex43_a runex43_b ex43.rm
 TESTEXAMPLES_C_NOCOMPLEX_NOTSINGLE  = ex9.PETSc runex9 runex9_2 runex9_3 ex9.rm \
                             ex26.PETSc runex26 runex26_2 runex26_3 runex26_4 runex26_asm ex26.rm\
-                            ex16opt_p.PETSc runex16opt_p runex16opt_p_ao runex16opt_p_ao_hessian runex16opt_p_ao_hessian_mf runexex16opt_p.rm \
+                            ex16opt_p.PETSc runex16opt_p runex16opt_p_ao runex16opt_p_ao_hessian runex16opt_p_ao_hessian_mf runex16opt_p.rm \
                             printdot ex16opt_ic.PETSc runex16opt_ic runex16opt_ic_ao runex16opt_ic_ao_hessian runex16opt_ic_ao_hessian_mf ex16opt_ic.rm \
                             ex20fwd.PETSc runex20fwd runex20fwd_2 ex20fwd.rm \
                             ex20opt_p.PETSc runex20opt_p runex20opt_p_ao runex20opt_p_ao_hessian runex20opt_p_ao_hessian_mf ex20opt_p.rm \
