@@ -66,21 +66,7 @@ typedef struct _n_TSEvent *TSEvent;
 
 typedef struct _TSTrajectoryOps *TSTrajectoryOps;
 
-typedef struct _ObjectiveLink *ObjectiveLink;
-struct _ObjectiveLink {
-  TSEvalObjective         f;         /* f(x,m,t) */
-  TSEvalObjectiveGradient f_x;       /* \frac{\partial f}{\partial x}(x,m,t) */
-  TSEvalObjectiveGradient f_m;       /* \frac{\partial f}{\partial m}(x,m,t) */
-  Mat                     f_XX;
-  TSEvalObjectiveHessian  f_xx;      /* \frac{\partial^2 f}{\partial x^2} f (x,m,t) */
-  Mat                     f_XM;
-  TSEvalObjectiveHessian  f_xm;      /* \frac{\partial^2 f}{\partial x \partial m} f (x,m,t) */
-  Mat                     f_MM;
-  TSEvalObjectiveHessian  f_mm;      /* \frac{\partial^2 f}{\partial m^2} f (x,m,t) */
-  void                    *f_ctx;
-  PetscReal               fixedtime; /* if the functional has to be evaluated at a specific time, i.e. || x(T1) - x_d || ^2, T1 in (T0,TF] */
-  ObjectiveLink           next;
-};
+typedef struct _TSObj *TSObj;
 
 struct _TSTrajectoryOps {
   PetscErrorCode (*view)(TSTrajectory,PetscViewer);
@@ -219,7 +205,7 @@ struct _p_TS {
          F(x,x_t,t;m) = 0  Parameter dependent DAE in implicit form
          G(x(t0),m)   = 0  Initial conditions
   */
-  ObjectiveLink     funchead;   /* head of the linked list of objective functions */
+  TSObj             funchead;   /* head of the linked list of objective functions */
   TSEvalGradientIC  Ggrad;      /* compute the IC Jacobian terms G_m(x(t0),m) and G_x(x(t0),m) */
   Mat               G_x;
   Mat               G_m;
