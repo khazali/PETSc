@@ -10,7 +10,7 @@ SOURCEH = bagimpl.h characteristicimpl.h dmdaimpl.h dmforestimpl.h      \
  matimpl.h matorderimpl.h pcgamgimpl.h pcimpl.h pcmgimpl.h              \
  petscdsimpl.h petscfeimpl.h petscfptimpl.h petscfvimpl.h petscimpl.h   \
  sfimpl.h snesimpl.h taoimpl.h taolinesearchimpl.h tsimpl.h vecimpl.h   \
- tsobjimpl.h viewerimpl.h
+ tsobjimpl.h tssplitjacimpl.h viewerimpl.h
 LIBBASE  = libpetscvec
 DIRS     =
 LOCDIR   = include/petsc/private/
