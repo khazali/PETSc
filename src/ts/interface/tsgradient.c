@@ -4,7 +4,6 @@
    [2] Cao, Li, Petzold. Adjoint sensitivity analysis for differential-algebraic equations: the adjoint DAE system and its numerical solution, SISC 24, 2003.
    TODO: register citations
    TODO: add custom fortran wrappers
-   TODO: TSSetStepRestart()
 */
 #include <petsc/private/tsimpl.h>        /*I "petscts.h"  I*/
 #include <petsc/private/tsobjimpl.h>
@@ -2348,6 +2347,7 @@ static PetscErrorCode MatMultTranspose_Propagator(Mat A, Vec x, Vec y)
   }
   ierr = AdjointTSComputeInitialConditions(prop->adjlts,prop->t0,tlm->workrhs,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
   ierr = TSSetStepNumber(prop->adjlts,0);CHKERRQ(ierr);
+  ierr = TSRestartStep(prop->adjlts);CHKERRQ(ierr);
   ierr = TSSetTime(prop->adjlts,prop->t0);CHKERRQ(ierr);
   ierr = TSHistoryGetTimeStep(prop->tj->tsh,PETSC_TRUE,0,&dt);CHKERRQ(ierr);
   ierr = TSSetTimeStep(prop->adjlts,dt);CHKERRQ(ierr);
@@ -2417,6 +2417,7 @@ static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
   ierr = VecScale(sol,-1.0);CHKERRQ(ierr);
 
   ierr = TSSetStepNumber(prop->lts,0);CHKERRQ(ierr);
+  ierr = TSRestartStep(prop->lts);CHKERRQ(ierr);
   ierr = TSSetTime(prop->lts,prop->t0);CHKERRQ(ierr);
   ierr = TSSetTimeStep(prop->lts,dt);CHKERRQ(ierr);
   ierr = TSSetMaxTime(prop->lts,prop->tf);CHKERRQ(ierr);
@@ -2457,6 +2458,7 @@ static PetscErrorCode MatPropagatorUpdate_Propagator(Mat A, PetscReal t0, PetscR
 
   /* Customize nonlinear model */
   ierr = TSSetStepNumber(prop->model,0);CHKERRQ(ierr);
+  ierr = TSRestartStep(prop->model);CHKERRQ(ierr);
   ierr = TSSetTime(prop->model,t0);CHKERRQ(ierr);
   ierr = TSSetTimeStep(prop->model,dt);CHKERRQ(ierr);
   ierr = TSSetMaxSteps(prop->model,PETSC_MAX_INT);CHKERRQ(ierr);
@@ -2678,6 +2680,7 @@ static PetscErrorCode MatMult_TSHessian(Mat H, Vec x, Vec y)
   }
 
   ierr = TSSetStepNumber(tshess->tlmts,0);CHKERRQ(ierr);
+  ierr = TSRestartStep(tshess->tlmts);CHKERRQ(ierr);
   ierr = TSSetTime(tshess->tlmts,tshess->t0);CHKERRQ(ierr);
   ierr = TSSetMaxTime(tshess->tlmts,tshess->tf);CHKERRQ(ierr);
   ierr = TSHistoryGetTimeStep(tshess->modeltj->tsh,PETSC_FALSE,0,&dt);CHKERRQ(ierr);
@@ -2711,6 +2714,7 @@ static PetscErrorCode MatMult_TSHessian(Mat H, Vec x, Vec y)
   ierr = AdjointTSSetInitialGradient(tshess->soats,y);CHKERRQ(ierr);
   ierr = AdjointTSComputeInitialConditions(tshess->soats,tshess->t0,NULL,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
   ierr = TSSetStepNumber(tshess->soats,0);CHKERRQ(ierr);
+  ierr = TSRestartStep(tshess->soats);CHKERRQ(ierr);
   ierr = TSHistoryGetTimeStep(tshess->modeltj->tsh,PETSC_TRUE,0,&dt);CHKERRQ(ierr);
   ierr = TSSetTimeStep(tshess->soats,dt);CHKERRQ(ierr);
   ierr = TSGetAdapt(tshess->soats,&adapt);CHKERRQ(ierr);
@@ -2932,6 +2936,7 @@ static PetscErrorCode TSComputeHessian_Private(TS ts, PetscReal t0, PetscReal dt
   ierr = TSTrajectorySetFromOptions(ts->trajectory,ts);CHKERRQ(ierr);
   ts->trajectory->adjoint_solve_mode = PETSC_FALSE;
   ierr = TSSetStepNumber(ts,0);CHKERRQ(ierr);
+  ierr = TSRestartStep(ts);CHKERRQ(ierr);
   ierr = TSSetTime(ts,tshess->t0);CHKERRQ(ierr);
   if (tshess->dt > 0) {
     ierr = TSSetTimeStep(ts,tshess->dt);CHKERRQ(ierr);
@@ -2964,6 +2969,7 @@ static PetscErrorCode TSComputeHessian_Private(TS ts, PetscReal t0, PetscReal dt
     ierr = PetscObjectDereference((PetscObject)L);CHKERRQ(ierr);
   }
   ierr = TSSetStepNumber(tshess->foats,0);CHKERRQ(ierr);
+  ierr = TSRestartStep(tshess->foats);CHKERRQ(ierr);
   ierr = TSHistoryGetTimeStep(tshess->modeltj->tsh,PETSC_TRUE,0,&dt);CHKERRQ(ierr);
   ierr = TSSetTimeStep(tshess->foats,dt);CHKERRQ(ierr);
   ierr = AdjointTSComputeInitialConditions(tshess->foats,tshess->t0,NULL,PETSC_TRUE,PETSC_FALSE);CHKERRQ(ierr);
@@ -3321,7 +3327,8 @@ PetscErrorCode TSComputeObjectiveAndGradient(TS ts, PetscReal t0, PetscReal dt, 
   if (obj) PetscValidPointer(obj,8);
   if (!gradient && !obj) PetscFunctionReturn(0);
 
-  ierr = TSSetStepNumber(ts,0);CHKERRQ(ierr); /* XXX restart */
+  ierr = TSSetStepNumber(ts,0);CHKERRQ(ierr);
+  ierr = TSRestartStep(ts);CHKERRQ(ierr);
   ierr = TSSetTime(ts,t0);CHKERRQ(ierr);
   if (dt > 0) {
     ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
