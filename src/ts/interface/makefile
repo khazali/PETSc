@@ -3,7 +3,9 @@ ALL: lib
 
 CFLAGS   =
 FFLAGS   =
-SOURCEC  = ts.c tscreate.c tsreg.c tsregall.c dlregists.c tseig.c tsfwdsen.c tsobj.c tssplitjac.c tsgradient.c
+SOURCEC  = ts.c tscreate.c tsreg.c tsregall.c dlregists.c tseig.c tsfwdsen.c tsobj.c \
+           tssplitjac.c tsgradhess.c tsadjointts.c tstlmts.c tspdeconstrainedutils.c \
+           tspropagator.c
 SOURCEF  =
 SOURCEH  =
 LIBBASE  = libpetscts
