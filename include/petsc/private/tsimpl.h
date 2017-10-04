@@ -79,14 +79,7 @@ struct _TSTrajectoryOps {
 
 /* TSHistory is an helper object that allows inquiring
    the TSTrajectory by time and not by the step number only */
-struct _n_TSHistory {
-  PetscReal *hist;    /* time history */
-  PetscInt  *hist_id; /* stores the stepid in time history */
-  PetscInt  n;        /* current number of steps stored */
-  PetscBool sorted;   /* if the history is sorted in ascending order */
-  PetscReal c;        /* current capacity of hist */
-  PetscReal s;        /* reallocation size */
-};
+PETSC_EXTERN PetscClassId TSHISTORY_CLASSID;
 typedef struct _n_TSHistory* TSHistory;
 
 struct _p_TSTrajectory {
@@ -103,7 +96,7 @@ struct _p_TSTrajectory {
     PetscReal   *TW;    /* Lagrange times (workspace) */
 
     /* caching */
-    PetscBool     caching;
+    PetscBool caching;
     struct {
       PetscObjectId    id;
       PetscObjectState state;
@@ -463,9 +456,7 @@ PETSC_STATIC_INLINE PetscErrorCode TSCheckImplicitTerm(TS ts)
 PETSC_EXTERN PetscLogEvent TSTrajectory_Set, TSTrajectory_Get, TSTrajectory_GetVecs, TSTrajectory_DiskWrite, TSTrajectory_DiskRead;
 
 PETSC_INTERN PetscErrorCode TSGetRHSMats_Private(TS,Mat*,Mat*);
-PETSC_INTERN PetscErrorCode TSHistoryDestroy(TSHistory);
-PETSC_INTERN PetscErrorCode TSHistoryGetLocFromTime(TSHistory,PetscReal,PetscInt*);
-PETSC_INTERN PetscErrorCode TSHistoryUpdate(TSHistory,PetscInt,PetscReal);
-PETSC_INTERN PetscErrorCode TSHistoryGetTimeStep(TSHistory,PetscBool,PetscInt,PetscReal*);
 PETSC_INTERN PetscErrorCode TSTrajectoryReconstruct_Private(TSTrajectory,TS,PetscReal,Vec,Vec);
+/* this is declared here as TSHistory is not public */
+PETSC_EXTERN PetscErrorCode TSAdaptHistorySetTSHistory(TSAdapt,TSHistory,PetscBool);
 #endif

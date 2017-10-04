@@ -1,6 +1,7 @@
 /* ------------------ Routines for the TS representing the tangent linear model, namespaced by TLMTS ----------------------- */
 #include <petsc/private/tstlmtsimpl.h>
 #include <petsc/private/tssplitjacimpl.h>
+#include <petsc/private/tshistoryimpl.h>
 #include <petscdm.h>
 
 typedef struct {
@@ -263,8 +264,9 @@ PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
   ierr = TSSetType(*lts,type);CHKERRQ(ierr);
   ierr = TSGetTolerances(ts,&atol,&vatol,&rtol,&vrtol);CHKERRQ(ierr);
   ierr = TSSetTolerances(*lts,atol,vatol,rtol,vrtol);CHKERRQ(ierr);
+  /* XXX this should be the default for the propagator, not here */
   ierr = TSAdaptCreate(PetscObjectComm((PetscObject)*lts),&(*lts)->adapt);CHKERRQ(ierr);
-  ierr = TSAdaptSetType((*lts)->adapt,TSADAPTTRAJECTORY);CHKERRQ(ierr);
+  ierr = TSAdaptSetType((*lts)->adapt,TSADAPTHISTORY);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)(*lts),"TSComputeSplitJacobians_C",TLMTSComputeSplitJacobians);CHKERRQ(ierr);
 
   ierr = PetscNew(&tlm_ctx);CHKERRQ(ierr);

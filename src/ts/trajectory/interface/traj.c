@@ -1,5 +1,5 @@
-
 #include <petsc/private/tsimpl.h>        /*I "petscts.h"  I*/
+#include <petsc/private/tshistoryimpl.h>
 #include <petscdm.h>
 
 PetscFunctionList TSTrajectoryList              = NULL;
@@ -372,7 +372,6 @@ PetscErrorCode  TSTrajectorySetTransform(TSTrajectory tj,PetscErrorCode (*transf
 PetscErrorCode  TSTrajectoryCreate(MPI_Comm comm,TSTrajectory *tj)
 {
   TSTrajectory   t;
-  TSHistory      tsh;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -382,15 +381,7 @@ PetscErrorCode  TSTrajectoryCreate(MPI_Comm comm,TSTrajectory *tj)
 
   ierr = PetscHeaderCreate(t,TSTRAJECTORY_CLASSID,"TSTrajectory","Time stepping","TS",comm,TSTrajectoryDestroy,TSTrajectoryView);CHKERRQ(ierr);
   t->setupcalled = PETSC_FALSE;
-
-  ierr = PetscNew(&tsh);CHKERRQ(ierr);
-  tsh->n      = 0;
-  tsh->c      = 1024; /* capacity */
-  tsh->s      = 1024; /* reallocation size */
-  tsh->sorted = PETSC_TRUE;
-  ierr = PetscMalloc1(tsh->c,&tsh->hist);CHKERRQ(ierr);
-  ierr = PetscMalloc1(tsh->c,&tsh->hist_id);CHKERRQ(ierr);
-  t->tsh = tsh;
+  ierr = TSHistoryCreate(comm,&t->tsh);CHKERRQ(ierr);
 
   t->lag.order            = 1;
   t->lag.L                = NULL;
@@ -514,7 +505,7 @@ PetscErrorCode  TSTrajectoryDestroy(TSTrajectory *tj)
   PetscValidHeaderSpecific((*tj),TSTRAJECTORY_CLASSID,1);
   if (--((PetscObject)(*tj))->refct > 0) {*tj = 0; PetscFunctionReturn(0);}
 
-  ierr = TSHistoryDestroy((*tj)->tsh);CHKERRQ(ierr);
+  ierr = TSHistoryDestroy(&(*tj)->tsh);CHKERRQ(ierr);
   ierr = VecDestroyVecs((*tj)->lag.order+1,&(*tj)->lag.W);CHKERRQ(ierr);
   ierr = PetscFree5((*tj)->lag.L,(*tj)->lag.T,(*tj)->lag.WW,(*tj)->lag.TT,(*tj)->lag.TW);CHKERRQ(ierr);
   ierr = VecDestroy(&(*tj)->U);CHKERRQ(ierr);

@@ -1,14 +1,12 @@
-/*
-   This code is very much inspired to the papers
-   [1] Cao, Li, Petzold. Adjoint sensitivity analysis for differential-algebraic equations: algorithms and software, JCAM 149, 2002.
-   [2] Cao, Li, Petzold. Adjoint sensitivity analysis for differential-algebraic equations: the adjoint DAE system and its numerical solution, SISC 24, 2003.
-   TODO: register citations
-   TODO: add custom fortran wrappers
-*/
 #include <petsc/private/tsimpl.h>        /*I "petscts.h"  I*/
 #include <petsc/private/tspdeconstrainedutilsimpl.h>
 #include <petsc/private/tsadjointtsimpl.h>
 #include <petsc/private/tstlmtsimpl.h>
+#include <petsc/private/tshistoryimpl.h>
+
+/*
+   TODO: add custom fortran wrappers ?
+*/
 
 /* ------------------ Routines for the Hessian matrix ----------------------- */
 
@@ -92,8 +90,8 @@ static PetscErrorCode MatMult_TSHessian(Mat H, Vec x, Vec y)
   ierr = VecScale(eta,-1.0);CHKERRQ(ierr);
 
   ierr = TSGetAdapt(tshess->tlmts,&adapt);CHKERRQ(ierr);
-  ierr = PetscObjectTypeCompare((PetscObject)adapt,TSADAPTTRAJECTORY,&istr);CHKERRQ(ierr);
-  ierr = TSAdaptTrajectorySetTrajectory(adapt,tshess->modeltj,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject)adapt,TSADAPTHISTORY,&istr);CHKERRQ(ierr);
+  ierr = TSAdaptHistorySetTSHistory(adapt,tshess->modeltj->tsh,PETSC_FALSE);CHKERRQ(ierr);
   ierr = TLMTSGetRHSVec(tshess->tlmts,&tlmworkrhs);CHKERRQ(ierr);
   /* initialize tlmworkrhs if needed */
   ierr = VecSet(tlmworkrhs,0.0);CHKERRQ(ierr);
@@ -143,7 +141,7 @@ static PetscErrorCode MatMult_TSHessian(Mat H, Vec x, Vec y)
   ierr = TSHistoryGetTimeStep(tshess->modeltj->tsh,PETSC_TRUE,0,&dt);CHKERRQ(ierr);
   ierr = TSSetTimeStep(tshess->soats,dt);CHKERRQ(ierr);
   ierr = TSGetAdapt(tshess->soats,&adapt);CHKERRQ(ierr);
-  ierr = PetscObjectTypeCompare((PetscObject)adapt,TSADAPTTRAJECTORY,&istr);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject)adapt,TSADAPTHISTORY,&istr);CHKERRQ(ierr);
   if (!istr) {
     PetscBool isnone;
 
@@ -224,8 +222,8 @@ static PetscErrorCode TSComputeObjectiveAndGradient_Private(TS ts, Vec X, Vec de
     if (adjts->adapt) {
       PetscBool istr;
 
-      ierr = PetscObjectTypeCompare((PetscObject)adjts->adapt,TSADAPTTRAJECTORY,&istr);CHKERRQ(ierr);
-      ierr = TSAdaptTrajectorySetTrajectory(adjts->adapt,ts->trajectory,PETSC_TRUE);CHKERRQ(ierr);
+      ierr = PetscObjectTypeCompare((PetscObject)adjts->adapt,TSADAPTHISTORY,&istr);CHKERRQ(ierr);
+      ierr = TSAdaptHistorySetTSHistory(adjts->adapt,ts->trajectory->tsh,PETSC_TRUE);CHKERRQ(ierr);
       if (!istr) { /* indepently adapting the time step */
         ierr = TSSetMaxSteps(adjts,PETSC_MAX_INT);CHKERRQ(ierr);
         ierr = TSSetExactFinalTime(adjts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
@@ -407,7 +405,7 @@ static PetscErrorCode TSComputeHessian_Private(TS ts, PetscReal t0, PetscReal dt
 }
 
 /*@C
-   TSSetGradientDAE - Sets the callback for the evaluation of the Jacobian matrix F_m(t,x(t),x_t(t);m) of a parameter dependent DAE.
+   TSSetGradientDAE - Sets the callback for the evaluation of the Jacobian matrix F_m(t,x(t),x_t(t);m) of a parameter dependent DAE, written in the implicit form F(t,x(t),x_t(t);m) = 0.
 
    Logically Collective on TS
 
@@ -456,7 +454,7 @@ PetscErrorCode TSSetGradientDAE(TS ts, Mat J, TSEvalGradientDAE f, void *ctx)
 }
 
 /*@C
-   TSSetHessianDAE - Sets the callbacks for the evaluation of Hessian terms of a parameter dependent DAE.
+   TSSetHessianDAE - Sets the callbacks for the evaluation of Hessian terms of a parameter dependent DAE, written in the implicit form F(t,x(t),x_t(t);m) = 0.
 
    Logically Collective on TS
 
@@ -652,7 +650,7 @@ PetscErrorCode TSSetHessianIC(TS ts, TSEvalHessianIC g_xx,  TSEvalHessianIC g_xm
 }
 
 /*@
-   TSComputeObjectiveAndGradient - Evaluates the objective functions set with TSSetObjective and their gradient with respect the parameters.
+   TSComputeObjectiveAndGradient - Evaluates the sum of the objective functions set with TSSetObjective, together with the gradient with respect to the parameters.
 
    Logically Collective on TS
 

@@ -7,11 +7,11 @@ struct _TSObj {
   TSEvalObjectiveGradient f_x;       /* \frac{\partial f}{\partial x}(x,m,t) */
   TSEvalObjectiveGradient f_m;       /* \frac{\partial f}{\partial m}(x,m,t) */
   Mat                     f_XX;
-  TSEvalObjectiveHessian  f_xx;      /* \frac{\partial^2 f}{\partial x^2} f (x,m,t) */
+  TSEvalObjectiveHessian  f_xx;      /* \frac{\partial^2 f}{\partial x^2}(x,m,t) */
   Mat                     f_XM;
-  TSEvalObjectiveHessian  f_xm;      /* \frac{\partial^2 f}{\partial x \partial m} f (x,m,t) */
+  TSEvalObjectiveHessian  f_xm;      /* \frac{\partial^2 f}{\partial x \partial m}(x,m,t) */
   Mat                     f_MM;
-  TSEvalObjectiveHessian  f_mm;      /* \frac{\partial^2 f}{\partial m^2} f (x,m,t) */
+  TSEvalObjectiveHessian  f_mm;      /* \frac{\partial^2 f}{\partial m^2}(x,m,t) */
   void                    *f_ctx;
   PetscReal               fixedtime; /* if the functional has to be evaluated at a specific time, i.e. || x(T1) - x_d || ^2, T1 in (T0,TF] */
   TSObj                   next;

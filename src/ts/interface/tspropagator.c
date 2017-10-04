@@ -1,9 +1,10 @@
-/* ------------------ Routines for the Mat that represents the linearized propagator ----------------------- */
-#include <petsc/private/tsimpl.h>
+#include <petsc/private/tsimpl.h>        /*I "petscts.h"  I*/
 #include <petsc/private/tstlmtsimpl.h>
 #include <petsc/private/tsadjointtsimpl.h>
 #include <petsc/private/tspdeconstrainedutilsimpl.h>
+#include <petsc/private/tshistoryimpl.h>
 
+/* ------------------ Routines for the Mat that represents the linearized propagator ----------------------- */
 typedef struct {
   TS           model;
   TS           lts;
@@ -84,8 +85,8 @@ static PetscErrorCode MatMultTranspose_Propagator(Mat A, Vec x, Vec y)
   ierr = TSSetTimeStep(prop->adjlts,dt);CHKERRQ(ierr);
   istr = PETSC_FALSE;
   if (prop->adjlts->adapt) {
-    ierr = PetscObjectTypeCompare((PetscObject)prop->adjlts->adapt,TSADAPTTRAJECTORY,&istr);CHKERRQ(ierr);
-    ierr = TSAdaptTrajectorySetTrajectory(prop->adjlts->adapt,prop->tj,PETSC_TRUE);CHKERRQ(ierr);
+    ierr = PetscObjectTypeCompare((PetscObject)prop->adjlts->adapt,TSADAPTHISTORY,&istr);CHKERRQ(ierr);
+    ierr = TSAdaptHistorySetTSHistory(prop->adjlts->adapt,prop->tj->tsh,PETSC_TRUE);CHKERRQ(ierr);
   }
   if (!istr) { /* if we don't follow the trajectory, we need to match the final time */
     ierr = TSSetMaxSteps(prop->adjlts,PETSC_MAX_INT);CHKERRQ(ierr);
@@ -120,8 +121,8 @@ static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
   prop->model->trajectory = prop->tj;
   istr = PETSC_FALSE;
   if (prop->lts->adapt) {
-    ierr = PetscObjectTypeCompare((PetscObject)prop->lts->adapt,TSADAPTTRAJECTORY,&istr);CHKERRQ(ierr);
-    ierr = TSAdaptTrajectorySetTrajectory(prop->lts->adapt,prop->tj,PETSC_FALSE);CHKERRQ(ierr);
+    ierr = PetscObjectTypeCompare((PetscObject)prop->lts->adapt,TSADAPTHISTORY,&istr);CHKERRQ(ierr);
+    ierr = TSAdaptHistorySetTSHistory(prop->lts->adapt,prop->tj->tsh,PETSC_FALSE);CHKERRQ(ierr);
   }
   ierr = TSHistoryGetTimeStep(prop->tj->tsh,PETSC_FALSE,0,&dt);CHKERRQ(ierr);
   ierr = TLMTSSetPerturbationVec(prop->lts,x);CHKERRQ(ierr);

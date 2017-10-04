@@ -1,4 +1,10 @@
 /* ------------------ Routines for adjoints of DAE, namespaced with AdjointTS ----------------------- */
+/*
+  This code is very much inspired to the papers
+   [1] Cao, Li, Petzold. Adjoint sensitivity analysis for differential-algebraic equations: algorithms and software, JCAM 149, 2002.
+   [2] Cao, Li, Petzold. Adjoint sensitivity analysis for differential-algebraic equations: the adjoint DAE system and its numerical solution, SISC 24, 2003.
+   TODO: register citations
+*/
 #include <petsc/private/tsadjointtsimpl.h>
 #include <petsc/private/tsobjimpl.h>
 #include <petsc/private/tspdeconstrainedutilsimpl.h>
@@ -1042,7 +1048,9 @@ PetscErrorCode AdjointTSSetDirectionVec(TS adjts, Vec direction)
   ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
-  if (direction) ierr = PetscObjectReference((PetscObject)direction);CHKERRQ(ierr);
+  if (direction) {
+    ierr = PetscObjectReference((PetscObject)direction);CHKERRQ(ierr);
+  }
   ierr = VecDestroy(&adj_ctx->direction);CHKERRQ(ierr);
   adj_ctx->direction = direction;
   PetscFunctionReturn(0);
