@@ -220,8 +220,9 @@ static PetscErrorCode MatPropagatorUpdate_Propagator(Mat A, PetscReal t0, PetscR
 static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscReal dt, PetscReal tf, Vec x0, Vec design, Mat P, Mat *A)
 {
   MatPropagator_Ctx *prop;
-  PetscInt          M,N,m,n,rbs,cbs;
+  TSAdapt           adapt;
   Vec               X;
+  PetscInt          M,N,m,n,rbs,cbs;
   PetscErrorCode    ierr;
 
   PetscFunctionBegin;
@@ -274,6 +275,8 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
 
   /* creates the tangent linear model solver and its adjoint */
   ierr = TSCreateTLMTS(prop->model,&prop->lts);CHKERRQ(ierr);
+  ierr = TSGetAdapt(prop->lts,&adapt);CHKERRQ(ierr);
+  ierr = TSAdaptSetType(adapt,TSADAPTHISTORY);CHKERRQ(ierr);
   ierr = TLMTSSetDesignVec(prop->lts,design);CHKERRQ(ierr);
   ierr = PetscObjectDereference((PetscObject)design);CHKERRQ(ierr);
   ierr = TSSetFromOptions(prop->lts);CHKERRQ(ierr);
