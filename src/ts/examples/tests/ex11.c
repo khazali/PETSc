@@ -2,6 +2,7 @@ static char help[] = "Tests TSTrajectoryGetVecs. \n\n";
 /*
   This example tests TSTrajectory and the ability of TSTrajectoryGetVecs
   to reconstructs states and derivatives via interpolation (if necessary).
+  It also tests TSTrajectory{Get|Restore}UpdatedHistoryVecs
 */
 #include <petscts.h>
 
@@ -67,8 +68,8 @@ int main(int argc,char **argv)
     ierr = VecRestoreArrayRead(W,&aW);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(Wdot,&aWdot);CHKERRQ(ierr);
   }
-  for (i = Nt-1; i >=0; i--) {
-    PetscReal testtime = times[i];
+  for (i = Nt-1; i >= 0; i--) {
+    PetscReal         testtime = times[i];
     const PetscScalar *aW;
 
     ierr = TSTrajectoryGetVecs(tj,ts,PETSC_DECIDE,&testtime,W,NULL);CHKERRQ(ierr);
@@ -76,14 +77,28 @@ int main(int argc,char **argv)
     ierr = PetscPrintf(PETSC_COMM_WORLD," f(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(func(p,testtime)),(double)PetscRealPart(aW[0]));
     ierr = VecRestoreArrayRead(W,&aW);CHKERRQ(ierr);
   }
-  for (i = Nt-1; i >=0; i--) {
-    PetscReal testtime = times[i];
+  for (i = Nt-1; i >= 0; i--) {
+    PetscReal         testtime = times[i];
     const PetscScalar *aWdot;
 
     ierr = TSTrajectoryGetVecs(tj,ts,PETSC_DECIDE,&testtime,NULL,Wdot);CHKERRQ(ierr);
     ierr = VecGetArrayRead(Wdot,&aWdot);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD,"df(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(dfunc(p,testtime)),(double)PetscRealPart(aWdot[0]));
     ierr = VecRestoreArrayRead(Wdot,&aWdot);CHKERRQ(ierr);
+  }
+  for (i = 0; i < Nt; i++) {
+    PetscReal         testtime = times[i];
+    const PetscScalar *aW,*aWdot;
+    Vec               hW,hWdot;
+
+    ierr = TSTrajectoryGetUpdatedHistoryVecs(tj,ts,testtime,&hW,&hWdot);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(hW,&aW);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(hWdot,&aWdot);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD," f(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(func(p,testtime)),(double)PetscRealPart(aW[0]));
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"df(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(dfunc(p,testtime)),(double)PetscRealPart(aWdot[0]));
+    ierr = VecRestoreArrayRead(hW,&aW);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(hWdot,&aWdot);CHKERRQ(ierr);
+    ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tj,&hW,&hWdot);CHKERRQ(ierr);
   }
   ierr = VecDestroy(&W);CHKERRQ(ierr);
   ierr = VecDestroy(&W2);CHKERRQ(ierr);
