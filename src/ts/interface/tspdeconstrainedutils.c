@@ -349,7 +349,9 @@ PetscErrorCode TSSolveWithQuadrature_Private(TS ts, Vec X, Vec design, Vec direc
     ierr = TSSetSolution(ts,U);CHKERRQ(ierr);
     ierr = PetscObjectDereference((PetscObject)U);CHKERRQ(ierr);
   }
-  ierr = VecCopy(X,U);CHKERRQ(ierr);
+  if (X) {
+    ierr = VecCopy(X,U);CHKERRQ(ierr);
+  }
 
   /* quadrature evaluations */
   seval       = direction ? NULL : (quadscalar ? EvalQuadObj_FWD      : NULL);

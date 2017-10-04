@@ -1,18 +1,24 @@
-/* ------------------ Routines for adjoints of DAE, namespaced with AdjointTS ----------------------- */
-/*
-  This code is very much inspired to the papers
-   [1] Cao, Li, Petzold. Adjoint sensitivity analysis for differential-algebraic equations: algorithms and software, JCAM 149, 2002.
-   [2] Cao, Li, Petzold. Adjoint sensitivity analysis for differential-algebraic equations: the adjoint DAE system and its numerical solution, SISC 24, 2003.
-   TODO: register citations
-*/
 #include <petsc/private/tsadjointtsimpl.h>
 #include <petsc/private/tsobjimpl.h>
+#include <petsc/private/tstlmtsimpl.h>
 #include <petsc/private/tspdeconstrainedutilsimpl.h>
 #include <petsc/private/tssplitjacimpl.h>
 #include <petsc/private/snesimpl.h>
 #include <petsc/private/kspimpl.h>
 #include <petscdm.h>
 
+/* ------------------ Routines for adjoints of DAE, namespaced with AdjointTS ----------------------- */
+/*
+  This code is very much inspired to the papers
+   [1] Cao, Li, Petzold. Adjoint sensitivity analysis for differential-algebraic equations: algorithms and software, JCAM 149, 2002.
+   [2] Cao, Li, Petzold. Adjoint sensitivity analysis for differential-algebraic equations: the adjoint DAE system and its numerical solution, SISC 24, 2003.
+   [3] Ozyurt, Barton. Cheap second order directional derivatives of stiff ODE embedded functionals, SISC 26, 2005.
+  Do we need to implement the augmented formulation (25) in [2] for implicit problems ?
+   - Initial conditions for the adjoint variable are fine as they are now for the cases:
+     - integrand terms : all but index-2 DAEs
+     - g(x,T,p)        : all but index-2 DAEs
+   TODO: register citations
+*/
 typedef struct {
   TS        fwdts;
   Vec       design;
@@ -43,8 +49,8 @@ typedef struct {
   TS        fwdts;       /* forward solver */
   PetscReal t0,tf;       /* time limits, for forward time recovery */
   Vec       workinit;    /* work vector, used to initialize the adjoint variables and for Dirac's delta terms */
-  Vec       gradient;    /* gradient we are evaluating */
-  Vec       wgrad;       /* work vector */
+  Vec       quadvec;     /* vector to store the quadrature (gradient or Hessian matvec) */
+  Vec       wquad;       /* work vector */
   PetscBool dirac_delta; /* If true, means that a delta contribution needs to be added to lambda during the post step method */
   Vec       direction;   /* If present, it is a second-order adjoint */
   TS        tlmts;       /* Tangent Linear Model TS, used for Hessian matvecs */
@@ -59,8 +65,8 @@ static PetscErrorCode AdjointTSDestroy_Private(void *ptr)
   PetscFunctionBegin;
   ierr = VecDestroy(&adj->design);CHKERRQ(ierr);
   ierr = VecDestroy(&adj->workinit);CHKERRQ(ierr);
-  ierr = VecDestroy(&adj->gradient);CHKERRQ(ierr);
-  ierr = VecDestroy(&adj->wgrad);CHKERRQ(ierr);
+  ierr = VecDestroy(&adj->quadvec);CHKERRQ(ierr);
+  ierr = VecDestroy(&adj->wquad);CHKERRQ(ierr);
   ierr = TSDestroy(&adj->fwdts);CHKERRQ(ierr);
   ierr = TSDestroy(&adj->tlmts);CHKERRQ(ierr);
   ierr = TSDestroy(&adj->foats);CHKERRQ(ierr);
@@ -76,6 +82,7 @@ static PetscErrorCode AdjointTSRHSJacobian(TS adjts, PetscReal time, Vec U, Mat 
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  PetscCheckAdjointTS(adjts);
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   ierr = TSGetProblemType(adj_ctx->fwdts,&type);CHKERRQ(ierr);
   ft   = adj_ctx->tf - time + adj_ctx->t0;
@@ -102,10 +109,11 @@ static PetscErrorCode AdjointTSRHSFunctionLinear(TS adjts, PetscReal time, Vec U
 {
   AdjointCtx     *adj_ctx;
   PetscReal      fwdt;
-  PetscBool      has;
+  PetscBool      has = PETSC_FALSE;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  PetscCheckAdjointTS(adjts);
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
   if (adj_ctx->direction) { /* second-order adjoint */
@@ -163,7 +171,7 @@ static PetscErrorCode AdjointTSRHSFunctionLinear(TS adjts, PetscReal time, Vec U
     ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tlmts->trajectory,&TLMH,NULL);CHKERRQ(ierr);
     ierr = DMRestoreGlobalVector(dm,&soawork0);CHKERRQ(ierr);
     ierr = DMRestoreGlobalVector(dm,&soawork1);CHKERRQ(ierr);
-  } else {
+  } else if (adj_ctx->design) { /* gradient computations */
     TS  fwdts = adj_ctx->fwdts;
     DM  dm;
     Vec FWDH,W;
@@ -204,10 +212,11 @@ static PetscErrorCode AdjointTSIFunctionLinear(TS adjts, PetscReal time, Vec U, 
   AdjointCtx     *adj_ctx;
   Mat            J_U = NULL, J_Udot = NULL;
   PetscReal      fwdt;
-  PetscBool      has;
+  PetscBool      has = PETSC_FALSE;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  PetscCheckAdjointTS(adjts);
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
   if (adj_ctx->direction) { /* second order adjoint */
@@ -292,7 +301,7 @@ static PetscErrorCode AdjointTSIFunctionLinear(TS adjts, PetscReal time, Vec U, 
     ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tlmts->trajectory,&TLMH,NULL);CHKERRQ(ierr);
     ierr = DMRestoreGlobalVector(dm,&soawork0);CHKERRQ(ierr);
     ierr = DMRestoreGlobalVector(dm,&soawork1);CHKERRQ(ierr);
-  } else {
+  } else if (adj_ctx->design) { /* gradient computations */
     TS  fwdts = adj_ctx->fwdts;
     DM  dm;
     Vec FWDH,W;
@@ -321,6 +330,7 @@ static PetscErrorCode AdjointTSIJacobian(TS adjts, PetscReal time, Vec U, Vec Ud
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  PetscCheckAdjointTS(adjts);
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   ierr = TSComputeIJacobianWithSplits(adj_ctx->fwdts,time,U,Udot,shift,A,B,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -340,13 +350,14 @@ static PetscErrorCode AdjointTSEventFunction(TS adjts, PetscReal t, Vec U, Petsc
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  PetscCheckAdjointTS(adjts);
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - t + adj_ctx->t0;
   ts   = adj_ctx->fwdts;
   link = ts->funchead;
   if (adj_ctx->direction) { /* second-order adjoint */
     while (link) { fvalue[cnt++] = ((link->f_xx || link->f_xm) && link->fixedtime > PETSC_MIN_REAL) ?  link->fixedtime - fwdt : 1.0; link = link->next; }
-  } else {
+  } else if (adj_ctx->design) { /* gradient computations */
     while (link) { fvalue[cnt++] = (link->f_x && link->fixedtime > PETSC_MIN_REAL) ?  link->fixedtime - fwdt : 1.0; link = link->next; }
   }
   PetscFunctionReturn(0);
@@ -362,8 +373,9 @@ static PetscErrorCode AdjointTSPostEvent(TS adjts, PetscInt nevents, PetscInt ev
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  PetscCheckAdjointTS(adjts);
   ierr = VecLockPush(U);CHKERRQ(ierr);
-  ierr = AdjointTSComputeInitialConditions(adjts,t,NULL,PETSC_FALSE,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = AdjointTSComputeInitialConditions(adjts,NULL,PETSC_FALSE,PETSC_FALSE);CHKERRQ(ierr);
   ierr = VecLockPop(U);CHKERRQ(ierr);
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   adj_ctx->dirac_delta = PETSC_TRUE;
@@ -377,6 +389,7 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
+  PetscCheckAdjointTS(adjts);
   if (adjts->reason < 0) PetscFunctionReturn(0);
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   /* We detected Dirac's delta terms -> add the increment here
@@ -409,13 +422,51 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
   PetscFunctionReturn(0);
 }
 
-/* Creates the adjoint TS */
-/* some comments by looking at [1] and [2]
-   - Need to implement the augmented formulation (25) in [2] for implicit problems
-   - Initial conditions for the adjoint variable are fine as they are now for the cases:
-     - integrand terms : all but index-2 DAEs
-     - g(x,T,p)        : all but index-2 DAEs
-*/
+/*@C
+   TSCreateAdjointTS - Creates a TS object that can be used to solve the adjoint DAE.
+
+   Synopsis:
+   #include <petsc/private/tsadjointtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
+-  ts - the model TS context obtained from TSCreate()
+
+   Output Parameters:
+-  adjts - the new TS context for the adjoint DAE
+
+   Options database keys:
++     -adjoint_constjacobians <0> - if the Jacobians are constant
+-     -adjoint_reuseksp <0>       - if the AdjointTS should reuse the same KSP object used to solve the model DAE
+
+   Notes: Given the DAE in implicit form F(t,x,xdot) = 0, the AdjointTS solves the linear DAE F_xdot^T Ldot + (F_x - d/dt F_xdot)^T L + forcing = 0
+          Note that the adjoint DAE is solved as the time is not reverted.
+          Both the IFunction/IJacobian and the RHSFunction/RHSJacobian interfaces are supported.
+          The Jacobians needed to perform the adjoint solve are automatically constructed for the case d/dt F_xdot = 0.
+          Alternatively, the user can compose the "TSComputeSplitJacobians_C" function in the model TS to compute them.
+          The forcing term depends on the objective functions set via TSSetObjective() and, for second-order adjoints, on some of the Hessian terms set with TSSetHessianDAE().
+          If those functions are not called on the model TS before a TSSolve() with the AdjointTS, forcing = 0.
+          AdjointTSSetTimeLimits() must be called before TSSolve() on the AdjointTS for gradient and Hessian computations.
+          For gradient computations, the linearized dependency of the DAE on the parameters must be set with TSSetGradientDAE() on the model TS.
+          Use AdjointTSSetDirection() for second-order adjoints; in this case, second order information must be attached to the model TS with TSSetHessianDAE().
+          Initial condition dependency for the model TS must be provided via TSSetGradientIC() for gradient computations and with both TSSetGradientIC() and TSSetHessianIC() for second-order adjoints.
+          Initialization of the adjoint variables must be performed with AdjointTSComputeInitialConditions().
+          For nonzero forcing terms, the design vector for the current paramaters of the DAE must be passed via AdjointTSSetDesign().
+          Gradients and Hessian matrix-vector results are obtained through a quadrature (currently trapezoidal rule); relevant API is AdjointTSSetQuadratureVec(), AdjointTSFinalizeQuadrature().
+          The AdjointTS inherits the prefix of the model TS. E.g. if the model TS has prefix "burgers", the options prefix for the AdjointTS is -adjoint_burgers_. The user needs to call TSSetFromOptions() on the AdjointTS to trigger its customization.
+
+   References:
+.vb
+   [1] Cao, Li, Petzold. Adjoint sensitivity analysis for differential-algebraic equations: algorithms and software, JCAM 149, 2002.
+   [2] Cao, Li, Petzold. Adjoint sensitivity analysis for differential-algebraic equations: the adjoint DAE system and its numerical solution, SISC 24, 2003.
+   [3] Ozyurt, Barton. Cheap second order directional derivatives of stiff ODE embedded functionals, SISC 26, 2005.
+.ve
+
+   Level: developer
+
+.seealso: AdjointTSSetQuadratureVec(), AdjointTSFinalizeQuadrature(), AdjointTSSetDesignVec(), AdjointTSSetDirectionVec(), AdjointTSComputeInitialConditions(), TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetGradientIC(), TSSetHessianIC(), TSComputeSplitJacobians()
+@*/
 PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
 {
   SNES             snes;
@@ -563,7 +614,27 @@ PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode AdjointTSSetGradientVec(TS adjts, Vec gradient)
+/*@C
+   AdjointTSSetQuadratureVec - Sets the vector to store the quadrature to be computed.
+
+   Synopsis:
+   #include <petsc/private/tsadjointtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
++  adjts - the TS context obtained from TSCreateAdjointTS()
+-  q     - the vector where to accumulate the quadrature computation
+
+   Notes: The vector is not zeroed. Quadrature initialization is done in AdjointTSComputeInitialConditions().
+          Currently, two kind of quadratures are supported: gradient computations and Hessian matrix-vector products.
+          Pass NULL if you want to destroy the quadrature vector stored inside the AdjointTS.
+
+   Level: developer
+
+.seealso: TSCreateAdjointTS(), AdjointTSFinalizeQuadrature(), AdjointTSSetDesignVec(), AdjointTSSetDirectionVec(), AdjointTSComputeInitialConditions(), TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetGradientIC(), TSSetHessianIC()
+@*/
+PetscErrorCode AdjointTSSetQuadratureVec(TS adjts, Vec q)
 {
   PetscContainer c;
   AdjointCtx     *adj_ctx;
@@ -571,50 +642,85 @@ PetscErrorCode AdjointTSSetGradientVec(TS adjts, Vec gradient)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
-  if (gradient) PetscValidHeaderSpecific(gradient,VEC_CLASSID,2);
-  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
-  if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
-  ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
-  if (gradient) {
-    ierr = PetscObjectReference((PetscObject)gradient);CHKERRQ(ierr);
+  PetscCheckAdjointTS(adjts);
+  if (q) {
+    PetscValidHeaderSpecific(q,VEC_CLASSID,2);
+    PetscCheckSameComm(adjts,1,q,2);
   }
-  ierr = VecDestroy(&adj_ctx->gradient);CHKERRQ(ierr);
-  adj_ctx->gradient = gradient;
+  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
+  ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
+  if (q) {
+    ierr = PetscObjectReference((PetscObject)q);CHKERRQ(ierr);
+  }
+  ierr = VecDestroy(&adj_ctx->quadvec);CHKERRQ(ierr);
+  adj_ctx->quadvec = q;
   PetscFunctionReturn(0);
 }
 
-/*
-  Compute initial conditions for the adjoint DAE. It also initializes the quadrature (if needed).
-  We use svec (instead of just loading from history inside the function) since the propagator Mat can use P*U
-*/
-PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time, Vec svec, PetscBool apply, PetscBool qinit)
+/*@C
+   AdjointTSSetComputeInitialConditions - Initializes the adjoint variables and possibly the quadrature.
+
+   Synopsis:
+   #include <petsc/private/tsadjointtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
++  adjts - the TS context obtained from TSCreateAdjointTS()
+.  svec  - optional state vector to be used to sample the relevant objective functions
+.  apply - if the initial conditions must be applied
+-  qinit - if the quadrature should be initialized
+
+   Notes: svec is need only when we perform MatMultTranspose with the MatPropagator().
+          For gradient computations, ODEs and index-1 DAEs are supported.
+          For Hessian computations, index-1 DAEs are not supported for point-form functionals.
+          AdjointTSSetTimeLimits() should be called first.
+
+   Level: developer
+
+.seealso: TSCreateAdjointTS(), AdjointTSSetQuadratureVec(). AdjointTSFinalizeQuadrature(), AdjointTSSetDesignVec(), AdjointTSSetDirectionVec(), AdjointTSSetTimeLimits(), TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetGradientIC(), TSSetHessianIC()
+@*/
+PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, Vec svec, PetscBool apply, PetscBool qinit)
 {
-  PetscReal      fwdt;
+  PetscReal      fwdt,time;
   PetscContainer c;
   AdjointCtx     *adj_ctx;
   PetscErrorCode ierr;
   TSIJacobian    ijac;
-  PetscBool      has_g;
+  PetscBool      has_g = PETSC_FALSE;
   TSEquationType eqtype;
   PetscBool      rsve = PETSC_FALSE;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
-  PetscValidLogicalCollectiveReal(adjts,time,2);
-  if (svec) PetscValidHeaderSpecific(svec,VEC_CLASSID,3);
-  PetscValidLogicalCollectiveBool(adjts,apply,4);
-  PetscValidLogicalCollectiveBool(adjts,qinit,5);
+  PetscCheckAdjointTS(adjts);
+  if (svec) {
+    PetscValidHeaderSpecific(svec,VEC_CLASSID,2);
+    PetscCheckSameComm(adjts,1,svec,2);
+  }
+  PetscValidLogicalCollectiveBool(adjts,apply,3);
+  PetscValidLogicalCollectiveBool(adjts,qinit,4);
   ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
-  if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   if (adj_ctx->direction && !adj_ctx->tlmts) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Missing TLMTS! You need to call AdjointTSSetTLMTSAndFOATS");
   if (adj_ctx->direction && !adj_ctx->foats) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Missing FOATS! You need to call AdjointTSSetTLMTSAndFOATS");
+  ierr = TSGetTime(adjts,&time);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
   if (!svec) {
     ierr = TSTrajectoryGetUpdatedHistoryVecs(adj_ctx->fwdts->trajectory,adj_ctx->fwdts,fwdt,&svec,NULL);CHKERRQ(ierr);
     rsve = PETSC_TRUE;
   }
-
+  {
+    Vec L;
+    ierr = TSGetSolution(adjts,&L);CHKERRQ(ierr);
+    if (!L) {
+      Vec U;
+      ierr = TSGetSolution(adj_ctx->fwdts,&U);CHKERRQ(ierr);
+      ierr = VecDuplicate(U,&L);CHKERRQ(ierr);
+      ierr = TSSetSolution(adjts,L);CHKERRQ(ierr);
+      ierr = VecDestroy(&L);CHKERRQ(ierr);
+    }
+  }
   /* only AdjointTSPostEvent and AdjointTSComputeInitialConditions can modify workinit */
   if (!adj_ctx->workinit) {
     Vec lambda;
@@ -681,7 +787,7 @@ PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time, Vec s
     ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tlmts->trajectory,&TLMH[0],&TLMH[1]);CHKERRQ(ierr);
     ierr = DMRestoreGlobalVector(dm,&soawork0);CHKERRQ(ierr);
     ierr = DMRestoreGlobalVector(dm,&soawork1);CHKERRQ(ierr);
-  } else {
+  } else if (adj_ctx->design) { /* gradient computations */
     TS  fwdts = adj_ctx->fwdts;
     DM  dm;
     Vec W;
@@ -697,7 +803,7 @@ PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time, Vec s
   }
   ierr = TSGetEquationType(adj_ctx->fwdts,&eqtype);CHKERRQ(ierr);
   ierr = TSGetIJacobian(adjts,NULL,NULL,&ijac,NULL);CHKERRQ(ierr);
-  if (eqtype == TS_EQ_DAE_SEMI_EXPLICIT_INDEX1) { /* details in [1,Section 4.2] */
+  if (eqtype == TS_EQ_DAE_SEMI_EXPLICIT_INDEX1 && adj_ctx->design) { /* details in [1,Section 4.2] */
     KSP       kspM,kspD;
     Mat       M = NULL,B = NULL,C = NULL,D = NULL,pM = NULL,pD = NULL;
     Mat       J_U,J_Udot,pJ_U,pJ_Udot;
@@ -822,7 +928,7 @@ PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time, Vec s
         ierr = KSPSolveTranspose(kspD,g_a,g_a);CHKERRQ(ierr);
         ierr = VecScale(g_a,-1.0);CHKERRQ(ierr);
         ierr = MatMultTransposeAdd(C,g_a,g_d,g_d);CHKERRQ(ierr);
-        if (adj_ctx->fwdts->F_m && adj_ctx->gradient) { /* add fixed term to the gradient */
+        if (adj_ctx->fwdts->F_m && adj_ctx->quadvec) { /* add fixed term to the gradient */
           TS        ts = adj_ctx->fwdts;
           PetscBool hasop;
 
@@ -835,13 +941,13 @@ PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, PetscReal time, Vec s
           }
           ierr = MatHasOperation(ts->F_m,MATOP_MULT_TRANSPOSE_ADD,&hasop);CHKERRQ(ierr);
           if (hasop) {
-            ierr = MatMultTransposeAdd(ts->F_m,g_a,adj_ctx->gradient,adj_ctx->gradient);CHKERRQ(ierr);
+            ierr = MatMultTransposeAdd(ts->F_m,g_a,adj_ctx->quadvec,adj_ctx->quadvec);CHKERRQ(ierr);
           } else {
             Vec w;
 
-            ierr = VecDuplicate(adj_ctx->gradient,&w);CHKERRQ(ierr);
+            ierr = VecDuplicate(adj_ctx->quadvec,&w);CHKERRQ(ierr);
             ierr = MatMultTranspose(ts->F_m,g_a,w);CHKERRQ(ierr);
-            ierr = VecAXPY(adj_ctx->gradient,1.0,w);CHKERRQ(ierr);
+            ierr = VecAXPY(adj_ctx->quadvec,1.0,w);CHKERRQ(ierr);
             ierr = VecDestroy(&w);CHKERRQ(ierr);
           }
         }
@@ -972,8 +1078,8 @@ initialize:
     Vec             lambda;
     PetscReal       t0;
 
-    if (!adj_ctx->gradient) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing gradient vector");
-    if (!adj_ctx->design) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing design vector");
+    if (!adj_ctx->quadvec) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing quadrature vector. You should call AdjointTSSetQuadratureVec() first");
+    if (!adj_ctx->design) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing design vector. You should call AdjointTSSetDesignVec() first");
     ierr = PetscObjectQuery((PetscObject)adjts,"_ts_evaluate_quadrature",(PetscObject*)&c);CHKERRQ(ierr);
     if (!c) {
       ierr = PetscObjectQuery((PetscObject)adj_ctx->fwdts,"_ts_evaluate_quadrature",(PetscObject*)&c);CHKERRQ(ierr);
@@ -993,7 +1099,7 @@ initialize:
     qeval_ctx->userafter = PETSC_TRUE;
     qeval_ctx->seval     = NULL;
     qeval_ctx->veval     = EvalQuadIntegrand_ADJ;
-    qeval_ctx->vquad     = adj_ctx->gradient;
+    qeval_ctx->vquad     = adj_ctx->quadvec;
     qeval_ctx->cur       = 0;
     qeval_ctx->old       = 1;
     if (!qeval_ctx->wquad) {
@@ -1018,6 +1124,24 @@ initialize:
   PetscFunctionReturn(0);
 }
 
+/*@C
+   AdjointTSSetDesignVec - Sets the vector to store the current design.
+
+   Synopsis:
+   #include <petsc/private/tsadjointtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
++  adjts  - the TS context obtained from TSCreateAdjointTS()
+-  design - the vector that stores the current values of the parameters
+
+   Notes: The presence of the design vector activates the code for gradient or Hessian computations. Pass NULL if you want to destroy the design vector stored inside the AdjointTS.
+
+   Level: developer
+
+.seealso: TSCreateAdjointTS(), AdjointTSSetQuadratureVec(), AdjointTSSetDirectionVec(), TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetGradientIC(), TSSetHessianIC()
+@*/
 PetscErrorCode AdjointTSSetDesignVec(TS adjts, Vec design)
 {
   PetscContainer c;
@@ -1026,16 +1150,39 @@ PetscErrorCode AdjointTSSetDesignVec(TS adjts, Vec design)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
-  PetscValidHeaderSpecific(design,VEC_CLASSID,2);
+  PetscCheckAdjointTS(adjts);
+  if (design) {
+    PetscValidHeaderSpecific(design,VEC_CLASSID,2);
+    PetscCheckSameComm(adjts,1,design,2);
+  }
   ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
-  if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
-  ierr = PetscObjectReference((PetscObject)design);CHKERRQ(ierr);
+  if (design) {
+    ierr = PetscObjectReference((PetscObject)design);CHKERRQ(ierr);
+  }
   ierr = VecDestroy(&adj_ctx->design);CHKERRQ(ierr);
   adj_ctx->design = design;
   PetscFunctionReturn(0);
 }
 
+/*@C
+   AdjointTSSetDirectionVec - Sets the vector to store the input vector for the Hessian matrix vector product.
+
+   Synopsis:
+   #include <petsc/private/tsadjointtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
++  adjts     - the TS context obtained from TSCreateAdjointTS()
+-  direction - the vector
+
+   Notes: The presence of the direction vector activates the code for the second-order adjoint. Pass NULL if you want to destroy the direction vector stored inside the AdjointTS.
+
+   Level: developer
+
+.seealso: TSCreateAdjointTS(), AdjointTSSetQuadratureVec(), AdjointTSSetDesignVec(), TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetGradientIC(), TSSetHessianIC()
+@*/
 PetscErrorCode AdjointTSSetDirectionVec(TS adjts, Vec direction)
 {
   PetscContainer c;
@@ -1044,9 +1191,12 @@ PetscErrorCode AdjointTSSetDirectionVec(TS adjts, Vec direction)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
-  if (direction) PetscValidHeaderSpecific(direction,VEC_CLASSID,2);
+  PetscCheckAdjointTS(adjts);
+  if (direction) {
+    PetscValidHeaderSpecific(direction,VEC_CLASSID,2);
+    PetscCheckSameComm(adjts,1,direction,2);
+  }
   ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
-  if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   if (direction) {
     ierr = PetscObjectReference((PetscObject)direction);CHKERRQ(ierr);
@@ -1056,6 +1206,25 @@ PetscErrorCode AdjointTSSetDirectionVec(TS adjts, Vec direction)
   PetscFunctionReturn(0);
 }
 
+/*@C
+   AdjointTSSetTLMTSAndFOATS - Sets the Tangent Linear Model TS and the first-order adjoint TS, needed for Hessian matrix-vector products.
+
+   Synopsis:
+   #include <petsc/private/tsadjointtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
++  adjts - the TS context obtained from TSCreateAdjointTS()
+.  tlmts - the TS context obtained from TSCreateTLMTS()
+-  foats - the TS context obtained from TSCreateAdjointTS()
+
+   Notes: You should call AdjointTSSetDirectionVec() first.
+
+   Level: developer
+
+.seealso: TSCreateAdjointTS(), AdjointTSSetQuadratureVec(), AdjointTSSetDesignVec(), TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetGradientIC(), TSSetHessianIC()
+@*/
 PetscErrorCode AdjointTSSetTLMTSAndFOATS(TS adjts, TS tlmts, TS foats)
 {
   PetscContainer c;
@@ -1064,10 +1233,15 @@ PetscErrorCode AdjointTSSetTLMTSAndFOATS(TS adjts, TS tlmts, TS foats)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
+  PetscCheckAdjointTS(adjts);
   PetscValidHeaderSpecific(tlmts,TS_CLASSID,2);
-  PetscValidHeaderSpecific(foats,TS_CLASSID,2);
+  PetscCheckSameComm(adjts,1,tlmts,2);
+  PetscCheckTLMTS(tlmts);
+  PetscValidHeaderSpecific(foats,TS_CLASSID,3);
+  PetscCheckSameComm(adjts,1,foats,3);
+  PetscCheckAdjointTS(foats);
+  if (adjts == foats) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_SUP,"The two AdjointTS should be different");
   ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
-  if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   ierr = PetscObjectReference((PetscObject)tlmts);CHKERRQ(ierr);
   ierr = PetscObjectReference((PetscObject)foats);CHKERRQ(ierr);
@@ -1078,8 +1252,26 @@ PetscErrorCode AdjointTSSetTLMTSAndFOATS(TS adjts, TS tlmts, TS foats)
   PetscFunctionReturn(0);
 }
 
-/* update time limits in the application context
-   they are needed to recover the forward time from the backward */
+/*@C
+   AdjointTSSetTimeLimits - Sets the forward time interval where to perform the adjoint simulation.
+
+   Synopsis:
+   #include <petsc/private/tsadjointtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
++  adjts - the TS context obtained from TSCreateAdjointTS()
+.  t0    - the initial time
+-  tf    - the final time
+
+   Notes: You should call AdjointTSSetTimeLimits() before any TSSolve() with the AdjointTS.
+          The values are needed to recover the forward time from the backward.
+
+   Level: developer
+
+.seealso: TSCreateAdjointTS(), AdjointTSComputeInitialConditions(), TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetGradientIC(), TSSetHessianIC()
+@*/
 PetscErrorCode AdjointTSSetTimeLimits(TS adjts, PetscReal t0, PetscReal tf)
 {
   PetscContainer c;
@@ -1088,8 +1280,10 @@ PetscErrorCode AdjointTSSetTimeLimits(TS adjts, PetscReal t0, PetscReal tf)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
+  PetscCheckAdjointTS(adjts);
+  PetscValidLogicalCollectiveReal(adjts,t0,2);
+  PetscValidLogicalCollectiveReal(adjts,tf,3);
   ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
-  if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   ierr = TSSetTime(adjts,t0);CHKERRQ(ierr);
   ierr = TSSetMaxSteps(adjts,PETSC_MAX_INT);CHKERRQ(ierr);
@@ -1100,7 +1294,23 @@ PetscErrorCode AdjointTSSetTimeLimits(TS adjts, PetscReal t0, PetscReal tf)
   PetscFunctionReturn(0);
 }
 
-/* event handler for Dirac's delta terms (if any) */
+/*@C
+   AdjointTSEventHandler - Initializes the TSEvent() if needed.
+
+   Synopsis:
+   #include <petsc/private/tsadjointtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
+.  adjts - the TS context obtained from TSCreateAdjointTS()
+
+   Notes: This needs to be called if you are evaluating gradients or Hessian with point-form functionals sampled in between the simulation.
+
+   Level: developer
+
+.seealso: TSCreateAdjointTS(), TSSetObjective()
+@*/
 PetscErrorCode AdjointTSEventHandler(TS adjts)
 {
   PetscContainer c;
@@ -1111,8 +1321,9 @@ PetscErrorCode AdjointTSEventHandler(TS adjts)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
+  PetscCheckAdjointTS(adjts);
+  ierr = TSEventDestroy(&adjts->event);CHKERRQ(ierr);
   ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
-  if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   ierr = TSGetNumObjectives(adj_ctx->fwdts,&cnt);CHKERRQ(ierr);
   if (!cnt) PetscFunctionReturn(0);
@@ -1128,7 +1339,24 @@ PetscErrorCode AdjointTSEventHandler(TS adjts)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
+/*@C
+   AdjointTSFinalizeQuadrature - Finalizes the quadrature to be computed, by adding the dependency on the initial conditions.
+
+   Synopsis:
+   #include <petsc/private/tsadjointtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
+.  adjts - the TS context obtained from TSCreateAdjointTS()
+
+   Notes: This needs to be called after a successful TSSolve() with the AdjointTS.
+
+   Level: developer
+
+.seealso: TSCreateAdjointTS(), TSSetObjective(), TSSetGradientIC(), TSSetHessianIC()
+@*/
+PetscErrorCode AdjointTSFinalizeQuadrature(TS adjts)
 {
   PetscReal      tf;
   PetscContainer c;
@@ -1137,12 +1365,13 @@ PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
+  PetscCheckAdjointTS(adjts);
   ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
-  if (!c) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing adjoint container");
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
-  if (!adj_ctx->gradient) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Missing gradient vector");
+  if (!adj_ctx->quadvec) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Missing quadrature vector. You should call AdjointTSSetQuadratureVec() first");
+  if (!adj_ctx->design) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_PLIB,"Missing design vector. You should call AdjointTSSetDesignVec() first");
   ierr = TSGetTime(adjts,&tf);CHKERRQ(ierr);
-  if (PetscAbsReal(tf - adj_ctx->tf) > PETSC_SMALL) SETERRQ1(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Backward solve did not complete %1.14e",tf-adj_ctx->tf);
+  if (PetscAbsReal(tf - adj_ctx->tf) > PETSC_SMALL) SETERRQ1(PetscObjectComm((PetscObject)adjts),PETSC_ERR_ORDER,"Backward solve did not complete %1.14e.\nMaybe you forgot to call AdjointTSSetTimeLimits() and TSSolve() on the AdjointTS",tf-adj_ctx->tf);
 
   /* initial condition contribution to the gradient */
   if (adj_ctx->fwdts->G_m) {
@@ -1163,14 +1392,14 @@ PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
       ierr = TSGetSplitJacobians(fwdts,NULL,NULL,&J_Udot,NULL);CHKERRQ(ierr);
       ierr = MatMultTranspose(J_Udot,lambda,work);CHKERRQ(ierr);
     }
-    if (!adj_ctx->wgrad) {
-      ierr = VecDuplicate(adj_ctx->gradient,&adj_ctx->wgrad);CHKERRQ(ierr);
+    if (!adj_ctx->wquad) {
+      ierr = VecDuplicate(adj_ctx->quadvec,&adj_ctx->wquad);CHKERRQ(ierr);
     }
     if (!adj_ctx->direction) { /* first-order adjoint in gradient computations */
       ierr = TSTrajectoryGetUpdatedHistoryVecs(fwdts->trajectory,fwdts,adj_ctx->t0,&FWDH[0],NULL);CHKERRQ(ierr);
-      ierr = TSLinearizedICApply(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,work,adj_ctx->wgrad,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
+      ierr = TSLinearizedICApply(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,work,adj_ctx->wquad,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
       ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,&FWDH[0],NULL);CHKERRQ(ierr);
-      ierr = VecAXPY(adj_ctx->gradient,1.0,adj_ctx->wgrad);CHKERRQ(ierr);
+      ierr = VecAXPY(adj_ctx->quadvec,1.0,adj_ctx->wquad);CHKERRQ(ierr);
     } else { /* second-order adjoint in Hessian computations */
       TS  foats = adj_ctx->foats;
       TS  tlmts = adj_ctx->tlmts;
@@ -1212,15 +1441,15 @@ PetscErrorCode AdjointTSComputeFinalGradient(TS adjts)
         ierr = (*fwdts->HF[1][2])(fwdts,adj_ctx->t0,FWDH[0],FWDH[1],adj_ctx->design,FOAH,adj_ctx->direction,soawork1,fwdts->HFctx);CHKERRQ(ierr);
         ierr = VecAXPY(work,1.0,soawork1);CHKERRQ(ierr);
       }
-      ierr = TSLinearizedICApply(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,work,adj_ctx->wgrad,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
-      ierr = VecAXPY(adj_ctx->gradient,1.0,adj_ctx->wgrad);CHKERRQ(ierr);
+      ierr = TSLinearizedICApply(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,work,adj_ctx->wquad,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
+      ierr = VecAXPY(adj_ctx->quadvec,1.0,adj_ctx->wquad);CHKERRQ(ierr);
       if (fwdts->HG[1][1]) { /* (\mu^T \otimes I_M) G_MM direction */
-        ierr = (*fwdts->HG[1][1])(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,soawork0,adj_ctx->direction,adj_ctx->wgrad,fwdts->HGctx);CHKERRQ(ierr);
-        ierr = VecAXPY(adj_ctx->gradient,1.0,adj_ctx->wgrad);CHKERRQ(ierr);
+        ierr = (*fwdts->HG[1][1])(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,soawork0,adj_ctx->direction,adj_ctx->wquad,fwdts->HGctx);CHKERRQ(ierr);
+        ierr = VecAXPY(adj_ctx->quadvec,1.0,adj_ctx->wquad);CHKERRQ(ierr);
       }
       if (fwdts->HG[1][0]) { /* (\mu^T \otimes I_M) G_MX  \eta, \eta the TLM solution */
-        ierr = (*fwdts->HG[1][0])(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,soawork0,TLMH,adj_ctx->wgrad,fwdts->HGctx);CHKERRQ(ierr);
-        ierr = VecAXPY(adj_ctx->gradient,1.0,adj_ctx->wgrad);CHKERRQ(ierr);
+        ierr = (*fwdts->HG[1][0])(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,soawork0,TLMH,adj_ctx->wquad,fwdts->HGctx);CHKERRQ(ierr);
+        ierr = VecAXPY(adj_ctx->quadvec,1.0,adj_ctx->wquad);CHKERRQ(ierr);
       }
       ierr = TSTrajectoryRestoreUpdatedHistoryVecs(foats->trajectory,&FOAH,NULL);CHKERRQ(ierr);
       ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,&FWDH[0],&FWDH[1]);CHKERRQ(ierr);

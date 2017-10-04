@@ -1,6 +1,6 @@
-/* ------------------ Helper routines to compute split Jacobians ----------------------- */
 #include <petsc/private/tssplitjacimpl.h>
 
+/* ------------------ Helper routines to compute split Jacobians ----------------------- */
 PetscErrorCode TSSplitJacobiansDestroy_Private(void *ptr)
 {
   TSSplitJacobians* s = (TSSplitJacobians*)ptr;
@@ -15,8 +15,36 @@ PetscErrorCode TSSplitJacobiansDestroy_Private(void *ptr)
   PetscFunctionReturn(0);
 }
 
-/* This is an helper routine to get F_U and F_Udot, which can be generalized in a public API with callbacks, especially for problems where d/dt F_Udot != 0.
-   Right now, the default implementation can be superseded by function composition */
+/*@C
+   TSComputeSplitJacobians - Given a DAE in implicit form F(t,U,Udot), it computes F_U and F_Udot.
+
+   Synopsis:
+   #include <petsc/private/tssplitjacimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
++  ts   - the TS context obtained from TSCreate()
+.  time - current solution time
+.  U    - current state
+-  Udot - current time derivative
+
+   Output Parameters:
++  A  - the F_Udot Jacobian matrix
+.  pA - the preconditioning matrix for A
+.  B  - the F_U Jacobian matrix
+-  pB - the preconditioning matrix for B
+
+   Notes: this is an helper routine for the AdjointTS and the TLMTS. For the AdjointTS, the correct Jacobians would be F_Udot and F_U - d/dt F_Udot.
+          Note that most of the DAEs have d/dt F_Udot = 0.
+          The user can supersed the default implementation by calling
+
+$             PetscObjectComposeFunction((PetscObject)(ts),"TSComputeSplitJacobians_C",MyImplementationOfSplitJacobians);CHKERRQ(ierr);
+
+   Level: developer
+
+.seealso: TSCreateTLMSTS(), TSCreateAdjointTS(), TSComputeIJacobian()
+@*/
 PetscErrorCode TSComputeSplitJacobians(TS ts, PetscReal time, Vec U, Vec Udot, Mat A, Mat pA, Mat B, Mat pB)
 {
   PetscErrorCode (*f)(TS,PetscReal,Vec,Vec,Mat,Mat,Mat,Mat);
@@ -47,7 +75,27 @@ PetscErrorCode TSComputeSplitJacobians(TS ts, PetscReal time, Vec U, Vec Udot, M
   PetscFunctionReturn(0);
 }
 
-/* Just access the split matrices */
+/*@C
+   TSGetSplitJacobians - Gets the matrices to be used by TSComputeSplitJacobians()
+
+   Synopsis:
+   #include <petsc/private/tssplitjacimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
+.  ts   - the TS context obtained from TSCreate()
+
+   Output Parameters:
++  A  - the F_Udot Jacobian matrix
+.  pA - the preconditioning matrix for A
+.  B  - the F_U Jacobian matrix
+-  pB - the preconditioning matrix for B
+
+   Level: developer
+
+.seealso: TSComputeSplitJacobians()
+@*/
 PetscErrorCode TSGetSplitJacobians(TS ts, Mat* JU, Mat* pJU, Mat *JUdot, Mat* pJUdot)
 {
   PetscErrorCode    ierr;
@@ -62,7 +110,20 @@ PetscErrorCode TSGetSplitJacobians(TS ts, Mat* JU, Mat* pJU, Mat *JUdot, Mat* pJ
   if (JUdot) PetscValidPointer(JUdot,4);
   if (pJUdot) PetscValidPointer(pJUdot,5);
   ierr = PetscObjectQuery((PetscObject)ts,"_ts_splitJac",(PetscObject*)&c);CHKERRQ(ierr);
-  if (!c) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_PLIB,"Missing splitJac container");
+  if (!c) {
+    ierr = PetscInfo(ts,"WARNING: Creating new split jacobians container");CHKERRQ(ierr);
+    ierr = PetscNew(&splitJ);CHKERRQ(ierr);
+    splitJ->Astate    = -1;
+    splitJ->Aid       = PETSC_MIN_INT;
+    splitJ->shift     = PETSC_MIN_REAL;
+    splitJ->splitdone = PETSC_FALSE;
+    splitJ->jacconsts = PETSC_FALSE;
+    ierr = PetscContainerCreate(PetscObjectComm((PetscObject)ts),&c);CHKERRQ(ierr);
+    ierr = PetscContainerSetPointer(c,splitJ);CHKERRQ(ierr);
+    ierr = PetscContainerSetUserDestroy(c,TSSplitJacobiansDestroy_Private);CHKERRQ(ierr);
+    ierr = PetscObjectCompose((PetscObject)ts,"_ts_splitJac",(PetscObject)c);CHKERRQ(ierr);
+    ierr = PetscObjectDereference((PetscObject)c);CHKERRQ(ierr);
+  }
   ierr = PetscContainerGetPointer(c,(void**)&splitJ);CHKERRQ(ierr);
   ierr = TSGetIJacobian(ts,&A,&B,NULL,NULL);CHKERRQ(ierr);
   if (JU) {

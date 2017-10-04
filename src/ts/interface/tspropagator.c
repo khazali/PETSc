@@ -69,7 +69,7 @@ static PetscErrorCode MatMultTranspose_Propagator(Mat A, Vec x, Vec y)
   ierr = TLMTSGetDesignVec(prop->lts,&tlmdesign);CHKERRQ(ierr);
   ierr = AdjointTSSetDesignVec(prop->adjlts,tlmdesign);CHKERRQ(ierr);
   ierr = AdjointTSSetTimeLimits(prop->adjlts,prop->t0,prop->tf);CHKERRQ(ierr);
-  ierr = AdjointTSSetGradientVec(prop->adjlts,y);CHKERRQ(ierr);
+  ierr = AdjointTSSetQuadratureVec(prop->adjlts,y);CHKERRQ(ierr);
   /* Initialize adjoint variables using P^T x or x */
   ierr = TLMTSGetRHSVec(prop->lts,&tlmworkrhs);CHKERRQ(ierr);
   if (prop->P) {
@@ -77,7 +77,7 @@ static PetscErrorCode MatMultTranspose_Propagator(Mat A, Vec x, Vec y)
   } else {
     ierr = VecCopy(x,tlmworkrhs);CHKERRQ(ierr);
   }
-  ierr = AdjointTSComputeInitialConditions(prop->adjlts,prop->t0,tlmworkrhs,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
+  ierr = AdjointTSComputeInitialConditions(prop->adjlts,tlmworkrhs,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
   ierr = TSSetStepNumber(prop->adjlts,0);CHKERRQ(ierr);
   ierr = TSRestartStep(prop->adjlts);CHKERRQ(ierr);
   ierr = TSSetTime(prop->adjlts,prop->t0);CHKERRQ(ierr);
@@ -99,7 +99,7 @@ static PetscErrorCode MatMultTranspose_Propagator(Mat A, Vec x, Vec y)
   }
   ierr = TSSetMaxTime(prop->adjlts,prop->tf);CHKERRQ(ierr);
   ierr = TSSolve(prop->adjlts,NULL);CHKERRQ(ierr);
-  ierr = AdjointTSComputeFinalGradient(prop->adjlts);CHKERRQ(ierr);
+  ierr = AdjointTSFinalizeQuadrature(prop->adjlts);CHKERRQ(ierr);
   prop->lts->trajectory = NULL;
   prop->tj = prop->model->trajectory;
   prop->model->trajectory = otrj;
@@ -112,7 +112,7 @@ static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
   PetscErrorCode    ierr;
   PetscReal         dt;
   PetscBool         istr;
-  Vec               sol,tlmworkrhs,tlmdesign;
+  Vec               sol;
   TSTrajectory      otrj;
 
   PetscFunctionBegin;
@@ -126,25 +126,7 @@ static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
   }
   ierr = TSHistoryGetTimeStep(prop->tj->tsh,PETSC_FALSE,0,&dt);CHKERRQ(ierr);
   ierr = TLMTSSetPerturbationVec(prop->lts,x);CHKERRQ(ierr);
-  ierr = TLMTSGetDesignVec(prop->lts,&tlmdesign);CHKERRQ(ierr);
-  ierr = TLMTSGetRHSVec(prop->lts,&tlmworkrhs);CHKERRQ(ierr);
-
-  /* initialize tlmworkrhs if needed */
-  ierr = VecSet(tlmworkrhs,0.0);CHKERRQ(ierr);
-  if (prop->model->F_m) {
-    TS ts = prop->model;
-    if (!ts->F_m_f) { /* constant dependence */
-      ierr = MatMult(ts->F_m,x,tlmworkrhs);CHKERRQ(ierr);
-    }
-  }
-
-  /* sample initial condition dependency
-     we use prop->lts instead of prop->model since the MatPropagator tests
-     for IC dependency even if the model does not have any IC gradient set */
-  ierr = TSGetSolution(prop->lts,&sol);CHKERRQ(ierr);
-  ierr = TSLinearizedICApply(prop->lts,prop->t0,prop->x0,tlmdesign,x,sol,PETSC_FALSE,PETSC_TRUE);CHKERRQ(ierr);
-  ierr = VecScale(sol,-1.0);CHKERRQ(ierr);
-
+  ierr = TLMTSComputeInitialConditions(prop->lts,prop->t0,prop->x0);CHKERRQ(ierr);
   ierr = TSSetStepNumber(prop->lts,0);CHKERRQ(ierr);
   ierr = TSRestartStep(prop->lts);CHKERRQ(ierr);
   ierr = TSSetTime(prop->lts,prop->t0);CHKERRQ(ierr);
@@ -158,11 +140,13 @@ static PetscErrorCode MatMult_Propagator(Mat A, Vec x, Vec y)
     ierr = TSSetExactFinalTime(prop->lts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   }
   ierr = TSSolve(prop->lts,NULL);CHKERRQ(ierr);
+  ierr = TSGetSolution(prop->lts,&sol);CHKERRQ(ierr);
   if (prop->P) {
     ierr = MatMult(prop->P,sol,y);CHKERRQ(ierr);
   } else {
     ierr = VecCopy(sol,y);CHKERRQ(ierr);
   }
+  ierr = TLMTSSetPerturbationVec(prop->lts,NULL);CHKERRQ(ierr);
   prop->tj = prop->model->trajectory;
   prop->model->trajectory = otrj;
   PetscFunctionReturn(0);

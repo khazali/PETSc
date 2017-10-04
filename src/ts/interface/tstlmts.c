@@ -1,9 +1,10 @@
-/* ------------------ Routines for the TS representing the tangent linear model, namespaced by TLMTS ----------------------- */
 #include <petsc/private/tstlmtsimpl.h>
 #include <petsc/private/tssplitjacimpl.h>
 #include <petsc/private/tshistoryimpl.h>
+#include <petsc/private/tspdeconstrainedutilsimpl.h>
 #include <petscdm.h>
 
+/* ------------------ Routines for the TS representing the tangent linear model, namespaced by TLMTS ----------------------- */
 typedef struct {
   TS        model;
   PetscBool userijac;
@@ -144,6 +145,26 @@ static PetscErrorCode TLMTSRHSJacobian(TS lts, PetscReal time, Vec U, Mat A, Mat
   PetscFunctionReturn(0);
 }
 
+/*@C
+   TLMTSGetRHSVec - Gets the vector used to compute the forcing term for the Tangent Linear Model.
+
+   Synopsis:
+   #include <petsc/private/tstlmtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
+.  lts - the TS context obtained from TSCreateTLMTS()
+
+   Output Parameters:
+.  rhs - the rhs work vector
+
+   Notes: this should not be modified unless you know what you are doing.
+
+   Level: developer
+
+.seealso: TSCreateTLMSTS(), TLMTSGetModelTS(), TLMTSSetPerturbationVec(), TLMTSSetDesignVec()
+@*/
 PetscErrorCode TLMTSGetRHSVec(TS lts, Vec *rhs)
 {
   PetscContainer c;
@@ -152,9 +173,9 @@ PetscErrorCode TLMTSGetRHSVec(TS lts, Vec *rhs)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(lts,TS_CLASSID,1);
+  PetscCheckTLMTS(lts);
   PetscValidPointer(rhs,2);
   ierr = PetscObjectQuery((PetscObject)lts,"_ts_tlm_ctx",(PetscObject*)&c);CHKERRQ(ierr);
-  if (!c) SETERRQ(PetscObjectComm((PetscObject)lts),PETSC_ERR_PLIB,"Missing tlm container");
   ierr = PetscContainerGetPointer(c,(void**)&tlm);CHKERRQ(ierr);
   if (!tlm->workrhs) {
     Vec U;
@@ -166,6 +187,24 @@ PetscErrorCode TLMTSGetRHSVec(TS lts, Vec *rhs)
   PetscFunctionReturn(0);
 }
 
+/*@C
+   TLMTSSetPerturbationVec - Sets the vector to store the current perturbation of the model parameters.
+
+   Synopsis:
+   #include <petsc/private/tstlmtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
++  lts    - the TS context obtained from TSCreateTLMTS()
+-  mdelta - the vector that stores the perturbartion
+
+   Notes: Pass NULL if you want to destroy the perturbation vector stored inside the TLMTS.
+
+   Level: developer
+
+.seealso: TSCreateTLMSTS(), TLMTSGetModelTS(), TLMTSSetDesignVec(), TLMTSGetDesignVec(), TLMTSGetRHSVec()
+@*/
 PetscErrorCode TLMTSSetPerturbationVec(TS lts, Vec mdelta)
 {
   PetscContainer c;
@@ -174,16 +213,34 @@ PetscErrorCode TLMTSSetPerturbationVec(TS lts, Vec mdelta)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(lts,TS_CLASSID,1);
-  PetscValidHeaderSpecific(mdelta,VEC_CLASSID,2);
+  PetscCheckTLMTS(lts);
+  if (mdelta) PetscValidHeaderSpecific(mdelta,VEC_CLASSID,2);
   ierr = PetscObjectQuery((PetscObject)lts,"_ts_tlm_ctx",(PetscObject*)&c);CHKERRQ(ierr);
-  if (!c) SETERRQ(PetscObjectComm((PetscObject)lts),PETSC_ERR_PLIB,"Missing tlm container");
   ierr = PetscContainerGetPointer(c,(void**)&tlm);CHKERRQ(ierr);
-  ierr = PetscObjectReference((PetscObject)mdelta);CHKERRQ(ierr);
+  if (mdelta) {
+    ierr = PetscObjectReference((PetscObject)mdelta);CHKERRQ(ierr);
+  }
   ierr = VecDestroy(&tlm->mdelta);CHKERRQ(ierr);
   tlm->mdelta = mdelta;
   PetscFunctionReturn(0);
 }
 
+/*@C
+   TLMTSSetDesignVec - Sets the vector to store the current design.
+
+   Synopsis:
+   #include <petsc/private/tstlmtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
++  lts    - the TS context obtained from TSCreateTLMTS()
+-  design - the vector that stores the current values of the parameters
+
+   Level: developer
+
+.seealso: TSCreateTLMSTS(), TLMTSGetModelTS(), TLMTSSetPerturbationVec(), TLMTSGetDesignVec(), TLMTSGetRHSVec()
+@*/
 PetscErrorCode TLMTSSetDesignVec(TS lts, Vec design)
 {
   PetscContainer c;
@@ -192,9 +249,9 @@ PetscErrorCode TLMTSSetDesignVec(TS lts, Vec design)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(lts,TS_CLASSID,1);
+  PetscCheckTLMTS(lts);
   PetscValidHeaderSpecific(design,VEC_CLASSID,2);
   ierr = PetscObjectQuery((PetscObject)lts,"_ts_tlm_ctx",(PetscObject*)&c);CHKERRQ(ierr);
-  if (!c) SETERRQ(PetscObjectComm((PetscObject)lts),PETSC_ERR_PLIB,"Missing tlm container");
   ierr = PetscContainerGetPointer(c,(void**)&tlm);CHKERRQ(ierr);
   ierr = PetscObjectReference((PetscObject)design);CHKERRQ(ierr);
   ierr = VecDestroy(&tlm->design);CHKERRQ(ierr);
@@ -202,6 +259,24 @@ PetscErrorCode TLMTSSetDesignVec(TS lts, Vec design)
   PetscFunctionReturn(0);
 }
 
+/*@C
+   TLMTSGetDesignVec - Gets the vector for the current design set with TLMTSSetDesignVec().
+
+   Synopsis:
+   #include <petsc/private/tstlmtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
+.  lts - the TS context obtained from TSCreateTLMTS()
+
+   Output Parameters:
+.  design - the vector that stores the current values of the parameters
+
+   Level: developer
+
+.seealso: TSCreateTLMSTS(), TLMTSGetModelTS(), TLMTSSetPerturbationVec(), TLMTSSetDesignVec(), TLMTSGetRHSVec()
+@*/
 PetscErrorCode TLMTSGetDesignVec(TS lts, Vec* design)
 {
   PetscContainer c;
@@ -210,14 +285,32 @@ PetscErrorCode TLMTSGetDesignVec(TS lts, Vec* design)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(lts,TS_CLASSID,1);
+  PetscCheckTLMTS(lts);
   PetscValidPointer(design,2);
   ierr = PetscObjectQuery((PetscObject)lts,"_ts_tlm_ctx",(PetscObject*)&c);CHKERRQ(ierr);
-  if (!c) SETERRQ(PetscObjectComm((PetscObject)lts),PETSC_ERR_PLIB,"Missing tlm container");
   ierr = PetscContainerGetPointer(c,(void**)&tlm);CHKERRQ(ierr);
   *design = tlm->design;
   PetscFunctionReturn(0);
 }
 
+/*@C
+   TLMTSGetModelTS - Gets the model DAE used to create the TLMTS.
+
+   Synopsis:
+   #include <petsc/private/tstlmtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
+.  lts - the TS context obtained from TSCreateTLMTS()
+
+   Output Parameters:
+.  ts - the TS context used to create the TLMTS.
+
+   Level: developer
+
+.seealso: TSCreateTLMSTS(), TSSetGradientDAE(), TSSetGradientIC()
+@*/
 PetscErrorCode TLMTSGetModelTS(TS lts, TS* ts)
 {
   PetscContainer c;
@@ -226,15 +319,114 @@ PetscErrorCode TLMTSGetModelTS(TS lts, TS* ts)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(lts,TS_CLASSID,1);
+  PetscCheckTLMTS(lts);
   PetscValidPointer(ts,2);
   ierr = PetscObjectQuery((PetscObject)lts,"_ts_tlm_ctx",(PetscObject*)&c);CHKERRQ(ierr);
-  if (!c) SETERRQ(PetscObjectComm((PetscObject)lts),PETSC_ERR_PLIB,"Missing tlm container");
   ierr = PetscContainerGetPointer(c,(void**)&tlm);CHKERRQ(ierr);
-  *ts = tlm->model;
+  *ts  = tlm->model;
   PetscFunctionReturn(0);
 }
 
-/* creates the TS for the tangent linear model */
+/*@C
+   TLMTSComputeInitialConditions - Computes the initial conditions for the Tangent Linear Model TS.
+
+   Synopsis:
+   #include <petsc/private/tstlmtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
++  lts - the TS context obtained from TSCreateTLMTS()
+-  t0  - the initial time
+-  x0  - the initial vector where to linearize
+
+   Notes: Initial conditions are computed as
+
+$     Y(t0) = -G^-1(x0,m) * G_m(x0,m) * deltam
+
+   where deltam is the vector provided with TLMTSSetPerturbationVec(), and m the design vector set with TLMTSSetDesignVec().
+   G(x0,m) = 0 describes the model initial conditions in implicit form; G_x and G_m should be provided with TSSetGradientIC().
+
+   Level: developer
+
+.seealso: TSCreateTLMSTS(), TLMTSSetPerturbationVec(), TLMTSSetDesignVec(), TSSetGradientIC()
+@*/
+PetscErrorCode TLMTSComputeInitialConditions(TS lts, PetscReal t0, Vec x0)
+{
+  Vec            eta;
+  PetscContainer c;
+  TLMTS_Ctx      *tlm;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(lts,TS_CLASSID,1);
+  PetscCheckTLMTS(lts);
+  PetscValidLogicalCollectiveReal(lts,t0,2);
+  PetscValidHeaderSpecific(x0,VEC_CLASSID,3);
+  ierr = PetscObjectQuery((PetscObject)lts,"_ts_tlm_ctx",(PetscObject*)&c);CHKERRQ(ierr);
+  ierr = PetscContainerGetPointer(c,(void**)&tlm);CHKERRQ(ierr);
+  if (!tlm->design) SETERRQ(PetscObjectComm((PetscObject)lts),PETSC_ERR_USER,"Missing design vector. Maybe you forgot to call TLMTSSetDesignVec()");
+  if (!tlm->mdelta) SETERRQ(PetscObjectComm((PetscObject)lts),PETSC_ERR_USER,"Missing design vector. Maybe you forgot to call TLMTSSetPerturbationVec()");
+  ierr = TSGetSolution(lts,&eta);CHKERRQ(ierr);
+  if (!eta) {
+    Vec U;
+
+    ierr = TSGetSolution(tlm->model,&U);CHKERRQ(ierr);
+    ierr = VecDuplicate(U,&eta);CHKERRQ(ierr);
+    ierr = TSSetSolution(lts,eta);CHKERRQ(ierr);
+    ierr = PetscObjectDereference((PetscObject)eta);CHKERRQ(ierr);
+  }
+  if (!tlm->model->G_m) {
+    /* For propagator computations, the linear dependence on the initial conditions is attached to the TLMTS if the model TS does not have any set */
+    ierr = TSLinearizedICApply(lts,t0,x0,tlm->design,tlm->mdelta,eta,PETSC_FALSE,PETSC_TRUE);CHKERRQ(ierr);
+  } else {
+    ierr = TSLinearizedICApply(tlm->model,t0,x0,tlm->design,tlm->mdelta,eta,PETSC_FALSE,PETSC_TRUE);CHKERRQ(ierr);
+  }
+  ierr = VecScale(eta,-1.0);CHKERRQ(ierr);
+
+  /* initialize tlm->workrhs if needed */
+  ierr = TLMTSGetRHSVec(lts,&tlm->workrhs);CHKERRQ(ierr);
+  if (tlm->model->F_m) {
+    TS ts = tlm->model;
+    if (!ts->F_m_f) { /* constant dependence */
+      ierr = MatMult(ts->F_m,x0,tlm->workrhs);CHKERRQ(ierr);
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
+/*@C
+   TSCreateTLMTS - Creates a TS object that can be used to solve the Tangent Linear Model of a parameter dependent DAE.
+
+   Synopsis:
+   #include <petsc/private/tstlmtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
+.  ts - the model TS context obtained from TSCreate()
+
+   Output Parameters:
+.  lts - the new TS context for the Tangent Linear Model DAE
+
+   Options database keys:
++     -tlm_userijacobian <0>  - use the user-callback to compute the IJacobian. Defaults to TSComputeIJacobianWithSplits()
+.     -tlm_constjacobians <0> - if the Jacobians are constant
+-     -tlm_reuseksp <0>       - if the TLMTS should reuse the same KSP object used to solve the model DAE
+
+   Notes: Given the parameter dependent DAE in implicit form F(t,x,xdot;m) = 0, with initial conditions expressed in implicit form G(x_0,m) = 0,
+          the TLMTS solves the linear DAE F_xdot Y_dot + F_x Y_x + F_m * deltam = 0, with initial conditions taken as Y_0 = -G^-1(x_0,m) G_m deltam,
+          where deltam is a perturbation of the parameters passed via TLMTSSetPerturbationVec().
+          Both the IFunction/IJacobian and the RHSFunction/RHSJacobian interfaces are supported. The Jacobians needed to perform the TLM solve are automatically constructed. Alternatively, the user can compose the "TSComputeSplitJacobians_C" function in the model TS to compute them.
+          The forcing term can be customized by calling TSSetGradientDAE() on the model TS.
+          Parameter dependent initial conditions should be passed with TSSetGradientIC() on the model TS.
+          Initial conditions can be computed with TLMTSComputeInitialConditions().
+          The TLMTS inherits the prefix of the model TS. E.g. if the model TS has prefix "burgers", the options prefix for the TLMTS is -tlm_burgers_. The user needs to call TSSetFromOptions() on the TLMTS to trigger its customization.
+
+   Level: developer
+
+.seealso: TSCreateTLMSTS(), TLMTSSetPerturbationVec(), TLMTSSetDesignVec(), TSSetGradientDAE(), TSSetGradientIC()
+@*/
 PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
 {
   SNES             snes;
