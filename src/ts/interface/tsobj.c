@@ -1,5 +1,6 @@
+#include <petsc/private/tsobjimpl.h> /*I "petscts.h"  I*/
+
 /* ------------------ Helper routines for PDE-constrained support to evaluate objective functions, gradients and Hessian terms ----------------------- */
-#include <petsc/private/tsobjimpl.h>
 
 /* Evaluates objective functions of the type f(state,design,t) */
 PetscErrorCode TSObjEval(TSObj funchead, Vec state, Vec design, PetscReal time, PetscReal *val)
