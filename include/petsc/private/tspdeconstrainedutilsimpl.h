@@ -22,6 +22,6 @@ typedef struct {
 
 PETSC_INTERN PetscErrorCode TSQuadraturePostStep_Private(TS);
 PETSC_INTERN PetscErrorCode TSQuadratureCtxDestroy_Private(void*);
-PETSC_INTERN PetscErrorCode TSLinearizedICApply(TS, PetscReal,Vec,Vec,Vec,Vec,PetscBool,PetscBool);
+PETSC_INTERN PetscErrorCode TSLinearizedICApply_Private(TS, PetscReal,Vec,Vec,Vec,Vec,PetscBool,PetscBool);
 PETSC_INTERN PetscErrorCode TSSolveWithQuadrature_Private(TS,Vec,Vec,Vec,Vec,PetscReal*);
 #endif

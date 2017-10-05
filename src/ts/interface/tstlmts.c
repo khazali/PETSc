@@ -39,7 +39,7 @@ static PetscErrorCode TLMTSComputeSplitJacobians(TS ts, PetscReal time, Vec U, V
   if (A == B) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"A and B must be different matrices");
   if (pA == pB) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"pA and pB must be different matrices");
   ierr = TSGetApplicationContext(ts,(void*)&tlm_ctx);CHKERRQ(ierr);
-  ierr = TSUpdateSplitJacobiansFromHistory(tlm_ctx->model,time);CHKERRQ(ierr);
+  ierr = TSUpdateSplitJacobiansFromHistory_Private(tlm_ctx->model,time);CHKERRQ(ierr);
   ierr = TSGetSplitJacobians(tlm_ctx->model,&J_U,&pJ_U,&J_Udot,&pJ_Udot);CHKERRQ(ierr);
   if (A) { ierr = MatCopy(J_U,A,SAME_NONZERO_PATTERN);CHKERRQ(ierr); }
   if (pA && pA != A) { ierr = MatCopy(pJ_U,pA,SAME_NONZERO_PATTERN);CHKERRQ(ierr); }
@@ -57,7 +57,7 @@ static PetscErrorCode TLMTSIFunctionLinear(TS lts, PetscReal time, Vec U, Vec Ud
 
   PetscFunctionBegin;
   ierr = TSGetApplicationContext(lts,(void*)&tlm_ctx);CHKERRQ(ierr);
-  ierr = TSUpdateSplitJacobiansFromHistory(tlm_ctx->model,time);CHKERRQ(ierr);
+  ierr = TSUpdateSplitJacobiansFromHistory_Private(tlm_ctx->model,time);CHKERRQ(ierr);
   ierr = TSGetSplitJacobians(tlm_ctx->model,&J_U,NULL,&J_Udot,NULL);CHKERRQ(ierr);
   ierr = MatMult(J_U,U,F);CHKERRQ(ierr);
   ierr = MatMultAdd(J_Udot,Udot,F,F);CHKERRQ(ierr);
@@ -92,7 +92,7 @@ static PetscErrorCode TLMTSIJacobian(TS lts, PetscReal time, Vec U, Vec Udot, Pe
     ierr = TSComputeIJacobian(model,time,W[0],W[1],shift,A,B,PETSC_FALSE);CHKERRQ(ierr);
     ierr = TSTrajectoryRestoreUpdatedHistoryVecs(model->trajectory,&W[0],&W[1]);CHKERRQ(ierr);
   } else {
-    ierr = TSComputeIJacobianWithSplits(model,time,NULL,NULL,shift,A,B,ctx);CHKERRQ(ierr);
+    ierr = TSComputeIJacobianWithSplits_Private(model,time,NULL,NULL,shift,A,B,ctx);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -378,9 +378,9 @@ PetscErrorCode TLMTSComputeInitialConditions(TS lts, PetscReal t0, Vec x0)
   }
   if (!tlm->model->G_m) {
     /* For propagator computations, the linear dependence on the initial conditions is attached to the TLMTS if the model TS does not have any set */
-    ierr = TSLinearizedICApply(lts,t0,x0,tlm->design,tlm->mdelta,eta,PETSC_FALSE,PETSC_TRUE);CHKERRQ(ierr);
+    ierr = TSLinearizedICApply_Private(lts,t0,x0,tlm->design,tlm->mdelta,eta,PETSC_FALSE,PETSC_TRUE);CHKERRQ(ierr);
   } else {
-    ierr = TSLinearizedICApply(tlm->model,t0,x0,tlm->design,tlm->mdelta,eta,PETSC_FALSE,PETSC_TRUE);CHKERRQ(ierr);
+    ierr = TSLinearizedICApply_Private(tlm->model,t0,x0,tlm->design,tlm->mdelta,eta,PETSC_FALSE,PETSC_TRUE);CHKERRQ(ierr);
   }
   ierr = VecScale(eta,-1.0);CHKERRQ(ierr);
 
@@ -409,10 +409,10 @@ PetscErrorCode TLMTSComputeInitialConditions(TS lts, PetscReal t0, Vec x0)
    Output Parameters:
 .  lts - the new TS context for the Tangent Linear Model DAE
 
-   Options database keys:
-+     -tlm_userijacobian <0>  - use the user-callback to compute the IJacobian. Defaults to TSComputeIJacobianWithSplits()
-.     -tlm_constjacobians <0> - if the Jacobians are constant
--     -tlm_reuseksp <0>       - if the TLMTS should reuse the same KSP object used to solve the model DAE
+   Options Database Keys:
++  -tlm_userijacobian <0> - use the user-callback to compute the IJacobian. Defaults to TSComputeIJacobianWithSplits_Private()
+.  -tlm_constjacobians <0> - if the Jacobians are constant
+-  -tlm_reuseksp <0> - if the TLMTS should reuse the same KSP object used to solve the model DAE
 
    Notes: Given the parameter dependent DAE in implicit form F(t,x,xdot;m) = 0, with initial conditions expressed in implicit form G(x_0,m) = 0,
           the TLMTS solves the linear DAE F_xdot Y_dot + F_x Y_x + F_m * deltam = 0, with initial conditions taken as Y_0 = -G^-1(x_0,m) G_m deltam,

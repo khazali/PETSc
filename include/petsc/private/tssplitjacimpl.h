@@ -17,6 +17,6 @@ typedef struct {
 PETSC_EXTERN PetscErrorCode TSComputeSplitJacobians(TS,PetscReal,Vec,Vec,Mat,Mat,Mat,Mat);
 PETSC_EXTERN PetscErrorCode TSGetSplitJacobians(TS,Mat*,Mat*,Mat*,Mat*);
 PETSC_INTERN PetscErrorCode TSSplitJacobiansDestroy_Private(void*);
-PETSC_INTERN PetscErrorCode TSUpdateSplitJacobiansFromHistory(TS,PetscReal);
-PETSC_INTERN PetscErrorCode TSComputeIJacobianWithSplits(TS,PetscReal,Vec,Vec,PetscReal,Mat,Mat,void*);
+PETSC_INTERN PetscErrorCode TSUpdateSplitJacobiansFromHistory_Private(TS,PetscReal);
+PETSC_INTERN PetscErrorCode TSComputeIJacobianWithSplits_Private(TS,PetscReal,Vec,Vec,PetscReal,Mat,Mat,void*);
 #endif

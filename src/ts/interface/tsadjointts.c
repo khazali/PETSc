@@ -313,7 +313,7 @@ static PetscErrorCode AdjointTSIFunctionLinear(TS adjts, PetscReal time, Vec U, 
     ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,&FWDH,NULL);CHKERRQ(ierr);
     ierr = DMRestoreGlobalVector(dm,&W);CHKERRQ(ierr);
   }
-  ierr = TSUpdateSplitJacobiansFromHistory(adj_ctx->fwdts,fwdt);CHKERRQ(ierr);
+  ierr = TSUpdateSplitJacobiansFromHistory_Private(adj_ctx->fwdts,fwdt);CHKERRQ(ierr);
   ierr = TSGetSplitJacobians(adj_ctx->fwdts,&J_U,NULL,&J_Udot,NULL);CHKERRQ(ierr);
   if (has) {
     ierr = MatMultTransposeAdd(J_U,U,F,F);CHKERRQ(ierr);
@@ -332,7 +332,7 @@ static PetscErrorCode AdjointTSIJacobian(TS adjts, PetscReal time, Vec U, Vec Ud
   PetscFunctionBegin;
   PetscCheckAdjointTS(adjts);
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
-  ierr = TSComputeIJacobianWithSplits(adj_ctx->fwdts,time,U,Udot,shift,A,B,ctx);CHKERRQ(ierr);
+  ierr = TSComputeIJacobianWithSplits_Private(adj_ctx->fwdts,time,U,Udot,shift,A,B,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -436,9 +436,9 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
    Output Parameters:
 -  adjts - the new TS context for the adjoint DAE
 
-   Options database keys:
-+     -adjoint_constjacobians <0> - if the Jacobians are constant
--     -adjoint_reuseksp <0>       - if the AdjointTS should reuse the same KSP object used to solve the model DAE
+   Options Database Keys:
++  -adjoint_constjacobians <0> - if the Jacobians are constant
+-  -adjoint_reuseksp <0> - if the AdjointTS should reuse the same KSP object used to solve the model DAE
 
    Notes: Given the DAE in implicit form F(t,x,xdot) = 0, the AdjointTS solves the linear DAE F_xdot^T Ldot + (F_x - d/dt F_xdot)^T L + forcing = 0
           Note that the adjoint DAE is solved as the time is not reverted.
@@ -865,7 +865,7 @@ PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, Vec svec, PetscBool a
     } else {
       ierr = KSPGetOperators(kspM,&M,&pM);CHKERRQ(ierr);
     }
-    ierr = TSUpdateSplitJacobiansFromHistory(adj_ctx->fwdts,fwdt);CHKERRQ(ierr);
+    ierr = TSUpdateSplitJacobiansFromHistory_Private(adj_ctx->fwdts,fwdt);CHKERRQ(ierr);
     ierr = TSGetSplitJacobians(adj_ctx->fwdts,&J_U,&pJ_U,&J_Udot,&pJ_Udot);CHKERRQ(ierr);
     ierr = MatGetOwnershipRange(J_Udot,&m,&n);CHKERRQ(ierr);
     if (!diff) {
@@ -1021,7 +1021,7 @@ PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, Vec svec, PetscBool a
         DM        dm;
         Vec       W;
 
-        ierr = TSUpdateSplitJacobiansFromHistory(adj_ctx->fwdts,fwdt);CHKERRQ(ierr);
+        ierr = TSUpdateSplitJacobiansFromHistory_Private(adj_ctx->fwdts,fwdt);CHKERRQ(ierr);
         ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjointinit_ksp",(PetscObject*)&ksp);CHKERRQ(ierr);
         if (!ksp) {
           SNES       snes;
@@ -1389,7 +1389,7 @@ PetscErrorCode AdjointTSFinalizeQuadrature(TS adjts)
     if (!ijacfunc) {
       ierr = VecCopy(lambda,work);CHKERRQ(ierr);
     } else {
-      ierr = TSUpdateSplitJacobiansFromHistory(fwdts,adj_ctx->t0);CHKERRQ(ierr);
+      ierr = TSUpdateSplitJacobiansFromHistory_Private(fwdts,adj_ctx->t0);CHKERRQ(ierr);
       ierr = TSGetSplitJacobians(fwdts,NULL,NULL,&J_Udot,NULL);CHKERRQ(ierr);
       ierr = MatMultTranspose(J_Udot,lambda,work);CHKERRQ(ierr);
     }
@@ -1398,7 +1398,7 @@ PetscErrorCode AdjointTSFinalizeQuadrature(TS adjts)
     }
     if (!adj_ctx->direction) { /* first-order adjoint in gradient computations */
       ierr = TSTrajectoryGetUpdatedHistoryVecs(fwdts->trajectory,fwdts,adj_ctx->t0,&FWDH[0],NULL);CHKERRQ(ierr);
-      ierr = TSLinearizedICApply(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,work,adj_ctx->wquad,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
+      ierr = TSLinearizedICApply_Private(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,work,adj_ctx->wquad,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
       ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,&FWDH[0],NULL);CHKERRQ(ierr);
       ierr = VecAXPY(adj_ctx->quadvec,1.0,adj_ctx->wquad);CHKERRQ(ierr);
     } else { /* second-order adjoint in Hessian computations */
@@ -1421,7 +1421,7 @@ PetscErrorCode AdjointTSFinalizeQuadrature(TS adjts)
         ierr = MatMultTranspose(J_Udot,FOAH,soawork1);CHKERRQ(ierr);
       }
       /* XXX Hack to just solve for G_x (if any) */
-      ierr = TSLinearizedICApply(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,soawork1,soawork0,PETSC_TRUE,PETSC_FALSE);CHKERRQ(ierr);
+      ierr = TSLinearizedICApply_Private(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,soawork1,soawork0,PETSC_TRUE,PETSC_FALSE);CHKERRQ(ierr);
       if (fwdts->HG[0][0]) { /* (\mu^T \otimes I_N) G_XX \eta, \eta the TLM solution */
         ierr = (*fwdts->HG[0][0])(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,soawork0,TLMH,soawork1,fwdts->HGctx);CHKERRQ(ierr);
         ierr = VecAXPY(work,-1.0,soawork1);CHKERRQ(ierr);
@@ -1442,7 +1442,7 @@ PetscErrorCode AdjointTSFinalizeQuadrature(TS adjts)
         ierr = (*fwdts->HF[1][2])(fwdts,adj_ctx->t0,FWDH[0],FWDH[1],adj_ctx->design,FOAH,adj_ctx->direction,soawork1,fwdts->HFctx);CHKERRQ(ierr);
         ierr = VecAXPY(work,1.0,soawork1);CHKERRQ(ierr);
       }
-      ierr = TSLinearizedICApply(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,work,adj_ctx->wquad,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
+      ierr = TSLinearizedICApply_Private(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,work,adj_ctx->wquad,PETSC_TRUE,PETSC_TRUE);CHKERRQ(ierr);
       ierr = VecAXPY(adj_ctx->quadvec,1.0,adj_ctx->wquad);CHKERRQ(ierr);
       if (fwdts->HG[1][1]) { /* (\mu^T \otimes I_M) G_MM direction */
         ierr = (*fwdts->HG[1][1])(fwdts,adj_ctx->t0,FWDH[0],adj_ctx->design,soawork0,adj_ctx->direction,adj_ctx->wquad,fwdts->HGctx);CHKERRQ(ierr);

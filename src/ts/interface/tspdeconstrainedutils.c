@@ -243,7 +243,7 @@ PetscErrorCode TSQuadraturePostStep_Private(TS ts)
    (x0,design) are the variables one needs to linearize against to get the partial Jacobians G_x and G_m
    The case for useGm == PETSC_FALSE is a hack to reuse the same code for the second-order adjoint
 */
-PetscErrorCode TSLinearizedICApply(TS ts, PetscReal t0, Vec x0, Vec design, Vec x, Vec y, PetscBool transpose, PetscBool useGm)
+PetscErrorCode TSLinearizedICApply_Private(TS ts, PetscReal t0, Vec x0, Vec design, Vec x, Vec y, PetscBool transpose, PetscBool useGm)
 {
   PetscErrorCode ierr;
   KSP            ksp = NULL;

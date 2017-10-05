@@ -164,7 +164,7 @@ PetscErrorCode TSGetSplitJacobians(TS ts, Mat* JU, Mat* pJU, Mat *JUdot, Mat* pJ
 }
 
 /* Updates splitJ->J_Udot and splitJ->J_U at a given time */
-PetscErrorCode TSUpdateSplitJacobiansFromHistory(TS ts, PetscReal time)
+PetscErrorCode TSUpdateSplitJacobiansFromHistory_Private(TS ts, PetscReal time)
 {
   PetscContainer   c;
   TSSplitJacobians *splitJ;
@@ -197,7 +197,7 @@ PetscErrorCode TSUpdateSplitJacobiansFromHistory(TS ts, PetscReal time)
 /* This function is used in AdjointTSIJacobian and (optionally) in TLMTSIJacobian.
    The assumption here is that the IJacobian routine is called after the IFunction (called with same time, U and Udot)
    This is why the time, U and Udot arguments are ignored */
-PetscErrorCode TSComputeIJacobianWithSplits(TS ts, PetscReal time, Vec U, Vec Udot, PetscReal shift, Mat A, Mat B, void *ctx)
+PetscErrorCode TSComputeIJacobianWithSplits_Private(TS ts, PetscReal time, Vec U, Vec Udot, PetscReal shift, Mat A, Mat B, void *ctx)
 {
   PetscObjectState Astate;
   PetscObjectId    Aid;
