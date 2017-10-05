@@ -852,7 +852,7 @@ $  f(Vec u,Vec m,PetscReal t,Mat A,void *ctx);
 
    Notes: the functions passed in are appended to a list. More functions can be passed by simply calling TSSetObjective multiple times.
           The functionals are intendended to be used as integrand terms of a time integration (if fixtime == PETSC_MIN_REAL) or as evaluation at a given specific time.
-          Regularizers fall into the latter category: use f_x = NULL, and pass f and f_m with any time in between the interval (t0, tf] (i.e. start and end of the forward solve).
+          Regularizers fall into the latter category: use f_x = NULL, and pass f and f_m with any time in between the interval [t0, tf] (i.e. start and end of the forward solve).
           For f_x, the size of the output vector equals the size of the state vector; for f_m it equals the size of the design vector.
           The hessian matrices do not need to be in assembled form, just the MatMult() action is needed. If f_XM is present, the action of f_MX is obtained by calling MatMultTranspose().
           If any of the second derivative matrices is constant, the associated function pointers can be NULL, with the matrix passed properly setup.

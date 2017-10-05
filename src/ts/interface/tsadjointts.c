@@ -25,7 +25,7 @@ typedef struct {
   PetscReal t0,tf;
 } AdjEvalQuadCtx;
 
-static PetscErrorCode EvalQuadIntegrand_ADJ(TSObj link, Vec L, PetscReal t, Vec F, void* ctx)
+static PetscErrorCode EvalQuadIntegrand_ADJ(Vec L, PetscReal t, Vec F, void* ctx)
 {
   AdjEvalQuadCtx *q = (AdjEvalQuadCtx*)ctx;
   TS             fwdts = q->fwdts;
@@ -408,7 +408,7 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
       ierr = TSGetTime(adjts,&t);CHKERRQ(ierr);
       ierr = PetscContainerGetPointer(container,(void**)&qeval_ctx);CHKERRQ(ierr);
       PetscStackPush("ADJTS vector quadrature function");
-      ierr = (*qeval_ctx->veval)(NULL,lambda,t,qeval_ctx->wquad[qeval_ctx->old],qeval_ctx->veval_ctx);CHKERRQ(ierr);
+      ierr = (*qeval_ctx->veval)(lambda,t,qeval_ctx->wquad[qeval_ctx->old],qeval_ctx->veval_ctx);CHKERRQ(ierr);
       PetscStackPop;
     }
   }
@@ -1089,12 +1089,14 @@ initialize:
         ierr = PetscContainerSetPointer(c,(void *)qeval_ctx);CHKERRQ(ierr);
         ierr = PetscContainerSetUserDestroy(c,TSQuadratureCtxDestroy_Private);CHKERRQ(ierr);
         ierr = PetscObjectCompose((PetscObject)adjts,"_ts_evaluate_quadrature",(PetscObject)c);CHKERRQ(ierr);
+        ierr = PetscObjectCompose((PetscObject)adj_ctx->fwdts,"_ts_evaluate_quadrature",(PetscObject)c);CHKERRQ(ierr);
         ierr = PetscObjectDereference((PetscObject)c);CHKERRQ(ierr);
       } else {
         ierr = PetscObjectCompose((PetscObject)adjts,"_ts_evaluate_quadrature",(PetscObject)c);CHKERRQ(ierr);
       }
     }
     ierr = PetscContainerGetPointer(c,(void**)&qeval_ctx);CHKERRQ(ierr);
+
     qeval_ctx->user      = AdjointTSPostStep;
     qeval_ctx->userafter = PETSC_TRUE;
     qeval_ctx->seval     = NULL;
@@ -1106,7 +1108,6 @@ initialize:
       ierr = VecDuplicateVecs(qeval_ctx->vquad,5,&qeval_ctx->wquad);CHKERRQ(ierr);
     }
 
-    ierr = PetscFree(qeval_ctx->veval_ctx);CHKERRQ(ierr);
     ierr = PetscNew(&adjq);CHKERRQ(ierr);
     adjq->fwdts   = ts;
     adjq->t0      = adj_ctx->t0;
@@ -1117,9 +1118,9 @@ initialize:
     ierr = TSGetTime(adjts,&t0);CHKERRQ(ierr);
     ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
     PetscStackPush("ADJTS vector quadrature function");
-    ierr = (*qeval_ctx->veval)(NULL,lambda,t0,qeval_ctx->wquad[qeval_ctx->old],qeval_ctx->veval_ctx);CHKERRQ(ierr);
+    ierr = (*qeval_ctx->veval)(lambda,t0,qeval_ctx->wquad[qeval_ctx->old],qeval_ctx->veval_ctx);CHKERRQ(ierr);
     PetscStackPop;
-    ierr = TSSetPostStep(adjts,TSQuadrature_PostStep);CHKERRQ(ierr);
+    ierr = TSSetPostStep(adjts,TSQuadraturePostStep_Private);CHKERRQ(ierr); /* XXX */
   }
   PetscFunctionReturn(0);
 }
@@ -1458,6 +1459,13 @@ PetscErrorCode AdjointTSFinalizeQuadrature(TS adjts)
       ierr = DMRestoreGlobalVector(dm,&soawork1);CHKERRQ(ierr);
     }
     ierr = DMRestoreGlobalVector(adm,&work);CHKERRQ(ierr);
+  }
+  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_evaluate_quadrature",(PetscObject*)&c);CHKERRQ(ierr);
+  if (c) {
+    TSQuadratureCtx *qeval_ctx;
+
+    ierr = PetscContainerGetPointer(c,(void**)&qeval_ctx);CHKERRQ(ierr);
+    ierr = PetscFree(qeval_ctx->veval_ctx);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
