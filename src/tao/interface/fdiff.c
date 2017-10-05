@@ -50,7 +50,7 @@ static PetscErrorCode Fsnes(SNES snes,Vec X,Vec G,void* ctx)
 PetscErrorCode TaoDefaultComputeGradient(Tao tao,Vec Xin,Vec G,void *dummy)
 {
   Vec            X;
-  PetscScalar    *x,*g;
+  PetscScalar    *g;
   PetscReal      f, f2;
   PetscErrorCode ierr;
   PetscInt       low,high,N,i;
@@ -63,29 +63,20 @@ PetscErrorCode TaoDefaultComputeGradient(Tao tao,Vec Xin,Vec G,void *dummy)
   ierr = VecCopy(Xin,X);CHKERRQ(ierr);
   ierr = VecGetSize(X,&N);CHKERRQ(ierr);
   ierr = VecGetOwnershipRange(X,&low,&high);CHKERRQ(ierr);
+  ierr = VecSetOption(X,VEC_IGNORE_OFF_PROC_ENTRIES,PETSC_TRUE);CHKERRQ(ierr);
   ierr = VecGetArray(G,&g);CHKERRQ(ierr);
   for (i=0;i<N;i++) {
-    if (i>=low && i<high) {
-      ierr = VecGetArray(X,&x);CHKERRQ(ierr);
-      x[i-low] -= h;
-      ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
-    }
-
+    ierr = VecSetValue(X,i,-h,ADD_VALUES);CHKERRQ(ierr);
+    ierr = VecAssemblyBegin(X);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(X);CHKERRQ(ierr);
     ierr = TaoComputeObjective(tao,X,&f);CHKERRQ(ierr);
-
-    if (i>=low && i<high) {
-      ierr = VecGetArray(X,&x);CHKERRQ(ierr);
-      x[i-low] += 2*h;
-      ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
-    }
-
+    ierr = VecSetValue(X,i,2.0*h,ADD_VALUES);CHKERRQ(ierr);
+    ierr = VecAssemblyBegin(X);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(X);CHKERRQ(ierr);
     ierr = TaoComputeObjective(tao,X,&f2);CHKERRQ(ierr);
-
-    if (i>=low && i<high) {
-      ierr = VecGetArray(X,&x);CHKERRQ(ierr);
-      x[i-low] -= h;
-      ierr = VecRestoreArray(X,&x);CHKERRQ(ierr);
-    }
+    ierr = VecSetValue(X,i,-h,ADD_VALUES);CHKERRQ(ierr);
+    ierr = VecAssemblyBegin(X);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(X);CHKERRQ(ierr);
     if (i>=low && i<high) {
       g[i-low]=(f2-f)/(2.0*h);
     }
