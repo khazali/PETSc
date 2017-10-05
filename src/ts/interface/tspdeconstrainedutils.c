@@ -67,6 +67,9 @@ static PetscErrorCode EvalQuadIntegrandFixed_FWD(Vec U, PetscReal t, Vec F, void
 
   PetscFunctionBegin;
   ierr = TSObjEvalFixed_M(evalctx->obj,U,evalctx->design,t,evalctx->work,&has_m,F);CHKERRQ(ierr);
+  if (!has_m) { /* can be called with a non-matching time */
+    ierr = VecSet(F,0);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -159,7 +162,9 @@ static PetscErrorCode EvalQuadIntegrandFixed_TLM(Vec U, PetscReal t, Vec F, void
   ierr = TSObjEvalFixed_MU(fwdts->funchead,FWDH,q->design,t,U,q->work1,&has,F);CHKERRQ(ierr);
   if (!has) {
     ierr = TSObjEvalFixed_MM(fwdts->funchead,FWDH,q->design,t,q->direction,q->work1,&has,F);CHKERRQ(ierr);
-    if (!has) SETERRQ(PetscObjectComm((PetscObject)fwdts),PETSC_ERR_PLIB,"Point-form functionals not present");
+    if (!has) { /* can be called with a non-matching time */
+      ierr = VecSet(F,0);CHKERRQ(ierr);
+    }
   } else {
     ierr = TSObjEvalFixed_MM(fwdts->funchead,FWDH,q->design,t,q->direction,q->work1,&has,q->work2);CHKERRQ(ierr);
     if (has) {
@@ -331,7 +336,7 @@ PetscErrorCode TSSolveWithQuadrature_Private(TS ts, Vec X, Vec design, Vec direc
   PetscContainer  container;
   TSQuadratureCtx *qeval_ctx;
   PetscReal       t0,tf,tfup,dt;
-  PetscBool       fidt;
+  PetscBool       fidt,stop;
   SQuadEval       seval_fixed, seval;
   VQuadEval       veval_fixed, veval;
   FWDEvalQuadCtx  qfwd;
@@ -502,8 +507,10 @@ PetscErrorCode TSSolveWithQuadrature_Private(TS ts, Vec X, Vec design, Vec direc
   /* determine if there are functionals, gradients or Hessians wrt parameters of the type f(U,M,t=fixed) to be evaluated */
   /* we don't use events since there's no API to add new events to a pre-existing set */
   tfup = tf;
+  stop = PETSC_FALSE;
   do {
     PetscBool has_f = PETSC_FALSE, has_m = PETSC_FALSE;
+    PetscReal tt;
 
     ierr = TSGetTime(ts,&t0);CHKERRQ(ierr);
     if (seval_fixed || veval_fixed) {
@@ -517,7 +524,11 @@ PetscErrorCode TSSolveWithQuadrature_Private(TS ts, Vec X, Vec design, Vec direc
       }
     }
     ierr = TSSetMaxTime(ts,tfup);CHKERRQ(ierr);
+    tt   = tfup;
     ierr = TSSolve(ts,NULL);CHKERRQ(ierr);
+    /* determine if TS stopped before max time requested */
+    ierr = TSGetTime(ts,&tfup);CHKERRQ(ierr);
+    stop = (PetscAbsReal(tt-tfup) < PETSC_SMALL) ? PETSC_FALSE : PETSC_TRUE;
     if (has_f) {
       Vec       sol;
       PetscReal v;
@@ -540,7 +551,7 @@ PetscErrorCode TSSolveWithQuadrature_Private(TS ts, Vec X, Vec design, Vec direc
     if (fidt) { /* restore fixed time step */
       ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
     }
-  } while (tfup < tf);
+  } while (PetscAbsReal(tfup - tf) > PETSC_SMALL && !stop);
 
   if (direction) ts->funchead = NULL;
 

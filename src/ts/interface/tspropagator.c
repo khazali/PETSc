@@ -256,6 +256,8 @@ static PetscErrorCode TSCreatePropagatorMat_Private(TS ts, PetscReal t0, PetscRe
   ierr = VecLockPush(prop->x0);CHKERRQ(ierr);     /* this vector is locked since it stores the initial conditions */
   ierr = MatPropagatorUpdate_Propagator(*A,t0,dt,tf,x0);CHKERRQ(ierr);
   ierr = MatSetUp(*A);CHKERRQ(ierr);
+  /* model sampling can terminate before tf due to events */
+  ierr = TSGetTime(prop->model,&prop->tf);CHKERRQ(ierr);
 
   /* creates the tangent linear model solver and its adjoint */
   ierr = TSCreateTLMTS(prop->model,&prop->lts);CHKERRQ(ierr);

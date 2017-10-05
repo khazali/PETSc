@@ -290,11 +290,10 @@ static PetscErrorCode TSComputeHessian_Private(TS ts, PetscReal t0, PetscReal dt
     ierr = TSSetOptionsPrefix(tshess->foats,"hessian_fo");CHKERRQ(ierr);
     ierr = TSAppendOptionsPrefix(tshess->foats,prefix_cp);CHKERRQ(ierr);
     ierr = PetscFree(prefix_cp);CHKERRQ(ierr);
-    ierr = AdjointTSSetTimeLimits(tshess->foats,t0,tf);CHKERRQ(ierr);
+    ierr = AdjointTSSetTimeLimits(tshess->foats,tshess->t0,tshess->tf);CHKERRQ(ierr);
     ierr = AdjointTSEventHandler(tshess->foats);CHKERRQ(ierr);
     ierr = TSSetFromOptions(tshess->foats);CHKERRQ(ierr);
   }
-  ierr = AdjointTSSetTimeLimits(tshess->foats,t0,tf);CHKERRQ(ierr);
   ierr = AdjointTSSetDesignVec(tshess->foats,design);CHKERRQ(ierr);
   ierr = AdjointTSSetQuadratureVec(tshess->foats,NULL);CHKERRQ(ierr);
 
@@ -309,7 +308,7 @@ static PetscErrorCode TSComputeHessian_Private(TS ts, PetscReal t0, PetscReal dt
     ierr = TSSetOptionsPrefix(tshess->soats,"hessian_so");CHKERRQ(ierr);
     ierr = TSAppendOptionsPrefix(tshess->soats,prefix_cp);CHKERRQ(ierr);
     ierr = PetscFree(prefix_cp);CHKERRQ(ierr);
-    ierr = AdjointTSSetTimeLimits(tshess->soats,t0,tf);CHKERRQ(ierr);
+    ierr = AdjointTSSetTimeLimits(tshess->soats,tshess->t0,tshess->tf);CHKERRQ(ierr);
     ierr = AdjointTSEventHandler(tshess->soats);CHKERRQ(ierr);
     ierr = TSSetFromOptions(tshess->soats);CHKERRQ(ierr);
   }
@@ -343,6 +342,9 @@ static PetscErrorCode TSComputeHessian_Private(TS ts, PetscReal t0, PetscReal dt
   ierr = TSTrajectoryDestroy(&tshess->modeltj);CHKERRQ(ierr);
   tshess->modeltj = ts->trajectory;
 
+  /* model sampling can terminate before tf due to events */
+  ierr = TSGetTime(ts,&tshess->tf);CHKERRQ(ierr);
+
   /* sample first-order adjoint */
   ierr = TSTrajectoryDestroy(&tshess->foats->trajectory);CHKERRQ(ierr); /* XXX add Reset method to TSTrajectory */
   ierr = TSTrajectoryCreate(PetscObjectComm((PetscObject)tshess->foats),&tshess->foats->trajectory);CHKERRQ(ierr);
@@ -354,6 +356,7 @@ static PetscErrorCode TSComputeHessian_Private(TS ts, PetscReal t0, PetscReal dt
   ierr = TSRestartStep(tshess->foats);CHKERRQ(ierr);
   ierr = TSHistoryGetTimeStep(tshess->modeltj->tsh,PETSC_TRUE,0,&dt);CHKERRQ(ierr);
   ierr = TSSetTimeStep(tshess->foats,dt);CHKERRQ(ierr);
+  ierr = AdjointTSSetTimeLimits(tshess->foats,tshess->t0,tshess->tf);CHKERRQ(ierr);
   ierr = AdjointTSComputeInitialConditions(tshess->foats,NULL,PETSC_TRUE,PETSC_FALSE);CHKERRQ(ierr);
   ierr = TSSolve(tshess->foats,NULL);CHKERRQ(ierr);
 
