@@ -212,6 +212,70 @@ static PetscErrorCode TSComputeObjectiveAndGradient_Private(TS ts, Vec X, Vec de
   PetscFunctionReturn(0);
 }
 
+typedef struct {
+  TS        ts;
+  PetscReal t0,dt,tf;
+  Vec       X;
+} TSHessian_MFFD;
+
+static PetscErrorCode TSHessianMFFDDestroy_Private(void *ptr)
+{
+  TSHessian_MFFD *mffd = (TSHessian_MFFD*)ptr;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = TSDestroy(&mffd->ts);CHKERRQ(ierr);
+  ierr = VecDestroy(&mffd->X);CHKERRQ(ierr);
+  ierr = PetscFree(ptr);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode TSComputeHessianMFFD_Private(void* ctx, Vec P, Vec G)
+{
+  TSHessian_MFFD *mffd = (TSHessian_MFFD*)ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = TSSetUpFromDesign(mffd->ts,mffd->X,P);CHKERRQ(ierr);
+  ierr = TSComputeObjectiveAndGradient(mffd->ts,mffd->t0,mffd->dt,mffd->tf,mffd->X,P,G,NULL);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode TSComputeHessian_MFFD(TS ts, PetscReal t0, PetscReal dt, PetscReal tf, Vec X, Vec design, Mat H)
+{
+  PetscContainer c;
+  TSHessian_MFFD *mffd;
+  PetscInt       n,N;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscNew(&mffd);CHKERRQ(ierr);
+  ierr = PetscContainerCreate(PetscObjectComm((PetscObject)ts),&c);CHKERRQ(ierr);
+  ierr = PetscContainerSetPointer(c,mffd);CHKERRQ(ierr);
+  ierr = PetscContainerSetUserDestroy(c,TSHessianMFFDDestroy_Private);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject)H,"_ts_hessianmffd_ctx",(PetscObject)c);CHKERRQ(ierr);
+  ierr = PetscContainerDestroy(&c);CHKERRQ(ierr);
+  ierr = PetscObjectReference((PetscObject)ts);CHKERRQ(ierr);
+  mffd->ts = ts;
+  mffd->t0 = t0;
+  mffd->dt = dt;
+  mffd->tf = tf;
+  if (X) {
+    ierr = PetscObjectReference((PetscObject)X);CHKERRQ(ierr);
+    mffd->X = X;
+  }
+  ierr = VecGetLocalSize(design,&n);CHKERRQ(ierr);
+  ierr = VecGetSize(design,&N);CHKERRQ(ierr);
+  ierr = MatSetSizes(H,n,n,N,N);CHKERRQ(ierr);
+  ierr = MatSetType(H,MATMFFD);CHKERRQ(ierr);
+  ierr = MatSetUp(H);CHKERRQ(ierr);
+  ierr = MatMFFDSetBase(H,design,NULL);CHKERRQ(ierr);
+  ierr = MatMFFDSetFunction(H,(PetscErrorCode (*)(void*,Vec,Vec))TSComputeHessianMFFD_Private,mffd);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(H,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(H,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 static PetscErrorCode TSComputeHessian_Private(TS ts, PetscReal t0, PetscReal dt, PetscReal tf, Vec X, Vec design, Mat H)
 {
   PetscContainer c;
@@ -219,9 +283,12 @@ static PetscErrorCode TSComputeHessian_Private(TS ts, PetscReal t0, PetscReal dt
   Vec            U;
   TSTrajectory   otrj;
   PetscInt       n,N;
+  PetscBool      has;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ierr = TSHasObjectiveFixed(ts,t0,tf-PETSC_SMALL,NULL,&has,NULL,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+  if (has) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,"Point-form functionals in between the simulations are not supported! Use -tshessian_mffd");
   ierr = PetscObjectQuery((PetscObject)H,"_ts_hessian_ctx",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) {
     ierr = PetscNew(&tshess);CHKERRQ(ierr);
@@ -690,6 +757,9 @@ PetscErrorCode TSComputeObjectiveAndGradient(TS ts, PetscReal t0, PetscReal dt, 
    Output Parameters:
 .  H - the Hessian matrix
 
+   Options Database Keys:
+.  -tshessian_mffd <false>  activates Matrix-Free Finite Differencing of gradient code
+
    Notes: The Hessian matrix is not computed explictly; the only operation implemented for H is MatMult().
           The dt argument is ignored when smaller or equal to zero. If X is NULL, the initial state is given by the current TS solution vector.
 
@@ -699,6 +769,7 @@ PetscErrorCode TSComputeObjectiveAndGradient(TS ts, PetscReal t0, PetscReal dt, 
 @*/
 PetscErrorCode TSComputeHessian(TS ts, PetscReal t0, PetscReal dt, PetscReal tf, Vec X, Vec design, Mat H)
 {
+  PetscBool      mffd;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -714,6 +785,12 @@ PetscErrorCode TSComputeHessian(TS ts, PetscReal t0, PetscReal dt, PetscReal tf,
   PetscCheckSameComm(ts,1,design,6);
   PetscValidHeaderSpecific(H,MAT_CLASSID,7);
   PetscCheckSameComm(ts,1,H,7);
-  ierr = TSComputeHessian_Private(ts,t0,dt,tf,X,design,H);CHKERRQ(ierr);
+  mffd = PETSC_FALSE;
+  ierr = PetscOptionsGetBool(((PetscObject)ts)->options,((PetscObject)ts)->prefix,"-tshessian_mffd",&mffd,NULL);CHKERRQ(ierr);
+  if (mffd) {
+    ierr = TSComputeHessian_MFFD(ts,t0,dt,tf,X,design,H);CHKERRQ(ierr);
+  } else {
+    ierr = TSComputeHessian_Private(ts,t0,dt,tf,X,design,H);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
