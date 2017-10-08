@@ -507,7 +507,6 @@ PetscErrorCode TSSolveWithQuadrature_Private(TS ts, Vec X, Vec design, Vec direc
   /* determine if there are functionals, gradients or Hessians wrt parameters of the type f(U,M,t=fixed) to be evaluated */
   /* we don't use events since there's no API to add new events to a pre-existing set */
   tfup = tf;
-  stop = PETSC_FALSE;
   do {
     PetscBool has_f = PETSC_FALSE, has_m = PETSC_FALSE;
     PetscReal tt;
