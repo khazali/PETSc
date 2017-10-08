@@ -1,11 +1,11 @@
-Objective function: time [-0.3,0.5], val 9.47226
+Objective function: time [-0.3,0.5], val 12.6925
 Vec Object: 5 MPI processes
   type: mpi
 Process [0]
-4.39735
+8.99126
 Process [1]
--14.2602
+-11.0851
 Process [2]
--34.2468
+-31.75
 Process [3]
 Process [4]

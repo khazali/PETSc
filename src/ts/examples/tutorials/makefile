@@ -750,12 +750,12 @@ runex23_5:
 	   ${RM} -rf ex23_5.tmp SA-data
 
 runex23_6:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 0.01 -tf 0.8 -b 0.3 -a 1.7 -p 1 -ts_type rk -ts_adapt_type basic -ts_atol 1.e-8 -ts_rtol 1.e-8 -test_event_func -ts_trajectory_reconstruction_order 4 > ex23_6.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 0.01 -tf 0.8 -b 0.3 -a 1.7 -p 1 -ts_type rk -ts_adapt_type basic -ts_atol 1.e-8 -ts_rtol 1.e-8 -test_event_func -ts_trajectory_reconstruction_order 4 -tshessian_mffd > ex23_6.tmp 2>&1; \
 	   ${DIFF} output/ex23_6.out ex23_6.tmp || printf "${PWD}\nPossible problem with ex23_6, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_6.tmp SA-data
 
 runex23_7:
-	-@${MPIEXEC} -n 1 ./ex23 -t0 0 -tf 0.125 -dt 0.001 -b 0.3 -a 1.7 -p 1 -ts_type rosw -test_ifunc -test_event_func -ts_adapt_type none > ex23_7.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex23 -t0 0 -tf 0.125 -dt 0.001 -b 0.3 -a 1.7 -p 1 -ts_type rosw -test_ifunc -test_event_func -ts_adapt_type none -tshessian_mffd > ex23_7.tmp 2>&1; \
 	   ${DIFF} output/ex23_7.out ex23_7.tmp || printf "${PWD}\nPossible problem with ex23_7, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_7.tmp SA-data
 
@@ -765,14 +765,19 @@ runex23_8:
 	   ${RM} -rf ex23_8.tmp SA-data
 
 runex23_9:
-	-@${MPIEXEC} -n 5 ./ex23 -t0 -0.3 -tf 0.5 -b 1.2 -a 2.1 -p 0.3 -ts_type rk -test_general_fixed -test_general_final -test_general -test_event_func -test_event_constant -test_event_final -ts_rtol 1.e-6 -ts_atol 1.e-6 > ex23_9.tmp 2>&1; \
+	-@${MPIEXEC} -n 5 ./ex23 -t0 -0.3 -tf 0.5 -b 1.2 -a 2.1 -p 0.3 -ts_type rk -test_general_fixed -test_general_final -test_general -test_event_func -test_event_constant -test_event_final -ts_rtol 1.e-6 -ts_atol 1.e-6 -tshessian_mffd > ex23_9.tmp 2>&1; \
 	   ${DIFF} output/ex23_9.out ex23_9.tmp || printf "${PWD}\nPossible problem with ex23_9, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_9.tmp SA-data
 
 runex23_10:
-	-@${MPIEXEC} -n 5 ./ex23 -t0 -0.3 -tf 0.5 -b 1.2 -a 2.1 -p 0.3 -ts_type bdf -test_general_fixed -test_general_final -test_general -test_event_func -test_event_constant -test_event_final -ts_rtol 1.e-6 -ts_atol 1.e-6 > ex23_10.tmp 2>&1; \
+	-@${MPIEXEC} -n 5 ./ex23 -t0 -0.3 -tf 0.5 -b 1.2 -a 2.1 -p 0.3 -ts_type bdf -test_general_fixed -test_general_final -test_general -test_event_func -test_event_constant -test_event_final -ts_rtol 1.e-6 -ts_atol 1.e-6 -tshessian_mffd > ex23_10.tmp 2>&1; \
 	   ${DIFF} output/ex23_10.out ex23_10.tmp || printf "${PWD}\nPossible problem with ex23_10, diffs above\n=========================================\n";  \
 	   ${RM} -rf ex23_10.tmp SA-data
+
+runex23_11:
+	-@${MPIEXEC} ./ex23 -t0 0.41 -tf 0.47 -b 0.3 -a 1.25 -p 2.3 -ts_type rk -test_general_final -test_general -test_event_constant -test_event_final -ts_rtol 1.e-10 -ts_atol 1.e-10 -ts_trajectory_type memory -test_forward_event > ex23_11.tmp 2>&1; \
+	   ${DIFF} output/ex23_11.out ex23_11.tmp || printf "${PWD}\nPossible problem with ex23_11, diffs above\n=========================================\n";  \
+	   ${RM} -rf ex23_11.tmp
 
 runex24:                        # This is not in the nightlies because the convergence details are numerically sensitive
 	-@${MPIEXEC} -n 1 ./ex24 -pc_type lu -ts_dt 1e-5 -ts_final_time 1e5 -n 50 -monitor_short > ex24_1.tmp 2>&1; \
