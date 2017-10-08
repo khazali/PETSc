@@ -75,7 +75,7 @@ PetscErrorCode TSAdaptHistorySetTSHistory(TSAdapt adapt, TSHistory hist, PetscBo
 .  hist     - the time history
 -  backward - if the time history has to be followed backward
 
-   Notes: The time history is internally copied, and the user can free the hist array.
+   Notes: The time history is internally copied, and the user can free the hist array. The user still needs to specify the termination of the solve via TSSetMaxSteps().
 
    Level: advanced
 
@@ -108,7 +108,7 @@ PetscErrorCode TSAdaptHistorySetHistory(TSAdapt adapt, PetscInt n, PetscReal his
 
    Level: developer
 
-.seealso: TS, TSAdapt, TSGetAdapt()
+.seealso: TS, TSAdapt, TSGetAdapt(), TSAdaptHistorySetHistory()
 M*/
 PETSC_EXTERN PetscErrorCode TSAdaptCreate_History(TSAdapt adapt)
 {
