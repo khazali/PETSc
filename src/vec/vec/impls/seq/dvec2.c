@@ -6,7 +6,12 @@
 #include <../src/vec/vec/impls/dvecimpl.h>
 #include <petsc/private/kernels/petscaxpy.h>
 
-
+#if defined(PETSC_HAVE_IMMINTRIN_H)
+#include <immintrin.h>
+#if !defined(_MM_SCALE_8)
+#define _MM_SCALE_8    8
+#endif
+#endif
 
 #if defined(PETSC_USE_FORTRAN_KERNEL_MDOT)
 #include <../src/vec/vec/impls/seq/ftn-kernels/fmdot.h>
@@ -90,6 +95,635 @@ PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
   PetscFunctionReturn(0);
 }
 
+#else
+#if defined(PETSC_HAVE_IMMINTRIN_H) && defined(__AVX512F__) && defined(PETSC_USE_REAL_DOUBLE) && !defined(PETSC_USE_COMPLEX) && !defined(PETSC_USE_64BIT_INDICES)
+/*
+PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
+{
+  PetscInt          n = xin->map->n,i,j;
+  PetscScalar       sum;
+  const PetscScalar *y,*x,*xbase;
+  Vec               *yy;
+  __m512d           vec_x,vec_y,vec_z;
+  __mmask8          mask;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBegin;
+  if ((n&0x07)>2) mask   = (__mmask8)(0xff >> (8-(n&0x07)));
+
+  yy   = (Vec*)yin;
+  ierr = VecGetArrayRead(xin,&xbase);CHKERRQ(ierr);
+  x    = xbase;
+  for (i=0; i<nv; i++) {
+    sum   = 0.;
+    vec_z = _mm512_setzero_pd();
+    ierr  = VecGetArrayRead(*yy,&y);CHKERRQ(ierr);
+    x = xbase;
+    for (j=0;j<((n>>3)<<3);j+=8) {
+      vec_x = _mm512_load_pd(x);
+      vec_y = _mm512_load_pd(y);
+      vec_z = _mm512_fmadd_pd(vec_x,vec_y,vec_z);
+      x += 8; y += 8;
+    }
+    if ((n&0x07)>2) {
+      vec_x = _mm512_load_pd(x);
+      vec_y = _mm512_load_pd(y);
+      vec_z = _mm512_mask3_fmadd_pd(vec_x,vec_y,vec_z,mask);
+    } else if ((n&0x07)==2) {
+      sum += x[0]*y[0];
+      sum += x[1]*y[1];
+    } else if ((n&0x07)==1) {
+      sum += x[0]*y[0];
+    }
+    if (n>2) {
+      sum += _mm512_reduce_add_pd(vec_z);
+    }
+    z[i] = sum;
+    ierr = VecRestoreArrayRead(*yy,&y);CHKERRQ(ierr);
+    yy++;
+  }
+  ierr = VecRestoreArrayRead(xin,&xbase);CHKERRQ(ierr);
+  ierr = PetscLogFlops(PetscMax(nv*(2.0*xin->map->n-1),0.0));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+*/
+PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
+{
+  PetscErrorCode    ierr;
+  PetscInt          n = xin->map->n,i,j,nv_rem;
+  PetscScalar       sum0,sum1,sum2,sum3;
+  const PetscScalar *yy0,*yy1,*yy2,*yy3,*x,*xbase;
+  Vec               *yy;
+  __m512d           vec_x,vec_y0,vec_y1,vec_y2,vec_y3,vec_z0,vec_z1,vec_z2,vec_z3;
+  PetscScalar       sum4,sum5,sum6,sum7;
+  const PetscScalar *yy4,*yy5,*yy6,*yy7;
+  __m512d           vec_y4,vec_y5,vec_y6,vec_y7,vec_z4,vec_z5,vec_z6,vec_z7;
+  __mmask8          mask;
+
+  PetscFunctionBegin;
+  ZERO_SUM_REP_7;
+  ZERO_VECZ_REP_7;
+  sum0 = 0.;
+  sum1 = 0.;
+  sum2 = 0.;
+  sum3 = 0.;
+  sum4 = 0.;
+  sum5 = 0.;
+  sum6 = 0.;
+  vec_z0 = _mm512_setzero_pd();
+  vec_z1 = _mm512_setzero_pd();
+  vec_z2 = _mm512_setzero_pd();
+  vec_z3 = _mm512_setzero_pd();
+  vec_z4 = _mm512_setzero_pd();
+  vec_z5 = _mm512_setzero_pd();
+  vec_z6 = _mm512_setzero_pd();
+  i      = nv;
+  nv_rem = nv&0x7;
+  yy     = (Vec*)yin;
+  ierr   = VecGetArrayRead(xin,&xbase);CHKERRQ(ierr);
+  x      = xbase;
+
+  switch (nv_rem) {
+  case 7:
+    ierr = VecGetArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[2],&yy2);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[3],&yy3);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[4],&yy4);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[5],&yy5);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[6],&yy6);CHKERRQ(ierr);
+    for (j=0;j<((n>>3)<<3);j+=8) {
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_y1 = _mm512_load_pd(yy1);
+      vec_y2 = _mm512_load_pd(yy2);
+      vec_y3 = _mm512_load_pd(yy3);
+      vec_y4 = _mm512_load_pd(yy4);
+      vec_y5 = _mm512_load_pd(yy5);
+      vec_y6 = _mm512_load_pd(yy6);
+      vec_z0 = _mm512_fmadd_pd(vec_x,vec_y0,vec_z0);
+      vec_z1 = _mm512_fmadd_pd(vec_x,vec_y1,vec_z1);
+      vec_z2 = _mm512_fmadd_pd(vec_x,vec_y2,vec_z2);
+      vec_z3 = _mm512_fmadd_pd(vec_x,vec_y3,vec_z3);
+      vec_z4 = _mm512_fmadd_pd(vec_x,vec_y4,vec_z4);
+      vec_z5 = _mm512_fmadd_pd(vec_x,vec_y5,vec_z5);
+      vec_z6 = _mm512_fmadd_pd(vec_x,vec_y6,vec_z6);
+      x += 8; yy0 += 8; yy1 += 8; yy2 += 8; yy3 += 8; yy4 += 8; yy5 += 8; yy6 += 8;
+    }
+    if ((n&0x07)>2) {
+      mask   = (__mmask8)(0xff >> (8-(n&0x07)));
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_y1 = _mm512_load_pd(yy1);
+      vec_y2 = _mm512_load_pd(yy2);
+      vec_y3 = _mm512_load_pd(yy3);
+      vec_y4 = _mm512_load_pd(yy4);
+      vec_y5 = _mm512_load_pd(yy5);
+      vec_y6 = _mm512_load_pd(yy6);
+      vec_z0 = _mm512_mask3_fmadd_pd(vec_x,vec_y0,vec_z0,mask);
+      vec_z1 = _mm512_mask3_fmadd_pd(vec_x,vec_y1,vec_z1,mask);
+      vec_z2 = _mm512_mask3_fmadd_pd(vec_x,vec_y2,vec_z2,mask);
+      vec_z3 = _mm512_mask3_fmadd_pd(vec_x,vec_y3,vec_z3,mask);
+      vec_z4 = _mm512_mask3_fmadd_pd(vec_x,vec_y4,vec_z4,mask);
+      vec_z5 = _mm512_mask3_fmadd_pd(vec_x,vec_y5,vec_z5,mask);
+      vec_z6 = _mm512_mask3_fmadd_pd(vec_x,vec_y6,vec_z6,mask);
+    } else if ((n&0x07)==2) {
+      sum0 += x[0]*yy0[0];
+      sum1 += x[0]*yy1[0];
+      sum2 += x[0]*yy2[0];
+      sum3 += x[0]*yy3[0];
+      sum4 += x[0]*yy4[0];
+      sum5 += x[0]*yy5[0];
+      sum6 += x[0]*yy6[0];
+      sum0 += x[1]*yy0[1];
+      sum1 += x[1]*yy1[1];
+      sum2 += x[1]*yy2[1];
+      sum3 += x[1]*yy3[1];
+      sum4 += x[1]*yy4[1];
+      sum5 += x[1]*yy5[1];
+      sum6 += x[1]*yy6[1];
+    } else if ((n&0x07)==1) {
+      sum0 += x[0]*yy0[0];
+      sum1 += x[0]*yy1[0];
+      sum2 += x[0]*yy2[0];
+      sum3 += x[0]*yy3[0];
+      sum4 += x[0]*yy4[0];
+      sum5 += x[0]*yy5[0];
+      sum6 += x[0]*yy6[0];
+    }
+    if (n>2) {
+      sum0 += _mm512_reduce_add_pd(vec_z0);
+      sum1 += _mm512_reduce_add_pd(vec_z1);
+      sum2 += _mm512_reduce_add_pd(vec_z2);
+      sum3 += _mm512_reduce_add_pd(vec_z3);
+      sum4 += _mm512_reduce_add_pd(vec_z4);
+      sum5 += _mm512_reduce_add_pd(vec_z5);
+      sum6 += _mm512_reduce_add_pd(vec_z6);
+    }
+    z[0] = sum0;
+    z[1] = sum1;
+    z[2] = sum2;
+    z[3] = sum3;
+    z[4] = sum4;
+    z[5] = sum5;
+    z[6] = sum6;
+    ierr = VecRestoreArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[2],&yy2);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[3],&yy3);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[4],&yy4);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[5],&yy5);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[6],&yy6);CHKERRQ(ierr);
+    break;
+  case 6:
+    ierr = VecGetArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[2],&yy2);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[3],&yy3);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[4],&yy4);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[5],&yy5);CHKERRQ(ierr);
+    for (j=0;j<((n>>3)<<3);j+=8) {
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_y1 = _mm512_load_pd(yy1);
+      vec_y2 = _mm512_load_pd(yy2);
+      vec_y3 = _mm512_load_pd(yy3);
+      vec_y4 = _mm512_load_pd(yy4);
+      vec_y5 = _mm512_load_pd(yy5);
+      vec_z0 = _mm512_fmadd_pd(vec_x,vec_y0,vec_z0);
+      vec_z1 = _mm512_fmadd_pd(vec_x,vec_y1,vec_z1);
+      vec_z2 = _mm512_fmadd_pd(vec_x,vec_y2,vec_z2);
+      vec_z3 = _mm512_fmadd_pd(vec_x,vec_y3,vec_z3);
+      vec_z4 = _mm512_fmadd_pd(vec_x,vec_y4,vec_z4);
+      vec_z5 = _mm512_fmadd_pd(vec_x,vec_y5,vec_z5);
+      x += 8; yy0 += 8; yy1 += 8; yy2 += 8; yy3 += 8; yy4 += 8; yy5 += 8;
+    }
+    if ((n&0x07)>2) {
+      mask   = (__mmask8)(0xff >> (8-(n&0x07)));
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_y1 = _mm512_load_pd(yy1);
+      vec_y2 = _mm512_load_pd(yy2);
+      vec_y3 = _mm512_load_pd(yy3);
+      vec_y4 = _mm512_load_pd(yy4);
+      vec_y5 = _mm512_load_pd(yy5);
+      vec_z0 = _mm512_mask3_fmadd_pd(vec_x,vec_y0,vec_z0,mask);
+      vec_z1 = _mm512_mask3_fmadd_pd(vec_x,vec_y1,vec_z1,mask);
+      vec_z2 = _mm512_mask3_fmadd_pd(vec_x,vec_y2,vec_z2,mask);
+      vec_z3 = _mm512_mask3_fmadd_pd(vec_x,vec_y3,vec_z3,mask);
+      vec_z4 = _mm512_mask3_fmadd_pd(vec_x,vec_y4,vec_z4,mask);
+      vec_z5 = _mm512_mask3_fmadd_pd(vec_x,vec_y5,vec_z5,mask);
+    } else if ((n&0x07)==2) {
+      sum0 += x[0]*yy0[0];
+      sum1 += x[0]*yy1[0];
+      sum2 += x[0]*yy2[0];
+      sum3 += x[0]*yy3[0];
+      sum4 += x[0]*yy4[0];
+      sum5 += x[0]*yy5[0];
+      sum0 += x[1]*yy0[1];
+      sum1 += x[1]*yy1[1];
+      sum2 += x[1]*yy2[1];
+      sum3 += x[1]*yy3[1];
+      sum4 += x[1]*yy4[1];
+      sum5 += x[1]*yy5[1];
+    } else if ((n&0x07)==1) {
+      sum0 += x[0]*yy0[0];
+      sum1 += x[0]*yy1[0];
+      sum2 += x[0]*yy2[0];
+      sum3 += x[0]*yy3[0];
+      sum4 += x[0]*yy4[0];
+      sum5 += x[0]*yy5[0];
+    }
+    if (n>2) {
+      sum0 += _mm512_reduce_add_pd(vec_z0);
+      sum1 += _mm512_reduce_add_pd(vec_z1);
+      sum2 += _mm512_reduce_add_pd(vec_z2);
+      sum3 += _mm512_reduce_add_pd(vec_z3);
+      sum4 += _mm512_reduce_add_pd(vec_z4);
+      sum5 += _mm512_reduce_add_pd(vec_z5);
+    }
+    z[0] = sum0;
+    z[1] = sum1;
+    z[2] = sum2;
+    z[3] = sum3;
+    z[4] = sum4;
+    z[5] = sum5;
+    ierr = VecRestoreArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[2],&yy2);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[3],&yy3);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[4],&yy4);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[5],&yy5);CHKERRQ(ierr);
+    break;
+  case 5:
+    ierr = VecGetArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[2],&yy2);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[3],&yy3);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[4],&yy4);CHKERRQ(ierr);
+    for (j=0;j<((n>>3)<<3);j+=8) {
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_y1 = _mm512_load_pd(yy1);
+      vec_y2 = _mm512_load_pd(yy2);
+      vec_y3 = _mm512_load_pd(yy3);
+      vec_y4 = _mm512_load_pd(yy4);
+      vec_z0 = _mm512_fmadd_pd(vec_x,vec_y0,vec_z0);
+      vec_z1 = _mm512_fmadd_pd(vec_x,vec_y1,vec_z1);
+      vec_z2 = _mm512_fmadd_pd(vec_x,vec_y2,vec_z2);
+      vec_z3 = _mm512_fmadd_pd(vec_x,vec_y3,vec_z3);
+      vec_z4 = _mm512_fmadd_pd(vec_x,vec_y4,vec_z4);
+      x += 8; yy0 += 8; yy1 += 8; yy2 += 8; yy3 += 8; yy4 += 8;
+    }
+    if ((n&0x07)>2) {
+      mask   = (__mmask8)(0xff >> (8-(n&0x07)));
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_y1 = _mm512_load_pd(yy1);
+      vec_y2 = _mm512_load_pd(yy2);
+      vec_y3 = _mm512_load_pd(yy3);
+      vec_y4 = _mm512_load_pd(yy4);
+      vec_z0 = _mm512_mask3_fmadd_pd(vec_x,vec_y0,vec_z0,mask);
+      vec_z1 = _mm512_mask3_fmadd_pd(vec_x,vec_y1,vec_z1,mask);
+      vec_z2 = _mm512_mask3_fmadd_pd(vec_x,vec_y2,vec_z2,mask);
+      vec_z3 = _mm512_mask3_fmadd_pd(vec_x,vec_y3,vec_z3,mask);
+      vec_z4 = _mm512_mask3_fmadd_pd(vec_x,vec_y4,vec_z4,mask);
+    } else if ((n&0x07)==2) {
+      sum0 += x[0]*yy0[0];
+      sum1 += x[0]*yy1[0];
+      sum2 += x[0]*yy2[0];
+      sum3 += x[0]*yy3[0];
+      sum4 += x[0]*yy4[0];
+      sum0 += x[1]*yy0[1];
+      sum1 += x[1]*yy1[1];
+      sum2 += x[1]*yy2[1];
+      sum3 += x[1]*yy3[1];
+      sum4 += x[1]*yy4[1];
+    } else if ((n&0x07)==1) {
+      sum0 += x[0]*yy0[0];
+      sum1 += x[0]*yy1[0];
+      sum2 += x[0]*yy2[0];
+      sum3 += x[0]*yy3[0];
+      sum4 += x[0]*yy4[0];
+    }
+    if (n>2) {
+      sum0 += _mm512_reduce_add_pd(vec_z0);
+      sum1 += _mm512_reduce_add_pd(vec_z1);
+      sum2 += _mm512_reduce_add_pd(vec_z2);
+      sum3 += _mm512_reduce_add_pd(vec_z3);
+      sum4 += _mm512_reduce_add_pd(vec_z4);
+    }
+    z[0] = sum0;
+    z[1] = sum1;
+    z[2] = sum2;
+    z[3] = sum3;
+    z[4] = sum4;
+    ierr = VecRestoreArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[2],&yy2);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[3],&yy3);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[4],&yy4);CHKERRQ(ierr);
+    break;
+  case 4:
+    ierr = VecGetArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[2],&yy2);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[3],&yy3);CHKERRQ(ierr);
+    for (j=0;j<((n>>3)<<3);j+=8) {
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_y1 = _mm512_load_pd(yy1);
+      vec_y2 = _mm512_load_pd(yy2);
+      vec_y3 = _mm512_load_pd(yy3);
+      vec_z0 = _mm512_fmadd_pd(vec_x,vec_y0,vec_z0);
+      vec_z1 = _mm512_fmadd_pd(vec_x,vec_y1,vec_z1);
+      vec_z2 = _mm512_fmadd_pd(vec_x,vec_y2,vec_z2);
+      vec_z3 = _mm512_fmadd_pd(vec_x,vec_y3,vec_z3);
+      x += 8; yy0 += 8; yy1 += 8; yy2 += 8; yy3 +=8;
+    }
+    if ((n&0x07)>2) {
+      mask   = (__mmask8)(0xff >> (8-(n&0x07)));
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_y1 = _mm512_load_pd(yy1);
+      vec_y2 = _mm512_load_pd(yy2);
+      vec_y3 = _mm512_load_pd(yy3);
+      vec_z0 = _mm512_mask3_fmadd_pd(vec_x,vec_y0,vec_z0,mask);
+      vec_z1 = _mm512_mask3_fmadd_pd(vec_x,vec_y1,vec_z1,mask);
+      vec_z2 = _mm512_mask3_fmadd_pd(vec_x,vec_y2,vec_z2,mask);
+      vec_z3 = _mm512_mask3_fmadd_pd(vec_x,vec_y3,vec_z3,mask);
+    } else if ((n&0x07)==2) {
+      sum0 += x[0]*yy0[0];
+      sum1 += x[0]*yy1[0];
+      sum2 += x[0]*yy2[0];
+      sum3 += x[0]*yy3[0];
+      sum0 += x[1]*yy0[1];
+      sum1 += x[1]*yy1[1];
+      sum2 += x[1]*yy2[1];
+      sum3 += x[1]*yy3[1];
+    } else if ((n&0x07)==1) {
+      sum0 += x[0]*yy0[0];
+      sum1 += x[0]*yy1[0];
+      sum2 += x[0]*yy2[0];
+      sum3 += x[0]*yy3[0];
+    }
+    if (n>2) {
+      sum0 += _mm512_reduce_add_pd(vec_z0);
+      sum1 += _mm512_reduce_add_pd(vec_z1);
+      sum2 += _mm512_reduce_add_pd(vec_z2);
+      sum3 += _mm512_reduce_add_pd(vec_z3);
+    }
+    z[0] = sum0;
+    z[1] = sum1;
+    z[2] = sum2;
+    z[3] = sum3;
+    ierr = VecRestoreArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[2],&yy2);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[3],&yy3);CHKERRQ(ierr);
+    break;
+  case 3:
+    ierr = VecGetArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[2],&yy2);CHKERRQ(ierr);
+    for (j=0;j<((n>>3)<<3);j+=8) {
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_y1 = _mm512_load_pd(yy1);
+      vec_y2 = _mm512_load_pd(yy2);
+      vec_z0 = _mm512_fmadd_pd(vec_x,vec_y0,vec_z0);
+      vec_z1 = _mm512_fmadd_pd(vec_x,vec_y1,vec_z1);
+      vec_z2 = _mm512_fmadd_pd(vec_x,vec_y2,vec_z2);
+      x += 8; yy0 += 8; yy1 += 8; yy2 += 8;
+    }
+    if ((n&0x07)>2) {
+      mask   = (__mmask8)(0xff >> (8-(n&0x07)));
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_y1 = _mm512_load_pd(yy1);
+      vec_y2 = _mm512_load_pd(yy2);
+      vec_z0 = _mm512_mask3_fmadd_pd(vec_x,vec_y0,vec_z0,mask);
+      vec_z1 = _mm512_mask3_fmadd_pd(vec_x,vec_y1,vec_z1,mask);
+      vec_z2 = _mm512_mask3_fmadd_pd(vec_x,vec_y2,vec_z2,mask);
+    } else if ((n&0x07)==2) {
+      sum0 += x[0]*yy0[0];
+      sum1 += x[0]*yy1[0];
+      sum2 += x[0]*yy2[0];
+      sum0 += x[1]*yy0[1];
+      sum1 += x[1]*yy1[1];
+      sum2 += x[1]*yy2[1];
+    } else if ((n&0x07)==1) {
+      sum0 += x[0]*yy0[0];
+      sum1 += x[0]*yy1[0];
+      sum2 += x[0]*yy2[0];
+    }
+    if (n>2) {
+      sum0 += _mm512_reduce_add_pd(vec_z0);
+      sum1 += _mm512_reduce_add_pd(vec_z1);
+      sum2 += _mm512_reduce_add_pd(vec_z2);
+    }
+    z[0] = sum0;
+    z[1] = sum1;
+    z[2] = sum2;
+    ierr = VecRestoreArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[2],&yy2);CHKERRQ(ierr);
+    break;
+  case 2:
+    ierr = VecGetArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    for (j=0;j<((n>>3)<<3);j+=8) {
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_y1 = _mm512_load_pd(yy1);
+      vec_z0 = _mm512_fmadd_pd(vec_x,vec_y0,vec_z0);
+      vec_z1 = _mm512_fmadd_pd(vec_x,vec_y1,vec_z1);
+      x += 8; yy0 += 8; yy1 += 8;
+    }
+    if ((n&0x07)>2) {
+      mask   = (__mmask8)(0xff >> (8-(n&0x07)));
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_y1 = _mm512_load_pd(yy1);
+      vec_z0 = _mm512_mask3_fmadd_pd(vec_x,vec_y0,vec_z0,mask);
+      vec_z1 = _mm512_mask3_fmadd_pd(vec_x,vec_y1,vec_z1,mask);
+    } else if ((n&0x07)==2) {
+      sum0 += x[0]*yy0[0];
+      sum1 += x[0]*yy1[0];
+      sum0 += x[1]*yy0[1];
+      sum1 += x[1]*yy1[1];
+    } else if ((n&0x07)==1) {
+      sum0 += x[0]*yy0[0];
+      sum1 += x[0]*yy1[0];
+    }
+    if (n>2) {
+      sum0 += _mm512_reduce_add_pd(vec_z0);
+      sum1 += _mm512_reduce_add_pd(vec_z1);
+    }
+    z[0] = sum0;
+    z[1] = sum1;
+    ierr = VecRestoreArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    break;
+  case 1:
+    ierr = VecGetArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    for (j=0;j<((n>>3)<<3);j+=8) {
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_z0 = _mm512_fmadd_pd(vec_x,vec_y0,vec_z0);
+      x += 8; yy0 += 8;
+    }
+    if ((n&0x07)>2) {
+      mask   = (__mmask8)(0xff >> (8-(n&0x07)));
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_z0 = _mm512_mask3_fmadd_pd(vec_x,vec_y0,vec_z0,mask);
+    } else if ((n&0x07)==2) {
+      sum0 += x[0]*yy0[0];
+      sum0 += x[1]*yy0[1];
+    } else if ((n&0x07)==1) {
+      sum0 += x[0]*yy0[0];
+    }
+    if (n>2) {
+      sum0 += _mm512_reduce_add_pd(vec_z0);
+    }
+    z[0] = sum0;
+    ierr = VecRestoreArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    break;
+  case 0:
+    break;
+  }
+  z  += nv_rem;
+  i  -= nv_rem;
+  yy += nv_rem;
+
+  while (i >0) {
+    sum0   = 0.;
+    sum1   = 0.;
+    sum2   = 0.;
+    sum3   = 0.;
+    sum4   = 0.;
+    sum5   = 0.;
+    sum6   = 0.;
+    sum7   = 0.;
+    vec_z0 = _mm512_setzero_pd();
+    vec_z1 = _mm512_setzero_pd();
+    vec_z2 = _mm512_setzero_pd();
+    vec_z3 = _mm512_setzero_pd();
+    vec_z4 = _mm512_setzero_pd();
+    vec_z5 = _mm512_setzero_pd();
+    vec_z6 = _mm512_setzero_pd();
+    vec_z7 = _mm512_setzero_pd();
+    ierr   = VecGetArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr   = VecGetArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    ierr   = VecGetArrayRead(yy[2],&yy2);CHKERRQ(ierr);
+    ierr   = VecGetArrayRead(yy[3],&yy3);CHKERRQ(ierr);
+    ierr   = VecGetArrayRead(yy[4],&yy4);CHKERRQ(ierr);
+    ierr   = VecGetArrayRead(yy[5],&yy5);CHKERRQ(ierr);
+    ierr   = VecGetArrayRead(yy[6],&yy6);CHKERRQ(ierr);
+    ierr   = VecGetArrayRead(yy[7],&yy7);CHKERRQ(ierr);
+    x = xbase;
+    for (j=0;j<((n>>3)<<3);j+=8) {
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_y1 = _mm512_load_pd(yy1);
+      vec_y2 = _mm512_load_pd(yy2);
+      vec_y3 = _mm512_load_pd(yy3);
+      vec_y4 = _mm512_load_pd(yy4);
+      vec_y5 = _mm512_load_pd(yy5);
+      vec_y6 = _mm512_load_pd(yy6);
+      vec_y7 = _mm512_load_pd(yy7);
+      vec_z0 = _mm512_fmadd_pd(vec_x,vec_y0,vec_z0);
+      vec_z1 = _mm512_fmadd_pd(vec_x,vec_y1,vec_z1);
+      vec_z2 = _mm512_fmadd_pd(vec_x,vec_y2,vec_z2);
+      vec_z3 = _mm512_fmadd_pd(vec_x,vec_y3,vec_z3);
+      vec_z4 = _mm512_fmadd_pd(vec_x,vec_y4,vec_z4);
+      vec_z5 = _mm512_fmadd_pd(vec_x,vec_y5,vec_z5);
+      vec_z6 = _mm512_fmadd_pd(vec_x,vec_y6,vec_z6);
+      vec_z7 = _mm512_fmadd_pd(vec_x,vec_y7,vec_z7);
+      x += 8; yy0 += 8; yy1 += 8; yy2 += 8; yy3 += 8; yy4 += 8; yy5 += 8; yy6 += 8; yy7 += 8;
+    }
+    if ((n&0x07)>2) {
+      mask   = (__mmask8)(0xff >> (8-(n&0x07)));
+      vec_x  = _mm512_load_pd(x);
+      vec_y0 = _mm512_load_pd(yy0);
+      vec_y1 = _mm512_load_pd(yy1);
+      vec_y2 = _mm512_load_pd(yy2);
+      vec_y3 = _mm512_load_pd(yy3);
+      vec_y4 = _mm512_load_pd(yy4);
+      vec_y5 = _mm512_load_pd(yy5);
+      vec_y6 = _mm512_load_pd(yy6);
+      vec_y7 = _mm512_load_pd(yy7);
+      vec_z0 = _mm512_mask3_fmadd_pd(vec_x,vec_y0,vec_z0,mask);
+      vec_z1 = _mm512_mask3_fmadd_pd(vec_x,vec_y1,vec_z1,mask);
+      vec_z2 = _mm512_mask3_fmadd_pd(vec_x,vec_y2,vec_z2,mask);
+      vec_z3 = _mm512_mask3_fmadd_pd(vec_x,vec_y3,vec_z3,mask);
+      vec_z4 = _mm512_mask3_fmadd_pd(vec_x,vec_y4,vec_z4,mask);
+      vec_z5 = _mm512_mask3_fmadd_pd(vec_x,vec_y5,vec_z5,mask);
+      vec_z6 = _mm512_mask3_fmadd_pd(vec_x,vec_y6,vec_z6,mask);
+      vec_z7 = _mm512_mask3_fmadd_pd(vec_x,vec_y7,vec_z7,mask);
+    } else if ((n&0x07)==2) {
+      sum0 += x[0]*yy0[0];
+      sum1 += x[0]*yy1[0];
+      sum2 += x[0]*yy2[0];
+      sum3 += x[0]*yy3[0];
+      sum4 += x[0]*yy4[0];
+      sum5 += x[0]*yy5[0];
+      sum6 += x[0]*yy6[0];
+      sum7 += x[0]*yy7[0];
+      sum0 += x[1]*yy0[1];
+      sum1 += x[1]*yy1[1];
+      sum2 += x[1]*yy2[1];
+      sum3 += x[1]*yy3[1];
+      sum4 += x[1]*yy4[1];
+      sum5 += x[1]*yy5[1];
+      sum6 += x[1]*yy6[1];
+      sum7 += x[1]*yy7[1];
+    } else if ((n&0x07)==1) {
+      sum0 += x[0]*yy0[0];
+      sum1 += x[0]*yy1[0];
+      sum2 += x[0]*yy2[0];
+      sum3 += x[0]*yy3[0];
+      sum4 += x[0]*yy4[0];
+      sum5 += x[0]*yy5[0];
+      sum6 += x[0]*yy6[0];
+      sum7 += x[0]*yy7[0];
+    }
+    if (n>2) {
+      sum0 += _mm512_reduce_add_pd(vec_z0);
+      sum1 += _mm512_reduce_add_pd(vec_z1);
+      sum2 += _mm512_reduce_add_pd(vec_z2);
+      sum3 += _mm512_reduce_add_pd(vec_z3);
+      sum4 += _mm512_reduce_add_pd(vec_z4);
+      sum5 += _mm512_reduce_add_pd(vec_z5);
+      sum6 += _mm512_reduce_add_pd(vec_z6);
+      sum7 += _mm512_reduce_add_pd(vec_z7);
+    }
+    z[0] = sum0;
+    z[1] = sum1;
+    z[2] = sum2;
+    z[3] = sum3;
+    z[4] = sum4;
+    z[5] = sum5;
+    z[6] = sum6;
+    z[7] = sum7;
+    ierr = VecRestoreArrayRead(yy[0],&yy0);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[1],&yy1);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[2],&yy2);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[3],&yy3);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[4],&yy4);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[5],&yy5);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[6],&yy6);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(yy[7],&yy7);CHKERRQ(ierr);
+    z   += 8;
+    i   -= 8;
+    yy  += 8;
+  }
+
+  ierr = VecRestoreArrayRead(xin,&xbase);CHKERRQ(ierr);
+  ierr = PetscLogFlops(PetscMax(nv*(2.0*xin->map->n-1),0.0));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
 #else
 PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
 {
@@ -288,6 +922,7 @@ PetscErrorCode VecMDot_Seq(Vec xin,PetscInt nv,const Vec yin[],PetscScalar *z)
   ierr = PetscLogFlops(PetscMax(nv*(2.0*xin->map->n-1),0.0));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+#endif
 #endif
 
 /* ----------------------------------------------------------------------------*/
