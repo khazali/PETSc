@@ -935,7 +935,7 @@ TESTEXAMPLES_C_NOTSINGLE = ex2.PETSc runex2 ex2.rm ex3.PETSc runex3_3 ex3.rm ex8
                             printdot ex12.PETSc runex12 runex12_2 ex12.rm ex15.PETSc runex15_3 runex15_4 ex15.rm printdot \
                             ex16.PETSc runex16  ex16.rm ex17.PETSc runex17 runex17_2 ex17.rm  ex22.PETSc runex22  ex22.rm printdot \
                             ex23.PETSc runex23_1 runex23_2 runex23_3 runex23_4 runex23_5 \
-                            runex23_6 runex23_7 runex23_8 runex23_9 runex23_10 ex23.rm printdot \
+                            runex23_6 runex23_7 runex23_8 runex23_9 runex23_10 runex23_11 ex23.rm printdot \
                             ex29.PETSc runex29 ex29.rm ex43.PETSc runex43_a runex43_b ex43.rm
 TESTEXAMPLES_C_NOCOMPLEX_NOTSINGLE  = ex9.PETSc runex9 runex9_2 runex9_3 ex9.rm \
                             ex26.PETSc runex26 runex26_2 runex26_3 runex26_4 runex26_asm ex26.rm\
