@@ -623,7 +623,7 @@ PetscErrorCode TSSetGradientIC(TS ts, Mat J_x, Mat J_m, TSEvalGradientIC f, void
 }
 
 /*@C
-   TSSetHessianIC - Sets the callback to compute the action of the Hessian matrices G_xx(x0,m), G_xm(x0,m), G_mx(x0,m) and G_mm(x0,m), with parameter dependent initial conditions implicitly defined by the function G(x(0),m) = 0.
+   TSSetHessianIC - Sets the callbacks to compute the action of the Hessian matrices G_xx(x0,m), G_xm(x0,m), G_mx(x0,m) and G_mm(x0,m), with parameter dependent initial conditions implicitly defined by the function G(x(0),m) = 0.
 
    Logically Collective on TS
 
@@ -700,9 +700,11 @@ PetscErrorCode TSSetHessianIC(TS ts, TSEvalHessianIC g_xx,  TSEvalHessianIC g_xm
    Notes: If gradient is NULL, just a forward solve will be performed to compute the objective function. Otherwise, forward and backward solves are performed.
           The dt argument is ignored when smaller or equal to zero. If X is NULL, the initial state is given by the current TS solution vector.
 
+          The dependency of the TS and X from the design parameters can be set with TSSetSetUpFromDesign().
+
    Level: advanced
 
-.seealso: TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetGradientIC(), TSSetSolution()
+.seealso: TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetGradientIC(), TSSetSolution(), TSComputeHessian(), TSSetUpFromDesign(), TSSetSetUpFromDesign()
 @*/
 PetscErrorCode TSComputeObjectiveAndGradient(TS ts, PetscReal t0, PetscReal dt, PetscReal tf, Vec X, Vec design, Vec gradient, PetscReal *obj)
 {
@@ -742,7 +744,7 @@ PetscErrorCode TSComputeObjectiveAndGradient(TS ts, PetscReal t0, PetscReal dt, 
 }
 
 /*@
-   TSComputeHessian - Computes the Hessian matrix with respect to the parameters for the objective functions set with TSSetObjective.
+   TSComputeHessian - Setup the Hessian matrix with respect to the parameters for the objective functions set with TSSetObjective.
 
    Logically Collective on TS
 
@@ -758,14 +760,16 @@ PetscErrorCode TSComputeObjectiveAndGradient(TS ts, PetscReal t0, PetscReal dt, 
 .  H - the Hessian matrix
 
    Options Database Keys:
-.  -tshessian_mffd <false>  activates Matrix-Free Finite Differencing of gradient code
+.  -tshessian_mffd <false>  - activates Matrix-Free Finite Differencing of the gradient code
 
    Notes: The Hessian matrix is not computed explictly; the only operation implemented for H is MatMult().
           The dt argument is ignored when smaller or equal to zero. If X is NULL, the initial state is given by the current TS solution vector.
 
+          The dependency of the TS and X from the design parameters can be set with TSSetSetUpFromDesign().
+
    Level: advanced
 
-.seealso: TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetGradientIC(), TSSetSolution()
+.seealso: TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetGradientIC(), TSSetSolution(), TSComputeObjectiveAndGradient(), TSSetUpFromDesign(), TSSetSetUpFromDesign()
 @*/
 PetscErrorCode TSComputeHessian(TS ts, PetscReal t0, PetscReal dt, PetscReal tf, Vec X, Vec design, Mat H)
 {

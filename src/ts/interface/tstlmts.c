@@ -163,7 +163,7 @@ static PetscErrorCode TLMTSRHSJacobian(TS lts, PetscReal time, Vec U, Mat A, Mat
 
    Level: developer
 
-.seealso: TSCreateTLMSTS(), TLMTSGetModelTS(), TLMTSSetPerturbationVec(), TLMTSSetDesignVec()
+.seealso: TSCreateTLMTS(), TLMTSGetModelTS(), TLMTSSetPerturbationVec(), TLMTSSetDesignVec()
 @*/
 PetscErrorCode TLMTSGetRHSVec(TS lts, Vec *rhs)
 {
@@ -188,7 +188,7 @@ PetscErrorCode TLMTSGetRHSVec(TS lts, Vec *rhs)
 }
 
 /*@C
-   TLMTSSetPerturbationVec - Sets the vector to store the current perturbation of the model parameters.
+   TLMTSSetPerturbationVec - Sets the vector that stores the current perturbation of the model parameters.
 
    Synopsis:
    #include <petsc/private/tstlmtsimpl.h>
@@ -203,7 +203,7 @@ PetscErrorCode TLMTSGetRHSVec(TS lts, Vec *rhs)
 
    Level: developer
 
-.seealso: TSCreateTLMSTS(), TLMTSGetModelTS(), TLMTSSetDesignVec(), TLMTSGetDesignVec(), TLMTSGetRHSVec()
+.seealso: TSCreateTLMTS(), TLMTSGetModelTS(), TLMTSSetDesignVec(), TLMTSGetDesignVec(), TLMTSGetRHSVec()
 @*/
 PetscErrorCode TLMTSSetPerturbationVec(TS lts, Vec mdelta)
 {
@@ -226,7 +226,7 @@ PetscErrorCode TLMTSSetPerturbationVec(TS lts, Vec mdelta)
 }
 
 /*@C
-   TLMTSSetDesignVec - Sets the vector to store the current design.
+   TLMTSSetDesignVec - Sets the vector that stores the current design.
 
    Synopsis:
    #include <petsc/private/tstlmtsimpl.h>
@@ -239,7 +239,7 @@ PetscErrorCode TLMTSSetPerturbationVec(TS lts, Vec mdelta)
 
    Level: developer
 
-.seealso: TSCreateTLMSTS(), TLMTSGetModelTS(), TLMTSSetPerturbationVec(), TLMTSGetDesignVec(), TLMTSGetRHSVec()
+.seealso: TSCreateTLMTS(), TLMTSGetModelTS(), TLMTSSetPerturbationVec(), TLMTSGetDesignVec(), TLMTSGetRHSVec()
 @*/
 PetscErrorCode TLMTSSetDesignVec(TS lts, Vec design)
 {
@@ -275,7 +275,7 @@ PetscErrorCode TLMTSSetDesignVec(TS lts, Vec design)
 
    Level: developer
 
-.seealso: TSCreateTLMSTS(), TLMTSGetModelTS(), TLMTSSetPerturbationVec(), TLMTSSetDesignVec(), TLMTSGetRHSVec()
+.seealso: TSCreateTLMTS(), TLMTSGetModelTS(), TLMTSSetPerturbationVec(), TLMTSSetDesignVec(), TLMTSGetRHSVec()
 @*/
 PetscErrorCode TLMTSGetDesignVec(TS lts, Vec* design)
 {
@@ -309,7 +309,7 @@ PetscErrorCode TLMTSGetDesignVec(TS lts, Vec* design)
 
    Level: developer
 
-.seealso: TSCreateTLMSTS(), TSSetGradientDAE(), TSSetGradientIC()
+.seealso: TSCreateTLMTS(), TSSetGradientDAE(), TSSetGradientIC()
 @*/
 PetscErrorCode TLMTSGetModelTS(TS lts, TS* ts)
 {
@@ -337,7 +337,7 @@ PetscErrorCode TLMTSGetModelTS(TS lts, TS* ts)
 
    Input Parameters:
 +  lts - the TS context obtained from TSCreateTLMTS()
--  t0  - the initial time
+.  t0  - the initial time
 -  x0  - the initial vector where to linearize
 
    Notes: Initial conditions are computed as
@@ -349,7 +349,7 @@ $     Y(t0) = -G^-1(x0,m) * G_m(x0,m) * deltam
 
    Level: developer
 
-.seealso: TSCreateTLMSTS(), TLMTSSetPerturbationVec(), TLMTSSetDesignVec(), TSSetGradientIC()
+.seealso: TSCreateTLMTS(), TLMTSSetPerturbationVec(), TLMTSSetDesignVec(), TSSetGradientIC()
 @*/
 PetscErrorCode TLMTSComputeInitialConditions(TS lts, PetscReal t0, Vec x0)
 {
@@ -415,17 +415,22 @@ PetscErrorCode TLMTSComputeInitialConditions(TS lts, PetscReal t0, Vec x0)
 -  -tlm_reuseksp <0> - if the TLMTS should reuse the same KSP object used to solve the model DAE
 
    Notes: Given the parameter dependent DAE in implicit form F(t,x,xdot;m) = 0, with initial conditions expressed in implicit form G(x_0,m) = 0,
-          the TLMTS solves the linear DAE F_xdot Y_dot + F_x Y_x + F_m * deltam = 0, with initial conditions taken as Y_0 = -G^-1(x_0,m) G_m deltam,
+          the TLMTS solves the linear DAE F_xdot Y_dot + F_x Y + F_m * deltam = 0, with initial conditions taken as Y_0 = -G^-1(x_0,m) G_m deltam,
           where deltam is a perturbation of the parameters passed via TLMTSSetPerturbationVec().
+
           Both the IFunction/IJacobian and the RHSFunction/RHSJacobian interfaces are supported. The Jacobians needed to perform the TLM solve are automatically constructed. Alternatively, the user can compose the "TSComputeSplitJacobians_C" function in the model TS to compute them.
+
           The forcing term can be customized by calling TSSetGradientDAE() on the model TS.
+
           Parameter dependent initial conditions should be passed with TSSetGradientIC() on the model TS.
+
           Initial conditions can be computed with TLMTSComputeInitialConditions().
+
           The TLMTS inherits the prefix of the model TS. E.g. if the model TS has prefix "burgers", the options prefix for the TLMTS is -tlm_burgers_. The user needs to call TSSetFromOptions() on the TLMTS to trigger its customization.
 
    Level: developer
 
-.seealso: TSCreateTLMSTS(), TLMTSSetPerturbationVec(), TLMTSSetDesignVec(), TSSetGradientDAE(), TSSetGradientIC()
+.seealso: TSCreateTLMTS(), TLMTSSetPerturbationVec(), TLMTSSetDesignVec(), TSSetGradientDAE(), TSSetGradientIC()
 @*/
 PetscErrorCode TSCreateTLMTS(TS ts, TS* lts)
 {

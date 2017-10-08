@@ -440,20 +440,27 @@ static PetscErrorCode AdjointTSPostStep(TS adjts)
 +  -adjoint_constjacobians <0> - if the Jacobians are constant
 -  -adjoint_reuseksp <0> - if the AdjointTS should reuse the same KSP object used to solve the model DAE
 
-   Notes: Given the DAE in implicit form F(t,x,xdot) = 0, the AdjointTS solves the linear DAE F_xdot^T Ldot + (F_x - d/dt F_xdot)^T L + forcing = 0
-          Note that the adjoint DAE is solved as the time is not reverted.
+   Notes: Given the DAE in implicit form F(t,x,xdot) = 0, the AdjointTS solves the linear DAE F_xdot^T L_dot + (F_x - d/dt F_xdot)^T L + forcing = 0.
+
+          Note that the adjoint DAE is solved forward in time.
+
           Both the IFunction/IJacobian and the RHSFunction/RHSJacobian interfaces are supported.
-          The Jacobians needed to perform the adjoint solve are automatically constructed for the case d/dt F_xdot = 0.
-          Alternatively, the user can compose the "TSComputeSplitJacobians_C" function in the model TS to compute them.
-          The forcing term depends on the objective functions set via TSSetObjective() and, for second-order adjoints, on some of the Hessian terms set with TSSetHessianDAE().
-          If those functions are not called on the model TS before a TSSolve() with the AdjointTS, forcing = 0.
+
+          The Jacobians needed to perform the adjoint solve are automatically constructed for the case d/dt F_xdot = 0. Alternatively, the user can compose the "TSComputeSplitJacobians_C" function in the model TS to compute them.
+
+          The forcing term depends on the objective functions set via TSSetObjective() and, for second-order adjoints, on some of the Hessian terms set with TSSetHessianDAE(). The forcing term is zero if those functions are not called on the model TS before a TSSolve() with the AdjointTS.
+
           AdjointTSSetTimeLimits() must be called before TSSolve() on the AdjointTS for gradient and Hessian computations.
+          Initialization of the adjoint variables is automatically performed within AdjointTSComputeInitialConditions().
+
           For gradient computations, the linearized dependency of the DAE on the parameters must be set with TSSetGradientDAE() on the model TS.
-          Use AdjointTSSetDirection() for second-order adjoints; in this case, second order information must be attached to the model TS with TSSetHessianDAE().
+          Use AdjointTSSetDirectionVec() for second-order adjoints; in this case, second order information must be attached to the model TS with TSSetHessianDAE() and TSSetHessianIC().
+
           Initial condition dependency for the model TS must be provided via TSSetGradientIC() for gradient computations and with both TSSetGradientIC() and TSSetHessianIC() for second-order adjoints.
-          Initialization of the adjoint variables must be performed with AdjointTSComputeInitialConditions().
+
           For nonzero forcing terms, the design vector for the current paramaters of the DAE must be passed via AdjointTSSetDesign().
           Gradients and Hessian matrix-vector results are obtained through a quadrature (currently trapezoidal rule); relevant API is AdjointTSSetQuadratureVec(), AdjointTSFinalizeQuadrature().
+
           The AdjointTS inherits the prefix of the model TS. E.g. if the model TS has prefix "burgers", the options prefix for the AdjointTS is -adjoint_burgers_. The user needs to call TSSetFromOptions() on the AdjointTS to trigger its customization.
 
    References:
@@ -658,7 +665,7 @@ PetscErrorCode AdjointTSSetQuadratureVec(TS adjts, Vec q)
 }
 
 /*@C
-   AdjointTSSetComputeInitialConditions - Initializes the adjoint variables and possibly the quadrature.
+   AdjointTSComputeInitialConditions - Initializes the adjoint variables and possibly the quadrature.
 
    Synopsis:
    #include <petsc/private/tsadjointtsimpl.h>
@@ -671,8 +678,8 @@ PetscErrorCode AdjointTSSetQuadratureVec(TS adjts, Vec q)
 .  apply - if the initial conditions must be applied
 -  qinit - if the quadrature should be initialized
 
-   Notes: svec is need only when we perform MatMultTranspose with the MatPropagator().
-          For gradient computations, ODEs and index-1 DAEs are supported.
+   Notes: svec is needed only when we perform MatMultTranspose with the MatPropagator().
+          ODEs and index-1 DAEs are supported for gradient computations.
           For Hessian computations, index-1 DAEs are not supported for point-form functionals.
           AdjointTSSetTimeLimits() should be called first.
 
@@ -1126,7 +1133,7 @@ initialize:
 }
 
 /*@C
-   AdjointTSSetDesignVec - Sets the vector to store the current design.
+   AdjointTSSetDesignVec - Sets the vector that stores the current design.
 
    Synopsis:
    #include <petsc/private/tsadjointtsimpl.h>
@@ -1167,7 +1174,7 @@ PetscErrorCode AdjointTSSetDesignVec(TS adjts, Vec design)
 }
 
 /*@C
-   AdjointTSSetDirectionVec - Sets the vector to store the input vector for the Hessian matrix vector product.
+   AdjointTSSetDirectionVec - Sets the vector that stores the input vector for the Hessian matrix vector product.
 
    Synopsis:
    #include <petsc/private/tsadjointtsimpl.h>
@@ -1216,7 +1223,7 @@ PetscErrorCode AdjointTSSetDirectionVec(TS adjts, Vec direction)
    Logically Collective on TS
 
    Input Parameters:
-+  adjts - the TS context obtained from TSCreateAdjointTS()
++  soats - the TS context obtained from TSCreateAdjointTS() (second order adjoint)
 .  tlmts - the TS context obtained from TSCreateTLMTS()
 -  foats - the TS context obtained from TSCreateAdjointTS()
 
@@ -1226,23 +1233,23 @@ PetscErrorCode AdjointTSSetDirectionVec(TS adjts, Vec direction)
 
 .seealso: TSCreateAdjointTS(), AdjointTSSetQuadratureVec(), AdjointTSSetDesignVec(), TSSetObjective(), TSSetGradientDAE(), TSSetHessianDAE(), TSSetGradientIC(), TSSetHessianIC()
 @*/
-PetscErrorCode AdjointTSSetTLMTSAndFOATS(TS adjts, TS tlmts, TS foats)
+PetscErrorCode AdjointTSSetTLMTSAndFOATS(TS soats, TS tlmts, TS foats)
 {
   PetscContainer c;
   AdjointCtx     *adj_ctx;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
-  PetscCheckAdjointTS(adjts);
+  PetscValidHeaderSpecific(soats,TS_CLASSID,1);
+  PetscCheckAdjointTS(soats);
   PetscValidHeaderSpecific(tlmts,TS_CLASSID,2);
-  PetscCheckSameComm(adjts,1,tlmts,2);
+  PetscCheckSameComm(soats,1,tlmts,2);
   PetscCheckTLMTS(tlmts);
   PetscValidHeaderSpecific(foats,TS_CLASSID,3);
-  PetscCheckSameComm(adjts,1,foats,3);
+  PetscCheckSameComm(soats,1,foats,3);
   PetscCheckAdjointTS(foats);
-  if (adjts == foats) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_SUP,"The two AdjointTS should be different");
-  ierr = PetscObjectQuery((PetscObject)adjts,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
+  if (soats == foats) SETERRQ(PetscObjectComm((PetscObject)soats),PETSC_ERR_SUP,"The two AdjointTS should be different");
+  ierr = PetscObjectQuery((PetscObject)soats,"_ts_adjctx",(PetscObject*)&c);CHKERRQ(ierr);
   ierr = PetscContainerGetPointer(c,(void**)&adj_ctx);CHKERRQ(ierr);
   ierr = PetscObjectReference((PetscObject)tlmts);CHKERRQ(ierr);
   ierr = PetscObjectReference((PetscObject)foats);CHKERRQ(ierr);
@@ -1306,7 +1313,7 @@ PetscErrorCode AdjointTSSetTimeLimits(TS adjts, PetscReal t0, PetscReal tf)
    Input Parameters:
 .  adjts - the TS context obtained from TSCreateAdjointTS()
 
-   Notes: This needs to be called if you are evaluating gradients or Hessian with point-form functionals sampled in between the simulation.
+   Notes: This needs to be called if you are evaluating gradients with point-form functionals sampled in between the simulation.
 
    Level: developer
 
@@ -1355,7 +1362,7 @@ PetscErrorCode AdjointTSEventHandler(TS adjts)
 
    Level: developer
 
-.seealso: TSCreateAdjointTS(), TSSetObjective(), TSSetGradientIC(), TSSetHessianIC()
+.seealso: TSCreateAdjointTS(), AdjointTSSetQuadratureVec(), AdjointTSComputeInitialConditions(), TSSetObjective(), TSSetGradientIC(), TSSetHessianIC()
 @*/
 PetscErrorCode AdjointTSFinalizeQuadrature(TS adjts)
 {
