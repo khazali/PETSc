@@ -173,9 +173,16 @@ static PetscErrorCode TSComputeObjectiveAndGradient_Private(TS ts, Vec X, Vec de
 
   /* adjoint */
   if (gradient) {
-    TS  adjts;
+    TS          adjts;
+    const char* prefix;
+    char        *prefix_cp;
 
     ierr = TSCreateAdjointTS(ts,&adjts);CHKERRQ(ierr);
+    ierr = TSGetOptionsPrefix(adjts,&prefix);CHKERRQ(ierr);
+    ierr = PetscStrallocpy(prefix,&prefix_cp);CHKERRQ(ierr);
+    ierr = TSSetOptionsPrefix(adjts,"tsgradient_");CHKERRQ(ierr);
+    ierr = TSAppendOptionsPrefix(adjts,prefix_cp);CHKERRQ(ierr);
+    ierr = PetscFree(prefix_cp);CHKERRQ(ierr);
     ierr = TSHistoryGetTimeStep(ts->trajectory->tsh,PETSC_TRUE,0,&dt);CHKERRQ(ierr);
     ierr = TSGetTime(ts,&tf);CHKERRQ(ierr);
     ierr = TSSetTimeStep(adjts,dt);CHKERRQ(ierr);
@@ -337,7 +344,7 @@ static PetscErrorCode TSComputeHessian_Private(TS ts, PetscReal t0, PetscReal dt
     ierr = TSCreateTLMTS(tshess->model,&tshess->tlmts);CHKERRQ(ierr);
     ierr = TSGetOptionsPrefix(tshess->tlmts,&prefix);CHKERRQ(ierr);
     ierr = PetscStrallocpy(prefix,&prefix_cp);CHKERRQ(ierr);
-    ierr = TSSetOptionsPrefix(tshess->tlmts,"hessian_");CHKERRQ(ierr);
+    ierr = TSSetOptionsPrefix(tshess->tlmts,"tshessian_");CHKERRQ(ierr);
     ierr = TSAppendOptionsPrefix(tshess->tlmts,prefix_cp);CHKERRQ(ierr);
     ierr = PetscFree(prefix_cp);CHKERRQ(ierr);
     ierr = TSSetFromOptions(tshess->tlmts);CHKERRQ(ierr);
@@ -356,7 +363,7 @@ static PetscErrorCode TSComputeHessian_Private(TS ts, PetscReal t0, PetscReal dt
     ierr = TSCreateAdjointTS(tshess->model,&tshess->foats);CHKERRQ(ierr);
     ierr = TSGetOptionsPrefix(tshess->foats,&prefix);CHKERRQ(ierr);
     ierr = PetscStrallocpy(prefix,&prefix_cp);CHKERRQ(ierr);
-    ierr = TSSetOptionsPrefix(tshess->foats,"hessian_fo");CHKERRQ(ierr);
+    ierr = TSSetOptionsPrefix(tshess->foats,"tshessian_fo");CHKERRQ(ierr);
     ierr = TSAppendOptionsPrefix(tshess->foats,prefix_cp);CHKERRQ(ierr);
     ierr = PetscFree(prefix_cp);CHKERRQ(ierr);
     ierr = AdjointTSSetTimeLimits(tshess->foats,tshess->t0,tshess->tf);CHKERRQ(ierr);
@@ -374,7 +381,7 @@ static PetscErrorCode TSComputeHessian_Private(TS ts, PetscReal t0, PetscReal dt
     ierr = TSCreateAdjointTS(tshess->model,&tshess->soats);CHKERRQ(ierr);
     ierr = TSGetOptionsPrefix(tshess->soats,&prefix);CHKERRQ(ierr);
     ierr = PetscStrallocpy(prefix,&prefix_cp);CHKERRQ(ierr);
-    ierr = TSSetOptionsPrefix(tshess->soats,"hessian_so");CHKERRQ(ierr);
+    ierr = TSSetOptionsPrefix(tshess->soats,"tshessian_so");CHKERRQ(ierr);
     ierr = TSAppendOptionsPrefix(tshess->soats,prefix_cp);CHKERRQ(ierr);
     ierr = PetscFree(prefix_cp);CHKERRQ(ierr);
     ierr = AdjointTSSetTimeLimits(tshess->soats,tshess->t0,tshess->tf);CHKERRQ(ierr);
@@ -686,7 +693,7 @@ PetscErrorCode TSSetHessianIC(TS ts, TSEvalHessianIC g_xx,  TSEvalHessianIC g_xm
    Logically Collective on TS
 
    Input Parameters:
-+  ts     - the TS context
++  ts     - the TS context for the model DAE
 .  t0     - initial time
 .  dt     - initial time step
 .  tf     - final time
@@ -701,6 +708,8 @@ PetscErrorCode TSSetHessianIC(TS ts, TSEvalHessianIC g_xx,  TSEvalHessianIC g_xm
           The dt argument is ignored when smaller or equal to zero. If X is NULL, the initial state is given by the current TS solution vector.
 
           The dependency of the TS and X from the design parameters can be set with TSSetSetUpFromDesign().
+
+          Options for the adjoint DAE solver are prefixed with -tsgradient_adjoint_XXX, where XXX is the prefix for the model DAE.
 
    Level: advanced
 
@@ -749,7 +758,7 @@ PetscErrorCode TSComputeObjectiveAndGradient(TS ts, PetscReal t0, PetscReal dt, 
    Logically Collective on TS
 
    Input Parameters:
-+  ts     - the TS context
++  ts     - the TS context for the model DAE
 .  t0     - initial time
 .  dt     - initial time step
 .  tf     - final time
@@ -766,6 +775,16 @@ PetscErrorCode TSComputeObjectiveAndGradient(TS ts, PetscReal t0, PetscReal dt, 
           The dt argument is ignored when smaller or equal to zero. If X is NULL, the initial state is given by the current TS solution vector.
 
           The dependency of the TS and X from the design parameters can be set with TSSetSetUpFromDesign().
+
+          Internally, one forward solve and one backward solve (first-order adjoint) are performed within this call. Every MatMult() call solves one tangent linear and one second order adjoint problem.
+
+          Options for the DAE solvers are prefixed with
+
+$ -tshessian_foadjoint_XXX
+$ -tshessian_tlm_XXX
+$ -tshessian_soadjoint_XXX
+
+          where XXX is the prefix for the model DAE.
 
    Level: advanced
 

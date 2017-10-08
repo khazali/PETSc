@@ -21,7 +21,3 @@ Tao Object: 1 MPI processes
 Vec Object: 1 MPI processes
   type: seq
 0.999999
-WARNING! There are options you set that were not used!
-WARNING! could be spelling mistake, etc!
-Option left: name:-propT_view (no value)
-Option left: name:-prop_view (no value)

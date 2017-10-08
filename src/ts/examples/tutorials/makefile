@@ -505,17 +505,17 @@ runex16opt_p:
 	   ${RM} -f ex16opt_p_1.tmp SA-data/*
 
 runex16opt_p_ao:
-	-@${MPIEXEC} -n 1 ./ex16opt_p -ts_trajectory_type memory -adjointode -tao_view -tao_monitor -tao_gttol 1.e-5 -adjoint_ts_atol 1.e-9 > ex16opt_p_ao.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex16opt_p -ts_trajectory_type memory -adjointode -tao_view -tao_monitor -tao_gttol 1.e-5 -tsgradient_adjoint_ts_atol 1.e-9 > ex16opt_p_ao.tmp 2>&1; \
 	   ${DIFF} output/ex16opt_p_ao.out ex16opt_p_ao.tmp || printf "${PWD}\nPossible problem with ex16opt_p_ao, diffs above\n=========================================\n"; \
 	   ${RM} -f ex16opt_p_ao.tmp
 
 runex16opt_p_ao_hessian_mf:
-	-@${MPIEXEC} -n 1 ./ex16opt_p -ts_trajectory_type memory -adjointode -tao_view -tao_monitor -tao_gttol 1.e-5 -adjoint_ts_atol 1.e-10 -tao_type tron -tao_mf_hessian > ex16opt_p_ao_hessian_mf.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex16opt_p -ts_trajectory_type memory -adjointode -tao_view -tao_monitor -tao_gttol 1.e-5 -tsgradient_adjoint_ts_atol 1.e-10 -tao_type tron -tao_mf_hessian > ex16opt_p_ao_hessian_mf.tmp 2>&1; \
 	   ${DIFF} output/ex16opt_p_ao_hessian_mf.out ex16opt_p_ao_hessian_mf.tmp || printf "${PWD}\nPossible problem with ex16opt_p_ao_hessian_mf, diffs above\n=========================================\n"; \
 	   ${RM} -f ex16opt_p_ao_hessian_mf.tmp
 
 runex16opt_p_ao_hessian:
-	-@${MPIEXEC} -n 1 ./ex16opt_p -ts_trajectory_type memory -adjointode -tao_view -tao_monitor -tao_gttol 1.e-5 -adjoint_ts_atol 1.e-10 -hessian_soadjoint_ts_atol 1.e-10 -hessian_foadjoint_ts_atol 1.e-10 -hessian_tlm_ts_atol 1.e-10 -tao_type tron > ex16opt_p_ao_hessian.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex16opt_p -ts_trajectory_type memory -adjointode -tao_view -tao_monitor -tao_gttol 1.e-5 -tsgradient_adjoint_ts_atol 1.e-10 -tshessian_soadjoint_ts_atol 1.e-10 -tshessian_foadjoint_ts_atol 1.e-10 -tshessian_tlm_ts_atol 1.e-10 -tao_type tron > ex16opt_p_ao_hessian.tmp 2>&1; \
 	   ${DIFF} output/ex16opt_p_ao_hessian.out ex16opt_p_ao_hessian.tmp || printf "${PWD}\nPossible problem with ex16opt_p_ao_hessian, diffs above\n=========================================\n"; \
 	   ${RM} -f ex16opt_p_ao_hessian.tmp
 

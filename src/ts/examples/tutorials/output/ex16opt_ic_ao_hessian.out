@@ -19,7 +19,3 @@ Tao Object: 1 MPI processes
   total number of function/gradient evaluations=9,      (max: 4000)
   total number of Hessian evaluations=2
   Solution converged:    ||g(X)||/||g(X0)|| <= gttol
-WARNING! There are options you set that were not used!
-WARNING! could be spelling mistake, etc!
-Option left: name:-propT_view (no value)
-Option left: name:-prop_view (no value)
