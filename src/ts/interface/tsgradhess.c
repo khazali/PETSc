@@ -146,7 +146,7 @@ static PetscErrorCode TSComputeObjectiveAndGradient_Private(TS ts, Vec X, Vec de
 
   PetscFunctionBegin;
   if (gradient) {
-    ierr = VecSet(gradient,0.);CHKERRQ(ierr);
+    ierr = VecSet(gradient,0.0);CHKERRQ(ierr);
   }
   if (val) *val = 0.0;
   if (!ts->funchead) {
@@ -156,6 +156,7 @@ static PetscErrorCode TSComputeObjectiveAndGradient_Private(TS ts, Vec X, Vec de
     ierr = TSGetSolution(ts,&X);CHKERRQ(ierr);
     if (!X) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Missing solution vector");
   }
+  ierr = TSSetUpFromDesign(ts,X,design);CHKERRQ(ierr);
   if (gradient) {
     otrj = ts->trajectory;
     ierr = TSTrajectoryCreate(PetscObjectComm((PetscObject)ts),&ts->trajectory);CHKERRQ(ierr);
@@ -256,6 +257,7 @@ static PetscErrorCode TSComputeHessian_Private(TS ts, PetscReal t0, PetscReal dt
     ierr = VecDuplicate(design,&tshess->design);CHKERRQ(ierr);
   }
   ierr = VecCopy(design,tshess->design);CHKERRQ(ierr);
+  ierr = TSSetUpFromDesign(ts,X,tshess->design);CHKERRQ(ierr);
   tshess->t0 = t0;
   tshess->dt = dt;
   tshess->tf = tf;

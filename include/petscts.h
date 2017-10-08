@@ -343,6 +343,8 @@ PETSC_EXTERN PetscErrorCode TSSetGradientIC(TS,Mat,Mat,TSEvalGradientIC,void*);
 PETSC_EXTERN PetscErrorCode TSSetHessianIC(TS,TSEvalHessianIC,TSEvalHessianIC,TSEvalHessianIC,TSEvalHessianIC,void*);
 PETSC_EXTERN PetscErrorCode TSComputeObjectiveAndGradient(TS,PetscReal,PetscReal,PetscReal,Vec,Vec,Vec,PetscReal*);
 PETSC_EXTERN PetscErrorCode TSComputeHessian(TS,PetscReal,PetscReal,PetscReal,Vec,Vec,Mat);
+PETSC_EXTERN PetscErrorCode TSSetSetUpFromDesign(TS,PetscErrorCode (*)(TS,Vec,Vec,void*),void*);
+PETSC_EXTERN PetscErrorCode TSSetUpFromDesign(TS,Vec,Vec);
 PETSC_EXTERN PetscErrorCode TSCreatePropagatorMat(TS,PetscReal,PetscReal,PetscReal,Vec,Vec,Mat,Mat*);
 PETSC_EXTERN PetscErrorCode TSSetMaxSteps(TS,PetscInt);
 PETSC_EXTERN PetscErrorCode TSGetMaxSteps(TS,PetscInt*);

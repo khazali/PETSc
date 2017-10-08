@@ -210,6 +210,8 @@ struct _p_TS {
   void              *F_m_ctx;
   TSEvalHessianDAE  HF[3][3];   /* compute the DAE Hessian terms F_{x|x_t|m}{x|x_t|m} */
   void              *HFctx;
+  PetscErrorCode    (*setupfromdesign)(TS,Vec,Vec,void*);
+  void              *setupfromdesignctx;
 
   /* ---------------------- IMEX support ---------------------------------*/
   /* These extra slots are only used when the user provides both Implicit and RHS */

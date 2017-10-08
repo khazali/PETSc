@@ -566,3 +566,64 @@ PetscErrorCode TSSolveWithQuadrature_Private(TS ts, Vec X, Vec design, Vec direc
   if (quadscalar) *quadscalar = qeval_ctx->squad;
   PetscFunctionReturn(0);
 }
+
+/*@
+  TSSetSetUpFromDesign - Set the function to be run when the parameters change
+
+  Collective on TS
+
+  Input Parameter:
++ ts       - The TS context
+. setup    - The setup function
+- setupctx - The setup function context (can be NULL)
+
+  Calling sequence of setup:
+$  setup(TS ts, Vec x0, Vec design, void *ctx);
+
++  ts     - the TS context
+.  x0     - the vector of initial conditions
+.  design - the vector of parameters
+-  ctx    - [optional] context for setup function
+
+  Level: developer
+
+.keywords: TS
+.seealso: TSCreate(), TSSetType(), TSSetGradientDAE(), TSSetGradientIC(), TSSetHessianDAE(), TSSetHessianIC(), TSSetObjective()
+@*/
+PetscErrorCode TSSetSetUpFromDesign(TS ts,PetscErrorCode (*setup)(TS,Vec,Vec,void*),void* setupctx)
+{
+  PetscFunctionBegin;
+  ts->setupfromdesign    = setup;
+  ts->setupfromdesignctx = setupctx;
+  PetscFunctionReturn(0);
+}
+
+/*@
+  TSSetUpFromDesign - Runs user-defined setup function from parameters
+
+  Collective on TS
+
+  Input Parameters:
++ ts     - The TS context
+- design - The vector of parameters
+
+  Output Parameters:
+. x0     - The vector of initial conditions
+
+  Level: developer
+
+.keywords: TS
+.seealso: TSCreate(), TSSetSetUpFromDesign()
+@*/
+PetscErrorCode TSSetUpFromDesign(TS ts,Vec x0,Vec design)
+{
+  PetscFunctionBegin;
+  if (ts->setupfromdesign) {
+    PetscErrorCode ierr;
+
+    ierr = VecLockPush(design);CHKERRQ(ierr);
+    ierr = (*ts->setupfromdesign)(ts,x0,design,ts->setupfromdesignctx);CHKERRQ(ierr);
+    ierr = VecLockPop(design);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
