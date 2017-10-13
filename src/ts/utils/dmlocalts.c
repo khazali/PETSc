@@ -6,10 +6,12 @@ typedef struct {
   PetscErrorCode (*ifunctionlocal)(DM,PetscReal,Vec,Vec,Vec,void*);
   PetscErrorCode (*ijacobianlocal)(DM,PetscReal,Vec,Vec,PetscReal,Mat,Mat,void*);
   PetscErrorCode (*rhsfunctionlocal)(DM,PetscReal,Vec,Vec,void*);
+  PetscErrorCode (*rhsjacobianlocal)(DM,PetscReal,Vec,Mat,Mat,void*);
   void *boundarylocalctx;
   void *ifunctionlocalctx;
   void *ijacobianlocalctx;
   void *rhsfunctionlocalctx;
+  void *rhsjacobianlocalctx;
 } DMTS_Local;
 
 static PetscErrorCode DMTSDestroy_DMLocal(DMTS tdm)
@@ -171,6 +173,63 @@ static PetscErrorCode TSComputeIJacobian_DMLocal(TS ts, PetscReal time, Vec X, V
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode TSComputeRHSJacobian_DMLocal(TS ts, PetscReal time, Vec X, Mat A, Mat B, void *ctx)
+{
+  DM             dm;
+  Vec            locX;
+  DMTS_Local    *dmlocalts = (DMTS_Local *) ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = TSGetDM(ts, &dm);CHKERRQ(ierr);
+  if (dmlocalts->rhsjacobianlocal) {
+    ierr = DMGetLocalVector(dm, &locX);CHKERRQ(ierr);
+    ierr = VecZeroEntries(locX);CHKERRQ(ierr);
+    if (dmlocalts->boundarylocal) {ierr = (*dmlocalts->boundarylocal)(dm,time,locX,NULL,dmlocalts->boundarylocalctx);CHKERRQ(ierr);}
+    ierr = DMGlobalToLocalBegin(dm, X, INSERT_VALUES, locX);CHKERRQ(ierr);
+    ierr = DMGlobalToLocalEnd(dm, X, INSERT_VALUES, locX);CHKERRQ(ierr);
+    CHKMEMQ;
+    ierr = (*dmlocalts->rhsjacobianlocal)(dm, time, locX, A, B, dmlocalts->rhsjacobianlocalctx);CHKERRQ(ierr);
+    CHKMEMQ;
+    ierr = DMRestoreLocalVector(dm, &locX);CHKERRQ(ierr);
+  } else {
+    MatFDColoring fdcoloring;
+    ierr = PetscObjectQuery((PetscObject) dm, "DMDASNES_FDCOLORING", (PetscObject *) &fdcoloring);CHKERRQ(ierr);
+    if (!fdcoloring) {
+      ISColoring coloring;
+
+      ierr = DMCreateColoring(dm, dm->coloringtype, &coloring);CHKERRQ(ierr);
+      ierr = MatFDColoringCreate(B, coloring, &fdcoloring);CHKERRQ(ierr);
+      ierr = ISColoringDestroy(&coloring);CHKERRQ(ierr);
+      switch (dm->coloringtype) {
+      case IS_COLORING_GLOBAL:
+        ierr = MatFDColoringSetFunction(fdcoloring, (PetscErrorCode (*)(void)) TSComputeRHSFunction_DMLocal, dmlocalts);CHKERRQ(ierr);
+        break;
+      default: SETERRQ1(PetscObjectComm((PetscObject) ts), PETSC_ERR_SUP, "No support for coloring type '%s'", ISColoringTypes[dm->coloringtype]);
+      }
+      ierr = PetscObjectSetOptionsPrefix((PetscObject) fdcoloring, ((PetscObject) dm)->prefix);CHKERRQ(ierr);
+      ierr = MatFDColoringSetFromOptions(fdcoloring);CHKERRQ(ierr);
+      ierr = MatFDColoringSetUp(B, coloring, fdcoloring);CHKERRQ(ierr);
+      ierr = PetscObjectCompose((PetscObject) dm, "DMDASNES_FDCOLORING", (PetscObject) fdcoloring);CHKERRQ(ierr);
+      ierr = PetscObjectDereference((PetscObject) fdcoloring);CHKERRQ(ierr);
+
+      /* The following breaks an ugly reference counting loop that deserves a paragraph. MatFDColoringApply() will call
+       * VecDuplicate() with the state Vec and store inside the MatFDColoring. This Vec will duplicate the Vec, but the
+       * MatFDColoring is composed with the DM. We dereference the DM here so that the reference count will eventually
+       * drop to 0. Note the code in DMDestroy() that exits early for a negative reference count. That code path will be
+       * taken when the PetscObjectList for the Vec inside MatFDColoring is destroyed.
+       */
+      ierr = PetscObjectDereference((PetscObject) dm);CHKERRQ(ierr);
+    }
+    ierr = MatFDColoringApply(B, fdcoloring, X, ts);CHKERRQ(ierr);
+  }
+  /* This will be redundant if the user called both, but it's too common to forget. */
+  if (A != B) {
+    ierr = MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
 /*@C
   DMTSSetBoundaryLocal - set the function for essential boundary data for a local implicit function evaluation.
     It should set the essential boundary data for the local portion of the solution X, as well its time derivative X_t (if it is not NULL).
@@ -308,5 +367,40 @@ PetscErrorCode DMTSSetRHSFunctionLocal(DM dm, PetscErrorCode (*func)(DM, PetscRe
   dmlocalts->rhsfunctionlocalctx = ctx;
 
   ierr = DMTSSetRHSFunction(dm, TSComputeRHSFunction_DMLocal, dmlocalts);CHKERRQ(ierr);
+  if (!tdm->ops->ijacobian) {  /* Call us for the Jacobian too, can be overridden by the user. */
+    ierr = DMTSSetRHSJacobian(dm, TSComputeRHSJacobian_DMLocal, dmlocalts);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+/*@C
+  DMTSSetRHSJacobianLocal - set a local Jacobian evaluation function
+
+  Logically Collective
+
+  Input Arguments:
++ dm - DM to associate callback with
+. func - local Jacobian evaluation
+- ctx - optional context for local Jacobian evaluation
+
+  Level: beginner
+
+.seealso: DMTSSetRHSFunctionLocal(), DMTSSetRHSJacobian(), DMTSSetRHSFunction()
+@*/
+PetscErrorCode DMTSSetRHSJacobianLocal(DM dm, PetscErrorCode (*func)(DM, PetscReal, Vec, Mat, Mat, void *), void *ctx)
+{
+  DMTS           tdm;
+  DMTS_Local    *dmlocalts;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm,DM_CLASSID,1);
+  ierr = DMGetDMTSWrite(dm, &tdm);CHKERRQ(ierr);
+  ierr = DMLocalTSGetContext(dm, tdm, &dmlocalts);CHKERRQ(ierr);
+
+  dmlocalts->rhsjacobianlocal    = func;
+  dmlocalts->rhsjacobianlocalctx = ctx;
+
+  ierr = DMTSSetRHSJacobian(dm, TSComputeRHSJacobian_DMLocal, dmlocalts);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
