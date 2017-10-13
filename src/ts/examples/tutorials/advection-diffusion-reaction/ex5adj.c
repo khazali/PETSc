@@ -2,9 +2,9 @@ static char help[] = "Demonstrates adjoint sensitivity analysis for Reaction-Dif
 
 /*
   See ex5.c for details on the equation.
-  This code demonestrates the TSAdjoint interface to a system of time-dependent partial differential equations.
+  This code demonstrates the TSAdjoint and the adjoint ode (via TScomputeObjectiveAndGradient) interfaces to a system of time-dependent partial differential equations.
   It computes the sensitivity of a component in the final solution, which locates in the center of the 2D domain, w.r.t. the initial conditions.
-  The user does not need to provide any additional functions. The required functions in the original simultion are resued in the adjoint run.
+  The user does not need to provide any additional functions. The required functions in the original simulation are reused in the adjoint run.
  */
 #include <petscsys.h>
 #include <petscdm.h>
@@ -22,11 +22,11 @@ typedef struct {
 /*
    User-defined routines
 */
-extern PetscErrorCode RHSFunction(TS,PetscReal,Vec,Vec,void*),InitialConditions(DM,Vec);
-extern PetscErrorCode RHSJacobian(TS,PetscReal,Vec,Mat,Mat,void*);
-
-extern PetscErrorCode IFunction(TS,PetscReal,Vec,Vec,Vec,void*);
-extern PetscErrorCode IJacobian(TS,PetscReal,Vec,Vec,PetscReal,Mat,Mat,void*);
+PetscErrorCode RHSFunction(TS,PetscReal,Vec,Vec,void*);
+PetscErrorCode InitialConditions(DM,Vec);
+PetscErrorCode RHSJacobian(TS,PetscReal,Vec,Mat,Mat,void*);
+PetscErrorCode IFunction(TS,PetscReal,Vec,Vec,Vec,void*);
+PetscErrorCode IJacobian(TS,PetscReal,Vec,Vec,PetscReal,Mat,Mat,void*);
 
 PetscErrorCode InitializeLambda(DM da,Vec lambda,PetscReal x,PetscReal y)
 {
@@ -49,6 +49,26 @@ PetscErrorCode InitializeLambda(DM da,Vec lambda,PetscReal x,PetscReal y)
      ierr = DMDAVecRestoreArray(da,lambda,&l);CHKERRQ(ierr);
    }
    PetscFunctionReturn(0);
+}
+
+/* adjoint ODE interface: dummy objective evaluation */
+static PetscErrorCode EvalObjective_AO(Vec U, Vec P, PetscReal time, PetscReal *val, void *ctx)
+{
+  PetscFunctionBeginUser;
+  *val = 0;
+  PetscFunctionReturn(0);
+}
+
+/* adjoint ODE interface: when computing sensitivies, the adjoint ode is initialized with
+   the partial derivative of the objective w.r.t. the state variables U */
+static PetscErrorCode EvalObjectiveGradient_U_AO(Vec U, Vec M, PetscReal time, Vec grad, void *ctx)
+{
+  DM             da = (DM)ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = InitializeLambda(da,grad,0.5,0.5);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
 }
 
 int main(int argc,char **argv)
@@ -89,13 +109,14 @@ int main(int argc,char **argv)
      Create timestepping solver context
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
-  ierr = TSSetType(ts,TSCN);CHKERRQ(ierr);
   ierr = TSSetDM(ts,da);CHKERRQ(ierr);
   ierr = TSSetProblemType(ts,TS_NONLINEAR);CHKERRQ(ierr);
   if (!implicitform) {
+    ierr = TSSetType(ts,TSRK);CHKERRQ(ierr);
     ierr = TSSetRHSFunction(ts,NULL,RHSFunction,&appctx);CHKERRQ(ierr);
     ierr = TSSetRHSJacobian(ts,NULL,NULL,RHSJacobian,&appctx);CHKERRQ(ierr);
   } else {
+    ierr = TSSetType(ts,TSCN);CHKERRQ(ierr);
     ierr = TSSetIFunction(ts,NULL,IFunction,&appctx);CHKERRQ(ierr);
     ierr = TSSetIJacobian(ts,NULL,NULL,IJacobian,&appctx);CHKERRQ(ierr);
   }
@@ -116,7 +137,7 @@ int main(int argc,char **argv)
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   ierr = TSSetMaxTime(ts,200.0);CHKERRQ(ierr);
   ierr = TSSetTimeStep(ts,0.5);CHKERRQ(ierr);
-  ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
+  ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -124,22 +145,54 @@ int main(int argc,char **argv)
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   ierr = TSSolve(ts,x);CHKERRQ(ierr);
   if (!forwardonly) {
+    PetscBool adjointode = PETSC_FALSE;
+
+    ierr = PetscOptionsGetBool(NULL,NULL,"-adjointode",&adjointode,NULL);CHKERRQ(ierr);
     /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Start the Adjoint model
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-    ierr = VecDuplicate(x,&lambda[0]);CHKERRQ(ierr);
-    /*   Reset initial conditions for the adjoint integration */
-    ierr = InitializeLambda(da,lambda[0],0.5,0.5);CHKERRQ(ierr);
+    if (!adjointode) {
+      ierr = VecDuplicate(x,&lambda[0]);CHKERRQ(ierr);
+      /*   Reset initial conditions for the adjoint integration */
+      ierr = InitializeLambda(da,lambda[0],0.5,0.5);CHKERRQ(ierr);
 
-    ierr = TSSetCostGradients(ts,1,lambda,NULL);CHKERRQ(ierr);
+      ierr = TSSetCostGradients(ts,1,lambda,NULL);CHKERRQ(ierr);
 
-    ierr = TSAdjointSolve(ts);CHKERRQ(ierr);
+      ierr = TSAdjointSolve(ts);CHKERRQ(ierr);
 
-    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-     Free work space.  All PETSc objects should be destroyed when they
-     are no longer needed.
-     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-    ierr = VecDestroy(&lambda[0]);CHKERRQ(ierr);
+      /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       Free work space.  All PETSc objects should be destroyed when they
+       are no longer needed.
+       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+      ierr = VecDestroy(&lambda[0]);CHKERRQ(ierr);
+    } else {
+      Mat       Id;
+      Vec       L,dummy;
+      PetscInt  m;
+      PetscReal tf;
+
+      ierr = TSGetTime(ts,&tf);CHKERRQ(ierr);
+      ierr = VecDuplicate(x,&L);CHKERRQ(ierr);
+      ierr = VecDuplicate(x,&dummy);CHKERRQ(ierr);
+      ierr = VecGetLocalSize(x,&m);CHKERRQ(ierr);
+      ierr = MatCreate(PETSC_COMM_WORLD,&Id);CHKERRQ(ierr);
+      ierr = MatSetSizes(Id,m,m,PETSC_DECIDE,PETSC_DECIDE);CHKERRQ(ierr);
+      ierr = MatSetType(Id,MATAIJ);CHKERRQ(ierr);
+      ierr = MatSeqAIJSetPreallocation(Id,1,NULL);CHKERRQ(ierr);
+      ierr = MatMPIAIJSetPreallocation(Id,1,NULL,0,NULL);CHKERRQ(ierr);
+      ierr = MatAssemblyBegin(Id,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(Id,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+      ierr = MatZeroEntries(Id);CHKERRQ(ierr);
+      ierr = MatShift(Id,-1.0);CHKERRQ(ierr);
+      ierr = TSSetGradientIC(ts,NULL,Id,NULL,NULL);CHKERRQ(ierr);
+      ierr = MatDestroy(&Id);CHKERRQ(ierr);
+      ierr = TSSetObjective(ts,tf,EvalObjective_AO,EvalObjectiveGradient_U_AO,NULL,
+                            NULL,NULL,NULL,NULL,NULL,NULL,da);CHKERRQ(ierr);
+      ierr = InitialConditions(da,x);CHKERRQ(ierr);
+      ierr = TSComputeObjectiveAndGradient(ts,0.0,0.5,tf,x,dummy,L,NULL);CHKERRQ(ierr);
+      ierr = VecDestroy(&L);CHKERRQ(ierr);
+      ierr = VecDestroy(&dummy);CHKERRQ(ierr);
+    }
   }
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);

@@ -111,6 +111,12 @@ runex5adj:
 	   else printf "${PWD}\n Possible problem with ex5adj_1, diffs above\n=======================================\n"; fi; \
 	   ${RM} -f ex5adj_1.tmp SA-data/*
 
+runex5adj_ao:
+	-@${MPIEXEC} -n 1 ./ex5adj -ts_max_steps 10 -ts_monitor -tsgradient_adjoint_ts_monitor -da_grid_x 16 -da_grid_y 16 -adjointode > ex5adj_ao.tmp 2>&1; \
+	   if (${DIFF} output/ex5adj_ao.out ex5adj_ao.tmp) then true; \
+	   else printf "${PWD}\n Possible problem with ex5adj_ao, diffs above\n=======================================\n"; fi; \
+	   ${RM} -f ex5adj_ao.tmp SA-data/*
+
 runex5adj_2:
 	-@${MPIEXEC} -n 2 ./ex5adj -ts_max_steps 10 -ts_dt 10 -ts_adjoint_monitor_draw_sensi -draw_pause -2
 
@@ -191,7 +197,7 @@ runex10_4:
 
 TESTEXAMPLES_C		  = ex1.PETSc ex1.rm ex2.PETSc ex2.rm ex3.PETSc runex3 ex3.rm \
                             ex4.PETSc ex4.rm ex5.PETSc runex5 ex5.rm \
-                            ex5adj.PETSc runex5adj ex5adj.rm ex6.PETSc runex6 runex6_2 runex6_3 runex6_4 ex6.rm
+                            ex5adj.PETSc runex5adj runex5adj_ao ex5adj.rm ex6.PETSc runex6 runex6_2 runex6_3 runex6_4 ex6.rm
 TESTEXAMPLES_C_X	  =
 TESTEXAMPLES_FORTRAN	  =
 TESTEXAMPLES_C_X_MPIUNI   =
