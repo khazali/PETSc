@@ -163,12 +163,13 @@ PetscErrorCode TaoComputeObjectiveAndGradient(Tao tao, Vec X, PetscReal *f, Vec 
   ierr = VecLockPush(X);CHKERRQ(ierr);
   if (tao->ops->computeobjectiveandgradient) {
     ierr = PetscLogEventBegin(Tao_ObjGradientEval,tao,X,G,NULL);CHKERRQ(ierr);
-    PetscStackPush("Tao user objective/gradient evaluation routine");
-    ierr = (*tao->ops->computeobjectiveandgradient)(tao,X,f,G,tao->user_objgradP);CHKERRQ(ierr);
-    PetscStackPop;
     if (tao->ops->computegradient == TaoDefaultComputeGradient) {
-      /* Overwrite gradient with finite difference gradient */
-      ierr = TaoDefaultComputeGradient(tao,X,G,tao->user_objgradP);CHKERRQ(ierr);
+      ierr = TaoComputeObjective(tao,X,f);CHKERRQ(ierr);
+      ierr = TaoDefaultComputeGradient(tao,X,G,NULL);CHKERRQ(ierr);
+    } else {
+      PetscStackPush("Tao user objective/gradient evaluation routine");
+      ierr = (*tao->ops->computeobjectiveandgradient)(tao,X,f,G,tao->user_objgradP);CHKERRQ(ierr);
+      PetscStackPop;
     }
     ierr = PetscLogEventEnd(Tao_ObjGradientEval,tao,X,G,NULL);CHKERRQ(ierr);
     tao->nfuncgrads++;
