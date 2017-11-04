@@ -477,6 +477,7 @@ static PetscErrorCode DMPlexWriteCoordinates_HDF5_Static(DM dm, PetscViewer view
 
 static PetscErrorCode DMPlexWriteCoordinates_Vertices_HDF5_Static(DM dm, PetscViewer viewer)
 {
+  DM               cdm;
   Vec              coordinates, newcoords;
   PetscSection     cSection;
   PetscScalar     *coords, *ncoords;
@@ -492,9 +493,8 @@ static PetscErrorCode DMPlexWriteCoordinates_Vertices_HDF5_Static(DM dm, PetscVi
   PetscFunctionBegin;
   ierr = DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
   ierr = DMPlexGetScale(dm, PETSC_UNIT_LENGTH, &lengthScale);CHKERRQ(ierr);
-  ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
+  ierr = DMGetCoordinates(dm, &coordinates);CHKERRQ(ierr);
   ierr = VecGetBlockSize(coordinates, &bs);CHKERRQ(ierr);
-  ierr = VecGetLocalSize(coordinates, &coordSize);CHKERRQ(ierr);
   ierr = DMGetCoordinatesLocalized(dm,&localized);CHKERRQ(ierr);
   if (localized == PETSC_FALSE) PetscFunctionReturn(0);
   ierr = DMGetLabel(dm, "periodic_cut", &cutLabel);CHKERRQ(ierr);
@@ -513,14 +513,16 @@ static PetscErrorCode DMPlexWriteCoordinates_Vertices_HDF5_Static(DM dm, PetscVi
     ierr = ISDestroy(&vertices);CHKERRQ(ierr);
   }
   ierr = DMGetPeriodicity(dm, NULL, NULL, &L, &bd);CHKERRQ(ierr);
-  ierr = DMGetCoordinateSection(dm, &cSection);CHKERRQ(ierr);
+  ierr = DMGetCoordinateDM(dm, &cdm);CHKERRQ(ierr);
+  ierr = DMGetDefaultGlobalSection(cdm, &cSection);CHKERRQ(ierr);
   ierr = VecCreate(PetscObjectComm((PetscObject) coordinates), &newcoords);CHKERRQ(ierr);
   ierr = PetscSectionGetDof(cSection, vStart, &dof);CHKERRQ(ierr);
-  embedded  = (PetscBool) (L && dof == 2 && !cutLabel);
+  embedded  = (PetscBool) (L && (dof < 0 ? -(dof+1) : dof) == 2 && !cutLabel);
   coordSize = 0;
   coordSize += dof*vExtra;
   for (v = vStart; v < vEnd; ++v) {
     ierr = PetscSectionGetDof(cSection, v, &dof);CHKERRQ(ierr);
+    if (dof < 0) continue;
     if (embedded) coordSize += dof+1;
     else          coordSize += dof;
   }
@@ -534,6 +536,7 @@ static PetscErrorCode DMPlexWriteCoordinates_Vertices_HDF5_Static(DM dm, PetscVi
   for (v = vStart; v < vEnd; ++v) {
     ierr = PetscSectionGetDof(cSection, v, &dof);CHKERRQ(ierr);
     ierr = PetscSectionGetOffset(cSection, v, &off);CHKERRQ(ierr);
+    if (dof < 0) continue;
     if (embedded) {
       if ((bd[0] == DM_BOUNDARY_PERIODIC) && (bd[1] == DM_BOUNDARY_PERIODIC)) {
         PetscReal theta, phi, r, R;
@@ -594,6 +597,7 @@ static PetscErrorCode DMPlexWriteCoordinates_Vertices_HDF5_Static(DM dm, PetscVi
       if ((verts[v] < vStart) || (verts[v] >= vEnd)) continue;
       ierr = PetscSectionGetDof(cSection, verts[v], &dof);CHKERRQ(ierr);
       ierr = PetscSectionGetOffset(cSection, verts[v], &off);CHKERRQ(ierr);
+      if (dof < 0) continue;
       for (d = 0; d < dof; ++d, ++coordSize) ncoords[coordSize] = coords[off+d] + ((bd[d] == DM_BOUNDARY_PERIODIC) ? L[d] : 0.0);
     }
     ierr = ISRestoreIndices(vertices, &verts);CHKERRQ(ierr);
