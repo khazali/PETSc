@@ -112,11 +112,11 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   } else {
     PetscReal L[3] = {1.0, 1.0, 1.0};
     PetscReal maxCell[3];
+    PetscInt  d;
 
-    maxCell[0] = 1.0/user->faces[0]; maxCell[1] = 1.0/user->faces[1]; maxCell[2] = 1.0/user->faces[2];
+    for (d = 0; d < dim; ++d) {maxCell[d] = (1.0/user->faces[d])*1.1;}
     ierr = DMPlexCreateBoxMesh(comm, dim, cellSimplex, user->faces, NULL, NULL, user->periodicity, PETSC_TRUE, dm);CHKERRQ(ierr);
     ierr = DMSetPeriodicity(*dm, user->isPeriodic, maxCell, L, user->periodicity);CHKERRQ(ierr);
-    ierr = DMLocalizeCoordinates(*dm);CHKERRQ(ierr);
   }
   {
     DM               distributedMesh = NULL;
@@ -132,6 +132,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
       *dm  = distributedMesh;
     }
   }
+  ierr = DMLocalizeCoordinates(*dm);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) *dm, "Mesh");CHKERRQ(ierr);
   ierr = DMViewFromOptions(*dm, NULL, "-dm_view");CHKERRQ(ierr);
   user->dm = *dm;
@@ -156,10 +157,18 @@ int main(int argc, char **argv)
 
   test:
     suffix: 0
-    args: -dim 2 -cell_simplex 0 -faces 3,1,0 -periodicity periodic,none,none -dm_view hdf5:mesh.h5
+    args: -dim 2 -cell_simplex 0 -faces 3,1,0 -periodicity periodic,none,none -dm_view ::ascii_info_detail
   test:
     suffix: 1
     nsize: 2
-    args: -dim 2 -cell_simplex 0 -faces 3,1,0 -periodicity periodic,none,none -dm_view hdf5:mesh.h5
+    args: -dim 2 -cell_simplex 0 -faces 3,1,0 -periodicity periodic,none,none -dm_view ::ascii_info_detail
+  test:
+    suffix: 2
+    nsize: 2
+    args: -dim 2 -cell_simplex 0 -faces 6,2,0 -periodicity periodic,none,none -dm_view ::ascii_info_detail
+  test:
+    suffix: 3
+    nsize: 4
+    args: -dim 2 -cell_simplex 0 -faces 6,2,0 -periodicity periodic,none,none -dm_view ::ascii_info_detail
 
 TEST*/
