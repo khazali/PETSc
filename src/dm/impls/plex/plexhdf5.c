@@ -504,13 +504,15 @@ static PetscErrorCode DMPlexWriteCoordinates_Vertices_HDF5_Static(DM dm, PetscVi
     PetscInt        n;
 
     ierr = DMLabelGetStratumIS(cutLabel, 1, &vertices);CHKERRQ(ierr);
-    ierr = ISGetIndices(vertices, &verts);CHKERRQ(ierr);
-    ierr = ISGetLocalSize(vertices, &n);CHKERRQ(ierr);
-    for (v = 0; v < n; ++v) {
-      if ((verts[v] >= vStart) && (verts[v] < vEnd)) ++vExtra;
+    if (vertices) {
+      ierr = ISGetIndices(vertices, &verts);CHKERRQ(ierr);
+      ierr = ISGetLocalSize(vertices, &n);CHKERRQ(ierr);
+      for (v = 0; v < n; ++v) {
+        if ((verts[v] >= vStart) && (verts[v] < vEnd)) ++vExtra;
+      }
+      ierr = ISRestoreIndices(vertices, &verts);CHKERRQ(ierr);
+      ierr = ISDestroy(&vertices);CHKERRQ(ierr);
     }
-    ierr = ISRestoreIndices(vertices, &verts);CHKERRQ(ierr);
-    ierr = ISDestroy(&vertices);CHKERRQ(ierr);
   }
   ierr = DMGetPeriodicity(dm, NULL, NULL, &L, &bd);CHKERRQ(ierr);
   ierr = DMGetCoordinateDM(dm, &cdm);CHKERRQ(ierr);
@@ -593,18 +595,20 @@ static PetscErrorCode DMPlexWriteCoordinates_Vertices_HDF5_Static(DM dm, PetscVi
     PetscInt        n;
 
     ierr = DMLabelGetStratumIS(cutLabel, 1, &vertices);CHKERRQ(ierr);
-    ierr = ISGetIndices(vertices, &verts);CHKERRQ(ierr);
-    ierr = ISGetLocalSize(vertices, &n);CHKERRQ(ierr);
-    for (v = 0; v < n; ++v) {
-      if ((verts[v] < vStart) || (verts[v] >= vEnd)) continue;
-      ierr = PetscSectionGetDof(cSection, verts[v], &dof);CHKERRQ(ierr);
-      ierr = PetscSectionGetOffset(cSection, verts[v], &off);CHKERRQ(ierr);
-      if (dof < 0) continue;
-      off -= cStart;
-      for (d = 0; d < dof; ++d, ++coordSize) ncoords[coordSize] = coords[off+d] + ((bd[d] == DM_BOUNDARY_PERIODIC) ? L[d] : 0.0);
+    if (vertices) {
+      ierr = ISGetIndices(vertices, &verts);CHKERRQ(ierr);
+      ierr = ISGetLocalSize(vertices, &n);CHKERRQ(ierr);
+      for (v = 0; v < n; ++v) {
+        if ((verts[v] < vStart) || (verts[v] >= vEnd)) continue;
+        ierr = PetscSectionGetDof(cSection, verts[v], &dof);CHKERRQ(ierr);
+        ierr = PetscSectionGetOffset(cSection, verts[v], &off);CHKERRQ(ierr);
+        if (dof < 0) continue;
+        off -= cStart;
+        for (d = 0; d < dof; ++d, ++coordSize) ncoords[coordSize] = coords[off+d] + ((bd[d] == DM_BOUNDARY_PERIODIC) ? L[d] : 0.0);
+      }
+      ierr = ISRestoreIndices(vertices, &verts);CHKERRQ(ierr);
+      ierr = ISDestroy(&vertices);CHKERRQ(ierr);
     }
-    ierr = ISRestoreIndices(vertices, &verts);CHKERRQ(ierr);
-    ierr = ISDestroy(&vertices);CHKERRQ(ierr);
   }
   if (coordSize != N) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Mismatched sizes: %D != %D", coordSize, N);
   ierr = VecRestoreArray(coordinates, &coords);CHKERRQ(ierr);
