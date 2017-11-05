@@ -485,7 +485,7 @@ static PetscErrorCode DMPlexWriteCoordinates_Vertices_HDF5_Static(DM dm, PetscVi
   const PetscReal *L;
   const DMBoundaryType *bd;
   PetscReal        lengthScale;
-  PetscInt         vStart, vEnd, vExtra = 0, v, bs, coordSize, dof, off, d;
+  PetscInt         vStart, vEnd, vExtra = 0, v, bs, N, cStart, coordSize, dof, off, d;
   PetscBool        localized, embedded;
   hid_t            fileId, groupId;
   PetscErrorCode   ierr;
@@ -518,18 +518,19 @@ static PetscErrorCode DMPlexWriteCoordinates_Vertices_HDF5_Static(DM dm, PetscVi
   ierr = VecCreate(PetscObjectComm((PetscObject) coordinates), &newcoords);CHKERRQ(ierr);
   ierr = PetscSectionGetDof(cSection, vStart, &dof);CHKERRQ(ierr);
   embedded  = (PetscBool) (L && (dof < 0 ? -(dof+1) : dof) == 2 && !cutLabel);
-  coordSize = 0;
-  coordSize += dof*vExtra;
+  N    = 0;
+  N   += dof*vExtra;
   for (v = vStart; v < vEnd; ++v) {
     ierr = PetscSectionGetDof(cSection, v, &dof);CHKERRQ(ierr);
     if (dof < 0) continue;
-    if (embedded) coordSize += dof+1;
-    else          coordSize += dof;
+    if (embedded) N += dof+1;
+    else          N += dof;
   }
   if (embedded) {ierr = VecSetBlockSize(newcoords, bs+1);CHKERRQ(ierr);}
   else          {ierr = VecSetBlockSize(newcoords, bs);CHKERRQ(ierr);}
-  ierr = VecSetSizes(newcoords, coordSize, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = VecSetSizes(newcoords, N, PETSC_DETERMINE);CHKERRQ(ierr);
   ierr = VecSetType(newcoords, VECSTANDARD);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRange(coordinates, &cStart, NULL);CHKERRQ(ierr);
   ierr = VecGetArray(coordinates, &coords);CHKERRQ(ierr);
   ierr = VecGetArray(newcoords,   &ncoords);CHKERRQ(ierr);
   coordSize = 0;
@@ -537,6 +538,7 @@ static PetscErrorCode DMPlexWriteCoordinates_Vertices_HDF5_Static(DM dm, PetscVi
     ierr = PetscSectionGetDof(cSection, v, &dof);CHKERRQ(ierr);
     ierr = PetscSectionGetOffset(cSection, v, &off);CHKERRQ(ierr);
     if (dof < 0) continue;
+    off -= cStart;
     if (embedded) {
       if ((bd[0] == DM_BOUNDARY_PERIODIC) && (bd[1] == DM_BOUNDARY_PERIODIC)) {
         PetscReal theta, phi, r, R;
@@ -598,11 +600,13 @@ static PetscErrorCode DMPlexWriteCoordinates_Vertices_HDF5_Static(DM dm, PetscVi
       ierr = PetscSectionGetDof(cSection, verts[v], &dof);CHKERRQ(ierr);
       ierr = PetscSectionGetOffset(cSection, verts[v], &off);CHKERRQ(ierr);
       if (dof < 0) continue;
+      off -= cStart;
       for (d = 0; d < dof; ++d, ++coordSize) ncoords[coordSize] = coords[off+d] + ((bd[d] == DM_BOUNDARY_PERIODIC) ? L[d] : 0.0);
     }
     ierr = ISRestoreIndices(vertices, &verts);CHKERRQ(ierr);
     ierr = ISDestroy(&vertices);CHKERRQ(ierr);
   }
+  if (coordSize != N) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Mismatched sizes: %D != %D", coordSize, N);
   ierr = VecRestoreArray(coordinates, &coords);CHKERRQ(ierr);
   ierr = VecRestoreArray(newcoords,   &ncoords);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) newcoords, "vertices");CHKERRQ(ierr);
