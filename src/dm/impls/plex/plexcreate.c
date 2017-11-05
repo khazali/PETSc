@@ -1976,6 +1976,21 @@ PetscErrorCode DMSetFromOptions_NonRefinement_Plex(PetscOptionItems *PetscOption
   /* Projection behavior */
   ierr = PetscOptionsInt("-dm_plex_max_projection_height", "Maxmimum mesh point height used to project locally", "DMPlexSetMaxProjectionHeight", 0, &mesh->maxProjectionHeight, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-dm_plex_regular_refinement", "Use special nested projection algorithm for regular refinement", "DMPlexSetRegularRefinement", mesh->regularRefinement, &mesh->regularRefinement, NULL);CHKERRQ(ierr);
+  /* Checking structure */
+  {
+    const char *cellTypes[] = {"simplex", "tensor", "DMPlexCellType", "DM_PLEX_CELLTYPE_", NULL};
+    PetscEnum   ct;
+    PetscBool   flg;
+
+    ierr = PetscOptionsBool("-dm_plex_check_symmetry", "Check that the adjacency information in the mesh is symmetric", "DMPlexCheckSymmetry", PETSC_FALSE, &flg, NULL);CHKERRQ(ierr);
+    if (flg) {ierr = DMPlexCheckSymmetry(dm);CHKERRQ(ierr);}
+    ierr = PetscOptionsEnum("-dm_plex_check_skeleton", "Check that each cell has the correct number of vertices", "DMPlexCheckSkeleton", cellTypes, 0, &ct, &flg);CHKERRQ(ierr);
+    if (flg) {ierr = DMPlexCheckSkeleton(dm, ct ? PETSC_FALSE : PETSC_TRUE, 0);CHKERRQ(ierr);}
+    ierr = PetscOptionsEnum("-dm_plex_check_faces", "Check that the faces of each cell give a vertex order this is consistent with what we expect from the cell type", "DMPlexCheckFaces", cellTypes, 0, &ct, &flg);CHKERRQ(ierr);
+    if (flg) {ierr = DMPlexCheckFaces(dm, ct ? PETSC_FALSE : PETSC_TRUE, 0);CHKERRQ(ierr);}
+    ierr = PetscOptionsBool("-dm_plex_check_geometry", "Check the geometry of mesh cells", "DMPlexCheckGeometry", PETSC_FALSE, &flg, NULL);CHKERRQ(ierr);
+    if (flg) {ierr = DMPlexCheckGeometry(dm);CHKERRQ(ierr);}
+  }
 
   ierr = PetscPartitionerSetFromOptions(mesh->partitioner);CHKERRQ(ierr);
   PetscFunctionReturn(0);
