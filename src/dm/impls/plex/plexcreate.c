@@ -1980,7 +1980,7 @@ PetscErrorCode DMSetFromOptions_NonRefinement_Plex(PetscOptionItems *PetscOption
   {
     const char *cellTypes[] = {"simplex", "tensor", "DMPlexCellType", "DM_PLEX_CELLTYPE_", NULL};
     PetscEnum   ct;
-    PetscBool   flg;
+    PetscBool   flg = PETSC_FALSE;
 
     ierr = PetscOptionsBool("-dm_plex_check_symmetry", "Check that the adjacency information in the mesh is symmetric", "DMPlexCheckSymmetry", PETSC_FALSE, &flg, NULL);CHKERRQ(ierr);
     if (flg) {ierr = DMPlexCheckSymmetry(dm);CHKERRQ(ierr);}
