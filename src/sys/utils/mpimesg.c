@@ -3,14 +3,14 @@
 
 
 /*@C
-  PetscGatherNumberOfMessages -  Computes the number of messages a node expects to receive
+  PetscGatherNumberOfMessages -  Computes the number of messages a rank expects to receive
 
   Collective on MPI_Comm
 
   Input Parameters:
 + comm     - Communicator
 . iflags   - an array of integers of length sizeof(comm). A '1' in ilengths[i] represent a
-             message from current node to ith node. Optionally NULL
+             message from current rank to ith rank. Optionally NULL
 - ilengths - Non zero ilengths[i] represent a message to i of length ilengths[i].
              Optionally NULL.
 
@@ -52,7 +52,7 @@ PetscErrorCode  PetscGatherNumberOfMessages(MPI_Comm comm,const PetscMPIInt ifla
     }
   } else iflags_local = (PetscMPIInt*) iflags;
 
-  /* Post an allreduce to determine the numer of messages the current node will receive */
+  /* Post an allreduce to determine the numer of messages the current rank will receive */
   ierr    = MPIU_Allreduce(iflags_local,recv_buf,size,MPI_INT,MPI_SUM,comm);CHKERRQ(ierr);
   *nrecvs = recv_buf[rank];
 
@@ -62,7 +62,7 @@ PetscErrorCode  PetscGatherNumberOfMessages(MPI_Comm comm,const PetscMPIInt ifla
 
 
 /*@C
-  PetscGatherMessageLengths - Computes info about messages that a MPI-node will receive,
+  PetscGatherMessageLengths - Computes info about messages that an MPI-rank will receive,
   including (from-id,length) pairs for each message.
 
   Collective on MPI_Comm
@@ -76,7 +76,7 @@ PetscErrorCode  PetscGatherNumberOfMessages(MPI_Comm comm,const PetscMPIInt ifla
 
 
   Output Parameters:
-+ onodes    - list of node-ids from which messages are expected
++ oranks    - list of ranks from which messages are expected
 - olengths  - corresponding message lengths
 
   Level: developer
@@ -87,13 +87,13 @@ PetscErrorCode  PetscGatherNumberOfMessages(MPI_Comm comm,const PetscMPIInt ifla
   With this info, the correct MPI_Irecv() can be posted with the correct
   from-id, with a buffer with the right amount of memory required.
 
-  The calling function deallocates the memory in onodes and olengths
+  The calling function deallocates the memory in oranks and olengths
 
   To determine nrecevs, one can use PetscGatherNumberOfMessages()
 
 .seealso: PetscGatherNumberOfMessages()
 @*/
-PetscErrorCode  PetscGatherMessageLengths(MPI_Comm comm,PetscMPIInt nsends,PetscMPIInt nrecvs,const PetscMPIInt ilengths[],PetscMPIInt **onodes,PetscMPIInt **olengths)
+PetscErrorCode  PetscGatherMessageLengths(MPI_Comm comm,PetscMPIInt nsends,PetscMPIInt nrecvs,const PetscMPIInt ilengths[],PetscMPIInt **oranks,PetscMPIInt **olengths)
 {
   PetscErrorCode ierr;
   PetscMPIInt    size,tag,i,j;
@@ -126,16 +126,16 @@ PetscErrorCode  PetscGatherMessageLengths(MPI_Comm comm,PetscMPIInt nsends,Petsc
   if (nrecvs+nsends) {ierr = MPI_Waitall(nrecvs+nsends,r_waits,w_status);CHKERRQ(ierr);}
 
   /* Pack up the received data */
-  ierr = PetscMalloc1(nrecvs,onodes);CHKERRQ(ierr);
-  for (i=0; i<nrecvs; ++i) (*onodes)[i] = w_status[i].MPI_SOURCE;
+  ierr = PetscMalloc1(nrecvs,oranks);CHKERRQ(ierr);
+  for (i=0; i<nrecvs; ++i) (*oranks)[i] = w_status[i].MPI_SOURCE;
   ierr = PetscFree2(r_waits,w_status);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 /*@C
-  PetscGatherMessageLengths2 - Computes info about messages that a MPI-node will receive,
+  PetscGatherMessageLengths2 - Computes info about messages that an MPI-rank will receive,
   including (from-id,length) pairs for each message. Same functionality as PetscGatherMessageLengths()
-  except it takes TWO ilenths and output TWO olengths.
+  except it takes TWO ilengths and output TWO olengths.
 
   Collective on MPI_Comm
 
@@ -147,7 +147,7 @@ PetscErrorCode  PetscGatherMessageLengths(MPI_Comm comm,PetscMPIInt nsends,Petsc
               a non zero ilengths[i] represent a message to i of length ilengths[i]
 
   Output Parameters:
-+ onodes    - list of node-ids from which messages are expected
++ oranks    - list of ranks from which messages are expected
 - olengths1, olengths2 - corresponding message lengths
 
   Level: developer
@@ -158,13 +158,13 @@ PetscErrorCode  PetscGatherMessageLengths(MPI_Comm comm,PetscMPIInt nsends,Petsc
   With this info, the correct MPI_Irecv() can be posted with the correct
   from-id, with a buffer with the right amount of memory required.
 
-  The calling function deallocates the memory in onodes and olengths
+  The calling function deallocates the memory in oranks and olengths
 
   To determine nrecevs, one can use PetscGatherNumberOfMessages()
 
 .seealso: PetscGatherMessageLengths() and PetscGatherNumberOfMessages()
 @*/
-PetscErrorCode  PetscGatherMessageLengths2(MPI_Comm comm,PetscMPIInt nsends,PetscMPIInt nrecvs,const PetscMPIInt ilengths1[],const PetscMPIInt ilengths2[],PetscMPIInt **onodes,PetscMPIInt **olengths1,PetscMPIInt **olengths2)
+PetscErrorCode  PetscGatherMessageLengths2(MPI_Comm comm,PetscMPIInt nsends,PetscMPIInt nrecvs,const PetscMPIInt ilengths1[],const PetscMPIInt ilengths2[],PetscMPIInt **oranks,PetscMPIInt **olengths1,PetscMPIInt **olengths2)
 {
   PetscErrorCode ierr;
   PetscMPIInt    size,tag,i,j,*buf_s = NULL,*buf_r = NULL,*buf_j = NULL;
@@ -204,9 +204,9 @@ PetscErrorCode  PetscGatherMessageLengths2(MPI_Comm comm,PetscMPIInt nsends,Pets
 
 
   /* Pack up the received data */
-  ierr = PetscMalloc1(nrecvs+1,onodes);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nrecvs+1,oranks);CHKERRQ(ierr);
   for (i=0; i<nrecvs; ++i) {
-    (*onodes)[i]    = w_status[i].MPI_SOURCE;
+    (*oranks)[i]    = w_status[i].MPI_SOURCE;
     buf_j           = buf_r + (2*i);
     (*olengths1)[i] = buf_j[0];
     (*olengths2)[i] = buf_j[1];
@@ -219,10 +219,10 @@ PetscErrorCode  PetscGatherMessageLengths2(MPI_Comm comm,PetscMPIInt nsends,Pets
 /*
 
   Allocate a bufffer sufficient to hold messages of size specified in olengths.
-  And post Irecvs on these buffers using node info from onodes
+  And post Irecvs on these buffers using rank info from oranks
 
  */
-PetscErrorCode  PetscPostIrecvInt(MPI_Comm comm,PetscMPIInt tag,PetscMPIInt nrecvs,const PetscMPIInt onodes[],const PetscMPIInt olengths[],PetscInt ***rbuf,MPI_Request **r_waits)
+PetscErrorCode  PetscPostIrecvInt(MPI_Comm comm,PetscMPIInt tag,PetscMPIInt nrecvs,const PetscMPIInt oranks[],const PetscMPIInt olengths[],PetscInt ***rbuf,MPI_Request **r_waits)
 {
   PetscErrorCode ierr;
   PetscInt       **rbuf_t,i,len = 0;
@@ -240,7 +240,7 @@ PetscErrorCode  PetscPostIrecvInt(MPI_Comm comm,PetscMPIInt tag,PetscMPIInt nrec
   /* Post the receives */
   ierr = PetscMalloc1(nrecvs,&r_waits_t);CHKERRQ(ierr);
   for (i=0; i<nrecvs; ++i) {
-    ierr = MPI_Irecv(rbuf_t[i],olengths[i],MPIU_INT,onodes[i],tag,comm,r_waits_t+i);CHKERRQ(ierr);
+    ierr = MPI_Irecv(rbuf_t[i],olengths[i],MPIU_INT,oranks[i],tag,comm,r_waits_t+i);CHKERRQ(ierr);
   }
 
   *rbuf    = rbuf_t;
@@ -248,7 +248,7 @@ PetscErrorCode  PetscPostIrecvInt(MPI_Comm comm,PetscMPIInt tag,PetscMPIInt nrec
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode  PetscPostIrecvScalar(MPI_Comm comm,PetscMPIInt tag,PetscMPIInt nrecvs,const PetscMPIInt onodes[],const PetscMPIInt olengths[],PetscScalar ***rbuf,MPI_Request **r_waits)
+PetscErrorCode  PetscPostIrecvScalar(MPI_Comm comm,PetscMPIInt tag,PetscMPIInt nrecvs,const PetscMPIInt oranks[],const PetscMPIInt olengths[],PetscScalar ***rbuf,MPI_Request **r_waits)
 {
   PetscErrorCode ierr;
   PetscMPIInt    i;
@@ -268,7 +268,7 @@ PetscErrorCode  PetscPostIrecvScalar(MPI_Comm comm,PetscMPIInt tag,PetscMPIInt n
   /* Post the receives */
   ierr = PetscMalloc1(nrecvs,&r_waits_t);CHKERRQ(ierr);
   for (i=0; i<nrecvs; ++i) {
-    ierr = MPI_Irecv(rbuf_t[i],olengths[i],MPIU_SCALAR,onodes[i],tag,comm,r_waits_t+i);CHKERRQ(ierr);
+    ierr = MPI_Irecv(rbuf_t[i],olengths[i],MPIU_SCALAR,oranks[i],tag,comm,r_waits_t+i);CHKERRQ(ierr);
   }
 
   *rbuf    = rbuf_t;
