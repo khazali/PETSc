@@ -338,6 +338,7 @@ static PetscErrorCode DMPlexWriteTopology_HDF5_Static(DM dm, IS globalPointNumbe
 
 static PetscErrorCode DMPlexWriteTopology_Vertices_HDF5_Static(DM dm, DMLabel label, PetscInt labelId, PetscViewer viewer)
 {
+  DM              cdm;
   DMLabel         cutLabel;
   PetscSection    cSection;
   IS              cellIS, globalVertexNumbers;
@@ -353,7 +354,8 @@ static PetscErrorCode DMPlexWriteTopology_Vertices_HDF5_Static(DM dm, DMLabel la
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = DMPlexGetDepth(dm, &depth);CHKERRQ(ierr);
   ierr = DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
-  ierr = DMGetCoordinateSection(dm, &cSection);CHKERRQ(ierr);
+  ierr = DMGetCoordinateDM(dm, &cdm);CHKERRQ(ierr);
+  ierr = DMGetDefaultGlobalSection(cdm, &cSection);CHKERRQ(ierr);
   ierr = DMPlexGetVTKCellHeight(dm, &cellHeight);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm, cellHeight, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = DMPlexGetHybridBounds(dm, &cMax, NULL, NULL, NULL);CHKERRQ(ierr);
@@ -497,6 +499,9 @@ static PetscErrorCode DMPlexWriteCoordinates_Vertices_HDF5_Static(DM dm, PetscVi
   ierr = VecGetBlockSize(coordinates, &bs);CHKERRQ(ierr);
   ierr = DMGetCoordinatesLocalized(dm,&localized);CHKERRQ(ierr);
   if (localized == PETSC_FALSE) PetscFunctionReturn(0);
+  ierr = DMGetPeriodicity(dm, NULL, NULL, &L, &bd);CHKERRQ(ierr);
+  ierr = DMGetCoordinateDM(dm, &cdm);CHKERRQ(ierr);
+  ierr = DMGetDefaultGlobalSection(cdm, &cSection);CHKERRQ(ierr);
   ierr = DMGetLabel(dm, "periodic_cut", &cutLabel);CHKERRQ(ierr);
   if (cutLabel) {
     IS              vertices;
@@ -514,12 +519,10 @@ static PetscErrorCode DMPlexWriteCoordinates_Vertices_HDF5_Static(DM dm, PetscVi
       ierr = ISDestroy(&vertices);CHKERRQ(ierr);
     }
   }
-  ierr = DMGetPeriodicity(dm, NULL, NULL, &L, &bd);CHKERRQ(ierr);
-  ierr = DMGetCoordinateDM(dm, &cdm);CHKERRQ(ierr);
-  ierr = DMGetDefaultGlobalSection(cdm, &cSection);CHKERRQ(ierr);
   ierr = VecCreate(PetscObjectComm((PetscObject) coordinates), &newcoords);CHKERRQ(ierr);
   ierr = PetscSectionGetDof(cSection, vStart, &dof);CHKERRQ(ierr);
-  embedded  = (PetscBool) (L && (dof < 0 ? -(dof+1) : dof) == 2 && !cutLabel);
+  dof  = dof < 0 ? -(dof+1) : dof;
+  embedded  = (PetscBool) (L && dof == 2 && !cutLabel);
   N    = 0;
   N   += dof*vExtra;
   for (v = vStart; v < vEnd; ++v) {
