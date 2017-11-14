@@ -168,7 +168,6 @@ int main(int argc,char **argv)
   ierr = DMCreateGlobalVector(appctx.da,&u);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&appctx.dat.ic);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&appctx.dat.obj);CHKERRQ(ierr);
-  ierr = VecDuplicate(u,&appctx.dat.grad);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&appctx.SEMop.grid);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&appctx.SEMop.mass);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&appctx.dat.curr_sol);CHKERRQ(ierr);
@@ -242,7 +241,6 @@ int main(int argc,char **argv)
   ierr = VecDestroy(&u);CHKERRQ(ierr);
   ierr = VecDestroy(&appctx.dat.ic);CHKERRQ(ierr);
   ierr = VecDestroy(&appctx.dat.obj);CHKERRQ(ierr);
-  ierr = VecDestroy(&appctx.dat.grad);CHKERRQ(ierr);
   ierr = VecDestroy(&appctx.SEMop.grid);CHKERRQ(ierr);
   ierr = VecDestroy(&appctx.SEMop.mass);CHKERRQ(ierr);
   ierr = VecDestroy(&appctx.dat.curr_sol);CHKERRQ(ierr);
@@ -303,47 +301,31 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
 }
 /* --------------------------------------------------------------------- */
 /*
-   Sets the profile at end time
+   Sets the desired profile for the final end time
 
    Input Parameters:
-   t - current time
-   obj - vector storing the end function
+   t - final time
+   obj - vector storing the desired profile
    appctx - user-defined application context
 
-   Output Parameter:
-   solution - vector with the newly computed exact solution
 */
 PetscErrorCode Objective(PetscReal t,Vec obj,AppCtx *appctx)
 {
-  PetscScalar    *s_localptr,*xg_localptr,tc = -.001*4*PETSC_PI*PETSC_PI*t;
-  PetscErrorCode ierr;
-  PetscInt       i, lenglob;
-  
-  /*
-     Simply write the solution directly into the array locations.
-     Alternatively, we culd use VecSetValues() or VecSetValuesLocal().
-  */
-  
+  PetscScalar       *s_localptr,tc = -.001*4*PETSC_PI*PETSC_PI*t;
+  const PetscScalar *xg_localptr;
+  PetscErrorCode    ierr;
+  PetscInt          i, lenglob;
+
   ierr = DMDAVecGetArray(appctx->da,obj,&s_localptr);CHKERRQ(ierr);
-  ierr = DMDAVecGetArray(appctx->da,appctx->SEMop.grid,&xg_localptr);CHKERRQ(ierr);
+  ierr = DMDAVecGetArrayRead(appctx->da,appctx->SEMop.grid,&xg_localptr);CHKERRQ(ierr);
 
   lenglob  = appctx->param.E*(appctx->param.N-1);
-  
-    for (i=0; i<lenglob; i++) {
+  for (i=0; i<lenglob; i++) {
       s_localptr[i]=PetscSinScalar(2.0*PETSC_PI*xg_localptr[i])*PetscExpScalar(tc);
-   }
-  
-    /*for (i=0; i<lenglob; i++) {
-      s_localptr[i]=1.0;
-     }*/
+  }
 
-
-/*
-     Restore vectors
-*/
-  ierr = DMDAVecRestoreArray(appctx->da,appctx->SEMop.grid,&xg_localptr);CHKERRQ(ierr);
-  ierr = DMDAVecRestoreArray(appctx->da,appctx->dat.obj,&s_localptr);CHKERRQ(ierr);
-
+  ierr = DMDAVecRestoreArrayRead(appctx->da,appctx->SEMop.grid,&xg_localptr);CHKERRQ(ierr);
+  ierr = DMDAVecRestoreArray(appctx->da,obj,&s_localptr);CHKERRQ(ierr);
   return 0;
 }
 
@@ -356,13 +338,13 @@ PetscErrorCode Objective(PetscReal t,Vec obj,AppCtx *appctx)
 
    Input Parameters:
    ts - the TS context
-   t - current time
-   global_in - global input vector
+   t - current time  (ignored)
+   X - current solution (ignored)
    dummy - optional user-defined context, as set by TSetRHSJacobian()
 
    Output Parameters:
    AA - Jacobian matrix
-   BB - optionally different preconditioning matrix
+   BB - optionally different matrix from which the preconditioner is built
    str - flag indicating matrix structure
 
 */
@@ -419,18 +401,41 @@ PetscErrorCode RHSMatrixHeatgllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx
 
    Input Parameters:
    tao - the Tao context
-   X   - the input vector
-   ptr - optional user-defined context, as set by TaoSetObjectiveAndGradientRoutine()
+   IC   - the input vector
+   ctx - optional user-defined context, as set when calling TaoSetObjectiveAndGradientRoutine()
 
    Output Parameters:
    f   - the newly evaluated function
    G   - the newly evaluated gradient
+
+   Notes:
+
+          The forward equation is
+              M u_t = F(U)
+          which is converted to
+                u_t = M^{-1} F(u)
+          in the user code since TS has no direct way of providing a mass matrix. The Jacobian of this is
+                 M^{-1} J
+          where J is the Jacobian of F. Now the adjoint equation is
+                M v_t = J^T v
+          but TSAdjoint does not solve this since it can only solve the transposed system for the 
+          Jacobian the user provided. Hence TSAdjoint solves
+                 w_t = J^T M^{-1} w  (where w = M v)
+          since there is no way to indicate the mass matrix as a seperate entitity to TS. Thus one
+          must be careful in initializing the "adjoint equation" and using the result. This is
+          why
+              G = -2 M(u(T) - u_d)
+          below (instead of -2(u(T) - u_d) and why the result is
+              G = G/appctx->SEMop.mass (that is G = M^{-1}w)
+          below (instead of just the result of the "adjoint solve").
+
+
 */
 PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
 {
   AppCtx           *appctx = (AppCtx*)ctx;     /* user-defined application context */
   PetscErrorCode    ierr;
-  Vec               temp, temp2;
+  Vec               temp;
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    Create timestepping solver context
@@ -463,36 +468,30 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     Save trajectory of solution so that TSAdjointSolve() may be used
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-   ierr = TSSetSaveTrajectory(appctx->ts);CHKERRQ(ierr);
+  ierr = TSSetSaveTrajectory(appctx->ts);CHKERRQ(ierr);
 
   ierr = TSSolve(appctx->ts,appctx->dat.curr_sol);CHKERRQ(ierr);
+
+  ierr = VecWAXPY(G,-1.0,appctx->dat.curr_sol,appctx->dat.obj);CHKERRQ(ierr);
 
   /*
      Compute the L2-norm of the objective function, cost function is f
   */
-  ierr = VecDuplicate(appctx->dat.obj,&temp);CHKERRQ(ierr);
-  ierr = VecCopy(appctx->dat.obj,temp);CHKERRQ(ierr);
-  ierr = VecAXPY(temp,-1.0,appctx->dat.curr_sol);CHKERRQ(ierr);
-
-  ierr = VecDuplicate(temp,&temp2);CHKERRQ(ierr);
-  ierr = VecPointwiseMult(temp2,temp,temp);CHKERRQ(ierr);
-  ierr = VecDot(temp2,appctx->SEMop.mass,f);CHKERRQ(ierr);
-
-  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-     Adjoint model starts here
-     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  /*
-   Initial conditions for the adjoint integration
-   */
-
-  ierr = VecScale(temp, -2.0);
-  ierr = VecPointwiseMult(temp,temp,appctx->SEMop.mass);CHKERRQ(ierr);
-  ierr = VecCopy(temp,appctx->dat.grad);CHKERRQ(ierr);
-  ierr = TSSetCostGradients(appctx->ts,1,&appctx->dat.grad,NULL);CHKERRQ(ierr);
-  ierr = TSAdjointSolve(appctx->ts);CHKERRQ(ierr);
-  ierr = VecCopy(appctx->dat.grad,G);CHKERRQ(ierr);
+  ierr = VecDuplicate(G,&temp);CHKERRQ(ierr);
+  ierr = VecPointwiseMult(temp,G,G);CHKERRQ(ierr);
+  ierr = VecDot(temp,appctx->SEMop.mass,f);CHKERRQ(ierr);
   ierr = VecDestroy(&temp);CHKERRQ(ierr);
-  ierr = VecDestroy(&temp2);CHKERRQ(ierr);
+
+  /*
+     Compute initial conditions for the adjoint integration. See Notes above
+  */
+
+  ierr = VecScale(G, -2.0);
+  ierr = VecPointwiseMult(G,G,appctx->SEMop.mass);CHKERRQ(ierr);
+  ierr = TSSetCostGradients(appctx->ts,1,&G,NULL);CHKERRQ(ierr);
+
+  ierr = TSAdjointSolve(appctx->ts);CHKERRQ(ierr);
+  ierr = VecPointwiseDivide(G,G,appctx->SEMop.mass);CHKERRQ(ierr);
   ierr = TSDestroy(&appctx->ts);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
