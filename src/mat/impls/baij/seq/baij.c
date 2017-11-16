@@ -2806,7 +2806,7 @@ PetscErrorCode  MatSeqBAIJSetPreallocation_SeqBAIJ(Mat B,PetscInt bs,PetscInt nz
   Mat_SeqBAIJ    *b;
   PetscErrorCode ierr;
   PetscInt       i,mbs,nbs,bs2;
-  PetscBool      flg = PETSC_FALSE,skipallocation = PETSC_FALSE,realalloc = PETSC_FALSE;
+  PetscBool      flg = PETSC_FALSE,skipallocation = PETSC_FALSE,realalloc = PETSC_FALSE,baij_loop=PETSC_FALSE;
 
   PetscFunctionBegin;
   if (nz >= 0 || nnz) realalloc = PETSC_TRUE;
@@ -2840,6 +2840,7 @@ PetscErrorCode  MatSeqBAIJSetPreallocation_SeqBAIJ(Mat B,PetscInt bs,PetscInt nz
   b    = (Mat_SeqBAIJ*)B->data;
   ierr = PetscOptionsBegin(PetscObjectComm((PetscObject)B),NULL,"Optimize options for SEQBAIJ matrix 2 ","Mat");CHKERRQ(ierr);
   ierr = PetscOptionsBool("-mat_no_unroll","Do not optimize for block size (slow)",NULL,flg,&flg,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-mat_baij_loop","Use loops instead of manually unrolled implementations",NULL,baij_loop,&baij_loop,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   if (!flg) {
@@ -2857,7 +2858,7 @@ PetscErrorCode  MatSeqBAIJSetPreallocation_SeqBAIJ(Mat B,PetscInt bs,PetscInt nz
       B->ops->multadd = MatMultAdd_SeqBAIJ_3;
       break;
     case 4:
-      B->ops->mult    = MatMult_SeqBAIJ_4;
+      B->ops->mult    = baij_loop ? MatMult_SeqBAIJ_4_loop : MatMult_SeqBAIJ_4;
       B->ops->multadd = MatMultAdd_SeqBAIJ_4;
       break;
     case 5:
