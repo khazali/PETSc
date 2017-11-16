@@ -5,7 +5,12 @@ static char help[] = "Demonstrates adjoint sensitivity analysis for Reaction-Dif
   This code demonstrates the TSAdjoint and the adjoint ode (via TScomputeObjectiveAndGradient) interfaces to a system of time-dependent partial differential equations.
   It computes the sensitivity of a component in the final solution, which locates in the center of the 2D domain, w.r.t. the initial conditions.
   The user does not need to provide any additional functions. The required functions in the original simulation are reused in the adjoint run.
- */
+
+  Runtime options:
+    -forwardonly   - run the forward simulation without adjoint
+    -implicitform  - provide IFunction and IJacobian to TS, if not set, RHSFunction and RHSJacobian will be used
+    -aijpc         - set the preconditioner matrix to be aij (the Jacobian matrix can be of a different type such as ELL)
+*/
 #include <petscsys.h>
 #include <petscdm.h>
 #include <petscdmda.h>
@@ -17,6 +22,7 @@ typedef struct {
 
 typedef struct {
   PetscReal D1,D2,gamma,kappa;
+  PetscBool aijpc;
 } AppCtx;
 
 /*
@@ -84,6 +90,8 @@ int main(int argc,char **argv)
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return ierr;
   ierr = PetscOptionsGetBool(NULL,NULL,"-forwardonly",&forwardonly,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetBool(NULL,NULL,"-implicitform",&implicitform,NULL);CHKERRQ(ierr);
+  appctx.aijpc = PETSC_FALSE;
+  ierr = PetscOptionsGetBool(NULL,NULL,"-aijpc",&appctx.aijpc,NULL);CHKERRQ(ierr);
 
   appctx.D1    = 8.0e-5;
   appctx.D2    = 4.0e-5;
@@ -118,7 +126,19 @@ int main(int argc,char **argv)
   } else {
     ierr = TSSetType(ts,TSCN);CHKERRQ(ierr);
     ierr = TSSetIFunction(ts,NULL,IFunction,&appctx);CHKERRQ(ierr);
-    ierr = TSSetIJacobian(ts,NULL,NULL,IJacobian,&appctx);CHKERRQ(ierr);
+    if (appctx.aijpc) {
+      Mat                    A,B;
+
+      ierr = DMSetMatType(da,MATELL);CHKERRQ(ierr);
+      ierr = DMCreateMatrix(da,&A);CHKERRQ(ierr);
+      ierr = MatConvert(A,MATAIJ,MAT_INITIAL_MATRIX,&B);CHKERRQ(ierr);
+      /* FIXME do we need to change viewer to display matrix in natural ordering as DMCreateMatrix_DA does? */
+      ierr = TSSetIJacobian(ts,A,B,IJacobian,&appctx);CHKERRQ(ierr);
+      ierr = MatDestroy(&A);CHKERRQ(ierr);
+      ierr = MatDestroy(&B);CHKERRQ(ierr);
+    } else {
+      ierr = TSSetIJacobian(ts,NULL,NULL,IJacobian,&appctx);CHKERRQ(ierr);
+    }
   }
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -155,9 +175,7 @@ int main(int argc,char **argv)
       ierr = VecDuplicate(x,&lambda[0]);CHKERRQ(ierr);
       /*   Reset initial conditions for the adjoint integration */
       ierr = InitializeLambda(da,lambda[0],0.5,0.5);CHKERRQ(ierr);
-
       ierr = TSSetCostGradients(ts,1,lambda,NULL);CHKERRQ(ierr);
-
       ierr = TSAdjointSolve(ts);CHKERRQ(ierr);
 
       /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -194,6 +212,10 @@ int main(int argc,char **argv)
       ierr = VecDestroy(&dummy);CHKERRQ(ierr);
     }
   }
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     Free work space.  All PETSc objects should be destroyed when they
+     are no longer needed.
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = TSDestroy(&ts);CHKERRQ(ierr);
   ierr = DMDestroy(&da);CHKERRQ(ierr);
@@ -401,7 +423,9 @@ PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat BB,void *ctx)
       rowstencil.i = i; rowstencil.c = 0;
 
       ierr = MatSetValuesStencil(A,1,&rowstencil,6,stencil,entries,INSERT_VALUES);CHKERRQ(ierr);
-
+      if (appctx->aijpc) {
+        ierr = MatSetValuesStencil(BB,1,&rowstencil,6,stencil,entries,INSERT_VALUES);CHKERRQ(ierr);
+      }
       stencil[0].c = 1; entries[0] = appctx->D2*sy;
       stencil[1].c = 1; entries[1] = appctx->D2*sy;
       stencil[2].c = 1; entries[2] = appctx->D2*sx;
@@ -411,6 +435,9 @@ PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat BB,void *ctx)
       rowstencil.c = 1;
 
       ierr = MatSetValuesStencil(A,1,&rowstencil,6,stencil,entries,INSERT_VALUES);CHKERRQ(ierr);
+      if (appctx->aijpc) {
+        ierr = MatSetValuesStencil(BB,1,&rowstencil,6,stencil,entries,INSERT_VALUES);CHKERRQ(ierr);
+      }
       /* f[j][i].v = appctx->D2*(vxx + vyy) + uc*vc*vc - (appctx->gamma + appctx->kappa)*vc; */
     }
   }
@@ -424,6 +451,12 @@ PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat BB,void *ctx)
   ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatSetOption(A,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
+  if (appctx->aijpc) {
+    ierr = MatAssemblyBegin(BB,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(BB,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatSetOption(BB,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
+  }
+
   PetscFunctionReturn(0);
 }
 
@@ -584,7 +617,9 @@ PetscErrorCode IJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal a,Mat A,Mat 
       rowstencil.i = i; rowstencil.c = 0;
 
       ierr = MatSetValuesStencil(A,1,&rowstencil,6,stencil,entries,INSERT_VALUES);CHKERRQ(ierr);
-
+      if (appctx->aijpc) {
+        ierr = MatSetValuesStencil(BB,1,&rowstencil,6,stencil,entries,INSERT_VALUES);CHKERRQ(ierr);
+      }
       stencil[0].c = 1; entries[0] = -appctx->D2*sy;
       stencil[1].c = 1; entries[1] = -appctx->D2*sy;
       stencil[2].c = 1; entries[2] = -appctx->D2*sx;
@@ -594,6 +629,9 @@ PetscErrorCode IJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal a,Mat A,Mat 
       rowstencil.c = 1;
 
       ierr = MatSetValuesStencil(A,1,&rowstencil,6,stencil,entries,INSERT_VALUES);CHKERRQ(ierr);
+      if (appctx->aijpc) {
+        ierr = MatSetValuesStencil(BB,1,&rowstencil,6,stencil,entries,INSERT_VALUES);CHKERRQ(ierr);
+      }
       /* f[j][i].v = appctx->D2*(vxx + vyy) + uc*vc*vc - (appctx->gamma + appctx->kappa)*vc; */
     }
   }
@@ -607,5 +645,10 @@ PetscErrorCode IJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal a,Mat A,Mat 
   ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatSetOption(A,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
+  if (appctx->aijpc) {
+    ierr = MatAssemblyBegin(BB,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(BB,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatSetOption(BB,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }

@@ -107,28 +107,27 @@
       <h4>VecScatter:</h4>
       <h4>PetscSection:</h4>
       <h4>Mat:</h4>
-      <ul>
-        <li>Added MatFindZeroRows_Basic().
-      </ul>
       <h4>PC:</h4>
       <h4>KSP:</h4>
       <h4>SNES:</h4>
       <h4>SNESLineSearch:</h4>
       <h4>TS:</h4>
       <ul>
-        <li>Added support for PDE-constrained optimization for TS to compute objective functions, gradient and Hessians wrt the parameters. See TSSetObjective(), TSSetGradientDAE() and the functions referenced.
-        <li>Added support to automatically derive the Adjoint DAE solver and the Tangent Linear Model solver for parameter dependent DAEs.
-        <li>Added TSCreatePropagatorMat() to create a Mat object that behaves like a linearized propagator of a time stepper on a given time window.
-        <li>Added TSADAPTHISTORY: a new TSAdapt implementation that follows a given time history, that can set with TSAdaptHistorySetHistory().
-        <li>Added TSTrajectoryGetVecs(): to reconstructs states and time derivative vectors from a TSTrajectory.
+        <li>Added support for PDE-constrained optimization for TS to compute objective functions, gradient and Hessians wrt the parameters. See TSSetObjective(), TSSetGradientDAE() and the functions referenced.</li>
+        <li>Added support to automatically derive the Adjoint DAE solver and the Tangent Linear Model solver for parameter dependent DAEs.</li>
+        <li>Added TSCreatePropagatorMat() to create a Mat object that behaves like a linearized propagator of a time stepper on a given time window.</li>
+        <li>Added TSADAPTHISTORY: a new TSAdapt implementation that follows a given time history, that can set with TSAdaptHistorySetHistory().</li>
+        <li>Added TSTrajectoryGetVecs(): to reconstructs states and time derivative vectors from a TSTrajectory.</li>
       </ul>
       <h4>TAO:</h4>
       <ul>
-        <li>Added default matrix-free finite-differencing implementation for Hessian MatMult with TaoDefaultComputeHessianMFFD(). Can be selected with -tao_mf_hessian at command line.
+        <li>Added VecLock{Push|Pop} calls around user callbacks; use of VecGetArray in user callbacks is now prohibited.</li>
+        <li>Added default matrix-free finite-differencing implementation for Hessian MatMult with TaoDefaultComputeHessianMFFD(). Can be selected with -tao_mf_hessian at command line.</li>
       </ul>
       <h4>DM/DA:</h4>
       <h4>DMPlex:</h4>
       <h4>PetscViewer:</h4>
+         PetscViewerVTKFWrite() now takes a MPI_Datatype instead of a PetscDataType argument.
       <h4>SYS:</h4>
       <ul>
         <li>Added PetscSortRealWithArrayInt() and PetscFindReal().
@@ -137,6 +136,7 @@
       <h4>AO:</h4>
       <h4>Sieve:</h4>
       <h4>Fortran:</h4>
+      The F90Array routines now take a MPI_Datatype argument instead of a PetscDataType. This should not affect user code.
     </div>
 
     <!--end-->

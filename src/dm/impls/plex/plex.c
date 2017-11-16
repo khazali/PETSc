@@ -3066,7 +3066,7 @@ PetscErrorCode DMPlexGetHeightStratum(DM dm, PetscInt stratumValue, PetscInt *st
     PetscFunctionReturn(0);
   }
   ierr = DMPlexGetDepthLabel(dm, &label);CHKERRQ(ierr);
-  if (!label) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_ARG_WRONG, "No label named depth was found");CHKERRQ(ierr);
+  if (!label) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_ARG_WRONG, "No label named depth was found");
   ierr = DMLabelGetNumValues(label, &depth);CHKERRQ(ierr);
   ierr = DMLabelGetStratumBounds(label, depth-1-stratumValue, start, end);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -6426,6 +6426,34 @@ PetscErrorCode DMCreateInjection_Plex(DM dmCoarse, DM dmFine, Mat *mat)
   ierr = DMPlexComputeInjectorFEM(dmCoarse, dmFine, &ctx, NULL);CHKERRQ(ierr);
   ierr = MatCreateScatter(PetscObjectComm((PetscObject)ctx), ctx, mat);CHKERRQ(ierr);
   ierr = VecScatterDestroy(&ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode DMCreateMassMatrix_Plex(DM dmCoarse, DM dmFine, Mat *mass)
+{
+  PetscSection   gsc, gsf;
+  PetscInt       m, n;
+  void          *ctx;
+  DM             cdm;
+  PetscBool      regular;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = DMGetDefaultGlobalSection(dmFine, &gsf);CHKERRQ(ierr);
+  ierr = PetscSectionGetConstrainedStorageSize(gsf, &m);CHKERRQ(ierr);
+  ierr = DMGetDefaultGlobalSection(dmCoarse, &gsc);CHKERRQ(ierr);
+  ierr = PetscSectionGetConstrainedStorageSize(gsc, &n);CHKERRQ(ierr);
+
+  ierr = MatCreate(PetscObjectComm((PetscObject) dmCoarse), mass);CHKERRQ(ierr);
+  ierr = MatSetSizes(*mass, m, n, PETSC_DETERMINE, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = MatSetType(*mass, dmCoarse->mattype);CHKERRQ(ierr);
+  ierr = DMGetApplicationContext(dmFine, &ctx);CHKERRQ(ierr);
+
+  ierr = DMGetCoarseDM(dmFine, &cdm);CHKERRQ(ierr);
+  ierr = DMPlexGetRegularRefinement(dmFine, &regular);CHKERRQ(ierr);
+  if (regular && cdm == dmCoarse) {ierr = DMPlexComputeMassMatrixNested(dmCoarse, dmFine, *mass, ctx);CHKERRQ(ierr);}
+  else                            {ierr = DMPlexComputeMassMatrixGeneral(dmCoarse, dmFine, *mass, ctx);CHKERRQ(ierr);}
+  ierr = MatViewFromOptions(*mass, NULL, "-mass_mat_view");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

@@ -63,7 +63,6 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   PetscInt       quadSizes[2]    = {2, 2};
   PetscInt       quadPoints[4]   = {2, 3, 0, 1};
   PetscInt       overlap         = user->overlap >= 0 ? user->overlap : 0;
-  const PetscInt cells[3]        = {2, 2, 2};
   size_t         len;
   PetscMPIInt    rank, size;
   PetscErrorCode ierr;
@@ -73,9 +72,8 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   ierr = MPI_Comm_size(comm, &size);CHKERRQ(ierr);
   ierr = PetscStrlen(filename, &len);CHKERRQ(ierr);
   ierr = PetscLogStagePush(user->stages[STAGE_LOAD]);CHKERRQ(ierr);
-  if (len)              {ierr = DMPlexCreateFromFile(comm, filename, PETSC_TRUE, dm);CHKERRQ(ierr);}
-  else if (cellSimplex) {ierr = DMPlexCreateBoxMesh(comm, dim, dim == 2 ? 2 : 1, PETSC_TRUE, dm);CHKERRQ(ierr);}
-  else                  {ierr = DMPlexCreateHexBoxMesh(comm, dim, cells, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, dm);CHKERRQ(ierr);}
+  if (len) {ierr = DMPlexCreateFromFile(comm, filename, PETSC_TRUE, dm);CHKERRQ(ierr);}
+  else     {ierr = DMPlexCreateBoxMesh(comm, dim, cellSimplex, NULL, NULL, NULL, NULL, PETSC_TRUE, dm);CHKERRQ(ierr);}
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   ierr = PetscLogStagePush(user->stages[STAGE_DISTRIBUTE]);CHKERRQ(ierr);
   if (!user->testRedundant) {

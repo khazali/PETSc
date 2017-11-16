@@ -87,6 +87,9 @@ typedef const char* MatType;
 #define MATLOCALREF        "localref"
 #define MATNEST            "nest"
 #define MATPREALLOCATOR    "preallocator"
+#define MATELL             "ell"
+#define MATSEQELL          "seqell"
+#define MATMPIELL          "mpiell"
 #define MATDUMMY           "dummy"
 
 /*J
@@ -204,10 +207,14 @@ PETSC_EXTERN PetscFunctionList MatPartitioningList;
 E*/
 typedef enum {DIFFERENT_NONZERO_PATTERN,SUBSET_NONZERO_PATTERN,SAME_NONZERO_PATTERN} MatStructure;
 
-#if defined PETSC_HAVE_MKL
+#if defined PETSC_HAVE_MKL_SPARSE
 PETSC_EXTERN PetscErrorCode MatCreateBAIJMKL(MPI_Comm,PetscInt,PetscInt,PetscInt,PetscInt,PetscInt,PetscInt,const PetscInt[],PetscInt,const PetscInt[],Mat*);
 PETSC_EXTERN PetscErrorCode MatCreateSeqBAIJMKL(MPI_Comm comm,PetscInt bs,PetscInt m,PetscInt n,PetscInt nz,const PetscInt nnz[],Mat *A);
 #endif
+PETSC_EXTERN PetscErrorCode MatCreateSeqELL(MPI_Comm,PetscInt,PetscInt,PetscInt,const PetscInt[],Mat*);
+PETSC_EXTERN PetscErrorCode MatCreateELL(MPI_Comm,PetscInt,PetscInt,PetscInt,PetscInt,PetscInt,const PetscInt[],PetscInt,const PetscInt[],Mat*);
+PETSC_EXTERN PetscErrorCode MatSeqELLSetPreallocation(Mat,PetscInt,const PetscInt[]);
+PETSC_EXTERN PetscErrorCode MatMPIELLSetPreallocation(Mat,PetscInt,const PetscInt[],PetscInt,const PetscInt[]);
 
 PETSC_EXTERN PetscErrorCode MatCreateSeqDense(MPI_Comm,PetscInt,PetscInt,PetscScalar[],Mat*);
 PETSC_EXTERN PetscErrorCode MatCreateDense(MPI_Comm,PetscInt,PetscInt,PetscInt,PetscInt,PetscScalar[],Mat*);
@@ -275,6 +282,7 @@ PETSC_EXTERN PetscErrorCode MatImaginaryPart(Mat);
 PETSC_EXTERN PetscErrorCode MatGetDiagonalBlock(Mat,Mat*);
 PETSC_EXTERN PetscErrorCode MatGetTrace(Mat,PetscScalar*);
 PETSC_EXTERN PetscErrorCode MatInvertBlockDiagonal(Mat,const PetscScalar **);
+PETSC_EXTERN PetscErrorCode MatInvertBlockDiagonalMat(Mat,Mat);
 
 /* ------------------------------------------------------------*/
 PETSC_EXTERN PetscErrorCode MatSetValues(Mat,PetscInt,const PetscInt[],PetscInt,const PetscInt[],const PetscScalar[],InsertMode);

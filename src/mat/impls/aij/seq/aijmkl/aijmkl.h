@@ -25,17 +25,19 @@
 # endif
 #endif
 
+/* Note: MKL releases prior to the end of 2014 do not have a const-correct interface -> ugly casts necessary.
+         Does not apply to mkl_sparse_x_*()-routines, because these have been introduced later. */
 #if !defined(PETSC_USE_COMPLEX)
 # if defined(PETSC_USE_REAL_SINGLE)
-#   define mkl_xcsrmv(transa,m,k,alpha,matdescra,val,indx,pntrb,pntre,x,beta,y) mkl_scsrmv(transa,m,k,alpha,matdescra,val,indx,pntrb,pntre,x,beta,y)
+#   define mkl_xcsrmv(transa,m,k,alpha,matdescra,val,indx,pntrb,pntre,x,beta,y) mkl_scsrmv(transa,m,k,alpha,matdescra,(MatScalar*)val,(PetscInt*)indx,(PetscInt*)pntrb,(PetscInt*)pntre,(PetscScalar*)x,beta,y)
 # elif defined(PETSC_USE_REAL_DOUBLE)
-#   define mkl_xcsrmv(transa,m,k,alpha,matdescra,val,indx,pntrb,pntre,x,beta,y) mkl_dcsrmv(transa,m,k,alpha,matdescra,val,indx,pntrb,pntre,x,beta,y)
+#   define mkl_xcsrmv(transa,m,k,alpha,matdescra,val,indx,pntrb,pntre,x,beta,y) mkl_dcsrmv(transa,m,k,alpha,matdescra,(MatScalar*)val,(PetscInt*)indx,(PetscInt*)pntrb,(PetscInt*)pntre,(PetscScalar*)x,beta,y)
 # endif
 #else
 # if defined(PETSC_USE_REAL_SINGLE)
-#   define mkl_xcsrmv(transa,m,k,alpha,matdescra,val,indx,pntrb,pntre,x,beta,y) mkl_ccsrmv(transa,m,k,alpha,matdescra,val,indx,pntrb,pntre,x,beta,y)
+#   define mkl_xcsrmv(transa,m,k,alpha,matdescra,val,indx,pntrb,pntre,x,beta,y) mkl_ccsrmv(transa,m,k,alpha,matdescra,(MatScalar*)val,(PetscInt*)indx,(PetscInt*)pntrb,(PetscInt*)pntre,(PetscScalar*)x,beta,y)
 # elif defined(PETSC_USE_REAL_DOUBLE)
-#   define mkl_xcsrmv(transa,m,k,alpha,matdescra,val,indx,pntrb,pntre,x,beta,y) mkl_zcsrmv(transa,m,k,alpha,matdescra,val,indx,pntrb,pntre,x,beta,y)
+#   define mkl_xcsrmv(transa,m,k,alpha,matdescra,val,indx,pntrb,pntre,x,beta,y) mkl_zcsrmv(transa,m,k,alpha,matdescra,(MatScalar*)val,(PetscInt*)indx,(PetscInt*)pntrb,(PetscInt*)pntre,(PetscScalar*)x,beta,y)
 # endif
 #endif
 
@@ -64,5 +66,19 @@
 #   define mkl_sparse_x_mv(operation,alpha,A,descr,x,beta,y) mkl_sparse_c_mv(operation,alpha,A,descr,x,beta,y)
 # elif defined(PETSC_USE_REAL_DOUBLE)
 #   define mkl_sparse_x_mv(operation,alpha,A,descr,x,beta,y) mkl_sparse_z_mv(operation,alpha,A,descr,x,beta,y)
+# endif
+#endif
+
+#if !defined(PETSC_USE_COMPLEX)
+# if defined(PETSC_USE_REAL_SINGLE)
+#   define mkl_sparse_x_export_csr(source,indexing,rows,cols,rows_start,rows_end,col_indx,values) mkl_sparse_s_export_csr(source,indexing,rows,cols,rows_start,rows_end,col_indx,values)
+# elif defined(PETSC_USE_REAL_DOUBLE)
+#   define mkl_sparse_x_export_csr(source,indexing,rows,cols,rows_start,rows_end,col_indx,values) mkl_sparse_d_export_csr(source,indexing,rows,cols,rows_start,rows_end,col_indx,values)
+# endif
+#else
+# if defined(PETSC_USE_REAL_SINGLE)
+#   define mkl_sparse_x_export_csr(source,indexing,rows,cols,rows_start,rows_end,col_indx,values) mkl_sparse_c_export_csr(source,indexing,rows,cols,rows_start,rows_end,col_indx,values)
+# elif defined(PETSC_USE_REAL_DOUBLE)
+#   define mkl_sparse_x_export_csr(source,indexing,rows,cols,rows_start,rows_end,col_indx,values) mkl_sparse_z_export_csr(source,indexing,rows,cols,rows_start,rows_end,col_indx,values)
 # endif
 #endif

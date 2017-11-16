@@ -209,6 +209,7 @@ int main(int argc,char **argv)
   ierr = VecGetArray(user.x,&x_ptr);CHKERRQ(ierr);
   user.x_ob[0] = x_ptr[0];
   user.x_ob[1] = x_ptr[1];
+  ierr = VecRestoreArray(user.x,&x_ptr);CHKERRQ(ierr);
 
   ierr = MatCreateVecs(user.A,&user.lambda[0],NULL);CHKERRQ(ierr);
   ierr = MatCreateVecs(user.A,&user.lambda[1],NULL);CHKERRQ(ierr);
@@ -358,6 +359,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx)
   ierr = VecGetArray(user->lambda[0],&y_ptr);CHKERRQ(ierr);
   y_ptr[0] = 2.*(x_ptr[0]-user->x_ob[0]);
   y_ptr[1] = 2.*(x_ptr[1]-user->x_ob[1]);
+  ierr = VecRestoreArray(user->x,&x_ptr);CHKERRQ(ierr);
   ierr = VecRestoreArray(user->lambda[0],&y_ptr);CHKERRQ(ierr);
   ierr = VecRestoreArray(user->x,&x_ptr);CHKERRQ(ierr);
   ierr = VecGetArray(user->lambda[1],&x_ptr);CHKERRQ(ierr);

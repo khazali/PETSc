@@ -852,12 +852,8 @@ PetscErrorCode MatSetUp(Mat A)
     ierr = PetscInfo(A,"Warning not preallocating matrix storage\n");CHKERRQ(ierr);
     ierr = (*A->ops->setup)(A);CHKERRQ(ierr);
   }
-  if (A->rmap->n < 0 || A->rmap->N < 0) {
-    ierr = PetscLayoutSetUp(A->rmap);CHKERRQ(ierr);
-  }
-  if (A->cmap->n < 0 || A->cmap->N < 0) {
-    ierr = PetscLayoutSetUp(A->cmap);CHKERRQ(ierr);
-  }
+  ierr = PetscLayoutSetUp(A->rmap);CHKERRQ(ierr);
+  ierr = PetscLayoutSetUp(A->cmap);CHKERRQ(ierr);
   A->preallocated = PETSC_TRUE;
   PetscFunctionReturn(0);
 }
@@ -4096,6 +4092,21 @@ PetscErrorCode MatConvert(Mat mat, MatType newtype,MatReuse reuse,Mat *M)
 foundconv:
     ierr = PetscLogEventBegin(MAT_Convert,mat,0,0,0);CHKERRQ(ierr);
     ierr = (*conv)(mat,newtype,reuse,M);CHKERRQ(ierr);
+    if (mat->rmap->mapping && mat->cmap->mapping && !(*M)->rmap->mapping && !(*M)->cmap->mapping) {
+      /* the block sizes must be same if the mappings are copied over */
+      (*M)->rmap->bs = mat->rmap->bs;
+      (*M)->cmap->bs = mat->cmap->bs;
+      ierr = PetscObjectReference((PetscObject)mat->rmap->mapping);CHKERRQ(ierr);
+      ierr = PetscObjectReference((PetscObject)mat->cmap->mapping);CHKERRQ(ierr);
+      (*M)->rmap->mapping = mat->rmap->mapping;
+      (*M)->cmap->mapping = mat->cmap->mapping;
+    }
+    (*M)->stencil.dim = mat->stencil.dim;
+    (*M)->stencil.noc = mat->stencil.noc;
+    for (i=0; i<=mat->stencil.dim; i++) {
+      (*M)->stencil.dims[i]   = mat->stencil.dims[i];
+      (*M)->stencil.starts[i] = mat->stencil.starts[i];
+    }
     ierr = PetscLogEventEnd(MAT_Convert,mat,0,0,0);CHKERRQ(ierr);
   }
   ierr = PetscObjectStateIncrease((PetscObject)*M);CHKERRQ(ierr);
@@ -4354,6 +4365,10 @@ PetscErrorCode MatGetFactor(Mat mat, const MatSolverPackage type,MatFactorType f
   if (!foundmtype) SETERRQ2(PetscObjectComm((PetscObject)mat),PETSC_ERR_MISSING_FACTOR,"MatSolverPackage %s does not support matrix type %s",type,((PetscObject)mat)->type_name);
   if (!conv) SETERRQ3(PetscObjectComm((PetscObject)mat),PETSC_ERR_MISSING_FACTOR,"MatSolverPackage %s does not support factorization type %s for  matrix type %s",type,MatFactorTypes[ftype],((PetscObject)mat)->type_name);
 
+#if defined(PETSC_USE_COMPLEX)
+  if (mat->hermitian && (ftype == MAT_FACTOR_CHOLESKY||ftype == MAT_FACTOR_ICC)) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Hermitian CHOLESKY or ICC Factor is not supported");
+#endif
+
   ierr = (*conv)(mat,ftype,f);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -4482,7 +4497,7 @@ PetscErrorCode MatDuplicate(Mat mat,MatDuplicateOption op,Mat *M)
 
    Concepts: matrices^accessing diagonals
 
-.seealso: MatGetRow(), MatCreateSubMatrices(), MatCreateSubmatrix(), MatGetRowMaxAbs()
+.seealso: MatGetRow(), MatCreateSubMatrices(), MatCreateSubMatrix(), MatGetRowMaxAbs()
 @*/
 PetscErrorCode MatGetDiagonal(Mat mat,Vec v)
 {
@@ -4523,7 +4538,7 @@ PetscErrorCode MatGetDiagonal(Mat mat,Vec v)
 
    Concepts: matrices^getting row maximums
 
-.seealso: MatGetDiagonal(), MatCreateSubMatrices(), MatCreateSubmatrix(), MatGetRowMaxAbs(),
+.seealso: MatGetDiagonal(), MatCreateSubMatrices(), MatCreateSubMatrix(), MatGetRowMaxAbs(),
           MatGetRowMax()
 @*/
 PetscErrorCode MatGetRowMin(Mat mat,Vec v,PetscInt idx[])
@@ -4565,7 +4580,7 @@ PetscErrorCode MatGetRowMin(Mat mat,Vec v,PetscInt idx[])
 
    Concepts: matrices^getting row maximums
 
-.seealso: MatGetDiagonal(), MatCreateSubMatrices(), MatCreateSubmatrix(), MatGetRowMax(), MatGetRowMaxAbs(), MatGetRowMin()
+.seealso: MatGetDiagonal(), MatCreateSubMatrices(), MatCreateSubMatrix(), MatGetRowMax(), MatGetRowMaxAbs(), MatGetRowMin()
 @*/
 PetscErrorCode MatGetRowMinAbs(Mat mat,Vec v,PetscInt idx[])
 {
@@ -4607,7 +4622,7 @@ PetscErrorCode MatGetRowMinAbs(Mat mat,Vec v,PetscInt idx[])
 
    Concepts: matrices^getting row maximums
 
-.seealso: MatGetDiagonal(), MatCreateSubMatrices(), MatCreateSubmatrix(), MatGetRowMaxAbs(), MatGetRowMin()
+.seealso: MatGetDiagonal(), MatCreateSubMatrices(), MatCreateSubMatrix(), MatGetRowMaxAbs(), MatGetRowMin()
 @*/
 PetscErrorCode MatGetRowMax(Mat mat,Vec v,PetscInt idx[])
 {
@@ -4648,7 +4663,7 @@ PetscErrorCode MatGetRowMax(Mat mat,Vec v,PetscInt idx[])
 
    Concepts: matrices^getting row maximums
 
-.seealso: MatGetDiagonal(), MatCreateSubMatrices(), MatCreateSubmatrix(), MatGetRowMax(), MatGetRowMin()
+.seealso: MatGetDiagonal(), MatCreateSubMatrices(), MatCreateSubMatrix(), MatGetRowMax(), MatGetRowMin()
 @*/
 PetscErrorCode MatGetRowMaxAbs(Mat mat,Vec v,PetscInt idx[])
 {
@@ -4685,7 +4700,7 @@ PetscErrorCode MatGetRowMaxAbs(Mat mat,Vec v,PetscInt idx[])
 
    Concepts: matrices^getting row sums
 
-.seealso: MatGetDiagonal(), MatCreateSubMatrices(), MatCreateSubmatrix(), MatGetRowMax(), MatGetRowMin()
+.seealso: MatGetDiagonal(), MatCreateSubMatrices(), MatCreateSubMatrix(), MatGetRowMax(), MatGetRowMin()
 @*/
 PetscErrorCode MatGetRowSum(Mat mat, Vec v)
 {
@@ -4698,7 +4713,7 @@ PetscErrorCode MatGetRowSum(Mat mat, Vec v)
   PetscValidHeaderSpecific(v,VEC_CLASSID,2);
   if (!mat->assembled) SETERRQ(PetscObjectComm((PetscObject)mat),PETSC_ERR_ARG_WRONGSTATE,"Not for unassembled matrix");
   MatCheckPreallocated(mat,1);
-  ierr = MatCreateVecs(mat,NULL,&ones);CHKERRQ(ierr);
+  ierr = MatCreateVecs(mat,&ones,NULL);CHKERRQ(ierr);
   ierr = VecSet(ones,1.);CHKERRQ(ierr);
   ierr = MatMult(mat,ones,v);CHKERRQ(ierr);
   ierr = VecDestroy(&ones);CHKERRQ(ierr);
@@ -8868,7 +8883,7 @@ PetscErrorCode MatFactorSetSchurIS(Mat mat,IS is)
    Use MatFactorGetSchurComplement() to get access to the Schur complement matrix inside the factored matrix instead of making a copy of it (which this function does)
 
    Developer Notes: The reason this routine exists is because the representation of the Schur complement within the factor matrix may be different than a standard PETSc
-   matrix representation and we normally do not want to use the time or memory to make a copy as a regular PETSc matrix. 
+   matrix representation and we normally do not want to use the time or memory to make a copy as a regular PETSc matrix.
 
    See MatCreateSchurComplement() or MatGetSchurComplement() for ways to create virtual or approximate Schur complements.
 
@@ -9149,7 +9164,7 @@ PetscErrorCode MatFactorFactorizeSchurComplement(Mat F)
    Notes:
    C will be created and must be destroyed by the user with MatDestroy().
 
-   This routine is currently only implemented for pairs of AIJ matrices and classes
+   This routine is currently only implemented for pairs of sequential dense matrices, AIJ matrices and classes
    which inherit from AIJ.
 
    Level: intermediate
@@ -9162,12 +9177,8 @@ PetscErrorCode MatPtAP(Mat A,Mat P,MatReuse scall,PetscReal fill,Mat *C)
   PetscErrorCode (*fA)(Mat,Mat,MatReuse,PetscReal,Mat*);
   PetscErrorCode (*fP)(Mat,Mat,MatReuse,PetscReal,Mat*);
   PetscErrorCode (*ptap)(Mat,Mat,MatReuse,PetscReal,Mat*)=NULL;
-  PetscBool      viatranspose=PETSC_FALSE,viamatmatmatmult=PETSC_FALSE;
 
   PetscFunctionBegin;
-  ierr = PetscOptionsGetBool(((PetscObject)A)->options,((PetscObject)A)->prefix,"-matptap_viatranspose",&viatranspose,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetBool(((PetscObject)A)->options,((PetscObject)A)->prefix,"-matptap_viamatmatmatmult",&viamatmatmatmult,NULL);CHKERRQ(ierr);
-
   PetscValidHeaderSpecific(A,MAT_CLASSID,1);
   PetscValidType(A,1);
   MatCheckPreallocated(A,1);
@@ -9188,25 +9199,12 @@ PetscErrorCode MatPtAP(Mat A,Mat P,MatReuse scall,PetscReal fill,Mat *C)
   if (scall == MAT_REUSE_MATRIX) {
     PetscValidPointer(*C,5);
     PetscValidHeaderSpecific(*C,MAT_CLASSID,5);
-    if (viatranspose || viamatmatmatmult) {
-      Mat Pt;
-      ierr = MatTranspose(P,MAT_INITIAL_MATRIX,&Pt);CHKERRQ(ierr);
-      if (viamatmatmatmult) {
-        ierr = MatMatMatMult(Pt,A,P,scall,fill,C);CHKERRQ(ierr);
-      } else {
-        Mat AP;
-        ierr = MatMatMult(A,P,MAT_INITIAL_MATRIX,fill,&AP);CHKERRQ(ierr);
-        ierr = MatMatMult(Pt,AP,scall,fill,C);CHKERRQ(ierr);
-        ierr = MatDestroy(&AP);CHKERRQ(ierr);
-      }
-      ierr = MatDestroy(&Pt);CHKERRQ(ierr);
-    } else {
-      ierr = PetscLogEventBegin(MAT_PtAP,A,P,0,0);CHKERRQ(ierr);
-      ierr = PetscLogEventBegin(MAT_PtAPNumeric,A,P,0,0);CHKERRQ(ierr);
-      ierr = (*(*C)->ops->ptapnumeric)(A,P,*C);CHKERRQ(ierr);
-      ierr = PetscLogEventEnd(MAT_PtAPNumeric,A,P,0,0);CHKERRQ(ierr);
-      ierr = PetscLogEventEnd(MAT_PtAP,A,P,0,0);CHKERRQ(ierr);
-    }
+
+    ierr = PetscLogEventBegin(MAT_PtAP,A,P,0,0);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(MAT_PtAPNumeric,A,P,0,0);CHKERRQ(ierr);
+    ierr = (*(*C)->ops->ptapnumeric)(A,P,*C);CHKERRQ(ierr);
+    ierr = PetscLogEventEnd(MAT_PtAPNumeric,A,P,0,0);CHKERRQ(ierr);
+    ierr = PetscLogEventEnd(MAT_PtAP,A,P,0,0);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
 
@@ -9230,25 +9228,9 @@ PetscErrorCode MatPtAP(Mat A,Mat P,MatReuse scall,PetscReal fill,Mat *C)
     if (!ptap) SETERRQ2(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_INCOMP,"MatPtAP requires A, %s, to be compatible with P, %s",((PetscObject)A)->type_name,((PetscObject)P)->type_name);
   }
 
-  if (viatranspose || viamatmatmatmult) {
-    Mat Pt;
-    ierr = MatTranspose(P,MAT_INITIAL_MATRIX,&Pt);CHKERRQ(ierr);
-    if (viamatmatmatmult) {
-      ierr = MatMatMatMult(Pt,A,P,scall,fill,C);CHKERRQ(ierr);
-      ierr = PetscInfo(*C,"MatPtAP via MatMatMatMult\n");CHKERRQ(ierr);
-    } else {
-      Mat AP;
-      ierr = MatMatMult(A,P,MAT_INITIAL_MATRIX,fill,&AP);CHKERRQ(ierr);
-      ierr = MatMatMult(Pt,AP,scall,fill,C);CHKERRQ(ierr);
-      ierr = MatDestroy(&AP);CHKERRQ(ierr);
-      ierr = PetscInfo(*C,"MatPtAP via MatTranspose and MatMatMult\n");CHKERRQ(ierr);
-    }
-    ierr = MatDestroy(&Pt);CHKERRQ(ierr);
-  } else {
-    ierr = PetscLogEventBegin(MAT_PtAP,A,P,0,0);CHKERRQ(ierr);
-    ierr = (*ptap)(A,P,scall,fill,C);CHKERRQ(ierr);
-    ierr = PetscLogEventEnd(MAT_PtAP,A,P,0,0);CHKERRQ(ierr);
-  }
+  ierr = PetscLogEventBegin(MAT_PtAP,A,P,0,0);CHKERRQ(ierr);
+  ierr = (*ptap)(A,P,scall,fill,C);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(MAT_PtAP,A,P,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -10326,6 +10308,8 @@ PetscErrorCode MatFindOffBlockDiagonalEntries(Mat mat,IS *is)
    This routine is not available from Fortran.
 
   Level: advanced
+
+.seealso: MatInvertBockDiagonalMat
 @*/
 PetscErrorCode MatInvertBlockDiagonal(Mat mat,const PetscScalar **values)
 {
@@ -10337,6 +10321,50 @@ PetscErrorCode MatInvertBlockDiagonal(Mat mat,const PetscScalar **values)
   if (mat->factortype) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Not for factored matrix");
   if (!mat->ops->invertblockdiagonal) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Not supported");
   ierr = (*mat->ops->invertblockdiagonal)(mat,values);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*@
+  MatInvertBlockDiagonalMat - set matrix C to be the inverted block diagonal of matrix A
+
+  Collective on Mat
+
+  Input Parameters:
+. A - the matrix
+
+  Output Parameters:
+. C - matrix with inverted block diagonal of A.  This matrix should be created and may have its type set.
+
+  Level: advanced
+
+.seealso: MatInvertBockDiagonal()
+@*/
+PetscErrorCode MatInvertBlockDiagonalMat(Mat A,Mat C)
+{
+  PetscErrorCode     ierr;
+  const PetscScalar *vals;
+  PetscInt          *dnnz;
+  PetscInt           M,N,m,n,rstart,rend,bs,i,j;
+
+  PetscFunctionBegin;
+  ierr = MatInvertBlockDiagonal(A,&vals);CHKERRQ(ierr);
+  ierr = MatGetBlockSize(A,&bs);CHKERRQ(ierr);
+  ierr = MatGetSize(A,&M,&N);CHKERRQ(ierr);
+  ierr = MatGetLocalSize(A,&m,&n);CHKERRQ(ierr);
+  ierr = MatSetSizes(C,m,n,M,N);CHKERRQ(ierr);
+  ierr = MatSetBlockSize(C,bs);CHKERRQ(ierr);
+  ierr = PetscMalloc1(m/bs,&dnnz);CHKERRQ(ierr);
+  for(j = 0; j < m/bs; j++) {
+    dnnz[j] = 1;
+  }
+  ierr = MatXAIJSetPreallocation(C,bs,dnnz,NULL,NULL,NULL);CHKERRQ(ierr);
+  ierr = PetscFree(dnnz);CHKERRQ(ierr);
+  ierr = MatGetOwnershipRange(C,&rstart,&rend);CHKERRQ(ierr);
+  for (i = rstart/bs; i < rend/bs; i++) {
+    ierr = MatSetValuesBlocked(C,1,&i,1,&i,&vals[(i-rstart/bs)*bs*bs],INSERT_VALUES);CHKERRQ(ierr);
+  }
+  ierr = MatAssemblyBegin(C,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(C,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

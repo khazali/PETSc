@@ -110,16 +110,11 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, DM *dm, AppCtx *ctx)
 {
   DM             pdm = NULL;
   const PetscInt dim = ctx->dim;
-  PetscInt       cells[3] = {1, 1, 1}; /* coarse mesh is one cell; refine from there */
   PetscBool      hasLabel;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
-  if (ctx->simplex) {
-    ierr = DMPlexCreateBoxMesh(comm, dim, dim == 2 ? 2 : 1, PETSC_TRUE, dm);CHKERRQ(ierr);
-  } else {
-    ierr = DMPlexCreateHexBoxMesh(comm, dim, cells, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, dm);CHKERRQ(ierr);
-  }
+  ierr = DMPlexCreateBoxMesh(comm, dim, ctx->simplex, NULL, NULL, NULL, NULL, PETSC_TRUE, dm);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) *dm, "Mesh");CHKERRQ(ierr);
   /* If no boundary marker exists, mark the whole boundary */
   ierr = DMHasLabel(*dm, "marker", &hasLabel);CHKERRQ(ierr);
@@ -267,6 +262,7 @@ int main(int argc, char **argv)
     args: -simplex 0 -dm_refine 3 -temp_petscspace_order 1 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
   test:
     suffix: 2d_q1_r5
+    requires: !single
     filter: sed -e "s~ATOL~RTOL~g" -e "s~ABS~RELATIVE~g"
     args: -simplex 0 -dm_refine 5 -temp_petscspace_order 1 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -pc_type lu -ksp_monitor_short -ksp_converged_reason -snes_monitor_short -snes_converged_reason -ts_monitor
   test:

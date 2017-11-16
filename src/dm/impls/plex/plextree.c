@@ -2252,7 +2252,7 @@ PetscErrorCode DMPlexComputeInterpolatorTree(DM coarse, DM fine, PetscSF coarseT
   ierr = PetscSectionGetNumFields(localCoarse,&numFields);CHKERRQ(ierr);
   maxFields = PetscMax(1,numFields);
   ierr = PetscMalloc7(maxFields+1,&offsets,maxFields+1,&offsetsCopy,maxFields+1,&newOffsets,maxFields+1,&newOffsetsCopy,maxFields+1,&rowOffsets,maxFields+1,&numD,maxFields+1,&numO);CHKERRQ(ierr);
-  ierr = PetscMalloc2(maxFields+1,&perms,maxFields+1,&flips);CHKERRQ(ierr);
+  ierr = PetscMalloc2(maxFields+1,(PetscInt****)&perms,maxFields+1,(PetscScalar****)&flips);CHKERRQ(ierr);
   ierr = PetscMemzero((void *) perms, (maxFields+1) * sizeof(const PetscInt **));CHKERRQ(ierr);
   ierr = PetscMemzero((void *) flips, (maxFields+1) * sizeof(const PetscScalar **));CHKERRQ(ierr);
 
@@ -2975,7 +2975,7 @@ PetscErrorCode DMPlexComputeInterpolatorTree(DM coarse, DM fine, PetscSF coarseT
   ierr = PetscSectionDestroy(&leafIndicesSec);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&leafMatricesSec);CHKERRQ(ierr);
   ierr = PetscFree2(leafIndices,leafMatrices);CHKERRQ(ierr);
-  ierr = PetscFree2(perms,flips);CHKERRQ(ierr);
+  ierr = PetscFree2(*(PetscInt****)&perms,*(PetscScalar****)&flips);CHKERRQ(ierr);
   ierr = PetscFree7(offsets,offsetsCopy,newOffsets,newOffsetsCopy,rowOffsets,numD,numO);CHKERRQ(ierr);
   ierr = ISRestoreIndices(aIS,&anchors);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -3250,7 +3250,7 @@ PetscErrorCode DMPlexComputeInjectorReferenceTree(DM refTree, Mat *inj)
               ierr = DMPlexRestoreTransitiveClosure(refTree,child,PETSC_FALSE,&numStar,&star);CHKERRQ(ierr);
               if (childCell >= 0) break;
             }
-            if (childCell < 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Could not locate quadrature point");CHKERRQ(ierr);
+            if (childCell < 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Could not locate quadrature point");
             ierr = DMPlexComputeCellGeometryFEM(refTree, childCell, NULL, v0, J, invJ, &detJ);CHKERRQ(ierr);
             ierr = DMPlexComputeCellGeometryFEM(refTree, parentCell, NULL, v0parent, Jparent, NULL, &detJparent);CHKERRQ(ierr);
             CoordinatesRefToReal(dim, dim, v0parent, Jparent, pointReal, vtmp);

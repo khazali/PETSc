@@ -22,6 +22,7 @@ J*/
 typedef const char *PetscPartitionerType;
 #define PETSCPARTITIONERCHACO    "chaco"
 #define PETSCPARTITIONERPARMETIS "parmetis"
+#define PETSCPARTITIONERPTSCOTCH "ptscotch"
 #define PETSCPARTITIONERSHELL    "shell"
 #define PETSCPARTITIONERSIMPLE   "simple"
 #define PETSCPARTITIONERGATHER   "gather"
@@ -120,8 +121,7 @@ PETSC_EXTERN PetscErrorCode DMPlexCopyCoordinates(DM, DM);
 PETSC_EXTERN PetscErrorCode DMPlexCreateDoublet(MPI_Comm, PetscInt, PetscBool, PetscBool, PetscBool, PetscReal, DM *);
 PETSC_EXTERN PetscErrorCode DMPlexCreateSquareBoundary(DM, const PetscReal [], const PetscReal [], const PetscInt []);
 PETSC_EXTERN PetscErrorCode DMPlexCreateCubeBoundary(DM, const PetscReal [], const PetscReal [], const PetscInt []);
-PETSC_EXTERN PetscErrorCode DMPlexCreateBoxMesh(MPI_Comm, PetscInt, PetscInt, PetscBool, DM *);
-PETSC_EXTERN PetscErrorCode DMPlexCreateHexBoxMesh(MPI_Comm, PetscInt, const PetscInt[], DMBoundaryType, DMBoundaryType, DMBoundaryType, DM *);
+PETSC_EXTERN PetscErrorCode DMPlexCreateBoxMesh(MPI_Comm, PetscInt, PetscBool, const PetscInt[], const PetscReal[], const PetscReal[], const DMBoundaryType[], PetscBool, DM *);
 PETSC_EXTERN PetscErrorCode DMPlexCreateSphereMesh(MPI_Comm, PetscInt, PetscBool, DM *);
 PETSC_EXTERN PetscErrorCode DMPlexCreateHexCylinderMesh(MPI_Comm, PetscInt, DMBoundaryType, DM *);
 PETSC_EXTERN PetscErrorCode DMPlexCreateWedgeCylinderMesh(MPI_Comm, PetscInt, PetscBool, DM *);
@@ -301,6 +301,8 @@ PETSC_EXTERN PetscErrorCode DMPlexComputeIntegralFEM(DM, Vec, PetscReal *, void 
 PETSC_EXTERN PetscErrorCode DMPlexComputeInterpolatorNested(DM, DM, Mat, void *);
 PETSC_EXTERN PetscErrorCode DMPlexComputeInterpolatorGeneral(DM, DM, Mat, void *);
 PETSC_EXTERN PetscErrorCode DMPlexComputeInjectorFEM(DM, DM, VecScatter *, void *);
+PETSC_EXTERN PetscErrorCode DMPlexComputeMassMatrixNested(DM, DM, Mat, void *);
+PETSC_EXTERN PetscErrorCode DMPlexComputeMassMatrixGeneral(DM, DM, Mat, void *);
 
 PETSC_EXTERN PetscErrorCode DMPlexCreateRigidBody(DM, MatNullSpace *);
 

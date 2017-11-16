@@ -74,6 +74,7 @@ PETSC_EXTERN PetscErrorCode DMSetMatrixStructureOnly(DM,PetscBool);
 PETSC_EXTERN PetscErrorCode DMCreateInterpolation(DM,DM,Mat*,Vec*);
 PETSC_EXTERN PetscErrorCode DMCreateRestriction(DM,DM,Mat*);
 PETSC_EXTERN PetscErrorCode DMCreateInjection(DM,DM,Mat*);
+PETSC_EXTERN PetscErrorCode DMCreateMassMatrix(DM,DM,Mat*);
 PETSC_EXTERN PetscErrorCode DMGetWorkArray(DM,PetscInt,PetscDataType,void*);
 PETSC_EXTERN PetscErrorCode DMRestoreWorkArray(DM,PetscInt,PetscDataType,void*);
 PETSC_EXTERN PetscErrorCode DMRefine(DM,MPI_Comm,DM*);
@@ -85,7 +86,9 @@ PETSC_EXTERN PetscErrorCode DMSetFineDM(DM,DM);
 PETSC_EXTERN PetscErrorCode DMRefineHierarchy(DM,PetscInt,DM[]);
 PETSC_EXTERN PetscErrorCode DMCoarsenHierarchy(DM,PetscInt,DM[]);
 PETSC_EXTERN PetscErrorCode DMCoarsenHookAdd(DM,PetscErrorCode (*)(DM,DM,void*),PetscErrorCode (*)(DM,Mat,Vec,Mat,DM,void*),void*);
+PETSC_EXTERN PetscErrorCode DMCoarsenHookRemove(DM,PetscErrorCode (*)(DM,DM,void*),PetscErrorCode (*)(DM,Mat,Vec,Mat,DM,void*),void*);
 PETSC_EXTERN PetscErrorCode DMRefineHookAdd(DM,PetscErrorCode (*)(DM,DM,void*),PetscErrorCode (*)(DM,Mat,DM,void*),void*);
+PETSC_EXTERN PetscErrorCode DMRefineHookRemove(DM,PetscErrorCode (*)(DM,DM,void*),PetscErrorCode (*)(DM,Mat,DM,void*),void*);
 PETSC_EXTERN PetscErrorCode DMRestrict(DM,Mat,Vec,Mat,DM);
 PETSC_EXTERN PetscErrorCode DMInterpolate(DM,Mat,DM);
 PETSC_EXTERN PetscErrorCode DMSetFromOptions(DM);
@@ -136,6 +139,7 @@ PETSC_EXTERN PetscErrorCode DMGetNeighbors(DM,PetscInt*,const PetscMPIInt**);
 
 /* block hook interface */
 PETSC_EXTERN PetscErrorCode DMSubDomainHookAdd(DM,PetscErrorCode (*)(DM,DM,void*),PetscErrorCode (*)(DM,VecScatter,VecScatter,DM,void*),void*);
+PETSC_EXTERN PetscErrorCode DMSubDomainHookRemove(DM,PetscErrorCode (*)(DM,DM,void*),PetscErrorCode (*)(DM,VecScatter,VecScatter,DM,void*),void*);
 PETSC_EXTERN PetscErrorCode DMSubDomainRestrict(DM,VecScatter,VecScatter,DM);
 
 PETSC_EXTERN PetscErrorCode DMSetOptionsPrefix(DM,const char []);

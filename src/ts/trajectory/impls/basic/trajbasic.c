@@ -2,26 +2,8 @@
 #include <petsc/private/tsimpl.h>        /*I "petscts.h"  I*/
 
 typedef struct {
-  /* output */
   PetscViewer viewer;
-  char        *folder;
-  char        *basefilename;
-  char        *ext;
 } TSTrajectory_Basic;
-
-static PetscErrorCode TSTrajectoryDestroy_Basic(TSTrajectory tj)
-{
-  TSTrajectory_Basic *tjbasic = (TSTrajectory_Basic*)tj->data;
-  PetscErrorCode     ierr;
-
-  PetscFunctionBegin;
-  ierr = PetscViewerDestroy(&tjbasic->viewer);CHKERRQ(ierr);
-  ierr = PetscFree(tjbasic->folder);CHKERRQ(ierr);
-  ierr = PetscFree(tjbasic->basefilename);CHKERRQ(ierr);
-  ierr = PetscFree(tjbasic->ext);CHKERRQ(ierr);
-  ierr = PetscFree(tjbasic);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
 
 static PetscErrorCode TSTrajectorySet_Basic(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal time,Vec X)
 {
@@ -30,7 +12,7 @@ static PetscErrorCode TSTrajectorySet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
-  ierr = PetscSNPrintf(filename,sizeof(filename),"%s/%s-%06d.%s",tjbasic->folder,tjbasic->basefilename,stepnum,tjbasic->ext);CHKERRQ(ierr);
+  ierr = PetscSNPrintf(filename,sizeof(filename),tj->filetemplate,stepnum);CHKERRQ(ierr);
   ierr = PetscViewerFileSetName(tjbasic->viewer,filename);CHKERRQ(ierr);
   ierr = PetscViewerSetUp(tjbasic->viewer);CHKERRQ(ierr);
   ierr = VecView(X,tjbasic->viewer);CHKERRQ(ierr);
@@ -63,16 +45,15 @@ static PetscErrorCode TSTrajectorySetFromOptions_Basic(PetscOptionItems *PetscOp
 
 static PetscErrorCode TSTrajectoryGet_Basic(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal *t)
 {
-  TSTrajectory_Basic *tjbasic = (TSTrajectory_Basic*)tj->data;
-  PetscViewer        viewer;
-  char               filename[PETSC_MAX_PATH_LEN];
-  PetscErrorCode     ierr;
-  Vec                Sol;
+  PetscViewer    viewer;
+  char           filename[PETSC_MAX_PATH_LEN];
+  PetscErrorCode ierr;
+  Vec            Sol;
 
   PetscFunctionBegin;
-  ierr = TSGetSolution(ts,&Sol);CHKERRQ(ierr);
-  ierr = PetscSNPrintf(filename,sizeof(filename),"%s/%s-%06d.%s",tjbasic->folder,tjbasic->basefilename,stepnum,tjbasic->ext);CHKERRQ(ierr);
+  ierr = PetscSNPrintf(filename,sizeof(filename),tj->filetemplate,stepnum);CHKERRQ(ierr);
   ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename,FILE_MODE_READ,&viewer);CHKERRQ(ierr);
+  ierr = TSGetSolution(ts,&Sol);CHKERRQ(ierr);
   ierr = PetscViewerPushFormat(viewer,PETSC_VIEWER_NATIVE);CHKERRQ(ierr);
   ierr = VecLoad(Sol,viewer);CHKERRQ(ierr);
   ierr = PetscViewerBinaryRead(viewer,t,1,NULL,PETSC_REAL);CHKERRQ(ierr);
@@ -94,16 +75,15 @@ static PetscErrorCode TSTrajectoryGet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
 
 static PetscErrorCode TSTrajectorySetUp_Basic(TSTrajectory tj,TS ts)
 {
-  TSTrajectory_Basic *tjbasic = (TSTrajectory_Basic*)tj->data;
-  MPI_Comm           comm;
-  PetscMPIInt        rank;
-  PetscErrorCode     ierr;
+  MPI_Comm       comm;
+  PetscMPIInt    rank;
+  PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = PetscObjectGetComm((PetscObject)tj,&comm);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
   if (!rank) {
-    const char* dir = tjbasic->folder;
+    const char* dir = tj->dirname;
     PetscBool   flg;
 
     /* I don't like running PetscRMTree on a directory */
@@ -118,10 +98,30 @@ static PetscErrorCode TSTrajectorySetUp_Basic(TSTrajectory tj,TS ts)
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode TSTrajectoryDestroy_Basic(TSTrajectory tj)
+{
+  TSTrajectory_Basic *tjbasic = (TSTrajectory_Basic*)tj->data;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  if (!tj->keepfiles) {
+    PetscMPIInt rank;
+    MPI_Comm    comm;
+    ierr = PetscObjectGetComm((PetscObject)tj,&comm);CHKERRQ(ierr);
+    ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
+    if (!rank && tj->dirname) {
+      ierr = PetscRMTree(tj->dirname);CHKERRQ(ierr);
+    }
+  }
+  ierr = PetscViewerDestroy(&tjbasic->viewer);CHKERRQ(ierr);
+  ierr = PetscFree(tjbasic);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /*MC
       TSTRAJECTORYBASIC - Stores each solution of the ODE/DAE in a file
 
-      Saves each timestep into a seperate file in SA-data/SA-%06d.bin
+      Saves each timestep into a seperate file named SA-data/SA-%06d.bin. The file name can be changed.
 
       This version saves the solutions at all the stages
 
@@ -129,7 +129,7 @@ static PetscErrorCode TSTrajectorySetUp_Basic(TSTrajectory tj,TS ts)
 
   Level: intermediate
 
-.seealso:  TSTrajectoryCreate(), TS, TSTrajectorySetType()
+.seealso:  TSTrajectoryCreate(), TS, TSTrajectorySetType(), TSTrajectorySetDirname(), TSTrajectorySetFile()
 
 M*/
 PETSC_EXTERN PetscErrorCode TSTrajectoryCreate_Basic(TSTrajectory tj,TS ts)
@@ -144,10 +144,6 @@ PETSC_EXTERN PetscErrorCode TSTrajectoryCreate_Basic(TSTrajectory tj,TS ts)
   ierr = PetscViewerSetType(tjbasic->viewer,PETSCVIEWERBINARY);CHKERRQ(ierr);
   ierr = PetscViewerPushFormat(tjbasic->viewer,PETSC_VIEWER_NATIVE);CHKERRQ(ierr);
   ierr = PetscViewerFileSetMode(tjbasic->viewer,FILE_MODE_WRITE);CHKERRQ(ierr);
-  ierr = PetscStrallocpy("./SA-data",&tjbasic->folder);CHKERRQ(ierr);
-  ierr = PetscStrallocpy("SA",&tjbasic->basefilename);CHKERRQ(ierr);
-  ierr = PetscStrallocpy("bin",&tjbasic->ext);CHKERRQ(ierr);
-
   tj->data = tjbasic;
 
   tj->ops->set            = TSTrajectorySet_Basic;
@@ -155,5 +151,6 @@ PETSC_EXTERN PetscErrorCode TSTrajectoryCreate_Basic(TSTrajectory tj,TS ts)
   tj->ops->setup          = TSTrajectorySetUp_Basic;
   tj->ops->destroy        = TSTrajectoryDestroy_Basic;
   tj->ops->setfromoptions = TSTrajectorySetFromOptions_Basic;
+  tj->keepfiles           = PETSC_FALSE;
   PetscFunctionReturn(0);
 }

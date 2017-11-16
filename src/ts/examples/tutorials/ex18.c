@@ -352,7 +352,7 @@ void g1_adv_pu(PetscInt dim, PetscInt Nf, PetscInt NfAux,
 static void riemann_advection(PetscInt dim, PetscInt Nf, const PetscReal *qp, const PetscReal *n, const PetscScalar *uL, const PetscScalar *uR, PetscInt numConstants, const PetscScalar constants[], PetscScalar *flux, void *ctx)
 {
   PetscReal wind[3] = {0.0, 1.0, 0.0};
-  PetscReal wn = DMPlex_DotRealD_Internal(dim, wind, n);
+  PetscReal wn = DMPlex_DotRealD_Internal(PetscMin(dim,3), wind, n);
 
   flux[0] = (wn > 0 ? uL[dim] : uR[dim]) * wn;
 }
@@ -625,7 +625,7 @@ static PetscErrorCode ExactSolution(DM dm, PetscReal time, const PetscReal *x, P
 static PetscErrorCode Functional_Error(DM dm, PetscReal time, const PetscReal *x, const PetscScalar *y, PetscReal *f, void *ctx)
 {
   AppCtx        *user = (AppCtx *) ctx;
-  PetscScalar    yexact[1];
+  PetscScalar    yexact[3]={0,0,0};
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
@@ -649,7 +649,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   PetscFunctionBeginUser;
   ierr = PetscStrlen(filename, &len);CHKERRQ(ierr);
   if (!len) {
-    ierr = DMPlexCreateHexBoxMesh(comm, user->dim, cells, user->bd[0], user->bd[1], DM_BOUNDARY_NONE, dm);CHKERRQ(ierr);
+    ierr = DMPlexCreateBoxMesh(comm, user->dim, PETSC_FALSE, cells, NULL, NULL, user->bd, PETSC_TRUE, dm);CHKERRQ(ierr);
     ierr = PetscObjectSetName((PetscObject) *dm, "Mesh");CHKERRQ(ierr);
   } else {
     ierr = DMPlexCreateFromFile(comm, filename, PETSC_TRUE, dm);CHKERRQ(ierr);

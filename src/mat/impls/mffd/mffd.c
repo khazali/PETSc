@@ -126,6 +126,8 @@ PetscErrorCode  MatMFFDSetType(Mat mat,MatMFFDType ftype)
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode MatGetDiagonal_MFFD(Mat,Vec);
+
 typedef PetscErrorCode (*FCN1)(void*,Vec); /* force argument to next function to not be extern C*/
 static PetscErrorCode  MatMFFDSetFunctioniBase_MFFD(Mat mat,FCN1 func)
 {
@@ -133,6 +135,11 @@ static PetscErrorCode  MatMFFDSetFunctioniBase_MFFD(Mat mat,FCN1 func)
 
   PetscFunctionBegin;
   ctx->funcisetbase = func;
+  /* allow users to compose their own getdiagonal and allow MatHasOperation
+     to return false if the two functions pointers are not set */
+  if (!mat->ops->getdiagonal && func) {
+    mat->ops->getdiagonal = MatGetDiagonal_MFFD;
+  }
   PetscFunctionReturn(0);
 }
 
@@ -143,6 +150,11 @@ static PetscErrorCode  MatMFFDSetFunctioni_MFFD(Mat mat,FCN2 funci)
 
   PetscFunctionBegin;
   ctx->funci = funci;
+  /* allow users to compose their own getdiagonal and allow MatHasOperation
+     to return false if the two functions pointers are not set */
+  if (!mat->ops->getdiagonal && funci) {
+    mat->ops->getdiagonal = MatGetDiagonal_MFFD;
+  }
   PetscFunctionReturn(0);
 }
 
@@ -203,6 +215,8 @@ static PetscErrorCode MatDestroy_MFFD(Mat mat)
   ierr = VecDestroy(&ctx->drscale);CHKERRQ(ierr);
   ierr = VecDestroy(&ctx->dlscale);CHKERRQ(ierr);
   ierr = VecDestroy(&ctx->dshift);CHKERRQ(ierr);
+  ierr = VecDestroy(&ctx->dshiftw);CHKERRQ(ierr);
+  ierr = VecDestroy(&ctx->current_u);CHKERRQ(ierr);
   if (ctx->current_f_allocated) {
     ierr = VecDestroy(&ctx->current_f);CHKERRQ(ierr);
   }
@@ -376,8 +390,11 @@ static PetscErrorCode MatMult_MFFD(Mat mat,Vec a,Vec y)
     ierr = VecPointwiseMult(y,ctx->dlscale,y);CHKERRQ(ierr);
   }
   if (ctx->dshift) {
-    ierr = VecPointwiseMult(ctx->dshift,a,U);CHKERRQ(ierr);
-    ierr = VecAXPY(y,1.0,U);CHKERRQ(ierr);
+    if (!ctx->dshiftw) {
+      ierr = VecDuplicate(y,&ctx->dshiftw);CHKERRQ(ierr);
+    }
+    ierr = VecPointwiseMult(ctx->dshift,a,ctx->dshiftw);CHKERRQ(ierr);
+    ierr = VecAXPY(y,1.0,ctx->dshiftw);CHKERRQ(ierr);
   }
 
   if (mat->nullsp) {ierr = MatNullSpaceRemove(mat->nullsp,y);CHKERRQ(ierr);}
@@ -394,7 +411,7 @@ static PetscErrorCode MatMult_MFFD(Mat mat,Vec a,Vec y)
         u = current iterate
         h = difference interval
 */
-static PetscErrorCode MatGetDiagonal_MFFD(Mat mat,Vec a)
+PetscErrorCode MatGetDiagonal_MFFD(Mat mat,Vec a)
 {
   MatMFFD        ctx = (MatMFFD)mat->data;
   PetscScalar    h,*aa,*ww,v;
@@ -404,8 +421,9 @@ static PetscErrorCode MatGetDiagonal_MFFD(Mat mat,Vec a)
   PetscInt       i,rstart,rend;
 
   PetscFunctionBegin;
-  if (!ctx->funci) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ORDER,"Requires calling MatMFFDSetFunctioni() first");
-
+  if (!ctx->func) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Requires calling MatMFFDSetFunction() first");
+  if (!ctx->funci) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Requires calling MatMFFDSetFunctioni() first");
+  if (!ctx->funcisetbase) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Requires calling MatMFFDSetFunctioniBase() first");
   w    = ctx->w;
   U    = ctx->current_u;
   ierr = (*ctx->func)(ctx->funcctx,U,a);CHKERRQ(ierr);
@@ -500,8 +518,13 @@ PETSC_EXTERN PetscErrorCode MatMFFDSetBase_MFFD(Mat J,Vec U,Vec F)
 
   PetscFunctionBegin;
   ierr = MatMFFDResetHHistory(J);CHKERRQ(ierr);
-
-  ctx->current_u = U;
+  if (!ctx->current_u) {
+    ierr = VecDuplicate(U,&ctx->current_u);CHKERRQ(ierr);
+    ierr = VecLockPush(ctx->current_u);CHKERRQ(ierr);
+  }
+  ierr = VecLockPop(ctx->current_u);CHKERRQ(ierr);
+  ierr = VecCopy(U,ctx->current_u);CHKERRQ(ierr);
+  ierr = VecLockPush(ctx->current_u);CHKERRQ(ierr);
   if (F) {
     if (ctx->current_f_allocated) {ierr = VecDestroy(&ctx->current_f);CHKERRQ(ierr);}
     ctx->current_f           = F;
@@ -512,7 +535,7 @@ PETSC_EXTERN PetscErrorCode MatMFFDSetBase_MFFD(Mat J,Vec U,Vec F)
     ctx->current_f_allocated = PETSC_TRUE;
   }
   if (!ctx->w) {
-    ierr = VecDuplicate(ctx->current_u, &ctx->w);CHKERRQ(ierr);
+    ierr = VecDuplicate(ctx->current_u,&ctx->w);CHKERRQ(ierr);
   }
   J->assembled = PETSC_TRUE;
   PetscFunctionReturn(0);
@@ -684,7 +707,6 @@ PETSC_EXTERN PetscErrorCode MatCreate_MFFD(Mat A)
   A->ops->setup           = MatSetUp_MFFD;
   A->ops->view            = MatView_MFFD;
   A->ops->assemblyend     = MatAssemblyEnd_MFFD;
-  A->ops->getdiagonal     = MatGetDiagonal_MFFD;
   A->ops->scale           = MatScale_MFFD;
   A->ops->shift           = MatShift_MFFD;
   A->ops->diagonalscale   = MatDiagonalScale_MFFD;
@@ -872,12 +894,13 @@ PetscErrorCode  MatMFFDSetFunction(Mat mat,PetscErrorCode (*func)(void*,Vec,Vec)
 
    Notes:
     If you use this you MUST call MatAssemblyBegin()/MatAssemblyEnd() on the matrix free
-    matrix inside your compute Jacobian routine
-
+    matrix inside your compute Jacobian routine.
+    This function is necessary to compute the diagonal of the matrix.
+    funci must not contain any MPI call as it is called inside a loop on the local portion of the vector.
 
 .keywords: SNES, matrix-free, function
 
-.seealso: MatCreateSNESMF(),MatMFFDGetH(), MatMFFDSetHHistory(), MatMFFDResetHHistory(), SNESetFunction()
+.seealso: MatCreateSNESMF(),MatMFFDGetH(), MatMFFDSetHHistory(), MatMFFDResetHHistory(), SNESetFunction(), MatGetDiagonal()
 
 @*/
 PetscErrorCode  MatMFFDSetFunctioni(Mat mat,PetscErrorCode (*funci)(void*,PetscInt,Vec,PetscScalar*))
@@ -903,13 +926,14 @@ PetscErrorCode  MatMFFDSetFunctioni(Mat mat,PetscErrorCode (*funci)(void*,PetscI
 
    Notes:
     If you use this you MUST call MatAssemblyBegin()/MatAssemblyEnd() on the matrix free
-    matrix inside your compute Jacobian routine
+    matrix inside your compute Jacobian routine.
+    This function is necessary to compute the diagonal of the matrix.
 
 
 .keywords: SNES, matrix-free, function
 
 .seealso: MatCreateSNESMF(),MatMFFDGetH(), MatCreateMFFD(), MATMFFD
-          MatMFFDSetHHistory(), MatMFFDResetHHistory(), SNESetFunction()
+          MatMFFDSetHHistory(), MatMFFDResetHHistory(), SNESetFunction(), MatGetDiagonal()
 @*/
 PetscErrorCode  MatMFFDSetFunctioniBase(Mat mat,PetscErrorCode (*func)(void*,Vec))
 {
