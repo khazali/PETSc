@@ -481,7 +481,7 @@ PetscErrorCode MatMult_SeqBAIJ_4(Mat A,Vec xx,Vec zz)
 PetscErrorCode MatMult_SeqBAIJ_4_loop(Mat A,Vec xx,Vec zz)
 {
   Mat_SeqBAIJ       *a = (Mat_SeqBAIJ*)A->data;
-  PetscScalar       *z,*zarray;
+  PetscScalar       *zarray;
   const PetscScalar *x;
   const MatScalar   *v;
   PetscErrorCode    ierr;
@@ -505,17 +505,15 @@ PetscErrorCode MatMult_SeqBAIJ_4_loop(Mat A,Vec xx,Vec zz)
   }
 
   for (i=0; i<mbs; i++) {
-    if (usecprow) {
-      z = zarray + 4*ridx[i];
-    } else {
-      z = zarray + 4*i;
-      for (k=0; k<4; k++) z[k] = 0;
-    }
+    PetscScalar z[4] = {};
     for (j=ii[i]; j<ii[i+1]; j++) {
+      MatScalar V[16];
+      for (k=0; k<16; k++) V[k] = v[j*16+k];
       for (l=0; l<4; l++) {
-        for (k=0; k<4; k++) z[k] += v[j*16+k+l*4] * x[idx[j]*4+l];
+        for (k=0; k<4; k++) z[k] += V[k+l*4] * x[idx[j]*4+l];
       }
     }
+    for (k=0; k<4; k++) zarray[4*i + k] = z[k]; //zarray[4*(ridx ? ridx[i] : i) + k] = z[k];
   }
   ierr = VecRestoreArrayRead(xx,&x);CHKERRQ(ierr);
   ierr = VecRestoreArray(zz,&zarray);CHKERRQ(ierr);
