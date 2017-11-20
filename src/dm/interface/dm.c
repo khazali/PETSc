@@ -1035,7 +1035,7 @@ PetscErrorCode  DMCreateInterpolation(DM dm1,DM dm2,Mat *mat,Vec *vec)
     Notes:  For DMDA objects this only works for "uniform refinement", that is the refined mesh was obtained DMRefine() or the coarse mesh was obtained by
         DMCoarsen(). The coordinates set into the DMDA are completely ignored in computing the interpolation.
 
- 
+
 .seealso DMDestroy(), DMView(), DMCreateGlobalVector(), DMCreateColoring(), DMCreateMatrix(), DMRefine(), DMCoarsen(), DMCreateInterpolation()
 
 @*/
@@ -1231,7 +1231,7 @@ PetscErrorCode DMSetMatrixStructureOnly(DM dm, PetscBool only)
   Input Parameters:
 + dm - the DM object
 . count - The minium size
-- dtype - data type (PETSC_REAL, PETSC_SCALAR, PETSC_INT)
+- dtype - MPI data type, often MPIU_REAL, MPIU_SCALAR, MPIU_INT)
 
   Output Parameter:
 . array - the work array
@@ -1240,11 +1240,11 @@ PetscErrorCode DMSetMatrixStructureOnly(DM dm, PetscBool only)
 
 .seealso DMDestroy(), DMCreate()
 @*/
-PetscErrorCode DMGetWorkArray(DM dm,PetscInt count,PetscDataType dtype,void *mem)
+PetscErrorCode DMGetWorkArray(DM dm,PetscInt count,MPI_Datatype dtype,void *mem)
 {
   PetscErrorCode ierr;
   DMWorkLink     link;
-  size_t         dsize;
+  PetscMPIInt    dsize;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
@@ -1255,8 +1255,8 @@ PetscErrorCode DMGetWorkArray(DM dm,PetscInt count,PetscDataType dtype,void *mem
   } else {
     ierr = PetscNewLog(dm,&link);CHKERRQ(ierr);
   }
-  ierr = PetscDataTypeGetSize(dtype,&dsize);CHKERRQ(ierr);
-  if (dsize*count > link->bytes) {
+  ierr = MPI_Type_size(dtype,&dsize);CHKERRQ(ierr);
+  if (((size_t)dsize*count) > link->bytes) {
     ierr        = PetscFree(link->mem);CHKERRQ(ierr);
     ierr        = PetscMalloc(dsize*count,&link->mem);CHKERRQ(ierr);
     link->bytes = dsize*count;
@@ -1275,16 +1275,17 @@ PetscErrorCode DMGetWorkArray(DM dm,PetscInt count,PetscDataType dtype,void *mem
   Input Parameters:
 + dm - the DM object
 . count - The minium size
-- dtype - data type (PETSC_REAL, PETSC_SCALAR, PETSC_INT)
+- dtype - MPI data type, often MPIU_REAL, MPIU_SCALAR, MPIU_INT
 
   Output Parameter:
 . array - the work array
 
   Level: developer
 
+  Developer Notes: count and dtype are ignored, they are only needed for DMGetWorkArray()
 .seealso DMDestroy(), DMCreate()
 @*/
-PetscErrorCode DMRestoreWorkArray(DM dm,PetscInt count,PetscDataType dtype,void *mem)
+PetscErrorCode DMRestoreWorkArray(DM dm,PetscInt count,MPI_Datatype dtype,void *mem)
 {
   DMWorkLink *p,link;
 
@@ -1795,7 +1796,7 @@ PetscErrorCode DMRefineHookRemove(DM coarse,PetscErrorCode (*refinehook)(DM,DM,v
 
    Input Arguments:
 +  coarse - coarser DM to use as a base
-.  restrct - interpolation matrix, apply using MatInterpolate()
+.  interp - interpolation matrix, apply using MatInterpolate()
 -  fine - finer DM to update
 
    Level: developer
@@ -2511,8 +2512,9 @@ PetscErrorCode DMCoarsenHookRemove(DM fine,PetscErrorCode (*coarsenhook)(DM,DM,v
    Input Arguments:
 +  fine    - finer DM to use as a base
 .  restrct - restriction matrix, apply using MatRestrict()
-.  inject  - injection matrix, also use MatRestrict()
--  coarse  - coarser DM to update
+.  rscale - scaling vector for restriction
+.  inject - injection matrix, also use MatRestrict()
+-  coarse - coarser DM to update
 
    Level: developer
 
@@ -4702,7 +4704,7 @@ PetscErrorCode DMGetCoordinatesLocalized(DM dm,PetscBool *areLocalized)
 
 
 /*@
-  DMLocalizeCoordinates - If a mesh is periodic, create local coordinates for each cell
+  DMLocalizeCoordinates - If a mesh is periodic, create local coordinates for cells having periodic faces
 
   Input Parameter:
 . dm - The DM
@@ -4735,7 +4737,7 @@ PetscErrorCode DMLocalizeCoordinates(DM dm)
     if (isplex) {
       ierr = DMPlexGetDepthStratum(cdm, 0, &vStart, &vEnd);CHKERRQ(ierr);
       ierr = DMPlexGetMaxProjectionHeight(cdm,&maxHeight);CHKERRQ(ierr);
-      ierr = DMGetWorkArray(dm,2*(maxHeight + 1),PETSC_INT,&pStart);CHKERRQ(ierr);
+      ierr = DMGetWorkArray(dm,2*(maxHeight + 1),MPIU_INT,&pStart);CHKERRQ(ierr);
       pEnd = &pStart[maxHeight + 1];
       newStart = vStart;
       newEnd   = vEnd;
@@ -4757,7 +4759,7 @@ PetscErrorCode DMLocalizeCoordinates(DM dm)
   ierr = PetscSectionSetFieldComponents(cSection, 0, Nc);CHKERRQ(ierr);
   ierr = PetscSectionSetChart(cSection, newStart, newEnd);CHKERRQ(ierr);
 
-  ierr = DMGetWorkArray(dm, 2 * bs, PETSC_SCALAR, &anchor);CHKERRQ(ierr);
+  ierr = DMGetWorkArray(dm, 2 * bs, MPIU_SCALAR, &anchor);CHKERRQ(ierr);
   localized = &anchor[bs];
   alreadyLocalized = alreadyLocalizedGlobal = PETSC_TRUE;
   for (h = 0; h <= maxHeight; h++) {
@@ -4792,9 +4794,9 @@ PetscErrorCode DMLocalizeCoordinates(DM dm)
   }
   ierr = MPI_Allreduce(&alreadyLocalized,&alreadyLocalizedGlobal,1,MPIU_BOOL,MPI_LAND,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
   if (alreadyLocalizedGlobal) {
-    ierr = DMRestoreWorkArray(dm, 2 * bs, PETSC_SCALAR, &anchor);CHKERRQ(ierr);
+    ierr = DMRestoreWorkArray(dm, 2 * bs, MPIU_SCALAR, &anchor);CHKERRQ(ierr);
     ierr = PetscSectionDestroy(&cSection);CHKERRQ(ierr);
-    ierr = DMRestoreWorkArray(dm,2*(maxHeight + 1),PETSC_INT,&pStart);CHKERRQ(ierr);
+    ierr = DMRestoreWorkArray(dm,2*(maxHeight + 1),MPIU_INT,&pStart);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
   for (v = vStart; v < vEnd; ++v) {
@@ -4833,8 +4835,8 @@ PetscErrorCode DMLocalizeCoordinates(DM dm)
       ierr = DMPlexVecRestoreClosure(cdm, coordSection, coordinates, c, &dof, &cellCoords);CHKERRQ(ierr);
     }
   }
-  ierr = DMRestoreWorkArray(dm, 2 * bs, PETSC_SCALAR, &anchor);CHKERRQ(ierr);
-  ierr = DMRestoreWorkArray(dm,2*(maxHeight + 1),PETSC_INT,&pStart);CHKERRQ(ierr);
+  ierr = DMRestoreWorkArray(dm, 2 * bs, MPIU_SCALAR, &anchor);CHKERRQ(ierr);
+  ierr = DMRestoreWorkArray(dm,2*(maxHeight + 1),MPIU_INT,&pStart);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(coordinates, (const PetscScalar**)&coords);CHKERRQ(ierr);
   ierr = VecRestoreArray(cVec, &coords2);CHKERRQ(ierr);
   ierr = DMSetCoordinateSection(dm, PETSC_DETERMINE, cSection);CHKERRQ(ierr);
