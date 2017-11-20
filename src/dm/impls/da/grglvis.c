@@ -141,8 +141,8 @@ static PetscErrorCode DMDASampleGLVisFields_Private(PetscObject oX, PetscInt nf,
 
 PETSC_INTERN PetscErrorCode DMSetUpGLVisViewer_DMDA(PetscObject oda, PetscViewer viewer)
 {
-  DM                 da = (DM)oda,daview;
-  PetscErrorCode     ierr;
+  DM             da = (DM)oda,daview;
+  PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = PetscObjectQuery(oda,"GLVisGraphicsDMDAGhosted",(PetscObject*)&daview);CHKERRQ(ierr);
