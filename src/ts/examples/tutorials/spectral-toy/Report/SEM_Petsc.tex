@@ -95,19 +95,81 @@
 \date{\today}
 \maketitle
 
-Fitting observations to determine parameters, of either numerical or experimental nature, accelerating simulations throughout their long transients, identifiying  boundary conditions that satisfy certain observations, and many more such applications fall within the field of PDE constrained optimization and inverse problems. Despite their widespread aplicability inverse problems have been plagued by bottlenecks such as: ill-posedness, sensitivity to errors, high computational costs and these problems are also data intensive, placing high demands on the I/O and disk space. The current work aims to address these issues by leveraging the extensive range of methods available in both PETSc and TAO, to provide a framework for tackling large scale inverse problems in a robust fashion.
+Fitting observations to determine parameters, of either numerical or
+experimental nature, identifiying boundary conditions that satisfy certain
+observations, optimizing some objective function of the solution, accelerating simulations throughout their long
+transients (the so-called {\em spin up problem) \cite{}, and many more operations fall within the field of
+partial differential equation (PDE) constrained optimization and inverse problems.
+Despite their
+widespread utility inverse problems are plagued by
+bottlenecks including: ill-posedness, sensitivity to errors, high
+computational costs, high input-output (IO) costs. This work aims
+to address these issues by leveraging the extensive range of methods
+available in both the Portable Extensible Toolkit for Scientific computation (PETSc) and the Toolkit for Advanced Optimization (TAO), to provide a framework for tackling
+large scale inverse problems, with error control, in a robust fashion.
 
 %The traditional approach to PDE constrained optimization is mathematically similar to the inverse problems approach however differs in terms of computational 
 
-A PDE constrained optimization problem can be stated in two different ways according to the problem at hand: either by fully discretizing the entire KKT (Karush-Kuhn-Tucker) system, as is customary in the optimization community \cite{Haber_2007}, or by decoupling the direct problem and its adjoint and solving the optimization problem via a forward/backward timestepping loop, with appropriate initial and boundary conditions depending on the objective function.
+PDE constrained optimization problems can be posed in two
+ways: either by fully discretizing
+the entire Karush-Kuhn-Tucker (KKT) system (that is solving for all unknowns at all timesteps simultaneously, the so-called {\em parallel-in-time} method), as is customary in the
+optimization community \cite{Haber_2007}, or by decoupling the direct
+problem and its adjoint and solving the optimization problem via a
+forward/backward timestepping loop, with appropriate initial and
+boundary conditions depending on the objective function.
 
-We aim to address three of the five main strategies outlined in \cite{Brown_2008}. Specifically the core strategy in \cite{Brown_2008} is to proceed to the solution of inverse problem in a purely non-linear manner (a lot of work has previously relied on linearizations), and here we showcase a quasi-linear time dependent convection problem solved in PETSc with TAO. A second outlined challenge is to identify connections between uncertainty in the model and its underlying mathematical structure. This point can be interpreted in several ways and encompasses a series of problems, however we shall address this by means of error analysis of the numerical implementation and its impact on optimization. The last aspect we begin to grapple with is the gap between mathematical research and domain specific expertise, with a direct focus on computational fluid dynamics applications. Since the implementation is performed in the PETSc framework, a byproduct of this work is to open the road to a fourth strategy stated in \cite{Brown_2008}, which refers to the development of large-scale linear algebraic techniques that reliably capture the structure of ill-posedness. 
+We aim to address three of the five main strategies outlined in
+\cite{Brown_2008}. Specifically the core strategy in \cite{Brown_2008}
+is to solve the inverse problem in a purely
+non-linear manner (a lot of work has previously relied on so-called linearized adjoints \cite{}).
+In this work we showcase the solution of the quasi-linear time dependent
+convection Burger's equation (is this what Burger's equation is) utilizing PETSc with TAO.
+A second  challenge outlined in \cite{Brown_2008} is to identify connections between uncertainty in the model
+and its underlying mathematical structure. This point can be
+interpreted in several ways and encompasses a series of problems,
+however we shall address it by means of error analysis of the
+PDE discretization, the solver and optimization algorithms. The final
+aspect we grapple with is the gap between mathematical
+research and domain specific expertise, with a direct focus on
+computational fluid dynamics applications. Since the implementation is
+performed in PETSc, a byproduct of this work is to open
+the road to the fourth strategy stated in \cite{Brown_2008}, which
+refers to the development of large-scale linear algebraic techniques
+that reliably capture the structure of ill-posedness.
 
-Given that inverse problems based on the full nonlinear underlying PDE as opposed to linearizations has been an issue for a long time, the data and computational intensity aspect has often been overlooked, however we addressed this in previous work \cite{schanen_2016}. The data intensity for nonlinear problems stems mainly from the nature of the backward in time component which depends at every time instance on its forward counterpart. A robust treatment for balancing the compute time versus trajectory storage has been already implemented in PETSc for certain time stepping routines for ordinary differential equations and in the current work we explore/extend it further to PDEs. 
+In our previous work \cite{schanen_2016}, we addressed the data and
+computational intensity aspects of PDE constrained optimization which
+has often been overlooked.  The data intensity for nonlinear problems
+stems mainly from the nature of the backward in time component which
+depends at every time instance on its forward counterpart. A robust
+treatment for balancing the compute time versus trajectory storage has
+been already implemented in PETSc for certain time stepping routines
+for ordinary differential equations, in this work we extend it further
+to PDEs.
 
-A known aspect in the PDE optimization community is that continuous derivations of the adjoint equation differ in nature from their discrete couterpart, and may subsequently provide a different gradient which affects the convergence of the optimization step. To surpass this issue we implemented a spectral element method in PETSc, which is the spatial discretization with the highest accuracy per grid point of all presently available numerical schemes. Another novelty factor this work intends to bring about is to equip the solvers with a combined space/time error analysis to facilitate studies on the impact of errors on the optimization step. The relevance of this addition cannot be stressed enough, since the errors in the gradient computation tend to slow the convergence rate of the optimization.
+A known aspect in the PDE optimization community is that continuous
+derivations of the adjoint equation differ in nature from their
+discrete couterpart, and may subsequently provide different gradients
+which affects the convergence of the optimization step. To deal with
+this issue we have implemented a spectral element method in PETSc,
+these methods provide the spatial discretization with the highest
+accuracy per grid point of all presently available numerical
+schemes. Another novelty factor this work intends to bring about is to
+equip the solvers with a combined space/time error analysis to
+facilitate studies on the impact of errors on the optimization
+step. The relevance of this addition cannot be stressed enough, since
+the errors in the gradient computation tend to slow the convergence
+rate of the optimization and errors in the forward simulation result
+in errors in the solution of the optimization problem computed.
 
-The material is organized as follows: the time dependent inverse problem is stated in a spatially unaware fashion, which allows for any operators such as diffusion, convection etc. As a prerequisite the main aspects of a spectral element method are presented together with a discussion on best implementation choices. A set of canonical test problems is explored in depth by describing the continuous adjoint versus the discrete adjoint, followed by an error analysis discussion. Results of the PETSc/TAO implementation are presented, together with an outlook on future work.
+The paper is organized as follows: the time dependent inverse
+problem is stated in an operator fashion, which allows for any
+operator such as diffusion, convection, or Burger's equation. Then the
+main aspects of a spectral element method are presented together with
+a discussion on implementation choices. We then present a variety of adjoint approaches, which are followed by A set of canonical test
+problems, followed by an error analysis
+discussion. Results of the PETSc/TAO implementation are included,
+together with an outlook on future work.
 
 
   
@@ -115,18 +177,16 @@ The material is organized as follows: the time dependent inverse problem is stat
 The aim of this work is to estimate and control the error in the solution of PDE constrained optimization problems. %We consider Burger's equation \cite{ou_2011}
 We will denote a generic PDE model by
 \begin{eqnarray}
- u_t &=& \mathcal P[ u ] , \  x \in \Omega \\ \nonumber
+ u_t &=&  P[ u ] , \  x \in \Omega \\ \nonumber
    B[u|_{\partial \Omega}(t)]&=& u_b(t), \\ \nonumber
    u( x,0)&=& u_0( x),\nonumber
 \label{eq:generic}\end{eqnarray} 
-where $\mathcal P[ u ]$ is a stand-in operator for derivatives
+where $ P[ u ]$ is a stand-in operator for derivatives
 controlling the spatial behaviour of the solution $u$. The boundary
 condition $u_b$ is also provided with an operator $B[u]$ which can be
 the identity for Dirichlet boundary conditions or a derivative for
-Neumann, while $u_b(t)$ denotes whether the boundaries are
-homogeneously or inhomogeneously satisfied, or whether they are time
-dependent. This notation does not exclude periodic boundary
-conditions. For simplicity of presentation we assume only homogeneous Dirichlet and/or periodic boundary conditions; i.e.  $u|_{\partial \Omega}(t)= 0.$
+Neumann. This notation does not exclude periodic boundary
+conditions. For simplicity, in most of the presentation we assume only homogeneous Dirichlet and/or periodic boundary conditions; i.e.  $u|_{\partial \Omega}(t)= 0.$
 
 %Let us assume that we seek to find the initial condition $u_0$ such
 %that we minimize a function
@@ -137,37 +197,45 @@ conditions. For simplicity of presentation we assume only homogeneous Dirichlet 
 %\end{align}
 %
 
-In this work we will consider simple data assimilation problems  for which we seek the initial condition $u_0$ that leads at time $T$ to a solution
-$u$ which matches a reference solution $u_d$. In practice $ u_d$  is not known over the entire domain $\Omega$, but in a subset region $\Omega_s\subset \Omega$ where sensors have been placed. However, for simplicity we construct a continuous function
-$u_d$ to avoid regularization issues, and consider the sensor values $u_s$ to be a restriction of the destination vector $u_d$, i.e. $u_s=u_d|_{\Omega_s}$. 
-A cost functional which minimizes the difference between $| u- u_d|$ while preserving convexity is
+The optimization problem we seek to solve is
+\begin{eqnarray}
+\min_{u_0} &&J[u_0], \quad s.t. \\ \nonumber
+u_t&=&{P}[u], \quad \text{with}\ u|_{t=0}=u_0\ , \text{and} \  B[u|_{\partial \Omega}(t)]= u_b(t)\ ,
+\label{optimizationproblem}
+\end{eqnarray}
+where the partial differential equation is given by $ P$ and can be either advection-difussion, pure diffusion or possibly nonlinear combinations.
+
+An important special case is the simple data assimilation problems for
+which we seek the initial condition $u_0$ that leads at time $T$ to a
+solution $u$ which matches a reference solution $u_d$. In practice $
+u_d$ is not known over the entire domain $\Omega$, but in a subset
+region $\Omega_s\subset \Omega$ where sensors have been
+placed. However, for simplicity we construct a continuous function
+$u_d$ to avoid regularization issues, and consider the sensor values
+$u_s$ to be a restriction of the destination vector $u_d$,
+i.e. $u_s=u_d|_{\Omega_s}$.  A cost functional which minimizes the
+difference between $| u- u_d|$ while preserving convexity is
 \begin{equation}
   J[u_0]=\int_{\Omega}(u- u_d)^2 \ \d \Omega \,.  \label{eq:Cost_general}
 \end{equation}
 
-The optimization problem we seek to solve is
-\begin{eqnarray}
-\min_{u_0} &&J[u_0], \quad s.t. \\ \nonumber
-u_t&=&\mathcal{P}[u], \quad \text{with}\ u|_{t=0}=u_0\ , \text{and} \  B[u|_{\partial \Omega}(t)]= u_b(t)\ ,
-\label{optimizationproblem}
-\end{eqnarray}
-where the partial differential equation is given by $\mathcal P$ and can be either advection-difussion, pure diffusion or other combinations.
+
 
 \section{Prerequisites}
-%Consider a time dependent partial differential equation with constant coefficients, given by the spatial operator $ \mathcal P(\mathbf u)$ and initial conditions $\mathbf g(\cdot)$ as
+%Consider a time dependent partial differential equation with constant coefficients, given by the spatial operator $  P( u)$ and initial conditions $ g(\cdot)$ as
 %\begin{eqnarray}
-% \frac{\partial\mathbf u}{\partial t} &=&  \mathcal P(\mathbf u) \ , \mathbf x \in \Omega \\ \nonumber
-%  \mathbf u|_{\partial \Omega}&=&0, \\ 
-%  \mathbf u(0,t)&=&\mathbf g(\mathbf x) \ . \nonumber \label{eq:generic}
+% \frac{\partial u}{\partial t} &=&   P( u) \ ,  x \in \Omega \\ \nonumber
+%   u|_{\partial \Omega}&=&0, \\ 
+%   u(0,t)&=& g( x) \ . \nonumber \label{eq:generic}
 %\end{eqnarray} 
 
-To transition from the strong form of the equation to the weak form we define the spaces
+To transition from the strong form of the equation, (\ref{optimizationproblem}), to the weak form we define the spaces
 $$
 L^2(\Omega)=\lbrace u :\Omega\rightarrow \mathbb R |\quad \bigg(\int_{\Omega} |u|^2 \d \Omega \bigg)^{1/2}<\infty\ \rbrace
 $$
 with the subspace
 $$
-H^1(\Omega)=\lbrace u \in L^2(\Omega) |\quad \frac{\partial u}{\partial \vect x} \ \text{in}\  L^2(\Omega)\ \rbrace
+H^1(\Omega)=\lbrace u \in L^2(\Omega) |\quad \frac{\partial u}{\partial  x} \ \text{in}\  L^2(\Omega)\ \rbrace
 $$
 and its subspace
 $$
@@ -176,24 +244,24 @@ $$
 
 We define the space
 \begin{eqnarray*}
-K  =   K (\Omega) & = & \lbrace \bigg(\int_0^T \int_{\Omega} |u|^2 \d \Omega \d t \bigg) < \infty | \\
+K  =   K (\Omega,T) & = & \lbrace \bigg(\int_0^T \int_{\Omega} |u|^2 \d \Omega \d t \bigg) < \infty | \\
                   &   &  \bigg(\int_0^T \int_{\Omega} |u_t|^2 \d \Omega \d t \bigg) < \infty | \\
-                  &   &  \bigg(\int_0^T \int_{\Omega} |\frac{\partial u}{\partial \vect x}|^2 \d \Omega \dt \bigg) < \infty | \quad  u|_{\partial\Omega}=0 \rbrace.
+                  &   &  \bigg(\int_0^T \int_{\Omega} |\frac{\partial u}{\partial  x}|^2 \d \Omega \dt \bigg) < \infty | \quad  u|_{\partial\Omega}(t) = 0 \rbrace.
 \end{eqnarray*}
 Unless otherwise indicated we will assume all functions in this manuscript are in $K$.
 For the weak form of a partial differential equation we seek $ u $ in $K$ with the property that the residual is orthogonal to the set of all test functions,
 that is
 \[
-\int_0^T \int_{\Omega} (\mathbf u_t-\mathcal P(\vect u)) \mathbf v \d \Omega \d t = 0
+\int_0^T \int_{\Omega} ( u_t- P( u))  v \d \Omega \d t = 0
 \]
-for all $\mathbf v$ in $K$.
+for all $ v$ in $K$.
 
-Example: Let $\mathcal P(\mathbf u) = \nu \Delta \mathbf u + \mathbf a  \nabla \mathbf u$, where $\nu$ is a parameter which represents the viscosity, and $\mathbf a$ is the advection velocity. Apply integration by parts to remove any second derivatives from the equation to obtain
+Example: Let $ P( u) = \nu \Delta  u +  a \cdot \nabla  u$, where $\nu$  represents the viscosity, and $ a$ is the advection velocity. Apply integration by parts to remove any second derivatives from the equation to obtain
 \begin{equation}
-\int_0^T \bigg( \int_{\Omega}\frac{\partial\mathbf u}{\partial t} \mathbf v \ \d \Omega + \int_{\Omega} \nu\nabla \mathbf u\ \nabla \mathbf v\ \d \Omega - \int_{\Omega} \mathbf a \cdot \mathbf v\ \nabla \mathbf u\ \d \Omega-
- \int_{\partial \Omega} \nabla \mathbf u \ \mathbf v\  \d \partial \Omega \bigg) \d t =0\label{eq:weakcd}
+\int_0^T \bigg( \int_{\Omega}\frac{\partial u}{\partial t}  v \ \d \Omega + \int_{\Omega} \nu\nabla  u\ \nabla  v\ \d \Omega - \int_{\Omega}  a \cdot  v\ \nabla  u\ \d \Omega-
+ \int_{\partial \Omega} \nabla  u \  v\  \d \partial \Omega \bigg) \d t =0\label{eq:weakcd}
 \end{equation}
-The boundary term vanishes since $\mathbf u, \mathbf v \in K.$
+The boundary term vanishes since $ u,  v \in K.$
 
 In calculus the quantity of interest in determining extremum values of functions is the gradient. In functional analysis (calculus of variations) the functional
 derivative plays a similar role in determining functions that provide the extremum of functionals. The functional derivative of
@@ -213,62 +281,61 @@ minimum or maximum of a functional is that the functional derivative is zero.
 \subsection{The Spectral Element Method}
 \label{sec:sem}
 
-Based on the weak form given by Equation~\ref{eq:weakcd} several discretizations are suitable, the finite element method, spectral element, continuous or discontinuous Galerkin, etc.
-The spectral element method is a subclass of Galerkin methods, or weighted residual methods. 
-The idea is to minimize the error of the numerical computation in the energy norm over a chosen space of polynomials. 
+Based on the weak form given by Equation~\ref{eq:weakcd} several
+discretizations are suitable, the finite element method, spectral
+elements, continuous or discontinuous Galerkin, etc.  The spectral
+element method is a subclass of Galerkin methods, or weighted residual
+methods.  The idea behind Galerkin methods is to minimize the error of
+the numerical computation in the energy norm over a chosen space of
+polynomials, or, equivalently require the error to be orthogonal to
+the subspace defined by the spectral elements.
 
 In the following we illustrate the spectral element discretization for the convection-diffusion equation Equation~\ref{eq:weakcd}, restricting ourselves to the one dimensional case
 \begin{equation}
 u_t - \nu\Delta u\ +a \nabla u=0\ . \label{eq:1dcd}
 \end{equation}
 
-In the case of a spectral element method the domain $\Omega=\cup_{e=1,M} \Omega_e $, is decomposed in $M$ nonoverlapping 
+In the case of a spectral element method the domain $\Omega=\cup_{e=1,M} \Omega_e $, is decomposed into $M$ nonoverlapping 
 subdomains $\Omega_e$, termed elements, over which the data will be represented by orthogonal polynomials.
 
-Let us now define $X=H^1_0(\Omega)^d$. The space of polynomials of order $N$ defined over an element $\Omega^e, \ e=1,\ldots, E$ is
+Let us now define $X=H^1_0(\Omega)^d$. The space of polynomials of order $N$ defined over an element $\Omega_e, \ e=1,\ldots, E$ is
 $$
-\mathbb P_{N,E}=\lbrace  \phi| \phi \in L^2(\Omega); \quad \phi|_{\Omega^e} \text{polynomial of degree} \leq N\rbrace
+\mathbb P_{N,E}=\lbrace  \phi| \phi \in L^2(\Omega); \quad \phi|_{\Omega_e} \text{polynomial of degree} \leq N\rbrace,
 $$
 Subsequently $X_N=X\cap  P_{N,E}^d$, where $d$ is the dimension of the problem.
 
-In the polynomial space $X_N$ we expand the numerical solution $u(x)=\sum_i^N u_i(x)\phi_i$.
-With this choice the solution as well as the test space function $v$ can be expressed as
+In the polynomial space $X_N$ we expand the numerical solution 
 \begin{equation}
-u(\vect x)=\sum_{i=1}^N u_{i}\phi_i(\vect x)\ .
+u( x)=\sum_{i=1}^N u_{i}\phi_i( x)\ .
 \label{eq:ansatz}
 \end{equation}
 
-The discrete point distribution $\mathbf x$ can be either a Chebyshev grid, or a Legendre grid, in either case the polynomials are orthogonal $(\phi_i, \phi_j)=\delta_{ij}$. 
+The discrete point distribution $ x$ can be either a Chebyshev grid, or a Legendre grid, in either case the polynomials are orthogonal $\int_{\Omega} \phi_i, \phi_j \d \Omega =\delta_{ij}$. 
 For the moment we consider solely one dimensional problems and to proceed with the numerical discretization we plug Equation~\ref{eq:ansatz} into Equation~\ref{eq:weakcd} to obtain
 \begin{equation}
-\frac{\partial}{\partial t}\int \sum_{i=1}^N u_{i}\phi_i(x) \sum_{j=1}^N v_{j}\phi_j(x) \d \Omega_e + \int\sum_{i=1}^N u_{i}\phi'_i(x) \sum_{j=1}^N v_{j}\phi'_j(x) \d \Omega_e  +\int\sum_{i=1}^N u_{i}\phi_i(x) \sum_{j=1}^N v_{j}\phi'_j(x) \d \Omega_e =0 \ .
+\frac{\partial}{\partial t}\int \sum_{i=1}^N u_{i}\phi_i(x) \sum_{j=1}^N v_{j}\phi_j(x) \d \Omega + \int\sum_{i=1}^N u_{i}\phi'_i(x) \sum_{j=1}^N v_{j}\phi'_j(x) \d \Omega  +\int\sum_{i=1}^N u_{i}\phi_i(x) \sum_{j=1}^N v_{j}\phi'_j(x) \d \Omega =0 \ .
+\end{equation}
+With suitable reordering this results in
+\begin{equation}
+\frac{\partial}{\partial t}\sum_{i,j=1}^N u_{i}v_{j}\underbrace{\int_{\Omega} \phi_i(x)\phi_j(x) \d \Omega}_{M_{ij}} + \sum_{i,j=1}^N u_{i} v_{j}\underbrace{\int_{\Omega} \phi'_i(x) \phi'_j(x) \d \Omega}_{K_{ij}} +\sum_{i,j=1}^N u_{i} v_{j}\underbrace{\int_{\Omega}\phi'_i(x) \phi_j(x) \d \Omega}_{D_{ij}}  =0
+\end{equation}
+where $M_{ij}$ is the mass matrix and $K_{ij}$ is the stiffness matrix. Due to the orthogonality properties of the polynomials the mass matrix is diagonal. 
+In algebraic form we can write the equations as
+\begin{equation}
+\frac{\partial}{\partial t}\overline{v}^TM\overline{u} + \overline{v}^TK\overline{u}+\overline{v}^TD\overline{u}=0
 \end{equation}
 
-With proper reordering this yields
+with $\overline{u}=(u_0,\ u_1, \ldots, u_N)$ and similarly $\overline v$ is the array of point values of the test function. 
+Note that one can factor out $\overline v$ to obtain an ODE
 
 \begin{equation}
-\frac{\partial}{\partial t}\sum_{i,j=1}^N u_{i}v_{j}\underbrace{\int \phi_i(x)\phi_j(x) \d \Omega_e}_{M_{ij}} + \sum_{i,j=1}^N u_{i} v_{j}\underbrace{\int\phi'_i(x) \phi'_j(x) \d \Omega_e}_{K_{ij}} +\sum_{i,j=1}^N u_{i} v_{j}\underbrace{\int\phi'_i(x) \phi_j(x) \d \Omega_e}_{D_{ij}}  =0
+M\frac{d \overline{u}}{d t} =- K \overline{u}+ D \overline{u} \label{eq:discrete}
 \end{equation}
 
-where $M_{ij}$ is the mass matrix and $K_{ij}$ is the stiffness matrix. If the same polynomial order expansion as in the Equation~\ref{eq:ansatz} is used for the mass matrix then due to the orthogonality properties of the polynomials the mass matrix is diagonal. A higher order polynomial expansion yields a full matrix, which may alleviate disperssive errors as mentioned in \cite{ainsworth2014}, however in the current work we do not consider such matters.
-
-In algebraic form we can rewrite
-\begin{equation}
-\frac{\partial}{\partial t}\underline{v}^TM\underline{u} + \underline{v}^TK\underline{u}+\underline{v}^TD\underline{u}=0
-\end{equation}
-
-with $\underline{u}=(u_0,\ u_1, \ldots, u_N)$ and similarly $\underline v$ is the array of point values of the test function. 
-Note that one can factor out $\underline v$ to obtain an ODE
-
-\begin{equation}
-M\frac{d \underline{u}}{d t} =- K \underline{u}+ D \underline{u} \label{eq:discrete}
-\end{equation}
-
-Presume  $\Omega_e = [a, \ b]$ and define the reference element $\hat{\Omega} = [-1, \ 1]$.
-For $x\in \Omega_e$ and $r \in \hat{\Omega}$ the mapping from each element to the reference element is
+If we presume  $\Omega_e = [a, \ b]$ and define the reference element $\hat{\Omega} = [-1, \ 1]$.
+then for $x\in \Omega_e$ and $r \in \hat{\Omega}$ the mapping from each element to the reference element is
 $$x= a+ \frac{b-a}{r+1}\ .$$
-
-This mapping introduces a scaling factor for each element as given by the Jacobian of the coordinate transformation.
+This mapping introduces a scaling factor for each element, given by the Jacobian of the coordinate transformation.
 
 %\subsubsection{Spectral operators and their implementation}
 
@@ -284,7 +351,7 @@ This mapping introduces a scaling factor for each element as given by the Jacobi
 \subsection{Convection-Diffusion}
 Consider the energy equation in non-dimensional form Equation~\ref{eq:energy_nondim}, this is a convection diffusion equation with the Laplacian term weighted by the P\' eclet number. For the simplicity of the presentation we make two changes 
 \begin{itemize}
-\item replace the advection velocity $\vect u$ by a constant velocity field $c$ that is divergence free
+\item replace the advection velocity $ u$ by a constant velocity field $c$ that is divergence free
 \item denote the temperature $T$ in the energy equation by $u$
 \end{itemize}
 The variational formulation of the Convection-Diffusion equation reads
@@ -295,8 +362,8 @@ with $ u,\ v \ \in \  H^1_0(\Omega)$.
 
 The terms in the convection diffusion equation can be further expanded to give
 \begin{eqnarray}\label{eq:var_cd}
-\int_{\Omega}\frac{\partial u}{\partial t} \cdot \vect v\d \Omega &=&\frac{\partial}{\partial t} \int_{\Omega}u \cdot \vect v\d \Omega\\
-\int_{\Omega} \nabla\cdot \nabla u\cdot v\d \Omega &=&\int_{\Omega}  \nabla u\cdot \nabla v\d \Omega +\int_{\partial\Omega} v \nabla u \cdot \vect n\d\Omega
+\int_{\Omega}\frac{\partial u}{\partial t} \cdot  v\d \Omega &=&\frac{\partial}{\partial t} \int_{\Omega}u \cdot  v\d \Omega\\
+\int_{\Omega} \nabla\cdot \nabla u\cdot v\d \Omega &=&\int_{\Omega}  \nabla u\cdot \nabla v\d \Omega +\int_{\partial\Omega} v \nabla u \cdot  n\d\Omega
 \end{eqnarray}
 
 
@@ -307,20 +374,20 @@ $$
 Subsequently $X_N=X\cap  P_{N,E}^d$, where $d$ is the dimension of the problem.
 
 In the polynomial space $X_N$ we expand the numerical solution $u=\sum_i^N u_i\phi_i$.
-With this choice the solution as well as the test space function $\vect v$ can be expanded as
+With this choice the solution as well as the test space function $ v$ can be expanded as
 $$
-u(\vect x)=\sum_{i=1}^N u_{i}\phi_i(\vect x)
+u( x)=\sum_{i=1}^N u_{i}\phi_i( x)
 $$
 
 Given the choice of the polynomial space $X_N$ the boundary integral term in \ref{eq:var_cd} vanishes. Upon insertion of the ansatz into the variational formulation we have
 \begin{eqnarray}\label{eq:cd_ansatz}
-\int_{\Omega}\frac{\partial u}{\partial t} \cdot \vect v\d \Omega &=&\frac{\partial}{\partial t} \sum_i^N\sum_j^N v_i\bigg(\int_{\Omega}  \phi_i(\vect x) \cdot \phi_j(\vect x)\d \Omega u_j\bigg) \\
-\int_{\Omega}(c \cdot \nabla u)\cdot  v\d \Omega\ &=&\sum_i^N\sum_j^N v_i\bigg (\int_{\Omega}(c \cdot \phi_i(\vect x)\cdot \nabla\phi_j(\vect x)  \d \Omega\bigg) u_j\ \\
-\int_{\Omega} (\nabla\cdot \nabla  u)\cdot  v\d \Omega &=&\sum_{i=1}^N \sum_{j=1}^N v_{i}(\int_{\Omega}\nabla\phi_i(\vect x) \cdot \nabla \phi_j(\vect x)\d \Omega)u_j \\
+\int_{\Omega}\frac{\partial u}{\partial t} \cdot  v\d \Omega &=&\frac{\partial}{\partial t} \sum_i^N\sum_j^N v_i\bigg(\int_{\Omega}  \phi_i( x) \cdot \phi_j( x)\d \Omega u_j\bigg) \\
+\int_{\Omega}(c \cdot \nabla u)\cdot  v\d \Omega\ &=&\sum_i^N\sum_j^N v_i\bigg (\int_{\Omega}(c \cdot \phi_i( x)\cdot \nabla\phi_j( x)  \d \Omega\bigg) u_j\ \\
+\int_{\Omega} (\nabla\cdot \nabla  u)\cdot  v\d \Omega &=&\sum_{i=1}^N \sum_{j=1}^N v_{i}(\int_{\Omega}\nabla\phi_i( x) \cdot \nabla \phi_j( x)\d \Omega)u_j \\
 \end{eqnarray}
 
 To discretize the integrals in \ref{eq:cd_ansatz} we need to introduce a quadrature rule. For spectral accuracy the choice is the Gauss-Legendre quadrature
-$\int_{-1}^1\phi(\vect x)\d x=\sum_k \rho_k\phi(x_k)$
+$\int_{-1}^1\phi( x)\d x=\sum_k \rho_k\phi(x_k)$
 where the quadrature points $x_k$ are given by the Gauss-Legendre-Lobatto points, and the weights $\rho_k$ are based on the Legendre polynomials as in \ref{dfm02}.
 To start with we consider the one dimensional case and proceed to higher dimensions and curvilinear elements.
 
@@ -334,11 +401,11 @@ since $\phi_i(x_k) \phi_j(x_k)=\delta_{ij}$, $M$ is a diagonal matrix which hold
 
 The stiffness matrix corresponding to the second order term is 
 \begin{equation}
-A_{ij}=\int_{\Omega}\phi'_i(\vect x) \phi'_j(\vect x)\d \Omega=\frac{L}{2}\int_{-1}^1\phi'_i(r) \phi'_j(r)\d r=\frac{L}{2}\sum_k \rho_k\phi'_i(r_k) \phi'_j(r_k)
+A_{ij}=\int_{\Omega}\phi'_i( x) \phi'_j( x)\d \Omega=\frac{L}{2}\int_{-1}^1\phi'_i(r) \phi'_j(r)\d r=\frac{L}{2}\sum_k \rho_k\phi'_i(r_k) \phi'_j(r_k)
 \end{equation}
 and the convection operator
 \begin{equation}
-C_{ij}=\int_{\Omega}c\phi_i(\vect x) \phi'_j(\vect x)\d \Omega=\frac{L}{2}\int_{-1}^1c(r)\phi_i(r) \phi'_j(r)\d r=\frac{L}{2}\sum_k c(r_k)\rho_k\phi_i(r_k) \phi'_j(r_k)
+C_{ij}=\int_{\Omega}c\phi_i( x) \phi'_j( x)\d \Omega=\frac{L}{2}\int_{-1}^1c(r)\phi_i(r) \phi'_j(r)\d r=\frac{L}{2}\sum_k c(r_k)\rho_k\phi_i(r_k) \phi'_j(r_k)
 \end{equation}
 
 This leads to the following spatial discretized system of equations
@@ -357,20 +424,20 @@ To start with we introduce a notation for tensor product form of matrix multipli
 \begin{equation}
 w_{ij}=\sum_{l=1}^M\sum_{k=1}^N a_{jl}b_{ik}u_{kl}
 \end{equation}
-In the tensor product notation $c_{ij}=\sum_{l=1}^M\sum_{k=1}^N a_{jl}b_{ik}$ can be written as $C=A\otimes B)$. By unrolling the vector $w_{ij}$ as $\underline{w}_{\hat{i}}$ with components given by the ordering $\hat{i}=i+M\cdot(j-1)$ and similarly for $u_{kl}$ we can expand the tensor matrix product as \footnote{this doesn't match the one before.. careful with N+1, N}
+In the tensor product notation $c_{ij}=\sum_{l=1}^M\sum_{k=1}^N a_{jl}b_{ik}$ can be written as $C=A\otimes B)$. By unrolling the vector $w_{ij}$ as $\overline{w}_{\hat{i}}$ with components given by the ordering $\hat{i}=i+M\cdot(j-1)$ and similarly for $u_{kl}$ we can expand the tensor matrix product as \footnote{this doesn't match the one before.. careful with N+1, N}
 
-$$\underline{w}=(A\otimes I)(I\otimes B)\underline{u}$$
+$$\overline{w}=(A\otimes I)(I\otimes B)\overline{u}$$
 
 From this notation simpler cases arise such as
 \begin{equation}
-w_{ij}=\sum_{k=1}^N a_{ik}u_{kj}\quad \rightarrow \quad \underline{w}=
+w_{ij}=\sum_{k=1}^N a_{ik}u_{kj}\quad \rightarrow \quad \overline{w}=
 \end{equation}
 \section{Data Structure for SEM in Petsc}
 \label{sec:sem}
 
 
 %\begin{equation}
-%  \mathbf u(\mathbf x)|_{\Omega_e} = \sum_{i,j,k} u^e_{ijk}
+%   u( x)|_{\Omega_e} = \sum_{i,j,k} u^e_{ijk}
 %  \phi_i(x_1)\phi_j(x_2)\phi_k(x_3)\ ,
 %\end{equation} 
 
@@ -381,19 +448,18 @@ w_{ij}=\sum_{k=1}^N a_{ik}u_{kj}\quad \rightarrow \quad \underline{w}=
 
 \section{PDE constrained optimization}
 
-Two main approaches are available when dealing with PDE-constrained optimization problems; both can be cast in a Lagrange-multipliers framework. Although the Lagrange-multipliers framework is not the sole path to solution for these types of optimization problems we choose it here for consistency, furthermore it offers a suitable way to illustrate the connections between continuous and discrete adjoints.
+Several approaches are available when dealing with PDE-constrained
+optimization problems; one family can be cast in a Lagrange-multiplier
+framework.
+Variational calculus allows us to obtain a direct derivation of the adjoint equations, which are weakly decoupled from the forward PDE. By weakly decoupled in this context we mean that the backward and forward problems can be regarded as two independent PDEs where the backward problem is tied to the forward via initial conditions, boundary conditions, and the advection velocity in the case of nonlinear problems.
 
-Variational calculus allows us to obtain a direct derivation of the adjoint equations, which are weakly decoupled from the forward PDE. By weakly decoupled in this context we mean that the backward and forward problems can be regarded as two independent PDEs where the backward problem is tied to the forward via initial conditions, boundary conditions as well as the advection velocity in the case of nonlinear problems.
-
-In the examples we consider here an objective function that is  restricted to the final time horizon which implies that in Equation\ref{eq:Cost_general} we have $\mathcal{J}[u_0]=\int_{\Omega}( u[T]- u_d)^2 \ \d \Omega$. 
-
-We sum up in Table~\ref{sum} the approaches available for PDE constrained optimization, outlining the current work and subsequently proceeding to the necessary derivations.
+We summarize in Table~\ref{sum} the approaches available for PDE constrained optimization.
 
 \begin{table}
 \centering
 \begin{tabular}{|r|c|c|}
   \hline
-   & KKT system & Adjoint looping \\
+   & Parallel in time & Adjoint looping \\
   \hline\hline
   Discrete Adjoint & TAO\footnotemark
    & Current work (PETSc) \\ 
@@ -403,12 +469,13 @@ We sum up in Table~\ref{sum} the approaches available for PDE constrained optimi
 \caption{PDE constrained optimization strategies.}\label{sum}
 \end{table}
 \footnotetext{\texttt{/petsc/src/tao/pde\_constrained/}}
+
+\begin{comment}
 \subsection{Variational calculus using the continous adjoint\label{sec:adj:continuous}} 
 
 To derive the gradient used in the backward step we set up the Lagrangian, where $v$ plays the role of the Lagrangian multiplier
-$$\mathcal{L}[ u,  v]=\int_{\Omega}( u[T]- u_d)^2 \ \d \Omega +\int_0^T\int_{\Omega} P[ u]  v \ \d \Omega \d t $$
+$${L}[ u,  v]=\int_{\Omega}( u[T]- u_d)^2 \ \d \Omega +\int_0^T\int_{\Omega} P[ u]  v \ \d \Omega \d t $$
 
-\begin{comment}
 + \int_0^T\int_{\Gamma}  v_b  ( u-  u_b) \ \d \Gamma \d t
 %
 \footnote{Chain rule for $f=g\circ h$, g must be Frechet and if h' is Frechet or Gateaux so is f.}
@@ -416,9 +483,8 @@ $$\mathcal{L}[ u,  v]=\int_{\Omega}( u[T]- u_d)^2 \ \d \Omega +\int_0^T\int_{\Om
 \footnote{Riesz theorem: Let T be a functional on H then the Frechet derivative $T'(x)$ is given by
 $T'(x) v= (\nabla T, v)$ for $\forall v \in H$.}
 %
-\end{comment}
 
-Focusing on the term $\mathcal P[u]$ and presuming it stands for a diffusion operator we rewrite
+Focusing on the term $ P[u]$ and presuming it stands for a diffusion operator we rewrite
 \begin{eqnarray}
 \int_0^T\int_{\Omega} P[u]  v \ \d \Omega \d t &=&
 \int_0^T\int_{\Omega} \frac{d u}{d t}  v \ \d \Omega \d t+ \int_0^T\int_{\Omega} \nu\Delta  u \cdot  v \ \d \Omega \d t+\int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t \\ \nonumber
@@ -435,17 +501,17 @@ here $\Gamma=\partial \Omega$ is the boundary of the domain.
 
 Grouping now the time dependent terms we have
 \begin{eqnarray}
-\mathcal{L}[ u, u_0,v]&=&\int_{\Omega}( u[T]- u_d)^2 + \int_{\Omega} u[T] v[T] - u[0] v[0]\ \d \Omega+\int_0^T\int_{\Omega} \overline{P}[ v]  u \ \d \Omega \d t + \\ \nonumber
+{L}[ u, u_0,v]&=&\int_{\Omega}( u[T]- u_d)^2 + \int_{\Omega} u[T] v[T] - u[0] v[0]\ \d \Omega+\int_0^T\int_{\Omega} \overline{P}[ v]  u \ \d \Omega \d t + \\ \nonumber
  && \int_0^T\int_{\Gamma}(\nabla  u\cdot  v-  u\cdot \nabla v) n\ \d \Gamma \d t
 \end{eqnarray}
 
-Here we denote by $\overline{\mathcal P}$ the reverse mode which is reversed in time, i.e. $\overline{\mathcal P}[u(x,t)]=-\overline{\mathcal P}[u(x,-t)]$ and determines the backward heat equation in this case. 
+Here we denote by $\overline{ P}$ the reverse mode which is reversed in time, i.e. $\overline{ P}[u(x,t)]=-\overline{ P}[u(x,-t)]$ and determines the backward heat equation in this case. 
 
-In order to take a derivative of a functional we need to make use of the Riesz representation theorem, which states that for a functional $\mathcal J$, the derivative is $d \mathcal J[u]/dv=(u,v)(=\int_{\Omega} u\cdot v \ d \Omega)$. Considering now each partial derivative individually we have for the Lagrangian
+In order to take a derivative of a functional we need to make use of the Riesz representation theorem, which states that for a functional $ J$, the derivative is $d  J[u]/dv=(u,v)(=\int_{\Omega} u\cdot v \ d \Omega)$. Considering now each partial derivative individually we have for the Lagrangian
 \begin{eqnarray}
-\nabla_u \mathcal L&=&- \frac{\partial v}{\partial t}  +\nu\Delta  v \\ \nonumber
-\nabla_{u_0} \mathcal L&=&- v[0]\\ \nonumber
-\nabla_{u_T} \mathcal L&=&2( u[T]- u_d)+ v[T]\\ \nonumber
+\nabla_u  L&=&- \frac{\partial v}{\partial t}  +\nu\Delta  v \\ \nonumber
+\nabla_{u_0}  L&=&- v[0]\\ \nonumber
+\nabla_{u_T}  L&=&2( u[T]- u_d)+ v[T]\\ \nonumber
 \label{eq:bcs_ics}
 \end{eqnarray}
 
@@ -466,7 +532,7 @@ Let us assume we have a time-dependent problem such as Equation~\ref{eq:1dcd} wh
   \label{eq:semi:discrete:form}
 \frac{\partial u}{\partial t} = f(u,p,t)\,, 
 \end{align}
-which is identical with Equation~\ref{eq:generic}, with the difference that now we need an explicit definition of the spatial operator at every time step so we took $f(u,p,t)=\mathcal P[u,p](t)$, previously it was sufficient to consider the dependency of $\mathcal P$ on $u$. Note that in fact the optimization parameter remains $\param=u_0$, however we shall write $p$ to avoid confusion with the discrete timestep $u_0$. 
+which is identical with Equation~\ref{eq:generic}, with the difference that now we need an explicit definition of the spatial operator at every time step so we took $f(u,p,t)= P[u,p](t)$, previously it was sufficient to consider the dependency of $ P$ on $u$. Note that in fact the optimization parameter remains $\param=u_0$, however we shall write $p$ to avoid confusion with the discrete timestep $u_0$. 
 The discrete process now reads
 %
 \begin{align}
@@ -624,46 +690,96 @@ s_k
 Equation \eqref{eq:BE:adjoint} describes the adjoint of the backward
 Euler method; it goes backward in time (from step $N$ to $0$) and it
 is initialized with $s_N$.
-
+\end{comment}
+  
 \subsection{Using Adjoints for Optimization}
 
+We want a somewhat general problem, but not too general.
+
 The optimization problem \ref{optimizationproblem} is posed as an optimization of a functional subject to a time dependent PDE constraint.
-In this section we demonstrate how, using the functional analysis equivalent of Lagrange multiplies, it can be reformated and solved as
-an unconstrained optimization. This approach is known as the adjoint state method. Conside the (more general than presented before)
+Conside the (more general than presented before)
 optimization problem with the constraint posed in weak form
 \begin{eqnarray}
-  \min_{u \in K} \int_0^T\int_{\Omega}G(u) \ \d \Omega \d t \quad s.t. \\ \nonumber
-  \int_0^T \int_{\Omega} (\mathbf u_t-\mathcal P(\vect u)) \mathbf v \d \Omega \d t = 0, \quad \forall v \in K.
+  \min_{u \in K} \int_{\Omega}g(u(T)) \ \d \Omega + \int_0^T\int_{\Omega}G(u) \ \d \Omega \d t \quad s.t. \\ \nonumber
+  \int_0^T \int_{\Omega} v^T( u_t- P( u))  \d \Omega \d t = 0, \quad \forall v \in K.
 \label{newoptimizationproblem}
 \end{eqnarray}
+
+
+In this section we demonstrate how, using the functional analysis equivalent of Lagrange multiplies, it can be reformated and solved as
+an unconstrained optimization. This approach is known as the adjoint state method. 
 The unconstrained problem
 \begin{eqnarray}
-  \min_{u \in K, v \in K} \Lagrangian(u,v) = \min_{u \in K, v \in K} \int_0^T\int_{\Omega}G(u) \ \d \Omega \d t \quad +  \int_0^T \int_{\Omega} (\mathbf u_t-\mathcal P(\vect u)) \mathbf v \d \Omega \d t = 0, \quad \forall v \in K
+  \min_{u \in K, v \in K} \Lagrangian(u,v) = \min_{u \in K, v \in K} \int_{\Omega}g(u(T)) \ \d \Omega + \int_0^T\int_{\Omega}(G(u)  +   v^T ( u_t- P( u))) \d \Omega \d t
 \label{unconstrainedoptimizationproblem}
 \end{eqnarray}
 has a stationary point for each extremum of the original problem (plus possibly additional stationary points). In this formulation the $ v$ play the role of
-Lagrange multipliers. We integrate by parts the $ u_t v $ term and for clarity explicitly include $ u(0) $ and $ u(T) $ in the arguments of the Lagrangian resulting in
+Lagrange multipliers. We integrate by parts and for clarity explicitly include $ u(0) $ and $ u(T) $ in the arguments of the Lagrangian resulting in
 \[
-\Lagrangian(u,v,u(0),u(T)) = \int_0^T\int_{\Omega}G(u) - \mathbf u v_t-\mathcal P(\vect u) \mathbf v \d \Omega \d t + \int_{\Omega} u(T)v(T) - u(0) v(0) \d \Omega.
+\Lagrangian(u,v,u(0),u(T)) =  \int_0^T\int_{\Omega}(G(u) -  v^T_tu - \tilde{P}( v)  u) \d \Omega \d t + \int_{\Omega} (g(u(T)  + v(T)^Tu(T) - v(0)^Tu(0)) \d \Omega.
 \]
+The integration by parts is used to shift the $u$ outside of the $P()$ so that the result is linear in $u$; this is not possible to do for all forms of $p()$ but presumably in those cases one can
+directly apply the definition of the functional derivative to the original form.
 Now using the definition of the functional derivative we obtain
 \[
-\int_0^T\int_{\Omega} \frac{\partial \Lagrangian(u,v,u(0),u(T))}{\partial u(0)}\phi() = \int_0^T\int_{\Omega} (\frac{\partial G}{\partial u(0)}(u(0)) - v(0))\phi() \d \Omega \d t
-\],
-\[
-\int_0^T\int_{\Omega} \frac{\partial \Lagrangian(u,v,u(0),u(T))}{\partial u(T)}\phi() = \int_0^T\int_{\Omega} (\frac{\partial G}{\partial u(T)}(u(T)) - v(T))\phi() \d \Omega \d t
-\], and 
-\[
-\int_0^T\int_{\Omega} \frac{\partial \Lagrangian(u,v,u(0),u(T))}{\partial u}\phi() = \int_0^T\int_{\Omega}\frac{\partial G}{\partial u}(u)\phi() -  v_t\phi() - [\frac{\partial P}{\partial u}(u)\phi()] \mathbf v \d \Omega \d t.
+\int_0^T\int_{\Omega} \frac{\partial \Lagrangian(u,v,u(0),u(T))}{\partial u}\phi = \int_0^T\int_{\Omega} (\frac{\partial G}{\partial u}(u) -  v_t - \tilde{P}(v))\phi \d \Omega
 \]
+\[
+\int_{\Omega} \frac{\partial \Lagrangian(u,v,u(0),u(T))}{\partial u(0)}\phi = \int_{\Omega}  - v(0)\phi \d \Omega
+\], and
+\[
+\int_{\Omega} \frac{\partial \Lagrangian(u,v,u(0),u(T))}{\partial u(T)}\phi = \int_{\Omega} (\frac{\partial g}{\partial u(T)}(u(T)) - v(T))\phi \d \Omega.
+\] 
+In strong form the resulting equations are
+\begin{eqnarray}
+\nabla_u  L&=&- \frac{\partial v}{\partial t}  +\nu\Delta  v = 0\\ \nonumber
+\nabla_{u_0}  L&=&- v[0] = 0\\ \nonumber
+\nabla_{u_T}  L&=&2( u[T]- u_d)+ v[T] = 0.\\ \nonumber
+\label{eq:bcs_ics}
+\end{eqnarray}
 
-Question, why do the other two terms drop out for the first two equations?
+
+Example convection-diffusion method problem. 
 
 \subsubsection{Semi-discrete Adjoints}
 
-\subsubsection{Continous Adjoints}
+In this section we use $ \overline{u} $ to represent a vector of finite element coefficients (which are still time dependent) and we use
+the {\em denominator layout} for derivatives, i.e. vectors are column oriented as are gradients, a byproduct of this notation is that
+$ \frac{\partial \overline{v}^T A \overline{u}}{\partial \overline{u}} = A^T \overline{v}.$
 
+Instead of first minimizing the Lagrangian via the functional derivative one
+can first discretize in space and then optimizing. So rewrite \ref{unconstrainedoptimizationproblem}, after discretizing in space, resulting in
 
+\begin{eqnarray}
+  \min_{\overline{u} \in R^{n}, \overline{v} \in R^{n}} \Lagrangian(\overline{u},\overline{v},\overline{u}(0),\overline{u}(T) =  \min_{\overline{u} \in R^{n}, \overline{v} \in R^{n}} \int_0^T(\overline{G}(\overline{u})  -   \overline{v}_t^TM\overline{u}  - \overline{v}^T \overline{P}(\overline{u})) \d t + \overline{g}(\overline{u}(T)) \d  t + \overline{v}(T)^TM\overline{u}(T) - \overline{v}(0)^TM\overline{u}(0).
+\end{eqnarray}
+Now take the functional derivative only with respect to time resulting in
+\[
+  \int_0^T \frac{\partial \Lagrangian(\overline{u},\overline{v},\overline{u}(0),\overline{u}(T))}{\partial \overline{u}}\overline{\phi} = \int_0^T (\frac{\partial \overline{G}}{\partial \overline{u}} -  M \overline{v}_t  - \frac{\partial \overline{P}}{\partial \overline{u}}(\overline{u})^T\overline{v})\overline{\phi} \d  t.
+  \]
+  \[
+  \frac{\partial \Lagrangian(\overline{u},\overline{v},\overline{u}(0),\overline{u}(T))}{\partial \overline{u(0)}} = -M \overline{v}(0)
+  \]
+  \[
+  \frac{\partial \Lagrangian(\overline{u},\overline{v},\overline{u}(0),\overline{u}(T))}{\partial \overline{u(T)}} = \frac{\partial \overline{g}}{\partial \overline{u}(T)}(\overline{u}(T)) - M \overline{v}(T)) -M \overline{v}(T). 
+  \]
+  In strong form the equations can be written as
+
+Example convection-diffusion method problem.  
+
+\subsubsection{Discrete Adjoints}
+
+Oana will rewrite Emil's discrete stuff using the notation for continous and semi-discrete approaches showing how similar it is.
+
+Example convection-diffusion method problem.
+
+\subsubsection{Discuss sparsity pattern of Euler Lagrangian equations and how the triangular format allows adjoints to work}
+
+\subsubsection{Parallel in time methods, i.e. keep all the unknowns from all timesteps in one big ass problem}
+
+\subsection{Nontrivial Boundary Conditions}
+
+In the discussion above, for simplicity, we considered only periodic or homogeneous boundary conditions here we show how nontrivial boundary conditions can be handled. 
 
 \section{PETSc implementation}
 
@@ -677,7 +793,7 @@ The gradient based optimization can be performed using adjoint information, or a
  \begin{tikzpicture}[scale=3.0]
 \node (A) at (0,1) {$u_0$};
 \node (B) at (2,1) {$u_T$};
-\node (C) at (2,0) {$v_0 (\nabla_{u_0} \mathcal L=0)$};
+\node (C) at (2,0) {$v_0 (\nabla_{u_0}  L=0)$};
 \node (D) at (0,0) {$v_T$};
 \path[->,font=\scriptsize,>=angle 90]
 (A) edge node[above]{Forward mode} (B)
@@ -767,24 +883,24 @@ u(x,t)=\sin(2\pi x)e^{-4\pi^2\mu t}+\cos(4\pi x)e^{-16\pi^2\mu t}
 \label{eq:heatex}
 \end{equation}
 
-We choose the objective function to be a solution to the heat equation, i.e. in Equation~\ref{eq:heatex}, $u_d=u(x,T_a)$, where we set $T_a=3.0$. For the time horizon of the problem we choose $T=1.0$ and seek again to optimize for the initial condition, we minimize $\mathcal J[u_0]=\int_{\Omega} (u[T]-u_d)^2 \d \Omega$. The initial condition we start from is $u_0=u(x,0)=(\sin(2\pi x)+\cos(4\pi x))$. Since the time horizon is $T=1.0$ and the objective function is the solution at $T_a=3.0$ we can compare the result of the optimization with the exact solution at $u(x,T_a-T)$, and identify the behaviour of the errors.
+We choose the objective function to be a solution to the heat equation, i.e. in Equation~\ref{eq:heatex}, $u_d=u(x,T_a)$, where we set $T_a=3.0$. For the time horizon of the problem we choose $T=1.0$ and seek again to optimize for the initial condition, we minimize $ J[u_0]=\int_{\Omega} (u[T]-u_d)^2 \d \Omega$. The initial condition we start from is $u_0=u(x,0)=(\sin(2\pi x)+\cos(4\pi x))$. Since the time horizon is $T=1.0$ and the objective function is the solution at $T_a=3.0$ we can compare the result of the optimization with the exact solution at $u(x,T_a-T)$, and identify the behaviour of the errors.
 
 \paragraph{Continous/Dense objective function} 
 The smooth continous case is illustrated in Figure~\ref{fig:ic_obj_heat}, and Figure~\ref{fig:opt_heat}. We note a difference between the optimal and the objective, which is only natural given that the initial optimal condition has to decay for a time $T$ to reach $u_d$.
 
 Comparing now the error of the optimal solution stemming from the optimization $u_0^{opt}$ and the analytical solution at the same time instance $u(x,T_a-T)$ we note in Figure~\ref{fig:opt_heat} that the error between the two is higher than the threshold imposed on the optimization. This can be easily explained by analyzing the errors incurred by the PDE solver which will always overtake the error in the optimization. Put simply if the PDE is resolved with an error $\epsilon$, then the optimization problem will be bound by the same error, $\vert u_0^{opt} -u(x,T_a-T)\vert \approx \epsilon $. 
 
-In this case the PDE error is a compound of the space $\mathcal O(e{-\sigma N})$ error and time errors, which for a method of third order are $\mathcal O{dt^3}$. We performed a spatial error analysis on this problem, described in Section~\ref{sec:err}, and in Figure~\ref{fig:err_tot} we illustrate for this particular case the spatial error on a per element basis. The upper bound of the error the spatial error is given by the left most element in this discretization and is of magnitude $10^{-7}$. To observe this in the full optimization setup we chose a timestep of size $10^{-5}$, far lower than the stability requirements of the problem, and totally impractical for computational purposes, however revealing for the spatial error which we can see plateaus at $10^{-5}$, which we can consider to be within the round off vicinity of the spatial error. This is by no means an extensive study of errors, but a prerequiste to a fully fledged analysis of the interplay between the convergence of the optimization and the error of the underlying PDE.
+In this case the PDE error is a compound of the space $ O(e{-\sigma N})$ error and time errors, which for a method of third order are $ O{dt^3}$. We performed a spatial error analysis on this problem, described in Section~\ref{sec:err}, and in Figure~\ref{fig:err_tot} we illustrate for this particular case the spatial error on a per element basis. The upper bound of the error the spatial error is given by the left most element in this discretization and is of magnitude $10^{-7}$. To observe this in the full optimization setup we chose a timestep of size $10^{-5}$, far lower than the stability requirements of the problem, and totally impractical for computational purposes, however revealing for the spatial error which we can see plateaus at $10^{-5}$, which we can consider to be within the round off vicinity of the spatial error. This is by no means an extensive study of errors, but a prerequiste to a fully fledged analysis of the interplay between the convergence of the optimization and the error of the underlying PDE.
 
 \paragraph{Discrete/Sparse objective function}
 The case where the objective is only a discrete set of points $N_s=\alpha\%N$, only a fraction $\alpha$ of the total spatial discretization $N$, is now considered. In this case the objective function becomes a fully discrete functional
-$\mathcal J[u_0]=\sum_{i=1}^{N_s} (u^i[T]-u^i_d)^2 $ which needs to be regularized.
+$ J[u_0]=\sum_{i=1}^{N_s} (u^i[T]-u^i_d)^2 $ which needs to be regularized.
 
 The regularization we consider here is 
 $\Sigma[u_0]=\int_{\Omega} \nabla u \nabla u \d\Omega$, which leads to the modified objective function
-$$\mathcal J_{reg}[u_0]= \mathcal J[u_0]+\Sigma[u_0] \ .$$
+$$ J_{reg}[u_0]=  J[u_0]+\Sigma[u_0] \ .$$
 
-The intial condition of the reverse mode will now be, as in Equation~\ref{eq:bcs_ics}, given by $\nabla_{u_0} \mathcal J_{reg}[u_0] =\nabla_{u_0} \mathcal J[u_0]+\nabla_{u_0} \Sigma[u_0]=0 $.
+The intial condition of the reverse mode will now be, as in Equation~\ref{eq:bcs_ics}, given by $\nabla_{u_0}  J_{reg}[u_0] =\nabla_{u_0}  J[u_0]+\nabla_{u_0} \Sigma[u_0]=0 $.
 
 For a choice $\alpha=80$, i.e. $N_s=0.8N$ uniformly distributed sensors, solving the optimization problem is similar to a least squares problems for the objective function, and we expect the fitting of the initial condition to have a higher deviation from the analytical solution. In Figure~\ref{eq:heatex} we note that the soltuion plateaus higher at a value of approximately $10^{-3}$, and several line searches at the first iteration are sufficent to acheive this result. The level at which this plateau is acheived is problem dependent and also can be impacted by the distribution of sensors as well as the number of sensors. Here for simplicity we chose the sensors to coincide with grid points, however in large scale applications they would be interpolated back and forth to the computational grid, which would additional errors to the problem.
 
@@ -856,10 +972,10 @@ This operation is performed per element and for a given signal such as the one i
 %\begin{figure}
 %\begin{center}
 % \begin{tikzpicture}[scale=2.0]
-%\node (A) at (0,1) {$\mathbf u$};
-%\node (B) at (1.5,1) {$T\mathbf u$};
-%\node (C) at (1.5,0) {$T\tilde{\mathbf u}$};
-%\node (D) at (0,0) {$\tilde{\mathbf u}$};
+%\node (A) at (0,1) {$ u$};
+%\node (B) at (1.5,1) {$T u$};
+%\node (C) at (1.5,0) {$T\tilde{ u}$};
+%\node (D) at (0,0) {$\tilde{ u}$};
 %\path[->,font=\scriptsize,>=angle 90]
 %(A) edge node[above]{$DCT$} (B)
 %(D) edge node[right]{$Error$} (A)
@@ -956,7 +1072,7 @@ of the Government.
 \begin{comment}
 
 Set up the Lagrangian
-$$\mathcal{L}[\vect u, \vect u_0]=\int_{\Omega}(\mathbf u[T]-\mathbf u_d)^2 \ \d \Omega +\int_0^T\int_{\Omega} P[\mathbf u] \mathbf v \ \d \Omega \d t + \int_0^T\int_{\Gamma} \mathbf v_b \mathbf (\mathbf u- \mathbf u_b) \ \d \Gamma \d t$$
+$${L}[ u,  u_0]=\int_{\Omega}( u[T]- u_d)^2 \ \d \Omega +\int_0^T\int_{\Omega} P[ u]  v \ \d \Omega \d t + \int_0^T\int_{\Gamma}  v_b  ( u-  u_b) \ \d \Gamma \d t$$
 
 Note: Chain rule for $f=g\circ h$, g must be Frechet and if h' is Frechet or gateaux so is f.
 
@@ -965,32 +1081,32 @@ $T'(x) v= (\nabla T, v)$ for $\forall v \in H$.
 
 Rewrite of the term
 \begin{eqnarray}
-\int_0^T\int_{\Omega} P[\mathbf u] \mathbf v \ \d \Omega \d t &=&
-\int_0^T\int_{\Omega} \frac{\partial\mathbf u}{\partial t} \mathbf v \ \d \Omega \d t+ \int_0^T\int_{\Omega} \nu\Delta \mathbf u \cdot \mathbf v \ \d \Omega \d t+\int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t \\ \nonumber
-&=& \int_{\Omega}\mathbf u\mathbf v \ \d \Omega|_0^T -
+\int_0^T\int_{\Omega} P[ u]  v \ \d \Omega \d t &=&
+\int_0^T\int_{\Omega} \frac{\partial u}{\partial t}  v \ \d \Omega \d t+ \int_0^T\int_{\Omega} \nu\Delta  u \cdot  v \ \d \Omega \d t+\int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t \\ \nonumber
+&=& \int_{\Omega} u v \ \d \Omega|_0^T -
 \int_0^T\int_{\Omega}
- \frac{\partial\mathbf v}{\partial t} \mathbf u \ \d \Omega \d t+ \int_0^T\int_{\Gamma}(\nabla \mathbf u\cdot \mathbf v- \mathbf u\cdot \nabla\mathbf v)\mathbf n\ \d \Gamma \d t +
- \int_0^T\int_{\Omega} \nu\Delta \mathbf v\cdot  \mathbf u \ \d \Omega \d t+
- \int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t \\ \nonumber
+ \frac{\partial v}{\partial t}  u \ \d \Omega \d t+ \int_0^T\int_{\Gamma}(\nabla  u\cdot  v-  u\cdot \nabla v) n\ \d \Gamma \d t +
+ \int_0^T\int_{\Omega} \nu\Delta  v\cdot   u \ \d \Omega \d t+
+ \int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t \\ \nonumber
  &=& 
 \int_0^T\int_{\Omega}
-(- \frac{\partial\mathbf v}{\partial t}  +\nu\Delta \mathbf v)\cdot  \mathbf u\ \d \Omega \d t+\int_{\Omega}\mathbf u\mathbf v |_0^T \ \d \Omega
-+ \int_0^T\int_{\Gamma}(\nabla \mathbf u\cdot \mathbf v- \mathbf u\cdot \nabla\mathbf v)\mathbf n\ \d \Gamma \d t +
- \int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t \\ \nonumber
+(- \frac{\partial v}{\partial t}  +\nu\Delta  v)\cdot   u\ \d \Omega \d t+\int_{\Omega} u v |_0^T \ \d \Omega
++ \int_0^T\int_{\Gamma}(\nabla  u\cdot  v-  u\cdot \nabla v) n\ \d \Gamma \d t +
+ \int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t \\ \nonumber
 \end{eqnarray}
 
 Grouping now the time dependent terms we have
 \begin{eqnarray}
-\mathcal{L}[\vect u, \vect u_0, \mathbf v]&=&\int_{\Omega}(\mathbf u[T]-\mathbf u_d)^2 +\mathbf u[T]\mathbf v[T]\ \d \Omega -\int_{\Omega}\mathbf u[0]\mathbf v[0]\ \d \Omega+\int_0^T\int_{\Omega} \overline{P}[\mathbf v] \mathbf u \ \d \Omega \d t + \\ \nonumber
- && \int_0^T\int_{\Gamma} \mathbf v_b \mathbf (\mathbf u- \mathbf u_b) \ \d \Gamma \d t +\int_0^T\int_{\Gamma}(\nabla \mathbf u\cdot \mathbf v- \mathbf u\cdot \nabla\mathbf v)\mathbf n\ \d \Gamma \d t +
- \int_0^T\int_{\Omega} \mathbf f(\mathbf x)  \mathbf v \ \d \Omega \d t 
+{L}[ u,  u_0,  v]&=&\int_{\Omega}( u[T]- u_d)^2 + u[T] v[T]\ \d \Omega -\int_{\Omega} u[0] v[0]\ \d \Omega+\int_0^T\int_{\Omega} \overline{P}[ v]  u \ \d \Omega \d t + \\ \nonumber
+ && \int_0^T\int_{\Gamma}  v_b  ( u-  u_b) \ \d \Gamma \d t +\int_0^T\int_{\Gamma}(\nabla  u\cdot  v-  u\cdot \nabla v) n\ \d \Gamma \d t +
+ \int_0^T\int_{\Omega}  f( x)   v \ \d \Omega \d t 
 \end{eqnarray}
 
 \begin{eqnarray}
-\frac{\partial L}{\partial \mathbf u}&=&- \frac{\partial\mathbf v}{\partial t}  +\nu\Delta \mathbf v \\
-\frac{\partial L}{\partial \mathbf u_0}&=&-\mathbf v[0]\\
-\frac{\partial L}{\partial \mathbf u_T}&=&2(\mathbf u[T]-\mathbf u_d)+\mathbf v[T]\\
-\frac{\partial L}{\partial \mathbf u_b}&=&\\
+\frac{\partial L}{\partial  u}&=&- \frac{\partial v}{\partial t}  +\nu\Delta  v \\
+\frac{\partial L}{\partial  u_0}&=&- v[0]\\
+\frac{\partial L}{\partial  u_T}&=&2( u[T]- u_d)+ v[T]\\
+\frac{\partial L}{\partial  u_b}&=&\\
 \end{eqnarray}
 
 
