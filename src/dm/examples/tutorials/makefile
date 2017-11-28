@@ -193,6 +193,10 @@ runex51:
 	   else printf "${PWD}\nPossible problem with ex51_1, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex51.tmp
 
+ARGS=-test_mode 3
+NP=2
+runswarmex1:
+	-${MPIEXEC} -n ${NP} ./swarm_ex1 ${ARGS}
 
 TESTEXAMPLES_C		  = ex3.PETSc runex3 runex3_2 runex3_3 ex3.rm ex4.PETSc ex4.rm \
                             ex6.PETSc runex6 runex6_2 runex6_4 runex6_9 ex6.rm \
