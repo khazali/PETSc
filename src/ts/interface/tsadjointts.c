@@ -108,82 +108,14 @@ static PetscErrorCode AdjointTSRHSJacobian(TS adjts, PetscReal time, Vec U, Mat 
 static PetscErrorCode AdjointTSRHSFunctionLinear(TS adjts, PetscReal time, Vec U, Vec F, void *ctx)
 {
   AdjointCtx     *adj_ctx;
-  PetscReal      fwdt;
-  PetscBool      has = PETSC_FALSE;
+  PetscBool      has;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscCheckAdjointTS(adjts);
+  ierr = AdjointTSComputeForcing(adjts,time,NULL,&has,F);CHKERRQ(ierr);
+  /* force recomputation of RHS Jacobian XXX CHECK WITH RK FOR CACHING */
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
-  fwdt = adj_ctx->tf - time + adj_ctx->t0;
-  if (adj_ctx->direction) { /* second-order adjoint */
-    TS        fwdts = adj_ctx->fwdts;
-    TS        tlmts = adj_ctx->tlmts;
-    TS        foats = adj_ctx->foats;
-    DM        dm;
-    Vec       soawork0,soawork1;
-    Vec       FWDH,TLMH;
-    PetscBool hast;
-
-    ierr = VecSet(F,0.0);CHKERRQ(ierr);
-    ierr = TSGetDM(fwdts,&dm);CHKERRQ(ierr);
-    ierr = DMGetGlobalVector(dm,&soawork0);CHKERRQ(ierr);
-    ierr = DMGetGlobalVector(dm,&soawork1);CHKERRQ(ierr);
-    ierr = TSTrajectoryGetUpdatedHistoryVecs(fwdts->trajectory,fwdts,fwdt,&FWDH,NULL);CHKERRQ(ierr);
-    ierr = TSTrajectoryGetUpdatedHistoryVecs(tlmts->trajectory,tlmts,fwdt,&TLMH,NULL);CHKERRQ(ierr);
-    ierr = TSObjEval_UU(fwdts->funchead,FWDH,adj_ctx->design,fwdt,TLMH,soawork0,&has,soawork1);CHKERRQ(ierr);
-    if (has) {
-      ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
-    }
-    ierr = TSObjEval_UM(fwdts->funchead,FWDH,adj_ctx->design,fwdt,adj_ctx->direction,soawork0,&hast,soawork1);CHKERRQ(ierr);
-    if (hast) {
-      ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
-      has  = PETSC_TRUE;
-    }
-    if (fwdts->HF[0][0] || fwdts->HF[0][1] || fwdts->HF[0][2]) {
-      Vec FWDHdot,FOAH;
-
-      ierr = TSTrajectoryGetUpdatedHistoryVecs(fwdts->trajectory,fwdts,fwdt,NULL,&FWDHdot);CHKERRQ(ierr);
-      ierr = TSTrajectoryGetUpdatedHistoryVecs(foats->trajectory,foats,time,&FOAH,NULL);CHKERRQ(ierr);
-      if (fwdts->HF[0][0]) { /* (L^T \otimes I_N) H_XX \eta, \eta the TLM solution */
-        ierr = (*fwdts->HF[0][0])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAH,TLMH,soawork1,fwdts->HFctx);CHKERRQ(ierr);
-        ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
-        has  = PETSC_TRUE;
-      }
-      if (fwdts->HF[0][1]) { /* (L^T \otimes I_N) H_XXdot \etadot, \eta the TLM solution */
-        Vec TLMHdot;
-
-        ierr = TSTrajectoryGetUpdatedHistoryVecs(tlmts->trajectory,tlmts,fwdt,NULL,&TLMHdot);CHKERRQ(ierr);
-        ierr = (*fwdts->HF[0][1])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAH,TLMHdot,soawork1,fwdts->HFctx);CHKERRQ(ierr);
-        ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tlmts->trajectory,NULL,&TLMHdot);CHKERRQ(ierr);
-        ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
-        has  = PETSC_TRUE;
-      }
-      if (fwdts->HF[0][2]) { /* (L^T \otimes I_N) H_XM direction */
-        ierr = (*fwdts->HF[0][2])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAH,adj_ctx->direction,soawork1,fwdts->HFctx);CHKERRQ(ierr);
-        ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
-        has  = PETSC_TRUE;
-      }
-      ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,NULL,&FWDHdot);CHKERRQ(ierr);
-      ierr = TSTrajectoryRestoreUpdatedHistoryVecs(foats->trajectory,&FOAH,NULL);CHKERRQ(ierr);
-    }
-    ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,&FWDH,NULL);CHKERRQ(ierr);
-    ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tlmts->trajectory,&TLMH,NULL);CHKERRQ(ierr);
-    ierr = DMRestoreGlobalVector(dm,&soawork0);CHKERRQ(ierr);
-    ierr = DMRestoreGlobalVector(dm,&soawork1);CHKERRQ(ierr);
-  } else if (adj_ctx->design) { /* gradient computations */
-    TS  fwdts = adj_ctx->fwdts;
-    DM  dm;
-    Vec FWDH,W;
-
-    ierr = TSGetDM(fwdts,&dm);CHKERRQ(ierr);
-    ierr = DMGetGlobalVector(dm,&W);CHKERRQ(ierr);
-    ierr = TSTrajectoryGetUpdatedHistoryVecs(fwdts->trajectory,fwdts,fwdt,&FWDH,NULL);CHKERRQ(ierr);
-    ierr = TSObjEval_U(fwdts->funchead,FWDH,adj_ctx->design,fwdt,W,&has,F);CHKERRQ(ierr);
-    ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,&FWDH,NULL);CHKERRQ(ierr);
-    ierr = DMRestoreGlobalVector(dm,&W);CHKERRQ(ierr);
-  }
-  /* force recomputation of RHS Jacobian */
   adj_ctx->fwdts->rhsjacobian.time = PETSC_MIN_REAL;
   ierr = TSComputeRHSJacobian(adjts,time,U,adjts->Arhs,adjts->Brhs);CHKERRQ(ierr);
   if (has) {
@@ -217,102 +149,9 @@ static PetscErrorCode AdjointTSIFunctionLinear(TS adjts, PetscReal time, Vec U, 
 
   PetscFunctionBegin;
   PetscCheckAdjointTS(adjts);
+  ierr = AdjointTSComputeForcing(adjts,time,NULL,&has,F);CHKERRQ(ierr);
   ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
   fwdt = adj_ctx->tf - time + adj_ctx->t0;
-  if (adj_ctx->direction) { /* second order adjoint */
-    TS        fwdts = adj_ctx->fwdts;
-    TS        tlmts = adj_ctx->tlmts;
-    TS        foats = adj_ctx->foats;
-    DM        dm;
-    Vec       soawork0,soawork1;
-    Vec       FWDH,TLMH;
-    PetscBool hast;
-
-    ierr = VecSet(F,0.0);CHKERRQ(ierr);
-    ierr = TSGetDM(fwdts,&dm);CHKERRQ(ierr);
-    ierr = DMGetGlobalVector(dm,&soawork0);CHKERRQ(ierr);
-    ierr = DMGetGlobalVector(dm,&soawork1);CHKERRQ(ierr);
-    ierr = TSTrajectoryGetUpdatedHistoryVecs(fwdts->trajectory,fwdts,fwdt,&FWDH,NULL);CHKERRQ(ierr);
-    ierr = TSTrajectoryGetUpdatedHistoryVecs(tlmts->trajectory,tlmts,fwdt,&TLMH,NULL);CHKERRQ(ierr);
-    ierr = TSObjEval_UU(fwdts->funchead,FWDH,adj_ctx->design,fwdt,TLMH,soawork0,&has,soawork1);CHKERRQ(ierr);
-    if (has) {
-      ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
-    }
-    ierr = TSObjEval_UM(fwdts->funchead,FWDH,adj_ctx->design,fwdt,adj_ctx->direction,soawork0,&hast,soawork1);CHKERRQ(ierr);
-    if (hast) {
-      ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
-      has  = PETSC_TRUE;
-    }
-    if (fwdts->HF[0][0] || fwdts->HF[0][1] || fwdts->HF[0][2]) {
-      Vec FWDHdot,FOAH;
-
-      ierr = TSTrajectoryGetUpdatedHistoryVecs(fwdts->trajectory,fwdts,fwdt,NULL,&FWDHdot);CHKERRQ(ierr);
-      ierr = TSTrajectoryGetUpdatedHistoryVecs(foats->trajectory,foats,time,&FOAH,NULL);CHKERRQ(ierr);
-      if (fwdts->HF[0][0]) { /* (L^T \otimes I_N) H_XX \eta, \eta the TLM solution */
-        ierr = (*fwdts->HF[0][0])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAH,TLMH,soawork1,fwdts->HFctx);CHKERRQ(ierr);
-        ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
-        has  = PETSC_TRUE;
-      }
-      if (fwdts->HF[0][1]) { /* (L^T \otimes I_N) H_XXdot \etadot, \eta the TLM solution */
-        Vec TLMHdot;
-
-        ierr = TSTrajectoryGetUpdatedHistoryVecs(tlmts->trajectory,tlmts,fwdt,NULL,&TLMHdot);CHKERRQ(ierr);
-        ierr = (*fwdts->HF[0][1])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAH,TLMHdot,soawork1,fwdts->HFctx);CHKERRQ(ierr);
-        ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tlmts->trajectory,NULL,&TLMHdot);CHKERRQ(ierr);
-        ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
-        has  = PETSC_TRUE;
-      }
-      if (fwdts->HF[0][2]) { /* (L^T \otimes I_N) H_XM direction */
-        ierr = (*fwdts->HF[0][2])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAH,adj_ctx->direction,soawork1,fwdts->HFctx);CHKERRQ(ierr);
-        ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
-        has  = PETSC_TRUE;
-      }
-      ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,NULL,&FWDHdot);CHKERRQ(ierr);
-      ierr = TSTrajectoryRestoreUpdatedHistoryVecs(foats->trajectory,&FOAH,NULL);CHKERRQ(ierr);
-    }
-    if (fwdts->HF[1][0] || fwdts->HF[1][1] || fwdts->HF[1][2]) {
-      Vec FOAHdot,FWDHdot;
-
-      ierr = TSTrajectoryGetUpdatedHistoryVecs(fwdts->trajectory,fwdts,fwdt,NULL,&FWDHdot);CHKERRQ(ierr);
-      ierr = TSTrajectoryGetUpdatedHistoryVecs(foats->trajectory,foats,time,NULL,&FOAHdot);CHKERRQ(ierr);
-      if (fwdts->HF[1][0]) { /* (Ldot^T \otimes I_N) H_XdotX \eta, \eta the TLM solution */
-        ierr = (*fwdts->HF[1][0])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAHdot,TLMH,soawork1,fwdts->HFctx);CHKERRQ(ierr);
-        ierr = VecAXPY(F,-1.0,soawork1);CHKERRQ(ierr);
-        has  = PETSC_TRUE;
-      }
-      if (fwdts->HF[1][1]) { /* (Ldot^T \otimes I_N) H_XdotXdot \etadot, \eta the TLM solution */
-        Vec TLMHdot;
-
-        ierr = TSTrajectoryGetUpdatedHistoryVecs(tlmts->trajectory,tlmts,fwdt,NULL,&TLMHdot);CHKERRQ(ierr);
-        ierr = (*fwdts->HF[1][1])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAHdot,TLMHdot,soawork1,fwdts->HFctx);CHKERRQ(ierr);
-        ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tlmts->trajectory,NULL,&TLMHdot);CHKERRQ(ierr);
-        ierr = VecAXPY(F,-1.0,soawork1);CHKERRQ(ierr);
-        has  = PETSC_TRUE;
-      }
-      if (fwdts->HF[1][2]) { /* (L^T \otimes I_N) H_XdotM direction */
-        ierr = (*fwdts->HF[1][2])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAHdot,adj_ctx->direction,soawork1,fwdts->HFctx);CHKERRQ(ierr);
-        ierr = VecAXPY(F,-1.0,soawork1);CHKERRQ(ierr);
-        has  = PETSC_TRUE;
-      }
-      ierr = TSTrajectoryRestoreUpdatedHistoryVecs(foats->trajectory,NULL,&FOAHdot);CHKERRQ(ierr);
-      ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,NULL,&FWDHdot);CHKERRQ(ierr);
-    }
-    ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,&FWDH,NULL);CHKERRQ(ierr);
-    ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tlmts->trajectory,&TLMH,NULL);CHKERRQ(ierr);
-    ierr = DMRestoreGlobalVector(dm,&soawork0);CHKERRQ(ierr);
-    ierr = DMRestoreGlobalVector(dm,&soawork1);CHKERRQ(ierr);
-  } else if (adj_ctx->design) { /* gradient computations */
-    TS  fwdts = adj_ctx->fwdts;
-    DM  dm;
-    Vec FWDH,W;
-
-    ierr = TSGetDM(fwdts,&dm);CHKERRQ(ierr);
-    ierr = DMGetGlobalVector(dm,&W);CHKERRQ(ierr);
-    ierr = TSTrajectoryGetUpdatedHistoryVecs(fwdts->trajectory,fwdts,fwdt,&FWDH,NULL);CHKERRQ(ierr);
-    ierr = TSObjEval_U(fwdts->funchead,FWDH,adj_ctx->design,fwdt,W,&has,F);CHKERRQ(ierr);
-    ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,&FWDH,NULL);CHKERRQ(ierr);
-    ierr = DMRestoreGlobalVector(dm,&W);CHKERRQ(ierr);
-  }
   ierr = TSUpdateSplitJacobiansFromHistory_Private(adj_ctx->fwdts,fwdt);CHKERRQ(ierr);
   ierr = TSGetSplitJacobians(adj_ctx->fwdts,&J_U,NULL,&J_Udot,NULL);CHKERRQ(ierr);
   if (has) {
@@ -618,6 +457,181 @@ PetscErrorCode TSCreateAdjointTS(TS ts, TS* adjts)
   }
   /* set special purpose post step method for handling of discontinuities */
   ierr = TSSetPostStep(*adjts,AdjointTSPostStep);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*@C
+   AdjointTSGetTS - Gets the forward model TS.
+
+   Synopsis:
+   #include <petsc/private/tsadjointtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
+-  ats - the adjoint TS context obtained from TSCreateAdjointTS()
+
+   Output Parameters:
+-  fts - the TS context for the forward DAE
+
+   Level: developer
+
+.seealso: TSCreateAdjointTS()
+@*/
+PetscErrorCode AdjointTSGetTS(TS ats, TS* fts)
+{
+  AdjointCtx     *adj_ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscCheckAdjointTS(ats);
+  ierr = TSGetApplicationContext(ats,(void*)&adj_ctx);CHKERRQ(ierr);
+  *fts = adj_ctx->fwdts;
+  PetscFunctionReturn(0);
+}
+
+/*@C
+   AdjointTSComputeForcing - Computes the forcing term for the AdjointTS
+
+   Synopsis:
+   #include <petsc/private/tsadjointtsimpl.h>
+
+   Logically Collective on TS
+
+   Input Parameters:
++  adjts - the adjoint TS context obtained from TSCreateAdjointTS()
+.  time - the current backward time
+-  U - vector used to sample the forcing term (can be NULL)
+
+   Output Parameters:
++  hasf - PETSC_TRUE if F contains valid data
+-  F - the output vector
+
+   Level: developer
+
+   Notes: If U is NULL, AdjointTS computes the sampling data from the forward trajectory.
+          U is present when solving the discrete adjoint.
+
+.seealso: TSCreateAdjointTS()
+@*/
+PetscErrorCode AdjointTSComputeForcing(TS adjts, PetscReal time, Vec U, PetscBool* hasf, Vec F)
+{
+  AdjointCtx     *adj_ctx;
+  PetscReal      fwdt;
+  PetscBool      has = PETSC_FALSE;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(adjts,TS_CLASSID,1);
+  PetscValidLogicalCollectiveReal(adjts,time,2);
+  if (U) PetscValidHeaderSpecific(U,VEC_CLASSID,3);
+  PetscValidPointer(hasf,4);
+  PetscValidHeaderSpecific(F,VEC_CLASSID,5);
+  PetscCheckAdjointTS(adjts);
+  ierr = TSGetApplicationContext(adjts,(void*)&adj_ctx);CHKERRQ(ierr);
+  fwdt = adj_ctx->tf - time + adj_ctx->t0;
+  if (adj_ctx->direction) { /* second-order adjoint */
+    TS          fwdts = adj_ctx->fwdts;
+    TS          tlmts = adj_ctx->tlmts;
+    TS          foats = adj_ctx->foats;
+    TSIFunction ifunc;
+    DM          dm;
+    Vec         soawork0,soawork1;
+    Vec         FWDH,TLMH;
+    PetscBool   hast;
+
+    if (U) SETERRQ(PetscObjectComm((PetscObject)adjts),PETSC_ERR_SUP,"Not implemented");
+    ierr = VecSet(F,0.0);CHKERRQ(ierr);
+    ierr = TSGetDM(fwdts,&dm);CHKERRQ(ierr);
+    ierr = DMGetGlobalVector(dm,&soawork0);CHKERRQ(ierr);
+    ierr = DMGetGlobalVector(dm,&soawork1);CHKERRQ(ierr);
+    ierr = TSTrajectoryGetUpdatedHistoryVecs(fwdts->trajectory,fwdts,fwdt,&FWDH,NULL);CHKERRQ(ierr);
+    ierr = TSTrajectoryGetUpdatedHistoryVecs(tlmts->trajectory,tlmts,fwdt,&TLMH,NULL);CHKERRQ(ierr);
+    ierr = TSObjEval_UU(fwdts->funchead,FWDH,adj_ctx->design,fwdt,TLMH,soawork0,&has,soawork1);CHKERRQ(ierr);
+    if (has) {
+      ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
+    }
+    ierr = TSObjEval_UM(fwdts->funchead,FWDH,adj_ctx->design,fwdt,adj_ctx->direction,soawork0,&hast,soawork1);CHKERRQ(ierr);
+    if (hast) {
+      ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
+      has  = PETSC_TRUE;
+    }
+    ierr = TSGetIFunction(adjts,NULL,&ifunc,NULL);CHKERRQ(ierr);
+    if (ifunc && (fwdts->HF[0][0] || fwdts->HF[0][1] || fwdts->HF[0][2])) {
+      Vec FWDHdot,FOAH;
+
+      ierr = TSTrajectoryGetUpdatedHistoryVecs(fwdts->trajectory,fwdts,fwdt,NULL,&FWDHdot);CHKERRQ(ierr);
+      ierr = TSTrajectoryGetUpdatedHistoryVecs(foats->trajectory,foats,time,&FOAH,NULL);CHKERRQ(ierr);
+      if (fwdts->HF[0][0]) { /* (L^T \otimes I_N) H_XX \eta, \eta the TLM solution */
+        ierr = (*fwdts->HF[0][0])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAH,TLMH,soawork1,fwdts->HFctx);CHKERRQ(ierr);
+        ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
+        has  = PETSC_TRUE;
+      }
+      if (fwdts->HF[0][1]) { /* (L^T \otimes I_N) H_XXdot \etadot, \eta the TLM solution */
+        Vec TLMHdot;
+
+        ierr = TSTrajectoryGetUpdatedHistoryVecs(tlmts->trajectory,tlmts,fwdt,NULL,&TLMHdot);CHKERRQ(ierr);
+        ierr = (*fwdts->HF[0][1])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAH,TLMHdot,soawork1,fwdts->HFctx);CHKERRQ(ierr);
+        ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tlmts->trajectory,NULL,&TLMHdot);CHKERRQ(ierr);
+        ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
+        has  = PETSC_TRUE;
+      }
+      if (fwdts->HF[0][2]) { /* (L^T \otimes I_N) H_XM direction */
+        ierr = (*fwdts->HF[0][2])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAH,adj_ctx->direction,soawork1,fwdts->HFctx);CHKERRQ(ierr);
+        ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
+        has  = PETSC_TRUE;
+      }
+      ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,NULL,&FWDHdot);CHKERRQ(ierr);
+      ierr = TSTrajectoryRestoreUpdatedHistoryVecs(foats->trajectory,&FOAH,NULL);CHKERRQ(ierr);
+    }
+    if (fwdts->HF[1][0] || fwdts->HF[1][1] || fwdts->HF[1][2]) {
+      Vec FOAHdot,FWDHdot;
+
+      ierr = TSTrajectoryGetUpdatedHistoryVecs(fwdts->trajectory,fwdts,fwdt,NULL,&FWDHdot);CHKERRQ(ierr);
+      ierr = TSTrajectoryGetUpdatedHistoryVecs(foats->trajectory,foats,time,NULL,&FOAHdot);CHKERRQ(ierr);
+      if (fwdts->HF[1][0]) { /* (Ldot^T \otimes I_N) H_XdotX \eta, \eta the TLM solution */
+        ierr = (*fwdts->HF[1][0])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAHdot,TLMH,soawork1,fwdts->HFctx);CHKERRQ(ierr);
+        ierr = VecAXPY(F,-1.0,soawork1);CHKERRQ(ierr);
+        has  = PETSC_TRUE;
+      }
+      if (fwdts->HF[1][1]) { /* (Ldot^T \otimes I_N) H_XdotXdot \etadot, \eta the TLM solution */
+        Vec TLMHdot;
+
+        ierr = TSTrajectoryGetUpdatedHistoryVecs(tlmts->trajectory,tlmts,fwdt,NULL,&TLMHdot);CHKERRQ(ierr);
+        ierr = (*fwdts->HF[1][1])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAHdot,TLMHdot,soawork1,fwdts->HFctx);CHKERRQ(ierr);
+        ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tlmts->trajectory,NULL,&TLMHdot);CHKERRQ(ierr);
+        ierr = VecAXPY(F,-1.0,soawork1);CHKERRQ(ierr);
+        has  = PETSC_TRUE;
+      }
+      if (fwdts->HF[1][2]) { /* (L^T \otimes I_N) H_XdotM direction */
+        ierr = (*fwdts->HF[1][2])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAHdot,adj_ctx->direction,soawork1,fwdts->HFctx);CHKERRQ(ierr);
+        ierr = VecAXPY(F,-1.0,soawork1);CHKERRQ(ierr);
+        has  = PETSC_TRUE;
+      }
+      ierr = TSTrajectoryRestoreUpdatedHistoryVecs(foats->trajectory,NULL,&FOAHdot);CHKERRQ(ierr);
+      ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,NULL,&FWDHdot);CHKERRQ(ierr);
+    }
+    ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,&FWDH,NULL);CHKERRQ(ierr);
+    ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tlmts->trajectory,&TLMH,NULL);CHKERRQ(ierr);
+    ierr = DMRestoreGlobalVector(dm,&soawork0);CHKERRQ(ierr);
+    ierr = DMRestoreGlobalVector(dm,&soawork1);CHKERRQ(ierr);
+  } else if (adj_ctx->design) { /* gradient computations */
+    TS  fwdts = adj_ctx->fwdts;
+    DM  dm;
+    Vec FWDH,W;
+
+    ierr = TSGetDM(fwdts,&dm);CHKERRQ(ierr);
+    ierr = DMGetGlobalVector(dm,&W);CHKERRQ(ierr);
+    if (!U) {
+      ierr = TSTrajectoryGetUpdatedHistoryVecs(fwdts->trajectory,fwdts,fwdt,&FWDH,NULL);CHKERRQ(ierr);
+    } else FWDH = U; /* XXX DADJ */
+    ierr = TSObjEval_U(fwdts->funchead,FWDH,adj_ctx->design,fwdt,W,&has,F);CHKERRQ(ierr);
+    if (!U) {
+      ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,&FWDH,NULL);CHKERRQ(ierr);
+    }
+    ierr = DMRestoreGlobalVector(dm,&W);CHKERRQ(ierr);
+  }
+  *hasf = has;
   PetscFunctionReturn(0);
 }
 
