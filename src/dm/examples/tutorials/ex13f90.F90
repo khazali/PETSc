@@ -166,3 +166,7 @@ program main
 
 end program main
 
+!     requires: !complex
+!     depends:  ex13f90aux.F90
+!
+!   test:
