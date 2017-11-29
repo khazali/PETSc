@@ -223,7 +223,7 @@ ex63: ex63.o  chkopts
 	${RM} ex63.o
 ex64: ex64.o  chkopts
 	-${CLINKER} -o ex64 ex64.o ${PETSC_SNES_LIB}
-	${RM} ex64.o
+#	${RM} ex64.o
 ex69: ex69.o  chkopts
 	-${CLINKER} -o ex69 ex69.o ${PETSC_SNES_LIB}
 	${RM} ex69.o
@@ -1251,6 +1251,19 @@ runex59_3:
 	   if (${DIFF} output/ex59_3_alt.out ex59_3.tmp > /dev/null 2>&1) then x='good'; fi; \
            if [ "$$x" = "bad" ]; then ${DIFF} output/ex59_3.out ex59_3.tmp ; ${DIFF} output/ex59_3_alt.out ex59_3.tmp ; printf "${PWD}\nPossible problem with ex59_3, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex59_3.tmp
+
+runex64:
+	-${MPIEXEC} -n 1 ./ex64 -dm_view #hdf5:ex64.h5 -sol_vec_view hdf5:ex64.h5::append
+	-${PETSC_DIR}/bin/petsc_gen_xdmf.py *.h5
+
+VALGRIND_PROG=valgrind
+VALGRIND_ARGS=--dsymutil=yes --leak-check=full --gen-suppressions=no --num-callers=20 --error-limit=no
+VAL=$(VALGRIND_PROG) $(VALGRIND_ARGS)
+
+val64:
+	-${MPIEXEC} -n 1 $(VAL) ./ex64
+
+
 runex70:
 	-@${MPIEXEC} -n 2 ./ex70 -nx 32 -ny 48 -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_fact_type lower -fieldsplit_1_pc_type none   > ex70.tmp 2>&1; \
 	   ${DIFF} output/ex70_1.out ex70.tmp || printf "${PWD}\nPossible problem with ex70_1, diffs above\n=========================================\n"; \
