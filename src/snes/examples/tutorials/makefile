@@ -1253,7 +1253,7 @@ runex59_3:
 	   ${RM} -f ex59_3.tmp
 
 runex64:
-	-${MPIEXEC} -n 1 ./ex64 -petscspace_order 2 -dm_view #hdf5:ex64.h5 -sol_vec_view hdf5:ex64.h5::append
+	-${MPIEXEC} -n 1 ./ex64 -petscspace_order 2 -dm_refine 0 -dm_view hdf5:ex64.h5 -sol_vec_view hdf5:ex64.h5::append
 	-${PETSC_DIR}/bin/petsc_gen_xdmf.py *.h5
 
 VALGRIND_PROG=valgrind
@@ -1261,8 +1261,8 @@ VALGRIND_ARGS=--dsymutil=yes --leak-check=full --gen-suppressions=no --num-calle
 VAL=$(VALGRIND_PROG) $(VALGRIND_ARGS)
 
 val64:
-	-${MPIEXEC} -n 1 $(VAL) ./ex64 -dm_view -petscspace_order 2
-
+	-${MPIEXEC} -n 1 $(VAL) ./ex64 -petscspace_order 2 -dm_refine 0 -dm_view hdf5:ex64.h5 -sol_vec_view hdf5:ex64.h5::append
+	-${PETSC_DIR}/bin/petsc_gen_xdmf.py *.h5
 
 runex70:
 	-@${MPIEXEC} -n 2 ./ex70 -nx 32 -ny 48 -ksp_type fgmres -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_fact_type lower -fieldsplit_1_pc_type none   > ex70.tmp 2>&1; \

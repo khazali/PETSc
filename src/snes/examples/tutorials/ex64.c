@@ -44,25 +44,27 @@ PetscErrorCode zero_scalar(PetscInt dim, PetscReal time, const PetscReal x[], Pe
   return 0;
 }
 
-PetscErrorCode linear_u_2d(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
-{
-  u[0] = x[0];
-  return 0;
-}
-
 /*
   In 2D we use exact solution:
 
-    u = (x^4 - x^2)^D
-    f = 
+    u = sin(2pix/L)
+    f = -sin(2pix/L)
 
   so that
 
-    -\Delta u = 
+    -\Delta u = sin(2pix/L)
 */
 PetscErrorCode u_2d(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
-  u[0] = x[0]*x[0]*x[0]*x[0] - x[0]*x[0];
+  u[0] = sin(2*PETSC_PI*x[0]); /* exact solution */
+  return 0;
+}
+/*
+  In 3D we use exact solution:
+*/
+PetscErrorCode u_3d(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
+{
+  u[0] = sin(2*PETSC_PI*x[0]); /* exact solution */
   return 0;
 }
 
@@ -71,7 +73,7 @@ void f0_u(PetscInt dim, PetscInt Nf, PetscInt NfAux,
           const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
           PetscReal t, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar f0[])
 {
-  f0[0] = 0; /* TODO */
+  f0[0] = -sin(2*PETSC_PI*x[0]); /* exact solution */
 }
 
 /* gradU[comp*dim+d] = {u_x, u_y} or {u_x, u_y, u_z} */
@@ -104,25 +106,6 @@ void g3_uu(PetscInt dim, PetscInt Nf, PetscInt NfAux,
       g3[((compI*Ncomp+compI)*dim+d)*dim+d] = 1.0;
     }
   }
-}
-
-/*
-  In 3D we use exact solution:
-
-    u = x^2 + y^2
-    v = y^2 + z^2
-    w = x^2 + y^2 - 2(x+y)z
-    p = x + y + z - 3/2
-    f_x = f_y = f_z = 3
-
-  so that
-
-    -\Delta u + \nabla p + f = 
-*/
-PetscErrorCode u_3d(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
-{
-  u[0] = x[0]*x[0] + x[1]*x[1]; /* TODO */
-  return 0;
 }
 
 PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
@@ -278,7 +261,7 @@ PetscErrorCode SetupProblem(DM dm, AppCtx *user)
 
   PetscFunctionBeginUser;
   ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
-  ierr = PetscDSSetResidual(prob, 0, f0_u, f1_u);CHKERRQ(ierr);
+  ierr = PetscDSSetResidual(prob, 0, NULL, f1_u);CHKERRQ(ierr);
   ierr = PetscDSSetJacobian(prob, 0, 0, NULL, NULL,  NULL,  g3_uu);CHKERRQ(ierr);
   switch (user->dim) {
   case 2:
@@ -369,7 +352,7 @@ int main(int argc, char **argv)
 
     ierr = DMPlexComputeCellGeometryFVM(dm, c, NULL, centroid, NULL);CHKERRQ(ierr);
     for (d = 0; d < user.dim; ++d) coords[i+d] = centroid[d];
-    weight[c-cStart] = 1.0; /* we could put a fuction here! */
+    weight[c-cStart] = sin(2*PETSC_PI*coords[i]); /* diagnostic function for initial */
   }
   ierr = DMSwarmRestoreField(sdm, DMSwarmPICField_coor, &bs, NULL, (void **) &coords);CHKERRQ(ierr);
   ierr = DMSwarmRestoreField(sdm, "weight", NULL, NULL, (void **) &weight);CHKERRQ(ierr);
@@ -389,7 +372,7 @@ int main(int argc, char **argv)
   ierr = DMProjectFunction(dm, 0.0, user.exactFuncs, NULL, INSERT_ALL_VALUES, u);CHKERRQ(ierr);
   if (user.showInitial) {ierr = DMVecViewLocal(dm, u, PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);}
   if (user.runType == RUN_FULL) {
-    PetscErrorCode (*initialGuess[1])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void* ctx) = {zero_scalar};
+    PetscErrorCode (*initialGuess[1])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void* ctx) = {u_2d};
 
     ierr = DMProjectFunction(dm, 0.0, initialGuess, NULL, INSERT_VALUES, u);CHKERRQ(ierr);
     if (user.debug) {
@@ -400,8 +383,8 @@ int main(int argc, char **argv)
     ierr = SNESGetIterationNumber(snes, &its);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Number of SNES iterations = %D\n", its);CHKERRQ(ierr);
     ierr = DMComputeL2Diff(dm, 0.0, user.exactFuncs, NULL, u, &error);CHKERRQ(ierr);
-    ierr = VecView(u, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Error: %.3g\n", error);CHKERRQ(ierr);
+    //ierr = VecView(u, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    //ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Error: %.3g\n", error);CHKERRQ(ierr);
     if (user.showError) {
       Vec r;
       ierr = DMGetGlobalVector(dm, &r);CHKERRQ(ierr);
@@ -413,7 +396,7 @@ int main(int argc, char **argv)
     }
     if (user.showSolution) {
       ierr = PetscPrintf(PETSC_COMM_WORLD, "Solution\n");CHKERRQ(ierr);
-      ierr = VecChop(u, 3.0e-9);CHKERRQ(ierr);
+      //ierr = VecChop(u, 3.0e-9);CHKERRQ(ierr);
       //ierr = VecView(u, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
     }
   } else {
