@@ -673,7 +673,7 @@ PetscErrorCode  TSComputeRHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat B)
     }
   } else {
     ierr = MatZeroEntries(A);CHKERRQ(ierr);
-    if (A != B) {ierr = MatZeroEntries(B);CHKERRQ(ierr);}
+    if (B && A != B) {ierr = MatZeroEntries(B);CHKERRQ(ierr);}
   }
   ts->rhsjacobian.time  = t;
   ts->rhsjacobian.shift = 0;
