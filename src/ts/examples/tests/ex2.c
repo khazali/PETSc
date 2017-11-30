@@ -258,4 +258,26 @@ PetscReal solz(PetscReal t)
 }
 
 
+/*TEST
+
+    test:
+      suffix: euler
+      args: -ts_type euler
+      output_file: output/ex2_euler.out
+      requires: !single
+
+    test:
+      suffix: beuler
+      args:   -ts_type beuler 
+      output_file: output/ex2_beuler.out
+      requires: !single
+
+    test:
+      suffix: sundials
+      requires: sundials
+      args: -ts_type sundials  -ts_sundials_monitor_steps false
+      output_file: output/ex2_sundials.out
+      requires: !single
+
+TEST*/
 
