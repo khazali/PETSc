@@ -17,11 +17,11 @@ int FormElementStiffness(PetscReal H,PetscScalar *Ke)
 
 int main(int argc,char **args)
 {
-  Mat            C;
-  PetscInt       i,m = 5,N,start,end,M;
-  PetscMPIInt    rank,size;
-  PetscInt       idx[4];
   PetscErrorCode ierr;
+  Mat            C;
+  PetscMPIInt    rank,size;
+  PetscInt       i,m = 5,N,start,end,M;
+  PetscInt       idx[4];
   PetscScalar    Ke[16];
   PetscReal      h;
   Vec            u,b;
