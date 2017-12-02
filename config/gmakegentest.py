@@ -766,8 +766,7 @@ class generateExamples(Petsc):
       if not os.path.isfile(os.path.join(root,"makefile")): continue
       if self.verbose: print(root)
       bname=os.path.basename(root.rstrip("/"))
-      if bname=="tests" or bname=="tutorials":
-        self.genPetscTests(root,dirs,files,dataDict)
+      self.genPetscTests(root,dirs,files,dataDict)
     # Now summarize this dictionary
     self.genPetscTests_summarize(dataDict)
     return dataDict
