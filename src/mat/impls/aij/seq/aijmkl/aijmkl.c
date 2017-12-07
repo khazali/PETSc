@@ -16,6 +16,7 @@ typedef struct {
   PetscBool no_SpMV2;  /* If PETSC_TRUE, then don't use the MKL SpMV2 inspector-executor routines. */
   PetscBool eager_inspection; /* If PETSC_TRUE, then call mkl_sparse_optimize() in MatDuplicate()/MatAssemblyEnd(). */
   PetscBool sparse_optimized; /* If PETSC_TRUE, then mkl_sparse_optimize() has been called. */
+  PetscBool no_sparse_optimize; /* If PETSC_TRUE, then don't call mkl_sparse_optimize() when using SpMV2 interfaces. */
   PetscObjectState state;
 #ifdef PETSC_HAVE_MKL_SPARSE_OPTIMIZE
   sparse_matrix_t csrA; /* "Handle" used by SpMV2 inspector-executor routines. */
@@ -173,7 +174,9 @@ PETSC_INTERN PetscErrorCode MatSeqAIJMKL_create_mkl_handle(Mat A)
     stat = mkl_sparse_x_create_csr(&aijmkl->csrA,SPARSE_INDEX_BASE_ZERO,m,n,ai,ai+1,aj,aa);
     stat = mkl_sparse_set_mv_hint(aijmkl->csrA,SPARSE_OPERATION_NON_TRANSPOSE,aijmkl->descr,1000);
     stat = mkl_sparse_set_memory_hint(aijmkl->csrA,SPARSE_MEMORY_AGGRESSIVE);
-    stat = mkl_sparse_optimize(aijmkl->csrA);
+    if(!aijmkl->no_sparse_optimize) {
+      stat = mkl_sparse_optimize(aijmkl->csrA);
+    }
     if (stat != SPARSE_STATUS_SUCCESS) {
       SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"Intel MKL error: unable to create matrix handle/complete mkl_sparse_optimize");
       PetscFunctionReturn(PETSC_ERR_LIB);
@@ -239,7 +242,9 @@ PETSC_INTERN PetscErrorCode MatSeqAIJMKL_create_from_mkl_handle(MPI_Comm comm,sp
   aijmkl->descr.diag        = SPARSE_DIAG_NON_UNIT;
   stat = mkl_sparse_set_mv_hint(aijmkl->csrA,SPARSE_OPERATION_NON_TRANSPOSE,aijmkl->descr,1000);
   stat = mkl_sparse_set_memory_hint(aijmkl->csrA,SPARSE_MEMORY_AGGRESSIVE);
-  stat = mkl_sparse_optimize(aijmkl->csrA);
+  if(!aijmkl->no_sparse_optimize) {
+    stat = mkl_sparse_optimize(aijmkl->csrA);
+  }
   if (stat != SPARSE_STATUS_SUCCESS) {
     SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"Intel MKL error: unable to set hints/complete mkl_sparse_optimize");
     PetscFunctionReturn(PETSC_ERR_LIB);
@@ -861,6 +866,7 @@ PETSC_INTERN PetscErrorCode MatConvert_SeqAIJ_SeqAIJMKL(Mat A,MatType type,MatRe
   ierr = PetscOptionsBegin(PetscObjectComm((PetscObject)A),((PetscObject)A)->prefix,"AIJMKL Options","Mat");CHKERRQ(ierr);
   ierr = PetscOptionsBool("-mat_aijmkl_no_spmv2","NoSPMV2","None",(PetscBool)aijmkl->no_SpMV2,(PetscBool*)&aijmkl->no_SpMV2,&set);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-mat_aijmkl_eager_inspection","Eager Inspection","None",(PetscBool)aijmkl->eager_inspection,(PetscBool*)&aijmkl->eager_inspection,&set);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-mat_aijmkl_no_sparse_optimize","No sparse optimize","None",(PetscBool)aijmkl->no_sparse_optimize,(PetscBool*)&aijmkl->no_sparse_optimize,&set);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 #ifndef PETSC_HAVE_MKL_SPARSE_OPTIMIZE
   if(!aijmkl->no_SpMV2) {
