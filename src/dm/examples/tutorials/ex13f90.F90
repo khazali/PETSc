@@ -170,3 +170,6 @@ end program main
 !     depends:  ex13f90aux.F90
 !
 !   test:
+!     nsize: 4
+!
+!TEST*/
