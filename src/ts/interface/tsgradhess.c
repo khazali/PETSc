@@ -157,8 +157,9 @@ static PetscErrorCode TSComputeObjectiveAndGradient_Private(TS ts, Vec X, Vec de
     if (!X) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Missing solution vector");
   }
   ierr = TSSetUpFromDesign(ts,X,design);CHKERRQ(ierr);
+  otrj = ts->trajectory;
+  ts->trajectory = NULL;
   if (gradient) {
-    otrj = ts->trajectory;
     ierr = TSTrajectoryCreate(PetscObjectComm((PetscObject)ts),&ts->trajectory);CHKERRQ(ierr);
     ierr = TSTrajectorySetType(ts->trajectory,ts,TSTRAJECTORYBASIC);CHKERRQ(ierr);
     ierr = TSTrajectorySetSolutionOnly(ts->trajectory,PETSC_TRUE);CHKERRQ(ierr);
@@ -214,8 +215,8 @@ static PetscErrorCode TSComputeObjectiveAndGradient_Private(TS ts, Vec X, Vec de
 
     /* restore TS to its original state */
     ierr = TSTrajectoryDestroy(&ts->trajectory);CHKERRQ(ierr);
-    ts->trajectory  = otrj;
   }
+  ts->trajectory = otrj;
   PetscFunctionReturn(0);
 }
 
