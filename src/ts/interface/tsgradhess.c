@@ -87,7 +87,10 @@ static PetscErrorCode MatMult_TSHessian(Mat H, Vec x, Vec y)
   ierr = PetscObjectTypeCompare((PetscObject)adapt,TSADAPTHISTORY,&istr);CHKERRQ(ierr);
   ierr = TSAdaptHistorySetTSHistory(adapt,tshess->modeltj->tsh,PETSC_FALSE);CHKERRQ(ierr);
   if (istr) {
-    ierr = TSSetMaxSteps(tshess->tlmts,tshess->modeltj->tsh->n-1);CHKERRQ(ierr);
+    PetscInt n;
+
+    ierr = TSTrajectoryGetNumSteps(tshess->modeltj,&n);CHKERRQ(ierr);
+    ierr = TSSetMaxSteps(tshess->tlmts,n-1);CHKERRQ(ierr);
     ierr = TSSetExactFinalTime(tshess->tlmts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   } else {
     ierr = TSSetMaxSteps(tshess->tlmts,PETSC_MAX_INT);CHKERRQ(ierr);
@@ -122,8 +125,9 @@ static PetscErrorCode MatMult_TSHessian(Mat H, Vec x, Vec y)
     ierr = TSSetMaxSteps(tshess->soats,PETSC_MAX_INT);CHKERRQ(ierr);
     ierr = TSSetExactFinalTime(tshess->soats,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
   } else { /* follow trajectory -> fix number of time steps */
-    PetscInt nsteps = tshess->modeltj->tsh->n;
+    PetscInt nsteps;
 
+    ierr = TSTrajectoryGetNumSteps(tshess->modeltj,&nsteps);CHKERRQ(ierr);
     ierr = TSSetMaxSteps(tshess->soats,nsteps-1);CHKERRQ(ierr);
     ierr = TSSetExactFinalTime(tshess->soats,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   }
@@ -203,8 +207,9 @@ static PetscErrorCode TSComputeObjectiveAndGradient_Private(TS ts, Vec X, Vec de
         ierr = TSSetMaxSteps(adjts,PETSC_MAX_INT);CHKERRQ(ierr);
         ierr = TSSetExactFinalTime(adjts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
       } else { /* follow trajectory -> fix number of time steps */
-        PetscInt nsteps = ts->trajectory->tsh->n;
+        PetscInt nsteps;
 
+        ierr = TSTrajectoryGetNumSteps(ts->trajectory,&nsteps);CHKERRQ(ierr);
         ierr = TSSetMaxSteps(adjts,nsteps-1);CHKERRQ(ierr);
         ierr = TSSetExactFinalTime(adjts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
       }

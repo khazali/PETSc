@@ -2,6 +2,15 @@
 
 PetscClassId TSHISTORY_CLASSID;
 
+PetscErrorCode TSHistoryGetNumSteps(TSHistory tsh, PetscInt *n)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(tsh,TSHISTORY_CLASSID,1);
+  PetscValidPointer(n,2);
+  *n = tsh->n;
+  PetscFunctionReturn(0);
+}
+
 PetscErrorCode TSHistoryUpdate(TSHistory tsh, PetscInt id, PetscReal time)
 {
   PetscErrorCode ierr;

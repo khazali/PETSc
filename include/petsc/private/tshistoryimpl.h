@@ -8,7 +8,7 @@ struct _n_TSHistory {
 
   PetscReal *hist;    /* time history */
   PetscInt  *hist_id; /* stores the stepid in time history */
-  PetscInt  n;        /* current number of steps stored */
+  PetscInt  n;        /* current number of steps registered */
   PetscBool sorted;   /* if the history is sorted in ascending order */
   PetscReal c;        /* current capacity of hist */
   PetscReal s;        /* reallocation size */
@@ -20,4 +20,5 @@ PETSC_INTERN PetscErrorCode TSHistorySetHistory(TSHistory,PetscInt,PetscReal[]);
 PETSC_INTERN PetscErrorCode TSHistoryGetLocFromTime(TSHistory,PetscReal,PetscInt*);
 PETSC_INTERN PetscErrorCode TSHistoryUpdate(TSHistory,PetscInt,PetscReal);
 PETSC_INTERN PetscErrorCode TSHistoryGetTimeStep(TSHistory,PetscBool,PetscInt,PetscReal*);
+PETSC_INTERN PetscErrorCode TSHistoryGetNumSteps(TSHistory,PetscInt*);
 #endif

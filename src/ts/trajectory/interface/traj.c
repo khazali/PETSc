@@ -78,6 +78,34 @@ PetscErrorCode TSTrajectorySet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal 
 }
 
 /*@
+  TSTrajectoryGetNumSteps - Return the number of steps registered in the TSTrajectory via TSTrajectorySet().
+
+  Not collective.
+
+  Input Parameters:
+. tj - the trajectory object
+
+  Output Parameter:
+. steps - the number of steps
+
+  Level: developer
+
+.keywords: TS, trajectory, create
+
+.seealso: TSTrajectorySet()
+@*/
+PetscErrorCode TSTrajectoryGetNumSteps(TSTrajectory tj, PetscInt *steps)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
+  PetscValidIntPointer(steps,2);
+  ierr = TSHistoryGetNumSteps(tj->tsh,steps);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*@
   TSTrajectoryGet - Updates the solution vector of a time stepper object by inquiring the TSTrajectory
 
   Collective on TS
@@ -790,9 +818,9 @@ PetscErrorCode  TSTrajectorySetUp(TSTrajectory tj,TS ts)
 }
 
 /*@
-   TSTrajectorySetSolutionOnly - Tells the trajectory to store just the solution, and not any intermidiate stage also.
+   TSTrajectorySetSolutionOnly - Tells the trajectory to store just the solution, and not any intermediate stage also.
 
-   Collective on TS
+   Collective on TSTrajectory
 
    Input Parameter:
 +  tj  - the TS trajectory context
@@ -802,7 +830,7 @@ PetscErrorCode  TSTrajectorySetUp(TSTrajectory tj,TS ts)
 
 .keywords: trajectory
 
-.seealso: TSSetSaveTrajectory(), TSTrajectoryCreate(), TSTrajectoryDestroy()
+.seealso: TSSetSaveTrajectory(), TSTrajectoryCreate(), TSTrajectoryDestroy(), TSTrajectoryGetSolutionOnly()
 @*/
 PetscErrorCode TSTrajectorySetSolutionOnly(TSTrajectory tj,PetscBool solution_only)
 {
@@ -810,6 +838,32 @@ PetscErrorCode TSTrajectorySetSolutionOnly(TSTrajectory tj,PetscBool solution_on
   PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
   PetscValidLogicalCollectiveBool(tj,solution_only,2);
   tj->solution_only = solution_only;
+  PetscFunctionReturn(0);
+}
+
+/*@
+   TSTrajectoryGetSolutionOnly - Gets the value set with TSTrajectorySetSolutionOnly.
+
+   Logically collective on TSTrajectory
+
+   Input Parameter:
+.  tj  - the TS trajectory context
+
+   Output Parameter:
+-  flg - the boolean flag
+
+   Level: developer
+
+.keywords: trajectory
+
+.seealso: TSSetSaveTrajectory(), TSTrajectoryCreate(), TSTrajectoryDestroy(), TSTrajectorySetSolutionOnly()
+@*/
+PetscErrorCode TSTrajectoryGetSolutionOnly(TSTrajectory tj,PetscBool *solution_only)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
+  PetscValidPointer(solution_only,2);
+  *solution_only = tj->solution_only;
   PetscFunctionReturn(0);
 }
 
