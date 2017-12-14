@@ -73,6 +73,7 @@ ex18: ex18.o  chkopts
 
 ex19: ex19.o  chkopts
 	-${CLINKER} -o ex19 ex19.o ${PETSC_DM_LIB}
+	${DSYMUTIL} ex19
 	${RM} -f ex19.o
 
 ex20: ex20.o  chkopts
@@ -88,6 +89,10 @@ ex23: ex23.o  chkopts
 	${DSYMUTIL} ex23
 	${RM} -f ex23.o
 
+ex26: ex26.o  chkopts
+	-${CLINKER} -o ex26 ex26.o ${PETSC_DM_LIB}
+	${DSYMUTIL} ex26
+	${RM} -f ex26.o
 
 #--------------------------------------------------------------------------
 runex3_nonconforming_simplex_2_view:
