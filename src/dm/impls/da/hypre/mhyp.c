@@ -336,8 +336,7 @@ PetscErrorCode  MatSetValuesLocal_HYPRESStruct_3d(Mat mat,PetscInt nrow,const Pe
   ierr     = PetscMalloc1(7*nvars,&entries);CHKERRQ(ierr);
   ordering = ex->dofs_order;  /* ordering= 0   nodal ordering
                                            1   variable ordering */
-  /* stencil entries are orderer by variables: var0_stencil0, var0_stencil1, ..., var0_stencil6, var1_stencil0, var1_stencil1, ...  */
-
+  /* stencil entries are ordered by variables: var0_stencil0, var0_stencil1, ..., var0_stencil6, var1_stencil0, var1_stencil1, ...  */
   if (!ordering) {
     for (i=0; i<nrow; i++) {
       grid_rank= irow[i]/nvars;
@@ -650,17 +649,18 @@ static PetscErrorCode  MatSetUp_HYPRESStruct(Mat mat)
   /* set the global and local sizes of the matrix */
   ierr = DMDAGetCorners(da,0,0,0,&nx,&ny,&nz);CHKERRQ(ierr);
   ierr = MatSetSizes(mat,dof*nx*ny*nz,dof*nx*ny*nz,PETSC_DECIDE,PETSC_DECIDE);CHKERRQ(ierr);
-  ierr = PetscLayoutSetBlockSize(mat->rmap,1);CHKERRQ(ierr);
-  ierr = PetscLayoutSetBlockSize(mat->cmap,1);CHKERRQ(ierr);
+  ierr = PetscLayoutSetBlockSize(mat->rmap,dof);CHKERRQ(ierr);
+  ierr = PetscLayoutSetBlockSize(mat->cmap,dof);CHKERRQ(ierr);
   ierr = PetscLayoutSetUp(mat->rmap);CHKERRQ(ierr);
   ierr = PetscLayoutSetUp(mat->cmap);CHKERRQ(ierr);
+  mat->preallocated = PETSC_TRUE;
 
   if (dim == 3) {
     mat->ops->setvalueslocal = MatSetValuesLocal_HYPRESStruct_3d;
     mat->ops->zerorowslocal  = MatZeroRowsLocal_HYPRESStruct_3d;
     mat->ops->zeroentries    = MatZeroEntries_HYPRESStruct_3d;
 
-    ierr = MatZeroEntries_HYPRESStruct_3d(mat);CHKERRQ(ierr);
+    /* ierr = MatZeroEntries_HYPRESStruct_3d(mat);CHKERRQ(ierr); */
   } else SETERRQ(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"Only support for 3d DMDA currently");
 
   /* get values that will be used repeatedly in MatSetValuesLocal() and MatZeroRowsLocal() repeatedly */
@@ -773,10 +773,13 @@ PetscErrorCode MatZeroEntries_HYPRESStruct(Mat mat)
 
 PetscErrorCode MatDestroy_HYPRESStruct(Mat mat)
 {
-  Mat_HYPRESStruct *ex = (Mat_HYPRESStruct*) mat->data;
-  PetscErrorCode   ierr;
+  Mat_HYPRESStruct       *ex = (Mat_HYPRESStruct*) mat->data;
+  PetscErrorCode         ierr;
+  ISLocalToGlobalMapping ltog;
 
   PetscFunctionBegin;
+  ierr = DMGetLocalToGlobalMapping(ex->da,&ltog);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingRestoreIndices(ltog, (const PetscInt **) &ex->gindices);CHKERRQ(ierr);
   PetscStackCallStandard(HYPRE_SStructGraphDestroy,(ex->ss_graph));
   PetscStackCallStandard(HYPRE_SStructMatrixDestroy,(ex->ss_mat));
   PetscStackCallStandard(HYPRE_SStructVectorDestroy,(ex->ss_x));
