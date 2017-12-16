@@ -280,6 +280,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx)
   const PetscScalar *y_ptr;
   PetscErrorCode    ierr;
 
+  PetscFunctionBeginUser;
   ierr = VecGetArrayRead(P,&y_ptr);CHKERRQ(ierr);
   user_ptr->mu = y_ptr[0];
   ierr = VecRestoreArrayRead(P,&y_ptr);CHKERRQ(ierr);
@@ -339,3 +340,11 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx)
   PetscFunctionReturn(0);
 }
 
+/*TEST
+    build:
+      requires: !complex !single
+    test:
+      args:  -monitor 0 -ts_type theta -ts_theta_endpoint -ts_theta_theta 0.5 -viewer_binary_skip_info -tao_view  -ts_trajectory_dirname ex20opt_pdir
+      output_file: output/ex20opt_p_1.out
+
+TEST*/

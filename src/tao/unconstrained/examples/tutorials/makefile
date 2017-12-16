@@ -4,7 +4,7 @@ CFLAGS		 =
 FFLAGS		 =
 CPPFLAGS         =
 FPPFLAGS         =
-EXAMPLESC        = eptorsion1.c eptorsion2.c minsurf2.c rosenbrock1.c heat-data-assimulation.c
+EXAMPLESC        = eptorsion1.c eptorsion2.c minsurf2.c rosenbrock1.c spectraladjointassimilation.c
 EXAMPLESF        = eptorsion2f.F rosenbrock1f.F90
 EXAMPLESCH       =
 EXAMPLESFH       = eptorsion2f.h rosenbrock1f.h
@@ -17,8 +17,16 @@ CLEANFILES       = eptorsion1 eptorsion2 minsurf2 rosenbrock1 eptorsion2f rosenb
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
 
+spectraladjointassimilation: spectraladjointassimilation.o chkopts
+	-${CLINKER} -o spectraladjointassimilation spectraladjointassimilation.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB}
+	${RM} spectraladjointassimilation.o
+
+burgers_spectral: burgers_spectral.o chkopts
+	-${CLINKER} -o burgers_spectral burgers_spectral.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB}
+	${RM} burgers_spectral.o
+
 heat-data-assimulation: heat-data-assimulation.o chkopts
-	-${CLINKER} -o heat-data-assimulation heat-data-assimulation.o ${PETSC_TAO_LIB}
+	-${CLINKER} -o heat-data-assimulation heat-data-assimulation.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB}
 	${RM} heat-data-assimulation.o
 
 rosenbrock1: rosenbrock1.o chkopts
@@ -63,6 +71,11 @@ runrosenbrock1_3:
 	-@${MPIEXEC} -n 1 ./rosenbrock1 -tao_smonitor -tao_type ntr > rosenbrock1_3.tmp 2>&1;\
         ${DIFF} output/rosenbrock1_3.out rosenbrock1_3.tmp || printf '${PWD}\nPossible problem with rosenbrock1_3 stdout, diffs above \n=========================================\n';\
         ${RM} -f rosenbrock1_3.tmp
+
+runrosenbrock1_4:
+	-@${MPIEXEC} -n 1 ./rosenbrock1 -tao_smonitor -tao_type ntr -tao_mf_hessian -tao_ntr_pc_type none > rosenbrock1_4.tmp 2>&1;\
+        ${DIFF} output/rosenbrock1_4.out rosenbrock1_4.tmp || printf '${PWD}\nPossible problem with rosenbrock1_4 stdout, diffs above \n=========================================\n';\
+        ${RM} -f rosenbrock1_4.tmp
 
 runrosenbrock1f:
 	-@${MPIEXEC} -n 1 ./rosenbrock1f -tao_smonitor -tao_type ntr  > rosenbrock1f_1.tmp 2>&1; \
@@ -154,10 +167,3 @@ TESTEXAMPLES_FORTRAN_NOTSINGLE =  rosenbrock1f.PETSc runrosenbrock1f rosenbrock1
 TESTEXAMPLES_FORTRAN =  eptorsion2f.PETSc runeptorsion2f runeptorsion2f_2 eptorsion2f.rm
 
 include ${PETSC_DIR}/lib/petsc/conf/test
-
-
-
-
-
-
-

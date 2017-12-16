@@ -95,6 +95,7 @@ PetscErrorCode  PetscSequentialPhaseBegin(MPI_Comm comm,int ng)
   MPI_Comm       local_comm,*addr_local_comm;
 
   PetscFunctionBegin;
+  ierr = PetscSysInitializePackage();CHKERRQ(ierr);
   ierr = MPI_Comm_size(comm,&size);CHKERRQ(ierr);
   if (size == 1) PetscFunctionReturn(0);
 
@@ -152,5 +153,59 @@ PetscErrorCode  PetscSequentialPhaseEnd(MPI_Comm comm,int ng)
   ierr = PetscFree(addr_local_comm);CHKERRQ(ierr);
   ierr = MPI_Comm_free(&local_comm);CHKERRQ(ierr);
   ierr = MPI_Attr_delete(comm,Petsc_Seq_keyval);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*@C
+  PetscGlobalMinMaxInt - Get the global min/max from local min/max input
+
+  Collective on comm
+
+  Input Parameter:
+. minMaxVal - An array with the local min and max
+
+  Output Parameter:
+. minMaxValGlobal - An array with the global min and max
+
+  Level: beginner
+
+.keywords: minimum, maximum
+.seealso: PetscSplitOwnership()
+@*/
+PetscErrorCode PetscGlobalMinMaxInt(MPI_Comm comm, PetscInt minMaxVal[2], PetscInt minMaxValGlobal[2])
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  minMaxVal[1] = -minMaxVal[1];
+  ierr = MPI_Allreduce(minMaxVal, minMaxValGlobal, 2, MPIU_INT, MPI_MIN, comm);CHKERRQ(ierr);
+  minMaxValGlobal[1] = -minMaxValGlobal[1];
+  PetscFunctionReturn(0);
+}
+
+/*@C
+  PetscGlobalMinMaxReal - Get the global min/max from local min/max input
+
+  Collective on comm
+
+  Input Parameter:
+. minMaxVal - An array with the local min and max
+
+  Output Parameter:
+. minMaxValGlobal - An array with the global min and max
+
+  Level: beginner
+
+.keywords: minimum, maximum
+.seealso: PetscSplitOwnership()
+@*/
+PetscErrorCode PetscGlobalMinMaxReal(MPI_Comm comm, PetscReal minMaxVal[2], PetscReal minMaxValGlobal[2])
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  minMaxVal[1] = -minMaxVal[1];
+  ierr = MPI_Allreduce(minMaxVal, minMaxValGlobal, 2, MPIU_REAL, MPI_MIN, comm);CHKERRQ(ierr);
+  minMaxValGlobal[1] = -minMaxValGlobal[1];
   PetscFunctionReturn(0);
 }

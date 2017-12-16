@@ -36,7 +36,7 @@
       Tao        tao     ! TAO_SOVER context
       PetscBool       flg
       PetscInt         i2,i1
-      integer          size,rank    ! number of processes running
+      integer          size
       PetscReal      zero
 
 !  Note: Any user-defined Fortran routines (such as FormGradient)
@@ -56,18 +56,11 @@
       endif
 
       call MPI_Comm_size(PETSC_COMM_WORLD,size,ierr)
-      call MPI_Comm_rank(PETSC_COMM_WORLD,rank,ierr)
-      if (size .ne. 1) then
-         if (rank .eq. 0) then
-            write(6,*) 'This is a uniprocessor example only!'
-         endif
-         SETERRA(PETSC_COMM_SELF,1,' ')
-      endif
+      if (size .ne. 1) then SETERRA(PETSC_COMM_SELF,1,'This is a uniprocessor example only')
 
 !  Initialize problem parameters
       n     = 2
       alpha = 99.0d0
-
 
 
 ! Check for command line arguments to override defaults
@@ -171,7 +164,7 @@
       ff = 0
 
 !     Get pointers to vector data
-      call VecGetArray(X,x_v,x_i,ierr)
+      call VecGetArrayRead(X,x_v,x_i,ierr)
       call VecGetArray(G,g_v,g_i,ierr)
 
 
@@ -185,7 +178,7 @@
       enddo
 
 !     Restore vectors
-      call VecRestoreArray(X,x_v,x_i,ierr)
+      call VecRestoreArrayRead(X,x_v,x_i,ierr)
       call VecRestoreArray(G,g_v,g_i,ierr)
 
       f = ff
@@ -247,7 +240,7 @@
 
 !  Get a pointer to vector data
 
-      call VecGetArray(X,x_v,x_i,ierr)
+      call VecGetArrayRead(X,x_v,x_i,ierr)
 
 !  Compute Hessian entries
 
@@ -264,7 +257,7 @@
 
 !  Restore vector
 
-      call VecRestoreArray(X,x_v,x_i,ierr)
+      call VecRestoreArrayRead(X,x_v,x_i,ierr)
 
 !  Assemble matrix
 

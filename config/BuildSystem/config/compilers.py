@@ -119,6 +119,7 @@ class Configure(config.base.Configure):
       self.logPrint('No C StaticInline keyword. using static function', 4, 'compilers')
     self.addDefine('C_STATIC_INLINE', self.cStaticInlineKeyword)
     return
+
   def checkCxxStaticInline(self):
     '''Check for C++ keyword: static inline'''
     self.cxxStaticInlineKeyword = 'static'
@@ -213,6 +214,10 @@ class Configure(config.base.Configure):
         if arg == '-long_double':
           continue
         # if options of type -L foobar
+        if arg == '-lto_library':
+          lib = argIter.next()
+          self.logPrint('Skipping Apple LLVM linker option -lto_library '+lib)
+          continue
         if arg == '-L':
           lib = argIter.next()
           self.logPrint('Found -L '+lib, 4, 'compilers')
@@ -478,6 +483,10 @@ class Configure(config.base.Configure):
           self.logPrint('Found -L '+lib, 4, 'compilers')
           cxxlibs.append('-L'+lib)
           continue
+        if arg == '-lto_library':
+          lib = argIter.next()
+          self.logPrint('Skipping Apple LLVM linker option -lto_library '+lib)
+          continue
         # Check for full library name
         m = re.match(r'^/.*\.a$', arg)
         if m:
@@ -606,6 +615,7 @@ class Configure(config.base.Configure):
         self.logPrint('Looks like ifc compiler, adding -w90 -w flags to avoid warnings about real*8 etc', 4, 'compilers')
     self.popLanguage()
     return
+
 
   def mangleFortranFunction(self, name):
     if self.fortranMangling == 'underscore':
@@ -839,6 +849,10 @@ class Configure(config.base.Configure):
         if arg.endswith('"') and arg[:-1].find('"') == -1:
           arg = arg[:-1]
 
+        if arg == '-lto_library':
+          lib = argIter.next()
+          self.logPrint('Skipping Apple LLVM linker option -lto_library '+lib)
+          continue
         # Check for full library name
         m = re.match(r'^/.*\.a$', arg)
         if m:
@@ -1125,6 +1139,17 @@ class Configure(config.base.Configure):
       os.remove(cxxobj)
     if not link:
       raise RuntimeError('Fortran could not successfully link C++ objects')
+    return
+
+  def checkFortranTypeStar(self):
+    '''Determine whether the Fortran compiler handles type(*)'''
+    self.pushLanguage('FC')
+    if self.checkCompile(body = '      interface\n      subroutine a(b)\n     type(*) :: b(:)\n      end subroutine\n      end interface\n'):
+      self.addDefine('HAVE_FORTRAN_TYPE_STAR', 1)
+      self.logPrint('Fortran compiler supports type(*)')
+    else:
+      self.logPrint('Fortran compiler does not support type(*)')
+    self.popLanguage()
     return
 
   def checkFortran90(self):
@@ -1452,6 +1477,7 @@ class Configure(config.base.Configure):
         self.c99flag = flag
         self.framework.logPrint('Accepted C99 compile flag: '+flag)
         break
+    if self.c99flag == '': self.addDefine('HAVE_C99', 1)
     self.setCompilers.popLanguage()
     self.logWrite(self.setCompilers.restoreLog())
     return
@@ -1497,6 +1523,7 @@ class Configure(config.base.Configure):
       self.executeTest(self.checkFortran90Array)
       self.executeTest(self.checkFortranModuleInclude)
       self.executeTest(self.checkFortranModuleOutput)
+      self.executeTest(self.checkFortranTypeStar)
     self.no_configure()
     return
 

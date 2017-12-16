@@ -41,7 +41,7 @@ int main(int argc,char **argv)
   ierr = DMSetUp(da2D);CHKERRQ(ierr);
 
   /* Set the coordinates */
-  DMDASetUniformCoordinates(da2D, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0);
+  ierr = DMDASetUniformCoordinates(da2D, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0);CHKERRQ(ierr);
 
   /* Declare gauss as a DMDA component */
   ierr = DMCreateGlobalVector(da2D,&gauss);CHKERRQ(ierr);
@@ -92,3 +92,26 @@ int main(int argc,char **argv)
   ierr = PetscFinalize();
   return ierr;
 }
+
+
+/*TEST
+
+      build:
+         requires: hdf5 !define(PETSC_USE_CXXCOMPLEX)
+
+      test:
+         nsize: 4
+
+      test:
+         nsize: 4
+         suffix: 2
+         args: -viewer_hdf5_base_dimension2
+         output_file: output/ex10_1.out
+
+      test:
+         nsize: 4
+         suffix: 3
+         args: -viewer_hdf5_sp_output
+         output_file: output/ex10_1.out
+
+TEST*/

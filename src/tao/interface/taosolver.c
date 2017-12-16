@@ -206,6 +206,8 @@ PetscErrorCode TaoSolve(Tao tao)
   if (tao->ops->solve){ ierr = (*tao->ops->solve)(tao);CHKERRQ(ierr); }
   ierr = PetscLogEventEnd(Tao_Solve,tao,0,0,0);CHKERRQ(ierr);
 
+  ierr = VecViewFromOptions(tao->solution,(PetscObject)tao,"-tao_view_solution");CHKERRQ(ierr);
+  
   tao->ntotalits += tao->niter;
   ierr = TaoViewFromOptions(tao,NULL,"-tao_view");CHKERRQ(ierr);
 
@@ -366,6 +368,8 @@ PetscErrorCode TaoDestroy(Tao *tao)
 . -tao_draw_step - graphically view step vector at each iteration
 . -tao_draw_gradient - graphically view gradient at each iteration
 . -tao_fd_gradient - use gradient computed with finite differences
+. -tao_fd_hessian - use hessian computed with finite differences
+. -tao_mf_hessian - use matrix-free hessian computed with finite differences
 . -tao_cancelmonitors - cancels all monitors (except those set with command line)
 . -tao_view - prints information about the Tao after solving
 - -tao_converged_reason - prints the reason TAO stopped iterating
@@ -502,7 +506,26 @@ PetscErrorCode TaoSetFromOptions(Tao tao)
     if (flg) {
       ierr = TaoSetGradientRoutine(tao,TaoDefaultComputeGradient,NULL);CHKERRQ(ierr);
     }
-    ierr = PetscOptionsEnum("-tao_subset_type","subset type", "", TaoSubSetTypes,(PetscEnum)tao->subset_type, (PetscEnum*)&tao->subset_type, 0);CHKERRQ(ierr);
+    flg = PETSC_FALSE;
+    ierr = PetscOptionsBool("-tao_fd_hessian","compute hessian using finite differences","TaoDefaultComputeHessian",flg,&flg,NULL);CHKERRQ(ierr);
+    if (flg) {
+      Mat H;
+
+      ierr = MatCreate(PetscObjectComm((PetscObject)tao),&H);CHKERRQ(ierr);
+      ierr = MatSetType(H,MATAIJ);CHKERRQ(ierr);
+      ierr = TaoSetHessianRoutine(tao,H,H,TaoDefaultComputeHessian,NULL);CHKERRQ(ierr);
+      ierr = MatDestroy(&H);CHKERRQ(ierr);
+    }
+    flg = PETSC_FALSE;
+    ierr = PetscOptionsBool("-tao_mf_hessian","compute matrix-free hessian using finite differences","TaoDefaultComputeHessianMFFD",flg,&flg,NULL);CHKERRQ(ierr);
+    if (flg) {
+      Mat H;
+
+      ierr = MatCreate(PetscObjectComm((PetscObject)tao),&H);CHKERRQ(ierr);
+      ierr = TaoSetHessianRoutine(tao,H,H,TaoDefaultComputeHessianMFFD,NULL);CHKERRQ(ierr);
+      ierr = MatDestroy(&H);CHKERRQ(ierr);
+    }
+    ierr = PetscOptionsEnum("-tao_subset_type","subset type","",TaoSubSetTypes,(PetscEnum)tao->subset_type,(PetscEnum*)&tao->subset_type,NULL);CHKERRQ(ierr);
 
     if (tao->ops->setfromoptions) {
       ierr = (*tao->ops->setfromoptions)(PetscOptionsObject,tao);CHKERRQ(ierr);
@@ -2080,7 +2103,7 @@ PetscErrorCode TaoRegisterDestroy(void)
 
 .keywords: Tao, nonlinear, get, iteration, number,
 
-.seealso:   TaoGetLinearSolveIterations()
+.seealso:   TaoGetLinearSolveIterations(), TaoGetResidualNorm(), TaoGetObjective()
 @*/
 PetscErrorCode  TaoGetIterationNumber(Tao tao,PetscInt *iter)
 {
@@ -2088,6 +2111,63 @@ PetscErrorCode  TaoGetIterationNumber(Tao tao,PetscInt *iter)
   PetscValidHeaderSpecific(tao,TAO_CLASSID,1);
   PetscValidIntPointer(iter,2);
   *iter = tao->niter;
+  PetscFunctionReturn(0);
+}
+
+/*@
+   TaoGetObjective - Gets the current value of the objective function
+   at this time.
+
+   Not Collective
+
+   Input Parameter:
+.  tao - Tao context
+
+   Output Parameter:
+.  value - the current value
+
+   Level: intermediate
+
+.keywords: Tao, nonlinear, get, iteration, number,
+
+.seealso:   TaoGetLinearSolveIterations(), TaoGetIterationNumber(), TaoGetResidualNorm()
+@*/
+PetscErrorCode  TaoGetObjective(Tao tao,PetscReal *value)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(tao,TAO_CLASSID,1);
+  PetscValidRealPointer(value,2);
+  *value = tao->fc;
+  PetscFunctionReturn(0);
+}
+
+/*@
+   TaoGetResidualNorm - Gets the current value of the norm of the residual
+   at this time.
+
+   Not Collective
+
+   Input Parameter:
+.  tao - Tao context
+
+   Output Parameter:
+.  value - the current value
+
+   Level: intermediate
+
+   Developer Note: This is the 2-norm of the residual, we cannot use TaoGetGradientNorm() because that has
+                   a different meaning. For some reason Tao sometimes calls the gradient the residual.
+
+.keywords: Tao, nonlinear, get, iteration, number,
+
+.seealso:   TaoGetLinearSolveIterations(), TaoGetIterationNumber(), TaoGetObjective()
+@*/
+PetscErrorCode  TaoGetResidualNorm(Tao tao,PetscReal *value)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(tao,TAO_CLASSID,1);
+  PetscValidRealPointer(value,2);
+  *value = tao->residual;
   PetscFunctionReturn(0);
 }
 

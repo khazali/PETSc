@@ -765,11 +765,11 @@ PetscErrorCode PetscSpaceEvaluate_Polynomial(PetscSpace sp, PetscInt npoints, co
   PetscFunctionBegin;
   ierr = PetscSpaceGetDimension(sp, &pdim);CHKERRQ(ierr);
   pdim /= Nc;
-  ierr = DMGetWorkArray(dm, npoints, PETSC_REAL, &lpoints);CHKERRQ(ierr);
-  ierr = DMGetWorkArray(dm, npoints*ndegree*3, PETSC_REAL, &tmp);CHKERRQ(ierr);
-  if (B) {ierr = DMGetWorkArray(dm, npoints*dim*ndegree, PETSC_REAL, &LB);CHKERRQ(ierr);}
-  if (D) {ierr = DMGetWorkArray(dm, npoints*dim*ndegree, PETSC_REAL, &LD);CHKERRQ(ierr);}
-  if (H) {ierr = DMGetWorkArray(dm, npoints*dim*ndegree, PETSC_REAL, &LH);CHKERRQ(ierr);}
+  ierr = DMGetWorkArray(dm, npoints, MPIU_REAL, &lpoints);CHKERRQ(ierr);
+  ierr = DMGetWorkArray(dm, npoints*ndegree*3, MPIU_REAL, &tmp);CHKERRQ(ierr);
+  if (B) {ierr = DMGetWorkArray(dm, npoints*dim*ndegree, MPIU_REAL, &LB);CHKERRQ(ierr);}
+  if (D) {ierr = DMGetWorkArray(dm, npoints*dim*ndegree, MPIU_REAL, &LD);CHKERRQ(ierr);}
+  if (H) {ierr = DMGetWorkArray(dm, npoints*dim*ndegree, MPIU_REAL, &LH);CHKERRQ(ierr);}
   for (d = 0; d < dim; ++d) {
     for (p = 0; p < npoints; ++p) {
       lpoints[p] = points[p*dim+d];
@@ -884,11 +884,11 @@ PetscErrorCode PetscSpaceEvaluate_Polynomial(PetscSpace sp, PetscInt npoints, co
   }
   if (H) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_SUP, "Too lazy to code second derivatives");
   ierr = PetscFree2(ind,tup);CHKERRQ(ierr);
-  if (B) {ierr = DMRestoreWorkArray(dm, npoints*dim*ndegree, PETSC_REAL, &LB);CHKERRQ(ierr);}
-  if (D) {ierr = DMRestoreWorkArray(dm, npoints*dim*ndegree, PETSC_REAL, &LD);CHKERRQ(ierr);}
-  if (H) {ierr = DMRestoreWorkArray(dm, npoints*dim*ndegree, PETSC_REAL, &LH);CHKERRQ(ierr);}
-  ierr = DMRestoreWorkArray(dm, npoints*ndegree*3, PETSC_REAL, &tmp);CHKERRQ(ierr);
-  ierr = DMRestoreWorkArray(dm, npoints, PETSC_REAL, &lpoints);CHKERRQ(ierr);
+  if (B) {ierr = DMRestoreWorkArray(dm, npoints*dim*ndegree, MPIU_REAL, &LB);CHKERRQ(ierr);}
+  if (D) {ierr = DMRestoreWorkArray(dm, npoints*dim*ndegree, MPIU_REAL, &LD);CHKERRQ(ierr);}
+  if (H) {ierr = DMRestoreWorkArray(dm, npoints*dim*ndegree, MPIU_REAL, &LH);CHKERRQ(ierr);}
+  ierr = DMRestoreWorkArray(dm, npoints*ndegree*3, MPIU_REAL, &tmp);CHKERRQ(ierr);
+  ierr = DMRestoreWorkArray(dm, npoints, MPIU_REAL, &lpoints);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1983,7 +1983,7 @@ PetscErrorCode PetscDualSpaceApplyDefault(PetscDualSpace sp, PetscInt f, PetscRe
   ierr = PetscQuadratureGetData(n, &dim, &qNc, &Nq, &points, &weights);CHKERRQ(ierr);
   if (dim != cgeom->dim) SETERRQ2(PetscObjectComm((PetscObject) sp), PETSC_ERR_ARG_SIZ, "The quadrature spatial dimension %D != cell geometry dimension %D", dim, cgeom->dim);
   if (qNc != Nc) SETERRQ2(PetscObjectComm((PetscObject) sp), PETSC_ERR_ARG_SIZ, "The quadrature components %D != function components %D", qNc, Nc);
-  ierr = DMGetWorkArray(dm, Nc, PETSC_SCALAR, &val);CHKERRQ(ierr);
+  ierr = DMGetWorkArray(dm, Nc, MPIU_SCALAR, &val);CHKERRQ(ierr);
   *value = 0.0;
   for (q = 0; q < Nq; ++q) {
     CoordinatesRefToReal(cgeom->dimEmbed, dim, cgeom->v0, cgeom->J, &points[q*dim], x);
@@ -1992,7 +1992,7 @@ PetscErrorCode PetscDualSpaceApplyDefault(PetscDualSpace sp, PetscInt f, PetscRe
       *value += val[c]*weights[q*Nc+c];
     }
   }
-  ierr = DMRestoreWorkArray(dm, Nc, PETSC_SCALAR, &val);CHKERRQ(ierr);
+  ierr = DMRestoreWorkArray(dm, Nc, MPIU_SCALAR, &val);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -2043,7 +2043,7 @@ PetscErrorCode PetscDualSpaceApplyFVM(PetscDualSpace sp, PetscInt f, PetscReal t
   ierr = PetscDualSpaceGetFunctional(sp, f, &n);CHKERRQ(ierr);
   ierr = PetscQuadratureGetData(n, NULL, &qNc, &Nq, &points, &weights);CHKERRQ(ierr);
   if (qNc != Nc) SETERRQ2(PetscObjectComm((PetscObject) sp), PETSC_ERR_ARG_SIZ, "The quadrature components %D != function components %D", qNc, Nc);
-  ierr = DMGetWorkArray(dm, Nc, PETSC_SCALAR, &val);CHKERRQ(ierr);
+  ierr = DMGetWorkArray(dm, Nc, MPIU_SCALAR, &val);CHKERRQ(ierr);
   *value = 0.;
   for (q = 0; q < Nq; ++q) {
     ierr = (*func)(dimEmbed, time, cgeom->centroid, Nc, val, ctx);CHKERRQ(ierr);
@@ -2051,7 +2051,7 @@ PetscErrorCode PetscDualSpaceApplyFVM(PetscDualSpace sp, PetscInt f, PetscReal t
       *value += val[c]*weights[q*Nc+c];
     }
   }
-  ierr = DMRestoreWorkArray(dm, Nc, PETSC_SCALAR, &val);CHKERRQ(ierr);
+  ierr = DMRestoreWorkArray(dm, Nc, MPIU_SCALAR, &val);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -3798,14 +3798,16 @@ PetscErrorCode PetscFEGetFaceTabulation(PetscFE fem, PetscReal **Bf, PetscReal *
     ierr = DMPlexGetConeSize(dm, 0, &numFaces);CHKERRQ(ierr);
     ierr = DMPlexGetCone(dm, 0, &faces);CHKERRQ(ierr);
     ierr = PetscFEGetFaceQuadrature(fem, &fq);CHKERRQ(ierr);
-    ierr = PetscQuadratureGetData(fq, NULL, NULL, &npoints, &points, NULL);CHKERRQ(ierr);
-    ierr = PetscMalloc1(numFaces*npoints*dim, &facePoints);CHKERRQ(ierr);
-    for (f = 0; f < numFaces; ++f) {
-      ierr = DMPlexComputeCellGeometryFEM(dm, faces[f], NULL, cgeom.v0, cgeom.J, NULL, &cgeom.detJ);CHKERRQ(ierr);
-      for (q = 0; q < npoints; ++q) CoordinatesRefToReal(dim, dim-1, cgeom.v0, cgeom.J, &points[q*(dim-1)], &facePoints[(f*npoints+q)*dim]);
+    if (fq) {
+      ierr = PetscQuadratureGetData(fq, NULL, NULL, &npoints, &points, NULL);CHKERRQ(ierr);
+      ierr = PetscMalloc1(numFaces*npoints*dim, &facePoints);CHKERRQ(ierr);
+      for (f = 0; f < numFaces; ++f) {
+        ierr = DMPlexComputeCellGeometryFEM(dm, faces[f], NULL, cgeom.v0, cgeom.J, NULL, &cgeom.detJ);CHKERRQ(ierr);
+        for (q = 0; q < npoints; ++q) CoordinatesRefToReal(dim, dim-1, cgeom.v0, cgeom.J, &points[q*(dim-1)], &facePoints[(f*npoints+q)*dim]);
+      }
+      ierr = PetscFEGetTabulation(fem, numFaces*npoints, facePoints, &fem->Bf, &fem->Df, NULL/*&fem->Hf*/);CHKERRQ(ierr);
+      ierr = PetscFree(facePoints);CHKERRQ(ierr);
     }
-    ierr = PetscFEGetTabulation(fem, numFaces*npoints, facePoints, &fem->Bf, &fem->Df, NULL/*&fem->Hf*/);CHKERRQ(ierr);
-    ierr = PetscFree(facePoints);CHKERRQ(ierr);
   }
   if (Bf) *Bf = fem->Bf;
   if (Df) *Df = fem->Df;
@@ -3889,9 +3891,9 @@ PetscErrorCode PetscFEGetTabulation(PetscFE fem, PetscInt npoints, const PetscRe
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = PetscDualSpaceGetDimension(fem->dualSpace, &pdim);CHKERRQ(ierr);
   ierr = PetscFEGetNumComponents(fem, &comp);CHKERRQ(ierr);
-  if (B) {ierr = DMGetWorkArray(dm, npoints*pdim*comp, PETSC_REAL, B);CHKERRQ(ierr);}
-  if (D) {ierr = DMGetWorkArray(dm, npoints*pdim*comp*dim, PETSC_REAL, D);CHKERRQ(ierr);}
-  if (H) {ierr = DMGetWorkArray(dm, npoints*pdim*comp*dim*dim, PETSC_REAL, H);CHKERRQ(ierr);}
+  if (B) {ierr = DMGetWorkArray(dm, npoints*pdim*comp, MPIU_REAL, B);CHKERRQ(ierr);}
+  if (D) {ierr = DMGetWorkArray(dm, npoints*pdim*comp*dim, MPIU_REAL, D);CHKERRQ(ierr);}
+  if (H) {ierr = DMGetWorkArray(dm, npoints*pdim*comp*dim*dim, MPIU_REAL, H);CHKERRQ(ierr);}
   ierr = (*fem->ops->gettabulation)(fem, npoints, points, B ? *B : NULL, D ? *D : NULL, H ? *H : NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -3904,9 +3906,9 @@ PetscErrorCode PetscFERestoreTabulation(PetscFE fem, PetscInt npoints, const Pet
   PetscFunctionBegin;
   PetscValidHeaderSpecific(fem, PETSCFE_CLASSID, 1);
   ierr = PetscDualSpaceGetDM(fem->dualSpace, &dm);CHKERRQ(ierr);
-  if (B && *B) {ierr = DMRestoreWorkArray(dm, 0, PETSC_REAL, B);CHKERRQ(ierr);}
-  if (D && *D) {ierr = DMRestoreWorkArray(dm, 0, PETSC_REAL, D);CHKERRQ(ierr);}
-  if (H && *H) {ierr = DMRestoreWorkArray(dm, 0, PETSC_REAL, H);CHKERRQ(ierr);}
+  if (B && *B) {ierr = DMRestoreWorkArray(dm, 0, MPIU_REAL, B);CHKERRQ(ierr);}
+  if (D && *D) {ierr = DMRestoreWorkArray(dm, 0, MPIU_REAL, D);CHKERRQ(ierr);}
+  if (H && *H) {ierr = DMRestoreWorkArray(dm, 0, MPIU_REAL, H);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 
@@ -4043,9 +4045,9 @@ PetscErrorCode PetscFEGetTabulation_Basic(PetscFE fem, PetscInt npoints, const P
   ierr = PetscDualSpaceGetDimension(fem->dualSpace, &pdim);CHKERRQ(ierr);
   ierr = PetscFEGetNumComponents(fem, &Nc);CHKERRQ(ierr);
   /* Evaluate the prime basis functions at all points */
-  if (B) {ierr = DMGetWorkArray(dm, npoints*pdim*Nc, PETSC_REAL, &tmpB);CHKERRQ(ierr);}
-  if (D) {ierr = DMGetWorkArray(dm, npoints*pdim*Nc*dim, PETSC_REAL, &tmpD);CHKERRQ(ierr);}
-  if (H) {ierr = DMGetWorkArray(dm, npoints*pdim*Nc*dim*dim, PETSC_REAL, &tmpH);CHKERRQ(ierr);}
+  if (B) {ierr = DMGetWorkArray(dm, npoints*pdim*Nc, MPIU_REAL, &tmpB);CHKERRQ(ierr);}
+  if (D) {ierr = DMGetWorkArray(dm, npoints*pdim*Nc*dim, MPIU_REAL, &tmpD);CHKERRQ(ierr);}
+  if (H) {ierr = DMGetWorkArray(dm, npoints*pdim*Nc*dim*dim, MPIU_REAL, &tmpH);CHKERRQ(ierr);}
   ierr = PetscSpaceEvaluate(fem->basisSpace, npoints, points, B ? tmpB : NULL, D ? tmpD : NULL, H ? tmpH : NULL);CHKERRQ(ierr);
   /* Translate to the nodal basis */
   for (p = 0; p < npoints; ++p) {
@@ -4093,14 +4095,14 @@ PetscErrorCode PetscFEGetTabulation_Basic(PetscFE fem, PetscInt npoints, const P
       }
     }
   }
-  if (B) {ierr = DMRestoreWorkArray(dm, npoints*pdim*Nc, PETSC_REAL, &tmpB);CHKERRQ(ierr);}
-  if (D) {ierr = DMRestoreWorkArray(dm, npoints*pdim*Nc*dim, PETSC_REAL, &tmpD);CHKERRQ(ierr);}
-  if (H) {ierr = DMRestoreWorkArray(dm, npoints*pdim*Nc*dim*dim, PETSC_REAL, &tmpH);CHKERRQ(ierr);}
+  if (B) {ierr = DMRestoreWorkArray(dm, npoints*pdim*Nc, MPIU_REAL, &tmpB);CHKERRQ(ierr);}
+  if (D) {ierr = DMRestoreWorkArray(dm, npoints*pdim*Nc*dim, MPIU_REAL, &tmpD);CHKERRQ(ierr);}
+  if (H) {ierr = DMRestoreWorkArray(dm, npoints*pdim*Nc*dim*dim, MPIU_REAL, &tmpH);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 
 PetscErrorCode PetscFEIntegrate_Basic(PetscFE fem, PetscDS prob, PetscInt field, PetscInt Ne, PetscFECellGeom *cgeom,
-                                      const PetscScalar coefficients[], PetscDS probAux, const PetscScalar coefficientsAux[], PetscReal integral[])
+                                      const PetscScalar coefficients[], PetscDS probAux, const PetscScalar coefficientsAux[], PetscScalar integral[])
 {
   const PetscInt     debug = 0;
   PetscPointFunc     obj_func;
@@ -4164,8 +4166,8 @@ PetscErrorCode PetscFEIntegrate_Basic(PetscFE fem, PetscDS prob, PetscInt field,
       if (probAux) EvaluateFieldJets(dim, NfAux, NbAux, NcAux, q, BAux, DAux, refSpaceDerAux, invJ, &coefficientsAux[cOffsetAux], NULL, a, a_x, NULL);
       obj_func(dim, Nf, NfAux, uOff, uOff_x, u, NULL, u_x, aOff, aOff_x, a, NULL, a_x, 0.0, x, numConstants, constants, &integrand);
       integrand *= detJ*quadWeights[q];
-      integral[field] += PetscRealPart(integrand);
-      if (debug > 1) {ierr = PetscPrintf(PETSC_COMM_SELF, "    int: %g %g\n", PetscRealPart(integrand), integral[field]);CHKERRQ(ierr);}
+      integral[e*Nf+field] += integrand;
+      if (debug > 1) {ierr = PetscPrintf(PETSC_COMM_SELF, "    int: %g %g\n", (double) PetscRealPart(integrand), (double) PetscRealPart(integral[field]));CHKERRQ(ierr);}
     }
     cOffset    += totDim;
     cOffsetAux += totDimAux;
@@ -6030,7 +6032,7 @@ PetscErrorCode PetscFESetUp_Composite(PetscFE fem)
   ierr = PetscDualSpaceGetDimension(fem->dualSpace, &pdim);CHKERRQ(ierr);
   ierr = PetscSpaceGetDimension(fem->basisSpace, &spdim);CHKERRQ(ierr);
   ierr = PetscMalloc1(cmp->numSubelements*spdim,&cmp->embedding);CHKERRQ(ierr);
-  ierr = DMGetWorkArray(K, dim, PETSC_REAL, &subpoint);CHKERRQ(ierr);
+  ierr = DMGetWorkArray(K, dim, MPIU_REAL, &subpoint);CHKERRQ(ierr);
   for (s = 0; s < cmp->numSubelements; ++s) {
     PetscInt sd = 0;
 
@@ -6050,7 +6052,7 @@ PetscErrorCode PetscFESetUp_Composite(PetscFE fem)
     }
     if (sd != spdim) SETERRQ3(PetscObjectComm((PetscObject) fem), PETSC_ERR_PLIB, "Subelement %d has %d dual basis vectors != %d", s, sd, spdim);
   }
-  ierr = DMRestoreWorkArray(K, dim, PETSC_REAL, &subpoint);CHKERRQ(ierr);
+  ierr = DMRestoreWorkArray(K, dim, MPIU_REAL, &subpoint);CHKERRQ(ierr);
   /* Construct the change of basis from prime basis to nodal basis for each subelement */
   ierr = PetscMalloc1(cmp->numSubelements*spdim*spdim,&fem->invV);CHKERRQ(ierr);
   ierr = PetscMalloc2(spdim,&pivots,spdim,&work);CHKERRQ(ierr);
@@ -6111,8 +6113,8 @@ PetscErrorCode PetscFEGetTabulation_Composite(PetscFE fem, PetscInt npoints, con
   ierr = PetscDualSpaceGetDimension(fem->dualSpace, &pdim);CHKERRQ(ierr);
   ierr = PetscFEGetNumComponents(fem, &comp);CHKERRQ(ierr);
   /* Divide points into subelements */
-  ierr = DMGetWorkArray(dm, npoints, PETSC_INT, &subpoints);CHKERRQ(ierr);
-  ierr = DMGetWorkArray(dm, dim, PETSC_REAL, &subpoint);CHKERRQ(ierr);
+  ierr = DMGetWorkArray(dm, npoints, MPIU_INT, &subpoints);CHKERRQ(ierr);
+  ierr = DMGetWorkArray(dm, dim, MPIU_REAL, &subpoint);CHKERRQ(ierr);
   for (p = 0; p < npoints; ++p) {
     for (s = 0; s < cmp->numSubelements; ++s) {
       PetscBool inside;
@@ -6127,11 +6129,11 @@ PetscErrorCode PetscFEGetTabulation_Composite(PetscFE fem, PetscInt npoints, con
     }
     if (s >= cmp->numSubelements) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Point %d was not found in any subelement", p);
   }
-  ierr = DMRestoreWorkArray(dm, dim, PETSC_REAL, &subpoint);CHKERRQ(ierr);
+  ierr = DMRestoreWorkArray(dm, dim, MPIU_REAL, &subpoint);CHKERRQ(ierr);
   /* Evaluate the prime basis functions at all points */
-  if (B) {ierr = DMGetWorkArray(dm, npoints*spdim, PETSC_REAL, &tmpB);CHKERRQ(ierr);}
-  if (D) {ierr = DMGetWorkArray(dm, npoints*spdim*dim, PETSC_REAL, &tmpD);CHKERRQ(ierr);}
-  if (H) {ierr = DMGetWorkArray(dm, npoints*spdim*dim*dim, PETSC_REAL, &tmpH);CHKERRQ(ierr);}
+  if (B) {ierr = DMGetWorkArray(dm, npoints*spdim, MPIU_REAL, &tmpB);CHKERRQ(ierr);}
+  if (D) {ierr = DMGetWorkArray(dm, npoints*spdim*dim, MPIU_REAL, &tmpD);CHKERRQ(ierr);}
+  if (H) {ierr = DMGetWorkArray(dm, npoints*spdim*dim*dim, MPIU_REAL, &tmpH);CHKERRQ(ierr);}
   ierr = PetscSpaceEvaluate(fem->basisSpace, npoints, points, B ? tmpB : NULL, D ? tmpD : NULL, H ? tmpH : NULL);CHKERRQ(ierr);
   /* Translate to the nodal basis */
   if (B) {ierr = PetscMemzero(B, npoints*pdim*comp * sizeof(PetscReal));CHKERRQ(ierr);}
@@ -6178,10 +6180,10 @@ PetscErrorCode PetscFEGetTabulation_Composite(PetscFE fem, PetscInt npoints, con
       }
     }
   }
-  ierr = DMRestoreWorkArray(dm, npoints, PETSC_INT, &subpoints);CHKERRQ(ierr);
-  if (B) {ierr = DMRestoreWorkArray(dm, npoints*spdim, PETSC_REAL, &tmpB);CHKERRQ(ierr);}
-  if (D) {ierr = DMRestoreWorkArray(dm, npoints*spdim*dim, PETSC_REAL, &tmpD);CHKERRQ(ierr);}
-  if (H) {ierr = DMRestoreWorkArray(dm, npoints*spdim*dim*dim, PETSC_REAL, &tmpH);CHKERRQ(ierr);}
+  ierr = DMRestoreWorkArray(dm, npoints, MPIU_INT, &subpoints);CHKERRQ(ierr);
+  if (B) {ierr = DMRestoreWorkArray(dm, npoints*spdim, MPIU_REAL, &tmpB);CHKERRQ(ierr);}
+  if (D) {ierr = DMRestoreWorkArray(dm, npoints*spdim*dim, MPIU_REAL, &tmpD);CHKERRQ(ierr);}
+  if (H) {ierr = DMRestoreWorkArray(dm, npoints*spdim*dim*dim, MPIU_REAL, &tmpH);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 
@@ -6396,7 +6398,7 @@ __kernel void integrateElementQuadrature(int N_cb, __global float *coefficients,
 .seealso: PetscFEIntegrateResidual()
 @*/
 PetscErrorCode PetscFEIntegrate(PetscFE fem, PetscDS prob, PetscInt field, PetscInt Ne, PetscFECellGeom *cgeom,
-                                const PetscScalar coefficients[], PetscDS probAux, const PetscScalar coefficientsAux[], PetscReal integral[])
+                                const PetscScalar coefficients[], PetscDS probAux, const PetscScalar coefficientsAux[], PetscScalar integral[])
 {
   PetscErrorCode ierr;
 
@@ -6601,7 +6603,6 @@ PetscErrorCode PetscFEGetHeightSubspace(PetscFE fe, PetscInt height, PetscFE *su
   ierr = PetscFEGetFaceQuadrature(fe, &subq);CHKERRQ(ierr);
   ierr = PetscDualSpaceGetDimension(Q, &dim);CHKERRQ(ierr);
   if (height > dim || height < 0) {SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Asked for space at height %D for dimension %D space", height, dim);}
-  if (height != 1) SETERRQ1(PetscObjectComm((PetscObject) fe), PETSC_ERR_SUP, "Height %D not currently supported", height);
   if (!fe->subspaces) {ierr = PetscCalloc1(dim, &fe->subspaces);CHKERRQ(ierr);}
   if (height <= dim) {
     if (!fe->subspaces[height-1]) {
