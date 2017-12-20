@@ -71,5 +71,13 @@ int main(int argc,char **argv)
 
   ierr = PetscDrawSetPause(draw,pause);CHKERRQ(ierr);
   ierr = PetscDrawPause(draw);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
+  ierr = PetscFinalize();
+  return ierr;
 }
+
+/*TEST
+
+   test:
+     requires: x
+
+TEST*/
