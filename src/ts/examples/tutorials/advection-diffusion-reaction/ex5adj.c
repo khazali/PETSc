@@ -15,6 +15,8 @@ static char help[] = "Demonstrates adjoint sensitivity analysis for Reaction-Dif
 #include <petscdm.h>
 #include <petscdmda.h>
 #include <petscts.h>
+#include "time.h"
+#define BIL 1000000000L
 
 typedef struct {
   PetscScalar u,v;
@@ -67,8 +69,23 @@ int main(int argc,char **argv)
   Vec            lambda[1];
   PetscScalar    *x_ptr;
   PetscBool      forwardonly=PETSC_FALSE,implicitform=PETSC_TRUE;
+  struct timespec start,end;
+  PetscLogEvent   event1,event2,event3,event4,event5;
+  PetscReal       elapsed_time = 0;
 
+  clock_gettime(CLOCK_MONOTONIC, &start); /* mark start time */
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return ierr;
+  clock_gettime(CLOCK_MONOTONIC, &end); /* mark end time */
+  elapsed_time = (end.tv_sec-start.tv_sec+(double)(end.tv_nsec-start.tv_nsec)/BIL);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"PetscInitialize time=%lf\n",elapsed_time);
+
+  ierr = PetscLogEventRegister("Event 1",0,&event1);
+  ierr = PetscLogEventRegister("Event 2",0,&event2);
+  ierr = PetscLogEventRegister("Event 3",0,&event3);
+  ierr = PetscLogEventRegister("Event 4",0,&event4);
+  ierr = PetscLogEventRegister("Event 5",0,&event5);
+  PetscLogEventBegin(event1,0,0,0,0);
+
   ierr = PetscOptionsGetBool(NULL,NULL,"-forwardonly",&forwardonly,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetBool(NULL,NULL,"-implicitform",&implicitform,NULL);CHKERRQ(ierr);
   appctx.aijpc = PETSC_FALSE;
@@ -92,7 +109,11 @@ int main(int argc,char **argv)
      Extract global vectors from DMDA; then duplicate for remaining
      vectors that are the same types
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  PetscLogEventEnd(event1,0,0,0,0);
+  PetscLogEventBegin(event2,0,0,0,0);
   ierr = DMCreateGlobalVector(da,&x);CHKERRQ(ierr);
+  PetscLogEventEnd(event2,0,0,0,0);
+  PetscLogEventBegin(event3,0,0,0,0);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create timestepping solver context
@@ -124,7 +145,11 @@ int main(int argc,char **argv)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set initial conditions
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  PetscLogEventEnd(event3,0,0,0,0);
+  PetscLogEventBegin(event4,0,0,0,0);
   ierr = InitialConditions(da,x);CHKERRQ(ierr);
+  PetscLogEventEnd(event4,0,0,0,0);
+  PetscLogEventBegin(event5,0,0,0,0);
   ierr = TSSetSolution(ts,x);CHKERRQ(ierr);
 
   /*
@@ -143,6 +168,7 @@ int main(int argc,char **argv)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Solve ODE system
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  PetscLogEventEnd(event5,0,0,0,0);
   ierr = TSSolve(ts,x);CHKERRQ(ierr);
   if (!forwardonly) {
     /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
