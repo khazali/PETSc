@@ -70,7 +70,7 @@ int main(int argc,char **argv)
   PetscScalar    *x_ptr;
   PetscBool      forwardonly=PETSC_FALSE,implicitform=PETSC_TRUE;
   struct timespec start,end;
-  PetscLogEvent   event1,event2,event3,event4,event5;
+  PetscLogEvent   event1,event2,event3,event4,event5,event11,event12,event13,event31,event32;
   PetscReal       elapsed_time = 0;
 
   clock_gettime(CLOCK_MONOTONIC, &start); /* mark start time */
@@ -84,6 +84,11 @@ int main(int argc,char **argv)
   ierr = PetscLogEventRegister("Event 3",0,&event3);
   ierr = PetscLogEventRegister("Event 4",0,&event4);
   ierr = PetscLogEventRegister("Event 5",0,&event5);
+  ierr = PetscLogEventRegister("Event 1-1",0,&event11);
+  ierr = PetscLogEventRegister("Event 1-2",0,&event12);
+  ierr = PetscLogEventRegister("Event 1-3",0,&event13);
+  ierr = PetscLogEventRegister("Event 3-1",0,&event31);
+  ierr = PetscLogEventRegister("Event 3-2",0,&event32);
   PetscLogEventBegin(event1,0,0,0,0);
 
   ierr = PetscOptionsGetBool(NULL,NULL,"-forwardonly",&forwardonly,NULL);CHKERRQ(ierr);
@@ -99,9 +104,15 @@ int main(int argc,char **argv)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create distributed array (DMDA) to manage parallel grid and vectors
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  PetscLogEventBegin(event11,0,0,0,0);
   ierr = DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_PERIODIC,DMDA_STENCIL_STAR,64,64,PETSC_DECIDE,PETSC_DECIDE,2,1,NULL,NULL,&da);CHKERRQ(ierr);
+  PetscLogEventEnd(event11,0,0,0,0);
+  PetscLogEventBegin(event12,0,0,0,0);
   ierr = DMSetFromOptions(da);CHKERRQ(ierr);
+  PetscLogEventEnd(event12,0,0,0,0);
+  PetscLogEventBegin(event13,0,0,0,0);
   ierr = DMSetUp(da);CHKERRQ(ierr);
+  PetscLogEventEnd(event13,0,0,0,0);
   ierr = DMDASetFieldName(da,0,"u");CHKERRQ(ierr);
   ierr = DMDASetFieldName(da,1,"v");CHKERRQ(ierr);
 
@@ -118,7 +129,10 @@ int main(int argc,char **argv)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create timestepping solver context
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  PetscLogEventBegin(event31,0,0,0,0);
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
+  PetscLogEventEnd(event31,0,0,0,0);
+  PetscLogEventBegin(event32,0,0,0,0);
   ierr = TSSetType(ts,TSCN);CHKERRQ(ierr);
   ierr = TSSetDM(ts,da);CHKERRQ(ierr);
   ierr = TSSetProblemType(ts,TS_NONLINEAR);CHKERRQ(ierr);
@@ -141,6 +155,7 @@ int main(int argc,char **argv)
       ierr = TSSetIJacobian(ts,NULL,NULL,IJacobian,&appctx);CHKERRQ(ierr);
     }
   }
+  PetscLogEventEnd(event32,0,0,0,0);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set initial conditions
