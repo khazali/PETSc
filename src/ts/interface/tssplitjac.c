@@ -30,9 +30,9 @@ PetscErrorCode TSSplitJacobiansDestroy_Private(void *ptr)
 -  Udot - current time derivative
 
    Output Parameters:
-+  A  - the F_Udot Jacobian matrix
++  A  - the F_U Jacobian matrix
 .  pA - the preconditioning matrix for A
-.  B  - the F_U Jacobian matrix
+.  B  - the F_Udot Jacobian matrix
 -  pB - the preconditioning matrix for B
 
    Notes: this is an helper routine for the AdjointTS and the TLMTS. For the AdjointTS, the correct Jacobians would be F_Udot and F_U - d/dt F_Udot.
