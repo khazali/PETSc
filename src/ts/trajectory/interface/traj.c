@@ -901,29 +901,17 @@ PetscErrorCode TSTrajectoryGetUpdatedHistoryVecs(TSTrajectory tj, TS ts, PetscRe
   PetscValidLogicalCollectiveReal(tj,time,3);
   if (U) PetscValidPointer(U,4);
   if (Udot) PetscValidPointer(Udot,5);
-  if (U) {
-    PetscInt lock;
+  if (U && !tj->U) {
+    DM dm;
 
-    if (!tj->U) {
-      DM dm;
-
-      ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
-      ierr = DMCreateGlobalVector(dm,&tj->U);CHKERRQ(ierr);
-    }
-    ierr = VecLockGet(tj->U,&lock);CHKERRQ(ierr);
-    if (lock) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_ORDER,"U vector already in use. Call TSTrajectoryRestoreUpdatedHistoryVecs() first");
+    ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+    ierr = DMCreateGlobalVector(dm,&tj->U);CHKERRQ(ierr);
   }
-  if (Udot) {
-    PetscInt lock;
+  if (Udot && !tj->Udot) {
+    DM dm;
 
-    if (!tj->Udot) {
-      DM dm;
-
-      ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
-      ierr = DMCreateGlobalVector(dm,&tj->Udot);CHKERRQ(ierr);
-    }
-    ierr = VecLockGet(tj->Udot,&lock);CHKERRQ(ierr);
-    if (lock) SETERRQ(PetscObjectComm((PetscObject)tj),PETSC_ERR_ORDER,"Udot vector already in use. Call TSTrajectoryRestoreUpdatedHistoryVecs() first");
+    ierr = TSGetDM(ts,&dm);CHKERRQ(ierr);
+    ierr = DMCreateGlobalVector(dm,&tj->Udot);CHKERRQ(ierr);
   }
   ierr = TSTrajectoryGetVecs(tj,ts,PETSC_DECIDE,&time,U ? tj->U : NULL,Udot ? tj->Udot : NULL);CHKERRQ(ierr);
   if (U) {
