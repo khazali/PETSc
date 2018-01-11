@@ -797,5 +797,4 @@ ex212f: ex212f.o chkopts
 	-${FLINKER} -o ex212f ex212f.o ${PETSC_MAT_LIB}
 	${RM} ex212f.o
 
-
 include ${PETSC_DIR}/lib/petsc/conf/test
