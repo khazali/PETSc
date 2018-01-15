@@ -1214,20 +1214,16 @@ static PetscErrorCode SolveTimeDepStokes(PetscInt mx,PetscInt my)
     ierr = VecStrideMin(X,0,NULL,&vx[0]);CHKERRQ(ierr);
     ierr = VecStrideMin(X,1,NULL,&vy[0]);CHKERRQ(ierr);
     
-    dt = 1.0e-6;
     max_v_step = PetscMax(vx[0],vx[1]);
     max_v_step = PetscMax(max_v_step,vy[0]);
     max_v_step = PetscMax(max_v_step,vy[1]);
     max_v = PetscMax(max_v,max_v_step);
-    
-    dt = 0.5 * (dh / max_v_step);
-    dt_max = PetscMax(dt_max,dt);
+
     dt_max = 2.0;
+    dt = 0.5 * (dh / max_v_step);
     ierr = PetscPrintf(PETSC_COMM_WORLD,".... max v %1.4e , dt %1.4e : [total] max v %1.4e , dt_max %1.4e\n",(double)max_v_step,(double)dt,(double)max_v,(double)dt_max);CHKERRQ(ierr);
-    if (dt > dt_max) {
-      dt = dt_max;
-    }
-    
+    dt = PetscMin(dt_max,dt);
+ 
     /* advect */
     ierr = PetscPrintf(PETSC_COMM_WORLD,".... advect\n");CHKERRQ(ierr);
     ierr = MaterialPoint_AdvectRK1(dm_stokes,X,dt,dms_mpoint);CHKERRQ(ierr);
@@ -1238,7 +1234,7 @@ static PetscErrorCode SolveTimeDepStokes(PetscInt mx,PetscInt my)
     
     /* update cell population */
     ierr = PetscPrintf(PETSC_COMM_WORLD,".... populate cells\n");CHKERRQ(ierr);
-    ierr = MaterialPoint_PopulateCell(dm_stokes,dms_mpoint);
+    ierr = MaterialPoint_PopulateCell(dm_stokes,dms_mpoint);CHKERRQ(ierr);
     
     /* update coefficients on quadrature points */
     ierr = PetscPrintf(PETSC_COMM_WORLD,".... project\n");CHKERRQ(ierr);
