@@ -42,15 +42,15 @@ const char *const MatFactorTypes[] = {"NONE","LU","CHOLESKY","ILU","ICC","ILUDT"
 /*@
    MatSetRandom - Sets all components of a matrix to random numbers. For sparse matrices that have been preallocated it randomly selects appropriate locations
 
-   Logically Collective on Vec
+   Logically Collective on Mat
 
    Input Parameters:
-+  x  - the vector
++  x  - the matrix
 -  rctx - the random number context, formed by PetscRandomCreate(), or NULL and
           it will create one internally.
 
    Output Parameter:
-.  x  - the vector
+.  x  - the matrix
 
    Example of Usage:
 .vb
@@ -811,6 +811,36 @@ PetscErrorCode MatGetOptionsPrefix(Mat A,const char *prefix[])
   ierr = PetscObjectGetOptionsPrefix((PetscObject)A,prefix);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+
+/*@
+   MatResetPreallocation - Reset mat to use the original nonzero pattern provided by users.
+
+   Collective on Mat
+
+   Input Parameters:
+.  A - the Mat context
+
+   Notes:
+   The allocated memory will be shrunk after calling MatAssembly with MAT_FINAL_ASSEMBLY. Users can reset the preallocation to access the original memory.
+   Currently support MPIAIJ and SEQAIJ.
+
+   Level: beginner
+
+.keywords: Mat, ResetPreallocation
+
+.seealso: MatSeqAIJSetPreallocation(), MatMPIAIJSetPreallocation(), MatXAIJSetPreallocation()
+@*/
+PetscErrorCode MatResetPreallocation(Mat A)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(A,MAT_CLASSID,1);
+  PetscValidType(A,1);
+  ierr = PetscUseMethod(A,"MatResetPreallocation_C",(Mat),(A));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 
 /*@
    MatSetUp - Sets up the internal matrix data structures for the later use.
@@ -2397,7 +2427,7 @@ PetscErrorCode MatMultTranspose(Mat mat,Vec x,Vec y)
   if (mat->erroriffailure) {ierr = VecValidValues(x,2,PETSC_TRUE);CHKERRQ(ierr);}
   MatCheckPreallocated(mat,1);
 
-  if (!mat->ops->multtranspose) SETERRQ(PetscObjectComm((PetscObject)mat),PETSC_ERR_SUP,"This matrix type does not have a multiply tranpose defined");
+  if (!mat->ops->multtranspose) SETERRQ(PetscObjectComm((PetscObject)mat),PETSC_ERR_SUP,"This matrix type does not have a multiply transpose defined");
   ierr = PetscLogEventBegin(MAT_MultTranspose,mat,x,y,0);CHKERRQ(ierr);
   ierr = VecLockPush(x);CHKERRQ(ierr);
   ierr = (*mat->ops->multtranspose)(mat,x,y);CHKERRQ(ierr);
@@ -6395,7 +6425,7 @@ PetscErrorCode MatGetLocalSize(Mat mat,PetscInt *m,PetscInt *n)
   PetscFunctionReturn(0);
 }
 
-/*@
+/*@C
    MatGetOwnershipRangeColumn - Returns the range of matrix columns associated with rows of a vector one multiplies by that owned by
    this processor. (The columns of the "diagonal block")
 
@@ -6430,7 +6460,7 @@ PetscErrorCode MatGetOwnershipRangeColumn(Mat mat,PetscInt *m,PetscInt *n)
   PetscFunctionReturn(0);
 }
 
-/*@
+/*@C
    MatGetOwnershipRange - Returns the range of matrix rows owned by
    this processor, assuming that the matrix is laid out with the first
    n1 rows on the first processor, the next n2 rows on the second, etc.
@@ -8101,7 +8131,7 @@ PetscErrorCode MatRestrict(Mat A,Vec x,Vec y)
   PetscFunctionReturn(0);
 }
 
-/*@
+/*@C
    MatGetNullSpace - retrieves the null space to a matrix.
 
    Logically Collective on Mat and MatNullSpace
@@ -8120,13 +8150,12 @@ PetscErrorCode MatGetNullSpace(Mat mat, MatNullSpace *nullsp)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
-  PetscValidType(mat,1);
   PetscValidPointer(nullsp,2);
   *nullsp = mat->nullsp;
   PetscFunctionReturn(0);
 }
 
-/*@
+/*@C
    MatSetNullSpace - attaches a null space to a matrix.
 
    Logically Collective on Mat and MatNullSpace
@@ -8167,9 +8196,7 @@ PetscErrorCode MatSetNullSpace(Mat mat,MatNullSpace nullsp)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
-  PetscValidType(mat,1);
   if (nullsp) PetscValidHeaderSpecific(nullsp,MAT_NULLSPACE_CLASSID,2);
-  MatCheckPreallocated(mat,1);
   if (nullsp) {ierr = PetscObjectReference((PetscObject)nullsp);CHKERRQ(ierr);}
   ierr = MatNullSpaceDestroy(&mat->nullsp);CHKERRQ(ierr);
   mat->nullsp = nullsp;
@@ -10360,11 +10387,13 @@ PetscErrorCode MatInvertBlockDiagonalMat(Mat A,Mat C)
   ierr = MatXAIJSetPreallocation(C,bs,dnnz,NULL,NULL,NULL);CHKERRQ(ierr);
   ierr = PetscFree(dnnz);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(C,&rstart,&rend);CHKERRQ(ierr);
+  ierr = MatSetOption(C,MAT_ROW_ORIENTED,PETSC_FALSE);CHKERRQ(ierr);
   for (i = rstart/bs; i < rend/bs; i++) {
     ierr = MatSetValuesBlocked(C,1,&i,1,&i,&vals[(i-rstart/bs)*bs*bs],INSERT_VALUES);CHKERRQ(ierr);
   }
   ierr = MatAssemblyBegin(C,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(C,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatSetOption(C,MAT_ROW_ORIENTED,PETSC_TRUE);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

@@ -39,6 +39,7 @@ class Configure(config.base.Configure):
     help.addArgument('Compilers', '-with-cxxlib-autodetect=<bool>',         nargs.ArgBool(None, 1, 'Autodetect C++ compiler libraries'))
     help.addArgument('Compilers', '-with-dependencies=<bool>',              nargs.ArgBool(None, 1, 'Compile with -MMD or equivalent flag if possible'))
     help.addArgument('Compilers', '-with-cxx-dialect=<dialect>',            nargs.Arg(None, '', 'Dialect under which to compile C++ sources (e.g., C++11)'))
+    help.addArgument('Compilers', '-with-fortran-type-initialize=<bool>',   nargs.ArgBool(None, 0, 'Initialize PETSc objects in Fortran'))
 
     return
 
@@ -119,6 +120,7 @@ class Configure(config.base.Configure):
       self.logPrint('No C StaticInline keyword. using static function', 4, 'compilers')
     self.addDefine('C_STATIC_INLINE', self.cStaticInlineKeyword)
     return
+
   def checkCxxStaticInline(self):
     '''Check for C++ keyword: static inline'''
     self.cxxStaticInlineKeyword = 'static'
@@ -614,6 +616,7 @@ class Configure(config.base.Configure):
         self.logPrint('Looks like ifc compiler, adding -w90 -w flags to avoid warnings about real*8 etc', 4, 'compilers')
     self.popLanguage()
     return
+
 
   def mangleFortranFunction(self, name):
     if self.fortranMangling == 'underscore':
@@ -1139,6 +1142,28 @@ class Configure(config.base.Configure):
       raise RuntimeError('Fortran could not successfully link C++ objects')
     return
 
+  def checkFortranTypeInitialize(self):
+    '''Determines if PETSc objects in Fortran are initialized by default (doesn't work with common blocks)'''
+    if self.argDB['with-fortran-type-initialize']:
+      self.addDefine('HAVE_FORTRAN_TYPE_INITIALIZE', 1)
+      self.addDefine('FORTRAN_TYPE_INITIALIZE', ' = 1')
+      self.logPrint('Initializing Fortran objects')
+    else:
+      self.addDefine('FORTRAN_TYPE_INITIALIZE', ' ')
+      self.logPrint('Not initializing Fortran objects')
+    return
+
+  def checkFortranTypeStar(self):
+    '''Determine whether the Fortran compiler handles type(*)'''
+    self.pushLanguage('FC')
+    if self.checkCompile(body = '      interface\n      subroutine a(b)\n     type(*) :: b(:)\n      end subroutine\n      end interface\n'):
+      self.addDefine('HAVE_FORTRAN_TYPE_STAR', 1)
+      self.logPrint('Fortran compiler supports type(*)')
+    else:
+      self.logPrint('Fortran compiler does not support type(*)')
+    self.popLanguage()
+    return
+
   def checkFortran90(self):
     '''Determine whether the Fortran compiler handles F90'''
     self.pushLanguage('FC')
@@ -1464,6 +1489,7 @@ class Configure(config.base.Configure):
         self.c99flag = flag
         self.framework.logPrint('Accepted C99 compile flag: '+flag)
         break
+    if self.c99flag == '': self.addDefine('HAVE_C99', 1)
     self.setCompilers.popLanguage()
     self.logWrite(self.setCompilers.restoreLog())
     return
@@ -1509,6 +1535,8 @@ class Configure(config.base.Configure):
       self.executeTest(self.checkFortran90Array)
       self.executeTest(self.checkFortranModuleInclude)
       self.executeTest(self.checkFortranModuleOutput)
+      self.executeTest(self.checkFortranTypeStar)
+      self.executeTest(self.checkFortranTypeInitialize)
     self.no_configure()
     return
 

@@ -313,7 +313,7 @@ allfortranstubs:
 	-@${RM} -rf ${PETSC_ARCH}/include/petsc/finclude/ftn-auto/*-tmpdir
 	@${PYTHON} bin/maint/generatefortranstubs.py ${BFORT}  ${VERBOSE}
 	-@${PYTHON} bin/maint/generatefortranstubs.py -merge  ${VERBOSE}
-	-@${RM} -rf include/petsc/finclude/ftn-auto/*-tmpdir
+	-@${RM} -rf ${PETSC_ARCH}/include/petsc/finclude/ftn-auto/*-tmpdir
 deletefortranstubs:
 	-@find . -type d -name ftn-auto | xargs rm -rf
 cmakegen:
@@ -350,6 +350,7 @@ alldoc1: chk_loc deletemanualpages chk_concepts_dir
 	-${OMAKE} manconcepts LOC=${LOC}
 	-${OMAKE} ACTION=getexlist tree_basic LOC=${LOC}
 	-${OMAKE} ACTION=exampleconcepts tree_basic LOC=${LOC}
+	-${OMAKE} manimplementations LOC=${LOC}
 	-${PYTHON} bin/maint/helpindex.py ${PETSC_DIR} ${LOC}
 
 # Builds .html versions of the source

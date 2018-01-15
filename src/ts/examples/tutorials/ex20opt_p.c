@@ -617,3 +617,12 @@ PetscErrorCode FormHessian_AO(Tao tao,Vec P,Mat H,Mat Hp,void *ctx)
 #endif
   PetscFunctionReturn(0);
 }
+
+/*TEST
+    build:
+      requires: !complex !single
+    test:
+      args:  -monitor 0 -ts_type theta -ts_theta_endpoint -ts_theta_theta 0.5 -viewer_binary_skip_info -tao_view  -ts_trajectory_dirname ex20opt_pdir
+      output_file: output/ex20opt_p_1.out
+
+TEST*/

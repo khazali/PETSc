@@ -12,7 +12,8 @@ static PetscErrorCode TSTrajectorySet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
-  ierr = PetscSNPrintf(filename,sizeof(filename),tj->filetemplate,stepnum);CHKERRQ(ierr);
+  //ierr = PetscSNPrintf(filename,sizeof(filename),tj->filetemplate,stepnum);CHKERRQ(ierr);
+  ierr = PetscSNPrintf(filename,sizeof(filename),tj->dirfiletemplate,stepnum);CHKERRQ(ierr);
   ierr = PetscViewerFileSetName(tjbasic->viewer,filename);CHKERRQ(ierr);
   ierr = PetscViewerSetUp(tjbasic->viewer);CHKERRQ(ierr);
   ierr = VecView(X,tjbasic->viewer);CHKERRQ(ierr);
@@ -26,7 +27,6 @@ static PetscErrorCode TSTrajectorySet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
     for (i=0;i<ns;i++) {
       ierr = VecView(Y[i],tjbasic->viewer);CHKERRQ(ierr);
     }
-
     ierr = TSGetPrevTime(ts,&tprev);CHKERRQ(ierr);
     ierr = PetscViewerBinaryWrite(tjbasic->viewer,&tprev,1,PETSC_REAL,PETSC_FALSE);CHKERRQ(ierr);
   }
@@ -51,7 +51,7 @@ static PetscErrorCode TSTrajectoryGet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
   Vec            Sol;
 
   PetscFunctionBegin;
-  ierr = PetscSNPrintf(filename,sizeof(filename),tj->filetemplate,stepnum);CHKERRQ(ierr);
+  ierr = PetscSNPrintf(filename,sizeof(filename),tj->dirfiletemplate,stepnum);CHKERRQ(ierr);
   ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename,FILE_MODE_READ,&viewer);CHKERRQ(ierr);
   ierr = TSGetSolution(ts,&Sol);CHKERRQ(ierr);
   ierr = PetscViewerPushFormat(viewer,PETSC_VIEWER_NATIVE);CHKERRQ(ierr);

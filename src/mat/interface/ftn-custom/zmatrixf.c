@@ -1,4 +1,5 @@
 #include <petsc/private/fortranimpl.h>
+#include <petsc/private/f90impl.h>
 #include <petscmat.h>
 #include <petscviewer.h>
 
@@ -11,6 +12,7 @@
 #define matsetvalues1n_                  MATSETVALUES1N
 #define matsetvaluesn1_                  MATSETVALUESN1
 #define matsetvaluesblocked0_            MATSETVALUESBLOCKED0
+#define matsetvaluesblocked2_            MATSETVALUESBLOCKED2
 #define matsetvaluesblocked11_           MATSETVALUESBLOCKED11
 #define matsetvaluesblocked111_          MATSETVALUESBLOCKED111
 #define matsetvaluesblocked1n_           MATSETVALUESBLOCKED1N
@@ -81,6 +83,10 @@
 #define matgetlocalsize00_               MATGETLOCALSIZE00
 #define matgetlocalsize10_               MATGETLOCALSIZE10
 #define matgetlocalsize01_               MATGETLOCALSIZE01
+#define matgetnullspace_                 MATGETNULLSPACE
+#define matsetnullspace_                 MATSETNULLSPACE
+#define matgetownershiprange_            MATGETOWNERSHIPRANGE
+#define matgetownershiprangecolumn_      MATGETOWNERSHIPRANGECOLUMN
 #elif !defined(PETSC_HAVE_FORTRAN_UNDERSCORE)
 #define matsetvalues_                    matsetvalues
 #define matsetvaluesnnnn_                matsetvaluesnnnn
@@ -98,6 +104,7 @@
 #define matsetvalueslocaln1_             matsetvalueslocaln1
 #define matsetvaluesblocked_             matsetvaluesblocked
 #define matsetvaluesblocked0_            matsetvaluesblocked0
+#define matsetvaluesblocked2_            matsetvaluesblocked2
 #define matsetvaluesblocked11_           matsetvaluesblocked11
 #define matsetvaluesblocked111_          matsetvaluesblocked111
 #define matsetvaluesblocked1n_           matsetvaluesblocked1n
@@ -161,7 +168,42 @@
 #define matgetlocalsize00_               matgetlocalsize00
 #define matgetlocalsize10_               matgetlocalsize10
 #define matgetlocalsize01_               matgetlocalsize01
+#define matgetnullspace_                 matgetnullspace
+#define matsetnullspace_                 matsetnullspace
+#define matgetownershiprange_            matgetownershiprange
+#define matgetownershiprangecolumn_      matgetownershiprangecolumn
 #endif
+
+PETSC_EXTERN void PETSC_STDCALL matsetnullspace_(Mat *mat, MatNullSpace *nullsp, int *ierr)
+{
+  CHKFORTRANNULLOBJECTDEREFERENCE(nullsp);
+  *ierr = MatSetNullSpace(*mat,*nullsp);
+}
+
+PETSC_EXTERN void PETSC_STDCALL matgetnullspace_(Mat *mat, MatNullSpace *nullsp, int *ierr)
+{
+  MatNullSpace sp;
+  *ierr = MatGetNullSpace(*mat,&sp);if (*ierr) return;
+  if (!sp) {
+    *nullsp = (MatNullSpace) -1;
+  } else {
+    *nullsp = sp;
+  }
+}
+
+PETSC_EXTERN void PETSC_STDCALL  matgetownershiprange_(Mat *mat,PetscInt *m,PetscInt *n, int *ierr )
+{
+  CHKFORTRANNULLINTEGER(m);
+  CHKFORTRANNULLINTEGER(n);
+  *ierr = MatGetOwnershipRange(*mat,m,n);
+}
+
+PETSC_EXTERN void PETSC_STDCALL  matgetownershiprangecolumn_(Mat *mat,PetscInt *m,PetscInt *n, int *ierr )
+{
+  CHKFORTRANNULLINTEGER(m);
+  CHKFORTRANNULLINTEGER(n);
+  *ierr = MatGetOwnershipRangeColumn(*mat,m,n);
+}
 
 PETSC_EXTERN void PETSC_STDCALL  matgetsize_(Mat *mat,PetscInt *m,PetscInt *n, int *ierr )
 {
@@ -209,6 +251,12 @@ PETSC_EXTERN void PETSC_STDCALL  matgetlocalsize01_(Mat *mat,PetscInt *m,PetscIn
 
 PETSC_EXTERN void PETSC_STDCALL  matsetvaluesblocked_(Mat *mat,PetscInt *m, PetscInt idxm[],PetscInt *n, PetscInt idxn[], PetscScalar v[],InsertMode *addv, int *ierr ){
   *ierr = MatSetValuesBlocked(*mat,*m,idxm,*n,idxn,v,*addv);
+}
+
+PETSC_EXTERN void PETSC_STDCALL  matsetvaluesblocked2_(Mat *mat,PetscInt *m, PetscInt idxm[],PetscInt *n, PetscInt idxn[], F90Array2d *y,InsertMode *addv, int *ierr PETSC_F90_2PTR_PROTO(ptrd)){
+  PetscScalar *fa;
+  *ierr = F90Array2dAccess(y,MPIU_SCALAR,(void**)&fa PETSC_F90_2PTR_PARAM(ptrd));if (*ierr) return;
+  matsetvaluesblocked_(mat,m,idxm,n,idxn,fa,addv,ierr);
 }
 
 PETSC_EXTERN void PETSC_STDCALL  matsetvaluesblocked0_(Mat *mat,PetscInt *m, PetscInt idxm[],PetscInt *n, PetscInt idxn[], PetscScalar v[],InsertMode *addv, int *ierr ){
@@ -654,6 +702,7 @@ PETSC_EXTERN void PETSC_STDCALL matsetoptionsprefix_(Mat *mat,char* prefix PETSC
 
 PETSC_EXTERN void PETSC_STDCALL matnullspaceremove_(MatNullSpace *sp,Vec *vec,PetscErrorCode *ierr)
 {
+  CHKFORTRANNULLOBJECT(*sp)
   *ierr = MatNullSpaceRemove(*sp,*vec);
 }
 

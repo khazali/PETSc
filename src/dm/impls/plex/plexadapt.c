@@ -474,6 +474,7 @@ PetscErrorCode DMAdaptMetric_Plex(DM dm, Vec vertexMetric, DMLabel bdLabel, DM *
   ierr = ISDestroy(&bdIS);CHKERRQ(ierr);
   ierr = DMLabelDestroy(&bdLabelFull);CHKERRQ(ierr);
   /* Get metric */
+  ierr = VecViewFromOptions(vertexMetric, NULL, "-adapt_metric_view");CHKERRQ(ierr);
   ierr = VecGetArrayRead(vertexMetric, &met);CHKERRQ(ierr);
   for (v = 0; v < (vEnd-vStart)*PetscSqr(dim); ++v) metric[v] = PetscRealPart(met[v]);
   ierr = VecRestoreArrayRead(vertexMetric, &met);CHKERRQ(ierr);
@@ -550,6 +551,6 @@ PetscErrorCode DMAdaptMetric_Plex(DM dm, Vec vertexMetric, DMLabel bdLabel, DM *
 #else
   PetscFunctionBegin;
   SETERRQ(PetscObjectComm((PetscObject)dm), PETSC_ERR_SUP, "Remeshing needs external package support.\nPlease reconfigure with --download-pragmatic.");
-  PetscFunctionReturn(PETSC_ERR_SUP);
+  PetscFunctionReturn(0);
 #endif
 }

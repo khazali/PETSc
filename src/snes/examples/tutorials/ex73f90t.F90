@@ -16,11 +16,13 @@
 !  equation  lambda = C * x enforces the surface flux auxiliary equation.  B and C have all
 !  positive entries, areas in C and fraction of area in B.
 !
-!/*T
+!!/*T
 !  Concepts: SNES^parallel Bratu example
 !  Concepts: MatNest
 !  Processors: n
 !T*/
+
+
 !
 !  --------------------------------------------------------------------------
 !
@@ -142,10 +144,7 @@
       nfour = 4
       itwo = 2
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,'-par', solver%lambda,flg,ierr);CHKERRA(ierr)
-      if (solver%lambda .ge. lambda_max .or. solver%lambda .lt. lambda_min) then
-         if (solver%rank .eq. 0) write(6,*) 'Lambda is out of range'
-         SETERRA(PETSC_COMM_SELF,1,' ')
-      endif
+      if (solver%lambda .ge. lambda_max .or. solver%lambda .lt. lambda_min) then SETERRA(PETSC_COMM_SELF,1,'Lambda provided with -par is out of range')
 
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !  Create vector data structures; set function evaluation routine
@@ -736,3 +735,14 @@
       ierr = 0
       return
       end subroutine FormFunctionNLTerm
+
+!/*TEST
+!
+!   build:
+!      requires: !single !libpgf90
+!
+!   test:
+!      nsize: 4
+!      args: -par 5.0 -da_grid_x 10 -da_grid_y 10 -snes_monitor_short -snes_linesearch_type basic -snes_converged_reason -ksp_type fgmres -ksp_norm_type unpreconditioned -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_fact_type upper -ksp_monitor_short -fieldsplit_lambda_ksp_type preonly -fieldsplit_lambda_pc_type jacobi -fieldsplit_phi_pc_type gamg -fieldsplit_phi_pc_gamg_agg_nsmooths 1 -fieldsplit_phi_pc_gamg_threshold 0. -fieldsplit_phi_gamg_est_ksp_type cg
+!
+!TEST*/

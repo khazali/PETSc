@@ -302,7 +302,7 @@ static PetscErrorCode KSPMonitorError(KSP ksp, PetscInt it, PetscReal rnorm, voi
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode TSMonitorError(TS ts, PetscInt step, PetscReal crtime, Vec u, void *ctx)
+static PetscErrorCode MyTSMonitorError(TS ts, PetscInt step, PetscReal crtime, Vec u, void *ctx)
 {
   AppCtx        *user = (AppCtx *) ctx;
   DM             dm;
@@ -337,7 +337,7 @@ int main(int argc, char **argv)
   ierr = VecDuplicate(u, &r);CHKERRQ(ierr);
 
   ierr = TSCreate(PETSC_COMM_WORLD, &ts);CHKERRQ(ierr);
-  ierr = TSMonitorSet(ts, TSMonitorError, &ctx, NULL);CHKERRQ(ierr);
+  ierr = TSMonitorSet(ts, MyTSMonitorError, &ctx, NULL);CHKERRQ(ierr);
   ierr = TSSetDM(ts, dm);CHKERRQ(ierr);
   ierr = DMTSSetBoundaryLocal(dm, DMPlexTSComputeBoundary, &ctx);CHKERRQ(ierr);
   ierr = DMTSSetIFunctionLocal(dm, DMPlexTSComputeIFunctionFEM, &ctx);CHKERRQ(ierr);
@@ -376,12 +376,12 @@ int main(int argc, char **argv)
 
   test:
     suffix: 2d_p1p1_sor_r1
-    requires: triangle
+    requires: triangle !single
     args: -dm_refine 1 -phi_petscspace_order 1 -vel_petscspace_order 1 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -ksp_rtol 1.0e-9 -pc_type sor -snes_monitor_short -snes_converged_reason -ksp_monitor_short -ts_monitor
 
   test:
     suffix: 2d_p1p1_mg_r1
-    requires: triangle
+    requires: triangle !single
     args: -dm_refine_hierarchy 1 -phi_petscspace_order 1 -vel_petscspace_order 1 -ts_type beuler -ts_max_steps 10 -ts_dt 0.1 -ksp_type fgmres -ksp_rtol 1.0e-9 -pc_type mg -pc_mg_levels 2 -snes_monitor_short -snes_converged_reason -snes_view -ksp_monitor_true_residual -ts_monitor
 
 TEST*/

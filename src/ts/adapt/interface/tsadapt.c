@@ -131,7 +131,7 @@ PetscErrorCode  TSAdaptInitializePackage(void)
 - type - either  TSADAPTBASIC or TSADAPTNONE
 
   Options Database:
-.  -ts_adapt_type basic or none - to setting the adapter type
+. -ts_adapt_type <basic or dsp or none> - to set the adapter type
 
   Level: intermediate
 
@@ -330,7 +330,7 @@ PetscErrorCode  TSAdaptDestroy(TSAdapt *adapt)
 -  flg - PETSC_TRUE to active a monitor, PETSC_FALSE to disable
 
    Options Database Keys:
-.  -ts_adapt_monitor
+.  -ts_adapt_monitor - to turn on monitoring
 
    Level: intermediate
 
@@ -391,7 +391,7 @@ PetscErrorCode TSAdaptSetCheckStage(TSAdapt adapt,PetscErrorCode (*func)(TSAdapt
 -  flag - whether to always accept steps
 
    Options Database Keys:
-.  -ts_adapt_always_accept
+.  -ts_adapt_always_accept - to always accept steps
 
    Level: intermediate
 
@@ -414,11 +414,11 @@ PetscErrorCode TSAdaptSetAlwaysAccept(TSAdapt adapt,PetscBool flag)
    Input Arguments:
 +  adapt - adaptive controller context
 .  safety - safety factor relative to target error/stability goal
-+  reject_safety - extra safety factor to apply if the last step was rejected
+-  reject_safety - extra safety factor to apply if the last step was rejected
 
    Options Database Keys:
-+  -ts_adapt_safety
--  -ts_adapt_reject_safety
++  -ts_adapt_safety <safety> - to set safety factor
+-  -ts_adapt_reject_safety <reject_safety> - to set reject safety factor
 
    Level: intermediate
 
@@ -474,10 +474,10 @@ PetscErrorCode TSAdaptGetSafety(TSAdapt adapt,PetscReal *safety,PetscReal *rejec
    Input Arguments:
 +  adapt - adaptive controller context
 .  low - admissible decrease factor
-+  high - admissible increase factor
+-  high - admissible increase factor
 
    Options Database Keys:
-.  -ts_adapt_clip
+.  -ts_adapt_clip <low>,<high> - to set admissible time step decrease and increase factors
 
    Level: intermediate
 
@@ -535,8 +535,8 @@ PetscErrorCode TSAdaptGetClip(TSAdapt adapt,PetscReal *low,PetscReal *high)
 -  hmax - maximum time step
 
    Options Database Keys:
-+  -ts_adapt_dt_min - minimum time step
--  -ts_adapt_dt_max - maximum time step
++  -ts_adapt_dt_min <min> - to set minimum time step
+-  -ts_adapt_dt_max <max> - to set maximum time step
 
    Level: intermediate
 

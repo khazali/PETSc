@@ -38,6 +38,7 @@ MPI_Comm PETSC_COMM_WORLD = MPI_COMM_NULL;
 PetscMPIInt Petsc_Counter_keyval   = MPI_KEYVAL_INVALID;
 PetscMPIInt Petsc_InnerComm_keyval = MPI_KEYVAL_INVALID;
 PetscMPIInt Petsc_OuterComm_keyval = MPI_KEYVAL_INVALID;
+PetscMPIInt Petsc_Shared_keyval    = MPI_KEYVAL_INVALID;
 
 /*
      Declare and set all the string names of the PETSc enums
@@ -314,7 +315,7 @@ PETSC_EXTERN void PetscMin_Local(void *in,void *out,PetscMPIInt *cnt,MPI_Datatyp
 
    This is called by MPI, not by users. This is called by MPI_Comm_free() when the communicator that has this  data as an attribute is freed.
 
-   Note: this is declared extern "C" because it is passed to MPI_Keyval_create()
+   Note: this is declared extern "C" because it is passed to MPI_Comm_create_keyval()
 
 */
 PETSC_EXTERN PetscMPIInt MPIAPI Petsc_DelCounter(MPI_Comm comm,PetscMPIInt keyval,void *count_val,void *extra_state)
@@ -322,51 +323,53 @@ PETSC_EXTERN PetscMPIInt MPIAPI Petsc_DelCounter(MPI_Comm comm,PetscMPIInt keyva
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscInfo1(0,"Deleting counter data in an MPI_Comm %ld\n",(long)comm);if (ierr) PetscFunctionReturn((PetscMPIInt)ierr);
-  ierr = PetscFree(count_val);if (ierr) PetscFunctionReturn((PetscMPIInt)ierr);
+  ierr = PetscInfo1(0,"Deleting counter data in an MPI_Comm %ld\n",(long)comm);CHKERRMPI(ierr);
+  ierr = PetscFree(count_val);CHKERRMPI(ierr);
   PetscFunctionReturn(MPI_SUCCESS);
 }
 
 /*
-  This is invoked on the outer comm as a result of either PetscCommDestroy() (via MPI_Attr_delete) or when the user
+  This is invoked on the outer comm as a result of either PetscCommDestroy() (via MPI_Comm_delete_attr) or when the user
   calls MPI_Comm_free().
 
   This is the only entry point for breaking the links between inner and outer comms.
 
   This is called by MPI, not by users. This is called when MPI_Comm_free() is called on the communicator.
 
-  Note: this is declared extern "C" because it is passed to MPI_Keyval_create()
+  Note: this is declared extern "C" because it is passed to MPI_Comm_create_keyval()
 
 */
 PETSC_EXTERN PetscMPIInt MPIAPI Petsc_DelComm_Outer(MPI_Comm comm,PetscMPIInt keyval,void *attr_val,void *extra_state)
 {
-  PetscErrorCode ierr;
-  PetscMPIInt    flg;
+  PetscErrorCode                    ierr;
+  PetscMPIInt                       flg;
   union {MPI_Comm comm; void *ptr;} icomm,ocomm;
 
   PetscFunctionBegin;
-  if (keyval != Petsc_InnerComm_keyval) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_CORRUPT,"Unexpected keyval");
+  if (keyval != Petsc_InnerComm_keyval) SETERRMPI(PETSC_COMM_SELF,PETSC_ERR_ARG_CORRUPT,"Unexpected keyval");
   icomm.ptr = attr_val;
 
-  ierr = MPI_Attr_get(icomm.comm,Petsc_OuterComm_keyval,&ocomm,&flg);CHKERRQ(ierr);
-  if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_CORRUPT,"Inner MPI_Comm does not have expected reference to outer comm");
-  if (ocomm.comm != comm) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_CORRUPT,"Inner MPI_Comm has reference to non-matching outer comm");
-  ierr = MPI_Attr_delete(icomm.comm,Petsc_OuterComm_keyval);CHKERRQ(ierr); /* Calls Petsc_DelComm_Inner */
-  ierr = PetscInfo1(0,"User MPI_Comm %ld is being freed after removing reference from inner PETSc comm to this outer comm\n",(long)comm);if (ierr) PetscFunctionReturn((PetscMPIInt)ierr);
+  ierr = MPI_Comm_get_attr(icomm.comm,Petsc_OuterComm_keyval,&ocomm,&flg);CHKERRMPI(ierr);
+  if (!flg) SETERRMPI(PETSC_COMM_SELF,PETSC_ERR_ARG_CORRUPT,"Inner MPI_Comm does not have expected reference to outer comm");
+  if (ocomm.comm != comm) SETERRMPI(PETSC_COMM_SELF,PETSC_ERR_ARG_CORRUPT,"Inner MPI_Comm has reference to non-matching outer comm");
+  ierr = MPI_Comm_delete_attr(icomm.comm,Petsc_OuterComm_keyval);CHKERRMPI(ierr);
+  ierr = PetscInfo1(0,"User MPI_Comm %ld is being freed after removing reference from inner PETSc comm to this outer comm\n",(long)comm);CHKERRMPI(ierr);
   PetscFunctionReturn(MPI_SUCCESS);
 }
 
 /*
- * This is invoked on the inner comm when Petsc_DelComm_Outer calls MPI_Attr_delete.  It should not be reached any other way.
+ * This is invoked on the inner comm when Petsc_DelComm_Outer calls MPI_Comm_delete_attr.  It should not be reached any other way.
  */
 PETSC_EXTERN PetscMPIInt MPIAPI Petsc_DelComm_Inner(MPI_Comm comm,PetscMPIInt keyval,void *attr_val,void *extra_state)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscInfo1(0,"Removing reference to PETSc communicator embedded in a user MPI_Comm %ld\n",(long)comm);if (ierr) PetscFunctionReturn((PetscMPIInt)ierr);
+  ierr = PetscInfo1(0,"Removing reference to PETSc communicator embedded in a user MPI_Comm %ld\n",(long)comm);CHKERRMPI(ierr);
   PetscFunctionReturn(MPI_SUCCESS);
 }
+
+PETSC_EXTERN PetscMPIInt MPIAPI Petsc_DelShared(MPI_Comm,PetscMPIInt,void *,void *);
 
 #if defined(PETSC_USE_PETSC_MPI_EXTERNAL32)
 #if !defined(PETSC_WORDS_BIGENDIAN)
@@ -375,6 +378,8 @@ PETSC_EXTERN PetscMPIInt PetscDataRep_read_conv_fn(void*, MPI_Datatype,PetscMPII
 PETSC_EXTERN PetscMPIInt PetscDataRep_write_conv_fn(void*, MPI_Datatype,PetscMPIInt,void*,MPI_Offset,void*);
 #endif
 #endif
+
+PetscMPIInt PETSC_MPI_ERROR_CLASS,PETSC_MPI_ERROR_CODE;
 
 int  PetscGlobalArgc   = 0;
 char **PetscGlobalArgs = 0;
@@ -720,6 +725,9 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
 #if defined(PETSC_HAVE_CUDA)
   cublasStatus_t cberr;
 #endif
+#if defined(PETSC_HAVE_HWLOC)
+  PetscViewer    viewer;
+#endif
 
   PetscFunctionBegin;
   if (PetscInitializeCalled) PetscFunctionReturn(0);
@@ -839,6 +847,9 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
   if (PETSC_COMM_WORLD == MPI_COMM_NULL) PETSC_COMM_WORLD = MPI_COMM_WORLD;
   ierr = MPI_Comm_set_errhandler(PETSC_COMM_WORLD,MPI_ERRORS_RETURN);CHKERRQ(ierr);
 
+  ierr = MPI_Add_error_class(&PETSC_MPI_ERROR_CLASS);CHKERRQ(ierr);
+  ierr = MPI_Add_error_code(PETSC_MPI_ERROR_CLASS,&PETSC_MPI_ERROR_CODE);CHKERRQ(ierr);
+
   /* Done after init due to a bug in MPICH-GM? */
   ierr = PetscErrorPrintfInitialize();CHKERRQ(ierr);
 
@@ -909,9 +920,10 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
   /*
      Attributes to be set on PETSc communicators
   */
-  ierr = MPI_Keyval_create(MPI_NULL_COPY_FN,Petsc_DelCounter,&Petsc_Counter_keyval,(void*)0);CHKERRQ(ierr);
-  ierr = MPI_Keyval_create(MPI_NULL_COPY_FN,Petsc_DelComm_Outer,&Petsc_InnerComm_keyval,(void*)0);CHKERRQ(ierr);
-  ierr = MPI_Keyval_create(MPI_NULL_COPY_FN,Petsc_DelComm_Inner,&Petsc_OuterComm_keyval,(void*)0);CHKERRQ(ierr);
+  ierr = MPI_Comm_create_keyval(MPI_COMM_NULL_COPY_FN,Petsc_DelCounter,&Petsc_Counter_keyval,(void*)0);CHKERRQ(ierr);
+  ierr = MPI_Comm_create_keyval(MPI_COMM_NULL_COPY_FN,Petsc_DelComm_Outer,&Petsc_InnerComm_keyval,(void*)0);CHKERRQ(ierr);
+  ierr = MPI_Comm_create_keyval(MPI_COMM_NULL_COPY_FN,Petsc_DelComm_Inner,&Petsc_OuterComm_keyval,(void*)0);CHKERRQ(ierr);
+  ierr = MPI_Comm_create_keyval(MPI_COMM_NULL_COPY_FN,Petsc_DelShared,&Petsc_Shared_keyval,(void*)0);CHKERRQ(ierr);
 
   /*
      Build the options database
@@ -996,6 +1008,12 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
   ierr = PetscFPTCreate(10000);CHKERRQ(ierr);
 #endif
 
+#if defined(PETSC_HAVE_HWLOC)
+  ierr   = PetscOptionsGetViewer(PETSC_COMM_WORLD,NULL,"-process_view",&viewer,NULL,&flg);CHKERRQ(ierr);
+  if (flg) {
+    ierr = PetscProcessPlacementView(viewer);CHKERRQ(ierr);
+  }
+#endif
 
   /*
       Once we are completedly initialized then we can set this variables
@@ -1087,11 +1105,11 @@ PetscErrorCode  PetscFinalize(void)
   cublasStatus_t cberr;
 #endif
 
-  PetscFunctionBegin;
   if (!PetscInitializeCalled) {
     printf("PetscInitialize() must be called before PetscFinalize()\n");
-    PetscFunctionReturn(PETSC_ERR_ARG_WRONGSTATE);
+    return(PETSC_ERR_ARG_WRONGSTATE);
   }
+  PetscFunctionBegin;
   ierr = PetscInfo(NULL,"PetscFinalize() called\n");CHKERRQ(ierr);
 
   ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
@@ -1474,31 +1492,32 @@ PetscErrorCode  PetscFinalize(void)
     PetscMPIInt      flg;
     MPI_Comm         icomm;
     union {MPI_Comm comm; void *ptr;} ucomm;
-    ierr = MPI_Attr_get(PETSC_COMM_SELF,Petsc_InnerComm_keyval,&ucomm,&flg);CHKERRQ(ierr);
+    ierr = MPI_Comm_get_attr(PETSC_COMM_SELF,Petsc_InnerComm_keyval,&ucomm,&flg);CHKERRQ(ierr);
     if (flg) {
       icomm = ucomm.comm;
-      ierr = MPI_Attr_get(icomm,Petsc_Counter_keyval,&counter,&flg);CHKERRQ(ierr);
+      ierr = MPI_Comm_get_attr(icomm,Petsc_Counter_keyval,&counter,&flg);CHKERRQ(ierr);
       if (!flg) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_CORRUPT,"Inner MPI_Comm does not have expected tag/name counter, problem with corrupted memory");
 
-      ierr = MPI_Attr_delete(PETSC_COMM_SELF,Petsc_InnerComm_keyval);CHKERRQ(ierr);
-      ierr = MPI_Attr_delete(icomm,Petsc_Counter_keyval);CHKERRQ(ierr);
+      ierr = MPI_Comm_delete_attr(PETSC_COMM_SELF,Petsc_InnerComm_keyval);CHKERRQ(ierr);
+      ierr = MPI_Comm_delete_attr(icomm,Petsc_Counter_keyval);CHKERRQ(ierr);
       ierr = MPI_Comm_free(&icomm);CHKERRQ(ierr);
     }
-    ierr = MPI_Attr_get(PETSC_COMM_WORLD,Petsc_InnerComm_keyval,&ucomm,&flg);CHKERRQ(ierr);
+    ierr = MPI_Comm_get_attr(PETSC_COMM_WORLD,Petsc_InnerComm_keyval,&ucomm,&flg);CHKERRQ(ierr);
     if (flg) {
       icomm = ucomm.comm;
-      ierr = MPI_Attr_get(icomm,Petsc_Counter_keyval,&counter,&flg);CHKERRQ(ierr);
+      ierr = MPI_Comm_get_attr(icomm,Petsc_Counter_keyval,&counter,&flg);CHKERRQ(ierr);
       if (!flg) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_ARG_CORRUPT,"Inner MPI_Comm does not have expected tag/name counter, problem with corrupted memory");
 
-      ierr = MPI_Attr_delete(PETSC_COMM_WORLD,Petsc_InnerComm_keyval);CHKERRQ(ierr);
-      ierr = MPI_Attr_delete(icomm,Petsc_Counter_keyval);CHKERRQ(ierr);
+      ierr = MPI_Comm_delete_attr(PETSC_COMM_WORLD,Petsc_InnerComm_keyval);CHKERRQ(ierr);
+      ierr = MPI_Comm_delete_attr(icomm,Petsc_Counter_keyval);CHKERRQ(ierr);
       ierr = MPI_Comm_free(&icomm);CHKERRQ(ierr);
     }
   }
 
-  ierr = MPI_Keyval_free(&Petsc_Counter_keyval);CHKERRQ(ierr);
-  ierr = MPI_Keyval_free(&Petsc_InnerComm_keyval);CHKERRQ(ierr);
-  ierr = MPI_Keyval_free(&Petsc_OuterComm_keyval);CHKERRQ(ierr);
+  ierr = MPI_Comm_free_keyval(&Petsc_Counter_keyval);CHKERRQ(ierr);
+  ierr = MPI_Comm_free_keyval(&Petsc_InnerComm_keyval);CHKERRQ(ierr);
+  ierr = MPI_Comm_free_keyval(&Petsc_OuterComm_keyval);CHKERRQ(ierr);
+  ierr = MPI_Comm_free_keyval(&Petsc_Shared_keyval);CHKERRQ(ierr);
 
   ierr = PetscSpinlockDestroy(&PetscViewerASCIISpinLockOpen);CHKERRQ(ierr);
   ierr = PetscSpinlockDestroy(&PetscViewerASCIISpinLockStdout);CHKERRQ(ierr);

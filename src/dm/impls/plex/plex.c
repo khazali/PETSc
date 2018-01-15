@@ -585,7 +585,7 @@ static PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
   ierr = PetscViewerGetFormat(viewer, &format);CHKERRQ(ierr);
   if (format == PETSC_VIEWER_ASCII_INFO_DETAIL) {
     const char *name;
-    PetscInt    maxConeSize, maxSupportSize;
+    PetscInt    dim, cellHeight, maxConeSize, maxSupportSize;
     PetscInt    pStart, pEnd, p;
     PetscMPIInt rank, size;
 
@@ -594,7 +594,11 @@ static PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
     ierr = PetscObjectGetName((PetscObject) dm, &name);CHKERRQ(ierr);
     ierr = DMPlexGetChart(dm, &pStart, &pEnd);CHKERRQ(ierr);
     ierr = DMPlexGetMaxSizes(dm, &maxConeSize, &maxSupportSize);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIPrintf(viewer, "Mesh '%s':\n", name);CHKERRQ(ierr);
+    ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
+    ierr = DMPlexGetVTKCellHeight(dm, &cellHeight);CHKERRQ(ierr);
+    if (name) {ierr = PetscViewerASCIIPrintf(viewer, "%s in %D dimension%s:\n", name, dim, dim == 1 ? "" : "s");CHKERRQ(ierr);}
+    else      {ierr = PetscViewerASCIIPrintf(viewer, "Mesh in %D dimension%s:\n", dim, dim == 1 ? "" : "s");CHKERRQ(ierr);}
+    if (cellHeight) {ierr = PetscViewerASCIIPrintf(viewer, "  Cells are at height %D\n", cellHeight);CHKERRQ(ierr);}
     ierr = PetscViewerASCIIPrintf(viewer, "orientation is missing\n", name);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer, "cap --> base:\n", name);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPushSynchronized(viewer);CHKERRQ(ierr);
@@ -701,7 +705,7 @@ static PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
       if (PetscUnlikely(dof > 3)) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"coordSection vertex %D has dof %D > 3",v,dof);
       for (d = 0; d < dof; ++d) {
         tcoords[d] = (double) (scale*PetscRealPart(coords[off+d]));
-        tcoords[d] = PetscAbsReal(tcoords[d]) < 1e-10 ? 0.0 : tcoords[d];
+        tcoords[d] = PetscAbs(tcoords[d]) < 1e-10 ? 0.0 : tcoords[d];
       }
       /* Rotate coordinates since PGF makes z point out of the page instead of up */
       if (dim == 3) {PetscReal tmp = tcoords[1]; tcoords[1] = tcoords[2]; tcoords[2] = -tmp;}
@@ -741,7 +745,7 @@ static PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
         ierr = PetscViewerASCIISynchronizedPrintf(viewer, "(");CHKERRQ(ierr);
         for (d = 0; d < dof; ++d) {
           tcoords[d] = (double) (scale*PetscRealPart(coords[offA+d]+coords[offB+d]));
-          tcoords[d] = PetscAbsReal(tcoords[d]) < 1e-10 ? 0.0 : tcoords[d];
+          tcoords[d] = PetscAbs(tcoords[d]) < 1e-10 ? 0.0 : tcoords[d];
         }
         /* Rotate coordinates since PGF makes z point out of the page instead of up */
         if (dim == 3) {PetscReal tmp = tcoords[1]; tcoords[1] = tcoords[2]; tcoords[2] = -tmp;}
@@ -807,7 +811,7 @@ static PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
   } else {
     MPI_Comm    comm;
     PetscInt   *sizes, *hybsizes;
-    PetscInt    locDepth, depth, dim, d, pMax[4];
+    PetscInt    locDepth, depth, cellHeight, dim, d, pMax[4];
     PetscInt    pStart, pEnd, p;
     PetscInt    numLabels, l;
     const char *name;
@@ -816,9 +820,11 @@ static PetscErrorCode DMPlexView_Ascii(DM dm, PetscViewer viewer)
     ierr = PetscObjectGetComm((PetscObject)dm,&comm);CHKERRQ(ierr);
     ierr = MPI_Comm_size(comm, &size);CHKERRQ(ierr);
     ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
+    ierr = DMPlexGetVTKCellHeight(dm, &cellHeight);CHKERRQ(ierr);
     ierr = PetscObjectGetName((PetscObject) dm, &name);CHKERRQ(ierr);
-    if (name) {ierr = PetscViewerASCIIPrintf(viewer, "%s in %D dimensions:\n", name, dim);CHKERRQ(ierr);}
-    else      {ierr = PetscViewerASCIIPrintf(viewer, "Mesh in %D dimensions:\n", dim);CHKERRQ(ierr);}
+    if (name) {ierr = PetscViewerASCIIPrintf(viewer, "%s in %D dimension%s:\n", name, dim, dim == 1 ? "" : "s");CHKERRQ(ierr);}
+    else      {ierr = PetscViewerASCIIPrintf(viewer, "Mesh in %D dimension%s:\n", dim, dim == 1 ? "" : "s");CHKERRQ(ierr);}
+    if (cellHeight) {ierr = PetscViewerASCIIPrintf(viewer, "  Cells are at height %D\n", cellHeight);CHKERRQ(ierr);}
     ierr = DMPlexGetDepth(dm, &locDepth);CHKERRQ(ierr);
     ierr = MPIU_Allreduce(&locDepth, &depth, 1, MPIU_INT, MPI_MAX, comm);CHKERRQ(ierr);
     ierr = DMPlexGetHybridBounds(dm, &pMax[depth], depth > 0 ? &pMax[depth-1] : NULL, &pMax[1], &pMax[0]);CHKERRQ(ierr);
@@ -1097,7 +1103,7 @@ PetscErrorCode DMCreateMatrix_Plex(DM dm, Mat *J)
   if (!isShell) {
     PetscSection subSection;
     PetscBool    fillMatrix = (PetscBool)(!dm->prealloc_only && !isMatIS);
-    PetscInt    *dnz, *onz, *dnzu, *onzu, bsLocal, bsMax, bsMin, *ltogidx, lsize;
+    PetscInt    *dnz, *onz, *dnzu, *onzu, bsLocal[2], bsMinMax[2], *ltogidx, lsize;
     PetscInt     pStart, pEnd, p, dof, cdof;
 
     /* Set localtoglobalmapping on the matrix for MatSetValuesLocal() to work (it also creates the local matrices in case of MATIS) */
@@ -1132,13 +1138,11 @@ PetscErrorCode DMCreateMatrix_Plex(DM dm, Mat *J)
       }
     }
     /* Must have same blocksize on all procs (some might have no points) */
-    bsLocal = bs;
-    ierr = MPIU_Allreduce(&bsLocal, &bsMax, 1, MPIU_INT, MPI_MAX, PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
-    bsLocal = bs < 0 ? bsMax : bs;
-    ierr = MPIU_Allreduce(&bsLocal, &bsMin, 1, MPIU_INT, MPI_MIN, PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
-    if (bsMin != bsMax) {bs = 1;}
-    else                {bs = bsMax;}
-    bs   = bs < 0 ? 1 : bs;
+    bsLocal[0] = bs < 0 ? PETSC_MAX_INT : bs; bsLocal[1] = bs;
+    ierr = PetscGlobalMinMaxInt(PetscObjectComm((PetscObject) dm), bsLocal, bsMinMax);CHKERRQ(ierr);
+    if (bsMinMax[0] != bsMinMax[1]) {bs = 1;}
+    else                            {bs = bsMinMax[0];}
+    bs = bs < 0 ? 1 : bs;
     if (isMatIS) {
       PetscInt l;
       /* Must reduce indices by blocksize */
@@ -1248,13 +1252,13 @@ PetscErrorCode DMPlexSetChart(DM dm, PetscInt pStart, PetscInt pEnd)
 }
 
 /*@
-  DMPlexGetConeSize - Return the number of in-edges for this point in the Sieve DAG
+  DMPlexGetConeSize - Return the number of in-edges for this point in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-- p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+- p - The point, which must lie in the chart set with DMPlexSetChart()
 
   Output Parameter:
 . size - The cone size for point p
@@ -1276,13 +1280,13 @@ PetscErrorCode DMPlexGetConeSize(DM dm, PetscInt p, PetscInt *size)
 }
 
 /*@
-  DMPlexSetConeSize - Set the number of in-edges for this point in the Sieve DAG
+  DMPlexSetConeSize - Set the number of in-edges for this point in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-. p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+. p - The point, which must lie in the chart set with DMPlexSetChart()
 - size - The cone size for point p
 
   Output Parameter:
@@ -1308,13 +1312,13 @@ PetscErrorCode DMPlexSetConeSize(DM dm, PetscInt p, PetscInt size)
 }
 
 /*@
-  DMPlexAddConeSize - Add the given number of in-edges to this point in the Sieve DAG
+  DMPlexAddConeSize - Add the given number of in-edges to this point in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-. p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+. p - The point, which must lie in the chart set with DMPlexSetChart()
 - size - The additional cone size for point p
 
   Output Parameter:
@@ -1342,13 +1346,13 @@ PetscErrorCode DMPlexAddConeSize(DM dm, PetscInt p, PetscInt size)
 }
 
 /*@C
-  DMPlexGetCone - Return the points on the in-edges for this point in the Sieve DAG
+  DMPlexGetCone - Return the points on the in-edges for this point in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-- p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+- p - The point, which must lie in the chart set with DMPlexSetChart()
 
   Output Parameter:
 . cone - An array of points which are on the in-edges for point p
@@ -1378,13 +1382,13 @@ PetscErrorCode DMPlexGetCone(DM dm, PetscInt p, const PetscInt *cone[])
 }
 
 /*@
-  DMPlexSetCone - Set the points on the in-edges for this point in the Sieve DAG
+  DMPlexSetCone - Set the points on the in-edges for this point in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-. p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+. p - The point, which must lie in the chart set with DMPlexSetChart()
 - cone - An array of points which are on the in-edges for point p
 
   Output Parameter:
@@ -1418,13 +1422,13 @@ PetscErrorCode DMPlexSetCone(DM dm, PetscInt p, const PetscInt cone[])
 }
 
 /*@C
-  DMPlexGetConeOrientation - Return the orientations on the in-edges for this point in the Sieve DAG
+  DMPlexGetConeOrientation - Return the orientations on the in-edges for this point in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-- p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+- p - The point, which must lie in the chart set with DMPlexSetChart()
 
   Output Parameter:
 . coneOrientation - An array of orientations which are on the in-edges for point p. An orientation is an
@@ -1464,13 +1468,13 @@ PetscErrorCode DMPlexGetConeOrientation(DM dm, PetscInt p, const PetscInt *coneO
 }
 
 /*@
-  DMPlexSetConeOrientation - Set the orientations on the in-edges for this point in the Sieve DAG
+  DMPlexSetConeOrientation - Set the orientations on the in-edges for this point in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-. p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+. p - The point, which must lie in the chart set with DMPlexSetChart()
 - coneOrientation - An array of orientations which are on the in-edges for point p. An orientation is an
                     integer giving the prescription for cone traversal. If it is negative, the cone is
                     traversed in the opposite direction. Its value 'o', or if negative '-(o+1)', gives
@@ -1510,13 +1514,13 @@ PetscErrorCode DMPlexSetConeOrientation(DM dm, PetscInt p, const PetscInt coneOr
 }
 
 /*@
-  DMPlexInsertCone - Insert a point into the in-edges for the point p in the Sieve DAG
+  DMPlexInsertCone - Insert a point into the in-edges for the point p in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-. p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+. p - The point, which must lie in the chart set with DMPlexSetChart()
 . conePos - The local index in the cone where the point should be put
 - conePoint - The mesh point to insert
 
@@ -1544,13 +1548,13 @@ PetscErrorCode DMPlexInsertCone(DM dm, PetscInt p, PetscInt conePos, PetscInt co
 }
 
 /*@
-  DMPlexInsertConeOrientation - Insert a point orientation for the in-edge for the point p in the Sieve DAG
+  DMPlexInsertConeOrientation - Insert a point orientation for the in-edge for the point p in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-. p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+. p - The point, which must lie in the chart set with DMPlexSetChart()
 . conePos - The local index in the cone where the point should be put
 - coneOrientation - The point orientation to insert
 
@@ -1577,13 +1581,13 @@ PetscErrorCode DMPlexInsertConeOrientation(DM dm, PetscInt p, PetscInt conePos, 
 }
 
 /*@
-  DMPlexGetSupportSize - Return the number of out-edges for this point in the Sieve DAG
+  DMPlexGetSupportSize - Return the number of out-edges for this point in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-- p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+- p - The point, which must lie in the chart set with DMPlexSetChart()
 
   Output Parameter:
 . size - The support size for point p
@@ -1605,13 +1609,13 @@ PetscErrorCode DMPlexGetSupportSize(DM dm, PetscInt p, PetscInt *size)
 }
 
 /*@
-  DMPlexSetSupportSize - Set the number of out-edges for this point in the Sieve DAG
+  DMPlexSetSupportSize - Set the number of out-edges for this point in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-. p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+. p - The point, which must lie in the chart set with DMPlexSetChart()
 - size - The support size for point p
 
   Output Parameter:
@@ -1637,13 +1641,13 @@ PetscErrorCode DMPlexSetSupportSize(DM dm, PetscInt p, PetscInt size)
 }
 
 /*@C
-  DMPlexGetSupport - Return the points on the out-edges for this point in the Sieve DAG
+  DMPlexGetSupport - Return the points on the out-edges for this point in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-- p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+- p - The point, which must lie in the chart set with DMPlexSetChart()
 
   Output Parameter:
 . support - An array of points which are on the out-edges for point p
@@ -1673,13 +1677,13 @@ PetscErrorCode DMPlexGetSupport(DM dm, PetscInt p, const PetscInt *support[])
 }
 
 /*@
-  DMPlexSetSupport - Set the points on the out-edges for this point in the Sieve DAG
+  DMPlexSetSupport - Set the points on the out-edges for this point in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-. p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+. p - The point, which must lie in the chart set with DMPlexSetChart()
 - support - An array of points which are on the in-edges for point p
 
   Output Parameter:
@@ -1713,13 +1717,13 @@ PetscErrorCode DMPlexSetSupport(DM dm, PetscInt p, const PetscInt support[])
 }
 
 /*@
-  DMPlexInsertSupport - Insert a point into the out-edges for the point p in the Sieve DAG
+  DMPlexInsertSupport - Insert a point into the out-edges for the point p in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-. p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+. p - The point, which must lie in the chart set with DMPlexSetChart()
 . supportPos - The local index in the cone where the point should be put
 - supportPoint - The mesh point to insert
 
@@ -1747,13 +1751,13 @@ PetscErrorCode DMPlexInsertSupport(DM dm, PetscInt p, PetscInt supportPos, Petsc
 }
 
 /*@C
-  DMPlexGetTransitiveClosure - Return the points on the transitive closure of the in-edges or out-edges for this point in the Sieve DAG
+  DMPlexGetTransitiveClosure - Return the points on the transitive closure of the in-edges or out-edges for this point in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-. p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+. p - The point, which must lie in the chart set with DMPlexSetChart()
 . useCone - PETSC_TRUE for in-edges,  otherwise use out-edges
 - points - If points is NULL on input, internal storage will be returned, otherwise the provided array is used
 
@@ -1890,13 +1894,13 @@ PetscErrorCode DMPlexGetTransitiveClosure(DM dm, PetscInt p, PetscBool useCone, 
 }
 
 /*@C
-  DMPlexGetTransitiveClosure_Internal - Return the points on the transitive closure of the in-edges or out-edges for this point in the Sieve DAG with a specified initial orientation
+  DMPlexGetTransitiveClosure_Internal - Return the points on the transitive closure of the in-edges or out-edges for this point in the DAG with a specified initial orientation
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-. p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+. p - The point, which must lie in the chart set with DMPlexSetChart()
 . orientation - The orientation of the point
 . useCone - PETSC_TRUE for in-edges,  otherwise use out-edges
 - points - If points is NULL on input, internal storage will be returned, otherwise the provided array is used
@@ -2042,13 +2046,13 @@ PetscErrorCode DMPlexGetTransitiveClosure_Internal(DM dm, PetscInt p, PetscInt o
 }
 
 /*@C
-  DMPlexRestoreTransitiveClosure - Restore the array of points on the transitive closure of the in-edges or out-edges for this point in the Sieve DAG
+  DMPlexRestoreTransitiveClosure - Restore the array of points on the transitive closure of the in-edges or out-edges for this point in the DAG
 
   Not collective
 
   Input Parameters:
 + mesh - The DMPlex
-. p - The Sieve point, which must lie in the chart set with DMPlexSetChart()
+. p - The point, which must lie in the chart set with DMPlexSetChart()
 . useCone - PETSC_TRUE for in-edges,  otherwise use out-edges
 . numPoints - The number of points in the closure, so points[] is of size 2*numPoints, zeroed on exit
 - points - The points and point orientations, interleaved as pairs [p0, o0, p1, o1, ...], zeroed on exit
@@ -2080,7 +2084,7 @@ PetscErrorCode DMPlexRestoreTransitiveClosure(DM dm, PetscInt p, PetscBool useCo
 }
 
 /*@
-  DMPlexGetMaxSizes - Return the maximum number of in-edges (cone) and out-edges (support) for any point in the Sieve DAG
+  DMPlexGetMaxSizes - Return the maximum number of in-edges (cone) and out-edges (support) for any point in the DAG
 
   Not collective
 
@@ -2126,7 +2130,7 @@ PetscErrorCode DMSetUp_Plex(DM dm)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode DMCreateSubDM_Plex(DM dm, PetscInt numFields, PetscInt fields[], IS *is, DM *subdm)
+PetscErrorCode DMCreateSubDM_Plex(DM dm, PetscInt numFields, const PetscInt fields[], IS *is, DM *subdm)
 {
   PetscErrorCode ierr;
 
@@ -2136,8 +2140,18 @@ PetscErrorCode DMCreateSubDM_Plex(DM dm, PetscInt numFields, PetscInt fields[], 
   PetscFunctionReturn(0);
 }
 
+PetscErrorCode DMCreateSuperDM_Plex(DM dms[], PetscInt len, IS **is, DM *superdm)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (superdm) {ierr = DMClone(dms[0], superdm);CHKERRQ(ierr);}
+  ierr = DMCreateSuperDM_Section_Private(dms, len, is, superdm);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /*@
-  DMPlexSymmetrize - Creates support (out-edge) information from cone (in-edge) inoformation
+  DMPlexSymmetrize - Create support (out-edge) information from cone (in-edge) information
 
   Not collective
 
@@ -2207,8 +2221,8 @@ PetscErrorCode DMPlexSymmetrize(DM dm)
 }
 
 /*@
-  DMPlexStratify - The Sieve DAG for most topologies is a graded poset (http://en.wikipedia.org/wiki/Graded_poset), and
-  can be illustrated by Hasse Diagram (a http://en.wikipedia.org/wiki/Hasse_diagram). The strata group all points of the
+  DMPlexStratify - The DAG for most topologies is a graded poset (http://en.wikipedia.org/wiki/Graded_poset), and
+  can be illustrated by a Hasse Diagram (a http://en.wikipedia.org/wiki/Hasse_diagram). The strata group all points of the
   same grade, and this function calculates the strata. This grade can be seen as the height (or depth) of the point in
   the DAG.
 
@@ -3076,7 +3090,7 @@ PetscErrorCode DMPlexGetHeightStratum(DM dm, PetscInt stratumValue, PetscInt *st
 static PetscErrorCode DMPlexCreateSectionInitial(DM dm, PetscInt dim, PetscInt numFields,const PetscInt numComp[],const PetscInt numDof[], PetscSection *section)
 {
   PetscInt      *pMax;
-  PetscInt       depth, pStart = 0, pEnd = 0;
+  PetscInt       depth, cellHeight, pStart = 0, pEnd = 0;
   PetscInt       Nf, p, d, dep, f;
   PetscBool     *isFE;
   PetscErrorCode ierr;
@@ -3151,7 +3165,8 @@ static PetscErrorCode DMPlexCreateSectionInitial(DM dm, PetscInt dim, PetscInt n
   ierr = DMPlexGetDepth(dm, &depth);CHKERRQ(ierr);
   ierr = PetscMalloc1(depth+1,&pMax);CHKERRQ(ierr);
   ierr = DMPlexGetHybridBounds(dm, depth >= 0 ? &pMax[depth] : NULL, depth>1 ? &pMax[depth-1] : NULL, depth>2 ? &pMax[1] : NULL, &pMax[0]);CHKERRQ(ierr);
-  for (dep = 0; dep <= depth; ++dep) {
+  ierr = DMPlexGetVTKCellHeight(dm, &cellHeight);CHKERRQ(ierr);
+  for (dep = 0; dep <= depth - cellHeight; ++dep) {
     d    = dim == depth ? dep : (!dep ? 0 : dim);
     ierr = DMPlexGetDepthStratum(dm, dep, &pStart, &pEnd);CHKERRQ(ierr);
     pMax[dep] = pMax[dep] < 0 ? pEnd : pMax[dep];
@@ -3375,7 +3390,7 @@ static PetscErrorCode DMPlexCreateSectionBCIndices(DM dm, PetscSection section)
   Output Parameter:
 . section - The PetscSection object
 
-  Notes: numDof[f*(dim+1)+d] gives the number of dof for field f on sieve points of dimension d. For instance, numDof[1] is the
+  Notes: numDof[f*(dim+1)+d] gives the number of dof for field f on points of dimension d. For instance, numDof[1] is the
   number of dof for field 0 on each edge.
 
   The chart permutation is the same one set using PetscSectionSetPermutation()
@@ -3531,20 +3546,30 @@ PetscErrorCode DMPlexGetConeOrientations(DM dm, PetscInt *coneOrientations[])
 
 /******************************** FEM Support **********************************/
 
-PetscErrorCode DMPlexCreateSpectralClosurePermutation(DM dm, PetscSection section)
+PetscErrorCode DMPlexCreateSpectralClosurePermutation(DM dm, PetscInt point, PetscSection section)
 {
+  DMLabel        label;
   PetscInt      *perm;
-  PetscInt       dim, eStart, k, Nf, f, Nc, c, i, j, size = 0, offset = 0, foffset = 0;
+  PetscInt       dim, depth, eStart, k, Nf, f, Nc, c, i, j, size = 0, offset = 0, foffset = 0;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  if (!section) {ierr = DMGetDefaultSection(dm, &section);CHKERRQ(ierr);}
+  if (point < 0) {ierr = DMPlexGetDepthStratum(dm, 1, &point, NULL);CHKERRQ(ierr);}
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
+  ierr = DMPlexGetDepthLabel(dm, &label);CHKERRQ(ierr);
+  ierr = DMLabelGetValue(label, point, &depth);CHKERRQ(ierr);
+  if (depth == 1) {eStart = point;}
+  else if  (depth == dim) {
+    const PetscInt *cone;
+
+    ierr = DMPlexGetCone(dm, point, &cone);CHKERRQ(ierr);
+    eStart = cone[0];
+  } else SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Point %D of depth %D cannot be used to bootstrap spectral ordering", point, depth);
+  if (!section) {ierr = DMGetDefaultSection(dm, &section);CHKERRQ(ierr);}
   ierr = PetscSectionGetNumFields(section, &Nf);CHKERRQ(ierr);
   if (dim <= 1) PetscFunctionReturn(0);
   for (f = 0; f < Nf; ++f) {
     /* An order k SEM disc has k-1 dofs on an edge */
-    ierr = DMPlexGetDepthStratum(dm, 1, &eStart, NULL);CHKERRQ(ierr);
     ierr = PetscSectionGetFieldDof(section, eStart, f, &k);CHKERRQ(ierr);
     ierr = PetscSectionGetFieldComponents(section, f, &Nc);CHKERRQ(ierr);
     k = k/Nc + 1;
@@ -3555,7 +3580,6 @@ PetscErrorCode DMPlexCreateSpectralClosurePermutation(DM dm, PetscSection sectio
     switch (dim) {
     case 2:
       /* The original quad closure is oriented clockwise, {f, e_b, e_r, e_t, e_l, v_lb, v_rb, v_tr, v_tl} */
-      ierr = DMPlexGetDepthStratum(dm, 1, &eStart, NULL);CHKERRQ(ierr);
       ierr = PetscSectionGetFieldDof(section, eStart, f, &k);CHKERRQ(ierr);
       ierr = PetscSectionGetFieldComponents(section, f, &Nc);CHKERRQ(ierr);
       k = k/Nc + 1;
@@ -3602,7 +3626,6 @@ PetscErrorCode DMPlexCreateSpectralClosurePermutation(DM dm, PetscSection sectio
           e_bl, e_bb, e_br, e_bf,  e_tf, e_tr, e_tb, e_tl,  e_rf, e_lf, e_lb, e_rb,
           v_blf, v_blb, v_brb, v_brf, v_tlf, v_trf, v_trb, v_tlb}
       */
-      ierr = DMPlexGetDepthStratum(dm, 1, &eStart, NULL);CHKERRQ(ierr);
       ierr = PetscSectionGetFieldDof(section, eStart, f, &k);CHKERRQ(ierr);
       ierr = PetscSectionGetFieldComponents(section, f, &Nc);CHKERRQ(ierr);
       k = k/Nc + 1;
@@ -3990,11 +4013,38 @@ PETSC_STATIC_INLINE PetscErrorCode DMPlexVecGetClosure_Fields_Static(DM dm, Pets
 + dm - The DM
 . section - The section describing the layout in v, or NULL to use the default section
 . v - The local vector
-- point - The sieve point in the DM
+. point - The point in the DM
+. csize - The size of the input values array, or NULL
+- values - An array to use for the values, or NULL to have it allocated automatically
 
   Output Parameters:
-+ csize - The number of values in the closure, or NULL
-- values - The array of values, which is a borrowed array and should not be freed
++ csize - The number of values in the closure
+- values - The array of values. If the user provided NULL, it is a borrowed array and should not be freed
+
+$ Note that DMPlexVecGetClosure/DMPlexVecRestoreClosure only allocates the values array if it set to NULL in the
+$ calling function. This is because DMPlexVecGetClosure() is typically called in the inner loop of a Vec or Mat
+$ assembly function, and a user may already have allocated storage for this operation.
+$
+$ A typical use could be
+$
+$  values = NULL;
+$  ierr = DMPlexVecGetClosure(dm, NULL, v, p, &clSize, &values);CHKERRQ(ierr);
+$  for (cl = 0; cl < clSize; ++cl) {
+$    <Compute on closure>
+$  }
+$  ierr = DMPlexVecRestoreClosure(dm, NULL, v, p, &clSize, &values);CHKERRQ(ierr);
+$
+$ or
+$
+$  PetscMalloc1(clMaxSize, &values);
+$  for (p = pStart; p < pEnd; ++p) {
+$    clSize = clMaxSize;
+$    ierr = DMPlexVecGetClosure(dm, NULL, v, p, &clSize, &values);CHKERRQ(ierr);
+$    for (cl = 0; cl < clSize; ++cl) {
+$      <Compute on closure>
+$    }
+$  }
+$  PetscFree(values);
 
   Fortran Notes:
   Since it returns an array, this routine is only available in Fortran 90, and you must
@@ -4075,9 +4125,11 @@ PetscErrorCode DMPlexVecGetClosure(DM dm, PetscSection section, Vec v, PetscInt 
 + dm - The DM
 . section - The section describing the layout in v, or NULL to use the default section
 . v - The local vector
-. point - The sieve point in the DM
+. point - The point in the DM
 . csize - The number of values in the closure, or NULL
 - values - The array of values, which is a borrowed array and should not be freed
+
+  Note that the array values are discarded and not copied back into v. In order to copy values back to v, use DMPlexVecSetClosure()
 
   Fortran Notes:
   Since it returns an array, this routine is only available in Fortran 90, and you must
@@ -4097,6 +4149,7 @@ PetscErrorCode DMPlexVecRestoreClosure(DM dm, PetscSection section, Vec v, Petsc
   PetscFunctionBegin;
   /* Should work without recalculating size */
   ierr = DMRestoreWorkArray(dm, size, MPIU_SCALAR, (void*) values);CHKERRQ(ierr);
+  *values = NULL;
   PetscFunctionReturn(0);
 }
 
@@ -4257,12 +4310,13 @@ PETSC_STATIC_INLINE PetscErrorCode updatePointFields_private(PetscSection sectio
   PetscFunctionReturn(0);
 }
 
-PETSC_STATIC_INLINE PetscErrorCode updatePointFieldsBC_private(PetscSection section, PetscInt point, const PetscInt perm[], const PetscScalar flip[], PetscInt f, void (*fuse)(PetscScalar*, PetscScalar), const PetscInt clperm[], const PetscScalar values[], PetscInt *offset, PetscScalar array[])
+PETSC_STATIC_INLINE PetscErrorCode updatePointFieldsBC_private(PetscSection section, PetscInt point, const PetscInt perm[], const PetscScalar flip[], PetscInt f, PetscInt Ncc, const PetscInt comps[], void (*fuse)(PetscScalar*, PetscScalar), const PetscInt clperm[], const PetscScalar values[], PetscInt *offset, PetscScalar array[])
 {
   PetscScalar    *a;
   PetscInt        fdof, foff, fcdof, foffset = *offset;
   const PetscInt *fcdofs; /* The indices of the constrained dofs for field f on this point */
-  PetscInt        cind = 0, b;
+  PetscInt        cind = 0, ncind = 0, b;
+  PetscBool       ncSet, fcSet;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
@@ -4271,36 +4325,73 @@ PETSC_STATIC_INLINE PetscErrorCode updatePointFieldsBC_private(PetscSection sect
   ierr = PetscSectionGetFieldOffset(section, point, f, &foff);CHKERRQ(ierr);
   a    = &array[foff];
   if (fcdof) {
+    /* We just override fcdof and fcdofs with Ncc and comps */
     ierr = PetscSectionGetFieldConstraintIndices(section, point, f, &fcdofs);CHKERRQ(ierr);
     if (clperm) {
       if (perm) {
-        for (b = 0; b < fdof; b++) {
-          if ((cind < fcdof) && (b == fcdofs[cind])) {
-            fuse(&a[b], values[clperm[foffset+perm[b]]] * (flip ? flip[perm[b]] : 1.));
-            ++cind;
+        if (comps) {
+          for (b = 0; b < fdof; b++) {
+            ncSet = fcSet = PETSC_FALSE;
+            if ((ncind < Ncc)  && (b == comps[ncind])) {++ncind; ncSet = PETSC_TRUE;}
+            if ((cind < fcdof) && (b == fcdofs[cind])) {++cind;  fcSet = PETSC_TRUE;}
+            if (ncSet && fcSet) {fuse(&a[b], values[clperm[foffset+perm[b]]] * (flip ? flip[perm[b]] : 1.));}
+          }
+        } else {
+          for (b = 0; b < fdof; b++) {
+            if ((cind < fcdof) && (b == fcdofs[cind])) {
+              fuse(&a[b], values[clperm[foffset+perm[b]]] * (flip ? flip[perm[b]] : 1.));
+              ++cind;
+            }
           }
         }
       } else {
-        for (b = 0; b < fdof; b++) {
-          if ((cind < fcdof) && (b == fcdofs[cind])) {
-            fuse(&a[b], values[clperm[foffset+     b ]] * (flip ? flip[     b ] : 1.));
-            ++cind;
+        if (comps) {
+          for (b = 0; b < fdof; b++) {
+            ncSet = fcSet = PETSC_FALSE;
+            if ((ncind < Ncc)  && (b == comps[ncind])) {++ncind; ncSet = PETSC_TRUE;}
+            if ((cind < fcdof) && (b == fcdofs[cind])) {++cind;  fcSet = PETSC_TRUE;}
+            if (ncSet && fcSet) {fuse(&a[b], values[clperm[foffset+     b ]] * (flip ? flip[     b ] : 1.));}
+          }
+        } else {
+          for (b = 0; b < fdof; b++) {
+            if ((cind < fcdof) && (b == fcdofs[cind])) {
+              fuse(&a[b], values[clperm[foffset+     b ]] * (flip ? flip[     b ] : 1.));
+              ++cind;
+            }
           }
         }
       }
     } else {
       if (perm) {
-        for (b = 0; b < fdof; b++) {
-          if ((cind < fcdof) && (b == fcdofs[cind])) {
-            fuse(&a[b], values[foffset+perm[b]] * (flip ? flip[perm[b]] : 1.));
-            ++cind;
+        if (comps) {
+          for (b = 0; b < fdof; b++) {
+            ncSet = fcSet = PETSC_FALSE;
+            if ((ncind < Ncc)  && (b == comps[ncind])) {++ncind; ncSet = PETSC_TRUE;}
+            if ((cind < fcdof) && (b == fcdofs[cind])) {++cind;  fcSet = PETSC_TRUE;}
+            if (ncSet && fcSet) {fuse(&a[b], values[foffset+perm[b]] * (flip ? flip[perm[b]] : 1.));}
+          }
+        } else {
+          for (b = 0; b < fdof; b++) {
+            if ((cind < fcdof) && (b == fcdofs[cind])) {
+              fuse(&a[b], values[foffset+perm[b]] * (flip ? flip[perm[b]] : 1.));
+              ++cind;
+            }
           }
         }
       } else {
-        for (b = 0; b < fdof; b++) {
-          if ((cind < fcdof) && (b == fcdofs[cind])) {
-            fuse(&a[b], values[foffset+     b ] * (flip ? flip[     b ] : 1.));
-            ++cind;
+        if (comps) {
+          for (b = 0; b < fdof; b++) {
+            ncSet = fcSet = PETSC_FALSE;
+            if ((ncind < Ncc)  && (b == comps[ncind])) {++ncind; ncSet = PETSC_TRUE;}
+            if ((cind < fcdof) && (b == fcdofs[cind])) {++cind;  fcSet = PETSC_TRUE;}
+            if (ncSet && fcSet) {fuse(&a[b], values[foffset+     b ] * (flip ? flip[     b ] : 1.));}
+          }
+        } else {
+          for (b = 0; b < fdof; b++) {
+            if ((cind < fcdof) && (b == fcdofs[cind])) {
+              fuse(&a[b], values[foffset+     b ] * (flip ? flip[     b ] : 1.));
+              ++cind;
+            }
           }
         }
       }
@@ -4377,9 +4468,10 @@ PETSC_STATIC_INLINE PetscErrorCode DMPlexVecSetClosure_Depth1_Static(DM dm, Pets
 + dm - The DM
 . section - The section describing the layout in v, or NULL to use the default section
 . v - The local vector
-. point - The sieve point in the DM
+. point - The point in the DM
 . values - The array of values
-- mode - The insert mode, where INSERT_ALL_VALUES and ADD_ALL_VALUES also overwrite boundary conditions
+- mode - The insert mode. One of INSERT_ALL_VALUES, ADD_ALL_VALUES, INSERT_VALUES, ADD_VALUES, INSERT_BC_VALUES, and ADD_BC_VALUES,
+         where INSERT_ALL_VALUES and ADD_ALL_VALUES also overwrite boundary conditions.
 
   Fortran Notes:
   This routine is only available in Fortran 90, and you must include petsc.h90 in your code.
@@ -4442,7 +4534,7 @@ PetscErrorCode DMPlexVecSetClosure(DM dm, PetscSection section, Vec v, PetscInt 
           const PetscInt    point = points[2*p];
           const PetscInt    *perm = perms ? perms[p] : NULL;
           const PetscScalar *flip = flips ? flips[p] : NULL;
-          updatePointFieldsBC_private(section, point, perm, flip, f, insert, clperm, values, &offset, array);
+          updatePointFieldsBC_private(section, point, perm, flip, f, -1, NULL, insert, clperm, values, &offset, array);
         } break;
       case ADD_VALUES:
         for (p = 0; p < numPoints; p++) {
@@ -4463,7 +4555,7 @@ PetscErrorCode DMPlexVecSetClosure(DM dm, PetscSection section, Vec v, PetscInt 
           const PetscInt    point = points[2*p];
           const PetscInt    *perm = perms ? perms[p] : NULL;
           const PetscScalar *flip = flips ? flips[p] : NULL;
-          updatePointFieldsBC_private(section, point, perm, flip, f, add, clperm, values, &offset, array);
+          updatePointFieldsBC_private(section, point, perm, flip, f, -1, NULL, add, clperm, values, &offset, array);
         } break;
       default:
         SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_OUTOFRANGE, "Invalid insert mode %d", mode);
@@ -4537,7 +4629,7 @@ PetscErrorCode DMPlexVecSetClosure(DM dm, PetscSection section, Vec v, PetscInt 
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode DMPlexVecSetFieldClosure_Internal(DM dm, PetscSection section, Vec v, PetscBool fieldActive[], PetscInt point, const PetscScalar values[], InsertMode mode)
+PetscErrorCode DMPlexVecSetFieldClosure_Internal(DM dm, PetscSection section, Vec v, PetscBool fieldActive[], PetscInt point, PetscInt Ncc, const PetscInt comps[], const PetscScalar values[], InsertMode mode)
 {
   PetscSection      clSection;
   IS                clPoints;
@@ -4593,7 +4685,7 @@ PetscErrorCode DMPlexVecSetFieldClosure_Internal(DM dm, PetscSection section, Ve
         const PetscInt    point = points[2*p];
         const PetscInt    *perm = perms ? perms[p] : NULL;
         const PetscScalar *flip = flips ? flips[p] : NULL;
-        updatePointFieldsBC_private(section, point, perm, flip, f, insert, clperm, values, &offset, array);
+        updatePointFieldsBC_private(section, point, perm, flip, f, Ncc, comps, insert, clperm, values, &offset, array);
       } break;
     case ADD_VALUES:
       for (p = 0; p < numPoints; p++) {
@@ -4629,7 +4721,7 @@ static PetscErrorCode DMPlexPrintMatSetValues(PetscViewer viewer, Mat A, PetscIn
 
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)A), &rank);CHKERRQ(ierr);
-  ierr = PetscViewerASCIIPrintf(viewer, "[%d]mat for sieve point %D\n", rank, point);CHKERRQ(ierr);
+  ierr = PetscViewerASCIIPrintf(viewer, "[%d]mat for point %D\n", rank, point);CHKERRQ(ierr);
   for (i = 0; i < numRIndices; i++) {ierr = PetscViewerASCIIPrintf(viewer, "[%d]mat row indices[%D] = %D\n", rank, i, rindices[i]);CHKERRQ(ierr);}
   for (i = 0; i < numCIndices; i++) {ierr = PetscViewerASCIIPrintf(viewer, "[%d]mat col indices[%D] = %D\n", rank, i, cindices[i]);CHKERRQ(ierr);}
   numCIndices = numCIndices ? numCIndices : numRIndices;
@@ -5421,7 +5513,7 @@ PetscErrorCode DMPlexRestoreClosureIndices(DM dm, PetscSection section, PetscSec
 . section - The section describing the layout in v, or NULL to use the default section
 . globalSection - The section describing the layout in v, or NULL to use the default global section
 . A - The matrix
-. point - The sieve point in the DM
+. point - The point in the DM
 . values - The array of values
 - mode - The insert mode, where INSERT_ALL_VALUES and ADD_ALL_VALUES also overwrite boundary conditions
 
@@ -6469,7 +6561,6 @@ PetscErrorCode DMCreateDefaultSection_Plex(DM dm)
 
   PetscFunctionBegin;
   ierr = DMGetNumFields(dm, &numFields);CHKERRQ(ierr);
-  if (!numFields) PetscFunctionReturn(0);
   /* FE and FV boundary conditions are handled slightly differently */
   ierr = PetscMalloc1(numFields, &isFE);CHKERRQ(ierr);
   for (f = 0; f < numFields; ++f) {
@@ -6488,6 +6579,7 @@ PetscErrorCode DMCreateDefaultSection_Plex(DM dm)
   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = DMPlexGetHybridBounds(dm, &cEndInterior, NULL, NULL, NULL);CHKERRQ(ierr);
   ierr = PetscDSGetNumBoundary(dm->prob, &numBd);CHKERRQ(ierr);
+  if (!numFields && numBd) SETERRQ(PetscObjectComm((PetscObject)dm), PETSC_ERR_PLIB, "number of fields is zero and number of boundary conditions is nonzero (this should never happen)");
   for (bd = 0; bd < numBd; ++bd) {
     PetscInt                field;
     DMBoundaryConditionType type;
