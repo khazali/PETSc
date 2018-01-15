@@ -715,4 +715,8 @@ PetscErrorCode IJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal a,Mat A,Mat 
       args: -ts_max_steps 10 -ts_monitor -ts_adjoint_monitor -ts_trajectory_type memory -ts_trajectory_solution_only 0 -dm_mat_type sell -pc_type jacobi
       output_file: output/ex5adj_sell_6.out
 
+   test:
+      suffix: ao
+      args: -ts_max_steps 10 -ts_monitor -tsgradient_adjoint_ts_monitor -da_grid_x 16 -da_grid_y 16 -adjointode
+
 TEST*/

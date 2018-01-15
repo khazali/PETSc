@@ -46,11 +46,4 @@ ex6: ex6.o  chkopts
 	-${CLINKER} -o ex6 ex6.o  ${PETSC_TS_LIB}
 	${RM} ex6.o
 
-runex5adj_ao:
-	-@${MPIEXEC} -n 1 ./ex5adj -ts_max_steps 10 -ts_monitor -tsgradient_adjoint_ts_monitor -da_grid_x 16 -da_grid_y 16 -adjointode > ex5adj_ao.tmp 2>&1; \
-	   if (${DIFF} output/ex5adj_ao.out ex5adj_ao.tmp) then true; \
-	   else printf "${PWD}\n Possible problem with ex5adj_ao, diffs above\n=======================================\n"; fi; \
-	   ${RM} -f ex5adj_ao.tmp SA-data/*
-
-
 include ${PETSC_DIR}/lib/petsc/conf/test

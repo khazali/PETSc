@@ -624,5 +624,16 @@ PetscErrorCode FormHessian_AO(Tao tao,Vec P,Mat H,Mat Hp,void *ctx)
     test:
       args:  -monitor 0 -ts_type theta -ts_theta_endpoint -ts_theta_theta 0.5 -viewer_binary_skip_info -tao_view  -ts_trajectory_dirname ex20opt_pdir
       output_file: output/ex20opt_p_1.out
+    test:
+      suffix: ao
+      args: -adjointode -tao_monitor -monitor 0 -ts_trajectory_type memory -tao_view
+
+    test:
+      suffix: ao_hessian
+      args: -adjointode -tao_monitor -monitor 0 -tao_view -tao_type tron -ts_trajectory_type memory
+
+    test:
+      suffix: ao_hessian_mf
+      args: -adjointode -tao_monitor -monitor 0 -tao_view -tao_type tron -tao_mf_hessian -ts_trajectory_type memory
 
 TEST*/
