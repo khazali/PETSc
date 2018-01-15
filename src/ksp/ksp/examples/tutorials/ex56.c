@@ -14,13 +14,16 @@ PetscErrorCode elem_3d_elast_v_25(PetscScalar *);
 
 int main(int argc,char **args)
 {
-  Mat            Amat;
+  Mat            Amat,Pmat;
   PetscErrorCode ierr;
   PetscInt       m,nn,M,Istart,Iend,i,j,k,ii,jj,kk,ic,ne=4,id;
   PetscReal      x,y,z,h,*coords,soft_alpha=1.e-3;
-  PetscBool      two_solves=PETSC_FALSE,test_nonzero_cols=PETSC_FALSE,use_nearnullspace=PETSC_FALSE,test_late_bs=PETSC_FALSE;
+  PetscBool      two_solves=PETSC_FALSE,test_nonzero_cols=PETSC_FALSE,use_nearnullspace=PETSC_FALSE;
+  PetscBool      test_late_bs = PETSC_FALSE,test_Amat = PETSC_FALSE, use_l2g = PETSC_FALSE;
+  PetscBool      ismatis, isbddc;
   Vec            xx,bb;
   KSP            ksp;
+  PC             pc;
   MPI_Comm       comm;
   PetscMPIInt    npe,mype;
   PetscScalar    DD[24][24],DD2[24][24];
@@ -29,8 +32,8 @@ int main(int argc,char **args)
 
   ierr = PetscInitialize(&argc,&args,(char*)0,help);if (ierr) return ierr;
   comm = PETSC_COMM_WORLD;
-  ierr  = MPI_Comm_rank(comm, &mype);CHKERRQ(ierr);
-  ierr  = MPI_Comm_size(comm, &npe);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &mype);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &npe);CHKERRQ(ierr);
 
   ierr = PetscOptionsBegin(comm,NULL,"3D bilinear Q1 elasticity options","");CHKERRQ(ierr);
   {
@@ -42,7 +45,9 @@ int main(int argc,char **args)
     ierr = PetscOptionsBool("-two_solves","solve additional variant of the problem","",two_solves,&two_solves,NULL);CHKERRQ(ierr);
     ierr = PetscOptionsBool("-test_nonzero_cols","nonzero test","",test_nonzero_cols,&test_nonzero_cols,NULL);CHKERRQ(ierr);
     ierr = PetscOptionsBool("-use_mat_nearnullspace","MatNearNullSpace API test","",use_nearnullspace,&use_nearnullspace,NULL);CHKERRQ(ierr);
-    ierr = PetscOptionsBool("-test_late_bs","","",test_late_bs,&test_late_bs,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsBool("-test_late_bs","test late setting of block size","",test_late_bs,&test_late_bs,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsBool("-test_Amat","test PCSetUseAmat()","",test_Amat,&test_Amat,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsBool("-use_l2g","attach local-to-global map to the matrix","",use_l2g,&use_l2g,NULL);CHKERRQ(ierr);
   }
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
@@ -58,7 +63,7 @@ int main(int argc,char **args)
   }
 
   h = 1./ne; nn = ne+1;
-  /* ne*ne; number of global elements */
+  /* ne*ne*ne; number of global elements */
   M = 3*nn*nn*nn; /* global number of equations */
   if (npe==2) {
     if (mype==1) m=0;
@@ -108,12 +113,70 @@ int main(int argc,char **args)
     /* create stiffness matrix */
     ierr = MatCreate(comm,&Amat);CHKERRQ(ierr);
     ierr = MatSetSizes(Amat,m,m,M,M);CHKERRQ(ierr);
+    ierr = MatSetType(Amat,MATAIJ);CHKERRQ(ierr);
+    ierr = MatSetFromOptions(Amat);CHKERRQ(ierr);
     if (!test_late_bs) {
       ierr = MatSetBlockSize(Amat,3);CHKERRQ(ierr);
     }
-    ierr = MatSetType(Amat,MATAIJ);CHKERRQ(ierr);
+    if (use_l2g) { /* create and attach an ISLocalToGlobalMapping to Amat */
+      ISLocalToGlobalMapping l2g;
+      PetscInt               *totidxs,*ptri,cnt;
+
+      /* this is not the most efficient way to create the l2g map */
+      ierr = PetscMalloc1(8*(Ni1-Ni0)*(Nj1-Nj0)*(Nk1-Nk0),&totidxs);CHKERRQ(ierr);
+      ptri = totidxs;
+      cnt  = 0;
+      for (i=Ni0,ii=0; i<Ni1; i++,ii++) {
+        for (j=Nj0,jj=0; j<Nj1; j++,jj++) {
+          for (k=Nk0,kk=0; k<Nk1; k++,kk++) {
+            id = id0 + ii + NN*jj + NN*NN*kk;
+            if (i<ne && j<ne && k<ne) {
+              PetscInt *idx = ptri;
+
+              idx[0] = id;
+              idx[1] = id+1;
+              idx[2] = id+NN+1;
+              idx[3] = id+NN;
+              idx[4] = id + NN*NN;
+              idx[5] = id+1 + NN*NN;
+              idx[6] = id+NN+1 + NN*NN;
+              idx[7] = id+NN + NN*NN;
+
+              /* correct indices */
+              if (i==Ni1-1 && Ni1!=nn) {
+                idx[1] += NN*(NN*NN-1);
+                idx[2] += NN*(NN*NN-1);
+                idx[5] += NN*(NN*NN-1);
+                idx[6] += NN*(NN*NN-1);
+              }
+              if (j==Nj1-1 && Nj1!=nn) {
+                idx[2] += NN*NN*(nn-1);
+                idx[3] += NN*NN*(nn-1);
+                idx[6] += NN*NN*(nn-1);
+                idx[7] += NN*NN*(nn-1);
+              }
+              if (k==Nk1-1 && Nk1!=nn) {
+                idx[4] += NN*(nn*nn-NN*NN);
+                idx[5] += NN*(nn*nn-NN*NN);
+                idx[6] += NN*(nn*nn-NN*NN);
+                idx[7] += NN*(nn*nn-NN*NN);
+              }
+              ptri += 8;
+              cnt  += 8;
+            }
+          }
+        }
+      }
+      ierr = PetscSortRemoveDupsInt(&cnt,totidxs);CHKERRQ(ierr);
+      ierr = ISLocalToGlobalMappingCreate(PETSC_COMM_WORLD,3,cnt,totidxs,PETSC_COPY_VALUES,&l2g);CHKERRQ(ierr);
+      ierr = MatSetLocalToGlobalMapping(Amat,l2g,l2g);CHKERRQ(ierr);
+      ierr = ISLocalToGlobalMappingDestroy(&l2g);CHKERRQ(ierr);
+      ierr = PetscFree(totidxs);CHKERRQ(ierr);
+    }
+
     ierr = MatSeqAIJSetPreallocation(Amat,0,d_nnz);CHKERRQ(ierr);
     ierr = MatMPIAIJSetPreallocation(Amat,0,d_nnz,0,o_nnz);CHKERRQ(ierr);
+    ierr = MatISSetPreallocation(Amat,0,d_nnz,0,o_nnz);CHKERRQ(ierr);
 
     ierr = PetscFree(d_nnz);CHKERRQ(ierr);
     ierr = PetscFree(o_nnz);CHKERRQ(ierr);
@@ -248,7 +311,6 @@ int main(int argc,char **args)
           }
         }
       }
-
     }
     ierr = MatAssemblyBegin(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
@@ -271,8 +333,35 @@ int main(int argc,char **args)
     ierr = PetscViewerDestroy(&viewer);
   }
 
+  ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
+  if (test_Amat) { /* use a different preconditioning matrix */
+    PetscBool swap_mats = PETSC_FALSE;
+
+    ierr = MatDuplicate(Amat,MAT_COPY_VALUES,&Pmat);CHKERRQ(ierr);
+    ierr = PCSetUseAmat(pc,PETSC_TRUE);CHKERRQ(ierr);
+    ierr = PetscOptionsGetBool(NULL,NULL,"-swap_mats",&swap_mats,NULL);CHKERRQ(ierr);
+    if (swap_mats) {
+      Mat Tmat;
+
+      Tmat = Amat;
+      Amat = Pmat;
+      Pmat = Tmat;
+    }
+  } else {
+    ierr = PetscObjectReference((PetscObject)Amat);CHKERRQ(ierr);
+    Pmat = Amat;
+  }
+  ierr = PetscObjectTypeCompare((PetscObject)Pmat,MATIS,&ismatis);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject)pc,PCBDDC,&isbddc);CHKERRQ(ierr);
+  if (ismatis && !isbddc) {
+    Mat T;
+
+    ierr = MatISGetMPIXAIJ(Pmat,MAT_INITIAL_MATRIX,&T);CHKERRQ(ierr);
+    ierr = MatDestroy(&Pmat);CHKERRQ(ierr);
+    Pmat = T;
+  }
   /* finish KSP/PC setup */
-  ierr = KSPSetOperators(ksp, Amat, Amat);CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp, Amat, Pmat);CHKERRQ(ierr);
   if (use_nearnullspace) {
     MatNullSpace matnull;
     Vec          vec_coords;
@@ -286,11 +375,12 @@ int main(int argc,char **args)
     for (i=0; i<m; i++) c[i] = coords[i]; /* Copy since Scalar type might be Complex */
     ierr = VecRestoreArray(vec_coords,&c);CHKERRQ(ierr);
     ierr = MatNullSpaceCreateRigidBody(vec_coords,&matnull);CHKERRQ(ierr);
-    ierr = MatSetNearNullSpace(Amat,matnull);CHKERRQ(ierr);
+    ierr = MatSetNearNullSpace(Pmat,matnull);CHKERRQ(ierr);
     ierr = MatNullSpaceDestroy(&matnull);CHKERRQ(ierr);
     ierr = VecDestroy(&vec_coords);CHKERRQ(ierr);
   } else {
-    PC             pc;
+    PC pc;
+
     ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
     ierr = PCSetCoordinates(pc, 3, m/3, coords);CHKERRQ(ierr);
   }
@@ -305,11 +395,11 @@ int main(int argc,char **args)
 
   /* test BCs */
   if (test_nonzero_cols) {
-    VecZeroEntries(xx);
-    if (mype==0) VecSetValue(xx,0,1.0,INSERT_VALUES);
-    VecAssemblyBegin(xx);
-    VecAssemblyEnd(xx);
-    KSPSetInitialGuessNonzero(ksp,PETSC_TRUE);
+    ierr = VecZeroEntries(xx);CHKERRQ(ierr);
+    if (mype==0) { VecSetValue(xx,0,1.0,INSERT_VALUES);CHKERRQ(ierr); }
+    ierr = VecAssemblyBegin(xx);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(xx);CHKERRQ(ierr);
+    ierr = KSPSetInitialGuessNonzero(ksp,PETSC_TRUE);CHKERRQ(ierr);
   }
 
   /* 1st solve */
@@ -326,7 +416,10 @@ int main(int argc,char **args)
     ierr = MaybeLogStagePush(stage[2]);CHKERRQ(ierr);
     /* PC setup basically */
     ierr = MatScale(Amat, 100000.0);CHKERRQ(ierr);
-    ierr = KSPSetOperators(ksp, Amat, Amat);CHKERRQ(ierr);
+    if (Pmat != Amat) {
+      ierr = MatScale(Pmat, 100000.0);CHKERRQ(ierr);
+    }
+    ierr = KSPSetOperators(ksp, Amat, Pmat);CHKERRQ(ierr);
     ierr = KSPSetUp(ksp);CHKERRQ(ierr);
 
     ierr = MaybeLogStagePop();CHKERRQ(ierr);
@@ -345,7 +438,6 @@ int main(int argc,char **args)
 
     ierr = MaybeLogStagePop();CHKERRQ(ierr);
 
-
     ierr = VecNorm(bb, NORM_2, &norm2);CHKERRQ(ierr);
 
     ierr = VecDuplicate(xx, &res);CHKERRQ(ierr);
@@ -361,6 +453,7 @@ int main(int argc,char **args)
   ierr = VecDestroy(&xx);CHKERRQ(ierr);
   ierr = VecDestroy(&bb);CHKERRQ(ierr);
   ierr = MatDestroy(&Amat);CHKERRQ(ierr);
+  ierr = MatDestroy(&Pmat);CHKERRQ(ierr);
   ierr = PetscFree(coords);CHKERRQ(ierr);
 
   ierr = PetscFinalize();

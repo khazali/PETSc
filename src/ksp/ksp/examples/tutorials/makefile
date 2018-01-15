@@ -1446,11 +1446,20 @@ runex56_latebs:
          ${DIFF} exlate.tmp ex.tmp || printf "${PWD}\nPossible problem with ex56_latebs, diffs above \n=========================================\n"; \
          ${RM} -f ex.tmp exlate.tmp
 
+runex56_amat:
+	-@${MPIEXEC} -n 8 ./ex56 -ne 13 -alpha 1.e-3 -ksp_type cg -pc_type gamg -pc_gamg_agg_nsmooths 1 -pc_gamg_reuse_interpolation true -two_solves -ksp_converged_reason -ksp_view -use_mat_nearnullspace -mg_levels_esteig_ksp_type cg -mg_levels_esteig_ksp_max_it 10 -pc_gamg_square_graph 1 -mg_levels_ksp_max_it 1 -mg_levels_ksp_type chebyshev -mg_levels_ksp_chebyshev_esteig 0,0.2,0,1.05 -gamg_est_ksp_type cg -gamg_est_ksp_max_it 10 -pc_gamg_asm_use_agg true -mg_levels_sub_pc_type lu -mg_levels_pc_asm_overlap 0 -pc_gamg_threshold -0.01 -pc_gamg_coarse_eq_limit 200 -pc_gamg_process_eq_limit 30 -pc_gamg_repartition false -pc_mg_cycle_type v -pc_gamg_use_parallel_coarse_grid_solver -mg_coarse_pc_type jacobi -mg_coarse_ksp_type cg -ksp_monitor_short -test_Amat | grep -v variant > ex.tmp 2>&1; \
+         ${DIFF} output/ex56_amat.out ex.tmp || printf "${PWD}\nPossible problem with ex56_amat, diffs above \n=========================================\n"; \
+         ${RM} -f ex.tmp
+
+runex56_bddc:
+	-@${MPIEXEC} -n 8 ./ex56 -ne 11 -alpha 1.e-3 -two_solves -ksp_converged_reason -ksp_view -use_mat_nearnullspace -test_Amat 0 -mat_type is -use_l2g -ksp_monitor_singular_value -pc_type bddc -pc_bddc_vertex_size 3 -pc_bddc_graph_maxcount 3 -pc_bddc_symmetric 0 > ex.tmp 2>&1; \
+	 ${DIFF} output/ex56_bddc.out ex.tmp || printf "${PWD}\nPossible problem with ex56_bddc, diffs above \n=========================================\n"; \
+	 ${RM} -f ex.tmp
 
 runex56_ml:
 	-@${MPIEXEC} -n 8 ./ex56 -ne 9 -alpha 1.e-3 -ksp_type cg -pc_type ml -mg_levels_ksp_type chebyshev -mg_levels_ksp_chebyshev_esteig 0,0.05,0,1.05 -mg_levels_pc_type sor -ksp_monitor_short -mg_levels_esteig_ksp_type cg > ex.tmp 2>&1;	\
          ${DIFF} output/ex56_ml.out ex.tmp || printf "${PWD}\nPossible problem with ex56_ml, diffs above\n=========================================\n"; \
-        ${RM} -f ex.tmp
+         ${RM} -f ex.tmp
 
 runex56_nns:
 	-@${MPIEXEC} -n 1 ./ex56 -ne 9 -alpha 1.e-3 -ksp_converged_reason -ksp_type cg -ksp_max_it 50 -pc_type gamg -pc_gamg_type agg -pc_gamg_agg_nsmooths 1 -pc_gamg_coarse_eq_limit 1000 -mg_levels_ksp_type chebyshev -mg_levels_pc_type sor -pc_gamg_reuse_interpolation true -two_solves -use_mat_nearnullspace -mg_levels_esteig_ksp_type cg > ex.tmp 2>&1;	\
