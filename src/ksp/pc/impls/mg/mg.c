@@ -543,7 +543,7 @@ PetscErrorCode PCSetUp_MG(PC pc)
   PetscErrorCode ierr;
   PetscInt       i,n;
   PC             cpc;
-  PetscBool      dump = PETSC_FALSE,opsset,use_amat,missinginterpolate = PETSC_FALSE;
+  PetscBool      dump = PETSC_FALSE,opsset,missinginterpolate = PETSC_FALSE;
   Mat            dA,dB;
   Vec            tvec;
   DM             *dms;
@@ -579,12 +579,13 @@ PetscErrorCode PCSetUp_MG(PC pc)
   }
 
   if (!opsset) {
+    PetscBool use_amat;
+
     ierr = PCGetUseAmat(pc,&use_amat);CHKERRQ(ierr);
-    if(use_amat){
+    if (use_amat){
       ierr = PetscInfo(pc,"Using outer operators to define finest grid operator \n  because PCMGGetSmoother(pc,nlevels-1,&ksp);KSPSetOperators(ksp,...); was not called.\n");CHKERRQ(ierr);
       ierr = KSPSetOperators(mglevels[n-1]->smoothd,pc->mat,pc->pmat);CHKERRQ(ierr);
-    }
-    else {
+    } else {
       ierr = PetscInfo(pc,"Using matrix (pmat) operators to define finest grid operator \n  because PCMGGetSmoother(pc,nlevels-1,&ksp);KSPSetOperators(ksp,...); was not called.\n");CHKERRQ(ierr);
       ierr = KSPSetOperators(mglevels[n-1]->smoothd,pc->pmat,pc->pmat);CHKERRQ(ierr);
     }
