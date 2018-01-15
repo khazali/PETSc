@@ -77,7 +77,12 @@ endif
 ifdef TIMEOUT
   TESTFLAGS += -t $(TIMEOUT)  # Override the default timeout
 endif
-
+# Change default of NO_RM based on what BUILDSHARED is
+ifeq ($(NO_RM),)
+  ifeq ($(BUILDSHAREDLIB),yes)
+    NO_RM=1
+  endif
+endif
 
 
 $(generatedtest) : $(petscconf) $(petscvariables) $(CONFIGDIR)/gmakegentest.py $(TESTDIR)/.DIR | $$(@D)/.DIR
@@ -296,6 +301,7 @@ help-test:
 	-@echo
 	-@echo "Options:"
 	-@echo "  NO_RM=1           Do not remove the executables after running"
+	-@echo "                    Default: NO_RM=1 if building shared, =0 if building static"
 	-@echo "  REPLACE=1         Replace the output in the PETSC_DIR source tree (-m to test scripts)"
 	-@echo "  DIFF_NUMBERS=1    Diff the numbers in the output (-j to test scripts and petscdiff)"
 	-@echo "  VALGRIND=1        Execute the tests using valgrind (-V to test scripts)"
