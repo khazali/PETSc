@@ -12,7 +12,6 @@ static PetscErrorCode TSTrajectorySet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
-  //ierr = PetscSNPrintf(filename,sizeof(filename),tj->filetemplate,stepnum);CHKERRQ(ierr);
   ierr = PetscSNPrintf(filename,sizeof(filename),tj->dirfiletemplate,stepnum);CHKERRQ(ierr);
   ierr = PetscViewerFileSetName(tjbasic->viewer,filename);CHKERRQ(ierr);
   ierr = PetscViewerSetUp(tjbasic->viewer);CHKERRQ(ierr);
