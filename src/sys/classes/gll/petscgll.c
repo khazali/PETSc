@@ -370,7 +370,7 @@ PetscErrorCode PetscGLLElementLaplacianDestroy(PetscGLL *gll,PetscReal ***AA)
 .  gll - the nodes
 
    Output Parameter:
-.  AA - the stiffness element
+.  AA - the gradient element
 -  AAT - the transpose of AA (pass in NULL if you do not need this array)
 
    Level: beginner
@@ -427,7 +427,7 @@ PetscErrorCode PetscGLLElementGradientCreate(PetscGLL *gll,PetscReal ***AA, Pets
 
    Input Parameter:
 +  gll - the nodes
-.  AA - the stiffness element
+.  AA - the gradient element
 -  AAT - the transpose of the element
 
    Level: beginner
@@ -517,5 +517,78 @@ PetscErrorCode PetscGLLElementAdvectionDestroy(PetscGLL *gll,PetscReal ***AA)
   PetscFunctionReturn(0);
 }
 
+/* Implements a tensor product
 
+out=(A x B) u= A u B '
+
+*/
+
+PetscErrorCode Petsctensorprod(PetscInt Nl, PetscScalar *A, PetscScalar *u, PetscScalar *B, PetscScalar *out) 
+  {                                             
+    PetscScalar   *Work;                        
+    PetscErrorCode ierr; 
+    PetscInt m; 
+    PetscScalar  alpha=1.0,beta=0.0;   
+                   
+   
+   ierr = PetscBLASIntCast(Nl,&m);CHKERRQ(ierr);
+   ierr = PetscMalloc(Nl*Nl*sizeof(PetscScalar),&Work);CHKERRQ(ierr); 
+   
+   BLASgemm_("N","N",&m,&m,&m,&alpha,A,&m,u,&m,&beta,Work,&m);
+   BLASgemm_("N","T",&m,&m,&m,&alpha,Work,&m,B,&m,&beta,out,&m);
+
+   PetscFunctionReturn(0);
+  }
+
+PetscErrorCode PetscGLLElementMassCreate(PetscGLL *gll,PetscReal ***AA)
+{
+  PetscReal        **A;
+  PetscErrorCode  ierr;
+  const PetscReal  *weights = gll->weights;
+  const PetscInt   n = gll->n;
+  PetscInt         i,j;
+
+  PetscFunctionBegin;
+  ierr = PetscMalloc1(n,&A);CHKERRQ(ierr);
+  ierr = PetscMalloc1(n*n,&A[0]);CHKERRQ(ierr);
+  for (i=1; i<n; i++) A[i] = A[i-1]+n;
+
+  if (n==1) {A[0][0] = 0.;}
+  for  (i=0; i<n; i++) {
+    for  (j=0; j<n; j++) {
+      A[i][j] = 0.;
+      if (j==i)     A[i][j] = weights[i];
+    }
+  }
+
+  *AA  = A;
+  PetscFunctionReturn(0);
+}
+
+/*@C
+   PetscGLLElementGradientDestroy - frees the gradient for a single 1d GLL element obtained with PetscGLLElementGradientCreate()
+
+   Not Collective
+
+   Input Parameter:
++  gll - the nodes
+.  AA - the stiffness element
+-  AAT - the transpose of the element
+
+   Level: beginner
+
+.seealso: PetscGLL, PetscGLLDestroy(), PetscGLLView(), PetscGLLElementLaplacianCreate(), PetscGLLElementAdvectionCreate()
+
+@*/
+PetscErrorCode PetscGLLElementMassDestroy(PetscGLL *gll,PetscReal ***AA)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscFree((*AA)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(*AA);CHKERRQ(ierr);
+  *AA  = NULL;
+  
+  PetscFunctionReturn(0);
+}
 
