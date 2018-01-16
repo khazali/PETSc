@@ -372,7 +372,7 @@ PetscErrorCode PetscGLLElementLaplacianDestroy(PetscGLL *gll,PetscReal ***AA)
 .  gll - the nodes
 
    Output Parameter:
-.  AA - the stiffness element
+.  AA - the gradient element
 -  AAT - the transpose of AA (pass in NULL if you do not need this array)
 
    Level: beginner
@@ -430,7 +430,7 @@ PetscErrorCode PetscGLLElementGradientCreate(PetscGLL *gll,PetscReal ***AA, Pets
 
    Input Parameter:
 +  gll - the nodes
-.  AA - the stiffness element
+.  AA - the gradient element
 -  AAT - the transpose of the element
 
    Level: beginner
@@ -554,5 +554,28 @@ PetscErrorCode PetscGLLElementMassCreate(PetscGLL *gll,PetscReal ***AA)
   *AA  = NULL;
   PetscFunctionReturn(0);
 }
+
+/* Implements a tensor product
+
+out=(A x B) u= A u B '
+
+*/
+
+PetscErrorCode Petsctensorprod(PetscInt Nl, PetscScalar *A, PetscScalar *u, PetscScalar *B, PetscScalar *out) 
+  {                                             
+    PetscScalar   *Work;                        
+    PetscErrorCode ierr; 
+    PetscInt m; 
+    PetscScalar  alpha=1.0,beta=0.0;   
+                   
+   
+   ierr = PetscBLASIntCast(Nl,&m);CHKERRQ(ierr);
+   ierr = PetscMalloc(Nl*Nl*sizeof(PetscScalar),&Work);CHKERRQ(ierr); 
+   
+   BLASgemm_("N","N",&m,&m,&m,&alpha,A,&m,u,&m,&beta,Work,&m);
+   BLASgemm_("N","T",&m,&m,&m,&alpha,Work,&m,B,&m,&beta,out,&m);
+
+   PetscFunctionReturn(0);
+  }
 
 
