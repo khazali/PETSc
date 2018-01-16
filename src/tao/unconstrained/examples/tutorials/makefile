@@ -1,18 +1,18 @@
-ALL:
+#ALL:
 
-CFLAGS		 =
-FFLAGS		 =
-CPPFLAGS         =
-FPPFLAGS         =
-EXAMPLESC        = eptorsion1.c eptorsion2.c minsurf2.c rosenbrock1.c spectraladjointassimilation.c
-EXAMPLESF        = eptorsion2f.F rosenbrock1f.F90
-EXAMPLESCH       =
-EXAMPLESFH       = eptorsion2f.h rosenbrock1f.h
-LOCDIR		 = src/tao/unconstrained/examples/tutorials/
-MANSEC		 =
-DOCS		 =
-DIRS		 =
-CLEANFILES       = eptorsion1 eptorsion2 minsurf2 rosenbrock1 eptorsion2f rosenbrock1f
+#CFLAGS		 =
+#FFLAGS		 =
+#CPPFLAGS         =
+#FPPFLAGS         =
+#EXAMPLESC        = eptorsion1.c eptorsion2.c minsurf2.c rosenbrock1.c spectraladjointassimilation.c
+#EXAMPLESF        = eptorsion2f.F rosenbrock1f.F90
+#EXAMPLESCH       =
+#EXAMPLESFH       = eptorsion2f.h rosenbrock1f.h
+#LOCDIR		 = src/tao/unconstrained/examples/tutorials/
+#MANSEC		 =
+#DOCS		 =
+#DIRS		 =
+#CLEANFILES       = eptorsion1 eptorsion2 minsurf2 rosenbrock1 eptorsion2f rosenbrock1f
 
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
@@ -24,6 +24,10 @@ spectraladjointassimilation: spectraladjointassimilation.o chkopts
 burgers_spectral: burgers_spectral.o chkopts
 	-${CLINKER} -o burgers_spectral burgers_spectral.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB}
 	${RM} burgers_spectral.o
+
+burgers_spectral2d: burgers_spectral2d.o chkopts
+	-${CLINKER} -o burgers_spectral2d burgers_spectral2d.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB}
+	${RM} burgers_spectral2d.o
 
 heat-data-assimulation: heat-data-assimulation.o chkopts
 	-${CLINKER} -o heat-data-assimulation heat-data-assimulation.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB}
