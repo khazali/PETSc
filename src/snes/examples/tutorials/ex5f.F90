@@ -62,7 +62,7 @@
       PetscErrorCode ierr
       PetscReal      lambda_max,lambda_min
       PetscBool      flg
-      external       MySNESConverged
+      DM             da
 
 !  Note: Any user-defined Fortran routines (such as FormJacobianLocal)
 !  MUST be declared as external.
@@ -152,8 +152,8 @@
 
 !  Set function evaluation routine and vector
 
-      call DMDASNESSetFunctionLocal(da,INSERT_VALUES,FormFunctionLocal,0,ierr)
-      call DMDASNESSetJacobianLocal(da,FormJacobianLocal,0,ierr)
+      call DMDASNESSetFunctionLocal(da,INSERT_VALUES,FormFunctionLocal,da,ierr)
+      call DMDASNESSetJacobianLocal(da,FormJacobianLocal,da,ierr)
       call SNESSetDM(snes,da,ierr)
 
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -315,19 +315,19 @@
 !  This routine uses standard Fortran-style computations over a 2-dim array.
 !
 !
-      subroutine FormFunctionLocal(info,x,f,dummy,ierr)
+      subroutine FormFunctionLocal(info,x,f,da,ierr)
 #include <petsc/finclude/petscdmda.h>
       use petscsnes
       implicit none
 
 #include "ex5f.h"
+      DM da
 
 !  Input/output variables:
       DMDALocalInfo info(DMDA_LOCAL_INFO_SIZE)
       PetscScalar x(gxs:gxe,gys:gye)
       PetscScalar f(xs:xe,ys:ye)
       PetscErrorCode     ierr
-      PetscObject dummy
 
 !  Local variables:
       PetscScalar two,one,hx,hy
@@ -406,17 +406,17 @@
 !  Option (A) seems cleaner/easier in many cases, and is the procedure
 !  used in this example.
 !
-      subroutine FormJacobianLocal(info,x,A,jac,ctx,ierr)
+      subroutine FormJacobianLocal(info,x,A,jac,da,ierr)
       use petscsnes
       implicit none
 
 #include "ex5f.h"
-
+      DM da
+      
 !  Input/output variables:
       PetscScalar x(gxs:gxe,gys:gye)
       Mat         A,jac
       PetscErrorCode  ierr
-      integer ctx
       DMDALocalInfo info(DMDA_LOCAL_INFO_SIZE)
 
 
