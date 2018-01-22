@@ -32,7 +32,7 @@
       PetscViewer viewer
       PetscInt qj,qi,ne,M,Istart,Iend,geq,ix
       PetscInt ki,kj,lint,nel,ll,j1,i1,ndf,f4
-      PetscInt f2,f9,f6, one
+      PetscInt f2,f9,f6,one
       PetscInt :: idx(4)
       PetscBool  flg,out_matlab
       PetscMPIInt size,rank
@@ -54,6 +54,7 @@
       endif
       call MPI_Comm_size(PETSC_COMM_WORLD,size,ierr)
       call MPI_Comm_rank(PETSC_COMM_WORLD,rank,ierr)
+      one = 1
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !                 set parameters
 !     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -167,9 +168,7 @@
             endif               ! BC
          endif                  ! add element
          if ( qj > 0 ) then      ! set rhs
-
-            val = h*h*exp(-100.*((x+h/2)-blb(1))**2)*exp(-100*((y+h/2)-blb(2))**2)
-            one = 1
+            val = h*h*exp(-100*((x+h/2)-blb(1))**2)*exp(-100*((y+h/2)-blb(2))**2)
             call VecSetValues(bvec,one,geq,val,INSERT_VALUES,ierr)
          endif
       enddo
