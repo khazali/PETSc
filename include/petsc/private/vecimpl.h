@@ -277,14 +277,17 @@ typedef struct {
   MPI_Win                window;
   PetscInt               *winstarts;    /* displacements in the processes I am putting to */
 #endif
-#if defined(PETSC_HAVE_MPI_WIN_CREATE)  /* these uses windows for communication only within each node */
-  PetscMPIInt            msize,sharedcnt;           /* total to entries that are going to processes with the same shared memory space */
-  PetscScalar            *sharedspace;              /* space each process puts data to be read from other processes; allocated by MPI */
-  PetscScalar            **sharedspaces;            /* [msize] space other processes put data to be read from this processes. */
-  PetscInt               *sharedspacesoffset;       /* [msize] offset into sharedspaces, that I will read from */
-  PetscInt               *sharedspacestarts;        /* [msize+1] for each shared memory partner this maps to the part of sharedspaceindices of that partner */
-  PetscInt               *sharedspaceindices;       /* [] for each shared memory partner contains indices where values are to be copied to */
-  MPI_Win                sharedwin;                 /* Window that owns sharedspace */
+  PetscBool              use_intranodeshmem; /* use MPI-3.0 process shared-memory for intra-node communication */
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+  PetscMPIInt            shmn;          /* number of processors in shmcomm whom I communicate with */
+  PetscMPIInt            *shmprocs;     /* [shmn] (local) ranks of the processors in shmcomm */
+  PetscScalar            *shmspace;     /* space each processor puts data to be read from other processors; allocated by MPI */
+  PetscScalar            **shmspaces;   /* [shmn] space other processors put data to be read from this processor */
+  PetscInt               *shmoffsets;   /* [shmn] offsets into shared memory regions from where I read data I need */
+  PetscInt               *shmstarts;    /* [shmn+1] for each shared memory partner this maps to the part of shmindices of that partner */
+  PetscInt               *shmindices;   /* [] for each shared memory partner contains indices where values are to be copied to */
+  MPI_Comm               shmcomm;       /* MPI shared memory communicator */
+  MPI_Win                shmwin;        /* MPI window returned when allocating shared memory */
 #endif
 } VecScatter_MPI_General;
 
@@ -314,10 +317,9 @@ struct _p_VecScatter {
   PetscBool      reproduce;            /* always receive the ghost points in the same order of processes */
   void           *fromdata,*todata;
   void           *spptr;
-  PetscBool      mpi3;                 /* MPI3 shared memory is used. Default is 'false' */
 };
 
-PETSC_EXTERN PetscErrorCode VecScatterCreate_MPI1(Vec,IS,Vec,IS,VecScatter*);
+PETSC_EXTERN PetscErrorCode VecScatterCreate(Vec,IS,Vec,IS,VecScatter*);
 
 PETSC_INTERN PetscErrorCode VecStashCreate_Private(MPI_Comm,PetscInt,VecStash*);
 PETSC_INTERN PetscErrorCode VecStashDestroy_Private(VecStash*);

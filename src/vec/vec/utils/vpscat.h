@@ -92,23 +92,30 @@ PetscErrorCode PETSCMAP1(VecScatterBegin)(VecScatter ctx,Vec xin,Vec yin,InsertM
         ierr = MPI_Startall_isend(to->starts[to->n],nsends,swaits);CHKERRQ(ierr);
       }
     } else {
-      if (to->sharedspace) {
-        /* Pack the send data into my shared memory buffer  --- this is the normal forward scatter */
-        PETSCMAP1(Pack)(to->sharedcnt,to->sharedspaceindices,xv,to->sharedspace,bs);
-      } else {
-        /* Pack the send data into receivers shared memory buffer -- this is the normal backward scatter */
-        for (i=0; i<to->msize; i++) {
-          if (to->sharedspacesoffset && to->sharedspacesoffset[i] > -1) {
-            PETSCMAP1(Pack)(to->sharedspacestarts[i+1] - to->sharedspacestarts[i],to->sharedspaceindices + to->sharedspacestarts[i],xv,&to->sharedspaces[i][bs*to->sharedspacesoffset[i]],bs);
-          }
-        }
-      }
       /* this version packs and sends one at a time */
       for (i=0; i<nsends; i++) {
         PETSCMAP1(Pack)(sstarts[i+1]-sstarts[i],indices + sstarts[i],xv,svalues + bs*sstarts[i],bs);
         ierr = MPI_Start_isend(sstarts[i+1]-sstarts[i],swaits+i);CHKERRQ(ierr);
       }
     }
+
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+    /* intranode shared memory communication is orthogonal to the above ommunication approaches,
+       whatever they are, alltoallv, alltoallw or one-sided. They just handle internode communications
+       if intranode shared memory communication is enabled.
+     */
+    if (to->use_intranodeshmem) {
+      if (to->shmspace) { /* if to allocated shared memory, then this is the normal forward scatter */
+        /* Pack the send data into my shared memory buffer and wait my partners to read */
+        PETSCMAP1(Pack)(to->shmstarts[to->shmn],to->shmindices,xv,to->shmspace,bs);
+      } else { /* this is the normal backward scatter */
+        /* Pack the send data into receivers shared memory buffer (potentially in other NUMA domains) */
+        for (i=0; i<to->shmn; i++) {
+          PETSCMAP1(Pack)(to->shmstarts[i+1]-to->shmstarts[i],to->shmindices+to->shmstarts[i],xv,to->shmspaces[i],bs);
+        }
+      }
+    }
+#endif
 
     if (!from->use_readyreceiver && to->sendfirst && !to->use_alltoallv && !to->use_window) {
       /* post receives since they were not previously posted   */
@@ -171,6 +178,29 @@ PetscErrorCode PETSCMAP1(VecScatterEnd)(VecScatter ctx,Vec xin,Vec yin,InsertMod
   indices = from->indices;
   rstarts = from->starts;
 
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+  if (from->use_intranodeshmem) {
+    /* barrier to make sure my partners have finished their write to the shared memroy, so that it is ready for me to read */
+    ierr = MPI_Barrier(from->shmcomm);CHKERRQ(ierr);
+
+    /* read (unpack) data from the sahred memory */
+    if (from->shmspace) { /* from allocated shared memory, so this is a backward scatter */
+      /* unpack the recv data from my shared memory buffer, that was written by senders */
+      PETSCMAP1(UnPack)(from->shmstarts[from->shmn],from->shmspace,from->shmindices,yv,addv,bs);
+    } else { /* this is a forward scatter */
+      /* unpack the recv data from each of my sending partners shared memory buffers */
+      PetscInt i;
+      for (i=0; i<from->shmn; i++) {
+        ierr = PETSCMAP1(UnPack)(from->shmstarts[i+1]-from->shmstarts[i],from->shmspaces[i],from->shmindices+from->shmstarts[i],yv,addv,bs);CHKERRQ(ierr);
+      }
+    }
+
+    /* barrier again to make sure my partners have finished their read from my shared memroy buffer, so that I can write it again */
+    ierr = MPI_Barrier(from->shmcomm);CHKERRQ(ierr);
+  }
+#endif
+
+  /* if use shared memory for intranode is enabled, then the following is just for inter-node */
   if (ctx->packtogether || (to->use_alltoallw && (addv != INSERT_VALUES)) || (to->use_alltoallv && !to->use_alltoallw) || to->use_window) {
 #if defined(PETSC_HAVE_MPI_WIN_CREATE)
     if (to->use_window) {ierr = MPI_Win_fence(0,from->window);CHKERRQ(ierr);}
@@ -179,9 +209,6 @@ PetscErrorCode PETSCMAP1(VecScatterEnd)(VecScatter ctx,Vec xin,Vec yin,InsertMod
     if (nrecvs && !to->use_alltoallv) {ierr = MPI_Waitall(nrecvs,rwaits,rstatus);CHKERRQ(ierr);}
     ierr = PETSCMAP1(UnPack)(from->starts[from->n],from->values,indices,yv,addv,bs);CHKERRQ(ierr);
   } else if (!to->use_alltoallw) {
-    PetscMPIInt i;
-    ierr = MPI_Barrier(PetscObjectComm((PetscObject)ctx));CHKERRQ(ierr);
-
     /* unpack one at a time */
     count = nrecvs;
     while (count) {
@@ -195,19 +222,6 @@ PetscErrorCode PETSCMAP1(VecScatterEnd)(VecScatter ctx,Vec xin,Vec yin,InsertMod
       ierr = PETSCMAP1(UnPack)(rstarts[imdex+1] - rstarts[imdex],rvalues + bs*rstarts[imdex],indices + rstarts[imdex],yv,addv,bs);CHKERRQ(ierr);
       count--;
     }
-    /* handle processes that share the same shared memory communicator */
-    if (from->sharedspace) {
-      /* unpack the data from my shared memory buffer  --- this is the normal backward scatter */
-      PETSCMAP1(UnPack)(from->sharedcnt,from->sharedspace,from->sharedspaceindices,yv,addv,bs);
-    } else {
-      /* unpack the data from each of my sending partners shared memory buffers --- this is the normal forward scatter */ 
-      for (i=0; i<from->msize; i++) {
-        if (from->sharedspacesoffset && from->sharedspacesoffset[i] > -1) {
-          ierr = PETSCMAP1(UnPack)(from->sharedspacestarts[i+1] - from->sharedspacestarts[i],&from->sharedspaces[i][bs*from->sharedspacesoffset[i]],from->sharedspaceindices + from->sharedspacestarts[i],yv,addv,bs);CHKERRQ(ierr);
-        }
-      }
-    }
-    ierr = MPI_Barrier(PetscObjectComm((PetscObject)ctx));CHKERRQ(ierr);
   }
   if (from->use_readyreceiver) {
     if (nrecvs) {ierr = MPI_Startall_irecv(from->starts[nrecvs]*bs,nrecvs,rwaits);CHKERRQ(ierr);}

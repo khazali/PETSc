@@ -7,8 +7,6 @@
 #include <../src/vec/vec/impls/mpi/pvecimpl.h>
 #include <petscsf.h>
 
-#if defined(PETSC_HAVE_MPI_WIN_CREATE)
-
 PetscErrorCode VecScatterView_MPI(VecScatter ctx,PetscViewer viewer)
 {
   VecScatter_MPI_General *to  =(VecScatter_MPI_General*)ctx->todata;
@@ -74,16 +72,18 @@ PetscErrorCode VecScatterView_MPI(VecScatter ctx,PetscViewer viewer)
         }
       }
 
-     for (i=0; i<to->msize; i++) {
-       if (to->sharedspacestarts[i+1] > to->sharedspacestarts[i]) {
-          ierr = PetscViewerASCIISynchronizedPrintf(viewer,"[%d] Via shared memory to local memory partner %d count %d\n",rank,i,to->sharedspacestarts[i+1]-to->sharedspacestarts[i]);CHKERRQ(ierr);
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+      if (to->use_intranodeshmem) {
+        for (i=0; i<to->shmn; i++) {
+          ierr = PetscViewerASCIISynchronizedPrintf(viewer,"[%d] Via shared memory to local memory partner %d count %d\n",rank,to->shmprocs[i],to->shmstarts[i+1]-to->shmstarts[i]);CHKERRQ(ierr);
         }
       }
-     for (i=0; i<from->msize; i++) {
-       if (from->sharedspacestarts[i+1] > from->sharedspacestarts[i]) {
-          ierr = PetscViewerASCIISynchronizedPrintf(viewer,"[%d] Via shared memory from local memory partner %d count %d\n",rank,i,from->sharedspacestarts[i+1]-from->sharedspacestarts[i]);CHKERRQ(ierr);
+      if (from->use_intranodeshmem) {
+        for (i=0; i<from->shmn; i++) {
+          ierr = PetscViewerASCIISynchronizedPrintf(viewer,"[%d] Via shared memory from local memory partner %d count %d\n",rank,from->shmprocs[i],from->shmstarts[i+1]-from->shmstarts[i]);CHKERRQ(ierr);
         }
       }
+#endif
 
       ierr = PetscViewerFlush(viewer);CHKERRQ(ierr);
       ierr = PetscViewerASCIIPopSynchronized(viewer);CHKERRQ(ierr);
@@ -92,7 +92,7 @@ PetscErrorCode VecScatterView_MPI(VecScatter ctx,PetscViewer viewer)
 #if defined(PETSC_HAVE_MPI_ALLTOALLW)  && !defined(PETSC_USE_64BIT_INDICES)
       if (to->use_alltoallw) {
         ierr = PetscViewerASCIIPrintf(viewer,"Uses MPI_alltoallw if INSERT_MODE\n");CHKERRQ(ierr);
-      } else 
+      } else
 #endif
       if (ctx->packtogether || to->use_alltoallv || to->use_window) {
         if (to->use_alltoallv) {
@@ -107,6 +107,13 @@ PetscErrorCode VecScatterView_MPI(VecScatter ctx,PetscViewer viewer)
       }  else {
         ierr = PetscViewerASCIIPrintf(viewer,"Packs and sends messages one at a time\n");CHKERRQ(ierr);
       }
+
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+      if (to->use_intranodeshmem) {
+        ierr = PetscViewerASCIIPrintf(viewer,"Uses MPI-3.0 process shared-memory for intra-node communication\n");CHKERRQ(ierr);
+      }
+#endif
+
     }
   }
   PetscFunctionReturn(0);
@@ -164,7 +171,7 @@ PetscErrorCode VecScatterLocalOptimize_Private(VecScatter scatter,VecScatter_Seq
 /* --------------------------------------------------------------------------------------*/
 
 /* -------------------------------------------------------------------------------------*/
-PetscErrorCode VecScatterDestroy_PtoP_MPI3(VecScatter ctx)
+PetscErrorCode VecScatterDestroy_PtoP(VecScatter ctx)
 {
   VecScatter_MPI_General *to   = (VecScatter_MPI_General*)ctx->todata;
   VecScatter_MPI_General *from = (VecScatter_MPI_General*)ctx->fromdata;
@@ -253,17 +260,14 @@ PetscErrorCode VecScatterDestroy_PtoP_MPI3(VecScatter ctx)
     }
   }
 #endif
-  if (to->sharedwin != MPI_WIN_NULL) {ierr = MPI_Win_free(&to->sharedwin);CHKERRQ(ierr);}
-  if (from->sharedwin != MPI_WIN_NULL) {ierr = MPI_Win_free(&from->sharedwin);CHKERRQ(ierr);}
-  ierr = PetscFree(to->sharedspaces);CHKERRQ(ierr);
-  ierr = PetscFree(to->sharedspacesoffset);CHKERRQ(ierr);
-  ierr = PetscFree(to->sharedspaceindices);CHKERRQ(ierr);
-  ierr = PetscFree(to->sharedspacestarts);CHKERRQ(ierr);
 
-  ierr = PetscFree(from->sharedspaceindices);CHKERRQ(ierr);
-  ierr = PetscFree(from->sharedspaces);CHKERRQ(ierr);
-  ierr = PetscFree(from->sharedspacesoffset);CHKERRQ(ierr);
-  ierr = PetscFree(from->sharedspacestarts);CHKERRQ(ierr);
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+  if (to->use_intranodeshmem) {
+    ierr = MPI_Win_free(&to->shmwin);CHKERRQ(ierr); /* free shmwin and the associated shared memory. from->shmwin = to->shmwin, so do not free the window twice */
+    ierr = PetscFree3(to->shmprocs,to->shmstarts,to->shmindices);CHKERRQ(ierr);
+    ierr = PetscFree5(from->shmprocs,from->shmspaces,from->shmoffsets,from->shmstarts,from->shmindices);CHKERRQ(ierr);
+  }
+#endif
 
   ierr = PetscFree(to->local.vslots);CHKERRQ(ierr);
   ierr = PetscFree(from->local.vslots);CHKERRQ(ierr);
@@ -319,13 +323,10 @@ PetscErrorCode VecScatterLocalOptimizeCopy_Private(VecScatter scatter,VecScatter
 
 PetscErrorCode VecScatterCopy_PtoP_X(VecScatter in,VecScatter out)
 {
-  VecScatter_MPI_General *in_to   = (VecScatter_MPI_General*)in->todata;
-  VecScatter_MPI_General *in_from = (VecScatter_MPI_General*)in->fromdata,*out_to,*out_from;
+  VecScatter_MPI_General *in_to   = (VecScatter_MPI_General*)in->todata,*out_to;
+  VecScatter_MPI_General *in_from = (VecScatter_MPI_General*)in->fromdata,*out_from;
   PetscErrorCode         ierr;
-  PetscInt               ny,bs = in_from->bs,jj;
-  PetscCommShared        scomm;
-  MPI_Comm               mscomm;
-  MPI_Info               info;
+  PetscInt               ny,bs = in_from->bs;
 
   PetscFunctionBegin;
   out->ops->begin   = in->ops->begin;
@@ -336,9 +337,7 @@ PetscErrorCode VecScatterCopy_PtoP_X(VecScatter in,VecScatter out)
 
   /* allocate entire send scatter context */
   ierr = PetscNewLog(out,&out_to);CHKERRQ(ierr);
-  out_to->sharedwin       = MPI_WIN_NULL;
   ierr = PetscNewLog(out,&out_from);CHKERRQ(ierr);
-  out_from->sharedwin       = MPI_WIN_NULL;
 
   ny                = in_to->starts[in_to->n];
   out_to->n         = in_to->n;
@@ -448,45 +447,51 @@ PetscErrorCode VecScatterCopy_PtoP_X(VecScatter in,VecScatter out)
     }
   }
 
-    /* since the to and from data structures are not symmetric for shared memory copies we insure they always listed in "standard" form */
-  if (!in_to->sharedwin) {
-    VecScatter_MPI_General *totmp = in_to,*out_totmp = out_to;
-    in_to       = in_from;
-    in_from     = totmp;
-    out_to      = out_from;
-    out_from    = out_totmp;
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+  if (in_to->use_intranodeshmem) {
+    PetscInt i;
+    MPI_Info info;
+    /* since the to and from data structures are not symmetric for shared memory we insure they always listed in "standard" form */
+    if (!in_to->shmspace) {
+      VecScatter_MPI_General *tmp;
+      tmp =  in_to;   in_to =  in_from;  in_from = tmp; /* swap  in_{to,from} */
+      tmp = out_to;  out_to = out_from; out_from = tmp; /* swap out_{to,from} */
+    }
+
+    /* copy the to parts for intranode shared memory communication */
+    out_to->shmn    = in_to->shmn;
+    out_to->shmcomm = in_to->shmcomm; /* shmcomm is destroyed only when the outer PETSc communicator is freed, so a simple copy (other than MPI_Comm_dup) is fine */
+
+    ierr = PetscMalloc3(out_to->shmn,&out_to->shmprocs,out_to->shmn+1,&out_to->shmstarts,in_to->shmstarts[in_to->shmn],&out_to->shmindices);CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_to->shmprocs,in_to->shmprocs,sizeof(PetscMPIInt)*out_to->shmn);
+    ierr = PetscMemcpy(out_to->shmstarts,in_to->shmstarts,sizeof(PetscInt)*(out_to->shmn+1));
+    ierr = PetscMemcpy(out_to->shmindices,in_to->shmindices,sizeof(PetscInt)*in_to->shmstarts[in_to->shmn]);
+    /* allocate sharem memory in to, which has shmspace[] and ignores shmspaces[] and shmoffsets[] */
+    ierr = MPI_Info_create(&info);CHKERRQ(ierr);
+    ierr = MPI_Info_set(info, "alloc_shared_noncontig", "true");CHKERRQ(ierr);
+    ierr = MPI_Win_allocate_shared(bs*out_to->shmstarts[out_to->shmn]*sizeof(PetscScalar),sizeof(PetscScalar),info,out_to->shmcomm,&out_to->shmspace,&out_to->shmwin);CHKERRQ(ierr);
+    ierr = MPI_Info_free(&info);CHKERRQ(ierr);
+
+    /* copy the from parts for intranode shared memory communication */
+    out_from->shmn    = in_from->shmn;
+    out_from->shmcomm = in_from->shmcomm;
+    out_from->shmwin  = out_to->shmwin; /* out's shared memory window is new. We can not copy the in's */
+
+    ierr = PetscMalloc5(out_from->shmn,&out_from->shmprocs,out_from->shmn,&out_from->shmspaces,out_from->shmn,&out_from->shmoffsets,out_from->shmn+1,&out_from->shmstarts,in_from->shmstarts[in_from->shmn],&out_from->shmindices);CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_from->shmprocs,in_from->shmprocs,sizeof(PetscMPIInt)*out_from->shmn);
+    ierr = PetscMemcpy(out_from->shmoffsets,in_from->shmoffsets,sizeof(PetscInt)*out_from->shmn);
+    ierr = PetscMemcpy(out_from->shmstarts,in_from->shmstarts,sizeof(PetscInt)*(out_from->shmn+1));
+    ierr = PetscMemcpy(out_from->shmindices,in_from->shmindices,sizeof(PetscInt)*in_from->shmstarts[in_from->shmn]);
+    /* query shared memory of my partners in from, which has shmspaces[], shmoffsets[] and ignores shmspace[] */
+    for (i=0; i<out_from->shmn; i++) {
+      MPI_Aint    size;
+      PetscMPIInt disp_unit;
+      ierr = MPI_Win_shared_query(out_from->shmwin,out_from->shmprocs[i],&size,&disp_unit,&out_from->shmspaces[i]);CHKERRQ(ierr);
+      out_from->shmspaces[i] += out_from->shmoffsets[i]*bs; /* move the pointer to where I read from */
+    }
   }
+#endif
 
-  /* copy the to parts for the shared memory copies between processes */
-  out_to->sharedcnt = in_to->sharedcnt;
-  out_to->msize     = in_to->msize;
-  ierr = PetscMalloc1(out_to->msize+1,&out_to->sharedspacestarts);CHKERRQ(ierr);
-  ierr = PetscMemcpy(out_to->sharedspacestarts,in_to->sharedspacestarts,(out_to->msize+1)*sizeof(PetscInt));CHKERRQ(ierr);
-  ierr = PetscMalloc1(out_to->sharedcnt,&out_to->sharedspaceindices);CHKERRQ(ierr);
-  ierr = PetscMemcpy(out_to->sharedspaceindices,in_to->sharedspaceindices,out_to->sharedcnt*sizeof(PetscInt));CHKERRQ(ierr);
-
-  ierr = PetscCommSharedGet(PetscObjectComm((PetscObject)in),&scomm);CHKERRQ(ierr);
-  ierr = PetscCommSharedGetComm(scomm,&mscomm);CHKERRQ(ierr);
-  ierr = MPI_Info_create(&info);CHKERRQ(ierr);
-  ierr = MPI_Info_set(info, "alloc_shared_noncontig", "true");CHKERRQ(ierr);
-  ierr = MPI_Win_allocate_shared(bs*out_to->sharedcnt*sizeof(PetscScalar),sizeof(PetscScalar),info,mscomm,&out_to->sharedspace,&out_to->sharedwin);CHKERRQ(ierr);
-  ierr = MPI_Info_free(&info);CHKERRQ(ierr);
-
-  /* copy the to parts for the shared memory copies between processes */
-  out_from->sharedcnt = in_from->sharedcnt;
-  out_from->msize     = in_from->msize;
-  ierr = PetscMalloc1(out_from->msize+1,&out_from->sharedspacestarts);CHKERRQ(ierr);
-  ierr = PetscMemcpy(out_from->sharedspacestarts,in_from->sharedspacestarts,(out_from->msize+1)*sizeof(PetscInt));CHKERRQ(ierr);
-  ierr = PetscMalloc1(out_from->sharedcnt,&out_from->sharedspaceindices);CHKERRQ(ierr);
-  ierr = PetscMemcpy(out_from->sharedspaceindices,in_from->sharedspaceindices,out_from->sharedcnt*sizeof(PetscInt));CHKERRQ(ierr);
-  ierr = PetscMalloc1(out_from->msize,&out_from->sharedspacesoffset);CHKERRQ(ierr);
-  ierr = PetscMemcpy(out_from->sharedspacesoffset,in_from->sharedspacesoffset,out_from->msize*sizeof(PetscInt));CHKERRQ(ierr);
-  ierr = PetscCalloc1(out_from->msize,&out_from->sharedspaces);CHKERRQ(ierr);
-  for (jj=0; jj<out_from->msize; jj++) {
-    MPI_Aint    isize;
-    PetscMPIInt disp_unit;
-    ierr = MPI_Win_shared_query(out_to->sharedwin,jj,&isize,&disp_unit,&out_from->sharedspaces[jj]);CHKERRQ(ierr);
-  }
   PetscFunctionReturn(0);
 }
 
@@ -509,9 +514,7 @@ PetscErrorCode VecScatterCopy_PtoP_AllToAll(VecScatter in,VecScatter out)
 
   /* allocate entire send scatter context */
   ierr = PetscNewLog(out,&out_to);CHKERRQ(ierr);
-  out_to->sharedwin       = MPI_WIN_NULL;
   ierr = PetscNewLog(out,&out_from);CHKERRQ(ierr);
-  out_from->sharedwin       = MPI_WIN_NULL;
 
   ny                = in_to->starts[in_to->n];
   out_to->n         = in_to->n;
@@ -2225,281 +2228,451 @@ PETSC_STATIC_INLINE PetscErrorCode Scatter_bs(PetscInt n,const PetscInt *indices
 
 /*              create parallel to sequential scatter context                           */
 
-PetscErrorCode VecScatterCreateCommon_PtoS_MPI3(VecScatter_MPI_General*,VecScatter_MPI_General*,VecScatter);
+PetscErrorCode VecScatterCreateCommon_PtoS(VecScatter_MPI_General*,VecScatter_MPI_General*,VecScatter);
+
+/*@
+     VecScatterCreateLocal - Creates a VecScatter from a list of messages it must send and receive.
+
+     Collective on VecScatter
+
+   Input Parameters:
++     VecScatter - obtained with VecScatterCreateEmpty()
+.     nsends -
+.     sendSizes -
+.     sendProcs -
+.     sendIdx - indices where the sent entries are obtained from (in local, on process numbering), this is one long array of size \sum_{i=0,i<nsends} sendSizes[i]
+.     nrecvs - number of receives to expect
+.     recvSizes -
+.     recvProcs - processes who are sending to me
+.     recvIdx - indices of where received entries are to be put, (in local, on process numbering), this is one long array of size \sum_{i=0,i<nrecvs} recvSizes[i]
+-     bs - size of block
+
+     Notes:  sendSizes[] and recvSizes[] cannot have any 0 entries. If you want to support having 0 entries you need
+      to change the code below to "compress out" the sendProcs[] and recvProcs[] entries that have 0 entries.
+
+       Probably does not handle sends to self properly. It should remove those from the counts that are used
+      in allocating space inside of the from struct
+
+  Level: intermediate
+
+@*/
+PetscErrorCode VecScatterCreateLocal(VecScatter ctx,PetscInt nsends,const PetscInt sendSizes[],const PetscInt sendProcs[],const PetscInt sendIdx[],PetscInt nrecvs,const PetscInt recvSizes[],const PetscInt recvProcs[],const PetscInt recvIdx[],PetscInt bs)
+{
+  VecScatter_MPI_General *from, *to;
+  PetscInt               sendSize, recvSize;
+  PetscInt               n, i;
+  PetscErrorCode         ierr;
+
+  /* allocate entire send scatter context */
+  ierr  = PetscNewLog(ctx,&to);CHKERRQ(ierr);
+  to->n = nsends;
+  for (n = 0, sendSize = 0; n < to->n; n++) sendSize += sendSizes[n];
+
+  ierr = PetscMalloc1(to->n,&to->requests);CHKERRQ(ierr);
+  ierr = PetscMalloc4(bs*sendSize,&to->values,sendSize,&to->indices,to->n+1,&to->starts,to->n,&to->procs);CHKERRQ(ierr);
+  ierr = PetscMalloc2(PetscMax(to->n,nrecvs),&to->sstatus,PetscMax(to->n,nrecvs),&to->rstatus);CHKERRQ(ierr);
+
+  to->starts[0] = 0;
+  for (n = 0; n < to->n; n++) {
+    if (sendSizes[n] <=0) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"sendSizes[n=%D] = %D cannot be less than 1",n,sendSizes[n]);
+    to->starts[n+1] = to->starts[n] + sendSizes[n];
+    to->procs[n]    = sendProcs[n];
+    for (i = to->starts[n]; i < to->starts[n]+sendSizes[n]; i++) to->indices[i] = sendIdx[i];
+  }
+  ctx->todata = (void*) to;
+
+  /* allocate entire receive scatter context */
+  ierr    = PetscNewLog(ctx,&from);CHKERRQ(ierr);
+  from->n = nrecvs;
+  for (n = 0, recvSize = 0; n < from->n; n++) recvSize += recvSizes[n];
+
+  ierr = PetscMalloc1(from->n,&from->requests);CHKERRQ(ierr);
+  ierr = PetscMalloc4(bs*recvSize,&from->values,recvSize,&from->indices,from->n+1,&from->starts,from->n,&from->procs);CHKERRQ(ierr);
+
+  from->starts[0] = 0;
+  for (n = 0; n < from->n; n++) {
+    if (recvSizes[n] <=0) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"recvSizes[n=%D] = %D cannot be less than 1",n,recvSizes[n]);
+    from->starts[n+1] = from->starts[n] + recvSizes[n];
+    from->procs[n]    = recvProcs[n];
+    for (i = from->starts[n]; i < from->starts[n]+recvSizes[n]; i++) from->indices[i] = recvIdx[i];
+  }
+  ctx->fromdata = (void*)from;
+
+  /* No local scatter optimization */
+  from->local.n                    = 0;
+  from->local.vslots               = 0;
+  to->local.n                      = 0;
+  to->local.vslots                 = 0;
+  from->local.nonmatching_computed = PETSC_FALSE;
+  from->local.n_nonmatching        = 0;
+  from->local.slots_nonmatching    = 0;
+  to->local.nonmatching_computed   = PETSC_FALSE;
+  to->local.n_nonmatching          = 0;
+  to->local.slots_nonmatching      = 0;
+
+  from->type = VEC_SCATTER_MPI_GENERAL;
+  to->type   = VEC_SCATTER_MPI_GENERAL;
+  from->bs   = bs;
+  to->bs     = bs;
+  ierr       = VecScatterCreateCommon_PtoS(from, to, ctx);CHKERRQ(ierr);
+
+  /* mark lengths as negative so it won't check local vector lengths */
+  ctx->from_n = ctx->to_n = -1;
+  PetscFunctionReturn(0);
+}
+
 
 /*
    bs indicates how many elements there are in each block. Normally this would be 1.
 
    contains check that PetscMPIInt can handle the sizes needed
 */
-PetscErrorCode VecScatterCreate_PtoS_MPI3(PetscInt nx,const PetscInt *inidx,PetscInt ny,const PetscInt *inidy,Vec xin,Vec yin,PetscInt bs,VecScatter ctx)
+PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt ny,const PetscInt *inidy,Vec xin,Vec yin,PetscInt bs,VecScatter ctx)
 {
   VecScatter_MPI_General *from,*to;
-  PetscMPIInt            size,rank,mrank,imdex,tag,n;
-  PetscInt               *source = NULL,*owners = NULL,nxr;
-  PetscInt               *lowner = NULL,*start = NULL,*lsharedowner = NULL,*sharedstart = NULL,lengthy,lengthx;
-  PetscMPIInt            *nprocs = NULL,nrecvs,nrecvshared;
-  PetscInt               i,j,idx,nsends;
-  PetscMPIInt            *owner = NULL;
-  PetscInt               *starts = NULL,count,slen,slenshared;
-  PetscInt               *rvalues,*svalues,base,*values,nprocslocal,recvtotal,*rsvalues;
-  PetscMPIInt            *onodes1,*olengths1;
-  MPI_Comm               comm;
-  MPI_Request            *send_waits = NULL,*recv_waits = NULL;
-  MPI_Status             recv_status,*send_status;
+  PetscMPIInt            nprocs,myrank,tag,index,n;
+  PetscMPIInt            *recvfrom = NULL,*rlens = NULL,rlenlocal,rlentotal,rlenshm,nrecvs;
+  PetscMPIInt            *sendto = NULL,*slens = NULL,slentotal,slenshm,nsends,nsendsshm;
+  PetscInt               *range = NULL,i,j;
+  PetscInt               *rstarts = NULL,count;
+  PetscInt               *rindices,*sindices,*sindices2;
+  MPI_Request            *sreqs = NULL,*rreqs = NULL;
+  MPI_Status             send_status;
   PetscErrorCode         ierr;
-  PetscCommShared        scomm;
+  PetscInt               *idxbs_sorted = NULL,*idybs_sorted = NULL;
+  PetscShmcomm           pshmcomm;
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
   PetscMPIInt            jj;
   MPI_Info               info;
-  MPI_Comm               mscomm;
-  MPI_Win                sharedoffsetwin;           /* Window that owns sharedspaceoffset */
-  PetscInt               *sharedspaceoffset;
+  MPI_Comm               comm; /* the outer communicator */
+  PetscInt               it,first,step,lblocal,ublocal;
+  PetscBool              use_intranodeshmem;
+#endif
 
   PetscFunctionBegin;
-  ierr   = PetscObjectGetNewTag((PetscObject)ctx,&tag);CHKERRQ(ierr);
-  ierr   = PetscObjectGetComm((PetscObject)xin,&comm);CHKERRQ(ierr);
-  ierr   = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
-  ierr   = MPI_Comm_size(comm,&size);CHKERRQ(ierr);
-  owners = xin->map->range;
-  ierr   = VecGetSize(yin,&lengthy);CHKERRQ(ierr);
-  ierr   = VecGetSize(xin,&lengthx);CHKERRQ(ierr);
+  ierr  = PetscObjectGetNewTag((PetscObject)ctx,&tag);CHKERRQ(ierr);
+  ierr  = PetscObjectGetComm((PetscObject)xin,&comm);CHKERRQ(ierr);
+  ierr  = MPI_Comm_rank(comm,&myrank);CHKERRQ(ierr);
+  ierr  = MPI_Comm_size(comm,&nprocs);CHKERRQ(ierr);
+  range = xin->map->range;
 
-  /*  first count number of contributors to each processor */
-  ierr = PetscMalloc2(size,&nprocs,nx,&owner);CHKERRQ(ierr);
-  ierr = PetscMemzero(nprocs,size*sizeof(PetscMPIInt));CHKERRQ(ierr);
+  use_intranodeshmem = PETSC_FALSE;
+  ierr  = PetscOptionsGetBool(NULL,NULL,"-vecscatter_intranodeshmem",&use_intranodeshmem,NULL);CHKERRQ(ierr);
+  if (use_intranodeshmem) { ierr = PetscShmcommGet(comm,&pshmcomm);CHKERRQ(ierr); }
 
-  j      = 0;
-  nsends = 0;
-  for (i=0; i<nx; i++) {
-    idx = bs*inidx[i];
-    if (idx < owners[j]) j = 0;
-    for (; j<size; j++) {
-      if (idx < owners[j+1]) {
-        if (!nprocs[j]++) nsends++;
-        owner[i] = j;
-        break;
-      }
-    }
-    if (j == size) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_PLIB,"ith %D block entry %D not owned by any process, upper bound %D",i,idx,owners[size]);
-  }
+  /*=========================================================================
+            sort indices and locate my segment
+    =========================================================================*/
 
-  nprocslocal  = nprocs[rank];
-  nprocs[rank] = 0;
-  if (nprocslocal) nsends--;
-  /* inform other processors of number of messages and max length*/
-  ierr = PetscGatherNumberOfMessages(comm,NULL,nprocs,&nrecvs);CHKERRQ(ierr);
-  ierr = PetscGatherMessageLengths(comm,nsends,nrecvs,nprocs,&onodes1,&olengths1);CHKERRQ(ierr);
-  ierr = PetscSortMPIIntWithArray(nrecvs,onodes1,olengths1);CHKERRQ(ierr);
-  recvtotal = 0; for (i=0; i<nrecvs; i++) recvtotal += olengths1[i];
+  /* idxbs_sorted - [nx] inidx[]*bs and then sorted
+     idybs_sorted - [ny] inidy[]*bs and then sorted
+     lblocal      - lower & upper bound such that indices in ..
+     ublocal      - idxbs_sorted[lblocal..ublocal) are owned by me
+   */
 
-  /* post receives:   */
-  ierr  = PetscMalloc3(recvtotal,&rvalues,nrecvs,&source,nrecvs,&recv_waits);CHKERRQ(ierr);
-  count = 0;
-  for (i=0; i<nrecvs; i++) {
-    ierr   = MPI_Irecv((rvalues+count),olengths1[i],MPIU_INT,onodes1[i],tag,comm,recv_waits+i);CHKERRQ(ierr);
-    count += olengths1[i];
-  }
-
-  /* do sends:
-     1) starts[i] gives the starting index in svalues for stuff going to
-     the ith processor
-  */
-  nxr = 0;
-  for (i=0; i<nx; i++) {
-    if (owner[i] != rank) nxr++;
-  }
-  ierr = PetscMalloc3(nxr,&svalues,nsends,&send_waits,size+1,&starts);CHKERRQ(ierr);
-
-  starts[0]  = 0;
-  for (i=1; i<size; i++) starts[i] = starts[i-1] + nprocs[i-1];
-  for (i=0; i<nx; i++) {
-    if (owner[i] != rank) svalues[starts[owner[i]]++] = bs*inidx[i];
-  }
-  starts[0] = 0;
-  for (i=1; i<size+1; i++) starts[i] = starts[i-1] + nprocs[i-1];
-  count = 0;
-  for (i=0; i<size; i++) {
-    if (nprocs[i]) {
-      ierr = MPI_Isend(svalues+starts[i],nprocs[i],MPIU_INT,i,tag,comm,send_waits+count++);CHKERRQ(ierr);
-    }
-  }
-
-  /*  wait on receives; this is everyone who we need to deliver data to */
-  ierr  = PetscCommSharedGet(comm,&scomm);CHKERRQ(ierr);
-  count = nrecvs;
-  slen  = 0;
-  nrecvshared = 0;
-  slenshared  = 0;
-  while (count) {
-    ierr = MPI_Waitany(nrecvs,recv_waits,&imdex,&recv_status);CHKERRQ(ierr);
-    /* unpack receives into our local space */
-    ierr  = MPI_Get_count(&recv_status,MPIU_INT,&n);CHKERRQ(ierr);
-    ierr = PetscCommSharedGlobalToLocal(scomm,onodes1[imdex],&jj);CHKERRQ(ierr);
-    if (jj > -1) {
-      ierr = PetscInfo3(NULL,"[%d] Sending values to shared memory partner %d,global rank %d\n",rank,jj,onodes1[imdex]);CHKERRQ(ierr);
-      nrecvshared++;
-      slenshared += n;
-    }
-    slen += n;
-    count--;
-  }
-
-  if (slen != recvtotal) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Total message lengths %D not expected %D",slen,recvtotal);
-
-  /* allocate entire send scatter context */
-  ierr          = PetscNewLog(ctx,&to);CHKERRQ(ierr);
-  to->sharedwin = MPI_WIN_NULL;
-  to->n         = nrecvs-nrecvshared;
-
-  ierr = PetscMalloc1(nrecvs-nrecvshared,&to->requests);CHKERRQ(ierr);
-  ierr = PetscMalloc4(bs*(slen-slenshared),&to->values,slen-slenshared,&to->indices,nrecvs-nrecvshared+1,&to->starts,nrecvs-nrecvshared,&to->procs);CHKERRQ(ierr);
-  ierr = PetscMalloc2(PetscMax(to->n,nsends),&to->sstatus,PetscMax(to->n,nsends),&to->rstatus);CHKERRQ(ierr);
-
-  ierr = PetscCommSharedGetComm(scomm,&mscomm);CHKERRQ(ierr);
-  ierr = MPI_Comm_size(mscomm,&to->msize);CHKERRQ(ierr);
-  ierr = PetscMalloc1(slenshared,&to->sharedspaceindices);CHKERRQ(ierr);
-  ierr = PetscCalloc1(to->msize+1,&to->sharedspacestarts);CHKERRQ(ierr);
-
-  ctx->todata              = (void*)to;
-  to->starts[0]            = 0;
-  to->sharedspacestarts[0] = 0;
-
-    /* Allocate shared memory space for shared memory partner communication */
-  ierr = MPI_Info_create(&info);CHKERRQ(ierr);
-  ierr = MPI_Info_set(info, "alloc_shared_noncontig", "true");CHKERRQ(ierr);
-  ierr = MPI_Win_allocate_shared(to->msize*sizeof(PetscInt),sizeof(PetscInt),info,mscomm,&sharedspaceoffset,&sharedoffsetwin);CHKERRQ(ierr);
-  for (i=0; i<to->msize; i++) sharedspaceoffset[i] = -1; /* mark with -1 for later error checking */
-  if (nrecvs) {
-    /* move the data into the send scatter */
-    base     = owners[rank];
-    rsvalues = rvalues;
-    to->n    = 0;
-    for (i=0; i<nrecvs; i++) {
-      values = rsvalues;
-      ierr = PetscCommSharedGlobalToLocal(scomm,(PetscMPIInt)onodes1[i],&jj);CHKERRQ(ierr);
-      if (jj > -1) {
-        to->sharedspacestarts[jj]   = to->sharedcnt;
-        to->sharedspacestarts[jj+1] = to->sharedcnt + olengths1[i];
-        for (j=0; j<olengths1[i]; j++) to->sharedspaceindices[to->sharedcnt + j] = values[j] - base;
-        sharedspaceoffset[jj]      = to->sharedcnt;
-        to->sharedcnt             += olengths1[i];
-        ierr = PetscInfo4(NULL,"[%d] Sending %d values to shared memory partner %d,global rank %d\n",rank,olengths1[i],jj,onodes1[i]);CHKERRQ(ierr);
-      } else {
-        to->starts[to->n+1] = to->starts[to->n] + olengths1[i];
-        to->procs[to->n]    = onodes1[i];
-        for (j=0; j<olengths1[i]; j++) to->indices[to->starts[to->n] + j] = values[j] - base;
-        to->n++;
-      }
-      rsvalues += olengths1[i];
-    }
-  }
-  ierr = PetscFree(olengths1);CHKERRQ(ierr);
-  ierr = PetscFree(onodes1);CHKERRQ(ierr);
-  ierr = PetscFree3(rvalues,source,recv_waits);CHKERRQ(ierr);
-
-  ierr = MPI_Win_allocate_shared(bs*to->sharedcnt*sizeof(PetscScalar),sizeof(PetscScalar),info,mscomm,&to->sharedspace,&to->sharedwin);CHKERRQ(ierr);
-  if (to->sharedwin == MPI_WIN_NULL) SETERRQ(PETSC_COMM_SELF,100,"what the");
-  ierr = MPI_Info_free(&info);CHKERRQ(ierr);
-
-  /* allocate entire receive scatter context */
-  ierr = PetscNewLog(ctx,&from);CHKERRQ(ierr);
-  from->sharedwin       = MPI_WIN_NULL;
-  from->msize           = to->msize;
-  /* we don't actually know the correct value for from->n at this point so we use the upper bound */
-  from->n = nsends;
-
-  ierr = PetscMalloc1(nsends,&from->requests);CHKERRQ(ierr);
-  ierr = PetscMalloc4((ny-nprocslocal)*bs,&from->values,ny-nprocslocal,&from->indices,nsends+1,&from->starts,from->n,&from->procs);CHKERRQ(ierr);
-  ctx->fromdata = (void*)from;
-
-  ierr  = PetscCalloc1(to->msize+1,&from->sharedspacestarts);CHKERRQ(ierr);
-  /* move data into receive scatter */
-  ierr = PetscMalloc2(size,&lowner,nsends+1,&start);CHKERRQ(ierr);
-  ierr = PetscMalloc2(size,&lsharedowner,to->msize+1,&sharedstart);CHKERRQ(ierr);
-  count = 0; from->starts[0] = start[0] = 0;
-  from->sharedcnt = 0;
-  for (i=0; i<size; i++) {
-    lsharedowner[i] = -1;
-    lowner[i]       = -1;
-    if (nprocs[i]) {
-      ierr = PetscCommSharedGlobalToLocal(scomm,i,&jj);CHKERRQ(ierr);
-      if (jj > -1) {
-        from->sharedspacestarts[jj] = sharedstart[jj] = from->sharedcnt;
-        from->sharedspacestarts[jj+1] = sharedstart[jj+1] = from->sharedspacestarts[jj] + nprocs[i];
-        from->sharedcnt += nprocs[i];
-        lsharedowner[i] = jj;
-      } else {
-        lowner[i]            = count++;
-        from->procs[count-1]  = i;
-        from->starts[count] = start[count] = start[count-1] + nprocs[i];
-      }
-    }
-  }
-  from->n = count;
-
-  for (i=0; i<nx; i++) {
-    if (owner[i] != rank && lowner[owner[i]] > -1) {
-      from->indices[start[lowner[owner[i]]]++] = bs*inidy[i];
-      if (bs*inidy[i] >= lengthy) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Scattering past end of TO vector");
-    }
-  }
-
-  /* copy over appropriate parts of inidy[] into from->sharedspaceindices */
-  ierr = PetscMalloc1(from->sharedcnt,&from->sharedspaceindices);CHKERRQ(ierr);
-  for (i=0; i<nx; i++) {
-    if (owner[i] != rank && lsharedowner[owner[i]] > -1) {
-      if (sharedstart[lsharedowner[owner[i]]] > from->sharedcnt) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_MEM,"won");
-      from->sharedspaceindices[sharedstart[lsharedowner[owner[i]]]++] = bs*inidy[i];
-    }
-  }
-
-  ierr = PetscFree2(lowner,start);CHKERRQ(ierr);
-  ierr = PetscFree2(lsharedowner,sharedstart);CHKERRQ(ierr);
-  ierr = PetscFree2(nprocs,owner);CHKERRQ(ierr);
-
-  /* wait on sends */
-  if (nsends) {
-    ierr = PetscMalloc1(nsends,&send_status);CHKERRQ(ierr);
-    ierr = MPI_Waitall(nsends,send_waits,send_status);CHKERRQ(ierr);
-    ierr = PetscFree(send_status);CHKERRQ(ierr);
-  }
-  ierr = PetscFree3(svalues,send_waits,starts);CHKERRQ(ierr);
-
-  if (nprocslocal) {
-    PetscInt nt = from->local.n = to->local.n = nprocslocal;
-    /* we have a scatter to ourselves */
-    ierr = PetscMalloc1(nt,&to->local.vslots);CHKERRQ(ierr);
-    ierr = PetscMalloc1(nt,&from->local.vslots);CHKERRQ(ierr);
-    nt   = 0;
-    for (i=0; i<nx; i++) {
-      idx = bs*inidx[i];
-      if (idx >= owners[rank] && idx < owners[rank+1]) {
-        to->local.vslots[nt]     = idx - owners[rank];
-        from->local.vslots[nt++] = bs*inidy[i];
-        if (bs*inidy[i] >= lengthy) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Scattering past end of TO vector");
-      }
-    }
-    ierr = PetscLogObjectMemory((PetscObject)ctx,2*nt*sizeof(PetscInt));CHKERRQ(ierr);
+  /* Sorted indices make code simpler, faster and also help getting rid of
+     many O(P) arrays, which hurt scalability at large scale.
+   */
+  ierr = PetscMalloc2(nx,&idxbs_sorted,ny,&idybs_sorted);CHKERRQ(ierr);
+  if (bs == 1) { /* accelerate the common case */
+    ierr = PetscMemcpy(idxbs_sorted,inidx,sizeof(PetscInt)*nx);CHKERRQ(ierr);
+    ierr = PetscMemcpy(idybs_sorted,inidy,sizeof(PetscInt)*ny);CHKERRQ(ierr);
   } else {
-    from->local.n      = 0;
-    from->local.vslots = 0;
+    for (i=0; i<nx; i++) idxbs_sorted[i] = inidx[i]*bs;
+    for (i=0; i<ny; i++) idybs_sorted[i] = inidy[i]*bs;
+  }
+
+  ierr = PetscSortIntWithArray(nx,idxbs_sorted,idybs_sorted);CHKERRQ(ierr);
+
+  /* search idxbs_sorted[] to locate my segment of indices. If exist, they are
+     in idxbs_sorted[lblocal..ublocal), otherwise, lblocal=ublocal=0 or nx,
+     depending on whether idxbs_sorted[0] > range[myrank] or not.
+   */
+  first = 0; count = nx; /* find first element in idxbs_sorted[] that is not less than range[myrank] */
+  while (count > 0) {
+    it = first; step = count/2; it += step;
+    if (idxbs_sorted[it] < range[myrank]) { first  = ++it; count -= step + 1; }
+    else { count = step; }
+  }
+  lblocal = first;
+
+  first = 0; count = nx; /* do it again for range[myrank+1] */
+  while (count > 0) {
+    it = first; step = count/2; it += step;
+    if (idxbs_sorted[it] < range[myrank+1]) { first  = ++it; count -= step + 1; }
+    else { count = step; }
+  }
+  ublocal = first;
+
+  /*=========================================================================
+           collect info about messages I want to receive
+    =========================================================================*/
+
+  /* nrecvs    - number of non-empty messages, excluding the message from myself.
+     recvfrom  - [nrecvs] processors I will receive messages from, excluding myself
+     rindices  - [rlentotal] indices of entries I will receive
+     rstarts   - [nrecvs+1] rstarts[i] is the starting index of rindices[] I expect from processor recvfrom[i]
+     rlens     - [nprocs] I want to receive rlens[i] entries from processor i.
+     rlentotal - total number of entries I will receive, excluding entries from myself
+     rlenlocal - number of entries from myself
+
+     Attention: rlens[] is of O(P) storage. It is the only one of this large in this function.
+   */
+
+  /* get rlens, nrecvs */
+  ierr = PetscCalloc1(nprocs,&rlens);CHKERRQ(ierr);
+
+  i = j = nrecvs = 0;
+  while (i < nx) {
+    if (idxbs_sorted[i] >= range[j+1]) { /* if i-th index is out of processor j's bound */
+      do { j++; } while (idxbs_sorted[i] >= range[j+1] && j < nprocs); /* boost j until it falls in processor j's bound */
+      if (j == nprocs) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"entry %D not owned by any process, upper bound %D",idxbs_sorted[i],range[nprocs]);
+    }
+
+    if (j == myrank) { i = ublocal; } /* skip local indices, which are likely a lot */
+    else { i++; if (!rlens[j]++) nrecvs++; }
+  }
+
+  rlenlocal = ublocal - lblocal;
+  rlentotal = nx - rlenlocal;
+
+  /* get rstarts, recvfrom, rindices and rreqs once we know nrecvs, rlens*/
+  ierr = PetscMalloc4(rlentotal,&rindices,nrecvs+1,&rstarts,nrecvs,&recvfrom,nrecvs,&rreqs);CHKERRQ(ierr);
+
+  j = rstarts[0] = 0;
+  for (i=0; i<nprocs; i++) {
+    if (rlens[i]) { recvfrom[j] = i; rstarts[j+1] = rstarts[j] + rlens[i]; j++; }
+  }
+
+  ierr = PetscMemcpy(rindices,idxbs_sorted,sizeof(PetscInt)*lblocal);CHKERRQ(ierr); /* two copies to skip indices in [lblocal,ublocal) */
+  ierr = PetscMemcpy(&rindices[lblocal],idxbs_sorted+ublocal,sizeof(PetscInt)*(nx-ublocal));CHKERRQ(ierr);
+
+  /*=========================================================================
+           compute the reverse info about messages I need to send
+    =========================================================================*/
+
+  /* nsends    - number of (non-empty) messages I need to send
+     sendto    - [nsends] processors I send to
+     slens     - [nsends] I will send slens[i] entries to processor sendto[i]
+     slentotal - sum of slens[]
+     sindices  - [] store indices of entries I need to send
+     sreqs     - [nsends] MPI requests
+   */
+  ierr = PetscGatherNumberOfMessages(comm,NULL,rlens,&nsends);CHKERRQ(ierr);
+  ierr = PetscGatherMessageLengths(comm,nrecvs,nsends,rlens,&sendto,&slens);CHKERRQ(ierr);
+  ierr = PetscSortMPIIntWithArray(nsends,sendto,slens);CHKERRQ(ierr);
+  slentotal = 0; for (i=0; i<nsends; i++) slentotal += slens[i];
+
+  ierr = PetscFree(rlens);CHKERRQ(ierr);
+
+  /* communicate with processors in sendto[] to populate sindices[].
+     Post irecvs first and then isends. It is funny (but correct) that we
+     temporarily use send stuff in MPI_Irecv and recv stuff in MPI_Isends.
+   */
+  ierr  = PetscMalloc2(slentotal,&sindices,nsends,&sreqs);CHKERRQ(ierr);
+
+  count = 0;
+  for (i=0; i<nsends; i++) {
+    ierr   = MPI_Irecv(sindices+count,slens[i],MPIU_INT,sendto[i],tag,comm,sreqs+i);CHKERRQ(ierr);
+    count += slens[i];
+  }
+
+  for (i=0; i<nrecvs; i++) { ierr = MPI_Isend(rindices+rstarts[i],rstarts[i+1]-rstarts[i],MPIU_INT,recvfrom[i],tag,comm,rreqs+i);CHKERRQ(ierr); }
+
+  /* wait on irecvs and if supported, figure out which sendto[] processors are in the shared memory communicator
+     nsendsshm - number of sendto[] processors in the shared memory communicator
+     slenshm   - total number of entries sent to shared memory partners
+   */
+  nsendsshm = 0;
+  slenshm   = 0;
+  if (use_intranodeshmem) {
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+    for (i=0; i<nsends; i++) {
+      ierr = MPI_Waitany(nsends,sreqs,&index,&send_status);CHKERRQ(ierr);
+      ierr = MPI_Get_count(&send_status,MPIU_INT,&n);CHKERRQ(ierr);
+      ierr = PetscShmcommGlobalToLocal(pshmcomm,sendto[index],&jj);CHKERRQ(ierr);
+      if (jj != MPI_PROC_NULL) { nsendsshm++; slenshm += n; }
+    }
+#endif
+  } else { ierr = MPI_Waitall(nsends,sreqs,MPI_STATUS_IGNORE);CHKERRQ(ierr); }
+
+  ierr = MPI_Waitall(nrecvs,rreqs,MPI_STATUS_IGNORE);CHKERRQ(ierr);
+
+  /*=========================================================================
+         allocate entire send scatter context
+    =========================================================================*/
+  ierr                   = PetscNewLog(ctx,&to);CHKERRQ(ierr); /* calloc to */
+  ctx->todata            = (void*)to;
+  to->n                  = nsends-nsendsshm;
+  to->use_intranodeshmem = use_intranodeshmem;
+
+  ierr = PetscMalloc1(to->n,&to->requests);CHKERRQ(ierr);
+  ierr = PetscMalloc2(PetscMax(to->n,nrecvs),&to->sstatus,PetscMax(to->n,nrecvs),&to->rstatus);CHKERRQ(ierr);
+  ierr = PetscMalloc4(bs*(slentotal-slenshm),&to->values,slentotal-slenshm,&to->indices,to->n+1,&to->starts,to->n,&to->procs);CHKERRQ(ierr);
+
+  sindices2     = sindices;
+  to->n         = 0;
+  to->starts[0] = 0;
+
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+  if (use_intranodeshmem) {
+    to->shmn         = nsendsshm;
+    ierr             = PetscMalloc3(to->shmn,&to->shmprocs,to->shmn+1,&to->shmstarts,slenshm,&to->shmindices);CHKERRQ(ierr);
+    to->shmn         = 0;
+    to->shmstarts[0] = 0;
+  }
+#endif
+
+  for (i=0; i<nsends; i++) {
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+    if (use_intranodeshmem) {
+      ierr = PetscShmcommGlobalToLocal(pshmcomm,(PetscMPIInt)sendto[i],&jj);CHKERRQ(ierr);
+    }
+
+    if (use_intranodeshmem && jj != MPI_PROC_NULL) { /* sendto[i] is a shared memory partner and jj is its rank in shmcomm */
+      to->shmstarts[to->shmn+1] = to->shmstarts[to->shmn] + slens[i];
+      to->shmprocs[to->shmn]    = jj;
+      for (j=0; j<slens[i]; j++) to->shmindices[to->shmstarts[to->shmn]+j] = sindices2[j] - range[myrank];
+      to->shmn++;
+    } else
+#endif
+    {
+      to->starts[to->n+1] = to->starts[to->n] + slens[i];
+      to->procs[to->n]    = sendto[i];
+      for (j=0; j<slens[i]; j++) to->indices[to->starts[to->n]+j] = sindices2[j] - range[myrank];
+      to->n++;
+    }
+    sindices2 += slens[i];
+  }
+
+  /* free send stuffs */
+  ierr = PetscFree(slens);CHKERRQ(ierr);
+  ierr = PetscFree(sendto);CHKERRQ(ierr);
+  ierr = PetscFree2(sindices,sreqs);CHKERRQ(ierr);
+
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+  /* allocate the shared memory region at the sender side */
+  if (use_intranodeshmem) {
+    ierr = PetscShmcommGetMpiShmcomm(pshmcomm,&to->shmcomm);CHKERRQ(ierr);
+    ierr = MPI_Info_create(&info);CHKERRQ(ierr);
+    ierr = MPI_Info_set(info, "alloc_shared_noncontig", "true");CHKERRQ(ierr);
+    ierr = MPI_Win_allocate_shared(bs*to->shmstarts[to->shmn]*sizeof(PetscScalar),sizeof(PetscScalar),info,to->shmcomm,&to->shmspace,&to->shmwin);CHKERRQ(ierr);
+    ierr = MPI_Info_free(&info);CHKERRQ(ierr);
+  }
+#endif
+
+  /*=========================================================================
+         allocate entire receive scatter context
+    =========================================================================*/
+  ierr                     = PetscNewLog(ctx,&from);CHKERRQ(ierr);
+  ctx->fromdata            = (void*)from;
+  from->use_intranodeshmem = use_intranodeshmem;
+
+  /* compute rlenshm, from->n and from->shmn first to facilitate mallocs */
+  rlenshm = 0;
+  from->n = nrecvs;
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+  if (use_intranodeshmem) {
+    from->n       = 0;
+    from->shmn    = 0;
+    from->shmwin  = to->shmwin;
+    from->shmcomm = to->shmcomm;
+    for (i=0; i<nrecvs; i++) {
+      ierr = PetscShmcommGlobalToLocal(pshmcomm,recvfrom[i],&jj);CHKERRQ(ierr);
+      if (jj != MPI_PROC_NULL) { from->shmn++; rlenshm += rstarts[i+1] - rstarts[i]; }
+      else { from->n++; }
+    }
+
+    ierr = PetscMalloc5(from->shmn,&from->shmprocs,from->shmn,&from->shmspaces,from->shmn,&from->shmoffsets,from->shmn+1,&from->shmstarts,rlenshm,&from->shmindices);CHKERRQ(ierr);
+  }
+#endif
+
+  ierr = PetscMalloc1(from->n,&from->requests);CHKERRQ(ierr);
+  ierr = PetscMalloc4(bs*(ny-rlenshm),&from->values,ny-rlenshm,&from->indices,from->n+1,&from->starts,from->n,&from->procs);CHKERRQ(ierr);
+
+  /* move data into receive scatter */
+  from->n               = 0;
+  from->starts[0]       = 0;
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+  if (use_intranodeshmem) {
+    from->shmn          = 0;
+    from->shmstarts[0]  = 0;
+  }
+#endif
+
+  for (i=0; i<nrecvs; i++) {
+    PetscInt len    = rstarts[i+1] - rstarts[i]; /* len works for both x and y */
+    PetscInt ystart = rstarts[i] + (recvfrom[i] > myrank ? rlenlocal : 0); /* rstarts[] are offsets for x with locals removed. To use for y, one has to remedy them */
+
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+    if (use_intranodeshmem) {
+      ierr = PetscShmcommGlobalToLocal(pshmcomm,recvfrom[i],&jj);CHKERRQ(ierr);
+    }
+
+    if (use_intranodeshmem && jj != MPI_PROC_NULL) { /* recvfrom[i] is a shared memory partner and jj is its rank in shmcomm*/
+      from->shmprocs[from->shmn]    = jj;
+      from->shmstarts[from->shmn+1] = from->shmstarts[from->shmn] + len;
+      ierr = PetscMemcpy(&from->shmindices[from->shmstarts[from->shmn]],&idybs_sorted[ystart],sizeof(PetscInt)*len);CHKERRQ(ierr);
+      from->shmn++;
+    } else
+#endif
+    {
+      from->procs[from->n]    = recvfrom[i];
+      from->starts[from->n+1] = from->starts[from->n] + len;
+      PetscMemcpy(&from->indices[from->starts[i]],&idybs_sorted[rstarts[i]],sizeof(PetscInt)*len);
+      ierr = PetscMemcpy(&from->indices[from->starts[from->n]],&idybs_sorted[ystart],sizeof(PetscInt)*len);CHKERRQ(ierr);
+      from->n++;
+    }
+  }
+
+  /* free recv stuffs */
+  ierr = PetscFree4(rindices,rstarts,recvfrom,rreqs);CHKERRQ(ierr);
+
+  /* query addresses of the shared memory regions of my partners. I also need
+     to know offsets to those regions from where I can directly read data I need.
+     We use send/recv within shmcomm to get the offsets. One could also get the
+     offsets through shared memory. But since it is only used once, it is not
+     worth the trouble.
+   */
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+  if (use_intranodeshmem) {
+    MPI_Request *shmreqs = NULL;
+    ierr = PetscMalloc1(from->shmn,&shmreqs);CHKERRQ(ierr);
+    for (i=0; i<from->shmn; i++) { ierr = MPI_Irecv(from->shmoffsets+i,1,MPIU_INT,from->shmprocs[i],0/*tag*/,from->shmcomm,shmreqs+i);CHKERRQ(ierr); }
+    for (i=0; i<to->shmn; i++) { ierr = MPI_Send(to->shmstarts+i,1,MPIU_INT,to->shmprocs[i],0/*tag*/,to->shmcomm);CHKERRQ(ierr); }
+    ierr = MPI_Waitall(from->shmn,shmreqs,MPI_STATUSES_IGNORE);CHKERRQ(ierr);
+
+    /* get the shared memory address for all processes I will be copying data from */
+    for (i=0; i<from->shmn; i++) {
+      MPI_Aint    size;
+      PetscMPIInt disp_unit;
+      ierr = MPI_Win_shared_query(from->shmwin,from->shmprocs[i],&size,&disp_unit,&from->shmspaces[i]);CHKERRQ(ierr);
+      from->shmspaces[i] += from->shmoffsets[i]*bs;  /* move the pointer to where I read from */
+    }
+
+    ierr = PetscFree(shmreqs);CHKERRQ(ierr);
+  }
+#endif
+
+  /*=========================================================================
+       handle the scatter to myself
+    =========================================================================*/
+  if (rlenlocal) {
+    to->local.n   = rlenlocal;
+    from->local.n = rlenlocal;
+    ierr = PetscMalloc1(to->local.n,&to->local.vslots);CHKERRQ(ierr);
+    ierr = PetscMalloc1(from->local.n,&from->local.vslots);CHKERRQ(ierr);
+    for (i=lblocal; i<ublocal; i++) to->local.vslots[i-lblocal] = idxbs_sorted[i] - range[myrank];
+    ierr = PetscMemcpy(from->local.vslots,&idybs_sorted[lblocal],sizeof(PetscInt)*rlenlocal);CHKERRQ(ierr);
+    ierr = PetscLogObjectMemory((PetscObject)ctx,2*rlenlocal*sizeof(PetscInt));CHKERRQ(ierr);
+  } else {
     to->local.n        = 0;
     to->local.vslots   = 0;
+    from->local.n      = 0;
+    from->local.vslots = 0;
   }
 
-  /* Get the shared memory address for all processes we will be copying data from */
-  ierr = PetscCalloc1(to->msize,&from->sharedspaces);CHKERRQ(ierr);
-  ierr = PetscCalloc1(to->msize,&from->sharedspacesoffset);CHKERRQ(ierr);
-  ierr = MPI_Comm_rank(mscomm,&mrank);CHKERRQ(ierr);
-  for (jj=0; jj<to->msize; jj++) {
-    MPI_Aint    isize;
-    PetscMPIInt disp_unit;
-    PetscInt    *ptr;
-    ierr = MPI_Win_shared_query(to->sharedwin,jj,&isize,&disp_unit,&from->sharedspaces[jj]);CHKERRQ(ierr);
-    ierr = MPI_Win_shared_query(sharedoffsetwin,jj,&isize,&disp_unit,&ptr);CHKERRQ(ierr);
-    from->sharedspacesoffset[jj] = ptr[mrank];
-  }
-  ierr = MPI_Win_free(&sharedoffsetwin);CHKERRQ(ierr);
+  ierr = PetscFree2(idxbs_sorted,idybs_sorted);CHKERRQ(ierr);
 
   from->local.nonmatching_computed = PETSC_FALSE;
   from->local.n_nonmatching        = 0;
@@ -2513,15 +2686,14 @@ PetscErrorCode VecScatterCreate_PtoS_MPI3(PetscInt nx,const PetscInt *inidx,Pets
   from->bs   = bs;
   to->bs     = bs;
 
-  ierr = VecScatterCreateCommon_PtoS_MPI3(from,to,ctx);CHKERRQ(ierr);
-  ctx->mpi3 = PETSC_TRUE;
+  ierr = VecScatterCreateCommon_PtoS(from,to,ctx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 /*
    bs indicates how many elements there are in each block. Normally this would be 1.
 */
-PetscErrorCode VecScatterCreateCommon_PtoS_MPI3(VecScatter_MPI_General *from,VecScatter_MPI_General *to,VecScatter ctx)
+PetscErrorCode VecScatterCreateCommon_PtoS(VecScatter_MPI_General *from,VecScatter_MPI_General *to,VecScatter ctx)
 {
   MPI_Comm       comm;
   PetscMPIInt    tag  = ((PetscObject)ctx)->tag, tagr;
@@ -2533,7 +2705,7 @@ PetscErrorCode VecScatterCreateCommon_PtoS_MPI3(VecScatter_MPI_General *from,Vec
   PetscFunctionBegin;
   ierr = PetscObjectGetComm((PetscObject)ctx,&comm);CHKERRQ(ierr);
   ierr = PetscObjectGetNewTag((PetscObject)ctx,&tagr);CHKERRQ(ierr);
-  ctx->ops->destroy = VecScatterDestroy_PtoP_MPI3;
+  ctx->ops->destroy = VecScatterDestroy_PtoP;
 
   ctx->reproduce = PETSC_FALSE;
   to->sendfirst  = PETSC_FALSE;
@@ -2800,14 +2972,14 @@ PetscErrorCode VecScatterCreateCommon_PtoS_MPI3(VecScatter_MPI_General *from,Vec
          Reverses the order of the arguments, calls VecScatterCreate_PtoS() then
          reverses the result.
 */
-PetscErrorCode VecScatterCreate_StoP_MPI3(PetscInt nx,const PetscInt *inidx,PetscInt ny,const PetscInt *inidy,Vec xin,Vec yin,PetscInt bs,VecScatter ctx)
+PetscErrorCode VecScatterCreate_StoP(PetscInt nx,const PetscInt *inidx,PetscInt ny,const PetscInt *inidy,Vec xin,Vec yin,PetscInt bs,VecScatter ctx)
 {
   PetscErrorCode         ierr;
   MPI_Request            *waits;
   VecScatter_MPI_General *to,*from;
 
   PetscFunctionBegin;
-  ierr          = VecScatterCreate_PtoS_MPI3(ny,inidy,nx,inidx,yin,xin,bs,ctx);CHKERRQ(ierr);
+  ierr          = VecScatterCreate_PtoS(ny,inidy,nx,inidx,yin,xin,bs,ctx);CHKERRQ(ierr);
   to            = (VecScatter_MPI_General*)ctx->fromdata;
   from          = (VecScatter_MPI_General*)ctx->todata;
   ctx->todata   = (void*)to;
@@ -2824,12 +2996,11 @@ PetscErrorCode VecScatterCreate_StoP_MPI3(PetscInt nx,const PetscInt *inidx,Pets
   waits              = to->rev_requests;
   to->rev_requests   = to->requests;
   to->requests       = waits;
-  ctx->mpi3 = PETSC_TRUE;
   PetscFunctionReturn(0);
 }
 
 /* ---------------------------------------------------------------------------------*/
-PetscErrorCode VecScatterCreate_PtoP_MPI3(PetscInt nx,const PetscInt *inidx,PetscInt ny,const PetscInt *inidy,Vec xin,Vec yin,PetscInt bs,VecScatter ctx)
+PetscErrorCode VecScatterCreate_PtoP(PetscInt nx,const PetscInt *inidx,PetscInt ny,const PetscInt *inidy,Vec xin,Vec yin,PetscInt bs,VecScatter ctx)
 {
   PetscErrorCode ierr;
   PetscMPIInt    size,rank,tag,imdex,n;
@@ -2854,7 +3025,7 @@ PetscErrorCode VecScatterCreate_PtoP_MPI3(PetscInt nx,const PetscInt *inidx,Pets
   ierr = MPI_Comm_size(comm,&size);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
   if (size == 1) {
-    ierr = VecScatterCreate_StoP_MPI3(nx,inidx,ny,inidy,xin,yin,bs,ctx);CHKERRQ(ierr);
+    ierr = VecScatterCreate_StoP(nx,inidx,ny,inidy,xin,yin,bs,ctx);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
 
@@ -2993,10 +3164,47 @@ PetscErrorCode VecScatterCreate_PtoP_MPI3(PetscInt nx,const PetscInt *inidx,Pets
   if (duplicate) {
     ierr = PetscInfo(ctx,"Duplicate from to indices passed in VecScatterCreate(), they are ignored\n");CHKERRQ(ierr);
   }
-  ierr = VecScatterCreate_StoP_MPI3(slen,local_inidx,slen,local_inidy,xin,yin,bs,ctx);CHKERRQ(ierr);
+  ierr = VecScatterCreate_StoP(slen,local_inidx,slen,local_inidy,xin,yin,bs,ctx);CHKERRQ(ierr);
   ierr = PetscFree2(local_inidx,local_inidy);CHKERRQ(ierr);
-  ctx->mpi3 = PETSC_TRUE;
   PetscFunctionReturn(0);
 }
 
-#endif
+/*@
+  PetscSFCreateFromZero - Create a PetscSF that maps a Vec from sequential to distributed
+
+  Input Parameters:
+. gv - A distributed Vec
+
+  Output Parameters:
+. sf - The SF created mapping a sequential Vec to gv
+
+  Level: developer
+
+.seealso: DMPlexDistributedToSequential()
+@*/
+PetscErrorCode PetscSFCreateFromZero(MPI_Comm comm, Vec gv, PetscSF *sf)
+{
+  PetscSFNode   *remotenodes;
+  PetscInt      *localnodes;
+  PetscInt       N, n, start, numroots, l;
+  PetscMPIInt    rank;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscSFCreate(comm, sf);CHKERRQ(ierr);
+  ierr = VecGetSize(gv, &N);CHKERRQ(ierr);
+  ierr = VecGetLocalSize(gv, &n);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRange(gv, &start, NULL);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  ierr = PetscMalloc1(n, &localnodes);CHKERRQ(ierr);
+  ierr = PetscMalloc1(n, &remotenodes);CHKERRQ(ierr);
+  if (!rank) numroots = N;
+  else       numroots = 0;
+  for (l = 0; l < n; ++l) {
+    localnodes[l]        = l;
+    remotenodes[l].rank  = 0;
+    remotenodes[l].index = l+start;
+  }
+  ierr = PetscSFSetGraph(*sf, numroots, n, localnodes, PETSC_OWN_POINTER, remotenodes, PETSC_OWN_POINTER);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
