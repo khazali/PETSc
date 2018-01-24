@@ -2885,10 +2885,10 @@ PETSC_EXTERN PetscErrorCode PetscHeapDestroy(PetscHeap*);
 PETSC_EXTERN PetscErrorCode PetscHeapView(PetscHeap,PetscViewer);
 
 PETSC_EXTERN PetscErrorCode PetscProcessPlacementView(PetscViewer);
-typedef struct _n_PetscCommShared* PetscCommShared;
-PETSC_EXTERN PetscErrorCode PetscCommSharedGet(MPI_Comm,PetscCommShared*);
-PETSC_EXTERN PetscErrorCode PetscCommSharedGlobalToLocal(PetscCommShared,PetscMPIInt,PetscMPIInt*);
-PETSC_EXTERN PetscErrorCode PetscCommSharedGetComm(PetscCommShared,MPI_Comm*);
+typedef struct _n_PetscShmcomm* PetscShmcomm;
+PETSC_EXTERN PetscErrorCode PetscShmcommGet(MPI_Comm,PetscShmcomm*);
+PETSC_EXTERN PetscErrorCode PetscShmcommGlobalToLocal(PetscShmcomm,PetscMPIInt,PetscMPIInt*);
+PETSC_EXTERN PetscErrorCode PetscShmcommGetMpiShmcomm(PetscShmcomm,MPI_Comm*);
 
 /*S
    PetscSegBuffer - a segmented extendable buffer
