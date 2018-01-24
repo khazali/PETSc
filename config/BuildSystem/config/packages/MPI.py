@@ -222,9 +222,9 @@ class Configure(config.package.Package):
     self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
     self.framework.saveLog()
     if self.checkLink('#include <mpi.h>\n', 'MPI_Comm scomm; if (MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &scomm));\n'):
-      self.haveMPISharedComm = 1
-      self.addDefine('HAVE_MPI_SHARED_COMM', 1)
-    else: self.haveMPISharedComm = 0
+      self.haveCommTypeShared = 1
+      self.addDefine('HAVE_MPI_COMM_TYPE_SHARED', 1)
+    else: self.haveCommTypeShared = 0
     self.compilers.CPPFLAGS = oldFlags
     self.compilers.LIBS = oldLibs
     self.logWrite(self.framework.restoreLog())
