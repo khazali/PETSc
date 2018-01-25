@@ -107,11 +107,15 @@ PetscErrorCode PETSCMAP1(VecScatterBegin)(VecScatter ctx,Vec xin,Vec yin,InsertM
     if (to->use_intranodeshmem) {
       if (to->shmspace) { /* if to allocated shared memory, then this is the normal forward scatter */
         /* Pack the send data into my shared memory buffer and wait my partners to read */
+        for (i=0; i<to->shmn; i++) { while(*to->shmflags[i]); }
         PETSCMAP1(Pack)(to->shmstarts[to->shmn],to->shmindices,xv,to->shmspace,bs);
+        for (i=0; i<to->shmn; i++) *to->shmflags[i] = 1;
       } else { /* this is the normal backward scatter */
         /* Pack the send data into receivers shared memory buffer (potentially in other NUMA domains) */
         for (i=0; i<to->shmn; i++) {
+          while(*to->shmflags[i]); /* wait the flag to be empty before write */
           PETSCMAP1(Pack)(to->shmstarts[i+1]-to->shmstarts[i],to->shmindices+to->shmstarts[i],xv,to->shmspaces[i],bs);
+          *to->shmflags[i] = 1; /* set the flag full after write */
         }
       }
     }
@@ -150,7 +154,7 @@ PetscErrorCode PETSCMAP1(VecScatterEnd)(VecScatter ctx,Vec xin,Vec yin,InsertMod
   VecScatter_MPI_General *to,*from;
   PetscScalar            *rvalues,*yv;
   PetscErrorCode         ierr;
-  PetscInt               nrecvs,nsends,*indices,count,*rstarts,bs;
+  PetscInt               i,nrecvs,nsends,*indices,count,*rstarts,bs;
   PetscMPIInt            imdex;
   MPI_Request            *rwaits,*swaits;
   MPI_Status             xrstatus,*rstatus,*sstatus;
@@ -180,23 +184,20 @@ PetscErrorCode PETSCMAP1(VecScatterEnd)(VecScatter ctx,Vec xin,Vec yin,InsertMod
 
 #if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
   if (from->use_intranodeshmem) {
-    /* barrier to make sure my partners have finished their write to the shared memroy, so that it is ready for me to read */
-    ierr = MPI_Barrier(from->shmcomm);CHKERRQ(ierr);
-
     /* read (unpack) data from the sahred memory */
     if (from->shmspace) { /* from allocated shared memory, so this is a backward scatter */
       /* unpack the recv data from my shared memory buffer, that was written by senders */
+      for (i=0; i<from->shmn; i++) { while(!*from->shmflags[i]); }
       PETSCMAP1(UnPack)(from->shmstarts[from->shmn],from->shmspace,from->shmindices,yv,addv,bs);
+      for (i=0; i<from->shmn; i++) { *from->shmflags[i] = 0; }
     } else { /* this is a forward scatter */
       /* unpack the recv data from each of my sending partners shared memory buffers */
-      PetscInt i;
       for (i=0; i<from->shmn; i++) {
+        while(!*from->shmflags[i]); /* wait the flag to be full before read */
         ierr = PETSCMAP1(UnPack)(from->shmstarts[i+1]-from->shmstarts[i],from->shmspaces[i],from->shmindices+from->shmstarts[i],yv,addv,bs);CHKERRQ(ierr);
+        *from->shmflags[i] = 0; /* set the flag empty after read */
       }
     }
-
-    /* barrier again to make sure my partners have finished their read from my shared memroy buffer, so that I can write it again */
-    ierr = MPI_Barrier(from->shmcomm);CHKERRQ(ierr);
   }
 #endif
 

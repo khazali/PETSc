@@ -264,8 +264,8 @@ PetscErrorCode VecScatterDestroy_PtoP(VecScatter ctx)
 #if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
   if (to->use_intranodeshmem) {
     ierr = MPI_Win_free(&to->shmwin);CHKERRQ(ierr); /* free shmwin and the associated shared memory. from->shmwin = to->shmwin, so do not free the window twice */
-    ierr = PetscFree3(to->shmprocs,to->shmstarts,to->shmindices);CHKERRQ(ierr);
-    ierr = PetscFree5(from->shmprocs,from->shmspaces,from->shmoffsets,from->shmstarts,from->shmindices);CHKERRQ(ierr);
+    ierr = PetscFree4(to->shmprocs,to->shmflags,to->shmstarts,to->shmindices);CHKERRQ(ierr);
+    ierr = PetscFree5(from->shmprocs,from->shmspaces,from->shmflags,from->shmstarts,from->shmindices);CHKERRQ(ierr);
   }
 #endif
 
@@ -462,33 +462,54 @@ PetscErrorCode VecScatterCopy_PtoP_X(VecScatter in,VecScatter out)
     out_to->shmn    = in_to->shmn;
     out_to->shmcomm = in_to->shmcomm; /* shmcomm is destroyed only when the outer PETSc communicator is freed, so a simple copy (other than MPI_Comm_dup) is fine */
 
-    ierr = PetscMalloc3(out_to->shmn,&out_to->shmprocs,out_to->shmn+1,&out_to->shmstarts,in_to->shmstarts[in_to->shmn],&out_to->shmindices);CHKERRQ(ierr);
-    ierr = PetscMemcpy(out_to->shmprocs,in_to->shmprocs,sizeof(PetscMPIInt)*out_to->shmn);
-    ierr = PetscMemcpy(out_to->shmstarts,in_to->shmstarts,sizeof(PetscInt)*(out_to->shmn+1));
-    ierr = PetscMemcpy(out_to->shmindices,in_to->shmindices,sizeof(PetscInt)*in_to->shmstarts[in_to->shmn]);
-    /* allocate sharem memory in to, which has shmspace[] and ignores shmspaces[] and shmoffsets[] */
+    ierr = PetscMalloc4(out_to->shmn,&out_to->shmprocs,out_to->shmn,&out_to->shmflags,out_to->shmn+1,&out_to->shmstarts,in_to->shmstarts[in_to->shmn],&out_to->shmindices);CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_to->shmprocs,in_to->shmprocs,sizeof(PetscMPIInt)*out_to->shmn);CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_to->shmstarts,in_to->shmstarts,sizeof(PetscInt)*(out_to->shmn+1));CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_to->shmindices,in_to->shmindices,sizeof(PetscInt)*in_to->shmstarts[in_to->shmn]);CHKERRQ(ierr);
+    /* allocate sharem memory in to, which has shmspace[] and ignores shmspaces[] */
     ierr = MPI_Info_create(&info);CHKERRQ(ierr);
     ierr = MPI_Info_set(info, "alloc_shared_noncontig", "true");CHKERRQ(ierr);
-    ierr = MPI_Win_allocate_shared(bs*out_to->shmstarts[out_to->shmn]*sizeof(PetscScalar),sizeof(PetscScalar),info,out_to->shmcomm,&out_to->shmspace,&out_to->shmwin);CHKERRQ(ierr);
+    MPI_Aint sz = bs*out_to->shmstarts[out_to->shmn]*sizeof(PetscScalar)+out_to->shmn*PETSC_LEVEL1_DCACHE_LINESIZE;
+    ierr = MPI_Win_allocate_shared(sz,sizeof(PetscScalar),info,out_to->shmcomm,&out_to->shmspace,&out_to->shmwin);CHKERRQ(ierr);
     ierr = MPI_Info_free(&info);CHKERRQ(ierr);
+    for (i=0; i<out_to->shmn; i++) out_to->shmflags[i] = (PetscInt*)((char*)out_to->shmspace + i*PETSC_LEVEL1_DCACHE_LINESIZE);
+    out_to->shmspace = (PetscScalar*)((char*)out_to->shmspace + out_to->shmn*PETSC_LEVEL1_DCACHE_LINESIZE);
 
     /* copy the from parts for intranode shared memory communication */
     out_from->shmn    = in_from->shmn;
     out_from->shmcomm = in_from->shmcomm;
     out_from->shmwin  = out_to->shmwin; /* out's shared memory window is new. We can not copy the in's */
 
-    ierr = PetscMalloc5(out_from->shmn,&out_from->shmprocs,out_from->shmn,&out_from->shmspaces,out_from->shmn,&out_from->shmoffsets,out_from->shmn+1,&out_from->shmstarts,in_from->shmstarts[in_from->shmn],&out_from->shmindices);CHKERRQ(ierr);
-    ierr = PetscMemcpy(out_from->shmprocs,in_from->shmprocs,sizeof(PetscMPIInt)*out_from->shmn);
-    ierr = PetscMemcpy(out_from->shmoffsets,in_from->shmoffsets,sizeof(PetscInt)*out_from->shmn);
-    ierr = PetscMemcpy(out_from->shmstarts,in_from->shmstarts,sizeof(PetscInt)*(out_from->shmn+1));
-    ierr = PetscMemcpy(out_from->shmindices,in_from->shmindices,sizeof(PetscInt)*in_from->shmstarts[in_from->shmn]);
-    /* query shared memory of my partners in from, which has shmspaces[], shmoffsets[] and ignores shmspace[] */
+    PetscInt nn = out_from->shmn;
+    ierr = PetscMalloc5(nn,&out_from->shmprocs,nn,&out_from->shmspaces,nn,&out_from->shmflags,nn+1,&out_from->shmstarts,in_from->shmstarts[in_from->shmn],&out_from->shmindices);CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_from->shmprocs,in_from->shmprocs,sizeof(PetscMPIInt)*out_from->shmn);CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_from->shmstarts,in_from->shmstarts,sizeof(PetscInt)*(out_from->shmn+1));CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_from->shmindices,in_from->shmindices,sizeof(PetscInt)*in_from->shmstarts[in_from->shmn]);CHKERRQ(ierr);
+
+    MPI_Request *reqs = NULL;
+    struct {PetscInt j,m,offset;} jmo,*triples = NULL; /* See comments in VecScatterCreate_PtoS, where we create context */
+    ierr = PetscMalloc2(out_from->shmn,&reqs,out_from->shmn,&triples);CHKERRQ(ierr);
+
+    for (i=0; i<out_from->shmn; i++) { ierr = MPI_Irecv(triples+i,3,MPIU_INT,out_from->shmprocs[i],0/*tag*/,out_from->shmcomm,reqs+i);CHKERRQ(ierr); }
+    for (i=0; i<out_to->shmn; i++) {
+      jmo.j = i;
+      jmo.m = out_to->shmn;
+      jmo.offset = out_to->shmstarts[i];
+      ierr = MPI_Send(&jmo,3,MPIU_INT,out_to->shmprocs[i],0/*tag*/,out_to->shmcomm);CHKERRQ(ierr);
+    }
+    ierr = MPI_Waitall(out_from->shmn,reqs,MPI_STATUSES_IGNORE);CHKERRQ(ierr);
+
+    /* figure out flag addresses and data addresses aimed to me */
     for (i=0; i<out_from->shmn; i++) {
       MPI_Aint    size;
       PetscMPIInt disp_unit;
       ierr = MPI_Win_shared_query(out_from->shmwin,out_from->shmprocs[i],&size,&disp_unit,&out_from->shmspaces[i]);CHKERRQ(ierr);
-      out_from->shmspaces[i] += out_from->shmoffsets[i]*bs; /* move the pointer to where I read from */
+      out_from->shmflags[i]   =    (PetscInt*)((char*)out_from->shmspaces[i] + triples[i].j*PETSC_LEVEL1_DCACHE_LINESIZE); /* get address of the j-th flag */
+      out_from->shmspaces[i]  = (PetscScalar*)((char*)out_from->shmspaces[i] + triples[i].m*PETSC_LEVEL1_DCACHE_LINESIZE); /* skip the flag area */
+      out_from->shmspaces[i] += triples[i].offset*bs;/* and then add the offset to point to where my expected data lives */
     }
+
+    ierr = PetscFree2(reqs,triples);CHKERRQ(ierr);
   }
 #endif
 
@@ -2517,7 +2538,7 @@ PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt 
 #if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
   if (use_intranodeshmem) {
     to->shmn         = nsendsshm;
-    ierr             = PetscMalloc3(to->shmn,&to->shmprocs,to->shmn+1,&to->shmstarts,slenshm,&to->shmindices);CHKERRQ(ierr);
+    ierr             = PetscMalloc4(to->shmn,&to->shmprocs,to->shmn,&to->shmflags,to->shmn+1,&to->shmstarts,slenshm,&to->shmindices);CHKERRQ(ierr);
     to->shmn         = 0;
     to->shmstarts[0] = 0;
   }
@@ -2551,13 +2572,23 @@ PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt 
   ierr = PetscFree2(sindices,sreqs);CHKERRQ(ierr);
 
 #if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
-  /* allocate the shared memory region at the sender side */
+  /* allocate the shared memory region at the sender side. The region is padded with a header
+     containing sync flags. Flags are on different cache lines to avoid false sharing.
+   */
   if (use_intranodeshmem) {
     ierr = PetscShmcommGetMpiShmcomm(pshmcomm,&to->shmcomm);CHKERRQ(ierr);
     ierr = MPI_Info_create(&info);CHKERRQ(ierr);
     ierr = MPI_Info_set(info, "alloc_shared_noncontig", "true");CHKERRQ(ierr);
-    ierr = MPI_Win_allocate_shared(bs*to->shmstarts[to->shmn]*sizeof(PetscScalar),sizeof(PetscScalar),info,to->shmcomm,&to->shmspace,&to->shmwin);CHKERRQ(ierr);
+    MPI_Aint sz = bs*to->shmstarts[to->shmn]*sizeof(PetscScalar) + to->shmn*PETSC_LEVEL1_DCACHE_LINESIZE;
+    ierr = MPI_Win_allocate_shared(sz,sizeof(PetscScalar),info,to->shmcomm,&to->shmspace,&to->shmwin);CHKERRQ(ierr);
     ierr = MPI_Info_free(&info);CHKERRQ(ierr);
+
+    /* Note we used alloc_shared_noncontig in shared memory allocation, such that the returned shared memory address
+       on each process is page-aligned, and of course, also cacheline aligned. Therefore, we are sure that sync flags
+       are on separate cachelines.
+     */
+    for (i=0; i<to->shmn; i++) to->shmflags[i] = (PetscInt*)((char*)to->shmspace + i*PETSC_LEVEL1_DCACHE_LINESIZE);
+    to->shmspace = (PetscScalar*)((char*)to->shmspace + to->shmn*PETSC_LEVEL1_DCACHE_LINESIZE); /* point the pointer to the data area */
   }
 #endif
 
@@ -2583,7 +2614,7 @@ PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt 
       else { from->n++; }
     }
 
-    ierr = PetscMalloc5(from->shmn,&from->shmprocs,from->shmn,&from->shmspaces,from->shmn,&from->shmoffsets,from->shmn+1,&from->shmstarts,rlenshm,&from->shmindices);CHKERRQ(ierr);
+    ierr = PetscMalloc5(from->shmn,&from->shmprocs,from->shmn,&from->shmspaces,from->shmn,&from->shmflags,from->shmn+1,&from->shmstarts,rlenshm,&from->shmindices);CHKERRQ(ierr);
   }
 #endif
 
@@ -2619,7 +2650,6 @@ PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt 
     {
       from->procs[from->n]    = recvfrom[i];
       from->starts[from->n+1] = from->starts[from->n] + len;
-      PetscMemcpy(&from->indices[from->starts[i]],&idybs_sorted[rstarts[i]],sizeof(PetscInt)*len);
       ierr = PetscMemcpy(&from->indices[from->starts[from->n]],&idybs_sorted[ystart],sizeof(PetscInt)*len);CHKERRQ(ierr);
       from->n++;
     }
@@ -2636,21 +2666,33 @@ PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt 
    */
 #if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
   if (use_intranodeshmem) {
-    MPI_Request *shmreqs = NULL;
-    ierr = PetscMalloc1(from->shmn,&shmreqs);CHKERRQ(ierr);
-    for (i=0; i<from->shmn; i++) { ierr = MPI_Irecv(from->shmoffsets+i,1,MPIU_INT,from->shmprocs[i],0/*tag*/,from->shmcomm,shmreqs+i);CHKERRQ(ierr); }
-    for (i=0; i<to->shmn; i++) { ierr = MPI_Send(to->shmstarts+i,1,MPIU_INT,to->shmprocs[i],0/*tag*/,to->shmcomm);CHKERRQ(ierr); }
-    ierr = MPI_Waitall(from->shmn,shmreqs,MPI_STATUSES_IGNORE);CHKERRQ(ierr);
+    MPI_Request *reqs = NULL;
+    struct {
+      PetscInt j,m,offset; /* from my partner's view, I am its j-th partner out of its m partners, and I should read from this offset */
+    } jmo,*triples = NULL;
 
-    /* get the shared memory address for all processes I will be copying data from */
+    /* get the above info from my partners */
+    ierr = PetscMalloc2(from->shmn,&reqs,from->shmn,&triples);CHKERRQ(ierr);
+    for (i=0; i<from->shmn; i++) { ierr = MPI_Irecv(triples+i,3,MPIU_INT,from->shmprocs[i],0/*tag*/,from->shmcomm,reqs+i);CHKERRQ(ierr); }
+    for (i=0; i<to->shmn; i++) {
+      jmo.j = i;
+      jmo.m = to->shmn;
+      jmo.offset = to->shmstarts[i];
+      ierr = MPI_Send(&jmo,3,MPIU_INT,to->shmprocs[i],0/*tag*/,to->shmcomm);CHKERRQ(ierr);
+    }
+    ierr = MPI_Waitall(from->shmn,reqs,MPI_STATUSES_IGNORE);CHKERRQ(ierr);
+
+    /* figure out flag addresses and data addresses aimed to me */
     for (i=0; i<from->shmn; i++) {
       MPI_Aint    size;
       PetscMPIInt disp_unit;
       ierr = MPI_Win_shared_query(from->shmwin,from->shmprocs[i],&size,&disp_unit,&from->shmspaces[i]);CHKERRQ(ierr);
-      from->shmspaces[i] += from->shmoffsets[i]*bs;  /* move the pointer to where I read from */
+      from->shmflags[i]   =    (PetscInt*)((char*)from->shmspaces[i] + triples[i].j*PETSC_LEVEL1_DCACHE_LINESIZE); /* get address of the j-th flag */
+      from->shmspaces[i]  = (PetscScalar*)((char*)from->shmspaces[i] + triples[i].m*PETSC_LEVEL1_DCACHE_LINESIZE); /* skip the flag area */
+      from->shmspaces[i] += triples[i].offset*bs; /* and then add the offset to point to where my expected data lives */
     }
 
-    ierr = PetscFree(shmreqs);CHKERRQ(ierr);
+    ierr = PetscFree2(reqs,triples);CHKERRQ(ierr);
   }
 #endif
 
