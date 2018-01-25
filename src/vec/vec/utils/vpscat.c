@@ -449,6 +449,10 @@ PetscErrorCode VecScatterCopy_PtoP_X(VecScatter in,VecScatter out)
 
 #if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
   if (in_to->use_intranodeshmem) {
+    /* to better understand how we copy a vecscatter context with shared memory support, please see comments
+       in VecScatterCreate_PtoS. The shared memory allocation, and flag address and data address calculation
+       code is almost the same.
+     */
     PetscInt i;
     MPI_Info info;
     /* since the to and from data structures are not symmetric for shared memory we insure they always listed in "standard" form */
@@ -469,10 +473,14 @@ PetscErrorCode VecScatterCopy_PtoP_X(VecScatter in,VecScatter out)
     /* allocate sharem memory in to, which has shmspace[] and ignores shmspaces[] */
     ierr = MPI_Info_create(&info);CHKERRQ(ierr);
     ierr = MPI_Info_set(info, "alloc_shared_noncontig", "true");CHKERRQ(ierr);
-    MPI_Aint sz = bs*out_to->shmstarts[out_to->shmn]*sizeof(PetscScalar)+out_to->shmn*PETSC_LEVEL1_DCACHE_LINESIZE;
+    MPI_Aint sz = bs*out_to->shmstarts[out_to->shmn]*sizeof(PetscScalar) + (out_to->shmn+1)*PETSC_LEVEL1_DCACHE_LINESIZE;
     ierr = MPI_Win_allocate_shared(sz,sizeof(PetscScalar),info,out_to->shmcomm,&out_to->shmspace,&out_to->shmwin);CHKERRQ(ierr);
     ierr = MPI_Info_free(&info);CHKERRQ(ierr);
-    for (i=0; i<out_to->shmn; i++) out_to->shmflags[i] = (PetscInt*)((char*)out_to->shmspace + i*PETSC_LEVEL1_DCACHE_LINESIZE);
+    out_to->shmspace = (PetscScalar*)((((PETSC_UINTPTR_T)(out_to->shmspace))+(PETSC_LEVEL1_DCACHE_LINESIZE-1)) & ~(PETSC_LEVEL1_DCACHE_LINESIZE-1));
+    for (i=0; i<out_to->shmn; i++) {
+      out_to->shmflags[i] = (PetscInt*)((char*)out_to->shmspace + i*PETSC_LEVEL1_DCACHE_LINESIZE);
+      *out_to->shmflags[i] = 0; /* init the flag to empty(0) */
+    }
     out_to->shmspace = (PetscScalar*)((char*)out_to->shmspace + out_to->shmn*PETSC_LEVEL1_DCACHE_LINESIZE);
 
     /* copy the from parts for intranode shared memory communication */
@@ -487,7 +495,7 @@ PetscErrorCode VecScatterCopy_PtoP_X(VecScatter in,VecScatter out)
     ierr = PetscMemcpy(out_from->shmindices,in_from->shmindices,sizeof(PetscInt)*in_from->shmstarts[in_from->shmn]);CHKERRQ(ierr);
 
     MPI_Request *reqs = NULL;
-    struct {PetscInt j,m,offset;} jmo,*triples = NULL; /* See comments in VecScatterCreate_PtoS, where we create context */
+    struct {PetscInt j,m,offset;} jmo,*triples = NULL;
     ierr = PetscMalloc2(out_from->shmn,&reqs,out_from->shmn,&triples);CHKERRQ(ierr);
 
     for (i=0; i<out_from->shmn; i++) { ierr = MPI_Irecv(triples+i,3,MPIU_INT,out_from->shmprocs[i],0/*tag*/,out_from->shmcomm,reqs+i);CHKERRQ(ierr); }
@@ -504,6 +512,7 @@ PetscErrorCode VecScatterCopy_PtoP_X(VecScatter in,VecScatter out)
       MPI_Aint    size;
       PetscMPIInt disp_unit;
       ierr = MPI_Win_shared_query(out_from->shmwin,out_from->shmprocs[i],&size,&disp_unit,&out_from->shmspaces[i]);CHKERRQ(ierr);
+      out_from->shmspaces[i]  = (PetscScalar*)((((PETSC_UINTPTR_T)(out_from->shmspaces[i]))+(PETSC_LEVEL1_DCACHE_LINESIZE-1)) & ~(PETSC_LEVEL1_DCACHE_LINESIZE-1));
       out_from->shmflags[i]   =    (PetscInt*)((char*)out_from->shmspaces[i] + triples[i].j*PETSC_LEVEL1_DCACHE_LINESIZE); /* get address of the j-th flag */
       out_from->shmspaces[i]  = (PetscScalar*)((char*)out_from->shmspaces[i] + triples[i].m*PETSC_LEVEL1_DCACHE_LINESIZE); /* skip the flag area */
       out_from->shmspaces[i] += triples[i].offset*bs;/* and then add the offset to point to where my expected data lives */
@@ -2579,15 +2588,22 @@ PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt 
     ierr = PetscShmcommGetMpiShmcomm(pshmcomm,&to->shmcomm);CHKERRQ(ierr);
     ierr = MPI_Info_create(&info);CHKERRQ(ierr);
     ierr = MPI_Info_set(info, "alloc_shared_noncontig", "true");CHKERRQ(ierr);
-    MPI_Aint sz = bs*to->shmstarts[to->shmn]*sizeof(PetscScalar) + to->shmn*PETSC_LEVEL1_DCACHE_LINESIZE;
+    MPI_Aint sz = bs*to->shmstarts[to->shmn]*sizeof(PetscScalar) + (to->shmn+1)*PETSC_LEVEL1_DCACHE_LINESIZE; /* add an extra cacheline for alignment purpose */
     ierr = MPI_Win_allocate_shared(sz,sizeof(PetscScalar),info,to->shmcomm,&to->shmspace,&to->shmwin);CHKERRQ(ierr);
     ierr = MPI_Info_free(&info);CHKERRQ(ierr);
 
-    /* Note we used alloc_shared_noncontig in shared memory allocation, such that the returned shared memory address
-       on each process is page-aligned, and of course, also cacheline aligned. Therefore, we are sure that sync flags
-       are on separate cachelines.
+    /* Align the returned shared memory address to cacheline, where the flag area
+       starts. Each flag takes one cacheline to avoid false sharing. Note we used
+       alloc_shared_noncontig in shared memory allocation. The returned shared memory
+       address on each process is expected to be page-aligned (and cacheline-aligned).
+       However, for some unknown reason, I found it is not necessarily true on a Cray
+       machine. So I allocate an extra cacheline and do the alignment myself.
      */
-    for (i=0; i<to->shmn; i++) to->shmflags[i] = (PetscInt*)((char*)to->shmspace + i*PETSC_LEVEL1_DCACHE_LINESIZE);
+    to->shmspace = (PetscScalar*)((((PETSC_UINTPTR_T)(to->shmspace))+(PETSC_LEVEL1_DCACHE_LINESIZE-1)) & ~(PETSC_LEVEL1_DCACHE_LINESIZE-1));
+    for (i=0; i<to->shmn; i++) {
+      to->shmflags[i] = (PetscInt*)((char*)to->shmspace + i*PETSC_LEVEL1_DCACHE_LINESIZE);
+      *to->shmflags[i] = 0; /* init the flag to empty (0) to say sender can write the buffer */
+    }
     to->shmspace = (PetscScalar*)((char*)to->shmspace + to->shmn*PETSC_LEVEL1_DCACHE_LINESIZE); /* point the pointer to the data area */
   }
 #endif
@@ -2687,6 +2703,7 @@ PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt 
       MPI_Aint    size;
       PetscMPIInt disp_unit;
       ierr = MPI_Win_shared_query(from->shmwin,from->shmprocs[i],&size,&disp_unit,&from->shmspaces[i]);CHKERRQ(ierr);
+      from->shmspaces[i]  = (PetscScalar*)((((PETSC_UINTPTR_T)(from->shmspaces[i]))+(PETSC_LEVEL1_DCACHE_LINESIZE-1)) & ~(PETSC_LEVEL1_DCACHE_LINESIZE-1));
       from->shmflags[i]   =    (PetscInt*)((char*)from->shmspaces[i] + triples[i].j*PETSC_LEVEL1_DCACHE_LINESIZE); /* get address of the j-th flag */
       from->shmspaces[i]  = (PetscScalar*)((char*)from->shmspaces[i] + triples[i].m*PETSC_LEVEL1_DCACHE_LINESIZE); /* skip the flag area */
       from->shmspaces[i] += triples[i].offset*bs; /* and then add the offset to point to where my expected data lives */
