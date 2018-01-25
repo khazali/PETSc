@@ -107,15 +107,17 @@ PetscErrorCode PETSCMAP1(VecScatterBegin)(VecScatter ctx,Vec xin,Vec yin,InsertM
     if (to->use_intranodeshmem) {
       if (to->shmspace) { /* if to allocated shared memory, then this is the normal forward scatter */
         /* Pack the send data into my shared memory buffer and wait my partners to read */
-        for (i=0; i<to->shmn; i++) { while(*to->shmflags[i]); }
+        for (i=0; i<to->shmn; i++) { while(*to->shmflags[i]); } /* wait the flag to be empty before write */
         PETSCMAP1(Pack)(to->shmstarts[to->shmn],to->shmindices,xv,to->shmspace,bs);
-        for (i=0; i<to->shmn; i++) *to->shmflags[i] = 1;
+        __asm__ __volatile__  ( "mfence" ::: "memory" ); /* this hardware memory fence ensures if one reads a full flag,*/
+        for (i=0; i<to->shmn; i++) *to->shmflags[i] = 1; /* it then can read the latest value I just wrote to the buffer */
       } else { /* this is the normal backward scatter */
         /* Pack the send data into receivers shared memory buffer (potentially in other NUMA domains) */
         for (i=0; i<to->shmn; i++) {
-          while(*to->shmflags[i]); /* wait the flag to be empty before write */
+          while(*to->shmflags[i]); /* wait the flag to be empty(0) before write */
           PETSCMAP1(Pack)(to->shmstarts[i+1]-to->shmstarts[i],to->shmindices+to->shmstarts[i],xv,to->shmspaces[i],bs);
-          *to->shmflags[i] = 1; /* set the flag full after write */
+          __asm__ __volatile__  ( "mfence" ::: "memory" );
+          *to->shmflags[i] = 1; /* set the flag to full(1) after write */
         }
       }
     }

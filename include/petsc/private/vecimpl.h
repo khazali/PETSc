@@ -283,7 +283,7 @@ typedef struct {
   PetscMPIInt            *shmprocs;     /* [shmn] (local) ranks of the processors in shmcomm */
   PetscScalar            *shmspace;     /* space each processor puts data to be read from other processors; allocated by MPI */
   PetscScalar            **shmspaces;   /* [shmn] space other processors put data to be read from this processor */
-  volatile PetscInt      **shmflags;   /* [shmn] full/empty flags to tell me if the data in each of my partners shared memory is ready */
+  volatile PetscInt      **shmflags;    /* [shmn] boolean sync flags, tell whether the shared memory buffer is ready to read or write */
   PetscInt               *shmstarts;    /* [shmn+1] for each shared memory partner this maps to the part of shmindices of that partner */
   PetscInt               *shmindices;   /* [] for each shared memory partner contains indices where values are to be copied to */
   MPI_Comm               shmcomm;       /* MPI shared memory communicator */
