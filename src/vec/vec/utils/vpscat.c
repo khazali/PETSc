@@ -2235,6 +2235,103 @@ PETSC_STATIC_INLINE PetscErrorCode Scatter_bs(PetscInt n,const PetscInt *indices
 
 PetscErrorCode VecScatterCreateCommon_PtoS_MPI3(VecScatter_MPI_General*,VecScatter_MPI_General*,VecScatter);
 
+/*@
+     VecScatterCreateLocal - Creates a VecScatter from a list of messages it must send and receive.
+
+     Collective on VecScatter
+
+   Input Parameters:
++     VecScatter - obtained with VecScatterCreateEmpty()
+.     nsends -
+.     sendSizes -
+.     sendProcs -
+.     sendIdx - indices where the sent entries are obtained from (in local, on process numbering), this is one long array of size \sum_{i=0,i<nsends} sendSizes[i]
+.     nrecvs - number of receives to expect
+.     recvSizes -
+.     recvProcs - processes who are sending to me
+.     recvIdx - indices of where received entries are to be put, (in local, on process numbering), this is one long array of size \sum_{i=0,i<nrecvs} recvSizes[i]
+-     bs - size of block
+
+     Notes:  sendSizes[] and recvSizes[] cannot have any 0 entries. If you want to support having 0 entries you need
+      to change the code below to "compress out" the sendProcs[] and recvProcs[] entries that have 0 entries.
+
+       Probably does not handle sends to self properly. It should remove those from the counts that are used
+      in allocating space inside of the from struct
+
+  Level: intermediate
+
+@*/
+PetscErrorCode VecScatterCreateLocal(VecScatter ctx,PetscInt nsends,const PetscInt sendSizes[],const PetscInt sendProcs[],const PetscInt sendIdx[],PetscInt nrecvs,const PetscInt recvSizes[],const PetscInt recvProcs[],const PetscInt recvIdx[],PetscInt bs)
+{
+  VecScatter_MPI_General *from, *to;
+  PetscInt               sendSize,recvSize,bs_sendSize,bs_recvSize;
+  PetscInt               n, i;
+  PetscErrorCode         ierr;
+
+  /* allocate entire send scatter context */
+  ierr  = PetscNewLog(ctx,&to);CHKERRQ(ierr);
+  to->n = nsends;
+  for (n = 0, sendSize = 0; n < to->n; n++) {
+    ierr = PetscIntSumError(sendSize,sendSizes[n],&sendSize);CHKERRQ(ierr);
+  }
+
+  ierr = PetscMalloc1(to->n,&to->requests);CHKERRQ(ierr);
+  ierr = PetscIntMultError(bs,sendSize,&bs_sendSize);CHKERRQ(ierr);
+  ierr = PetscMalloc4(bs_sendSize,&to->values,sendSize,&to->indices,to->n+1,&to->starts,to->n,&to->procs);CHKERRQ(ierr);
+  ierr = PetscMalloc2(PetscMax(to->n,nrecvs),&to->sstatus,PetscMax(to->n,nrecvs),&to->rstatus);CHKERRQ(ierr);
+
+  to->starts[0] = 0;
+  for (n = 0; n < to->n; n++) {
+    if (sendSizes[n] <=0) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"sendSizes[n=%D] = %D cannot be less than 1",n,sendSizes[n]);
+    to->starts[n+1] = to->starts[n] + sendSizes[n];
+    to->procs[n]    = sendProcs[n];
+    for (i = to->starts[n]; i < to->starts[n]+sendSizes[n]; i++) to->indices[i] = sendIdx[i];
+  }
+  ctx->todata = (void*) to;
+
+  /* allocate entire receive scatter context */
+  ierr    = PetscNewLog(ctx,&from);CHKERRQ(ierr);
+  from->n = nrecvs;
+  for (n = 0, recvSize = 0; n < from->n; n++) {
+    ierr = PetscIntSumError(recvSize,recvSizes[n],&recvSize);CHKERRQ(ierr);
+  }
+
+  ierr = PetscMalloc1(from->n,&from->requests);CHKERRQ(ierr);
+  ierr = PetscIntMultError(bs,recvSize,&bs_recvSize);CHKERRQ(ierr);
+  ierr = PetscMalloc4(bs_recvSize,&from->values,recvSize,&from->indices,from->n+1,&from->starts,from->n,&from->procs);CHKERRQ(ierr);
+
+  from->starts[0] = 0;
+  for (n = 0; n < from->n; n++) {
+    if (recvSizes[n] <=0) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"recvSizes[n=%D] = %D cannot be less than 1",n,recvSizes[n]);
+    from->starts[n+1] = from->starts[n] + recvSizes[n];
+    from->procs[n]    = recvProcs[n];
+    for (i = from->starts[n]; i < from->starts[n]+recvSizes[n]; i++) from->indices[i] = recvIdx[i];
+  }
+  ctx->fromdata = (void*)from;
+
+  /* No local scatter optimization */
+  from->local.n                    = 0;
+  from->local.vslots               = 0;
+  to->local.n                      = 0;
+  to->local.vslots                 = 0;
+  from->local.nonmatching_computed = PETSC_FALSE;
+  from->local.n_nonmatching        = 0;
+  from->local.slots_nonmatching    = 0;
+  to->local.nonmatching_computed   = PETSC_FALSE;
+  to->local.n_nonmatching          = 0;
+  to->local.slots_nonmatching      = 0;
+
+  from->type = VEC_SCATTER_MPI_GENERAL;
+  to->type   = VEC_SCATTER_MPI_GENERAL;
+  from->bs   = bs;
+  to->bs     = bs;
+  ierr       = VecScatterCreateCommon_PtoS(from, to, ctx);CHKERRQ(ierr);
+
+  /* mark lengths as negative so it won't check local vector lengths */
+  ctx->from_n = ctx->to_n = -1;
+  PetscFunctionReturn(0);
+}
+
 /*
    bs indicates how many elements there are in each block. Normally this would be 1.
 
@@ -2279,7 +2376,7 @@ PetscErrorCode VecScatterCreate_PtoS_MPI3(PetscInt nx,const PetscInt *inidx,Pets
   j      = 0;
   nsends = 0;
   for (i=0; i<nx; i++) {
-    idx = bs*inidx[i];
+    ierr = PetscIntMultError(bs,inidx[i],&idx);CHKERRQ(ierr);
     if (idx < owners[j]) j = 0;
     for (; j<size; j++) {
       if (idx < owners[j+1]) {
@@ -2298,7 +2395,10 @@ PetscErrorCode VecScatterCreate_PtoS_MPI3(PetscInt nx,const PetscInt *inidx,Pets
   ierr = PetscGatherNumberOfMessages(comm,NULL,nprocs,&nrecvs);CHKERRQ(ierr);
   ierr = PetscGatherMessageLengths(comm,nsends,nrecvs,nprocs,&onodes1,&olengths1);CHKERRQ(ierr);
   ierr = PetscSortMPIIntWithArray(nrecvs,onodes1,olengths1);CHKERRQ(ierr);
-  recvtotal = 0; for (i=0; i<nrecvs; i++) recvtotal += olengths1[i];
+  recvtotal = 0;
+  for (i=0; i<nrecvs; i++) {
+    ierr = PetscIntSumError(recvtotal,olengths1[i],&recvtotal);CHKERRQ(ierr);
+  }
 
   /* post receives:   */
   ierr  = PetscMalloc3(recvtotal,&rvalues,nrecvs,&source,nrecvs,&recv_waits);CHKERRQ(ierr);
@@ -2657,7 +2757,7 @@ PetscErrorCode VecScatterCreateCommon_PtoS_MPI3(VecScatter_MPI_General *from,Vec
     MPI_Status  *status;
 
     ierr = PetscObjectGetNewTag((PetscObject)ctx,&temptag);CHKERRQ(ierr);
-    winsize = (to->n ? to->starts[to->n] : 0)*bs*sizeof(PetscScalar);
+    ierr = PetscIntMultError((to->n ? to->starts[to->n] : 0),bs*sizeof(PetscScalar),&winsize);CHKERRQ(ierr);
     ierr = MPI_Win_create(to->values ? to->values : MPI_BOTTOM,winsize,sizeof(PetscScalar),MPI_INFO_NULL,comm,&to->window);CHKERRQ(ierr);
     ierr = PetscMalloc1(to->n,&to->winstarts);CHKERRQ(ierr);
     ierr = PetscMalloc2(to->n,&request,to->n,&status);CHKERRQ(ierr);
@@ -2670,7 +2770,7 @@ PetscErrorCode VecScatterCreateCommon_PtoS_MPI3(VecScatter_MPI_General *from,Vec
     ierr = MPI_Waitall(to->n,request,status);CHKERRQ(ierr);
     ierr = PetscFree2(request,status);CHKERRQ(ierr);
 
-    winsize = (from->n ? from->starts[from->n] : 0)*bs*sizeof(PetscScalar);
+    ierr = PetscIntMultError((from->n ? from->starts[from->n] : 0),bs*sizeof(PetscScalar),&winsize);CHKERRQ(ierr);
     ierr = MPI_Win_create(from->values ? from->values : MPI_BOTTOM,winsize,sizeof(PetscScalar),MPI_INFO_NULL,comm,&from->window);CHKERRQ(ierr);
     ierr = PetscMalloc1(from->n,&from->winstarts);CHKERRQ(ierr);
     ierr = PetscMalloc2(from->n,&request,from->n,&status);CHKERRQ(ierr);
@@ -2914,7 +3014,10 @@ PetscErrorCode VecScatterCreate_PtoP_MPI3(PetscInt nx,const PetscInt *inidx,Pets
   ierr = PetscGatherNumberOfMessages(comm,NULL,nprocs,&nrecvs);CHKERRQ(ierr);
   ierr = PetscGatherMessageLengths(comm,nsends,nrecvs,nprocs,&onodes1,&olengths1);CHKERRQ(ierr);
   ierr = PetscSortMPIIntWithArray(nrecvs,onodes1,olengths1);CHKERRQ(ierr);
-  recvtotal = 0; for (i=0; i<nrecvs; i++) recvtotal += olengths1[i];
+  recvtotal = 0;
+  for (i=0; i<nrecvs; i++) {
+    ierr = PetscIntSumError(recvtotal,olengths1[i],&recvtotal);CHKERRQ(ierr);
+  }
 
   /* post receives:   */
   ierr = PetscMalloc5(2*recvtotal,&rvalues,2*nx,&svalues,nrecvs,&recv_waits,nsends,&send_waits,nsends,&send_status);CHKERRQ(ierr);
@@ -2922,7 +3025,7 @@ PetscErrorCode VecScatterCreate_PtoP_MPI3(PetscInt nx,const PetscInt *inidx,Pets
   count = 0;
   for (i=0; i<nrecvs; i++) {
     ierr = MPI_Irecv((rvalues+2*count),2*olengths1[i],MPIU_INT,onodes1[i],tag,comm,recv_waits+i);CHKERRQ(ierr);
-    count += olengths1[i];
+    ierr = PetscIntSumError(count,olengths1[i],&count);CHKERRQ(ierr);
   }
   ierr = PetscFree(onodes1);CHKERRQ(ierr);
 
