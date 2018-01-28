@@ -2086,7 +2086,6 @@ PETSC_STATIC_INLINE PetscErrorCode Scatter_MPI1_bs(PetscInt n,const PetscInt *in
 
 PetscErrorCode VecScatterCreateCommon_PtoS_MPI1(VecScatter_MPI_General*,VecScatter_MPI_General*,VecScatter);
 
-
 /*
    bs indicates how many elements there are in each block. Normally this would be 1.
 
