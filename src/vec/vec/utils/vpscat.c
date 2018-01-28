@@ -2655,7 +2655,7 @@ PetscErrorCode VecScatterCreateCommon_PtoS_MPI3(VecScatter_MPI_General *from,Vec
 #endif
 #if defined(PETSC_HAVE_MPI_WIN_CREATE)
   } else if (to->use_window) {
-    PetscMPIInt temptag,winsize;
+    PetscMPIInt temptag,winsize = 0;
     MPI_Request *request;
     MPI_Status  *status;
 
