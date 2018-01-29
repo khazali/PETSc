@@ -2655,12 +2655,14 @@ PetscErrorCode VecScatterCreateCommon_PtoS_MPI3(VecScatter_MPI_General *from,Vec
 #endif
 #if defined(PETSC_HAVE_MPI_WIN_CREATE)
   } else if (to->use_window) {
-    PetscMPIInt temptag,winsize = 0;
+    PetscMPIInt temptag,winsize;
+    PetscInt    iwinsize = 0;
     MPI_Request *request;
     MPI_Status  *status;
 
     ierr = PetscObjectGetNewTag((PetscObject)ctx,&temptag);CHKERRQ(ierr);
-    ierr = PetscIntMultError((to->n ? to->starts[to->n] : 0),bs*sizeof(PetscScalar),&winsize);CHKERRQ(ierr);
+    ierr = PetscIntMultError((to->n ? to->starts[to->n] : 0),bs*sizeof(PetscScalar),&iwinsize);CHKERRQ(ierr);
+    ierr = PetscMPIIntCast(iwinsize,&winsize);CHKERRQ(ierr);
     ierr = MPI_Win_create(to->values ? to->values : MPI_BOTTOM,winsize,sizeof(PetscScalar),MPI_INFO_NULL,comm,&to->window);CHKERRQ(ierr);
     ierr = PetscMalloc1(to->n,&to->winstarts);CHKERRQ(ierr);
     ierr = PetscMalloc2(to->n,&request,to->n,&status);CHKERRQ(ierr);
