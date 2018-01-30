@@ -2247,7 +2247,7 @@ PetscErrorCode VecScatterCreate_PtoS_MPI3(PetscInt nx,const PetscInt *inidx,Pets
   PetscInt               *source = NULL,*owners = NULL,nxr;
   PetscInt               *lowner = NULL,*start = NULL,*lsharedowner = NULL,*sharedstart = NULL,lengthy,lengthx;
   PetscMPIInt            *nprocs = NULL,nrecvs,nrecvshared;
-  PetscInt               i,j,idx,nsends;
+  PetscInt               i,j,idx = 0,nsends;
   PetscMPIInt            *owner = NULL;
   PetscInt               *starts = NULL,count,slen,slenshared;
   PetscInt               *rvalues,*svalues,base,*values,nprocslocal,recvtotal,*rsvalues;
@@ -2675,7 +2675,8 @@ PetscErrorCode VecScatterCreateCommon_PtoS_MPI3(VecScatter_MPI_General *from,Vec
     ierr = MPI_Waitall(to->n,request,status);CHKERRQ(ierr);
     ierr = PetscFree2(request,status);CHKERRQ(ierr);
 
-    ierr = PetscIntMultError((from->n ? from->starts[from->n] : 0),bs*sizeof(PetscScalar),&winsize);CHKERRQ(ierr);
+    ierr = PetscIntMultError((from->n ? from->starts[from->n] : 0),bs*sizeof(PetscScalar),&iwinsize);CHKERRQ(ierr);
+    ierr = PetscMPIIntCast(iwinsize,&winsize);CHKERRQ(ierr);
     ierr = MPI_Win_create(from->values ? from->values : MPI_BOTTOM,winsize,sizeof(PetscScalar),MPI_INFO_NULL,comm,&from->window);CHKERRQ(ierr);
     ierr = PetscMalloc1(from->n,&from->winstarts);CHKERRQ(ierr);
     ierr = PetscMalloc2(from->n,&request,from->n,&status);CHKERRQ(ierr);
