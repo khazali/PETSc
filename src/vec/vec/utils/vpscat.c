@@ -2360,23 +2360,22 @@ PetscErrorCode VecScatterCreateLocal(VecScatter ctx,PetscInt nsends,const PetscI
 PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt ny,const PetscInt *inidy,Vec xin,Vec yin,PetscInt bs,VecScatter ctx)
 {
   VecScatter_MPI_General *from,*to;
-  PetscMPIInt            nprocs,myrank,tag,index,n;
+  PetscMPIInt            nprocs,myrank,tag;
   PetscMPIInt            *recvfrom = NULL,*rlens = NULL,rlenlocal,rlentotal,rlenshm,nrecvs;
   PetscMPIInt            *sendto = NULL,*slens = NULL,slentotal,slenshm,nsends,nsendsshm;
   PetscInt               *range = NULL,i,j;
   PetscInt               *rstarts = NULL,count;
   PetscInt               *rindices,*sindices,*sindices2;
   MPI_Request            *sreqs = NULL,*rreqs = NULL;
-  MPI_Status             send_status;
   PetscErrorCode         ierr;
   PetscInt               *idxbs_sorted = NULL,*idybs_sorted = NULL;
   PetscShmcomm           pshmcomm;
-#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
-  PetscMPIInt            jj;
-  MPI_Info               info;
   MPI_Comm               comm; /* the outer communicator */
   PetscInt               it,first,step,lblocal,ublocal;
   PetscBool              use_intranodeshmem;
+#if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+  PetscMPIInt            jj;
+  MPI_Info               info;
 #endif
 
   PetscFunctionBegin;
@@ -2517,6 +2516,8 @@ PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt 
   slenshm   = 0;
   if (use_intranodeshmem) {
 #if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+    MPI_Status send_status;
+    PetscMPIInt index,n;
     for (i=0; i<nsends; i++) {
       ierr = MPI_Waitany(nsends,sreqs,&index,&send_status);CHKERRQ(ierr);
       ierr = MPI_Get_count(&send_status,MPIU_INT,&n);CHKERRQ(ierr);

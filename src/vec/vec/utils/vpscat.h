@@ -156,7 +156,7 @@ PetscErrorCode PETSCMAP1(VecScatterEnd)(VecScatter ctx,Vec xin,Vec yin,InsertMod
   VecScatter_MPI_General *to,*from;
   PetscScalar            *rvalues,*yv;
   PetscErrorCode         ierr;
-  PetscInt               i,nrecvs,nsends,*indices,count,*rstarts,bs;
+  PetscInt               nrecvs,nsends,*indices,count,*rstarts,bs;
   PetscMPIInt            imdex;
   MPI_Request            *rwaits,*swaits;
   MPI_Status             xrstatus,*rstatus,*sstatus;
@@ -185,6 +185,7 @@ PetscErrorCode PETSCMAP1(VecScatterEnd)(VecScatter ctx,Vec xin,Vec yin,InsertMod
   rstarts = from->starts;
 
 #if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+  PetscInt i;
   if (from->use_intranodeshmem) {
     /* read (unpack) data from the sahred memory */
     if (from->shmspace) { /* from allocated shared memory, so this is a backward scatter */
