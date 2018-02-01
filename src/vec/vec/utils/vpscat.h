@@ -103,20 +103,44 @@ PetscErrorCode PETSCMAP1(VecScatterBegin)(VecScatter ctx,Vec xin,Vec yin,InsertM
     /* intranode shared memory communication is orthogonal to the above ommunication approaches,
        whatever they are, alltoallv, alltoallw or one-sided. They just handle internode communications
        if intranode shared memory communication is enabled.
+
+       Shared memory sender-receiver sync protocal:
+
+       Sender (to)                        Receiver (from)
+       ---------------------              ---------------
+       while (flag);                      while(!flag);
+       write buffer;                      read buffer;
+       wirte_memory_barrier;
+       flag = 1;                          flag = 0;
+
+       On the sender side, wirte_memory_barrier ensures if the store instruction, flag=1, is perceived
+       by the receiver, then memory writes before the barrier, i.e., data written to the buffer could
+       also be perceived by the receiver. Therefore, the receiver can get up-to-date data from the buffer.
+
+       On the reciever side, if flag=0 is perceived by the sender (as a result, sender starts to overwrite
+       the buffer), that means the instruction flag=0 has been committed. Since 'flag = 0' comes after
+       'read buffer', 'read buffer' must also have been committed. Therefore, the sender can safely
+       overwrite the buffer.
+
+       flag is set to be valotaile, so that compilers would not move instructions across it.
+       On x86, wirte_memory_barrier is a store fence instruction (sfence). One could also use
+       MPI_Win_sync(shmcomm) as the barrier. But MPI_Win_sync has additional requirements. To avoid the
+       complexity and be efficient, we do the barrier on our own.
      */
+
     if (to->use_intranodeshmem) {
-      if (to->shmspace) { /* if to allocated shared memory, then this is the normal forward scatter */
+      if (to->shmspace) { /* if 'to' allocated shared memory, then this is the normal forward scatter */
         /* Pack the send data into my shared memory buffer and wait my partners to read */
-        for (i=0; i<to->shmn; i++) { while(*to->shmflags[i]); } /* wait the flag to be empty before write */
+        for (i=0; i<to->shmn; i++) { while(*to->shmflags[i]); }
         PETSCMAP1(Pack)(to->shmstarts[to->shmn],to->shmindices,xv,to->shmspace,bs);
-        __asm__ __volatile__  ( "mfence" ::: "memory" ); /* this hardware memory fence ensures if one reads a full flag,*/
-        for (i=0; i<to->shmn; i++) *to->shmflags[i] = 1; /* it then can read the latest value I just wrote to the buffer */
+        PETSC_WRITE_MEMORY_BARRIER();
+        for (i=0; i<to->shmn; i++) *to->shmflags[i] = 1;
       } else { /* this is the normal backward scatter */
         /* Pack the send data into receivers shared memory buffer (potentially in other NUMA domains) */
         for (i=0; i<to->shmn; i++) {
           while(*to->shmflags[i]); /* wait the flag to be empty(0) before write */
           PETSCMAP1(Pack)(to->shmstarts[i+1]-to->shmstarts[i],to->shmindices+to->shmstarts[i],xv,to->shmspaces[i],bs);
-          __asm__ __volatile__  ( "mfence" ::: "memory" );
+          PETSC_WRITE_MEMORY_BARRIER();
           *to->shmflags[i] = 1; /* set the flag to full(1) after write */
         }
       }
