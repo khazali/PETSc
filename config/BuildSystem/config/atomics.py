@@ -45,6 +45,24 @@ class Configure(config.base.Configure):
     # Write Memory Barrier
     if self.checkCompile('','asm volatile("sfence":::"memory")'):
       self.addDefine('WRITE_MEMORY_BARRIER()','asm volatile("sfence":::"memory")')
+
+    # ---- Definitions for PowerPC -----
+    # General Memory Barrier
+    if self.checkCompile('','asm volatile("sync":::"memory")'):
+      self.addDefine('MEMORY_BARRIER()','asm volatile("sync":::"memory")')
+    # Read Memory Barrier
+    if self.checkCompile('','asm volatile("lwsync":::"memory")'):
+      self.addDefine('READ_MEMORY_BARRIER()','asm volatile("lwsync":::"memory")')
+    # Write Memory Barrier
+    if self.checkCompile('','asm volatile("eieio":::"memory")'):
+      self.addDefine('WRITE_MEMORY_BARRIER()','asm volatile("eieio":::"memory")')
+
+    # ---- Definitions for ARM -----
+    # Use dmb for all memory barrier types
+    if self.checkCompile('','asm volatile("dmb":::"memory")'):
+      self.addDefine('MEMORY_BARRIER()','asm volatile("dmb":::"memory")')
+      self.addDefine('READ_MEMORY_BARRIER()','asm volatile("dmb":::"memory")')
+      self.addDefine('WRITE_MEMORY_BARRIER()','asm volatile("dmb":::"memory")')
     return
 
   def configure(self):
