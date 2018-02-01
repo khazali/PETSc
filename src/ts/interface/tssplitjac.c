@@ -215,12 +215,16 @@ PetscErrorCode TSComputeIJacobianWithSplits_Private(TS ts, PetscReal time, Vec U
       splitJ->Astate == Astate && splitJ->Aid == Aid) {
     PetscFunctionReturn(0);
   }
+  if (A == splitJ->J_U) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_PLIB,"A should be different from J_U");
+  if (A == splitJ->J_Udot) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_PLIB,"A should be different from J_Udot");
   ierr = MatCopy(splitJ->J_U,A,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
   ierr = MatAXPY(A,shift,splitJ->J_Udot,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
   ierr = PetscObjectStateGet((PetscObject)A,&splitJ->Astate);CHKERRQ(ierr);
   ierr = PetscObjectGetId((PetscObject)A,&splitJ->Aid);CHKERRQ(ierr);
   splitJ->shift = shift;
   if (B && A != B) {
+    if (B == splitJ->pJ_U) SETERRQ(PetscObjectComm((PetscObject)B),PETSC_ERR_PLIB,"B should be different from pJ_U");
+    if (B == splitJ->pJ_Udot) SETERRQ(PetscObjectComm((PetscObject)B),PETSC_ERR_PLIB,"B should be different from pJ_Udot");
     ierr = MatCopy(splitJ->pJ_U,B,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
     ierr = MatAXPY(B,shift,splitJ->pJ_Udot,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
   }
