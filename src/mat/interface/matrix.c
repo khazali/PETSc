@@ -6244,7 +6244,7 @@ PetscErrorCode MatZeroRowsColumnsLocal(Mat mat,PetscInt numRows,const PetscInt r
   ierr = ISCreateGeneral(PETSC_COMM_SELF,numRows,rows,PETSC_COPY_VALUES,&is);CHKERRQ(ierr);
   ierr = ISLocalToGlobalMappingApplyIS(mat->cmap->mapping,is,&newis);CHKERRQ(ierr);
   ierr = ISGetIndices(newis,&newRows);CHKERRQ(ierr);
-  ierr = (*mat->ops->zerorowscolumns)(mat,numRows,newRows,diag,x,b);CHKERRQ(ierr);
+  ierr = MatZeroRowsColumns(mat,numRows,newRows,diag,x,b);CHKERRQ(ierr);
   ierr = ISRestoreIndices(newis,&newRows);CHKERRQ(ierr);
   ierr = ISDestroy(&newis);CHKERRQ(ierr);
   ierr = ISDestroy(&is);CHKERRQ(ierr);
