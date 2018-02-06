@@ -227,7 +227,7 @@ int main(int argc,char **argv)
         //if (j==0) wrk_ptr2[ind]+=.5*appctx.param.Le*appctx.SEMop.gll.weights[j];
         bmass[indy][indx].u=2.0;//wrk_ptr2[indy][indx];
         bmass[indy][indx].v=1.0;//wrk_ptr2[indy][indx];
-        printf("ind[%d][%d] and bu=%f bv= %f\n",indx,indy,bmass[indy][indx].u,bmass[indy][indx].v);
+        printf("ind[%d][%d] and bu=%f bv= %f\n",indy,indx,bmass[indy][indx].u,bmass[indy][indx].v);
           } 
          }
        }
