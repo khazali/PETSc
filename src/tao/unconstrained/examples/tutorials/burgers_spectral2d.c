@@ -32,6 +32,8 @@ static char help[] ="Solves a simple data assimilation problem with one dimensio
 #include <petscgll.h>
 #include <petscdraw.h>
 #include <petscdmda.h>
+#include <petscblaslapack.h>
+#include <petsc/private/petscimpl.h>
 
 /*
    User-defined application context - contains data needed by the
@@ -54,6 +56,11 @@ typedef struct {
   PetscInt    leny;
   PetscReal   Tadj;
 } PetscParam;
+
+typedef struct {
+  PetscScalar u,v;   /* wind speed */
+} Field;
+
 
 typedef struct {
   Vec         obj;               /* desired end state */
@@ -89,10 +96,6 @@ typedef struct {
    User-defined routines
 */
 extern PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
-extern PetscErrorCode RHSMatrixHeatgllDM(TS,PetscReal,Vec,Mat,Mat,void*);
-extern PetscErrorCode RHSMatrixAdvectiongllDM(TS,PetscReal,Vec,Mat,Mat,void*);
-extern PetscErrorCode RHSAdjointgllDM(TS,PetscReal,Vec,Mat,Mat,void*);
-extern PetscErrorCode RHSFunctionHeat(TS,PetscReal,Vec,Vec,void*);
 extern PetscErrorCode InitialConditions(Vec,AppCtx*);
 extern PetscErrorCode TrueSolution(Vec,AppCtx*);
 extern PetscErrorCode ComputeObjective(PetscReal,Vec,AppCtx*);
@@ -100,6 +103,8 @@ extern PetscErrorCode MonitorError(Tao,void*);
 extern PetscErrorCode ComputeSolutionCoefficients(AppCtx*);
 extern PetscErrorCode RHSFunction(TS,PetscReal,Vec,Vec,void*);
 extern PetscErrorCode RHSJacobian(TS,PetscReal,Vec,Mat,Mat,void*);
+extern PetscErrorCode MyMatMult(Mat,Vec,Vec);
+extern PetscErrorCode MyMatMultTransp(Mat,Vec,Vec);
 
 int main(int argc,char **argv)
 {
@@ -108,14 +113,20 @@ int main(int argc,char **argv)
   Vec            u,uu;                      /* approximate solution vector */
   PetscErrorCode ierr;
   PetscInt       xs, xm, ys,ym, j, ix,iy;
-  PetscInt       indx,indy;
+  PetscInt       indx,indy,m, nn;
   PetscReal      x,y, *wrk_ptr1, **wrk_ptr2;
+  Field          **bmass;
   MatNullSpace   nsp;
   DMDACoor2d     **coors,**coorslocal;
-  Vec            global,local;
+  Vec            global,local,loc;
   DM             cda;
   PetscInt       jx,jy;
   PetscViewer    viewfile;
+  Mat            H_shell;
+  SNES           snes;
+  SNESLineSearch linesearch;
+  Vec            velu;
+ 
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize program and set problem parameters
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -124,15 +135,15 @@ int main(int argc,char **argv)
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return ierr;
 
   /*initialize parameters */
-  appctx.param.N    = 6;  /* order of the spectral element */
-  appctx.param.Ex    = 2;  /* number of elements */
-  appctx.param.Ey    = 4;  /* number of elements */
+  appctx.param.N    = 4;  /* order of the spectral element */
+  appctx.param.Ex    = 1;  /* number of elements */
+  appctx.param.Ey    = 1;  /* number of elements */
   appctx.param.Lx    = 1.0;  /* length of the domain */
-  appctx.param.Ly    = 4.0;  /* length of the domain */
+  appctx.param.Ly    = 1.0;  /* length of the domain */
   appctx.param.mu   = 0.01; /* diffusion coefficient */
-  appctx.initial_dt = 5e-3;
+  appctx.initial_dt = 1e-2;
   appctx.param.steps = PETSC_MAX_INT;
-  appctx.param.Tend  = 2;
+  appctx.param.Tend  = 0.1;
   appctx.ncoeff      = 2;
 
   ierr = PetscOptionsGetInt(NULL,NULL,"-N",&appctx.param.N,NULL);CHKERRQ(ierr);
@@ -159,14 +170,12 @@ int main(int argc,char **argv)
      total grid values spread equally among all the processors, except first and last
   */
 
-  //ierr = DMDACreate1d(PETSC_COMM_WORLD,DM_BOUNDARY_PERIODIC,lenglob,1,1,NULL,&appctx.da);CHKERRQ(ierr);
-  //ierr = DMSetFromOptions(appctx.da);CHKERRQ(ierr);
-  //ierr = DMSetUp(appctx.da);CHKERRQ(ierr);
-
-  ierr = DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_PERIODIC,DMDA_STENCIL_BOX,appctx.param.lenx,appctx.param.leny,PETSC_DECIDE,PETSC_DECIDE,1,1,NULL,NULL,&appctx.da);CHKERRQ(ierr);
+  
+  ierr = DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_PERIODIC,DMDA_STENCIL_BOX,appctx.param.lenx,appctx.param.leny,PETSC_DECIDE,PETSC_DECIDE,2,1,NULL,NULL,&appctx.da);CHKERRQ(ierr);
   ierr = DMSetFromOptions(appctx.da);CHKERRQ(ierr);
   ierr = DMSetUp(appctx.da);CHKERRQ(ierr);
   ierr = DMDASetFieldName(appctx.da,0,"u");CHKERRQ(ierr);
+  ierr = DMDASetFieldName(appctx.da,1,"v");CHKERRQ(ierr);
   
   /*
      Extract global and local vectors from DMDA; we use these to store the
@@ -182,26 +191,80 @@ int main(int argc,char **argv)
   ierr = VecDuplicate(u,&appctx.dat.curr_sol);CHKERRQ(ierr);
  
   ierr = DMDAGetCorners(appctx.da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
-  //ierr = DMDAVecGetArray(appctx.da,appctx.SEMop.grid,&wrk_ptr1);CHKERRQ(ierr);
-  
-  
-  DMDASetUniformCoordinates(appctx.da,0.0,appctx.param.Lx,0.0,appctx.param.Ly,0.0,0.0);
-  DMGetCoordinateDM(appctx.da,&cda);
-  DMGetCoordinates(appctx.da,&global);
-  DMDAVecGetArray(cda,global,&coors);
-  DMDAGetCorners(appctx.da,&xs,&ys,NULL,&xm,&ym,NULL);
-  
-  ierr = DMDAVecGetArray(appctx.da,appctx.SEMop.mass,&wrk_ptr2);CHKERRQ(ierr);
-/* Compute function over the locally owned part of the grid */
+ /* Compute function over the locally owned part of the grid */
     xs=xs/(appctx.param.N-1);
     xm=xm/(appctx.param.N-1);
     ys=ys/(appctx.param.N-1);
     ym=ym/(appctx.param.N-1);
+    
+  VecSet(appctx.SEMop.mass,0.0);
   
+  DMCreateLocalVector(appctx.da,&loc);
+
+  //DMGlobalToLocalBegin(appctx.da,appctx.SEMop.mass,INSERT_VALUES,loc);
+  //DMGlobalToLocalEnd(appctx.da,appctx.SEMop.mass,INSERT_VALUES,loc);
+
+  //ierr = DMDAVecGetArray(appctx.da,loc,&wrk_ptr2);CHKERRQ(ierr);
+  ierr = DMDAVecGetArray(appctx.da,loc,&bmass);CHKERRQ(ierr);
+  VecGetSize(appctx.SEMop.mass,&m);
+  printf("size of mass %d\n", m); 
+  VecSet(loc,0.0);
   /*
+     Build mass over entire mesh (multi-elemental) 
+
+  */ 
+
+   for (ix=xs; ix<xs+xm; ix++) 
+     {for (jx=0; jx<appctx.param.N; jx++) 
+      {for (iy=ys; iy<ys+ym; iy++) 
+        {for (jy=0; jy<appctx.param.N; jy++)   
+        {
+        x = (appctx.param.Lex/2.0)*(appctx.SEMop.gll.nodes[jx]+1.0)+appctx.param.Lex*ix; 
+        y = (appctx.param.Ley/2.0)*(appctx.SEMop.gll.nodes[jy]+1.0)+appctx.param.Ley*iy; 
+        indx=ix*(appctx.param.N-1)+jx;
+        indy=iy*(appctx.param.N-1)+jy;
+        //wrk_ptr2[indy][indx]=wrk_ptr2[indy][indx]+appctx.SEMop.gll.weights[jx]*appctx.SEMop.gll.weights[jy]*.25*appctx.param.Ley*appctx.param.Lex;
+        //if (j==0) wrk_ptr2[ind]+=.5*appctx.param.Le*appctx.SEMop.gll.weights[j];
+        bmass[indy][indx].u=2.0;//wrk_ptr2[indy][indx];
+        bmass[indy][indx].v=1.0;//wrk_ptr2[indy][indx];
+        printf("ind[%d][%d] and bu=%f bv= %f\n",indx,indy,bmass[indy][indx].u,bmass[indy][indx].v);
+          } 
+         }
+       }
+     }
+    //exit(1);
+   
+    //DMDAVecRestoreArray(appctx.da,loc,&wrk_ptr2);CHKERRQ(ierr);
+    DMDAVecRestoreArray(appctx.da,loc,&bmass);CHKERRQ(ierr);
+    VecView(loc,0);
+    DMLocalToGlobalBegin(appctx.da,loc,ADD_VALUES,appctx.SEMop.mass);
+    DMLocalToGlobalEnd(appctx.da,loc,ADD_VALUES,appctx.SEMop.mass); 
+    VecView(appctx.SEMop.mass,0);
+    //DMDAVecRestoreArray(cda,local,&coors);
+    
+    //DMLocalToGlobalBegin(cda,local,ADD_VALUES,global);
+    //DMLocalToGlobalEnd(cda,local,ADD_VALUES,global); 
+
+/*
      Build total grid and mass over entire mesh (multi-elemental) 
 
   */ 
+   
+  DMDASetUniformCoordinates(appctx.da,0.0,appctx.param.Lx,0.0,appctx.param.Ly,0.0,0.0);
+  DMGetCoordinateDM(appctx.da,&cda);
+  //DMGetCoordinatesLocal(appctx.da,&local);
+  
+  //DMCreateLocalVector(appctx.da,&local);
+
+  //DMGlobalToLocalBegin(appctx.da,global,INSERT_VALUES,local);
+  //DMGlobalToLocalEnd(appctx.da,global,INSERT_VALUES,local);
+
+  //VecSet(local,0.0);
+
+  DMGetCoordinates(appctx.da,&global);
+  VecSet(global,0.0);
+  DMDAVecGetArray(cda,global,&coors);
+ 
    for (ix=xs; ix<xs+xm; ix++) 
      {for (jx=0; jx<appctx.param.N-1; jx++) 
       {for (iy=ys; iy<ys+ym; iy++) 
@@ -214,14 +277,21 @@ int main(int argc,char **argv)
         coors[indy][indx].x=x;
         coors[indy][indx].y=y;
         //printf("ind[%d][%d] and j=%d lenx =%d\n",indx,indy,indy+indx*leny,lenx);
-        wrk_ptr2[indy][indx]=appctx.SEMop.gll.weights[jx]*appctx.SEMop.gll.weights[jy]*.25*appctx.param.Ley*appctx.param.Lex;
+        //wrk_ptr2[indy][indx]=appctx.SEMop.gll.weights[jx]*appctx.SEMop.gll.weights[jy]*.25*appctx.param.Ley*appctx.param.Lex;
         //if (j==0) wrk_ptr2[ind]+=.5*appctx.param.Le*appctx.SEMop.gll.weights[j];
           } 
          }
        }
      }
-    ierr = DMDAVecRestoreArray(appctx.da,appctx.SEMop.mass,&wrk_ptr2);CHKERRQ(ierr);
     DMDAVecRestoreArray(cda,global,&coors);
+
+    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"tomesh.m",&viewfile);CHKERRQ(ierr);
+    ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)global,"grid");
+    ierr = VecView(global,viewfile);CHKERRQ(ierr);
+    ierr = PetscViewerPopFormat(viewfile);
+    ierr = PetscViewerDestroy(&viewfile);CHKERRQ(ierr);
+
 
 //    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"grid.m",&viewfile);CHKERRQ(ierr);
 //    ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
@@ -246,7 +316,7 @@ int main(int argc,char **argv)
   /* Create the TS solver that solves the ODE and its adjoint; set its options */
   ierr = TSCreate(PETSC_COMM_WORLD,&appctx.ts);CHKERRQ(ierr);
   ierr = TSSetProblemType(appctx.ts,TS_LINEAR);CHKERRQ(ierr);
-  ierr = TSSetType(appctx.ts,TSRK);CHKERRQ(ierr);
+  ierr = TSSetType(appctx.ts,TSEULER);CHKERRQ(ierr);
   ierr = TSSetDM(appctx.ts,appctx.da);CHKERRQ(ierr);
   ierr = TSSetTime(appctx.ts,0.0);CHKERRQ(ierr);
   ierr = TSSetTimeStep(appctx.ts,appctx.initial_dt);CHKERRQ(ierr);
@@ -255,31 +325,58 @@ int main(int argc,char **argv)
   //ierr = TSSetDuration(appctx.ts,appctx.param.steps,appctx.param.Tend);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(appctx.ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
 
-  ierr = TSSetExactFinalTime(appctx.ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
+  //VecGetLocalSize(u,&m);
+  //printf("array of sol, %d field u %d\n",m,nn);
+  //exit(1);
+
+  /*
+  MatCreateShell(PETSC_COMM_WORLD,m,m,nn,nn,&appctx,&H_shell);
+  MatShellSetOperation(H_shell,MATOP_MULT,(void(*)(void))MyMatMult);
+  MatShellSetOperation(H_shell,MATOP_MULT_TRANSPOSE,(void(*)(void))MyMatMultTransp);
+  */
+
+ /* attach the null space to the matrix, this probably is not needed but does no harm */
+  /*
+  ierr = MatNullSpaceCreate(PETSC_COMM_WORLD,PETSC_TRUE,0,NULL,&nsp);CHKERRQ(ierr);
+  ierr = MatSetNullSpace(H_shell,nsp);CHKERRQ(ierr);
+  ierr = MatNullSpaceTest(nsp,H_shell,NULL);CHKERRQ(ierr);
+  ierr = MatNullSpaceDestroy(&nsp);CHKERRQ(ierr);
+   */
+
   ierr = TSSetTolerances(appctx.ts,1e-7,NULL,1e-7,NULL);CHKERRQ(ierr);
   ierr = TSSetFromOptions(appctx.ts);CHKERRQ(ierr);
   /* Need to save initial timestep user may have set with -ts_dt so it can be reset for each new TSSolve() */
   ierr = TSGetTimeStep(appctx.ts,&appctx.initial_dt);CHKERRQ(ierr);
-  ///ierr = TSSetRHSFunction(appctx.ts,NULL,TSComputeRHSFunctionLinear,&appctx);CHKERRQ(ierr);
-  //ierr = TSSetRHSJacobian(appctx.ts,appctx.SEMop.stiff,appctx.SEMop.stiff,TSComputeRHSJacobianConstant,&appctx);CHKERRQ(ierr);
+  //ierr = TSSetRHSFunction(appctx.ts,NULL,TSComputeRHSFunctionLinear,&appctx);CHKERRQ(ierr);
+  //ierr = TSSetRHSJacobian(appctx.ts,H_shell,H_shell,TSComputeRHSJacobianConstant,&appctx);CHKERRQ(ierr);
+  //ierr = TSSetRHSJacobian(appctx.ts,H_shell,H_shell,RHSJacobian,&appctx);CHKERRQ(ierr);
   ierr = TSSetRHSFunction(appctx.ts,NULL,RHSFunction,&appctx);CHKERRQ(ierr);
   ierr = InitialConditions(appctx.dat.ic,&appctx);CHKERRQ(ierr);
-  ierr = VecDuplicate(appctx.dat.ic,&uu);CHKERRQ(ierr);
-  ierr = VecCopy(appctx.dat.ic,uu);CHKERRQ(ierr);
+  
 
-  ierr = TSSolve(appctx.ts,appctx.dat.ic);CHKERRQ(ierr);
+  //ierr = VecDuplicate(appctx.dat.ic,&uu);CHKERRQ(ierr);
+  //ierr = VecCopy(appctx.dat.ic,uu);CHKERRQ(ierr);
+  //MatView(H_shell,0);
+  
+  ierr = VecDuplicate(appctx.dat.ic,&appctx.dat.curr_sol);CHKERRQ(ierr);
+  ierr = VecCopy(appctx.dat.ic,appctx.dat.curr_sol);CHKERRQ(ierr);
+  ierr = TSSolve(appctx.ts,appctx.dat.curr_sol);CHKERRQ(ierr);
 
-
+ 
     ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"sol2d.m",&viewfile);CHKERRQ(ierr);
     ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-    ierr = PetscObjectSetName((PetscObject)appctx.dat.ic,"sol");
+    ierr = PetscObjectSetName((PetscObject)appctx.dat.curr_sol,"sol");
+    ierr = VecView(appctx.dat.curr_sol,viewfile);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)appctx.dat.ic,"ic");
     ierr = VecView(appctx.dat.ic,viewfile);CHKERRQ(ierr);
-    ierr = PetscObjectSetName((PetscObject)uu,"uu");
-    ierr = VecView(uu,viewfile);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)appctx.SEMop.mass,"mass");
+    ierr = VecView(appctx.SEMop.mass,viewfile);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)global,"grid");
+    ierr = VecView(global,viewfile);CHKERRQ(ierr);
     ierr = PetscViewerPopFormat(viewfile);
 
   exit(1);
-  //ierr = TSSetRHSJacobian(appctx.ts,appctx.SEMop.stiff,appctx.SEMop.stiff,RHSJacobian,&appctx);CHKERRQ(ierr);
+
   ierr = TSSetSaveTrajectory(appctx.ts);CHKERRQ(ierr);
 
   /* Set Objective and Initial conditions for the problem and compute Objective function (evolution of true_solution to final time */
@@ -360,7 +457,8 @@ PetscErrorCode ComputeSolutionCoefficients(AppCtx *appctx)
 */
 PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
 {
-  PetscScalar       **s;
+  PetscScalar       tt;
+  Field             **s;
   const PetscScalar *xg;
   PetscErrorCode    ierr;
   PetscInt          i,j;
@@ -369,24 +467,22 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
   DMDACoor2d        **coors;
 
   ierr = DMDAVecGetArray(appctx->da,u,&s);CHKERRQ(ierr);
-  //ierr = DMDAVecGetArrayRead(appctx->da,appctx->SEMop.grid,&xg);CHKERRQ(ierr);
-  //lenglob  = appctx->param.Ex*(appctx->param.N-1);
-    
+      
   DMGetCoordinateDM(appctx->da,&cda);
   DMGetCoordinates(appctx->da,&global);
   DMDAVecGetArray(cda,global,&coors);
 
+  tt=0.0;
   for (i=0; i<appctx->param.lenx; i++) 
     {for (j=0; j<appctx->param.leny; j++) 
       {
-      s[j][i]=2.0*appctx->param.mu*PETSC_PI*PetscSinScalar(PETSC_PI*coors[j][i].x);
-      //printf("s[%d][%d] =%f\n",j,i, s[j][i]);
+      s[j][i].u=PetscExpScalar(-appctx->param.mu*tt)*(PetscCosScalar(2.*PETSC_PI*coors[j][i].x)+PetscSinScalar(2.*PETSC_PI*coors[j][i].y));
+      s[j][i].v=PetscExpScalar(-appctx->param.mu*tt)*(PetscSinScalar(2.*PETSC_PI*coors[j][i].x)+PetscCosScalar(2.*PETSC_PI*coors[j][i].y));
       } 
      }
   
   ierr = DMDAVecRestoreArray(appctx->da,u,&s);CHKERRQ(ierr);
-  //ierr = DMDAVecRestoreArrayRead(appctx->da,appctx->SEMop.grid,&xg);CHKERRQ(ierr);
-   //  ierr = VecView(u,PETSC_VIEWER_DRAW_WORLD);CHKERRQ(ierr);
+
   return 0;
 }
 
@@ -405,20 +501,29 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
 */
 PetscErrorCode TrueSolution(Vec u,AppCtx *appctx)
 {
-  PetscScalar       *s;
+  PetscScalar       **s,tt;
   const PetscScalar *xg;
   PetscErrorCode    ierr;
-  PetscInt          i,lenglob;
+  PetscInt          i,j;
+  DM                cda;
+  Vec               global;
+  DMDACoor2d        **coors;
 
   ierr = DMDAVecGetArray(appctx->da,u,&s);CHKERRQ(ierr);
-  ierr = DMDAVecGetArrayRead(appctx->da,appctx->SEMop.grid,&xg);CHKERRQ(ierr);
-  lenglob  = appctx->param.Ex*(appctx->param.N-1);
-  
-  for (i=0; i<lenglob; i++) {
-      s[i]=2.0*appctx->param.mu*PETSC_PI*PetscSinScalar(PETSC_PI*xg[i])/(2.0+PetscCosScalar(PETSC_PI*xg[i]));
+      
+  DMGetCoordinateDM(appctx->da,&cda);
+  DMGetCoordinates(appctx->da,&global);
+  DMDAVecGetArray(cda,global,&coors);
+
+  tt=appctx->param.Tend;
+  for (i=0; i<appctx->param.lenx; i++) 
+    {for (j=0; j<appctx->param.leny; j++) 
+      {
+      s[j][i]=PetscExpScalar(-appctx->param.mu*tt)*(PetscCosScalar(2.*PETSC_PI*coors[j][i].x)+PetscSinScalar(2.*PETSC_PI*coors[j][i].y));
       } 
+     }
+  
   ierr = DMDAVecRestoreArray(appctx->da,u,&s);CHKERRQ(ierr);
-  ierr = DMDAVecRestoreArrayRead(appctx->da,appctx->SEMop.grid,&xg);CHKERRQ(ierr);
   /* make sure initial conditions do not contain the constant functions, since with periodic boundary conditions the constant functions introduce a null space */
    return 0;
 }
@@ -434,22 +539,31 @@ PetscErrorCode TrueSolution(Vec u,AppCtx *appctx)
 */
 PetscErrorCode ComputeObjective(PetscReal t,Vec obj,AppCtx *appctx)
 {
-  PetscScalar       *s;
+  PetscScalar       **s, tt;
   const PetscScalar *xg;
   PetscErrorCode    ierr;
-  PetscInt          i, lenglob;
+  PetscInt          i,j;
+  DM                cda;
+  Vec               global;
+  DMDACoor2d        **coors;
+
 
   ierr = DMDAVecGetArray(appctx->da,obj,&s);CHKERRQ(ierr);
-  ierr = DMDAVecGetArrayRead(appctx->da,appctx->SEMop.grid,&xg);CHKERRQ(ierr);
-  lenglob  = appctx->param.Ex*(appctx->param.N-1);
-  
-  for (i=0; i<lenglob; i++) {
-      s[i]=2.0*appctx->param.mu*PETSC_PI*PetscSinScalar(PETSC_PI*xg[i])*PetscExpScalar(-PETSC_PI*PETSC_PI*t*appctx->param.mu)\
-              /(2.0+PetscExpScalar(-PETSC_PI*PETSC_PI*t*appctx->param.mu)*PetscCosScalar(PETSC_PI*xg[i]));
+      
+  DMGetCoordinateDM(appctx->da,&cda);
+  DMGetCoordinates(appctx->da,&global);
+  DMDAVecGetArray(cda,global,&coors);
+
+  tt=appctx->param.Tend+1.0;
+  for (i=0; i<appctx->param.lenx; i++) 
+    {for (j=0; j<appctx->param.leny; j++) 
+      {
+      s[j][i]=PetscExpScalar(-appctx->param.mu*t)*(PetscCosScalar(2.*PETSC_PI*coors[j][i].x)+PetscSinScalar(2.*PETSC_PI*coors[j][i].y));
       } 
+     }
+  
   ierr = DMDAVecRestoreArray(appctx->da,obj,&s);CHKERRQ(ierr);
-  ierr = DMDAVecRestoreArrayRead(appctx->da,appctx->SEMop.grid,&xg);CHKERRQ(ierr);
-  //ierr = VecView(obj,PETSC_VIEWER_DRAW_WORLD);CHKERRQ(ierr);
+
   return 0;
 }
 
@@ -457,57 +571,523 @@ PetscErrorCode ComputeObjective(PetscReal t,Vec obj,AppCtx *appctx)
 #define __FUNCT__ "RHSFunction"
 PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
 {
-  PetscErrorCode ierr;
+  PetscErrorCode  ierr;
   AppCtx          *appctx = (AppCtx*)ctx;  
-  PetscScalar     **out, **temp, **tempm,**u,**wrk1;
-  PetscInt        i,j;
+  PetscScalar     **wrk3, **wrk1, **wrk2, **wrk4, **wrk5, **wrk6, **wrk7;
+  PetscScalar     **stiff, **mass, **grad, **iden;
+  PetscScalar     **ugl, **ulb, **vlb, **f;
+  const Field     **ul;
+  Field           **outl, **outgrad; 
+  PetscInt        i,j,ix,iy,jx,jy, lda, ldb, indx, indy, stride;
+  PetscInt        xs,xm,ys,ym, Nl, Nl2, p,r,m; 
   PetscViewer     viewfile;
+  DM              cda;
+  Vec             uloc, outloc, outgl, global, gradgl, gradloc;
+  DMDACoor2d      **coors;
+  PetscScalar     tt, alpha, beta, rr; 
+  PetscInt        inc;  
+  static int its=0;
+  char var[12] ;
 
   PetscFunctionBegin;
 
-  ierr = PetscGLLElementLaplacianCreate(&appctx->SEMop.gll,&temp);CHKERRQ(ierr);
-  ierr = PetscGLLElementMassCreate(&appctx->SEMop.gll,&tempm);CHKERRQ(ierr);
+  ierr = PetscGLLElementLaplacianCreate(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
+  ierr = PetscGLLElementMassCreate(&appctx->SEMop.gll,&mass);CHKERRQ(ierr);
+  ierr = PetscGLLElementAdvectionCreate(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
   
-  ierr = DMDAVecGetArray(appctx->da,globalin,&u);CHKERRQ(ierr);
-  ierr = DMDAVecGetArray(appctx->da,globalout,&out);CHKERRQ(ierr);
-  ierr = DMDAVecGetArray(appctx->da,globalout,&wrk1);CHKERRQ(ierr);
+  /* unwrap local vector for the input solution */
+  DMCreateLocalVector(appctx->da,&uloc);
 
-  ierr= Petsctensorprod(appctx->param.N, &tempm[0][0],&u[0][0],&temp[0][0],&wrk1[0][0]);
-  ierr= Petsctensorprod(appctx->param.N, &temp[0][0],&u[0][0],&tempm[0][0],&out[0][0]);
+  DMGlobalToLocalBegin(appctx->da,globalin,INSERT_VALUES,uloc);
+  DMGlobalToLocalEnd(appctx->da,globalin,INSERT_VALUES,uloc);
+
+  ierr = DMDAVecGetArrayRead(appctx->da,uloc,&ul);CHKERRQ(ierr);
+
+  /* unwrap local vector for the output solution */
+  DMCreateLocalVector(appctx->da,&outloc);
+  
+  ierr = DMDAVecGetArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
+
+  DMCreateLocalVector(appctx->da,&gradloc);
+  
+  ierr = DMDAVecGetArray(appctx->da,gradloc,&outgrad);CHKERRQ(ierr);
  
-  for (i=0; i<appctx->param.lenx; i++)
-     {for (j=0; j<appctx->param.leny; j++)
-     {out[j][i]=out[j][i]+wrk1[j][i];
-      }}
+  ierr = DMDAGetCorners(appctx->da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+  Nl    = appctx->param.N; 
 
-  ierr = DMDAVecRestoreArray(appctx->da,globalin,&u);CHKERRQ(ierr);
-  ierr = DMDAVecRestoreArray(appctx->da,globalout,&out);CHKERRQ(ierr);
-  VecScale(globalout, -1.0);
+  DMCreateGlobalVector(appctx->da,&gradgl);
+    
+  xs=xs/(Nl-1);
+  xm=xm/(Nl-1);
+  ys=ys/(Nl-1);
+  ym=ym/(Nl-1); 
 
-  ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"rhs.m",&viewfile);CHKERRQ(ierr);
+  DMGetCoordinateDM(appctx->da,&cda);
+  DMGetCoordinates(appctx->da,&global);
+  DMDAVecGetArray(cda,global,&coors);
 
+
+  tt=t; inc=1;
+  /*
+     Initialize work arrays
+  */ 
+
+ 
+  ierr = PetscMalloc1(appctx->param.N,&iden);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&iden[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) iden[i] = iden[i-1]+Nl;
+ 
+  for (i=0; i<Nl; i++)
+     {for (j=0; j<Nl; j++) 
+       {iden[i][j]=1.0; 
+       if (i==0 || j==0)
+        { iden[i][j]=iden[i][j]*2.0;
+          if (i==0 && j==0) iden[i][j]=iden[i][j]*2.0;
+        } 
+      }
+    }
+
+/* 
+ for (i=0; i<Nl; i++)
+     {for (j=0; j<Nl; j++) 
+       {iden[i][j]=0.0; 
+       if (i==j) iden[i][i]=1.0;
+       }
+    }
+*/
+  
+  ierr = PetscMalloc1(appctx->param.N,&ulb);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&ulb[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) ulb[i] = ulb[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&vlb);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&vlb[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) vlb[i] = vlb[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk1);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk1[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk1[i] = wrk1[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk2);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk2[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk2[i] = wrk2[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk3);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk3[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk3[i] = wrk3[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk4);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk4[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk4[i] = wrk4[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk5);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk5[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk5[i] = wrk5[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk6);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk6[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk6[i] = wrk6[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk7);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk7[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk7[i] = wrk7[i-1]+Nl;
+
+
+
+  alpha = 1.0;
+  beta  = 0.0;
+  Nl2=Nl*Nl;
+
+   for (ix=xs; ix<xs+xm; ix++) 
+      {for (iy=ys; iy<ys+ym; iy++) 
+         { 
+       for (jx=0; jx<appctx->param.N; jx++) 
+        {for (jy=0; jy<appctx->param.N; jy++) 
+               
+           {ulb[jy][jx]=0.0;
+            indx=ix*(appctx->param.N-1)+jx;
+            indy=iy*(appctx->param.N-1)+jy;
+            ulb[jy][jx]=ul[indy][indx].u; 
+            vlb[jy][jx]=ul[indy][indx].v; 
+          }}
+
+        //here the stifness matrix in 2d
+        //first product (B x K_yy)u=W2 (u_xx)
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk2[0][0],&Nl);
+
+        //second product (K_xx x B) u=W3 (u_yy)
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
+
+        BLASaxpy_(&Nl2,&alpha, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the lalplacian in wrk2
+        //BLASaxpy_(&Nl2,&alpha, &iden[0][0],&incc,rk2[0][0],&inc); //I freed wrk3 and saved the lalplacian in wrk2
+
+        // for the v component now 
+        //first product (B x K_yy)u=W2
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
+
+        //second product (K_xx x B) u=W3
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
+
+        BLASaxpy_(&Nl2,&alpha, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the lalplacian in wrk3
+
+
+        //now the gradient operator for u
+        // first (D_x x B) u =W2 this multiples u
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
+        
+
+        // first (B x D_y) u =W4 this mutiplies v
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
+
+
+        //now the gradient operator for v
+        // first (D_x x B) v =W2 this multiples u
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk6[0][0],&Nl);
+        
+
+        // first (B x D_y) v =W4 this mutiplies v
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk7[0][0],&Nl);
+
+
+        for (jx=0; jx<appctx->param.N; jx++) 
+        {for (jy=0; jy<appctx->param.N; jy++)   
+           {indx=ix*(appctx->param.N-1)+jx;
+            indy=iy*(appctx->param.N-1)+jy;
+            //if (jx<Nl-1 && jy<Nl-1)
+              //{rr=appctx->param.mu*PetscExpScalar(-appctx->param.mu*tt)*((-1.0 + 4*PETSC_PI*PETSC_PI)*(PetscCosScalar(2.*PETSC_PI*coors[indy][indx].x)-PetscSinScalar   (2.*PETSC_PI*coors[indy][indx].y)));}
+              //else rr=0.0;
+            //outl[indy][indx].u    = outl[indy][indx].u-appctx->param.mu*2.0/appctx->param.Lex*2.0/appctx->param.Ley*(wrk2[jy][jx]);//+rr; 
+            //outgrad[indy][indx].u = outgrad[indy][indx].u-(ulb[jy][jx]*wrk4[jy][jx]+ vlb[jy][jx]*wrk5[jy][jx]); 
+            //outl[indy][indx].v    = outl[indy][indx].v-appctx->param.mu*2.0/appctx->param.Lex*2.0/appctx->param.Ley*(wrk3[jy][jx]);//+rr; 
+            //outgrad[indy][indx].v = outgrad[indy][indx].v-(ulb[jy][jx]*wrk6[jy][jx]+ vlb[jy][jx]*wrk7[jy][jx]);   
+
+            //if (jx==0 || jy==0)
+            //{
+            //outl[indy][indx].u    = outl[indy][indx].u-appctx->param.mu*2.0/appctx->param.Lex*2.0/appctx->param.Ley*(wrk2[jy][jx])/
+            //                         (2.0*appctx->SEMop.gll.weights[jx]*appctx->SEMop.gll.weights[jy]*.25*appctx->param.Ley*appctx->param.Lex);}//-//+rr; 
+            //else
+            //{
+             outl[indy][indx].u    = -appctx->param.mu*2.0/appctx->param.Lex*2.0/appctx->param.Ley*(wrk2[jy][jx])/
+                                     (iden[jy][jx]*appctx->SEMop.gll.weights[jx]*appctx->SEMop.gll.weights[jy]*.25*appctx->param.Ley*appctx->param.Lex);//}
+                                    //(ulb[jy][jx]*wrk4[jy][jx]+ vlb[jy][jx]*wrk5[jy][jx]); 
+            outl[indy][indx].v    = outl[indy][indx].v-appctx->param.mu*2.0/appctx->param.Lex*2.0/appctx->param.Ley*(wrk3[jy][jx]);//-//+rr; 
+                                    //(ulb[jy][jx]*wrk6[jy][jx]+ vlb[jy][jx]*wrk7[jy][jx]);   
+            //printf("laplace wrk2[%d][%d]=%f iden %f \n", jy,jx, wrk2[jy][jx], iden[jy][jx]);
+        }}
+        //exit(1);
+       }
+     }
+  
+  ierr = DMDAVecRestoreArrayRead(appctx->da,globalin,&uloc);CHKERRQ(ierr);
+
+  ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
+
+  DMLocalToGlobalBegin(appctx->da,outloc,ADD_VALUES,globalout);
+  DMLocalToGlobalEnd(appctx->da,outloc,ADD_VALUES,globalout);
+
+ 
+ // ierr = DMDAVecRestoreArray(appctx->da,gradloc,&outgrad);CHKERRQ(ierr);
+ // DMLocalToGlobalBegin(appctx->da,gradloc,ADD_VALUES,gradgl);
+ // DMLocalToGlobalEnd(appctx->da,gradloc,ADD_VALUES,gradgl);
+
+ // VecAXPY(globalout,1.0,gradgl);
+  //ierr = VecPointwiseDivide(globalout,globalout,appctx->SEMop.mass);CHKERRQ(ierr);
+
+  //trying trick
+  //ierr = VecPointwiseDivide(globalout,globalout,appctx->SEMop.mass);CHKERRQ(ierr);
+
+  
+  
+  its=its+1;
+  //printf("time to write %f ",&t); 
+  ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"rhsB.m",&viewfile);CHKERRQ(ierr);
   ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject)globalin,"in");
+  PetscSNPrintf(var,sizeof(var),"in(:,%d)",its);
+  ierr = PetscObjectSetName((PetscObject)globalin,var);
   ierr = VecView(globalin,viewfile);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject)globalout,"out");
-  ierr = VecView(globalout,viewfile);CHKERRQ(ierr);
+  PetscSNPrintf(var,sizeof(var),"out(:,%d)",its);
+  ierr = PetscObjectSetName((PetscObject)globalout,var);
+ ierr = VecView(globalout,viewfile);CHKERRQ(ierr);
+  PetscSNPrintf(var,sizeof(var),"mass",its);
+  ierr = PetscObjectSetName((PetscObject)appctx->SEMop.mass,var);
+  ierr = VecView(appctx->SEMop.mass,viewfile);CHKERRQ(ierr);
   ierr = PetscViewerPopFormat(viewfile);
-
-
+  
+exit(1);
+  
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "MyMatMult"
+
+PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
+ {
+   AppCtx         *appctx;
+   
+   const PetscScalar     **ul;
+   PetscScalar     **uout, **stiff, **mass,  **wrk1, **wrk2, **wrk3, **outl, **ulb;
+   PetscInt        Nl;
+   PetscInt        xs,ys,xm,ym,ix,iy,jx,jy, indx,indy, i;
+   PetscErrorCode  ierr;
+   Vec             uloc, outloc;
+   PetscViewer     viewfile;
+   PetscScalar     alpha, beta;
+
+   //VecCopy(in,appctx->dat.curr_sol);
+   
+  MatShellGetContext(H,&appctx);
+
+  //RHSFunction(appctx->ts,0,in,out,appctx);
+  //return 0;
+  //CHKMEMQ;
+  ierr = PetscGLLElementLaplacianCreate(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
+  ierr = PetscGLLElementMassCreate(&appctx->SEMop.gll,&mass);CHKERRQ(ierr); 
+ 
+  //MatShellGetContext for Burgers.. not needed for heat
+
+  /* unwrap local vector for the input solution */
+  DMCreateLocalVector(appctx->da,&uloc);
+
+  DMGlobalToLocalBegin(appctx->da,in,INSERT_VALUES,uloc);
+  DMGlobalToLocalEnd(appctx->da,in,INSERT_VALUES,uloc);
+
+  DMDAVecGetArrayRead(appctx->da,uloc,&ul);CHKERRQ(ierr);
+ 
+  /* unwrap local vector for the output solution */
+  DMCreateLocalVector(appctx->da,&outloc);
+  VecSet(outloc,0.0);
+
+  ierr = DMDAVecGetArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
+ 
+  ierr = DMDAGetCorners(appctx->da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+  Nl    = appctx->param.N; 
+    
+  xs=xs/(Nl-1);
+  xm=xm/(Nl-1);
+  ys=ys/(Nl-1);
+  ym=ym/(Nl-1);
+  
+  /*
+     Initialize work arrays
+  */ 
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk2);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk2[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk2[i] = wrk2[i-1]+Nl;
+  ierr = PetscMalloc1(appctx->param.N,&wrk1);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk1[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk1[i] = wrk1[i-1]+Nl;
+  ierr = PetscMalloc1(appctx->param.N,&ulb);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&ulb[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) ulb[i] = ulb[i-1]+Nl;
+  ierr = PetscMalloc1(appctx->param.N,&wrk3);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk3[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk3[i] = wrk3[i-1]+Nl;
+
+  alpha = 1.0;
+  beta  = 0.0;
+   for (ix=xs; ix<xs+xm; ix++) 
+      {for (iy=ys; iy<ys+ym; iy++) 
+         { 
+       for (jx=0; jx<appctx->param.N; jx++) 
+        {for (jy=0; jy<appctx->param.N; jy++) 
+               
+           {ulb[jy][jx]=0.0;
+            indx=ix*(appctx->param.N-1)+jx;
+            indy=iy*(appctx->param.N-1)+jy;
+            ulb[jy][jx]=ul[indy][indx]; 
+          }}
+
+        //first product AUB'=W2
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk2[0][0],&Nl);
+
+        //second product BUA'=W3
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
+
+        for (jx=0; jx<appctx->param.N; jx++) 
+        {for (jy=0; jy<appctx->param.N; jy++)   
+           {indx=ix*(appctx->param.N-1)+jx;
+            indy=iy*(appctx->param.N-1)+jy;
+            
+            outl[indy][indx]= outl[indy][indx]+(wrk2[jy][jx]+wrk3[jy][jx]); 
+        }}
+       }
+     }
+  
+  ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
+  DMDAVecRestoreArrayRead(appctx->da,in,&uloc);CHKERRQ(ierr);
+
+  VecSet(out,0.0);
+
+  DMLocalToGlobalBegin(appctx->da,outloc,ADD_VALUES,out);
+  DMLocalToGlobalEnd(appctx->da,outloc,ADD_VALUES,out);
+
+  VecScale(out, -1.0);
+  VecScale(out,appctx->param.mu*2.0/appctx->param.Lex*2.0/appctx->param.Ley);
+  ierr = VecPointwiseDivide(out,out,appctx->SEMop.mass);CHKERRQ(ierr);
+/*
+  ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"jac.m",&viewfile);CHKERRQ(ierr);
+  ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)in,"in");
+  ierr = VecView(in,viewfile);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)out,"out");
+  ierr = VecView(out,viewfile);CHKERRQ(ierr);
+  ierr = PetscViewerPopFormat(viewfile);
+*/
+   return(0);
+ }
+
+
+#undef __FUNCT__
+#define __FUNCT__ "MyMatMultTransp"
+
+PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
+ {
+   AppCtx         *appctx;
+   
+   const PetscScalar     **ul;
+   PetscScalar     **uout, **stiff, **mass,  **wrk1, **wrk2, **wrk3, **outl, **ulb;
+   PetscInt        Nl;
+   PetscInt        xs,ys,xm,ym,ix,iy,jx,jy, indx,indy, i;
+   PetscErrorCode  ierr;
+   Vec             uloc, outloc;
+   PetscViewer     viewfile;
+   PetscScalar     alpha, beta;
+
+   //VecCopy(in,appctx->dat.curr_sol);
+   
+  MatShellGetContext(H,&appctx);
+
+  //RHSFunction(appctx->ts,0,in,out,appctx);
+  //return 0;
+  //CHKMEMQ;
+  ierr = PetscGLLElementLaplacianCreate(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
+  ierr = PetscGLLElementMassCreate(&appctx->SEMop.gll,&mass);CHKERRQ(ierr); 
+ 
+  //MatShellGetContext for Burgers.. not needed for heat
+
+  /* unwrap local vector for the input solution */
+  DMCreateLocalVector(appctx->da,&uloc);
+
+  DMGlobalToLocalBegin(appctx->da,in,INSERT_VALUES,uloc);
+  DMGlobalToLocalEnd(appctx->da,in,INSERT_VALUES,uloc);
+
+  DMDAVecGetArrayRead(appctx->da,uloc,&ul);CHKERRQ(ierr);
+ 
+  /* unwrap local vector for the output solution */
+  DMCreateLocalVector(appctx->da,&outloc);
+  VecSet(outloc,0.0);
+
+  ierr = DMDAVecGetArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
+ 
+  ierr = DMDAGetCorners(appctx->da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+  Nl    = appctx->param.N; 
+    
+  xs=xs/(Nl-1);
+  xm=xm/(Nl-1);
+  ys=ys/(Nl-1);
+  ym=ym/(Nl-1);
+  
+  /*
+     Initialize work arrays
+  */ 
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk2);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk2[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk2[i] = wrk2[i-1]+Nl;
+  ierr = PetscMalloc1(appctx->param.N,&wrk1);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk1[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk1[i] = wrk1[i-1]+Nl;
+  ierr = PetscMalloc1(appctx->param.N,&ulb);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&ulb[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) ulb[i] = ulb[i-1]+Nl;
+  ierr = PetscMalloc1(appctx->param.N,&wrk3);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk3[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk3[i] = wrk3[i-1]+Nl;
+
+  alpha = 1.0;
+  beta  = 0.0;
+   for (ix=xs; ix<xs+xm; ix++) 
+      {for (iy=ys; iy<ys+ym; iy++) 
+         { 
+       for (jx=0; jx<appctx->param.N; jx++) 
+        {for (jy=0; jy<appctx->param.N; jy++) 
+               
+           {ulb[jy][jx]=0.0;
+            indx=ix*(appctx->param.N-1)+jx;
+            indy=iy*(appctx->param.N-1)+jy;
+            ulb[jy][jx]=ul[indy][indx]; 
+          }}
+
+        //first product AUB'=W2
+        BLASgemm_("T","T",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk2[0][0],&Nl);
+
+        //second product BUA'=W3
+        BLASgemm_("T","T",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
+
+        for (jx=0; jx<appctx->param.N; jx++) 
+        {for (jy=0; jy<appctx->param.N; jy++)   
+           {indx=ix*(appctx->param.N-1)+jx;
+            indy=iy*(appctx->param.N-1)+jy;
+            
+            outl[indy][indx]= outl[indy][indx]+(wrk2[jy][jx]+wrk3[jy][jx]); 
+        }}
+       }
+     }
+  
+  ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
+  DMDAVecRestoreArrayRead(appctx->da,in,&uloc);CHKERRQ(ierr);
+
+  VecSet(out,0.0);
+
+  DMLocalToGlobalBegin(appctx->da,outloc,ADD_VALUES,out);
+  DMLocalToGlobalEnd(appctx->da,outloc,ADD_VALUES,out);
+
+  VecScale(out, -1.0);
+  VecScale(out,appctx->param.mu*2.0/appctx->param.Lex*2.0/appctx->param.Ley);
+  ierr = VecPointwiseDivide(out,out,appctx->SEMop.mass);CHKERRQ(ierr);
+/*
+  ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"jac.m",&viewfile);CHKERRQ(ierr);
+  ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)in,"in");
+  ierr = VecView(in,viewfile);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)out,"out");
+  ierr = VecView(out,viewfile);CHKERRQ(ierr);
+  ierr = PetscViewerPopFormat(viewfile);
+*/
+   return(0);
+ }
+
+
+#undef __FUNCT__
 #define __FUNCT__ "RHSJacobian"
-PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec globalin,Mat A, Mat B,void *ctx)
+PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec globalin, Mat A, Mat B,void *ctx)
 {
   PetscErrorCode ierr;
   AppCtx         *appctx = (AppCtx*)ctx;  
   Vec            temp;
-  
+  Mat            H_shell; 
+  PetscInt       m;
   PetscFunctionBegin;
 
-  /* old jac something is wrong */
+  MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);
+  //printf("Jeepers! Jacobi");
+  //VecCopy(globalin, appctx->dat.curr_sol);
+/*
   ierr = MatCopy(appctx->SEMop.grad,A,DIFFERENT_NONZERO_PATTERN);CHKERRQ(ierr);
   ierr = MatDiagonalScale(A,globalin,NULL);CHKERRQ(ierr);
   ierr = VecDuplicate(globalin,&temp);CHKERRQ(ierr);
@@ -515,157 +1095,10 @@ PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec globalin,Mat A, Mat B,void *ctx
   ierr = MatDiagonalSet(A,temp,ADD_VALUES);CHKERRQ(ierr);
   ierr = MatScale(A,-1.0);CHKERRQ(ierr);
   ierr = MatAXPY(A,1.0,appctx->SEMop.keptstiff,DIFFERENT_NONZERO_PATTERN);
+*/
   PetscFunctionReturn(0);
 }
 
-/* --------------------------------------------------------------------- */
-
-/*
-   RHSMatrixHeat - User-provided routine to compute the right-hand-side
-   matrix for the heat equation.
-
-   Input Parameters:
-   ts - the TS context
-   t - current time  (ignored)
-   X - current solution (ignored)
-   dummy - optional user-defined context, as set by TSetRHSJacobian()
-
-   Output Parameters:
-   AA - Jacobian matrix
-   BB - optionally different matrix from which the preconditioner is built
-   str - flag indicating matrix structure
-
-*/
-/*
-PetscErrorCode RHSMatrixHeatgllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx)
-{
-  PetscReal      **temp, **out, **tempm, **u;
-  PetscReal      vv;
-  AppCtx         *appctx = (AppCtx*)ctx;    
-  PetscErrorCode ierr;
-  PetscInt       i,xs,xn,l,j;
-  PetscInt       *rowsDM;
-  PetscViewer    viewfile;
-  Mat            tt;
-  //   Creates the element stiffness matrix for the given gll
-   
-  ierr = PetscGLLElementLaplacianCreate(&appctx->SEMop.gll,&temp);CHKERRQ(ierr);
-  ierr = PetscGLLElementMassCreate(&appctx->SEMop.gll,&tempm);CHKERRQ(ierr);
-  
-
- initial stuff
-  
-//  scale by the size of the element 
-  for (i=0; i<appctx->param.N; i++) {
-    vv=-appctx->param.mu*2.0/appctx->param.Le;
-    for (j=0; j<appctx->param.N; j++) temp[i][j]=temp[i][j]*vv;
-  }
-
-  ierr = MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE);CHKERRQ(ierr);
-  ierr = DMDAGetCorners(appctx->da,&xs,NULL,NULL,&xn,NULL,NULL);CHKERRQ(ierr);
-
-  xs   = xs/(appctx->param.N-1);
-  xn   = xn/(appctx->param.N-1);
-
-  ierr = PetscMalloc1(appctx->param.N,&rowsDM);CHKERRQ(ierr);
-//      loop over local elements    
-  for (j=xs; j<xs+xn; j++) {
-    for (l=0; l<appctx->param.N; l++) {
-      rowsDM[l] = 1+(j-xs)*(appctx->param.N-1)+l;
-    }
-    ierr = MatSetValuesLocal(A,appctx->param.N,rowsDM,appctx->param.N,rowsDM,&temp[0][0],ADD_VALUES);CHKERRQ(ierr);
-  }
-  ierr = PetscFree(rowsDM);CHKERRQ(ierr);
-  ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = VecReciprocal(appctx->SEMop.mass);CHKERRQ(ierr);
-  ierr = MatDiagonalScale(A,appctx->SEMop.mass,0);CHKERRQ(ierr);
-  ierr = VecReciprocal(appctx->SEMop.mass);CHKERRQ(ierr);
-
-
-   ierr = PetscMalloc1(appctx->param.N,&out);CHKERRQ(ierr);
-   ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&out[0]);CHKERRQ(ierr);
-
-   ierr = PetscMalloc(sizeof(PetscScalar)*appctx->param.N*appctx->param.N,&out);CHKERRQ(ierr);
-
-   ierr= Petsctensorprod(appctx->param.N, &tempm[0][0],&u,&temp[0][0],&out);
-
-   //exit(1);
-
-   ierr = MatCreateSeqDense(PETSC_COMM_SELF,appctx->param.N,appctx->param.N,&tempm[0][0],&tt);CHKERRQ(ierr);
-
-    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"tensor.m",&viewfile);CHKERRQ(ierr);
-    ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-    ierr = PetscObjectSetName((PetscObject)tt,"tens");
-    ierr = MatView(tt,viewfile);CHKERRQ(ierr);
-    ierr = PetscViewerPopFormat(viewfile);
- exit(1);
-
-  
- ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&temp);CHKERRQ(ierr);
-  return 0;
-}
-
-*/
-
-#undef __FUNCT__
-#define __FUNCT__ "RHSMatrixAdvectiongllDM"
-
-/*
-   RHSMatrixAdvection - User-provided routine to compute the right-hand-side
-   matrix for the Advection equation.
-
-   Input Parameters:
-   ts - the TS context
-   t - current time
-   global_in - global input vector
-   dummy - optional user-defined context, as set by TSetRHSJacobian()
-
-   Output Parameters:
-   AA - Jacobian matrix
-   BB - optionally different preconditioning matrix
-   str - flag indicating matrix structure
-
-*/
-PetscErrorCode RHSMatrixAdvectiongllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx)
-{
-  PetscReal      **temp;
-  AppCtx         *appctx = (AppCtx*)ctx;     /* user-defined application context */
-  PetscErrorCode ierr;
-  PetscInt       xs,xn,l,j;
-  PetscInt       *rowsDM;
-    
-     /*
-       Creates the advection matrix for the given gll
-    */
-    ierr = PetscGLLElementAdvectionCreate(&appctx->SEMop.gll,&temp);CHKERRQ(ierr);
-    ierr = MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE);CHKERRQ(ierr);
-
-    ierr = DMDAGetCorners(appctx->da,&xs,NULL,NULL,&xn,NULL,NULL);CHKERRQ(ierr);
-
-    xs   = xs/(appctx->param.N-1);
-    xn   = xn/(appctx->param.N-1);
-
-    ierr = PetscMalloc1(appctx->param.N,&rowsDM);CHKERRQ(ierr);
-  
-    for (j=xs; j<xs+xn; j++) {
-      for (l=0; l<appctx->param.N; l++) 
-      {rowsDM[l] = 1+(j-xs)*(appctx->param.N-1)+l;}
-      ierr = MatSetValuesLocal(A,appctx->param.N,rowsDM,appctx->param.N,rowsDM,&temp[0][0],ADD_VALUES);CHKERRQ(ierr);
-      }
-
-   MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);
-   MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);
-
-   ierr = VecReciprocal(appctx->SEMop.mass);CHKERRQ(ierr);
-   ierr = MatDiagonalScale(A,appctx->SEMop.mass,0);CHKERRQ(ierr);
-   ierr = VecReciprocal(appctx->SEMop.mass);CHKERRQ(ierr);
-  
-   ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&temp);CHKERRQ(ierr);
-   
-     
-   return 0;
-}
 /* ------------------------------------------------------------------ */
 /*
    FormFunctionGradient - Evaluates the function and corresponding gradient.
@@ -766,8 +1199,8 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
   PetscSNPrintf(data,sizeof(data),"TAO(%D)=%g; L2(%D)= %g ; Err(%D)=%g\n",its+1,(double)ff,its+1,*f,its+1,errex);
   PetscViewerASCIIPrintf(viewfile,data);
-  ierr = PetscObjectSetName((PetscObject)appctx->SEMop.grid,"grid");
-  ierr = VecView(appctx->SEMop.grid,viewfile);CHKERRQ(ierr);
+  //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.grid,"grid");
+  //ierr = VecView(appctx->SEMop.grid,viewfile);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject)appctx->dat.obj,"obj");
   ierr = VecView(appctx->dat.obj,viewfile);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject)G,"Init_adj");
