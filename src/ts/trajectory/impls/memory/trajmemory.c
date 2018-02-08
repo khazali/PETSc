@@ -5,6 +5,7 @@
 #endif
 
 PetscLogEvent TSTrajectory_DiskWrite, TSTrajectory_DiskRead;
+static PetscErrorCode TSTrajectorySet_Memory(TSTrajectory,TS,PetscInt,PetscReal,Vec);
 
 typedef enum {NONE,TWO_LEVEL_NOREVOLVE,TWO_LEVEL_REVOLVE,TWO_LEVEL_TWO_REVOLVE,REVOLVE_OFFLINE,REVOLVE_ONLINE,REVOLVE_MULTISTAGE} SchedulerType;
 
@@ -525,12 +526,14 @@ static PetscErrorCode ReCompute(TS ts,TJScheduler *tjsch,PetscInt stepnumbegin,P
   ierr = TSSetStepNumber(ts,stepnumbegin);CHKERRQ(ierr);/* global step number */
   for (i=stepnumbegin;i<stepnumend;i++) { /* assume fixed step size */
     if (stack->solution_only && !tjsch->skip_trajectory) { /* revolve online need this */
-      ierr = TSTrajectorySet(ts->trajectory,ts,ts->steps,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
+      /* don't use the public interface as it will update the TSHistory: this need a better fix */
+      ierr = TSTrajectorySet_Memory(ts->trajectory,ts,ts->steps,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
     }
     ierr = TSMonitor(ts,ts->steps,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
     ierr = TSStep(ts);CHKERRQ(ierr);
     if (!stack->solution_only && !tjsch->skip_trajectory) {
-      ierr = TSTrajectorySet(ts->trajectory,ts,ts->steps,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
+      /* don't use the public interface as it will update the TSHistory: this need a better fix */
+      ierr = TSTrajectorySet_Memory(ts->trajectory,ts,ts->steps,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
     }
     ierr = TSEventHandler(ts);CHKERRQ(ierr);
     if (!ts->steprollback) {
@@ -653,6 +656,7 @@ static PetscErrorCode GetTrajN(TS ts,TJScheduler *tjsch,PetscInt stepnum)
 {
   Stack          *stack = &tjsch->stack;
   StackElement   e;
+  PetscInt       ns;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -663,7 +667,8 @@ static PetscErrorCode GetTrajN(TS ts,TJScheduler *tjsch,PetscInt stepnum)
   /* restore a checkpoint */
   ierr = StackTop(stack,&e);CHKERRQ(ierr);
   ierr = UpdateTS(ts,stack,e,PETSC_TRUE);CHKERRQ(ierr);
-  if (stack->solution_only) { /* recompute one step */
+  ierr = TSGetStages(ts,&ns,NULL);CHKERRQ(ierr);
+  if (stack->solution_only && ns) { /* recompute one step */
     tjsch->recompute = PETSC_TRUE;
     ierr = TurnForwardWithStepsize(ts,e->timenext-e->time);CHKERRQ(ierr);
     ierr = ReCompute(ts,tjsch,e->stepnum,stepnum);CHKERRQ(ierr);
