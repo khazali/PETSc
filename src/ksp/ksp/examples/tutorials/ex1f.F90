@@ -182,3 +182,10 @@
       call PetscFinalize(ierr)
 
       end
+
+!/*TEST
+!
+!     test:
+!       args: -ksp_monitor_short
+!
+!TEST*/

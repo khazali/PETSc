@@ -1,10 +1,6 @@
 
 static char help[] = "Scatters from a parallel vector into seqential vectors.\n\n";
 
-/*T
-   requires: cusp veccuda x
-T*/
-
 #include <petscvec.h>
 
 int main(int argc,char **argv)
@@ -25,7 +21,9 @@ int main(int argc,char **argv)
   ierr = VecCreate(PETSC_COMM_WORLD,&x);CHKERRQ(ierr);
   ierr = VecSetSizes(x,n,PETSC_DECIDE);CHKERRQ(ierr);
   ierr = VecSetFromOptions(x);CHKERRQ(ierr);
-  ierr = VecCreateSeq(PETSC_COMM_SELF,n,&y);CHKERRQ(ierr);
+  ierr = VecCreate(PETSC_COMM_SELF,&y);CHKERRQ(ierr);
+  ierr = VecSetSizes(y,n,PETSC_DECIDE);CHKERRQ(ierr);
+  ierr = VecSetFromOptions(y);CHKERRQ(ierr);
 
   /* create two index sets */
   ierr = ISCreateGeneral(PETSC_COMM_SELF,2,idx1,PETSC_COPY_VALUES,&is1);CHKERRQ(ierr);
@@ -38,7 +36,7 @@ int main(int argc,char **argv)
   ierr = VecScatterEnd(ctx,x,y,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
   ierr = VecScatterDestroy(&ctx);CHKERRQ(ierr);
 
-  if (!rank) {VecView(y,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);}
+  if (!rank) {ierr = VecView(y,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);}
 
   ierr = ISDestroy(&is1);CHKERRQ(ierr);
   ierr = ISDestroy(&is2);CHKERRQ(ierr);
@@ -54,12 +52,13 @@ int main(int argc,char **argv)
 
    test:
       nsize: 2
-
+      filter: grep -v type
 
    test:
       suffix: cuda
       args: -vec_type cuda
       output_file: output/ex4_1.out
+      filter: grep -v type
       requires: veccuda
 
    test:
@@ -67,18 +66,21 @@ int main(int argc,char **argv)
       nsize: 2
       args: -vec_type cuda
       output_file: output/ex4_1.out
+      filter: grep -v type
       requires: veccuda
 
    test:
       suffix: cusp
       args: -vec_type cusp
       output_file: output/ex4_1.out
+      filter: grep -v type
       requires: cusp
 
    test:
       suffix: cusp2
       nsize: 2
       args: -vec_type cusp
+      filter: grep -v type
       output_file: output/ex4_1.out
       requires: cusp
 

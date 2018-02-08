@@ -3,7 +3,7 @@ import config.package
 class Configure(config.package.Package):
   def __init__(self, framework):
     config.package.Package.__init__(self, framework)
-    self.gitcommit              = '3f09f6d'  #master+
+    self.gitcommit              = '50d6bae'  #master+
     self.download               = ['git://https://bitbucket.org/petsc/petsc4py','https://bitbucket.org/petsc/petsc4py/get/'+self.gitcommit+'.tar.gz']
     self.functions              = []
     self.includes               = []
@@ -62,6 +62,7 @@ class Configure(config.package.Package):
       import sys
       self.pyexe = sys.executable
 
+    self.addDefine('HAVE_PETSC4PY',1)
     self.addMakeMacro('PETSC4PY','yes')
     self.addMakeRule('petsc4pybuild','', \
                        ['@echo "*** Building petsc4py ***"',\

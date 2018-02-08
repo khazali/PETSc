@@ -102,6 +102,9 @@ PETSC_EXTERN PetscErrorCode SNESSetFromOptions(SNES);
 PETSC_EXTERN PetscErrorCode SNESSetUseMatrixFree(SNES,PetscBool,PetscBool);
 PETSC_EXTERN PetscErrorCode SNESGetUseMatrixFree(SNES,PetscBool*,PetscBool*);
 PETSC_EXTERN PetscErrorCode MatCreateSNESMF(SNES,Mat*);
+PETSC_EXTERN PetscErrorCode MatSNESMFGetSNES(Mat,SNES*);
+PETSC_EXTERN PetscErrorCode MatSNESMFSetReuseBase(Mat,PetscBool);
+PETSC_EXTERN PetscErrorCode MatSNESMFGetReuseBase(Mat,PetscBool*);
 PETSC_EXTERN PetscErrorCode MatMFFDComputeJacobian(SNES,Vec,Mat,Mat,void*);
 
 PETSC_EXTERN PetscErrorCode MatDAADSetSNES(Mat,SNES);
@@ -129,6 +132,7 @@ PETSC_EXTERN PetscErrorCode SNESSetDivergenceTolerance(SNES,PetscReal);
 PETSC_EXTERN PetscErrorCode SNESGetTolerances(SNES,PetscReal*,PetscReal*,PetscReal*,PetscInt*,PetscInt*);
 PETSC_EXTERN PetscErrorCode SNESGetDivergenceTolerance(SNES,PetscReal*);
 PETSC_EXTERN PetscErrorCode SNESSetTrustRegionTolerance(SNES,PetscReal);
+PETSC_EXTERN PetscErrorCode SNESGetForceIteration(SNES,PetscBool*);
 PETSC_EXTERN PetscErrorCode SNESSetForceIteration(SNES,PetscBool);
 PETSC_EXTERN PetscErrorCode SNESGetIterationNumber(SNES,PetscInt*);
 PETSC_EXTERN PetscErrorCode SNESSetIterationNumber(SNES,PetscInt);

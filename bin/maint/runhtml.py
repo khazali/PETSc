@@ -242,7 +242,9 @@ for root, dirs, filenames in os.walk(sys.argv[2]):
       #
       ### Configure section
       #
-      #if not os.path.isfile(logfile_configure_full): ??
+      if not os.path.isfile(logfile_configure_full):
+        outfile.write("<td class=\"red\" colspan=\"2\"><a href=\"" + logfile_build + "\">[build.log]</a></td>")
+        continue
 
       # Checking for successful completion
       configure_success = False
@@ -416,12 +418,8 @@ for root, dirs, filenames in os.walk(sys.argv[2]):
       #
       outfile.write("<td></td>")
       example_problem_num = 0
-      write_to_summary = True
-      if match.group(1).startswith("c-exodus-dbg-builder"):
-        write_to_summary = False
       for line in open(logfile_examples_full):
-        if write_to_summary:
-          examples_summary_file.write(line)
+        examples_summary_file.write(line)
         if re.search(r'not ok', line):
           example_problem_num += 1
         if re.search(r'[Pp]ossible [Pp]roblem', line):

@@ -104,7 +104,7 @@ static PetscErrorCode MatDestroy_SuperLU_DIST(Mat A)
   }
   ierr = PetscFree(A->data);CHKERRQ(ierr);
   /* clear composed functions */
-  ierr = PetscObjectComposeFunction((PetscObject)A,"MatFactorGetSolverPackage_C",NULL);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)A,"MatFactorGetSolverType_C",NULL);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)A,"MatSuperluDistGetDiagU_C",NULL);CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
@@ -484,14 +484,14 @@ static PetscErrorCode MatLUFactorSymbolic_SuperLU_DIST(Mat F,Mat A,IS r,IS c,con
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode MatFactorGetSolverPackage_aij_superlu_dist(Mat A,const MatSolverPackage *type)
+static PetscErrorCode MatFactorGetSolverType_aij_superlu_dist(Mat A,MatSolverType *type)
 {
   PetscFunctionBegin;
   *type = MATSOLVERSUPERLU_DIST;
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode MatFactorInfo_SuperLU_DIST(Mat A,PetscViewer viewer)
+static PetscErrorCode MatView_Info_SuperLU_DIST(Mat A,PetscViewer viewer)
 {
   Mat_SuperLU_DIST       *lu=(Mat_SuperLU_DIST*)A->data;
   superlu_dist_options_t options;
@@ -556,7 +556,7 @@ static PetscErrorCode MatView_SuperLU_DIST(Mat A,PetscViewer viewer)
   if (iascii) {
     ierr = PetscViewerGetFormat(viewer,&format);CHKERRQ(ierr);
     if (format == PETSC_VIEWER_ASCII_INFO) {
-      ierr = MatFactorInfo_SuperLU_DIST(A,viewer);CHKERRQ(ierr);
+      ierr = MatView_Info_SuperLU_DIST(A,viewer);CHKERRQ(ierr);
     }
   }
   PetscFunctionReturn(0);
@@ -724,19 +724,19 @@ static PetscErrorCode MatGetFactor_aij_superlu_dist(Mat A,MatFactorType ftype,Ma
   lu->matsolve_iscalled    = PETSC_FALSE;
   lu->matmatsolve_iscalled = PETSC_FALSE;
 
-  ierr = PetscObjectComposeFunction((PetscObject)B,"MatFactorGetSolverPackage_C",MatFactorGetSolverPackage_aij_superlu_dist);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)B,"MatFactorGetSolverType_C",MatFactorGetSolverType_aij_superlu_dist);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatSuperluDistGetDiagU_C",MatSuperluDistGetDiagU_SuperLU_DIST);CHKERRQ(ierr);
 
   *F = B;
   PetscFunctionReturn(0);
 }
 
-PETSC_EXTERN PetscErrorCode MatSolverPackageRegister_SuperLU_DIST(void)
+PETSC_EXTERN PetscErrorCode MatSolverTypeRegister_SuperLU_DIST(void)
 {
   PetscErrorCode ierr;
   PetscFunctionBegin;
-  ierr = MatSolverPackageRegister(MATSOLVERSUPERLU_DIST,MATMPIAIJ,  MAT_FACTOR_LU,MatGetFactor_aij_superlu_dist);CHKERRQ(ierr);
-  ierr = MatSolverPackageRegister(MATSOLVERSUPERLU_DIST,MATSEQAIJ,  MAT_FACTOR_LU,MatGetFactor_aij_superlu_dist);CHKERRQ(ierr);
+  ierr = MatSolverTypeRegister(MATSOLVERSUPERLU_DIST,MATMPIAIJ,  MAT_FACTOR_LU,MatGetFactor_aij_superlu_dist);CHKERRQ(ierr);
+  ierr = MatSolverTypeRegister(MATSOLVERSUPERLU_DIST,MATSEQAIJ,  MAT_FACTOR_LU,MatGetFactor_aij_superlu_dist);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -745,7 +745,7 @@ PETSC_EXTERN PetscErrorCode MatSolverPackageRegister_SuperLU_DIST(void)
 
   Use ./configure --download-superlu_dist --download-parmetis --download-metis --download-ptscotch  to have PETSc installed with SuperLU_DIST
 
-  Use -pc_type lu -pc_factor_mat_solver_package superlu_dist to use this direct solver
+  Use -pc_type lu -pc_factor_mat_solver_type superlu_dist to use this direct solver
 
    Works with AIJ matrices
 
@@ -765,6 +765,6 @@ PETSC_EXTERN PetscErrorCode MatSolverPackageRegister_SuperLU_DIST(void)
 
 .seealso: PCLU
 
-.seealso: PCFactorSetMatSolverPackage(), MatSolverPackage
+.seealso: PCFactorSetMatSolverType(), MatSolverType
 
 M*/

@@ -294,12 +294,12 @@ runex19_ml:
 	   else  printf "${PWD}\nPossible problem with ex19_ml, diffs above\n=========================================\n"; fi; \
            ${RM} -f ex19_1.tmp
 runex19_fieldsplit_mumps:
-	-@${MPIEXEC} -n 2 ./ex19 -pc_type fieldsplit -pc_fieldsplit_block_size 4 -pc_fieldsplit_type SCHUR -pc_fieldsplit_0_fields 0,1,2 -pc_fieldsplit_1_fields 3 -fieldsplit_0_pc_type lu -fieldsplit_1_pc_type lu -snes_monitor_short -ksp_monitor_short  -fieldsplit_0_pc_factor_mat_solver_package mumps -fieldsplit_1_pc_factor_mat_solver_package mumps > ex19_6.tmp 2>&1; \
+	-@${MPIEXEC} -n 2 ./ex19 -pc_type fieldsplit -pc_fieldsplit_block_size 4 -pc_fieldsplit_type SCHUR -pc_fieldsplit_0_fields 0,1,2 -pc_fieldsplit_1_fields 3 -fieldsplit_0_pc_type lu -fieldsplit_1_pc_type lu -snes_monitor_short -ksp_monitor_short  -fieldsplit_0_pc_factor_mat_solver_type mumps -fieldsplit_1_pc_factor_mat_solver_type mumps > ex19_6.tmp 2>&1; \
 	   if (${DIFF} output/ex19_fieldsplit_5.out ex19_6.tmp) then true; \
 	   else  printf "${PWD}\nPossible problem with ex19_fieldsplit_fieldsplit_mumps, diffs above\n=========================================\n"; fi; \
            ${RM} -f ex19_6.tmp
 runex19_superlu_dist:
-	-@${MPIEXEC} -n 1 ./ex19 -da_grid_x 20 -da_grid_y 20 -pc_type lu -pc_factor_mat_solver_package superlu_dist > ex19.tmp 2>&1; \
+	-@${MPIEXEC} -n 1 ./ex19 -da_grid_x 20 -da_grid_y 20 -pc_type lu -pc_factor_mat_solver_type superlu_dist > ex19.tmp 2>&1; \
 	   if (${DIFF} output/ex19_superlu.out ex19.tmp) then true; \
 	   else  printf "${PWD}\nPossible problem with ex19_superlu_dist, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex19.tmp
@@ -323,6 +323,5 @@ runex12_p4est_convergence_test:
 	-@echo "Refinement level 5"
 	-@echo "=================="
 	-@${MPIEXEC} -n 4 ./ex12 -quiet -run_type test -interpolate 1 -petscspace_order 1 -simplex 0 -petscspace_poly_tensor -dm_plex_convert_type p4est -dm_forest_minimum_refinement 5 -dm_forest_initial_refinement 5 -dm_forest_maximum_refinement 7 -dm_p4est_refine_pattern hash
-
 
 include ${PETSC_DIR}/lib/petsc/conf/test

@@ -63,25 +63,18 @@ if ( -f /usr/bin/cygcheck.exe ) then
   mkdir -p $TMP
 endif
 
+set PETSC_OPTIONS=""
 # Run initialization script
 if ( -f ./config/examples/${CONFIGURE_FILE}.csh ) then
   source ./config/examples/${CONFIGURE_FILE}.csh
 endif
+set PETSC_OPTIONS="${PETSC_OPTIONS} -check_pointer_intensity 0 -error_output_stdout"
 
 # Run Configure
 ./config/examples/${CONFIGURE_FILE}.py --with-no-output PETSC_ARCH=$PETSC_ARCH PETSC_DIR=$PETSC_DIR ${CONFIGURE_ARGS} >>& build.log
 set err=$?
 echo '****************************************************' >>& build.log
 if ( $err ) exit
-#
-# check if PETSC_ARCH has name builder - if so enable builder runs
-#
-echo $PETSC_ARCH | grep builder > /dev/null
-if ( $? ) then
-  set BUILDER="no"
-else
-  set BUILDER="yes"
-endif
 #
 # check if PETSC_ARCH has name analyzer - if so enable build with clang static analyzer
 #
@@ -161,11 +154,7 @@ rm -f examples.log
 echo "Build on $MACH $ARCH $nPETSC_DIR TESTMODE=$TESTMODE ${VALGRIND} ${ANALYZER_PCC} `date` " > examples.log
 echo '******************************************************' >>& examples.log
 git log --pretty=format:"commit: %H%nsubject: %s%n" -1 >>& examples.log
-if ( "${BUILDER}" == "yes" ) then
-  env PETSC_ARCH=$PETSC_ARCH PETSC_DIR=$PETSC_DIR ./config/builder2.py regression >>& examples.log
-else
-  $ANALYZER make PETSC_ARCH=$PETSC_ARCH PETSC_DIR=$PETSC_DIR alltests V=0 TESTMODE=$TESTMODE TIMEOUT=$TIMEOUT "${VALGRIND}" ${ANALYZER_PCC} |& grep -v 'up to date' >>& examples.log
-endif
+$ANALYZER make PETSC_ARCH=$PETSC_ARCH PETSC_DIR=$PETSC_DIR alltests V=0 TESTMODE=$TESTMODE TIMEOUT=$TIMEOUT "${VALGRIND}" ${ANALYZER_PCC} |& grep -v 'up to date' >>& examples.log
 echo '******************************************************' >>& examples.log
 
 if ( "${ANALYZER}" != "" ) then

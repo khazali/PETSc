@@ -133,8 +133,10 @@ class Framework(config.base.Configure, script.LanguageProcessor):
     dirs     = []
     nextDirs = variable.split(os.sep)
     if os.path.isdir(base):
-      files = os.listdir(base)
-      files.sort()
+      try:
+        files = os.listdir(base)
+        files.sort()
+      except: pass
       for dir in files:
         if re.match(nextDirs[0], dir):
           if nextDirs[1:]:
@@ -176,19 +178,6 @@ class Framework(config.base.Configure, script.LanguageProcessor):
     help        = config.base.Configure.setupHelp(self, help)
     searchdirs  = []
     packagedirs = []
-    home = os.getenv('HOME')
-    if home and os.path.isdir(home):
-      packagedirs.append(home)
-      searchdirs.append(home)
-    list = self.listDirs('/opt/ibmcmp/vacpp/','[0-9.]*/bin')
-    if list: searchdirs.append(list[-1])
-    list = self.listDirs('/opt/ibmcmp/xlf/','[0-9.]*/bin')
-    if list: searchdirs.append(list[-1])
-    list = self.listDirs('/opt/','intel_cc_[0-9.]*/bin')
-    if list: searchdirs.append(list[-1])
-    list = self.listDirs('/opt/','intel_fc_[0-9.]*/bin')
-    if list: searchdirs.append(list[-1])
-
 
     help.addArgument('Framework', '-configModules',       nargs.Arg(None, None, 'A list of Python modules with a Configure class'))
     help.addArgument('Framework', '-ignoreCompileOutput=<bool>', nargs.ArgBool(None, 1, 'Ignore compiler output'))
@@ -943,6 +932,35 @@ class Framework(config.base.Configure, script.LanguageProcessor):
       print '=================================================================================\r'
       sys.exit(0)
     return
+
+  def runTimeTestBatch(self,name,includes,body,lib = None):
+    '''Either runs a test or adds it to the batch of runtime tests'''
+    if name in self.argDB: return self.argDB[name]
+    if self.argDB['with-batch']:
+      self.framework.addBatchInclude(includes)
+      self.framework.addBatchBody(body)
+      if lib: self.framework.addBatchLib(lib)
+      if self.include: self.framework.batchIncludeDirs.extend([self.headers.getIncludeArgument(inc) for inc in self.include])
+      return None
+    else:
+      result = None
+      self.pushLanguage('C')
+      filename = 'runtimetestoutput'
+      body = '''FILE *output = fopen("'''+filename+'''","w");\n'''+body
+      if lib:
+        if not isinstance(lib, list): lib = [lib]
+        oldLibs  = self.compilers.LIBS
+        self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
+      if self.checkRun(includes, body) and os.path.exists(filename):
+        f    = file(filename)
+        out  = f.read()
+        f.close()
+        os.remove(filename)
+        result = out.split("=")[1].split("'")[0]
+      self.popLanguage()
+      if lib:
+        self.compilers.LIBS = oldLibs
+      return result
 
   def parallelQueueEvaluation(self, depGraph, numThreads = 1):
     import graph

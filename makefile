@@ -175,7 +175,7 @@ test_build:
          fi;
 	@cd src/snes/examples/tutorials >/dev/null; ${OMAKE} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} ex19.rm
 	@if [ "${PETSC4PY}" = "yes" ]; then \
-          cd tutorials/python >/dev/null; ${OMAKE} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR}  DIFF=${PETSC_DIR}/bin/petscdiff testexamples_C_Python; \
+          cd src/ksp/ksp/examples/tutorials >/dev/null; ${OMAKE} PETSC_ARCH=${PETSC_ARCH}  PETSC_DIR=${PETSC_DIR} testex100; \
          fi;
 	@egrep "^#define PETSC_HAVE_FORTRAN 1" ${PETSCCONF_H} | tee .ftn.log > /dev/null; \
          if test -s .ftn.log; then \
@@ -333,24 +333,36 @@ SCRIPTS    = bin/maint/builddist  bin/maint/wwwman bin/maint/xclude bin/maint/bu
 
 
 # Builds all the documentation - should be done every night
-alldoc: alldoc1 alldoc2 alldoc3 docsetdate
+alldoc: allcite allpdf alldoc1 alldoc2 alldoc3 docsetdate
 
-# Build everything that goes into 'doc' dir except html sources
-alldoc1: chk_loc deletemanualpages chk_concepts_dir
+# Build just citations
+allcite: chk_loc deletemanualpages
 	-${PYTHON} bin/maint/countpetsccits.py
 	-${OMAKE} ACTION=manualpages_buildcite tree_basic LOC=${LOC}
 	-@sed -e s%man+../%man+manualpages/% ${LOC}/docs/manualpages/manualpages.cit > ${LOC}/docs/manualpages/htmlmap
 	-@cat ${PETSC_DIR}/src/docs/mpi.www.index >> ${LOC}/docs/manualpages/htmlmap
+
+# Build just PDF manuals + prerequisites
+allpdf: chk_loc allcite
 	-cd src/docs/tex/manual; ${OMAKE} manual.pdf LOC=${LOC}
 	-cd src/docs/tex/manual; ${OMAKE} developers.pdf LOC=${LOC}
-	-cd src/docs/tao_tex/manual; ${OMAKE} manual.pdf
+	-cd src/docs/tao_tex/manual; ${OMAKE} manual.pdf LOC=${LOC}
+
+# Build just manual pages + prerequisites
+allmanpages: chk_loc allcite
 	-${OMAKE} ACTION=manualpages tree_basic LOC=${LOC}
-	-${PYTHON} bin/maint/wwwindex.py ${PETSC_DIR} ${LOC}
+
+# Build just manual examples + prerequisites
+allmanexamples: chk_loc allmanpages
 	-${OMAKE} ACTION=manexamples tree_basic LOC=${LOC}
+
+# Build everything that goes into 'doc' dir except html sources
+alldoc1: chk_loc chk_concepts_dir allcite allmanpages allmanexamples
+	-${OMAKE} manimplementations LOC=${LOC}
+	-${PYTHON} bin/maint/wwwindex.py ${PETSC_DIR} ${LOC}
 	-${OMAKE} manconcepts LOC=${LOC}
 	-${OMAKE} ACTION=getexlist tree_basic LOC=${LOC}
 	-${OMAKE} ACTION=exampleconcepts tree_basic LOC=${LOC}
-	-${OMAKE} manimplementations LOC=${LOC}
 	-${PYTHON} bin/maint/helpindex.py ${PETSC_DIR} ${LOC}
 
 # Builds .html versions of the source

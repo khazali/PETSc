@@ -321,7 +321,6 @@ PETSC_EXTERN PetscErrorCode VecRegister(const char[],PetscErrorCode (*)(Vec));
 
 PETSC_EXTERN PetscErrorCode VecScatterCreate(Vec,IS,Vec,IS,VecScatter *);
 PETSC_EXTERN PetscErrorCode VecScatterCreateEmpty(MPI_Comm,VecScatter *);
-PETSC_EXTERN PetscErrorCode VecScatterCreateLocal(VecScatter,PetscInt,const PetscInt[],const PetscInt[],const PetscInt[],PetscInt,const PetscInt[],const PetscInt[],const PetscInt[],PetscInt);
 PETSC_EXTERN PetscErrorCode VecScatterBegin(VecScatter,Vec,Vec,InsertMode,ScatterMode);
 PETSC_EXTERN PetscErrorCode VecScatterEnd(VecScatter,Vec,Vec,InsertMode,ScatterMode);
 PETSC_EXTERN PetscErrorCode VecScatterDestroy(VecScatter*);
@@ -532,6 +531,7 @@ PETSC_EXTERN PetscErrorCode VecScatterCreateToZero(Vec,VecScatter*,Vec*);
 PETSC_EXTERN PetscErrorCode ISComplementVec(IS,Vec,IS*);
 PETSC_EXTERN PetscErrorCode VecPow(Vec, PetscScalar);
 PETSC_EXTERN PetscErrorCode VecMedian(Vec, Vec, Vec, Vec);
+PETSC_EXTERN PetscErrorCode VecWhichInactive(Vec, Vec, Vec, Vec, PetscBool, IS *);
 PETSC_EXTERN PetscErrorCode VecWhichBetween(Vec, Vec, Vec, IS *);
 PETSC_EXTERN PetscErrorCode VecWhichBetweenOrEqual(Vec, Vec, Vec, IS *);
 PETSC_EXTERN PetscErrorCode VecWhichGreaterThan(Vec, Vec, IS * );
