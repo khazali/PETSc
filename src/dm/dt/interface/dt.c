@@ -282,7 +282,7 @@ PetscErrorCode PetscQuadratureGetData(PetscQuadrature q, PetscInt *dim, PetscInt
 . points - The coordinates of each quadrature point
 - weights - The weight of each quadrature point
 
-  Notes: The arrays are not copieed so you should not free arrays, the arrays must be optained with a version of PetscMalloc() not the system malloc
+  Note: This routine owns the references to points and weights, so they msut be allocated using PetscMalloc() and the user should not free them.
 
   Level: intermediate
 

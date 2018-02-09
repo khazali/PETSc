@@ -318,8 +318,11 @@ help-test:
 	-@echo "                         TESTDIR=PETSC_DIR/PETSC_ARCH/TESTBASE"
 	-@echo "  NP=<num proc>     Set a number of processors to pass to scripts."
 	-@echo "  FORCE=1           Force SKIP or TODO tests to run"
-	-@echo "  TIMEOUT=<time>    Test timeout limit in seconds "
-	-@echo "                        (default located in config/petsc_harness.sh)"
+	-@echo "  TIMEOUT=<time>    Test timeout limit in seconds (default in config/petsc_harness.sh)"
+	-@echo "  TESTDIR='tests'   Subdirectory where tests are run ($${PETSC_DIR}/$${PETSC_ARCH}/$${TESTDIR}"
+	-@echo "                    or $${PREFIX_DIR}/$${TESTDIR}"
+	-@echo "                    or $${PREFIX_DIR}/share/petsc/examples/$${TESTDIR})"
+	-@echo "  TESTBASE='tests'   Subdirectory where tests are run ($${PETSC_DIR}/$${PETSC_ARCH}/$${TESTDIR}"
 	-@echo "  OPTIONS='<args>'  Override options to scripts (-a to test scripts)"
 	-@echo "  EXTRA_OPTIONS='<args>'  Add options to scripts (-e to test scripts)"
 	-@echo
