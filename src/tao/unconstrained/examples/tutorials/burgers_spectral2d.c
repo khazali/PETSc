@@ -68,6 +68,7 @@ typedef struct {
   Vec         grad;
   Vec         ic;
   Vec         curr_sol;
+  Vec         pass_sol;
   Vec         true_solution;     /* actual initial conditions for the final solution */
 } PetscData;
 
@@ -135,13 +136,13 @@ int main(int argc,char **argv)
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return ierr;
 
   /*initialize parameters */
-  appctx.param.N    = 4;  /* order of the spectral element */
-  appctx.param.Ex    = 1;  /* number of elements */
-  appctx.param.Ey    = 1;  /* number of elements */
+  appctx.param.N    = 8;  /* order of the spectral element */
+  appctx.param.Ex    = 4;  /* number of elements */
+  appctx.param.Ey    = 3;  /* number of elements */
   appctx.param.Lx    = 1.0;  /* length of the domain */
   appctx.param.Ly    = 1.0;  /* length of the domain */
   appctx.param.mu   = 0.01; /* diffusion coefficient */
-  appctx.initial_dt = 1e-2;
+  appctx.initial_dt = 1e-3;
   appctx.param.steps = PETSC_MAX_INT;
   appctx.param.Tend  = 0.1;
   appctx.ncoeff      = 2;
@@ -189,6 +190,7 @@ int main(int argc,char **argv)
   ierr = VecDuplicate(u,&appctx.dat.obj);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&appctx.SEMop.mass);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&appctx.dat.curr_sol);CHKERRQ(ierr);
+  ierr = VecDuplicate(u,&appctx.dat.pass_sol);CHKERRQ(ierr);
  
   ierr = DMDAGetCorners(appctx.da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
  /* Compute function over the locally owned part of the grid */
@@ -200,15 +202,8 @@ int main(int argc,char **argv)
   VecSet(appctx.SEMop.mass,0.0);
   
   DMCreateLocalVector(appctx.da,&loc);
-
-  //DMGlobalToLocalBegin(appctx.da,appctx.SEMop.mass,INSERT_VALUES,loc);
-  //DMGlobalToLocalEnd(appctx.da,appctx.SEMop.mass,INSERT_VALUES,loc);
-
-  //ierr = DMDAVecGetArray(appctx.da,loc,&wrk_ptr2);CHKERRQ(ierr);
   ierr = DMDAVecGetArray(appctx.da,loc,&bmass);CHKERRQ(ierr);
-  VecGetSize(appctx.SEMop.mass,&m);
-  printf("size of mass %d\n", m); 
-  VecSet(loc,0.0);
+  
   /*
      Build mass over entire mesh (multi-elemental) 
 
@@ -223,44 +218,22 @@ int main(int argc,char **argv)
         y = (appctx.param.Ley/2.0)*(appctx.SEMop.gll.nodes[jy]+1.0)+appctx.param.Ley*iy; 
         indx=ix*(appctx.param.N-1)+jx;
         indy=iy*(appctx.param.N-1)+jy;
-        //wrk_ptr2[indy][indx]=wrk_ptr2[indy][indx]+appctx.SEMop.gll.weights[jx]*appctx.SEMop.gll.weights[jy]*.25*appctx.param.Ley*appctx.param.Lex;
-        //if (j==0) wrk_ptr2[ind]+=.5*appctx.param.Le*appctx.SEMop.gll.weights[j];
-        bmass[indy][indx].u=2.0;//wrk_ptr2[indy][indx];
-        bmass[indy][indx].v=1.0;//wrk_ptr2[indy][indx];
-        printf("ind[%d][%d] and bu=%f bv= %f\n",indy,indx,bmass[indy][indx].u,bmass[indy][indx].v);
+        bmass[indy][indx].u +=appctx.SEMop.gll.weights[jx]*appctx.SEMop.gll.weights[jy]*.25*appctx.param.Ley*appctx.param.Lex;
+        bmass[indy][indx].v +=appctx.SEMop.gll.weights[jx]*appctx.SEMop.gll.weights[jy]*.25*appctx.param.Ley*appctx.param.Lex;
+     
           } 
          }
        }
      }
-    //exit(1);
-   
-    //DMDAVecRestoreArray(appctx.da,loc,&wrk_ptr2);CHKERRQ(ierr);
+    
     DMDAVecRestoreArray(appctx.da,loc,&bmass);CHKERRQ(ierr);
-    VecView(loc,0);
     DMLocalToGlobalBegin(appctx.da,loc,ADD_VALUES,appctx.SEMop.mass);
     DMLocalToGlobalEnd(appctx.da,loc,ADD_VALUES,appctx.SEMop.mass); 
-    VecView(appctx.SEMop.mass,0);
-    //DMDAVecRestoreArray(cda,local,&coors);
-    
-    //DMLocalToGlobalBegin(cda,local,ADD_VALUES,global);
-    //DMLocalToGlobalEnd(cda,local,ADD_VALUES,global); 
-
-/*
-     Build total grid and mass over entire mesh (multi-elemental) 
-
-  */ 
+  
    
   DMDASetUniformCoordinates(appctx.da,0.0,appctx.param.Lx,0.0,appctx.param.Ly,0.0,0.0);
   DMGetCoordinateDM(appctx.da,&cda);
-  //DMGetCoordinatesLocal(appctx.da,&local);
   
-  //DMCreateLocalVector(appctx.da,&local);
-
-  //DMGlobalToLocalBegin(appctx.da,global,INSERT_VALUES,local);
-  //DMGlobalToLocalEnd(appctx.da,global,INSERT_VALUES,local);
-
-  //VecSet(local,0.0);
-
   DMGetCoordinates(appctx.da,&global);
   VecSet(global,0.0);
   DMDAVecGetArray(cda,global,&coors);
@@ -276,12 +249,9 @@ int main(int argc,char **argv)
         indy=iy*(appctx.param.N-1)+jy;
         coors[indy][indx].x=x;
         coors[indy][indx].y=y;
-        //printf("ind[%d][%d] and j=%d lenx =%d\n",indx,indy,indy+indx*leny,lenx);
-        //wrk_ptr2[indy][indx]=appctx.SEMop.gll.weights[jx]*appctx.SEMop.gll.weights[jy]*.25*appctx.param.Ley*appctx.param.Lex;
-        //if (j==0) wrk_ptr2[ind]+=.5*appctx.param.Le*appctx.SEMop.gll.weights[j];
-          } 
-         }
+       } 
        }
+     }
      }
     DMDAVecRestoreArray(cda,global,&coors);
 
@@ -292,12 +262,6 @@ int main(int argc,char **argv)
     ierr = PetscViewerPopFormat(viewfile);
     ierr = PetscViewerDestroy(&viewfile);CHKERRQ(ierr);
 
-
-//    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"grid.m",&viewfile);CHKERRQ(ierr);
-//    ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-//    ierr = PetscObjectSetName((PetscObject)appctx.SEMop.mass,"glob");
-//    ierr = VecView(appctx.SEMop.mass,viewfile);CHKERRQ(ierr);
-//    ierr = PetscViewerPopFormat(viewfile);
  
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    Create matrix data structure; set matrix evaluation routine.
@@ -316,7 +280,7 @@ int main(int argc,char **argv)
   /* Create the TS solver that solves the ODE and its adjoint; set its options */
   ierr = TSCreate(PETSC_COMM_WORLD,&appctx.ts);CHKERRQ(ierr);
   ierr = TSSetProblemType(appctx.ts,TS_LINEAR);CHKERRQ(ierr);
-  ierr = TSSetType(appctx.ts,TSEULER);CHKERRQ(ierr);
+  ierr = TSSetType(appctx.ts,TSBEULER);CHKERRQ(ierr);
   ierr = TSSetDM(appctx.ts,appctx.da);CHKERRQ(ierr);
   ierr = TSSetTime(appctx.ts,0.0);CHKERRQ(ierr);
   ierr = TSSetTimeStep(appctx.ts,appctx.initial_dt);CHKERRQ(ierr);
@@ -325,15 +289,17 @@ int main(int argc,char **argv)
   //ierr = TSSetDuration(appctx.ts,appctx.param.steps,appctx.param.Tend);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(appctx.ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
 
-  //VecGetLocalSize(u,&m);
-  //printf("array of sol, %d field u %d\n",m,nn);
+  VecGetLocalSize(u,&m);
+  VecGetSize(u,&nn);
+  printf("array of sol, %d field u %d\n",m,nn);
   //exit(1);
 
-  /*
   MatCreateShell(PETSC_COMM_WORLD,m,m,nn,nn,&appctx,&H_shell);
   MatShellSetOperation(H_shell,MATOP_MULT,(void(*)(void))MyMatMult);
+  //MatGetSize(u,&m,&nn);
+  //printf("Mat of row, %d cols %d\n",m,nn);
   MatShellSetOperation(H_shell,MATOP_MULT_TRANSPOSE,(void(*)(void))MyMatMultTransp);
-  */
+  
 
  /* attach the null space to the matrix, this probably is not needed but does no harm */
   /*
@@ -349,7 +315,7 @@ int main(int argc,char **argv)
   ierr = TSGetTimeStep(appctx.ts,&appctx.initial_dt);CHKERRQ(ierr);
   //ierr = TSSetRHSFunction(appctx.ts,NULL,TSComputeRHSFunctionLinear,&appctx);CHKERRQ(ierr);
   //ierr = TSSetRHSJacobian(appctx.ts,H_shell,H_shell,TSComputeRHSJacobianConstant,&appctx);CHKERRQ(ierr);
-  //ierr = TSSetRHSJacobian(appctx.ts,H_shell,H_shell,RHSJacobian,&appctx);CHKERRQ(ierr);
+  ierr = TSSetRHSJacobian(appctx.ts,H_shell,H_shell,RHSJacobian,&appctx);CHKERRQ(ierr);
   ierr = TSSetRHSFunction(appctx.ts,NULL,RHSFunction,&appctx);CHKERRQ(ierr);
   ierr = InitialConditions(appctx.dat.ic,&appctx);CHKERRQ(ierr);
   
@@ -358,9 +324,9 @@ int main(int argc,char **argv)
   //ierr = VecCopy(appctx.dat.ic,uu);CHKERRQ(ierr);
   //MatView(H_shell,0);
   
-  ierr = VecDuplicate(appctx.dat.ic,&appctx.dat.curr_sol);CHKERRQ(ierr);
-  ierr = VecCopy(appctx.dat.ic,appctx.dat.curr_sol);CHKERRQ(ierr);
-  ierr = TSSolve(appctx.ts,appctx.dat.curr_sol);CHKERRQ(ierr);
+  // ierr = VecDuplicate(appctx.dat.ic,&appctx.dat.curr_sol);CHKERRQ(ierr);
+  // ierr = VecCopy(appctx.dat.ic,appctx.dat.curr_sol);CHKERRQ(ierr);
+  // ierr = TSSolve(appctx.ts,appctx.dat.curr_sol);CHKERRQ(ierr);
 
  
     ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"sol2d.m",&viewfile);CHKERRQ(ierr);
@@ -375,7 +341,7 @@ int main(int argc,char **argv)
     ierr = VecView(global,viewfile);CHKERRQ(ierr);
     ierr = PetscViewerPopFormat(viewfile);
 
-  exit(1);
+  //exit(1);
 
   ierr = TSSetSaveTrajectory(appctx.ts);CHKERRQ(ierr);
 
@@ -383,7 +349,7 @@ int main(int argc,char **argv)
   ierr = ComputeSolutionCoefficients(&appctx);CHKERRQ(ierr);
   ierr = InitialConditions(appctx.dat.ic,&appctx);CHKERRQ(ierr);
   ierr = TrueSolution(appctx.dat.true_solution,&appctx);CHKERRQ(ierr);
-  ierr = ComputeObjective(appctx.param.Tend,appctx.dat.obj,&appctx);CHKERRQ(ierr);
+  ierr = ComputeObjective(2.0,appctx.dat.obj,&appctx);CHKERRQ(ierr);
 
   /* Create TAO solver and set desired solution method  */
   ierr = TaoCreate(PETSC_COMM_WORLD,&tao);CHKERRQ(ierr);
@@ -520,6 +486,7 @@ PetscErrorCode TrueSolution(Vec u,AppCtx *appctx)
     {for (j=0; j<appctx->param.leny; j++) 
       {
       s[j][i]=PetscExpScalar(-appctx->param.mu*tt)*(PetscCosScalar(2.*PETSC_PI*coors[j][i].x)+PetscSinScalar(2.*PETSC_PI*coors[j][i].y));
+      s[j][i]=PetscExpScalar(-appctx->param.mu*tt)*(PetscSinScalar(2.*PETSC_PI*coors[j][i].x)+PetscCosScalar(2.*PETSC_PI*coors[j][i].y));
       } 
      }
   
@@ -554,11 +521,11 @@ PetscErrorCode ComputeObjective(PetscReal t,Vec obj,AppCtx *appctx)
   DMGetCoordinates(appctx->da,&global);
   DMDAVecGetArray(cda,global,&coors);
 
-  tt=appctx->param.Tend+1.0;
-  for (i=0; i<appctx->param.lenx; i++) 
+   for (i=0; i<appctx->param.lenx; i++) 
     {for (j=0; j<appctx->param.leny; j++) 
       {
       s[j][i]=PetscExpScalar(-appctx->param.mu*t)*(PetscCosScalar(2.*PETSC_PI*coors[j][i].x)+PetscSinScalar(2.*PETSC_PI*coors[j][i].y));
+      s[j][i]=PetscExpScalar(-appctx->param.mu*t)*(PetscSinScalar(2.*PETSC_PI*coors[j][i].x)+PetscCosScalar(2.*PETSC_PI*coors[j][i].y));
       } 
      }
   
@@ -608,14 +575,14 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
   
   ierr = DMDAVecGetArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
 
-  DMCreateLocalVector(appctx->da,&gradloc);
+  //DMCreateLocalVector(appctx->da,&gradloc);
   
-  ierr = DMDAVecGetArray(appctx->da,gradloc,&outgrad);CHKERRQ(ierr);
+  //ierr = DMDAVecGetArray(appctx->da,gradloc,&outgrad);CHKERRQ(ierr);
  
   ierr = DMDAGetCorners(appctx->da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
   Nl    = appctx->param.N; 
 
-  DMCreateGlobalVector(appctx->da,&gradgl);
+  //DMCreateGlobalVector(appctx->da,&gradgl);
     
   xs=xs/(Nl-1);
   xm=xm/(Nl-1);
@@ -632,30 +599,6 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
      Initialize work arrays
   */ 
 
- 
-  ierr = PetscMalloc1(appctx->param.N,&iden);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&iden[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) iden[i] = iden[i-1]+Nl;
- 
-  for (i=0; i<Nl; i++)
-     {for (j=0; j<Nl; j++) 
-       {iden[i][j]=1.0; 
-       if (i==0 || j==0)
-        { iden[i][j]=iden[i][j]*2.0;
-          if (i==0 && j==0) iden[i][j]=iden[i][j]*2.0;
-        } 
-      }
-    }
-
-/* 
- for (i=0; i<Nl; i++)
-     {for (j=0; j<Nl; j++) 
-       {iden[i][j]=0.0; 
-       if (i==j) iden[i][i]=1.0;
-       }
-    }
-*/
-  
   ierr = PetscMalloc1(appctx->param.N,&ulb);CHKERRQ(ierr);
   ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&ulb[0]);CHKERRQ(ierr);
   for (i=1; i<Nl; i++) ulb[i] = ulb[i-1]+Nl;
@@ -692,8 +635,6 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
   ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk7[0]);CHKERRQ(ierr);
   for (i=1; i<Nl; i++) wrk7[i] = wrk7[i-1]+Nl;
 
-
-
   alpha = 1.0;
   beta  = 0.0;
   Nl2=Nl*Nl;
@@ -705,6 +646,7 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
         {for (jy=0; jy<appctx->param.N; jy++) 
                
            {ulb[jy][jx]=0.0;
+            vlb[jy][jx]=0.0;
             indx=ix*(appctx->param.N-1)+jx;
             indy=iy*(appctx->param.N-1)+jy;
             ulb[jy][jx]=ul[indy][indx].u; 
@@ -712,48 +654,63 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
           }}
 
         //here the stifness matrix in 2d
-        //first product (B x K_yy)u=W2 (u_xx)
+        //first product (B x K_yy)u=W2 (u_yy)
+        alpha=appctx->param.Lex/2.0;
         BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=2./appctx->param.Ley;
         BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk2[0][0],&Nl);
 
-        //second product (K_xx x B) u=W3 (u_yy)
+        //second product (K_xx x B) u=W3 (u_xx)
+        alpha=2.0/appctx->param.Lex;
         BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=appctx->param.Ley/2.0;
         BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
 
-        BLASaxpy_(&Nl2,&alpha, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the lalplacian in wrk2
-        //BLASaxpy_(&Nl2,&alpha, &iden[0][0],&incc,rk2[0][0],&inc); //I freed wrk3 and saved the lalplacian in wrk2
-
+        alpha=1.0;
+        BLASaxpy_(&Nl2,&alpha, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the laplacian in wrk2
+       
         // for the v component now 
         //first product (B x K_yy)u=W2
+        alpha=appctx->param.Lex/2.0;
         BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=2.0/appctx->param.Ley;
         BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
 
         //second product (K_xx x B) u=W3
+        alpha=2.0/appctx->param.Lex;
         BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=appctx->param.Ley/2.0;
         BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
 
-        BLASaxpy_(&Nl2,&alpha, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the lalplacian in wrk3
+        alpha=1.0;
+        BLASaxpy_(&Nl2,&alpha, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the laplacian in wrk3
 
 
         //now the gradient operator for u
         // first (D_x x B) u =W2 this multiples u
         BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=appctx->param.Ley/2.0;
         BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
         
 
         // first (B x D_y) u =W4 this mutiplies v
+        alpha=appctx->param.Lex/2.0;
         BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=1.0;
         BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
 
 
         //now the gradient operator for v
         // first (D_x x B) v =W2 this multiples u
         BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=appctx->param.Ley/2.0;
         BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk6[0][0],&Nl);
         
 
         // first (B x D_y) v =W4 this mutiplies v
+        alpha=appctx->param.Lex/2.0;
         BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=1.0;
         BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk7[0][0],&Nl);
 
 
@@ -764,24 +721,12 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
             //if (jx<Nl-1 && jy<Nl-1)
               //{rr=appctx->param.mu*PetscExpScalar(-appctx->param.mu*tt)*((-1.0 + 4*PETSC_PI*PETSC_PI)*(PetscCosScalar(2.*PETSC_PI*coors[indy][indx].x)-PetscSinScalar   (2.*PETSC_PI*coors[indy][indx].y)));}
               //else rr=0.0;
-            //outl[indy][indx].u    = outl[indy][indx].u-appctx->param.mu*2.0/appctx->param.Lex*2.0/appctx->param.Ley*(wrk2[jy][jx]);//+rr; 
-            //outgrad[indy][indx].u = outgrad[indy][indx].u-(ulb[jy][jx]*wrk4[jy][jx]+ vlb[jy][jx]*wrk5[jy][jx]); 
-            //outl[indy][indx].v    = outl[indy][indx].v-appctx->param.mu*2.0/appctx->param.Lex*2.0/appctx->param.Ley*(wrk3[jy][jx]);//+rr; 
-            //outgrad[indy][indx].v = outgrad[indy][indx].v-(ulb[jy][jx]*wrk6[jy][jx]+ vlb[jy][jx]*wrk7[jy][jx]);   
-
-            //if (jx==0 || jy==0)
-            //{
-            //outl[indy][indx].u    = outl[indy][indx].u-appctx->param.mu*2.0/appctx->param.Lex*2.0/appctx->param.Ley*(wrk2[jy][jx])/
-            //                         (2.0*appctx->SEMop.gll.weights[jx]*appctx->SEMop.gll.weights[jy]*.25*appctx->param.Ley*appctx->param.Lex);}//-//+rr; 
-            //else
-            //{
-             outl[indy][indx].u    = -appctx->param.mu*2.0/appctx->param.Lex*2.0/appctx->param.Ley*(wrk2[jy][jx])/
-                                     (iden[jy][jx]*appctx->SEMop.gll.weights[jx]*appctx->SEMop.gll.weights[jy]*.25*appctx->param.Ley*appctx->param.Lex);//}
-                                    //(ulb[jy][jx]*wrk4[jy][jx]+ vlb[jy][jx]*wrk5[jy][jx]); 
-            outl[indy][indx].v    = outl[indy][indx].v-appctx->param.mu*2.0/appctx->param.Lex*2.0/appctx->param.Ley*(wrk3[jy][jx]);//-//+rr; 
-                                    //(ulb[jy][jx]*wrk6[jy][jx]+ vlb[jy][jx]*wrk7[jy][jx]);   
-            //printf("laplace wrk2[%d][%d]=%f iden %f \n", jy,jx, wrk2[jy][jx], iden[jy][jx]);
-        }}
+            outl[indy][indx].u += appctx->param.mu*(wrk2[jy][jx])+(ulb[jy][jx]*wrk4[jy][jx]+ vlb[jy][jx]*wrk5[jy][jx]); 
+            outl[indy][indx].v += appctx->param.mu*(wrk3[jy][jx])+(ulb[jy][jx]*wrk6[jy][jx]+ vlb[jy][jx]*wrk7[jy][jx]);   
+            //printf("burg wrk2[%d][%d]=%0.15f \n", jy,jx, wrk2[jy][jx]);
+            //printf("ulb[%d][%d]=%0.15f\n", indy,indx, ul[indy][indx]);
+            //printf("outl[%d][%d]=%0.15f\n", indx,indy, outl[indy][indx]);
+           }}
         //exit(1);
        }
      }
@@ -789,23 +734,36 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
   ierr = DMDAVecRestoreArrayRead(appctx->da,globalin,&uloc);CHKERRQ(ierr);
 
   ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
-
+  VecSet(globalout,0.0);
   DMLocalToGlobalBegin(appctx->da,outloc,ADD_VALUES,globalout);
   DMLocalToGlobalEnd(appctx->da,outloc,ADD_VALUES,globalout);
 
+  VecScale(globalout, -1.0);
  
- // ierr = DMDAVecRestoreArray(appctx->da,gradloc,&outgrad);CHKERRQ(ierr);
- // DMLocalToGlobalBegin(appctx->da,gradloc,ADD_VALUES,gradgl);
- // DMLocalToGlobalEnd(appctx->da,gradloc,ADD_VALUES,gradgl);
+  ierr = VecPointwiseDivide(globalout,globalout,appctx->SEMop.mass);CHKERRQ(ierr);
 
- // VecAXPY(globalout,1.0,gradgl);
-  //ierr = VecPointwiseDivide(globalout,globalout,appctx->SEMop.mass);CHKERRQ(ierr);
-
-  //trying trick
-  //ierr = VecPointwiseDivide(globalout,globalout,appctx->SEMop.mass);CHKERRQ(ierr);
-
+  ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
+  ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
+  ierr = PetscGLLElementMassDestroy(&appctx->SEMop.gll,&mass);CHKERRQ(ierr);
   
-  
+  ierr = PetscFree((wrk1)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk1);CHKERRQ(ierr);
+  ierr = PetscFree((wrk2)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk2);CHKERRQ(ierr);
+  ierr = PetscFree((wrk3)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk3);CHKERRQ(ierr);
+  ierr = PetscFree((wrk4)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk4);CHKERRQ(ierr);
+  ierr = PetscFree((wrk5)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk5);CHKERRQ(ierr);
+  ierr = PetscFree((wrk6)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk6);CHKERRQ(ierr);
+  ierr = PetscFree((wrk7)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk7);CHKERRQ(ierr);
+
+  //ierr = VecDestroy(&outloc);CHKERRQ(ierr);
+  //ierr = VecDestroy(&uloc);CHKERRQ(ierr);
+/*
   its=its+1;
   //printf("time to write %f ",&t); 
   ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"rhsB.m",&viewfile);CHKERRQ(ierr);
@@ -821,8 +779,8 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
   ierr = VecView(appctx->SEMop.mass,viewfile);CHKERRQ(ierr);
   ierr = PetscViewerPopFormat(viewfile);
   
-exit(1);
-  
+  //exit(1);
+  */
   PetscFunctionReturn(0);
 }
 
@@ -833,25 +791,28 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
  {
    AppCtx         *appctx;
    
-   const PetscScalar     **ul;
-   PetscScalar     **uout, **stiff, **mass,  **wrk1, **wrk2, **wrk3, **outl, **ulb;
-   PetscInt        Nl;
+   const Field     **ul, **uj;
+   Field           **outl;
+   PetscScalar     **uout, **stiff, **mass, **grad;
+   PetscScalar     **wrk1, **wrk2, **wrk3, **wrk4, **wrk5, **wrk6, **wrk7, **wrk8, **wrk9; 
+   PetscScalar     **ulb, **vlb, **ujb, **vjb;
+   PetscInt        Nl, Nl2, inc;
    PetscInt        xs,ys,xm,ym,ix,iy,jx,jy, indx,indy, i;
    PetscErrorCode  ierr;
-   Vec             uloc, outloc;
+   Vec             uloc, outloc, ujloc;
    PetscViewer     viewfile;
    PetscScalar     alpha, beta;
 
    //VecCopy(in,appctx->dat.curr_sol);
-   
-  MatShellGetContext(H,&appctx);
-
   //RHSFunction(appctx->ts,0,in,out,appctx);
   //return 0;
   //CHKMEMQ;
+  MatShellGetContext(H,&appctx);
+
   ierr = PetscGLLElementLaplacianCreate(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
   ierr = PetscGLLElementMassCreate(&appctx->SEMop.gll,&mass);CHKERRQ(ierr); 
- 
+  ierr = PetscGLLElementAdvectionCreate(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
+
   //MatShellGetContext for Burgers.. not needed for heat
 
   /* unwrap local vector for the input solution */
@@ -861,6 +822,14 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
   DMGlobalToLocalEnd(appctx->da,in,INSERT_VALUES,uloc);
 
   DMDAVecGetArrayRead(appctx->da,uloc,&ul);CHKERRQ(ierr);
+
+  // vector form jacobian
+  DMCreateLocalVector(appctx->da,&ujloc);
+
+  DMGlobalToLocalBegin(appctx->da,appctx->dat.pass_sol,INSERT_VALUES,ujloc);
+  DMGlobalToLocalEnd(appctx->da,appctx->dat.pass_sol,INSERT_VALUES,ujloc);
+
+  DMDAVecGetArrayRead(appctx->da,ujloc,&uj);CHKERRQ(ierr);
  
   /* unwrap local vector for the output solution */
   DMCreateLocalVector(appctx->da,&outloc);
@@ -880,21 +849,67 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
      Initialize work arrays
   */ 
 
-  ierr = PetscMalloc1(appctx->param.N,&wrk2);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk2[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk2[i] = wrk2[i-1]+Nl;
-  ierr = PetscMalloc1(appctx->param.N,&wrk1);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk1[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk1[i] = wrk1[i-1]+Nl;
   ierr = PetscMalloc1(appctx->param.N,&ulb);CHKERRQ(ierr);
   ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&ulb[0]);CHKERRQ(ierr);
   for (i=1; i<Nl; i++) ulb[i] = ulb[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&vlb);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&vlb[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) vlb[i] = vlb[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&ujb);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&ujb[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) ujb[i] = ujb[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&vjb);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&vjb[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) vjb[i] = vjb[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk1);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk1[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk1[i] = wrk1[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk2);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk2[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk2[i] = wrk2[i-1]+Nl;
+
   ierr = PetscMalloc1(appctx->param.N,&wrk3);CHKERRQ(ierr);
   ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk3[0]);CHKERRQ(ierr);
   for (i=1; i<Nl; i++) wrk3[i] = wrk3[i-1]+Nl;
 
+  ierr = PetscMalloc1(appctx->param.N,&wrk4);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk4[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk4[i] = wrk4[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk5);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk5[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk5[i] = wrk5[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk6);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk6[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk6[i] = wrk6[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk7);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk7[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk7[i] = wrk7[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk8);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk8[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk8[i] = wrk8[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk9);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk9[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk9[i] = wrk9[i-1]+Nl;
+
+  //ierr = PetscMalloc1(appctx->param.N,&wrk7);CHKERRQ(ierr);
+  //ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk7[0]);CHKERRQ(ierr);
+  //for (i=1; i<Nl; i++) wrk7[i] = wrk7[i-1]+Nl;
+
+
   alpha = 1.0;
   beta  = 0.0;
+  Nl2= Nl*Nl;
+  inc=1;
    for (ix=xs; ix<xs+xm; ix++) 
       {for (iy=ys; iy<ys+ym; iy++) 
          { 
@@ -902,31 +917,107 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
         {for (jy=0; jy<appctx->param.N; jy++) 
                
            {ulb[jy][jx]=0.0;
+            ujb[jy][jx]=0.0;
+            vlb[jy][jx]=0.0;
+            vjb[jy][jx]=0.0;
             indx=ix*(appctx->param.N-1)+jx;
             indy=iy*(appctx->param.N-1)+jy;
-            ulb[jy][jx]=ul[indy][indx]; 
+            ulb[jy][jx]=ul[indy][indx].u; 
+            vlb[jy][jx]=ul[indy][indx].v; 
+            ujb[jy][jx]=uj[indy][indx].u; 
+            vjb[jy][jx]=uj[indy][indx].v; 
           }}
 
-        //first product AUB'=W2
+       //here the stifness matrix in 2d
+        //first product (B x K_yy)u=W2 (u_yy)
+        alpha=appctx->param.Lex/2.0;
         BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=2./appctx->param.Ley;
         BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk2[0][0],&Nl);
 
-        //second product BUA'=W3
+        //second product (K_xx x B) u=W3 (u_xx)
+        alpha=2.0/appctx->param.Lex;
         BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=appctx->param.Ley/2.0;
         BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
+
+        alpha=1.0;
+        BLASaxpy_(&Nl2,&alpha, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the lalplacian in wrk2
+       
+        // for the v component now 
+        //first product (B x K_yy)v=W3
+        alpha=appctx->param.Lex/2.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=2.0/appctx->param.Ley;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
+
+        //second product (K_xx x B)v=W4
+        alpha=2.0/appctx->param.Lex;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=appctx->param.Ley/2.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
+
+        alpha=1.0;
+        BLASaxpy_(&Nl2,&alpha, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the lalplacian in wrk3
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        //now the gradient operator for u
+        // first (D_x x B) u 
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=appctx->param.Ley/2.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
+        
+        // (D_x x B) wu 
+        alpha=1.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&ujb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=appctx->param.Ley/2.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
+
+        // (D_x x B) wv 
+        alpha=1.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&vjb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=appctx->param.Ley/2.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk6[0][0],&Nl);
+        
+
+        // first (B x D_y) wu =W4 this mutiplies v
+        alpha=appctx->param.Lex/2.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ujb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=1.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk7[0][0],&Nl);
+        
+        // first (B x D_y) wv =W4 this mutiplies v
+        alpha=appctx->param.Lex/2.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vjb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=1.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk8[0][0],&Nl);
+
+        // first (B x D_y) v =W4 this mutiplies v
+        alpha=appctx->param.Lex/2.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=1.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk9[0][0],&Nl);
+
 
         for (jx=0; jx<appctx->param.N; jx++) 
         {for (jy=0; jy<appctx->param.N; jy++)   
            {indx=ix*(appctx->param.N-1)+jx;
             indy=iy*(appctx->param.N-1)+jy;
             
-            outl[indy][indx]= outl[indy][indx]+(wrk2[jy][jx]+wrk3[jy][jx]); 
-        }}
+            outl[indy][indx].u += appctx->param.mu*(wrk2[jy][jx])+(wrk4[jy][jx]*ujb[jy][jx]+ulb[jy][jx]*wrk5[jy][jx]+vlb[jy][jx]*wrk7[jy][jx]); 
+            outl[indy][indx].v += appctx->param.mu*(wrk3[jy][jx])+(ulb[jy][jx]*wrk6[jy][jx]+wrk8[jy][jx]*vlb[jy][jx]+vjb[jy][jx]*wrk9[jy][jx]);   
+            //printf("burg wrk2[%d][%d]=%0.15f \n", jy,jx, wrk2[jy][jx]);
+            //printf("ulb[%d][%d]=%0.15f\n", indy,indx, ul[indy][indx]);
+            //printf("outl[%d][%d]=%0.15f\n", indx,indy, outl[indy][indx]);
+           }}
        }
      }
   
   ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
   DMDAVecRestoreArrayRead(appctx->da,in,&uloc);CHKERRQ(ierr);
+  DMDAVecRestoreArrayRead(appctx->da,appctx->dat.pass_sol,&ujloc);CHKERRQ(ierr);
 
   VecSet(out,0.0);
 
@@ -934,8 +1025,26 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
   DMLocalToGlobalEnd(appctx->da,outloc,ADD_VALUES,out);
 
   VecScale(out, -1.0);
-  VecScale(out,appctx->param.mu*2.0/appctx->param.Lex*2.0/appctx->param.Ley);
   ierr = VecPointwiseDivide(out,out,appctx->SEMop.mass);CHKERRQ(ierr);
+
+  ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
+  ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
+  ierr = PetscGLLElementMassDestroy(&appctx->SEMop.gll,&mass);CHKERRQ(ierr);
+ 
+  ierr = PetscFree((wrk1)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk1);CHKERRQ(ierr);
+  ierr = PetscFree((wrk2)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk2);CHKERRQ(ierr);
+  ierr = PetscFree((wrk3)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk3);CHKERRQ(ierr);
+  ierr = PetscFree((wrk4)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk4);CHKERRQ(ierr);
+  ierr = PetscFree((wrk5)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk5);CHKERRQ(ierr);
+  ierr = PetscFree((wrk6)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk6);CHKERRQ(ierr);
+  ierr = PetscFree((wrk7)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk7);CHKERRQ(ierr);
 /*
   ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"jac.m",&viewfile);CHKERRQ(ierr);
   ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
@@ -956,25 +1065,28 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
  {
    AppCtx         *appctx;
    
-   const PetscScalar     **ul;
-   PetscScalar     **uout, **stiff, **mass,  **wrk1, **wrk2, **wrk3, **outl, **ulb;
-   PetscInt        Nl;
+   const Field     **ul, **uj;
+   Field           **outl;
+   PetscScalar     **uout, **stiff, **mass, **grad;
+   PetscScalar     **wrk1, **wrk2, **wrk3, **wrk4, **wrk5, **wrk6, **wrk7, **wrk8, **wrk9; 
+   PetscScalar     **ulb, **vlb, **ujb, **vjb;
+   PetscInt        Nl, Nl2, inc;
    PetscInt        xs,ys,xm,ym,ix,iy,jx,jy, indx,indy, i;
    PetscErrorCode  ierr;
-   Vec             uloc, outloc;
+   Vec             uloc, outloc, ujloc;
    PetscViewer     viewfile;
    PetscScalar     alpha, beta;
 
    //VecCopy(in,appctx->dat.curr_sol);
-   
-  MatShellGetContext(H,&appctx);
-
   //RHSFunction(appctx->ts,0,in,out,appctx);
   //return 0;
   //CHKMEMQ;
+  MatShellGetContext(H,&appctx);
+
   ierr = PetscGLLElementLaplacianCreate(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
   ierr = PetscGLLElementMassCreate(&appctx->SEMop.gll,&mass);CHKERRQ(ierr); 
- 
+  ierr = PetscGLLElementAdvectionCreate(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
+
   //MatShellGetContext for Burgers.. not needed for heat
 
   /* unwrap local vector for the input solution */
@@ -984,6 +1096,14 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
   DMGlobalToLocalEnd(appctx->da,in,INSERT_VALUES,uloc);
 
   DMDAVecGetArrayRead(appctx->da,uloc,&ul);CHKERRQ(ierr);
+
+  // vector form jacobian
+  DMCreateLocalVector(appctx->da,&ujloc);
+
+  DMGlobalToLocalBegin(appctx->da,appctx->dat.pass_sol,INSERT_VALUES,ujloc);
+  DMGlobalToLocalEnd(appctx->da,appctx->dat.pass_sol,INSERT_VALUES,ujloc);
+
+  DMDAVecGetArrayRead(appctx->da,ujloc,&uj);CHKERRQ(ierr);
  
   /* unwrap local vector for the output solution */
   DMCreateLocalVector(appctx->da,&outloc);
@@ -1003,21 +1123,63 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
      Initialize work arrays
   */ 
 
-  ierr = PetscMalloc1(appctx->param.N,&wrk2);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk2[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk2[i] = wrk2[i-1]+Nl;
-  ierr = PetscMalloc1(appctx->param.N,&wrk1);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk1[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk1[i] = wrk1[i-1]+Nl;
   ierr = PetscMalloc1(appctx->param.N,&ulb);CHKERRQ(ierr);
   ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&ulb[0]);CHKERRQ(ierr);
   for (i=1; i<Nl; i++) ulb[i] = ulb[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&vlb);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&vlb[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) vlb[i] = vlb[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&ujb);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&ujb[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) ujb[i] = ujb[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&vjb);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&vjb[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) vjb[i] = vjb[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk1);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk1[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk1[i] = wrk1[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk2);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk2[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk2[i] = wrk2[i-1]+Nl;
+
   ierr = PetscMalloc1(appctx->param.N,&wrk3);CHKERRQ(ierr);
   ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk3[0]);CHKERRQ(ierr);
   for (i=1; i<Nl; i++) wrk3[i] = wrk3[i-1]+Nl;
 
+  ierr = PetscMalloc1(appctx->param.N,&wrk4);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk4[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk4[i] = wrk4[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk5);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk5[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk5[i] = wrk5[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk6);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk6[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk6[i] = wrk6[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk7);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk7[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk7[i] = wrk7[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk8);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk8[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk8[i] = wrk8[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk9);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk9[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk9[i] = wrk9[i-1]+Nl;
+
+
   alpha = 1.0;
   beta  = 0.0;
+  Nl2= Nl*Nl;
+  inc=1;
    for (ix=xs; ix<xs+xm; ix++) 
       {for (iy=ys; iy<ys+ym; iy++) 
          { 
@@ -1025,31 +1187,107 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
         {for (jy=0; jy<appctx->param.N; jy++) 
                
            {ulb[jy][jx]=0.0;
+            ujb[jy][jx]=0.0;
+            vlb[jy][jx]=0.0;
+            vjb[jy][jx]=0.0;
             indx=ix*(appctx->param.N-1)+jx;
             indy=iy*(appctx->param.N-1)+jy;
-            ulb[jy][jx]=ul[indy][indx]; 
+            ulb[jy][jx]=ul[indy][indx].u; 
+            vlb[jy][jx]=ul[indy][indx].v; 
+            ujb[jy][jx]=uj[indy][indx].u; 
+            vjb[jy][jx]=uj[indy][indx].v; 
           }}
 
-        //first product AUB'=W2
-        BLASgemm_("T","T",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk2[0][0],&Nl);
+       //here the stifness matrix in 2d
+        //first product (B x K_yy)u=W2 (u_yy)
+        alpha=appctx->param.Lex/2.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=2./appctx->param.Ley;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk2[0][0],&Nl);
 
-        //second product BUA'=W3
-        BLASgemm_("T","T",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
+        //second product (K_xx x B) u=W3 (u_xx)
+        alpha=2.0/appctx->param.Lex;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=appctx->param.Ley/2.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
+
+        alpha=1.0;
+        BLASaxpy_(&Nl2,&alpha, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the lalplacian in wrk2
+       
+        // for the v component now 
+        //first product (B x K_yy)v=W3
+        alpha=appctx->param.Lex/2.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=2.0/appctx->param.Ley;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
+
+        //second product (K_xx x B)v=W4
+        alpha=2.0/appctx->param.Lex;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=appctx->param.Ley/2.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
+
+        alpha=1.0;
+        BLASaxpy_(&Nl2,&alpha, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the lalplacian in wrk3
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        //now the gradient operator for u
+        // first (D_x x B) u 
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=appctx->param.Ley/2.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
+        
+        // (D_x x B) wu 
+        alpha=1.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&ujb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=appctx->param.Ley/2.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
+
+        // (D_x x B) wv 
+        alpha=1.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&vjb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=appctx->param.Ley/2.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk6[0][0],&Nl);
+        
+
+        // first (B x D_y) wu =W4 this mutiplies v
+        alpha=appctx->param.Lex/2.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ujb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=1.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk7[0][0],&Nl);
+        
+        // first (B x D_y) wv =W4 this mutiplies v
+        alpha=appctx->param.Lex/2.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vjb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=1.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk8[0][0],&Nl);
+
+        // first (B x D_y) v =W4 this mutiplies v
+        alpha=appctx->param.Lex/2.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+        alpha=1.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk9[0][0],&Nl);
+
 
         for (jx=0; jx<appctx->param.N; jx++) 
         {for (jy=0; jy<appctx->param.N; jy++)   
            {indx=ix*(appctx->param.N-1)+jx;
             indy=iy*(appctx->param.N-1)+jy;
             
-            outl[indy][indx]= outl[indy][indx]+(wrk2[jy][jx]+wrk3[jy][jx]); 
-        }}
+            outl[indy][indx].u += appctx->param.mu*(wrk2[jx][jy])+(wrk4[jx][jy]*ujb[jx][jy]+ulb[jx][jy]*wrk5[jx][jy]+vlb[jx][jy]*wrk7[jx][jy]); 
+            outl[indy][indx].v += appctx->param.mu*(wrk3[jx][jy])+(ulb[jx][jy]*wrk6[jx][jy]+wrk8[jx][jy]*vlb[jx][jy]+vjb[jx][jy]*wrk9[jx][jy]);   
+            //printf("burg wrk2[%d][%d]=%0.15f \n", jy,jx, wrk2[jy][jx]);
+            //printf("ulb[%d][%d]=%0.15f\n", indy,indx, ul[indy][indx]);
+            //printf("outl[%d][%d]=%0.15f\n", indx,indy, outl[indy][indx]);
+           }}
        }
      }
   
   ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
   DMDAVecRestoreArrayRead(appctx->da,in,&uloc);CHKERRQ(ierr);
+  DMDAVecRestoreArrayRead(appctx->da,appctx->dat.pass_sol,&ujloc);CHKERRQ(ierr);
 
   VecSet(out,0.0);
 
@@ -1057,8 +1295,26 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
   DMLocalToGlobalEnd(appctx->da,outloc,ADD_VALUES,out);
 
   VecScale(out, -1.0);
-  VecScale(out,appctx->param.mu*2.0/appctx->param.Lex*2.0/appctx->param.Ley);
   ierr = VecPointwiseDivide(out,out,appctx->SEMop.mass);CHKERRQ(ierr);
+
+  ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
+  ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
+  ierr = PetscGLLElementMassDestroy(&appctx->SEMop.gll,&mass);CHKERRQ(ierr);
+ 
+  ierr = PetscFree((wrk1)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk1);CHKERRQ(ierr);
+  ierr = PetscFree((wrk2)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk2);CHKERRQ(ierr);
+  ierr = PetscFree((wrk3)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk3);CHKERRQ(ierr);
+  ierr = PetscFree((wrk4)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk4);CHKERRQ(ierr);
+  ierr = PetscFree((wrk5)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk5);CHKERRQ(ierr);
+  ierr = PetscFree((wrk6)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk6);CHKERRQ(ierr);
+  ierr = PetscFree((wrk7)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(wrk7);CHKERRQ(ierr);
 /*
   ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"jac.m",&viewfile);CHKERRQ(ierr);
   ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
@@ -1070,6 +1326,7 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
 */
    return(0);
  }
+
 
 
 #undef __FUNCT__
@@ -1085,6 +1342,9 @@ PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec globalin, Mat A, Mat B,void *ct
 
   MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);
+
+  VecCopy(globalin, appctx->dat.pass_sol);
+ 
   //printf("Jeepers! Jacobi");
   //VecCopy(globalin, appctx->dat.curr_sol);
 /*
