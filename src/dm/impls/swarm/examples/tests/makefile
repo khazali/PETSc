@@ -15,4 +15,9 @@ ex1: ex1.o  chkopts
 	-${CLINKER} -o ex1 ex1.o ${PETSC_DM_LIB}
 	${RM} -f ex1.o
 
+NP=1
+run:
+	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge 17 -simplex 0 -dm_plex_separate_marker 0 -dm_view -sw_view -pc_type lu -petscspace_order 1 -petscfe_default_quadrature_order 1
+#-particle_mass_mat_view ascii:f.m:ascii_matlab -petscspace_order 1 -petscfe_default_quadrature_order 1
+
 include ${PETSC_DIR}/lib/petsc/conf/test
