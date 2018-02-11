@@ -11,23 +11,59 @@ typedef struct {
   PetscInt  dim;                        /* The topological mesh dimension */
   PetscBool simplex;                    /* Flag for simplices or tensor cells */
   char      mshNam[PETSC_MAX_PATH_LEN]; /* Name of the mesh filename if any */
+  /* meshes */
   PetscInt  nbrVerEdge;                 /* Number of vertices per edge if unit square/cube generated */
+  PetscInt  particles_cell;
+  /* geometry  */
+  PetscReal      domain_lo[3], domain_hi[3];
+  DMBoundaryType periodicity[3];              /* The domain periodicity */
+  /* test */
+  PetscInt       k;
 } AppCtx;
 
 static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   PetscErrorCode ierr;
-
+  PetscInt       ii, bd;
   PetscFunctionBeginUser;
   options->dim     = 2;
   options->simplex = PETSC_TRUE;
+  options->domain_lo[0]  = 0.0;
+  options->domain_lo[1]  = 0.0;
+  options->domain_lo[2]  = 0.0;
+  options->domain_hi[0]  = 2*PETSC_PI;
+  options->domain_hi[1]  = 1.0;
+  options->domain_hi[2]  = 1.0;
+  options->periodicity[0]= DM_BOUNDARY_NONE;
+  options->periodicity[1]= DM_BOUNDARY_PERIODIC; /* could use Neumann */
+  options->periodicity[2]= DM_BOUNDARY_PERIODIC;
+  options->particles_cell = 1;
+  options->k = 1;
   ierr = PetscStrcpy(options->mshNam, "");CHKERRQ(ierr);
 
   ierr = PetscOptionsBegin(comm, "", "Meshing Adaptation Options", "DMPLEX");CHKERRQ(ierr);
+
   ierr = PetscOptionsInt("-dim", "The topological mesh dimension", "ex1.c", options->dim, &options->dim, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-simplex", "The flag for simplices or tensor cells", "ex1.c", options->simplex, &options->simplex, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-msh", "Name of the mesh filename if any", "ex1.c", options->mshNam, options->mshNam, PETSC_MAX_PATH_LEN, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-nbrVerEdge", "Number of vertices per edge if unit square/cube generated", "ex1.c", options->nbrVerEdge, &options->nbrVerEdge, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-k", "Mode number of test", "ex1.c", options->k, &options->k, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-particles_cell", "Number of particles per cell", "ex1.c", options->particles_cell, &options->particles_cell, NULL);CHKERRQ(ierr);
+  ii = options->dim;
+  ierr = PetscOptionsRealArray("-domain_hi", "Domain size", "ex48.c", options->domain_hi, &ii, NULL);CHKERRQ(ierr);
+  ii = options->dim;
+  ierr = PetscOptionsRealArray("-domain_lo", "Domain size", "ex48.c", options->domain_lo, &ii, NULL);CHKERRQ(ierr);
+  ii = options->dim;
+  bd = options->periodicity[0];
+  ierr = PetscOptionsEList("-x_periodicity", "The x-boundary periodicity", "ex48.c", DMBoundaryTypes, 5, DMBoundaryTypes[options->periodicity[0]], &bd, NULL);CHKERRQ(ierr);
+  options->periodicity[0] = (DMBoundaryType) bd;
+  bd = options->periodicity[1];
+  ierr = PetscOptionsEList("-y_periodicity", "The y-boundary periodicity", "ex48.c", DMBoundaryTypes, 5, DMBoundaryTypes[options->periodicity[1]], &bd, NULL);CHKERRQ(ierr);
+  options->periodicity[1] = (DMBoundaryType) bd;
+  bd = options->periodicity[2];
+  ierr = PetscOptionsEList("-z_periodicity", "The z-boundary periodicity", "ex48.c", DMBoundaryTypes, 5, DMBoundaryTypes[options->periodicity[2]], &bd, NULL);CHKERRQ(ierr);
+  options->periodicity[2] = (DMBoundaryType) bd;
+
   ierr = PetscOptionsEnd();
 
   PetscFunctionReturn(0);
@@ -42,9 +78,8 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, DM *dm, AppCtx *user)
   ierr = PetscStrcmp(user->mshNam, "", &flag);CHKERRQ(ierr);
   if (flag) {
     PetscInt faces[3];
-    const PetscReal lower[] = {0,0,0}, upper[] = {2*PETSC_PI,1,1};
     faces[0] = user->nbrVerEdge-1; faces[1] = user->nbrVerEdge-1; faces[2] = user->nbrVerEdge-1;
-    ierr = DMPlexCreateBoxMesh(comm, user->dim, user->simplex, faces, lower, upper, NULL, PETSC_TRUE, dm);CHKERRQ(ierr);
+    ierr = DMPlexCreateBoxMesh(comm, user->dim, user->simplex, faces, user->domain_lo, user->domain_hi, user->periodicity, PETSC_TRUE, dm);CHKERRQ(ierr);
   } else {
     ierr = DMPlexCreateFromFile(comm, user->mshNam, PETSC_TRUE, dm);CHKERRQ(ierr);
     ierr = DMGetDimension(*dm, &user->dim);CHKERRQ(ierr);
@@ -59,16 +94,37 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, DM *dm, AppCtx *user)
       *dm  = distributedMesh;
     }
   }
+  ierr = DMLocalizeCoordinates(*dm);CHKERRQ(ierr); /* needed for periodic */
   ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
+
   PetscFunctionReturn(0);
 }
 
 static PetscErrorCode linear(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar *u, void *ctx)
 {
   PetscInt d;
+
   u[0] = 0.0;
   for (d = 0; d < dim; ++d) u[0] += x[d];
   return 0;
+}
+
+static PetscErrorCode sinx(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar *u, void *a_ctx)
+{
+  AppCtx *ctx = (AppCtx*)a_ctx;
+  u[0] = sin(x[0]*ctx->k);
+  return 0;
+}
+
+static void g3_1(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                  const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                  PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar g3[])
+{
+  PetscInt d;
+  for (d = 0; d < dim; ++d) {
+    g3[d*dim+d] = 1;
+  }
 }
 
 static void identity(PetscInt dim, PetscInt Nf, PetscInt NfAux,
@@ -124,6 +180,7 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
       cellid[c*Nq + q] = c;
       CoordinatesRefToReal(dim, dim, v0, J, &qpoints[q*dim], &coords[(c*Nq + q)*dim]);
       linear(dim, 0.0, &coords[(c*Nq + q)*dim], 1, &vals[c*Nq + q], NULL);
+PetscPrintf(PETSC_COMM_WORLD, "CreateParticles: %D.%D) point: %e,%e; coords: %e,%e, val=%e\n", c, q, qpoints[q*dim], qpoints[q*dim+1], coords[(c*Nq + q)*dim], coords[(c*Nq + q)*dim+1],vals[c*Nq + q]);
     }
   }
   ierr = DMSwarmRestoreField(*sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
