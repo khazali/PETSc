@@ -16,8 +16,17 @@ ex1: ex1.o  chkopts
 	${RM} -f ex1.o
 
 NP=1
+VALGRIND_PROG=valgrind
+VALGRIND_ARGS=--dsymutil=yes --leak-check=full --gen-suppressions=no --num-callers=20 --error-limit=no
+VAL=$(VALGRIND_PROG) $(VALGRIND_ARGS)
+
 run:
-	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge 17 -simplex 0 -dm_plex_separate_marker 0 -dm_view -sw_view -pc_type lu -petscspace_order 1 -petscfe_default_quadrature_order 1
+	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge 4 -simplex 0 -dm_plex_separate_marker 0 -dm_view -sw_view -pc_type lu -petscspace_order 1
 #-particle_mass_mat_view ascii:f.m:ascii_matlab -petscspace_order 1 -petscfe_default_quadrature_order 1
 
+val:
+	-${MPIEXEC} -n ${NP} $(VAL) ./ex1 -dim 2 -nbrVerEdge 4 -simplex 0 -dm_plex_separate_marker 0 -dm_view -sw_view -pc_type lu -petscspace_order 1
+
+lldb:
+	-@lldb ./ex1 -- -dim 2 -nbrVerEdge 4 -simplex 0 -dm_plex_separate_marker 0 -dm_view -sw_view -pc_type lu -petscspace_order 1
 include ${PETSC_DIR}/lib/petsc/conf/test
