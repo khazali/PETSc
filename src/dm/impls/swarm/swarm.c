@@ -279,7 +279,6 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
         ierr = PetscMemzero(elemMat, numCIndices * sizeof(PetscScalar));CHKERRQ(ierr);
         for (j = 0; j < numCIndices; ++j) {
           for (c = 0; c < Nc; ++c) elemMat[j] += Bfine[(j*numFIndices + i)*Nc + c]*qweights[j*Nc + c]*detJ;
-          PetscPrintf(PETSC_COMM_WORLD, "DMSwarmComputeMassMatrix_Private: %D.%D.%D) qweights=%e detJ=%e Bfine=%e Nq=%D\n", i,j,c,qweights[j*Nc + c], detJ, Bfine[(j*numFIndices + i)*Nc + c], Nq);
         }
         /* Update interpolator */
         if (0) {ierr = DMPrintCellMatrix(cell, name, 1, numCIndices, elemMat);CHKERRQ(ierr);}
