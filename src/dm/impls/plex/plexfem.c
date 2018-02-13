@@ -1149,14 +1149,15 @@ PetscErrorCode DMPlexComputeGradientClementInterpolant(DM dm, Vec locX, Vec locC
 static PetscErrorCode DMPlexComputeIntegral_Internal(DM dm, Vec X, PetscInt cStart, PetscInt cEnd, PetscScalar *cintegral, void *user)
 {
   DM                 dmAux = NULL;
-  PetscDS            prob,    probAux;
+  PetscDS            prob, probAux = NULL;
+  PetscQuadrature    quad = NULL;
   PetscSection       section, sectionAux;
   Vec                locX,    locA;
-  PetscInt           dim, numCells = cEnd - cStart, cell, c, f;
+  PetscInt           dim, numCells = cEnd - cStart, cell, c, f, Nq;
   PetscBool          useFEM = PETSC_FALSE, useFVM = PETSC_FALSE;
   /* DS */
-  PetscInt           Nf,    totDim,    *uOff, *uOff_x, numConstants;
-  PetscInt           NfAux, totDimAux, *aOff;
+  PetscInt           Nf,        totDim,    *uOff, *uOff_x, numConstants;
+  PetscInt           NfAux = 0, totDimAux, *aOff = NULL;
   PetscScalar       *u, *a;
   const PetscScalar *constants;
   /* Geometry */
@@ -1165,6 +1166,7 @@ static PetscErrorCode DMPlexComputeIntegral_Internal(DM dm, Vec X, PetscInt cSta
   Vec                cellGeometryFVM = NULL, faceGeometryFVM = NULL, locGrad = NULL;
   PetscFVCellGeom   *cgeomFVM;
   const PetscScalar *lgrad;
+  PetscReal         *qv, *qJ, *qinvJ, *qdetJ;
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
@@ -1179,7 +1181,10 @@ static PetscErrorCode DMPlexComputeIntegral_Internal(DM dm, Vec X, PetscInt cSta
 
     ierr = PetscDSGetDiscretization(prob, f, &obj);CHKERRQ(ierr);
     ierr = PetscObjectGetClassId(obj, &id);CHKERRQ(ierr);
-    if (id == PETSCFE_CLASSID) useFEM = PETSC_TRUE;
+    if (id == PETSCFE_CLASSID) {
+      useFEM = PETSC_TRUE;
+      ierr = PetscFEGetQuadrature((PetscFE)obj,&quad);CHKERRQ(ierr);
+    }
     if (id == PETSCFV_CLASSID) useFVM = PETSC_TRUE;
   }
   /* Get local solution with boundary values */
@@ -1202,18 +1207,31 @@ static PetscErrorCode DMPlexComputeIntegral_Internal(DM dm, Vec X, PetscInt cSta
     ierr = PetscDSGetTotalDimension(probAux, &totDimAux);CHKERRQ(ierr);
     ierr = PetscDSGetComponentOffsets(probAux, &aOff);CHKERRQ(ierr);
   }
+  if (quad) {
+    ierr = PetscQuadratureGetData(quad,NULL,&Nq,NULL,NULL);CHKERRQ(ierr);
+  } else {
+    Nq = 1;
+  }
   /* Allocate data  arrays */
   ierr = PetscCalloc1(numCells*totDim, &u);CHKERRQ(ierr);
-  if (useFEM) {ierr = PetscMalloc1(numCells, &cgeomFEM);CHKERRQ(ierr);}
   if (dmAux) {ierr = PetscMalloc1(numCells*totDimAux, &a);CHKERRQ(ierr);}
   /* Read out geometry */
   if (useFEM) {
+    ierr = PetscMalloc1(numCells*Nq, &cgeomFEM);CHKERRQ(ierr);
+    ierr = PetscMalloc4(Nq*dim,&qv,Nq*dim*dim,&qJ,Nq,&qdetJ,Nq*dim*dim,&qinvJ);CHKERRQ(ierr);
     for (cell = cStart; cell < cEnd; ++cell) {
       const PetscInt c = cell - cStart;
 
-      ierr = DMPlexComputeCellGeometryFEM(dm, cell, NULL, cgeomFEM[c].v0, cgeomFEM[c].J, cgeomFEM[c].invJ, &cgeomFEM[c].detJ);CHKERRQ(ierr);
-      if (cgeomFEM[c].detJ <= 0.0) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Invalid determinant %g for element %d", cgeomFEM[c].detJ, c);
+      ierr = DMPlexComputeCellGeometryFEM(dm, cell, quad, qv, qJ, qinvJ, qdetJ);CHKERRQ(ierr);
+      for (i = 0; i < Nq; i++) {
+        for (j = 0; j < dim; j++) cgeomFEM[c * Nq + i].v0[j] = qv[dim * i + j];
+        for (j = 0; j < dim * dim; j++) cgeomFEM[c * Nq + i].J[j] = qJ[dim * dim * i + j];
+        for (j = 0; j < dim * dim; j++) cgeomFEM[c * Nq + i].invJ[j] = qinvJ[dim * dim * i + j];
+        cgeomFEM[c * Nq + i].detJ = qdetJ[i];
+        if (cgeomFEM[c * Nq + i].detJ <= 0.0) SETERRQ3(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Invalid determinant %g for element %d quadrature point %d", cgeomFEM[c * Nq + i].detJ, c, i);
+      }
     }
+    ierr = PetscFree4(qv,qJ,qdetJ,qinvJ);CHKERRQ(ierr);
   }
   if (useFVM) {
     PetscFV   fv = NULL;
@@ -1287,7 +1305,7 @@ static PetscErrorCode DMPlexComputeIntegral_Internal(DM dm, Vec X, PetscInt cSta
       Nr        = numCells % (numBatches*batchSize);
       offset    = numCells - Nr;
       ierr = PetscFEIntegrate(fe, prob, f, Ne, cgeomFEM, u, probAux, a, cintegral);CHKERRQ(ierr);
-      ierr = PetscFEIntegrate(fe, prob, f, Nr, &cgeomFEM[offset], &u[offset*totDim], probAux, &a[offset*totDimAux], &cintegral[offset*Nf]);CHKERRQ(ierr);
+      ierr = PetscFEIntegrate(fe, prob, f, Nr, &cgeomFEM[Nq * offset], &u[offset*totDim], probAux, &a[offset*totDimAux], &cintegral[offset*Nf]);CHKERRQ(ierr);
     } else if (id == PETSCFV_CLASSID) {
       PetscInt       foff;
       PetscPointFunc obj_func;
