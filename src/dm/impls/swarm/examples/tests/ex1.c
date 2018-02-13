@@ -37,7 +37,7 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->periodicity[0]= DM_BOUNDARY_NONE;
   options->periodicity[1]= DM_BOUNDARY_PERIODIC; /* could use Neumann */
   options->periodicity[2]= DM_BOUNDARY_PERIODIC;
-  options->particles_cell = 1;
+  options->particles_cell = 0; /* > 0 for grid of particles, 0 for quadrature points */
   options->k = 1;
   ierr = PetscStrcpy(options->mshNam, "");CHKERRQ(ierr);
 
@@ -135,7 +135,7 @@ static void identity(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   g0[0] = 1.0;
 }
 
-static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
+static PetscErrorCode CreateParticles(DM dm, DM *sw, const AppCtx * const user)
 {
   PetscDS          prob;
   PetscFE          fe;
@@ -167,7 +167,13 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
   ierr = DMSwarmSetCellDM(*sw, dm);CHKERRQ(ierr);
   ierr = DMSwarmRegisterPetscDatatypeField(*sw, "f_q", 1, PETSC_SCALAR);CHKERRQ(ierr);
   ierr = DMSwarmFinalizeFieldRegister(*sw);CHKERRQ(ierr);
-  ierr = DMSwarmSetLocalSizes(*sw, Ncell * Nq, 0);CHKERRQ(ierr);
+  if (user->particles_cell == 0) { /* make particles at quadrature points */
+    ierr = DMSwarmSetLocalSizes(*sw, Ncell * Nq, 0);CHKERRQ(ierr);
+  } else {
+    const PetscInt N = PetscCeilReal(PetscPowReal((double)user->particles_cell,1./(double)dim)), n = PetscPowReal((double)N,(double)dim);
+    ierr = DMSwarmSetLocalSizes(*sw, Ncell * n, 0);CHKERRQ(ierr);
+    PetscPrintf(PETSC_COMM_WORLD, "CreateParticles: particles / cell = %D, N = %D, n = %D\n",user->particles_cell,N,n);
+  }
   ierr = DMSetFromOptions(*sw);CHKERRQ(ierr);
 
   ierr = PetscMalloc3(dim, &v0, dim*dim, &J, dim*dim, &invJ);CHKERRQ(ierr);
@@ -175,12 +181,31 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
   ierr = DMSwarmGetField(*sw, DMSwarmPICField_cellid, NULL, NULL, (void **) &cellid);CHKERRQ(ierr);
   ierr = DMSwarmGetField(*sw, "f_q", NULL, NULL, (void **) &vals);CHKERRQ(ierr);
   for (c = 0; c < Ncell; ++c) {
-    for (q = 0; q < Nq; ++q) {
-      ierr = DMPlexComputeCellGeometryFEM(dm, c, NULL, v0, J, invJ, &detJ);CHKERRQ(ierr);
-      cellid[c*Nq + q] = c;
-      CoordinatesRefToReal(dim, dim, v0, J, &qpoints[q*dim], &coords[(c*Nq + q)*dim]);
-      linear(dim, 0.0, &coords[(c*Nq + q)*dim], 1, &vals[c*Nq + q], NULL);
-PetscPrintf(PETSC_COMM_WORLD, "CreateParticles: %D.%D) point: %e,%e; coords: %e,%e, val=%e\n", c, q, qpoints[q*dim], qpoints[q*dim+1], coords[(c*Nq + q)*dim], coords[(c*Nq + q)*dim+1],vals[c*Nq + q]);
+    ierr = DMPlexComputeCellGeometryFEM(dm, c, NULL, v0, J, invJ, &detJ);CHKERRQ(ierr);
+    if (user->particles_cell == 0) { /* make particles at quadrature points */
+      for (q = 0; q < Nq; ++q) {
+        cellid[c*Nq + q] = c;
+        CoordinatesRefToReal(dim, dim, v0, J, &qpoints[q*dim], &coords[(c*Nq + q)*dim]);
+        linear(dim, 0.0, &coords[(c*Nq + q)*dim], 1, &vals[c*Nq + q], NULL);
+      }
+    } else { /* make particles in cells with regular grid, assumes tensor elements! (-1,1)^D*/
+      PetscInt  ii,jj,kk;
+      PetscReal ecoord[3];
+      const PetscInt N = PetscCeilReal(PetscPowReal((double)user->particles_cell,1./(double)dim)), Nq = user->particles_cell;
+      const PetscReal dx = 2./(PetscReal)N, dx_2 = dx/2;
+      for ( q = kk = 0; q < Nq && kk < (dim==3 ? N : 1) ; kk++) {
+        ecoord[2] = kk*dx - 1 + dx_2;
+        for ( ii = 0; q < Nq && ii < N ; ii++) {
+          ecoord[0] = ii*dx - 1 + dx_2;
+          for ( jj = 0; q < Nq && jj < N ; jj++, q++) {
+            ecoord[1] = jj*dx - 1 + dx_2;
+            cellid[c*Nq + q] = c;
+            CoordinatesRefToReal(dim, dim, v0, J, ecoord, &coords[(c*Nq + q)*dim]);
+            linear(dim, 0.0, &coords[(c*Nq + q)*dim], 1, &vals[c*Nq + q], NULL);
+            PetscPrintf(PETSC_COMM_WORLD, "CreateParticles: %D) (%D,%D,%D) q=%D v0:%e,%e; element coord:%e,%e, real coord[%D]:%e,%e, dx=%e, val=%e\n",c,ii,jj,kk,q,v0[0],v0[1],ecoord[0],ecoord[1],(c*Nq + q)*dim,coords[(c*Nq + q)*dim],coords[(c*Nq + q)*dim+1],dx,vals[c*Nq + q]);
+          }
+        }
+      }
     }
   }
   ierr = DMSwarmRestoreField(*sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
