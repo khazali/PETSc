@@ -16,9 +16,10 @@ typedef struct {
   PetscInt  particles_cell;
   /* geometry  */
   PetscReal      domain_lo[3], domain_hi[3];
-  DMBoundaryType periodicity[3];              /* The domain periodicity */
+  DMBoundaryType periodicity[3];        /* The domain periodicity */
   /* test */
   PetscInt       k;
+  PetscReal      factor;                /* cache for scaling */
 } AppCtx;
 
 static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
@@ -112,7 +113,7 @@ static PetscErrorCode linear(PetscInt dim, PetscReal time, const PetscReal x[], 
 static PetscErrorCode sinx(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar *u, void *a_ctx)
 {
   AppCtx *ctx = (AppCtx*)a_ctx;
-  u[0] = sin(x[0]*ctx->k);
+  u[0] = sin(x[0]*ctx->k) * ctx->factor;
   return 0;
 }
 
@@ -135,7 +136,7 @@ static void identity(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   g0[0] = 1.0;
 }
 
-static PetscErrorCode CreateParticles(DM dm, DM *sw, const AppCtx * const user)
+static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
 {
   PetscDS          prob;
   PetscFE          fe;
@@ -172,7 +173,9 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, const AppCtx * const user)
   } else {
     const PetscInt N = PetscCeilReal(PetscPowReal((double)user->particles_cell,1./(double)dim)), n = PetscPowReal((double)N,(double)dim);
     ierr = DMSwarmSetLocalSizes(*sw, Ncell * n, 0);CHKERRQ(ierr);
-    PetscPrintf(PETSC_COMM_WORLD, "CreateParticles: particles / cell = %D, N = %D, n = %D\n",user->particles_cell,N,n);
+    ierr = MPI_Allreduce(&n,&c,1,MPIU_INT,MPI_SUM,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
+    user->factor = 1/(double)c;
+    PetscPrintf(PETSC_COMM_WORLD, "CreateParticles: particles / cell = %D, N = %D, n local = %D, n global %D\n",user->particles_cell,N,n,c);
   }
   ierr = DMSetFromOptions(*sw);CHKERRQ(ierr);
 
@@ -201,8 +204,8 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, const AppCtx * const user)
             ecoord[1] = jj*dx - 1 + dx_2;
             cellid[c*Nq + q] = c;
             CoordinatesRefToReal(dim, dim, v0, J, ecoord, &coords[(c*Nq + q)*dim]);
-            linear(dim, 0.0, &coords[(c*Nq + q)*dim], 1, &vals[c*Nq + q], NULL);
-            PetscPrintf(PETSC_COMM_WORLD, "CreateParticles: %D) (%D,%D,%D) q=%D v0:%e,%e; element coord:%e,%e, real coord[%D]:%e,%e, dx=%e, val=%e\n",c,ii,jj,kk,q,v0[0],v0[1],ecoord[0],ecoord[1],(c*Nq + q)*dim,coords[(c*Nq + q)*dim],coords[(c*Nq + q)*dim+1],dx,vals[c*Nq + q]);
+            sinx(dim, 0.0, &coords[(c*Nq + q)*dim], 1, &vals[c*Nq + q], user);
+PetscPrintf(PETSC_COMM_WORLD, "CreateParticles: %D) (%D,%D,%D) q=%D v0:%e,%e; element coord:%e,%e, real coord[%D]:%e,%e, factor=%e, val=%e\n",c,ii,jj,kk,q,v0[0],v0[1],ecoord[0],ecoord[1],(c*Nq + q)*dim,coords[(c*Nq + q)*dim],coords[(c*Nq + q)*dim+1],user->factor,vals[c*Nq + q]);
           }
         }
       }
@@ -225,7 +228,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   PetscErrorCode   ierr;
 
   PetscFunctionBeginUser;
-  funcs[0] = linear;
+  funcs[0] = (user->particles_cell == 0) ? linear : sinx;
 
   ierr = DMSwarmCreateGlobalVectorFromField(sw, "f_q", &u);CHKERRQ(ierr);
   ierr = VecViewFromOptions(u, NULL, "-f_view");CHKERRQ(ierr);
@@ -247,6 +250,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) uproj, "Full Projection");CHKERRQ(ierr);
   ierr = VecViewFromOptions(uproj, NULL, "-proj_vec_view");CHKERRQ(ierr);
+  ierr = DMSetApplicationContext(dm, user);CHKERRQ(ierr);
   ierr = DMComputeL2Diff(dm, 0.0, funcs, NULL, uproj, &error);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD, "Projected L2 Error: %g\n", (double) error);CHKERRQ(ierr);
   ierr = MatDestroy(&mass);CHKERRQ(ierr);
