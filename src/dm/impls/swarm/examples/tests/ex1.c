@@ -224,6 +224,7 @@ PetscPrintf(PETSC_COMM_WORLD, "CreateParticles: %D) (%D,%D,%D) q=%D v0:%e,%e; el
 static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
 {
   PetscErrorCode (*funcs[1])(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *);
+  AppCtx          *ctxs[1];
   KSP              ksp;
   Mat              mass;
   Vec              u, rhs, uproj;
@@ -232,6 +233,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
 
   PetscFunctionBeginUser;
   funcs[0] = (user->particles_cell == 0) ? linear : sinx;
+  ctxs[0] = user;
 
   ierr = DMSwarmCreateGlobalVectorFromField(sw, "f_q", &u);CHKERRQ(ierr);
   ierr = VecViewFromOptions(u, NULL, "-f_view");CHKERRQ(ierr);
@@ -253,8 +255,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) uproj, "Full Projection");CHKERRQ(ierr);
   ierr = VecViewFromOptions(uproj, NULL, "-proj_vec_view");CHKERRQ(ierr);
-  ierr = DMSetApplicationContext(dm, user);CHKERRQ(ierr);
-  ierr = DMComputeL2Diff(dm, 0.0, funcs, NULL, uproj, &error);CHKERRQ(ierr);
+  ierr = DMComputeL2Diff(dm, 0.0, funcs, (void**)ctxs, uproj, &error);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD, "Projected L2 Error: %g\n", (double) error);CHKERRQ(ierr);
   ierr = MatDestroy(&mass);CHKERRQ(ierr);
   ierr = DMRestoreGlobalVector(dm, &rhs);CHKERRQ(ierr);

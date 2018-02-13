@@ -173,7 +173,7 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
   PetscLayout    rLayout;
   PetscInt      *dnz, *onz;
   PetscInt       locRows, rStart, rEnd;
-  PetscReal     *x, *v0, *J, *invJ, detJ;
+  PetscReal     *v0, *J, *invJ, detJ;
   PetscScalar   *elemMat;
   PetscInt       dim, Nf, field, totDim, cStart, cEnd, cell, maxC = 0;
   PetscMPIInt    size;
@@ -183,8 +183,8 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
   ierr = MPI_Comm_size(PetscObjectComm((PetscObject) dmf), &size);CHKERRQ(ierr);
   ierr = DMGetCoordinateDim(dmf, &dim);CHKERRQ(ierr);
   ierr = DMGetDS(dmf, &prob);CHKERRQ(ierr);
-  ierr = PetscDSGetRefCoordArrays(prob, &x, NULL);CHKERRQ(ierr);
   ierr = PetscDSGetNumFields(prob, &Nf);CHKERRQ(ierr);
+  if(Nf!=1) SETERRQ1(PetscObjectComm((PetscObject) dmf), PETSC_ERR_SUP, "Nf!=1 ????????", Nf);
   ierr = PetscMalloc3(dim,&v0,dim*dim,&J,dim*dim,&invJ);CHKERRQ(ierr);
   ierr = DMGetDefaultSection(dmf, &fsection);CHKERRQ(ierr);
   ierr = DMGetDefaultGlobalSection(dmf, &globalFSection);CHKERRQ(ierr);
@@ -203,22 +203,16 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
   ierr = PetscHashJKCreate(&ht);CHKERRQ(ierr);
   for (field = 0; field < Nf; ++field) {
     PetscObject      obj;
-    PetscQuadrature  quad;
-    const PetscReal *qpoints;
-    PetscInt         Nq, Nc, i;
+    PetscInt         i;
 
     ierr = PetscDSGetDiscretization(prob, field, &obj);CHKERRQ(ierr);
-    ierr = PetscFEGetQuadrature((PetscFE) obj, &quad);CHKERRQ(ierr);
-    ierr = PetscQuadratureGetData(quad, NULL, &Nc, &Nq, &qpoints, NULL);CHKERRQ(ierr);
     /* For each fine grid cell */
     for (cell = cStart; cell < cEnd; ++cell) {
-      PetscInt  Np, c;
+      PetscInt  c;
       PetscInt *findices,   *cindices;
       PetscInt  numFIndices, numCIndices;
 
       ierr = DMPlexGetClosureIndices(dmf, fsection, globalFSection, cell, &numFIndices, &findices, NULL);CHKERRQ(ierr);
-      ierr = DMSwarmSortGetNumberOfPointsPerCell(dmc, cell, &Np);CHKERRQ(ierr);
-      if (Np != Nq) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Not all closure points located %D != %D", Np, Nq);
       ierr = DMSwarmSortGetPointsPerCell(dmc, cell, &numCIndices, &cindices);CHKERRQ(ierr);
       maxC = PetscMax(maxC, numCIndices);
       /* Update preallocation info */
@@ -255,42 +249,61 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
   for (field = 0; field < Nf; ++field) {
     PetscObject      obj;
     PetscQuadrature  quad;
-    PetscReal       *Bfine;
-    const PetscReal *qweights;
-    PetscInt         Nq, Nc, i;
+    PetscReal       *Bfine, *Bcoarse, *xx, *xi;
+    PetscInt         Nc, i;
 
     ierr = PetscDSGetDiscretization(prob, field, &obj);CHKERRQ(ierr);
     ierr = PetscFEGetDefaultTabulation((PetscFE) obj, &Bfine, NULL, NULL);CHKERRQ(ierr);
-    ierr = PetscFEGetQuadrature((PetscFE) obj, &quad);CHKERRQ(ierr);
-    ierr = PetscQuadratureGetData(quad, NULL, &Nc, &Nq, NULL, &qweights);CHKERRQ(ierr);
+
+    ierr = PetscFEGetQuadrature((PetscFE) obj, &quad);CHKERRQ(ierr); /* do we need to do all this to get Nc??? */
+    ierr = PetscQuadratureGetData(quad, NULL, &Nc, NULL, NULL, NULL);CHKERRQ(ierr);
+    if(Nc!=1) SETERRQ1(PetscObjectComm((PetscObject) dmf), PETSC_ERR_SUP, "Nc!=1 ????????", Nf);
+
     /* For each fine grid cell */
     for (cell = cStart; cell < cEnd; ++cell) {
-      PetscInt           Np, c, j;
+      PetscInt           Np, p, d, e;
       PetscInt          *findices,   *cindices;
       PetscInt           numFIndices, numCIndices;
 
       ierr = DMPlexComputeCellGeometryFEM(dmf, cell, NULL, v0, J, invJ, &detJ);CHKERRQ(ierr);
       ierr = DMPlexGetClosureIndices(dmf, fsection, globalFSection, cell, &numFIndices, &findices, NULL);CHKERRQ(ierr);
       ierr = DMSwarmSortGetNumberOfPointsPerCell(dmc, cell, &Np);CHKERRQ(ierr);
-      if (Np != Nq) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Not all closure points located %D != %D", Np, Nq);
       ierr = DMSwarmSortGetPointsPerCell(dmc, cell, &numCIndices, &cindices);CHKERRQ(ierr);
+PetscPrintf(PETSC_COMM_SELF,"\t\tDMSwarmComputeMassMatrix_Private Np=%D =? numCIndices=%D totDim=%D =? numFIndices=%D\n",Np,numCIndices,totDim,numFIndices);
+      /* get coordinates */
+      ierr = DMSwarmGetField(dmc, DMSwarmPICField_coor, NULL, NULL, (void **) &xx);CHKERRQ(ierr);
+      ierr = PetscMalloc1(dim*numCIndices, &xi);CHKERRQ(ierr);
+      /* apply xi = J^-1 * (x - v0) */
+      for (p = 0; p < numCIndices; ++p) {
+        PetscScalar *pxx = &xx[dim*p], *pxi = &xi[dim*p];
+        for (d = 0; d < dim; ++d) {
+          pxi[d] = -1.;
+          for (e = 0; e < dim; ++e) {
+            pxi[d] += invJ[d*dim+e]*(pxx[e] - v0[e]); /* map to element space */
+          }
+        }
+      }
+      ierr = PetscFEGetTabulation((PetscFE) obj, Np, xi, &Bcoarse, NULL, NULL);CHKERRQ(ierr);
+      ierr = PetscFree(xi);CHKERRQ(ierr);
+      ierr = DMSwarmRestoreField(dmc, DMSwarmPICField_coor, NULL, NULL, (void **) &xx);CHKERRQ(ierr);
       /* Get elemMat entries by multiplying by weight */
       for (i = 0; i < numFIndices; ++i) {
-        ierr = PetscMemzero(elemMat, numCIndices * sizeof(PetscScalar));CHKERRQ(ierr);
-        for (j = 0; j < numCIndices; ++j) {
-          for (c = 0; c < Nc; ++c) elemMat[j] += Bfine[(j*numFIndices + i)*Nc + c]*qweights[j*Nc + c]*detJ;
+        /* ierr = PetscMemzero(elemMat, numCIndices * sizeof(PetscScalar));CHKERRQ(ierr); */
+        for (p = 0; p < numCIndices; ++p) {
+          elemMat[p] = Bcoarse[p*numFIndices + i]; /* Just the transpose of B? */
         }
         /* Update interpolator */
-        if (0) {ierr = DMPrintCellMatrix(cell, name, 1, numCIndices, elemMat);CHKERRQ(ierr);}
+        if (1) {ierr = DMPrintCellMatrix(cell, name, 1, numCIndices, elemMat);CHKERRQ(ierr);}
         ierr = MatSetValues(mass, 1, &findices[i], numCIndices, cindices, elemMat, ADD_VALUES);CHKERRQ(ierr);
       }
       ierr = PetscFree(cindices);CHKERRQ(ierr);
       ierr = DMPlexRestoreClosureIndices(dmf, fsection, globalFSection, cell, &numFIndices, &findices, NULL);CHKERRQ(ierr);
+      ierr = PetscFERestoreTabulation((PetscFE) obj, Np, xi, &Bcoarse, NULL, NULL);CHKERRQ(ierr);
     }
   }
+  ierr = PetscFree(elemMat);CHKERRQ(ierr);
   ierr = DMSwarmSortRestoreAccess(dmc);CHKERRQ(ierr);
   ierr = PetscFree3(v0,J,invJ);CHKERRQ(ierr);
-  ierr = PetscFree(elemMat);CHKERRQ(ierr);
   ierr = MatAssemblyBegin(mass, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(mass, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   PetscFunctionReturn(0);
