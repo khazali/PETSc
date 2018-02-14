@@ -283,7 +283,7 @@ PetscErrorCode SNESVIResetPCandKSP(SNES snes,Mat Amat,Mat Pmat)
   /*
   KSP                    kspnew;
   PC                     pcnew;
-  const MatSolverPackage stype;
+  MatSolverType          stype;
 
 
   ierr = KSPCreate(PetscObjectComm((PetscObject)snes),&kspnew);CHKERRQ(ierr);
@@ -295,8 +295,8 @@ PetscErrorCode SNESVIResetPCandKSP(SNES snes,Mat Amat,Mat Pmat)
   ierr = KSPGetPC(kspnew,&pcnew);CHKERRQ(ierr);
   ierr = PCSetType(kspnew->pc,((PetscObject)snesksp->pc)->type_name);CHKERRQ(ierr);
   ierr = PCSetOperators(kspnew->pc,Amat,Pmat);CHKERRQ(ierr);
-  ierr = PCFactorGetMatSolverPackage(snesksp->pc,&stype);CHKERRQ(ierr);
-  ierr = PCFactorSetMatSolverPackage(kspnew->pc,stype);CHKERRQ(ierr);
+  ierr = PCFactorGetMatSolverType(snesksp->pc,&stype);CHKERRQ(ierr);
+  ierr = PCFactorSetMatSolverType(kspnew->pc,stype);CHKERRQ(ierr);
   ierr = KSPDestroy(&snesksp);CHKERRQ(ierr);
   snes->ksp = kspnew;
   ierr = PetscLogObjectParent((PetscObject)snes,(PetscObject)kspnew);CHKERRQ(ierr);
@@ -346,8 +346,7 @@ PetscErrorCode SNESSolve_VINEWTONRSLS(SNES snes)
   ierr = SNESVIProjectOntoBounds(snes,X);CHKERRQ(ierr);
   ierr = SNESComputeFunction(snes,X,F);CHKERRQ(ierr);
   ierr = SNESVIComputeInactiveSetFnorm(snes,F,X,&fnorm);CHKERRQ(ierr);
-  ierr = VecNormBegin(X,NORM_2,&xnorm);CHKERRQ(ierr);        /* xnorm <- ||x||  */
-  ierr = VecNormEnd(X,NORM_2,&xnorm);CHKERRQ(ierr);
+  ierr = VecNorm(X,NORM_2,&xnorm);CHKERRQ(ierr);        /* xnorm <- ||x||  */
   SNESCheckFunctionNorm(snes,fnorm);
   ierr       = PetscObjectSAWsTakeAccess((PetscObject)snes);CHKERRQ(ierr);
   snes->norm = fnorm;
@@ -732,7 +731,7 @@ PetscErrorCode SNESReset_VINEWTONRSLS(SNES snes)
       SNESVINEWTONRSLS - Reduced space active set solvers for variational inequalities based on Newton's method
 
    Options Database:
-+   -snes_type <vinewtonssls,vinewtonrsls> a semi-smooth solver, a reduced space active set method
++   -snes_type <vinewtonssls,vinewtonrsls> - a semi-smooth solver, a reduced space active set method
 -   -snes_vi_monitor - prints the number of active constraints at each iteration.
 
    Level: beginner

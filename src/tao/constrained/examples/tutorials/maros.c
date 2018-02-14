@@ -106,7 +106,7 @@ PetscErrorCode main(int argc,char **argv)
       This algorithm produces matrices with zeros along the diagonal therefore we need to use
     SuperLU which does partial pivoting
   */
-  ierr = PCFactorSetMatSolverPackage(pc,MATSOLVERSUPERLU);CHKERRQ(ierr);
+  ierr = PCFactorSetMatSolverType(pc,MATSOLVERSUPERLU);CHKERRQ(ierr);
   ierr = KSPSetType(ksp,KSPPREONLY);CHKERRQ(ierr);
   ierr = TaoSetTolerances(tao,0,0,0);CHKERRQ(ierr);
 
@@ -289,3 +289,15 @@ PetscErrorCode FormEqualityJacobian(Tao tao, Vec x, Mat JE, Mat JEpre, void *ctx
   PetscFunctionBegin;
   PetscFunctionReturn(0);
 }
+
+
+/*TEST
+
+   build:
+      requires: !complex
+
+   test:
+      requires: superlu
+      localrunfiles: HS21
+
+TEST*/

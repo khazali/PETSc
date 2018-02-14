@@ -2542,11 +2542,13 @@ PetscErrorCode MatDestroySubMatrices_SeqAIJ(PetscInt n,Mat *mat[])
     c       = (Mat_SeqAIJ*)C->data;
     submatj = c->submatis1;
     if (submatj) {
-      ierr = submatj->destroy(C);CHKERRQ(ierr);
-      ierr = MatDestroySubMatrix_Private(submatj);CHKERRQ(ierr);
-      ierr = PetscLayoutDestroy(&C->rmap);CHKERRQ(ierr);
-      ierr = PetscLayoutDestroy(&C->cmap);CHKERRQ(ierr);
-      ierr = PetscHeaderDestroy(&C);CHKERRQ(ierr);
+      if (--((PetscObject)C)->refct <= 0) {
+        ierr = (submatj->destroy)(C);CHKERRQ(ierr);
+        ierr = MatDestroySubMatrix_Private(submatj);CHKERRQ(ierr);
+        ierr = PetscLayoutDestroy(&C->rmap);CHKERRQ(ierr);
+        ierr = PetscLayoutDestroy(&C->cmap);CHKERRQ(ierr);
+        ierr = PetscHeaderDestroy(&C);CHKERRQ(ierr);
+      }
     } else {
       ierr = MatDestroy(&C);CHKERRQ(ierr);
     }
@@ -3555,10 +3557,7 @@ PetscErrorCode  MatCreateSeqAIJ(MPI_Comm comm,PetscInt m,PetscInt n,PetscInt nz,
 
    Options Database Keys:
 +  -mat_no_inode  - Do not use inodes
-.  -mat_inode_limit <limit> - Sets inode limit (max limit=5)
--  -mat_aij_oneindex - Internally use indexing starting at 1
-        rather than 0.  Note that when calling MatSetValues(),
-        the user still MUST index entries starting at 0!
+-  -mat_inode_limit <limit> - Sets inode limit (max limit=5)
 
    Level: intermediate
 

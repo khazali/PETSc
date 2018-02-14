@@ -107,6 +107,10 @@
       <h4>VecScatter:</h4>
       <h4>PetscSection:</h4>
       <h4>Mat:</h4>
+      <ul>
+        <li>MatSolverPackage is replaced with MatSolverType.</li>
+        <li>mat_solver_package is replaced with mat_solver_type.</li>
+      </ul>
       <h4>PC:</h4>
       <h4>KSP:</h4>
       <h4>SNES:</h4>
@@ -117,18 +121,26 @@
       <h4>TS:</h4>
       <h4>TAO:</h4>
       <ul>
+        <li>Changed TaoDefaultMonitor() to TaoMonitorDefault() to match other PETSc default monitor names, also now print with the same format as other monitors %3D Tao ....</li>
         <li>Added VecLock{Push|Pop} calls around user callbacks; use of VecGetArray in user callbacks is now prohibited.</li>
         <li>Added default matrix-free finite-differencing implementation for Hessian MatMult with TaoDefaultComputeHessianMFFD(). Can be selected with -tao_mf_hessian at command line.</li>
       </ul>
       <h4>DM/DA:</h4>
       <h4>DMPlex:</h4>
       <h4>PetscViewer:</h4>
-         PetscViewerVTKFWrite() now takes a MPI_Datatype instead of a PetscDataType argument.
+      <ul>
+        <li>PetscViewerVTKFWrite() now takes a MPI_Datatype instead of a PetscDataType argument.</li>
+      </ul>
       <h4>SYS:</h4>
+      <ul>
+        <li>PetscPClose() no longer returns error code from pclose() because some systems cannot reliably deliver it</li>
+      </ul>
       <h4>AO:</h4>
       <h4>Sieve:</h4>
       <h4>Fortran:</h4>
-      The F90Array routines now take a MPI_Datatype argument instead of a PetscDataType. This should not affect user code.
+      <ul>
+        <li>The F90Array routines now take a MPI_Datatype argument instead of a PetscDataType. This should not affect user code.</li>
+      </ul>
     </div>
 
     <!--end-->

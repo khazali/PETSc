@@ -3238,7 +3238,7 @@ PetscErrorCode PCBDDCAdaptiveSelection(PC pc)
     if (sub_schurs->change) {
       Mat change,phi,phit;
 
-      if (pcbddc->dbg_flag > 1) {
+      if (pcbddc->dbg_flag > 2) {
         PetscInt ii;
         for (ii=0;ii<B_neigs;ii++) {
           ierr = PetscViewerASCIISynchronizedPrintf(pcbddc->dbg_viewer,"   -> Eigenvector (old basis) %d/%d (%d)\n",ii,B_neigs,B_N);CHKERRQ(ierr);
@@ -3570,9 +3570,9 @@ PetscErrorCode PCBDDCSetUpCorrection(PC pc, PetscScalar **coarse_submat_vals_n)
   /* determine if we can use a sparse right-hand side */
   sparserhs = PETSC_FALSE;
   if (F) {
-    const MatSolverPackage solver;
+    MatSolverType solver;
 
-    ierr = MatFactorGetSolverPackage(F,&solver);CHKERRQ(ierr);
+    ierr = MatFactorGetSolverType(F,&solver);CHKERRQ(ierr);
     ierr = PetscStrcmp(solver,MATSOLVERMUMPS,&sparserhs);CHKERRQ(ierr);
   }
 
@@ -4119,7 +4119,7 @@ PetscErrorCode PCBDDCSetUpCorrection(PC pc, PetscScalar **coarse_submat_vals_n)
     ierr = MatMatMult(local_auxmat2_R,S_CC,MAT_REUSE_MATRIX,PETSC_DEFAULT,&B);CHKERRQ(ierr);
     ierr = MatScale(S_CC,m_one);CHKERRQ(ierr);
     if (n_vertices) {
-      if (isCHOL) { /* if we can solve the interior problem with cholesky, we should also be fine with transposing here */
+      if (isCHOL || need_benign_correction) { /* if we can solve the interior problem with cholesky, we should also be fine with transposing here */
         ierr = MatTranspose(S_CV,MAT_REUSE_MATRIX,&S_VC);CHKERRQ(ierr);
       } else {
         Mat S_VCt;
@@ -4395,18 +4395,12 @@ PetscErrorCode PCBDDCSetUpCorrection(PC pc, PetscScalar **coarse_submat_vals_n)
     char filename[256];
     sprintf(filename,"details_local_coarse_mat%d_level%d.m",PetscGlobalRank,pcbddc->current_level);
     ierr = PetscViewerASCIIOpen(PETSC_COMM_SELF,filename,&viewer);CHKERRQ(ierr);
-    ierr = PetscViewerSetFormat(viewer,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+    ierr = PetscViewerPushFormat(viewer,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
     ierr = PetscObjectSetName((PetscObject)coarse_sub_mat,"computed");CHKERRQ(ierr);
     ierr = MatView(coarse_sub_mat,viewer);CHKERRQ(ierr);
     ierr = PetscObjectSetName((PetscObject)TM1,"projected");CHKERRQ(ierr);
     ierr = MatView(TM1,viewer);CHKERRQ(ierr);
-    if (save_change) {
-      Mat phi_B;
-      ierr = MatMatMult(save_change,pcbddc->coarse_phi_B,MAT_INITIAL_MATRIX,1.0,&phi_B);CHKERRQ(ierr);
-      ierr = PetscObjectSetName((PetscObject)phi_B,"phi_B");CHKERRQ(ierr);
-      ierr = MatView(phi_B,viewer);CHKERRQ(ierr);
-      ierr = MatDestroy(&phi_B);CHKERRQ(ierr);
-    } else {
+    if (pcbddc->coarse_phi_B) {
       ierr = PetscObjectSetName((PetscObject)pcbddc->coarse_phi_B,"phi_B");CHKERRQ(ierr);
       ierr = MatView(pcbddc->coarse_phi_B,viewer);CHKERRQ(ierr);
     }
@@ -4954,7 +4948,6 @@ PetscErrorCode PCBDDCSetUpLocalSolvers(PC pc, PetscBool dirichlet, PetscBool neu
       }
       /* Allow user's customization */
       ierr = KSPSetFromOptions(pcbddc->ksp_D);CHKERRQ(ierr);
-      ierr = PCFactorSetReuseFill(pc_temp,PETSC_TRUE);CHKERRQ(ierr);
     }
     ierr = KSPSetOperators(pcbddc->ksp_D,pcis->A_II,pcis->A_II);CHKERRQ(ierr);
     if (sub_schurs && sub_schurs->reuse_solver) {
@@ -5074,7 +5067,6 @@ PetscErrorCode PCBDDCSetUpLocalSolvers(PC pc, PetscBool dirichlet, PetscBool neu
       }
       /* Allow user's customization */
       ierr = KSPSetFromOptions(pcbddc->ksp_R);CHKERRQ(ierr);
-      ierr = PCFactorSetReuseFill(pc_temp,PETSC_TRUE);CHKERRQ(ierr);
     }
     /* umfpack interface has a bug when matrix dimension is zero. TODO solve from umfpack interface */
     if (!n_R) {
@@ -6131,8 +6123,8 @@ PetscErrorCode PCBDDCConstraintsSetUp(PC pc)
       ierr = PetscBLASIntCast(max_constraints,&Blas_K);CHKERRQ(ierr);
       ierr = PetscBLASIntCast(max_size_of_constraint,&Blas_LDA);CHKERRQ(ierr);
       if (Blas_K>Blas_M) Blas_K=Blas_M; /* adjust just for computing optimal work */
-      PetscStackCallBLAS("LAPACKungqr",LAPACKungqr_(&Blas_M,&Blas_N,&Blas_K,qr_basis,&Blas_LDA,qr_tau,&lgqr_work_t,&lgqr_work,&lierr));
-      if (lierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in query to UNGQR Lapack routine %d",(int)lierr);
+      PetscStackCallBLAS("LAPACKorgqr",LAPACKorgqr_(&Blas_M,&Blas_N,&Blas_K,qr_basis,&Blas_LDA,qr_tau,&lgqr_work_t,&lgqr_work,&lierr));
+      if (lierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in query to ORGQR/UNGQR Lapack routine %d",(int)lierr);
       ierr = PetscBLASIntCast((PetscInt)PetscRealPart(lgqr_work_t),&lgqr_work);CHKERRQ(ierr);
       ierr = PetscMalloc1((PetscInt)PetscRealPart(lgqr_work_t),&gqr_work);CHKERRQ(ierr);
       /* array to store rhs and solution of triangular solver */
@@ -6200,8 +6192,8 @@ PetscErrorCode PCBDDCConstraintsSetUp(PC pc)
           ierr = PetscBLASIntCast(primal_dofs,&Blas_K);CHKERRQ(ierr);
           ierr = PetscBLASIntCast(size_of_constraint,&Blas_LDA);CHKERRQ(ierr);
           ierr = PetscFPTrapPush(PETSC_FP_TRAP_OFF);CHKERRQ(ierr);
-          PetscStackCallBLAS("LAPACKungqr",LAPACKungqr_(&Blas_M,&Blas_N,&Blas_K,qr_basis,&Blas_LDA,qr_tau,gqr_work,&lgqr_work,&lierr));
-          if (lierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in UNGQR Lapack routine %d",(int)lierr);
+          PetscStackCallBLAS("LAPACKorgqr",LAPACKorgqr_(&Blas_M,&Blas_N,&Blas_K,qr_basis,&Blas_LDA,qr_tau,gqr_work,&lgqr_work,&lierr));
+          if (lierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in ORGQR/UNGQR Lapack routine %d",(int)lierr);
           ierr = PetscFPTrapPop();CHKERRQ(ierr);
 
           /* first primal_dofs columns of Q need to be re-scaled in order to be unitary w.r.t constraints
@@ -6252,7 +6244,7 @@ PetscErrorCode PCBDDCConstraintsSetUp(PC pc)
             for (jj=0;jj<size_of_constraint;jj++) {
               for (ii=0;ii<primal_dofs;ii++) {
                 if (ii != jj && PetscAbsScalar(dbg_work[size_of_constraint*primal_dofs+jj*primal_dofs+ii]) > 1.e-12) valid_qr = PETSC_FALSE;
-                if (ii == jj && PetscAbsScalar(dbg_work[size_of_constraint*primal_dofs+jj*primal_dofs+ii]-1.0) > 1.e-12) valid_qr = PETSC_FALSE;
+                if (ii == jj && PetscAbsScalar(dbg_work[size_of_constraint*primal_dofs+jj*primal_dofs+ii]-(PetscReal)1) > 1.e-12) valid_qr = PETSC_FALSE;
               }
             }
             if (!valid_qr) {
@@ -6262,7 +6254,7 @@ PetscErrorCode PCBDDCConstraintsSetUp(PC pc)
                   if (ii != jj && PetscAbsScalar(dbg_work[size_of_constraint*primal_dofs+jj*primal_dofs+ii]) > 1.e-12) {
                     PetscViewerASCIISynchronizedPrintf(pcbddc->dbg_viewer,"\tQr basis function %d is not orthogonal to constraint %d (%1.14e)!\n",jj,ii,PetscAbsScalar(dbg_work[size_of_constraint*primal_dofs+jj*primal_dofs+ii]));
                   }
-                  if (ii == jj && PetscAbsScalar(dbg_work[size_of_constraint*primal_dofs+jj*primal_dofs+ii]-1.0) > 1.e-12) {
+                  if (ii == jj && PetscAbsScalar(dbg_work[size_of_constraint*primal_dofs+jj*primal_dofs+ii]-(PetscReal)1) > 1.e-12) {
                     PetscViewerASCIISynchronizedPrintf(pcbddc->dbg_viewer,"\tQr basis function %d is not unitary w.r.t constraint %d (%1.14e)!\n",jj,ii,PetscAbsScalar(dbg_work[size_of_constraint*primal_dofs+jj*primal_dofs+ii]));
                   }
                 }
@@ -7885,7 +7877,6 @@ PetscErrorCode PCBDDCSetUpCoarseSolver(PC pc,PetscScalar* coarse_submat_vals)
       ierr   = PCSetType(pc_temp,PCBDDC);CHKERRQ(ierr);
       isbddc = PETSC_TRUE;
     }
-    ierr = PCFactorSetReuseFill(pc_temp,PETSC_TRUE);CHKERRQ(ierr);
     ierr = PetscObjectTypeCompare((PetscObject)pc_temp,PCREDUNDANT,&isredundant);CHKERRQ(ierr);
     if (isredundant) {
       KSP inner_ksp;
@@ -7893,7 +7884,6 @@ PetscErrorCode PCBDDCSetUpCoarseSolver(PC pc,PetscScalar* coarse_submat_vals)
 
       ierr = PCRedundantGetKSP(pc_temp,&inner_ksp);CHKERRQ(ierr);
       ierr = KSPGetPC(inner_ksp,&inner_pc);CHKERRQ(ierr);
-      ierr = PCFactorSetReuseFill(inner_pc,PETSC_TRUE);CHKERRQ(ierr);
     }
 
     /* parameters which miss an API */
@@ -8270,6 +8260,7 @@ PetscErrorCode PCBDDCGlobalToLocal(VecScatter g2l_ctx,Vec gwork, Vec lwork, IS g
   ierr = VecSet(gwork,0.0);CHKERRQ(ierr);
   ierr = VecSet(lwork,0.0);CHKERRQ(ierr);
   if (idxs) { /* multilevel guard */
+    ierr = VecSetOption(gwork,VEC_IGNORE_NEGATIVE_INDICES,PETSC_TRUE);CHKERRQ(ierr);
     ierr = VecSetValues(gwork,lsize,idxs,vals,INSERT_VALUES);CHKERRQ(ierr);
   }
   ierr = VecAssemblyBegin(gwork);CHKERRQ(ierr);

@@ -7,8 +7,13 @@ TIMEOUT=60
 if test "$PWD"!=`dirname $0`; then
   cd `dirname $0`
 fi
+if test -d "${rundir}" && test -n "${rundir}"; then
+  rm -f ${rundir}/*.tmp ${rundir}/*.err ${rundir}/*.out
+fi
 mkdir -p ${rundir}
-if test -n "${runfiles}"; then 
+if test -d "${runfiles}"; then
+  cp -r ${runfiles} ${rundir}
+elif test -n "${runfiles}"; then
   cp ${runfiles} ${rundir}
 fi
 cd ${rundir}
@@ -32,6 +37,7 @@ OPTIONS
   -j ................ Pass -j to petscdiff (just use diff)
   -J <arg> .......... Pass -J to petscdiff (just use diff with arg)
   -m ................ Update results using petscdiff
+  -M ................ Update alt files using petscdiff
   -t ................ Override the default timeout (default=$TIMEOUT sec)
   -V ................ run Valgrind
   -v ................ Verbose: Print commands
@@ -48,7 +54,7 @@ cleanup=false
 debugger=false
 force=false
 diff_flags=""
-while getopts "a:cde:fhjJ:mn:t:vV" arg
+while getopts "a:cde:fhjJ:mMn:t:vV" arg
 do
   case $arg in
     a ) args="$OPTARG"       ;;  
@@ -61,6 +67,7 @@ do
     j ) diff_flags="-j"      ;;  
     J ) diff_flags="-J $OPTARG" ;;  
     m ) diff_flags="-m"      ;;  
+    M ) diff_flags="-M"      ;;  
     t ) TIMEOUT=$OPTARG      ;;  
     V ) mpiexec="petsc_mpiexec_valgrind $mpiexec" ;;  
     v ) verbose=true         ;;  
@@ -77,6 +84,7 @@ shift $(( $OPTIND - 1 ))
 
 # Individual tests can extend the default
 TIMEOUT=$((TIMEOUT*timeoutfactor))
+STARTTIME=`date +%s`
 
 if test -n "$extra_args"; then
   args="$args $extra_args"
@@ -107,7 +115,7 @@ function petsc_testrun() {
     if test "${filter:0:6}"=="Error:"; then
       job_control=false      # redirection error method causes job control probs
       filter=${filter##Error:}
-      cmd="$1 2>&1 | cat > $2 2> $3"
+      cmd="$1 2>&1 | cat > $2"
     fi
   fi
   echo "$cmd" > ${tlabel}.sh; chmod 755 ${tlabel}.sh
@@ -144,7 +152,6 @@ function petsc_testrun() {
     cmd="cat $2 | $filter > $2.tmp 2>> $3 && mv $2.tmp $2"
     echo "$cmd" >> ${tlabel}.sh
     eval "$cmd"
-    let cmd_res+=$?
   fi
 
   # Report errors
@@ -161,7 +168,12 @@ function petsc_testrun() {
     else
       printf "not ok $tlabel\n" | tee -a ${testlogfile}
     fi
-    awk '{print "#\t" $0}' < $3 | tee -a ${testlogfile}
+    # We've had tests fail but stderr->stdout. Fix with this test.
+    if test -s $3; then
+       awk '{print "#\t" $0}' < $3 | tee -a ${testlogfile}
+    else
+       awk '{print "#\t" $0}' < $2 | tee -a ${testlogfile}
+    fi
     let failed=$failed+1
     failures="$failures $tlabel"
   fi
@@ -188,6 +200,8 @@ function petsc_testend() {
   if test ${skip} -gt 0; then
     printf "skip $skip\n" >> $logfile
   fi
+  ENDTIME=`date +%s`
+  printf "time $(($ENDTIME - $STARTTIME))\n" >> $logfile
   if $cleanup; then
     echo "Cleaning up"
     /bin/rm -f $rmfiles

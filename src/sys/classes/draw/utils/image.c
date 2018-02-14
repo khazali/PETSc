@@ -348,7 +348,7 @@ PetscErrorCode PetscDrawImageCheckFormat(const char *ext[])
     if (match && PetscDrawImageSaveTable[k].SaveImage) PetscFunctionReturn(0);
   }
   SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Image extension %s not supported, use .ppm",*ext);
-  PetscFunctionReturn(PETSC_ERR_SUP);
+  PetscFunctionReturn(0);
 }
 
 PetscErrorCode PetscDrawImageSave(const char basename[],const char ext[],unsigned char palette[][3],unsigned int w,unsigned int h,const unsigned char pixels[])
@@ -374,7 +374,7 @@ PetscErrorCode PetscDrawImageSave(const char basename[],const char ext[],unsigne
     }
   }
   SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Image extension %s not supported, use .ppm",ext);
-  PetscFunctionReturn(PETSC_ERR_SUP);
+  PetscFunctionReturn(0);
 }
 
 PetscErrorCode PetscDrawMovieCheckFormat(const char *ext[])
@@ -416,7 +416,7 @@ PetscErrorCode PetscDrawMovieSave(const char basename[],PetscInt count,const cha
   /* use FFmpeg to generate a movie */
 #if defined(PETSC_HAVE_POPEN)
   {
-    FILE *fd; int err;
+    FILE *fd;
     char options[64] = "-loglevel error -y", extraopts[32] = "", framerate[24] = "";
     char command[sizeof(options)+sizeof(extraopts)+sizeof(framerate)+PETSC_MAX_PATH_LEN*2];
     if (fps > 0) {ierr = PetscSNPrintf(framerate,sizeof(framerate),"-r %d",(int)fps);CHKERRQ(ierr);}
@@ -430,7 +430,7 @@ PetscErrorCode PetscDrawMovieSave(const char basename[],PetscInt count,const cha
     if (extraopts[0]) {ierr = PetscStrcat(options,extraopts);CHKERRQ(ierr);}
     ierr = PetscSNPrintf(command,sizeof(command),"ffmpeg %s -i \"%s\" %s \"%s\"",options,input,framerate,output);CHKERRQ(ierr);
     ierr = PetscPOpen(PETSC_COMM_SELF,NULL,command,"r",&fd);CHKERRQ(ierr);
-    ierr = PetscPClose(PETSC_COMM_SELF,fd,&err);CHKERRQ(ierr);
+    ierr = PetscPClose(PETSC_COMM_SELF,fd);CHKERRQ(ierr);
   }
 #endif
   PetscFunctionReturn(0);

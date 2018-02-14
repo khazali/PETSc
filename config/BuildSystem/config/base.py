@@ -406,13 +406,15 @@ class Configure(script.Script):
           codeEnd   = ';\n  return 0;\n}\n'
         codeStr += codeBegin+body+codeEnd
     elif language == 'FC':
-      if not includes is None:
+      if not includes is None and body is None:
         codeStr = includes
       else:
         codeStr = ''
       if not body is None:
         if codeBegin is None:
           codeBegin = '      program main\n'
+          if not includes is None:
+            codeBegin = codeBegin+includes
         if codeEnd is None:
           codeEnd   = '\n      end\n'
         codeStr += codeBegin+body+codeEnd
@@ -581,8 +583,8 @@ class Configure(script.Script):
     '''Return the name of the argument which holds the linker flags for the current language'''
     return self.getLinkerFlagsName(self.language[-1])
 
-  def outputRun(self, includes, body, cleanup = 1, defaultOutputArg = '', executor = None):
-    if not self.checkLink(includes, body, cleanup = 0): return ('', 1)
+  def outputRun(self, includes, body, cleanup = 1, defaultOutputArg = '', executor = None,linkLanguage=None):
+    if not self.checkLink(includes, body, cleanup = 0, linkLanguage=linkLanguage): return ('', 1)
     self.logWrite('Testing executable '+self.linkerObj+' to see if it can be run\n')
     if not os.path.isfile(self.linkerObj):
       self.logWrite('ERROR executable '+self.linkerObj+' does not exist\n')
@@ -624,8 +626,8 @@ class Configure(script.Script):
         self.logWrite('ERROR while removing executable file: '+str(e)+'\n')
     return (output+error, status)
 
-  def checkRun(self, includes = '', body = '', cleanup = 1, defaultArg = '', executor = None):
-    (output, returnCode) = self.outputRun(includes, body, cleanup, defaultArg, executor)
+  def checkRun(self, includes = '', body = '', cleanup = 1, defaultArg = '', executor = None, linkLanguage=None):
+    (output, returnCode) = self.outputRun(includes, body, cleanup, defaultArg, executor,linkLanguage=linkLanguage)
     return not returnCode
 
   def splitLibs(self,libArgs):

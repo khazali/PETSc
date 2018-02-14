@@ -237,6 +237,8 @@ PetscErrorCode PetscQuadratureSetNumComponents(PetscQuadrature q, PetscInt Nc)
 
   Level: intermediate
 
+  Fortran Notes: From Fortran you must call PetscQuadratureRestoreData() when you are done with the data
+
 .keywords: PetscQuadrature, quadrature
 .seealso: PetscQuadratureCreate(), PetscQuadratureSetData()
 @*/
@@ -279,6 +281,8 @@ PetscErrorCode PetscQuadratureGetData(PetscQuadrature q, PetscInt *dim, PetscInt
 . npoints - The number of quadrature points
 . points - The coordinates of each quadrature point
 - weights - The weight of each quadrature point
+
+  Note: This routine owns the references to points and weights, so they msut be allocated using PetscMalloc() and the user should not free them.
 
   Level: intermediate
 
@@ -360,6 +364,8 @@ PetscErrorCode PetscQuadratureView(PetscQuadrature quad, PetscViewer viewer)
 . dim - The dimension
 
   Note: Together v0 and jac define an affine mapping from the original reference element to each subelement
+
+ Not available from Fortran
 
   Level: intermediate
 
@@ -734,7 +740,7 @@ static PetscErrorCode PetscDTGaussJacobiQuadrature1D_Internal(PetscInt npoints, 
   PetscFunctionReturn(0);
 }
 
-/*@C
+/*@
   PetscDTGaussJacobiQuadrature - create Gauss-Jacobi quadrature for a simplex
 
   Not Collective
@@ -818,7 +824,7 @@ PetscErrorCode PetscDTGaussJacobiQuadrature(PetscInt dim, PetscInt Nc, PetscInt 
   PetscFunctionReturn(0);
 }
 
-/*@C
+/*@
   PetscDTTanhSinhTensorQuadrature - create tanh-sinh quadrature for a tensor product cell
 
   Not Collective
@@ -1101,7 +1107,7 @@ static PetscErrorCode PetscDTPseudoInverseQR(PetscInt m,PetscInt mstride,PetscIn
   Q = Ainv;
   ierr = PetscMemcpy(Q,A,mstride*n*sizeof(PetscScalar));CHKERRQ(ierr);
   K = N;                        /* full rank */
-  PetscStackCallBLAS("LAPACKungqr",LAPACKungqr_(&M,&N,&K,Q,&lda,tau,work,&ldwork,&info));
+  PetscStackCallBLAS("LAPACKorgqr",LAPACKorgqr_(&M,&N,&K,Q,&lda,tau,work,&ldwork,&info));
   if (info) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"xORGQR/xUNGQR error");
 
   /* Compute A^{-T} = (R^{-1} Q^T)^T = Q R^{-T} */

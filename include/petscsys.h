@@ -124,9 +124,6 @@ void assert_never_put_petsc_headers_inside_an_extern_c(int); void assert_never_p
 #if !defined(OMPI_SKIP_MPICXX)
 #  define OMPI_SKIP_MPICXX 1
 #endif
-#if !defined(OMPI_WANT_MPI_INTERFACE_WARNING)
-#  define OMPI_WANT_MPI_INTERFACE_WARNING 0
-#endif
 #include <mpi.h>
 
 /*
@@ -1780,6 +1777,8 @@ PETSC_EXTERN PetscErrorCode PetscSequentialPhaseBegin(MPI_Comm,PetscMPIInt);
 PETSC_EXTERN PetscErrorCode PetscSequentialPhaseEnd(MPI_Comm,PetscMPIInt);
 PETSC_EXTERN PetscErrorCode PetscBarrier(PetscObject);
 PETSC_EXTERN PetscErrorCode PetscMPIDump(FILE*);
+PETSC_EXTERN PetscErrorCode PetscGlobalMinMaxInt(MPI_Comm,PetscInt[],PetscInt[]);
+PETSC_EXTERN PetscErrorCode PetscGlobalMinMaxReal(MPI_Comm,PetscReal[],PetscReal[]);
 
 /*
     PetscNot - negates a logical type value and returns result as a PetscBool
@@ -1838,7 +1837,7 @@ PETSC_EXTERN PetscErrorCode PetscHelpPrintfDefault(MPI_Comm,const char [],...);
 
 #if defined(PETSC_HAVE_POPEN)
 PETSC_EXTERN PetscErrorCode PetscPOpen(MPI_Comm,const char[],const char[],const char[],FILE **);
-PETSC_EXTERN PetscErrorCode PetscPClose(MPI_Comm,FILE*,int*);
+PETSC_EXTERN PetscErrorCode PetscPClose(MPI_Comm,FILE*);
 PETSC_EXTERN PetscErrorCode PetscPOpenSetMachine(const char[]);
 #endif
 
@@ -1914,12 +1913,14 @@ PETSC_EXTERN PetscErrorCode PetscScalarView(PetscInt,const PetscScalar[],PetscVi
    Note:
    This routine is analogous to memcpy().
 
+   Not available from Fortran
+
    Developer Note: this is inlined for fastest performance
 
   Concepts: memory^copying
   Concepts: copying^memory
 
-.seealso: PetscMemmove()
+.seealso: PetscMemmove(), PetscStrallocpy()
 
 @*/
 PETSC_STATIC_INLINE PetscErrorCode PetscMemcpy(void *a,const void *b,size_t n)
@@ -1978,6 +1979,8 @@ PETSC_STATIC_INLINE PetscErrorCode PetscMemcpy(void *a,const void *b,size_t n)
    Compile Option:
    PETSC_PREFER_BZERO - on certain machines (the IBM RS6000) the bzero() routine happens
   to be faster than the memset() routine. This flag causes the bzero() routine to be used.
+
+   Not available from Fortran
 
    Developer Note: this is inlined for fastest performance
 
@@ -2262,6 +2265,8 @@ PETSC_EXTERN PetscErrorCode MPIU_File_read_all(MPI_File,void*,PetscMPIInt,MPI_Da
 
    Level: advanced
 
+   Not available from Fortran
+
 .seealso: PetscBLASInt, PetscMPIInt, PetscInt, PetscMPIIntCast()
 @*/
 PETSC_STATIC_INLINE PetscErrorCode PetscBLASIntCast(PetscInt a,PetscBLASInt *b)
@@ -2287,6 +2292,8 @@ PETSC_STATIC_INLINE PetscErrorCode PetscBLASIntCast(PetscInt a,PetscBLASInt *b)
 .     b - the resulting PetscMPIInt value
 
    Level: advanced
+
+   Not available from Fortran
 
 .seealso: PetscBLASInt, PetscMPIInt, PetscInt, PetscBLASIntCast()
 @*/
@@ -2324,6 +2331,8 @@ PETSC_STATIC_INLINE PetscErrorCode PetscMPIIntCast(PetscInt a,PetscMPIInt *b)
 
    This is used where we compute approximate sizes for workspace and need to insure the workspace is index-able.
 
+   Not available from Fortran
+
    Level: advanced
 
 .seealso: PetscBLASInt, PetscMPIInt, PetscInt, PetscBLASIntCast(), PetscInt64Mult()
@@ -2353,6 +2362,8 @@ PETSC_STATIC_INLINE PetscInt PetscRealIntMultTruncate(PetscReal a,PetscInt b)
    Use PetscInt64Mult() to compute the product of two PetscInt as a PetscInt64
    Use PetscRealIntMultTruncate() to compute the product of a PetscReal and a PetscInt and truncate to fit a PetscInt
    Use PetscIntMultError() to compute the product of two PetscInt if you wish to generate an error if the result will not fit in a PetscInt
+
+   Not available from Fortran
 
    Developers Note: We currently assume that PetscInt addition can never overflow, this is obviously wrong but requires many more checks.
 
@@ -2390,6 +2401,8 @@ PETSC_STATIC_INLINE PetscInt PetscIntMultTruncate(PetscInt a,PetscInt b)
 
    This is used where we compute approximate sizes for workspace and need to insure the workspace is index-able.
 
+   Not available from Fortran
+
    Level: advanced
 
 .seealso: PetscBLASInt, PetscMPIInt, PetscInt, PetscBLASIntCast(), PetscInt64Mult()
@@ -2418,6 +2431,8 @@ PETSC_STATIC_INLINE PetscInt PetscIntSumTruncate(PetscInt a,PetscInt b)
 
    Use PetscInt64Mult() to compute the product of two 32 bit PetscInt and store in a PetscInt64
    Use PetscIntMultTruncate() to compute the product of two PetscInt and truncate it to fit in a PetscInt
+
+   Not available from Fortran
 
    Developers Note: We currently assume that PetscInt addition does not overflow, this is obviously wrong but requires many more checks.
 
@@ -2453,6 +2468,8 @@ PETSC_STATIC_INLINE PetscErrorCode PetscIntMultError(PetscInt a,PetscInt b,Petsc
 
    Use PetscInt64Mult() to compute the product of two 32 bit PetscInt and store in a PetscInt64
    Use PetscIntMultTruncate() to compute the product of two PetscInt and truncate it to fit in a PetscInt
+
+   Not available from Fortran
 
    Level: advanced
 
@@ -2882,6 +2899,12 @@ PETSC_EXTERN PetscErrorCode PetscHeapUnstash(PetscHeap);
 PETSC_EXTERN PetscErrorCode PetscHeapDestroy(PetscHeap*);
 PETSC_EXTERN PetscErrorCode PetscHeapView(PetscHeap,PetscViewer);
 
+PETSC_EXTERN PetscErrorCode PetscProcessPlacementView(PetscViewer);
+typedef struct _n_PetscCommShared* PetscCommShared;
+PETSC_EXTERN PetscErrorCode PetscCommSharedGet(MPI_Comm,PetscCommShared*);
+PETSC_EXTERN PetscErrorCode PetscCommSharedGlobalToLocal(PetscCommShared,PetscMPIInt,PetscMPIInt*);
+PETSC_EXTERN PetscErrorCode PetscCommSharedGetComm(PetscCommShared,MPI_Comm*);
+
 /*S
    PetscSegBuffer - a segmented extendable buffer
 
@@ -2898,6 +2921,7 @@ PETSC_EXTERN PetscErrorCode PetscSegBufferExtractTo(PetscSegBuffer,void*);
 PETSC_EXTERN PetscErrorCode PetscSegBufferExtractInPlace(PetscSegBuffer,void*);
 PETSC_EXTERN PetscErrorCode PetscSegBufferGetSize(PetscSegBuffer,size_t*);
 PETSC_EXTERN PetscErrorCode PetscSegBufferUnuse(PetscSegBuffer,size_t);
+
 
 /* Type-safe wrapper to encourage use of PETSC_RESTRICT. Does not use PetscFunctionBegin because the error handling
  * prevents the compiler from completely erasing the stub. This is called in inner loops so it has to be as fast as
@@ -2922,6 +2946,8 @@ PETSC_EXTERN PetscSegBuffer PetscCitationsList;
 -      set - a boolean variable initially set to PETSC_FALSE; this is used to insure only a single registration of the citation
 
    Level: intermediate
+
+   Not available from Fortran
 
      Options Database:
 .     -citations [filename]   - print out the bibtex entries for the given computation
@@ -2948,6 +2974,8 @@ PETSC_EXTERN PetscErrorCode PetscGoogleDriveUpload(MPI_Comm,const char[],const c
 
 PETSC_EXTERN PetscErrorCode PetscBoxAuthorize(MPI_Comm,char[],char[],size_t);
 PETSC_EXTERN PetscErrorCode PetscBoxRefresh(MPI_Comm,const char[],char[],char[],size_t);
+
+PETSC_EXTERN PetscErrorCode PetscGlobusGetTransfers(MPI_Comm,const char[],char[],size_t);
 
 PETSC_EXTERN PetscErrorCode PetscTextBelt(MPI_Comm,const char[],const char[],PetscBool*);
 PETSC_EXTERN PetscErrorCode PetscTellMyCell(MPI_Comm,const char[],const char[],PetscBool*);
@@ -2994,5 +3022,10 @@ M*/
 #else
 #define MPIU_Allreduce(a,b,c,d,e,fcomm) MPI_Allreduce(a,b,c,d,e,fcomm)
 #endif
+
+/*
+    Returned from PETSc functions that are called from MPI, such as related to attributes
+*/
+PETSC_EXTERN PetscMPIInt PETSC_MPI_ERROR_CLASS,PETSC_MPI_ERROR_CODE;
 
 #endif

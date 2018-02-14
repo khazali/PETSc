@@ -133,8 +133,10 @@ class Framework(config.base.Configure, script.LanguageProcessor):
     dirs     = []
     nextDirs = variable.split(os.sep)
     if os.path.isdir(base):
-      files = os.listdir(base)
-      files.sort()
+      try:
+        files = os.listdir(base)
+        files.sort()
+      except: pass
       for dir in files:
         if re.match(nextDirs[0], dir):
           if nextDirs[1:]:
@@ -176,19 +178,6 @@ class Framework(config.base.Configure, script.LanguageProcessor):
     help        = config.base.Configure.setupHelp(self, help)
     searchdirs  = []
     packagedirs = []
-    home = os.getenv('HOME')
-    if home and os.path.isdir(home):
-      packagedirs.append(home)
-      searchdirs.append(home)
-    list = self.listDirs('/opt/ibmcmp/vacpp/','[0-9.]*/bin')
-    if list: searchdirs.append(list[-1])
-    list = self.listDirs('/opt/ibmcmp/xlf/','[0-9.]*/bin')
-    if list: searchdirs.append(list[-1])
-    list = self.listDirs('/opt/','intel_cc_[0-9.]*/bin')
-    if list: searchdirs.append(list[-1])
-    list = self.listDirs('/opt/','intel_fc_[0-9.]*/bin')
-    if list: searchdirs.append(list[-1])
-
 
     help.addArgument('Framework', '-configModules',       nargs.Arg(None, None, 'A list of Python modules with a Configure class'))
     help.addArgument('Framework', '-ignoreCompileOutput=<bool>', nargs.ArgBool(None, 1, 'Ignore compiler output'))
@@ -425,6 +414,8 @@ class Framework(config.base.Configure, script.LanguageProcessor):
 
   def filterCompileOutput(self, output):
     if output.find('warning:  attribute "deprecated" is unknown, ignored') >= 0: return output
+    if output.find('PGC-W-0129-Floating point overflow') >= 0: return output
+    if output.find('warning #264: floating-point value does not fit in required floating-point type') >= 0: return output
     if output.find('warning: ISO C90 does not support') >= 0: return output
     if output.find('warning: ISO C does not support') >= 0: return output
     if output.find('Warning: attribute visibility is unsupported and will be skipped') >= 0: return output

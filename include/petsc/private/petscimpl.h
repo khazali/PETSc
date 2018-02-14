@@ -130,6 +130,7 @@ typedef struct _p_PetscObject {
   PetscBool            amspublishblock; /* if PETSC_TRUE and publishing objects then will block at PetscObjectSAWsBlock() */
 #endif
   PetscOptions         options;         /* options database used, NULL means default */
+  PetscBool            donotPetscObjectPrintClassNamePrefixType;
 } _p_PetscObject;
 
 #define PETSCHEADER(ObjectOps) \
@@ -775,6 +776,7 @@ PETSC_EXTERN PetscMPIInt Petsc_Counter_keyval;
 PETSC_EXTERN PetscMPIInt Petsc_InnerComm_keyval;
 PETSC_EXTERN PetscMPIInt Petsc_OuterComm_keyval;
 PETSC_EXTERN PetscMPIInt Petsc_Seq_keyval;
+PETSC_EXTERN PetscMPIInt Petsc_Shared_keyval;
 
 /*
   PETSc communicators have this attribute, see

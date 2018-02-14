@@ -218,6 +218,12 @@ PETSC_INTERN PetscErrorCode VecView_Plex_HDF5_Native_Internal(Vec, PetscViewer);
 PETSC_INTERN PetscErrorCode VecView_Plex_Local_HDF5_Internal(Vec, PetscViewer);
 PETSC_INTERN PetscErrorCode VecLoad_Plex_HDF5_Internal(Vec, PetscViewer);
 PETSC_INTERN PetscErrorCode VecLoad_Plex_HDF5_Native_Internal(Vec, PetscViewer);
+/* TODO Make these INTERN */
+PETSC_EXTERN PetscErrorCode DMPlexView_ExodusII_Internal(DM, int, PetscInt);
+PETSC_EXTERN PetscErrorCode VecViewPlex_ExodusII_Nodal_Internal(Vec, int, int);
+PETSC_EXTERN PetscErrorCode VecLoadPlex_ExodusII_Nodal_Internal(Vec, int, int);
+PETSC_EXTERN PetscErrorCode VecViewPlex_ExodusII_Zonal_Internal(Vec, int, int);
+PETSC_EXTERN PetscErrorCode VecLoadPlex_ExodusII_Zonal_Internal(Vec, int, int);
 PETSC_INTERN PetscErrorCode DMPlexVTKGetCellType_Internal(DM,PetscInt,PetscInt,PetscInt*);
 PETSC_INTERN PetscErrorCode DMPlexGetAdjacency_Internal(DM,PetscInt,PetscBool,PetscBool,PetscBool,PetscInt*,PetscInt*[]);
 PETSC_INTERN PetscErrorCode DMPlexGetFaces_Internal(DM,PetscInt,PetscInt,PetscInt*,PetscInt*,const PetscInt*[]);
@@ -243,18 +249,6 @@ PETSC_INTERN PetscErrorCode DMPlexCreateCellNumbering_Internal(DM, PetscBool, IS
 PETSC_INTERN PetscErrorCode DMPlexCreateVertexNumbering_Internal(DM, PetscBool, IS *);
 PETSC_INTERN PetscErrorCode DMPlexRefine_Internal(DM, DMLabel, DM *);
 PETSC_INTERN PetscErrorCode DMPlexCoarsen_Internal(DM, DMLabel, DM *);
-#if defined(PETSC_HAVE_TRIANGLE)
-PETSC_INTERN PetscErrorCode DMPlexGenerate_Triangle(DM, PetscBool, DM *);
-PETSC_INTERN PetscErrorCode DMPlexRefine_Triangle(DM, double[], DM *);
-#endif
-#if defined(PETSC_HAVE_TETGEN)
-PETSC_INTERN PetscErrorCode DMPlexGenerate_Tetgen(DM, PetscBool, DM *);
-PETSC_INTERN PetscErrorCode DMPlexRefine_Tetgen(DM, double[], DM *);
-#endif
-#if defined(PETSC_HAVE_CTETGEN)
-PETSC_INTERN PetscErrorCode DMPlexGenerate_CTetgen(DM, PetscBool, DM *);
-PETSC_INTERN PetscErrorCode DMPlexRefine_CTetgen(DM, PetscReal[], DM *);
-#endif
 
 /* invert dihedral symmetry: return a^-1,
  * using the representation described in

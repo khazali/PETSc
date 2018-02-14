@@ -3,6 +3,15 @@
 % LiteralHTML:
 % LiteralHTML:  <a name="nano"><H3><center>Nano-simulations</center></H3>
 % LiteralHTML:
+@techreport{pdeconstrainedspectraladjoints,
+  title       = {PDE constrained optimization, error estimation and control with spectral elements using PETSc and TAO},
+  author      = {Oana Marin and Emil Constantinescu and Barry Smith},
+  type        = {Preprint},
+  number      = {ANL/MCS-P9031-1117},
+  institution = {ANL},
+  month       = {November},
+  year        = {2017}
+}
 @INPROCEEDINGS{asc2013,
   author = "S. Abhyankar and B. F. Smith and E. Constantinescu",
   title  = "Evaluation of overlapping restricted additive Schwarz preconditioning for parallel solution of very large power flow problems",
@@ -1011,6 +1020,18 @@ year = 2003,
 % LiteralHTML:
 % LiteralHTML:  <a name="fusion"><H3><center>Fusion</center></H3>
 % LiteralHTML:
+@article{AdamsHirvijokiKnepleyBrownIsaacMills2017,
+  title    = {Landau Collision Integral Solver with Adaptive Mesh Refinement on Emerging Architectures},
+  author   = {Mark F. Adams and Eero Hirvijoki and Matthew G. Knepley and Jed Brown and Tobin Isaac and Richard Mills},
+  journals = {SIAM Journal on Scientific Computing},
+  volume   = {39},
+  number   = {6},
+  pages    = {C452--C465},
+  url      = {http://epubs.siam.org/doi/abs/10.1137/17M1118828},
+  eprint   = {1702.08880},
+  doi      = {10.1137/17M1118828},
+  year     = {2017}
+}
 @article{lsmh2014,
   author  = "M. Landreman and H. M. Smith and A. Mollen and P. Helander",
   title   = "Comparison of particle trajectories and collision operators for collisional transport in nonaxisymmetric plasmas",
@@ -1192,6 +1213,13 @@ year    = 2014
 % LiteralHTML:
 % LiteralHTML:  <a name="geosciences"><H3><center>Geosciences</center></H3>
 % LiteralHTML:
+@article{AfanasievBoehmDrielKrischerRietmannMayKnepleyFichtner2018,
+  title   = {Salvus: A high-performance package for full waveform modelling and inversion from laboratory to global scales},
+  author  = {Michael Afanasiev and Christian Boehm and Martin van Driel and Lion Krischer and Max Rietmann and Dave A. May and Matthew G. Knepley and Andreas Fichtner},
+  journal = {Geophysical Journal International},
+  note    = {Submitted},
+  year    = {2018}
+}
 @article {YoungOppenheimDimant2017,
   author  = {Matthew A. Young and Meers M. Oppenheim and Yakov S. Dimant},
   title   = {Hybrid simulations of coupled Farley-Buneman/gradient drift instabilities in the equatorial E region ionosphere},
@@ -5651,9 +5679,9 @@ url    = "http://lyre.mit.edu/\~{ }powell/rheoplast.html"
   editor    = "E. Arge and A. M. Bruaset and H. P. Langtangen",
   publisher = "Birkhauser Press",
   pages     = "163--202",
-  year      = 1997,
-  url       = "ftp://info.mcs.anl.gov/pub/tech_reports/reports/P634.ps.Z"
+  year      = 1997
 }
+%  url       = "ftp://info.mcs.anl.gov/pub/tech_reports/reports/P634.ps.Z"
 @TechReport{petsc-user-ref,
   author = {Satish Balay and Shrirang Abhyankar and Mark~F. Adams and Jed Brown and Peter Brune
             and Kris Buschelman and Lisandro Dalcin and Victor Eijkhout and William~D. Gropp
@@ -5823,6 +5851,14 @@ url    = "http://lyre.mit.edu/\~{ }powell/rheoplast.html"
 % LiteralHTML:
 % LiteralHTML:  <a name="algorithm"><H3><center>Algorithm design and analysis</center></H3>
 % LiteralHTML:
+@article{KlotzBardhanKnepley2018,
+  title   = {Efficient Evaluation of Ellipsoidal Harmonics for Potential Modeling},
+  author  = {Thomas S. Klotz and Jaydeep Bardhan and Matthew G. Knepley},
+  journal = {Communications in Applied Mathematics and Computational Science},
+  note    = {In review},
+  url     = {https://arxiv.org/abs/1708.06028},
+  year    = {2018}
+}
 @misc{Brown2016,
   title  = {Threading Tradeoffs in Domain Decomposition},
   author = {Jed Brown},
@@ -5836,7 +5872,6 @@ url    = "http://lyre.mit.edu/\~{ }powell/rheoplast.html"
   journal = {Concurency: Practice and Experience},
   eprint  = {1705.03625},
   doi     = {10.1002/cpe.4401},
-  note    = {Accepted},
   year    = {2017}
 }
 @inproceedings{BarralKnepleyLangePiggottGorman2016,
@@ -5846,6 +5881,7 @@ url    = "http://lyre.mit.edu/\~{ }powell/rheoplast.html"
   editor    = {Steve Owen and Hang Si},
   month     = {September},
   address   = {Washington, DC},
+  pages     = {1--5},
   url       = {http://imr.sandia.gov/papers/imr25/2026_imr25RN_Barral.pdf},
   year      = {2016}
 }
@@ -6984,8 +7020,9 @@ url    = "http://lyre.mit.edu/\~{ }powell/rheoplast.html"
 @article{KnepleyBrownMcInnesSmithRuppAdams2015,
   title  = {Exascale Computing without Threads},
   author = {Matthew G. Knepley and Jed Brown and Lois Curfman McInnes and Barry Smith and Karl Rupp and Mark Adams},
-  url    = {http://www.orau.gov/hpcor2015/whitepapers/Exascale_Computing_without_Threads-Barry_Smith.pdf},
+  url    = {https://figshare.com/articles/Exascale_Computing_without_Threads-Barry_Smith_pdf/5824950},
   note   = {Whitepaper for the DOE High Performance Computing Operational Review (HPCOR) on Scientific Software Architecture for Portability and Performance},
+  doi    = {10.6084/m9.figshare.5824950.v1},
   year   = {2015}
 }
 @article{KnepleyBrownMcInnesSmithRuppAdams2015b,

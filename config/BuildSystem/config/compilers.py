@@ -39,6 +39,7 @@ class Configure(config.base.Configure):
     help.addArgument('Compilers', '-with-cxxlib-autodetect=<bool>',         nargs.ArgBool(None, 1, 'Autodetect C++ compiler libraries'))
     help.addArgument('Compilers', '-with-dependencies=<bool>',              nargs.ArgBool(None, 1, 'Compile with -MMD or equivalent flag if possible'))
     help.addArgument('Compilers', '-with-cxx-dialect=<dialect>',            nargs.Arg(None, '', 'Dialect under which to compile C++ sources (e.g., C++11)'))
+    help.addArgument('Compilers', '-with-fortran-type-initialize=<bool>',   nargs.ArgBool(None, 1, 'Initialize PETSc objects in Fortran'))
 
     return
 
@@ -169,8 +170,71 @@ class Configure(config.base.Configure):
     self.popLanguage()
     return
 
+  def checkCrossLink(self, func1, func2, language1 = 'C', language2='FC',extraObjs = []):
+    '''Compiles C/C++ and Fortran code and tries to link them together; the C and Fortran code are independent so no name mangling is needed
+       language1 is used to compile the first code, language2 compiles the second and links them togetether'''
+    obj1 = os.path.join(self.tmpDir, 'confc.o')
+    found = 0
+    # Compile the C test object
+    self.pushLanguage(language1)
+    if not self.checkCompile(func1, None, cleanup = 0):
+      self.logPrint('Cannot compile C function: '+func1, 3, 'compilers')
+      self.popLanguage()
+      return found
+    if not os.path.isfile(self.compilerObj):
+      self.logPrint('Cannot locate object file: '+os.path.abspath(self.compilerObj), 3, 'compilers')
+      self.popLanguage()
+      return found
+    os.rename(self.compilerObj, obj1)
+    self.popLanguage()
+    # Link the test object against a Fortran driver
+    self.pushLanguage(language2)
+    oldLIBS = self.setCompilers.LIBS
+    self.setCompilers.LIBS = obj1+' '+self.setCompilers.LIBS
+    if extraObjs:
+      self.setCompilers.LIBS = ' '.join(extraObjs)+' '+' '.join([self.libraries.getLibArgument(lib) for lib in self.clibs])+' '+self.setCompilers.LIBS
+    found = self.checkLink("", func2,codeBegin = " ", codeEnd = " ")
+    self.setCompilers.LIBS = oldLIBS
+    self.popLanguage()
+    if os.path.isfile(obj1):
+      os.remove(obj1)
+    return found
+
   def checkCLibraries(self):
-    '''Determines the libraries needed to link with C'''
+    '''Determines the libraries needed to link with C compiled code'''
+    skipclibraries = 1
+    if hasattr(self.setCompilers, 'FC'):
+      self.setCompilers.saveLog()
+      try:
+        if self.checkCrossLink('#include <stdio.h>\nvoid asub(void)\n{printf("testing");}\n',"     program main\n      print*,'testing'\n      stop\n      end\n",language1='C',language2='FC'):
+          self.logWrite(self.setCompilers.restoreLog())
+          self.logPrint('C libraries are not needed when using Fortran linker')
+        else:
+          self.logWrite(self.setCompilers.restoreLog())
+          self.logPrint('C code cannot directly be linked with Fortran linker, therefor will determine needed C libraries')
+          skipclibraries = 0
+      except RuntimeError, e:
+        self.logWrite(self.setCompilers.restoreLog())
+        self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
+        self.logPrint('C code cannot directly be linked with Fortran linker, therefor will determine needed C libraries')
+        skipclibraries = 0
+    if hasattr(self.setCompilers, 'CXX'):
+      self.setCompilers.saveLog()
+      try:
+        if self.checkCrossLink('#include <stdio.h>\nvoid asub(void)\n{printf("testing");}\n',"int main(int argc,char **args)\n{return 0;}\n",language1='C',language2='C++'):
+          self.logWrite(self.setCompilers.restoreLog())
+          self.logPrint('C libraries are not needed when using C++ linker')
+        else:
+          self.logWrite(self.setCompilers.restoreLog())
+          self.logPrint('C code cannot directly be linked with C++ linker, therefor will determine needed C libraries')
+          skipclibraries = 0
+      except RuntimeError, e:
+        self.logWrite(self.setCompilers.restoreLog())
+        self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
+        self.logPrint('C code cannot directly be linked with C++ linker, therefor will determine needed C libraries')
+        skipclibraries = 0
+    if skipclibraries == 1: return
+
     oldFlags = self.setCompilers.LDFLAGS
     self.setCompilers.LDFLAGS += ' -v'
     self.pushLanguage('C')
@@ -435,6 +499,52 @@ class Configure(config.base.Configure):
 
   def checkCxxLibraries(self):
     '''Determines the libraries needed to link with C++'''
+    skipcxxlibraries = 1
+    self.setCompilers.saveLog()
+    body   = '''#include <iostream>\n#include <vector>\nvoid asub(void)\n{std::vector<int> v;\ntry  { throw 20;  }  catch (int e)  { std::cout << "An exception occurred";  }}'''
+    try:
+      if self.checkCrossLink(body,"int main(int argc,char **args)\n{return 0;}\n",language1='C++',language2='C'):
+        self.logWrite(self.setCompilers.restoreLog())
+        self.logPrint('C++ libraries are not needed when using C linker')
+      else:
+        self.logWrite(self.setCompilers.restoreLog())
+        oldLibs = self.setCompilers.LIBS
+        self.setCompilers.LIBS = '-lstdc++ '+self.setCompilers.LIBS
+        if self.checkCrossLink(body,"int main(int argc,char **args)\n{return 0;}\n",language1='C++',language2='C'):
+          self.logPrint('C++ requires -lstdc++ to link with C compiler', 3, 'compilers')
+        else:
+          self.setCompilers.LIBS = oldLibs
+          self.logPrint('C++ code cannot directly be linked with C linker, therefor will determine needed C++ libraries')
+          skipcxxlibraries = 0
+    except RuntimeError, e:
+      self.logWrite(self.setCompilers.restoreLog())
+      self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
+      self.logPrint('C++ code cannot directly be linked with C linker, therefor will determine needed C++ libraries')
+      skipcxxlibraries = 0
+    if hasattr(self.setCompilers, 'FC'):
+      self.setCompilers.saveLog()
+      try:
+        if self.checkCrossLink(body,"     program main\n      print*,'testing'\n      stop\n      end\n",language1='C++',language2='FC'):
+          self.logWrite(self.setCompilers.restoreLog())
+          self.logPrint('C++ libraries are not needed when using FC linker')
+        else:
+          self.logWrite(self.setCompilers.restoreLog())
+          oldLibs = self.setCompilers.LIBS
+          self.setCompilers.LIBS = '-lstdc++ '+self.setCompilers.LIBS
+          if self.checkCrossLink(body,"     program main\n      print*,'testing'\n      stop\n      end\n",language1='C++',language2='FC'):
+            self.logPrint('C++ requires -lstdc++ to link with FC compiler', 3, 'compilers')
+          else:
+            self.setCompilers.LIBS = oldLibs
+            self.logPrint('C++ code cannot directly be linked with FC linker, therefor will determine needed C++ libraries')
+            skipcxxlibraries = 0
+      except RuntimeError, e:
+        self.logWrite(self.setCompilers.restoreLog())
+        self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
+        self.logPrint('C++ code cannot directly be linked with FC linker, therefor will determine needed C++ libraries')
+        skipcxxlibraries = 0
+
+    if skipcxxlibraries: return
+
     oldFlags = self.setCompilers.LDFLAGS
     self.setCompilers.LDFLAGS += ' -v'
     self.pushLanguage('Cxx')
@@ -775,6 +885,46 @@ class Configure(config.base.Configure):
     for writing this extremely useful macro.'''
     if not hasattr(self.setCompilers, 'CC') or not hasattr(self.setCompilers, 'FC'):
       return
+    skipfortranlibraries = 1
+    self.setCompilers.saveLog()
+    cbody = "int main(int argc,char **args)\n{return 0;}\n";
+    self.pushLanguage('FC')
+    if self.checkLink(includes='#include <mpif.h>',body='      call MPI_Allreduce()\n'):
+      fbody = "subroutine asub()\n      print*,'testing'\n      call MPI_Allreduce()\n      return\n      end\n"
+    else:
+      fbody = "subroutine asub()\n      print*,'testing'\n      return\n      end\n"
+    self.popLanguage()
+    try:
+      if self.checkCrossLink(fbody,cbody,language1='FC',language2='C'):
+        self.logWrite(self.setCompilers.restoreLog())
+        self.logPrint('Fortran libraries are not needed when using C linker')
+      else:
+        self.logWrite(self.setCompilers.restoreLog())
+        self.logPrint('Fortran code cannot directly be linked with C linker, therefor will determine needed Fortran libraries')
+        skipfortranlibraries = 0
+    except RuntimeError, e:
+      self.logWrite(self.setCompilers.restoreLog())
+      self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
+      self.logPrint('Fortran code cannot directly be linked with C linker, therefor will determine needed Fortran libraries')
+      skipfortranlibraries = 0
+    if hasattr(self.setCompilers, 'CXX'):
+      self.setCompilers.saveLog()
+      try:
+        if self.checkCrossLink(fbody,cbody,language1='FC',language2='C++'):
+          self.logWrite(self.setCompilers.restoreLog())
+          self.logPrint('Fortran libraries are not needed when using C++ linker')
+        else:
+          self.logWrite(self.setCompilers.restoreLog())
+          self.logPrint('Fortran code cannot directly be linked with C++ linker, therefor will determine needed Fortran libraries')
+          skipfortranlibraries = 0
+      except RuntimeError, e:
+        self.logWrite(self.setCompilers.restoreLog())
+        self.logPrint('Error message from compiling {'+str(e)+'}', 4, 'compilers')
+        self.logPrint('Fortran code cannot directly be linked with CXX linker, therefor will determine needed Fortran libraries')
+        skipfortranlibraries = 0
+
+    if skipfortranlibraries == 1: return
+
     self.pushLanguage('FC')
     oldFlags = self.setCompilers.LDFLAGS
     if config.setCompilers.Configure.isNAG(self.getCompiler(), self.log):
@@ -1141,6 +1291,17 @@ class Configure(config.base.Configure):
       raise RuntimeError('Fortran could not successfully link C++ objects')
     return
 
+  def checkFortranTypeInitialize(self):
+    '''Determines if PETSc objects in Fortran are initialized by default (doesn't work with common blocks)'''
+    if self.argDB['with-fortran-type-initialize']:
+      self.addDefine('HAVE_FORTRAN_TYPE_INITIALIZE', 1)
+      self.addDefine('FORTRAN_TYPE_INITIALIZE', ' = 1')
+      self.logPrint('Initializing Fortran objects')
+    else:
+      self.addDefine('FORTRAN_TYPE_INITIALIZE', ' ')
+      self.logPrint('Not initializing Fortran objects')
+    return
+
   def checkFortranTypeStar(self):
     '''Determine whether the Fortran compiler handles type(*)'''
     self.pushLanguage('FC')
@@ -1471,15 +1632,19 @@ class Configure(config.base.Configure):
     """
     self.setCompilers.saveLog()
     self.setCompilers.pushLanguage('C')
+    restoredlog = 0
     flags_to_try = ['','-std=c99','-std=gnu99','-std=c11''-std=gnu11','-c99']
     for flag in flags_to_try:
       if self.setCompilers.checkCompilerFlag(flag, includes, body):
         self.c99flag = flag
+        self.logWrite(self.setCompilers.restoreLog())
+        restoredlog = 1
         self.framework.logPrint('Accepted C99 compile flag: '+flag)
         break
     if self.c99flag == '': self.addDefine('HAVE_C99', 1)
     self.setCompilers.popLanguage()
-    self.logWrite(self.setCompilers.restoreLog())
+    if not restoredlog:
+      self.logWrite(self.setCompilers.restoreLog())
     return
 
   def configure(self):
@@ -1524,6 +1689,7 @@ class Configure(config.base.Configure):
       self.executeTest(self.checkFortranModuleInclude)
       self.executeTest(self.checkFortranModuleOutput)
       self.executeTest(self.checkFortranTypeStar)
+      self.executeTest(self.checkFortranTypeInitialize)
     self.no_configure()
     return
 

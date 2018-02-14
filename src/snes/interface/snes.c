@@ -794,7 +794,7 @@ PetscErrorCode  SNESSetFromOptions(SNES snes)
   ierr = PetscOptionsInt("-snes_max_fail","Maximum nonlinear step failures","SNESSetMaxNonlinearStepFailures",snes->maxFailures,&snes->maxFailures,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-snes_max_linear_solve_fail","Maximum failures in linear solves allowed","SNESSetMaxLinearSolveFailures",snes->maxLinearSolveFailures,&snes->maxLinearSolveFailures,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-snes_error_if_not_converged","Generate error if solver does not converge","SNESSetErrorIfNotConverged",snes->errorifnotconverged,&snes->errorifnotconverged,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsBool("-snes_force_iteration","Force SNESSolve() to take at least one iteration","SNESForceIteration",snes->forceiteration,&snes->forceiteration,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-snes_force_iteration","Force SNESSolve() to take at least one iteration","SNESSetForceIteration",snes->forceiteration,&snes->forceiteration,NULL);CHKERRQ(ierr);
 
   ierr = PetscOptionsInt("-snes_lag_preconditioner","How often to rebuild preconditioner","SNESSetLagPreconditioner",snes->lagpreconditioner,&lag,&flg);CHKERRQ(ierr);
   if (flg) {
@@ -3214,6 +3214,28 @@ PetscErrorCode  SNESSetForceIteration(SNES snes,PetscBool force)
   PetscFunctionReturn(0);
 }
 
+/*@
+   SNESGetForceIteration - Whether or not to force SNESSolve() take at least one iteration regardless of the initial residual norm
+
+   Logically Collective on SNES
+
+   Input Parameters:
+.  snes - the SNES context
+
+   Output Parameter:
+.  force - PETSC_TRUE requires at least one iteration.
+
+.keywords: SNES, nonlinear, set, convergence, tolerances
+
+.seealso: SNESSetForceIteration(), SNESSetTrustRegionTolerance(), SNESSetDivergenceTolerance()
+@*/
+PetscErrorCode  SNESGetForceIteration(SNES snes,PetscBool *force)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
+  *force = snes->forceiteration;
+  PetscFunctionReturn(0);
+}
 
 /*@
    SNESSetTolerances - Sets various parameters used in convergence tests.
@@ -4103,14 +4125,15 @@ PetscErrorCode  SNESSolve(SNES snes,Vec b,Vec x)
         incall = PETSC_FALSE;
       }
       /* Adaptively refine the initial grid */
-      flg  = PETSC_FALSE;
-      ierr = PetscOptionsGetBool(NULL, ((PetscObject) snes)->prefix, "-snes_adapt_initial", &flg, NULL);CHKERRQ(ierr);
+      num  = 1;
+      ierr = PetscOptionsGetInt(NULL, ((PetscObject) snes)->prefix, "-snes_adapt_initial", &num, &flg);CHKERRQ(ierr);
       if (flg) {
         DMAdaptor adaptor;
 
         incall = PETSC_TRUE;
         ierr = DMAdaptorCreate(PETSC_COMM_WORLD, &adaptor);CHKERRQ(ierr);
         ierr = DMAdaptorSetSolver(adaptor, snes);CHKERRQ(ierr);
+        ierr = DMAdaptorSetSequenceLength(adaptor, num);CHKERRQ(ierr);
         ierr = DMAdaptorSetFromOptions(adaptor);CHKERRQ(ierr);
         ierr = DMAdaptorSetUp(adaptor);CHKERRQ(ierr);
         ierr = DMAdaptorAdapt(adaptor, x, DM_ADAPTATION_INITIAL, &dm, &x);CHKERRQ(ierr);

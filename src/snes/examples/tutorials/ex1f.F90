@@ -2,10 +2,12 @@
 !
 !  Description: Uses the Newton method to solve a two-variable system.
 !
-!/*T
+!!/*T
 !  Concepts: SNES^basic uniprocessor example
 !  Processors: 1
 !T*/
+
+
 !
 ! -----------------------------------------------------------------------
 
@@ -69,7 +71,7 @@
       endif
       call MPI_Comm_size(PETSC_COMM_WORLD,size,ierr)
       call MPI_Comm_rank(PETSC_COMM_WORLD,rank,ierr)
-      if (size .ne. 1) then SETERRA(PETSC_COMM_SELF,1,'Uniprocessor example')
+      if (size .ne. 1) then; SETERRA(PETSC_COMM_SELF,1,'Uniprocessor example'); endif
 
       i2  = 2
       i20 = 20
@@ -314,3 +316,11 @@
       flag = PETSC_FALSE
       return
       end
+
+!/*TEST
+!
+!   test:
+!      args: -ksp_gmres_cgs_refinement_type refine_always -snes_monitor_short
+!      requires: !single
+!
+!TEST*/

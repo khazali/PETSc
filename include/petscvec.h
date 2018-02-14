@@ -321,7 +321,6 @@ PETSC_EXTERN PetscErrorCode VecRegister(const char[],PetscErrorCode (*)(Vec));
 
 PETSC_EXTERN PetscErrorCode VecScatterCreate(Vec,IS,Vec,IS,VecScatter *);
 PETSC_EXTERN PetscErrorCode VecScatterCreateEmpty(MPI_Comm,VecScatter *);
-PETSC_EXTERN PetscErrorCode VecScatterCreateLocal(VecScatter,PetscInt,const PetscInt[],const PetscInt[],const PetscInt[],PetscInt,const PetscInt[],const PetscInt[],const PetscInt[],PetscInt);
 PETSC_EXTERN PetscErrorCode VecScatterBegin(VecScatter,Vec,Vec,InsertMode,ScatterMode);
 PETSC_EXTERN PetscErrorCode VecScatterEnd(VecScatter,Vec,Vec,InsertMode,ScatterMode);
 PETSC_EXTERN PetscErrorCode VecScatterDestroy(VecScatter*);
@@ -431,15 +430,17 @@ PETSC_EXTERN PetscErrorCode VecRestoreLocalVectorRead(Vec,Vec);
 
    Logically Collective on Vec
 
-   Input Parameter:
+   Input Parameters:
 +  x - the vector
 -  y - the second vector
 
-   Output Parameter:
+   Output Parameters:
 +  xv - location to put pointer to the first array
 -  yv - location to put pointer to the second array
 
    Level: developer
+
+   Not available from Fortran
 
 .seealso: VecGetArray(), VecGetArrayRead(), VecRestoreArrayPair()
 
@@ -463,15 +464,17 @@ PETSC_STATIC_INLINE PetscErrorCode VecGetArrayPair(Vec x,Vec y,PetscScalar **xv,
 
    Logically Collective on Vec
 
-   Input Parameter:
+   Input Parameters:
 +  x - the vector
 -  y - the second vector
 
-   Output Parameter:
+   Output Parameters:
 +  xv - location to put pointer to the first array
 -  yv - location to put pointer to the second array
 
    Level: developer
+
+   Not available from Fortran
 
 .seealso: VecGetArray(), VecGetArrayRead(), VecGetArrayPair()
 
@@ -532,12 +535,14 @@ PETSC_EXTERN PetscErrorCode VecScatterCreateToZero(Vec,VecScatter*,Vec*);
 PETSC_EXTERN PetscErrorCode ISComplementVec(IS,Vec,IS*);
 PETSC_EXTERN PetscErrorCode VecPow(Vec, PetscScalar);
 PETSC_EXTERN PetscErrorCode VecMedian(Vec, Vec, Vec, Vec);
+PETSC_EXTERN PetscErrorCode VecWhichInactive(Vec, Vec, Vec, Vec, PetscBool, IS *);
 PETSC_EXTERN PetscErrorCode VecWhichBetween(Vec, Vec, Vec, IS *);
 PETSC_EXTERN PetscErrorCode VecWhichBetweenOrEqual(Vec, Vec, Vec, IS *);
 PETSC_EXTERN PetscErrorCode VecWhichGreaterThan(Vec, Vec, IS * );
 PETSC_EXTERN PetscErrorCode VecWhichLessThan(Vec, Vec, IS *);
 PETSC_EXTERN PetscErrorCode VecWhichEqual(Vec, Vec, IS *);
 PETSC_EXTERN PetscErrorCode VecISAXPY(Vec, IS, PetscScalar,Vec);
+PETSC_EXTERN PetscErrorCode VecISCopy(Vec, IS, ScatterMode, Vec);
 PETSC_EXTERN PetscErrorCode VecISSet(Vec,IS, PetscScalar);
 PETSC_EXTERN PetscErrorCode VecBoundGradientProjection(Vec, Vec, Vec, Vec, Vec);
 PETSC_EXTERN PetscErrorCode VecStepBoundInfo(Vec,Vec,Vec,Vec,PetscReal*, PetscReal*,PetscReal*);

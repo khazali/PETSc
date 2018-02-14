@@ -746,10 +746,10 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
         }
         ierr = ISGetSize(is_I,&n_internal);CHKERRQ(ierr);
         if (n_internal) { /* UMFPACK gives error with 0 sized problems */
-          MatSolverPackage solver=NULL;
-          ierr = PCFactorGetMatSolverPackage(origpc,(const MatSolverPackage*)&solver);CHKERRQ(ierr);
+          MatSolverType solver = NULL;
+          ierr = PCFactorGetMatSolverType(origpc,(MatSolverType*)&solver);CHKERRQ(ierr);
           if (solver) {
-            ierr = PCFactorSetMatSolverPackage(schurpc,solver);CHKERRQ(ierr);
+            ierr = PCFactorSetMatSolverType(schurpc,solver);CHKERRQ(ierr);
           }
         }
         ierr = KSPSetUp(schurksp);CHKERRQ(ierr);
@@ -918,7 +918,7 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
 #else
     ierr = PetscStrcpy(solver,MATSOLVERMKL_PARDISO);CHKERRQ(ierr);
 #endif
-    ierr = PetscOptionsGetString(NULL,((PetscObject)A)->prefix,"-mat_solver_package",solver,256,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsGetString(NULL,((PetscObject)A)->prefix,"-mat_solver_type",solver,256,NULL);CHKERRQ(ierr);
 
     /* when using the benign subspace trick, the local Schur complements are SPD */
     if (benign_trick) sub_schurs->is_posdef = PETSC_TRUE;
@@ -963,6 +963,9 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
       /* we can reuse the solvers if we are not using the economic version */
       reuse_solvers = (PetscBool)(reuse_solvers && !economic);
       factor_workaround = (PetscBool)(reuse_solvers && factor_workaround);
+      if (!sub_schurs->is_posdef && factor_workaround && compute_Stilda && size_active_schur)
+        reuse_solvers = factor_workaround = PETSC_FALSE;
+
       solver_S = PETSC_TRUE;
 
       /* update the Schur complement with the change of basis on the pressures */
@@ -1013,7 +1016,16 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
           ierr = ISRestoreIndices(is_p_r[i],&idxs);CHKERRQ(ierr);
           ierr = VecDestroy(&benign_AIIm1_ones);CHKERRQ(ierr);
         }
-  /* restore defaults */
+        if (!S_lower_triangular) { /* I need to expand the upper triangular data (column oriented) */
+          PetscInt k,j;
+          for (k=0;k<size_schur;k++) {
+            for (j=k;j<size_schur;j++) {
+              S_data[j*size_schur+k] = PetscConj(S_data[k*size_schur+j]);
+            }
+          }
+        }
+
+        /* restore defaults */
 #if defined(PETSC_HAVE_MUMPS)
         ierr = MatMumpsSetIcntl(F,26,-1);CHKERRQ(ierr);
 #endif
@@ -1146,10 +1158,10 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
     /* matrices for deluxe scaling and adaptive selection */
     if (compute_Stilda) {
       if (!sub_schurs->sum_S_Ej_tilda_all) {
-        ierr = MatDuplicate(sub_schurs->sum_S_Ej_all,MAT_SHARE_NONZERO_PATTERN,&sub_schurs->sum_S_Ej_tilda_all);CHKERRQ(ierr);
+        ierr = MatDuplicate(sub_schurs->S_Ej_all,MAT_SHARE_NONZERO_PATTERN,&sub_schurs->sum_S_Ej_tilda_all);CHKERRQ(ierr);
       }
       if (!sub_schurs->sum_S_Ej_inv_all && deluxe) {
-        ierr = MatDuplicate(sub_schurs->sum_S_Ej_all,MAT_SHARE_NONZERO_PATTERN,&sub_schurs->sum_S_Ej_inv_all);CHKERRQ(ierr);
+        ierr = MatDuplicate(sub_schurs->S_Ej_all,MAT_SHARE_NONZERO_PATTERN,&sub_schurs->sum_S_Ej_inv_all);CHKERRQ(ierr);
       }
     }
 
@@ -1180,7 +1192,7 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
       /* insert S_E values */
       for (j=0;j<subset_size;j++) dummy_idx[j] = cum+j;
       if (sub_schurs->change) {
-        Mat            change_sub,SEj,T;
+        Mat change_sub,SEj,T;
 
         /* change basis */
         ierr = KSPGetOperators(sub_schurs->change[i],&change_sub,NULL);CHKERRQ(ierr);
