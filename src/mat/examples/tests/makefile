@@ -801,4 +801,8 @@ ex214: ex214.o chkopts
 	-${CLINKER} -o ex214 ex214.o ${PETSC_MAT_LIB}
 	${RM} ex214.o
 
+ex216: ex216.o chkopts
+	-${CLINKER} -o ex216 ex216.o ${PETSC_MAT_LIB}
+	${RM} ex216.o
+
 include ${PETSC_DIR}/lib/petsc/conf/test

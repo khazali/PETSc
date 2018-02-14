@@ -16,6 +16,65 @@ PETSC_INTERN PetscErrorCode MatConvert_AIJ_HYPRE(Mat,MatType,MatReuse,Mat*);
 PETSC_INTERN PetscErrorCode MatConvert_SeqBAIJ_SeqBAIJMKL(Mat,const MatType,MatReuse,Mat*);
 #endif
 
+/*@C
+      MatBAIJBlockDiagonalScale - left block diagonal scales a BAIJ matrix
+
+  Input Parameter.
+.    A - the BAIJ matrix
+
+  Level: intermediate
+
+.seealso: MatDiagonalScale()
+@*/
+PetscErrorCode MatBAIJBlockDiagonalScale(Mat A,const PetscScalar *bdiag)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscUseMethod(A,"MatBAIJBlockDiagonalScale_C",(Mat,const PetscScalar*),(A,bdiag));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#define PetscKernel_A_gets_W_times_A_3(A,B,W) 0; \
+  { \
+    PetscMemcpy(B,A,9*sizeof(MatScalar)); \
+    A[0] = W[0]*B[0] + W[3]*B[1] + W[6]*B[2]; \
+    A[1] = W[1]*B[0] + W[4]*B[1] + W[7]*B[2]; \
+    A[2] = W[2]*B[0] + W[5]*B[1] + W[8]*B[2]; \
+    A[3] = W[0]*B[3] + W[3]*B[4] + W[6]*B[5]; \
+    A[4] = W[1]*B[3] + W[4]*B[4] + W[7]*B[5]; \
+    A[5] = W[2]*B[3] + W[5]*B[4] + W[8]*B[5]; \
+    A[6] = W[0]*B[6] + W[3]*B[7] + W[6]*B[8]; \
+    A[7] = W[1]*B[6] + W[4]*B[7] + W[7]*B[8]; \
+    A[8] = W[2]*B[6] + W[5]*B[7] + W[8]*B[8]; \
+  }
+
+PetscErrorCode MatBAIJBlockDiagonalScale_SeqBAIJ(Mat A,const PetscScalar *bdiag)
+{
+  Mat_SeqBAIJ       *a = (Mat_SeqBAIJ*) A->data;
+  PetscErrorCode    ierr;
+  PetscInt          i,j,bs = A->rmap->bs,mbs = a->mbs,*ai = a->i,bs2 = bs*bs,nz = 0;
+  PetscScalar       *aa = a->a,*work;
+
+  PetscFunctionBegin;
+  ierr = PetscMalloc1(bs2,&work);CHKERRQ(ierr);
+  switch (bs) {
+  case 3:
+    for (i=0; i<mbs; i++) {
+      for (j=ai[i]; j<ai[i+1]; j++) {
+        PetscKernel_A_gets_W_times_A_3((aa+nz),work,(bdiag+i*bs2));
+        nz += bs2;
+      }
+    }
+    break;
+  default:
+    SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_SUP,"Blocksize not yet implemented");
+    break;
+  }
+  ierr = PetscFree(work);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 PetscErrorCode MatInvertBlockDiagonal_SeqBAIJ(Mat A,const PetscScalar **values)
 {
   Mat_SeqBAIJ    *a = (Mat_SeqBAIJ*) A->data;
@@ -3044,6 +3103,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_SeqBAIJ(Mat B)
   B->info.nz_unneeded   = (PetscReal)b->maxnz*b->bs2;
   b->keepnonzeropattern = PETSC_FALSE;
 
+  ierr = PetscObjectComposeFunction((PetscObject)B,"MatBAIJBlockDiagonalScale_C",MatBAIJBlockDiagonalScale_SeqBAIJ);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatInvertBlockDiagonal_C",MatInvertBlockDiagonal_SeqBAIJ);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatStoreValues_C",MatStoreValues_SeqBAIJ);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatRetrieveValues_C",MatRetrieveValues_SeqBAIJ);CHKERRQ(ierr);

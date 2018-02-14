@@ -1008,6 +1008,7 @@ PETSC_EXTERN PetscErrorCode MatCreateSeqAIJWithArrays(MPI_Comm,PetscInt,PetscInt
 PETSC_EXTERN PetscErrorCode MatCreateSeqBAIJWithArrays(MPI_Comm,PetscInt,PetscInt,PetscInt,PetscInt[],PetscInt[],PetscScalar[],Mat*);
 PETSC_EXTERN PetscErrorCode MatCreateSeqSBAIJWithArrays(MPI_Comm,PetscInt,PetscInt,PetscInt,PetscInt[],PetscInt[],PetscScalar[],Mat*);
 PETSC_EXTERN PetscErrorCode MatCreateSeqAIJFromTriple(MPI_Comm,PetscInt,PetscInt,PetscInt[],PetscInt[],PetscScalar[],Mat*,PetscInt,PetscBool);
+PETSC_EXTERN PetscErrorCode MatBAIJBlockDiagonalScale(Mat,const PetscScalar*);
 
 #define MAT_SKIP_ALLOCATION -4
 
