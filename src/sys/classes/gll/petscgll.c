@@ -523,7 +523,7 @@ out=(A x B) u= A u B '
 
 */
 
-PetscErrorCode Petsctensorprod(PetscInt Nl, PetscScalar *A, PetscScalar *u, PetscScalar *B, PetscScalar *out) 
+PetscErrorCode Petsctensorprod(PetscInt Nl, PetscScalar *A, const PetscScalar *u, PetscScalar *B, PetscScalar *out) 
   {                                             
     PetscScalar   *Work;                        
     PetscErrorCode ierr; 

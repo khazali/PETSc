@@ -52,4 +52,4 @@ PETSC_EXTERN PetscErrorCode PetscGLLElementAdvectionCreate(PetscGLL*,PetscReal**
 PETSC_EXTERN PetscErrorCode PetscGLLElementAdvectionDestroy(PetscGLL*,PetscReal***);
 PETSC_EXTERN PetscErrorCode PetscGLLElementMassCreate(PetscGLL*,PetscReal***);
 PETSC_EXTERN PetscErrorCode PetscGLLElementMassDestroy(PetscGLL*,PetscReal***);
-PETSC_EXTERN PetscErrorCode Petsctensorprod(PetscInt Nl,PetscScalar *A,PetscScalar *u, PetscScalar *B, PetscScalar *out);
+PETSC_EXTERN PetscErrorCode Petsctensorprod(PetscInt Nl,PetscScalar *A,const PetscScalar *u, PetscScalar *B, PetscScalar *out);
