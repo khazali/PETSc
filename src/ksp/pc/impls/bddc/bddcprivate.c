@@ -1,6 +1,7 @@
 #include <../src/mat/impls/aij/seq/aij.h>
 #include <../src/ksp/pc/impls/bddc/bddc.h>
 #include <../src/ksp/pc/impls/bddc/bddcprivate.h>
+#include <../src/mat/impls/dense/seq/dense.h>
 #include <petscdmplex.h>
 #include <petscblaslapack.h>
 #include <petsc/private/sfimpl.h>
@@ -1779,7 +1780,7 @@ boundary:
         IS                     corners;
         Mat                    lA;
 
-        ierr = DMDAGetElementsCornersIS(dm,&corners);CHKERRQ(ierr);
+        ierr = DMDAGetSubdomainCornersIS(dm,&corners);CHKERRQ(ierr);
         ierr = MatISGetLocalMat(pc->pmat,&lA);CHKERRQ(ierr);
         ierr = MatGetLocalToGlobalMapping(lA,&l2l,NULL);CHKERRQ(ierr);
         ierr = MatISRestoreLocalMat(pc->pmat,&lA);CHKERRQ(ierr);
@@ -1793,12 +1794,12 @@ boundary:
           ierr = PetscMalloc1(n,&idxout);CHKERRQ(ierr);
           ierr = ISLocalToGlobalMappingApplyBlock(l2l,n,idx,idxout);CHKERRQ(ierr);
           ierr = ISRestoreIndices(corners,&idx);CHKERRQ(ierr);
-          ierr = DMDARestoreElementsCornersIS(dm,&corners);CHKERRQ(ierr);
+          ierr = DMDARestoreSubdomainCornersIS(dm,&corners);CHKERRQ(ierr);
           ierr = ISCreateBlock(PetscObjectComm((PetscObject)pc),bs,n,idxout,PETSC_OWN_POINTER,&corners);CHKERRQ(ierr);
           ierr = PCBDDCAddPrimalVerticesLocalIS(pc,corners);CHKERRQ(ierr);
           ierr = ISDestroy(&corners);CHKERRQ(ierr);
         } else { /* not from DMDA */
-          ierr = DMDARestoreElementsCornersIS(dm,&corners);CHKERRQ(ierr);
+          ierr = DMDARestoreSubdomainCornersIS(dm,&corners);CHKERRQ(ierr);
         }
       }
     }
@@ -3671,7 +3672,7 @@ PetscErrorCode PCBDDCSetUpCorrection(PC pc, PetscScalar **coarse_submat_vals_n)
 
   /* Precompute stuffs needed for preprocessing and application of BDDC*/
   if (n_constraints) {
-    Mat         M1,M2,M3,C_B;
+    Mat         M3,C_B;
     IS          is_aux;
     PetscScalar *array,*array2;
 
@@ -3798,23 +3799,17 @@ PetscErrorCode PCBDDCSetUpCorrection(PC pc, PetscScalar **coarse_submat_vals_n)
     ierr = ISDestroy(&is_aux);CHKERRQ(ierr);
     /* Assemble explicitly S_CC = ( C_{CR} A_{RR}^{-1} C^T_{CR} )^{-1}  */
     ierr = MatScale(M3,m_one);CHKERRQ(ierr);
-    ierr = MatDuplicate(M3,MAT_DO_NOT_COPY_VALUES,&M1);CHKERRQ(ierr);
-    ierr = MatDuplicate(M3,MAT_DO_NOT_COPY_VALUES,&M2);CHKERRQ(ierr);
     if (isCHOL) {
       ierr = MatCholeskyFactor(M3,NULL,NULL);CHKERRQ(ierr);
     } else {
       ierr = MatLUFactor(M3,NULL,NULL,NULL);CHKERRQ(ierr);
     }
-    ierr = VecSet(pcbddc->vec1_C,one);CHKERRQ(ierr);
-    ierr = MatDiagonalSet(M2,pcbddc->vec1_C,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = MatMatSolve(M3,M2,M1);CHKERRQ(ierr);
-    ierr = MatDestroy(&M2);CHKERRQ(ierr);
-    ierr = MatDestroy(&M3);CHKERRQ(ierr);
+    ierr = MatSeqDenseInvertFactors_Private(M3);CHKERRQ(ierr);
     /* Assemble local_auxmat1 = S_CC*C_{CB} needed by BDDC application in KSP and in preproc */
-    ierr = MatMatMult(M1,C_B,MAT_INITIAL_MATRIX,PETSC_DEFAULT,&pcbddc->local_auxmat1);CHKERRQ(ierr);
+    ierr = MatMatMult(M3,C_B,MAT_INITIAL_MATRIX,PETSC_DEFAULT,&pcbddc->local_auxmat1);CHKERRQ(ierr);
     ierr = MatDestroy(&C_B);CHKERRQ(ierr);
-    ierr = MatCopy(M1,S_CC,SAME_NONZERO_PATTERN);CHKERRQ(ierr); /* S_CC can have a different LDA, MatMatSolve doesn't support it */
-    ierr = MatDestroy(&M1);CHKERRQ(ierr);
+    ierr = MatCopy(M3,S_CC,SAME_NONZERO_PATTERN);CHKERRQ(ierr); /* S_CC can have a different LDA, MatMatSolve doesn't support it */
+    ierr = MatDestroy(&M3);CHKERRQ(ierr);
   }
 
   /* Get submatrices from subdomain matrix */
@@ -3990,6 +3985,7 @@ PetscErrorCode PCBDDCSetUpCorrection(PC pc, PetscScalar **coarse_submat_vals_n)
         Mat tA_RVT,A_RVT;
 
         if (!pcbddc->symmetric_primal) {
+          /* A_RV already scaled by -1 */
           ierr = MatTranspose(A_RV,MAT_INITIAL_MATRIX,&A_RVT);CHKERRQ(ierr);
         } else {
           restoreavr = PETSC_TRUE;
@@ -4489,6 +4485,16 @@ PetscErrorCode PCBDDCSetUpCorrection(PC pc, PetscScalar **coarse_submat_vals_n)
       ierr = PetscObjectSetName((PetscObject)pcbddc->coarse_psi_D,"psi_D");CHKERRQ(ierr);
       ierr = MatView(pcbddc->coarse_psi_D,viewer);CHKERRQ(ierr);
     }
+    ierr = PetscObjectSetName((PetscObject)pcbddc->local_mat,"A");CHKERRQ(ierr);
+    ierr = MatView(pcbddc->local_mat,viewer);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)pcbddc->ConstraintMatrix,"C");CHKERRQ(ierr);
+    ierr = MatView(pcbddc->ConstraintMatrix,viewer);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)pcis->is_I_local,"I");CHKERRQ(ierr);
+    ierr = ISView(pcis->is_I_local,viewer);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)pcis->is_B_local,"B");CHKERRQ(ierr);
+    ierr = ISView(pcis->is_B_local,viewer);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)pcbddc->is_R_local,"R");CHKERRQ(ierr);
+    ierr = ISView(pcbddc->is_R_local,viewer);CHKERRQ(ierr);
     ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
   }
 #endif
@@ -5301,6 +5307,16 @@ PetscErrorCode  PCBDDCApplyInterfacePreconditioner(PC pc, PetscBool applytranspo
   const PetscScalar zero = 0.0;
 
   PetscFunctionBegin;
+  PetscBool ss = PETSC_FALSE;
+  ierr = PetscOptionsGetBool(NULL,NULL,"-swap",&ss,NULL);CHKERRQ(ierr);
+  if (ss) {
+  Mat save_B = pcbddc->coarse_phi_B;
+  pcbddc->coarse_phi_B = pcbddc->coarse_psi_B;
+  pcbddc->coarse_psi_B = save_B;
+  Mat save_D = pcbddc->coarse_phi_D;
+  pcbddc->coarse_phi_D = pcbddc->coarse_psi_D;
+  pcbddc->coarse_psi_D = save_D;
+  }
   /* Application of PSI^T or PHI^T (depending on applytranspose, see comment above) */
   if (!pcbddc->benign_apply_coarse_only) {
     if (applytranspose) {
@@ -5417,6 +5433,14 @@ PetscErrorCode  PCBDDCApplyInterfacePreconditioner(PC pc, PetscBool applytranspo
     } else {
       ierr = MatMult(pcbddc->coarse_phi_B,pcbddc->vec1_P,pcis->vec1_B);CHKERRQ(ierr);
     }
+  }
+  if (ss) {
+  Mat save_B = pcbddc->coarse_phi_B;
+  pcbddc->coarse_phi_B = pcbddc->coarse_psi_B;
+  pcbddc->coarse_psi_B = save_B;
+  Mat save_D = pcbddc->coarse_phi_D;
+  pcbddc->coarse_phi_D = pcbddc->coarse_psi_D;
+  pcbddc->coarse_psi_D = save_D;
   }
   PetscFunctionReturn(0);
 }
