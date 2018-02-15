@@ -145,7 +145,7 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
   PetscReal       *v0, *J, *invJ, detJ, *coords;
   PetscInt        *cellid;
   const PetscReal *qpoints;
-  PetscInt         Ncell, c, Nq, q, dim, N;
+  PetscInt         Ncell, cell, Nq, Np, q, p, dim, N;
   PetscErrorCode   ierr;
 
   PetscFunctionBeginUser;
@@ -172,13 +172,13 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
     ierr = DMSwarmSetLocalSizes(*sw, Ncell * Nq, 0);CHKERRQ(ierr);
   } else {
     N = PetscCeilReal(PetscPowReal((double)user->particles_cell,1./(double)dim));
-    user->particles_cell = PetscPowReal((double)N,(double)dim); /* change p/c to make fit */
+    Np = user->particles_cell = PetscPowReal((double)N,(double)dim); /* change p/c to make fit */
     if (user->particles_cell<1) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "user->particles_cell<1 ???????");
     q = Ncell * user->particles_cell;
     ierr = DMSwarmSetLocalSizes(*sw, q, 0);CHKERRQ(ierr);
-    ierr = MPI_Allreduce(&q,&c,1,MPIU_INT,MPI_SUM,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
-    user->factor = 1/(double)c;
-    PetscPrintf(PetscObjectComm((PetscObject) dm),"CreateParticles: particles/cell=%D, N=%D, number local particels=%D, number global=%D\n",user->particles_cell,N,q,c);
+    ierr = MPI_Allreduce(&q,&cell,1,MPIU_INT,MPI_SUM,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
+    user->factor = 1/(double)cell;
+    PetscPrintf(PetscObjectComm((PetscObject) dm),"CreateParticles: particles/cell=%D, N=%D, number local particels=%D, number global=%D\n",user->particles_cell,N,q,cell);
   }
   ierr = DMSetFromOptions(*sw);CHKERRQ(ierr);
 
@@ -186,32 +186,32 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
   ierr = DMSwarmGetField(*sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
   ierr = DMSwarmGetField(*sw, DMSwarmPICField_cellid, NULL, NULL, (void **) &cellid);CHKERRQ(ierr);
   ierr = DMSwarmGetField(*sw, "f_q", NULL, NULL, (void **) &vals);CHKERRQ(ierr);
-  for (c = 0; c < Ncell; ++c) {
-    ierr = DMPlexComputeCellGeometryFEM(dm, c, NULL, v0, J, invJ, &detJ);CHKERRQ(ierr);
+  for (cell = 0; cell < Ncell; ++cell) {
+    ierr = DMPlexComputeCellGeometryFEM(dm, cell, NULL, v0, J, invJ, &detJ);CHKERRQ(ierr);
     if (user->particles_cell == 0) { /* make particles at quadrature points */
       for (q = 0; q < Nq; ++q) {
-        cellid[c*Nq + q] = c;
-        CoordinatesRefToReal(dim, dim, v0, J, &qpoints[q*dim], &coords[(c*Nq + q)*dim]);
-        linear(dim, 0.0, &coords[(c*Nq + q)*dim], 1, &vals[c*Nq + q], NULL);
+        cellid[cell*Nq + q] = cell;
+        CoordinatesRefToReal(dim, dim, v0, J, &qpoints[q*dim], &coords[(cell*Nq + q)*dim]);
+        linear(dim, 0.0, &coords[(cell*Nq + q)*dim], 1, &vals[cell*Nq + q], NULL);
       }
     } else { /* make particles in cells with regular grid, assumes tensor elements! (-1,1)^D*/
       PetscInt  ii,jj,kk;
       PetscReal ecoord[3];
-      const PetscInt Np = user->particles_cell;
       const PetscReal dx = 2./(PetscReal)N, dx_2 = dx/2;
-      for ( q = kk = 0; kk < (dim==3 ? N : 1) ; kk++) {
+      for ( p = kk = 0; kk < (dim==3 ? N : 1) ; kk++) {
         ecoord[2] = kk*dx - 1 + dx_2;
         for ( ii = 0; ii < N ; ii++) {
           ecoord[0] = ii*dx - 1 + dx_2;
-          for ( jj = 0; jj < N ; jj++, q++) {
+          for ( jj = 0; jj < N ; jj++, p++) {
             ecoord[1] = jj*dx - 1 + dx_2;
-            cellid[c*Np + q] = c;
-            CoordinatesRefToReal(dim, dim, v0, J, ecoord, &coords[(c*Np + q)*dim]);
-            sinx(dim, 0.0, &coords[(c*Np + q)*dim], 1, &vals[c*Np + q], user);
-PetscPrintf(PETSC_COMM_WORLD, "CreateParticles: %D) (%D,%D,%D) q=%D v0:%e,%e; element coord:%e,%e, real coord[%D]:%e,%e, factor=%e, val=%e\n",c,ii,jj,kk,q,v0[0],v0[1],ecoord[0],ecoord[1],(c*Np + q)*dim,coords[(c*Np + q)*dim],coords[(c*Np + q)*dim+1],user->factor,vals[c*Np + q]);
+            cellid[cell*Np + p] = cell;
+            CoordinatesRefToReal(dim, dim, v0, J, ecoord, &coords[(cell*Np + p)*dim]);
+            sinx(dim, 0.0, &coords[(cell*Np + p)*dim], 1, &vals[cell*Np + p], user);
+PetscPrintf(PETSC_COMM_WORLD, "CreateParticles: %D) (%D,%D,%D) p=%D v0:%e,%e; element coord:%e,%e, real coord[%D]:%e,%e, factor=%e, val=%e\n",cell,ii,jj,kk,p,v0[0],v0[1],ecoord[0],ecoord[1],(cell*Np + p)*dim,coords[(cell*Np + p)*dim],coords[(cell*Np + p)*dim+1],user->factor,vals[cell*Np + p]);
           }
         }
       }
+      if (p!=Np) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "p!=Np");
     }
   }
   ierr = DMSwarmRestoreField(*sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
