@@ -2785,8 +2785,8 @@ PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt 
    */
   nsendsshm = 0;
   slenshm   = 0;
-  if (use_intranodeshmem) {
 #if defined(PETSC_HAVE_MPI_COMM_TYPE_SHARED)
+  if (use_intranodeshmem) {
     MPI_Status send_status;
     PetscMPIInt index,n;
     for (i=0; i<nsends; i++) {
@@ -2795,8 +2795,9 @@ PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt 
       ierr = PetscShmcommGlobalToLocal(pshmcomm,sendto[index],&jj);CHKERRQ(ierr);
       if (jj != MPI_PROC_NULL) { nsendsshm++; slenshm += n; }
     }
+  } else
 #endif
-  } else { ierr = MPI_Waitall(nsends,sreqs,MPI_STATUS_IGNORE);CHKERRQ(ierr); }
+  { ierr = MPI_Waitall(nsends,sreqs,MPI_STATUS_IGNORE);CHKERRQ(ierr); }
 
   ierr = MPI_Waitall(nrecvs,rreqs,MPI_STATUS_IGNORE);CHKERRQ(ierr);
 
