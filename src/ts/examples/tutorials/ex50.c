@@ -553,6 +553,7 @@ PetscErrorCode RHSMatrixAdvectiongllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void
       requires: !complex
 
     test:
+      suffix: 1
       requires: !single
 
     test:
