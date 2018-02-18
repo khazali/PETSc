@@ -397,25 +397,13 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
   PetscSubcomm           subcomm;
   PetscMPIInt            color,rank;
   MPI_Comm               comm_n;
-  PetscBool              deluxe = PETSC_TRUE, use_getr = PETSC_FALSE;
+  PetscBool              deluxe = PETSC_TRUE;
+  PetscBool              use_potr = PETSC_FALSE, use_sytr = PETSC_FALSE;
   PetscErrorCode         ierr;
 
   PetscFunctionBegin;
   ierr = MatDestroy(&sub_schurs->A);CHKERRQ(ierr);
   ierr = MatDestroy(&sub_schurs->S);CHKERRQ(ierr);
-
-#if defined(PETSC_USE_COMPLEX)
-  sub_schurs->is_hermitian = PETSC_FALSE; /* Hermitian Cholesky is not supported by PETSc and external packages */
-#else
-  sub_schurs->is_hermitian = PETSC_TRUE;
-#endif
-  sub_schurs->is_posdef    = PETSC_TRUE;
-  if (benign_trick) sub_schurs->is_posdef = PETSC_FALSE;
-  ierr = PetscOptionsBegin(PetscObjectComm((PetscObject)sub_schurs->l2gmap),sub_schurs->prefix,"BDDC sub_schurs options","PC");CHKERRQ(ierr);
-  ierr = PetscOptionsBool("-sub_schurs_hermitian","Hermitian problem",NULL,sub_schurs->is_hermitian,&sub_schurs->is_hermitian,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsBool("-sub_schurs_posdef","Positive definite problem",NULL,sub_schurs->is_posdef,&sub_schurs->is_posdef,NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsEnd();CHKERRQ(ierr);
-
   /* convert matrix if needed */
   if (Ain) {
     PetscBool isseqaij;
@@ -436,6 +424,8 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
 
   /* preliminary checks */
   if (!sub_schurs->schur_explicit && compute_Stilda) SETERRQ(PetscObjectComm((PetscObject)sub_schurs->l2gmap),PETSC_ERR_SUP,"Adaptive selection of constraints requires MUMPS and/or MKL_PARDISO");
+
+  if (benign_trick) sub_schurs->is_posdef = PETSC_FALSE;
 
   /* restrict work on active processes */
   color = 0;
@@ -592,18 +582,25 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
     local_size += subset_size;
   }
 
-  /* allocate extra workspace needed only for GETRI */
+  /* allocate extra workspace needed only for GETRI or SYTRF */
+  use_potr = PETSC_TRUE;
   if (local_size && !benign_trick && (!sub_schurs->is_hermitian || !sub_schurs->is_posdef)) {
     PetscScalar  lwork,dummyscalar = 0.;
     PetscBLASInt dummyint = 0;
 
-    use_getr = PETSC_TRUE;
+    use_potr = PETSC_FALSE;
+    use_sytr = sub_schurs->is_hermitian;
     B_lwork = -1;
     ierr = PetscBLASIntCast(local_size,&B_N);CHKERRQ(ierr);
     ierr = PetscFPTrapPush(PETSC_FP_TRAP_OFF);CHKERRQ(ierr);
-    PetscStackCallBLAS("LAPACKgetri",LAPACKgetri_(&B_N,&dummyscalar,&B_N,&dummyint,&lwork,&B_lwork,&B_ierr));
+    if (use_sytr) {
+      PetscStackCallBLAS("LAPACKsytrf",LAPACKsytrf_("L",&B_N,&dummyscalar,&B_N,&dummyint,&lwork,&B_lwork,&B_ierr));
+      if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in query to SYTRF Lapack routine %d",(int)B_ierr);
+    } else {
+      PetscStackCallBLAS("LAPACKgetri",LAPACKgetri_(&B_N,&dummyscalar,&B_N,&dummyint,&lwork,&B_lwork,&B_ierr));
+      if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in query to GETRI Lapack routine %d",(int)B_ierr);
+    }
     ierr = PetscFPTrapPop();CHKERRQ(ierr);
-    if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in query to GETRI Lapack routine %d",(int)B_ierr);
     ierr = PetscBLASIntCast((PetscInt)PetscRealPart(lwork),&B_lwork);CHKERRQ(ierr);
     ierr = PetscMalloc2(B_lwork,&Bwork,B_N,&pivots);CHKERRQ(ierr);
   } else {
@@ -781,7 +778,6 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
     PetscInt    n,n_I,*dummy_idx,size_schur,size_active_schur,cum,cum2;
     PetscBool   economic,solver_S,S_lower_triangular = PETSC_FALSE;
     PetscBool   schur_has_vertices,factor_workaround;
-    char        solver[256];
 
     /* get sizes */
     n_I = 0;
@@ -845,7 +841,6 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
     }
     size_schur = cum - n_I;
     ierr = ISCreateGeneral(PETSC_COMM_SELF,cum,all_local_idx_N,PETSC_OWN_POINTER,&is_A_all);CHKERRQ(ierr);
-    /* get working mat (TODO: factorize without actually permuting)  */
     if (cum == n) {
       ierr = ISSetPermutation(is_A_all);CHKERRQ(ierr);
       ierr = MatPermute(sub_schurs->A,is_A_all,is_A_all,&A);CHKERRQ(ierr);
@@ -913,23 +908,17 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
     ierr = MatSetOption(A,MAT_SYMMETRIC,sub_schurs->is_hermitian);CHKERRQ(ierr);
     ierr = MatSetOption(A,MAT_HERMITIAN,sub_schurs->is_hermitian);CHKERRQ(ierr);
     ierr = MatSetOption(A,MAT_SPD,sub_schurs->is_posdef);CHKERRQ(ierr);
-#if defined(PETSC_HAVE_MUMPS)
-    ierr = PetscStrcpy(solver,MATSOLVERMUMPS);CHKERRQ(ierr);
-#else
-    ierr = PetscStrcpy(solver,MATSOLVERMKL_PARDISO);CHKERRQ(ierr);
-#endif
-    ierr = PetscOptionsGetString(NULL,((PetscObject)A)->prefix,"-mat_solver_type",solver,256,NULL);CHKERRQ(ierr);
 
     /* when using the benign subspace trick, the local Schur complements are SPD */
     if (benign_trick) sub_schurs->is_posdef = PETSC_TRUE;
 
-    if (n_I) { /* TODO add ordering from options */
+    if (n_I) {
       IS is_schur;
 
       if (sub_schurs->is_hermitian && sub_schurs->is_posdef) {
-        ierr = MatGetFactor(A,solver,MAT_FACTOR_CHOLESKY,&F);CHKERRQ(ierr);
+        ierr = MatGetFactor(A,sub_schurs->mat_solver_type,MAT_FACTOR_CHOLESKY,&F);CHKERRQ(ierr);
       } else {
-        ierr = MatGetFactor(A,solver,MAT_FACTOR_LU,&F);CHKERRQ(ierr);
+        ierr = MatGetFactor(A,sub_schurs->mat_solver_type,MAT_FACTOR_LU,&F);CHKERRQ(ierr);
       }
       ierr = MatSetErrorIfFailure(A,PETSC_TRUE);CHKERRQ(ierr);
 
@@ -1215,14 +1204,25 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
         ierr = MatSetValues(sub_schurs->S_Ej_all,subset_size,dummy_idx,subset_size,dummy_idx,work,INSERT_VALUES);CHKERRQ(ierr);
         /* if adaptivity is requested, invert S_E blocks */
         if (compute_Stilda) {
+          PetscInt k;
+
           ierr = PetscBLASIntCast(subset_size,&B_N);CHKERRQ(ierr);
           ierr = PetscFPTrapPush(PETSC_FP_TRAP_OFF);CHKERRQ(ierr);
-          if (!use_getr) { /* TODO add sytrf/i for symmetric non hermitian */
-            PetscInt k;
+          if (use_potr) {
             PetscStackCallBLAS("LAPACKpotrf",LAPACKpotrf_("L",&B_N,work,&B_N,&B_ierr));
             if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in POTRF Lapack routine %d",(int)B_ierr);
             PetscStackCallBLAS("LAPACKpotri",LAPACKpotri_("L",&B_N,work,&B_N,&B_ierr));
             if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in POTRI Lapack routine %d",(int)B_ierr);
+            for (k=0;k<subset_size;k++) {
+              for (j=k;j<subset_size;j++) {
+                work[j*subset_size+k] = work[k*subset_size+j];
+              }
+            }
+          } else if (use_sytr) {
+            PetscStackCallBLAS("LAPACKsytrf",LAPACKsytrf_("L",&B_N,work,&B_N,pivots,Bwork,&B_lwork,&B_ierr));
+            if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in SYTRF Lapack routine %d",(int)B_ierr);
+            PetscStackCallBLAS("LAPACKsytri",LAPACKsytri_("L",&B_N,work,&B_N,pivots,Bwork,&B_ierr));
+            if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in SYTRI Lapack routine %d",(int)B_ierr);
             for (k=0;k<subset_size;k++) {
               for (j=k;j<subset_size;j++) {
                 work[j*subset_size+k] = work[k*subset_size+j];
@@ -1277,7 +1277,7 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
             PetscScalar *data;
             PetscInt     nd = 0;
 
-            if (!sub_schurs->is_posdef) {
+            if (!use_potr) {
               SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Factor update not yet implemented for non SPD matrices");
             }
             ierr = MatFactorGetSchurComplement(F,&S_all_inv,NULL);CHKERRQ(ierr);
@@ -1355,11 +1355,16 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
           ierr = MatDenseGetArray(S_all_inv,&S_data);CHKERRQ(ierr);
           ierr = PetscBLASIntCast(size_schur,&B_N);CHKERRQ(ierr);
           ierr = PetscFPTrapPush(PETSC_FP_TRAP_OFF);CHKERRQ(ierr);
-          if (!use_getr) { /* TODO add sytrf/i for symmetric non hermitian */
+          if (use_potr) {
             PetscStackCallBLAS("LAPACKpotrf",LAPACKpotrf_("L",&B_N,S_data,&B_N,&B_ierr));
             if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in POTRF Lapack routine %d",(int)B_ierr);
             PetscStackCallBLAS("LAPACKpotri",LAPACKpotri_("L",&B_N,S_data,&B_N,&B_ierr));
             if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in POTRI Lapack routine %d",(int)B_ierr);
+          } else if (use_sytr) {
+            PetscStackCallBLAS("LAPACKsytrf",LAPACKsytrf_("L",&B_N,S_data,&B_N,pivots,Bwork,&B_lwork,&B_ierr));
+            if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in SYTRF Lapack routine %d",(int)B_ierr);
+            PetscStackCallBLAS("LAPACKsytri",LAPACKsytri_("L",&B_N,S_data,&B_N,pivots,Bwork,&B_ierr));
+            if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in SYTRI Lapack routine %d",(int)B_ierr);
           } else {
             PetscStackCallBLAS("LAPACKgetrf",LAPACKgetrf_(&B_N,&B_N,S_data,&B_N,pivots,&B_ierr));
             if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in GETRF Lapack routine %d",(int)B_ierr);
@@ -1447,7 +1452,7 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
 
         if (!solver_S) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"This should not happen");
         ierr = MatFactorGetSchurComplement(F,&S_tmp,NULL);CHKERRQ(ierr);
-        if (sub_schurs->is_posdef) {
+        if (use_potr) {
           PetscScalar *data;
 
           ierr = MatDenseGetArray(S_tmp,&data);CHKERRQ(ierr);
@@ -1552,10 +1557,22 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
         ierr = ISGetLocalSize(sub_schurs->is_subs[i],&subset_size);CHKERRQ(ierr);
         ierr = PetscBLASIntCast(subset_size,&B_N);CHKERRQ(ierr);
         ierr = PetscFPTrapPush(PETSC_FP_TRAP_OFF);CHKERRQ(ierr);
-        PetscStackCallBLAS("LAPACKpotrf",LAPACKpotrf_("L",&B_N,array+cum,&B_N,&B_ierr));
-        if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in POTRF Lapack routine %d",(int)B_ierr);
-        PetscStackCallBLAS("LAPACKpotri",LAPACKpotri_("L",&B_N,array+cum,&B_N,&B_ierr));
-        if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in POTRI Lapack routine %d",(int)B_ierr);
+        if (use_potr) {
+          PetscStackCallBLAS("LAPACKpotrf",LAPACKpotrf_("L",&B_N,array+cum,&B_N,&B_ierr));
+          if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in POTRF Lapack routine %d",(int)B_ierr);
+          PetscStackCallBLAS("LAPACKpotri",LAPACKpotri_("L",&B_N,array+cum,&B_N,&B_ierr));
+          if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in POTRI Lapack routine %d",(int)B_ierr);
+        } else if (use_sytr) {
+          PetscStackCallBLAS("LAPACKsytrf",LAPACKsytrf_("L",&B_N,array+cum,&B_N,pivots,Bwork,&B_lwork,&B_ierr));
+          if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in SYTRF Lapack routine %d",(int)B_ierr);
+          PetscStackCallBLAS("LAPACKsytri",LAPACKsytri_("L",&B_N,array+cum,&B_N,pivots,Bwork,&B_ierr));
+          if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in SYTRI Lapack routine %d",(int)B_ierr);
+        } else {
+          PetscStackCallBLAS("LAPACKgetrf",LAPACKgetrf_(&B_N,&B_N,array+cum,&B_N,pivots,&B_ierr));
+          if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in GETRF Lapack routine %d",(int)B_ierr);
+          PetscStackCallBLAS("LAPACKgetri",LAPACKgetri_(&B_N,array+cum,&B_N,pivots,Bwork,&B_lwork,&B_ierr));
+          if (B_ierr) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_LIB,"Error in GETRI Lapack routine %d",(int)B_ierr);
+        }
         ierr = PetscFPTrapPop();CHKERRQ(ierr);
         cum += subset_size*subset_size;
       }
@@ -1577,11 +1594,11 @@ PetscErrorCode PCBDDCSubSchursSetUp(PCBDDCSubSchurs sub_schurs, Mat Ain, Mat Sin
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode PCBDDCSubSchursInit(PCBDDCSubSchurs sub_schurs, IS is_I, IS is_B, PCBDDCGraph graph, ISLocalToGlobalMapping BtoNmap, PetscBool copycc)
+PetscErrorCode PCBDDCSubSchursInit(PCBDDCSubSchurs sub_schurs, const char* prefix, IS is_I, IS is_B, PCBDDCGraph graph, ISLocalToGlobalMapping BtoNmap, PetscBool copycc)
 {
   IS              *faces,*edges,*all_cc,vertices;
   PetscInt        i,n_faces,n_edges,n_all_cc;
-  PetscBool       is_sorted;
+  PetscBool       is_sorted,ispetsc;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
@@ -1622,13 +1639,27 @@ PetscErrorCode PCBDDCSubSchursInit(PCBDDCSubSchurs sub_schurs, IS is_I, IS is_B,
   ierr = PCBDDCGraphGetDirichletDofsB(graph,&sub_schurs->is_dir);CHKERRQ(ierr);
 
   /* Determine if MatFactor can be used */
-  sub_schurs->schur_explicit = PETSC_FALSE;
+  ierr = PetscStrallocpy(prefix,&sub_schurs->prefix);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_MUMPS)
-  sub_schurs->schur_explicit = PETSC_TRUE;
+  ierr = PetscStrncpy(sub_schurs->mat_solver_type,MATSOLVERMUMPS,64);CHKERRQ(ierr);
+#elif defined(PETSC_HAVE_MKL_PARDISO)
+  ierr = PetscStrncpy(sub_schurs->mat_solver_type,MATSOLVERMKL_PARDISO,64);CHKERRQ(ierr);
+#else
+  ierr = PetscStrncpy(sub_schurs->mat_solver_type,MATSOLVERPETSC,64);CHKERRQ(ierr);
 #endif
-#if defined(PETSC_HAVE_MKL_PARDISO)
-  sub_schurs->schur_explicit = PETSC_TRUE;
+#if defined(PETSC_USE_COMPLEX)
+  sub_schurs->is_hermitian = PETSC_FALSE; /* Hermitian Cholesky is not supported by PETSc and external packages */
+#else
+  sub_schurs->is_hermitian = PETSC_TRUE;
 #endif
+  sub_schurs->is_posdef    = PETSC_TRUE;
+  ierr = PetscOptionsBegin(PetscObjectComm((PetscObject)graph->l2gmap),sub_schurs->prefix,"BDDC sub_schurs options","PC");CHKERRQ(ierr);
+  ierr = PetscOptionsString("-sub_schurs_mat_solver_type","Specific direct solver to use",NULL,sub_schurs->mat_solver_type,sub_schurs->mat_solver_type,64,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-sub_schurs_hermitian","Hermitian problem",NULL,sub_schurs->is_hermitian,&sub_schurs->is_hermitian,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-sub_schurs_posdef","Positive definite problem",NULL,sub_schurs->is_posdef,&sub_schurs->is_posdef,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsEnd();CHKERRQ(ierr);
+  ierr = PetscStrcmp(sub_schurs->mat_solver_type,MATSOLVERPETSC,&ispetsc);CHKERRQ(ierr);
+  sub_schurs->schur_explicit = !ispetsc;
 
   ierr = PetscObjectReference((PetscObject)is_I);CHKERRQ(ierr);
   sub_schurs->is_I = is_I;
@@ -1672,6 +1703,7 @@ PetscErrorCode PCBDDCSubSchursReset(PCBDDCSubSchurs sub_schurs)
 
   PetscFunctionBegin;
   if (!sub_schurs) PetscFunctionReturn(0);
+  ierr = PetscFree(sub_schurs->prefix);CHKERRQ(ierr);
   ierr = MatDestroy(&sub_schurs->A);CHKERRQ(ierr);
   ierr = MatDestroy(&sub_schurs->S);CHKERRQ(ierr);
   ierr = ISDestroy(&sub_schurs->is_I);CHKERRQ(ierr);
