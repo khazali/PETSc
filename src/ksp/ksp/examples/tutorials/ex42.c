@@ -1900,6 +1900,16 @@ static PetscErrorCode solve_stokes_3d_coupled(PetscInt mx,PetscInt my,PetscInt m
   }
 
   {
+    PC        pc;
+    PetscBool same = PETSC_FALSE;
+    ierr = KSPGetPC(ksp_S,&pc);CHKERRQ(ierr);
+    ierr = PetscObjectTypeCompare((PetscObject)pc,PCBDDC,&same);CHKERRQ(ierr);
+    if (same) {
+      ierr = KSPSetOperators(ksp_S,A,A);CHKERRQ(ierr);
+    }
+  }
+
+  {
     PetscBool stokes_monitor = PETSC_FALSE;
     ierr = PetscOptionsGetBool(NULL,NULL,"-stokes_ksp_monitor_blocks",&stokes_monitor,0);CHKERRQ(ierr);
     if (stokes_monitor) {
@@ -1980,9 +1990,13 @@ int main(int argc,char **args)
       args: -stokes_ksp_monitor_short -stokes_ksp_converged_reason -stokes_pc_type redundant -stokes_redundant_pc_type lu
 
    test:
-      requires: !single
       suffix: bddc_stokes
       nsize: 6
-      args: -stokes_ksp_monitor_short -stokes_ksp_converged_reason -stokes_pc_type bddc -dm_mat_type is -stokes_pc_bddc_dirichlet_pc_type svd -stokes_pc_bddc_neumann_pc_type svd -stokes_pc_bddc_coarse_redundant_pc_type svd
+      args: -mx 5 -my 4 -mz 3 -stokes_ksp_monitor_short -stokes_ksp_converged_reason -stokes_pc_type bddc -dm_mat_type is -stokes_pc_bddc_dirichlet_pc_type svd -stokes_pc_bddc_neumann_pc_type svd -stokes_pc_bddc_coarse_redundant_pc_type svd
+
+   test:
+      suffix: bddc_stokes_deluxe
+      nsize: 6
+      args: -mx 5 -my 4 -mz 3 -stokes_ksp_monitor_short -stokes_ksp_converged_reason -stokes_pc_type bddc -dm_mat_type is -stokes_pc_bddc_dirichlet_pc_type svd -stokes_pc_bddc_neumann_pc_type svd -stokes_pc_bddc_coarse_redundant_pc_type svd -stokes_pc_bddc_use_deluxe_scaling -stokes_sub_schurs_posdef 0 -stokes_sub_schurs_hermitian -stokes_sub_schurs_mat_solver_type petsc
 
 TEST*/
