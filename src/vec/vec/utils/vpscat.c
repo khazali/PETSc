@@ -169,6 +169,59 @@ PetscErrorCode VecScatterLocalOptimize_Private(VecScatter scatter,VecScatter_Seq
 }
 
 /* --------------------------------------------------------------------------------------*/
+/*
+    Special optimization to see if the local part of the scatter is actually
+    made of copies. The scatter routines call PetscMemcpy() instead.
+
+*/
+PetscErrorCode VecScatterLocalOptimizeCopy_Private(VecScatter scatter,VecScatter_Seq_General *to,VecScatter_Seq_General *from,PetscInt bs)
+{
+  PetscInt       n = to->n,i,*to_slots = to->vslots,*from_slots = from->vslots;
+  PetscInt       j,n_copies;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  /* count number of copies, which runs from 1 to n */
+  n_copies = 1;
+  for (i=0; i<n-1; i++) {
+    if (to_slots[i]+bs != to_slots[i+1] || from_slots[i]+bs != from_slots[i+1]) n_copies++;
+  }
+
+  /* if average copy size >= 256 bytes, use memcpy instead of load/store */
+  if (bs*n*sizeof(PetscScalar)/n_copies >= 256) {
+    ierr = PetscMalloc2(n_copies,&to->copy_starts,n_copies,&to->copy_lengths);CHKERRQ(ierr);
+    ierr = PetscMalloc2(n_copies,&from->copy_starts,n_copies,&from->copy_lengths);CHKERRQ(ierr);
+
+    /* set up copy_starts[] & copy_lenghts[] of to and from */
+    to->copy_starts[0]   = to_slots[0];
+    from->copy_starts[0] = from_slots[0];
+
+    if (n_copies != 1) { /* one copy is trival and we can save some work */
+      j = 0;  /* j-th copy */
+      for (i=0; i<n-1; i++) {
+        if (to_slots[i]+bs != to_slots[i+1] || from_slots[i]+bs != from_slots[i+1]) {
+          to->copy_lengths[j]    = sizeof(PetscScalar)*(to_slots[i]+bs-to->copy_starts[j]);
+          from->copy_lengths[j]  = sizeof(PetscScalar)*(from_slots[i]+bs-from->copy_starts[j]);
+          to->copy_starts[j+1]   = to_slots[i+1];
+          from->copy_starts[j+1] = from_slots[i+1];
+          j++;
+        }
+      }
+    }
+
+    /* set up copy_lengths[] of the last copy */
+    to->copy_lengths[n_copies-1]   = sizeof(PetscScalar)*(to_slots[n-1]+bs-to->copy_starts[n_copies-1]);
+    from->copy_lengths[n_copies-1] = sizeof(PetscScalar)*(from_slots[n-1]+bs-from->copy_starts[n_copies-1]);
+
+    to->made_of_copies   = PETSC_TRUE;
+    from->made_of_copies = PETSC_TRUE;
+    to->n_copies         = n_copies;
+    from->n_copies       = n_copies;
+    ierr = PetscInfo1(scatter,"Local scatter is made of %D copies, optimizing for it\n", n_copies);CHKERRQ(ierr);
+  }
+
+  PetscFunctionReturn(0);
+}
 
 /* -------------------------------------------------------------------------------------*/
 PetscErrorCode VecScatterDestroy_PtoP(VecScatter ctx)
@@ -286,61 +339,6 @@ PetscErrorCode VecScatterDestroy_PtoP(VecScatter ctx)
   ierr = PetscFree4(from->values,from->indices,from->starts,from->procs);CHKERRQ(ierr);
   ierr = PetscFree(from);CHKERRQ(ierr);
   ierr = PetscFree(to);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-/* --------------------------------------------------------------------------------------*/
-/*
-    Special optimization to see if the local part of the scatter is actually
-    made of copies. The scatter routines call PetscMemcpy() instead.
-
-*/
-PetscErrorCode VecScatterLocalOptimizeCopy_Private(VecScatter scatter,VecScatter_Seq_General *to,VecScatter_Seq_General *from,PetscInt bs)
-{
-  PetscInt       n = to->n,i,*to_slots = to->vslots,*from_slots = from->vslots;
-  PetscInt       j,n_copies;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  /* count number of copies, which runs from 1 to n */
-  n_copies = 1;
-  for (i=0; i<n-1; i++) {
-    if (to_slots[i]+bs != to_slots[i+1] || from_slots[i]+bs != from_slots[i+1]) n_copies++;
-  }
-
-  /* if average copy size >= 256 bytes, use memcpy instead of load/store */
-  if (bs*n*sizeof(PetscScalar)/n_copies >= 256) {
-    ierr = PetscMalloc2(n_copies,&to->copy_starts,n_copies,&to->copy_lengths);CHKERRQ(ierr);
-    ierr = PetscMalloc2(n_copies,&from->copy_starts,n_copies,&from->copy_lengths);CHKERRQ(ierr);
-
-    /* set up copy_starts[] & copy_lenghts[] of to and from */
-    to->copy_starts[0]   = to_slots[0];
-    from->copy_starts[0] = from_slots[0];
-
-    if (n_copies != 1) { /* one copy is trival and we can save some work */
-      j = 0;  /* j-th copy */
-      for (i=0; i<n-1; i++) {
-        if (to_slots[i]+bs != to_slots[i+1] || from_slots[i]+bs != from_slots[i+1]) {
-          to->copy_lengths[j]    = sizeof(PetscScalar)*(to_slots[i]+bs-to->copy_starts[j]);
-          from->copy_lengths[j]  = sizeof(PetscScalar)*(from_slots[i]+bs-from->copy_starts[j]);
-          to->copy_starts[j+1]   = to_slots[i+1];
-          from->copy_starts[j+1] = from_slots[i+1];
-          j++;
-        }
-      }
-    }
-
-    /* set up copy_lengths[] of the last copy */
-    to->copy_lengths[n_copies-1]   = sizeof(PetscScalar)*(to_slots[n-1]+bs-to->copy_starts[n_copies-1]);
-    from->copy_lengths[n_copies-1] = sizeof(PetscScalar)*(from_slots[n-1]+bs-from->copy_starts[n_copies-1]);
-
-    to->made_of_copies   = PETSC_TRUE;
-    from->made_of_copies = PETSC_TRUE;
-    to->n_copies         = n_copies;
-    from->n_copies       = n_copies;
-    ierr = PetscInfo1(scatter,"Local scatter is made of %D copies, optimizing for it\n", n_copies);CHKERRQ(ierr);
-  }
-
   PetscFunctionReturn(0);
 }
 
