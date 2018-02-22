@@ -89,13 +89,13 @@ PetscErrorCode PETSCMAP1(VecScatterBegin)(VecScatter ctx,Vec xin,Vec yin,InsertM
         }
 #endif
       } else if (nsends) {
-        ierr = MPI_Startall_isend(to->starts[to->n],nsends,swaits);CHKERRQ(ierr);
+        ierr = MPI_Startall_isend(to->starts[to->n]*bs,nsends,swaits);CHKERRQ(ierr);
       }
     } else {
       /* this version packs and sends one at a time */
       for (i=0; i<nsends; i++) {
         PETSCMAP1(Pack)(sstarts[i+1]-sstarts[i],indices + sstarts[i],xv,svalues + bs*sstarts[i],bs);
-        ierr = MPI_Start_isend(sstarts[i+1]-sstarts[i],swaits+i);CHKERRQ(ierr);
+        ierr = MPI_Start_isend((sstarts[i+1]-sstarts[i])*bs,swaits+i);CHKERRQ(ierr);
       }
     }
 
