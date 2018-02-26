@@ -250,14 +250,13 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
     PetscObject      obj;
     PetscQuadrature  quad;
     PetscReal       *Bfine, *Bcoarse, *xx, *xi;
-    PetscInt         Nq, Nc, i, pp;
-    const PetscReal *qweights;
+    PetscInt         Nc, i, pp;
 
     ierr = PetscDSGetDiscretization(prob, field, &obj);CHKERRQ(ierr);
     ierr = PetscFEGetDefaultTabulation((PetscFE) obj, &Bfine, NULL, NULL);CHKERRQ(ierr);
 
     ierr = PetscFEGetQuadrature((PetscFE) obj, &quad);CHKERRQ(ierr); /* do we need to do all this to get Nc??? */
-    ierr = PetscQuadratureGetData(quad, NULL, &Nc, &Nq, NULL, &qweights);CHKERRQ(ierr);
+    ierr = PetscQuadratureGetData(quad, NULL, &Nc, NULL, NULL, NULL);CHKERRQ(ierr);
     if(Nc!=1) SETERRQ1(PetscObjectComm((PetscObject) dmf), PETSC_ERR_SUP, "Nc!=1 ????????", Nf);
 
     /* get coordinates */
@@ -292,7 +291,7 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
       for (i = 0; i < numFIndices; ++i) {
         /* ierr = PetscMemzero(elemMat, numCIndices * sizeof(PetscScalar));CHKERRQ(ierr); */
         for (p = 0; p < numCIndices; ++p) {
-          elemMat[p] = Bcoarse[p*numFIndices + i] * detJ; /* how to use qweights here??? */
+          elemMat[p] = Bcoarse[p*numFIndices + i] * detJ;
           /* for (c = 0; c < Nc; ++c) elemMat[j] += Bfine[(j*numFIndices + i)*Nc + c]*qweights[j*Nc + c]*detJ; */
         }
         /* Update interpolator */
