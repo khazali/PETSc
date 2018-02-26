@@ -21,7 +21,7 @@ VALGRIND_ARGS=--dsymutil=yes --leak-check=full --gen-suppressions=no --num-calle
 VAL=$(VALGRIND_PROG) $(VALGRIND_ARGS)
 
 run:
-	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge 4 -simplex 0 -dm_plex_separate_marker 0 -dm_view -sw_view -pc_type lu -petscspace_order 2 -particles_cell 1
+	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge 4 -simplex 0 -dm_plex_separate_marker 0 -dm_view -sw_view -pc_type lu -petscspace_order 3 -particles_cell 16
 #-particle_mass_mat_view ascii:f.m:ascii_matlab -petscspace_order 1 -petscfe_default_quadrature_order 1
 
 val:

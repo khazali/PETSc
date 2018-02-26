@@ -250,13 +250,14 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
     PetscObject      obj;
     PetscQuadrature  quad;
     PetscReal       *Bfine, *Bcoarse, *xx, *xi;
-    PetscInt         Nc, i, pp;
+    PetscInt         Nq, Nc, i, pp;
+    const PetscReal *qweights;
 
     ierr = PetscDSGetDiscretization(prob, field, &obj);CHKERRQ(ierr);
     ierr = PetscFEGetDefaultTabulation((PetscFE) obj, &Bfine, NULL, NULL);CHKERRQ(ierr);
 
     ierr = PetscFEGetQuadrature((PetscFE) obj, &quad);CHKERRQ(ierr); /* do we need to do all this to get Nc??? */
-    ierr = PetscQuadratureGetData(quad, NULL, &Nc, NULL, NULL, NULL);CHKERRQ(ierr);
+    ierr = PetscQuadratureGetData(quad, NULL, &Nc, &Nq, NULL, &qweights);CHKERRQ(ierr);
     if(Nc!=1) SETERRQ1(PetscObjectComm((PetscObject) dmf), PETSC_ERR_SUP, "Nc!=1 ????????", Nf);
 
     /* get coordinates */
@@ -267,7 +268,7 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
       PetscInt          *findices,   *cindices;
       PetscInt           numFIndices, numCIndices;
 
-      ierr = DMPlexComputeCellGeometryFEM(dmf, cell, NULL, v0, J, invJ, &detJ);CHKERRQ(ierr);
+      ierr = DMPlexComputeCellGeometryFEM(dmf, cell, NULL, v0, J, invJ, &detJ);CHKERRQ(ierr); /* affine */
       ierr = DMPlexGetClosureIndices(dmf, fsection, globalFSection, cell, &numFIndices, &findices, NULL);CHKERRQ(ierr);
       ierr = DMSwarmSortGetNumberOfPointsPerCell(dmc, cell, &Np);CHKERRQ(ierr);
       ierr = DMSwarmSortGetPointsPerCell(dmc, cell, &numCIndices, &cindices);CHKERRQ(ierr);
@@ -278,12 +279,12 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
       for (p = 0; p < numCIndices; ++p, ++pp) {
         PetscScalar *pxx = &xx[pp*dim], *pxi = &xi[p*dim];
         for (d = 0; d < dim; ++d) {
-          pxi[d] = -1.;
+          pxi[d] = -1;
           for (e = 0; e < dim; ++e) {
             pxi[d] += invJ[d*dim+e]*(pxx[e] - v0[e]); /* map to element space */
           }
         }
-PetscPrintf(PETSC_COMM_SELF,"\t\tDMSwarmComputeMassMatrix_Private cell %D, part %D: xx=%e,%e elem x=%e,%e\n",cell,p,pxx[0],pxx[1],pxi[0],pxi[1]);
+        /* PetscPrintf(PETSC_COMM_SELF,"\t\tDMSwarmComputeMassMatrix_Private cell %D, part %D: xx=%e,%e elem x=%e,%e; numFIndices=%D; numCIndices=%D\n",cell,p,pxx[0],pxx[1],pxi[0],pxi[1],numFIndices,numCIndices); */
       }
       ierr = PetscFEGetTabulation((PetscFE) obj, Np, xi, &Bcoarse, NULL, NULL);CHKERRQ(ierr);
       ierr = PetscFree(xi);CHKERRQ(ierr);
@@ -291,10 +292,11 @@ PetscPrintf(PETSC_COMM_SELF,"\t\tDMSwarmComputeMassMatrix_Private cell %D, part 
       for (i = 0; i < numFIndices; ++i) {
         /* ierr = PetscMemzero(elemMat, numCIndices * sizeof(PetscScalar));CHKERRQ(ierr); */
         for (p = 0; p < numCIndices; ++p) {
-          elemMat[p] = Bcoarse[p*numFIndices + i]; /* Just the transpose of B? */
+          elemMat[p] = Bcoarse[p*numFIndices + i] * detJ; /* how to use qweights here??? */
+          /* for (c = 0; c < Nc; ++c) elemMat[j] += Bfine[(j*numFIndices + i)*Nc + c]*qweights[j*Nc + c]*detJ; */
         }
         /* Update interpolator */
-        if (1) {ierr = DMPrintCellMatrix(cell, name, 1, numCIndices, elemMat);CHKERRQ(ierr);}
+        if (0) {ierr = DMPrintCellMatrix(cell, name, 1, numCIndices, elemMat);CHKERRQ(ierr);}
         ierr = MatSetValues(mass, 1, &findices[i], numCIndices, cindices, elemMat, ADD_VALUES);CHKERRQ(ierr);
       }
       ierr = PetscFree(cindices);CHKERRQ(ierr);

@@ -207,7 +207,7 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
             cellid[cell*Np + p] = cell;
             CoordinatesRefToReal(dim, dim, v0, J, ecoord, &coords[(cell*Np + p)*dim]);
             sinx(dim, 0.0, &coords[(cell*Np + p)*dim], 1, &vals[cell*Np + p], user);
-PetscPrintf(PETSC_COMM_WORLD, "CreateParticles: %D) (%D,%D,%D) p=%D v0:%e,%e; element coord:%e,%e, real coord[%D]:%e,%e, factor=%e, val=%e\n",cell,ii,jj,kk,p,v0[0],v0[1],ecoord[0],ecoord[1],(cell*Np + p)*dim,coords[(cell*Np + p)*dim],coords[(cell*Np + p)*dim+1],user->factor,vals[cell*Np + p]);
+            /* PetscPrintf(PETSC_COMM_WORLD, "CreateParticles: %D) (%D,%D,%D) p=%D v0:%e,%e; element coord:%e,%e, real coord[%D]:%e,%e, factor=%e, val=%e\n",cell,ii,jj,kk,p,v0[0],v0[1],ecoord[0],ecoord[1],(cell*Np + p)*dim,coords[(cell*Np + p)*dim],coords[(cell*Np + p)*dim+1],user->factor,vals[cell*Np + p]); */
           }
         }
       }
