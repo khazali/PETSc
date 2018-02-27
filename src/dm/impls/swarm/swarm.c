@@ -274,6 +274,7 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
       if(Np!=numCIndices) SETERRQ2(PetscObjectComm((PetscObject) dmf), PETSC_ERR_SUP, "Np!=numCIndices %D %D",Np,numCIndices);
       if(totDim!=numFIndices) SETERRQ2(PetscObjectComm((PetscObject) dmf), PETSC_ERR_SUP, "totDim!=numFIndices %D %D",totDim,numFIndices);
       ierr = PetscMalloc1(dim*numCIndices, &xi);CHKERRQ(ierr);
+      /* PetscPrintf(PETSC_COMM_SELF,"\t\tDMSwarmComputeMassMatrix_Private cell %D, part |J|=%g\n",cell,detJ); */
       /* apply xi = J^-1 * (x - v0) */
       for (p = 0; p < numCIndices; ++p, ++pp) {
         PetscScalar *pxx = &xx[pp*dim], *pxi = &xi[p*dim];

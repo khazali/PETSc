@@ -16,7 +16,7 @@ typedef struct {
   PetscInt  particles_cell;
   /* geometry  */
   PetscReal      domain_lo[3], domain_hi[3];
-  DMBoundaryType periodicity[3];        /* The domain periodicity */
+  DMBoundaryType boundary[3];        /* The domain boundary */
   /* test */
   PetscInt       k;
   PetscReal      factor;                /* cache for scaling */
@@ -35,9 +35,9 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->domain_hi[0]  = 2*PETSC_PI;
   options->domain_hi[1]  = 1.0;
   options->domain_hi[2]  = 1.0;
-  options->periodicity[0]= DM_BOUNDARY_NONE;
-  options->periodicity[1]= DM_BOUNDARY_PERIODIC; /* could use Neumann */
-  options->periodicity[2]= DM_BOUNDARY_PERIODIC;
+  options->boundary[0]= DM_BOUNDARY_NONE;
+  options->boundary[1]= DM_BOUNDARY_PERIODIC; /* could use Neumann */
+  options->boundary[2]= DM_BOUNDARY_NONE;
   options->particles_cell = 0; /* > 0 for grid of particles, 0 for quadrature points */
   options->k = 1;
   ierr = PetscStrcpy(options->mshNam, "");CHKERRQ(ierr);
@@ -55,15 +55,15 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ii = options->dim;
   ierr = PetscOptionsRealArray("-domain_lo", "Domain size", "ex48.c", options->domain_lo, &ii, NULL);CHKERRQ(ierr);
   ii = options->dim;
-  bd = options->periodicity[0];
-  ierr = PetscOptionsEList("-x_periodicity", "The x-boundary periodicity", "ex48.c", DMBoundaryTypes, 5, DMBoundaryTypes[options->periodicity[0]], &bd, NULL);CHKERRQ(ierr);
-  options->periodicity[0] = (DMBoundaryType) bd;
-  bd = options->periodicity[1];
-  ierr = PetscOptionsEList("-y_periodicity", "The y-boundary periodicity", "ex48.c", DMBoundaryTypes, 5, DMBoundaryTypes[options->periodicity[1]], &bd, NULL);CHKERRQ(ierr);
-  options->periodicity[1] = (DMBoundaryType) bd;
-  bd = options->periodicity[2];
-  ierr = PetscOptionsEList("-z_periodicity", "The z-boundary periodicity", "ex48.c", DMBoundaryTypes, 5, DMBoundaryTypes[options->periodicity[2]], &bd, NULL);CHKERRQ(ierr);
-  options->periodicity[2] = (DMBoundaryType) bd;
+  bd = options->boundary[0];
+  ierr = PetscOptionsEList("-x_boundary", "The x-boundary", "ex48.c", DMBoundaryTypes, 5, DMBoundaryTypes[options->boundary[0]], &bd, NULL);CHKERRQ(ierr);
+  options->boundary[0] = (DMBoundaryType) bd;
+  bd = options->boundary[1];
+  ierr = PetscOptionsEList("-y_boundary", "The y-boundary", "ex48.c", DMBoundaryTypes, 5, DMBoundaryTypes[options->boundary[1]], &bd, NULL);CHKERRQ(ierr);
+  options->boundary[1] = (DMBoundaryType) bd;
+  bd = options->boundary[2];
+  ierr = PetscOptionsEList("-z_boundary", "The z-boundary", "ex48.c", DMBoundaryTypes, 5, DMBoundaryTypes[options->boundary[2]], &bd, NULL);CHKERRQ(ierr);
+  options->boundary[2] = (DMBoundaryType) bd;
 
   ierr = PetscOptionsEnd();
 
@@ -80,7 +80,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, DM *dm, AppCtx *user)
   if (flag) {
     PetscInt faces[3];
     faces[0] = user->nbrVerEdge-1; faces[1] = user->nbrVerEdge-1; faces[2] = user->nbrVerEdge-1;
-    ierr = DMPlexCreateBoxMesh(comm, user->dim, user->simplex, faces, user->domain_lo, user->domain_hi, user->periodicity, PETSC_TRUE, dm);CHKERRQ(ierr);
+    ierr = DMPlexCreateBoxMesh(comm, user->dim, user->simplex, faces, user->domain_lo, user->domain_hi, user->boundary, PETSC_TRUE, dm);CHKERRQ(ierr);
   } else {
     ierr = DMPlexCreateFromFile(comm, user->mshNam, PETSC_TRUE, dm);CHKERRQ(ierr);
     ierr = DMGetDimension(*dm, &user->dim);CHKERRQ(ierr);
@@ -113,7 +113,7 @@ static PetscErrorCode linear(PetscInt dim, PetscReal time, const PetscReal x[], 
 static PetscErrorCode sinx(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar *u, void *a_ctx)
 {
   AppCtx *ctx = (AppCtx*)a_ctx;
-  u[0] = sin(x[0]*ctx->k) * ctx->factor;
+  u[0] = sin(x[0]*ctx->k);
   return 0;
 }
 
@@ -177,8 +177,9 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
     q = Ncell * user->particles_cell;
     ierr = DMSwarmSetLocalSizes(*sw, q, 0);CHKERRQ(ierr);
     ierr = MPI_Allreduce(&q,&cell,1,MPIU_INT,MPI_SUM,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
-    user->factor = 1/(double)cell;
-    PetscPrintf(PetscObjectComm((PetscObject) dm),"CreateParticles: particles/cell=%D, N=%D, number local particels=%D, number global=%D\n",user->particles_cell,N,q,cell);
+    /* should there be some sort of normalizing factor? */
+    user->factor = 1; // (user->domain_hi[0]-user->domain_lo[0])*(user->domain_hi[1]-user->domain_lo[1])/(double)cell;
+    PetscPrintf(PetscObjectComm((PetscObject) dm),"CreateParticles: particles/cell=%D, N=%D, number local particels=%D, number global=%D, weight factor %g\n",user->particles_cell,N,q,cell,user->factor);
   }
   ierr = DMSetFromOptions(*sw);CHKERRQ(ierr);
 
@@ -194,7 +195,7 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
         CoordinatesRefToReal(dim, dim, v0, J, &qpoints[q*dim], &coords[(cell*Nq + q)*dim]);
         linear(dim, 0.0, &coords[(cell*Nq + q)*dim], 1, &vals[cell*Nq + q], NULL);
       }
-    } else { /* make particles in cells with regular grid, assumes tensor elements! (-1,1)^D*/
+    } else { /* make particles in cells with regular grid, assumes tensor elements (-1,1)^D*/
       PetscInt  ii,jj,kk;
       PetscReal ecoord[3];
       const PetscReal dx = 2./(PetscReal)N, dx_2 = dx/2;
@@ -207,6 +208,7 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
             cellid[cell*Np + p] = cell;
             CoordinatesRefToReal(dim, dim, v0, J, ecoord, &coords[(cell*Np + p)*dim]);
             sinx(dim, 0.0, &coords[(cell*Np + p)*dim], 1, &vals[cell*Np + p], user);
+            vals[cell*Np + p] *= user->factor;
             /* PetscPrintf(PETSC_COMM_WORLD, "CreateParticles: %D) (%D,%D,%D) p=%D v0:%e,%e; element coord:%e,%e, real coord[%D]:%e,%e, factor=%e, val=%e\n",cell,ii,jj,kk,p,v0[0],v0[1],ecoord[0],ecoord[1],(cell*Np + p)*dim,coords[(cell*Np + p)*dim],coords[(cell*Np + p)*dim+1],user->factor,vals[cell*Np + p]); */
           }
         }
@@ -227,22 +229,24 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   AppCtx          *ctxs[1];
   KSP              ksp;
   Mat              mass;
-  Vec              u, rhs, uproj;
-  PetscReal        error;
+  Vec              u, rhs, uproj, uexact;
+  PetscReal        error,norm,normerr;
   PetscErrorCode   ierr;
-
+  PetscScalar      none = -1.0;
   PetscFunctionBeginUser;
   funcs[0] = (user->particles_cell == 0) ? linear : sinx;
   ctxs[0] = user;
 
   ierr = DMSwarmCreateGlobalVectorFromField(sw, "f_q", &u);CHKERRQ(ierr);
-  ierr = VecViewFromOptions(u, NULL, "-f_view");CHKERRQ(ierr);
+  ierr = PetscObjectViewFromOptions((PetscObject)u, NULL, "-f_view");CHKERRQ(ierr);
   ierr = DMGetGlobalVector(dm, &rhs);CHKERRQ(ierr);
   ierr = DMCreateMassMatrix(sw, dm, &mass);CHKERRQ(ierr);
   ierr = MatMult(mass, u, rhs);CHKERRQ(ierr);
+  ierr = VecDestroy(&u);CHKERRQ(ierr);
   ierr = MatViewFromOptions(mass, NULL, "-particle_mass_mat_view");CHKERRQ(ierr);
   ierr = MatDestroy(&mass);CHKERRQ(ierr);
-  ierr = VecDestroy(&u);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) rhs, "rhs");CHKERRQ(ierr);
+  ierr = PetscObjectViewFromOptions((PetscObject)rhs, NULL, "-vec_view");CHKERRQ(ierr);
 
   ierr = DMGetGlobalVector(dm, &uproj);CHKERRQ(ierr);
   ierr = DMCreateMatrix(dm, &mass);CHKERRQ(ierr);
@@ -253,13 +257,24 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
   ierr = KSPSolve(ksp, rhs, uproj);CHKERRQ(ierr);
   ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) uproj, "Full Projection");CHKERRQ(ierr);
-  ierr = VecViewFromOptions(uproj, NULL, "-proj_vec_view");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) uproj, "Projection");CHKERRQ(ierr);
+  ierr = PetscObjectViewFromOptions((PetscObject)uproj, NULL, "-vec_view");CHKERRQ(ierr);
   ierr = DMComputeL2Diff(dm, 0.0, funcs, (void**)ctxs, uproj, &error);CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_WORLD, "Projected L2 Error: %g\n", (double) error);CHKERRQ(ierr);
+  ierr = VecNorm(uproj, NORM_2, &norm);CHKERRQ(ierr);
+  ierr = DMCreateGlobalVector(dm, &uexact);CHKERRQ(ierr);
+  ierr = DMProjectFunction(dm, 0.0, funcs, (void**)ctxs, INSERT_ALL_VALUES, uexact);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) uexact, "exact");CHKERRQ(ierr);
+  ierr = PetscObjectViewFromOptions((PetscObject)uexact, NULL, "-vec_view");CHKERRQ(ierr);
+  ierr = VecAYPX(uexact,none,uproj);CHKERRQ(ierr); /* uexact = error function */
+  ierr = PetscObjectSetName((PetscObject) uexact, "error");CHKERRQ(ierr);
+  ierr = PetscObjectViewFromOptions((PetscObject)uexact, NULL, "-vec_view");CHKERRQ(ierr);
+  ierr = VecNorm(uexact, NORM_2, &normerr);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "Projected L2 Relative error = %g, relative discrete error = %g\n", (double) error/norm, (double) normerr/norm);CHKERRQ(ierr);
+
   ierr = MatDestroy(&mass);CHKERRQ(ierr);
   ierr = DMRestoreGlobalVector(dm, &rhs);CHKERRQ(ierr);
   ierr = DMRestoreGlobalVector(dm, &uproj);CHKERRQ(ierr);
+  ierr = VecDestroy(&uexact);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
